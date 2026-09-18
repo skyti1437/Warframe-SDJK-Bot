@@ -129,10 +129,19 @@ async def _run_one(obj, text: str, umo: str = "group://test"):
 
 
 class _StubEvent:
-    def __init__(self, umo: str):
+    """最小事件桩。
+
+    role="admin"：`.状态` 自 2026-09-18 起要求管理权限（它会列出本群订阅
+    明细），本测试要验证的是「出图形卡不崩」，所以按管理员身份调用。
+    """
+
+    def __init__(self, umo: str, role: str = "admin"):
         self.unified_msg_origin = umo
+        self.role = role
     def get_sender_name(self) -> str:
         return "tester"
+    def get_sender_id(self) -> str:
+        return "tester_id"
 
 
 FAILED: list[str] = []

@@ -340,23 +340,31 @@ check("截断提示不会把可掉落的藏起来（写明还有几把能掉落�
       str([x for x in _blines if x.startswith("※")]))
 
 # 全量：595 个部件的卡面都不能出现折行（注脚宽度按 25px 实测）
+# ★ 字体缺失时优雅跳过：开源包**不带** Noto 字库（40MB 会让 zip 超过插件市场
+#   16MB 上限，改为 scripts/fetch_font.py 按需下载）。少了这个判断，
+#   别人 clone 后跑测试会直接 OSError: cannot open resource。
 from PIL import ImageFont, ImageDraw, Image  # noqa: E402
-_nf = ImageFont.truetype(str(ROOT / "core" / "data" / "fonts"
-                             / "NotoSansCJK-Regular.ttc"), 25)
-_nd = ImageDraw.Draw(Image.new("RGB", (8, 8)))
-_over = []
-for _p, _orig in _inv.items():
-    _rows = [{"relic": o["relic"], "rarity": o["rarity"],
-              "state": "drop" if fmt.relic_en_key(o["relic"]) in _uv_keys
-              else "vaulted"} for o in _orig]
-    _t, _ls = fmt.fmt_relic_piece(_p, _rows, farm_hints=_hints)
-    for _ln in _ls:
-        if _ln.startswith("※"):
-            _w = _nd.textlength(_ln.lstrip("※").strip(), font=_nf)
-            if _w > 1500 - 178:
-                _over.append((_p, round(_w), _ln[:50]))
-check("全量 595 个部件：注脚没有一行会折行",
-      not _over, str(_over[:3]))
+_TTC = ROOT / "core" / "data" / "fonts" / "NotoSansCJK-Regular.ttc"
+if not _TTC.exists():
+    print("[SKIP] 未找到渲染字体（开源包默认不带）："
+          "跑 `python scripts/fetch_font.py` 可下载；"
+          "本次跳过「注脚折行宽度」断言（该断言依赖字体度量）")
+else:
+    _nf = ImageFont.truetype(str(_TTC), 25)
+    _nd = ImageDraw.Draw(Image.new("RGB", (8, 8)))
+    _over = []
+    for _p, _orig in _inv.items():
+        _rows = [{"relic": o["relic"], "rarity": o["rarity"],
+                  "state": "drop" if fmt.relic_en_key(o["relic"]) in _uv_keys
+                  else "vaulted"} for o in _orig]
+        _t, _ls = fmt.fmt_relic_piece(_p, _rows, farm_hints=_hints)
+        for _ln in _ls:
+            if _ln.startswith("※"):
+                _w = _nd.textlength(_ln.lstrip("※").strip(), font=_nf)
+                if _w > 1500 - 178:
+                    _over.append((_p, round(_w), _ln[:50]))
+    check("全量 595 个部件：注脚没有一行会折行",
+          not _over, str(_over[:3]))
 
 # ★★ 用户明确要的行为（2026-09-18）：「出库的时候另外两个多半入库了，到时候
 #   下面还是一个推荐，保持底下永远是出库的那个推荐刷新位置就行」。

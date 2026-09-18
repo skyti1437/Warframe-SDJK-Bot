@@ -1415,10 +1415,13 @@ class WarframeClient:
         txt = re.sub(r"<[^>]+>", "|", html)
         txt = txt.replace("&nbsp;", " ")
         txt = re.sub(r"\|+", "|", txt)
+        # ★ 安全审查（2026-09-18）：原写法 `(?:\s*\|)+\s*` 是「重复里嵌重复」
+        #   （\s* 在 + 里），属于灾难性回溯的典型形态 —— 输入是抓来的 wiki
+        #   页面，虽然来源可信，但没必要留这种模式。[\s|]+ 与它语义等价。
         pat = re.compile(
-            r"(Tenet \w+|Coda \w+)(?:\s*\|)+\s*"
+            r"(Tenet \w+|Coda \w+)[\s|]+"
             r"(Magnetic|Impact|Toxin|Cold|Heat|Electricity|Radiation)"
-            r"(?:\s*\|)+\s*([\d.]+)%")
+            r"[\s|]+([\d.]+)%")
         tenet: dict[str, tuple[str, float]] = {}
         coda: dict[str, tuple[str, float]] = {}
         for name, elem, pct in pat.findall(txt):

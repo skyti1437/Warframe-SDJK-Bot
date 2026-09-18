@@ -137,34 +137,45 @@ async def main() -> None:
     tmp = Path(tempfile.mkdtemp())
     obj = _make_plugin(tmp)
 
-    # 1) L-1：普通成员发 .锚点 Palus 应被权限拒绝
-    reply = await obj._handle_admin(_MemberEvent(), ".锚点 Palus")
-    check("L-1 普通成员 .锚点 被权限拦截",
+    # 1) `.锚点` 已废弃（2026-09-18 安全审查）：它写入的锚点**无任何读取方**
+    #    （仲裁表改用 arbi.wf.wiki 确定性排期），却会写全局 cfg —— 任何群的
+    #    群管都能覆盖。按项目铁律「失效功能必须给出真实可用的替代」，
+    #    现在一律返回废弃说明 + 替代指令。
+    for ev, who in ((_MemberEvent(), "普通成员"), (_AdminEvent(), "管理员")):
+        reply = await obj._handle_admin(ev, ".锚点 Palus")
+        txt = reply.raw_text if reply else ""
+        check(f"{who} .锚点 得到「已废弃」说明",
+              "已废弃" in txt, repr(txt))
+        check(f"{who} .锚点 的提示里给出真实替代指令（仲裁 / 仲裁表）",
+              "「仲裁」" in txt and "仲裁表" in txt, repr(txt))
+
+    # 2) ★ 安全断言：`.锚点` 不再写任何全局状态
+    #    （以前会写 cfg["arb_anchor"] 与 runtime/arb_anchor.json）
+    anchor_path = plugin.PLUGIN_DIR / "runtime" / "arb_anchor.json"
+    before = anchor_path.stat().st_mtime if anchor_path.exists() else None
+    await obj._handle_admin(_AdminEvent(), ".锚点 Palus")
+    after = anchor_path.stat().st_mtime if anchor_path.exists() else None
+    check("★ .锚点 不再写入 arb_anchor.json（跨租户写入已消除）",
+          before == after, f"mtime {before} → {after}")
+    check("★ .锚点 不再写 cfg['arb_anchor']",
+          "arb_anchor" not in obj.cfg, str(obj.cfg.get("arb_anchor")))
+
+    # 3) `.状态` 会列出本群订阅明细 → 必须要求管理权限（2026-09-18 新增）
+    reply = await obj._handle_admin(_MemberEvent(), ".状态")
+    check("普通成员 .状态 被权限拦截（含订阅明细）",
           reply is not None and reply.raw_text is not None
           and "需要群管理员权限" in reply.raw_text,
           repr(reply.raw_text if reply else None))
 
-    # 2) L-1：管理员发 .锚点 Palus 应通过且写入 runtime/arb_anchor.json
-    obj.cfg = {}
-    reply = await obj._handle_admin(_AdminEvent(), ".锚点 Palus")
-    check("L-1 管理员 .锚点 Palus 通过",
-          reply is not None and reply.raw_text is not None
-          and "仲裁锚点已校准" in reply.raw_text,
-          repr(reply.raw_text if reply else None))
+    # 4) 管理员仍可用 `.状态`
+    obj2 = _make_plugin(tmp)
+    obj2.subs = plugin.SubscriptionStore(tmp / "subs.json")
+    obj2.client = type("C", (), {"cache": type("K", (), {
+        "stats": staticmethod(lambda: {"size": 0, "hit_rate": 0.0})})()})()
+    reply = await obj2._handle_admin(_AdminEvent(), ".状态")
+    check("管理员 .状态 正常返回",
+          reply is not None and reply.raw_text is None, repr(reply))
 
-    # 3) L-3：arb_anchor.json 应写入到运行时目录而非 /AstrBot/data/config/...
-    anchor_path = plugin.PLUGIN_DIR / "runtime" / "arb_anchor.json"
-    # 若上一轮测试已经写过，文件存在；若不存在，说明没持久化
-    check("L-3 arb_anchor.json 写入运行时目录",
-          anchor_path.exists() or len(obj.cfg.get("arb_anchor", {})) > 0,
-          f"path={anchor_path}, exists={anchor_path.exists()}, cfg={obj.cfg.get('arb_anchor')}")
-
-    # 4) 用法提示对普通成员不可见（admin 先看）
-    reply = await obj._handle_admin(_AdminEvent(), ".锚点")
-    check("管理员 .锚点（无参数）显示用法",
-          reply is not None and reply.raw_text is not None
-          and "用法：.锚点" in reply.raw_text,
-          repr(reply.raw_text if reply else None))
 
     # 5) 普通成员也不能 .默认平台 / .开启 / .关闭
     for cmd in (".默认平台 ps", ".开启 推送", ".关闭 推送"):
