@@ -684,17 +684,27 @@ def _parse_void_trader(entry: dict, now_ms: int) -> dict:
     active = bool(act and exp and act <= now_ms < exp)
     inventory = []
     for it in entry.get("Manifest") or []:
-        # 同 _parse_daily_deals：商品名要走 item_name()（含官方简中物品表），
-        # 只用 language_text() 会整列落成英文。
+        # 商品名要走 item_name()（含官方简中物品表），只用 language_text() 会
+        # 整列落成英文。
+        #
+        # ★★ 字段名以 **DE 官方 worldState.php 实测**为准（2026-09-18）：
+        #    ``ItemType / PrimePrice / RegularPrice``。原来按 warframestat.us
+        #    的字段名（StoreItem / ItemPrice / CreditPrice）读 —— DE 源里根本
+        #    没有这些键，整卡落成「? 杜卡德 ? 现金」。这里保留旧键做兜底，
+        #    万一哪天切回 warframestat 源也不至于再坏一次。
+        store = it.get("ItemType") or it.get("StoreItem", "")
         inventory.append({
-            "item": item_name(it.get("StoreItem", "")),
-            "ducats": it.get("ItemPrice", "?"),
-            "credits": it.get("CreditPrice", "?"),
+            "item": item_name(store),
+            "ducats": it.get("PrimePrice", it.get("ItemPrice", "?")),
+            "credits": it.get("RegularPrice", it.get("CreditPrice", "?")),
         })
+    character = entry.get("Character") or ""
+    if "Baro" in character or "Teel" in character:
+        # DE 源给的是「Baro'Ki Teel」（官方拼写彩蛋），统一成常用名
+        character = "Baro Ki'Teer"
     return {
         "id": _oid(entry.get("_id")),
-        "character": "Baro Ki'Teer" if "Baro" in (entry.get("Character") or "") \
-            else entry.get("Character", "Baro Ki'Teer"),
+        "character": character,
         "location": _node_name(entry.get("Node", "")),
         "activation": _iso(act), "expiry": _iso(exp),
         "active": active, "inventory": inventory,
