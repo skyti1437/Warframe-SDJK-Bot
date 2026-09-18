@@ -1008,7 +1008,7 @@ class WarframeClient:
             "total": total, "done": idx, "rows": rows})
         # api_client 没有模块级 logger，这里用标准库（保持与 main.py 前缀一致）
         logging.getLogger("astrbot_plugin_warframe").info(
-            "[sdjk] 价格榜单抓取：本轮 %d 项，累计 %d/%d%s",
+            "[wfq] 价格榜单抓取：本轮 %d 项，累计 %d/%d%s",
             done, idx, total, "（本轮跑满）" if finished else "")
         return len(rows)
 
@@ -1153,7 +1153,7 @@ class WarframeClient:
             msg = str(exc)
             if "400" in msg:
                 self._lich_unsupported.add(weapon_url_name)
-                logger.info("[sdjk] WM 无该玄骸武器的挂单类目：%s（type=%s）",
+                logger.info("[wfq] WM 无该玄骸武器的挂单类目：%s（type=%s）",
                             weapon_url_name, lich_type)
                 return []
             if "429" in msg:
