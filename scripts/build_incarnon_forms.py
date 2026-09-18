@@ -17,6 +17,8 @@ import json
 import sys
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parent.parent
+
 try:
     import yaml
 except ImportError:  # noqa: BLE001 —— 插件运行本身不需要 yaml，只有这几个
@@ -24,8 +26,8 @@ except ImportError:  # noqa: BLE001 —— 插件运行本身不需要 yaml，�
         "本脚本需要 PyYAML：pip install pyyaml"
         "（插件运行时并不依赖它，仅构建数据用）")
 
-WFSIM = Path(r"REDACTED_TMP_DIR/wfsim/data")
-OUT = Path(r"REDACTED_PROJECT_DIR/core/data/incarnon_forms.json")
+WFSIM = (Path.home() / "tmp" / "wfsim" / "data")
+OUT = ROOT / "core" / "data" / "incarnon_forms.json"
 
 DAMAGE_KEYS = ("impact", "puncture", "slash", "heat", "cold", "electricity",
                "toxin", "blast", "radiation", "gas", "magnetic", "viral",

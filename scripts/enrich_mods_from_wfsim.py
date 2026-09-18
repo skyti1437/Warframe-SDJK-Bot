@@ -21,7 +21,7 @@ except ImportError:  # noqa: BLE001 —— 插件运行本身不需要 yaml，�
         "本脚本需要 PyYAML：pip install pyyaml"
         "（插件运行时并不依赖它，仅构建数据用）")
 
-WFSIM = r"REDACTED_TMP_DIR/wfsim/data/mods"
+WFSIM = str(Path.home() / "tmp" / "wfsim" / "data" / "mods")
 OUT = os.path.join(os.path.dirname(__file__), os.pardir, "core", "data",
                    "mods_wfsim_extra.json")
 

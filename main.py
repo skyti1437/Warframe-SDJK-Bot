@@ -902,7 +902,8 @@ class WarframeSDJK(Star):
             rows = baro.predict(8)
             title, lines = fmt.fmt_baro_predict(
                 rows, baro.next_visit_est() or "",
-                len(baro.visits()), baro.last_visit() or "")
+                len(baro.visits()), baro.last_visit() or "",
+                names_zh=baro.names_zh())
             return Reply(title, lines,
                          footer=fmt.fmt_platform_footer(platform, "wiki 历史统计"))
         title, lines = fmt.fmt_void_trader(await self.client.void_trader(platform))

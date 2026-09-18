@@ -18,7 +18,7 @@ except ImportError:  # noqa: BLE001 —— 插件运行本身不需要 yaml，�
         "本脚本需要 PyYAML：pip install pyyaml"
         "（插件运行时并不依赖它，仅构建数据用）")
 
-WFSIM = Path(r"REDACTED_TMP_DIR/wfsim/data")
+WFSIM = (Path.home() / "tmp" / "wfsim" / "data")
 OUT = Path(__file__).resolve().parent.parent / "core" / "data" / "enemies.json"
 
 # wfsim faction_damage_override → 我们的派系键（damage_faction.json 的列名）

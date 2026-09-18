@@ -28,7 +28,7 @@ except ImportError:  # noqa: BLE001 —— 插件运行本身不需要 yaml，�
 import glob
 import os
 
-WFSIM_DIR = r"REDACTED_TMP_DIR/wfsim/data/mods"
+WFSIM_DIR = str(Path.home() / "tmp" / "wfsim" / "data" / "mods")
 MODS = os.path.join(os.path.dirname(__file__), os.pardir, "core", "data",
                     "mods_stats.json")
 
