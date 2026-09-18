@@ -26,3 +26,6 @@ tests/_tmp_*
 .vscode/
 .DS_Store
 Thumbs.db
+
+# AI 助手工作区（WorkBuddy 会话记忆/审查记录，可能含本机路径引用）
+.workbuddy/

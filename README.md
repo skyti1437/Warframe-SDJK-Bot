@@ -49,6 +49,8 @@
 ## 二、安装
 
 1. 安装 AstrBot（≥ 4.x），并准备好消息平台适配器（NapCat / aiocqhttp 等）。
+   **Python 要求 ≥ 3.10**（代码使用了 3.10+ 的联合类型语法；AstrBot 4.x 自带的
+   运行环境一般已满足，自建环境时留意）。
 2. 把本仓库放到 AstrBot 插件目录（或打包成 zip 后在 WebUI 里上传）：
    ```
    data/plugins/astrbot_plugin_warframe/
