@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Warframe 查询助手 —— AstrBot 插件入口。
+"""Warframe SDJK —— AstrBot 插件入口。
 
 无缝配合 NapCat (OneBot v11) 上游运行；指令解析为**自由参数**式：
 【主指令 内容 附加指令】位置任意、空格分隔，通用修饰符可叠加
@@ -323,9 +323,9 @@ class Reply:
 
 
 @register("astrbot_plugin_warframe", "skyti1437",
-          "Warframe 查询助手：世界状态 / 市场查价 / 蹲点推送",
+          "Warframe SDJK：世界状态 / 市场查价 / 蹲点推送",
           "1.0")
-class WarframeQuery(Star):
+class WarframeSDJK(Star):
     def __init__(self, context: Context, config: AstrBotConfig | None = None):
         super().__init__(context)
         self.cfg: dict = dict(config) if config else {}
@@ -428,7 +428,7 @@ class WarframeQuery(Star):
                     seg.text = cleaned
                     changed = True
         if changed:
-            logger.debug("[wfq] 已清理回复中的 Markdown 标记")
+            logger.debug("[sdjk] 已清理回复中的 Markdown 标记")
 
     # ------------------------------------------------------------------
     # 生命周期
@@ -441,7 +441,7 @@ class WarframeQuery(Star):
         # 不预热时第一条指令要现读武器库/进化/灵化形态/多段/部署表，叠加后
         # 会让首条指令明显变慢（2026-09-17 用户反馈「半天才出来」）。
         asyncio.create_task(asyncio.to_thread(self._warmup))
-        logger.info("[wfq] 插件已加载，共注册 %d 个主指令（输出模式 %s，渲染器%s）",
+        logger.info("[sdjk] 插件已加载，共注册 %d 个主指令（输出模式 %s，渲染器%s）",
                     len(self._routes), self.render_mode,
                     "可用" if self.renderer.available else "不可用·降级文字")
 
@@ -456,10 +456,10 @@ class WarframeQuery(Star):
             from core import damage_calc as _dc
         try:
             _dc.warmup()
-            logger.info("[wfq] 预热完成 %.0f ms（武器库/进化/灵化形态/多段/部署）",
+            logger.info("[sdjk] 预热完成 %.0f ms（武器库/进化/灵化形态/多段/部署）",
                         (_t.perf_counter() - _t0) * 1000)
         except Exception as exc:  # noqa: BLE001 —— 预热失败不影响功能
-            logger.warning("[wfq] 预热失败（不影响功能）：%s", exc)
+            logger.warning("[sdjk] 预热失败（不影响功能）：%s", exc)
 
     # 价格榜单全量抓取只在**闲时**跑。2026-09-14 用户反馈「bot 回话间隔很久」：
     # 全量抓取实测远超 18 分钟（约 3200 项、实测 1 项/4 秒，跑好几个小时），
@@ -490,21 +490,21 @@ class WarframeQuery(Star):
                     # 闲时闸门：白天不爬（会拖慢用户的 wm/wr 查询）
                     if datetime.now().hour not in self.RANK_CRAWL_IDLE_HOURS:
                         logger.info(
-                            "[wfq] 价格榜单已过期，但非闲时（%02d 点），"
+                            "[sdjk] 价格榜单已过期，但非闲时（%02d 点），"
                             "凌晨 %d-%d 点再爬", datetime.now().hour,
                             self.RANK_CRAWL_IDLE_HOURS[0],
                             self.RANK_CRAWL_IDLE_HOURS[-1])
                         await asyncio.sleep(1800)
                         continue
-                    logger.info("[wfq] 价格榜单缺失或超 48 小时，开始自动重建")
+                    logger.info("[sdjk] 价格榜单缺失或超 48 小时，开始自动重建")
                     n = await self.client.crawl_wm_ranks(
                         limit=self.RANK_CRAWL_MAX_PER_RUN)
-                    logger.info("[wfq] 价格榜单本轮抓取结束（累计 %d 项）", n)
+                    logger.info("[sdjk] 价格榜单本轮抓取结束（累计 %d 项）", n)
                 await asyncio.sleep(1800)
             except asyncio.CancelledError:
                 raise
             except Exception as e:  # noqa: BLE001
-                logger.warning("[wfq] 价格榜单自动刷新失败，10 分钟后重试：%s", e)
+                logger.warning("[sdjk] 价格榜单自动刷新失败，10 分钟后重试：%s", e)
                 await asyncio.sleep(600)
 
     async def _valence_autoloop(self):
@@ -518,18 +518,18 @@ class WarframeQuery(Star):
             try:
                 status = await self.client.refresh_valence()
                 if status != "fresh":
-                    logger.info("[wfq] 元素加成快照已刷新：%s", status)
+                    logger.info("[sdjk] 元素加成快照已刷新：%s", status)
                 try:
                     disp_status = await self.client.refresh_wiki_disp()
                     if disp_status != "fresh":
-                        logger.info("[wfq] 变体倾向表已刷新：%s", disp_status)
+                        logger.info("[sdjk] 变体倾向表已刷新：%s", disp_status)
                 except Exception as e:  # noqa: BLE001 - 倾向表失败不阻断
-                    logger.warning("[wfq] 变体倾向表刷新失败：%s", e)
+                    logger.warning("[sdjk] 变体倾向表刷新失败：%s", e)
                 await asyncio.sleep(6 * 3600)
             except asyncio.CancelledError:
                 raise
             except Exception as e:  # noqa: BLE001
-                logger.warning("[wfq] 元素加成快照刷新失败（1 小时后重试）：%s", e)
+                logger.warning("[sdjk] 元素加成快照刷新失败（1 小时后重试）：%s", e)
                 await asyncio.sleep(3600)
 
     async def terminate(self):
@@ -539,10 +539,10 @@ class WarframeQuery(Star):
                 task.cancel()
         await self.push.stop()
         await self.client.close()
-        logger.info("[wfq] 插件已卸载")
+        logger.info("[sdjk] 插件已卸载")
 
     # ------------------------------------------------------------------
-    # 总分发：捕获全部消息，交由 WFQuery 解析器处理
+    # 总分发：捕获全部消息，交由 SDJK 解析器处理
     # ------------------------------------------------------------------
     @filter.event_message_type(filter.EventMessageType.ALL)
     async def on_message(self, event: AstrMessageEvent):
@@ -571,7 +571,7 @@ class WarframeQuery(Star):
         except WarframeAPIError as exc:
             reply = Reply(raw_text=f"⚠️ {exc}")
         except Exception as exc:  # noqa: BLE001
-            logger.exception("[wfq] 指令处理异常：%s", exc)
+            logger.exception("[sdjk] 指令处理异常：%s", exc)
             reply = Reply(raw_text="⚠️ 内部错误，请稍后重试或联系管理员查看日志")
 
         if reply is None:
@@ -619,9 +619,9 @@ class WarframeQuery(Star):
             for i, (ptitle, plines) in enumerate(reply.pages, 1):
                 # 渲染串行：PIL 单线程吃 CPU，容器算力弱，多任务同时渲染
                 # 会互相拖慢（实测叠加时单张 0.7s → 39s）
-                if WarframeQuery._render_lock is None:
-                    WarframeQuery._render_lock = asyncio.Lock()
-                async with WarframeQuery._render_lock:
+                if WarframeSDJK._render_lock is None:
+                    WarframeSDJK._render_lock = asyncio.Lock()
+                async with WarframeSDJK._render_lock:
                     path = await asyncio.to_thread(
                         self.renderer.render, f"{ptitle}（第{i}/{n}页）",
                         plines, reply.footer)
@@ -633,13 +633,13 @@ class WarframeQuery(Star):
                     comps.append(Plain(whisper_txt))
                 yield event.chain_result(comps)
                 return
-            logger.warning("[wfq] 多页卡片渲染为空，已降级文字输出：%s",
+            logger.warning("[sdjk] 多页卡片渲染为空，已降级文字输出：%s",
                            reply.pages[0][0] if reply.pages else "?")
 
         if use_image:
-            if WarframeQuery._render_lock is None:
-                WarframeQuery._render_lock = asyncio.Lock()
-            async with WarframeQuery._render_lock:
+            if WarframeSDJK._render_lock is None:
+                WarframeSDJK._render_lock = asyncio.Lock()
+            async with WarframeSDJK._render_lock:
                 path = await asyncio.to_thread(
                     self.renderer.render, reply.title,
                     reply.lines, reply.footer)
@@ -651,7 +651,7 @@ class WarframeQuery(Star):
                 yield event.chain_result(components)
                 return
             # 字体缺失等渲染失败 → 降级文字（失败原因见 render.py 的异常日志）
-            logger.warning("[wfq] 图片渲染为空，已降级文字输出：%s", reply.title)
+            logger.warning("[sdjk] 图片渲染为空，已降级文字输出：%s", reply.title)
 
         if reply.pages:
             # 文本降级：多页按分节拼接
@@ -772,7 +772,7 @@ class WarframeQuery(Star):
                                  + f"　{mode}·{life}")
             lines.append("◆ 系统")
             lines.append(f"· 缓存　{cache['size']} 项 · 命中率 {cache['hit_rate'] * 100:.0f}%")
-            return Reply("Warframe 查询助手 1.0", lines,
+            return Reply("Warframe SDJK 1.0", lines,
                          footer=fmt.fmt_platform_footer(self.groups.platform(umo)))
 
         if cmd == "锚点":
@@ -1413,7 +1413,7 @@ class WarframeQuery(Star):
             lines.append(f"◆ {t}")
             # 全角空格分隔：渲染层按此切成两列并做首字符垂直线对齐
             lines += [f"· {c}　{d}" for c, d in items]
-        return Reply("Warframe 查询助手 指令一览", lines,
+        return Reply("Warframe SDJK 指令一览", lines,
                      footer=fmt.fmt_platform_footer(platform))
 
     # ------------------------------------------------------------------
@@ -1587,7 +1587,7 @@ class WarframeQuery(Star):
             res = dc.calculate(spec, weapon)
             return Reply("伤害计算", dc.card_lines(weapon, spec, res, alts))
         except Exception as exc:  # noqa: BLE001 - 绝不静默：群聊里没输出最难查
-            logger.warning(f"[wfq] 伤害计算失败：{exc!r}")
+            logger.warning(f"[sdjk] 伤害计算失败：{exc!r}")
             return Reply("伤害计算", [
                 f"❗ 计算出错：{type(exc).__name__}: {exc}",
                 f"　武器：{query}｜已识别 MOD："
@@ -1704,7 +1704,7 @@ class WarframeQuery(Star):
                        "换敌人/等级/爆头请发「识卡伤害 对 重机枪手 150级 爆头」")
             return out
         except Exception:  # noqa: BLE001 —— 第二页是增强项，失败不挡第一页
-            logger.exception("[wfq] 识卡伤害详情页生成失败")
+            logger.exception("[sdjk] 识卡伤害详情页生成失败")
             return None
 
     async def _h_scan_damage(self, parsed, event, platform) -> Reply:
@@ -1741,7 +1741,7 @@ class WarframeQuery(Star):
             res = dc.calculate(spec, weapon)
             return Reply("识卡伤害", dc.card_lines(weapon, spec, res, []))
         except Exception as exc:  # noqa: BLE001 —— 绝不静默
-            logger.warning("[wfq] 识卡伤害复算失败：%r", exc)
+            logger.warning("[sdjk] 识卡伤害复算失败：%r", exc)
             return Reply("识卡伤害", [
                 f"❗ 复算出错：{type(exc).__name__}: {exc}",
                 "　重新发一次「识卡」后再试；参数写法见「伤害」指令的用法页。",
@@ -1965,6 +1965,9 @@ class WarframeQuery(Star):
                         if t.rstrip("%").isdigit() and 1 <= int(t.rstrip("%")) <= 100),
                        None)
 
+        # 表中已标注 wm=False 的（逐把核对过），直接走「无类目」分支，省一次注定 400 的请求
+        if info.get("wm") is False:
+            return self._xh_no_category(name, slug, kind, platform)
         try:
             auctions = await self.client.wm_lich_auctions(
                 slug, platform, lich_type=kind)
@@ -2002,10 +2005,7 @@ class WarframeQuery(Star):
             ("，" + "·".join(filters) if filters else "") + "）"
         if not pool:
             if self.client.lich_unsupported(slug):
-                msg = (f"warframe.market 没有「{name}」的挂单类目 ——\n"
-                       f"这类武器（部分近战 Tenet / 全部 Coda）市场查不到，"
-                       f"只能游戏内自行交易。\n"
-                       f"（{name} 的中文名已可正常识别，只是市场无数据）")
+                return self._xh_no_category(name, slug, kind, platform)
             elif not auctions:
                 msg = "该武器当前没有挂单（冷门武器挂单少，可过段时间再看）"
             else:
@@ -2018,6 +2018,33 @@ class WarframeQuery(Star):
                      "幻纹✦ 表示带幻纹")
         return Reply(title, lines,
                      footer=fmt.fmt_platform_footer(platform, "warframe.market 玄骸"))
+
+    def _xh_no_category(self, name: str, slug: str, kind: str,
+                        platform: str) -> Reply:
+        """WM 没有该武器的拍卖类目 —— 给**替代路径**，而不是只说「查不到」。
+
+        ★ 2026-09-18 逐把核对过全部 47 把（`lich_weapons.json` 的 ``wm`` 字段）：
+          30 把有类目、17 把没有（全部终幕 Coda + 5 把近战/异形信条）。
+          用户看到「0 条」时最容易以为插件坏了，所以要写清「是市场没有，
+          不是我们没查到」，并给出可操作的替代。
+        """
+        db = self.client._lich_db()
+        has = sum(1 for r in db.values() if r.get("wm") is True)
+        total = len(db)
+        sibling = {"sister": "信条", "lich": "赤毒", "coda": "终幕"}.get(kind, "")
+        example = {"sister": "xh 信条弧电离子枪", "lich": "xh 赤毒怒雷",
+                   "coda": "xh 信条弧电离子枪"}.get(kind, "xh 信条弧电离子枪")
+        return Reply(
+            f"{name} 玄骸拍卖（市场无此类目）",
+            [f"warframe.market 没有「{name}」的拍卖类目。",
+             f"这**不是识别失败**：中文名已正常匹配到 {slug}，是市场侧没这个类目。",
+             f"（已逐把核对全部 {total} 把玄骸武器：{has} 把有挂单、"
+             f"{total - has} 把没有）",
+             f"· 换一把同系列：发「{example}」",
+             f"· 网站自查：warframe.market/zh-hans/auctions/search"
+             f"?type={kind}&weapon_url_name={slug}",
+             f"· 这类武器（全部终幕 + 部分近战{sibling}）只能游戏内交易频道收"],
+            footer=fmt.fmt_platform_footer(platform, "warframe.market 玄骸"))
 
     async def _lich_slug_by_riven(self, q: str) -> Optional[str]:
         """黑话兜底：尝试从 riven 别名表取基础武器 slug 前缀匹配玄骸。"""
@@ -2071,7 +2098,7 @@ class WarframeQuery(Star):
         try:
             vault = await self.client.prime_vault(platform)
         except Exception as exc:  # noqa: BLE001
-            logger.warning("[wfq] 阿耶商店数据取不到，"
+            logger.warning("[sdjk] 阿耶商店数据取不到，"
                            "本次按「不在售」处理：%s", exc)
             return keys
         for it in vault.get("items") or []:
@@ -2420,7 +2447,7 @@ class WarframeQuery(Star):
             try:
                 return self.context.get_provider_by_id(pid)
             except Exception as exc:  # noqa: BLE001
-                logger.warning("[wfq] 取渠道 %s 失败：%s", pid, exc)
+                logger.warning("[sdjk] 取渠道 %s 失败：%s", pid, exc)
                 return None
 
         # ① 面板里显式指定的（可指向任意多模态模型）
@@ -2434,7 +2461,7 @@ class WarframeQuery(Star):
             if prov:
                 out.append(prov)
             else:
-                logger.warning("[wfq] 配置的 vision_provider_id「%s」取不到，"
+                logger.warning("[sdjk] 配置的 vision_provider_id「%s」取不到，"
                                "回落到内置候选", want)
         # ② 内置优先级候选
         for pid in self._VISION_PROVIDER_IDS:
@@ -2445,7 +2472,7 @@ class WarframeQuery(Star):
         try:
             allp = self.context.get_all_providers() or []
         except Exception as exc:  # noqa: BLE001
-            logger.warning("[wfq] 枚举渠道失败：%s", exc)
+            logger.warning("[sdjk] 枚举渠道失败：%s", exc)
             allp = []
         for prov in allp:
             try:
@@ -2465,7 +2492,7 @@ class WarframeQuery(Star):
                                                lambda: None)(), "id", "") or "?")
                 except Exception:  # noqa: BLE001
                     ids.append("?")
-            logger.warning("[wfq] 没有可用的视觉渠道！现有渠道 %d 个：%s",
+            logger.warning("[sdjk] 没有可用的视觉渠道！现有渠道 %d 个：%s",
                            len(ids), "、".join(ids[:20]) or "（空）")
         return out
 
@@ -2530,18 +2557,18 @@ class WarframeQuery(Star):
                 try:
                     prov, text, ms = await coro
                 except Exception as exc:  # noqa: BLE001
-                    logger.warning("[wfq] %s渠道异常：%s", tag, exc)
+                    logger.warning("[sdjk] %s渠道异常：%s", tag, exc)
                     continue
                 if not text:
-                    logger.warning("[wfq] %s渠道返回空（%.0f ms）", tag, ms)
+                    logger.warning("[sdjk] %s渠道返回空（%.0f ms）", tag, ms)
                     continue
                 data = lo.parse_vision_json(text)
                 if data:
-                    logger.info("[wfq] %s命中渠道（%.0f ms）：%s", tag, ms,
+                    logger.info("[sdjk] %s命中渠道（%.0f ms）：%s", tag, ms,
                                 json.dumps(data, ensure_ascii=False)[:200])
                     winner = data
                     break
-                logger.warning("[wfq] %s JSON 解析失败（%.0f ms）：%s",
+                logger.warning("[sdjk] %s JSON 解析失败（%.0f ms）：%s",
                                tag, ms, text[:160])
         finally:
             for t in tasks:
@@ -2573,10 +2600,10 @@ class WarframeQuery(Star):
                                                 self._vision_providers(),
                                                 k=2, tag="紫卡识别")
         except Exception as exc:  # noqa: BLE001
-            logger.warning("[wfq] 紫卡识别失败：%s", exc)
+            logger.warning("[sdjk] 紫卡识别失败：%s", exc)
             return None
         if not data:
-            logger.warning("[wfq] 紫卡识别：所有渠道都没给出可解析结果")
+            logger.warning("[sdjk] 紫卡识别：所有渠道都没给出可解析结果")
         return data
 
     @staticmethod
@@ -2609,7 +2636,7 @@ class WarframeQuery(Star):
             buf = io.BytesIO()
             img2.convert("RGB" if fmt == "JPEG" else img2.mode).save(buf, fmt)
             new_b64 = base64.b64encode(buf.getvalue()).decode()
-            logger.info("[wfq] 配卡截图 %dx%d 过小，已放大 %d%%",
+            logger.info("[sdjk] 配卡截图 %dx%d 过小，已放大 %d%%",
                         w, h, int(scale * 100))
             return f"data:image/{fmt.lower()};base64,{new_b64}"
         except Exception:  # noqa: BLE001 —— 放大失败就用原图
@@ -2650,7 +2677,7 @@ class WarframeQuery(Star):
         # 窗口内都没全过 → 取失败项最少的那个走「聚焦二读」。
         provs = [p for p in self._vision_providers() if p is not None][:4]
         if not provs:
-            logger.warning("[wfq] 识卡：没有可用视觉渠道（配置/渠道状态见上一条）")
+            logger.warning("[sdjk] 识卡：没有可用视觉渠道（配置/渠道状态见上一条）")
             return None
         _names = []
         for _p in provs:
@@ -2659,7 +2686,7 @@ class WarframeQuery(Star):
                                       "id", "") or "?")
             except Exception:  # noqa: BLE001
                 _names.append("?")
-        logger.info("[wfq] 识卡：并行 %d 个渠道（窗口 %.0f s）：%s",
+        logger.info("[sdjk] 识卡：并行 %d 个渠道（窗口 %.0f s）：%s",
                     len(provs), self.RACE_WINDOW_S, "、".join(_names))
         loop = asyncio.get_event_loop()
         deadline = loop.time() + max(8.0, self.RACE_WINDOW_S)
@@ -2681,7 +2708,7 @@ class WarframeQuery(Star):
                     try:
                         ocr = t.result()
                     except Exception as exc:  # noqa: BLE001
-                        logger.warning("[wfq] 配卡识别渠道异常：%s", exc)
+                        logger.warning("[sdjk] 配卡识别渠道异常：%s", exc)
                         continue
                     if not ocr:
                         continue
@@ -2689,9 +2716,9 @@ class WarframeQuery(Star):
                     if bad is None:
                         return ocr        # 武器都没认出 → 直接交出去
                     if bad == 0:
-                        logger.info("[wfq] 配卡识别校验全过，收工")
+                        logger.info("[sdjk] 配卡识别校验全过，收工")
                         return ocr
-                    logger.warning("[wfq] 配卡识别一份结果有 %d 项校验不过", bad)
+                    logger.warning("[sdjk] 配卡识别一份结果有 %d 项校验不过", bad)
                     if best is None or bad < best[0]:
                         best = (bad, ocr)
         finally:
@@ -2707,7 +2734,7 @@ class WarframeQuery(Star):
             an2 = lo.analyze(ocr2)
             bad2 = sum(1 for c in (an2.get("checks") or []) if not c["ok"])
             if bad2 < bad:
-                logger.warning("[wfq] 聚焦读行修正：校验失败 %d → %d", bad, bad2)
+                logger.warning("[sdjk] 聚焦读行修正：校验失败 %d → %d", bad, bad2)
                 return ocr2
         return ocr
 
@@ -2731,7 +2758,7 @@ class WarframeQuery(Star):
                     image_urls=[image_url])
                 text = (getattr(resp, "completion_text", "") or "").strip()
             except Exception as exc:  # noqa: BLE001
-                logger.warning("[wfq] 聚焦读行 %s 失败：%s", pid, exc)
+                logger.warning("[sdjk] 聚焦读行 %s 失败：%s", pid, exc)
                 continue
             m = _re.search(r"\{.*\}", text or "", _re.S)
             if not m:
@@ -2749,7 +2776,7 @@ class WarframeQuery(Star):
                         out.append([label, v])
             if len(out) >= 3:
                 return out
-            logger.warning("[wfq] 聚焦读行 %s 只读到 %d 行，换下一个渠道",
+            logger.warning("[sdjk] 聚焦读行 %s 只读到 %d 行，换下一个渠道",
                            pid, len(out))
         return None
 
@@ -2775,14 +2802,14 @@ class WarframeQuery(Star):
                     image_urls=[image_url])
                 text = (getattr(resp, "completion_text", "") or "").strip()
             except Exception as exc:  # noqa: BLE001
-                logger.warning("[wfq] 配卡识别 %s 调用失败：%s", pid, exc)
+                logger.warning("[sdjk] 配卡识别 %s 调用失败：%s", pid, exc)
                 return None
             ms = (_t.perf_counter() - _t0) * 1000
             ocr = lo.parse_vision_json(text or "") if text else None
             if ocr and (ocr.get("weapon") or ocr.get("mods")):
-                logger.info("[wfq] 配卡识别 %s 返回结构（%.0f ms）", pid, ms)
+                logger.info("[sdjk] 配卡识别 %s 返回结构（%.0f ms）", pid, ms)
                 return ocr
-            logger.warning("[wfq] 配卡识别 %s 未读出有效内容（%.0f ms）",
+            logger.warning("[sdjk] 配卡识别 %s 未读出有效内容（%.0f ms）",
                            pid, ms)
             return None
 
@@ -2806,7 +2833,7 @@ class WarframeQuery(Star):
     def _normalize_llm_stats(data: dict, rev: dict) -> tuple[list, list]:
         """LLM 提取结果 → ([(stat_id, float)...], [...])；词条名宽松匹配。"""
         import difflib
-        alias = WarframeQuery._STAT_ALIAS
+        alias = WarframeSDJK._STAT_ALIAS
 
         def to_stat(name: str, val):
             if name is None or val is None:
@@ -3032,7 +3059,7 @@ class WarframeQuery(Star):
             lines.insert(1, f"※ {neg_fix_note}")
         if source_note:
             lines.insert(1, f"※ 来源：{source_note.strip('（）')}")
-        logger.info("[wfq] 紫卡分析耗时 %.0f ms（含识别/查询/计算）",
+        logger.info("[sdjk] 紫卡分析耗时 %.0f ms（含识别/查询/计算）",
                     (_tt.perf_counter() - _t_start) * 1000)
         return Reply(title, lines,
                      footer=fmt.fmt_platform_footer(

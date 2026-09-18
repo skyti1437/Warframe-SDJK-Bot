@@ -189,6 +189,10 @@ class _FakeClient:
     def alias_lookup(self, q, table="wm_items"):
         return None                      # 紫卡兜底路径（本测试不需要）
 
+    def _lich_db(self):
+        # _xh_no_category 会读它统计「多少把有类目」
+        return {"tenet_arca_plasmor": {"wm": True}, "coda_hema": {"wm": False}}
+
     async def wm_lich_auctions(self, slug, platform="pc", *, lich_type="lich", **kw):
         self.last_type = lich_type
         if slug == "coda_hema":
@@ -208,7 +212,7 @@ class _FakeClient:
 
 
 def _plugin_with(fake):
-    o = plugin.WarframeQuery.__new__(plugin.WarframeQuery)
+    o = plugin.WarframeSDJK.__new__(plugin.WarframeSDJK)
     o.cfg = {}
     o.client = fake
     return o
@@ -232,9 +236,15 @@ check("数值筛选生效（伤害≥40 剩 2 条）", "2条" in r3.title, r3.ti
 
 o4 = _plugin_with(_FakeClient())
 r4 = asyncio.run(o4._h_xh(_P("科达血肢"), None, "pc"))
+# 2026-09-18 改版：无类目提示改为「拍卖类目 + 不是识别失败 + 已核对数量 + 替代路径」
 check("★ WM 无该类目时给准确提示（不是内部错误）",
-      r4.raw_text is None and any("挂单类目" in ln for ln in r4.lines),
+      r4.raw_text is None
+      and any("拍卖类目" in ln for ln in r4.lines)
+      and any("不是识别失败" in ln for ln in r4.lines),
       str(r4.lines[:2]))
+check("★ 无类目时给出替代路径（换武器 / 网站自查 / 交易频道）",
+      sum(1 for ln in r4.lines if ln.startswith("·")) >= 3,
+      str(r4.lines))
 
 o5 = _plugin_with(_FakeClient())
 r5 = asyncio.run(o5._h_xh(_P("不存在的武器xyz"), None, "pc"))

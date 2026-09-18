@@ -170,7 +170,7 @@ class _StubEvent:
 
 
 async def _openrelic_lines(text: str) -> tuple[str, list[str]]:
-    obj = plugin.WarframeQuery.__new__(plugin.WarframeQuery)
+    obj = plugin.WarframeSDJK.__new__(plugin.WarframeSDJK)
     obj.client = _FakeClient()
     obj.cfg = {}
     obj._dir = Path(tempfile.mkdtemp())

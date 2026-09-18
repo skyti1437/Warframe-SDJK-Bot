@@ -13,7 +13,9 @@
    "科达低音爆囊",
    "终幕·低音爆囊",
    "终幕低音爆囊"
-  ]
+  ],
+  "wm_count": 0,
+  "wm": false
  },
  "coda_hema": {
   "type": "coda",
@@ -29,7 +31,9 @@
    "终幕·血肢",
    "终幕血肢",
    "血肢"
-  ]
+  ],
+  "wm_count": 0,
+  "wm": false
  },
  "coda_sporothrix": {
   "type": "coda",
@@ -45,7 +49,9 @@
    "科达孢丝感染枪",
    "终幕·孢丝感染枪",
    "终幕孢丝感染枪"
-  ]
+  ],
+  "wm_count": 0,
+  "wm": false
  },
  "coda_synapse": {
   "type": "coda",
@@ -61,7 +67,9 @@
    "突触生化枪",
    "终幕·突触生化枪",
    "终幕突触生化枪"
-  ]
+  ],
+  "wm_count": 0,
+  "wm": false
  },
  "kuva_bramma": {
   "type": "lich",
@@ -76,7 +84,9 @@
    "布拉玛",
    "赤毒·布拉玛",
    "赤毒布拉玛"
-  ]
+  ],
+  "wm_count": 203,
+  "wm": true
  },
  "kuva_chakkhurr": {
   "type": "lich",
@@ -91,7 +101,9 @@
    "赤毒·邪眼",
    "赤毒邪眼",
    "邪眼"
-  ]
+  ],
+  "wm_count": 93,
+  "wm": true
  },
  "kuva_drakgoon": {
   "type": "lich",
@@ -106,7 +118,9 @@
    "赤毒·龙骑兵",
    "赤毒龙骑兵",
    "龙骑兵"
-  ]
+  ],
+  "wm_count": 82,
+  "wm": true
  },
  "kuva_hek": {
   "type": "lich",
@@ -121,7 +135,9 @@
    "海克",
    "赤毒·海克",
    "赤毒海克"
-  ]
+  ],
+  "wm_count": 145,
+  "wm": true
  },
  "kuva_hind": {
   "type": "lich",
@@ -136,7 +152,9 @@
    "赤毒·雌鹿",
    "赤毒雌鹿",
    "雌鹿"
-  ]
+  ],
+  "wm_count": 65,
+  "wm": true
  },
  "kuva_karak": {
   "type": "lich",
@@ -151,7 +169,9 @@
    "卡拉克",
    "赤毒·卡拉克",
    "赤毒卡拉克"
-  ]
+  ],
+  "wm_count": 71,
+  "wm": true
  },
  "kuva_kohm": {
   "type": "lich",
@@ -166,7 +186,9 @@
    "寇恩热能枪",
    "赤毒·寇恩热能枪",
    "赤毒寇恩热能枪"
-  ]
+  ],
+  "wm_count": 94,
+  "wm": true
  },
  "kuva_ogris": {
   "type": "lich",
@@ -181,7 +203,9 @@
    "赤毒·食人女魔",
    "赤毒食人女魔",
    "食人女魔"
-  ]
+  ],
+  "wm_count": 248,
+  "wm": true
  },
  "kuva_quartakk": {
   "type": "lich",
@@ -196,7 +220,9 @@
    "夸塔克",
    "赤毒·夸塔克",
    "赤毒夸塔克"
-  ]
+  ],
+  "wm_count": 97,
+  "wm": true
  },
  "kuva_sobek": {
   "type": "lich",
@@ -211,7 +237,9 @@
    "赤毒·鳄神",
    "赤毒鳄神",
    "鳄神"
-  ]
+  ],
+  "wm_count": 414,
+  "wm": true
  },
  "kuva_tonkor": {
   "type": "lich",
@@ -226,7 +254,9 @@
    "征服榴炮",
    "赤毒·征服榴炮",
    "赤毒征服榴炮"
-  ]
+  ],
+  "wm_count": 112,
+  "wm": true
  },
  "kuva_zarr": {
   "type": "lich",
@@ -241,7 +271,9 @@
    "沙皇",
    "赤毒·沙皇",
    "赤毒沙皇"
-  ]
+  ],
+  "wm_count": 258,
+  "wm": true
  },
  "tenet_arca_plasmor": {
   "type": "sister",
@@ -256,7 +288,9 @@
    "信条·弧电离子枪",
    "信条弧电离子枪",
    "弧电离子枪"
-  ]
+  ],
+  "wm_count": 284,
+  "wm": true
  },
  "tenet_envoy": {
   "type": "sister",
@@ -271,7 +305,9 @@
    "信条·典客",
    "信条典客",
    "典客"
-  ]
+  ],
+  "wm_count": 252,
+  "wm": true
  },
  "tenet_ferrox": {
   "type": "sister",
@@ -286,7 +322,9 @@
    "信条·铁晶磁轨炮",
    "信条铁晶磁轨炮",
    "铁晶磁轨炮"
-  ]
+  ],
+  "wm_count": 0,
+  "wm": false
  },
  "tenet_flux_rifle": {
   "type": "sister",
@@ -301,7 +339,9 @@
    "信条·通量步枪",
    "信条通量步枪",
    "通量步枪"
-  ]
+  ],
+  "wm_count": 177,
+  "wm": true
  },
  "tenet_glaxion": {
   "type": "sister",
@@ -316,7 +356,9 @@
    "信条·冷冻光束步枪",
    "信条冷冻光束步枪",
    "冷冻光束步枪"
-  ]
+  ],
+  "wm_count": 167,
+  "wm": true
  },
  "tenet_tetra": {
   "type": "sister",
@@ -331,7 +373,9 @@
    "信条·特拉",
    "信条特拉",
    "特拉"
-  ]
+  ],
+  "wm_count": 143,
+  "wm": true
  },
  "coda_catabolyst": {
   "type": "coda",
@@ -347,7 +391,9 @@
    "科达异化者",
    "终幕·异化者",
    "终幕异化者"
-  ]
+  ],
+  "wm_count": 0,
+  "wm": false
  },
  "coda_pox": {
   "type": "coda",
@@ -363,7 +409,9 @@
    "终幕·脓痘",
    "终幕脓痘",
    "脓痘"
-  ]
+  ],
+  "wm_count": 0,
+  "wm": false
  },
  "coda_tysis": {
   "type": "coda",
@@ -379,7 +427,9 @@
    "科达啐沫者",
    "终幕·啐沫者",
    "终幕啐沫者"
-  ]
+  ],
+  "wm_count": 0,
+  "wm": false
  },
  "kuva_brakk": {
   "type": "lich",
@@ -394,7 +444,9 @@
    "布拉克",
    "赤毒·布拉克",
    "赤毒布拉克"
-  ]
+  ],
+  "wm_count": 62,
+  "wm": true
  },
  "kuva_kraken": {
   "type": "lich",
@@ -409,7 +461,9 @@
    "北海巨妖",
    "赤毒·北海巨妖",
    "赤毒北海巨妖"
-  ]
+  ],
+  "wm_count": 59,
+  "wm": true
  },
  "kuva_nukor": {
   "type": "lich",
@@ -424,7 +478,9 @@
    "努寇微波枪",
    "赤毒·努寇微波枪",
    "赤毒努寇微波枪"
-  ]
+  ],
+  "wm_count": 320,
+  "wm": true
  },
  "kuva_seer": {
   "type": "lich",
@@ -439,7 +495,9 @@
    "赤毒·预言者",
    "赤毒预言者",
    "预言者"
-  ]
+  ],
+  "wm_count": 58,
+  "wm": true
  },
  "kuva_twin_stubbas": {
   "type": "lich",
@@ -454,7 +512,9 @@
    "双子史度巴",
    "赤毒·双子史度巴",
    "赤毒双子史度巴"
-  ]
+  ],
+  "wm_count": 71,
+  "wm": true
  },
  "tenet_cycron": {
   "type": "sister",
@@ -469,7 +529,9 @@
    "信条·循环离子枪",
    "信条循环离子枪",
    "循环离子枪"
-  ]
+  ],
+  "wm_count": 250,
+  "wm": true
  },
  "tenet_detron": {
   "type": "sister",
@@ -484,7 +546,9 @@
    "信条·德特昂",
    "信条德特昂",
    "德特昂"
-  ]
+  ],
+  "wm_count": 151,
+  "wm": true
  },
  "tenet_diplos": {
   "type": "sister",
@@ -499,7 +563,9 @@
    "信条·纵横双枪",
    "信条纵横双枪",
    "纵横双枪"
-  ]
+  ],
+  "wm_count": 159,
+  "wm": true
  },
  "tenet_plinx": {
   "type": "sister",
@@ -514,7 +580,9 @@
    "信条·漫射者",
    "信条漫射者",
    "漫射者"
-  ]
+  ],
+  "wm_count": 132,
+  "wm": true
  },
  "tenet_spirex": {
   "type": "sister",
@@ -529,7 +597,9 @@
    "信条·斯派克斯",
    "信条斯派克斯",
    "斯派克斯"
-  ]
+  ],
+  "wm_count": 126,
+  "wm": true
  },
  "coda_caustacyst": {
   "type": "coda",
@@ -545,7 +615,9 @@
    "科达灼蚀变体镰",
    "终幕·灼蚀变体镰",
    "终幕灼蚀变体镰"
-  ]
+  ],
+  "wm_count": 0,
+  "wm": false
  },
  "coda_hirudo": {
   "type": "coda",
@@ -561,7 +633,9 @@
    "终幕·蚂蟥",
    "终幕蚂蟥",
    "蚂蟥"
-  ]
+  ],
+  "wm_count": 0,
+  "wm": false
  },
  "coda_mire": {
   "type": "coda",
@@ -577,7 +651,9 @@
    "米尔",
    "终幕·米尔",
    "终幕米尔"
-  ]
+  ],
+  "wm_count": 0,
+  "wm": false
  },
  "coda_motovore": {
   "type": "coda",
@@ -593,7 +669,9 @@
    "科达噬轮",
    "终幕·噬轮",
    "终幕噬轮"
-  ]
+  ],
+  "wm_count": 0,
+  "wm": false
  },
  "coda_pathocyst": {
   "type": "coda",
@@ -609,7 +687,9 @@
    "科达病囊飞刃",
    "终幕·病囊飞刃",
    "终幕病囊飞刃"
-  ]
+  ],
+  "wm_count": 0,
+  "wm": false
  },
  "kuva_shildeg": {
   "type": "lich",
@@ -624,7 +704,9 @@
    "希尔德",
    "赤毒·希尔德",
    "赤毒希尔德"
-  ]
+  ],
+  "wm_count": 67,
+  "wm": true
  },
  "tenet_agendus": {
   "type": "sister",
@@ -639,7 +721,9 @@
    "信条·集议",
    "信条集议",
    "集议"
-  ]
+  ],
+  "wm_count": 0,
+  "wm": false
  },
  "tenet_exec": {
   "type": "sister",
@@ -654,7 +738,9 @@
    "信条·枢密",
    "信条枢密",
    "枢密"
-  ]
+  ],
+  "wm_count": 0,
+  "wm": false
  },
  "tenet_grigori": {
   "type": "sister",
@@ -669,7 +755,9 @@
    "信条·格里高利",
    "信条格里高利",
    "格里高利"
-  ]
+  ],
+  "wm_count": 0,
+  "wm": false
  },
  "tenet_livia": {
   "type": "sister",
@@ -684,7 +772,9 @@
    "信条·莉薇娅",
    "信条莉薇娅",
    "莉薇娅"
-  ]
+  ],
+  "wm_count": 0,
+  "wm": false
  },
  "kuva_ayanga": {
   "type": "lich",
@@ -699,7 +789,9 @@
    "怒雷",
    "赤毒·怒雷",
    "赤毒怒雷"
-  ]
+  ],
+  "wm_count": 98,
+  "wm": true
  },
  "kuva_grattler": {
   "type": "lich",
@@ -714,6 +806,8 @@
    "葛拉特勒",
    "赤毒·葛拉特勒",
    "赤毒葛拉特勒"
-  ]
+  ],
+  "wm_count": 142,
+  "wm": true
  }
 }
