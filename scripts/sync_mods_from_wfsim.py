@@ -19,7 +19,12 @@ import json
 import math
 import sys
 
-import yaml
+try:
+    import yaml
+except ImportError:  # noqa: BLE001 —— 插件运行本身不需要 yaml，只有这几个
+    raise SystemExit(   # 数据构建脚本要；给可操作的提示而不是裸 ImportError
+        "本脚本需要 PyYAML：pip install pyyaml"
+        "（插件运行时并不依赖它，仅构建数据用）")
 import glob
 import os
 
