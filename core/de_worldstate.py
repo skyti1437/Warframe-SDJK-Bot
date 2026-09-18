@@ -192,6 +192,18 @@ def _prime_pack_name(path: str) -> Optional[str]:
     return None
 
 
+# ★ 手工译名补漏：DE 导出表里确实没有的字符串（2026-09-18 起逐条登记）。
+#   按**资产路径尾段**（小写）匹配，对 /StoreItems 前缀变体免疫。
+#   放在官方词库之后、英文回退之前 —— DE 将来在导出里补了官方译名，
+#   官方值会自动优先，这里的条目自然让位（留着不碍事）。
+MANUAL_ITEM_NAMES = {
+    # Inaros 之沙任务蓝图：官方任务键 /lotus/types/keys/mummyquest/
+    # mummyquestkeychain 译「Inaros 之沙」（name_zh.json），但蓝图本身
+    # （MummyQuestKeyBlueprint）不在任何导出表 → 奸商卡曾显示英文原名。
+    "mummyquestkeyblueprint": "Inaros 之沙蓝图",
+}
+
+
 def item_name_opt(path: str) -> Optional[str]:
     """DE 资产路径 -> 中文/英文名；词库无覆盖时返回 None（不编造）。"""
     if not path:
@@ -219,6 +231,8 @@ def item_name_opt(path: str) -> Optional[str]:
     if pack:
         return pack
     tail = path.rstrip("/").rsplit("/", 1)[-1]
+    if tail.lower() in MANUAL_ITEM_NAMES:
+        return MANUAL_ITEM_NAMES[tail.lower()]
     m = _CREDIT_PATH.match(tail)
     if m:
         return f"{int(m.group(1).replace(',', '')):,} 现金"
