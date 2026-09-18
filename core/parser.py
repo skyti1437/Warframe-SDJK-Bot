@@ -545,6 +545,58 @@ class WMQuery:
     rank_word: str = ""             # 原始 rank 词（展示用）
     refinement: Optional[str] = None  # 完整/优良/无暇/光辉
     moran: bool = False             # 墨染
+    part: str = ""                  # 部件关键词（蓝图/机体/系统/头部/配件…）
+
+
+# ★ 部件关键词（2026-09-19 用户反馈「wm 母牛 蓝图」搜出来全是整套）：
+#   具体部件词（机体/头部/系统/枪管/枪机/枪托/头盔/蓝图/总图）命中后，
+#   查询会切到该部件的订单而不是整套；「配件/部件」泛指 → 保留整套 +
+#   部件参考价。★ 具体词优先于「蓝图」——「机体蓝图」是机体，不是总图。
+_PART_SPECIFIC = ("头部神经", "机体", "头部", "系统", "枪管", "枪机", "枪托", "头盔")
+_PART_GENERIC = ("蓝图", "总图")
+_PART_ANY = ("配件", "部件")
+# 跨 token 的部件词优先级：具体部件词（2）> 蓝图/总图（1）> 配件泛指（0）。
+# 「母牛 头部神经光元 蓝图」里的「蓝图」不该把「头部」顶掉 —— 蓝图只是
+# 对同一部件的限定。
+_PART_STRENGTH = {"蓝图": 1, "配件": 0}
+for _w in _PART_SPECIFIC:
+    _PART_STRENGTH[("头部" if _w in ("头部", "头部神经") else _w)] = 2
+
+
+def _extract_part(tok: str) -> tuple[str, str]:
+    """从 token 里抽出部件关键词，返回 (剩余文本, 部件键)。
+
+    「母牛蓝图」→ ("母牛", "蓝图")；「机体蓝图」→ ("", "机体")；
+    「母牛」→ ("母牛", "")。剩余文本为空表示整个 token 都是部件词。
+    命中具体部件后，同 token 里的限定词（蓝图/总图/神经光元…）一并剥掉
+    ——「母牛头部神经光元蓝图」剩余的就是「母牛」。
+    """
+    rest = tok
+    part = ""
+    for w in _PART_SPECIFIC:
+        if w in rest:
+            part = ("头部" if w in ("头部", "头部神经") else w)
+            rest = rest.replace(w, "", 1)
+            break
+    if not part:
+        for w in _PART_GENERIC:
+            if w in rest:
+                part = "蓝图"
+                rest = rest.replace(w, "", 1)
+                break
+    if not part:
+        for w in _PART_ANY:
+            if w in rest:
+                part = "配件"
+                rest = rest.replace(w, "", 1)
+                break
+    if part:
+        # 剥掉同 token 里残留的部件限定词（「机体蓝图」「头部神经光元」…）
+        for w in (_PART_GENERIC + _PART_ANY
+                  + ("神经光元", "神经元", "光元")):
+            rest = rest.replace(w, "")
+        rest = rest.strip()
+    return rest, part
 
 
 _REFINEMENT_MAP = {"完整": "intact", "优良": "exceptional",
@@ -578,7 +630,11 @@ def parse_wm(content: Iterable[str], preset: Optional[str] = None) -> WMQuery:
         elif tok == "墨染":
             q.moran = True
         else:
-            item_parts.append(tok)
+            rest, part = _extract_part(tok)
+            if part and _PART_STRENGTH[part] >= _PART_STRENGTH.get(q.part, -1):
+                q.part = part   # 具体部件 > 蓝图 > 配件（跨 token 不被弱词覆盖）
+            if rest:
+                item_parts.append(rest)
         i += 1
     q.item = " ".join(item_parts).strip()
     return q

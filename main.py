@@ -248,7 +248,7 @@ HELP_TOPIC: dict[str, list[tuple[str, str]]] = {
         ("wr / 紫卡 武器名", "紫卡拍卖：词条·洗数·极性筛选"),
         ("rm 武器名", "源紫卡报价"),
         ("紫卡排行 / 排行", "热度榜；「紫卡排行 刷新」强更"),
-        ("wm 物品名", "在售/收购；可加 满级 / 光辉 / N个 / -r 密语"),
+        ("wm 物品名", "在售/收购；部件查单加 蓝图/机体/系统/头部；可加 满级 / 光辉 / N个 / -r 密语"),
         ("趋势 物品名", "48h / 90d 价格走势"),
     ],
     "后台推送": [
@@ -1782,6 +1782,25 @@ class WarframeSDJK(Star):
     # ------------------------------------------------------------------
     # 市场与查价
     # ------------------------------------------------------------------
+    @staticmethod
+    def _pick_wm_set_part(parts: list[dict], part: str) -> Optional[dict]:
+        """从套装部件里挑出部件词对应的那个；没有返回 None。
+
+        「蓝图/总图」= 战甲/武器**总图**：zh 以「蓝图」结尾且不含其他部件词
+        （「机体蓝图」也以蓝图结尾，得排除）。其余部件词按 zh 包含匹配
+        （「头部」命中「XX Prime 头部神经光元蓝图」）。
+        """
+        if part in ("蓝图", "总图"):
+            skip = ("机体", "头部", "系统", "枪管", "枪机", "枪托")
+            cands = [p for p in parts
+                     if (p.get("zh") or "").endswith("蓝图")
+                     and not any(w in (p.get("zh") or "") for w in skip)]
+            return cands[0] if cands else None
+        for p in parts:
+            if part in (p.get("zh") or ""):
+                return p
+        return None
+
     async def _h_wm(self, parsed, event, platform) -> Reply:
         pass
 
@@ -1789,11 +1808,34 @@ class WarframeSDJK(Star):
         if q.group_buy:
             return await self._wm_group_buy(q, platform)
         if not q.item:
-            return Reply(raw_text="用法：wm 物品名 [收购|合购a*2,b] [N个] [零级/满级/N级] "
-                                  "[完整/优良/无暇/光辉] [-r]")
+            return Reply(raw_text="用法：wm 物品名 [部件] [收购|合购a*2,b] [N个] [零级/满级/N级] "
+                                  "[完整/优良/无暇/光辉] [-r]\n"
+                                  "部件：蓝图（总图）/ 机体 / 系统 / 头部 / 配件（全部部件比价），"
+                                  "如 wm 母牛 蓝图")
         item = await self.client.resolve_wm_item(q.item)
         if not item:
             return await self._wm_suggest(q.item)
+        # ★ 部件关键词（2026-09-19 用户反馈「wm 母牛 蓝图」出的是整套）：
+        #   命中具体部件词时切到**该部件**的订单；「配件/部件」泛指时保留
+        #   整套 + 部件参考价（见尾部提示）。只在命中套装时生效——
+        #   「wm 母牛机体」直接解析成部件的走原路。
+        set_parts: list[dict] = []
+        if q.part and "set" in set(item.get("tags") or []):
+            try:
+                set_parts = await self.client.wm_set_parts(item["url_name"])
+            except Exception:  # noqa: BLE001 - 部件拆价是增强项，失败不影响主输出
+                set_parts = []
+            if q.part != "配件":
+                picked = self._pick_wm_set_part(set_parts, q.part)
+                if picked is None:
+                    names = [p.get("zh") or p.get("en") or p.get("url_name", "")
+                             for p in set_parts]
+                    return Reply(raw_text=(
+                        f"「{item.get('zh') or item.get('en') or item['url_name']}」"
+                        f"没有「{q.part}」这个部件。\n"
+                        f"可用部件：{'、'.join(names) or '（未同步到部件表）'}\n"
+                        f"也可以发整套看全部：wm {q.item}"))
+                item = picked
         rank = q.rank
         if rank == -1:
             rank = 10  # 满级近似
@@ -1805,10 +1847,14 @@ class WarframeSDJK(Star):
         hint = "" if parsed.whisper or not best else " · 加 -r 生成游戏密语"
         # 套装附带部件参考价（2026-09-14 用户要求）：单查部件走上面的
         # 归一化匹配（wm 席瓦蓝图），这里只在命中套装时多拉几个部件订单。
-        try:
-            parts = await self.client.wm_set_parts(item["url_name"])
-        except Exception:  # noqa: BLE001 - 部件拆价是增强项，失败不影响主输出
-            parts = []
+        # 部件切换路径（q.part 具体词）已在上面拉过 set_parts 且 item 已是
+        # 部件（非 set root），这里不会再命中。
+        parts = set_parts
+        if not q.part:
+            try:
+                parts = await self.client.wm_set_parts(item["url_name"])
+            except Exception:  # noqa: BLE001
+                parts = []
         if parts:
             rows = []
             for p_ in parts:
@@ -1822,6 +1868,9 @@ class WarframeSDJK(Star):
                     "buy": fmt.wm_best_price(po, "buy"),
                 })
             lines.extend(fmt.fmt_wm_set_parts(rows))
+            if q.part == "配件":
+                lines.append(f"※ 想看某个部件的在售/收购单："
+                             f"wm {q.item} 蓝图（或 机体 / 系统 / 头部）")
         reply = Reply(title, lines,
                       footer=fmt.fmt_platform_footer(platform, "warframe.market" + hint))
         if parsed.whisper and pool:
