@@ -123,7 +123,7 @@ def check(name: str, cond: bool, detail: str = ""):
 
 
 def _obj():
-    obj = plugin.WarframeSDJK.__new__(plugin.WarframeSDJK)
+    obj = plugin.WarframeQuery.__new__(plugin.WarframeQuery)
     obj._dir = Path(tempfile.mkdtemp())
     return obj
 

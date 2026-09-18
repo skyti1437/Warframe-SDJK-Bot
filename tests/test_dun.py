@@ -2,7 +2,7 @@
 """蹲（后台推送订阅）handler 回归测试。
 
 直接 import main.py 需要 astrbot 运行环境；本测试在导入前注入轻量 astrbot 桩，
-构造 WarframeSDJK 实例（绕过 __init__）后直接调用 `_h_dun`，覆盖：
+构造 WarframeQuery 实例（绕过 __init__）后直接调用 `_h_dun`，覆盖：
   - 「蹲 类型」正常订阅（此前因 wired 变量作用域 NameError 直接失效）
   - 「蹲 帮助」类型列表
   - 未识别类型报错（不静默降级）
@@ -110,9 +110,9 @@ from core.parser import parse  # noqa: E402
 from core.store import GroupStore, SubscriptionStore  # noqa: E402
 
 
-def _make_plugin(tmp: Path) -> "plugin.WarframeSDJK":
+def _make_plugin(tmp: Path) -> "plugin.WarframeQuery":
     """绕过 __init__ 构造实例，仅挂载 _h_dun 需要的存储。"""
-    obj = plugin.WarframeSDJK.__new__(plugin.WarframeSDJK)
+    obj = plugin.WarframeQuery.__new__(plugin.WarframeQuery)
     obj.subs = SubscriptionStore(tmp / "subs.json")
     obj.groups = GroupStore(tmp / "groups.json", default_platform="pc")
     obj.push = None
@@ -257,7 +257,7 @@ async def main() -> None:
     rep = await obj4._handle_admin(_StubEvent("group://test"), ".状态")
     check("「.状态」出图形卡不崩（platform 未定义回归）",
           rep is not None and not rep.raw_text
-          and rep.title.startswith("Warframe SDJK")
+          and rep.title.startswith("Warframe 查询助手")
           and any("虚空捕获" in ln for ln in rep.lines),
           f"title={getattr(rep, 'title', None)}")
 

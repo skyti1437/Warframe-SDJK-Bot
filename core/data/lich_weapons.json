@@ -1,0 +1,719 @@
+{
+ "coda_bassocyst": {
+  "type": "coda",
+  "en": "Coda Bassocyst",
+  "zh": "终幕·低音爆囊",
+  "zh_nodot": "终幕低音爆囊",
+  "alias": [
+   "Bassocyst",
+   "Coda Bassocyst",
+   "bassocyst",
+   "coda bassocyst",
+   "低音爆囊",
+   "科达低音爆囊",
+   "终幕·低音爆囊",
+   "终幕低音爆囊"
+  ]
+ },
+ "coda_hema": {
+  "type": "coda",
+  "en": "Coda Hema",
+  "zh": "终幕·血肢",
+  "zh_nodot": "终幕血肢",
+  "alias": [
+   "Coda Hema",
+   "Hema",
+   "coda hema",
+   "hema",
+   "科达血肢",
+   "终幕·血肢",
+   "终幕血肢",
+   "血肢"
+  ]
+ },
+ "coda_sporothrix": {
+  "type": "coda",
+  "en": "Coda Sporothrix",
+  "zh": "终幕·孢丝感染枪",
+  "zh_nodot": "终幕孢丝感染枪",
+  "alias": [
+   "Coda Sporothrix",
+   "Sporothrix",
+   "coda sporothrix",
+   "sporothrix",
+   "孢丝感染枪",
+   "科达孢丝感染枪",
+   "终幕·孢丝感染枪",
+   "终幕孢丝感染枪"
+  ]
+ },
+ "coda_synapse": {
+  "type": "coda",
+  "en": "Coda Synapse",
+  "zh": "终幕·突触生化枪",
+  "zh_nodot": "终幕突触生化枪",
+  "alias": [
+   "Coda Synapse",
+   "Synapse",
+   "coda synapse",
+   "synapse",
+   "科达突触生化枪",
+   "突触生化枪",
+   "终幕·突触生化枪",
+   "终幕突触生化枪"
+  ]
+ },
+ "kuva_bramma": {
+  "type": "lich",
+  "en": "Kuva Bramma",
+  "zh": "赤毒·布拉玛",
+  "zh_nodot": "赤毒布拉玛",
+  "alias": [
+   "Bramma",
+   "Kuva Bramma",
+   "bramma",
+   "kuva bramma",
+   "布拉玛",
+   "赤毒·布拉玛",
+   "赤毒布拉玛"
+  ]
+ },
+ "kuva_chakkhurr": {
+  "type": "lich",
+  "en": "Kuva Chakkhurr",
+  "zh": "赤毒·邪眼",
+  "zh_nodot": "赤毒邪眼",
+  "alias": [
+   "Chakkhurr",
+   "Kuva Chakkhurr",
+   "chakkhurr",
+   "kuva chakkhurr",
+   "赤毒·邪眼",
+   "赤毒邪眼",
+   "邪眼"
+  ]
+ },
+ "kuva_drakgoon": {
+  "type": "lich",
+  "en": "Kuva Drakgoon",
+  "zh": "赤毒·龙骑兵",
+  "zh_nodot": "赤毒龙骑兵",
+  "alias": [
+   "Drakgoon",
+   "Kuva Drakgoon",
+   "drakgoon",
+   "kuva drakgoon",
+   "赤毒·龙骑兵",
+   "赤毒龙骑兵",
+   "龙骑兵"
+  ]
+ },
+ "kuva_hek": {
+  "type": "lich",
+  "en": "Kuva Hek",
+  "zh": "赤毒·海克",
+  "zh_nodot": "赤毒海克",
+  "alias": [
+   "Hek",
+   "Kuva Hek",
+   "hek",
+   "kuva hek",
+   "海克",
+   "赤毒·海克",
+   "赤毒海克"
+  ]
+ },
+ "kuva_hind": {
+  "type": "lich",
+  "en": "Kuva Hind",
+  "zh": "赤毒·雌鹿",
+  "zh_nodot": "赤毒雌鹿",
+  "alias": [
+   "Hind",
+   "Kuva Hind",
+   "hind",
+   "kuva hind",
+   "赤毒·雌鹿",
+   "赤毒雌鹿",
+   "雌鹿"
+  ]
+ },
+ "kuva_karak": {
+  "type": "lich",
+  "en": "Kuva Karak",
+  "zh": "赤毒·卡拉克",
+  "zh_nodot": "赤毒卡拉克",
+  "alias": [
+   "Karak",
+   "Kuva Karak",
+   "karak",
+   "kuva karak",
+   "卡拉克",
+   "赤毒·卡拉克",
+   "赤毒卡拉克"
+  ]
+ },
+ "kuva_kohm": {
+  "type": "lich",
+  "en": "Kuva Kohm",
+  "zh": "赤毒·寇恩热能枪",
+  "zh_nodot": "赤毒寇恩热能枪",
+  "alias": [
+   "Kohm",
+   "Kuva Kohm",
+   "kohm",
+   "kuva kohm",
+   "寇恩热能枪",
+   "赤毒·寇恩热能枪",
+   "赤毒寇恩热能枪"
+  ]
+ },
+ "kuva_ogris": {
+  "type": "lich",
+  "en": "Kuva Ogris",
+  "zh": "赤毒·食人女魔",
+  "zh_nodot": "赤毒食人女魔",
+  "alias": [
+   "Kuva Ogris",
+   "Ogris",
+   "kuva ogris",
+   "ogris",
+   "赤毒·食人女魔",
+   "赤毒食人女魔",
+   "食人女魔"
+  ]
+ },
+ "kuva_quartakk": {
+  "type": "lich",
+  "en": "Kuva Quartakk",
+  "zh": "赤毒·夸塔克",
+  "zh_nodot": "赤毒夸塔克",
+  "alias": [
+   "Kuva Quartakk",
+   "Quartakk",
+   "kuva quartakk",
+   "quartakk",
+   "夸塔克",
+   "赤毒·夸塔克",
+   "赤毒夸塔克"
+  ]
+ },
+ "kuva_sobek": {
+  "type": "lich",
+  "en": "Kuva Sobek",
+  "zh": "赤毒·鳄神",
+  "zh_nodot": "赤毒鳄神",
+  "alias": [
+   "Kuva Sobek",
+   "Sobek",
+   "kuva sobek",
+   "sobek",
+   "赤毒·鳄神",
+   "赤毒鳄神",
+   "鳄神"
+  ]
+ },
+ "kuva_tonkor": {
+  "type": "lich",
+  "en": "Kuva Tonkor",
+  "zh": "赤毒·征服榴炮",
+  "zh_nodot": "赤毒征服榴炮",
+  "alias": [
+   "Kuva Tonkor",
+   "Tonkor",
+   "kuva tonkor",
+   "tonkor",
+   "征服榴炮",
+   "赤毒·征服榴炮",
+   "赤毒征服榴炮"
+  ]
+ },
+ "kuva_zarr": {
+  "type": "lich",
+  "en": "Kuva Zarr",
+  "zh": "赤毒·沙皇",
+  "zh_nodot": "赤毒沙皇",
+  "alias": [
+   "Kuva Zarr",
+   "Zarr",
+   "kuva zarr",
+   "zarr",
+   "沙皇",
+   "赤毒·沙皇",
+   "赤毒沙皇"
+  ]
+ },
+ "tenet_arca_plasmor": {
+  "type": "sister",
+  "en": "Tenet Arca Plasmor",
+  "zh": "信条·弧电离子枪",
+  "zh_nodot": "信条弧电离子枪",
+  "alias": [
+   "Arca Plasmor",
+   "Tenet Arca Plasmor",
+   "arca plasmor",
+   "tenet arca plasmor",
+   "信条·弧电离子枪",
+   "信条弧电离子枪",
+   "弧电离子枪"
+  ]
+ },
+ "tenet_envoy": {
+  "type": "sister",
+  "en": "Tenet Envoy",
+  "zh": "信条·典客",
+  "zh_nodot": "信条典客",
+  "alias": [
+   "Envoy",
+   "Tenet Envoy",
+   "envoy",
+   "tenet envoy",
+   "信条·典客",
+   "信条典客",
+   "典客"
+  ]
+ },
+ "tenet_ferrox": {
+  "type": "sister",
+  "en": "Tenet Ferrox",
+  "zh": "信条·铁晶磁轨炮",
+  "zh_nodot": "信条铁晶磁轨炮",
+  "alias": [
+   "Ferrox",
+   "Tenet Ferrox",
+   "ferrox",
+   "tenet ferrox",
+   "信条·铁晶磁轨炮",
+   "信条铁晶磁轨炮",
+   "铁晶磁轨炮"
+  ]
+ },
+ "tenet_flux_rifle": {
+  "type": "sister",
+  "en": "Tenet Flux Rifle",
+  "zh": "信条·通量步枪",
+  "zh_nodot": "信条通量步枪",
+  "alias": [
+   "Flux Rifle",
+   "Tenet Flux Rifle",
+   "flux rifle",
+   "tenet flux rifle",
+   "信条·通量步枪",
+   "信条通量步枪",
+   "通量步枪"
+  ]
+ },
+ "tenet_glaxion": {
+  "type": "sister",
+  "en": "Tenet Glaxion",
+  "zh": "信条·冷冻光束步枪",
+  "zh_nodot": "信条冷冻光束步枪",
+  "alias": [
+   "Glaxion",
+   "Tenet Glaxion",
+   "glaxion",
+   "tenet glaxion",
+   "信条·冷冻光束步枪",
+   "信条冷冻光束步枪",
+   "冷冻光束步枪"
+  ]
+ },
+ "tenet_tetra": {
+  "type": "sister",
+  "en": "Tenet Tetra",
+  "zh": "信条·特拉",
+  "zh_nodot": "信条特拉",
+  "alias": [
+   "Tenet Tetra",
+   "Tetra",
+   "tenet tetra",
+   "tetra",
+   "信条·特拉",
+   "信条特拉",
+   "特拉"
+  ]
+ },
+ "coda_catabolyst": {
+  "type": "coda",
+  "en": "Coda Catabolyst",
+  "zh": "终幕·异化者",
+  "zh_nodot": "终幕异化者",
+  "alias": [
+   "Catabolyst",
+   "Coda Catabolyst",
+   "catabolyst",
+   "coda catabolyst",
+   "异化者",
+   "科达异化者",
+   "终幕·异化者",
+   "终幕异化者"
+  ]
+ },
+ "coda_pox": {
+  "type": "coda",
+  "en": "Coda Pox",
+  "zh": "终幕·脓痘",
+  "zh_nodot": "终幕脓痘",
+  "alias": [
+   "Coda Pox",
+   "Pox",
+   "coda pox",
+   "pox",
+   "科达脓痘",
+   "终幕·脓痘",
+   "终幕脓痘",
+   "脓痘"
+  ]
+ },
+ "coda_tysis": {
+  "type": "coda",
+  "en": "Coda Tysis",
+  "zh": "终幕·啐沫者",
+  "zh_nodot": "终幕啐沫者",
+  "alias": [
+   "Coda Tysis",
+   "Tysis",
+   "coda tysis",
+   "tysis",
+   "啐沫者",
+   "科达啐沫者",
+   "终幕·啐沫者",
+   "终幕啐沫者"
+  ]
+ },
+ "kuva_brakk": {
+  "type": "lich",
+  "en": "Kuva Brakk",
+  "zh": "赤毒·布拉克",
+  "zh_nodot": "赤毒布拉克",
+  "alias": [
+   "Brakk",
+   "Kuva Brakk",
+   "brakk",
+   "kuva brakk",
+   "布拉克",
+   "赤毒·布拉克",
+   "赤毒布拉克"
+  ]
+ },
+ "kuva_kraken": {
+  "type": "lich",
+  "en": "Kuva Kraken",
+  "zh": "赤毒·北海巨妖",
+  "zh_nodot": "赤毒北海巨妖",
+  "alias": [
+   "Kraken",
+   "Kuva Kraken",
+   "kraken",
+   "kuva kraken",
+   "北海巨妖",
+   "赤毒·北海巨妖",
+   "赤毒北海巨妖"
+  ]
+ },
+ "kuva_nukor": {
+  "type": "lich",
+  "en": "Kuva Nukor",
+  "zh": "赤毒·努寇微波枪",
+  "zh_nodot": "赤毒努寇微波枪",
+  "alias": [
+   "Kuva Nukor",
+   "Nukor",
+   "kuva nukor",
+   "nukor",
+   "努寇微波枪",
+   "赤毒·努寇微波枪",
+   "赤毒努寇微波枪"
+  ]
+ },
+ "kuva_seer": {
+  "type": "lich",
+  "en": "Kuva Seer",
+  "zh": "赤毒·预言者",
+  "zh_nodot": "赤毒预言者",
+  "alias": [
+   "Kuva Seer",
+   "Seer",
+   "kuva seer",
+   "seer",
+   "赤毒·预言者",
+   "赤毒预言者",
+   "预言者"
+  ]
+ },
+ "kuva_twin_stubbas": {
+  "type": "lich",
+  "en": "Kuva Twin Stubbas",
+  "zh": "赤毒·双子史度巴",
+  "zh_nodot": "赤毒双子史度巴",
+  "alias": [
+   "Kuva Twin Stubbas",
+   "Twin Stubbas",
+   "kuva twin stubbas",
+   "twin stubbas",
+   "双子史度巴",
+   "赤毒·双子史度巴",
+   "赤毒双子史度巴"
+  ]
+ },
+ "tenet_cycron": {
+  "type": "sister",
+  "en": "Tenet Cycron",
+  "zh": "信条·循环离子枪",
+  "zh_nodot": "信条循环离子枪",
+  "alias": [
+   "Cycron",
+   "Tenet Cycron",
+   "cycron",
+   "tenet cycron",
+   "信条·循环离子枪",
+   "信条循环离子枪",
+   "循环离子枪"
+  ]
+ },
+ "tenet_detron": {
+  "type": "sister",
+  "en": "Tenet Detron",
+  "zh": "信条·德特昂",
+  "zh_nodot": "信条德特昂",
+  "alias": [
+   "Detron",
+   "Tenet Detron",
+   "detron",
+   "tenet detron",
+   "信条·德特昂",
+   "信条德特昂",
+   "德特昂"
+  ]
+ },
+ "tenet_diplos": {
+  "type": "sister",
+  "en": "Tenet Diplos",
+  "zh": "信条·纵横双枪",
+  "zh_nodot": "信条纵横双枪",
+  "alias": [
+   "Diplos",
+   "Tenet Diplos",
+   "diplos",
+   "tenet diplos",
+   "信条·纵横双枪",
+   "信条纵横双枪",
+   "纵横双枪"
+  ]
+ },
+ "tenet_plinx": {
+  "type": "sister",
+  "en": "Tenet Plinx",
+  "zh": "信条·漫射者",
+  "zh_nodot": "信条漫射者",
+  "alias": [
+   "Plinx",
+   "Tenet Plinx",
+   "plinx",
+   "tenet plinx",
+   "信条·漫射者",
+   "信条漫射者",
+   "漫射者"
+  ]
+ },
+ "tenet_spirex": {
+  "type": "sister",
+  "en": "Tenet Spirex",
+  "zh": "信条·斯派克斯",
+  "zh_nodot": "信条斯派克斯",
+  "alias": [
+   "Spirex",
+   "Tenet Spirex",
+   "spirex",
+   "tenet spirex",
+   "信条·斯派克斯",
+   "信条斯派克斯",
+   "斯派克斯"
+  ]
+ },
+ "coda_caustacyst": {
+  "type": "coda",
+  "en": "Coda Caustacyst",
+  "zh": "终幕·灼蚀变体镰",
+  "zh_nodot": "终幕灼蚀变体镰",
+  "alias": [
+   "Caustacyst",
+   "Coda Caustacyst",
+   "caustacyst",
+   "coda caustacyst",
+   "灼蚀变体镰",
+   "科达灼蚀变体镰",
+   "终幕·灼蚀变体镰",
+   "终幕灼蚀变体镰"
+  ]
+ },
+ "coda_hirudo": {
+  "type": "coda",
+  "en": "Coda Hirudo",
+  "zh": "终幕·蚂蟥",
+  "zh_nodot": "终幕蚂蟥",
+  "alias": [
+   "Coda Hirudo",
+   "Hirudo",
+   "coda hirudo",
+   "hirudo",
+   "科达蚂蟥",
+   "终幕·蚂蟥",
+   "终幕蚂蟥",
+   "蚂蟥"
+  ]
+ },
+ "coda_mire": {
+  "type": "coda",
+  "en": "Coda Mire",
+  "zh": "终幕·米尔",
+  "zh_nodot": "终幕米尔",
+  "alias": [
+   "Coda Mire",
+   "Mire",
+   "coda mire",
+   "mire",
+   "科达米尔",
+   "米尔",
+   "终幕·米尔",
+   "终幕米尔"
+  ]
+ },
+ "coda_motovore": {
+  "type": "coda",
+  "en": "Coda Motovore",
+  "zh": "终幕·噬轮",
+  "zh_nodot": "终幕噬轮",
+  "alias": [
+   "Coda Motovore",
+   "Motovore",
+   "coda motovore",
+   "motovore",
+   "噬轮",
+   "科达噬轮",
+   "终幕·噬轮",
+   "终幕噬轮"
+  ]
+ },
+ "coda_pathocyst": {
+  "type": "coda",
+  "en": "Coda Pathocyst",
+  "zh": "终幕·病囊飞刃",
+  "zh_nodot": "终幕病囊飞刃",
+  "alias": [
+   "Coda Pathocyst",
+   "Pathocyst",
+   "coda pathocyst",
+   "pathocyst",
+   "病囊飞刃",
+   "科达病囊飞刃",
+   "终幕·病囊飞刃",
+   "终幕病囊飞刃"
+  ]
+ },
+ "kuva_shildeg": {
+  "type": "lich",
+  "en": "Kuva Shildeg",
+  "zh": "赤毒·希尔德",
+  "zh_nodot": "赤毒希尔德",
+  "alias": [
+   "Kuva Shildeg",
+   "Shildeg",
+   "kuva shildeg",
+   "shildeg",
+   "希尔德",
+   "赤毒·希尔德",
+   "赤毒希尔德"
+  ]
+ },
+ "tenet_agendus": {
+  "type": "sister",
+  "en": "Tenet Agendus",
+  "zh": "信条·集议",
+  "zh_nodot": "信条集议",
+  "alias": [
+   "Agendus",
+   "Tenet Agendus",
+   "agendus",
+   "tenet agendus",
+   "信条·集议",
+   "信条集议",
+   "集议"
+  ]
+ },
+ "tenet_exec": {
+  "type": "sister",
+  "en": "Tenet Exec",
+  "zh": "信条·枢密",
+  "zh_nodot": "信条枢密",
+  "alias": [
+   "Exec",
+   "Tenet Exec",
+   "exec",
+   "tenet exec",
+   "信条·枢密",
+   "信条枢密",
+   "枢密"
+  ]
+ },
+ "tenet_grigori": {
+  "type": "sister",
+  "en": "Tenet Grigori",
+  "zh": "信条·格里高利",
+  "zh_nodot": "信条格里高利",
+  "alias": [
+   "Grigori",
+   "Tenet Grigori",
+   "grigori",
+   "tenet grigori",
+   "信条·格里高利",
+   "信条格里高利",
+   "格里高利"
+  ]
+ },
+ "tenet_livia": {
+  "type": "sister",
+  "en": "Tenet Livia",
+  "zh": "信条·莉薇娅",
+  "zh_nodot": "信条莉薇娅",
+  "alias": [
+   "Livia",
+   "Tenet Livia",
+   "livia",
+   "tenet livia",
+   "信条·莉薇娅",
+   "信条莉薇娅",
+   "莉薇娅"
+  ]
+ },
+ "kuva_ayanga": {
+  "type": "lich",
+  "en": "Kuva Ayanga",
+  "zh": "赤毒·怒雷",
+  "zh_nodot": "赤毒怒雷",
+  "alias": [
+   "Ayanga",
+   "Kuva Ayanga",
+   "ayanga",
+   "kuva ayanga",
+   "怒雷",
+   "赤毒·怒雷",
+   "赤毒怒雷"
+  ]
+ },
+ "kuva_grattler": {
+  "type": "lich",
+  "en": "Kuva Grattler",
+  "zh": "赤毒·葛拉特勒",
+  "zh_nodot": "赤毒葛拉特勒",
+  "alias": [
+   "Grattler",
+   "Kuva Grattler",
+   "grattler",
+   "kuva grattler",
+   "葛拉特勒",
+   "赤毒·葛拉特勒",
+   "赤毒葛拉特勒"
+  ]
+ }
+}

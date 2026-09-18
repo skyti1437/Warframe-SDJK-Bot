@@ -5,7 +5,7 @@
 曾经因为漏改导致卡片水印停在旧号上。这里把「单一来源」钉住：
 
 * ``core/__init__.py:__version__`` 是主版本来源；
-* ``core/render.SDJK_VERSION`` 必须由它派生（主次版本）；
+* ``core/render.WATERMARK_VERSION`` 必须由它派生（主次版本）；
 * ``metadata.yaml`` 的 ``version`` 与 ``@register`` 的版本必须一致。
 """
 from __future__ import annotations
@@ -35,9 +35,11 @@ MM = ".".join(str(CORE_VERSION).split(".")[:2])       # 1.3.0 -> 1.3
 check("core.__version__ 形如 X.Y.Z",
       bool(re.fullmatch(r"\d+\.\d+\.\d+", str(CORE_VERSION))), str(CORE_VERSION))
 check("卡片水印版本由 core.__version__ 派生",
-      R.SDJK_VERSION == MM, f"{R.SDJK_VERSION} vs {MM}")
+      R.WATERMARK_VERSION == MM, f"{R.WATERMARK_VERSION} vs {MM}")
+# 不硬编码品牌名（2026-09-18 去 SDJK 时踩到：断言写死品牌会让改名连带崩测试）
 check("水印串含派生版本",
-      R.WATERMARK.endswith("SDJK " + MM), R.WATERMARK)
+      R.WATERMARK.endswith(R.WATERMARK_VERSION), R.WATERMARK)
+check("水印不再含旧品牌 SDJK", "SDJK" not in R.WATERMARK, R.WATERMARK)
 
 meta = (ROOT / "metadata.yaml").read_text(encoding="utf-8")
 m = re.search(r"^version:\s*v?([\d.]+)\s*$", meta, re.M)
@@ -60,7 +62,7 @@ m2 = re.search(r'@register\(\s*"[^"]+",\s*"[^"]+",\s*\n\s*"[^"]*",\s*\n\s*"([\d.
 check("@register 版本与 core 主次版本一致",
       bool(m2) and m2.group(1) == MM, m2.group(1) if m2 else "?")
 check("状态卡文案版本与 core 主次版本一致",
-      f"Warframe SDJK {MM}" in main_src, "未找到状态卡版本文案")
+      f"Warframe 查询助手 {MM}" in main_src, "未找到状态卡版本文案")
 
 print()
 if FAILED:

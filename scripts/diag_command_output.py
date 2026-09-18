@@ -38,9 +38,9 @@ class FakeEvent:
 
 async def main():
     queries = sys.argv[1:] or ["仲裁", "赤毒", "钢铁之路", "警报", "仲裁表"]
-    from main import WarframeSDJK
+    from main import WarframeQuery
 
-    plugin = WarframeSDJK(context=None, config={})
+    plugin = WarframeQuery(context=None, config={})
     routes = plugin._build_routes()
     print(f"[init] 路由表 {len(routes)} 项，渲染器可用={getattr(plugin.renderer, 'available', '?')}\n")
 
