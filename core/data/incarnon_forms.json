@@ -1,0 +1,1688 @@
+{
+ "_meta": {
+  "source": "github.com/magenie33/wfsim data/weapons/*（form: incarnon），数值为其按 wiki/实测整理的事实数据；zh 名为 DE 官方简中",
+  "updated": "2026-09-16",
+  "scope": "枪械灵化（近战灵化 wfsim 尚未导入）；attack 块不含灵化进化 perk"
+ },
+ "/lotus/weapons/tenno/shotgun/fullautoshotgun": {
+  "form_id": "boar_incarnon",
+  "form_name": "Boar (Incarnon Form)",
+  "form_zh": "野猪 (灵化形态)",
+  "base_name": "Boar",
+  "base_zh": "野猪",
+  "slot": null,
+  "class": null,
+  "damage": {
+   "heat": 20.0,
+   "total": 20.0
+  },
+  "criticalChance": 0.18,
+  "criticalMultiplier": 1.8,
+  "procChance": 0.2,
+  "fireRate": 7.5,
+  "multishot": 1.0
+ },
+ "/lotus/weapons/tenno/shotgun/primeboar": {
+  "form_id": "boar_prime_incarnon",
+  "form_name": "Boar Prime (Incarnon Form)",
+  "form_zh": "野猪 Prime (灵化形态)",
+  "base_name": "Boar Prime",
+  "base_zh": "野猪 Prime",
+  "slot": null,
+  "class": null,
+  "damage": {
+   "heat": 30.0,
+   "total": 30.0
+  },
+  "criticalChance": 0.2,
+  "criticalMultiplier": 2.2,
+  "procChance": 0.24,
+  "fireRate": 8.0,
+  "multishot": 1.0
+ },
+ "/lotus/weapons/tenno/rifle/boltorifle": {
+  "form_id": "boltor_incarnon",
+  "form_name": "Boltor (Incarnon Form)",
+  "form_zh": "螺钉步枪 (灵化形态)",
+  "base_name": "Boltor",
+  "base_zh": "螺钉步枪",
+  "slot": "primary",
+  "class": "rifle",
+  "damage": {
+   "impact": 0.4,
+   "puncture": 1.2,
+   "slash": 2.4,
+   "total": 4.0
+  },
+  "criticalChance": 0.22,
+  "criticalMultiplier": 2.8,
+  "procChance": 0.0933,
+  "fireRate": 10.0,
+  "multishot": 3.0
+ },
+ "/lotus/weapons/tenno/longguns/primeboltor/primeboltor": {
+  "form_id": "boltor_prime_incarnon",
+  "form_name": "Boltor Prime (Incarnon Form)",
+  "form_zh": "螺钉步枪 Prime (灵化形态)",
+  "base_name": "Boltor Prime",
+  "base_zh": "螺钉步枪 Prime",
+  "slot": "primary",
+  "class": "rifle",
+  "damage": {
+   "impact": 2.4,
+   "puncture": 7.2,
+   "slash": 14.4,
+   "total": 24.0
+  },
+  "criticalChance": 0.24,
+  "criticalMultiplier": 3.0,
+  "procChance": 0.2,
+  "fireRate": 11.33,
+  "multishot": 3.0
+ },
+ "/lotus/weapons/tenno/rifle/rifle": {
+  "form_id": "braton_incarnon",
+  "form_name": "Braton (Incarnon Form)",
+  "form_zh": "布莱顿 (灵化形态)",
+  "base_name": "Braton",
+  "base_zh": "布莱顿",
+  "slot": "primary",
+  "class": "rifle",
+  "damage": {
+   "impact": 20.0,
+   "puncture": 2.0,
+   "slash": 28.0,
+   "total": 50.0
+  },
+  "criticalChance": 0.3,
+  "criticalMultiplier": 3.0,
+  "procChance": 0.12,
+  "fireRate": 5.0,
+  "multishot": 1.0,
+  "radial": {
+   "damage": {
+    "heat": 50.0,
+    "total": 50.0
+   },
+   "criticalChance": 0.3,
+   "criticalMultiplier": 3.0,
+   "procChance": 0.12,
+   "radius_m": 3.0,
+   "falloff_reduction": 0.1
+  }
+ },
+ "/lotus/weapons/tenno/rifle/bratonprime": {
+  "form_id": "braton_prime_incarnon",
+  "form_name": "Braton Prime (Incarnon Form)",
+  "form_zh": "布莱顿 Prime (灵化形态)",
+  "base_name": "Braton Prime",
+  "base_zh": "布莱顿 Prime",
+  "slot": "primary",
+  "class": "rifle",
+  "damage": {
+   "impact": 28.0,
+   "puncture": 2.8,
+   "slash": 39.2,
+   "total": 70.0
+  },
+  "criticalChance": 0.3,
+  "criticalMultiplier": 3.0,
+  "procChance": 0.3,
+  "fireRate": 5.67,
+  "multishot": 1.0,
+  "radial": {
+   "damage": {
+    "heat": 70.0,
+    "total": 70.0
+   },
+   "criticalChance": 0.3,
+   "criticalMultiplier": 3.0,
+   "procChance": 0.3,
+   "radius_m": 3.0,
+   "falloff_reduction": 0.1
+  }
+ },
+ "/lotus/weapons/tenno/rifle/viprifle": {
+  "form_id": "braton_vandal_incarnon",
+  "form_name": "Braton Vandal (Incarnon Form)",
+  "form_zh": "布莱顿·破坏者 (灵化形态)",
+  "base_name": "Braton Vandal",
+  "base_zh": "布莱顿·破坏者",
+  "slot": "primary",
+  "class": "rifle",
+  "damage": {
+   "impact": 26.0,
+   "puncture": 2.6,
+   "slash": 36.4,
+   "total": 65.0
+  },
+  "criticalChance": 0.38,
+  "criticalMultiplier": 3.2,
+  "procChance": 0.22,
+  "fireRate": 4.67,
+  "multishot": 1.0,
+  "radial": {
+   "damage": {
+    "heat": 65.0,
+    "total": 65.0
+   },
+   "criticalChance": 0.38,
+   "criticalMultiplier": 3.2,
+   "procChance": 0.22,
+   "radius_m": 3.0,
+   "falloff_reduction": 0.1
+  }
+ },
+ "/lotus/weapons/tenno/rifle/burstrifle": {
+  "form_id": "burston_incarnon",
+  "form_name": "Burston (Incarnon Form)",
+  "form_zh": "伯斯顿 (灵化形态)",
+  "base_name": "Burston",
+  "base_zh": "伯斯顿",
+  "slot": null,
+  "class": null,
+  "damage": {
+   "heat": 3.0,
+   "total": 3.0
+  },
+  "criticalChance": 0.3,
+  "criticalMultiplier": 3.0,
+  "procChance": 0.3,
+  "fireRate": 20.0,
+  "multishot": 1.0,
+  "radial": {
+   "damage": {
+    "heat": 3.0,
+    "total": 3.0
+   },
+   "criticalChance": 0.3,
+   "criticalMultiplier": 3.0,
+   "procChance": 0.3,
+   "radius_m": 2.0,
+   "falloff_reduction": 1.0
+  }
+ },
+ "/lotus/weapons/tenno/longguns/primeburston/primeburston": {
+  "form_id": "burston_prime_incarnon",
+  "form_name": "Burston Prime (Incarnon Form)",
+  "form_zh": "伯斯顿 Prime (灵化形态)",
+  "base_name": "Burston Prime",
+  "base_zh": "伯斯顿 Prime",
+  "slot": null,
+  "class": null,
+  "damage": {
+   "heat": 13.0,
+   "total": 13.0
+  },
+  "criticalChance": 0.28,
+  "criticalMultiplier": 3.0,
+  "procChance": 0.3,
+  "fireRate": 20.0,
+  "multishot": 1.0,
+  "radial": {
+   "damage": {
+    "heat": 13.0,
+    "total": 13.0
+   },
+   "criticalChance": 0.28,
+   "criticalMultiplier": 3.0,
+   "procChance": 0.3,
+   "radius_m": 2.0,
+   "falloff_reduction": 1.0
+  }
+ },
+ "/lotus/weapons/clantech/energy/energyrifle": {
+  "form_id": "dera_incarnon",
+  "form_name": "Dera (Incarnon Form)",
+  "form_zh": "德拉 (灵化形态)",
+  "base_name": "Dera",
+  "base_zh": "德拉",
+  "slot": "primary",
+  "class": "rifle",
+  "damage": {
+   "impact": 40.0,
+   "puncture": 130.0,
+   "slash": 80.0,
+   "magnetic": 80.0,
+   "total": 330.0
+  },
+  "criticalChance": 0.22,
+  "criticalMultiplier": 3.0,
+  "procChance": 0.18,
+  "fireRate": 2.0,
+  "multishot": 1.0
+ },
+ "/lotus/weapons/clantech/energy/deravandal": {
+  "form_id": "dera_vandal_incarnon",
+  "form_name": "Dera Vandal (Incarnon Form)",
+  "form_zh": "德拉·破坏者 (灵化形态)",
+  "base_name": "Dera Vandal",
+  "base_zh": "德拉·破坏者",
+  "slot": "primary",
+  "class": "rifle",
+  "damage": {
+   "impact": 50.0,
+   "puncture": 140.0,
+   "slash": 90.0,
+   "magnetic": 90.0,
+   "total": 370.0
+  },
+  "criticalChance": 0.3,
+  "criticalMultiplier": 3.0,
+  "procChance": 0.22,
+  "fireRate": 2.0,
+  "multishot": 1.0
+ },
+ "/lotus/weapons/tenno/longguns/dexthethird/dexthethird": {
+  "form_id": "dex_sybaris_incarnon",
+  "form_name": "Dex Sybaris (Incarnon Form)",
+  "form_zh": "Dex 席芭莉丝 (灵化形态)",
+  "base_name": "Dex Sybaris",
+  "base_zh": "Dex 席芭莉丝",
+  "slot": "primary",
+  "class": "rifle",
+  "damage": {
+   "impact": 28.8,
+   "puncture": 24.0,
+   "slash": 43.2,
+   "total": 96.0
+  },
+  "criticalChance": 0.3,
+  "criticalMultiplier": 3.0,
+  "procChance": 0.2,
+  "fireRate": 3.33,
+  "multishot": 1.0,
+  "forced_procs": [
+   "blast"
+  ]
+ },
+ "/lotus/weapons/tenno/bows/stalkerbow": {
+  "form_id": "dread_incarnon",
+  "form_name": "Dread (Incarnon Form)",
+  "form_zh": "恐惧 (灵化形态)",
+  "base_name": "Dread",
+  "base_zh": "恐惧",
+  "slot": "primary",
+  "class": "bow",
+  "damage": {
+   "impact": 100.0,
+   "slash": 100.0,
+   "heat": 200.0,
+   "total": 400.0
+  },
+  "criticalChance": 0.5,
+  "criticalMultiplier": 3.0,
+  "procChance": 0.3,
+  "fireRate": 1.5,
+  "multishot": 1.0
+ },
+ "/lotus/weapons/tenno/zariman/longguns/pumpshotgun/zarimanpumpshotgun": {
+  "form_id": "felarx_incarnon",
+  "form_name": "Felarx (Incarnon Form)",
+  "form_zh": "逐枭 (灵化形态)",
+  "base_name": "Felarx",
+  "base_zh": "逐枭",
+  "slot": "primary",
+  "class": "shotgun",
+  "damage": {
+   "impact": 200.0,
+   "radiation": 400.0,
+   "total": 600.0
+  },
+  "criticalChance": 0.2,
+  "criticalMultiplier": 3.0,
+  "procChance": 0.2,
+  "fireRate": 1.5,
+  "multishot": 1.0,
+  "forced_procs": [
+   "impact"
+  ]
+ },
+ "/lotus/weapons/tenno/rifle/heavyrifle": {
+  "form_id": "gorgon_incarnon",
+  "form_name": "Gorgon (Incarnon Form)",
+  "form_zh": "蛇发女妖 (灵化形态)",
+  "base_name": "Gorgon",
+  "base_zh": "蛇发女妖",
+  "slot": "primary",
+  "class": "rifle",
+  "damage": {
+   "impact": 20.0,
+   "puncture": 60.0,
+   "slash": 20.0,
+   "total": 100.0
+  },
+  "criticalChance": 0.21,
+  "criticalMultiplier": 1.9,
+  "procChance": 0.19,
+  "fireRate": 0.833,
+  "multishot": 1.0,
+  "radial": {
+   "damage": {
+    "heat": 750.0,
+    "total": 750.0
+   },
+   "criticalChance": 0.21,
+   "criticalMultiplier": 1.9,
+   "procChance": 0.19,
+   "radius_m": 5.0,
+   "falloff_reduction": 0.1
+  }
+ },
+ "/lotus/weapons/grineer/longguns/wraithgorgon/wraithgorgon": {
+  "form_id": "gorgon_wraith_incarnon",
+  "form_name": "Gorgon Wraith (Incarnon Form)",
+  "form_zh": "蛇发女妖·亡魂 (灵化形态)",
+  "base_name": "Gorgon Wraith",
+  "base_zh": "蛇发女妖·亡魂",
+  "slot": "primary",
+  "class": "rifle",
+  "damage": {
+   "impact": 25.0,
+   "puncture": 75.0,
+   "slash": 25.0,
+   "total": 125.0
+  },
+  "criticalChance": 0.19,
+  "criticalMultiplier": 2.1,
+  "procChance": 0.27,
+  "fireRate": 1.0,
+  "multishot": 1.0,
+  "radial": {
+   "damage": {
+    "heat": 750.0,
+    "total": 750.0
+   },
+   "criticalChance": 0.19,
+   "criticalMultiplier": 2.1,
+   "procChance": 0.27,
+   "radius_m": 5.0,
+   "falloff_reduction": 0.1
+  }
+ },
+ "/lotus/weapons/tenno/rifle/semiautorifle": {
+  "form_id": "latron_incarnon",
+  "form_name": "Latron (Incarnon Form)",
+  "form_zh": "拉特昂 (灵化形态)",
+  "base_name": "Latron",
+  "base_zh": "拉特昂",
+  "slot": "primary",
+  "class": "rifle",
+  "damage": {
+   "impact": 50.0,
+   "total": 50.0
+  },
+  "criticalChance": 0.32,
+  "criticalMultiplier": 3.0,
+  "procChance": 0.24,
+  "fireRate": 3.33,
+  "multishot": 1.0,
+  "radial": {
+   "damage": {
+    "puncture": 40.0,
+    "heat": 40.0,
+    "total": 80.0
+   },
+   "criticalChance": 0.32,
+   "criticalMultiplier": 3.0,
+   "procChance": 0.24,
+   "radius_m": 4.0,
+   "falloff_reduction": 0.2
+  },
+  "ricochet": {
+   "bounces": 5,
+   "headshot_chance": 0.5
+  }
+ },
+ "/lotus/weapons/tenno/rifle/latronprime": {
+  "form_id": "latron_prime_incarnon",
+  "form_name": "Latron Prime (Incarnon Form)",
+  "form_zh": "拉特昂 Prime (灵化形态)",
+  "base_name": "Latron Prime",
+  "base_zh": "拉特昂 Prime",
+  "slot": "primary",
+  "class": "rifle",
+  "damage": {
+   "impact": 50.0,
+   "total": 50.0
+  },
+  "criticalChance": 0.44,
+  "criticalMultiplier": 3.4,
+  "procChance": 0.3,
+  "fireRate": 3.33,
+  "multishot": 1.0,
+  "radial": {
+   "damage": {
+    "puncture": 70.0,
+    "heat": 70.0,
+    "total": 140.0
+   },
+   "criticalChance": 0.44,
+   "criticalMultiplier": 3.4,
+   "procChance": 0.3,
+   "radius_m": 4.0,
+   "falloff_reduction": 0.2
+  },
+  "forced_procs": [
+   "impact"
+  ],
+  "ricochet": {
+   "bounces": 5,
+   "headshot_chance": 0.5
+  }
+ },
+ "/lotus/weapons/tenno/longguns/wraithlatron/wraithlatron": {
+  "form_id": "latron_wraith_incarnon",
+  "form_name": "Latron Wraith (Incarnon Form)",
+  "form_zh": "拉特昂·亡魂 (灵化形态)",
+  "base_name": "Latron Wraith",
+  "base_zh": "拉特昂·亡魂",
+  "slot": "primary",
+  "class": "rifle",
+  "damage": {
+   "impact": 50.0,
+   "total": 50.0
+  },
+  "criticalChance": 0.48,
+  "criticalMultiplier": 3.4,
+  "procChance": 0.28,
+  "fireRate": 3.67,
+  "multishot": 1.0,
+  "radial": {
+   "damage": {
+    "puncture": 50.0,
+    "heat": 50.0,
+    "total": 100.0
+   },
+   "criticalChance": 0.48,
+   "criticalMultiplier": 3.4,
+   "procChance": 0.28,
+   "radius_m": 4.0,
+   "falloff_reduction": 0.2
+  },
+  "ricochet": {
+   "bounces": 5,
+   "headshot_chance": 0.5
+  }
+ },
+ "/lotus/weapons/grineer/longguns/grineersawbladegun/sawbladegun": {
+  "form_id": "miter_incarnon",
+  "form_name": "Miter (Incarnon Form)",
+  "form_zh": "米特尔 (灵化形态)",
+  "base_name": "Miter",
+  "base_zh": "米特尔",
+  "slot": "primary",
+  "class": "rifle",
+  "damage": {
+   "impact": 12.0,
+   "puncture": 6.0,
+   "slash": 42.0,
+   "total": 60.0
+  },
+  "criticalChance": 0.2,
+  "criticalMultiplier": 3.3,
+  "procChance": 0.56,
+  "fireRate": 3.33,
+  "multishot": 1.0,
+  "radial": {
+   "damage": {
+    "heat": 80.0,
+    "total": 80.0
+   },
+   "criticalChance": 0.2,
+   "criticalMultiplier": 3.3,
+   "procChance": 0.56,
+   "radius_m": 3.0,
+   "falloff_reduction": 0.2
+  }
+ },
+ "/lotus/weapons/tenno/rifle/startingrifle": {
+  "form_id": "mk1_braton_incarnon",
+  "form_name": "MK1-Braton (Incarnon Form)",
+  "form_zh": "MK1-布莱顿 (灵化形态)",
+  "base_name": "MK1-Braton",
+  "base_zh": "MK1-布莱顿",
+  "slot": "primary",
+  "class": "rifle",
+  "damage": {
+   "impact": 20.0,
+   "puncture": 2.0,
+   "slash": 28.0,
+   "total": 50.0
+  },
+  "criticalChance": 0.2,
+  "criticalMultiplier": 2.4,
+  "procChance": 0.1,
+  "fireRate": 5.0,
+  "multishot": 1.0,
+  "radial": {
+   "damage": {
+    "heat": 50.0,
+    "total": 50.0
+   },
+   "criticalChance": 0.2,
+   "criticalMultiplier": 2.4,
+   "procChance": 0.1,
+   "radius_m": 3.0,
+   "falloff_reduction": 0.1
+  }
+ },
+ "/lotus/weapons/mk1series/mk1paris": {
+  "form_id": "mk1_paris_incarnon",
+  "form_name": "MK1-Paris (Incarnon Form)",
+  "form_zh": "MK1-帕里斯 (灵化形态)",
+  "base_name": "MK1-Paris",
+  "base_zh": "MK1-帕里斯",
+  "slot": "primary",
+  "class": "bow",
+  "damage": {
+   "impact": 50.0,
+   "heat": 250.0,
+   "total": 300.0
+  },
+  "criticalChance": 0.4,
+  "criticalMultiplier": 3.0,
+  "procChance": 0.2,
+  "fireRate": 1.0,
+  "multishot": 1.0
+ },
+ "/lotus/weapons/mk1series/mk1strun": {
+  "form_id": "mk1_strun_incarnon",
+  "form_name": "MK1-Strun (Incarnon Form)",
+  "form_zh": "MK1-斯特朗 (灵化形态)",
+  "base_name": "MK1-Strun",
+  "base_zh": "MK1-斯特朗",
+  "slot": "primary",
+  "class": "shotgun",
+  "damage": {
+   "impact": 100.0,
+   "total": 100.0
+  },
+  "criticalChance": 0.44,
+  "criticalMultiplier": 3.0,
+  "procChance": 0.4,
+  "fireRate": 1.5,
+  "multishot": 1.0,
+  "radial": {
+   "damage": {
+    "puncture": 25.0,
+    "slash": 60.0,
+    "blast": 45.0,
+    "total": 130.0
+   },
+   "criticalChance": 0.44,
+   "criticalMultiplier": 3.0,
+   "procChance": 0.4,
+   "radius_m": 4.0,
+   "falloff_reduction": 0.2
+  }
+ },
+ "/lotus/weapons/tenno/bows/huntingbow": {
+  "form_id": "paris_incarnon",
+  "form_name": "Paris (Incarnon Form)",
+  "form_zh": "帕里斯 (灵化形态)",
+  "base_name": "Paris",
+  "base_zh": "帕里斯",
+  "slot": "primary",
+  "class": "bow",
+  "damage": {
+   "impact": 95.0,
+   "heat": 365.0,
+   "total": 460.0
+  },
+  "criticalChance": 0.4,
+  "criticalMultiplier": 3.0,
+  "procChance": 0.2,
+  "fireRate": 1.0,
+  "multishot": 1.0
+ },
+ "/lotus/weapons/tenno/bows/primehuntingbow": {
+  "form_id": "paris_prime_incarnon",
+  "form_name": "Paris Prime (Incarnon Form)",
+  "form_zh": "帕里斯 Prime (灵化形态)",
+  "base_name": "Paris Prime",
+  "base_zh": "帕里斯 Prime",
+  "slot": "primary",
+  "class": "bow",
+  "damage": {
+   "impact": 100.0,
+   "heat": 420.0,
+   "total": 520.0
+  },
+  "criticalChance": 0.5,
+  "criticalMultiplier": 3.4,
+  "procChance": 0.2,
+  "fireRate": 1.0,
+  "multishot": 1.0
+ },
+ "/lotus/weapons/tenno/zariman/longguns/semiautorifle/zarimansemiautorifle": {
+  "form_id": "phenmor_incarnon",
+  "form_name": "Phenmor (Incarnon Form)",
+  "form_zh": "凤殁 (灵化形态)",
+  "base_name": "Phenmor",
+  "base_zh": "凤殁",
+  "slot": "primary",
+  "class": "rifle",
+  "damage": {
+   "slash": 80.0,
+   "radiation": 60.0,
+   "total": 140.0
+  },
+  "criticalChance": 0.2,
+  "criticalMultiplier": 2.0,
+  "procChance": 0.2,
+  "fireRate": 13.33,
+  "multishot": 1.0
+ },
+ "/lotus/weapons/grineer/longguns/voidtradergorgon/vtgorgon": {
+  "form_id": "prisma_gorgon_incarnon",
+  "form_name": "Prisma Gorgon (Incarnon Form)",
+  "form_zh": "棱晶·蛇发女妖 (灵化形态)",
+  "base_name": "Prisma Gorgon",
+  "base_zh": "棱晶·蛇发女妖",
+  "slot": "primary",
+  "class": "rifle",
+  "damage": {
+   "impact": 15.0,
+   "puncture": 45.0,
+   "slash": 15.0,
+   "total": 75.0
+  },
+  "criticalChance": 0.27,
+  "criticalMultiplier": 2.3,
+  "procChance": 0.21,
+  "fireRate": 1.167,
+  "multishot": 1.0,
+  "radial": {
+   "damage": {
+    "heat": 700.0,
+    "total": 700.0
+   },
+   "criticalChance": 0.27,
+   "criticalMultiplier": 2.3,
+   "procChance": 0.21,
+   "radius_m": 5.0,
+   "falloff_reduction": 0.1
+  }
+ },
+ "/lotus/weapons/tenno/rifle/tennoar": {
+  "form_id": "soma_incarnon",
+  "form_name": "Soma (Incarnon Form)",
+  "form_zh": "月神 (灵化形态)",
+  "base_name": "Soma",
+  "base_zh": "月神",
+  "slot": "primary",
+  "class": "rifle",
+  "damage": {
+   "impact": 0.48,
+   "puncture": 2.24,
+   "slash": 5.28,
+   "total": 8.0
+  },
+  "criticalChance": 0.1,
+  "criticalMultiplier": 3.0,
+  "procChance": 0.025,
+  "fireRate": 7.0,
+  "multishot": 8.0
+ },
+ "/lotus/weapons/tenno/longguns/primesoma/primesomarifle": {
+  "form_id": "soma_prime_incarnon",
+  "form_name": "Soma Prime (Incarnon Form)",
+  "form_zh": "月神 Prime (灵化形态)",
+  "base_name": "Soma Prime",
+  "base_zh": "月神 Prime",
+  "slot": "primary",
+  "class": "rifle",
+  "damage": {
+   "impact": 1.08,
+   "puncture": 5.04,
+   "slash": 11.88,
+   "total": 18.0
+  },
+  "criticalChance": 0.1,
+  "criticalMultiplier": 3.4,
+  "procChance": 0.03,
+  "fireRate": 7.0,
+  "multishot": 8.0
+ },
+ "/lotus/weapons/tenno/shotgun/shotgun": {
+  "form_id": "strun_incarnon",
+  "form_name": "Strun (Incarnon Form)",
+  "form_zh": "斯特朗 (灵化形态)",
+  "base_name": "Strun",
+  "base_zh": "斯特朗",
+  "slot": "primary",
+  "class": "shotgun",
+  "damage": {
+   "impact": 100.0,
+   "total": 100.0
+  },
+  "criticalChance": 0.44,
+  "criticalMultiplier": 2.8,
+  "procChance": 0.4,
+  "fireRate": 2.0,
+  "multishot": 1.0,
+  "radial": {
+   "damage": {
+    "puncture": 30.0,
+    "slash": 80.0,
+    "blast": 60.0,
+    "total": 170.0
+   },
+   "criticalChance": 0.44,
+   "criticalMultiplier": 2.8,
+   "procChance": 0.4,
+   "radius_m": 4.0,
+   "falloff_reduction": 0.2
+  },
+  "forced_procs": [
+   "impact"
+  ]
+ },
+ "/lotus/weapons/tenno/longguns/primestrun/primestrunweapon": {
+  "form_id": "strun_prime_incarnon",
+  "form_name": "Strun Prime (Incarnon Form)",
+  "form_zh": "斯特朗 Prime (灵化形态)",
+  "base_name": "Strun Prime",
+  "base_zh": "斯特朗 Prime",
+  "slot": "primary",
+  "class": "shotgun",
+  "damage": {
+   "impact": 100.0,
+   "total": 100.0
+  },
+  "criticalChance": 0.48,
+  "criticalMultiplier": 3.4,
+  "procChance": 0.46,
+  "fireRate": 2.5,
+  "multishot": 1.0,
+  "radial": {
+   "damage": {
+    "puncture": 40.0,
+    "slash": 100.0,
+    "blast": 60.0,
+    "total": 200.0
+   },
+   "criticalChance": 0.48,
+   "criticalMultiplier": 3.4,
+   "procChance": 0.46,
+   "radius_m": 4.0,
+   "falloff_reduction": 0.2
+  },
+  "forced_procs": [
+   "impact"
+  ]
+ },
+ "/lotus/weapons/tenno/shotgun/shotgunvandal": {
+  "form_id": "strun_wraith_incarnon",
+  "form_name": "Strun Wraith (Incarnon Form)",
+  "form_zh": "斯特朗·亡魂 (灵化形态)",
+  "base_name": "Strun Wraith",
+  "base_zh": "斯特朗·亡魂",
+  "slot": "primary",
+  "class": "shotgun",
+  "damage": {
+   "impact": 100.0,
+   "total": 100.0
+  },
+  "criticalChance": 0.56,
+  "criticalMultiplier": 3.4,
+  "procChance": 0.44,
+  "fireRate": 2.0,
+  "multishot": 1.0,
+  "radial": {
+   "damage": {
+    "puncture": 40.0,
+    "slash": 90.0,
+    "blast": 70.0,
+    "total": 200.0
+   },
+   "criticalChance": 0.56,
+   "criticalMultiplier": 3.4,
+   "procChance": 0.44,
+   "radius_m": 4.0,
+   "falloff_reduction": 0.2
+  },
+  "forced_procs": [
+   "impact"
+  ]
+ },
+ "/lotus/weapons/tenno/longguns/tnoleveraction/tnoleveractionrifle": {
+  "form_id": "sybaris_incarnon",
+  "form_name": "Sybaris (Incarnon Form)",
+  "form_zh": "席芭莉丝 (灵化形态)",
+  "base_name": "Sybaris",
+  "base_zh": "席芭莉丝",
+  "slot": "primary",
+  "class": "rifle",
+  "damage": {
+   "impact": 29.7,
+   "puncture": 29.7,
+   "slash": 30.6,
+   "total": 90.0
+  },
+  "criticalChance": 0.2,
+  "criticalMultiplier": 3.0,
+  "procChance": 0.2,
+  "fireRate": 3.33,
+  "multishot": 1.0,
+  "forced_procs": [
+   "blast"
+  ]
+ },
+ "/lotus/weapons/tenno/longguns/primesybaris/primesybarisrifle": {
+  "form_id": "sybaris_prime_incarnon",
+  "form_name": "Sybaris Prime (Incarnon Form)",
+  "form_zh": "席芭莉丝 Prime (灵化形态)",
+  "base_name": "Sybaris Prime",
+  "base_zh": "席芭莉丝 Prime",
+  "slot": "primary",
+  "class": "rifle",
+  "damage": {
+   "impact": 36.3,
+   "puncture": 36.3,
+   "slash": 37.4,
+   "total": 110.0
+  },
+  "criticalChance": 0.25,
+  "criticalMultiplier": 3.0,
+  "procChance": 0.3,
+  "fireRate": 3.33,
+  "multishot": 1.0,
+  "forced_procs": [
+   "blast"
+  ]
+ },
+ "/lotus/weapons/syndicates/arbitersofhexis/longguns/ahboltor": {
+  "form_id": "telos_boltor_incarnon",
+  "form_name": "Telos Boltor (Incarnon Form)",
+  "form_zh": "终极·螺钉步枪 (灵化形态)",
+  "base_name": "Telos Boltor",
+  "base_zh": "终极·螺钉步枪",
+  "slot": "primary",
+  "class": "rifle",
+  "damage": {
+   "impact": 2.0,
+   "puncture": 6.0,
+   "slash": 12.0,
+   "total": 20.0
+  },
+  "criticalChance": 0.36,
+  "criticalMultiplier": 3.2,
+  "procChance": 0.1067,
+  "fireRate": 10.33,
+  "multishot": 3.0
+ },
+ "/lotus/weapons/clantech/bio/bioweapon": {
+  "form_id": "torid_incarnon",
+  "form_name": "Torid (Incarnon Form)",
+  "form_zh": "托里德 (灵化形态)",
+  "base_name": "Torid",
+  "base_zh": "托里德",
+  "slot": "primary",
+  "class": "launcher",
+  "damage": {
+   "toxin": 51.0,
+   "total": 51.0
+  },
+  "criticalChance": 0.29,
+  "criticalMultiplier": 3.1,
+  "procChance": 0.39,
+  "fireRate": 8.0,
+  "multishot": 1.0
+ },
+ "/lotus/weapons/tenno/rifle/tennosniperrifle": {
+  "form_id": "vectis_incarnon",
+  "form_name": "Vectis (Incarnon Form)",
+  "form_zh": "守望者 (灵化形态)",
+  "base_name": "Vectis",
+  "base_zh": "守望者",
+  "slot": "primary",
+  "class": "sniper",
+  "damage": {
+   "cold": 5.0,
+   "total": 5.0
+  },
+  "criticalChance": 0.3,
+  "criticalMultiplier": 2.5,
+  "procChance": 0.3,
+  "fireRate": 1.333,
+  "multishot": 1.0,
+  "radial": {
+   "damage": {
+    "cold": 5.0,
+    "total": 5.0
+   },
+   "criticalChance": 0.3,
+   "criticalMultiplier": 2.5,
+   "procChance": 0.3,
+   "radius_m": 6.7,
+   "falloff_reduction": 0.0
+  },
+  "forced_procs": [
+   "cold"
+  ]
+ },
+ "/lotus/weapons/tenno/longguns/primevectis/primevectisrifle": {
+  "form_id": "vectis_prime_incarnon",
+  "form_name": "Vectis Prime (Incarnon Form)",
+  "form_zh": "守望者 Prime (灵化形态)",
+  "base_name": "Vectis Prime",
+  "base_zh": "守望者 Prime",
+  "slot": "primary",
+  "class": "sniper",
+  "damage": {
+   "cold": 150.0,
+   "total": 150.0
+  },
+  "criticalChance": 0.35,
+  "criticalMultiplier": 3.0,
+  "procChance": 0.3,
+  "fireRate": 1.333,
+  "multishot": 1.0,
+  "radial": {
+   "damage": {
+    "cold": 150.0,
+    "total": 150.0
+   },
+   "criticalChance": 0.35,
+   "criticalMultiplier": 3.0,
+   "procChance": 0.3,
+   "radius_m": 6.7,
+   "falloff_reduction": 0.0
+  },
+  "forced_procs": [
+   "cold"
+  ]
+ },
+ "/lotus/weapons/corpus/pistols/crphandrl/corpushandrocketlauncher": {
+  "form_id": "angstrum_incarnon",
+  "form_name": "Angstrum (Incarnon Form)",
+  "form_zh": "安格斯壮 (灵化形态)",
+  "base_name": "Angstrum",
+  "base_zh": "安格斯壮",
+  "slot": "secondary",
+  "class": "pistol",
+  "damage": {
+   "heat": 30.0,
+   "total": 30.0
+  },
+  "criticalChance": 0.18,
+  "criticalMultiplier": 1.8,
+  "procChance": 0.18,
+  "fireRate": 6.0,
+  "multishot": 1.0
+ },
+ "/lotus/weapons/grineer/pistols/heatgun/grnheatgun": {
+  "form_id": "atomos_incarnon",
+  "form_name": "Atomos (Incarnon Form)",
+  "form_zh": "原子矿融炮 (灵化形态)",
+  "base_name": "Atomos",
+  "base_zh": "原子矿融炮",
+  "slot": "secondary",
+  "class": "pistol",
+  "damage": {
+   "impact": 100.0,
+   "total": 100.0
+  },
+  "criticalChance": 0.18,
+  "criticalMultiplier": 3.0,
+  "procChance": 0.41,
+  "fireRate": 1.5,
+  "multishot": 1.0,
+  "radial": {
+   "damage": {
+    "blast": 450.0,
+    "total": 450.0
+   },
+   "criticalChance": 0.18,
+   "criticalMultiplier": 3.0,
+   "procChance": 0.41,
+   "radius_m": 7.9,
+   "falloff_reduction": 0.8
+  }
+ },
+ "/lotus/weapons/tenno/pistols/automatichandcrossbow/autocrossbow": {
+  "form_id": "ballistica_incarnon",
+  "form_name": "Ballistica (Incarnon Form)",
+  "form_zh": "布里斯提卡 (灵化形态)",
+  "base_name": "Ballistica",
+  "base_zh": "布里斯提卡",
+  "slot": "secondary",
+  "class": "pistol",
+  "damage": {
+   "slash": 640.0,
+   "total": 640.0
+  },
+  "criticalChance": 0.2,
+  "criticalMultiplier": 2.0,
+  "procChance": 0.2,
+  "fireRate": 3.33,
+  "multishot": 1.0
+ },
+ "/lotus/weapons/tenno/pistols/primeballistica/primeballistica": {
+  "form_id": "ballistica_prime_incarnon",
+  "form_name": "Ballistica Prime (Incarnon Form)",
+  "form_zh": "布里斯提卡 Prime (灵化形态)",
+  "base_name": "Ballistica Prime",
+  "base_zh": "布里斯提卡 Prime",
+  "slot": "secondary",
+  "class": "pistol",
+  "damage": {
+   "slash": 830.0,
+   "total": 830.0
+  },
+  "criticalChance": 0.3,
+  "criticalMultiplier": 2.5,
+  "procChance": 0.3,
+  "fireRate": 3.33,
+  "multishot": 1.0
+ },
+ "/lotus/weapons/tenno/pistol/handshotgun": {
+  "form_id": "bronco_incarnon",
+  "form_name": "Bronco (Incarnon Form)",
+  "form_zh": "野马 (灵化形态)",
+  "base_name": "Bronco",
+  "base_zh": "野马",
+  "slot": "secondary",
+  "class": "pistol",
+  "damage": {
+   "impact": 13.2,
+   "puncture": 2.2,
+   "slash": 6.6,
+   "total": 22.0
+  },
+  "criticalChance": 0.2,
+  "criticalMultiplier": 3.0,
+  "procChance": 0.1886,
+  "fireRate": 2.5,
+  "multishot": 7.0
+ },
+ "/lotus/weapons/tenno/pistol/broncoprime": {
+  "form_id": "bronco_prime_incarnon",
+  "form_name": "Bronco Prime (Incarnon Form)",
+  "form_zh": "野马 Prime (灵化形态)",
+  "base_name": "Bronco Prime",
+  "base_zh": "野马 Prime",
+  "slot": "secondary",
+  "class": "pistol",
+  "damage": {
+   "impact": 27.2,
+   "puncture": 3.4,
+   "slash": 3.4,
+   "total": 34.0
+  },
+  "criticalChance": 0.24,
+  "criticalMultiplier": 3.2,
+  "procChance": 0.2571,
+  "fireRate": 3.0,
+  "multishot": 7.0
+ },
+ "/lotus/weapons/corpus/pistols/corpusminigun/corpusminigun": {
+  "form_id": "cestra_incarnon",
+  "form_name": "Cestra (Incarnon Form)",
+  "form_zh": "锡斯特 (灵化形态)",
+  "base_name": "Cestra",
+  "base_zh": "锡斯特",
+  "slot": "secondary",
+  "class": "pistol",
+  "damage": {
+   "impact": 10.0,
+   "puncture": 40.0,
+   "total": 50.0
+  },
+  "criticalChance": 0.5,
+  "criticalMultiplier": 3.0,
+  "procChance": 0.18,
+  "fireRate": 6.67,
+  "multishot": 1.0
+ },
+ "/lotus/weapons/tenno/throwingweapons/stalkerkunai": {
+  "form_id": "despair_incarnon",
+  "form_name": "Despair (Incarnon Form)",
+  "form_zh": "绝望 (灵化形态)",
+  "base_name": "Despair",
+  "base_zh": "绝望",
+  "slot": "secondary",
+  "class": "pistol",
+  "damage": {
+   "impact": 3.0,
+   "puncture": 48.0,
+   "slash": 9.0,
+   "total": 60.0
+  },
+  "criticalChance": 0.3,
+  "criticalMultiplier": 3.0,
+  "procChance": 0.2,
+  "fireRate": 3.0,
+  "multishot": 1.0,
+  "radial": {
+   "damage": {
+    "heat": 160.0,
+    "total": 160.0
+   },
+   "criticalChance": 0.3,
+   "criticalMultiplier": 3.0,
+   "procChance": 0.3,
+   "radius_m": 4.0,
+   "falloff_reduction": 0.2
+  }
+ },
+ "/lotus/weapons/infested/pistols/infvomitgun/infvomitgunwep": {
+  "form_id": "dual_toxocyst_incarnon",
+  "form_name": "Dual Toxocyst (Incarnon Form)",
+  "form_zh": "毒囊双枪 (灵化形态)",
+  "base_name": "Dual Toxocyst",
+  "base_zh": "毒囊双枪",
+  "slot": "secondary",
+  "class": "dual_pistols",
+  "damage": {
+   "impact": 15.0,
+   "puncture": 37.5,
+   "slash": 22.5,
+   "total": 75.0
+  },
+  "criticalChance": 0.11,
+  "criticalMultiplier": 3.0,
+  "procChance": 0.43,
+  "fireRate": 4.5,
+  "multishot": 1.0,
+  "ricochet": {
+   "bounces": 1,
+   "headshot_chance": 0.5
+  }
+ },
+ "/lotus/weapons/tenno/pistol/autopistol": {
+  "form_id": "furis_incarnon",
+  "form_name": "Furis (Incarnon Form)",
+  "form_zh": "盗贼 (灵化形态)",
+  "base_name": "Furis",
+  "base_zh": "盗贼",
+  "slot": null,
+  "class": null,
+  "damage": {
+   "heat": 100.0,
+   "total": 100.0
+  },
+  "criticalChance": 0.26,
+  "criticalMultiplier": 3.4,
+  "procChance": 0.24,
+  "fireRate": 12.0,
+  "multishot": 1.0
+ },
+ "/lotus/weapons/syndicates/cephalonsuda/pistols/csdroidarray": {
+  "form_id": "gammacor_incarnon",
+  "form_name": "Gammacor (Incarnon Form)",
+  "form_zh": "咖玛腕甲枪 (灵化形态)",
+  "base_name": "Gammacor",
+  "base_zh": "咖玛腕甲枪",
+  "slot": "secondary",
+  "class": "pistol",
+  "damage": {
+   "impact": 80.0,
+   "total": 80.0
+  },
+  "criticalChance": 0.14,
+  "criticalMultiplier": 1.8,
+  "procChance": 0.22,
+  "fireRate": 1.0,
+  "multishot": 1.0,
+  "radial": {
+   "damage": {
+    "cold": 660.0,
+    "total": 660.0
+   },
+   "criticalChance": 0.14,
+   "criticalMultiplier": 1.8,
+   "procChance": 0.22,
+   "radius_m": 5.0,
+   "falloff_reduction": 0.3
+  },
+  "forced_procs": [
+   "impact"
+  ]
+ },
+ "/lotus/weapons/tenno/throwingweapons/kunai": {
+  "form_id": "kunai_incarnon",
+  "form_name": "Kunai (Incarnon Form)",
+  "form_zh": "苦无 (灵化形态)",
+  "base_name": "Kunai",
+  "base_zh": "苦无",
+  "slot": "secondary",
+  "class": "pistol",
+  "damage": {
+   "impact": 8.0,
+   "puncture": 14.0,
+   "slash": 18.0,
+   "total": 40.0
+  },
+  "criticalChance": 0.18,
+  "criticalMultiplier": 2.0,
+  "procChance": 0.16,
+  "fireRate": 3.33,
+  "multishot": 2.0
+ },
+ "/lotus/weapons/tenno/zariman/pistols/heavypistol/zarimanheavypistol": {
+  "form_id": "laetum_incarnon",
+  "form_name": "Laetum (Incarnon Form)",
+  "form_zh": "奏凯 (灵化形态)",
+  "base_name": "Laetum",
+  "base_zh": "奏凯",
+  "slot": "secondary",
+  "class": "pistol",
+  "damage": {
+   "impact": 100.0,
+   "total": 100.0
+  },
+  "criticalChance": 0.22,
+  "criticalMultiplier": 2.2,
+  "procChance": 0.22,
+  "fireRate": 6.67,
+  "multishot": 1.0,
+  "radial": {
+   "damage": {
+    "radiation": 300.0,
+    "total": 300.0
+   },
+   "criticalChance": 0.22,
+   "criticalMultiplier": 2.2,
+   "procChance": 0.22,
+   "radius_m": 2.0,
+   "falloff_reduction": 0.2
+  }
+ },
+ "/lotus/weapons/tenno/pistol/pistol": {
+  "form_id": "lato_incarnon",
+  "form_name": "Lato (Incarnon Form)",
+  "form_zh": "拉托 (灵化形态)",
+  "base_name": "Lato",
+  "base_zh": "拉托",
+  "slot": "secondary",
+  "class": "pistol",
+  "damage": {
+   "impact": 16.0,
+   "puncture": 16.0,
+   "slash": 32.0,
+   "total": 64.0
+  },
+  "criticalChance": 0.16,
+  "criticalMultiplier": 2.6,
+  "procChance": 0.06,
+  "fireRate": 3.5,
+  "multishot": 2.0
+ },
+ "/lotus/weapons/tenno/pistol/latoprime": {
+  "form_id": "lato_prime_incarnon",
+  "form_name": "Lato Prime (Incarnon Form)",
+  "form_zh": "拉托 Prime (灵化形态)",
+  "base_name": "Lato Prime",
+  "base_zh": "拉托 Prime",
+  "slot": "secondary",
+  "class": "pistol",
+  "damage": {
+   "impact": 19.5,
+   "puncture": 19.5,
+   "slash": 39.0,
+   "total": 78.0
+  },
+  "criticalChance": 0.36,
+  "criticalMultiplier": 3.2,
+  "procChance": 0.15,
+  "fireRate": 4.0,
+  "multishot": 2.0
+ },
+ "/lotus/weapons/tenno/pistol/latovandal": {
+  "form_id": "lato_vandal_incarnon",
+  "form_name": "Lato Vandal (Incarnon Form)",
+  "form_zh": "拉托·破坏者 (灵化形态)",
+  "base_name": "Lato Vandal",
+  "base_zh": "拉托·破坏者",
+  "slot": "secondary",
+  "class": "pistol",
+  "damage": {
+   "impact": 19.0,
+   "puncture": 19.0,
+   "slash": 38.0,
+   "total": 76.0
+  },
+  "criticalChance": 0.34,
+  "criticalMultiplier": 3.0,
+  "procChance": 0.1,
+  "fireRate": 4.0,
+  "multishot": 2.0
+ },
+ "/lotus/weapons/tenno/pistol/heavypistol": {
+  "form_id": "lex_incarnon",
+  "form_name": "Lex (Incarnon Form)",
+  "form_zh": "雷克斯 (灵化形态)",
+  "base_name": "Lex",
+  "base_zh": "雷克斯",
+  "slot": "secondary",
+  "class": "pistol",
+  "damage": {
+   "impact": 300.0,
+   "radiation": 700.0,
+   "total": 1000.0
+  },
+  "criticalChance": 0.3,
+  "criticalMultiplier": 3.0,
+  "procChance": 0.22,
+  "fireRate": 0.67,
+  "multishot": 1.0
+ },
+ "/lotus/weapons/tenno/pistols/primelex/primelex": {
+  "form_id": "lex_prime_incarnon",
+  "form_name": "Lex Prime (Incarnon Form)",
+  "form_zh": "雷克斯 Prime (灵化形态)",
+  "base_name": "Lex Prime",
+  "base_zh": "雷克斯 Prime",
+  "slot": "secondary",
+  "class": "pistol",
+  "damage": {
+   "impact": 400.0,
+   "radiation": 800.0,
+   "total": 1200.0
+  },
+  "criticalChance": 0.35,
+  "criticalMultiplier": 3.0,
+  "procChance": 0.44,
+  "fireRate": 0.67,
+  "multishot": 1.0,
+  "forced_procs": [
+   "impact"
+  ]
+ },
+ "/lotus/weapons/mk1series/mk1furis": {
+  "form_id": "mk1_furis_incarnon",
+  "form_name": "MK1-Furis (Incarnon Form)",
+  "form_zh": "MK1-盗贼 (灵化形态)",
+  "base_name": "MK1-Furis",
+  "base_zh": "MK1-盗贼",
+  "slot": null,
+  "class": null,
+  "damage": {
+   "heat": 60.0,
+   "total": 60.0
+  },
+  "criticalChance": 0.2,
+  "criticalMultiplier": 3.0,
+  "procChance": 0.08,
+  "fireRate": 12.0,
+  "multishot": 1.0
+ },
+ "/lotus/weapons/mk1series/mk1kunai": {
+  "form_id": "mk1_kunai_incarnon",
+  "form_name": "MK1-Kunai (Incarnon Form)",
+  "form_zh": "MK1-苦无 (灵化形态)",
+  "base_name": "MK1-Kunai",
+  "base_zh": "MK1-苦无",
+  "slot": "secondary",
+  "class": "pistol",
+  "damage": {
+   "impact": 4.8,
+   "puncture": 8.4,
+   "slash": 10.8,
+   "total": 24.0
+  },
+  "criticalChance": 0.14,
+  "criticalMultiplier": 2.0,
+  "procChance": 0.05,
+  "fireRate": 3.33,
+  "multishot": 2.0
+ },
+ "/lotus/weapons/thanotech/entratiwristgun/entratiwristgunweapon": {
+  "form_id": "onos_incarnon",
+  "form_name": "Onos (Incarnon Form)",
+  "form_zh": "赘骨 (灵化形态)",
+  "base_name": "Onos",
+  "base_zh": "赘骨",
+  "slot": "secondary",
+  "class": "pistol",
+  "damage": {
+   "radiation": 30.0,
+   "total": 30.0
+  },
+  "criticalChance": 0.14,
+  "criticalMultiplier": 1.6,
+  "procChance": 0.18,
+  "fireRate": 2.0,
+  "multishot": 1.0
+ },
+ "/lotus/weapons/corpus/pistols/crphandrl/prismaangstrum": {
+  "form_id": "prisma_angstrum_incarnon",
+  "form_name": "Prisma Angstrum (Incarnon Form)",
+  "form_zh": "棱晶·安格斯壮 (灵化形态)",
+  "base_name": "Prisma Angstrum",
+  "base_zh": "棱晶·安格斯壮",
+  "slot": "secondary",
+  "class": "pistol",
+  "damage": {
+   "heat": 50.0,
+   "total": 50.0
+  },
+  "criticalChance": 0.26,
+  "criticalMultiplier": 2.2,
+  "procChance": 0.2,
+  "fireRate": 6.0,
+  "multishot": 1.0
+ },
+ "/lotus/weapons/syndicates/redveil/pistols/rvballistica": {
+  "form_id": "rakta_ballistica_incarnon",
+  "form_name": "Rakta Ballistica (Incarnon Form)",
+  "form_zh": "绯红·布里斯提卡 (灵化形态)",
+  "base_name": "Rakta Ballistica",
+  "base_zh": "绯红·布里斯提卡",
+  "slot": "secondary",
+  "class": "pistol",
+  "damage": {
+   "slash": 734.0,
+   "total": 734.0
+  },
+  "criticalChance": 0.25,
+  "criticalMultiplier": 2.2,
+  "procChance": 0.25,
+  "fireRate": 3.33,
+  "multishot": 1.0
+ },
+ "/lotus/weapons/tenno/pistol/burstpistol": {
+  "form_id": "sicarus_incarnon",
+  "form_name": "Sicarus (Incarnon Form)",
+  "form_zh": "暗杀者 (灵化形态)",
+  "base_name": "Sicarus",
+  "base_zh": "暗杀者",
+  "slot": "secondary",
+  "class": "pistol",
+  "damage": {
+   "impact": 28.0,
+   "puncture": 6.0,
+   "slash": 6.0,
+   "total": 40.0
+  },
+  "criticalChance": 0.2,
+  "criticalMultiplier": 3.0,
+  "procChance": 0.2,
+  "fireRate": 3.5,
+  "multishot": 1.0
+ },
+ "/lotus/weapons/tenno/pistols/primesicarus/primesicaruspistol": {
+  "form_id": "sicarus_prime_incarnon",
+  "form_name": "Sicarus Prime (Incarnon Form)",
+  "form_zh": "暗杀者 Prime (灵化形态)",
+  "base_name": "Sicarus Prime",
+  "base_zh": "暗杀者 Prime",
+  "slot": "secondary",
+  "class": "pistol",
+  "damage": {
+   "impact": 24.0,
+   "puncture": 18.0,
+   "slash": 18.0,
+   "total": 60.0
+  },
+  "criticalChance": 0.3,
+  "criticalMultiplier": 3.0,
+  "procChance": 0.2,
+  "fireRate": 5.0,
+  "multishot": 1.0
+ },
+ "/lotus/weapons/grineer/pistols/grineercrossbow/grineergoogun": {
+  "form_id": "stug_incarnon",
+  "form_name": "Stug (Incarnon Form)",
+  "form_zh": "史特克 (灵化形态)",
+  "base_name": "Stug",
+  "base_zh": "史特克",
+  "slot": "secondary",
+  "class": "pistol",
+  "damage": {
+   "corrosive": 50.0,
+   "total": 50.0
+  },
+  "criticalChance": 0.15,
+  "criticalMultiplier": 2.0,
+  "procChance": 0.2,
+  "fireRate": 4.0,
+  "multishot": 1.0,
+  "radial": {
+   "damage": {
+    "corrosive": 200.0,
+    "total": 200.0
+   },
+   "criticalChance": 0.15,
+   "criticalMultiplier": 2.0,
+   "procChance": 0.2,
+   "radius_m": 0.3,
+   "falloff_reduction": 0.3
+  }
+ },
+ "/lotus/weapons/syndicates/cephalonsuda/pistols/cssynoidgammacor": {
+  "form_id": "synoid_gammacor_incarnon",
+  "form_name": "Synoid Gammacor (Incarnon Form)",
+  "form_zh": "枢议·咖玛腕甲枪 (灵化形态)",
+  "base_name": "Synoid Gammacor",
+  "base_zh": "枢议·咖玛腕甲枪",
+  "slot": "secondary",
+  "class": "pistol",
+  "damage": {
+   "impact": 100.0,
+   "total": 100.0
+  },
+  "criticalChance": 0.2,
+  "criticalMultiplier": 2.0,
+  "procChance": 0.28,
+  "fireRate": 1.0,
+  "multishot": 1.0,
+  "radial": {
+   "damage": {
+    "cold": 800.0,
+    "total": 800.0
+   },
+   "criticalChance": 0.2,
+   "criticalMultiplier": 2.0,
+   "procChance": 0.28,
+   "radius_m": 5.0,
+   "falloff_reduction": 0.3
+  },
+  "forced_procs": [
+   "impact"
+  ]
+ },
+ "/lotus/weapons/tenno/pistol/revolverpistol": {
+  "form_id": "vasto_incarnon",
+  "form_name": "Vasto (Incarnon Form)",
+  "form_zh": "瓦斯托 (灵化形态)",
+  "base_name": "Vasto",
+  "base_zh": "瓦斯托",
+  "slot": "secondary",
+  "class": "pistol",
+  "damage": {
+   "impact": 7.5,
+   "puncture": 7.5,
+   "slash": 15.0,
+   "total": 30.0
+  },
+  "criticalChance": 0.3,
+  "criticalMultiplier": 2.8,
+  "procChance": 0.0267,
+  "fireRate": 2.5,
+  "multishot": 6.0
+ },
+ "/lotus/weapons/tenno/pistols/primevasto/primevastopistol": {
+  "form_id": "vasto_prime_incarnon",
+  "form_name": "Vasto Prime (Incarnon Form)",
+  "form_zh": "瓦斯托 Prime (灵化形态)",
+  "base_name": "Vasto Prime",
+  "base_zh": "瓦斯托 Prime",
+  "slot": "secondary",
+  "class": "pistol",
+  "damage": {
+   "impact": 10.5,
+   "puncture": 10.5,
+   "slash": 49.0,
+   "total": 70.0
+  },
+  "criticalChance": 0.3,
+  "criticalMultiplier": 3.2,
+  "procChance": 0.0667,
+  "fireRate": 2.5,
+  "multishot": 6.0
+ },
+ "/lotus/weapons/tenno/pistols/conclaveleverpistol/conclaveleverpistol": {
+  "form_id": "zylok_incarnon",
+  "form_name": "Zylok (Incarnon Form)",
+  "form_zh": "席尔火枪 (灵化形态)",
+  "base_name": "Zylok",
+  "base_zh": "席尔火枪",
+  "slot": "secondary",
+  "class": "pistol",
+  "damage": {
+   "impact": 160.0,
+   "puncture": 240.0,
+   "total": 400.0
+  },
+  "criticalChance": 0.2,
+  "criticalMultiplier": 2.0,
+  "procChance": 0.4,
+  "fireRate": 1.0,
+  "multishot": 1.0,
+  "radial": {
+   "damage": {
+    "heat": 600.0,
+    "total": 600.0
+   },
+   "criticalChance": 0.2,
+   "criticalMultiplier": 2.0,
+   "procChance": 0.4,
+   "radius_m": 6.0,
+   "falloff_reduction": 0.6
+  }
+ },
+ "/lotus/weapons/tenno/pistols/primezylok/zylokprimepistol": {
+  "form_id": "zylok_prime_incarnon",
+  "form_name": "Zylok Prime (Incarnon Form)",
+  "form_zh": "席尔火枪 Prime (灵化形态)",
+  "base_name": "Zylok Prime",
+  "base_zh": "席尔火枪 Prime",
+  "slot": "secondary",
+  "class": "pistol",
+  "damage": {
+   "impact": 200.0,
+   "puncture": 300.0,
+   "total": 500.0
+  },
+  "criticalChance": 0.26,
+  "criticalMultiplier": 2.4,
+  "procChance": 0.4,
+  "fireRate": 1.0,
+  "multishot": 1.0,
+  "radial": {
+   "damage": {
+    "heat": 700.0,
+    "total": 700.0
+   },
+   "criticalChance": 0.26,
+   "criticalMultiplier": 2.4,
+   "procChance": 0.4,
+   "radius_m": 6.0,
+   "falloff_reduction": 0.6
+  }
+ }
+}

@@ -1,0 +1,24 @@
+name: astrbot_plugin_warframe
+display_name: Warframe 查询助手（SDJK）
+short_desc: 世界状态 / 市场查价 / 伤害计算 / 配卡识别 / 紫卡分析 / 蹲点推送
+desc: >-
+  Warframe 查询助手：世界状态 / 市场查价 / 伤害计算与配卡识别 / 紫卡分析 / 遗物与部件反查 / 蹲点推送，支持渲染成 Orokin 风格图片卡片。
+  
+  **54 个主指令**，指令为自由参数式（主指令 + 内容 + 修饰符，位置任意），发送「帮助」查看完整指令表。
+  
+  数据来自 DE 官方接口与公开社区数据源；本插件为粉丝作品，与 Digital Extremes 无关。
+  
+  识卡功能需要自行在 AstrBot 里配置一个多模态模型渠道；部分 wiki 抓取需要自建 FlareSolverr（均可在配置面板开关）。
+version: 2.0.0
+author: skyti1437
+repo: https://github.com/skyti1437/astrbot_plugin_warframe
+astrbot_version: ">=4.0.0"
+support_platforms:
+  - aiocqhttp
+social_link: https://github.com/skyti1437/astrbot_plugin_warframe
+tags:
+  - warframe
+  - game
+  - query
+  - market
+  - push

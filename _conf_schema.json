@@ -1,0 +1,104 @@
+{
+  "worldsource": {
+    "description": "世界状态数据源：de=DE 官方直连（默认，无 Cloudflare 风险；不含赤毒/仲裁/钢铁轮换）；warframestat=api.warframestat.us（全端点，但部分网络环境会被 Cloudflare 拦截）",
+    "type": "string",
+    "default": "de",
+    "options": [
+      "de",
+      "warframestat"
+    ]
+  },
+  "de_worldstate_url": {
+    "description": "DE 官方 worldstate 端点（一般无需修改）",
+    "type": "string",
+    "default": "https://api.warframe.com/cdn/worldState.php"
+  },
+  "default_platform": {
+    "description": "默认查询平台（群内可用 .默认平台 覆盖，消息可用 -pc/-ps/-xb/-sw 临时覆盖）",
+    "type": "string",
+    "default": "pc",
+    "options": [
+      "pc",
+      "ps",
+      "xb",
+      "sw"
+    ]
+  },
+  "render_mode": {
+    "description": "输出模式：image=图片卡片（默认，Orokin 风格，-w 可临时转文字），auto=长内容才转图片，text=纯文本",
+    "type": "string",
+    "default": "image",
+    "options": [
+      "image",
+      "auto",
+      "text"
+    ]
+  },
+  "page_size": {
+    "description": "文本分页每页条数",
+    "type": "int",
+    "default": 12
+  },
+  "push_interval": {
+    "description": "蹲推送轮询间隔（秒，最小 15）",
+    "type": "int",
+    "default": 45
+  },
+  "http_timeout": {
+    "description": "HTTP 请求超时（秒）",
+    "type": "int",
+    "default": 15
+  },
+  "proxy": {
+    "description": "出站 HTTP 代理（如 http://127.0.0.1:7890，留空不启用）",
+    "type": "string",
+    "default": ""
+  },
+  "super_admins": {
+    "description": "超级管理员 sender_id 列表（绕过群管理权限校验）",
+    "type": "list",
+    "default": []
+  },
+  "strip_markdown": {
+    "description": "出站兜底：剥掉 QQ 无法渲染的 Markdown 标记",
+    "type": "bool",
+    "default": true,
+    "hint": "QQ（NapCat）不渲染 Markdown，裸星号会直接显示在群里。开启后，回复中的 **加粗**、- 列表、# 标题、> 引用、反引号会在发送前被去掉。只处理纯文本，不影响图片卡片。"
+  },
+  "vision_provider_id": {
+    "description": "截图识别用的多模态模型 id（配卡识别「识卡」/ 紫卡截图共用），留空自动挑选",
+    "type": "string",
+    "default": "",
+    "hint": "填 AstrBot 里已添加的视觉模型 id，例如 siliconflow/Qwen/Qwen3-VL-32B-Instruct（2026-09 实测伤害行最稳，需 siliconflow 源超时 ≥240s）、zhipu/glm-4.1v-thinking-flash。留空时按实测基准排序逐个尝试。"
+  },
+  "flaresolverr_enabled": {
+    "description": "启用 CF 绕过代理（FlareSolverr）",
+    "type": "bool",
+    "default": true,
+    "hint": "部分数据源（wiki.warframe.com 等）对非浏览器请求直接 403，需要 FlareSolverr 代抓。关掉后这类数据不再抓取（相关指令会给出降级提示，不会卡住）。"
+  },
+  "flaresolverr_urls": {
+    "description": "FlareSolverr 地址（多个用逗号或换行分隔，按顺序试）",
+    "type": "string",
+    "default": "http://flaresolverr:8191/v1, http://172.17.0.1:8191/v1, http://127.0.0.1:8191/v1",
+    "hint": "填你的 FlareSolverr 地址，只填主机端口也行（会自动补 /v1）。插件跑在容器里时 127.0.0.1 通常到不了宿主机端口，所以要填容器名或 docker0 网关（172.17.0.1）。留空则用内置默认值。"
+  },
+  "kb_enabled": {
+    "description": "知识库引导（AstrBot 平台侧 RAG）",
+    "type": "bool",
+    "default": true,
+    "hint": "插件**不直连**知识库：检索由 AstrBot 平台提供，插件只在查不到时提示「可以把哪份文档传进知识库」。没配知识库就关掉，免得多一句提示。"
+  },
+  "kb_docs_dir": {
+    "description": "知识库文档目录（相对插件目录）",
+    "type": "string",
+    "default": "kb",
+    "hint": "插件自带的机制术语 / 新手入门 / 玄骸刷取等文档所在目录，会显示在知识库引导里。换成你自己的目录即可。"
+  },
+  "kb_id": {
+    "description": "AstrBot 知识库 id（可选，只用于引导文案）",
+    "type": "string",
+    "default": "",
+    "hint": "填了会在提示里显示这个 id，方便你自己按 id 上传文档；不填不影响任何功能。"
+  }
+}

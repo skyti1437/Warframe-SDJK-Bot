@@ -1,0 +1,264 @@
+{
+ "_meta": {
+  "source": "github.com/magenie33/wfsim data/weapons/*（deployments 字段）",
+  "updated": "2026-09-17",
+  "note": "Archgun 两种部署：顶层 attack = 地面/大气（Gravimag）默认面板；archwing = 空战覆盖值。个别武器覆盖暴击/弹药"
+ },
+ "/lotus/weapons/tenno/archwing/primary/nokkoarchgun/nokkoarchgun": {
+  "name": "Arbucep",
+  "default": "atmosphere",
+  "archwing": {
+   "damage": {
+    "blast": 16.0,
+    "total": 16.0
+   },
+   "radial_damage": {
+    "blast": 114.0,
+    "total": 114.0
+   },
+   "reload_seconds": 1.72
+  }
+ },
+ "/lotus/weapons/tenno/archwing/primary/thanotecharchgun/thanotecharchgun": {
+  "name": "Cortege",
+  "default": "atmosphere",
+  "archwing": {
+   "damage": {
+    "heat": 90.0,
+    "total": 90.0
+   },
+   "reload_seconds": 3.0
+  }
+ },
+ "/lotus/weapons/tenno/archwing/primary/primecorvas/primecorvasweapon": {
+  "name": "Corvas Prime",
+  "default": "atmosphere",
+  "archwing": {
+   "ammo_max": 0.0
+  }
+ },
+ "/lotus/weapons/tenno/archwing/primary/archburstgun/archburstgun": {
+  "name": "Cyngas",
+  "default": "atmosphere",
+  "archwing": {
+   "damage": {
+    "impact": 39.6,
+    "puncture": 39.6,
+    "slash": 40.8,
+    "total": 120.0
+   },
+   "reload_seconds": 1.25
+  }
+ },
+ "/lotus/weapons/tenno/archwing/primary/archwingheavypistols/archheavypistols": {
+  "name": "Dual Decurion",
+  "default": "atmosphere",
+  "archwing": {
+   "damage": {
+    "impact": 49.5,
+    "puncture": 30.25,
+    "slash": 30.25,
+    "total": 110.0
+   },
+   "reload_seconds": 1.53
+  }
+ },
+ "/lotus/weapons/tenno/archwing/primary/rocketartillery/archrocketcrossbow": {
+  "name": "Fluctus",
+  "default": "atmosphere",
+  "archwing": {
+   "damage": {
+    "impact": 50.0,
+    "puncture": 25.0,
+    "slash": 175.0,
+    "total": 250.0
+   },
+   "reload_seconds": 5.0
+  }
+ },
+ "/lotus/weapons/tenno/archwing/primary/repurposedgrineerantiaircraftgun/archgrnaagun": {
+  "name": "Grattler",
+  "default": "atmosphere",
+  "archwing": {
+   "damage": {
+    "impact": 15.0,
+    "puncture": 120.0,
+    "slash": 15.0,
+    "total": 150.0
+   },
+   "radial_damage": {
+    "blast": 205.0,
+    "total": 205.0
+   },
+   "reload_seconds": 4.0
+  }
+ },
+ "/lotus/weapons/tenno/archwing/primary/foldingmachinegun/archmachinegun": {
+  "name": "Imperator",
+  "default": "atmosphere",
+  "archwing": {
+   "damage": {
+    "impact": 20.0,
+    "puncture": 17.5,
+    "slash": 12.5,
+    "total": 50.0
+   },
+   "reload_seconds": 4.25
+  }
+ },
+ "/lotus/weapons/tenno/archwing/primary/foldingmachinegun/archmachinegunvandal": {
+  "name": "Imperator Vandal",
+  "default": "atmosphere",
+  "archwing": {
+   "damage": {
+    "impact": 20.0,
+    "puncture": 17.5,
+    "slash": 12.5,
+    "total": 50.0
+   },
+   "reload_seconds": 4.25
+  }
+ },
+ "/lotus/weapons/grineer/heavyweapons/grnheavygrenadelauncher": {
+  "name": "Kuva Ayanga",
+  "default": "atmosphere",
+  "archwing": {
+   "damage": {
+    "impact": 87.0,
+    "total": 87.0
+   },
+   "radial_damage": {
+    "blast": 187.0,
+    "total": 187.0
+   },
+   "reload_seconds": 1.2
+  }
+ },
+ "/lotus/weapons/grineer/kuvalich/heavyweapons/grattler/kuvagrattler": {
+  "name": "Kuva Grattler",
+  "default": "atmosphere",
+  "archwing": {
+   "damage": {
+    "impact": 9.4,
+    "puncture": 75.2,
+    "slash": 9.4,
+    "total": 94.0
+   },
+   "radial_damage": {
+    "blast": 155.0,
+    "total": 155.0
+   },
+   "reload_seconds": 4.0,
+   "criticalMultiplier": 2.1
+  }
+ },
+ "/lotus/weapons/tenno/archwing/primary/tnshieldframearchgun/tnshieldframearchgun": {
+  "name": "Larkspur",
+  "default": "atmosphere",
+  "archwing": {
+   "damage": {
+    "impact": 10.0,
+    "radiation": 80.0,
+    "total": 90.0
+   },
+   "reload_seconds": 4.5
+  }
+ },
+ "/lotus/weapons/tenno/archwing/primary/primelarkspur/primelarkspurweapon": {
+  "name": "Larkspur Prime",
+  "default": "atmosphere",
+  "archwing": {
+   "damage": {
+    "impact": 10.0,
+    "radiation": 80.0,
+    "total": 90.0
+   },
+   "reload_seconds": 4.5
+  }
+ },
+ "/lotus/weapons/tenno/archwing/primary/tnconcretearchgun/tnconcretearchgunweapon": {
+  "name": "Mandonel",
+  "default": "atmosphere",
+  "archwing": {
+   "damage": {
+    "puncture": 200.0,
+    "heat": 300.0,
+    "radiation": 400.0,
+    "total": 900.0
+   },
+   "reload_seconds": 3.0
+  }
+ },
+ "/lotus/weapons/tenno/archwing/primary/thanotecharchlonggun/thanotechlonggun": {
+  "name": "Mausolon",
+  "default": "atmosphere",
+  "archwing": {
+   "damage": {
+    "impact": 24.0,
+    "puncture": 46.0,
+    "heat": 50.0,
+    "total": 120.0
+   },
+   "radial_damage": {
+    "heat": 48.0,
+    "total": 48.0
+   },
+   "reload_seconds": 5.5
+  }
+ },
+ "/lotus/weapons/tenno/archwing/primary/thanotechgrenadelaunch/thanotechgrenadelauncher": {
+  "name": "Morgha",
+  "default": "atmosphere",
+  "archwing": {
+   "damage": {
+    "impact": 32.0,
+    "total": 32.0
+   },
+   "radial_damage": {
+    "blast": 164.0,
+    "total": 164.0
+   },
+   "ammo_max": 0.0
+  }
+ },
+ "/lotus/weapons/tenno/archwing/primary/archlongrifle/archlongrifle": {
+  "name": "Phaedra",
+  "default": "atmosphere",
+  "archwing": {
+   "damage": {
+    "impact": 14.0,
+    "puncture": 36.4,
+    "slash": 5.6,
+    "total": 56.0
+   },
+   "reload_seconds": 5.05
+  }
+ },
+ "/lotus/weapons/tenno/archwing/primary/archwingheavypistols/prisma/prismaarchheavypistols": {
+  "name": "Prisma Dual Decurions",
+  "default": "atmosphere",
+  "archwing": {
+   "damage": {
+    "impact": 49.5,
+    "puncture": 30.25,
+    "slash": 30.25,
+    "total": 110.0
+   },
+   "reload_seconds": 1.53
+  }
+ },
+ "/lotus/weapons/tenno/archwing/primary/railgun/archrailgun": {
+  "name": "Velocitus",
+  "default": "atmosphere",
+  "archwing": {
+   "damage": {
+    "impact": 400.0,
+    "puncture": 400.0,
+    "slash": 400.0,
+    "magnetic": 400.0,
+    "total": 1600.0
+   },
+   "reload_seconds": 1.4
+  }
+ }
+}

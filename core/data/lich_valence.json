@@ -1,0 +1,567 @@
+{
+ "_meta": {
+  "source": "wfsim data/weapons/*.{kuva,tenet,coda}* valence 字段",
+  "note": "valence bonus：玩家回响滚出的额外元素加成，数值在 min-max 内；元素必须取 elements 列表之一。加成实现 = 总基伤×pct 计入该元素",
+  "generated": "2026-09-17"
+ },
+ "kuva_ayanga": {
+  "name": "Kuva Ayanga",
+  "elements": [
+   "impact",
+   "heat",
+   "cold",
+   "electricity",
+   "toxin",
+   "magnetic",
+   "radiation"
+  ],
+  "min": 25.0,
+  "max": 60.0
+ },
+ "kuva_grattler": {
+  "name": "Kuva Grattler",
+  "elements": [
+   "impact",
+   "heat",
+   "cold",
+   "electricity",
+   "toxin",
+   "magnetic",
+   "radiation"
+  ],
+  "min": 25.0,
+  "max": 60.0
+ },
+ "coda_bassocyst": {
+  "name": "Coda Bassocyst",
+  "elements": [
+   "impact",
+   "heat",
+   "cold",
+   "electricity",
+   "toxin",
+   "magnetic",
+   "radiation"
+  ],
+  "min": 25.0,
+  "max": 60.0
+ },
+ "coda_bubonico": {
+  "name": "Coda Bubonico",
+  "elements": [
+   "impact",
+   "heat",
+   "cold",
+   "electricity",
+   "toxin",
+   "magnetic",
+   "radiation"
+  ],
+  "min": 25.0,
+  "max": 60.0
+ },
+ "coda_hema": {
+  "name": "Coda Hema",
+  "elements": [
+   "impact",
+   "heat",
+   "cold",
+   "electricity",
+   "toxin",
+   "magnetic",
+   "radiation"
+  ],
+  "min": 25.0,
+  "max": 60.0
+ },
+ "coda_sporothrix": {
+  "name": "Coda Sporothrix",
+  "elements": [
+   "impact",
+   "heat",
+   "cold",
+   "electricity",
+   "toxin",
+   "magnetic",
+   "radiation"
+  ],
+  "min": 25.0,
+  "max": 60.0
+ },
+ "coda_synapse": {
+  "name": "Coda Synapse",
+  "elements": [
+   "impact",
+   "heat",
+   "cold",
+   "electricity",
+   "toxin",
+   "magnetic",
+   "radiation"
+  ],
+  "min": 25.0,
+  "max": 60.0
+ },
+ "kuva_bramma": {
+  "name": "Kuva Bramma",
+  "elements": [
+   "impact",
+   "heat",
+   "cold",
+   "electricity",
+   "toxin",
+   "magnetic",
+   "radiation"
+  ],
+  "min": 25.0,
+  "max": 60.0
+ },
+ "kuva_chakkhurr": {
+  "name": "Kuva Chakkhurr",
+  "elements": [
+   "impact",
+   "heat",
+   "cold",
+   "electricity",
+   "toxin",
+   "magnetic",
+   "radiation"
+  ],
+  "min": 25.0,
+  "max": 60.0
+ },
+ "kuva_drakgoon": {
+  "name": "Kuva Drakgoon",
+  "elements": [
+   "impact",
+   "heat",
+   "cold",
+   "electricity",
+   "toxin",
+   "magnetic",
+   "radiation"
+  ],
+  "min": 25.0,
+  "max": 60.0
+ },
+ "kuva_hek": {
+  "name": "Kuva Hek",
+  "elements": [
+   "impact",
+   "heat",
+   "cold",
+   "electricity",
+   "toxin",
+   "magnetic",
+   "radiation"
+  ],
+  "min": 25.0,
+  "max": 60.0
+ },
+ "kuva_hind": {
+  "name": "Kuva Hind",
+  "elements": [
+   "impact",
+   "heat",
+   "cold",
+   "electricity",
+   "toxin",
+   "magnetic",
+   "radiation"
+  ],
+  "min": 25.0,
+  "max": 60.0
+ },
+ "kuva_karak": {
+  "name": "Kuva Karak",
+  "elements": [
+   "impact",
+   "heat",
+   "cold",
+   "electricity",
+   "toxin",
+   "magnetic",
+   "radiation"
+  ],
+  "min": 25.0,
+  "max": 60.0
+ },
+ "kuva_kohm": {
+  "name": "Kuva Kohm",
+  "elements": [
+   "impact",
+   "heat",
+   "cold",
+   "electricity",
+   "toxin",
+   "magnetic",
+   "radiation"
+  ],
+  "min": 25.0,
+  "max": 60.0
+ },
+ "kuva_ogris": {
+  "name": "Kuva Ogris",
+  "elements": [
+   "impact",
+   "heat",
+   "cold",
+   "electricity",
+   "toxin",
+   "magnetic",
+   "radiation"
+  ],
+  "min": 25.0,
+  "max": 60.0
+ },
+ "kuva_quartakk": {
+  "name": "Kuva Quartakk",
+  "elements": [
+   "impact",
+   "heat",
+   "cold",
+   "electricity",
+   "toxin",
+   "magnetic",
+   "radiation"
+  ],
+  "min": 25.0,
+  "max": 60.0
+ },
+ "kuva_sobek": {
+  "name": "Kuva Sobek",
+  "elements": [
+   "impact",
+   "heat",
+   "cold",
+   "electricity",
+   "toxin",
+   "magnetic",
+   "radiation"
+  ],
+  "min": 25.0,
+  "max": 60.0
+ },
+ "kuva_tonkor": {
+  "name": "Kuva Tonkor",
+  "elements": [
+   "impact",
+   "heat",
+   "cold",
+   "electricity",
+   "toxin",
+   "magnetic",
+   "radiation"
+  ],
+  "min": 25.0,
+  "max": 60.0
+ },
+ "kuva_zarr": {
+  "name": "Kuva Zarr",
+  "elements": [
+   "impact",
+   "heat",
+   "cold",
+   "electricity",
+   "toxin",
+   "magnetic",
+   "radiation"
+  ],
+  "min": 25.0,
+  "max": 60.0
+ },
+ "tenet_arca_plasmor": {
+  "name": "Tenet Arca Plasmor",
+  "elements": [
+   "impact",
+   "heat",
+   "cold",
+   "electricity",
+   "toxin",
+   "magnetic",
+   "radiation"
+  ],
+  "min": 25.0,
+  "max": 60.0
+ },
+ "tenet_envoy": {
+  "name": "Tenet Envoy",
+  "elements": [
+   "impact",
+   "heat",
+   "cold",
+   "electricity",
+   "toxin",
+   "magnetic",
+   "radiation"
+  ],
+  "min": 25.0,
+  "max": 60.0
+ },
+ "tenet_ferrox": {
+  "name": "Tenet Ferrox",
+  "elements": [
+   "impact",
+   "heat",
+   "cold",
+   "electricity",
+   "toxin",
+   "magnetic",
+   "radiation"
+  ],
+  "min": 25.0,
+  "max": 60.0
+ },
+ "tenet_flux_rifle": {
+  "name": "Tenet Flux Rifle",
+  "elements": [
+   "impact",
+   "heat",
+   "cold",
+   "electricity",
+   "toxin",
+   "magnetic",
+   "radiation"
+  ],
+  "min": 25.0,
+  "max": 60.0
+ },
+ "tenet_glaxion": {
+  "name": "Tenet Glaxion",
+  "elements": [
+   "impact",
+   "heat",
+   "cold",
+   "electricity",
+   "toxin",
+   "magnetic",
+   "radiation"
+  ],
+  "min": 25.0,
+  "max": 60.0
+ },
+ "tenet_quanta": {
+  "name": "Tenet Quanta",
+  "elements": [
+   "impact",
+   "heat",
+   "cold",
+   "electricity",
+   "toxin",
+   "magnetic",
+   "radiation"
+  ],
+  "min": 25.0,
+  "max": 60.0
+ },
+ "tenet_tetra": {
+  "name": "Tenet Tetra",
+  "elements": [
+   "impact",
+   "heat",
+   "cold",
+   "electricity",
+   "toxin",
+   "magnetic",
+   "radiation"
+  ],
+  "min": 25.0,
+  "max": 60.0
+ },
+ "coda_catabolyst": {
+  "name": "Coda Catabolyst",
+  "elements": [
+   "impact",
+   "heat",
+   "cold",
+   "electricity",
+   "toxin",
+   "magnetic",
+   "radiation"
+  ],
+  "min": 25.0,
+  "max": 60.0
+ },
+ "coda_pox": {
+  "name": "Coda Pox",
+  "elements": [
+   "impact",
+   "heat",
+   "cold",
+   "electricity",
+   "toxin",
+   "magnetic",
+   "radiation"
+  ],
+  "min": 25.0,
+  "max": 60.0
+ },
+ "coda_tysis": {
+  "name": "Coda Tysis",
+  "elements": [
+   "impact",
+   "heat",
+   "cold",
+   "electricity",
+   "toxin",
+   "magnetic",
+   "radiation"
+  ],
+  "min": 25.0,
+  "max": 60.0
+ },
+ "dual_coda_torxica": {
+  "name": "Dual Coda Torxica",
+  "elements": [
+   "impact",
+   "heat",
+   "cold",
+   "electricity",
+   "toxin",
+   "magnetic",
+   "radiation"
+  ],
+  "min": 25.0,
+  "max": 60.0
+ },
+ "kuva_brakk": {
+  "name": "Kuva Brakk",
+  "elements": [
+   "impact",
+   "heat",
+   "cold",
+   "electricity",
+   "toxin",
+   "magnetic",
+   "radiation"
+  ],
+  "min": 25.0,
+  "max": 60.0
+ },
+ "kuva_kraken": {
+  "name": "Kuva Kraken",
+  "elements": [
+   "impact",
+   "heat",
+   "cold",
+   "electricity",
+   "toxin",
+   "magnetic",
+   "radiation"
+  ],
+  "min": 25.0,
+  "max": 60.0
+ },
+ "kuva_nukor": {
+  "name": "Kuva Nukor",
+  "elements": [
+   "impact",
+   "heat",
+   "cold",
+   "electricity",
+   "toxin",
+   "magnetic",
+   "radiation"
+  ],
+  "min": 25.0,
+  "max": 60.0
+ },
+ "kuva_seer": {
+  "name": "Kuva Seer",
+  "elements": [
+   "impact",
+   "heat",
+   "cold",
+   "electricity",
+   "toxin",
+   "magnetic",
+   "radiation"
+  ],
+  "min": 25.0,
+  "max": 60.0
+ },
+ "kuva_twin_stubbas": {
+  "name": "Kuva Twin Stubbas",
+  "elements": [
+   "impact",
+   "heat",
+   "cold",
+   "electricity",
+   "toxin",
+   "magnetic",
+   "radiation"
+  ],
+  "min": 25.0,
+  "max": 60.0
+ },
+ "tenet_cycron": {
+  "name": "Tenet Cycron",
+  "elements": [
+   "impact",
+   "heat",
+   "cold",
+   "electricity",
+   "toxin",
+   "magnetic",
+   "radiation"
+  ],
+  "min": 25.0,
+  "max": 60.0
+ },
+ "tenet_detron": {
+  "name": "Tenet Detron",
+  "elements": [
+   "impact",
+   "heat",
+   "cold",
+   "electricity",
+   "toxin",
+   "magnetic",
+   "radiation"
+  ],
+  "min": 25.0,
+  "max": 60.0
+ },
+ "tenet_diplos": {
+  "name": "Tenet Diplos",
+  "elements": [
+   "impact",
+   "heat",
+   "cold",
+   "electricity",
+   "toxin",
+   "magnetic",
+   "radiation"
+  ],
+  "min": 25.0,
+  "max": 60.0
+ },
+ "tenet_plinx": {
+  "name": "Tenet Plinx",
+  "elements": [
+   "impact",
+   "heat",
+   "cold",
+   "electricity",
+   "toxin",
+   "magnetic",
+   "radiation"
+  ],
+  "min": 25.0,
+  "max": 60.0
+ },
+ "tenet_spirex": {
+  "name": "Tenet Spirex",
+  "elements": [
+   "impact",
+   "heat",
+   "cold",
+   "electricity",
+   "toxin",
+   "magnetic",
+   "radiation"
+  ],
+  "min": 25.0,
+  "max": 60.0
+ }
+}

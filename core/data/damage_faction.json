@@ -1,0 +1,93 @@
+{
+ "_meta": {
+  "source": "warframe.fandom.com/wiki/Damage/Overview_Table",
+  "retrieved": "2026-09-16",
+  "rule": "U36 起：弱点/抗性按派系，+ = ×1.5，- = ×0.5，其余 ×1",
+  "note": "2026-09-16 与 wfsim（magenie33/wfsim，其对 wiki Overview_Table 逐格核对）全表 diff：仅缺 U41《The Old Peace》新增派系 Anarchs，已按 wiki.warframe.com/w/Damage/Anarchs 补齐（冲击/电 +50%，辐射 −50%）"
+ },
+ "factions": [
+  "Tenno",
+  "Grineer",
+  "Kuva Grineer",
+  "Corpus",
+  "Corpus Amalgam",
+  "Infested",
+  "Infested Deimos",
+  "Orokin",
+  "Sentient",
+  "Narmer",
+  "The Murmur",
+  "Zariman",
+  "Scaldra",
+  "Techrot"
+ ],
+ "table": {
+  "Impact": {
+   "Grineer": 1.5,
+   "Kuva Grineer": 1.5,
+   "Scaldra": 1.5,
+   "Anarchs": 1.5
+  },
+  "Puncture": {
+   "Corpus": 1.5,
+   "Orokin": 1.5
+  },
+  "Slash": {
+   "Infested": 1.5,
+   "Narmer": 1.5
+  },
+  "Cold": {
+   "Sentient": 1.5,
+   "Techrot": 0.5
+  },
+  "Electricity": {
+   "Corpus Amalgam": 1.5,
+   "The Murmur": 1.5,
+   "Anarchs": 1.5
+  },
+  "Heat": {
+   "Kuva Grineer": 0.5,
+   "Infested": 1.5
+  },
+  "Toxin": {
+   "Narmer": 1.5
+  },
+  "Blast": {
+   "Corpus Amalgam": 0.5,
+   "Infested Deimos": 1.5
+  },
+  "Corrosive": {
+   "Grineer": 1.5,
+   "Kuva Grineer": 1.5,
+   "Sentient": 0.5,
+   "Scaldra": 1.5
+  },
+  "Gas": {
+   "Infested Deimos": 1.5,
+   "Scaldra": 0.5,
+   "Techrot": 1.5
+  },
+  "Magnetic": {
+   "Corpus": 1.5,
+   "Corpus Amalgam": 1.5,
+   "Narmer": 0.5,
+   "Techrot": 1.5
+  },
+  "Radiation": {
+   "Orokin": 0.5,
+   "Sentient": 1.5,
+   "The Murmur": 1.5,
+   "Anarchs": 0.5
+  },
+  "Viral": {
+   "Infested Deimos": 0.5,
+   "Orokin": 1.5,
+   "The Murmur": 0.5
+  },
+  "Void": {
+   "Zariman": 1.5
+  },
+  "Tau": {},
+  "True": {}
+ }
+}
