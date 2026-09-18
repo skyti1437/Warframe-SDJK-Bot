@@ -2,12 +2,19 @@ name: gitleaks
 
 # 开源仓库兜底：任何 push / PR 都扫一遍**全历史**，防止把密钥、token、
 # 开发机绝对路径等再次推上来。
-# 首次接入背景见 2026-09-18 的开源合规审查：历史里曾混入
-# `C:/Users/<用户名>/...` 本机路径（已重写清除），需要一道自动闸门防止复发。
+#
+# ★ 为什么不用 gitleaks-action，而是直接跑二进制（2026-09-18 实测）：
+#   gitleaks-action@v2 用 `git log <event.before>^..<event.after>` 定位范围，
+#   而**强推（history rewrite）后 event.before 指向的旧对象不在新检出里** →
+#   `fatal: ambiguous argument ...^..` → 退出码 1、CI 报红。
+#   本仓库为清除历史里的开发机路径做过一次强推，正好踩中。
+#   直接调 gitleaks 并显式给 `--log-opts="--all --full-history"`，
+#   不看 event 范围、每次都扫全部历史，强推/新建分支都不会误报失败。
 on:
   push:
     branches: ["*"]
   pull_request:
+  workflow_dispatch:
 
 jobs:
   scan:
@@ -16,6 +23,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0   # 全历史，扫的是完整 diff
-      - uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install gitleaks
+        run: |
+          VER=8.24.3
+          curl -sSfL \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${VER}/gitleaks_${VER}_linux_x64.tar.gz" \
+            | tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
+
+      # --log-opts 让 gitleaks 扫所有 ref 的全部历史（而不是依赖 push 事件的范围）
+      - name: Scan full history
+        run: gitleaks detect --source . --log-opts="--all --full-history" --redact -v
