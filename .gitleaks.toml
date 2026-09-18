@@ -1,0 +1,18 @@
+# gitleaks 自定义规则 —— 在默认规则（密钥/Token 格式）基础上追加本仓库专项：
+# 拦截开发机绝对路径（C:/Users/xxx、D:\home\xxx、/home/xxx、/root/xxx）。
+# 背景：2026-09-18 开源审查发现历史里残留过 C:/Users/<本机用户名>/... 路径
+# （已 filter-repo 重写清除），需要一道自动闸门防止复发。
+#
+# 注意：
+# - [extend] useDefault = true 必须保留，否则本文件会完全替换内置规则，
+#   密钥类检测将全部失效。
+# - 路径中的用户名限定为常见字符集（字母数字._-），避免误报文档里的
+#   「C:/Users/<用户名>/...」这类尖括号占位符。
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "local-user-path"
+description = "开发机绝对路径泄露（C:/Users/...、/home/...、/root/...）"
+regex = '''(?i)[a-z]:[/\\]{1,2}(users|home)[/\\][a-z0-9._-]+|/(home|root)/[a-z0-9._-]+'''
