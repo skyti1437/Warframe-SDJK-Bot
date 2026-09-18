@@ -20,7 +20,7 @@ jobs:
   scan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0   # 全历史，扫的是完整 diff
 
@@ -33,5 +33,6 @@ jobs:
           gitleaks version
 
       # --log-opts 让 gitleaks 扫所有 ref 的全部历史（而不是依赖 push 事件的范围）
+      # 规则 = 内置默认（密钥/Token）+ 仓库根 .gitleaks.toml 追加的本机路径规则（自动加载）
       - name: Scan full history
         run: gitleaks detect --source . --log-opts="--all --full-history" --redact -v
