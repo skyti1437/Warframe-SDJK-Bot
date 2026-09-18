@@ -117,6 +117,18 @@ check("render.py 有「N万现金」青色规则",
 check("「N杜」不会截断「N杜卡德」",
       tok.search("350 杜卡德").group(0) == "350 杜卡德")
 
+print("\n=== 3.5、手工译名补漏（MANUAL_ITEM_NAMES）===")
+from core.de_worldstate import item_name, MANUAL_ITEM_NAMES      # noqa: E402
+check("MummyQuestKeyBlueprint → Inaros 之沙蓝图（曾显示英文原名）",
+      item_name("/Lotus/StoreItems/Types/Keys/MummyQuest/"
+                "MummyQuestKeyBlueprint") == "Inaros 之沙蓝图",
+      item_name("/Lotus/StoreItems/Types/Keys/MummyQuest/MummyQuestKeyBlueprint"))
+check("无 /StoreItems 前缀的裸路径同样命中（尾段匹配免疫前缀变体）",
+      item_name("/Lotus/Types/Keys/MummyQuest/MummyQuestKeyBlueprint")
+      == "Inaros 之沙蓝图")
+check("官方词库若将来收录同路径，官方值优先（override 只兜底）",
+      all(v for v in MANUAL_ITEM_NAMES.values()))
+
 print("\n=== 四、表宽安全阀（两列布局的生命线）===")
 # 渲染层安全阀：Σ列宽 + 24×(列数-1) ≤ W-178（W 上限 1500 → 1322）
 # 开源包不带 40MB 字库（同 test_relic_list）：无字体环境跳过宽度断言，
