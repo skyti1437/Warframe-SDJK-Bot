@@ -155,7 +155,24 @@ docker run -d --name flaresolverr -p 8191:8191 flaresolverr/flaresolverr
 技术上是**同一份源码**，开源包由 `dist/package_sdjk.py --opensource` 构建时剥离，
 自用包照旧打包，两边互不干扰。
 
-## 八、许可
+## 八、附带的脚本（`scripts/` 与根目录）
+
+平时用不到；只在「改数据 / 调版式 / 排障」时需要。按用途分组：
+
+| 分组 | 脚本 | 说明 |
+| --- | --- | --- |
+| **安装必需** | `scripts/fetch_font.py` | 下载渲染字体（见第二节第 4 步） |
+| **数据刷新** | `scripts/fetch_valence.py` | 刷新玄骸效价轮换（wiki 每 4 天换批，**只展示当前批**，要定期重跑） |
+| **数据构建** | `build_damage_data.py`、`build_de_data.py`、`build_stances.py`、`scripts/build_*.py`、`scripts/enrich_mods_from_wfsim.py`、`scripts/merge_wfsim_enemies.py`、`scripts/sync_mods_from_wfsim.py`、`scripts/repair_panel_basis.py` | 从 WFCD / DE 导出 / wfsim 重新生成 `core/data/*.json`。**需要额外装 PyYAML**：`pip install pyyaml`（插件运行本身不需要它） |
+| **排障** | `scripts/diag_command_output.py`、`scripts/diag_worldstate_keys.py`、`scripts/smoke_all.py` | 在容器里直接跑指令看输出 / 查 DE 原始键 / 冒烟全指令 |
+| **版式开发** | `scripts/dev_relic_preview.py`、`scripts/dev_help_preview.py`、`scripts/bench_supersample*.py`、`scripts/diag_col_starts.py`、`scripts/diag_help_layout.py`、`scripts/diag_row_edges.py` | 本地预览卡面、渲染性能基准、列位像素诊断（改版式必用） |
+| **工具** | `scripts/lookup_zh.py` | 反查 DE 官方简中译名（确认某个词条官方到底有没有） |
+
+> 排查线上问题最常用的一条：
+> `python scripts/diag_command_output.py "遗物 出库"`（在 AstrBot 容器内跑，
+> 直接打印 handler 的真实返回，绕过 QQ 只看结果）。
+
+## 九、许可
 
 - 代码：**GPL-3.0**（见 `LICENSE`）
 - 数据：见上表各来源的许可；游戏内容归 Digital Extremes
