@@ -19,7 +19,7 @@ from pathlib import Path
 DATA = Path(__file__).resolve().parent / "core" / "data"
 # wiki Lua 源码缓存（抓法见 SKILL：fandom API + 本地代理；?action=raw 会被 CF 拦）
 CACHE = Path(os.environ.get("WF_STANCE_CACHE")
-            or r"REDACTED_TMP_DIR/dmgsrc/stances_api.json")
+            or str(Path.home() / "tmp" / "dmgsrc" / "stances_api.json"))
 
 # 强制异常的 wiki 写法 → 我们的伤害类型键
 PROC_MAP = {

@@ -22,7 +22,7 @@ DATA = Path(__file__).resolve().parent / "core" / "data"
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/126.0"
 PROXY = None  # 例如 "http://127.0.0.1:7897"
 # 本地缓存目录（用 curl --proxy 先下好的文件放这里，脚本优先读缓存）
-CACHE = Path(r"REDACTED_TMP_DIR/dmgsrc")
+CACHE = (Path.home() / "tmp" / "dmgsrc")
 
 
 def _fetch(url: str) -> str:

@@ -74,7 +74,11 @@ ALLOWLIST = {
 
 targets: list[Path] = [ROOT / "main.py"]
 targets += sorted((ROOT / "core").glob("*.py"))
-targets += sorted((ROOT / "core" / "data").rglob("*.json"))
+# ★ 排除 core/data/_cache/：那是构建脚本的**原始下载缓存**（DE 的 dict.zh.json
+#   同时含国际服/国服全部中文变体，逐词检查必然误报），不会随插件分发
+#   （.gitignore 与打包脚本都排除了它）。
+targets += sorted(p for p in (ROOT / "core" / "data").rglob("*.json")
+                  if "_cache" not in p.parts)
 
 BEG, END = "# >>> CN-LOCALE-TABLE", "# <<< CN-LOCALE-TABLE"
 

@@ -23,7 +23,8 @@ except ImportError:  # noqa: BLE001 —— 插件运行本身不需要 yaml，�
         "本脚本需要 PyYAML：pip install pyyaml"
         "（插件运行时并不依赖它，仅构建数据用）")
 
-WFSIM = Path(sys.argv[1] if len(sys.argv) > 1 else r"REDACTED_TMP_DIR/wfsim/data")
+WFSIM = Path(sys.argv[1] if len(sys.argv) > 1
+           else str(Path.home() / "tmp" / "wfsim" / "data"))
 OUT = Path(__file__).resolve().parent.parent / "core" / "data"
 
 # 可直接折算进基础面板的效果 kind → 语义

@@ -511,34 +511,56 @@ def fmt_void_trader(trader: Optional[dict]) -> tuple[str, list[str]]:
 
 
 def fmt_baro_predict(rows: list[dict], next_est: str = "",
-                     visits: int = 0, last: str = ""
+                     visits: int = 0, last: str = "",
+                     names_zh: Optional[dict] = None
                      ) -> tuple[str, list[str]]:
     """奸商下期库存「预测」（**统计推测，非官方**）。
 
-    用户 2026-09-18：「别人的奸商指令有预测功能」。DE 从不公布下期库存，
-    wiki 却记录了历次到访与每件物品的上架日期 —— 本卡就是基于这些真实
-    记录做的候选排序，并把口径写在卡上，不打包票。
+    用户 2026-09-18：「别人的奸商指令有预测功能；我们这张卡好像没汉化，
+    排版可以借鉴、注意颜色运用」。本版做了三件事：
+
+    1. **汉化**：物品名走 DE 官方双语词表（`core/data/baro_names_zh.json`，
+       由 `scripts/build_baro_names.py` 生成，覆盖 466 件里的 460 件 = 98%），
+       词表里确实没有的才回落英文原名；大类（MOD/武器/装饰…）全中文。
+    2. **排版**：`序号 + [大类] + 中文名 + 杜卡德`，第二行缩进给依据
+       （上次上架 / 已静默 / 均隔 / 回归度）。
+    3. **颜色**：大类做成芯片并按类别配色（见 render.GROUP_CHIP_COLOR），
+       杜卡德报价金色、序号暗金（render 的 rules 表）。
+
+    口径（卡上也写）：`回归度 = 已静默次数 ÷ 该物品历史平均上架间隔`，
+    越接近 1 越「该回来了」；静默超过历史最大间隔 2 倍的已剔除（那多半是停售）。
     """
     if not rows:
         return ("奸商下期预测", [
             "预测数据不可用（缺 core/data/baro_history.json）",
             "刷新方式：scripts/build_baro_history.py（需经 FlareSolverr 抓 wiki）",
         ])
-    lines = []
+    zh = names_zh or {}
+
+    def nm(r: dict) -> str:
+        return zh.get(r["name"]) or r.get("name_cn") or r["name"]
+
+    lines: list[str] = []
+    head = []
     if next_est:
-        lines.append(f"下次预计到访：{next_est}（上次 {last}；他每 2 周来一次）")
-    lines.append("◆ 最可能回归")
+        head.append(f"下次预计到访 {next_est}")
+    if last:
+        head.append(f"上次 {last}")
+    if visits:
+        head.append(f"样本 {visits} 次到访")
+    if head:
+        lines.append(" ｜ ".join(head))
+
     for i, r in enumerate(rows, 1):
-        name = r["name"]
-        cost = f"{r['ducats']}杜卡德" if r.get("ducats") else "—"
-        typ = f"｜{r['type']}" if r.get("type") else ""
-        lines.append(f"{i}. {name}　{cost}{typ}")
-        lines.append(f"　 上次上架 {r['last']}｜已静默 {r['silent']} 次｜"
-                     f"历史均隔 {r['gap']} 次")
-    lines.append(f"※ 统计自 wiki 的 {visits} 次到访记录（2015 年至今），"
-                 f"**不是官方预测**。")
-    lines.append("　 口径：已静默次数 ÷ 它自己的平均上架间隔，越接近 1 "
-                 "越「该回来了」。")
+        grp = r.get("group") or "其他"
+        cost = f"{r['ducats']} 杜卡德" if r.get("ducats") else "—"
+        lines.append(f"{i}. [{grp}] {nm(r)}　{cost}")
+        lines.append(f"　 上次 {r['last']} ｜ 已静默 {r['silent']} 次"
+                     f"（均隔 {r['gap']}）｜ 回归度 {r['score']}")
+
+    lines.append("※ 统计推测，不是官方预测（DE 从不公布下期库存）")
+    lines.append("　 口径：已静默次数 ÷ 该物品历史平均上架间隔，"
+                 "越接近 1 越可能回归")
     return ("奸商下期预测（推测）", lines)
 
 

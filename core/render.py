@@ -184,6 +184,17 @@ TIER_COLOR = {"古纪": GOLD, "Lith": GOLD, "前纪": STEEL, "Meso": STEEL,
               "万灵": GOLD_BRIGHT, "Omnia": GOLD_BRIGHT,
               "全能": GOLD_BRIGHT, "Vanguard": TEAL, "先锋": TEAL}
 
+# 物品大类芯片色（奸商预测卡用）：把 `[MOD]` `[装饰]` 这类小标签染成一色一类，
+# 一眼能看出这行是 MOD 还是外观 —— 用户 2026-09-18 要求「注意颜色运用」。
+# 配色沿用已有调色板，不引入新色系。
+GROUP_CHIP_COLOR = {
+    "MOD": VIOLET, "主要 MOD": VIOLET,
+    "武器": CYAN, "遗物": GOLD,
+    "装饰": AMBER, "外观": MAGENTA,
+    "其他": INK_DIM,
+    "消耗品": GREEN, "礼包": TEAL,
+}
+
 # ---------------------------------------------------------------------------
 # 行内语义配色：把「任务类型 / 挑战名 / 派系 / 元素 / 加成%」和正文分开
 #
@@ -324,6 +335,11 @@ _TOKEN_RE = re.compile(
     r"|" + _word_alt(MISSION_TYPE_WORDS) +
     r"|" + _word_alt(ELEMENT_WORDS) +
     r"|\d+(?:\.\d+)?%"
+    # 奸商预测卡：杜卡德报价（金色）与行首序号（暗金）
+    # ⚠️ 序号这里用 `(?:^|(?<=[\s　]))` 而不是 `(?<=^|\s|　)` ——
+    #    后者是**变长 lookbehind**，Python `re` 直接报错。
+    r"|\d+\s*杜卡德"
+    r"|(?:^|(?<=[\s　]))\d+\.(?=[\s　])"
     r"|[0-9]{2,4}\s\[(?:S|A\+|A-|A|B\+|B|F)\]"
     r"|[0-9]{2,4}\s(?:S|A\+|A-|A|B\+|B|F)\b"
     r"|(?:^|(?<=[\s　]))(?:S|A\+|A-|A|B\+|B|C|未评级)(?=[\s　]|$))")
@@ -1304,6 +1320,9 @@ class ImageRenderer:
             (re.compile(r"^\d{2,4}\s(?:F)$"), INK_FAINT),
             (re.compile(r"^\d{2,4}\s?\[(?:A-|A|B\+|B)\]$"), GREEN),
             (re.compile(r"^\d{2,4}\s?\[F\]$"), INK_FAINT),
+            # 奸商预测卡：序号用暗金（弱化）、杜卡德报价金色（价格类统一高亮）
+            (re.compile(r"^\d+\.$"), (150, 128, 88)),
+            (re.compile(r"^\d+\s*杜卡德$"), GOLD_BRIGHT),
         ]
         plain_body = getattr(self, "_plain_body", False)
         brackets = len(re.findall(r"\[[^\]]*\]", text))
@@ -1318,9 +1337,11 @@ class ImageRenderer:
             color, chip = base_color, False
             inner = tok[1:-1] if (tok.startswith("[") and tok.endswith("]")) else None
             if inner is not None and not plain_body and chip_ok \
-                    and inner in TIER_COLOR:
-                # 只有真正的遗物等级才做词条芯片，语法文档里的 [...] 保持朴素
-                color, chip = TIER_COLOR[inner], True
+                    and (inner in TIER_COLOR or inner in GROUP_CHIP_COLOR):
+                # 只有真正的遗物等级 / 物品大类才做词条芯片，
+                # 语法文档里的 [...] 保持朴素
+                color = TIER_COLOR.get(inner) or GROUP_CHIP_COLOR[inner]
+                chip = True
             elif inner is None and not plain_body:
                 # 语义配色优先（任务类型 / 元素 / 派系 / 加成%）——
                 # 用集合直查，不走下面的正则表，避免和评级、平台等 token 抢匹配。
