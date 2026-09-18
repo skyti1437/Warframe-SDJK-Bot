@@ -137,6 +137,25 @@ PLUGIN_DIR = Path(__file__).resolve().parent
 ROTATION_FILE = Path(__file__).resolve().parent / "core" / "data" / "rotations.json"
 JUNK_FILE = Path(__file__).resolve().parent / "core" / "data" / "junk.json"
 
+
+def _num(cfg: dict, key: str, default: float, cast=float) -> float:
+    """面板数值容错读取（BUG-2，2026-09-18 验收）。
+
+    面板 schema 只在 UI 层约束类型，用户手改配置 JSON 可绕过 —— 原来直接
+    float()/int() 会让插件 __init__ 抛 ValueError 加载失败。非法值回退默认
+    并记 warning；空串 / None 同样视为未填写（回退默认）；0 是合法值
+    （scan_cooldown=0 关闭限制等语义不受影响）。
+    """
+    raw = cfg.get(key, default)
+    if isinstance(raw, str) and not raw.strip():
+        return default
+    try:
+        return cast(raw)
+    except (TypeError, ValueError):
+        logger.warning("[sdjk] 配置项 %s=%r 非法，回退默认值 %s",
+                       key, raw, default)
+        return default
+
 # 指令一览：(指令写法, 说明) —— 渲染时按全角空格分成两列对齐。
 #
 # ★ 两条硬规则（2026-09-17 改版，用户反馈「主指令乱排 / 缺指令 / 看不懂」）：
@@ -339,7 +358,7 @@ class WarframeSDJK(Star):
             worldsource=self.cfg.get("worldsource", "de"),
             worldstate_base=self.cfg.get("worldstate_base",
                                          "https://api.warframestat.us"),
-            timeout=float(self.cfg.get("http_timeout", 15)),
+            timeout=_num(self.cfg, "http_timeout", 15.0),
             proxy=(self.cfg.get("proxy") or None),
             flare_enabled=bool(self.cfg.get("flaresolverr_enabled", True)),
             flare_urls=_flare_urls or None,
@@ -354,9 +373,9 @@ class WarframeSDJK(Star):
         self._ocr_busy: set = set()
         self._ocr_last: dict[str, float] = {}
         self.render_mode = self.cfg.get("render_mode", "image")
-        self.page_size = int(self.cfg.get("page_size", 12))
+        self.page_size = int(_num(self.cfg, "page_size", 12))
         self.push = PushDaemon(self.client, self.subs, self._push_send, logger,
-                               interval=int(self.cfg.get("push_interval", 45)))
+                               interval=int(_num(self.cfg, "push_interval", 45)))
         self._routes = self._build_routes()
 
     def _build_routes(self) -> dict:
@@ -1621,7 +1640,7 @@ class WarframeSDJK(Star):
         #   渲染 39s+，账单也会跟着涨。这里加两道闸（都能在面板关掉/调整）：
         #     ① 同一发送者冷却 scan_cooldown 秒（默认 15，设 0 关闭）
         #     ② 全局并发上限 scan_max_concurrent（默认 3，设 0 关闭）
-        _cd = float(self.cfg.get("scan_cooldown", 15) or 0)
+        _cd = _num(self.cfg, "scan_cooldown", 15)
         _sender = self._safe_sender(event)
         if _cd > 0 and _sender:
             _last = self._ocr_last.get(_sender, 0.0)
@@ -1636,7 +1655,7 @@ class WarframeSDJK(Star):
                            if _now - v > max(_cd * 4, 120)]:
                     self._ocr_last.pop(_k, None)
             self._ocr_last[_sender] = time.time()
-        _cap = int(self.cfg.get("scan_max_concurrent", 3) or 0)
+        _cap = int(_num(self.cfg, "scan_max_concurrent", 3))
         if _cap > 0 and len(self._ocr_busy) >= _cap:
             return Reply(raw_text=f"⏳ 机器人正在处理其它识卡请求"
                                   f"（并发上限 {_cap}），请稍后再试")

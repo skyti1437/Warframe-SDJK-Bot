@@ -87,6 +87,11 @@ class TTLCache:
         except BaseException as exc:  # noqa: BLE001 - 需要唤醒所有等待者
             if not fut.done():
                 fut.set_exception(exc)
+                # 立即消费一次异常：没有等待者时（单调用者失败场景必然如此），
+                # asyncio 会在 GC 时打印 "Future exception was never retrieved"
+                # 带完整 Traceback 的警告，上游一抖就刷屏（BUG-1，2026-09-18 验收）。
+                # 调用 exception() 即标记已检索；等待者经 shield 拿异常不受影响。
+                fut.exception()
             raise
         finally:
             async with self._lock:
