@@ -1,0 +1,21 @@
+name: gitleaks
+
+# 开源仓库兜底：任何 push / PR 都扫一遍**全历史**，防止把密钥、token、
+# 开发机绝对路径等再次推上来。
+# 首次接入背景见 2026-09-18 的开源合规审查：历史里曾混入
+# `C:/Users/<用户名>/...` 本机路径（已重写清除），需要一道自动闸门防止复发。
+on:
+  push:
+    branches: ["*"]
+  pull_request:
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # 全历史，扫的是完整 diff
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
