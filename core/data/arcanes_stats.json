@@ -1,0 +1,1999 @@
+{
+ "_meta": {
+  "source": "WFCD warframe-items Arcanes.json",
+  "retrieved": "2026-09-16",
+  "note": "只收武器类；数值为满级值"
+ },
+ "arcanes": {
+  "akimbo slip shot": {
+   "name": "Akimbo Slip Shot",
+   "zh": "双枪·滑射",
+   "type": "Secondary Arcane",
+   "rarity": "Rare",
+   "max_rank": 5,
+   "effects": {
+    "conditional": [
+     "While sliding or aim gliding: Gain 65% ammo efficiency with Dual Pistols."
+    ]
+   },
+   "levels": [
+    {
+     "conditional": [
+      "While sliding or aim gliding: Gain 15% ammo efficiency with Dual Pistols."
+     ]
+    },
+    {
+     "conditional": [
+      "While sliding or aim gliding: Gain 25% ammo efficiency with Dual Pistols."
+     ]
+    },
+    {
+     "conditional": [
+      "While sliding or aim gliding: Gain 35% ammo efficiency with Dual Pistols."
+     ]
+    },
+    {
+     "conditional": [
+      "While sliding or aim gliding: Gain 45% ammo efficiency with Dual Pistols."
+     ]
+    },
+    {
+     "conditional": [
+      "While sliding or aim gliding: Gain 55% ammo efficiency with Dual Pistols."
+     ]
+    },
+    {
+     "conditional": [
+      "While sliding or aim gliding: Gain 65% ammo efficiency with Dual Pistols."
+     ]
+    }
+   ],
+   "text": "While sliding or aim gliding: Gain 15% ammo efficiency with Dual Pistols. While sliding or aim gliding: Gain 25% ammo efficiency with Dual Pistols. While sliding or aim gliding: Gain 35% ammo efficiency with Dual Pistols. While sliding or aim gliding: Gain 45%"
+  },
+  "cascadia accuracy": {
+   "name": "Cascadia Accuracy",
+   "zh": "瀑流·精准",
+   "type": "Secondary Arcane",
+   "rarity": "Rare",
+   "max_rank": 5,
+   "effects": {
+    "conditional": [
+     "On Roll:\\n+300% Critical Chance on Weakpoint Hits for 4s"
+    ]
+   },
+   "levels": [
+    {
+     "conditional": [
+      "On Roll:\\n+50% Critical Chance on Weakpoint Hits for 4s"
+     ]
+    },
+    {
+     "conditional": [
+      "On Roll:\\n+100% Critical Chance on Weakpoint Hits for 4s"
+     ]
+    },
+    {
+     "conditional": [
+      "On Roll:\\n+150% Critical Chance on Weakpoint Hits for 4s"
+     ]
+    },
+    {
+     "conditional": [
+      "On Roll:\\n+200% Critical Chance on Weakpoint Hits for 4s"
+     ]
+    },
+    {
+     "conditional": [
+      "On Roll:\\n+250% Critical Chance on Weakpoint Hits for 4s"
+     ]
+    },
+    {
+     "conditional": [
+      "On Roll:\\n+300% Critical Chance on Weakpoint Hits for 4s"
+     ]
+    }
+   ],
+   "text": "On Roll: +50% Critical Chance on Weakpoint Hits for 4s On Roll: +100% Critical Chance on Weakpoint Hits for 4s On Roll: +150% Critical Chance on Weakpoint Hits for 4s On Roll: +200% Critical Chance on Weakpoint Hits for 4s On Roll: +250% Critical Chance on Wea"
+  },
+  "cascadia empowered": {
+   "name": "Cascadia Empowered",
+   "zh": "瀑流·强化",
+   "type": "Secondary Arcane",
+   "rarity": "Rare",
+   "max_rank": 5,
+   "effects": {
+    "conditional": [
+     "On Status Effect:\\nDeals +750 Damage matching the Damage Type of the Status Effect"
+    ]
+   },
+   "levels": [
+    {
+     "conditional": [
+      "On Status Effect:\\nDeals +250 Damage matching the Damage Type of the Status Effect"
+     ]
+    },
+    {
+     "conditional": [
+      "On Status Effect:\\nDeals +350 Damage matching the Damage Type of the Status Effect"
+     ]
+    },
+    {
+     "conditional": [
+      "On Status Effect:\\nDeals +450 Damage matching the Damage Type of the Status Effect"
+     ]
+    },
+    {
+     "conditional": [
+      "On Status Effect:\\nDeals +550 Damage matching the Damage Type of the Status Effect"
+     ]
+    },
+    {
+     "conditional": [
+      "On Status Effect:\\nDeals +650 Damage matching the Damage Type of the Status Effect"
+     ]
+    },
+    {
+     "conditional": [
+      "On Status Effect:\\nDeals +750 Damage matching the Damage Type of the Status Effect"
+     ]
+    }
+   ],
+   "text": "On Status Effect: Deals +250 Damage matching the Damage Type of the Status Effect On Status Effect: Deals +350 Damage matching the Damage Type of the Status Effect On Status Effect: Deals +450 Damage matching the Damage Type of the Status Effect On Status Effe"
+  },
+  "cascadia flare": {
+   "name": "Cascadia Flare",
+   "zh": "瀑流·耀炎",
+   "type": "Secondary Arcane",
+   "rarity": "Rare",
+   "max_rank": 5,
+   "effects": {
+    "conditional": [
+     "On <DT_FIRE_COLOR>Heat Status Effect:\\n+12% Damage for 10s. Stacks up to 480%."
+    ]
+   },
+   "levels": [
+    {
+     "conditional": [
+      "On <DT_FIRE_COLOR>Heat Status Effect:\\n+2% Damage for 10s. Stacks up to 80%."
+     ]
+    },
+    {
+     "conditional": [
+      "On <DT_FIRE_COLOR>Heat Status Effect:\\n+4% Damage for 10s. Stacks up to 160%."
+     ]
+    },
+    {
+     "conditional": [
+      "On <DT_FIRE_COLOR>Heat Status Effect:\\n+6% Damage for 10s. Stacks up to 240%."
+     ]
+    },
+    {
+     "conditional": [
+      "On <DT_FIRE_COLOR>Heat Status Effect:\\n+8% Damage for 10s. Stacks up to 320%."
+     ]
+    },
+    {
+     "conditional": [
+      "On <DT_FIRE_COLOR>Heat Status Effect:\\n+10% Damage for 10s. Stacks up to 400%."
+     ]
+    },
+    {
+     "conditional": [
+      "On <DT_FIRE_COLOR>Heat Status Effect:\\n+12% Damage for 10s. Stacks up to 480%."
+     ]
+    }
+   ],
+   "text": "On <DT_FIRE_COLOR>Heat Status Effect: +2% Damage for 10s. Stacks up to 80%. On <DT_FIRE_COLOR>Heat Status Effect: +4% Damage for 10s. Stacks up to 160%. On <DT_FIRE_COLOR>Heat Status Effect: +6% Damage for 10s. Stacks up to 240%. On <DT_FIRE_COLOR>Heat Status "
+  },
+  "cascadia overcharge": {
+   "name": "Cascadia Overcharge",
+   "zh": "瀑流·溢能",
+   "type": "Secondary Arcane",
+   "rarity": "Rare",
+   "max_rank": 5,
+   "effects": {
+    "conditional": [
+     "While Overshields Active: +300% Critical Chance"
+    ]
+   },
+   "levels": [
+    {
+     "conditional": [
+      "While Overshields Active: +50% Critical Chance"
+     ]
+    },
+    {
+     "conditional": [
+      "While Overshields Active: +100% Critical Chance"
+     ]
+    },
+    {
+     "conditional": [
+      "While Overshields Active: +150% Critical Chance"
+     ]
+    },
+    {
+     "conditional": [
+      "While Overshields Active: +200% Critical Chance"
+     ]
+    },
+    {
+     "conditional": [
+      "While Overshields Active: +250% Critical Chance"
+     ]
+    },
+    {
+     "conditional": [
+      "While Overshields Active: +300% Critical Chance"
+     ]
+    }
+   ],
+   "text": "While Overshields Active: +50% Critical Chance While Overshields Active: +100% Critical Chance While Overshields Active: +150% Critical Chance While Overshields Active: +200% Critical Chance While Overshields Active: +250% Critical Chance While Overshields Act"
+  },
+  "conjunction voltage": {
+   "name": "Conjunction Voltage",
+   "zh": "联结·电压",
+   "type": "Secondary Arcane",
+   "rarity": "Rare",
+   "max_rank": 5,
+   "effects": {
+    "conditional": [
+     "On <DT_ELECTRICITY_COLOR>Electricity Status Effect:\\n+1.5% Reload Speed and +3% Multishot for 12s. Stacks up to 40x."
+    ]
+   },
+   "levels": [
+    {
+     "conditional": [
+      "On <DT_ELECTRICITY_COLOR>Electricity Status Effect:\\n+0.25% Reload Speed and +0.5% Multishot for 12s. Stacks up to 40x."
+     ]
+    },
+    {
+     "conditional": [
+      "On <DT_ELECTRICITY_COLOR>Electricity Status Effect:\\n+0.5% Reload Speed and +1% Multishot for 12s. Stacks up to 40x."
+     ]
+    },
+    {
+     "conditional": [
+      "On <DT_ELECTRICITY_COLOR>Electricity Status Effect:\\n+0.75% Reload Speed and +1.5% Multishot for 12s. Stacks up to 40x."
+     ]
+    },
+    {
+     "conditional": [
+      "On <DT_ELECTRICITY_COLOR>Electricity Status Effect:\\n+1% Reload Speed and +2% Multishot for 12s. Stacks up to 40x."
+     ]
+    },
+    {
+     "conditional": [
+      "On <DT_ELECTRICITY_COLOR>Electricity Status Effect:\\n+1.25% Reload Speed and +2.5% Multishot for 12s. Stacks up to 40x."
+     ]
+    },
+    {
+     "conditional": [
+      "On <DT_ELECTRICITY_COLOR>Electricity Status Effect:\\n+1.5% Reload Speed and +3% Multishot for 12s. Stacks up to 40x."
+     ]
+    }
+   ],
+   "text": "On <DT_ELECTRICITY_COLOR>Electricity Status Effect: +0.25% Reload Speed and +0.5% Multishot for 12s. Stacks up to 40x. On <DT_ELECTRICITY_COLOR>Electricity Status Effect: +0.5% Reload Speed and +1% Multishot for 12s. Stacks up to 40x. On <DT_ELECTRICITY_COLOR>"
+  },
+  "exodia brave": {
+   "name": "Exodia Brave",
+   "zh": "神威·勇武",
+   "type": "Zaw Arcane",
+   "rarity": "Rare",
+   "max_rank": 3,
+   "effects": {
+    "conditional": [
+     "On Heavy Attack Kill:\\n+5 Energy Rate for 4s. Stacks up to 3x."
+    ]
+   },
+   "levels": [
+    {
+     "conditional": [
+      "On Heavy Attack Kill:\\n+1.3 Energy Rate for 4s. Stacks up to 3x."
+     ]
+    },
+    {
+     "conditional": [
+      "On Heavy Attack Kill:\\n+2.5 Energy Rate for 4s. Stacks up to 3x."
+     ]
+    },
+    {
+     "conditional": [
+      "On Heavy Attack Kill:\\n+3.8 Energy Rate for 4s. Stacks up to 3x."
+     ]
+    },
+    {
+     "conditional": [
+      "On Heavy Attack Kill:\\n+5 Energy Rate for 4s. Stacks up to 3x."
+     ]
+    }
+   ],
+   "text": "On Heavy Attack Kill: +1.3 Energy Rate for 4s. Stacks up to 3x. On Heavy Attack Kill: +2.5 Energy Rate for 4s. Stacks up to 3x. On Heavy Attack Kill: +3.8 Energy Rate for 4s. Stacks up to 3x. On Heavy Attack Kill: +5 Energy Rate for 4s. Stacks up to 3x."
+  },
+  "exodia contagion": {
+   "name": "Exodia Contagion",
+   "zh": "神威·触染",
+   "type": "Zaw Arcane",
+   "rarity": "Legendary",
+   "max_rank": 3,
+   "effects": {},
+   "levels": [
+    {},
+    {},
+    {},
+    {}
+   ],
+   "text": "After a Bullet Jump or Double Jump: Melee while Aim Gliding launches a projectile that explodes on impact After a Bullet Jump or Double Jump: Melee while Aim Gliding launches a projectile that explodes on impact After a Bullet Jump or Double Jump: Melee while "
+  },
+  "exodia epidemic": {
+   "name": "Exodia Epidemic",
+   "zh": "神威·流行病",
+   "type": "Zaw Arcane",
+   "rarity": "Legendary",
+   "max_rank": 3,
+   "effects": {},
+   "levels": [
+    {},
+    {},
+    {},
+    {}
+   ],
+   "text": "After a Bullet Jump or Double Jump: Slam emits a shockwave forwards that suspends enemies in the air for a short period After a Bullet Jump or Double Jump: Slam emits a shockwave forwards that suspends enemies in the air for a short period After a Bullet Jump "
+  },
+  "exodia force": {
+   "name": "Exodia Force",
+   "zh": "神威·气力",
+   "type": "Zaw Arcane",
+   "rarity": "Rare",
+   "max_rank": 3,
+   "effects": {
+    "conditional": [
+     "On Status Effect:\\n50% chance to deal 200% Weapon Damage to enemies within 6m."
+    ]
+   },
+   "levels": [
+    {
+     "conditional": [
+      "On Status Effect:\\n50% chance to deal 50% Weapon Damage to enemies within 6m."
+     ]
+    },
+    {
+     "conditional": [
+      "On Status Effect:\\n50% chance to deal 100% Weapon Damage to enemies within 6m."
+     ]
+    },
+    {
+     "conditional": [
+      "On Status Effect:\\n50% chance to deal 150% Weapon Damage to enemies within 6m."
+     ]
+    },
+    {
+     "conditional": [
+      "On Status Effect:\\n50% chance to deal 200% Weapon Damage to enemies within 6m."
+     ]
+    }
+   ],
+   "text": "On Status Effect: 50% chance to deal 50% Weapon Damage to enemies within 6m. On Status Effect: 50% chance to deal 100% Weapon Damage to enemies within 6m. On Status Effect: 50% chance to deal 150% Weapon Damage to enemies within 6m. On Status Effect: 50% chanc"
+  },
+  "exodia hunt": {
+   "name": "Exodia Hunt",
+   "zh": "神威·狩猎",
+   "type": "Zaw Arcane",
+   "rarity": "Rare",
+   "max_rank": 3,
+   "effects": {
+    "conditional": [
+     "On Ground Slam:\\n50% chance to pull enemies within 12m into melee range."
+    ]
+   },
+   "levels": [
+    {
+     "conditional": [
+      "On Ground Slam:\\n50% chance to pull enemies within 6m into melee range."
+     ]
+    },
+    {
+     "conditional": [
+      "On Ground Slam:\\n50% chance to pull enemies within 8m into melee range."
+     ]
+    },
+    {
+     "conditional": [
+      "On Ground Slam:\\n50% chance to pull enemies within 10m into melee range."
+     ]
+    },
+    {
+     "conditional": [
+      "On Ground Slam:\\n50% chance to pull enemies within 12m into melee range."
+     ]
+    }
+   ],
+   "text": "On Ground Slam: 50% chance to pull enemies within 6m into melee range. On Ground Slam: 50% chance to pull enemies within 8m into melee range. On Ground Slam: 50% chance to pull enemies within 10m into melee range. On Ground Slam: 50% chance to pull enemies wit"
+  },
+  "exodia might": {
+   "name": "Exodia Might",
+   "zh": "神威·力量",
+   "type": "Zaw Arcane",
+   "rarity": "Rare",
+   "max_rank": 3,
+   "effects": {
+    "conditional": [
+     "On Finisher Kill:\\n50% chance for +30% Life Steal for 8s"
+    ]
+   },
+   "levels": [
+    {
+     "conditional": [
+      "On Finisher Kill:\\n50% chance for +7.5% Life Steal for 8s"
+     ]
+    },
+    {
+     "conditional": [
+      "On Finisher Kill:\\n50% chance for +15% Life Steal for 8s"
+     ]
+    },
+    {
+     "conditional": [
+      "On Finisher Kill:\\n50% chance for +22.5% Life Steal for 8s"
+     ]
+    },
+    {
+     "conditional": [
+      "On Finisher Kill:\\n50% chance for +30% Life Steal for 8s"
+     ]
+    }
+   ],
+   "text": "On Finisher Kill: 50% chance for +7.5% Life Steal for 8s On Finisher Kill: 50% chance for +15% Life Steal for 8s On Finisher Kill: 50% chance for +22.5% Life Steal for 8s On Finisher Kill: 50% chance for +30% Life Steal for 8s"
+  },
+  "exodia triumph": {
+   "name": "Exodia Triumph",
+   "zh": "神威·凯旋",
+   "type": "Zaw Arcane",
+   "rarity": "Uncommon",
+   "max_rank": 3,
+   "effects": {},
+   "levels": [
+    {},
+    {},
+    {},
+    {}
+   ],
+   "text": "+12.5% Additional Combo Count Chance +25% Additional Combo Count Chance +37.5% Additional Combo Count Chance +50% Additional Combo Count Chance"
+  },
+  "exodia valor": {
+   "name": "Exodia Valor",
+   "zh": "神威·勇猛",
+   "type": "Zaw Arcane",
+   "rarity": "Uncommon",
+   "max_rank": 3,
+   "effects": {},
+   "levels": [
+    {},
+    {},
+    {},
+    {}
+   ],
+   "text": "+50% Additional Combo Count Chance on Lifted enemies +100% Additional Combo Count Chance on Lifted enemies +150% Additional Combo Count Chance on Lifted enemies +200% Additional Combo Count Chance on Lifted enemies"
+  },
+  "fractalized reset": {
+   "name": "Fractalized Reset",
+   "zh": "分形·重置",
+   "type": "Primary Arcane",
+   "rarity": "Rare",
+   "max_rank": 5,
+   "effects": {
+    "conditional": [
+     "On Ability Cast:\\n+240% Reload Speed for 5s"
+    ]
+   },
+   "levels": [
+    {
+     "conditional": [
+      "On Ability Cast:\\n+40% Reload Speed for 5s"
+     ]
+    },
+    {
+     "conditional": [
+      "On Ability Cast:\\n+80% Reload Speed for 5s"
+     ]
+    },
+    {
+     "conditional": [
+      "On Ability Cast:\\n+120% Reload Speed for 5s"
+     ]
+    },
+    {
+     "conditional": [
+      "On Ability Cast:\\n+160% Reload Speed for 5s"
+     ]
+    },
+    {
+     "conditional": [
+      "On Ability Cast:\\n+200% Reload Speed for 5s"
+     ]
+    },
+    {
+     "conditional": [
+      "On Ability Cast:\\n+240% Reload Speed for 5s"
+     ]
+    }
+   ],
+   "text": "On Ability Cast: +40% Reload Speed for 5s On Ability Cast: +80% Reload Speed for 5s On Ability Cast: +120% Reload Speed for 5s On Ability Cast: +160% Reload Speed for 5s On Ability Cast: +200% Reload Speed for 5s On Ability Cast: +240% Reload Speed for 5s"
+  },
+  "longbow sharpshot": {
+   "name": "Longbow Sharpshot",
+   "zh": "弓箭·利矢",
+   "type": "Bow Arcane",
+   "rarity": "Legendary",
+   "max_rank": 5,
+   "effects": {
+    "conditional": [
+     "On Headshot: Gain +300% damage on your next shot."
+    ]
+   },
+   "levels": [
+    {
+     "conditional": [
+      "On Headshot: Gain +50% damage on your next shot."
+     ]
+    },
+    {
+     "conditional": [
+      "On Headshot: Gain +100% damage on your next shot."
+     ]
+    },
+    {
+     "conditional": [
+      "On Headshot: Gain +150% damage on your next shot."
+     ]
+    },
+    {
+     "conditional": [
+      "On Headshot: Gain +200% damage on your next shot."
+     ]
+    },
+    {
+     "conditional": [
+      "On Headshot: Gain +250% damage on your next shot."
+     ]
+    },
+    {
+     "conditional": [
+      "On Headshot: Gain +300% damage on your next shot."
+     ]
+    }
+   ],
+   "text": "On Headshot: Gain +50% damage on your next shot. On Headshot: Gain +100% damage on your next shot. On Headshot: Gain +150% damage on your next shot. On Headshot: Gain +200% damage on your next shot. On Headshot: Gain +250% damage on your next shot. On Headshot"
+  },
+  "melee afflictions": {
+   "name": "Melee Afflictions",
+   "zh": "近战·苦痛",
+   "type": "Melee Arcane",
+   "rarity": "Rare",
+   "max_rank": 5,
+   "effects": {},
+   "levels": [
+    {},
+    {},
+    {},
+    {},
+    {},
+    {}
+   ],
+   "text": "Enemies affected by Status Effects gain 1 additional stacks when they're knocked down or flung by melee attacks. Enemies affected by Status Effects gain 2 additional stacks when they're knocked down or flung by melee attacks. Enemies affected by Status Effects"
+  },
+  "melee animosity": {
+   "name": "Melee Animosity",
+   "zh": "近战·憎恶",
+   "type": "Melee Arcane",
+   "rarity": "Rare",
+   "max_rank": 5,
+   "effects": {
+    "conditional": [
+     "On Melee Hit: Gain 42% Critical Chance on your next Heavy Attack, up to 420%"
+    ]
+   },
+   "levels": [
+    {
+     "conditional": [
+      "On Melee Hit: Gain 7% Critical Chance on your next Heavy Attack, up to 70%"
+     ]
+    },
+    {
+     "conditional": [
+      "On Melee Hit: Gain 14% Critical Chance on your next Heavy Attack, up to 140%"
+     ]
+    },
+    {
+     "conditional": [
+      "On Melee Hit: Gain 21% Critical Chance on your next Heavy Attack, up to 210%"
+     ]
+    },
+    {
+     "conditional": [
+      "On Melee Hit: Gain 28% Critical Chance on your next Heavy Attack, up to 280%"
+     ]
+    },
+    {
+     "conditional": [
+      "On Melee Hit: Gain 35% Critical Chance on your next Heavy Attack, up to 350%"
+     ]
+    },
+    {
+     "conditional": [
+      "On Melee Hit: Gain 42% Critical Chance on your next Heavy Attack, up to 420%"
+     ]
+    }
+   ],
+   "text": "On Melee Hit: Gain 7% Critical Chance on your next Heavy Attack, up to 70% On Melee Hit: Gain 14% Critical Chance on your next Heavy Attack, up to 140% On Melee Hit: Gain 21% Critical Chance on your next Heavy Attack, up to 210% On Melee Hit: Gain 28% Critical"
+  },
+  "melee crescendo": {
+   "name": "Melee Crescendo",
+   "zh": "近战·渐强",
+   "type": "Melee Arcane",
+   "rarity": "Legendary",
+   "max_rank": 5,
+   "effects": {
+    "conditional": [
+     "On Finisher Kill: Gain 6 Initial Combo for the rest of your mission"
+    ]
+   },
+   "levels": [
+    {
+     "conditional": [
+      "On Finisher Kill: Gain 1 Initial Combo for the rest of your mission"
+     ]
+    },
+    {
+     "conditional": [
+      "On Finisher Kill: Gain 2 Initial Combo for the rest of your mission"
+     ]
+    },
+    {
+     "conditional": [
+      "On Finisher Kill: Gain 3 Initial Combo for the rest of your mission"
+     ]
+    },
+    {
+     "conditional": [
+      "On Finisher Kill: Gain 4 Initial Combo for the rest of your mission"
+     ]
+    },
+    {
+     "conditional": [
+      "On Finisher Kill: Gain 5 Initial Combo for the rest of your mission"
+     ]
+    },
+    {
+     "conditional": [
+      "On Finisher Kill: Gain 6 Initial Combo for the rest of your mission"
+     ]
+    }
+   ],
+   "text": "On Finisher Kill: Gain 1 Initial Combo for the rest of your mission On Finisher Kill: Gain 2 Initial Combo for the rest of your mission On Finisher Kill: Gain 3 Initial Combo for the rest of your mission On Finisher Kill: Gain 4 Initial Combo for the rest of y"
+  },
+  "melee doughty": {
+   "name": "Melee Doughty",
+   "zh": "近战·无畏",
+   "type": "Melee Arcane",
+   "rarity": "Rare",
+   "max_rank": 5,
+   "effects": {},
+   "levels": [
+    {},
+    {},
+    {},
+    {},
+    {},
+    {}
+   ],
+   "text": "Gain 0.5x Critical Multiplier for every 10% <DT_PUNCTURE_COLOR>Puncture Status chance on your Melee Weapon. Gain 0.6x Critical Multiplier for every 10% <DT_PUNCTURE_COLOR>Puncture Status chance on your Melee Weapon. Gain 0.7x Critical Multiplier for every 10% "
+  },
+  "melee duplicate": {
+   "name": "Melee Duplicate",
+   "zh": "近战·刃影",
+   "type": "Melee Arcane",
+   "rarity": "Legendary",
+   "max_rank": 5,
+   "effects": {
+    "conditional": [
+     "On Base Critical Hits: 100% chance for your attack to strike a second time"
+    ]
+   },
+   "levels": [
+    {
+     "conditional": [
+      "On Base Critical Hits: 25% chance for your attack to strike a second time"
+     ]
+    },
+    {
+     "conditional": [
+      "On Base Critical Hits: 40% chance for your attack to strike a second time"
+     ]
+    },
+    {
+     "conditional": [
+      "On Base Critical Hits: 55% chance for your attack to strike a second time"
+     ]
+    },
+    {
+     "conditional": [
+      "On Base Critical Hits: 70% chance for your attack to strike a second time"
+     ]
+    },
+    {
+     "conditional": [
+      "On Base Critical Hits: 85% chance for your attack to strike a second time"
+     ]
+    },
+    {
+     "conditional": [
+      "On Base Critical Hits: 100% chance for your attack to strike a second time"
+     ]
+    }
+   ],
+   "text": "On Base Critical Hits: 25% chance for your attack to strike a second time On Base Critical Hits: 40% chance for your attack to strike a second time On Base Critical Hits: 55% chance for your attack to strike a second time On Base Critical Hits: 70% chance for "
+  },
+  "melee exposure": {
+   "name": "Melee Exposure",
+   "zh": "近战·暴露",
+   "type": "Melee Arcane",
+   "rarity": "Rare",
+   "max_rank": 5,
+   "effects": {
+    "conditional": [
+     "On Ability Cast: Gain 60% Corrosive Damage on Melee strikes for 25s. Stacks up to 240%."
+    ]
+   },
+   "levels": [
+    {
+     "conditional": [
+      "On Ability Cast: Gain 10% Corrosive Damage on Melee strikes for 25s. Stacks up to 240%."
+     ]
+    },
+    {
+     "conditional": [
+      "On Ability Cast: Gain 20% Corrosive Damage on Melee strikes for 25s. Stacks up to 240%."
+     ]
+    },
+    {
+     "conditional": [
+      "On Ability Cast: Gain 30% Corrosive Damage on Melee strikes for 25s. Stacks up to 240%."
+     ]
+    },
+    {
+     "conditional": [
+      "On Ability Cast: Gain 40% Corrosive Damage on Melee strikes for 25s. Stacks up to 240%."
+     ]
+    },
+    {
+     "conditional": [
+      "On Ability Cast: Gain 50% Corrosive Damage on Melee strikes for 25s. Stacks up to 240%."
+     ]
+    },
+    {
+     "conditional": [
+      "On Ability Cast: Gain 60% Corrosive Damage on Melee strikes for 25s. Stacks up to 240%."
+     ]
+    }
+   ],
+   "text": "On Ability Cast: Gain 10% Corrosive Damage on Melee strikes for 25s. Stacks up to 240%. On Ability Cast: Gain 20% Corrosive Damage on Melee strikes for 25s. Stacks up to 240%. On Ability Cast: Gain 30% Corrosive Damage on Melee strikes for 25s. Stacks up to 24"
+  },
+  "melee fortification": {
+   "name": "Melee Fortification",
+   "zh": "近战·坚壁",
+   "type": "Melee Arcane",
+   "rarity": "Uncommon",
+   "max_rank": 5,
+   "effects": {
+    "conditional": [
+     "On Melee Kill: +210 Armor for 10s"
+    ]
+   },
+   "levels": [
+    {
+     "conditional": [
+      "On Melee Kill: +35 Armor for 10s"
+     ]
+    },
+    {
+     "conditional": [
+      "On Melee Kill: +70 Armor for 10s"
+     ]
+    },
+    {
+     "conditional": [
+      "On Melee Kill: +105 Armor for 10s"
+     ]
+    },
+    {
+     "conditional": [
+      "On Melee Kill: +140 Armor for 10s"
+     ]
+    },
+    {
+     "conditional": [
+      "On Melee Kill: +175 Armor for 10s"
+     ]
+    },
+    {
+     "conditional": [
+      "On Melee Kill: +210 Armor for 10s"
+     ]
+    }
+   ],
+   "text": "On Melee Kill: +35 Armor for 10s On Melee Kill: +70 Armor for 10s On Melee Kill: +105 Armor for 10s On Melee Kill: +140 Armor for 10s On Melee Kill: +175 Armor for 10s On Melee Kill: +210 Armor for 10s"
+  },
+  "melee influence": {
+   "name": "Melee Influence",
+   "zh": "近战·侵染",
+   "type": "Melee Arcane",
+   "rarity": "Rare",
+   "max_rank": 5,
+   "effects": {
+    "conditional": [
+     "On Melee <DT_ELECTRICITY_COLOR>Electricity Status: 20% chance for elemental Melee Status Effects to apply to enemies wit"
+    ]
+   },
+   "levels": [
+    {
+     "conditional": [
+      "On Melee <DT_ELECTRICITY_COLOR>Electricity Status: 20% chance for elemental Melee Status Effects to apply to enemies wit"
+     ]
+    },
+    {
+     "conditional": [
+      "On Melee <DT_ELECTRICITY_COLOR>Electricity Status: 20% chance for elemental Melee Status Effects to apply to enemies wit"
+     ]
+    },
+    {
+     "conditional": [
+      "On Melee <DT_ELECTRICITY_COLOR>Electricity Status: 20% chance for elemental Melee Status Effects to apply to enemies wit"
+     ]
+    },
+    {
+     "conditional": [
+      "On Melee <DT_ELECTRICITY_COLOR>Electricity Status: 20% chance for elemental Melee Status Effects to apply to enemies wit"
+     ]
+    },
+    {
+     "conditional": [
+      "On Melee <DT_ELECTRICITY_COLOR>Electricity Status: 20% chance for elemental Melee Status Effects to apply to enemies wit"
+     ]
+    },
+    {
+     "conditional": [
+      "On Melee <DT_ELECTRICITY_COLOR>Electricity Status: 20% chance for elemental Melee Status Effects to apply to enemies wit"
+     ]
+    }
+   ],
+   "text": "On Melee <DT_ELECTRICITY_COLOR>Electricity Status: 20% chance for elemental Melee Status Effects to apply to enemies within 10m for 3s. Cannot refresh while active. On Melee <DT_ELECTRICITY_COLOR>Electricity Status: 20% chance for elemental Melee Status Effect"
+  },
+  "melee retaliation": {
+   "name": "Melee Retaliation",
+   "zh": "近战·报复",
+   "type": "Melee Arcane",
+   "rarity": "Uncommon",
+   "max_rank": 5,
+   "effects": {},
+   "levels": [
+    {},
+    {},
+    {},
+    {},
+    {},
+    {}
+   ],
+   "text": "Gain 5% Melee Damage for every 200 current Shields, up to 420%. Bonus halved for Overshields. Gain 10% Melee Damage for every 200 current Shields, up to 420%. Bonus halved for Overshields. Gain 15% Melee Damage for every 200 current Shields, up to 420%. Bonus "
+  },
+  "melee vortex": {
+   "name": "Melee Vortex",
+   "zh": "近战·漩涡",
+   "type": "Melee Arcane",
+   "rarity": "Rare",
+   "max_rank": 5,
+   "effects": {},
+   "levels": [
+    {},
+    {},
+    {},
+    {},
+    {},
+    {}
+   ],
+   "text": "Kill an enemy affected by <DT_MAGNETIC_COLOR>Magnetic Status for a 20% chance to pull in enemies within 18m radius Kill an enemy affected by <DT_MAGNETIC_COLOR>Magnetic Status for a 25% chance to pull in enemies within 18m radius Kill an enemy affected by <DT_"
+  },
+  "pax bolt": {
+   "name": "Pax Bolt",
+   "zh": "和平·电闪",
+   "type": "Kitgun Arcane",
+   "rarity": "Rare",
+   "max_rank": 3,
+   "effects": {
+    "conditional": [
+     "On Headshot Kill:\\n+30% Ability Efficiency and +30% Ability Strength on the next Ability used within 4s."
+    ]
+   },
+   "levels": [
+    {
+     "conditional": [
+      "On Headshot Kill:\\n+7.5% Ability Efficiency and +7.5% Ability Strength on the next Ability used within 4s."
+     ]
+    },
+    {
+     "conditional": [
+      "On Headshot Kill:\\n+15% Ability Efficiency and +15% Ability Strength on the next Ability used within 4s."
+     ]
+    },
+    {
+     "conditional": [
+      "On Headshot Kill:\\n+22.5% Ability Efficiency and +22.5% Ability Strength on the next Ability used within 4s."
+     ]
+    },
+    {
+     "conditional": [
+      "On Headshot Kill:\\n+30% Ability Efficiency and +30% Ability Strength on the next Ability used within 4s."
+     ]
+    }
+   ],
+   "text": "On Headshot Kill: +7.5% Ability Efficiency and +7.5% Ability Strength on the next Ability used within 4s. On Headshot Kill: +15% Ability Efficiency and +15% Ability Strength on the next Ability used within 4s. On Headshot Kill: +22.5% Ability Efficiency and +2"
+  },
+  "pax charge": {
+   "name": "Pax Charge",
+   "zh": "和平·电充",
+   "type": "Kitgun Arcane",
+   "rarity": "Rare",
+   "max_rank": 3,
+   "effects": {},
+   "levels": [
+    {},
+    {},
+    {},
+    {}
+   ],
+   "text": "Battery Recharge Delay is reduced by +12.5% Battery Recharge Delay is reduced by +25% Battery Recharge Delay is reduced by +37.5% Battery Recharge Delay is reduced by +50%"
+  },
+  "pax seeker": {
+   "name": "Pax Seeker",
+   "zh": "和平·追寻者",
+   "type": "Kitgun Arcane",
+   "rarity": "Rare",
+   "max_rank": 3,
+   "effects": {
+    "conditional": [
+     "On Headshot Kill:\\n4 projectiles burst from the target and seek the heads of nearby enemies."
+    ]
+   },
+   "levels": [
+    {
+     "conditional": [
+      "On Headshot Kill:\\n1 projectiles burst from the target and seek the heads of nearby enemies."
+     ]
+    },
+    {
+     "conditional": [
+      "On Headshot Kill:\\n2 projectiles burst from the target and seek the heads of nearby enemies."
+     ]
+    },
+    {
+     "conditional": [
+      "On Headshot Kill:\\n3 projectiles burst from the target and seek the heads of nearby enemies."
+     ]
+    },
+    {
+     "conditional": [
+      "On Headshot Kill:\\n4 projectiles burst from the target and seek the heads of nearby enemies."
+     ]
+    }
+   ],
+   "text": "On Headshot Kill: 1 projectiles burst from the target and seek the heads of nearby enemies. On Headshot Kill: 2 projectiles burst from the target and seek the heads of nearby enemies. On Headshot Kill: 3 projectiles burst from the target and seek the heads of "
+  },
+  "pax soar": {
+   "name": "Pax Soar",
+   "zh": "和平·高飞",
+   "type": "Kitgun Arcane",
+   "rarity": "Rare",
+   "max_rank": 3,
+   "effects": {},
+   "levels": [
+    {},
+    {},
+    {},
+    {}
+   ],
+   "text": "+12.5% Accuracy while Airborne -12.5% Weapon Recoil while Airborne +1.3s Aim Glide/Wall Latch Duration +25% Accuracy while Airborne -25% Weapon Recoil while Airborne +2.5s Aim Glide/Wall Latch Duration +37.5% Accuracy while Airborne -37.5% Weapon Recoil while "
+  },
+  "primary blight": {
+   "name": "Primary Blight",
+   "zh": "主要·毒侵",
+   "type": "Primary Arcane",
+   "rarity": "Rare",
+   "max_rank": 5,
+   "effects": {
+    "conditional": [
+     "On <DT_POISON_COLOR>Toxin Status Effect:\\n+3.6% Critical Damage and +1.8% Multishot for 12s. Stacks up to 40x."
+    ]
+   },
+   "levels": [
+    {
+     "conditional": [
+      "On <DT_POISON_COLOR>Toxin Status Effect:\\n+0.6% Critical Damage and +0.3% Multishot for 12s. Stacks up to 40x."
+     ]
+    },
+    {
+     "conditional": [
+      "On <DT_POISON_COLOR>Toxin Status Effect:\\n+1.2% Critical Damage and +0.6% Multishot for 12s. Stacks up to 40x."
+     ]
+    },
+    {
+     "conditional": [
+      "On <DT_POISON_COLOR>Toxin Status Effect:\\n+1.8% Critical Damage and +0.9% Multishot for 12s. Stacks up to 40x."
+     ]
+    },
+    {
+     "conditional": [
+      "On <DT_POISON_COLOR>Toxin Status Effect:\\n+2.4% Critical Damage and +1.2% Multishot for 12s. Stacks up to 40x."
+     ]
+    },
+    {
+     "conditional": [
+      "On <DT_POISON_COLOR>Toxin Status Effect:\\n+3% Critical Damage and +1.5% Multishot for 12s. Stacks up to 40x."
+     ]
+    },
+    {
+     "conditional": [
+      "On <DT_POISON_COLOR>Toxin Status Effect:\\n+3.6% Critical Damage and +1.8% Multishot for 12s. Stacks up to 40x."
+     ]
+    }
+   ],
+   "text": "On <DT_POISON_COLOR>Toxin Status Effect: +0.6% Critical Damage and +0.3% Multishot for 12s. Stacks up to 40x. On <DT_POISON_COLOR>Toxin Status Effect: +1.2% Critical Damage and +0.6% Multishot for 12s. Stacks up to 40x. On <DT_POISON_COLOR>Toxin Status Effect:"
+  },
+  "primary crux": {
+   "name": "Primary Crux",
+   "zh": "主要·准星",
+   "type": "Primary Arcane",
+   "rarity": "Rare",
+   "max_rank": 5,
+   "effects": {
+    "conditional": [
+     "On Weak Point Hit: Gain +30% Status Chance and +6% Ammo Efficiency for 10s. Stacks up to 10x."
+    ]
+   },
+   "levels": [
+    {
+     "conditional": [
+      "On Weak Point Hit: Gain +5% Status Chance and +1% Ammo Efficiency for 10s. Stacks up to 10x."
+     ]
+    },
+    {
+     "conditional": [
+      "On Weak Point Hit: Gain +10% Status Chance and +2% Ammo Efficiency for 10s. Stacks up to 10x."
+     ]
+    },
+    {
+     "conditional": [
+      "On Weak Point Hit: Gain +15% Status Chance and +3% Ammo Efficiency for 10s. Stacks up to 10x."
+     ]
+    },
+    {
+     "conditional": [
+      "On Weak Point Hit: Gain +20% Status Chance and +4% Ammo Efficiency for 10s. Stacks up to 10x."
+     ]
+    },
+    {
+     "conditional": [
+      "On Weak Point Hit: Gain +25% Status Chance and +5% Ammo Efficiency for 10s. Stacks up to 10x."
+     ]
+    },
+    {
+     "conditional": [
+      "On Weak Point Hit: Gain +30% Status Chance and +6% Ammo Efficiency for 10s. Stacks up to 10x."
+     ]
+    }
+   ],
+   "text": "On Weak Point Hit: Gain +5% Status Chance and +1% Ammo Efficiency for 10s. Stacks up to 10x. On Weak Point Hit: Gain +10% Status Chance and +2% Ammo Efficiency for 10s. Stacks up to 10x. On Weak Point Hit: Gain +15% Status Chance and +3% Ammo Efficiency for 10"
+  },
+  "primary deadhead": {
+   "name": "Primary Deadhead",
+   "zh": "主要·死首",
+   "type": "Primary Arcane",
+   "rarity": "Rare",
+   "max_rank": 5,
+   "effects": {
+    "conditional": [
+     "On Precision Headshot Kill:\\n+120% Damage for 24s. Stacks up to 3x.\\n+30% to Headshot Multiplier\\n-50% Weapon Recoil"
+    ],
+    "headshot_bonus": 60.0
+   },
+   "levels": [
+    {
+     "conditional": [
+      "On Precision Headshot Kill:\\n+20% Damage for 24s. Stacks up to 3x."
+     ]
+    },
+    {
+     "conditional": [
+      "On Precision Headshot Kill:\\n+40% Damage for 24s. Stacks up to 3x."
+     ]
+    },
+    {
+     "conditional": [
+      "On Precision Headshot Kill:\\n+60% Damage for 24s. Stacks up to 3x."
+     ]
+    },
+    {
+     "conditional": [
+      "On Precision Headshot Kill:\\n+80% Damage for 24s. Stacks up to 3x."
+     ]
+    },
+    {
+     "conditional": [
+      "On Precision Headshot Kill:\\n+100% Damage for 24s. Stacks up to 3x."
+     ]
+    },
+    {
+     "conditional": [
+      "On Precision Headshot Kill:\\n+120% Damage for 24s. Stacks up to 3x.\\n+30% to Headshot Multiplier\\n-50% Weapon Recoil"
+     ],
+     "headshot_bonus": 60.0
+    }
+   ],
+   "text": "On Precision Headshot Kill: +20% Damage for 24s. Stacks up to 3x. On Precision Headshot Kill: +40% Damage for 24s. Stacks up to 3x. On Precision Headshot Kill: +60% Damage for 24s. Stacks up to 3x. On Precision Headshot Kill: +80% Damage for 24s. Stacks up to "
+  },
+  "primary dexterity": {
+   "name": "Primary Dexterity",
+   "zh": "主要·熟练",
+   "type": "Primary Arcane",
+   "rarity": "Rare",
+   "max_rank": 5,
+   "effects": {
+    "conditional": [
+     "On Melee Kill:\\n+60% Damage for 20s. Stacks up to 6x.\\n+7.5s Combo Duration"
+    ]
+   },
+   "levels": [
+    {
+     "conditional": [
+      "On Melee Kill:\\n+10% Damage for 20s. Stacks up to 6x."
+     ]
+    },
+    {
+     "conditional": [
+      "On Melee Kill:\\n+20% Damage for 20s. Stacks up to 6x."
+     ]
+    },
+    {
+     "conditional": [
+      "On Melee Kill:\\n+30% Damage for 20s. Stacks up to 6x."
+     ]
+    },
+    {
+     "conditional": [
+      "On Melee Kill:\\n+40% Damage for 20s. Stacks up to 6x."
+     ]
+    },
+    {
+     "conditional": [
+      "On Melee Kill:\\n+50% Damage for 20s. Stacks up to 6x."
+     ]
+    },
+    {
+     "conditional": [
+      "On Melee Kill:\\n+60% Damage for 20s. Stacks up to 6x.\\n+7.5s Combo Duration"
+     ]
+    }
+   ],
+   "text": "On Melee Kill: +10% Damage for 20s. Stacks up to 6x. On Melee Kill: +20% Damage for 20s. Stacks up to 6x. On Melee Kill: +30% Damage for 20s. Stacks up to 6x. On Melee Kill: +40% Damage for 20s. Stacks up to 6x. On Melee Kill: +50% Damage for 20s. Stacks up to"
+  },
+  "primary exhilarate": {
+   "name": "Primary Exhilarate",
+   "zh": "主要·激昂",
+   "type": "Primary Arcane",
+   "rarity": "Rare",
+   "max_rank": 5,
+   "effects": {
+    "conditional": [
+     "On Weapon <DT_IMPACT_COLOR>Impact Status Effect:\\n+1.2 Energy Regen/s for 10s. Stacks up to 3x."
+    ]
+   },
+   "levels": [
+    {
+     "conditional": [
+      "On Weapon <DT_IMPACT_COLOR>Impact Status Effect:\\n+0.2 Energy Regen/s for 10s. Stacks up to 3x."
+     ]
+    },
+    {
+     "conditional": [
+      "On Weapon <DT_IMPACT_COLOR>Impact Status Effect:\\n+0.4 Energy Regen/s for 10s. Stacks up to 3x."
+     ]
+    },
+    {
+     "conditional": [
+      "On Weapon <DT_IMPACT_COLOR>Impact Status Effect:\\n+0.6 Energy Regen/s for 10s. Stacks up to 3x."
+     ]
+    },
+    {
+     "conditional": [
+      "On Weapon <DT_IMPACT_COLOR>Impact Status Effect:\\n+0.8 Energy Regen/s for 10s. Stacks up to 3x."
+     ]
+    },
+    {
+     "conditional": [
+      "On Weapon <DT_IMPACT_COLOR>Impact Status Effect:\\n+1 Energy Regen/s for 10s. Stacks up to 3x."
+     ]
+    },
+    {
+     "conditional": [
+      "On Weapon <DT_IMPACT_COLOR>Impact Status Effect:\\n+1.2 Energy Regen/s for 10s. Stacks up to 3x."
+     ]
+    }
+   ],
+   "text": "On Weapon <DT_IMPACT_COLOR>Impact Status Effect: +0.2 Energy Regen/s for 10s. Stacks up to 3x. On Weapon <DT_IMPACT_COLOR>Impact Status Effect: +0.4 Energy Regen/s for 10s. Stacks up to 3x. On Weapon <DT_IMPACT_COLOR>Impact Status Effect: +0.6 Energy Regen/s f"
+  },
+  "primary frostbite": {
+   "name": "Primary Frostbite",
+   "zh": "主要·霜冻",
+   "type": "Primary Arcane",
+   "rarity": "Rare",
+   "max_rank": 5,
+   "effects": {
+    "conditional": [
+     "On <DT_FREEZE_COLOR>Cold Status Effect:\\n+3% Critical Damage and +2.25% Multishot for 12s. Stacks up to 40x."
+    ]
+   },
+   "levels": [
+    {
+     "conditional": [
+      "On <DT_FREEZE_COLOR>Cold Status Effect:\\n+0.5% Critical Damage and +0.38% Multishot for 12s. Stacks up to 40x."
+     ]
+    },
+    {
+     "conditional": [
+      "On <DT_FREEZE_COLOR>Cold Status Effect:\\n+1% Critical Damage and +0.75% Multishot for 12s. Stacks up to 40x."
+     ]
+    },
+    {
+     "conditional": [
+      "On <DT_FREEZE_COLOR>Cold Status Effect:\\n+1.5% Critical Damage and +1.12% Multishot for 12s. Stacks up to 40x."
+     ]
+    },
+    {
+     "conditional": [
+      "On <DT_FREEZE_COLOR>Cold Status Effect:\\n+2% Critical Damage and +1.5% Multishot for 12s. Stacks up to 40x."
+     ]
+    },
+    {
+     "conditional": [
+      "On <DT_FREEZE_COLOR>Cold Status Effect:\\n+2.5% Critical Damage and +1.88% Multishot for 12s. Stacks up to 40x."
+     ]
+    },
+    {
+     "conditional": [
+      "On <DT_FREEZE_COLOR>Cold Status Effect:\\n+3% Critical Damage and +2.25% Multishot for 12s. Stacks up to 40x."
+     ]
+    }
+   ],
+   "text": "On <DT_FREEZE_COLOR>Cold Status Effect: +0.5% Critical Damage and +0.38% Multishot for 12s. Stacks up to 40x. On <DT_FREEZE_COLOR>Cold Status Effect: +1% Critical Damage and +0.75% Multishot for 12s. Stacks up to 40x. On <DT_FREEZE_COLOR>Cold Status Effect: +1"
+  },
+  "primary merciless": {
+   "name": "Primary Merciless",
+   "zh": "主要·无情",
+   "type": "Primary Arcane",
+   "rarity": "Rare",
+   "max_rank": 5,
+   "effects": {
+    "conditional": [
+     "On Kill:\\n+30% Damage for 4s. Stacks up to 12x.\\n+30% Reload Speed"
+    ],
+    "reload_pct": 60.0
+   },
+   "levels": [
+    {
+     "conditional": [
+      "On Kill:\\n+5% Damage for 4s. Stacks up to 12x."
+     ]
+    },
+    {
+     "conditional": [
+      "On Kill:\\n+10% Damage for 4s. Stacks up to 12x."
+     ]
+    },
+    {
+     "conditional": [
+      "On Kill:\\n+15% Damage for 4s. Stacks up to 12x."
+     ]
+    },
+    {
+     "conditional": [
+      "On Kill:\\n+20% Damage for 4s. Stacks up to 12x."
+     ]
+    },
+    {
+     "conditional": [
+      "On Kill:\\n+25% Damage for 4s. Stacks up to 12x."
+     ]
+    },
+    {
+     "conditional": [
+      "On Kill:\\n+30% Damage for 4s. Stacks up to 12x.\\n+30% Reload Speed"
+     ],
+     "reload_pct": 60.0
+    }
+   ],
+   "text": "On Kill: +5% Damage for 4s. Stacks up to 12x. On Kill: +10% Damage for 4s. Stacks up to 12x. On Kill: +15% Damage for 4s. Stacks up to 12x. On Kill: +20% Damage for 4s. Stacks up to 12x. On Kill: +25% Damage for 4s. Stacks up to 12x. On Kill: +30% Damage for 4"
+  },
+  "primary obstruct": {
+   "name": "Primary Obstruct",
+   "zh": "主要·滞阻",
+   "type": "Primary Arcane",
+   "rarity": "Rare",
+   "max_rank": 5,
+   "effects": {
+    "conditional": [
+     "On Weapon <DT_MAGNETIC_COLOR>Magnetic Status Effect: Enemy weapons jam within 15m of target. Cooldown 10s."
+    ]
+   },
+   "levels": [
+    {
+     "conditional": [
+      "On Weapon <DT_MAGNETIC_COLOR>Magnetic Status Effect: Enemy weapons jam within 15m of target. Cooldown 60s."
+     ]
+    },
+    {
+     "conditional": [
+      "On Weapon <DT_MAGNETIC_COLOR>Magnetic Status Effect: Enemy weapons jam within 15m of target. Cooldown 50s."
+     ]
+    },
+    {
+     "conditional": [
+      "On Weapon <DT_MAGNETIC_COLOR>Magnetic Status Effect: Enemy weapons jam within 15m of target. Cooldown 40s."
+     ]
+    },
+    {
+     "conditional": [
+      "On Weapon <DT_MAGNETIC_COLOR>Magnetic Status Effect: Enemy weapons jam within 15m of target. Cooldown 30s."
+     ]
+    },
+    {
+     "conditional": [
+      "On Weapon <DT_MAGNETIC_COLOR>Magnetic Status Effect: Enemy weapons jam within 15m of target. Cooldown 20s."
+     ]
+    },
+    {
+     "conditional": [
+      "On Weapon <DT_MAGNETIC_COLOR>Magnetic Status Effect: Enemy weapons jam within 15m of target. Cooldown 10s."
+     ]
+    }
+   ],
+   "text": "On Weapon <DT_MAGNETIC_COLOR>Magnetic Status Effect: Enemy weapons jam within 15m of target. Cooldown 60s. On Weapon <DT_MAGNETIC_COLOR>Magnetic Status Effect: Enemy weapons jam within 15m of target. Cooldown 50s. On Weapon <DT_MAGNETIC_COLOR>Magnetic Status E"
+  },
+  "primary plated round": {
+   "name": "Primary Plated Round",
+   "zh": "主要·镀金弹头",
+   "type": "Primary Arcane",
+   "rarity": "Rare",
+   "max_rank": 5,
+   "effects": {
+    "conditional": [
+     "On Reload: Deal increased damage per round loaded based on max magazine size. Lasts for 10s."
+    ]
+   },
+   "levels": [
+    {
+     "conditional": [
+      "On Reload: Deal increased damage per round loaded based on max magazine size. Lasts for 3s."
+     ]
+    },
+    {
+     "conditional": [
+      "On Reload: Deal increased damage per round loaded based on max magazine size. Lasts for 4s."
+     ]
+    },
+    {
+     "conditional": [
+      "On Reload: Deal increased damage per round loaded based on max magazine size. Lasts for 5s."
+     ]
+    },
+    {
+     "conditional": [
+      "On Reload: Deal increased damage per round loaded based on max magazine size. Lasts for 6s."
+     ]
+    },
+    {
+     "conditional": [
+      "On Reload: Deal increased damage per round loaded based on max magazine size. Lasts for 8s."
+     ]
+    },
+    {
+     "conditional": [
+      "On Reload: Deal increased damage per round loaded based on max magazine size. Lasts for 10s."
+     ]
+    }
+   ],
+   "text": "On Reload: Deal increased damage per round loaded based on max magazine size. Lasts for 3s. On Reload: Deal increased damage per round loaded based on max magazine size. Lasts for 4s. On Reload: Deal increased damage per round loaded based on max magazine size"
+  },
+  "residual boils": {
+   "name": "Residual Boils",
+   "zh": "残差·燃沸",
+   "type": "Kitgun Arcane",
+   "rarity": "Rare",
+   "max_rank": 3,
+   "effects": {
+    "conditional": [
+     "On Kitgun Kill:\\n20% chance to spawn volatile hives for 12s that explode when enemies approach for 80 <DT_FIRE_COLOR>Hea"
+    ]
+   },
+   "levels": [
+    {
+     "conditional": [
+      "On Kitgun Kill:\\n20% chance to spawn volatile hives for 3s that explode when enemies approach for 80 <DT_FIRE_COLOR>Heat"
+     ]
+    },
+    {
+     "conditional": [
+      "On Kitgun Kill:\\n20% chance to spawn volatile hives for 6s that explode when enemies approach for 80 <DT_FIRE_COLOR>Heat"
+     ]
+    },
+    {
+     "conditional": [
+      "On Kitgun Kill:\\n20% chance to spawn volatile hives for 9s that explode when enemies approach for 80 <DT_FIRE_COLOR>Heat"
+     ]
+    },
+    {
+     "conditional": [
+      "On Kitgun Kill:\\n20% chance to spawn volatile hives for 12s that explode when enemies approach for 80 <DT_FIRE_COLOR>Hea"
+     ]
+    }
+   ],
+   "text": "On Kitgun Kill: 20% chance to spawn volatile hives for 3s that explode when enemies approach for 80 <DT_FIRE_COLOR>Heat Damage in 10m. Standing in the area applies <DT_FIRE_COLOR>Heat Damage type to Theorem Arcanes. On Kitgun Kill: 20% chance to spawn volatile"
+  },
+  "residual malodor": {
+   "name": "Residual Malodor",
+   "zh": "残差·恶嗅",
+   "type": "Kitgun Arcane",
+   "rarity": "Rare",
+   "max_rank": 3,
+   "effects": {
+    "conditional": [
+     "On Kitgun Kill:\\n20% chance to create a frigid mist for 12s, dealing 40 <DT_FREEZE_COLOR>Cold Damage/s. Standing in the "
+    ]
+   },
+   "levels": [
+    {
+     "conditional": [
+      "On Kitgun Kill:\\n20% chance to create a frigid mist for 3s, dealing 40 <DT_FREEZE_COLOR>Cold Damage/s. Standing in the a"
+     ]
+    },
+    {
+     "conditional": [
+      "On Kitgun Kill:\\n20% chance to create a frigid mist for 6s, dealing 40 <DT_FREEZE_COLOR>Cold Damage/s. Standing in the a"
+     ]
+    },
+    {
+     "conditional": [
+      "On Kitgun Kill:\\n20% chance to create a frigid mist for 9s, dealing 40 <DT_FREEZE_COLOR>Cold Damage/s. Standing in the a"
+     ]
+    },
+    {
+     "conditional": [
+      "On Kitgun Kill:\\n20% chance to create a frigid mist for 12s, dealing 40 <DT_FREEZE_COLOR>Cold Damage/s. Standing in the "
+     ]
+    }
+   ],
+   "text": "On Kitgun Kill: 20% chance to create a frigid mist for 3s, dealing 40 <DT_FREEZE_COLOR>Cold Damage/s. Standing in the area applies <DT_FREEZE_COLOR>Cold Damage to Theorem Arcanes. On Kitgun Kill: 20% chance to create a frigid mist for 6s, dealing 40 <DT_FREEZE"
+  },
+  "residual shock": {
+   "name": "Residual Shock",
+   "zh": "残差·电击",
+   "type": "Kitgun Arcane",
+   "rarity": "Rare",
+   "max_rank": 3,
+   "effects": {
+    "conditional": [
+     "On Kitgun Kill:\\n20% chance to spawn an electrified spike for 12s, dealing 200 <DT_ELECTRICITY_COLOR>Electricity Damage "
+    ]
+   },
+   "levels": [
+    {
+     "conditional": [
+      "On Kitgun Kill:\\n20% chance to spawn an electrified spike for 3s, dealing 200 <DT_ELECTRICITY_COLOR>Electricity Damage t"
+     ]
+    },
+    {
+     "conditional": [
+      "On Kitgun Kill:\\n20% chance to spawn an electrified spike for 6s, dealing 200 <DT_ELECTRICITY_COLOR>Electricity Damage t"
+     ]
+    },
+    {
+     "conditional": [
+      "On Kitgun Kill:\\n20% chance to spawn an electrified spike for 9s, dealing 200 <DT_ELECTRICITY_COLOR>Electricity Damage t"
+     ]
+    },
+    {
+     "conditional": [
+      "On Kitgun Kill:\\n20% chance to spawn an electrified spike for 12s, dealing 200 <DT_ELECTRICITY_COLOR>Electricity Damage "
+     ]
+    }
+   ],
+   "text": "On Kitgun Kill: 20% chance to spawn an electrified spike for 3s, dealing 200 <DT_ELECTRICITY_COLOR>Electricity Damage to enemies within 10m. Standing in the area applies <DT_ELECTRICITY_COLOR>Electricity Damage to Theorem Arcanes. On Kitgun Kill: 20% chance to"
+  },
+  "residual viremia": {
+   "name": "Residual Viremia",
+   "zh": "残差·毒血",
+   "type": "Kitgun Arcane",
+   "rarity": "Rare",
+   "max_rank": 3,
+   "effects": {
+    "conditional": [
+     "On Kitgun Kill:\\n20% chance to create pool of toxic blood for 12s, dealing 40 <DT_POISON_COLOR>Toxin Damage/s. Standing "
+    ]
+   },
+   "levels": [
+    {
+     "conditional": [
+      "On Kitgun Kill:\\n20% chance to create pool of toxic blood for 3s, dealing 40 <DT_POISON_COLOR>Toxin Damage/s. Standing i"
+     ]
+    },
+    {
+     "conditional": [
+      "On Kitgun Kill:\\n20% chance to create pool of toxic blood for 6s, dealing 40 <DT_POISON_COLOR>Toxin Damage/s. Standing i"
+     ]
+    },
+    {
+     "conditional": [
+      "On Kitgun Kill:\\n20% chance to create pool of toxic blood for 9s, dealing 40 <DT_POISON_COLOR>Toxin Damage/s. Standing i"
+     ]
+    },
+    {
+     "conditional": [
+      "On Kitgun Kill:\\n20% chance to create pool of toxic blood for 12s, dealing 40 <DT_POISON_COLOR>Toxin Damage/s. Standing "
+     ]
+    }
+   ],
+   "text": "On Kitgun Kill: 20% chance to create pool of toxic blood for 3s, dealing 40 <DT_POISON_COLOR>Toxin Damage/s. Standing in the area applies the <DT_POISON_COLOR>Toxin Damage to Theorem Arcanes. On Kitgun Kill: 20% chance to create pool of toxic blood for 6s, dea"
+  },
+  "secondary deadhead": {
+   "name": "Secondary Deadhead",
+   "zh": "次要·死首",
+   "type": "Secondary Arcane",
+   "rarity": "Rare",
+   "max_rank": 5,
+   "effects": {
+    "conditional": [
+     "On Precision Headshot Kill:\\n+120% Damage for 24s. Stacks up to 3x.\\n+30% to Headshot Multiplier\\n-50% Weapon Recoil"
+    ],
+    "headshot_bonus": 60.0
+   },
+   "levels": [
+    {
+     "conditional": [
+      "On Precision Headshot Kill:\\n+20% Damage for 24s. Stacks up to 3x."
+     ]
+    },
+    {
+     "conditional": [
+      "On Precision Headshot Kill:\\n+40% Damage for 24s. Stacks up to 3x."
+     ]
+    },
+    {
+     "conditional": [
+      "On Precision Headshot Kill:\\n+60% Damage for 24s. Stacks up to 3x."
+     ]
+    },
+    {
+     "conditional": [
+      "On Precision Headshot Kill:\\n+80% Damage for 24s. Stacks up to 3x."
+     ]
+    },
+    {
+     "conditional": [
+      "On Precision Headshot Kill:\\n+100% Damage for 24s. Stacks up to 3x."
+     ]
+    },
+    {
+     "conditional": [
+      "On Precision Headshot Kill:\\n+120% Damage for 24s. Stacks up to 3x.\\n+30% to Headshot Multiplier\\n-50% Weapon Recoil"
+     ],
+     "headshot_bonus": 60.0
+    }
+   ],
+   "text": "On Precision Headshot Kill: +20% Damage for 24s. Stacks up to 3x. On Precision Headshot Kill: +40% Damage for 24s. Stacks up to 3x. On Precision Headshot Kill: +60% Damage for 24s. Stacks up to 3x. On Precision Headshot Kill: +80% Damage for 24s. Stacks up to "
+  },
+  "secondary dexterity": {
+   "name": "Secondary Dexterity",
+   "zh": "次要·熟练",
+   "type": "Secondary Arcane",
+   "rarity": "Rare",
+   "max_rank": 5,
+   "effects": {
+    "conditional": [
+     "On Melee Kill:\\n+60% Damage for 20s. Stacks up to 6x.\\n+7.5s Combo Duration"
+    ]
+   },
+   "levels": [
+    {
+     "conditional": [
+      "On Melee Kill:\\n+10% Damage for 20s. Stacks up to 6x."
+     ]
+    },
+    {
+     "conditional": [
+      "On Melee Kill:\\n+20% Damage for 20s. Stacks up to 6x."
+     ]
+    },
+    {
+     "conditional": [
+      "On Melee Kill:\\n+30% Damage for 20s. Stacks up to 6x."
+     ]
+    },
+    {
+     "conditional": [
+      "On Melee Kill:\\n+40% Damage for 20s. Stacks up to 6x."
+     ]
+    },
+    {
+     "conditional": [
+      "On Melee Kill:\\n+50% Damage for 20s. Stacks up to 6x."
+     ]
+    },
+    {
+     "conditional": [
+      "On Melee Kill:\\n+60% Damage for 20s. Stacks up to 6x.\\n+7.5s Combo Duration"
+     ]
+    }
+   ],
+   "text": "On Melee Kill: +10% Damage for 20s. Stacks up to 6x. On Melee Kill: +20% Damage for 20s. Stacks up to 6x. On Melee Kill: +30% Damage for 20s. Stacks up to 6x. On Melee Kill: +40% Damage for 20s. Stacks up to 6x. On Melee Kill: +50% Damage for 20s. Stacks up to"
+  },
+  "secondary encumber": {
+   "name": "Secondary Encumber",
+   "zh": "次要·妨害",
+   "type": "Secondary Arcane",
+   "rarity": "Rare",
+   "max_rank": 5,
+   "effects": {
+    "conditional": [
+     "On Status Effect: +24% chance to trigger a second random Status Effect."
+    ]
+   },
+   "levels": [
+    {
+     "conditional": [
+      "On Status Effect: +4% chance to trigger a second random Status Effect."
+     ]
+    },
+    {
+     "conditional": [
+      "On Status Effect: +8% chance to trigger a second random Status Effect."
+     ]
+    },
+    {
+     "conditional": [
+      "On Status Effect: +12% chance to trigger a second random Status Effect."
+     ]
+    },
+    {
+     "conditional": [
+      "On Status Effect: +16% chance to trigger a second random Status Effect."
+     ]
+    },
+    {
+     "conditional": [
+      "On Status Effect: +20% chance to trigger a second random Status Effect."
+     ]
+    },
+    {
+     "conditional": [
+      "On Status Effect: +24% chance to trigger a second random Status Effect."
+     ]
+    }
+   ],
+   "text": "On Status Effect: +4% chance to trigger a second random Status Effect. On Status Effect: +8% chance to trigger a second random Status Effect. On Status Effect: +12% chance to trigger a second random Status Effect. On Status Effect: +16% chance to trigger a sec"
+  },
+  "secondary enervate": {
+   "name": "Secondary Enervate",
+   "zh": "次要·失活",
+   "type": "Secondary Arcane",
+   "rarity": "Rare",
+   "max_rank": 5,
+   "effects": {
+    "conditional": [
+     "On Hit: Increase Critical Chance by 10%. Resets after 6 Big Critical Hit."
+    ]
+   },
+   "levels": [
+    {
+     "conditional": [
+      "On Hit: Increase Critical Chance by 10%. Resets after 1 Big Critical Hit."
+     ]
+    },
+    {
+     "conditional": [
+      "On Hit: Increase Critical Chance by 10%. Resets after 2 Big Critical Hit."
+     ]
+    },
+    {
+     "conditional": [
+      "On Hit: Increase Critical Chance by 10%. Resets after 3 Big Critical Hit."
+     ]
+    },
+    {
+     "conditional": [
+      "On Hit: Increase Critical Chance by 10%. Resets after 4 Big Critical Hit."
+     ]
+    },
+    {
+     "conditional": [
+      "On Hit: Increase Critical Chance by 10%. Resets after 5 Big Critical Hit."
+     ]
+    },
+    {
+     "conditional": [
+      "On Hit: Increase Critical Chance by 10%. Resets after 6 Big Critical Hit."
+     ]
+    }
+   ],
+   "text": "On Hit: Increase Critical Chance by 10%. Resets after 1 Big Critical Hit. On Hit: Increase Critical Chance by 10%. Resets after 2 Big Critical Hit. On Hit: Increase Critical Chance by 10%. Resets after 3 Big Critical Hit. On Hit: Increase Critical Chance by 10"
+  },
+  "secondary fortifier": {
+   "name": "Secondary Fortifier",
+   "zh": "次要·筑垒",
+   "type": "Secondary Arcane",
+   "rarity": "Rare",
+   "max_rank": 5,
+   "effects": {},
+   "levels": [
+    {},
+    {},
+    {},
+    {},
+    {},
+    {}
+   ],
+   "text": "Gain 1 Overguard for every 100 Damage dealt to an enemy's Overguard. Deals x3 Extra Damage to Overguard. Deals x3 Extra Damage to Overguard. Gain 1 Overguard for every 100 Damage dealt to an enemy's Overguard. Deals x4 Extra Damage to Overguard. Deals x4 Extra"
+  },
+  "secondary kinship": {
+   "name": "Secondary Kinship",
+   "zh": "次要·手足",
+   "type": "Secondary Arcane",
+   "rarity": "Rare",
+   "max_rank": 5,
+   "effects": {
+    "conditional": [
+     "While Buffing Ally Warframes: +20% Critical Chance per buff"
+    ]
+   },
+   "levels": [
+    {
+     "conditional": [
+      "While Buffing Ally Warframes: +3% Critical Chance per buff"
+     ]
+    },
+    {
+     "conditional": [
+      "While Buffing Ally Warframes: +6% Critical Chance per buff"
+     ]
+    },
+    {
+     "conditional": [
+      "While Buffing Ally Warframes: +10% Critical Chance per buff"
+     ]
+    },
+    {
+     "conditional": [
+      "While Buffing Ally Warframes: +13% Critical Chance per buff"
+     ]
+    },
+    {
+     "conditional": [
+      "While Buffing Ally Warframes: +17% Critical Chance per buff"
+     ]
+    },
+    {
+     "conditional": [
+      "While Buffing Ally Warframes: +20% Critical Chance per buff"
+     ]
+    }
+   ],
+   "text": "While Buffing Ally Warframes: +3% Critical Chance per buff While Buffing Ally Warframes: +6% Critical Chance per buff While Buffing Ally Warframes: +10% Critical Chance per buff While Buffing Ally Warframes: +13% Critical Chance per buff While Buffing Ally War"
+  },
+  "secondary merciless": {
+   "name": "Secondary Merciless",
+   "zh": "次要·无情",
+   "type": "Secondary Arcane",
+   "rarity": "Rare",
+   "max_rank": 5,
+   "effects": {
+    "conditional": [
+     "On Kill:\\n+30% Damage for 4s. Stacks up to 12x.\\n+30% Reload Speed"
+    ],
+    "reload_pct": 60.0
+   },
+   "levels": [
+    {
+     "conditional": [
+      "On Kill:\\n+5% Damage for 4s. Stacks up to 12x."
+     ]
+    },
+    {
+     "conditional": [
+      "On Kill:\\n+10% Damage for 4s. Stacks up to 12x."
+     ]
+    },
+    {
+     "conditional": [
+      "On Kill:\\n+15% Damage for 4s. Stacks up to 12x."
+     ]
+    },
+    {
+     "conditional": [
+      "On Kill:\\n+20% Damage for 4s. Stacks up to 12x."
+     ]
+    },
+    {
+     "conditional": [
+      "On Kill:\\n+25% Damage for 4s. Stacks up to 12x."
+     ]
+    },
+    {
+     "conditional": [
+      "On Kill:\\n+30% Damage for 4s. Stacks up to 12x.\\n+30% Reload Speed"
+     ],
+     "reload_pct": 60.0
+    }
+   ],
+   "text": "On Kill: +5% Damage for 4s. Stacks up to 12x. On Kill: +10% Damage for 4s. Stacks up to 12x. On Kill: +15% Damage for 4s. Stacks up to 12x. On Kill: +20% Damage for 4s. Stacks up to 12x. On Kill: +25% Damage for 4s. Stacks up to 12x. On Kill: +30% Damage for 4"
+  },
+  "secondary outburst": {
+   "name": "Secondary Outburst",
+   "zh": "次要·爆发",
+   "type": "Secondary Arcane",
+   "rarity": "Rare",
+   "max_rank": 5,
+   "effects": {
+    "conditional": [
+     "On swapping to Secondary Weapon, consume all Combo Multipliers to increase Secondary Weapon Critical Chance and Critical"
+    ]
+   },
+   "levels": [
+    {
+     "conditional": [
+      "On swapping to Secondary Weapon, consume all Combo Multipliers to increase Secondary Weapon Critical Chance and Critical"
+     ]
+    },
+    {
+     "conditional": [
+      "On swapping to Secondary Weapon, consume all Combo Multipliers to increase Secondary Weapon Critical Chance and Critical"
+     ]
+    },
+    {
+     "conditional": [
+      "On swapping to Secondary Weapon, consume all Combo Multipliers to increase Secondary Weapon Critical Chance and Critical"
+     ]
+    },
+    {
+     "conditional": [
+      "On swapping to Secondary Weapon, consume all Combo Multipliers to increase Secondary Weapon Critical Chance and Critical"
+     ]
+    },
+    {
+     "conditional": [
+      "On swapping to Secondary Weapon, consume all Combo Multipliers to increase Secondary Weapon Critical Chance and Critical"
+     ]
+    },
+    {
+     "conditional": [
+      "On swapping to Secondary Weapon, consume all Combo Multipliers to increase Secondary Weapon Critical Chance and Critical"
+     ]
+    }
+   ],
+   "text": "On swapping to Secondary Weapon, consume all Combo Multipliers to increase Secondary Weapon Critical Chance and Critical Damage by 5% per Combo consumed for 30s. On swapping to Secondary Weapon, consume all Combo Multipliers to increase Secondary Weapon Critic"
+  },
+  "secondary shiver": {
+   "name": "Secondary Shiver",
+   "zh": "次要·冷颤",
+   "type": "Secondary Arcane",
+   "rarity": "Legendary",
+   "max_rank": 5,
+   "effects": {},
+   "levels": [
+    {},
+    {},
+    {},
+    {},
+    {},
+    {}
+   ],
+   "text": "Enemies take +7.5% damage per <DT_FREEZE_COLOR>Cold Status Enemies take +15% damage per <DT_FREEZE_COLOR>Cold Status Enemies take +22.5% damage per <DT_FREEZE_COLOR>Cold Status Enemies take +30% damage per <DT_FREEZE_COLOR>Cold Status Enemies take +37.5% damag"
+  },
+  "secondary surge": {
+   "name": "Secondary Surge",
+   "zh": "次要·激涌",
+   "type": "Secondary Arcane",
+   "rarity": "Rare",
+   "max_rank": 5,
+   "effects": {
+    "conditional": [
+     "On Ability Cast: Next shot gains a Damage Multiplier for every 200 current Energy, up to x8."
+    ]
+   },
+   "levels": [
+    {
+     "conditional": [
+      "On Ability Cast: Next shot gains a Damage Multiplier for every 200 current Energy, up to x3."
+     ]
+    },
+    {
+     "conditional": [
+      "On Ability Cast: Next shot gains a Damage Multiplier for every 200 current Energy, up to x4."
+     ]
+    },
+    {
+     "conditional": [
+      "On Ability Cast: Next shot gains a Damage Multiplier for every 200 current Energy, up to x5."
+     ]
+    },
+    {
+     "conditional": [
+      "On Ability Cast: Next shot gains a Damage Multiplier for every 200 current Energy, up to x6."
+     ]
+    },
+    {
+     "conditional": [
+      "On Ability Cast: Next shot gains a Damage Multiplier for every 200 current Energy, up to x7."
+     ]
+    },
+    {
+     "conditional": [
+      "On Ability Cast: Next shot gains a Damage Multiplier for every 200 current Energy, up to x8."
+     ]
+    }
+   ],
+   "text": "On Ability Cast: Next shot gains a Damage Multiplier for every 200 current Energy, up to x3. On Ability Cast: Next shot gains a Damage Multiplier for every 200 current Energy, up to x4. On Ability Cast: Next shot gains a Damage Multiplier for every 200 current"
+  },
+  "shotgun vendetta": {
+   "name": "Shotgun Vendetta",
+   "zh": "霰弹·仇杀",
+   "type": "Shotgun Arcane",
+   "rarity": "Rare",
+   "max_rank": 5,
+   "effects": {
+    "conditional": [
+     "On shotgun kill within 5m of target:\\n+180% Multishot and +75% Reload Speed for 15s."
+    ]
+   },
+   "levels": [
+    {
+     "conditional": [
+      "On shotgun kill within 5m of target:\\n+30% Multishot and +12.5% Reload Speed for 15s."
+     ]
+    },
+    {
+     "conditional": [
+      "On shotgun kill within 5m of target:\\n+60% Multishot and +25% Reload Speed for 15s."
+     ]
+    },
+    {
+     "conditional": [
+      "On shotgun kill within 5m of target:\\n+90% Multishot and +37.5% Reload Speed for 15s."
+     ]
+    },
+    {
+     "conditional": [
+      "On shotgun kill within 5m of target:\\n+120% Multishot and +50% Reload Speed for 15s."
+     ]
+    },
+    {
+     "conditional": [
+      "On shotgun kill within 5m of target:\\n+150% Multishot and +62.5% Reload Speed for 15s."
+     ]
+    },
+    {
+     "conditional": [
+      "On shotgun kill within 5m of target:\\n+180% Multishot and +75% Reload Speed for 15s."
+     ]
+    }
+   ],
+   "text": "On shotgun kill within 5m of target: +30% Multishot and +12.5% Reload Speed for 15s. On shotgun kill within 5m of target: +60% Multishot and +25% Reload Speed for 15s. On shotgun kill within 5m of target: +90% Multishot and +37.5% Reload Speed for 15s. On shot"
+  }
+ }
+}

@@ -1,0 +1,974 @@
+{
+ "manifest": "/Lotus/Types/Game/VendorManifests/Duviri/AcrithisVendorManifest",
+ "numItems": {
+  "minValue": 13,
+  "maxValue": 13
+ },
+ "oneBinPerCycle": false,
+ "priceRange": {
+  "0": [
+   {
+    "type": "/Lotus/Types/Gameplay/Duviri/Resource/DuviriPlantItemA",
+    "count": {
+     "minValue": 20,
+     "maxValue": 40
+    }
+   },
+   {
+    "type": "/Lotus/Types/Gameplay/Duviri/Resource/DuviriPlantItemB",
+    "count": {
+     "minValue": 20,
+     "maxValue": 40
+    }
+   },
+   {
+    "type": "/Lotus/Types/Gameplay/Duviri/Resource/DuviriPlantItemC",
+    "count": {
+     "minValue": 20,
+     "maxValue": 40
+    }
+   },
+   {
+    "type": "/Lotus/Types/Gameplay/Duviri/Resource/DuviriPlantItemD",
+    "count": {
+     "minValue": 20,
+     "maxValue": 40
+    }
+   },
+   {
+    "type": "/Lotus/Types/Gameplay/Duviri/Resource/DuviriPlantItemE",
+    "count": {
+     "minValue": 20,
+     "maxValue": 50
+    }
+   },
+   {
+    "type": "/Lotus/Types/Gameplay/Duviri/Resource/DuviriPlantItemF",
+    "count": {
+     "minValue": 20,
+     "maxValue": 40
+    }
+   },
+   {
+    "type": "/Lotus/Types/Gameplay/Duviri/Resource/DuviriPlantItemG",
+    "count": {
+     "minValue": 20,
+     "maxValue": 40
+    }
+   },
+   {
+    "type": "/Lotus/Types/Gameplay/Duviri/Resource/DuviriEnemyDropItem",
+    "count": {
+     "minValue": 10,
+     "maxValue": 20
+    }
+   },
+   {
+    "type": "/Lotus/Types/Gameplay/Duviri/Resource/DuviriFractalItem",
+    "count": {
+     "minValue": 20,
+     "maxValue": 30
+    }
+   },
+   {
+    "type": "/Lotus/Types/Gameplay/Duviri/Resource/DuviriMushroomItem",
+    "count": {
+     "minValue": 10,
+     "maxValue": 20
+    }
+   },
+   {
+    "type": "/Lotus/Types/Gameplay/Duviri/Resource/Fish/GenericDuviriFishPartAItem",
+    "count": {
+     "minValue": 20,
+     "maxValue": 30
+    }
+   },
+   {
+    "type": "/Lotus/Types/Gameplay/Duviri/Resource/Fish/GenericDuviriFishPartBItem",
+    "count": {
+     "minValue": 40,
+     "maxValue": 120
+    }
+   },
+   {
+    "type": "/Lotus/Types/Gameplay/Duviri/Resource/Fish/GenericDuviriFishPartCItem",
+    "count": {
+     "minValue": 2,
+     "maxValue": 6
+    }
+   },
+   {
+    "type": "/Lotus/Types/Gameplay/Duviri/Resource/DuviriProcessedItem",
+    "count": {
+     "minValue": 20,
+     "maxValue": 40
+    }
+   },
+   {
+    "type": "/Lotus/Types/Gameplay/Duviri/Resource/DuviriRockItem",
+    "count": {
+     "minValue": 20,
+     "maxValue": 40
+    }
+   }
+  ],
+  "1": [
+   {
+    "type": "/Lotus/Types/Gameplay/Duviri/Resource/DuviriEnemyDropItem",
+    "count": {
+     "minValue": 40,
+     "maxValue": 40
+    }
+   },
+   {
+    "type": "/Lotus/Types/Gameplay/Duviri/Resource/DuviriFractalItem",
+    "count": {
+     "minValue": 30,
+     "maxValue": 30
+    }
+   },
+   {
+    "type": "/Lotus/Types/Gameplay/Duviri/Resource/DuviriProcessedItem",
+    "count": {
+     "minValue": 80,
+     "maxValue": 80
+    }
+   },
+   {
+    "type": "/Lotus/Types/Gameplay/Duviri/Resource/DuviriRockItem",
+    "count": {
+     "minValue": 80,
+     "maxValue": 80
+    }
+   },
+   {
+    "type": "/Lotus/Types/Gameplay/Duviri/Resource/Fish/GenericDuviriFishPartAItem",
+    "count": {
+     "minValue": 60,
+     "maxValue": 60
+    }
+   },
+   {
+    "type": "/Lotus/Types/Gameplay/Duviri/Resource/Fish/GenericDuviriFishPartBItem",
+    "count": {
+     "minValue": 200,
+     "maxValue": 200
+    }
+   },
+   {
+    "type": "/Lotus/Types/Gameplay/Duviri/Resource/Fish/GenericDuviriFishPartCItem",
+    "count": {
+     "minValue": 6,
+     "maxValue": 6
+    }
+   },
+   {
+    "type": "/Lotus/Types/Gameplay/Duviri/Resource/DuviriPlantItemA",
+    "count": {
+     "minValue": 80,
+     "maxValue": 80
+    }
+   },
+   {
+    "type": "/Lotus/Types/Gameplay/Duviri/Resource/DuviriPlantItemB",
+    "count": {
+     "minValue": 80,
+     "maxValue": 80
+    }
+   },
+   {
+    "type": "/Lotus/Types/Gameplay/Duviri/Resource/DuviriPlantItemC",
+    "count": {
+     "minValue": 80,
+     "maxValue": 80
+    }
+   },
+   {
+    "type": "/Lotus/Types/Gameplay/Duviri/Resource/DuviriPlantItemD",
+    "count": {
+     "minValue": 80,
+     "maxValue": 80
+    }
+   },
+   {
+    "type": "/Lotus/Types/Gameplay/Duviri/Resource/DuviriPlantItemE",
+    "count": {
+     "minValue": 100,
+     "maxValue": 100
+    }
+   },
+   {
+    "type": "/Lotus/Types/Gameplay/Duviri/Resource/DuviriPlantItemF",
+    "count": {
+     "minValue": 80,
+     "maxValue": 80
+    }
+   },
+   {
+    "type": "/Lotus/Types/Gameplay/Duviri/Resource/DuviriPlantItemG",
+    "count": {
+     "minValue": 80,
+     "maxValue": 80
+    }
+   },
+   {
+    "type": "/Lotus/Types/Gameplay/Duviri/Resource/DuviriMushroomItem",
+    "count": {
+     "minValue": 20,
+     "maxValue": 20
+    }
+   }
+  ],
+  "2": [
+   {
+    "type": "/Lotus/Types/Gameplay/Duviri/Resource/DuviriDragonDropItem",
+    "count": {
+     "minValue": 10,
+     "maxValue": 10
+    }
+   }
+  ],
+  "3": [
+   {
+    "type": "/Lotus/Types/Gameplay/Duviri/Resource/DuviriDragonDropItem",
+    "count": {
+     "minValue": 10,
+     "maxValue": 10
+    }
+   }
+  ],
+  "4": [
+   {
+    "type": "/Lotus/Types/Gameplay/Duviri/Resource/DuviriPlantItemA",
+    "count": {
+     "minValue": 20,
+     "maxValue": 40
+    }
+   },
+   {
+    "type": "/Lotus/Types/Gameplay/Duviri/Resource/DuviriPlantItemB",
+    "count": {
+     "minValue": 20,
+     "maxValue": 40
+    }
+   },
+   {
+    "type": "/Lotus/Types/Gameplay/Duviri/Resource/DuviriPlantItemC",
+    "count": {
+     "minValue": 20,
+     "maxValue": 40
+    }
+   },
+   {
+    "type": "/Lotus/Types/Gameplay/Duviri/Resource/DuviriPlantItemD",
+    "count": {
+     "minValue": 20,
+     "maxValue": 40
+    }
+   },
+   {
+    "type": "/Lotus/Types/Gameplay/Duviri/Resource/DuviriPlantItemE",
+    "count": {
+     "minValue": 20,
+     "maxValue": 50
+    }
+   },
+   {
+    "type": "/Lotus/Types/Gameplay/Duviri/Resource/DuviriPlantItemF",
+    "count": {
+     "minValue": 20,
+     "maxValue": 40
+    }
+   },
+   {
+    "type": "/Lotus/Types/Gameplay/Duviri/Resource/DuviriPlantItemG",
+    "count": {
+     "minValue": 20,
+     "maxValue": 40
+    }
+   },
+   {
+    "type": "/Lotus/Types/Gameplay/Duviri/Resource/DuviriEnemyDropItem",
+    "count": {
+     "minValue": 10,
+     "maxValue": 20
+    }
+   },
+   {
+    "type": "/Lotus/Types/Gameplay/Duviri/Resource/DuviriFractalItem",
+    "count": {
+     "minValue": 20,
+     "maxValue": 30
+    }
+   },
+   {
+    "type": "/Lotus/Types/Gameplay/Duviri/Resource/DuviriMushroomItem",
+    "count": {
+     "minValue": 20,
+     "maxValue": 40
+    }
+   },
+   {
+    "type": "/Lotus/Types/Gameplay/Duviri/Resource/Fish/GenericDuviriFishPartAItem",
+    "count": {
+     "minValue": 20,
+     "maxValue": 30
+    }
+   },
+   {
+    "type": "/Lotus/Types/Gameplay/Duviri/Resource/Fish/GenericDuviriFishPartBItem",
+    "count": {
+     "minValue": 40,
+     "maxValue": 120
+    }
+   },
+   {
+    "type": "/Lotus/Types/Gameplay/Duviri/Resource/Fish/GenericDuviriFishPartCItem",
+    "count": {
+     "minValue": 2,
+     "maxValue": 6
+    }
+   },
+   {
+    "type": "/Lotus/Types/Gameplay/Duviri/Resource/DuviriProcessedItem",
+    "count": {
+     "minValue": 20,
+     "maxValue": 40
+    }
+   },
+   {
+    "type": "/Lotus/Types/Gameplay/Duviri/Resource/DuviriRockItem",
+    "count": {
+     "minValue": 20,
+     "maxValue": 40
+    }
+   }
+  ],
+  "5": [
+   {
+    "type": "/Lotus/Types/Gameplay/Duviri/Resource/DuviriDragonDropItem",
+    "count": {
+     "minValue": 20,
+     "maxValue": 20
+    }
+   }
+  ]
+ },
+ "bins": {
+  "0": [
+   {
+    "name": "Ferrite",
+    "en": "Ferrite",
+    "qty": 1,
+    "pct": 30
+   },
+   {
+    "name": "AlloyPlate",
+    "en": "AlloyPlate",
+    "qty": 1,
+    "pct": 30
+   },
+   {
+    "name": "Nanospores",
+    "en": "Nanospores",
+    "qty": 1,
+    "pct": 30
+   },
+   {
+    "name": "Salvage",
+    "en": "Salvage",
+    "qty": 1,
+    "pct": 30
+   },
+   {
+    "name": "Circuits",
+    "en": "Circuits",
+    "qty": 1,
+    "pct": 30
+   },
+   {
+    "name": "PolymerBundle",
+    "en": "PolymerBundle",
+    "qty": 1,
+    "pct": 30
+   },
+   {
+    "name": "Plastids",
+    "en": "Plastids",
+    "qty": 1,
+    "pct": 30
+   },
+   {
+    "name": "Rubedo",
+    "en": "Rubedo",
+    "qty": 1,
+    "pct": 30
+   },
+   {
+    "name": "ControlModule",
+    "en": "ControlModule",
+    "qty": 3,
+    "pct": 30
+   },
+   {
+    "name": "Gallium",
+    "en": "Gallium",
+    "qty": 3,
+    "pct": 30
+   },
+   {
+    "name": "Morphic",
+    "en": "Morphic",
+    "qty": 3,
+    "pct": 30
+   },
+   {
+    "name": "NeuralSensor",
+    "en": "NeuralSensor",
+    "qty": 3,
+    "pct": 30
+   },
+   {
+    "name": "Neurode",
+    "en": "Neurode",
+    "qty": 3,
+    "pct": 30
+   },
+   {
+    "name": "OrokinCell",
+    "en": "OrokinCell",
+    "qty": 3,
+    "pct": 30
+   },
+   {
+    "name": "DUVxBarrelLarge",
+    "en": "DUVxBarrelLarge",
+    "qty": 1,
+    "pct": 20
+   },
+   {
+    "name": "DUVxBarrelSmall",
+    "en": "DUVxBarrelSmall",
+    "qty": 1,
+    "pct": 20
+   },
+   {
+    "name": "DUVxContainerA",
+    "en": "DUVxContainerA",
+    "qty": 1,
+    "pct": 20
+   },
+   {
+    "name": "DUVxContainerB",
+    "en": "DUVxContainerB",
+    "qty": 1,
+    "pct": 20
+   },
+   {
+    "name": "DUVxContainerC",
+    "en": "DUVxContainerC",
+    "qty": 1,
+    "pct": 20
+   },
+   {
+    "name": "DUVxPlanterHangingPot",
+    "en": "DUVxPlanterHangingPot",
+    "qty": 1,
+    "pct": 20
+   },
+   {
+    "name": "DUVxPlanterHangingPotB",
+    "en": "DUVxPlanterHangingPotB",
+    "qty": 1,
+    "pct": 20
+   },
+   {
+    "name": "DUVxPlanterHangingPotC",
+    "en": "DUVxPlanterHangingPotC",
+    "qty": 1,
+    "pct": 20
+   },
+   {
+    "name": "DUVxPlanterPotA",
+    "en": "DUVxPlanterPotA",
+    "qty": 1,
+    "pct": 20
+   },
+   {
+    "name": "DUVxPlanterPotB",
+    "en": "DUVxPlanterPotB",
+    "qty": 1,
+    "pct": 20
+   },
+   {
+    "name": "DUVxPlanterPotC",
+    "en": "DUVxPlanterPotC",
+    "qty": 1,
+    "pct": 20
+   },
+   {
+    "name": "DUVxPlanterPotD",
+    "en": "DUVxPlanterPotD",
+    "qty": 1,
+    "pct": 20
+   },
+   {
+    "name": "DUVxPlanterPotE",
+    "en": "DUVxPlanterPotE",
+    "qty": 1,
+    "pct": 20
+   },
+   {
+    "name": "LisetPropDUVxRockContainerItem",
+    "en": "LisetPropDUVxRockContainerItem",
+    "qty": 1,
+    "pct": 20
+   },
+   {
+    "name": "LisetPropDUVxLootCrateB",
+    "en": "LisetPropDUVxLootCrateB",
+    "qty": 1,
+    "pct": 20
+   },
+   {
+    "name": "LisetPropDuviriProcessedItemContainer",
+    "en": "LisetPropDuviriProcessedItemContainer",
+    "qty": 1,
+    "pct": 20
+   },
+   {
+    "name": "LisetPropDUVxFractalItem",
+    "en": "LisetPropDUVxFractalItem",
+    "qty": 1,
+    "pct": 20
+   },
+   {
+    "name": "LisetPropDUVxGardeningCactus",
+    "en": "LisetPropDUVxGardeningCactus",
+    "qty": 1,
+    "pct": 20
+   },
+   {
+    "name": "LisetPropDUVxGardeningPlantAGrown",
+    "en": "LisetPropDUVxGardeningPlantAGrown",
+    "qty": 1,
+    "pct": 20
+   },
+   {
+    "name": "LisetPropDUVxGardeningPlantBGrown",
+    "en": "LisetPropDUVxGardeningPlantBGrown",
+    "qty": 1,
+    "pct": 20
+   },
+   {
+    "name": "LisetPropDUVxGardeningPlantCGrown",
+    "en": "LisetPropDUVxGardeningPlantCGrown",
+    "qty": 1,
+    "pct": 20
+   },
+   {
+    "name": "LisetPropDUVxGardeningPlantDGrown",
+    "en": "LisetPropDUVxGardeningPlantDGrown",
+    "qty": 1,
+    "pct": 20
+   },
+   {
+    "name": "LisetPropDUVxGardeningPlantEGrown",
+    "en": "LisetPropDUVxGardeningPlantEGrown",
+    "qty": 1,
+    "pct": 20
+   },
+   {
+    "name": "LisetPropDUVxGardeningPlantFGrown",
+    "en": "LisetPropDUVxGardeningPlantFGrown",
+    "qty": 1,
+    "pct": 20
+   },
+   {
+    "name": "LisetPropDuvxDuviriMushroomItem2m",
+    "en": "LisetPropDuvxDuviriMushroomItem2m",
+    "qty": 1,
+    "pct": 20
+   },
+   {
+    "name": "LisetPropDUVxBushA",
+    "en": "LisetPropDUVxBushA",
+    "qty": 1,
+    "pct": 20
+   },
+   {
+    "name": "LisetPropDUVxFernA",
+    "en": "LisetPropDUVxFernA",
+    "qty": 1,
+    "pct": 20
+   },
+   {
+    "name": "LisetPropDUVxFlowerGroupingB",
+    "en": "LisetPropDUVxFlowerGroupingB",
+    "qty": 1,
+    "pct": 20
+   },
+   {
+    "name": "LisetPropDUVxFlowerGroupingD",
+    "en": "LisetPropDUVxFlowerGroupingD",
+    "qty": 1,
+    "pct": 20
+   },
+   {
+    "name": "LisetPropDUVxFlowerGroupingE",
+    "en": "LisetPropDUVxFlowerGroupingE",
+    "qty": 1,
+    "pct": 20
+   },
+   {
+    "name": "LisetPropDUVxFlowerGroupingF",
+    "en": "LisetPropDUVxFlowerGroupingF",
+    "qty": 1,
+    "pct": 20
+   },
+   {
+    "name": "LisetPropDUVxFlowerGroupingG",
+    "en": "LisetPropDUVxFlowerGroupingG",
+    "qty": 1,
+    "pct": 20
+   },
+   {
+    "name": "LisetPropDUVxFoliageShrub",
+    "en": "LisetPropDUVxFoliageShrub",
+    "qty": 1,
+    "pct": 20
+   },
+   {
+    "name": "LisetPropDUVxFractalBushA",
+    "en": "LisetPropDUVxFractalBushA",
+    "qty": 1,
+    "pct": 20
+   },
+   {
+    "name": "LisetPropDUVxMushroomsB",
+    "en": "LisetPropDUVxMushroomsB",
+    "qty": 1,
+    "pct": 20
+   },
+   {
+    "name": "LisetPropDuvArtichokesA",
+    "en": "LisetPropDuvArtichokesA",
+    "qty": 1,
+    "pct": 20
+   },
+   {
+    "name": "LisetPropDuvTreeFractalShrubA",
+    "en": "LisetPropDuvTreeFractalShrubA",
+    "qty": 1,
+    "pct": 20
+   },
+   {
+    "name": "LisetPropDuvxDuviriPlantSeedE",
+    "en": "LisetPropDuvxDuviriPlantSeedE",
+    "qty": 1,
+    "pct": 20
+   }
+  ],
+  "1": [
+   {
+    "name": "PhotoboothTileDuviriIsleSignatureLibrary",
+    "en": "PhotoboothTileDuviriIsleSignatureLibrary",
+    "qty": 1,
+    "pct": 80
+   },
+   {
+    "name": "PhotoboothTileDuviriArenaOpera",
+    "en": "PhotoboothTileDuviriArenaOpera",
+    "qty": 1,
+    "pct": 80
+   },
+   {
+    "name": "PhotoboothTileDuviriArenaPark",
+    "en": "PhotoboothTileDuviriArenaPark",
+    "qty": 1,
+    "pct": 80
+   },
+   {
+    "name": "PhotoboothTileDuviriIsleSignatureAmphitheatre",
+    "en": "PhotoboothTileDuviriIsleSignatureAmphitheatre",
+    "qty": 1,
+    "pct": 80
+   },
+   {
+    "name": "PhotoboothTileDuviriMainlandA",
+    "en": "PhotoboothTileDuviriMainlandA",
+    "qty": 1,
+    "pct": 80
+   },
+   {
+    "name": "PhotoboothTileDuviriMainlandAEast",
+    "en": "PhotoboothTileDuviriMainlandAEast",
+    "qty": 1,
+    "pct": 80
+   },
+   {
+    "name": "PhotoboothTileDuviriMainlandAWest",
+    "en": "PhotoboothTileDuviriMainlandAWest",
+    "qty": 1,
+    "pct": 80
+   },
+   {
+    "name": "PhotoboothTileDuviriMainlandTown",
+    "en": "PhotoboothTileDuviriMainlandTown",
+    "qty": 1,
+    "pct": 80
+   },
+   {
+    "name": "PhotoboothTileDuviriDragonArena",
+    "en": "PhotoboothTileDuviriDragonArena",
+    "qty": 1,
+    "pct": 80
+   },
+   {
+    "name": "PhotoboothTileDuviriTeshinsCave",
+    "en": "PhotoboothTileDuviriTeshinsCave",
+    "qty": 1,
+    "pct": 80
+   },
+   {
+    "name": "PhotoboothTileDuviriArenaDaxCamp",
+    "en": "PhotoboothTileDuviriArenaDaxCamp",
+    "qty": 1,
+    "pct": 80
+   },
+   {
+    "name": "PhotoboothTileDuviriArenaLivingQuarters",
+    "en": "PhotoboothTileDuviriArenaLivingQuarters",
+    "qty": 1,
+    "pct": 80
+   },
+   {
+    "name": "PhotoboothTileDuviriArenaLunaro",
+    "en": "PhotoboothTileDuviriArenaLunaro",
+    "qty": 1,
+    "pct": 80
+   },
+   {
+    "name": "PhotoboothTileDuviriArenaTown",
+    "en": "PhotoboothTileDuviriArenaTown",
+    "qty": 1,
+    "pct": 80
+   },
+   {
+    "name": "PhotoboothTileDuviriArenaVoidNether",
+    "en": "PhotoboothTileDuviriArenaVoidNether",
+    "qty": 1,
+    "pct": 80
+   },
+   {
+    "name": "PhotoboothTileDuviriIsleCapA",
+    "en": "PhotoboothTileDuviriIsleCapA",
+    "qty": 1,
+    "pct": 80
+   },
+   {
+    "name": "PhotoboothTileDuviriIsleCapB",
+    "en": "PhotoboothTileDuviriIsleCapB",
+    "qty": 1,
+    "pct": 80
+   },
+   {
+    "name": "PhotoboothTileDuviriIsleCapC",
+    "en": "PhotoboothTileDuviriIsleCapC",
+    "qty": 1,
+    "pct": 80
+   },
+   {
+    "name": "PhotoboothTileDuviriIsleCapD",
+    "en": "PhotoboothTileDuviriIsleCapD",
+    "qty": 1,
+    "pct": 80
+   },
+   {
+    "name": "PhotoboothTileDuviriIsleCapE",
+    "en": "PhotoboothTileDuviriIsleCapE",
+    "qty": 1,
+    "pct": 80
+   }
+  ],
+  "2": [
+   {
+    "name": "Kuva",
+    "en": "Kuva",
+    "qty": 5000,
+    "pct": 40
+   },
+   {
+    "name": "FormaBlueprint",
+    "en": "FormaBlueprint",
+    "qty": 1,
+    "pct": 30
+   },
+   {
+    "name": "RawMeleeRandomMod",
+    "en": "RawMeleeRandomMod",
+    "qty": 1,
+    "pct": 10
+   },
+   {
+    "name": "RawPistolRandomMod",
+    "en": "RawPistolRandomMod",
+    "qty": 1,
+    "pct": 10
+   },
+   {
+    "name": "RawRifleRandomMod",
+    "en": "RawRifleRandomMod",
+    "qty": 1,
+    "pct": 10
+   },
+   {
+    "name": "RawShotgunRandomMod",
+    "en": "RawShotgunRandomMod",
+    "qty": 1,
+    "pct": 10
+   },
+   {
+    "name": "RawSentinelWeaponRandomMod",
+    "en": "RawSentinelWeaponRandomMod",
+    "qty": 1,
+    "pct": 10
+   },
+   {
+    "name": "WeaponPrimaryArcaneUnlocker",
+    "en": "WeaponPrimaryArcaneUnlocker",
+    "qty": 1,
+    "pct": 10
+   },
+   {
+    "name": "WeaponSecondaryArcaneUnlocker",
+    "en": "WeaponSecondaryArcaneUnlocker",
+    "qty": 1,
+    "pct": 10
+   },
+   {
+    "name": "UtilityUnlocker",
+    "en": "UtilityUnlocker",
+    "qty": 1,
+    "pct": 10
+   },
+   {
+    "name": "WeaponUtilityUnlocker",
+    "en": "WeaponUtilityUnlocker",
+    "qty": 1,
+    "pct": 10
+   },
+   {
+    "name": "OrokinCatalystBlueprint",
+    "en": "OrokinCatalystBlueprint",
+    "qty": 1,
+    "pct": 10
+   },
+   {
+    "name": "OrokinReactorBlueprint",
+    "en": "OrokinReactorBlueprint",
+    "qty": 1,
+    "pct": 10
+   }
+  ],
+  "3": [
+   {
+    "name": "HealthWhileUsingChanneledAbilities",
+    "en": "HealthWhileUsingChanneledAbilities",
+    "qty": 1,
+    "pct": 50
+   },
+   {
+    "name": "ShotgunMultishotAndReloadSpeedOnCloseKill",
+    "en": "ShotgunMultishotAndReloadSpeedOnCloseKill",
+    "qty": 1,
+    "pct": 40
+   },
+   {
+    "name": "PrimaryJamEnemyWeaponsOnMagneticProc",
+    "en": "PrimaryJamEnemyWeaponsOnMagneticProc",
+    "qty": 1,
+    "pct": 40
+   },
+   {
+    "name": "OperatorHeavyMeleeDamageOnTransference",
+    "en": "OperatorHeavyMeleeDamageOnTransference",
+    "qty": 1,
+    "pct": 50
+   },
+   {
+    "name": "PrimaryEnergyRegenOnImpactProc",
+    "en": "PrimaryEnergyRegenOnImpactProc",
+    "qty": 1,
+    "pct": 40
+   },
+   {
+    "name": "AbilityStrengthOnCast",
+    "en": "AbilityStrengthOnCast",
+    "qty": 1,
+    "pct": 40
+   },
+   {
+    "name": "PrimaryHeadshotCritMultOnHeadshot",
+    "en": "PrimaryHeadshotCritMultOnHeadshot",
+    "qty": 1,
+    "pct": 40
+   },
+   {
+    "name": "AmmoEfficiencyOnSliding",
+    "en": "AmmoEfficiencyOnSliding",
+    "qty": 1,
+    "pct": 40
+   },
+   {
+    "name": "MultishotForCombo",
+    "en": "MultishotForCombo",
+    "qty": 1,
+    "pct": 40
+   },
+   {
+    "name": "HealthRegenAndArmorOnMeleeKill",
+    "en": "HealthRegenAndArmorOnMeleeKill",
+    "qty": 1,
+    "pct": 20
+   },
+   {
+    "name": "LongbowDamageOnHeadshot",
+    "en": "LongbowDamageOnHeadshot",
+    "qty": 1,
+    "pct": 20
+   },
+   {
+    "name": "SecondaryExtraDamagePerFreezeStack",
+    "en": "SecondaryExtraDamagePerFreezeStack",
+    "qty": 1,
+    "pct": 20
+   }
+  ],
+  "4": [
+   {
+    "name": "DuviriVendorBoonItem",
+    "en": "DuviriVendorBoonItem",
+    "qty": 1,
+    "pct": 80
+   }
+  ],
+  "5": [
+   {
+    "name": "DangerRoomTileDuviriDragonArena",
+    "en": "DangerRoomTileDuviriDragonArena",
+    "qty": 1,
+    "pct": 0
+   },
+   {
+    "name": "DuviriGuidingHandPuzzleUpgrade",
+    "en": "DuviriGuidingHandPuzzleUpgrade",
+    "qty": 1,
+    "pct": 0,
+    "price": "5/10"
+   }
+  ]
+ },
+ "summary": "100 件 / 6 个槽位"
+}

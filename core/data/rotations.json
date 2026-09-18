@@ -1,0 +1,405 @@
+{
+ "_说明": "确定性轮换数据表（按周期从基准时间起循环取模）。相关指令：本周灵化（钢铁回廊每周轮换）、信条（Ergo Glast 每4天轮换）、终幕（Coda 每周轮换）、言录使。epoch 为 ISO 时间基准，period_hours 为单格时长，items 按顺序循环；items 为空时对应指令回复“暂未接线”。数据请按当前版本自行校准。",
+ "incarnon": {
+  "_note": "钢铁回廊灵化 9 周循环；锚点取自 Update 43 官方 patch notes（Week 9 自 2026-06-22 00:00 UTC 起）",
+  "epoch": "2026-06-22T00:00:00+00:00",
+  "anchor_week": 9,
+  "period_hours": 168,
+  "pick": 5,
+  "mode": "weekly_cycle",
+  "weeks": [
+   [
+    {
+     "en": "Braton",
+     "cn": "布莱顿",
+     "variant": "Braton / Mk1 / Prime / Vandal"
+    },
+    {
+     "en": "Lato",
+     "cn": "拉托",
+     "variant": "Lato / Prime / Vandal"
+    },
+    {
+     "en": "Skana",
+     "cn": "空刃",
+     "variant": "Skana / Prime / Prisma"
+    },
+    {
+     "en": "Paris",
+     "cn": "帕里斯",
+     "variant": "Paris / Mk1 / Prime"
+    },
+    {
+     "en": "Kunai",
+     "cn": "苦无",
+     "variant": "Kunai / Mk1"
+    }
+   ],
+   [
+    {
+     "en": "Boar",
+     "cn": "野猪",
+     "variant": "Boar / Prime"
+    },
+    {
+     "en": "Gammacor",
+     "cn": "咖玛腕甲枪",
+     "variant": "Gammacor / Synoid"
+    },
+    {
+     "en": "Angstrum",
+     "cn": "安格斯壮",
+     "variant": "Angstrum / Prisma"
+    },
+    {
+     "en": "Gorgon",
+     "cn": "蛇发女妖",
+     "variant": "Gorgon / Wraith / Prisma"
+    },
+    {
+     "en": "Anku",
+     "cn": "夺魂死神",
+     "variant": "Anku"
+    }
+   ],
+   [
+    {
+     "en": "Bo",
+     "cn": "玻之武杖",
+     "variant": "Bo / Mk1 / Prime"
+    },
+    {
+     "en": "Latron",
+     "cn": "拉特昂",
+     "variant": "Latron / Prime / Wraith"
+    },
+    {
+     "en": "Furis",
+     "cn": "盗贼",
+     "variant": "Furis / Mk1"
+    },
+    {
+     "en": "Furax",
+     "cn": "弗拉克斯",
+     "variant": "Furax / Mk1 / Wraith"
+    },
+    {
+     "en": "Strun",
+     "cn": "斯特朗",
+     "variant": "Strun / Mk1 / Prime / Wraith"
+    }
+   ],
+   [
+    {
+     "en": "Lex",
+     "cn": "雷克斯",
+     "variant": "Lex / Prime"
+    },
+    {
+     "en": "Magistar",
+     "cn": "执法者",
+     "variant": "Magistar / Sancti"
+    },
+    {
+     "en": "Boltor",
+     "cn": "螺钉步枪",
+     "variant": "Boltor / Prime / Telos"
+    },
+    {
+     "en": "Bronco",
+     "cn": "野马",
+     "variant": "Bronco / Prime"
+    },
+    {
+     "en": "Ceramic Dagger",
+     "cn": "陶瓷匕首",
+     "variant": "Ceramic Dagger"
+    }
+   ],
+   [
+    {
+     "en": "Torid",
+     "cn": "托里德",
+     "variant": "Torid"
+    },
+    {
+     "en": "Dual Toxocyst",
+     "cn": "毒囊双枪",
+     "variant": "Dual Toxocyst"
+    },
+    {
+     "en": "Dual Ichor",
+     "cn": "恶脓双斧",
+     "variant": "Dual Ichor"
+    },
+    {
+     "en": "Miter",
+     "cn": "米特尔",
+     "variant": "Miter"
+    },
+    {
+     "en": "Atomos",
+     "cn": "原子矿融炮",
+     "variant": "Atomos"
+    }
+   ],
+   [
+    {
+     "en": "Ack & Brunt",
+     "cn": "认知 & 冲击",
+     "variant": "Ack & Brunt"
+    },
+    {
+     "en": "Soma",
+     "cn": "月神",
+     "variant": "Soma / Prime"
+    },
+    {
+     "en": "Vasto",
+     "cn": "瓦斯托",
+     "variant": "Vasto / Prime"
+    },
+    {
+     "en": "Nami Solo",
+     "cn": "海波单剑",
+     "variant": "Nami Solo"
+    },
+    {
+     "en": "Burston",
+     "cn": "伯斯顿",
+     "variant": "Burston / Prime"
+    }
+   ],
+   [
+    {
+     "en": "Zylok",
+     "cn": "席尔火枪",
+     "variant": "Zylok / Prime"
+    },
+    {
+     "en": "Sibear",
+     "cn": "西伯利亚冰锤",
+     "variant": "Sibear"
+    },
+    {
+     "en": "Dread",
+     "cn": "恐惧",
+     "variant": "Dread"
+    },
+    {
+     "en": "Despair",
+     "cn": "绝望",
+     "variant": "Despair"
+    },
+    {
+     "en": "Hate",
+     "cn": "憎恨",
+     "variant": "Hate"
+    }
+   ],
+   [
+    {
+     "en": "Dera",
+     "cn": "德拉",
+     "variant": "Dera / Vandal"
+    },
+    {
+     "en": "Sybaris",
+     "cn": "席芭莉丝",
+     "variant": "Sybaris / Dex / Prime"
+    },
+    {
+     "en": "Cestra",
+     "cn": "锡斯特",
+     "variant": "Cestra"
+    },
+    {
+     "en": "Sicarus",
+     "cn": "暗杀者",
+     "variant": "Sicarus / Prime"
+    },
+    {
+     "en": "Okina",
+     "cn": "翁",
+     "variant": "Okina / Prime"
+    }
+   ],
+   [
+    {
+     "en": "Vectis",
+     "cn": "守望者",
+     "variant": "Vectis / Prime"
+    },
+    {
+     "en": "Stug",
+     "cn": "史特克",
+     "variant": "Stug"
+    },
+    {
+     "en": "Ballistica",
+     "cn": "布里斯提卡",
+     "variant": "Ballistica / Prime / Rakta"
+    },
+    {
+     "en": "Destreza",
+     "cn": "技巧之剑",
+     "variant": "Destreza / Prime"
+    },
+    {
+     "en": "Obex",
+     "cn": "奥比克斯",
+     "variant": "Obex / Prisma"
+    }
+   ]
+  ]
+ },
+ "tenet": {
+  "mode": "refresh_only",
+  "epoch": "2026-09-12T00:00:00+00:00",
+  "period_hours": 96,
+  "items": [
+   {
+    "en": "Tenet Agendus",
+    "cn": "信条·集议",
+    "element": "Radiation",
+    "bonus": 25.6
+   },
+   {
+    "en": "Tenet Exec",
+    "cn": "信条·枢密",
+    "element": "Heat",
+    "bonus": 27
+   },
+   {
+    "en": "Tenet Ferrox",
+    "cn": "信条·铁晶磁轨炮",
+    "element": "Radiation",
+    "bonus": 36.1
+   },
+   {
+    "en": "Tenet Grigori",
+    "cn": "信条·格里高利",
+    "element": "Heat",
+    "bonus": 35.2
+   },
+   {
+    "en": "Tenet Livia",
+    "cn": "信条·莉薇娅",
+    "element": "Toxin",
+    "bonus": 28.5
+   }
+  ],
+  "_note": "Ergo Glast 在任意中继站出售，不消耗声望",
+  "valence_snapshot": "2026-09-17T12:51:29+00:00",
+  "valence_source": "wiki.warframe.com/w/Reset 的 Current Valence Bonuses（玩家上报，无官方 API）；插件侧访问该站被 Cloudflare 拦截，所以是**快照**，每 4 天轮换后需要刷新"
+ },
+ "coda": {
+  "mode": "batch_cycle",
+  "epoch": "2026-09-13T00:00:00+00:00",
+  "anchor_idx": 0,
+  "period_hours": 96,
+  "batch_label": [
+   "A",
+   "B"
+  ],
+  "batches": [
+   [
+    {
+     "en": "Coda Hema",
+     "cn": "终幕·血肢",
+     "element": "Heat",
+     "bonus": 25.8
+    },
+    {
+     "en": "Coda Sporothrix",
+     "cn": "终幕·孢丝感染枪",
+     "element": "Toxin",
+     "bonus": 25.1
+    },
+    {
+     "en": "Coda Catabolyst",
+     "cn": "终幕·异化者",
+     "element": "Magnetic",
+     "bonus": 38.5
+    },
+    {
+     "en": "Coda Pox",
+     "cn": "终幕·脓痘",
+     "element": "Cold",
+     "bonus": 26.4
+    },
+    {
+     "en": "Dual Coda Torxica",
+     "cn": "终幕·孢蚀双枪",
+     "element": "Heat",
+     "bonus": 36.3
+    },
+    {
+     "en": "Coda Mire",
+     "cn": "终幕·米尔",
+     "element": "Electricity",
+     "bonus": 40.3
+    },
+    {
+     "en": "Coda Motovore",
+     "cn": "终幕·噬轮",
+     "element": "Radiation",
+     "bonus": 48.8
+    }
+   ],
+   [
+    {
+     "en": "Coda Bassocyst",
+     "cn": "终幕·低音爆囊",
+     "element": "Magnetic",
+     "bonus": 51.2
+    },
+    {
+     "en": "Coda Bubonico",
+     "cn": "终幕·横痃重炮",
+     "element": "Radiation",
+     "bonus": 35.2
+    },
+    {
+     "en": "Coda Synapse",
+     "cn": "终幕·突触生化枪",
+     "element": "Cold",
+     "bonus": 57.6
+    },
+    {
+     "en": "Coda Tysis",
+     "cn": "终幕·啐沫者",
+     "element": "Heat",
+     "bonus": 48.0
+    },
+    {
+     "en": "Coda Caustacyst",
+     "cn": "终幕·灼蚀变体镰",
+     "element": "Impact",
+     "bonus": 29.7
+    },
+    {
+     "en": "Coda Hirudo",
+     "cn": "终幕·蚂蟥",
+     "element": "Toxin",
+     "bonus": 43.0
+    },
+    {
+     "en": "Coda Pathocyst",
+     "cn": "终幕·病囊飞刃",
+     "element": "Toxin",
+     "bonus": 34.1
+    }
+   ]
+  ],
+  "_note": "Eleanor Nightingale 的 Coda 武器按 A/B 两批轮换（每批 7 把），每 4 天 00:00 UTC 换批；2026-09-14 实测为 A 批，换批边界 09-17 00:00 UTC（比 Ergo Glast 的元素加成重生成晚 24 小时，两者不是同一锚点）；批次表取自 wiki.warframe.com/Reset",
+  "valence_snapshot": "2026-09-17T12:51:29+00:00",
+  "valence_source": "wiki.warframe.com/w/Reset 的 Current Valence Bonuses（玩家上报，无官方 API）；插件侧访问该站被 Cloudflare 拦截，所以是**快照**，每 4 天轮换后需要刷新"
+ },
+ "acrichis": {
+  "epoch": "2023-04-26T00:00:00+00:00",
+  "period_hours": 24,
+  "pick": 4,
+  "items": []
+ }
+}

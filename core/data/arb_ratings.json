@@ -1,0 +1,323 @@
+{
+ "_note": "生息效率为社区专业队实测均值，仅供参考；node|type 为键",
+ "Palus|Survival": [
+  651,
+  "A+"
+ ],
+ "Ur|Interception": [
+  636,
+  "S"
+ ],
+ "Lares|Defense": [
+  460,
+  "F"
+ ],
+ "Tessera|Defense": [
+  546,
+  "A-"
+ ],
+ "Apollodorus|Survival": [
+  612,
+  "A+"
+ ],
+ "Lith|Defense": [
+  472,
+  "A-"
+ ],
+ "Stephano|Defense": [
+  569,
+  "A"
+ ],
+ "Gulliver|Defense": [
+  350,
+  "F"
+ ],
+ "Odin|Interception": [
+  597,
+  "A"
+ ],
+ "Piscinas|Survival": [
+  541,
+  "A+"
+ ],
+ "Sangeru|Defense": [
+  457,
+  "F"
+ ],
+ "Amarna|Survival": [
+  389,
+  "A-"
+ ],
+ "Sechura|Defense": [
+  620,
+  "A"
+ ],
+ "Yursa|Defense": [
+  530,
+  "A-"
+ ],
+ "Helene|Saturn Defense": [
+  0,
+  ""
+ ],
+ "Hydron|Defense": [
+  540,
+  "A"
+ ],
+ "Adaro|Extermination": [
+  420,
+  "B"
+ ],
+ "E Prime|Extermination": [
+  380,
+  "B"
+ ],
+ "Caracol|Survival": [
+  500,
+  "A-"
+ ],
+ "Berehynia|Interception": [
+  430,
+  "B"
+ ],
+ "V Prime|Survival": [
+  400,
+  "B"
+ ],
+ "Cassini|Capture": [
+  0,
+  ""
+ ],
+ "Narcissus|Capture": [
+  0,
+  ""
+ ],
+ "Kappa|Disruption": [
+  520,
+  "A-"
+ ],
+ "Apollo|Disruption": [
+  534,
+  "S"
+ ],
+ "Mot|Survival": [
+  480,
+  "B+"
+ ],
+ "Tyana Pass|Mobile Defense": [
+  1262,
+  "S"
+ ],
+ "墓垒|Mobile Defense": [
+  1052,
+  "S"
+ ],
+ "Oestrus|Infested Salvage": [
+  590,
+  "A"
+ ],
+ "Callisto|Interception": [
+  699,
+  "S"
+ ],
+ "Cytherean|Interception": [
+  692,
+  "A+"
+ ],
+ "Umbriel|Interception": [
+  659,
+  "S"
+ ],
+ "Alator|Interception": [
+  940,
+  "S"
+ ],
+ "Ganymede|Disruption": [
+  928,
+  "S"
+ ],
+ "Xini|Interception": [
+  663,
+  "A+"
+ ],
+ "Cinxia|Interception": [
+  610,
+  "A+"
+ ],
+ "Laomedeia|Disruption": [
+  853,
+  "S"
+ ],
+ "Terrorem|Survival": [
+  551,
+  "S"
+ ],
+ "Zabala|Survival": [
+  812,
+  "S"
+ ],
+ "Ur|Disruption": [
+  806,
+  "S"
+ ],
+ "死灵塔|Survival": [
+  798,
+  "A+"
+ ],
+ "阿尼塔|Survival": [
+  795,
+  "A+"
+ ],
+ "Seimeni|Defense": [
+  779,
+  "A+"
+ ],
+ "Assur|Survival": [
+  771,
+  "A+"
+ ],
+ "Kala-azar|Defense": [
+  752,
+  "A+"
+ ],
+ "Titan|Survival": [
+  751,
+  "A+"
+ ],
+ "Gabii|Survival": [
+  736,
+  "A+"
+ ],
+ "Casta|Defense": [
+  582,
+  "A"
+ ],
+ "Sinai|Defense": [
+  729,
+  "A+"
+ ],
+ "Ose|Interception": [
+  725,
+  "A+"
+ ],
+ "Larzac|Defense": [
+  724,
+  "A+"
+ ],
+ "Akkad|Defense": [
+  635,
+  "A"
+ ],
+ "Coba|Defense": [
+  720,
+  "A+"
+ ],
+ "Nimus|Survival": [
+  719,
+  "A+"
+ ],
+ "Kadesh|Defense": [
+  593,
+  "A"
+ ],
+ "光理塔|Interception": [
+  707,
+  "A+"
+ ],
+ "Hyf|Defense": [
+  701,
+  "A+"
+ ],
+ "Tycho|Survival": [
+  692,
+  "A"
+ ],
+ "Helene|Defense": [
+  583,
+  "A"
+ ],
+ "光神塔|Defense": [
+  686,
+  "A"
+ ],
+ "Spear|Defense": [
+  676,
+  "A"
+ ],
+ "Io|Defense": [
+  530,
+  "A"
+ ],
+ "雷争塔|Defense": [
+  639,
+  "A"
+ ],
+ "Paimon|Defense": [
+  627,
+  "A"
+ ],
+ "Zeugma|Survival": [
+  627,
+  "A"
+ ],
+ "Cameria|Survival": [
+  520,
+  "A"
+ ],
+ "Kelashin|Survival": [
+  356,
+  "D"
+ ],
+ "Everview Arc|Void Flood": [
+  0,
+  ""
+ ],
+ "Belenus|Defense": [
+  560,
+  "A-"
+ ],
+ "Memphis|Defection": [
+  0,
+  ""
+ ],
+ "Stöfler|Defense": [
+  421,
+  "A-"
+ ],
+ "Augustus|Excavation": [
+  0,
+  ""
+ ],
+ "Proteus|Defense": [
+  575,
+  "A"
+ ],
+ "Elara|Survival": [
+  480,
+  "B+"
+ ],
+ "Gaia|Interception": [
+  0,
+  ""
+ ],
+ "Valefor|Excavation": [
+  510,
+  "A-"
+ ],
+ "Mithra|Interception": [
+  640,
+  "A+"
+ ],
+ "Oro Works|Defense": [
+  570,
+  "A"
+ ],
+ "Tyana Pass|Defense": [
+  805,
+  "S"
+ ],
+ "Everest|Excavation": [
+  180,
+  "F"
+ ]
+}

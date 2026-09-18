@@ -1,0 +1,1040 @@
+{
+ "_meta": {
+  "source": "riven-mirror src/warframe/codex/enemy.ts",
+  "retrieved": "2026-09-16",
+  "note": "2026-09-17 从 wfsim data/enemies（wiki Module:Enemies/data 来源）补充 Acolyte/凶魂百夫长等条目，带 zh 与 head_mul"
+ },
+ "enemies": {
+  "Wolf of Saturn Six": {
+   "name": "Wolf of Saturn Six",
+   "zh": "土星六号之狼",
+   "faction": "Sentient",
+   "base_level": 1,
+   "base_health": 20000.0,
+   "base_shield": 0.0,
+   "base_armor": 2500.0,
+   "head_mul": 2
+  },
+  "Eidolon Teralyst": {
+   "name": "Eidolon Teralyst",
+   "zh": "夜灵兆力使",
+   "faction": "Sentient",
+   "base_level": 1,
+   "base_health": 15000.0,
+   "base_shield": 0.0,
+   "base_armor": 200.0,
+   "head_mul": 1.0
+  },
+  "Eidolon Gantulyst": {
+   "name": "Eidolon Gantulyst",
+   "zh": "夜灵巨力使",
+   "faction": "Sentient",
+   "base_level": 1,
+   "base_health": 15000.0,
+   "base_shield": 0.0,
+   "base_armor": 200.0,
+   "head_mul": 1.0
+  },
+  "Eidolon Hydrolyst": {
+   "name": "Eidolon Hydrolyst",
+   "zh": "夜灵水力使",
+   "faction": "Sentient",
+   "base_level": 1,
+   "base_health": 15000.0,
+   "base_shield": 0.0,
+   "base_armor": 200.0,
+   "head_mul": 1.0
+  },
+  "Teralyst Synovia": {
+   "name": "Teralyst Synovia",
+   "zh": "",
+   "faction": "Sentient",
+   "base_level": 1,
+   "base_health": 2500.0,
+   "base_shield": 0.0,
+   "base_armor": 200.0,
+   "head_mul": 1.0
+  },
+  "Profit-Taker Orb": {
+   "name": "Profit-Taker Orb",
+   "zh": "利润收割者圆蛛",
+   "faction": "Corpus",
+   "base_level": 50,
+   "base_health": 7000.0,
+   "base_shield": 30000.0,
+   "base_armor": 150.0,
+   "head_mul": 1.0
+  },
+  "Condor Dropship": {
+   "name": "Condor Dropship",
+   "zh": "",
+   "faction": "Corpus",
+   "base_level": 1,
+   "base_health": 1000.0,
+   "base_shield": 0.0,
+   "base_armor": 100.0,
+   "head_mul": 2
+  },
+  "Tusk Firbolg": {
+   "name": "Tusk Firbolg",
+   "zh": "",
+   "faction": "Grineer",
+   "base_level": 1,
+   "base_health": 8000.0,
+   "base_shield": 0.0,
+   "base_armor": 600.0,
+   "head_mul": 2
+  },
+  "Tusk Bolkor": {
+   "name": "Tusk Bolkor",
+   "zh": "",
+   "faction": "Grineer",
+   "base_level": 1,
+   "base_health": 10000.0,
+   "base_shield": 0.0,
+   "base_armor": 600.0,
+   "head_mul": 2
+  },
+  "Bailiff": {
+   "name": "Bailiff",
+   "zh": "法警",
+   "faction": "Grineer",
+   "base_level": 1,
+   "base_health": 600.0,
+   "base_shield": 0.0,
+   "base_armor": 500.0,
+   "head_mul": 2
+  },
+  "Butcher": {
+   "name": "Butcher",
+   "zh": "屠夫",
+   "faction": "Grineer",
+   "base_level": 1,
+   "base_health": 50.0,
+   "base_shield": 0.0,
+   "base_armor": 5.0,
+   "head_mul": 2
+  },
+  "Flameblade": {
+   "name": "Flameblade",
+   "zh": "焰刃",
+   "faction": "Grineer",
+   "base_level": 1,
+   "base_health": 50.0,
+   "base_shield": 0.0,
+   "base_armor": 5.0,
+   "head_mul": 2
+  },
+  "Fire Prosecutor": {
+   "name": "Fire Prosecutor",
+   "zh": "",
+   "faction": "Grineer",
+   "base_level": 1,
+   "base_health": 1500.0,
+   "base_shield": 0.0,
+   "base_armor": 5.0,
+   "head_mul": 2
+  },
+  "Powerfist": {
+   "name": "Powerfist",
+   "zh": "强拳",
+   "faction": "Grineer",
+   "base_level": 1,
+   "base_health": 100.0,
+   "base_shield": 0.0,
+   "base_armor": 5.0,
+   "head_mul": 2
+  },
+  "Scorpion": {
+   "name": "Scorpion",
+   "zh": "天蝎",
+   "faction": "Grineer",
+   "base_level": 1,
+   "base_health": 150.0,
+   "base_shield": 0.0,
+   "base_armor": 150.0,
+   "head_mul": 2
+  },
+  "Shield Lancer": {
+   "name": "Shield Lancer",
+   "zh": "盾枪兵",
+   "faction": "Grineer",
+   "base_level": 1,
+   "base_health": 100.0,
+   "base_shield": 0.0,
+   "base_armor": 5.0,
+   "head_mul": 2
+  },
+  "Ballista": {
+   "name": "Ballista",
+   "zh": "弩炮",
+   "faction": "Grineer",
+   "base_level": 1,
+   "base_health": 100.0,
+   "base_shield": 0.0,
+   "base_armor": 100.0,
+   "head_mul": 2
+  },
+  "Eviscerator": {
+   "name": "Eviscerator",
+   "zh": "开膛者",
+   "faction": "Grineer",
+   "base_level": 1,
+   "base_health": 150.0,
+   "base_shield": 0.0,
+   "base_armor": 200.0,
+   "head_mul": 2
+  },
+  "Hellion": {
+   "name": "Hellion",
+   "zh": "行刑者",
+   "faction": "Grineer",
+   "base_level": 1,
+   "base_health": 100.0,
+   "base_shield": 0.0,
+   "base_armor": 100.0,
+   "head_mul": 2
+  },
+  "Lancer": {
+   "name": "Lancer",
+   "zh": "枪兵",
+   "faction": "Grineer",
+   "base_level": 1,
+   "base_health": 100.0,
+   "base_shield": 0.0,
+   "base_armor": 100.0,
+   "head_mul": 2
+  },
+  "Elite Lancer": {
+   "name": "Elite Lancer",
+   "zh": "精英枪兵",
+   "faction": "Grineer",
+   "base_level": 15,
+   "base_health": 150.0,
+   "base_shield": 0.0,
+   "base_armor": 200.0,
+   "head_mul": 2
+  },
+  "Scorch": {
+   "name": "Scorch",
+   "zh": "怒焚者",
+   "faction": "Grineer",
+   "base_level": 1,
+   "base_health": 120.0,
+   "base_shield": 0.0,
+   "base_armor": 100.0,
+   "head_mul": 2
+  },
+  "Seeker": {
+   "name": "Seeker",
+   "zh": "追踪者",
+   "faction": "Grineer",
+   "base_level": 1,
+   "base_health": 100.0,
+   "base_shield": 0.0,
+   "base_armor": 200.0,
+   "head_mul": 2
+  },
+  "Trooper": {
+   "name": "Trooper",
+   "zh": "骑兵",
+   "faction": "Grineer",
+   "base_level": 1,
+   "base_health": 120.0,
+   "base_shield": 0.0,
+   "base_armor": 150.0,
+   "head_mul": 2
+  },
+  "Bombard": {
+   "name": "Bombard",
+   "zh": "轰击者",
+   "faction": "Grineer",
+   "base_level": 1,
+   "base_health": 300.0,
+   "base_shield": 0.0,
+   "base_armor": 500.0,
+   "head_mul": 2
+  },
+  "Commander": {
+   "name": "Commander",
+   "zh": "指挥官",
+   "faction": "Grineer",
+   "base_level": 3,
+   "base_health": 500.0,
+   "base_shield": 0.0,
+   "base_armor": 95.0,
+   "head_mul": 2
+  },
+  "Drahk Master": {
+   "name": "Drahk Master",
+   "zh": "爪喀驯兽师",
+   "faction": "Grineer",
+   "base_level": 12,
+   "base_health": 500.0,
+   "base_shield": 0.0,
+   "base_armor": 200.0,
+   "head_mul": 2
+  },
+  "Heavy Gunner": {
+   "name": "Heavy Gunner",
+   "zh": "重型机枪手",
+   "faction": "Grineer",
+   "base_level": 8,
+   "base_health": 300.0,
+   "base_shield": 0.0,
+   "base_armor": 500.0,
+   "head_mul": 2
+  },
+  "Hyekka Master": {
+   "name": "Hyekka Master",
+   "zh": "鬣猫驯兽师",
+   "faction": "Grineer",
+   "base_level": 12,
+   "base_health": 650.0,
+   "base_shield": 0.0,
+   "base_armor": 200.0,
+   "head_mul": 2
+  },
+  "Manic": {
+   "name": "Manic",
+   "zh": "狂躁者",
+   "faction": "Grineer",
+   "base_level": 1,
+   "base_health": 350.0,
+   "base_shield": 0.0,
+   "base_armor": 25.0,
+   "head_mul": 2
+  },
+  "Napalm": {
+   "name": "Napalm",
+   "zh": "火焰轰击者",
+   "faction": "Grineer",
+   "base_level": 6,
+   "base_health": 600.0,
+   "base_shield": 0.0,
+   "base_armor": 500.0,
+   "head_mul": 2
+  },
+  "Nox": {
+   "name": "Nox",
+   "zh": "诺克斯",
+   "faction": "Grineer",
+   "base_level": 1,
+   "base_health": 250.0,
+   "base_shield": 0.0,
+   "base_armor": 350.0,
+   "head_mul": 2
+  },
+  "Ghoul Auger": {
+   "name": "Ghoul Auger",
+   "zh": "尸鬼钻地者",
+   "faction": "Grineer",
+   "base_level": 1,
+   "base_health": 400.0,
+   "base_shield": 0.0,
+   "base_armor": 200.0,
+   "head_mul": 2
+  },
+  "Ghoul Devourer": {
+   "name": "Ghoul Devourer",
+   "zh": "尸鬼吞噬者",
+   "faction": "Grineer",
+   "base_level": 1,
+   "base_health": 600.0,
+   "base_shield": 0.0,
+   "base_armor": 250.0,
+   "head_mul": 2
+  },
+  "Ghoul Expired": {
+   "name": "Ghoul Expired",
+   "zh": "尸鬼腐化者",
+   "faction": "Grineer",
+   "base_level": 1,
+   "base_health": 300.0,
+   "base_shield": 0.0,
+   "base_armor": 150.0,
+   "head_mul": 2
+  },
+  "Ghoul Rictus": {
+   "name": "Ghoul Rictus",
+   "zh": "尸鬼狞笑者",
+   "faction": "Grineer",
+   "base_level": 1,
+   "base_health": 400.0,
+   "base_shield": 0.0,
+   "base_armor": 200.0,
+   "head_mul": 2
+  },
+  "Grineer Warden": {
+   "name": "Grineer Warden",
+   "zh": "Grineer 典狱长",
+   "faction": "Grineer",
+   "base_level": 1,
+   "base_health": 600.0,
+   "base_shield": 0.0,
+   "base_armor": 500.0,
+   "head_mul": 2
+  },
+  "Sensor Regulator": {
+   "name": "Sensor Regulator",
+   "zh": "传感器调节器",
+   "faction": "Grineer",
+   "base_level": 1,
+   "base_health": 100.0,
+   "base_shield": 0.0,
+   "base_armor": 300.0,
+   "head_mul": 2
+  },
+  "Human of Anyo Corp": {
+   "name": "Human of Anyo Corp",
+   "zh": "",
+   "faction": "Corpus",
+   "base_level": 1,
+   "base_health": 150.0,
+   "base_shield": 100.0,
+   "base_armor": 200.0,
+   "head_mul": 2
+  },
+  "Robotic of Anyo Corp": {
+   "name": "Robotic of Anyo Corp",
+   "zh": "",
+   "faction": "Corpus",
+   "base_level": 1,
+   "base_health": 150.0,
+   "base_shield": 100.0,
+   "base_armor": 200.0,
+   "head_mul": 2
+  },
+  "Crewman": {
+   "name": "Crewman",
+   "zh": "船员",
+   "faction": "Corpus",
+   "base_level": 1,
+   "base_health": 60.0,
+   "base_shield": 150.0,
+   "base_armor": 0.0,
+   "head_mul": 2
+  },
+  "Detron Crewman": {
+   "name": "Detron Crewman",
+   "zh": "",
+   "faction": "Corpus",
+   "base_level": 1,
+   "base_health": 60.0,
+   "base_shield": 150.0,
+   "base_armor": 0.0,
+   "head_mul": 2
+  },
+  "Elite Crewman": {
+   "name": "Elite Crewman",
+   "zh": "精英船员",
+   "faction": "Corpus",
+   "base_level": 15,
+   "base_health": 100.0,
+   "base_shield": 200.0,
+   "base_armor": 0.0,
+   "head_mul": 2
+  },
+  "Nullifier Crewman": {
+   "name": "Nullifier Crewman",
+   "zh": "虚能船员",
+   "faction": "Corpus",
+   "base_level": 1,
+   "base_health": 60.0,
+   "base_shield": 150.0,
+   "base_armor": 0.0,
+   "head_mul": 2
+  },
+  "Prod Crewman": {
+   "name": "Prod Crewman",
+   "zh": "",
+   "faction": "Corpus",
+   "base_level": 1,
+   "base_health": 100.0,
+   "base_shield": 50.0,
+   "base_armor": 0.0,
+   "head_mul": 2
+  },
+  "Sniper Crewman": {
+   "name": "Sniper Crewman",
+   "zh": "",
+   "faction": "Corpus",
+   "base_level": 15,
+   "base_health": 60.0,
+   "base_shield": 150.0,
+   "base_armor": 0.0,
+   "head_mul": 2
+  },
+  "Corpus Tech": {
+   "name": "Corpus Tech",
+   "zh": "",
+   "faction": "Corpus",
+   "base_level": 15,
+   "base_health": 700.0,
+   "base_shield": 250.0,
+   "base_armor": 0.0,
+   "head_mul": 2
+  },
+  "Comba": {
+   "name": "Comba",
+   "zh": "",
+   "faction": "Corpus",
+   "base_level": 15,
+   "base_health": 1100.0,
+   "base_shield": 400.0,
+   "base_armor": 0.0,
+   "head_mul": 2
+  },
+  "Scrambus": {
+   "name": "Scrambus",
+   "zh": "",
+   "faction": "Corpus",
+   "base_level": 15,
+   "base_health": 1100.0,
+   "base_shield": 400.0,
+   "base_armor": 0.0,
+   "head_mul": 2
+  },
+  "Denial Bursa": {
+   "name": "Denial Bursa",
+   "zh": "",
+   "faction": "Corpus",
+   "base_level": 1,
+   "base_health": 1200.0,
+   "base_shield": 700.0,
+   "base_armor": 200.0,
+   "head_mul": 2
+  },
+  "Drover Bursa": {
+   "name": "Drover Bursa",
+   "zh": "",
+   "faction": "Corpus",
+   "base_level": 1,
+   "base_health": 1200.0,
+   "base_shield": 700.0,
+   "base_armor": 200.0,
+   "head_mul": 2
+  },
+  "Isolator Bursa": {
+   "name": "Isolator Bursa",
+   "zh": "",
+   "faction": "Corpus",
+   "base_level": 1,
+   "base_health": 1200.0,
+   "base_shield": 700.0,
+   "base_armor": 200.0,
+   "head_mul": 2
+  },
+  "MOA": {
+   "name": "MOA",
+   "zh": "恐鸟",
+   "faction": "Corpus",
+   "base_level": 1,
+   "base_health": 60.0,
+   "base_shield": 150.0,
+   "base_armor": 0.0,
+   "head_mul": 2
+  },
+  "Anti MOA": {
+   "name": "Anti MOA",
+   "zh": "逆进恐鸟",
+   "faction": "Corpus",
+   "base_level": 5,
+   "base_health": 50.0,
+   "base_shield": 500.0,
+   "base_armor": 0.0,
+   "head_mul": 2
+  },
+  "Fusion MOA": {
+   "name": "Fusion MOA",
+   "zh": "熔岩恐鸟",
+   "faction": "Corpus",
+   "base_level": 10,
+   "base_health": 250.0,
+   "base_shield": 250.0,
+   "base_armor": 0.0,
+   "head_mul": 2
+  },
+  "Railgun MOA": {
+   "name": "Railgun MOA",
+   "zh": "",
+   "faction": "Corpus",
+   "base_level": 1,
+   "base_health": 60.0,
+   "base_shield": 150.0,
+   "base_armor": 0.0,
+   "head_mul": 2
+  },
+  "Shockwave MOA": {
+   "name": "Shockwave MOA",
+   "zh": "",
+   "faction": "Corpus",
+   "base_level": 15,
+   "base_health": 60.0,
+   "base_shield": 150.0,
+   "base_armor": 0.0,
+   "head_mul": 2
+  },
+  "Drone": {
+   "name": "Drone",
+   "zh": "",
+   "faction": "Corpus",
+   "base_level": 1,
+   "base_health": 250.0,
+   "base_shield": 75.0,
+   "base_armor": 0.0,
+   "head_mul": 2
+  },
+  "Leech Osprey": {
+   "name": "Leech Osprey",
+   "zh": "",
+   "faction": "Corpus",
+   "base_level": 1,
+   "base_health": 100.0,
+   "base_shield": 50.0,
+   "base_armor": 0.0,
+   "head_mul": 2
+  },
+  "Lynx Osprey": {
+   "name": "Lynx Osprey",
+   "zh": "",
+   "faction": "Corpus",
+   "base_level": 1,
+   "base_health": 35.0,
+   "base_shield": 50.0,
+   "base_armor": 0.0,
+   "head_mul": 2
+  },
+  "Mine Osprey": {
+   "name": "Mine Osprey",
+   "zh": "",
+   "faction": "Corpus",
+   "base_level": 10,
+   "base_health": 100.0,
+   "base_shield": 50.0,
+   "base_armor": 0.0,
+   "head_mul": 2
+  },
+  "Oxium Osprey": {
+   "name": "Oxium Osprey",
+   "zh": "",
+   "faction": "Corpus",
+   "base_level": 1,
+   "base_health": 750.0,
+   "base_shield": 150.0,
+   "base_armor": 40.0,
+   "head_mul": 2
+  },
+  "Scavanger Osprey": {
+   "name": "Scavanger Osprey",
+   "zh": "",
+   "faction": "Corpus",
+   "base_level": 1,
+   "base_health": 100.0,
+   "base_shield": 50.0,
+   "base_armor": 0.0,
+   "head_mul": 2
+  },
+  "Sapping Osprey": {
+   "name": "Sapping Osprey",
+   "zh": "",
+   "faction": "Corpus",
+   "base_level": 1,
+   "base_health": 200.0,
+   "base_shield": 50.0,
+   "base_armor": 0.0,
+   "head_mul": 2
+  },
+  "Shield Osprey": {
+   "name": "Shield Osprey",
+   "zh": "",
+   "faction": "Corpus",
+   "base_level": 1,
+   "base_health": 35.0,
+   "base_shield": 50.0,
+   "base_armor": 0.0,
+   "head_mul": 2
+  },
+  "Charger": {
+   "name": "Charger",
+   "zh": "疾冲者",
+   "faction": "Infested",
+   "base_level": 1,
+   "base_health": 80.0,
+   "base_shield": 0.0,
+   "base_armor": 0.0,
+   "head_mul": 2
+  },
+  "Leaper": {
+   "name": "Leaper",
+   "zh": "奔跳者",
+   "faction": "Infested",
+   "base_level": 1,
+   "base_health": 100.0,
+   "base_shield": 0.0,
+   "base_armor": 0.0,
+   "head_mul": 2
+  },
+  "Runner": {
+   "name": "Runner",
+   "zh": "狂奔者",
+   "faction": "Infested",
+   "base_level": 1,
+   "base_health": 100.0,
+   "base_shield": 0.0,
+   "base_armor": 0.0,
+   "head_mul": 2
+  },
+  "Volatile Runner": {
+   "name": "Volatile Runner",
+   "zh": "",
+   "faction": "Infested",
+   "base_level": 1,
+   "base_health": 80.0,
+   "base_shield": 0.0,
+   "base_armor": 0.0,
+   "head_mul": 2
+  },
+  "Crawler": {
+   "name": "Crawler",
+   "zh": "爬行者",
+   "faction": "Infested",
+   "base_level": 1,
+   "base_health": 50.0,
+   "base_shield": 0.0,
+   "base_armor": 0.0,
+   "head_mul": 2
+  },
+  "Electric Crawler": {
+   "name": "Electric Crawler",
+   "zh": "",
+   "faction": "Infested",
+   "base_level": 1,
+   "base_health": 50.0,
+   "base_shield": 0.0,
+   "base_armor": 0.0,
+   "head_mul": 2
+  },
+  "Lobber Crawler": {
+   "name": "Lobber Crawler",
+   "zh": "",
+   "faction": "Infested",
+   "base_level": 1,
+   "base_health": 50.0,
+   "base_shield": 0.0,
+   "base_armor": 0.0,
+   "head_mul": 2
+  },
+  "Nauseous Crawler": {
+   "name": "Nauseous Crawler",
+   "zh": "",
+   "faction": "Infested",
+   "base_level": 1,
+   "base_health": 50.0,
+   "base_shield": 0.0,
+   "base_armor": 0.0,
+   "head_mul": 2
+  },
+  "Toxic Crawler": {
+   "name": "Toxic Crawler",
+   "zh": "",
+   "faction": "Infested",
+   "base_level": 1,
+   "base_health": 50.0,
+   "base_shield": 0.0,
+   "base_armor": 0.0,
+   "head_mul": 2
+  },
+  "Mutalist Osprey": {
+   "name": "Mutalist Osprey",
+   "zh": "",
+   "faction": "Infested",
+   "base_level": 1,
+   "base_health": 200.0,
+   "base_shield": 0.0,
+   "base_armor": 0.0,
+   "head_mul": 2
+  },
+  "Swarm Mutalist MOA": {
+   "name": "Swarm Mutalist MOA",
+   "zh": "",
+   "faction": "Infested",
+   "base_level": 12,
+   "base_health": 350.0,
+   "base_shield": 0.0,
+   "base_armor": 0.0,
+   "head_mul": 2
+  },
+  "Tar-Mutalist MOA": {
+   "name": "Tar-Mutalist MOA",
+   "zh": "",
+   "faction": "Infested",
+   "base_level": 12,
+   "base_health": 350.0,
+   "base_shield": 0.0,
+   "base_armor": 0.0,
+   "head_mul": 2
+  },
+  "Ancient Disrupter": {
+   "name": "Ancient Disrupter",
+   "zh": "",
+   "faction": "Infested",
+   "base_level": 1,
+   "base_health": 400.0,
+   "base_shield": 0.0,
+   "base_armor": 0.0,
+   "head_mul": 2
+  },
+  "Ancient Healer": {
+   "name": "Ancient Healer",
+   "zh": "远古治愈者",
+   "faction": "Infested",
+   "base_level": 1,
+   "base_health": 400.0,
+   "base_shield": 0.0,
+   "base_armor": 0.0,
+   "head_mul": 2
+  },
+  "Boiler": {
+   "name": "Boiler",
+   "zh": "痈裂者",
+   "faction": "Infested",
+   "base_level": 12,
+   "base_health": 1200.0,
+   "base_shield": 0.0,
+   "base_armor": 0.0,
+   "head_mul": 2
+  },
+  "Brood Mother": {
+   "name": "Brood Mother",
+   "zh": "病变虫母",
+   "faction": "Infested",
+   "base_level": 12,
+   "base_health": 700.0,
+   "base_shield": 0.0,
+   "base_armor": 0.0,
+   "head_mul": 2
+  },
+  "Toxic Ancient": {
+   "name": "Toxic Ancient",
+   "zh": "",
+   "faction": "Infested",
+   "base_level": 1,
+   "base_health": 400.0,
+   "base_shield": 0.0,
+   "base_armor": 0.0,
+   "head_mul": 2
+  },
+  "Hemocyte": {
+   "name": "Hemocyte",
+   "zh": "",
+   "faction": "Infested",
+   "base_level": 1,
+   "base_health": 2200.0,
+   "base_shield": 0.0,
+   "base_armor": 175.0,
+   "head_mul": 2
+  },
+  "Corrupted Ancient": {
+   "name": "Corrupted Ancient",
+   "zh": "远古堕落者",
+   "faction": "Orokin",
+   "base_level": 1,
+   "base_health": 400.0,
+   "base_shield": 0.0,
+   "base_armor": 0.0,
+   "head_mul": 2
+  },
+  "Corrupted Butcher": {
+   "name": "Corrupted Butcher",
+   "zh": "堕落屠夫",
+   "faction": "Orokin",
+   "base_level": 1,
+   "base_health": 100.0,
+   "base_shield": 0.0,
+   "base_armor": 5.0,
+   "head_mul": 2
+  },
+  "Corrupted Bombard": {
+   "name": "Corrupted Bombard",
+   "zh": "堕落轰击者",
+   "faction": "Orokin",
+   "base_level": 4,
+   "base_health": 300.0,
+   "base_shield": 0.0,
+   "base_armor": 500.0,
+   "head_mul": 2
+  },
+  "Corrupted Heavy Gunner": {
+   "name": "Corrupted Heavy Gunner",
+   "zh": "堕落重型机枪手",
+   "faction": "Orokin",
+   "base_level": 8,
+   "base_health": 700.0,
+   "base_shield": 0.0,
+   "base_armor": 500.0,
+   "head_mul": 2
+  },
+  "Corrupted Lancer": {
+   "name": "Corrupted Lancer",
+   "zh": "堕落枪兵",
+   "faction": "Orokin",
+   "base_level": 1,
+   "base_health": 60.0,
+   "base_shield": 0.0,
+   "base_armor": 200.0,
+   "head_mul": 2
+  },
+  "Orokin Drone": {
+   "name": "Orokin Drone",
+   "zh": "",
+   "faction": "Orokin",
+   "base_level": 1,
+   "base_health": 35.0,
+   "base_shield": 50.0,
+   "base_armor": 0.0,
+   "head_mul": 2
+  },
+  "Corrupted Crewman": {
+   "name": "Corrupted Crewman",
+   "zh": "堕落船员",
+   "faction": "Orokin",
+   "base_level": 1,
+   "base_health": 60.0,
+   "base_shield": 150.0,
+   "base_armor": 0.0,
+   "head_mul": 2
+  },
+  "Corrupted MOA": {
+   "name": "Corrupted MOA",
+   "zh": "堕落恐鸟",
+   "faction": "Orokin",
+   "base_level": 1,
+   "base_health": 250.0,
+   "base_shield": 250.0,
+   "base_armor": 0.0,
+   "head_mul": 2
+  },
+  "Corrupted Nullifier": {
+   "name": "Corrupted Nullifier",
+   "zh": "堕落虚能者",
+   "faction": "Orokin",
+   "base_level": 15,
+   "base_health": 60.0,
+   "base_shield": 150.0,
+   "base_armor": 0.0,
+   "head_mul": 2
+  },
+  "Demolisher Devourer": {
+   "name": "Demolisher Devourer",
+   "zh": "爆破型吞噬者",
+   "faction": "Grineer",
+   "base_level": 1,
+   "base_health": 2500.0,
+   "base_shield": 0.0,
+   "base_armor": 50.0,
+   "head_mul": 3.0,
+   "source": "wfsim data/enemies（wiki Module:Enemies/data）"
+  },
+  "Legacyte": {
+   "name": "Legacyte",
+   "zh": null,
+   "faction": "Techrot",
+   "base_level": 1,
+   "base_health": 7500.0,
+   "base_shield": 0.0,
+   "base_armor": 0.0,
+   "head_mul": 2.0,
+   "source": "wfsim data/enemies（wiki Module:Enemies/data）"
+  },
+  "Techrot Babau": {
+   "name": "Techrot Babau",
+   "zh": null,
+   "faction": "Techrot",
+   "base_level": 1,
+   "base_health": 10000.0,
+   "base_shield": 500.0,
+   "base_armor": 0.0,
+   "head_mul": 1.5,
+   "source": "wfsim data/enemies（wiki Module:Enemies/data）"
+  },
+  "Thrax Centurion": {
+   "name": "Thrax Centurion",
+   "zh": "凶魂百夫长",
+   "faction": "Zariman",
+   "base_level": 1,
+   "base_health": 3600.0,
+   "base_shield": 0.0,
+   "base_armor": 200.0,
+   "head_mul": 3.0,
+   "source": "wfsim data/enemies（wiki Module:Enemies/data）",
+   "base_overguard": 15.0
+  },
+  "Angst": {
+   "name": "Angst",
+   "zh": "焦虑",
+   "faction": "Grineer",
+   "base_level": 1,
+   "base_health": 2500.0,
+   "base_shield": 1500.0,
+   "base_armor": 50.0,
+   "head_mul": 1.0,
+   "source": "wfsim data/enemies（wiki Module:Enemies/data）"
+  },
+  "Malice": {
+   "name": "Malice",
+   "zh": "怨恨",
+   "faction": "Grineer",
+   "base_level": 1,
+   "base_health": 2500.0,
+   "base_shield": 1500.0,
+   "base_armor": 50.0,
+   "head_mul": 1.0,
+   "source": "wfsim data/enemies（wiki Module:Enemies/data）"
+  },
+  "Mania": {
+   "name": "Mania",
+   "zh": "躁狂",
+   "faction": "Grineer",
+   "base_level": 1,
+   "base_health": 2500.0,
+   "base_shield": 1500.0,
+   "base_armor": 50.0,
+   "head_mul": 1.0,
+   "source": "wfsim data/enemies（wiki Module:Enemies/data）"
+  },
+  "Misery": {
+   "name": "Misery",
+   "zh": "苦难",
+   "faction": "Grineer",
+   "base_level": 1,
+   "base_health": 2500.0,
+   "base_shield": 1500.0,
+   "base_armor": 50.0,
+   "head_mul": 1.0,
+   "source": "wfsim data/enemies（wiki Module:Enemies/data）"
+  },
+  "Torment": {
+   "name": "Torment",
+   "zh": "折磨",
+   "faction": "Grineer",
+   "base_level": 1,
+   "base_health": 2500.0,
+   "base_shield": 1500.0,
+   "base_armor": 50.0,
+   "head_mul": 1.0,
+   "source": "wfsim data/enemies（wiki Module:Enemies/data）"
+  },
+  "Violence": {
+   "name": "Violence",
+   "zh": "暴力",
+   "faction": "Grineer",
+   "base_level": 1,
+   "base_health": 2500.0,
+   "base_shield": 1500.0,
+   "base_armor": 50.0,
+   "head_mul": 1.0,
+   "source": "wfsim data/enemies（wiki Module:Enemies/data）"
+  }
+ }
+}

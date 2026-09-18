@@ -1,0 +1,109 @@
+{
+ "_note": "突击奖励表，来源：DE 官方导出（ExportSortieRewards_zh）；物品名用官方简中",
+ "tiers": {
+  "0": [
+   {
+    "name": "阿耶檀识 Anasa 塑像",
+    "rarity": "普通",
+    "chance": 28.0,
+    "count": 1
+   },
+   {
+    "name": "内融核心捆包",
+    "rarity": "普通",
+    "chance": 12.0,
+    "count": 50
+   },
+   {
+    "name": "赤毒",
+    "rarity": "普通",
+    "chance": 12.0,
+    "count": 6000
+   },
+   {
+    "name": "近战裂罅 Mod",
+    "rarity": "普通",
+    "chance": 9.8,
+    "count": 1
+   },
+   {
+    "name": "步枪裂罅 Mod",
+    "rarity": "普通",
+    "chance": 7.0,
+    "count": 1
+   },
+   {
+    "name": "手枪裂罅 Mod",
+    "rarity": "普通",
+    "chance": 7.0,
+    "count": 1
+   },
+   {
+    "name": "3 天经验值加成",
+    "rarity": "普通",
+    "chance": 3.27,
+    "count": 1
+   },
+   {
+    "name": "3 天资源掉落几率加成",
+    "rarity": "普通",
+    "chance": 3.27,
+    "count": 1
+   },
+   {
+    "name": "3 天 Mod 掉落几率加成",
+    "rarity": "普通",
+    "chance": 3.27,
+    "count": 1
+   },
+   {
+    "name": "Forma",
+    "rarity": "普通",
+    "chance": 2.5,
+    "count": 1
+   },
+   {
+    "name": "战甲特殊功能槽连接器",
+    "rarity": "普通",
+    "chance": 2.5,
+    "count": 1
+   },
+   {
+    "name": "奥罗金反应堆蓝图",
+    "rarity": "普通",
+    "chance": 2.5,
+    "count": 1
+   },
+   {
+    "name": "奥罗金催化剂蓝图",
+    "rarity": "普通",
+    "chance": 2.5,
+    "count": 1
+   },
+   {
+    "name": "霰弹枪裂罅 Mod",
+    "rarity": "普通",
+    "chance": 2.2,
+    "count": 1
+   },
+   {
+    "name": "Zaw 裂罅 Mod",
+    "rarity": "普通",
+    "chance": 1.0,
+    "count": 1
+   },
+   {
+    "name": "组合枪裂罅 Mod",
+    "rarity": "普通",
+    "chance": 1.0,
+    "count": 1
+   },
+   {
+    "name": "传说核心",
+    "rarity": "普通",
+    "chance": 0.19,
+    "count": 1
+   }
+  ]
+ }
+}

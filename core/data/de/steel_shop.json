@@ -1,0 +1,50 @@
+{
+ "_note": "钢铁精华兑换商店（Teshin Steel Path Honors）。来源 wiki.warframe.com/w/Steel_Essence；中文名取自 DE 官方 language 表 name_zh.json。",
+ "_limits_note": "常驻商品中：面纱裂罅密文每周限购 1；10,000 赤毒与遗物包每周限购 25；其余无周限购。",
+ "evergreen": [
+  {"group": "强化与资源", "name": "面纱裂罅密文（Veiled Riven Cipher，每周限购 1）", "cost": 20},
+  {"group": "强化与资源", "name": "主武器赋能适配器", "cost": 15},
+  {"group": "强化与资源", "name": "副武器赋能适配器", "cost": 15},
+  {"group": "强化与资源", "name": "架式 Forma 蓝图", "cost": 10},
+  {"group": "强化与资源", "name": "10,000 赤毒（每周限购 25）", "cost": 15},
+  {"group": "强化与资源", "name": "遗物包 · 3 个随机遗物（每周限购 25）", "cost": 15},
+
+  {"group": "护甲与幻纹", "name": "比沙莫护肩套装（Bishamo Pauldrons）", "cost": 15},
+  {"group": "护甲与幻纹", "name": "比沙莫胸甲套装（Bishamo Cuirass）", "cost": 25},
+  {"group": "护甲与幻纹", "name": "比沙莫头盔套装（Bishamo Helmet）", "cost": 20},
+  {"group": "护甲与幻纹", "name": "比沙莫护胫套装（Bishamo Greaves）", "cost": 25},
+  {"group": "护甲与幻纹", "name": "三轨幻纹", "cost": 3},
+  {"group": "护甲与幻纹", "name": "头盖骨幻纹（Crania Ephemera）", "cost": 85},
+
+  {"group": "模组与装饰", "name": "制衡（Counterbalance，霰弹枪减后坐）", "cost": 35},
+  {"group": "模组与装饰", "name": "Teshin 摇头娃娃", "cost": 35},
+  {"group": "模组与装饰", "name": "奥罗金茶具", "cost": 15},
+
+  {"group": "战甲战斗姿态浮印", "name": "Gauss 战斗姿态浮印", "cost": 15},
+  {"group": "战甲战斗姿态浮印", "name": "Grendel 战斗姿态浮印", "cost": 15},
+  {"group": "战甲战斗姿态浮印", "name": "Protea 战斗姿态浮印", "cost": 15},
+  {"group": "战甲战斗姿态浮印", "name": "Xaku 战斗姿态浮印", "cost": 15},
+
+  {"group": "《老师》摄影棚系列", "name": "《老师》地球场景", "cost": 50},
+  {"group": "《老师》摄影棚系列", "name": "《老师》道场场景", "cost": 50},
+  {"group": "《老师》摄影棚系列", "name": "《老师》反应堆场景", "cost": 50},
+  {"group": "《老师》摄影棚系列", "name": "《老师》飞船场景", "cost": 50},
+  {"group": "《老师》摄影棚系列", "name": "《老师》曲目", "cost": 25}
+ ],
+ "weekly": [
+  {"name": "Umbra Forma 蓝图", "cost": 150},
+  {"name": "50,000 赤毒", "cost": 55},
+  {"name": "组合枪紫卡", "cost": 75},
+  {"name": "3 × Forma", "cost": 75},
+  {"name": "Zaw 紫卡", "cost": 75},
+  {"name": "30,000 内融核心", "cost": 150},
+  {"name": "步枪紫卡", "cost": 75},
+  {"name": "霰弹枪紫卡", "cost": 75}
+ ],
+ "rotation": {
+  "_note": "每周一 00:00 UTC 轮换（与执刑官猎杀同步）。epoch 时刻生效的是 index_at_epoch 指向的条目，order 按官方左移顺序排列。",
+  "epoch": "2026-09-07T00:00:00+00:00",
+  "index_at_epoch": 7,
+  "period_hours": 168
+ }
+}

@@ -1,0 +1,6791 @@
+{
+ "_meta": {
+  "source": "warframe.fandom.com Module:Stances/data",
+  "retrieved": "2026-09-16",
+  "note": "avg_mult=该连招每段平均伤害倍率(%)，procs=强制异常，ips=该段对物理三系的修饰"
+ },
+ "stances": {
+  "argentscourge": {
+   "name": "Argent Scourge",
+   "zh": "银白天灾",
+   "weapon_type": "Polearm",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Roaring Whirlwind",
+     "avg_mult": 100.0,
+     "total": 300.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Cutting Tempest",
+     "avg_mult": 100.0,
+     "total": 300.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Shrieking Wind",
+     "avg_mult": 100.0,
+     "total": 500.0,
+     "hits": 5,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Roaring Whirlwind",
+     "avg_mult": 100.0,
+     "total": 300.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "arumspinosa": {
+   "name": "Arum Spinosa",
+   "zh": "",
+   "weapon_type": "Warfan",
+   "unique_to_weapon": true,
+   "combos": {
+    "Heavy": {
+     "name": "Arum Spinosa Heavy (unofficial)",
+     "avg_mult": 333.33,
+     "total": 10000.0,
+     "hits": 30,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    }
+   }
+  },
+  "assaultsaw": {
+   "name": "Assault Saw",
+   "zh": "",
+   "weapon_type": "Assault Saw",
+   "unique_to_weapon": false,
+   "combos": {
+    "Aerial": {
+     "name": "Spine Splitter",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Block": {
+     "name": "Ghoul Rush",
+     "avg_mult": 100.0,
+     "total": 400.0,
+     "hits": 4,
+     "procs": [],
+     "ips": {
+      "slash": 1.25
+     }
+    },
+    "Finisher": {
+     "name": "Deep Cuts",
+     "avg_mult": 900.0,
+     "total": 900.0,
+     "hits": 1,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Ghoul Rush",
+     "avg_mult": 100.0,
+     "total": 400.0,
+     "hits": 4,
+     "procs": [],
+     "ips": {
+      "slash": 1.25
+     }
+    },
+    "Forward Block": {
+     "name": "Ghoul Rush",
+     "avg_mult": 100.0,
+     "total": 400.0,
+     "hits": 4,
+     "procs": [],
+     "ips": {
+      "slash": 1.25
+     }
+    },
+    "Heavy": {
+     "name": "Carving Carcass",
+     "avg_mult": 171.43,
+     "total": 1200.0,
+     "hits": 7,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "",
+     "avg_mult": 100.0,
+     "total": 200.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    },
+    "Slam": {
+     "name": "Slam Combo",
+     "avg_mult": 250.0,
+     "total": 500.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    },
+    "Slide": {
+     "name": "Ankle Cutter",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Wall": {
+     "name": "Rictus' Wrath",
+     "avg_mult": 200.0,
+     "total": 800.0,
+     "hits": 4,
+     "procs": [],
+     "ips": {
+      "slash": 1.25
+     }
+    }
+   }
+  },
+  "astraltwilight": {
+   "name": "Astral Twilight",
+   "zh": "星界微光",
+   "weapon_type": "Glaive",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Rising Moon",
+     "avg_mult": 228.57,
+     "total": 1600.0,
+     "hits": 7,
+     "procs": [
+      "slash"
+     ],
+     "ips": {
+      "impact": 1.25,
+      "puncture": 1.25,
+      "slash": 1.25
+     }
+    },
+    "Forward": {
+     "name": "Midnight Cloud",
+     "avg_mult": 120.0,
+     "total": 600.0,
+     "hits": 5,
+     "procs": [],
+     "ips": {
+      "impact": 1.25,
+      "puncture": 1.25,
+      "slash": 1.25
+     }
+    },
+    "Forward Block": {
+     "name": "Falling Star",
+     "avg_mult": 150.0,
+     "total": 1200.0,
+     "hits": 8,
+     "procs": [],
+     "ips": {
+      "impact": 1.25,
+      "puncture": 1.25,
+      "slash": 1.25
+     }
+    },
+    "Neutral": {
+     "name": "Morning Sun",
+     "avg_mult": 220.0,
+     "total": 2200.0,
+     "hits": 10,
+     "procs": [],
+     "ips": {
+      "impact": 1.25,
+      "puncture": 1.25,
+      "slash": 1.25
+     }
+    }
+   }
+  },
+  "atlantisvulcan": {
+   "name": "Atlantis Vulcan",
+   "zh": "深渊之火",
+   "weapon_type": "Nunchaku",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Infernal Maelstrom",
+     "avg_mult": 86.11,
+     "total": 1550.0,
+     "hits": 18,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Searing Undertow",
+     "avg_mult": 75.0,
+     "total": 750.0,
+     "hits": 10,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Blazing Vortex",
+     "avg_mult": 86.11,
+     "total": 1550.0,
+     "hits": 18,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Molten Whirlpool",
+     "avg_mult": 65.62,
+     "total": 1050.0,
+     "hits": 16,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "azothane": {
+   "name": "Azothane",
+   "zh": "",
+   "weapon_type": "Two-Handed Nikana",
+   "unique_to_weapon": true,
+   "combos": {
+    "Block": {
+     "name": "Azothane Block (unofficial)",
+     "avg_mult": 50.0,
+     "total": 50.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "bitingpiranha": {
+   "name": "Biting Piranha",
+   "zh": "食人鱼噬咬",
+   "weapon_type": "Dual Daggers",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Rushing Cuts",
+     "avg_mult": 100.0,
+     "total": 400.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Flasing Razor",
+     "avg_mult": 100.0,
+     "total": 300.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Leaping Slash",
+     "avg_mult": 100.0,
+     "total": 400.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Rushing Cuts",
+     "avg_mult": 100.0,
+     "total": 400.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "bladeandwhip": {
+   "name": "Blade and Whip",
+   "zh": "",
+   "weapon_type": "Blade and Whip",
+   "unique_to_weapon": false,
+   "combos": {
+    "Aerial": {
+     "name": "Weightless Steel",
+     "avg_mult": 233.33,
+     "total": 700.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Block": {
+     "name": "Claws of the Drake",
+     "avg_mult": 230.0,
+     "total": 2300.0,
+     "hits": 10,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Finisher": {
+     "name": "Death's Mark",
+     "avg_mult": 1000.0,
+     "total": 1000.0,
+     "hits": 1,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Claws of the Drake",
+     "avg_mult": 230.0,
+     "total": 2300.0,
+     "hits": 10,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Claws of the Drake",
+     "avg_mult": 230.0,
+     "total": 2300.0,
+     "hits": 10,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Heavy": {
+     "name": "Rolling Thunder",
+     "avg_mult": 400.0,
+     "total": 1600.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Claws of the Drake",
+     "avg_mult": 230.0,
+     "total": 2300.0,
+     "hits": 10,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Slam": {
+     "name": "Slam Attack",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Slide": {
+     "name": "Spiral Cut",
+     "avg_mult": 100.0,
+     "total": 100.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Wall": {
+     "name": "Weightless Steel",
+     "avg_mult": 300.0,
+     "total": 300.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "bleedingwillow": {
+   "name": "Bleeding Willow",
+   "zh": "血色万柳",
+   "weapon_type": "Polearm",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Lethal Gust",
+     "avg_mult": 125.0,
+     "total": 500.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Lethal Gust",
+     "avg_mult": 125.0,
+     "total": 500.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Drifting Steel",
+     "avg_mult": 200.0,
+     "total": 1600.0,
+     "hits": 8,
+     "procs": [
+      "slash"
+     ],
+     "ips": {
+      "slash": 1.5
+     }
+    },
+    "Neutral": {
+     "name": "Lethal Gust",
+     "avg_mult": 125.0,
+     "total": 500.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "blindjustice": {
+   "name": "Blind Justice",
+   "zh": "无明制裁",
+   "weapon_type": "Nikana",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Destined Path",
+     "avg_mult": 200.0,
+     "total": 1200.0,
+     "hits": 6,
+     "procs": [],
+     "ips": {
+      "slash": 2.0
+     }
+    },
+    "Forward": {
+     "name": "Zatōs Creed",
+     "avg_mult": 185.71,
+     "total": 1300.0,
+     "hits": 7,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Heeding Call",
+     "avg_mult": 166.67,
+     "total": 1500.0,
+     "hits": 9,
+     "procs": [],
+     "ips": {
+      "slash": 2.0
+     }
+    },
+    "Neutral": {
+     "name": "Guiding Light",
+     "avg_mult": 237.5,
+     "total": 1900.0,
+     "hits": 8,
+     "procs": [
+      "slash"
+     ],
+     "ips": {
+      "slash": 2.0
+     }
+    },
+    "Slide": {
+     "name": "Parting Knee",
+     "avg_mult": 100.0,
+     "total": 400.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Wall": {
+     "name": "Guiding Wire",
+     "avg_mult": 215.0,
+     "total": 215.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "brutaltide": {
+   "name": "Brutal Tide",
+   "zh": "残暴浪潮",
+   "weapon_type": "Sparring",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Inferno",
+     "avg_mult": 175.0,
+     "total": 1400.0,
+     "hits": 8,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Inferno",
+     "avg_mult": 175.0,
+     "total": 1400.0,
+     "hits": 8,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Rushing Fire",
+     "avg_mult": 200.0,
+     "total": 1800.0,
+     "hits": 9,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Inferno",
+     "avg_mult": 175.0,
+     "total": 1400.0,
+     "hits": 8,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "bulletdance": {
+   "name": "Bullet Dance",
+   "zh": "刀锋弹舞",
+   "weapon_type": "Gunblade",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Samba Slash",
+     "avg_mult": 133.33,
+     "total": 800.0,
+     "hits": 6,
+     "procs": [],
+     "ips": {
+      "impact": 1.25,
+      "puncture": 1.25,
+      "slash": 1.25
+     }
+    },
+    "Forward": {
+     "name": "Magnum Mambo",
+     "avg_mult": 166.67,
+     "total": 1000.0,
+     "hits": 6,
+     "procs": [],
+     "ips": {
+      "impact": 1.25,
+      "puncture": 1.25,
+      "slash": 1.25
+     }
+    },
+    "Forward Block": {
+     "name": "Lead Tango",
+     "avg_mult": 185.71,
+     "total": 1300.0,
+     "hits": 7,
+     "procs": [],
+     "ips": {
+      "impact": 1.25,
+      "puncture": 1.25,
+      "slash": 1.25
+     }
+    },
+    "Neutral": {
+     "name": "Automatic Rhumba",
+     "avg_mult": 172.73,
+     "total": 1900.0,
+     "hits": 11,
+     "procs": [],
+     "ips": {
+      "impact": 1.25,
+      "puncture": 1.25,
+      "slash": 1.25
+     }
+    }
+   }
+  },
+  "burningwasp": {
+   "name": "Burning Wasp",
+   "zh": "炙热黄蜂",
+   "weapon_type": "Whip",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Sparking Torture",
+     "avg_mult": 300.0,
+     "total": 600.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Buzzing Sting",
+     "avg_mult": 125.0,
+     "total": 500.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Guided Claw",
+     "avg_mult": 300.0,
+     "total": 600.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Sparking Torture",
+     "avg_mult": 300.0,
+     "total": 600.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "butchersrevelry": {
+   "name": "Butcher's Revelry",
+   "zh": "屠戮盛宴",
+   "weapon_type": "Assault Saw",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Reciprocator",
+     "avg_mult": 170.0,
+     "total": 1700.0,
+     "hits": 10,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Ghoul Rush",
+     "avg_mult": 100.0,
+     "total": 400.0,
+     "hits": 4,
+     "procs": [],
+     "ips": {
+      "slash": 1.25
+     }
+    },
+    "Forward Block": {
+     "name": "Rip 'N Ride",
+     "avg_mult": 175.0,
+     "total": 700.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Rictus' Wrath",
+     "avg_mult": 275.0,
+     "total": 1100.0,
+     "hits": 4,
+     "procs": [
+      "slash"
+     ],
+     "ips": {
+      "slash": 1.25
+     }
+    }
+   }
+  },
+  "carvingmantis": {
+   "name": "Carving Mantis",
+   "zh": "雕斩螳螂",
+   "weapon_type": "Dual Swords",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Biting Mandibles",
+     "avg_mult": 171.43,
+     "total": 1200.0,
+     "hits": 7,
+     "procs": [
+      "slash"
+     ],
+     "ips": {
+      "slash": 1.25
+     }
+    },
+    "Forward": {
+     "name": "Ambush Predator",
+     "avg_mult": 137.5,
+     "total": 1100.0,
+     "hits": 8,
+     "procs": [],
+     "ips": {
+      "slash": 1.25
+     }
+    },
+    "Forward Block": {
+     "name": "Dire Courtship",
+     "avg_mult": 200.0,
+     "total": 800.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Rapid Incisions",
+     "avg_mult": 237.5,
+     "total": 1900.0,
+     "hits": 8,
+     "procs": [
+      "slash"
+     ],
+     "ips": {
+      "slash": 1.25
+     }
+    }
+   }
+  },
+  "caustacyst": {
+   "name": "Caustacyst",
+   "zh": "",
+   "weapon_type": "Scythe",
+   "unique_to_weapon": true,
+   "combos": {
+    "Heavy": {
+     "name": "Caustacyst Heavy (unofficial)",
+     "avg_mult": 350.0,
+     "total": 1400.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "celestialnightfall": {
+   "name": "Celestial Nightfall",
+   "zh": "天界黄昏",
+   "weapon_type": "Glaive",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Expanding Spiral",
+     "avg_mult": 100.0,
+     "total": 300.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Whirling Touch",
+     "avg_mult": 100.0,
+     "total": 300.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Radial Wounding",
+     "avg_mult": 100.0,
+     "total": 400.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Expanding Spiral",
+     "avg_mult": 100.0,
+     "total": 300.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "clashingforest": {
+   "name": "Clashing Forest",
+   "zh": "",
+   "weapon_type": "Staff",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Resolute Flurry",
+     "avg_mult": 168.75,
+     "total": 1350.0,
+     "hits": 8,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Skyward Limb",
+     "avg_mult": 125.0,
+     "total": 500.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Battering Roots",
+     "avg_mult": 250.0,
+     "total": 1000.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Resolute Flurry",
+     "avg_mult": 168.75,
+     "total": 1350.0,
+     "hits": 8,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "claws": {
+   "name": "Claws",
+   "zh": "",
+   "weapon_type": "Claws",
+   "unique_to_weapon": false,
+   "combos": {
+    "Aerial": {
+     "name": "One Point",
+     "avg_mult": 225.0,
+     "total": 900.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Block": {
+     "name": "",
+     "avg_mult": 150.0,
+     "total": 300.0,
+     "hits": 2,
+     "procs": [],
+     "ips": {
+      "impact": 1.1
+     }
+    },
+    "Finisher": {
+     "name": "Roaring Drums",
+     "avg_mult": 208.5,
+     "total": 1251.0,
+     "hits": 6,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "",
+     "avg_mult": 150.0,
+     "total": 300.0,
+     "hits": 2,
+     "procs": [],
+     "ips": {
+      "impact": 1.1
+     }
+    },
+    "Forward Block": {
+     "name": "",
+     "avg_mult": 150.0,
+     "total": 300.0,
+     "hits": 2,
+     "procs": [],
+     "ips": {
+      "impact": 1.1
+     }
+    },
+    "Heavy": {
+     "name": "Three Lessons",
+     "avg_mult": 500.0,
+     "total": 1000.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "",
+     "avg_mult": 150.0,
+     "total": 300.0,
+     "hits": 2,
+     "procs": [],
+     "ips": {
+      "impact": 1.1
+     }
+    },
+    "Slam": {
+     "name": "Slam Attack",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Slide": {
+     "name": "Launching Spring",
+     "avg_mult": 300.0,
+     "total": 300.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Wall": {
+     "name": "Through Strike",
+     "avg_mult": 300.0,
+     "total": 300.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "cleavingwhirlwind": {
+   "name": "Cleaving Whirlwind",
+   "zh": "弧刃回天",
+   "weapon_type": "Heavy Blade",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Drifting Stampede",
+     "avg_mult": 333.33,
+     "total": 1000.0,
+     "hits": 3,
+     "procs": [],
+     "ips": {
+      "slash": 1.25
+     }
+    },
+    "Forward": {
+     "name": "Broken Bull",
+     "avg_mult": 136.36,
+     "total": 1500.0,
+     "hits": 11,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Sundered Tusk",
+     "avg_mult": 211.11,
+     "total": 1900.0,
+     "hits": 9,
+     "procs": [],
+     "ips": {
+      "slash": 1.25
+     }
+    },
+    "Neutral": {
+     "name": "Crowd Fall",
+     "avg_mult": 325.0,
+     "total": 1300.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "cobracrane": {
+   "name": "Cobra & Crane",
+   "zh": "",
+   "weapon_type": "Sword and Shield",
+   "unique_to_weapon": true,
+   "combos": {
+    "Aerial": {
+     "name": "Cobra & Crane Air (unofficial)",
+     "avg_mult": 100.0,
+     "total": 100.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "coilingviper": {
+   "name": "Coiling Viper",
+   "zh": "毒蛇螺旋",
+   "weapon_type": "Whip",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Whistling Wind",
+     "avg_mult": 200.0,
+     "total": 1000.0,
+     "hits": 5,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Whistling Wind",
+     "avg_mult": 200.0,
+     "total": 1000.0,
+     "hits": 5,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Tumbling King",
+     "avg_mult": 250.0,
+     "total": 500.0,
+     "hits": 2,
+     "procs": [],
+     "ips": {
+      "impact": 1.25
+     }
+    },
+    "Neutral": {
+     "name": "Whistling Wind",
+     "avg_mult": 200.0,
+     "total": 1000.0,
+     "hits": 5,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "crashinghavoc": {
+   "name": "Crashing Havoc",
+   "zh": "崩毁浩劫",
+   "weapon_type": "Hammer",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Fist And Hammer",
+     "avg_mult": 100.0,
+     "total": 400.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Rising Thunder",
+     "avg_mult": 100.0,
+     "total": 300.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Falling Rock",
+     "avg_mult": 150.0,
+     "total": 300.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Fist And Hammer",
+     "avg_mult": 100.0,
+     "total": 400.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "crashingtimber": {
+   "name": "Crashing Timber",
+   "zh": "原木冲击",
+   "weapon_type": "Staff",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Falling Leaves",
+     "avg_mult": 100.0,
+     "total": 300.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Sweeping Limb",
+     "avg_mult": 100.0,
+     "total": 300.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Bending Branch",
+     "avg_mult": 100.0,
+     "total": 300.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Falling Leaves",
+     "avg_mult": 100.0,
+     "total": 300.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "crimsondervish": {
+   "name": "Crimson Dervish",
+   "zh": "赤红狂舞",
+   "weapon_type": "Sword",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Twisting Flurry",
+     "avg_mult": 280.0,
+     "total": 1400.0,
+     "hits": 5,
+     "procs": [],
+     "ips": {
+      "slash": 2.0
+     }
+    },
+    "Forward": {
+     "name": "Crimson Orbit",
+     "avg_mult": 150.0,
+     "total": 600.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Coiling Impale",
+     "avg_mult": 266.67,
+     "total": 800.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Twisting Flurry",
+     "avg_mult": 280.0,
+     "total": 1400.0,
+     "hits": 5,
+     "procs": [],
+     "ips": {
+      "slash": 2.0
+     }
+    }
+   }
+  },
+  "crossingsnakes": {
+   "name": "Crossing Snakes",
+   "zh": "双蛇牙突",
+   "weapon_type": "Dual Swords",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Twin Fang",
+     "avg_mult": 133.33,
+     "total": 800.0,
+     "hits": 6,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Lacerating Leap",
+     "avg_mult": 128.57,
+     "total": 900.0,
+     "hits": 7,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Northern Coil",
+     "avg_mult": 166.67,
+     "total": 1000.0,
+     "hits": 6,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "East to West",
+     "avg_mult": 180.0,
+     "total": 900.0,
+     "hits": 5,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    }
+   }
+  },
+  "crushingruin": {
+   "name": "Crushing Ruin",
+   "zh": "月落乌啼",
+   "weapon_type": "Hammer",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Winding Temper",
+     "avg_mult": 250.0,
+     "total": 1000.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Tidal Force",
+     "avg_mult": 160.0,
+     "total": 800.0,
+     "hits": 5,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Shattered Village",
+     "avg_mult": 200.0,
+     "total": 1800.0,
+     "hits": 9,
+     "procs": [],
+     "ips": {
+      "impact": 1.5
+     }
+    },
+    "Neutral": {
+     "name": "Raging Whirlwind",
+     "avg_mult": 300.0,
+     "total": 1500.0,
+     "hits": 5,
+     "procs": [],
+     "ips": {
+      "impact": 1.5
+     }
+    }
+   }
+  },
+  "cunningaspect": {
+   "name": "Cunning Aspect",
+   "zh": "狡诈面貌",
+   "weapon_type": "Rapier",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Shrouded Point",
+     "avg_mult": 100.0,
+     "total": 300.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Deceptive Lunge",
+     "avg_mult": 100.0,
+     "total": 400.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Covert Coil",
+     "avg_mult": 100.0,
+     "total": 500.0,
+     "hits": 5,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Shrouded Point",
+     "avg_mult": 100.0,
+     "total": 300.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "cyclonekraken": {
+   "name": "Cyclone Kraken",
+   "zh": "飓风海怪",
+   "weapon_type": "Machete",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Thunder Hydra",
+     "avg_mult": 275.0,
+     "total": 1100.0,
+     "hits": 4,
+     "procs": [],
+     "ips": {
+      "impact": 1.5,
+      "puncture": 1.5,
+      "slash": 1.5
+     }
+    },
+    "Forward": {
+     "name": "Leviathan Rain",
+     "avg_mult": 100.0,
+     "total": 500.0,
+     "hits": 5,
+     "procs": [],
+     "ips": {
+      "impact": 1.5,
+      "puncture": 1.5,
+      "slash": 1.5
+     }
+    },
+    "Forward Block": {
+     "name": "Lightning Siren",
+     "avg_mult": 220.0,
+     "total": 1100.0,
+     "hits": 5,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Gale Triton",
+     "avg_mult": 242.86,
+     "total": 1700.0,
+     "hits": 7,
+     "procs": [],
+     "ips": {
+      "impact": 1.5,
+      "puncture": 1.5,
+      "slash": 1.5
+     }
+    }
+   }
+  },
+  "dagger": {
+   "name": "Dagger",
+   "zh": "",
+   "weapon_type": "Dagger",
+   "unique_to_weapon": false,
+   "combos": {
+    "Aerial": {
+     "name": "Scorpion Fall",
+     "avg_mult": 150.0,
+     "total": 300.0,
+     "hits": 2,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Finisher": {
+     "name": "Relentless Point",
+     "avg_mult": 500.0,
+     "total": 1000.0,
+     "hits": 2,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Forward": {
+     "name": "",
+     "avg_mult": 175.0,
+     "total": 700.0,
+     "hits": 4,
+     "procs": [
+      "slash"
+     ],
+     "ips": {
+      "puncture": 2.0,
+      "slash": 2.0
+     }
+    },
+    "Forward Block": {
+     "name": "",
+     "avg_mult": 175.0,
+     "total": 700.0,
+     "hits": 4,
+     "procs": [
+      "slash"
+     ],
+     "ips": {
+      "puncture": 2.0,
+      "slash": 2.0
+     }
+    },
+    "Heavy": {
+     "name": "Butterfly Slash",
+     "avg_mult": 250.0,
+     "total": 1000.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "",
+     "avg_mult": 175.0,
+     "total": 700.0,
+     "hits": 4,
+     "procs": [
+      "slash"
+     ],
+     "ips": {
+      "puncture": 2.0,
+      "slash": 2.0
+     }
+    },
+    "Slam": {
+     "name": "Slam Attack",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Slide": {
+     "name": "Splitting Brush",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Wall": {
+     "name": "Fanning Sting",
+     "avg_mult": 300.0,
+     "total": 300.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "decisivejudgement": {
+   "name": "Decisive Judgement",
+   "zh": "果断裁决",
+   "weapon_type": "Nikana",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Silent Acumen",
+     "avg_mult": 400.0,
+     "total": 800.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Windless Cuts",
+     "avg_mult": 150.0,
+     "total": 300.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Consent Decree",
+     "avg_mult": 250.0,
+     "total": 1000.0,
+     "hits": 4,
+     "procs": [],
+     "ips": {
+      "slash": 2.0
+     }
+    },
+    "Neutral": {
+     "name": "Swift Retribution",
+     "avg_mult": 280.0,
+     "total": 1400.0,
+     "hits": 5,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Slide": {
+     "name": "Parting Knee",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "defiledsnapdragon": {
+   "name": "Defiled Snapdragon",
+   "zh": "积秽骁龙",
+   "weapon_type": "Blade and Whip",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Fangs of the Lindwurm",
+     "avg_mult": 500.0,
+     "total": 500.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Soul of the Leviathan",
+     "avg_mult": 125.0,
+     "total": 2000.0,
+     "hits": 16,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Heart of the Naga",
+     "avg_mult": 162.5,
+     "total": 1300.0,
+     "hits": 8,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Claws of the Drake",
+     "avg_mult": 230.0,
+     "total": 2300.0,
+     "hits": 10,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    }
+   }
+  },
+  "dividingblades": {
+   "name": "Dividing Blades",
+   "zh": "分裂之刃",
+   "weapon_type": "Dual Swords",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Converging Edge",
+     "avg_mult": 100.0,
+     "total": 600.0,
+     "hits": 6,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Cross Cuts",
+     "avg_mult": 100.0,
+     "total": 300.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Combined Strike",
+     "avg_mult": 100.0,
+     "total": 400.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Converging Edge",
+     "avg_mult": 100.0,
+     "total": 600.0,
+     "hits": 6,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "dualdaggers": {
+   "name": "Dual Daggers",
+   "zh": "",
+   "weapon_type": "Dual Daggers",
+   "unique_to_weapon": false,
+   "combos": {
+    "Aerial": {
+     "name": "Lion's Roar",
+     "avg_mult": 133.33,
+     "total": 800.0,
+     "hits": 6,
+     "procs": [],
+     "ips": null
+    },
+    "Block": {
+     "name": "",
+     "avg_mult": 100.0,
+     "total": 800.0,
+     "hits": 8,
+     "procs": [],
+     "ips": null
+    },
+    "Finisher": {
+     "name": "Final Strike",
+     "avg_mult": 800.0,
+     "total": 1600.0,
+     "hits": 2,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Forward": {
+     "name": "",
+     "avg_mult": 100.0,
+     "total": 800.0,
+     "hits": 8,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "",
+     "avg_mult": 100.0,
+     "total": 800.0,
+     "hits": 8,
+     "procs": [],
+     "ips": null
+    },
+    "Heavy": {
+     "name": "Savage Tiger",
+     "avg_mult": 250.0,
+     "total": 1000.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "",
+     "avg_mult": 100.0,
+     "total": 800.0,
+     "hits": 8,
+     "procs": [],
+     "ips": null
+    },
+    "Slam": {
+     "name": "Slam Attack",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Slide": {
+     "name": "Lurking Cougar",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Wall": {
+     "name": "Weightless Steel",
+     "avg_mult": 300.0,
+     "total": 300.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "dualnikanas": {
+   "name": "Dual Nikanas",
+   "zh": "",
+   "weapon_type": "Dual Nikanas",
+   "unique_to_weapon": false,
+   "combos": {
+    "Aerial": {
+     "name": "Red Soil",
+     "avg_mult": 200.0,
+     "total": 800.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Block": {
+     "name": "",
+     "avg_mult": 183.33,
+     "total": 1100.0,
+     "hits": 6,
+     "procs": [
+      "slash"
+     ],
+     "ips": {
+      "puncture": 1.5
+     }
+    },
+    "Finisher": {
+     "name": "Mirrored Spike",
+     "avg_mult": 800.0,
+     "total": 1600.0,
+     "hits": 2,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Forward": {
+     "name": "",
+     "avg_mult": 154.17,
+     "total": 925.0,
+     "hits": 6,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "",
+     "avg_mult": 183.33,
+     "total": 1100.0,
+     "hits": 6,
+     "procs": [
+      "slash"
+     ],
+     "ips": {
+      "puncture": 1.5
+     }
+    },
+    "Heavy": {
+     "name": "Dax Retribution",
+     "avg_mult": 257.14,
+     "total": 1800.0,
+     "hits": 7,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "",
+     "avg_mult": 183.33,
+     "total": 1100.0,
+     "hits": 6,
+     "procs": [
+      "slash"
+     ],
+     "ips": {
+      "puncture": 1.5
+     }
+    },
+    "Slam": {
+     "name": "Slam Attack",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Slide": {
+     "name": "Trimming Flowers",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Wall": {
+     "name": "Weightless Steel",
+     "avg_mult": 300.0,
+     "total": 300.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "dualswords": {
+   "name": "Dual Swords",
+   "zh": "",
+   "weapon_type": "Dual Swords",
+   "unique_to_weapon": false,
+   "combos": {
+    "Aerial": {
+     "name": "Red Soil",
+     "avg_mult": 200.0,
+     "total": 800.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Block": {
+     "name": "",
+     "avg_mult": 200.0,
+     "total": 1200.0,
+     "hits": 6,
+     "procs": [],
+     "ips": {
+      "puncture": 1.5
+     }
+    },
+    "Finisher": {
+     "name": "Mirrored Spike",
+     "avg_mult": 800.0,
+     "total": 1600.0,
+     "hits": 2,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Forward": {
+     "name": "",
+     "avg_mult": 116.67,
+     "total": 700.0,
+     "hits": 6,
+     "procs": [],
+     "ips": {
+      "puncture": 1.5
+     }
+    },
+    "Forward Block": {
+     "name": "",
+     "avg_mult": 200.0,
+     "total": 1200.0,
+     "hits": 6,
+     "procs": [],
+     "ips": {
+      "puncture": 1.5
+     }
+    },
+    "Heavy": {
+     "name": "Northern Coil",
+     "avg_mult": 250.0,
+     "total": 1000.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "",
+     "avg_mult": 200.0,
+     "total": 1200.0,
+     "hits": 6,
+     "procs": [],
+     "ips": {
+      "puncture": 1.5
+     }
+    },
+    "Slam": {
+     "name": "Slam Attack",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Slide": {
+     "name": "Trimming Flowers",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Wall": {
+     "name": "Weightless Steel",
+     "avg_mult": 300.0,
+     "total": 300.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "edun": {
+   "name": "Edun",
+   "zh": "",
+   "weapon_type": "Polearm",
+   "unique_to_weapon": true,
+   "combos": {
+    "Heavy": {
+     "name": "Edun Heavy (unofficial)",
+     "avg_mult": 200.0,
+     "total": 400.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "eleventhstorm": {
+   "name": "Eleventh Storm",
+   "zh": "终焉风暴",
+   "weapon_type": "Sword and Shield",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Diamond Deus",
+     "avg_mult": 166.67,
+     "total": 1000.0,
+     "hits": 6,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Devouring Beast",
+     "avg_mult": 166.67,
+     "total": 500.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Bide and Bleed",
+     "avg_mult": 180.0,
+     "total": 900.0,
+     "hits": 5,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Striking Thunder",
+     "avg_mult": 271.43,
+     "total": 1900.0,
+     "hits": 7,
+     "procs": [
+      "slash"
+     ],
+     "ips": {
+      "impact": 2.0,
+      "slash": 1.25
+     }
+    }
+   }
+  },
+  "exaltedblade": {
+   "name": "Exalted Blade",
+   "zh": "",
+   "weapon_type": "Sword",
+   "unique_to_weapon": false,
+   "combos": {
+    "Aerial": {
+     "name": "Weightless Steel",
+     "avg_mult": 233.33,
+     "total": 1400.0,
+     "hits": 6,
+     "procs": [],
+     "ips": null
+    },
+    "Block": {
+     "name": "Equal Laceration",
+     "avg_mult": 250.0,
+     "total": 1500.0,
+     "hits": 6,
+     "procs": [],
+     "ips": null
+    },
+    "Finisher": {
+     "name": "Death's Mark",
+     "avg_mult": 1000.0,
+     "total": 1000.0,
+     "hits": 1,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Lancing Justice",
+     "avg_mult": 100.0,
+     "total": 800.0,
+     "hits": 8,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Virtuous Slash",
+     "avg_mult": 150.0,
+     "total": 1200.0,
+     "hits": 8,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Cutting Poise",
+     "avg_mult": 210.0,
+     "total": 2100.0,
+     "hits": 10,
+     "procs": [],
+     "ips": null
+    },
+    "Slam": {
+     "name": "Slam Attack",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Slide": {
+     "name": "Judged Severance",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Wall": {
+     "name": "Weightless Steel",
+     "avg_mult": 300.0,
+     "total": 300.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "fatefultruth": {
+   "name": "Fateful Truth",
+   "zh": "宿命真理",
+   "weapon_type": "Nikana",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Leading Blade",
+     "avg_mult": 100.0,
+     "total": 600.0,
+     "hits": 6,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Keen Cuts",
+     "avg_mult": 100.0,
+     "total": 300.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Sudden Spring",
+     "avg_mult": 100.0,
+     "total": 300.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Leading Blade",
+     "avg_mult": 100.0,
+     "total": 600.0,
+     "hits": 6,
+     "procs": [],
+     "ips": null
+    },
+    "Slide": {
+     "name": "Parting Knee",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "finalharbinger": {
+   "name": "Final Harbinger",
+   "zh": "最终先驱",
+   "weapon_type": "Sword and Shield",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Systemic Shred",
+     "avg_mult": 200.0,
+     "total": 1000.0,
+     "hits": 5,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Impending Battery",
+     "avg_mult": 150.0,
+     "total": 1500.0,
+     "hits": 10,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Dark Light",
+     "avg_mult": 142.86,
+     "total": 2000.0,
+     "hits": 14,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Null Warning",
+     "avg_mult": 190.91,
+     "total": 2100.0,
+     "hits": 11,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    }
+   }
+  },
+  "fist": {
+   "name": "Fist",
+   "zh": "",
+   "weapon_type": "Fist",
+   "unique_to_weapon": false,
+   "combos": {
+    "Aerial": {
+     "name": "One Point",
+     "avg_mult": 225.0,
+     "total": 900.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Block": {
+     "name": "",
+     "avg_mult": 125.0,
+     "total": 500.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Finisher": {
+     "name": "Roaring Drums",
+     "avg_mult": 225.0,
+     "total": 1350.0,
+     "hits": 6,
+     "procs": [],
+     "ips": {
+      "impact": 1.25
+     }
+    },
+    "Forward": {
+     "name": "",
+     "avg_mult": 125.0,
+     "total": 500.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "",
+     "avg_mult": 125.0,
+     "total": 500.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Heavy": {
+     "name": "Three Lessons",
+     "avg_mult": 500.0,
+     "total": 1000.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "",
+     "avg_mult": 125.0,
+     "total": 500.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Slam": {
+     "name": "Slam Attack",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Slide": {
+     "name": "Launching Spring",
+     "avg_mult": 300.0,
+     "total": 300.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Wall": {
+     "name": "Through Strike",
+     "avg_mult": 300.0,
+     "total": 300.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "flailingbranch": {
+   "name": "Flailing Branch",
+   "zh": "多流抽击",
+   "weapon_type": "Staff",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Rising Falls",
+     "avg_mult": 300.0,
+     "total": 900.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Battered Thread",
+     "avg_mult": 250.0,
+     "total": 1000.0,
+     "hits": 4,
+     "procs": [],
+     "ips": {
+      "impact": 1.1,
+      "slash": 1.1
+     }
+    },
+    "Forward Block": {
+     "name": "Autumn Leaf",
+     "avg_mult": 225.0,
+     "total": 900.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Rising Falls",
+     "avg_mult": 300.0,
+     "total": 900.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "fourriders": {
+   "name": "Four Riders",
+   "zh": "天启异象",
+   "weapon_type": "Claws",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Eternal Fall",
+     "avg_mult": 320.0,
+     "total": 1600.0,
+     "hits": 5,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Hungering Encroachment",
+     "avg_mult": 140.0,
+     "total": 700.0,
+     "hits": 5,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Raging Conflict",
+     "avg_mult": 187.5,
+     "total": 1500.0,
+     "hits": 8,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Aggravated Swarm",
+     "avg_mult": 260.0,
+     "total": 1300.0,
+     "hits": 5,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Slide": {
+     "name": "Feuding Blood",
+     "avg_mult": 200.0,
+     "total": 400.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "fracturingwind": {
+   "name": "Fracturing Wind",
+   "zh": "破碎之风",
+   "weapon_type": "Fist",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Rising Wind",
+     "avg_mult": 250.0,
+     "total": 1000.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Gaining Humility",
+     "avg_mult": 175.0,
+     "total": 700.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Trailing Doom",
+     "avg_mult": 200.0,
+     "total": 1200.0,
+     "hits": 6,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Rolling Gale",
+     "avg_mult": 300.0,
+     "total": 900.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "gaiastragedy": {
+   "name": "Gaia's Tragedy",
+   "zh": "母神悲歌",
+   "weapon_type": "Fist",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Forest's Remorse",
+     "avg_mult": 187.5,
+     "total": 1500.0,
+     "hits": 8,
+     "procs": [],
+     "ips": {
+      "slash": 2.0
+     }
+    },
+    "Forward": {
+     "name": "Ocean's Contempt",
+     "avg_mult": 116.67,
+     "total": 700.0,
+     "hits": 6,
+     "procs": [],
+     "ips": {
+      "slash": 2.0
+     }
+    },
+    "Forward Block": {
+     "name": "Mountain's Rage",
+     "avg_mult": 214.29,
+     "total": 1500.0,
+     "hits": 7,
+     "procs": [],
+     "ips": {
+      "slash": 2.0
+     }
+    },
+    "Neutral": {
+     "name": "River's Grief",
+     "avg_mult": 300.0,
+     "total": 1800.0,
+     "hits": 6,
+     "procs": [],
+     "ips": {
+      "slash": 2.0
+     }
+    }
+   }
+  },
+  "galeforcedawn": {
+   "name": "Galeforce Dawn",
+   "zh": "狂风压境",
+   "weapon_type": "Heavy Scythe",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Stormreaper",
+     "avg_mult": 300.0,
+     "total": 900.0,
+     "hits": 3,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Bleak Winnowing",
+     "avg_mult": 100.0,
+     "total": 600.0,
+     "hits": 6,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Thundering Peaks",
+     "avg_mult": 175.0,
+     "total": 1400.0,
+     "hits": 8,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Stormreaper",
+     "avg_mult": 300.0,
+     "total": 900.0,
+     "hits": 3,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    }
+   }
+  },
+  "geminicross": {
+   "name": "Gemini Cross",
+   "zh": "纵横双子",
+   "weapon_type": "Tonfa",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Blind Tormentor",
+     "avg_mult": 154.55,
+     "total": 1700.0,
+     "hits": 11,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Cold Vendetta",
+     "avg_mult": 133.33,
+     "total": 400.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Baleful Sin",
+     "avg_mult": 185.71,
+     "total": 1300.0,
+     "hits": 7,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Vagrant Blight",
+     "avg_mult": 119.44,
+     "total": 2150.0,
+     "hits": 18,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    }
+   }
+  },
+  "glaive": {
+   "name": "Glaive",
+   "zh": "",
+   "weapon_type": "Glaive",
+   "unique_to_weapon": false,
+   "combos": {
+    "Aerial": {
+     "name": "Auger",
+     "avg_mult": 300.0,
+     "total": 1800.0,
+     "hits": 6,
+     "procs": [],
+     "ips": null
+    },
+    "Block": {
+     "name": "Ruin",
+     "avg_mult": 325.0,
+     "total": 1300.0,
+     "hits": 4,
+     "procs": [],
+     "ips": {
+      "impact": 1.1,
+      "puncture": 1.1,
+      "slash": 1.1
+     }
+    },
+    "Finisher": {
+     "name": "Nemesis",
+     "avg_mult": 1000.0,
+     "total": 1000.0,
+     "hits": 1,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Ruin",
+     "avg_mult": 325.0,
+     "total": 1300.0,
+     "hits": 4,
+     "procs": [],
+     "ips": {
+      "impact": 1.1,
+      "puncture": 1.1,
+      "slash": 1.1
+     }
+    },
+    "Forward Block": {
+     "name": "Ruin",
+     "avg_mult": 325.0,
+     "total": 1300.0,
+     "hits": 4,
+     "procs": [],
+     "ips": {
+      "impact": 1.1,
+      "puncture": 1.1,
+      "slash": 1.1
+     }
+    },
+    "Heavy": {
+     "name": "Falling Star",
+     "avg_mult": 500.0,
+     "total": 1500.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Ruin",
+     "avg_mult": 325.0,
+     "total": 1300.0,
+     "hits": 4,
+     "procs": [],
+     "ips": {
+      "impact": 1.1,
+      "puncture": 1.1,
+      "slash": 1.1
+     }
+    },
+    "Slam": {
+     "name": "Slam Attack",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Slide": {
+     "name": "Pirouette",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Wall": {
+     "name": "Through Strike",
+     "avg_mult": 300.0,
+     "total": 300.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "gleamingtalon": {
+   "name": "Gleaming Talon",
+   "zh": "微光利爪",
+   "weapon_type": "Glaive",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Ruin",
+     "avg_mult": 325.0,
+     "total": 1300.0,
+     "hits": 4,
+     "procs": [],
+     "ips": {
+      "impact": 1.1,
+      "puncture": 1.1,
+      "slash": 1.1
+     }
+    },
+    "Forward": {
+     "name": "Ruin",
+     "avg_mult": 120.0,
+     "total": 600.0,
+     "hits": 5,
+     "procs": [],
+     "ips": {
+      "impact": 1.25,
+      "puncture": 1.25,
+      "slash": 1.25
+     }
+    },
+    "Forward Block": {
+     "name": "Silver Reach",
+     "avg_mult": 185.71,
+     "total": 1300.0,
+     "hits": 7,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Mercury Vortex",
+     "avg_mult": 262.5,
+     "total": 2100.0,
+     "hits": 8,
+     "procs": [],
+     "ips": {
+      "impact": 1.1,
+      "puncture": 1.1,
+      "slash": 1.1
+     }
+    }
+   }
+  },
+  "gnashingpayara": {
+   "name": "Gnashing Payara",
+   "zh": "狼鱼咬咬",
+   "weapon_type": "Dual Daggers",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Pincer Strike",
+     "avg_mult": 280.0,
+     "total": 1400.0,
+     "hits": 5,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Cheetah's Guile",
+     "avg_mult": 125.0,
+     "total": 500.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Flash Flurry",
+     "avg_mult": 275.0,
+     "total": 1100.0,
+     "hits": 4,
+     "procs": [],
+     "ips": {
+      "slash": 2.0
+     }
+    },
+    "Neutral": {
+     "name": "Pincer Strike",
+     "avg_mult": 280.0,
+     "total": 1400.0,
+     "hits": 5,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "grimfury": {
+   "name": "Grim Fury",
+   "zh": "冷面狂怒",
+   "weapon_type": "Sparring",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Fanning Flame",
+     "avg_mult": 260.0,
+     "total": 1300.0,
+     "hits": 5,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Bright Blaze",
+     "avg_mult": 166.67,
+     "total": 1000.0,
+     "hits": 6,
+     "procs": [],
+     "ips": {
+      "impact": 1.25
+     }
+    },
+    "Forward Block": {
+     "name": "Burning Desire",
+     "avg_mult": 300.0,
+     "total": 600.0,
+     "hits": 2,
+     "procs": [],
+     "ips": {
+      "impact": 3.0
+     }
+    },
+    "Neutral": {
+     "name": "Fanning Flame",
+     "avg_mult": 260.0,
+     "total": 1300.0,
+     "hits": 5,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "gunblade": {
+   "name": "Gunblade",
+   "zh": "",
+   "weapon_type": "Gunblade",
+   "unique_to_weapon": false,
+   "combos": {
+    "Aerial": {
+     "name": "Outlaw Rush",
+     "avg_mult": 200.0,
+     "total": 600.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Block": {
+     "name": "Vagabond Blitz",
+     "avg_mult": 140.0,
+     "total": 700.0,
+     "hits": 5,
+     "procs": [],
+     "ips": null
+    },
+    "Finisher": {
+     "name": "Last Words",
+     "avg_mult": 1000.0,
+     "total": 1000.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Vagabond Blitz",
+     "avg_mult": 140.0,
+     "total": 700.0,
+     "hits": 5,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Vagabond Blitz",
+     "avg_mult": 140.0,
+     "total": 700.0,
+     "hits": 5,
+     "procs": [],
+     "ips": null
+    },
+    "Heavy": {
+     "name": "Full Bore",
+     "avg_mult": 250.0,
+     "total": 1000.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Vagabond Blitz",
+     "avg_mult": 140.0,
+     "total": 700.0,
+     "hits": 5,
+     "procs": [],
+     "ips": null
+    },
+    "Slam": {
+     "name": "Slam Attack",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Slide": {
+     "name": "Fast Draw",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Wall": {
+     "name": "Vendetta",
+     "avg_mult": 300.0,
+     "total": 300.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "hammer": {
+   "name": "Hammer",
+   "zh": "",
+   "weapon_type": "Hammer",
+   "unique_to_weapon": false,
+   "combos": {
+    "Aerial": {
+     "name": "Mountain's Chisel",
+     "avg_mult": 200.0,
+     "total": 600.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Block": {
+     "name": "",
+     "avg_mult": 350.0,
+     "total": 1400.0,
+     "hits": 4,
+     "procs": [],
+     "ips": {
+      "impact": 1.5
+     }
+    },
+    "Finisher": {
+     "name": "Tunneling Spike",
+     "avg_mult": 1200.0,
+     "total": 1200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "",
+     "avg_mult": 350.0,
+     "total": 1400.0,
+     "hits": 4,
+     "procs": [],
+     "ips": {
+      "impact": 1.5
+     }
+    },
+    "Forward Block": {
+     "name": "",
+     "avg_mult": 350.0,
+     "total": 1400.0,
+     "hits": 4,
+     "procs": [],
+     "ips": {
+      "impact": 1.5
+     }
+    },
+    "Heavy": {
+     "name": "Crowd Fall",
+     "avg_mult": 600.0,
+     "total": 1200.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "",
+     "avg_mult": 350.0,
+     "total": 1400.0,
+     "hits": 4,
+     "procs": [],
+     "ips": {
+      "impact": 1.5
+     }
+    },
+    "Slam": {
+     "name": "Slam Attack",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Slide": {
+     "name": "Hell's Wave",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Wall": {
+     "name": "Cyclical Dwelling",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "heavyblade": {
+   "name": "Heavy Blade",
+   "zh": "",
+   "weapon_type": "Heavy Blade",
+   "unique_to_weapon": false,
+   "combos": {
+    "Aerial": {
+     "name": "Mountain's Chisel",
+     "avg_mult": 200.0,
+     "total": 600.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Block": {
+     "name": "Crowd Fall",
+     "avg_mult": 400.0,
+     "total": 1200.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Finisher": {
+     "name": "Tunneling Spike",
+     "avg_mult": 1200.0,
+     "total": 1200.0,
+     "hits": 1,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Crowd Fall",
+     "avg_mult": 400.0,
+     "total": 1200.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Crowd Fall",
+     "avg_mult": 400.0,
+     "total": 1200.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Heavy": {
+     "name": "Crowd Fall",
+     "avg_mult": 600.0,
+     "total": 1200.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Crowd Fall",
+     "avg_mult": 400.0,
+     "total": 1200.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Slam": {
+     "name": "Slam Attack",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Slide": {
+     "name": "Hell's Wave",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Wall": {
+     "name": "Flaying Home",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "heavyscythe": {
+   "name": "Heavy Scythe",
+   "zh": "",
+   "weapon_type": "Heavy Scythe",
+   "unique_to_weapon": false,
+   "combos": {
+    "Aerial": {
+     "name": "Wind's Teeth",
+     "avg_mult": 200.0,
+     "total": 400.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    },
+    "Block": {
+     "name": "Combo 1 (unofficial)",
+     "avg_mult": 350.0,
+     "total": 700.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    },
+    "Finisher": {
+     "name": "Tunneling Spike",
+     "avg_mult": 1200.0,
+     "total": 1200.0,
+     "hits": 1,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Combo 2 (unofficial)",
+     "avg_mult": 100.0,
+     "total": 300.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Combo 1 (unofficial)",
+     "avg_mult": 350.0,
+     "total": 700.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    },
+    "Heavy": {
+     "name": "Titan Cull",
+     "avg_mult": 360.0,
+     "total": 1800.0,
+     "hits": 5,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Combo 1 (unofficial)",
+     "avg_mult": 350.0,
+     "total": 700.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    },
+    "Slam": {
+     "name": "Slam Attack",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Slide": {
+     "name": "Hell's Wave",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Wall": {
+     "name": "Flaying Home",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "highnoon": {
+   "name": "High Noon",
+   "zh": "正午",
+   "weapon_type": "Gunblade",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Tomahawk Double-Tap",
+     "avg_mult": 320.0,
+     "total": 1600.0,
+     "hits": 5,
+     "procs": [],
+     "ips": {
+      "impact": 1.25,
+      "puncture": 1.25,
+      "slash": 1.25
+     }
+    },
+    "Forward": {
+     "name": "Vagabond Blitz",
+     "avg_mult": 125.0,
+     "total": 1000.0,
+     "hits": 8,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Desperado Zeal",
+     "avg_mult": 100.0,
+     "total": 700.0,
+     "hits": 7,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Final Showdown",
+     "avg_mult": 162.5,
+     "total": 1300.0,
+     "hits": 8,
+     "procs": [],
+     "ips": {
+      "impact": 1.25,
+      "puncture": 1.25,
+      "slash": 1.25
+     }
+    }
+   }
+  },
+  "homingfang": {
+   "name": "Homing Fang",
+   "zh": "连牙追袭",
+   "weapon_type": "Dagger",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Cutting Arches",
+     "avg_mult": 242.86,
+     "total": 1700.0,
+     "hits": 7,
+     "procs": [],
+     "ips": {
+      "slash": 2.0
+     }
+    },
+    "Forward": {
+     "name": "Life Eater",
+     "avg_mult": 100.0,
+     "total": 400.0,
+     "hits": 4,
+     "procs": [],
+     "ips": {
+      "puncture": 2.0
+     }
+    },
+    "Forward Block": {
+     "name": "Lashing Forward",
+     "avg_mult": 160.0,
+     "total": 800.0,
+     "hits": 5,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Cutting Arches",
+     "avg_mult": 242.86,
+     "total": 1700.0,
+     "hits": 7,
+     "procs": [],
+     "ips": {
+      "slash": 2.0
+     }
+    }
+   }
+  },
+  "hysteria": {
+   "name": "Hysteria",
+   "zh": "",
+   "weapon_type": "Valkyr Talons",
+   "unique_to_weapon": false,
+   "combos": {
+    "Aerial": {
+     "name": "One Point",
+     "avg_mult": 225.0,
+     "total": 900.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Block": {
+     "name": "Delirium",
+     "avg_mult": 111.11,
+     "total": 1000.0,
+     "hits": 9,
+     "procs": [],
+     "ips": null
+    },
+    "Finisher": {
+     "name": "Roaring Drums",
+     "avg_mult": 900.0,
+     "total": 5400.0,
+     "hits": 6,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Rage",
+     "avg_mult": 100.0,
+     "total": 400.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Madness",
+     "avg_mult": 107.14,
+     "total": 1500.0,
+     "hits": 14,
+     "procs": [],
+     "ips": null
+    },
+    "Heavy": {
+     "name": "Rise From Ashes",
+     "avg_mult": 200.0,
+     "total": 1400.0,
+     "hits": 7,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Fervor",
+     "avg_mult": 100.0,
+     "total": 900.0,
+     "hits": 9,
+     "procs": [],
+     "ips": null
+    },
+    "Slam": {
+     "name": "Slam Attack",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Slide": {
+     "name": "Launching Spring",
+     "avg_mult": 300.0,
+     "total": 1800.0,
+     "hits": 6,
+     "procs": [],
+     "ips": null
+    },
+    "Wall": {
+     "name": "Through Strike",
+     "avg_mult": 300.0,
+     "total": 300.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "ironphoenix": {
+   "name": "Iron Phoenix",
+   "zh": "钢铁凤凰",
+   "weapon_type": "Sword",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Wings and Beak",
+     "avg_mult": 233.33,
+     "total": 700.0,
+     "hits": 3,
+     "procs": [],
+     "ips": {
+      "impact": 0.1,
+      "slash": 0.1
+     }
+    },
+    "Forward": {
+     "name": "Double Slash",
+     "avg_mult": 150.0,
+     "total": 300.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Taking Flight",
+     "avg_mult": 225.0,
+     "total": 900.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Wings and Beak",
+     "avg_mult": 233.33,
+     "total": 700.0,
+     "hits": 3,
+     "procs": [],
+     "ips": {
+      "impact": 0.1,
+      "slash": 0.1
+     }
+    }
+   }
+  },
+  "jatkusar": {
+   "name": "Jat Kusar",
+   "zh": "",
+   "weapon_type": "Blade and Whip",
+   "unique_to_weapon": true,
+   "combos": {
+    "Heavy": {
+     "name": "Jat Kusar Heavy (unofficial)",
+     "avg_mult": 400.0,
+     "total": 2400.0,
+     "hits": 6,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "keratinos": {
+   "name": "Keratinos",
+   "zh": "",
+   "weapon_type": "Claws",
+   "unique_to_weapon": true,
+   "combos": {
+    "Heavy": {
+     "name": "Keratinos Heavy (unofficial)",
+     "avg_mult": 175.0,
+     "total": 1400.0,
+     "hits": 8,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    }
+   }
+  },
+  "korumm": {
+   "name": "Korumm",
+   "zh": "",
+   "weapon_type": "Polearm",
+   "unique_to_weapon": true,
+   "combos": {
+    "Block": {
+     "name": "Korumm Block (unofficial)",
+     "avg_mult": 300.0,
+     "total": 900.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "lashingcoil": {
+   "name": "Lashing Coil",
+   "zh": "盘旋鞭笞",
+   "weapon_type": "Whip",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Whispering Bite",
+     "avg_mult": 100.0,
+     "total": 200.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Screaming Gust",
+     "avg_mult": 100.0,
+     "total": 300.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Burning Hum",
+     "avg_mult": 100.0,
+     "total": 200.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Whispering Bite",
+     "avg_mult": 100.0,
+     "total": 200.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "lastherald": {
+   "name": "Last Herald",
+   "zh": "终末使者",
+   "weapon_type": "Sword and Shield",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Driving Steel",
+     "avg_mult": 100.0,
+     "total": 400.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Bulwark",
+     "avg_mult": 100.0,
+     "total": 300.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Spiral Ward",
+     "avg_mult": 100.0,
+     "total": 400.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Driving Steel",
+     "avg_mult": 100.0,
+     "total": 400.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "machete": {
+   "name": "Machete",
+   "zh": "",
+   "weapon_type": "Machete",
+   "unique_to_weapon": false,
+   "combos": {
+    "Aerial": {
+     "name": "Weightless Steel",
+     "avg_mult": 233.33,
+     "total": 700.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Block": {
+     "name": "",
+     "avg_mult": 166.67,
+     "total": 500.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Finisher": {
+     "name": "Crashing Wave",
+     "avg_mult": 1000.0,
+     "total": 1000.0,
+     "hits": 1,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Forward": {
+     "name": "",
+     "avg_mult": 166.67,
+     "total": 500.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "",
+     "avg_mult": 166.67,
+     "total": 500.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Heavy": {
+     "name": "Rolling Wave",
+     "avg_mult": 208.33,
+     "total": 1250.0,
+     "hits": 6,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "",
+     "avg_mult": 166.67,
+     "total": 500.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Slam": {
+     "name": "Slam Attack",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Slide": {
+     "name": "Flowing River",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Wall": {
+     "name": "Weightless Steel",
+     "avg_mult": 300.0,
+     "total": 300.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "maficrain": {
+   "name": "Mafic Rain",
+   "zh": "重铁雨落",
+   "weapon_type": "Nunchaku",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Searing Sleet",
+     "avg_mult": 100.0,
+     "total": 1500.0,
+     "hits": 15,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Blazing Deluge",
+     "avg_mult": 100.0,
+     "total": 300.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Torrid Torrent",
+     "avg_mult": 100.0,
+     "total": 800.0,
+     "hits": 8,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Searing Sleet",
+     "avg_mult": 100.0,
+     "total": 1500.0,
+     "hits": 15,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "maliciousraptor": {
+   "name": "Malicious Raptor",
+   "zh": "恶毒猛禽",
+   "weapon_type": "Claws",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Venging Thrash",
+     "avg_mult": 240.0,
+     "total": 1200.0,
+     "hits": 5,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Wicked Slash",
+     "avg_mult": 150.0,
+     "total": 900.0,
+     "hits": 6,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Lethal Clash",
+     "avg_mult": 162.5,
+     "total": 1300.0,
+     "hits": 8,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Jagged Gash",
+     "avg_mult": 172.73,
+     "total": 1900.0,
+     "hits": 11,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "mountainsedge": {
+   "name": "Mountain's Edge",
+   "zh": "山之锋芒",
+   "weapon_type": "Dual Nikanas",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Rise and Fall",
+     "avg_mult": 300.0,
+     "total": 2100.0,
+     "hits": 7,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Loyal Blades",
+     "avg_mult": 111.11,
+     "total": 1000.0,
+     "hits": 9,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Steel Eclipse",
+     "avg_mult": 220.0,
+     "total": 2200.0,
+     "hits": 10,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Rise and Fall",
+     "avg_mult": 300.0,
+     "total": 2100.0,
+     "hits": 7,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "nepheri": {
+   "name": "Nepheri",
+   "zh": "",
+   "weapon_type": "Dual Daggers",
+   "unique_to_weapon": true,
+   "combos": {
+    "Neutral": {
+     "name": "Nepheri Neutral (unofficial)",
+     "avg_mult": 125.0,
+     "total": 1000.0,
+     "hits": 8,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "nikana": {
+   "name": "Nikana",
+   "zh": "",
+   "weapon_type": "Nikana",
+   "unique_to_weapon": false,
+   "combos": {
+    "Aerial": {
+     "name": "Setting Sun",
+     "avg_mult": 200.0,
+     "total": 600.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Block": {
+     "name": "",
+     "avg_mult": 150.0,
+     "total": 300.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    },
+    "Finisher": {
+     "name": "Resting Place",
+     "avg_mult": 1000.0,
+     "total": 1000.0,
+     "hits": 1,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Forward": {
+     "name": "",
+     "avg_mult": 150.0,
+     "total": 300.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "",
+     "avg_mult": 150.0,
+     "total": 300.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    },
+    "Heavy": {
+     "name": "Windless Cuts",
+     "avg_mult": 500.0,
+     "total": 1000.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "",
+     "avg_mult": 150.0,
+     "total": 300.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    },
+    "Slam": {
+     "name": "Slam Attack",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Slide": {
+     "name": "Parting Knee",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Wall": {
+     "name": "Guiding Wire",
+     "avg_mult": 215.0,
+     "total": 215.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "noblecadence": {
+   "name": "Noble Cadence",
+   "zh": "高贵踏频",
+   "weapon_type": "Heavy Blade",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Rushing Bull",
+     "avg_mult": 100.0,
+     "total": 400.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Skull Smasher",
+     "avg_mult": 100.0,
+     "total": 300.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Plunging Edge",
+     "avg_mult": 100.0,
+     "total": 200.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Rushing Bull",
+     "avg_mult": 100.0,
+     "total": 400.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "nunchaku": {
+   "name": "Nunchaku",
+   "zh": "",
+   "weapon_type": "Nunchaku",
+   "unique_to_weapon": false,
+   "combos": {
+    "Aerial": {
+     "name": "Fire Storm",
+     "avg_mult": 200.0,
+     "total": 400.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    },
+    "Block": {
+     "name": "Searing Undertow",
+     "avg_mult": 75.0,
+     "total": 750.0,
+     "hits": 10,
+     "procs": [],
+     "ips": null
+    },
+    "Finisher": {
+     "name": "Burning Tsunami",
+     "avg_mult": 1000.0,
+     "total": 1000.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Searing Undertow",
+     "avg_mult": 75.0,
+     "total": 750.0,
+     "hits": 10,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Searing Undertow",
+     "avg_mult": 75.0,
+     "total": 750.0,
+     "hits": 10,
+     "procs": [],
+     "ips": null
+    },
+    "Heavy": {
+     "name": "Tidal Flames",
+     "avg_mult": 500.0,
+     "total": 1000.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Searing Undertow",
+     "avg_mult": 75.0,
+     "total": 750.0,
+     "hits": 10,
+     "procs": [],
+     "ips": null
+    },
+    "Slam": {
+     "name": "Slam Attack",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Slide": {
+     "name": "Tidal Conflagration",
+     "avg_mult": 200.0,
+     "total": 600.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Wall": {
+     "name": "Creating Fire",
+     "avg_mult": 300.0,
+     "total": 300.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "piercingfury": {
+   "name": "Piercing Fury",
+   "zh": "狂怒穿刺",
+   "weapon_type": "Dagger",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Arcing Slice",
+     "avg_mult": 133.33,
+     "total": 400.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Swift Incision",
+     "avg_mult": 100.0,
+     "total": 300.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Leading Point",
+     "avg_mult": 100.0,
+     "total": 400.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Arcing Slice",
+     "avg_mult": 133.33,
+     "total": 400.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "pointedwind": {
+   "name": "Pointed Wind",
+   "zh": "尖锐之风",
+   "weapon_type": "Dagger",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Parting Edge",
+     "avg_mult": 240.0,
+     "total": 1200.0,
+     "hits": 5,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Viper's Bite",
+     "avg_mult": 175.0,
+     "total": 700.0,
+     "hits": 4,
+     "procs": [],
+     "ips": {
+      "puncture": 2.0,
+      "slash": 2.0
+     }
+    },
+    "Forward Block": {
+     "name": "Viper's Bite",
+     "avg_mult": 175.0,
+     "total": 700.0,
+     "hits": 4,
+     "procs": [],
+     "ips": {
+      "puncture": 2.0,
+      "slash": 2.0
+     }
+    },
+    "Neutral": {
+     "name": "Parting Edge",
+     "avg_mult": 240.0,
+     "total": 1200.0,
+     "hits": 5,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    }
+   }
+  },
+  "polearm": {
+   "name": "Polearm",
+   "zh": "",
+   "weapon_type": "Polearm",
+   "unique_to_weapon": false,
+   "combos": {
+    "Aerial": {
+     "name": "Planting Widow",
+     "avg_mult": 300.0,
+     "total": 900.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Block": {
+     "name": "",
+     "avg_mult": 100.0,
+     "total": 400.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Finisher": {
+     "name": "Tunneling Spike",
+     "avg_mult": 1200.0,
+     "total": 1200.0,
+     "hits": 1,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Forward": {
+     "name": "",
+     "avg_mult": 100.0,
+     "total": 400.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "",
+     "avg_mult": 100.0,
+     "total": 400.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Heavy": {
+     "name": "The Way",
+     "avg_mult": 600.0,
+     "total": 1200.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "",
+     "avg_mult": 100.0,
+     "total": 400.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Slam": {
+     "name": "Slam Attack",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Slide": {
+     "name": "Cyclone Strike",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Wall": {
+     "name": "Guiding Plank",
+     "avg_mult": 166.0,
+     "total": 166.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "primalfury": {
+   "name": "Primal Fury",
+   "zh": "",
+   "weapon_type": "Iron Staff",
+   "unique_to_weapon": false,
+   "combos": {
+    "Aerial": {
+     "name": "Deadly Circle",
+     "avg_mult": 200.0,
+     "total": 400.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    },
+    "Block": {
+     "name": "Rolling Boulder Rush",
+     "avg_mult": 163.64,
+     "total": 1800.0,
+     "hits": 11,
+     "procs": [],
+     "ips": null
+    },
+    "Finisher": {
+     "name": "Wide Dispatch",
+     "avg_mult": 1000.0,
+     "total": 1000.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Spinning Crash Technique",
+     "avg_mult": 142.86,
+     "total": 1000.0,
+     "hits": 7,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Cyclone Lightning Strike",
+     "avg_mult": 250.0,
+     "total": 500.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    },
+    "Heavy": {
+     "name": "The Way",
+     "avg_mult": 500.0,
+     "total": 1000.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Falling Oak Buster",
+     "avg_mult": 145.45,
+     "total": 1600.0,
+     "hits": 11,
+     "procs": [],
+     "ips": null
+    },
+    "Slam": {
+     "name": "Slam Attack",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Slide": {
+     "name": "Crushing Reach",
+     "avg_mult": 100.0,
+     "total": 100.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Wall": {
+     "name": "Guiding Plank",
+     "avg_mult": 166.0,
+     "total": 166.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "quakinghand": {
+   "name": "Quaking Hand",
+   "zh": "震动之拳",
+   "weapon_type": "Fist",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Spinning Palms",
+     "avg_mult": 100.0,
+     "total": 300.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "One Two Three",
+     "avg_mult": 100.0,
+     "total": 300.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Descending Impact",
+     "avg_mult": 150.0,
+     "total": 600.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Spinning Palms",
+     "avg_mult": 100.0,
+     "total": 300.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "quassus": {
+   "name": "Quassus",
+   "zh": "",
+   "weapon_type": "Warfan",
+   "unique_to_weapon": true,
+   "combos": {
+    "Heavy": {
+     "name": "Quassus Heavy (unofficial)",
+     "avg_mult": 333.33,
+     "total": 7000.0,
+     "hits": 21,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    }
+   }
+  },
+  "rapier": {
+   "name": "Rapier",
+   "zh": "",
+   "weapon_type": "Rapier",
+   "unique_to_weapon": false,
+   "combos": {
+    "Aerial": {
+     "name": "Sky Doom",
+     "avg_mult": 200.0,
+     "total": 600.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Block": {
+     "name": "",
+     "avg_mult": 75.0,
+     "total": 300.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Finisher": {
+     "name": "Death's Mark",
+     "avg_mult": 1000.0,
+     "total": 1000.0,
+     "hits": 1,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Forward": {
+     "name": "",
+     "avg_mult": 75.0,
+     "total": 300.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "",
+     "avg_mult": 75.0,
+     "total": 300.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Heavy": {
+     "name": "Veiled Riposte",
+     "avg_mult": 450.0,
+     "total": 900.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "",
+     "avg_mult": 75.0,
+     "total": 300.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Slam": {
+     "name": "Slam Attack",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Slide": {
+     "name": "Spiral Cut",
+     "avg_mult": 100.0,
+     "total": 100.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Wall": {
+     "name": "Weightless Steel",
+     "avg_mult": 300.0,
+     "total": 300.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "ravenouswraith": {
+   "name": "Ravenous Wraith",
+   "zh": "",
+   "weapon_type": "Shadow Claws",
+   "unique_to_weapon": false,
+   "combos": {
+    "Aerial": {
+     "name": "Mortal Squall",
+     "avg_mult": 100.0,
+     "total": 300.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Block": {
+     "name": "Reaping Cyclone",
+     "avg_mult": 154.55,
+     "total": 1700.0,
+     "hits": 11,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Soul Thresher",
+     "avg_mult": 100.0,
+     "total": 600.0,
+     "hits": 6,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Void Torrent",
+     "avg_mult": 140.0,
+     "total": 1400.0,
+     "hits": 10,
+     "procs": [],
+     "ips": null
+    },
+    "Heavy": {
+     "name": "Death Knocking",
+     "avg_mult": 400.0,
+     "total": 1600.0,
+     "hits": 4,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Cleaving Claws",
+     "avg_mult": 214.29,
+     "total": 1500.0,
+     "hits": 7,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Slam": {
+     "name": "Slam Attack",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Slide": {
+     "name": "Nightfall",
+     "avg_mult": 100.0,
+     "total": 100.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "reapingspiral": {
+   "name": "Reaping Spiral",
+   "zh": "收割螺旋",
+   "weapon_type": "Scythe",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Eternal Nocturne",
+     "avg_mult": 320.0,
+     "total": 1600.0,
+     "hits": 5,
+     "procs": [
+      "slash"
+     ],
+     "ips": {
+      "puncture": 1.25
+     }
+    },
+    "Forward": {
+     "name": "Reclamation",
+     "avg_mult": 200.0,
+     "total": 600.0,
+     "hits": 3,
+     "procs": [],
+     "ips": {
+      "slash": 1.25,
+      "impact": 1.1
+     }
+    },
+    "Forward Block": {
+     "name": "Abyssal Automaton",
+     "avg_mult": 225.0,
+     "total": 900.0,
+     "hits": 4,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Eternal Nocturne",
+     "avg_mult": 320.0,
+     "total": 1600.0,
+     "hits": 5,
+     "procs": [
+      "slash"
+     ],
+     "ips": {
+      "puncture": 1.25
+     }
+    }
+   }
+  },
+  "rendingcrane": {
+   "name": "Rending Crane",
+   "zh": "撕裂鹤击",
+   "weapon_type": "Heavy Blade",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Landing Dragon",
+     "avg_mult": 500.0,
+     "total": 500.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Lashing Tempest",
+     "avg_mult": 200.0,
+     "total": 1000.0,
+     "hits": 5,
+     "procs": [],
+     "ips": {
+      "slash": 1.25
+     }
+    },
+    "Forward Block": {
+     "name": "Rampaging Boar",
+     "avg_mult": 200.0,
+     "total": 1200.0,
+     "hits": 6,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Skull Splitter",
+     "avg_mult": 275.0,
+     "total": 1100.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "rendingwind": {
+   "name": "Rending Wind",
+   "zh": "撕裂之风",
+   "weapon_type": "Machete",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Brisk Current",
+     "avg_mult": 100.0,
+     "total": 200.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Ascending Surf",
+     "avg_mult": 100.0,
+     "total": 300.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Impending Tide",
+     "avg_mult": 100.0,
+     "total": 400.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Brisk Current",
+     "avg_mult": 100.0,
+     "total": 200.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "risingsteel": {
+   "name": "Rising Steel",
+   "zh": "崛起之刃",
+   "weapon_type": "Sword",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Forward Edge",
+     "avg_mult": 100.0,
+     "total": 200.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Hack And Slash",
+     "avg_mult": 100.0,
+     "total": 300.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Blade Whip",
+     "avg_mult": 100.0,
+     "total": 300.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Forward Edge",
+     "avg_mult": 100.0,
+     "total": 200.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "sampotes": {
+   "name": "Sampotes",
+   "zh": "",
+   "weapon_type": "Hammer",
+   "unique_to_weapon": true,
+   "combos": {
+    "Heavy": {
+     "name": "Sampotes Heavy (unofficial)",
+     "avg_mult": 600.0,
+     "total": 1200.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    },
+    "Heavy Slam": {
+     "name": "Sampotes Heavy Slam (unofficial)",
+     "avg_mult": 500.0,
+     "total": 6000.0,
+     "hits": 12,
+     "procs": [],
+     "ips": null
+    },
+    "Slam": {
+     "name": "Sampotes Slam (unofficial)",
+     "avg_mult": 200.0,
+     "total": 1600.0,
+     "hits": 8,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "scarlethurricane": {
+   "name": "Scarlet Hurricane",
+   "zh": "深红飓风",
+   "weapon_type": "Claws",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Bloody Fall",
+     "avg_mult": 100.0,
+     "total": 400.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Ruby Current",
+     "avg_mult": 100.0,
+     "total": 300.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Whirling Rush",
+     "avg_mult": 100.0,
+     "total": 400.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Bloody Fall",
+     "avg_mult": 100.0,
+     "total": 400.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Slide": {
+     "name": "Launching Spring",
+     "avg_mult": 300.0,
+     "total": 300.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "scythe": {
+   "name": "Scythe",
+   "zh": "",
+   "weapon_type": "Scythe",
+   "unique_to_weapon": false,
+   "combos": {
+    "Aerial": {
+     "name": "Mountain's Chisel",
+     "avg_mult": 200.0,
+     "total": 400.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    },
+    "Block": {
+     "name": "Reclamation",
+     "avg_mult": 200.0,
+     "total": 600.0,
+     "hits": 3,
+     "procs": [],
+     "ips": {
+      "slash": 1.25,
+      "impact": 1.1
+     }
+    },
+    "Finisher": {
+     "name": "Tunneling Spike",
+     "avg_mult": 1200.0,
+     "total": 1200.0,
+     "hits": 1,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Reclamation",
+     "avg_mult": 200.0,
+     "total": 600.0,
+     "hits": 3,
+     "procs": [],
+     "ips": {
+      "slash": 1.25,
+      "impact": 1.1
+     }
+    },
+    "Forward Block": {
+     "name": "Reclamation",
+     "avg_mult": 200.0,
+     "total": 600.0,
+     "hits": 3,
+     "procs": [],
+     "ips": {
+      "slash": 1.25,
+      "impact": 1.1
+     }
+    },
+    "Heavy": {
+     "name": "Fading Hope",
+     "avg_mult": 600.0,
+     "total": 1200.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Reclamation",
+     "avg_mult": 200.0,
+     "total": 600.0,
+     "hits": 3,
+     "procs": [],
+     "ips": {
+      "slash": 1.25,
+      "impact": 1.1
+     }
+    },
+    "Slam": {
+     "name": "Slam Attack",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Slide": {
+     "name": "Hell's Wave",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Wall": {
+     "name": "Flaying Home",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "seismicpalm": {
+   "name": "Seismic Palm",
+   "zh": "震撼冲拳",
+   "weapon_type": "Fist",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Echoing Hands",
+     "avg_mult": 216.67,
+     "total": 1300.0,
+     "hits": 6,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Erupting Vulcan",
+     "avg_mult": 175.0,
+     "total": 700.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Sudden Rockfall",
+     "avg_mult": 220.0,
+     "total": 1100.0,
+     "hits": 5,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Quaking Touch",
+     "avg_mult": 260.0,
+     "total": 1300.0,
+     "hits": 5,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "serenestorm": {
+   "name": "Serene Storm",
+   "zh": "",
+   "weapon_type": "Desert Wind",
+   "unique_to_weapon": false,
+   "combos": {
+    "Aerial": {
+     "name": "One Point",
+     "avg_mult": 225.0,
+     "total": 900.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Block": {
+     "name": "Patience Shattered",
+     "avg_mult": 100.0,
+     "total": 1300.0,
+     "hits": 13,
+     "procs": [],
+     "ips": null
+    },
+    "Finisher": {
+     "name": "Roaring Drums",
+     "avg_mult": 500.0,
+     "total": 3000.0,
+     "hits": 6,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Father's Lesson",
+     "avg_mult": 100.0,
+     "total": 600.0,
+     "hits": 6,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Final Sunrise",
+     "avg_mult": 100.0,
+     "total": 900.0,
+     "hits": 9,
+     "procs": [],
+     "ips": null
+    },
+    "Heavy": {
+     "name": "Rise From Ashes",
+     "avg_mult": 200.0,
+     "total": 1400.0,
+     "hits": 7,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Trespass Denied",
+     "avg_mult": 100.0,
+     "total": 1000.0,
+     "hits": 10,
+     "procs": [],
+     "ips": null
+    },
+    "Slam": {
+     "name": "Slam Attack",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Slide": {
+     "name": "Rolling Blast",
+     "avg_mult": 300.0,
+     "total": 2100.0,
+     "hits": 7,
+     "procs": [],
+     "ips": null
+    },
+    "Wall": {
+     "name": "Through Strike",
+     "avg_mult": 300.0,
+     "total": 300.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "shadowharvest": {
+   "name": "Shadow Harvest",
+   "zh": "暗影收割",
+   "weapon_type": "Scythe",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Reaping Leap",
+     "avg_mult": 100.0,
+     "total": 200.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Reclaimation",
+     "avg_mult": 100.0,
+     "total": 300.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Soul Dance",
+     "avg_mult": 100.0,
+     "total": 500.0,
+     "hits": 5,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Reaping Leap",
+     "avg_mult": 100.0,
+     "total": 200.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "shatteringstorm": {
+   "name": "Shattering Storm",
+   "zh": "云暴山碎",
+   "weapon_type": "Hammer",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Rising Thunder",
+     "avg_mult": 300.0,
+     "total": 1200.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Pounding Smite",
+     "avg_mult": 225.0,
+     "total": 900.0,
+     "hits": 4,
+     "procs": [],
+     "ips": {
+      "impact": 1.5
+     }
+    },
+    "Forward Block": {
+     "name": "Smashing Fury",
+     "avg_mult": 271.43,
+     "total": 1900.0,
+     "hits": 7,
+     "procs": [],
+     "ips": {
+      "impact": 1.5
+     }
+    },
+    "Neutral": {
+     "name": "Falling Rock",
+     "avg_mult": 250.0,
+     "total": 2500.0,
+     "hits": 10,
+     "procs": [],
+     "ips": {
+      "impact": 1.5
+     }
+    }
+   }
+  },
+  "shimmeringblight": {
+   "name": "Shimmering Blight",
+   "zh": "飞光荒疫",
+   "weapon_type": "Polearm",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Slashing Wind",
+     "avg_mult": 125.0,
+     "total": 500.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Slashing Wind",
+     "avg_mult": 125.0,
+     "total": 500.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Howling Gale",
+     "avg_mult": 144.44,
+     "total": 1300.0,
+     "hits": 9,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Slashing Wind",
+     "avg_mult": 125.0,
+     "total": 500.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "sigmaoctantis": {
+   "name": "Sigma & Octantis",
+   "zh": "",
+   "weapon_type": "Sword and Shield",
+   "unique_to_weapon": true,
+   "combos": {
+    "Aerial": {
+     "name": "Sigma & Octantis Air (unofficial)",
+     "avg_mult": 100.0,
+     "total": 100.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "sinkingtalon": {
+   "name": "Sinking Talon",
+   "zh": "沉没之爪",
+   "weapon_type": "Dual Daggers",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Lashing Panther",
+     "avg_mult": 100.0,
+     "total": 400.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Lashing Panther",
+     "avg_mult": 100.0,
+     "total": 400.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Rising Lion",
+     "avg_mult": 160.0,
+     "total": 1600.0,
+     "hits": 10,
+     "procs": [],
+     "ips": {
+      "slash": 1.25
+     }
+    },
+    "Neutral": {
+     "name": "Lashing Panther",
+     "avg_mult": 100.0,
+     "total": 400.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "slicingfeathers": {
+   "name": "Slicing Feathers",
+   "zh": "割裂羽翼",
+   "weapon_type": "Warfan",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Cutting Fringe",
+     "avg_mult": 266.67,
+     "total": 800.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Razor Fin",
+     "avg_mult": 142.86,
+     "total": 1000.0,
+     "hits": 7,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Serrated Crest",
+     "avg_mult": 138.46,
+     "total": 1800.0,
+     "hits": 13,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Scathing Plume",
+     "avg_mult": 237.5,
+     "total": 1900.0,
+     "hits": 8,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    }
+   }
+  },
+  "sovereignoutcast": {
+   "name": "Sovereign Outcast",
+   "zh": "至尊浪人",
+   "weapon_type": "Tonfa",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Scout Command",
+     "avg_mult": 300.0,
+     "total": 900.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Vagrant Behest",
+     "avg_mult": 100.0,
+     "total": 900.0,
+     "hits": 9,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Villain Rule",
+     "avg_mult": 125.0,
+     "total": 1500.0,
+     "hits": 12,
+     "procs": [],
+     "ips": {
+      "slash": 1.25
+     }
+    },
+    "Neutral": {
+     "name": "Rogue Edict",
+     "avg_mult": 146.67,
+     "total": 2200.0,
+     "hits": 15,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    }
+   }
+  },
+  "sparring": {
+   "name": "Sparring",
+   "zh": "",
+   "weapon_type": "Sparring",
+   "unique_to_weapon": false,
+   "combos": {
+    "Aerial": {
+     "name": "One Point",
+     "avg_mult": 225.0,
+     "total": 900.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Block": {
+     "name": "",
+     "avg_mult": 166.67,
+     "total": 1000.0,
+     "hits": 6,
+     "procs": [],
+     "ips": {
+      "impact": 1.25
+     }
+    },
+    "Finisher": {
+     "name": "Roaring Drums",
+     "avg_mult": 225.0,
+     "total": 1350.0,
+     "hits": 6,
+     "procs": [],
+     "ips": {
+      "impact": 1.25
+     }
+    },
+    "Forward": {
+     "name": "",
+     "avg_mult": 166.67,
+     "total": 1000.0,
+     "hits": 6,
+     "procs": [],
+     "ips": {
+      "impact": 1.25
+     }
+    },
+    "Forward Block": {
+     "name": "",
+     "avg_mult": 166.67,
+     "total": 1000.0,
+     "hits": 6,
+     "procs": [],
+     "ips": {
+      "impact": 1.25
+     }
+    },
+    "Heavy": {
+     "name": "Rising from Ashes",
+     "avg_mult": 216.67,
+     "total": 1300.0,
+     "hits": 6,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "",
+     "avg_mult": 166.67,
+     "total": 1000.0,
+     "hits": 6,
+     "procs": [],
+     "ips": {
+      "impact": 1.25
+     }
+    },
+    "Slam": {
+     "name": "Slam Attack",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Slide": {
+     "name": "Rolling Blast",
+     "avg_mult": 200.0,
+     "total": 400.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    },
+    "Wall": {
+     "name": "Through Strike",
+     "avg_mult": 300.0,
+     "total": 300.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "spinningneedle": {
+   "name": "Spinning Needle",
+   "zh": "旋压刺针",
+   "weapon_type": "Dual Daggers",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Fey Intervention",
+     "avg_mult": 233.33,
+     "total": 700.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Accursed Whispers",
+     "avg_mult": 130.0,
+     "total": 1300.0,
+     "hits": 10,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Fey Intervention",
+     "avg_mult": 175.0,
+     "total": 1400.0,
+     "hits": 8,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "True Kiss",
+     "avg_mult": 275.0,
+     "total": 1100.0,
+     "hits": 4,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    }
+   }
+  },
+  "staff": {
+   "name": "Staff",
+   "zh": "",
+   "weapon_type": "Staff",
+   "unique_to_weapon": false,
+   "combos": {
+    "Aerial": {
+     "name": "Planting Widow",
+     "avg_mult": 300.0,
+     "total": 900.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Block": {
+     "name": "",
+     "avg_mult": 100.0,
+     "total": 400.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Finisher": {
+     "name": "Wide Dispatch",
+     "avg_mult": 1000.0,
+     "total": 1000.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "",
+     "avg_mult": 100.0,
+     "total": 400.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "",
+     "avg_mult": 100.0,
+     "total": 400.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Heavy": {
+     "name": "The Way",
+     "avg_mult": 500.0,
+     "total": 1000.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "",
+     "avg_mult": 100.0,
+     "total": 400.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Slam": {
+     "name": "Slam Attack",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Slide": {
+     "name": "Crushing Reach",
+     "avg_mult": 100.0,
+     "total": 100.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Wall": {
+     "name": "Guiding Plank",
+     "avg_mult": 166.0,
+     "total": 166.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "stalkingfan": {
+   "name": "Stalking Fan",
+   "zh": "缠旋风切",
+   "weapon_type": "Scythe",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Shadow Wing",
+     "avg_mult": 300.0,
+     "total": 1500.0,
+     "hits": 5,
+     "procs": [],
+     "ips": {
+      "impact": 1.25,
+      "puncture": 1.25,
+      "slash": 1.25
+     }
+    },
+    "Forward": {
+     "name": "Many Tears",
+     "avg_mult": 200.0,
+     "total": 400.0,
+     "hits": 2,
+     "procs": [],
+     "ips": {
+      "impact": 1.1,
+      "slash": 1.1
+     }
+    },
+    "Forward Block": {
+     "name": "Dying Light",
+     "avg_mult": 200.0,
+     "total": 1000.0,
+     "hits": 5,
+     "procs": [],
+     "ips": {
+      "slash": 1.1
+     }
+    },
+    "Neutral": {
+     "name": "Shadow Wing",
+     "avg_mult": 300.0,
+     "total": 1500.0,
+     "hits": 5,
+     "procs": [],
+     "ips": {
+      "impact": 1.25,
+      "puncture": 1.25,
+      "slash": 1.25
+     }
+    }
+   }
+  },
+  "stardivide": {
+   "name": "Star Divide",
+   "zh": "星辰分裂",
+   "weapon_type": "Tonfa",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Wandering Scourge",
+     "avg_mult": 100.0,
+     "total": 1000.0,
+     "hits": 10,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Bitter Grudge",
+     "avg_mult": 100.0,
+     "total": 300.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Dire Fall",
+     "avg_mult": 142.86,
+     "total": 1000.0,
+     "hits": 7,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Wandering Scourge",
+     "avg_mult": 100.0,
+     "total": 1000.0,
+     "hits": 10,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "stingingthorn": {
+   "name": "Stinging Thorn",
+   "zh": "螫刺狂棘",
+   "weapon_type": "Dagger",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Impaling Quill",
+     "avg_mult": 240.0,
+     "total": 1200.0,
+     "hits": 5,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Piercing Horn",
+     "avg_mult": 160.0,
+     "total": 800.0,
+     "hits": 5,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Lacerating Spine",
+     "avg_mult": 200.0,
+     "total": 1200.0,
+     "hits": 6,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Carving Spike",
+     "avg_mult": 220.0,
+     "total": 2200.0,
+     "hits": 10,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    }
+   }
+  },
+  "sunderingweave": {
+   "name": "Sundering Weave",
+   "zh": "分裂编织",
+   "weapon_type": "Machete",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Coming Tide",
+     "avg_mult": 500.0,
+     "total": 500.0,
+     "hits": 1,
+     "procs": [],
+     "ips": {
+      "impact": 1.5,
+      "puncture": 1.5,
+      "slash": 1.5
+     }
+    },
+    "Forward": {
+     "name": "Cresting Surf",
+     "avg_mult": 166.67,
+     "total": 500.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Flash Flood",
+     "avg_mult": 180.0,
+     "total": 900.0,
+     "hits": 5,
+     "procs": [
+      "slash"
+     ],
+     "ips": {
+      "impact": 1.5,
+      "puncture": 1.5,
+      "slash": 1.5
+     }
+    },
+    "Neutral": {
+     "name": "Rapid Current",
+     "avg_mult": 300.0,
+     "total": 900.0,
+     "hits": 3,
+     "procs": [],
+     "ips": {
+      "impact": 1.5,
+      "puncture": 1.5,
+      "slash": 1.5
+     }
+    }
+   }
+  },
+  "swirlingtiger": {
+   "name": "Swirling Tiger",
+   "zh": "旋风虎击",
+   "weapon_type": "Dual Swords",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Winding Claws",
+     "avg_mult": 144.44,
+     "total": 1300.0,
+     "hits": 9,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Raking Flesh",
+     "avg_mult": 112.5,
+     "total": 900.0,
+     "hits": 8,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Dancing Hunter",
+     "avg_mult": 140.0,
+     "total": 1400.0,
+     "hits": 10,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Winding Claws",
+     "avg_mult": 122.22,
+     "total": 1100.0,
+     "hits": 9,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    }
+   }
+  },
+  "swoopingfalcon": {
+   "name": "Swooping Falcon",
+   "zh": "猎鹰俯击",
+   "weapon_type": "Sword",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Keen Broadwing",
+     "avg_mult": 300.0,
+     "total": 1200.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Swift Pursuit",
+     "avg_mult": 150.0,
+     "total": 600.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Slicing Talon",
+     "avg_mult": 250.0,
+     "total": 1000.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Diving Kestrel",
+     "avg_mult": 240.0,
+     "total": 1200.0,
+     "hits": 5,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    }
+   }
+  },
+  "sword": {
+   "name": "Sword",
+   "zh": "",
+   "weapon_type": "Sword",
+   "unique_to_weapon": false,
+   "combos": {
+    "Aerial": {
+     "name": "Weightless Steel",
+     "avg_mult": 233.33,
+     "total": 700.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Block": {
+     "name": "",
+     "avg_mult": 100.0,
+     "total": 400.0,
+     "hits": 4,
+     "procs": [],
+     "ips": {
+      "slash": 1.1
+     }
+    },
+    "Finisher": {
+     "name": "Death's Mark",
+     "avg_mult": 1000.0,
+     "total": 1000.0,
+     "hits": 1,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Forward": {
+     "name": "",
+     "avg_mult": 100.0,
+     "total": 400.0,
+     "hits": 4,
+     "procs": [],
+     "ips": {
+      "slash": 1.1
+     }
+    },
+    "Forward Block": {
+     "name": "",
+     "avg_mult": 100.0,
+     "total": 400.0,
+     "hits": 4,
+     "procs": [],
+     "ips": {
+      "slash": 1.1
+     }
+    },
+    "Heavy": {
+     "name": "Perfect Cut",
+     "avg_mult": 500.0,
+     "total": 1000.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "",
+     "avg_mult": 100.0,
+     "total": 400.0,
+     "hits": 4,
+     "procs": [],
+     "ips": {
+      "slash": 1.1
+     }
+    },
+    "Slam": {
+     "name": "Slam Attack",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Slide": {
+     "name": "Spiral Cut",
+     "avg_mult": 100.0,
+     "total": 100.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Wall": {
+     "name": "Weightless Steel",
+     "avg_mult": 300.0,
+     "total": 300.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "swordandshield": {
+   "name": "Sword and Shield",
+   "zh": "",
+   "weapon_type": "Sword and Shield",
+   "unique_to_weapon": false,
+   "combos": {
+    "Aerial": {
+     "name": "Fist of Iron",
+     "avg_mult": 200.0,
+     "total": 600.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Block": {
+     "name": "Devouring Beast",
+     "avg_mult": 166.67,
+     "total": 500.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Finisher": {
+     "name": "Last Stand",
+     "avg_mult": 800.0,
+     "total": 800.0,
+     "hits": 1,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Devouring Beast",
+     "avg_mult": 166.67,
+     "total": 500.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Devouring Beast",
+     "avg_mult": 166.67,
+     "total": 500.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Heavy": {
+     "name": "Hallowed Name",
+     "avg_mult": 500.0,
+     "total": 1000.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Devouring Beast",
+     "avg_mult": 166.67,
+     "total": 500.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Slam": {
+     "name": "Slam Attack",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Slide": {
+     "name": "Destructive Symphony",
+     "avg_mult": 100.0,
+     "total": 100.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Wall": {
+     "name": "Dying Angel",
+     "avg_mult": 300.0,
+     "total": 300.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "syam": {
+   "name": "Syam",
+   "zh": "",
+   "weapon_type": "Nikana",
+   "unique_to_weapon": true,
+   "combos": {
+    "Heavy": {
+     "name": "Syam Heavy (unofficial)",
+     "avg_mult": 370.0,
+     "total": 740.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "tatsu": {
+   "name": "Tatsu",
+   "zh": "",
+   "weapon_type": "Two-Handed Nikana",
+   "unique_to_weapon": true,
+   "combos": {
+    "Slide": {
+     "name": "Tatsu Slide (unofficial)",
+     "avg_mult": 66.67,
+     "total": 400.0,
+     "hits": 6,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "taintedhydra": {
+   "name": "Tainted Hydra",
+   "zh": "污染水螅",
+   "weapon_type": "Blade and Whip",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Heart of the Naga",
+     "avg_mult": 100.0,
+     "total": 600.0,
+     "hits": 6,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Talons of the Wyrm",
+     "avg_mult": 100.0,
+     "total": 300.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Heart of the Imoogi",
+     "avg_mult": 100.0,
+     "total": 200.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Heart of the Naga",
+     "avg_mult": 100.0,
+     "total": 600.0,
+     "hits": 6,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "telosboltace": {
+   "name": "Telos Boltace",
+   "zh": "",
+   "weapon_type": "Tonfa",
+   "unique_to_weapon": true,
+   "combos": {
+    "Slide": {
+     "name": "Stormpath",
+     "avg_mult": 100.0,
+     "total": 200.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "temporoyale": {
+   "name": "Tempo Royale",
+   "zh": "皇家节奏",
+   "weapon_type": "Heavy Blade",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Bold Reprise",
+     "avg_mult": 350.0,
+     "total": 700.0,
+     "hits": 2,
+     "procs": [],
+     "ips": {
+      "slash": 1.25
+     }
+    },
+    "Forward": {
+     "name": "Majestic Abandon",
+     "avg_mult": 133.33,
+     "total": 800.0,
+     "hits": 6,
+     "procs": [],
+     "ips": {
+      "slash": 1.25
+     }
+    },
+    "Forward Block": {
+     "name": "Resplendent Calma",
+     "avg_mult": 275.0,
+     "total": 1100.0,
+     "hits": 4,
+     "procs": [],
+     "ips": {
+      "slash": 1.25
+     }
+    },
+    "Neutral": {
+     "name": "August Mesto",
+     "avg_mult": 233.33,
+     "total": 2100.0,
+     "hits": 9,
+     "procs": [],
+     "ips": {
+      "slash": 1.25
+     }
+    }
+   }
+  },
+  "tenetagendus": {
+   "name": "Tenet Agendus",
+   "zh": "",
+   "weapon_type": "Sword and Shield",
+   "unique_to_weapon": true,
+   "combos": {
+    "Heavy": {
+     "name": "Tenet Agendus Heavy (unofficial)",
+     "avg_mult": 500.0,
+     "total": 1000.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "tenetexec": {
+   "name": "Tenet Exec",
+   "zh": "",
+   "weapon_type": "Heavy Blade",
+   "unique_to_weapon": true,
+   "combos": {
+    "Heavy Slam": {
+     "name": "Tenet Exec Heavy Slam (unofficial)",
+     "avg_mult": 300.0,
+     "total": 2700.0,
+     "hits": 9,
+     "procs": [],
+     "ips": null
+    },
+    "Slam": {
+     "name": "Tenet Exec Slam (unofficial)",
+     "avg_mult": 200.0,
+     "total": 600.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "tenetgrigori": {
+   "name": "Tenet Grigori",
+   "zh": "",
+   "weapon_type": "Scythe",
+   "unique_to_weapon": true,
+   "combos": {
+    "Heavy": {
+     "name": "Tenet Grigori (unofficial)",
+     "avg_mult": 600.0,
+     "total": 1800.0,
+     "hits": 3,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    }
+   }
+  },
+  "tonfa": {
+   "name": "Tonfa",
+   "zh": "",
+   "weapon_type": "Tonfa",
+   "unique_to_weapon": false,
+   "combos": {
+    "Aerial": {
+     "name": "Ascendant Bane",
+     "avg_mult": 200.0,
+     "total": 2000.0,
+     "hits": 10,
+     "procs": [],
+     "ips": null
+    },
+    "Block": {
+     "name": "",
+     "avg_mult": 100.0,
+     "total": 300.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Finisher": {
+     "name": "Cold Vendetta",
+     "avg_mult": 1000.0,
+     "total": 1000.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "",
+     "avg_mult": 100.0,
+     "total": 300.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "",
+     "avg_mult": 100.0,
+     "total": 300.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Heavy": {
+     "name": "Discord Sewn",
+     "avg_mult": 250.0,
+     "total": 1000.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "",
+     "avg_mult": 100.0,
+     "total": 300.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Slam": {
+     "name": "Slam Attack",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Slide": {
+     "name": "Feuding Blood",
+     "avg_mult": 200.0,
+     "total": 400.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    },
+    "Wall": {
+     "name": "Opposing Force",
+     "avg_mult": 200.0,
+     "total": 400.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "tranquilcleave": {
+   "name": "Tranquil Cleave",
+   "zh": "秋风落叶",
+   "weapon_type": "Nikana",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Hook and Eye",
+     "avg_mult": 400.0,
+     "total": 800.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Windless Cut",
+     "avg_mult": 175.0,
+     "total": 700.0,
+     "hits": 4,
+     "procs": [],
+     "ips": {
+      "slash": 1.5
+     }
+    },
+    "Forward Block": {
+     "name": "Beyond Reproach",
+     "avg_mult": 300.0,
+     "total": 900.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Breathless Lunge",
+     "avg_mult": 216.67,
+     "total": 1300.0,
+     "hits": 6,
+     "procs": [
+      "slash"
+     ],
+     "ips": {
+      "impact": 2.0,
+      "slash": 2.0
+     }
+    },
+    "Slide": {
+     "name": "Parting Knee",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "twirlingspire": {
+   "name": "Twirling Spire",
+   "zh": "回转尖峰",
+   "weapon_type": "Polearm",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Summit Plunge",
+     "avg_mult": 150.0,
+     "total": 1200.0,
+     "hits": 8,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Spiraling Pinnacle",
+     "avg_mult": 122.22,
+     "total": 1100.0,
+     "hits": 9,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Vaulting Apex",
+     "avg_mult": 266.67,
+     "total": 800.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Cresting Peak",
+     "avg_mult": 280.0,
+     "total": 1400.0,
+     "hits": 5,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    }
+   }
+  },
+  "twohandednikana": {
+   "name": "Two-Handed Nikana",
+   "zh": "",
+   "weapon_type": "Two-Handed Nikana",
+   "unique_to_weapon": false,
+   "combos": {
+    "Aerial": {
+     "name": "Cunning Monkey",
+     "avg_mult": 200.0,
+     "total": 600.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Block": {
+     "name": "Cutting Thrice",
+     "avg_mult": 266.67,
+     "total": 800.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Finisher": {
+     "name": "Terrapin's Rebuke",
+     "avg_mult": 1200.0,
+     "total": 1200.0,
+     "hits": 1,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Cutting Thrice",
+     "avg_mult": 266.67,
+     "total": 800.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Cutting Thrice",
+     "avg_mult": 266.67,
+     "total": 800.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Heavy": {
+     "name": "Lover's Farewell",
+     "avg_mult": 400.0,
+     "total": 1200.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Cutting Thrice",
+     "avg_mult": 266.67,
+     "total": 800.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Slam": {
+     "name": "Slam Attack",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Slide": {
+     "name": "Deceitful Serpent",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Wall": {
+     "name": "Strident Gazelle",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "vengefulrevenant": {
+   "name": "Vengeful Revenant",
+   "zh": "复仇亡灵",
+   "weapon_type": "Sword",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Rising Hate",
+     "avg_mult": 220.0,
+     "total": 1100.0,
+     "hits": 5,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Lone Vengeance",
+     "avg_mult": 150.0,
+     "total": 600.0,
+     "hits": 4,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Drowning Despair",
+     "avg_mult": 183.33,
+     "total": 1100.0,
+     "hits": 6,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Impending Dread",
+     "avg_mult": 280.0,
+     "total": 1400.0,
+     "hits": 5,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "verdilac": {
+   "name": "Verdilac",
+   "zh": "",
+   "weapon_type": "Whip",
+   "unique_to_weapon": true,
+   "combos": {
+    "Block": {
+     "name": "Verdilac Block (unofficial)",
+     "avg_mult": 350.0,
+     "total": 2800.0,
+     "hits": 8,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    }
+   }
+  },
+  "vermillionstorm": {
+   "name": "Vermillion Storm",
+   "zh": "朱红暴风",
+   "weapon_type": "Claws",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Ruby Wind",
+     "avg_mult": 185.71,
+     "total": 1300.0,
+     "hits": 7,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Crimson Hurricane",
+     "avg_mult": 128.57,
+     "total": 900.0,
+     "hits": 7,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Cardinal Breeze",
+     "avg_mult": 75.0,
+     "total": 1350.0,
+     "hits": 18,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Flurry Rose",
+     "avg_mult": 216.67,
+     "total": 2600.0,
+     "hits": 12,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    }
+   }
+  },
+  "viciousapproach": {
+   "name": "Vicious Approach",
+   "zh": "凶途恶径",
+   "weapon_type": "Sparring",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Savagery At Hand",
+     "avg_mult": 100.0,
+     "total": 500.0,
+     "hits": 5,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Cruel Advance",
+     "avg_mult": 100.0,
+     "total": 300.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Impending Danger",
+     "avg_mult": 100.0,
+     "total": 300.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Savagery At Hand",
+     "avg_mult": 100.0,
+     "total": 500.0,
+     "hits": 5,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "vitrica": {
+   "name": "Vitrica",
+   "zh": "",
+   "weapon_type": "Heavy Blade",
+   "unique_to_weapon": true,
+   "combos": {
+    "Aerial": {
+     "name": "Vitrica Air (unofficial)",
+     "avg_mult": 100.0,
+     "total": 200.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "votiveonslaught": {
+   "name": "Votive Onslaught",
+   "zh": "埋首猛击",
+   "weapon_type": "Warfan",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Penitent Offering",
+     "avg_mult": 200.0,
+     "total": 1600.0,
+     "hits": 8,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Clarion Rush",
+     "avg_mult": 100.0,
+     "total": 1000.0,
+     "hits": 10,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Rending Lamentation",
+     "avg_mult": 190.0,
+     "total": 1900.0,
+     "hits": 10,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Purging Drive",
+     "avg_mult": 200.0,
+     "total": 2000.0,
+     "hits": 10,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "vulpinemask": {
+   "name": "Vulpine Mask",
+   "zh": "狡狐诈面",
+   "weapon_type": "Rapier",
+   "unique_to_weapon": false,
+   "combos": {
+    "Block": {
+     "name": "Deceptive Lunge",
+     "avg_mult": 300.0,
+     "total": 900.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Duel Secrets",
+     "avg_mult": 114.29,
+     "total": 800.0,
+     "hits": 7,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Hidden Flourish",
+     "avg_mult": 200.0,
+     "total": 1400.0,
+     "hits": 7,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Assailant Guise",
+     "avg_mult": 228.57,
+     "total": 1600.0,
+     "hits": 7,
+     "procs": [
+      "slash"
+     ],
+     "ips": null
+    }
+   }
+  },
+  "warfan": {
+   "name": "Warfan",
+   "zh": "",
+   "weapon_type": "Warfan",
+   "unique_to_weapon": false,
+   "combos": {
+    "Aerial": {
+     "name": "Sky Doom",
+     "avg_mult": 200.0,
+     "total": 2200.0,
+     "hits": 11,
+     "procs": [],
+     "ips": null
+    },
+    "Block": {
+     "name": "",
+     "avg_mult": 133.33,
+     "total": 800.0,
+     "hits": 6,
+     "procs": [],
+     "ips": null
+    },
+    "Finisher": {
+     "name": "Death's Mark",
+     "avg_mult": 1000.0,
+     "total": 1000.0,
+     "hits": 1,
+     "procs": [
+      "slash"
+     ],
+     "ips": {
+      "puncture": 2.0
+     }
+    },
+    "Forward": {
+     "name": "",
+     "avg_mult": 133.33,
+     "total": 800.0,
+     "hits": 6,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "",
+     "avg_mult": 133.33,
+     "total": 800.0,
+     "hits": 6,
+     "procs": [],
+     "ips": null
+    },
+    "Heavy": {
+     "name": "Perfect Cut",
+     "avg_mult": 333.33,
+     "total": 1000.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "",
+     "avg_mult": 133.33,
+     "total": 800.0,
+     "hits": 6,
+     "procs": [],
+     "ips": null
+    },
+    "Slam": {
+     "name": "Slam Attack",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Slide": {
+     "name": "Spiral Cut",
+     "avg_mult": 100.0,
+     "total": 100.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Wall": {
+     "name": "Weightless Steel",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "whip": {
+   "name": "Whip",
+   "zh": "",
+   "weapon_type": "Whip",
+   "unique_to_weapon": false,
+   "combos": {
+    "Aerial": {
+     "name": "Mountain's Chisel",
+     "avg_mult": 233.33,
+     "total": 700.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Block": {
+     "name": "Sparking Torture",
+     "avg_mult": 300.0,
+     "total": 600.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    },
+    "Finisher": {
+     "name": "Resounding Fear",
+     "avg_mult": 1000.0,
+     "total": 1000.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Forward": {
+     "name": "Buzzing Sting",
+     "avg_mult": 125.0,
+     "total": 500.0,
+     "hits": 4,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Sparking Torture",
+     "avg_mult": 300.0,
+     "total": 600.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    },
+    "Heavy": {
+     "name": "Rolling Thunder",
+     "avg_mult": 450.0,
+     "total": 900.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Sparking Torture",
+     "avg_mult": 300.0,
+     "total": 600.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    },
+    "Slam": {
+     "name": "Slam Attack",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Slide": {
+     "name": "Spiral Cut",
+     "avg_mult": 200.0,
+     "total": 200.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    },
+    "Wall": {
+     "name": "Weightless Steel",
+     "avg_mult": 300.0,
+     "total": 300.0,
+     "hits": 1,
+     "procs": [],
+     "ips": null
+    }
+   }
+  },
+  "wiserazor": {
+   "name": "Wise Razor",
+   "zh": "慧黠斩剃",
+   "weapon_type": "Two-Handed Nikana",
+   "unique_to_weapon": false,
+   "combos": {
+    "Forward": {
+     "name": "Cutting Thrice",
+     "avg_mult": 266.67,
+     "total": 800.0,
+     "hits": 3,
+     "procs": [],
+     "ips": null
+    },
+    "Forward Block": {
+     "name": "Calling Thunder",
+     "avg_mult": 250.0,
+     "total": 1500.0,
+     "hits": 6,
+     "procs": [],
+     "ips": null
+    },
+    "Neutral": {
+     "name": "Threshing Grain",
+     "avg_mult": 283.33,
+     "total": 1700.0,
+     "hits": 6,
+     "procs": [
+      "slash"
+     ],
+     "ips": {
+      "puncture": 1.5
+     }
+    }
+   }
+  },
+  "zenistar": {
+   "name": "Zenistar",
+   "zh": "",
+   "weapon_type": "Heavy Blade",
+   "unique_to_weapon": true,
+   "combos": {
+    "Heavy": {
+     "name": "Zenistar Heavy (unofficial)",
+     "avg_mult": 350.0,
+     "total": 700.0,
+     "hits": 2,
+     "procs": [],
+     "ips": null
+    }
+   }
+  }
+ }
+}

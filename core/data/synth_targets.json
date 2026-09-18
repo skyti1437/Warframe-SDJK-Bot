@@ -1,0 +1,766 @@
+{
+ "Ancient Disruptor": [
+  {
+   "mission": "Tikal",
+   "planet": "Earth",
+   "type": "Excavation",
+   "faction": "Infested",
+   "spawn": "100%"
+  },
+  {
+   "mission": "Terminus",
+   "planet": "Mercury",
+   "type": "Sabotage",
+   "faction": "Crossfire",
+   "spawn": "100%"
+  },
+  {
+   "mission": "Isos",
+   "planet": "Eris",
+   "type": "Capture",
+   "faction": "Infested",
+   "spawn": "100%"
+  }
+ ],
+ "Ancient Healer": [
+  {
+   "mission": "Hepit (Unconfirmed)",
+   "planet": "Void",
+   "type": "Capture",
+   "faction": "Infested",
+   "spawn": "100%"
+  }
+ ],
+ "Anti MOA [Research]": [
+  {
+   "mission": "Acheron",
+   "planet": "Pluto",
+   "type": "Extermination",
+   "faction": "Corpus",
+   "spawn": "100%"
+  },
+  {
+   "mission": "Baal",
+   "planet": "Europa",
+   "type": "Extermination",
+   "faction": "Corpus",
+   "spawn": "100%"
+  },
+  {
+   "mission": "Valefor",
+   "planet": "Europa",
+   "type": "Excavation",
+   "faction": "Corpus",
+   "spawn": "?%"
+  }
+ ],
+ "Arid Eviscerator [Research]": [
+  {
+   "mission": "Ara",
+   "planet": "Mars",
+   "type": "Capture",
+   "faction": "Grineer",
+   "spawn": "100%"
+  }
+ ],
+ "Ballista": [
+  {
+   "mission": "Mantle",
+   "planet": "Earth",
+   "type": "Capture",
+   "faction": "Grineer",
+   "spawn": "100%"
+  },
+  {
+   "mission": "Lex",
+   "planet": "Ceres",
+   "type": "Capture",
+   "faction": "Grineer",
+   "spawn": "100%"
+  }
+ ],
+ "Boiler": [
+  {
+   "mission": "Cholistan",
+   "planet": "Europa",
+   "type": "Excavation",
+   "faction": "Infested",
+   "spawn": "100%"
+  },
+  {
+   "mission": "Isos",
+   "planet": "Eris",
+   "type": "Capture",
+   "faction": "Infested",
+   "spawn": "100%"
+  },
+  {
+   "mission": "Orokin Derelict Capture",
+   "planet": "Derelict",
+   "type": "Capture",
+   "faction": "Infested",
+   "spawn": "100%"
+  }
+ ],
+ "Bombard": [
+  {
+   "mission": "Ker",
+   "planet": "Ceres",
+   "type": "Sabotage",
+   "faction": "Grineer",
+   "spawn": "100%"
+  },
+  {
+   "mission": "Lex",
+   "planet": "Ceres",
+   "type": "Capture",
+   "faction": "Grineer",
+   "spawn": "100%"
+  },
+  {
+   "mission": "Nuovo",
+   "planet": "Ceres",
+   "type": "Rescue",
+   "faction": "Grineer",
+   "spawn": "100%"
+  }
+ ],
+ "Brood Mother": [
+  {
+   "mission": "Tikal",
+   "planet": "Earth",
+   "type": "Excavation",
+   "faction": "Infested",
+   "spawn": "100%"
+  },
+  {
+   "mission": "Gabii",
+   "planet": "Ceres",
+   "type": "Survival",
+   "faction": "Infested",
+   "spawn": "100%"
+  },
+  {
+   "mission": "Assur",
+   "planet": "Uranus",
+   "type": "Survival",
+   "faction": "Infested",
+   "spawn": "100%"
+  }
+ ],
+ "Butcher": [
+  {
+   "mission": "Mantle",
+   "planet": "Earth",
+   "type": "Capture",
+   "faction": "Grineer",
+   "spawn": "100%"
+  },
+  {
+   "mission": "Caloris",
+   "planet": "Mercury",
+   "type": "Rescue",
+   "faction": "Grineer",
+   "spawn": "70%"
+  },
+  {
+   "mission": "Elion",
+   "planet": "Mercury",
+   "type": "Capture",
+   "faction": "Grineer",
+   "spawn": "78%"
+  }
+ ],
+ "Charger": [
+  {
+   "mission": "Terminus",
+   "planet": "Mercury",
+   "type": "Sabotage",
+   "faction": "Crossfire",
+   "spawn": "100%"
+  },
+  {
+   "mission": "M Prime",
+   "planet": "Mercury",
+   "type": "Extermination",
+   "faction": "Crossfire",
+   "spawn": "100%"
+  },
+  {
+   "mission": "Isos",
+   "planet": "Eris",
+   "type": "Capture",
+   "faction": "Infested",
+   "spawn": "100%"
+  }
+ ],
+ "Commander": [
+  {
+   "mission": "Telesto",
+   "planet": "Saturn",
+   "type": "Extermination",
+   "faction": "Grineer",
+   "spawn": "100%"
+  }
+ ],
+ "Corrupted Ancient [Research]": [
+  {
+   "mission": "Hepit",
+   "planet": "Void",
+   "type": "Capture",
+   "faction": "Orokin",
+   "spawn": "100%"
+  },
+  {
+   "mission": "Stribog",
+   "planet": "Void",
+   "type": "Sabotage",
+   "faction": "Orokin",
+   "spawn": "100%"
+  },
+  {
+   "mission": "Ani",
+   "planet": "Void",
+   "type": "Survival",
+   "faction": "Orokin",
+   "spawn": "100%"
+  }
+ ],
+ "Corrupted Bombard": [
+  {
+   "mission": "Oxomoco",
+   "planet": "Void",
+   "type": "Extermination",
+   "faction": "Orokin",
+   "spawn": "100%"
+  },
+  {
+   "mission": "Marduk",
+   "planet": "Void",
+   "type": "Sabotage",
+   "faction": "Orokin",
+   "spawn": "100%"
+  }
+ ],
+ "Corrupted Butcher": [
+  {
+   "mission": "Hepit",
+   "planet": "Void",
+   "type": "Capture",
+   "faction": "Orokin",
+   "spawn": "94%"
+  },
+  {
+   "mission": "Teshub",
+   "planet": "Void",
+   "type": "Extermination",
+   "faction": "Orokin",
+   "spawn": "100%"
+  }
+ ],
+ "Corrupted Crewman": [
+  {
+   "mission": "Teshub",
+   "planet": "Void",
+   "type": "Extermination",
+   "faction": "Orokin",
+   "spawn": "100%"
+  },
+  {
+   "mission": "Hepit",
+   "planet": "Void",
+   "type": "Capture",
+   "faction": "Orokin",
+   "spawn": "100%"
+  }
+ ],
+ "Corrupted Heavy Gunner": [
+  {
+   "mission": "Hepit",
+   "planet": "Void",
+   "type": "Capture",
+   "faction": "Orokin",
+   "spawn": "100%"
+  },
+  {
+   "mission": "Teshub",
+   "planet": "Void",
+   "type": "Extermination",
+   "faction": "Orokin",
+   "spawn": "100%"
+  },
+  {
+   "mission": "Ukko",
+   "planet": "Void",
+   "type": "Capture",
+   "faction": "Orokin",
+   "spawn": "100%"
+  }
+ ],
+ "Corrupted Lancer": [
+  {
+   "mission": "Hepit",
+   "planet": "Void",
+   "type": "Capture",
+   "faction": "Orokin",
+   "spawn": "100%"
+  },
+  {
+   "mission": "Ukko",
+   "planet": "Void",
+   "type": "Capture",
+   "faction": "Orokin",
+   "spawn": "100%"
+  }
+ ],
+ "Corrupted Nullifier": [
+  {
+   "mission": "Oxomoco",
+   "planet": "Void",
+   "type": "Extermination",
+   "faction": "Orokin",
+   "spawn": "78%"
+  }
+ ],
+ "Crawler": [
+  {
+   "mission": "Tikal",
+   "planet": "Earth",
+   "type": "Excavation",
+   "faction": "Infested",
+   "spawn": "100%"
+  },
+  {
+   "mission": "Apollodorus",
+   "planet": "Mercury",
+   "type": "Survival",
+   "faction": "Infested",
+   "spawn": "100%"
+  },
+  {
+   "mission": "Armaros",
+   "planet": "Europa",
+   "type": "Extermination",
+   "faction": "Crossfire",
+   "spawn": "100%"
+  }
+ ],
+ "Crewman [Research]": [
+  {
+   "mission": "Copernicus",
+   "planet": "Lua",
+   "type": "Capture",
+   "faction": "Corpus",
+   "spawn": "100%"
+  }
+ ],
+ "Drahk Master": [
+  {
+   "mission": "Cassini",
+   "planet": "Saturn",
+   "type": "Capture",
+   "faction": "Grineer",
+   "spawn": "100%"
+  },
+  {
+   "mission": "Anthe",
+   "planet": "Saturn",
+   "type": "Rescue",
+   "faction": "Grineer",
+   "spawn": "90%"
+  }
+ ],
+ "Elite Crewman": [
+  {
+   "mission": "Copernicus",
+   "planet": "Lua",
+   "type": "Capture",
+   "faction": "Corpus",
+   "spawn": "100%"
+  },
+  {
+   "mission": "Zeipel",
+   "planet": "Lua",
+   "type": "Rescue",
+   "faction": "Corpus",
+   "spawn": "100%"
+  },
+  {
+   "mission": "Venera",
+   "planet": "Venus",
+   "type": "Capture",
+   "faction": "Corpus",
+   "spawn": "100%"
+  }
+ ],
+ "Eviscerator": [
+  {
+   "mission": "Ara",
+   "planet": "Mars",
+   "type": "Capture",
+   "faction": "Grineer",
+   "spawn": "100%"
+  },
+  {
+   "mission": "Lex",
+   "planet": "Ceres",
+   "type": "Capture",
+   "faction": "Grineer",
+   "spawn": "100%"
+  },
+  {
+   "mission": "Nuovo",
+   "planet": "Ceres",
+   "type": "Rescue",
+   "faction": "Grineer",
+   "spawn": "100%"
+  }
+ ],
+ "Fusion MOA": [
+  {
+   "mission": "Gradivus",
+   "planet": "Mars",
+   "type": "Sabotage",
+   "faction": "Corpus",
+   "spawn": "100%"
+  },
+  {
+   "mission": "Skyresh",
+   "planet": "Phobos",
+   "type": "Capture",
+   "faction": "Corpus",
+   "spawn": "100%"
+  },
+  {
+   "mission": "Abaddon",
+   "planet": "Europa",
+   "type": "Capture",
+   "faction": "Corpus",
+   "spawn": "100%"
+  }
+ ],
+ "Guardsman [Research]": [
+  {
+   "mission": "Lex",
+   "planet": "Ceres",
+   "type": "Capture",
+   "faction": "Grineer",
+   "spawn": "100%"
+  },
+  {
+   "mission": "Nuovo",
+   "planet": "Ceres",
+   "type": "Rescue",
+   "faction": "Grineer",
+   "spawn": "100%"
+  },
+  {
+   "mission": "Ludi",
+   "planet": "Ceres",
+   "type": "Hijack",
+   "faction": "Grineer",
+   "spawn": "100%"
+  }
+ ],
+ "Heavy Gunner": [
+  {
+   "mission": "Elion",
+   "planet": "Mercury",
+   "type": "Capture",
+   "faction": "Grineer",
+   "spawn": "77%"
+  },
+  {
+   "mission": "Caloris",
+   "planet": "Mercury",
+   "type": "Rescue",
+   "faction": "Grineer",
+   "spawn": "100%"
+  },
+  {
+   "mission": "Lex",
+   "planet": "Ceres",
+   "type": "Capture",
+   "faction": "Grineer",
+   "spawn": "100%"
+  }
+ ],
+ "Hellion": [
+  {
+   "mission": "Ara",
+   "planet": "Mars",
+   "type": "Capture",
+   "faction": "Grineer",
+   "spawn": "100%"
+  },
+  {
+   "mission": "Lex",
+   "planet": "Ceres",
+   "type": "Capture",
+   "faction": "Grineer",
+   "spawn": "100%"
+  },
+  {
+   "mission": "Rusalka",
+   "planet": "Sedna",
+   "type": "Capture",
+   "faction": "Grineer",
+   "spawn": "90%"
+  }
+ ],
+ "Lancer [Research]": [
+  {
+   "mission": "Elion",
+   "planet": "Mercury",
+   "type": "Capture",
+   "faction": "Grineer",
+   "spawn": "81%"
+  },
+  {
+   "mission": "Caloris",
+   "planet": "Mercury",
+   "type": "Rescue",
+   "faction": "Grineer",
+   "spawn": "80%"
+  },
+  {
+   "mission": "Pantheon",
+   "planet": "Mercury",
+   "type": "Extermination",
+   "faction": "Grineer",
+   "spawn": "100%"
+  }
+ ],
+ "Leaper": [
+  {
+   "mission": "Isos",
+   "planet": "Eris",
+   "type": "Capture",
+   "faction": "Infested",
+   "spawn": "100%"
+  },
+  {
+   "mission": "Tikal",
+   "planet": "Earth",
+   "type": "Excavation",
+   "faction": "Infested",
+   "spawn": "100%"
+  },
+  {
+   "mission": "Terminus",
+   "planet": "Mercury",
+   "type": "Sabotage",
+   "faction": "Crossfire",
+   "spawn": "92%"
+  }
+ ],
+ "MOA": [
+  {
+   "mission": "Venera",
+   "planet": "Venus",
+   "type": "Capture",
+   "faction": "Corpus",
+   "spawn": "100%"
+  },
+  {
+   "mission": "Linea",
+   "planet": "Venus",
+   "type": "Rescue",
+   "faction": "Corpus",
+   "spawn": "100%"
+  },
+  {
+   "mission": "E-Gate",
+   "planet": "Venus",
+   "type": "Extermination",
+   "faction": "Corpus",
+   "spawn": "100%"
+  }
+ ],
+ "Napalm": [
+  {
+   "mission": "Cassini",
+   "planet": "Saturn",
+   "type": "Capture",
+   "faction": "Grineer",
+   "spawn": "100%"
+  },
+  {
+   "mission": "Selkie (Unconfirmed)",
+   "planet": "Sedna",
+   "type": "Survival",
+   "faction": "Grineer",
+   "spawn": "100%"
+  }
+ ],
+ "Nullifier Crewman": [
+  {
+   "mission": "Abaddon",
+   "planet": "Europa",
+   "type": "Capture",
+   "faction": "Corpus",
+   "spawn": "100%"
+  },
+  {
+   "mission": "Orias (Unconfirmed)",
+   "planet": "Europa",
+   "type": "Rescue",
+   "faction": "Corpus",
+   "spawn": "100%"
+  }
+ ],
+ "Runner [Research]": [
+  {
+   "mission": "Saxis",
+   "planet": "Eris",
+   "type": "Extermination",
+   "faction": "Infested",
+   "spawn": "100%"
+  },
+  {
+   "mission": "Orokin Derelict Extermination",
+   "planet": "Derelict",
+   "type": "Extermination",
+   "faction": "Infested",
+   "spawn": "100%"
+  }
+ ],
+ "Scorch": [
+  {
+   "mission": "Cassini",
+   "planet": "Saturn",
+   "type": "Capture",
+   "faction": "Grineer",
+   "spawn": "95%"
+  },
+  {
+   "mission": "Numa",
+   "planet": "Saturn",
+   "type": "Rescue",
+   "faction": "Grineer",
+   "spawn": "100%"
+  },
+  {
+   "mission": "ANTHE",
+   "planet": "Saturn",
+   "type": "Rescue",
+   "faction": "Grineer",
+   "spawn": "100%"
+  }
+ ],
+ "Scorpion": [
+  {
+   "mission": "Lex",
+   "planet": "Ceres",
+   "type": "Capture",
+   "faction": "Grineer",
+   "spawn": "58%"
+  },
+  {
+   "mission": "Cassini",
+   "planet": "Saturn",
+   "type": "Capture",
+   "faction": "Grineer",
+   "spawn": "100%"
+  },
+  {
+   "mission": "Numa",
+   "planet": "Saturn",
+   "type": "Rescue",
+   "faction": "Grineer",
+   "spawn": "100%"
+  }
+ ],
+ "Seeker / Frontier Seeker": [
+  {
+   "mission": "E-Prime",
+   "planet": "Earth",
+   "type": "Extermination",
+   "faction": "Grineer",
+   "spawn": "100%"
+  },
+  {
+   "mission": "Lex",
+   "planet": "Ceres",
+   "type": "Capture",
+   "faction": "Grineer",
+   "spawn": "100%"
+  },
+  {
+   "mission": "Nuovo",
+   "planet": "Ceres",
+   "type": "Rescue",
+   "faction": "Grineer",
+   "spawn": "100%"
+  }
+ ],
+ "Shield Lancer": [
+  {
+   "mission": "Pantheon",
+   "planet": "Mercury",
+   "type": "Extermination",
+   "faction": "Grineer",
+   "spawn": "75%"
+  },
+  {
+   "mission": "Caloris",
+   "planet": "Mercury",
+   "type": "Rescue",
+   "faction": "Grineer",
+   "spawn": "40%"
+  },
+  {
+   "mission": "Elion",
+   "planet": "Mercury",
+   "type": "Capture",
+   "faction": "Grineer",
+   "spawn": "76%"
+  }
+ ],
+ "Swarm-Mutalist MOA": [
+  {
+   "mission": "Armaros",
+   "planet": "Europa",
+   "type": "Extermination",
+   "faction": "Crossfire",
+   "spawn": "100%"
+  },
+  {
+   "mission": "Isos",
+   "planet": "Eris",
+   "type": "Capture",
+   "faction": "Infested",
+   "spawn": "100%"
+  },
+  {
+   "mission": "Brugia",
+   "planet": "Eris",
+   "type": "Rescue",
+   "faction": "Infested",
+   "spawn": "100%"
+  }
+ ],
+ "Trooper": [
+  {
+   "mission": "Mantle",
+   "planet": "Earth",
+   "type": "Capture",
+   "faction": "Grineer",
+   "spawn": "100%"
+  },
+  {
+   "mission": "E Prime",
+   "planet": "Earth",
+   "type": "Extermination",
+   "faction": "Grineer",
+   "spawn": "100%"
+  },
+  {
+   "mission": "Numa",
+   "planet": "Saturn",
+   "type": "Rescue",
+   "faction": "Grineer",
+   "spawn": "100%"
+  }
+ ]
+}
