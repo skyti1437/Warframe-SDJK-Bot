@@ -59,18 +59,6 @@
     "type": "list",
     "default": []
   },
-  "affection_persona": {
-    "description": "好感度联动人格温度",
-    "type": "bool",
-    "default": true,
-    "hint": "读取 self_learning 插件的好感度：越高越接近「白祥」（温柔、可依赖），越低越是「黑祥 / Oblivionis」（冷淡带刺）。读不到数据时保持默认黑祥基调。"
-  },
-  "affection_ttl": {
-    "description": "好感度缓存秒数",
-    "type": "int",
-    "default": 120,
-    "hint": "好感度变化不会秒级生效，按此间隔重新读取即可。"
-  },
   "strip_markdown": {
     "description": "出站兜底：剥掉 QQ 无法渲染的 Markdown 标记",
     "type": "bool",
