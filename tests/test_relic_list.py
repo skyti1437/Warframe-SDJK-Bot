@@ -184,7 +184,7 @@ class _Parsed:
 
 
 def _make_obj(names):
-    obj = plugin.WarframeSDJK.__new__(plugin.WarframeSDJK)
+    obj = plugin.WarframeQuery.__new__(plugin.WarframeQuery)
     obj._relic_cache = None
     obj.client = _FakeClient(names)
     obj.page_size = 12

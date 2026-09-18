@@ -271,14 +271,14 @@ sys.modules["astrbot.api.star"] = _st
 
 import main as plugin  # noqa: E402
 rev2 = {v: k for k, v in P.RIVEN_STAT_ZH.items()}
-pos2, neg2 = plugin.WarframeSDJK._normalize_llm_stats(
+pos2, neg2 = plugin.WarframeQuery._normalize_llm_stats(
     {"positive": [["暴伤", "82.8"], ["范围", "1.6m"], ["攻击速度", 45.8]],
      "negative": [["滑行暴击", "81.3%"]]}, rev2)
 check("LLM 词条规范化：暴伤 82.8", pos2[0] == ("crit_damage", 82.8), str(pos2))
 check("LLM 词条规范化：范围 1.6", pos2[1] == ("range", 1.6), str(pos2))
 check("LLM 词条规范化：攻击速度→攻速", pos2[2] == ("attack_speed", 45.8), str(pos2))
 check("LLM 词条规范化：负词条滑暴 81.3", neg2 == [("slide_crit", 81.3)], str(neg2))
-pos3, neg3 = plugin.WarframeSDJK._normalize_llm_stats(
+pos3, neg3 = plugin.WarframeQuery._normalize_llm_stats(
     {"positive": [["未知词条", 5]]}, rev2)
 check("LLM 未知识别不了的词条被丢弃", not pos3, str(pos3))
 
@@ -340,7 +340,7 @@ check("世界状态解析走线程池",
       'asyncio.to_thread(de_worldstate.parse_worldstate'
       in (ROOT / 'core' / 'api_client.py').read_text(encoding='utf-8'))
 check("_build_results 是异步生成器（渲染改在线程池跑）",
-      _inspect.isasyncgenfunction(plugin.WarframeSDJK._build_results))
+      _inspect.isasyncgenfunction(plugin.WarframeQuery._build_results))
 _main_src = (ROOT / 'main.py').read_text(encoding='utf-8')
 # ⚠️ 别写死单行字符串：调用被格式化成多行后
 #   `await asyncio.to_thread(\n    self.renderer.render, ...)`

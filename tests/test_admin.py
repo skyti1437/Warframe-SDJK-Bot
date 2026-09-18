@@ -2,7 +2,7 @@
 """群管理指令（`.锚点 / .状态 / .默认平台`）回归测试。
 
 直接 import main.py 需要 astrbot 运行环境；本测试在导入前注入轻量 astrbot 桩，
-构造 WarframeSDJK 实例（绕过 __init__）后直接调用 `_handle_admin`，覆盖：
+构造 WarframeQuery 实例（绕过 __init__）后直接调用 `_handle_admin`，覆盖：
   - L-1：`.锚点` 缺失 `is_admin` 校验的回归（应被权限拦截）
   - L-3：`.锚点` 写入路径为运行时目录而非硬编码 `/AstrBot/data/config/...`
 """
@@ -127,7 +127,7 @@ class _AdminEvent:
 
 
 def _make_plugin(tmp: Path):
-    obj = plugin.WarframeSDJK.__new__(plugin.WarframeSDJK)
+    obj = plugin.WarframeQuery.__new__(plugin.WarframeQuery)
     obj.cfg = {}
     obj.groups = GroupStore(tmp / "groups.json", default_platform="pc")
     return obj

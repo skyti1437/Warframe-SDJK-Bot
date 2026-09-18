@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Warframe SDJK 异步 API 客户端（httpx.AsyncClient，全程非阻塞）。
+"""Warframe 查询助手 异步 API 客户端（httpx.AsyncClient，全程非阻塞）。
 
 数据源：
 - 世界状态（默认）：DE 官方 worldState.php + core/de_worldstate.py 本地适配
@@ -17,6 +17,10 @@ import difflib
 import json
 import os
 import logging
+
+# 模块级 logger：本文件内部报错（如「WM 无该挂单类目」）统一走这里，
+# 与 main.py 的日志器同名，便于在机器人日志里一起看。
+logger = logging.getLogger("astrbot_plugin_warframe")
 import re
 import random
 import time
@@ -40,8 +44,8 @@ WIKI_DISP_FILE = DATA_DIR / "de" / "wiki_disp.json"  # wiki 变体倾向快照
 # 127.0.0.1 到不了宿主机端口，所以按候选顺序试（容器名 → docker0 网关 → 本机）。
 # ★ 这些只是**默认值**：开源版用户可以在配置面板里自己填地址
 #   （``flaresolverr_urls``，逗号/换行分隔），或直接关掉（``flaresolverr_enabled``）。
-FLARESOLR_URLS = ([os.environ["SDJK_FLARESOLR"]]
-                  if os.environ.get("SDJK_FLARESOLR") else
+FLARESOLR_URLS = ([os.environ["WF_FLARESOLR"]]
+                  if os.environ.get("WF_FLARESOLR") else
                   ["http://flaresolverr:8191/v1",
                    "http://172.17.0.1:8191/v1",
                    "http://127.0.0.1:8191/v1"])
@@ -299,6 +303,8 @@ class WarframeClient:
             proxy=proxy or None,
         )
         self._flare_url = ""          # FlareSolverr 可用地址（首次连通后记忆）
+        # 已确认「WM 无该玄骸武器挂单类目」的 slug（返回 400），避免重复请求
+        self._lich_unsupported: set = set()
         self._aliases = load_aliases()
         self._wm_lock = asyncio.Lock()
         self._wm_last = 0.0
@@ -1124,16 +1130,41 @@ class WarframeClient:
                                *, lich_type: str = "lich",
                                element: Optional[str] = None,
                                damage_max: Optional[int] = None) -> list[dict]:
+        """玄骸拍卖挂单。
+
+        ★ 2026-09-18 容错（用户反馈「信条铁晶磁轨炮搜不出来」时暴露）：
+        WM **不是每把玄骸武器都有拍卖类目** —— 实测部分近战 Tenet 武器与
+        全部 Coda 武器都会返回 **400 Bad Request**（不是网络故障，是「没有
+        这个类目」）。原来会把 400 当异常抛到上层变成「内部错误」，用户只看到
+        「出错了」。现在：400 → 返回空列表并记入 ``_lich_unsupported``，
+        由调用方给出「WM 暂无该武器挂单类目」的准确提示；429 单独提示限速。
+        """
         params: dict[str, Any] = {"type": lich_type, "weapon_url_name": weapon_url_name,
                                   "platform": platform, "sort_by": "price_asc"}
         if element:
             params["element"] = element
         if damage_max:
             params["having_damage_max"] = damage_max
-        data = await self._fetch_json(
-            f"{self.wm_base}/auctions/search", ttl=TTL_WM_AUCTIONS, params=params,
-                wm_rate_limit=True)
+        try:
+            data = await self._fetch_json(
+                f"{self.wm_base}/auctions/search", ttl=TTL_WM_AUCTIONS,
+                params=params, wm_rate_limit=True)
+        except WarframeAPIError as exc:
+            msg = str(exc)
+            if "400" in msg:
+                self._lich_unsupported.add(weapon_url_name)
+                logger.info("[sdjk] WM 无该玄骸武器的挂单类目：%s（type=%s）",
+                            weapon_url_name, lich_type)
+                return []
+            if "429" in msg:
+                raise WarframeAPIError(
+                    "warframe.market 限速了（3 请求/秒），请过几秒再试") from exc
+            raise
         return (data or {}).get("payload", {}).get("auctions", [])
+
+    def lich_unsupported(self, weapon_url_name: str) -> bool:
+        """该武器是否已被确认「WM 没有挂单类目」（避免重复请求同一把）。"""
+        return weapon_url_name in self._lich_unsupported
 
     # ------------------------------------------------------------------
     # 名称解析（CN 别名 -> WM url_name / wiki 页面）
@@ -1260,8 +1291,57 @@ class WarframeClient:
         return None
 
     def resolve_lich_weapon(self, query: str) -> Optional[str]:
-        """玄骸武器：本地别名 -> slug。"""
-        return self._aliases.get("lich_items", {}).get(query.strip())
+        """玄骸武器：本地别名 -> slug。
+
+        ★ 2026-09-18 增强：原来只做**精确**匹配（``dict.get(原样字符串)``），
+        用户写「赤毒 海克」（中间带空格）或差一个字就查不到 —— 而玄骸武器的
+        名字（赤毒·布拉玛 / 信条·弧电离子枪）各种写法满天飞。
+        现在按 精确 → 去空格/大小写 → 模糊（形近字）三级兜。
+        """
+        table = self._aliases.get("lich_items", {})
+        q = (query or "").strip()
+        if not q:
+            return None
+        if q in table:
+            return table[q]
+        norm = re.sub(r"[\s·・]+", "", q).lower()
+        for k, v in table.items():
+            if re.sub(r"[\s·・]+", "", k).lower() == norm:
+                return v
+        # 形近字兜底（「赤毒弧电离子枪」→「赤毒·弧电离子枪」）
+        near = fuzzy_hits(norm, [re.sub(r"[\s·・]+", "", k).lower()
+                                 for k in table], n=1, cutoff=0.75)
+        if near:
+            for k, v in table.items():
+                if re.sub(r"[\s·・]+", "", k).lower() == near[0]:
+                    return v
+        return None
+
+    def lich_weapon_info(self, slug: str) -> dict:
+        """玄骸武器的类型与官方译名（来自 core/data/lich_weapons.json）。
+
+        返回 ``{"type": "lich"|"sister"|"coda", "en": …, "zh": …}``；
+        查不到时按 slug 前缀兜底（kuva_→lich、tenet_→sister、coda_→coda）。
+        """
+        db = self._lich_db()
+        hit = db.get(slug)
+        if hit:
+            return hit
+        pre = (slug or "").split("_")[0]
+        kind = {"kuva": "lich", "tenet": "sister", "coda": "coda"}.get(pre, "lich")
+        return {"type": kind, "en": slug, "zh": slug}
+
+    def _lich_db(self) -> dict:
+        """玄骸武器表（延迟加载 + 缓存；缺文件返回空 dict，不炸）。"""
+        cache = getattr(self, "_lich_cache", None)
+        if cache is not None:
+            return cache
+        try:
+            self._lich_cache = json.loads(
+                (DATA_DIR / "lich_weapons.json").read_text(encoding="utf-8"))
+        except Exception:                        # noqa: BLE001
+            self._lich_cache = {}
+        return self._lich_cache
 
     async def resolve_riven_weapon(self, query: str) -> Optional[dict]:
         """紫卡武器解析：本地别名 + WM v2 紫卡武器表（zh/en），支持 黑话+p。"""

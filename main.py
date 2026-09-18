@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Warframe SDJK —— AstrBot 插件入口。
+"""Warframe 查询助手 —— AstrBot 插件入口。
 
 无缝配合 NapCat (OneBot v11) 上游运行；指令解析为**自由参数**式：
 【主指令 内容 附加指令】位置任意、空格分隔，通用修饰符可叠加
@@ -34,7 +34,9 @@ try:  # 允许脱离 AstrBot 直接跑单元测试
     from .core import calculators as calc
     from .core import damage_calc as dc
     from .core import loadout_ocr as lo
-    from .core.api_client import WarframeAPIError, WarframeClient, parse_url_list
+    from .core.api_client import (WarframeAPIError, WarframeClient,
+                              parse_url_list, fuzzy_hits)
+    from .core import baro
     from .core import drops as drops_db
     from .core import formatters as fmt
     from .core import search as search_engine
@@ -51,7 +53,9 @@ except ImportError:  # pragma: no cover
     from core import damage_calc as dc
     from core import loadout_ocr as lo
     from core import de_worldstate as de_ws
-    from core.api_client import WarframeAPIError, WarframeClient, parse_url_list
+    from core.api_client import (WarframeAPIError, WarframeClient,
+                             parse_url_list, fuzzy_hits)
+    from core import baro
     from core import drops as drops_db
     from core import formatters as fmt
     from core import search as search_engine
@@ -141,6 +145,23 @@ JUNK_FILE = Path(__file__).resolve().parent / "core" / "data" / "junk.json"
 #   2. **54 个主指令必须全部出现**，由 tests/test_help_coverage.py 锁住，
 #      以后新增主指令而忘了写进帮助会直接测试失败。
 #   分组依据是「玩家在什么场景下会想用它」，同类指令聚在一组。
+def _xh_element(toks: list[str]) -> tuple[Optional[str], Optional[str]]:
+    """从参数里认元素，返回 (中文名, WM 英文值)。
+
+    认中英文全称与常见单字/简写（辐射 / radiation / 辐）；认不出返回 (None, None)。
+    """
+    for t in toks:
+        s = (t or "").strip().lower()
+        if s in fmt.LICH_ELEM_EN:                 # 中文全称
+            return s, fmt.LICH_ELEM_EN[s]
+        if s in fmt.LICH_ELEM_CN:                 # 英文
+            return fmt.LICH_ELEM_CN[s], s
+        if s in fmt.LICH_ELEM_ALT:                # 单字 / 简写
+            cn = fmt.LICH_ELEM_ALT[s]
+            return cn, fmt.LICH_ELEM_EN[cn]
+    return None, None
+
+
 HELP_TOPIC: dict[str, list[tuple[str, str]]] = {
     "用法速查": [
         ("帮助 / help", "本页指令总览"),
@@ -302,9 +323,9 @@ class Reply:
 
 
 @register("astrbot_plugin_warframe", "skyti1437",
-          "Warframe SDJK：世界状态 / 市场查价 / 蹲点推送",
-          "2.0")
-class WarframeSDJK(Star):
+          "Warframe 查询助手：世界状态 / 市场查价 / 蹲点推送",
+          "1.0")
+class WarframeQuery(Star):
     def __init__(self, context: Context, config: AstrBotConfig | None = None):
         super().__init__(context)
         self.cfg: dict = dict(config) if config else {}
@@ -521,7 +542,7 @@ class WarframeSDJK(Star):
         logger.info("[sdjk] 插件已卸载")
 
     # ------------------------------------------------------------------
-    # 总分发：捕获全部消息，交由 SDJK 解析器处理
+    # 总分发：捕获全部消息，交由 WFQuery 解析器处理
     # ------------------------------------------------------------------
     @filter.event_message_type(filter.EventMessageType.ALL)
     async def on_message(self, event: AstrMessageEvent):
@@ -598,9 +619,9 @@ class WarframeSDJK(Star):
             for i, (ptitle, plines) in enumerate(reply.pages, 1):
                 # 渲染串行：PIL 单线程吃 CPU，容器算力弱，多任务同时渲染
                 # 会互相拖慢（实测叠加时单张 0.7s → 39s）
-                if WarframeSDJK._render_lock is None:
-                    WarframeSDJK._render_lock = asyncio.Lock()
-                async with WarframeSDJK._render_lock:
+                if WarframeQuery._render_lock is None:
+                    WarframeQuery._render_lock = asyncio.Lock()
+                async with WarframeQuery._render_lock:
                     path = await asyncio.to_thread(
                         self.renderer.render, f"{ptitle}（第{i}/{n}页）",
                         plines, reply.footer)
@@ -616,9 +637,9 @@ class WarframeSDJK(Star):
                            reply.pages[0][0] if reply.pages else "?")
 
         if use_image:
-            if WarframeSDJK._render_lock is None:
-                WarframeSDJK._render_lock = asyncio.Lock()
-            async with WarframeSDJK._render_lock:
+            if WarframeQuery._render_lock is None:
+                WarframeQuery._render_lock = asyncio.Lock()
+            async with WarframeQuery._render_lock:
                 path = await asyncio.to_thread(
                     self.renderer.render, reply.title,
                     reply.lines, reply.footer)
@@ -751,7 +772,7 @@ class WarframeSDJK(Star):
                                  + f"　{mode}·{life}")
             lines.append("◆ 系统")
             lines.append(f"· 缓存　{cache['size']} 项 · 命中率 {cache['hit_rate'] * 100:.0f}%")
-            return Reply("Warframe SDJK 2.0", lines,
+            return Reply("Warframe 查询助手 1.0", lines,
                          footer=fmt.fmt_platform_footer(self.groups.platform(umo)))
 
         if cmd == "锚点":
@@ -871,7 +892,23 @@ class WarframeSDJK(Star):
         return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
 
     async def _h_voidtrader(self, parsed, event, platform) -> Reply:
+        """虚空商人（Baro Ki'Teer）：当前库存 / 下期预测。
+
+        「奸商 预测」给出**基于 wiki 历史到访记录的候选排序**（统计推测，
+        非官方 —— DE 不公布下期库存），口径写在卡面上。
+        """
+        toks = [str(t).lower() for t in (parsed.content or [])]
+        if any(t in ("预测", "predict") for t in toks):
+            rows = baro.predict(8)
+            title, lines = fmt.fmt_baro_predict(
+                rows, baro.next_visit_est() or "",
+                len(baro.visits()), baro.last_visit() or "")
+            return Reply(title, lines,
+                         footer=fmt.fmt_platform_footer(platform, "wiki 历史统计"))
         title, lines = fmt.fmt_void_trader(await self.client.void_trader(platform))
+        if baro.visits():
+            lines.append(f"※ 想看下期可能卖什么：发「奸商 预测」"
+                         f"（基于 wiki 的 {len(baro.visits())} 次到访统计）")
         return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
 
     async def _h_dailydeals(self, parsed, event, platform) -> Reply:
@@ -1376,7 +1413,7 @@ class WarframeSDJK(Star):
             lines.append(f"◆ {t}")
             # 全角空格分隔：渲染层按此切成两列并做首字符垂直线对齐
             lines += [f"· {c}　{d}" for c, d in items]
-        return Reply("Warframe SDJK 指令一览", lines,
+        return Reply("Warframe 查询助手 指令一览", lines,
                      footer=fmt.fmt_platform_footer(platform))
 
     # ------------------------------------------------------------------
@@ -1891,35 +1928,96 @@ class WarframeSDJK(Star):
         return reply
 
     async def _h_xh(self, parsed, event, platform) -> Reply:
-        """玄骸拍卖查询（WM lich auctions）。"""
+        """玄骸拍卖查询（WM lich auctions）。
+
+        覆盖**三类**：赤毒 Kuva（type=lich）/ 信条 Tenet（type=sister）/
+        科达 Coda（type=coda，WM 未开放则提示无挂单）。
+        1986 年这个指令只查了 lich，信条武器必然「未找到」—— 2026-09-18 修。
+
+        分支筛选：``xh 武器名 [元素] [数值]``
+          · 元素：中文（辐射/毒素/火焰…）或英文（radiation/toxin…）
+          · 数值：伤害加成下限（如 ``50`` 表示只要 ≥50%）
+        """
         toks = parsed.content or []
         if not toks:
-            return Reply(raw_text="用法：xh 武器名 [元素] [幻纹]（如 xh 赤毒怒雷）\n"
-                                  f"已收录 {len(self.client._aliases.get('lich_items', {}))} 把常见玄骸武器")
+            return Reply(raw_text=(
+                "用法：xh 武器名 [元素] [数值]\n"
+                "　例：xh 赤毒怒雷 ｜ xh 信条弧电离子枪 辐射 ｜ xh 赤毒海克 50\n"
+                "　元素：磁力/电击/毒素/火焰/冰冻/冲击/切割/辐射\n"
+                f"　已收录 {len(self.client._aliases.get('lich_items', {}))} 个中文写法"
+                "（赤毒/信条/科达三类）"))
         first = toks[0]
         slug = self.client.resolve_lich_weapon(first) or await self._lich_slug_by_riven(first)
         if not slug:
-            return Reply(raw_text=f"未找到玄骸武器「{first}」，试试别名表里的中文名（别名见 core/data/aliases.json -> lich_items）")
-        zh_of = self.client._aliases.get("lich_items", {})
-        name = next((k for k, v in zh_of.items() if v == slug), slug)
-        auctions = await self.client.wm_lich_auctions(slug, platform, lich_type="lich")
-        want_eph = any("幻纹" in t for t in toks)
-        elem = next((t for t in toks[1:] if t in ("磁力", "电击", "毒素", "火焰", "冰冻", "冲击", " slash".strip(), "切割", "辐射")), None)
-        elem_en = {"磁力": "magnetic", "电击": "electricity", "毒素": "toxin", "火焰": "heat", "冰冻": "cold", "冲击": "impact", "切割": "slash", "辐射": "radiation"}.get(elem or "")
+            near = fuzzy_hits(
+                first, list(self.client._aliases.get("lich_items", {})), n=3) or []
+            hint = ("；你是不是想找：" + "、".join(near)) if near else ""
+            return Reply(raw_text=f"未找到玄骸武器「{first}」{hint}\n"
+                                  "支持赤毒/信条/科达三类，可只写后半段（如「怒雷」）")
+
+        info = self.client.lich_weapon_info(slug)
+        name = info.get("zh") or slug
+        kind = info.get("type") or "lich"
+        toks_tail = toks[1:]
+        want_eph = any("幻纹" in t for t in toks_tail)
+        elem_cn, elem_en = _xh_element(toks_tail)
+        min_dmg = next((int(t.rstrip("%")) for t in toks_tail
+                        if t.rstrip("%").isdigit() and 1 <= int(t.rstrip("%")) <= 100),
+                       None)
+
+        try:
+            auctions = await self.client.wm_lich_auctions(
+                slug, platform, lich_type=kind)
+        except WarframeAPIError as exc:
+            # 市场侧失败要说清原因（限速/网络），不能糊成「内部错误」
+            return Reply(raw_text=f"warframe.market 查询失败：{exc}\n"
+                                  "多为市场限速（3 请求/秒）或网络抖动，"
+                                  "过几秒重试即可。")
         pool = auctions
         if want_eph:
-            pool = [a for a in pool if a.get("item", {}).get("having_ephemera")]
+            pool = [a for a in pool if (a.get("item") or {}).get("having_ephemera")]
         if elem_en:
-            pool = [a for a in pool if a.get("item", {}).get("element") == elem_en]
-        lines = []
-        for i, a in enumerate(pool[:10], 1):
-            item = a.get("item") or {}
-            price = a.get("buyout_price") or a.get("starting_price") or 0
-            eph = "幻纹✦" if item.get("having_ephemera") else ""
-            lines.append(f"{i}. {price}p {item.get('element','')} {eph}"
-                         f"｜伤害 {item.get('damage','?')}%")
-        title = f"{name} 玄骸拍卖（{len(pool)}条" + ("，含筛选" if (want_eph or elem_en) else "") + "）"
-        return Reply(title, lines or [f"暂无符合条件的美骸挂单"], footer=fmt.fmt_platform_footer(platform, "warframe.market 玄骸"))
+            pool = [a for a in pool if (a.get("item") or {}).get("element") == elem_en]
+        if min_dmg is not None:
+            pool = [a for a in pool
+                    if int((a.get("item") or {}).get("damage") or 0) >= min_dmg]
+
+        # 排序：**在线优先**（能立刻交易）→ 伤害降序 → 价格升序
+        def _rank(a: dict):
+            o = a.get("owner") or {}
+            it = a.get("item") or {}
+            on = {"ingame": 0, "online": 1}.get(str(o.get("status") or ""), 2)
+            price = a.get("buyout_price") or a.get("starting_price") or 999999
+            return (on, -int(it.get("damage") or 0), price)
+        pool = sorted(pool, key=_rank)
+
+        filters = []
+        if elem_cn:
+            filters.append(elem_cn)
+        if min_dmg is not None:
+            filters.append(f"伤害≥{min_dmg}%")
+        if want_eph:
+            filters.append("带幻纹")
+        title = f"{name} 玄骸拍卖（{len(pool)}条" + \
+            ("，" + "·".join(filters) if filters else "") + "）"
+        if not pool:
+            if self.client.lich_unsupported(slug):
+                msg = (f"warframe.market 没有「{name}」的挂单类目 ——\n"
+                       f"这类武器（部分近战 Tenet / 全部 Coda）市场查不到，"
+                       f"只能游戏内自行交易。\n"
+                       f"（{name} 的中文名已可正常识别，只是市场无数据）")
+            elif not auctions:
+                msg = "该武器当前没有挂单（冷门武器挂单少，可过段时间再看）"
+            else:
+                msg = "暂无符合条件的挂单" + \
+                    (f"（筛选：{'·'.join(filters)}）" if filters else "")
+            return Reply(title, msg.splitlines(),
+                         footer=fmt.fmt_platform_footer(platform, "warframe.market 玄骸"))
+        lines = [fmt.fmt_lich_row(i, a) for i, a in enumerate(pool[:12], 1)]
+        lines.append("※ 在线优先排序；信用=卖家交易信誉等级（0~5），"
+                     "幻纹✦ 表示带幻纹")
+        return Reply(title, lines,
+                     footer=fmt.fmt_platform_footer(platform, "warframe.market 玄骸"))
 
     async def _lich_slug_by_riven(self, q: str) -> Optional[str]:
         """黑话兜底：尝试从 riven 别名表取基础武器 slug 前缀匹配玄骸。"""
@@ -2708,7 +2806,7 @@ class WarframeSDJK(Star):
     def _normalize_llm_stats(data: dict, rev: dict) -> tuple[list, list]:
         """LLM 提取结果 → ([(stat_id, float)...], [...])；词条名宽松匹配。"""
         import difflib
-        alias = WarframeSDJK._STAT_ALIAS
+        alias = WarframeQuery._STAT_ALIAS
 
         def to_stat(name: str, val):
             if name is None or val is None:

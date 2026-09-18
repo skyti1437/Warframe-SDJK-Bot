@@ -84,7 +84,7 @@ R._plan_desc_col_wrap = spy_plan
 r = R.ImageRenderer(Path(ROOT / "runtime" / "cards"))
 if not r.available:
     raise SystemExit("渲染器不可用")
-p = r.render("Warframe SDJK 指令一览", lines, "平台：国际服")
+p = r.render("Warframe 查询助手 指令一览", lines, "平台：国际服")
 
 from PIL import Image  # noqa: E402
 W = Image.open(p).size[0]

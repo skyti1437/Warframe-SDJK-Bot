@@ -510,6 +510,38 @@ def fmt_void_trader(trader: Optional[dict]) -> tuple[str, list[str]]:
     return ("虚空商人", lines)
 
 
+def fmt_baro_predict(rows: list[dict], next_est: str = "",
+                     visits: int = 0, last: str = ""
+                     ) -> tuple[str, list[str]]:
+    """奸商下期库存「预测」（**统计推测，非官方**）。
+
+    用户 2026-09-18：「别人的奸商指令有预测功能」。DE 从不公布下期库存，
+    wiki 却记录了历次到访与每件物品的上架日期 —— 本卡就是基于这些真实
+    记录做的候选排序，并把口径写在卡上，不打包票。
+    """
+    if not rows:
+        return ("奸商下期预测", [
+            "预测数据不可用（缺 core/data/baro_history.json）",
+            "刷新方式：scripts/build_baro_history.py（需经 FlareSolverr 抓 wiki）",
+        ])
+    lines = []
+    if next_est:
+        lines.append(f"下次预计到访：{next_est}（上次 {last}；他每 2 周来一次）")
+    lines.append("◆ 最可能回归")
+    for i, r in enumerate(rows, 1):
+        name = r["name"]
+        cost = f"{r['ducats']}杜卡德" if r.get("ducats") else "—"
+        typ = f"｜{r['type']}" if r.get("type") else ""
+        lines.append(f"{i}. {name}　{cost}{typ}")
+        lines.append(f"　 上次上架 {r['last']}｜已静默 {r['silent']} 次｜"
+                     f"历史均隔 {r['gap']} 次")
+    lines.append(f"※ 统计自 wiki 的 {visits} 次到访记录（2015 年至今），"
+                 f"**不是官方预测**。")
+    lines.append("　 口径：已静默次数 ÷ 它自己的平均上架间隔，越接近 1 "
+                 "越「该回来了」。")
+    return ("奸商下期预测（推测）", lines)
+
+
 def fmt_daily_deals(deals: Iterable[dict]) -> tuple[str, list[str]]:
     lines = [f"{d.get('item', '?')}：{d.get('salePrice', '?')}白金（原价{d.get('originalPrice', '?')}）"
              f" 库存{d.get('total', '?')}　剩{countdown(d.get('expiry', ''))}"
@@ -3191,6 +3223,48 @@ _PIECE_MAX_ROWS = 12
 _PIECE_STATE_TEXT = {"drop": "可掉落", "varzia": "仅阿耶兑换", "vaulted": "已入库"}
 # 排序优先级：能拿到的排最前（用户查部件最先想知道的就是「现在能不能刷」）
 _PIECE_STATE_ORDER = {"drop": 0, "varzia": 1, "vaulted": 2}
+
+
+# ---------------------------------------------------------------------------
+# 玄骸拍卖（Kuva / Tenet / Coda）
+# ---------------------------------------------------------------------------
+# 玄骸武器的元素只有这几种（WM 的 item.element 取值）。卡面显示中文，
+# 用户输入中英文都认（用户 2026-09-18：「只有伤害加成，没有元素」——
+# 其实是显示成了英文 radiation/toxin，中文玩家对不上）。
+LICH_ELEM_CN = {
+    "magnetic": "磁力", "electricity": "电击", "toxin": "毒素",
+    "heat": "火焰", "cold": "冰冻", "impact": "冲击", "slash": "切割",
+    "radiation": "辐射",
+}
+LICH_ELEM_EN = {v: k for k, v in LICH_ELEM_CN.items()}
+# 玩家可能写单字或英文
+LICH_ELEM_ALT = {
+    "电": "电击", "毒": "毒素", "火": "火焰", "冰": "冰冻", "辐": "辐射",
+    "磁": "磁力", "冲": "冲击", "切": "切割",
+    "electric": "电击", "toxic": "毒素", "fire": "火焰", "ice": "冰冻",
+    "rad": "辐射", "mag": "磁力",
+}
+LICH_OWNER_STATUS_CN = {"ingame": "游戏内", "online": "在线"}
+
+
+def fmt_lich_row(i: int, auction: dict) -> str:
+    """玄骸拍卖的一行：价格 / 元素 / 伤害 / 卖家状态与信用 / 幻纹。
+
+    2026-09-18 用户要求补三样：**元素（中文）**、**在线情况**、**信用等级**，
+    这些数据本来就在 WM 返回的 item/owner 里，原实现只取了价格与伤害。
+    """
+    it = auction.get("item") or {}
+    ow = auction.get("owner") or {}
+    price = auction.get("buyout_price") or auction.get("starting_price") or 0
+    raw_elem = str(it.get("element") or "")
+    elem = LICH_ELEM_CN.get(raw_elem, raw_elem or "?")
+    dmg = it.get("damage")
+    dmg_s = f"{int(dmg)}%" if isinstance(dmg, (int, float)) else "?"
+    status = LICH_OWNER_STATUS_CN.get(str(ow.get("status") or ""), "离线")
+    rep = ow.get("reputation")
+    rep_s = f"·信用{int(rep)}" if isinstance(rep, (int, float)) else ""
+    eph = "｜幻纹✦" if it.get("having_ephemera") else ""
+    return f"{i}. {price}p {elem}｜伤害 {dmg_s}｜{status}{rep_s}{eph}"
 
 
 def fmt_relic_piece(piece: str, origins: list[dict], *,
