@@ -57,6 +57,38 @@ def _mm(v: str) -> str:
 check("metadata.yaml 版本 == core 主次版本",
       bool(m) and _mm(m.group(1)) == MM, m.group(1) if m else "?")
 
+# ★ metadata 的 ``name`` 必须是**合法 Python 标识符**：AstrBot 4.x 用它当
+#   插件模块名来 import（star_manager._validate_importable_name 会校验
+#   `name.isidentifier()`）。2026-09-18 实测：服务端那份写成了显示名
+#   「Warframe 查询助手」，带空格 → 从仓库/zip 安装时直接抛
+#   「metadata 文件中 name 不是合法的模块名称」而失败。
+#   显示名要放 ``display_name`` 字段，别占用 name。
+def _meta_name(text: str) -> str:
+    """取 metadata 的 name —— 用逐行解析而不是正则。
+
+    用正则写过一版（`^name:` + 空白通配），但经 heredoc 落盘后正则里的
+    反斜杠被吞成 `//s`，匹配恒为空 → 断言假失败。逐行解析没有转义问题。
+    """
+    for line in (text or "").splitlines():
+        if line.startswith("name:"):
+            return line.split(":", 1)[1].strip()
+    return ""
+
+
+mn = _meta_name(meta)
+check("metadata.yaml 的 name 是合法模块名（可被 importlib 加载）",
+      bool(mn) and mn.isidentifier(), mn or "缺 name 字段")
+check("显示名放 display_name，不占用 name 字段",
+      "display_name:" in meta, "缺 display_name")
+
+# 开源包那份（由 dist/package_release.py 生成）同样要合法
+oss_meta = ROOT / "dist" / "opensource" / "astrbot_plugin_warframe" / "metadata.yaml"
+if oss_meta.exists():
+    om = oss_meta.read_text(encoding="utf-8")
+    omn = _meta_name(om)
+    check("开源包 metadata.yaml 的 name 也是合法模块名",
+          bool(omn) and omn.isidentifier(), omn or "缺 name 字段")
+
 main_src = (ROOT / "main.py").read_text(encoding="utf-8")
 m2 = re.search(r'@register\(\s*"[^"]+",\s*"[^"]+",\s*\n\s*"[^"]*",\s*\n\s*"([\d.]+)"',
                main_src)

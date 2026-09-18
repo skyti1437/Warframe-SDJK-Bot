@@ -335,10 +335,13 @@ _TOKEN_RE = re.compile(
     r"|" + _word_alt(MISSION_TYPE_WORDS) +
     r"|" + _word_alt(ELEMENT_WORDS) +
     r"|\d+(?:\.\d+)?%"
-    # 奸商预测卡：杜卡德报价（金色）与行首序号（暗金）
+    # 奸商卡：杜卡德报价（金色，全称与「N杜」缩写两种写法都要认）、
+    # 现金（青色，含「N万现金」折叠式）。行首序号用暗金弱化。
     # ⚠️ 序号这里用 `(?:^|(?<=[\s　]))` 而不是 `(?<=^|\s|　)` ——
     #    后者是**变长 lookbehind**，Python `re` 直接报错。
     r"|\d+\s*杜卡德"
+    r"|\d+杜(?!卡)"
+    r"|\d+(?:\.\d+)?万?现金"
     r"|(?:^|(?<=[\s　]))\d+\.(?=[\s　])"
     r"|[0-9]{2,4}\s\[(?:S|A\+|A-|A|B\+|B|F)\]"
     r"|[0-9]{2,4}\s(?:S|A\+|A-|A|B\+|B|F)\b"
@@ -621,7 +624,9 @@ class ImageRenderer:
                             or ("侵袭" in title) or ("价格排行" in title)
                             or ("紫卡热度" in title)
                             or ("遗物入库" in title) or ("遗物出库" in title)
-                            or ("遗物列表" in title) or ("部件出处" in title))
+                            or ("遗物列表" in title) or ("部件出处" in title)
+                            # 奸商当期货单：两列 ×（名称/杜卡德/现金）六列网格
+                            or ("虚空商人" in title))
         plat_chip, foot_notes = self._parse_footer(footer)
 
         # —— 宽度优先：逐行实测需求（文本+芯片外扩+时间列），卡宽上限 1500 ——
@@ -1323,6 +1328,8 @@ class ImageRenderer:
             # 奸商预测卡：序号用暗金（弱化）、杜卡德报价金色（价格类统一高亮）
             (re.compile(r"^\d+\.$"), (150, 128, 88)),
             (re.compile(r"^\d+\s*杜卡德$"), GOLD_BRIGHT),
+            (re.compile(r"^\d+杜$"), GOLD_BRIGHT),
+            (re.compile(r"^\d+(?:\.\d+)?万?现金$"), CYAN),
         ]
         plain_body = getattr(self, "_plain_body", False)
         brackets = len(re.findall(r"\[[^\]]*\]", text))

@@ -489,7 +489,29 @@ def fmt_archon(archon: Optional[dict]) -> tuple[str, list[str]]:
 # ---------------------------------------------------------------------------
 
 
+def _baro_cash(credits) -> str:
+    """现金展示：≥1 万折叠成「N 万」，小数去尾零（250000 → 25万现金）。"""
+    try:
+        c = int(credits)
+    except (TypeError, ValueError):
+        return "?现金"
+    if c >= 10000:
+        s = f"{c / 10000:.1f}".rstrip("0").rstrip(".")
+        return f"{s}万现金"
+    return f"{c}现金"
+
+
 def fmt_void_trader(trader: Optional[dict]) -> tuple[str, list[str]]:
+    """虚空商人（当期在售）。
+
+    排版（2026-09-18 用户要求「借鉴别人家的设计」）：**两列**。
+    每行左右各一个商品，共 6 列（名称 / 杜卡德 / 现金 ×2），交给渲染层的
+    表格列对齐（_table_mode）统一列位。实测 37 件全部塞进一页
+    （表宽 1231 ≤ 安全阀 1322，A 全称格式 1365 会超限 —— 所以杜卡德用
+    「N杜」缩写、现金用「N万现金」，单位不同正好配两种颜色）。
+
+    颜色：名称暖白（默认）、杜卡德金色、现金青色（render 的 token 规则）。
+    """
     if not trader:
         return ("虚空商人", ["数据暂不可用"])
     active = trader.get("active", False)
@@ -500,10 +522,19 @@ def fmt_void_trader(trader: Optional[dict]) -> tuple[str, list[str]]:
         inv = trader.get("inventory") or []
         if not inv:
             lines.append("货单同步中，请稍后再查")
-        lines += [f"{i + 1}. {it.get('item', '?')}　{it.get('ducats', '?')}杜卡德　"
-                  f"{it.get('credits', '?')}现金" for i, it in enumerate(inv[:30])]
-        if len(inv) > 30:
-            lines.append(f"……共 {len(inv)} 件（-2/-3 翻页查看未在演示范围）")
+            return ("虚空商人", lines)
+
+        def cell(it: dict) -> str:
+            name = it.get("item") or "?"
+            return f"{name}　{it.get('ducats', '?')}杜　{_baro_cash(it.get('credits'))}"
+
+        half = (len(inv) + 1) // 2
+        for i in range(half):
+            row = cell(inv[i])
+            if i + half < len(inv):
+                row += "　" + cell(inv[i + half])
+            lines.append(row)
+        lines.append(f"※ 共 {len(inv)} 件｜金色＝杜卡德 · 青色＝现金")
     else:
         lines.append(f"奸商尚未抵达，将于 {trader.get('location', '?')} 出现，"
                      f"还有 {countdown(trader.get('activation', ''))}")
