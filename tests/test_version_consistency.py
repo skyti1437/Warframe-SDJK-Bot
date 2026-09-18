@@ -36,10 +36,11 @@ check("core.__version__ 形如 X.Y.Z",
       bool(re.fullmatch(r"\d+\.\d+\.\d+", str(CORE_VERSION))), str(CORE_VERSION))
 check("卡片水印版本由 core.__version__ 派生",
       R.WATERMARK_VERSION == MM, f"{R.WATERMARK_VERSION} vs {MM}")
-# 不硬编码品牌名（2026-09-18 去 SDJK 时踩到：断言写死品牌会让改名连带崩测试）
+# 水印断言用**派生值**比较（不写死品牌）：2026-09-18 换品牌时因为断言写死
+# 品牌名，改名连带崩了测试 —— 教训写在这儿。
 check("水印串含派生版本",
       R.WATERMARK.endswith(R.WATERMARK_VERSION), R.WATERMARK)
-check("水印不再含旧品牌 SDJK", "SDJK" not in R.WATERMARK, R.WATERMARK)
+check("水印含品牌 SDJK", "SDJK" in R.WATERMARK, R.WATERMARK)
 
 meta = (ROOT / "metadata.yaml").read_text(encoding="utf-8")
 m = re.search(r"^version:\s*v?([\d.]+)\s*$", meta, re.M)
@@ -62,7 +63,7 @@ m2 = re.search(r'@register\(\s*"[^"]+",\s*"[^"]+",\s*\n\s*"[^"]*",\s*\n\s*"([\d.
 check("@register 版本与 core 主次版本一致",
       bool(m2) and m2.group(1) == MM, m2.group(1) if m2 else "?")
 check("状态卡文案版本与 core 主次版本一致",
-      f"Warframe 查询助手 {MM}" in main_src, "未找到状态卡版本文案")
+      f"Warframe SDJK {MM}" in main_src, "未找到状态卡版本文案")
 
 print()
 if FAILED:

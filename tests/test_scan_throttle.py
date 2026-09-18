@@ -125,7 +125,7 @@ class _Parsed:
 
 
 def _plugin(cfg: dict):
-    obj = plugin.WarframeQuery.__new__(plugin.WarframeQuery)
+    obj = plugin.WarframeSDJK.__new__(plugin.WarframeSDJK)
     obj.cfg = dict(cfg)
     obj._ocr_busy = set()
     obj._ocr_last = {}

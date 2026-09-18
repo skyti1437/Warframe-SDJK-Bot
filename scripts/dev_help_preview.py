@@ -59,7 +59,7 @@ def main():
     r = R.ImageRenderer(Path(tempfile.mkdtemp(prefix="help_prev_")))
     if not r.available:
         raise SystemExit("渲染器不可用（缺字体）")
-    p = r.render("Warframe 查询助手 指令一览", lines, "平台：国际服")
+    p = r.render("Warframe SDJK 指令一览", lines, "平台：国际服")
 
     out = ROOT / "runtime" / ("help_preview.png" if not rev
                               else f"help_preview_{rev.replace('~', '_').replace('^', '_')}.png")

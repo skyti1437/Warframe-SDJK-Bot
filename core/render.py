@@ -120,7 +120,7 @@ try:  # pragma: no cover - 兜底分支只在包结构异常时走到
     WATERMARK_VERSION = ".".join(str(_CORE_VERSION).split(".")[:2]) or "1.0"
 except Exception:  # noqa: BLE001
     WATERMARK_VERSION = "1.0"
-WATERMARK = f"WARFRAME  ·  QUERY {WATERMARK_VERSION}"
+WATERMARK = f"WARFRAME  ·  SDJK {WATERMARK_VERSION}"
 
 # 配色：Orokin 暗金 + Tenno 能量色
 BG_TOP = (10, 13, 20)
@@ -583,7 +583,7 @@ class ImageRenderer:
         m = _PAGE_RE.search(title)
         page_chip = f"{m.group(1)}/{m.group(2)}" if m else ""
         title = _PAGE_RE.sub("", title).strip()
-        accent, subtitle = GOLD, "WARFRAME QUERY"
+        accent, subtitle = GOLD, "WARFRAME SDJK"
         for keys, (color, _slug) in TITLE_THEME:
             if any(k in title for k in keys):
                 accent = color

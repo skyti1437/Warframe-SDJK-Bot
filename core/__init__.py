@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Warframe 查询助手（AstrBot 插件）核心业务层。"""
+"""Warframe SDJK（AstrBot 插件）核心业务层。"""
 
 __version__ = "1.0.0"
 
