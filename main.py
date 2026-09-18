@@ -148,7 +148,7 @@ HELP_TOPIC: dict[str, list[tuple[str, str]]] = {
         ("平台 -pc / -ps / -xb / -sw", "四平台数据已互通，统一显示「国际服」"),
         ("输出 -1 / -w ｜ -t ｜ -r", "纯文字 ｜ 强制图片 ｜ 生成密语"),
         ("翻页 -2 / -3", "看第 2/3 页（列表类指令通用）"),
-        ("群管理", "点号开头：.默认平台 / .开启 / .关闭 推送 / .锚点 / .状态"),
+        ("群管理", "点号开头：.默认平台 / .开启 / .关闭 推送 / .状态"),
     ],
     "周期与日常": [
         ("夜灵 / 平原时间", "夜灵·金星·魔胎·地球·双衍·扎里曼 周期轮换"),
@@ -328,6 +328,10 @@ class WarframeSDJK(Star):
         self.subs = SubscriptionStore(runtime / "subscriptions.json")
         self.renderer = ImageRenderer(runtime / "cards")
         self._last_scan: dict[str, tuple[float, dict, dict]] = {}  # 会话→(时刻, 武器, 折算spec)
+        # 识卡限流状态：**实例级**（类级默认值是兜底，实例级才隔离）。
+        # 类属性是可变对象时，写入会命中类本身 —— 多实例/多测试之间会串。
+        self._ocr_busy: set = set()
+        self._ocr_last: dict[str, float] = {}
         self.render_mode = self.cfg.get("render_mode", "image")
         self.page_size = int(self.cfg.get("page_size", 12))
         self.push = PushDaemon(self.client, self.subs, self._push_send, logger,
@@ -653,14 +657,39 @@ class WarframeSDJK(Star):
     # 群管理（. 前缀）
     # ------------------------------------------------------------------
     def _is_admin(self, event: AstrMessageEvent) -> bool:
+        """是否具备群管理权限。
+
+        ★ 安全审查（2026-09-18）修正两点：
+          ① 优先用 AstrBot 自带的 ``event.is_admin()``（4.x 已有）——
+             自己解析 ``role`` 字符串，会在平台/版本差异下漏判（例如对方
+             新增了角色取值）。自研解析只作为兜底。
+          ② ``super_admins`` 白名单比较统一转成字符串：配置面板里填成
+             数字时，``"123" in [123]`` 永远是 False —— 表现为「配了超管却
+             没权限」，是静默失效（fail-closed，不危险但很坑）。
+        """
+        try:
+            fn = getattr(event, "is_admin", None)
+            if callable(fn) and fn():
+                return True
+        except Exception:  # noqa: BLE001
+            pass
         role = str(getattr(event, "role", "") or "").lower()
         if role in ("admin", "owner", "administrator"):
             return True
-        admins = self.cfg.get("super_admins") or []
+        admins = (getattr(self, "cfg", None) or {}).get("super_admins") or []
         try:
-            return event.get_sender_id() in admins
+            sid = str(event.get_sender_id() or "")
+            return bool(sid) and sid in {str(a).strip() for a in admins}
         except Exception:  # noqa: BLE001
             return False
+
+    @staticmethod
+    def _safe_sender(event) -> str:
+        """取发送者 id；取不到返回空串（调用方据此跳过按人限制）。"""
+        try:
+            return str(event.get_sender_id() or "")
+        except Exception:  # noqa: BLE001
+            return ""
 
     async def _handle_admin(self, event: AstrMessageEvent, text: str) -> Optional[Reply]:
         tokens = text[1:].strip().split()
@@ -694,6 +723,12 @@ class WarframeSDJK(Star):
                                   + ("，可以用「蹲 类型」订阅推送了" if value and args[0] == "推送" else ""))
 
         if cmd == "状态":
+            # ★ 安全审查（2026-09-18）：这条会列出**本群全部订阅明细**
+            #   （谁订了什么、还剩多久）与缓存统计，却完全没有权限校验 ——
+            #   群里任何人都能看。改为与其它管理指令一致。
+            if not self._is_admin(event):
+                return Reply(raw_text="⛔ 该指令需要群管理员权限"
+                                      "（会列出本群订阅明细）")
             g = self.groups.get(umo)
             subs = self.subs.for_umo(umo)
             cache = self.client.cache.stats()
@@ -720,26 +755,17 @@ class WarframeSDJK(Star):
                          footer=fmt.fmt_platform_footer(self.groups.platform(umo)))
 
         if cmd == "锚点":
-            if not self._is_admin(event):
-                return Reply(raw_text="⛔ 该指令需要群管理员权限")
-            if not args:
-                return Reply(raw_text="用法：.锚点 节点名（当前真实仲裁的节点，如 .锚点 Palus）\n"
-                                      "校准一次后「仲裁表」推算 30 天")
-            node = args[0].strip()
-            anchor = {"node": node, "hour": int(time.time() // 3600)}
-            self.cfg["arb_anchor"] = anchor
-            # 把锚点写入运行时目录下的 arb_anchor.json，避免硬编码 AstrBot 配置路径
-            # （不同部署方式下 /AstrBot/data/config/... 可能不存在或权限受限）。
-            anchor_path = PLUGIN_DIR / "runtime" / "arb_anchor.json"
-            try:
-                anchor_path.parent.mkdir(parents=True, exist_ok=True)
-                import json as _json
-                anchor_path.write_text(_json.dumps(anchor, ensure_ascii=False, indent=2),
-                                       encoding="utf-8")
-            except Exception as exc:  # noqa: BLE001
-                logger.warning("写入 arb_anchor.json 失败：%s", exc)
-            return Reply(raw_text=f"✅ 仲裁锚点已校准：{node}（当前小时）\n"
-                                  "发送「仲裁表」查看 30 天排期")
+            # ★★ 安全审查（2026-09-18）发现：本指令写入的锚点**没有任何读取方**。
+            #   仲裁表已改走 arbi.wf.wiki 的确定性排期，`de_worldstate.arb_from_anchor`
+            #   成了死代码 —— 也就是说用户「校准」完其实毫无效果；而写入点是
+            #   全局的（cfg + runtime/arb_anchor.json），任何群的群管都能覆盖，
+            #   属于跨租户写入。
+            #   按项目铁律「失效功能必须给出真实可用的替代指令」，这里保留指令名
+            #   但**明确告知已废弃**，且不再写任何全局状态。
+            return Reply(raw_text="「.锚点」已废弃：仲裁表现在按 arbi.wf.wiki 的"
+                                  "确定性排期自动推算，不需要手动校准。\n"
+                                  "· 看当前与下一小时场次：发「仲裁」\n"
+                                  "· 看整周 30 天排期：发「仲裁表」（可筛类型）")
         if cmd in ("帮助", "help"):
             return await self._h_help(None, event, self.groups.platform(umo))
         return None
@@ -1551,6 +1577,32 @@ class WarframeSDJK(Star):
                 "　需要 AstrBot 里配好一个多模态模型（如 Qwen3-VL / glm-4.1v）",
             ])
 
+        # ★★ 安全审查（2026-09-18）：识卡每次会调用**付费**多模态模型。
+        #   原来只有「同会话串行」——那只防自己连发，防不住「同一个人狂刷」
+        #   和「多个群同时刷」，而宿主是 2 核小机器：并发几路就能把 CPU 打到
+        #   渲染 39s+，账单也会跟着涨。这里加两道闸（都能在面板关掉/调整）：
+        #     ① 同一发送者冷却 scan_cooldown 秒（默认 15，设 0 关闭）
+        #     ② 全局并发上限 scan_max_concurrent（默认 3，设 0 关闭）
+        _cd = float(self.cfg.get("scan_cooldown", 15) or 0)
+        _sender = self._safe_sender(event)
+        if _cd > 0 and _sender:
+            _last = self._ocr_last.get(_sender, 0.0)
+            _left = _cd - (time.time() - _last)
+            if _last and _left > 0:
+                return Reply(raw_text=f"⏳ 识卡太频繁了，请 {_left:.0f} 秒后再试\n"
+                                      "（面板「识卡冷却秒数」可调，设 0 关闭限制）")
+            # 顺手清掉过期记录，避免长期运行把字典撑大
+            if len(self._ocr_last) > 512:
+                _now = time.time()
+                for _k in [k for k, v in self._ocr_last.items()
+                           if _now - v > max(_cd * 4, 120)]:
+                    self._ocr_last.pop(_k, None)
+            self._ocr_last[_sender] = time.time()
+        _cap = int(self.cfg.get("scan_max_concurrent", 3) or 0)
+        if _cap > 0 and len(self._ocr_busy) >= _cap:
+            return Reply(raw_text=f"⏳ 机器人正在处理其它识卡请求"
+                                  f"（并发上限 {_cap}），请稍后再试")
+
         # 同一会话串行：识卡是「多次 vision 调用 + 双页渲染」的重活，
         # 连发会让容器 CPU 争抢（实测单张渲染 0.7s → 39s）。
         _busy_key = f"{getattr(event, 'unified_msg_origin', '') or ''}"
@@ -2241,6 +2293,7 @@ class WarframeSDJK(Star):
     #    但伤害行反复读串/整轮崩（最差一次 0/9）→ 32B 首位、glm 兜底，
     #    _extract_loadout_from_image 会按序逐个尝试
     _ocr_busy: set = set()        # 正在识卡的会话（并发保护）
+    _ocr_last: dict = {}          # 发送者 → 上次识卡时刻（冷却用）
     # 识卡多渠道路由的等待窗口（秒）：窗口内取「校验全过」的最优；
     # 到点即用当前最好结果走聚焦二读，不无限等慢渠道（实测 glm 25 s、
     # 32B 更慢）。窗口 ≳ 最快渠道的响应时间。
