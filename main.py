@@ -30,14 +30,12 @@ from astrbot.api.message_components import Image, Plain
 from astrbot.api.star import Context, Star, register
 
 try:  # 允许脱离 AstrBot 直接跑单元测试
-    from .core import affection
     from .core import api_client
     from .core import calculators as calc
     from .core import damage_calc as dc
     from .core import loadout_ocr as lo
     from .core.api_client import (WarframeAPIError, WarframeClient,
                               parse_url_list, fuzzy_hits)
-    from .core.affection import AffectionStore, find_affection_db, persona_hint
     from .core import baro
     from .core import drops as drops_db
     from .core import formatters as fmt
@@ -50,7 +48,6 @@ try:  # 允许脱离 AstrBot 直接跑单元测试
     from .core.store import GroupStore, Subscription, SubscriptionStore
     from .core import de_worldstate as de_ws
 except ImportError:  # pragma: no cover
-    from core import affection
     from core import api_client
     from core import calculators as calc
     from core import damage_calc as dc
@@ -58,7 +55,6 @@ except ImportError:  # pragma: no cover
     from core import de_worldstate as de_ws
     from core.api_client import (WarframeAPIError, WarframeClient,
                              parse_url_list, fuzzy_hits)
-    from core.affection import AffectionStore, find_affection_db, persona_hint
     from core import baro
     from core import drops as drops_db
     from core import formatters as fmt
@@ -326,7 +322,7 @@ class Reply:
         default_factory=list)                         # 优先于 title/lines；渲染层自动加页码
 
 
-@register("astrbot_plugin_warframe", "WFQuery",
+@register("astrbot_plugin_warframe", "skyti1437",
           "Warframe 查询助手：世界状态 / 市场查价 / 蹲点推送",
           "1.0")
 class WarframeQuery(Star):
@@ -399,62 +395,8 @@ class WarframeQuery(Star):
             "dun": self._h_dun, "status": self._h_status_cmd,
         }
 
-        # 好感度 -> 人格温度（白祥 ⇄ 黑祥）联动，数据来源 self_learning
-        # 注意：_on_llm_request 可能早于本方法触发，故用惰性属性 _affection。
-        self.affection = AffectionStore(
-            find_affection_db(), ttl=float(self.cfg.get("affection_ttl", 120)),
-            logger=logger)
 
     # ------------------------------------------------------------------
-    # 好感度联动：在调模型前按「对当前说话人的好感度」追加语气指令
-    # ------------------------------------------------------------------
-    @_llm_request_hook()
-    async def _on_llm_request(self, event: AstrMessageEvent, req):
-        """好感度越高越接近白祥（2026-09-15 用户要求）。
-
-        读不到数据 / 未启用时不动提示词，保持默认黑祥基调。
-        """
-        if not self.cfg.get("affection_persona", True):
-            return
-        try:
-            user_id = str(event.get_sender_id() or "")
-        except Exception:  # noqa: BLE001
-            return
-        if not user_id:
-            return
-        try:
-            group_id = str(event.get_group_id() or "") if hasattr(
-                event, "get_group_id") else ""
-        except Exception:  # noqa: BLE001
-            group_id = ""
-        if not group_id:
-            # 私聊：self_learning 以用户号作为 group_id 记账
-            group_id = user_id
-        try:
-            level = self.affection.level(group_id, user_id)
-        except AttributeError:
-            # 初始化顺序问题：钩子早于 _build_routes 触发。
-            # 就地在首次调用时补建，不让整个 LLM 请求因好感度功能而崩。
-            try:
-                self.affection = AffectionStore(
-                    find_affection_db(),
-                    ttl=float(self.cfg.get("affection_ttl", 120)),
-                    logger=logger)
-                level = self.affection.level(group_id, user_id)
-            except Exception as exc:  # noqa: BLE001
-                logger.debug("[wfq] 好感度初始化失败，跳过注入：%s", exc)
-                return
-        except Exception as exc:  # noqa: BLE001
-            logger.debug("[wfq] 好感度读取失败，跳过注入：%s", exc)
-            return
-        hint = persona_hint(level)
-        if not hint:
-            return
-        try:
-            req.system_prompt = (req.system_prompt or "").rstrip() + \
-                f"\n\n{hint}"
-        except Exception as exc:  # noqa: BLE001
-            logger.debug("[wfq] 好感度语气注入失败：%s", exc)
 
     # ------------------------------------------------------------------
     # 出站兜底：剥掉 QQ 渲染不了的 Markdown（2026-09-15 用户要求）
