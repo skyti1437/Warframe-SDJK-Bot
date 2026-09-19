@@ -17,6 +17,7 @@ from typing import Awaitable, Callable, Optional
 from .api_client import WarframeAPIError, WarframeClient
 from .formatters import (countdown, mission_cn, parse_iso, tier_cn)
 from .parser import FissureFilter, parse_fissure_filter
+from . import arbi
 from .store import Subscription, SubscriptionStore
 
 SendFunc = Callable[[str, str], Awaitable[None]]
@@ -32,9 +33,11 @@ PUSH_EVENTS: dict[str, tuple[str, bool]] = {
     "奸商": ("虚空商人巴罗抵达/离开", True),
     "突击": ("每日突击刷新", True),
     "执刑官": ("每周执刑官猎杀刷新", True),
-    "仲裁": ("仲裁任务换节点（DE 直连模式下外部源不可用，自动跳过）", True),
-    "钢路侵袭": ("钢铁之路每日侵袭轮换（DE 直连模式下外部源不可用，自动跳过）", True),
-    "警报": ("新警报出现", True),
+    "仲裁": ("仲裁换场次（可筛选：高效 / 传奇 / 生存 / 防御 …）", True),
+    "钢路侵袭": ("钢铁之路每日侵袭刷新", True),
+    # ★ DE 已停用警报系统：worldState 的 Alerts 恒为 []（实测 2026-09-19 条数 0），
+    #   订阅了也永远不会触发 —— 按铁律 A 标为不可订阅并给出替代，别让用户白等。
+    "警报": ("DE 官方已停用警报系统（数据恒为空），可改蹲「入侵」或「新闻」", False),
     "入侵": ("新入侵出现", True),
     "新闻": ("官方新闻/热修发布", True),
     "每日特惠": ("达沃每日特惠刷新", True),
@@ -324,26 +327,45 @@ class PushDaemon:
                 last["archon_id"] = aid
 
             if "仲裁" in wanted:
+                # ★ 2026-09-19 修：原先调 client.arbitration()（10o.io 停摆后**恒抛**），
+                #   又被 except 静默吞掉 → 「蹲 仲裁」永远不推。现改用与「仲裁」指令
+                #   同一套 arbi.wf.wiki 推算（core.arbi），并**真正应用订阅筛选**
+                #   （高效 = S/A+/A、传奇 = S、任务类型），筛选词以前是被忽略的。
                 try:
-                    arbi = await self.client.arbitration(platform)
-                    node = arbi.get("node")
-                    if last.get("arbi_node") and last["arbi_node"] != node:
-                        out.append(("仲裁", f"arbi-{node}",
-                                    f"⚖️ 仲裁已轮换：{node} · {mission_cn(arbi.get('type', ''))}"))
-                    last["arbi_node"] = node
-                except WarframeAPIError:
-                    pass  # DE 直连模式下仲裁源（10o.io）不可用
+                    sl = await arbi.current(self.client)
+                except Exception:  # noqa: BLE001 - 排期源不可用就跳过本轮
+                    sl = None
+                if sl:
+                    prev_key = last.get("arbi_slot")
+                    if prev_key and prev_key != sl["key"]:
+                        subs_a = [s for s in subs
+                                  if s.platform == platform and s.event == "仲裁"]
+                        if not subs_a or any(arbi.match_rule(s.rule, sl)
+                                             for s in subs_a):
+                            tier = f" · 评级 {sl['tier']}" if sl["tier"] else ""
+                            left_min = max(0, int((sl["end"] - time.time()) // 60))
+                            out.append(("仲裁", f"arbi-{sl['key']}-{int(sl['start'])}",
+                                        f"⚖️ 仲裁已轮换：{sl['line']}{tier}"
+                                        f" · 剩 {left_min} 分钟"))
+                    last["arbi_slot"] = sl["key"]
 
             if "钢路侵袭" in wanted:
+                # ★ 2026-09-19 修：原用 client.steel_path()（DE 精简版 worldState
+                #   不下发该表 → 恒抛 → except 静默吞掉 → 「蹲 钢路侵袭」永不推）。
+                #   改用社区排期表（browse.wf/sp-incursions.txt，「侵袭」指令同源）。
                 try:
-                    sp = await self.client.steel_path(platform)
-                    reward = sp.get("currentReward")
-                    if last.get("sp_reward") and last["sp_reward"] != reward:
-                        out.append(("钢路侵袭", f"sp-{reward}",
-                                    f"🗡️ 钢铁之路侵袭已轮换，当前侵蚀奖励：{reward}"))
-                    last["sp_reward"] = reward
-                except WarframeAPIError:
-                    pass  # 钢铁轮换为外部数据源
+                    inc = await self.client.steel_path_incursions(platform)
+                except Exception:  # noqa: BLE001
+                    inc = {}
+                nodes_today = list(inc.get("nodes") or [])
+                if nodes_today:
+                    sig = ",".join(sorted(nodes_today))
+                    if last.get("sp_incursions") and last["sp_incursions"] != sig:
+                        names = "、".join(nodes_today[:6])
+                        out.append(("钢路侵袭", f"sp-{sig[:60]}",
+                                    f"🗡️ 钢铁之路侵袭已刷新（{len(nodes_today)} 个节点）："
+                                    f"{names}"))
+                    last["sp_incursions"] = sig
 
             if "警报" in wanted:
                 alerts = await self.client.alerts(platform)

@@ -38,6 +38,7 @@ try:  # 允许脱离 AstrBot 直接跑单元测试
     from .core import loadout_ocr as lo
     from .core.api_client import (WarframeAPIError, WarframeClient,
                               parse_url_list, fuzzy_hits)
+    from .core import arbi as _arbi
     from .core import baro
     from .core import drops as drops_db
     from .core import paths as core_paths
@@ -58,6 +59,7 @@ except ImportError:  # pragma: no cover
     from core import de_worldstate as de_ws
     from core.api_client import (WarframeAPIError, WarframeClient,
                              parse_url_list, fuzzy_hits)
+    from core import arbi as _arbi
     from core import baro
     from core import drops as drops_db
     from core import paths as core_paths
@@ -303,34 +305,11 @@ HELP_TOPIC: dict[str, list[tuple[str, str]]] = {
 }
 
 
-def _arb_mission(node: dict) -> str:
-    """归一化 arbi.wf.wiki 的任务类型中文名。
-
-    该站把 Infested Salvage 写作「INFESTED 资源回收」，筛选时统一成「资源回收」。
-    """
-    mt = (node.get("missionNameZh") or "").strip()
-    if mt.upper().startswith("INFESTED "):
-        mt = mt[9:].strip()
-    return mt or "?"
-
-
-# arbi.wf.wiki 的 factionNameZh 只有中系派系写了中文（奥罗金 / 低语者），
-# 其余是英文（Infestation / Grineer / Corpus）。DE 官方简中**不翻译**派系名
-# （见 de_worldstate.faction_name），所以这里只把它的英文用词对齐到官方写法。
-_ARB_FACTION_FIX = {"Infestation": "Infested"}
-
-
-def _arb_faction(node: dict) -> str:
-    """仲裁节点派系名。
-
-    Args:
-        node: 仲裁节点数据，取 ``factionNameZh``。
-
-    Returns:
-        显示用派系名（与国际服官方一致）。
-    """
-    raw = (node.get("factionNameZh") or "").strip()
-    return _ARB_FACTION_FIX.get(raw, raw) if raw else ""
+# 仲裁的任务类型 / 派系 / 节点渲染：**唯一实现**在 core/arbi.py
+# （「仲裁」查询指令与「蹲 仲裁」推送共用；2026-09-19 收敛，避免两套口径漂移）。
+_arb_mission = _arbi.mission_of
+_arb_faction = _arbi.faction_of
+_ARB_FACTION_FIX = _arbi._FACTION_FIX   # 兼容旧引用
 
 
 # ---------------------------------------------------------------------------
@@ -1096,18 +1075,7 @@ class WarframeSDJK(Star):
           · arbys.nodes.zh.json    —— 节点/星球/任务类型/派系/等级的中文名
           · tierlist.default.json  —— 社区站点评级（S/A+/A/A-/B/C）
         """
-        base = "https://arbi.wf.wiki/data/"
-        sched = await self.client._fetch_json(base + "arbys.schedule.v2.json", ttl=3600)
-        nodes = (await self.client._fetch_json(base + "arbys.nodes.zh.json",
-                                              ttl=86400)).get("nodes") or {}
-        try:
-            tier = await self.client._fetch_json(base + "tierlist.default.json",
-                                                 ttl=86400)
-        except Exception:  # noqa: BLE001
-            tier = {}
-        tier_of = {nk: tv for tv, lst in (tier.get("tierBuckets") or {}).items()
-                   for nk in lst}
-        return sched, nodes, tier_of
+        return await _arbi.fetch_tables(self.client)
 
     @staticmethod
     def _arb_node_line(nodes: dict, key: str, tier_of: dict) -> str:
@@ -1125,17 +1093,7 @@ class WarframeSDJK(Star):
             砍掉。
         """
         n = nodes.get(key) or {}
-        name = n.get("nameZh") or "?"
-        system = n.get("systemNameZh") or ""
-        mtype = _arb_mission(n)
-        fac = _arb_faction(n)
-        tv = tier_of.get(key, "")
-        if tv == "未评级":
-            tv = ""
-        parts = [f"{name}（{system}）" if system else name, mtype, fac]
-        head = " · ".join(p for p in parts if p)
-        return f"{head}　[{tv}]" if tv else head
-
+        return _arbi.node_line(nodes, key, tier_of)
     async def _arb_now(self, platform) -> Reply:
         """当前仲裁 + 下一小时（含节点/星球/类型/派系/等级/站点评级 + 数据源说明）。"""
         import time as _t
@@ -3476,8 +3434,8 @@ class WarframeSDJK(Star):
         # 否则下面 `if not wired` 会在未赋值分支触发 NameError（「蹲 类型」直接失效的根因）。
         desc, wired = PUSH_EVENTS[event_type]
         if not wired:
-            return Reply(raw_text=f"「{event_type}」数据源暂未接线，无法订阅。\n"
-                                  f"说明：{desc}")
+            return Reply(raw_text=f"「{event_type}」当前无法订阅。\n"
+                                  f"原因：{desc}")
         if not self.groups.get(umo)["push"]:
             return Reply(raw_text="本群推送功能未开启，请管理员发送 .开启 推送 后再蹲")
 
@@ -3539,6 +3497,21 @@ class WarframeSDJK(Star):
             f"订阅 #{sub.sid} 已加入本群推送队列",
             f"取消方式：蹲 取消 · 蹲 {event_type} 取消",
         ]
+        # ★ 筛选词「写错/用在不支持的类型上」必须当场说清（铁律 A：不能静默失效）。
+        #   2026-09-19 用户反馈「蹲 仲裁 高效 永久」没生效 —— 一半原因就是
+        #   仲裁的筛选词当时被整体忽略，用户看不到任何提示。
+        if sub.rule and not _arbi.rule_supported(event_type):
+            lines.append(f"※ 注意：「{event_type}」不支持筛选，"
+                         f"上面的「{sub.rule}」不会生效"
+                         f"（目前只有 裂隙 / 仲裁 支持筛选）")
+        elif event_type == "仲裁":
+            _types, _ratings, _unknown = _arbi.parse_rule(sub.rule)
+            if _unknown:
+                lines.append(f"※ 未识别的筛选词：{'、'.join(_unknown)}"
+                             f"（可用：高效 / 传奇 / {_arbi.TYPES_STR}）")
+            if _ratings:
+                lines.append(f"※ 只在评级 {'/'.join(_ratings)} 的场次推送"
+                             f"（想全都收就别写「高效/传奇」）")
         return Reply(f"◆ 蹲订阅成功", lines)
 
     # ------------------------------------------------------------------
