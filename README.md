@@ -1,4 +1,4 @@
-# AstrBot 插件 · Warframe SDJK v1.0（`astrbot_plugin_warframe`）
+# AstrBot 插件 · Warframe SDJKBOT v1.0.3（`astrbot_plugin_warframe`）
 
 一个给 AstrBot 用的 Warframe 工具集：**世界状态 / 市场查价 / 伤害计算与配卡识别 /
 紫卡分析 / 遗物与部件反查 / 玄骸拍卖 / 奸商预测 / 蹲点推送**，
@@ -133,8 +133,11 @@ docker run -d --name flaresolverr -p 8191:8191 flaresolverr/flaresolverr
 - 因此代码里保留了大量「为什么这么写」的注释和防回归测试 —— 那正是
   为了弥补 AI 改动容易引入静默回归的问题。
 
-如果你要接手维护，建议：**改任何公式/版式前先跑 `tests/`**（共 29 个测试文件），
+如果你要接手维护，建议：**改任何公式/版式前先跑 `tests/`**（共 40 个测试文件），
 尤其是 `tests/audit_damage_calc.py`（伤害引擎不变量审计）。
+
+版本历史见仓库根目录的 [`CHANGELOG.md`](CHANGELOG.md) —— 它也是插件面板与
+插件市场「更新日志」页面的数据源，**发版时记得补一条**。
 
 ## 五、数据来源与许可
 
@@ -170,7 +173,7 @@ docker run -d --name flaresolverr -p 8191:8191 flaresolverr/flaresolverr
 | 项目 | 开源版 | 自用版 |
 | --- | --- | --- |
 | 好感度 → 人格温度联动（读取外部好感度插件的数据） | **移除** | 保留 |
-| 品牌标识 | 通用插件名（Warframe SDJK） | 原氏族品牌 |
+| 品牌标识 | 通用插件名（Warframe SDJKBOT） | 原氏族品牌 |
 | 内部文档、运维脚本、第三方插件打包脚本 | 不带 | 保留 |
 
 技术上是**同一份源码**，开源包由 `dist/package_release.py --opensource` 构建时剥离，

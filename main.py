@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Warframe SDJK —— AstrBot 插件入口。
+"""Warframe SDJKBOT —— AstrBot 插件入口。
 
 无缝配合 NapCat (OneBot v11) 上游运行；指令解析为**自由参数**式：
 【主指令 内容 附加指令】位置任意、空格分隔，通用修饰符可叠加
@@ -32,6 +32,7 @@ from astrbot.api.message_components import Image, Plain
 from astrbot.api.star import Context, Star, register
 
 try:  # 允许脱离 AstrBot 直接跑单元测试
+    from .core import __brand__ as BRAND
     from .core import api_client
     from .core import calculators as calc
     from .core import damage_calc as dc
@@ -52,6 +53,7 @@ try:  # 允许脱离 AstrBot 直接跑单元测试
     from .core.store import GroupStore, Subscription, SubscriptionStore
     from .core import de_worldstate as de_ws
 except ImportError:  # pragma: no cover
+    from core import __brand__ as BRAND
     from core import api_client
     from core import calculators as calc
     from core import damage_calc as dc
@@ -115,8 +117,8 @@ def _result_hook():
 # `for handler in activated_handlers: if event.is_stopped(): break`）。
 #
 # 线上实证（2026-09-19 日志）：
-#   19:30:03 用户发 /help  → 渲染的是「Warframe SDJK 指令一览」（AstrBot 内置帮助被打不开）
-#   19:52:16 用户发 /新闻  → 渲染的是「最近新闻」（dailyhub 的 /新闻 被打不开）
+#   19:30:03 用户发 /help  → 渲染的是本插件的「指令一览」（AstrBot 内置帮助被打不开）
+#   19:52:16 用户发 /新闻  → 渲染的是本插件的「最近新闻」（dailyhub 的 /新闻 被打不开）
 #   同一时刻别的插件打印 preview='新闻'，即前缀已被剥掉 —— 坐实机制。
 #
 # 修法：**只对「带唤醒前缀 且 该词已被内置/其他插件占用」的输入让路**
@@ -485,7 +487,7 @@ class Reply:
 
 
 @register("astrbot_plugin_warframe", "skyti1437",
-          "Warframe SDJK：世界状态 / 市场查价 / 蹲点推送",
+          f"{BRAND}：世界状态 / 市场查价 / 蹲点推送",
           "1.0")
 class WarframeSDJK(Star):
     def __init__(self, context: Context, config: AstrBotConfig | None = None):
@@ -946,7 +948,7 @@ class WarframeSDJK(Star):
                                  + f"　{mode}·{life}")
             lines.append("◆ 系统")
             lines.append(f"· 缓存　{cache['size']} 项 · 命中率 {cache['hit_rate'] * 100:.0f}%")
-            return Reply("Warframe SDJK 1.0", lines,
+            return Reply(f"{BRAND} 1.0", lines,
                          footer=fmt.fmt_platform_footer(self.groups.platform(umo)))
 
         if cmd == "锚点":
@@ -1572,7 +1574,7 @@ class WarframeSDJK(Star):
             lines.append(f"◆ {t}")
             # 全角空格分隔：渲染层按此切成两列并做首字符垂直线对齐
             lines += [f"· {c}　{d}" for c, d in items]
-        return Reply("Warframe SDJK 指令一览", lines,
+        return Reply(f"{BRAND} 指令一览", lines,
                      footer=fmt.fmt_platform_footer(platform))
 
     # ------------------------------------------------------------------

@@ -265,9 +265,12 @@ async def main() -> None:
     obj4.client = type("C", (), {"cache": _CacheStub()})()
     await obj4.subs.add(_Sub("group://test", "pc", "裂隙", rule="虚空捕获"))
     rep = await obj4._handle_admin(_StubEvent("group://test"), ".状态")
+    # 品牌名从 core.__brand__ 派生（不写死）：2026-09-19 改名时踩过 —— 写死品牌名
+    # 的断言在换品牌时会连带崩，而「Warframe SDJK」还会被「Warframe SDJKBOT」前缀命中
+    # 而假装通过。
     check("「.状态」出图形卡不崩（platform 未定义回归）",
           rep is not None and not rep.raw_text
-          and rep.title.startswith("Warframe SDJK")
+          and rep.title.startswith(f"{plugin.BRAND} 1.0")
           and any("虚空捕获" in ln for ln in rep.lines),
           f"title={getattr(rep, 'title', None)}")
 

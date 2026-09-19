@@ -18,6 +18,8 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from core import __version__ as CORE_VERSION          # noqa: E402
+from core import __brand__ as BRAND                   # noqa: E402
+from core import __brand_card__ as BRAND_CARD         # noqa: E402
 from core import render as R                          # noqa: E402
 
 FAILED: list[str] = []
@@ -36,11 +38,18 @@ check("core.__version__ 形如 X.Y.Z",
       bool(re.fullmatch(r"\d+\.\d+\.\d+", str(CORE_VERSION))), str(CORE_VERSION))
 check("卡片水印版本由 core.__version__ 派生",
       R.WATERMARK_VERSION == MM, f"{R.WATERMARK_VERSION} vs {MM}")
-# 水印断言用**派生值**比较（不写死品牌）：2026-09-18 换品牌时因为断言写死
-# 品牌名，改名连带崩了测试 —— 教训写在这儿。
+# 水印/品牌断言一律用**派生值**比较（不写死品牌）：2026-09-18 换品牌时因为断言
+# 写死品牌名，改名连带崩了测试；2026-09-19 改名时改为从 core.__brand__ 派生。
 check("水印串含派生版本",
       R.WATERMARK.endswith(R.WATERMARK_VERSION), R.WATERMARK)
-check("水印含品牌 SDJK", "SDJK" in R.WATERMARK, R.WATERMARK)
+check("水印含卡片短品牌（派生自 core.__brand_card__）",
+      BRAND_CARD in R.WATERMARK, f"{R.WATERMARK} 不含 {BRAND_CARD}")
+check("卡片短品牌与展示名一致（改名只需改 core/__init__.py 两个常量）",
+      BRAND_CARD in BRAND.replace(" ", ""), f"{BRAND} / {BRAND_CARD}")
+check("展示名与短品牌都是非空字符串",
+      isinstance(BRAND, str) and bool(BRAND.strip())
+      and isinstance(BRAND_CARD, str) and bool(BRAND_CARD.strip()),
+      f"{BRAND!r} / {BRAND_CARD!r}")
 
 meta = (ROOT / "metadata.yaml").read_text(encoding="utf-8")
 m = re.search(r"^version:\s*v?([\d.]+)\s*$", meta, re.M)
@@ -88,14 +97,50 @@ if oss_meta.exists():
     omn = _meta_name(om)
     check("开源包 metadata.yaml 的 name 也是合法模块名",
           bool(omn) and omn.isidentifier(), omn or "缺 name 字段")
+    # 开源包的 metadata 是 dist/package_release.py 的 _oss_metadata() **整体生成**的
+    # （不是拷贝源文件），所以品牌/版本最容易在这里漏改 —— 钉住。
+    check("★ 开源包 metadata.yaml 的 display_name == core.__brand__",
+          any(ln.split(":", 1)[1].strip() == BRAND for ln in om.splitlines()
+              if ln.startswith("display_name:")),
+          "开源包展示名未跟随品牌（改 dist/package_release.py::_oss_metadata）")
+    omm = re.search(r"^version:\s*v?([\d.]+)\s*$", om, re.M)
+    check("★ 开源包 metadata.yaml 的版本 == core 主次版本",
+          bool(omm) and _mm(omm.group(1)) == MM, omm.group(1) if omm else "?")
+
+# ★ CHANGELOG.md 是 AstrBot 面板「更新日志」页与插件市场「更新日志」Tab 的数据源。
+#   没有它，市场那片是空的 —— 所以把它变成硬性守卫：发版必须补一条。
+changelog = ROOT / "CHANGELOG.md"
+check("★ CHANGELOG.md 存在（市场「更新日志」Tab 的数据源）", changelog.exists())
+if changelog.exists():
+    ctext = changelog.read_text(encoding="utf-8")
+    check("★ CHANGELOG.md 含当前版本条目",
+          f"## v{CORE_VERSION}" in ctext,
+          f"缺「## v{CORE_VERSION}」（发版时忘了写更新日志）")
+    check("CHANGELOG.md 最新条目排在最前",
+          ctext.index(f"## v{CORE_VERSION}") <
+          min([ctext.index(f"## v{v}") for v in ("1.0.2", "1.0.1", "1.0.0")
+               if f"## v{v}" in ctext] or [10 ** 9]),
+          "版本未按从新到旧排列")
 
 main_src = (ROOT / "main.py").read_text(encoding="utf-8")
-m2 = re.search(r'@register\(\s*"[^"]+",\s*"[^"]+",\s*\n\s*"[^"]*",\s*\n\s*"([\d.]+)"',
+# 第 3 个参数现在是 f-string（用品牌常量拼），所以允许可选 f 前缀
+m2 = re.search(r'@register\(\s*"[^"]+",\s*"[^"]+",\s*\n\s*f?"[^"]*",\s*\n\s*"([\d.]+)"',
                main_src)
 check("@register 版本与 core 主次版本一致",
       bool(m2) and m2.group(1) == MM, m2.group(1) if m2 else "?")
-check("状态卡文案版本与 core 主次版本一致",
-      f"Warframe SDJK {MM}" in main_src, "未找到状态卡版本文案")
+# 卡片标题已经不写死品牌名（用 f"{BRAND}" 引用常量），所以这两条改成：
+#   ① 断言源码里确实用常量拼标题（防止有人又写死）
+#   ② 断言 metadata 的展示名与常量一致（改名时最容易漏的一处）
+check("状态卡标题用品牌常量 + 主次版本",
+      'Reply(f"{BRAND} ' + MM + '"' in main_src, "未找到状态卡标题")
+check("帮助卡标题用品牌常量",
+      'Reply(f"{BRAND} 指令一览"' in main_src, "未找到帮助卡标题")
+check("★ metadata.yaml 的 display_name == core.__brand__",
+      any(ln.split(":", 1)[1].strip() == BRAND for ln in meta.splitlines()
+          if ln.startswith("display_name:")),
+      f"display_name 与 {BRAND!r} 不一致")
+check("★ metadata.yaml 的 desc 以品牌名开头",
+      f"{BRAND}：" in meta, "desc 首词未跟随品牌")
 
 print()
 if FAILED:
