@@ -39,7 +39,9 @@ for q, expect in [
     ("赤毒", "赤毒"),
     ("氩结晶", "氩结晶"),
     ("膛线", "膛线"),
-    ("serration", "压迫点"),
+    # ★ 2026-09-20 修正：以前期望「压迫点」是把词典的错误映射固化成了断言。
+    #   官方简中里 Serration = 「膛线」，Pressure Point = 「压迫点」，两者不能混。
+    ("serration", "膛线"),
 ]:
     hit = S.search(q, limit=1)
     check(f"检索 {q} -> {expect}",
