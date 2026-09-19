@@ -1,0 +1,47 @@
+name: gitleaks
+
+# 开源仓库兜底：任何 push / PR 都扫一遍**全历史**，防止把密钥、token、
+# 开发机绝对路径等再次推上来。
+#
+# ★ 为什么不用 gitleaks-action，而是直接跑二进制（2026-09-18 实测）：
+#   gitleaks-action@v2 用 `git log <event.before>^..<event.after>` 定位范围，
+#   而**强推（history rewrite）后 event.before 指向的旧对象不在新检出里** →
+#   `fatal: ambiguous argument ...^..` → 退出码 1、CI 报红。
+#   本仓库为清除历史里的开发机路径做过一次强推，正好踩中。
+#   直接调 gitleaks 并显式给 `--log-opts="--all --full-history"`，
+#   不看 event 范围、每次都扫全部历史，强推/新建分支都不会误报失败。
+on:
+  push:
+    branches: ["*"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  scan:
+    # 私有仓库（skyti1437/bot，自用版全历史）不跑本次扫描（2026-09-19 加）：
+    #   自用版的构建脚本本来就带 `C:/Users/<本机用户名>/…` 这类默认数据路径，
+    #   全历史里恒有 79 处命中 → 每次 push 必红。红是常态就失去了告警意义
+    #   （真出密钥泄漏也会被淹没），而这道闸门真正要守的是**分发仓库**。
+    #
+    # ★ 写成「排除私有仓库」而不是「只允许公开仓库」（`== '…/Warframe-SDJK-Bot'`）：
+    #   后者在公开仓库被改名 / 转移给组织后会**静默失效**，而且 fork 也不再受保护。
+    #   排除式则相反 —— 任何新仓库 / fork 都会自动被扫，只有那一个私有备份跳过。
+    if: github.repository != 'skyti1437/bot'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0   # 全历史，扫的是完整 diff
+
+      - name: Install gitleaks
+        run: |
+          VER=8.24.3
+          curl -sSfL \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${VER}/gitleaks_${VER}_linux_x64.tar.gz" \
+            | tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
+
+      # --log-opts 让 gitleaks 扫所有 ref 的全部历史（而不是依赖 push 事件的范围）
+      # 规则 = 内置默认（密钥/Token）+ 仓库根 .gitleaks.toml 追加的本机路径规则（自动加载）
+      - name: Scan full history
+        run: gitleaks detect --source . --log-opts="--all --full-history" --redact -v
