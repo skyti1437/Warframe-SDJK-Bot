@@ -223,7 +223,9 @@ async def main() -> None:
           str([s.event for s in obj2.subs.all()]))
 
     # 9) L-2: created_by 不再落盘 QQ 昵称（哪怕 stub 返回 "tester"）
-    reply = await _run_one(obj2, "蹲 警报")
+    # ★ 2026-09-19：警报在 DE 数据里恒为空（系统停用）已被标为不可订阅，
+    #   本组断言改用「新闻」（可订阅、无筛选）。
+    reply = await _run_one(obj2, "蹲 新闻")
     last = obj2.subs.all()[-1]
     check("L-2 created_by 不落盘 QQ 昵称（应为空串）",
           last.created_by == "",
@@ -234,11 +236,19 @@ async def main() -> None:
     await obj3.groups.set_switch("group://limit", "push", True)
     # 先塞 30 条不同 umo 的订阅绕开限额 = 把 obj3 的 groups 切换过来前先填到 29
     for i in range(29):
-        await _run_one(obj3, f"蹲 警报", umo="group://limit")
+        await _run_one(obj3, "蹲 新闻", umo="group://limit")
     # 第 30 条允许通过
-    r30 = await _run_one(obj3, "蹲 警报", umo="group://limit")
-    r31 = await _run_one(obj3, "蹲 警报", umo="group://limit")
+    r30 = await _run_one(obj3, "蹲 新闻", umo="group://limit")
+    r31 = await _run_one(obj3, "蹲 新闻", umo="group://limit")
     n = len(obj3.subs.for_umo("group://limit"))
+    # ★ 2026-09-19 新增：DE 已停用警报系统 → 订阅时必须明确拒绝并说明原因
+    obj4 = _make_plugin(Path(tempfile.mkdtemp()))
+    await obj4.groups.set_switch("group://x", "push", True)
+    r_al = await _run_one(obj4, "蹲 警报", umo="group://x")
+    check("★ 蹲 警报 被拒且说明原因（DE 已停用，给替代）",
+          r_al is not None and r_al.raw_text is not None
+          and "无法订阅" in r_al.raw_text and "停用" in r_al.raw_text,
+          repr(r_al.raw_text if r_al else None))
     check("L-4 第 30 条仍允许（>= 30 拒绝）",
           n == 30 and r31 is not None and r31.raw_text is not None
           and "蹲订阅已达上限" in r31.raw_text,
