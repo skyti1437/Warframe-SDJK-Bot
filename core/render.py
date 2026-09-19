@@ -111,14 +111,18 @@ MAX_BODY_LINES = 90
 _INDENT_PX = 34
 
 # 卡片水印（小更新 +0.1，首个满意版本升 1.0）。
-# 从 core.__version__ 取主次版本，避免与 metadata.yaml / main.py 注册版本走散
-# （曾经三处各写一份、抬版本时漏改，水印留在旧号上）。
+# 版本从 core.__version__ 取主次版本、品牌从 core.__brand_card__ 取，
+# 避免与 metadata.yaml / main.py 注册版本走散
+# （曾经三处各写一份、抬版本或换品牌时漏改，水印留在旧号/旧名上）。
 try:  # pragma: no cover - 兜底分支只在包结构异常时走到
     from . import __version__ as _CORE_VERSION
+    from . import __brand_card__ as _CARD_BRAND
     WATERMARK_VERSION = ".".join(str(_CORE_VERSION).split(".")[:2]) or "1.0"
+    CARD_BRAND = str(_CARD_BRAND)
 except Exception:  # noqa: BLE001
     WATERMARK_VERSION = "1.0"
-WATERMARK = f"WARFRAME  ·  SDJK {WATERMARK_VERSION}"
+    CARD_BRAND = "SDJKBOT"
+WATERMARK = f"WARFRAME  ·  {CARD_BRAND} {WATERMARK_VERSION}"
 
 # 配色：Orokin 暗金 + Tenno 能量色
 BG_TOP = (10, 13, 20)
@@ -604,7 +608,7 @@ class ImageRenderer:
         m = _PAGE_RE.search(title)
         page_chip = f"{m.group(1)}/{m.group(2)}" if m else ""
         title = _PAGE_RE.sub("", title).strip()
-        accent, subtitle = GOLD, "WARFRAME SDJK"
+        accent, subtitle = GOLD, f"WARFRAME {CARD_BRAND}"
         for keys, (color, _slug) in TITLE_THEME:
             if any(k in title for k in keys):
                 accent = color

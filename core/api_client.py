@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Warframe SDJK 异步 API 客户端（httpx.AsyncClient，全程非阻塞）。
+"""Warframe SDJKBOT 异步 API 客户端（httpx.AsyncClient，全程非阻塞）。
 
 数据源：
 - 世界状态（默认）：DE 官方 worldState.php + core/de_worldstate.py 本地适配
