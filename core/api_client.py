@@ -157,11 +157,19 @@ _EXTERNAL_ONLY = {
 
 
 def norm_wm_name(s: str) -> str:
-    """WM 物品名的匹配归一化：去空白、小写、抹掉 Prime 字样。
+    """WM 物品名的匹配归一化：去空白、小写、抹掉**独立成词**的 Prime 字样。
 
     「Saryn Prime 蓝图」与用户输入「Saryn蓝图」归一化后同为「saryn蓝图」。
+
+    ★ 2026-09-20 修：以前是 ``.replace("prime", "")`` 的**子串**替换，副作用有两个：
+      · 英文「Primed Smite Grineer」被切成「dsmitegrineer」（Primed 里的 prime 被吃掉）；
+      · 用户输入「毁灭Gprime」被切成「毁灭g」——**Prime 语义在归一化里凭空消失**，
+        于是「毁灭Gprime」反而匹配到**非 Prime** 的 smite_grineer（价格/订单全不对）。
+    现在只在 prime 后面**不紧跟 ASCII 字母**时才抹（词尾、后接中文都算独立出现），
+    「primed」这类单词因此保持完整。
     """
-    return re.sub(r"\s+", "", (s or "").lower()).replace("prime", "")
+    t = re.sub(r"\s+", "", (s or "").lower())
+    return re.sub(r"prime(?![a-z])", "", t)
 
 
 # 部件词 -> WM slug 英文词（长词在前，避免「神经光元」被「头部神经光元」截胡）
@@ -197,17 +205,10 @@ def match_wm_normalized(query: str, items: list[dict]) -> Optional[dict]:
     qn = norm_wm_name(query)
     if not qn:
         return None
-    for it in items:
-        if norm_wm_name(it.get("zh")) == qn:
-            return it
-    for it in items:
-        if it.get("en") and norm_wm_name(it.get("en")) == qn:
-            return it
-    contains = [it for it in items
-                if qn in norm_wm_name(it.get("zh"))
-                or (it.get("en") and qn in norm_wm_name(it.get("en")))]
-    if not contains:
-        return None
+    # 归一化会抹掉 Prime，于是「毁灭 Grineer」与「毁灭 Grineer Prime」会塌成同一个
+    # 字符串 —— 精确分支和包含分支都可能同时命中两者。统一按**输入里有没有写 Prime**
+    # 裁决：写了就选 Prime 版，没写就选普通版。
+    want_prime = "prime" in re.sub(r"\s+", "", (query or "").lower())
 
     def _score(it: dict) -> int:
         tags = set(it.get("tags") or [])
@@ -217,7 +218,60 @@ def match_wm_normalized(query: str, items: list[dict]) -> Optional[dict]:
             return 1
         return 2
 
-    return min(contains, key=_score)
+    def _prefer(cands: list[dict]) -> list[dict]:
+        if len(cands) <= 1:
+            return cands
+        if want_prime:
+            primed = [it for it in cands if "prime" in (it.get("url_name") or "")]
+            if primed:
+                return primed
+        else:
+            plain = [it for it in cands if "prime" not in (it.get("url_name") or "")]
+            if plain:
+                return plain
+        return cands
+
+    exact = [it for it in items if norm_wm_name(it.get("zh")) == qn]
+    if exact:
+        return min(_prefer(exact), key=_score)
+    exact_en = [it for it in items
+                if it.get("en") and norm_wm_name(it.get("en")) == qn]
+    if exact_en:
+        return min(_prefer(exact_en), key=_score)
+    contains = [it for it in items
+                if qn in norm_wm_name(it.get("zh"))
+                or (it.get("en") and qn in norm_wm_name(it.get("en")))]
+    if not contains:
+        return None
+    return min(_prefer(contains), key=_score)
+
+
+def match_official_name(query: str, items: list[dict]) -> Optional[dict]:
+    """按**官方名**精确匹配：官方简中 > 官方英文 > WM slug。
+
+    ★ 2026-09-20 加。WM 物品表自带的官方简中（`i18n.zh-hans.name`）是唯一权威，
+    必须排在别名词典（黑话）**之前**：词典里存在「官方名指向别的物品」的错误映射
+    （如 `'压迫点' -> serration` —— 「压迫点」其实是 Pressure Point，
+    而 serration 是「膛线」），以前词典优先，用户照官方名输入会拿到完全不相关的东西。
+
+    用 casefold 比较，因此「压迫点 prime」也能精确命中官方名「压迫点 Prime」。
+    """
+    q = (query or "").strip()
+    if not q:
+        return None
+    qf = q.casefold()
+    for it in items:
+        if (it.get("zh") or "").strip().casefold() == qf:
+            return it
+    low = q.lower()
+    for it in items:
+        if (it.get("en") or "").strip().lower() == low:
+            return it
+    slug = low.replace(" ", "_")
+    for it in items:
+        if (it.get("url_name") or "").lower() == slug:
+            return it
+    return None
 
 
 class WarframeAPIError(Exception):
@@ -1180,6 +1234,22 @@ class WarframeClient:
                 return v
         return None
 
+    def _alias_fuzzy(self, query: str, table: str = "wm_items") -> Optional[str]:
+        """别名词典的**模糊**匹配（双向包含 + 长度差 ≤4），不含精确键。
+
+        ★ 2026-09-20 从 ``alias_lookup`` 拆出来：解析链里它必须**降级到末尾**。
+        它是双向包含 —— 词典键可以是输入的子串（"压迫点" ⊂ "压迫点 p"），
+        输入也可以是键的子串，长度差还放宽到 4。放在前面会把官方名一起捞走
+        （实测「压迫点 p」经此规则配到 serration「膛线」）。
+        """
+        q = (query or "").strip().lower()
+        # ★ 同 resolve_wm_item：测试用 __new__ 造实例时 _aliases 可能未初始化
+        tbl = (getattr(self, "_aliases", None) or {}).get(table, {})
+        for k, v in tbl.items():
+            if q and (k in q or q in k) and abs(len(k) - len(q)) <= 4:
+                return v
+        return None
+
     _PRIME_SUFFIX = re.compile(r"^(.+?)(?:\s*prime|[pP])$")
 
     async def _resolve_prime_variant(self, base: str) -> Optional[dict]:
@@ -1194,40 +1264,66 @@ class WarframeClient:
         return cand or item
 
     async def resolve_wm_item(self, query: str) -> Optional[dict]:
-        """把用户输入（中文名/黑话/英文名，可带 p/prime 后缀）解析成 WM 物品。"""
+        """把用户输入（中文名/黑话/英文名，可带 p/prime 后缀）解析成 WM 物品。
+
+        ★ 优先级（2026-09-20 重排，修「压迫点 → 膛线」这类错误）：
+          1. **官方名精确**（官方简中 / 官方英文 / WM slug）—— 官方名是唯一权威
+          2. 别名词典**精确**键（黑话，如「咖喱」）
+          3. 常规链路（包含 / 归一化 / 词典模糊 / 拼写模糊）
+          4. 黑话 + p / + prime 回退（猴p -> 悟空 Prime 一套）
+
+          以前别名词典（含**双向包含**的模糊匹配）排在最前，官方名会被词典里的
+          错映射劫持；现在官方名永远赢，词典错映射不再影响「照官方名输入」的场景。
+        """
         query = query.strip()
         if not query:
             return None
+        # ★ 重入守卫：第 4 步的回退会递归调用本方法（base 与 base+" prime"），
+        #   而 base+" prime" 自己又满足「带 prime 后缀」的条件 —— 于是
+        #   「毁灭G prime」→「毁灭G」→「毁灭G prime」… 自激成 RecursionError
+        #   （2026-09-20 容器内实测）。守卫让同一查询在调用栈里只解析一次。
+        seen = getattr(self, "_prime_seen", None)
+        if seen is None:
+            seen = self._prime_seen = set()
+        if query in seen:
+            return None
+        seen.add(query)
+        try:
+            return await self._resolve_wm_item_once(query)
+        finally:
+            seen.discard(query)
+
+    async def _resolve_wm_item_once(self, query: str) -> Optional[dict]:
+        """单次解析（不含重入守卫）；递归防护由 resolve_wm_item 负责。"""
+        items = await self.wm_items()
+        hit = match_official_name(query, items)
+        if hit:
+            return hit
+        # 别名词典**精确**键（黑话）；模糊降级到后面的链路，避免劫持官方名
+        # ★ getattr 兜底：部分测试用 __new__ 造实例，_aliases 可能还没初始化，
+        #   这里不能因为「查不到词典键」就把整条解析链炸掉。
+        url = ((getattr(self, "_aliases", None) or {}).get("wm_items") or {}).get(
+            query.lower())
+        if isinstance(url, str) and url:
+            for it in items:
+                if it.get("url_name") == url:
+                    return it
         hit = await self._resolve_wm_item_inner(query)
         if hit:
             return hit
-        # 常规解析失败：尝试 黑话+p / 黑话+prime（猴p -> 悟空 Prime 一套）
+        # 常规链路没中：黑话+p / 黑话+prime（猴p -> 悟空 Prime 一套）
         m = self._PRIME_SUFFIX.match(query)
-        if m and len(m.group(1)) >= 1:
+        if m and len(m.group(1).strip()) >= 1:
             return await self._resolve_prime_variant(m.group(1).strip())
         return None
 
     async def _resolve_wm_item_inner(self, query: str) -> Optional[dict]:
-        """不做后缀回退的基础解析链。"""
+        """基础解析链（官方名精确 / 词典精确键 / 后缀回退已在 resolve_wm_item 试过）。"""
         if not query:
             return None
         items = await self.wm_items()
         low = query.lower()
-        alias = self.alias_lookup(query)
-        if alias:
-            for it in items:
-                if it.get("url_name") == alias:
-                    return it
-        # 中文名精确 -> 英文名精确 -> slug 精确 -> 包含 -> 模糊
-        for it in items:
-            if it.get("zh") == query:
-                return it
-        for it in items:
-            if (it.get("en") or "").lower() == low:
-                return it
-        for it in items:
-            if it.get("url_name") == low.replace(" ", "_"):
-                return it
+
         def _score(it: dict) -> int:
             tags = set(it.get("tags") or [])
             if "set" in tags:
@@ -1236,6 +1332,7 @@ class WarframeClient:
                 return 1
             return 2
 
+        # 中文名包含 -> slug 包含 -> 归一化
         zh_low = query.lower()
         zh_contains = [it for it in items
                        if it.get("zh") and zh_low in it["zh"].lower()]
@@ -1251,6 +1348,25 @@ class WarframeClient:
         norm_hit = match_wm_normalized(query, items)
         if norm_hit:
             return norm_hit
+        # ★ 别名词典模糊**降级到这儿**（2026-09-20）：这条是「双向包含 + 长度差≤4」，
+        #   以前排在最前，会把「压迫点 p」里的「压迫点」捞出来配到 serration（膛线）。
+        #   现在只有官方名/精确键/包含/归一化都没中时，才允许它兜底。
+        alias = self._alias_fuzzy(query)
+        if alias:
+            # ★ 输入带 p / prime 后缀时，优先返回该物品的 Prime 变体 ——
+            #   让「压迫点p」（连写）与「压迫点 p」（带空格）结果一致（2026-09-20）。
+            #   找不到 Prime 变体就照常返回原物品（如 sawtooth clip 以 p 结尾也不受影响）。
+            want_prime = bool(re.search(r"(?:^|[^a-z])p$|prime$", query.strip().lower()))
+            # ★ primed 是**物品 dict**，比较时要取它的 url_name（不是拿 dict 去比）
+            target = alias
+            if want_prime:
+                primed = next((x for x in items
+                               if x.get("url_name") == "primed_" + alias), None)
+                if primed:
+                    target = primed.get("url_name")
+            for it in items:
+                if it.get("url_name") == target:
+                    return it
         # 中文部件名：「席瓦蓝图」-> 基名「席瓦」先解析出 席瓦&神盾Prime 系，
         # 再按部件词的英文 slug 在同系物品里挑部件（WM 的 zh 名称混拉丁名，
         # 「席瓦蓝图」无法直接字符串命中「席瓦 & 神盾 Prime 蓝图」）

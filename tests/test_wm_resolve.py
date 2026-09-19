@@ -1,0 +1,142 @@
+# -*- coding: utf-8 -*-
+"""wm 物品名解析的回归守卫（python3 tests/test_wm_resolve.py）
+
+背景（2026-09-20 用户实测报障）：
+1. `wm 压迫点 p` 返回「膛线」—— 官方简中「压迫点」是 Pressure Point，
+   而词典把它错配到了 serration（膛线）。根因是别名词典（含双向包含的模糊匹配）
+   排在官方名之前，官方名被黑话/错映射劫持。
+2. `wm 毁灭Gp` / `wm 毁灭Gprime` 返回**非 Prime** 的「毁灭 Grineer」，订单数与价格
+   全不对。根因是 `norm_wm_name()` 用 `.replace("prime","")` 做**子串**替换：
+   「Primed」被切成「d」、用户输入的「Gprime」被切成「G」，Prime 语义凭空丢失；
+   而归一化抹掉 Prime 后普通版与 Prime 版塌成同一字符串，谁在前谁赢。
+
+这里把三条钉死：官方名优先、Prime 语义不丢、关键映射正确。
+"""
+from __future__ import annotations
+
+import json
+import re
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+
+from core.api_client import (  # noqa: E402
+    match_official_name, match_wm_normalized, norm_wm_name, load_aliases,
+)
+
+FAILED: list[str] = []
+
+
+def check(name: str, cond: bool, detail: str = ""):
+    status = "PASS" if cond else "FAIL"
+    print(f"[{status}] {name}" + (f"  -> {detail}" if detail and not cond else ""))
+    if not cond:
+        FAILED.append(name)
+
+
+# ---------------------------------------------------------------------------
+# 1. 归一化：prime 只能作为「独立词/后缀」被抹，不能切进单词里
+# ---------------------------------------------------------------------------
+check("★ Primed 不再被切成 d（子串替换的 bug）",
+      norm_wm_name("Primed Smite Grineer") == "primedsmitegrineer",
+      norm_wm_name("Primed Smite Grineer"))
+check("末尾/独立的 Prime 仍然被抹（保留「省略 Prime 也能查」的能力）",
+      norm_wm_name("Saryn Prime 蓝图") == "saryn蓝图",
+      norm_wm_name("Saryn Prime 蓝图"))
+check("后接中文的 Prime 也被抹",
+      norm_wm_name("毁灭Gprime") == "毁灭g", norm_wm_name("毁灭Gprime"))
+check("去空白 + 小写", norm_wm_name("Smite  Grineer") == "smitegrineer")
+check("普通词里的 prime 子串不被误伤（supreme）",
+      norm_wm_name("Supreme") == "supreme", norm_wm_name("Supreme"))
+
+# ---------------------------------------------------------------------------
+# 2. 官方名精确（casefold）：物品表的官方简中是唯一权威
+# ---------------------------------------------------------------------------
+FAKE = [
+    {"url_name": "pressure_point", "zh": "压迫点", "en": "Pressure Point", "tags": ["mod"]},
+    {"url_name": "primed_pressure_point", "zh": "压迫点 Prime", "en": "Primed Pressure Point", "tags": ["mod"]},
+    {"url_name": "serration", "zh": "膛线", "en": "Serration", "tags": ["mod"]},
+]
+check("官方简中精确命中", (match_official_name("压迫点", FAKE) or {}).get("url_name") == "pressure_point")
+check("★ 官方简中优先于任何黑话/错映射（压迫点 ≠ 膛线）",
+      (match_official_name("压迫点", FAKE) or {}).get("url_name") != "serration")
+check("大小写不敏感（压迫点 prime 也能命中文献名）",
+      (match_official_name("压迫点 prime", FAKE) or {}).get("url_name") == "primed_pressure_point")
+check("官方英文名精确命中",
+      (match_official_name("Serration", FAKE) or {}).get("url_name") == "serration")
+check("slug 精确命中",
+      (match_official_name("pressure_point", FAKE) or {}).get("url_name") == "pressure_point")
+check("查无此物返回 None", match_official_name("不存在的东西", FAKE) is None)
+
+# ---------------------------------------------------------------------------
+# 3. Prime 语义：抹掉 Prime 后普通版与 Prime 版会重名，按输入语义选
+# ---------------------------------------------------------------------------
+PRIME_FAKE = [
+    {"url_name": "smite_grineer", "zh": "毁灭 Grineer", "en": "Smite Grineer", "tags": ["mod"]},
+    {"url_name": "primed_smite_grineer", "zh": "毁灭 Grineer Prime",
+     "en": "Primed Smite Grineer", "tags": ["mod"]},
+]
+got = match_wm_normalized("毁灭Gprime", PRIME_FAKE)
+check("★ 输入写了 prime → 命中 Prime 版",
+      (got or {}).get("url_name") == "primed_smite_grineer",
+      (got or {}).get("url_name"))
+got = match_wm_normalized("毁灭G", PRIME_FAKE)
+check("★ 输入没写 prime → 命中普通版",
+      (got or {}).get("url_name") == "smite_grineer", (got or {}).get("url_name"))
+got = match_wm_normalized("毁灭 Grineer Prime", PRIME_FAKE)
+check("全名带 Prime → 命中 Prime 版",
+      (got or {}).get("url_name") == "primed_smite_grineer", (got or {}).get("url_name"))
+
+# ---------------------------------------------------------------------------
+# 4. 别名词典的关键映射（官方名 -> 正确 slug）
+# ---------------------------------------------------------------------------
+WM = load_aliases().get("wm_items", {})
+EXPECT = {
+    "压迫点": "pressure_point",            # ★ 用户报：以前错成 serration（膛线）
+    "压迫点Prime": "primed_pressure_point",
+    "膛线": "serration",
+    "空尖弹": "hollow_point",
+    "精算蓄能": "calculated_redirection",
+    "腐坏打击": "spoiled_strike",
+    "金属纤维": "metal_fiber",
+    "锯齿弹链": "sawtooth_clip",
+    "鹰眼": "eagle_eye",
+    "加速充能": "accelerated_deflection",
+    "守望者": "vectis_prime_set",
+    "圣装守望者": "vectis_prime_set",
+    "绝路": "rubico_prime_set",
+    "圣装绝路": "rubico_prime_set",
+    "布莱顿": "braton_prime_set",
+    "拉特昂": "latron_prime_set",
+    "拉特昂w": "latron_wraith_set",
+    "动物本能p": "primed_animal_instinct",
+    "诺娃": "nova_prime_set",              # Nova 黑话（加速娃/诺娃），不与官方名「加速」冲突
+    "加速娃": "nova_prime_set",
+}
+for k, want in EXPECT.items():
+    check(f"映射 {k} → {want}", WM.get(k) == want, f"实际 {WM.get(k)}")
+
+# 「加速」是官方简中 Quickening 的名，词典不该再占用它
+check("★ 词典不再占用官方名「加速」（让官方名 Quickening 生效）",
+      "加速" not in WM, f"实际指向 {WM.get('加速')}")
+
+# ---------------------------------------------------------------------------
+# 5. 源码级：官方名必须排在别名词典之前
+# ---------------------------------------------------------------------------
+src = (ROOT / "core" / "api_client.py").read_text(encoding="utf-8")
+i_official = src.index("match_official_name(query, items)")
+i_alias = src.index("# 别名词典**精确**键")
+check("★ 官方名匹配位于别名词典之前", i_official < i_alias,
+      f"{i_official} vs {i_alias}")
+check("别名词典模糊已降级（_alias_fuzzy 调用在归一化之后）",
+      src.index("match_wm_normalized(query, items)") < src.index("self._alias_fuzzy(query)"))
+check("_aliases 访问都有 getattr 兜底（测试用 __new__ 造实例时不炸）",
+      src.count("getattr(self, \"_aliases\", None)") >= 2)
+
+print()
+if FAILED:
+    print(f"✗ {len(FAILED)} 项失败：" + "、".join(FAILED))
+    sys.exit(1)
+print("✓ wm 解析回归守卫全部通过")
