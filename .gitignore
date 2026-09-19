@@ -1,6 +1,10 @@
 # 运行产物：群配置 / 推送订阅 / 渲染缓存 —— 含使用者数据，绝不入库
 runtime/
 
+# AstrBot 数据目录：在仓库目录里 import / 运行 astrbot 会就地生成 data/，
+# 内含实例配置与 dashboard 凭据（实测 cmd_config.json 带 password 哈希）—— 绝不入库
+/data/
+
 # 运行时生成的数据快照（跑了才有）
 core/data/wm_ranks.json
 core/data/riven_weekly.json

@@ -16,11 +16,6 @@ import asyncio
 import difflib
 import json
 import os
-import logging
-
-# 模块级 logger：本文件内部报错（如「WM 无该挂单类目」）统一走这里，
-# 与 main.py 的日志器同名，便于在机器人日志里一起看。
-logger = logging.getLogger("astrbot_plugin_warframe_sdjk")
 import re
 import random
 import time
@@ -33,12 +28,15 @@ try:  # 缺依赖时保持模块可导入（离线工具/测试），实例化�
 except ImportError:  # pragma: no cover
     httpx = None  # type: ignore[assignment]
 
-from . import de_worldstate
+from . import de_worldstate, paths
 from .cache import TTLCache
+from .logging_compat import logger
 
-DATA_DIR = Path(__file__).resolve().parent / "data"
-RANKS_FILE = DATA_DIR / "wm_ranks.json"          # 价格排行全量落盘（后台爬取）
-WIKI_DISP_FILE = DATA_DIR / "de" / "wiki_disp.json"  # wiki 变体倾向快照
+DATA_DIR = Path(__file__).resolve().parent / "data"   # 包内静态数据（只读）
+# 运行期写盘的文件名（排行落盘 / 快照 / 缓存）：实际路径经 core.paths 解析到
+# data/plugin_data/<插件名>，绝不写插件包目录（AstrBot 插件规范要求）。
+RANKS_NAME = "wm_ranks.json"             # 价格排行全量落盘（后台爬取）
+WIKI_DISP_NAME = "de/wiki_disp.json"     # wiki 变体倾向快照
 # Cloudflare 绕过代理（FlareSolverr）：wiki.warframe.com 等对非浏览器 403。
 # 服务器上跑一个 flaresolverr 容器后自动启用；插件跑在 astrbot 容器里，
 # 127.0.0.1 到不了宿主机端口，所以按候选顺序试（容器名 → docker0 网关 → 本机）。
@@ -71,7 +69,7 @@ def parse_url_list(raw: str) -> list[str]:
         if tok not in out:
             out.append(tok)
     return out
-RIVEN_WEEKLY_FILE = DATA_DIR / "riven_weekly.json"  # DE 官方紫卡周报快照
+RIVEN_WEEKLY_NAME = "riven_weekly.json"  # DE 官方紫卡周报快照
 DE_RIVEN_WEEKLY = "https://www-static.warframe.com/repos/weeklyRivens{plat}.json"
 _DE_RIVEN_PLATFORM = {"pc": "PC", "ps4": "PS4", "xb1": "XB1", "sw": "SWITCH"}
 TTL_RIVEN_WEEKLY = 6 * 3600
@@ -973,7 +971,7 @@ class WarframeClient:
         """
         items = [it for it in await self.wm_items() if _rank_candidate(it)]
         total = len(items)
-        old = self._load_json_file(RANKS_FILE) or {}
+        old = self._load_json_file(paths.read_path(RANKS_NAME)) or {}
         rows: dict = old.get("rows") or {}
         cursor = int(old.get("cursor") or 0)
         if cursor >= total:        # 上一轮已跑满，从头开始新一轮
@@ -995,11 +993,11 @@ class WarframeClient:
             idx += 1
             done += 1
             if done % 50 == 0:
-                self._save_json_file(RANKS_FILE, {
+                self._save_json_file(paths.write_path(RANKS_NAME), {
                     "ts": old.get("ts") or "", "cursor": idx, "total": total,
                     "done": idx, "rows": rows})
         finished = idx >= total
-        self._save_json_file(RANKS_FILE, {
+        self._save_json_file(paths.write_path(RANKS_NAME), {
             # 跑满一轮才刷新 ts（整榜 48h 更新一次）；没跑满沿用旧 ts，
             # 下一轮仍判定为过期 -> 从 cursor 继续
             "ts": (time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime())
@@ -1007,14 +1005,14 @@ class WarframeClient:
             "cursor": 0 if finished else idx,
             "total": total, "done": idx, "rows": rows})
         # api_client 没有模块级 logger，这里用标准库（保持与 main.py 前缀一致）
-        logging.getLogger("astrbot_plugin_warframe_sdjk").info(
+        logger.info(
             "[sdjk] 价格榜单抓取：本轮 %d 项，累计 %d/%d%s",
             done, idx, total, "（本轮跑满）" if finished else "")
         return len(rows)
 
     def start_rank_crawl(self) -> tuple[bool, int, int]:
         """启动后台全量抓取；返回 (是否新启动, 已完成项, 总项数)。"""
-        data = self._load_json_file(RANKS_FILE)
+        data = self._load_json_file(paths.read_path(RANKS_NAME))
         task = getattr(self, "_rank_crawl_task", None)
         if task and not task.done():
             return False, int(data.get("done") or 0), int(data.get("total") or 0)
@@ -1024,7 +1022,7 @@ class WarframeClient:
 
     def rank_rows(self) -> list[dict]:
         """落盘的排行行（含 slug，供 formatter 按分类过滤）。"""
-        data = self._load_json_file(RANKS_FILE)
+        data = self._load_json_file(paths.read_path(RANKS_NAME))
         return [{"slug": k, **v} for k, v in (data.get("rows") or {}).items()]
 
     async def de_weekly_rivens(self, platform: str = "pc",
@@ -1035,7 +1033,7 @@ class WarframeClient:
         跳过缓存强制拉取（「紫卡排行 刷新」）。主机平台文件缺失回落 PC。
         """
         if not force:
-            snap = self._load_json_file(RIVEN_WEEKLY_FILE)
+            snap = self._load_json_file(paths.read_path(RIVEN_WEEKLY_NAME))
             if snap.get("entries") and \
                     time.time() - snap.get("fetched", 0) < TTL_RIVEN_WEEKLY:
                 return snap
@@ -1049,7 +1047,7 @@ class WarframeClient:
                 return await self.de_weekly_rivens("pc", force=force)
             raise WarframeAPIError(f"DE 紫卡周报拉取失败：{exc}") from exc
         snap = {"fetched": time.time(), "platform": plat, "entries": entries}
-        self._save_json_file(RIVEN_WEEKLY_FILE, snap)
+        self._save_json_file(paths.write_path(RIVEN_WEEKLY_NAME), snap)
         return snap
 
 
@@ -1526,7 +1524,7 @@ class WarframeClient:
         """
         from datetime import datetime, timedelta, timezone
         from datetime import datetime, timedelta, timezone
-        rot_path = DATA_DIR / "rotations.json"
+        rot_path = paths.read_path("rotations.json")
         rot = json.loads(rot_path.read_text(encoding="utf-8"))
         now = datetime.now(timezone.utc)
         for key in ("tenet", "coda"):
@@ -1577,7 +1575,7 @@ class WarframeClient:
                     it.pop("element", None)
                     it.pop("bonus", None)
         tenet_data["valence_snapshot"] = snap
-        rot_path.write_text(json.dumps(rot, ensure_ascii=False, indent=1),
+        paths.write_path("rotations.json").write_text(json.dumps(rot, ensure_ascii=False, indent=1),
                             encoding="utf-8")
         return f"refreshed {snap} batch={batch}"
 
@@ -1610,7 +1608,7 @@ class WarframeClient:
         WarframeAPIError，由调用方降级（手输倾向仍可用）。
         """
         from datetime import datetime, timezone
-        old = self._load_json_file(WIKI_DISP_FILE) or {}
+        old = self._load_json_file(paths.read_path(WIKI_DISP_NAME)) or {}
         if not force:
             snap = old.get("snapshot")
             if snap:
@@ -1636,7 +1634,7 @@ class WarframeClient:
             "snapshot": now,
             "disp": disp,
         }
-        WIKI_DISP_FILE.write_text(json.dumps(meta, ensure_ascii=False, indent=1),
+        paths.write_path(WIKI_DISP_NAME).write_text(json.dumps(meta, ensure_ascii=False, indent=1),
                                   encoding="utf-8")
         return f"refreshed {len(disp)} 条 @ {now}"
 
@@ -1683,7 +1681,7 @@ class WarframeClient:
         """
         base_zh = (weapon.get("zh") or "").strip()
         base_en = (weapon.get("en") or "").strip()
-        table = (self._load_json_file(WIKI_DISP_FILE) or {}).get("disp") or {}
+        table = (self._load_json_file(paths.read_path(WIKI_DISP_NAME)) or {}).get("disp") or {}
         if not table or not (base_zh or base_en):
             return []
         try:
@@ -1714,7 +1712,7 @@ class WarframeClient:
         （core/data/de/wiki_disp.json，618 条静态快照）有完整数据。
         返回 (倾向值, 命中的表键)；查不到 (None, "")。
         """
-        table = (self._load_json_file(WIKI_DISP_FILE) or {}).get("disp") or {}
+        table = (self._load_json_file(paths.read_path(WIKI_DISP_NAME)) or {}).get("disp") or {}
         if not table or not name:
             return None, ""
         norm = re.sub(r"[\s·]+", "", (name or "").lower())

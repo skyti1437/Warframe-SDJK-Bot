@@ -19,6 +19,8 @@ import asyncio
 import difflib
 import json
 import re
+import shutil
+import tempfile
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -38,6 +40,7 @@ try:  # 允许脱离 AstrBot 直接跑单元测试
                               parse_url_list, fuzzy_hits)
     from .core import baro
     from .core import drops as drops_db
+    from .core import paths as core_paths
     from .core import formatters as fmt
     from .core import search as search_engine
     from .core.parser import (Parsed, normalize_platform, parse, parse_duration,
@@ -57,6 +60,7 @@ except ImportError:  # pragma: no cover
                              parse_url_list, fuzzy_hits)
     from core import baro
     from core import drops as drops_db
+    from core import paths as core_paths
     from core import formatters as fmt
     from core import search as search_engine
     from core.parser import (Parsed, normalize_platform, parse, parse_duration,
@@ -134,8 +138,49 @@ def strip_md(text: str) -> str:
 
 
 PLUGIN_DIR = Path(__file__).resolve().parent
+PLUGIN_NAME = "astrbot_plugin_warframe_sdjk"   # 插件身份（须与 metadata.yaml.name 一致）
 ROTATION_FILE = Path(__file__).resolve().parent / "core" / "data" / "rotations.json"
 JUNK_FILE = Path(__file__).resolve().parent / "core" / "data" / "junk.json"
+
+
+def _resolve_data_dir() -> Path:
+    """插件运行期数据目录（规范：持久化数据必须放 ``data/plugin_data/<插件名>``）。
+
+    插件包目录对安装用户是只读的（升级还会整包覆盖），所以运行期**不能**往包内
+    写任何用户数据。优先走 AstrBot 官方 API（``StarTools.get_data_dir``）；脱离
+    AstrBot 运行（离线单测 / 独立脚本）时退回系统临时目录，同样不碰插件包目录。
+    """
+    try:
+        from astrbot.core.star.star_tools import StarTools
+        return Path(StarTools.get_data_dir(PLUGIN_NAME))
+    except Exception:  # noqa: BLE001 - 无 astrbot 环境（离线脚本 / 单测）
+        d = Path(tempfile.gettempdir()) / PLUGIN_NAME
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+
+
+def _migrate_legacy_user_data(data_dir: Path) -> None:
+    """**一次性**兼容旧版本：把早先写在插件目录 ``runtime/`` 里的用户数据搬到新目录。
+
+    只读旧文件，且只在新目录缺同一份数据时复制；此后运行期不再往插件目录写任何
+    东西（插件包目录只读，写进去一升级就丢）。
+    """
+    legacy = PLUGIN_DIR / "runtime"
+    if not legacy.is_dir():
+        return
+    for name in ("groups.json", "subscriptions.json"):
+        src, dst = legacy / name, data_dir / name
+        if src.is_file() and not dst.exists():
+            try:
+                shutil.copy2(src, dst)
+            except OSError:
+                pass
+    src_cards, dst_cards = legacy / "cards", data_dir / "cards"
+    if src_cards.is_dir() and not dst_cards.exists():
+        try:
+            shutil.copytree(src_cards, dst_cards)
+        except OSError:
+            pass
 
 
 def _num(cfg: dict, key: str, default: float, cast=float) -> float:
@@ -348,8 +393,11 @@ class WarframeSDJK(Star):
     def __init__(self, context: Context, config: AstrBotConfig | None = None):
         super().__init__(context)
         self.cfg: dict = dict(config) if config else {}
-        runtime = PLUGIN_DIR / "runtime"
-        runtime.mkdir(parents=True, exist_ok=True)
+        # 运行期数据目录：data/plugin_data/<插件名>（规范要求），不再写插件包目录。
+        data_dir = _resolve_data_dir()
+        self.data_dir = data_dir
+        _migrate_legacy_user_data(data_dir)   # 旧版写在插件目录的数据一次性搬家
+        core_paths.set_run_dir(data_dir)      # core 层的快照/缓存同源
         # FlareSolverr / 知识库：**开源版要能自己填**（自用版默认值照旧）。
         #   地址按逗号或换行分隔；填了非法值就回退内置默认，不静默猜。
         _flare_urls = parse_url_list(str(self.cfg.get("flaresolverr_urls") or ""))
@@ -363,10 +411,10 @@ class WarframeSDJK(Star):
             flare_enabled=bool(self.cfg.get("flaresolverr_enabled", True)),
             flare_urls=_flare_urls or None,
         )
-        self.groups = GroupStore(runtime / "groups.json",
+        self.groups = GroupStore(data_dir / "groups.json",
                                  default_platform=self.cfg.get("default_platform", "pc"))
-        self.subs = SubscriptionStore(runtime / "subscriptions.json")
-        self.renderer = ImageRenderer(runtime / "cards")
+        self.subs = SubscriptionStore(data_dir / "subscriptions.json")
+        self.renderer = ImageRenderer(data_dir / "cards")
         self._last_scan: dict[str, tuple[float, dict, dict]] = {}  # 会话→(时刻, 武器, 折算spec)
         # 识卡限流状态：**实例级**（类级默认值是兜底，实例级才隔离）。
         # 类属性是可变对象时，写入会命中类本身 —— 多实例/多测试之间会串。

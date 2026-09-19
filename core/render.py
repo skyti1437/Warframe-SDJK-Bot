@@ -93,9 +93,7 @@ try:
 except ImportError:  # pragma: no cover
     Image = ImageDraw = ImageFilter = ImageFont = None  # type: ignore[assignment]
 
-import logging
-
-_LOGGER = logging.getLogger("astrbot")
+from .logging_compat import logger as _LOGGER
 
 FONT_DIR = Path(__file__).resolve().parent / "data" / "fonts"  # core/data/fonts
 
@@ -576,11 +574,13 @@ class ImageRenderer:
         _t0 = _t.perf_counter()
         try:
             path = self._render(title, lines, footer)
-            # 耗时埋点（定位「出图慢」用；>1200ms 记 WARNING 级别提醒）
+            # 耗时埋点（定位「出图慢」用；>1200ms 抬到 WARNING 级别提醒）
             _ms = (_t.perf_counter() - _t0) * 1000
-            _LOGGER.log(logging.WARNING if _ms > 1200 else logging.INFO,
-                        "[warframe] 卡片渲染 %.0f ms（%d 行）：%s",
-                        _ms, len(lines), title)
+            _msg = "[warframe] 卡片渲染 %.0f ms（%d 行）：%s"
+            if _ms > 1200:
+                _LOGGER.warning(_msg, _ms, len(lines), title)
+            else:
+                _LOGGER.info(_msg, _ms, len(lines), title)
             return path
         except Exception:  # noqa: BLE001 —— 降级文本但必须留下失败现场
             _LOGGER.exception("[warframe] 图片渲染失败，已降级文本：%s", title)
