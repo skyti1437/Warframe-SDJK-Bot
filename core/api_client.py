@@ -20,7 +20,7 @@ import logging
 
 # 模块级 logger：本文件内部报错（如「WM 无该挂单类目」）统一走这里，
 # 与 main.py 的日志器同名，便于在机器人日志里一起看。
-logger = logging.getLogger("astrbot_plugin_warframe")
+logger = logging.getLogger("astrbot_plugin_warframe_sdjk")
 import re
 import random
 import time
@@ -1007,7 +1007,7 @@ class WarframeClient:
             "cursor": 0 if finished else idx,
             "total": total, "done": idx, "rows": rows})
         # api_client 没有模块级 logger，这里用标准库（保持与 main.py 前缀一致）
-        logging.getLogger("astrbot_plugin_warframe").info(
+        logging.getLogger("astrbot_plugin_warframe_sdjk").info(
             "[sdjk] 价格榜单抓取：本轮 %d 项，累计 %d/%d%s",
             done, idx, total, "（本轮跑满）" if finished else "")
         return len(rows)

@@ -1,4 +1,4 @@
-# AstrBot 插件 · Warframe SDJK v1.0（`astrbot_plugin_warframe`）
+# AstrBot 插件 · Warframe SDJK v1.0（`astrbot_plugin_warframe_sdjk`）
 
 一个给 AstrBot 用的 Warframe 工具集：**世界状态 / 市场查价 / 伤害计算与配卡识别 /
 紫卡分析 / 遗物与部件反查 / 玄骸拍卖 / 奸商预测 / 蹲点推送**，
@@ -53,7 +53,7 @@
    运行环境一般已满足，自建环境时留意）。
 2. 把本仓库放到 AstrBot 插件目录（或打包成 zip 后在 WebUI 里上传）：
    ```
-   data/plugins/astrbot_plugin_warframe/
+   data/plugins/astrbot_plugin_warframe_sdjk/
    ```
 3. 安装依赖：
    ```bash
