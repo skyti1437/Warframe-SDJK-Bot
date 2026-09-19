@@ -574,6 +574,8 @@ class ImageRenderer:
         _t0 = _t.perf_counter()
         try:
             path = self._render(title, lines, footer)
+            # 耗时埋点（定位「出图慢」用；>1200ms 记 WARNING 级别提醒）
+            _ms = (_t.perf_counter() - _t0) * 1000
             # 耗时埋点（定位「出图慢」用；>1200ms 抬到 WARNING 级别提醒）
             _ms = (_t.perf_counter() - _t0) * 1000
             _msg = "[warframe] 卡片渲染 %.0f ms（%d 行）：%s"
