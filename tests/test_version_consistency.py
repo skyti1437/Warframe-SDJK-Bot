@@ -82,7 +82,7 @@ check("显示名放 display_name，不占用 name 字段",
       "display_name:" in meta, "缺 display_name")
 
 # 开源包那份（由 dist/package_release.py 生成）同样要合法
-oss_meta = ROOT / "dist" / "opensource" / "astrbot_plugin_warframe" / "metadata.yaml"
+oss_meta = ROOT / "dist" / "opensource" / "astrbot_plugin_warframe_sdjk" / "metadata.yaml"
 if oss_meta.exists():
     om = oss_meta.read_text(encoding="utf-8")
     omn = _meta_name(om)

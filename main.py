@@ -341,7 +341,7 @@ class Reply:
         default_factory=list)                         # 优先于 title/lines；渲染层自动加页码
 
 
-@register("astrbot_plugin_warframe", "skyti1437",
+@register("astrbot_plugin_warframe_sdjk", "skyti1437",
           "Warframe SDJK：世界状态 / 市场查价 / 蹲点推送",
           "1.0")
 class WarframeSDJK(Star):
