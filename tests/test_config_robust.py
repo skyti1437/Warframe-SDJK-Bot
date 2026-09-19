@@ -28,7 +28,7 @@ def _install_astrbot_stub() -> None:
         pass
 
     import logging
-    logger = logging.getLogger("astrbot_plugin_warframe_sdjk")
+    logger = logging.getLogger("astrbot_plugin_warframe")
 
     class AstrMessageEvent:
         pass
