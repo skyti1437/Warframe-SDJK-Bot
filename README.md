@@ -1,4 +1,4 @@
-# AstrBot 插件 · Warframe SDJK v1.0（`astrbot_plugin_warframe_sdjk`）
+# AstrBot 插件 · Warframe SDJK v1.0（`astrbot_plugin_warframe`）
 
 一个给 AstrBot 用的 Warframe 工具集：**世界状态 / 市场查价 / 伤害计算与配卡识别 /
 紫卡分析 / 遗物与部件反查 / 玄骸拍卖 / 奸商预测 / 蹲点推送**，
@@ -53,7 +53,7 @@
    运行环境一般已满足，自建环境时留意）。
 2. 把本仓库放到 AstrBot 插件目录（或打包成 zip 后在 WebUI 里上传）：
    ```
-   data/plugins/astrbot_plugin_warframe_sdjk/
+   data/plugins/astrbot_plugin_warframe/
    ```
 3. 安装依赖：
    ```bash
@@ -160,7 +160,7 @@ docker run -d --name flaresolverr -p 8191:8191 flaresolverr/flaresolverr
 - 插件**只在你自己的机器人上运行**，不向任何第三方上报数据；所有查询都直接
   打给上表列出的公开数据源。
 - 运行时数据（群配置、推送订阅、渲染缓存、价格排行/倾向表快照）按 AstrBot 插件
-  规范写在 `data/plugin_data/astrbot_plugin_warframe_sdjk/` 下，**不落在插件目录**
+  规范写在 `data/plugin_data/astrbot_plugin_warframe/` 下，**不落在插件目录**
   （插件目录对安装用户只读，升级还会整包覆盖）。早期版本写在插件目录 `runtime/`
   里的用户数据会在首次启动时自动搬到新位置，之后不再往插件目录写任何东西。
 - 识卡功能会把**你发的截图**交给你自己配置的多模态模型渠道处理 —— 也就是说

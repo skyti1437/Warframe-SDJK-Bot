@@ -1,4 +1,4 @@
-name: astrbot_plugin_warframe_sdjk
+name: astrbot_plugin_warframe
 display_name: Warframe SDJK
 short_desc: 世界状态 / 市场查价 / 伤害计算 / 配卡识别 / 紫卡分析 / 蹲点推送
 desc: >-
@@ -9,7 +9,7 @@ desc: >-
   数据来自 DE 官方接口与公开社区数据源；本插件为粉丝作品，与 Digital Extremes 无关。
   
   识卡功能需要自行在 AstrBot 里配置一个多模态模型渠道；部分 wiki 抓取需要自建 FlareSolverr（均可在配置面板开关）。
-version: v1.0.1
+version: v1.0.2
 author: skyti1437
 repo: https://github.com/skyti1437/Warframe-SDJK-Bot
 astrbot_version: ">=4.0.0"

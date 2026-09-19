@@ -138,7 +138,7 @@ def strip_md(text: str) -> str:
 
 
 PLUGIN_DIR = Path(__file__).resolve().parent
-PLUGIN_NAME = "astrbot_plugin_warframe_sdjk"   # 插件身份（须与 metadata.yaml.name 一致）
+PLUGIN_NAME = "astrbot_plugin_warframe"   # 插件身份（须与 metadata.yaml.name 一致）
 ROTATION_FILE = Path(__file__).resolve().parent / "core" / "data" / "rotations.json"
 JUNK_FILE = Path(__file__).resolve().parent / "core" / "data" / "junk.json"
 
@@ -386,7 +386,7 @@ class Reply:
         default_factory=list)                         # 优先于 title/lines；渲染层自动加页码
 
 
-@register("astrbot_plugin_warframe_sdjk", "skyti1437",
+@register("astrbot_plugin_warframe", "skyti1437",
           "Warframe SDJK：世界状态 / 市场查价 / 蹲点推送",
           "1.0")
 class WarframeSDJK(Star):
