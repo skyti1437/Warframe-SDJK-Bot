@@ -101,6 +101,125 @@ def _result_hook():
 
 
 # ---------------------------------------------------------------------------
+# 指令空间避让（2026-09-19 修「/help / /新闻 被本插件吞掉」线上事故）
+# ---------------------------------------------------------------------------
+# AstrBot 的 WakingCheckStage 会把 wake_prefix（默认 "/"）**从 message_str 上剥掉**
+# （astrbot/core/pipeline/waking_check/stage.py: `event.message_str = event.message_str[len(wake_prefix):]`），
+# 所以到了 handler 这一层 "/新闻" 已经变成 "新闻" —— `event.message_str.startswith("/")`
+# **永远不可能命中**，靠它挡前缀是无效的。
+#
+# 后果：本插件 143 个触发词全都能被 "/触发词" 命中；而本插件的 handler 是
+# `event_message_type(ALL)`，注册顺序又靠前（插件按加载顺序注册，内置指令
+# builtin_commands 与后装的插件都排在后面），处理完还调 `event.stop_event()`，
+# 于是后面的处理器被整体跳过（process_stage/method/star_request.py:
+# `for handler in activated_handlers: if event.is_stopped(): break`）。
+#
+# 线上实证（2026-09-19 日志）：
+#   19:30:03 用户发 /help  → 渲染的是「Warframe SDJK 指令一览」（AstrBot 内置帮助被打不开）
+#   19:52:16 用户发 /新闻  → 渲染的是「最近新闻」（dailyhub 的 /新闻 被打不开）
+#   同一时刻别的插件打印 preview='新闻'，即前缀已被剥掉 —— 坐实机制。
+#
+# 修法：**只对「带唤醒前缀 且 该词已被内置/其他插件占用」的输入让路**
+# （直接 return，**不** stop_event，让后面的处理器照常接住）。
+#   * "/help"、"/新闻" → 让给内置 / dailyhub
+#   * "/仲裁"、"/赏金" → 没被占用，照常由本插件响应（不破坏用户习惯）
+#   * 裸词 "仲裁" / "新闻" → 本来就没有别的处理器在抢（指令过滤需要前缀），维持原样
+_OCCUPIED_FALLBACK = frozenset({
+    # AstrBot 内置指令（astrbot/builtin_stars/builtin_commands/main.py）
+    "help", "sid", "name", "reset", "stop", "new", "stats", "provider",
+    "dashboard_update", "set", "unset",
+    # 已知的第三方占用（本机实测）。运行期探测失败时靠它兜底 ——
+    # 宁可少避让，也不能把内置帮助这种刚需指令再吞一次。
+    "新闻", "news",
+})
+_OCCUPIED_CACHE: Optional[frozenset] = None
+_OCCUPIED_EPOCH: int = -1
+
+
+def _occupied_command_words() -> frozenset:
+    """「已被内置指令 / 其他插件占用」的指令首词集合。
+
+    从 AstrBot 的 handler 注册表读，**按注册表规模做缓存键** —— 装了新插件 /
+    卸载 / 重载都会让规模变化，于是自动重扫（今天的 dailyhub 就是运行期新装的：
+    固定缓存会让它一直被吞）。任何异常都不许向上抛：探测失败最多少避让，
+    不能让消息处理整体挂掉。
+    """
+    global _OCCUPIED_CACHE, _OCCUPIED_EPOCH
+    registry = None
+    epoch = -1
+    try:
+        from astrbot.core.star.star_handler import star_handlers_registry
+
+        registry = star_handlers_registry
+        epoch = len(registry)
+    except Exception:  # noqa: BLE001
+        pass
+    if _OCCUPIED_CACHE is not None and epoch == _OCCUPIED_EPOCH:
+        return _OCCUPIED_CACHE
+
+    words: set[str] = set(_OCCUPIED_FALLBACK)
+    try:
+        from astrbot.core.star.filter.command import CommandFilter
+
+        for handler in registry:
+            module_path = getattr(handler, "handler_module_path", "") or ""
+            if "astrbot_plugin_warframe" in module_path:
+                continue                      # 跳过自己，只收集「别人的」
+            for flt in getattr(handler, "event_filters", None) or []:
+                if not isinstance(flt, CommandFilter):
+                    continue
+                for name in (flt.command_name, *(flt.alias or ())):
+                    if name:
+                        # 指令组是「父 子」两级，用户实际敲的是首词
+                        words.add(str(name).split()[0].lower())
+    except Exception:  # noqa: BLE001
+        pass
+    _OCCUPIED_CACHE = frozenset(words)
+    _OCCUPIED_EPOCH = epoch
+    return _OCCUPIED_CACHE
+
+
+def _raw_candidates(event: AstrMessageEvent) -> list[str]:
+    """尽可能还原「未被 AstrBot 改写」的原始消息文本（多个来源，谁有用谁）。
+
+    来源 1：`message_obj.message_str` —— aiocqhttp 适配器把**含前缀**的原始串
+            写在这里，且 WakingCheckStage 只改 `event.message_str`，不动它。
+    来源 2：消息段里的 Plain 文本拼回来 —— 适配器不填 message_obj.message_str
+            时（webchat 等）的退路；@机器人 的首个 At 段不是 Plain，天然被跳过。
+    """
+    out: list[str] = []
+    obj = getattr(event, "message_obj", None)
+    raw = getattr(obj, "message_str", None) if obj is not None else None
+    if isinstance(raw, str) and raw:
+        out.append(raw)
+    try:
+        parts = [getattr(seg, "text", "") for seg in event.get_messages()
+                 if isinstance(seg, Plain) and getattr(seg, "text", None)]
+        if parts:
+            out.append("".join(parts))
+    except Exception:  # noqa: BLE001
+        pass
+    return out
+
+
+def _wake_prefix_stripped(event: AstrMessageEvent) -> bool:
+    """这条消息的 wake_prefix 是否已被 AstrBot 剥掉（即用户是带着 "/" 发的）。
+
+    判据：某个原始文本比 `event.message_str` 长，且以它结尾 —— 多出来的那一截
+    只可能是被剥掉的唤醒前缀。@机器人 的形态两边相同，不会误判。
+    拿不到任何原始文本（未知适配器 / 测试桩）时按「无前缀」处理（fail-open）。
+    """
+    cur = (getattr(event, "message_str", "") or "").strip()
+    if not cur:
+        return False
+    for raw in _raw_candidates(event):
+        raw_s = raw.strip()
+        if len(raw_s) > len(cur) and raw_s.endswith(cur):
+            return True
+    return False
+
+
+# ---------------------------------------------------------------------------
 # Markdown 兜底清理
 # ---------------------------------------------------------------------------
 # QQ（aiocqhttp / NapCat）协议不支持任何富文本，Markdown 标记会被原样显示成
@@ -595,6 +714,15 @@ class WarframeSDJK(Star):
         text = (getattr(event, "message_str", "") or "").strip()
         if not text or text.startswith("/"):
             return
+
+        # 带唤醒前缀（"/xxx"）时，AstrBot 已把 "/" 剥掉，此处按原始消息还原判断：
+        # 若该词已被内置指令或其他插件占用，就让路 —— 直接 return 且**不** stop_event，
+        # 后面的处理器照常接住（详见文件头「指令空间避让」注释）。
+        if _wake_prefix_stripped(event):
+            head = text.split(" ", 1)[0].lower()
+            if head in _occupied_command_words():
+                logger.info("[sdjk] 「/%s」已由内置指令或其他插件占用，本次让路", head)
+                return
 
         # 管理指令命名空间：“.”
         if text.startswith("."):
@@ -1433,8 +1561,13 @@ class WarframeSDJK(Star):
     # ------------------------------------------------------------------
     async def _h_help(self, parsed, event, platform) -> Reply:
         """裸「帮助」：单页指令总览（2026-09-14 应用户要求去掉「帮助 分类」
-        子指令——意义不明，一页足够）。"""
-        lines = []
+        子指令——意义不明，一页足够）。
+
+        2026-09-19 加注脚：本插件指令是**裸词**触发（AstrBot 会把 "/" 前缀
+        剥掉，见文件头「指令空间避让」），而 "/help" 属于 AstrBot 内置指令，
+        已被本插件主动让路 —— 说明一句，免得用户以为帮助坏了。
+        """
+        lines = ["※ 指令直接发即可，无需 / 前缀（/help 属系统内置指令）"]
         for t, items in HELP_TOPIC.items():
             lines.append(f"◆ {t}")
             # 全角空格分隔：渲染层按此切成两列并做首字符垂直线对齐
