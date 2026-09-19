@@ -151,10 +151,14 @@ async def main() -> None:
 
     # 2) ★ 安全断言：`.锚点` 不再写任何全局状态
     #    （以前会写 cfg["arb_anchor"] 与 runtime/arb_anchor.json）
-    anchor_path = plugin.PLUGIN_DIR / "runtime" / "arb_anchor.json"
-    before = anchor_path.stat().st_mtime if anchor_path.exists() else None
+    #    2026-09-19：运行期数据目录已迁到 data/plugin_data/<插件名>，两个位置都查。
+    legacy_path = plugin.PLUGIN_DIR / "runtime" / "arb_anchor.json"
+    data_path = Path(plugin._resolve_data_dir()) / "arb_anchor.json"
+    before = (legacy_path.stat().st_mtime if legacy_path.exists() else None,
+              data_path.stat().st_mtime if data_path.exists() else None)
     await obj._handle_admin(_AdminEvent(), ".锚点 Palus")
-    after = anchor_path.stat().st_mtime if anchor_path.exists() else None
+    after = (legacy_path.stat().st_mtime if legacy_path.exists() else None,
+             data_path.stat().st_mtime if data_path.exists() else None)
     check("★ .锚点 不再写入 arb_anchor.json（跨租户写入已消除）",
           before == after, f"mtime {before} → {after}")
     check("★ .锚点 不再写 cfg['arb_anchor']",
