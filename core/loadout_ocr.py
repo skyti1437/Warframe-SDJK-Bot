@@ -294,12 +294,27 @@ def infer_rank(mod: dict, drain: Optional[int],
             break
     if not cands:
         return None, f"容量 {drain} 与库中基准 {base} 对不上，等级无法确定"
-    # ⚠️ 模型读的颜色不可靠（2026-09-16 拉特昂实测：极性图标的红色被当成
-    # 数字颜色，绿5满级被解成红0级；射速面板 4.17▶3.33 铁证满级）。
-    # 颜色只做卡面标注，**选等级一律取所有分支的最高候选**（满级假设）。
-    # 真歧义时低等级假设在端局配卡几乎总是错的；万一真错，射速/触发/
-    # 总伤的面板校验会亮 ⚠ 并由识别-校验闭环重试。
-    return max(cands, key=lambda t: t[0])
+
+    # 2026-09-20 实测记录（两个方向都踩过，别只信其中一边）：
+    #   · 满级卡：容量数字的**颜色常被模型误读**（2026-09-16 拉特昂：把**极性图标**
+    #     的红色当成数字颜色，实际绿 5 满级；`关键延迟`/`秘法补给` 同型，共 3 例）
+    #     → 若按颜色解，这些卡会被判成 0 级。
+    #   · 0 级卡：`私法补给`（base=4/max=5）卡片是**真的红色 5**（极性不合
+    #     round(4×1.25)=5），实际 0 级 → 若"取最高"会被判成 5 级（满级）。
+    # 容量 5 对这张卡**有三重解**：1级白 / 5级绿 / 0级红 —— 单靠容量数字无法区分。
+    # 颜色读数本身不可靠 ⇒ **不硬猜**：沿用「取最高」（端局配卡满级占多数），
+    # 但当颜色解与最高解**冲突**时，把歧义写进 why，由卡面标注 `?` 提示存疑。
+    best = max(cands, key=lambda t: t[0])
+    if hint:
+        kw = {"normal": None, "matched": "匹配", "mismatch": "不合"}[hint]
+        by_color = [c for c in cands if c[1] == ""] if kw is None \
+            else [c for c in cands if kw in c[1]]
+        if by_color:
+            color_best = max(by_color, key=lambda t: t[0])
+            if color_best[0] != best[0]:
+                return best[0], (f"⚠歧义：按颜色（{hint}）应为 {color_best[0]} 级，"
+                                 f"按满级假设取 {best[0]} 级（{best[1] or '无加成'}）")
+    return best
 
 
 def effect_at(mod: dict, rank: Optional[int]) -> dict:
@@ -964,6 +979,10 @@ def _rank_text(item: dict) -> str:
     """
     drain = item.get("drain")
     rank, max_rank = item.get("rank"), item.get("max_rank")
+    # 歧义标记（2026-09-20）：容量数字有多重解释、且颜色解与选中的最高解冲突时，
+    # `infer_rank` 会把「⚠歧义」写进 note —— 卡面加个 `?` 提示「等级存疑，
+    # 以游戏内为准」，不要让它看起来像已确定。
+    amb = "⚠歧义" in str(item.get("note") or "")
     if drain == 0 and rank is None:
         head = "容量0?"
     else:
@@ -973,8 +992,10 @@ def _rank_text(item: dict) -> str:
     if max_rank:
         # ⚠️ 别用 ✔：卡片字体没有这个字形，渲染出来会凭空消失（实测）
         full = "满级" if rank >= int(max_rank) else "★非满级"
-        return f"{head}→{rank}/{int(max_rank)}{full}"
-    return f"{head}→{rank}级"
+        text = f"{head}→{rank}/{int(max_rank)}{full}"
+    else:
+        text = f"{head}→{rank}级"
+    return f"{text}?" if amb else text
 
 
 def _disp_width(text: str) -> int:

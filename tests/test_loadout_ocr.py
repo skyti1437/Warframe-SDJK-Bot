@@ -564,6 +564,43 @@ check("完全没读到容量 → `容量?`",
       lo._rank_text({"drain": None, "rank": None}) == "容量?", 
       lo._rank_text({"drain": None, "rank": None}))
 
+# ---------------------------------------------------------------------------
+# ★ 容量多重解释时用「颜色」消歧（2026-09-20 用户实测私法补给判成满级）
+#   私法补给（Vigilante Supplies）base=4 / max=5，卡片读到「容量 5 红色」，
+#   实际是 0 级。而容量 5 同时满足三种解释：
+#     1 级白（4+1=5） / 5 级绿（ceil(9/2)=5） / 0 级红（round(4×1.25)=5）
+#   旧实现「一律取最高」→ 选 5 级（满级），错。颜色能唯一定出 0 级。
+# ---------------------------------------------------------------------------
+VS = {"base_drain": 4, "max_rank": 5, "name": "vigilante supplies", "calculable": False}
+_r, _w = lo.infer_rank(VS, 5, "红")
+check("★ 私法补给：容量 5 + 红 → 取满级但 **why 标歧义**（不硬猜、也不再默默判错）",
+      _r == 5 and "⚠歧义" in _w, f"{_r} / {_w}")
+check("  歧义原因里点明「按颜色应为 0 级」", "0 级" in _w, _w)
+_r, _w = lo.infer_rank(VS, 5, "绿")
+check("私法补给：容量 5 + 绿 → 5 级且**无歧义**（颜色与满级假设一致）",
+      _r == 5 and "⚠歧义" not in _w, f"{_r} / {_w}")
+_r, _w = lo.infer_rank(VS, 5, "白")
+check("私法补给：容量 5 + 白 → 同样取满级但标歧义（白解 1 级）",
+      _r == 5 and "⚠歧义" in _w, f"{_r} / {_w}")
+_r, _w = lo.infer_rank(VS, 5, None)
+check("★ 颜色缺失 → 取满级且无歧义标记（没有可比的信号）",
+      _r == 5 and "⚠歧义" not in _w, f"{_r} / {_w}")
+_r, _w = lo.infer_rank(VS, 5, "?")
+check("颜色读作 ? → 取满级且无歧义标记", _r == 5 and "⚠歧义" not in _w, f"{_r} / {_w}")
+check("颜色与任何数学分支都对不上 → 不标记歧义（没得比）",
+      "⚠歧义" not in lo.infer_rank(VS, 3, "红")[1], lo.infer_rank(VS, 3, "红")[1])
+
+# 卡面：歧义等级要带 `?`
+check("★ 卡面：有歧义 → `容量5→5/5满级?`",
+      lo._rank_text({"drain": 5, "rank": 5, "max_rank": 5,
+                     "note": "⚠歧义：按颜色（mismatch）应为 0 级"})
+      == "容量5→5/5满级?",
+      lo._rank_text({"drain": 5, "rank": 5, "max_rank": 5,
+                     "note": "⚠歧义：按颜色（mismatch）应为 0 级"}))
+check("卡面：无歧义 → 不带 `?`",
+      lo._rank_text({"drain": 5, "rank": 5, "max_rank": 5, "note": ""})
+      == "容量5→5/5满级")
+
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")
     sys.exit(1)
