@@ -397,16 +397,16 @@
   "valence_source": "wiki.warframe.com/w/Reset 的 Current Valence Bonuses（玩家上报，无官方 API）；插件侧访问该站被 Cloudflare 拦截，所以是**快照**，每 4 天轮换后需要刷新"
  },
  "acrichis": {
-  "_note": "言录使（Acrithis / Duviri 档案管理员）周常货单。官方周期：DE《Update 33.0》补丁说明原文「Five of these offerings will be available to purchase each week, rotating at Sundays at 00:00 UTC」，wiki Reset 页同（「Acrithis weekly offerings reset on Sunday 0:00 UTC」）。⚠️ 它是「周日」特例，不是常规周常的周一 00:00 UTC（Nightwave/Circuit/Netracells/Teshin/Yonta/Cavalero 才是周一）。时刻一律以 UTC 判定，卡面按北京时间（UTC+8）展示，不再分平台各设一套。",
+  "_note": "言录使（Acrithis / Duviri 档案管理员）周常货单。官方周期：**每周一 00:00 UTC** 轮换 5 件 —— wiki《Acrithis》页原文「Resets every Monday 0:00 UTC」并带实时倒计时；《Reset》总表同，且 Update 32.3 已把各商人周常统一到周一（Palladino/Chipper/Teshin 等）。⚠️ DE《Update 33.0》补丁说明里那句「rotating at Sundays at 00:00 UTC」是 2023 年初版、已被后续调整覆盖，不要再引用它。时刻一律以 UTC 判定，卡面按北京时间（UTC+8）展示。",
   "epoch": "2023-04-30T00:00:00+00:00",
   "period_hours": 168,
   "pick": 5,
   "mode": "weekly_cycle",
-  "reset_weekday": 6,
+  "reset_weekday": 0,
   "reset_hour_utc": 0,
-  "_reset_weekday_note": "0=周一 … 6=周日；6 即官方的周日",
+  "_reset_weekday_note": "0=周一 … 6=周日；0 即 wiki 当前的周一",
   "items": [],
   "_items_note": "DE 不下发本周实际 5 件（AcrithisVendorManifest 只有候选池 + 权重），本周货单见 core/data/de/acrichis_week.json（社区维护快照）。",
-  "_source": "https://www.warframe.com/patch-notes/pc/33-0-0（DE 官方）"
+  "_source": "https://wiki.warframe.com/w/Acrithis（实时抓取，含倒计时）；https://wiki.warframe.com/w/Reset"
  }
 }
