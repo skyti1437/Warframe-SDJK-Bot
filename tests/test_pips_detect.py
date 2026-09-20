@@ -29,7 +29,8 @@ def check(name, cond, info=""):
     print(f"[{mark}] {name}" + (f"  ← {info}" if info and not cond else ""))
 
 
-LIT = (143, 191, 229)          # 实测亮豆 RGB
+LIT = (143, 191, 229)          # 实测亮豆 RGB（蓝）
+LIT_AMBER = (255, 222, 163)    # 执刑官那类边框的豆色（实测采样，琥珀橙）
 BG = (18, 18, 22)
 CARD = (40, 40, 48)
 COLS = (712, 957, 1202, 1447)  # 装备区 4 列中心（1920 宽）
@@ -38,13 +39,14 @@ CARD_H = 140
 PITCH = 12
 
 
-def make_shot(pips, top=300, W=1920, H=1080, cols=COLS, lines="all"):
+def make_shot(pips, top=300, W=1920, H=1080, cols=COLS, lines="all", lit=LIT):
     """合成一张截图：每列给定豆数（0 = 0 级，只画细线不画豆）。
 
     `lines`：画「与卡片等宽的装饰细线」的列 ——
       "all"（默认，模拟满级卡多的界面）/ "none"（全非满级）/ 列下标集合。
     ★ 实测（2026-09-20）：那条线**只在满级卡上出现**（非满级卡只有菱形豆），
       它是判定满级的第三信号，所以生成器要能分别模拟这两种界面。
+    `lit`：豆/线的颜色 —— 默认蓝色；执刑官那类边框是**琥珀橙**（见 core.pips.warm_mask）。
     """
     im = Image.new("RGB", (W, H), BG)
     d = ImageDraw.Draw(im)
@@ -55,14 +57,14 @@ def make_shot(pips, top=300, W=1920, H=1080, cols=COLS, lines="all"):
         ly = y1 - 24
         want = (lines == "all") or (lines != "none" and i in lines)
         if want:
-            d.rectangle([x0, ly, x1, ly + 1], fill=LIT)      # 装饰细线（与卡等宽）
+            d.rectangle([x0, ly, x1, ly + 1], fill=lit)      # 装饰细线（与卡等宽）
         if n > 0:
             total = (n - 1) * PITCH
             sx = cx - total // 2
             for i2 in range(n):
                 px = sx + i2 * PITCH
                 d.polygon([(px, ly - 5), (px + 4, ly), (px, ly + 5), (px - 4, ly)],
-                          fill=LIT)
+                          fill=lit)
     return im
 
 
@@ -121,7 +123,18 @@ try:
     got = maxed_of(make_shot([1, 5, 0, 3], lines="none"))
     check(f"满级线：全都没线 → maxed 全 False  {got}", got == [False] * 4, str(got))
 
-    # ⑦ 容错：全黑 / 极小图不应抛异常
+    # ⑦ 豆色随**边框类型**变化（用户给的 mod边框类型.zip 实测）：
+    #    常见/罕见/稀有/传说/合并/怪奇/镀层/裂罅 偏蓝，**执刑官是琥珀橙**
+    #    （采样 (255,222,163)，蓝通道太低 → 主掩码整格漏）→ 暖色掩码兜底。
+    got = counts_of(make_shot([5, 3, 0, 5], lit=LIT_AMBER))
+    check(f"执刑官风格（琥珀豆）也能数对 → {got}", got == [5, 3, 0, 5], str(got))
+
+    # ⑧ 尺寸阶梯：4K 大图会被归一到基准尺度（用户 4K 报障）
+    big4k = make_shot([5, 7, 3, 1]).resize((3840, 2160), Image.LANCZOS)
+    got = counts_of(big4k)
+    check(f"4K（3840 宽）归一后仍正确 → {got}", got == [5, 7, 3, 1], str(got))
+
+    # ⑨ 容错：全黑 / 极小图不应抛异常
     try:
         detect_pips(Image.new("RGB", (1920, 1080), (0, 0, 0)))
         detect_pips(Image.new("RGB", (300, 200), BG))

@@ -2881,6 +2881,36 @@ class WarframeSDJK(Star):
         return rows
 
     @staticmethod
+    def _dump_scan_debug(image_url: str, keep: int = 3) -> None:
+        """把「豆子检测到了、但对齐无解」的原图存一份，便于事后排查。
+
+        只在**这种少见情形**下落盘（正常识卡不写任何图），且只保留最近 `keep` 张。
+        起因：2026-09-20 用户 4K 截图出现「北风 1 级被判 3 级」，根因在检测器内部，
+        但服务端拿不到用户的原图 → 只能靠日志猜。存下原图后可以直接复现。
+        """
+        try:
+            import base64 as _b64
+            import io as _io
+            import time as _time
+
+            from PIL import Image as _Image
+            if not image_url.startswith("data:"):
+                return
+            _head, _b = image_url.split(",", 1)
+            img = _Image.open(_io.BytesIO(_b64.b64decode(_b)))
+            d = core_paths.write_path(f"scan_debug/{int(_time.time())}.jpg")
+            img.convert("RGB").save(d, "JPEG", quality=90)
+            files = sorted((core_paths.run_dir() / "scan_debug").glob("*.jpg"))
+            for old in files[:-keep]:
+                try:
+                    old.unlink()
+                except OSError:
+                    pass
+            logger.info("[sdjk] 已存排查用原图：%s", d)
+        except Exception as exc:  # noqa: BLE001 —— 排查辅助，绝不能影响识卡
+            logger.debug("[sdjk] 存排查图失败：%s", exc)
+
+    @staticmethod
     def _fit_scan_image(image_url: str, min_width: int = 1600,
                         max_width: int = 1600) -> str:
         """把配卡截图规整到「能读清又不过大」的宽度区间：**小图放大、大图缩小**。
@@ -2955,6 +2985,16 @@ class WarframeSDJK(Star):
             「0 张卡」或「面板全没读到」≠ 通过 —— 空结构必须算最差。
             """
             an = lo.analyze(ocr, pips_rows)
+            # ★ 记一行「豆子有没有真的用上」（2026-09-20 用户报「北风还是 3 级」后加）：
+            #   检测成功但**对齐失败**时豆子会被整体弃用，光看检测日志看不出来。
+            st = an.get("pips") or {}
+            if pips_rows and st:
+                logger.info("[sdjk] 豆子对齐：采用 %s 张 / 冲突 %s 张（检测到 %s 行）",
+                            st.get("used"), st.get("conflict"), st.get("rows"))
+                if not st.get("used"):
+                    logger.warning("[sdjk] ★ 豆子检测到了但**对齐无解**，本次退回容量反推"
+                                   "（截图存到 scan_debug/ 便于排查）")
+                    self._dump_scan_debug(image_url)
             if not an.get("weapon"):
                 return None, an
             checks = an.get("checks") or []
