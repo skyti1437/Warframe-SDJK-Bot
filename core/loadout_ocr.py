@@ -76,9 +76,12 @@ VISION_PROMPT = """这是 Warframe（星际战甲）游戏内武器升级界面�
 
 要求：
 1. mods 必须列出**全部卡片**，包括最上方那张最大的姿态卡；
-   ★ **只列上半部分「已装备区」的卡片**，图片下半部分「仓库」里未装备的 MOD
-     一律不要列。顺序按**从上到下、同一行内从左到右** —— 这个顺序要和像素检测
-     的网格对齐（用于互相印证等级），别打乱。
+   ★ **已装备区 = 界面中间那块 MOD 网格的全部卡片** —— 它通常是**两排**
+     （每排最多 4 格），**两排都要逐张列出来，不要只列第一排**；
+     空槽位（灰暗的占位格）跳过。
+   ★ 网格**下方**、以「所有」标题 + 搜寻框开头的那一大片才是「仓库」，
+     那里未装备的 MOD **一律不要列**。顺序按**从上到下、同一行内从左到右**
+     —— 这个顺序要和像素检测的网格对齐（用于互相印证等级），别打乱。
 2. drain 只填整数，不要带箭头、百分号、上标等符号；
 3. **damage_rows 是重点，一条都不能漏**：左侧「伤害」栏里每一行都要给 ——
    冲击 / 穿刺 / 切割 / 各元素行（如 毒素、爆炸）/ 总计。
@@ -687,6 +690,13 @@ def _pips_rank(pos, pips_rows: Optional[list],
     counts = row.get("counts") or []
     if not (0 <= c_i < len(counts)):
         return None, ""
+    # ★ 候选集校验（2026-09-20 4K 报障后加）：该格豆数**不在**容量反推出来的
+    #   候选集里时，它就是**检测噪声**（实测 4K 下金框卡「结霜侵蚀」被暖色兜底
+    #   误数成 2 颗，真值 0），照抄会把等级改错 —— 直接拒收，让上层退回
+    #   容量反推 + 标 `?`，并把原因写出来（不再静默）。
+    n_here = counts[c_i]
+    if candidates and n_here not in set(candidates):
+        return None, f"豆子 {n_here} 颗与容量候选 {sorted(set(candidates))} 不符（已忽略该格）"
     return pips_engine.pick_rank(counts, c_i + 1, candidates or [],
                                  maxed=row.get("maxed") or [],
                                  max_rank=max_rank)
@@ -807,6 +817,11 @@ def analyze(ocr: dict, pips_rows: Optional[list] = None) -> dict:
                 else:
                     why = f"容量与豆子一致（{_pr} 级，{_psrc}）"
                 rank = _pr
+            elif _psrc:
+                # 豆子被拒收（该格豆数不在容量候选集里 = 检测噪声）→ 说明原因，
+                # 别静默（用户 2026-09-20 报「等级又对不上」就是静默回退导致的）。
+                out["pips"]["rejected"] = out["pips"].get("rejected", 0) + 1
+                why = f"{why}；{_psrc}" if why else _psrc
             # ★ 极性分支说明（2026-09-20 用户报障「容量要求增加 25% 没说明」）：
             #   等级定下来后 (基础容量, 等级, 卡面容量) 能**唯一**反查出分支，
             #   不必采信模型读的颜色（实测它常读错：北风实际红 9 报白、

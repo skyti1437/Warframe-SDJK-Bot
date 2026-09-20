@@ -141,6 +141,26 @@ try:
         check("全黑图 / 极小图不抛异常", True)
     except Exception as e:  # noqa: BLE001
         check("全黑图 / 极小图不抛异常", False, f"{type(e).__name__}: {e}")
+
+    # ⑩ ★ 暖色兜底不得凭空造豆（2026-09-20 4K 事故的回归）
+    #    事故：金框卡「结霜侵蚀」的**卡面美术是暖色**，暖掩码把整片卡面点亮，
+    #    在那一格数出 2 颗（真值 0）→ 该卡约束不满足 → 整图对齐无解 →
+    #    7 张卡的豆子信号全部作废（用户看到「等级又不对」）。
+    #    规则：**整排蓝豆都为 0** 时才允许暖色兜底。
+    im_art = make_shot([5, 0, 5, 1], lit=LIT)          # 一排蓝豆卡
+    _d = ImageDraw.Draw(im_art)
+    _cx = COLS[1]
+    _x0, _x1 = _cx - CARD_W // 2, _cx + CARD_W // 2
+    _ly = 300 + CARD_H - 24
+    _d.rectangle([_x0 + 2, _ly - 3, _x1 - 2, _ly + 8], fill=(210, 175, 120))   # 卡面暖色美术
+    _d.rectangle([_x0 + 1, _ly - 4, _x0 + 14, _ly + 9], fill=LIT_AMBER)        # 左缘高光
+    got = counts_of(im_art)
+    check(f"★ 金框卡的暖色卡面不被当豆（该格应为 0）→ {got}",
+          got == [5, 0, 5, 1], str(got))
+
+    # ⑪ 反过来：整排都没有蓝豆（纯执刑官排）时，暖色兜底仍要工作
+    got = counts_of(make_shot([5, 3, 0, 5], lit=LIT_AMBER))
+    check(f"纯琥珀排仍走暖色兜底 → {got}", got == [5, 3, 0, 5], str(got))
 finally:
     pass
 

@@ -46,6 +46,10 @@ ROW_FRAC = 0.12           # 行带判定阈值 = 全图行密度峰值 × 该比
 ROW_MIN_H = 2             # 行带最小高度（★ 不能是 3：装备区行带常只 2px 高）
 BEAN_PITCH_RATIO = 0.079  # 豆间距 / 卡片宽（实测 12/152）
 CARD_W_OF_W = 0.0792      # 卡片宽 / **图宽**（实测 152/1920；低分辨率同比例缩放）
+# ★ 暖色兜底（执刑官那类琥珀豆）的**稀疏**上限：厚度达标的暖色列数 / 卡片宽。
+#   真豆是一簇簇窄块（10 颗 ≈ 0.5），金框卡面美术是连绵一片（实测 0.6~1.0）
+#   —— 超过它就判定「这是卡面美术」不采信（2026-09-20 4K 误检事故）。
+WARM_DENSE_MAX = 0.55
 CARD_W_REF = 152          # ★ **基准尺度**的卡片宽：所有实测常量都是在它下面量的，
                           #   检测前会把图归一到这个尺度（见 detect_pips）
 COL_PITCH_RATIO = 1.61    # 列间距 / 卡片宽（实测 245/152）
@@ -419,13 +423,32 @@ def detect_pips(img: Image.Image) -> list[dict]:
         cells = [_count_in_cell(r["thick"], cx, cw_ref, W) for cx in grid]
         # ★ 兜底：主（蓝）掩码整格数出 0 时，用暖色掩码再数一次 ——
         #   执刑官那类边框的豆子是琥珀橙（见 warm_mask）。只补 0，不覆盖。
-        if any(c[0] == 0 for c in cells) and r.get("img") is not None:
+        #
+        # ★★ 但它有**严格前提**（2026-09-20 用户 4K 报障后加）：
+        #   金框卡的**卡面美术本身就是暖色**，暖掩码会把整片卡面点亮 ——
+        #   实测「结霜侵蚀」（0 级）那一格被判成 **2 颗豆**（真值 0），于是该卡的
+        #   「豆数 ∈ 容量候选集」约束不满足 → **整图对齐无解 → 7 张卡的豆子信号
+        #   全部作废**（退回容量反推，用户看到的「等级又对不上」）。
+        #   判据：**整排蓝豆都为 0** 时才允许暖色兜底（说明这排不是常规蓝豆卡）。
+        #   一排里只要已经有蓝豆，那它就是普通卡排；个别琥珀卡宁可读成 0
+        #   （上层候选集校验会挡下、退回容量反推 + 标 `?`），也不能凭空造出豆。
+        if (not any(c[0] for c in cells)) and r.get("img") is not None:
             _y0, _y1 = max(0, r["band"][0] - 6), min(r["band"][1] + 6, r["img"].height)
             _wm = warm_mask(r["img"].crop((0, _y0, W, _y1)))
             _wb = _wm.tobytes()
             _wt = [_wb[x::W].count(255) for x in range(W)]
-            cells = [_count_in_cell(_wt, cx, cw_ref, W) if c[0] == 0 else c
-                     for cx, c in zip(grid, cells)]
+            _t_bean = max(3, round(cw_ref * 0.030))
+            _fixed = list(cells)
+            for _i, (_cx, _c) in enumerate(zip(grid, cells)):
+                if _c[0]:
+                    continue
+                _lo = max(0, int(round(_cx - cw_ref / 2)))
+                _hi = min(W, int(round(_cx + cw_ref / 2)) + 1)
+                dense = sum(1 for _x in range(_lo, _hi) if _wt[_x] >= _t_bean)
+                if dense > cw_ref * WARM_DENSE_MAX:
+                    continue          # 暖色铺满整格 → 是卡面美术，不是豆
+                _fixed[_i] = _count_in_cell(_wt, _cx, cw_ref, W)
+            cells = _fixed
         inks = [_cell_ink(r["thick"], cx, cw_ref, W) for cx in grid]
         out.append({"row": idx, "band": r["band"],
                     "counts": [c[0] for c in cells],
@@ -433,8 +456,28 @@ def detect_pips(img: Image.Image) -> list[dict]:
                     # ★ 满级线（第三信号）：该格是否有一条横贯全卡的亮线
                     "maxed": [k[2] for k in inks],
                     "is_inventory": not r["is_eq"],
+                    "grid": list(grid),                  # 列中心（上层做裁剪/交叉校验用）
+                    "card_w": round(cw_ref),
                     "pitch_col": round(pitch_col)})
     return out
+
+
+def expected_min_cards(rows: list[dict]) -> int:
+    """像素网格给出的「这张图**至少**有多少张卡」的下界。
+
+    ★ 依据：有豆 ⇒ 该卡等级 > 0 ⇒ 该格必然装了卡（0 级卡只会 0 颗豆）。
+      所以「有豆的格数」是卡数的**硬下界** —— 模型读到的卡数低于它，
+      就一定是**漏读**（2026-09-20 实测：glm-4v-flash 只读了上排 3 张、
+      漏掉下排 4 张，却因为「面板校验少错 1 项」而被选中，最终卡面只有 3 张卡）。
+    """
+    return sum(1 for r in rows if not r.get("is_inventory")
+               for c in (r.get("counts") or []) if c > 0)
+
+
+def underread_penalty(rows: list[dict], n_mods: int, weight: int = 3) -> int:
+    """按「疑似漏读」给校验失败数加罚（0 = 没漏读）。"""
+    low = expected_min_cards(rows)
+    return (low - n_mods) * weight if low and n_mods < low else 0
 
 
 def align_rows(cands_list: list[list[int]],
@@ -463,57 +506,75 @@ def align_rows(cands_list: list[list[int]],
     def row_fit(r: int, k: int, start: int):
         """给第 r 行的 k 张卡（cands_list[start:start+k]）选位置。
 
-        ★ 候选集**为空**的卡（姿态卡这类 ``base_drain < 0`` 的卡、库外卡、
-          姿态类）当作**通配**：豆数对不上不代表错位，它们只是没有可校验的候选集。
+        返回 `[(位置列表, 该位置上不满足约束的卡数), ...]`。
+
+        ★ 候选集**为空**的卡（姿态卡这类 ``base_drain < 0`` 的卡、库外卡）
+          当作**通配**：豆数对不上不代表错位，它们只是没有可校验的候选集。
           实测（2026-09-20 暮斩）：姿态卡「狂风压境」候选集为空，旧实现要求它
           必须落在「该行全 0」的格子 → 整张图**无解** → 豆子全部作废
           （北风 1 级 / 长时苦难 0 级因此被容量反推判成 3 / 4 级）。
-          改成通配后 8/8 全中。
+
+        ★★ 也不再把「不满足」当**否决**（2026-09-20 4K 报障后改）：
+          旧实现要求**每一张**卡都满足约束，于是**单格噪声就能让整图无解** ——
+          实测 4K 那次「结霜侵蚀」那一格被暖色兜底误数成 2 颗（真值 0），
+          结果 7 张卡全部退回容量反推。现在只**统计**不满足数，
+          由上层按「最优拟合 + 容忍度」决定采纳与否。
         """
         row = row_counts[r]
         opts = []
         for pos in combinations(range(len(row)), k):
-            ok = True
+            unsat = 0
             for i, p in enumerate(pos):
                 cand, v = cands_list[start + i], row[p]
-                if cand and v not in cand:   # 有候选集 → 豆数必须落在里面（硬约束）
-                    ok = False
-                    break
-            if ok:
-                opts.append(list(pos))
+                if cand and v not in cand:   # 有候选集 → 豆数应落在里面
+                    unsat += 1
+            opts.append((list(pos), unsat))
         return opts
 
-    best: dict = {"score": (-1, 0), "map": None}
+    best: dict = {"score": (-1, -1), "map": None, "unsat": 0}
 
-    def rec(r: int, idx: int, chosen: list, strong: int, mixed: int) -> None:
+    def rec(r: int, idx: int, chosen: list, ok_cnt: int, mixed: int, unsat: int) -> None:
         if r == R:
-            if idx == total and (strong, -mixed) > best["score"]:
-                best["score"], best["map"] = (strong, -mixed), list(chosen)
+            if idx == total:
+                sc = (ok_cnt, -mixed)
+                if sc > best["score"]:
+                    best["score"], best["map"], best["unsat"] = sc, list(chosen), unsat
             return
         remain = total - idx
         min_here = max(0, remain - (R - r - 1) * W)
         max_here = min(W, remain)
         for k in range(min_here, max_here + 1):
             if k == 0:
-                rec(r + 1, idx, chosen, strong, mixed)
+                rec(r + 1, idx, chosen, ok_cnt, mixed, unsat)
                 continue
-            for picks in row_fit(r, k, idx):
+            for picks, u in row_fit(r, k, idx):
                 seg = cands_list[idx:idx + k]
-                st = strong + sum(1 for c in seg if c)
+                row = row_counts[r]
+                # 「满足」= 有候选集 **且** 该格豆数落在候选集里（互相印证）
+                st = ok_cnt + sum(1 for i, p in enumerate(picks)
+                                  if seg[i] and row[p] in seg[i])
                 n_wild = sum(1 for c in seg if not c)
                 # 次级判据：**专用槽位的卡（通配）应与普通卡分行** ——
                 # 姿态这类卡在 UI 里独占一格，不会与普通卡同排。
-                # 主判据（约束满足数）相同时用它破平，避免「姿态卡占掉第 1 排的
-                # 某一格、把后面全部挤错」这种同为满分的错解。
+                # 主判据相同时用它破平，避免「姿态卡占掉第 1 排的某一格、
+                # 把后面全部挤错」这种同为满分的错解。
                 mx = mixed + (1 if (n_wild and n_wild < k) else 0)
-                rec(r + 1, idx + k, chosen + [(r, p) for p in picks], st, mx)
+                rec(r + 1, idx + k, chosen + [(r, p) for p in picks],
+                    st, mx, unsat + u)
 
-    rec(0, 0, [], 0, 0)
+    rec(0, 0, [], 0, 0, 0)
     if best["map"] is None:
         return None
-    # 至少要有一张卡是靠候选集强约束定下来的，否则对齐没有信息量
-    # （卡片少时门槛相应降低；卡多时要求 ≥2 才有说服力）
-    return best["map"] if best["score"][0] >= min(2, total) else None
+    # ★ 采纳条件（2026-09-20 从「全有或全无」改成**最优拟合**）：
+    #   ① 至少有 `min(2, total)` 张卡是靠候选集**互相印证**定下来的
+    #      —— 否则对齐没有信息量（卡片少时门槛相应降低）；
+    #   ② 「不满足约束」的卡不超过容忍度 `max(1, total // 6)`
+    #      （7 张容 1 张、12 张容 2 张）。个别格的检测噪声不该让整图作废；
+    #      但也不能放太宽，否则「模型漏读/读串导致的错位」会被误采信。
+    #   不满足的那张卡由上层 `_pips_rank` 的候选集校验挡下 → 退回容量反推 + 标 `?`。
+    if best["unsat"] > max(1, total // 6) or best["score"][0] < min(2, total):
+        return None
+    return best["map"]
 
 
 def pick_rank(counts: list[int], col: Optional[int],

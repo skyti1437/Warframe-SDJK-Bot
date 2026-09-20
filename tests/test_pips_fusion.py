@@ -160,6 +160,55 @@ check("  满级但库中 max_rank 不在候选里 → 不覆盖（剑风那种�
       str(pick_rank([4, 0, 0, 0], 1, [3], maxed=[True, False, False, False],
                     max_rank=5)))
 
+# ⑨ ★★ 对齐从「全有或全无」改成**最优拟合**（2026-09-20 4K 事故的回归）
+#    事故：4K 下「结霜侵蚀」（0 级）那一格被暖色兜底误数成 **2 颗**，
+#    旧实现要求每张卡都满足约束 → **整图无解** → 7 张卡的豆子信号全部作废
+#    （用户看到「北风/长时苦难等级又对不上」）。
+#    现在：容忍个别格噪声，只有那一张卡退回容量反推 + 标 `?`。
+CANDS7 = [[0, 1, 5],    # 匍匐靶心（Creeping Bullseye）容量 5
+          [0, 5],       # 病原弹头（Pathogen Rounds）容量 6
+          [3, 5],       # 弹头扩散（Barrel Diffusion）容量 11
+          [7, 10],      # 黄蜂螫刺（Hornet Strike）容量 14
+          [0, 3],       # 结霜侵蚀（Frostbite）容量 4
+          [3, 5],       # 致命洪流（Lethal Torrent）容量 11
+          [0, 1, 5]]    # 神枪手（Gunslinger）容量 5
+ROWS7 = [[5, 0, 5, 0], [10, 0, 5, 1]]
+TRUE_MAP = [(0, 0), (0, 1), (0, 2), (1, 0), (1, 1), (1, 2), (1, 3)]
+
+_m7 = align_rows(CANDS7, ROWS7)
+check("★ 7 张卡（真机 4K 那张）对齐正确", _m7 == TRUE_MAP, str(_m7))
+
+ROWS7_BAD = [list(ROWS7[0]), list(ROWS7[1])]
+ROWS7_BAD[1][1] = 2                    # 模拟暖色兜底误数出的 2 颗
+_m7b = align_rows(CANDS7, ROWS7_BAD)
+check("★★ 单格噪声（豆数 2 不在候选 [0,3]）不再让整图作废", _m7b == TRUE_MAP, str(_m7b))
+if _m7b:
+    _n_bad = ROWS7_BAD[_m7b[4][0]][_m7b[4][1]]
+    check("  该卡（结霜侵蚀）的噪声豆会被拒收（不照抄成等级）",
+          _n_bad not in CANDS7[4], f"豆数 {_n_bad} 候选 {CANDS7[4]}")
+
+ROWS7_BAD2 = [list(ROWS7[0]), list(ROWS7[1])]
+ROWS7_BAD2[1][1] = 2
+ROWS7_BAD2[0][0] = 4                   # 第 2 处噪声
+check("  噪声过多时仍判为「对齐无解」（不放太宽）",
+      align_rows(CANDS7, ROWS7_BAD2) is None,
+      str(align_rows(CANDS7, ROWS7_BAD2)))
+
+# ⑩ ★ 漏读交叉校验：像素网格给出「至少有多少张卡」的硬下界
+from core.pips import expected_min_cards, underread_penalty  # noqa: E402
+
+_rows = [{"is_inventory": False, "counts": [5, 0, 5, 0]},
+         {"is_inventory": False, "counts": [10, 0, 5, 1]},
+         {"is_inventory": True, "counts": [5, 5, 5, 5]}]      # 仓库区不计入
+check("像素网格给出的卡数下界 = 有豆的格数（仓库不算）",
+      expected_min_cards(_rows) == 5, str(expected_min_cards(_rows)))
+check("★ 模型只读到 3 张（真机 glm 只读了上排）→ 判为漏读并重罚",
+      underread_penalty(_rows, 3) == 6, str(underread_penalty(_rows, 3)))
+check("  读够 5 张及以上不罚", underread_penalty(_rows, 5) == 0
+      and underread_penalty(_rows, 7) == 0)
+check("  没有像素信号时不罚（不误伤）",
+      underread_penalty([], 3) == 0 and underread_penalty(_rows, 5) == 0)
+
 print()
 if FAILED:
     print(f"[FAIL] {len(FAILED)} 项失败: {FAILED}")
