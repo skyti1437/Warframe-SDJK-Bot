@@ -702,6 +702,50 @@ def _pips_rank(pos, pips_rows: Optional[list],
                                  max_rank=max_rank)
 
 
+_RIVEN_SUFFIX_RE = re.compile(r"[A-Za-z]{3,}-[A-Za-z]{3,}")
+
+
+def is_riven_name(name) -> bool:
+    """是不是**裂罅紫卡**的名字。
+
+    紫卡名字 = 「武器名 + 随机词缀」，例如「野猪 Visi-satidex」「奏凯 Acri-cronitis」
+    —— 词缀永远长成 ``Xxxx-yyyyy``（两段 ASCII 字母 + 连字符），
+    所以静态词典**永远匹配不上**，必须单独归类而不是报「库中未收录」。
+
+    ★ 判据收紧到「**矛盾式**」级别，避免把普通外文 mod 名误判成紫卡：
+      ① 名字里直接出现「裂罅 / 紫卡 / Riven」；或
+      ② 至少两个空格分隔的词，且**最后一个词**整体形如 ``Abcd-efgh``。
+      （普通 mod 名如 "Amalgam Argonak Metal Auger" 不含连字符矮词；
+        而这些名字本来就该被 `match_mod` 命中，走不到这里。）
+    """
+    t = str(name or "").strip()
+    if not t:
+        return False
+    if any(k in t for k in ("裂罅", "紫卡", "Riven", "riven")):
+        return True
+    parts = t.split()
+    if len(parts) < 2:
+        return False
+    return bool(_RIVEN_SUFFIX_RE.fullmatch(parts[-1]))
+
+
+def _pips_count_at(pos, pips_rows: Optional[list]) -> Optional[int]:
+    """按对齐位置取该格的**原始豆数**（不经过候选集/通配推导）。
+
+    给紫卡这类**库中无基准**的卡用：它们没有容量候选集，豆数是唯一的等级来源。
+    """
+    if not pips_rows or pos is None:
+        return None
+    r_i, c_i = pos
+    eq = [r for r in pips_rows if not r.get("is_inventory")]
+    if not (0 <= r_i < len(eq)):
+        return None
+    counts = eq[r_i].get("counts") or []
+    if not (0 <= c_i < len(counts)):
+        return None
+    return counts[c_i]
+
+
 def analyze(ocr: dict, pips_rows: Optional[list] = None) -> dict:
     """把视觉识别结果转成结构化分析（不依赖 AstrBot，可离线测试）。
 
@@ -852,7 +896,19 @@ def analyze(ocr: dict, pips_rows: Optional[list] = None) -> dict:
             for el, val in (eff.get("physical") or {}).items():
                 totals["physical"][el] = totals["physical"].get(el, 0.0) + float(val)
         else:
-            out["unknown"].append(name)
+            # ★ 裂罅紫卡（2026-09-20 用户方案文档 TC-04）：名字由「武器名 + 随机词缀」
+            #   组成（如「野猪 Visi-satidex」），**不可能**在静态词典里全字匹配。
+            #   以前它会被当成「库中未收录」—— 那是误导（不是我们缺数据，是它本来随机）。
+            #   这里单独识别出来：数值无法核算（词缀随机），但**等级仍能从豆子读**。
+            if is_riven_name(name):
+                item["riven"] = True
+                item["zh"] = "裂罅紫卡"
+                item["rank"] = _pips_count_at(pips_map.get(_mi), pips_rows)
+                item["note"] = ("裂罅紫卡：词缀随机生成，数值无法自动核算"
+                                + (f"；豆子计数 {item['rank']} 级" if item["rank"] is not None
+                                   else "；等级未读到"))
+            else:
+                out["unknown"].append(name)
         out["mods"].append(item)
 
     # ---- 家族互斥（wfsim family）：同族两张游戏里只能装一张 ----
@@ -1293,7 +1349,14 @@ def card_lines(an: dict) -> list[str]:
     lines.append(f"◆ 识别到 {len(an.get('mods') or [])} 张卡{cap}")
     for item in an.get("mods") or []:
         if not item.get("found"):
-            lines.append(f"　· {item.get('raw')}：⚠ 库中未收录，已忽略")
+            if item.get("riven"):
+                # 紫卡是**合法但无法核算**的卡（词缀随机）—— 单独一行说清楚，
+                # 不要混进「库中未收录」里（那会让人以为是我们缺数据）。
+                r = item.get("rank")
+                lines.append(f"　· {item.get('raw')}：裂罅紫卡（词缀随机，数值无法核算）"
+                             + (f"，等级按豆子 {r} 级" if r is not None else ""))
+            else:
+                lines.append(f"　· {item.get('raw')}：⚠ 库中未收录，已忽略")
             continue
         name = item.get("zh") or item.get("name")
         en = item.get("name") or ""

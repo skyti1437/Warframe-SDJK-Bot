@@ -46,10 +46,6 @@ ROW_FRAC = 0.12           # 行带判定阈值 = 全图行密度峰值 × 该比
 ROW_MIN_H = 2             # 行带最小高度（★ 不能是 3：装备区行带常只 2px 高）
 BEAN_PITCH_RATIO = 0.079  # 豆间距 / 卡片宽（实测 12/152）
 CARD_W_OF_W = 0.0792      # 卡片宽 / **图宽**（实测 152/1920；低分辨率同比例缩放）
-# ★ 暖色兜底（执刑官那类琥珀豆）的**稀疏**上限：厚度达标的暖色列数 / 卡片宽。
-#   真豆是一簇簇窄块（10 颗 ≈ 0.5），金框卡面美术是连绵一片（实测 0.6~1.0）
-#   —— 超过它就判定「这是卡面美术」不采信（2026-09-20 4K 误检事故）。
-WARM_DENSE_MAX = 0.55
 CARD_W_REF = 152          # ★ **基准尺度**的卡片宽：所有实测常量都是在它下面量的，
                           #   检测前会把图归一到这个尺度（见 detect_pips）
 COL_PITCH_RATIO = 1.61    # 列间距 / 卡片宽（实测 245/152）
@@ -82,13 +78,17 @@ def lit_mask(im: Image.Image) -> Image.Image:
 
 
 def warm_mask(im: Image.Image) -> Image.Image:
-    """**暖色**（琥珀/橙）掩码 —— 执刑官那类边框的豆子是这个颜色。
+    """**暖色**（琥珀/橙）掩码 —— 只为「整图都没有蓝豆」的极端界面留一条退路。
 
-    来源（2026-09-20 用户提供 `mod边框类型.zip` + wiki `/w/Mod/Assets`）：
-    卡片底部那条能量线/豆子的颜色**随边框类型变化** —— 常见/罕见/稀有/传说/
-    合并/怪奇/镀层/裂罅都偏蓝（主掩码能抓），而**执刑官（Archon）是琥珀橙**
-    （实测采样 (255,222,163)，蓝通道太低 → 主掩码整格漏掉）。
-    这里只作**兜底**：只补主掩码数出 0 的格子，不做覆盖。
+    ★ 现状（2026-09-20 用户给的 wiki `Mod/Assets` 素材 + 8 张实机截图复盘后）：
+      - 实机逐颗采样豆子颜色：**51 格全是蓝色系**（135~177, 186~218, 214~245），
+        **包括金框（稀有）卡**，所以主掩码（蓝）才是正路；
+      - 素材里 `RankSlotActive.png`（白蓝）就是豆子本体、`RankCompleteLine.png`
+        （alt 文本 "Mod Rank Line"）就是满级线 —— 与我们的三信号模型一致；
+      - 素材里各种边框的强调色确实不同（银=白蓝、金=琥珀、传说=青、裂罅=紫、
+        青铜=橙、镀层=白），但那是**边框/装饰**的颜色，不等于豆子颜色。
+    ⇒ 这个掩码**只在 `detect_pips` 里「蓝掩码整图扫不出装备区」时**整图重扫一次，
+      **绝不用在单格上**（曾把金框卡的卡面美术当成豆，造成线上误判）。
     """
     r, g, b = im.split()
     m_rb = ImageChops.subtract(r, b).point(lambda v: 255 if v > 30 else 0)
@@ -307,7 +307,6 @@ def _rows_from_mask(img, mask, W, H):
         rows.append({"band": (ra, rb), "bf": bf, "thick": thick,
                      "known": known, "widths": widths,
                      "card_w": _median(widths),
-                     "img": img,          # 供暖色掩码兜底重算该行的厚度
                      "has_wide": has_wide, "is_eq": is_eq and has_wide})
     return rows
 
@@ -339,8 +338,11 @@ def detect_pips(img: Image.Image) -> list[dict]:
     W, H = img.size
     rows = _rows_from_mask(img, lit_mask(img), W, H)
     if not any(r["is_eq"] for r in rows):
-        # ★ 主掩码（蓝）整图都扫不出装备区 → 换**暖色**掩码重扫一次。
-        #   执刑官那类边框的豆子/能量线是琥珀橙（见 warm_mask），整图会是暖色。
+        # ★ 主掩码（蓝）整图都扫不出装备区 → 换**暖色**掩码整图重扫一次。
+        #   ★★ 这是**唯一**允许用暖色掩码的地方（2026-09-20 事故后收紧）：
+        #   逐格用暖色兜底会把金框卡的**卡面美术**当成豆（实测 0 级卡被数成 2 颗
+        #   → 整图对齐失败 → 7 张卡的豆子信号全废）。实机 51 格豆色采样全是蓝的，
+        #   所以只在"蓝掩码完全无效"这种极端界面才退到暖色。详见 `warm_mask`。
         warm_rows = _rows_from_mask(img, warm_mask(img), W, H)
         if any(r["is_eq"] for r in warm_rows):
             rows = warm_rows
@@ -421,34 +423,19 @@ def detect_pips(img: Image.Image) -> list[dict]:
     out = []
     for idx, r in enumerate(rows, 1):
         cells = [_count_in_cell(r["thick"], cx, cw_ref, W) for cx in grid]
-        # ★ 兜底：主（蓝）掩码整格数出 0 时，用暖色掩码再数一次 ——
-        #   执刑官那类边框的豆子是琥珀橙（见 warm_mask）。只补 0，不覆盖。
-        #
-        # ★★ 但它有**严格前提**（2026-09-20 用户 4K 报障后加）：
-        #   金框卡的**卡面美术本身就是暖色**，暖掩码会把整片卡面点亮 ——
-        #   实测「结霜侵蚀」（0 级）那一格被判成 **2 颗豆**（真值 0），于是该卡的
-        #   「豆数 ∈ 容量候选集」约束不满足 → **整图对齐无解 → 7 张卡的豆子信号
-        #   全部作废**（退回容量反推，用户看到的「等级又对不上」）。
-        #   判据：**整排蓝豆都为 0** 时才允许暖色兜底（说明这排不是常规蓝豆卡）。
-        #   一排里只要已经有蓝豆，那它就是普通卡排；个别琥珀卡宁可读成 0
-        #   （上层候选集校验会挡下、退回容量反推 + 标 `?`），也不能凭空造出豆。
-        if (not any(c[0] for c in cells)) and r.get("img") is not None:
-            _y0, _y1 = max(0, r["band"][0] - 6), min(r["band"][1] + 6, r["img"].height)
-            _wm = warm_mask(r["img"].crop((0, _y0, W, _y1)))
-            _wb = _wm.tobytes()
-            _wt = [_wb[x::W].count(255) for x in range(W)]
-            _t_bean = max(3, round(cw_ref * 0.030))
-            _fixed = list(cells)
-            for _i, (_cx, _c) in enumerate(zip(grid, cells)):
-                if _c[0]:
-                    continue
-                _lo = max(0, int(round(_cx - cw_ref / 2)))
-                _hi = min(W, int(round(_cx + cw_ref / 2)) + 1)
-                dense = sum(1 for _x in range(_lo, _hi) if _wt[_x] >= _t_bean)
-                if dense > cw_ref * WARM_DENSE_MAX:
-                    continue          # 暖色铺满整格 → 是卡面美术，不是豆
-                _fixed[_i] = _count_in_cell(_wt, _cx, cw_ref, W)
-            cells = _fixed
+        # ★ 这里**刻意不做**「逐格暖色兜底」（2026-09-20 用户給的 wiki 素材推翻了这个设计）：
+        #   曾经的假设是「执刑官那类边框的豆子是琥珀色」（据一张卡片样板的底部采样），
+        #   于是蓝掩码为 0 的格子会用暖色掩码重数一遍 —— 结果它把**金框卡的卡面美术
+        #   （本身就是暖色）当成豆子**，实测「结霜侵蚀」（0 级）那格数出 2 颗（真值 0），
+        #   触发整图对齐失败、7 张卡的豆子信号全部作废（线上事故）。
+        #   后来用 8 张真实截图逐颗采样豆子颜色：**51 颗/格全是蓝色系**
+        #   （135~177, 186~218, 214~245），**包括金框（稀有）卡** ——
+        #   当初那个「琥珀」来自样板卡的装饰/文字，不是豆子本体。
+        #   同时卡片样板上也确认：**豆子 = wiki 的 ``RankSlotActive.png``**（白蓝底），
+        #   满级线 = ``RankCompleteLine.png``（alt 文本 "Mod Rank Line"）。
+        #   ⇒ 只在**整图蓝掩码都扫不出装备区**时，才整图换暖色重扫（见上方 detect_pips
+        #     开头的回退），绝不在单格上凭空造豆。若将来真出现琥珀豆的实机截图，
+        #     表现会是「该卡豆数 0 → 与容量候选不符 → 卡面标 ?」，据此再开这条路。
         inks = [_cell_ink(r["thick"], cx, cw_ref, W) for cx in grid]
         out.append({"row": idx, "band": r["band"],
                     "counts": [c[0] for c in cells],
@@ -566,13 +553,20 @@ def align_rows(cands_list: list[list[int]],
     if best["map"] is None:
         return None
     # ★ 采纳条件（2026-09-20 从「全有或全无」改成**最优拟合**）：
-    #   ① 至少有 `min(2, total)` 张卡是靠候选集**互相印证**定下来的
-    #      —— 否则对齐没有信息量（卡片少时门槛相应降低）；
+    #   ① 至少有 `max(1, min(2, 有候选集的卡数))` 张卡是靠候选集**互相印证**
+    #      定下来的 —— 否则对齐没有信息量。
+    #      ★ 分母必须是「**有候选集**的卡数」而不是总卡数：紫卡（裂罅）、姿态卡
+    #        这类**通配卡永远无法算"满足"**（它们没有约束）。用总卡数当分母会
+    #        导致「带紫卡的小配卡（紫卡 + 1 张普通卡）永远对齐失败 → 豆子信号
+    #        全部用不上」（实测：紫卡那格的等级读不出来就是被这一条挡的）。
+    #      全部都是通配卡时 need=1 而满足数必为 0 → 自动拒绝（没有信息就不猜）。
     #   ② 「不满足约束」的卡不超过容忍度 `max(1, total // 6)`
     #      （7 张容 1 张、12 张容 2 张）。个别格的检测噪声不该让整图作废；
     #      但也不能放太宽，否则「模型漏读/读串导致的错位」会被误采信。
     #   不满足的那张卡由上层 `_pips_rank` 的候选集校验挡下 → 退回容量反推 + 标 `?`。
-    if best["unsat"] > max(1, total // 6) or best["score"][0] < min(2, total):
+    n_cand = sum(1 for c in cands_list if c)
+    need = max(1, min(2, n_cand))
+    if best["unsat"] > max(1, total // 6) or best["score"][0] < need:
         return None
     return best["map"]
 

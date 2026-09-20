@@ -635,6 +635,48 @@ for _mod, _rk, _dr, _want, _why in BRANCH_CASES:
     check(f"drain_branch(base={_mod['base_drain']}, rank={_rk}, drain={_dr}) → {_got!r}  [{_why}]",
           _got == _want, f"期望 {_want!r}")
 
+# ---------------------------------------------------------------------------
+# 裂罅紫卡（Riven）：名字 =「武器名 + 随机词缀」，静态词典永远匹配不上。
+# 用户方案文档 TC-04 指出这类必须单独归类 —— 否则会报成「库中未收录」，
+# 让人误以为是我们缺数据。等级仍能从豆子读出来。
+# ---------------------------------------------------------------------------
+RIVEN_CASES = [
+    ("野猪 Visi-satidex", True, "典型紫卡名（武器 + 词缀）"),
+    ("奏凯 Acri-cronitis", True, "同上"),
+    ("裂罅 步枪", True, "直接写了裂罅"),
+    ("Riven Mod", True, "英文"),
+    ("压迫点", False, "普通 mod 名"),
+    ("Amalgam Argonak Metal Auger", False, "含空格的外文 mod 名，但不是紫卡"),
+    ("Primed Fever Strike", False, "Prime mod"),
+    ("", False, "空"),
+]
+for _nm, _want, _why in RIVEN_CASES:
+    _got = lo.is_riven_name(_nm)
+    check(f"is_riven_name({_nm!r}) → {_got}  [{_why}]", _got == _want, f"期望 {_want}")
+
+# analyze 里紫卡要走「riven」分支，并**从豆子**取等级（库中无基准）
+_riven_ocr = {"weapon": "野猪", "mods": [
+    {"name": "野猪 Visi-satidex", "drain": 14},
+    {"name": "分裂膛室", "drain": 15},
+]}
+_riven_pips = [{"row": 1, "counts": [6, 5, 0, 0], "maxed": [True, True, False, False],
+                "pos": [[], [], [], []], "is_inventory": False, "grid": [712, 957, 1202, 1447],
+                "card_w": 152}]
+_an_riven = lo.analyze(_riven_ocr, _riven_pips)
+_rv = next((m for m in _an_riven["mods"] if m.get("riven")), None)
+check("紫卡被单独归类为 riven（不进 unknown）",
+      _rv is not None and "野猪 Visi-satidex" not in (_an_riven.get("unknown") or []),
+      str(_an_riven.get("unknown")))
+check("  紫卡等级由豆子给出（6 级）", _rv is not None and _rv.get("rank") == 6,
+      str(_rv and _rv.get("rank")))
+check("  紫卡备注说明词缀随机、无法核算",
+      _rv is not None and "词缀随机" in (_rv.get("note") or ""), str(_rv and _rv.get("note")))
+_lines_riven = lo.card_lines(_an_riven)
+check("  卡面把紫卡写成「裂罅紫卡（词缀随机…）」而不是「库中未收录」",
+      any("裂罅紫卡" in ln for ln in _lines_riven)
+      and not any("库中未收录" in ln for ln in _lines_riven),
+      str([ln for ln in _lines_riven if "紫卡" in ln or "未收录" in ln]))
+
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")
     sys.exit(1)
