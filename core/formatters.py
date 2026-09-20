@@ -1731,8 +1731,29 @@ _ACRITHIS_ZH = {
 }
 
 
+def _to_bj(iso: str) -> str:
+    """UTC ISO 串 → 北京时间「09-27 08:00」。
+
+    ★ 轮换**判定**一律用 UTC（DE 的服务器时间），但**展示**给国内玩家要换算成
+    北京时间并标注 —— 否则「周日 00:00」会被当成北京时间，实际差 8 小时。
+    """
+    from datetime import datetime, timedelta, timezone
+    try:
+        dt = datetime.fromisoformat(iso)
+    except (TypeError, ValueError):
+        return ""
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone(timedelta(hours=8))).strftime("%m-%d %H:%M")
+
+
 def fmt_acrichis_week(data: dict) -> tuple[str, list[str]]:
-    """言录使**本周货单**（社区维护快照，含价格）。"""
+    """言录使**本周货单**（社区维护快照，含价格）。
+
+    重置规则见 ``core/data/rotations.json`` 的 ``acrichis.reset``：
+    DE 口径是**每周日 00:00 UTC**（不是常规周常的周一），判定时刻为 UTC，
+    卡面换算成北京时间展示。
+    """
     items = data.get("items") or []
     lines = []
     for it in items:
@@ -1742,24 +1763,38 @@ def fmt_acrichis_week(data: dict) -> tuple[str, list[str]]:
         # （/Lotus/Language/Duviri/DuviriDragonDropItemName），
         # 2026-09-17 用户指正；此前误写成「精华」。
         lines.append(f"· {nm}{qty}　{it.get('price', '?')} 苦栓")
-    if data.get("expiry"):
-        lines.append(f"※ 距下次刷新 {countdown(data['expiry'])}")
-    lines.append("※ 本周货单是社区维护快照（DE 不下发），过期后会回落到商品池")
+    nxt = data.get("next_reset") or data.get("expiry")
+    if nxt:
+        tail = f"※ 距下次刷新 {countdown(nxt)}"
+        bj = _to_bj(nxt)
+        if bj:
+            tail += f"（{bj} 北京时间）"
+        lines.append(tail)
+    lines.append("※ 每周日 00:00 UTC 轮换（与「周一重置」的常规周常不同）；"
+                 "本周货单为社区维护快照，DE 不下发")
     return ("言录使（Acrithis）本周货单", lines)
 
 
-def fmt_acrichis(data: Optional[dict]) -> tuple[str, list[str]]:
+def fmt_acrichis(data: Optional[dict], stale: bool = False) -> tuple[str, list[str]]:
     """言录使（Acrithis）商品**池**。
 
     ⚠️ DE 不下发每周实际卖哪 5 件（``AcrithisVendorManifest`` 只有池子 + 权重，
     ``numRandomItemPrices`` 说明价格也是每周期随机 roll）。所以这里给的是
     「周常槽会出什么、权重多少」—— 参考机器人那张「本周 5 件」是它自己维护的
     快照，我们不做没有来源的数据。
+
+    ``stale=True`` 表示本周货单快照已过期（此时展示的是候选池），
+    必须**明确说出来**，不能让人误以为这就是本周实际在卖的 5 件。
     """
     bins = (data or {}).get("bins") or {}
     weekly = bins.get("2") or []
     if not weekly:
-        return ("言录使（Acrithis）", ["暂无商品池数据（ExportVendors 取不到）"])
+        lines = ["暂无商品池数据（ExportVendors 取不到）"]
+        # ★ 过期提示不能因为「池子也没数据」就被吞掉 —— 那正是最容易让人
+        #   以为「查到了」的场景
+        if stale:
+            lines.append("※ 本周 5 件货单**已过期未更新**，请以游戏内 Acrithis 为准")
+        return ("言录使（Acrithis）" + ("（货单待更新）" if stale else ""), lines)
     lines = ["◆ 周常池（每个槽位每周期出 1 件）"]
     for it in weekly:
         nm = _ACRITHIS_ZH.get(it.get("en") or "", it.get("name") or it.get("en") or "?")
@@ -1767,9 +1802,13 @@ def fmt_acrichis(data: Optional[dict]) -> tuple[str, list[str]]:
         lines.append(f"· {nm}{qty}　权重 {it.get('pct', 0)}%")
     n_daily = sum(len(bins.get(b) or []) for b in ("0", "1", "3"))
     lines.append(f"◆ 另有每日槽 {n_daily} 件（船装装饰 / 拍照场景 / 小队增益，每日轮换）")
-    lines.append("※ 价格每周期随机 roll，DE 不下发本周实际货单；"
-                 "上表是池子与权重，本周实际 5 件以游戏内 Acrithis 为准")
-    return ("言录使（Acrithis）商品池", lines)
+    if stale:
+        lines.append("※ 本周 5 件货单**已过期未更新**，上面只是候选池 —— "
+                     "本周实际在卖什么请以游戏内 Acrithis 为准")
+    else:
+        lines.append("※ 价格每周期随机 roll，DE 不下发本周实际货单；"
+                     "上表是池子与权重，本周实际 5 件以游戏内 Acrithis 为准")
+    return ("言录使（Acrithis）商品池" + ("（货单待更新）" if stale else ""), lines)
 
 
 def fmt_incursions(data: Optional[dict]) -> tuple[str, list[str]]:

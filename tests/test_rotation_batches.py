@@ -260,7 +260,10 @@ check("信条加成在 25~60 区间",
       all(25 <= float(i["bonus"]) <= 60 for i in _tenet_items if i.get("bonus")),
       str([i.get("bonus") for i in _tenet_items]))
 
-_cur_batch = _batches[int(coda.get("anchor_idx", 0))]
+# ⚠️ 抽查/完整性都要对着**当前生效批**（_idx），不能对着 anchor_idx ——
+# anchor_idx 是换批周期里的相位基准，换批后它不变、生效批会前进一格，
+# 写死 anchor_idx 会在换批当天误报（2026-09-20 修正）。
+_cur_batch = _batches[_idx]
 check("终幕当前批每把都有元素+加成",
       all(i.get("element") and isinstance(i.get("bonus"), (int, float))
           for i in _cur_batch),
@@ -319,19 +322,23 @@ for _name, _rep, _n in (("信条", _reply_t, 5), ("终幕", _reply_c, 7)):
     check(f"{_name} 卡有快照说明行",
           any("快照" in ln for ln in _rep.lines), str(_rep.lines[-3:]))
 
-# 具体值抽查（对照 wiki「Reset」页 2026-09-16 快照）
+# 具体值抽查（对照 wiki「Reset」页 2026-09-20 快照）
 _tmap = {i["en"]: (i.get("element"), i.get("bonus")) for i in _tenet_items}
-check("信条·铁晶磁轨炮 = 辐射 36.1%（wiki 快照）",
-      _tmap.get("Tenet Ferrox") == ("Radiation", 36.1), str(_tmap.get("Tenet Ferrox")))
-check("信条·枢密 = 火焰 27%（wiki 快照）",
-      _tmap.get("Tenet Exec") == ("Heat", 27), str(_tmap.get("Tenet Exec")))
+check("信条·铁晶磁轨炮 = 冰霜 43.4%（wiki 2026-09-20 快照）",
+      _tmap.get("Tenet Ferrox") == ("Cold", 43.4), str(_tmap.get("Tenet Ferrox")))
+check("信条·枢密 = 辐射 25.9%（wiki 2026-09-20 快照）",
+      _tmap.get("Tenet Exec") == ("Radiation", 25.9), str(_tmap.get("Tenet Exec")))
 _cmap = {i["en"]: (i.get("element"), i.get("bonus")) for i in _cur_batch}
-check("终幕当前批·异化者 = 磁力 38.5%（A 批快照）",
-      _cmap.get("Coda Catabolyst") == ("Magnetic", 38.5),
-      str(_cmap.get("Coda Catabolyst")))
-check("终幕当前批·噬轮 = 辐射 48.8%（A 批快照）",
-      _cmap.get("Coda Motovore") == ("Radiation", 48.8),
-      str(_cmap.get("Coda Motovore")))
+# 终幕按批次抽查：wiki 只公布**当前生效批**的表，另一批在换批前拿不到真值，
+# 所以每次刷新后要把这里同步成新一批的两把（换批后旧值会失效）。
+_SPOT = {"A": {"Coda Catabolyst": ("Magnetic", 38.5),
+               "Coda Motovore": ("Radiation", 48.8)},
+         "B": {"Coda Bassocyst": ("Magnetic", 51.2),
+               "Coda Synapse": ("Cold", 57.6)}}
+_cur_label = (coda.get("batch_label") or ["A", "B"])[_idx]
+for _en, _exp in _SPOT.get(_cur_label, {}).items():
+    check(f"终幕当前批（{_cur_label}）·{_en} = {_exp[0]} {_exp[1]}%（wiki 快照）",
+          _cmap.get(_en) == _exp, str(_cmap.get(_en)))
 check("终幕当前批元素都在展示表中（电击/辐射不许是裸英文）",
       all((v[0] or "").lower() in calc.ELEM_ZH for v in _cmap.values()),
       str({k: v[0] for k, v in _cmap.items()
