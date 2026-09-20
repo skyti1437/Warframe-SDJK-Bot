@@ -21521,7 +21521,7 @@
    "compat": "Primary",
    "polarity": "madurai",
    "base_drain": 6,
-   "max_rank": 5,
+   "max_rank": 3,
    "_variant": 0
   },
   "charged shell": {
@@ -22259,7 +22259,7 @@
    "compat": "Primary",
    "polarity": "naramon",
    "base_drain": 4,
-   "max_rank": 5,
+   "max_rank": 3,
    "_variant": 0
   },
   "efficient beams": {
@@ -22358,7 +22358,7 @@
    "compat": "Melee",
    "polarity": "madurai",
    "base_drain": 4,
-   "max_rank": 5,
+   "max_rank": 3,
    "_variant": 0
   },
   "entropy burst": {
@@ -22574,7 +22574,7 @@
    "compat": "Melee",
    "polarity": "madurai",
    "base_drain": 2,
-   "max_rank": 5,
+   "max_rank": 3,
    "_variant": 0
   },
   "fire suppression": {
@@ -23123,7 +23123,7 @@
    "compat": "Secondary",
    "polarity": "naramon",
    "base_drain": 4,
-   "max_rank": 5,
+   "max_rank": 3,
    "_variant": 0
   },
   "healing return": {
@@ -23267,7 +23267,7 @@
    "compat": "Secondary",
    "polarity": "madurai",
    "base_drain": 4,
-   "max_rank": 5,
+   "max_rank": 10,
    "_variant": 0
   },
   "hunter munitions": {
@@ -25391,7 +25391,7 @@
    "compat": "Melee",
    "polarity": "madurai",
    "base_drain": 4,
-   "max_rank": 5,
+   "max_rank": 3,
    "_variant": 0
   },
   "reaping spiral": {
@@ -25895,7 +25895,7 @@
    "compat": "Primary",
    "polarity": "madurai",
    "base_drain": 4,
-   "max_rank": 5,
+   "max_rank": 10,
    "_variant": 0
   },
   "shadow harvest": {
@@ -26363,7 +26363,7 @@
    "compat": "Primary",
    "polarity": "naramon",
    "base_drain": 6,
-   "max_rank": 5,
+   "max_rank": 3,
    "_variant": 0
   },
   "stalking fan": {
@@ -26417,7 +26417,7 @@
    "compat": "Secondary",
    "polarity": "naramon",
    "base_drain": 6,
-   "max_rank": 5,
+   "max_rank": 3,
    "_variant": 0
   },
   "stinging thorn": {
