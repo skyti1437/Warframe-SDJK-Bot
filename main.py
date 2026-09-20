@@ -2845,7 +2845,6 @@ class WarframeSDJK(Star):
         return data
 
     @staticmethod
-    @staticmethod
     async def _detect_pips(image_url: str) -> list:
         """豆子（卡片底部的等级刻度）像素检测 —— 识卡等级的**第二信号**。
 
@@ -2881,6 +2880,7 @@ class WarframeSDJK(Star):
                         len(eq), [r.get("counts") for r in eq])
         return rows
 
+    @staticmethod
     def _fit_scan_image(image_url: str, min_width: int = 1600,
                         max_width: int = 1600) -> str:
         """把配卡截图规整到「能读清又不过大」的宽度区间：**小图放大、大图缩小**。
