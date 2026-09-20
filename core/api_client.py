@@ -532,8 +532,65 @@ class WarframeClient:
         except Exception:  # noqa: BLE001
             return {}
 
+    @staticmethod
+    def next_weekly_reset(now=None, weekday: int = 6, hour_utc: int = 0) -> str:
+        """下一个「周几 HH:00 UTC」的 UTC 时刻（ISO 串）。
+
+        ★ 每个系统的重置点**并不相同**，不能共用一个「周常 = 周一」：
+          · 常规周常（Nightwave / Circuit / Netracells / Teshin / Yonta / Cavalero）
+            = **周一 00:00 UTC**
+          · **Acrithis（言录使）= 周日 00:00 UTC**（DE《Update 33.0》补丁说明原文
+            「rotating at Sundays at 00:00 UTC」+ wiki Reset 页）
+          · Sortie = 每日 17:00 UTC（夏令 16:00）
+
+        一律以 **UTC 判定**；要展示给用户就换算成北京时间
+        （``formatters._to_bj``，UTC+8）—— 两者别混。
+        """
+        from datetime import datetime, timedelta, timezone
+        now = now or datetime.now(timezone.utc)
+        days = (int(weekday) - now.weekday()) % 7
+        target = (now + timedelta(days=days)).replace(
+            hour=int(hour_utc) % 24, minute=0, second=0, microsecond=0)
+        if target <= now:
+            target += timedelta(days=7)
+        return target.isoformat()
+
+    def acrithis_next_reset(self) -> str:
+        """言录使下次轮换时刻（UTC ISO）。
+
+        周期取**官方口径**（周日 00:00 UTC），规则在 ``rotations.json`` 的
+        ``acrichis.reset_weekday`` / ``acrichis.reset_hour_utc``，改数据即可。
+        """
+        try:
+            cfg = json.loads((Path(__file__).resolve().parent / "data"
+                              / "rotations.json").read_text(encoding="utf-8"))
+            sec = cfg.get("acrichis") or {}
+        except Exception:  # noqa: BLE001
+            sec = {}
+        return self.next_weekly_reset(
+            weekday=int(sec.get("reset_weekday", 6)),
+            hour_utc=int(sec.get("reset_hour_utc", 0)))
+
+    def acrithis_week_expired(self) -> bool:
+        """言录使本周货单快照是否已过期（用于内置定时自检，过期只告警不抓取）。"""
+        from datetime import datetime, timezone
+        p = Path(__file__).resolve().parent / "data" / "de" / "acrichis_week.json"
+        try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001
+            return True
+        exp = data.get("expiry") or ""
+        try:
+            return datetime.fromisoformat(exp) <= datetime.now(timezone.utc)
+        except ValueError:
+            return True
+
     async def acrithis_week(self) -> dict:
-        """言录使**本周货单**快照（社区维护）；过期返回空 dict。"""
+        """言录使**本周货单**快照（社区维护）；过期返回空 dict。
+
+        未过期时附带 ``next_reset``（按规则算出的下次轮换 UTC 时刻），
+        卡面据此展示倒计时 + 北京时间，不依赖文件里写死的 expiry。
+        """
         from datetime import datetime, timezone
         p = Path(__file__).resolve().parent / "data" / "de" / "acrichis_week.json"
         try:
@@ -546,6 +603,7 @@ class WarframeClient:
                 return {}
         except ValueError:
             return {}
+        data["next_reset"] = self.acrithis_next_reset()
         return data
 
     async def steel_path_incursions(self, platform: str) -> dict:
@@ -1632,6 +1690,39 @@ class WarframeClient:
         return {"tenet": tenet, "coda_batch": m.group(1) if m else "",
                 "coda": coda}
 
+    @staticmethod
+    def valence_is_stale(data: dict, now=None) -> bool:
+        """该段的效价快照是否已过期（不在当前轮次窗口内）。
+
+        窗口 = ``epoch + floor((now - epoch) / period) * period``；
+        快照缺失或时间串不可解析都算过期（宁可重抓，也别拿坏值当新鲜）。
+        """
+        from datetime import datetime, timedelta, timezone
+        now = now or datetime.now(timezone.utc)
+        epoch = datetime.fromisoformat(data["epoch"])
+        period = timedelta(hours=int(data.get("period_hours", 96)))
+        win = epoch + (now - epoch) // period * period
+        snap = data.get("valence_snapshot")
+        if not snap:
+            return True
+        try:
+            return datetime.fromisoformat(snap) < win
+        except (TypeError, ValueError):
+            return True
+
+    @staticmethod
+    def coda_anchor_for(observed_idx: int, epoch, period_hours: int,
+                        now, n_batches: int) -> int:
+        """由「wiki 上观测到的当前批」反解 ``anchor_idx``。
+
+        ★ 卡面用的是 ``(anchor_idx + 换轮次数) % 批数``，所以 anchor_idx 是
+        **相位基准**，不等于「当前批的下标」。旧代码直接存 ``anchor_idx = bi``，
+        换轮次数一前进就整体错位一批（09-20 实测：B 批生效时会被算成 A 批）。
+        """
+        from datetime import timedelta
+        passed = int((now - epoch) // timedelta(hours=int(period_hours)))
+        return (observed_idx - passed) % n_batches
+
     async def refresh_valence(self) -> str:
         """检查并刷新信条/终幕元素加成快照（数据源 wiki Reset 页）。
 
@@ -1639,24 +1730,17 @@ class WarframeClient:
         校验失败（解析残缺）抛异常，绝不写半成品。
         """
         from datetime import datetime, timedelta, timezone
-        from datetime import datetime, timedelta, timezone
         rot_path = paths.read_path("rotations.json")
         rot = json.loads(rot_path.read_text(encoding="utf-8"))
         now = datetime.now(timezone.utc)
-        for key in ("tenet", "coda"):
-            data = rot.get(key) or {}
-            if not data:
-                continue
-            epoch = datetime.fromisoformat(data["epoch"])
-            period = timedelta(hours=int(data.get("period_hours", 96)))
-            win = epoch + (now - epoch) // period * period
-            snap = data.get("valence_snapshot")
-            if snap:
-                try:
-                    if datetime.fromisoformat(snap) >= win:
-                        return "fresh"
-                except ValueError:
-                    pass
+        # ★ 必须**两段都新鲜**才算 fresh，不能「遇到第一个新鲜的就 return」。
+        #   信条与终幕的换轮锚点相差 24 小时（epoch 相差一天），所以任何时刻
+        #   都必然有一段仍在本轮窗口内 —— 旧写法让自动刷新**永远空转**：
+        #   服务器快照停在 2026-09-17，09-19 以来 52 条 sdjk 日志里一条刷新
+        #   记录都没有，plugin_data 下也从没写出过 rotations.json。
+        _sections = [rot.get(k) for k in ("tenet", "coda")]
+        if not any(self.valence_is_stale(s, now) for s in _sections if s):
+            return "fresh"
         html = await self.fetch_via_flaresolver(
             "https://wiki.warframe.com/w/Reset", ttl=600)
         parsed = self.parse_wiki_valence(html)
@@ -1672,6 +1756,9 @@ class WarframeClient:
         if batch not in labels or len(batches) != len(labels):
             raise WarframeAPIError(f"valence 批次标注异常：{batch!r}")
         bi = labels.index(batch)
+        coda_data["anchor_idx"] = self.coda_anchor_for(
+            bi, datetime.fromisoformat(coda_data["epoch"]),
+            int(coda_data.get("period_hours", 96)), now, len(batches))
         want_c = {it.get("en") for it in batches[bi]}
         if not want_c <= set(parsed["coda"]):
             raise WarframeAPIError(
@@ -1680,7 +1767,6 @@ class WarframeClient:
         for it in tenet_data.get("items") or []:
             elem, pct = parsed["tenet"][it["en"]]
             it["element"], it["bonus"] = elem, pct
-        coda_data["anchor_idx"] = bi
         coda_data["valence_snapshot"] = snap
         for idx, b_items in enumerate(batches):
             for it in b_items:

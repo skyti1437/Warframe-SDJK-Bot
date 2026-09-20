@@ -692,6 +692,15 @@ class WarframeSDJK(Star):
                         logger.info("[sdjk] 变体倾向表已刷新：%s", disp_status)
                 except Exception as e:  # noqa: BLE001 - 倾向表失败不阻断
                     logger.warning("[sdjk] 变体倾向表刷新失败：%s", e)
+                # 言录使（Acrithis）本周货单 DE 不下发、只能人工维护 ——
+                # 这里只做**过期自检并告警**，不静默回落到候选池就当没事
+                try:
+                    if self.client.acrithis_week_expired():
+                        logger.warning(
+                            "[sdjk] 言录使本周货单已过期：DE 不下发，需人工更新 "
+                            "core/data/de/acrichis_week.json（当前卡面已标注「货单待更新」）")
+                except Exception:  # noqa: BLE001 - 自检失败不阻断
+                    pass
                 await asyncio.sleep(6 * 3600)
             except asyncio.CancelledError:
                 raise
@@ -1545,7 +1554,9 @@ class WarframeSDJK(Star):
         if week:
             title, lines = fmt.fmt_acrichis_week(week)
         else:
-            title, lines = fmt.fmt_acrichis(await self.client.acrithis_pool())
+            # 过期时必须明说「这只是候选池」，否则会被当成本周实际在卖的 5 件
+            title, lines = fmt.fmt_acrichis(
+                await self.client.acrithis_pool(), stale=True)
         return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
 
     async def _h_descendia(self, parsed, event, platform) -> Reply:

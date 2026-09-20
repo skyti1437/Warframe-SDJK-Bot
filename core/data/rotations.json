@@ -261,36 +261,36 @@
    {
     "en": "Tenet Agendus",
     "cn": "信条·集议",
-    "element": "Radiation",
-    "bonus": 25.6
+    "element": "Heat",
+    "bonus": 41.2
    },
    {
     "en": "Tenet Exec",
     "cn": "信条·枢密",
-    "element": "Heat",
-    "bonus": 27
+    "element": "Radiation",
+    "bonus": 25.9
    },
    {
     "en": "Tenet Ferrox",
     "cn": "信条·铁晶磁轨炮",
-    "element": "Radiation",
-    "bonus": 36.1
+    "element": "Cold",
+    "bonus": 43.4
    },
    {
     "en": "Tenet Grigori",
     "cn": "信条·格里高利",
-    "element": "Heat",
-    "bonus": 35.2
+    "element": "Impact",
+    "bonus": 25.1
    },
    {
     "en": "Tenet Livia",
     "cn": "信条·莉薇娅",
-    "element": "Toxin",
-    "bonus": 28.5
+    "element": "Radiation",
+    "bonus": 28.6
    }
   ],
   "_note": "Ergo Glast 在任意中继站出售，不消耗声望",
-  "valence_snapshot": "2026-09-17T12:51:29+00:00",
+  "valence_snapshot": "2026-09-20T01:25:00+00:00",
   "valence_source": "wiki.warframe.com/w/Reset 的 Current Valence Bonuses（玩家上报，无官方 API）；插件侧访问该站被 Cloudflare 拦截，所以是**快照**，每 4 天轮换后需要刷新"
  },
  "coda": {
@@ -307,44 +307,44 @@
     {
      "en": "Coda Hema",
      "cn": "终幕·血肢",
-     "element": "Heat",
-     "bonus": 25.8
+     "element": null,
+     "bonus": null
     },
     {
      "en": "Coda Sporothrix",
      "cn": "终幕·孢丝感染枪",
-     "element": "Toxin",
-     "bonus": 25.1
+     "element": null,
+     "bonus": null
     },
     {
      "en": "Coda Catabolyst",
      "cn": "终幕·异化者",
-     "element": "Magnetic",
-     "bonus": 38.5
+     "element": null,
+     "bonus": null
     },
     {
      "en": "Coda Pox",
      "cn": "终幕·脓痘",
-     "element": "Cold",
-     "bonus": 26.4
+     "element": null,
+     "bonus": null
     },
     {
      "en": "Dual Coda Torxica",
      "cn": "终幕·孢蚀双枪",
-     "element": "Heat",
-     "bonus": 36.3
+     "element": null,
+     "bonus": null
     },
     {
      "en": "Coda Mire",
      "cn": "终幕·米尔",
-     "element": "Electricity",
-     "bonus": 40.3
+     "element": null,
+     "bonus": null
     },
     {
      "en": "Coda Motovore",
      "cn": "终幕·噬轮",
-     "element": "Radiation",
-     "bonus": 48.8
+     "element": null,
+     "bonus": null
     }
    ],
    [
@@ -393,13 +393,20 @@
    ]
   ],
   "_note": "Eleanor Nightingale 的 Coda 武器按 A/B 两批轮换（每批 7 把），每 4 天 00:00 UTC 换批；2026-09-14 实测为 A 批，换批边界 09-17 00:00 UTC（比 Ergo Glast 的元素加成重生成晚 24 小时，两者不是同一锚点）；批次表取自 wiki.warframe.com/Reset",
-  "valence_snapshot": "2026-09-17T12:51:29+00:00",
+  "valence_snapshot": "2026-09-20T01:25:00+00:00",
   "valence_source": "wiki.warframe.com/w/Reset 的 Current Valence Bonuses（玩家上报，无官方 API）；插件侧访问该站被 Cloudflare 拦截，所以是**快照**，每 4 天轮换后需要刷新"
  },
  "acrichis": {
-  "epoch": "2023-04-26T00:00:00+00:00",
-  "period_hours": 24,
-  "pick": 4,
-  "items": []
+  "_note": "言录使（Acrithis / Duviri 档案管理员）周常货单。官方周期：DE《Update 33.0》补丁说明原文「Five of these offerings will be available to purchase each week, rotating at Sundays at 00:00 UTC」，wiki Reset 页同（「Acrithis weekly offerings reset on Sunday 0:00 UTC」）。⚠️ 它是「周日」特例，不是常规周常的周一 00:00 UTC（Nightwave/Circuit/Netracells/Teshin/Yonta/Cavalero 才是周一）。时刻一律以 UTC 判定，卡面按北京时间（UTC+8）展示，不再分平台各设一套。",
+  "epoch": "2023-04-30T00:00:00+00:00",
+  "period_hours": 168,
+  "pick": 5,
+  "mode": "weekly_cycle",
+  "reset_weekday": 6,
+  "reset_hour_utc": 0,
+  "_reset_weekday_note": "0=周一 … 6=周日；6 即官方的周日",
+  "items": [],
+  "_items_note": "DE 不下发本周实际 5 件（AcrithisVendorManifest 只有候选池 + 权重），本周货单见 core/data/de/acrichis_week.json（社区维护快照）。",
+  "_source": "https://www.warframe.com/patch-notes/pc/33-0-0（DE 官方）"
  }
 }
