@@ -2999,10 +2999,25 @@ class WarframeSDJK(Star):
                 return None, an
             checks = an.get("checks") or []
             bad = sum(1 for c in checks if not c["ok"])
-            if not an.get("mods"):
+            n_mods = len(an.get("mods") or [])
+            if not n_mods:
                 bad += 4
             if not checks:
                 bad += 2
+            # ★ 漏读交叉校验（2026-09-20 用户 4K 报障后加）：
+            #   像素网格里「有豆的格数」是**这张图至少有多少张卡**的硬下界
+            #   （有豆 ⇒ 等级 > 0 ⇒ 该格必然有卡）。模型读到的卡数低于这个下界
+            #   就一定是漏读，必须重罚 —— 否则会出现「漏读一半的结果因为
+            #   面板校验碰巧少错 1 项而被选中」。
+            #   实测事故：glm-4v-flash 只读了上排 3 张（漏掉下排 4 张），
+            #   30B 正确读全 7 张，最终却选了 glm 的（1 项不过 vs 2 项不过）。
+            if pips_rows:
+                low = pips_engine.expected_min_cards(pips_rows)
+                pen = pips_engine.underread_penalty(pips_rows, n_mods)
+                if pen:
+                    logger.warning("[sdjk] ★ 疑似漏读：模型只读到 %d 张，但像素网格里"
+                                   "已有 %d 格有豆 → 判为漏读并重罚 +%d", n_mods, low, pen)
+                    bad += pen
             return bad, an
 
         # **并行 + 边到边校验**：原实现是「串行重试同一批渠道」——
@@ -3067,6 +3082,9 @@ class WarframeSDJK(Star):
             ocr2 = lo.splice_damage_rows(ocr, rows)
             an2 = lo.analyze(ocr2, pips_rows)
             bad2 = sum(1 for c in (an2.get("checks") or []) if not c["ok"])
+            if pips_rows:      # ★ 与 _score 同口径：漏读也要罚，否则比不出真实好坏
+                bad2 += pips_engine.underread_penalty(pips_rows,
+                                                      len(an2.get("mods") or []))
             if bad2 < bad:
                 logger.warning("[sdjk] 聚焦读行修正：校验失败 %d → %d", bad, bad2)
                 return _finish(ocr2)
