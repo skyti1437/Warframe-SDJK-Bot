@@ -533,18 +533,19 @@ class WarframeClient:
             return {}
 
     @staticmethod
-    def next_weekly_reset(now=None, weekday: int = 6, hour_utc: int = 0) -> str:
+    def next_weekly_reset(now=None, weekday: int = 0, hour_utc: int = 0) -> str:
         """下一个「周几 HH:00 UTC」的 UTC 时刻（ISO 串）。
 
-        ★ 每个系统的重置点**并不相同**，不能共用一个「周常 = 周一」：
-          · 常规周常（Nightwave / Circuit / Netracells / Teshin / Yonta / Cavalero）
-            = **周一 00:00 UTC**
-          · **Acrithis（言录使）= 周日 00:00 UTC**（DE《Update 33.0》补丁说明原文
-            「rotating at Sundays at 00:00 UTC」+ wiki Reset 页）
+        各系统重置点（以 wiki《Reset》总表 + 各页实时倒计时为准）：
+          · **周常（Nightwave / Circuit / Netracells / Teshin / Yonta / Cavalero /
+            Acrithis 言录使）= 周一 00:00 UTC** —— Update 32.3 起各商人周常也统一到周一
+          · 信条（Ergo Glast）/ 终幕（Eleanor）= 每 4 天 00:00 UTC
           · Sortie = 每日 17:00 UTC（夏令 16:00）
+          · Baro = 两周一次，周五 9:00 ET（另算）
 
-        一律以 **UTC 判定**；要展示给用户就换算成北京时间
-        （``formatters._to_bj``，UTC+8）—— 两者别混。
+        ⚠️ 别引用 DE《Update 33.0》那句「Acrithis rotating at Sundays at 00:00 UTC」——
+        那是 2023 年初版，已被后续调整覆盖；wiki 现版是 **Monday**。
+        一律以 **UTC 判定**，要展示给用户就换算成北京时间（``formatters._to_bj``）。
         """
         from datetime import datetime, timedelta, timezone
         now = now or datetime.now(timezone.utc)
@@ -558,8 +559,8 @@ class WarframeClient:
     def acrithis_next_reset(self) -> str:
         """言录使下次轮换时刻（UTC ISO）。
 
-        周期取**官方口径**（周日 00:00 UTC），规则在 ``rotations.json`` 的
-        ``acrichis.reset_weekday`` / ``acrichis.reset_hour_utc``，改数据即可。
+        周期在 ``rotations.json`` 的 ``acrichis.reset_weekday`` /
+        ``acrichis.reset_hour_utc``（当前 = 周一 00:00 UTC，wiki 实时口径），改数据即可。
         """
         try:
             cfg = json.loads((Path(__file__).resolve().parent / "data"
@@ -568,7 +569,7 @@ class WarframeClient:
         except Exception:  # noqa: BLE001
             sec = {}
         return self.next_weekly_reset(
-            weekday=int(sec.get("reset_weekday", 6)),
+            weekday=int(sec.get("reset_weekday", 0)),
             hour_utc=int(sec.get("reset_hour_utc", 0)))
 
     def acrithis_week_expired(self) -> bool:

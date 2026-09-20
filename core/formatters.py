@@ -1750,9 +1750,9 @@ def _to_bj(iso: str) -> str:
 def fmt_acrichis_week(data: dict) -> tuple[str, list[str]]:
     """言录使**本周货单**（社区维护快照，含价格）。
 
-    重置规则见 ``core/data/rotations.json`` 的 ``acrichis.reset``：
-    DE 口径是**每周日 00:00 UTC**（不是常规周常的周一），判定时刻为 UTC，
-    卡面换算成北京时间展示。
+    重置规则见 ``core/data/rotations.json`` 的 ``acrichis.reset_*``：
+    wiki《Acrithis》**实时**页面写的是「Resets every **Monday** 0:00 UTC」，
+    与其它周常同点（Update 32.3 起统一到周一）。判定用 UTC，卡面换算北京时间。
     """
     items = data.get("items") or []
     lines = []
@@ -1770,7 +1770,7 @@ def fmt_acrichis_week(data: dict) -> tuple[str, list[str]]:
         if bj:
             tail += f"（{bj} 北京时间）"
         lines.append(tail)
-    lines.append("※ 每周日 00:00 UTC 轮换（与「周一重置」的常规周常不同）；"
+    lines.append("※ 每周一 00:00 UTC 轮换（与其它周常同点）；"
                  "本周货单为社区维护快照，DE 不下发")
     return ("言录使（Acrithis）本周货单", lines)
 
