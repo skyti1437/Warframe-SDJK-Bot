@@ -2646,13 +2646,28 @@ class WarframeSDJK(Star):
     RACE_WINDOW_S = 40.0
     _render_lock: Optional[asyncio.Lock] = None   # 渲染串行（PIL 吃 CPU）
 
-    # 按「实测响应速度」排序：识卡是并行竞速 + 面板校验兜底，先到的先用，
-    # 所以把小快型号放前面（原来 32B 排第一、取前 3 个时把最快的
+    # 按「实测响应速度 + 输出可解析性」排序：识卡是并行竞速 + 面板校验兜底，
+    # 先到的先用，所以把小快型号放前面（原来 32B 排第一、取前 3 个时把最快的
     # glm-4v-flash 挤掉了 —— 2026-09-17 实测 3 个慢渠道 30 s 全无返回）。
+    #
+    # 2026-09-20 用**真实配卡截图**对拍（拉特昂 Prime / 执法者，各 2 任务）后调整：
+    #   · zhipu/glm-4v-flash                        3.2 s  伤害行 7/7 全对、输出干净 → 首位
+    #   · siliconflow/…/Qwen3-VL-30B-A3B-Instruct   6.7 s  伤害行 7/7 全对   → 新增
+    #                                                       （同族 8B 要 67 s，快 10 倍）
+    #   · siliconflow/…/Qwen3-VL-8B                67.5 s  最准但极慢        → 降为保底
+    #   · zhipu/glm-4.1v-thinking-flash             8.6 s  输出以 <think> 开头、
+    #                                                      JSON 解析不出来      → **移除**
+    #                                                      （智谱 source 不剥 think，见
+    #                                                        astrbot/core/provider/sources/
+    #                                                        zhipu_source.py）
+    #   · siliconflow/…/Qwen3-VL-32B                1.0 s  HTTP 500/503
+    #                                                      「Request failed: Unknown error」
+    #                                                      「System is too busy」，4 次全败
+    #                                                                          → **移除**
+    #   （另测均不入链：Qwen3-Omni-30B-A3B 数值错乱、GLM-4.5V 120 s 超时）
     _VISION_PROVIDER_IDS = ("zhipu/glm-4v-flash",
-                            "siliconflow/Qwen/Qwen3-VL-8B-Instruct",
-                            "zhipu/glm-4.1v-thinking-flash",
-                            "siliconflow/Qwen/Qwen3-VL-32B-Instruct")
+                            "siliconflow/Qwen/Qwen3-VL-30B-A3B-Instruct",
+                            "siliconflow/Qwen/Qwen3-VL-8B-Instruct")
     _VISION_ID_HINTS = ("4v", "vl", "vision", "vision-flash", "4o")
 
     def _vision_providers(self) -> list:
@@ -2828,11 +2843,21 @@ class WarframeSDJK(Star):
         return data
 
     @staticmethod
-    def _maybe_upscale(image_url: str, min_width: int = 1600) -> str:
-        """小图放大：截图宽 < min_width 时 Lanczos 放大到 ~2000px。
+    def _fit_scan_image(image_url: str, min_width: int = 1600,
+                        max_width: int = 1600) -> str:
+        """把配卡截图规整到「能读清又不过大」的宽度区间：**小图放大、大图缩小**。
 
-        实测（2026-09-17）：648×242 的剪贴板截图直接喂 Qwen3-VL-32B
-        会大面积幻觉（MOD 名编造、容量数字全错）；放大 3 倍后恢复正常。
+        · 小图（宽 < min_width）→ Lanczos 放大到 ~1280。
+          实测（2026-09-17）：648×242 的剪贴板截图直接喂模型会大面积幻觉
+          （MOD 名编造、容量数字全错），放大 3 倍后恢复正常。
+          上限一路从 2000 → 1600 → 1280 收窄：vision 推理耗时随像素近似线性，
+          1600 宽实测单次就要 22~26 s（30 s 竞速窗口都不够）。
+        · 大图（宽 > max_width）→ 缩到 max_width。
+          ★ 识卡走 **provider 直连**（`text_chat(image_urls=…)`），**不经过**
+          AstrBot agent 的图片预处理 / 512KB 压缩 —— 传的就是原图。生产实测
+          2326×870 要 39 s（实验室把图压到 134 KB 时只要 6.65 s，差 5.9×），
+          按面积比缩到 1600 宽约省一半推理时间（2026-09-20 用户要求补上）。
+          配卡截图的 MOD 名/数字在 1600 宽下仍清晰（原图本身多为 2 倍速截图）。
         """
         if not image_url.startswith("data:"):
             return image_url
@@ -2844,23 +2869,25 @@ class WarframeSDJK(Star):
             head, b64 = image_url.split(",", 1)
             img = PILImage.open(io.BytesIO(base64.b64decode(b64)))
             w, h = img.size
-            if w >= min_width:
-                return image_url
-            # 上限 2000 → 1600 → **1280**（2026-09-17）：vision 推理时间随
-            # 像素近似线性，1600 宽实测单次 22~26 s（大图更久，30 s 竞速
-            # 窗口都不够）；1280 宽仍能读清升级界面的卡片名与容量数字，
-            # 推理时间约降四成。
-            scale = min(1280.0 / w, 4.0)
-            img2 = img.resize((int(w * scale), int(h * scale)),
-                              PILImage.LANCZOS)
+            if min_width <= w <= max_width:
+                return image_url                      # 已在目标区间，原样送
+            if w < min_width:
+                scale, target = min(1280.0 / w, 4.0), 1280
+            else:
+                scale, target = max_width / w, max_width
+            # 标签按**实际**缩放方向写：1599 宽这类「略低于 min_width」的图
+            # 会被规整到 1280，其实是缩小而不是放大
+            action = "放大" if scale > 1 else "缩小"
+            nw, nh = max(1, int(w * scale)), max(1, int(h * scale))
+            img2 = img.resize((nw, nh), PILImage.LANCZOS)
             fmt = "PNG" if "png" in head.lower() else "JPEG"
             buf = io.BytesIO()
             img2.convert("RGB" if fmt == "JPEG" else img2.mode).save(buf, fmt)
             new_b64 = base64.b64encode(buf.getvalue()).decode()
-            logger.info("[sdjk] 配卡截图 %dx%d 过小，已放大 %d%%",
-                        w, h, int(scale * 100))
+            logger.info("[sdjk] 配卡截图 %dx%d → %dx%d（已%s，目标宽 %d）",
+                        w, h, nw, nh, action, target)
             return f"data:image/{fmt.lower()};base64,{new_b64}"
-        except Exception:  # noqa: BLE001 —— 放大失败就用原图
+        except Exception:  # noqa: BLE001 —— 规整失败就用原图，别让识卡挂掉
             return image_url
 
     async def _extract_loadout_validated(self, image_url: str,
@@ -2872,7 +2899,7 @@ class WarframeSDJK(Star):
         最多试 max_attempts 次；仍不过时追加一次「只读伤害栏」的聚焦
         识别（任务越窄读得越准），把干净的行拼接回去再验。
         """
-        image_url = self._maybe_upscale(image_url)
+        image_url = self._fit_scan_image(image_url)
         best: Optional[tuple[int, dict]] = None   # (失败项数, ocr)
 
         def _score(ocr: dict):
