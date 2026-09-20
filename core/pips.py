@@ -46,6 +46,8 @@ ROW_FRAC = 0.12           # 行带判定阈值 = 全图行密度峰值 × 该比
 ROW_MIN_H = 2             # 行带最小高度（★ 不能是 3：装备区行带常只 2px 高）
 BEAN_PITCH_RATIO = 0.079  # 豆间距 / 卡片宽（实测 12/152）
 CARD_W_OF_W = 0.0792      # 卡片宽 / **图宽**（实测 152/1920；低分辨率同比例缩放）
+CARD_W_REF = 152          # ★ **基准尺度**的卡片宽：所有实测常量都是在它下面量的，
+                          #   检测前会把图归一到这个尺度（见 detect_pips）
 COL_PITCH_RATIO = 1.61    # 列间距 / 卡片宽（实测 245/152）
 CARD_COLS = 4             # 游戏 UI：装备区一行最多 4 格
 INV_BF = 0.62             # 仓库区 y 位置下限（相对图高）
@@ -73,6 +75,22 @@ def lit_mask(im: Image.Image) -> Image.Image:
     m_b = b.point(lambda v: 255 if v > MASK_B_MIN else 0)
     m_g = g.point(lambda v: 255 if v > MASK_G_MIN else 0)
     return ImageChops.multiply(ImageChops.multiply(m_br, m_b), m_g)
+
+
+def warm_mask(im: Image.Image) -> Image.Image:
+    """**暖色**（琥珀/橙）掩码 —— 执刑官那类边框的豆子是这个颜色。
+
+    来源（2026-09-20 用户提供 `mod边框类型.zip` + wiki `/w/Mod/Assets`）：
+    卡片底部那条能量线/豆子的颜色**随边框类型变化** —— 常见/罕见/稀有/传说/
+    合并/怪奇/镀层/裂罅都偏蓝（主掩码能抓），而**执刑官（Archon）是琥珀橙**
+    （实测采样 (255,222,163)，蓝通道太低 → 主掩码整格漏掉）。
+    这里只作**兜底**：只补主掩码数出 0 的格子，不做覆盖。
+    """
+    r, g, b = im.split()
+    m_rb = ImageChops.subtract(r, b).point(lambda v: 255 if v > 30 else 0)
+    m_r = r.point(lambda v: 255 if v > 170 else 0)
+    m_g = g.point(lambda v: 255 if v > 140 else 0)
+    return ImageChops.multiply(ImageChops.multiply(m_rb, m_r), m_g)
 
 
 def _find_bands(rowcount, min_h=ROW_MIN_H, frac=ROW_FRAC):
@@ -123,44 +141,74 @@ def _contig(xs, gap, min_w):
 
 
 def _count_in_cell(thick, cx, card_w, W):
-    """在 [cx-card_w/2, cx+card_w/2] 这个格子内数亮豆（含暗豆回填）。"""
+    """在 [cx-card_w/2, cx+card_w/2] 这个格子内数亮豆。
+
+    ★ 判据全部**相对卡片宽**（尺度无关）—— 实测 1920×1080：
+      豆厚 6~8px（= 卡宽×0.04~0.05）、豆宽 ≈8px、豆间距 12px（= 卡宽×0.079）、
+      底部装饰细线厚 1~2px 且**横贯全卡**。
+
+    ★★ 为什么重写（2026-09-20 用户 4K 报障）：旧实现的阈值是**数据自适应**的
+      （取格子内非零厚度的 20 分位当"线厚"，再加常数） —— 换分辨率/换卡面后
+      这个分位会跳到豆子上，于是一路的回填把**贯穿线**当墨、把 3 颗豆数成 5 颗、
+      5 颗数成 13 颗（4K 实测）→ 对齐无解 → 豆子信号全废 → 退回容量反推
+      （用户看到「北风 1 级被判 3 级」）。
+      现在：① 豆/线分界 = `card_w × 0.03`（相对，任何分辨率下线都被排除）；
+      ② 回填阈值 = 分界的 0.6 倍；③ 加**计数上限**（`card_w×0.9 / pitch`）
+      兜住任何残余的跑飞。
+    """
     lo = max(0, int(round(cx - card_w / 2)))
     hi = min(W, int(round(cx + card_w / 2)) + 1)
     if hi - lo < 4:
         return 0, []
     sig = thick[lo:hi]
-    nz = sorted(v for v in sig if v > 0)
-    if not nz:
+    if not any(sig):
         return 0, []
-    base = nz[len(nz) // 5]
-    floor_hi = max(4, base + 3)              # 可信豆（严格）
-    xs = [lo + i for i, v in enumerate(sig) if v >= floor_hi]
+    bean_pitch = card_w * BEAN_PITCH_RATIO
+    t_bean = max(3, round(card_w * 0.030))        # 豆/线分界（相对卡宽）
+    xs = [lo + i for i, v in enumerate(sig) if v >= t_bean]
     if not xs:
         return 0, []
-    seeds = [sum(g) // len(g) for g in _contig(xs, 2, 1)]
+    grp = _contig(xs, max(2, round(card_w * 0.013)), 1)
+    seeds = [(a + b) // 2 for a, b in grp]
+    # ★ 回填门槛**由实测豆厚决定**（不是绝对常数，也不是格子内分位数）：
+    #   1920 下豆厚 7~8px、线厚 1~2px；1280 下豆厚 4px、线厚 1~2px —— 用
+    #   「实测豆厚 × 0.7」才能在任何尺度下把线排除掉。用绝对下限（如 2）会在
+    #   低分辨率失效（线正好 2px）→ 一路回填到上限（实测 1280 跑成 11 颗）。
+    seed_t = _median([max(thick[a:b + 1]) for a, b in grp]) or t_bean
+    t_walk = max(2, round(seed_t * 0.7))
     if len(seeds) >= 2:
         gaps = [seeds[i + 1] - seeds[i] for i in range(len(seeds) - 1)]
-        pitch = _median([g for g in gaps if 4 <= g <= card_w * 0.2] or gaps)
+        good = [g for g in gaps if card_w * 0.03 <= g <= card_w * 0.2]
+        pitch = _median(good) if good else bean_pitch
     else:
-        pitch = max(6, card_w * BEAN_PITCH_RATIO)
-    if pitch < 4:
-        pitch = max(6, card_w * BEAN_PITCH_RATIO)
-    floor_lo = max(3, base + 1)              # 回填（宽松）
-    win = max(2, int(pitch * 0.33))
+        pitch = bean_pitch
+    if pitch < card_w * 0.03:
+        pitch = bean_pitch
+    win = max(2, round(pitch * 0.33))
+    # ★ 回填范围向内收 7% 卡宽：豆子水平居中、最多铺到 ±0.4 卡宽，
+    #   而卡片**边框/光晕**正好在格子边缘 —— 不收的话会把边框算成一颗豆
+    #   （实测 4K：满级 5 颗被数成 6 颗）。
+    inset = max(2, round(card_w * 0.07))
+    lo_w, hi_w = lo + inset, hi - inset
     filled = [seeds[0]]
     for direction in (1, -1):
         i, miss = 1, 0
         while miss < 2:
             pos = seeds[0] + direction * i * pitch
-            if pos > hi - 2 or pos < lo + 2:
+            if pos > hi_w or pos < lo_w:
                 break
             a, b = max(lo, int(pos - win)), min(hi, int(pos + win) + 1)
-            if b > a and max(thick[a:b]) >= floor_lo:
+            if b > a and max(thick[a:b]) >= t_walk:
                 filled.append(pos)
                 miss = 0
             else:
                 miss += 1
             i += 1
+    # ★ 上限保护：豆最多铺满卡片可用宽度 —— 实测 10 颗豆（最高等级）只占 0.76 卡宽，
+    #   取 0.82 留一点余量；跑飞的残余（把边框/线当豆）会被这一步截住。
+    cap = max(1, int(round(card_w * 0.82 / pitch)))
+    if len(filled) > cap:
+        filled = filled[:cap]
     return len(filled), sorted(filled)
 
 
@@ -183,24 +231,50 @@ def _cell_ink(thick, cx, card_w, W):
     return i_f, l_f, (i_f >= INKED_MIN and l_f >= LINE_MIN)
 
 
-def detect_pips(img: Image.Image) -> list[dict]:
-    """检测装备区每一行的豆数。
+def _scan(img):
+    """扫描「豆子行带 + 每行的卡片段」（只用于估计尺度；正式检测走另一遍）。
 
-    返回（按 y 从小到大，即游戏里从上到下）：
-        [{"row": 1, "counts": [c1, c2, c3, c4], "is_inventory": False}, ...]
-    `counts[i]` 是该行第 i+1 列的亮豆数（= 该卡等级；0 = 0 级）。
-    空列表 = 未能检测（图太小 / 不是配卡界面）。
+    返回 [{"band": (y0, y1), "known": [列中心…], "widths": [...]}, ...]
     """
-    if img.width < MIN_WIDTH_FOR_PIPS:
-        return []
-    img = img.convert("RGB")
     W, H = img.size
     mask = lit_mask(img)
     mb = mask.tobytes()
     rowcount = [mb[y * W:(y + 1) * W].count(255) for y in range(H)]
+    out = []
+    for (ra, rb) in _find_bands(rowcount):
+        pad = max(4, rb - ra)
+        y0, y1 = max(0, ra - pad), min(H, rb + pad)
+        thick = _col_thickness(mask, y0, y1)
+        nz = [x for x in range(W) if thick[x] > 0]
+        if len(nz) < 8:
+            continue
+        segs = _contig(nz, gap=3, min_w=max(30, W * 0.02))
+        if not segs:
+            segs = _contig(nz, gap=6, min_w=max(6, W * 0.004))
+        if not segs:
+            continue
+        out.append({"band": (ra, rb),
+                    "known": [round((a + b) / 2) for a, b in segs],
+                    "widths": [b - a + 1 for a, b in segs]})
+    return out
 
+
+def _card_w_hint(rows, W):
+    """由「够宽」的段估计卡片宽（面板进度条/徽章那类杂散段会被门槛滤掉）。
+
+    返回 0 = 量不出来（整图没有满级线，全是窄豆簇）。
+    """
+    exp = W * CARD_W_OF_W
+    wide = [w for r in rows for w in r["widths"] if w >= exp * 0.5]
+    return _median(wide)
+
+
+def _rows_from_mask(img, mask, W, H):
+    """按给定掩码扫描装备区行（行带 → 卡片段 → 列位置/宽度 → 是否装备区）。"""
+    exp_w = W * CARD_W_OF_W
+    mb = mask.tobytes()
+    rowcount = [mb[y * W:(y + 1) * W].count(255) for y in range(H)]
     rows = []
-    exp_w = W * CARD_W_OF_W        # 按图宽反推的卡片宽（与分辨率无关）
     for (ra, rb) in _find_bands(rowcount):
         pad = max(4, rb - ra)
         y0, y1 = max(0, ra - pad), min(H, rb + pad)
@@ -219,7 +293,6 @@ def detect_pips(img: Image.Image) -> list[dict]:
             continue
         known = [round((a + b) / 2) for a, b in segs]
         widths = [b - a + 1 for a, b in segs]
-        card_w = _median(widths)
         bf = (ra + rb) / 2 / H
         # ★ 该行是否含**真卡片宽**的段：左侧属性面板的进度条、状态/连击徽章之类
         #   也会产生窄段并被当成一行，它们没有真卡片宽 → 用来把这类杂散行剔掉
@@ -228,8 +301,48 @@ def detect_pips(img: Image.Image) -> list[dict]:
         # 装备区判定：① 上半部分 ② 列数 ≤4 且最左列靠右（救「只截装备区」的部分截图）
         is_eq = (bf < INV_BF) or (len(known) <= CARD_COLS and min(known) > W * 0.25)
         rows.append({"band": (ra, rb), "bf": bf, "thick": thick,
-                     "known": known, "widths": widths, "card_w": card_w,
+                     "known": known, "widths": widths,
+                     "card_w": _median(widths),
+                     "img": img,          # 供暖色掩码兜底重算该行的厚度
                      "has_wide": has_wide, "is_eq": is_eq and has_wide})
+    return rows
+
+
+def detect_pips(img: Image.Image) -> list[dict]:
+    """检测装备区每一行的豆数。
+
+    返回（按 y 从小到大，即游戏里从上到下）：
+        [{"row": 1, "counts": [c1, c2, c3, c4], "is_inventory": False}, ...]
+    `counts[i]` 是该行第 i+1 列的亮豆数（= 该卡等级；0 = 0 级）。
+    空列表 = 未能检测（图太小 / 不是配卡界面）。
+    """
+    if img.width < MIN_WIDTH_FOR_PIPS:
+        return []
+    img = img.convert("RGB")
+    # ★★ 尺度归一（2026-09-20 用户 4K 报障后加）：本文件所有数字常量
+    #    （豆间距 12、豆厚 ≥5、卡片宽 152、列距 245…）都是 **1920×1080** 实测值。
+    #    4K（3840 宽）会让它们整体失效 —— 实测豆数从 [5,7,3,1] 变 [13,7,8,1]：
+    #    细线在 4K 下也变厚，被当成豆子 → 计数崩 → 对齐无解 → 豆子信号全废
+    #    （用户看到「北风 1 级被判 3 级」）。低分辨率（1280/854）则是反向同理。
+    #    ⇒ 量出卡片宽后，把工作图缩放到卡片宽 = CARD_W_REF(152) 的基准尺度。
+    #    ★ 只**降采样**（卡片比基准大时）—— 放大救不了已经丢掉的细节，反而会把
+    #      1px 的装饰线插值成 2px、越过"豆/线"阈值（实测 1280 放大后会跑飞）。
+    cw0 = _card_w_hint(_scan(img), img.width)
+    if cw0 > CARD_W_REF * 1.05:
+        k = CARD_W_REF / cw0
+        img = img.resize((max(1, round(img.width * k)),
+                          max(1, round(img.height * k))), Image.LANCZOS)
+    W, H = img.size
+    rows = _rows_from_mask(img, lit_mask(img), W, H)
+    if not any(r["is_eq"] for r in rows):
+        # ★ 主掩码（蓝）整图都扫不出装备区 → 换**暖色**掩码重扫一次。
+        #   执刑官那类边框的豆子/能量线是琥珀橙（见 warm_mask），整图会是暖色。
+        warm_rows = _rows_from_mask(img, warm_mask(img), W, H)
+        if any(r["is_eq"] for r in warm_rows):
+            rows = warm_rows
+    if not rows:
+        return []
+    exp_w = W * CARD_W_OF_W
 
     eq_rows = [r for r in rows if r["is_eq"]]
     if not eq_rows:
@@ -304,6 +417,15 @@ def detect_pips(img: Image.Image) -> list[dict]:
     out = []
     for idx, r in enumerate(rows, 1):
         cells = [_count_in_cell(r["thick"], cx, cw_ref, W) for cx in grid]
+        # ★ 兜底：主（蓝）掩码整格数出 0 时，用暖色掩码再数一次 ——
+        #   执刑官那类边框的豆子是琥珀橙（见 warm_mask）。只补 0，不覆盖。
+        if any(c[0] == 0 for c in cells) and r.get("img") is not None:
+            _y0, _y1 = max(0, r["band"][0] - 6), min(r["band"][1] + 6, r["img"].height)
+            _wm = warm_mask(r["img"].crop((0, _y0, W, _y1)))
+            _wb = _wm.tobytes()
+            _wt = [_wb[x::W].count(255) for x in range(W)]
+            cells = [_count_in_cell(_wt, cx, cw_ref, W) if c[0] == 0 else c
+                     for cx, c in zip(grid, cells)]
         inks = [_cell_ink(r["thick"], cx, cw_ref, W) for cx in grid]
         out.append({"row": idx, "band": r["band"],
                     "counts": [c[0] for c in cells],
