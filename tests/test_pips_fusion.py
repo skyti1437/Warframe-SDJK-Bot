@@ -115,6 +115,51 @@ if PROBE.get("压迫点"):
     check("模型没报 row/col 时仍能用豆子定级（不依赖模型位置）",
           rank_of(an_nopos, "压迫点") == 3, str(rank_of(an_nopos, "压迫点")))
 
+# ⑦ ★★ 姿态卡（候选集为空）必须能与普通卡**同排共存**
+#    用户实测（暮斩）：姿态卡「狂风压境」的候选集为空（base_drain 是哨兵 -2），
+#    旧实现要求它只能落在「该行全 0」的格子 → **整张图无解** → 豆子全部作废，
+#    于是「北风 1 级」被判成 3 级、「长时苦难 0 级」被判成 4 级（用户报障）。
+#    现在：候选集为空的卡当**通配**（豆数对不上不代表错位），照常对齐。
+from core.pips import align_rows, pick_rank  # noqa: E402
+
+CANDS = [[],            # 姿态卡（无候选）
+         [3, 5],        # 压迫点 容量 9
+         [7],           # 牺牲斩铁 容量 13
+         [3],           # 剑风 容量 7
+         [1, 3],        # 北风 容量 9
+         [0, 2, 9, 10], # 热病打击 Prime 容量 8
+         [0, 5],        # 一击必杀 容量 6
+         [0, 3, 4],     # 长时苦难 容量 4
+         [0, 1, 5]]     # 肢解 容量 5
+ROWS = [[0, 3, 0, 0], [5, 7, 3, 1], [10, 5, 0, 5]]
+_map = align_rows(CANDS, ROWS)
+check("★ 姿态卡（候选集为空）不再让整图对齐失败", _map is not None, str(_map))
+if _map:
+    check("  对齐结果与真实布局一致（姿态独占第 1 排，其余 4+4）",
+          _map == [(0, 0), (1, 0), (1, 1), (1, 2), (1, 3),
+                   (2, 0), (2, 1), (2, 2), (2, 3)], str(_map))
+    got = [ROWS[r][c] for r, c in _map]
+    check("  由此得到的豆数序列（姿态格取到 0，其等级由行内唯一豆数定）",
+          got == [0, 5, 7, 3, 1, 10, 5, 0, 5], str(got))
+    _sr, _ss = pick_rank(ROWS[0], _map[0][1] + 1, CANDS[0])
+    check("  姿态卡由『行内唯一豆数』定到 3 级（与真值一致）",
+          _sr == 3, f"{_sr} / {_ss}")
+
+# ⑧ 满级线（第三信号）：豆子被那条线「吃掉」一颗时，用线判定满级
+check("★ 满级线：豆数 4 不在候选 [3,5] 里，但该格有贯穿线 → 采信满级 5",
+      pick_rank([4, 0, 0, 0], 1, [3, 5], maxed=[True, False, False, False],
+                max_rank=5) == (5, "满级线"),
+      str(pick_rank([4, 0, 0, 0], 1, [3, 5], maxed=[True, False, False, False],
+                    max_rank=5)))
+check("  没有满级线时不采信（不硬猜）",
+      pick_rank([4, 0, 0, 0], 1, [3, 5], maxed=[False] * 4, max_rank=5)[0] is None,
+      str(pick_rank([4, 0, 0, 0], 1, [3, 5], maxed=[False] * 4, max_rank=5)))
+check("  满级但库中 max_rank 不在候选里 → 不覆盖（剑风那种库错的情形）",
+      pick_rank([4, 0, 0, 0], 1, [3], maxed=[True, False, False, False],
+                max_rank=5)[0] is None,
+      str(pick_rank([4, 0, 0, 0], 1, [3], maxed=[True, False, False, False],
+                    max_rank=5)))
+
 print()
 if FAILED:
     print(f"[FAIL] {len(FAILED)} 项失败: {FAILED}")

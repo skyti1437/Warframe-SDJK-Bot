@@ -27,6 +27,8 @@ except ImportError:  # noqa: BLE001 —— 插件运行本身不需要 yaml，�
         "（插件运行时并不依赖它，仅构建数据用）")
 import glob
 import os
+from pathlib import Path      # ★ 2026-09-20 补：原来漏了这个导入，脚本一跑就
+                              #   NameError（这也是 names 表长期没被校准的原因之一）
 
 WFSIM_DIR = str(Path.home() / "tmp" / "wfsim" / "data" / "mods")
 MODS = os.path.join(os.path.dirname(__file__), os.pardir, "core", "data",
@@ -107,6 +109,58 @@ def rebuild_levels(w_effects, old_levels, max_rank):
     return levels
 
 
+def _wfsim_index():
+    """把 wfsim 的 mod yaml 读成 {小写英文名: dict}。"""
+    out = {}
+    for f in glob.glob(os.path.join(WFSIM_DIR, "**", "*.yaml"), recursive=True):
+        y = load_yaml(f)
+        if isinstance(y, dict) and y.get("name"):
+            out[str(y["name"]).lower()] = y
+    return out
+
+
+def sync_names_table(ours, wf, report):
+    """校准**仅识别表**（``names``）：只改 base_drain / max_rank / polarity。
+
+    ★ 为什么必须做（2026-09-20 用户实测报障）：这张表以前**从没被校准过** ——
+      旧脚本只管 ``mods``（442 条可算卡），而 ``names``（727 条仅识别卡）
+      直接沿用初始抓取值。用户「剑风满级就 3，你这个 5 级哪里来的」就是它：
+      库里 ``reach`` 的 max_rank 是 5、实际 3 → 卡面显示「3/5★非满级」。
+      全量审计（对拍 387 条）发现 **14 条 max_rank 错、4 条 base_drain 错**，
+      其中还包括 `serration`（膛线，5→10）、`hornet strike`（黄蜂螫刺，5→10）。
+
+    ⚠️ 姿态卡在这张表里用 ``base_drain = -2`` 作**哨兵**（``infer_rank`` 靠
+      ``base < 0`` 输出「姿态卡（不参与伤害折算）」、``rank_candidates`` 靠它
+      返回空表）→ 这类条目**整条跳过**，不要用 wfsim 的 0 覆盖掉哨兵。
+    """
+    tbl = ours.get("names") or {}
+    n = 0
+    for key, rec in tbl.items():
+        w = wf.get(str(rec.get("name") or "").lower())
+        if not w:
+            continue
+        b_old = rec.get("base_drain")
+        if isinstance(b_old, int) and b_old < 0:
+            continue                      # 姿态卡哨兵，整条跳过
+        changed = []
+        for field, wkey in (("base_drain", "base_drain"),
+                            ("max_rank", "max_rank"),
+                            ("polarity", "polarity")):
+            new = w.get(wkey)
+            old = rec.get(field)
+            if new is None or new == old:
+                continue
+            if field == "polarity" and isinstance(old, str) \
+                    and old.lower() == str(new).lower():
+                continue
+            changed.append(f"{field} {old}→{new}")
+            rec[field] = new
+        if changed:
+            n += 1
+            report.append(f"[仅识别] {rec.get('zh') or key}: " + "、".join(changed))
+    return n
+
+
 def main(dry_run):
     ours = json.load(open(MODS, encoding="utf-8"))
     mods = ours["mods"]
@@ -150,8 +204,11 @@ def main(dry_run):
         if changed:
             n_change += 1
             report.append(f"{rec.get('zh') or key}: " + "、".join(changed))
+    # ★ 仅识别表（names）也要校准 —— 见 sync_names_table 的说明
+    n_names = sync_names_table(ours, _wfsim_index(), report)
     print("\n".join(report))
-    print(f"—— 共 {n_change} 张卡有变化" + ("（dry-run，未写入）" if dry_run else ""))
+    print(f"—— 共 {n_change} 张可算卡 + {n_names} 张仅识别卡有变化"
+          + ("（dry-run，未写入）" if dry_run else ""))
     if not dry_run:
         json.dump(ours, open(MODS, "w", encoding="utf-8"),
                   ensure_ascii=False, indent=1)

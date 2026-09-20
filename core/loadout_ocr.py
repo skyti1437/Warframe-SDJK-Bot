@@ -152,15 +152,30 @@ def to_pair(x) -> tuple[Optional[float], Optional[float]]:
 
 
 def clean_weapon_name(s) -> str:
-    """把「+ 升级 / 驱魔之刃 [30]」清成「驱魔之刃」。"""
+    """把标题栏里的武器名清干净。
+
+    实测样本（用户 2026-09-20 报障「暮斩显示未能识别」）：
+
+        "+ 升级／暮斩 [30] 3"  →  应当是「暮斩」
+
+    两个坑：① 分隔符是**全角 ／**（U+FF0F），只切 ASCII "/" 会漏；
+    ② 武器等级 [30] 右侧那个**极化次数**（这里是 3）会被读进来，
+    残留在名字尾部 → 精确匹配失败（`find_weapon("暮斩 3")` 查不到，
+    而 `find_weapon("暮斩")` 是好的 → 证明问题只在清洗环节）。
+    """
     t = str(s or "").strip()
+    t = t.replace("／", "/").replace("＼", "\\")     # 全角分隔符
     if "/" in t:                       # 「升级 / 武器名」的固定格式
         t = t.split("/")[-1]
-    t = re.sub(r"^[+＋\-—=\s]*升级\s*[:：]?\s*", "", t)  # 「升级:武器名」
-    t = re.sub(r"[（(\[]\s*\d+\s*[)）\]]", "", t)   # 去掉 [30] / (30)
+    t = re.sub(r"^[+＋\-—=\s]*升\s*级\s*[:：]?\s*", "", t)  # 「升级:武器名」
+    # 段位/等级方括号：半角、全角、中文书名号式括号都要认
+    t = re.sub(r"[（(\[【〔]\s*\d+\s*[)）\]】〕]", "", t)
     t = re.sub(r"等级\s*\d+\s*$", "", t)            # 「等级 30」后缀（新版 UI）
     t = re.sub(r"^[+＋\-—=\s]+", "", t)
-    return t.strip(" +·|/").strip()
+    # ★ 尾部孤立的 1~2 位数字 = 标题栏的**极化次数**（不是武器名的一部分）。
+    #   要求前面有空白或分隔符，避免切坏「MK1-布莱顿」这类本就带数字的名字。
+    t = re.sub(r"[\s·|/]+\d{1,2}\s*$", "", t)
+    return t.strip(" +·|/／").strip()
 
 
 def parse_vision_json(text: str) -> dict:
@@ -620,7 +635,41 @@ _ADD_FIELDS = ("base_dmg", "multishot", "crit_chance", "crit_dmg", "fire_rate",
                "crit_per_combo", "status_per_combo", "dmg_per_status")
 
 
-def _pips_rank(pos, pips_rows: Optional[list]) -> tuple[Optional[int], str]:
+def drain_branch(rec: dict, rank: Optional[int],
+                 drain: Optional[int]) -> str:
+    """由 (基础容量, 等级, 卡面容量) 反查**极性分支**，返回可读说明。
+
+    规则（wiki /w/Polarity，与 ``infer_rank`` 同一套）：
+      · 无加成     ``drain = base + rank``
+      · 匹配减半   ``drain = ceil((base + rank) / 2)``   —— 卡面数字显示绿色
+      · 极性不合   ``drain = round((base + rank) * 1.25)`` —— 卡面数字显示红色
+
+    ★ 为什么由**算术反查**而不是采信模型读的颜色（2026-09-20 用户报障）：
+      实测模型颜色读数不可靠（同一张「北风」实际是**红色 9**，模型报「白」；
+      「肢解」实际绿 5 模型报白；「牺牲斩铁」实际白 13 模型报绿）。
+      而等级一旦由豆子确定，(base, rank, drain) 三个数就能**唯一**定出分支 ——
+      用户要的「容量要求增加 25% 没有说明」正是这么补上的。
+    返回空串表示无加成（无需说明）。
+    """
+    base, r = rec.get("base_drain"), rank
+    if base is None or r is None or drain is None:
+        return ""
+    base, r = int(base), int(r)
+    if base < 0:
+        return ""
+    plain = base + r
+    if drain == plain:
+        return ""
+    if drain == math.ceil(plain / 2):
+        return "槽位极性匹配（容量减半）"
+    if drain == int(plain * 1.25 + 0.5):
+        return "极性不合（容量 +25%）"
+    return ""
+
+
+def _pips_rank(pos, pips_rows: Optional[list],
+               candidates: Optional[list] = None,
+               max_rank: Optional[int] = None) -> tuple[Optional[int], str]:
     """按**已对齐的位置**取豆数（`pos` 由 `align_rows` 给出）。
 
     ★ 刻意不从模型报的 `row`/`col` 直接取 —— 端到端实测（2026-09-20）
@@ -634,10 +683,13 @@ def _pips_rank(pos, pips_rows: Optional[list]) -> tuple[Optional[int], str]:
     eq = [r for r in pips_rows if not r.get("is_inventory")]
     if not (0 <= r_i < len(eq)):
         return None, ""
-    counts = eq[r_i].get("counts") or []
+    row = eq[r_i]
+    counts = row.get("counts") or []
     if not (0 <= c_i < len(counts)):
         return None, ""
-    return counts[c_i], "aligned"
+    return pips_engine.pick_rank(counts, c_i + 1, candidates or [],
+                                 maxed=row.get("maxed") or [],
+                                 max_rank=max_rank)
 
 
 def analyze(ocr: dict, pips_rows: Optional[list] = None) -> dict:
@@ -741,7 +793,9 @@ def analyze(ocr: dict, pips_rows: Optional[list] = None) -> dict:
             rank, why = infer_rank(rec, drain,
                                     raw.get("color") or raw.get("drain_color"))
             # ★ 豆子（第二信号）：亮豆数 = 实际等级，与容量反推互相印证
-            _pr, _psrc = _pips_rank(pips_map.get(_mi), pips_rows)
+            _pr, _psrc = _pips_rank(pips_map.get(_mi), pips_rows,
+                                    rank_candidates(rec, drain),
+                                    rec.get("max_rank"))
             if _pr is not None:
                 out["pips"]["used"] += 1
                 if rank is None:
@@ -753,6 +807,13 @@ def analyze(ocr: dict, pips_rows: Optional[list] = None) -> dict:
                 else:
                     why = f"容量与豆子一致（{_pr} 级，{_psrc}）"
                 rank = _pr
+            # ★ 极性分支说明（2026-09-20 用户报障「容量要求增加 25% 没说明」）：
+            #   等级定下来后 (基础容量, 等级, 卡面容量) 能**唯一**反查出分支，
+            #   不必采信模型读的颜色（实测它常读错：北风实际红 9 报白、
+            #   肢解实际绿 5 报白）。容量反推的文案里已含同样字串时跳过，避免重复。
+            _br = drain_branch(rec, rank, drain)
+            if _br and _br not in why:
+                why = f"{why}；{_br}" if why else _br
             item["rank"], item["note"] = rank, why
             eff = effect_at(rec, rank) if rec.get("calculable") else {}
             item["effect"] = eff

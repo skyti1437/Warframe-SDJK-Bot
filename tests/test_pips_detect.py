@@ -38,21 +38,29 @@ CARD_H = 140
 PITCH = 12
 
 
-def make_shot(pips, top=300, W=1920, H=1080, cols=COLS):
-    """合成一张截图：每列给定豆数（0 = 0 级，只画细线不画豆）。"""
+def make_shot(pips, top=300, W=1920, H=1080, cols=COLS, lines="all"):
+    """合成一张截图：每列给定豆数（0 = 0 级，只画细线不画豆）。
+
+    `lines`：画「与卡片等宽的装饰细线」的列 ——
+      "all"（默认，模拟满级卡多的界面）/ "none"（全非满级）/ 列下标集合。
+    ★ 实测（2026-09-20）：那条线**只在满级卡上出现**（非满级卡只有菱形豆），
+      它是判定满级的第三信号，所以生成器要能分别模拟这两种界面。
+    """
     im = Image.new("RGB", (W, H), BG)
     d = ImageDraw.Draw(im)
-    for cx, n in zip(cols, pips):
+    for i, (cx, n) in enumerate(zip(cols, pips)):
         x0, y0 = cx - CARD_W // 2, top
         x1, y1 = cx + CARD_W // 2, top + CARD_H
         d.rectangle([x0, y0, x1, y1], fill=CARD, outline=(120, 100, 60))
         ly = y1 - 24
-        d.rectangle([x0, ly, x1, ly + 1], fill=LIT)      # 装饰细线（与卡等宽）
+        want = (lines == "all") or (lines != "none" and i in lines)
+        if want:
+            d.rectangle([x0, ly, x1, ly + 1], fill=LIT)      # 装饰细线（与卡等宽）
         if n > 0:
             total = (n - 1) * PITCH
             sx = cx - total // 2
-            for i in range(n):
-                px = sx + i * PITCH
+            for i2 in range(n):
+                px = sx + i2 * PITCH
                 d.polygon([(px, ly - 5), (px + 4, ly), (px, ly + 5), (px - 4, ly)],
                           fill=LIT)
     return im
@@ -64,6 +72,12 @@ def counts_of(im):
     if not eq:
         return None
     return eq[0]["counts"]
+
+
+def maxed_of(im):
+    res = detect_pips(im)
+    eq = [r for r in res if not r["is_inventory"]]
+    return eq[0]["maxed"] if eq else None
 
 
 try:
@@ -95,7 +109,19 @@ try:
     check("仓库区（下半 + 7 格）被标为 is_inventory",
           bool(rows) and all(r["is_inventory"] for r in rows), str(rows))
 
-    # ⑥ 容错：全黑 / 极小图不应抛异常
+    # ⑥ 满级线（第三信号，用户 2026-09-20 实测指出）：
+    #    满级卡底部有一条**横贯全卡**的亮线，非满级卡没有。
+    got = maxed_of(make_shot([5, 5, 5, 5], lines="all"))
+    check(f"满级线：全都有线 → maxed 全 True  {got}", got == [True] * 4, str(got))
+
+    got = maxed_of(make_shot([1, 5, 0, 3], lines=(0,)))
+    check(f"满级线：只有第 1 格有线 → 只标第 1 格  {got}",
+          got == [True, False, False, False], str(got))
+
+    got = maxed_of(make_shot([1, 5, 0, 3], lines="none"))
+    check(f"满级线：全都没线 → maxed 全 False  {got}", got == [False] * 4, str(got))
+
+    # ⑦ 容错：全黑 / 极小图不应抛异常
     try:
         detect_pips(Image.new("RGB", (1920, 1080), (0, 0, 0)))
         detect_pips(Image.new("RGB", (300, 200), BG))
