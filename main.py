@@ -37,6 +37,7 @@ try:  # 允许脱离 AstrBot 直接跑单元测试
     from .core import calculators as calc
     from .core import damage_calc as dc
     from .core import loadout_ocr as lo
+    from .core import pips as pips_engine
     from .core.api_client import (WarframeAPIError, WarframeClient,
                               parse_url_list, fuzzy_hits)
     from .core import arbi as _arbi
@@ -58,6 +59,7 @@ except ImportError:  # pragma: no cover
     from core import calculators as calc
     from core import damage_calc as dc
     from core import loadout_ocr as lo
+    from core import pips as pips_engine
     from core import de_worldstate as de_ws
     from core.api_client import (WarframeAPIError, WarframeClient,
                              parse_url_list, fuzzy_hits)
@@ -1834,7 +1836,7 @@ class WarframeSDJK(Star):
                                   "可先重发一次；仍失败请查看机器人日志里的"
                                   "「配卡识别」条目（会写明是哪个渠道、什么原因）")
 
-        an = lo.analyze(ocr)
+        an = lo.analyze(ocr, ocr.get("_pips_rows"))
         lines = lo.card_lines(an)
         # 认不全时把原始识别结果附上：否则用户只看到「没认出来」，无法判断是图的问题还是库的问题
         if not an.get("ok"):
@@ -2843,6 +2845,42 @@ class WarframeSDJK(Star):
         return data
 
     @staticmethod
+    @staticmethod
+    async def _detect_pips(image_url: str) -> list:
+        """豆子（卡片底部的等级刻度）像素检测 —— 识卡等级的**第二信号**。
+
+        与「容量数字反推」互相独立（一个读数字、一个数像素），两者一致才采信。
+        为什么需要：容量反推常有多解（私法补给 容量 5 → 1白/5绿/0红），
+        旧策略「取最高」会把 0 级卡判成满级；豆子能唯一定出答案。
+
+        ⚠️ 必须传**原图**（在 `_fit_scan_image` 缩放**之前**）—— 检测本身是尺度
+             自适应的，但缩放会引入插值模糊，直接影响豆子边界判定。
+        ⚠️ 纯 CPU 活，必须 to_thread（直调会卡住整个事件循环 → 整台机器人变卡）。
+        ⚠️ 任何失败都返回空表：豆子只是**增强信号**，绝不能拖垮识卡主流程。
+        """
+        if not image_url or not image_url.startswith("data:"):
+            return []
+
+        def _run() -> list:
+            import base64
+            import io
+
+            from PIL import Image
+            _head, b64 = image_url.split(",", 1)
+            img = Image.open(io.BytesIO(base64.b64decode(b64)))
+            return pips_engine.detect_pips(img)
+
+        try:
+            rows = await asyncio.to_thread(_run)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("[sdjk] 豆子检测失败（不影响识卡）：%s", exc)
+            return []
+        if rows:
+            eq = [r for r in rows if not r.get("is_inventory")]
+            logger.info("[sdjk] 豆子检测：装备区 %d 行，豆数 %s",
+                        len(eq), [r.get("counts") for r in eq])
+        return rows
+
     def _fit_scan_image(image_url: str, min_width: int = 1600,
                         max_width: int = 1600) -> str:
         """把配卡截图规整到「能读清又不过大」的宽度区间：**小图放大、大图缩小**。
@@ -2899,8 +2937,16 @@ class WarframeSDJK(Star):
         最多试 max_attempts 次；仍不过时追加一次「只读伤害栏」的聚焦
         识别（任务越窄读得越准），把干净的行拼接回去再验。
         """
+        # ★ 豆子检测要在**缩放前**的原图上做（_detect_pips 的说明）
+        pips_rows = await self._detect_pips(image_url)
         image_url = self._fit_scan_image(image_url)
         best: Optional[tuple[int, dict]] = None   # (失败项数, ocr)
+
+        def _finish(o: Optional[dict]) -> Optional[dict]:
+            """把豆子结果挂到返回的 ocr 上，供上层复用（免得再检测一次）。"""
+            if o is not None:
+                o["_pips_rows"] = pips_rows
+            return o
 
         def _score(ocr: dict):
             """面板校验打分：返回 (失败项数或 None, analyze 结果)。
@@ -2908,7 +2954,7 @@ class WarframeSDJK(Star):
             None = 武器没认出（重试也难，直接交出去）。
             「0 张卡」或「面板全没读到」≠ 通过 —— 空结构必须算最差。
             """
-            an = lo.analyze(ocr)
+            an = lo.analyze(ocr, pips_rows)
             if not an.get("weapon"):
                 return None, an
             checks = an.get("checks") or []
@@ -2962,10 +3008,10 @@ class WarframeSDJK(Star):
                         continue
                     bad, an = _score(ocr)
                     if bad is None:
-                        return ocr        # 武器都没认出 → 直接交出去
+                        return _finish(ocr)   # 武器都没认出 → 直接交出去
                     if bad == 0:
                         logger.info("[sdjk] 配卡识别校验全过，收工")
-                        return ocr
+                        return _finish(ocr)
                     logger.warning("[sdjk] 配卡识别一份结果有 %d 项校验不过", bad)
                     if best is None or bad < best[0]:
                         best = (bad, ocr)
@@ -2979,12 +3025,12 @@ class WarframeSDJK(Star):
         rows = await self._read_damage_rows(image_url)
         if rows:
             ocr2 = lo.splice_damage_rows(ocr, rows)
-            an2 = lo.analyze(ocr2)
+            an2 = lo.analyze(ocr2, pips_rows)
             bad2 = sum(1 for c in (an2.get("checks") or []) if not c["ok"])
             if bad2 < bad:
                 logger.warning("[sdjk] 聚焦读行修正：校验失败 %d → %d", bad, bad2)
-                return ocr2
-        return ocr
+                return _finish(ocr2)
+        return _finish(ocr)
 
     _ROWS_PROMPT = (
         "只读这张 Warframe 截图左侧「伤害」栏里的每一行数值，"

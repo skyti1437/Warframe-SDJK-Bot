@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Optional
 
 from . import damage_calc as dc
+from . import pips as pips_engine
 
 _DATA = Path(__file__).resolve().parent / "data"
 _payload: dict = {}
@@ -75,6 +76,9 @@ VISION_PROMPT = """这是 Warframe（星际战甲）游戏内武器升级界面�
 
 要求：
 1. mods 必须列出**全部卡片**，包括最上方那张最大的姿态卡；
+   ★ **只列上半部分「已装备区」的卡片**，图片下半部分「仓库」里未装备的 MOD
+     一律不要列。顺序按**从上到下、同一行内从左到右** —— 这个顺序要和像素检测
+     的网格对齐（用于互相印证等级），别打乱。
 2. drain 只填整数，不要带箭头、百分号、上标等符号；
 3. **damage_rows 是重点，一条都不能漏**：左侧「伤害」栏里每一行都要给 ——
    冲击 / 穿刺 / 切割 / 各元素行（如 毒素、爆炸）/ 总计。
@@ -315,6 +319,31 @@ def infer_rank(mod: dict, drain: Optional[int],
                 return best[0], (f"⚠歧义：按颜色（{hint}）应为 {color_best[0]} 级，"
                                  f"按满级假设取 {best[0]} 级（{best[1] or '无加成'}）")
     return best
+
+
+def rank_candidates(mod: dict, drain: Optional[int]) -> list[int]:
+    """容量反推的**全部**可能等级（穷举 0..max_rank，不分极性三态）。
+
+    用途：与「豆子」像素检测**交叉印证** —— 豆数必须落在候选集里才敢采信
+    （`core/pips.py::pick_rank`）。`infer_rank` 是「选一个」（含满级假设与颜色
+    提示），这里要的是「可能有哪些」，两者用途不同、别合并。
+    姿态卡（`base_drain < 0`）返回空表。
+    """
+    base, max_rank = mod.get("base_drain"), mod.get("max_rank")
+    if drain is None or base is None or max_rank is None:
+        return []
+    base, max_rank = int(base), int(max_rank)
+    if base < 0:
+        return []
+    out = set()
+    for r in range(max_rank + 1):
+        if base + r == drain:                        # 白：无加成
+            out.add(r)
+        if math.ceil((base + r) / 2) == drain:       # 绿：极性匹配，消耗减半
+            out.add(r)
+        if int((base + r) * 1.25 + 0.5) == drain:    # 红：极性不合 +25%
+            out.add(r)
+    return sorted(out)
 
 
 def effect_at(mod: dict, rank: Optional[int]) -> dict:
@@ -591,8 +620,39 @@ _ADD_FIELDS = ("base_dmg", "multishot", "crit_chance", "crit_dmg", "fire_rate",
                "crit_per_combo", "status_per_combo", "dmg_per_status")
 
 
-def analyze(ocr: dict) -> dict:
-    """把视觉识别结果转成结构化分析（不依赖 AstrBot，可离线测试）。"""
+def _pips_rank(pos, pips_rows: Optional[list]) -> tuple[Optional[int], str]:
+    """按**已对齐的位置**取豆数（`pos` 由 `align_rows` 给出）。
+
+    ★ 刻意不从模型报的 `row`/`col` 直接取 —— 端到端实测（2026-09-20）
+      完整提示词下模型的 row/col 很不可靠（暮斩那张：北风/长时苦难/肢解
+      三张全报错，取到了别行的豆数）。位置改由「卡顺序 + 容量候选集约束」
+      整体对齐得出（`core.pips.align_rows`），只有全部卡都能自洽匹配时才采用。
+    """
+    if not pips_rows or pos is None:
+        return None, ""
+    r_i, c_i = pos
+    eq = [r for r in pips_rows if not r.get("is_inventory")]
+    if not (0 <= r_i < len(eq)):
+        return None, ""
+    counts = eq[r_i].get("counts") or []
+    if not (0 <= c_i < len(counts)):
+        return None, ""
+    return counts[c_i], "aligned"
+
+
+def analyze(ocr: dict, pips_rows: Optional[list] = None) -> dict:
+    """把视觉识别结果转成结构化分析（不依赖 AstrBot，可离线测试）。
+
+    `pips_rows`（可选）= `core.pips.detect_pips()` 的结果，即**豆子**（卡片底部
+    菱形等级刻度）的像素检测值。它作为**第二独立信号**参与定级：
+
+        rank = 容量数字反推  ←→  亮豆数
+
+    两条路径一致才敢改；豆数落在 `rank_candidates()` 里（即与容量解吻合）
+    才采信。为什么需要它：容量反推常有多解（私法补给 容量 5 → 1白/5绿/0红），
+    旧策略「取最高」会把 0 级卡判成满级；豆子能唯一定出答案，而且它与容量
+    反推**互相独立**（一个读数字、一个数像素），一致性本身就是强证据。
+    """
     out: dict = {
         "ok": False, "weapon": None, "weapon_query": "", "alts": [],
         "raw_mods": ocr.get("mods") or [], "mods": [], "unknown": [],
@@ -600,6 +660,10 @@ def analyze(ocr: dict) -> dict:
         "panel_base": "",
         "checks": [], "notes": [], "errors": [],
         "capacity": str(ocr.get("capacity") or "").strip(),
+        # ★ 豆子（第二信号）统计：可用行数 / 实际采纳张数 / 与容量反推冲突张数
+        "pips": {"rows": len([r for r in (pips_rows or [])
+                              if not r.get("is_inventory")]),
+                 "used": 0, "conflict": 0},
     }
 
     # ---- 伤害行归一：三段式 [标签, 基础, 最终] → [标签, "基础>最终"] ----
@@ -634,11 +698,30 @@ def analyze(ocr: dict) -> dict:
     else:
         out["errors"].append("没读到武器名")
 
+    # ---- 豆子（第二信号）整体对齐 ----
+    # ★ 必须在逐卡循环**之前**做：对齐需要「全部卡的候选集」这个全局信息。
+    #   位置不采信模型报的 row/col（端到端实测其不可靠），而由
+    #   「卡顺序 + 候选集约束」反推（见 core.pips.align_rows 的说明）。
+    pips_map: dict = {}
+    if pips_rows:
+        _cands: list = []
+        for _r0 in out["raw_mods"]:
+            if not isinstance(_r0, dict):
+                _cands.append([])
+                continue
+            _rec0, _ = match_mod(str(_r0.get("name") or "").strip())
+            _cands.append(rank_candidates(_rec0, to_int(_r0.get("drain")))
+                          if _rec0 else [])
+        _eq = [r for r in pips_rows if not r.get("is_inventory")]
+        _al = pips_engine.align_rows(_cands, [r.get("counts") or [] for r in _eq])
+        if _al:
+            pips_map = dict(enumerate(_al))
+
     # ---- 逐卡识别 ----
     totals: dict = {k: 0.0 for k in _ADD_FIELDS}
     totals.update({"elements": {}, "physical": {}, "uncalc": [], "no_rank": [],
                    "throw_max_stacks": 0})
-    for raw in out["raw_mods"]:
+    for _mi, raw in enumerate(out["raw_mods"]):
         if not isinstance(raw, dict):
             continue
         name = str(raw.get("name") or "").strip()
@@ -657,6 +740,19 @@ def analyze(ocr: dict) -> dict:
             })
             rank, why = infer_rank(rec, drain,
                                     raw.get("color") or raw.get("drain_color"))
+            # ★ 豆子（第二信号）：亮豆数 = 实际等级，与容量反推互相印证
+            _pr, _psrc = _pips_rank(pips_map.get(_mi), pips_rows)
+            if _pr is not None:
+                out["pips"]["used"] += 1
+                if rank is None:
+                    why = f"豆子计数 {_pr} 级（{_psrc}）；容量反推无解"
+                elif _pr != rank:
+                    out["pips"]["conflict"] += 1
+                    why = (f"豆子计数 {_pr} 级（{_psrc}）—— 容量反推本为 {rank} 级，"
+                           f"已采信豆子（容量有多种解读时以豆子为准）")
+                else:
+                    why = f"容量与豆子一致（{_pr} 级，{_psrc}）"
+                rank = _pr
             item["rank"], item["note"] = rank, why
             eff = effect_at(rec, rank) if rec.get("calculable") else {}
             item["effect"] = eff
