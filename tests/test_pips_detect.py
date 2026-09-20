@@ -39,7 +39,8 @@ CARD_H = 140
 PITCH = 12
 
 
-def make_shot(pips, top=300, W=1920, H=1080, cols=COLS, lines="all", lit=LIT):
+def make_shot(pips, top=300, W=1920, H=1080, cols=COLS, lines="all", lit=LIT,
+              bg=BG, card=CARD):
     """合成一张截图：每列给定豆数（0 = 0 级，只画细线不画豆）。
 
     `lines`：画「与卡片等宽的装饰细线」的列 ——
@@ -47,13 +48,14 @@ def make_shot(pips, top=300, W=1920, H=1080, cols=COLS, lines="all", lit=LIT):
     ★ 实测（2026-09-20）：那条线**只在满级卡上出现**（非满级卡只有菱形豆），
       它是判定满级的第三信号，所以生成器要能分别模拟这两种界面。
     `lit`：豆/线的颜色 —— 默认蓝色；执刑官那类边框是**琥珀橙**（见 core.pips.warm_mask）。
+    `bg` / `card`：背景与卡面底色 —— 用来模拟**浅色 UI 主题**（奥罗金浅白）。
     """
-    im = Image.new("RGB", (W, H), BG)
+    im = Image.new("RGB", (W, H), bg)
     d = ImageDraw.Draw(im)
     for i, (cx, n) in enumerate(zip(cols, pips)):
         x0, y0 = cx - CARD_W // 2, top
         x1, y1 = cx + CARD_W // 2, top + CARD_H
-        d.rectangle([x0, y0, x1, y1], fill=CARD, outline=(120, 100, 60))
+        d.rectangle([x0, y0, x1, y1], fill=card, outline=(120, 100, 60))
         ly = y1 - 24
         want = (lines == "all") or (lines != "none" and i in lines)
         if want:
@@ -158,9 +160,23 @@ try:
     check(f"★ 金框卡的暖色卡面不被当豆（该格应为 0）→ {got}",
           got == [5, 0, 5, 1], str(got))
 
-    # ⑪ 反过来：整排都没有蓝豆（纯执刑官排）时，暖色兜底仍要工作
+    # ⑪ 反过来：整排都没有蓝豆（纯执刑官排）时，**整图**暖色重扫仍要工作
+    #    （★ 逐格暖色兜底已在 2026-09-20 删掉 —— 它会把金框卡的卡面美术当成豆）
     got = counts_of(make_shot([5, 3, 0, 5], lit=LIT_AMBER))
-    check(f"纯琥珀排仍走暖色兜底 → {got}", got == [5, 3, 0, 5], str(got))
+    check(f"纯琥珀排仍走（整图）暖色兜底 → {got}", got == [5, 3, 0, 5], str(got))
+
+    # ⑫ 主题/背景鲁棒性（用户方案文档 TC-01「奥罗金浅白主题」）：
+    #    实测结论 —— **不需要**「暗岛掩膜」。因为主掩码要求「蓝通道显著高于红通道」，
+    #    白底(245,243,238)、灰卡这类低饱和背景**天然不满足**，不会被误当豆；
+    #    而卡片内部（无论主题）仍是深色、豆子仍是蓝的。
+    #    这里用 4 种背景/卡面组合把这条性质钉住。
+    for _bg, _card, _why in (((18, 18, 22), (40, 40, 48), "深色主题（基准）"),
+                             ((245, 243, 238), (40, 40, 48), "浅白主题 + 深色卡"),
+                             ((245, 243, 238), (245, 243, 238), "浅白主题 + 浅色卡（最坏）"),
+                             ((245, 243, 238), (220, 218, 214), "浅白主题 + 灰白卡")):
+        _im = make_shot([5, 0, 5, 1], bg=_bg, card=_card)
+        _got = counts_of(_im)
+        check(f"主题鲁棒：[{_why}] → {_got}", _got == [5, 0, 5, 1], str(_got))
 finally:
     pass
 
