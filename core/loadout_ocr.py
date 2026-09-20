@@ -953,10 +953,21 @@ def _panel_checks(weapon: Optional[dict], totals: dict, panel: dict,
 # 卡面
 # ---------------------------------------------------------------------------
 def _rank_text(item: dict) -> str:
-    """MOD 条目右侧的「容量 → 等级」描述。"""
+    """MOD 条目右侧的「容量 → 等级」描述。
+
+    ★ `容量0?` 的含义（2026-09-20 用户反馈「出现了个容量 0」后加）：
+    库里**确有** base_drain=0 的卡（survival instinct / transfusion），
+    它们**能正常反推出等级** → 会显示成 `容量0→0/3`。所以
+    「drain 读到 0 **且** rank 反推不出来」基本只可能是**误读**（把该位置读成了 0）。
+    这时标成 `容量0?` 而不是 `容量0`，避免让人以为该卡容量真是 0；
+    等级未知的 MOD 其效果按满级计入（见 effect_at），不会算崩。
+    """
     drain = item.get("drain")
-    head = f"容量{int(drain)}" if drain is not None else "容量?"
     rank, max_rank = item.get("rank"), item.get("max_rank")
+    if drain == 0 and rank is None:
+        head = "容量0?"
+    else:
+        head = f"容量{int(drain)}" if drain is not None else "容量?"
     if rank is None:
         return head
     if max_rank:

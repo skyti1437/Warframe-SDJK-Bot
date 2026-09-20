@@ -543,6 +543,27 @@ check("拉特昂：面板校验全过（行和自检兜住漏读）",
 check("行和自检：唯一校验项 = 总计 = Σ行×(1+多重)",
       any(c["label"] == "行和×多重" for c in _an_lat.get("checks") or []))
 
+# ---------------------------------------------------------------------------
+# 卡面「容量 → 等级」文案（2026-09-20 用户反馈「出现了个容量 0」后加）
+#   库里确有 base_drain=0 的卡（survival instinct / transfusion），它们能正常
+#   反推出等级；所以「读到 0 且等级反推不出」= 误读，应标 `容量0?` 而不是 `容量0`。
+# ---------------------------------------------------------------------------
+check("★ 误读成 0 且等级反推失败 → 标 `容量0?`（不假装是合法 0）",
+      lo._rank_text({"drain": 0, "rank": None, "max_rank": 5}) == "容量0?",
+      lo._rank_text({"drain": 0, "rank": None, "max_rank": 5}))
+check("base_drain=0 的卡能反推出等级 → 正常显示 `容量0→…`",
+      lo._rank_text({"drain": 0, "rank": 3, "max_rank": 3}) == "容量0→3/3满级",
+      lo._rank_text({"drain": 0, "rank": 3, "max_rank": 3}))
+check("正常卡：容量 11 满级 5",
+      lo._rank_text({"drain": 11, "rank": 5, "max_rank": 5}) == "容量11→5/5满级",
+      lo._rank_text({"drain": 11, "rank": 5, "max_rank": 5}))
+check("非满级标注仍保留",
+      lo._rank_text({"drain": 9, "rank": 3, "max_rank": 5}) == "容量9→3/5★非满级",
+      lo._rank_text({"drain": 9, "rank": 3, "max_rank": 5}))
+check("完全没读到容量 → `容量?`",
+      lo._rank_text({"drain": None, "rank": None}) == "容量?", 
+      lo._rank_text({"drain": None, "rank": None}))
+
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")
     sys.exit(1)
