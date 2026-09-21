@@ -307,44 +307,44 @@
     {
      "en": "Coda Hema",
      "cn": "终幕·血肢",
-     "element": null,
-     "bonus": null
+     "element": "Heat",
+     "bonus": 27.4
     },
     {
      "en": "Coda Sporothrix",
      "cn": "终幕·孢丝感染枪",
-     "element": null,
-     "bonus": null
+     "element": "Heat",
+     "bonus": 43.8
     },
     {
      "en": "Coda Catabolyst",
      "cn": "终幕·异化者",
-     "element": null,
-     "bonus": null
+     "element": "Heat",
+     "bonus": 25.0
     },
     {
      "en": "Coda Pox",
      "cn": "终幕·脓痘",
-     "element": null,
-     "bonus": null
+     "element": "Radiation",
+     "bonus": 30.9
     },
     {
      "en": "Dual Coda Torxica",
      "cn": "终幕·孢蚀双枪",
-     "element": null,
-     "bonus": null
+     "element": "Heat",
+     "bonus": 25.1
     },
     {
      "en": "Coda Mire",
      "cn": "终幕·米尔",
-     "element": null,
-     "bonus": null
+     "element": "Magnetic",
+     "bonus": 26.2
     },
     {
      "en": "Coda Motovore",
      "cn": "终幕·噬轮",
-     "element": null,
-     "bonus": null
+     "element": "Heat",
+     "bonus": 38.8
     }
    ],
    [
@@ -393,8 +393,8 @@
    ]
   ],
   "_note": "Eleanor Nightingale 的 Coda 武器按 A/B 两批轮换（每批 7 把），每 4 天 00:00 UTC 换批；2026-09-14 实测为 A 批，换批边界 09-17 00:00 UTC（比 Ergo Glast 的元素加成重生成晚 24 小时，两者不是同一锚点）；批次表取自 wiki.warframe.com/Reset",
-  "valence_snapshot": "2026-09-20T01:25:00+00:00",
-  "valence_source": "wiki.warframe.com/w/Reset 的 Current Valence Bonuses（玩家上报，无官方 API）；插件侧访问该站被 Cloudflare 拦截，所以是**快照**，每 4 天轮换后需要刷新"
+  "valence_snapshot": "2026-09-21T05:50:00+00:00",
+  "valence_source": "wiki「Reset」页玩家上报值（FlareSolverr 抓取 2026-09-21 13:50 GMT+8，Eleanor 售 Batch A）；无官方 API，以游戏内商店为准"
  },
  "acrichis": {
   "_note": "言录使（Acrithis / Duviri 档案管理员）周常货单。官方周期：**每周一 00:00 UTC** 轮换 5 件 —— wiki《Acrithis》页原文「Resets every Monday 0:00 UTC」并带实时倒计时；《Reset》总表同，且 Update 32.3 已把各商人周常统一到周一（Palladino/Chipper/Teshin 等）。⚠️ DE《Update 33.0》补丁说明里那句「rotating at Sundays at 00:00 UTC」是 2023 年初版、已被后续调整覆盖，不要再引用它。时刻一律以 UTC 判定，卡面按北京时间（UTC+8）展示。",
