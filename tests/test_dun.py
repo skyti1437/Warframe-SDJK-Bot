@@ -176,10 +176,12 @@ async def main() -> None:
           repr(reply.title if reply else None))
     check("带筛选的订阅总数=2", len(obj.subs.all()) == 2)
 
-    # 3) 帮助
+    # 3) 帮助（2026-09-21 起卡片化：实现侧有意移除祖传 text_only=True，与其它
+    #    指令输出一致，渲染失败由 _build_results 自动降级文字——测试跟进对齐）
     reply = await _run_one(obj, "蹲 帮助")
-    check("「蹲 帮助」返回类型列表",
-          reply is not None and reply.text_only and "可蹲类型" in (reply.title or ""),
+    check("「蹲 帮助」返回类型卡片（2026-09-21 改卡片化）",
+          reply is not None and not reply.text_only
+          and "可蹲类型" in (reply.title or ""),
           repr(reply.title if reply else None))
 
     # 4) 未识别类型（不静默降级）
