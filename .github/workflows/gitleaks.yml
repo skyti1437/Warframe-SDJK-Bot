@@ -36,9 +36,12 @@ jobs:
       - name: Install gitleaks
         run: |
           VER=8.24.3
-          curl -sSfL \
-            "https://github.com/gitleaks/gitleaks/releases/download/v${VER}/gitleaks_${VER}_linux_x64.tar.gz" \
-            | tar -xz -C /usr/local/bin gitleaks
+          # ★ 2026-09-21 实测：直连 releases 偶发 504（网关超时），curl|tar 管线一断，
+          #   tar 解压失败 → exit 2 → CI 假红（Scan 步骤根本没执行）。改为先落文件再解压。
+          curl -sSfL --retry 5 --retry-delay 2 --retry-all-errors \
+            -o /tmp/gitleaks.tar.gz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${VER}/gitleaks_${VER}_linux_x64.tar.gz"
+          tar -xzf /tmp/gitleaks.tar.gz -C /usr/local/bin gitleaks
           gitleaks version
 
       # --log-opts 让 gitleaks 扫所有 ref 的全部历史（而不是依赖 push 事件的范围）
