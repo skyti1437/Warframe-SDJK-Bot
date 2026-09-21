@@ -1,4 +1,4 @@
-# AstrBot 插件 · Warframe SDJKBOT v1.0.3（`astrbot_plugin_warframe`）
+# AstrBot 插件 · Warframe SDJKBOT v1.0.4（`astrbot_plugin_warframe`）
 
 一个给 AstrBot 用的 Warframe 工具集：**世界状态 / 市场查价 / 伤害计算与配卡识别 /
 紫卡分析 / 遗物与部件反查 / 玄骸拍卖 / 奸商预测 / 蹲点推送**，

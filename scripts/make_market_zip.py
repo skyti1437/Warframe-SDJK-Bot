@@ -38,10 +38,13 @@ try:
     SKIP_GLOBS = tuple(pr.EXCLUDE_GLOBS)
     SKIP_SOURCE = "dist/package_release.py"
 except Exception:  # noqa: BLE001
-    SKIP_DIRS = {".git", "__pycache__", ".pytest_cache", "runtime", ".workbuddy",
+    # 2026-09-21 阶段 3：与主清单对齐 —— 移除本机宿主平台的工作区目录条目
+    # （stage 内本就不存在该目录，字面量写入公开仓属私有痕迹残留），补
+    # ".zcode"/".archive"（阶段 1 起主清单新增的排除项）。
+    SKIP_DIRS = {".git", "__pycache__", ".pytest_cache", "runtime",
                  ".venv", "venv", "node_modules", ".idea", ".vscode", "dist",
                  ".audit", "kb_src", "_cache", "docs", "outputs", "output",
-                 "fonts"}
+                 "fonts", ".zcode", ".archive"}
     SKIP_FILES = {"deploy.sh", ".DS_Store", ".gitattributes", ".gitignore",
                   "SDJKwfbot_README.md", "wm_ranks.json", "riven_weekly.json",
                   "wiki_disp.json", "package_reverse_searcher_sdjk.py"}

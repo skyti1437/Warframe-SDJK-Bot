@@ -121,13 +121,32 @@ if changelog.exists():
           min([ctext.index(f"## v{v}") for v in ("1.0.2", "1.0.1", "1.0.0")
                if f"## v{v}" in ctext] or [10 ** 9]),
           "版本未按从新到旧排列")
+    _first_ver = re.search(r"^## (v[\d.]+)", ctext, re.M)
+    check("★ CHANGELOG 首条版本 == 当前版本（发版必补首条，2026-09-21 升级为强等）",
+          bool(_first_ver) and _first_ver.group(1) == f"v{CORE_VERSION}",
+          f"首条 {_first_ver.group(1) if _first_ver else '无版本标题'} vs v{CORE_VERSION}")
+
+# ★ 版本联动第五处：README 版本标题（2026-09-21 v1.0.4 发版漏改事故后补，
+#    cab29df/ccc41c8 修复）。工作树 README 与开源 stage 的 README 源首行都带版本号；
+#    漏改会让市场件内 README 停在旧版（用户实测 v1.0.4 市场件里还是 v1.0.3）。
+for _rd, _tag in ((ROOT / "README.md", "工作树 README"),
+                  (ROOT / "dist" / "OPENSOURCE_README.md", "dist/OPENSOURCE_README")):
+    if not _rd.exists():
+        check(f"★ {_tag} 存在（版本标题第五处）", False, str(_rd))
+        continue
+    _first_line = _rd.read_text(encoding="utf-8").splitlines()[:1]
+    _first_line = _first_line[0] if _first_line else ""
+    check(f"★ {_tag} 首行标题含当前版本",
+          f"v{CORE_VERSION}" in _first_line,
+          f"{_first_line!r} 不含 v{CORE_VERSION}")
 
 main_src = (ROOT / "main.py").read_text(encoding="utf-8")
 # 第 3 个参数现在是 f-string（用品牌常量拼），所以允许可选 f 前缀
 m2 = re.search(r'@register\(\s*"[^"]+",\s*"[^"]+",\s*\n\s*f?"[^"]*",\s*\n\s*"([\d.]+)"',
                main_src)
-check("@register 版本与 core 主次版本一致",
-      bool(m2) and m2.group(1) == MM, m2.group(1) if m2 else "?")
+check("@register 版本与 core.__version__ 完全一致（四处联动强断言）",
+      bool(m2) and m2.group(1) == str(CORE_VERSION),
+      m2.group(1) if m2 else "?")
 # 卡片标题已经不写死品牌名（用 f"{BRAND}" 引用常量），所以这两条改成：
 #   ① 断言源码里确实用常量拼标题（防止有人又写死）
 #   ② 断言 metadata 的展示名与常量一致（改名时最容易漏的一处）

@@ -15,7 +15,7 @@ Bonuses* 玩家上报表。而插件侧直连 wiki.warframe.com 会被 Cloudflar
 
 用法
 ----
-    # 在装有 FlareSolverr 的机器上（QQBOT：127.0.0.1:8191）
+    # 在装有 FlareSolverr 的机器上（127.0.0.1:8191，FlareSolverr 部署机本地）
     python3 scripts/fetch_valence.py                 # 抓取并写回 rotations.json
     python3 scripts/fetch_valence.py --dry-run       # 只打印解析结果，不写文件
     python3 scripts/fetch_valence.py --html /tmp/reset.json   # 从已存响应离线解析

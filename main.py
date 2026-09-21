@@ -681,7 +681,7 @@ class WarframeSDJK(Star):
 
         ① 信条/终幕元素加成（换轮即刷新）；② 变体倾向表（7 天过期重抓）。
         服务器上有 FlareSolverr 代理后，wiki 页面可以直接抓取；FlareSolverr
-        未部署/求解失败时只记日志，WorkBuddy 侧的定时任务仍是兜底。
+        未部署/求解失败时只记日志，外部定时任务仍是兜底。
         """
         while True:
             try:
