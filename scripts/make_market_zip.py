@@ -40,7 +40,8 @@ try:
 except Exception:  # noqa: BLE001
     SKIP_DIRS = {".git", "__pycache__", ".pytest_cache", "runtime", ".workbuddy",
                  ".venv", "venv", "node_modules", ".idea", ".vscode", "dist",
-                 ".audit", "kb_src", "_cache", "docs", "outputs", "fonts"}
+                 ".audit", "kb_src", "_cache", "docs", "outputs", "output",
+                 "fonts"}
     SKIP_FILES = {"deploy.sh", ".DS_Store", ".gitattributes", ".gitignore",
                   "SDJKwfbot_README.md", "wm_ranks.json", "riven_weekly.json",
                   "wiki_disp.json", "package_reverse_searcher_sdjk.py"}

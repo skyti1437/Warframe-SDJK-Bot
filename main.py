@@ -490,7 +490,7 @@ class Reply:
 
 @register("astrbot_plugin_warframe", "skyti1437",
           f"{BRAND}：世界状态 / 市场查价 / 蹲点推送",
-          "1.0")
+          "1.0.4")
 class WarframeSDJK(Star):
     def __init__(self, context: Context, config: AstrBotConfig | None = None):
         super().__init__(context)
@@ -694,13 +694,20 @@ class WarframeSDJK(Star):
                         logger.info("[sdjk] 变体倾向表已刷新：%s", disp_status)
                 except Exception as e:  # noqa: BLE001 - 倾向表失败不阻断
                     logger.warning("[sdjk] 变体倾向表刷新失败：%s", e)
-                # 言录使（Acrithis）本周货单 DE 不下发、只能人工维护 ——
-                # 这里只做**过期自检并告警**，不静默回落到候选池就当没事
+                # 言录使（Acrithis）本周货单：DE 不下发。过期后自动抓 wiki
+                # 《Acrithis/Current Offerings》子页（社区人工维护的当期 5 件，
+                # 2026-09-21 起；原先只告警等人工，实际永远没人更）。
                 try:
-                    if self.client.acrithis_week_expired():
-                        logger.warning(
-                            "[sdjk] 言录使本周货单已过期：DE 不下发，需人工更新 "
-                            "core/data/de/acrichis_week.json（当前卡面已标注「货单待更新」）")
+                    acr_status = await self.client.refresh_acrichis_week()
+                    if acr_status == "refreshed":
+                        logger.info("[sdjk] 言录使本周货单已自动刷新")
+                    elif acr_status == "not-updated":
+                        logger.warning("[sdjk] 言录使货单已过期且 wiki 当期上报"
+                                       "尚未更新，卡面暂以候选池展示")
+                    elif acr_status == "failed":
+                        logger.warning("[sdjk] 言录使本周货单自动抓取失败："
+                                       "需人工更新 core/data/de/acrichis_week.json"
+                                       "（卡面已标注「货单待更新」）")
                 except Exception:  # noqa: BLE001 - 自检失败不阻断
                     pass
                 await asyncio.sleep(6 * 3600)
@@ -2645,7 +2652,11 @@ class WarframeSDJK(Star):
     # 识卡多渠道路由的等待窗口（秒）：窗口内取「校验全过」的最优；
     # 到点即用当前最好结果走聚焦二读，不无限等慢渠道（实测 glm 25 s、
     # 32B 更慢）。窗口 ≳ 最快渠道的响应时间。
-    RACE_WINDOW_S = 40.0
+    # 2026-09-21 用户报障：13:43 那次识卡三渠道全废（glm-4v-flash 27 s 空返回，
+    # 另两个在 40 s 窗口内没赶上）→ 直接「视觉渠道没给出可解析结果」。
+    # 同一张图下一次 30B 是 38.8 s 才返回 —— 距 40 s 只剩 1.2 s，窗口太紧。
+    # 放宽到 60 s：慢渠道仍能被等到，最坏等待仍在用户可接受范围（识卡本就 15~30 s 级）。
+    RACE_WINDOW_S = 60.0
     _render_lock: Optional[asyncio.Lock] = None   # 渲染串行（PIL 吃 CPU）
 
     # 按「实测响应速度 + 输出可解析性」排序：识卡是并行竞速 + 面板校验兜底，
@@ -3668,7 +3679,10 @@ class WarframeSDJK(Star):
             lines += ["", "时长：永久/7天/两周/N小时…（不写=命中一次后取消）",
                       "时间：22到8 / 每天19点 / 周1/3/5 23点",
                       "取消：蹲 取消（全部）/ 蹲 取消 裂隙 捕获（只删匹配项）"]
-            return Reply("可蹲类型", lines, text_only=True)
+            # 2026-09-21 修：裸「蹲」应出卡片图（与其它指令一致）。
+            # 原 text_only=True 是 v0.5 接手时的祖传写法，全插件唯一一处强制纯文本；
+            # 渲染失败时 _build_results 本就会自动降级文字，无需在此抢降级。
+            return Reply("可蹲类型", lines)
 
         # 取消：「取消」位置无关——「蹲 取消」「蹲 裂隙 取消」「蹲 取消 裂隙 捕获」
         # 都合法；其余词构成筛选条件（2026-09-14 修：旧版见「取消」就删全群）。

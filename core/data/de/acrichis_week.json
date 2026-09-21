@@ -1,6 +1,7 @@
 {
- "expiry": "2026-09-21T00:00:00+00:00",
- "source": "社区维护快照（游戏内核对）；DE 不下发每周实际 5 件，过期后需人工更新",
+ "expiry": "2026-09-28T00:00:00+00:00",
+ "observed": "2026-09-21",
+ "source": "wiki《Acrithis/Current Offerings》当期上报（observed September 21, 2026）；DE 不下发，插件每周过期后自动抓取该子页刷新（refresh_acrichis_week）",
  "items": [
   {
    "name": "赤毒",
@@ -8,22 +9,93 @@
    "price": 10
   },
   {
-   "name": "同伴裂罅 MOD",
-   "price": 20
+   "name": "主要武器赋能槽连接器",
+   "price": 25
   },
   {
-   "name": "近战裂罅 MOD",
-   "price": 15
+   "name": "奥罗金催化剂蓝图",
+   "price": 20
   },
   {
    "name": "Forma 蓝图",
    "price": 10
   },
   {
-   "name": "武器特殊功能槽连接器",
+   "name": "奥罗金反应堆蓝图",
    "price": 20
   }
  ],
+ "_en_catalog": {
+  "Orokin Reactor": {
+   "name": "奥罗金反应堆蓝图",
+   "price": 20
+  },
+  "Orokin Catalyst": {
+   "name": "奥罗金催化剂蓝图",
+   "price": 20
+  },
+  "Exilus Warframe Adapter": {
+   "name": "战甲特殊功能槽连接器",
+   "price": 20
+  },
+  "Exilus Weapon Adapter": {
+   "name": "武器特殊功能槽连接器",
+   "price": 20
+  },
+  "Primary Arcane Adapter": {
+   "name": "主要武器赋能槽连接器",
+   "price": 25
+  },
+  "Secondary Arcane Adapter": {
+   "name": "次要武器赋能槽连接器",
+   "price": 25
+  },
+  "Forma": {
+   "name": "Forma 蓝图",
+   "price": 10
+  },
+  "Melee Riven Mod": {
+   "name": "近战裂罅 MOD",
+   "price": 15
+  },
+  "Pistol Riven Mod": {
+   "name": "手枪裂罅 MOD",
+   "price": 15
+  },
+  "Rifle Riven Mod": {
+   "name": "步枪裂罅 MOD",
+   "price": 15
+  },
+  "Kitgun Riven Mod": {
+   "name": "射枪裂罅 MOD",
+   "price": 15
+  },
+  "Zaw Riven Mod": {
+   "name": "佐作裂罅 MOD",
+   "price": 15
+  },
+  "Shotgun Riven Mod": {
+   "name": "霰弹枪裂罅 MOD",
+   "price": 15
+  },
+  "Companion Weapon Riven Mod": {
+   "name": "同伴裂罅 MOD",
+   "price": 20
+  },
+  "5000 Kuva": {
+   "name": "赤毒",
+   "qty": 5000,
+   "price": 10
+  }
+ },
+ "_catalog_price_source": "wiki《Acrithis》页 offeringsBox 标价（2026-09-21 抓取），苦栓",
  "_reset_rule": "每周一 00:00 UTC 轮换（wiki《Acrithis》页实时口径）",
- "_过期口径": "expiry 为 UTC；卡面展示换算北京时间"
+ "_过期口径": "expiry 为 UTC；卡面展示换算北京时间",
+ "_zh_official_notes": {
+  "Amp Arcane Adapter": "增幅器赋能槽连接器",
+  "Primary Arcane Adapter": "主要武器赋能槽连接器",
+  "Secondary Arcane Adapter": "次要武器赋能槽连接器",
+  "Melee Arcane Adapter": "近战武器赋能槽连接器",
+  "Archgun Arcane Adapter": "曲翼枪械赋能槽连接器"
+ }
 }

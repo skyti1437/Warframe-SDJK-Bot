@@ -37,6 +37,9 @@ DATA_DIR = Path(__file__).resolve().parent / "data"   # 包内静态数据（只
 # data/plugin_data/<插件名>，绝不写插件包目录（AstrBot 插件规范要求）。
 RANKS_NAME = "wm_ranks.json"             # 价格排行全量落盘（后台爬取）
 WIKI_DISP_NAME = "de/wiki_disp.json"     # wiki 变体倾向快照
+ACRITHIS_WEEK_NAME = "de/acrichis_week.json"   # 言录使本周货单（运行期覆盖包内种子）
+ACRITHIS_CURRENT_URL = ("https://wiki.warframe.com/w/Acrithis/"
+                        "Current_Offerings?action=raw")  # 社区当期 5 件上报页
 # Cloudflare 绕过代理（FlareSolverr）：wiki.warframe.com 等对非浏览器 403。
 # 服务器上跑一个 flaresolverr 容器后自动启用；插件跑在 astrbot 容器里，
 # 127.0.0.1 到不了宿主机端口，所以按候选顺序试（容器名 → docker0 网关 → 本机）。
@@ -575,11 +578,7 @@ class WarframeClient:
     def acrithis_week_expired(self) -> bool:
         """言录使本周货单快照是否已过期（用于内置定时自检，过期只告警不抓取）。"""
         from datetime import datetime, timezone
-        p = Path(__file__).resolve().parent / "data" / "de" / "acrichis_week.json"
-        try:
-            data = json.loads(p.read_text(encoding="utf-8"))
-        except Exception:  # noqa: BLE001
-            return True
+        data = self._load_json_file(paths.read_path(ACRITHIS_WEEK_NAME)) or {}
         exp = data.get("expiry") or ""
         try:
             return datetime.fromisoformat(exp) <= datetime.now(timezone.utc)
@@ -587,17 +586,13 @@ class WarframeClient:
             return True
 
     async def acrithis_week(self) -> dict:
-        """言录使**本周货单**快照（社区维护）；过期返回空 dict。
+        """言录使**本周货单**快照（运行期覆盖优先，回退包内种子）；过期返回空 dict。
 
         未过期时附带 ``next_reset``（按规则算出的下次轮换 UTC 时刻），
         卡面据此展示倒计时 + 北京时间，不依赖文件里写死的 expiry。
         """
         from datetime import datetime, timezone
-        p = Path(__file__).resolve().parent / "data" / "de" / "acrichis_week.json"
-        try:
-            data = json.loads(p.read_text(encoding="utf-8"))
-        except Exception:  # noqa: BLE001
-            return {}
+        data = self._load_json_file(paths.read_path(ACRITHIS_WEEK_NAME)) or {}
         exp = data.get("expiry") or ""
         try:
             if datetime.fromisoformat(exp) <= datetime.now(timezone.utc):
@@ -606,6 +601,110 @@ class WarframeClient:
             return {}
         data["next_reset"] = self.acrithis_next_reset()
         return data
+
+    @staticmethod
+    def parse_acrichis_current(raw: str) -> dict:
+        """解析 wiki《Acrithis/Current Offerings》子页 wikitext（社区当期 5 件上报）。
+
+        子页是 vardefine 模板：``{{#vardefine:AcrithisObserved|September 21, 2026}}``
+        + ``AcrithisItem1..5``；注释块里带 15 件合法名单（校验用）。经
+        FlareSolverr 抓回时 ``<>`` 被转义进 ``<pre>``，先整体 unescape 再解析，
+        两种形态（转义/纯 wikitext）都能吃。解析不出 5 件返回空 dict。
+        """
+        import html as _html
+        text = _html.unescape(raw or "")
+        m = re.search(r"\{\{#vardefine:AcrithisObserved\|([^}]*)\}\}", text)
+        observed = m.group(1).strip() if m else ""
+        items: list[str] = []
+        for i in range(1, 6):
+            m = re.search(r"\{\{#vardefine:AcrithisItem" + str(i) +
+                          r"\|([^}]*)\}\}", text)
+            if not m or not m.group(1).strip():
+                return {}
+            items.append(m.group(1).strip())
+        valid: set[str] = set()
+        for m in re.finditer(r"<!--\s*(.*?)\s*-->", text, flags=re.S):
+            for line in m.group(1).splitlines():
+                line = line.strip()
+                if line and not line.lower().startswith("valid item names"):
+                    valid.add(line)
+        return {"observed": observed, "items": items, "valid": sorted(valid)}
+
+    async def refresh_acrichis_week(self) -> str:
+        """言录使本周货单：过期后自动抓 wiki 当期上报子页刷新（2026-09-21 起）。
+
+        DE 不下发每周实际 5 件；wiki《Acrithis/Current Offerings》是社区人工
+        维护的当期上报（observed 日期随更）。纪律与效价刷新一致：
+
+        - 每件英文名必须命中快照 ``_en_catalog``（15 件全池对照）才落盘，
+          不认识的名字**绝不写半成品**；
+        - ``observed`` 早于本周周一 00:00 UTC 视为「社区还没跟上」，不落盘
+          （防止拿上周货单当本周的）。
+
+        返回 "fresh"（未过期）/ "refreshed" / "not-updated" / "failed"。
+        """
+        from datetime import datetime, timedelta, timezone
+        if not self.acrithis_week_expired():
+            return "fresh"
+        snap = self._load_json_file(paths.read_path(ACRITHIS_WEEK_NAME)) or {}
+        catalog = snap.get("_en_catalog") or {}
+        if not catalog:
+            logger.warning("[sdjk] 言录使快照缺 _en_catalog，无法自动刷新")
+            return "failed"
+        try:
+            raw = await self.fetch_via_flaresolver(ACRITHIS_CURRENT_URL, ttl=0)
+        except Exception as e:  # noqa: BLE001 - 抓取失败走告警，不阻断
+            logger.warning("[sdjk] 言录使当期子页抓取失败：%s", e)
+            return "failed"
+        parsed = self.parse_acrichis_current(raw)
+        if not parsed:
+            logger.warning("[sdjk] 言录使当期子页解析失败（模板结构变了？）")
+            return "failed"
+        try:
+            observed = datetime.strptime(
+                parsed["observed"], "%B %d, %Y").replace(tzinfo=timezone.utc)
+        except (KeyError, ValueError):
+            logger.warning("[sdjk] 言录使当期上报日期无法解析：%r",
+                           parsed.get("observed"))
+            return "failed"
+        now = datetime.now(timezone.utc)
+        monday = (now - timedelta(days=now.weekday())).replace(
+            hour=0, minute=0, second=0, microsecond=0)
+        if observed < monday:
+            logger.info("[sdjk] 言录使当期上报尚未更新（observed %s < 本周一），"
+                        "本轮不落盘", parsed["observed"])
+            return "not-updated"
+        items: list[dict] = []
+        for en in parsed["items"]:
+            ent = catalog.get(en)
+            if ent is None:
+                # 子页名单与本地目录出现分歧（wiki 改了池子）→ 拒绝写半成品
+                logger.error(
+                    "[sdjk] 言录使当期上报出现目录外物品 %r —— wiki 池子可能已"
+                    "改动，需人工核对 _en_catalog 后重试", en)
+                return "failed"
+            it = {"name": ent["name"]}
+            if ent.get("qty") is not None:
+                it["qty"] = ent["qty"]
+            it["price"] = ent["price"]
+            items.append(it)
+        out = {
+            "expiry": self.acrithis_next_reset(),
+            "observed": parsed["observed"],
+            "source": (f"wiki《Acrithis/Current Offerings》当期上报（observed "
+                       f"{parsed['observed']}）；插件自动抓取"),
+            "items": items,
+            "_en_catalog": catalog,
+            "_catalog_price_source": snap.get("_catalog_price_source", ""),
+            "_reset_rule": snap.get("_reset_rule", ""),
+            "_过期口径": snap.get("_过期口径", ""),
+        }
+        paths.write_path(ACRITHIS_WEEK_NAME).write_text(
+            json.dumps(out, ensure_ascii=False, indent=1) + "\n",
+            encoding="utf-8")
+        logger.info("[sdjk] 言录使本周货单已自动刷新（observed %s，%d 件）",
+                    parsed["observed"], len(items))
+        return "refreshed"
 
     async def steel_path_incursions(self, platform: str) -> dict:
         """钢铁之路侵袭（每日 6 个钢路节点）。
@@ -1672,7 +1771,7 @@ class WarframeClient:
         #   （\s* 在 + 里），属于灾难性回溯的典型形态 —— 输入是抓来的 wiki
         #   页面，虽然来源可信，但没必要留这种模式。[\s|]+ 与它语义等价。
         pat = re.compile(
-            r"(Tenet \w+|Coda \w+)[\s|]+"
+            r"((?:Dual )?Coda \w+|Tenet \w+)[\s|]+"
             r"(Magnetic|Impact|Toxin|Cold|Heat|Electricity|Radiation)"
             r"[\s|]+([\d.]+)%")
         tenet: dict[str, tuple[str, float]] = {}

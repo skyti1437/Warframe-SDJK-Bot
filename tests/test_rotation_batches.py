@@ -331,8 +331,8 @@ check("信条·枢密 = 辐射 25.9%（wiki 2026-09-20 快照）",
 _cmap = {i["en"]: (i.get("element"), i.get("bonus")) for i in _cur_batch}
 # 终幕按批次抽查：wiki 只公布**当前生效批**的表，另一批在换批前拿不到真值，
 # 所以每次刷新后要把这里同步成新一批的两把（换批后旧值会失效）。
-_SPOT = {"A": {"Coda Catabolyst": ("Magnetic", 38.5),
-               "Coda Motovore": ("Radiation", 48.8)},
+_SPOT = {"A": {"Coda Catabolyst": ("Heat", 25.0),
+               "Coda Motovore": ("Heat", 38.8)},
          "B": {"Coda Bassocyst": ("Magnetic", 51.2),
                "Coda Synapse": ("Cold", 57.6)}}
 _cur_label = (coda.get("batch_label") or ["A", "B"])[_idx]
