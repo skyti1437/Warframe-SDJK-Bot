@@ -64,6 +64,25 @@ def tier_cn(tier: str) -> str:
     return TIER_CN.get(tier, tier)
 
 
+# 紫卡 riven_type slug → 中文武器类别（2026-09-23，倾向卡不再漏英文）
+RIVEN_TYPE_CN = {
+    "rifle": "步枪",
+    "shotgun": "霰弹枪",
+    "pistol": "手枪",
+    "melee": "近战",
+    "archgun": "Archwing 枪械",
+    "archmelee": "Archwing 近战",
+}
+
+
+def riven_type_cn(riven_type: str) -> str:
+    """riven_type slug → 中文类别；未知值原样返回。"""
+    key = (riven_type or "").strip().lower()
+    if not key:
+        return ""
+    return RIVEN_TYPE_CN.get(key, riven_type)
+
+
 def _tier_stars(tier_num) -> str:
     try:
         return "★" * int(tier_num)

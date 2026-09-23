@@ -23,6 +23,11 @@ from pathlib import Path
 from typing import Any, Iterable, Optional
 from urllib.parse import quote
 
+try:
+    from . import matching        # core 包内正常导入
+except ImportError:               # 离线脚本把 core/ 当顶层路径导入时
+    import matching
+
 try:  # 缺依赖时保持模块可导入（离线工具/测试），实例化时再给出明确提示
     import httpx
 except ImportError:  # pragma: no cover
@@ -1024,13 +1029,23 @@ class WarframeClient:
         return parts
 
     async def wm_riven_weapons(self) -> list[dict]:
-        """紫卡武器表（v2，含 zh-hans 名称与倾向指数）。"""
+        """紫卡武器表（v2，含 zh-hans 名称与倾向指数）。
+
+        ★ 2026-09-23 合并 core/data/dispositions_rivenmirror.json 静态补全：
+        WM v2 该端点只有 418 条且几乎不含 Prime/新变体（rubico_prime、
+        kuva_zarr、tenet_arca_plasmor 全缺），变体倾向会错给本体值。
+        补全数据由 scripts/build_disposition.py 生成（riven-mirror 细粒度值
+        + DE 官方 zh + 基类 riven_type 继承），按 url_name 去重后追加。
+        """
         raw = await self._wm_v2("/riven/weapons", ttl=TTL_WM_ITEMS) or []
         out = []
+        seen_urls = set()
         for w in raw:
             i18n = w.get("i18n") or {}
+            url = w.get("slug", "")
+            seen_urls.add(url)
             out.append({
-                "url_name": w.get("slug", ""),
+                "url_name": url,
                 "zh": (i18n.get("zh-hans") or {}).get("name", ""),
                 "en": (i18n.get("en") or {}).get("name", ""),
                 "game_ref": w.get("gameRef", ""),
@@ -1038,6 +1053,29 @@ class WarframeClient:
                 "riven_type": w.get("rivenType", ""),
                 "group": w.get("group", ""),
             })
+        try:
+            extra = json.loads((DATA_DIR / "dispositions_rivenmirror.json")
+                               .read_text(encoding="utf-8")).get("entries") or {}
+        except Exception as exc:  # noqa: BLE001 - 数据缺失只降级不炸
+            logger.warning("[sdjk] 倾向补全数据不可用：%s", exc)
+            extra = {}
+        by_url = {w["url_name"]: w for w in out}
+        for en, e in extra.items():
+            u = e.get("url_name") or ""
+            hit = by_url.get(u)
+            if hit is not None:
+                # 覆盖：WM 手工维护值滞后于平衡补丁（Vectis Prime 0.9→1.0），
+                # wiki 主源的值优先生效；zh 缺失时顺带补。
+                hit["disposition"] = e.get("disposition")
+                if not hit.get("zh"):
+                    hit["zh"] = e.get("zh", "")
+                continue
+            by_url[u] = {"url_name": u, "zh": e.get("zh", ""), "en": en,
+                         "game_ref": "",
+                         "disposition": e.get("disposition"),
+                         "riven_type": e.get("riven_type", ""),
+                         "group": e.get("group", "")}
+            out.append(by_url[u])
         return out
 
     # ------------------------------------------------------------------
@@ -1577,8 +1615,10 @@ class WarframeClient:
         if q in table:
             return table[q]
         norm = re.sub(r"[\s·・]+", "", q).lower()
+        # 变体等价形态并入（2026-09-23：沙皇赤毒 / kuva沙皇 这类写法）
+        forms = {norm} | set(matching.expand_variants(q))
         for k, v in table.items():
-            if re.sub(r"[\s·・]+", "", k).lower() == norm:
+            if re.sub(r"[\s·・]+", "", k).lower() in forms:
                 return v
         # 形近字兜底（「赤毒弧电离子枪」→「赤毒·弧电离子枪」）
         near = fuzzy_hits(norm, [re.sub(r"[\s·・]+", "", k).lower()
@@ -1616,18 +1656,26 @@ class WarframeClient:
         return self._lich_cache
 
     async def resolve_riven_weapon(self, query: str) -> Optional[dict]:
-        """紫卡武器解析：本地别名 + WM v2 紫卡武器表（zh/en），支持 黑话+p。"""
+        """紫卡武器解析：本地别名 + WM v2 紫卡武器表（zh/en），支持 黑话+p。
+
+        2026-09-23 变体解析并入（core/matching）：归一化完全与变体等价两层
+        插在「精确」与「子串」之间（赤毒沙皇=赤毒 沙皇、kuva沙皇、沙皇赤毒）。
+        ★ p/P 后缀现在**优先返回 Prime 版**——倾向/紫卡类型按变体分别计算，
+        「绝路p」绝不能落回 base（旧实现正是回落 base，已修）。
+        """
         query = query.strip()
         if not query:
             return None
+        weapons = await self.wm_riven_weapons()
         m = self._PRIME_SUFFIX.match(query)
-        if m and len(m.group(1)) >= 1:
+        if m and len(m.group(1).strip()) >= 1:
             base = await self.resolve_riven_weapon(m.group(1).strip())
             if base:
-                return base
+                # 2026-09-23 去掉「回落 base」：倾向/紫卡按变体分别计算，
+                # 表中确无该变体条目时返回 None（未找到），绝不冒充本体值。
+                return matching.prime_sibling(base, weapons)
         # 未命中则继续走常规链
         alias = self.alias_lookup(query.lower(), "riven_items")
-        weapons = await self.wm_riven_weapons()
         if alias:
             for w in weapons:
                 if w.get("url_name") == alias:
@@ -1636,6 +1684,21 @@ class WarframeClient:
         for w in weapons:
             if w.get("zh") == query or (w.get("en") or "").lower() == low:
                 return w
+        # 归一化完全（去空格/分隔符/大小写；不抹 prime）
+        nq = matching.normalize(query)
+        if nq:
+            for w in weapons:
+                if nq in (matching.normalize(w.get("zh") or ""),
+                          matching.normalize(w.get("en") or "")):
+                    return w
+            # 变体等价（p→prime / 语序互换 / zh↔en token）——只做等价变形，
+            # 绝不剥 token 配 base（倾向按变体分算）
+            forms = set(matching.expand_variants(query)) - {nq}
+            if forms:
+                for w in weapons:
+                    if (matching.normalize(w.get("zh") or "") in forms
+                            or matching.normalize(w.get("en") or "") in forms):
+                        return w
         for w in weapons:
             if low in w.get("url_name", "") or query in (w.get("zh") or ""):
                 return w

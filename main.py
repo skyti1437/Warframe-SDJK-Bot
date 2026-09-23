@@ -37,6 +37,7 @@ try:  # 允许脱离 AstrBot 直接跑单元测试
     from .core import calculators as calc
     from .core import damage_calc as dc
     from .core import loadout_ocr as lo
+    from .core import matching
     from .core import pips as pips_engine
     from .core.api_client import (WarframeAPIError, WarframeClient,
                               parse_url_list, fuzzy_hits)
@@ -59,6 +60,7 @@ except ImportError:  # pragma: no cover
     from core import calculators as calc
     from core import damage_calc as dc
     from core import loadout_ocr as lo
+    from core import matching
     from core import pips as pips_engine
     from core import de_worldstate as de_ws
     from core.api_client import (WarframeAPIError, WarframeClient,
@@ -490,7 +492,7 @@ class Reply:
 
 @register("astrbot_plugin_warframe", "skyti1437",
           f"{BRAND}：世界状态 / 市场查价 / 蹲点推送",
-          "1.0.5")
+          "1.0.6")
 class WarframeSDJK(Star):
     def __init__(self, context: Context, config: AstrBotConfig | None = None):
         super().__init__(context)
@@ -2537,14 +2539,30 @@ class WarframeSDJK(Star):
                      f"倾向 {w['disposition']:.2f}" for w in top]
             return Reply("紫卡倾向 Top8（越高越容易出好卡）", lines,
                          footer=fmt.fmt_platform_footer(platform))
-        hits = [w for w in weapons
-                if query in (w.get("zh") or "") or query.lower() in w["url_name"]]
+        hits, stage = matching.resolve_weapon_name(
+            query, weapons, zh="zh", en="en", slug="url_name")
         if not hits:
-            close = difflib.get_close_matches(
-                query.lower(), [w["url_name"] for w in weapons], n=3, cutoff=0.5)
+            # 紫卡黑话别名兜底（riven_items 词库），命中优先级低于官方名各层
+            aurl = self.client.alias_lookup(query.lower(), "riven_items")
+            if aurl:
+                hits = [w for w in weapons if w.get("url_name") == aurl]
+                stage = "alias"
+        if not hits:
+            close = matching.suggest_zh(query, weapons)
             return Reply(raw_text="未找到该武器" + (f"，你是不是想找：{'、'.join(close)}" if close else ""))
+        logger.info("[sdjk] 倾向武器解析：%s → %s（%s）",
+                    query, "/".join(matching.zh_names(hits)), stage)
+        # 只报本体名（无变体意图）→ 列出全部变体家族（本体在前），
+        # 对齐 Warframe Rabbit 的家族卡；显式变体查询（绝路p/赤毒沙皇）不展开
+        nq = matching.normalize(query)
+        if (len(hits) == 1 and not matching.variant_intent(query)
+                and not any(t in nq for t in matching.VARIANT_TOKENS)):
+            fam = matching.family_of(hits[0], weapons)
+            if len(fam) > 1:
+                hits = fam
         lines = [f"· {(w.get('zh') or w.get('en') or w['url_name'])}　"
-                 f"倾向 {w.get('disposition', 0):.2f}　{w.get('riven_type','')}"
+                 f"倾向 {w.get('disposition', 0):.2f}　"
+                 f"{fmt.riven_type_cn(w.get('riven_type',''))}"
                  for w in hits[:8]]
         return Reply(f"紫卡倾向：{query}", lines, footer=fmt.fmt_platform_footer(platform))
 
