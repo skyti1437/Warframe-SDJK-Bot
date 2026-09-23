@@ -1840,6 +1840,10 @@ class WarframeSDJK(Star):
             if _busy_key:
                 self._ocr_busy.discard(_busy_key)
         if not ocr:
+            # ★ 识别失败返还冷却（2026-09-23）：防刷闸不该惩罚「渠道全挂」的
+            #   受害者——失败重试不该干等 15 秒。成功调用才占冷却。
+            if _cd > 0 and _sender:
+                self._ocr_last.pop(_sender, None)
             return Reply(raw_text="截图识别失败：视觉渠道没给出可解析结果。"
                                   "可能原因：① 渠道超时/返回空；② 未配视觉模型。"
                                   "可先重发一次；仍失败请查看机器人日志里的"
@@ -1860,7 +1864,13 @@ class WarframeSDJK(Star):
             except Exception:  # noqa: BLE001 —— 缓存失败不影响识卡本身
                 cached_spec = None
         if cached_spec is not None:
-            self._last_scan[umo] = (time.time(), an["weapon"], cached_spec)
+            # ★ 按 会话+发送者 分键（2026-09-23）：此前按会话只存 1 份，
+            #   同群两人先后识卡会互相顶掉「识卡伤害」的上下文。
+            key = f"{umo}|{self._safe_sender(event) or ''}"
+            self._last_scan[key] = (time.time(), an["weapon"], cached_spec)
+            if len(self._last_scan) > 128:      # 防长期累积
+                for _k in list(self._last_scan)[:len(self._last_scan) - 128]:
+                    self._last_scan.pop(_k, None)
 
         detail = self._loadout_detail_lines(an) if cached_spec is not None else None
         if detail:
@@ -1898,9 +1908,19 @@ class WarframeSDJK(Star):
         目标/条件类参数（敌人、等级、派系、爆头、连击、镀层层数…）。
         """
         umo = event.unified_msg_origin
-        hit = self._last_scan.get(umo)
+        snd = self._safe_sender(event) or ""
+        # ★ 优先取「本人」的识卡缓存；本人没有再退回同会话最近一条
+        #   （2026-09-23 起识卡按 会话|发送者 分键，防同群互相顶掉）
+        hit = self._last_scan.get(f"{umo}|{snd}")
+        if not hit:
+            same_umo = [(k, v) for k, v in self._last_scan.items()
+                        if k.startswith(umo + "|") or k == umo]
+            if same_umo:
+                hit = max(same_umo, key=lambda kv: kv[1][0])[1]
         if not hit or time.time() - hit[0] > 1800:
-            self._last_scan.pop(umo, None)
+            for k in [k for k in self._last_scan
+                      if k == umo or k.startswith(umo + "|")]:
+                self._last_scan.pop(k, None)
             return Reply("识卡伤害", [
                 "本会话 30 分钟内没有识卡记录。",
                 "　先发「识卡 + 武器升级界面截图」，再用本指令复算：",
@@ -2797,12 +2817,15 @@ class WarframeSDJK(Star):
 
     async def _vision_race_json(self, prompt: str, image_url: str,
                                 provs: list, *, k: int = 2,
-                                tag: str = "识别") -> Optional[dict]:
+                                tag: str = "识别",
+                                window: Optional[float] = None) -> Optional[dict]:
         """向最多 k 个 vision 渠道**并行**请求，取第一个能解析出 JSON 的结果。
 
         串行试渠道时每条指令要等最慢的那家（实测紫卡识别 13 s）；
         并行竞速后延迟 = 最快渠道的响应时间。失败/解析不出 JSON 的渠道
         自动让位，都不会影响正确性（拿到的必须是能解析的结果）。
+        window（秒）：整场竞速的等待上限——到点即返回当前已有结果（None），
+        防止渠道级超时（如 siliconflow 240s）把用户晾在原地（2026-09-23 补）。
         """
         import time as _t
         provs = [p for p in (provs or []) if p is not None][:max(1, k)]
@@ -2811,32 +2834,46 @@ class WarframeSDJK(Star):
 
         async def _one(prov):
             _t0 = _t.perf_counter()
-            resp = await prov.text_chat(prompt=prompt,
-                                        session_id=f"sdjk-{tag}",
-                                        image_urls=[image_url])
+            import uuid as _uuid
+            resp = await prov.text_chat(
+                prompt=prompt,
+                session_id=f"sdjk-{tag}-{_uuid.uuid4().hex[:8]}",
+                image_urls=[image_url])
             text = (getattr(resp, "completion_text", "") or "").strip()
             return prov, text, (_t.perf_counter() - _t0) * 1000
 
         tasks = [asyncio.create_task(_one(p)) for p in provs]
+        loop = asyncio.get_event_loop()
+        deadline = (loop.time() + window) if window else None
         winner = None
+        pending = set(tasks)
         try:
-            for coro in asyncio.as_completed(tasks):
-                try:
-                    prov, text, ms = await coro
-                except Exception as exc:  # noqa: BLE001
-                    logger.warning("[sdjk] %s渠道异常：%s", tag, exc)
-                    continue
-                if not text:
-                    logger.warning("[sdjk] %s渠道返回空（%.0f ms）", tag, ms)
-                    continue
-                data = lo.parse_vision_json(text)
-                if data:
-                    logger.info("[sdjk] %s命中渠道（%.0f ms）：%s", tag, ms,
-                                json.dumps(data, ensure_ascii=False)[:200])
-                    winner = data
+            while pending:
+                timeout = (deadline - loop.time()) if deadline else None
+                if timeout is not None and timeout <= 0:
                     break
-                logger.warning("[sdjk] %s JSON 解析失败（%.0f ms）：%s",
-                               tag, ms, text[:160])
+                done, pending = await asyncio.wait(
+                    pending, timeout=timeout,
+                    return_when=asyncio.FIRST_COMPLETED)
+                for t in done:
+                    try:
+                        prov, text, ms = t.result()
+                    except Exception as exc:  # noqa: BLE001
+                        logger.warning("[sdjk] %s渠道异常：%s", tag, exc)
+                        continue
+                    if not text:
+                        logger.warning("[sdjk] %s渠道返回空（%.0f ms）", tag, ms)
+                        continue
+                    data = lo.parse_vision_json(text)
+                    if data:
+                        logger.info("[sdjk] %s命中渠道（%.0f ms）：%s", tag, ms,
+                                    json.dumps(data, ensure_ascii=False)[:200])
+                        winner = data
+                        break
+                    logger.warning("[sdjk] %s JSON 解析失败（%.0f ms）：%s",
+                                   tag, ms, text[:160])
+                if winner:
+                    break
         finally:
             for t in tasks:
                 t.cancel()
@@ -2862,10 +2899,12 @@ class WarframeSDJK(Star):
             "或 Prisma/Wraith/Vandal/Kuva/Tenet），务必保留在 weapon 里"
             "（紫卡卡面通常只写母武器名，没有前缀就照原样输出）。")
         try:
-            # 并行竞速（原来串行试渠道，实测要 13 s）
+            # 并行竞速（原来串行试渠道，实测要 13 s）；窗口 60s（2026-09-23 补：
+            # 渠道级超时可达 240s，不能让用户干等）
             data = await self._vision_race_json(prompt, image_url,
                                                 self._vision_providers(),
-                                                k=2, tag="紫卡识别")
+                                                k=2, tag="紫卡识别",
+                                                window=self.RACE_WINDOW_S)
         except Exception as exc:  # noqa: BLE001
             logger.warning("[sdjk] 紫卡识别失败：%s", exc)
             return None
@@ -3008,10 +3047,12 @@ class WarframeSDJK(Star):
             return o
 
         def _score(ocr: dict):
-            """面板校验打分：返回 (失败项数或 None, analyze 结果)。
+            """面板校验打分：返回 (失败项数, analyze 结果)，恒为数值。
 
-            None = 武器没认出（重试也难，直接交出去）。
-            「0 张卡」或「面板全没读到」≠ 通过 —— 空结构必须算最差。
+            ★ 2026-09-23：武器没认出不再「立即接受」——此前第一个返回
+            「有 weapon 字段但其实是幻觉」的渠道会直接获胜并取消其它渠道
+            （9-20 漏读事故同类风险）。现在按重罚 +6 计入竞速，窗口耗尽后
+            才轮到它兜底。「0 张卡」「面板全没读到」「疑似漏读」惩罚不变。
             """
             an = lo.analyze(ocr, pips_rows)
             # ★ 记一行「豆子有没有真的用上」（2026-09-20 用户报「北风还是 3 级」后加）：
@@ -3024,10 +3065,9 @@ class WarframeSDJK(Star):
                     logger.warning("[sdjk] ★ 豆子检测到了但**对齐无解**，本次退回容量反推"
                                    "（截图存到 scan_debug/ 便于排查）")
                     self._dump_scan_debug(image_url)
-            if not an.get("weapon"):
-                return None, an
+            bad = 6 if not an.get("weapon") else 0
             checks = an.get("checks") or []
-            bad = sum(1 for c in checks if not c["ok"])
+            bad += sum(1 for c in checks if not c["ok"])
             n_mods = len(an.get("mods") or [])
             if not n_mods:
                 bad += 4
@@ -3067,7 +3107,7 @@ class WarframeSDJK(Star):
         logger.info("[sdjk] 识卡：并行 %d 个渠道（窗口 %.0f s）：%s",
                     len(provs), self.RACE_WINDOW_S, "、".join(_names))
         loop = asyncio.get_event_loop()
-        deadline = loop.time() + max(8.0, self.RACE_WINDOW_S)
+        deadline = loop.time() + max(0.5, float(self.RACE_WINDOW_S))
         tasks = [asyncio.create_task(
                      self._extract_loadout_from_image(image_url, p))
                  for p in provs]
@@ -3091,8 +3131,6 @@ class WarframeSDJK(Star):
                     if not ocr:
                         continue
                     bad, an = _score(ocr)
-                    if bad is None:
-                        return _finish(ocr)   # 武器都没认出 → 直接交出去
                     if bad == 0:
                         logger.info("[sdjk] 配卡识别校验全过，收工")
                         return _finish(ocr)
@@ -3105,15 +3143,13 @@ class WarframeSDJK(Star):
         if best is None:
             return None
         # —— 聚焦二读：只读伤害栏，拼接后重新校验 ——
+        # ★ 与主路径同一把尺（_score，2026-09-23）：否则「拼接后 0 张卡/
+        #   checks 全空」的退化结果可能因碰巧 0 分被误选。
         bad, ocr = best
         rows = await self._read_damage_rows(image_url)
         if rows:
             ocr2 = lo.splice_damage_rows(ocr, rows)
-            an2 = lo.analyze(ocr2, pips_rows)
-            bad2 = sum(1 for c in (an2.get("checks") or []) if not c["ok"])
-            if pips_rows:      # ★ 与 _score 同口径：漏读也要罚，否则比不出真实好坏
-                bad2 += pips_engine.underread_penalty(pips_rows,
-                                                      len(an2.get("mods") or []))
+            bad2, _an2 = _score(ocr2)
             if bad2 < bad:
                 logger.warning("[sdjk] 聚焦读行修正：校验失败 %d → %d", bad, bad2)
                 return _finish(ocr2)
@@ -3129,14 +3165,22 @@ class WarframeSDJK(Star):
         "看不清的行填 null。除了这个 JSON 什么都不要输出。")
 
     async def _read_damage_rows(self, image_url: str) -> Optional[list]:
-        """聚焦识别：只读伤害栏的「行名+数值」。失败返回 None。"""
+        """聚焦识别：只读伤害栏的「行名+数值」。失败返回 None。
+
+        ★ 只取前 2 个渠道 + 单次 75s 上限（2026-09-23）：此处已是竞速后的
+        补救路径，串行遍历全部渠道会把最坏等待拉到渠道超时的总和。
+        """
         import re as _re
-        for prov in self._vision_providers():
+        import uuid as _uuid
+        for prov in self._vision_providers()[:2]:
             pid = getattr(getattr(prov, "meta", lambda: None)(), "id", "")
             try:
-                resp = await prov.text_chat(
-                    prompt=self._ROWS_PROMPT, session_id="sdjk-rows",
-                    image_urls=[image_url])
+                resp = await asyncio.wait_for(
+                    prov.text_chat(
+                        prompt=self._ROWS_PROMPT,
+                        session_id=f"sdjk-rows-{_uuid.uuid4().hex[:8]}",
+                        image_urls=[image_url]),
+                    timeout=75)
                 text = (getattr(resp, "completion_text", "") or "").strip()
             except Exception as exc:  # noqa: BLE001
                 logger.warning("[sdjk] 聚焦读行 %s 失败：%s", pid, exc)
@@ -3178,8 +3222,10 @@ class WarframeSDJK(Star):
             pid = getattr(getattr(p, "meta", lambda: None)(), "id", "")
             _t0 = _t.perf_counter()
             try:
+                import uuid as _uuid
                 resp = await p.text_chat(
-                    prompt=lo.VISION_PROMPT, session_id="sdjk-loadout",
+                    prompt=lo.VISION_PROMPT,
+                    session_id=f"sdjk-loadout-{_uuid.uuid4().hex[:8]}",
                     image_urls=[image_url])
                 text = (getattr(resp, "completion_text", "") or "").strip()
             except Exception as exc:  # noqa: BLE001
