@@ -46,6 +46,11 @@ import re
 from pathlib import Path
 from typing import Optional
 
+try:
+    from . import matching        # core 包内正常导入
+except ImportError:               # 离线脚本把 core/ 当顶层路径导入时
+    import matching
+
 _DATA = Path(__file__).resolve().parent / "data"
 _cache: dict = {}
 
@@ -406,6 +411,12 @@ def find_weapon(query: str) -> tuple[dict | None, list[dict]]:
     exact = _name_index().get(q) or []
     if exact:
         return min(exact, key=lambda v: v.get("masteryReq", 99)), []
+    # 变体等价（2026-09-23）：绝路p→绝路prime、沙皇赤毒→赤毒沙皇、kuva沙皇。
+    # 只做等价变形，绝不剥变体 token 配 base（配卡计算按变体分别成立）。
+    for f in dict.fromkeys(f for f in matching.expand_variants(query) if f != q):
+        hit = _name_index().get(f) or []
+        if hit:
+            return min(hit, key=lambda v: v.get("masteryReq", 99)), []
     sub = [v for v in weapons.values()
            if q in _norm(v.get("zh")) or q in _norm(v.get("name"))]
     if not sub:
@@ -2277,7 +2288,7 @@ def card_lines(weapon: dict, spec: dict, res: dict,
                  "公式 1+暴率×(暴伤−1)），每次扳机/DPS 同时给「含暴击」与「无暴击」")
     lines.append("※ 「实战 DPS」是**稳态近似**：异常层数已建立、目标持续挨打；"
                  "未计入前几秒的爬升、换目标掉层、目标死亡截断与 Boss 伤害衰减。"
-                 "公式来源 wiki.gg，2026-09-16 核对")
+                 "公式来源 wiki（wiki.warframe.com），2026-09-16 核对")
     if res["steel_path"]:
         lines.append("※ 钢路：敌人血量/护盾 +100%（护甲已不加成），本卡未乘算")
     return lines

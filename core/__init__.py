@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Warframe SDJKBOT（AstrBot 插件）核心业务层。"""
 
-__version__ = "1.0.5"
+__version__ = "1.0.6"
 
 # ★ 品牌名**唯一来源**（2026-09-19 改名时立）。
 #   以前品牌字符串散在 metadata / main.py / render.py / 测试断言里各写一份，

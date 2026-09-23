@@ -54,6 +54,26 @@ except Exception:  # noqa: BLE001
                   "*澄清*.md", "*方案*.md", "*.diff", "*.patch", "*_before_*.json")
     SKIP_SOURCE = "内置回退清单"
 
+# ---------------------------------------------------------------------------
+# 市场件专属排除（2026-09-22 瘦身：条目 177 → 80）
+# ---------------------------------------------------------------------------
+# 开源**仓库**保留 tests / scripts / .github 等开发与验证物料（透明、可复现）；
+# 但市场安装用户只需要运行时必需件——这些物料进安装包是死代码，白占体积还
+# 扩大审读面。目标形态：core / main.py / metadata.yaml / _conf_schema.json /
+# requirements.txt / README.md / CHANGELOG.md / LICENSE / kb/。
+# （.gitignore / .gitattributes 已被上方 SKIP_FILES 排除，不重复列。）
+MARKET_SKIP_DIRS = {"tests", "scripts", ".github"}
+MARKET_SKIP_FILES = {".gitleaks.toml",        # 仓库门面（防泄漏 CI 配置），非运行件
+                     # 根目录的三个数据构建入口（scripts/ 里的同族已随目录整体排除）
+                     "build_damage_data.py",
+                     "build_de_data.py",
+                     "build_stances.py"}
+# 条目基线：177（v1.0.5 前）→ 80（v1.0.5 瘦身）→ 82（v1.0.6：+core/matching.py、
+# +core/data/dispositions_rivenmirror.json，变体解析倾向数据随市场件分发）。
+# 与 package_release.EXPECTED_OSS_STAGE_FILES 同理——有意变更须同步
+# 此常量并在 commit 正文列文件名与理由。
+EXPECTED_MARKET_ENTRIES = 82
+
 
 def main() -> int:
     if not OSS_DIR.is_dir():
@@ -74,6 +94,8 @@ def main() -> int:
             rel = f.relative_to(OSS_DIR)
             if set(rel.parts) & SKIP_DIRS:
                 continue
+            if set(rel.parts) & MARKET_SKIP_DIRS or rel.name in MARKET_SKIP_FILES:
+                continue
             if rel.name in SKIP_FILES or rel.suffix in SKIP_SUFFIX:
                 continue
             if any(rel.match(g) for g in SKIP_GLOBS):
@@ -84,13 +106,17 @@ def main() -> int:
     size_mb = out.stat().st_size / 1024 / 1024
     print(f"[flat zip] {out}  ({n} 条目, {size_mb:.2f} MB)")
     print(f"  排除清单来源：{SKIP_SOURCE}")
+    if n != EXPECTED_MARKET_ENTRIES:
+        print(f"✗ 条目数 {n} != 基线 {EXPECTED_MARKET_ENTRIES}"
+              "（有意变更请同步常量并在 commit 正文列文件名与理由）")
+        return 1
     if size_mb > 16:
         print("✗ 超过市场 16MB 上限")
         return 1
     with zipfile.ZipFile(out) as z:
         names = z.namelist()
         top = sorted({x.split("/")[0] for x in names if "/" in x})
-        print("  顶层目录（应只有 .github）：", top or "无")
+        print("  顶层目录（应只有 core 与 kb）：", top or "无")
         for must in ("metadata.yaml", "main.py", "README.md", "CHANGELOG.md"):
             mark = "✓" if must in names else "✗ 缺失"
             print(f"  {mark} {must}")
