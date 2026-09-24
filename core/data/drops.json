@@ -1,6 +1,6 @@
 {
  "source": "https://raw.githubusercontent.com/WFCD/warframe-drop-data/master/data/all.slim.json",
- "updated": "2026-09-24 00:56",
+ "updated": "2026-09-24 10:30",
  "places": {
   "0": "水星 · Apollodorus · 生存 · A轮",
   "1": "水星 · Apollodorus · 生存 · B轮",
@@ -844,35 +844,35 @@
   "839": "Entrati Netracell Coffer",
   "840": "Entrati Netracell Coffer (Level 0 - 100)",
   "841": "Eximus Enemy (Descendia Steel Path)",
-  "842": "Eximus Enemy (Railjack Steel Path)",
+  "842": "Faceoff: Single Squad · A轮",
   "843": "Eximus Enemy (Steel Path)",
   "844": "Exo Gokstad Crewship (Level 0 - 50)",
   "845": "Exo Gokstad Crewship (Level 51 - 100)",
   "846": "Exo Skold Crewship (Level 0 - 50)",
   "847": "Exo Skold Crewship (Level 51 - 100)",
-  "848": "Faceoff: Single Squad · A轮",
-  "849": "Faceoff: Single Squad · B轮",
-  "850": "Faceoff: Single Squad (Steel Path) · A轮",
-  "851": "Faceoff: Single Squad (Steel Path) · B轮",
-  "852": "Faceoff: Squad VS Squad · A轮",
-  "853": "Faceoff: Squad VS Squad · B轮",
+  "848": "Faceoff: Single Squad · B轮",
+  "849": "Faceoff: Single Squad (Steel Path) · A轮",
+  "850": "Faceoff: Single Squad (Steel Path) · B轮",
+  "851": "Faceoff: Squad VS Squad · A轮",
+  "852": "Faceoff: Squad VS Squad · B轮",
+  "853": "Faceoff: Squad VS Squad (Steel Path) · A轮",
   "854": "Faceoff: Squad VS Squad (Steel Path Winner)",
-  "855": "Faceoff: Squad VS Squad (Steel Path) · A轮",
-  "856": "Faceoff: Squad VS Squad (Steel Path) · B轮",
+  "855": "Faceoff: Squad VS Squad (Steel Path) · B轮",
+  "856": "Hallowed Flame Endurance Caches · A轮",
   "857": "Faceoff: Squad VS Squad (Winner)",
   "858": "Fomorian Sabotage",
   "859": "Gyre Gokstad Crewship (Level 0 - 50)",
   "860": "Gyre Gokstad Crewship (Level 51 - 100)",
-  "861": "Hallowed Flame Endurance Caches · A轮",
-  "862": "Hallowed Flame Endurance Caches · B轮",
-  "863": "Hallowed Flame Endurance Caches · C轮",
-  "864": "Hallowed Flame Mission Caches · A轮",
-  "865": "Hallowed Flame Mission Caches · B轮",
-  "866": "Hallowed Flame Mission Caches · C轮",
-  "867": "Höllvania (Level  105 - 110 WF1999 Bounty) · C轮",
-  "868": "Höllvania (Level  115 - 120 WF1999 Bounty) · C轮",
-  "869": "Höllvania (Level  55 - 60 WF1999 Bounty) · C轮",
-  "870": "Höllvania (Level  65 - 70 WF1999 Bounty) · C轮",
+  "861": "Hallowed Flame Endurance Caches · B轮",
+  "862": "Hallowed Flame Endurance Caches · C轮",
+  "863": "Hallowed Flame Mission Caches · A轮",
+  "864": "Hallowed Flame Mission Caches · B轮",
+  "865": "Hallowed Flame Mission Caches · C轮",
+  "866": "Höllvania (Level  105 - 110 WF1999 Bounty) · C轮",
+  "867": "Höllvania (Level  115 - 120 WF1999 Bounty) · C轮",
+  "868": "Höllvania (Level  55 - 60 WF1999 Bounty) · C轮",
+  "869": "Höllvania (Level  65 - 70 WF1999 Bounty) · C轮",
+  "870": "Höllvania (Level  75 - 80 WF1999 Bounty) · C轮",
   "871": "Dark Refractory, Deimos · Recall: Hunhullus · The Perita Rebellion · A轮",
   "872": "Dark Refractory, Deimos · Recall: Hunhullus · The Perita Rebellion · B轮",
   "873": "Dark Refractory, Deimos · Recall: Hunhullus · The Perita Rebellion · C轮",
@@ -2207,7 +2207,7 @@
   "2202": "Cephalon Simaris, Health Conversion",
   "2203": "Cephalon Simaris, Astral Autopsy",
   "2204": "Cephalon Simaris, Simulacrum Access Key",
-  "2205": "Cephalon Simaris, Simaris Helios Skin",
+  "2205": "Meso B3 Relic (Radiant)",
   "2206": "Cephalon Simaris",
   "2207": "Cephalon Simaris, Complete Natah (Quest)",
   "2208": "Cephalon Simaris, Color Key Scene",
@@ -2323,7 +2323,7 @@
   "2318": "Scaldra Jaegar Gas Carrier",
   "2319": "Vomvalyst",
   "2320": "Meso B4 Relic (Flawless)",
-  "2321": "Void Surplus",
+  "2321": "Meso B5 Relic",
   "2322": "Techrot Motherboard Cluster",
   "2323": "Proto-Infested Clump",
   "2324": "Experimental Arc-Relay Reserve",
@@ -3980,52 +3980,21 @@
   "3975": "Zariman Ten Zero (Level  70 - 75 Zariman Bounty) · C轮",
   "3976": "Zariman Ten Zero (Level  90 - 95 Zariman Bounty) · C轮",
   "3977": "火卫二 · Albrecht's Laboratories · Level  115 - 120 Entrati Lab Bounty · C轮",
-  "3978": "火卫二 · Albrecht's Laboratories · Level  55 - 60 Entrati Lab Bounty · C轮",
-  "3979": "火卫二 · Albrecht's Laboratories · Level  65 - 70 Entrati Lab Bounty · C轮",
-  "3980": "火卫二 · Albrecht's Laboratories · Level  75 - 80 Entrati Lab Bounty · C轮",
-  "3981": "火卫二 · Albrecht's Laboratories · Level  95 - 100 Entrati Lab Bounty · C轮",
   "3982": "Duviri · Endless: Repeated Rewards · Hard",
-  "3983": "Duviri · Endless: Repeated Rewards · Normal",
   "3984": "Duviri · Endless: Tier 1 · Hard",
-  "3985": "Duviri · Endless: Tier 1 · Normal",
   "3986": "Duviri · Endless: Tier 2 · Hard",
   "3987": "Duviri · Endless: Tier 3 · Hard",
-  "3988": "Duviri · Endless: Tier 3 · Normal",
   "3989": "Duviri · Endless: Tier 4 · Hard",
-  "3990": "Duviri · Endless: Tier 4 · Normal",
   "3991": "Duviri · Endless: Tier 6 · Hard",
-  "3992": "Duviri · Endless: Tier 6 · Normal",
   "3993": "Duviri · Endless: Tier 7 · Hard",
   "3994": "Duviri · Endless: Tier 8 · Hard",
   "3995": "Duviri · Endless: Tier 9 · Hard",
-  "3996": "Duviri · Endless: Tier 9 · Normal",
   "3997": "Duviri · The Circuit · The Circuit · A轮",
   "3998": "Duviri · The Circuit · The Circuit · B轮",
   "3999": "Duviri · The Circuit · The Circuit · C轮",
   "4000": "地球 · Cetus · Level 10 - 30 Cetus Bounty · A轮",
   "4001": "地球 · Cetus · Level 10 - 30 Cetus Bounty · B轮",
   "4002": "地球 · Cetus · Level 10 - 30 Cetus Bounty · C轮",
-  "4003": "地球 · Cetus · Level 100 - 100 Cetus Bounty · A轮",
-  "4004": "地球 · Cetus · Level 100 - 100 Cetus Bounty · B轮",
-  "4005": "地球 · Cetus · Level 100 - 100 Cetus Bounty · C轮",
-  "4006": "地球 · Cetus · Level 15 - 25 Ghoul Bounty · A轮",
-  "4007": "地球 · Cetus · Level 15 - 25 Plague Star · A轮",
-  "4008": "地球 · Cetus · Level 20 - 40 Cetus Bounty · A轮",
-  "4009": "地球 · Cetus · Level 20 - 40 Cetus Bounty · B轮",
-  "4010": "地球 · Cetus · Level 20 - 40 Cetus Bounty · C轮",
-  "4011": "地球 · Cetus · Level 30 - 50 Cetus Bounty · A轮",
-  "4012": "地球 · Cetus · Level 30 - 50 Cetus Bounty · B轮",
-  "4013": "地球 · Cetus · Level 30 - 50 Cetus Bounty · C轮",
-  "4014": "地球 · Cetus · Level 40 - 50 Ghoul Bounty · A轮",
-  "4015": "地球 · Cetus · Level 40 - 60 Cetus Bounty · A轮",
-  "4016": "地球 · Cetus · Level 40 - 60 Cetus Bounty · B轮",
-  "4017": "地球 · Cetus · Level 40 - 60 Cetus Bounty · C轮",
-  "4018": "地球 · Cetus · Level 5 - 15 Cetus Bounty · A轮",
-  "4019": "地球 · Cetus · Level 5 - 15 Cetus Bounty · B轮",
-  "4020": "地球 · Cetus · Level 5 - 15 Cetus Bounty · C轮",
-  "4021": "地球 · Cetus · Level 50 - 70 Cetus Bounty · A轮",
-  "4022": "地球 · Cetus · Level 50 - 70 Cetus Bounty · B轮",
-  "4023": "地球 · Cetus · Level 50 - 70 Cetus Bounty · C轮",
   "4024": "木卫二 · Abaddon · 捕获",
   "4025": "木卫二 · Beleth · 捕获",
   "4026": "木卫二 · Cholistan · 挖掘 · A轮",
@@ -4065,12 +4034,9 @@
   "4060": "木卫二 · Zagan · 生存 · B轮",
   "4061": "木卫二 · Zagan · 生存 · C轮",
   "4062": "Höllvania · Antivirus Bounty · Caches",
-  "4063": "Höllvania · Antivirus Bounty · Exterminate",
   "4064": "Höllvania · Assassinate: H-09 Tank · 刺杀",
   "4065": "Höllvania · Exterminate: Scaldra · Caches",
-  "4066": "Höllvania · Exterminate: Scaldra · Exterminate",
   "4067": "Höllvania · Exterminate: Techrot · Caches",
-  "4068": "Höllvania · Exterminate: Techrot · Exterminate",
   "4069": "Höllvania · Hell-Scrub: Scaldra · 生存 · A轮",
   "4070": "Höllvania · Hell-Scrub: Scaldra · 生存 · B轮",
   "4071": "Höllvania · Hell-Scrub: Scaldra · 生存 · C轮",
@@ -4173,18 +4139,6 @@
   "4168": "塞德娜 · Yemaja · 生存 · C轮",
   "4169": "金星 · Orb Vallis · Level 10 - 30 Orb Vallis Bounty · A轮",
   "4170": "金星 · Orb Vallis · Level 10 - 30 Orb Vallis Bounty · B轮",
-  "4171": "金星 · Orb Vallis · Level 100 - 100 Orb Vallis Bounty · A轮",
-  "4172": "金星 · Orb Vallis · Level 100 - 100 Orb Vallis Bounty · B轮",
-  "4173": "金星 · Orb Vallis · Level 20 - 40 Orb Vallis Bounty · A轮",
-  "4174": "金星 · Orb Vallis · Level 20 - 40 Orb Vallis Bounty · B轮",
-  "4175": "金星 · Orb Vallis · Level 30 - 50 Orb Vallis Bounty · A轮",
-  "4176": "金星 · Orb Vallis · Level 30 - 50 Orb Vallis Bounty · B轮",
-  "4177": "金星 · Orb Vallis · Level 40 - 60 Orb Vallis Bounty · A轮",
-  "4178": "金星 · Orb Vallis · Level 40 - 60 Orb Vallis Bounty · B轮",
-  "4179": "金星 · Orb Vallis · Level 5 - 15 Orb Vallis Bounty · A轮",
-  "4180": "金星 · Orb Vallis · Level 5 - 15 Orb Vallis Bounty · B轮",
-  "4181": "金星 · Orb Vallis · Level 50 - 70 Orb Vallis Bounty · A轮",
-  "4182": "金星 · Orb Vallis · Level 50 - 70 Orb Vallis Bounty · B轮",
   "4183": "扎利曼 · Everview Arc · 虚空洪泛 · A轮",
   "4184": "扎利曼 · Everview Arc · 虚空洪泛 · B轮",
   "4185": "扎利曼 · Everview Arc · 虚空洪泛 · C轮",
@@ -125400,22 +125354,22 @@
     10
    ],
    [
-    849,
+    848,
     "Rare",
     8.33
    ],
    [
-    851,
+    850,
     "Rare",
     8.33
    ],
    [
-    853,
+    852,
     "Rare",
     8.33
    ],
    [
-    856,
+    855,
     "Rare",
     8.33
    ],
@@ -125450,17 +125404,17 @@
     3
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.42
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.58
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.67
    ],
@@ -125832,37 +125786,439 @@
     10
    ],
    [
-    849,
+    848,
     "Rare",
     8.33
    ],
    [
-    851,
+    850,
     "Rare",
     8.33
    ],
    [
-    853,
+    852,
     "Rare",
     8.33
    ],
    [
-    856,
+    855,
     "Rare",
     8.33
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.42
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.58
    ],
    [
-    4007,
+    4000,
+    "Legendary",
+    0.67
+   ],
+   [
+    4028,
+    "Uncommon",
+    11.06
+   ],
+   [
+    4080,
+    "Rare",
+    8.18
+   ],
+   [
+    4088,
+    "Rare",
+    6.67
+   ],
+   [
+    4089,
+    "Uncommon",
+    11.06
+   ],
+   [
+    4098,
+    "Rare",
+    8
+   ],
+   [
+    4119,
+    "Uncommon",
+    11.06
+   ],
+   [
+    4121,
+    "Uncommon",
+    14.29
+   ],
+   [
+    4122,
+    "Uncommon",
+    14.29
+   ],
+   [
+    4127,
+    "Rare",
+    6.67
+   ],
+   [
+    4128,
+    "Uncommon",
+    11.06
+   ],
+   [
+    4133,
+    "Uncommon",
+    10.2
+   ],
+   [
+    4153,
+    "Uncommon",
+    11.06
+   ],
+   [
+    4156,
+    "Uncommon",
+    11.06
+   ],
+   [
+    4168,
+    "Uncommon",
+    11.06
+   ]
+  ],
+  "axi c12 relic": [
+   [
+    160,
+    "Rare",
+    7.9
+   ],
+   [
+    163,
+    "Rare",
+    5
+   ],
+   [
+    267,
+    "Rare",
+    6.67
+   ],
+   [
+    268,
+    "Uncommon",
+    11.06
+   ],
+   [
+    271,
+    "Uncommon",
+    11.06
+   ],
+   [
+    280,
+    "Uncommon",
+    11.06
+   ],
+   [
+    285,
+    "Rare",
+    6.67
+   ],
+   [
+    286,
+    "Uncommon",
+    11.06
+   ],
+   [
+    303,
+    "Rare",
+    6.67
+   ],
+   [
+    304,
+    "Uncommon",
+    11.06
+   ],
+   [
+    308,
+    "Rare",
+    9.68
+   ],
+   [
+    311,
+    "Uncommon",
+    11.06
+   ],
+   [
+    320,
+    "Rare",
+    6.67
+   ],
+   [
+    321,
+    "Uncommon",
+    11.06
+   ],
+   [
+    327,
+    "Uncommon",
+    11.06
+   ],
+   [
+    371,
+    "Uncommon",
+    10
+   ],
+   [
+    374,
+    "Uncommon",
+    11.06
+   ],
+   [
+    390,
+    "Rare",
+    6.67
+   ],
+   [
+    391,
+    "Uncommon",
+    11.06
+   ],
+   [
+    404,
+    "Uncommon",
+    14.29
+   ],
+   [
+    405,
+    "Uncommon",
+    14.29
+   ],
+   [
+    408,
+    "Uncommon",
+    11.06
+   ],
+   [
+    417,
+    "Uncommon",
+    11.06
+   ],
+   [
+    502,
+    "Rare",
+    6.67
+   ],
+   [
+    503,
+    "Uncommon",
+    11.06
+   ],
+   [
+    506,
+    "Uncommon",
+    11.06
+   ],
+   [
+    512,
+    "Uncommon",
+    14.29
+   ],
+   [
+    513,
+    "Uncommon",
+    14.29
+   ],
+   [
+    515,
+    "Rare",
+    6.67
+   ],
+   [
+    516,
+    "Uncommon",
+    11.06
+   ],
+   [
+    518,
+    "Uncommon",
+    14.29
+   ],
+   [
+    519,
+    "Uncommon",
+    14.29
+   ],
+   [
+    521,
+    "Rare",
+    7.69
+   ],
+   [
+    531,
+    "Uncommon",
+    11.06
+   ],
+   [
+    539,
+    "Uncommon",
+    14.29
+   ],
+   [
+    540,
+    "Uncommon",
+    14.29
+   ],
+   [
+    546,
+    "Uncommon",
+    12.5
+   ],
+   [
+    657,
+    "Rare",
+    2.82
+   ],
+   [
+    660,
+    "Legendary",
+    0.29
+   ],
+   [
+    660,
+    "Uncommon",
+    10.84
+   ],
+   [
+    661,
+    "Rare",
+    6.25
+   ],
+   [
+    662,
+    "Rare",
+    6.25
+   ],
+   [
+    668,
+    "Legendary",
+    0.29
+   ],
+   [
+    668,
+    "Uncommon",
+    10.84
+   ],
+   [
+    716,
+    "Uncommon",
+    11.06
+   ],
+   [
+    731,
+    "Uncommon",
+    10
+   ],
+   [
+    740,
+    "Uncommon",
+    11.06
+   ],
+   [
+    742,
+    "Rare",
+    6.67
+   ],
+   [
+    743,
+    "Uncommon",
+    11.06
+   ],
+   [
+    749,
+    "Uncommon",
+    14.29
+   ],
+   [
+    750,
+    "Uncommon",
+    12.42
+   ],
+   [
+    753,
+    "Uncommon",
+    11.36
+   ],
+   [
+    756,
+    "Rare",
+    6.12
+   ],
+   [
+    793,
+    "Rare",
+    2.41
+   ],
+   [
+    796,
+    "Rare",
+    2.41
+   ],
+   [
+    800,
+    "Rare",
+    5.71
+   ],
+   [
+    806,
+    "Rare",
+    4.55
+   ],
+   [
+    812,
+    "Rare",
+    5.71
+   ],
+   [
+    818,
+    "Uncommon",
+    10
+   ],
+   [
+    848,
+    "Rare",
+    8.33
+   ],
+   [
+    850,
+    "Rare",
+    8.33
+   ],
+   [
+    852,
+    "Rare",
+    8.33
+   ],
+   [
+    855,
+    "Rare",
+    8.33
+   ],
+   [
+    4000,
+    "Legendary",
+    0.42
+   ],
+   [
+    4000,
+    "Legendary",
+    0.58
+   ],
+   [
+    4000,
     "Legendary",
     0.67
    ],
@@ -126234,47 +126590,47 @@
     10
    ],
    [
-    849,
+    848,
     "Rare",
     8.33
    ],
    [
-    851,
+    850,
     "Rare",
     8.33
    ],
    [
-    853,
+    852,
     "Rare",
     8.33
    ],
    [
-    856,
+    855,
     "Rare",
     8.33
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.42
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.42
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.58
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.67
    ],
    [
-    4007,
+    4000,
     "Rare",
     1.14
    ],
@@ -126641,22 +126997,22 @@
     10
    ],
    [
-    849,
+    848,
     "Rare",
     8.33
    ],
    [
-    851,
+    850,
     "Rare",
     8.33
    ],
    [
-    853,
+    852,
     "Rare",
     8.33
    ],
    [
-    856,
+    855,
     "Rare",
     8.33
    ],
@@ -126726,7 +127082,7 @@
     11.06
    ]
   ],
-  "axi s20 relic": [
+  "axi s21 relic": [
    [
     160,
     "Rare",
@@ -127023,22 +127379,22 @@
     10
    ],
    [
-    849,
+    848,
     "Rare",
     8.33
    ],
    [
-    851,
+    850,
     "Rare",
     8.33
    ],
    [
-    853,
+    852,
     "Rare",
     8.33
    ],
    [
-    856,
+    855,
     "Rare",
     8.33
    ],
@@ -127058,27 +127414,27 @@
     1
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.42
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.42
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.58
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.67
    ],
    [
-    4007,
+    4000,
     "Rare",
     1.14
    ],
@@ -127253,408 +127609,6 @@
     818,
     "Rare",
     9.09
-   ]
-  ],
-  "axi t13 relic": [
-   [
-    160,
-    "Rare",
-    7.9
-   ],
-   [
-    163,
-    "Rare",
-    5
-   ],
-   [
-    267,
-    "Rare",
-    6.67
-   ],
-   [
-    268,
-    "Uncommon",
-    11.06
-   ],
-   [
-    271,
-    "Uncommon",
-    11.06
-   ],
-   [
-    280,
-    "Uncommon",
-    11.06
-   ],
-   [
-    285,
-    "Rare",
-    6.67
-   ],
-   [
-    286,
-    "Uncommon",
-    11.06
-   ],
-   [
-    303,
-    "Rare",
-    6.67
-   ],
-   [
-    304,
-    "Uncommon",
-    11.06
-   ],
-   [
-    308,
-    "Rare",
-    9.68
-   ],
-   [
-    311,
-    "Uncommon",
-    11.06
-   ],
-   [
-    320,
-    "Rare",
-    6.67
-   ],
-   [
-    321,
-    "Uncommon",
-    11.06
-   ],
-   [
-    327,
-    "Uncommon",
-    11.06
-   ],
-   [
-    371,
-    "Uncommon",
-    10
-   ],
-   [
-    374,
-    "Uncommon",
-    11.06
-   ],
-   [
-    390,
-    "Rare",
-    6.67
-   ],
-   [
-    391,
-    "Uncommon",
-    11.06
-   ],
-   [
-    404,
-    "Uncommon",
-    14.29
-   ],
-   [
-    405,
-    "Uncommon",
-    14.29
-   ],
-   [
-    408,
-    "Uncommon",
-    11.06
-   ],
-   [
-    417,
-    "Uncommon",
-    11.06
-   ],
-   [
-    502,
-    "Rare",
-    6.67
-   ],
-   [
-    503,
-    "Uncommon",
-    11.06
-   ],
-   [
-    506,
-    "Uncommon",
-    11.06
-   ],
-   [
-    512,
-    "Uncommon",
-    14.29
-   ],
-   [
-    513,
-    "Uncommon",
-    14.29
-   ],
-   [
-    515,
-    "Rare",
-    6.67
-   ],
-   [
-    516,
-    "Uncommon",
-    11.06
-   ],
-   [
-    518,
-    "Uncommon",
-    14.29
-   ],
-   [
-    519,
-    "Uncommon",
-    14.29
-   ],
-   [
-    521,
-    "Rare",
-    7.69
-   ],
-   [
-    531,
-    "Uncommon",
-    11.06
-   ],
-   [
-    539,
-    "Uncommon",
-    14.29
-   ],
-   [
-    540,
-    "Uncommon",
-    14.29
-   ],
-   [
-    546,
-    "Uncommon",
-    12.5
-   ],
-   [
-    657,
-    "Rare",
-    2.82
-   ],
-   [
-    660,
-    "Legendary",
-    0.29
-   ],
-   [
-    660,
-    "Uncommon",
-    10.84
-   ],
-   [
-    661,
-    "Rare",
-    6.25
-   ],
-   [
-    662,
-    "Rare",
-    6.25
-   ],
-   [
-    668,
-    "Legendary",
-    0.29
-   ],
-   [
-    668,
-    "Uncommon",
-    10.84
-   ],
-   [
-    716,
-    "Uncommon",
-    11.06
-   ],
-   [
-    731,
-    "Uncommon",
-    10
-   ],
-   [
-    740,
-    "Uncommon",
-    11.06
-   ],
-   [
-    742,
-    "Rare",
-    6.67
-   ],
-   [
-    743,
-    "Uncommon",
-    11.06
-   ],
-   [
-    749,
-    "Uncommon",
-    14.29
-   ],
-   [
-    750,
-    "Uncommon",
-    12.42
-   ],
-   [
-    753,
-    "Uncommon",
-    11.36
-   ],
-   [
-    756,
-    "Rare",
-    6.12
-   ],
-   [
-    793,
-    "Rare",
-    2.41
-   ],
-   [
-    796,
-    "Rare",
-    2.41
-   ],
-   [
-    800,
-    "Rare",
-    5.71
-   ],
-   [
-    806,
-    "Rare",
-    4.55
-   ],
-   [
-    812,
-    "Rare",
-    5.71
-   ],
-   [
-    818,
-    "Uncommon",
-    10
-   ],
-   [
-    849,
-    "Rare",
-    8.33
-   ],
-   [
-    851,
-    "Rare",
-    8.33
-   ],
-   [
-    853,
-    "Rare",
-    8.33
-   ],
-   [
-    856,
-    "Rare",
-    8.33
-   ],
-   [
-    4007,
-    "Legendary",
-    0.42
-   ],
-   [
-    4007,
-    "Legendary",
-    0.58
-   ],
-   [
-    4007,
-    "Legendary",
-    0.67
-   ],
-   [
-    4028,
-    "Uncommon",
-    11.06
-   ],
-   [
-    4080,
-    "Rare",
-    8.18
-   ],
-   [
-    4088,
-    "Rare",
-    6.67
-   ],
-   [
-    4089,
-    "Uncommon",
-    11.06
-   ],
-   [
-    4098,
-    "Rare",
-    8
-   ],
-   [
-    4119,
-    "Uncommon",
-    11.06
-   ],
-   [
-    4121,
-    "Uncommon",
-    14.29
-   ],
-   [
-    4122,
-    "Uncommon",
-    14.29
-   ],
-   [
-    4127,
-    "Rare",
-    6.67
-   ],
-   [
-    4128,
-    "Uncommon",
-    11.06
-   ],
-   [
-    4133,
-    "Uncommon",
-    10.2
-   ],
-   [
-    4153,
-    "Uncommon",
-    11.06
-   ],
-   [
-    4156,
-    "Uncommon",
-    11.06
-   ],
-   [
-    4168,
-    "Uncommon",
-    11.06
    ]
   ],
   "axi v10 relic": [
@@ -128056,22 +128010,22 @@
     10
    ],
    [
-    849,
+    848,
     "Rare",
     8.33
    ],
    [
-    851,
+    850,
     "Rare",
     8.33
    ],
    [
-    853,
+    852,
     "Rare",
     8.33
    ],
    [
-    856,
+    855,
     "Rare",
     8.33
    ],
@@ -128091,27 +128045,27 @@
     1
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.42
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.42
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.58
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.67
    ],
    [
-    4007,
+    4000,
     "Rare",
     1.14
    ],
@@ -128193,7 +128147,7 @@
     100
    ]
   ],
-  "lith a12 relic": [
+  "lith a13 relic": [
    [
     1,
     "Rare",
@@ -128730,19 +128684,571 @@
     11.06
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.42
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.58
    ],
    [
-    4007,
+    4000,
     "Rare",
     1.14
+   ],
+   [
+    4034,
+    "Rare",
+    6.9
+   ],
+   [
+    4148,
+    "Rare",
+    6.9
+   ]
+  ],
+  "lith c15 relic": [
+   [
+    1,
+    "Rare",
+    7.69
+   ],
+   [
+    2,
+    "Uncommon",
+    11.06
+   ],
+   [
+    3,
+    "Rare",
+    9.09
+   ],
+   [
+    17,
+    "Uncommon",
+    10
+   ],
+   [
+    21,
+    "Uncommon",
+    14.29
+   ],
+   [
+    23,
+    "Rare",
+    2.44
+   ],
+   [
+    24,
+    "Rare",
+    4.35
+   ],
+   [
+    26,
+    "Rare",
+    2.44
+   ],
+   [
+    27,
+    "Rare",
+    4.35
+   ],
+   [
+    29,
+    "Rare",
+    4.35
+   ],
+   [
+    30,
+    "Uncommon",
+    10
+   ],
+   [
+    35,
+    "Rare",
+    4.35
+   ],
+   [
+    35,
+    "Rare",
+    4.76
+   ],
+   [
+    41,
+    "Rare",
+    4.35
+   ],
+   [
+    41,
+    "Rare",
+    6.67
+   ],
+   [
+    47,
+    "Rare",
+    4.35
+   ],
+   [
+    47,
+    "Rare",
+    6.67
+   ],
+   [
+    54,
+    "Rare",
+    7.69
+   ],
+   [
+    55,
+    "Uncommon",
+    11.06
+   ],
+   [
+    60,
+    "Uncommon",
+    14.29
+   ],
+   [
+    62,
+    "Uncommon",
+    10
+   ],
+   [
+    69,
+    "Uncommon",
+    14.29
+   ],
+   [
+    72,
+    "Rare",
+    7.69
+   ],
+   [
+    73,
+    "Uncommon",
+    11.06
+   ],
+   [
+    75,
+    "Rare",
+    9.09
+   ],
+   [
+    79,
+    "Rare",
+    7.69
+   ],
+   [
+    80,
+    "Uncommon",
+    11.06
+   ],
+   [
+    81,
+    "Rare",
+    6.9
+   ],
+   [
+    90,
+    "Uncommon",
+    14.29
+   ],
+   [
+    93,
+    "Rare",
+    7.69
+   ],
+   [
+    94,
+    "Uncommon",
+    11.06
+   ],
+   [
+    97,
+    "Rare",
+    9.09
+   ],
+   [
+    100,
+    "Rare",
+    3
+   ],
+   [
+    100,
+    "Rare",
+    5
+   ],
+   [
+    102,
+    "Rare",
+    3
+   ],
+   [
+    102,
+    "Rare",
+    5
+   ],
+   [
+    104,
+    "Uncommon",
+    10
+   ],
+   [
+    111,
+    "Rare",
+    6.9
+   ],
+   [
+    116,
+    "Rare",
+    7.69
+   ],
+   [
+    117,
+    "Uncommon",
+    11.06
+   ],
+   [
+    118,
+    "Rare",
+    3
+   ],
+   [
+    118,
+    "Rare",
+    5
+   ],
+   [
+    120,
+    "Rare",
+    3
+   ],
+   [
+    120,
+    "Rare",
+    5
+   ],
+   [
+    122,
+    "Rare",
+    3
+   ],
+   [
+    122,
+    "Rare",
+    5
+   ],
+   [
+    126,
+    "Rare",
+    7.69
+   ],
+   [
+    127,
+    "Uncommon",
+    11.06
+   ],
+   [
+    128,
+    "Uncommon",
+    14.29
+   ],
+   [
+    129,
+    "Uncommon",
+    14.29
+   ],
+   [
+    131,
+    "Rare",
+    9.09
+   ],
+   [
+    134,
+    "Uncommon",
+    10
+   ],
+   [
+    138,
+    "Uncommon",
+    14.29
+   ],
+   [
+    141,
+    "Rare",
+    7.69
+   ],
+   [
+    142,
+    "Uncommon",
+    11.06
+   ],
+   [
+    146,
+    "Rare",
+    6.9
+   ],
+   [
+    187,
+    "Rare",
+    6.9
+   ],
+   [
+    409,
+    "Rare",
+    6.9
+   ],
+   [
+    457,
+    "Rare",
+    9.09
+   ],
+   [
+    467,
+    "Uncommon",
+    14.29
+   ],
+   [
+    470,
+    "Rare",
+    9.09
+   ],
+   [
+    473,
+    "Uncommon",
+    10
+   ],
+   [
+    476,
+    "Rare",
+    9.09
+   ],
+   [
+    483,
+    "Rare",
+    7.69
+   ],
+   [
+    484,
+    "Uncommon",
+    11.06
+   ],
+   [
+    485,
+    "Rare",
+    6.9
+   ],
+   [
+    532,
+    "Rare",
+    6.9
+   ],
+   [
+    640,
+    "Rare",
+    6.67
+   ],
+   [
+    640,
+    "Rare",
+    6.67
+   ],
+   [
+    641,
+    "Rare",
+    6.67
+   ],
+   [
+    641,
+    "Rare",
+    6.67
+   ],
+   [
+    642,
+    "Rare",
+    6.67
+   ],
+   [
+    642,
+    "Rare",
+    6.67
+   ],
+   [
+    643,
+    "Uncommon",
+    11.06
+   ],
+   [
+    644,
+    "Rare",
+    6.25
+   ],
+   [
+    645,
+    "Rare",
+    6.25
+   ],
+   [
+    646,
+    "Rare",
+    6.25
+   ],
+   [
+    650,
+    "Uncommon",
+    11.06
+   ],
+   [
+    671,
+    "Uncommon",
+    14.29
+   ],
+   [
+    674,
+    "Rare",
+    7.69
+   ],
+   [
+    675,
+    "Uncommon",
+    11.06
+   ],
+   [
+    677,
+    "Rare",
+    9.09
+   ],
+   [
+    684,
+    "Rare",
+    9.68
+   ],
+   [
+    685,
+    "Rare",
+    9.09
+   ],
+   [
+    689,
+    "Uncommon",
+    14.29
+   ],
+   [
+    692,
+    "Rare",
+    7.69
+   ],
+   [
+    693,
+    "Uncommon",
+    11.06
+   ],
+   [
+    696,
+    "Rare",
+    7.69
+   ],
+   [
+    697,
+    "Uncommon",
+    11.06
+   ],
+   [
+    699,
+    "Uncommon",
+    10
+   ],
+   [
+    700,
+    "Uncommon",
+    10
+   ],
+   [
+    702,
+    "Rare",
+    2.21
+   ],
+   [
+    708,
+    "Uncommon",
+    11.11
+   ],
+   [
+    714,
+    "Uncommon",
+    11.11
+   ],
+   [
+    883,
+    "Rare",
+    2.21
+   ],
+   [
+    893,
+    "Rare",
+    2.21
+   ],
+   [
+    896,
+    "Rare",
+    2.21
+   ],
+   [
+    899,
+    "Rare",
+    2.21
+   ],
+   [
+    902,
+    "Rare",
+    2.21
+   ],
+   [
+    905,
+    "Rare",
+    2.21
+   ],
+   [
+    911,
+    "Rare",
+    2.21
+   ],
+   [
+    914,
+    "Rare",
+    2.21
+   ],
+   [
+    3905,
+    "Rare",
+    7.14
+   ],
+   [
+    3998,
+    "Rare",
+    7.69
+   ],
+   [
+    3999,
+    "Uncommon",
+    11.06
+   ],
+   [
+    4000,
+    "Legendary",
+    0.42
+   ],
+   [
+    4000,
+    "Legendary",
+    0.58
+   ],
+   [
+    4000,
+    "Legendary",
+    0.67
    ],
    [
     4034,
@@ -129369,17 +129875,17 @@
     11.06
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.42
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.58
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.67
    ],
@@ -129394,7 +129900,7 @@
     6.9
    ]
   ],
-  "lith k12 relic": [
+  "lith l8 relic": [
    [
     1,
     "Rare",
@@ -129921,569 +130427,17 @@
     11.06
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.42
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.58
    ],
    [
-    4007,
-    "Legendary",
-    0.67
-   ],
-   [
-    4034,
-    "Rare",
-    6.9
-   ],
-   [
-    4148,
-    "Rare",
-    6.9
-   ]
-  ],
-  "lith q3 relic": [
-   [
-    1,
-    "Rare",
-    7.69
-   ],
-   [
-    2,
-    "Uncommon",
-    11.06
-   ],
-   [
-    3,
-    "Rare",
-    9.09
-   ],
-   [
-    17,
-    "Uncommon",
-    10
-   ],
-   [
-    21,
-    "Uncommon",
-    14.29
-   ],
-   [
-    23,
-    "Rare",
-    2.44
-   ],
-   [
-    24,
-    "Rare",
-    4.35
-   ],
-   [
-    26,
-    "Rare",
-    2.44
-   ],
-   [
-    27,
-    "Rare",
-    4.35
-   ],
-   [
-    29,
-    "Rare",
-    4.35
-   ],
-   [
-    30,
-    "Uncommon",
-    10
-   ],
-   [
-    35,
-    "Rare",
-    4.35
-   ],
-   [
-    35,
-    "Rare",
-    4.76
-   ],
-   [
-    41,
-    "Rare",
-    4.35
-   ],
-   [
-    41,
-    "Rare",
-    6.67
-   ],
-   [
-    47,
-    "Rare",
-    4.35
-   ],
-   [
-    47,
-    "Rare",
-    6.67
-   ],
-   [
-    54,
-    "Rare",
-    7.69
-   ],
-   [
-    55,
-    "Uncommon",
-    11.06
-   ],
-   [
-    60,
-    "Uncommon",
-    14.29
-   ],
-   [
-    62,
-    "Uncommon",
-    10
-   ],
-   [
-    69,
-    "Uncommon",
-    14.29
-   ],
-   [
-    72,
-    "Rare",
-    7.69
-   ],
-   [
-    73,
-    "Uncommon",
-    11.06
-   ],
-   [
-    75,
-    "Rare",
-    9.09
-   ],
-   [
-    79,
-    "Rare",
-    7.69
-   ],
-   [
-    80,
-    "Uncommon",
-    11.06
-   ],
-   [
-    81,
-    "Rare",
-    6.9
-   ],
-   [
-    90,
-    "Uncommon",
-    14.29
-   ],
-   [
-    93,
-    "Rare",
-    7.69
-   ],
-   [
-    94,
-    "Uncommon",
-    11.06
-   ],
-   [
-    97,
-    "Rare",
-    9.09
-   ],
-   [
-    100,
-    "Rare",
-    3
-   ],
-   [
-    100,
-    "Rare",
-    5
-   ],
-   [
-    102,
-    "Rare",
-    3
-   ],
-   [
-    102,
-    "Rare",
-    5
-   ],
-   [
-    104,
-    "Uncommon",
-    10
-   ],
-   [
-    111,
-    "Rare",
-    6.9
-   ],
-   [
-    116,
-    "Rare",
-    7.69
-   ],
-   [
-    117,
-    "Uncommon",
-    11.06
-   ],
-   [
-    118,
-    "Rare",
-    3
-   ],
-   [
-    118,
-    "Rare",
-    5
-   ],
-   [
-    120,
-    "Rare",
-    3
-   ],
-   [
-    120,
-    "Rare",
-    5
-   ],
-   [
-    122,
-    "Rare",
-    3
-   ],
-   [
-    122,
-    "Rare",
-    5
-   ],
-   [
-    126,
-    "Rare",
-    7.69
-   ],
-   [
-    127,
-    "Uncommon",
-    11.06
-   ],
-   [
-    128,
-    "Uncommon",
-    14.29
-   ],
-   [
-    129,
-    "Uncommon",
-    14.29
-   ],
-   [
-    131,
-    "Rare",
-    9.09
-   ],
-   [
-    134,
-    "Uncommon",
-    10
-   ],
-   [
-    138,
-    "Uncommon",
-    14.29
-   ],
-   [
-    141,
-    "Rare",
-    7.69
-   ],
-   [
-    142,
-    "Uncommon",
-    11.06
-   ],
-   [
-    146,
-    "Rare",
-    6.9
-   ],
-   [
-    187,
-    "Rare",
-    6.9
-   ],
-   [
-    409,
-    "Rare",
-    6.9
-   ],
-   [
-    457,
-    "Rare",
-    9.09
-   ],
-   [
-    467,
-    "Uncommon",
-    14.29
-   ],
-   [
-    470,
-    "Rare",
-    9.09
-   ],
-   [
-    473,
-    "Uncommon",
-    10
-   ],
-   [
-    476,
-    "Rare",
-    9.09
-   ],
-   [
-    483,
-    "Rare",
-    7.69
-   ],
-   [
-    484,
-    "Uncommon",
-    11.06
-   ],
-   [
-    485,
-    "Rare",
-    6.9
-   ],
-   [
-    532,
-    "Rare",
-    6.9
-   ],
-   [
-    640,
-    "Rare",
-    6.67
-   ],
-   [
-    640,
-    "Rare",
-    6.67
-   ],
-   [
-    641,
-    "Rare",
-    6.67
-   ],
-   [
-    641,
-    "Rare",
-    6.67
-   ],
-   [
-    642,
-    "Rare",
-    6.67
-   ],
-   [
-    642,
-    "Rare",
-    6.67
-   ],
-   [
-    643,
-    "Uncommon",
-    11.06
-   ],
-   [
-    644,
-    "Rare",
-    6.25
-   ],
-   [
-    645,
-    "Rare",
-    6.25
-   ],
-   [
-    646,
-    "Rare",
-    6.25
-   ],
-   [
-    650,
-    "Uncommon",
-    11.06
-   ],
-   [
-    671,
-    "Uncommon",
-    14.29
-   ],
-   [
-    674,
-    "Rare",
-    7.69
-   ],
-   [
-    675,
-    "Uncommon",
-    11.06
-   ],
-   [
-    677,
-    "Rare",
-    9.09
-   ],
-   [
-    684,
-    "Rare",
-    9.68
-   ],
-   [
-    685,
-    "Rare",
-    9.09
-   ],
-   [
-    689,
-    "Uncommon",
-    14.29
-   ],
-   [
-    692,
-    "Rare",
-    7.69
-   ],
-   [
-    693,
-    "Uncommon",
-    11.06
-   ],
-   [
-    696,
-    "Rare",
-    7.69
-   ],
-   [
-    697,
-    "Uncommon",
-    11.06
-   ],
-   [
-    699,
-    "Uncommon",
-    10
-   ],
-   [
-    700,
-    "Uncommon",
-    10
-   ],
-   [
-    702,
-    "Rare",
-    2.21
-   ],
-   [
-    708,
-    "Uncommon",
-    11.11
-   ],
-   [
-    714,
-    "Uncommon",
-    11.11
-   ],
-   [
-    883,
-    "Rare",
-    2.21
-   ],
-   [
-    893,
-    "Rare",
-    2.21
-   ],
-   [
-    896,
-    "Rare",
-    2.21
-   ],
-   [
-    899,
-    "Rare",
-    2.21
-   ],
-   [
-    902,
-    "Rare",
-    2.21
-   ],
-   [
-    905,
-    "Rare",
-    2.21
-   ],
-   [
-    911,
-    "Rare",
-    2.21
-   ],
-   [
-    914,
-    "Rare",
-    2.21
-   ],
-   [
-    3905,
-    "Rare",
-    7.14
-   ],
-   [
-    3998,
-    "Rare",
-    7.69
-   ],
-   [
-    3999,
-    "Uncommon",
-    11.06
-   ],
-   [
-    4007,
-    "Legendary",
-    0.42
-   ],
-   [
-    4007,
-    "Legendary",
-    0.58
-   ],
-   [
-    4007,
+    4000,
     "Rare",
     1.14
    ],
@@ -131015,12 +130969,12 @@
     11.06
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.42
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.67
    ],
@@ -131035,7 +130989,7 @@
     6.9
    ]
   ],
-  "lith t14 relic": [
+  "lith s19 relic": [
    [
     1,
     "Rare",
@@ -131557,17 +131511,17 @@
     11.06
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.42
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.58
    ],
    [
-    4007,
+    4000,
     "Rare",
     1.14
    ],
@@ -132114,12 +132068,12 @@
     11.06
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.42
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.67
    ],
@@ -132721,22 +132675,22 @@
     9.09
    ],
    [
-    848,
+    842,
     "Rare",
     8.33
    ],
    [
-    850,
+    849,
     "Rare",
     8.33
    ],
    [
-    852,
+    851,
     "Rare",
     8.33
    ],
    [
-    855,
+    853,
     "Rare",
     8.33
    ],
@@ -132866,12 +132820,12 @@
     7.14
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.42
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.67
    ],
@@ -132916,7 +132870,7 @@
     6.67
    ],
    [
-    4063,
+    4062,
     "Rare",
     4.76
    ],
@@ -132926,12 +132880,12 @@
     6.67
    ],
    [
-    4066,
+    4065,
     "Rare",
     4.76
    ],
    [
-    4068,
+    4067,
     "Rare",
     4.76
    ],
@@ -132993,27 +132947,934 @@
    [
     4183,
     "Rare",
-    3.03
+    2.65
    ],
    [
     4186,
     "Rare",
-    2.44
+    2.33
    ],
    [
     4187,
     "Rare",
-    3.03
+    2.65
    ],
    [
     4190,
     "Rare",
-    2.44
+    2.33
    ],
    [
     4191,
     "Rare",
+    2.65
+   ]
+  ],
+  "meso c11 relic": [
+   [
+    4,
+    "Rare",
+    7.69
+   ],
+   [
+    5,
+    "Rare",
+    7.69
+   ],
+   [
+    18,
+    "Rare",
+    5.56
+   ],
+   [
+    19,
+    "Uncommon",
+    12.18
+   ],
+   [
+    63,
+    "Rare",
+    5.56
+   ],
+   [
+    64,
+    "Uncommon",
+    12.18
+   ],
+   [
+    76,
+    "Rare",
+    7.69
+   ],
+   [
+    77,
+    "Rare",
+    7.69
+   ],
+   [
+    82,
+    "Rare",
+    1.47
+   ],
+   [
+    83,
+    "Rare",
+    6.9
+   ],
+   [
+    98,
+    "Rare",
+    7.69
+   ],
+   [
+    99,
+    "Rare",
+    7.69
+   ],
+   [
+    105,
+    "Rare",
+    5.56
+   ],
+   [
+    106,
+    "Uncommon",
+    12.18
+   ],
+   [
+    112,
+    "Rare",
+    1.47
+   ],
+   [
+    113,
+    "Rare",
+    6.9
+   ],
+   [
+    124,
+    "Rare",
+    6.43
+   ],
+   [
+    130,
+    "Uncommon",
+    14.29
+   ],
+   [
+    132,
+    "Rare",
+    7.69
+   ],
+   [
+    133,
+    "Rare",
+    7.69
+   ],
+   [
+    135,
+    "Rare",
+    5.56
+   ],
+   [
+    136,
+    "Uncommon",
+    12.18
+   ],
+   [
+    147,
+    "Rare",
+    1.47
+   ],
+   [
+    148,
+    "Rare",
+    6.9
+   ],
+   [
+    154,
+    "Rare",
+    6.67
+   ],
+   [
+    161,
+    "Rare",
+    5.56
+   ],
+   [
+    169,
+    "Rare",
+    7.74
+   ],
+   [
+    173,
+    "Uncommon",
+    12.5
+   ],
+   [
+    177,
+    "Rare",
+    6.67
+   ],
+   [
+    179,
+    "Rare",
+    9.09
+   ],
+   [
+    188,
+    "Rare",
+    1.47
+   ],
+   [
+    189,
+    "Rare",
+    6.9
+   ],
+   [
+    193,
+    "Rare",
+    6.67
+   ],
+   [
+    195,
+    "Uncommon",
+    12.5
+   ],
+   [
+    199,
+    "Rare",
+    6.67
+   ],
+   [
+    203,
+    "Rare",
+    7.74
+   ],
+   [
+    204,
+    "Rare",
+    1.75
+   ],
+   [
+    204,
+    "Rare",
+    5.99
+   ],
+   [
+    206,
+    "Rare",
+    1.75
+   ],
+   [
+    206,
+    "Rare",
+    5.99
+   ],
+   [
+    208,
+    "Rare",
+    1.75
+   ],
+   [
+    208,
+    "Rare",
+    5.99
+   ],
+   [
+    210,
+    "Rare",
+    1.75
+   ],
+   [
+    210,
+    "Rare",
+    5.99
+   ],
+   [
+    212,
+    "Rare",
+    1.75
+   ],
+   [
+    212,
+    "Rare",
+    5.99
+   ],
+   [
+    219,
+    "Rare",
+    9.09
+   ],
+   [
+    227,
+    "Rare",
+    7.74
+   ],
+   [
+    238,
+    "Rare",
+    4.74
+   ],
+   [
+    248,
+    "Rare",
+    6.67
+   ],
+   [
+    251,
+    "Rare",
+    9.09
+   ],
+   [
+    263,
+    "Rare",
+    9.09
+   ],
+   [
+    282,
+    "Rare",
+    9.68
+   ],
+   [
+    299,
+    "Uncommon",
+    14.29
+   ],
+   [
+    312,
+    "Rare",
+    7.41
+   ],
+   [
+    328,
+    "Rare",
+    4.17
+   ],
+   [
+    330,
+    "Rare",
+    4.26
+   ],
+   [
+    334,
+    "Rare",
+    2.35
+   ],
+   [
+    335,
+    "Rare",
+    4.17
+   ],
+   [
+    337,
+    "Rare",
+    4.17
+   ],
+   [
+    339,
+    "Rare",
+    6.25
+   ],
+   [
+    343,
+    "Rare",
+    4.17
+   ],
+   [
+    344,
+    "Rare",
+    4.55
+   ],
+   [
+    349,
+    "Rare",
+    2.35
+   ],
+   [
+    350,
+    "Rare",
+    4.17
+   ],
+   [
+    352,
+    "Rare",
+    4.17
+   ],
+   [
+    353,
+    "Rare",
+    9.09
+   ],
+   [
+    367,
+    "Rare",
+    9.68
+   ],
+   [
+    410,
+    "Rare",
+    1.47
+   ],
+   [
+    411,
+    "Rare",
+    6.9
+   ],
+   [
+    413,
+    "Rare",
+    9.68
+   ],
+   [
+    419,
+    "Rare",
+    4.17
+   ],
+   [
+    426,
+    "Rare",
+    4.17
+   ],
+   [
+    428,
+    "Rare",
+    4.17
+   ],
+   [
+    434,
+    "Rare",
+    4.17
+   ],
+   [
+    441,
+    "Rare",
+    4.17
+   ],
+   [
+    443,
+    "Rare",
+    4.17
+   ],
+   [
+    456,
+    "Rare",
+    7.74
+   ],
+   [
+    458,
+    "Rare",
+    7.69
+   ],
+   [
+    459,
+    "Rare",
+    7.69
+   ],
+   [
+    471,
+    "Rare",
+    7.69
+   ],
+   [
+    472,
+    "Rare",
+    7.69
+   ],
+   [
+    474,
+    "Rare",
+    5.56
+   ],
+   [
+    475,
+    "Uncommon",
+    12.18
+   ],
+   [
+    477,
+    "Rare",
+    7.69
+   ],
+   [
+    478,
+    "Rare",
+    7.69
+   ],
+   [
+    480,
+    "Rare",
+    6.67
+   ],
+   [
+    486,
+    "Rare",
+    1.47
+   ],
+   [
+    487,
+    "Rare",
+    6.9
+   ],
+   [
+    489,
+    "Rare",
+    9.68
+   ],
+   [
+    509,
+    "Rare",
+    9.68
+   ],
+   [
+    533,
+    "Rare",
+    1.47
+   ],
+   [
+    534,
+    "Rare",
+    6.9
+   ],
+   [
+    643,
+    "Rare",
+    1.88
+   ],
+   [
+    644,
+    "Rare",
+    6.25
+   ],
+   [
+    645,
+    "Rare",
+    6.25
+   ],
+   [
+    646,
+    "Rare",
+    6.25
+   ],
+   [
+    650,
+    "Rare",
+    1.88
+   ],
+   [
+    651,
+    "Rare",
+    9.68
+   ],
+   [
+    652,
+    "Rare",
+    6.09
+   ],
+   [
+    653,
+    "Rare",
+    6.25
+   ],
+   [
+    654,
+    "Rare",
+    6.25
+   ],
+   [
+    655,
+    "Rare",
+    6.49
+   ],
+   [
+    678,
+    "Rare",
+    7.69
+   ],
+   [
+    679,
+    "Rare",
+    7.69
+   ],
+   [
+    686,
+    "Rare",
+    7.69
+   ],
+   [
+    687,
+    "Rare",
+    7.69
+   ],
+   [
+    703,
+    "Rare",
+    1.47
+   ],
+   [
+    704,
+    "Rare",
+    7.59
+   ],
+   [
+    706,
+    "Rare",
+    6.67
+   ],
+   [
+    710,
+    "Rare",
+    9.68
+   ],
+   [
+    718,
+    "Rare",
     3.03
+   ],
+   [
+    719,
+    "Rare",
+    3.03
+   ],
+   [
+    720,
+    "Rare",
+    3.23
+   ],
+   [
+    723,
+    "Rare",
+    4.76
+   ],
+   [
+    726,
+    "Rare",
+    4.76
+   ],
+   [
+    729,
+    "Rare",
+    9.09
+   ],
+   [
+    842,
+    "Rare",
+    8.33
+   ],
+   [
+    849,
+    "Rare",
+    8.33
+   ],
+   [
+    851,
+    "Rare",
+    8.33
+   ],
+   [
+    853,
+    "Rare",
+    8.33
+   ],
+   [
+    871,
+    "Rare",
+    3.65
+   ],
+   [
+    874,
+    "Rare",
+    3.65
+   ],
+   [
+    877,
+    "Rare",
+    3.65
+   ],
+   [
+    880,
+    "Rare",
+    3.65
+   ],
+   [
+    884,
+    "Rare",
+    1.47
+   ],
+   [
+    885,
+    "Rare",
+    7.59
+   ],
+   [
+    894,
+    "Rare",
+    1.47
+   ],
+   [
+    895,
+    "Rare",
+    7.59
+   ],
+   [
+    897,
+    "Rare",
+    1.47
+   ],
+   [
+    898,
+    "Rare",
+    7.59
+   ],
+   [
+    900,
+    "Rare",
+    1.47
+   ],
+   [
+    901,
+    "Rare",
+    7.59
+   ],
+   [
+    903,
+    "Rare",
+    1.47
+   ],
+   [
+    904,
+    "Rare",
+    7.59
+   ],
+   [
+    906,
+    "Rare",
+    1.47
+   ],
+   [
+    907,
+    "Rare",
+    7.59
+   ],
+   [
+    912,
+    "Rare",
+    1.47
+   ],
+   [
+    913,
+    "Rare",
+    7.59
+   ],
+   [
+    915,
+    "Rare",
+    1.47
+   ],
+   [
+    916,
+    "Rare",
+    7.59
+   ],
+   [
+    2067,
+    "Rare",
+    3.13
+   ],
+   [
+    2067,
+    "Rare",
+    3.13
+   ],
+   [
+    2067,
+    "Rare",
+    3.91
+   ],
+   [
+    2067,
+    "Rare",
+    6.25
+   ],
+   [
+    2068,
+    "Rare",
+    3.13
+   ],
+   [
+    2068,
+    "Rare",
+    3.13
+   ],
+   [
+    2068,
+    "Rare",
+    3.91
+   ],
+   [
+    2068,
+    "Rare",
+    6.25
+   ],
+   [
+    3906,
+    "Rare",
+    7.14
+   ],
+   [
+    4035,
+    "Rare",
+    1.47
+   ],
+   [
+    4036,
+    "Rare",
+    6.9
+   ],
+   [
+    4038,
+    "Rare",
+    6.67
+   ],
+   [
+    4044,
+    "Rare",
+    9.09
+   ],
+   [
+    4047,
+    "Uncommon",
+    12.5
+   ],
+   [
+    4055,
+    "Rare",
+    7.74
+   ],
+   [
+    4057,
+    "Rare",
+    6.67
+   ],
+   [
+    4060,
+    "Rare",
+    6.67
+   ],
+   [
+    4062,
+    "Rare",
+    4.76
+   ],
+   [
+    4064,
+    "Rare",
+    6.67
+   ],
+   [
+    4065,
+    "Rare",
+    4.76
+   ],
+   [
+    4067,
+    "Rare",
+    4.76
+   ],
+   [
+    4069,
+    "Rare",
+    7.47
+   ],
+   [
+    4071,
+    "Uncommon",
+    11.92
+   ],
+   [
+    4072,
+    "Rare",
+    7.47
+   ],
+   [
+    4074,
+    "Uncommon",
+    11.92
+   ],
+   [
+    4075,
+    "Uncommon",
+    10.17
+   ],
+   [
+    4077,
+    "Uncommon",
+    15.86
+   ],
+   [
+    4078,
+    "Rare",
+    9.71
+   ],
+   [
+    4092,
+    "Rare",
+    9.68
+   ],
+   [
+    4123,
+    "Uncommon",
+    12.5
+   ],
+   [
+    4131,
+    "Uncommon",
+    14.29
+   ],
+   [
+    4135,
+    "Rare",
+    9.68
+   ],
+   [
+    4149,
+    "Rare",
+    1.47
+   ],
+   [
+    4150,
+    "Rare",
+    6.9
+   ],
+   [
+    4158,
+    "Rare",
+    9.68
+   ],
+   [
+    4183,
+    "Rare",
+    2.65
+   ],
+   [
+    4186,
+    "Rare",
+    2.33
+   ],
+   [
+    4187,
+    "Rare",
+    2.65
+   ],
+   [
+    4190,
+    "Rare",
+    2.33
+   ],
+   [
+    4191,
+    "Rare",
+    2.65
    ]
   ],
   "meso d8 relic": [
@@ -133608,22 +134469,22 @@
     9.09
    ],
    [
-    848,
+    842,
     "Rare",
     8.33
    ],
    [
-    850,
+    849,
     "Rare",
     8.33
    ],
    [
-    852,
+    851,
     "Rare",
     8.33
    ],
    [
-    855,
+    853,
     "Rare",
     8.33
    ],
@@ -133773,17 +134634,17 @@
     7.14
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.42
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.58
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.67
    ],
@@ -133828,7 +134689,7 @@
     6.67
    ],
    [
-    4063,
+    4062,
     "Rare",
     4.76
    ],
@@ -133838,12 +134699,12 @@
     6.67
    ],
    [
-    4066,
+    4065,
     "Rare",
     4.76
    ],
    [
-    4068,
+    4067,
     "Rare",
     4.76
    ],
@@ -133905,30 +134766,30 @@
    [
     4183,
     "Rare",
-    3.03
+    2.65
    ],
    [
     4186,
     "Rare",
-    2.44
+    2.33
    ],
    [
     4187,
     "Rare",
-    3.03
+    2.65
    ],
    [
     4190,
     "Rare",
-    2.44
+    2.33
    ],
    [
     4191,
     "Rare",
-    3.03
+    2.65
    ]
   ],
-  "meso k8 relic": [
+  "meso d9 relic": [
    [
     4,
     "Rare",
@@ -134515,929 +135376,22 @@
     9.09
    ],
    [
-    848,
+    842,
     "Rare",
     8.33
    ],
    [
-    850,
+    849,
     "Rare",
     8.33
    ],
    [
-    852,
+    851,
     "Rare",
     8.33
    ],
    [
-    855,
-    "Rare",
-    8.33
-   ],
-   [
-    871,
-    "Rare",
-    3.65
-   ],
-   [
-    874,
-    "Rare",
-    3.65
-   ],
-   [
-    877,
-    "Rare",
-    3.65
-   ],
-   [
-    880,
-    "Rare",
-    3.65
-   ],
-   [
-    884,
-    "Rare",
-    1.47
-   ],
-   [
-    885,
-    "Rare",
-    7.59
-   ],
-   [
-    894,
-    "Rare",
-    1.47
-   ],
-   [
-    895,
-    "Rare",
-    7.59
-   ],
-   [
-    897,
-    "Rare",
-    1.47
-   ],
-   [
-    898,
-    "Rare",
-    7.59
-   ],
-   [
-    900,
-    "Rare",
-    1.47
-   ],
-   [
-    901,
-    "Rare",
-    7.59
-   ],
-   [
-    903,
-    "Rare",
-    1.47
-   ],
-   [
-    904,
-    "Rare",
-    7.59
-   ],
-   [
-    906,
-    "Rare",
-    1.47
-   ],
-   [
-    907,
-    "Rare",
-    7.59
-   ],
-   [
-    912,
-    "Rare",
-    1.47
-   ],
-   [
-    913,
-    "Rare",
-    7.59
-   ],
-   [
-    915,
-    "Rare",
-    1.47
-   ],
-   [
-    916,
-    "Rare",
-    7.59
-   ],
-   [
-    2067,
-    "Rare",
-    3.13
-   ],
-   [
-    2067,
-    "Rare",
-    3.13
-   ],
-   [
-    2067,
-    "Rare",
-    3.91
-   ],
-   [
-    2067,
-    "Rare",
-    6.25
-   ],
-   [
-    2068,
-    "Rare",
-    3.13
-   ],
-   [
-    2068,
-    "Rare",
-    3.13
-   ],
-   [
-    2068,
-    "Rare",
-    3.91
-   ],
-   [
-    2068,
-    "Rare",
-    6.25
-   ],
-   [
-    3906,
-    "Rare",
-    7.14
-   ],
-   [
-    4035,
-    "Rare",
-    1.47
-   ],
-   [
-    4036,
-    "Rare",
-    6.9
-   ],
-   [
-    4038,
-    "Rare",
-    6.67
-   ],
-   [
-    4044,
-    "Rare",
-    9.09
-   ],
-   [
-    4047,
-    "Uncommon",
-    12.5
-   ],
-   [
-    4055,
-    "Rare",
-    7.74
-   ],
-   [
-    4057,
-    "Rare",
-    6.67
-   ],
-   [
-    4060,
-    "Rare",
-    6.67
-   ],
-   [
-    4063,
-    "Rare",
-    4.76
-   ],
-   [
-    4064,
-    "Rare",
-    6.67
-   ],
-   [
-    4066,
-    "Rare",
-    4.76
-   ],
-   [
-    4068,
-    "Rare",
-    4.76
-   ],
-   [
-    4069,
-    "Rare",
-    7.47
-   ],
-   [
-    4071,
-    "Uncommon",
-    11.92
-   ],
-   [
-    4072,
-    "Rare",
-    7.47
-   ],
-   [
-    4074,
-    "Uncommon",
-    11.92
-   ],
-   [
-    4075,
-    "Uncommon",
-    10.17
-   ],
-   [
-    4077,
-    "Uncommon",
-    15.86
-   ],
-   [
-    4078,
-    "Rare",
-    9.71
-   ],
-   [
-    4092,
-    "Rare",
-    9.68
-   ],
-   [
-    4123,
-    "Uncommon",
-    12.5
-   ],
-   [
-    4131,
-    "Uncommon",
-    14.29
-   ],
-   [
-    4135,
-    "Rare",
-    9.68
-   ],
-   [
-    4149,
-    "Rare",
-    1.47
-   ],
-   [
-    4150,
-    "Rare",
-    6.9
-   ],
-   [
-    4158,
-    "Rare",
-    9.68
-   ],
-   [
-    4183,
-    "Rare",
-    3.03
-   ],
-   [
-    4186,
-    "Rare",
-    2.44
-   ],
-   [
-    4187,
-    "Rare",
-    3.03
-   ],
-   [
-    4190,
-    "Rare",
-    2.44
-   ],
-   [
-    4191,
-    "Rare",
-    3.03
-   ]
-  ],
-  "meso l5 relic": [
-   [
-    4,
-    "Rare",
-    7.69
-   ],
-   [
-    5,
-    "Rare",
-    7.69
-   ],
-   [
-    18,
-    "Rare",
-    5.56
-   ],
-   [
-    19,
-    "Uncommon",
-    12.18
-   ],
-   [
-    63,
-    "Rare",
-    5.56
-   ],
-   [
-    64,
-    "Uncommon",
-    12.18
-   ],
-   [
-    76,
-    "Rare",
-    7.69
-   ],
-   [
-    77,
-    "Rare",
-    7.69
-   ],
-   [
-    82,
-    "Rare",
-    1.47
-   ],
-   [
-    83,
-    "Rare",
-    6.9
-   ],
-   [
-    98,
-    "Rare",
-    7.69
-   ],
-   [
-    99,
-    "Rare",
-    7.69
-   ],
-   [
-    105,
-    "Rare",
-    5.56
-   ],
-   [
-    106,
-    "Uncommon",
-    12.18
-   ],
-   [
-    112,
-    "Rare",
-    1.47
-   ],
-   [
-    113,
-    "Rare",
-    6.9
-   ],
-   [
-    124,
-    "Rare",
-    6.43
-   ],
-   [
-    130,
-    "Uncommon",
-    14.29
-   ],
-   [
-    132,
-    "Rare",
-    7.69
-   ],
-   [
-    133,
-    "Rare",
-    7.69
-   ],
-   [
-    135,
-    "Rare",
-    5.56
-   ],
-   [
-    136,
-    "Uncommon",
-    12.18
-   ],
-   [
-    147,
-    "Rare",
-    1.47
-   ],
-   [
-    148,
-    "Rare",
-    6.9
-   ],
-   [
-    154,
-    "Rare",
-    6.67
-   ],
-   [
-    161,
-    "Rare",
-    5.56
-   ],
-   [
-    169,
-    "Rare",
-    7.74
-   ],
-   [
-    173,
-    "Uncommon",
-    12.5
-   ],
-   [
-    177,
-    "Rare",
-    6.67
-   ],
-   [
-    179,
-    "Rare",
-    9.09
-   ],
-   [
-    188,
-    "Rare",
-    1.47
-   ],
-   [
-    189,
-    "Rare",
-    6.9
-   ],
-   [
-    193,
-    "Rare",
-    6.67
-   ],
-   [
-    195,
-    "Uncommon",
-    12.5
-   ],
-   [
-    199,
-    "Rare",
-    6.67
-   ],
-   [
-    203,
-    "Rare",
-    7.74
-   ],
-   [
-    204,
-    "Rare",
-    1.75
-   ],
-   [
-    204,
-    "Rare",
-    5.99
-   ],
-   [
-    206,
-    "Rare",
-    1.75
-   ],
-   [
-    206,
-    "Rare",
-    5.99
-   ],
-   [
-    208,
-    "Rare",
-    1.75
-   ],
-   [
-    208,
-    "Rare",
-    5.99
-   ],
-   [
-    210,
-    "Rare",
-    1.75
-   ],
-   [
-    210,
-    "Rare",
-    5.99
-   ],
-   [
-    212,
-    "Rare",
-    1.75
-   ],
-   [
-    212,
-    "Rare",
-    5.99
-   ],
-   [
-    219,
-    "Rare",
-    9.09
-   ],
-   [
-    227,
-    "Rare",
-    7.74
-   ],
-   [
-    238,
-    "Rare",
-    4.74
-   ],
-   [
-    248,
-    "Rare",
-    6.67
-   ],
-   [
-    251,
-    "Rare",
-    9.09
-   ],
-   [
-    263,
-    "Rare",
-    9.09
-   ],
-   [
-    282,
-    "Rare",
-    9.68
-   ],
-   [
-    299,
-    "Uncommon",
-    14.29
-   ],
-   [
-    312,
-    "Rare",
-    7.41
-   ],
-   [
-    328,
-    "Rare",
-    4.17
-   ],
-   [
-    330,
-    "Rare",
-    4.26
-   ],
-   [
-    334,
-    "Rare",
-    2.35
-   ],
-   [
-    335,
-    "Rare",
-    4.17
-   ],
-   [
-    337,
-    "Rare",
-    4.17
-   ],
-   [
-    339,
-    "Rare",
-    6.25
-   ],
-   [
-    343,
-    "Rare",
-    4.17
-   ],
-   [
-    344,
-    "Rare",
-    4.55
-   ],
-   [
-    349,
-    "Rare",
-    2.35
-   ],
-   [
-    350,
-    "Rare",
-    4.17
-   ],
-   [
-    352,
-    "Rare",
-    4.17
-   ],
-   [
-    353,
-    "Rare",
-    9.09
-   ],
-   [
-    367,
-    "Rare",
-    9.68
-   ],
-   [
-    410,
-    "Rare",
-    1.47
-   ],
-   [
-    411,
-    "Rare",
-    6.9
-   ],
-   [
-    413,
-    "Rare",
-    9.68
-   ],
-   [
-    419,
-    "Rare",
-    4.17
-   ],
-   [
-    426,
-    "Rare",
-    4.17
-   ],
-   [
-    428,
-    "Rare",
-    4.17
-   ],
-   [
-    434,
-    "Rare",
-    4.17
-   ],
-   [
-    441,
-    "Rare",
-    4.17
-   ],
-   [
-    443,
-    "Rare",
-    4.17
-   ],
-   [
-    456,
-    "Rare",
-    7.74
-   ],
-   [
-    458,
-    "Rare",
-    7.69
-   ],
-   [
-    459,
-    "Rare",
-    7.69
-   ],
-   [
-    471,
-    "Rare",
-    7.69
-   ],
-   [
-    472,
-    "Rare",
-    7.69
-   ],
-   [
-    474,
-    "Rare",
-    5.56
-   ],
-   [
-    475,
-    "Uncommon",
-    12.18
-   ],
-   [
-    477,
-    "Rare",
-    7.69
-   ],
-   [
-    478,
-    "Rare",
-    7.69
-   ],
-   [
-    480,
-    "Rare",
-    6.67
-   ],
-   [
-    486,
-    "Rare",
-    1.47
-   ],
-   [
-    487,
-    "Rare",
-    6.9
-   ],
-   [
-    489,
-    "Rare",
-    9.68
-   ],
-   [
-    509,
-    "Rare",
-    9.68
-   ],
-   [
-    533,
-    "Rare",
-    1.47
-   ],
-   [
-    534,
-    "Rare",
-    6.9
-   ],
-   [
-    643,
-    "Rare",
-    1.88
-   ],
-   [
-    644,
-    "Rare",
-    6.25
-   ],
-   [
-    645,
-    "Rare",
-    6.25
-   ],
-   [
-    646,
-    "Rare",
-    6.25
-   ],
-   [
-    650,
-    "Rare",
-    1.88
-   ],
-   [
-    651,
-    "Rare",
-    9.68
-   ],
-   [
-    652,
-    "Rare",
-    6.09
-   ],
-   [
-    653,
-    "Rare",
-    6.25
-   ],
-   [
-    654,
-    "Rare",
-    6.25
-   ],
-   [
-    655,
-    "Rare",
-    6.49
-   ],
-   [
-    678,
-    "Rare",
-    7.69
-   ],
-   [
-    679,
-    "Rare",
-    7.69
-   ],
-   [
-    686,
-    "Rare",
-    7.69
-   ],
-   [
-    687,
-    "Rare",
-    7.69
-   ],
-   [
-    703,
-    "Rare",
-    1.47
-   ],
-   [
-    704,
-    "Rare",
-    7.59
-   ],
-   [
-    706,
-    "Rare",
-    6.67
-   ],
-   [
-    710,
-    "Rare",
-    9.68
-   ],
-   [
-    718,
-    "Rare",
-    3.03
-   ],
-   [
-    719,
-    "Rare",
-    3.03
-   ],
-   [
-    720,
-    "Rare",
-    3.23
-   ],
-   [
-    723,
-    "Rare",
-    4.76
-   ],
-   [
-    726,
-    "Rare",
-    4.76
-   ],
-   [
-    729,
-    "Rare",
-    9.09
-   ],
-   [
-    848,
-    "Rare",
-    8.33
-   ],
-   [
-    850,
-    "Rare",
-    8.33
-   ],
-   [
-    852,
-    "Rare",
-    8.33
-   ],
-   [
-    855,
+    853,
     "Rare",
     8.33
    ],
@@ -135547,12 +135501,12 @@
     7.14
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.42
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.67
    ],
@@ -135597,7 +135551,7 @@
     6.67
    ],
    [
-    4063,
+    4062,
     "Rare",
     4.76
    ],
@@ -135607,12 +135561,12 @@
     6.67
    ],
    [
-    4066,
+    4065,
     "Rare",
     4.76
    ],
    [
-    4068,
+    4067,
     "Rare",
     4.76
    ],
@@ -135674,27 +135628,829 @@
    [
     4183,
     "Rare",
-    3.03
+    2.65
    ],
    [
     4186,
     "Rare",
-    2.44
+    2.33
    ],
    [
     4187,
     "Rare",
-    3.03
+    2.65
    ],
    [
     4190,
     "Rare",
-    2.44
+    2.33
    ],
    [
     4191,
     "Rare",
+    2.65
+   ]
+  ],
+  "meso k9 relic": [
+   [
+    4,
+    "Rare",
+    7.69
+   ],
+   [
+    5,
+    "Rare",
+    7.69
+   ],
+   [
+    18,
+    "Rare",
+    5.56
+   ],
+   [
+    19,
+    "Uncommon",
+    12.18
+   ],
+   [
+    63,
+    "Rare",
+    5.56
+   ],
+   [
+    64,
+    "Uncommon",
+    12.18
+   ],
+   [
+    76,
+    "Rare",
+    7.69
+   ],
+   [
+    77,
+    "Rare",
+    7.69
+   ],
+   [
+    82,
+    "Rare",
+    1.47
+   ],
+   [
+    83,
+    "Rare",
+    6.9
+   ],
+   [
+    98,
+    "Rare",
+    7.69
+   ],
+   [
+    99,
+    "Rare",
+    7.69
+   ],
+   [
+    105,
+    "Rare",
+    5.56
+   ],
+   [
+    106,
+    "Uncommon",
+    12.18
+   ],
+   [
+    112,
+    "Rare",
+    1.47
+   ],
+   [
+    113,
+    "Rare",
+    6.9
+   ],
+   [
+    132,
+    "Rare",
+    7.69
+   ],
+   [
+    133,
+    "Rare",
+    7.69
+   ],
+   [
+    135,
+    "Rare",
+    5.56
+   ],
+   [
+    136,
+    "Uncommon",
+    12.18
+   ],
+   [
+    147,
+    "Rare",
+    1.47
+   ],
+   [
+    148,
+    "Rare",
+    6.9
+   ],
+   [
+    154,
+    "Rare",
+    6.67
+   ],
+   [
+    169,
+    "Rare",
+    7.74
+   ],
+   [
+    173,
+    "Uncommon",
+    12.5
+   ],
+   [
+    177,
+    "Rare",
+    6.67
+   ],
+   [
+    179,
+    "Rare",
+    9.09
+   ],
+   [
+    188,
+    "Rare",
+    1.47
+   ],
+   [
+    189,
+    "Rare",
+    6.9
+   ],
+   [
+    193,
+    "Rare",
+    6.67
+   ],
+   [
+    195,
+    "Uncommon",
+    12.5
+   ],
+   [
+    199,
+    "Rare",
+    6.67
+   ],
+   [
+    203,
+    "Rare",
+    7.74
+   ],
+   [
+    204,
+    "Rare",
+    1.75
+   ],
+   [
+    206,
+    "Rare",
+    1.75
+   ],
+   [
+    208,
+    "Rare",
+    1.75
+   ],
+   [
+    210,
+    "Rare",
+    1.75
+   ],
+   [
+    212,
+    "Rare",
+    1.75
+   ],
+   [
+    219,
+    "Rare",
+    9.09
+   ],
+   [
+    227,
+    "Rare",
+    7.74
+   ],
+   [
+    238,
+    "Rare",
+    4.74
+   ],
+   [
+    248,
+    "Rare",
+    6.67
+   ],
+   [
+    251,
+    "Rare",
+    9.09
+   ],
+   [
+    263,
+    "Rare",
+    9.09
+   ],
+   [
+    282,
+    "Rare",
+    9.68
+   ],
+   [
+    312,
+    "Rare",
+    7.41
+   ],
+   [
+    328,
+    "Rare",
+    4.17
+   ],
+   [
+    328,
+    "Rare",
+    6.25
+   ],
+   [
+    334,
+    "Rare",
+    2.35
+   ],
+   [
+    335,
+    "Rare",
+    4.17
+   ],
+   [
+    337,
+    "Rare",
+    4.17
+   ],
+   [
+    337,
+    "Rare",
+    6.25
+   ],
+   [
+    343,
+    "Rare",
+    4.17
+   ],
+   [
+    343,
+    "Rare",
+    4.55
+   ],
+   [
+    349,
+    "Rare",
+    2.35
+   ],
+   [
+    350,
+    "Rare",
+    4.17
+   ],
+   [
+    352,
+    "Rare",
+    4.17
+   ],
+   [
+    353,
+    "Rare",
+    9.09
+   ],
+   [
+    367,
+    "Rare",
+    9.68
+   ],
+   [
+    410,
+    "Rare",
+    1.47
+   ],
+   [
+    411,
+    "Rare",
+    6.9
+   ],
+   [
+    413,
+    "Rare",
+    9.68
+   ],
+   [
+    419,
+    "Rare",
+    4.17
+   ],
+   [
+    426,
+    "Rare",
+    4.17
+   ],
+   [
+    428,
+    "Rare",
+    4.17
+   ],
+   [
+    434,
+    "Rare",
+    4.17
+   ],
+   [
+    441,
+    "Rare",
+    4.17
+   ],
+   [
+    443,
+    "Rare",
+    4.17
+   ],
+   [
+    456,
+    "Rare",
+    7.74
+   ],
+   [
+    458,
+    "Rare",
+    7.69
+   ],
+   [
+    459,
+    "Rare",
+    7.69
+   ],
+   [
+    471,
+    "Rare",
+    7.69
+   ],
+   [
+    472,
+    "Rare",
+    7.69
+   ],
+   [
+    474,
+    "Rare",
+    5.56
+   ],
+   [
+    475,
+    "Uncommon",
+    12.18
+   ],
+   [
+    477,
+    "Rare",
+    7.69
+   ],
+   [
+    478,
+    "Rare",
+    7.69
+   ],
+   [
+    480,
+    "Rare",
+    6.67
+   ],
+   [
+    486,
+    "Rare",
+    1.47
+   ],
+   [
+    487,
+    "Rare",
+    6.9
+   ],
+   [
+    489,
+    "Rare",
+    9.68
+   ],
+   [
+    509,
+    "Rare",
+    9.68
+   ],
+   [
+    533,
+    "Rare",
+    1.47
+   ],
+   [
+    534,
+    "Rare",
+    6.9
+   ],
+   [
+    643,
+    "Rare",
+    1.88
+   ],
+   [
+    644,
+    "Rare",
+    6.25
+   ],
+   [
+    645,
+    "Rare",
+    6.25
+   ],
+   [
+    646,
+    "Rare",
+    6.25
+   ],
+   [
+    650,
+    "Rare",
+    1.88
+   ],
+   [
+    651,
+    "Rare",
+    9.68
+   ],
+   [
+    652,
+    "Rare",
+    6.09
+   ],
+   [
+    653,
+    "Rare",
+    6.25
+   ],
+   [
+    654,
+    "Rare",
+    6.25
+   ],
+   [
+    655,
+    "Rare",
+    6.49
+   ],
+   [
+    678,
+    "Rare",
+    7.69
+   ],
+   [
+    679,
+    "Rare",
+    7.69
+   ],
+   [
+    686,
+    "Rare",
+    7.69
+   ],
+   [
+    687,
+    "Rare",
+    7.69
+   ],
+   [
+    703,
+    "Rare",
+    1.47
+   ],
+   [
+    704,
+    "Rare",
+    7.59
+   ],
+   [
+    706,
+    "Rare",
+    6.67
+   ],
+   [
+    710,
+    "Rare",
+    9.68
+   ],
+   [
+    718,
+    "Rare",
     3.03
+   ],
+   [
+    719,
+    "Rare",
+    3.03
+   ],
+   [
+    720,
+    "Rare",
+    3.23
+   ],
+   [
+    723,
+    "Rare",
+    4.76
+   ],
+   [
+    726,
+    "Rare",
+    4.76
+   ],
+   [
+    729,
+    "Rare",
+    9.09
+   ],
+   [
+    842,
+    "Rare",
+    8.33
+   ],
+   [
+    849,
+    "Rare",
+    8.33
+   ],
+   [
+    851,
+    "Rare",
+    8.33
+   ],
+   [
+    853,
+    "Rare",
+    8.33
+   ],
+   [
+    871,
+    "Rare",
+    3.65
+   ],
+   [
+    874,
+    "Rare",
+    3.65
+   ],
+   [
+    877,
+    "Rare",
+    3.65
+   ],
+   [
+    880,
+    "Rare",
+    3.65
+   ],
+   [
+    884,
+    "Rare",
+    1.47
+   ],
+   [
+    885,
+    "Rare",
+    7.59
+   ],
+   [
+    894,
+    "Rare",
+    1.47
+   ],
+   [
+    895,
+    "Rare",
+    7.59
+   ],
+   [
+    897,
+    "Rare",
+    1.47
+   ],
+   [
+    898,
+    "Rare",
+    7.59
+   ],
+   [
+    900,
+    "Rare",
+    1.47
+   ],
+   [
+    901,
+    "Rare",
+    7.59
+   ],
+   [
+    903,
+    "Rare",
+    1.47
+   ],
+   [
+    904,
+    "Rare",
+    7.59
+   ],
+   [
+    906,
+    "Rare",
+    1.47
+   ],
+   [
+    907,
+    "Rare",
+    7.59
+   ],
+   [
+    912,
+    "Rare",
+    1.47
+   ],
+   [
+    913,
+    "Rare",
+    7.59
+   ],
+   [
+    915,
+    "Rare",
+    1.47
+   ],
+   [
+    916,
+    "Rare",
+    7.59
+   ],
+   [
+    3906,
+    "Rare",
+    7.14
+   ],
+   [
+    4035,
+    "Rare",
+    1.47
+   ],
+   [
+    4036,
+    "Rare",
+    6.9
+   ],
+   [
+    4038,
+    "Rare",
+    6.67
+   ],
+   [
+    4044,
+    "Rare",
+    9.09
+   ],
+   [
+    4047,
+    "Uncommon",
+    12.5
+   ],
+   [
+    4055,
+    "Rare",
+    7.74
+   ],
+   [
+    4057,
+    "Rare",
+    6.67
+   ],
+   [
+    4060,
+    "Rare",
+    6.67
+   ],
+   [
+    4062,
+    "Rare",
+    4.76
+   ],
+   [
+    4064,
+    "Rare",
+    6.67
+   ],
+   [
+    4065,
+    "Rare",
+    4.76
+   ],
+   [
+    4067,
+    "Rare",
+    4.76
+   ],
+   [
+    4069,
+    "Rare",
+    7.47
+   ],
+   [
+    4072,
+    "Rare",
+    7.47
+   ],
+   [
+    4075,
+    "Uncommon",
+    10.17
+   ],
+   [
+    4078,
+    "Rare",
+    9.71
+   ],
+   [
+    4092,
+    "Rare",
+    9.68
+   ],
+   [
+    4123,
+    "Uncommon",
+    12.5
+   ],
+   [
+    4135,
+    "Rare",
+    9.68
+   ],
+   [
+    4149,
+    "Rare",
+    1.47
+   ],
+   [
+    4150,
+    "Rare",
+    6.9
+   ],
+   [
+    4158,
+    "Rare",
+    9.68
+   ],
+   [
+    4183,
+    "Rare",
+    2.65
+   ],
+   [
+    4186,
+    "Rare",
+    2.33
+   ],
+   [
+    4187,
+    "Rare",
+    2.65
+   ],
+   [
+    4190,
+    "Rare",
+    2.33
+   ],
+   [
+    4191,
+    "Rare",
+    2.65
    ]
   ],
   "meso n11 relic": [
@@ -136371,22 +137127,22 @@
     9.09
    ],
    [
-    848,
+    842,
     "Rare",
     8.33
    ],
    [
-    850,
+    849,
     "Rare",
     8.33
    ],
    [
-    852,
+    851,
     "Rare",
     8.33
    ],
    [
-    855,
+    853,
     "Rare",
     8.33
    ],
@@ -136516,17 +137272,17 @@
     7.14
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.42
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.58
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.67
    ],
@@ -136571,7 +137327,7 @@
     6.67
    ],
    [
-    4063,
+    4062,
     "Rare",
     4.76
    ],
@@ -136581,12 +137337,12 @@
     6.67
    ],
    [
-    4066,
+    4065,
     "Rare",
     4.76
    ],
    [
-    4068,
+    4067,
     "Rare",
     4.76
    ],
@@ -136663,832 +137419,30 @@
    [
     4183,
     "Rare",
-    3.03
+    2.65
    ],
    [
     4186,
     "Rare",
-    2.44
+    2.33
    ],
    [
     4187,
     "Rare",
-    3.03
+    2.65
    ],
    [
     4190,
     "Rare",
-    2.44
+    2.33
    ],
    [
     4191,
     "Rare",
-    3.03
+    2.65
    ]
   ],
-  "meso v15 relic": [
-   [
-    4,
-    "Rare",
-    7.69
-   ],
-   [
-    5,
-    "Rare",
-    7.69
-   ],
-   [
-    18,
-    "Rare",
-    5.56
-   ],
-   [
-    19,
-    "Uncommon",
-    12.18
-   ],
-   [
-    63,
-    "Rare",
-    5.56
-   ],
-   [
-    64,
-    "Uncommon",
-    12.18
-   ],
-   [
-    76,
-    "Rare",
-    7.69
-   ],
-   [
-    77,
-    "Rare",
-    7.69
-   ],
-   [
-    82,
-    "Rare",
-    1.47
-   ],
-   [
-    83,
-    "Rare",
-    6.9
-   ],
-   [
-    98,
-    "Rare",
-    7.69
-   ],
-   [
-    99,
-    "Rare",
-    7.69
-   ],
-   [
-    105,
-    "Rare",
-    5.56
-   ],
-   [
-    106,
-    "Uncommon",
-    12.18
-   ],
-   [
-    112,
-    "Rare",
-    1.47
-   ],
-   [
-    113,
-    "Rare",
-    6.9
-   ],
-   [
-    132,
-    "Rare",
-    7.69
-   ],
-   [
-    133,
-    "Rare",
-    7.69
-   ],
-   [
-    135,
-    "Rare",
-    5.56
-   ],
-   [
-    136,
-    "Uncommon",
-    12.18
-   ],
-   [
-    147,
-    "Rare",
-    1.47
-   ],
-   [
-    148,
-    "Rare",
-    6.9
-   ],
-   [
-    154,
-    "Rare",
-    6.67
-   ],
-   [
-    169,
-    "Rare",
-    7.74
-   ],
-   [
-    173,
-    "Uncommon",
-    12.5
-   ],
-   [
-    177,
-    "Rare",
-    6.67
-   ],
-   [
-    179,
-    "Rare",
-    9.09
-   ],
-   [
-    188,
-    "Rare",
-    1.47
-   ],
-   [
-    189,
-    "Rare",
-    6.9
-   ],
-   [
-    193,
-    "Rare",
-    6.67
-   ],
-   [
-    195,
-    "Uncommon",
-    12.5
-   ],
-   [
-    199,
-    "Rare",
-    6.67
-   ],
-   [
-    203,
-    "Rare",
-    7.74
-   ],
-   [
-    204,
-    "Rare",
-    1.75
-   ],
-   [
-    206,
-    "Rare",
-    1.75
-   ],
-   [
-    208,
-    "Rare",
-    1.75
-   ],
-   [
-    210,
-    "Rare",
-    1.75
-   ],
-   [
-    212,
-    "Rare",
-    1.75
-   ],
-   [
-    219,
-    "Rare",
-    9.09
-   ],
-   [
-    227,
-    "Rare",
-    7.74
-   ],
-   [
-    238,
-    "Rare",
-    4.74
-   ],
-   [
-    248,
-    "Rare",
-    6.67
-   ],
-   [
-    251,
-    "Rare",
-    9.09
-   ],
-   [
-    263,
-    "Rare",
-    9.09
-   ],
-   [
-    282,
-    "Rare",
-    9.68
-   ],
-   [
-    312,
-    "Rare",
-    7.41
-   ],
-   [
-    328,
-    "Rare",
-    4.17
-   ],
-   [
-    328,
-    "Rare",
-    6.25
-   ],
-   [
-    334,
-    "Rare",
-    2.35
-   ],
-   [
-    335,
-    "Rare",
-    4.17
-   ],
-   [
-    337,
-    "Rare",
-    4.17
-   ],
-   [
-    337,
-    "Rare",
-    6.25
-   ],
-   [
-    343,
-    "Rare",
-    4.17
-   ],
-   [
-    343,
-    "Rare",
-    4.55
-   ],
-   [
-    349,
-    "Rare",
-    2.35
-   ],
-   [
-    350,
-    "Rare",
-    4.17
-   ],
-   [
-    352,
-    "Rare",
-    4.17
-   ],
-   [
-    353,
-    "Rare",
-    9.09
-   ],
-   [
-    367,
-    "Rare",
-    9.68
-   ],
-   [
-    410,
-    "Rare",
-    1.47
-   ],
-   [
-    411,
-    "Rare",
-    6.9
-   ],
-   [
-    413,
-    "Rare",
-    9.68
-   ],
-   [
-    419,
-    "Rare",
-    4.17
-   ],
-   [
-    426,
-    "Rare",
-    4.17
-   ],
-   [
-    428,
-    "Rare",
-    4.17
-   ],
-   [
-    434,
-    "Rare",
-    4.17
-   ],
-   [
-    441,
-    "Rare",
-    4.17
-   ],
-   [
-    443,
-    "Rare",
-    4.17
-   ],
-   [
-    456,
-    "Rare",
-    7.74
-   ],
-   [
-    458,
-    "Rare",
-    7.69
-   ],
-   [
-    459,
-    "Rare",
-    7.69
-   ],
-   [
-    471,
-    "Rare",
-    7.69
-   ],
-   [
-    472,
-    "Rare",
-    7.69
-   ],
-   [
-    474,
-    "Rare",
-    5.56
-   ],
-   [
-    475,
-    "Uncommon",
-    12.18
-   ],
-   [
-    477,
-    "Rare",
-    7.69
-   ],
-   [
-    478,
-    "Rare",
-    7.69
-   ],
-   [
-    480,
-    "Rare",
-    6.67
-   ],
-   [
-    486,
-    "Rare",
-    1.47
-   ],
-   [
-    487,
-    "Rare",
-    6.9
-   ],
-   [
-    489,
-    "Rare",
-    9.68
-   ],
-   [
-    509,
-    "Rare",
-    9.68
-   ],
-   [
-    533,
-    "Rare",
-    1.47
-   ],
-   [
-    534,
-    "Rare",
-    6.9
-   ],
-   [
-    643,
-    "Rare",
-    1.88
-   ],
-   [
-    644,
-    "Rare",
-    6.25
-   ],
-   [
-    645,
-    "Rare",
-    6.25
-   ],
-   [
-    646,
-    "Rare",
-    6.25
-   ],
-   [
-    650,
-    "Rare",
-    1.88
-   ],
-   [
-    651,
-    "Rare",
-    9.68
-   ],
-   [
-    652,
-    "Rare",
-    6.09
-   ],
-   [
-    653,
-    "Rare",
-    6.25
-   ],
-   [
-    654,
-    "Rare",
-    6.25
-   ],
-   [
-    655,
-    "Rare",
-    6.49
-   ],
-   [
-    678,
-    "Rare",
-    7.69
-   ],
-   [
-    679,
-    "Rare",
-    7.69
-   ],
-   [
-    686,
-    "Rare",
-    7.69
-   ],
-   [
-    687,
-    "Rare",
-    7.69
-   ],
-   [
-    703,
-    "Rare",
-    1.47
-   ],
-   [
-    704,
-    "Rare",
-    7.59
-   ],
-   [
-    706,
-    "Rare",
-    6.67
-   ],
-   [
-    710,
-    "Rare",
-    9.68
-   ],
-   [
-    718,
-    "Rare",
-    3.03
-   ],
-   [
-    719,
-    "Rare",
-    3.03
-   ],
-   [
-    720,
-    "Rare",
-    3.23
-   ],
-   [
-    723,
-    "Rare",
-    4.76
-   ],
-   [
-    726,
-    "Rare",
-    4.76
-   ],
-   [
-    729,
-    "Rare",
-    9.09
-   ],
-   [
-    848,
-    "Rare",
-    8.33
-   ],
-   [
-    850,
-    "Rare",
-    8.33
-   ],
-   [
-    852,
-    "Rare",
-    8.33
-   ],
-   [
-    855,
-    "Rare",
-    8.33
-   ],
-   [
-    871,
-    "Rare",
-    3.65
-   ],
-   [
-    874,
-    "Rare",
-    3.65
-   ],
-   [
-    877,
-    "Rare",
-    3.65
-   ],
-   [
-    880,
-    "Rare",
-    3.65
-   ],
-   [
-    884,
-    "Rare",
-    1.47
-   ],
-   [
-    885,
-    "Rare",
-    7.59
-   ],
-   [
-    894,
-    "Rare",
-    1.47
-   ],
-   [
-    895,
-    "Rare",
-    7.59
-   ],
-   [
-    897,
-    "Rare",
-    1.47
-   ],
-   [
-    898,
-    "Rare",
-    7.59
-   ],
-   [
-    900,
-    "Rare",
-    1.47
-   ],
-   [
-    901,
-    "Rare",
-    7.59
-   ],
-   [
-    903,
-    "Rare",
-    1.47
-   ],
-   [
-    904,
-    "Rare",
-    7.59
-   ],
-   [
-    906,
-    "Rare",
-    1.47
-   ],
-   [
-    907,
-    "Rare",
-    7.59
-   ],
-   [
-    912,
-    "Rare",
-    1.47
-   ],
-   [
-    913,
-    "Rare",
-    7.59
-   ],
-   [
-    915,
-    "Rare",
-    1.47
-   ],
-   [
-    916,
-    "Rare",
-    7.59
-   ],
-   [
-    3906,
-    "Rare",
-    7.14
-   ],
-   [
-    4035,
-    "Rare",
-    1.47
-   ],
-   [
-    4036,
-    "Rare",
-    6.9
-   ],
-   [
-    4038,
-    "Rare",
-    6.67
-   ],
-   [
-    4044,
-    "Rare",
-    9.09
-   ],
-   [
-    4047,
-    "Uncommon",
-    12.5
-   ],
-   [
-    4055,
-    "Rare",
-    7.74
-   ],
-   [
-    4057,
-    "Rare",
-    6.67
-   ],
-   [
-    4060,
-    "Rare",
-    6.67
-   ],
-   [
-    4063,
-    "Rare",
-    4.76
-   ],
-   [
-    4064,
-    "Rare",
-    6.67
-   ],
-   [
-    4066,
-    "Rare",
-    4.76
-   ],
-   [
-    4068,
-    "Rare",
-    4.76
-   ],
-   [
-    4069,
-    "Rare",
-    7.47
-   ],
-   [
-    4072,
-    "Rare",
-    7.47
-   ],
-   [
-    4075,
-    "Uncommon",
-    10.17
-   ],
-   [
-    4078,
-    "Rare",
-    9.71
-   ],
-   [
-    4092,
-    "Rare",
-    9.68
-   ],
-   [
-    4123,
-    "Uncommon",
-    12.5
-   ],
-   [
-    4135,
-    "Rare",
-    9.68
-   ],
-   [
-    4149,
-    "Rare",
-    1.47
-   ],
-   [
-    4150,
-    "Rare",
-    6.9
-   ],
-   [
-    4158,
-    "Rare",
-    9.68
-   ],
-   [
-    4183,
-    "Rare",
-    3.03
-   ],
-   [
-    4186,
-    "Rare",
-    2.44
-   ],
-   [
-    4187,
-    "Rare",
-    3.03
-   ],
-   [
-    4190,
-    "Rare",
-    2.44
-   ],
-   [
-    4191,
-    "Rare",
-    3.03
-   ]
-  ],
-  "meso x1 relic": [
+  "meso v17 relic": [
    [
     4,
     "Rare",
@@ -138080,22 +138034,22 @@
     9.09
    ],
    [
-    848,
+    842,
     "Rare",
     8.33
    ],
    [
-    850,
+    849,
     "Rare",
     8.33
    ],
    [
-    852,
+    851,
     "Rare",
     8.33
    ],
    [
-    855,
+    853,
     "Rare",
     8.33
    ],
@@ -138240,27 +138194,27 @@
     7.14
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.42
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.42
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.58
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.67
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.67
    ],
@@ -138305,7 +138259,7 @@
     6.67
    ],
    [
-    4063,
+    4062,
     "Rare",
     4.76
    ],
@@ -138315,12 +138269,12 @@
     6.67
    ],
    [
-    4066,
+    4065,
     "Rare",
     4.76
    ],
    [
-    4068,
+    4067,
     "Rare",
     4.76
    ],
@@ -138382,27 +138336,27 @@
    [
     4183,
     "Rare",
-    3.03
+    2.65
    ],
    [
     4186,
     "Rare",
-    2.44
+    2.33
    ],
    [
     4187,
     "Rare",
-    3.03
+    2.65
    ],
    [
     4190,
     "Rare",
-    2.44
+    2.33
    ],
    [
     4191,
     "Rare",
-    3.03
+    2.65
    ]
   ],
   "meso y2 relic": [
@@ -138992,22 +138946,22 @@
     9.09
    ],
    [
-    848,
+    842,
     "Rare",
     8.33
    ],
    [
-    850,
+    849,
     "Rare",
     8.33
    ],
    [
-    852,
+    851,
     "Rare",
     8.33
    ],
    [
-    855,
+    853,
     "Rare",
     8.33
    ],
@@ -139117,17 +139071,17 @@
     7.14
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.42
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.58
    ],
    [
-    4007,
+    4000,
     "Rare",
     1.14
    ],
@@ -139172,7 +139126,7 @@
     6.67
    ],
    [
-    4063,
+    4062,
     "Rare",
     4.76
    ],
@@ -139182,12 +139136,12 @@
     6.67
    ],
    [
-    4066,
+    4065,
     "Rare",
     4.76
    ],
    [
-    4068,
+    4067,
     "Rare",
     4.76
    ],
@@ -139249,27 +139203,27 @@
    [
     4183,
     "Rare",
-    3.03
+    2.65
    ],
    [
     4186,
     "Rare",
-    2.44
+    2.33
    ],
    [
     4187,
     "Rare",
-    3.03
+    2.65
    ],
    [
     4190,
     "Rare",
-    2.44
+    2.33
    ],
    [
     4191,
     "Rare",
-    3.03
+    2.65
    ]
   ],
   "neo a16 relic": [
@@ -139789,22 +139743,22 @@
     4.35
    ],
    [
-    848,
+    842,
     "Rare",
     8.33
    ],
    [
-    850,
+    849,
     "Rare",
     8.33
    ],
    [
-    852,
+    851,
     "Rare",
     8.33
    ],
    [
-    855,
+    853,
     "Rare",
     8.33
    ],
@@ -139954,42 +139908,42 @@
     9.09
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.42
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.42
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.58
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.67
    ],
    [
-    4007,
+    4000,
     "Rare",
     1.14
    ],
    [
-    4014,
+    4000,
     "Uncommon",
     13.57
    ],
    [
-    4014,
+    4000,
     "Uncommon",
     17.92
    ],
    [
-    4014,
+    4000,
     "Uncommon",
     18.45
    ],
@@ -140136,17 +140090,1586 @@
    [
     4184,
     "Rare",
-    3.33
+    2.87
    ],
    [
     4188,
     "Rare",
-    3.33
+    2.87
    ],
    [
     4192,
     "Rare",
-    3.33
+    2.87
+   ]
+  ],
+  "neo c10 relic": [
+   [
+    83,
+    "Rare",
+    1.84
+   ],
+   [
+    113,
+    "Rare",
+    1.84
+   ],
+   [
+    148,
+    "Rare",
+    1.84
+   ],
+   [
+    155,
+    "Uncommon",
+    11.06
+   ],
+   [
+    158,
+    "Rare",
+    6.25
+   ],
+   [
+    159,
+    "Rare",
+    5.8
+   ],
+   [
+    162,
+    "Rare",
+    5.56
+   ],
+   [
+    174,
+    "Rare",
+    6.25
+   ],
+   [
+    175,
+    "Uncommon",
+    11.06
+   ],
+   [
+    178,
+    "Uncommon",
+    11.06
+   ],
+   [
+    180,
+    "Rare",
+    7.14
+   ],
+   [
+    181,
+    "Uncommon",
+    14.29
+   ],
+   [
+    189,
+    "Rare",
+    1.84
+   ],
+   [
+    194,
+    "Uncommon",
+    11.06
+   ],
+   [
+    196,
+    "Rare",
+    6.25
+   ],
+   [
+    197,
+    "Uncommon",
+    11.06
+   ],
+   [
+    200,
+    "Uncommon",
+    11.06
+   ],
+   [
+    220,
+    "Rare",
+    7.14
+   ],
+   [
+    221,
+    "Uncommon",
+    14.29
+   ],
+   [
+    249,
+    "Uncommon",
+    11.06
+   ],
+   [
+    252,
+    "Uncommon",
+    10
+   ],
+   [
+    264,
+    "Rare",
+    7.14
+   ],
+   [
+    265,
+    "Uncommon",
+    14.29
+   ],
+   [
+    266,
+    "Uncommon",
+    10
+   ],
+   [
+    270,
+    "Rare",
+    6.67
+   ],
+   [
+    279,
+    "Rare",
+    6.67
+   ],
+   [
+    282,
+    "Rare",
+    3.22
+   ],
+   [
+    284,
+    "Uncommon",
+    10
+   ],
+   [
+    300,
+    "Uncommon",
+    14.29
+   ],
+   [
+    301,
+    "Uncommon",
+    13.56
+   ],
+   [
+    302,
+    "Uncommon",
+    10
+   ],
+   [
+    310,
+    "Rare",
+    6.67
+   ],
+   [
+    319,
+    "Uncommon",
+    10
+   ],
+   [
+    326,
+    "Rare",
+    6.67
+   ],
+   [
+    367,
+    "Rare",
+    3.22
+   ],
+   [
+    370,
+    "Uncommon",
+    10
+   ],
+   [
+    373,
+    "Rare",
+    6.67
+   ],
+   [
+    389,
+    "Uncommon",
+    10
+   ],
+   [
+    403,
+    "Uncommon",
+    10
+   ],
+   [
+    407,
+    "Rare",
+    6.67
+   ],
+   [
+    411,
+    "Rare",
+    1.84
+   ],
+   [
+    413,
+    "Rare",
+    3.22
+   ],
+   [
+    416,
+    "Rare",
+    6.67
+   ],
+   [
+    420,
+    "Rare",
+    4.55
+   ],
+   [
+    425,
+    "Rare",
+    2.41
+   ],
+   [
+    430,
+    "Rare",
+    4.88
+   ],
+   [
+    436,
+    "Rare",
+    6.25
+   ],
+   [
+    440,
+    "Rare",
+    2.41
+   ],
+   [
+    444,
+    "Uncommon",
+    10
+   ],
+   [
+    481,
+    "Uncommon",
+    11.06
+   ],
+   [
+    487,
+    "Rare",
+    1.84
+   ],
+   [
+    489,
+    "Rare",
+    3.22
+   ],
+   [
+    501,
+    "Uncommon",
+    10
+   ],
+   [
+    505,
+    "Rare",
+    6.67
+   ],
+   [
+    509,
+    "Rare",
+    3.22
+   ],
+   [
+    511,
+    "Uncommon",
+    10
+   ],
+   [
+    514,
+    "Uncommon",
+    10
+   ],
+   [
+    517,
+    "Uncommon",
+    10
+   ],
+   [
+    520,
+    "Rare",
+    7.69
+   ],
+   [
+    530,
+    "Rare",
+    6.67
+   ],
+   [
+    534,
+    "Rare",
+    1.84
+   ],
+   [
+    538,
+    "Uncommon",
+    10
+   ],
+   [
+    545,
+    "Uncommon",
+    14.29
+   ],
+   [
+    651,
+    "Rare",
+    2.05
+   ],
+   [
+    652,
+    "Rare",
+    6.09
+   ],
+   [
+    653,
+    "Rare",
+    6.25
+   ],
+   [
+    654,
+    "Rare",
+    6.25
+   ],
+   [
+    655,
+    "Rare",
+    6.49
+   ],
+   [
+    656,
+    "Rare",
+    9.09
+   ],
+   [
+    656,
+    "Rare",
+    9.09
+   ],
+   [
+    657,
+    "Rare",
+    9.68
+   ],
+   [
+    658,
+    "Rare",
+    9.09
+   ],
+   [
+    659,
+    "Uncommon",
+    12.5
+   ],
+   [
+    666,
+    "Rare",
+    9.09
+   ],
+   [
+    667,
+    "Uncommon",
+    12.5
+   ],
+   [
+    704,
+    "Rare",
+    2.01
+   ],
+   [
+    707,
+    "Uncommon",
+    11.06
+   ],
+   [
+    715,
+    "Uncommon",
+    12.5
+   ],
+   [
+    721,
+    "Rare",
+    7.5
+   ],
+   [
+    724,
+    "Rare",
+    7.5
+   ],
+   [
+    727,
+    "Rare",
+    7.5
+   ],
+   [
+    730,
+    "Uncommon",
+    10
+   ],
+   [
+    739,
+    "Rare",
+    6.67
+   ],
+   [
+    741,
+    "Uncommon",
+    10
+   ],
+   [
+    748,
+    "Uncommon",
+    14.29
+   ],
+   [
+    752,
+    "Uncommon",
+    10
+   ],
+   [
+    755,
+    "Rare",
+    4.76
+   ],
+   [
+    781,
+    "Rare",
+    2
+   ],
+   [
+    782,
+    "Rare",
+    4.8
+   ],
+   [
+    784,
+    "Rare",
+    2
+   ],
+   [
+    785,
+    "Rare",
+    4.8
+   ],
+   [
+    787,
+    "Rare",
+    2
+   ],
+   [
+    788,
+    "Rare",
+    4.8
+   ],
+   [
+    790,
+    "Rare",
+    2
+   ],
+   [
+    791,
+    "Rare",
+    4.8
+   ],
+   [
+    794,
+    "Rare",
+    4.35
+   ],
+   [
+    797,
+    "Rare",
+    4.35
+   ],
+   [
+    799,
+    "Rare",
+    4.35
+   ],
+   [
+    805,
+    "Rare",
+    4.35
+   ],
+   [
+    811,
+    "Rare",
+    4.35
+   ],
+   [
+    817,
+    "Rare",
+    4.35
+   ],
+   [
+    848,
+    "Rare",
+    8.33
+   ],
+   [
+    850,
+    "Rare",
+    8.33
+   ],
+   [
+    852,
+    "Rare",
+    8.33
+   ],
+   [
+    855,
+    "Rare",
+    8.33
+   ],
+   [
+    885,
+    "Rare",
+    2.01
+   ],
+   [
+    895,
+    "Rare",
+    2.01
+   ],
+   [
+    898,
+    "Rare",
+    2.01
+   ],
+   [
+    901,
+    "Rare",
+    2.01
+   ],
+   [
+    904,
+    "Rare",
+    2.01
+   ],
+   [
+    907,
+    "Rare",
+    2.01
+   ],
+   [
+    913,
+    "Rare",
+    2.01
+   ],
+   [
+    916,
+    "Rare",
+    2.01
+   ],
+   [
+    2069,
+    "Legendary",
+    0.5
+   ],
+   [
+    2069,
+    "Legendary",
+    0.5
+   ],
+   [
+    2069,
+    "Rare",
+    1
+   ],
+   [
+    2069,
+    "Rare",
+    1.88
+   ],
+   [
+    2069,
+    "Rare",
+    1.88
+   ],
+   [
+    2069,
+    "Rare",
+    2.34
+   ],
+   [
+    2069,
+    "Rare",
+    3.75
+   ],
+   [
+    3907,
+    "Rare",
+    9.09
+   ],
+   [
+    4000,
+    "Legendary",
+    0.42
+   ],
+   [
+    4000,
+    "Legendary",
+    0.67
+   ],
+   [
+    4027,
+    "Rare",
+    6.67
+   ],
+   [
+    4036,
+    "Rare",
+    1.84
+   ],
+   [
+    4039,
+    "Uncommon",
+    11.06
+   ],
+   [
+    4045,
+    "Rare",
+    7.14
+   ],
+   [
+    4046,
+    "Uncommon",
+    14.29
+   ],
+   [
+    4048,
+    "Rare",
+    6.25
+   ],
+   [
+    4049,
+    "Uncommon",
+    11.06
+   ],
+   [
+    4058,
+    "Uncommon",
+    11.06
+   ],
+   [
+    4061,
+    "Uncommon",
+    11.06
+   ],
+   [
+    4070,
+    "Rare",
+    9.35
+   ],
+   [
+    4073,
+    "Rare",
+    9.35
+   ],
+   [
+    4076,
+    "Rare",
+    9.56
+   ],
+   [
+    4079,
+    "Rare",
+    9.9
+   ],
+   [
+    4087,
+    "Uncommon",
+    10
+   ],
+   [
+    4092,
+    "Rare",
+    3.22
+   ],
+   [
+    4097,
+    "Rare",
+    6.67
+   ],
+   [
+    4118,
+    "Rare",
+    6.67
+   ],
+   [
+    4120,
+    "Uncommon",
+    10
+   ],
+   [
+    4124,
+    "Rare",
+    6.25
+   ],
+   [
+    4125,
+    "Uncommon",
+    11.06
+   ],
+   [
+    4126,
+    "Uncommon",
+    10
+   ],
+   [
+    4132,
+    "Uncommon",
+    14.29
+   ],
+   [
+    4135,
+    "Rare",
+    3.22
+   ],
+   [
+    4150,
+    "Rare",
+    1.84
+   ],
+   [
+    4152,
+    "Rare",
+    6.67
+   ],
+   [
+    4155,
+    "Rare",
+    6.67
+   ],
+   [
+    4158,
+    "Rare",
+    3.22
+   ],
+   [
+    4167,
+    "Rare",
+    6.67
+   ],
+   [
+    4184,
+    "Rare",
+    2.87
+   ],
+   [
+    4188,
+    "Rare",
+    2.87
+   ],
+   [
+    4192,
+    "Rare",
+    2.87
+   ]
+  ],
+  "neo c11 relic": [
+   [
+    83,
+    "Rare",
+    1.84
+   ],
+   [
+    113,
+    "Rare",
+    1.84
+   ],
+   [
+    148,
+    "Rare",
+    1.84
+   ],
+   [
+    155,
+    "Uncommon",
+    11.06
+   ],
+   [
+    158,
+    "Rare",
+    6.25
+   ],
+   [
+    159,
+    "Rare",
+    5.8
+   ],
+   [
+    162,
+    "Rare",
+    5.56
+   ],
+   [
+    174,
+    "Rare",
+    6.25
+   ],
+   [
+    175,
+    "Uncommon",
+    11.06
+   ],
+   [
+    178,
+    "Uncommon",
+    11.06
+   ],
+   [
+    180,
+    "Rare",
+    7.14
+   ],
+   [
+    181,
+    "Uncommon",
+    14.29
+   ],
+   [
+    189,
+    "Rare",
+    1.84
+   ],
+   [
+    194,
+    "Uncommon",
+    11.06
+   ],
+   [
+    196,
+    "Rare",
+    6.25
+   ],
+   [
+    197,
+    "Uncommon",
+    11.06
+   ],
+   [
+    200,
+    "Uncommon",
+    11.06
+   ],
+   [
+    220,
+    "Rare",
+    7.14
+   ],
+   [
+    221,
+    "Uncommon",
+    14.29
+   ],
+   [
+    249,
+    "Uncommon",
+    11.06
+   ],
+   [
+    252,
+    "Uncommon",
+    10
+   ],
+   [
+    264,
+    "Rare",
+    7.14
+   ],
+   [
+    265,
+    "Uncommon",
+    14.29
+   ],
+   [
+    266,
+    "Uncommon",
+    10
+   ],
+   [
+    270,
+    "Rare",
+    6.67
+   ],
+   [
+    279,
+    "Rare",
+    6.67
+   ],
+   [
+    282,
+    "Rare",
+    3.22
+   ],
+   [
+    284,
+    "Uncommon",
+    10
+   ],
+   [
+    300,
+    "Uncommon",
+    14.29
+   ],
+   [
+    301,
+    "Uncommon",
+    13.56
+   ],
+   [
+    302,
+    "Uncommon",
+    10
+   ],
+   [
+    310,
+    "Rare",
+    6.67
+   ],
+   [
+    319,
+    "Uncommon",
+    10
+   ],
+   [
+    326,
+    "Rare",
+    6.67
+   ],
+   [
+    367,
+    "Rare",
+    3.22
+   ],
+   [
+    370,
+    "Uncommon",
+    10
+   ],
+   [
+    373,
+    "Rare",
+    6.67
+   ],
+   [
+    389,
+    "Uncommon",
+    10
+   ],
+   [
+    403,
+    "Uncommon",
+    10
+   ],
+   [
+    407,
+    "Rare",
+    6.67
+   ],
+   [
+    411,
+    "Rare",
+    1.84
+   ],
+   [
+    413,
+    "Rare",
+    3.22
+   ],
+   [
+    416,
+    "Rare",
+    6.67
+   ],
+   [
+    420,
+    "Rare",
+    4.55
+   ],
+   [
+    425,
+    "Rare",
+    2.41
+   ],
+   [
+    429,
+    "Rare",
+    6.06
+   ],
+   [
+    435,
+    "Rare",
+    6.06
+   ],
+   [
+    440,
+    "Rare",
+    2.41
+   ],
+   [
+    444,
+    "Uncommon",
+    10
+   ],
+   [
+    481,
+    "Uncommon",
+    11.06
+   ],
+   [
+    487,
+    "Rare",
+    1.84
+   ],
+   [
+    489,
+    "Rare",
+    3.22
+   ],
+   [
+    501,
+    "Uncommon",
+    10
+   ],
+   [
+    505,
+    "Rare",
+    6.67
+   ],
+   [
+    509,
+    "Rare",
+    3.22
+   ],
+   [
+    511,
+    "Uncommon",
+    10
+   ],
+   [
+    514,
+    "Uncommon",
+    10
+   ],
+   [
+    517,
+    "Uncommon",
+    10
+   ],
+   [
+    520,
+    "Rare",
+    7.69
+   ],
+   [
+    530,
+    "Rare",
+    6.67
+   ],
+   [
+    534,
+    "Rare",
+    1.84
+   ],
+   [
+    538,
+    "Uncommon",
+    10
+   ],
+   [
+    545,
+    "Uncommon",
+    14.29
+   ],
+   [
+    651,
+    "Rare",
+    2.05
+   ],
+   [
+    652,
+    "Rare",
+    6.09
+   ],
+   [
+    653,
+    "Rare",
+    6.25
+   ],
+   [
+    654,
+    "Rare",
+    6.25
+   ],
+   [
+    655,
+    "Rare",
+    6.49
+   ],
+   [
+    656,
+    "Rare",
+    9.09
+   ],
+   [
+    657,
+    "Rare",
+    9.68
+   ],
+   [
+    658,
+    "Rare",
+    9.09
+   ],
+   [
+    658,
+    "Rare",
+    9.09
+   ],
+   [
+    659,
+    "Uncommon",
+    12.5
+   ],
+   [
+    661,
+    "Rare",
+    6.25
+   ],
+   [
+    662,
+    "Rare",
+    6.25
+   ],
+   [
+    666,
+    "Rare",
+    9.09
+   ],
+   [
+    666,
+    "Rare",
+    9.09
+   ],
+   [
+    667,
+    "Uncommon",
+    12.5
+   ],
+   [
+    704,
+    "Rare",
+    2.01
+   ],
+   [
+    707,
+    "Uncommon",
+    11.06
+   ],
+   [
+    715,
+    "Uncommon",
+    12.5
+   ],
+   [
+    721,
+    "Rare",
+    7.5
+   ],
+   [
+    724,
+    "Rare",
+    7.5
+   ],
+   [
+    727,
+    "Rare",
+    7.5
+   ],
+   [
+    730,
+    "Uncommon",
+    10
+   ],
+   [
+    739,
+    "Rare",
+    6.67
+   ],
+   [
+    741,
+    "Uncommon",
+    10
+   ],
+   [
+    748,
+    "Uncommon",
+    14.29
+   ],
+   [
+    752,
+    "Uncommon",
+    10
+   ],
+   [
+    755,
+    "Rare",
+    4.76
+   ],
+   [
+    781,
+    "Rare",
+    2
+   ],
+   [
+    782,
+    "Rare",
+    4.8
+   ],
+   [
+    784,
+    "Rare",
+    2
+   ],
+   [
+    785,
+    "Rare",
+    4.8
+   ],
+   [
+    787,
+    "Rare",
+    2
+   ],
+   [
+    788,
+    "Rare",
+    4.8
+   ],
+   [
+    790,
+    "Rare",
+    2
+   ],
+   [
+    791,
+    "Rare",
+    4.8
+   ],
+   [
+    794,
+    "Rare",
+    4.35
+   ],
+   [
+    797,
+    "Rare",
+    4.35
+   ],
+   [
+    799,
+    "Rare",
+    4.35
+   ],
+   [
+    805,
+    "Rare",
+    4.35
+   ],
+   [
+    811,
+    "Rare",
+    4.35
+   ],
+   [
+    817,
+    "Rare",
+    4.35
+   ],
+   [
+    848,
+    "Rare",
+    8.33
+   ],
+   [
+    850,
+    "Rare",
+    8.33
+   ],
+   [
+    852,
+    "Rare",
+    8.33
+   ],
+   [
+    855,
+    "Rare",
+    8.33
+   ],
+   [
+    885,
+    "Rare",
+    2.01
+   ],
+   [
+    895,
+    "Rare",
+    2.01
+   ],
+   [
+    898,
+    "Rare",
+    2.01
+   ],
+   [
+    901,
+    "Rare",
+    2.01
+   ],
+   [
+    904,
+    "Rare",
+    2.01
+   ],
+   [
+    907,
+    "Rare",
+    2.01
+   ],
+   [
+    913,
+    "Rare",
+    2.01
+   ],
+   [
+    916,
+    "Rare",
+    2.01
+   ],
+   [
+    2067,
+    "Legendary",
+    0.94
+   ],
+   [
+    2067,
+    "Legendary",
+    0.94
+   ],
+   [
+    2067,
+    "Rare",
+    1.17
+   ],
+   [
+    2067,
+    "Rare",
+    1.88
+   ],
+   [
+    2068,
+    "Rare",
+    3.75
+   ],
+   [
+    2068,
+    "Rare",
+    3.75
+   ],
+   [
+    2068,
+    "Rare",
+    4.69
+   ],
+   [
+    2068,
+    "Rare",
+    7.5
+   ],
+   [
+    3907,
+    "Rare",
+    9.09
+   ],
+   [
+    4000,
+    "Legendary",
+    0.42
+   ],
+   [
+    4000,
+    "Legendary",
+    0.58
+   ],
+   [
+    4000,
+    "Legendary",
+    0.67
+   ],
+   [
+    4027,
+    "Rare",
+    6.67
+   ],
+   [
+    4036,
+    "Rare",
+    1.84
+   ],
+   [
+    4039,
+    "Uncommon",
+    11.06
+   ],
+   [
+    4045,
+    "Rare",
+    7.14
+   ],
+   [
+    4046,
+    "Uncommon",
+    14.29
+   ],
+   [
+    4048,
+    "Rare",
+    6.25
+   ],
+   [
+    4049,
+    "Uncommon",
+    11.06
+   ],
+   [
+    4058,
+    "Uncommon",
+    11.06
+   ],
+   [
+    4061,
+    "Uncommon",
+    11.06
+   ],
+   [
+    4070,
+    "Rare",
+    9.35
+   ],
+   [
+    4073,
+    "Rare",
+    9.35
+   ],
+   [
+    4076,
+    "Rare",
+    9.56
+   ],
+   [
+    4079,
+    "Rare",
+    9.9
+   ],
+   [
+    4087,
+    "Uncommon",
+    10
+   ],
+   [
+    4092,
+    "Rare",
+    3.22
+   ],
+   [
+    4097,
+    "Rare",
+    6.67
+   ],
+   [
+    4118,
+    "Rare",
+    6.67
+   ],
+   [
+    4120,
+    "Uncommon",
+    10
+   ],
+   [
+    4124,
+    "Rare",
+    6.25
+   ],
+   [
+    4125,
+    "Uncommon",
+    11.06
+   ],
+   [
+    4126,
+    "Uncommon",
+    10
+   ],
+   [
+    4132,
+    "Uncommon",
+    14.29
+   ],
+   [
+    4135,
+    "Rare",
+    3.22
+   ],
+   [
+    4150,
+    "Rare",
+    1.84
+   ],
+   [
+    4152,
+    "Rare",
+    6.67
+   ],
+   [
+    4155,
+    "Rare",
+    6.67
+   ],
+   [
+    4158,
+    "Rare",
+    3.22
+   ],
+   [
+    4167,
+    "Rare",
+    6.67
+   ],
+   [
+    4184,
+    "Rare",
+    2.87
+   ],
+   [
+    4188,
+    "Rare",
+    2.87
+   ],
+   [
+    4192,
+    "Rare",
+    2.87
    ]
   ],
   "neo c7 relic": [
@@ -140666,22 +142189,22 @@
     4.35
    ],
    [
-    848,
+    842,
     "Rare",
     8.33
    ],
    [
-    850,
+    849,
     "Rare",
     8.33
    ],
    [
-    852,
+    851,
     "Rare",
     8.33
    ],
    [
-    855,
+    853,
     "Rare",
     8.33
    ],
@@ -140791,831 +142314,44 @@
     9.09
    ],
    [
-    4006,
-    "Uncommon",
-    13.57
-   ],
-   [
-    4006,
-    "Uncommon",
-    17.92
-   ],
-   [
-    4006,
-    "Uncommon",
-    18.45
-   ],
-   [
-    4007,
+    4000,
     "Legendary",
     0.42
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.42
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.58
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.67
    ],
    [
-    4007,
+    4000,
     "Rare",
     1.14
    ],
    [
-    4027,
-    "Rare",
-    6.67
-   ],
-   [
-    4036,
-    "Rare",
-    1.84
-   ],
-   [
-    4039,
+    4000,
     "Uncommon",
-    11.06
+    13.57
    ],
    [
-    4045,
-    "Rare",
-    7.14
-   ],
-   [
-    4046,
+    4000,
     "Uncommon",
-    14.29
+    17.92
    ],
    [
-    4048,
-    "Rare",
-    6.25
-   ],
-   [
-    4049,
+    4000,
     "Uncommon",
-    11.06
-   ],
-   [
-    4058,
-    "Uncommon",
-    11.06
-   ],
-   [
-    4061,
-    "Uncommon",
-    11.06
-   ],
-   [
-    4070,
-    "Rare",
-    9.35
-   ],
-   [
-    4073,
-    "Rare",
-    9.35
-   ],
-   [
-    4076,
-    "Rare",
-    9.56
-   ],
-   [
-    4079,
-    "Rare",
-    9.9
-   ],
-   [
-    4087,
-    "Uncommon",
-    10
-   ],
-   [
-    4092,
-    "Rare",
-    3.22
-   ],
-   [
-    4097,
-    "Rare",
-    6.67
-   ],
-   [
-    4118,
-    "Rare",
-    6.67
-   ],
-   [
-    4120,
-    "Uncommon",
-    10
-   ],
-   [
-    4124,
-    "Rare",
-    6.25
-   ],
-   [
-    4125,
-    "Uncommon",
-    11.06
-   ],
-   [
-    4126,
-    "Uncommon",
-    10
-   ],
-   [
-    4132,
-    "Uncommon",
-    14.29
-   ],
-   [
-    4135,
-    "Rare",
-    3.22
-   ],
-   [
-    4150,
-    "Rare",
-    1.84
-   ],
-   [
-    4152,
-    "Rare",
-    6.67
-   ],
-   [
-    4155,
-    "Rare",
-    6.67
-   ],
-   [
-    4158,
-    "Rare",
-    3.22
-   ],
-   [
-    4167,
-    "Rare",
-    6.67
-   ],
-   [
-    4184,
-    "Rare",
-    3.33
-   ],
-   [
-    4188,
-    "Rare",
-    3.33
-   ],
-   [
-    4192,
-    "Rare",
-    3.33
-   ]
-  ],
-  "neo c8 relic": [
-   [
-    83,
-    "Rare",
-    1.84
-   ],
-   [
-    113,
-    "Rare",
-    1.84
-   ],
-   [
-    148,
-    "Rare",
-    1.84
-   ],
-   [
-    155,
-    "Uncommon",
-    11.06
-   ],
-   [
-    158,
-    "Rare",
-    6.25
-   ],
-   [
-    159,
-    "Rare",
-    5.8
-   ],
-   [
-    162,
-    "Rare",
-    5.56
-   ],
-   [
-    174,
-    "Rare",
-    6.25
-   ],
-   [
-    175,
-    "Uncommon",
-    11.06
-   ],
-   [
-    178,
-    "Uncommon",
-    11.06
-   ],
-   [
-    180,
-    "Rare",
-    7.14
-   ],
-   [
-    181,
-    "Uncommon",
-    14.29
-   ],
-   [
-    189,
-    "Rare",
-    1.84
-   ],
-   [
-    194,
-    "Uncommon",
-    11.06
-   ],
-   [
-    196,
-    "Rare",
-    6.25
-   ],
-   [
-    197,
-    "Uncommon",
-    11.06
-   ],
-   [
-    200,
-    "Uncommon",
-    11.06
-   ],
-   [
-    220,
-    "Rare",
-    7.14
-   ],
-   [
-    221,
-    "Uncommon",
-    14.29
-   ],
-   [
-    249,
-    "Uncommon",
-    11.06
-   ],
-   [
-    252,
-    "Uncommon",
-    10
-   ],
-   [
-    264,
-    "Rare",
-    7.14
-   ],
-   [
-    265,
-    "Uncommon",
-    14.29
-   ],
-   [
-    266,
-    "Uncommon",
-    10
-   ],
-   [
-    270,
-    "Rare",
-    6.67
-   ],
-   [
-    279,
-    "Rare",
-    6.67
-   ],
-   [
-    282,
-    "Rare",
-    3.22
-   ],
-   [
-    284,
-    "Uncommon",
-    10
-   ],
-   [
-    300,
-    "Uncommon",
-    14.29
-   ],
-   [
-    301,
-    "Uncommon",
-    13.56
-   ],
-   [
-    302,
-    "Uncommon",
-    10
-   ],
-   [
-    310,
-    "Rare",
-    6.67
-   ],
-   [
-    319,
-    "Uncommon",
-    10
-   ],
-   [
-    326,
-    "Rare",
-    6.67
-   ],
-   [
-    367,
-    "Rare",
-    3.22
-   ],
-   [
-    370,
-    "Uncommon",
-    10
-   ],
-   [
-    373,
-    "Rare",
-    6.67
-   ],
-   [
-    389,
-    "Uncommon",
-    10
-   ],
-   [
-    403,
-    "Uncommon",
-    10
-   ],
-   [
-    407,
-    "Rare",
-    6.67
-   ],
-   [
-    411,
-    "Rare",
-    1.84
-   ],
-   [
-    413,
-    "Rare",
-    3.22
-   ],
-   [
-    416,
-    "Rare",
-    6.67
-   ],
-   [
-    420,
-    "Rare",
-    4.55
-   ],
-   [
-    425,
-    "Rare",
-    2.41
-   ],
-   [
-    430,
-    "Rare",
-    4.88
-   ],
-   [
-    436,
-    "Rare",
-    6.25
-   ],
-   [
-    440,
-    "Rare",
-    2.41
-   ],
-   [
-    444,
-    "Uncommon",
-    10
-   ],
-   [
-    481,
-    "Uncommon",
-    11.06
-   ],
-   [
-    487,
-    "Rare",
-    1.84
-   ],
-   [
-    489,
-    "Rare",
-    3.22
-   ],
-   [
-    501,
-    "Uncommon",
-    10
-   ],
-   [
-    505,
-    "Rare",
-    6.67
-   ],
-   [
-    509,
-    "Rare",
-    3.22
-   ],
-   [
-    511,
-    "Uncommon",
-    10
-   ],
-   [
-    514,
-    "Uncommon",
-    10
-   ],
-   [
-    517,
-    "Uncommon",
-    10
-   ],
-   [
-    520,
-    "Rare",
-    7.69
-   ],
-   [
-    530,
-    "Rare",
-    6.67
-   ],
-   [
-    534,
-    "Rare",
-    1.84
-   ],
-   [
-    538,
-    "Uncommon",
-    10
-   ],
-   [
-    545,
-    "Uncommon",
-    14.29
-   ],
-   [
-    651,
-    "Rare",
-    2.05
-   ],
-   [
-    652,
-    "Rare",
-    6.09
-   ],
-   [
-    653,
-    "Rare",
-    6.25
-   ],
-   [
-    654,
-    "Rare",
-    6.25
-   ],
-   [
-    655,
-    "Rare",
-    6.49
-   ],
-   [
-    656,
-    "Rare",
-    9.09
-   ],
-   [
-    656,
-    "Rare",
-    9.09
-   ],
-   [
-    657,
-    "Rare",
-    9.68
-   ],
-   [
-    658,
-    "Rare",
-    9.09
-   ],
-   [
-    659,
-    "Uncommon",
-    12.5
-   ],
-   [
-    661,
-    "Rare",
-    6.25
-   ],
-   [
-    662,
-    "Rare",
-    6.25
-   ],
-   [
-    666,
-    "Rare",
-    9.09
-   ],
-   [
-    667,
-    "Uncommon",
-    12.5
-   ],
-   [
-    704,
-    "Rare",
-    2.01
-   ],
-   [
-    707,
-    "Uncommon",
-    11.06
-   ],
-   [
-    715,
-    "Uncommon",
-    12.5
-   ],
-   [
-    721,
-    "Rare",
-    7.5
-   ],
-   [
-    724,
-    "Rare",
-    7.5
-   ],
-   [
-    727,
-    "Rare",
-    7.5
-   ],
-   [
-    730,
-    "Uncommon",
-    10
-   ],
-   [
-    739,
-    "Rare",
-    6.67
-   ],
-   [
-    741,
-    "Uncommon",
-    10
-   ],
-   [
-    748,
-    "Uncommon",
-    14.29
-   ],
-   [
-    752,
-    "Uncommon",
-    10
-   ],
-   [
-    755,
-    "Rare",
-    4.76
-   ],
-   [
-    781,
-    "Rare",
-    2
-   ],
-   [
-    782,
-    "Rare",
-    4.8
-   ],
-   [
-    784,
-    "Rare",
-    2
-   ],
-   [
-    785,
-    "Rare",
-    4.8
-   ],
-   [
-    787,
-    "Rare",
-    2
-   ],
-   [
-    788,
-    "Rare",
-    4.8
-   ],
-   [
-    790,
-    "Rare",
-    2
-   ],
-   [
-    791,
-    "Rare",
-    4.8
-   ],
-   [
-    794,
-    "Rare",
-    4.35
-   ],
-   [
-    797,
-    "Rare",
-    4.35
-   ],
-   [
-    799,
-    "Rare",
-    4.35
-   ],
-   [
-    805,
-    "Rare",
-    4.35
-   ],
-   [
-    811,
-    "Rare",
-    4.35
-   ],
-   [
-    817,
-    "Rare",
-    4.35
-   ],
-   [
-    849,
-    "Rare",
-    8.33
-   ],
-   [
-    851,
-    "Rare",
-    8.33
-   ],
-   [
-    853,
-    "Rare",
-    8.33
-   ],
-   [
-    856,
-    "Rare",
-    8.33
-   ],
-   [
-    885,
-    "Rare",
-    2.01
-   ],
-   [
-    895,
-    "Rare",
-    2.01
-   ],
-   [
-    898,
-    "Rare",
-    2.01
-   ],
-   [
-    901,
-    "Rare",
-    2.01
-   ],
-   [
-    904,
-    "Rare",
-    2.01
-   ],
-   [
-    907,
-    "Rare",
-    2.01
-   ],
-   [
-    913,
-    "Rare",
-    2.01
-   ],
-   [
-    916,
-    "Rare",
-    2.01
-   ],
-   [
-    2068,
-    "Legendary",
-    0.5
-   ],
-   [
-    2068,
-    "Legendary",
-    0.5
-   ],
-   [
-    2068,
-    "Rare",
-    1
-   ],
-   [
-    2069,
-    "Rare",
-    6.25
-   ],
-   [
-    2069,
-    "Rare",
-    6.25
-   ],
-   [
-    2069,
-    "Rare",
-    7.81
-   ],
-   [
-    2069,
-    "Uncommon",
-    12.5
-   ],
-   [
-    3907,
-    "Rare",
-    9.09
-   ],
-   [
-    4007,
-    "Legendary",
-    0.42
-   ],
-   [
-    4007,
-    "Legendary",
-    0.58
-   ],
-   [
-    4007,
-    "Legendary",
-    0.67
+    18.45
    ],
    [
     4027,
@@ -141760,1589 +142496,20 @@
    [
     4184,
     "Rare",
-    3.33
+    2.87
    ],
    [
     4188,
     "Rare",
-    3.33
+    2.87
    ],
    [
     4192,
     "Rare",
-    3.33
+    2.87
    ]
   ],
-  "neo c9 relic": [
-   [
-    83,
-    "Rare",
-    1.84
-   ],
-   [
-    113,
-    "Rare",
-    1.84
-   ],
-   [
-    148,
-    "Rare",
-    1.84
-   ],
-   [
-    155,
-    "Uncommon",
-    11.06
-   ],
-   [
-    158,
-    "Rare",
-    6.25
-   ],
-   [
-    159,
-    "Rare",
-    5.8
-   ],
-   [
-    162,
-    "Rare",
-    5.56
-   ],
-   [
-    174,
-    "Rare",
-    6.25
-   ],
-   [
-    175,
-    "Uncommon",
-    11.06
-   ],
-   [
-    178,
-    "Uncommon",
-    11.06
-   ],
-   [
-    180,
-    "Rare",
-    7.14
-   ],
-   [
-    181,
-    "Uncommon",
-    14.29
-   ],
-   [
-    189,
-    "Rare",
-    1.84
-   ],
-   [
-    194,
-    "Uncommon",
-    11.06
-   ],
-   [
-    196,
-    "Rare",
-    6.25
-   ],
-   [
-    197,
-    "Uncommon",
-    11.06
-   ],
-   [
-    200,
-    "Uncommon",
-    11.06
-   ],
-   [
-    220,
-    "Rare",
-    7.14
-   ],
-   [
-    221,
-    "Uncommon",
-    14.29
-   ],
-   [
-    249,
-    "Uncommon",
-    11.06
-   ],
-   [
-    252,
-    "Uncommon",
-    10
-   ],
-   [
-    264,
-    "Rare",
-    7.14
-   ],
-   [
-    265,
-    "Uncommon",
-    14.29
-   ],
-   [
-    266,
-    "Uncommon",
-    10
-   ],
-   [
-    270,
-    "Rare",
-    6.67
-   ],
-   [
-    279,
-    "Rare",
-    6.67
-   ],
-   [
-    282,
-    "Rare",
-    3.22
-   ],
-   [
-    284,
-    "Uncommon",
-    10
-   ],
-   [
-    300,
-    "Uncommon",
-    14.29
-   ],
-   [
-    301,
-    "Uncommon",
-    13.56
-   ],
-   [
-    302,
-    "Uncommon",
-    10
-   ],
-   [
-    310,
-    "Rare",
-    6.67
-   ],
-   [
-    319,
-    "Uncommon",
-    10
-   ],
-   [
-    326,
-    "Rare",
-    6.67
-   ],
-   [
-    367,
-    "Rare",
-    3.22
-   ],
-   [
-    370,
-    "Uncommon",
-    10
-   ],
-   [
-    373,
-    "Rare",
-    6.67
-   ],
-   [
-    389,
-    "Uncommon",
-    10
-   ],
-   [
-    403,
-    "Uncommon",
-    10
-   ],
-   [
-    407,
-    "Rare",
-    6.67
-   ],
-   [
-    411,
-    "Rare",
-    1.84
-   ],
-   [
-    413,
-    "Rare",
-    3.22
-   ],
-   [
-    416,
-    "Rare",
-    6.67
-   ],
-   [
-    420,
-    "Rare",
-    4.55
-   ],
-   [
-    425,
-    "Rare",
-    2.41
-   ],
-   [
-    430,
-    "Rare",
-    4.88
-   ],
-   [
-    436,
-    "Rare",
-    6.25
-   ],
-   [
-    440,
-    "Rare",
-    2.41
-   ],
-   [
-    444,
-    "Uncommon",
-    10
-   ],
-   [
-    481,
-    "Uncommon",
-    11.06
-   ],
-   [
-    487,
-    "Rare",
-    1.84
-   ],
-   [
-    489,
-    "Rare",
-    3.22
-   ],
-   [
-    501,
-    "Uncommon",
-    10
-   ],
-   [
-    505,
-    "Rare",
-    6.67
-   ],
-   [
-    509,
-    "Rare",
-    3.22
-   ],
-   [
-    511,
-    "Uncommon",
-    10
-   ],
-   [
-    514,
-    "Uncommon",
-    10
-   ],
-   [
-    517,
-    "Uncommon",
-    10
-   ],
-   [
-    520,
-    "Rare",
-    7.69
-   ],
-   [
-    530,
-    "Rare",
-    6.67
-   ],
-   [
-    534,
-    "Rare",
-    1.84
-   ],
-   [
-    538,
-    "Uncommon",
-    10
-   ],
-   [
-    545,
-    "Uncommon",
-    14.29
-   ],
-   [
-    651,
-    "Rare",
-    2.05
-   ],
-   [
-    652,
-    "Rare",
-    6.09
-   ],
-   [
-    653,
-    "Rare",
-    6.25
-   ],
-   [
-    654,
-    "Rare",
-    6.25
-   ],
-   [
-    655,
-    "Rare",
-    6.49
-   ],
-   [
-    656,
-    "Rare",
-    9.09
-   ],
-   [
-    656,
-    "Rare",
-    9.09
-   ],
-   [
-    657,
-    "Rare",
-    9.68
-   ],
-   [
-    658,
-    "Rare",
-    9.09
-   ],
-   [
-    659,
-    "Uncommon",
-    12.5
-   ],
-   [
-    666,
-    "Rare",
-    9.09
-   ],
-   [
-    667,
-    "Uncommon",
-    12.5
-   ],
-   [
-    704,
-    "Rare",
-    2.01
-   ],
-   [
-    707,
-    "Uncommon",
-    11.06
-   ],
-   [
-    715,
-    "Uncommon",
-    12.5
-   ],
-   [
-    721,
-    "Rare",
-    7.5
-   ],
-   [
-    724,
-    "Rare",
-    7.5
-   ],
-   [
-    727,
-    "Rare",
-    7.5
-   ],
-   [
-    730,
-    "Uncommon",
-    10
-   ],
-   [
-    739,
-    "Rare",
-    6.67
-   ],
-   [
-    741,
-    "Uncommon",
-    10
-   ],
-   [
-    748,
-    "Uncommon",
-    14.29
-   ],
-   [
-    752,
-    "Uncommon",
-    10
-   ],
-   [
-    755,
-    "Rare",
-    4.76
-   ],
-   [
-    781,
-    "Rare",
-    2
-   ],
-   [
-    782,
-    "Rare",
-    4.8
-   ],
-   [
-    784,
-    "Rare",
-    2
-   ],
-   [
-    785,
-    "Rare",
-    4.8
-   ],
-   [
-    787,
-    "Rare",
-    2
-   ],
-   [
-    788,
-    "Rare",
-    4.8
-   ],
-   [
-    790,
-    "Rare",
-    2
-   ],
-   [
-    791,
-    "Rare",
-    4.8
-   ],
-   [
-    794,
-    "Rare",
-    4.35
-   ],
-   [
-    797,
-    "Rare",
-    4.35
-   ],
-   [
-    799,
-    "Rare",
-    4.35
-   ],
-   [
-    805,
-    "Rare",
-    4.35
-   ],
-   [
-    811,
-    "Rare",
-    4.35
-   ],
-   [
-    817,
-    "Rare",
-    4.35
-   ],
-   [
-    849,
-    "Rare",
-    8.33
-   ],
-   [
-    851,
-    "Rare",
-    8.33
-   ],
-   [
-    853,
-    "Rare",
-    8.33
-   ],
-   [
-    856,
-    "Rare",
-    8.33
-   ],
-   [
-    885,
-    "Rare",
-    2.01
-   ],
-   [
-    895,
-    "Rare",
-    2.01
-   ],
-   [
-    898,
-    "Rare",
-    2.01
-   ],
-   [
-    901,
-    "Rare",
-    2.01
-   ],
-   [
-    904,
-    "Rare",
-    2.01
-   ],
-   [
-    907,
-    "Rare",
-    2.01
-   ],
-   [
-    913,
-    "Rare",
-    2.01
-   ],
-   [
-    916,
-    "Rare",
-    2.01
-   ],
-   [
-    2069,
-    "Legendary",
-    0.5
-   ],
-   [
-    2069,
-    "Legendary",
-    0.5
-   ],
-   [
-    2069,
-    "Rare",
-    1
-   ],
-   [
-    2069,
-    "Rare",
-    1.88
-   ],
-   [
-    2069,
-    "Rare",
-    1.88
-   ],
-   [
-    2069,
-    "Rare",
-    2.34
-   ],
-   [
-    2069,
-    "Rare",
-    3.75
-   ],
-   [
-    3907,
-    "Rare",
-    9.09
-   ],
-   [
-    4007,
-    "Legendary",
-    0.42
-   ],
-   [
-    4007,
-    "Legendary",
-    0.67
-   ],
-   [
-    4027,
-    "Rare",
-    6.67
-   ],
-   [
-    4036,
-    "Rare",
-    1.84
-   ],
-   [
-    4039,
-    "Uncommon",
-    11.06
-   ],
-   [
-    4045,
-    "Rare",
-    7.14
-   ],
-   [
-    4046,
-    "Uncommon",
-    14.29
-   ],
-   [
-    4048,
-    "Rare",
-    6.25
-   ],
-   [
-    4049,
-    "Uncommon",
-    11.06
-   ],
-   [
-    4058,
-    "Uncommon",
-    11.06
-   ],
-   [
-    4061,
-    "Uncommon",
-    11.06
-   ],
-   [
-    4070,
-    "Rare",
-    9.35
-   ],
-   [
-    4073,
-    "Rare",
-    9.35
-   ],
-   [
-    4076,
-    "Rare",
-    9.56
-   ],
-   [
-    4079,
-    "Rare",
-    9.9
-   ],
-   [
-    4087,
-    "Uncommon",
-    10
-   ],
-   [
-    4092,
-    "Rare",
-    3.22
-   ],
-   [
-    4097,
-    "Rare",
-    6.67
-   ],
-   [
-    4118,
-    "Rare",
-    6.67
-   ],
-   [
-    4120,
-    "Uncommon",
-    10
-   ],
-   [
-    4124,
-    "Rare",
-    6.25
-   ],
-   [
-    4125,
-    "Uncommon",
-    11.06
-   ],
-   [
-    4126,
-    "Uncommon",
-    10
-   ],
-   [
-    4132,
-    "Uncommon",
-    14.29
-   ],
-   [
-    4135,
-    "Rare",
-    3.22
-   ],
-   [
-    4150,
-    "Rare",
-    1.84
-   ],
-   [
-    4152,
-    "Rare",
-    6.67
-   ],
-   [
-    4155,
-    "Rare",
-    6.67
-   ],
-   [
-    4158,
-    "Rare",
-    3.22
-   ],
-   [
-    4167,
-    "Rare",
-    6.67
-   ],
-   [
-    4184,
-    "Rare",
-    3.33
-   ],
-   [
-    4188,
-    "Rare",
-    3.33
-   ],
-   [
-    4192,
-    "Rare",
-    3.33
-   ]
-  ],
-  "neo t11 relic": [
-   [
-    83,
-    "Rare",
-    1.84
-   ],
-   [
-    113,
-    "Rare",
-    1.84
-   ],
-   [
-    148,
-    "Rare",
-    1.84
-   ],
-   [
-    155,
-    "Uncommon",
-    11.06
-   ],
-   [
-    158,
-    "Rare",
-    6.25
-   ],
-   [
-    159,
-    "Rare",
-    5.8
-   ],
-   [
-    162,
-    "Rare",
-    5.56
-   ],
-   [
-    174,
-    "Rare",
-    6.25
-   ],
-   [
-    175,
-    "Uncommon",
-    11.06
-   ],
-   [
-    178,
-    "Uncommon",
-    11.06
-   ],
-   [
-    180,
-    "Rare",
-    7.14
-   ],
-   [
-    181,
-    "Uncommon",
-    14.29
-   ],
-   [
-    189,
-    "Rare",
-    1.84
-   ],
-   [
-    194,
-    "Uncommon",
-    11.06
-   ],
-   [
-    196,
-    "Rare",
-    6.25
-   ],
-   [
-    197,
-    "Uncommon",
-    11.06
-   ],
-   [
-    200,
-    "Uncommon",
-    11.06
-   ],
-   [
-    220,
-    "Rare",
-    7.14
-   ],
-   [
-    221,
-    "Uncommon",
-    14.29
-   ],
-   [
-    249,
-    "Uncommon",
-    11.06
-   ],
-   [
-    252,
-    "Uncommon",
-    10
-   ],
-   [
-    264,
-    "Rare",
-    7.14
-   ],
-   [
-    265,
-    "Uncommon",
-    14.29
-   ],
-   [
-    266,
-    "Uncommon",
-    10
-   ],
-   [
-    270,
-    "Rare",
-    6.67
-   ],
-   [
-    279,
-    "Rare",
-    6.67
-   ],
-   [
-    282,
-    "Rare",
-    3.22
-   ],
-   [
-    284,
-    "Uncommon",
-    10
-   ],
-   [
-    300,
-    "Uncommon",
-    14.29
-   ],
-   [
-    301,
-    "Uncommon",
-    13.56
-   ],
-   [
-    302,
-    "Uncommon",
-    10
-   ],
-   [
-    310,
-    "Rare",
-    6.67
-   ],
-   [
-    319,
-    "Uncommon",
-    10
-   ],
-   [
-    326,
-    "Rare",
-    6.67
-   ],
-   [
-    367,
-    "Rare",
-    3.22
-   ],
-   [
-    370,
-    "Uncommon",
-    10
-   ],
-   [
-    373,
-    "Rare",
-    6.67
-   ],
-   [
-    389,
-    "Uncommon",
-    10
-   ],
-   [
-    403,
-    "Uncommon",
-    10
-   ],
-   [
-    407,
-    "Rare",
-    6.67
-   ],
-   [
-    411,
-    "Rare",
-    1.84
-   ],
-   [
-    413,
-    "Rare",
-    3.22
-   ],
-   [
-    416,
-    "Rare",
-    6.67
-   ],
-   [
-    420,
-    "Rare",
-    4.55
-   ],
-   [
-    425,
-    "Rare",
-    2.41
-   ],
-   [
-    429,
-    "Rare",
-    6.06
-   ],
-   [
-    435,
-    "Rare",
-    6.06
-   ],
-   [
-    440,
-    "Rare",
-    2.41
-   ],
-   [
-    444,
-    "Uncommon",
-    10
-   ],
-   [
-    481,
-    "Uncommon",
-    11.06
-   ],
-   [
-    487,
-    "Rare",
-    1.84
-   ],
-   [
-    489,
-    "Rare",
-    3.22
-   ],
-   [
-    501,
-    "Uncommon",
-    10
-   ],
-   [
-    505,
-    "Rare",
-    6.67
-   ],
-   [
-    509,
-    "Rare",
-    3.22
-   ],
-   [
-    511,
-    "Uncommon",
-    10
-   ],
-   [
-    514,
-    "Uncommon",
-    10
-   ],
-   [
-    517,
-    "Uncommon",
-    10
-   ],
-   [
-    520,
-    "Rare",
-    7.69
-   ],
-   [
-    530,
-    "Rare",
-    6.67
-   ],
-   [
-    534,
-    "Rare",
-    1.84
-   ],
-   [
-    538,
-    "Uncommon",
-    10
-   ],
-   [
-    545,
-    "Uncommon",
-    14.29
-   ],
-   [
-    651,
-    "Rare",
-    2.05
-   ],
-   [
-    652,
-    "Rare",
-    6.09
-   ],
-   [
-    653,
-    "Rare",
-    6.25
-   ],
-   [
-    654,
-    "Rare",
-    6.25
-   ],
-   [
-    655,
-    "Rare",
-    6.49
-   ],
-   [
-    656,
-    "Rare",
-    9.09
-   ],
-   [
-    657,
-    "Rare",
-    9.68
-   ],
-   [
-    658,
-    "Rare",
-    9.09
-   ],
-   [
-    658,
-    "Rare",
-    9.09
-   ],
-   [
-    659,
-    "Uncommon",
-    12.5
-   ],
-   [
-    661,
-    "Rare",
-    6.25
-   ],
-   [
-    662,
-    "Rare",
-    6.25
-   ],
-   [
-    666,
-    "Rare",
-    9.09
-   ],
-   [
-    666,
-    "Rare",
-    9.09
-   ],
-   [
-    667,
-    "Uncommon",
-    12.5
-   ],
-   [
-    704,
-    "Rare",
-    2.01
-   ],
-   [
-    707,
-    "Uncommon",
-    11.06
-   ],
-   [
-    715,
-    "Uncommon",
-    12.5
-   ],
-   [
-    721,
-    "Rare",
-    7.5
-   ],
-   [
-    724,
-    "Rare",
-    7.5
-   ],
-   [
-    727,
-    "Rare",
-    7.5
-   ],
-   [
-    730,
-    "Uncommon",
-    10
-   ],
-   [
-    739,
-    "Rare",
-    6.67
-   ],
-   [
-    741,
-    "Uncommon",
-    10
-   ],
-   [
-    748,
-    "Uncommon",
-    14.29
-   ],
-   [
-    752,
-    "Uncommon",
-    10
-   ],
-   [
-    755,
-    "Rare",
-    4.76
-   ],
-   [
-    781,
-    "Rare",
-    2
-   ],
-   [
-    782,
-    "Rare",
-    4.8
-   ],
-   [
-    784,
-    "Rare",
-    2
-   ],
-   [
-    785,
-    "Rare",
-    4.8
-   ],
-   [
-    787,
-    "Rare",
-    2
-   ],
-   [
-    788,
-    "Rare",
-    4.8
-   ],
-   [
-    790,
-    "Rare",
-    2
-   ],
-   [
-    791,
-    "Rare",
-    4.8
-   ],
-   [
-    794,
-    "Rare",
-    4.35
-   ],
-   [
-    797,
-    "Rare",
-    4.35
-   ],
-   [
-    799,
-    "Rare",
-    4.35
-   ],
-   [
-    805,
-    "Rare",
-    4.35
-   ],
-   [
-    811,
-    "Rare",
-    4.35
-   ],
-   [
-    817,
-    "Rare",
-    4.35
-   ],
-   [
-    849,
-    "Rare",
-    8.33
-   ],
-   [
-    851,
-    "Rare",
-    8.33
-   ],
-   [
-    853,
-    "Rare",
-    8.33
-   ],
-   [
-    856,
-    "Rare",
-    8.33
-   ],
-   [
-    885,
-    "Rare",
-    2.01
-   ],
-   [
-    895,
-    "Rare",
-    2.01
-   ],
-   [
-    898,
-    "Rare",
-    2.01
-   ],
-   [
-    901,
-    "Rare",
-    2.01
-   ],
-   [
-    904,
-    "Rare",
-    2.01
-   ],
-   [
-    907,
-    "Rare",
-    2.01
-   ],
-   [
-    913,
-    "Rare",
-    2.01
-   ],
-   [
-    916,
-    "Rare",
-    2.01
-   ],
-   [
-    2067,
-    "Legendary",
-    0.94
-   ],
-   [
-    2067,
-    "Legendary",
-    0.94
-   ],
-   [
-    2067,
-    "Rare",
-    1.17
-   ],
-   [
-    2067,
-    "Rare",
-    1.88
-   ],
-   [
-    2068,
-    "Rare",
-    3.75
-   ],
-   [
-    2068,
-    "Rare",
-    3.75
-   ],
-   [
-    2068,
-    "Rare",
-    4.69
-   ],
-   [
-    2068,
-    "Rare",
-    7.5
-   ],
-   [
-    3907,
-    "Rare",
-    9.09
-   ],
-   [
-    4007,
-    "Legendary",
-    0.42
-   ],
-   [
-    4007,
-    "Legendary",
-    0.58
-   ],
-   [
-    4007,
-    "Legendary",
-    0.67
-   ],
-   [
-    4027,
-    "Rare",
-    6.67
-   ],
-   [
-    4036,
-    "Rare",
-    1.84
-   ],
-   [
-    4039,
-    "Uncommon",
-    11.06
-   ],
-   [
-    4045,
-    "Rare",
-    7.14
-   ],
-   [
-    4046,
-    "Uncommon",
-    14.29
-   ],
-   [
-    4048,
-    "Rare",
-    6.25
-   ],
-   [
-    4049,
-    "Uncommon",
-    11.06
-   ],
-   [
-    4058,
-    "Uncommon",
-    11.06
-   ],
-   [
-    4061,
-    "Uncommon",
-    11.06
-   ],
-   [
-    4070,
-    "Rare",
-    9.35
-   ],
-   [
-    4073,
-    "Rare",
-    9.35
-   ],
-   [
-    4076,
-    "Rare",
-    9.56
-   ],
-   [
-    4079,
-    "Rare",
-    9.9
-   ],
-   [
-    4087,
-    "Uncommon",
-    10
-   ],
-   [
-    4092,
-    "Rare",
-    3.22
-   ],
-   [
-    4097,
-    "Rare",
-    6.67
-   ],
-   [
-    4118,
-    "Rare",
-    6.67
-   ],
-   [
-    4120,
-    "Uncommon",
-    10
-   ],
-   [
-    4124,
-    "Rare",
-    6.25
-   ],
-   [
-    4125,
-    "Uncommon",
-    11.06
-   ],
-   [
-    4126,
-    "Uncommon",
-    10
-   ],
-   [
-    4132,
-    "Uncommon",
-    14.29
-   ],
-   [
-    4135,
-    "Rare",
-    3.22
-   ],
-   [
-    4150,
-    "Rare",
-    1.84
-   ],
-   [
-    4152,
-    "Rare",
-    6.67
-   ],
-   [
-    4155,
-    "Rare",
-    6.67
-   ],
-   [
-    4158,
-    "Rare",
-    3.22
-   ],
-   [
-    4167,
-    "Rare",
-    6.67
-   ],
-   [
-    4184,
-    "Rare",
-    3.33
-   ],
-   [
-    4188,
-    "Rare",
-    3.33
-   ],
-   [
-    4192,
-    "Rare",
-    3.33
-   ]
-  ],
-  "neo v12 relic": [
+  "neo k10 relic": [
    [
     83,
     "Rare",
@@ -143874,22 +143041,22 @@
     4.35
    ],
    [
-    849,
+    848,
     "Rare",
     8.33
    ],
    [
-    851,
+    850,
     "Rare",
     8.33
    ],
    [
-    853,
+    852,
     "Rare",
     8.33
    ],
    [
-    856,
+    855,
     "Rare",
     8.33
    ],
@@ -143969,17 +143136,17 @@
     9.09
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.42
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.58
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.67
    ],
@@ -144141,17 +143308,804 @@
    [
     4184,
     "Rare",
-    3.33
+    2.87
    ],
    [
     4188,
     "Rare",
-    3.33
+    2.87
    ],
    [
     4192,
     "Rare",
-    3.33
+    2.87
+   ]
+  ],
+  "neo v13 relic": [
+   [
+    83,
+    "Rare",
+    1.84
+   ],
+   [
+    113,
+    "Rare",
+    1.84
+   ],
+   [
+    148,
+    "Rare",
+    1.84
+   ],
+   [
+    155,
+    "Uncommon",
+    11.06
+   ],
+   [
+    158,
+    "Rare",
+    6.25
+   ],
+   [
+    159,
+    "Rare",
+    5.8
+   ],
+   [
+    162,
+    "Rare",
+    5.56
+   ],
+   [
+    174,
+    "Rare",
+    6.25
+   ],
+   [
+    175,
+    "Uncommon",
+    11.06
+   ],
+   [
+    178,
+    "Uncommon",
+    11.06
+   ],
+   [
+    180,
+    "Rare",
+    7.14
+   ],
+   [
+    181,
+    "Uncommon",
+    14.29
+   ],
+   [
+    189,
+    "Rare",
+    1.84
+   ],
+   [
+    194,
+    "Uncommon",
+    11.06
+   ],
+   [
+    196,
+    "Rare",
+    6.25
+   ],
+   [
+    197,
+    "Uncommon",
+    11.06
+   ],
+   [
+    200,
+    "Uncommon",
+    11.06
+   ],
+   [
+    220,
+    "Rare",
+    7.14
+   ],
+   [
+    221,
+    "Uncommon",
+    14.29
+   ],
+   [
+    249,
+    "Uncommon",
+    11.06
+   ],
+   [
+    252,
+    "Uncommon",
+    10
+   ],
+   [
+    264,
+    "Rare",
+    7.14
+   ],
+   [
+    265,
+    "Uncommon",
+    14.29
+   ],
+   [
+    266,
+    "Uncommon",
+    10
+   ],
+   [
+    270,
+    "Rare",
+    6.67
+   ],
+   [
+    279,
+    "Rare",
+    6.67
+   ],
+   [
+    282,
+    "Rare",
+    3.22
+   ],
+   [
+    284,
+    "Uncommon",
+    10
+   ],
+   [
+    300,
+    "Uncommon",
+    14.29
+   ],
+   [
+    301,
+    "Uncommon",
+    13.56
+   ],
+   [
+    302,
+    "Uncommon",
+    10
+   ],
+   [
+    310,
+    "Rare",
+    6.67
+   ],
+   [
+    319,
+    "Uncommon",
+    10
+   ],
+   [
+    326,
+    "Rare",
+    6.67
+   ],
+   [
+    367,
+    "Rare",
+    3.22
+   ],
+   [
+    370,
+    "Uncommon",
+    10
+   ],
+   [
+    373,
+    "Rare",
+    6.67
+   ],
+   [
+    389,
+    "Uncommon",
+    10
+   ],
+   [
+    403,
+    "Uncommon",
+    10
+   ],
+   [
+    407,
+    "Rare",
+    6.67
+   ],
+   [
+    411,
+    "Rare",
+    1.84
+   ],
+   [
+    413,
+    "Rare",
+    3.22
+   ],
+   [
+    416,
+    "Rare",
+    6.67
+   ],
+   [
+    420,
+    "Rare",
+    4.55
+   ],
+   [
+    425,
+    "Rare",
+    2.41
+   ],
+   [
+    430,
+    "Rare",
+    4.88
+   ],
+   [
+    436,
+    "Rare",
+    6.25
+   ],
+   [
+    440,
+    "Rare",
+    2.41
+   ],
+   [
+    444,
+    "Uncommon",
+    10
+   ],
+   [
+    481,
+    "Uncommon",
+    11.06
+   ],
+   [
+    487,
+    "Rare",
+    1.84
+   ],
+   [
+    489,
+    "Rare",
+    3.22
+   ],
+   [
+    501,
+    "Uncommon",
+    10
+   ],
+   [
+    505,
+    "Rare",
+    6.67
+   ],
+   [
+    509,
+    "Rare",
+    3.22
+   ],
+   [
+    511,
+    "Uncommon",
+    10
+   ],
+   [
+    514,
+    "Uncommon",
+    10
+   ],
+   [
+    517,
+    "Uncommon",
+    10
+   ],
+   [
+    520,
+    "Rare",
+    7.69
+   ],
+   [
+    530,
+    "Rare",
+    6.67
+   ],
+   [
+    534,
+    "Rare",
+    1.84
+   ],
+   [
+    538,
+    "Uncommon",
+    10
+   ],
+   [
+    545,
+    "Uncommon",
+    14.29
+   ],
+   [
+    651,
+    "Rare",
+    2.05
+   ],
+   [
+    652,
+    "Rare",
+    6.09
+   ],
+   [
+    653,
+    "Rare",
+    6.25
+   ],
+   [
+    654,
+    "Rare",
+    6.25
+   ],
+   [
+    655,
+    "Rare",
+    6.49
+   ],
+   [
+    656,
+    "Rare",
+    9.09
+   ],
+   [
+    656,
+    "Rare",
+    9.09
+   ],
+   [
+    657,
+    "Rare",
+    9.68
+   ],
+   [
+    658,
+    "Rare",
+    9.09
+   ],
+   [
+    659,
+    "Uncommon",
+    12.5
+   ],
+   [
+    661,
+    "Rare",
+    6.25
+   ],
+   [
+    662,
+    "Rare",
+    6.25
+   ],
+   [
+    666,
+    "Rare",
+    9.09
+   ],
+   [
+    667,
+    "Uncommon",
+    12.5
+   ],
+   [
+    704,
+    "Rare",
+    2.01
+   ],
+   [
+    707,
+    "Uncommon",
+    11.06
+   ],
+   [
+    715,
+    "Uncommon",
+    12.5
+   ],
+   [
+    721,
+    "Rare",
+    7.5
+   ],
+   [
+    724,
+    "Rare",
+    7.5
+   ],
+   [
+    727,
+    "Rare",
+    7.5
+   ],
+   [
+    730,
+    "Uncommon",
+    10
+   ],
+   [
+    739,
+    "Rare",
+    6.67
+   ],
+   [
+    741,
+    "Uncommon",
+    10
+   ],
+   [
+    748,
+    "Uncommon",
+    14.29
+   ],
+   [
+    752,
+    "Uncommon",
+    10
+   ],
+   [
+    755,
+    "Rare",
+    4.76
+   ],
+   [
+    781,
+    "Rare",
+    2
+   ],
+   [
+    782,
+    "Rare",
+    4.8
+   ],
+   [
+    784,
+    "Rare",
+    2
+   ],
+   [
+    785,
+    "Rare",
+    4.8
+   ],
+   [
+    787,
+    "Rare",
+    2
+   ],
+   [
+    788,
+    "Rare",
+    4.8
+   ],
+   [
+    790,
+    "Rare",
+    2
+   ],
+   [
+    791,
+    "Rare",
+    4.8
+   ],
+   [
+    794,
+    "Rare",
+    4.35
+   ],
+   [
+    797,
+    "Rare",
+    4.35
+   ],
+   [
+    799,
+    "Rare",
+    4.35
+   ],
+   [
+    805,
+    "Rare",
+    4.35
+   ],
+   [
+    811,
+    "Rare",
+    4.35
+   ],
+   [
+    817,
+    "Rare",
+    4.35
+   ],
+   [
+    848,
+    "Rare",
+    8.33
+   ],
+   [
+    850,
+    "Rare",
+    8.33
+   ],
+   [
+    852,
+    "Rare",
+    8.33
+   ],
+   [
+    855,
+    "Rare",
+    8.33
+   ],
+   [
+    885,
+    "Rare",
+    2.01
+   ],
+   [
+    895,
+    "Rare",
+    2.01
+   ],
+   [
+    898,
+    "Rare",
+    2.01
+   ],
+   [
+    901,
+    "Rare",
+    2.01
+   ],
+   [
+    904,
+    "Rare",
+    2.01
+   ],
+   [
+    907,
+    "Rare",
+    2.01
+   ],
+   [
+    913,
+    "Rare",
+    2.01
+   ],
+   [
+    916,
+    "Rare",
+    2.01
+   ],
+   [
+    2068,
+    "Legendary",
+    0.5
+   ],
+   [
+    2068,
+    "Legendary",
+    0.5
+   ],
+   [
+    2068,
+    "Rare",
+    1
+   ],
+   [
+    2069,
+    "Rare",
+    6.25
+   ],
+   [
+    2069,
+    "Rare",
+    6.25
+   ],
+   [
+    2069,
+    "Rare",
+    7.81
+   ],
+   [
+    2069,
+    "Uncommon",
+    12.5
+   ],
+   [
+    3907,
+    "Rare",
+    9.09
+   ],
+   [
+    4000,
+    "Legendary",
+    0.42
+   ],
+   [
+    4000,
+    "Legendary",
+    0.58
+   ],
+   [
+    4000,
+    "Legendary",
+    0.67
+   ],
+   [
+    4027,
+    "Rare",
+    6.67
+   ],
+   [
+    4036,
+    "Rare",
+    1.84
+   ],
+   [
+    4039,
+    "Uncommon",
+    11.06
+   ],
+   [
+    4045,
+    "Rare",
+    7.14
+   ],
+   [
+    4046,
+    "Uncommon",
+    14.29
+   ],
+   [
+    4048,
+    "Rare",
+    6.25
+   ],
+   [
+    4049,
+    "Uncommon",
+    11.06
+   ],
+   [
+    4058,
+    "Uncommon",
+    11.06
+   ],
+   [
+    4061,
+    "Uncommon",
+    11.06
+   ],
+   [
+    4070,
+    "Rare",
+    9.35
+   ],
+   [
+    4073,
+    "Rare",
+    9.35
+   ],
+   [
+    4076,
+    "Rare",
+    9.56
+   ],
+   [
+    4079,
+    "Rare",
+    9.9
+   ],
+   [
+    4087,
+    "Uncommon",
+    10
+   ],
+   [
+    4092,
+    "Rare",
+    3.22
+   ],
+   [
+    4097,
+    "Rare",
+    6.67
+   ],
+   [
+    4118,
+    "Rare",
+    6.67
+   ],
+   [
+    4120,
+    "Uncommon",
+    10
+   ],
+   [
+    4124,
+    "Rare",
+    6.25
+   ],
+   [
+    4125,
+    "Uncommon",
+    11.06
+   ],
+   [
+    4126,
+    "Uncommon",
+    10
+   ],
+   [
+    4132,
+    "Uncommon",
+    14.29
+   ],
+   [
+    4135,
+    "Rare",
+    3.22
+   ],
+   [
+    4150,
+    "Rare",
+    1.84
+   ],
+   [
+    4152,
+    "Rare",
+    6.67
+   ],
+   [
+    4155,
+    "Rare",
+    6.67
+   ],
+   [
+    4158,
+    "Rare",
+    3.22
+   ],
+   [
+    4167,
+    "Rare",
+    6.67
+   ],
+   [
+    4184,
+    "Rare",
+    2.87
+   ],
+   [
+    4188,
+    "Rare",
+    2.87
+   ],
+   [
+    4192,
+    "Rare",
+    2.87
    ]
   ],
   "neo v9 relic": [
@@ -144196,7 +144150,7 @@
     6.52
    ]
   ],
-  "neo y1 relic": [
+  "neo y2 relic": [
    [
     83,
     "Rare",
@@ -144718,22 +144672,22 @@
     4.35
    ],
    [
-    848,
+    842,
     "Rare",
     8.33
    ],
    [
-    850,
+    849,
     "Rare",
     8.33
    ],
    [
-    852,
+    851,
     "Rare",
     8.33
    ],
    [
-    855,
+    853,
     "Rare",
     8.33
    ],
@@ -144823,17 +144777,17 @@
     9.09
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.42
    ],
    [
-    4007,
+    4000,
     "Legendary",
     0.58
    ],
    [
-    4007,
+    4000,
     "Rare",
     1.14
    ],
@@ -144980,17 +144934,17 @@
    [
     4184,
     "Rare",
-    3.33
+    2.87
    ],
    [
     4188,
     "Rare",
-    3.33
+    2.87
    ],
    [
     4192,
     "Rare",
-    3.33
+    2.87
    ]
   ]
  }

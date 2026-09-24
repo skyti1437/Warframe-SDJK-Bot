@@ -61,18 +61,18 @@ check("短查询不匹配内部名", S._score("forma", "valence formation") == -
 check("精确匹配优先级最高", S._score("forma", "forma") == 0)
 
 # ---------------------------------------------------------------- 遗物出处
-lines = D.relic_source_lines("neo t11 relic")
+lines = D.relic_source_lines("neo c11 relic")
 check("遗物出处可查且已合并轮次",
       bool(lines) and all("轮）" in x or "轮" not in x for x in lines),
       str(lines[:3]))
 check("合并后按节点去重（少于原始条数）",
-      len(lines) < len(D.relic_sources("neo t11 relic", limit=200)),
+      len(lines) < len(D.relic_sources("neo c11 relic", limit=200)),
       f"{len(lines)} vs {len(D.relic_sources('neo t11 relic', limit=200))}")
-check("limit 生效", len(D.relic_source_lines("neo t11 relic", limit=2)) == 2)
+check("limit 生效", len(D.relic_source_lines("neo c11 relic", limit=2)) == 2)
 check("未知遗物返回空", D.relic_source_lines("zzz zzz relic") == [])
 
 # 合并示例：同一节点的 A/B/C 轮应折成一条
-merged = D.relic_source_lines("neo t11 relic")
+merged = D.relic_source_lines("neo c11 relic")
 check("同节点轮次合并成 A/B/C", any("B/C轮" in x or "A/B/C轮" in x for x in merged),
       str([x for x in merged if "轮" in x][:5]))
 

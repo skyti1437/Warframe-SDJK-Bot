@@ -1641,7 +1641,9 @@ class WarframeSDJK(Star):
             alts = [f["name"] for f in found[1:] if f["name"] != best_name]
             if alts:
                 lines.append(f"同类候选：{'、'.join(alts)}")
-            return Reply("wiki 直达", lines,
+            # 2026-09-24：强制纯文本直发——链接必须可点击（issue #1 需求②）。
+            # 本回复只有一行链接+候选词，渲成图片反而把 URL 烧死在图里。
+            return Reply("wiki 直达", lines, text_only=True,
                          footer=fmt.fmt_platform_footer(platform))
         # WM 中文名 → 灰机 wiki 对应页面（用 zh 名称构造 URL）
         try:

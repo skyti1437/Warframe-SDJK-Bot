@@ -42,6 +42,25 @@ def kb_out_dir():
     return os.path.join(os.path.dirname(os.path.dirname(d)), "知识库")
 
 
+def find_zip(prefix):
+    """在 WF_KB_SRC 里找 prefix 开头的 zip;多版本共存取修改时间最新。"""
+    import glob
+    src = kb_src_dir()
+    cands = sorted(glob.glob(os.path.join(src, prefix + "*.zip")),
+                   key=os.path.getmtime, reverse=True)
+    if not cands:
+        raise SystemExit("[kb] 在 %s 找不到 %s*.zip" % (src, prefix))
+    return cands[0]
+
+
+def zip_root(zip_path):
+    """取 zip 内部顶层目录前缀(如 warframe-items-master/)——兼容任意版本号打包。"""
+    import zipfile as _zf
+    with _zf.ZipFile(zip_path) as z:
+        first = z.namelist()[0]
+    return first.split("/")[0] + "/"
+
+
 DATA = kb_data_dir()
 IDIR = os.path.join(DATA, 'items')
 PDIR = os.path.join(DATA, 'pep')

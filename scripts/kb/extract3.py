@@ -5,14 +5,13 @@
 WF_KB_SRC=数据包 zip 所在目录；两者缺一即报错退出。
 """
 import zipfile, os
-from kb_lib import kb_data_dir, kb_src_dir
+from kb_lib import kb_data_dir, kb_src_dir, find_zip, zip_root
 
 BASE = kb_data_dir()
-SRC = kb_src_dir()
-WSD = os.path.join(SRC, 'warframe-worldstate-data-3.16.9.zip')
-DROP = os.path.join(SRC, 'warframe-drop-data-main.zip')
-R1 = 'warframe-worldstate-data-3.16.9/data/'
-R2 = 'warframe-drop-data-main/data/'
+WSD = find_zip('warframe-worldstate-data')
+DROP = find_zip('warframe-drop-data')
+R1 = zip_root(WSD) + 'data/'
+R2 = zip_root(DROP) + 'data/'
 
 z1 = zipfile.ZipFile(WSD)
 d1 = os.path.join(BASE, 'wsd')

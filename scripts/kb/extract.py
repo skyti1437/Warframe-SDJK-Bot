@@ -5,17 +5,18 @@
 WF_KB_SRC=数据包 zip 所在目录；两者缺一即报错退出。
 """
 import zipfile, os, time
-from kb_lib import kb_data_dir, kb_src_dir
+from kb_lib import kb_data_dir, kb_src_dir, find_zip, zip_root
 
 BASE = kb_data_dir()
 os.makedirs(BASE, exist_ok=True)
 
 SRC = kb_src_dir()
-Z_ITEMS = os.path.join(SRC, 'warframe-items-1.1275.85.zip')
-Z_PEP   = os.path.join(SRC, 'warframe-public-export-plus-0.6.8.zip')
+Z_ITEMS = find_zip('warframe-items')
+Z_PEP   = find_zip('warframe-public-export-plus')
 
-I_ROOT = 'warframe-items-1.1275.85/'
-P_ROOT = 'warframe-public-export-plus-0.6.8/'
+I_ROOT = zip_root(Z_ITEMS)
+P_ROOT = zip_root(Z_PEP)
+print('数据包:', os.path.basename(Z_ITEMS), '/', os.path.basename(Z_PEP))
 
 t0 = time.time()
 

@@ -5,11 +5,12 @@
 WF_KB_SRC=数据包 zip 所在目录；两者缺一即报错退出。
 """
 import zipfile, os
-from kb_lib import kb_data_dir, kb_src_dir
+from kb_lib import kb_data_dir, kb_src_dir, find_zip, zip_root
 
 BASE = kb_data_dir()
-zi = zipfile.ZipFile(os.path.join(kb_src_dir(), 'warframe-items-1.1275.85.zip'))
-R = 'warframe-items-1.1275.85/'
+ZI = find_zip('warframe-items')
+zi = zipfile.ZipFile(ZI)
+R = zip_root(ZI)
 os.makedirs(os.path.join(BASE, 'cfg'), exist_ok=True)
 for n in zi.namelist():
     if n.startswith(R + 'config/') and n.endswith('.json'):
