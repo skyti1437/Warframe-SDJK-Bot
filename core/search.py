@@ -33,6 +33,7 @@ _HERE = Path(__file__).resolve().parent
 _DATA = _HERE / "data"
 _ALIAS_FILE = _DATA / "aliases.json"
 _DE_ITEMS_FILE = _DATA / "de" / "de_items_zh.json"
+_MOD_NAMES_FILE = _DATA / "de" / "mod_names_zh.json"
 _CJK = re.compile(r"[一-鿿]")
 _DROPS_FILE = _DATA / "drops.json"
 
@@ -159,3 +160,129 @@ def best(query: str) -> Optional[dict]:
     """返回最相关的一条，无结果时返回 ``None``。"""
     hits = search(query, limit=1)
     return hits[0] if hits else None
+
+
+# 变体/套装后缀（WM slug 转写形态 + WM 展示名里的中文后缀）
+_VARIANT_WORDS = {"set", "prime", "wraith", "vandal", "kuva", "prisma"}
+_ZH_SUFFIXES = (" 一套", " 蓝图", " 机体", " 系统", " 头部神经光元", " 头部", " 配件")
+_PRIME_CN_PREFIX = "圣装"
+
+
+def _strip_variant(slug: str) -> str:
+    """slug 剥变体后缀：banshee_prime_set → banshee（用于回落到基体名）。"""
+    out = slug
+    changed = True
+    while changed:
+        changed = False
+        for suf in ("_prime_set", "_set", "_prime"):
+            if out.endswith(suf) and len(out) > len(suf):
+                out = out[: -len(suf)]
+                changed = True
+    return out
+
+
+@lru_cache(maxsize=1)
+def _alias_slug_index() -> dict[str, str]:
+    """别名键（归一化）→ slug；wm_items 优先于 riven_items。
+
+    别名条目的展示名可能是英文缩写（DJ / AMP / octavia），此时 ``en`` 字段
+    拿不到 slug，只能回别名词典按归一化键反查（2026-09-24 实测）。
+    """
+    out: dict[str, str] = {}
+    for sec in ("riven_items", "wm_items"):      # wm 后写 → wm 覆盖
+        for key, slug in (_jload(_ALIAS_FILE).get(sec) or {}).items():
+            if key and slug:
+                out[_norm(key)] = slug
+    return out
+
+
+@lru_cache(maxsize=1)
+def _official_mod_names() -> dict[str, str]:
+    """官方简中 MOD 名：归一化名 → 原始写法（de/mod_names_zh.json 名字列表）。
+
+    别名键是玩家手打的中文名（瞬时狡诈 / 持久力Prime），与官方写法
+    （弹指瞬技 / 持久力 Prime，Prime 前带空格）常差在措辞或空格上；
+    拼 wiki 页面名时以官方写法为准。战甲 / 武器不在表内，仍走
+    「最长键」规则。
+    """
+    try:
+        data = json.loads(_MOD_NAMES_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(data, list):
+        return {}
+    out: dict[str, str] = {}
+    for n in data:
+        if isinstance(n, str) and n:
+            # 空格一并归一：「持久力 Prime」与手打的「持久力Prime」视为同名
+            out.setdefault(_norm(n).replace(" ", ""), n)
+    return out
+
+
+@lru_cache(maxsize=1)
+def _official_cn_by_slug() -> dict[str, str]:
+    """slug / 基体名 → 官方简中名（别名表里同一 slug 的最优中文键）。
+
+    同一 slug 常挂多个中文键（女妖 / 音妈 / 恸哭女妖 / 圣装恸哭女妖），
+    页面名按「官方 MOD 名表命中 > 键最长」挑一条；命中官方名的键直接
+    采用官方**原始写法**（弹指瞬技 / 持久力 Prime），同时修掉黑话措辞
+    与「Prime 缺空格」两处死链源。Prime 形态的「圣装」前缀在查页面时
+    剥掉（基体页面覆盖同一套技能，且基体页一定存在）。
+    """
+    mods = _official_mod_names()
+    best: dict[str, tuple[bool, int, str]] = {}
+    for sec in ("wm_items", "riven_items"):
+        for key, slug in (_jload(_ALIAS_FILE).get(sec) or {}).items():
+            if not slug or not _CJK.search(key):
+                continue
+            official = mods.get(_norm(key).replace(" ", ""))
+            rank = (bool(official), len(key))
+            cur = best.get(slug)
+            if cur is None or rank > cur[:2]:
+                best[slug] = (rank[0], rank[1], official or key)
+    out: dict[str, str] = {}
+    for slug, (_, _, name) in best.items():
+        cn = name[len(_PRIME_CN_PREFIX):] if name.startswith(_PRIME_CN_PREFIX) \
+            else name
+        out[slug] = cn
+        out.setdefault(_strip_variant(slug), cn)
+    return out
+
+
+def wiki_page_name(hit: dict) -> str:
+    """检索命中 → 灰机 wiki 页面名（**别名不是页面名，官方简中才是**）。
+
+    「wiki 音妈」这类黑话查询命中的是别名条目，展示名就是别名键本身，
+    直接拼 ``/wiki/音妈`` 是死链（2026-09-24 用户反馈）。这里按别名条目的
+    目标 slug（``banshee prime set`` → ``banshee_prime_set``）在别名表里取
+    官方简中名（恸哭女妖）当页面名；WM 展示名里的「 一套/蓝图」后缀同样
+    先剥掉再归一到官方名。查不到时原样回落，绝不返回空串。
+    """
+    name = (hit or {}).get("name") or ""
+    if not name:
+        return name
+    by_slug = _official_cn_by_slug()
+    if (hit or {}).get("source") == "别名":
+        slug = _alias_slug_index().get(_norm(name)) or \
+            (hit.get("en") or "").strip().replace(" ", "_")
+        if slug:
+            cn = by_slug.get(slug) or by_slug.get(_strip_variant(slug))
+            if cn:
+                return cn
+    cand = name
+    for suf in _ZH_SUFFIXES:
+        if cand.endswith(suf):
+            cand = cand[: -len(suf)]
+    parts = cand.split()
+    while len(parts) > 1 and parts[-1].lower() in _VARIANT_WORDS:
+        parts.pop()
+    cand = " ".join(parts)
+    if not cand or cand == name:
+        return name
+    cn = by_slug.get(cand.lower().replace(" ", "_"))
+    if cn:
+        return cn
+    for h in search(cand, limit=5):
+        if h.get("source") == "官方" and h.get("name"):
+            return h["name"]
+    return name

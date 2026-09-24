@@ -189,6 +189,18 @@ async def main() -> None:
               and "需要群管理员权限" in reply.raw_text,
               repr(reply.raw_text if reply else None))
 
+    # 6) 主指令「状态」直接委托 .状态（_h_status_cmd）→ 同一道闸门，普通成员
+    #    也拿不到；帮助卡里这两处都标了「需群管理员」（tests/test_help_coverage.py
+    #    第 4 条锁卡面标注）。2026-09-24 自查补：此前只有 .状态 的断言。
+    reply = await obj._h_status_cmd(None, _MemberEvent(), "pc")
+    check("普通成员「状态」也被权限拦截（与 .状态 同源）",
+          reply is not None and reply.raw_text is not None
+          and "需要群管理员权限" in reply.raw_text,
+          repr(reply.raw_text if reply else None))
+    reply = await obj2._h_status_cmd(None, _AdminEvent(), "pc")
+    check("管理员「状态」正常返回卡片",
+          reply is not None and reply.raw_text is None, repr(reply))
+
 
 if __name__ == "__main__":
     asyncio.run(main())

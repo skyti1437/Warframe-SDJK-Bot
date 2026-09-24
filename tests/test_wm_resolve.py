@@ -114,6 +114,18 @@ EXPECT = {
     "动物本能p": "primed_animal_instinct",
     "诺娃": "nova_prime_set",              # Nova 黑话（加速娃/诺娃），不与官方名「加速」冲突
     "加速娃": "nova_prime_set",
+    # 2026-09-24 用户报「wm 音妈 出来的是 Octavia（DJ）」：音妈在社区指 Banshee
+    # （B 站实测「Warframe 音妈BANSHEE加强」「Banshee音妈 技能翻新」），
+    # Octavia 的黑话是 DJ/音乐甲。联网核对一并钉住的其余黑话：
+    "音妈": "banshee_prime_set",
+    "女妖": "banshee_prime_set",
+    "毒妈": "saryn_prime_set",
+    "茶妹": "protea_prime_set",
+    "小丑": "mirage_prime_set",
+    # 2026-09-24 自查：生机是「赋能·生机」(Arcane Pulse) 的社区简称（WM 官方简中
+    # 赋能·生机、灰机维基页面名「生机赋能」），不是生命力 Vitality（官方名=生命力，
+    # 本就能官方名直查）——旧映射 生机→vitality 无出处，已改指赋能本体。
+    "生机": "arcane_pulse",
 }
 for k, want in EXPECT.items():
     check(f"映射 {k} → {want}", WM.get(k) == want, f"实际 {WM.get(k)}")
@@ -121,6 +133,17 @@ for k, want in EXPECT.items():
 # 「加速」是官方简中 Quickening 的名，词典不该再占用它
 check("★ 词典不再占用官方名「加速」（让官方名 Quickening 生效）",
       "加速" not in WM, f"实际指向 {WM.get('加速')}")
+
+# 「沙皇」是 Zarr 的官方简中名（DE 导出：cannon weapon → 沙皇；赤毒·沙皇 = kuva zarr），
+# WM 普通物品表里没有 zarr 系条目（赤毒武器走 lich 拍卖）——
+# 词典不能再把它占给 Inaros（2026-09-24 删），未命中时由 _wm_suggest 提示 xh。
+check("★ 词典不再把「沙皇」占给 Inaros（官方名=Zarr，玄骸走 xh）",
+      "沙皇" not in WM, f"实际指向 {WM.get('沙皇')}")
+check("「沙皇」仍留在 lich_items 且指向 kuva_zarr",
+      load_aliases().get("lich_items", {}).get("沙皇") == "kuva_zarr",
+      str(load_aliases().get("lich_items", {}).get("沙皇")))
+# 「AMP」原错映射到 Octavia（AMP=增幅器，与 Octavia 无关），2026-09-24 删
+check("错映射「AMP」已删（原指向 Octavia）", "AMP" not in WM, f"实际指向 {WM.get('AMP')}")
 
 # ---------------------------------------------------------------------------
 # 5. 源码级：官方名必须排在别名词典之前

@@ -399,6 +399,24 @@ class Sources:
             nm = re.sub(r'\s*[（(].*?[）)]\s*$', '', val).strip().lower()
             if nm and v.get('enemy'):
                 self.node_faction.setdefault(nm, v['enemy'])
+        # ---- 人工覆盖层（官方游戏内简中，data 包快照未同步的新内容）----
+        # 结构/来源/再生成方法见 zh_overrides.json 的 _meta；键均为 uniqueName。
+        self.zh_overrides = {}
+        _ovp = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'zh_overrides.json')
+        if os.path.exists(_ovp):
+            self.zh_overrides = jload(_ovp)
+        self.ov_ability = {}
+        self.ov_name = {}
+        for _u, _rec in (self.zh_overrides.get('warframes') or {}).items():
+            _z = self.zh_item.setdefault(_u, {})
+            for _f, _kz in (('name', 'name'), ('description', 'description'),
+                            ('passive', 'passiveDescription')):
+                if _rec.get(_f):
+                    _z[_kz] = _rec[_f]
+            for _au, _ar in (_rec.get('abilities') or {}).items():
+                self.ov_ability[_au] = _ar
+            for _cu, _cn in (_rec.get('components') or {}).items():
+                self.ov_name[_cu] = _cn
         self._stats = Counter()
 
     # ------------------------------------------------ 补充数据的译名
@@ -491,6 +509,9 @@ class Sources:
     def _name(self, path, fallback=None):
         if not path:
             return fallback
+        if path in self.ov_name:
+            self._stats['L0_override'] += 1
+            return self.ov_name[path]
         z = self.zh_item.get(path)
         if z:
             self._stats['L1_i18n'] += 1
@@ -536,6 +557,10 @@ class Sources:
         return clean(t, limit)
 
     def ability_name(self, ability):
+        _ov = self.ov_ability.get(ability.get('uniqueName')) or {}
+        if _ov.get('name'):
+            self._stats['ab_override'] += 1
+            return _ov['name']
         seg = ability['uniqueName'].rsplit('/', 1)[-1]
         for pref in ('Suits', 'Necramech', 'Necromech'):
             v = to_text(self.dz.get('/Lotus/Language/%s/%sName' % (pref, seg)))
@@ -555,6 +580,9 @@ class Sources:
         return en or '?'
 
     def ability_desc(self, ability, limit=170):
+        _ov = self.ov_ability.get(ability.get('uniqueName')) or {}
+        if _ov.get('desc'):
+            return clean(_ov['desc'], limit)
         seg = ability['uniqueName'].rsplit('/', 1)[-1]
         for pref in ('Suits', 'Necramech', 'Necromech'):
             v = to_text(self.dz.get('/Lotus/Language/%s/%sDesc' % (pref, seg)))

@@ -102,6 +102,16 @@ check("左列都是真实指令（无凭空标签）", not bad_rows,
 empty = [k for k, v in topic.items() if not v]
 check("没有空的分类", not empty, "；".join(empty))
 
+# —— 4. 需管理员的指令行必须在卡面标注 ——
+# 「状态」与「群管理」两组都要过 _handle_admin 的 _is_admin 闸门（.状态 会列出
+# 本群订阅明细，2026-09-18 安全审查收口；「状态」指令直接委托它）。卡面不写
+# 「需群管理员」，普通成员照卡发就被拦 —— 卡是给用户照着发的，属误导。
+# 闸门行为本身由 tests/test_admin.py 锁，这里只锁卡面标注与它对齐。
+admin_rows = [cell for cell, desc in
+              ((c, d) for items in topic.values() for c, d in items)
+              if cell.split()[0] in ("状态", "群管理") and "管理员" not in desc]
+check("需管理员的指令行都标了「管理员」", not admin_rows, "；".join(admin_rows))
+
 print()
 if FAILED:
     print(f"FAILED {len(FAILED)}: " + ", ".join(FAILED))

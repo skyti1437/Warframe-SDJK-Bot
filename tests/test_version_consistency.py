@@ -150,8 +150,16 @@ check("@register 版本与 core.__version__ 完全一致（四处联动强断言
 # 卡片标题已经不写死品牌名（用 f"{BRAND}" 引用常量），所以这两条改成：
 #   ① 断言源码里确实用常量拼标题（防止有人又写死）
 #   ② 断言 metadata 的展示名与常量一致（改名时最容易漏的一处）
-check("状态卡标题用品牌常量 + 主次版本",
-      'Reply(f"{BRAND} ' + MM + '"' in main_src, "未找到状态卡标题")
+# 2026-09-24 用法速查自查：状态卡标题的**版本号**也从写死改为引用派生常量。
+#   原写法 `Reply(f"{BRAND} 1.0"` 靠这里的 MM 字面量比对当「抬版本绊线」，
+#   但水印本就派生自 core.__version__ —— 标题再写死一份等于两个版本源，
+#   抬到 1.1 时同一张卡上水印 1.1 / 标题 1.0 会打架。现在两处同源。
+check("状态卡标题版本引用派生常量（不写死）",
+      'Reply(f"{BRAND} {WATERMARK_VERSION}"' in main_src,
+      "状态卡标题未引用 core.render.WATERMARK_VERSION")
+check("main.py 卡片标题里没有写死的版本号",
+      not re.search(r'\{BRAND\}\s*[\d.]+', main_src),
+      "发现写死的版本字面量（应引用 WATERMARK_VERSION）")
 check("帮助卡标题用品牌常量",
       'Reply(f"{BRAND} 指令一览"' in main_src, "未找到帮助卡标题")
 check("★ metadata.yaml 的 display_name == core.__brand__",

@@ -369,6 +369,7 @@ def build_warframes():
     for r in recs:
         u = r['uniqueName']
         z = S.zh_item.get(u) or {}
+        ov = (S.zh_overrides.get('warframes') or {}).get(u) or {}
         nm_zh = z.get('name') or r['name']
         ttl = title_of(nm_zh, r['name'])
         if r.get('type') == 'Necramech':
@@ -405,6 +406,8 @@ def build_warframes():
                 parts.append('%s %s' % (COMP_ZH[c['name']], drops_brief(c['drops'], 1, sep='')))
         if parts:
             L.append('- 获取（部件蓝图）：%s' % '｜'.join(parts))
+        elif ov.get('acquire'):
+            L.append('- 获取：%s' % ov['acquire'])
         elif r.get('isPrime'):
             L.append('- 获取：开启对应虚空遗物获得 Prime 部件蓝图')
         if r.get('vaulted'):

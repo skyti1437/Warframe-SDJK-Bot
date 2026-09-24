@@ -51,7 +51,7 @@ try:  # 允许脱离 AstrBot 直接跑单元测试
                               parse_fissure_filter, parse_time_window, parse_wm,
                               parse_wr, PLATFORM_DISPLAY)
     from .core.push import PUSH_EVENTS, PushDaemon, build_cancel_selector, normalize_event
-    from .core.render import ImageRenderer, text_card
+    from .core.render import ImageRenderer, WATERMARK_VERSION, text_card
     from .core.store import GroupStore, Subscription, SubscriptionStore
     from .core import de_worldstate as de_ws
 except ImportError:  # pragma: no cover
@@ -75,7 +75,7 @@ except ImportError:  # pragma: no cover
                              parse_fissure_filter, parse_time_window, parse_wm,
                              parse_wr, PLATFORM_DISPLAY)
     from core.push import PUSH_EVENTS, PushDaemon, build_cancel_selector, normalize_event
-    from core.render import ImageRenderer, text_card
+    from core.render import ImageRenderer, WATERMARK_VERSION, text_card
     from core.store import GroupStore, Subscription, SubscriptionStore
     from core import de_worldstate as de_ws
 
@@ -356,11 +356,11 @@ def _xh_element(toks: list[str]) -> tuple[Optional[str], Optional[str]]:
 HELP_TOPIC: dict[str, list[tuple[str, str]]] = {
     "用法速查": [
         ("帮助 / help", "本页指令总览"),
-        ("状态", "运行状态、版本与订阅数"),
+        ("状态", "运行状态、版本与订阅数（需群管理员）"),
         ("平台 -pc / -ps / -xb / -sw", "四平台数据已互通，统一显示「国际服」"),
         ("输出 -1 / -w ｜ -t ｜ -r", "纯文字 ｜ 强制图片 ｜ 生成密语"),
         ("翻页 -2 / -3", "看第 2/3 页（列表类指令通用）"),
-        ("群管理", "点号开头：.默认平台 / .开启 / .关闭 推送 / .状态"),
+        ("群管理", "点号开头（需群管理员）：.默认平台 / .开启 / .关闭 推送 / .状态"),
     ],
     "周期与日常": [
         ("夜灵 / 平原时间", "夜灵·金星·魔胎·地球·双衍·扎里曼 周期轮换"),
@@ -968,7 +968,7 @@ class WarframeSDJK(Star):
                                  + f"　{mode}·{life}")
             lines.append("◆ 系统")
             lines.append(f"· 缓存　{cache['size']} 项 · 命中率 {cache['hit_rate'] * 100:.0f}%")
-            return Reply(f"{BRAND} 1.0", lines,
+            return Reply(f"{BRAND} {WATERMARK_VERSION}", lines,
                          footer=fmt.fmt_platform_footer(self.groups.platform(umo)))
 
         if cmd == "锚点":
@@ -1634,7 +1634,9 @@ class WarframeSDJK(Star):
 
         found = search_engine.search(query, limit=3)
         if found:
-            best_name = found[0]["name"]
+            # 黑话命中（别名）时页面名要取官方简中名——别名键本身不是 wiki 页面
+            # （「wiki 音妈」拼 /wiki/音妈 是死链，2026-09-24 用户反馈）。
+            best_name = search_engine.wiki_page_name(found[0])
             page = _q(best_name.replace(" ", "_"))
             lines = [f"📖 {best_name}",
                      f"https://warframe.huijiwiki.com/wiki/{page}"]
@@ -1651,8 +1653,10 @@ class WarframeSDJK(Star):
         except WarframeAPIError:
             item = None
         if item and item.get("zh"):
-            page = _q(item["zh"].replace(" ", "_"))
-            return Reply(raw_text=f"📖 {item['zh']}\n"
+            # WM 的展示名带「一套/蓝图」这类后缀，同样先归一到官方页面名
+            page_name = search_engine.wiki_page_name({"name": item["zh"]})
+            page = _q(page_name.replace(" ", "_"))
+            return Reply(raw_text=f"📖 {page_name}\n"
                                   f"https://warframe.huijiwiki.com/wiki/{page}")
         link = await self.client.wiki_search_link(query)
         return Reply(raw_text=f"本地词库未收录「{query}」，请前往维基搜索：\n{link}"
@@ -2069,6 +2073,19 @@ class WarframeSDJK(Star):
 
     async def _wm_suggest(self, query: str) -> Reply:
         """未命中时给中英文候选（含错别字容忍，如 波斯顿→伯斯顿）。"""
+        # 玄骸武器不在 WM 普通物品表（价格走 xh 拍卖）——先给正确入口，
+        # 否则「wm 沙皇」这类查询只能拿到一串无关候选（沙皇=赤毒·沙皇，
+        # 2026-09-24 实测：旧词典把「沙皇」错映射到 Inaros，已删）。
+        # 这里只做**归一化精确**匹配，不借 resolve_lich_weapon 的模糊兜底，
+        # 避免未命中路径被形近字劫持。
+        _nq = re.sub(r"[\s·・]+", "", query).lower()
+        for _k, _slug in (self.client._aliases.get("lich_items") or {}).items():
+            if re.sub(r"[\s·・]+", "", _k).lower() == _nq:
+                _info = self.client.lich_weapon_info(_slug)
+                _zh = _info.get("zh") or _slug
+                return Reply(raw_text=(
+                    f"「{query}」是玄骸武器（{_zh}），不在集市物品表里。\n"
+                    f"价格用：xh {_zh}　（支持元素/数值筛选，如 xh {_zh} 辐射 50）"))
         items = await self.client.wm_items()
         slugs = [it.get("url_name", "") for it in items]
         names = [(it.get("zh") or it.get("en") or it.get("url_name", "")) for it in items]
@@ -3257,12 +3274,32 @@ class WarframeSDJK(Star):
     _STAT_ALIAS = {"滑行暴击": "滑暴", "攻击速度": "攻速", "伤害": "基伤",
                    "装填速度": "装填", "触发几率": "触发", "多重射击": "多重",
                    "暴击几率": "暴击", "元素伤害": "基伤", "射速": "攻速"}
+    # 卡面全称/别名 → 标准 id（parser.RIVEN_STAT_ALIASES 反查，首次用时构建）。
+    # 必须有这张表：「暴击伤害」走包含匹配会先撞上短名「暴击」（crit_chance），
+    # 2026-09-24 实测把暴伤按暴击率的基值算（手枪 149.99 vs 90），区间对不上后
+    # 误报「武器名可能识别有误」。
+    _STAT_ALIAS_FULL: "dict[str, str] | None" = None
+
+    @classmethod
+    def _full_stat_alias(cls) -> dict:
+        if cls._STAT_ALIAS_FULL is None:
+            try:  # 服务器以包成员加载，相对导入才可靠
+                from .core.parser import RIVEN_STAT_ALIASES
+            except ImportError:  # pragma: no cover - 本地直跑
+                from core.parser import RIVEN_STAT_ALIASES
+            full: dict[str, str] = {}
+            for sid, names in RIVEN_STAT_ALIASES.items():
+                for n in names:
+                    full.setdefault(n, sid)
+            cls._STAT_ALIAS_FULL = full
+        return cls._STAT_ALIAS_FULL
 
     @staticmethod
     def _normalize_llm_stats(data: dict, rev: dict) -> tuple[list, list]:
         """LLM 提取结果 → ([(stat_id, float)...], [...])；词条名宽松匹配。"""
         import difflib
         alias = WarframeSDJK._STAT_ALIAS
+        full = WarframeSDJK._full_stat_alias()
 
         def to_stat(name: str, val):
             if name is None or val is None:
@@ -3274,12 +3311,15 @@ class WarframeSDJK(Star):
             except (TypeError, ValueError):
                 return None
             name = alias.get(name, name)
+            sid = full.get(name)          # 全称整表命中（暴击伤害 → crit_damage）
+            if sid:
+                return (sid, num)
             if name in rev:
                 return (rev[name], num)
-            # 包含匹配（「暴击伤害」↔「暴伤」）
-            for abbr, sid in rev.items():
+            # 包含匹配：长名优先，避免短名抢走全称（「暴击」vs「暴击伤害」）
+            for abbr in sorted(rev, key=len, reverse=True):
                 if name in abbr or abbr in name:
-                    return (sid, num)
+                    return (rev[abbr], num)
             close = difflib.get_close_matches(name, list(rev), n=1, cutoff=0.5)
             if close:
                 return (rev[close[0]], num)
@@ -3782,10 +3822,12 @@ class WarframeSDJK(Star):
         # 为「裂隙 + 筛选=...」——这正是用户反馈「蹲功能不生效」的根因：地点词
         # 被错当成裂隙筛选加入订阅，而该地点根本不刷裂隙，所以永远不会触发。
         if event_type is None:
+            # 可蹲清单从 PUSH_EVENTS 现算（只列已接线的），别手抄——
+            # 手抄版把不可订阅的「警报」也列了进去，还漏了山谷/魔胎等类型。
+            wired = " / ".join(ev for ev, (_, ok) in PUSH_EVENTS.items() if ok)
             return Reply(raw_text=(
                 "未识别为可蹲类型「" + (toks[0] if toks else "") + "」。\n"
-                "可蹲类型：裂隙 / 夜灵 / 奸商 / 突击 / 执刑官 / 仲裁 / 钢路侵袭 / "
-                "警报 / 入侵 / 新闻 / 每日特惠\n"
+                f"可蹲类型：{wired}\n"
                 "发送「蹲 帮助」查看完整说明"))
         # 「蹲 类型」正常订阅路径：此处 event_type 已确定，必须先取 desc/wired，
         # 否则下面 `if not wired` 会在未赋值分支触发 NameError（「蹲 类型」直接失效的根因）。

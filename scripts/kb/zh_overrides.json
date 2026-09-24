@@ -1,0 +1,42 @@
+{
+  "_meta": {
+    "purpose": "人工覆盖层：DE 数据包快照未同步的新内容，官方简中名/描述在此显式补齐（build 时优先于 5 级回落链）。",
+    "source": "玩家客户端本机 Cache.Windows（Update 44.0，2026-09-23 实装）内的 Languages.bin（简中）",
+    "toolchain": "Warframe-Exporter-CLI 按 internal-path 从本机游戏缓存导出 Languages.bin_H → unpack_lang 对译自 warframe-cache-tools::languages_unpack（zstd 走 libzstd.dll）→ 官方简中字典 → 按本文件结构摘录。",
+    "regenerate": "游戏本体打新补丁后：重跑导出/解析得到新 zh 字典，按本文件结构更新对应 uniqueName 条目即可；键均为游戏内部 uniqueName，与 WFCD/PEP 同源。",
+    "updated": "2026-09-24"
+  },
+  "warframes": {
+    "/Lotus/Powersuits/Duelist/Duelist": {
+      "name": "Narin",
+      "description": "Narin 如旋涡般降临，她的利刃锋利无比，如同凛冽的寒风。她能巧妙地运用冰霜防御，如同她迅捷的细剑攻击一般。",
+      "passive": "敌人身上每叠加一层 <DT_FREEZE_COLOR>冰冻异常状态，生成霜花拾取物的几率就会提高 |CHANCE|%，并使主武器和副武器获得 <DT_FREEZE_COLOR>冰冻伤害，持续 |DURATION| 秒。Narin 的技能也会获得冰冻伤害加成。",
+      "passive_buff": "Narin 的鹤灵会为主要和次要武器提供强化效果，获得 50% 额外 <DT_FREEZE_COLOR>冰冻伤害和异常状态。Narin 的技能还会附加冰冻伤害。",
+      "acquire": "主要蓝图和部件蓝图：击败扎里曼任务中的卓越者敌人获得熵之赤毒，在羽化之穹或青春峰顶的中枢梅丽卡（教室物资）处兑换（需先完成《扎里曼的天使》系列任务）。",
+      "abilities": {
+        "/Lotus/Powersuits/Duelist/Abilities/DuelistThrustAbility": {
+          "name": "寒霜疾剑",
+          "desc": "挥舞 Narin 的细剑寒霜疾剑进行突刺，对正前方敌人造成 <DT_FREEZE_COLOR>冰冻伤害以及 <DT_FREEZE_COLOR>冰冻和 <DT_PUNCTURE_COLOR>穿刺异常状态。\r\n\r\n每击中一个敌人可获得冰能量。"
+        },
+        "/Lotus/Powersuits/Duelist/Abilities/DuelistRiposteAbility": {
+          "name": "冰翎御盾",
+          "desc": "通过吸收附近敌人施加的 <DT_FREEZE_COLOR>冰冻异常状态来恢复护盾。如果护盾已满，则获得 <OVERGUARD_GAIN>超宏防护。\r\n\r\n每击中一个敌人可获得冰能量。"
+        },
+        "/Lotus/Powersuits/Duelist/Abilities/DuelistLeapAbility": {
+          "name": "鹤影舞坠",
+          "desc": "轻按可跃向空中，再次轻按即可落在目标位置。落地时，对大范围内的敌人施加 <DT_FREEZE_COLOR>冰冻伤害易伤和异常状态效果。\r\n\r\n每击中一个敌人可获得冰能量。"
+        },
+        "/Lotus/Powersuits/Duelist/Abilities/DuelistBladeDanceAbility": {
+          "name": "降灵旋刃",
+          "desc": "需要满冰能量才能施放。先祖之灵降临在 Narin 身上，她随即开始剑舞，对周围敌人造成持续伤害。对标记目标按下攻击键，即可发射粉碎性的冰刃斩击，削弱其护甲和护盾。击中被冻结的敌人会使其爆炸，造成大范围 <DT_FREEZE_COLOR>冰冻伤害。"
+        }
+      },
+      "components": {
+        "/Lotus/Types/Recipes/WarframeRecipes/NarinBlueprint": "Narin",
+        "/Lotus/Types/Recipes/WarframeRecipes/NarinChassisComponent": "Narin 机体",
+        "/Lotus/Types/Recipes/WarframeRecipes/NarinHelmetComponent": "Narin 头部神经光元",
+        "/Lotus/Types/Recipes/WarframeRecipes/NarinSystemsComponent": "Narin 系统"
+      }
+    }
+  }
+}
