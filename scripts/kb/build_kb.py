@@ -723,6 +723,45 @@ def build_mods():
 
 
 # ================================================================== 06 遗物
+def _droppable_relic_bases() -> set:
+    """当前掉落表(missionRewards)中出现的遗物基名(如 'Lith S19')。
+
+    用途:WFCD items 表的 `vaulted` 标记有滞后(2026-09-24 实测:Citrine Prime
+    四张新遗物已上掉落表但 items 仍标 vaulted=true),以「出现在当前掉落表」为准覆盖。
+    """
+    # 首选 all.slim(与插件 drops.json 同源、最新);缺它时回退 all.json 的非事件节点
+    slim = os.path.join(kb_data_dir(), 'drop', 'all.slim.json')
+    if os.path.exists(slim):
+        rows = json.load(open(slim, encoding='utf-8'))
+        return {(r.get('item') or '')[:-len(' Relic')].strip()
+                for r in rows if (r.get('item') or '').endswith(' Relic')}
+    mr = (S.drop.get('all') or {}).get('missionRewards') or {}
+    out = set()
+    for _p, nodes in mr.items():
+        for _n, vv in (nodes or {}).items():
+            if (vv or {}).get('isEvent'):
+                continue          # 事件节点含历史/轮换奖励,会误判退役遗物为在刷
+            rw = (vv or {}).get('rewards')
+            rows = [x for lst in rw.values() for x in lst] if isinstance(rw, dict) else (rw or [])
+            for row in rows:
+                it = to_text((row or {}).get('itemName') or (row or {}).get('item') or '')
+                if it.endswith(' Relic'):
+                    out.add(it[:-len(' Relic')].strip())
+    return out
+
+
+_DROPPABLE_RELICS = None
+
+
+def relic_is_farmable(name: str) -> bool:
+    """遗物基名是否在当前掉落表中(Intact/Exceptional/Flawless/Radiant 后缀先剥离)。"""
+    global _DROPPABLE_RELICS
+    if _DROPPABLE_RELICS is None:
+        _DROPPABLE_RELICS = _droppable_relic_bases()
+    base = re.sub(r'\s+(Intact|Exceptional|Flawless|Radiant)$', '', to_text(name or '')).strip()
+    return base in _DROPPABLE_RELICS
+
+
 def build_relics():
     groups = OrderedDict()
     for x in I['Relics']:
@@ -743,7 +782,9 @@ def build_relics():
         zn = title_of((S.zh_item.get(rep['uniqueName']) or {}).get('name'), gname)
         short = zn.split('（')[0]
         L = ['- 类型：%s（%s）虚空遗物' % (RELIC_ERA_ZH.get(era_en, era_en), era_en)]
-        if rep.get('vaulted'):
+        if not relic_is_farmable(rep.get('name')):
+            # 状态一律以「在不在当前掉落表」为准:WFCD items 的 vaulted 标记
+            # 双向滞后(新遗物误标 true、刚退役误标 false),2026-09-24 实测
             L.append('- 状态：已入库（Vaulted）')
         for k in order:
             x = g.get(k)

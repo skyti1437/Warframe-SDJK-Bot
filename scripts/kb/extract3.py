@@ -35,6 +35,7 @@ z2 = zipfile.ZipFile(DROP)
 d2 = os.path.join(BASE, 'drop')
 os.makedirs(d2, exist_ok=True)
 for src, out in ((R2 + 'all.json', 'all.json'),
+                 (R2 + 'all.slim.json', 'all.slim.json'),
                  (R2 + 'missionRewards.json', 'missionRewards.json'),
                  (R2 + 'syndicates.json', 'syndicates.json')):
     try:
