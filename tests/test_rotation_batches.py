@@ -322,12 +322,12 @@ for _name, _rep, _n in (("信条", _reply_t, 5), ("终幕", _reply_c, 7)):
     check(f"{_name} 卡有快照说明行",
           any("快照" in ln for ln in _rep.lines), str(_rep.lines[-3:]))
 
-# 具体值抽查（对照 wiki「Reset」页 2026-09-20 快照）
+# 具体值抽查（对照 wiki「Reset」页 2026-09-24 快照，发版链第 0 步刷新后同步）
 _tmap = {i["en"]: (i.get("element"), i.get("bonus")) for i in _tenet_items}
-check("信条·铁晶磁轨炮 = 冰霜 43.4%（wiki 2026-09-20 快照）",
-      _tmap.get("Tenet Ferrox") == ("Cold", 43.4), str(_tmap.get("Tenet Ferrox")))
-check("信条·枢密 = 辐射 25.9%（wiki 2026-09-20 快照）",
-      _tmap.get("Tenet Exec") == ("Radiation", 25.9), str(_tmap.get("Tenet Exec")))
+check("信条·铁晶磁轨炮 = 冰霜 25.1%（wiki 2026-09-24 快照）",
+      _tmap.get("Tenet Ferrox") == ("Cold", 25.1), str(_tmap.get("Tenet Ferrox")))
+check("信条·枢密 = 冰霜 25.1%（wiki 2026-09-24 快照，本轮与铁晶同值属轮换巧合）",
+      _tmap.get("Tenet Exec") == ("Cold", 25.1), str(_tmap.get("Tenet Exec")))
 _cmap = {i["en"]: (i.get("element"), i.get("bonus")) for i in _cur_batch}
 # 终幕按批次抽查：wiki 只公布**当前生效批**的表，另一批在换批前拿不到真值，
 # 所以每次刷新后要把这里同步成新一批的两把（换批后旧值会失效）。

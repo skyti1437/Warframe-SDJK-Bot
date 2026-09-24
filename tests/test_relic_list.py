@@ -283,8 +283,9 @@ def _piece_rows(piece: str) -> list[dict]:
     return out
 
 
-# 用户截图里的那个部件：三把遗物中「古纪 A12」可掉落，另两把已入库
-_sample = "电幻步枪Prime蓝图"
+# 混合状态部件：三把遗物中「后纪 Axi V14」可掉落，另两把已入库
+# （2026-09-24 轮换后原夹具 电幻步枪Prime蓝图 整套退役，换同族新样本）
+_sample = "电幻步枪Prime枪机"
 _srows = _piece_rows(_sample)
 _stitle, _slines = fmt.fmt_relic_piece(_sample, _srows,
                                        farm_hints=_hints)
