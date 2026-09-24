@@ -1284,6 +1284,9 @@ def _parse_syndicate_missions(raw: dict) -> list[dict]:
             "id": _oid(s.get("_id")),
             "syndicate": display,
             "syndicateKey": s.get("Tag", ""),
+            # 世界种子：DE 每窗口下发，各 Syndicate 同值；小帐篷 A/B/C 的
+            # 当前赏金由它 + JobManifest 确定性推算（见 core/tents.py）。
+            "seed": s.get("Seed"),
             "activation": _iso_of(s, "Activation"),
             "expiry": _iso_of(s, "Expiry"),
             "jobs": jobs,

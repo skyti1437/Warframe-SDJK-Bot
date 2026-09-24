@@ -126,6 +126,11 @@ EXPECT = {
     # 赋能·生机、灰机维基页面名「生机赋能」），不是生命力 Vitality（官方名=生命力，
     # 本就能官方名直查）——旧映射 生机→vitality 无出处，已改指赋能本体。
     "生机": "arcane_pulse",
+    # 2026-09-24 新增：Citrine（水晶甲）是新 P 甲，WM 官方简中名是拉丁文
+    # 「Citrine Prime 一套」（战甲名不译），社区黑话 水晶甲/水晶，Prime 写 水晶p。
+    "水晶甲": "citrine_prime_set",
+    "水晶": "citrine_prime_set",
+    "水晶p": "citrine_prime_set",
 }
 for k, want in EXPECT.items():
     check(f"映射 {k} → {want}", WM.get(k) == want, f"实际 {WM.get(k)}")
@@ -133,6 +138,11 @@ for k, want in EXPECT.items():
 # 「加速」是官方简中 Quickening 的名，词典不该再占用它
 check("★ 词典不再占用官方名「加速」（让官方名 Quickening 生效）",
       "加速" not in WM, f"实际指向 {WM.get('加速')}")
+
+# 2026-09-24 自查：全表不许有「带首尾空格的键」——查询入口会 strip，
+# 这类键永远打不中（曾出现 " Valkyr"/" Baruuk"/" DJ" 三条死键，已删）。
+_dirty = {k: v for k, v in WM.items() if k != k.strip()}
+check("★ 词库无带首尾空格的死键", not _dirty, str(_dirty))
 
 # 「沙皇」是 Zarr 的官方简中名（DE 导出：cannon weapon → 沙皇；赤毒·沙皇 = kuva zarr），
 # WM 普通物品表里没有 zarr 系条目（赤毒武器走 lich 拍卖）——

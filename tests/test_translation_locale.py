@@ -70,6 +70,12 @@ ALLOWLIST = {
     # 本身就带「堕落」前缀（堕落枪兵 / 堕落轰击者）。JSON 没法用行尾
     # `# INTL` 豁免，故整表放行。
     "core/data/enemies.json",
+    # wiki 简介卡片数据（2026-09-24）：构建期从知识库抽取，**不进开源/市场包**
+    # （dist/package_release.py::EXCLUDE_FILES）。放行原因同 de/*_zh.json ——
+    # 正文是 DE 官方简中原文，会出现「异变感染体」这类**官方复合词**
+    # （导出实测：异变感染体立柱爆裂包囊），BANNED 里的裸词「感染体」
+    # 会在这类复合词上误报。
+    "core/data/wiki_intro.json",
 }
 
 targets: list[Path] = [ROOT / "main.py"]
