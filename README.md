@@ -200,4 +200,7 @@ docker run -d --name flaresolverr -p 8191:8191 flaresolverr/flaresolverr
 
 - 代码：**GPL-3.0**（见 `LICENSE`）
 - 数据：见上表各来源的许可；游戏内容归 Digital Extremes
+- **游戏素材**：仓库内的游戏图标（如 `core/data/icons/polarity/` 极性图标）与
+  名称/译文，版权归 **Digital Extremes** 所有，本仓库仅作功能展示使用，
+  非官方产品、亦无任何关联
 - 字体：SIL Open Font License
