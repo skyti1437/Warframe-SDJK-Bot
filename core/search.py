@@ -29,11 +29,16 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 
+try:
+    from . import matching        # core 包内正常导入（变体词表同源）
+except ImportError:               # 离线脚本把 core/ 当顶层路径导入时
+    import matching
+
 _HERE = Path(__file__).resolve().parent
 _DATA = _HERE / "data"
 _ALIAS_FILE = _DATA / "aliases.json"
 _DE_ITEMS_FILE = _DATA / "de" / "de_items_zh.json"
-_MOD_NAMES_FILE = _DATA / "de" / "mod_names_zh.json"
+_EN_ZH_FILE = _DATA / "de" / "name_en_zh.json"
 _CJK = re.compile(r"[一-鿿]")
 _DROPS_FILE = _DATA / "drops.json"
 
@@ -162,23 +167,8 @@ def best(query: str) -> Optional[dict]:
     return hits[0] if hits else None
 
 
-# 变体/套装后缀（WM slug 转写形态 + WM 展示名里的中文后缀）
-_VARIANT_WORDS = {"set", "prime", "wraith", "vandal", "kuva", "prisma"}
+# WM 展示名里的中文后缀（「Banshee Prime 一套」这类）
 _ZH_SUFFIXES = (" 一套", " 蓝图", " 机体", " 系统", " 头部神经光元", " 头部", " 配件")
-_PRIME_CN_PREFIX = "圣装"
-
-
-def _strip_variant(slug: str) -> str:
-    """slug 剥变体后缀：banshee_prime_set → banshee（用于回落到基体名）。"""
-    out = slug
-    changed = True
-    while changed:
-        changed = False
-        for suf in ("_prime_set", "_set", "_prime"):
-            if out.endswith(suf) and len(out) > len(suf):
-                out = out[: -len(suf)]
-                changed = True
-    return out
 
 
 @lru_cache(maxsize=1)
@@ -197,92 +187,127 @@ def _alias_slug_index() -> dict[str, str]:
 
 
 @lru_cache(maxsize=1)
-def _official_mod_names() -> dict[str, str]:
-    """官方简中 MOD 名：归一化名 → 原始写法（de/mod_names_zh.json 名字列表）。
+def _official_zh_by_en() -> dict[str, str]:
+    """归一化英文显示名 → DE 官方简中名（只含已翻译条目）。
 
-    别名键是玩家手打的中文名（瞬时狡诈 / 持久力Prime），与官方写法
-    （弹指瞬技 / 持久力 Prime，Prime 前带空格）常差在措辞或空格上；
-    拼 wiki 页面名时以官方写法为准。战甲 / 武器不在表内，仍走
-    「最长键」规则。
+    数据由 ``scripts/build_name_en_zh.py`` 从 DE 官方双语词表
+    （dict.en.json / dict.zh.json，35,865 条同键）交集生成。
     """
-    try:
-        data = json.loads(_MOD_NAMES_FILE.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
-    if not isinstance(data, list):
-        return {}
-    out: dict[str, str] = {}
-    for n in data:
-        if isinstance(n, str) and n:
-            # 空格一并归一：「持久力 Prime」与手打的「持久力Prime」视为同名
-            out.setdefault(_norm(n).replace(" ", ""), n)
-    return out
+    return dict(_jload(_EN_ZH_FILE).get("names") or {})
 
 
-@lru_cache(maxsize=1)
-def _official_cn_by_slug() -> dict[str, str]:
-    """slug / 基体名 → 官方简中名（别名表里同一 slug 的最优中文键）。
+def _title_en(name: str) -> str:
+    """小写英文转写 → 国际服英文原名写法（逐词首字母大写）。"""
+    return " ".join(w[:1].upper() + w[1:] for w in (name or "").split())
 
-    同一 slug 常挂多个中文键（女妖 / 音妈 / 恸哭女妖 / 圣装恸哭女妖），
-    页面名按「官方 MOD 名表命中 > 键最长」挑一条；命中官方名的键直接
-    采用官方**原始写法**（弹指瞬技 / 持久力 Prime），同时修掉黑话措辞
-    与「Prime 缺空格」两处死链源。Prime 形态的「圣装」前缀在查页面时
-    剥掉（基体页面覆盖同一套技能，且基体页一定存在）。
+
+def base_slug(slug: str) -> str:
+    """剥套装/变体前后缀 → 基体 slug（``nekros_prime_set`` → ``nekros``）。
+
+    变体词表复用 ``core.matching``（赤毒/信条/亡魂/破坏者/棱晶/圣洁/终幕/
+    MK1…中英同表），保证与紫卡/倾向路径同一口径。按**下划线词边界**剥，
+    保留词形（``arcane_energize`` 不能被归一化成 ``arcaneenergize``）；
+    剥空了就原样返回。
     """
-    mods = _official_mod_names()
-    best: dict[str, tuple[bool, int, str]] = {}
-    for sec in ("wm_items", "riven_items"):
-        for key, slug in (_jload(_ALIAS_FILE).get(sec) or {}).items():
-            if not slug or not _CJK.search(key):
-                continue
-            official = mods.get(_norm(key).replace(" ", ""))
-            rank = (bool(official), len(key))
-            cur = best.get(slug)
-            if cur is None or rank > cur[:2]:
-                best[slug] = (rank[0], rank[1], official or key)
-    out: dict[str, str] = {}
-    for slug, (_, _, name) in best.items():
-        cn = name[len(_PRIME_CN_PREFIX):] if name.startswith(_PRIME_CN_PREFIX) \
-            else name
-        out[slug] = cn
-        out.setdefault(_strip_variant(slug), cn)
-    return out
+    s = str(slug or "").strip().lower()
+    for suf in ("_set", "_blueprint"):
+        if s.endswith(suf) and len(s) > len(suf):
+            s = s[: -len(suf)]
+    parts = [p for p in s.split("_") if p]
+    while parts and matching.strip_variant_norm(parts[0]) == "":
+        parts.pop(0)                      # 词头变体：kuva_ / prisma_ / mk1_ …
+    while parts and matching.strip_variant_norm(parts[-1]) == "":
+        parts.pop()                       # 词尾变体：_prime / _wraith / _vandal …
+    return "_".join(parts) or s
 
 
-def wiki_page_name(hit: dict) -> str:
-    """检索命中 → 灰机 wiki 页面名（**别名不是页面名，官方简中才是**）。
+def wiki_title(name: str) -> str:
+    """灰机 wiki 页面标题归一（2026-09-25 浏览器实测，API 批量核对）。
 
-    「wiki 音妈」这类黑话查询命中的是别名条目，展示名就是别名键本身，
-    直接拼 ``/wiki/音妈`` 是死链（2026-09-24 用户反馈）。这里按别名条目的
-    目标 slug（``banshee prime set`` → ``banshee_prime_set``）在别名表里取
-    官方简中名（恸哭女妖）当页面名；WM 展示名里的「 一套/蓝图」后缀同样
-    先剥掉再归一到官方名。查不到时原样回落，绝不返回空串。
+    含中文的名字**去掉空格与中点**：``玻之武杖 Prime`` → ``玻之武杖Prime``
+    （带空格就是「本页面不存在」）、``赤毒·布拉玛`` → ``赤毒布拉玛``、
+    ``猎人 战备`` → ``猎人战备``、``Mesa 的华尔兹`` → ``Mesa的华尔兹``；
+    **纯拉丁名保持原样**（``Nekros Prime`` / ``Excalibur Umbra`` 页面就带空格，
+    去掉反而 404）；连字符不动（``MK1-布莱顿`` 是页面名）。
+    """
+    if not name or not _CJK.search(name):
+        return name
+    return re.sub(r"[\s\u3000·・]+", "", name)
+
+
+def page_name_from_slug(slug: str) -> str:
+    """WM slug → wiki 页面名（**国际服口径**）。
+
+    ``nekros_prime_set`` → ``Nekros Prime``（DE 简中不翻译战甲名，直接用英文）；
+    ``torid`` → ``托里德``；``fleeting_expertise`` → ``弹指瞬技``。
+    先剥 ``_set`` / ``_blueprint``（套装/蓝图页与本体同页），再查官方对照表，
+    表里没有（= 未翻译）就用英文原名。
+    """
+    s = str(slug or "").strip().lower()
+    if not s:
+        return ""
+    cands: list[str] = []
+    for suf in ("_set", "_blueprint"):
+        if s.endswith(suf) and len(s) > len(suf):
+            cands.append(s[: -len(suf)])
+    cands.append(s)
+    table = _official_zh_by_en()
+    for c in cands:
+        en = _title_en(c.replace("_", " "))
+        zh = table.get(_norm(en))
+        if zh:
+            return zh
+    return _title_en(cands[0].replace("_", " "))
+
+
+def wiki_page_name(hit: dict, base: bool = False) -> str:
+    """检索命中 → 灰机 wiki 页面名（**国际服口径**）。
+
+    DE 官方简中**不翻译战甲名**（Nekros / Banshee / Volt 直接用英文），
+    只翻译武器 / MOD / 赋能等（Torid → 托里德、Fleeting Expertise →
+    弹指瞬技）；国服旧译（御魂主宰 / 恸哭女妖）与社区黑话拼进
+    ``/wiki/<名>`` 都是死链（2026-09-24 用户实测：搜「摸尸」给出
+    「御魂主宰」，wiki 无此页）。所以：
+
+    1. 别名命中 → 按 slug 落官方名（未翻译即英文原名）；
+    2. 官方 / 掉落表命中 → 英文名查官方对照表；
+    3. WM 展示名剥掉「一套 / 蓝图」等后缀再试；
+    4. 都查不到时原样回落，绝不返回空串。
+
+    Args:
+        base: 查询**没有**指明变体（p/prime/亡魂…）时置 True —— 页面名落到
+            基体（``nekros_prime_set`` → ``Nekros``），变体由调用方另列
+            （2026-09-24 用户口径：没指明就只介绍基础的）。
     """
     name = (hit or {}).get("name") or ""
     if not name:
         return name
-    by_slug = _official_cn_by_slug()
+    # 1) 别名表反查 slug（黑话 / 中文名 → 官方名；任何来源都先试，
+    #    官方条目里也有 en 字段是内部名（如 rifle）的脏行，不能先信 en）
+    slug = _alias_slug_index().get(_norm(name))
+    if slug:
+        return page_name_from_slug(base_slug(slug) if base else slug)
+    # 2) 别名条目但反查不到：en 是 slug 转写形态（banshee prime set）
     if (hit or {}).get("source") == "别名":
-        slug = _alias_slug_index().get(_norm(name)) or \
-            (hit.get("en") or "").strip().replace(" ", "_")
-        if slug:
-            cn = by_slug.get(slug) or by_slug.get(_strip_variant(slug))
-            if cn:
-                return cn
+        en = (hit.get("en") or "").strip()
+        if en and not _CJK.search(en):
+            s = en.replace(" ", "_")
+            return page_name_from_slug(base_slug(s) if base else s)
+        return name
+    # 3) 官方条目：展示名本身就是 DE 官方简中名
+    if (hit or {}).get("source") == "官方":
+        return name
+    # 4) 英文名（掉落表 / WM 展示名）：剥中文后缀 → 查官方对照表
+    table = _official_zh_by_en()
     cand = name
     for suf in _ZH_SUFFIXES:
         if cand.endswith(suf):
             cand = cand[: -len(suf)]
-    parts = cand.split()
-    while len(parts) > 1 and parts[-1].lower() in _VARIANT_WORDS:
-        parts.pop()
-    cand = " ".join(parts)
-    if not cand or cand == name:
-        return name
-    cn = by_slug.get(cand.lower().replace(" ", "_"))
-    if cn:
-        return cn
-    for h in search(cand, limit=5):
-        if h.get("source") == "官方" and h.get("name"):
-            return h["name"]
-    return name
+    for c in (cand, hit.get("en") or ""):
+        if not c:
+            continue
+        for s in (c, re.sub(r"(?i)\s+(blueprint|set)$", "", c)):
+            zh = table.get(_norm(s))
+            if zh:
+                return zh
+    return cand or name

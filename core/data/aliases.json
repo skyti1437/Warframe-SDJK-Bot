@@ -80,15 +80,16 @@
   "banshee": "banshee_prime_set",
   "女妖": "banshee_prime_set",
   "音妈": "banshee_prime_set",
+  "水晶甲": "citrine_prime_set",
+  "水晶": "citrine_prime_set",
+  "水晶p": "citrine_prime_set",
   "nova": "nova_prime_set",
-  " Valkyr": "valkyr_prime_set",
   "valkyr": "valkyr_prime_set",
   "女武神": "valkyr_prime_set",
   "zephyr": "zephyr_prime_set",
   "风妈": "zephyr_prime_set",
   "yareli": "yareli_prime_set",
   "sevagoth": "sevagoth_prime_set",
-  " Baruuk": "baruuk_prime_set",
   "baruuk": "baruuk_prime_set",
   "易怒": "baruuk_prime_set",
   "ivara": "ivara_prime_set",
@@ -1370,7 +1371,6 @@
   "龙": "chroma_prime_set",
   "雪男": "frost_prime_set",
   "奶爸p": "trinity_prime_set",
-  " DJ": "octavia_prime_set",
   "膛线": "serration",
   "捷德": "jade_prime_set",
   "黄蜂": "hornet_strike"
@@ -1572,16 +1572,16 @@
    "url": "https://warframe.huijiwiki.com/wiki/杜卡德金币"
   },
   "奸商": {
-   "title": "巴罗·奇·提尔",
-   "url": "https://warframe.huijiwiki.com/wiki/巴罗·奇·提尔"
+   "title": "Baro Ki'Teer",
+   "url": "https://warframe.huijiwiki.com/wiki/Baro_Ki'Teer"
   },
   "新服": {
-   "title": "新手指南",
-   "url": "https://warframe.huijiwiki.com/wiki/新手指南"
+   "title": "攻略指导",
+   "url": "https://warframe.huijiwiki.com/wiki/Mainpage/攻略指导"
   },
   "新手": {
-   "title": "新手指南",
-   "url": "https://warframe.huijiwiki.com/wiki/新手指南"
+   "title": "攻略指导",
+   "url": "https://warframe.huijiwiki.com/wiki/Mainpage/攻略指导"
   }
  },
  "lich_items": {

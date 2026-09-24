@@ -105,14 +105,34 @@ def expand_variants(raw: str) -> list[str]:
     return list(dict.fromkeys(f for f in forms if f))
 
 
+_NAME_SUFFIXES = ("一套", "组合包", "蓝图", "set", "blueprint", "blueprints")
+
+
+def _strip_name_suffix(name: str) -> str:
+    """归一化 + 逐级剥掉套装/部件后缀（「鹦鹉螺 Prime 一套」→「鹦鹉螺prime」）。
+
+    ★ 2026-09-24：WM 的物品名带后缀，而「Prime 兄弟」判定是纯字符串比对 ——
+    不剥后缀时「wm 鹦鹉螺p」找不到 nautilus_prime_set（用户报障）。
+    """
+    n = normalize(name or "")
+    changed = True
+    while changed and n:
+        changed = False
+        for suf in _NAME_SUFFIXES:
+            if n.endswith(suf) and len(n) > len(suf):
+                n = n[: -len(suf)]
+                changed = True
+    return n
+
+
 def prime_sibling(base: dict, entries: list, *, zh: str = "zh", en: str = "en"):
-    """在 entries 里找 base 的 Prime 版（归一化后 zh/en 恰为 base+prime）。"""
-    bz = normalize(base.get(zh) or "")
-    be = normalize(base.get(en) or "")
+    """在 entries 里找 base 的 Prime 版（zh/en 归一化剥后缀后恰为 base+prime）。"""
+    bz = _strip_name_suffix(base.get(zh) or "")
+    be = _strip_name_suffix(base.get(en) or "")
     for e in entries:
-        ez = normalize(e.get(zh) or "")
-        ee = normalize(e.get(en) or "")
-        if (ez and ez == bz + "prime") or (ee and ee == be + "prime"):
+        ez = _strip_name_suffix(e.get(zh) or "")
+        ee = _strip_name_suffix(e.get(en) or "")
+        if (bz and ez == bz + "prime") or (be and ee == be + "prime"):
             return e
     return None
 
@@ -208,6 +228,40 @@ def resolve_weapon_name(query: str, entries: list, *,
 def variant_intent(raw: str) -> bool:
     """查询是否带显式变体意图（p/P/P版/prime 后缀）。"""
     return bool(_P_ABBREV.search(raw or "") or _PRIME_WORD.search(raw or ""))
+
+
+_VARIANT_WORDS_EN = set(VARIANT_TOKENS.values()) | _STANDALONE
+
+
+def strip_variant_query(raw: str) -> str:
+    """剥掉查询尾部的 p/P/p版/P版/prime（本地检索回退用）。
+
+    ``摸尸p`` → ``摸尸``；词库里通常只登记无后缀形态（别名表有 摸尸 没有 摸尸p）。
+    """
+    s = (raw or "").strip()
+    m = _P_ABBREV.search(s) or _PRIME_WORD.search(s)
+    if m:
+        return (s[:m.start(1)] + m.group(1)).strip()
+    return s
+
+
+def variant_intent_any(raw: str) -> bool:
+    """变体意图（**中英通吃**）：中文 p/prime 后缀，或英文变体词。
+
+    ``variant_intent`` 只看「CJK + p/prime」，纯英文查询（``Nekros Prime`` /
+    ``Kuva Bramma``）会漏判 —— wiki 指令据此决定「介绍本体 + 列变体」还是
+    「直接介绍指定变体」（2026-09-24 用户口径：没指明变体就只介绍基础的）。
+    """
+    s = (raw or "").strip()
+    if not s:
+        return False
+    if variant_intent(s):
+        return True
+    low = s.lower()
+    for tok in _VARIANT_WORDS_EN:
+        if re.search(rf"(?<![a-z]){re.escape(tok)}(?![a-z])", low):
+            return True
+    return False
 
 
 def strip_variant_norm(norm: str) -> str:

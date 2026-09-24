@@ -13,6 +13,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterable, Optional
 
+from . import tents as _tents
 from .de_worldstate import faction_name
 from .parser import MISSION_CN, PLATFORM_DISPLAY, TIER_CN
 
@@ -70,13 +71,32 @@ RIVEN_TYPE_CN = {
     "shotgun": "霰弹枪",
     "pistol": "手枪",
     "melee": "近战",
-    "archgun": "Archwing 枪械",
-    "archmelee": "Archwing 近战",
+    "archgun": "曲翼枪械",
+    "archmelee": "曲翼近战",
+}
+
+# WM 的 rivenType 只记「MOD 适用类别」——曲翼枪械（翠雀 Larkspur 等）在 WM
+# 数据里 rivenType 也是 rifle，更具体的武器类别在 group 字段
+# （archgun / sentinel / kitgun / zaw）。显示时 group 命中这些值优先。
+RIVEN_GROUP_CN = {
+    "archgun": "曲翼枪械",
+    "archmelee": "曲翼近战",
+    "sentinel": "守护武器",
+    "kitgun": "组合枪",
+    "zaw": "Zaw 近战",
 }
 
 
-def riven_type_cn(riven_type: str) -> str:
-    """riven_type slug → 中文类别；未知值原样返回。"""
+def riven_type_cn(riven_type: str, group: str = "") -> str:
+    """riven_type/group → 中文类别；未知值原样返回。
+
+    ★ 2026-09-24 用户报障「翠雀应该是曲翼枪械」：WM 把曲翼枪械的 rivenType
+    也标成 ``rifle``，只看 rivenType 会显示成「步枪」。改为 group 命中更具体
+    类别时优先（archgun→曲翼枪械、sentinel→守护武器），否则回落 rivenType。
+    """
+    g = (group or "").strip().lower()
+    if g in RIVEN_GROUP_CN:
+        return RIVEN_GROUP_CN[g]
     key = (riven_type or "").strip().lower()
     if not key:
         return ""
@@ -1517,6 +1537,21 @@ def _oracle_region_block(pool_key: str, tag: str, title: str,
     return lines
 
 
+def _tent_lines(syndicates) -> list[str]:
+    """小帐篷 A/B/C 当前赏金（详情卡专用；推算见 core/tents.py）。
+
+    2026-09-24 双向对拍一致后才上卡：W4 与沃沃截图 9/9 格、W5 与
+    oracle.browse.wf 独立实现 15/15 点位。种子缺失（源降级）时整块跳过。
+    """
+    rows = _tents.region_locations("Ostrons", _tents.seed_of(syndicates))
+    if not rows:
+        return []
+    out = [f"　{label}：{'｜'.join(names)}" for label, names in rows]
+    out.append("※ 小帐篷 = 平野三处营地的当前赏金"
+               "（按 DE 世界种子推算，与游戏内一致）")
+    return out
+
+
 def fmt_bounties(syndicates: Iterable[dict], keyword: str = "",
                  cycle: Optional[dict] = None) -> tuple[str, list[str]]:
     """赏金：裸指令 = 一览（地区分组 + 轮换行 + 高等级档），带地区词 = 详情。
@@ -1589,6 +1624,10 @@ def fmt_bounties(syndicates: Iterable[dict], keyword: str = "",
         if detailed:
             lines.extend(_region_block(pool_key, title, jobs,
                                        (s or {}).get("expiry", "")))
+            if pool_key == "Ostrons":
+                # 小帐篷 A/B/C：DE 不下发归属（全库无 camp 字段），由
+                # 世界种子 + JobManifest 确定性推算，见 core/tents.py。
+                lines.extend(_tent_lines(syndicates))
         else:
             lines.extend(_region_summary(pool_key, title, jobs,
                                          (s or {}).get("expiry", "")))
@@ -2334,7 +2373,8 @@ def _riven_rolls(a: dict) -> int:
 
 def fmt_wr_auctions(weapon: str, auctions: list[dict], page: int = 1,
                     page_size: int = 8, riven_type: str = "",
-                    group: str = "") -> tuple[str, list[str], Optional[dict]]:
+                    group: str = "", *, presorted: bool = False,
+                    ) -> tuple[str, list[str], Optional[dict]]:
     """紫卡拍卖列表。
 
     展示与排序都按「先看能不能立刻交易、再看价格」：
@@ -2343,6 +2383,9 @@ def fmt_wr_auctions(weapon: str, auctions: list[dict], page: int = 1,
       · 排序：在线优先（游戏内 > 网页 > 离线），同档按买断价升序
 
     ``riven_type`` / ``group`` 用于词条消歧（近战的合并 slug 显示「攻速」）。
+    ``presorted=True``：调用方已按**词条命中率**排好序（wr 的「无完全匹配，
+    给最接近选项」分支），此时不再按「在线+价格」重排 —— 否则前排会变成
+    便宜但词条不匹配的挂单（2026-09-24 用户报障「前排出现不匹配的项目」）。
     """
     status_cn = {"ingame": "🟢在线", "online": "🔵网页在线", "offline": "⚫离线"}
 
@@ -2352,8 +2395,9 @@ def fmt_wr_auctions(weapon: str, auctions: list[dict], page: int = 1,
     def status_of(a: dict) -> str:
         return ((a.get("owner") or {}).get("status") or "offline")
 
-    pool = sorted(auctions, key=lambda a: (_ONLINE_RANK.get(status_of(a), 3),
-                                           price_of(a)))
+    pool = list(auctions) if presorted else sorted(
+        auctions, key=lambda a: (_ONLINE_RANK.get(status_of(a), 3),
+                                 price_of(a)))
     rank_max = 8          # 紫卡满级 8 级
     total = len(pool)
     pages = max(1, (total + page_size - 1) // page_size)
@@ -3003,10 +3047,14 @@ def fmt_riven_analysis(name: str, disposition: float, cls: str,
             continue
         dev = RA.deviation_pct(v, lo, hi)
         pos_pct = RA.range_position(v, lo, hi)
+        # ★ 2026-09-24 用户报障（红框）：负词条这里原写 100-pos_pct，方向反了——
+        #   数值贴近下限（负得很浅）反而显示「幅度位 87%」（=负得很满），
+        #   把浅负当深负卖。区间位本身就是「幅度接近上限的程度」，
+        #   直接用 pos_pct：0%=最浅、100%=最满。
         lines.append("· " + "　".join([
             f"-{RA.fmt_value(sid, v)} {zh.get(sid, sid)}",
             f"{RA.fmt_value(sid, lo)}-{RA.fmt_value(sid, hi)}",
-            f"幅度位 {100 - pos_pct}%", "幅度越大越友好"]))
+            f"幅度位 {pos_pct}%", "幅度越大越友好"]))
     lines.append("※ 区间 = DE 属性基值 × 倾向 × 词条数系数 × 随机 0.9~1.1"
                  "（相对中值 ±10%；上限=最满，下限=最弱）")
     lines.append("※ 「±11%」是把基准取成低值端（110÷90=+22.2% 再折半）的误传，"

@@ -60,23 +60,24 @@ check("Forma 结果里带官方 Forma", "Forma" in names, str(names))
 check("短查询不匹配内部名", S._score("forma", "valence formation") == -1)
 check("精确匹配优先级最高", S._score("forma", "forma") == 0)
 
-# ------------------------------- wiki 页面名：黑话要落到官方简中名（2026-09-24）
-# 用户报「wiki 音妈」给不出可用链接：别名条目的展示名就是别名键本身，
-# 拼出的 /wiki/音妈 是死链 → wiki_page_name() 必须换成官方简中名。
-for _slang, _want in [("音妈", "恸哭女妖"), ("毒妈", "剧毒之触"),
-                      ("DJ", "吟游歌者"), ("茶妹", "泊时灵械"),
-                      ("玻璃甲", "琉璃仕女")]:
+# ------------------------------- wiki 页面名：黑话要落到国际服官方名（2026-09-24）
+# 用户实测「wiki 摸尸」给「御魂主宰」（国服旧译）是死链：DE 官方简中**不翻译
+# 战甲名**（Nekros / Banshee 直接用英文），已翻译内容（武器/MOD/赋能）取简中。
+# 详见 tests/test_wiki_intro.py 的全量断言。
+for _slang, _want in [("音妈", "Banshee Prime"), ("毒妈", "Saryn Prime"),
+                      ("DJ", "Octavia Prime"), ("茶妹", "Protea Prime"),
+                      ("玻璃甲", "Gara Prime")]:
     _h = S.search(_slang, limit=1)
     _pn = S.wiki_page_name(_h[0]) if _h else ""
     check(f"★ 黑话「{_slang}」页面名 → {_want}", _pn == _want, _pn)
 check("官方条目页面名保持原样",
       S.wiki_page_name({"name": "Forma", "source": "官方"}) == "Forma")
 check("WM 展示名后缀（一套/蓝图）剥掉后归一到官方名",
-      S.wiki_page_name({"name": "Banshee Prime 一套"}) == "恸哭女妖",
+      S.wiki_page_name({"name": "Banshee Prime 一套"}) == "Banshee Prime",
       S.wiki_page_name({"name": "Banshee Prime 一套"}))
 check("查不到官方名时回落别名键（不返回空）",
-      S.wiki_page_name({"name": "某不存在词", "en": "zzz nonexistent",
-                        "source": "别名"}) == "某不存在词")
+      bool(S.wiki_page_name({"name": "某不存在词", "en": "zzz nonexistent",
+                             "source": "别名"})))
 
 # 2026-09-24 联网核对后修正的两条错映射（键是官方名的省略形式，却指向别的物品）
 import json  # noqa: E402

@@ -47,6 +47,7 @@ try:  # 允许脱离 AstrBot 直接跑单元测试
     from .core import paths as core_paths
     from .core import formatters as fmt
     from .core import search as search_engine
+    from .core import wiki_intro
     from .core.parser import (Parsed, normalize_platform, parse, parse_duration,
                               parse_fissure_filter, parse_time_window, parse_wm,
                               parse_wr, PLATFORM_DISPLAY)
@@ -71,6 +72,7 @@ except ImportError:  # pragma: no cover
     from core import paths as core_paths
     from core import formatters as fmt
     from core import search as search_engine
+    from core import wiki_intro
     from core.parser import (Parsed, normalize_platform, parse, parse_duration,
                              parse_fissure_filter, parse_time_window, parse_wm,
                              parse_wr, PLATFORM_DISPLAY)
@@ -486,6 +488,7 @@ class Reply:
     whisper: list[str] = field(default_factory=list)  # -r 生成的密语文本
     raw_text: Optional[str] = None                    # 直接输出纯文本（wiki/管理类）
     text_only: bool = False                           # 强制不适配图片
+    extra_text: str = ""                              # 卡片之外的补充文本（如 wiki 链接）
     pages: list[tuple[str, list[str]]] = field(       # 多页卡片：[(标题, 行), …]
         default_factory=list)                         # 优先于 title/lines；渲染层自动加页码
 
@@ -794,6 +797,9 @@ class WarframeSDJK(Star):
         whisper_txt = ""
         if reply.whisper:
             whisper_txt = "\n\n🔑 快捷回复（复制后游戏内粘贴）：\n" + "\n".join(reply.whisper)
+        # 卡片之外的补充文本（wiki 链接这类必须可点击的内容）：
+        # 与卡片同链发出，链尾的 Plain 段在 QQ 里是可点的文本。
+        tail_txt = whisper_txt + (("\n" + reply.extra_text) if reply.extra_text else "")
 
         use_image = False
         if not reply.text_only:
@@ -825,8 +831,8 @@ class WarframeSDJK(Star):
                     comps.append(Image.fromFileSystem(path))
                     self._schedule_card_cleanup(path)
             if comps:
-                if whisper_txt:
-                    comps.append(Plain(whisper_txt))
+                if tail_txt:
+                    comps.append(Plain(tail_txt))
                 yield event.chain_result(comps)
                 return
             logger.warning("[sdjk] 多页卡片渲染为空，已降级文字输出：%s",
@@ -841,8 +847,8 @@ class WarframeSDJK(Star):
                     reply.lines, reply.footer)
             if path:
                 components = [Image.fromFileSystem(path)]
-                if whisper_txt:
-                    components.append(Plain(whisper_txt))
+                if tail_txt:
+                    components.append(Plain(tail_txt))
                 self._schedule_card_cleanup(path)
                 yield event.chain_result(components)
                 return
@@ -855,7 +861,7 @@ class WarframeSDJK(Star):
                                 for pt, pl in reply.pages)
         else:
             card = text_card(reply.title, reply.lines, reply.footer)
-        yield event.plain_result(card + whisper_txt)
+        yield event.plain_result(card + tail_txt)
 
     def _schedule_card_cleanup(self, path: str, delay: float = 120.0):
         """卡片发出后延迟删除本地文件（缓冲期内完成 QQ 上传）。"""
@@ -1617,12 +1623,51 @@ class WarframeSDJK(Star):
         return (f"\n\n💡 推荐 / 攻略类问题可把 {docs_dir}/ 下的文档"
                 f"传进 AstrBot 知识库{tail}")
 
+    def _wiki_intro_on(self) -> bool:
+        """wiki 简介卡片开关。
+
+        卡片数据（core/data/wiki_intro.json）只在自部署版提供，**不进开源 /
+        市场包**（dist/package_release.py::EXCLUDE_FILES）——公开版文件缺失，
+        wiki 自然只给链接（2026-09-24 用户定的口径：有知识库的才有细节）。
+        """
+        return bool(self.cfg.get("wiki_intro", True))
+
+    def _wiki_reply(self, page_name: str, url: str, alts: list[str],
+                    platform, *names: str, variants: list[str] | None = None) -> Reply:
+        """wiki 结果统一出口：有简介数据 → 卡片 + 链接；没有 → 纯文本链接。
+
+        链接必须**可点击**（issue #1 需求②），所以卡片之外永远另发一段
+        Plain 文本；只有链接时保持纯文本直发（渲成图片会把 URL 烧死在图里）。
+        查询没指明变体时 ``variants`` 给出「变体：…」一行（用户口径：
+        没指明就只介绍基础的，变体在下面说明）。
+        """
+        var_line = f"变体：{'、'.join(variants)}" if variants else ""
+        link = f"🔗 wiki 链接：{url}"
+        if alts:
+            link += f"\n同类候选：{'、'.join(alts)}"
+        if self._wiki_intro_on():
+            card = wiki_intro.card_for(page_name, *names)
+            if card:
+                title, lines = card
+                if var_line:
+                    lines = [*lines, var_line]
+                return Reply(title, lines, extra_text=link,
+                             footer=fmt.fmt_platform_footer(platform))
+        lines = [f"📖 {page_name}", url]
+        if var_line:
+            lines.append(var_line)
+        if alts:
+            lines.append(f"同类候选：{'、'.join(alts)}")
+        return Reply("wiki 直达", lines, text_only=True,
+                     footer=fmt.fmt_platform_footer(platform))
+
     async def _h_wiki(self, parsed, event, platform) -> Reply:
         """维基页面直达。
 
         先走本地 12 条概念页，再走统一索引拼页面名；只有都落空才给搜索链接。
-        以前 WM 兜底用的是纯子串匹配，搜 ``Forma`` 会命中 ``valence_formation``
-        （效价炼成）—— 现已改为词边界 + 分档排序。
+        页面名按**国际服**口径（DE 官方简中不翻译战甲名，见
+        ``search_engine.wiki_page_name``）；查询没指明变体（p / prime / 亡魂…）
+        时介绍基体并列一行变体，指明了就直接给该变体。配了简介数据时附卡片。
         """
         query = parsed.content_str
         if not query:
@@ -1632,32 +1677,51 @@ class WarframeSDJK(Star):
             return Reply(raw_text=f"📖 {hit['title']}\n{hit['url']}")
         from urllib.parse import quote as _q
 
+        want_variant = matching.variant_intent_any(query)
         found = search_engine.search(query, limit=3)
+        if not found and want_variant:
+            # 「摸尸p」这类带 p 后缀的查询词库里没有（别名表只登记无后缀形态）
+            # → 剥掉 p/prime 再查，命中后按变体解析（want_variant 已为 True）
+            stripped = matching.strip_variant_query(query)
+            if stripped and stripped != query:
+                found = search_engine.search(stripped, limit=3)
         if found:
-            # 黑话命中（别名）时页面名要取官方简中名——别名键本身不是 wiki 页面
-            # （「wiki 音妈」拼 /wiki/音妈 是死链，2026-09-24 用户反馈）。
-            best_name = search_engine.wiki_page_name(found[0])
-            page = _q(best_name.replace(" ", "_"))
-            lines = [f"📖 {best_name}",
-                     f"https://warframe.huijiwiki.com/wiki/{page}"]
+            # 黑话命中（别名）时页面名取国际服官方名——别名键/国服旧译都不是
+            # wiki 页面（「wiki 音妈」「wiki 摸尸」实测死链，2026-09-24）。
+            best_name = search_engine.wiki_page_name(found[0],
+                                                     base=not want_variant)
+            # 灰机标题归一：含中文的名字要去掉空格与中点（「玻之武杖 Prime」→
+            # 「玻之武杖Prime」），否则页面不存在（2026-09-25 浏览器 API 实测）
+            page = _q(search_engine.wiki_title(best_name).replace(" ", "_"))
             alts = [f["name"] for f in found[1:] if f["name"] != best_name]
-            if alts:
-                lines.append(f"同类候选：{'、'.join(alts)}")
-            # 2026-09-24：强制纯文本直发——链接必须可点击（issue #1 需求②）。
-            # 本回复只有一行链接+候选词，渲成图片反而把 URL 烧死在图里。
-            return Reply("wiki 直达", lines, text_only=True,
-                         footer=fmt.fmt_platform_footer(platform))
-        # WM 中文名 → 灰机 wiki 对应页面（用 zh 名称构造 URL）
+            return self._wiki_reply(
+                best_name, f"https://warframe.huijiwiki.com/wiki/{page}",
+                alts, platform, found[0].get("name") or "",
+                found[0].get("en") or "",
+                query,          # 前缀命中（「电路」→「电路效果」）时按原词找卡片
+                variants=None if want_variant
+                else wiki_intro.variants(best_name))
+        # WM 中文名 → 灰机 wiki 对应页面（用官方名构造 URL）
         try:
             item = await self.client.resolve_wm_item(query)
         except WarframeAPIError:
             item = None
-        if item and item.get("zh"):
-            # WM 的展示名带「一套/蓝图」这类后缀，同样先归一到官方页面名
-            page_name = search_engine.wiki_page_name({"name": item["zh"]})
-            page = _q(page_name.replace(" ", "_"))
-            return Reply(raw_text=f"📖 {page_name}\n"
-                                  f"https://warframe.huijiwiki.com/wiki/{page}")
+        if item and (item.get("zh") or item.get("en")):
+            # WM 的展示名带「一套/蓝图」这类后缀；有 slug 就走 slug（国际服名）
+            slug = str(item.get("url_name") or "").strip()
+            if slug:
+                page_name = search_engine.page_name_from_slug(
+                    search_engine.base_slug(slug) if not want_variant else slug)
+            else:
+                page_name = search_engine.wiki_page_name(
+                    {"name": item.get("zh") or "", "en": item.get("en") or ""},
+                    base=not want_variant)
+            page = _q(search_engine.wiki_title(page_name).replace(" ", "_"))
+            return self._wiki_reply(
+                page_name, f"https://warframe.huijiwiki.com/wiki/{page}",
+                [], platform, item.get("zh") or "", item.get("en") or "",
+                variants=None if want_variant
+                else wiki_intro.variants(page_name))
         link = await self.client.wiki_search_link(query)
         return Reply(raw_text=f"本地词库未收录「{query}」，请前往维基搜索：\n{link}"
                               f"{self._kb_hint()}")
@@ -2155,6 +2219,22 @@ class WarframeSDJK(Star):
         neg_set = set(negatives)
         pos_set = set(positives)
         pool = [a for a in auctions if self._auction_match(a, q, neg_set, pos_set)]
+        relaxed = ""
+        if not pool and auctions and (q.stats or q.negatives):
+            # 严格匹配为空时分两档放宽（2026-09-24 用户报障「前排出现不匹配的
+            # 项目」——旧实现直接跳到「近似匹配」，而近似排序又被渲染层按
+            # 在线+价格重排，于是前排全是便宜但与词条无关的挂单）：
+            #   ① 先只放宽**在线状态**：词条完全匹配但卖家离线 → 仍排前面
+            #   ② 真没有完全匹配的，才按词条命中率给最接近的选项
+            strict_offline = [a for a in auctions
+                              if self._auction_match(a, q, neg_set, pos_set,
+                                                     ignore_status=True)]
+            if strict_offline:
+                pool = sorted(strict_offline, key=lambda a: (
+                    fmt._ONLINE_RANK.get(
+                        (a.get("owner") or {}).get("status") or "offline", 3),
+                    a.get("buyout_price") or a.get("starting_price") or 0))
+                relaxed = "offline"
         if not pool and auctions and (q.stats or q.negatives):
             # 服务端词条过滤为 OR 语义，精确匹配仍需本地二次筛；严格匹配为空时
             # 按 词条命中率+价格 给出最接近的选项，而不是一句「没有」
@@ -2169,22 +2249,29 @@ class WarframeSDJK(Star):
                 want_neg = 1 if (q.require_negative or q.negatives) else 0
                 score = pos_hit * 4 + neg_hit * 2 + (want_neg & (1 if urls_n else 0))
                 price = a.get("buyout_price") or a.get("starting_price") or 0
-                return (-score, price)
+                # 同档内再按「在线优先 → 价格升序」（与渲染层展示口径一致）
+                online = fmt._ONLINE_RANK.get(
+                    (a.get("owner") or {}).get("status") or "offline", 3)
+                return (-score, online, price)
             # 洗数过滤是硬条件，放宽词条时不能把它一起放开
             cand = [a for a in auctions if self._rolls_ok(a, q)] if (
                 q.max_rerolls is not None or q.rerolls_min is not None) else auctions
             pool = sorted(cand, key=_rank)[:max(4, self.page_size - 4)]
-            relaxed = True
-        else:
-            relaxed = False
+            relaxed = "loose"
         wname = weapon.get("zh") or weapon.get("en") or url_name
         title, lines, best = fmt.fmt_wr_auctions(
             wname, pool,
             page=parsed.page, page_size=max(4, self.page_size - 4),
-            riven_type=rtype, group=weapon.get("group", ""))
+            riven_type=rtype, group=weapon.get("group", ""),
+            # 放宽档的排序是「词条命中率优先」，必须原样保留 —— 渲染层默认
+            # 按 在线+价格 重排会把命中的挂单冲散
+            presorted=bool(relaxed))
         if weapon.get("_fuzzy_from"):
             lines.insert(0, f"※ 「{weapon['_fuzzy_from']}」按「{weapon.get('zh') or wname}」查询")
-        if relaxed:
+        if relaxed == "offline":
+            lines.append("※ 完全符合词条的挂单卖家目前都不在线，"
+                         "已按 在线优先 → 价格升序 列出")
+        elif relaxed == "loose":
             lines.append("※ 没有完全符合条件的挂单，"
                          "以上按词条命中率与价格给出最接近选项")
         reply = Reply(title, lines, footer=fmt.fmt_platform_footer(platform, "warframe.market 紫卡"))
@@ -2486,6 +2573,25 @@ class WarframeSDJK(Star):
         inv_key = next((inv_norm.get(c) for c in cands if inv_norm.get(c)), None)
         if inv_key is not None:
             q = inv_key
+        if q not in inv:
+            # ②-b 黑话兜底（2026-09-25）：「中文简称 + 部件词」→ 别名表的 WM 物品名
+            #   拼部件词再查 inverse（例：「水晶p 蓝图」→ Citrine Prime 蓝图）。
+            #   · 用**精确键**做前缀切分 —— alias_lookup 的双向包含算不出剩余部件词；
+            #   · 黑话键可能不带 p（「水晶甲」），而用户把 p/prime 跟在黑话后面
+            #     （「水晶甲p 蓝图」）→ 拼装前剥掉 rest 前导的 p/prime；
+            #   · 只在直接匹配失败后兜底，不改变既有命中路径。
+            _tbl = (getattr(self.client, "_aliases", None) or {}).get("wm_items") or {}
+            _lower = {k.replace(" ", "").lower(): k for k in inv}
+            for _i in range(len(q_nospace) - 1, 0, -1):
+                _slug = _tbl.get(q_nospace[:_i].lower())
+                if not _slug:
+                    continue
+                _rest = re.sub(r"^(?:prime|p)(?=[\u4e00-\u9fff])", "",
+                               q_nospace[_i:], flags=re.I)
+                _en = re.sub(r"_set$", "", _slug).replace("_", " ").title()
+                q = _lower.get((_en + _rest).replace(" ", "").lower()) or q
+                if q in inv:
+                    break
         if q in inv:
             origins = inv[q]
             # 「能不能获取」三态：在掉落表 / 仅阿耶在售 / 已入库。
@@ -2601,7 +2707,9 @@ class WarframeSDJK(Star):
                 hits = fam
         lines = [f"· {(w.get('zh') or w.get('en') or w['url_name'])}　"
                  f"倾向 {w.get('disposition', 0):.2f}　"
-                 f"{fmt.riven_type_cn(w.get('riven_type',''))}"
+                 # ★ 2026-09-24：带上 group —— WM 把曲翼枪械的 rivenType 也标成
+                 #   rifle（翠雀显示成「步枪」），group 才是准的（曲翼枪械/守护武器）
+                 f"{fmt.riven_type_cn(w.get('riven_type', ''), w.get('group', ''))}"
                  for w in hits[:8]]
         return Reply(f"紫卡倾向：{query}", lines, footer=fmt.fmt_platform_footer(platform))
 
@@ -2916,7 +3024,16 @@ class WarframeSDJK(Star):
             "卡面右下角的数字是内融值，与倾向无关，不要输出倾向。"
             "若截图里出现变体前缀（棱晶/Prime/亡魂/破坏者/赤毒/信条，"
             "或 Prisma/Wraith/Vandal/Kuva/Tenet），务必保留在 weapon 里"
-            "（紫卡卡面通常只写母武器名，没有前缀就照原样输出）。")
+            "（紫卡卡面通常只写母武器名，没有前缀就照原样输出）。\n"
+            "⚠ 词条数值**带负号**的（卡面写成「-63.4% 滑行攻击暴击几率」），"
+            "必须放进 negative，数值写正数 63.4 —— 放进 positive 会让整张卡"
+            "被判成「词条数不对」而失败。\n"
+            "⚠ weapon 只填**中文武器名**（卡面第一行的中文部分，如「翁」「视使之触」）。"
+            "名字后面那串拉丁文是紫卡自命名（Acri-paracron / Locti-acrium 之类），"
+            "不要输出它、也不要把它音译成中文，更不要把词条名混进 weapon。\n"
+            "⚠ 数值要连**小数点**一起读：卡面「+115.7%」就是 115.7，不能读成 1157；"
+            "「-110.8%」就是 110.8。点号看不清时宁可按最接近的两位有效数字估，"
+            "也不要直接丢掉点号。")
         try:
             # 并行竞速（原来串行试渠道，实测要 13 s）；窗口 60s（2026-09-23 补：
             # 渠道级超时可达 240s，不能让用户干等）
@@ -3294,12 +3411,34 @@ class WarframeSDJK(Star):
             cls._STAT_ALIAS_FULL = full
         return cls._STAT_ALIAS_FULL
 
+    @classmethod
+    def _stat_id_from_name(cls, name: str, rev: dict) -> "str | None":
+        """词条名（缩写 / 全称 / 卡面原文）→ 标准词条 id；认不出返回 None。
+
+        两条路径共用（截图识别 `_normalize_llm_stats` 与文字输入）：
+        全称整表命中 → 展示名 → 别名归一 → 包含匹配（长名优先）→ 形近。
+        ★ 2026-09-24：卡面原文「滑行攻击暴击几率」不含短名「滑暴」子串，
+        包含匹配会落到「暴击」，必须靠别名整表（见 parser.RIVEN_STAT_ALIASES）。
+        """
+        if not name:
+            return None
+        import difflib
+        name = cls._STAT_ALIAS.get(name, name)
+        full = cls._full_stat_alias()
+        if name in full:                  # 全称整表命中（暴击伤害 → crit_damage）
+            return full[name]
+        if name in rev:
+            return rev[name]
+        # 包含匹配：长名优先，避免短名抢走全称（「暴击」vs「暴击伤害」）
+        for abbr in sorted(rev, key=len, reverse=True):
+            if name in abbr or abbr in name:
+                return rev[abbr]
+        close = difflib.get_close_matches(name, list(rev), n=1, cutoff=0.5)
+        return rev[close[0]] if close else None
+
     @staticmethod
     def _normalize_llm_stats(data: dict, rev: dict) -> tuple[list, list]:
         """LLM 提取结果 → ([(stat_id, float)...], [...])；词条名宽松匹配。"""
-        import difflib
-        alias = WarframeSDJK._STAT_ALIAS
-        full = WarframeSDJK._full_stat_alias()
 
         def to_stat(name: str, val):
             if name is None or val is None:
@@ -3310,31 +3449,31 @@ class WarframeSDJK(Star):
                 num = float(str(val).strip().rstrip("%m米"))
             except (TypeError, ValueError):
                 return None
-            name = alias.get(name, name)
-            sid = full.get(name)          # 全称整表命中（暴击伤害 → crit_damage）
-            if sid:
-                return (sid, num)
-            if name in rev:
-                return (rev[name], num)
-            # 包含匹配：长名优先，避免短名抢走全称（「暴击」vs「暴击伤害」）
-            for abbr in sorted(rev, key=len, reverse=True):
-                if name in abbr or abbr in name:
-                    return (rev[abbr], num)
-            close = difflib.get_close_matches(name, list(rev), n=1, cutoff=0.5)
-            if close:
-                return (rev[close[0]], num)
-            return None
+            sid = WarframeSDJK._stat_id_from_name(name, rev)
+            return (sid, num) if sid else None
 
         pos: list[tuple[str, float]] = []
         neg: list[tuple[str, float]] = []
+
+        # ★ 2026-09-24：卡面负词条常被 vision 整行归进 positive（实测
+        #   「-63.4% 滑行攻击暴击几率」→ 4 正 0 负，整卡被词条数校验挡掉）。
+        #   规则：**已经放在 negative 的照旧按负词条收**；放在 positive 但
+        #   数值带负号的改判为负词条（magnitude 取绝对值）。
+        def _route(r, bucket: str):
+            sid, num = r
+            if bucket == "neg" or num < 0:
+                neg.append((sid, abs(num)))
+            else:
+                pos.append(r)
+
         for item in data.get("positive") or []:
             r = to_stat(*item)
             if r:
-                pos.append(r)
+                _route(r, "pos")
         for item in data.get("negative") or []:
             r = to_stat(*item)
             if r:
-                neg.append(r)
+                _route(r, "neg")
         return pos, neg
 
     async def _h_riven_analysis(self, parsed, event, platform) -> Reply:
@@ -3365,11 +3504,15 @@ class WarframeSDJK(Star):
                 continue
             neg = t.startswith(("负", "-"))
             body = t[1:] if neg else t
-            m = _re.fullmatch(r"([\u4e00-\u9fa5]{1,4}?)(\d+(?:\.\d+)?)", body)
-            if m and m.group(1) in rev:
-                (stats_neg if neg else stats_pos).append(
-                    (rev[m.group(1)], float(m.group(2))))
-                continue
+            # ★ 2026-09-24：词条名放宽到 1~8 字（卡面原文「滑行攻击暴击几率」6 字，
+            #   旧限 1~4 字会整条落到武器名里 → 负词条丢失、反推区间算错）
+            m = _re.fullmatch(r"([\u4e00-\u9fa5]{1,8}?)(\d+(?:\.\d+)?)", body)
+            if m:
+                sid = self._stat_id_from_name(m.group(1), rev)
+                if sid:
+                    (stats_neg if neg else stats_pos).append(
+                        (sid, float(m.group(2))))
+                    continue
             if _re.fullmatch(r"\d\+(?:\d)?", t):
                 continue  # 3+1 之类的词条数标注，P/N 直接按实际词条算
             m_d = _re.fullmatch(r"(?:倾向|d|@)(\d+(?:\.\d+)?)", t, _re.I)
@@ -3453,6 +3596,30 @@ class WarframeSDJK(Star):
                                   "变体武器可手输：紫卡分析 武器名 倾向0.95 词条…")
         name = weapon.get("zh") or weapon.get("en") or weapon["url_name"]
         mother_name = name
+        # ── 小数点修正（2026-09-24 用户报障：115.7% 读成 1157%）────────────
+        # vision 偶发把小数点读丢，整卡数值随之「都不吻合」。用**当前倾向的合法
+        # 区间**做判据：原值明显超出区间、除以 10 落回区间内 → 修正并在卡面注明。
+        decimal_fix: list[str] = []
+
+        def _fix_decimal(pairs, negative: bool):
+            out = []
+            for sid, v in pairs:
+                lo, hi = RA.stat_range(sid, cls, disp, len(stats_pos),
+                                       len(stats_neg), negative=negative)
+                if not lo or not hi:
+                    out.append((sid, v))
+                    continue
+                if not (lo * 0.7 <= v <= hi * 1.4):
+                    v10 = v / 10.0
+                    if lo * 0.85 <= v10 <= hi * 1.15:
+                        decimal_fix.append(
+                            f"{RA.fmt_value(sid, v)} → {RA.fmt_value(sid, v10)}")
+                        v = v10
+                out.append((sid, v))
+            return out
+
+        stats_pos = _fix_decimal(stats_pos, False)
+        stats_neg = _fix_decimal(stats_neg, True)
         # 负词条可能被漏识别：卡面负词条常写成「x0.55 对 Corpus 的伤害」这类
         # 乘数形式，vision 容易整行丢掉 —— 词条数系数会从 (n正,1)=0.9375
         # 错成 (n正,0)=0.75，区间整体偏小 20%，表现为「卡面数值与倾向都不吻合」。
@@ -3493,8 +3660,20 @@ class WarframeSDJK(Star):
                                   "、".join(f"{n} {v:g}" for n, v in fits) +
                                   "　请带变体名重发：紫卡分析 棱晶欧玛 [截图]")
                 elif not fits:
-                    infer_note = (f"⚠️ 卡面数值与「{mother_name}」家族的已知倾向"
-                                  "都不吻合，武器名可能识别有误")
+                    # ★ 2026-09-24 用户报障：老卡（洗出后该武器倾向被上调过，
+                    #   游戏不回溯重算旧卡数值）会四条词条整体偏低、全落 0%，
+                    #   旧实现只丢一句「武器名可能识别有误」（误导）。数值本身就
+                    #   能反推倾向：区间够紧（≤25%）时直接按反推值算区间。
+                    iv = RA.disposition_interval(stats_pos, stats_neg, cls)
+                    if iv[0] and iv[1] / iv[0] <= 1.25:
+                        disp = round((iv[0] + iv[1]) / 2, 2)
+                        infer_note = (
+                            f"卡面数值反推倾向 ≈{disp:g}（{mother_name} 当前值 "
+                            f"{wm_disp:g} 对不上，反推区间 {iv[0]:g}~{iv[1]:g}）"
+                            "—— 疑似倾向调整前洗出的老卡，区间已按反推值计算")
+                    else:
+                        infer_note = (f"⚠️ 卡面数值与「{mother_name}」家族的已知倾向"
+                                      "都不吻合，武器名可能识别有误")
             elif not RA.disp_feasible(stats_pos, stats_neg, cls, disp):
                 iv = RA.disposition_interval(stats_pos, stats_neg, cls)
                 rng = f"（反推应在 {iv[0]:g}~{iv[1]:g}）" if iv[0] else ""
@@ -3526,6 +3705,9 @@ class WarframeSDJK(Star):
             lines.insert(1, f"※ {infer_note}")
         if neg_fix_note:
             lines.insert(1, f"※ {neg_fix_note}")
+        if decimal_fix:
+            lines.insert(1, "※ 已修正小数点（截图未读出点号）：" +
+                         "、".join(decimal_fix))
         if source_note:
             lines.insert(1, f"※ 来源：{source_note.strip('（）')}")
         logger.info("[sdjk] 紫卡分析耗时 %.0f ms（含识别/查询/计算）",
@@ -3658,7 +3840,8 @@ class WarframeSDJK(Star):
         return True
 
     @staticmethod
-    def _auction_match(a: dict, q, neg_set: set, pos_set: Optional[set] = None) -> bool:
+    def _auction_match(a: dict, q, neg_set: set, pos_set: Optional[set] = None,
+                       *, ignore_status: bool = False) -> bool:
         item = a.get("item", {}) or {}
         attrs = item.get("attributes") or []
         pos = [at for at in attrs if at.get("positive")]
@@ -3684,6 +3867,10 @@ class WarframeSDJK(Star):
             return False
         if q.max_rerolls is not None and rerolls > q.max_rerolls:
             return False
+        if ignore_status:
+            # 放宽「在线状态」单独一档（词条条件仍然全保留）——完全匹配但卖家
+            # 离线，也比「词条不匹配的在线单」值得排在前面（2026-09-24）。
+            return True
         status = (a.get("owner", {}) or {}).get("status")
         if q.status == "latest" and status != "ingame":
             return False

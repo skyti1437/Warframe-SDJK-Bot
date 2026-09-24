@@ -102,6 +102,7 @@ _install_astrbot_stub()
 import main as plugin                      # noqa: E402
 from core import drops as drops_db         # noqa: E402
 from core import formatters as fmt         # noqa: E402
+from core.api_client import load_aliases   # noqa: E402
 
 FAILED: list[str] = []
 
@@ -187,6 +188,7 @@ def _make_obj(names):
     obj = plugin.WarframeSDJK.__new__(plugin.WarframeSDJK)
     obj._relic_cache = None
     obj.client = _FakeClient(names)
+    obj.client._aliases = load_aliases()   # ②-b 黑话兜底需要（真实 client 自带）
     obj.page_size = 12
     obj._dir = Path(tempfile.mkdtemp())
     return obj
@@ -246,8 +248,30 @@ for _name, _want in (("席尔火枪枪管", "席尔火枪Prime枪管"),
                      ("布莱顿枪机", "布莱顿Prime枪机"),
                      ("绝路枪管", "绝路Prime枪管")):
     _r = asyncio.run(_make_obj([])._h_relic(_Parsed(content=_name), None, "pc"))
+    # 键形态与拼写一致即可（2026-09-24 起部件名统一为官方形态「席尔火枪 Prime 枪管」，带空格）
     check(f"部件反查自动补 Prime（{_name} → {_want}）",
-          _want in str(_r.title), str(_r.title))
+          _want.replace(" ", "") in str(_r.title).replace(" ", ""), str(_r.title))
+
+# ---------------------------------------------------------------------------
+# ⑥ 中文黑话 + 部件词（2026-09-25 用户反馈：「遗物 水晶p 蓝图」无结果）
+#    aliases 词库（水晶甲/水晶/水晶p → citrine_prime_set）+ 部件词 →
+#    拼「Citrine Prime <部件词>」查 inverse；p/prime 允许跟在词库键后面。
+# ---------------------------------------------------------------------------
+_hl_cases = [
+    ("水晶p 蓝图", "Citrine Prime 蓝图"),
+    ("水晶p蓝图", "Citrine Prime 蓝图"),
+    ("水晶甲 系统蓝图", "Citrine Prime 系统蓝图"),
+    ("水晶甲p 蓝图", "Citrine Prime 蓝图"),
+    ("水晶甲prime 机体蓝图", "Citrine Prime 机体蓝图"),
+    ("水晶 头部神经光元蓝图", "Citrine Prime 头部神经光元蓝图"),
+]
+for _q, _want in _hl_cases:
+    _r = asyncio.run(_make_obj([])._h_relic(_Parsed(content=_q), None, "pc"))
+    check(f"黑话部件反查（{_q} → {_want}）",
+          _want.replace(" ", "") in str(_r.title).replace(" ", ""), str(_r.title))
+_r = asyncio.run(_make_obj([])._h_relic(_Parsed(content="水晶p 枪管"), None, "pc"))
+_blob = str(_r.title) + "".join(_r.lines) + str(getattr(_r, "raw_text", "") or "")
+check("黑话 + 不存在的部件词 → 不误报（提示未找到）", "未找到" in _blob, _blob[:80])
 
 # ---------------------------------------------------------------------------
 # 部件反查卡的「能不能获取 + 推荐位置」（2026-09-18 用户反馈）
@@ -283,14 +307,24 @@ def _piece_rows(piece: str) -> list[dict]:
     return out
 
 
-# 混合状态部件：三把遗物中「后纪 Axi V14」可掉落，另两把已入库
-# （2026-09-24 轮换后原夹具 电幻步枪Prime蓝图 整套退役，换同族新样本）
-_sample = "电幻步枪Prime枪机"
+# 混合状态部件：**动态挑**「部分遗物可掉落」的样本——每轮官方轮换后自动适配，
+# 不再硬编码「某某部件 1+2」（2026-09-24 重建器上线后改;旧夹具随轮换反复失效）。
+def _state_counts(piece: str) -> tuple[int, int]:
+    rows = _piece_rows(piece)
+    drop = sum(1 for r in rows if r["state"] == "drop")
+    return drop, len(rows) - drop
+
+
+_sample = next(p for p in sorted(_inv)
+               if len(_inv[p]) <= 6 and _state_counts(p)[0] >= 1
+               and _state_counts(p)[1] >= 1)
+_drop_n, _vault_n = _state_counts(_sample)
 _srows = _piece_rows(_sample)
 _stitle, _slines = fmt.fmt_relic_piece(_sample, _srows,
                                        farm_hints=_hints)
-check(f"部件卡标题带可获取/已入库计数（{_sample}）",
-      "可获取 1" in _slines[0] and "已入库 2" in _slines[0], _slines[0])
+check(f"部件卡标题带可获取/已入库计数（{_sample} = {_drop_n}+{_vault_n}）",
+      f"可获取 {_drop_n}" in _slines[0] and f"已入库 {_vault_n}" in _slines[0],
+      _slines[0])
 check("★★ 卡面写明「能不能获取」：可掉落的行出现「可掉落」",
       any("可掉落" in x for x in _slines), str(_slines))
 check("★★ 卡面写明「能不能获取」：入库的行出现「已入库」",
@@ -340,7 +374,7 @@ check("截断提示不会把可掉落的藏起来（写明还有几把能掉落�
       and 1 <= int(_m.group(2)) <= _hidden,
       str([x for x in _blines if x.startswith("※")]))
 
-# 全量：595 个部件的卡面都不能出现折行（注脚宽度按 25px 实测）
+# 全量：607 个部件的卡面都不能出现折行（注脚宽度按 25px 实测）
 # ★ 字体缺失时优雅跳过：开源包**不带** Noto 字库（40MB 会让 zip 超过插件市场
 #   16MB 上限，改为 scripts/fetch_font.py 按需下载）。少了这个判断，
 #   别人 clone 后跑测试会直接 OSError: cannot open resource。
@@ -364,14 +398,14 @@ else:
                 _w = _nd.textlength(_ln.lstrip("※").strip(), font=_nf)
                 if _w > 1500 - 178:
                     _over.append((_p, round(_w), _ln[:50]))
-    check("全量 595 个部件：注脚没有一行会折行",
+    check(f"全量 {len(_inv)} 个部件：注脚没有一行会折行",
           not _over, str(_over[:3]))
 
 # ★★ 用户明确要的行为（2026-09-18）：「出库的时候另外两个多半入库了，到时候
 #   下面还是一个推荐，保持底下永远是出库的那个推荐刷新位置就行」。
 #   → 推荐行必须**恰好**对应「可掉落遗物所属的纪元」：
 #     已入库的纪元不给（刷不到，给了是误导），可掉落的纪元不能漏。
-#   对全部 595 个部件逐条核对，防止以后有人改成「按第一个纪元给」或「都给」。
+#   对全部 607 个部件逐条核对，防止以后有人改成「按第一个纪元给」或「都给」。
 _bad_pairs = []
 _mixed = 0
 for _p, _orig in _inv.items():
@@ -391,7 +425,7 @@ for _p, _orig in _inv.items():
     if 0 < len(_tiers_drop) < len({fmt.relic_cn(o["relic"]).split()[0]
                                    for o in _rows}):
         _mixed += 1
-check("★★ 推荐行只给「可掉落」的纪元，且一个不漏（全量 595 个部件）",
+check(f"★★ 推荐行只给「可掉落」的纪元，且一个不漏（全量 {len(_inv)} 个部件）",
       not _bad_pairs, str(_bad_pairs[:3]))
 check(f"抽检到 {_mixed} 个「部分纪元出库」的部件（就是用户说的那种情况）",
       _mixed > 0, str(_mixed))

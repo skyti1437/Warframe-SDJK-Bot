@@ -88,8 +88,13 @@ def weapon_class(riven_type: str = "", group: str = "") -> Optional[str]:
 
     守护(Robotic)武器按 wiki 规则各自沿用关联类别（Sweeper=霰弹枪 等），
     无法一概而论，这里回落步枪并在卡面注明近似。
+
+    ★ 2026-09-24：**先看 group 再看 rivenType**——WM 的 rivenType 只记
+    「MOD 适用类别」，曲翼枪械（翠雀 Larkspur / 凯旋将军 Imperator 等）
+    在 WM 数据里 rivenType 也是 ``rifle``，先看 rivenType 会拿步枪基值
+    算曲翼枪械（暴伤基值 120 vs 80.1，差 50%）。
     """
-    for key in (riven_type, group):
+    for key in (group, riven_type):
         k = (key or "").lower()
         for name, col in _CLASS_KEYS.items():
             if name in k:

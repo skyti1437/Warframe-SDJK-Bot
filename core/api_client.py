@@ -282,6 +282,99 @@ def match_official_name(query: str, items: list[dict]) -> Optional[dict]:
     return None
 
 
+# ---------------------------------------------------------------------------
+# 紫卡武器变体名的中文补全（2026-09-24）
+#
+# dispositions_rivenmirror.json 的补全条目里有 48 条没有中文名（Prime 系新
+# 武器 / MK1 系 / 组合枪 (Primary)(Secondary) / 守护武器 / Kuva 系…），
+# 倾向卡会直接漏出英文（用户实测：翠雀家族里「Larkspur Prime 倾向 0.80 步枪」）。
+# 补全来源逐级降级，**补不到就保持英文，不猜**。
+# ---------------------------------------------------------------------------
+
+# 组合枪腔体名（KB 组合枪部件表口径：08 其他与机制术语）。
+# ⚠ Gaze 在 KB 另有一处「凝视」，组合枪部件节用的是「凝目」，按部件节取。
+_KITGUN_CHAMBER_ZH = {
+    "catchmoon": "捕月", "gaze": "凝目", "rattleguts": "响胆",
+    "sporelacer": "孢射", "tombfinger": "墓指", "vermisplicer": "虫置",
+}
+
+# 派系/品质前缀（WM/DE 官方写法：棱晶·什长双枪 / 赤毒·低音爆囊 / 终幕·血肢）
+_VARIANT_PREFIX_ZH = (
+    ("prisma", "棱晶·"), ("kuva", "赤毒·"), ("tenet", "信条·"),
+    ("coda", "终幕·"), ("sancti", "圣洁·"), ("rakta", "绯红·"),
+    ("telos", "终极·"), ("synoid", "共生·"), ("vaykor", "惩击·"),
+    ("secura", "保障·"), ("vandal", None),
+)
+# 品质后缀（官方写法：马谢特砍刀·亡魂 / 凯旋将军·破坏者）
+_VARIANT_SUFFIX_ZH = (("prime", " Prime"), ("vandal", "·破坏者"),
+                      ("wraith", "·亡魂"))
+
+
+def _norm_name_key(s: str) -> str:
+    """变体名查表用归一化：小写 + 把 -/_/空白统一成单空格。"""
+    return re.sub(r"[\s\-_]+", " ", (s or "").strip().lower())
+
+
+def localize_variant_en(en: str, base_zh: dict) -> str:
+    """英文变体名 → 中文写法（母武器官方简中 + 变体词拼装）。
+
+    Args:
+        en: 英文名，如 ``Larkspur Prime`` / ``MK1-Braton`` /
+            ``Tombfinger (Secondary)`` / ``Kuva Grattler``。
+        base_zh: ``{归一化英文基名: 官方简中}``（母武器译名查询表）。
+
+    Returns:
+        中文写法；规则不认识或基名查不到时返回空串（调用方保持英文）。
+    """
+    name = (en or "").strip()
+    if not name:
+        return ""
+
+    def _base(key: str) -> str:
+        return base_zh.get(_norm_name_key(key), "")
+
+    # 组合枪腔体：Tombfinger (Secondary) → 墓指（次要）
+    m = re.match(r"^(.+?)\s*\((Primary|Secondary)\)$", name, re.I)
+    if m:
+        b = _KITGUN_CHAMBER_ZH.get(_norm_name_key(m.group(1))) or _base(m.group(1))
+        if b:
+            return b + ("（主要）" if m.group(2).lower() == "primary" else "（次要）")
+        return ""
+    # MK1- 系：MK1-Braton → MK1-布莱顿
+    m = re.match(r"^MK1-(.+)$", name, re.I)
+    if m:
+        b = _base(m.group(1))
+        return f"MK1-{b}" if b else ""
+    low = name.lower()
+    # 前缀系：Prisma / Kuva / Tenet / Coda / 派系武器
+    for pre, zhprefix in _VARIANT_PREFIX_ZH:
+        if zhprefix and low.startswith(pre + " "):
+            b = _base(name[len(pre) + 1:])
+            return f"{zhprefix}{b}" if b else ""
+    # 后缀系：Prime / Vandal / Wraith
+    for suf, zhsuffix in _VARIANT_SUFFIX_ZH:
+        if low.endswith(" " + suf):
+            b = _base(name[: -(len(suf) + 1)])
+            return f"{b}{zhsuffix}" if b else ""
+    return ""
+
+
+_name_en_zh_cache: "dict | None" = None
+
+
+def _name_en_zh() -> dict:
+    """本地 DE 官方简中表（``core/data/de/name_en_zh.json``，缓存）。"""
+    global _name_en_zh_cache
+    if _name_en_zh_cache is None:
+        try:
+            raw = json.loads((DATA_DIR / "de" / "name_en_zh.json")
+                             .read_text(encoding="utf-8"))
+            _name_en_zh_cache = raw.get("names") or {}
+        except Exception:  # noqa: BLE001 - 缺文件只降级
+            _name_en_zh_cache = {}
+    return _name_en_zh_cache
+
+
 class WarframeAPIError(Exception):
     """统一的接口错误（含降级提示语）。"""
 
@@ -1076,7 +1169,76 @@ class WarframeClient:
                          "riven_type": e.get("riven_type", ""),
                          "group": e.get("group", "")}
             out.append(by_url[u])
+        # ★ 2026-09-24：补全条目里有一批没有中文名（实测 48 条），不补会
+        #   在倾向卡里漏出英文（用户报障「Larkspur Prime 倾向 0.80」）。
+        await self._fill_variant_zh(out)
         return out
+
+    async def _fill_variant_zh(self, entries: list[dict]) -> None:
+        """给缺中文名的紫卡武器条目补中文写法（就地写回；补不到保持英文）。
+
+        逐级来源：WM 主物品表（slug / slug+_set / 英文名）→ 译名候选表
+        （表内母武器 + DE 官方简中表 de/name_en_zh.json）→ 玄骸武器表 →
+        变体规则拼装（``localize_variant_en``）。
+        """
+        miss = [e for e in entries if not (e.get("zh") or "").strip()]
+        if not miss:
+            return
+        # 译名候选表：表内已带中文的条目（母武器）+ DE 官方简中表
+        base_zh: dict[str, str] = {}
+        for e in entries:
+            zh = (e.get("zh") or "").strip()
+            if zh:
+                for key in (e.get("en"), e.get("url_name")):
+                    k = _norm_name_key(key or "")
+                    if k:
+                        base_zh.setdefault(k, zh)
+        for k, v in _name_en_zh().items():
+            base_zh.setdefault(_norm_name_key(k), v)
+        # WM 主物品表（套装名去掉「 一套」后缀）
+        try:
+            items = await self.wm_items()
+        except Exception:  # noqa: BLE001 - WM 挂了只用本地表
+            items = []
+        by_slug: dict[str, str] = {}
+        for it in items:
+            zh = (it.get("zh") or "").strip()
+            if not zh:
+                continue
+            for suf in (" 一套", " Set"):
+                if zh.endswith(suf):
+                    zh = zh[: -len(suf)]
+                    break
+            slug = it.get("url_name") or ""
+            if slug:
+                by_slug[slug] = zh
+            for key in (slug, it.get("en") or ""):
+                k = _norm_name_key(key)
+                if k:
+                    base_zh.setdefault(k, zh)
+        filled = 0
+        for e in miss:
+            url = e.get("url_name") or ""
+            en = e.get("en") or ""
+            zh = ""
+            for cand in (url, url + "_set"):
+                zh = by_slug.get(cand, "")
+                if zh:
+                    break
+            if not zh:
+                zh = base_zh.get(_norm_name_key(en), "")
+            if not zh and url:
+                info = self.lich_weapon_info(url)
+                # 玄骸表查不到时按前缀回落成 slug（"kuva_x"），不算译名
+                if info.get("zh") and info.get("zh") != url:
+                    zh = info["zh"]
+            if not zh:
+                zh = localize_variant_en(en, base_zh)
+            if zh:
+                e["zh"] = zh
+                filled += 1
+        logger.info("[sdjk] 紫卡武器中文名补全 %d/%d 条（余下保持英文）",
+                    filled, len(miss))
 
     # ------------------------------------------------------------------
     # Warframe.Market v1：价格统计（趋势 / 排行）
@@ -1560,6 +1722,17 @@ class WarframeClient:
                                if x.get("url_name") == "primed_" + alias), None)
                 if primed:
                     target = primed.get("url_name")
+                else:
+                    # ★ 2026-09-24：`primed_` 是 MOD 的形态；普通版也能交易时
+                    #   （哨兵/武器成套上架），Prime 版是 `_prime_set` 这类**兄弟
+                    #   条目** —— 旧实现只找 primed_，于是「wm 鹦鹉螺p」落回基础版
+                    #   nautilus_set（用户报障）。改为按名称找 Prime 兄弟。
+                    base_it = next((x for x in items
+                                    if x.get("url_name") == alias), None)
+                    sib = (matching.prime_sibling(base_it, items)
+                           if base_it else None)
+                    if sib:
+                        target = sib.get("url_name")
             for it in items:
                 if it.get("url_name") == target:
                     return it
@@ -1712,6 +1885,22 @@ class WarframeClient:
             hit = next((w for w in weapons if w.get("zh") == zh_hits[0]), None)
             if hit:
                 hit = dict(hit)
+                hit["_fuzzy_from"] = query
+                return hit
+        # ★ 2026-09-24 兜底：卡面识别会把「武器名 + 紫卡自命名」连写或音译
+        #   进武器名（「翁 Acri-paracron」→「翁洛奇亚鲁姆」、「初始 翁」），
+        #   精确/归一化/形近都捞不回来。最后一跳：在**归一化输入**里找最长的
+        #   已知武器名（中/英都试），命中即用并标 _fuzzy_from（卡面注明来源）。
+        nq_in = matching.normalize(query)
+        if nq_in:
+            best: tuple[int, dict] | None = None
+            for w in weapons:
+                for cand in (w.get("zh") or "", w.get("en") or ""):
+                    nc = matching.normalize(cand)
+                    if nc and nc in nq_in and (best is None or len(nc) > best[0]):
+                        best = (len(nc), w)
+            if best:
+                hit = dict(best[1])
                 hit["_fuzzy_from"] = query
                 return hit
         return None
@@ -2062,11 +2251,17 @@ class WarframeClient:
                 continue
             if not self._family_match(base_zh, base_en, zh, en):
                 continue
+            # 部件/蓝图不是家族成员（「翁 Prime 握柄/刀刃」会被子串判定捞进来）
+            if {"component", "blueprint"} & set(it.get("tags") or []):
+                continue
             if tags and not (tags & set(it.get("tags") or [])):
                 continue
             v, _k = await self.resolve_variant_disp(zh)
             if v:
-                found.setdefault(zh, v)
+                # 展示名去掉 WM 的套装/部件后缀（「翁 Prime 一套」→「翁 Prime」）
+                disp_zh = re.sub(r"\s*(一套|组合包|蓝图|Set|Blueprint)\s*$",
+                                 "", zh.strip())
+                found.setdefault(disp_zh or zh, v)
         return sorted(found.items(), key=lambda kv: kv[1])
 
     async def resolve_variant_disp(self, name: str) -> tuple:
@@ -2094,9 +2289,21 @@ class WarframeClient:
                 en = (it.get("en") or "").lower()
                 break
         key = re.sub(r"[\s\-]+", "", en)
-        for k, v in table.items():
-            if re.sub(r"[\s\-]+", "", k) == key:
-                return v, k
+        # ★ 2026-09-24：WM 的条目名带后缀（套装是「… 一套 / … Set」），而 wiki
+        #   倾向表用的是裸名（Okina Prime）—— 直接比对永远命中不了，家族卡因此
+        #   拿不到变体倾向（用户报障卡的数值其实正好卡在 翁 Prime 0.7 上）。
+        #   逐级剥尾词（先专用后缀，再按空格丢词）后再比。
+        cands = [key]
+        parts = re.sub(r"[\s\-]+", " ", en).strip().split()
+        while len(parts) > 1:
+            parts = parts[:-1]
+            cands.append(re.sub(r"[\s\-]+", "", " ".join(parts)))
+        for cand in cands:
+            if not cand:
+                continue
+            for k, v in table.items():
+                if re.sub(r"[\s\-]+", "", k) == cand:
+                    return v, k
         return None, ""
 
     # ------------------------------------------------------------------

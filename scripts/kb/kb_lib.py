@@ -417,6 +417,13 @@ class Sources:
                 self.ov_ability[_au] = _ar
             for _cu, _cn in (_rec.get('components') or {}).items():
                 self.ov_name[_cu] = _cn
+        # 生成覆盖层：遗物奖励等散装物品的官方简中名
+        # （scripts/kb/extract_relic_overrides.py 从 lang_zh_44.json 摘录，可整体重生成）
+        _ovi = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            'zh_overrides_items.json')
+        if os.path.exists(_ovi):
+            for _u, _n in (jload(_ovi).get('items') or {}).items():
+                self.ov_name.setdefault(_u, _n)
         self._stats = Counter()
 
     # ------------------------------------------------ 补充数据的译名

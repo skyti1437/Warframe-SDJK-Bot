@@ -101,6 +101,12 @@
     "default": "",
     "hint": "填了会在提示里显示这个 id，方便你自己按 id 上传文档；不填不影响任何功能。"
   },
+  "wiki_intro": {
+    "description": "wiki 简介卡片（战甲 / 武器 / MOD / 资源 / 同伴）",
+    "type": "bool",
+    "default": true,
+    "hint": "开启后 wiki 查询附一张简短介绍卡（定位 / 段位 / 基础属性 / 获取），链接仍以可点击文本另发。简介数据（core/data/wiki_intro.json）由本机知识库构建产出、不进开源与市场包——文件不在时自动只给链接。"
+  },
   "scan_cooldown": {
     "description": "识卡冷却秒数（同一人两次识卡的最小间隔，0=不限制）",
     "type": "int",

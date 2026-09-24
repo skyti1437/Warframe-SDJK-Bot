@@ -72,7 +72,7 @@ MARKET_SKIP_FILES = {".gitleaks.toml",        # 仓库门面（防泄漏 CI 配�
 # +core/data/dispositions_rivenmirror.json，变体解析倾向数据随市场件分发）。
 # 与 package_release.EXPECTED_OSS_STAGE_FILES 同理——有意变更须同步
 # 此常量并在 commit 正文列文件名与理由。
-EXPECTED_MARKET_ENTRIES = 82
+EXPECTED_MARKET_ENTRIES = 93
 
 
 def main() -> int:

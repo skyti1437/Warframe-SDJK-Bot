@@ -37,9 +37,17 @@ def pad(text: str, width: int) -> str:
     return text + " " * max(0, gap)
 
 
+# 行内标记：⟦pol:<key>⟧ = 极性小图标（画图模式就地绘制，文本模式剥掉）。
+# 生成方见 core/wiki_intro.py（知识库「自带极性：…」行）。
+_POL_MARK_RE = re.compile(r"⟦pol:([a-z_]+)⟧")
+
+
 def text_card(title: str, lines: list[str], footer: str = "",
               max_width: int = 44) -> str:
     """构造排版整齐的字符界面卡片。"""
+    title = _POL_MARK_RE.sub("", title or "")
+    lines = [_POL_MARK_RE.sub("", x or "") for x in lines]
+    footer = _POL_MARK_RE.sub("", footer or "")
     inner = [title] + list(lines)
     if footer:
         inner.append(footer)
@@ -96,6 +104,43 @@ except ImportError:  # pragma: no cover
 from .logging_compat import logger as _LOGGER
 
 FONT_DIR = Path(__file__).resolve().parent / "data" / "fonts"  # core/data/fonts
+# 极性小图标（wiki 抓取的 64px PNG，2026-09-24）。该目录不进开源/市场包
+# （同 fonts，见 dist/package_release.py::OSS_EXCLUDE_DIRS）——文件缺失时
+# 行内标记静默退化为不画图标，纯文本照常。
+POLARITY_DIR = Path(__file__).resolve().parent / "data" / "icons" / "polarity"
+_POL_ICONS: dict = {}
+
+
+def _polarity_icon(key: str):
+    """极性图标（RGBA Image）；缺失或坏文件返回 None（装饰项，不抛）。"""
+    if key in _POL_ICONS:
+        return _POL_ICONS[key]
+    img = None
+    if Image is not None:
+        try:
+            p = POLARITY_DIR / f"{key}.png"
+            if p.exists():
+                with Image.open(p) as im:
+                    img = im.convert("RGBA")
+        except Exception:      # noqa: BLE001
+            img = None
+    _POL_ICONS[key] = img
+    return img
+
+
+def _pol_mark_px(font) -> float:
+    """一个 ``⟦pol:…⟧`` 标记的绘制宽度（设备像素，含图标后间距）。
+
+    与 ``_draw_polarity_icon`` 的宽度算法保持一致：换行测量时标记按这个
+    宽度计入（不能按 ⟦pol:vazarin⟧ 这串字符的宽度算，否则长行会提前折行）。
+    图标缺失（开源包不带 icons 目录）时返回 0。
+    """
+    ref = _polarity_icon("madurai")
+    if ref is None or not ref.height:
+        return 0.0
+    size = int(getattr(font, "size", 30) * 1.1)
+    size = max(12, min(size, 96))
+    return (round(ref.width * size / ref.height) + 7) * SS
 
 # 超采样倍率（抗锯齿）。3 倍画布 3360 宽再缩到 1120，像素操作量是 2 倍方案的
 # 2.25 倍 —— 测试宿主只有 **2 核**，且常与其它插件（分词 / LLM 调用）抢 CPU，
@@ -658,8 +703,13 @@ class ImageRenderer:
             #   部件反查卡实测行内容只到 810px、卡宽却被注脚撑到 1416px，
             #   右半边空着（与折行字号那处是同一个 bug 的两半）。
             _lf = note_font if clean.startswith("※") else body_font
+            # 极性图标标记：按图标宽度计入、字符串本身剥离（同 _wrap 口径）
+            _n_mark = clean.count("⟦pol:")
+            _meas_txt = _POL_MARK_RE.sub("", clean) if _n_mark else clean
             w_line = (max((measure.textlength(s, font=_lf)
-                           for s in clean.splitlines()), default=0.0) / SS)
+                           for s in _meas_txt.splitlines()), default=0.0) / SS)
+            if _n_mark:
+                w_line += _n_mark * _pol_mark_px(_lf) / SS
             if "[" in clean and "]" in clean:
                 w_line += 52
             if not clean.startswith(("※", "◆")):
@@ -1203,9 +1253,19 @@ class ImageRenderer:
                     for seg in ImageRenderer._wrap(parts, font, max_w_px)]
         max_w = max_w_px * SS
         d = ImageDraw.Draw(Image.new("RGB", (8, 8)))
+        # 极性图标标记：测量时按图标实际宽度计入（剥离标记字符串本身），
+        # 否则「⟦pol:vazarin⟧」这 13 个字符会把长行提前挤折。
+        mark_px = _pol_mark_px(font) if "⟦pol:" in text else 0.0
+
+        def _mw(s: str) -> float:
+            if not mark_px:
+                return d.textlength(s, font=font)
+            n = s.count("⟦pol:")
+            return d.textlength(_POL_MARK_RE.sub("", s), font=font) + n * mark_px
+
         out, line = [], ""
         for ch in text:
-            if line and d.textlength(line + ch, font=font) > max_w:
+            if line and _mw(line + ch) > max_w:
                 # 优先在中文分隔符后断开：不这样，「▣Xaku机体蓝图、★雷射瞄具」这类
                 # 用「、」连起来的奖励串会被从词中间劈开（「▣X」/「aku机体蓝图」）。
                 sep = max((line.rfind(c) for c in "、·；，～"), default=-1)
@@ -1292,6 +1352,40 @@ class ImageRenderer:
 
     def _draw_tokens(self, d, text: str, x: float, y: float, font, base_color,
                      max_w: float):
+        """按语义 token 上色绘制（行内高亮）+ 行内极性图标。
+
+        文本含 ``⟦pol:<key>⟧`` 标记时，就地画小图标再继续画后面的文本；
+        无标记时与原实现完全一致（零行为变化）。返回绘制结束的 x。
+        """
+        if text and "⟦pol:" in text:
+            for i, part in enumerate(_POL_MARK_RE.split(text)):
+                if i % 2 == 0:
+                    if part:
+                        x = self._draw_tokens_text(d, part, x, y, font,
+                                                   base_color, max_w)
+                else:
+                    x += self._draw_polarity_icon(d, part, x, y, font)
+            return x
+        return self._draw_tokens_text(d, text, x, y, font, base_color, max_w)
+
+    def _draw_polarity_icon(self, d, key: str, x: float, y: float,
+                            font) -> float:
+        """画一个极性小图标，返回推进宽度；图标缺失返回 0（文本照常）。"""
+        img = _polarity_icon(key)
+        if img is None or not img.width:
+            return 0.0
+        size = int(getattr(font, "size", 30) * 1.1)
+        size = max(12, min(size, 96))
+        w = max(1, round(img.width * size / img.height))
+        img = img.resize((w, size), Image.LANCZOS)
+        canvas = getattr(d, "_image", None)     # 出图画布（RGBA）
+        if canvas is None:                      # pragma: no cover - 兜底
+            return 0.0
+        canvas.alpha_composite(img, (int(x), int(y - 2 * SS)))
+        return w + 7 * SS
+
+    def _draw_tokens_text(self, d, text: str, x: float, y: float, font,
+                          base_color, max_w: float):
         """按语义 token 上色绘制（行内高亮）。超过 3 个方括号 token 的行降级为
         纯色词条（避免芯片墙溢出）；芯片超出右缘时同样回退纯文本。"""
         rules = [
@@ -1392,7 +1486,10 @@ class ImageRenderer:
                 x += wch
             pos = m.end()
         if pos < len(text):
-            d.text((x, y), text[pos:], font=font, fill=base_color + (255,))
+            tail = text[pos:]
+            d.text((x, y), tail, font=font, fill=base_color + (255,))
+            x += d.textlength(tail, font=font)
+        return x
 
     @staticmethod
     def _diamond(cx: float, cy: float, r: float):
