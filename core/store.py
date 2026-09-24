@@ -153,6 +153,16 @@ class SubscriptionStore(JsonStore):
             await self.save()
         return removed
 
+    async def update(self, sub: Subscription) -> None:
+        """按 sid 原位回写一条订阅（notified / hits_left 等运行期状态落盘）。"""
+        for i, d in enumerate(self._data):
+            if d.get("sid") == sub.sid:
+                self._data[i] = sub.to_dict()
+                break
+        else:
+            return
+        await self.save()
+
     async def sync(self, subs: list[Subscription]) -> None:
         self._data = [s.to_dict() for s in subs]
         await self.save()

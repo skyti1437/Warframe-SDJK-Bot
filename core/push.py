@@ -129,6 +129,7 @@ class PushDaemon:
         self._task: Optional[asyncio.Task] = None
         self._last: dict[str, dict] = {}   # platform -> 上次快照摘要
         self._filters: dict[str, FissureFilter] = {}  # sub.sid -> 裂隙筛选缓存
+        self._matched: dict[str, set[str]] = {}  # 事件key -> 本轮筛选命中的 sub.sid
 
     # ------------------------------------------------------------------
     def start(self) -> None:
@@ -167,7 +168,12 @@ class PushDaemon:
             await self.store.save()
         subs = [s for s in self.store.all() if not s.expired(now)]
         if not subs:
+            self._filters.clear()
             return
+        # 订阅删掉后筛选缓存也要跟着走，长期运行才不会慢慢漏内存
+        live_sids = {s.sid for s in subs}
+        for sid in [k for k in self._filters if k not in live_sids]:
+            self._filters.pop(sid, None)
         platforms = sorted({s.platform for s in subs})
         for platform in platforms:
             events = await self._snapshot_diff(platform, subs)
@@ -175,20 +181,29 @@ class PushDaemon:
                 continue
             for kind, key, text in events:
                 sent: set[str] = set()      # 同一事件对同一会话只推一次
-                for sub in [s for s in subs
-                            if s.platform == platform and s.event == kind]:
-                    # 用户常常把同义筛选叠好几条（「蹲 裂隙 捕获」+「蹲 裂隙 虚空捕获」…），
-                    # 不加这层去重就会对同一条新裂隙重复刷屏。
+                cands = [s for s in subs
+                         if s.platform == platform and s.event == kind]
+                # 同群常把同义筛选叠好几条（「蹲 裂隙 捕获」+「蹲 裂隙 虚空捕获」…）；
+                # 派发必须选「自身筛选命中」的那条，否则会把没命中的订阅
+                # （一次性）消费掉、或错套它的免打扰时间窗。
+                prefer = ([s for s in cands
+                           if s.sid in self._matched.get(key, set())]
+                          or cands)
+                for sub in prefer:
                     if sub.umo in sent:
                         continue
-                    sent.add(sub.umo)
-                    await self._dispatch(sub, key, text, now)
+                    # 真推出去才占掉这个会话的名额：前面那条被自己的免打扰窗
+                    # 挡住时，后面全天候的订阅还能接住同一事件。
+                    if await self._dispatch(sub, key, text, now):
+                        sent.add(sub.umo)
 
-    async def _dispatch(self, sub: Subscription, key: str, text: str, now: float) -> None:
+    async def _dispatch(self, sub: Subscription, key: str, text: str,
+                        now: float) -> bool:
+        """尝试派发一条订阅；返回是否真的推送成功。"""
         if key in sub.notified:
-            return
+            return False
         if not sub.time_window().allows(_local_now()):
-            return
+            return False
         sub.notified[key] = now
         if len(sub.notified) > 200:
             for k in sorted(sub.notified, key=lambda k: sub.notified[k])[:100]:
@@ -198,11 +213,15 @@ class PushDaemon:
         except Exception as exc:  # noqa: BLE001
             self.log.warning("[warframe] 推送失败（%s）：%s", sub.umo, exc)
             sub.notified.pop(key, None)
-            return
+            return False
         if not sub.consume():
             await self.store.remove(lambda s: s.sid == sub.sid)
         else:
-            await self.store.sync(self.store.all())
+            # 运行期状态（notified 去重键 / hits_left 计数）在内存副本上改的，
+            # 必须按 sid 原位落盘；旧写法 sync(self.store.all()) 会从 _data
+            # 重新拷贝一遍，等于白写一次盘、什么都没存下。
+            await self.store.update(sub)
+        return True
 
     # ------------------------------------------------------------------
     async def _snapshot_diff(self, platform: str,
@@ -210,6 +229,7 @@ class PushDaemon:
         """拉取快照并产出 (事件类型, 去重键, 推送文本) 列表。"""
         wanted = {s.event for s in subs if s.platform == platform}
         out: list[tuple[str, str, str]] = []
+        matched = self._matched = {}   # 事件key -> 命中的 sub.sid（仅筛选类事件）
         last = self._last.setdefault(platform, {})
         first = not last  # 首轮只建立基线，不把存量内容当作新事件推送
         try:
@@ -227,10 +247,20 @@ class PushDaemon:
                                 + (" · 钢铁" if f.get("isHard") else "")
                                 + (" · 九重天" if f.get("isStorm") else "")
                                 + f" · 剩{countdown(f['expiry'])}"))
-                # 只保留订阅规则命中的裂隙事件，避免刷屏
+                # 只保留订阅规则命中的裂隙事件避免刷屏；命中的订阅 sid 一并
+                # 记下，供 tick 派发时选中（而不是按存储顺序碰运气取第一条）。
                 fissure_subs = [s for s in subs if s.platform == platform and s.event == "裂隙"]
-                out = [e for e in out if e[0] != "裂隙" or any(
-                    self.filter_for(s).match(live.get(e[1], {})) for s in fissure_subs)]
+                kept = []
+                for e in out:
+                    if e[0] != "裂隙":
+                        kept.append(e)
+                        continue
+                    hit = {s.sid for s in fissure_subs
+                           if self.filter_for(s).match(live.get(e[1], {}))}
+                    if hit:
+                        kept.append(e)
+                        matched[e[1]] = hit
+                out = kept
                 last["fissure_ids"] = list(live.keys())
 
             if "夜灵" in wanted:
@@ -340,13 +370,16 @@ class PushDaemon:
                     if prev_key and prev_key != sl["key"]:
                         subs_a = [s for s in subs
                                   if s.platform == platform and s.event == "仲裁"]
-                        if not subs_a or any(arbi.match_rule(s.rule, sl)
-                                             for s in subs_a):
+                        hit = {s.sid for s in subs_a
+                               if arbi.match_rule(s.rule, sl)}
+                        if not subs_a or hit:
                             tier = f" · 评级 {sl['tier']}" if sl["tier"] else ""
                             left_min = max(0, int((sl["end"] - time.time()) // 60))
-                            out.append(("仲裁", f"arbi-{sl['key']}-{int(sl['start'])}",
+                            akey = f"arbi-{sl['key']}-{int(sl['start'])}"
+                            out.append(("仲裁", akey,
                                         f"⚖️ 仲裁已轮换：{sl['line']}{tier}"
                                         f" · 剩 {left_min} 分钟"))
+                            matched[akey] = hit
                     last["arbi_slot"] = sl["key"]
 
             if "钢路侵袭" in wanted:
@@ -407,8 +440,11 @@ class PushDaemon:
 
             if "每日特惠" in wanted:
                 deals = await self.client.daily_deals(platform)
-                first = deals[0] if deals else {}
-                dkey = first.get("id") or f"{first.get('item', '')}"
+                # 别叫 first：那是「首轮基线」标志，被这里覆盖成商品 dict 后，
+                # 排在每日特惠之后的新事件段会把存量内容误当增量推送。
+                # 每日特惠自身用 deal_key 判基线，与 first 无关。
+                lead = deals[0] if deals else {}
+                dkey = lead.get("id") or f"{lead.get('item', '')}"
                 if last.get("deal_key") and last["deal_key"] != dkey:
                     lines = [f"{d.get('item', '?')}：{d.get('salePrice', '?')}p "
                              f"（库存{d.get('total', '?')}）" for d in deals]

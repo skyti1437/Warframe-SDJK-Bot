@@ -149,6 +149,82 @@ check("「蹲 取消」无词 = 全部", _label4 == "全部")
 
 _ev5, _, _exact5, _, _ = build_cancel_selector(UMO, ["山谷"])
 check("「蹲 山谷 取消」按事件删 1 条且不跨群", _ev5 == "山谷" and _apply(_exact5) == 1)
+
+# —— 2026-09-24 自查回归：派发/落盘语义 ——
+# ① 同群多条裂隙订阅只该派发给「自身筛选命中」的那条；
+# ② 前一条被免打扰窗挡住时，同群全天候订阅要能接住；
+# ③ 持续订阅的 hits_left / notified 必须原位落盘（旧 sync 写法是空转）。
+import core.push as push_mod  # noqa: E402
+
+_pushed: list[tuple[str, str]] = []
+
+
+async def _send2(umo, text):
+    _pushed.append((umo, text))
+
+
+async def dispatch_scenarios():
+    tmp2 = Path(tempfile.mkdtemp())
+
+    # ① 生存订阅在前、捕获订阅在后；新裂隙是钢铁捕获 → 只命中后者。
+    st1 = SubscriptionStore(tmp2 / "s1.json")
+    d1 = PushDaemon(FakeClient(), st1, _send2, FakeLogger(), interval=15)
+    subA = Subscription(umo="group://A", platform="pc", event="裂隙",
+                        rule="生存", until=-1, once=True)
+    subB = Subscription(umo="group://A", platform="pc", event="裂隙",
+                        rule="捕获", until=-1, once=True)
+    await st1.add(subA)
+    await st1.add(subB)
+    await d1.tick()          # 基线：f1
+    n = len(_pushed)
+    await d1.tick()          # f2 钢铁捕获：只命中 subB
+    check("同群多筛选：派发给筛选命中的订阅", len(_pushed) == n + 1,
+          str(_pushed[n:]))
+    left = [s.rule for s in st1.all()]
+    check("同群多筛选：未命中的订阅不被消费（生存留存）",
+          left == ["生存"], str(left))
+
+    # ② 免打扰窗挡住首条时，全天候订阅接住同一事件。
+    st2 = SubscriptionStore(tmp2 / "s2.json")
+    d2 = PushDaemon(FakeClient(), st2, _send2, FakeLogger(), interval=15)
+    subC = Subscription(umo="group://B", platform="pc", event="裂隙",
+                        rule="捕获", until=-1, once=True,
+                        windows={"start": 0, "end": 1})   # 只在 0-1 点推
+    subD = Subscription(umo="group://B", platform="pc", event="裂隙",
+                        rule="捕获", until=-1, once=True)
+    await st2.add(subC)
+    await st2.add(subD)
+    await d2.tick()
+    n2 = len(_pushed)
+    await d2.tick()
+    check("免打扰窗挡住首条时，全天候订阅接住推送", len(_pushed) == n2 + 1,
+          str(_pushed[n2:]))
+    left2 = {s.sid for s in st2.all()}
+    check("被窗口挡住的订阅留存，接住的那条消费",
+          subC.sid in left2 and subD.sid not in left2, str(left2))
+
+    # ③ 持续订阅（hits_left=2）命中后计数与去重键要落盘。
+    st3 = SubscriptionStore(tmp2 / "s3.json")
+    d3 = PushDaemon(FakeClient(), st3, _send2, FakeLogger(), interval=15)
+    subE = Subscription(umo="group://C", platform="pc", event="裂隙",
+                        rule="捕获", until=-1, once=False, hits_left=2)
+    await st3.add(subE)
+    await d3.tick()
+    await d3.tick()
+    saved = [s for s in st3.all() if s.sid == subE.sid]
+    check("hits_left 计数落盘（2→1）",
+          len(saved) == 1 and saved[0].hits_left == 1,
+          str(saved and saved[0].hits_left))
+    check("notified 去重键落盘",
+          len(saved) == 1 and len(saved[0].notified) == 1,
+          str(saved and saved[0].notified))
+
+
+_real_local_now = push_mod._local_now
+push_mod._local_now = lambda: datetime(2026, 9, 24, 14, 0, 0)  # 周四 14:00
+asyncio.run(dispatch_scenarios())
+push_mod._local_now = _real_local_now
+
 print()
 if FAILED:
     print(f"共 {len(FAILED)} 项失败：{FAILED}")
