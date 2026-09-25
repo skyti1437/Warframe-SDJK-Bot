@@ -81,6 +81,17 @@ except ImportError:  # pragma: no cover
     from core.store import GroupStore, Subscription, SubscriptionStore
     from core import de_worldstate as de_ws
 
+
+def _relic_tier_en() -> dict:
+    """中文档位 → 掉落表英文键（小写）。真源 core/parser.TIER_CN（含先锋/全能）。
+
+    ★ 遗物相关的档位表**统一走这里**——曾在 3 处各自硬编（_norm_relic / 列表卡 /
+    单查状态），2026-09 新增「先锋」档时全漏，用户查「遗物 先锋 C1」显示未找到。
+    """
+    from core.parser import TIER_CN
+    return {k: v.lower() for k, v in TIER_CN.items() if not k.isascii()}
+
+
 def _llm_request_hook():
     """LLM 请求钩子装饰器；测试桩/旧版 AstrBot 没有该钩子时退化为空装饰器。"""
     deco = getattr(filter, "on_llm_request", None)
@@ -495,7 +506,7 @@ class Reply:
 
 @register("astrbot_plugin_warframe", "skyti1437",
           f"{BRAND}：世界状态 / 市场查价 / 蹲点推送",
-          "1.0.6")
+          "1.0.7")
 class WarframeSDJK(Star):
     def __init__(self, context: Context, config: AstrBotConfig | None = None):
         super().__init__(context)
@@ -618,6 +629,27 @@ class WarframeSDJK(Star):
         logger.info("[sdjk] 插件已加载，共注册 %d 个主指令（输出模式 %s，渲染器%s）",
                     len(self._routes), self.render_mode,
                     "可用" if self.renderer.available else "不可用·降级文字")
+        if not self.renderer.available:
+            # ★ 别只说「降级文字」（2026-09-25 立）：市场/开源包不带字体，
+            #   给用户能直接照做的排查指引。
+            logger.warning(
+                "[sdjk] 未找到可用中文字体，图片卡片已降级为纯文本。排查："
+                "① Linux/Docker 装系统字体 `apt-get install -y fonts-noto-cjk`"
+                "（或 fonts-wqy-microhei）；"
+                "② 或下载字体 `python scripts/fetch_font.py`；"
+                "③ 或把任意中文字体（ttc/ttf/otf）放到插件数据目录的 fonts/ 下"
+                "（随插件更新保留）；改完重载插件，本行应变为「渲染器可用」")
+        if self._wiki_intro_on():
+            try:
+                from core import wiki_intro as _wi
+                if not _wi.available():
+                    # 开关开着但数据缺失（市场/开源包按设计不带 wiki_intro.json）
+                    # ——明确说清现象与预期，别让用户以为是故障（2026-09-25 立）
+                    logger.info(
+                        "[sdjk] wiki 简介卡数据缺失（市场/开源包按设计不含）："
+                        "该类条目将出「最小卡」+ 可点链接；遗物卡/部件卡不受影响")
+            except Exception:  # noqa: BLE001 - 探测失败不影响启动
+                pass
 
     @staticmethod
     def _warmup() -> None:
@@ -690,6 +722,30 @@ class WarframeSDJK(Star):
         """
         while True:
             try:
+                # 每轮刷新前回收 FlareSolverr 会话（destroy→create）：换一个全新
+                # 标签页，防 Chromium 长跑崩掉后整轮连败（2026-09-25 事故：
+                # 02:18 的标签页 08:18 崩掉，随后每小时拿坏会话重试全败）。
+                # best-effort：回收失败不阻断刷新本身。
+                try:
+                    if await self.client.recycle_flare_session():
+                        logger.info("[sdjk] FlareSolverr 会话已回收（换用新标签页）")
+                except Exception:  # noqa: BLE001 - 回收失败照常刷新
+                    pass
+                # 内存自报（2026-09-25 立）：宿主 1.7G RAM 而 astrbot 有 2.25G 压在
+                # swap，卡顿疑似由此而来。每轮记一次 RSS/VmSwap，用于判断是
+                # 「随 uptime 线性涨」还是「渲染后台阶式涨」，为降占用/升配定方向。
+                try:
+                    _st = {}
+                    with open("/proc/self/status", "r", encoding="utf-8") as _fh:
+                        for _ln in _fh:
+                            if _ln.startswith(("VmRSS:", "VmSwap:")):
+                                _k, _v = _ln.split(":", 1)
+                                _st[_k] = _v.strip()
+                    if _st:
+                        logger.info("[sdjk] 进程内存自报：%s",
+                                    " ".join(f"{k}={v}" for k, v in _st.items()))
+                except Exception:  # noqa: BLE001 - 非 Linux（本地调试）跳过
+                    pass
                 status = await self.client.refresh_valence()
                 if status != "fresh":
                     logger.info("[sdjk] 元素加成快照已刷新：%s", status)
@@ -979,8 +1035,9 @@ class WarframeSDJK(Star):
 
         if cmd == "锚点":
             # ★★ 安全审查（2026-09-18）发现：本指令写入的锚点**没有任何读取方**。
-            #   仲裁表已改走 arbi.wf.wiki 的确定性排期，`de_worldstate.arb_from_anchor`
-            #   成了死代码 —— 也就是说用户「校准」完其实毫无效果；而写入点是
+            #   仲裁表已改走 arbi.wf.wiki 的确定性排期，当初承接校准的
+            #   `de_worldstate.arb_from_anchor` 已删除（2026-09-25 清死代码）
+            #   —— 也就是说用户「校准」完其实毫无效果；而写入点是
             #   全局的（cfg + runtime/arb_anchor.json），任何群的群管都能覆盖，
             #   属于跨租户写入。
             #   按项目铁律「失效功能必须给出真实可用的替代指令」，这里保留指令名
@@ -1046,7 +1103,11 @@ class WarframeSDJK(Star):
         names = ["夜灵平野", "奥布山谷", "魔胎之境", "双衍王境", "扎里曼派系",
                  "仲裁", "每日突击", "虚空奸商", "执刑官猎杀", "钢铁侵蚀",
                  "午夜电波", "1999日历", "深层科研", "时光科研"]
-        timers = [(n, r) for n, r in zip(names, res) if isinstance(r, dict)]
+        # ★ 不许静默丢行（2026-09-25）：源恒抛/未下发（如 DE 源没有的
+        #   仲裁、钢铁侵蚀）也要把 None 传给 formatter，由它显式打
+        #   「暂无时效数据（源未下发）」；旧写法 isinstance 过滤会让这两行
+        #   从卡面里静默消失（用户以为看全了）。
+        timers = [(n, r if isinstance(r, dict) else None) for n, r in zip(names, res)]
         timers.append(("沉沦之地", await self.client.descendia(platform)))
         # 本地可推算的确定性轮换（不占网络请求）
         rot = {}
@@ -1624,11 +1685,13 @@ class WarframeSDJK(Star):
                 f"传进 AstrBot 知识库{tail}")
 
     def _wiki_intro_on(self) -> bool:
-        """wiki 简介卡片开关。
+        """wiki 卡片开关（默认开）。
 
-        卡片数据（core/data/wiki_intro.json）只在自部署版提供，**不进开源 /
-        市场包**（dist/package_release.py::EXCLUDE_FILES）——公开版文件缺失，
-        wiki 自然只给链接（2026-09-24 用户定的口径：有知识库的才有细节）。
+        卡片是**分层出图**的：遗物卡 / 部件反查卡 / 最小兜底卡只依赖随包分发的
+        `relic_index.json`、`relic_inverse.json`，**市场版也有**；只有「简介卡」
+        正文需要 `core/data/wiki_intro.json`（**不进开源 / 市场包**）——
+        数据缺失时该类条目出「最小卡」（一行说明 + 可点链接），不再是纯文本。
+        启动日志会提示数据缺失（见 initialize）。
         """
         return bool(self.cfg.get("wiki_intro", True))
 
@@ -2425,21 +2488,29 @@ class WarframeSDJK(Star):
 
     @staticmethod
     def _norm_relic(q: str) -> str:
-        """"后纪A2 / A2后 / Axi A2" -> "后纪 Axi A2" 简化归一（含数字组）。"""
+        """"后纪A2 / 先锋C1 / 安魂 I / Axi A2" -> "后纪 Axi A2" 简化归一。
+
+        ★ 档位表一律取 core/parser.TIER_CN（含 Omnia/Vanguard）——曾本地硬编 5 档，
+        2026-09 新增「先锋」档后「遗物 先锋 C1」直接「未找到」（资料会话交接）；
+        代号支持 字母+数字（A2/A 2）、罗马数字（I..IV）、词式（Eterna，安魂档）。
+        """
         import re as _re
-        q = q.strip().replace("纪元", "").replace("  ", " ")
-        tiers = {"古纪": "Lith", "前纪": "Meso", "中纪": "Neo", "后纪": "Axi",
-                 "安魂": "Requiem"}
-        era = next((k for k in tiers if q.startswith(k)), None)
-        code = q[len(era):].strip() if era else q
+        from core.parser import TIER_CN
+        zh2en = {k: v for k, v in TIER_CN.items() if not k.isascii()}
+        q = _re.sub(r"\s+", " ", q.strip().replace("纪元", ""))
+        era = next((k for k in zh2en if q.startswith(k)), None)
         if not era:
             return q
+        code = q[len(era):].strip()
         code = code.split()[0] if code else ""
-        m2 = _re.match(r"^([A-Za-z])(\d{1,2})$", code)
-        if not m2 and code:
-            m2 = _re.match(r"^([A-Za-z])\s*(\d{1,2})$", code)
+        m2 = (_re.match(r"^([A-Za-z])(\d{1,2})$", code)
+              or _re.match(r"^([A-Za-z])\s+(\d{1,2})$", code))
         if m2:
-            return f"{era} {tiers[era]} {m2.group(1).upper()}{int(m2.group(2))}"
+            return f"{era} {zh2en[era]} {m2.group(1).upper()}{int(m2.group(2))}"
+        if code and _re.fullmatch(r"[IVX]+", code, _re.I):
+            return f"{era} {zh2en[era]} {code.upper()}"
+        if code and _re.fullmatch(r"[A-Za-z]{2,}", code):
+            return f"{era} {zh2en[era]} {code.capitalize()}"
         return q
 
     async def _varzia_relic_keys(self, platform: str) -> set:
@@ -2482,8 +2553,7 @@ class WarframeSDJK(Star):
         # ① 列出可掉落/已入库遗物
         if q in ("全部", "列表", "入库", "出库"):
             unv = drops_db.unvaulted_relics()
-            tier_en = {"古纪": "lith", "前纪": "meso", "中纪": "neo",
-                       "后纪": "axi", "安魂": "requiem", "全能": "omnia"}
+            tier_en = _relic_tier_en()
             # en_key("axi v12") 用于判断该遗物是否在官方掉落池里（出库/入库）
             uv_set = set()
             for k in unv:
@@ -2555,6 +2625,31 @@ class WarframeSDJK(Star):
                 farm_hints=drops_db.farm_hints() if q == "出库" else None,
                 specials=specials or None)
             return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
+        # ①-b 单档位词（「遗物 先锋」）→ 该档位遗物一览（复用列表卡渲染）。
+        #     用户实测反馈：新档「先锋」不知道有哪些遗物，直接查档位词最自然。
+        if q.strip() in _relic_tier_en():
+            _sub = [k for k in idx if k.startswith(q.strip() + " ")]
+            if _sub:
+                unv = drops_db.unvaulted_relics()
+                tier_en = _relic_tier_en()
+                uv_set = set()
+                for x in unv:
+                    parts = x.split()
+                    if len(parts) >= 3:
+                        uv_set.add(f"{parts[0]} {parts[1]}")
+                varzia = await self._varzia_relic_keys(platform)
+                all_uv = uv_set | varzia
+                rows = []
+                for k in _sub:
+                    m = k.split()
+                    en_key = f"{tier_en.get(m[0], m[0].lower())} {m[2].lower()}"
+                    rows.append({"cn": k, "tier_cn": m[0],
+                                 "unvaulted": en_key in all_uv,
+                                 "varzia": en_key in varzia})
+                title, lines = fmt.fmt_relic_by_tier(
+                    rows, f"遗物列表：{q.strip()}（{len(rows)} 把）",
+                    page=parsed.page, page_size=max(90, self.page_size))
+                return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
         # ② 部件优先：带空格或能直接命中部件表
         # 名称归一：去空格精确匹配；非 Prime 输入自动补 Prime 试一次（wiki 上架过的只有 Prime 系）
         q_nospace = q.replace(" ", "")
@@ -2644,13 +2739,22 @@ class WarframeSDJK(Star):
             unv = drops_db.unvaulted_relics()
             en = nq.split()
             if len(en) >= 3:
-                tier_en = {"古纪": "lith", "前纪": "meso", "中纪": "neo",
-                           "后纪": "axi", "安魂": "requiem", "全能": "omnia"}
-                k = f"{tier_en.get(en[0], en[0].lower())} {en[2].lower()}"
-                if any(x.startswith(k + " ") for x in unv):
-                    lines.append("◆ 该遗物当前可掉落（出库中）")
+                tier_en = _relic_tier_en()
+                tier_key = tier_en.get(en[0], en[0].lower())
+                k = f"{tier_key} {en[2].lower()}"
+                if tier_key not in {x.split()[0] for x in unv}:
+                    # 官方任务掉落表里就没有这个档位（先锋/全能这类新档、安魂系
+                    # 特殊渠道）——不能按「已入库」误导（WFCD 掉落表快照不含
+                    # vanguard 是数据事实，2026-09-25 资料会话交接确认）。
+                    lines.append("◆ 该档位不在官方任务掉落表（新档位/特殊渠道）")
                 else:
-                    lines.append("◆ 该遗物已入库，当前不可刷取")
+                    varzia = await self._varzia_relic_keys(platform)
+                    if any(x.startswith(k + " ") for x in unv):
+                        lines.append("◆ 该遗物当前可掉落（出库中）")
+                    elif k in varzia:
+                        lines.append("◆ 该遗物可在阿耶商店兑换（当前可获取）")
+                    else:
+                        lines.append("◆ 该遗物已入库，当前不可刷取")
             return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
         # ③ 视为部件名模糊（词序无关：把 q 的 token 任意拼接匹配）
         qn = q.replace(" ", "")

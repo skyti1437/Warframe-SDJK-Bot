@@ -599,18 +599,6 @@ class WarframeClient:
         """限时活动（含 GracePeriod 宽限期内已结束的条目）。"""
         return await self.worldstate(platform, "goals", ttl=300) or []
 
-    async def fetch_arbseq(self) -> dict:
-        """仲裁轮换序列（arbi.wf.wiki）。
-
-        startTs/seq 是滚动窗口（站点按当前时间切片下发），
-        不能长缓存，否则时间基准过期导致排期整体错位。
-        """
-        data = await self._fetch_json("https://arbi.wf.wiki/api/arbitration",
-                                      ttl=120, retries=1)
-        if not isinstance(data, dict) or not data.get("seq"):
-            raise WarframeAPIError("仲裁序列源返回异常")
-        return data
-
     async def kuva(self, platform: str) -> list[dict]:
         # 10o.io 源已停摆（域名失效）；赤毒指令返回降级提示
         raise WarframeAPIError(_EXTERNAL_ONLY["kuva"])
@@ -1951,6 +1939,12 @@ class WarframeClient:
 
     _flare_cache: dict[str, tuple[float, str]] = {}
 
+    # ★ FlareSolverr 调参（2026-09-25 事故：60s 偏紧 + 坏会话不自愈）
+    _FLARE_SESSION = "sdjk"
+    _FLARE_MAX_TIMEOUT = 120000   # CF 解页实测 ~61s，60000 会整轮卡在边缘
+    # 命中即销毁重建会话：会话不存在/坏掉、求解失败、标签页崩（tab crashed）
+    _FLARE_REBUILD_HINTS = ("session", "solving", "tab crashed", "chrome")
+
     async def fetch_via_flaresolver(self, url: str, ttl: int = TTL_FLARE) -> str:
         """经 FlareSolverr 抓取被 Cloudflare 拦的页面，返回渲染后的 HTML。
 
@@ -1967,23 +1961,40 @@ class WarframeClient:
             r.raise_for_status()
             return r.json()
 
+        async def _recreate_session(base: str) -> None:
+            # ★ 会话重建必须 destroy→create：对已存在的同名会话，
+            # sessions.create 不会换掉崩掉的 Chromium（2026-09-25 事故：
+            # tab crashed 后插件每小时拿坏会话重试、连败一整天）。
+            # destroy 对不存在的会话会报错，属正常，忽略。
+            for cmd in ("sessions.destroy", "sessions.create"):
+                try:
+                    await _post(base, {"cmd": cmd, "session": self._FLARE_SESSION})
+                except Exception:  # noqa: BLE001 - 单步失败不阻断重建
+                    continue
+
         async def _solve(base: str) -> dict:
             payload = {"cmd": "request.get", "url": url,
-                       "session": "sdjk", "maxTimeout": 60000}
-            data = await _post(base, payload)
+                       "session": self._FLARE_SESSION,
+                       "maxTimeout": self._FLARE_MAX_TIMEOUT}
+            try:
+                data = await _post(base, payload)
+            except Exception:  # noqa: BLE001 - 连接级失败/非 JSON：重建后重试一次
+                await _recreate_session(base)
+                data = await _post(base, payload)
             if data.get("status") == "ok":
                 return data
             msg = str(data.get("message") or "")
-            # 会话不存在 → 建会话重试；挑战求解失败 → 重建会话再试一次
+            # 会话不存在/求解失败/标签页崩 → destroy→create 再试
             #（冷启动首次求解常超时，带 cookie 的第二次实测 22s 通过）
-            if "session" in msg.lower() or "solving" in msg.lower():
-                await _post(base, {"cmd": "sessions.create", "session": "sdjk"})
+            if any(h in msg.lower() for h in self._FLARE_REBUILD_HINTS):
+                await _recreate_session(base)
                 data = await _post(base, payload)
             if data.get("status") != "ok":
                 data = await _post(base, payload)
             return data
 
         last_err: Exception | None = None
+        err_msg = ""
         data: dict = {}
         if not self._flare_enabled:
             # 面板里关掉了：直接失败，让上层走它自己的降级提示（不静默空过）
@@ -1995,18 +2006,56 @@ class WarframeClient:
         for base in candidates:
             try:
                 data = await _solve(base)
-                self._flare_url = base
-                break
             except Exception as e:  # noqa: BLE001 - 换下一个候选地址
                 last_err = e
                 data = {}
+                continue
+            self._flare_url = base
+            if data.get("status") == "ok":
+                break
+            # 拿到了响应（哪怕 status=error）：连接是好的，它才是可信的失败原因——
+            # 别让更早候选的 ConnectError 给它顶包（2026-09-25 事故：真因是 FS 的
+            # tab crashed，日志却报「All connection attempts failed」）。
+            err_msg = str(data.get("message") or "")
+            last_err = None
+            break
         if data.get("status") != "ok" \
                 or not (data.get("solution") or {}).get("response"):
             raise WarframeAPIError(
-                f"FlareSolverr 不可用/求解失败（{last_err or data.get('message')}）")
+                f"FlareSolverr 不可用/求解失败（{err_msg or last_err or data.get('message')}）")
         html = data["solution"]["response"]
         self._flare_cache[url] = (_t.time(), html)
         return html
+
+    async def recycle_flare_session(self) -> bool:
+        """主动回收持久会话（destroy→create），防 Chromium 标签页长跑崩。
+
+        2026-09-25 事故：02:18 那轮刷新用的标签页在 08:18 崩掉，插件随后每小时
+        拿坏会话重试、连败。调用方（``_valence_autoloop``）改在**每轮快照刷新前**
+        回收一次 —— 让每轮都用一个全新标签页；代价是该轮首解走冷启动
+        （失败自有 destroy→create 重试兜底）。
+
+        未启用 / 全部候选不可达时返回 False（不抛，best-effort）。
+        """
+        if not self._flare_enabled:
+            return False
+        candidates = ([self._flare_url] if self._flare_url else []) + \
+            [u for u in self._flare_urls if u != self._flare_url]
+        for base in candidates:
+            try:
+                r = await self._http.post(
+                    base, json={"cmd": "sessions.destroy",
+                                "session": self._FLARE_SESSION}, timeout=60.0)
+                r.raise_for_status()
+                r2 = await self._http.post(
+                    base, json={"cmd": "sessions.create",
+                                "session": self._FLARE_SESSION}, timeout=60.0)
+                r2.raise_for_status()
+                self._flare_url = base
+                return True
+            except Exception:  # noqa: BLE001 - 换下一个候选
+                continue
+        return False
 
     @staticmethod
     def parse_wiki_valence(html: str) -> dict:

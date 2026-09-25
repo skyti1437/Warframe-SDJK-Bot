@@ -22,6 +22,16 @@ except ImportError:               # 离线脚本把 core/ 当顶层路径导入�
 _FILE = Path(__file__).resolve().parent / "data" / "wiki_intro.json"
 _DROPS_FILE = Path(__file__).resolve().parent / "data" / "drops.json"
 _EFFECT_ZH_FILE = Path(__file__).resolve().parent / "data" / "wiki_effect_zh.json"
+_RELIC_INDEX_FILE = Path(__file__).resolve().parent / "data" / "relic_index.json"
+_RELIC_INVERSE_FILE = Path(__file__).resolve().parent / "data" / "relic_inverse.json"
+
+try:
+    from .parser import TIER_CN as _TIER_CN     # 档位中英对照（含先锋/Vanguard）
+except ImportError:                              # 离线脚本把 core/ 当顶层路径导入时
+    try:
+        from parser import TIER_CN as _TIER_CN
+    except ImportError:                          # pragma: no cover
+        _TIER_CN = {}
 
 # 效果行：「效果（满级 5）：+40% Status Chance per Combo Multiplier」
 _EFFECT_LINE = re.compile(r"^(?P<head>效果(?:（[^）]*）)?)：(?P<val>.+)$")
@@ -241,9 +251,104 @@ def _uses_card(*names: str, limit: int = 5) -> Optional[tuple[str, list[str]]]:
     return title, lines
 
 
+@lru_cache(maxsize=1)
+def _relics() -> tuple[dict, dict]:
+    """遗物表：(遗物名 → {常见/罕见/稀有: [部件]}, 部件名 → [{relic, rarity}])。"""
+    def _load(p: Path) -> dict:
+        try:
+            d = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
+        return d if isinstance(d, dict) else {}
+    return _load(_RELIC_INDEX_FILE), _load(_RELIC_INVERSE_FILE)
+
+
+def _relic_key(name: str) -> str:
+    """遗物口语名 → relic_index 键（「前纪 V11 遗物」→「前纪 Meso V11」）。
+
+    档位中英对照用 ``core.parser.TIER_CN``（含先锋 Vanguard / 全能 Omnia），
+    别在本模块再硬编一份（遗物指令就栽在局部表缺档位上，见交接说明）。
+    """
+    s = re.sub(r"\s+", "", (name or "").replace("遗物", ""))
+    m = re.match(r"^([一-鿿]{2,4})([A-Za-z]\d{1,2})$", s)
+    if not m:
+        return ""
+    cn, code = m.group(1), m.group(2)
+    en = _TIER_CN.get(cn) or ""
+    if not en or (en, cn) not in _TIER_CN.items():
+        return ""
+    return f"{cn} {en} {code.upper()}"
+
+
+def _relic_card(*names: str, limit: int = 3) -> Optional[tuple[str, list[str]]]:
+    """遗物卡：三档奖励（前纪 V11 遗物这类 —— 知识库/掉落表都没有条目）。"""
+    idx, _inv = _relics()
+    if not idx:
+        return None
+    flat = {k.replace(" ", ""): k for k in idx}
+    hit = ""
+    for n in names:
+        for cand in (_relic_key(n), re.sub(r"\s+", "", n or "")):
+            key = re.sub(r"\s+", "", cand or "")
+            if key and key in flat:
+                hit = flat[key]
+                break
+        if hit:
+            break
+    if not hit:
+        return None
+    rar = idx.get(hit) or {}
+    lines = []
+    for tag in ("常见", "罕见", "稀有"):
+        items = [str(x) for x in (rar.get(tag) or [])]
+        if items:
+            lines.append(f"{tag}：{'、'.join(items[:limit])}")
+    if not lines:
+        return None
+    title = next((n for n in names if (n or "").strip()), hit).strip() or hit
+    return title, lines
+
+
+def _relic_part_card(*names: str, limit: int = 8) -> Optional[tuple[str, list[str]]]:
+    """部件卡：这个部件出自哪些遗物（relic_inverse 反查）。"""
+    _idx, inv = _relics()
+    if not inv:
+        return None
+    flat = {k.replace(" ", ""): k for k in inv}
+    hit = ""
+    for n in names:
+        k = re.sub(r"\s+", "", n or "")
+        if k and k in flat:
+            hit = flat[k]
+            break
+    if not hit:
+        return None
+    rows = inv.get(hit) or []
+    if not rows:
+        return None
+    title = next((n for n in names if (n or "").strip()), hit).strip() or hit
+    lines = [f"所在遗物（共 {len(rows)} 个）："]
+    lines += [f"· {r.get('relic')}（{r.get('rarity')}）" for r in rows[:limit]]
+    return title, lines
+
+
+def _minimal_card(*names: str) -> Optional[tuple[str, list[str]]]:
+    """兜底卡：任何已解析的条目都出图（链接另发 Plain，见 main._wiki_reply）。"""
+    title = next((n.strip() for n in names if (n or "").strip()), "")
+    if not title:
+        return None
+    return title, ["本地资料库暂无该条目的简介，详见下方 wiki 页面"]
+
+
 def card_for(*names: str) -> Optional[tuple[str, list[str]]]:
-    """卡片入口：知识库 → 掉落表 → 配方用途 三级兜底。"""
-    return intro(*names) or _drops_card(*names) or _uses_card(*names)
+    """卡片入口：知识库 → 掉落表 → 配方用途 → 遗物 → 兜底（**永远有卡**）。
+
+    用户口径（2026-09-25）：「正常情况下无论什么内容都得绘制」——命中条目时
+    哪怕本地没有简介数据，也要出一张只含名字的卡（链接另发 Plain）。
+    """
+    return (intro(*names) or _drops_card(*names) or _uses_card(*names)
+            or _relic_card(*names) or _relic_part_card(*names)
+            or _minimal_card(*names))
 
 
 def _is_variant_title(title: str, base_cmp: str) -> bool:

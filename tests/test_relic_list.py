@@ -274,6 +274,52 @@ _blob = str(_r.title) + "".join(_r.lines) + str(getattr(_r, "raw_text", "") or "
 check("黑话 + 不存在的部件词 → 不误报（提示未找到）", "未找到" in _blob, _blob[:80])
 
 # ---------------------------------------------------------------------------
+# ⑦ 档位归一与单档位列表（2026-09-25 资料会话交接：「遗物 先锋 C1 / 遗物 先锋」
+#    查不出）。根因：_norm_relic 档位表本地硬编 5 档（缺先锋/全能），且代号只认
+#    字母+数字——安魂档的罗马数字（I..IV）与词式（Eterna）同样全查不出。
+#    修法：档位统一取 core/parser.TIER_CN（_relic_tier_en）。
+# ---------------------------------------------------------------------------
+for _src, _want in (("先锋C1", "先锋 Vanguard C1"),
+                    ("先锋 C1", "先锋 Vanguard C1"),
+                    ("全能S1", "全能 Omnia S1"),
+                    ("安魂I", "安魂 Requiem I"),
+                    ("安魂 I", "安魂 Requiem I"),
+                    ("安魂 IV", "安魂 Requiem IV"),
+                    ("安魂 Eterna", "安魂 Requiem Eterna"),
+                    ("后纪A2", "后纪 Axi A2"),
+                    ("古纪 A1", "古纪 Lith A1")):
+    _got = plugin.WarframeSDJK._norm_relic(_src)
+    check(f"_norm_relic({_src!r}) == {_want!r}", _got == _want, _got)
+
+for _q, _want in (("先锋 C1", "遗物：先锋 C1"),
+                  ("先锋C1", "遗物：先锋 C1"),
+                  ("安魂 I", "遗物：安魂 I"),
+                  ("安魂 Eterna", "遗物：安魂 ETERNA")):
+    _r = asyncio.run(_make_obj([])._h_relic(_Parsed(content=_q), None, "pc"))
+    check(f"单查（{_q}）→ {_want}",
+          _want.replace(" ", "") in str(_r.title).replace(" ", ""), str(_r.title))
+
+# 先锋不在官方任务掉落表 → 不给「已入库」误导（数据事实：drops.json 无 vanguard）
+_r = asyncio.run(_make_obj([])._h_relic(_Parsed(content="先锋 C1"), None, "pc"))
+_body = "\n".join(_r.lines)
+check("先锋 C1 状态：不判「已入库」", "已入库" not in _body, _body[-90:])
+check("先锋 C1 状态：写明「不在官方任务掉落表」",
+      "不在官方任务掉落表" in _body, _body[-90:])
+# 真入库的遗物仍显示「已入库」（回归）
+_r = asyncio.run(_make_obj([])._h_relic(_Parsed(content="古纪 A1"), None, "pc"))
+check("古纪 A1（真入库）仍显示「已入库」",
+      "已入库" in "\n".join(_r.lines), str(_r.lines[-1]))
+
+# 单档位词 → 该档位遗物一览（复用列表卡）
+_r = asyncio.run(_make_obj([])._h_relic(_Parsed(content="先锋"), None, "pc"))
+_blob2 = str(_r.title) + "\n".join(_r.lines)
+check("「遗物 先锋」→ 列表中含 C1/E1/M1/P1 四把",
+      all(x in _blob2 for x in ("C1", "E1", "M1", "P1")), str(_r.title))
+_r = asyncio.run(_make_obj([])._h_relic(_Parsed(content="后纪"), None, "pc"))
+check("「遗物 后纪」→ 列表卡（既有单档位词同样受益）",
+      "遗物列表" in str(_r.title), str(_r.title))
+
+# ---------------------------------------------------------------------------
 # 部件反查卡的「能不能获取 + 推荐位置」（2026-09-18 用户反馈）
 # ---------------------------------------------------------------------------
 
