@@ -645,9 +645,10 @@ class WarframeSDJK(Star):
                 if not _wi.available():
                     # 开关开着但数据缺失（市场/开源包按设计不带 wiki_intro.json）
                     # ——明确说清现象与预期，别让用户以为是故障（2026-09-25 立）
-                    logger.info(
-                        "[sdjk] wiki 简介卡数据缺失（市场/开源包按设计不含）："
-                        "该类条目将出「最小卡」+ 可点链接；遗物卡/部件卡不受影响")
+                    logger.warning(
+                        "[sdjk] wiki 简介卡数据缺失（core/data/wiki_intro.json 被删？"
+                        "v1.0.7 起随包分发）：该类条目将退「最小卡」+ 可点链接；"
+                        "MOD 效果行回落英文。重装插件或从发行包补齐该文件即可恢复")
             except Exception:  # noqa: BLE001 - 探测失败不影响启动
                 pass
 
@@ -1687,11 +1688,12 @@ class WarframeSDJK(Star):
     def _wiki_intro_on(self) -> bool:
         """wiki 卡片开关（默认开）。
 
-        卡片是**分层出图**的：遗物卡 / 部件反查卡 / 最小兜底卡只依赖随包分发的
-        `relic_index.json`、`relic_inverse.json`，**市场版也有**；只有「简介卡」
-        正文需要 `core/data/wiki_intro.json`（**不进开源 / 市场包**）——
-        数据缺失时该类条目出「最小卡」（一行说明 + 可点链接），不再是纯文本。
-        启动日志会提示数据缺失（见 initialize）。
+        卡片是**分层出图**的：遗物卡 / 部件反查卡 / 最小兜底卡只依赖
+        `relic_index.json`、`relic_inverse.json`；「简介卡」正文需要
+        `core/data/wiki_intro.json`（v1.0.7 起**随包分发**，市场版也有），
+        MOD 效果行的中文译文需要 `wiki_effect_zh.json`（同随包）。
+        若这两个文件被删/缺失：简介类条目退「最小卡」（一行说明 + 可点链接），
+        效果行回落英文原文 —— 都是防御性兜底，不是常态。
         """
         return bool(self.cfg.get("wiki_intro", True))
 

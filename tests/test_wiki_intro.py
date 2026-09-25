@@ -6,7 +6,7 @@
   **不翻译战甲名**（Nekros / Banshee 直接用英文），页面名必须按国际服口径；
 - issue #1 需求②：wiki 要有可点击链接，另配一张简短介绍卡（战甲/武器/MOD/资源…）。
 
-简介数据（core/data/wiki_intro.json）**不进开源与市场包**，所以本测试在
+简介数据（core/data/wiki_intro.json）v1.0.7 起**随包分发**（此前不进包），本测试在
 「有数据 / 无数据」两种环境下都必须过：无数据时只断言优雅回落。
 """
 from __future__ import annotations
