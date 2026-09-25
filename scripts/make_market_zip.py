@@ -19,7 +19,9 @@
 from __future__ import annotations
 
 import re
+import os
 import sys
+import time
 import zipfile
 from pathlib import Path
 
@@ -51,8 +53,7 @@ except Exception:  # noqa: BLE001
     SKIP_FILES = {"deploy.sh", ".DS_Store", ".gitattributes", ".gitignore",
                   "SDJKwfbot_README.md", "wm_ranks.json", "riven_weekly.json",
                   "wiki_disp.json", "package_reverse_searcher_sdjk.py",
-                  "NotoSansCJK-Regular.ttc", "NotoSansCJK-Bold.ttc",
-                  "pyproject.toml"}   # ruff 配置：开发物料，市场件不带
+                  "NotoSansCJK-Regular.ttc", "NotoSansCJK-Bold.ttc"}
     SKIP_SUFFIX = {".pyc", ".pyo"}
     SKIP_GLOBS = ("*报告*.md", "*调研*.md", "*诊断*.md", "*对照*.md", "*核验*.md",
                   "*体检*.md", "*复评*.md", "*选型*.md", "*实测*.md", "*结案*.md",
@@ -69,6 +70,8 @@ except Exception:  # noqa: BLE001
 # （.gitignore / .gitattributes 已被上方 SKIP_FILES 排除，不重复列。）
 MARKET_SKIP_DIRS = {"tests", "scripts", ".github"}
 MARKET_SKIP_FILES = {".gitleaks.toml",        # 仓库门面（防泄漏 CI 配置），非运行件
+                     # ruff 配置（2026-09-25）：开发物料，市场安装用户不需要
+                     "pyproject.toml",
                      # 根目录的三个数据构建入口（scripts/ 里的同族已随目录整体排除）
                      "build_damage_data.py",
                      "build_de_data.py",
@@ -77,7 +80,30 @@ MARKET_SKIP_FILES = {".gitleaks.toml",        # 仓库门面（防泄漏 CI 配�
 # +core/data/dispositions_rivenmirror.json，变体解析倾向数据随市场件分发）。
 # 与 package_release.EXPECTED_OSS_STAGE_FILES 同理——有意变更须同步
 # 此常量并在 commit 正文列文件名与理由。
-EXPECTED_MARKET_ENTRIES = 96
+EXPECTED_MARKET_ENTRIES = 97
+
+# ★ 可复现打包（2026-09-26 用户侧建议）：统一 zip 条目时间戳 = 2026-01-01T00:00:00Z。
+#   之前取文件 mtime，导致「内容没变、重建却换 sha」（上传期两次被迫冻结重建：
+#   727ba7a7 → a5159a32 这类）。可用 SOURCE_DATE_EPOCH 覆盖。
+ZIP_EPOCH_DEFAULT = 1767225600        # 2026-01-01T00:00:00Z
+
+
+def _zip_datetime() -> tuple:
+    """zip 条目统一时间戳 ``(Y,M,D,h,m,s)`` —— 可复现打包（2026-09-26）。
+
+    背景：zip 条目时间戳默认取**文件 mtime**，所以只要文件被重写（哪怕内容一字
+    未变），重建出来的 sha 就不同 —— 我们已经两次因此在上传期被迫「冻结重建」
+    （`727ba7a7 → a5159a32` 这类换号）。这里把所有条目钉到**固定时刻**：
+    **同内容 ⇒ 同 sha**。可被 ``SOURCE_DATE_EPOCH`` 覆盖（reproducible-builds 惯例）；
+    早于 zip 格式下限（1980-01-01）的值抬到下限，避免打包报错。
+    """
+    raw = os.environ.get("SOURCE_DATE_EPOCH", "")
+    try:
+        epoch = int(raw) if raw.strip() else ZIP_EPOCH_DEFAULT
+    except ValueError:
+        epoch = ZIP_EPOCH_DEFAULT
+    t = time.gmtime(max(epoch, 315532800))          # 315532800 = 1980-01-01T00:00:00Z
+    return (t.tm_year, t.tm_mon, t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec)
 
 
 def main() -> int:
@@ -92,7 +118,8 @@ def main() -> int:
         ROOT / "dist" / f"astrbot_plugin_warframe-{ver}-market.zip")
 
     n = 0
-    with zipfile.ZipFile(out, "w", compression=zipfile.ZIP_DEFLATED) as z:
+    dt = _zip_datetime()                    # ★ 固定时间戳（同内容 ⇒ 同 sha）
+    with zipfile.ZipFile(out, "w") as z:
         for f in sorted(OSS_DIR.rglob("*")):
             if not f.is_file():
                 continue
@@ -105,7 +132,10 @@ def main() -> int:
                 continue
             if any(rel.match(g) for g in SKIP_GLOBS):
                 continue
-            z.write(f, rel.as_posix())          # ★ 不套顶层目录
+            zi = zipfile.ZipInfo(rel.as_posix(), date_time=dt)
+            zi.compress_type = zipfile.ZIP_DEFLATED
+            zi.external_attr = 0o100644 << 16     # 稳定权限位（不受 umask 影响）
+            z.writestr(zi, f.read_bytes())        # ★ 不套顶层目录
             n += 1
 
     size_mb = out.stat().st_size / 1024 / 1024

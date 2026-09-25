@@ -555,6 +555,100 @@ check("多字黑话「冰男p」仍正常（守卫只约束单字键）",
       (_hit or {}).get("url_name") == "frost_prime_set",
       str((_hit or {}).get("url_name")))
 
+# ----------------------- ⑪ wm 品级 / 遗物精炼 / 墨染（解析早有、过滤刚接）
+print("\n=== ⑪ wm 品级 / 精炼 / 墨染过滤 ===")
+from core.parser import parse_wm  # noqa: E402
+
+_q1 = parse_wm(["后纪", "A1", "光辉"])
+check("解析：光辉 → subtype radiant + 回显原词",
+      _q1.refinement == "radiant" and _q1.refinement_word == "光辉",
+      f"{_q1.refinement} / {_q1.refinement_word}")
+# ★ 2026-09-25 总任务会话复核报障：帮助卡/KB 用官方简中「无瑕」，词典原先只收「无暇」
+#   → 照帮助卡输入时该词不被消费、残留在物品名里且精炼过滤静默失效。两种写法都要收。
+for _w in ("无瑕", "无暇"):
+    _qw = parse_wm(["axi_c12_relic", _w])
+    check(f"★ 精炼档「{_w}」→ flawless 且不残留在物品名里",
+          _qw.refinement == "flawless" and _qw.item == "axi_c12_relic"
+          and _qw.refinement_word == _w,
+          f"{_qw.refinement} / {_qw.item!r}")
+_q2 = parse_wm(["生命力", "墨染"])
+check("解析：墨染 → q.moran", _q2.moran is True)
+_q3 = parse_wm(["充沛", "满级"])
+check("解析：满级 → -1（由物品实际 maxRank 决定具体级数）",
+      _q3.rank == -1 and _q3.rank_word == "满级", str(_q3.rank))
+
+_RF = plugin.WarframeSDJK._resolve_rank_filter
+_arc = {"url_name": "arcane_energize", "tags": ["legendary", "arcane_enhancement"],
+        "max_rank": 5}
+_mod5 = {"url_name": "flow", "tags": ["mod", "warframe"], "max_rank": 5}
+_mod10 = {"url_name": "vitality", "tags": ["mod", "warframe"], "max_rank": 10}
+_relic = {"url_name": "axi_c12_relic", "tags": ["relic"], "max_rank": None}
+check("★ 赋能满级 = 5（不是 10）", _RF(-1, "满级", _arc) == (5, "只列满级（5级）的单"),
+      str(_RF(-1, "满级", _arc)))
+check("★ 5 级 MOD 满级 = 5（川流不息类）",
+      _RF(-1, "满级", _mod5)[0] == 5, str(_RF(-1, "满级", _mod5)))
+check("10 级 MOD 满级 = 10（生命力类）", _RF(-1, "满级", _mod10)[0] == 10)
+check("maxRank 缺失的 MOD 回落 10（保守兜底）",
+      _RF(-1, "满级", {"tags": ["mod"], "max_rank": None})[0] == 10)
+check("★ 遗物没有品级 → 忽略并说明（不静默返回空表）",
+      _RF(-1, "满级", _relic)[0] is None and "已忽略" in _RF(-1, "满级", _relic)[1],
+      str(_RF(-1, "满级", _relic)))
+# ★ 2026-09-25 二修（总任务会话自检要求）：满级来源要数据驱动 —— WM 有 44 个 MOD
+#   条目没给 maxRank（如 intruder，上限 3），而 intruder 这类挂单根本没有级数。
+_no_rank_orders = [{"order_type": "sell", "platinum": 5, "quantity": 1,
+                    "mod_rank": None, "user": {"status": "ingame", "ingame_name": "X"}}]
+_ranked_orders = [{"order_type": "sell", "platinum": 5, "quantity": 1, "mod_rank": 3,
+                   "user": {"status": "ingame", "ingame_name": "Y"}},
+                  {"order_type": "sell", "platinum": 3, "quantity": 1, "mod_rank": 0,
+                   "user": {"status": "ingame", "ingame_name": "Z"}}]
+check("★ maxRank 缺失但有挂单级数 → 取挂单最高级并注明来源",
+      _RF(-1, "满级", {"tags": ["mod"], "max_rank": None}, _ranked_orders)
+      == (3, "只列满级（按挂单最高 3 级）"),
+      str(_RF(-1, "满级", {"tags": ["mod"], "max_rank": None}, _ranked_orders)))
+check("★ 挂单完全没有级数（intruder 类）→ 忽略并说明，不静默空表",
+      _RF(-1, "满级", {"tags": ["mod"], "max_rank": None}, _no_rank_orders)[0] is None,
+      str(_RF(-1, "满级", {"tags": ["mod"], "max_rank": None}, _no_rank_orders)))
+check("有 maxRank 时仍优先用物品满级（不受挂单最高级影响）",
+      _RF(-1, "满级", _mod5, _ranked_orders)[0] == 5,
+      str(_RF(-1, "满级", _mod5, _ranked_orders)))
+check("显式 N 级照样过滤", _RF(3, "3级", _arc) == (3, "只列 3 级的单"), str(_RF(3, "3级", _arc)))
+check("没有品级词时不加提示", _RF(None, "", _arc) == (None, ""))
+
+_orders = [
+    {"order_type": "sell", "platinum": 20, "quantity": 1, "mod_rank": None,
+     "subtype": "radiant", "user": {"status": "ingame", "ingame_name": "A"}},
+    {"order_type": "sell", "platinum": 15, "quantity": 1, "mod_rank": None,
+     "subtype": "intact", "user": {"status": "ingame", "ingame_name": "B"}},
+    {"order_type": "sell", "platinum": 60, "quantity": 1, "mod_rank": 10,
+     "subtype": "atragraph", "user": {"status": "online", "ingame_name": "C"}},
+    {"order_type": "sell", "platinum": 30, "quantity": 1, "mod_rank": 10,
+     "subtype": "regular", "user": {"status": "ingame", "ingame_name": "D"}},
+]
+_t_ref, _l_ref, _b_ref, _p_ref = F.fmt_wm_orders("后纪 C12 遗物", _orders,
+                                                 refinement="radiant",
+                                                 notes=["只看「光辉」档遗物"])
+check("★ 精炼过滤只留光辉档", len(_p_ref) == 1 and _p_ref[0]["subtype"] == "radiant",
+      str([o["subtype"] for o in _p_ref]))
+check("行内标注精炼档（光辉）", any("光辉" in x for x in _l_ref), str(_l_ref[:2]))
+check("注释行带上调用方说明",
+      any(x.startswith("※ 只看「光辉」档遗物") for x in _l_ref), str(_l_ref))
+_t_m, _l_m, _b_m, _p_m = F.fmt_wm_orders("生命力", _orders, moran=True,
+                                         notes=["只看墨染 Mod"])
+check("★ 墨染过滤只留 atragraph", len(_p_m) == 1 and _p_m[0]["subtype"] == "atragraph",
+      str([o["subtype"] for o in _p_m]))
+check("行内标注墨染", any("墨染" in x for x in _l_m), str(_l_m[:2]))
+_rank_orders = [
+    {"order_type": "sell", "platinum": 140, "quantity": 1, "mod_rank": 5,
+     "user": {"status": "ingame", "ingame_name": "E"}},
+    {"order_type": "sell", "platinum": 8, "quantity": 1, "mod_rank": 0,
+     "user": {"status": "ingame", "ingame_name": "F"}},
+]
+_t_r, _l_r, _b_r, _p_r = F.fmt_wm_orders("赋能·充沛", _rank_orders, rank=5)
+check("★ 品级过滤只留 5 级（赋能满级），0 级被排除",
+      len(_p_r) == 1 and _p_r[0]["mod_rank"] == 5,
+      str([o["mod_rank"] for o in _p_r]))
+check("行内标出级数（5级）", any("5级" in x for x in _l_r), str(_l_r[:2]))
+
 print()
 if FAILED:
     print(f"✗ {len(FAILED)} 项失败：" + "、".join(FAILED))

@@ -547,8 +547,9 @@ class WMQuery:
     quantity: Optional[int] = None  # 3个 -> 同时出售 >= 3
     rank: Optional[int] = None      # 零级/满级/3级；满级用 -1 表示
     rank_word: str = ""             # 原始 rank 词（展示用）
-    refinement: Optional[str] = None  # 完整/优良/无暇/光辉
-    moran: bool = False             # 墨染
+    refinement: Optional[str] = None  # 完整/优良/无暇/光辉 → WM subtype
+    refinement_word: str = ""       # 原始精炼词（提示语回显用）
+    moran: bool = False             # 墨染（Atragraph / Foil Mod，subtype=atragraph）
     part: str = ""                  # 部件关键词（蓝图/机体/系统/头部/配件…）
 
 
@@ -603,8 +604,11 @@ def _extract_part(tok: str) -> tuple[str, str]:
     return rest, part
 
 
+# 遗物精炼档：**官方简中「无瑕」在前、社区错写「无暇」兼容**（2026-09-25 总任务会话
+# 复核报障：帮助卡/KB 文案用的是官方「无瑕」，词典只收了「无暇」→ 照帮助卡输入时
+# 该词不被消费，会残留在物品名里且精炼档过滤静默失效）。
 _REFINEMENT_MAP = {"完整": "intact", "优良": "exceptional",
-                   "无暇": "flawless", "光辉": "radiant"}
+                   "无瑕": "flawless", "无暇": "flawless", "光辉": "radiant"}
 
 
 def parse_wm(content: Iterable[str], preset: Optional[str] = None) -> WMQuery:
@@ -631,6 +635,7 @@ def parse_wm(content: Iterable[str], preset: Optional[str] = None) -> WMQuery:
             q.rank = 0 if tok == "零级" else (-1 if tok == "满级" else int(tok[:-1]))
         elif tok in _REFINEMENT_MAP:
             q.refinement = _REFINEMENT_MAP[tok]
+            q.refinement_word = tok
         elif tok == "墨染":
             q.moran = True
         else:

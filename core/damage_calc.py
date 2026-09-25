@@ -48,7 +48,12 @@ from typing import Optional
 
 try:
     from . import matching        # core 包内正常导入
-except ImportError:               # 离线脚本把 core/ 当顶层路径导入时
+except ImportError:
+    # ★ 只在**非包上下文**（离线脚本把 core/ 当顶层路径）才回退绝对导入；
+    #   包内失败 = 真错误，原样抛出（2026-09-25 事故：兜底把真错掩盖成
+    #   "No module named 'core'"，见 main.py 同处注释）。
+    if __package__:
+        raise
     import matching
 
 _DATA = Path(__file__).resolve().parent / "data"

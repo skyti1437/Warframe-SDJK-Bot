@@ -27,7 +27,12 @@ _RELIC_INVERSE_FILE = Path(__file__).resolve().parent / "data" / "relic_inverse.
 
 try:
     from .parser import TIER_CN as _TIER_CN     # 档位中英对照（含先锋/Vanguard）
-except ImportError:                              # 离线脚本把 core/ 当顶层路径导入时
+except ImportError:
+    # ★ 包内导入失败 = 真错误 → 原样抛出（别再静默降级成空表：档位中英对照
+    #   一旦为空，遗物档位会显示不出中文，且没有痕迹）。只有**非包上下文**
+    #   （离线脚本把 core/ 当顶层路径）才走绝对导入兜底。
+    if __package__:
+        raise
     try:
         from parser import TIER_CN as _TIER_CN
     except ImportError:                          # pragma: no cover
