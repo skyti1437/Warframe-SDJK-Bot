@@ -207,6 +207,13 @@ check("详情·扎里曼有奖励行",
 _tn, nlines = fmt.fmt_bounties(bundle["syndicateMissions"], "实验室", cycle=ORACLE)
 check("详情·解剖圣所节点名", any("卫城区" in ln for ln in nlines), "卫城区")
 
+# ★ 别名防误删：「赏金 圣所」必须命中 EntratiLab（解剖圣所）—— 沃沃图上那行就是「圣所」
+#   （别名表 formatters `"圣所": "EntratiLab"`；DE 侧该区 Jobs 恒为空，靠 oracle 补节点/挑战）
+_ts, slines = fmt.fmt_bounties(bundle["syndicateMissions"], "圣所", cycle=ORACLE)
+check("★ 别名「圣所」命中解剖圣所（EntratiLab）",
+      "解剖圣所" in (_ts or "") or any("解剖圣所" in ln for ln in slines),
+      f"title={_ts!r} 行数={len(slines)}")
+
 # 隔离库三档用 DE 官方叫法（jobType 为空，只能按池标签回填）
 _td, dlines = fmt.fmt_bounties(bundle["syndicateMissions"], "火卫二", cycle=ORACLE)
 check("隔离库官方叫法", any("级隔离库赏金" in ln for ln in dlines), "级隔离库赏金")
@@ -400,6 +407,32 @@ check("合一众后缀已剥离（卡面另有｜合一众 标签）",
 # 每条赏金都要有末阶段类型，否则任务类型会缺
 _missing = [k for k, v in _meta.items() if not v.get("final")]
 check("赏金表每条都有末阶段（任务类型来源）", not _missing, str(_missing[:3]))
+
+# ---------------------------------------------------------------------------
+# ⑨ 金星「深矿：企业重组（钢铁之路）」130-140（社区观测登记，2026-09-26）
+#    DE 只下发 7 档；这一档**不在任何接口里**（worldState / oracle VenusJobManifest /
+#    DE 公开导出 ExportBounties·ExportSyndicates 三方实测都没有）→ 硬编登记，
+#    来源显式标 community；中文名取自官方简中表（NokkoColony/LocationName=深矿、
+#    Job2Name=企业重组）。
+# ---------------------------------------------------------------------------
+_sup = dw.SOLARIS_SUPPLEMENT_JOBS
+check("★ 金星补齐档常量：130-140 / 官方简中名 / 来源=community",
+      len(_sup) == 1 and list(_sup[0]["enemyLevels"]) == [130, 140]
+      and _sup[0]["_jobName"] == "深矿：企业重组（钢铁之路）"
+      and _sup[0].get("source") == "community", str(dict(_sup[0]))[:130])
+_pool, _tag, _rot = fmt._resolve_bounty_pool("Solaris United", dict(_sup[0]))
+check("★ 该档奖励接到既有「深矿·企业重组」池（不新建池）",
+      _tag == "社区观测" and len(_pool) == 3, f"tag={_tag} 池条数={len(_pool)}")
+_line = fmt._bounty_entry_line("Solaris United", dict(_sup[0]))
+check("★ 卡面行：档名 + 等级 + 社区观测标注",
+      "深矿：企业重组（钢铁之路）" in _line and "130-140级" in _line
+      and "社区观测" in _line, _line)
+_ven = [s for s in bundle["syndicateMissions"]
+        if s.get("syndicateKey") == "SolarisSyndicate"]
+check("★ 集成：金星档位 7 → 8（fixture 解析后含 130-140 档）",
+      bool(_ven) and len(_ven[0]["jobs"]) == 8
+      and any(list(j["enemyLevels"]) == [130, 140] for j in _ven[0]["jobs"]),
+      f"档数={len(_ven[0]['jobs']) if _ven else 0}")
 
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")

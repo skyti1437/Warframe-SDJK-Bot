@@ -57,8 +57,12 @@ ACRITHIS_CURRENT_URL = ("https://wiki.warframe.com/w/Acrithis/"
 #   · 只读、无凭据、无第三方 SDK，就是一次普通 GET
 #   · 校验不过（缺武器/过期/比本地旧）一律**不采用**，仍退回包内种子
 #   · 数据来源仍是 wiki（CC BY-NC-SA），文件里带 source/署名
-# ★ 三条通道按序试：**raw 主**，jsDelivr 的 gh 通道与 statically 备用 ——
-#   实测国内网络读不到 raw（服务器 raw 15s 超时 HTTP 000），但 jsDelivr/statically 可达。
+# ★ 三条通道按序试：**raw 主 + jsDelivr 两个镜像** —— 实测（2026-09-26，两个 vantage）：
+#   服务器（CN 云）只有 cdn.jsdelivr / gcore.jsdelivr 可达（raw / fastly / statically /
+#   raw.githack 全部 12s 超时 HTTP 000）；住宅网络虽然六个都通，但按**最差 vantage**取交集，
+#   只保留这两条镜像 + raw。原先的 statically 通道在服务器侧**根本不可用**（名义三通道、实际两通道），
+#   已替换为 gcore；两条 jsDelivr 走同一网络但不同边缘，留作互为冗余（当天 cdn 曾整段 502）。
+#   连通性由服务器巡检每轮探针输出矩阵（`server_patrol.py`），不再"装了就算有"。
 COMMUNITY_SNAPSHOT_BASE = ("https://raw.githubusercontent.com/skyti1437/"
                            "Warframe-SDJK-Bot/bot-data")
 COMMUNITY_VALENCE_URL = f"{COMMUNITY_SNAPSHOT_BASE}/valence.json"        # 主通道
@@ -67,12 +71,12 @@ _REPO_SLUG = "skyti1437/Warframe-SDJK-Bot"
 COMMUNITY_VALENCE_URLS = (
     COMMUNITY_VALENCE_URL,
     f"https://cdn.jsdelivr.net/gh/{_REPO_SLUG}@bot-data/valence.json",
-    f"https://cdn.statically.io/gh/{_REPO_SLUG}/bot-data/valence.json",
+    f"https://gcore.jsdelivr.net/gh/{_REPO_SLUG}@bot-data/valence.json",
 )
 COMMUNITY_ACRITHIS_URLS = (
     COMMUNITY_ACRITHIS_URL,
     f"https://cdn.jsdelivr.net/gh/{_REPO_SLUG}@bot-data/acrithis_week.json",
-    f"https://cdn.statically.io/gh/{_REPO_SLUG}/bot-data/acrithis_week.json",
+    f"https://gcore.jsdelivr.net/gh/{_REPO_SLUG}@bot-data/acrithis_week.json",
 )
 # Cloudflare 绕过代理（FlareSolverr）：wiki.warframe.com 等对非浏览器 403。
 # 服务器上跑一个 flaresolverr 容器后自动启用；插件跑在 astrbot 容器里，
@@ -2323,7 +2327,7 @@ class WarframeClient:
     async def _community_json(self, urls: tuple[str, ...]) -> Optional[dict]:
         """读公开仓 bot-data 的社区快照（普通 GET、免盾）。取不到返回 None。
 
-        ★ 按 URL 顺序试（raw → jsDelivr → statically）：国内网络实测读不到 raw，
+        ★ 按 URL 顺序试（raw → cdn.jsdelivr → gcore.jsdelivr）：国内网络实测读不到 raw，
         有备用通道才不至于让这批用户卡在第一条。命中即返回，全部失败才 None。
         """
         name = urls[0].rsplit("/", 1)[-1]
