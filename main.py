@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import difflib
 import json
+import random
 import re
 import shutil
 import tempfile
@@ -55,7 +56,14 @@ try:  # 允许脱离 AstrBot 直接跑单元测试
     from .core.render import (ImageRenderer, WATERMARK_VERSION,
                               migrate_legacy_user_fonts, text_card)
     from .core.store import GroupStore, Subscription, SubscriptionStore
-except ImportError:  # pragma: no cover
+except ImportError as _imp_err:  # pragma: no cover
+    # ★ 2026-09-25 事故修正：**只在确实不是包上下文时**才回退到绝对导入
+    #   （脱离 AstrBot 单独跑脚本/测试的情形）。包内导入失败 = 真错误，
+    #   必须原样抛出 —— 否则真错误会被换成 "No module named 'core'"：
+    #   当天服务器从市场安装 v1.0.7 时，新 main.py 要的 render 函数还没落地，
+    #   报错就这样被伪装成"模块结构坏了"，面板与日志第一眼全被误导。
+    if __package__:
+        raise
     from core import __brand__ as BRAND
     # 打包器门面锚点：OSS_FACADE_DELETIONS 按此行整块删除，勿删/勿改前缀
     from core import api_client
@@ -433,7 +441,8 @@ HELP_TOPIC: dict[str, list[tuple[str, str]]] = {
         ("wr / 紫卡 武器名", "紫卡拍卖：词条·洗数·极性筛选"),
         ("rm 武器名", "源紫卡报价"),
         ("紫卡排行 / 排行", "热度榜；「紫卡排行 刷新」强更"),
-        ("wm 物品名", "在售/收购；部件查单加 蓝图/机体/系统/头部；可加 满级 / 光辉 / N个 / -r 密语"),
+        ("wm 物品名", "在售/收购；部件查单加 蓝图/机体/系统/头部；"
+                     "可加 满级 / 光辉 / 墨染 / N个 / -r 密语"),
         ("趋势 物品名", "48h / 90d 价格走势"),
     ],
     "后台推送": [
@@ -506,7 +515,7 @@ class Reply:
 
 @register("astrbot_plugin_warframe", "skyti1437",
           f"{BRAND}：世界状态 / 市场查价 / 蹲点推送",
-          "1.0.7")
+          "1.0.8")
 class WarframeSDJK(Star):
     def __init__(self, context: Context, config: AstrBotConfig | None = None):
         super().__init__(context)
@@ -633,6 +642,8 @@ class WarframeSDJK(Star):
         self.push.start()
         self._auto_task = asyncio.create_task(self._rank_autoloop())
         self._valence_task = asyncio.create_task(self._valence_autoloop())
+        # 社区快照轻轮询：只对「没装/连不上 FS」的用户生效（见 _community_autoloop）
+        self._community_task = asyncio.create_task(self._community_autoloop())
         # 后台预热伤害计算的全部重 JSON + 武器名索引（不阻塞启动）：
         # 不预热时第一条指令要现读武器库/进化/灵化形态/多段/部署表，叠加后
         # 会让首条指令明显变慢（2026-09-17 用户反馈「半天才出来」）。
@@ -754,10 +765,67 @@ class WarframeSDJK(Star):
         self._flare_absent_warned_at = now
         logger.warning(
             "[sdjk] 未检测到可用的 FlareSolverr（可选组件）：wiki 类快照"
-            "（信条/终幕元素加成、紫卡倾向表、言录使货单）将沿用随包快照、不再自动刷新。"
+            "（信条/终幕元素加成、言录使货单）将沿用**社区快照或随包快照**"
+            "（社区快照来自公开仓 bot-data 分支，免盾，有就自动用），不再直连 wiki。"
             "· 不需要该功能：在配置面板关闭「启用 CF 绕过代理（FlareSolverr）」，本提示随之消失；"
             "· 需要：部署 FlareSolverr 并把可达地址填进「FlareSolverr 地址」"
             "（容器内 127.0.0.1 到不了宿主机，常用 http://172.17.0.1:8191）。")
+
+    async def _refresh_from_community(self) -> None:
+        """无 FS 时的社区快照刷新（元素加成 + 言录使货单）。
+
+        与 `_valence_autoloop` 的 ready 分支相比，这里**只读公开仓的社区快照**
+        （普通 GET、免盾），完全不碰 FlareSolverr；也刻意保持安静 —— 成功记一条
+        INFO，取不到 / 校验不过一律不吭声（没开该组件的用户不该被这类提示打扰）。
+        """
+        for tag, make in (
+            ("元素加成", lambda: self.client.refresh_valence(community_only=True)),
+            ("言录使货单",
+             lambda: self.client.refresh_acrichis_week(community_only=True)),
+        ):
+            try:
+                st = await make()
+            except Exception as exc:                    # noqa: BLE001
+                logger.debug("[sdjk] 社区快照（%s）不可用：%s", tag, exc)
+                continue
+            if isinstance(st, str) and st.startswith("refreshed"):
+                logger.info("[sdjk] %s已从社区快照刷新：%s", tag, st)
+
+    @staticmethod
+    def _secs_to_aligned_tick(step_hours: int = 6, minute: int = 5,
+                              jitter_min: int = 15) -> float:
+        """距下一个「整 step 小时 + minute 分」UTC 边界的秒数（含随机抖动）。
+
+        ★ 2026-09-25：旧写法是 ``sleep(6*3600)``，检查点跟着**开机时刻**漂；
+        而换轮全在 **00:00 UTC**（效价每 4 天、言录使每周）—— 最坏要等 6h 才
+        发现新轮次，社区快照（给没装 FS 的用户）也就跟着晚。对齐到 ``XX:05``
+        后最坏约 5 分钟；抖动 0–15 分钟避免所有实例在同一分钟扎堆打 wiki。
+        """
+        from datetime import datetime, timedelta, timezone
+        now = datetime.now(timezone.utc)
+        nxt = (now + timedelta(hours=step_hours)).replace(
+            minute=0, second=0, microsecond=0)
+        nxt -= timedelta(hours=nxt.hour % step_hours)
+        nxt += timedelta(minutes=minute + random.randint(0, jitter_min))
+        return max(60.0, (nxt - now).total_seconds())
+
+    async def _community_autoloop(self):
+        """社区快照轻轮询（每 30 分钟，只服务「没有可用 FS」的用户）。
+
+        与 `_valence_autoloop` 分开的原因：那条循环对 FS 关闭/不可达的用户是
+        **整段跳过**的，而他们正是社区快照要服务的人。这里每次只读一个几 KB 的
+        公开 JSON，且只有本地快照确实过期时才会落盘；成功记 INFO，其余静默。
+        """
+        while True:
+            try:
+                await asyncio.sleep(30 * 60)
+                if await self._flare_phase() == "ready":
+                    continue          # 有 FS 的用户直连 wiki，不必读快照
+                await self._refresh_from_community()
+            except asyncio.CancelledError:
+                raise
+            except Exception:  # noqa: BLE001 - 轻轮询失败不打扰
+                await asyncio.sleep(60)
 
     async def _valence_autoloop(self):
         """插件内置定时：每 6 小时检查一轮 wiki 类快照。
@@ -796,8 +864,12 @@ class WarframeSDJK(Star):
                     if phase == "absent":
                         # 开着但没有可达的 FS：24h 一次的处置提示（不每小时打扰）
                         self._warn_flare_absent_once()
-                    # phase == "off"（面板关掉）→ 不尝试也不告警，静默跳过
-                    await asyncio.sleep(6 * 3600)
+                    # phase == "off"（面板关掉）→ 不尝试 FS 也不告警
+                    # ★ 2026-09-25：但**社区快照与 FS 无关**（普通 GET，免盾）——
+                    #   没部署 FS 的用户正是它要服务的人，所以这里仍走一次
+                    #   community_only 刷新；全程静默（成功记 INFO，取不到不说话）。
+                    await self._refresh_from_community()
+                    await asyncio.sleep(self._secs_to_aligned_tick())
                     continue
                 self._flare_absent_warned_at = 0.0        # 恢复可达 → 重置降频计时
 
@@ -836,7 +908,7 @@ class WarframeSDJK(Star):
                                        "（卡面已标注「货单待更新」）")
                 except Exception:  # noqa: BLE001 - 自检失败不阻断
                     pass
-                await asyncio.sleep(6 * 3600)
+                await asyncio.sleep(self._secs_to_aligned_tick())
             except asyncio.CancelledError:
                 raise
             except Exception as e:  # noqa: BLE001
@@ -2204,9 +2276,11 @@ class WarframeSDJK(Star):
             return await self._wm_group_buy(q, platform)
         if not q.item:
             return Reply(raw_text="用法：wm 物品名 [部件] [收购|合购a*2,b] [N个] [零级/满级/N级] "
-                                  "[完整/优良/无暇/光辉] [-r]\n"
+                                  "[完整/优良/无瑕/光辉] [墨染] [-r]\n"
                                   "部件：蓝图（总图）/ 机体 / 系统 / 头部 / 配件（全部部件比价），"
-                                  "如 wm 母牛 蓝图")
+                                  "如 wm 母牛 蓝图\n"
+                                  "品级：满级按物品实际满级（赋能 5 级 / 川流不息 5 级 / "
+                                  "生命力 10 级）；精炼档只对遗物，墨染只看墨染 Mod")
         item = await self.client.resolve_wm_item(q.item)
         if not item:
             return await self._wm_suggest(q.item)
@@ -2231,14 +2305,30 @@ class WarframeSDJK(Star):
                         f"可用部件：{'、'.join(names) or '（未同步到部件表）'}\n"
                         f"也可以发整套看全部：wm {q.item}"))
                 item = picked
-        rank = q.rank
-        if rank == -1:
-            rank = 10  # 满级近似
+        # ── 品级 / 遗物精炼 / 墨染 过滤（2026-09-25 补：解析早就有，一直没接）──
+        # 先取订单再判品级：满级要参考「挂单里出现的最高级」（WM 有 44 个 MOD
+        # 条目没给 maxRank），无级挂单则忽略该词并说明。
         orders, _info = await self.client.wm_orders(item["url_name"], platform)
+        rank, rank_note = self._resolve_rank_filter(q.rank, q.rank_word, item, orders)
+        notes = [rank_note] if rank_note else []
+        subtypes = {str(o.get("subtype") or "") for o in orders}
+        refinement = q.refinement
+        if refinement and not (subtypes & {"intact", "exceptional", "flawless", "radiant"}):
+            notes.append(f"该物品没有遗物精炼档，「{q.refinement_word or refinement}」已忽略")
+            refinement = None
+        elif refinement:
+            notes.append(f"只看「{q.refinement_word or refinement}」档遗物")
+        moran = q.moran
+        if moran and "atragraph" not in subtypes:
+            notes.append("该物品没有墨染 Mod 变体，「墨染」已忽略")
+            moran = False
+        elif moran:
+            notes.append("只看墨染 Mod")
         display = item.get("zh") or item.get("en") or item["url_name"]
         title, lines, best, pool = fmt.fmt_wm_orders(
             display, orders, buy=q.buy, page=parsed.page, page_size=self.page_size,
-            quantity=q.quantity, rank=rank)
+            quantity=q.quantity, rank=rank, refinement=refinement, moran=moran,
+            notes=notes)
         hint = "" if parsed.whisper or not best else " · 加 -r 生成游戏密语"
         # 套装附带部件参考价（2026-09-14 用户要求）：单查部件走上面的
         # 归一化匹配（wm 席瓦蓝图），这里只在命中套装时多拉几个部件订单。
@@ -2276,6 +2366,42 @@ class WarframeSDJK(Star):
                 reply.whisper.append(
                     fmt.build_whisper(o, whisper_item, sell=q.buy))
         return reply
+
+    @staticmethod
+    def _resolve_rank_filter(q_rank, q_rank_word, item, orders=None) -> tuple:
+        """品级过滤解析 → ``(rank, note)``（2026-09-25，同日二修：数据驱动）。
+
+        满级（q_rank == -1）取物品**实际**满级，来源逐级降级并在卡面标明：
+          ① WM items 的 maxRank（赋能 5 / 川流不息 5 / 生命力 10）
+          ② 挂单里出现的最高级（WM 有 44 个 MOD 条目没给 maxRank，如 intruder）
+          ③ 类别保守兜底（赋能 5，其余 10）
+
+        挂单完全没有品级信息时（遗物、intruder 这类无级挂单）忽略该词并说明，
+        避免静默返回空表。
+        """
+        if q_rank is None:
+            return None, ""
+        ranks = {o.get("mod_rank") for o in (orders or [])
+                 if o.get("mod_rank") is not None}
+        tags = set(item.get("tags") or [])
+        has_rank_meta = bool(item.get("max_rank")) or bool({"mod", "arcane_enhancement"} & tags)
+        if orders is None:
+            # 单测/旧调用：只看元数据
+            if not has_rank_meta:
+                return None, f"该物品没有品级，「{q_rank_word or q_rank}」已忽略"
+        elif not ranks:
+            return None, f"该物品的挂单没有品级信息，「{q_rank_word or q_rank}」已忽略"
+        if q_rank == -1:
+            rank, src = item.get("max_rank"), "item"
+            if not rank and ranks:
+                rank, src = max(ranks), "orders"
+            if not rank:
+                rank, src = (5 if "arcane_enhancement" in tags else 10), "fallback"
+            rank = int(rank)
+            note = (f"只列满级（按挂单最高 {rank} 级）" if src == "orders"
+                    else f"只列满级（{rank}级）的单")
+            return rank, note
+        return q_rank, f"只列 {q_rank} 级的单"
 
     async def _wm_suggest(self, query: str) -> Reply:
         """未命中时给中英文候选（含错别字容忍，如 波斯顿→伯斯顿）。"""

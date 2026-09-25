@@ -25,7 +25,12 @@ from urllib.parse import quote
 
 try:
     from . import matching        # core 包内正常导入
-except ImportError:               # 离线脚本把 core/ 当顶层路径导入时
+except ImportError:
+    # ★ 只在**非包上下文**（离线脚本把 core/ 当顶层路径）才回退绝对导入；
+    #   包内失败 = 真错误，原样抛出（2026-09-25 事故：兜底把真错掩盖成
+    #   "No module named 'core'"，见 main.py 同处注释）。
+    if __package__:
+        raise
     import matching
 
 try:  # 缺依赖时保持模块可导入（离线工具/测试），实例化时再给出明确提示
@@ -45,6 +50,30 @@ WIKI_DISP_NAME = "de/wiki_disp.json"     # wiki 变体倾向快照
 ACRITHIS_WEEK_NAME = "de/acrichis_week.json"   # 言录使本周货单（运行期覆盖包内种子）
 ACRITHIS_CURRENT_URL = ("https://wiki.warframe.com/w/Acrithis/"
                         "Current_Offerings?action=raw")  # 社区当期 5 件上报页
+# 社区快照（2026-09-25 方案④）：wiki 这两项数据都在 Cloudflare 盾后，没部署
+# FlareSolverr 的用户只能吃随包种子。于是把**服务器上已经抓到的新鲜快照**发布到
+# 公开仓的 bot-data 分支（automations/publish_community_snapshot.py），插件在
+# 「本地快照过期 + FlareSolverr 不可用/关闭」时读它兜底：
+#   · 只读、无凭据、无第三方 SDK，就是一次普通 GET
+#   · 校验不过（缺武器/过期/比本地旧）一律**不采用**，仍退回包内种子
+#   · 数据来源仍是 wiki（CC BY-NC-SA），文件里带 source/署名
+# ★ 三条通道按序试：**raw 主**，jsDelivr 的 gh 通道与 statically 备用 ——
+#   实测国内网络读不到 raw（服务器 raw 15s 超时 HTTP 000），但 jsDelivr/statically 可达。
+COMMUNITY_SNAPSHOT_BASE = ("https://raw.githubusercontent.com/skyti1437/"
+                           "Warframe-SDJK-Bot/bot-data")
+COMMUNITY_VALENCE_URL = f"{COMMUNITY_SNAPSHOT_BASE}/valence.json"        # 主通道
+COMMUNITY_ACRITHIS_URL = f"{COMMUNITY_SNAPSHOT_BASE}/acrithis_week.json"
+_REPO_SLUG = "skyti1437/Warframe-SDJK-Bot"
+COMMUNITY_VALENCE_URLS = (
+    COMMUNITY_VALENCE_URL,
+    f"https://cdn.jsdelivr.net/gh/{_REPO_SLUG}@bot-data/valence.json",
+    f"https://cdn.statically.io/gh/{_REPO_SLUG}/bot-data/valence.json",
+)
+COMMUNITY_ACRITHIS_URLS = (
+    COMMUNITY_ACRITHIS_URL,
+    f"https://cdn.jsdelivr.net/gh/{_REPO_SLUG}@bot-data/acrithis_week.json",
+    f"https://cdn.statically.io/gh/{_REPO_SLUG}/bot-data/acrithis_week.json",
+)
 # Cloudflare 绕过代理（FlareSolverr）：wiki.warframe.com 等对非浏览器 403。
 # 服务器上跑一个 flaresolverr 容器后自动启用；插件跑在 astrbot 容器里，
 # 127.0.0.1 到不了宿主机端口，所以按候选顺序试（容器名 → docker0 网关 → 本机）。
@@ -79,6 +108,98 @@ def parse_url_list(raw: str) -> list[str]:
     return out
 RIVEN_WEEKLY_NAME = "riven_weekly.json"  # DE 官方紫卡周报快照
 DE_RIVEN_WEEKLY = "https://www-static.warframe.com/repos/weeklyRivens{plat}.json"
+
+
+# ---------------------------------------------------------------------------
+# 社区快照（公开仓 bot-data 分支）的校验 —— 全是纯函数，离线可单测
+# ---------------------------------------------------------------------------
+# 纪律与两条刷新路径一致：**校验不过就绝不采用**（宁可退回随包种子，也不拿
+# 残缺/过期/更旧的数据覆盖已有快照）。
+def parse_community_valence(payload: dict) -> dict:
+    """把发布的 ``valence.json`` 变成与 ``parse_wiki_valence`` 同形的解析结果。
+
+    返回 ``{"tenet": {en: (elem, bonus)}, "coda": {...}, "coda_batch": "B",
+    "snapshot": <ISO>}``；任何缺失/畸形抛 ``ValueError``。
+    """
+    if not isinstance(payload, dict):
+        raise ValueError("社区快照不是对象")
+    out: dict[str, dict] = {}
+    for tag in ("tenet", "coda"):
+        sect = payload.get(tag)
+        if not isinstance(sect, dict):
+            raise ValueError(f"社区快照缺 {tag}")
+        items = sect.get("items")
+        if not isinstance(items, list) or not items:
+            raise ValueError(f"社区快照 {tag} 无物品")
+        m: dict[str, tuple[str, float]] = {}
+        for it in items:
+            if not isinstance(it, dict):
+                raise ValueError(f"{tag} 条目畸形")
+            en, elem, bonus = it.get("en"), it.get("element"), it.get("bonus")
+            if not en or not elem or not isinstance(bonus, (int, float)):
+                raise ValueError(f"{tag} 条目缺字段：{en!r}")
+            m[str(en)] = (str(elem), float(bonus))
+        out[tag] = m
+    batch = payload.get("coda", {}).get("batch")
+    if not isinstance(batch, str) or not batch:
+        raise ValueError("社区快照缺 coda.batch")
+    out["coda_batch"] = batch
+    out["snapshot"] = str(payload.get("published_at") or "")
+    return out
+
+
+def community_valence_newer(snapshot: str, *locals_: str) -> bool:
+    """发布的快照时间是否**严格新于**本地各段 —— 防「拿旧的覆盖新的」。
+
+    任何一个时间戳解析不了都返回 False（保守：不用它）。
+    """
+    from datetime import datetime
+    try:
+        pub = datetime.fromisoformat(snapshot)
+    except (TypeError, ValueError):
+        return False
+    for raw in locals_:
+        try:
+            loc = datetime.fromisoformat(str(raw))
+        except (TypeError, ValueError):
+            continue                       # 本地没有时间戳 → 不构成拒绝理由
+        if pub <= loc:
+            return False
+    return True
+
+
+def community_acrithis_ok(payload: dict, now=None) -> tuple[bool, str]:
+    """发布的言录使货单是否可用：未过期 + 有物品 + observed 不早于本周一。"""
+    from datetime import datetime, timedelta, timezone
+    now = now or datetime.now(timezone.utc)
+    if not isinstance(payload, dict):
+        return False, "不是对象"
+    try:
+        exp = datetime.fromisoformat(str(payload.get("expiry") or ""))
+    except ValueError:
+        return False, "expiry 缺失/畸形"
+    if exp <= now:
+        return False, f"已过期（{payload.get('expiry')}）"
+    items = payload.get("items")
+    if not isinstance(items, list) or not items:
+        return False, "无物品"
+    if any(not (it or {}).get("name") for it in items):
+        return False, "有条目缺 name"
+    obs_raw = str(payload.get("observed") or "")
+    if obs_raw:
+        for fmt in ("%B %d, %Y", "%Y-%m-%d"):
+            try:
+                obs = datetime.strptime(obs_raw, fmt).replace(tzinfo=timezone.utc)
+                break
+            except ValueError:
+                obs = None
+        # 解析不了的 observed 不算问题（expiry 才是硬判据）
+        if obs is not None:
+            monday = (now - timedelta(days=now.weekday())).replace(
+                hour=0, minute=0, second=0, microsecond=0)
+            if obs < monday:
+                return False, f"observed 早于本周一（{obs_raw}）"
+    return True, "ok"
 _DE_RIVEN_PLATFORM = {"pc": "PC", "ps4": "PS4", "xb1": "XB1", "sw": "SWITCH"}
 TTL_RIVEN_WEEKLY = 6 * 3600
 
@@ -716,7 +837,7 @@ class WarframeClient:
                     valid.add(line)
         return {"observed": observed, "items": items, "valid": sorted(valid)}
 
-    async def refresh_acrichis_week(self) -> str:
+    async def refresh_acrichis_week(self, community_only: bool = False) -> str:
         """言录使本周货单：过期后自动抓 wiki 当期上报子页刷新（2026-09-21 起）。
 
         DE 不下发每周实际 5 件；wiki《Acrithis/Current Offerings》是社区人工
@@ -737,11 +858,14 @@ class WarframeClient:
         if not catalog:
             logger.warning("[sdjk] 言录使快照缺 _en_catalog，无法自动刷新")
             return "failed"
+        if community_only:
+            # FS 关闭/不可达：不碰 FlareSolverr，只读公开仓社区快照
+            return await self._community_acrithis_week(snap)
         try:
             raw = await self.fetch_via_flaresolver(ACRITHIS_CURRENT_URL, ttl=0)
         except Exception as e:  # noqa: BLE001 - 抓取失败走告警，不阻断
-            logger.warning("[sdjk] 言录使当期子页抓取失败：%s", e)
-            return "failed"
+            logger.warning("[sdjk] 言录使当期子页抓取失败：%s，尝试社区快照", e)
+            return await self._community_acrithis_week(snap)
         parsed = self.parse_acrichis_current(raw)
         if not parsed:
             logger.warning("[sdjk] 言录使当期子页解析失败（模板结构变了？）")
@@ -790,6 +914,42 @@ class WarframeClient:
             encoding="utf-8")
         logger.info("[sdjk] 言录使本周货单已自动刷新（observed %s，%d 件）",
                     parsed["observed"], len(items))
+        return "refreshed"
+
+    async def _community_acrithis_week(self, snap: dict) -> str:
+        """言录使兜底：读公开仓社区快照并落盘；校验不过返回 ``"failed"``。
+
+        只替换动态字段（expiry/observed/items），本地 ``_en_catalog`` 等归档信息保留。
+        """
+        payload = await self._community_json(COMMUNITY_ACRITHIS_URLS)
+        if payload is None:
+            return "failed"
+        ok, why = community_acrithis_ok(payload)
+        if not ok:
+            logger.warning("[sdjk] 社区言录使快照校验不过：%s", why)
+            return "failed"
+        items: list[dict] = []
+        for it in payload["items"]:
+            ent = {"name": str(it["name"])}
+            if it.get("qty") is not None:
+                ent["qty"] = it["qty"]
+            if it.get("price") is not None:
+                ent["price"] = it["price"]
+            items.append(ent)
+        out = {
+            **snap,                       # 保留 _en_catalog / _reset_rule 等
+            "expiry": payload["expiry"],
+            "observed": payload.get("observed") or snap.get("observed", ""),
+            "items": items,
+            "source": (payload.get("source")
+                       or "社区快照（wiki《Acrithis/Current Offerings》"
+                          "经有 FS 的机器发布）"),
+        }
+        paths.write_path(ACRITHIS_WEEK_NAME).write_text(
+            json.dumps(out, ensure_ascii=False, indent=1) + "\n",
+            encoding="utf-8")
+        logger.info("[sdjk] 言录使本周货单已从社区快照刷新（observed %s，%d 件）",
+                    out["observed"], len(items))
         return "refreshed"
 
     async def steel_path_incursions(self, platform: str) -> dict:
@@ -960,7 +1120,7 @@ class WarframeClient:
         return data
 
     async def wm_items(self) -> list[dict]:
-        """全量物品（含 zh-hans 名称与杜卡德），归一化字段。"""
+        """全量物品（含 zh-hans 名称、杜卡德与**满级**），归一化字段。"""
         raw = await self._wm_v2("/items", ttl=TTL_WM_ITEMS) or []
         out = []
         for it in raw:
@@ -972,6 +1132,9 @@ class WarframeClient:
                 "game_ref": it.get("gameRef", ""), "zh": zh, "en": en,
                 "ducats": it.get("ducats"), "trading_tax": it.get("tradingTax"),
                 "tradable": it.get("tradable"), "tags": it.get("tags") or [],
+                # ★ 2026-09-25：WM 自带 maxRank（赋能 5 / 川流不息 5 / 生命力 10）——
+                #   「满级」筛选过去写死 10，赋能与一批 5 级 MOD 必然查空。
+                "max_rank": it.get("maxRank"),
             })
         return out
 
@@ -2157,8 +2320,52 @@ class WarframeClient:
         passed = int((now - epoch) // timedelta(hours=int(period_hours)))
         return (observed_idx - passed) % n_batches
 
-    async def refresh_valence(self) -> str:
+    async def _community_json(self, urls: tuple[str, ...]) -> Optional[dict]:
+        """读公开仓 bot-data 的社区快照（普通 GET、免盾）。取不到返回 None。
+
+        ★ 按 URL 顺序试（raw → jsDelivr → statically）：国内网络实测读不到 raw，
+        有备用通道才不至于让这批用户卡在第一条。命中即返回，全部失败才 None。
+        """
+        name = urls[0].rsplit("/", 1)[-1]
+        for i, url in enumerate(urls):
+            try:
+                data = await self._fetch_json(url, ttl=600,
+                                              headers=_ORACLE_HEADERS,
+                                              cache_key=f"community:{name}")
+            except Exception as exc:               # noqa: BLE001
+                logger.info("[sdjk] 社区快照通道 %d/%d 不可用（%s）：%s",
+                            i + 1, len(urls), name, exc)
+                continue
+            if isinstance(data, dict):
+                if i:
+                    logger.info("[sdjk] 社区快照走的是备用通道 %d/%d（%s）",
+                                i + 1, len(urls), url.split("/")[2])
+                return data
+        return None
+
+    async def _community_valence_parsed(self, rot: dict) -> Optional[dict]:
+        """把社区快照变成 ``parse_wiki_valence`` 同形结果；校验不过返回 None。"""
+        payload = await self._community_json(COMMUNITY_VALENCE_URLS)
+        if payload is None:
+            return None
+        try:
+            parsed = parse_community_valence(payload)
+        except ValueError as exc:
+            logger.warning("[sdjk] 社区元素加成快照校验不过：%s", exc)
+            return None
+        locals_ = [(rot.get(k) or {}).get("valence_snapshot", "")
+                   for k in ("tenet", "coda")]
+        if not community_valence_newer(parsed["snapshot"], *locals_):
+            logger.info("[sdjk] 社区元素加成快照不比本地新（%s），不采用",
+                        parsed["snapshot"] or "无时间戳")
+            return None
+        return parsed
+
+    async def refresh_valence(self, community_only: bool = False) -> str:
         """检查并刷新信条/终幕元素加成快照（数据源 wiki Reset 页）。
+
+        ``community_only=True``（FS 关闭/不可达时由后台循环调用）：**不碰
+        FlareSolverr**，直接用公开仓社区快照；取不到就返回 "no-community" 静默跳过。
 
         幂等：快照仍在当前 96h 轮次内则直接返回「fresh」不动文件。
         校验失败（解析残缺）抛异常，绝不写半成品。
@@ -2175,9 +2382,26 @@ class WarframeClient:
         _sections = [rot.get(k) for k in ("tenet", "coda")]
         if not any(self.valence_is_stale(s, now) for s in _sections if s):
             return "fresh"
-        html = await self.fetch_via_flaresolver(
-            "https://wiki.warframe.com/w/Reset", ttl=600)
-        parsed = self.parse_wiki_valence(html)
+        used_community = False
+        if community_only:
+            parsed = await self._community_valence_parsed(rot)
+            if parsed is None:
+                return "no-community"
+            used_community = True
+        else:
+            try:
+                html = await self.fetch_via_flaresolver(
+                    "https://wiki.warframe.com/w/Reset", ttl=600)
+                parsed = self.parse_wiki_valence(html)
+            except Exception as exc:           # noqa: BLE001
+                # ★ 没部署 / 连不上 FlareSolverr 时的兜底：读公开仓 bot-data 的
+                #   社区快照（同一份 wiki 数据，由有 FS 的那台机器发布）。校验不过
+                #   就照旧抛错（调用方降级），绝不采用残缺或更旧的数据。
+                logger.info("[sdjk] 元素加成 wiki 不可用（%s），尝试社区快照", exc)
+                parsed = await self._community_valence_parsed(rot)
+                if parsed is None:
+                    raise
+                used_community = True
         tenet_data = rot.get("tenet") or {}
         coda_data = rot.get("coda") or {}
         want_t = {it.get("en") for it in tenet_data.get("items") or []}
@@ -2211,9 +2435,13 @@ class WarframeClient:
                     it.pop("element", None)
                     it.pop("bonus", None)
         tenet_data["valence_snapshot"] = snap
+        if used_community:
+            src = "community-snapshot（wiki《Reset》数据，由有 FS 的机器发布）"
+            tenet_data["valence_source"] = src
+            coda_data["valence_source"] = src
         paths.write_path("rotations.json").write_text(json.dumps(rot, ensure_ascii=False, indent=1),
                             encoding="utf-8")
-        return f"refreshed {snap} batch={batch}"
+        return f"refreshed {snap} batch={batch}" + ("(community)" if used_community else "")
 
     @staticmethod
     def parse_wiki_dispositions(html: str) -> dict:

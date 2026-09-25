@@ -2273,14 +2273,29 @@ def fmt_wm_set_parts(rows: list[dict]) -> list[str]:
     return lines
 
 
+# 遗物精炼档（WM 订单的 subtype）与墨染标签——2026-09-25
+_RELIC_SUBTYPE_CN = {"intact": "完整", "exceptional": "优良",
+                     "flawless": "无瑕", "radiant": "光辉"}
+_MORAN_SUBTYPE = "atragraph"          # 墨染 Mod（Foil/Atragraph）
+
+
 def fmt_wm_orders(item_name: str, orders: list[dict], *, buy: bool = False,
                   page: int = 1, page_size: int = 10,
-                  quantity: Optional[int] = None, rank: Optional[int] = None) -> tuple[str, list[str], Optional[dict]]:
+                  quantity: Optional[int] = None, rank: Optional[int] = None,
+                  refinement: Optional[str] = None, moran: bool = False,
+                  notes: Optional[list] = None,
+                  ) -> tuple[str, list[str], Optional[dict]]:
     """整理 WM 订单：在线优先、价格其次，并标注卖家信誉与在线状态。
 
     排序口径（用户反馈「做了价格排序但没做在线排序」）：
       先按「在线状态」分档（游戏内在线 > 网页在线 > 离线），档内再按价格升序
       （收购单为降序）。这样最上面永远是能立刻交易的人。
+
+    过滤口径：
+      · ``rank``：MOD/赋能的品级（0~maxRank；赋能满级是 5 不是 10）
+      · ``refinement``：遗物精炼档（WM subtype：intact/exceptional/flawless/radiant）
+      · ``moran``：只列墨染 Mod（subtype=atragraph）
+      · ``notes``：调用方给卡面的补充说明（如「该物品没有精炼等级，已忽略」）
 
     Returns:
         ``(标题, 行, 最低价订单, 订单池)``——第三项用于 ``-r`` 密语生成；
@@ -2293,6 +2308,10 @@ def fmt_wm_orders(item_name: str, orders: list[dict], *, buy: bool = False,
         pool = [o for o in pool if o.get("mod_rank") == rank]
     if quantity:
         pool = [o for o in pool if int(o.get("quantity") or 0) >= quantity]
+    if refinement:
+        pool = [o for o in pool if str(o.get("subtype") or "") == refinement]
+    if moran:
+        pool = [o for o in pool if str(o.get("subtype") or "") == _MORAN_SUBTYPE]
     pool.sort(key=lambda o: (_ONLINE_RANK.get(o.get("user", {}).get("status", ""), 3),
                              -o["platinum"] if buy else o["platinum"]))
     status_cn = {"ingame": "🟢在线", "online": "🔵网页在线", "offline": "⚫离线"}
@@ -2306,6 +2325,12 @@ def fmt_wm_orders(item_name: str, orders: list[dict], *, buy: bool = False,
         seg = [f"{o['platinum']}p ×{o.get('quantity', 1)}"]
         if o.get("mod_rank") is not None:
             seg.append(f"{o['mod_rank']}级")
+        # 遗物精炼档 / 墨染标记（对价格影响大，逐行标出来才看得懂）
+        _sub = str(o.get("subtype") or "")
+        if _sub in _RELIC_SUBTYPE_CN:
+            seg.append(_RELIC_SUBTYPE_CN[_sub])
+        elif _sub == _MORAN_SUBTYPE:
+            seg.append("墨染")
         seg.append(status_cn.get(user.get("status", ""), ""))
         seg.append(str(user.get("ingame_name", "?")))
         rep = _rep_txt(user.get("reputation"))
@@ -2315,6 +2340,8 @@ def fmt_wm_orders(item_name: str, orders: list[dict], *, buy: bool = False,
     title = f"{item_name} {'收购' if buy else '在售'}单（第{page}/{pages}页，共{total}条）"
     lines.append("※ 排序：在线优先（🟢>🔵>⚫），同档按价格"
                  + ("降序" if buy else "升序"))
+    for note in (notes or []):
+        lines.append(f"※ {note}")
     best = pool[0] if pool else None
     return (title, lines or ["没有符合条件的订单"], best, pool)
 
