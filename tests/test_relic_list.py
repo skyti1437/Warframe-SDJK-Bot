@@ -149,7 +149,7 @@ check("卡面标题走表格模式（渲染层才会列对齐）", "遗物出库
 check("卡面不再出现英文纪元（Lith/Meso/Neo/Axi）",
       not any(w in _body for w in ("Lith", "Meso", "Neo", "Axi")), _body[:200])
 _row = [x for x in _l if x.startswith("· ")][0]
-check(f"首行 9 个条目", len([c for c in _row[2:].split("　") if c]) == 9,
+check("首行 9 个条目", len([c for c in _row[2:].split("　") if c]) == 9,
       _row)
 check("注脚行不含全角空格（会污染渲染层的列宽计算）",
       all("　" not in x for x in _l if x.startswith("※")))

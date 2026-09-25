@@ -16,7 +16,6 @@ base_drain/max_rank/rank0/rankMax 可信，用它批量校准。
 带 --dry-run 只报告不写。
 """
 import json
-import math
 import sys
 
 try:

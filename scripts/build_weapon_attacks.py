@@ -15,7 +15,6 @@ incarnon_forms 对齐）。只收有额外段或蓄力的武器。
 
 许可：只取事实数值（伤害向量/暴击/触发/半径），按我们自己的 schema 重录。
 """
-import glob
 import json
 import sys
 from pathlib import Path

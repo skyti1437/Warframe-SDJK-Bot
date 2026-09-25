@@ -26,7 +26,6 @@ import argparse
 import html as _html
 import json
 import re
-import sys
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path

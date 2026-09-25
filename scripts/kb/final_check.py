@@ -5,8 +5,11 @@
   · 硬表 = kb_lib.T2S（构建时实际使用的繁→简字表）
   · 派生表 = 由 PEP dict.tc / dict.zh 逐字符比对派生（补 T2S 未收录的字）
 """
-import re, os, json, glob, sys
-from collections import Counter, defaultdict
+import re
+import os
+import json
+import glob
+import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from kb_lib import kb_data_dir, kb_out_dir

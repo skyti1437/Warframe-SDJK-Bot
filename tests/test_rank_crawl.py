@@ -7,7 +7,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import sys
 from pathlib import Path
 
@@ -60,7 +59,7 @@ async def main():
 
     store: dict = {}
     c = FakeClient(store)
-    n = await c.crawl_wm_ranks(limit=6)
+    await c.crawl_wm_ranks(limit=6)
     check("每轮限量：只抓 6 项", c.calls == 6, str(c.calls))
     check("落盘游标 = 6", store.get("cursor") == 6, str(store.get("cursor")))
     check("rows 数 = 6", len(store.get("rows") or {}) == 6, str(len(store)))

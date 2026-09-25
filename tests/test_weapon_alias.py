@@ -125,7 +125,7 @@ check("variant 层：沙皇赤毒（后缀语序）→ 赤毒 沙皇",
       stage == "variant" and hits[0]["url_name"] == "kuva_bramma")
 
 hits, stage = matching.resolve_weapon_name("kuva沙皇", W)
-check("variant 层：kuva沙皇 → 赤毒 沙皇", 
+check("variant 层：kuva沙皇 → 赤毒 沙皇",
       stage == "variant" and hits[0]["url_name"] == "kuva_bramma")
 
 hits, stage = matching.resolve_weapon_name("Kuva Bramma", W)
@@ -241,7 +241,6 @@ check("riven_type_cn：未知值原样、空值返回空",
 # ---------------------------------------------------------------------------
 # 8. 倾向补全数据文件（scripts/build_disposition.py 产物）
 # ---------------------------------------------------------------------------
-import json  # noqa: E402
 data_file = ROOT / "core" / "data" / "dispositions_rivenmirror.json"
 check("倾向补全数据文件存在", data_file.exists())
 if data_file.exists():
@@ -267,7 +266,7 @@ if data_file.exists():
 # 7. 与旧实现的优先级兼容（官方名优先）
 # ---------------------------------------------------------------------------
 hits, stage = matching.resolve_weapon_name("Rubico Prime", W)
-check("英文精确（归一化）命中 Prime 本体", 
+check("英文精确（归一化）命中 Prime 本体",
       stage == "normalized" and hits[0]["url_name"] == "rubico_prime")
 
 if FAILED:

@@ -486,6 +486,75 @@ _v, _k = asyncio.run(_c6.resolve_variant_disp("翁 Prime 一套"))
 check("变体倾向查询容忍「一套」后缀（找到 wiki 表的 okina prime）",
       _v == 0.7 and _k == "okina prime", f"{_v} / {_k}")
 
+# --------------------------------------- ⑩ 战甲单字黑话（猫p/电p/沙p/鸟p）
+print("\n=== ⑩ 战甲单字黑话与「单字键不劫持」守卫 ===")
+_FRAME_KEYS = {
+    "猫": "khora_prime_set", "电": "volt_prime_set", "沙": "inaros_prime_set",
+    "鸟": "zephyr_prime_set", "冰": "frost_prime_set", "毒": "saryn_prime_set",
+    "血": "garuda_prime_set", "花": "wisp_prime_set", "蝶": "titania_prime_set",
+    "茶": "protea_prime_set", "鬼": "sevagoth_prime_set",
+    "音": "banshee_prime_set", "磁": "mag_prime_set", "火": "ember_prime_set",
+    "玻璃": "gara_prime_set", "高斯": "gauss_prime_set",
+}
+_WM_TABLE = load_aliases().get("wm_items", {})
+for _k, _want in _FRAME_KEYS.items():
+    check(f"词库单字键 {_k} → {_want}", _WM_TABLE.get(_k) == _want,
+          str(_WM_TABLE.get(_k)))
+check("★ 用户点名的四个单字都在（猫/电/沙/鸟）",
+      all(_WM_TABLE.get(k) for k in ("猫", "电", "沙", "鸟")))
+# 2026-09-25 互联网核实（百度「相关搜索」= 社区真实输入）：
+#   证实 电男p/冰男p/冰p/毒妈p/血妈/磁妹/沙甲/花甲p/跑男甲/鬼甲 在用；
+#   百度侧「胖」多指宠物（莲花大胖/胖狗），但用户清单（战甲黑话.md）明确
+#   肥/胖 → Grendel（胖P），且单字键有「本字/+p/+prime」守卫，故按清单收 胖。
+check("★ 「胖」按清单口径 → Grendel（胖P），非宠物",
+      _WM_TABLE.get("胖") == "grendel_prime_set", str(_WM_TABLE.get("胖")))
+# 用户清单核出的错位映射：奶妈=Trinity、奶爸=Oberon（外部核实：百度页 Oberon+奶爸配卡）
+check("★ 奶妈 → Trinity（原错指 Wisp，清单+外部核实）",
+      _WM_TABLE.get("奶妈") == "trinity_prime_set", str(_WM_TABLE.get("奶妈")))
+check("★ 奶爸 → Oberon（原错指 Trinity）",
+      _WM_TABLE.get("奶爸") == "oberon_prime_set"
+      and _WM_TABLE.get("奶爸p") == "oberon_prime_set",
+      f"{_WM_TABLE.get('奶爸')} / {_WM_TABLE.get('奶爸p')}")
+check("清单单字补齐（奶/摸/水/肥/枪/基/明/僧/盾/丑/高/船/骨）",
+      all(_WM_TABLE.get(k) for k in
+          ("奶", "摸", "水", "肥", "枪", "基", "明", "僧", "盾", "丑", "高",
+           "船", "骨")))
+
+_ITEMS_FRAMES = [{"url_name": v, "zh": f"{k} Prime 一套", "en": f"{k}Prime Set",
+                  "tags": ["warframe", "prime", "set"]}
+                 for k, v in _FRAME_KEYS.items()]
+_c7 = WarframeClient.__new__(WarframeClient)
+_c7._aliases = load_aliases()          # 完整别名结构（含 wm_items 内层表）
+
+
+async def _items_frames():
+    return [dict(x) for x in _ITEMS_FRAMES]
+
+
+_c7.wm_items = _items_frames
+for _q, _want in (("猫", "khora_prime_set"), ("猫p", "khora_prime_set"),
+                  ("电p", "volt_prime_set"), ("沙p", "inaros_prime_set"),
+                  ("鸟p", "zephyr_prime_set"), ("猫p".replace("p", " prime"),
+                                                "khora_prime_set"),
+                  # 2026-09-25 用户口径：玻璃p（Gara Prime）、蜘蛛p（Khora Prime）
+                  ("玻璃p", "gara_prime_set"), ("蜘蛛p", "khora_prime_set"),
+                  ("蜘蛛甲", "khora_prime_set"), ("跑男p", "gauss_prime_set")):
+    _hit = asyncio.run(_c7.resolve_wm_item(_q))
+    check(f"★ {_q} → {_want}", (_hit or {}).get("url_name") == _want,
+          str((_hit or {}).get("url_name")))
+
+# 守卫：单字键只认「本字 / +p / +prime」——长查询不得被劫持成战甲
+for _q in ("电击伤害", "猫头鹰", "冰霜伤害"):
+    _hit = asyncio.run(_c7.resolve_wm_item(_q))
+    check(f"★ 守卫：{_q} 不被劫持成战甲",
+          (_hit or {}).get("url_name") not in set(_FRAME_KEYS.values()),
+          str((_hit or {}).get("url_name")))
+# 反向守卫：多字黑话（冰男/猫刀）不受守卫影响
+_hit = asyncio.run(_c7.resolve_wm_item("冰男p"))
+check("多字黑话「冰男p」仍正常（守卫只约束单字键）",
+      (_hit or {}).get("url_name") == "frost_prime_set",
+      str((_hit or {}).get("url_name")))
+
 print()
 if FAILED:
     print(f"✗ {len(FAILED)} 项失败：" + "、".join(FAILED))

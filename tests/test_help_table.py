@@ -91,7 +91,6 @@ check("多指令词条可按「 / 」分成3段", len(cells_line[0].split(" / ")
 
 # ------------------------------------------------ 真实 HELP_TOPIC 全量演练：
 # 用假宽度函数模拟 render 的规划，确保所有说明列都能被折进预算内
-import types  # noqa: E402
 
 import tests.test_dun as _td  # noqa: E402  复用其 astrbot 桩
 

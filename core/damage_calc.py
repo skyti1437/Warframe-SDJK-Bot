@@ -733,7 +733,6 @@ def parse_args(tokens: list[str]) -> tuple[dict, list[str]]:
             elem_m = re.fullmatch(r"(" + "|".join(ELEM_ALIASES) + r")" + _NUM + r"%?", t)
             phys_m = re.fullmatch(r"(" + "|".join(PHYS_ALIASES) + r")" + _NUM + r"%?", t)
             if m_fac:  # 对G30 / C30 这类派系 MOD 加成
-                fac = {"g": "Grineer", "c": "Corpus", "i": "Infested"}[m_fac.group(1).lower()]
                 spec["faction_dmg"] = float(m_fac.group(2))
             elif elem_m:
                 el = ELEM_ALIASES[elem_m.group(1)]
@@ -1140,7 +1139,7 @@ def _apply_deployment(spec: dict, w: dict) -> dict:
                          "shot_type": "AoE"})
             w2["attacks"] = atks
         spec["notes"].append(
-            f"部署：空战（Archwing）面板"
+            "部署：空战（Archwing）面板"
             + ("；另有空战范围伤害段" if a.get("radial_damage") else "")
             + ("；弹匣按空战值" if a.get("ammo_max") else ""))
         return w2
@@ -1165,7 +1164,6 @@ def _apply_panel_overrides(spec: dict, weapon: dict) -> dict:
     w = _apply_incarnon_form(spec, w)      # ⓿ 形态（灵化默认开）
     w = _apply_deployment(spec, w)         # ⓿b 空战/地面部署（Archgun）
     dmg = dict(w.get("damage") or {})
-    notes: list[str] = []
 
     total0 = sum(float(v) for k, v in dmg.items()
                  if isinstance(v, (int, float)) and v > 0

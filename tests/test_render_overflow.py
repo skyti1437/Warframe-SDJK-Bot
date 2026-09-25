@@ -269,8 +269,6 @@ def _font_checks():
     try:
         # ★ 逐卡「渲完整库 → 渲子集 → 立刻比对」：渲染器有磁盘缓存裁剪
         #   （_cleanup 只保留最新若干张），批量渲染后再比会把早期产物裁掉。
-        import core.render as _R
-        old_p, old_s = _R._Fonts.PACKED, _R._Fonts.SYSTEM
         for i, (title, lines) in enumerate(cards):
             r_full = _render_one(_FULL["Regular"], _FULL["Bold"], title, lines,
                                  tmp / f"full_{i}")
@@ -301,6 +299,71 @@ def _render_one(regular: Path, bold: Path, title: str, lines, cache: Path):
 
 
 _font_checks()
+
+# ---------------------------------------------------------------------------
+# 用户字体迁移（AstrBot 开发原则：持久化数据进 data 目录，别放插件自身目录）
+# ---------------------------------------------------------------------------
+# 背景（issue #1 报告者）：用户把手放字体放进插件目录 core/data/fonts/，市场更新
+# 整包替换即丢。v1.0.8 起启动时一次性把「非随包资产」的字体搬进
+# plugin_data/<插件>/fonts/（渲染查找链已含该目录）；随包子集 otf 是分发资产，
+# 留在原地；开发/克隆树（有 .git）不迁，避免弄脏工作树。
+def _migration_checks():
+    import core.render as _R
+    T = Path(tempfile.mkdtemp(prefix="wf_migrate_"))
+    try:
+        # ① 伪造「市场安装树」（无 .git）：2 个随包资产 + 1 个用户手放字体 + 非字体文件
+        legacy = T / "plugin" / "core" / "data" / "fonts"
+        legacy.mkdir(parents=True)
+        (legacy / "NotoSansCJKsc-Subset-Regular.otf").write_bytes(b"SHIPPED-REG")
+        (legacy / "NotoSansCJKsc-Subset-Bold.otf").write_bytes(b"SHIPPED-BOLD")
+        (legacy / "MyHandPlaced.ttc").write_bytes(b"USER-TTC")
+        (legacy / "notes.txt").write_bytes(b"not a font")
+        user = T / "plugin_data" / "astrbot_plugin_warframe" / "fonts"
+        moved = _R.migrate_legacy_user_fonts(user, legacy)
+        check("迁移：用户手放字体被搬进 plugin_data",
+              (user / "MyHandPlaced.ttc").exists() and not (legacy / "MyHandPlaced.ttc").exists(),
+              str(moved))
+        check("迁移：随包子集 otf 留在原地（分发资产不迁）",
+              (legacy / "NotoSansCJKsc-Subset-Regular.otf").exists()
+              and (legacy / "NotoSansCJKsc-Subset-Bold.otf").exists())
+        check("迁移：非字体文件不动", (legacy / "notes.txt").exists())
+        check("迁移：幂等（再跑一次为空）",
+              _R.migrate_legacy_user_fonts(user, legacy) == [])
+        # ② 目标已有同名文件 → 跳过、不覆盖
+        (legacy / "MyHandPlaced.ttc").write_bytes(b"USER-TTC-2")
+        check("迁移：同名冲突跳过且不覆盖",
+              _R.migrate_legacy_user_fonts(user, legacy) == []
+              and (user / "MyHandPlaced.ttc").read_bytes() == b"USER-TTC")
+        # ③ 开发/克隆树（插件根有 .git）→ 一律不迁
+        (T / "devplugin" / ".git").mkdir(parents=True)
+        dev_legacy = T / "devplugin" / "core" / "data" / "fonts"
+        dev_legacy.mkdir(parents=True)
+        (dev_legacy / "RepoFont.ttc").write_bytes(b"TRACKED")
+        dev_user = T / "devplugin_data" / "fonts"
+        check("迁移：开发/克隆树（有 .git）不迁移",
+              _R.migrate_legacy_user_fonts(dev_user, dev_legacy) == []
+              and (dev_legacy / "RepoFont.ttc").exists())
+        # ④ 迁移目录里的**真字体**能被渲染器采纳（PACKED/SYSTEM 清空，只剩用户目录）
+        #   注：上面用的是假字节文件，_probe() 正确地拒绝它；这一步换成真字体。
+        real_src = _SUB["Regular"] if _SUB["Regular"].exists() else None
+        if real_src:
+            shutil.copy2(real_src, user / "MovedReal.otf")
+            old_p, old_s = _R._Fonts.PACKED, _R._Fonts.SYSTEM
+            _R._Fonts.PACKED, _R._Fonts.SYSTEM = [], []
+            try:
+                f = _R._Fonts(user_dirs=[user])
+                check("迁移：搬过去的真字体能被渲染器采用",
+                      f.regular is not None and "MovedReal" in f.regular.name,
+                      str(f.regular))
+            finally:
+                _R._Fonts.PACKED, _R._Fonts.SYSTEM = old_p, old_s
+        else:
+            print("[SKIP] 无子集字体可复制作真字体样本")
+    finally:
+        shutil.rmtree(T, ignore_errors=True)
+
+
+_migration_checks()
 
 print()
 if FAILED:

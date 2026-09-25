@@ -4,7 +4,11 @@
 2) 把 wiki 实测的 Coda A 批元素/加成写进 core/data/rotations.json。
 用法: python fix_coda_valence.py [--apply]
 """
-import io, json, re, shutil, sys, time
+import io
+import json
+import shutil
+import sys
+import time
 
 APPLY = "--apply" in sys.argv
 ROOT = "."

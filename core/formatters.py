@@ -2471,7 +2471,7 @@ def fmt_ducat_junk(tier: str, rows: list[dict], page: int = 1,
 _RAILJACK_TYPE_CN = {
     "skirmish": "空战", "volatile": "易爆", "spy": "间谍", "survival": "生存",
     "extermination": "歼灭", "defense": "防御", "sabotage": "破坏",
-    "assassinate": "刺杀", "orphix": "奥菲斯", "hijack": "劫持", "volatile": "易爆",
+    "assassinate": "刺杀", "orphix": "奥菲斯", "hijack": "劫持",
 }
 
 

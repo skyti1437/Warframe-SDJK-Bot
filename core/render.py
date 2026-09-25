@@ -13,6 +13,8 @@ import unicodedata
 from pathlib import Path
 from typing import Optional
 
+from .logging_compat import logger as _LOGGER
+
 # ---------------------------------------------------------------------------
 # 文本卡片
 # ---------------------------------------------------------------------------
@@ -100,8 +102,6 @@ try:
     from PIL import Image, ImageDraw, ImageFilter, ImageFont
 except ImportError:  # pragma: no cover
     Image = ImageDraw = ImageFilter = ImageFont = None  # type: ignore[assignment]
-
-from .logging_compat import logger as _LOGGER
 
 FONT_DIR = Path(__file__).resolve().parent / "data" / "fonts"  # core/data/fonts
 # 极性小图标（wiki 抓取的 64px PNG，2026-09-24）。该目录不进开源/市场包
@@ -467,6 +467,10 @@ class _Fonts:
         if self.bold is None:
             self.bold = self.regular
 
+    # 随包字体资产：更新/重装随包替换属预期，**不参与用户字体迁移**
+    SHIPPED_FONTS = frozenset({"NotoSansCJKsc-Subset-Regular.otf",
+                               "NotoSansCJKsc-Subset-Bold.otf"})
+
     @classmethod
     def _user_fonts(cls, entries: list[Path]) -> list[Path]:
         """展开用户字体入口：文件直接用；目录按名排序取全部字体文件。"""
@@ -636,6 +640,46 @@ def _hgrad_line(draw, x0: int, x1: int, y: int, color, peak_alpha: int = 220):
         if a > 2:
             draw.line([(x, y), (min(x + SS, x1), y)], fill=color + (a,),
                       width=SS)
+
+
+def migrate_legacy_user_fonts(user_dir: Path,
+                              legacy_dir: Path = FONT_DIR) -> list[tuple[Path, Path]]:
+    """把插件目录里的**用户自带字体**搬进插件数据目录（一次性、幂等、只移不抄）。
+
+    依据 AstrBot 开发原则（官方插件文档「开发原则」）：**持久化数据请存储于 data
+    目录下，而非插件自身目录，防止更新/重装插件时数据被覆盖**。用户按旧 README
+    把手放字体放进 ``core/data/fonts/`` 后，市场更新整包替换即丢（issue #1 报告者
+    正是这种情形）——本函数在启动时把它们搬到 ``plugin_data/<插件>/fonts/``。
+
+    · 随包子集 otf（``_Fonts.SHIPPED_FONTS``）是**分发资产**，留在原地不动；
+    · 目标已有同名文件时跳过（不覆盖用户已有字体）；
+    · 只处理 ``.ttc/.ttf/.otf``；移动而非复制（避免同一字体被加载两次）。
+    返回 [(源, 目标)] 迁移清单（空 = 无旧字体或已迁完）。
+    """
+    moved: list[tuple[Path, Path]] = []
+    if not legacy_dir.is_dir():
+        return moved
+    # 护栏：开发树 / git 克隆（插件根有 .git）不迁移 —— 那里的完整字库是**仓库
+    # 跟踪的资产**，搬走会弄脏工作树；git 用户更新走 pull，不会删未跟踪文件，
+    # 手放字体本来就安全。只有「市场安装」这种整包替换的场景才需要迁移。
+    plugin_root = legacy_dir.parents[2]          # <插件>/core/data/fonts → <插件>
+    if (plugin_root / ".git").exists():
+        return moved
+    for src in sorted(legacy_dir.iterdir()):
+        try:
+            if not src.is_file() or src.name in _Fonts.SHIPPED_FONTS:
+                continue
+            if src.suffix.lower() not in _Fonts._FONT_SUFFIXES:
+                continue
+            dst = user_dir / src.name
+            if dst.exists():
+                continue
+            user_dir.mkdir(parents=True, exist_ok=True)
+            src.replace(dst)
+            moved.append((src, dst))
+        except OSError:
+            continue
+    return moved
 
 
 class ImageRenderer:

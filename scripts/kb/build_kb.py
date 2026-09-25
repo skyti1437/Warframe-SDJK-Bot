@@ -3,12 +3,16 @@
 构建 Warframe 知识库（AstrBot 知识库专用，10 个 Markdown 文件）
 分块参数 512 字 / 重叠 50 → 条目按「自包含、开头即实体名」设计
 """
-import json, os, re, sys, time
+import json
+import os
+import re
+import sys
+import time
 from collections import Counter, OrderedDict, defaultdict
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from kb_lib import (Sources, pct_frac, pct_raw, trim_num, clean, fmt_damage, zh_stat,
-                    residue_latin, residue_words, strip_tags, to_text, norm_code, t2s, demark,
+                    residue_words, to_text, norm_code, t2s, demark,
                     DT_ZH, POLARITY_ZH, RARITY_ZH, FACTION_ZH, ENEMY_TYPE_ZH, RELIC_ERA_ZH,
                     REFINE_ZH, MODTYPE_ZH, kb_data_dir, kb_out_dir)
 
