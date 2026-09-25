@@ -52,18 +52,18 @@ try:  # 允许脱离 AstrBot 直接跑单元测试
                               parse_fissure_filter, parse_time_window, parse_wm,
                               parse_wr, PLATFORM_DISPLAY)
     from .core.push import PUSH_EVENTS, PushDaemon, build_cancel_selector, normalize_event
-    from .core.render import ImageRenderer, WATERMARK_VERSION, text_card
+    from .core.render import (ImageRenderer, WATERMARK_VERSION,
+                              migrate_legacy_user_fonts, text_card)
     from .core.store import GroupStore, Subscription, SubscriptionStore
-    from .core import de_worldstate as de_ws
 except ImportError:  # pragma: no cover
     from core import __brand__ as BRAND
+    # 打包器门面锚点：OSS_FACADE_DELETIONS 按此行整块删除，勿删/勿改前缀
     from core import api_client
     from core import calculators as calc
     from core import damage_calc as dc
     from core import loadout_ocr as lo
     from core import matching
     from core import pips as pips_engine
-    from core import de_worldstate as de_ws
     from core.api_client import (WarframeAPIError, WarframeClient,
                              parse_url_list, fuzzy_hits)
     from core import arbi as _arbi
@@ -77,9 +77,9 @@ except ImportError:  # pragma: no cover
                              parse_fissure_filter, parse_time_window, parse_wm,
                              parse_wr, PLATFORM_DISPLAY)
     from core.push import PUSH_EVENTS, PushDaemon, build_cancel_selector, normalize_event
-    from core.render import ImageRenderer, WATERMARK_VERSION, text_card
+    from core.render import (ImageRenderer, WATERMARK_VERSION,
+                             migrate_legacy_user_fonts, text_card)
     from core.store import GroupStore, Subscription, SubscriptionStore
-    from core import de_worldstate as de_ws
 
 
 def _relic_tier_en() -> dict:
@@ -532,6 +532,17 @@ class WarframeSDJK(Star):
         self.groups = GroupStore(data_dir / "groups.json",
                                  default_platform=self.cfg.get("default_platform", "pc"))
         self.subs = SubscriptionStore(data_dir / "subscriptions.json")
+        # 用户自带字体迁移（AstrBot 开发原则：持久化数据进 data 目录）：
+        # 插件目录里的手放字体搬到 data 目录；随包子集 otf 留在原地。
+        # 必须在构造 renderer 之前跑，新位置才能在同一轮启动就被采纳。
+        try:
+            _moved_fonts = migrate_legacy_user_fonts(data_dir / "fonts")
+            if _moved_fonts:
+                logger.info("[sdjk] 已把插件目录里的 %d 个用户字体搬到 %s"
+                            "（插件更新/重装不再丢）",
+                            len(_moved_fonts), data_dir / "fonts")
+        except Exception:                       # noqa: BLE001 - 迁移失败不阻断启动
+            logger.warning("[sdjk] 用户字体迁移失败（不影响启动）", exc_info=True)
         self.renderer = ImageRenderer(data_dir / "cards")
         self._last_scan: dict[str, tuple[float, dict, dict]] = {}  # 会话→(时刻, 武器, 折算spec)
         # 识卡限流状态：**实例级**（类级默认值是兜底，实例级才隔离）。
@@ -688,7 +699,7 @@ class WarframeSDJK(Star):
                 data = self.client._load_json_file(RANKS_FILE) or {}
                 ts = data.get("ts") or ""
                 import time as _t
-                from datetime import datetime, timezone
+                from datetime import datetime
                 try:
                     age = (_t.time() - datetime.fromisoformat(ts).timestamp())
                 except ValueError:
@@ -714,24 +725,55 @@ class WarframeSDJK(Star):
                 logger.warning("[sdjk] 价格榜单自动刷新失败，10 分钟后重试：%s", e)
                 await asyncio.sleep(600)
 
+    async def _flare_phase(self) -> str:
+        """wiki 类刷新的前置判定：``off`` / ``absent`` / ``ready``。
+
+        ★ 这是「告警分级」的唯一入口（v1.0.8，issue #1 实测）：三态分别对应
+        「不尝试也不告警 / 降频提示一次 / 正常刷新（失败即真故障，照旧 WARN）」。
+        探测本身异常按 ``absent`` 处理（保守：宁可少打扰，也不误报故障）。
+        """
+        if not self.client.flare_enabled:
+            return "off"
+        try:
+            if await self.client.flare_reachable():
+                return "ready"
+        except Exception:  # noqa: BLE001 - 探测异常按不可达处理
+            return "absent"
+        return "absent"
+
+    def _warn_flare_absent_once(self) -> None:
+        """「没部署 FlareSolverr」的**降频**提示（24h 一次；v1.0.8，issue #1 实测）。
+
+        与真故障分开：FS **可达但求解失败**仍每轮 WARN（不把真问题静默）；
+        FS **压根不可达**（没部署/地址不对）只提示一次并给出两条处置路径，
+        不再每小时打扰不用这个可选组件的用户。
+        """
+        now = time.time()
+        if now - getattr(self, "_flare_absent_warned_at", 0.0) < 24 * 3600:
+            return
+        self._flare_absent_warned_at = now
+        logger.warning(
+            "[sdjk] 未检测到可用的 FlareSolverr（可选组件）：wiki 类快照"
+            "（信条/终幕元素加成、紫卡倾向表、言录使货单）将沿用随包快照、不再自动刷新。"
+            "· 不需要该功能：在配置面板关闭「启用 CF 绕过代理（FlareSolverr）」，本提示随之消失；"
+            "· 需要：部署 FlareSolverr 并把可达地址填进「FlareSolverr 地址」"
+            "（容器内 127.0.0.1 到不了宿主机，常用 http://172.17.0.1:8191）。")
+
     async def _valence_autoloop(self):
         """插件内置定时：每 6 小时检查一轮 wiki 类快照。
 
-        ① 信条/终幕元素加成（换轮即刷新）；② 变体倾向表（7 天过期重抓）。
-        服务器上有 FlareSolverr 代理后，wiki 页面可以直接抓取；FlareSolverr
-        未部署/求解失败时只记日志，外部定时任务仍是兜底。
+        ① 信条/终幕元素加成（换轮即刷新）；② 变体倾向表（7 天过期重抓）；
+        ③ 言录使货单。三者都需要 FlareSolverr（**可选组件**）。
+
+        ★ 告警分级（2026-09-25 v1.0.8，issue #1 用户实测反馈：更新后连收
+        「元素加成/变体倾向表刷新失败（All connection attempts failed）」）：
+          · 配置关掉 FS      → 整段跳过：不尝试、不告警（那是他自己的选择）；
+          · 开着但不可达     → 跳过尝试 + 24h 一次的处置提示（见上），
+                              顺带省掉每轮 3×超时的等待；
+          · 可达但求解失败   → 照旧每轮 WARN（真故障，绝不静默）。
         """
         while True:
             try:
-                # 每轮刷新前回收 FlareSolverr 会话（destroy→create）：换一个全新
-                # 标签页，防 Chromium 长跑崩掉后整轮连败（2026-09-25 事故：
-                # 02:18 的标签页 08:18 崩掉，随后每小时拿坏会话重试全败）。
-                # best-effort：回收失败不阻断刷新本身。
-                try:
-                    if await self.client.recycle_flare_session():
-                        logger.info("[sdjk] FlareSolverr 会话已回收（换用新标签页）")
-                except Exception:  # noqa: BLE001 - 回收失败照常刷新
-                    pass
                 # 内存自报（2026-09-25 立）：宿主 1.7G RAM 而 astrbot 有 2.25G 压在
                 # swap，卡顿疑似由此而来。每轮记一次 RSS/VmSwap，用于判断是
                 # 「随 uptime 线性涨」还是「渲染后台阶式涨」，为降占用/升配定方向。
@@ -747,6 +789,28 @@ class WarframeSDJK(Star):
                                     " ".join(f"{k}={v}" for k, v in _st.items()))
                 except Exception:  # noqa: BLE001 - 非 Linux（本地调试）跳过
                     pass
+
+                # ── FlareSolverr 告警分级（v1.0.8）：三态分流见 _flare_phase ──
+                phase = await self._flare_phase()
+                if phase != "ready":
+                    if phase == "absent":
+                        # 开着但没有可达的 FS：24h 一次的处置提示（不每小时打扰）
+                        self._warn_flare_absent_once()
+                    # phase == "off"（面板关掉）→ 不尝试也不告警，静默跳过
+                    await asyncio.sleep(6 * 3600)
+                    continue
+                self._flare_absent_warned_at = 0.0        # 恢复可达 → 重置降频计时
+
+                # 每轮刷新前回收 FlareSolverr 会话（destroy→create）：换一个全新
+                # 标签页，防 Chromium 长跑崩掉后整轮连败（2026-09-25 事故：
+                # 02:18 的标签页 08:18 崩掉，随后每小时拿坏会话重试全败）。
+                # best-effort：回收失败不阻断刷新本身。
+                try:
+                    if await self.client.recycle_flare_session():
+                        logger.info("[sdjk] FlareSolverr 会话已回收（换用新标签页）")
+                except Exception:  # noqa: BLE001 - 回收失败照常刷新
+                    pass
+                # ③ FS 可达：正常刷新；这里失败都是**真故障**，WARN 保留
                 status = await self.client.refresh_valence()
                 if status != "fresh":
                     logger.info("[sdjk] 元素加成快照已刷新：%s", status)
@@ -1310,7 +1374,6 @@ class WarframeSDJK(Star):
             「Lv 6-11」会以为和之前那条「高效 / 传奇」筛选是一回事，反而起干扰，
             砍掉。
         """
-        n = nodes.get(key) or {}
         return _arbi.node_line(nodes, key, tier_of)
     async def _arb_now(self, platform) -> Reply:
         """当前仲裁 + 下一小时（含节点/星球/类型/派系/等级/站点评级 + 数据源说明）。"""
@@ -1399,9 +1462,6 @@ class WarframeSDJK(Star):
             # 节点 星球 模式 派系 [评级]（派系可能带词尾，评级可选）
             f = [p2 for p2 in parts if p2]
             fields.append(f)
-        w_node = max(dw(f[0]) for f in fields)
-        w_sys = max(dw(f[1]) for f in fields)
-        w_type = max(dw(f[2]) for f in fields)
         chunk = []
         for (t_head, _), f in zip(cols, fields):
             node = f[0]
@@ -1698,15 +1758,19 @@ class WarframeSDJK(Star):
         return bool(self.cfg.get("wiki_intro", True))
 
     def _wiki_reply(self, page_name: str, url: str, alts: list[str],
-                    platform, *names: str, variants: list[str] | None = None) -> Reply:
+                    platform, *names: str, variants: list[str] | None = None,
+                    note: str = "") -> Reply:
         """wiki 结果统一出口：有简介数据 → 卡片 + 链接；没有 → 纯文本链接。
 
         链接必须**可点击**（issue #1 需求②），所以卡片之外永远另发一段
         Plain 文本；只有链接时保持纯文本直发（渲成图片会把 URL 烧死在图里）。
         查询没指明变体时 ``variants`` 给出「变体：…」一行（用户口径：
         没指明就只介绍基础的，变体在下面说明）。
+        ``note`` 是易混淆澄清（战甲黑话清单，见 ``wiki_clarify``），
+        有就缀在卡片/文本末尾一行。
         """
         var_line = f"变体：{'、'.join(variants)}" if variants else ""
+        note_line = f"⚠️ {note}" if note else ""
         link = f"🔗 wiki 链接：{url}"
         if alts:
             link += f"\n同类候选：{'、'.join(alts)}"
@@ -1716,11 +1780,15 @@ class WarframeSDJK(Star):
                 title, lines = card
                 if var_line:
                     lines = [*lines, var_line]
+                if note_line:
+                    lines = [*lines, note_line]
                 return Reply(title, lines, extra_text=link,
                              footer=fmt.fmt_platform_footer(platform))
         lines = [f"📖 {page_name}", url]
         if var_line:
             lines.append(var_line)
+        if note_line:
+            lines.append(note_line)
         if alts:
             lines.append(f"同类候选：{'、'.join(alts)}")
         return Reply("wiki 直达", lines, text_only=True,
@@ -1729,17 +1797,22 @@ class WarframeSDJK(Star):
     async def _h_wiki(self, parsed, event, platform) -> Reply:
         """维基页面直达。
 
-        先走本地 12 条概念页，再走统一索引拼页面名；只有都落空才给搜索链接。
-        页面名按**国际服**口径（DE 官方简中不翻译战甲名，见
+        先走本地概念页/战甲外号页（wiki 段），再走统一索引拼页面名；只有都落空
+        才给搜索链接。页面名按**国际服**口径（DE 官方简中不翻译战甲名，见
         ``search_engine.wiki_page_name``）；查询没指明变体（p / prime / 亡魂…）
         时介绍基体并列一行变体，指明了就直接给该变体。配了简介数据时附卡片。
+        易混淆黑话（花甲=Wisp 不是 Garuda 这类）在卡片尾给一行澄清（``note``）。
         """
         query = parsed.content_str
         if not query:
             return Reply(raw_text="用法：wiki 关键词（本地词库优先，未命中给搜索链接）")
+        note = self.client.wiki_clarify(query)
         hit = self.client.wiki_lookup(query)
         if hit:
-            return Reply(raw_text=f"📖 {hit['title']}\n{hit['url']}")
+            # 概念页 / 战甲外号页（wiki 段）：同样出卡片（用户口径：都要绘制），
+            # 卡片正文若知识库有该页条目就用，没有退最小卡
+            return self._wiki_reply(hit["title"], hit["url"], [], platform,
+                                    hit["title"], query, note=note)
         from urllib.parse import quote as _q
 
         want_variant = matching.variant_intent_any(query)
@@ -1765,7 +1838,8 @@ class WarframeSDJK(Star):
                 found[0].get("en") or "",
                 query,          # 前缀命中（「电路」→「电路效果」）时按原词找卡片
                 variants=None if want_variant
-                else wiki_intro.variants(best_name))
+                else wiki_intro.variants(best_name),
+                note=note)
         # WM 中文名 → 灰机 wiki 对应页面（用官方名构造 URL）
         try:
             item = await self.client.resolve_wm_item(query)
@@ -1786,10 +1860,13 @@ class WarframeSDJK(Star):
                 page_name, f"https://warframe.huijiwiki.com/wiki/{page}",
                 [], platform, item.get("zh") or "", item.get("en") or "",
                 variants=None if want_variant
-                else wiki_intro.variants(page_name))
+                else wiki_intro.variants(page_name),
+                note=note)
         link = await self.client.wiki_search_link(query)
+        # 未收录时也把澄清带上（如「跑男」这种自带歧义的写法）
+        tip = f"\n\n⚠️ {note}" if note else ""
         return Reply(raw_text=f"本地词库未收录「{query}」，请前往维基搜索：\n{link}"
-                              f"{self._kb_hint()}")
+                              f"{tip}{self._kb_hint()}")
 
     async def _h_valence(self, parsed, event, platform) -> Reply:
         """玄骸 / 信条 / 科达武器的**效价融合**（Valence Fusion）。
@@ -2475,7 +2552,6 @@ class WarframeSDJK(Star):
         return f"kuva_{hit.split('_prime')[0]}" if hit and hit.split('_prime')[0] else None
 
     def _relic_db(self) -> tuple[dict, dict]:
-        from pathlib import Path as _P
         cache = getattr(self, "_relic_cache", None)
         if cache:
             return cache
@@ -3030,7 +3106,6 @@ class WarframeSDJK(Star):
         下载（gtimg 需要特定 UA/Referer，手写 httpx 会被 403）、本地路径、
         base64:// 三种来源。
         """
-        import base64 as _b64
         out: list[str] = []
         try:
             chain = getattr(getattr(event, "message_obj", None),
@@ -3114,7 +3189,6 @@ class WarframeSDJK(Star):
 
     async def _extract_riven_from_image(self, image_url: str) -> Optional[dict]:
         """调 vision 渠道从紫卡截图提取词条，返回解析后的 dict 或 None。"""
-        import json as _json
         prompt = (
             "你是 Warframe 紫卡识别器。从这张紫卡截图中提取信息，"
             "只输出一行 JSON（不要 markdown 围栏、不要解释）：\n"
@@ -3655,9 +3729,12 @@ class WarframeSDJK(Star):
                 return Reply(raw_text="图片识别到了武器但没读出词条，请按文字格式重发："
                                       "紫卡分析 武器名 暴伤82.8 范围1.6 负滑暴81.3")
             if not weapon_name:
-                return Reply(raw_text="图片识别到了词条但没读出武器名，请按文字格式补一次："
-                                      "紫卡分析 武器名 " + " ".join(
-                                          f"{abbr}{num:g}" for sid, num in stats_pos))
+                # ★ 2026-09-25 ruff F821 修复：原写成未定义的 `abbr`，这条路一走
+                #   就 NameError（用户拿到内部错误而不是下面这条提示）。
+                hint = " ".join(f"{RIVEN_STAT_ZH.get(sid, sid)}{num:g}"
+                                for sid, num in stats_pos)
+                return Reply(raw_text="图片识别到了词条但没读出武器名，"
+                                      f"请按文字格式补一次：紫卡分析 武器名 {hint}")
 
         if not 2 <= len(stats_pos) <= 3 or len(stats_neg) > 1:
             return Reply(raw_text="紫卡词条应为 2~3 条正面 + 0~1 条负面，"
@@ -4204,7 +4281,7 @@ class WarframeSDJK(Star):
             if _ratings:
                 lines.append(f"※ 只在评级 {'/'.join(_ratings)} 的场次推送"
                              f"（想全都收就别写「高效/传奇」）")
-        return Reply(f"◆ 蹲订阅成功", lines)
+        return Reply("◆ 蹲订阅成功", lines)
 
     # ------------------------------------------------------------------
     # 推送回调

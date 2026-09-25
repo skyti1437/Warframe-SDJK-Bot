@@ -4,8 +4,9 @@
 目录由环境变量指定（见 kb_lib.py 头部注释）：WF_KB_DATA=解包数据目录，
 WF_KB_SRC=数据包 zip 所在目录；两者缺一即报错退出。
 """
-import zipfile, os
-from kb_lib import kb_data_dir, kb_src_dir, find_zip, zip_root
+import zipfile
+import os
+from kb_lib import kb_data_dir, find_zip, zip_root
 
 BASE = kb_data_dir()
 ZI = find_zip('warframe-items')

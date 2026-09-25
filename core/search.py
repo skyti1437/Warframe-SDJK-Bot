@@ -44,6 +44,29 @@ _DROPS_FILE = _DATA / "drops.json"
 
 _NON_WORD = re.compile(r"[^0-9a-z一-鿿]+")
 
+# 官方名里的「族·名」写法（赋能·精确 / 近战·侵染 / 神威·勇武…）。
+# 灰机页面名的口径（2026-09-25 浏览器 API 批量实测）：
+#   · 武器赋能族 → **保持原序去掉中点**（近战·侵染 → 近战侵染 ✓、神威勇武 ✓）；
+#   · 战甲赋能族「赋能·X」→ **交换**成「X赋能」（精确赋能 ✓、保卫者赋能 ✓，
+#     而「赋能精确」在灰机是缺失的）。
+_FAMILY_NAME = re.compile(r"^([一-鿿]{2})[·・]\s*([一-鿿].*)$")
+
+
+def _name_variants(name: str) -> list[str]:
+    """名字的等价写法：``A·B`` 去中点；「赋能·X」再补交换式 ``X赋能``。
+
+    这样用户按任一写法（游戏内「赋能·精确」/ 灰机「精确赋能」/ 无点「近战侵染」）
+    都能在本地索引里命中同一条目。
+    """
+    out = [name]
+    m = _FAMILY_NAME.match(name or "")
+    if m:
+        a, b = m.group(1), m.group(2)
+        out.append(a + b)
+        if a == "赋能":
+            out.append(b + "赋能")
+    return out
+
 
 def _jload(path: Path) -> dict:
     """读 JSON，文件缺失或损坏时返回空字典（数据文件是可选项）。"""
@@ -80,12 +103,14 @@ def _index() -> tuple[tuple[str, str, str, str], ...]:
         shown = cn or next((n for n in names if n), "")
         second = en or next((n for n in names[1:] if n and n != shown), "")
         for n in filter(None, names):
-            k = _norm(n)
-            if not k:
-                continue
-            cur = rows.get(k)
-            if cur is None or (_CJK.search(shown) and not _CJK.search(cur[0])):
-                rows[k] = [shown, second, source]
+            # 等价写法一并入索引（「赋能·精确」也登记「精确赋能」/「赋能精确」）
+            for v in _name_variants(n):
+                k = _norm(v)
+                if not k:
+                    continue
+                cur = rows.get(k)
+                if cur is None or (_CJK.search(shown) and not _CJK.search(cur[0])):
+                    rows[k] = [shown, second, source]
 
     # 1) DE 官方本地化导出：权威中文名，覆盖 Forma / 赤毒 / 氩结晶 这类
     #    既不可交易、本地词典又漏收的物品
@@ -222,16 +247,23 @@ def base_slug(slug: str) -> str:
 
 
 def wiki_title(name: str) -> str:
-    """灰机 wiki 页面标题归一（2026-09-25 浏览器实测，API 批量核对）。
+    """灰机 wiki 页面标题归一（2026-09-25 浏览器 API 实测，API 批量核对）。
 
     含中文的名字**去掉空格与中点**：``玻之武杖 Prime`` → ``玻之武杖Prime``
     （带空格就是「本页面不存在」）、``赤毒·布拉玛`` → ``赤毒布拉玛``、
     ``猎人 战备`` → ``猎人战备``、``Mesa 的华尔兹`` → ``Mesa的华尔兹``；
     **纯拉丁名保持原样**（``Nekros Prime`` / ``Excalibur Umbra`` 页面就带空格，
     去掉反而 404）；连字符不动（``MK1-布莱顿`` 是页面名）。
+
+    ★ 战甲赋能族例外：``赋能·精确`` 在灰机是 **``精确赋能``**（交换式，
+    ``赋能精确`` 反而缺失）；而武器赋能族（近战·/次要·/主要·/神威·/瀑流·/
+    双枪·…）是**保持原序去中点**（``近战侵染`` ✓）——两条都经 API 实测。
     """
     if not name or not _CJK.search(name):
         return name
+    m = re.match(r"^赋能[·・]\s*(.+)$", name)
+    if m:
+        return f"{m.group(1)}赋能"
     return re.sub(r"[\s\u3000·・]+", "", name)
 
 

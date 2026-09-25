@@ -15,7 +15,7 @@
 from __future__ import annotations
 
 import time
-from typing import Any, Optional
+from typing import Optional
 
 BASE = "https://arbi.wf.wiki/data/"
 

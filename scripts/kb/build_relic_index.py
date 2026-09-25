@@ -26,7 +26,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import sys
 from collections import defaultdict
@@ -74,7 +73,6 @@ def build(S: Sources):
     index, inverse = {}, defaultdict(dict)
     for gname, g in groups.items():
         rep = g.get("Intact") or next(iter(g.values()))
-        era_en = gname.split()[0]
         # 键：中文纪元 + 英文代号（Requiem Eterna Relic → 安魂 Requiem Eterna）
         parts = gname.replace(" Relic", "").split()
         era_zh = RELIC_ERA_ZH.get(parts[0], parts[0])

@@ -240,7 +240,7 @@ async def main() -> None:
     for i in range(29):
         await _run_one(obj3, "蹲 新闻", umo="group://limit")
     # 第 30 条允许通过
-    r30 = await _run_one(obj3, "蹲 新闻", umo="group://limit")
+    await _run_one(obj3, "蹲 新闻", umo="group://limit")   # 第 30 条（消费订阅位）
     r31 = await _run_one(obj3, "蹲 新闻", umo="group://limit")
     n = len(obj3.subs.for_umo("group://limit"))
     # ★ 2026-09-19 新增：DE 已停用警报系统 → 订阅时必须明确拒绝并说明原因

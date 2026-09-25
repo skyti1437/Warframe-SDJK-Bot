@@ -89,7 +89,7 @@ p = r.render("Warframe SDJKBOT 指令一览", lines, "平台：国际服")
 from PIL import Image  # noqa: E402
 W = Image.open(p).size[0]
 print(f"卡宽 W = {W} px")
-print(f"逐行折行预算 wrap_w = W - pad*2 - 56（pad 见 render，约 54）")
+print("逐行折行预算 wrap_w = W - pad*2 - 56（pad 见 render，约 54）")
 print(f"列折行规划：{log['plan']}")
 print()
 

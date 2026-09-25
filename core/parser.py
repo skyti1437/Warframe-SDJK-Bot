@@ -729,8 +729,8 @@ class FissureFilter:
         **英文标准键**，两边直接比会永远不命中 —— 这里把中文反查回英文。
         """
         keys: set[str] = set()
-        for field in ("missionKey", "missionType"):
-            v = f.get(field)
+        for key in ("missionKey", "missionType"):
+            v = f.get(key)
             if isinstance(v, str) and v.strip():
                 keys.add(v.strip().lower())
         mt = f.get("missionType")

@@ -243,7 +243,7 @@ _ENEMY_ZH = {
     "Ancient Disruptor": "远古干扰者", "Ancient Healer": "远古治愈者",
     "Boiler": "痈裂者", "Brood Mother": "病变虫母", "Charger": "疾冲者",
     "Crawler": "爬行者", "Leaper": "奔跳者", "Runner": "狂奔者",
-    "Charger": "疾冲者", "Anti MOA": "逆进恐鸟", "MOA": "恐鸟",
+    "Anti MOA": "逆进恐鸟", "MOA": "恐鸟",
     "Fusion MOA": "熔岩恐鸟", "Crewman": "船员", "Elite Crewman": "精英船员",
     "Nullifier Crewman": "虚能船员", "Corrupted Nullifier": "堕落虚能者",
     "Butcher": "屠夫", "Flameblade": "焰刃", "Powerfist": "强拳",

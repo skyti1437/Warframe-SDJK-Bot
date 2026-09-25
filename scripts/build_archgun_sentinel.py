@@ -10,7 +10,6 @@ zh 名取自 wfsim i18n/zh/names.yaml（DE 官方客户端串）。
 
 只新增不覆盖：同名 key 已存在时跳过。
 """
-import glob
 import json
 import sys
 from pathlib import Path

@@ -53,14 +53,16 @@ def _effect_zh() -> dict:
 
 
 def _localize_effect(text: str) -> str:
-    """效果行的英文值 → 查翻译表换中文；表里没有就保留英文原文。"""
+    """效果行的值查翻译表换中文；表里没有就原样保留。
+
+    表里既有**纯英文整句**的译文，也有几行「半中半英」的人工覆盖
+    （知识库术语转换残留，见 wiki_effect_zh.json 的 _meta）——所以这里
+    不再按「值是否含中文」提前跳过，直接查表。
+    """
     m = _EFFECT_LINE.match(text or "")
     if not m:
         return text
-    val = m.group("val").strip()
-    if not val or re.search(r"[一-鿿]", val):
-        return text
-    zh = _effect_zh().get(_norm(val))
+    zh = _effect_zh().get(_norm(m.group("val").strip()))
     return f"{m.group('head')}：{zh}" if zh else text
 
 # DE 导出变量占位符（知识库正文保留了官方模板的 〈DAMAGE〉 这类 token）。

@@ -33,7 +33,7 @@
   "mesa": "mesa_prime_set",
   "哪吒": "nezha_prime_set",
   "nezha": "nezha_prime_set",
-  "奶妈": "wisp_prime_set",
+  "奶妈": "trinity_prime_set",
   "wisp": "wisp_prime_set",
   "蝶甲": "titania_prime_set",
   "titania": "titania_prime_set",
@@ -72,7 +72,7 @@
   "excalibur": "excalibur_prime_set",
   "咖喱棒": "excalibur_prime_set",
   "trinity": "trinity_prime_set",
-  "奶爸": "trinity_prime_set",
+  "奶爸": "oberon_prime_set",
   "mag": "mag_prime_set",
   "limbo": "limbo_prime_set",
   "hydroid": "hydroid_prime_set",
@@ -1272,6 +1272,7 @@
   "奶翅": "amesha_set",
   "阿屎": "ash_prime_set",
   "玻璃甲": "gara_prime_set",
+  "玻璃p": "gara_prime_set",
   "玻璃刀": "gara_prime_set",
   "磁妹": "mag_prime_set",
   "马哥": "mag_prime_set",
@@ -1358,11 +1359,38 @@
   "药水哥": "lavos_prime_set",
   "主教": "harrow_prime_set",
   "蜘蛛甲": "khora_prime_set",
+  "蜘蛛": "khora_prime_set",
+  "蜘蛛p": "khora_prime_set",
+  "猫p": "khora_prime_set",
   "猴": "wukong_prime_set",
   "牛": "rhino_prime_set",
   "毒妈p": "saryn_prime_set",
   "娃": "nova_prime_set",
   "男娃": "nova_prime_set",
+  "电": "volt_prime_set",
+  "冰": "frost_prime_set",
+  "雪": "frost_prime_set",
+  "土": "atlas_prime_set",
+  "石": "atlas_prime_set",
+  "弓": "ivara_prime_set",
+  "毒": "saryn_prime_set",
+  "沙": "inaros_prime_set",
+  "火": "ember_prime_set",
+  "狼": "voruna_prime_set",
+  "猫": "khora_prime_set",
+  "磁": "mag_prime_set",
+  "马": "mag_prime_set",
+  "花": "wisp_prime_set",
+  "茶": "protea_prime_set",
+  "蛆": "nidus_prime_set",
+  "蝶": "titania_prime_set",
+  "血": "garuda_prime_set",
+  "诺": "nova_prime_set",
+  "跑": "gauss_prime_set",
+  "音": "banshee_prime_set",
+  "风": "zephyr_prime_set",
+  "鸟": "zephyr_prime_set",
+  "鬼": "sevagoth_prime_set",
   "咖喱": "excalibur_prime_set",
   "小强": "valkyr_prime_set",
   "女汉": "mesa_prime_set",
@@ -1370,10 +1398,96 @@
   "玻璃": "gara_prime_set",
   "龙": "chroma_prime_set",
   "雪男": "frost_prime_set",
-  "奶爸p": "trinity_prime_set",
+  "奶爸p": "oberon_prime_set",
   "膛线": "serration",
   "捷德": "jade_prime_set",
-  "黄蜂": "hornet_strike"
+  "黄蜂": "hornet_strike",
+  "奶": "trinity_prime_set",
+  "摸": "nekros_prime_set",
+  "水": "hydroid_prime_set",
+  "肥": "grendel_prime_set",
+  "胖": "grendel_prime_set",
+  "枪": "mesa_prime_set",
+  "基": "loki_prime_set",
+  "明": "limbo_prime_set",
+  "僧": "baruuk_prime_set",
+  "盾": "hildryn_prime_set",
+  "丑": "mirage_prime_set",
+  "高": "gauss_prime_set",
+  "船": "sevagoth_prime_set",
+  "骨": "xaku_prime_set",
+  "罩子男": "frost_prime_set",
+  "火妹": "ember_prime_set",
+  "压泥机": "mag_prime_set",
+  "磁铁": "mag_prime_set",
+  "缴械基": "loki_prime_set",
+  "运输基": "loki_prime_set",
+  "牛哥": "rhino_prime_set",
+  "踩牛": "rhino_prime_set",
+  "轮椅刺客": "ash_prime_set",
+  "T妈": "trinity_prime_set",
+  "弱点音": "banshee_prime_set",
+  "心控妹": "nyx_prime_set",
+  "丢球男": "vauban_prime_set",
+  "娃妈": "nova_prime_set",
+  "排骨": "nekros_prime_set",
+  "摸尸佬": "nekros_prime_set",
+  "老猫甲": "valkyr_prime_set",
+  "鹿": "oberon_prime_set",
+  "触手怪": "hydroid_prime_set",
+  "泡澡男": "hydroid_prime_set",
+  "风甲": "zephyr_prime_set",
+  "戏子": "mirage_prime_set",
+  "魔术师": "limbo_prime_set",
+  "色彩龙": "chroma_prime_set",
+  "吐息龙": "chroma_prime_set",
+  "石头人": "atlas_prime_set",
+  "扶他": "equinox_prime_set",
+  "云猴": "wukong_prime_set",
+  "分身猴": "wukong_prime_set",
+  "水母": "ivara_prime_set",
+  "蘑菇头": "ivara_prime_set",
+  "风火轮": "nezha_prime_set",
+  "滑冰鞋": "nezha_prime_set",
+  "狗头": "inaros_prime_set",
+  "木乃伊": "inaros_prime_set",
+  "蚊子": "titania_prime_set",
+  "小飞机": "titania_prime_set",
+  "肉山": "nidus_prime_set",
+  "歌甲": "octavia_prime_set",
+  "蹦迪甲": "octavia_prime_set",
+  "牧师": "harrow_prime_set",
+  "自虐狂": "harrow_prime_set",
+  "鞭妹": "khora_prime_set",
+  "爪妹": "garuda_prime_set",
+  "割腕女": "garuda_prime_set",
+  "佛爷": "baruuk_prime_set",
+  "盾娘": "hildryn_prime_set",
+  "猛女": "hildryn_prime_set",
+  "鬼妹": "wisp_prime_set",
+  "浮空妹": "wisp_prime_set",
+  "音速小子": "gauss_prime_set",
+  "马赫": "gauss_prime_set",
+  "肉弹葱油饼": "grendel_prime_set",
+  "时间妹": "protea_prime_set",
+  "骨甲": "xaku_prime_set",
+  "拼装甲": "xaku_prime_set",
+  "捡破烂的": "xaku_prime_set",
+  "幽影": "sevagoth_prime_set",
+  "船长": "sevagoth_prime_set",
+  "替身使者": "sevagoth_prime_set",
+  "滑板妹": "yareli_prime_set",
+  "二次元甲": "yareli_prime_set",
+  "卡里班": "caliban_prime_set",
+  "筷子": "caliban_prime_set",
+  "S甲": "caliban_prime_set",
+  "陀螺": "gyre_prime_set",
+  "跳舞机": "gyre_prime_set",
+  "潘森": "styanax_prime_set",
+  "盾矛哥": "styanax_prime_set",
+  "宝石甲": "citrine_prime_set",
+  "大呲花": "citrine_prime_set",
+  "冰队": "frost_prime_set"
  },
  "riven_items": {
   "绝路": "rubico",
@@ -1582,6 +1696,246 @@
   "新手": {
    "title": "攻略指导",
    "url": "https://warframe.huijiwiki.com/wiki/Mainpage/攻略指导"
+  },
+  "猴P": {
+   "title": "Wukong Prime",
+   "url": "https://warframe.huijiwiki.com/wiki/Wukong_Prime"
+  },
+  "牛P": {
+   "title": "Rhino Prime",
+   "url": "https://warframe.huijiwiki.com/wiki/Rhino_Prime"
+  },
+  "电P": {
+   "title": "Volt Prime",
+   "url": "https://warframe.huijiwiki.com/wiki/Volt_Prime"
+  },
+  "毒P": {
+   "title": "Saryn Prime",
+   "url": "https://warframe.huijiwiki.com/wiki/Saryn_Prime"
+  },
+  "奶P": {
+   "title": "Trinity Prime",
+   "url": "https://warframe.huijiwiki.com/wiki/Trinity_Prime"
+  },
+  "摸P": {
+   "title": "Nekros Prime",
+   "url": "https://warframe.huijiwiki.com/wiki/Nekros_Prime"
+  },
+  "茶P": {
+   "title": "Protea Prime",
+   "url": "https://warframe.huijiwiki.com/wiki/Protea_Prime"
+  },
+  "花P": {
+   "title": "Wisp Prime",
+   "url": "https://warframe.huijiwiki.com/wiki/Wisp_Prime"
+  },
+  "肥P": {
+   "title": "Grendel Prime",
+   "url": "https://warframe.huijiwiki.com/wiki/Grendel_Prime"
+  },
+  "血P": {
+   "title": "Garuda Prime",
+   "url": "https://warframe.huijiwiki.com/wiki/Garuda_Prime"
+  },
+  "冰P": {
+   "title": "Frost Prime",
+   "url": "https://warframe.huijiwiki.com/wiki/Frost_Prime"
+  },
+  "水P": {
+   "title": "Hydroid Prime",
+   "url": "https://warframe.huijiwiki.com/wiki/Hydroid_Prime"
+  },
+  "火P": {
+   "title": "Ember Prime",
+   "url": "https://warframe.huijiwiki.com/wiki/Ember_Prime"
+  },
+  "鸟P": {
+   "title": "Zephyr Prime",
+   "url": "https://warframe.huijiwiki.com/wiki/Zephyr_Prime"
+  },
+  "风P": {
+   "title": "Zephyr Prime",
+   "url": "https://warframe.huijiwiki.com/wiki/Zephyr_Prime"
+  },
+  "土P": {
+   "title": "Atlas Prime",
+   "url": "https://warframe.huijiwiki.com/wiki/Atlas_Prime"
+  },
+  "沙P": {
+   "title": "Inaros Prime",
+   "url": "https://warframe.huijiwiki.com/wiki/Inaros_Prime"
+  },
+  "蝶P": {
+   "title": "Titania Prime",
+   "url": "https://warframe.huijiwiki.com/wiki/Titania_Prime"
+  },
+  "龙P": {
+   "title": "Chroma Prime",
+   "url": "https://warframe.huijiwiki.com/wiki/Chroma_Prime"
+  },
+  "枪P": {
+   "title": "Mesa Prime",
+   "url": "https://warframe.huijiwiki.com/wiki/Mesa_Prime"
+  },
+  "弓P": {
+   "title": "Ivara Prime",
+   "url": "https://warframe.huijiwiki.com/wiki/Ivara_Prime"
+  },
+  "蛆P": {
+   "title": "Nidus Prime",
+   "url": "https://warframe.huijiwiki.com/wiki/Nidus_Prime"
+  },
+  "基P": {
+   "title": "Loki Prime",
+   "url": "https://warframe.huijiwiki.com/wiki/Loki_Prime"
+  },
+  "明P": {
+   "title": "Limbo Prime",
+   "url": "https://warframe.huijiwiki.com/wiki/Limbo_Prime"
+  },
+  "僧P": {
+   "title": "Baruuk Prime",
+   "url": "https://warframe.huijiwiki.com/wiki/Baruuk_Prime"
+  },
+  "盾P": {
+   "title": "Hildryn Prime",
+   "url": "https://warframe.huijiwiki.com/wiki/Hildryn_Prime"
+  },
+  "丑P": {
+   "title": "Mirage Prime",
+   "url": "https://warframe.huijiwiki.com/wiki/Mirage_Prime"
+  },
+  "高P": {
+   "title": "Gauss Prime",
+   "url": "https://warframe.huijiwiki.com/wiki/Gauss_Prime"
+  },
+  "船P": {
+   "title": "Sevagoth Prime",
+   "url": "https://warframe.huijiwiki.com/wiki/Sevagoth_Prime"
+  },
+  "骨P": {
+   "title": "Xaku Prime",
+   "url": "https://warframe.huijiwiki.com/wiki/Xaku_Prime"
+  },
+  "明神": {
+   "title": "Limbo",
+   "url": "https://warframe.huijiwiki.com/wiki/Limbo"
+  },
+  "蛆爹": {
+   "title": "Nidus",
+   "url": "https://warframe.huijiwiki.com/wiki/Nidus"
+  },
+  "肥仔": {
+   "title": "Grendel",
+   "url": "https://warframe.huijiwiki.com/wiki/Grendel"
+  },
+  "刀哥": {
+   "title": "Kullervo",
+   "url": "https://warframe.huijiwiki.com/wiki/Kullervo"
+  },
+  "赛马娘": {
+   "title": "Dagath",
+   "url": "https://warframe.huijiwiki.com/wiki/Dagath"
+  },
+  "马妹": {
+   "title": "Dagath",
+   "url": "https://warframe.huijiwiki.com/wiki/Dagath"
+  },
+  "暖气片": {
+   "title": "Qorvex",
+   "url": "https://warframe.huijiwiki.com/wiki/Qorvex"
+  },
+  "水泥甲": {
+   "title": "Qorvex",
+   "url": "https://warframe.huijiwiki.com/wiki/Qorvex"
+  },
+  "扣妹": {
+   "title": "Koumei",
+   "url": "https://warframe.huijiwiki.com/wiki/Koumei"
+  },
+  "骰子娘": {
+   "title": "Koumei",
+   "url": "https://warframe.huijiwiki.com/wiki/Koumei"
+  },
+  "老九": {
+   "title": "Cyte-09",
+   "url": "https://warframe.huijiwiki.com/wiki/Cyte-09"
+  },
+  "黑咖喱": {
+   "title": "Excalibur Umbra",
+   "url": "https://warframe.huijiwiki.com/wiki/Excalibur_Umbra"
+  },
+  "老牌跑男": {
+   "title": "Volt",
+   "url": "https://warframe.huijiwiki.com/wiki/Volt"
+  },
+  "电耗子": {
+   "title": "Volt",
+   "url": "https://warframe.huijiwiki.com/wiki/Volt"
+  },
+  "法国工程": {
+   "title": "Vauban",
+   "url": "https://warframe.huijiwiki.com/wiki/Vauban"
+  },
+  "西部牛仔": {
+   "title": "Mesa",
+   "url": "https://warframe.huijiwiki.com/wiki/Mesa"
+  },
+  "镜子": {
+   "title": "Gara",
+   "url": "https://warframe.huijiwiki.com/wiki/Gara"
+  },
+  "胖子": {
+   "title": "Grendel",
+   "url": "https://warframe.huijiwiki.com/wiki/Grendel"
+  },
+  "异融统领": {
+   "title": "Caliban",
+   "url": "https://warframe.huijiwiki.com/wiki/Caliban"
+  },
+  "四头狼": {
+   "title": "Voruna",
+   "url": "https://warframe.huijiwiki.com/wiki/Voruna"
+  },
+  "牢哥": {
+   "title": "Kullervo",
+   "url": "https://warframe.huijiwiki.com/wiki/Kullervo"
+  },
+  "扎刀甲": {
+   "title": "Kullervo",
+   "url": "https://warframe.huijiwiki.com/wiki/Kullervo"
+  },
+  "马甲": {
+   "title": "Dagath",
+   "url": "https://warframe.huijiwiki.com/wiki/Dagath"
+  },
+  "辐射甲": {
+   "title": "Qorvex",
+   "url": "https://warframe.huijiwiki.com/wiki/Qorvex"
+  },
+  "书甲": {
+   "title": "Dante",
+   "url": "https://warframe.huijiwiki.com/wiki/Dante"
+  },
+  "鸟哥": {
+   "title": "Dante",
+   "url": "https://warframe.huijiwiki.com/wiki/Dante"
+  },
+  "圣天使": {
+   "title": "Jade",
+   "url": "https://warframe.huijiwiki.com/wiki/Jade"
+  },
+  "孕妇甲": {
+   "title": "Jade",
+   "url": "https://warframe.huijiwiki.com/wiki/Jade"
+  },
+  "赌狗甲": {
+   "title": "Koumei",
+   "url": "https://warframe.huijiwiki.com/wiki/Koumei"
+  },
+  "狙击手": {
+   "title": "Cyte-09",
+   "url": "https://warframe.huijiwiki.com/wiki/Cyte-09"
   }
  },
  "lich_items": {
@@ -1950,5 +2304,41 @@
   "鳄神": "kuva_sobek",
   "龙骑兵": "kuva_drakgoon",
   "龙骑兵玄骸": "kuva_drakgoon"
+ },
+ "clarify": {
+  "花": "花甲 / 花P = Wisp（1 技能「种花」），不是 Garuda",
+  "花甲": "花甲 / 花P = Wisp（1 技能「种花」），不是 Garuda",
+  "花P": "花甲 / 花P = Wisp（1 技能「种花」），不是 Garuda",
+  "血": "血妈 / 血P = Garuda；「鸟姐」是 Zephyr —— Garuda 不叫鸟妹",
+  "血妈": "血妈 / 血P = Garuda；「鸟姐」是 Zephyr —— Garuda 不叫鸟妹",
+  "血P": "血妈 / 血P = Garuda；「鸟姐」是 Zephyr —— Garuda 不叫鸟妹",
+  "鸟姐": "鸟姐 = Zephyr；Garuda 叫「血妈」，别叫鸟妹",
+  "猫": "猫 / 猫P = Khora（现任猫甲，自带狯犽）；Valkyr 才是「老猫甲」",
+  "猫甲": "猫 / 猫P = Khora（现任猫甲）；Valkyr 才是「老猫甲」",
+  "猫P": "猫 / 猫P = Khora（现任猫甲）；Valkyr 才是「老猫甲」",
+  "老猫甲": "老猫甲 = Valkyr（瓦喵 / 女武神）；现在说「猫」默认指 Khora",
+  "奶妈": "奶妈 = Trinity（回血补蓝）；奶爸 = Oberon，别弄反",
+  "奶爸": "奶爸 = Oberon（群体回血草毯）；奶妈 = Trinity，别弄反",
+  "电": "电 / 电男 = Volt（老一代「跑男」）；「跑男」现在多指 Gauss",
+  "电男": "电 / 电男 = Volt（老一代「跑男」）；Gauss 才是新一代跑男",
+  "电P": "电P = Volt Prime（老跑男）；Gauss 是「高P」",
+  "高": "高 / 高斯 = Gauss（新一代「跑男」）；Volt 是老跑男「电男」",
+  "高斯": "高斯 / 高P = Gauss；「跑男」有歧义时按此对齐",
+  "高P": "高P = Gauss Prime；Volt Prime 是「电P」",
+  "跑男": "「跑男」两代：老 = Volt（电男），新 = Gauss（高斯 / 高）",
+  "明神": "明神 = Limbo：既是高阶控场赞誉，也反讽 4 技能「大灾变」封锁队友",
+  "弱鸡": "弱鸡 = Loki（谐音调侃脆皮），不是 Wisp",
+  "肥仔": "肥仔 / 肥宅 = Grendel（吞人滚球）",
+  "茶妹": "茶妹 / 普洱茶 = Protea（谐音）",
+  "鸭梨": "鸭梨 = Yareli（谐音）",
+  "潘森": "潘森 = Styanax（斯巴达盾矛造型）",
+  "暖气片": "暖气片 = Qorvex（辐射石柱像铸铁暖气片）",
+  "赛马娘": "赛马娘 / 马妹 = Dagath（4 技能虚空烈马）",
+  "药水哥": "药水哥 / 炼金 = Lavos（纯 CD 调元素）",
+  "扣妹": "扣妹 = Koumei（罗马音空耳，摇骰子）",
+  "老九": "老九 = Cyte-09（编号 09）",
+  "鸟哥": "鸟哥 = Dante（召唤猫头鹰）；「鸟姐」是 Zephyr，别混",
+  "黑咖喱": "黑咖喱 = Excalibur Umbra（剧情版）；基体是 Excalibur",
+  "土": "土甲 = Atlas；沙甲 = Inaros，别混"
  }
 }

@@ -51,7 +51,8 @@ except Exception:  # noqa: BLE001
     SKIP_FILES = {"deploy.sh", ".DS_Store", ".gitattributes", ".gitignore",
                   "SDJKwfbot_README.md", "wm_ranks.json", "riven_weekly.json",
                   "wiki_disp.json", "package_reverse_searcher_sdjk.py",
-                  "NotoSansCJK-Regular.ttc", "NotoSansCJK-Bold.ttc"}
+                  "NotoSansCJK-Regular.ttc", "NotoSansCJK-Bold.ttc",
+                  "pyproject.toml"}   # ruff 配置：开发物料，市场件不带
     SKIP_SUFFIX = {".pyc", ".pyo"}
     SKIP_GLOBS = ("*报告*.md", "*调研*.md", "*诊断*.md", "*对照*.md", "*核验*.md",
                   "*体检*.md", "*复评*.md", "*选型*.md", "*实测*.md", "*结案*.md",

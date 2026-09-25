@@ -1592,8 +1592,15 @@ class WarframeClient:
         # ★ 同 resolve_wm_item：测试用 __new__ 造实例时 _aliases 可能未初始化
         tbl = (getattr(self, "_aliases", None) or {}).get(table, {})
         for k, v in tbl.items():
-            if q and (k in q or q in k) and abs(len(k) - len(q)) <= 4:
-                return v
+            if not q or not (k in q or q in k) or abs(len(k) - len(q)) > 4:
+                continue
+            # ★ 2026-09-24：**单字键**（电/猫/沙/鸟 等战甲单字黑话）只认
+            #   「本字 / 本字+p / 本字+prime」三种形态 —— 双向包含会让
+            #   「电击伤害」「冰霜」这类正常查询被劫持到 Volt/Frost 上。
+            if len(k) == 1 and q not in (k, k + "p", k + "prime",
+                                         k + " p", k + " prime"):
+                continue
+            return v
         return None
 
     _PRIME_SUFFIX = re.compile(r"^(.+?)(?:\s*prime|[pP])$")
@@ -2027,6 +2034,32 @@ class WarframeClient:
         self._flare_cache[url] = (_t.time(), html)
         return html
 
+    @property
+    def flare_enabled(self) -> bool:
+        """面板开关状态（调用方据此决定是否做 wiki 类刷新与告警）。"""
+        return self._flare_enabled
+
+    async def flare_reachable(self, timeout: float = 6.0) -> bool:
+        """轻量探测：任一候选地址能应答 ``sessions.list`` 即视为「已部署可连」。
+
+        与 :meth:`fetch_via_flaresolver` 的区别：**不做真实求解**（秒级返回），
+        只用于**告警分级**——「没部署 FS」与「部署了但求解失败」是两类问题，
+        前者不该让用户每小时收 WARN（issue #1 反馈，2026-09-25）。
+        """
+        if not self._flare_enabled:
+            return False
+        candidates = ([self._flare_url] if self._flare_url else []) +             [u for u in self._flare_urls if u != self._flare_url]
+        for base in candidates:
+            try:
+                r = await self._http.post(base, json={"cmd": "sessions.list"},
+                                          timeout=timeout)
+                if r.status_code < 500:
+                    self._flare_url = base
+                    return True
+            except Exception:  # noqa: BLE001 - 换下一个候选
+                continue
+        return False
+
     async def recycle_flare_session(self) -> bool:
         """主动回收持久会话（destroy→create），防 Chromium 标签页长跑崩。
 
@@ -2130,7 +2163,7 @@ class WarframeClient:
         幂等：快照仍在当前 96h 轮次内则直接返回「fresh」不动文件。
         校验失败（解析残缺）抛异常，绝不写半成品。
         """
-        from datetime import datetime, timedelta, timezone
+        from datetime import datetime, timezone
         rot_path = paths.read_path("rotations.json")
         rot = json.loads(rot_path.read_text(encoding="utf-8"))
         now = datetime.now(timezone.utc)
@@ -2361,16 +2394,37 @@ class WarframeClient:
     def wiki_lookup(self, query: str) -> Optional[dict]:
         table = self._aliases.get("wiki", {})
         q = query.strip()
-        if q in table:
-            return {"title": table[q].get("title", q),
-                    "url": table[q]["url"]} if isinstance(table[q], dict) else \
-                   {"title": q, "url": table[q]}
-        keys = list(table.keys())
-        close = difflib.get_close_matches(q, keys, n=1, cutoff=0.6)
+        # 「花p」这类小写 p 后缀 ≡ 「花P」（社区写法混用，2026-09-25）
+        cands = [q]
+        if len(q) > 1 and q.endswith(("p", "P")) and q[:-1] + "P" != q:
+            cands.append(q[:-1] + "P")
+        for c in cands:
+            e = table.get(c)
+            if e is None:
+                continue
+            return {"title": e.get("title", c), "url": e["url"]} \
+                if isinstance(e, dict) else {"title": c, "url": e}
+        close = difflib.get_close_matches(q, list(table), n=1, cutoff=0.8)
         if close and isinstance(table[close[0]], dict):
             return {"title": table[close[0]].get("title", close[0]),
                     "url": table[close[0]]["url"]}
         return None
+
+    def wiki_clarify(self, query: str) -> str:
+        """易混淆澄清（``aliases.json::clarify``）：命中返回一句话，否则空串。
+
+        由来：战甲黑话清单里几组「问 A 答 B」高发区（花甲=Wisp 不是 Garuda、
+        血妈=Garuda 不叫鸟妹、猫=Khora 而 Valkyr 是老猫甲、奶妈/奶爸、电=Volt
+        与 高=Gauss 的「跑男」两代、明神=Limbo 的双关）——wiki 卡片与检索提示
+        把这句话带上（2026-09-25 用户口径）。
+        """
+        table = self._aliases.get("clarify") or {}
+        q = (query or "").strip()
+        if q in table:
+            return str(table[q])
+        if len(q) > 1 and q.endswith(("p", "P")) and (q[:-1] + "P") in table:
+            return str(table[q[:-1] + "P"])
+        return ""
 
     async def wiki_search_link(self, query: str) -> str:
         """本地词库未命中时的兜底：返回中文维基搜索链接。"""

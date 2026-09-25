@@ -57,12 +57,19 @@
    ```bash
    pip install -r requirements.txt      # httpx、pillow
    ```
+   > 依赖装在 **Python 环境**（市场安装时 AstrBot 会自动补齐缺的），插件更新不会动；
+   > 只有**容器/环境重建**才会丢。额外可选依赖（如构建数据用的 PyYAML）同样装进环境，
+   > **别放进插件目录** —— 那里更新/重装会被整包替换。
 4. **字体：已随包带子集，开箱即可出图**（无需操作）。想要完整字库（40 MB，含
    全部字形）再跑这条（可选）：
    ```bash
    python scripts/fetch_font.py
    ```
    验证当前用的是哪个字体：`python scripts/fetch_font.py --check`
+   > 下载**落点是插件数据目录** `data/plugin_data/astrbot_plugin_warframe/fonts/`
+   > （AstrBot 开发原则：持久化数据进 data 目录，别放插件自身目录——放包内更新/重装
+   > 会被整包替换）。脚本会自动识别部署布局；识别不出（开发树）会告警并回落到包内，
+   > 也可用 `--data-dir <AstrBot>/data` 显式指定。
 5. 重载插件，发送 `帮助` 验证。
 
 > **关于字体**：卡片渲染用 Noto Sans CJK。**随包分发的是子集**
@@ -161,6 +168,12 @@ docker run -d --name flaresolverr -p 8191:8191 flaresolverr/flaresolverr
 | wiki 抓取（效价、紫卡倾向） | `wiki.warframe.com` | 需 FlareSolverr |
 | 字体 | Noto Sans CJK（子集随包；完整库由 `scripts/fetch_font.py` 另下） | SIL OFL |
 | wiki 简介卡 / MOD 效果汉化（`wiki_intro.json`、`wiki_effect_zh.json`） | 本仓知识库构建产出 + agent 逐条翻译（v1.0.7 起随包分发） | 数据源头为 DE |
+
+> **第三方来源与许可**：赏金「小帐篷」推算的算法参考社区项目
+> [calamity-inc/wf.browse.oracle](https://github.com/calamity-inc/wf.browse.oracle)
+> （其对游戏脚本随机数 / 种子洗牌表的复刻）——该仓库**未附带许可证文件**，因此本仓库
+> 仅依据其公开的算法描述与游戏资产清单，用 Python **独立重写**，未复制其源代码；
+> 所用游戏资产（任务清单 / 译名 / 图标）版权归 Digital Extremes。其余数据来源见上表。
 
 > **非官方声明**：Warframe 与相关商标归 Digital Extremes 所有。本插件是粉丝作品，
 > 与 Digital Extremes 无关；所含游戏数据按 DE 的粉丝内容政策使用，仅用于查询展示。

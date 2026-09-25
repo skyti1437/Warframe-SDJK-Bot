@@ -11,7 +11,12 @@
     ASTRBOT_DATA        宿主机侧 data 目录     （缺省 /opt/astrbot/data）
     ASTRBOT_CONTAINER   AstrBot 容器名          （缺省 astrbot）
 """
-import io, json, os, re, subprocess, sys
+import io
+import json
+import os
+import re
+import subprocess
+import sys
 
 ASTRBOT_DATA = os.environ.get("ASTRBOT_DATA", "/opt/astrbot/data")
 ASTRBOT_CONTAINER = os.environ.get("ASTRBOT_CONTAINER", "astrbot")

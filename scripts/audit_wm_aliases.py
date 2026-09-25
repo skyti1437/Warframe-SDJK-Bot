@@ -55,7 +55,7 @@ def fetch_items() -> list[dict]:
 def main() -> int:
     table = json.loads((ROOT / "core" / "data" / "aliases.json").read_text(
         encoding="utf-8")).get("wm_items", {})
-    print(f"拉取 WM 物品表 …", file=sys.stderr)
+    print("拉取 WM 物品表 …", file=sys.stderr)
     items_raw = fetch_items()
 
     by_url, by_zh, by_en = {}, {}, {}

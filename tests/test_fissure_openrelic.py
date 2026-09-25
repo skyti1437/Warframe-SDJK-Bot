@@ -14,7 +14,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import sys
 import tempfile
 import types
@@ -102,7 +101,6 @@ def _install_astrbot_stub() -> None:
 _install_astrbot_stub()
 
 import main as plugin  # noqa: E402
-from core import de_worldstate as dw  # noqa: E402
 from core import formatters as fmt  # noqa: E402
 from core.parser import parse  # noqa: E402
 

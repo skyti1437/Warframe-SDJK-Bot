@@ -27,7 +27,7 @@ import importlib
 import inspect
 import json
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -121,6 +121,174 @@ for _obs, _when in ((1, NOW),                                  # 现在：B 批
 check("★ 2026-09-20 观测 B 批时 anchor 仍为 0（与 rotations.json 一致）",
       WC.coda_anchor_for(1, C_EPOCH, PERIOD, NOW, 2) == ROT["coda"]["anchor_idx"],
       str(WC.coda_anchor_for(1, C_EPOCH, PERIOD, NOW, 2)))
+
+# ---------------------------------------------------------------------------
+# FS 告警分级（v1.0.8；issue #1 实测：不用 FS 的用户更新后连收刷新失败 WARN）
+# 三态：配置关闭→不尝试不告警；开着但不可达→24h 一次提示且跳过；可达但求解失败→照旧 WARN
+# ---------------------------------------------------------------------------
+import types  # noqa: E402
+
+
+def _install_astrbot_stub_min() -> None:
+    """最小 AstrBot 桩（只为 import main；与 tests/test_relic_list.py 同一配方）。"""
+    if "astrbot" in sys.modules:
+        return
+    pkg = types.ModuleType("astrbot")
+    api = types.ModuleType("astrbot.api")
+    event_mod = types.ModuleType("astrbot.api.event")
+    mc_mod = types.ModuleType("astrbot.api.message_components")
+    star_mod = types.ModuleType("astrbot.api.star")
+
+    class AstrBotConfig(dict):
+        pass
+
+    class _Logger:
+        def info(self, *a, **k): pass
+        def warning(self, *a, **k): pass
+        def error(self, *a, **k): pass
+        def exception(self, *a, **k): pass
+        def debug(self, *a, **k): pass
+
+    class AstrMessageEvent:
+        def __init__(self, umo: str = "group://test", sender: str = "tester"):
+            self.unified_msg_origin = umo
+            self._sender = sender
+
+        def get_sender_name(self) -> str:
+            return self._sender
+
+    class MessageChain:
+        def message(self, text):
+            return text
+
+    class _EventMessageType:
+        ALL = "ALL"
+
+    class _Filter:
+        EventMessageType = _EventMessageType
+        event_message_type = staticmethod(lambda spec: (lambda fn: fn))
+
+    event_mod.AstrMessageEvent = AstrMessageEvent
+    event_mod.MessageChain = MessageChain
+    event_mod.EventMessageType = _EventMessageType
+    event_mod.event_message_type = lambda spec: (lambda fn: fn)
+    event_mod.filter = _Filter()
+
+    mc_mod.Image = type("Image", (), {})
+    mc_mod.Plain = type("Plain", (), {})
+
+    class Context:
+        pass
+
+    class Star:
+        def __init__(self, *a, **k): pass
+
+    def register(*a, **k):
+        def deco(cls):
+            return cls
+        return deco
+
+    star_mod.Context = Context
+    star_mod.Star = Star
+    star_mod.register = register
+    api.AstrBotConfig = AstrBotConfig
+    api.logger = _Logger()
+    api.event = event_mod
+    api.message_components = mc_mod
+    api.star = star_mod
+    sys.modules["astrbot"] = pkg
+    sys.modules["astrbot.api"] = api
+    sys.modules["astrbot.api.event"] = event_mod
+    sys.modules["astrbot.api.message_components"] = mc_mod
+    sys.modules["astrbot.api.star"] = star_mod
+
+
+_install_astrbot_stub_min()
+import importlib as _il  # noqa: E402
+P = _il.import_module("main")
+
+
+class _StubFlareClient:
+    """只记调用序列的 FS 桩。"""
+
+    def __init__(self, enabled: bool, reachable: bool, boom: bool = False):
+        self._enabled, self._reachable, self._boom = enabled, reachable, boom
+        self.calls: list[str] = []
+
+    @property
+    def flare_enabled(self): return self._enabled
+
+    async def flare_reachable(self, timeout: float = 6.0):
+        self.calls.append("probe")
+        if self._boom:
+            raise RuntimeError("probe boom")
+        return self._reachable
+
+    async def recycle_flare_session(self): self.calls.append("recycle"); return True
+    async def refresh_valence(self): self.calls.append("valence"); return "fresh"
+    async def refresh_wiki_disp(self): self.calls.append("disp"); return "fresh"
+    async def refresh_acrichis_week(self): self.calls.append("acrichis"); return "none"
+
+
+def _flare_checks():
+    import asyncio
+    from types import SimpleNamespace
+
+    async def phase_cases():
+        for enabled, reachable, want in ((False, True, "off"),
+                                         (True, True, "ready"),
+                                         (True, False, "absent")):
+            obj = SimpleNamespace(client=_StubFlareClient(enabled, reachable))
+            got = await P.WarframeSDJK._flare_phase(obj)
+            check(f"_flare_phase(enabled={enabled}, reachable={reachable}) == {want!r}",
+                  got == want, got)
+        obj = SimpleNamespace(client=_StubFlareClient(True, True, boom=True))
+        check("_flare_phase 探测异常 → absent（保守：不误报真故障）",
+              await P.WarframeSDJK._flare_phase(obj) == "absent")
+
+    asyncio.run(phase_cases())
+
+    # 降频：首次告警 + 24h 内不重复；超 24h 再提示
+    rec: list[str] = []
+
+    class _Rec:
+        def info(self, *a, **k): pass
+        def error(self, *a, **k): pass
+        def exception(self, *a, **k): pass
+        def debug(self, *a, **k): pass
+        def warning(self, *a, **k): rec.append(str(a[0]) if a else "")
+
+    old = P.logger
+    P.logger = _Rec()
+    try:
+        obj = SimpleNamespace()
+        P.WarframeSDJK._warn_flare_absent_once(obj)
+        P.WarframeSDJK._warn_flare_absent_once(obj)          # 24h 内第二次
+        check("不可达提示降频：首次告警、24h 内不重复", len(rec) == 1, str(len(rec)))
+        obj._flare_absent_warned_at -= 24 * 3600 + 1
+        P.WarframeSDJK._warn_flare_absent_once(obj)
+        check("不可达提示：超过 24h 再提示一次", len(rec) == 2, str(len(rec)))
+        check("提示文案含两条处置路径（关闭 / 部署地址）",
+              "关闭" in rec[0] and "172.17.0.1" in rec[0], rec[0][:60])
+    finally:
+        P.logger = old
+
+    # 源码接线：三态必须先判定，刷新只在 ready 分支里
+    src = (ROOT / "main.py").read_text(encoding="utf-8")
+    i = src.index("async def _valence_autoloop")
+    body = src[i:i + 5200]
+    check("巡检循环按 _flare_phase 分流，且刷新在判定之后才发生",
+          "phase = await self._flare_phase()" in body
+          and 'if phase != "ready":' in body
+          and body.index("phase = await self._flare_phase()") < body.index("refresh_valence"))
+    check("不可达提示只在 absent 分支调用（off 不告警）",
+          'if phase == "absent":' in body and "_warn_flare_absent_once()" in body)
+    check("★ 真故障告警未被静默（可达时刷新失败仍 WARN）",
+          'logger.warning("[sdjk] 元素加成快照刷新失败' in body
+          and 'logger.warning("[sdjk] 变体倾向表刷新失败' in body)
+
+
+_flare_checks()
 
 print()
 if FAILED:

@@ -108,9 +108,18 @@ for _src, _want in [("玻之武杖 Prime", "玻之武杖Prime"),
                     ("Mesa 的华尔兹", "Mesa的华尔兹"),
                     ("Nekros Prime", "Nekros Prime"),
                     ("Excalibur Umbra", "Excalibur Umbra"),
-                    ("MK1-布莱顿", "MK1-布莱顿")]:
+                    ("MK1-布莱顿", "MK1-布莱顿"),
+                    # 赋能两族规则（API 实测 16/16 存在）：战甲赋能交换、武器赋能保序去点
+                    ("赋能·精确", "精确赋能"), ("赋能·充沛", "充沛赋能"),
+                    ("近战·侵染", "近战侵染"), ("神威·勇武", "神威勇武"),
+                    ("瀑流·耀炎", "瀑流耀炎"), ("双枪·滑射", "双枪滑射")]:
     _got = S.wiki_title(_src)
     check(f"★ 灰机标题归一「{_src}」→「{_want}」", _got == _want, _got)
+# 赋能三种写法都要能在本地索引命中同一条（用户实测「精确赋能」未收录）
+for _q in ("精确赋能", "赋能精确", "赋能·精确", "近战侵染", "神威勇武"):
+    _h = S.search(_q, limit=1)
+    check(f"★ 赋能写法兼容：{_q} 命中",
+          bool(_h) and "·" in (_h[0].get("name") or ""), str(_h[:1]))
 
 # ------------------------------------------------ 简介卡片
 # 战甲 / 武器 / MOD / 同伴 都有条目；数据不在（开源包）时优雅回落
@@ -176,6 +185,16 @@ if WI.available():
                     r"(?i)\b(the|and|with|that|will|for)\b", _l):
                 _left.append(_l[:40])
     check("★ 抽样 MOD 效果行无整句未翻译英文", not _left, str(_left))
+    # 知识库「半中半英」残留行的人工覆盖（2026-09-25，赋能卡实测可见）
+    _lg = WI.intro("毒气铅弹")
+    _lgt = "\n".join(_lg[1]) if _lg else ""
+    check("★ 半中半英行已覆盖（毒气铅弹 → 毒气伤害与触发几率）",
+          "毒气伤害与触发几率" in _lgt and " and " not in _lgt, _lgt[:120])
+    _ap = WI.intro("赋能·精确")
+    _apt = "\n".join(_ap[1]) if _ap else ""
+    check("★ 赋能·精确效果行无 On/on 残留",
+          "次要武器伤害 +300%" in _apt and " on " not in _apt and "On " not in _apt,
+          _apt[:120])
 
     # -------------------------------------------- 兜底链：KB → 掉落表 → 配方用途
     card = WI.card_for("氩结晶")
@@ -236,6 +255,59 @@ try:
         print("[SKIP] 字体不在（开源包）——跳过渲染冒烟")
 except Exception as _e:                  # noqa: BLE001
     check("渲染器可画含极性标记的行", False, repr(_e))
+
+# ------------------------------------------------ 战甲黑话清单（wiki 段 + 澄清）
+# 来源 docs/reference/战甲黑话与招募简称-20260925.md；市场类已落 wm_items，
+# 这里验「外号 → 国际服英文页面」与「易混淆澄清」两层（2026-09-25 用户口径：
+# 页面名必须英文 —— 中文页面名正是最近修过的那批死链来源）。
+from core.api_client import WarframeClient  # noqa: E402
+import json  # noqa: E402
+_c = WarframeClient(flare_enabled=False)
+
+for _k, _want in [("花P", "Wisp Prime"), ("血P", "Garuda Prime"),
+                  ("电P", "Volt Prime"), ("高P", "Gauss Prime"),
+                  ("猴P", "Wukong Prime"), ("骨P", "Xaku Prime"),
+                  ("船P", "Sevagoth Prime"), ("僧P", "Baruuk Prime")]:
+    _hit = _c.wiki_lookup(_k) or {}
+    check(f"★ wiki 段 {_k} → {_want}", _hit.get("title") == _want, str(_hit))
+check("★ 小写 p 后缀等价（花p → Wisp Prime）",
+      (_c.wiki_lookup("花p") or {}).get("title") == "Wisp Prime")
+# 无 Prime 的新战甲只落基体（灰机 API 实测 Kullervo/Dagath/Qorvex/Koumei/Cyte-09
+# 的 Prime 页不存在，故不给它们造 P 键）
+for _k, _want in [("老九", "Cyte-09"), ("刀哥", "Kullervo"), ("暖气片", "Qorvex"),
+                  ("扣妹", "Koumei"), ("赛马娘", "Dagath"), ("书甲", "Dante"),
+                  ("黑咖喱", "Excalibur Umbra"), ("鸟哥", "Dante")]:
+    _hit = _c.wiki_lookup(_k) or {}
+    check(f"★ wiki 段外号 {_k} → {_want}", _hit.get("title") == _want, str(_hit))
+
+_AL_WIKI = json.loads((ROOT / "core" / "data" / "aliases.json")
+                      .read_text(encoding="utf-8"))["wiki"]
+_CONCEPT = {"夜灵", "夜灵平野", "三傻", "平原", "紫卡", "裂罅", "玄骸", "信条",
+            "杜卡德", "奸商", "新服", "新手"}          # 概念页：中文标题已核对存在
+_bad_titles = [k for k, v in _AL_WIKI.items()
+               if k not in _CONCEPT and isinstance(v, dict)
+               and re.search(r"[一-鿿]", v.get("title", ""))]
+check("★ 战甲外号页面名全为英文（无中文页面名）", not _bad_titles,
+      str(_bad_titles[:5]))
+check("wiki 段条目数 ≥ 60（原 12 条概念页 + 外号）", len(_AL_WIKI) >= 60,
+      str(len(_AL_WIKI)))
+
+for _k, _must in [("花甲", "Wisp"), ("血妈", "Garuda"), ("猫", "Khora"),
+                  ("奶妈", "Trinity"), ("奶爸", "Oberon"), ("电", "Volt"),
+                  ("高", "Gauss"), ("跑男", "Gauss"), ("明神", "Limbo"),
+                  ("老猫甲", "Valkyr")]:
+    _note = _c.wiki_clarify(_k)
+    check(f"★ 易混淆澄清 {_k} 提到 {_must}", _must in _note, _note)
+check("澄清：鸟姐=Zephyr（并把血妈/鸟妹分清）",
+      "Zephyr" in _c.wiki_clarify("鸟姐"))
+check("澄清未命中返回空串", _c.wiki_clarify("zzz 不存在") == "")
+# 模糊阈值 0.8：短词不得被「X+P」这类新键劫持（「高」→ 高P / 「跑男」→ 老牌跑男
+# 都是错的：应落回检索链给基体，2026-09-25 实测踩到）
+check("★ 模糊不劫持短词（高 / 跑男 / 花 不落 P 页或长外号）",
+      all((_c.wiki_lookup(_q) or {}).get("title") is None
+          for _q in ("高", "跑男", "花", "花甲")))
+check("概念页错字容忍仍在（杜卡德金 → 杜卡德金币）",
+      (_c.wiki_lookup("杜卡德金") or {}).get("title") == "杜卡德金币")
 
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")

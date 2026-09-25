@@ -4,7 +4,10 @@
 目录由环境变量指定（见 kb_lib.py 头部注释）：WF_KB_DATA 必填；
 知识库目录优先 WF_KB_OUT，未设时取 WF_KB_DATA 上两级的「知识库/」。
 """
-import os, re, sys, json, random
+import os
+import re
+import sys
+import random
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from kb_lib import kb_data_dir, kb_out_dir
 K = kb_out_dir()

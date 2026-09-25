@@ -13,8 +13,6 @@
    否则安全阀会整体放弃列对齐、两列布局失效。所以这里用**真实最长的
    商品名**做宽度断言，而不是随便造的短名字。
 """
-import json
-import re
 import sys
 from pathlib import Path
 
@@ -118,7 +116,7 @@ check("「N杜」不会截断「N杜卡德」",
       tok.search("350 杜卡德").group(0) == "350 杜卡德")
 
 print("\n=== 3.5、手工译名补漏（MANUAL_ITEM_NAMES）===")
-from core.de_worldstate import item_name, MANUAL_ITEM_NAMES      # noqa: E402
+from core.de_worldstate import MANUAL_ITEM_NAMES      # noqa: E402
 check("MummyQuestKeyBlueprint → Inaros 之沙蓝图（曾显示英文原名）",
       item_name("/Lotus/StoreItems/Types/Keys/MummyQuest/"
                 "MummyQuestKeyBlueprint") == "Inaros 之沙蓝图",

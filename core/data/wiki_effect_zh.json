@@ -1,7 +1,7 @@
 {
  "_meta": {
   "source": "本仓 agent 逐条翻译（分块并行，统一术语表；非第三方翻译 API）",
-  "note": "归一化英文效果文本 → 中文译文。用于 wiki 卡片效果行：DE 导出没有这些整句的中文，表里没有再回落英文原文。",
+  "note": "归一化英文效果文本 → 中文译文。用于 wiki 卡片效果行：DE 导出没有这些整句的中文，表里没有再回落英文原文。 另含 6 行人工覆盖（知识库「半中半英」残留，键同为归一化原文）。",
   "generated": "2026-09-25",
   "count": 1995
  },
@@ -2000,6 +2000,11 @@
   "you lose 1s melee combo duration squadmates gain 2s melee combo duration": "你失去 1 秒近战连击持续时间；队友获得 2 秒近战连击持续时间",
   "you lose 30 ability strength squadmates gain 30 ability strength": "你失去 30% 技能强度；队友获得 30% 技能强度",
   "you lose 5 ability strength squadmates gain 5 ability strength": "你失去 5% 技能强度；队友获得 5% 技能强度",
-  "you lose 6s melee combo duration squadmates gain 12s melee combo duration": "你失去 6 秒近战连击持续时间；队友获得 12 秒近战连击持续时间"
+  "you lose 6s melee combo duration squadmates gain 12s melee combo duration": "你失去 6 秒近战连击持续时间；队友获得 12 秒近战连击持续时间",
+  "on 弱点 命中 300 毒气 伤害 and 触发几率 持续 6 秒": "弱点命中时：毒气伤害与触发几率 +300%，持续 6 秒",
+  "on 弱点 命中 50 毒气 伤害 and 触发几率 持续 1 秒": "弱点命中时：毒气伤害与触发几率 +50%，持续 1 秒",
+  "on 弱点 命中 300 伤害 持续 18 秒 on secondary 武器 1 赋能复活 赋能复活 1": "弱点命中时：次要武器伤害 +300%，持续 18 秒；+1 赋能复活；赋能复活 +1",
+  "on 弱点 命中 50 伤害 持续 18 秒 on secondary 武器": "弱点命中时：次要武器伤害 +50%，持续 18 秒",
+  "弱点击杀时 120 伤害 持续 24 秒 最多叠加 3 层 30 to 爆头倍率 50 武器 后坐力 to 爆头倍率 30 武器 后坐力 50": "弱点击杀时：伤害 +120%，持续 24 秒；最多叠加 3 层；爆头倍率 +30%；武器后坐力 -50%"
  }
 }

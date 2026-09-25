@@ -481,7 +481,8 @@ def _detail_lines(an):
     return dc_mod.card_lines(an["weapon"], spec, res, [])
 
 
-import core.damage_calc as dc_mod
+# 脚本式用例：这两个导入故意放在用到处（上方已跑完前置断言）
+import core.damage_calc as dc_mod  # noqa: E402
 _detail = _detail_lines(_an_inc)
 check("第二页：详情行数 > 15（完整详情卡）", len(_detail) > 15, str(len(_detail)))
 check("第二页：含暴击期望与重击段",
@@ -490,7 +491,7 @@ check("第二页：含暴击期望与重击段",
 check("第二页：单发与面板对拍一致（456）",
       any("456" in ln for ln in _detail))
 
-from core.parser import parse as _parse
+from core.parser import parse as _parse  # noqa: E402
 _p = _parse("识卡伤害 对 重机枪手 150级 爆头")
 check("「识卡伤害」别名解析 → scandamage",
       _p.command == "scandamage" and "重机枪手" in (_p.content_str or ""),
@@ -561,7 +562,7 @@ check("非满级标注仍保留",
       lo._rank_text({"drain": 9, "rank": 3, "max_rank": 5}) == "容量9→3/5★非满级",
       lo._rank_text({"drain": 9, "rank": 3, "max_rank": 5}))
 check("完全没读到容量 → `容量?`",
-      lo._rank_text({"drain": None, "rank": None}) == "容量?", 
+      lo._rank_text({"drain": None, "rank": None}) == "容量?",
       lo._rank_text({"drain": None, "rank": None}))
 
 # ---------------------------------------------------------------------------
