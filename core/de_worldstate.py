@@ -1596,32 +1596,3 @@ def parse_worldstate(raw: dict, now_ms: Optional[int] = None) -> dict:
         "steelPath": None,    # 钢铁之路轮换为外部数据
     }
     return bundle
-
-# ---------------------------------------------------------------------------
-# 仲裁排期推算器（锚点驱动）
-# ---------------------------------------------------------------------------
-
-def load_arb_slots() -> dict:
-    import json as _json
-    from pathlib import Path as _P
-    return _json.loads((_P(__file__).parent / "data" / "arb_slots.json")
-                       .read_text(encoding="utf-8"))
-
-
-def arb_from_anchor(anchor_slot: int, anchor_node: str, hours_after: int) -> dict:
-    """锚点推算：anchor 时刻的真实节点序号 -> 未来 N 小时的节点。"""
-    db = load_arb_slots()
-    slots = db["slots"]
-    idx0 = next((i for i, s in enumerate(slots) if s["node"] == anchor_node), None)
-    if idx0 is None:
-        return {}
-    n = len(slots)
-    cur = (idx0 + hours_after - anchor_slot) % n
-    s = slots[cur]
-    return {
-        "node": s["node"],
-        "planet": db["planet_cn"].get(s["planet"], s["planet"]),
-        "type": db["type_cn"].get(s["type"], s["type"]),
-        "type_en": s["type"],
-        "enemy": "",
-    }

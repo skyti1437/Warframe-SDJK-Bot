@@ -331,10 +331,12 @@ check("信条·枢密 = 冰霜 25.1%（wiki 2026-09-24 快照，本轮与铁晶�
 _cmap = {i["en"]: (i.get("element"), i.get("bonus")) for i in _cur_batch}
 # 终幕按批次抽查：wiki 只公布**当前生效批**的表，另一批在换批前拿不到真值，
 # 所以每次刷新后要把这里同步成新一批的两把（换批后旧值会失效）。
+# ★ 每次终幕换批后，本表的当前批抽查值必须同步（B 批的值随换批重掷，
+#   逐条取自刷新后的 core/data/rotations.json；2026-09-25 08:00 换批刷新）。
 _SPOT = {"A": {"Coda Catabolyst": ("Heat", 25.0),
                "Coda Motovore": ("Heat", 38.8)},
-         "B": {"Coda Bassocyst": ("Magnetic", 51.2),
-               "Coda Synapse": ("Cold", 57.6)}}
+         "B": {"Coda Bassocyst": ("Magnetic", 31.6),
+               "Coda Synapse": ("Toxin", 25.6)}}
 _cur_label = (coda.get("batch_label") or ["A", "B"])[_idx]
 for _en, _exp in _SPOT.get(_cur_label, {}).items():
     check(f"终幕当前批（{_cur_label}）·{_en} = {_exp[0]} {_exp[1]}%（wiki 快照）",

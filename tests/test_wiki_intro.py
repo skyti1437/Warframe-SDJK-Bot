@@ -195,7 +195,25 @@ if WI.available():
     check("★ 前缀命中场景：原始查询词也作卡片候选（电路效果/电路）",
           bool(WI.card_for("电路效果", "电路")),
           str(WI.card_for("电路效果", "电路")))
-    check("完全无数据的词回落 None（zzz）", WI.card_for("zzz 不存在") is None)
+    check("完全无数据的词也出兜底卡（不再回落 None）",
+          bool(WI.card_for("zzz 不存在")))
+    # 遗物卡（用户实测「wiki 前纪 V11」不出图）：知识库/掉落表都没有遗物条目
+    _rc = WI.card_for("前纪 V11 遗物")
+    _rt = "\n".join(_rc[1]) if _rc else ""
+    check("★ 遗物卡（前纪 V11 → 三档奖励）",
+          bool(_rc) and "常见：" in _rt and "稀有：" in _rt, _rt[:150])
+    # 先锋档位（Vanguard，2026 新增）：档位中英对照必须走 parser.TIER_CN
+    _vc = WI.card_for("先锋 C1 遗物")
+    check("★ 先锋遗物卡（Vanguard 档位）",
+          bool(_vc) and "常见：" in "\n".join(_vc[1]), str(_vc)[:150])
+    _pc = WI._relic_part_card("Ash Prime 机体蓝图")
+    check("★ 部件反查卡（Ash Prime 机体蓝图 → 所在遗物）",
+          bool(_pc) and "所在遗物" in "\n".join(_pc[1]), str(_pc)[:150])
+    # 兜底卡：任何已解析条目都出图（用户口径：无论什么内容都得绘制）
+    _mc = WI.card_for("某不存在的冷门条目")
+    check("★ 兜底卡（未知条目也出图，不再回落 None）",
+          bool(_mc) and _mc[0] == "某不存在的冷门条目", str(_mc)[:120])
+    check("兜底卡对空名字仍返回 None（不造空卡）", WI.card_for("", "  ") is None)
 else:
     print("[SKIP] 简介数据不在（开源/市场包）——断言回落行为")
     check("无数据时 available()=False", WI.available() is False)

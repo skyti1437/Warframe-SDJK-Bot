@@ -1,4 +1,4 @@
-# AstrBot 插件 · Warframe SDJKBOT v1.0.6（`astrbot_plugin_warframe`）
+# AstrBot 插件 · Warframe SDJKBOT v1.0.7（`astrbot_plugin_warframe`）
 
 一个给 AstrBot 用的 Warframe 工具集：**世界状态 / 市场查价 / 伤害计算与配卡识别 /
 紫卡分析 / 遗物与部件反查 / 玄骸拍卖 / 奸商预测 / 蹲点推送**，
@@ -57,19 +57,23 @@
    ```bash
    pip install -r requirements.txt      # httpx、pillow
    ```
-4. **下载渲染字体**（推荐，一条命令）：
+4. **字体：已随包带子集，开箱即可出图**（无需操作）。想要完整字库（40 MB，含
+   全部字形）再跑这条（可选）：
    ```bash
    python scripts/fetch_font.py
    ```
    验证当前用的是哪个字体：`python scripts/fetch_font.py --check`
 5. 重载插件，发送 `帮助` 验证。
 
-> **关于字体**：卡片渲染用 Noto Sans CJK（Regular + Bold 约 40 MB）。
-> 它**不随仓库分发** —— 一是体积比插件本体还大，二是会让 zip 超过 AstrBot
-> 插件市场的 16 MB 上限。不跑第 4 步也能用：`core/render.py` 的候选里带了
-> 各平台常见中文字体（Windows `msyh.ttc`、macOS `PingFang`、Linux Noto/WQY），
-> 只是字形可能与作者出图略有差异；**Linux 服务器若一个中文字体都没装，
-> 卡片会渲染成方块**，务必跑一次脚本。
+> **关于字体**：卡片渲染用 Noto Sans CJK。**随包分发的是子集**
+> （`core/data/fonts/NotoSansCJKsc-Subset-{Regular,Bold}.otf`：GB2312 全表
+> 6763 字 + 语料符号 + ASCII，两档共约 6.7 MB）—— 装完就能出图，**不依赖系统
+> 中文字体**。完整字库 40 MB 不进包（会超过插件市场 16 MB 上限），需要时跑
+> 第 4 步下载；自放字体可放**插件数据目录**的 `fonts/`
+> （`data/plugin_data/astrbot_plugin_warframe/fonts/`，任意 ttc/ttf/otf）——
+> **随插件更新保留**（市场更新是整包替换插件目录，放进包内的字体会被删）。
+> 查找顺序：完整字库 → 随包子集 → 用户自放 → 系统字体（Windows `msyh` /
+> macOS `PingFang` / Linux Noto/WQY）；都没有才降级纯文本，日志会写明排查步骤。
 
 ## 三、配置（WebUI 插件配置页）
 
@@ -98,6 +102,10 @@ docker run -d --name flaresolverr -p 8191:8191 flaresolverr/flaresolverr
 宿主机端口**，要填容器名（`http://flaresolverr:8191`）或 Docker 网桥网关
 （常见 `http://172.17.0.1:8191`）。不需要这个功能就把 `flaresolverr_enabled` 关掉，
 相关指令会给出降级提示而不是卡住。
+
+> v1.0.7 起：单次求解超时放宽到 **120s**（CF 解页实测约 61s，60s 会卡在超时边缘）；
+> 每轮快照刷新前会**主动回收会话**（destroy→create，换全新标签页），会话崩掉
+> （`tab crashed`）时自动重建重试 —— 不再出现「拿坏会话每小时连败」。
 
 ### 知识库（可选）
 
@@ -175,6 +183,7 @@ docker run -d --name flaresolverr -p 8191:8191 flaresolverr/flaresolverr
 | 好感度 → 人格温度联动（读取外部好感度插件的数据） | **移除** | 保留 |
 | 品牌标识 | 通用插件名（Warframe SDJKBOT） | 原氏族品牌 |
 | 内部文档、运维脚本、第三方插件打包脚本 | 不带 | 保留 |
+| wiki 简介卡 / MOD 效果整句汉化（卡片数据层 `wiki_intro.json`、`wiki_effect_zh.json`） | 不带 —— 这类条目出「最小卡」（一行说明 + 可点链接）；遗物卡 / 部件反查卡不受影响（数据随包分发） | 保留（附完整简介） |
 
 技术上是**同一份源码**，开源包由 `dist/package_release.py --opensource` 构建时剥离，
 自用包照旧打包，两边互不干扰。

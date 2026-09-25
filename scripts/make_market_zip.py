@@ -44,10 +44,14 @@ except Exception:  # noqa: BLE001
     SKIP_DIRS = {".git", "__pycache__", ".pytest_cache", "runtime",
                  ".venv", "venv", "node_modules", ".idea", ".vscode", "dist",
                  ".audit", "kb_src", "_cache", "docs", "outputs", "output",
-                 "fonts", ".zcode", ".archive"}
+                 ".zcode", ".archive"}
+    # 注：fonts/ 不再整体排除（2026-09-25）——随包放行子集字体
+    # NotoSansCJKsc-Subset-{Regular,Bold}.otf（约 6.6MB，市场版开箱出图）；
+    # 完整 ttc 由 SKIP_FILES 兜底排除。
     SKIP_FILES = {"deploy.sh", ".DS_Store", ".gitattributes", ".gitignore",
                   "SDJKwfbot_README.md", "wm_ranks.json", "riven_weekly.json",
-                  "wiki_disp.json", "package_reverse_searcher_sdjk.py"}
+                  "wiki_disp.json", "package_reverse_searcher_sdjk.py",
+                  "NotoSansCJK-Regular.ttc", "NotoSansCJK-Bold.ttc"}
     SKIP_SUFFIX = {".pyc", ".pyo"}
     SKIP_GLOBS = ("*报告*.md", "*调研*.md", "*诊断*.md", "*对照*.md", "*核验*.md",
                   "*体检*.md", "*复评*.md", "*选型*.md", "*实测*.md", "*结案*.md",
@@ -72,7 +76,7 @@ MARKET_SKIP_FILES = {".gitleaks.toml",        # 仓库门面（防泄漏 CI 配�
 # +core/data/dispositions_rivenmirror.json，变体解析倾向数据随市场件分发）。
 # 与 package_release.EXPECTED_OSS_STAGE_FILES 同理——有意变更须同步
 # 此常量并在 commit 正文列文件名与理由。
-EXPECTED_MARKET_ENTRIES = 93
+EXPECTED_MARKET_ENTRIES = 94
 
 
 def main() -> int:

@@ -226,16 +226,22 @@ _TIMER_DESC = {
 
 
 def fmt_timers(timers: list[tuple[str, dict]]) -> tuple[str, list[str]]:
-    """时效：所有周期/限时任务的最近截止时间汇总（每行注明是什么的时效）。"""
+    """时效：所有周期/限时任务的最近截止时间汇总（每行注明是什么的时效）。
+
+    ★ 铁律：**不允许静默吞行**（2026-09-25 立规）。取不到数据（源未下发、
+    接口恒抛、字段缺失）时显式打印「暂无时效数据（源未下发）」——旧写法
+    ``if not data: continue`` 让「仲裁」「钢铁侵蚀」两行自 10o.io 停摆后
+    从卡面里静默消失，用户以为看全了其实没有。
+    """
     lines = []
     for name, data in timers:
-        if not data:
-            continue
         desc = _TIMER_DESC.get(name, name)
-        if "expiry" in data:
+        if data and "expiry" in data:
             lines.append(f"{desc}：剩余 {countdown(data['expiry'])}")
-        elif "activation" in data:
+        elif data and "activation" in data:
             lines.append(f"{desc}：{countdown(data['activation'])} 后开始")
+        else:
+            lines.append(f"{desc}：暂无时效数据（源未下发）")
     lines.append("※ 以上为各周期内容的当前剩余时间，到点自动轮换/重置")
     return ("时效总览", lines or ["暂无数据"])
 
@@ -753,14 +759,6 @@ def fmt_steel_essence_shop() -> tuple[str, list[str]]:
     lines.append("※ 轮换按官方锚点推算；各商品精华总价 "
                  f"{total_all}（常驻全买 + 轮换各一次）")
     return ("钢铁精华兑换（Teshin 荣誉商店）", lines)
-
-
-def fmt_arbitration(arbi: Optional[dict]) -> tuple[str, list[str]]:
-    if not arbi:
-        return ("仲裁", ["数据暂不可用"])
-    lines = [f"节点：{arbi.get('node', '?')}　{mission_cn(arbi.get('type', ''))}",
-             f"剩余 {countdown(arbi.get('expiry', ''))}"]
-    return ("仲裁", lines)
 
 
 def fmt_alerts(alerts: Iterable[dict]) -> tuple[str, list[str]]:

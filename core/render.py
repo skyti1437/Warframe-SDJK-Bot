@@ -418,11 +418,25 @@ def _strip_emoji(text: str) -> tuple[str, bool]:
 
 
 class _Fonts:
-    """字体加载：打包 Noto CJK 优先，随后系统常见 CJK 字体。"""
+    """字体加载：打包 Noto CJK 优先，其次**用户自放字体**，随后系统常见 CJK 字体。
 
-    CANDIDATES = [
+    用户字体目录 = ``plugin_data/<插件名>/fonts/``（渲染器按 cache_dir 的父目录
+    推出）。放这里**随插件更新保留**：市场更新是整包替换插件目录
+    （AstrBot star_manager 的更新流程，2026-09-25 实测确认），
+    手放进包内 ``core/data/fonts/`` 的字体会被删掉。
+    """
+
+    # 打包字体：完整字库（fetch_font.py 下载，**不进发行包**）优先；
+    # 其次是**随包分发的子集**（v1.0.7 起，GB2312 全表 6763 字 + 语料符号，
+    # 两档共约 6.6MB）——市场版没有完整字库，靠它开箱出图（issue #1）。
+    PACKED = [
         FONT_DIR / "NotoSansCJK-Regular.ttc",
         FONT_DIR / "NotoSansCJK-Bold.ttc",
+        FONT_DIR / "NotoSansCJKsc-Subset-Regular.otf",
+        FONT_DIR / "NotoSansCJKsc-Subset-Bold.otf",
+    ]
+    # 系统常见 CJK 字体（Windows / macOS / Linux 各一）
+    SYSTEM = [
         Path("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"),
         Path("/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc"),
         Path("/usr/share/fonts/truetype/wqy/wqy-microhei.ttc"),
@@ -430,13 +444,17 @@ class _Fonts:
         Path("C:/Windows/Fonts/msyh.ttc"),
         Path("/System/Library/Fonts/PingFang.ttc"),
     ]
+    CANDIDATES = PACKED + SYSTEM          # 兼容既有引用（顺序：打包 → 系统）
 
-    def __init__(self):
+    _FONT_SUFFIXES = (".ttc", ".ttf", ".otf")
+
+    def __init__(self, user_dirs: Optional[list[Path]] = None):
         self.regular: Optional[Path] = None
         self.bold: Optional[Path] = None
         self._sc_index = 0
         self._cache: dict[tuple[str, int], "ImageFont.FreeTypeFont"] = {}
-        for path in self.CANDIDATES:
+        # 打包 → 用户自放 → 系统（用户字体优先于系统字体：明确放了就该用它）
+        for path in self.PACKED + self._user_fonts(user_dirs or []) + self.SYSTEM:
             if not path.exists():
                 continue
             if "Bold" in path.name or "bold" in path.name:
@@ -448,6 +466,23 @@ class _Fonts:
             self.regular = self.bold
         if self.bold is None:
             self.bold = self.regular
+
+    @classmethod
+    def _user_fonts(cls, entries: list[Path]) -> list[Path]:
+        """展开用户字体入口：文件直接用；目录按名排序取全部字体文件。"""
+        out: list[Path] = []
+        for e in entries:
+            try:
+                p = Path(e)
+                if p.is_file() and p.suffix.lower() in cls._FONT_SUFFIXES:
+                    out.append(p)
+                elif p.is_dir():
+                    out.extend(sorted(q for q in p.iterdir()
+                                      if q.is_file()
+                                      and q.suffix.lower() in cls._FONT_SUFFIXES))
+            except OSError:
+                continue
+        return out
 
     def _probe(self, path: Path) -> bool:
         """选到含简体中文的字体面；ttc 多面集合时优先非 Mono 的 SC 面。"""
@@ -609,7 +644,13 @@ class ImageRenderer:
     def __init__(self, cache_dir: Path, font_path: Optional[str] = None):
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
-        self.fonts = _Fonts() if Image is not None else None
+        # 用户自放字体：plugin_data/<插件>/fonts/（随插件更新保留，见 _Fonts 文档）；
+        # font_path 传入时优先（文件或目录均可）
+        user_dirs: list[Path] = []
+        if font_path:
+            user_dirs.append(Path(font_path))
+        user_dirs.append(self.cache_dir.parent / "fonts")
+        self.fonts = _Fonts(user_dirs=user_dirs) if Image is not None else None
 
     @property
     def available(self) -> bool:
