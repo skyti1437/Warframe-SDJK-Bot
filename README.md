@@ -159,7 +159,8 @@ docker run -d --name flaresolverr -p 8191:8191 flaresolverr/flaresolverr
 | 赏金轮换 / 钢铁侵袭 | [oracle.browse.wf](https://oracle.browse.wf)、[browse.wf](https://browse.wf) | calamity-inc 开源项目 |
 | 仲裁排期 | [arbi.wf.wiki](https://arbi.wf.wiki) | 社区站点 |
 | wiki 抓取（效价、紫卡倾向） | `wiki.warframe.com` | 需 FlareSolverr |
-| 字体 | Noto Sans CJK | SIL OFL |
+| 字体 | Noto Sans CJK（子集随包；完整库由 `scripts/fetch_font.py` 另下） | SIL OFL |
+| wiki 简介卡 / MOD 效果汉化（`wiki_intro.json`、`wiki_effect_zh.json`） | 本仓知识库构建产出 + agent 逐条翻译（v1.0.7 起随包分发） | 数据源头为 DE |
 
 > **非官方声明**：Warframe 与相关商标归 Digital Extremes 所有。本插件是粉丝作品，
 > 与 Digital Extremes 无关；所含游戏数据按 DE 的粉丝内容政策使用，仅用于查询展示。
@@ -183,7 +184,6 @@ docker run -d --name flaresolverr -p 8191:8191 flaresolverr/flaresolverr
 | 好感度 → 人格温度联动（读取外部好感度插件的数据） | **移除** | 保留 |
 | 品牌标识 | 通用插件名（Warframe SDJKBOT） | 原氏族品牌 |
 | 内部文档、运维脚本、第三方插件打包脚本 | 不带 | 保留 |
-| wiki 简介卡 / MOD 效果整句汉化（卡片数据层 `wiki_intro.json`、`wiki_effect_zh.json`） | 不带 —— 这类条目出「最小卡」（一行说明 + 可点链接）；遗物卡 / 部件反查卡不受影响（数据随包分发） | 保留（附完整简介） |
 
 技术上是**同一份源码**，开源包由 `dist/package_release.py --opensource` 构建时剥离，
 自用包照旧打包，两边互不干扰。
