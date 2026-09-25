@@ -1014,7 +1014,9 @@ _SPECIAL_POOL_KEY = {
     # 池内容也一致，故两边都指向唯一的「合一众」键。
     # （旧实现把地球的指到 `尸鬼净化`、金星的指到 `合一众·阶段6`，两处内容都是错的）
     "Ostrons": {"Narmer": "合一众"},
-    "Solaris United": {"Narmer": "合一众"},
+    "Solaris United": {"Narmer": "合一众",
+                       # 深矿钢铁档 → 已存在的深矿池（此前备好但没接线）
+                       "NokkoColonyEnterprise": "深矿·企业重组"},
     # 隔离库三档在 DE 侧各有独立奖励表：VaultBountyTierA/B/C
     # 分别对应 30-40 / 40-50 / 50-60 级，旧实现把三者并成一个「隔离库」池，
     # 导致三档奖励完全一样。
@@ -1023,6 +1025,10 @@ _SPECIAL_POOL_KEY = {
                 "VaultBountyTierC": "隔离库3阶"},
 }
 _SPECIAL_TAG = {"Narmer": "合一众",
+                # 深矿（NokkoColony）钢铁之路档：**社区观测**登记（见 de_worldstate
+                # SOLARIS_SUPPLEMENT_JOBS）—— 卡面标签直接标「社区观测」，
+                # 让读者知道这一档不来自 DE 接口；奖励仍走已备好的「深矿·企业重组」池。
+                "NokkoColonyEnterprise": "社区观测",
                 "VaultBountyTierA": "隔离库1阶",
                 "VaultBountyTierB": "隔离库2阶",
                 "VaultBountyTierC": "隔离库3阶"}

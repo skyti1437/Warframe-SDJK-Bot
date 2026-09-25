@@ -1243,10 +1243,38 @@ def _load_job_meta() -> dict:
 
 _JOB_NAMES = _load_job_names()
 _JOB_META = _load_job_meta()
+# ---------------------------------------------------------------------------
+# 金星「深矿」钢铁之路档 —— **社区观测**登记（2026-09-26）
+# ---------------------------------------------------------------------------
+# 用户实测：金星共 8 档，而 DE worldState 的 SolarisSyndicate.Jobs **只下发 7 档**，
+# 缺「深矿：企业重组（钢铁之路）130-140」。三方排查（都是实测）：
+#   · DE worldState  ✗ 只有 7 个 job
+#   · oracle `VenusJobManifest.json` ✗ 无 130 档
+#   · DE 公开导出 `ExportBounties.json` / `ExportSyndicates.json` ✗ 无 Deepmine/Enterprise/130
+#     （`ExportSyndicates` 里的 Nokko 命中是「夜帽追思」阵营，不是深矿 job）
+# 所以按用户要求**硬编登记**：口径与其余 7 档完全一致（等级区间 / 奖励池 / 任务名），
+# 奖励沿用已有的「深矿·企业重组」池（`bounty_pools.json` —— 该池此前已备好但**没接线**）。
+# 中文名取自**官方简中表**（`/Lotus/Language/NokkoColony/LocationName`=深矿、`Job2Name`=企业重组）。
+# ⚠️ 来源=社区观测，**不是 DE 下发的数据**：`source` 字段随卡面注明，便于区分与复核。
+SOLARIS_SUPPLEMENT_JOBS: tuple[dict, ...] = ({
+    "jobType": "深矿 企业重组（钢铁之路）",
+    "jobTypeKey": "NokkoColonyEnterpriseSP",
+    "isNarmer": False,
+    "enemyLevels": [130, 140],
+    "standingStages": [],
+    "masteryReq": None,
+    "rewardTable": "NokkoColonyEnterpriseTableARewards",
+    "_jobName": "深矿：企业重组（钢铁之路）",
+    "_jobDesc": "",
+    "_jobFinal": [],
+    "_jobStages": 0,
+    "source": "community",
+},)
 
 
 def _parse_syndicate_missions(raw: dict) -> list[dict]:
     out = []
+
     for s in raw.get("SyndicateMissions") or []:
         display = _syndicate_display(s.get("Tag", ""))
         if not display:
@@ -1280,6 +1308,9 @@ def _parse_syndicate_missions(raw: dict) -> list[dict]:
                 "_jobFinal": _meta.get("final") or [],
                 "_jobStages": _meta.get("stages") or 0,
             })
+        # ★ 金星：补上 DE 不下发的「深矿·企业重组（钢铁之路）」档（社区观测，见上方常量注释）
+        if s.get("Tag", "") == "SolarisSyndicate":
+            jobs.extend(dict(x) for x in SOLARIS_SUPPLEMENT_JOBS)
         out.append({
             "id": _oid(s.get("_id")),
             "syndicate": display,

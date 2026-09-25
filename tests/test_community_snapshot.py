@@ -160,6 +160,19 @@ check("★ 发布侧：相位与填充吻合 → 构建成功",
 check("  带来源与许可署名", "CC BY-NC-SA" in payload["license_note"]
       and "wiki" in payload["source"])
 
+# ★ 包内种子形状：两批都填 → 只要**相位推导的当前批**完整就接受（2026-09-26 实测修）
+_both = _rot(filled_idx=1)
+for _b in _both["coda"]["batches"]:
+    for _x in _b:
+        _x.setdefault("element", "Heat")
+        _x.setdefault("bonus", 27.4)
+try:
+    _payload_both = P.build_valence(_both, STAMP, NOW)
+    check("★ 包内种子形状（两批都填）→ 接受并按相位取当前批",
+          _payload_both["coda"]["batch"] == "B", str(_payload_both["coda"]["batch"]))
+except ValueError as exc:
+    check("★ 包内种子形状（两批都填）→ 接受并按相位取当前批", False, str(exc))
+
 for rot, why in (
     (_rot(filled_idx=0), "相位说 B 批、元素却填在 A 批"),
     (_rot(filled_idx=1, anchor=1), "相位说 A 批、元素却填在 B 批"),
@@ -267,9 +280,11 @@ check("  主通道是 raw，三条都指向同一 bot-data 分支",
       COMMUNITY_VALENCE_URLS[0].startswith("https://raw.githubusercontent.com/")
       and all("bot-data" in u or "@bot-data" in u for u in COMMUNITY_VALENCE_URLS),
       str(COMMUNITY_VALENCE_URLS))
-check("  备用通道是 jsDelivr 与 statically",
+check("  两条备用通道都是 jsDelivr（cdn + gcore，互为冗余）",
       "cdn.jsdelivr.net" in COMMUNITY_VALENCE_URLS[1]
-      and "statically.io" in COMMUNITY_VALENCE_URLS[2])
+      and "gcore.jsdelivr.net" in COMMUNITY_VALENCE_URLS[2])
+check("★ statically 已弃用（服务器侧实测 12s 超时不可达，不再出现在通道列表）",
+      all("statically" not in u for u in COMMUNITY_VALENCE_URLS + COMMUNITY_ACRITHIS_URLS))
 check("★ 接线：_community_json 按序试通道（命中备用通道会记一条 INFO）",
       "for i, url in enumerate(urls)" in API_SRC and "备用通道" in API_SRC
       and "_community_json(COMMUNITY_VALENCE_URLS)" in API_SRC
@@ -277,6 +292,44 @@ check("★ 接线：_community_json 按序试通道（命中备用通道会记�
 check("发布侧：支持 --direct（在服务器上直读本机绝对路径，不走 ssh）",
       '"--direct"' in _src and "direct: bool = False" in _src
       and 'return (ROOT / "core/data/rotations.json",' not in _src)
+
+# ---------------------------------------------------------------------------
+# 9. 发布器「多候选取最新」（评审侧提：第一个存在的可能更旧 → 白丢新鲜数据）
+# ---------------------------------------------------------------------------
+_OLD = {"expiry": "2026-09-28T00:00:00+00:00", "observed": "September 14, 2026",
+        "items": [{"name": "x"}]}
+_NEW = {"expiry": "2026-10-05T00:00:00+00:00", "observed": "September 21, 2026",
+        "items": [{"name": "y"}]}
+check("★ 发布器：快照新鲜度取自身时间戳（观测日 → ISO）",
+      P.snapshot_freshness(_OLD) == "2026-09-14T00:00:00+00:00"
+      and P.snapshot_freshness(_NEW) == "2026-09-21T00:00:00+00:00",
+      f"{P.snapshot_freshness(_OLD)} / {P.snapshot_freshness(_NEW)}")
+check("★ 发布器：两份候选取**最新**那份（不是第一个存在的）",
+      P.pick_freshest([(_OLD, "包内旧"), (_NEW, "运行期新")])[1] == "运行期新"
+      and P.pick_freshest([(_NEW, "运行期新"), (_OLD, "包内旧")])[1] == "运行期新")
+check("  时间戳都取不到 → 保留最先前那份（等价原优先序）",
+      P.pick_freshest([({"a": 1}, "第一"), ({"b": 2}, "第二")])[1] == "第一")
+check("  效价快照读 tenet/coda 段的 valence_snapshot",
+      P.snapshot_freshness({"tenet": {"valence_snapshot": "2026-09-25T02:07:46+00:00"},
+                            "coda": {"valence_snapshot": "2026-09-25T02:07:46+00:00"}})
+      == "2026-09-25T02:07:46+00:00")
+_cands = ("/opt/x/de/acrichis_week.json", "/y/z.json")
+check("★ 发布器：来源说明点明「运行期副本」/「包内种子」及原因",
+      P._src_label(_cands[0], _cands, 2).startswith("运行期副本")
+      and P._src_label(_cands[1], _cands, 1).startswith("包内种子回落（运行期副本不存在）")
+      and P._src_label(_cands[1], _cands, 2).startswith("包内种子（时间戳比运行期副本新）"))
+
+# 巡检侧：三通道探针必须存在（否则"名义三通道、实际两通道"长期无人发现）
+_PATROL = (ROOT / ".zcode" / "skills" / "astrbot-server-triage" / "scripts"
+           / "automations" / "server_patrol.py")
+if _PATROL.is_file():
+    ptxt = _PATROL.read_text(encoding="utf-8")
+    check("★ 巡检：有三通道探针 + 只剩 1 条/0 条时升级为待办",
+          "def probe_community_channels" in ptxt and "COMMUNITY_CHANNELS" in ptxt
+          and "只剩 1 条通道可用" in ptxt and "全部不可达" in ptxt)
+    check("  巡检通道列表与插件侧同源（raw + cdn + gcore，无 statically）",
+          "raw.githubusercontent.com" in ptxt and "cdn.jsdelivr.net" in ptxt
+          and "gcore.jsdelivr.net" in ptxt and "statically.io" not in ptxt)
 
 print()
 if FAILED:
