@@ -19,8 +19,9 @@ camp/tent 字段，``Nodes`` 为空）。但该归属是**确定性**的：
   · W5 窗口 seed=69703 与 oracle.browse.wf/location-bounties 的独立实现
     **15/15 点位**（地球 3 + 金星 7 + 火卫二 5）逐格一致。
 
-金星 7 点位 / 火卫二 5 点位的算法同样验证通过，但点位缺官方中文名（DE 词表
-与 oracle 词典都没有），暂不上卡；补名后只需往 :data:`REGIONS` 加一项。
+金星 7 点位 / 火卫二 5 点位的算法同样验证通过；两者**都不上卡**（2026-09-26 定稿）：
+金星点位名 7 个里只有 5 个有官方译名、且用户要求金星卡改列深矿钢铁档奖励，火卫二则
+0/5 无译名。补名/要开时只需把 :data:`REGIONS` 里对应那段取消注释。
 """
 from __future__ import annotations
 
@@ -39,7 +40,40 @@ REGIONS: dict[str, dict] = {
         "manifest": "eidolon_job_manifest.json",
         "labels": {"TentA": "小帐篷 A", "TentB": "小帐篷 B", "TentC": "小帐篷 C"},
     },
+    # ★ 金星：推算能力与点位名**保留**（测试仍覆盖），2026-09-26 起**不上卡**
+    #   （用户口径：金星卡改列深矿钢铁档奖励）。`on_card=False` 只挡卡面出块，
+    #   不影响 `region_locations()` 取值 —— 要重新上卡把这里改回 True 即可。
+    #   点位与任务链取自 oracle 的 `data/VenusJobManifest.json`（构建期抽成随包文件
+    #   `venus_job_manifest.json`，见 `scripts/build_venus_points.py`），7 个点位与
+    #   种子推算口径已在 2026-09-24 与 oracle 独立实现对拍 **15/15 一致**；
+    #   点位中文名取自**官方简中表** `/Lotus/Language/SolarisVenus/MapLabel_*`
+    #   （7 个里 5 个有名字；Warehouse / DigSite 官方未译 → 显示「未定名」，**不硬编**）。
+    #   链名走 `bounty_jobs_zh.json`（同表 27 条金星任务链，如 VenusArtifactJobAmbush=伏击信使）。
+    "Solaris United": {
+        "prefix": "/Lotus/Types/Gameplay/Venus/Jobs/",
+        "manifest": "venus_job_manifest.json",
+        "on_card": False,
+        "labels": {
+            "BountyNefsHead": "殿宇建造地",
+            "BountyRepairBay": "中央维修点",
+            "BountySunDial": "反应器控制点",
+            "BountyPufferFarm": "生长地点",
+            "BountyCoolantCoil": "珍珠",
+            "BountyWarehouse": "未定名",
+            "BountyDigSite": "未定名",
+        },
+    },
+    # 火卫二：官方简中表里 **0/5** 点位名（ChamberA/B/C、TentA/B 都无 MapLabel）→
+    # 按用户口径**暂不上卡**，等官方补译（补名后照上面加一项即可）。
 }
+
+
+def on_card(region: str) -> bool:
+    """该地区是否上卡（配置项 ``on_card``，缺省 True）。
+
+    与「有没有配置」分开：金星有完整配置（推算 + 点位名 + 测试）但当前不上卡。
+    """
+    return bool((REGIONS.get(region or "") or {}).get("on_card", True))
 
 _MASK64 = (1 << 64) - 1
 _MULT = 0x5851F42D4C957F2D      # SRandomInt 的 LCG 常量（PCG 同款）

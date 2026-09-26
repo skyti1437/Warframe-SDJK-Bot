@@ -27,6 +27,16 @@ class FakeLogger:
     def error(self, *a, **k): pass
 
 
+class RecordingLogger(FakeLogger):
+    """留下 info 文案，供「派发留痕」断言用。"""
+
+    def __init__(self):
+        self.lines: list[str] = []
+
+    def info(self, fmt, *a, **k):
+        self.lines.append(fmt % a if a else str(fmt))
+
+
 class FakeClient:
     """模拟 warframestat 返回：第一轮 2 条裂隙，第二轮新增 1 条钢铁捕获。"""
 
@@ -219,11 +229,82 @@ async def dispatch_scenarios():
           len(saved) == 1 and len(saved[0].notified) == 1,
           str(saved and saved[0].notified))
 
+    # ④ ★ 成功派发留痕（2026-09-26）：带实例 id —— 跨实例重复推送会打印两个 id。
+    st4 = SubscriptionStore(tmp2 / "s4.json")
+    rec = RecordingLogger()
+    d4 = PushDaemon(FakeClient(), st4, _send2, rec, interval=15)
+    await st4.add(Subscription(umo="group://D", platform="pc", event="裂隙",
+                               rule="捕获", until=-1, once=False, hits_left=5))
+    await d4.tick()          # 基线，不推
+    check("首轮只建基线：无派发日志", not [x for x in rec.lines if "已推送" in x],
+          str(rec.lines))
+    await d4.tick()          # 推一条 → 恰一行留痕，且实例 id 正确
+    sent_lines = [x for x in rec.lines if "已推送" in x]
+    check("★ 成功派发留痕恰一行且带实例 id",
+          len(sent_lines) == 1 and f"实例 {id(d4)}" in sent_lines[0]
+          and "事件=裂隙" in sent_lines[0],
+          str(sent_lines))
+
 
 _real_local_now = push_mod._local_now
 push_mod._local_now = lambda: datetime(2026, 9, 24, 14, 0, 0)  # 周四 14:00
 asyncio.run(dispatch_scenarios())
 push_mod._local_now = _real_local_now
+
+# ---------------------------------------------------------------------------
+# ①-5 推送守护：**进程级**单例（2026-09-26 修「重复推送」）
+#   事故：同一时刻连发两条（04:00 仲裁 / 05:02 裂隙 / 08:00 仲裁 + 08:02 裂隙同内容）。
+#   真因 = 实例级幂等挡不住**跨实例泄漏**的旧 daemon（重载后新旧并存，各推一次）。
+# ---------------------------------------------------------------------------
+def _mk_daemon() -> PushDaemon:
+    return PushDaemon(client=None, store=None, send=None, logger=FakeLogger(), interval=15)
+
+
+async def daemon_lifecycle():
+    push_mod._LIVE_DAEMONS.clear()
+    a, b = _mk_daemon(), _mk_daemon()
+    a.start()
+    ta = a._task
+    await asyncio.sleep(0.05)
+    b.start()                                  # 跨实例：应取消 A
+    await asyncio.sleep(0.05)
+    live = [x for x in push_mod._LIVE_DAEMONS if not x.done()]
+    check("★ 双实例：B 启动后 A 的守护被取消", ta.done(), f"a.done()={ta.done()}")
+    check("★ 双实例：任一时段只有 1 个活跃守护",
+          len(live) == 1 and live[0] is b._task, f"活跃={len(live)}")
+    tb = b._task
+    b.start()                                  # 重复 start 幂等
+    check("重复 start 幂等（不新建 task、活跃数仍 1）",
+          b._task is tb
+          and len([x for x in push_mod._LIVE_DAEMONS if not x.done()]) == 1)
+    await b.stop()
+    check("★ stop 后登记清空、task 置空",
+          b._task is None and not [x for x in push_mod._LIVE_DAEMONS if not x.done()])
+    await a.stop()                             # A 早被取消：stop 幂等不抛
+    check("stop 幂等（对已停止实例再调，登记仍空）",
+          not [x for x in push_mod._LIVE_DAEMONS if not x.done()])
+
+
+asyncio.run(daemon_lifecycle())
+
+# 基线守卫：空/骤降响应不得清空基线（防跨轮重推）；正常响应照常更新（正反两侧）
+_d = _mk_daemon()
+_last = {"fissure_ids": ["a", "b", "c", "d"]}
+_d._set_baseline(_last, "fissure_ids", [], "ids")
+check("★ 空响应 → 保留旧基线", _last["fissure_ids"] == ["a", "b", "c", "d"], str(_last))
+_d._set_baseline(_last, "fissure_ids", ["a"], "ids")
+check("★ 骤降（不足旧值一半）→ 保留旧基线", _last["fissure_ids"] == ["a", "b", "c", "d"], str(_last))
+_d._set_baseline(_last, "fissure_ids", ["a", "b"], "ids")
+check("恰好一半 → 视为正常收缩，允许更新", _last["fissure_ids"] == ["a", "b"], str(_last))
+_last["fissure_ids"] = ["a", "b", "c", "d"]
+_d._set_baseline(_last, "fissure_ids", ["a", "b", "e"], "ids")
+check("正常响应 → 更新基线", _last["fissure_ids"] == ["a", "b", "e"], str(_last))
+_d._set_baseline(_last, "cetus_state", "")
+check("空状态串 → 不写入（保留旧值）", _last.get("cetus_state") is None,
+      str(_last.get("cetus_state")))
+_d._set_baseline(_last, "cetus_state", "night")
+check("首次有效状态 → 写入", _last.get("cetus_state") == "night",
+      str(_last.get("cetus_state")))
 
 print()
 if FAILED:

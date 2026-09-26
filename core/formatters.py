@@ -1015,8 +1015,9 @@ _SPECIAL_POOL_KEY = {
     # （旧实现把地球的指到 `尸鬼净化`、金星的指到 `合一众·阶段6`，两处内容都是错的）
     "Ostrons": {"Narmer": "合一众"},
     "Solaris United": {"Narmer": "合一众",
-                       # 深矿钢铁档 → 已存在的深矿池（此前备好但没接线）
-                       "NokkoColonyEnterprise": "深矿·企业重组"},
+                       # 深矿钢铁档 → 钢铁版奖励池（`NokkoColonyRewardsSteel*` 三张表合并，
+                       # 构建见 `scripts/build_nokko_sp_pool.py`；普通版另有「深矿·企业重组」池）
+                       "NokkoColonyRewardsSteel": "深矿·企业重组·钢铁"},
     # 隔离库三档在 DE 侧各有独立奖励表：VaultBountyTierA/B/C
     # 分别对应 30-40 / 40-50 / 50-60 级，旧实现把三者并成一个「隔离库」池，
     # 导致三档奖励完全一样。
@@ -1026,9 +1027,10 @@ _SPECIAL_POOL_KEY = {
 }
 _SPECIAL_TAG = {"Narmer": "合一众",
                 # 深矿（NokkoColony）钢铁之路档：**社区观测**登记（见 de_worldstate
-                # SOLARIS_SUPPLEMENT_JOBS）—— 卡面标签直接标「社区观测」，
-                # 让读者知道这一档不来自 DE 接口；奖励仍走已备好的「深矿·企业重组」池。
-                "NokkoColonyEnterprise": "社区观测",
+                # SOLARIS_SUPPLEMENT_JOBS）—— 卡面标签同时标「钢铁之路」与「社区观测」，
+                # 让读者知道这一档既不来自 DE 接口、也属于钢铁之路难度；
+                # 奖励走**钢铁版**池（`NokkoColonyRewardsSteel*`，列 A/B/C 全部轮次）。
+                "NokkoColonyRewardsSteel": "钢铁之路 · 社区观测",
                 "VaultBountyTierA": "隔离库1阶",
                 "VaultBountyTierB": "隔离库2阶",
                 "VaultBountyTierC": "隔离库3阶"}
@@ -1318,7 +1320,17 @@ def _bounty_rows(jobs: list[dict], syndicate: str) -> list[str]:
             name, tag = _VAULT_TIER_NAME.get(tag, tag), ""
         # 只列 DE 当前生效的那一轮；池里没有该轮次（或本就只有一轮）时合并去重
         filled = [r for r in ("A", "B", "C") if pool.get(r)]
-        if rot and len(filled) > 1 and pool.get(rot):
+        if j.get("source") == "community":
+            # 社区观测档（DE 完全不下发 → 当前轮次**无从得知**）：列 A/B/C 全部轮次，
+            # 完全相同的条目只留一次（「10,000 现金匣」与「3 × 5,000 现金匣」这类
+            # 数值不同的条目**都保留** —— 数量口径按池数据原样呈现，不合并数值）。
+            items, seen = [], set()
+            for r in ("A", "B", "C"):
+                for t in pool.get(r) or []:
+                    if t not in seen:
+                        seen.add(t)
+                        items.append(t)
+        elif rot and len(filled) > 1 and pool.get(rot):
             items = list(pool[rot])
         else:
             items = []
@@ -1541,18 +1553,31 @@ def _oracle_region_block(pool_key: str, tag: str, title: str,
     return lines
 
 
-def _tent_lines(syndicates) -> list[str]:
-    """小帐篷 A/B/C 当前赏金（详情卡专用；推算见 core/tents.py）。
+# 各地区点位块的来源注脚（口径随地区不同，别用同一句）
+_TENT_NOTE = {
+    "Ostrons": "※ 小帐篷 = 平野三处营地的当前赏金（按 DE 世界种子推算，与游戏内一致）",
+    "Solaris United": "※ 以上为金星七处赏金点位的当前赏金（按 DE 世界种子推算，与游戏内一致）；"
+                      "「未定名」= 官方简中尚未翻译该点位",
+}
 
-    2026-09-24 双向对拍一致后才上卡：W4 与沃沃截图 9/9 格、W5 与
-    oracle.browse.wf 独立实现 15/15 点位。种子缺失（源降级）时整块跳过。
+
+def _tent_lines(syndicates, region: str = "Ostrons") -> list[str]:
+    """某地区的**点位级**当前赏金（详情卡专用；推算见 core/tents.py）。
+
+    2026-09-24 双向对拍一致后才上卡：地球 W4 与沃沃截图 9/9 格、W5 与
+    oracle.browse.wf 独立实现 15/15 点位（含金星 7 / 火卫二 5）。**当前只出地球**：
+    金星 2026-09-26 按用户口径撤下（卡面改列深矿钢铁档奖励）、火卫二缺官方译名。
+    种子缺失（源降级）时整块跳过。
+
+    ★ 地区由调用方传 **syndicate 键**（`tents.REGIONS` 的键），凡在 REGIONS 里登记
+    的地区都会自动出块 —— 新增地区只需往 `tents.REGIONS` 加一项（见该文件注释）。
     """
-    rows = _tents.region_locations("Ostrons", _tents.seed_of(syndicates))
+    rows = _tents.region_locations(region, _tents.seed_of(syndicates))
     if not rows:
         return []
     out = [f"　{label}：{'｜'.join(names)}" for label, names in rows]
-    out.append("※ 小帐篷 = 平野三处营地的当前赏金"
-               "（按 DE 世界种子推算，与游戏内一致）")
+    out.append(_TENT_NOTE.get(region)
+               or "※ 以上为当前赏金点位（按 DE 世界种子推算，与游戏内一致）")
     return out
 
 
@@ -1595,6 +1620,7 @@ def fmt_bounties(syndicates: Iterable[dict], keyword: str = "",
     boards: set = set()
     detailed = target is not None
     rot = (cycle.get("rot") or "").strip()
+    community_shown = False     # 本卡是否真的画了社区观测档（注脚按此出现）
 
     # DE 下发的地区先建索引，便于按剧情顺序取用
     de_by_synd: dict[str, dict] = {}
@@ -1628,10 +1654,14 @@ def fmt_bounties(syndicates: Iterable[dict], keyword: str = "",
         if detailed:
             lines.extend(_region_block(pool_key, title, jobs,
                                        (s or {}).get("expiry", "")))
-            if pool_key == "Ostrons":
-                # 小帐篷 A/B/C：DE 不下发归属（全库无 camp 字段），由
-                # 世界种子 + JobManifest 确定性推算，见 core/tents.py。
-                lines.extend(_tent_lines(syndicates))
+            if any(j.get("source") == "community" for j in jobs):
+                community_shown = True
+            if pool_key in _tents.REGIONS and _tents.on_card(pool_key):
+                # 点位级赏金：DE 不下发归属（全库无 camp 字段），由世界种子 +
+                # JobManifest 确定性推算，见 core/tents.py。凡登记在 REGIONS 且
+                # on_card 的地区都出块（地球小帐篷 A/B/C；金星已登记但当前不上卡）。
+                # 地区都出块（地球小帐篷 A/B/C、金星七处点位…）。
+                lines.extend(_tent_lines(syndicates, pool_key))
         else:
             lines.extend(_region_summary(pool_key, title, jobs,
                                          (s or {}).get("expiry", "")))
@@ -1642,6 +1672,9 @@ def fmt_bounties(syndicates: Iterable[dict], keyword: str = "",
                             "（扎里曼 / 实验室 / 1999 赏金为轮换开放，DE 不实时下发）"])
     if detailed:
         lines.append("※ ▣ 部件/蓝图　★ MOD　列每档全部奖励；轮次随刷新而变")
+        if community_shown:
+            # 社区观测档的轮次无从得知（DE 不下发该档）→ 卡面直接说明列的是全轮次
+            lines.append("※ 「社区观测」档 DE 不下发、轮次无从得知，上列为 A/B/C 全部轮次")
     else:
         lines.append("※ ▣ 部件/蓝图　★ MOD　轮换行只列高价值奖励")
         lines.append("※ 发「赏金 地球」「赏金 扎里曼」等看该地区各档完整奖励")

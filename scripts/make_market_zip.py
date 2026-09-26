@@ -80,7 +80,9 @@ MARKET_SKIP_FILES = {".gitleaks.toml",        # 仓库门面（防泄漏 CI 配�
 # +core/data/dispositions_rivenmirror.json，变体解析倾向数据随市场件分发）。
 # 与 package_release.EXPECTED_OSS_STAGE_FILES 同理——有意变更须同步
 # 此常量并在 commit 正文列文件名与理由。
-EXPECTED_MARKET_ENTRIES = 97
+# → 98（金星小帐篷：+core/data/de/venus_job_manifest.json —— 随包的点位清单，
+#   否则市场版小帐篷无数据源；构建脚本在 scripts/ 不进市场件）。
+EXPECTED_MARKET_ENTRIES = 98
 
 # ★ 可复现打包（2026-09-26 用户侧建议）：统一 zip 条目时间戳 = 2026-01-01T00:00:00Z。
 #   之前取文件 mtime，导致「内容没变、重建却换 sha」（上传期两次被迫冻结重建：

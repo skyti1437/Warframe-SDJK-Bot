@@ -1253,9 +1253,16 @@ _JOB_META = _load_job_meta()
 #   · DE 公开导出 `ExportBounties.json` / `ExportSyndicates.json` ✗ 无 Deepmine/Enterprise/130
 #     （`ExportSyndicates` 里的 Nokko 命中是「夜帽追思」阵营，不是深矿 job）
 # 所以按用户要求**硬编登记**：口径与其余 7 档完全一致（等级区间 / 奖励池 / 任务名），
-# 奖励沿用已有的「深矿·企业重组」池（`bounty_pools.json` —— 该池此前已备好但**没接线**）。
+# 奖励取 **DE 公开导出的钢铁版表** `NokkoColonyRewardsSteel{,B,C}`
+# （`bounty_pools.json` 的「深矿·企业重组·钢铁」，构建脚本
+#  `scripts/build_nokko_sp_pool.py`；普通版 `NokkoColonyRewards*` 是另一套更低的数值，
+#  两套的差别实测：现金匣 ×1/5,000×3 vs **×2/×3**、内融核心 1000/2000 vs **3500/4000**
+#  —— 与用户提供的沃沃截图逐项一致的是**钢铁版**，2026-09-26 据此更正）。
 # 中文名取自**官方简中表**（`/Lotus/Language/NokkoColony/LocationName`=深矿、`Job2Name`=企业重组）。
 # ⚠️ 来源=社区观测，**不是 DE 下发的数据**：`source` 字段随卡面注明，便于区分与复核。
+# 卡面名不带「（钢铁之路）」后缀：标签位已有「钢铁之路 · 社区观测」，避免同一行重复两次
+# （`rewardTable` 的轮次后缀在此**无意义** —— DE 不下发该档，当前轮次无从得知，
+#  渲染侧对 community 档固定列 A/B/C 全部轮次，见 `formatters._bounty_rows`）。
 SOLARIS_SUPPLEMENT_JOBS: tuple[dict, ...] = ({
     "jobType": "深矿 企业重组（钢铁之路）",
     "jobTypeKey": "NokkoColonyEnterpriseSP",
@@ -1263,8 +1270,8 @@ SOLARIS_SUPPLEMENT_JOBS: tuple[dict, ...] = ({
     "enemyLevels": [130, 140],
     "standingStages": [],
     "masteryReq": None,
-    "rewardTable": "NokkoColonyEnterpriseTableARewards",
-    "_jobName": "深矿：企业重组（钢铁之路）",
+    "rewardTable": "NokkoColonyRewardsSteel",
+    "_jobName": "深矿：企业重组",
     "_jobDesc": "",
     "_jobFinal": [],
     "_jobStages": 0,

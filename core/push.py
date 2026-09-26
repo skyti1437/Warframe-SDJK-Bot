@@ -112,6 +112,19 @@ def build_cancel_selector(umo: str, heads: list[str]):
     return ev, keys, exact, fuzzy, label
 
 
+# ---------------------------------------------------------------------------
+# ★ 进程级活跃守护登记（2026-09-26 修「重复推送」）
+# ---------------------------------------------------------------------------
+# 事故：同一时刻连发两条（04:00 仲裁 / 05:02 裂隙 / 08:00 仲裁 + 08:02 裂隙同内容）。
+# 真因 = **推送守护跨实例叠加**：原来 start() 的幂等只看**实例级** ``self._task``，
+# 插件重载时新实例的 ``_task`` 是 None，**感知不到旧实例仍存活的 daemon** ——
+# 若某次重载没走到 terminate()（或 stop 未生效），旧 daemon 存活 → 两个 daemon 并存
+# → 同一事件各推一次。实测时序吻合：最后一次「守护已启动」= 02:41:08，重复全在其后。
+#
+# 修法：把登记提到**模块级**（进程内共享），start() 先取消任何仍活跃的旧 daemon 再启动新的。
+_LIVE_DAEMONS: "set[asyncio.Task]" = set()
+
+
 class PushDaemon:
     def __init__(
         self,
@@ -132,29 +145,82 @@ class PushDaemon:
         self._matched: dict[str, set[str]] = {}  # 事件key -> 本轮筛选命中的 sub.sid
 
     # ------------------------------------------------------------------
+    def _set_baseline(self, last: dict, key: str, value, kind: str = "truthy") -> None:
+        """只在**有效**响应时更新基线（2026-09-26 加固，非重复推送的根因）。
+
+        源降级/限流/超时后常返回**空结构**；若把空值写进基线，下一轮拿到正常数据时
+        这些事件会被**当成新的再推一遍**（跨轮重推）。所以空值一律**保留旧基线**；
+        ``ids`` 类另加**骤降判据**：新值不足旧值一半 → 视为源降级，同样保留旧基线。
+        两种拒绝都记日志，等源恢复后自然对齐（代价：真实骤减时基线会多留一轮，
+        方向偏保守 —— 宁可少推，不可重推）。
+        """
+        if kind == "ids":
+            prev = last.get(key) or []
+            ok = bool(value) and (not prev or len(value) >= max(1, len(prev) // 2))
+        elif kind == "bool":
+            ok = value is not None
+        else:
+            ok = bool(value)
+        if ok:
+            last[key] = value
+        else:
+            self.log.warning("[warframe] %s 响应为空/骤降（%r），保留旧基线不更新（防跨轮重推）",
+                             key, value)
+
     def start(self) -> None:
+        """启动守护；**进程级**幂等 —— 先清掉任何仍活跃的旧 daemon（跨实例泄漏）。"""
+        for dead in [x for x in _LIVE_DAEMONS if x.done()]:
+            _LIVE_DAEMONS.discard(dead)          # 已结束的登记顺手清掉，防集合膨胀
+        leaked = [x for x in _LIVE_DAEMONS if not x.done() and x is not self._task]
+        for task in leaked:
+            task.cancel()                        # ★ 旧实例泄漏的守护：取消，防重复推送
+        if leaked:
+            self.log.warning("[warframe] 发现 %d 个仍在运行的旧推送守护 → 已取消（防重复推送）",
+                             len(leaked))
         if self._task is None or self._task.done():
             self._task = asyncio.create_task(self._run(), name="warframe-push-daemon")
-            self.log.info("[warframe] 推送守护协程已启动（间隔 %ss）", self.interval)
+            _LIVE_DAEMONS.add(self._task)
+            self.log.info("[warframe] 推送守护协程已启动（间隔 %ss，实例 %s，活跃 %d）",
+                          self.interval, id(self), len(_LIVE_DAEMONS))
+        else:
+            self.log.info("[warframe] 推送守护已在运行（重复 start 幂等跳过，实例 %s，活跃 %d）",
+                          id(self), len(_LIVE_DAEMONS))
 
     async def stop(self) -> None:
-        if self._task:
-            self._task.cancel()
-            try:
-                await self._task
-            except (asyncio.CancelledError, Exception):  # noqa: BLE001
-                pass
+        """停止本实例的守护并**注销登记**（幂等；失败也记日志）。"""
+        task = self._task
+        if task is None:
+            self.log.info("[warframe] 推送守护未在运行（stop 幂等跳过，实例 %s）", id(self))
+            return
+        self.log.info("[warframe] 正在停止推送守护（实例 %s，task.done()=%s）",
+                      id(self), task.done())
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass                                  # 正常取消路径
+        except Exception as exc:                  # noqa: BLE001 - 停止失败要留痕
+            self.log.warning("[warframe] 推送守护停止时异常：%s", exc)
+        finally:
+            _LIVE_DAEMONS.discard(task)
             self._task = None
+        self.log.info("[warframe] 推送守护已停止（仍活跃 %d）", len(_LIVE_DAEMONS))
 
     async def _run(self) -> None:
-        while True:
-            try:
-                await self.tick()
-            except asyncio.CancelledError:
-                raise
-            except Exception as exc:  # noqa: BLE001 - 守护协程不允许退出
-                self.log.error("[warframe] 推送轮询异常：%s", exc)
-            await asyncio.sleep(self.interval)
+        try:
+            while True:
+                try:
+                    await self.tick()
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:  # noqa: BLE001 - 守护协程不允许退出
+                    self.log.error("[warframe] 推送轮询异常：%s", exc)
+                await asyncio.sleep(self.interval)
+        finally:
+            # 退出（含被取消）时注销自己的登记，避免集合里留死引用
+            cur = asyncio.current_task()
+            if cur is not None:
+                _LIVE_DAEMONS.discard(cur)
 
     # ------------------------------------------------------------------
     def filter_for(self, sub: Subscription) -> FissureFilter:
@@ -221,6 +287,11 @@ class PushDaemon:
             # 必须按 sid 原位落盘；旧写法 sync(self.store.all()) 会从 _data
             # 重新拷贝一遍，等于白写一次盘、什么都没存下。
             await self.store.update(sub)
+        # ★ 成功派发也留痕（2026-09-26）：此前只有失败才记日志，无法从日志判断
+        #   「同一事件被推了几条」。带上实例 id —— 若出现跨实例的重复推送，
+        #   同一事件键会打印出**两个不同的实例 id**，一眼可见。
+        self.log.info("[warframe] 已推送 事件=%s 键=%s → %s（实例 %s）",
+                      sub.event, key, sub.umo, id(self))
         return True
 
     # ------------------------------------------------------------------
@@ -261,7 +332,7 @@ class PushDaemon:
                         kept.append(e)
                         matched[e[1]] = hit
                 out = kept
-                last["fissure_ids"] = list(live.keys())
+                self._set_baseline(last, "fissure_ids", list(live.keys()), "ids")
 
             if "夜灵" in wanted:
                 cetus = await self.client.cycle(platform, "cetus")
@@ -273,7 +344,7 @@ class PushDaemon:
                     elif state == "day":
                         out.append(("夜灵", f"day-{cetus.get('expiry', '')}",
                                     "☀️ 夜灵平野天亮了"))
-                last["cetus_state"] = state
+                self._set_baseline(last, "cetus_state", state)
 
             if "山谷" in wanted:
                 vallis = await self.client.cycle(platform, "vallis")
@@ -283,7 +354,7 @@ class PushDaemon:
                     out.append(("山谷", f"vallis-{st}-{vallis.get('expiry', '')}",
                                 f"🌡️ 奥布山谷转为{label}，"
                                 f"剩余 {countdown(vallis.get('expiry', ''))}"))
-                last["vallis_state"] = st
+                self._set_baseline(last, "vallis_state", st)
 
             if "魔胎" in wanted:
                 cambion = await self.client.cycle(platform, "cambion")
@@ -293,7 +364,7 @@ class PushDaemon:
                     out.append(("魔胎", f"cambion-{st}-{cambion.get('expiry', '')}",
                                 f"🦠 魔胎之境已切换到 {label}，"
                                 f"剩余 {countdown(cambion.get('expiry', ''))}"))
-                last["cambion_state"] = st
+                self._set_baseline(last, "cambion_state", st)
 
             if "地球" in wanted:
                 earth = await self.client.cycle(platform, "earth")
@@ -303,7 +374,7 @@ class PushDaemon:
                     out.append(("地球", f"earth-{st}-{earth.get('expiry', '')}",
                                 f"🌍 地球已进入{label}，"
                                 f"剩余 {countdown(earth.get('expiry', ''))}"))
-                last["earth_state"] = st
+                self._set_baseline(last, "earth_state", st)
 
             if "双衍" in wanted:
                 duv = await self.client.cycle(platform, "duviri")
@@ -313,7 +384,7 @@ class PushDaemon:
                     out.append(("双衍", f"duviri-{st}-{duv.get('expiry', '')}",
                                 f"🌀 双衍王境螺旋切换为「{cn}」（{st}），"
                                 f"剩余 {countdown(duv.get('expiry', ''))}"))
-                last["duviri_state"] = st
+                self._set_baseline(last, "duviri_state", st)
 
             if "活动" in wanted:
                 goals = await self.client.goals(platform)
@@ -325,7 +396,7 @@ class PushDaemon:
                     out.append(("活动", f"goal-{gid}",
                                 f"🎯 新活动：{g.get('name', gid)}"
                                 + (f"｜剩{g.get('timeLeft')}" if g.get("timeLeft") else "")))
-                last["goal_ids"] = list(live_ids)
+                self._set_baseline(last, "goal_ids", list(live_ids), "ids")
 
             if "奸商" in wanted:
                 trader = await self.client.void_trader(platform)
@@ -338,7 +409,10 @@ class PushDaemon:
                     else:
                         out.append(("奸商", f"out-{trader.get('expiry', '')[:10]}",
                                     "🛒 奸商已离开，下次再见"))
-                last["trader_active"] = active
+                if trader:                       # 空响应（源失败）不写基线
+                    self._set_baseline(last, "trader_active", active, "bool")
+                else:
+                    self.log.warning("[warframe] trader_active 响应为空，保留旧基线不更新")
 
             if "突击" in wanted:
                 sortie = await self.client.sortie(platform)
@@ -380,7 +454,7 @@ class PushDaemon:
                                         f"⚖️ 仲裁已轮换：{sl['line']}{tier}"
                                         f" · 剩 {left_min} 分钟"))
                             matched[akey] = hit
-                    last["arbi_slot"] = sl["key"]
+                    self._set_baseline(last, "arbi_slot", sl.get("key") or "")
 
             if "钢路侵袭" in wanted:
                 # ★ 2026-09-19 修：原用 client.steel_path()（DE 精简版 worldState

@@ -101,6 +101,66 @@ check("种子缺失时整块跳过",
       not any("小帐篷" in ln for ln in earth_ns), str([ln for ln in earth_ns if "小帐篷" in ln]))
 
 # ---------------------------------------------------------------------------
+# ★ 金星：**推算能力保留、卡面不上**（2026-09-26 用户决定 —— 金星卡改列深矿钢铁档奖励）
+#   数据来源：oracle VenusJobManifest（构建期抽成随包文件）+ 官方简中表
+#   /Lotus/Language/SolarisVenus/MapLabel_*；7 点位算法已于 09-24 与 oracle 对拍 15/15。
+#   重新上卡 = 把 `tents.REGIONS` 里金星那段取消注释，渲染侧 `_tent_lines` 自动出块
+#   （注脚 `_TENT_NOTE["Solaris United"]` 也还在），**不需要**改其它文件。
+# ---------------------------------------------------------------------------
+_ven = tents.region_locations("Solaris United", 69703)
+check("★ 金星推算能力保留：7 个点位（算法未动，随时可重开）",
+      len(_ven) == 7, str(len(_ven)))
+_names = [n for n, _ in _ven]
+check("★ 点位名 = 5 个官方简中 + 2 个「未定名」（不硬编）",
+      sorted(_names) == sorted(["殿宇建造地", "中央维修点", "反应器控制点", "生长地点",
+                                "珍珠", "未定名", "未定名"]), str(_names))
+check("★ 回归向量（seed=69703，与 oracle 对拍过的种子）：首点位链名",
+      _ven[0] == ("殿宇建造地", ["伏击信使", "财政解放", "尘土部队"]), str(_ven[0]))
+check("每个点位都给出 3 条链且全为中文（官方简中表命中）",
+      all(len(chains) == 3 and all(not c.isascii() for c in chains)
+          for _, chains in _ven), str(_ven[:2]))
+check("★ 金星登记但 on_card=False（推算保留、卡面不出块）",
+      "Solaris United" in tents.REGIONS
+      and not tents.on_card("Solaris United") and tents.on_card("Ostrons"),
+      str(sorted(tents.REGIONS)))
+check("火卫二仍不上卡（官方 0/5 点位名，等补译）",
+      "Entrati" not in tents.REGIONS and not tents.region_locations("Entrati", 69703))
+
+# 口径一致：DE 下发的档位 job 应能在 manifest 任务池里找到（两个已知例外见注释）
+_man = json.loads((ROOT / "core" / "data" / "de" / "venus_job_manifest.json")
+                  .read_text(encoding="utf-8"))["data"]
+_locs = _man.get("LocationSpecificJobs") or []
+check("随包金星 manifest：7 个 LocationSpecificJobs（构建期抽取）",
+      len(_locs) == 7 and {x.get("LocationTag") for x in _locs} >= {
+          "BountyNefsHead", "BountyWarehouse", "BountyRepairBay", "BountySunDial",
+          "BountyPufferFarm", "BountyCoolantCoil", "BountyDigSite"}, str(len(_locs)))
+_pool = set(_man.get("Jobs") or [])
+_sect = [s for s in bundle["syndicateMissions"] if s.get("syndicateKey") == "SolarisSyndicate"]
+_tiers = {j["jobTypeKey"] for j in (_sect[0]["jobs"] if _sect else [])}
+# 例外两条：① 合一众分支变体（DE 档位与 manifest 的 Narmer ExtraJobs 不同款，属正常）
+#           ② NokkoColonyEnterpriseSP = 我们硬编的**社区观测**档，本就不是金星点位任务
+_known = {"NarmerVenusCullJobExterminate", "NokkoColonyEnterpriseSP"}
+_missing = sorted(t for t in _tiers if t and t not in _pool and t not in _known)
+check("★ 口径一致：金星档位 job 都在 manifest 任务池内（除 2 个已知例外）",
+      not _missing, str(_missing))
+check("★ 社区观测档不影响点位推算（它不在点位任务池里）",
+      "NokkoColonyEnterpriseSP" not in _pool)
+
+# 详情卡：地球出点位块、金星**不出**（同一套 `_tent_lines`，按 REGIONS 决定）
+_tv, vlines = fmt.fmt_bounties(bundle["syndicateMissions"], "金星")
+check("★ 金星详情卡**不再**出现点位块（2026-09-26 撤下）",
+      not any(ln.startswith("　") and "｜" in ln and "级" not in ln for ln in vlines),
+      str([ln for ln in vlines if ln.startswith("　")][:3]))
+check("★ 地球详情卡仍有点位块（泛化能力未被撤金星带坏）",
+      sum(1 for ln in earth if ln.startswith("　") and "｜" in ln) >= 3,
+      str([ln for ln in earth if ln.startswith("　")][:4]))
+check("金星注脚（「未定名」说明）随块一起收起，不残留",
+      not any(ln.startswith("※") and "未定名" in ln for ln in vlines))
+check("地球注脚仍是小帐篷口径（未被金星文案串台）",
+      any(ln.startswith("※") and "小帐篷" in ln for ln in earth)
+      and not any("小帐篷" in ln for ln in vlines))
+
+# ---------------------------------------------------------------------------
 if FAILED:
     print(f"\n{len(FAILED)} FAILED: {FAILED}")
     sys.exit(1)

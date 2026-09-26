@@ -409,30 +409,60 @@ _missing = [k for k, v in _meta.items() if not v.get("final")]
 check("赏金表每条都有末阶段（任务类型来源）", not _missing, str(_missing[:3]))
 
 # ---------------------------------------------------------------------------
-# ⑨ 金星「深矿：企业重组（钢铁之路）」130-140（社区观测登记，2026-09-26）
+# ⑨ 金星「深矿：企业重组」130-140 钢铁之路（社区观测登记，2026-09-26）
 #    DE 只下发 7 档；这一档**不在任何接口里**（worldState / oracle VenusJobManifest /
 #    DE 公开导出 ExportBounties·ExportSyndicates 三方实测都没有）→ 硬编登记，
 #    来源显式标 community；中文名取自官方简中表（NokkoColony/LocationName=深矿、
 #    Job2Name=企业重组）。
+#    ★ 奖励池 2026-09-26 更正：导出里深矿有**两套表** —— 普通版 NokkoColonyRewards*
+#      （现金匣 ×1 / 5,000×3、内融核心 1000 / 2000）与**钢铁版 NokkoColonyRewardsSteel***
+#      （现金匣 **×2 / ×3**、内融核心 **3500 / 4000**）。用户用沃沃截图对拍时给出的
+#      四个数字与**钢铁版逐项一致**，故改用钢铁版（构建脚本
+#      `scripts/build_nokko_sp_pool.py`，可 --check 复算）。
 # ---------------------------------------------------------------------------
 _sup = dw.SOLARIS_SUPPLEMENT_JOBS
 check("★ 金星补齐档常量：130-140 / 官方简中名 / 来源=community",
       len(_sup) == 1 and list(_sup[0]["enemyLevels"]) == [130, 140]
-      and _sup[0]["_jobName"] == "深矿：企业重组（钢铁之路）"
+      and _sup[0]["_jobName"] == "深矿：企业重组"
       and _sup[0].get("source") == "community", str(dict(_sup[0]))[:130])
 _pool, _tag, _rot = fmt._resolve_bounty_pool("Solaris United", dict(_sup[0]))
-check("★ 该档奖励接到既有「深矿·企业重组」池（不新建池）",
-      _tag == "社区观测" and len(_pool) == 3, f"tag={_tag} 池条数={len(_pool)}")
+check("★ 该档奖励接到**钢铁版**池（NokkoColonyRewardsSteel → 深矿·企业重组·钢铁）",
+      _tag == "钢铁之路 · 社区观测" and len(_pool) == 3, f"tag={_tag} 池轮次={list(_pool)}")
+# ★ 数量口径逐项对拍（用户从沃沃截图给出的四个数字，钢铁版必须逐项命中；
+#   普通版是 10,000×1 / 5,000×3 与 1000 / 2000 —— 若有人换回普通版，这四条会立刻红）
+_flat = "、".join(x for r in ("A", "B", "C") for x in _pool[r])
+check("★ 数量口径：10,000 现金匣 ×2（钢铁版 B 轮）", "10,000 现金匣 ×2" in _flat, _flat)
+check("★ 数量口径：10,000 现金匣 ×3（钢铁版 C 轮）", "10,000 现金匣 ×3" in _flat, _flat)
+check("★ 数量口径：3500 内融核心（70 包 × 50，钢铁版 B 轮）",
+      "3500 内融核心" in _flat, _flat)
+check("★ 数量口径：4000 内融核心（50 包 × 80，钢铁版 C 轮）",
+      "4000 内融核心" in _flat, _flat)
+check("★ 普通版数值不得残留（1000/2000 内融核心、3 × 5,000 现金匣）",
+      not any(x in _flat for x in ("1000 内融核心", "2000 内融核心", "3 × 5,000")), _flat)
+check("★ 三张钢铁表的部件对全在（机体+枪机 / 系统+枪管 / 头部神经光元+枪托）",
+      all(n in _flat for n in ("Nokko机体蓝图", "蕈菇枪机蓝图", "Nokko系统蓝图",
+                               "蕈菇枪管蓝图", "Nokko头部神经光元蓝图", "蕈菇枪托蓝图")),
+      _flat)
 _line = fmt._bounty_entry_line("Solaris United", dict(_sup[0]))
-check("★ 卡面行：档名 + 等级 + 社区观测标注",
-      "深矿：企业重组（钢铁之路）" in _line and "130-140级" in _line
-      and "社区观测" in _line, _line)
+check("★ 卡面行：档名 + 等级 + 钢铁之路/社区观测双标签",
+      "深矿：企业重组" in _line and "130-140级" in _line
+      and "钢铁之路" in _line and "社区观测" in _line, _line)
 _ven = [s for s in bundle["syndicateMissions"]
         if s.get("syndicateKey") == "SolarisSyndicate"]
 check("★ 集成：金星档位 7 → 8（fixture 解析后含 130-140 档）",
       bool(_ven) and len(_ven[0]["jobs"]) == 8
       and any(list(j["enemyLevels"]) == [130, 140] for j in _ven[0]["jobs"]),
       f"档数={len(_ven[0]['jobs']) if _ven else 0}")
+# 详情卡：社区档列 A/B/C **全部轮次**（DE 不下发 → 当前轮次无从得知），并附注脚说明
+_tv, _vlines = fmt.fmt_bounties(bundle["syndicateMissions"], "金星")
+_idx = next(i for i, ln in enumerate(_vlines)
+            if ln.startswith("　· ") and "深矿：企业重组" in ln)
+_rew = _vlines[_idx + 1]        # 该档的奖励行（社区档无「任务：」行）
+check("★ 详情卡：社区档奖励行含两档现金匣（×2 与 ×3 都在，未被按名并掉）",
+      "10,000 现金匣 ×2" in _rew and "10,000 现金匣 ×3" in _rew, _rew)
+check("★ 详情卡注脚说明「社区观测档列全部轮次」",
+      any(ln.startswith("※") and "社区观测" in ln and "全部轮次" in ln for ln in _vlines),
+      str([ln for ln in _vlines if ln.startswith("※")]))
 
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")
