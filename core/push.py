@@ -124,6 +124,33 @@ def build_cancel_selector(umo: str, heads: list[str]):
 # 修法：把登记提到**模块级**（进程内共享），start() 先取消任何仍活跃的旧 daemon 再启动新的。
 _LIVE_DAEMONS: "set[asyncio.Task]" = set()
 
+# 守护协程的限定名（扫描用；与代码版本/模块对象无关，见 `_live_daemon_tasks`）
+_DAEMON_CORO_MARK = "PushDaemon._run"
+
+
+def _live_daemon_tasks() -> list:
+    """扫事件循环里所有**仍在跑**的推送守护协程（跨实例、跨代码版本）。
+
+    为什么不能只靠 :data:`_LIVE_DAEMONS`：那张表是本版本引入的，**修复前泄漏的守护
+    当年创建时还没登记**，于是既看不见也取消不掉 —— 线上实测就是这样：日志只有一条
+    「已推送」，群里却收到两条（旧守护没有派发日志，静默推送）。
+    协程的 ``__qualname__`` 只由类名与方法名决定，所以「修复前启动的守护」同样能被这里找到。
+    """
+    try:
+        tasks = asyncio.all_tasks()
+    except RuntimeError:        # 没有运行中的事件循环（离线测试/CLI）：退回登记表
+        return []
+    out = []
+    for t in tasks:
+        try:
+            # Task.get_coro() -> 协程对象，其 __qualname__ 形如 "PushDaemon._run"
+            name = getattr(t.get_coro(), "__qualname__", "") or ""
+        except Exception:  # noqa: BLE001 - 取不到协程信息就当它不是守护
+            continue
+        if _DAEMON_CORO_MARK in name:
+            out.append(t)
+    return out
+
 
 class PushDaemon:
     def __init__(
@@ -171,9 +198,17 @@ class PushDaemon:
         """启动守护；**进程级**幂等 —— 先清掉任何仍活跃的旧 daemon（跨实例泄漏）。"""
         for dead in [x for x in _LIVE_DAEMONS if x.done()]:
             _LIVE_DAEMONS.discard(dead)          # 已结束的登记顺手清掉，防集合膨胀
+        # ★ 2026-09-26 二次修复（线上实测：只记一条日志、群里却收到两条）：
+        #   `_LIVE_DAEMONS` 只装**本版本**注册过的守护 —— 修复前泄漏的守护当年创建时
+        #   还没有这张表，所以既看不见、也取消不掉，会一直静默推下去（旧代码没有派发日志，
+        #   日志里查不到它）。改为**直接扫事件循环**：凡协程名是 `PushDaemon._run` 的任务
+        #   都是本类的守护（协程限定名与代码版本、模块对象无关），逐个取消。
         leaked = [x for x in _LIVE_DAEMONS if not x.done() and x is not self._task]
+        leaked += [t for t in _live_daemon_tasks() if t is not self._task
+                   and t not in leaked and t not in _LIVE_DAEMONS]
         for task in leaked:
-            task.cancel()                        # ★ 旧实例泄漏的守护：取消，防重复推送
+            task.cancel()                        # ★ 旧实例/旧版本泄漏的守护：取消，防重复推送
+            _LIVE_DAEMONS.discard(task)
         if leaked:
             self.log.warning("[warframe] 发现 %d 个仍在运行的旧推送守护 → 已取消（防重复推送）",
                              len(leaked))
