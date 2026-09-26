@@ -916,11 +916,17 @@ class WarframeSDJK(Star):
                 await asyncio.sleep(3600)
 
     async def terminate(self):
-        for name in ("_auto_task", "_valence_task"):
+        for name in ("_auto_task", "_valence_task", "_community_task"):
             task = getattr(self, name, None)
             if task:
                 task.cancel()
-        await self.push.stop()
+        try:
+            # ★ 2026-09-26：确认 await 生效并留痕（旧实现在这里静默 —— 一旦 stop 没生效，
+            #   旧推送守护会与新实例的并存 → 同一事件推两次，且日志里查不到线索）。
+            await self.push.stop()
+            logger.info("[sdjk] 推送守护已确认停止（注销登记后活跃数应为 0）")
+        except Exception as exc:  # noqa: BLE001 - 停止失败也要留痕，别静默
+            logger.warning("[sdjk] 推送守护停止异常：%s", exc)
         await self.client.close()
         logger.info("[sdjk] 插件已卸载")
 
