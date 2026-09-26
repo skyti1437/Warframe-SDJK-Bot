@@ -136,6 +136,19 @@ check("★ 默认 dry-run：只有显式 --yes 才推",
       re.search(r'^PUSH = "--yes" in FLAGS$', src, re.M) is not None)
 check("本进程未带 --yes → PUSH 为 False（默认不推）", S.PUSH is False)
 
+# ★★ 2026-09-26：零变化短路必须排在闸门**之后**（stage 过期时会静默空转）
+#   实测事故：二次修复提交后跑同步，远端 push.py blob ≠ 本地，脚本却说「需更新 0」——
+#   因为「零变化」是拿**磁盘 stage 目录**（构建产物，可能过期）跟远端比的。
+# 锚点用**代码行**（注释里也出现了「无需提交」字样，别被注释骗到）
+i_zero = src.index("if not diff and not gone:")
+check("★ 零变化短路在 local_gates 之后（stage 过期不得静默空转）",
+      i_lgate < i_zero, f"local_gates@{i_lgate} vs 短路@{i_zero}")
+check("★ 零变化短路在闸门判定 `if not ok` 之后",
+      src.index("if not ok:") < i_nomsg,
+      f"{src.index('if not ok:')} vs {i_nomsg}")
+check("★ 零变化文案点明「stage == HEAD 开源投影」前提",
+      "stage == HEAD 开源投影 ⇒ 无需提交" in src)
+
 # ---------------------------------------------------------------------------
 # 5. 根因侧：构建脚本不得再「先清空再复制」+ .gitattributes 行尾要归一
 # ---------------------------------------------------------------------------

@@ -36,6 +36,9 @@ class RecordingLogger(FakeLogger):
     def info(self, fmt, *a, **k):
         self.lines.append(fmt % a if a else str(fmt))
 
+    def warning(self, fmt, *a, **k):
+        self.lines.append(fmt % a if a else str(fmt))
+
 
 class FakeClient:
     """模拟 warframestat 返回：第一轮 2 条裂隙，第二轮新增 1 条钢铁捕获。"""
@@ -286,6 +289,36 @@ async def daemon_lifecycle():
 
 
 asyncio.run(daemon_lifecycle())
+
+
+async def leaked_daemon_detection():
+    """★ 线上二次事故（2026-09-26 10:59：日志只记一条、群里收到两条）：
+    **修复前泄漏的守护不在 `_LIVE_DAEMONS` 里**（当年创建时还没这张表），
+    start() 必须靠**扫事件循环里的 `PushDaemon._run` 协程**把它揪出来取消。"""
+    push_mod._LIVE_DAEMONS.clear()
+
+    class PushDaemon:              # 与 core.push.PushDaemon 同名 → __qualname__ 命中扫描标记
+        async def _run(self):
+            await asyncio.sleep(3600)
+
+    leaked = asyncio.create_task(PushDaemon()._run())
+    await asyncio.sleep(0)                     # 让它真正跑起来
+    rec = RecordingLogger()
+    d = push_mod.PushDaemon(client=None, store=None, send=None, logger=rec, interval=15)
+    d.start()
+    await asyncio.sleep(0.05)
+    check("★ 不在登记表里的旧版本守护也会被扫到并取消",
+          leaked.done(), f"leaked.done()={leaked.done()} cancelling={leaked.cancelling()}")
+    check("★ 取消旧守护时留 WARNING 日志（旧版本守护本身无日志，只能靠这条）",
+          any("仍在运行的旧推送守护" in x for x in rec.lines), str(rec.lines))
+    check("★ 扫描不会误伤自己：本实例守护仍活跃",
+          d._task is not None and not d._task.done()
+          and len(push_mod._live_daemon_tasks()) == 1, str(push_mod._live_daemon_tasks()))
+    await d.stop()
+    push_mod._LIVE_DAEMONS.clear()
+
+
+asyncio.run(leaked_daemon_detection())
 
 # 基线守卫：空/骤降响应不得清空基线（防跨轮重推）；正常响应照常更新（正反两侧）
 _d = _mk_daemon()
