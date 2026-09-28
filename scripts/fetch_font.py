@@ -8,7 +8,7 @@ Noto Sans CJK 的 Regular + Bold 两个 ttc 加起来约 40 MB，比插件本体
   · 会让 zip 超过 AstrBot 插件市场的 16 MB 上限，失去市场分发渠道。
 
 所以字体按需下载：**装完跑一次本脚本**即可。下载**落点 = 插件数据目录**
-``<AstrBot>/data/plugin_data/astrbot_plugin_warframe/fonts/``（AstrBot 开发原则：
+``<AstrBot>/data/plugin_data/astrbot_plugin_warframe_sdjkbot/fonts/``（AstrBot 开发原则：
 持久化数据进 data 目录，别放插件自身目录——放包内更新/重装会被整包替换掉，
 issue #1 报告者就是这么丢的）。部署布局识别不出来时回落到插件内
 ``core/data/fonts/`` 并**打印告警**（仅开发树适用）。可用 ``--data-dir`` 显式指定。
@@ -29,7 +29,7 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-PLUGIN = "astrbot_plugin_warframe"
+PLUGIN = "astrbot_plugin_warframe_sdjkbot"
 LEGACY_DIR = ROOT / "core" / "data" / "fonts"      # 插件包内：旧落点/迁移源 + 随包资产
 
 

@@ -318,7 +318,7 @@ def _migration_checks():
         (legacy / "NotoSansCJKsc-Subset-Bold.otf").write_bytes(b"SHIPPED-BOLD")
         (legacy / "MyHandPlaced.ttc").write_bytes(b"USER-TTC")
         (legacy / "notes.txt").write_bytes(b"not a font")
-        user = T / "plugin_data" / "astrbot_plugin_warframe" / "fonts"
+        user = T / "plugin_data" / "astrbot_plugin_warframe_sdjkbot" / "fonts"
         moved = _R.migrate_legacy_user_fonts(user, legacy)
         check("迁移：用户手放字体被搬进 plugin_data",
               (user / "MyHandPlaced.ttc").exists() and not (legacy / "MyHandPlaced.ttc").exists(),

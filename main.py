@@ -100,7 +100,7 @@ def _relic_tier_en() -> dict:
     """
     # TIER_CN 走**模块级**导入（顶部 try 双分支）—— 2026-09-26 修：
     #   原先这里是函数内裸 `from core.parser import TIER_CN`，服务器以包成员加载
-    #   （`data.plugins.astrbot_plugin_warframe.main`）时 `core` 不可解析 ⇒
+    #   （`data.plugins.astrbot_plugin_warframe_sdjkbot.main`）时 `core` 不可解析 ⇒
     #   遗物全套指令（出库/入库/列表/单查）直接 `No module named 'core'`。
     return {k: v.lower() for k, v in TIER_CN.items() if not k.isascii()}
 
@@ -195,7 +195,7 @@ def _occupied_command_words() -> frozenset:
 
         for handler in registry:
             module_path = getattr(handler, "handler_module_path", "") or ""
-            if "astrbot_plugin_warframe" in module_path:
+            if "astrbot_plugin_warframe_sdjkbot" in module_path:
                 continue                      # 跳过自己，只收集「别人的」
             for flt in getattr(handler, "event_filters", None) or []:
                 if not isinstance(flt, CommandFilter):
@@ -291,7 +291,7 @@ def strip_md(text: str) -> str:
 
 
 PLUGIN_DIR = Path(__file__).resolve().parent
-PLUGIN_NAME = "astrbot_plugin_warframe"   # 插件身份（须与 metadata.yaml.name 一致）
+PLUGIN_NAME = "astrbot_plugin_warframe_sdjkbot"   # 插件身份（须与 metadata.yaml.name 一致）
 # ★ 2026-09-28 裁定：原先这里有个指向 `core/data/rotations.json` 的**包内路径常量**，
 #   两个读点（时效汇总 / 轮换卡）都直接读它 ⇒ **运行期自动刷新的回写到不了卡面**。
 #   现已统一改走 `core_paths.read_path("rotations.json")`（运行期副本优先、内置包内种子回退），
@@ -528,7 +528,7 @@ class Reply:
         default_factory=list)                         # 优先于 title/lines；渲染层自动加页码
 
 
-@register("astrbot_plugin_warframe", "skyti1437",
+@register("astrbot_plugin_warframe_sdjkbot", "skyti1437",
           f"{BRAND}：世界状态 / 市场查价 / 蹲点推送",
           "1.0.9")
 class WarframeSDJK(Star):

@@ -316,7 +316,7 @@ check("metadata.yaml 取 version 行",
       == (1, 0, 8))
 check("core/__init__.py 取 __version__",
       S.version_of_file("core/__init__.py", '__version__ = "1.0.8"\n') == (1, 0, 8))
-MAIN_TXT = ('@register("astrbot_plugin_warframe", "skyti1437",\n'
+MAIN_TXT = ('@register("astrbot_plugin_warframe_sdjkbot", "skyti1437",\n'
             '          f"{BRAND}：世界状态 / 市场查价 / 蹲点推送",\n'
             '          "1.0.8")\n')
 check("main.py @register 第 4 参（跨行）取版本",

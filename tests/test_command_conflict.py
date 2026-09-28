@@ -349,7 +349,7 @@ async def main() -> None:
         _FakeHandler("astrbot.builtin_stars.builtin_commands.main",
                      [_FakeFilter("help")]),
         # 自己注册的必须被跳过（否则 /仲裁 会被自己让掉）
-        _FakeHandler("data.plugins.astrbot_plugin_warframe.main",
+        _FakeHandler("data.plugins.astrbot_plugin_warframe_sdjkbot.main",
                      [_FakeFilter("仲裁"), _FakeFilter("赏金")]),
         # 指令组是「父 子」两级，占用词应只取首词
         _FakeHandler("data.plugins.astrbot_plugin_get_px.main",

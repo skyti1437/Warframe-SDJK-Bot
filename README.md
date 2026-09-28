@@ -1,4 +1,17 @@
-# AstrBot 插件 · Warframe SDJKBOT v1.0.9（`astrbot_plugin_warframe`）
+# AstrBot 插件 · Warframe SDJKBOT v1.0.9（`astrbot_plugin_warframe_sdjkbot`）
+
+> **📢 插件 ID 迁移公告（2026-09-28）**
+> 本插件 ID 由 `astrbot_plugin_warframe` 变更为 **`astrbot_plugin_warframe_sdjkbot`**，旧 ID 不再维护。
+> 原因：AstrBot 插件市场已取消压缩包上传通道、仅支持 GitHub 仓库发布，而旧记录与仓库的绑定校验存在缺陷
+> （AstrBotDevs/AstrBot#10198），旧 ID 无法继续发版。
+>
+> **迁移流程（老用户三步）**：
+> 1. 在 AstrBot 中卸载旧插件 `astrbot_plugin_warframe`；
+> 2. 在插件市场搜索并安装 `astrbot_plugin_warframe_sdjkbot`（展示名仍为 Warframe SDJKBOT）；
+> 3. 如需保留订阅等运行数据，将 `data/plugin_data/astrbot_plugin_warframe/` 整目录改名为
+>    `data/plugin_data/astrbot_plugin_warframe_sdjkbot/`。
+>
+> 版本延续 v1.0.9，功能与旧版一致。旧市场记录仅作存档，后续更新请安装新 ID 插件。
 
 一个给 AstrBot 用的 Warframe 工具集：**世界状态 / 市场查价 / 伤害计算与配卡识别 /
 紫卡分析 / 遗物与部件反查 / 玄骸拍卖 / 奸商预测 / 蹲点推送**，
@@ -53,7 +66,7 @@
 1. 安装 AstrBot（≥ 4.x），并准备好消息平台适配器（NapCat / aiocqhttp 等）。
 2. 把本仓库放到 AstrBot 插件目录（或打包成 zip 后在 WebUI 里上传）：
    ```
-   data/plugins/astrbot_plugin_warframe/
+   data/plugins/astrbot_plugin_warframe_sdjkbot/
    ```
 3. 安装依赖：
    ```bash
@@ -68,7 +81,7 @@
    python scripts/fetch_font.py
    ```
    验证当前用的是哪个字体：`python scripts/fetch_font.py --check`
-   > 下载**落点是插件数据目录** `data/plugin_data/astrbot_plugin_warframe/fonts/`
+   > 下载**落点是插件数据目录** `data/plugin_data/astrbot_plugin_warframe_sdjkbot/fonts/`
    > （AstrBot 开发原则：持久化数据进 data 目录，别放插件自身目录——放包内更新/重装
    > 会被整包替换）。脚本会自动识别部署布局；识别不出（开发树）会告警并回落到包内，
    > 也可用 `--data-dir <AstrBot>/data` 显式指定。
@@ -79,7 +92,7 @@
 > 6763 字 + 语料符号 + ASCII，两档共约 6.7 MB）—— 装完就能出图，**不依赖系统
 > 中文字体**。完整字库 40 MB 不进包（会超过插件市场 16 MB 上限），需要时跑
 > 第 4 步下载；自放字体可放**插件数据目录**的 `fonts/`
-> （`data/plugin_data/astrbot_plugin_warframe/fonts/`，任意 ttc/ttf/otf）——
+> （`data/plugin_data/astrbot_plugin_warframe_sdjkbot/fonts/`，任意 ttc/ttf/otf）——
 > **随插件更新保留**（市场更新是整包替换插件目录，放进包内的字体会被删）。
 > 查找顺序：完整字库 → 随包子集 → 用户自放 → 系统字体（Windows `msyh` /
 > macOS `PingFang` / Linux Noto/WQY）；都没有才降级纯文本，日志会写明排查步骤。

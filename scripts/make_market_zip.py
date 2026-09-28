@@ -3,8 +3,8 @@
 
 为什么要单独一个脚本：市场与「本地安装」要的 zip 结构**不一样**。
 
-* `dist/package_release.py` 产出的 `astrbot_plugin_warframe.zip` 是
-  **嵌套一层** `astrbot_plugin_warframe/...` —— 适合 AstrBot 从 zip 安装插件。
+* `dist/package_release.py` 产出的 `astrbot_plugin_warframe_sdjkbot.zip` 是
+  **嵌套一层** `astrbot_plugin_warframe_sdjkbot/...` —— 适合 AstrBot 从 zip 安装插件。
 * 市场（cloud.astrbot.app 上传压缩包通道）要的是 **flat**：`main.py` / `README.md`
   直接在最外层。2026-09-19 下载线上 v1.0.2 产物核实：159 条目、2.41MB、
   顶层元素就是 `.gitattributes / .github / README.md / _conf_schema.json …`，
@@ -14,7 +14,7 @@
 
     python scripts/make_market_zip.py [输出路径]
 
-默认输出 `dist/astrbot_plugin_warframe-<版本>-market.zip`。
+默认输出 `dist/astrbot_plugin_warframe_sdjkbot-<版本>-market.zip`。
 """
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-OSS_DIR = ROOT / "dist" / "opensource" / "astrbot_plugin_warframe"
+OSS_DIR = ROOT / "dist" / "opensource" / "astrbot_plugin_warframe_sdjkbot"
 
 # 排除清单优先复用打包脚本的（避免两处走散）；但 `dist/` 不进分发包，
 # 所以别人拿到的是开源包时这个 import 会失败 —— 那时退回下面这份等价清单。
@@ -120,7 +120,7 @@ def main() -> int:
     ver = re.search(r"^version:\s*v?([\d.]+)\s*$", meta, re.M)
     ver = ver.group(1) if ver else "0.0.0"
     out = Path(sys.argv[1]) if len(sys.argv) > 1 else (
-        ROOT / "dist" / f"astrbot_plugin_warframe-{ver}-market.zip")
+        ROOT / "dist" / f"astrbot_plugin_warframe_sdjkbot-{ver}-market.zip")
 
     n = 0
     dt = _zip_datetime()                    # ★ 固定时间戳（同内容 ⇒ 同 sha）
