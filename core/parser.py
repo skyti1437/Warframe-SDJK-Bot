@@ -95,7 +95,6 @@ COMMAND_ALIASES: dict[str, set[str]] = {
     "damage": {"伤害", "伤害计算"},
     "scan": {"识卡", "读卡", "配卡识别", "识图", "识别配卡"},
     "scandamage": {"识卡伤害", "扫伤害"},
-    "kim": {"对话助手"},
     # ---- 市场与查价 ----
     "wm": {"wm"},
     "wr": {"wr", "wmr", "紫卡"},
@@ -273,11 +272,16 @@ RIVEN_STAT_ALIASES: dict[str, set[str]] = {
     "toxin_damage": {"毒素伤害", "毒伤", "毒", "毒素"},
     "electric_damage": {"电击伤害", "电伤", "电", "电击"},
     "damage_vs_grineer": {"对Grineer伤害", "G系伤害", "G伤", "Grineer伤害",
-                          "G佬伤害", "G系", "G佬", "G歧视", "G"},
+                          "G佬伤害", "G系", "G佬", "G歧视", "G",
+                          # ★ 2026-09-27：卡面原文带「的」（「对 Grineer 的伤害」），
+                          #   逐行解析读到的是卡面原文，不带这个别名会整条认不出。
+                          "对Grineer的伤害"},
     "damage_vs_corpus": {"对Corpus伤害", "C系伤害", "C伤", "Corpus伤害",
-                         "C佬伤害", "C系", "C佬", "C歧视", "C"},
+                         "C佬伤害", "C系", "C佬", "C歧视", "C",
+                         "对Corpus的伤害"},
     "damage_vs_infested": {"对Infested伤害", "I系伤害", "I伤", "Infested伤害",
-                           "I佬伤害", "I系", "I佬", "I歧视", "I"},
+                           "I佬伤害", "I系", "I佬", "I歧视", "I",
+                           "对Infested的伤害"},
     "magazine_capacity": {"弹匣容量", "弹匣", "弹夹", "弹夹容量", "弹容"},
     "ammo_max": {"弹药最大值", "弹药", "弹药上限"},
     "projectile_speed": {"投射物速度", "弹道", "投射", "弹道飞行速度", "弹道速度"},
@@ -672,7 +676,7 @@ MISSION_CN: dict[str, str] = {
     # 两边必须同名，`FissureFilter` 才匹配得上。
     "capture": "捕获", "exterminate": "歼灭", "survival": "生存",
     "defense": "防御",     "interception": "拦截", "extermination": "歼灭",
-    "defection": "叛逃", "infested salvage": "感染打捞",
+    "defection": "叛逃", "infested salvage": "INFESTED 资源回收",
     "recovery": "回收", "pursuit": "追击", "salvage": "打捞",
     "mobile defense": "移动防御",
     "mobiledefense": "移动防御", "rescue": "救援", "spy": "间谍",
@@ -696,11 +700,11 @@ MISSION_CN: dict[str, str] = {
 _CN_TO_MISSION: dict[str, str] = {}
 for _en, _cn in MISSION_CN.items():
     _CN_TO_MISSION.setdefault(_cn, _en)
-# 同一任务在 DE 表里有多个官方中文写法（MT_PURIFY 的官方名是「INFESTED 资源回收」，
-# 与更早的「感染打捞」并存）——都登记，避免筛选/展示落空。
-_CN_TO_MISSION["INFESTED 资源回收"] = "infested salvage"
 # 旧手写译名 / 社区叫法：仍然接受，用户按老习惯输入也能筛到
+# （`MT_PURIFY` 的正名已按官方订正为「INFESTED 资源回收」，旧的「感染打捞」留作别名 ——
+#   2026-09-28 §六：订正后 `MISSION_CN` 与官方任务类型表**零冲突**，此前仅此 1 条冲突。）
 _CN_TO_MISSION.update({
+    "感染打捞": "infested salvage",
     "营救": "rescue", "炼金": "alchemy", "虚空级联": "void cascade",
     "追猎": "pursuit", "突袭": "assault",
 })
@@ -713,6 +717,24 @@ TIER_CN = {"Lith": "古纪", "Meso": "前纪", "Neo": "中纪", "Axi": "后纪",
            "古纪": "Lith", "前纪": "Meso", "中纪": "Neo", "后纪": "Axi",
            "安魂": "Requiem", "全能": "Omnia", "先锋": "Vanguard"}
 _TIER_KEYS = ("Lith", "Meso", "Neo", "Axi", "Requiem", "Omnia")
+
+
+# ---------------------------------------------------------------------------
+# ★ 裂隙筛选的「纯修饰词」（2026-09-26）
+#   这类词**单独出现时不构成条件**，本意是与任务/纪元词**合成一个词元**
+#   （「钢铁防御」= 钢铁之路的防御裂隙）。逗号/空格把它们拆开后会变成
+#   「并列条件取或」（「钢铁,防御」= 钢铁 或 普通防御），语义被放大。
+#   ⚠️ **解析与提示共用这一处** —— `dun_rule_hint()` 靠它判断要不要提示，
+#      别再各写一份清单（「同源两处」是这个项目反复踩的坑）。
+# ---------------------------------------------------------------------------
+FISSURE_HARD_WORDS = ("钢铁", "钢路")
+FISSURE_STORM_WORDS = ("九重天", "empyrean")
+FISSURE_NORMAL_WORD = "普通"
+FISSURE_VOID_WORD = "虚空"
+FISSURE_TIER_WORDS = ("古纪", "前纪", "中纪", "后纪")
+FISSURE_MODIFIER_WORDS = (FISSURE_HARD_WORDS + FISSURE_STORM_WORDS
+                          + (FISSURE_NORMAL_WORD, FISSURE_VOID_WORD)
+                          + FISSURE_TIER_WORDS)
 
 
 @dataclass
@@ -804,18 +826,18 @@ def parse_fissure_filter(text: str) -> FissureFilter:
         # 纪元层级
         tiers = set()
         for cn, en in TIER_CN.items():
-            if cn in merged and cn in ("古纪", "前纪", "中纪", "后纪"):
+            if cn in merged and cn in FISSURE_TIER_WORDS:
                 tiers.add(en)
         if tiers:
             g["tiers"] = tiers
         # 平台修饰（普通 = 排除钢铁/九重天）
-        if "钢铁" in merged or "钢路" in merged:
+        if any(w in merged for w in FISSURE_HARD_WORDS):
             g["hard"] = True
-        elif "普通" in merged:
+        elif FISSURE_NORMAL_WORD in merged:
             g["hard"] = False
-        if "九重天" in merged or "empyrean" in merged.lower():
+        if any(w in merged.lower() for w in FISSURE_STORM_WORDS):
             g["storm"] = True
-        elif "普通" in merged:
+        elif FISSURE_NORMAL_WORD in merged:
             g["storm"] = False
         # 任务类型：逐个 CN 词匹配后剔除，剩余部分作为节点/星球子串
         rest = merged
@@ -824,17 +846,17 @@ def parse_fissure_filter(text: str) -> FissureFilter:
             if cn in rest:
                 missions.add(en)
                 rest = rest.replace(cn, "")
-        for kw in ("钢铁", "钢路", "九重天", "empyrean", "普通"):
+        for kw in FISSURE_HARD_WORDS + FISSURE_STORM_WORDS + (FISSURE_NORMAL_WORD,):
             rest = rest.replace(kw, "")
-        for cn in ("古纪", "前纪", "中纪", "后纪"):
+        for cn in FISSURE_TIER_WORDS:
             rest = rest.replace(cn, "")
         # 地区修饰：「虚空」= 只收虚空星系节点（2026-09-14 修「蹲 虚空捕获
         # 却推了木星捕获」——旧版把「虚空」当纯修饰词剔除，等于没写）。
         # 必须在任务名剔除**之后**再判定：虚空覆涌/虚空洪流这类任务名本身
         # 含「虚空」，不代表用户要限定虚空地区。
-        if "虚空" in rest:
+        if FISSURE_VOID_WORD in rest:
             g["void"] = True
-        rest = rest.replace("虚空", "")
+        rest = rest.replace(FISSURE_VOID_WORD, "")
         if missions:
             g["missions"] = missions
         rest = rest.strip()
@@ -843,6 +865,28 @@ def parse_fissure_filter(text: str) -> FissureFilter:
         if g:
             flt.groups.append(g)
     return flt
+
+
+def dun_rule_hint(parts: list[str]) -> str:
+    """「蹲」筛选串的**空格陷阱**提示；无需提示时返回空串。
+
+    多词元 = 多个并列条件（`FissureFilter.match` 里 groups 之间是 `any()`/OR），
+    而「钢铁 / 九重天 / 普通 / 虚空 / 古纪…」这类**纯修饰词**本意是与任务词
+    合成**一个**条件（见 :data:`FISSURE_MODIFIER_WORDS`）。拆开写会把语义放大：
+    「钢铁 防御」落库成 `钢铁,防御` = 钢铁 **或** 普通防御。
+
+    只在「≥2 个词元且至少一个是纯修饰词」时提示 —— 纯任务词并列
+    （「捕获 生存」= 两种任务取或）是正常写法，不提示。
+    **只提示、不改语义**：订阅仍按用户原样落库。
+    """
+    parts = [p for p in parts if p and p.strip()]
+    if len(parts) < 2:
+        return ""
+    if not any(any(w in p.lower() for w in FISSURE_MODIFIER_WORDS)
+               for p in parts):
+        return ""
+    return ("※ 提示：多词=多条件取或；要合并请连写「" + "".join(parts)
+            + "」或加引号「\"" + " ".join(parts) + "\"」")
 
 
 # ---------------------------------------------------------------------------

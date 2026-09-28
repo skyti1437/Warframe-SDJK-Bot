@@ -167,8 +167,8 @@ for _ln in _rot_rows:
     _items = _ln.split("：")[-1].split("、") if "：" in _ln else []
     check(f"轮换项 ≤6：{_ln[:12]}…", len(_items) <= 6, str(len(_items)))
 # 一览有档位行（· ...｜N-M级），但不展开奖励行
-check("一览有档位行", any(ln.startswith("　· ") and "级" in ln for ln in lines),
-      str([ln for ln in lines if ln.startswith("　· ")][:4]))
+check("一览有档位行", any(ln.startswith(fmt._BOUNTY_HEAD_PREFIX) and "级" in ln for ln in lines),
+      str([ln for ln in lines if ln.startswith(fmt._BOUNTY_HEAD_PREFIX)][:4]))
 # 层级：地区行用 ◆（一级），任务档用 ·（二级）——玩家反馈「看着都是一级菜单」
 check("任务档不再用 ◆ 当一级标题",
       not any(ln.startswith("　◆") for ln in lines),
@@ -187,7 +187,7 @@ check("一览·扎里曼任务目标", any("任务：" in ln for ln in lines), "
 _te, earth = fmt.fmt_bounties(bundle["syndicateMissions"], "地球", cycle=ORACLE)
 check("详情·地球只一块", not any("奥布斯山谷" in ln for ln in earth))
 # 每档后面必须跟一行奖励（◆ 档位行数量 == 奖励行数量）
-_bars = [ln for ln in earth if ln.startswith("　· ") and "级" in ln]
+_bars = [ln for ln in earth if ln.startswith(fmt._BOUNTY_HEAD_PREFIX) and "级" in ln]
 _rewards = [ln for ln in earth if ln.startswith("　　") and "、" in ln]
 check("详情·每档都有奖励行", len(_bars) == len(_rewards) and len(_bars) >= 6,
       f"档位 {len(_bars)} / 奖励 {len(_rewards)}")
@@ -219,7 +219,7 @@ _td, dlines = fmt.fmt_bounties(bundle["syndicateMissions"], "火卫二", cycle=O
 check("隔离库官方叫法", any("级隔离库赏金" in ln for ln in dlines), "级隔离库赏金")
 
 # 每一行详情赏金都要能被渲染层抽成右对齐等级列
-_lv_rows = [ln for ln in dlines if ln.startswith("　· ") and "级" in ln]
+_lv_rows = [ln for ln in dlines if ln.startswith(fmt._BOUNTY_HEAD_PREFIX) and "级" in ln]
 check("赏金行都能抽等级", _lv_rows and all(R._LV_RE.search(ln) for ln in _lv_rows),
       str([ln for ln in _lv_rows if not R._LV_RE.search(ln)][:3]))
 
@@ -265,23 +265,25 @@ def _block_of(ls, region):
 
 
 # —— 一览：DE 地区档位行必须带任务类型前缀 ——
-_tier_rows = [ln for ln in lines if ln.startswith("　· ") and "级" in ln]
+_tier_rows = [ln for ln in lines if ln.startswith(fmt._BOUNTY_HEAD_PREFIX) and "级" in ln]
 check("一览有档位行", len(_tier_rows) >= 6, str(len(_tier_rows)))
 check("一览 DE 档位行带任务类型",
-      any(any(ln.startswith(f"　· {t} ") for t in _DE_TYPES) for ln in _tier_rows),
+      any(any(ln.startswith(f"{fmt._BOUNTY_HEAD_PREFIX}{t} ") for t in _DE_TYPES) for ln in _tier_rows),
       str(_tier_rows[:5]))
 for _reg in ("希图斯（地球）", "奥布斯山谷（金星）", "英择谛（魔胎之境）"):
-    _blk = [x for x in _block_of(lines, _reg) if x.startswith("　· ")]
+    _blk = [x for x in _block_of(lines, _reg) if x.startswith(fmt._BOUNTY_HEAD_PREFIX)]
     check(f"{_reg} 至少一档带任务类型",
-          any(any(f"　· {t} " in ln for t in _DE_TYPES) for ln in _blk),
+          any(any(f"{fmt._BOUNTY_HEAD_PREFIX}{t} " in ln for t in _DE_TYPES) for ln in _blk),
           str(_blk))
 # 赏金名里已含类型词的不得出现重复前缀（「物资回收 物资回收」）
 check("档位行无重复类型前缀",
       not any(ln.count(t) >= 2 for ln in _tier_rows for t in _DE_TYPES),
       str([ln for ln in _tier_rows if any(ln.count(t) >= 2 for t in _DE_TYPES)][:3]))
 # 顺序：类型在前、名称在中、等级在后（渲染层再把等级抽成右对齐列）
-check("档位行类型在名称前（· 类型 名称｜等级）",
-      all(ln.index("｜") > ln.index("·") for ln in _tier_rows), str(_tier_rows[:3]))
+# ★ 2026-09-27：行首标记由「·」改为 `▸`（`_BOUNTY_HEAD_PREFIX`）—— 判据跟着改
+check("档位行类型在名称前（▸ 类型 名称｜等级）",
+      all(ln.index("｜") > ln.index(fmt._BOUNTY_HEAD_PREFIX.strip())
+          for ln in _tier_rows), str(_tier_rows[:3]))
 
 # —— 一览 & 详情：oracle 地区的「任务：」行 = 官方任务类型 + 目标 ——
 # 不断言具体某节点（fixture 的 oracle 快照与线上不同），而是**数据驱动**校验：
@@ -423,7 +425,7 @@ check("赏金表每条都有末阶段（任务类型来源）", not _missing, st
 _sup = dw.SOLARIS_SUPPLEMENT_JOBS
 check("★ 金星补齐档常量：130-140 / 官方简中名 / 来源=community",
       len(_sup) == 1 and list(_sup[0]["enemyLevels"]) == [130, 140]
-      and _sup[0]["_jobName"] == "深矿：企业重组"
+      and _sup[0]["_jobName"] == "深矿（钢铁之路）"
       and _sup[0].get("source") == "community", str(dict(_sup[0]))[:130])
 _pool, _tag, _rot = fmt._resolve_bounty_pool("Solaris United", dict(_sup[0]))
 check("★ 该档奖励接到**钢铁版**池（NokkoColonyRewardsSteel → 深矿·企业重组·钢铁）",
@@ -444,9 +446,10 @@ check("★ 三张钢铁表的部件对全在（机体+枪机 / 系统+枪管 / �
                                "蕈菇枪管蓝图", "Nokko头部神经光元蓝图", "蕈菇枪托蓝图")),
       _flat)
 _line = fmt._bounty_entry_line("Solaris United", dict(_sup[0]))
-check("★ 卡面行：档名 + 等级 + 钢铁之路/社区观测双标签",
-      "深矿：企业重组" in _line and "130-140级" in _line
-      and "钢铁之路" in _line and "社区观测" in _line, _line)
+check("★ 卡面行：档名（**不写死任务名**）+ 等级 + 钢铁之路/社区观测双标签",
+      "深矿（钢铁之路）" in _line and "130-140级" in _line
+      and "钢铁之路" in _line and "社区观测" in _line
+      and "解放小动物" not in _line and "企业重组" not in _line, _line)
 _ven = [s for s in bundle["syndicateMissions"]
         if s.get("syndicateKey") == "SolarisSyndicate"]
 check("★ 集成：金星档位 7 → 8（fixture 解析后含 130-140 档）",
@@ -456,13 +459,121 @@ check("★ 集成：金星档位 7 → 8（fixture 解析后含 130-140 档）",
 # 详情卡：社区档列 A/B/C **全部轮次**（DE 不下发 → 当前轮次无从得知），并附注脚说明
 _tv, _vlines = fmt.fmt_bounties(bundle["syndicateMissions"], "金星")
 _idx = next(i for i, ln in enumerate(_vlines)
-            if ln.startswith("　· ") and "深矿：企业重组" in ln)
+            if ln.startswith(fmt._BOUNTY_HEAD_PREFIX) and "深矿（钢铁之路）" in ln)
 _rew = _vlines[_idx + 1]        # 该档的奖励行（社区档无「任务：」行）
 check("★ 详情卡：社区档奖励行含两档现金匣（×2 与 ×3 都在，未被按名并掉）",
       "10,000 现金匣 ×2" in _rew and "10,000 现金匣 ×3" in _rew, _rew)
+check("★ 详情卡注脚说明「深矿任务轮换」+「社区版含资源、官方钢铁表不含」",
+      any("轮换" in ln and "解放小动物" in ln for ln in _vlines)
+      and any("官方钢铁表不含资源项" in ln for ln in _vlines),
+      str([ln for ln in _vlines if ln.startswith("※")]))
 check("★ 详情卡注脚说明「社区观测档列全部轮次」",
       any(ln.startswith("※") and "社区观测" in ln and "全部轮次" in ln for ln in _vlines),
       str([ln for ln in _vlines if ln.startswith("※")]))
+
+# ---------------------------------------------------------------------------
+# 4) ★ 赏金卡「块圆角框」（2026-09-27 用户口径：淡线看不清 → 换圆角框）
+# ---------------------------------------------------------------------------
+# 背景：档位行是 normal 行，旧画线判据只在「下一行是 ◆ / 数字行」时才画 ⇒ 赏金卡
+# **块与块之间一条线都没有**（实测改前 = 0 条）。修法：格式层给档位行加**显式块
+# 标记** `▸`（`fmt._BOUNTY_HEAD_PREFIX`，5 处发射点共用），渲染层判成
+# `bounty_head` 并在块首画线（◆ 区域行下方仍是主题色渐隐线，未动）。
+# ★ 逐地区断言（防「只改了扎里曼」）：6 个地区 + 3 个 oracle 退路**各跑一遍**。
+ROOT = Path(__file__).resolve().parent.parent
+(ROOT / "runtime").mkdir(exist_ok=True)
+
+
+def _sep_lines(title: str, lines: list):
+    """渲染并数「块间细线」的**真实绘制次数**（打桩 ImageDraw.line，只数赏金签名）。
+
+    不手抄渲染规则来复刻 —— 直接量实际画了几条，规则改了也不会假绿。
+    同时数 `_hgrad_line`（◆ 区域行的主题色渐隐线）以证明它没被替换掉。
+    """
+    from PIL import ImageDraw
+
+    n: list = []
+    nbox: list = []
+    orig = ImageDraw.ImageDraw.line
+    orig_rr = ImageDraw.ImageDraw.rounded_rectangle
+
+    # 只数**赏金档位框**：卡上还有别的 rounded_rectangle（卡框/徽章），
+    # 用描边色签名精确区分（外援版设计：TIER_FRAME_LINE = 主面板内框线色）。
+    # 每个框画两次调用（底色 fill + 描边 outline），只数 outline 那次。
+    _sig = R.TIER_FRAME_LINE
+
+    def spy_rr(self, xy, *a, **k):
+        if k.get("outline") == _sig:
+            nbox.append(1)
+        return orig_rr(self, xy, *a, **k)
+
+    ImageDraw.ImageDraw.rounded_rectangle = spy_rr
+
+    def spy(self, xy, fill=None, width=1, *a, **k):
+        if fill == (255, 255, 255, 9):
+            n.append(1)
+        return orig(self, xy, fill=fill, width=width, *a, **k)
+
+    ImageDraw.ImageDraw.line = spy
+    _hg: list = []
+    orig_hg = R._hgrad_line
+
+    def spy_hg(*a, **k):
+        _hg.append(1)
+        return orig_hg(*a, **k)
+
+    R._hgrad_line = spy_hg
+    try:
+        r = R.ImageRenderer(ROOT / "runtime")
+        if not r.available:
+            return None, None, None
+        png = r.render(title, lines, "国际服")
+        return len(nbox), len(_hg), (r, png)
+    finally:
+        ImageDraw.ImageDraw.line = orig
+        ImageDraw.ImageDraw.rounded_rectangle = orig_rr
+        R._hgrad_line = orig_hg
+
+
+_REGION_CASES = [
+    ("地球", "地球", ORACLE), ("金星", "金星", ORACLE),
+    ("火卫二", "火卫二", ORACLE), ("扎里曼", "扎里曼", ORACLE),
+    ("圣所", "圣所", ORACLE), ("1999", "1999", ORACLE),
+    ("扎里曼退路", "扎里曼", {}), ("圣所退路", "圣所", {}),
+    ("1999退路", "1999", {}),
+]
+for _label, _kw, _cyc in _REGION_CASES:
+    _t, _ls = fmt.fmt_bounties(bundle["syndicateMissions"], _kw, _cyc)
+    _blocks = sum(1 for x in _ls if x.lstrip("　").startswith("▸"))
+    _n, _nhg, _ctx = _sep_lines(_t, _ls)
+    if _n is None:
+        print("[SKIP] 渲染器不可用（缺字体），跳过块间分隔线用例")
+        break
+    check(f"★ 赏金块圆角框（{_label}）：{_blocks} 块 → {_n} 个框（应 = 块数）",
+          _blocks >= 1 and _n == _blocks, f"块={_blocks} 框={_n}")
+    check(f"赏金块圆角框（{_label}）：◆ 区域行的主题色渐隐线保留",
+          _nhg >= 1, str(_nhg))
+    if _label == "地球":
+        check("★ 赏金卡未走 _plain_body（彩色 token 路径必须保留）",
+              _ctx[0]._plain_body is False, str(_ctx[0]._plain_body))
+        from PIL import Image
+
+        _im = Image.open(_ctx[1]).convert("RGB")
+        _px, (_W, _H) = _im.load(), _im.size
+        _cyan = sum(1 for y in range(150, _H - 60, 2)
+                    for x in range(40, _W - 40, 2)
+                    if _px[x, y][1] > 120 and _px[x, y][2] > 120
+                    and _px[x, y][0] < 120)
+        check("★ 赏金卡彩色回归：任务类型色（青）像素仍存在", _cyan > 50, str(_cyan))
+
+# 反例：只有一块的卡**一条块间线都不画**（卡首/卡尾不画、奖励行之间不加线）
+_ost = next(s for s in bundle["syndicateMissions"]
+            if s.get("syndicate") == "Ostrons")
+_one = [dict(_ost, jobs=_ost["jobs"][:1])]
+_t1, _l1 = fmt.fmt_bounties(_one, "地球", {})
+_n1, _, _ = _sep_lines(_t1, _l1)
+check("反例：单块卡 → 恰好 1 个框（不画卡首/卡尾多余框）",
+      _n1 == 1 and sum(1 for x in _l1 if x.lstrip("　").startswith("▸")) == 1,
+      f"块=1 框={_n1}")
 
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")

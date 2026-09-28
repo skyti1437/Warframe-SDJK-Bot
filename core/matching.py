@@ -264,8 +264,24 @@ def variant_intent_any(raw: str) -> bool:
     return False
 
 
+_VARIANT_SUFFIX_TOKENS = tuple(VARIANT_TOKENS) + tuple(sorted(_EN_TOKENS))
+
+
 def strip_variant_norm(norm: str) -> str:
-    """从归一化名里剥掉变体 token（zh 前缀 + en 词头 + prime 后缀）→ 基础名。"""
+    """从归一化名里剥掉变体 token（zh/en 的**前缀与后缀** + prime 后缀）→ 基础名。
+
+    ★ 2026-09-27：中文变体词在 WM 数据里是**后缀**写法（「布莱顿·破坏者」
+    /「格雷戈·亡魂」），旧版只剥前缀 ⇒ 永远剥不出「布莱顿」/「格雷戈」，
+    倾向卡的家族展开因此**系统性漏掉全部 Vandal / Wraith 变体**（玩家报障：
+    「紫卡倾向 布莱顿」少列布莱顿·破坏者）。`expand_variants()` 早已按前后缀
+    两种写法处理，这里补齐同一口径。
+
+    ⚠️ 前缀循环**不加长度保护**：``strip_variant_norm("亡魂") == ""`` 是
+    `core/search.py` 用来削掉输入里纯变体词的判据，动了会连带改到 wiki 检索。
+    后缀循环必须加长度保护（否则同样会把「亡魂」削成空串）。
+    ⚠️ 后缀保护只在**长度大于 token** 时才削：`family_of` 还需本体名非空
+    （见其 ``bz and …`` 守卫），留着 token 本身不会误合并。
+    """
     norm = norm or ""
     changed = True
     while changed and norm:
@@ -283,6 +299,13 @@ def strip_variant_norm(norm: str) -> str:
         if norm.endswith("prime"):
             norm = norm[:-5]
             changed = True
+        if changed:
+            continue
+        for tok in _VARIANT_SUFFIX_TOKENS:      # 后缀写法：布莱顿·破坏者 / Braton Vandal
+            if len(norm) > len(tok) and norm.endswith(tok):
+                norm = norm[:-len(tok)]
+                changed = True
+                break
     return norm
 
 
@@ -303,6 +326,18 @@ def family_of(entry: dict, entries: list, *, zh: str = "zh",
         if (bz and strip_variant_norm(nz) == bz) or \
                 (be and strip_variant_norm(ne) == be):
             fam.append(e)
+
+    # ★ 2026-09-27：同一件武器在数据里可能有两行（url_name 相同：一行字段全但
+    #   zh 空、另一行只有 zh），旧行为会把「MK1-Braton」与「MK1-布莱顿」并排
+    #   列成两行。按 url_name 去重，优先保留**有中文名**的那行。
+    uniq: dict = {}
+    for e in fam:
+        key = e.get("url_name") or normalize(e.get(zh) or e.get(en) or "")
+        cur = uniq.get(key)
+        if cur is None or (not (cur.get(zh) or "").strip()
+                           and (e.get(zh) or "").strip()):
+            uniq[key] = e
+    fam = list(uniq.values())
 
     def _is_base(e):
         nz = normalize(e.get(zh) or "")

@@ -166,6 +166,60 @@ async def run_push():
 
 asyncio.run(run_push())
 
+# ---------------------------------------------------------------------------
+# 五、蹲「空格陷阱」提示（2026-09-26 审核通过；只提示、不改语义）
+#   实测触发：`蹲 裂隙 钢铁 防御 永久` 落库 `钢铁,防御` = 钢铁 **或** 普通防御
+#   （`FissureFilter` 的 groups 之间是 any/OR），比用户预期宽得多。
+# ---------------------------------------------------------------------------
+print("=== 五、空格陷阱提示 ===")
+from core.parser import (dun_rule_hint, parse,                 # noqa: E402
+                         parse_fissure_filter)
+
+# 5.1 提示函数：正反两侧
+for parts in (["钢铁", "防御"], ["虚空", "捕获"], ["后纪", "捕获"],
+              ["钢铁", "虚空", "防御"], ["九重天", "拦截"]):
+    h = dun_rule_hint(parts)
+    check(f"应提示：{parts} → 给出连写与引号两种改法",
+          bool(h) and "".join(parts) in h and '"' in h and "\n" not in h,
+          h)
+for parts in (["钢铁防御"], ["捕获", "生存"], ["高效"], [], ["防御"]):
+    check(f"不应提示：{parts}", dun_rule_hint(parts) == "", dun_rule_hint(parts))
+check("提示是**单行**文案（卡片高度只 +1 行）",
+      "\n" not in dun_rule_hint(["钢铁", "防御"]))
+
+# 5.2 指令入口：三种写法（与用户实测口径一致）
+def _rule_of(text: str) -> tuple:
+    toks = list(parse(text).content or [])
+    parts = [x for x in toks if x != "永久"]
+    return ",".join(parts), parts
+
+_rule_a, _parts_a = _rule_of("裂隙 钢铁 防御 永久")
+_rule_b, _parts_b = _rule_of("裂隙 钢铁防御 永久")
+_rule_c, _parts_c = _rule_of('裂隙 "钢铁 防御" 永久')
+check("★ 分开写：落库 钢铁,防御 且**触发**提示",
+      _rule_a == "钢铁,防御" and bool(dun_rule_hint(_parts_a)), _rule_a)
+check("★ 连写：落库 钢铁防御 且**不**提示",
+      _rule_b == "钢铁防御" and dun_rule_hint(_parts_b) == "", _rule_b)
+check("★ 引号写法：落库 钢铁 防御（词元内空格合并）且**不**提示",
+      _rule_c == "钢铁 防御" and dun_rule_hint(_parts_c) == "", _rule_c)
+check("★ 引号写法语义正确（= 钢铁之路的防御，不是取或）",
+      parse_fissure_filter(_rule_c).describe() == "钢铁防御",
+      parse_fissure_filter(_rule_c).describe())
+check("分开写语义确实变宽（= 钢铁 **或** 普通防御，两组取或）",
+      parse_fissure_filter(_rule_a).describe() == "钢铁，普通防御",
+      parse_fissure_filter(_rule_a).describe())
+
+# 5.3 静态守卫：提示只进回执，**不得参与 rule 构造**（防有人顺手改成自动合并）
+_i_join = main_src.index('rule=",".join(rule_parts)')
+_i_hint = main_src.index("dun_rule_hint(rule_parts)")
+check("★ 提示调用在 rule 拼接**之后**（不改语义）", _i_join < _i_hint,
+      f"join@{_i_join} vs hint@{_i_hint}")
+check("★ 提示只在「裂隙」分支（非裂隙类型 rule 语义不同，本轮不做）",
+      'if event_type == "裂隙":' in main_src[max(0, _i_hint - 600):_i_hint])
+check("★ 修饰词清单同源：解析与提示共用 FISSURE_MODIFIER_WORDS",
+      "FISSURE_MODIFIER_WORDS" in (ROOT / "core" / "parser.py").read_text(encoding="utf-8")
+      and "FISSURE_MODIFIER_WORDS" in (ROOT / "core" / "parser.py").read_text(encoding="utf-8").split("def dun_rule_hint")[1])
+
 print()
 if _fails:
     print(f"✗ {len(_fails)} 项失败: {_fails}")

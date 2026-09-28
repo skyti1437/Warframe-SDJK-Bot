@@ -269,6 +269,62 @@ hits, stage = matching.resolve_weapon_name("Rubico Prime", W)
 check("英文精确（归一化）命中 Prime 本体",
       stage == "normalized" and hits[0]["url_name"] == "rubico_prime")
 
+# ---------------------------------------------------------------------------
+# 9. 家族展开漏列 Vandal/Wraith（2026-09-27 玩家报障：紫卡倾向 布莱顿）
+# ---------------------------------------------------------------------------
+# 报障：「紫卡倾向 布莱顿」少列「布莱顿·破坏者 1.30」。
+# 实测根因**不是** group/riven_type 为空（family_of 根本不读这两个字段），而是
+# strip_variant_norm 只剥**前缀**变体词，而中文变体在 WM 数据里是**后缀**写法
+# （布莱顿·破坏者 / 蛇发女妖·亡魂）⇒ 这两条永远归不了族，全表 Vandal(11) +
+# Wraith(11) 系统性漏列。用真实数据文件回归。
+_disp = json.loads((ROOT / "core" / "data" / "dispositions_rivenmirror.json")
+                   .read_text(encoding="utf-8"))["entries"]
+D = [dict(v, en=k) for k, v in _disp.items()]
+
+check("strip_variant_norm：中文/英文**后缀**变体也要剥",
+      matching.strip_variant_norm("布莱顿破坏者") == "布莱顿"
+      and matching.strip_variant_norm("蛇发女妖亡魂") == "蛇发女妖"
+      and matching.strip_variant_norm("bratonvandal") == "braton")
+check("反向守卫：纯变体词仍削成空串（search.py 靠它削掉输入里的纯变体词）",
+      matching.strip_variant_norm("亡魂") == ""
+      and matching.strip_variant_norm("破坏者") == "")
+check("反向守卫：本体名与既有前缀写法原样（未改动旧行为）",
+      matching.strip_variant_norm("布莱顿") == "布莱顿"
+      and matching.strip_variant_norm("braton") == "braton"
+      and matching.strip_variant_norm("mk1braton") == "braton"
+      and matching.strip_variant_norm("棱晶欧玛") == "欧玛")
+
+_braton = next(w for w in D if w["url_name"] == "braton")
+_fam = matching.family_of(_braton, D)
+_names = [f.get("zh") or f.get("en") for f in _fam]
+check("★ 回归口径：布莱顿家族 = 4 个成员（含布莱顿·破坏者）",
+      len(_fam) == 4 and "布莱顿·破坏者" in _names, str(_names))
+check("★ 布莱顿·破坏者 = 倾向 1.30",
+      any(f["url_name"] == "braton_vandal" and f["disposition"] == 1.3
+          for f in _fam), str(_names))
+check("同 url_name 的重复行只列一次（不再并排 MK1-Braton / MK1-布莱顿）",
+      len({f["url_name"] for f in _fam}) == len(_fam), str(_names))
+check("重复行里保留**有中文名**的那条",
+      any((f.get("zh") or "") for f in _fam if f["url_name"] == "mk1-braton"),
+      str(_names))
+
+# 全表不变量：每个 *_vandal / *_wraith 变体都必须能归到自家本体家族
+_by_url = {w["url_name"]: w for w in D}
+_bad, _n = [], 0
+for _u, _e in _disp.items():
+    _url = _e.get("url_name") or ""
+    for _suf in ("_vandal", "_wraith"):
+        if not _url.endswith(_suf):
+            continue
+        _b = _by_url.get(_url[:-len(_suf)])
+        if _b is None:
+            continue
+        _n += 1
+        if _url not in {f["url_name"] for f in matching.family_of(_b, D)}:
+            _bad.append(_url)
+check(f"全表：{_n} 个 Vandal/Wraith 变体全部归到本体家族（修前全部漏列）",
+      _n >= 20 and not _bad, f"n={_n} 漏 {_bad[:8]}")
+
 if FAILED:
     print(f"\nFAILED {len(FAILED)}: {FAILED}")
     sys.exit(1)

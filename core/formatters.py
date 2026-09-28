@@ -14,7 +14,10 @@ from pathlib import Path
 from typing import Iterable, Optional
 
 from . import tents as _tents
-from .de_worldstate import faction_name
+from .de_worldstate import (DESCENT_GOAL_CAVEAT as _DESCENT_GOAL_CAVEAT,
+                            DESCENT_TYPE_NO_KEY as _DT_NO_KEY,
+                            descent_goal_zh, descent_type_zh,
+                            faction_name, mission_type_zh_by_name)
 from .parser import MISSION_CN, PLATFORM_DISPLAY, TIER_CN
 
 # ---------------------------------------------------------------------------
@@ -314,26 +317,24 @@ def fmt_fissures(fissures: Iterable[dict], flt=None, page: int = 1,
         first_no = (page - 1) * page_size + 1
     lines = []
     for i, f in enumerate(chunk, first_no):
-        parts = []
+        # ★ 2026-09-27（审核 §二）：**任务类型前移** —— 用户口径为
+        #   「编号 [纪元] 任务类型 节点（星球） · 派系 · 钢铁」。
+        #   前半（纪元芯片 / 类型 / 节点）用**空格**连接，后半（派系 / 钢铁 /
+        #   九重天）仍用「 · 」；旧位置的「 · 」一并去掉，不留悬空分隔符。
+        chip = ""
         tier = f.get("tier", "")
         if tier and tier != "?":
-            parts.append(f"[{tier_cn(tier)}]")
-        if f.get("node"):
-            parts.append(f["node"])
+            chip = f"[{tier_cn(tier)}]"
         mtype = mission_cn(f.get("missionType", ""))
-        if mtype and mtype != "?":
-            parts.append(mtype)
+        if mtype == "?":
+            mtype = ""
         # 派系（Grineer / Corpus / Infested…）：数据在 de_worldstate 的 ``enemy`` 里，
         # 国际服官方简中不翻译派系名，原样显示（与游戏内客户端一致）。
-        fac = _fissure_faction(f)
-        if fac:
-            parts.append(fac)
-        if f.get("isHard"):
-            parts.append("钢铁")
-        if f.get("isStorm"):
-            parts.append("九重天")
-        head = " · ".join(p for p in parts if p)
-        head = head.replace("] · ", "] ")   # 纪元芯片紧贴节点名
+        lead = [p for p in (chip, mtype, f.get("node") or "") if p]
+        tail = [p for p in (_fissure_faction(f),
+                            "钢铁" if f.get("isHard") else "",
+                            "九重天" if f.get("isStorm") else "") if p]
+        head = " ".join(lead) + (f" · {' · '.join(tail)}" if tail else "")
         lines.append(f"{i}. {head} · 剩{countdown(f['expiry'])}")
     head = (f"虚空裂隙（共{total}条）" if all_rows
             else f"虚空裂隙（第{page}/{pages}页，共{total}条）")
@@ -827,6 +828,12 @@ def fmt_invasions(invasions: Iterable[dict],
         lines.append(f"※ 第{page}/{pages}页，共{total}场；加 -2 / -3 翻页")
     lines.append("※ 占比为双方推进度（合计 100%）；按争夺最激烈的排前面")
     lines.append("※ 选边前请核对两侧奖励，选错在结算前仍可更换")
+    synth = sorted({n for inv in chunk for n in (inv.get("synthetic") or [])})
+    if synth:
+        # 「官方没有的写法 ≠ 不存在的东西」：DE 只给基名（没有「…Blueprint」词条）时
+        # 按官方基名 + 「蓝图」合成，但必须自曝，不能冒充游戏内原文。
+        lines.append("※ 合成译名（官方无对应文案，按官方基名合成）："
+                     + "、".join(synth))
     return ("入侵", lines)
 
 
@@ -1299,6 +1306,16 @@ def _de_task_line(job: dict) -> str:
     return f"　　任务：{desc}"
 
 
+# 赏金「档位行」的行首块标记（★ 2026-09-27）：渲染层据此在**块与块之间**画分隔线。
+# 为什么用**显式标记**而不是内容启发式：同一张卡上「档位行 / 奖励行（　　）/ 点位行
+# （　点位：…）」混排，靠内容猜（如「含 ｜N-M级」）会漏掉 oracle 与退路两条路径；
+# 显式标记让**新增地区自动生效**（这正是审核 §1.3 选方案 A 的理由）。
+# ⚠️ 行首那个全角空格是原有缩进（渲染层按 `raw` 数它算 indent_lv），别去掉。
+# 发射点共 5 处（跨 3 个函数）：`_bounty_head`（覆盖 DE 地区详情 + 一览）、
+# `_oracle_summary` 两处、`_oracle_region_block` 两处 —— 改这里请**全部**同步。
+_BOUNTY_HEAD_PREFIX = "　▸ "
+
+
 def _bounty_rows(jobs: list[dict], syndicate: str) -> list[str]:
     """DE 下发 jobs 的地区：每档两行「任务名｜N-M级｜标签」+ 该档完整奖励。
 
@@ -1346,7 +1363,7 @@ def _bounty_rows(jobs: list[dict], syndicate: str) -> list[str]:
 
 
 def _bounty_head(name: str, mtype: str, lv_txt: str, tag: str) -> str:
-    """档位行：``　· 任务类型 任务名｜N-M级｜标签``（缺失的段落自动省略）。
+    """档位行：``　▸ 任务类型 任务名｜N-M级｜标签``（缺失的段落自动省略）。
 
     任务类型放在**行首**（与参考版式「挖掘 核心样本」「歼灭 带他们回家 合一众」
     一致）：玩家扫一眼就知道这档是什么任务，而后面的等级会被渲染层抽成右对齐列。
@@ -1358,8 +1375,8 @@ def _bounty_head(name: str, mtype: str, lv_txt: str, tag: str) -> str:
         mtype = ""
     body = " ".join(x for x in (mtype, name) if x) or lv_txt
     if body == lv_txt:
-        return f"　· {lv_txt}" + (f"｜{tag}" if tag else "")
-    head = f"　· {body}｜{lv_txt}"
+        return f"{_BOUNTY_HEAD_PREFIX}{lv_txt}" + (f"｜{tag}" if tag else "")
+    head = f"{_BOUNTY_HEAD_PREFIX}{body}｜{lv_txt}"
     if tag:
         head += f"｜{tag}"
     return head
@@ -1421,7 +1438,11 @@ def _rot_lines(region_pool: dict, rot: str, limit: int = 6) -> list[str]:
 
 
 def _bounty_entry_line(syndicate: str, job: dict) -> str:
-    """一览的档位行：``　· 任务类型 任务名｜N-M级｜标签``（不带奖励）。"""
+    """一览的档位行：``　▸ 任务类型 任务名｜N-M级｜标签``（不带奖励）。
+
+    ★ 2026-09-27：行首标记由「·」改为 ``_BOUNTY_HEAD_PREFIX``（``▸``）——
+    渲染层据此在**块与块之间**画分隔线（旧实现块间一条线都没有）。
+    """
     lv = job.get("enemyLevels") or []
     lv_txt = f"{lv[0]}-{lv[1]}级" if len(lv) >= 2 else "?"
     _pool, tag, _rot = _resolve_bounty_pool(syndicate, job)
@@ -1497,7 +1518,7 @@ def _oracle_summary(pool_key: str, tag: str, title: str,
     node_tbl = _de_zh("nodes_zh.json")
     if not bounties:
         for lv in tiers[-_OVERVIEW_N:]:
-            lines.append(f"　· {_lv_txt(lv)}")
+            lines.append(f"{_BOUNTY_HEAD_PREFIX}{_lv_txt(lv)}")
         return lines
     # oracle 的节点列表本来就是等级升序，取末尾 N 个即「等级最高的 N 档」
     for i, b in list(enumerate(bounties))[-_OVERVIEW_N:]:
@@ -1506,7 +1527,7 @@ def _oracle_summary(pool_key: str, tag: str, title: str,
         node = (node_tbl.get(node_key) or {}).get("name") or ""
         if not node:
             continue
-        lines.append(f"　· {node}｜{_lv_txt(lv)}")
+        lines.append(f"{_BOUNTY_HEAD_PREFIX}{node}｜{_lv_txt(lv)}")
         lines.extend(_oracle_task_lines(node_key, b.get("challenge") or ""))
     return lines
 
@@ -1534,7 +1555,7 @@ def _oracle_region_block(pool_key: str, tag: str, title: str,
         for lv in tiers:
             items = _pool_at_rot(region_pool.get(lv) or {}, "")
             if items:
-                lines.append(f"　· {_lv_txt(lv)}")
+                lines.append(f"{_BOUNTY_HEAD_PREFIX}{_lv_txt(lv)}")
                 lines.append("　　" + _fmt_pool_items(items))
         return lines if len(lines) > 1 else []
 
@@ -1545,7 +1566,7 @@ def _oracle_region_block(pool_key: str, tag: str, title: str,
         node_key = b.get("node") or ""
         if not (node_tbl.get(node_key) or {}).get("name"):
             continue
-        lines.append(f"　· {node_tbl[node_key]['name']}｜{_lv_txt(lv)}")
+        lines.append(f"{_BOUNTY_HEAD_PREFIX}{node_tbl[node_key]['name']}｜{_lv_txt(lv)}")
         lines.extend(_oracle_task_lines(node_key, b.get("challenge") or ""))
         items = _pool_at_rot(region_pool.get(lv) or {}, rot)
         if items:
@@ -1673,8 +1694,15 @@ def fmt_bounties(syndicates: Iterable[dict], keyword: str = "",
     if detailed:
         lines.append("※ ▣ 部件/蓝图　★ MOD　列每档全部奖励；轮次随刷新而变")
         if community_shown:
-            # 社区观测档的轮次无从得知（DE 不下发该档）→ 卡面直接说明列的是全轮次
+            # 社区观测档的轮次无从得知（DE 不下发该档）→ 卡面直接说明列的是全轮次；
+            # 深矿档另有两件必须说清的事（都是 2026-09-26 实测/官方导出对拍结论）：
+            #   ① 任务名在三个任务间轮换（沃沃 10:51 显示「解放小动物」，用户 10:5x 是
+            #      「企业重组」）⇒ 档名不写死任务，这里说明轮换集合；
+            #   ② 社区版（沃沃）该档另含金星资源 ×20，而**官方钢铁表不含资源项**
+            #      （实测：普通 A/B/C 各带一种资源，Steel/SteelB/SteelC 一个都没有）。
             lines.append("※ 「社区观测」档 DE 不下发、轮次无从得知，上列为 A/B/C 全部轮次")
+            lines.append("※ 深矿任务在 解放小动物／企业重组／花园除草 间轮换（DE 不下发"
+                         "当前是哪一档）；社区版另含金星资源 ×20，官方钢铁表不含资源项")
     else:
         lines.append("※ ▣ 部件/蓝图　★ MOD　轮换行只列高价值奖励")
         lines.append("※ 发「赏金 地球」「赏金 扎里曼」等看该地区各档完整奖励")
@@ -1759,7 +1787,11 @@ def fmt_synth_targets(targets: Iterable[dict]) -> tuple[str, list[str]]:
                     zh = f"{_base_zh}·研究版"
         # 中文优先，英文名留着便于对照（结合扫描器里看到的标记还是英文）
         shown = f"{zh}（{name}）" if zh else name
-        lines.append(f"· {shown}　{place}·{mtype}（{fac}）")
+        # ★ 2026-09-27 列对齐：第二格原来把「节点·类型（派系）」整块当一列 ⇒
+        #   节点列左边界随名称长短抖动（用户截图实证）。拆成
+        #   「名称 / 节点 / 类型（派系）」三列，进渲染层的列对齐。
+        tail = f"{mtype}（{fac}）" if fac else mtype
+        lines.append(f"· {shown}　{place}　{tail}")
     return ("结合仪式目标（39 种，静态库）", lines or ["结合目标表为空"])
 
 
@@ -1952,16 +1984,18 @@ def _enemy_display(enemy: str) -> str:
     return {"The Murmur": "低语者", "Orokin": "奥罗金"}.get(e, e)
 
 
-# 沉沦之地（炼狱塔）任务类型的中文叫法。
-# 来源：参考卡（沃沃「沉沦之地 炼狱塔」）逐层对出来的 DT_* 代码 → 中文名；
-# DE 词表里这些模式名**不存在**（炼狱塔的层用的是独立模式名，不是普通任务类型），
-# 没把握的代码回落到 mission_cn(英文)。
+# 沉沦之地（炼狱塔）任务类型的中文叫法 —— **兜底表**（主路径查官方键）。
+# 主路径：`core.de_worldstate.descent_type_zh()` 按 DT_* 代码推 CircleOfHell 官方键；
+# 本表只在「语言表缺失 / 官方将来改了键名」时兜底，**表内每条都必须与官方值逐字一致**
+# （`tests/test_de_worldstate.py` 会复算，不一致即红）。
+# 唯一的例外是 `DT_PROTOFRAME` / `DT_DEFENSE_PROTECT`：实测官方无键、且参考卡逐层
+# 对过，按老注释保留手译（见 `_DESCENT_TYPE_KEEP_CN`）。
 _DESCENT_ZH = {
     "DT_INFESTED_SALVAGE": "净化",
     "DT_CAPTURE": "传承种捕获",
     "DT_PRESURE_GAUGE": "压力锅",
     "DT_SABOTAGE_HIVE": "清巢",
-    "DT_LOOT_CREATURES": "贪困断肢劫掠",
+    "DT_LOOT_CREATURES": "贪囤断肢劫掠",     # 2026-09-27 订正：贪「困」-> 贪「囤」（官方 CoHCreaturesLoot）
     "DT_ALCHEMY": "元素转换",
     "DT_PROTOFRAME": "战甲祈运",
     "DT_SHRINE_DEFENSE": "祈运坛防御",
@@ -1976,52 +2010,60 @@ _DESCENT_ZH = {
     "DT_RACE": "时间试炼",
 }
 
+# 官方无键、但**参考卡实机对过**因而保留的手译（其余手译条目必须与官方一致）。
+_DESCENT_TYPE_KEEP_CN = frozenset({"DT_PROTOFRAME", "DT_DEFENSE_PROTECT"})
 
-# 沉沦之地（炼狱塔）「目标」列：DE 的 Challenge 代码 -> 中文。
-# 这层的目标其实就是每层的复杂化（Penance），**DE 只给内部代码、不给显示文案**，
-# 且每周换一批，所以这张表永远需要随周补。译名分两级来源：
-#   A. 参考卡（沃沃「沉沦之地 炼狱塔[Demo]」）逐层对照 —— 实机可信
-#   B. 依据英文 wiki「The Descendia → Penance」的官方英文名与效果说明译出
-#      （warframe.wiki.gg / .com，2026-09-17 核对；Eximus Cabal 系沿用参考卡的
-#       「XX卓越者军团」命名风格）
-# 两级都查不到的代码，回落 _pretty_code() 拆成可读英文（不再是驼峰）。
+
+# 沉沦之地（炼狱塔）「目标」列 —— **兜底表**（主路径查官方键）。
+#
+# 旧版说「DE 只给内部代码、不给显示文案」是**错的**：`/Lotus/Language/CircleOfHell/`
+# 官方有 268 键（含 68 个 `CoHChallenge*`）。主路径改走
+# `core.de_worldstate.descent_goal_zh()` 的 8 级官方键解析；本表降级为兜底，
+# 且**表内每条都必须与官方值逐字一致**（测试复算）。
+#
+# 2026-09-27 按官方值订正 13 条（原手译与官方不符）：
+#   HardShell 硬壳→冰封卓越者军团 ｜ PowerHouse 强力增幅→力量贪婪卓越者军团
+#   JumpSmash 跌头者→跺头者 ｜ SpicyKnife 折弹→拆弹
+#   BasicLootCreatures 阻止贪困断肢→贪囤断肢劫掠 ｜ JadeGuardian 翡翠守护者卓越者军团→翠玉卓越者军团
+#   GiantRealm 巨大化→巨人症 ｜ Sentients 陶之复仇→Tau 的复仇
+#   HordeWeakpoints 弱点群体→弱点敌群 ｜ UnseenFoes 隐藏威胁→潜在威胁
+#   FieryTrail 火焰轨迹→防火道 ｜ HorseCombatOnly 只能骑乘战斗→绝灵骥战斗
+#   BasicLoot/BasicRace/BasicMimics 搜寻资源/穿过闸门赛跑/拟态→掠夺/时间试炼/打开容器
+# 另：`VoidAberration` 一族（含 `NC_` 变体）官方**确实无键**，已从本表删除 ——
+#    照 9-27 裁定「官方没有的写法 ≠ 不存在的东西，但也不许硬编」，卡面留英文 + 注脚。
 _DESCENT_GOAL_ZH = {
     "VeryToxic": "毒蛭吸血卓越者军团",
     "GrenadesOnly": "易受元素瓶攻击的敌人",
     "SlipAndSlide": "无摩擦",
     "RangedArcadiaOnly": "泡泡枪",
-    "BasicLootCreatures": "阻止贪困断肢",
+    "BasicLootCreatures": "贪囤断肢劫掠",
     "Sunlight": "太阳神之怒",
     "HeadShotsOnly": "只有弱点才会受到伤害",
     "GlassMaker": "玻璃匠中枢人",
     "Manics": "躁狂症",
-    "BasicRace": "穿过闸门赛跑",
+    "BasicRace": "时间试炼",
     "FreezeInShoot": "冰封之光卓越者军团",
     "NC_SecuritySpin": "激光炼狱",
     "BasicBreakTargets": "摧毁全息球",
-    "SpicyKnife": "折弹",
-    "VoidAberration": "吸血异影",
-    "JumpSmash": "跌头者",
+    "SpicyKnife": "拆弹",
+    "JumpSmash": "跺头者",
     "HeavyWeaponsOnly": "易受曲翼枪械攻击的敌人",
-    "BasicLoot": "搜寻资源",
+    "BasicLoot": "掠夺",
     "Devil": "罗瑟的遗忘",
     "Harrow": "里昂的圣所",
-    # —— 2026-09-17 补（该周 21 层里新出现、原表未覆盖的）——
-    # ArchonBoreal 取**官方简中**：/Lotus/Language/Narmer/ArchonBoreal = 执刑官诡文枭主
     "ArchonBoreal": "执刑官诡文枭主",
-    # 以下为依据 wiki 英文名 + 效果说明的译名
-    "HorseCombatOnly": "只能骑乘战斗",        # Battle Kaithes：禁用下马/多数技能/主·近战
-    "FireAndIce": "冰火卓越者军团",            # Fire & Ice（Arctic/Arson/Blitz）
-    "ShockingLeech": "电击吸血卓越者军团",      # Shocking Leech（Leech/Shock/Venomous）
-    "JadeGuardian": "翡翠守护者卓越者军团",      # Jade Guardian（Guardian/Jade Light/Shock）
-    "GiantRealm": "巨大化",                   # Gigantism：敌人更大更慢
-    "Sentients": "陶之复仇",                  # Tau's Revenge：全部敌人为 Sentient
-    "HordeWeakpoints": "弱点群体",            # Weakpoint Horde：弱点外抗性 + 近战猛扑
-    "UnseenFoes": "隐藏威胁",                 # Hidden Threats：首次攻击前隐形
-    "FieryTrail": "火焰轨迹",                 # Fire Trails：敌人身后留下火焰
-    "HardShell": "硬壳",
-    "BasicMimics": "拟态",
-    "PowerHouse": "强力增幅",
+    "HorseCombatOnly": "绝灵骥战斗",
+    "FireAndIce": "冰火卓越者军团",
+    "ShockingLeech": "电击吸血卓越者军团",
+    "JadeGuardian": "翠玉卓越者军团",
+    "GiantRealm": "巨人症",
+    "Sentients": "Tau 的复仇",
+    "HordeWeakpoints": "弱点敌群",
+    "UnseenFoes": "潜在威胁",
+    "FieryTrail": "防火道",
+    "HardShell": "冰封卓越者军团",
+    "BasicMimics": "打开容器",
+    "PowerHouse": "力量贪婪卓越者军团",
 }
 
 
@@ -2036,27 +2078,76 @@ def _pretty_code(code: str) -> str:
     return re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", code)
 
 
+def descent_type_label(code: str, eng: str = "") -> tuple[str, bool]:
+    """任务类型列 -> ``(卡面文本, 是否官方中文)``。
+
+    优先级：CircleOfHell 官方键 → **官方任务类型表**（`missionTypes.json` →
+    `mission_types_zh.json`，如 `Assassination` = 刺杀）→ 手译兜底表 →
+    `DT_UNIQUE`（官方无键、wiki 未收录）留英文原文。
+    """
+    zh = descent_type_zh(code)
+    if zh:
+        return zh, True
+    if code in _DT_NO_KEY:
+        return (eng or code), False
+    return (_DESCENT_ZH.get(code)
+            or mission_type_zh_by_name(eng)
+            or mission_cn(eng or code) or code), True
+
+
+def descent_goal_label(code: str) -> tuple[str, bool]:
+    """目标列 -> ``(卡面文本, 是否官方中文)``。
+
+    官方键优先（含不在 CircleOfHell 命名空间的少数几个）→ 手译兜底表 →
+    可读英文（``FireAndIce`` -> ``Fire And Ice``；显示时剥 DE 的内部变体标记 ``NC_``）。
+    """
+    zh = descent_goal_zh(code)
+    if zh:
+        return zh, True
+    fallback = _DESCENT_GOAL_ZH.get(code)
+    if fallback:
+        return fallback, True
+    shown = code[3:] if code.upper().startswith("NC_") else code
+    return _pretty_code(shown), False
+
+
 def fmt_descendia(data: Optional[dict]) -> tuple[str, list[str]]:
     """沉沦之地（炼狱塔）：每周 21 层，每层一个任务类型 + 一个目标（复杂化）。
 
-    * **任务类型**：DE 的 ``Type`` 代码 → 参考卡整理的中文（``_DESCENT_ZH``）。
-    * **目标**：DE 的 ``Challenge`` 代码 → 中文（``_DESCENT_GOAL_ZH``）；
-      表里没有的代码回落 ``_pretty_code()`` 的可读英文（每周可能换新复杂化）。
-      行用全角空格分格，渲染层按列对齐并给类型上色。
+    * **任务类型**：DE 的 ``Type`` 代码（``DT_*``）→ CircleOfHell 官方简中
+      （``CoHGamemode*``），无键者留英文（见 :func:`descent_type_label`）。
+    * **目标**：DE 的 ``Challenge`` 代码 → 官方简中（8 级解析，见
+      :func:`core.de_worldstate.descent_goal_zh`），无键者留可读英文 + 注脚。
+    * 行用全角空格分格，渲染层按列对齐并给类型上色。
     """
     chs = (data or {}).get("challenges") or []
     if not chs:
         return ("沉沦之地 · 炼狱塔", ["暂无数据（DE Descents 取不到）"])
     lines = [f"◆ 本周　剩余 {countdown(data.get('expiry') or '')}"]
+    no_key: list[str] = []
+    caveat: list[str] = []
     for c in chs:
         code = c.get("Type") or ""
-        label = _DESCENT_ZH.get(code) or mission_cn(c.get("type") or code)
+        label, type_ok = descent_type_label(code, c.get("type") or "")
         _goal_code = c.get("code") or ""
-        goal = _DESCENT_GOAL_ZH.get(_goal_code) or _pretty_code(_goal_code)
+        goal, goal_ok = descent_goal_label(_goal_code)
+        if not type_ok:
+            no_key.append(code)
+        if not goal_ok:
+            no_key.append(_goal_code)
+        if _goal_code in _DESCENT_GOAL_CAVEAT:
+            caveat.append(f"{_goal_code}={goal}")
         idx = c.get("index")
         lines.append(f"· 炼狱 [{idx}]　{label}　{goal}".rstrip())
-    lines.append("※ 每周轮换 21 层；「目标」是参考卡整理的对照表，"
-                 "进本前以游戏内显示为准")
+    lines.append("※ 每周轮换 21 层；中文名取自游戏内官方文案，进本前以实机为准")
+    if no_key:
+        # 「看不到的不描述成事实」：官方确实没有文案的层，明说保留内部代码
+        lines.append("※ 官方无简中、保留内部代码：" + "、".join(no_key))
+    if caveat:
+        # 「来源存疑就标明来源」：这些目标的官方键**不在沉沦之地命名空间**，
+        # 是跨族借用的（见 de_worldstate._DESCENT_GOAL_EXTERNAL 的说明）。
+        lines.append("※ 以下译名取自官方「科研风险」键（非沉沦之地命名空间），"
+                     "与 wiki 该层挑战名对应，待实机确认：" + "、".join(caveat))
     return ("沉沦之地 · 炼狱塔", lines)
 
 
@@ -2157,10 +2248,17 @@ _CAL_REWARD_CN = {
 
 
 def _cal_name(name: str) -> str:
-    """1999 日历条目名兜底汉化（官方词表未覆盖时用）。"""
+    """1999 日历条目名兜底汉化（**仅对英文兜底值**生效）。
+
+    ★ 官方简中已取到时**原样返回**：下面的英文替换与「N × 名称」重排只针对
+    英文兜底值，否则会把官方的「3 天经验值加成」误拆成「天经验值加成 ×3」、
+    把「6000 内融核心」拆成「内融核心 ×6000」。
+    """
     if not name:
         return name
     s = name.strip()
+    if _HAS_CJK.search(s):
+        return s
     for en, cn in _CAL_REWARD_CN.items():
         s = s.replace(en, cn)
     # 「2000 x Kuva」/「6000 x Kuva」/「6,000 Endo」统一成「赤毒 ×N」
@@ -2186,8 +2284,9 @@ def fmt_calendar(data: Optional[dict], mode: str = "") -> tuple[str, list[str]]:
     """1999 日历：季节窗口 + 各日期事件表。
 
     mode: "" 概览（前 10 天）｜"奖励" 只看奖励 ｜"清单" 全量 ｜"覆写" 升级项
-    事件名的中文来自 DE 官方导出（挑战走 ExportChallenges + 官方简中词表，
-    奖励走 /Lotus/Language/1999/<包名>Name），因此「任务名 + 任务目标」都是官方文案。
+    事件名的中文都来自 DE 官方简中：挑战走 ExportChallenges + 官方词表，
+    奖励走 4 个命名空间 × 尾段变形，覆写走 `/Lotus/Language/1999/<尾段>Name`。
+    只有官方确实无键的条目才留英文（并在卡面加注脚说明）。
     """
     if not data or not data.get("days"):
         return ("1999 日历", ["日历数据暂不可用"])
@@ -2237,6 +2336,15 @@ def fmt_calendar(data: Optional[dict], mode: str = "") -> tuple[str, list[str]]:
               "覆写": "1999 日历 · 升级/覆写"}
     if mode == "覆写":
         lines.append("※ DE 未单独下发「覆写」字段，此处展示日历中的升级(UPGRADE)条目")
+    synth = data.get("synthesized") or []
+    nokey = data.get("noKey") or []
+    if synth:
+        # 「官方没有的写法 ≠ 不存在的东西」：官方只给基名/英文数量时按同族格式合成，
+        # 但必须自曝 —— 否则用户会以为是游戏内原文。
+        lines.append("※ 合成译名（官方无对应文案，按同族官方格式产出）："
+                     + "、".join(synth))
+    if nokey:
+        lines.append("※ 官方无简中、保留原文：" + "、".join(nokey))
     return (titles.get(mode, "1999 日历"), lines)
 
 
@@ -2535,9 +2643,9 @@ def fmt_ducat_junk(tier: str, rows: list[dict], page: int = 1,
 # ---------------------------------------------------------------------------
 
 _RAILJACK_TYPE_CN = {
-    "skirmish": "空战", "volatile": "易爆", "spy": "间谍", "survival": "生存",
+    "skirmish": "前哨战", "volatile": "爆发", "spy": "间谍", "survival": "生存",
     "extermination": "歼灭", "defense": "防御", "sabotage": "破坏",
-    "assassinate": "刺杀", "orphix": "奥菲斯", "hijack": "劫持",
+    "assassinate": "刺杀", "orphix": "奥影母艇", "hijack": "劫持",
 }
 
 
@@ -2556,7 +2664,11 @@ def fmt_void_storms(storms: Iterable[dict]) -> tuple[str, list[str]]:
     groups: dict[str, list] = {}
     for s in storms:
         groups.setdefault(s.get("tier") or "?", []).append(s)
-    lines = [f"共 {len(storms)} 处进行中　※ 九重天裂缝，可刷对应纪元遗物"]
+    # ★ 2026-09-27 列对齐：这行原来把「※ 说明」用全角空格接在同一行 —— 渲染层的
+    #   列宽是**按全角空格切列**算的（`_split_cells`），一条 normal 行挂一段长说明
+    #   会把第二列整体撑宽。拆成两行规避（※ 行不参与切列）。
+    lines = [f"共 {len(storms)} 处进行中",
+             "※ 九重天裂缝，可刷对应纪元遗物"]
     for tier in sorted(groups, key=lambda t: _TIER_ORDER.get(
             {"T1": "Lith", "T2": "Meso", "T3": "Neo", "T4": "Axi"}.get(t, t), 99)):
         items = groups[tier]
@@ -2568,7 +2680,10 @@ def fmt_void_storms(storms: Iterable[dict]) -> tuple[str, list[str]]:
             mt = _RAILJACK_TYPE_CN.get((s.get("missionType") or "").lower(),
                                        s.get("missionType") or "?")
             left = s.get("timeLeft") or "?"
-            lines.append(f"　　{node}｜{mt}｜剩{left}")
+            # ★ 2026-09-27 列对齐：原来用「｜」串成一行，类型列左边界随节点名长短
+            #   抖动（用户截图实证）。改**全角空格分列**后进渲染层的列对齐：
+            #   行首 2 个全角空格 = 缩进（切列后表现为两列空列，与 ◆ 分组层级一致）。
+            lines.append(f"　　{node}　{mt}　剩{left}")
     return ("九重天虚空风暴", lines)
 
 

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""全量指令冒烟：① 解析覆盖（54 个主指令 + 别名）② 数据链路（真实网络）。
+"""全量指令冒烟：① 解析覆盖（全部主指令 + 别名）② 数据链路（真实网络）。
 
 用法：
     python scripts/smoke_all.py            # 全部
@@ -23,7 +23,6 @@ EXTRA = {
     "valence": "武器融合 电60 火58",
     "damage": "伤害 绝路 对 重机枪手 100级 膛线",
     "scandamage": "识卡伤害 对 重机枪手 150级",
-    "kim": "对话助手 赤毒",
     "wm": "wm 绝路",
     "wr": "wr 绝路",
     "rm": "rm 绝路",
@@ -40,7 +39,7 @@ FAIL_PARSE: list[tuple[str, str, str]] = []
 
 def phase_parse() -> None:
     print("=" * 62)
-    print("① 解析覆盖：54 个主指令 + 别名 + 预设命令")
+    print("① 解析覆盖：全部主指令 + 别名 + 预设命令")
     print("=" * 62)
     ok = 0
     for cmd in sorted(P.COMMAND_ALIASES):

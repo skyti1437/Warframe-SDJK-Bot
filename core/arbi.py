@@ -74,6 +74,24 @@ def node_line(nodes: dict, key: str, tier_of: dict) -> str:
     return f"{head}　[{tv}]" if tv else head
 
 
+def node_cells(nodes: dict, key: str, tier_of: dict) -> list[str]:
+    """节点 → **分列单元格**：[节点（星球）, 类型, 派系, [评级]]（评级可缺省）。
+
+    ★ 2026-09-27：仲裁排期卡改走渲染层的列对齐（按全角空格切列），需要「一格一
+    字段」；`node_line()` 保留给「当前仲裁」卡的单行内联写法，两者同源。
+    ⚠️ **不丢空串**：字段缺失时保留空单元格，否则它后面的列会整体串位。
+    """
+    n = nodes.get(key) or {}
+    name = n.get("nameZh") or "?"
+    system = n.get("systemNameZh") or ""
+    tv = tier_of.get(key, "")
+    cells = [f"{name}（{system}）" if system else name,
+             mission_of(n), faction_of(n)]
+    if tv and tv != "未评级":
+        cells.append(f"[{tv}]")
+    return cells
+
+
 async def fetch_tables(client) -> tuple[dict, dict, dict]:
     """拉三张表：排期序列 / 节点中文表 / 站点评级。返回 (sched, nodes, tier_of)。"""
     sched = await client._fetch_json(BASE + "arbys.schedule.v2.json", ttl=3600)

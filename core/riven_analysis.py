@@ -18,6 +18,7 @@ Attribute Value Formula / Base Values 两节）：
 """
 from __future__ import annotations
 
+import re
 from typing import Optional
 
 # 武器类别（WM riven weapons 的 group/rivenType 归一化）→ 基值表列名
@@ -303,3 +304,144 @@ def match_disposition(stats_pos, stats_neg, cls, candidates,
         if _fit_dev(entries, cls, pos_f, neg_f, d, tol_fn) is not None:
             out.append((name, d))
     return out
+
+
+# ---------------------------------------------------------------------------
+# 卡面原文行解析（2026-09-27）
+# ---------------------------------------------------------------------------
+# 教训（玩家报障 → 服务器日志实证）：让 vision 模型**直接给出语义词条表**
+# 不可靠 —— 4 行卡面 `+120.5% 毒素伤害 / +299.9% 伤害 / +148% 多重射击 /
+# -97.2% 触发时间` 被吐成 7 条（负词条那行拆成「触发」「持续」「触发时间」
+# 三份，还凭空多一条「滑暴」），词条数校验报「4 正 2 负」把整张卡挡掉。
+# 现行分工：模型只负责**逐字照抄卡面文字行**（vision JSON 的 "lines"），
+# 归条 / 极性 / 计数由下面两条纯函数确定性决定 —— 只认行首带极性符号的行，
+# 卡面上的锁图标、行颜色（白色行）、右下角内融值、武器名与自命名一律不是词条。
+_POLARITY = {"+": False, "＋": False, "负": True,
+             "-": True, "−": True, "–": True, "—": True, "－": True}
+# 词条行 = 极性符号开头（前面只允许装饰性符号：锁图标/圆点/括号/空白）。
+# 非装饰性字符（汉字、字母、数字）开头的行**不是**词条行 —— 武器名、自命名、
+# 内融值、卡面图例都靠这一条排除；而锁图标与行首那点装饰不能反而把真词条挤掉。
+_POL_RE = re.compile(r"^[^\w]*([+＋\-−–—－]|负)\s*(.*)$")
+_NUM_RE = re.compile(r"\d+(?:[.,]\d+)?")
+# 全角 % 用 \uff05 转义写：它只在**输入匹配**里用到（永远不渲染到卡面），
+# 写成字面量会让「仓库语料」多出一个子集字体没有的字形（test_render_overflow
+# 的字库覆盖用例），逼着去重建字体子集。
+_BARE_NUM_RE = re.compile(r"^[\d.,]+\s*[%\uff05]?\s*[\w米秒]*$")
+# 乘数写法（卡面「x0.55 对 Corpus 的伤害」）：负词条 magnitude = (1−0.55)×100
+_MULT_RE = re.compile(r"[x×]\s*(\d+(?:[.,]\d+)?)|(\d+(?:[.,]\d+)?)\s*[x×]",
+                      re.I)
+
+
+def merge_polarity_lines(lines) -> list:
+    """把被拆行的词条行拼回一行（极性符号与数值不在同一行时）。
+
+    两种情形合并（2026-09-27 用户口径）：
+      · 纯极性符号行（``+`` / ``-`` / ``负``）→ 与下一行拼成一条；
+      · 带极性但没数值的行（``+毒素伤害``）→ 与下一行**纯数值行**拼成一条。
+    最多缓存一条待合并片段：宁可让残缺行单独被丢弃，也不把两条词条的名称/
+    数值串到一起（串行会让名称与数值交叉配错，比漏读更难发现）。
+    """
+    out: list = []
+    buf = ""
+    for raw in (lines or []):
+        t = str(raw or "").strip()
+        if not t:
+            continue
+        m = _POL_RE.match(t)
+        if m:
+            body = m.group(2).strip()
+            if not body or not _NUM_RE.search(body):
+                if buf:
+                    out.append(buf)
+                buf = t
+                continue
+            out.append(f"{buf} {t}".strip() if buf else t)
+            buf = ""
+            continue
+        if buf and _BARE_NUM_RE.match(t):
+            out.append(f"{buf} {t}")
+            buf = ""
+            continue
+        if buf:
+            out.append(buf)
+            buf = ""
+        out.append(t)
+    if buf:
+        out.append(buf)
+    return out
+
+
+def _strip_name(body: str) -> str:
+    """词条行去掉数值/乘数/单位后剩下的词条名（去空格便于对表）。"""
+    name = _MULT_RE.sub(" ", body)
+    name = _NUM_RE.sub(" ", name)
+    return re.sub(r"[%\uff05x×\s　·、:：米秒]", "", name, flags=re.I)
+
+
+def _dedup_pairs(pairs: list) -> list:
+    seen: set = set()
+    out: list = []
+    for p in pairs:
+        if p in seen:
+            continue
+        seen.add(p)
+        out.append(p)
+    return out
+
+
+def parse_riven_lines(lines, resolve) -> tuple:
+    """卡面原文行 → (正词条, 负词条, 备注)。
+
+    Args:
+        lines: 卡面词条行的原文（vision 模型逐字照抄的结果）。
+        resolve: 词条名 → 标准词条 id 的回调（认不出返回 None）。
+
+    Returns:
+        (pos, neg, notes)；pos/neg 是 [(stat_id, float), ...]，语义与
+        ``main._normalize_llm_stats`` 一致；notes 供日志（哪一行因何被跳过）。
+
+    只认**行首带极性符号**的行：锁图标、行颜色（白色行）、右下角内融值、
+    武器名与自命名因为没有极性符号，天然被排除。名称与数值取**同一行**——
+    不做跨行配对，跨行配对正是模型把两条词条的名称/数值交叉配错的来源。
+    """
+    pos: list = []
+    neg: list = []
+    notes: list = []
+    for raw in merge_polarity_lines(lines):
+        m = _POL_RE.match(raw)
+        if not m or not m.group(2).strip():
+            notes.append(f"无极性符号：{raw}")
+            continue
+        neg_flag = _POLARITY.get(m.group(1), False)
+        body = m.group(2).strip()
+        name = _strip_name(body)
+        sid = resolve(name) if name else None
+        if not sid:
+            notes.append(f"词条名认不出：{raw}")
+            continue
+        mm = _MULT_RE.search(body)
+        if mm:
+            try:
+                k = float((mm.group(1) or mm.group(2)).replace(",", "."))
+            except ValueError:
+                notes.append(f"乘数读不出：{raw}")
+                continue
+            value, neg_flag = round((1 - k) * 100, 2), True
+        else:
+            mn = _NUM_RE.search(body)
+            if not mn:
+                notes.append(f"无数值：{raw}")
+                continue
+            try:
+                value = float(mn.group(0).replace(",", "."))
+            except ValueError:
+                notes.append(f"数值读不出：{raw}")
+                continue
+            if value < 1 and sid.startswith("damage_vs_"):
+                # 对派系伤害的乘数写法漏了 x（基值 45，真 magnitude 不可能 <1）
+                value, neg_flag = round((1 - value) * 100, 2), True
+        (neg if neg_flag else pos).append((sid, value))
+    # 同一条词条不可能既正又负（卡面每行只出现一次）：两侧都在时以负为准
+    neg_ids = {sid for sid, _ in neg}
+    return (_dedup_pairs([p for p in pos if p[0] not in neg_ids]),
+            _dedup_pairs(neg), notes)

@@ -649,6 +649,44 @@ check("★ 品级过滤只留 5 级（赋能满级），0 级被排除",
       str([o["mod_rank"] for o in _p_r]))
 check("行内标出级数（5级）", any("5级" in x for x in _l_r), str(_l_r[:2]))
 
+# --------------------------- ⑪ 倾向卡家族：Vandal/Wraith 后缀变体 + 类别兜底
+print("\n=== ⑪ 紫卡倾向 布莱顿：家族 4 成员 + 类别列不空 ===")
+import json  # noqa: E402
+
+_DISP = json.loads((ROOT / "core" / "data" / "dispositions_rivenmirror.json")
+                   .read_text(encoding="utf-8"))["entries"]
+
+
+class _FakeClient7:
+    _aliases = {}
+
+    async def wm_riven_weapons(self):
+        return [dict(v, en=k) for k, v in _DISP.items()]
+
+    def alias_lookup(self, q, kind):
+        return ""
+
+
+class _ParsedDispo:
+    def __init__(self, q):
+        self.content = []
+        self.content_str = q
+        self.preset, self.page, self.whisper = "", 1, False
+
+
+_o7 = plugin.WarframeSDJK.__new__(plugin.WarframeSDJK)
+_o7.client = _FakeClient7()
+_r7 = asyncio.run(_o7._h_disposition(_ParsedDispo("布莱顿"), None, "pc"))
+_row_v = next((x for x in _r7.lines if "布莱顿·破坏者" in x), "")
+check("★ 布莱顿家族列出 4 行（含此前漏列的布莱顿·破坏者）",
+      len(_r7.lines) == 4 and bool(_row_v), "\n".join(_r7.lines))
+check("★ 布莱顿·破坏者 倾向 1.30", "1.30" in _row_v, repr(_row_v))
+check("★ 类别列不空：从本体继承「步枪」（数据里该条 group/riven_type 为空）",
+      _row_v.endswith("步枪"), repr(_row_v))
+check("重复的 MK1 行只列一次（4 行里没有空名行）",
+      all("　" not in x.split("　")[0][2:] for x in _r7.lines),
+      "\n".join(_r7.lines))
+
 print()
 if FAILED:
     print(f"✗ {len(FAILED)} 项失败：" + "、".join(FAILED))

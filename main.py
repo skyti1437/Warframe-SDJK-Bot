@@ -49,9 +49,10 @@ try:  # 允许脱离 AstrBot 直接跑单元测试
     from .core import formatters as fmt
     from .core import search as search_engine
     from .core import wiki_intro
-    from .core.parser import (Parsed, normalize_platform, parse, parse_duration,
-                              parse_fissure_filter, parse_time_window, parse_wm,
-                              parse_wr, PLATFORM_DISPLAY)
+    from .core.parser import (Parsed, TIER_CN, dun_rule_hint, normalize_platform,
+                              parse, parse_duration, parse_fissure_filter,
+                              parse_time_window, parse_wm, parse_wr,
+                              PLATFORM_DISPLAY)
     from .core.push import PUSH_EVENTS, PushDaemon, build_cancel_selector, normalize_event
     from .core.render import (ImageRenderer, WATERMARK_VERSION,
                               migrate_legacy_user_fonts, text_card)
@@ -81,9 +82,10 @@ except ImportError as _imp_err:  # pragma: no cover
     from core import formatters as fmt
     from core import search as search_engine
     from core import wiki_intro
-    from core.parser import (Parsed, normalize_platform, parse, parse_duration,
-                             parse_fissure_filter, parse_time_window, parse_wm,
-                             parse_wr, PLATFORM_DISPLAY)
+    from core.parser import (Parsed, TIER_CN, dun_rule_hint, normalize_platform,
+                             parse, parse_duration, parse_fissure_filter,
+                             parse_time_window, parse_wm, parse_wr,
+                             PLATFORM_DISPLAY)
     from core.push import PUSH_EVENTS, PushDaemon, build_cancel_selector, normalize_event
     from core.render import (ImageRenderer, WATERMARK_VERSION,
                              migrate_legacy_user_fonts, text_card)
@@ -96,7 +98,10 @@ def _relic_tier_en() -> dict:
     ★ 遗物相关的档位表**统一走这里**——曾在 3 处各自硬编（_norm_relic / 列表卡 /
     单查状态），2026-09 新增「先锋」档时全漏，用户查「遗物 先锋 C1」显示未找到。
     """
-    from core.parser import TIER_CN
+    # TIER_CN 走**模块级**导入（顶部 try 双分支）—— 2026-09-26 修：
+    #   原先这里是函数内裸 `from core.parser import TIER_CN`，服务器以包成员加载
+    #   （`data.plugins.astrbot_plugin_warframe.main`）时 `core` 不可解析 ⇒
+    #   遗物全套指令（出库/入库/列表/单查）直接 `No module named 'core'`。
     return {k: v.lower() for k, v in TIER_CN.items() if not k.isascii()}
 
 
@@ -287,7 +292,11 @@ def strip_md(text: str) -> str:
 
 PLUGIN_DIR = Path(__file__).resolve().parent
 PLUGIN_NAME = "astrbot_plugin_warframe"   # 插件身份（须与 metadata.yaml.name 一致）
-ROTATION_FILE = Path(__file__).resolve().parent / "core" / "data" / "rotations.json"
+# ★ 2026-09-28 裁定：原先这里有个指向 `core/data/rotations.json` 的**包内路径常量**，
+#   两个读点（时效汇总 / 轮换卡）都直接读它 ⇒ **运行期自动刷新的回写到不了卡面**。
+#   现已统一改走 `core_paths.read_path("rotations.json")`（运行期副本优先、内置包内种子回退），
+#   该常量随之**删除**（不留无注释的死引用 —— 同类教训见 `language_text_zh` 的 tail 死代码）。
+#   ⚠️ 源码级护栏 `tests/test_de_worldstate.py` 有一条「main.py 里不得再出现该常量名」的断言。
 JUNK_FILE = Path(__file__).resolve().parent / "core" / "data" / "junk.json"
 
 
@@ -354,8 +363,9 @@ def _num(cfg: dict, key: str, default: float, cast=float) -> float:
 # ★ 两条硬规则（2026-09-17 改版，玩家反馈「主指令乱排 / 缺指令 / 看不懂」）：
 #   1. 左列必须是**真实主指令名**（可照发）＋常用别名，不再是「平台切换」这类
 #      描述性标签 —— 用户是照着这行去发指令的。
-#   2. **54 个主指令必须全部出现**，由 tests/test_help_coverage.py 锁住，
-#      以后新增主指令而忘了写进帮助会直接测试失败。
+#   2. **全部主指令（当前 53 个）必须出现**，由 tests/test_help_coverage.py 锁住，
+#      以后新增主指令而忘了写进帮助会直接测试失败（条数按 COMMAND_ALIASES 现算，
+#      不写死在测试里）。
 #   分组依据是「玩家在什么场景下会想用它」，同类指令聚在一组。
 def _xh_element(toks: list[str]) -> tuple[Optional[str], Optional[str]]:
     """从参数里认元素，返回 (中文名, WM 英文值)。
@@ -373,6 +383,11 @@ def _xh_element(toks: list[str]) -> tuple[Optional[str], Optional[str]]:
             return cn, fmt.LICH_ELEM_EN[cn]
     return None, None
 
+
+# 遗物指令的用法串 —— **唯一真源**（2026-09-26 抽常量：原先空参数处与未命中处各写一份，必然漂移）。
+# 文案逐字保留自原实现；纯文本、<=3 行，不含卡片渲染（避开字体子集/豆腐块风险）。
+RELIC_USAGE = ("用法：遗物 后纪A2（查奖励）｜ 遗物 绝路 枪机（部件反查出处）｜"
+               " 遗物 出库（当前可掉落）｜ 遗物 入库（已入库、不可刷取）")
 
 HELP_TOPIC: dict[str, list[tuple[str, str]]] = {
     "用法速查": [
@@ -416,7 +431,6 @@ HELP_TOPIC: dict[str, list[tuple[str, str]]] = {
         ("结合目标", "Simaris 结合仪式目标与出处"),
         ("wiki 关键词", "词库直达维基页面"),
         ("赤毒 / 钢铁之路", "赤毒历史｜Teshin 荣誉商店"),
-        ("对话助手 话题", "剧情与角色问答"),
     ],
     "遗物与资源": [
         ("遗物 / 核桃", "奖励与出处；出库 / 入库 / 列表"),
@@ -448,6 +462,7 @@ HELP_TOPIC: dict[str, list[tuple[str, str]]] = {
     "后台推送": [
         ("蹲 类型 筛选 时长 时间", "订阅世界状态变化并推送（需先 .开启 推送）"),
         ("蹲 取消", "不带词=全部；带筛选词=只取消匹配项"),
+        ("蹲 筛选写法", "一个词=一个条件（钢铁防御）；多词=多条件取或"),
     ],
 }
 
@@ -515,7 +530,7 @@ class Reply:
 
 @register("astrbot_plugin_warframe", "skyti1437",
           f"{BRAND}：世界状态 / 市场查价 / 蹲点推送",
-          "1.0.8")
+          "1.0.9")
 class WarframeSDJK(Star):
     def __init__(self, context: Context, config: AstrBotConfig | None = None):
         super().__init__(context)
@@ -589,7 +604,6 @@ class WarframeSDJK(Star):
             "damage": self._h_damage,
             "scan": self._h_scan,
             "scandamage": self._h_scan_damage,
-            "kim": self._h_kim,
             "wm": self._h_wm, "wr": self._h_wr, "rm": self._h_rm,
             "rank": self._h_rank, "trend": self._h_trend,
             "openrelic": self._h_openrelic,
@@ -663,7 +677,9 @@ class WarframeSDJK(Star):
                 "（随插件更新保留）；改完重载插件，本行应变为「渲染器可用」")
         if self._wiki_intro_on():
             try:
-                from core import wiki_intro as _wi
+                # 用模块级 `wiki_intro`（顶部 try 双分支已导入）—— 原先这里函数内裸
+                # `from core import wiki_intro`，同样会在包成员加载下失败（2026-09-26 修）
+                _wi = wiki_intro
                 if not _wi.available():
                     # 开关开着但数据缺失（市场/开源包按设计不带 wiki_intro.json）
                     # ——明确说清现象与预期，别让用户以为是故障（2026-09-25 立）
@@ -1253,9 +1269,13 @@ class WarframeSDJK(Star):
         timers = [(n, r if isinstance(r, dict) else None) for n, r in zip(names, res)]
         timers.append(("沉沦之地", await self.client.descendia(platform)))
         # 本地可推算的确定性轮换（不占网络请求）
+        # ★ 数据源三层（2026-09-28 裁定）：① 运行期副本 plugin_data/<插件>/rotations.json
+        #   （自动刷新回写的新数据）→ ② 包内种子 core/data/rotations.json（read_path 内置回退）
+        #   → ③ 异常时退回空 dict（下面的 except）。旧实现直接读包内常量 ⇒
+        #   运行期刷新**到不了卡面**、换批只能靠发版。
         rot = {}
         try:
-            rot = json.loads(ROTATION_FILE.read_text(encoding="utf-8"))
+            rot = json.loads(core_paths.read_path("rotations.json").read_text(encoding="utf-8"))
         except Exception:  # noqa: BLE001
             rot = {}
         for key, name in (("incarnon", "钢铁回廊灵化"), ("tenet", "信条元素加成"),
@@ -1405,8 +1425,9 @@ class WarframeSDJK(Star):
                 continue
             if want_ratings and tv not in want_ratings:
                 continue
-            line = self._arb_node_line(nodes, key, tier_of)
-            rows.append((t, line, tv))
+            # ★ 2026-09-27 列对齐：排期卡改走渲染层的按列绘制 ⇒ 这里存**分列
+            #   单元格**（[节点（星球）, 类型, 派系, [评级]]），不再拼整行字符串。
+            rows.append((t, _arbi.node_cells(nodes, key, tier_of), tv))
         if not rows:
             return Reply(raw_text=f"该筛选条件下未来 14 天内没有仲裁场次\n"
                                   f"可筛选类型：{self._ARB_TYPES_STR}\n"
@@ -1416,9 +1437,10 @@ class WarframeSDJK(Star):
         pages = max(1, (total + page_size - 1) // page_size)
         page = max(1, min(parsed.page or 1, pages))
         chunk = rows[(page - 1) * page_size: page * page_size]
-        lines = [f"{t.month}月{t.day}日 {t.hour:02d}时　{desc}"
-                 for t, desc, _tv in chunk]
-        lines.append("※ 每行格式：节点（星球） · 任务类型 · 派系 · [站点评级]")
+        # 时间列 + 节点/类型/派系/评级 各占一列（全角空格分隔，渲染层按列对齐）
+        lines = ["　".join([f"{t.month}月{t.day}日 {t.hour:02d}时", *cells])
+                 for t, cells, _tv in chunk]
+        lines.append("※ 每行格式：时间 · 节点（星球） · 任务类型 · 派系 · [站点评级]")
         lines.append("※ 评级来源 arbi.wf.wiki 社区评级；排期为确定性序列，非随机")
         fdesc = "、".join([*(t for t in toks if t in self._ARB_TYPES),
                            *(("高效" if want_ratings == self._ARB_RATING["高效"] else
@@ -1657,7 +1679,10 @@ class WarframeSDJK(Star):
         """
         data: dict = {}
         try:
-            data = json.loads(ROTATION_FILE.read_text(encoding="utf-8")).get(key, {})
+            # ★ 数据源三层（2026-09-28 裁定）：运行期副本（自动刷新回写）→ 包内种子 → 空 dict。
+            #   旧实现直接读包内常量 ⇒ 自动刷新的回写**到不了卡面**，换批只能靠发版。
+            data = json.loads(core_paths.read_path("rotations.json")
+                              .read_text(encoding="utf-8")).get(key, {})
         except Exception:  # noqa: BLE001
             pass
         from datetime import datetime, timedelta, timezone
@@ -2240,18 +2265,6 @@ class WarframeSDJK(Star):
                 "　重新发一次「识卡」后再试；参数写法见「伤害」指令的用法页。",
             ])
 
-    async def _h_kim(self, parsed, event, platform) -> Reply:
-        who = parsed.content_str
-        if not who:
-            guide = calc.load_kim_guide()
-            names = [k for k in guide if not k.startswith("_")]
-            return Reply(raw_text="用法：对话助手 角色名\n当前收录：" + "、".join(names))
-        res = calc.kim_advice(who)
-        if not res:
-            return Reply(raw_text=f"未收录角色「{who}」，发送「对话助手」查看已收录列表")
-        lines = [f"· {t}" for t in res.get("tips", [])]
-        return Reply(f"1999 对话助手：{res['name']}", lines)
-
     # ------------------------------------------------------------------
     # 市场与查价
     # ------------------------------------------------------------------
@@ -2705,7 +2718,6 @@ class WarframeSDJK(Star):
         代号支持 字母+数字（A2/A 2）、罗马数字（I..IV）、词式（Eterna，安魂档）。
         """
         import re as _re
-        from core.parser import TIER_CN
         zh2en = {k: v for k, v in TIER_CN.items() if not k.isascii()}
         q = _re.sub(r"\s+", " ", q.strip().replace("纪元", ""))
         era = next((k for k in zh2en if q.startswith(k)), None)
@@ -2758,8 +2770,7 @@ class WarframeSDJK(Star):
         if preset in ("列表", "入库", "出库"):
             q = preset  # 让下面入库/出库分支生效
         if not q:
-            return Reply(raw_text="用法：遗物 后纪A2（查奖励）｜ 遗物 绝路 枪机（部件反查出处）｜"
-                                  " 遗物 出库（当前可掉落）｜ 遗物 入库（已入库、不可刷取）")
+            return Reply(raw_text=RELIC_USAGE)
         # ① 列出可掉落/已入库遗物
         if q in ("全部", "列表", "入库", "出库"):
             unv = drops_db.unvaulted_relics()
@@ -2981,6 +2992,7 @@ class WarframeSDJK(Star):
         tip = f"未找到「{q}」。"
         if fz:
             tip += f"你是不是想找：{'、'.join(fz[:3])}"
+        tip += "\n" + RELIC_USAGE          # 顺序固定：未找到 → 你是不是想找 → 用法
         return Reply(raw_text=tip)
 
     async def _h_parts(self, parsed, event, platform) -> Reply:
@@ -3019,11 +3031,26 @@ class WarframeSDJK(Star):
             fam = matching.family_of(hits[0], weapons)
             if len(fam) > 1:
                 hits = fam
+        # ★ 2026-09-27：Vandal/Wraith 这类变体在倾向数据里 group/riven_type 是
+        #   空的（49 条）⇒ 类别列会空着。家族卡里用**家族内第一个有类别的成员**
+        #   兜底（同一家族类别相同；不能取 hits[0] —— 家族排序把「MK1-布莱顿」
+        #   这类 _is_base 认不出的变体排在了本体前面，取它只会拿到空值）。
+        base_w = next((w for w in hits
+                       if (w.get("riven_type") or w.get("group"))), {})
+        base_rt = base_w.get("riven_type", "")
+        base_gp = base_w.get("group", "")
+
+        def _cls(w: dict) -> str:
+            rt, gp = w.get("riven_type", ""), w.get("group", "")
+            if not rt and not gp:
+                rt, gp = base_rt, base_gp
+            return fmt.riven_type_cn(rt, gp)
+
         lines = [f"· {(w.get('zh') or w.get('en') or w['url_name'])}　"
                  f"倾向 {w.get('disposition', 0):.2f}　"
                  # ★ 2026-09-24：带上 group —— WM 把曲翼枪械的 rivenType 也标成
                  #   rifle（翠雀显示成「步枪」），group 才是准的（曲翼枪械/守护武器）
-                 f"{fmt.riven_type_cn(w.get('riven_type', ''), w.get('group', ''))}"
+                 f"{_cls(w)}"
                  for w in hits[:8]]
         return Reply(f"紫卡倾向：{query}", lines, footer=fmt.fmt_platform_footer(platform))
 
@@ -3258,7 +3285,8 @@ class WarframeSDJK(Star):
     async def _vision_race_json(self, prompt: str, image_url: str,
                                 provs: list, *, k: int = 2,
                                 tag: str = "识别",
-                                window: Optional[float] = None) -> Optional[dict]:
+                                window: Optional[float] = None,
+                                parse=None) -> Optional[dict]:
         """向最多 k 个 vision 渠道**并行**请求，取第一个能解析出 JSON 的结果。
 
         串行试渠道时每条指令要等最慢的那家（实测紫卡识别 13 s）；
@@ -3266,6 +3294,8 @@ class WarframeSDJK(Star):
         自动让位，都不会影响正确性（拿到的必须是能解析的结果）。
         window（秒）：整场竞速的等待上限——到点即返回当前已有结果（None），
         防止渠道级超时（如 siliconflow 240s）把用户晾在原地（2026-09-23 补）。
+        parse：自定义判据（2026-09-27 加）——默认按 JSON 解析；紫卡「窄读
+        词条行」那一路用它把判据换成「卡面合法」（能解析 ≠ 读全了）。
         """
         import time as _t
         provs = [p for p in (provs or []) if p is not None][:max(1, k)]
@@ -3304,7 +3334,7 @@ class WarframeSDJK(Star):
                     if not text:
                         logger.warning("[sdjk] %s渠道返回空（%.0f ms）", tag, ms)
                         continue
-                    data = lo.parse_vision_json(text)
+                    data = (parse or lo.parse_vision_json)(text)
                     if data:
                         logger.info("[sdjk] %s命中渠道（%.0f ms）：%s", tag, ms,
                                     json.dumps(data, ensure_ascii=False)[:200])
@@ -3319,8 +3349,57 @@ class WarframeSDJK(Star):
                 t.cancel()
         return winner
 
+    # ★ 窄读提示词（2026-09-27）：只要卡面词条行原文，不要 JSON/解释/武器名。
+    #   实测（用户那张 321×450 的卡 ×3 次）：同一条渠道用完整 JSON 提示词稳定
+    #   只照抄 2/4 行（**放大图片也救不了**），换这条窄提示词后三个渠道 6/6 全对。
+    #   ⇒ 词条/极性一律以窄读为准，JSON 那路只负责武器名与兜底。
+    _RIVEN_LINE_PROMPT = (
+        "把这张 Warframe 紫卡截图上的**词条行**逐字照抄出来：\n"
+        "· 一行一条，卡面上有几条就写几条（通常 3~4 条）\n"
+        "· 保留行首的 + / - 号与数值里的 % 号\n"
+        "· 只输出这些行本身，不要 JSON、不要解释、"
+        "不要武器名、不要右下角的内融值")
+
+    @classmethod
+    def _riven_lines_legal(cls, lines) -> tuple:
+        """卡面原文行 → (pos, neg, 是否合法卡面, 备注)。
+
+        合法 = 2~3 条正面 + ≤1 条负面。判据放在这里共用：窄读竞速的采信判据
+        （读丢一行就不合法）与主流程的兜底判据必须是同一套。
+        """
+        try:  # 服务器以包成员加载，相对导入才可靠
+            from .core import riven_analysis as RA
+            from .core.parser import RIVEN_STAT_ZH
+        except ImportError:  # pragma: no cover - 本地直跑
+            from core import riven_analysis as RA
+            from core.parser import RIVEN_STAT_ZH
+        rev = {v: k for k, v in RIVEN_STAT_ZH.items()}
+        pos, neg, notes = RA.parse_riven_lines(
+            lines, lambda nm: cls._stat_id_from_name(nm, rev))
+        return pos, neg, (2 <= len(pos) <= 3 and len(neg) <= 1), notes
+
+    @classmethod
+    def _parse_riven_lines_text(cls, text: str) -> dict:
+        """窄读回答（纯文本）→ {"lines": [...]}；卡面不合法则返回 {} 让位下一个渠道。
+
+        「能解析」不等于「读全了」：模型漏一行时整卡就落在非法区间，所以这里
+        用 `_riven_lines_legal` 当判据，宁可多等一个渠道也不采信残缺结果。
+        """
+        lines = [ln.strip() for ln in str(text or "").splitlines() if ln.strip()]
+        pos, neg, legal, notes = cls._riven_lines_legal(lines)
+        logger.info("[sdjk] 紫卡行读候选：%d 正 %d 负（%s）%s", len(pos), len(neg),
+                    "采信" if legal else "不合法，继续等",
+                    ("；跳过 " + " / ".join(notes[:4])) if notes else "")
+        return {"lines": lines} if legal else {}
+
     async def _extract_riven_from_image(self, image_url: str) -> Optional[dict]:
-        """调 vision 渠道从紫卡截图提取词条，返回解析后的 dict 或 None。"""
+        """调 vision 渠道从紫卡截图提取词条，返回解析后的 dict 或 None。
+
+        ★ 两路并行（2026-09-27）：
+          · 窄读词条行 → 词条与极性的**唯一权威来源**；
+          · 语义 JSON → 武器名（含变体前缀），并在窄读失败时兜底词条。
+        两路都失败才返回 None（调用方给「重发一次」的提示）。
+        """
         prompt = (
             "你是 Warframe 紫卡识别器。从这张紫卡截图中提取信息，"
             "只输出一行 JSON（不要 markdown 围栏、不要解释）：\n"
@@ -3346,19 +3425,34 @@ class WarframeSDJK(Star):
             "⚠ 数值要连**小数点**一起读：卡面「+115.7%」就是 115.7，不能读成 1157；"
             "「-110.8%」就是 110.8。点号看不清时宁可按最接近的两位有效数字估，"
             "也不要直接丢掉点号。")
+        provs = self._vision_providers()
         try:
             # 并行竞速（原来串行试渠道，实测要 13 s）；窗口 60s（2026-09-23 补：
             # 渠道级超时可达 240s，不能让用户干等）
-            data = await self._vision_race_json(prompt, image_url,
-                                                self._vision_providers(),
-                                                k=2, tag="紫卡识别",
-                                                window=self.RACE_WINDOW_S)
+            data, lines = await asyncio.gather(
+                self._vision_race_json(prompt, image_url, provs, k=2,
+                                       tag="紫卡识别",
+                                       window=self.RACE_WINDOW_S),
+                self._vision_race_json(self._RIVEN_LINE_PROMPT, image_url, provs,
+                                       k=2, tag="紫卡行读",
+                                       window=self.RACE_WINDOW_S,
+                                       parse=self._parse_riven_lines_text),
+                return_exceptions=True)
         except Exception as exc:  # noqa: BLE001
             logger.warning("[sdjk] 紫卡识别失败：%s", exc)
             return None
-        if not data:
-            logger.warning("[sdjk] 紫卡识别：所有渠道都没给出可解析结果")
-        return data
+        for name, val in (("识别", data), ("行读", lines)):
+            if isinstance(val, BaseException):
+                logger.warning("[sdjk] 紫卡%s异常：%s", name, val)
+        data = None if isinstance(data, BaseException) else data
+        lines = None if isinstance(lines, BaseException) else lines
+        if not data and not lines:
+            logger.warning("[sdjk] 紫卡识别：两路都没给出可用结果")
+            return None
+        out = dict(data or {})
+        if lines:
+            out["lines"] = list(lines.get("lines") or [])
+        return out
 
     @staticmethod
     async def _detect_pips(image_url: str) -> list:
@@ -3857,6 +3951,23 @@ class WarframeSDJK(Star):
             if _w:
                 weapon_name = _w
             source_note = "（图片识别）"
+            # ★ 2026-09-27：优先采信「卡面文字行」，而不是模型给的语义词条表。
+            #   故障实证（服务器日志 01:11:52）：4 行卡面被吐成 7 条 —— 负词条
+            #   那行拆成「触发」「持续」「触发时间」三份 + 凭空一条「滑暴」，
+            #   词条数校验直接报「4 正 2 负」把整张卡挡掉。行由**窄读那一路**
+            #   （`_RIVEN_LINE_PROMPT`）照抄，读全（2~3 正、≤1 负）才采信，
+            #   否则退回语义 JSON 的词条表。
+            _lines = data.get("lines")
+            if isinstance(_lines, str):
+                _lines = _lines.splitlines()
+            if isinstance(_lines, (list, tuple)) and _lines:
+                _lp, _ln, _legal, _notes = self._riven_lines_legal(_lines)
+                logger.info("[sdjk] 紫卡行解析：%d 正 %d 负（模型语义表 %d 正 %d 负）%s",
+                            len(_lp), len(_ln), len(stats_pos), len(stats_neg),
+                            ("；跳过 " + " / ".join(_notes)) if _notes else "")
+                if _legal:
+                    stats_pos, stats_neg = _lp, _ln
+                    source_note = "（图片识别·卡面逐行）"
             if not stats_pos:
                 return Reply(raw_text="图片识别到了武器但没读出词条，请按文字格式重发："
                                       "紫卡分析 武器名 暴伤82.8 范围1.6 负滑暴81.3")
@@ -4109,14 +4220,15 @@ class WarframeSDJK(Star):
         lines = []
         for r in chunk:
             tag = f"[{r['tier_cn']}]"
-            # 行结构：[纪元] 节点 · 任务 · 派系　可掉落 N 种 · 钢铁/九重天 · 速刷 · 剩X
+            # 行结构（★ 2026-09-27 用户口径，与裂隙卡一致）：
+            # [纪元] **任务类型 节点** · 派系　可掉落 N 种 · 钢铁/九重天 · 速刷 · 剩X
+            # 前半（纪元芯片 / 类型 / 节点）用**空格**连接，后半仍用「 · 」；
             # 标签顺序按维护者要求：**速刷放最后**、钢铁/九重天放它前面（倒数第二）。
-            parts = [f"{tag} {r['node']}"]
-            if r["type"] and r["type"] != "?":
-                parts.append(r["type"])
+            mtype = r["type"] if r["type"] and r["type"] != "?" else ""
+            line = " ".join(p for p in (tag, mtype, r["node"]) if p)
             if r["faction"]:
-                parts.append(r["faction"])
-            line = " · ".join(parts) + f"　可掉落 {r['unv']} 种"
+                line += f" · {r['faction']}"
+            line += f"　可掉落 {r['unv']} 种"
             if r["kind"]:
                 line += f" · {r['kind']}"
             if r["quick"]:
@@ -4286,6 +4398,7 @@ class WarframeSDJK(Star):
                 lines.append(f"· {ev}：{desc}" + ("" if wired else "（未接线）"))
             lines += ["", "时长：永久/7天/两周/N小时…（不写=命中一次后取消）",
                       "时间：22到8 / 每天19点 / 周1/3/5 23点",
+                      "筛选：一个词 = 一个条件（如 钢铁防御）；多个条件用逗号/空格并列（取或）",
                       "取消：蹲 取消（全部）/ 蹲 取消 裂隙 捕获（只删匹配项）"]
             # 2026-09-21 修：裸「蹲」应出卡片图（与其它指令一致）。
             # 原 text_only=True 是 v0.5 接手时的祖传写法，全插件唯一一处强制纯文本；
@@ -4413,6 +4526,15 @@ class WarframeSDJK(Star):
             if _ratings:
                 lines.append(f"※ 只在评级 {'/'.join(_ratings)} 的场次推送"
                              f"（想全都收就别写「高效/传奇」）")
+        if event_type == "裂隙":
+            # ★ 2026-09-26（审核通过）：多词元 = 多条件取或，而「钢铁/虚空/后纪…」
+            #   这类纯修饰词本意是与任务词合成一个条件 → 拆开写语义被放大。
+            #   只提示、**不改语义**（订阅按用户原样落库）。
+            #   非裂隙类型（仲裁 / 钢路侵袭）的 rule 由 `arbi.match_rule` 等各自解释，
+            #   语义不同、也不共用逗号分组，**本轮不做提示**（免将来重复问）。
+            _hint = dun_rule_hint(rule_parts)
+            if _hint:
+                lines.append(_hint)
         return Reply("◆ 蹲订阅成功", lines)
 
     # ------------------------------------------------------------------

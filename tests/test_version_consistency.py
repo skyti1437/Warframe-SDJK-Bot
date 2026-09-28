@@ -169,6 +169,48 @@ check("★ metadata.yaml 的 display_name == core.__brand__",
 check("★ metadata.yaml 的 desc 以品牌名开头",
       f"{BRAND}：" in meta, "desc 首词未跟随品牌")
 
+# ---------------------------------------------------------------------------
+# ★ 主指令数守卫（2026-09-27 审核 P0）
+# ---------------------------------------------------------------------------
+# 背景：删「对话助手」（54→53）时，**门面文案**里写死的「54」没跟着变 ——
+# `dist/package_release.py::_oss_metadata()` 的 desc、`dist/OPENSOURCE_README.md`、
+# `docs/项目总览.md`。而市场件是**直接打包现成 stage** 的（`make_market_zip.py`
+# 读 `dist/opensource/…`）⇒ 不重建 stage 就会带着旧数字发出去。
+# 这三处从此由本用例钉住：数字 != len(COMMAND_ALIASES) 直接测试失败。
+from core.parser import COMMAND_ALIASES            # noqa: E402
+
+_N_CMD = len(COMMAND_ALIASES)
+_N_ALIAS = sum(len(v) for v in COMMAND_ALIASES.values())
+
+
+def _num(text: str, pattern: str):
+    _m = re.search(pattern, text)
+    return int(_m.group(1)) if _m else None
+
+
+_oss_readme = (ROOT / "dist" / "OPENSOURCE_README.md").read_text(encoding="utf-8")
+_got = _num(_oss_readme, r"共 \*\*(\d+) 个主指令\*\*")
+check(f"★ dist/OPENSOURCE_README.md 的主指令数 == {_N_CMD}", _got == _N_CMD, str(_got))
+_overview = (ROOT / "docs" / "项目总览.md").read_text(encoding="utf-8")
+_c = _num(_overview, r"\*\*(\d+) 个主指令 /")
+_a = _num(_overview, r"个主指令 / (\d+) 个别名")
+check(f"★ docs/项目总览.md 规模数字 == {_N_CMD} 主指令 / {_N_ALIAS} 别名",
+      _c == _N_CMD and _a == _N_ALIAS, f"{_c} / {_a}")
+
+_PKG = ROOT / "dist" / "package_release.py"
+if _PKG.exists():
+    sys.path.insert(0, str(ROOT / "dist"))
+    import package_release as _P                            # noqa: E402
+
+    check("★ 门面 desc 的主指令数动态取自 COMMAND_ALIASES（不写死）",
+          "_command_count()" in _PKG.read_text(encoding="utf-8"),
+          "desc 未引用 _command_count()")
+    _desc_n = _num(_P._oss_metadata(), r"\*\*(\d+) 个主指令\*\*")
+    check(f"★ _oss_metadata() 渲染出的主指令数 == {_N_CMD}",
+          _desc_n == _N_CMD, str(_desc_n))
+else:
+    print("[SKIP] dist/package_release.py 不在当前副本内（开源包不带 dist/）")
+
 print()
 if FAILED:
     print(f"✗ {len(FAILED)} 项失败：" + "、".join(FAILED))

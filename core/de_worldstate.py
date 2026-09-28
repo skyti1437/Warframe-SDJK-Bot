@@ -100,6 +100,29 @@ def mission_type(key: str) -> str:
     return v or key
 
 
+@lru_cache(maxsize=1)
+def _mission_type_by_name() -> dict[str, str]:
+    """英文任务类型名（小写）-> 官方简中。
+
+    由两张官方表拼出：``missionTypes.json``（``MT_*`` -> 英文名）反查代码，
+    再取 ``mission_types_zh.json``（``MT_*`` -> 官方简中）。
+    例：``assassination`` -> ``MT_ASSASSINATION`` -> **刺杀**。
+    """
+    en = _load("missionTypes.json") or {}
+    zh = _load("mission_types_zh.json") or {}
+    out: dict[str, str] = {}
+    for code, rec in en.items():
+        name = rec.get("value") if isinstance(rec, dict) else rec
+        if isinstance(name, str) and name and code in zh:
+            out.setdefault(name.strip().lower(), zh[code])
+    return out
+
+
+def mission_type_zh_by_name(name: str) -> str:
+    """英文任务类型名 -> 官方简中（查不到返回空串，调用方自己兜底）。"""
+    return _mission_type_by_name().get((name or "").strip().lower(), "")
+
+
 def fissure_tier(modifier: str) -> tuple[str, int]:
     """VoidT1..T6 -> ("Lith", 1) 等；未知返回原文与 0。"""
     m = re.match(r"VoidT(\d)", modifier or "")
@@ -127,6 +150,69 @@ def language_text(key: str) -> tuple[str, str]:
     return "", ""
 
 
+# ★ 2026-09-28 §一：`[PH]` = DE 的开发中占位符（PlaceHolder），**不是可用文案**。
+#   实测官方全量包 140,264 键里 **1508** 条值以 `[PH]` 开头（严格大写；
+#   大小写不敏感 **1509** —— 多出的那条 `/Lotus/Language/Upgrades/
+#   AntiqueHeatStatusProcOnUltimateKillName` 写作 `[ph]`，所以判据必须大小写不敏感）。
+#   其中落在**运行期卡面表**的有：`zh_ext.json` **87** 条（1999 / Items / Weapons /
+#   CircleOfHell 四命名空间）、`languages_zh.json` **16** 条 ⇒ 旧实现会把
+#   `[PH] Lunaro Sugatra`、`[PH] Avoid the Lava` 这种直上卡。
+#   DE 自己在补丁说明里修过「PH 标签出现在游戏 HUD」的缺陷 ⇒ 这是真会漏的类型。
+#   修法：**查询封装层一处收口** —— 取到的值以 `[PH]` 开头（大小写不敏感、容忍前导空白）
+#   一律**视为无键**，继续走回退链，最终返回空串（调用方自然会落英文 + 注脚）。
+# ---------------------------------------------------------------------------
+# 官方值里的「占位符 / 模板标记」—— **单一真源**（★ 2026-09-28 §二 扩）
+# ---------------------------------------------------------------------------
+# 分两类语义，判据**集中在这里定义**（不要再散落到各调用点）：
+#
+# ① **不可用**：`_is_placeholder()` 命中 ⇒ **视同无键**走回落链（宁可落英文，
+#    也不许把带标记的半成品印上卡）。
+#      · `[PH] …`  —— DE 开发中占位符（大小写不敏感；官方全量包 **1508** 条）
+#      · `|val|`   —— **变量槽未填**。例：`PersonalMod_ShieldDelay_Desc`
+#        =「护盾充能延迟增加 |val|%。」（2026-09-28 审核线上实测，漏到深层科研卡上）
+#        ⚠️ 判据是「**段内含小写字母**（`any(ch.islower())`）」，这是为了**不误伤**：
+#          · `|COLOR_POS|` / `|COLOR_END|` / `|COUNT|` / `|STAT1|`（纯大写/数字族）**不算不可用** ——
+#            见 ② 与下面的反例护栏；若按「忽略大小写」一律判不可用，
+#            `CoHHarrowEximusDamageBoost_Desc`（含 `|COLOR_POS|100%|COLOR_END|`）
+#            会被整条弃掉，正文「…增加 100%。」就丢了（违反 2026-09-28 批 §二.2 的保留要求）。
+#          · `|1|`（`|OPEN_COLOR|1|CLOSE_COLOR|` 里的数字段）也**不算**（无字母）。
+# ② **可清洗**：`_clean_lang_text()` 剥掉标记、**保留正文**（不许因为含标记就整条弃掉）。
+#      · `<SHARD_ORANGE_SIMPLE>` 图标占位符 ⇒ 剥后「黄玉执刑官源力石」仍是好文案
+#      · `|COLOR_POS|…|COLOR_END|` 富文本       ⇒ 剥后「…100%…」仍是好文案
+#      · `|STAT1|` **数字槽**（★ 2026-09-28 二批裁定并入可清洗）—— 与 `|COUNT|` 同族：
+#        调用方有可能填数（`|COUNT|` 由 `_cal_objective` 填），没填的把槽剥掉、**留正文**；
+#        不升级为「不可用」（否则整条描述丢失，比「剥后残句」更糟）。
+#        ⚠️ 顺序陷阱：`|COUNT|` 是**纯字母**段，`_DIGIT_SLOT_RE` 不含纯字母 ⇒ 天然不受影响
+#        （测试里有「填数发生在清洗之后」的实测断言守这条）。
+_PH_PREFIX = "[ph]"
+# 任意 `|…|` 段（长度设上限，避免病态匹配）
+_ANY_SLOT_RE = re.compile(r"\|[^|<>]{1,24}\|")
+# 可清洗的标记（②）：尖括号图标占位符 + 纯大写富文本 `|COLOR_*|` + 大写数字槽 `|STAT1|`
+_ANGLE_TAG_RE = re.compile(r"<[^<>]{1,40}>")
+_COLOR_TAG_RE = re.compile(r"\|[A-Z_]{2,20}\|")
+# 数字槽：大写+数字（`|STAT1|` / `|BONUS2|` / `|OPEN_COLOR1|` / `|1|`）。
+# **不含纯字母段** ⇒ `|COUNT|` / `|DURATION|` 这类「调用方填数槽」不会被误剥（见上方 ⚠️）。
+_DIGIT_SLOT_RE = re.compile(r"\|[A-Z_]*\d[A-Z_]*\|")
+
+
+def _is_placeholder(value: str) -> bool:
+    """值是否**不可用**（命中 ⇒ 视同无键，走回落链）。
+
+    判据两条（见上方 ① 的说明；**判据按数据实测得出，不是拍脑袋的大小写规则**）：
+      · `[PH]` 前缀（大小写不敏感）；
+      · **含小写字母的 `|…|` 段** = 未填的变量槽 —— 覆盖 `|val|`（下划线小写族）
+        与 `|NumAvatarsInside|`（驼峰族，`CircleOfHell/HUD_PlayersWaitingOnYou` 里实测有）。
+    纯大写 / 数字段（`|COUNT|`、`|STAT1|`、`|COLOR_POS|`、`|1|`）是**可替换或可剥**
+    的格式标记，**不算不可用** —— 详见下方两条反例护栏（`CoHHarrowEximusDamageBoost_Desc`
+    的正文「…100%。」与 `|OPEN_COLOR|1|CLOSE_COLOR|` 里的数字段都必须留住）。
+    """
+    s = (value or "").lstrip()
+    if s.lower().startswith(_PH_PREFIX):
+        return True
+    return any(any(ch.islower() for ch in m.group(0))
+               for m in _ANY_SLOT_RE.finditer(s))
+
+
 def language_text_zh(key: str) -> str:
     """DE 官方简中词表查询（``languages_zh.json``，来自官方导出 dict.zh）。
 
@@ -138,17 +224,57 @@ def language_text_zh(key: str) -> str:
 
     Returns:
         中文串；查不到返回空串（调用方自己决定回落到英文还是美化路径）。
+        `[PH] …` 占位符视为查不到（见 :func:`_is_placeholder`）。
     """
     if not key:
         return ""
     table = _load("languages_zh.json") or {}
-    hit = table.get(key)
-    if hit is None:
-        hit = table.get(key.lower())
-    if hit is None and "/" in key:
+    ext = _load("zh_ext.json") or {}          # 构建期提取的补充表（见 scripts/build_zh_ext.py）
+    # 候选顺序：完整路径 → 小写 →（兼容位）裸尾段。命中即返回**非占位符**的值。
+    cands = [key, key.lower()]
+    if "/" in key:
+        # ⚠️ 尾段这一级是**死代码**（2026-09-27 审核实测 + 我复核）：两张表
+        #    （本地 36k + zh_ext 7,471）里**无斜杠键均为 0** ⇒ 传 tail 永远查不到。
+        #    保留仅为「将来若有人把表改成短键」的兼容位；**调用方请一律传完整路径**
+        #    （跨命名空间回退要**显式枚举候选全路径**，别指望这里兜）。
         tail = key.rstrip("/").rsplit("/", 1)[-1]
-        hit = table.get(tail)
-    return hit if isinstance(hit, str) else ""
+        cands.append(tail)
+        if tail.endswith("Name"):
+            cands.append(tail[:-4])           # `…NameNoIcon` → `…Name` → `…`
+    for tb in (table, ext):                   # 本地 36k 优先，补充表兜底
+        for cand in cands:
+            hit = tb.get(cand)
+            if isinstance(hit, str) and hit and not _is_placeholder(hit):
+                return _clean_lang_text(hit)
+    return ""
+
+
+# 卡面清洗（★ 2026-09-27 审核 §一/§五.3；★ 2026-09-28 §二 与 `_is_placeholder` 并到同一处）：
+#   · 图标占位符：`<SHARD_ORANGE_SIMPLE>黄玉执刑官源力石`
+#   · 富文本着色标记：`|COLOR_POS|` … `|COLOR_END|`
+#   · 多行描述里的 CRLF
+# 提取表里**保留原文**（便于排错），清洗统一放在这里做。
+# ⚠️ 这里用的三个 `_*_RE` 与不可用判据 `_is_placeholder()` 的 `_ANY_SLOT_RE`
+#    **定义在同一处**（文件顶部「占位符/模板标记单一真源」块）——
+#    两类语义（剥 / 弃）分得很清楚，别把某一类挪走。
+
+
+def _clean_lang_text(s: str) -> str:
+    """官方值 → 可直接上卡的一行文本（剥占位符 / 富文本标记，压平换行）。
+
+    只剥**可清洗**类标记（见顶部 ②）：尖括号图标占位符、`|COLOR_*|` 富文本、
+    **大写数字槽** `|STAT1|`；**变量槽**（`|val|`）不在这里剥 —— 那是「不可用」类，
+    由 :func:`_is_placeholder` 在查询层拦掉（剥掉会留下「%」这种半成品）。
+
+    ⚠️ 剥数字槽会留下「残句」（如 `…增加 % 技能强度`），这是**已裁定的可接受代价**
+    （对面是「整条描述丢失」）；实测这些键当前都不上卡，若哪天接线显示需重新评估。
+    """
+    s = _ANGLE_TAG_RE.sub("", s or "")
+    s = _COLOR_TAG_RE.sub("", s)
+    s = _DIGIT_SLOT_RE.sub("", s)
+    for _ch in (chr(13), chr(10)):
+        s = s.replace(_ch, " ")
+    return " ".join(s.split())
 
 
 def text_cn(key: str, *, fallback: str = "") -> str:
@@ -206,6 +332,59 @@ MANUAL_ITEM_NAMES = {
 
 def item_name_opt(path: str) -> Optional[str]:
     """DE 资产路径 -> 中文/英文名；词库无覆盖时返回 None（不编造）。"""
+    return item_name_opt_ex(path)[0]
+
+
+# 「蓝图」类资产：DE 官方词表**只有基名**、没有「…Blueprint」这一条
+# （实测 `OrokinCatalystBlueprint` / `OrokinReactorBlueprint` 在本地 36k、
+#  zh_ext 7,471、18MB 全量 140,264 三处全查无；`/Lotus/Language/Items/OrokinCatalyst`
+#  = 奥罗金催化剂 则是有的）。按维护者 2026-09-27 裁定：官方基名 + 「蓝图」**合成**，
+#  并在卡面注脚标明是合成译名 —— 「官方没有的写法 ≠ 不存在的东西」，
+#  但也不许把合成结果冒充游戏内原文。
+_ITEM_BLUEPRINT_MARK = "Blueprint"
+_ITEM_BLUEPRINT_SUFFIX = "蓝图"
+_CJK_RE = re.compile(r"[\u4e00-\u9fff]")
+
+
+def _blueprint_synth(path: str) -> Optional[str]:
+    """``…Blueprint`` 资产 -> 官方基名 + 「蓝图」；基名拿不到官方中文时返回 None。
+
+    基名查的是**官方语言表**（4 个卡面命名空间 × 尾段归一化），不是资产名表 ——
+    资产树是 `/Lotus/Types/Recipes/Components/OrokinCatalyst`，语言键却在
+    `/Lotus/Language/Items/OrokinCatalyst`，两边路径对不上，只能按尾段找。
+    只接受**官方中文**基名：英文基名（如 `Orokin Catalyst`）拼上「蓝图」是硬编。
+    """
+    if not path.endswith(_ITEM_BLUEPRINT_MARK):
+        return None
+    base = path[:-len(_ITEM_BLUEPRINT_MARK)]
+    tail = base.rstrip("/").rsplit("/", 1)[-1]
+    if not tail:
+        return None
+    _key, zh = _card_lang_by_tail(tail)
+    if zh:
+        return zh + _ITEM_BLUEPRINT_SUFFIX
+    # 语言表没覆盖时再看本地物品词表（同样要求是中文）
+    name = _item_name_raw(base)
+    if name and _CJK_RE.search(name):
+        return name + _ITEM_BLUEPRINT_SUFFIX
+    return None
+
+
+def item_name_opt_ex(path: str) -> tuple[Optional[str], bool]:
+    """同 :func:`item_name_opt`，另给「是否合成译名（非游戏内原文）」标记。
+
+    调用方（卡面）应在 ``synthetic`` 为真时加注脚说明，别让用户以为是官方文案。
+    """
+    if not path:
+        return (None, False)
+    synth = _blueprint_synth(path)
+    if synth:
+        return (synth, True)
+    return (_item_name_raw(path), False)
+
+
+def _item_name_raw(path: str) -> Optional[str]:
+    """官方词库 -> 英文名 -> 路径美化（不含「蓝图」合成）。"""
     if not path:
         return None
     key = path.strip().lower()
@@ -417,7 +596,17 @@ _DT_TAG_SUB = re.compile(r"<[^<>]{0,40}>")
 
 
 def _fmt_left(ms_left: int) -> str:
-    secs = max(0, ms_left // 1000)
+    """毫秒差 → 「Xh Ym / Xm Ys / Xs」。
+
+    ★ 2026-09-27（审核 §三）：**负值不再静默钳成 0**。旧写法 ``max(0, …)`` 把
+    已过期条目显示成「剩 0s」—— 线上实测 6 条风暴显示 0s，实为 DE 保留下发的
+    **上一批已结束**条目（审核拉 worldState 钉死：12 条 = 两批、各 6 条、存活
+    90 分钟、相隔 60 分钟，前一批已过期 8 分钟）。负值一律返回「已结束」，
+    由调用方决定过滤（`_parse_void_storms` 已过滤）或标注。
+    """
+    if ms_left <= 0:
+        return "已结束"
+    secs = ms_left // 1000
     h, rem = divmod(secs, 3600)
     m, s = divmod(rem, 60)
     if h:
@@ -487,15 +676,32 @@ def duviri_mood_cn(mood: str) -> str:
     return DUVIRI_STATES_CN.get(mood, mood)
 
 
-# 1999 日历「增益覆写」条目名。
-# ⚠️ DE 的简中/繁中公开导出里**没有**这一批字符串（实测 dict.zh / dict.tc 均查不到，
-#    2026-09-17 复核 languages_zh.json：/Lotus/Upgrades/Calendar 前缀 0 条）。
-# 因此中文名分两级来源，**分组标注**，便于日后按实机逐条替换：
-#   A. 实机核实：游戏内对照过，可信度最高
-#   B. 意译：依据该条的官方英文名（languages.json 的 value）与效果说明
-#      （同条的 desc 字段）译出，目的是让卡片可读。若与实机不符，以实机为准。
+# 1999 日历「增益覆写」条目名 —— **兜底表**（主路径查官方键）。
+#
+# 旧注释「DE 的简中导出里没有这一批字符串」是**错的**：`/Lotus/Language/1999/`
+# 官方有 **716** 键，每条覆写都有 `<尾段>Name`（如
+# `/Lotus/Language/1999/MeleeCritChanceName` = 熟能生巧）。以前落英文是因为本地
+# 36k 表没收录这个命名空间，不是因为 DE 没给。
+#
+# 现在主路径 = `/Lotus/Upgrades/Calendar/<尾段>` -> `/Lotus/Language/1999/<尾段>Name`
+# -> `<尾段>`（归一化、大小写/分隔符不敏感）；本表降级为**兜底**，
+# 且**表内每条都必须与官方值逐字一致**（测试复算）。
+#
+# ★ 2026-09-27 按官方值订正 **15** 条（原手编与官方不符）：
+#   Armor 皮糙肉厚→硬化装甲 ｜ AttackAndMovementSpeedOnCritMelee 一触即散→快刀斩乱麻
+#   BlastEveryXShots 爆破狂欢→爆炸派对 ｜ CompanionDamage 坚实后盾→好兄弟
+#   CompanionsRadiationChance 友方辐射→辐射支援 ｜ EnergyRestoration 浓缩能量→特浓咖啡
+#   EnergyWavesOnCombo 连击冲击波→波动连段 ｜ FinisherChancePerComboMultiplier 连击杀手→杀意连段
+#   GasChanceToPrimaryAndSecondary 剧毒射击→毒气弹头 ｜ MagnetStatusPull 引力牵引→吸引力
+#   MagnitizeWithinRangeEveryXCasts 磁力威胁→磁场威胁 ｜ OvershieldCap 硬化护盾→硬质化
+#   PowerStrengthAndEfficiencyPerEnergySpent 力量压制→能量过载 ｜ PunchToPrimary 穿孔卡→打孔纸带
+#   RadiationProcOnTakeDamage 心灵反馈→精神反击
+#
+# ★ 2026-09-28 §四：**本轮起官方查表已覆盖现行覆写池全部 38 条**（可由
+#   `_calendar_upgrade_zh()` 逐条复算，0 未解出）⇒ 本表**仅作离线/查表失败兜底**，
+#   新增条目**一律先与官方对拍**再写进来。38 条全表见审核产物
+#   `1999取证-20260928/1999覆写池-38条-code与官方简中.md`。
 CAL_UPGRADE_CN = {
-    # —— A. 实机核实 ——
     "/Lotus/Upgrades/Calendar/MeleeCritChance": "熟能生巧",
     "/Lotus/Upgrades/Calendar/EnergyOrbToAbilityRange": "极限拓展",
     "/Lotus/Upgrades/Calendar/HealingEffects": "应急特效药",
@@ -505,37 +711,47 @@ CAL_UPGRADE_CN = {
     "/Lotus/Upgrades/Calendar/MeleeAttackSpeed": "毫不留情",
     "/Lotus/Upgrades/Calendar/AbilityStrength": "力量飙升",
     "/Lotus/Upgrades/Calendar/MagazineCapacity": "重型弹匣",
-    # —— B. 依英文名与效果意译（2026-09-17 补，待实机核对）——
-    "/Lotus/Upgrades/Calendar/Armor": "皮糙肉厚",                    # Thick Skin
-    "/Lotus/Upgrades/Calendar/AttackAndMovementSpeedOnCritMelee":
-        "一触即散",                                                  # Hit'N'Split
-    "/Lotus/Upgrades/Calendar/BlastEveryXShots": "爆破狂欢",          # Have A Blast
-    "/Lotus/Upgrades/Calendar/CompanionDamage": "坚实后盾",           # Got Your Back
-    "/Lotus/Upgrades/Calendar/CompanionsBuffNearbyPlayer":
-        "人多势众",                                                  # More the Merrier
-    "/Lotus/Upgrades/Calendar/CompanionsRadiationChance":
-        "友方辐射",                                                  # Friendly Fallout
-    "/Lotus/Upgrades/Calendar/ElectricStatusDamageAndChance":
-        "瓶装闪电",                                                  # Bottled Lightning
-    "/Lotus/Upgrades/Calendar/EnergyRestoration": "浓缩能量",         # Espresso Shots
-    "/Lotus/Upgrades/Calendar/EnergyWavesOnCombo": "连击冲击波",      # Combo Wave
-    "/Lotus/Upgrades/Calendar/FinisherChancePerComboMultiplier":
-        "连击杀手",                                                  # Combo Killer
-    "/Lotus/Upgrades/Calendar/GasChanceToPrimaryAndSecondary":
-        "剧毒射击",                                                  # Toxic Shot
-    "/Lotus/Upgrades/Calendar/GenerateOmniOrbsOnWeakKill":
-        "强制输血",                                                  # Involuntary Transfusion
-    "/Lotus/Upgrades/Calendar/GuidingMissilesChance": "追踪射击",     # Tickshots
-    "/Lotus/Upgrades/Calendar/MagnetStatusPull": "引力牵引",          # Force Of Attraction
-    "/Lotus/Upgrades/Calendar/MagnitizeWithinRangeEveryXCasts":
-        "磁力威胁",                                                  # Magnetic Menace
-    "/Lotus/Upgrades/Calendar/OvershieldCap": "硬化护盾",            # Harden Up
-    "/Lotus/Upgrades/Calendar/PowerStrengthAndEfficiencyPerEnergySpent":
-        "力量压制",                                                  # Overpower
-    "/Lotus/Upgrades/Calendar/PunchToPrimary": "穿孔卡",             # Punchcard
-    "/Lotus/Upgrades/Calendar/RadiationProcOnTakeDamage":
-        "心灵反馈",                                                  # Psionic Feedback
+    "/Lotus/Upgrades/Calendar/ElectricStatusDamageAndChance": "瓶装闪电",
+    "/Lotus/Upgrades/Calendar/CompanionsBuffNearbyPlayer": "人多势众",
+    "/Lotus/Upgrades/Calendar/GenerateOmniOrbsOnWeakKill": "强制输血",
+    "/Lotus/Upgrades/Calendar/Armor": "硬化装甲",
+    "/Lotus/Upgrades/Calendar/AttackAndMovementSpeedOnCritMelee": "快刀斩乱麻",
+    "/Lotus/Upgrades/Calendar/BlastEveryXShots": "爆炸派对",
+    "/Lotus/Upgrades/Calendar/CompanionDamage": "好兄弟",
+    "/Lotus/Upgrades/Calendar/CompanionsRadiationChance": "辐射支援",
+    "/Lotus/Upgrades/Calendar/EnergyRestoration": "特浓咖啡",
+    "/Lotus/Upgrades/Calendar/EnergyWavesOnCombo": "波动连段",
+    "/Lotus/Upgrades/Calendar/FinisherChancePerComboMultiplier": "杀意连段",
+    "/Lotus/Upgrades/Calendar/GasChanceToPrimaryAndSecondary": "毒气弹头",
+    "/Lotus/Upgrades/Calendar/MagnetStatusPull": "吸引力",
+    "/Lotus/Upgrades/Calendar/MagnitizeWithinRangeEveryXCasts": "磁场威胁",
+    "/Lotus/Upgrades/Calendar/OvershieldCap": "硬质化",
+    "/Lotus/Upgrades/Calendar/PowerStrengthAndEfficiencyPerEnergySpent": "能量过载",
+    "/Lotus/Upgrades/Calendar/PunchToPrimary": "打孔纸带",
+    "/Lotus/Upgrades/Calendar/RadiationProcOnTakeDamage": "精神反击",
+    # —— 手编表原先漏掉的 4 条（本期线上/常见轮换里出过，官方键都在）——
+    "/Lotus/Upgrades/Calendar/RadialJavelinOnHeavy": "重型标枪",
+    "/Lotus/Upgrades/Calendar/ElectricalDamageOnBulletJump": "电能飞跃",
+    "/Lotus/Upgrades/Calendar/MeleeSlideFowardMomentumOnEnemyHit": "斩筋断骨",
+    "/Lotus/Upgrades/Calendar/StatusChancePerAmmoSpent": "累积弹匣",
 }
+
+# 官方**确实没有**键的覆写条目 —— 逐条实测（本地 36k + zh_ext 7,471 + 18MB 全量包
+# 140,264 键三处全查无，含大小写/分隔符归一化搜索）⇒ 卡面留英文 + 注脚，不硬编。
+# 例：GuidingMissilesChance 的官方英文名是 `Tickshots`（languages.json 有），简中无。
+#
+# ★ 2026-09-28 §五：`GuidingMissilesChance` 已**不在现行覆写池**——
+#   · 官方包搜 `guidingmissiles` = **0 键**；
+#   · wiki Hex Override 全表（**38 条**，见 `1999取证-20260928/1999覆写池-38条-code与官方简中.md`）
+#     里**也没有**这一条。
+#   ⇒ 判定：**已废弃 / 非现行池**（DE 无对应文案，wiki 池亦无），保留清单只为
+#     「万一 worldstate 又下发它」时不硬编。
+#   卡面行为（已实测确认）：`_calendar_upgrade_zh()` 返回 `""`，且它**不在** `CAL_UPGRADE_CN`
+#   ⇒ 落 `fmt._cal_name(_prettify(tail))` = 英文 `Guiding Missiles Chance`，并计入
+#     日历卡的 `noKey` 注脚（`※ 官方无简中、保留原文：…`）——即「留英文 + 注脚」，可接受。
+CAL_UPGRADE_NO_KEY = frozenset({
+    "/Lotus/Upgrades/Calendar/GuidingMissilesChance",
+})
 
 
 def duviri_cycle(now_ms: int) -> dict:
@@ -815,6 +1031,7 @@ def _parse_invasions(raw: dict) -> list[dict]:
         goal = inv.get("Goal") or 1
         at_pct = max(0.0, min(100.0, (goal + count) / (2 * goal) * 100))
         vs_pct = 100.0 - at_pct
+        synth: list[str] = []
 
         def _side(faction_key: str, reward_key: str) -> dict:
             reward = inv.get(reward_key) or {}
@@ -823,8 +1040,11 @@ def _parse_invasions(raw: dict) -> list[dict]:
             items = reward.get("countedItems") or []
             parts: list[str] = []
             for it in items:
-                name = item_name_opt(it.get("ItemType", "")) \
-                    or _prettify(it.get("ItemType", ""))
+                name, _synth = item_name_opt_ex(it.get("ItemType", ""))
+                if name is None:
+                    name = _prettify(it.get("ItemType", ""))
+                elif _synth:
+                    synth.append(name)
                 cnt = it.get("ItemCount") or 1
                 if not name:
                     continue
@@ -850,6 +1070,8 @@ def _parse_invasions(raw: dict) -> list[dict]:
             "goal": goal,
             "activation": _iso_of(inv, "Activation"),
             "expiry": "",
+            # 合成译名清单（如「奥罗金催化剂蓝图」）：卡面据此加注脚
+            "synthetic": sorted(set(synth)),
         })
     # 与游戏内一致：按「争夺最激烈」排序（越接近 50/50 越靠前）
     out.sort(key=lambda x: abs(x["attacker_pct"] - 50))
@@ -980,10 +1202,21 @@ def conclave_text(en: str) -> str:
 
 
 def _parse_void_storms(raw: dict, now_ms: int) -> list[dict]:
+    """九重天虚空风暴（已过期条目**过滤**，按真实剩余毫秒排序）。
+
+    ★ 2026-09-27（审核 §三）：DE 会保留下发**上一批已结束**的 VoidStorms
+    （线上实测 12 条 = 两批，各 6 条、存活 90 分钟、相隔 60 分钟）。旧实现
+    ① 不过滤 ⇒ 过期条目显示「剩 0s」；② 按**格式化字符串**排序 ⇒ `"0s" < "52m 18s"`
+    把过期条目排到每组最前（与用户截图逐项吻合）。现在：过期即丢弃，
+    排序改按真实剩余毫秒升序。
+    """
     out = []
     for s in raw.get("VoidStorms") or []:
         node = s.get("Node") or ""
         end = _ms(s.get("Expiry"))
+        if end and end <= now_ms:
+            continue                     # 已结束：用户看卡时已不可玩
+        left_ms = (end or now_ms) - now_ms
         out.append({
             "node": node,
             "nodeCn": _node_name(node) if node else "?",
@@ -991,9 +1224,10 @@ def _parse_void_storms(raw: dict, now_ms: int) -> list[dict]:
             "tier": VOIDSTORM_TIER_CN.get(s.get("ActiveMissionTier", ""),
                                           s.get("ActiveMissionTier", "")),
             "expiry": _iso(end),
-            "timeLeft": _fmt_left((end or now_ms) - now_ms),
+            "timeLeft": _fmt_left(left_ms),
+            "_msLeft": left_ms,          # 排序用（真实剩余毫秒，别拿字符串排）
         })
-    out.sort(key=lambda x: x["timeLeft"])
+    out.sort(key=lambda x: x["_msLeft"])
     return out
 
 
@@ -1260,9 +1494,14 @@ _JOB_META = _load_job_meta()
 #  —— 与用户提供的沃沃截图逐项一致的是**钢铁版**，2026-09-26 据此更正）。
 # 中文名取自**官方简中表**（`/Lotus/Language/NokkoColony/LocationName`=深矿、`Job2Name`=企业重组）。
 # ⚠️ 来源=社区观测，**不是 DE 下发的数据**：`source` 字段随卡面注明，便于区分与复核。
-# 卡面名不带「（钢铁之路）」后缀：标签位已有「钢铁之路 · 社区观测」，避免同一行重复两次
-# （`rewardTable` 的轮次后缀在此**无意义** —— DE 不下发该档，当前轮次无从得知，
-#  渲染侧对 community 档固定列 A/B/C 全部轮次，见 `formatters._bounty_rows`）。
+# ★ 2026-09-26 二次更正（用户实测 + 沃沃对拍）：**任务名是轮换的** —— 沃沃 10:51 显示
+# 「深矿 解放小动物（钢铁之路）」，而用户 10:5x 的截图是「企业重组」；官方导出里
+# `NokkoColonyRewards{A,B,C}` 三张表**就是三个任务**（实测部件对与资源一一对应）：
+#   A = 解放小动物（FungusHeart 心肌菌孢子 + 机体/枪机）
+#   B = 企业重组  （CoolantItem 热能软泥 + 系统/枪管）← 旧池取自这张
+#   C = 花园除草  （VenusCoconut 葛嘉里菌孢子 + 头部神经光元/枪托）
+# DE 不下发「当前是哪一档」⇒ 卡面**不写死任务名**（改「深矿（钢铁之路）」），
+# 并在注脚说明轮换；奖励仍列钢铁版三表合并（对未知轮换是超集，见 build_nokko_sp_pool.py）。
 SOLARIS_SUPPLEMENT_JOBS: tuple[dict, ...] = ({
     "jobType": "深矿 企业重组（钢铁之路）",
     "jobTypeKey": "NokkoColonyEnterpriseSP",
@@ -1271,7 +1510,7 @@ SOLARIS_SUPPLEMENT_JOBS: tuple[dict, ...] = ({
     "standingStages": [],
     "masteryReq": None,
     "rewardTable": "NokkoColonyRewardsSteel",
-    "_jobName": "深矿：企业重组",
+    "_jobName": "深矿（钢铁之路）",
     "_jobDesc": "",
     "_jobFinal": [],
     "_jobStages": 0,
@@ -1332,19 +1571,37 @@ def _parse_syndicate_missions(raw: dict) -> list[dict]:
     return out
 
 
-# 深层科研（Descents）任务类型 -> 英文名（供 mission_cn 二次中文化）
+# 沉沦之地（炼狱塔）任务类型代码 -> **wiki `The Descendia` 的本周层名英文**
+# （供 `mission_cn()` 二次中文化 / 无键时的英文兜底）。
+#
+# ★ 2026-09-28 §二：**这张表的英文名原先大面积写错**，而它经 `mission_cn()` 兜底
+#   就会变成**错的中文** ⇒ 属「静默错槽」（英文名错 → 中文也错），不是「查不到中文」。
+#   实测被卡面暴露的 2 处：`DT_MIMICS` 写 `Exterminate` ⇒ 卡面「歼灭」（应为掠夺轮盘）、
+#   `DT_INTERCEPTION` 写 `Interception` ⇒ 卡面「拦截」（应为移动拦截）。
+#   依据 = wiki `The Descendia`（2026-09-23，含 Update 44.0）本周 21 层逐层对拍 +
+#   `wiki资源-20260928/wiki-表7-Descents-Type.md`；**不是**第三方社区译文（灰机那份已判不可采信）。
+#   后 6 条当前无卡面影响（官方键已先命中），一并订正防复发。
 DESCENT_TYPES = {
     "DT_ALCHEMY": "Alchemy", "DT_BOSS": "Assassination",
-    "DT_BREAK_TARGETS": "Assassination", "DT_CAPTURE": "Capture",
-    "DT_COLLECTION": "Recovery", "DT_DEFENSE": "Defense",
+    "DT_BREAK_TARGETS": "Destroy Hologlobes",       # 原 Assassination（错）
+    "DT_CAPTURE": "Capture",
+    "DT_COLLECTION": "Void Flood",                  # 原 Recovery（错）
+    "DT_DEFENSE": "Defense of a protoframe",        # 原 Defense（错）
+    "DT_DEFENSE_PROTECT": "Defense",                # 本轮补齐（手译表原有、代码表缺）
     "DT_EXCAVATION": "Excavation", "DT_EXTERMINATE": "Exterminate",
-    "DT_INFESTED_SALVAGE": "Infested Salvage", "DT_INTERCEPTION": "Interception",
-    "DT_LOOT": "Hijack", "DT_LOOT_CREATURES": "Hijack",
-    "DT_MIMICS": "Exterminate", "DT_NETRACELLS": "Recovery",
-    "DT_PRESURE_GAUGE": "Excavation", "DT_PROTOFRAME": "Defense",
-    "DT_RACE": "Pursuit", "DT_SABOTAGE_DEFENSE": "Sabotage",
-    "DT_SABOTAGE_HIVE": "Sabotage", "DT_SHRINE_DEFENSE": "Defense",
-    "DT_UNIQUE": "Assassination",
+    "DT_INFESTED_SALVAGE": "Infested Salvage",
+    "DT_INTERCEPTION": "Mobile Interception",       # 原 Interception（错 ⇒ 卡面「拦截」）
+    "DT_LOOT": "Hijack", "DT_LOOT_CREATURES": "Gruzzling Plunder",   # 原 Hijack（错）
+    "DT_MIMICS": "Plunder Roulette",                # 原 Exterminate（错 ⇒ 卡面「歼灭」）
+    "DT_MOVING_INTERCEPTION": "Mobile Interception",  # 本轮补齐
+    "DT_NETRACELLS": "Targeted Elimination",        # 原 Recovery（错）
+    "DT_PRESURE_GAUGE": "Volatile",                 # 原 Excavation（错）
+    "DT_PROTOFRAME": "Defense",
+    "DT_RACE": "Pursuit", "DT_SABOTAGE_DEFENSE": "Defense",   # 原 Sabotage（错 ⇒ 卡面英文）
+    "DT_SABOTAGE_HIVE": "Hive",                     # 原 Sabotage（错）
+    "DT_SHRINE_DEFENSE": "Defense",
+    "DT_TIME_TRIAL": "Time Tribulation",            # 本轮补齐
+    "DT_UNIQUE": "Assassination",                   # 官方无键、wiki 未收录 ⇒ 保持英文
 }
 
 
@@ -1447,8 +1704,12 @@ def _parse_descents(entry: dict) -> dict:
     seen: set[str] = set()
     for ch in entry.get("Challenges") or []:
         code = ch.get("Type", "")
-        label = DESCENT_TYPES.get(code, mission_type(code) if code.startswith("MT_")
-                                  else _prettify(code))
+        # ★ 2026-09-28 §二：这里**先走官方解析**再回落英文名 —— 否则 `DESCENT_TYPES`
+        #   英文名一改，`mission_cn()` 就会把本路径的 missionType 变成英文，
+        #   把「深层科研」卡带崩（该卡只做 mission_cn()，中文会被原样透传）。
+        label = (descent_type_zh(code)
+                 or DESCENT_TYPES.get(code, mission_type(code)
+                                      if code.startswith("MT_") else _prettify(code)))
         if label in seen:
             continue
         seen.add(label)
@@ -1464,25 +1725,270 @@ def _parse_descents(entry: dict) -> dict:
             "missions": missions, "risks": risks, "variables": []}
 
 
+# ---------------------------------------------------------------------------
+# 沉沦之地（炼狱塔）：内部代码 -> 官方简中（★ 2026-09-27 §二）
+# ---------------------------------------------------------------------------
+# 旧结论「DE 没有给这些代码的官方中文名」是**错的**：`/Lotus/Language/CircleOfHell/`
+# 官方有 **268** 键（含 68 个 `CoHChallenge*`），本轮 21 层里 20 层都能查到。
+# 之所以以前落英文，是因为**本地 36k 表没收录这个命名空间**，而不是 DE 没给 ——
+# 现在 `zh_ext.json` 已覆盖（见 scripts/build_zh_ext.py）。
+#
+# 解析优先级（对本轮实测的 8 级）：
+#   ① 剥 `NC_` 前缀再试（NC_SecuritySpin -> SecuritySpin）
+#   ② `CoHChallenge{code}`
+#   ③ `CoHChallengeEximus{code}`      ← Eximus 家族（HardShell/PowerHouse/ToxicFire …）
+#   ④ `CoHChallenge{code}Only`        ← Manics -> ManicsOnly
+#   ⑤ `CoH{code}Desc`                 ← MineField / SecuritySpin / SlipAndSlide
+#   ⑥ `CoHProtoframe{code}`           ← Devil / Harrow / Wisp
+#   ⑦ 双向子串兜底（归一化：大小写不敏感、去 `-`/`_`/空格；并列歧义 ⇒ 判不可靠）
+#   ⑧ 皆无 ⇒ 返回空串，调用方回落英文 + 卡面注脚（**不硬编译名**）
+#
+# ⚠️ 官方键与内部代码**不是处处一字对应**（`FireChain` 的键是 `CoHChallengeFirechain`、
+#    `JumpSmash` 是 `CoHChallengeJumpsmash`、DE 把 `Arbitration` 拼成 `Arbitation`），
+#    所以比对一律走归一化；命中后再核语义，**不套近似键**。
+_COH_NS = "/Lotus/Language/CircleOfHell"
+
+# 键尾的「族前缀」：归一化后先剥掉再比对，让 `fierytrail` 能对上
+# `CoHChallengeFieryTrail`、`escapist` 能对上 `CoHEscapist`。
+# 顺序=从长到短（先剥长前缀，避免 `cohchallenge` 被 `coh` 抢先剥掉）。
+_COH_FAMILIES = ("cohchallengeeximus", "cohchallenge", "cohprotoframe",
+                 "cohgamemode", "coh")
+
+
+def _norm_key(s: str) -> str:
+    """官方键尾 / 内部代码的归一化形：小写 + 去 `-`/`_`/空格。"""
+    return re.sub(r"[-_ ]", "", (s or "").lower())
+
+
+def _coh_stem(tail: str) -> str:
+    """键尾去掉族前缀后的「词干」（用于子串兜底）。"""
+    n = _norm_key(tail)
+    for p in _COH_FAMILIES:
+        if n.startswith(p):
+            return n[len(p):]
+    return n
+
+
+@lru_cache(maxsize=1)
+def _coh_index() -> dict:
+    """CircleOfHell 命名空间索引：``归一化键尾 -> (完整路径, 中文)``。
+
+    只覆盖 ``/Lotus/Language/CircleOfHell/`` 一个命名空间（268 键，约 40KB），
+    不额外占用运行期内存；`zh_ext.json` 本身已由 :func:`language_text_zh` 加载。
+    """
+    table = _load("zh_ext.json") or {}
+    out: dict = {}
+    for path, val in table.items():
+        if not (isinstance(path, str) and isinstance(val, str)
+                and path.startswith(_COH_NS + "/") and val):
+            continue
+        out.setdefault(_norm_key(path[len(_COH_NS) + 1:]), (path, val))
+    return out
+
+
+def _coh_by_tail(tail: str) -> tuple[str, str]:
+    """按归一化键尾取 ``(完整路径, 中文)``；未命中返回 ``("", "")``。"""
+    return _coh_index().get(_norm_key(tail), ("", ""))
+
+
+@lru_cache(maxsize=512)
+def _coh_by_substring(code: str) -> tuple[str, str]:
+    """⑦ 双向子串兜底：取**最长交集**且**取值唯一**的键，否则判不可靠返回空。
+
+    例：``FieryTrailRollers`` -> 与 ``CoHChallengeFieryTrail`` 共享 10 个字符、
+    与 ``CoHChallengeRollers`` 共享 7 个 ⇒ 取前者（防火道）。
+    并列且取值不同时**不猜**（宁可留英文，也不给错名）。
+    """
+    needle = _norm_key(code)
+    if len(needle) < 4:
+        return ("", "")
+    scored: list[tuple[int, str, str]] = []
+    for tail, (path, val) in _coh_index().items():
+        stem = _coh_stem(tail)
+        if len(stem) < 4:
+            continue
+        if needle == stem:
+            score = 10_000 + len(stem)
+        elif needle in stem or stem in needle:
+            score = min(len(needle), len(stem))
+        else:
+            continue
+        scored.append((score, path, val))
+    if not scored:
+        return ("", "")
+    scored.sort(key=lambda t: -t[0])
+    top = [t for t in scored if t[0] == scored[0][0]]
+    if len({t[2] for t in top}) > 1:          # 并列歧义 ⇒ 不猜
+        return ("", "")
+    return (top[0][1], top[0][2])
+
+
+# 显式别名：官方键与内部代码**语义同、字面不同**的那几个 —— 算法推不出来，
+# 只能人工登记。依据 = 参考卡实机核对过的中文与 CircleOfHell 官方值逐字相等
+# ⇒ 由此反查出官方键。**测试会对着官方表复算这一步**（键必须存在、取值必须一致）。
+_DESCENT_GOAL_KEY = {
+    "BasicBreakTargets": "CoHGamemodeDestroyTargets",      # 摧毁全息球
+    "BasicLootCreatures": "CoHCreaturesLoot",              # 贪囤断肢劫掠
+    "BasicLoot": "CoHGamemodeCollectionBasic",             # 掠夺
+    "BasicMimics": "CoHLootMimicDesc",                     # 打开容器
+    "BasicRace": "CoHGamemodeRace",                        # 时间试炼
+    "HeadShotsOnly": "CoHChallengeWeakpointsOnly",         # 只有弱点才会受到伤害
+    # 词序被 DE 调换 ⇒ 双向子串够不着（hordeweakpoints vs weakpointhorde），只能登记
+    "HordeWeakpoints": "CoHChallengeWeakpointHorde",       # 弱点敌群
+    "Escapist": "CoHEscapist",                             # 秘密撤离
+}
+
+_DESCENT_TYPE_KEY = {
+    "DT_INFESTED_SALVAGE": "CoHGamemodePurify",            # 净化
+    "DT_CAPTURE": "CoHGamemode99Capture",                  # 传承种捕获
+    "DT_PRESURE_GAUGE": "CoHGamemodeMeltdown",             # 压力锅
+    "DT_SABOTAGE_HIVE": "CoHGamemodeHive",                 # 清巢
+    "DT_LOOT_CREATURES": "CoHCreaturesLoot",               # 贪囤断肢劫掠
+    "DT_SHRINE_DEFENSE": "CoHGamemodeShrineDefense",       # 祈运坛防御
+    "DT_MOVING_INTERCEPTION": "CoHGamemodeMobileInterception",   # 移动拦截
+    "DT_TIME_TRIAL": "CoHGamemodeRace",                    # 时间试炼
+    "DT_BREAK_TARGETS": "CoHGamemodeDestroyTargets",       # 摧毁全息球
+    "DT_LOOT": "CoHGamemodeLootRoom",                      # 掠夺
+    "DT_RACE": "CoHGamemodeRace",                          # 时间试炼
+    # ★ 2026-09-28 §二 本轮新登记的 4 条（算法拼键拼不出：模式名与代码不同字面）
+    "DT_SABOTAGE_DEFENSE": "CoHGamemodeDefense",           # 防御（wiki 本周第 4 层 = Defense）
+    "DT_INTERCEPTION": "CoHGamemodeMobileInterception",    # 移动拦截（wiki = Mobile Interception）
+    "DT_NETRACELLS": "CoHGamemodeKeyTarget",               # 消灭目标（wiki = Targeted Elimination）
+    # ⚠️ DT_MIMICS 的官方键**不带 `CoHGamemode` 前缀**（是 `CoHMimicsLoot`）——
+    #    这是审计 2026-09-28 新找到的键，正是第 11 层「歼灭」错槽的正解。
+    "DT_MIMICS": "CoHMimicsLoot",                          # 掠夺轮盘（wiki = Plunder Roulette）
+}
+
+# 少数目标的官方键**不在 CircleOfHell 命名空间**（按 code 推不出来）⇒ 登记完整路径。
+# ★ `VoidAberration`（2026-09-28 §三）：键在 `Conquest/Condition_*`（科研「风险」族）
+#   = **吸血界影**。两重独立来源对得上：字面 = 吸血(Vampyric) + 界影(Liminus)，
+#   且 wiki `The Descendia` 本周第 10 层挑战名正是 **Vampyric Liminus**。
+#   ⚠ 但仍存疑：官方 Desc 写「双衍王境**界影**」、键落在 `Condition_*`（科研风险）族，
+#   不是沉沦之地自己的命名空间 ⇒ **采纳 + 卡面注脚标明来源，待实机确认**。
+_DESCENT_GOAL_EXTERNAL = {
+    "VoidAberration": "/Lotus/Language/Conquest/Condition_VoidAberration",
+}
+
+# 需要卡面注脚提示「来源存疑」的目标代码（见上面 ⚠）。剥 `NC_` 前/后都要覆盖。
+DESCENT_GOAL_CAVEAT = frozenset({"VoidAberration", "NC_VoidAberration"})
+
+# 官方**确实没有**键的（实测 CircleOfHell 268 键里查无、wiki 亦未收录）⇒ 卡面留英文 + 注脚。
+# ★ 2026-09-28 §二：本轮把 `DT_SABOTAGE_DEFENSE` / `DT_INTERCEPTION` / `DT_NETRACELLS` /
+#   `DT_MIMICS` 从下面移出（它们**有官方键**，只是原先没找到）；`DT_BOSS` 也移出
+#   （改走官方任务类型表 `missionTypes.json` → `mission_types_zh.json`，`assassination` = 刺杀）。
+#   命中数 4 → **1**（只剩 `DT_UNIQUE`）。
+DESCENT_TYPE_NO_KEY = frozenset({"DT_UNIQUE"})
+# ★ 2026-09-28 §三：目标族原本的 `{VoidAberration, NC_VoidAberration}` 已**清空**
+#   （两个代码都接到了官方键 `Conquest/Condition_VoidAberration` = 吸血界影）。
+DESCENT_GOAL_NO_KEY: frozenset[str] = frozenset()
+
+
+def _descent_code_variants(code: str) -> list[str]:
+    """① 候选代码：原样 + 剥 ``NC_`` 前缀（顺序即优先级，剥过的那份在后）。"""
+    out = [code]
+    if code.upper().startswith("NC_") and len(code) > 3:
+        out.append(code[3:])
+    return out
+
+
+def _coh_goal(code: str) -> tuple[str, str]:
+    """②~⑧：沉沦之地**目标列**（``Challenge`` 代码）-> ``(官方键, 中文)``。"""
+    variants = _descent_code_variants(code)
+    # ②~⑥ 按模式拼键（归一化精确匹配）
+    for base in variants:
+        for pat in ("CoHChallenge{0}", "CoHChallengeEximus{0}",
+                    "CoHChallenge{0}Only", "CoH{0}Desc", "CoHProtoframe{0}"):
+            hit = _coh_by_tail(pat.format(base))
+            if hit[0]:
+                return hit
+    # 显式别名（推导不出来的语义映射；键名写死，测试断言「键在 + 值等于卡面值」）
+    for base in variants:
+        alias = _DESCENT_GOAL_KEY.get(base)
+        if alias:
+            hit = _coh_by_tail(alias)
+            if hit[0]:
+                return hit
+    # 键不在 CircleOfHell 命名空间的少数几个（登记了完整路径，值从运行期词表取）
+    for base in variants:
+        ext = _DESCENT_GOAL_EXTERNAL.get(base)
+        if ext:
+            zh = language_text_zh(ext)
+            if zh:
+                return (ext, zh)
+    # ⑦ 双向子串兜底
+    for base in variants:
+        hit = _coh_by_substring(base)
+        if hit[0]:
+            return hit
+    return ("", "")
+
+
+def _coh_type(code: str) -> tuple[str, str]:
+    """沉沦之地**任务类型列**（``DT_*``）-> ``(官方键, 中文)``。
+
+    ``DT_*`` 是 DE 的层模式代码，和 CircleOfHell 键同样不是一字对应
+    （``DT_INFESTED_SALVAGE`` -> ``CoHGamemodePurify``、``DT_PRESURE_GAUGE``
+     -> ``CoHGamemodeMeltdown``），所以**先试按词拼键、再走显式别名表**；
+    别名表里的每一项都由测试对着官方表复算。
+    """
+    if code in DESCENT_TYPE_NO_KEY:
+        return ("", "")
+    body = code[3:] if code.startswith("DT_") else code
+    words = [w for w in body.split("_") if w]
+    if words:
+        hit = _coh_by_tail("CoHGamemode" + "".join(w.capitalize() for w in words))
+        if hit[0]:
+            return hit
+    alias = _DESCENT_TYPE_KEY.get(code)
+    if alias:
+        hit = _coh_by_tail(alias)
+        if hit[0]:
+            return hit
+    return ("", "")
+
+
+def descent_goal_official(code: str) -> tuple[str, str]:
+    """沉沦之地目标列：``(官方键, 官方中文)``；官方无键时返回 ``("", "")``。"""
+    if not code or code in DESCENT_GOAL_NO_KEY:
+        return ("", "")
+    return _coh_goal(code)
+
+
+def descent_type_official(code: str) -> tuple[str, str]:
+    """沉沦之地任务类型列：``(官方键, 官方中文)``；无键时返回 ``("", "")``。"""
+    return _coh_type(code or "")
+
+
+def descent_goal_zh(code: str) -> str:
+    """目标列官方中文（无键返回空串，由调用方兜底）。"""
+    return descent_goal_official(code)[1]
+
+
+def descent_type_zh(code: str) -> str:
+    """任务类型列官方中文（无键返回空串，由调用方兜底）。"""
+    return descent_type_official(code)[1]
+
+
 def _parse_descendia(entries: list[dict], now_ms: int) -> dict:
     """沉沦之地（炼狱塔）：DE ``Descents``，每周一轮、每轮 21 层（DevilTower）。
 
     每层给 ``Type``（任务类型，DT_*，见 :data:`DESCENT_TYPES`）与 ``Challenge``
-    （该层的挑战/复杂化代码）。⚠️ DE **没有**给这些代码的官方中文名
-    （词表里 VeryToxic / GrenadesOnly / SlipAndSlide 全查不到，只有英文），
-    所以这里原样带出代码，卡面上注明「目标为内部代码」。
+    （该层的挑战/复杂化代码）。这两族代码**官方都有简中**（``/Lotus/Language/
+    CircleOfHell/``，268 键），由 :func:`descent_type_zh` / :func:`descent_goal_zh`
+    按 8 级优先级解析；只有 ``VoidAberration`` 一族与 DT_BOSS / DT_NETRACELLS /
+    DT_SABOTAGE_DEFENSE / DT_UNIQUE 实测官方无键，按内部代码原样带出、卡面加注脚。
     """
     if not entries:
         return {}
 
-    def _ms(v) -> int:
-        try:
-            return int((v or {}).get("$numberLong", 0))
-        except (TypeError, ValueError):
-            return 0
-
+    # ⚠️ 这里**不能**自己实现一层 `_ms`：DE 的 Descents 时间戳是
+    #    `{"$date": {"$numberLong": "…"}}`（多一层嵌套），只认顶层 `$numberLong`
+    #    会一律得 0 ⇒ 「取当前窗口」退化成永远取 `entries[0]`。线上实测 DE 恰好把
+    #    当前周排在首位，所以一直没暴露；一旦顺序变化就会整卡错周。
+    #    统一走模块级 :func:`_ms`（它已处理 `$date` 嵌套与秒级时间戳）。
     cur = next((e for e in entries
-                if _ms(e.get("Activation")) <= now_ms < _ms(e.get("Expiry"))),
+                if (_ms(e.get("Activation")) or 0) <= now_ms
+                < (_ms(e.get("Expiry")) or 0)),
                entries[0])
     chs = []
     for c in cur.get("Challenges") or []:
@@ -1496,36 +2002,175 @@ def _parse_descendia(entries: list[dict], now_ms: int) -> dict:
             "challenges": chs}
 
 
-# 1999 日历里 StoreItems 奖励的官方语言键推导：
-#   /Lotus/Types/StoreItems/Packages/Calendar/CalendarKuvaBundleLarge
-#     -> /Lotus/Language/1999/CalendarKuvaBundleLargeName
-# （DE 的 ExportChallenges 只覆盖挑战，奖励包没有对应导出，只能按命名规则推）
-_CAL_REWARD_KEY = re.compile(r"/([A-Za-z0-9]+)$")
+# 1999 日历奖励/升级的官方简中解析（★ 2026-09-27 §三）
+#
+# ⚠️ **运行期只能传完整路径**：`language_text_zh` 的 tail 回退是死代码（两张表里
+#    无斜杠键均为 0，实测）。跨命名空间回退必须**显式枚举候选全路径** ——
+#    同一个「尾段」在不同命名空间里可能是不同东西，猜错就是错名。
+_CARD_LANG_NS = ("/Lotus/Language/1999", "/Lotus/Language/Items",
+                  "/Lotus/Language/Weapons", "/Lotus/Language/Narmer")
+# 后缀优先级：`…NameNoIcon` 优先（`…Name` 可能带 `<SHARD_ORANGE_SIMPLE>` 之类图标占位符）
+_CARD_LANG_SUFFIX = ("NameNoIcon", "Name", "")
+
+# 资产尾段 -> 语言键尾（DE 在键里插/改了词，靠算法推不出来，只能登记）。
+_CAL_TAIL_ALIAS = {
+    # ResourceDropChance3Day -> ResourceDropChance**Booster**ThreeDay（键里多了 Booster）
+    "ResourceDropChance3Day": "ResourceDropChanceBoosterThreeDay",
+}
+# 可剥的资产后缀（剥掉再试，用于「蓝图」类：OrokinReactorBlueprint -> OrokinReactor）
+_CAL_TAIL_STRIP = ("StoreItem", "Blueprint", "Bundle", "Pack")
+# 「蓝图」类资产：官方只有基名（无「蓝图」键）时的**合成译名**后缀
+_CAL_BLUEPRINT_SUFFIX = "蓝图"
+_CAL_BLUEPRINT_MARK = "Blueprint"
 
 
-def _calendar_reward_name(path: str) -> str:
+@lru_cache(maxsize=1)
+def _card_lang_index() -> dict[str, dict[str, tuple[str, str]]]:
+    """``{命名空间: {归一化键尾: (完整路径, 中文)}}``（只建 4 个卡面命名空间）。
+
+    归一化 = 小写 + 去 ``-``/``_``/空格 —— DE 的键名大小写与资产名并不总是一致
+    （资产 `WeaponSecondaryArcaneUnlocker` vs 键 `WeaponsecondaryArcaneUnlocker`），
+    所以比对必须归一化，**命中后再核语义**。
+    """
+    out: dict[str, dict[str, tuple[str, str]]] = {ns: {} for ns in _CARD_LANG_NS}
+    # 先本地 36k 表、后补充表：与 language_text_zh 的优先级保持一致
+    for name in ("languages_zh.json", "zh_ext.json"):
+        table = _load(name) or {}
+        if not isinstance(table, dict):
+            continue
+        for path, rec in table.items():
+            if not isinstance(path, str):
+                continue
+            val = rec.get("value") if isinstance(rec, dict) else rec
+            if not (isinstance(val, str) and val):
+                continue
+            # ★ §一 收口②：`[PH] …` 占位符**不进索引** —— 效果等价于「这个键不存在」，
+            #   于是「后缀 NameNoIcon → Name → ""」与「命名空间 1999 → Items → …」两层
+            #   回退会自然继续往下找（而不是拿占位符当结果返回）。
+            if _is_placeholder(val):
+                continue
+            for ns in _CARD_LANG_NS:
+                if path.startswith(ns + "/"):
+                    out[ns].setdefault(_norm_key(path[len(ns) + 1:]), (path, val))
+                    break
+    return out
+
+
+def _card_lang_by_tail(tail: str) -> tuple[str, str]:
+    """按「尾段 + 后缀」在 4 个命名空间里查官方简中 -> ``(完整路径, 中文)``。
+
+    `[PH] …` 占位符在建索引时已被剔除（§一 收口②）；这里再兜一层，
+    防止将来有人把索引改成惰性构建而漏掉那道过滤。
+    """
+    idx = _card_lang_index()
+    norm = _norm_key(tail)
+    for ns in _CARD_LANG_NS:
+        bucket = idx.get(ns) or {}
+        for suf in _CARD_LANG_SUFFIX:
+            hit = bucket.get(norm + _norm_key(suf))
+            if hit and not _is_placeholder(hit[1]):
+                return hit
+    return ("", "")
+
+
+def _cal_reward_tails(tail: str) -> list[tuple[str, bool]]:
+    """资产尾段 -> 候选语言键尾 ``[(键尾, 是否「蓝图」剥壳)…]``（顺序即优先级）。
+
+    三类变形可叠加（所以按深度递归展开）：
+      · ``3Day`` -> ``ThreeDay``（DE 语言键里写全称）
+      · 剥资产后缀 ``StoreItem`` / ``Blueprint`` / ``Bundle`` / ``Pack``
+      · 词形别名（见 :data:`_CAL_TAIL_ALIAS`；例：剥掉 StoreItem 之后的
+        ``ResourceDropChance3Day`` 才对得上键尾 ``ResourceDropChanceBoosterThreeDay``）
+    """
+    order: list[tuple[str, bool]] = []
+
+    def _push(cand: str, is_bp: bool) -> None:
+        if cand and all(c != cand for c, _ in order):
+            order.append((cand, is_bp))
+
+    def _expand(cand: str, is_bp: bool, depth: int = 0) -> None:
+        _push(cand, is_bp)
+        if depth >= 3 or not cand:
+            return
+        if re.search(r"3Day", cand, re.I):
+            _expand(re.sub(r"3Day", "ThreeDay", cand, flags=re.I), is_bp, depth + 1)
+        alias = _CAL_TAIL_ALIAS.get(cand)
+        if alias:
+            _expand(alias, is_bp, depth + 1)
+        for suf in _CAL_TAIL_STRIP:
+            if cand.endswith(suf) and len(cand) > len(suf):
+                _expand(cand[:-len(suf)],
+                        is_bp or suf == _CAL_BLUEPRINT_MARK, depth + 1)
+
+    _expand(tail, False)
+    return order
+
+
+def _calendar_reward_name(path: str) -> tuple[str, bool]:
+    """日历奖励资产路径 -> ``(中文, 是否合成译名)``。
+
+    主路径：尾段（含 `3Day`→`ThreeDay`、剥 `StoreItem`/`Blueprint`/`Bundle`/`Pack`、
+    别名表）× 4 个命名空间 × 3 个后缀，全部拼成**完整路径**查官方简中。
+
+    两个**合成**分支（官方无键，但同族有官方格式范例，注脚会标明）：
+      · `…Blueprint` 且只查到基名 ⇒ 基名 + 「蓝图」
+        （例：`OrokinReactorBlueprint` 官方只有 `/Lotus/Language/Items/OrokinReactor`
+          = 奥罗金反应堆 ⇒ 奥罗金反应堆蓝图）
+      · `…FusionBundle` 的官方英文名形如 `6,000 Endo` ⇒ `6000 内融核心`
+        （格式照同族官方值 `DuviriCircuitSteelPathSilverFusionBundle` = 4000 内融核心：
+          数字裸写、无千分位、无空格）
+    """
     if not path:
+        return ("", False)
+    tail = path.rstrip("/").rsplit("/", 1)[-1]
+    if not tail:
+        return ("", False)
+    for cand, is_bp in _cal_reward_tails(tail):
+        _key, zh = _card_lang_by_tail(cand)
+        if zh:
+            if is_bp:
+                return (zh + _CAL_BLUEPRINT_SUFFIX, True)
+            return (zh, False)
+    # 内融核心捆包：官方只给英文 `6,000 Endo`，按同族官方格式合成
+    en, _desc = language_text(path)
+    m = re.match(r"^\s*([\d,]+)\s+Endo\s*$", en or "", re.I)
+    if m and tail.lower().endswith("fusionbundle"):
+        return (f"{int(m.group(1).replace(',', ''))} 内融核心", True)
+    return (en or "", False)
+
+
+def _calendar_upgrade_zh(ref: str) -> str:
+    """日历覆写（``/Lotus/Upgrades/Calendar/<尾段>``）-> 官方简中；无键返回空串。
+
+    官方键：``/Lotus/Language/1999/<尾段>Name``（716 键里的覆写名），
+    取不到再试无后缀；仍无 ⇒ 交调用方走手编兜底表 / 英文。
+    """
+    if not ref:
         return ""
-    m = _CAL_REWARD_KEY.search(path.rstrip("/"))
-    if not m:
+    tail = ref.rstrip("/").rsplit("/", 1)[-1]
+    if not tail:
         return ""
-    tail = m.group(1)
-    return (language_text_zh(f"/Lotus/Language/1999/{tail}Name")
-            or language_text_zh(f"/Lotus/Language/1999/{tail}")
-            or language_text(path)[0]
-            or "")
+    for cand in (tail, tail[:-4] if tail.endswith("Name") else tail):
+        _key, zh = _card_lang_by_tail(cand)
+        if zh:
+            return zh
+    return ""
 
 
 def _parse_calendar(entry: dict, now_ms: int) -> dict:
     """1999 日历：season 窗口 + 事件表（day N 对应 1999-01-01+(N-1)，与 wfcd 对齐）。
 
-    三类事件的中文来源各不相同：
+    三类事件的中文都走**官方简中**：
       · CET_CHALLENGE 资产路径 -> (ExportChallenges) -> /Lotus/Language/1999Challenges/*
-      · CET_REWARD    资产路径 -> /Lotus/Language/1999/<包名>Name
-      · CET_UPGRADE   资产路径 -> languages.json（DE 未在简中导出这些升级名，
-        保留英文原名而不是硬编一个非官方译名）
+      · CET_REWARD    资产路径 -> 4 个命名空间 × 尾段变形（见 :func:`_calendar_reward_name`）
+      · CET_UPGRADE   资产路径 -> /Lotus/Language/1999/<尾段>Name
+        （`/Lotus/Language/1999/` 官方 **716** 键，覆写名都在 —— 旧注释说
+          「DE 未在简中导出这些升级名」是错的）
+    三类都没有官方键时，卡面留英文 + 注脚（不硬编）。
     """
     days = []
+    synthesized: list[str] = []
+    no_key: list[str] = []
     for day in entry.get("Days") or []:
         num = day.get("day")
         if num is None:
@@ -1536,9 +2181,13 @@ def _parse_calendar(entry: dict, now_ms: int) -> dict:
             kind = ev.get("type", "")
             if kind == "CET_REWARD":
                 ref = ev.get("reward", "")
-                name = _calendar_reward_name(ref)
-                events.append({"type": "REWARD",
-                               "name": name or _prettify(ref)})
+                name, synth = _calendar_reward_name(ref)
+                if not name:
+                    name = _prettify(ref)
+                    no_key.append(ref.rstrip("/").rsplit("/", 1)[-1])
+                elif synth:
+                    synthesized.append(name)
+                events.append({"type": "REWARD", "name": name})
             elif kind == "CET_CHALLENGE":
                 ref = ev.get("challenge", "")
                 rec = challenge_zh(ref)
@@ -1555,18 +2204,21 @@ def _parse_calendar(entry: dict, now_ms: int) -> dict:
                                    or _prettify(ref)})
             elif kind == "CET_UPGRADE":
                 ref = ev.get("upgrade", "") or ""
-                name, _desc = language_text(ref)
-                if ref in CAL_UPGRADE_CN:
-                    up_cn = CAL_UPGRADE_CN[ref]
-                    ev_out = {"type": "UPGRADE", "name": up_cn}
-                else:
-                    ev_out = {"type": "UPGRADE",
-                              "name": name or _prettify(ref)}
-                events.append(ev_out)
+                tail = ref.rstrip("/").rsplit("/", 1)[-1]
+                up_cn = _calendar_upgrade_zh(ref)
+                if not up_cn and ref not in CAL_UPGRADE_NO_KEY:
+                    up_cn = CAL_UPGRADE_CN.get(ref, "")
+                if not up_cn:
+                    up_cn = _prettify(tail)
+                    no_key.append(tail)
+                events.append({"type": "UPGRADE", "name": up_cn})
         days.append({"day": num, "date": date1999.date().isoformat(), "events": events})
     return {"season": entry.get("Season"), "yearIteration": entry.get("YearIteration"),
             "start": _iso_of(entry, "Activation"), "expiry": _iso_of(entry, "Expiry"),
-            "days": days}
+            "days": days,
+            # 供卡面加注脚：合成译名（官方无键但照同族格式产出）与无键项
+            "synthesized": sorted(set(synthesized)),
+            "noKey": sorted(set(no_key))}
 
 
 # ---------------------------------------------------------------------------

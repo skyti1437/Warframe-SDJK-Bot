@@ -59,8 +59,8 @@ MODE_ZH = {
     "Capture": "捕获", "Rescue": "救援", "Spy": "间谍", "Sabotage": "破坏",
     "Excavation": "挖掘", "Defection": "防卫", "Disruption": "中断",
     "Assassination": "刺杀", "Mobile Defense": "移动防御", "Hijack": "劫持",
-    "Skirmish": "小规模冲突", "Orphix": "奥菲克斯", "Vault": "宝藏",
-    "Pursuit": "追击", "Rush": "冲刺", "Volatile": "易爆",
+    "Skirmish": "前哨战", "Orphix": "奥影母艇", "Vault": "宝藏",
+    "Pursuit": "追击", "Rush": "冲刺", "Volatile": "爆发",
     "Void Flood": "虚空洪泛", "Void Cascade": "虚空瀑布", "Void Armageddon": "虚空末日",
     "Conjunction Survival": "交汇生存", "Alchemy": "炼金术", "Assault": "进攻",
 }

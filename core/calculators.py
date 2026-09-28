@@ -1,15 +1,11 @@
 # -*- coding: utf-8 -*-
-"""资料与计算器模块：武器融合 / 对话助手 / 杜卡德。
+"""资料与计算器模块：武器融合 / 杜卡德。
 
 纯本地计算，不依赖网络。
 """
 from __future__ import annotations
 
-import json
-from pathlib import Path
 from typing import Optional
-
-DATA_DIR = Path(__file__).resolve().parent / "data"
 
 # ---------------------------------------------------------------------------
 # 武器融合：玄骸/信条/科达武器的「效价融合」（Valence Fusion）
@@ -115,32 +111,6 @@ def fusion_to_cap(start_pct: float) -> list[float]:
         cur = valence_bonus(cur, cur)
         trace.append(cur)
     return trace
-
-
-# ---------------------------------------------------------------------------
-# 对话助手（1999 好感度）：读取数据文件，缺省内置小表
-# ---------------------------------------------------------------------------
-def load_kim_guide() -> dict:
-    path = DATA_DIR / "kim.json"
-    if path.exists():
-        try:
-            return json.loads(path.read_text(encoding="utf-8"))
-        except Exception:  # noqa: BLE001
-            return {}
-    return {}
-
-
-def kim_advice(character: str) -> Optional[dict]:
-    data = load_kim_guide()
-    if not data:
-        return None
-    for key, info in data.items():
-        if not isinstance(info, dict):
-            continue
-        aliases = [key] + [str(a) for a in (info.get("alias") or [])]
-        if character and any(character in a or a in character for a in aliases if a):
-            return {"name": key, **info}
-    return None
 
 
 # ---------------------------------------------------------------------------

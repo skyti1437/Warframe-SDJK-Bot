@@ -82,6 +82,9 @@ MARKET_SKIP_FILES = {".gitleaks.toml",        # 仓库门面（防泄漏 CI 配�
 # 此常量并在 commit 正文列文件名与理由。
 # → 98（金星小帐篷：+core/data/de/venus_job_manifest.json —— 随包的点位清单，
 #   否则市场版小帐篷无数据源；构建脚本在 scripts/ 不进市场件）。
+# → 97（删「对话助手」指令：-core/data/kim.json；实测改前 98 → 改后 97）。
+# → 98（2026-09-27 §五：+core/data/de/zh_ext.json —— 市场版也要能查到官方简中，
+#   否则卡面照样落英文；构建脚本 scripts/build_zh_ext.py 不进市场件）
 EXPECTED_MARKET_ENTRIES = 98
 
 # ★ 可复现打包（2026-09-26 用户侧建议）：统一 zip 条目时间戳 = 2026-01-01T00:00:00Z。

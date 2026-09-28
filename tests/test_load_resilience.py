@@ -122,7 +122,74 @@ check("_refresh_from_community 只认 refreshed* 为成功（其余静默）",
       'st.startswith("refreshed")' in MAIN)
 
 print()
+# ---------------------------------------------------------------------------
+# ★ 2026-09-26 新增守卫：**函数体内的绝对导入 `core.*` 必须位于 `except ImportError` 分支**
+#   事故：服务器以**包成员**加载（`data.plugins.astrbot_plugin_warframe.main`）⇒ `core` 不可解析；
+#   `main.py` 里函数内裸 `from core.parser import TIER_CN` 直接 `No module named 'core'`
+#   ⇒ **遗物全套指令（出库/入库/列表/单查）全炸**（2026-09-26 17:02:45 线上实测）。
+#   用 AST 精确判定（缩进启发式不可靠）：函数体内的 core.* 导入只允许出现在
+#   `except ImportError:` 分支里（即 try 里先 `from .core...`、失败再回落绝对导入）。
+# ---------------------------------------------------------------------------
+import ast as _ast2               # noqa: E402
+
+_bad2: list[str] = []
+_FUNCS = (_ast2.FunctionDef, _ast2.AsyncFunctionDef)
+for _f in [ROOT / "main.py"] + sorted((ROOT / "core").glob("*.py")):
+    try:
+        _tree = _ast2.parse(_f.read_text(encoding="utf-8"))
+    except (OSError, SyntaxError):
+        continue
+    for _fn in [n for n in _ast2.walk(_tree) if isinstance(n, _FUNCS)]:
+        # 该函数内：相对形式（from .core...）的 (module, names) 集合
+        _rel: set = set()
+        _abs: list = []
+        for _n in _ast2.walk(_fn):
+            if isinstance(_n, _ast2.ImportFrom) and (_n.module or "").split(".")[0] == "core":
+                _key = (_n.module, tuple(sorted(_a.name for _a in _n.names)))
+                if _n.level > 0:
+                    _rel.add(_key)
+                else:
+                    _abs.append((_n.lineno, _key))
+            elif isinstance(_n, _ast2.Import):
+                for _a in _n.names:
+                    if _a.name.split(".")[0] != "core":
+                        continue
+                    _key = (None, (_a.name,))
+                    if _a.name.startswith("."):
+                        _rel.add(_key)
+                    else:
+                        _abs.append((_n.lineno, _key))
+        # 函数体内的**绝对**导入必须有同形相对导入兜底（try/except ImportError 双分支）
+        for _lineno, _key in _abs:
+            if _key not in _rel:
+                _bad2.append(f"{_f.relative_to(ROOT)}:{_lineno} {_key[0] or 'import'} "
+                             f"{','.join(_key[1])}")
+
+check("★ 函数内绝对导入 core.* 均带相对导入兜底（0 个裸导入）",
+      not _bad2, "; ".join(_bad2[:5]))
+
+# ---------------------------------------------------------------------------
+# ★ 2026-09-26：遗物用法串抽常量（RELIC_USAGE）—— 防两处各写一份漂移
+# ---------------------------------------------------------------------------
+_src_main = (ROOT / "main.py").read_text(encoding="utf-8")
+_tree_main = _ast2.parse(_src_main)
+check("★ RELIC_USAGE 是模块级常量",
+      any(isinstance(n, _ast2.Assign)
+          and any(getattr(x, "id", "") == "RELIC_USAGE" for x in n.targets)
+          for n in _tree_main.body))
+_hard = [s.value for f in _ast2.walk(_tree_main)
+         if isinstance(f, _ast2.FunctionDef) and f.name == "_h_relic"
+         for s in _ast2.walk(f)
+         if isinstance(s, _ast2.Constant) and isinstance(s.value, str)
+         and "用法：遗物" in s.value]
+check("★ _h_relic 内不再硬编码「用法：遗物」", not _hard, str(_hard[:2]))
+check("全仓「用法：遗物」只剩常量一处", _src_main.count("用法：遗物") == 1,
+      str(_src_main.count("用法：遗物")))
+check("用法串不含非子集符号（alpha 类）", "α" not in _src_main.split("RELIC_USAGE = ")[1][:200])
+
 if FAILED:
     print(f"✗ {len(FAILED)} 项失败：" + "、".join(FAILED))
     sys.exit(1)
 print("✓ 加载/刷新路径健壮性守卫全部通过")
+
+

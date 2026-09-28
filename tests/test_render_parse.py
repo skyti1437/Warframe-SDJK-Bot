@@ -135,6 +135,138 @@ for _src, _exp in [
           f"got={_m.group(1) if _m else None}")
 check("普通文字里的等级区间不被误抽", R._LV_RE.search("奖励 5-15级 的物品") is None)
 
+# ---------------------------------------------------------------- 列对齐白名单
+# 2026-09-27（审核要求）：`_table_mode` 的标题白名单从 `render()` 内联 or-链
+# 抽成 `is_table_title()`，为的是能用**正/反两组**用例锁住 —— 往白名单加卡片时
+# 不得误改既有卡片的行为。新增卡片请同笔补正例。
+TABLE_TITLES = [
+    "仲裁时间表（第1/2页，共30条）", "指令一览", "赤毒 侵袭", "价格排行",
+    "紫卡热度排行榜", "遗物入库（当前出库）", "遗物出库（当前可掉落）",
+    "遗物列表：后纪", "部件出处：绝路 Prime", "虚空商人 当期货单（第1/2页）",
+    "九重天虚空风暴",
+    "仲裁排期 · 生存（第1/1页，共6场）",
+    "结合仪式目标（39 种，静态库）",
+]
+for _t in TABLE_TITLES:
+    check(f"列对齐白名单命中：{_t[:14]}", R.is_table_title(_t) is True)
+
+# 反向：不相关标题不得命中（误开列对齐会把普通卡切成格子）
+for _t in ("", "状态", "当前仲裁", "紫卡倾向：布莱顿", "遗物：古纪 A1",
+           "每日突击 · 重置：剩余 3小时", "帮助"):
+    check(f"不误命中：{_t or '(空)'}", R.is_table_title(_t) is False)
+# ★ 子串串味守卫：新加的「仲裁排期」不是「仲裁时间表」的子串（反之亦然）
+check("「仲裁排期」与「仲裁时间表」互不误命中（子串口径）",
+      "仲裁排期" not in "仲裁时间表（第1/2页）"
+      and "仲裁时间表" not in "仲裁排期 · 生存（第1/1页）")
+
+# ------------------------------------------------- 仲裁排期卡：分列单元格（3.4）
+# 排期卡从「节点·类型·派系 挤一格」改为**一格一字段**，渲染层才能按列对齐。
+# 两条硬约束：① 未评级不生成评级格；② 字段缺失保留**空串**（丢空串会让后面的列串位）。
+from core import arbi as _arbi                                 # noqa: E402
+
+_NODES = {
+    # 形态照抄线上 arbys.nodes.zh.json（88 节点实测：missionNameZh 是**纯任务名**，
+    # 如「生存」「防御」「挖掘」—— 派系单独在 factionNameZh，别拿它拼进类型格）
+    "a": {"nameZh": "Apollodorus", "systemNameZh": "水星",
+          "missionNameZh": "生存", "factionNameZh": "Infestation"},
+    "b": {"nameZh": "Tycho", "systemNameZh": "月球",
+          "missionNameZh": "生存", "factionNameZh": "Corpus"},
+}
+_TIER = {"a": "A", "b": "未评级"}
+check("仲裁排期：分列 = [节点（星球）, 类型, 派系, [评级]]",
+      _arbi.node_cells(_NODES, "a", _TIER)
+      == ["Apollodorus（水星）", "生存", "Infested", "[A]"],
+      str(_arbi.node_cells(_NODES, "a", _TIER)))
+check("仲裁排期：未评级行不生成评级格",
+      _arbi.node_cells(_NODES, "b", _TIER) == ["Tycho（月球）", "生存", "Corpus"],
+      str(_arbi.node_cells(_NODES, "b", _TIER)))
+check("仲裁排期：字段缺失保留空串（防后面的列串位）",
+      _arbi.node_cells({"c": {"nameZh": "X"}}, "c", {})[1:] == ["?", ""],
+      str(_arbi.node_cells({"c": {"nameZh": "X"}}, "c", {})))
+check("仲裁排期：node_line（当前仲裁卡用）仍是单行内联写法（未被改动）",
+      _arbi.node_line(_NODES, "a", _TIER)
+      == "Apollodorus（水星） · 生存 · Infested　[A]",
+      _arbi.node_line(_NODES, "a", _TIER))
+
+# ------------------------------------------- 结合目标卡：三格（3.3 排版）
+# 原来第二格是「节点·类型（派系）」整块 ⇒ 节点列左边界随名称长短抖动（实测 38px）。
+from core import formatters as _F                              # noqa: E402
+
+_TG = [{"name": "Ancient Disruptor", "active": True, "node": "Tikal",
+        "type": "Excavation", "faction": "Infested"},
+       {"name": "MOA", "active": True, "node": "Venera",
+        "type": "Capture", "faction": ""}]
+_tg_title, _tg_lines = _F.fmt_synth_targets(_TG)
+check("结合目标：行 = 名称 / 节点 / 类型（派系） 三格",
+      _tg_lines[0].split("　")
+      == ["· 远古干扰者（Ancient Disruptor）", "Tikal", "挖掘（Infested）"],
+      str(_tg_lines[0].split("　")))
+check("结合目标：派系缺失时不留空括号（回落成纯类型）",
+      _tg_lines[1].split("　")[2] == "捕获", str(_tg_lines[1].split("　")))
+check("结合目标：所有行格数一致（列对齐的前提）",
+      len({len(x.split("　")) for x in _tg_lines}) == 1,
+      str([len(x.split("　")) for x in _tg_lines]))
+
+# 端到端：九重天卡确实走列对齐；超长节点名时安全阀关掉它（不压出面板边框）
+ROOT = Path(__file__).resolve().parent.parent
+try:
+    from PIL import Image as _Image                            # noqa: E402
+
+    _out = ROOT / "runtime"
+    _out.mkdir(exist_ok=True)
+    _rend = R.ImageRenderer(_out)
+    if _rend.available:
+        _st = [{"tier": "T1", "nodeCn": "卫标星环",
+                "missionType": "volatile", "timeLeft": "40m 4s"},
+               {"tier": "T4", "nodeCn": "努秘",
+                "missionType": "volatile", "timeLeft": "40m 4s"}]
+        _t1, _l1 = _F.fmt_void_storms(_st)
+        _rend.render(_t1, _l1, "国际服")
+        check("九重天卡：常规数据走列对齐（_table_mode=True）",
+              bool(_rend._table_mode))
+        _huge = dict(_st[0], nodeCn="超长节点名压力测试" * 5)
+        _t2, _l2 = _F.fmt_void_storms([_huge, *_st[1:]])
+        _png2 = _rend.render(_t2, _l2, "国际服")
+        check("九重天卡：超长节点名触发宽度安全阀 ⇒ 退回逐行折行",
+              not bool(_rend._table_mode))
+        _w2 = _Image.open(_png2).size[0]
+        check("九重天卡：极端数据下卡宽封顶 1500（不越界）", _w2 <= 1500, str(_w2))
+
+        # 仲裁排期卡（同款两向验证）
+        _arb = ["　".join(["9月27日 10时", "Apollodorus（水星）", "生存",
+                           "Infested", "[A]"]),
+                "　".join(["9月27日 11时", "Tycho（月球）", "生存",
+                           "Corpus", "[B]"])]
+        _rend.render("仲裁排期 · 生存（第1/1页，共2场）", _arb, "国际服")
+        check("仲裁排期卡：常规数据走列对齐", bool(_rend._table_mode))
+        _arb_long = ["　".join(["9月27日 10时", "超长节点名压力测试" * 6,
+                               "生存", "Infested"]), _arb[1]]
+        _png3 = _rend.render("仲裁排期 · 生存（第1/1页，共2场）", _arb_long, "国际服")
+        check("仲裁排期卡：超长节点名触发安全阀（退回折行）",
+              not bool(_rend._table_mode))
+        check("仲裁排期卡：极端数据卡宽封顶 1500",
+              _Image.open(_png3).size[0] <= 1500,
+              str(_Image.open(_png3).size[0]))
+
+        # 结合目标卡（同款两向验证）
+        _syn = ["　".join(["· 远古干扰者（Ancient Disruptor）", "Tikal",
+                           "挖掘（Infested）"]),
+                "　".join(["· 恐鸟（MOA）", "Venera", "捕获（Corpus）"])]
+        _rend.render("结合仪式目标（39 种，静态库）", _syn, "国际服")
+        check("结合目标卡：常规数据走列对齐", bool(_rend._table_mode))
+        _syn_long = ["　".join(["· " + "超长名称压力测试" * 6, "Tikal",
+                                "挖掘（Infested）"]), _syn[1]]
+        _png4 = _rend.render("结合仪式目标（39 种，静态库）", _syn_long, "国际服")
+        check("结合目标卡：超长名称触发安全阀（退回折行）",
+              not bool(_rend._table_mode))
+        check("结合目标卡：极端数据卡宽封顶 1500",
+              _Image.open(_png4).size[0] <= 1500,
+              str(_Image.open(_png4).size[0]))
+    else:
+        print("[SKIP] 渲染器不可用（缺字体），跳过列对齐出图用例")
+except Exception as _exc:                                       # noqa: BLE001
+    print(f"[SKIP] 列对齐出图用例环境异常：{type(_exc).__name__}: {_exc}")
+
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")
     sys.exit(1)

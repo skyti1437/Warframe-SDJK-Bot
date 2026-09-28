@@ -15,6 +15,7 @@
 """
 from __future__ import annotations
 
+import asyncio
 import sys
 import types
 from pathlib import Path
@@ -150,6 +151,225 @@ for name, want in [("暴击伤害", "crit_damage"), ("爆击伤害", "crit_damag
 # ------------------------- ④ 反向守卫：短名「暴击」仍须是暴击几率（未被误改）
 check("短名「暴击」= crit_chance（与暴伤区分）",
       _norm({"positive": [["暴击", 50.0]]}, _rev)[0][0][0] == "crit_chance")
+
+
+# ---------------------------------------------------------------------------
+# ⑤ 卡面「原文行」解析（2026-09-27 报障回归）
+# ---------------------------------------------------------------------------
+# 报障：卡面 4 行（3 正 1 负），机器人却回「当前解析到 4 正 2 负」。
+# 服务器日志（01:11:52）里的原始 vision JSON 是 **7 条**：
+#   positive [基伤/毒素伤害/多重/触发/持续] + negative [滑暴/触发时间]
+# ⇒ 模型把**负词条那一行**拆成三份（触发 / 持续 / 触发时间），又凭空多一条
+#   「滑暴」；计数校验据此把整张卡挡掉（数值还被交叉配错）。
+# 现行分工：模型只照抄卡面文字行（JSON 的 "lines"），归条 / 极性 / 计数由
+# `RA.parse_riven_lines()` 确定性决定 —— 只认**带极性符号**的行。
+def _resolve(nm: str):
+    return plugin.WarframeSDJK._stat_id_from_name(nm, _rev)
+
+
+_log_json = {"weapon": "盗贼 Visi-toxican",
+             "positive": [["基伤", 120.5], ["毒素伤害", 299.9], ["多重", 148],
+                          ["触发", 97.2], ["持续", 97.2]],
+             "negative": [["滑暴", 97.2], ["触发时间", 97.2]]}
+_p0, _n0 = _norm(_log_json, _rev)
+check("回归锚点：只信语义 JSON 确实数成 4 正 2 负（旧故障原样复现）",
+      len(_p0) == 4 and len(_n0) == 2, f"{_p0} / {_n0}")
+
+_card_lines = ["盗贼 Visi-toxican",        # 武器名 + 自命名：不是词条行
+               "🔒 +120.5% 毒素伤害",      # 行首锁图标：不能因此丢词条
+               "+299.9% 伤害",
+               "+148% 多重射击",
+               "-97.2% 触发时间",
+               "点击 ⓘ 查看详情",          # 图例行：不是词条
+               "内融值 1,234"]             # 右下角内融值：不是词条
+_lp, _ln, _notes = RA.parse_riven_lines(_card_lines, _resolve)
+check("卡面逐行 → 3 正 1 负（正是 2~3 正 / ≤1 负的合法卡面）",
+      len(_lp) == 3 and len(_ln) == 1, f"{_lp} / {_ln} / 备注 {_notes}")
+check("逐行：名称与数值取同一行（毒素伤害 120.5、伤害 299.9 —— 不再交叉配错）",
+      _lp[0] == ("toxin_damage", 120.5) and _lp[1] == ("melee_damage", 299.9),
+      str(_lp))
+check("逐行：多重 148 保留", _lp[2] == ("multishot", 148.0), str(_lp))
+check("逐行：负词条 = 触发时间 97.2（不再被拆成触发/持续）",
+      _ln == [("status_duration", 97.2)], str(_ln))
+check("逐行：武器名/图例/内融值行被跳过且留痕（可查日志）",
+      sum(1 for n in _notes if n.startswith("无极性符号")) == 3, str(_notes))
+
+# 行被拆开时的合并（用户口径：数值行 + 极性符号行并成一条）
+_lp2, _ln2, _ = RA.parse_riven_lines(["+", "120.5% 毒素伤害"], _resolve)
+check("合并：纯极性符号行 + 下一行", _lp2 == [("toxin_damage", 120.5)], str(_lp2))
+_lp3, _, _ = RA.parse_riven_lines(["+毒素伤害", "120.5"], _resolve)
+check("合并：带极性无数值行 + 下一行纯数值行",
+      _lp3 == [("toxin_damage", 120.5)], str(_lp3))
+
+# 乘数写法的负词条（卡面「x0.55 对 Corpus 的伤害」→ magnitude 45）
+_lp4, _ln4, _ = RA.parse_riven_lines(["-0.55x 对Corpus的伤害"], _resolve)
+check("乘数行 → damage_vs_corpus 45（负）",
+      not _lp4 and _ln4 == [("damage_vs_corpus", 45.0)], f"{_lp4} / {_ln4}")
+_lp5, _ln5, _ = RA.parse_riven_lines(["-0.55 对Corpus的伤害"], _resolve)
+check("乘数漏写 x 也按乘数算（对派系基值 45，真 magnitude 不可能 <1）",
+      not _lp5 and _ln5 == [("damage_vs_corpus", 45.0)], f"{_lp5} / {_ln5}")
+
+# 重复行去重 + 同词条两侧都在时以负为准
+_lp6, _ln6, _ = RA.parse_riven_lines(["+148% 多重射击", "+148% 多重射击"],
+                                     _resolve)
+check("同一行重复出现只算一条", _lp6 == [("multishot", 148.0)], str(_lp6))
+_lp7, _ln7, _ = RA.parse_riven_lines(["+97.2% 触发时间", "-97.2% 触发时间"],
+                                     _resolve)
+check("同词条两侧都在 → 以负为准（卡面每行只出现一次）",
+      not _lp7 and _ln7 == [("status_duration", 97.2)], f"{_lp7} / {_ln7}")
+
+# 拿不到行（模型没给 lines / 给了空表）⇒ 行数为 0，主流程据此退回语义 JSON
+_lp8, _ln8, _ = RA.parse_riven_lines([], _resolve)
+check("没有 lines 时行解析返回空（主流程据此退回语义 JSON）",
+      not _lp8 and not _ln8)
+_lp9, _ln9, _ = RA.parse_riven_lines(["120.5% 毒素伤害"], _resolve)
+check("行首没有极性符号 ⇒ 不当词条（用户口径：只认 +/- 开头的行）",
+      not _lp9 and not _ln9)
+
+
+# ---------------------------------------------------------------------------
+# ⑥ 端到端：报障那张卡现在必须**走通**（不再是那条计数错误）
+# ---------------------------------------------------------------------------
+class _FakeRivenClient:
+    """盗贼（手枪列，倾向 1.4）—— 只实现紫卡分析这条链用到的接口。"""
+
+    _weapon = {"url_name": "bandit", "zh": "盗贼", "en": "Bandit",
+               "disposition": 1.4, "riven_type": "pistol", "group": "secondary"}
+
+    async def resolve_riven_weapon(self, q):
+        return dict(self._weapon)
+
+    async def resolve_variant_disp(self, name):
+        return (None, "")
+
+    async def riven_family(self, weapon):
+        return []                      # 家族无变体：不干扰本条回归的数值判定
+
+    async def wm_riven_weapons(self):
+        return [dict(self._weapon)]
+
+
+class _Img:
+    """桩图片组件。`_event_has_image` 按**类型名**判「消息链里有图」，
+    所以必须把 __name__ 改成 Image（类名写成 _Img 会在那里判成「没图」→
+    直接走用法提示，端到端断言就会空过）。"""
+
+
+_Img.__name__ = "Image"
+
+
+class _FakeImageEvent:
+    def __init__(self):
+        class _MsgObj:
+            message = [_Img()]
+        self.message_obj = _MsgObj()
+        self.unified_msg_origin = "group://riven_card_test"
+
+
+class _FatParsed:
+    def __init__(self, content=""):
+        self.content = str(content).split()[1:]
+        self.content_str = content
+        self.preset, self.page, self.whisper = "", 1, False
+
+
+# ★ 服务器日志（01:11:52）里的原始识别结果：模型给了 7 条语义词条 + 逐行原文。
+#   注意语义表里 基伤/毒素伤害 的数值与行原文是**交叉**的 —— 这正是「名称与
+#   数值取同一行」要挡住的另一类错；行原文按报障卡面抄。
+_incident_vision = {
+    "weapon": "盗贼 Visi-toxican",
+    "lines": ["盗贼 Visi-toxican", "🔒 +120.5% 毒素伤害", "+299.9% 伤害",
+              "+148% 多重射击", "-97.2% 触发时间", "内融值 1,234"],
+    "positive": [["基伤", 120.5], ["毒素伤害", 299.9], ["多重", 148],
+                 ["触发", 97.2], ["持续", 97.2]],
+    "negative": [["滑暴", 97.2], ["触发时间", 97.2]]}
+
+
+async def _fake_imgs(event):
+    return ["data:image/jpeg;base64,x"]
+
+
+async def _fake_extract(url):
+    return dict(_incident_vision)
+
+
+_obj = plugin.WarframeSDJK.__new__(plugin.WarframeSDJK)
+_obj.client = _FakeRivenClient()
+_obj.page_size = 12
+_obj._image_data_urls = _fake_imgs
+_obj._extract_riven_from_image = _fake_extract
+_reply = asyncio.run(_obj._h_riven_analysis(_FatParsed("紫卡分析"),
+                                            _FakeImageEvent(), "pc"))
+_body = "\n".join(_reply.lines)
+check("端到端确实走到了分析卡（不是用法/错误提示 —— 防空过守卫）",
+      bool(_reply.lines) and not _reply.raw_text, repr(_reply)[:200])
+check("★ 报障那张卡不再被计数校验挡掉（没有「4 正 2 负」）",
+      "4 正 2 负" not in _body and "词条应为" not in _body, _body[:220])
+check("★ 四条词条按卡面行原文配对：120.5 毒伤 / 299.9 基伤 / 148 多重",
+      all(k in _body for k in ("120.5% 毒伤", "299.9% 基伤", "148% 多重")),
+      _body[:300])
+check("★ 反向守卫：不再按语义表交叉配错（120.5 基伤 / 299.9 毒伤）",
+      "120.5% 基伤" not in _body and "299.9% 毒伤" not in _body,
+      _body[:300])
+check("★ 负词条 = 触时 97.2（不再冒出「滑暴」）",
+      "-97.2% 触时" in _body and "滑暴" not in _body, _body[:300])
+check("卡面注明来源为「卡面逐行」而不是语义表",
+      "卡面逐行" in _body, _body[:220])
+
+# 拿不到 lines（渠道/模型没给这个字段）⇒ 安全退回语义 JSON，不崩
+async def _fake_extract_nolines(url):
+    return {k: v for k, v in _incident_vision.items() if k != "lines"}
+
+
+_obj._extract_riven_from_image = _fake_extract_nolines
+_r2 = asyncio.run(_obj._h_riven_analysis(_FatParsed("紫卡分析"),
+                                         _FakeImageEvent(), "pc"))
+check("没给 lines 时退回语义 JSON（不崩，仍按原判据提示词条数）",
+      bool(_r2.raw_text) and "词条应为" in _r2.raw_text, repr(_r2)[:200])
+
+
+# ---------------------------------------------------------------------------
+# ⑦ 窄读一路：读不全就不采信（2026-09-27 实测结论）
+# ---------------------------------------------------------------------------
+# 实测（用户那张 321×450 卡 ×3 次）：glm-4v-flash 用完整 JSON 提示词**稳定只
+# 照抄 2/4 行**（把图放大 4× 也一样漏），而换成「只要词条行原文」的窄提示词后
+# 三个渠道 6/6 全对 ⇒ 词条行单独一路窄读，且判据是「卡面合法」（能解析 ≠ 读全）。
+_S = plugin.WarframeSDJK
+_FULL = "+120.5% 毒素伤害\n+299.9% 伤害\n+148% 多重射击\n-97.2% 触发时间"
+_PART = "+120.5% 毒素伤害\n-97.2% 触发时间"
+check("窄读答案 4 行 → 采信", _S._parse_riven_lines_text(_FULL)["lines"]
+      == _FULL.splitlines(), str(_S._parse_riven_lines_text(_FULL)))
+check("窄读答案只给 2 行（漏读）→ 不采信，让位下一个渠道",
+      _S._parse_riven_lines_text(_PART) == {}, str(_S._parse_riven_lines_text(_PART)))
+_prose = _S._parse_riven_lines_text("以下是词条行：\n" + _FULL)
+check("窄读答案夹带寒暄行也不影响（无极性符号的行天然跳过）",
+      _prose.get("lines", [])[:1] == ["以下是词条行："], str(_prose))
+
+
+class _FakeVision:
+    """固定回答 + 延时，模拟「快而残缺」与「慢但读全」两家渠道。"""
+
+    def __init__(self, text, delay):
+        self.text, self.delay = text, delay
+
+    async def text_chat(self, prompt, session_id=None, image_urls=None):
+        await asyncio.sleep(self.delay)
+        return types.SimpleNamespace(completion_text=self.text)
+
+
+_race = asyncio.run(_S.__new__(_S)._vision_race_json(
+    "p", "data:image/jpeg;base64,x",
+    [_FakeVision(_PART, 0.01), _FakeVision(_FULL, 0.3)],
+    k=2, tag="测试行读", window=5,
+    parse=_S._parse_riven_lines_text))
+check("★ 竞速不采信先到的残缺结果，等读全的那一路",
+      _race == {"lines": _FULL.splitlines()}, str(_race))
+_race2 = asyncio.run(_S.__new__(_S)._vision_race_json(
+    "p", "data:image/jpeg;base64,x", [_FakeVision(_PART, 0.01)],
+    k=2, tag="测试行读", window=0.6,
+    parse=_S._parse_riven_lines_text))
+check("只有残缺结果时竞速返回 None（不硬用残缺卡面）",
+      _race2 is None, str(_race2))
 
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")

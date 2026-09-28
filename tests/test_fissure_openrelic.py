@@ -197,6 +197,16 @@ async def _main() -> None:
     # 行内不得出现「· ·」双点（任务类型为空时的拼接瑕疵）
     check("开核桃无 · ·  双点", not any("· ·" in ln for ln in o_lines), str(o_lines))
 
+    # ★ 2026-09-27 用户口径：**任务类型前移到节点之前**（与裂隙卡同一列序）
+    #   [纪元] 任务类型 节点 · 派系　可掉落 N 种 · 钢铁/九重天 · 速刷 · 剩X
+    #   判据：纪元芯片后**第一个词必须是任务类型**（若列序回退成「节点 任务」，
+    #   节点名首词不会落在任务类型词表里 ⇒ 必红）。
+    _MT = set(fmt.MISSION_CN.values())
+    _bad_seq = [ln for ln in _body if "] " in ln
+                and ln.split("] ", 1)[1].split(" ")[0] not in _MT]
+    check("★ 开核桃：任务类型前移（[纪元] 后第一个词是任务类型）",
+          bool(_body) and not _bad_seq, str(_bad_seq or _body))
+
     # 移动防御 / 站桩类不参与速刷
     src = (ROOT / "main.py").read_text(encoding="utf-8")
     _q = src[src.find('QUICK = {'):src.find('}', src.find('QUICK = {')) + 1]
