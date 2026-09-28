@@ -6,10 +6,6 @@
   "valence.json": {
    "published_at": "2026-09-25T02:17:01+00:00",
    "snapshot": "wiki《Reset》页，经插件在有 FlareSolverr 的机器上抓取后发布；快照时间 2026-09-25T02:17:01+00:00"
-  },
-  "acrithis_week.json": {
-   "published_at": "2026-09-21T00:00:00+00:00",
-   "snapshot": "wiki《Acrithis/Current Offerings》当期上报（observed September 21, 2026）；DE 不下发，插件每周过期后自动抓取该子页刷新（refresh_acrichis_week）"
   }
  }
 }
