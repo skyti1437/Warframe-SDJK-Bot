@@ -290,7 +290,7 @@
    }
   ],
   "_note": "Ergo Glast 在任意中继站出售，不消耗声望",
-  "valence_snapshot": "2026-09-28T01:06:28+00:00",
+  "valence_snapshot": "2026-09-29T00:06:05+00:00",
   "valence_source": "wiki.warframe.com/w/Reset 的 Current Valence Bonuses（玩家上报，无官方 API）；插件侧访问该站被 Cloudflare 拦截，所以是**快照**，每 4 天轮换后需要刷新"
  },
  "coda": {
@@ -307,93 +307,79 @@
     {
      "en": "Coda Hema",
      "cn": "终幕·血肢",
-     "element": "Heat",
-     "bonus": 27.4
+     "element": "Magnetic",
+     "bonus": 34.2
     },
     {
      "en": "Coda Sporothrix",
      "cn": "终幕·孢丝感染枪",
-     "element": "Heat",
-     "bonus": 43.8
+     "element": "Impact",
+     "bonus": 38.4
     },
     {
      "en": "Coda Catabolyst",
      "cn": "终幕·异化者",
      "element": "Heat",
-     "bonus": 25.0
+     "bonus": 48.9
     },
     {
      "en": "Coda Pox",
      "cn": "终幕·脓痘",
-     "element": "Radiation",
-     "bonus": 30.9
+     "element": "Electricity",
+     "bonus": 26.3
     },
     {
      "en": "Dual Coda Torxica",
      "cn": "终幕·孢蚀双枪",
-     "element": "Heat",
-     "bonus": 25.1
+     "element": "Magnetic",
+     "bonus": 36.8
     },
     {
      "en": "Coda Mire",
      "cn": "终幕·米尔",
-     "element": "Magnetic",
-     "bonus": 26.2
+     "element": "Impact",
+     "bonus": 28.3
     },
     {
      "en": "Coda Motovore",
      "cn": "终幕·噬轮",
-     "element": "Heat",
-     "bonus": 38.8
+     "element": "Impact",
+     "bonus": 25.0
     }
    ],
    [
     {
      "en": "Coda Bassocyst",
-     "cn": "终幕·低音爆囊",
-     "element": "Magnetic",
-     "bonus": 31.6
+     "cn": "终幕·低音爆囊"
     },
     {
      "en": "Coda Bubonico",
-     "cn": "终幕·横痃重炮",
-     "element": "Impact",
-     "bonus": 28.3
+     "cn": "终幕·横痃重炮"
     },
     {
      "en": "Coda Synapse",
-     "cn": "终幕·突触生化枪",
-     "element": "Toxin",
-     "bonus": 25.6
+     "cn": "终幕·突触生化枪"
     },
     {
      "en": "Coda Tysis",
-     "cn": "终幕·啐沫者",
-     "element": "Radiation",
-     "bonus": 52.2
+     "cn": "终幕·啐沫者"
     },
     {
      "en": "Coda Caustacyst",
-     "cn": "终幕·灼蚀变体镰",
-     "element": "Impact",
-     "bonus": 55.9
+     "cn": "终幕·灼蚀变体镰"
     },
     {
      "en": "Coda Hirudo",
-     "cn": "终幕·蚂蟥",
-     "element": "Radiation",
-     "bonus": 25.0
+     "cn": "终幕·蚂蟥"
     },
     {
      "en": "Coda Pathocyst",
-     "cn": "终幕·病囊飞刃",
-     "element": "Cold",
-     "bonus": 56.2
+     "cn": "终幕·病囊飞刃"
     }
    ]
   ],
   "_note": "Eleanor Nightingale 的 Coda 武器按 A/B 两批轮换（每批 7 把），每 4 天 00:00 UTC 换批；2026-09-14 实测为 A 批，换批边界 09-17 00:00 UTC（比 Ergo Glast 的元素加成重生成晚 24 小时，两者不是同一锚点）；批次表取自 wiki.warframe.com/Reset",
-  "valence_snapshot": "2026-09-28T01:06:28+00:00",
+  "valence_snapshot": "2026-09-29T00:06:05+00:00",
   "valence_source": "wiki「Reset」页玩家上报值（FlareSolverr 抓取 2026-09-21 13:50 GMT+8，Eleanor 售 Batch A）；无官方 API，以游戏内商店为准"
  },
  "acrichis": {

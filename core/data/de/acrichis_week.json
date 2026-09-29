@@ -1,7 +1,7 @@
 {
- "expiry": "2026-09-28T00:00:00+00:00",
- "observed": "2026-09-21",
- "source": "wiki《Acrithis/Current Offerings》当期上报（observed September 21, 2026）；DE 不下发，插件每周过期后自动抓取该子页刷新（refresh_acrichis_week）",
+ "expiry": "2026-10-05T00:00:00+00:00",
+ "observed": "September 28, 2026",
+ "source": "wiki《Acrithis/Current Offerings》当期上报（observed September 28, 2026）；插件自动抓取",
  "items": [
   {
    "name": "赤毒",
@@ -9,20 +9,20 @@
    "price": 10
   },
   {
-   "name": "主要武器赋能槽连接器",
-   "price": 25
+   "name": "霰弹枪裂罅 MOD",
+   "price": 15
   },
   {
-   "name": "奥罗金催化剂蓝图",
-   "price": 20
+   "name": "次要武器赋能槽连接器",
+   "price": 25
   },
   {
    "name": "Forma 蓝图",
    "price": 10
   },
   {
-   "name": "奥罗金反应堆蓝图",
-   "price": 20
+   "name": "步枪裂罅 MOD",
+   "price": 15
   }
  ],
  "_en_catalog": {

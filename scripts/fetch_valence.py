@@ -15,7 +15,7 @@ Bonuses* 玩家上报表。而插件侧直连 wiki.warframe.com 会被 Cloudflar
 
 用法
 ----
-    # 在装有 FlareSolverr 的机器上（127.0.0.1:8191，FlareSolverr 部署机本地）
+    # 在装有 FlareSolverr 的机器上（172.17.0.1:8191，走 docker0 网桥地址；本地开发需 SSH 隧道且目标同样写 172.17.0.1）
     python3 scripts/fetch_valence.py                 # 抓取并写回 rotations.json
     python3 scripts/fetch_valence.py --dry-run       # 只打印解析结果，不写文件
     python3 scripts/fetch_valence.py --html /tmp/reset.json   # 从已存响应离线解析
@@ -32,7 +32,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 ROTATION_FILE = ROOT / "core" / "data" / "rotations.json"
-DEFAULT_FLARE = "http://127.0.0.1:8191/v1"
+DEFAULT_FLARE = "http://172.17.0.1:8191/v1"
 WIKI_URL = "https://wiki.warframe.com/w/Reset"
 
 BATCH_IDX = {"A": 1, "B": 2}

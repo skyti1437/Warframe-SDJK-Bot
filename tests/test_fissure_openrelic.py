@@ -207,8 +207,8 @@ async def _main() -> None:
     check("★ 开核桃：任务类型前移（[纪元] 后第一个词是任务类型）",
           bool(_body) and not _bad_seq, str(_bad_seq or _body))
 
-    # 移动防御 / 站桩类不参与速刷
-    src = (ROOT / "main.py").read_text(encoding="utf-8")
+    # 移动防御 / 站桩类不参与速刷（2026-09-29 D5：_h_openrelic 迁 relic.py）
+    src = (ROOT / "core" / "commands" / "relic.py").read_text(encoding="utf-8")
     _q = src[src.find('QUICK = {'):src.find('}', src.find('QUICK = {')) + 1]
     for _bad in ("移动防御", "防御", "生存", "拦截", "挖掘", "劫持"):
         check(f"QUICK 不含 {_bad}", _bad not in _q, _q)

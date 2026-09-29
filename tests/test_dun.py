@@ -106,6 +106,7 @@ def _install_astrbot_stub() -> None:
 _install_astrbot_stub()
 
 import main as plugin  # noqa: E402
+import core  # noqa: E402
 from core.parser import parse  # noqa: E402
 from core.store import GroupStore, SubscriptionStore  # noqa: E402
 
@@ -269,10 +270,12 @@ async def main() -> None:
     rep = await obj4._handle_admin(_StubEvent("group://test"), ".状态")
     # 品牌名从 core.__brand__ 派生（不写死）：2026-09-19 改名时踩过 —— 写死品牌名
     # 的断言在换品牌时会连带崩，而「Warframe SDJK」还会被「Warframe SDJKBOT」前缀命中
-    # 而假装通过。
+    # 而假装通过。主次版本同样从 core.__version__ 派生（v1.1.0 抬版时这里写死 "1.0"
+    # 连带红过一次，同病同治）。
+    _ver2 = ".".join(str(core.__version__).split(".")[:2])
     check("「.状态」出图形卡不崩（platform 未定义回归）",
           rep is not None and not rep.raw_text
-          and rep.title.startswith(f"{plugin.BRAND} 1.0")
+          and rep.title.startswith(f"{plugin.BRAND} {_ver2}")
           and any("虚空捕获" in ln for ln in rep.lines),
           f"title={getattr(rep, 'title', None)}")
 

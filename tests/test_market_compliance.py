@@ -34,7 +34,8 @@ def check(name: str, cond: bool, detail: str = ""):
 # ---------------------------------------------------------------------------
 # 1. 日志：一律走 astrbot.api.logger（禁止自行 logging.getLogger）
 # ---------------------------------------------------------------------------
-runtime_sources = [ROOT / "main.py"] + sorted((ROOT / "core").glob("*.py"))
+runtime_sources = ([ROOT / "main.py"] + sorted((ROOT / "core").glob("*.py"))
+                   + sorted((ROOT / "core" / "commands").glob("*.py")))
 offenders = []
 for p in runtime_sources:
     if not p.is_file():

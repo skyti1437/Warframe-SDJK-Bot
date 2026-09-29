@@ -100,6 +100,8 @@ def _install_astrbot_stub() -> None:
 _install_astrbot_stub()
 
 import main as plugin                      # noqa: E402
+# 2026-09-29 D5：RELIC_USAGE 随遗物域迁 core/commands/relic.py
+from core.commands.relic import RELIC_USAGE  # noqa: E402
 from core import drops as drops_db         # noqa: E402
 from core import formatters as fmt         # noqa: E402
 from core.api_client import load_aliases   # noqa: E402
@@ -520,13 +522,13 @@ _nf_txt = str(getattr(_nf, "raw_text", "") or "")
 check("未命中：走纯文本分支（不是卡片）", bool(_nf_txt), repr(_nf)[:80])
 check("未命中：以「未找到「」开头", _nf_txt.startswith("未找到「"), _nf_txt[:60])
 check("未命中：带上用法常量 RELIC_USAGE（告诉用户下一步能发什么）",
-      plugin.RELIC_USAGE in _nf_txt, _nf_txt[:160])
+      RELIC_USAGE in _nf_txt, _nf_txt[:160])
 check("未命中：顺序固定「未找到 → 你是不是想找 → 用法」",
-      _nf_txt.index("未找到") < _nf_txt.index(plugin.RELIC_USAGE), _nf_txt[:160])
+      _nf_txt.index("未找到") < _nf_txt.index(RELIC_USAGE), _nf_txt[:160])
 # 反向：命中的卡不能捎带用法串（否则每次查遗物都被塞一段用法）
 _ok = asyncio.run(_make_obj([])._h_relic(_Parsed(content="古纪 A1"), None, "pc"))
 _ok_txt = str(getattr(_ok, "raw_text", "") or "") + "\n".join(_ok.lines)
-check("反向守卫：命中时不出用法串", plugin.RELIC_USAGE not in _ok_txt, _ok_txt[:120])
+check("反向守卫：命中时不出用法串", RELIC_USAGE not in _ok_txt, _ok_txt[:120])
 
 print()
 if FAILED:

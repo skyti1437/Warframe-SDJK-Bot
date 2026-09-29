@@ -250,7 +250,8 @@ def _install_astrbot_stub() -> None:
 
 
 _install_astrbot_stub()
-from main import _arb_faction  # noqa: E402
+# 2026-09-28 D3：_arb_faction 别名块随仲裁域迁 core/commands/arbitration.py
+from core.commands.arbitration import _arb_faction  # noqa: E402
 
 check("arbi Infestation 对齐官方 Infested",
       _arb_faction({"factionNameZh": "Infestation"}) == "Infested",

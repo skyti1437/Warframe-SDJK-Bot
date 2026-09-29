@@ -85,7 +85,12 @@ MARKET_SKIP_FILES = {".gitleaks.toml",        # 仓库门面（防泄漏 CI 配�
 # → 97（删「对话助手」指令：-core/data/kim.json；实测改前 98 → 改后 97）。
 # → 98（2026-09-27 §五：+core/data/de/zh_ext.json —— 市场版也要能查到官方简中，
 #   否则卡面照样落英文；构建脚本 scripts/build_zh_ext.py 不进市场件）
-EXPECTED_MARKET_ENTRIES = 98
+# → 111（2026-09-29 结构优化 D1-D11：+core/commands/ 13 个 .py（__init__/
+#   base/daily/progress/arbitration/rotations/relic/market/riven/wiki_misc/
+#   vision/scan/dun）—— main.py 拆解为 Mixin 子包，运行期 import 必随包。
+#   ⚠ D1-D11 各笔只同步了 stage 常量漏本常量（优化批不打市场件未暴露），
+#   由合并链 make_market_zip 预检抓出，本笔补正：98 + 13 = 111。）
+EXPECTED_MARKET_ENTRIES = 111
 
 # ★ 可复现打包（2026-09-26 用户侧建议）：统一 zip 条目时间戳 = 2026-01-01T00:00:00Z。
 #   之前取文件 mtime，导致「内容没变、重建却换 sha」（上传期两次被迫冻结重建：

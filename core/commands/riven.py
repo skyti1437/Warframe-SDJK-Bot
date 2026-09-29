@@ -1,0 +1,478 @@
+# -*- coding: utf-8 -*-
+"""紫卡域指令（D7 自 main.py 迁入）。
+
+覆盖路由键 3 项：analysis / disposition / xh；模块级 _xh_element 随迁。
+⚠ 已披露改写（本笔唯一非逐字点）：_h_riven_analysis 体内函数内相对导入
+try 分支 from .core.* → from ..*（模块自插件根迁入 core 包，相对基准
+随之调整，导入目标不变）；except 兜底与注释逐字保留。
+子包纪律：不 import astrbot（事件对象鸭子类型）。
+"""
+from __future__ import annotations
+
+import asyncio
+from typing import Optional
+
+from .. import formatters as fmt
+from .. import matching
+from ..api_client import WarframeAPIError, fuzzy_hits
+from ..logging_compat import logger
+from .base import Reply
+
+
+def _xh_element(toks: list[str]) -> tuple[Optional[str], Optional[str]]:
+    """从参数里认元素，返回 (中文名, WM 英文值)。
+
+    认中英文全称与常见单字/简写（辐射 / radiation / 辐）；认不出返回 (None, None)。
+    """
+    for t in toks:
+        s = (t or "").strip().lower()
+        if s in fmt.LICH_ELEM_EN:                 # 中文全称
+            return s, fmt.LICH_ELEM_EN[s]
+        if s in fmt.LICH_ELEM_CN:                 # 英文
+            return fmt.LICH_ELEM_CN[s], s
+        if s in fmt.LICH_ELEM_ALT:                # 单字 / 简写
+            cn = fmt.LICH_ELEM_ALT[s]
+            return cn, fmt.LICH_ELEM_EN[cn]
+    return None, None
+
+class RivenCommands:
+    """Mixin：紫卡分析 / 倾向 / 玄骸拍卖 handler（挂载于 main.WarframeSDJK）。"""
+
+    async def _h_xh(self, parsed, event, platform) -> Reply:
+        """玄骸拍卖查询（WM lich auctions）。
+
+        覆盖**三类**：赤毒 Kuva（type=lich）/ 信条 Tenet（type=sister）/
+        科达 Coda（type=coda，WM 未开放则提示无挂单）。
+        1986 年这个指令只查了 lich，信条武器必然「未找到」—— 2026-09-18 修。
+
+        分支筛选：``xh 武器名 [元素] [数值]``
+          · 元素：中文（辐射/毒素/火焰…）或英文（radiation/toxin…）
+          · 数值：伤害加成下限（如 ``50`` 表示只要 ≥50%）
+        """
+        toks = parsed.content or []
+        if not toks:
+            return Reply(raw_text=(
+                "用法：xh 武器名 [元素] [数值]\n"
+                "　例：xh 赤毒怒雷 ｜ xh 信条弧电离子枪 辐射 ｜ xh 赤毒海克 50\n"
+                "　元素：磁力/电击/毒素/火焰/冰冻/冲击/切割/辐射\n"
+                f"　已收录 {len(self.client._aliases.get('lich_items', {}))} 个中文写法"
+                "（赤毒/信条/科达三类）"))
+        first = toks[0]
+        slug = self.client.resolve_lich_weapon(first) or await self._lich_slug_by_riven(first)
+        if not slug:
+            near = fuzzy_hits(
+                first, list(self.client._aliases.get("lich_items", {})), n=3) or []
+            hint = ("；你是不是想找：" + "、".join(near)) if near else ""
+            return Reply(raw_text=f"未找到玄骸武器「{first}」{hint}\n"
+                                  "支持赤毒/信条/科达三类，可只写后半段（如「怒雷」）")
+
+        info = self.client.lich_weapon_info(slug)
+        name = info.get("zh") or slug
+        kind = info.get("type") or "lich"
+        toks_tail = toks[1:]
+        want_eph = any("幻纹" in t for t in toks_tail)
+        elem_cn, elem_en = _xh_element(toks_tail)
+        min_dmg = next((int(t.rstrip("%")) for t in toks_tail
+                        if t.rstrip("%").isdigit() and 1 <= int(t.rstrip("%")) <= 100),
+                       None)
+
+        # 表中已标注 wm=False 的（逐把核对过），直接走「无类目」分支，省一次注定 400 的请求
+        if info.get("wm") is False:
+            return self._xh_no_category(name, slug, kind, platform)
+        try:
+            auctions = await self.client.wm_lich_auctions(
+                slug, platform, lich_type=kind)
+        except WarframeAPIError as exc:
+            # 市场侧失败要说清原因（限速/网络），不能糊成「内部错误」
+            return Reply(raw_text=f"warframe.market 查询失败：{exc}\n"
+                                  "多为市场限速（3 请求/秒）或网络抖动，"
+                                  "过几秒重试即可。")
+        pool = auctions
+        if want_eph:
+            pool = [a for a in pool if (a.get("item") or {}).get("having_ephemera")]
+        if elem_en:
+            pool = [a for a in pool if (a.get("item") or {}).get("element") == elem_en]
+        if min_dmg is not None:
+            pool = [a for a in pool
+                    if int((a.get("item") or {}).get("damage") or 0) >= min_dmg]
+
+        # 排序：**在线优先**（能立刻交易）→ 伤害降序 → 价格升序
+        def _rank(a: dict):
+            o = a.get("owner") or {}
+            it = a.get("item") or {}
+            on = {"ingame": 0, "online": 1}.get(str(o.get("status") or ""), 2)
+            price = a.get("buyout_price") or a.get("starting_price") or 999999
+            return (on, -int(it.get("damage") or 0), price)
+        pool = sorted(pool, key=_rank)
+
+        filters = []
+        if elem_cn:
+            filters.append(elem_cn)
+        if min_dmg is not None:
+            filters.append(f"伤害≥{min_dmg}%")
+        if want_eph:
+            filters.append("带幻纹")
+        title = f"{name} 玄骸拍卖（{len(pool)}条" + \
+            ("，" + "·".join(filters) if filters else "") + "）"
+        if not pool:
+            if self.client.lich_unsupported(slug):
+                return self._xh_no_category(name, slug, kind, platform)
+            elif not auctions:
+                msg = "该武器当前没有挂单（冷门武器挂单少，可过段时间再看）"
+            else:
+                msg = "暂无符合条件的挂单" + \
+                    (f"（筛选：{'·'.join(filters)}）" if filters else "")
+            return Reply(title, msg.splitlines(),
+                         footer=fmt.fmt_platform_footer(platform, "warframe.market 玄骸"))
+        lines = [fmt.fmt_lich_row(i, a) for i, a in enumerate(pool[:12], 1)]
+        lines.append("※ 在线优先排序；信用=卖家交易信誉等级（0~5），"
+                     "幻纹✦ 表示带幻纹")
+        return Reply(title, lines,
+                     footer=fmt.fmt_platform_footer(platform, "warframe.market 玄骸"))
+
+    def _xh_no_category(self, name: str, slug: str, kind: str,
+                        platform: str) -> Reply:
+        """WM 没有该武器的拍卖类目 —— 给**替代路径**，而不是只说「查不到」。
+
+        ★ 2026-09-18 逐把核对过全部 47 把（`lich_weapons.json` 的 ``wm`` 字段）：
+          30 把有类目、17 把没有（全部终幕 Coda + 5 把近战/异形信条）。
+          用户看到「0 条」时最容易以为插件坏了，所以要写清「是市场没有，
+          不是我们没查到」，并给出可操作的替代。
+        """
+        db = self.client._lich_db()
+        has = sum(1 for r in db.values() if r.get("wm") is True)
+        total = len(db)
+        sibling = {"sister": "信条", "lich": "赤毒", "coda": "终幕"}.get(kind, "")
+        example = {"sister": "xh 信条弧电离子枪", "lich": "xh 赤毒怒雷",
+                   "coda": "xh 信条弧电离子枪"}.get(kind, "xh 信条弧电离子枪")
+        return Reply(
+            f"{name} 玄骸拍卖（市场无此类目）",
+            [f"warframe.market 没有「{name}」的拍卖类目。",
+             f"这**不是识别失败**：中文名已正常匹配到 {slug}，是市场侧没这个类目。",
+             f"（已逐把核对全部 {total} 把玄骸武器：{has} 把有挂单、"
+             f"{total - has} 把没有）",
+             f"· 换一把同系列：发「{example}」",
+             f"· 网站自查：warframe.market/zh-hans/auctions/search"
+             f"?type={kind}&weapon_url_name={slug}",
+             f"· 这类武器（全部终幕 + 部分近战{sibling}）只能游戏内交易频道收"],
+            footer=fmt.fmt_platform_footer(platform, "warframe.market 玄骸"))
+
+    async def _lich_slug_by_riven(self, q: str) -> Optional[str]:
+        """黑话兜底：尝试从 riven 别名表取基础武器 slug 前缀匹配玄骸。"""
+        hit = self.client.alias_lookup(q.lower(), "riven_items")
+        return f"kuva_{hit.split('_prime')[0]}" if hit and hit.split('_prime')[0] else None
+
+
+    async def _h_disposition(self, parsed, event, platform) -> Reply:
+        """紫卡倾向查询。"""
+        query = parsed.content_str
+        weapons = await self.client.wm_riven_weapons()
+        if not query:
+            top = sorted([w for w in weapons if w.get("disposition")],
+                         key=lambda w: -w["disposition"])[:8]
+            lines = [f"· {(w.get('zh') or w.get('en') or w['url_name'])}　"
+                     f"倾向 {w['disposition']:.2f}" for w in top]
+            return Reply("紫卡倾向 Top8（越高越容易出好卡）", lines,
+                         footer=fmt.fmt_platform_footer(platform))
+        hits, stage = matching.resolve_weapon_name(
+            query, weapons, zh="zh", en="en", slug="url_name")
+        if not hits:
+            # 紫卡黑话别名兜底（riven_items 词库），命中优先级低于官方名各层
+            aurl = self.client.alias_lookup(query.lower(), "riven_items")
+            if aurl:
+                hits = [w for w in weapons if w.get("url_name") == aurl]
+                stage = "alias"
+        if not hits:
+            close = matching.suggest_zh(query, weapons)
+            return Reply(raw_text="未找到该武器" + (f"，你是不是想找：{'、'.join(close)}" if close else ""))
+        logger.info("[sdjk] 倾向武器解析：%s → %s（%s）",
+                    query, "/".join(matching.zh_names(hits)), stage)
+        # 只报本体名（无变体意图）→ 列出全部变体家族（本体在前），
+        # 对齐 Warframe Rabbit 的家族卡；显式变体查询（绝路p/赤毒沙皇）不展开
+        nq = matching.normalize(query)
+        if (len(hits) == 1 and not matching.variant_intent(query)
+                and not any(t in nq for t in matching.VARIANT_TOKENS)):
+            fam = matching.family_of(hits[0], weapons)
+            if len(fam) > 1:
+                hits = fam
+        # ★ 2026-09-27：Vandal/Wraith 这类变体在倾向数据里 group/riven_type 是
+        #   空的（49 条）⇒ 类别列会空着。家族卡里用**家族内第一个有类别的成员**
+        #   兜底（同一家族类别相同；不能取 hits[0] —— 家族排序把「MK1-布莱顿」
+        #   这类 _is_base 认不出的变体排在了本体前面，取它只会拿到空值）。
+        base_w = next((w for w in hits
+                       if (w.get("riven_type") or w.get("group"))), {})
+        base_rt = base_w.get("riven_type", "")
+        base_gp = base_w.get("group", "")
+
+        def _cls(w: dict) -> str:
+            rt, gp = w.get("riven_type", ""), w.get("group", "")
+            if not rt and not gp:
+                rt, gp = base_rt, base_gp
+            return fmt.riven_type_cn(rt, gp)
+
+        lines = [f"· {(w.get('zh') or w.get('en') or w['url_name'])}　"
+                 f"倾向 {w.get('disposition', 0):.2f}　"
+                 # ★ 2026-09-24：带上 group —— WM 把曲翼枪械的 rivenType 也标成
+                 #   rifle（翠雀显示成「步枪」），group 才是准的（曲翼枪械/守护武器）
+                 f"{_cls(w)}"
+                 for w in hits[:8]]
+        return Reply(f"紫卡倾向：{query}", lines, footer=fmt.fmt_platform_footer(platform))
+    async def _h_riven_analysis(self, parsed, event, platform) -> Reply:
+        import time as _tt
+        _t_start = _tt.perf_counter()
+        """紫卡分析：按 DE 属性基值 × 倾向 × 词条数系数算每条词条的取值区间，
+        标出实际数值是高卷还是低卷。
+
+        用法：紫卡分析 武器名 暴伤82.8 范围1.6 攻速45.8 负滑暴81.3
+        也可直接发「紫卡分析 + 紫卡截图」（vision 渠道识别，如 glm-4v-flash）。
+        负词条用「负」或「-」前缀标记；数值不写正负号。
+        """
+        import re as _re
+        try:  # 服务器以包成员加载，相对导入才可靠（绝对导入会被 sys.path 清理坑掉）
+            from ..parser import RIVEN_STAT_ZH
+            from .. import riven_analysis as RA
+        except ImportError:  # pragma: no cover - 本地直跑
+            from core.parser import RIVEN_STAT_ZH
+            from core import riven_analysis as RA
+        rev = {v: k for k, v in RIVEN_STAT_ZH.items()}
+        disp_override = 0.0  # 手输倾向（倾向0.95 / @0.95 / d0.95）
+        stats_pos: list[tuple[str, float]] = []
+        stats_neg: list[tuple[str, float]] = []
+        weapon_name = ""
+        for tok in (parsed.content or []):
+            t = tok.strip()
+            if not t:
+                continue
+            neg = t.startswith(("负", "-"))
+            body = t[1:] if neg else t
+            # ★ 2026-09-24：词条名放宽到 1~8 字（卡面原文「滑行攻击暴击几率」6 字，
+            #   旧限 1~4 字会整条落到武器名里 → 负词条丢失、反推区间算错）
+            m = _re.fullmatch(r"([\u4e00-\u9fa5]{1,8}?)(\d+(?:\.\d+)?)", body)
+            if m:
+                sid = self._stat_id_from_name(m.group(1), rev)
+                if sid:
+                    (stats_neg if neg else stats_pos).append(
+                        (sid, float(m.group(2))))
+                    continue
+            if _re.fullmatch(r"\d\+(?:\d)?", t):
+                continue  # 3+1 之类的词条数标注，P/N 直接按实际词条算
+            m_d = _re.fullmatch(r"(?:倾向|d|@)(\d+(?:\.\d+)?)", t, _re.I)
+            if m_d:
+                disp_override = float(m_d.group(1))
+                continue  # 手输倾向覆盖（棱晶等变体 WM 没有数据）
+            weapon_name += t
+
+        has_image = self._event_has_image(event)
+        source_note = ""
+        if not weapon_name or not (stats_pos or stats_neg):
+            # —— 图片识别路径 ——
+            if not has_image:
+                return Reply(raw_text="用法：紫卡分析 武器名 词条数值…（负词条加「负」前缀）\n"
+                                      "　例：紫卡分析 欧玛 暴伤82.8 范围1.6 攻速45.8 负滑暴81.3\n"
+                                      "　也可直接发「紫卡分析 + 紫卡截图」")
+            imgs = await self._image_data_urls(event)
+            if not imgs:
+                return Reply(raw_text="图片下载失败，请重发一次截图")
+            data = await self._extract_riven_from_image(imgs[0])
+            if not data:
+                return Reply(raw_text="图片识别失败（vision 渠道不可用或未配）——"
+                                      "请按文字格式发送：紫卡分析 武器名 暴伤82.8 范围1.6 "
+                                      "负滑暴81.3")
+            stats_pos, stats_neg = self._normalize_llm_stats(data, rev)
+            weapon_name = (data.get("weapon") or weapon_name).strip()
+            # 紫卡卡面是「武器名 + 自命名」（欧玛 Acri-loctida）：去掉拉丁
+            # 尾巴只留简中母名（WM 紫卡表按母武器挂）
+            _w = _re.sub(r"[A-Za-z\-].*$", "", weapon_name).strip(" ··")
+            if _w:
+                weapon_name = _w
+            source_note = "（图片识别）"
+            # ★ 2026-09-27：优先采信「卡面文字行」，而不是模型给的语义词条表。
+            #   故障实证（服务器日志 01:11:52）：4 行卡面被吐成 7 条 —— 负词条
+            #   那行拆成「触发」「持续」「触发时间」三份 + 凭空一条「滑暴」，
+            #   词条数校验直接报「4 正 2 负」把整张卡挡掉。行由**窄读那一路**
+            #   （`_RIVEN_LINE_PROMPT`）照抄，读全（2~3 正、≤1 负）才采信，
+            #   否则退回语义 JSON 的词条表。
+            _lines = data.get("lines")
+            if isinstance(_lines, str):
+                _lines = _lines.splitlines()
+            if isinstance(_lines, (list, tuple)) and _lines:
+                _lp, _ln, _legal, _notes = self._riven_lines_legal(_lines)
+                logger.info("[sdjk] 紫卡行解析：%d 正 %d 负（模型语义表 %d 正 %d 负）%s",
+                            len(_lp), len(_ln), len(stats_pos), len(stats_neg),
+                            ("；跳过 " + " / ".join(_notes)) if _notes else "")
+                if _legal:
+                    stats_pos, stats_neg = _lp, _ln
+                    source_note = "（图片识别·卡面逐行）"
+            if not stats_pos:
+                return Reply(raw_text="图片识别到了武器但没读出词条，请按文字格式重发："
+                                      "紫卡分析 武器名 暴伤82.8 范围1.6 负滑暴81.3")
+            if not weapon_name:
+                # ★ 2026-09-25 ruff F821 修复：原写成未定义的 `abbr`，这条路一走
+                #   就 NameError（用户拿到内部错误而不是下面这条提示）。
+                hint = " ".join(f"{RIVEN_STAT_ZH.get(sid, sid)}{num:g}"
+                                for sid, num in stats_pos)
+                return Reply(raw_text="图片识别到了词条但没读出武器名，"
+                                      f"请按文字格式补一次：紫卡分析 武器名 {hint}")
+
+        if not 2 <= len(stats_pos) <= 3 or len(stats_neg) > 1:
+            return Reply(raw_text="紫卡词条应为 2~3 条正面 + 0~1 条负面，"
+                                  f"当前解析到 {len(stats_pos)} 正 {len(stats_neg)} 负")
+        # 武器解析 + 变体倾向查询互不依赖 → 并行（原来串行，实测分析段 4 s）
+        _t_res0 = asyncio.gather(
+            self.client.resolve_riven_weapon(weapon_name.strip()),
+            self.client.resolve_variant_disp(weapon_name.strip()),
+            return_exceptions=True)
+        weapon, _t_variant = await _t_res0
+        if isinstance(weapon, BaseException):
+            weapon = None
+        if isinstance(_t_variant, BaseException):
+            _t_variant = (None, "")
+        variant_disp_pre, variant_key_pre = _t_variant or (None, "")
+        if not weapon:
+            # 变体兜底：棱晶·X / Prime X → 母武器（WM 紫卡表只挂母武器，
+            # 变体倾向取母武器值）
+            import re as _re2
+            base = _re2.sub(r"^(棱晶|Prime|P)", "", weapon_name.strip())
+            base = _re2.sub(r"\s*Prime\s*$", "", base, flags=_re2.I)
+            if base != weapon_name.strip():
+                weapon = await self.client.resolve_riven_weapon(base)
+        if not weapon:
+            tips = await self.client.suggest_riven_weapons(weapon_name.strip())
+            tip = ("，你是不是想找：" + "、".join(tips)) if tips else ""
+            return Reply(raw_text=f"未找到紫卡武器「{weapon_name.strip()}」{tip}")
+        cls = RA.weapon_class(weapon.get("riven_type", ""),
+                              weapon.get("group", ""))
+        # 倾向来历：手输覆盖（棱晶等变体 WM 没数据，卡主最准）> WM/母武器值。
+        # 游戏内紫卡不显示倾向数值，LLM 从卡面"读倾向"只会把内融值之类的
+        # 数字当倾向（教训：49 → 区间爆表），所以永远不采信 LLM。
+        wm_disp = float(weapon.get("disposition") or 0)
+        # 倾向来历：手输覆盖 > wiki 变体表（棱晶等变体 WM 没数据）> WM 母武器。
+        variant_disp, variant_key = None, ""
+        if weapon_name.strip() != (weapon.get("zh") or weapon.get("en") or ""):
+            variant_disp, variant_key = (variant_disp_pre,
+                                         variant_key_pre)
+        disp = disp_override or variant_disp or wm_disp
+        if disp <= 0:
+            return Reply(raw_text=f"WM 未返回「{weapon_name.strip()}」的倾向数值，无法计算区间；"
+                                  "变体武器可手输：紫卡分析 武器名 倾向0.95 词条…")
+        name = weapon.get("zh") or weapon.get("en") or weapon["url_name"]
+        mother_name = name
+        # ── 小数点修正（2026-09-24 玩家报障：115.7% 读成 1157%）────────────
+        # vision 偶发把小数点读丢，整卡数值随之「都不吻合」。用**当前倾向的合法
+        # 区间**做判据：原值明显超出区间、除以 10 落回区间内 → 修正并在卡面注明。
+        decimal_fix: list[str] = []
+
+        def _fix_decimal(pairs, negative: bool):
+            out = []
+            for sid, v in pairs:
+                lo, hi = RA.stat_range(sid, cls, disp, len(stats_pos),
+                                       len(stats_neg), negative=negative)
+                if not lo or not hi:
+                    out.append((sid, v))
+                    continue
+                if not (lo * 0.7 <= v <= hi * 1.4):
+                    v10 = v / 10.0
+                    if lo * 0.85 <= v10 <= hi * 1.15:
+                        decimal_fix.append(
+                            f"{RA.fmt_value(sid, v)} → {RA.fmt_value(sid, v10)}")
+                        v = v10
+                out.append((sid, v))
+            return out
+
+        stats_pos = _fix_decimal(stats_pos, False)
+        stats_neg = _fix_decimal(stats_neg, True)
+        # 负词条可能被漏识别：卡面负词条常写成「x0.55 对 Corpus 的伤害」这类
+        # 乘数形式，vision 容易整行丢掉 —— 词条数系数会从 (n正,1)=0.9375
+        # 错成 (n正,0)=0.75，区间整体偏小 20%，表现为「卡面数值与倾向都不吻合」。
+        # 判据：0 负解释不了、1 负能解释 → 按 1 负算（区间只依赖正词条系数）。
+        neg_fix_note = ""
+        if not stats_neg and stats_pos and len(stats_pos) == 3:
+            try:
+                if not RA.disp_feasible(stats_pos, [], cls, disp) and \
+                        RA.disp_feasible(stats_pos,
+                                         [("damage_vs_corpus", 45.0)], cls, disp):
+                    stats_neg = [("damage_vs_corpus", 45.0)]
+                    neg_fix_note = ("⚠ 卡面疑似有未被识别的负词条（常见写法"
+                                    "「x0.55 对 Corpus 的伤害」这类乘数形式），"
+                                    "已按 3正1负 的系数计算")
+            except Exception:  # noqa: BLE001 —— 纠错失败不影响主流程
+                pass
+        if variant_disp or disp_override:
+            name = weapon_name.strip() or name   # 保留用户输入的变体名
+        # ── 数值反推倾向 ────────────────────────────────────────────────
+        # 卡面只写母武器名（变体信息根本不在截图里），但数值 =
+        # 基值 × 倾向 × 词条系数 × U(0.9~1.1) 可以反着解出倾向；家族内
+        # （母武器 + 棱晶/Prime/亡魂…）通常只有一个候选能解释全部词条，
+        # 据此自动判定该按谁的倾向算 —— 不用手输、也不用带变体名。
+        infer_note = ""
+        fam_all = []
+        if not disp_override:
+            fam_all = [(n, v) for n, v in await self.client.riven_family(weapon)
+                       if abs(v - wm_disp) > 1e-9]
+            if not variant_disp:
+                fits = RA.match_disposition(stats_pos, stats_neg, cls,
+                                            [(mother_name, wm_disp)] + fam_all)
+                if len(fits) == 1 and abs(fits[0][1] - wm_disp) > 1e-9:
+                    name, disp = fits[0]          # 唯一吻合且不是母武器
+                    infer_note = (f"数值反推倾向 {disp:g}：唯一吻合 {name}"
+                                  f"（母武器 {mother_name} {wm_disp:g} 不吻合）")
+                elif len(fits) > 1:
+                    infer_note = ("数值与多个倾向都吻合：" +
+                                  "、".join(f"{n} {v:g}" for n, v in fits) +
+                                  "　请带变体名重发：紫卡分析 棱晶欧玛 [截图]")
+                elif not fits:
+                    # ★ 2026-09-24 玩家报障：老卡（洗出后该武器倾向被上调过，
+                    #   游戏不回溯重算旧卡数值）会四条词条整体偏低、全落 0%，
+                    #   旧实现只丢一句「武器名可能识别有误」（误导）。数值本身就
+                    #   能反推倾向：区间够紧（≤25%）时直接按反推值算区间。
+                    iv = RA.disposition_interval(stats_pos, stats_neg, cls)
+                    if iv[0] and iv[1] / iv[0] <= 1.25:
+                        disp = round((iv[0] + iv[1]) / 2, 2)
+                        infer_note = (
+                            f"卡面数值反推倾向 ≈{disp:g}（{mother_name} 当前值 "
+                            f"{wm_disp:g} 对不上，反推区间 {iv[0]:g}~{iv[1]:g}）"
+                            "—— 疑似倾向调整前洗出的老卡，区间已按反推值计算")
+                    else:
+                        infer_note = (f"⚠️ 卡面数值与「{mother_name}」家族的已知倾向"
+                                      "都不吻合，武器名可能识别有误")
+            elif not RA.disp_feasible(stats_pos, stats_neg, cls, disp):
+                iv = RA.disposition_interval(stats_pos, stats_neg, cls)
+                rng = f"（反推应在 {iv[0]:g}~{iv[1]:g}）" if iv[0] else ""
+                infer_note = f"⚠️ 卡面数值与倾向 {disp:g} 不吻合{rng}，请核对武器"
+        if disp_override:
+            disp_note = (f"（已按手输倾向 {disp:g} 计算，母武器 WM 值 {wm_disp:g}）"
+                         if wm_disp else f"（已按手输倾向 {disp:g} 计算）")
+        elif variant_disp:
+            disp_note = f"（倾向取自 wiki 变体表：{variant_key} {variant_disp:g}）"
+        else:
+            disp_note = ""
+        # 家族提示：数值反推没结论时，列出家族变体倾向供对照/手输
+        family_note = ""
+        if not infer_note and not disp_override and not variant_disp and \
+                weapon_name.strip() == mother_name:
+            fam = [(n, v) for n, v in fam_all if abs(v - disp) > 1e-9]
+            if fam:
+                family_note = ("该武器家族有其它倾向：" +
+                               "、".join(f"{n} {v:g}" for n, v in fam[:4]) +
+                               "　卡面不显示变体，装在棱晶等变体上请发"
+                               "「紫卡分析 棱晶欧玛 [截图]」")
+        title, lines = fmt.fmt_riven_analysis(name, disp, cls,
+                                              stats_pos, stats_neg)
+        if family_note:
+            lines.insert(1, f"※ {family_note}")
+        if disp_note:
+            lines.insert(1, f"※ {disp_note}")
+        if infer_note:
+            lines.insert(1, f"※ {infer_note}")
+        if neg_fix_note:
+            lines.insert(1, f"※ {neg_fix_note}")
+        if decimal_fix:
+            lines.insert(1, "※ 已修正小数点（截图未读出点号）：" +
+                         "、".join(decimal_fix))
+        if source_note:
+            lines.insert(1, f"※ 来源：{source_note.strip('（）')}")
+        logger.info("[sdjk] 紫卡分析耗时 %.0f ms（含识别/查询/计算）",
+                    (_tt.perf_counter() - _t_start) * 1000)
+        return Reply(title, lines,
+                     footer=fmt.fmt_platform_footer(
+                         platform, "DE 属性基值公式 · 倾向可由卡面数值反推"))

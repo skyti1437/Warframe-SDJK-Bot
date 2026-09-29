@@ -333,10 +333,12 @@ _cmap = {i["en"]: (i.get("element"), i.get("bonus")) for i in _cur_batch}
 # 终幕按批次抽查：wiki 只公布**当前生效批**的表，另一批在换批前拿不到真值，
 # 所以每次刷新后要把这里同步成新一批的两把（换批后旧值会失效）。
 # ★ 每次终幕换批后，本表的当前批抽查值必须同步（B 批的值随换批重掷，
-#   逐条取自刷新后的 core/data/rotations.json；2026-09-28 01:06 UTC 刷新复核：
-#   当前批仍是 B，且 B 的 7 条与 09-25 快照**逐条未变** ⇒ 值保持不动，只更新刷新时刻）。
-_SPOT = {"A": {"Coda Catabolyst": ("Heat", 25.0),
-               "Coda Motovore": ("Heat", 38.8)},
+#   逐条取自刷新后的 core/data/rotations.json；2026-09-29 00:06 UTC 刷新回写：
+#   coda 换批回到 A，A 批 7 条元素加成全部重生成（如 Catabolyst Heat 25.0→48.9、
+#   Motovore Heat 38.8→Impact 25.0）；非当前批 B 按写入器规范不带 element/bonus，
+#   B 的钉值待其轮转刷新时再钉。
+_SPOT = {"A": {"Coda Catabolyst": ("Heat", 48.9),
+               "Coda Motovore": ("Impact", 25.0)},
          "B": {"Coda Bassocyst": ("Magnetic", 31.6),
                "Coda Synapse": ("Toxin", 25.6)}}
 _cur_label = (coda.get("batch_label") or ["A", "B"])[_idx]

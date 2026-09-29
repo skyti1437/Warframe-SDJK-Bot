@@ -15,6 +15,9 @@
   ② `@staticmethod`：第一个形参不能是 `self`
   ③ 同一函数不得重复标 `@staticmethod`
   ④ 关键性能敏感/纯函数方法必须仍是静态方法（白名单）
+  ⑤ core/commands/ 子包一律不得 import astrbot（2026-09-28 结构优化
+    裁定 B 的机器化：事件对象走鸭子类型，astrbot 依赖只留在 main.py，
+    离线桩测试的注入面才不会随拆分膨胀）
 """
 import ast
 import sys
@@ -22,6 +25,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 MAIN = ROOT / "main.py"
+# 方法契约扫描集 = main.py + 指令子包（结构优化 D1 起 handler 分域迁入；
+# core/commands 不存在时 glob 返回空，兼容历史形态）
+SOURCES = [MAIN] + sorted((ROOT / "core" / "commands").glob("*.py"))
 
 # 这些必须是静态方法（改动会让调用方悄悄错位）
 MUST_BE_STATIC = {
@@ -47,26 +53,26 @@ def _dec_names(fn):
 
 
 def main() -> int:
-    src = MAIN.read_text(encoding="utf-8")
-    tree = ast.parse(src)
     problems, static_names, dup = [], set(), []
-    for cls in [n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)]:
-        for fn in cls.body:
-            if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                continue
-            decs = _dec_names(fn)
-            args = [a.arg for a in fn.args.args]
-            first = args[0] if args else ""
-            is_static = "staticmethod" in decs
-            is_cls = "classmethod" in decs
-            if is_static:
-                static_names.add(fn.name)
-                if decs.count("staticmethod") > 1:
-                    dup.append(f"{cls.name}.{fn.name}")
-            if not is_static and not is_cls and first != "self":
-                problems.append(f"{cls.name}.{fn.name}: 普通方法但首参是 {first!r}")
-            if is_static and first == "self":
-                problems.append(f"{cls.name}.{fn.name}: staticmethod 却带 self")
+    for src_path in SOURCES:
+        tree = ast.parse(src_path.read_text(encoding="utf-8"))
+        for cls in [n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)]:
+            for fn in cls.body:
+                if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    continue
+                decs = _dec_names(fn)
+                args = [a.arg for a in fn.args.args]
+                first = args[0] if args else ""
+                is_static = "staticmethod" in decs
+                is_cls = "classmethod" in decs
+                if is_static:
+                    static_names.add(fn.name)
+                    if decs.count("staticmethod") > 1:
+                        dup.append(f"{cls.name}.{fn.name}")
+                if not is_static and not is_cls and first != "self":
+                    problems.append(f"{cls.name}.{fn.name}: 普通方法但首参是 {first!r}")
+                if is_static and first == "self":
+                    problems.append(f"{cls.name}.{fn.name}: staticmethod 却带 self")
 
     check("所有方法的首参与被装饰类型一致（self ↔ 实例方法）",
           not problems, "; ".join(problems[:4]))
@@ -74,11 +80,25 @@ def main() -> int:
     for name in sorted(MUST_BE_STATIC):
         check(f"★ {name} 仍是 staticmethod", name in static_names)
 
+    # ⑤ core/commands/ 禁 import astrbot（裁定 B 机器化；SOURCES[0] 是 main.py）
+    astrbot_hits = []
+    for src_path in SOURCES[1:]:
+        tree = ast.parse(src_path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import) and any(
+                    alias.name.split(".")[0] == "astrbot" for alias in node.names):
+                astrbot_hits.append(f"{src_path.name}:{node.lineno}")
+            elif (isinstance(node, ast.ImportFrom) and node.module
+                  and node.module.split(".")[0] == "astrbot"):
+                astrbot_hits.append(f"{src_path.name}:{node.lineno}")
+    check("★ core/commands/ 一律不 import astrbot（astrbot 依赖只留 main.py）",
+          not astrbot_hits, "; ".join(astrbot_hits[:5]))
+
     print()
     if FAILED:
         print(f"[FAIL] {len(FAILED)} 项失败: {FAILED}")
         return 1
-    print("[OK] main.py 方法契约检查通过")
+    print(f"[OK] 方法契约检查通过（{len(SOURCES)} 文件：main.py + core/commands/）")
     return 0
 
 

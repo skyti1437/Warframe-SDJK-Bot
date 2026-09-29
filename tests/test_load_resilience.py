@@ -134,7 +134,8 @@ import ast as _ast2               # noqa: E402
 
 _bad2: list[str] = []
 _FUNCS = (_ast2.FunctionDef, _ast2.AsyncFunctionDef)
-for _f in [ROOT / "main.py"] + sorted((ROOT / "core").glob("*.py")):
+for _f in ([ROOT / "main.py"] + sorted((ROOT / "core").glob("*.py"))
+           + sorted((ROOT / "core" / "commands").glob("*.py"))):
     try:
         _tree = _ast2.parse(_f.read_text(encoding="utf-8"))
     except (OSError, SyntaxError):
@@ -144,7 +145,11 @@ for _f in [ROOT / "main.py"] + sorted((ROOT / "core").glob("*.py")):
         _rel: set = set()
         _abs: list = []
         for _n in _ast2.walk(_fn):
-            if isinstance(_n, _ast2.ImportFrom) and (_n.module or "").split(".")[0] == "core":
+            # 2026-09-29 D7：相对导入（level>0）一律收集——core/commands 子包内的
+            # 正确相对形态 `..parser` 的 module 不含 "core" 前缀；绝对侧仍只认 core.*
+            if isinstance(_n, _ast2.ImportFrom) and (
+                    _n.level > 0
+                    or (_n.module or "").split(".")[0] == "core"):
                 _key = (_n.module, tuple(sorted(_a.name for _a in _n.names)))
                 if _n.level > 0:
                     _rel.add(_key)
@@ -160,8 +165,20 @@ for _f in [ROOT / "main.py"] + sorted((ROOT / "core").glob("*.py")):
                     else:
                         _abs.append((_n.lineno, _key))
         # 函数体内的**绝对**导入必须有同形相对导入兜底（try/except ImportError 双分支）
+        # 2026-09-29 D7：配对键规范化——去掉 module 的前导 "core." 再比较。
+        # 原 main.py 场景相对形态是 `.core.parser`（module 字面即含 core.），
+        # core/commands 子包内的正确相对形态是 `..parser`（module 无 core. 前缀）；
+        # 规范化后两种形态与绝对 `core.parser` 同键，护栏语义（防裸绝对导入）不变。
+        def _norm_key(k):
+            mod, names = k
+            if mod == "core":
+                mod = ""
+            elif mod and mod.startswith("core."):
+                mod = mod[len("core."):]
+            return (mod or "", names)
+        _rel_norm = {_norm_key(k) for k in _rel}
         for _lineno, _key in _abs:
-            if _key not in _rel:
+            if _norm_key(_key) not in _rel_norm:
                 _bad2.append(f"{_f.relative_to(ROOT)}:{_lineno} {_key[0] or 'import'} "
                              f"{','.join(_key[1])}")
 
@@ -170,8 +187,9 @@ check("★ 函数内绝对导入 core.* 均带相对导入兜底（0 个裸导�
 
 # ---------------------------------------------------------------------------
 # ★ 2026-09-26：遗物用法串抽常量（RELIC_USAGE）—— 防两处各写一份漂移
+# 2026-09-29 D5：RELIC_USAGE 与 _h_relic 随遗物域迁 core/commands/relic.py
 # ---------------------------------------------------------------------------
-_src_main = (ROOT / "main.py").read_text(encoding="utf-8")
+_src_main = (ROOT / "core" / "commands" / "relic.py").read_text(encoding="utf-8")
 _tree_main = _ast2.parse(_src_main)
 check("★ RELIC_USAGE 是模块级常量",
       any(isinstance(n, _ast2.Assign)

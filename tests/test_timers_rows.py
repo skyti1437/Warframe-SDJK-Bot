@@ -72,8 +72,10 @@ def t_source_guards():
     check("fmt_timers 不再有 `if not data: continue` 静默分支",
           "if not data:\n            continue" not in src_fmt)
     # 只在 _h_timers 函数体内断言（别处 `isinstance(r, dict)` 过滤仍是合法用法）
-    _i = src_main.index("async def _h_timers")
-    _body = src_main[_i:_i + 2600]
+    # 结构优化 D1：_h_timers 已迁 core/commands/daily.py（Mixin，方法体逐字未改）
+    src_daily = (ROOT / "core" / "commands" / "daily.py").read_text(encoding="utf-8")
+    _i = src_daily.index("async def _h_timers")
+    _body = src_daily[_i:_i + 2600]
     check("_h_timers 把非 dict 结果透传为 None（不再 isinstance 过滤丢行）",
           "r if isinstance(r, dict) else None" in _body and
           "if isinstance(r, dict)]" not in _body)

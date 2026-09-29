@@ -129,8 +129,11 @@ if changelog.exists():
 # ★ 版本联动第五处：README 版本标题（2026-09-21 v1.0.4 发版漏改事故后补，
 #    cab29df/ccc41c8 修复）。工作树 README 与开源 stage 的 README 源首行都带版本号；
 #    漏改会让市场件内 README 停在旧版（用户实测 v1.0.4 市场件里还是 v1.0.3）。
+#    2026-09-28 结构优化 Slice 1 补 dist/SDJKwfbot_README.md：该门面曾停在
+#    v1.0.5 四版未跟（cf44265 收口批已对齐 v1.0.9），此断言防再次脱节。
 for _rd, _tag in ((ROOT / "README.md", "工作树 README"),
-                  (ROOT / "dist" / "OPENSOURCE_README.md", "dist/OPENSOURCE_README")):
+                  (ROOT / "dist" / "OPENSOURCE_README.md", "dist/OPENSOURCE_README"),
+                  (ROOT / "dist" / "SDJKwfbot_README.md", "dist/SDJKwfbot_README")):
     if not _rd.exists():
         check(f"★ {_tag} 存在（版本标题第五处）", False, str(_rd))
         continue

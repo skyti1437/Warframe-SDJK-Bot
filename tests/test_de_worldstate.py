@@ -830,8 +830,13 @@ print("§二 模板标记清洗：断言通过")
 # 现在两个读点（时效汇总 / 轮换卡）都走 `core_paths.read_path("rotations.json")`：
 # **运行期副本（plugin_data）优先 → 包内种子回退**。
 # 断言分两级：源码级（防回归）+ 行为级（注入临时运行目录，验证「优先」与「回退」两侧）。
-_MAIN_SRC = (Path(__file__).resolve().parent.parent / "main.py").read_text(encoding="utf-8")
-assert "ROTATION_FILE" not in _MAIN_SRC, "main.py 仍引用已删除的包内常量（应只留注释说明）"
+# 结构优化 D1 起读点随 handler 分域：时效汇总在 core/commands/daily.py、
+# 轮换卡（_rotation_lines）暂在 main.py —— 扫描集 = main.py + core/commands/*.py。
+_SRC_ROOT = Path(__file__).resolve().parent.parent
+_SRC_FILES = [_SRC_ROOT / "main.py"] + sorted(
+    (_SRC_ROOT / "core" / "commands").glob("*.py"))
+_MAIN_SRC = "\n".join(p.read_text(encoding="utf-8") for p in _SRC_FILES)
+assert "ROTATION_FILE" not in _MAIN_SRC, "源码仍引用已删除的包内常量（应只留注释说明）"
 _code_hits = [ln for ln in _MAIN_SRC.splitlines()
               if 'core_paths.read_path("rotations.json")' in ln
               and not ln.lstrip().startswith("#")]           # 排除注释里提到的那一处

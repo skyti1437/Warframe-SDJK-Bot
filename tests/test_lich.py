@@ -81,6 +81,8 @@ def _install_astrbot_stub() -> None:
 _install_astrbot_stub()
 
 import main as plugin                       # noqa: E402
+# 2026-09-29 D7：_xh_element 随紫卡域迁 core/commands/riven.py
+from core.commands.riven import _xh_element  # noqa: E402
 from core import formatters as fmt          # noqa: E402
 from core.api_client import WarframeClient  # noqa: E402
 
@@ -158,10 +160,10 @@ check("字段缺失不崩（占位 ?）", "?" in row3, row3)
 for tok, want in (("辐射", "radiation"), ("radiation", "radiation"),
                   ("辐", "radiation"), ("毒素", "toxin"), ("toxin", "toxin"),
                   ("火", "heat")):
-    cn, en = plugin._xh_element([tok])
+    cn, en = _xh_element([tok])
     check(f"元素识别 {tok} → {want}", en == want, f"{cn}/{en}")
-check("非元素词不误判", plugin._xh_element(["50", "幻纹"]) == (None, None),
-      str(plugin._xh_element(["50", "幻纹"])))
+check("非元素词不误判", _xh_element(["50", "幻纹"]) == (None, None),
+      str(_xh_element(["50", "幻纹"])))
 
 
 # ---------------------------------------------------------------- 端到端（离线桩）

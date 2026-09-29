@@ -49,9 +49,13 @@ check("push 的仲裁走 core.arbi（与查询指令同一实现）",
 check("core/arbi.py 存在且数据源为 arbi.wf.wiki",
       (ROOT / "core" / "arbi.py").is_file()
       and "arbi.wf.wiki" in (ROOT / "core" / "arbi.py").read_text(encoding="utf-8"))
+# 2026-09-28 D3：仲裁别名块随域迁 core/commands/arbitration.py——单一实现
+# 委托行在现址核验，且 main.py 与现址都不得出现第二份 def 拷贝。
+_arb_cmd_src = (ROOT / "core" / "commands" / "arbitration.py").read_text(encoding="utf-8")
 check("main 的仲裁辅助已委托 arbi（单一实现，无第二份拷贝）",
       main_src.count("def _arb_mission(") == 0
-      and "_arb_mission = _arbi.mission_of" in main_src)
+      and "def _arb_mission(" not in _arb_cmd_src
+      and "_arb_mission = _arbi.mission_of" in _arb_cmd_src)
 check("api_client 仍在（历史事实留痕）：arbitration 恒抛、steelPath 恒抛",
       "raise WarframeAPIError(_EXTERNAL_ONLY[\"arbitration\"])" in api_src)
 
@@ -210,12 +214,14 @@ check("分开写语义确实变宽（= 钢铁 **或** 普通防御，两组取�
       parse_fissure_filter(_rule_a).describe())
 
 # 5.3 静态守卫：提示只进回执，**不得参与 rule 构造**（防有人顺手改成自动合并）
-_i_join = main_src.index('rule=",".join(rule_parts)')
-_i_hint = main_src.index("dun_rule_hint(rule_parts)")
+# 2026-09-29 D11：_h_dun 随蹲订阅域迁 core/commands/dun.py，本段断言改读现址
+dun_src = (ROOT / "core" / "commands" / "dun.py").read_text(encoding="utf-8")
+_i_join = dun_src.index('rule=",".join(rule_parts)')
+_i_hint = dun_src.index("dun_rule_hint(rule_parts)")
 check("★ 提示调用在 rule 拼接**之后**（不改语义）", _i_join < _i_hint,
       f"join@{_i_join} vs hint@{_i_hint}")
 check("★ 提示只在「裂隙」分支（非裂隙类型 rule 语义不同，本轮不做）",
-      'if event_type == "裂隙":' in main_src[max(0, _i_hint - 600):_i_hint])
+      'if event_type == "裂隙":' in dun_src[max(0, _i_hint - 600):_i_hint])
 check("★ 修饰词清单同源：解析与提示共用 FISSURE_MODIFIER_WORDS",
       "FISSURE_MODIFIER_WORDS" in (ROOT / "core" / "parser.py").read_text(encoding="utf-8")
       and "FISSURE_MODIFIER_WORDS" in (ROOT / "core" / "parser.py").read_text(encoding="utf-8").split("def dun_rule_hint")[1])
