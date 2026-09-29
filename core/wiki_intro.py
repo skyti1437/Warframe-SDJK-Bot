@@ -77,6 +77,36 @@ _UNIT_AFTER = set("%×") | {"秒", "米", "次", "层", "倍", "点", "个", "�
                            "发", "枚", "颗", "段"}
 _PH_RE = re.compile(r"〈[^〉]+〉")
 _COLOR_RE = re.compile(r"〈(?:OPEN_COLOR|CLOSE_COLOR)〉", re.I)
+
+# —— 半角富文本标签（2026-09-29 v1.1.1 根治）——
+# 官方整句里夹杂 <DT_FIRE_COLOR>（伤害类型着色）、<LOWER_IS_BETTER>（低更优标记）
+# 这类**纯格式**标签，以及 <ENERGY>/<SHIELD>/<AFFINITY_SHARE>（词形已在后文）与
+# <SECONDARY_FIRE>（无后随词，须映射中文）。旧实现只清全角〈〉，半角会原样上卡
+# （de_worldstate._ANY_SLOT_RE 显式排除 <>，兜不到）。数据与渲染双清：
+# 数据侧同规则已施于 wiki_effect_zh.json（92 条），此处为防线；tests 有哨兵断言。
+_HW_TAG = re.compile(r"<([A-Z_][A-Z0-9_]*)>")
+_HW_WORD_AFTER = {"ENERGY": "能量", "SHIELD": "护盾", "AFFINITY_SHARE": "经验共享"}
+_HW_MAP_ALWAYS = {"SECONDARY_FIRE": "次要射击"}
+
+
+def _clean_hw_tags(text: str) -> str:
+    """半角富文本标签清洗：纯格式剥除；有后随中文词的删；无后随词的映射；
+    收尾统一空格（双空格、中文间空格、标点前空格）。数字一律不动。"""
+    def sub(m: "re.Match[str]") -> str:
+        tag = m.group(1)
+        if tag in _HW_MAP_ALWAYS:
+            return _HW_MAP_ALWAYS[tag]
+        word = _HW_WORD_AFTER.get(tag)
+        if word:
+            rest = (text or "")[m.end():].lstrip()
+            return "" if rest.startswith(word) else word
+        return ""                       # <DT_*_COLOR> / <LOWER_IS_BETTER> 等
+    t = _HW_TAG.sub(sub, text or "")
+    t = re.sub(r" {2,}", " ", t)
+    t = _SPACE_BETWEEN_CJK.sub("", t)
+    t = _SPACE_BEFORE_PUNCT.sub(r"\1", t)
+    return t
+
 # 删掉占位符后残留的空格（中文之间 / 标点前不留空格）
 _CJK = "一-鿿，。；、（）"
 _SPACE_BETWEEN_CJK = re.compile(rf"(?<=[{_CJK}])\s+(?=[{_CJK}])")
@@ -115,6 +145,7 @@ def _localize(text: str) -> str:
     * 〈OPEN_COLOR〉/〈CLOSE_COLOR〉 是富文本记号，删掉。
     """
     t = _COLOR_RE.sub("", text or "")
+    t = _clean_hw_tags(t)          # 半角富文本（<DT_FIRE_COLOR> 等），同上口径
 
     def sub(m: "re.Match[str]") -> str:
         return "X" if t[m.end():m.end() + 1] in _UNIT_AFTER else ""

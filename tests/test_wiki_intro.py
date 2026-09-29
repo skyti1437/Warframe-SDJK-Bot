@@ -11,6 +11,7 @@
 """
 from __future__ import annotations
 
+import json
 import re
 import sys
 from pathlib import Path
@@ -261,7 +262,6 @@ except Exception as _e:                  # noqa: BLE001
 # 这里验「外号 → 国际服英文页面」与「易混淆澄清」两层（2026-09-25 用户口径：
 # 页面名必须英文 —— 中文页面名正是最近修过的那批死链来源）。
 from core.api_client import WarframeClient  # noqa: E402
-import json  # noqa: E402
 _c = WarframeClient(flare_enabled=False)
 
 for _k, _want in [("花P", "Wisp Prime"), ("血P", "Garuda Prime"),
@@ -308,6 +308,23 @@ check("★ 模糊不劫持短词（高 / 跑男 / 花 不落 P 页或长外号�
           for _q in ("高", "跑男", "花", "花甲")))
 check("概念页错字容忍仍在（杜卡德金 → 杜卡德金币）",
       (_c.wiki_lookup("杜卡德金") or {}).get("title") == "杜卡德金币")
+
+# —— 哨兵：效果表不得再混入半角富文本标签（2026-09-29 v1.1.1 立）——
+# 背景：d94da8e 官方整句替换曾把 <DT_FIRE_COLOR>/<LOWER_IS_BETTER> 等 16 种标签
+# 带进 92 条效果行（全角〈〉清洗链兜不到半角）。数据侧已清 + 渲染侧
+# wiki_intro._clean_hw_tags 双防线；此断言防后续新数据再犯。
+_eff_data = json.loads(
+    (ROOT / "core" / "data" / "wiki_effect_zh.json").read_text(encoding="utf-8"))
+_eff_tbl = _eff_data.get("effects") or {}
+_hw_bad = [k for k, v in _eff_tbl.items()
+           if isinstance(v, str) and re.search(r"<[A-Z_][A-Z0-9_]*>", v)]
+check("★ 哨兵：wiki 效果表全表无半角富文本标签", not _hw_bad,
+      f"{len(_hw_bad)} 条，例：{_hw_bad[:2]}")
+# 渲染防线自证：喂一条带标签的合成串，_localize 必须清干净
+_probe = WI._localize("效果（满级 3）：造成 <DT_FIRE_COLOR>火焰伤害 <LOWER_IS_BETTER>15 <ENERGY> 能量。")
+check("★ 哨兵：半角标签渲染防线（_localize 清洗生效）",
+      "<" not in _probe and "火焰伤害" in _probe and "15 能量" in _probe
+      and "  " not in _probe, _probe)
 
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")
