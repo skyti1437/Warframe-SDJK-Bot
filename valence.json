@@ -1,10 +1,10 @@
 {
  "schema": 1,
- "published_at": "2026-09-28T01:06:28+00:00",
- "source": "wiki《Reset》页，经插件在有 FlareSolverr 的机器上抓取后发布；快照时间 2026-09-28T01:06:28+00:00",
+ "published_at": "2026-09-29T00:06:05+00:00",
+ "source": "wiki《Reset》页，经插件在有 FlareSolverr 的机器上抓取后发布；快照时间 2026-09-29T00:06:05+00:00",
  "license_note": "数据来自 wiki.warframe.com（CC BY-NC-SA 3.0）；Warframe 相关内容版权归 Digital Extremes 所有，本仓库仅供查询。",
  "tenet": {
-  "snapshot": "2026-09-28T01:06:28+00:00",
+  "snapshot": "2026-09-29T00:06:05+00:00",
   "items": [
    {
     "en": "Tenet Agendus",
@@ -39,50 +39,50 @@
   ]
  },
  "coda": {
-  "snapshot": "2026-09-28T01:06:28+00:00",
+  "snapshot": "2026-09-29T00:06:05+00:00",
   "batch": "A",
   "items": [
    {
     "en": "Coda Hema",
     "cn": "终幕·血肢",
-    "element": "Heat",
-    "bonus": 27.4
+    "element": "Magnetic",
+    "bonus": 34.2
    },
    {
     "en": "Coda Sporothrix",
     "cn": "终幕·孢丝感染枪",
-    "element": "Heat",
-    "bonus": 43.8
+    "element": "Impact",
+    "bonus": 38.4
    },
    {
     "en": "Coda Catabolyst",
     "cn": "终幕·异化者",
     "element": "Heat",
-    "bonus": 25.0
+    "bonus": 48.9
    },
    {
     "en": "Coda Pox",
     "cn": "终幕·脓痘",
-    "element": "Radiation",
-    "bonus": 30.9
+    "element": "Electricity",
+    "bonus": 26.3
    },
    {
     "en": "Dual Coda Torxica",
     "cn": "终幕·孢蚀双枪",
-    "element": "Heat",
-    "bonus": 25.1
+    "element": "Magnetic",
+    "bonus": 36.8
    },
    {
     "en": "Coda Mire",
     "cn": "终幕·米尔",
-    "element": "Magnetic",
-    "bonus": 26.2
+    "element": "Impact",
+    "bonus": 28.3
    },
    {
     "en": "Coda Motovore",
     "cn": "终幕·噬轮",
-    "element": "Heat",
-    "bonus": 38.8
+    "element": "Impact",
+    "bonus": 25.0
    }
   ]
  }
