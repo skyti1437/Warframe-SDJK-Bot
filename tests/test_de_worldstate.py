@@ -301,10 +301,25 @@ assert _dt_title == "沉沦之地 · 炼狱塔"
 _rows = [_ln for _ln in _dt_lines if _ln.startswith("· 炼狱 [")]
 assert len(_rows) == 21, f"应 21 行，实得 {len(_rows)}"
 for _row, _ch in zip(_rows, b["descendia"]["challenges"]):
+    _cells = _row.split("　")
+    _mech = (fmt._PROTOFRAME_FLOOR.get(_ch["code"])
+             if _ch["Type"] == "DT_PROTOFRAME" else None)
+    if _mech:
+        # ★ 7/14/21 检查点层（2026-09-29 拍板）：主标 = 官方圣所名，右侧 = 机制
+        _main, _right = _cells[1], _cells[2]
+        _want, _ok = fmt.descent_goal_label(_ch["code"])
+        assert _main == _want and _ok, (_ch["code"], _main, _want)
+        assert _right == _mech, (_ch["code"], _right, _mech)
+        assert "<" not in _right and "|" not in _right
+        continue
     _goal = _row.rsplit("　", 1)[-1]
     _want, _ = fmt.descent_goal_label(_ch["code"])
     assert _goal == _want, (_ch["code"], _goal, _want)
     assert "<" not in _goal and "|" not in _goal and "\r" not in _goal
+# ★ 弃用自编「战甲祈运」：卡面文本里不得再出现（与官方「祈运坛防御」撞词的混淆源）
+_dt_txt = "\n".join(_dt_lines)
+assert "战甲祈运" not in _dt_txt, "检查点层应显示官方圣所名，不再出现自编类型名"
+assert "玛丽的圣所　祝福二选一" in _dt_txt and "里昂的圣所　祝福二选一·附代价" in _dt_txt, _dt_txt
 _nokey_live = {_ch["code"] for _ch in b["descendia"]["challenges"]
                if not dw.descent_goal_official(_ch["code"])[0]}
 _nokey_live |= {_ch["Type"] for _ch in b["descendia"]["challenges"]

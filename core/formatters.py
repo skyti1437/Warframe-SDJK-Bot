@@ -2011,7 +2011,25 @@ _DESCENT_ZH = {
 }
 
 # 官方无键、但**参考卡实机对过**因而保留的手译（其余手译条目必须与官方一致）。
+# ★ 2026-09-29：`DT_PROTOFRAME` 的自编名「战甲祈运」**卡面已弃用**——
+#   7/14/21 层走 `_PROTOFRAME_FLOOR` 特例（主标=官方圣所名 + 机制标注）；
+#   本表条目仅当**未知 Protoframe 代码**出现时兜底（不再与官方
+#   `CoHGamemodeShrineDefense`=「祈运坛防御」在卡面撞词）。
+# ★ `DT_DEFENSE_PROTECT`（「保护人物」）为**自编**：2026-09-29 实测 payload
+#   9 个候选文件零命中（属预埋代码）；待实际出现时按官方定名后再替换。
 _DESCENT_TYPE_KEEP_CN = frozenset({"DT_PROTOFRAME", "DT_DEFENSE_PROTECT"})
+
+# 沉沦 7/14/21 层（DT_PROTOFRAME，检查点）的机制标注：
+#   Challenge 代码 -> 右侧机制文案（主标取官方圣所名，见 fmt_descendia）。
+#   依据（2026-09-29 审核方实测）：EN wiki《The Descendia》Blessings 段——
+#   「hosting Marie's Sanctuary and Lyon's Sanctuary respectively. They each offer
+#    **one of two selectable buffs**, with Lyon's having **an additional debuff**」
+#   ⇒ 祝福为玩家**二选一**（非随机）；21 层为终局，打败罗瑟。
+_PROTOFRAME_FLOOR = {
+    "Wisp": "祝福二选一",
+    "Harrow": "祝福二选一·附代价",
+    "Devil": "击败罗瑟",
+}
 
 
 # 沉沦之地（炼狱塔）「目标」列 —— **兜底表**（主路径查官方键）。
@@ -2118,6 +2136,10 @@ def fmt_descendia(data: Optional[dict]) -> tuple[str, list[str]]:
       （``CoHGamemode*``），无键者留英文（见 :func:`descent_type_label`）。
     * **目标**：DE 的 ``Challenge`` 代码 → 官方简中（8 级解析，见
       :func:`core.de_worldstate.descent_goal_zh`），无键者留可读英文 + 注脚。
+    * **7/14/21 层特例（2026-09-29 维护者定）**：这三层是检查点、走
+      ``DT_PROTOFRAME``；主标改用官方圣所名（``CoHProtoframe{Wisp,Harrow,Devil}``
+      键值），右侧标机制（祝福二选一／附代价／击败罗瑟）——**弃用自编「战甲祈运」**
+      （与官方 ``CoHGamemodeShrineDefense``=「祈运坛防御」撞词，属另一个模式）。
     * 行用全角空格分格，渲染层按列对齐并给类型上色。
     """
     chs = (data or {}).get("challenges") or []
@@ -2128,9 +2150,14 @@ def fmt_descendia(data: Optional[dict]) -> tuple[str, list[str]]:
     caveat: list[str] = []
     for c in chs:
         code = c.get("Type") or ""
-        label, type_ok = descent_type_label(code, c.get("type") or "")
         _goal_code = c.get("code") or ""
+        label, type_ok = descent_type_label(code, c.get("type") or "")
         goal, goal_ok = descent_goal_label(_goal_code)
+        mech = _PROTOFRAME_FLOOR.get(_goal_code)
+        if code == "DT_PROTOFRAME" and mech and goal_ok and goal:
+            # 检查点层：主标 = 官方圣所名，右侧 = 机制（不再出类型列）
+            lines.append(f"· 炼狱 [{c.get('index')}]　{goal}　{mech}")
+            continue
         if not type_ok:
             no_key.append(code)
         if not goal_ok:
@@ -2139,7 +2166,8 @@ def fmt_descendia(data: Optional[dict]) -> tuple[str, list[str]]:
             caveat.append(f"{_goal_code}={goal}")
         idx = c.get("index")
         lines.append(f"· 炼狱 [{idx}]　{label}　{goal}".rstrip())
-    lines.append("※ 每周轮换 21 层；中文名取自游戏内官方文案，进本前以实机为准")
+    lines.append("※ 每周轮换 21 层（7/14/21 层为检查点）；"
+                 "中文名取自游戏内官方文案，进本前以实机为准")
     if no_key:
         # 「看不到的不描述成事实」：官方确实没有文案的层，明说保留内部代码
         lines.append("※ 官方无简中、保留内部代码：" + "、".join(no_key))

@@ -561,6 +561,10 @@ class WarframeSDJK(DailyCommands, ProgressCommands, ArbitrationCommands, Rotatio
         self._valence_task = asyncio.create_task(self._valence_autoloop())
         # 社区快照轻轮询：只对「没装/连不上 FS」的用户生效（见 _community_autoloop）
         self._community_task = asyncio.create_task(self._community_autoloop())
+        # 首启立即拉一次社区快照（2026-09-29 v1.1.2 追加批）：此前只有轻轮询的
+        # 30 分钟 tick 才拉，没装 FS 的用户首启最坏要等半小时才拿到较新数据。
+        # fire-and-forget：异步不阻塞加载、超时收尾、失败仅 DEBUG（与轮询同静默口径）。
+        asyncio.create_task(self._community_boot_pull())
         # 后台预热伤害计算的全部重 JSON + 武器名索引（不阻塞启动）：
         # 不预热时第一条指令要现读武器库/进化/灵化形态/多段/部署表，叠加后
         # 会让首条指令明显变慢（2026-09-17 玩家反馈「半天才出来」）。
@@ -689,6 +693,18 @@ class WarframeSDJK(DailyCommands, ProgressCommands, ArbitrationCommands, Rotatio
             "· 不需要该功能：在配置面板关闭「启用 CF 绕过代理（FlareSolverr）」，本提示随之消失；"
             "· 需要：部署 FlareSolverr 并把可达地址填进「FlareSolverr 地址」"
             "（容器内 127.0.0.1 到不了宿主机，常用 http://172.17.0.1:8191）。")
+
+    async def _community_boot_pull(self) -> None:
+        """首启立即拉一次社区快照（fire-and-forget，2026-09-29 v1.1.2 追加批）。
+
+        幂等：`_refresh_from_community` 内部两道刷新都先判「本地是否过期」、
+        且 curl 缓存 ttl=600 ⇒ 刚拉过/未过期时是零成本的空转。
+        失败静默 DEBUG，绝不打扰启动。
+        """
+        try:
+            await asyncio.wait_for(self._refresh_from_community(), timeout=90)
+        except Exception as exc:                    # noqa: BLE001 - 首启拉取静默
+            logger.debug("[sdjk] 首启社区快照拉取跳过/失败：%s", exc)
 
     async def _refresh_from_community(self) -> None:
         """无 FS 时的社区快照刷新（元素加成 + 言录使货单）。

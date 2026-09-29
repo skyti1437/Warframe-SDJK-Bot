@@ -18,6 +18,7 @@
 """
 from __future__ import annotations
 
+import json
 import re
 import os
 import sys
@@ -59,6 +60,54 @@ except Exception:  # noqa: BLE001
                   "*体检*.md", "*复评*.md", "*选型*.md", "*实测*.md", "*结案*.md",
                   "*澄清*.md", "*方案*.md", "*.diff", "*.patch", "*_before_*.json")
     SKIP_SOURCE = "内置回退清单"
+    pr = None  # 独立运行（无 dist/）时用下方镜像判据
+
+
+# ---------------------------------------------------------------------------
+# 种子新鲜度闸门（2026-09-29 v1.1.2 追加批；与 dist/package_release.py 同判据）
+# ---------------------------------------------------------------------------
+# 优先调用 package_release 的实现（单一真源）；`dist/` 不在场（他人拿到开源包
+# 自行打包）时退回本文件的**镜像判据**——算法逐字同源：效价按
+# 「epoch + floor((now-epoch)/period)*period」窗口、言录使按 expiry <= now。
+# 过期 ⇒ 拒绝打包（退出码 1）；不提供 bypass。
+def _seed_problems_fallback(now=None, rot_path=None, acr_path=None) -> list[str]:
+    from datetime import datetime, timedelta, timezone
+    now = now or datetime.now(timezone.utc)
+    problems: list[str] = []
+    rot_p = rot_path or (ROOT / "core" / "data" / "rotations.json")
+    acr_p = acr_path or (ROOT / "core" / "data" / "de" / "acrichis_week.json")
+    try:
+        rot = json.loads(Path(rot_p).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:  # noqa: BLE001
+        rot, problems = {}, [f"rotations.json 不可读/损坏：{exc}"]
+    for sec in ("tenet", "coda"):
+        data = (rot or {}).get(sec) or {}
+        stale, win = True, None
+        try:
+            epoch = datetime.fromisoformat(data["epoch"])
+            period = timedelta(hours=int(data.get("period_hours", 96)))
+            win = epoch + (now - epoch) // period * period
+            snap = data.get("valence_snapshot")
+            stale = (not snap) or datetime.fromisoformat(snap) < win
+        except (KeyError, TypeError, ValueError):
+            stale = True
+        if stale:
+            problems.append(f"效价快照过期：{sec} 段 valence_snapshot="
+                            f"{data.get('valence_snapshot')!r}（应为本轮新快照）")
+    try:
+        acr = json.loads(Path(acr_p).read_text(encoding="utf-8"))
+        exp = datetime.fromisoformat(acr.get("expiry") or "")
+        if exp <= now:
+            problems.append(f"言录使货单过期：expiry={acr.get('expiry')!r}")
+    except (OSError, ValueError) as exc:  # noqa: BLE001
+        problems.append(f"言录使货单不可读/expiry 畸形：{exc}")
+    return problems
+
+
+def _seed_problems(now=None, rot_path=None, acr_path=None) -> list[str]:
+    if pr is not None and hasattr(pr, "seed_freshness_problems"):
+        return pr.seed_freshness_problems(now, rot_path, acr_path)
+    return _seed_problems_fallback(now, rot_path, acr_path)
 
 # ---------------------------------------------------------------------------
 # 市场件专属排除（2026-09-22 瘦身：条目 177 → 80）
@@ -120,6 +169,16 @@ def main() -> int:
     if not OSS_DIR.is_dir():
         print(f"✗ 找不到开源目录 {OSS_DIR}\n  先跑：python dist/package_release.py --opensource")
         return 2
+
+    # 种子新鲜度硬闸门（2026-09-29 v1.1.2 追加批）：过期即拒绝打包，无 bypass。
+    problems = _seed_problems()
+    if problems:
+        print("✗ [种子新鲜度闸门] 拒绝打包 ——")
+        for p in problems:
+            print("  - " + p)
+        print("  以容器运行期为权威回写 core/data/rotations.json 与 "
+              "core/data/de/acrichis_week.json 后重跑（见 dist/package_release.py::_SEED_FIX_GUIDE）")
+        return 1
 
     meta = (OSS_DIR / "metadata.yaml").read_text(encoding="utf-8")
     ver = re.search(r"^version:\s*v?([\d.]+)\s*$", meta, re.M)

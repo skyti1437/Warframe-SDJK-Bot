@@ -481,3 +481,83 @@ if FAILED:
     print(f"✗ {len(FAILED)} 项失败：" + "、".join(FAILED))
     sys.exit(1)
 print("✓ 开源同步闸门守卫全部通过")
+
+# ---------------------------------------------------------------------------
+# 种子新鲜度硬闸门（2026-09-29 v1.1.2 追加批）：双向覆盖 + 镜像判据一致性
+# ---------------------------------------------------------------------------
+# 判据与运行期同源：效价 = epoch+floor((now-epoch)/period)*period 窗口；
+# 言录使 = expiry <= now。过期必须拦（无 bypass），新鲜必须放行。
+import json as _json                                    # noqa: E402
+from datetime import datetime as _dt, timezone as _tz    # noqa: E402
+import importlib.util as _ilu                            # noqa: E402
+
+_SPEC = _ilu.spec_from_file_location(
+    "package_release", ROOT / "dist" / "package_release.py")
+_PR = _ilu.module_from_spec(_SPEC) if _SPEC and _SPEC.loader else None
+if _PR is not None:
+    _SPEC.loader.exec_module(_PR)      # 只加载模块，不跑 main()
+    _NOW = _dt(2026, 9, 29, 12, 0, tzinfo=_tz.utc)
+    _FRESH_ROT = _json.dumps({
+        "tenet": {"epoch": "2026-09-12T00:00:00+00:00", "period_hours": 96,
+                  "valence_snapshot": "2026-09-29T00:06:05+00:00"},
+        "coda": {"epoch": "2026-09-13T00:00:00+00:00", "period_hours": 96,
+                 "valence_snapshot": "2026-09-29T00:06:05+00:00"}})
+    _STALE_ROT = _json.dumps({
+        "tenet": {"epoch": "2026-09-12T00:00:00+00:00", "period_hours": 96,
+                  "valence_snapshot": "2026-09-20T01:00:00+00:00"},
+        "coda": {"epoch": "2026-09-13T00:00:00+00:00", "period_hours": 96,
+                 "valence_snapshot": "2026-09-20T01:00:00+00:00"}})
+    _FRESH_ACR = _json.dumps({"expiry": "2026-10-05T00:00:00+00:00"})
+    _STALE_ACR = _json.dumps({"expiry": "2026-09-28T00:00:00+00:00"})
+
+    with tempfile.TemporaryDirectory() as _td:
+        _T = Path(_td)
+
+        def _w(name, text):
+            p = _T / name
+            p.write_text(text, encoding="utf-8")
+            return p
+
+        _ok = _PR.seed_freshness_problems(
+            now=_NOW, rot_path=_w("r_fresh.json", _FRESH_ROT),
+            acr_path=_w("a_fresh.json", _FRESH_ACR))
+        _bad = _PR.seed_freshness_problems(
+            now=_NOW, rot_path=_w("r_stale.json", _STALE_ROT),
+            acr_path=_w("a_stale.json", _STALE_ACR))
+        check("★ 种子闸门：新鲜放行（零问题）", _ok == [], str(_ok))
+        check("★ 种子闸门：过期拦截（效价+言录使双判）",
+              len(_bad) >= 3 and any("效价" in b for b in _bad)
+              and any("言录使" in b for b in _bad), str(_bad))
+        # 边界：快照恰落窗口起 → 不算过期（< 严格小于）
+        _edge = _PR.seed_freshness_problems(
+            now=_NOW,
+            rot_path=_w("r_edge.json", _FRESH_ROT.replace(
+                "2026-09-29T00:06:05+00:00", "2026-09-29T00:00:00+00:00")),
+            acr_path=_w("a_fresh2.json", _FRESH_ACR))
+        check("★ 种子闸门：快照恰在窗口起放行（边界）", _edge == [], str(_edge))
+
+    # 镜像判据（scripts/make_market_zip 的回退实现）与实际一致
+    _SPEC2 = _ilu.spec_from_file_location(
+        "make_market_zip", ROOT / "scripts" / "make_market_zip.py")
+    _MMZ = _ilu.module_from_spec(_SPEC2) if _SPEC2 and _SPEC2.loader else None
+    if _MMZ is not None:
+        _SPEC2.loader.exec_module(_MMZ)
+        with tempfile.TemporaryDirectory() as _td2:
+            _T2 = Path(_td2)
+            _r1 = _T2 / "r.json"; _r1.write_text(_FRESH_ROT, encoding="utf-8")
+            _a1 = _T2 / "a.json"; _a1.write_text(_FRESH_ACR, encoding="utf-8")
+            _r2 = _T2 / "r2.json"; _r2.write_text(_STALE_ROT, encoding="utf-8")
+            _a2 = _T2 / "a2.json"; _a2.write_text(_STALE_ACR, encoding="utf-8")
+            _mf = _MMZ._seed_problems_fallback(now=_NOW, rot_path=_r1, acr_path=_a1)
+            _mb = _MMZ._seed_problems_fallback(now=_NOW, rot_path=_r2, acr_path=_a2)
+            check("★ 种子闸门：镜像判据与真源一致（fresh/stale 两向）",
+                  _mf == _ok and len(_mb) == len(_bad), f"{_mf!r} / {_mb!r}")
+else:
+    check("种子闸门：dist/ 不在场时跳过（开源包环境）", True)
+
+# 追加段自己的收尾（本文件原汇总在上面，须为追加检查再守一次退出码）
+print()
+if FAILED:
+    print(f"✗ 种子闸门段 {len(FAILED)} 项失败：" + "、".join(FAILED))
+    sys.exit(1)
+print("✓ 种子新鲜度闸门守卫段全部通过")
