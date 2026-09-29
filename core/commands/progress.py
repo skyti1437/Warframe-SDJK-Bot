@@ -16,12 +16,8 @@ class ProgressCommands:
     """Mixin：进度 / 科研 / 日历 handler（挂载于 main.WarframeSDJK）。"""
 
     async def _h_calendar(self, parsed, event, platform) -> Reply:
-        toks = list(parsed.content or [])
-        if parsed.preset:
-            toks.insert(0, parsed.preset)
-        mode = next((t for t in toks if t in ("奖励", "清单", "覆写")), "")
-        title, lines = fmt.fmt_calendar(await self.client.calendar(platform),
-                                        mode=mode)
+        # 子模式（奖励/清单/覆写）2026-09-29 下线：裸「日历」= 沃沃式全量卡
+        title, lines = fmt.fmt_calendar(await self.client.calendar(platform))
         return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
 
     async def _h_deep(self, parsed, event, platform) -> Reply:

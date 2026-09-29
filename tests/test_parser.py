@@ -161,8 +161,8 @@ check("遗物出库预设", p.command == "relic" and p.preset == "出库")
 p = parse("零件 绝路")
 check("零件=部件", p.command == "parts" and p.content == ["绝路"])
 
-p = parse("日历 奖励")
-check("日历子参数", p.command == "calendar" and p.content == ["奖励"])
+p = parse("日历")
+check("日历（子模式已下线，裸指令）", p.command == "calendar")
 
 p = parse("仲裁 生存 高效")
 check("仲裁子参数", p.command == "arbitration"

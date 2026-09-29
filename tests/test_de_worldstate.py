@@ -797,7 +797,7 @@ _SWEEP = [
     ("fmt_events", (raw.get("Events") if isinstance(raw.get("Events"), list) else [],)),
     ("fmt_prime_vault", (_B["primeVault"],)),
     ("fmt_descendia", (_B["descendia"],)),
-    ("fmt_calendar", (_B["calendar"], "清单")),
+    ("fmt_calendar", (_B["calendar"],)),
     ("fmt_archimedea", (_B["deepArchimedea"], "深层科研")),
     ("fmt_archimedea", (_B["temporalArchimedea"], "时光科研")),
     ("fmt_steel_essence_shop", ()),
@@ -955,7 +955,7 @@ _cal_probe = {"season": "CST_WINTER", "yearIteration": 23, "expiry": "", "days":
     {"day": 1, "date": "1999-01-01", "events": [
         {"type": "CHALLENGE", "name": "探针", "count": 42,
          "desc": "摧毁 |COUNT| 个储存容器"}]}]}
-_cal_txt = "\n".join(fmt.fmt_calendar(_cal_probe, "清单")[1])
+_cal_txt = "\n".join(fmt.fmt_calendar(_cal_probe)[1])
 assert "42" in _cal_txt and "|COUNT|" not in _cal_txt, f"|COUNT| 未被填数：{_cal_txt!r}"
 assert fmt._nw_desc("使用<DT_FIRE>火焰伤害击杀 |COUNT| 名敌人", 150) == "使用火焰伤害击杀 150 名敌人"
 print("§二 顺序陷阱：`|COUNT|` 两条填数链路都产出数字（1999 日历 = 42；电波 = 150），清洗层未抢剥")

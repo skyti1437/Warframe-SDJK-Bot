@@ -2280,12 +2280,15 @@ def _cal_objective(ev: dict) -> str:
     return desc
 
 
-def fmt_calendar(data: Optional[dict], mode: str = "") -> tuple[str, list[str]]:
-    """1999 日历：季节窗口 + 各日期事件表。
+def fmt_calendar(data: Optional[dict]) -> tuple[str, list[str]]:
+    """1999 日历：整季日程按日期分块（沃沃式版式，2026-09-29 用户口径）。
 
-    mode: "" 概览（前 10 天）｜"奖励" 只看奖励 ｜"清单" 全量 ｜"覆写" 升级项
+    每块 = `◆ N　MM月DD日　段标签`（待办清单 / 选择奖励 / 增益覆写），
+    内容行 `· 名　描述`（挑战带目标、覆写带效果、奖励列物品；渲染层按列对齐）。
+    子模式（奖励/清单/覆写）2026-09-29 已下线——裸「日历」即全量。
+
     事件名的中文都来自 DE 官方简中：挑战走 ExportChallenges + 官方词表，
-    奖励走 4 个命名空间 × 尾段变形，覆写走 `/Lotus/Language/1999/<尾段>Name`。
+    奖励走 4 个命名空间 × 尾段变形，覆写走 `/Lotus/Language/1999/<尾段>Name/Desc`。
     只有官方确实无键的条目才留英文（并在卡面加注脚说明）。
     """
     if not data or not data.get("days"):
@@ -2294,48 +2297,30 @@ def fmt_calendar(data: Optional[dict], mode: str = "") -> tuple[str, list[str]]:
     year = data.get("yearIteration")
     lines = [f"第 {year} 年 · {season}季　"
              + (f"季末 {countdown(data['expiry'])}" if data.get("expiry") else "")]
-    kind_cn = {"REWARD": "🎁", "CHALLENGE": "⚔", "UPGRADE": "⬆"}
-    want = {"奖励": "REWARD", "覆写": "UPGRADE"}.get(mode)
-    full = mode in ("清单", "奖励", "覆写")
-
+    section_cn = {"CHALLENGE": "待办清单", "REWARD": "选择奖励",
+                  "UPGRADE": "增益覆写"}
     shown = 0
     for day in data["days"]:
         events = day.get("events") or []
-        if want:
-            events = [e for e in events if e.get("type") == want]
         if not events:
             continue
-        if not full and shown >= 10:
-            break
-        date = day.get("date", "?")
-        head = (f"· 1999-{date[5:]}（第{day.get('day', '?')}天）"
-                if not full else
-                f"· 1999-{date[5:]}（第{day.get('day', '?')}天）")
-        if full:
-            lines.append(head)
-            for e in events:
-                lines.append(f"　　{kind_cn.get(e.get('type'), '·')}"
-                             f"{_cal_name(e.get('name', '?'))}")
-                obj = _cal_objective(e)
-                if obj:
-                    lines.append(f"　　　{obj}")
-        else:
-            segs = []
-            for e in events[:3]:
-                seg = f"{kind_cn.get(e.get('type'), '·')}{_cal_name(e.get('name', '?'))}"
-                obj = _cal_objective(e)
-                if obj:
-                    seg += f"（{obj}）"
-                segs.append(seg)
-            lines.append(head + "　" + "、".join(segs))
         shown += 1
+        date = day.get("date", "?")            # "1999-mm-dd"
+        label = section_cn.get(events[0].get("type"), "")
+        lines.append(f"◆ {shown}　{date[5:7]}月{date[8:10]}日　{label}")
+        for e in events:
+            name = _cal_name(e.get("name", "?"))
+            kind = e.get("type")
+            if kind == "CHALLENGE":
+                obj = _cal_objective(e)
+                lines.append(f"· {name}　{obj}" if obj else f"· {name}")
+            elif kind == "UPGRADE":
+                desc = (e.get("desc") or "").strip()
+                lines.append(f"· {name}　{desc}" if desc else f"· {name}")
+            else:
+                lines.append(f"· {name}")
     if shown == 0:
-        lines.append({"奖励": "本季暂无奖励事件",
-                      "覆写": "本季暂无升级/覆写事件"}.get(mode, "本季暂无排定事件"))
-    titles = {"奖励": "1999 日历 · 奖励", "清单": "1999 日历 · 全量清单",
-              "覆写": "1999 日历 · 升级/覆写"}
-    if mode == "覆写":
-        lines.append("※ DE 未单独下发「覆写」字段，此处展示日历中的升级(UPGRADE)条目")
+        lines.append("本季暂无排定事件")
     synth = data.get("synthesized") or []
     nokey = data.get("noKey") or []
     if synth:
@@ -2345,7 +2330,7 @@ def fmt_calendar(data: Optional[dict], mode: str = "") -> tuple[str, list[str]]:
                      + "、".join(synth))
     if nokey:
         lines.append("※ 官方无简中、保留原文：" + "、".join(nokey))
-    return (titles.get(mode, "1999 日历"), lines)
+    return ("1999 日历", lines)
 
 
 def fmt_platform_footer(platform: str, extra: str = "") -> str:

@@ -2022,6 +2022,12 @@ _CAL_TAIL_STRIP = ("StoreItem", "Blueprint", "Bundle", "Pack")
 # 「蓝图」类资产：官方只有基名（无「蓝图」键）时的**合成译名**后缀
 _CAL_BLUEPRINT_SUFFIX = "蓝图"
 _CAL_BLUEPRINT_MARK = "Blueprint"
+# 日历奖励的**合成译名**登记（官方简中无键、但游戏语境有确定官方称谓）。
+# · CalendarRivenPack：1999/Items/Bundles 等命名空间 × Name/空/Desc 后缀探测**全空**
+#   （2026-09-29 实测）；EN 侧官方名就是「Riven」。U38 更新说明官方中文称其为
+#   「裂罅 Mod」（原文「裂罅 Mod——选择后有机会获得以下类型之一」）⇒ 采纳该措辞，
+#   走合成注脚自曝（与「蓝图」同机制；沃沃同类卡直接显示「裂罅」，无出处标注）。
+_CAL_REWARD_SYNTH = {"CalendarRivenPack": "裂罅 Mod"}
 
 
 @lru_cache(maxsize=1)
@@ -2131,6 +2137,9 @@ def _calendar_reward_name(path: str) -> tuple[str, bool]:
             if is_bp:
                 return (zh + _CAL_BLUEPRINT_SUFFIX, True)
             return (zh, False)
+        synth = _CAL_REWARD_SYNTH.get(cand)
+        if synth:
+            return (synth, True)
     # 内融核心捆包：官方只给英文 `6,000 Endo`，按同族官方格式合成
     en, _desc = language_text(path)
     m = re.match(r"^\s*([\d,]+)\s+Endo\s*$", en or "", re.I)
@@ -2155,6 +2164,37 @@ def _calendar_upgrade_zh(ref: str) -> str:
         if zh:
             return zh
     return ""
+
+
+def _calendar_upgrade_desc(ref: str) -> str:
+    """日历覆写**效果描述**（``<尾段>Desc``）-> 官方简中；无键返回空串。
+
+    2026-09-29 沃沃式版式需要：覆写块带效果行（如
+    「毫不留情　增加 25% 近战攻击速度。」）。键与名字同尾段，
+    1999 命名空间里的 `*Desc` 覆盖全部覆写项。
+    """
+    if not ref:
+        return ""
+    tail = ref.rstrip("/").rsplit("/", 1)[-1]
+    if not tail:
+        return ""
+    cand = tail[:-4] + "Desc" if tail.endswith("Name") else tail + "Desc"
+    _key, zh = _card_lang_by_tail(cand)
+    return _cal_desc_clean(zh) if zh else ""
+
+
+# 覆写描述里的**纯字母变量槽**（`|CONDITION|` 等）：无官方可填值 ⇒ 按
+# 2026-09-24「读顺优先」口径删除（与 `_clean_lang_text` 的 COLOR/数字槽同层清洗；
+# 该函数刻意不含纯字母槽以保护 `|COUNT|` 填数链，故这里单独补一层）。
+_SOFT_SLOT_RE = re.compile(r"\|[A-Za-z_]{1,24}\|")
+
+
+def _cal_desc_clean(s: str) -> str:
+    """覆写描述上卡清洗：剥标记 → 删纯字母变量槽 → 槽位剥掉后的空格/标点收尾。"""
+    s = _clean_lang_text(s)
+    s = _SOFT_SLOT_RE.sub("", s)
+    s = re.sub(r"\s+([，。；、）%])", r"\1", s)
+    return " ".join(s.split())
 
 
 def _parse_calendar(entry: dict, now_ms: int) -> dict:
@@ -2211,7 +2251,8 @@ def _parse_calendar(entry: dict, now_ms: int) -> dict:
                 if not up_cn:
                     up_cn = _prettify(tail)
                     no_key.append(tail)
-                events.append({"type": "UPGRADE", "name": up_cn})
+                events.append({"type": "UPGRADE", "name": up_cn,
+                               "desc": _calendar_upgrade_desc(ref)})
         days.append({"day": num, "date": date1999.date().isoformat(), "events": events})
     return {"season": entry.get("Season"), "yearIteration": entry.get("YearIteration"),
             "start": _iso_of(entry, "Activation"), "expiry": _iso_of(entry, "Expiry"),
