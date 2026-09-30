@@ -31,6 +31,21 @@ SLOT_ZH = {'LongGuns': '步枪', 'Pistols': '手枪', 'Melee': '近战', 'SpaceG
            'Sentinels': '守护', 'SentinelWeapons': '守护武器', 'KubrowPets': '库狛/库娃',
            'OperatorAmps': '指挥官增幅器', 'MoaPets': '恐鸟', 'Hoverboard': 'K 式悬浮板',
            'SpecialItems': '特殊物品', 'CrewShipWeapons': '九重天武器'}
+# 武器子类型（items 表的 type 字段——比 productCategory 槽位大类细：LongGuns 槽下
+# 有步枪/霰弹枪/弓/狙击枪/发射器，错用槽位曾把野猪等 37 把霰弹枪标成「步枪」）。
+TYPE_ZH = {'Rifle': '步枪', 'Shotgun': '霰弹枪', 'Bow': '弓', 'Sniper': '狙击枪',
+           'Launcher': '发射器', 'Pistol': '手枪', 'Dual Pistols': '双枪',
+           'Throwing': '投掷武器'}
+
+
+def weapon_subtype(rec, slot=None):
+    """武器子类型：type 字段为准；近战表（slot='Melee'）里 WFCD 有 10 条 type 脏标为
+    Rifle（Mk1-Bo/Paracesis 等纯近战）、45 条 Zaw 部件的 productCategory 脏标为
+    Pistols——近战表一律「近战」（Zaw 部件除外）。"""
+    t = rec.get('type') or ''
+    if slot == 'Melee' or rec.get('productCategory') == 'Melee':
+        return 'Zaw 部件' if t == 'Zaw Component' else '近战'
+    return TYPE_ZH.get(t) or SLOT_ZH.get(rec.get('productCategory') or '') or t or ''
 TRIGGER_ZH = {'Auto': '全自动', 'Semi': '半自动', 'Burst': '点射', 'Charge': '蓄力',
               'Held': '持续', 'Duplex': '双发', 'Active': '主动', 'Melee': '近战'}
 NOISE_ZH = {'Alarming': '警报', 'Silent': '静音'}
@@ -489,7 +504,7 @@ def weapon_part(title, key):
     body = []
     for r in recs:
         ttl = zhname(r)
-        sub = SLOT_ZH.get(r.get('productCategory') or '', r.get('productCategory') or '')
+        sub = weapon_subtype(r, key)
         L = ['- 定位：%s｜%s｜精通等级需求 %s' % (title, sub, trim_num(r.get('masteryReq'), 0))]
         td = r.get('totalDamage')
         dmg = fmt_damage(r.get('damagePerShot'), S.cfg_dt)
@@ -521,6 +536,17 @@ def weapon_part(title, key):
                 st2.append(fmt(r[f]))
         if st2:
             L.append('- 特性：%s' % '｜'.join(st2))
+        # 灵化形态（attacks 含 Incarnon Form 的 69 把枪械；面板与灵化之源索引同源）
+        _inc_a = incarnon_form_of(r)
+        if _inc_a:
+            _pure = ttl.split('（')[0]
+            _stem = next((k for k, d in incarnon_index().items()
+                          if d.get('weapon_zh') == _pure), None)
+            _d = incarnon_index().get(_stem) or {}
+            _seg = ['形态面板：%s' % form_panel(_inc_a)]
+            if _d.get('desc'):
+                _seg.append('灵化之源：%s' % clean(_d['desc'], 120))
+            L.append('- 灵化形态：%s' % '｜'.join(_seg))
         d = clean((S.zh_item.get(r['uniqueName']) or {}).get('description'), 300)
         if d:
             L.append('- 简介：%s' % d)
@@ -545,6 +571,94 @@ WEAPON_PARTS = [('主武器（Primary）', 'Primary', ''),
                 ('副武器（Secondary）', 'Secondary', ''),
                 ('近战武器（Melee）', 'Melee',
                  '近战武器另有连击、滑行攻击、重击与架式（Stance）机制。')]
+
+# ---------------------------------------------------------------- 灵化索引
+_INC_INDEX = None
+
+
+def incarnon_form_of(rec):
+    """items 武器条目 attacks 里的「Incarnon Form」形态面板（无则 None）。"""
+    for a in (rec.get('attacks') or []):
+        if 'ncarnon' in str(a.get('name') or ''):
+            return a
+    return None
+
+
+def form_panel(a):
+    """灵化形态 attack 块 → 一行面板文本（元素构成 + 暴击/触发/射速）。"""
+    seg = []
+    dmg = a.get('damage') or {}
+    parts = ['%s %s' % (DT_ZH.get(k.lower(), k), trim_num(v, 1))
+             for k, v in dmg.items() if k != 'total' and v]
+    if parts:
+        seg.append('｜'.join(parts))
+    if a.get('crit_chance') is not None:
+        seg.append('暴击几率 %s%%' % trim_num(a['crit_chance'], 0))
+    if a.get('crit_mult') is not None:
+        seg.append('暴击倍率 %s×' % trim_num(a['crit_mult'], 1))
+    if a.get('status_chance') is not None:
+        seg.append('触发几率 %s%%' % trim_num(a['status_chance'], 0))
+    if a.get('speed') is not None:
+        seg.append('射速 %s' % trim_num(a['speed'], 1))
+    return '｜'.join(seg)
+
+
+def incarnon_index():
+    """灵化之源索引：{Seg: {...}}——Seg 为武器资产段（Boar / AckAndBrunt…）。
+
+    数据源（全部来自拆包，无第三方）：
+    · PEP ExportResources 的 IncarnonAdapters（灵化之源物品：名/描述语言键）
+    · PEP ExportRecipes 的 <Seg>IncarnonBlueprint（进化解锁配方材料）
+    · items 武器表 attacks 的 Incarnon Form（形态面板，Primary 38 + Secondary 31）
+    · 覆盖层 incarnon_perks（进化 perk 官方名，摘自语言包）
+    """
+    global _INC_INDEX
+    if _INC_INDEX is not None:
+        return _INC_INDEX
+    idx = {}
+    res = P.get('Resources') or {}
+    for un, e in res.items():
+        seg = un.rsplit('/', 1)[-1]
+        if not seg.endswith('IncarnonUnlocker'):
+            continue
+        nm = to_text(S.dz.get(e.get('name'))) or ''
+        desc = to_text(S.dz.get(e.get('description'))) or ''
+        wzh = nm[:-len('灵化之源')] if nm.endswith('灵化之源') else ''
+        slot = '副武器' if '/Secondary/' in un else ('主武器' if '/Primary/' in un else '')
+        idx[seg[:-len('IncarnonUnlocker')]] = {
+            'unlocker': nm, 'weapon_zh': wzh, 'desc': desc, 'slot': slot}
+    rec = P.get('Recipes') or {}
+    for k, v in rec.items():
+        seg = k.rsplit('/', 1)[-1]
+        if not seg.endswith('IncarnonBlueprint'):
+            continue
+        stem = seg[:-len('IncarnonBlueprint')]
+        if stem not in idx:
+            continue
+        ings = ['%s ×%s' % (S.name(i.get('ItemType')) or i.get('ItemType', '').rsplit('/', 1)[-1],
+                            trim_num(i.get('ItemCount'), 0))
+                for i in (v.get('ingredients') or [])[:6]]
+        idx[stem]['recipe'] = '｜'.join(ings)
+    for tbl in ('Primary', 'Secondary', 'Melee'):
+        for r in I.get(tbl, []):
+            a = incarnon_form_of(r)
+            if not a:
+                continue
+            pure = zhname(r).split('（')[0]
+            hit = next((stem for stem, d in idx.items() if d.get('weapon_zh') == pure), None)
+            if hit is None:                     # 回落：家族前缀（剥「 Prime」等后缀再比）
+                base = re.sub(r'\s*(Prime|Vandal|Wraith|Prisma|MK1-?)\s*$', '', pure).strip()
+                hit = next((stem for stem, d in idx.items()
+                            if d.get('weapon_zh') and base.startswith(d['weapon_zh'])), None)
+            if hit:
+                idx[hit].setdefault('forms', []).append((pure, form_panel(a)))
+    for stem, d in idx.items():
+        pk = (S.incarnon_perks or {}).get(stem)
+        if pk:
+            d['perks'] = '；'.join(
+                '进化 %s 级：%s' % (t[1], '、'.join(names)) for t, names in sorted(pk.items()))
+    _INC_INDEX = idx
+    return idx
 
 
 def build_weapons():
@@ -571,6 +685,34 @@ def build_weapons():
           '**0.50（最低）– 1.55（最高）**。下列按倾向**从高到低**排列：', '']
     B.append('### 紫卡倾向一览（按倾向降序，共 %d 件武器）' % len(riv))
     B += ['- %s｜%s｜紫卡倾向 %s' % (nm, lb, trim_num(v, 3)) for v, nm, lb in riv]
+    # ---- 五、灵化武器与灵化之源一览 ----
+    inc_idx = incarnon_index()
+    if inc_idx:
+        n_form = sum(1 for d in inc_idx.values() if d.get('forms'))
+        B += ['', '## 五、灵化武器与灵化之源一览（Incarnon）', '',
+              '灵化（Incarnon）是扎里曼 / 双衍王境的武器升华系统：**灵化之源**（Incarnon Genesis，'
+              'Cavalero 处用双衍资源兑换的物品）为指定武器解锁**灵化形态**——切换后改变射击方式、'
+              '伤害类型与面板。本节按武器汇总：灵化之源描述（官方简中）、形态面板（伤害元素与数值，'
+              'WFCD items 的 Incarnon Form 块）、进化解锁配方与各级可选 perk 名。'
+              '**共 %d 个灵化之源，其中 %d 把枪械含形态面板**（近战灵化的形态面板数据包未收录，只列描述）。'
+              % (len(inc_idx), n_form), '',
+              '> **灵化形态的伤害类型即「元素」答案**：如野猪灵化形态为纯**火焰**伤害。'
+              '进化 perk 的效果数值四个数据包均未收录，本表只列官方 perk 名称。', '']
+        for stem in sorted(inc_idx, key=lambda k: (inc_idx[k].get('weapon_zh') or k)):
+            d = inc_idx[stem]
+            L = ['- 类型：灵化之源（Incarnon Genesis）%s' % (('｜%s' % d['slot']) if d.get('slot') else '')]
+            if d.get('desc'):
+                L.append('- 效果（官方简中）：%s' % clean(d['desc'], 200))
+            for zn, panel in (d.get('forms') or []):
+                L.append('- %s 灵化形态面板：%s' % (zn, panel))
+            if not d.get('forms'):
+                L.append('- 形态面板：数据包未收录（近战灵化）')
+            if d.get('recipe'):
+                L.append('- 进化解锁配方：%s' % d['recipe'])
+            if d.get('perks'):
+                L.append('- %s' % d['perks'])
+            ttl2 = '%s灵化之源（%s Incarnon Genesis）' % (d.get('weapon_zh') or '', stem)
+            B.append(entry(ttl2, '\n'.join(L)))
     tot_n = sum(cnt)
     intro = f"""# Warframe 知识库 · 武器（主武器 / 副武器 / 近战）
 
@@ -580,6 +722,7 @@ def build_weapons():
 > 每条格式：**中文名（English）**｜定位｜总伤害与元素构成｜暴击/触发/射速等数值｜特性（含**紫卡倾向**）｜简介｜建造材料｜获取。
 > 数值口径：**未安装 MOD 的出厂基础值**。
 > 第四部分「**紫卡倾向一览**」按倾向降序汇总全部武器，用于回答「某武器紫卡倾向多少 / 哪些武器倾向最高」。
+> 第五部分「**灵化武器与灵化之源一览**」汇总全部灵化之源（效果 / 灵化形态面板含**伤害元素** / 进化解锁配方 / 进化 perk 名），用于回答「某武器灵化什么元素 / 灵化解锁要什么材料」。
 > 元素顺序：冲击 / 穿刺 / 切割 / 火焰 / 冰冻 / 电击 / 毒素 / 爆炸 / 辐射 / 毒气 / 磁力 / 病毒 / 腐蚀 / 虚空。"""
     return write_file('02_武器.md', intro, '\n'.join(B))
 
@@ -588,6 +731,20 @@ def build_weapons():
 def build_mods():
     mods = sorted(I['Mods'], key=lambda r: (r.get('name') or '').lower())
     arcs = sorted(I['Arcanes'], key=lambda r: (r.get('name') or '').lower())
+    # PEP 官方补源：items 包未收录的赋能（如 1999「齐」系古董赋能）。
+    # 名称/效果走覆盖层 S.ov_arcane（摘自本机语言包），rarity/fusionLimit 取 PEP 原值。
+    _items_arc_uns = {r.get('uniqueName') for r in arcs}
+    _pep_arc = P.get('Arcanes') or {}
+    _n_pep_arc = 0
+    for _un, _e in sorted(_pep_arc.items()):
+        _ov = S.ov_arcane.get(_un)
+        if _un in _items_arc_uns or not _ov or not isinstance(_e, dict):
+            continue
+        arcs.append({'uniqueName': _un, 'name': _ov.get('name') or _un.rsplit('/', 1)[-1],
+                     'type': '古董赋能（1999）', 'rarity': _e.get('rarity'),
+                     'fusionLimit': _e.get('fusionLimit'), 'levelStats': None})
+        _n_pep_arc += 1
+    arcs.sort(key=lambda r: (r.get('name') or '').lower())
     body = ['## 一、MOD', '']
     n_off = n_zh = n_en = 0
     for r in mods:
@@ -644,6 +801,10 @@ def build_mods():
         pairs, mode = mod_effect(r)
         for label, txt in pairs:
             L.append('- 效果：%s' % txt if not label else '- 效果（%s）：%s' % (label, txt))
+        _ov_a = S.ov_arcane.get(r.get('uniqueName')) or {}
+        if _ov_a.get('effect'):
+            # 覆盖层官方简中效果（PEP 补源的赋能走这里）
+            L.append('- 效果（官方简中）：%s' % clean(_ov_a['effect'], 300))
         if mode == 'official':
             n_arc_off += 1
         else:
@@ -888,11 +1049,62 @@ def build_enemies():
         if r.get('drops'):
             L.append('- 掉落：%s' % drops_brief(r['drops'], 3))
         body.append(entry(title_of(zn, r['name']), '\n'.join(L)))
+    # ---------------- 首领（Boss）与大型敌人 ----------------
+    # items Codex 表不含 Boss；从 PEP 官方 avatars 分拣（魅影/战斗友军/剧情 VIP 不收），
+    # 同名变体（HardMode/PNW/Quest）合并为一条。数据包两源均缺的金星双蛛走覆盖层 boss_manual。
+    def _is_boss_un(u):
+        low = u.lower()
+        if 'tennoreplicants' in low or 'bossfightallies' in low:
+            return False
+        return (('teralyst' in low and 'eidolon' in low) or 'ropalolyst' in low
+                or 'bossavatar' in low or 'newwar/archons' in low)
+    bosses = {}
+    for un, e in av.items():
+        if not isinstance(e, dict) or not _is_boss_un(un):
+            continue
+        zn2 = to_text(S.dz.get(e.get('name')))
+        if not zn2:
+            continue
+        b = bosses.setdefault(zn2, {'first': un, 'e': e, 'variants': []})
+        if un != b['first']:
+            b['variants'].append(un.rsplit('/', 1)[-1])
+    n_boss = 0
+    if bosses or S.ov_boss:
+        body += ['', '## 二、首领（Boss）与大型敌人', '',
+                 'items 社区包（Codex 图鉴口径）不含首领单位，本节自 DE 官方导出（ExportEnemies）'
+                 '分拣收录；同名首领的 HardMode / PNW / 任务变体已合并为单条。'
+                 '名与简介为官方简中原文。', '']
+        for zn2 in sorted(bosses):
+            b = bosses[zn2]
+            e = b['e']
+            L = ['- 类型：首领 / 大型敌人｜派系 %s' % FACTION_ZH.get(e.get('faction'), e.get('faction') or '未标注')]
+            if e.get('health'):
+                L.append('- 生命：%s' % trim_num(e['health'], 0))
+            if e.get('killXPReward'):
+                L.append('- 击杀经验：%s' % trim_num(e['killXPReward'], 0))
+            if e.get('codexScansRequired'):
+                L.append('- 图鉴扫描需求：%s 次' % trim_num(e['codexScansRequired'], 0))
+            d = clean(S.dz.get(e.get('description')), 260)
+            if d:
+                L.append('- 简介（官方简中）：%s' % d)
+            if b['variants']:
+                L.append('- 变体：%s' % '、'.join(sorted(set(b['variants']))[:6]))
+            body.append(entry(zn2, '\n'.join(L)))
+            n_boss += 1
+        for key in sorted(S.ov_boss):
+            bm = S.ov_boss[key]
+            L = ['- 类型：首领 / 大型敌人｜派系 %s' % FACTION_ZH.get(bm.get('faction'), bm.get('faction') or '未标注')]
+            if bm.get('desc'):
+                L.append('- 简介（官方简中）：%s' % clean(bm['desc'], 260))
+            if bm.get('note'):
+                L.append('- 出现：%s' % bm['note'])
+            body.append(entry(bm.get('name') or key, '\n'.join(L)))
+            n_boss += 1
     intro = f"""# Warframe 知识库 · 敌人（Enemies）
 
 {NAV}
 
-> 收录 **{len(I['Enemy'])}** 个敌人 / NPC，其中 **{zh_hit}** 个有 DE 官方简中名（其余官方保留英文）。按英文名 A–Z 排序；{dup_fix} 条译名重复的条目以资产名后缀消歧。
+> 收录 **{len(I['Enemy'])}** 个敌人 / NPC（一、Codex 图鉴口径），其中 **{zh_hit}** 个有 DE 官方简中名（其余官方保留英文），按英文名 A–Z 排序；{dup_fix} 条译名重复的条目以资产名后缀消歧。另有 **{n_boss}** 个**首领 / 大型敌人**（二、自 DE 官方导出分拣：夜灵三姬与蝠力使、执刑官三主、隆沌等，含数据包两源均缺的金星双蛛）。
 > 每条格式：**中文名（English）**｜派系｜敌人类型｜基础属性｜防护层弱点与抗性｜简介｜掉落。
 > **弱点 / 抗性数值**为 DE 伤害控制器原始修正值：**正值 = 该元素对此防护层增伤（弱点），负值 = 减伤（抗性）**。
 > 常见防护层：Cloned Flesh（克隆体血肉）｜Ferrite Armor（铁氧体护甲）｜Alloy Armor（合金护甲）｜Shield / Proto Shield（护盾）｜Flesh（肉体）｜Infested Flesh 等。
@@ -1032,11 +1244,32 @@ def build_companions():
     B += generic('Arch-Melee', '空战近战（Arch-Melee）')
     B += ['', '## 四、九重天（Railjack）', '']
     B += generic('Railjack', '九重天条目（Railjack）')
+    # ---------------- 五、锐翰（Avionics，九重天 MOD） ----------------
+    if S.ov_avionic:
+        B += ['', '## 五、锐翰（Avionics：九重天 MOD）', '',
+              '锐翰是九重天（Railjack）舰船与炮位的专用 MOD：**战术锐翰**提供主动战术技能'
+              '（能量消耗型），**战斗/战斗轻型锐翰**提供炮位与舰船的被动加成。'
+              '名与效果为 DE 官方简中原文（效果文本摘自 2026-09-25 热修版语言包）。', '']
+        POL_AV = {'AP_UNIVERSAL': '通用（全类型）', 'AP_ATTACK': '攻击（Madurai）',
+                  'AP_DEFENSE': '防御（Vazarin）', 'AP_TACTIC': '战术（Naramon）'}
+        for un, ov_ in sorted(S.ov_avionic.items(), key=lambda kv: kv[1].get('name', '')):
+            e = (P.get('Avionics') or {}).get(un) or {}
+            seg = ['类型：锐翰（Railjack MOD）']
+            if e.get('polarity'):
+                seg.append('极性 %s' % (POL_AV.get(e['polarity'], e['polarity'])))
+            if e.get('rarity'):
+                seg.append('稀有度 %s' % RARITY_ZH.get(e['rarity'], e['rarity']))
+            if e.get('fusionLimit') is not None:
+                seg.append('满级 %s' % trim_num(e['fusionLimit'], 0))
+            L = ['- %s' % '｜'.join(seg)]
+            if ov_.get('effect'):
+                L.append('- 效果（官方简中）：%s' % clean(ov_['effect'], 300))
+            B.append(entry(ov_.get('name') or un.rsplit('/', 1)[-1], '\n'.join(L)))
     intro = f"""# Warframe 知识库 · 同伴、Archwing 空战与九重天
 
 {NAV}
 
-> 收录：守护 {len(I.get('Sentinels', []))}｜守护武器 {len(I.get('SentinelWeapons', []))}｜宠物 {len(I.get('Pets', []))}｜Archwing {len(I.get('Archwing', []))}｜空战枪械 {len(I.get('Arch-Gun', []))}｜空战近战 {len(I.get('Arch-Melee', []))}｜九重天条目 {len(I.get('Railjack', []))}。
+> 收录：守护 {len(I.get('Sentinels', []))}｜守护武器 {len(I.get('SentinelWeapons', []))}｜宠物 {len(I.get('Pets', []))}｜Archwing {len(I.get('Archwing', []))}｜空战枪械 {len(I.get('Arch-Gun', []))}｜空战近战 {len(I.get('Arch-Melee', []))}｜九重天条目 {len(I.get('Railjack', []))}｜**锐翰（九重天 MOD）{len(S.ov_avionic)}**。
 > 每条格式：**中文名（English）**｜类型｜属性｜自带极性｜技能｜说明｜建造材料｜获取。"""
     return write_file('07_同伴与空战.md', intro, '\n'.join(B))
 
@@ -1223,6 +1456,38 @@ def build_others():
         # 标题加「声望商店」后缀：避免与同名剧情任务冲突（例如任务 Vox Solaris 与集团 Vox Solaris 同名「索拉里斯之声」）
         B.append(entry('%s · 声望商店（%s）' % (zh, g), '- 声望商品：\n  - ' + '\n  - '.join(segs)))
 
+    # ---------------- 二b、科研任务修正词（1999 深层/时光/实验室科研） ----------------
+    cq = S.conquest_modifiers
+    n_cq = sum(len(cq.get(k) or {}) for k in ('condition', 'hex_variant', 'lab_variant', 'personal'))
+    n_buff = len(cq.get('buff') or [])
+    if n_cq or n_buff:
+        B += ['', '### 科研任务修正词（深层科研 / 时光科研 / 实验室科研）', '',
+              '1999 的三种**科研**（霍瓦尼亚「时光科研」、科维兽「深层科研」、英择谛实验室「实验室科研」）'
+              '是在常规任务上叠加修正词的高难轮换玩法：全局条件 + 任务变体由当周轮换决定，'
+              '**个人负面**由玩家配置中携带的指定物品启用（换取额外奖励），**配置增益**同理提供正面加成。'
+              '修正词名与效果为 DE 官方简中原文（摘自 2026-09-25 热修版语言包，数值随热修变动）。', '']
+        CQ_SECTIONS = [
+            ('condition', '全局条件（当周轮换）', '对所有科研任务生效的全局修正词。'),
+            ('hex_variant', '时光科研 · 任务变体', '霍瓦尼亚时光科研（地狱净化 Hellscrub）的任务级变体。'),
+            ('lab_variant', '实验室科研 · 任务变体', '英择谛实验室科研（断肢潮 / 接肢怪）的任务级变体。'),
+            ('personal', '个人负面（配置难度改造）', '将所列物品装备至当前配置后启用的负面效果，用于提升奖励。'),
+        ]
+        for key, label, note in CQ_SECTIONS:
+            d = cq.get(key) or {}
+            if not d:
+                continue
+            B += ['#### %s（%d 条）' % (label, len(d)), '', '> %s' % note, '']
+            for nm, desc in sorted(d.items(), key=lambda kv: kv[0]):
+                B.append(entry('科研修正词 · %s' % clean(nm),
+                               '- 类型：%s\n- 效果（官方简中）：%s' % (label.split('（')[0], clean(desc, 300))))
+        buffs = cq.get('buff') or []
+        if buffs:
+            B += ['', '#### 配置增益（%d 条）' % len(buffs), '',
+                  '将所列物品装备至当前配置后获得的正面加成（与个人负面同一体系）。', '']
+            for txt in sorted(buffs):
+                B.append('- %s' % clean(txt, 160))
+            B.append('')
+
     # ---------------- 三、星图节点与任务掉落表 ----------------
     B += ['', '## 三、星图节点与任务掉落表（Star Chart & Mission Rewards）', '',
           '按「星球 → 节点」列出每个节点的**任务类型、派系与掉落表**。'
@@ -1357,7 +1622,7 @@ def build_others():
 > 「其他」类目，含五部分：
 > ① **伤害机制与术语对照表** —— 伤害类型分组 + 敌人「防护层 × 元素」修正矩阵（反推自 DE 伤害控制器）
 >    + **伤害构成 / 状态效果全表 / 暴击 / 护甲减伤 / EHP**（整理自官方社区 Wiki） / 极性 / 稀有度 / 派系 / 遗物纪元与精炼 / 任务类型 / 集团 / 专精流派 / 九重天内源之力
-> ② **核心机制** —— 执刑官源力石（Archon Shards）／钢铁之路商店／突击修正词／合成目标（{N_SYNTH} 个）／虚空裂隙分级／集团声望商店
+> ② **核心机制** —— 执刑官源力石（Archon Shards）／钢铁之路商店／突击修正词／合成目标（{N_SYNTH} 个）／虚空裂隙分级／集团声望商店／**科研任务修正词（{n_cq} 条 + 配置增益 {n_buff} 条，1999 深层/时光/实验室科研）**
 > ③ **星图节点与任务掉落表**（{N_NODES} 个节点，含任务类型、派系、敌人等级与 A/B/C 轮次掉落）
 > ④ **剧情任务 Quests**（{len(I['Quests'])} 条）
 > ⑤ **外观装饰与杂项** —— 外观 {len(I['Skins'])}｜浮印 {len(I['Glyphs'])}｜徽章 {len(I['Sigils'])}｜杂项 {len(I['Misc'])}（此部分为紧凑单行条目）

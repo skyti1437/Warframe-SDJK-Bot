@@ -3,116 +3,237 @@
   "purpose": "从本机游戏缓存语言表（lang_zh_44.json）摘录的遗物奖励物品官方简中名，自动生成物——重跑 extract_relic_overrides.py 可整体重生成",
   "source": "玩家客户端 Cache.Windows → Languages.bin（简中）",
   "toolchain": "见 warframe-kb-build/references/01-data-sources.md §⑤",
-  "generated": "2026-09-25 01:52",
-  "count": 264,
+  "generated": "2026-09-30 22:35",
+  "count": 842,
   "rule_stats": {
-   "PRIMES": 114,
-   "EN2ZH": 22,
-   "ITEMS": 20,
-   "CC+蓝图": 90,
+   "SEG": 505,
+   "SYNTH": 202,
+   "MANUAL": 4,
+   "PRIMES": 28,
+   "EN2ZH": 19,
+   "CC+蓝图": 62,
+   "ITEMS": 12,
    "CC": 5,
    "CC-en": 1,
-   "ALL": 4,
-   "PRIMES+蓝图": 5,
-   "MANUAL": 3
+   "ALL": 4
   }
  },
  "items": {
+  "/Lotus/Types/Gameplay/EntratiLab/Quest/GargoyleRecipeItem": "阿尔布雷希特的蓝图",
+  "/Lotus/Types/Items/MiscItems/Forma": "Forma",
+  "/Lotus/Types/Items/ShipFeatureItems/Railjack/RailjackHoodBraceFeatureItemBlueprint": "推进系统 蓝图",
+  "/Lotus/Types/Items/ShipFeatureItems/Railjack/RailjackHoodFeatureItemBlueprint": "引擎整流罩 蓝图",
+  "/Lotus/Types/Items/ShipFeatureItems/Railjack/RailjackHullFeatureItemBlueprint": "机身 蓝图",
+  "/Lotus/Types/Items/ShipFeatureItems/Railjack/RailjackNacelleLeftFeatureItemBlueprint": "左舷吊舱 蓝图",
+  "/Lotus/Types/Items/ShipFeatureItems/Railjack/RailjackNacelleRightFeatureItemBlueprint": "右舷吊舱 蓝图",
+  "/Lotus/Types/Items/ShipFeatureItems/Railjack/RailjackTailFeatureItemBlueprint": "机尾 蓝图",
+  "/Lotus/Types/Keys/LimboQuest/LimboChassisKeyBlueprint": "Limbo 机体定理 蓝图",
+  "/Lotus/Types/Keys/LimboQuest/LimboHelmetKeyBlueprint": "Limbo 头部神经光元定理 蓝图",
+  "/Lotus/Types/Keys/LimboQuest/LimboSystemsKeyBlueprint": "Limbo 系统定理 蓝图",
+  "/Lotus/Types/Recipes/ArchwingRecipes/HeavyWeaponCatalystBlueprint": "重力磁抵器 蓝图",
   "/Lotus/Types/Recipes/ArchwingRecipes/PrimeArchwing/PrimeArchwingBlueprint": "<ARCHWING> 陨蜓 Prime 蓝图",
+  "/Lotus/Types/Recipes/Components/FormaAuraBlueprint": "光环 Forma",
   "/Lotus/Types/Recipes/Components/FormaBlueprint": "Forma 蓝图",
+  "/Lotus/Types/Recipes/Components/FormaStanceBlueprint": "架式 Forma 蓝图",
+  "/Lotus/Types/Recipes/Components/OrokinCatalystBlueprint": "奥罗金催化剂 蓝图",
+  "/Lotus/Types/Recipes/Components/OrokinReactorBlueprint": "奥罗金反应堆 蓝图",
+  "/Lotus/Types/Recipes/Components/UmbraEchoesBlueprint": "Echoes Of Umbra 蓝图",
+  "/Lotus/Types/Recipes/Components/UtilityUnlockerBlueprint": "战甲特殊功能槽连接器 蓝图",
   "/Lotus/Types/Recipes/Components/WeaponUtilityUnlockerBlueprint": "武器特殊功能槽连接器 蓝图",
+  "/Lotus/Types/Recipes/DarkSwordBlueprint": "暗黑长剑 蓝图",
+  "/Lotus/Types/Recipes/DeimosRecipes/Pets/InfestedCritterAntigenABlueprint": "韦罗斯抗原 蓝图",
+  "/Lotus/Types/Recipes/DeimosRecipes/Pets/InfestedCritterAntigenBBlueprint": "迪瑟斯抗原 蓝图",
+  "/Lotus/Types/Recipes/DeimosRecipes/Pets/InfestedCritterAntigenCBlueprint": "佩莱臻抗原 蓝图",
+  "/Lotus/Types/Recipes/DeimosRecipes/Pets/InfestedCritterAntigenDBlueprint": "波希抗原 蓝图",
+  "/Lotus/Types/Recipes/DeimosRecipes/Pets/InfestedCritterMutagenABlueprint": "阿德拉突变原 蓝图",
+  "/Lotus/Types/Recipes/DeimosRecipes/Pets/InfestedCritterMutagenBBlueprint": "艾尔莎突变原 蓝图",
+  "/Lotus/Types/Recipes/DeimosRecipes/Pets/InfestedCritterMutagenCBlueprint": "萨里姆突变原 蓝图",
+  "/Lotus/Types/Recipes/DeimosRecipes/Pets/InfestedCritterMutagenDBlueprint": "菲加突变原 蓝图",
+  "/Lotus/Types/Recipes/DeimosRecipes/Pets/InfestedPredatorAntigenABlueprint": "伊拉森抗原 蓝图",
+  "/Lotus/Types/Recipes/DeimosRecipes/Pets/InfestedPredatorAntigenBBlueprint": "伊拉农抗原 蓝图",
+  "/Lotus/Types/Recipes/DeimosRecipes/Pets/InfestedPredatorAntigenCBlueprint": "艾比森抗原 蓝图",
+  "/Lotus/Types/Recipes/DeimosRecipes/Pets/InfestedPredatorAntigenDBlueprint": "泰赛隆抗原 蓝图",
+  "/Lotus/Types/Recipes/DeimosRecipes/Pets/InfestedPredatorMutagenABlueprint": "勒普多萨姆突变原 蓝图",
+  "/Lotus/Types/Recipes/DeimosRecipes/Pets/InfestedPredatorMutagenBBlueprint": "奇顿突变原 蓝图",
+  "/Lotus/Types/Recipes/DeimosRecipes/Pets/InfestedPredatorMutagenCBlueprint": "阿里奥利突变原 蓝图",
+  "/Lotus/Types/Recipes/DeimosRecipes/Pets/InfestedPredatorMutagenDBlueprint": "蒙纳卓突变原 蓝图",
+  "/Lotus/Types/Recipes/DeimosRecipes/Prospecting/DeimosCommonGemACutBlueprint": "多面提亚美凝石 蓝图",
+  "/Lotus/Types/Recipes/DeimosRecipes/Prospecting/DeimosCommonGemBCutBlueprint": "净化达戈琥珀 蓝图",
+  "/Lotus/Types/Recipes/DeimosRecipes/Prospecting/DeimosEidolonGemACutBlueprint": "梯型异源石 蓝图",
+  "/Lotus/Types/Recipes/DeimosRecipes/Prospecting/DeimosEidolonGemBCutBlueprint": "弧面型栓子凝石 蓝图",
+  "/Lotus/Types/Recipes/DeimosRecipes/Prospecting/DeimosRareGemACutBlueprint": "星形殁世烯 蓝图",
+  "/Lotus/Types/Recipes/DeimosRecipes/Prospecting/DeimosUncommonGemACutBlueprint": "高纯聚合荧石 蓝图",
+  "/Lotus/Types/Recipes/Drones/AdvancedResourceDroneBlueprint": "泰坦采集机 Prime 蓝图",
+  "/Lotus/Types/Recipes/Drones/AdvancedUcResourceDroneBlueprint": "精粹采集机 Prime 蓝图",
+  "/Lotus/Types/Recipes/Drones/BasicResourceDroneBlueprint": "泰坦采集机 蓝图",
+  "/Lotus/Types/Recipes/Drones/BasicUcResourceDroneBlueprint": "精粹采集机 蓝图",
+  "/Lotus/Types/Recipes/EidolonRecipes/InfestedEventClanIngredientBlueprint": "Infested 催化剂 蓝图",
+  "/Lotus/Types/Recipes/EidolonRecipes/InfestedEventIngredientBlueprint": "夜灵抗体 蓝图",
+  "/Lotus/Types/Recipes/EidolonRecipes/Prospecting/CommonOreAAlloyABlueprint": "炎晶合金 蓝图",
+  "/Lotus/Types/Recipes/EidolonRecipes/Prospecting/CommonOreBAlloyABlueprint": "亚铜合金 蓝图",
+  "/Lotus/Types/Recipes/EidolonRecipes/Prospecting/RareOreAAlloyABlueprint": "金辉合金 蓝图",
+  "/Lotus/Types/Recipes/EidolonRecipes/Prospecting/UncommonOreAAlloyABlueprint": "钢化铁岩 蓝图",
+  "/Lotus/Types/Recipes/Kubrow/BlankTraitPrintBlueprint": "基因密码模板 蓝图",
   "/Lotus/Types/Recipes/Kubrow/Collars/PrimeKubrowCollarABlueprint": "喀婆萨 Prime 库狛项圈 蓝图",
+  "/Lotus/Types/Recipes/Kubrow/EggHatcherBlueprint": "孵化器能量核心 蓝图",
+  "/Lotus/Types/Recipes/Lens/AttackLensGreaterBlueprint": "高级 Madurai 晶体 蓝图",
+  "/Lotus/Types/Recipes/Lens/AttackLensLuaBlueprint": "月球 Madurai 晶体 蓝图",
+  "/Lotus/Types/Recipes/Lens/AttackLensOstronBlueprint": "夜灵 Madurai 晶体 蓝图",
+  "/Lotus/Types/Recipes/Lens/DefenseLensGreaterBlueprint": "高级 Vazarin 晶体 蓝图",
+  "/Lotus/Types/Recipes/Lens/DefenseLensLuaBlueprint": "月球 Vazarin 晶体 蓝图",
+  "/Lotus/Types/Recipes/Lens/DefenseLensOstronBlueprint": "夜灵 Vazarin 晶体 蓝图",
+  "/Lotus/Types/Recipes/Lens/GenericLensOstronBlueprint": "夜灵晶体 蓝图",
+  "/Lotus/Types/Recipes/Lens/PowerLensGreaterBlueprint": "高级 Zenurik 晶体 蓝图",
+  "/Lotus/Types/Recipes/Lens/PowerLensLuaBlueprint": "月球 Zenurik 晶体 蓝图",
+  "/Lotus/Types/Recipes/Lens/PowerLensOstronBlueprint": "夜灵 Zenurik 晶体 蓝图",
+  "/Lotus/Types/Recipes/Lens/TacticLensGreaterBlueprint": "高级 Naramon 晶体 蓝图",
+  "/Lotus/Types/Recipes/Lens/TacticLensLuaBlueprint": "月球 Naramon 晶体 蓝图",
+  "/Lotus/Types/Recipes/Lens/TacticLensOstronBlueprint": "夜灵 Naramon 晶体 蓝图",
+  "/Lotus/Types/Recipes/Lens/WardLensGreaterBlueprint": "高级 Unairu 晶体 蓝图",
+  "/Lotus/Types/Recipes/Lens/WardLensLuaBlueprint": "月球 Unairu 晶体 蓝图",
+  "/Lotus/Types/Recipes/Lens/WardLensOstronBlueprint": "夜灵 Unairu 晶体 蓝图",
+  "/Lotus/Types/Recipes/MoaPetParts/MoaPetEngineArcotekBlueprint": "艾克洛姆核心 蓝图",
+  "/Lotus/Types/Recipes/MoaPetParts/MoaPetEngineKrisysBlueprint": "科里西斯核心 蓝图",
+  "/Lotus/Types/Recipes/MoaPetParts/MoaPetEngineMeleeBlueprint": "厉悍核心 蓝图",
+  "/Lotus/Types/Recipes/MoaPetParts/MoaPetEngineThricoreBlueprint": "德勒克斯核心 蓝图",
+  "/Lotus/Types/Recipes/MoaPetParts/MoaPetHeadLambeoBlueprint": "拉姆比欧恐鸟 蓝图",
+  "/Lotus/Types/Recipes/MoaPetParts/MoaPetHeadMeleeBlueprint": "尼丘斯恐鸟 蓝图",
+  "/Lotus/Types/Recipes/MoaPetParts/MoaPetHeadOloroBlueprint": "欧罗若恐鸟 蓝图",
+  "/Lotus/Types/Recipes/MoaPetParts/MoaPetHeadParaBlueprint": "帕拉恐鸟 蓝图",
+  "/Lotus/Types/Recipes/MoaPetParts/MoaPetLegABlueprint": "德利柏脚架 蓝图",
+  "/Lotus/Types/Recipes/MoaPetParts/MoaPetLegBBlueprint": "天脚架 蓝图",
+  "/Lotus/Types/Recipes/MoaPetParts/MoaPetLegCBlueprint": "将信脚架 蓝图",
+  "/Lotus/Types/Recipes/MoaPetParts/MoaPetLegDBlueprint": "高斯脚架 蓝图",
+  "/Lotus/Types/Recipes/MoaPetParts/MoaPetLegMeleeBlueprint": "豪纳脚架 蓝图",
+  "/Lotus/Types/Recipes/MoaPetParts/MoaPetPayloadAegronBlueprint": "艾格隆陀螺仪 蓝图",
+  "/Lotus/Types/Recipes/MoaPetParts/MoaPetPayloadCryoxionBlueprint": "特鲁克斯陀螺仪 蓝图",
+  "/Lotus/Types/Recipes/MoaPetParts/MoaPetPayloadDartaBlueprint": "哈朋陀螺仪 蓝图",
+  "/Lotus/Types/Recipes/MoaPetParts/MoaPetPayloadHextraBlueprint": "海克斯特拉陀螺仪 蓝图",
+  "/Lotus/Types/Recipes/MoaPetParts/MoaPetPayloadMeleeBlueprint": "泰利陀螺仪 蓝图",
+  "/Lotus/Types/Recipes/MoaPetParts/MoaPetPayloadMunitronBlueprint": "穆尼特陀螺仪 蓝图",
+  "/Lotus/Types/Recipes/MoaPetParts/MoaPetPayloadTazronBlueprint": "费泽尔陀螺仪 蓝图",
+  "/Lotus/Types/Recipes/MoaPetParts/MoaPetPayloadThermocorBlueprint": "阿西卡陀螺仪 蓝图",
+  "/Lotus/Types/Recipes/SentinelRecipes/CarrierSentinelBlueprint": "搬运者 蓝图",
+  "/Lotus/Types/Recipes/SentinelRecipes/EmpyreanSentinelBlueprint": "鹦鹉螺 蓝图",
   "/Lotus/Types/Recipes/SentinelRecipes/NautilusPrimeSentinelBlueprint": "鹦鹉螺 Prime 蓝图",
   "/Lotus/Types/Recipes/SentinelRecipes/PrimeCarrierSentinelBlueprint": "搬运者 Prime 蓝图",
   "/Lotus/Types/Recipes/SentinelRecipes/PrimeDethcubeSentinelBlueprint": "死亡魔方 Prime 蓝图",
   "/Lotus/Types/Recipes/SentinelRecipes/PrimeHeliosSentinelBlueprint": "赫利俄斯 Prime 蓝图",
   "/Lotus/Types/Recipes/SentinelRecipes/PrimeWyrmSentinelBlueprint": "蛟龙 Prime 蓝图",
+  "/Lotus/Types/Recipes/SentinelRecipes/RadarSentinelBlueprint": "奥克绪罗斯 蓝图",
   "/Lotus/Types/Recipes/SentinelRecipes/ShadePrimeSentinelBlueprint": "阴影 Prime 蓝图",
+  "/Lotus/Types/Recipes/SentinelRecipes/TnSentinelCrossBlueprint": "塔克桑 蓝图",
+  "/Lotus/Types/Recipes/SolarisRecipes/Prospecting/SolarisCommonGemACutBlueprint": "光滑翡斯敏石 蓝图",
+  "/Lotus/Types/Recipes/SolarisRecipes/Prospecting/SolarisCommonGemBCutBlueprint": "心形夜石 蓝图",
+  "/Lotus/Types/Recipes/SolarisRecipes/Prospecting/SolarisEidolonGemACutBlueprint": "发光的黄道宝石 蓝图",
+  "/Lotus/Types/Recipes/SolarisRecipes/Prospecting/SolarisEidolonGemBCutBlueprint": "女侯爵赤色水晶 蓝图",
+  "/Lotus/Types/Recipes/SolarisRecipes/Prospecting/SolarisRareGemACutBlueprint": "星形紫苋石 蓝图",
+  "/Lotus/Types/Recipes/SolarisRecipes/Prospecting/SolarisUncommonGemACutBlueprint": "泪滴形填充细石 蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/AshBlueprint": "Ash 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/AshPrimeBlueprint": "Ash Prime 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/AtlasPrimeBlueprint": "Atlas Prime 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/AtlasPrimeChassisBlueprint": "Atlas Prime 机体蓝图",
-  "/Lotus/Types/Recipes/WarframeRecipes/AtlasPrimeHelmetBlueprint": "Atlas Prime 头部神经光元蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/AtlasPrimeHelmetBlueprint": "Atlas Prime 头盔 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/AtlasPrimeSystemsBlueprint": "Atlas Prime 系统蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/BansheeBlueprint": "Banshee 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/BansheePrimeBlueprint": "Banshee Prime 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/BaruukPrimeBlueprint": "Baruuk Prime 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/BaruukPrimeChassisBlueprint": "Baruuk Prime 机体蓝图",
-  "/Lotus/Types/Recipes/WarframeRecipes/BaruukPrimeHelmetBlueprint": "Baruuk Prime 头部神经光元蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/BaruukPrimeHelmetBlueprint": "Baruuk Prime 头盔 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/BaruukPrimeSystemsBlueprint": "Baruuk Prime 系统蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/BrokenFrameBlueprint": "Xaku 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/CalibanPrimeBlueprint": "Caliban Prime 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/CalibanPrimeChassisBlueprint": "Caliban Prime 机体蓝图",
-  "/Lotus/Types/Recipes/WarframeRecipes/CalibanPrimeHelmetBlueprint": "Caliban Prime 头部神经光元蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/CalibanPrimeHelmetBlueprint": "Caliban Prime 头盔 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/CalibanPrimeSystemsBlueprint": "Caliban Prime 系统蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/ChoirBlueprint": "Jade 蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/ChromaBlueprint": "Chroma 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/ChromaPrimeBlueprint": "Chroma Prime 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeBlueprint": "Citrine Prime 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeChassisBlueprint": "Citrine Prime 机体蓝图",
-  "/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeHelmetBlueprint": "Citrine Prime 头部神经光元蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeHelmetBlueprint": "Citrine Prime 头盔 蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeHelmetComponent": "Citrine Prime 头盔",
   "/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeSystemsBlueprint": "Citrine Prime 系统蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/EmberBlueprint": "Ember 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/EmberPrimeBlueprint": "Ember Prime 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/EquinoxPrimeBlueprint": "Equinox Prime 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/EquinoxPrimeChassisBlueprint": "Equinox Prime 机体蓝图",
-  "/Lotus/Types/Recipes/WarframeRecipes/EquinoxPrimeHelmetBlueprint": "Equinox Prime 头部神经光元蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/EquinoxPrimeHelmetBlueprint": "Equinox Prime 头盔 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/EquinoxPrimeSystemsBlueprint": "Equinox Prime 系统蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/ExcaliburBlueprint": "Excalibur 蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/ExcaliburUmbraBlueprint": "Excalibur Umbra 蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/FrostBlueprint": "Frost 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/FrostPrimeBlueprint": "Frost Prime 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/GaraPrimeBlueprint": "Gara Prime 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/GaraPrimeChassisBlueprint": "Gara Prime 机体蓝图",
-  "/Lotus/Types/Recipes/WarframeRecipes/GaraPrimeHelmetBlueprint": "Gara Prime 头部神经光元蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/GaraPrimeHelmetBlueprint": "Gara Prime 头盔 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/GaraPrimeSystemsBlueprint": "Gara Prime 系统蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/GarudaBlueprint": "Garuda 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/GarudaPrimeBlueprint": "Garuda Prime 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/GarudaPrimeChassisBlueprint": "Garuda Prime 机体蓝图",
-  "/Lotus/Types/Recipes/WarframeRecipes/GarudaPrimeHelmetBlueprint": "Garuda Prime 头部神经光元蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/GarudaPrimeHelmetBlueprint": "Garuda Prime 头盔 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/GarudaPrimeSystemsBlueprint": "Garuda Prime 系统蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/GaussPrimeBlueprint": "Gauss Prime 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/GaussPrimeChassisBlueprint": "Gauss Prime 机体蓝图",
-  "/Lotus/Types/Recipes/WarframeRecipes/GaussPrimeHelmetBlueprint": "Gauss Prime 头部神经光元蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/GaussPrimeHelmetBlueprint": "Gauss Prime 头盔 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/GaussPrimeSystemsBlueprint": "Gauss Prime 系统蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/GlassBlueprint": "Gara 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/GrendelPrimeBlueprint": "Grendel Prime 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/GrendelPrimeChassisBlueprint": "Grendel Prime 机体蓝图",
-  "/Lotus/Types/Recipes/WarframeRecipes/GrendelPrimeHelmetBlueprint": "Grendel Prime 头部神经光元蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/GrendelPrimeHelmetBlueprint": "Grendel Prime 头盔 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/GrendelPrimeSystemsBlueprint": "Grendel Prime 系统蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/GyrePrimeBlueprint": "Gyre Prime 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/GyrePrimeChassisBlueprint": "Gyre Prime 机体蓝图",
-  "/Lotus/Types/Recipes/WarframeRecipes/GyrePrimeHelmetBlueprint": "Gyre Prime 头部神经光元蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/GyrePrimeHelmetBlueprint": "Gyre Prime 头盔 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/GyrePrimeSystemsBlueprint": "Gyre Prime 系统蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/HarrowPrimeBlueprint": "Harrow Prime 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/HarrowPrimeChassisBlueprint": "Harrow Prime 机体蓝图",
-  "/Lotus/Types/Recipes/WarframeRecipes/HarrowPrimeHelmetBlueprint": "Harrow Prime 头部神经光元蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/HarrowPrimeHelmetBlueprint": "Harrow Prime 头盔 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/HarrowPrimeSystemsBlueprint": "Harrow Prime 系统蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/HildrynPrimeBlueprint": "Hildryn Prime 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/HildrynPrimeChassisBlueprint": "Hildryn Prime 机体蓝图",
-  "/Lotus/Types/Recipes/WarframeRecipes/HildrynPrimeHelmetBlueprint": "Hildryn Prime 头部神经光元蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/HildrynPrimeHelmetBlueprint": "Hildryn Prime 头盔 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/HildrynPrimeSystemsBlueprint": "Hildryn Prime 系统蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/HydroidBlueprint": "Hydroid 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/HydroidPrimeBlueprint": "Hydroid Prime 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/InarosPrimeBlueprint": "Inaros Prime 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/InarosPrimeChassisBlueprint": "Inaros Prime 机体蓝图",
-  "/Lotus/Types/Recipes/WarframeRecipes/InarosPrimeHelmetBlueprint": "Inaros Prime 头部神经光元蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/InarosPrimeHelmetBlueprint": "Inaros Prime 头盔 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/InarosPrimeSystemsBlueprint": "Inaros Prime 系统蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/IvaraPrimeBlueprint": "Ivara Prime 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/IvaraPrimeChassisBlueprint": "Ivara Prime 机体蓝图",
-  "/Lotus/Types/Recipes/WarframeRecipes/IvaraPrimeHelmetBlueprint": "Ivara Prime 头部神经光元蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/IvaraPrimeHelmetBlueprint": "Ivara Prime 头盔 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/IvaraPrimeSystemsBlueprint": "Ivara Prime 系统蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/KhoraBlueprint": "Khora 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/KhoraPrimeBlueprint": "Khora Prime 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/KhoraPrimeChassisBlueprint": "Khora Prime 机体蓝图",
-  "/Lotus/Types/Recipes/WarframeRecipes/KhoraPrimeHelmetBlueprint": "Khora Prime 头部神经光元蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/KhoraPrimeHelmetBlueprint": "Khora Prime 头盔 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/KhoraPrimeSystemsBlueprint": "Khora Prime 系统蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/KoumeiBlueprint": "Koumei 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/LavosPrimeBlueprint": "Lavos Prime 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/LavosPrimeChassisBlueprint": "Lavos Prime 机体蓝图",
-  "/Lotus/Types/Recipes/WarframeRecipes/LavosPrimeHelmetBlueprint": "Lavos Prime 头部神经光元蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/LavosPrimeHelmetBlueprint": "Lavos Prime 头盔 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/LavosPrimeSystemsBlueprint": "Lavos Prime 系统蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/LimboPrimeBlueprint": "Limbo Prime 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/LokiPrimeBlueprint": "Loki Prime 蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/MagBlueprint": "Mag 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/MagPrimeBlueprint": "Mag Prime 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/MesaPrimeBlueprint": "Mesa Prime 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/MiragePrimeBlueprint": "Mirage Prime 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/NekrosPrimeBlueprint": "Nekros Prime 蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/NezhaBlueprint": "Nezha 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/NezhaPrimeBlueprint": "Nezha Prime 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/NezhaPrimeChassisBlueprint": "Nezha Prime 机体蓝图",
-  "/Lotus/Types/Recipes/WarframeRecipes/NezhaPrimeHelmetBlueprint": "Nezha Prime 头部神经光元蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/NezhaPrimeHelmetBlueprint": "Nezha Prime 头盔 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/NezhaPrimeSystemsBlueprint": "Nezha Prime 系统蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/NidusPrimeBlueprint": "Nidus Prime 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/NidusPrimeChassisBlueprint": "Nidus Prime 机体蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/NidusPrimeHelmetBlueprint": "Nidus Prime 头部神经光元蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/NidusPrimeSystemsBlueprint": "Nidus Prime 系统蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/NokkoBlueprint": "Nokko 蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/NovaBlueprint": "Nova 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/NovaPrimeBlueprint": "Nova Prime 蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/NyxBlueprint": "Nyx 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/NyxPrimeBlueprint": "Nyx Prime 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/NyxPrimeChassisBlueprint": "Nyx Prime 机体蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/NyxPrimeHelmetBlueprint": "Nyx Prime 头部神经光元蓝图",
@@ -120,30 +241,38 @@
   "/Lotus/Types/Recipes/WarframeRecipes/OberonPrimeBlueprint": "Oberon Prime 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/OctaviaPrimeBlueprint": "Octavia Prime 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/OctaviaPrimeChassisBlueprint": "Octavia Prime 机体蓝图",
-  "/Lotus/Types/Recipes/WarframeRecipes/OctaviaPrimeHelmetBlueprint": "Octavia Prime 头部神经光元蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/OctaviaPrimeHelmetBlueprint": "Octavia Prime 头盔 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/OctaviaPrimeSystemsBlueprint": "Octavia Prime 系统蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/OraxiaBlueprint": "Oraxia 蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/PacifistBlueprint": "Baruuk 蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/PagemasterBlueprint": "Dante 蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/PriestBlueprint": "Harrow 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/ProteaPrimeBlueprint": "Protea Prime 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/ProteaPrimeChassisBlueprint": "Protea Prime 机体蓝图",
-  "/Lotus/Types/Recipes/WarframeRecipes/ProteaPrimeHelmetBlueprint": "Protea Prime 头部神经光元蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/ProteaPrimeHelmetBlueprint": "Protea Prime 头盔 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/ProteaPrimeSystemsBlueprint": "Protea Prime 系统蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/RevenantBlueprint": "Revenant 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/RevenantPrimeBlueprint": "Revenant Prime 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/RevenantPrimeChassisBlueprint": "Revenant Prime 机体蓝图",
-  "/Lotus/Types/Recipes/WarframeRecipes/RevenantPrimeHelmetBlueprint": "Revenant Prime 头部神经光元蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/RevenantPrimeHelmetBlueprint": "Revenant Prime 头盔 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/RevenantPrimeSystemsBlueprint": "Revenant Prime 系统蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/RhinoBlueprint": "Rhino 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/RhinoPrimeBlueprint": "Rhino Prime 蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/SarynBlueprint": "Saryn 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/SarynPrimeBlueprint": "Saryn Prime 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/SevagothPrimeBlueprint": "Sevagoth Prime 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/SevagothPrimeChassisBlueprint": "Sevagoth Prime 机体蓝图",
-  "/Lotus/Types/Recipes/WarframeRecipes/SevagothPrimeHelmetBlueprint": "Sevagoth Prime 头部神经光元蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/SevagothPrimeHelmetBlueprint": "Sevagoth Prime 头盔 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/SevagothPrimeSystemsBlueprint": "Sevagoth Prime 系统蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/StyanaxPrimeBlueprint": "Styanax Prime 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/StyanaxPrimeChassisBlueprint": "Styanax Prime 机体蓝图",
-  "/Lotus/Types/Recipes/WarframeRecipes/StyanaxPrimeHelmetBlueprint": "Styanax Prime 头部神经光元蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/StyanaxPrimeHelmetBlueprint": "Styanax Prime 头盔 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/StyanaxPrimeSystemsBlueprint": "Styanax Prime 系统蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/TitaniaPrimeBlueprint": "Titania Prime 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/TitaniaPrimeChassisBlueprint": "Titania Prime 机体蓝图",
-  "/Lotus/Types/Recipes/WarframeRecipes/TitaniaPrimeHelmetBlueprint": "Titania Prime 头部神经光元蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/TitaniaPrimeHelmetBlueprint": "Titania Prime 头盔 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/TitaniaPrimeSystemsBlueprint": "Titania Prime 系统蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/TrinityBlueprint": "Trinity 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/TrinityPrimeBlueprint": "Trinity Prime 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/ValkyrPrimeBlueprint": "Valkyr Prime 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/VaubanPrimeBlueprint": "Vauban Prime 蓝图",
@@ -153,25 +282,28 @@
   "/Lotus/Types/Recipes/WarframeRecipes/VoltPrimeSystemsBlueprint": "Volt Prime 系统蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/VorunaPrimeBlueprint": "Voruna Prime 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/VorunaPrimeChassisBlueprint": "Voruna Prime 机体蓝图",
-  "/Lotus/Types/Recipes/WarframeRecipes/VorunaPrimeHelmetBlueprint": "Voruna Prime 头部神经光元蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/VorunaPrimeHelmetBlueprint": "Voruna Prime 头盔 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/VorunaPrimeSystemsBlueprint": "Voruna Prime 系统蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/WispPrimeBlueprint": "Wisp Prime 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/WispPrimeChassisBlueprint": "Wisp Prime 机体蓝图",
-  "/Lotus/Types/Recipes/WarframeRecipes/WispPrimeHelmetBlueprint": "Wisp Prime 头部神经光元蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/WispPrimeHelmetBlueprint": "Wisp Prime 头盔 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/WispPrimeSystemsBlueprint": "Wisp Prime 系统蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/WraithBlueprint": "Sevagoth 蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/WukongBlueprint": "Wukong 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/WukongPrimeBlueprint": "Wukong Prime 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/WukongPrimeChassisBlueprint": "Wukong Prime 机体蓝图",
-  "/Lotus/Types/Recipes/WarframeRecipes/WukongPrimeHelmetBlueprint": "Wukong Prime 头部神经光元蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/WukongPrimeHelmetBlueprint": "Wukong Prime 头盔 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/WukongPrimeSystemsBlueprint": "Wukong Prime 系统蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/XakuPrimeBlueprint": "Xaku Prime 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/XakuPrimeChassisBlueprint": "Xaku Prime 机体蓝图",
-  "/Lotus/Types/Recipes/WarframeRecipes/XakuPrimeHelmetBlueprint": "Xaku Prime 头部神经光元蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/XakuPrimeHelmetBlueprint": "Xaku Prime 头盔 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/XakuPrimeSystemsBlueprint": "Xaku Prime 系统蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/YareliPrimeBlueprint": "Yareli Prime 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/YareliPrimeChassisBlueprint": "Yareli Prime 机体蓝图",
-  "/Lotus/Types/Recipes/WarframeRecipes/YareliPrimeHelmetBlueprint": "Yareli Prime 头部神经光元蓝图",
+  "/Lotus/Types/Recipes/WarframeRecipes/YareliPrimeHelmetBlueprint": "Yareli Prime 头盔 蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/YareliPrimeSystemsBlueprint": "Yareli Prime 系统蓝图",
   "/Lotus/Types/Recipes/WarframeRecipes/ZephyrPrimeBlueprint": "Zephyr Prime 蓝图",
+  "/Lotus/Types/Recipes/Weapons/1999EntHybridPistolBlueprint": "暴乱-848 蓝图",
   "/Lotus/Types/Recipes/Weapons/AcceltraPrimeBlueprint": "迅发电浆炮 Prime 蓝图",
   "/Lotus/Types/Recipes/Weapons/AfentisPrimeBlueprint": "圣英 Prime 蓝图",
   "/Lotus/Types/Recipes/Weapons/AfurisPrimeBlueprint": "盗贼双枪 Prime 蓝图",
@@ -186,51 +318,250 @@
   "/Lotus/Types/Recipes/Weapons/AkvastoPrimeBlueprint": "瓦斯托双枪 Prime 蓝图",
   "/Lotus/Types/Recipes/Weapons/AlternoxPrimeBlueprint": "电幻步枪 Prime 蓝图",
   "/Lotus/Types/Recipes/Weapons/AnkyrosPrimeBlueprint": "甲龙双拳 Prime 蓝图",
+  "/Lotus/Types/Recipes/Weapons/AntlerBowBlueprint": "西诺斯 蓝图",
+  "/Lotus/Types/Recipes/Weapons/ArchAxeBlueprint": "<ARCHWING> 奥努里克斯 蓝图",
+  "/Lotus/Types/Recipes/Weapons/ArchBurstGunBlueprint": "合成燃气炮 蓝图",
+  "/Lotus/Types/Recipes/Weapons/ArchCannonBlueprint": "黑鸦 蓝图",
+  "/Lotus/Types/Recipes/Weapons/ArchHammerBlueprint": "<ARCHWING> 拉斯波恩 蓝图",
+  "/Lotus/Types/Recipes/Weapons/ArchHeavyPistolsBlueprint": "什长双枪 蓝图",
+  "/Lotus/Types/Recipes/Weapons/ArchHookSwordBlueprint": "<ARCHWING> 驯象钩刃 蓝图",
+  "/Lotus/Types/Recipes/Weapons/ArchLongRifleBlueprint": "菲德菈 蓝图",
+  "/Lotus/Types/Recipes/Weapons/ArchRailgunBlueprint": "极速电磁步枪 蓝图",
+  "/Lotus/Types/Recipes/Weapons/ArchRocketCrossbowBlueprint": "巨浪 蓝图",
+  "/Lotus/Types/Recipes/Weapons/ArchScytheBlueprint": "<ARCHWING> 死亡使徒 蓝图",
+  "/Lotus/Types/Recipes/Weapons/ArchSwordShieldBlueprint": "<ARCHWING> 半人马 蓝图",
   "/Lotus/Types/Recipes/Weapons/AstillaPrimeBlueprint": "碎裂者 Prime 蓝图",
+  "/Lotus/Types/Recipes/Weapons/AsymetricalBowBlueprint": "大久和弓 蓝图",
   "/Lotus/Types/Recipes/Weapons/AthodaiPrimeBlueprint": "阿索代 Prime 蓝图",
+  "/Lotus/Types/Recipes/Weapons/AutoCrossBowBlueprint": "布里斯提卡 蓝图",
+  "/Lotus/Types/Recipes/Weapons/BallasSwordBlueprint": "心智之殁 蓝图",
   "/Lotus/Types/Recipes/Weapons/BazaPrimeBlueprint": "苍鹰 Prime 蓝图",
   "/Lotus/Types/Recipes/Weapons/BoarPrimeBlueprint": "野猪 Prime 蓝图",
+  "/Lotus/Types/Recipes/Weapons/BoltonfaBlueprint": "螺钉拐刃 蓝图",
   "/Lotus/Types/Recipes/Weapons/BoltorPrimeBlueprint": "螺钉步枪 Prime 蓝图",
+  "/Lotus/Types/Recipes/Weapons/BoomerangBlueprint": "红隼 蓝图",
   "/Lotus/Types/Recipes/Weapons/BowPrimeBlueprint": "帕里斯 Prime 蓝图",
   "/Lotus/Types/Recipes/Weapons/BratonPrimeBlueprint": "布莱顿 Prime 蓝图",
+  "/Lotus/Types/Recipes/Weapons/BrawlerKnucklesBlueprint": "铁钩手甲 蓝图",
   "/Lotus/Types/Recipes/Weapons/BroncoPrimeBlueprint": "野马 Prime 蓝图",
   "/Lotus/Types/Recipes/Weapons/BurstonPrimeBlueprint": "伯斯顿 Prime 蓝图",
+  "/Lotus/Types/Recipes/Weapons/CarminePentaBlueprint": "嫣红·潘塔 蓝图",
   "/Lotus/Types/Recipes/Weapons/CedoPrimeBlueprint": "塞多 Prime 蓝图",
+  "/Lotus/Types/Recipes/Weapons/CephHammerBlueprint": "赫利俄光锤 蓝图",
+  "/Lotus/Types/Recipes/Weapons/CephPrimaryBlueprint": "重力奇点拟成枪 蓝图",
+  "/Lotus/Types/Recipes/Weapons/CeramicDaggerBlueprint": "陶瓷匕首 蓝图",
   "/Lotus/Types/Recipes/Weapons/CobraCranePrimeBlueprint": "眼镜蛇 & 鹤 Prime 蓝图",
   "/Lotus/Types/Recipes/Weapons/CorinthPrimeBlueprint": "科林斯 Prime 蓝图",
+  "/Lotus/Types/Recipes/Weapons/CorpusHammerWeaponBlueprint": "弧电振子锤 蓝图",
+  "/Lotus/Types/Recipes/Weapons/CorpusHandRocketLauncherBlueprint": "安格斯壮 蓝图",
+  "/Lotus/Types/Recipes/Weapons/CorpusMinigunBlueprint": "锡斯特 蓝图",
+  "/Lotus/Types/Recipes/Weapons/CorpusRailgunBlueprint": "铁晶磁轨炮 蓝图",
+  "/Lotus/Types/Recipes/Weapons/CorpusUMPBlueprint": "特拉 蓝图",
+  "/Lotus/Types/Recipes/Weapons/CorpusWhipBlueprint": "勒克塔 蓝图",
   "/Lotus/Types/Recipes/Weapons/CorufellPrimeBlueprint": "闪劫 Prime 蓝图",
   "/Lotus/Types/Recipes/Weapons/CorvasPrimeBlueprint": "黑鸦 Prime 蓝图",
+  "/Lotus/Types/Recipes/Weapons/CrpAirPistolArrayBlueprint": "超音波冲击枪 蓝图",
+  "/Lotus/Types/Recipes/Weapons/CrpArSniperBlueprint": "使节 蓝图",
+  "/Lotus/Types/Recipes/Weapons/CrpBigSlashBlueprint": "信条·枢密 蓝图",
+  "/Lotus/Types/Recipes/Weapons/CrpBlastorWeaponBlueprint": "漫射者 蓝图",
+  "/Lotus/Types/Recipes/Weapons/CrpBriefcase2HKatanaBlueprint": "信条·莉薇娅 蓝图",
+  "/Lotus/Types/Recipes/Weapons/CrpChargeGunBlueprint": "循环离子枪 蓝图",
+  "/Lotus/Types/Recipes/Weapons/CrpGhostCatcherGlaiveBlueprint": "驱魔之刃 蓝图",
+  "/Lotus/Types/Recipes/Weapons/CrpHammerShieldBlueprint": "信条·集议 蓝图",
+  "/Lotus/Types/Recipes/Weapons/CrpRubanRifleBlueprint": "钢刃步枪 蓝图",
+  "/Lotus/Types/Recipes/Weapons/CrpSentAmalgPistolBlueprint": "氰毒 蓝图",
+  "/Lotus/Types/Recipes/Weapons/CrpSentAmlgSniperBlueprint": "猛毒 蓝图",
+  "/Lotus/Types/Recipes/Weapons/CrpSentExperimentPistolBlueprint": "视使之触 蓝图",
+  "/Lotus/Types/Recipes/Weapons/CrpSentExperimentRifleBlueprint": "武使之力 蓝图",
+  "/Lotus/Types/Recipes/Weapons/CrpShapeBlastShotgunBlueprint": "晶能放射器 蓝图",
+  "/Lotus/Types/Recipes/Weapons/CrpShockGripWhipBlueprint": "电流刺索 蓝图",
+  "/Lotus/Types/Recipes/Weapons/CrpTonfaBlueprint": "欧玛 蓝图",
+  "/Lotus/Types/Recipes/Weapons/CrpVenusHatchetBlueprint": "直镐 蓝图",
+  "/Lotus/Types/Recipes/Weapons/CutlassPoignardBlueprint": "海波斯库拉对剑 蓝图",
+  "/Lotus/Types/Recipes/Weapons/DarkDaggerBlueprint": "暗黑匕首 蓝图",
+  "/Lotus/Types/Recipes/Weapons/DarkSwordDaggerHybridBlueprint": "暗黑分合剑 蓝图",
+  "/Lotus/Types/Recipes/Weapons/DaxDuviriAsymmetricalLongBowPlayerWeaponBlueprint": "遂心 蓝图",
+  "/Lotus/Types/Recipes/Weapons/DaxDuviriHammerBlueprint": "三宝聚 蓝图",
+  "/Lotus/Types/Recipes/Weapons/DaxDuviriKatanaBlueprint": "业珀 蓝图",
+  "/Lotus/Types/Recipes/Weapons/DaxDuviriMaceShieldBlueprint": "星舟 & 帆 蓝图",
+  "/Lotus/Types/Recipes/Weapons/DaxDuviriPolearmBlueprint": "雷石祭 蓝图",
+  "/Lotus/Types/Recipes/Weapons/DaxDuviriTwoHandedKatanaBlueprint": "溶灵尊 蓝图",
+  "/Lotus/Types/Recipes/Weapons/DeraVandalBlueprint": "德拉·破坏者 蓝图",
+  "/Lotus/Types/Recipes/Weapons/DerelictCernosBlueprint": "刺吸西诺斯 蓝图",
   "/Lotus/Types/Recipes/Weapons/DestrezaPrimeBlueprint": "技巧之剑 Prime 蓝图",
+  "/Lotus/Types/Recipes/Weapons/DjinnMacheteBlueprint": "加扎勒反曲刀 蓝图",
+  "/Lotus/Types/Recipes/Weapons/DoubleBarrelShotgunBlueprint": "鳄神 蓝图",
+  "/Lotus/Types/Recipes/Weapons/DrakeRifleBlueprint": "狂鲨 蓝图",
+  "/Lotus/Types/Recipes/Weapons/DualAxeBlueprint": "佐伦双斧 蓝图",
+  "/Lotus/Types/Recipes/Weapons/DualCorpusMinigunBlueprint": "锡斯特双枪 蓝图",
+  "/Lotus/Types/Recipes/Weapons/DualDaggerBlueprint": "狼牙 蓝图",
+  "/Lotus/Types/Recipes/Weapons/DualEtherDaggerBlueprint": "苍穹匕首 蓝图",
+  "/Lotus/Types/Recipes/Weapons/DualEtherSwordBlueprint": "苍穹双剑 蓝图",
+  "/Lotus/Types/Recipes/Weapons/DualHeatSwordBlueprint": "烈焰双剑 蓝图",
+  "/Lotus/Types/Recipes/Weapons/DualKamasBlueprint": "双短柄战镰 蓝图",
   "/Lotus/Types/Recipes/Weapons/DualKeresPrimeBlueprint": "凯瑞斯双刀 Prime 蓝图",
+  "/Lotus/Types/Recipes/Weapons/DualMagnusBlueprint": "麦格努斯双枪 蓝图",
+  "/Lotus/Types/Recipes/Weapons/DualVastosBlueprint": "瓦斯托双枪 蓝图",
   "/Lotus/Types/Recipes/Weapons/DualZorenPrimeBlueprint": "佐伦双斧 Prime 蓝图",
+  "/Lotus/Types/Recipes/Weapons/DuviriDualSwordsBlueprint": "赤阳 & 幽月 蓝图",
+  "/Lotus/Types/Recipes/Weapons/DuviriHeavyScytheBlueprint": "暮斩 蓝图",
+  "/Lotus/Types/Recipes/Weapons/DuviriRifleBlueprint": "风鸣 蓝图",
+  "/Lotus/Types/Recipes/Weapons/EntFistIncarnonBlueprint": "古声 蓝图",
+  "/Lotus/Types/Recipes/Weapons/EntSphereHammerBlueprint": "映声战锤 蓝图",
+  "/Lotus/Types/Recipes/Weapons/EntratiWristGunBlueprint": "赘骨 蓝图",
   "/Lotus/Types/Recipes/Weapons/EpitaphPrimeBlueprint": "葬铭 Prime 蓝图",
+  "/Lotus/Types/Recipes/Weapons/EtherScytheBlueprint": "苍穹死神 蓝图",
+  "/Lotus/Types/Recipes/Weapons/EtherSwordBlueprint": "苍穹之剑 蓝图",
+  "/Lotus/Types/Recipes/Weapons/Evolving/ZarimanDaggerWeaponBlueprint": "清刚 蓝图",
+  "/Lotus/Types/Recipes/Weapons/Evolving/ZarimanHeavyPistolBlueprint": "奏凯 蓝图",
+  "/Lotus/Types/Recipes/Weapons/Evolving/ZarimanPumpShotgunBlueprint": "逐枭 蓝图",
+  "/Lotus/Types/Recipes/Weapons/Evolving/ZarimanSemiAutoRifleBlueprint": "凤殁 蓝图",
+  "/Lotus/Types/Recipes/Weapons/Evolving/ZarimanTonfaWeaponBlueprint": "双雄 蓝图",
   "/Lotus/Types/Recipes/Weapons/FangPrimeBlueprint": "狼牙 Prime 蓝图",
+  "/Lotus/Types/Recipes/Weapons/FiveShotSniperBlueprint": "绝路 蓝图",
+  "/Lotus/Types/Recipes/Weapons/FlowerPowerPolearmBlueprint": "蜻蛉薙 蓝图",
   "/Lotus/Types/Recipes/Weapons/FragorPrimeBlueprint": "重击巨锤 Prime 蓝图",
   "/Lotus/Types/Recipes/Weapons/FulminPrimeBlueprint": "雷霆 Prime 蓝图",
+  "/Lotus/Types/Recipes/Weapons/FuraxWraithBlueprint": "弗拉克斯·亡魂 蓝图",
+  "/Lotus/Types/Recipes/Weapons/GarudaCrossbowBlueprint": "噬蛇弩 蓝图",
+  "/Lotus/Types/Recipes/Weapons/GauntletBlueprint": "甲龙双拳 蓝图",
   "/Lotus/Types/Recipes/Weapons/GlaivePrimeBlueprint": "战刃 Prime 蓝图",
+  "/Lotus/Types/Recipes/Weapons/GlassHammerBlueprint": "创伤 蓝图",
+  "/Lotus/Types/Recipes/Weapons/GlassKunaiBlueprint": "齐射玻刃 蓝图",
+  "/Lotus/Types/Recipes/Weapons/GorgonWraithBlueprint": "蛇发女妖·亡魂 蓝图",
   "/Lotus/Types/Recipes/Weapons/GramPrimeBlueprint": "格拉姆 Prime 蓝图",
+  "/Lotus/Types/Recipes/Weapons/GreatSwordBlueprint": "格拉姆 蓝图",
+  "/Lotus/Types/Recipes/Weapons/GrenadeLauncherBlueprint": "潘塔 蓝图",
+  "/Lotus/Types/Recipes/Weapons/GrineerFlakCannonBlueprint": "龙骑兵 蓝图",
+  "/Lotus/Types/Recipes/Weapons/GrineerGooGunBlueprint": "史特克 蓝图",
+  "/Lotus/Types/Recipes/Weapons/GrineerJetPolearmBlueprint": "喷射战锤 蓝图",
+  "/Lotus/Types/Recipes/Weapons/GrineerLightPistolBlueprint": "蝰蛇 蓝图",
+  "/Lotus/Types/Recipes/Weapons/GrineerM16RifleBlueprint": "卡拉克 蓝图",
+  "/Lotus/Types/Recipes/Weapons/GrineerWhipBlueprint": "阿特拉克斯 蓝图",
+  "/Lotus/Types/Recipes/Weapons/GrnAmphisPistolBlueprint": "夸兹 蓝图",
+  "/Lotus/Types/Recipes/Weapons/GrnAssaultRifleBlueprint": "葛拉卡达 蓝图",
+  "/Lotus/Types/Recipes/Weapons/GrnBoomerangBlueprint": "哈利卡 蓝图",
+  "/Lotus/Types/Recipes/Weapons/GrnBurstRifleBlueprint": "雌鹿 蓝图",
+  "/Lotus/Types/Recipes/Weapons/GrnCannonWeaponBlueprint": "沙皇 蓝图",
+  "/Lotus/Types/Recipes/Weapons/GrnChainSawTonfaBlueprint": "通卡拐刃 蓝图",
+  "/Lotus/Types/Recipes/Weapons/GrnClawsBlueprint": "锐卡斯 蓝图",
+  "/Lotus/Types/Recipes/Weapons/GrnDualFireAxeBlueprint": "双子巴萨克 蓝图",
+  "/Lotus/Types/Recipes/Weapons/GrnGhoulSawBlueprint": "尸鬼电锯 蓝图",
+  "/Lotus/Types/Recipes/Weapons/GrnGrenadeLauncherBlueprint": "征服榴炮 蓝图",
+  "/Lotus/Types/Recipes/Weapons/GrnHarpoonGunBlueprint": "哈帕克 蓝图",
+  "/Lotus/Types/Recipes/Weapons/GrnHeatGunBlueprint": "原子矿融炮 蓝图",
+  "/Lotus/Types/Recipes/Weapons/GrnHeavyPistolBlueprint": "北海巨妖 蓝图",
+  "/Lotus/Types/Recipes/Weapons/GrnQueenGuardDualPistolsBlueprint": "双子罗格 蓝图",
+  "/Lotus/Types/Recipes/Weapons/GrnSharbolaWeaponBlueprint": "屠煞 蓝图",
+  "/Lotus/Types/Recipes/Weapons/GrnSniperRifleBlueprint": "金工火神 蓝图",
+  "/Lotus/Types/Recipes/Weapons/GrnSparkRifleBlueprint": "寇恩热能枪 蓝图",
+  "/Lotus/Types/Recipes/Weapons/GrnSpiderSparringBlueprint": "库鲁多 蓝图",
+  "/Lotus/Types/Recipes/Weapons/GrnStaffBlueprint": "双头蛇 蓝图",
+  "/Lotus/Types/Recipes/Weapons/GrnTorpedoPistolBlueprint": "杀星 蓝图",
+  "/Lotus/Types/Recipes/Weapons/GrnVorStickyBombBlueprint": "骇敌榴弹 蓝图",
   "/Lotus/Types/Recipes/Weapons/GuandaoPrimeBlueprint": "关刀 Prime 蓝图",
+  "/Lotus/Types/Recipes/Weapons/GunScytheBlueprint": "闪劫 蓝图",
   "/Lotus/Types/Recipes/Weapons/GunsenPrimeBlueprint": "军扇 Prime 蓝图",
+  "/Lotus/Types/Recipes/Weapons/GyreRifleWeaponBlueprint": "电幻步枪 蓝图",
+  "/Lotus/Types/Recipes/Weapons/HammerBlueprint": "重击巨锤 蓝图",
+  "/Lotus/Types/Recipes/Weapons/HarlequinPistolsBlueprint": "荒谬双枪 蓝图",
+  "/Lotus/Types/Recipes/Weapons/HeatDaggerBlueprint": "烈焰匕首 蓝图",
+  "/Lotus/Types/Recipes/Weapons/HeatSwordBlueprint": "烈焰长剑 蓝图",
+  "/Lotus/Types/Recipes/Weapons/HuntingBowBlueprint": "帕里斯 蓝图",
   "/Lotus/Types/Recipes/Weapons/HystrixPrimeBlueprint": "豪猪 Prime 蓝图",
+  "/Lotus/Types/Recipes/Weapons/IceHammerBlueprint": "西伯利亚冰锤 蓝图",
+  "/Lotus/Types/Recipes/Weapons/ImperatorVandalBlueprint": "凯旋将军·破坏者 蓝图",
+  "/Lotus/Types/Recipes/Weapons/InfBeamPistolBlueprint": "异化者 蓝图",
+  "/Lotus/Types/Recipes/Weapons/InfBoomerangBlueprint": "病囊飞刃 蓝图",
+  "/Lotus/Types/Recipes/Weapons/InfCernosBlueprint": "异融西诺斯 蓝图",
+  "/Lotus/Types/Recipes/Weapons/InfNunchuckBlueprint": "感染连枷 蓝图",
+  "/Lotus/Types/Recipes/Weapons/InfSniperRifleBlueprint": "孢丝感染枪 蓝图",
+  "/Lotus/Types/Recipes/Weapons/InfTransformClawsBlueprint": "卡提努之爪 蓝图",
+  "/Lotus/Types/Recipes/Weapons/InfUziBlueprint": "邪莫斯 蓝图",
+  "/Lotus/Types/Recipes/Weapons/InfestedDartPistolBlueprint": "啐沫者 蓝图",
+  "/Lotus/Types/Recipes/Weapons/InfestedKogakeBlueprint": "蚂蟥 蓝图",
+  "/Lotus/Types/Recipes/Weapons/InfestedShotgunBlueprint": "噬菌者 蓝图",
+  "/Lotus/Types/Recipes/Weapons/KarakWraithBlueprint": "卡拉克·亡魂 蓝图",
   "/Lotus/Types/Recipes/Weapons/KarystPrimeBlueprint": "凯洛斯特 Prime 蓝图",
+  "/Lotus/Types/Recipes/Weapons/KatanaBlueprint": "侍刃 蓝图",
   "/Lotus/Types/Recipes/Weapons/KestrelPrimeBlueprint": "红隼 Prime 蓝图",
+  "/Lotus/Types/Recipes/Weapons/KickPunchWeaponBlueprint": "奥比克斯 蓝图",
   "/Lotus/Types/Recipes/Weapons/KnellPrimeBlueprint": "丧钟 Prime 蓝图",
   "/Lotus/Types/Recipes/Weapons/KogakePrimeBlueprint": "科加基 Prime 蓝图",
   "/Lotus/Types/Recipes/Weapons/KompressaPrimeBlueprint": "卡帕压力枪 Prime 蓝图",
   "/Lotus/Types/Recipes/Weapons/KronenPrimeBlueprint": "皇家拐刃 Prime 蓝图",
+  "/Lotus/Types/Recipes/Weapons/KuvaWeapons/GrnHeavyGrenadeLauncherBlueprint": "赤毒·怒雷 蓝图",
+  "/Lotus/Types/Recipes/Weapons/KuvaWeapons/GrnKuvaLichRifleWeaponBlueprint": "赤毒·邪眼 蓝图",
+  "/Lotus/Types/Recipes/Weapons/KuvaWeapons/GrnKuvaLichScytheBlueprint": "赤毒·希尔德 蓝图",
+  "/Lotus/Types/Recipes/Weapons/KuvaWeapons/KuvaBrakkBlueprint": "赤毒·布拉克 蓝图",
+  "/Lotus/Types/Recipes/Weapons/KuvaWeapons/KuvaDrakgoonBlueprint": "赤毒·龙骑兵 蓝图",
+  "/Lotus/Types/Recipes/Weapons/KuvaWeapons/KuvaGhoulSawBlueprint": "赤毒·尸鬼电锯 蓝图",
+  "/Lotus/Types/Recipes/Weapons/KuvaWeapons/KuvaGrattlerBlueprint": "赤毒·葛拉特勒 蓝图",
+  "/Lotus/Types/Recipes/Weapons/KuvaWeapons/KuvaGrnBowBlueprint": "赤毒·布拉玛 蓝图",
+  "/Lotus/Types/Recipes/Weapons/KuvaWeapons/KuvaHekBlueprint": "赤毒·海克 蓝图",
+  "/Lotus/Types/Recipes/Weapons/KuvaWeapons/KuvaHindBlueprint": "赤毒·雌鹿 蓝图",
+  "/Lotus/Types/Recipes/Weapons/KuvaWeapons/KuvaKarakBlueprint": "赤毒·卡拉克 蓝图",
+  "/Lotus/Types/Recipes/Weapons/KuvaWeapons/KuvaKohmBlueprint": "赤毒·寇恩热能枪 蓝图",
+  "/Lotus/Types/Recipes/Weapons/KuvaWeapons/KuvaKrakenBlueprint": "赤毒·北海巨妖 蓝图",
+  "/Lotus/Types/Recipes/Weapons/KuvaWeapons/KuvaNukorBlueprint": "赤毒·努寇微波枪 蓝图",
+  "/Lotus/Types/Recipes/Weapons/KuvaWeapons/KuvaOgrisBlueprint": "赤毒·食人女魔 蓝图",
+  "/Lotus/Types/Recipes/Weapons/KuvaWeapons/KuvaQuartakkBlueprint": "赤毒·夸塔克 蓝图",
+  "/Lotus/Types/Recipes/Weapons/KuvaWeapons/KuvaSeerBlueprint": "赤毒·预言者 蓝图",
+  "/Lotus/Types/Recipes/Weapons/KuvaWeapons/KuvaSobekBlueprint": "赤毒·鳄神 蓝图",
+  "/Lotus/Types/Recipes/Weapons/KuvaWeapons/KuvaStubbaBlueprint": "赤毒·双子史度巴 蓝图",
+  "/Lotus/Types/Recipes/Weapons/KuvaWeapons/KuvaTonkorBlueprint": "赤毒·征服榴炮 蓝图",
+  "/Lotus/Types/Recipes/Weapons/KuvaWeapons/KuvaZarrBlueprint": "赤毒·沙皇 蓝图",
   "/Lotus/Types/Recipes/Weapons/LarkspurPrimeBlueprint": "翠雀 Prime 蓝图",
+  "/Lotus/Types/Recipes/Weapons/LasGooAKPlayerWeaponBlueprint": "艾弗旺-5 木星 蓝图",
+  "/Lotus/Types/Recipes/Weapons/LasGooPistolPlayerWeaponBlueprint": "艾弗旺-8 火星 蓝图",
+  "/Lotus/Types/Recipes/Weapons/LasSilencedPistolBlueprint": "夜语者 77 蓝图",
+  "/Lotus/Types/Recipes/Weapons/LasrianNoxPlayerWeaponBlueprint": "净化者 1 蓝图",
+  "/Lotus/Types/Recipes/Weapons/LatoVandalBlueprint": "拉托·破坏者 蓝图",
   "/Lotus/Types/Recipes/Weapons/LatronPrimeBlueprint": "拉特昂 Prime 蓝图",
+  "/Lotus/Types/Recipes/Weapons/LatronWraithBlueprint": "拉特昂·亡魂 蓝图",
+  "/Lotus/Types/Recipes/Weapons/LawyerWeapons/CrpBEArcaPlasmorBlueprint": "信条·弧电离子枪 蓝图",
+  "/Lotus/Types/Recipes/Weapons/LawyerWeapons/CrpBECycronBlueprint": "信条·循环离子枪 蓝图",
+  "/Lotus/Types/Recipes/Weapons/LawyerWeapons/CrpBEDetronBlueprint": "信条·德特昂 蓝图",
+  "/Lotus/Types/Recipes/Weapons/LawyerWeapons/CrpBEFerroxBlueprint": "信条·铁晶磁轨炮 蓝图",
+  "/Lotus/Types/Recipes/Weapons/LawyerWeapons/CrpBEFluxRifleBlueprint": "信条·通量步枪 蓝图",
+  "/Lotus/Types/Recipes/Weapons/LawyerWeapons/CrpBEGlaxionBlueprint": "信条·冷冻光束步枪 蓝图",
+  "/Lotus/Types/Recipes/Weapons/LawyerWeapons/CrpBEPlinxBlueprint": "信条·漫射者 蓝图",
+  "/Lotus/Types/Recipes/Weapons/LawyerWeapons/CrpBEQuantaBlueprint": "信条·量子切割器 蓝图",
+  "/Lotus/Types/Recipes/Weapons/LawyerWeapons/CrpBETetraBlueprint": "信条·特拉 蓝图",
+  "/Lotus/Types/Recipes/Weapons/LawyerWeapons/CrpBriefcaseAkimboPistolBlueprint": "信条·纵横双枪 蓝图",
+  "/Lotus/Types/Recipes/Weapons/LawyerWeapons/CrpBriefcaseLauncherBlueprint": "信条·典客 蓝图",
+  "/Lotus/Types/Recipes/Weapons/LawyerWeapons/CrpBriefcaseScytheBlueprint": "信条·格里高利 蓝图",
+  "/Lotus/Types/Recipes/Weapons/LawyerWeapons/CrpIgniterPistolBlueprint": "信条·斯派克斯 蓝图",
   "/Lotus/Types/Recipes/Weapons/LexPrimeBlueprint": "雷克斯 Prime 蓝图",
+  "/Lotus/Types/Recipes/Weapons/LiDaggerBlueprint": "旋刃飞刀 蓝图",
+  "/Lotus/Types/Recipes/Weapons/MagnumBlueprint": "麦格努斯 蓝图",
   "/Lotus/Types/Recipes/Weapons/MagnusPrimeBlueprint": "麦格努斯 Prime 蓝图",
   "/Lotus/Types/Recipes/Weapons/MasseterPrimeBlueprint": "咀嚼金杖 Prime 蓝图",
+  "/Lotus/Types/Recipes/Weapons/MireSwordBlueprint": "米尔 蓝图",
+  "/Lotus/Types/Recipes/Weapons/MortiforShieldAndSwordBlueprint": "塔克 & 卢格 蓝图",
+  "/Lotus/Types/Recipes/Weapons/NWOrokinSwordBlueprint": "金璃剑 蓝图",
   "/Lotus/Types/Recipes/Weapons/NagantakaPrimeBlueprint": "噬蛇弩 Prime 蓝图",
+  "/Lotus/Types/Recipes/Weapons/NewWar/ArchonDualDaggersBlueprint": "赤炎流星 蓝图",
+  "/Lotus/Types/Recipes/Weapons/NewWar/ArchonTridentBlueprint": "雷霆暴君 蓝图",
+  "/Lotus/Types/Recipes/Weapons/NewWar/ArchonWhipBlueprint": "蝰首骨妖 蓝图",
+  "/Lotus/Types/Recipes/Weapons/NewWar/SentJointedScytheBlueprint": "脉纹 蓝图",
   "/Lotus/Types/Recipes/Weapons/NinkondiPrimeBlueprint": "降灵追猎者 Prime 蓝图",
+  "/Lotus/Types/Recipes/Weapons/NokkoArchGunBlueprint": "蕈菇 蓝图",
+  "/Lotus/Types/Recipes/Weapons/NunchakuBlueprint": "降灵追猎者 蓝图",
   "/Lotus/Types/Recipes/Weapons/OkinaPrimeBlueprint": "翁 Prime 蓝图",
+  "/Lotus/Types/Recipes/Weapons/OperationsLaceraBlueprint": "天仓·悲痛之刃 蓝图",
+  "/Lotus/Types/Recipes/Weapons/PacifistShieldSwordBlueprint": "眼镜蛇 & 鹤 蓝图",
+  "/Lotus/Types/Recipes/Weapons/PaladinMaceBlueprint": "执法者 蓝图",
   "/Lotus/Types/Recipes/Weapons/PanderoPrimeBlueprint": "手鼓 Prime 蓝图",
   "/Lotus/Types/Recipes/Weapons/PangolinPrimeBlueprint": "鲮鲤剑 Prime 蓝图",
+  "/Lotus/Types/Recipes/Weapons/PangolinSwordBlueprint": "鲮鲤剑 蓝图",
   "/Lotus/Types/Recipes/Weapons/PantheraPrimeBlueprint": "猎豹 Prime 蓝图",
+  "/Lotus/Types/Recipes/Weapons/ParisScytheBlueprint": "夺魂死神 蓝图",
+  "/Lotus/Types/Recipes/Weapons/PaxDuviricusShotgunBlueprint": "锐铁 蓝图",
   "/Lotus/Types/Recipes/Weapons/PerigalePrimeBlueprint": "月面狂风 Prime 蓝图",
   "/Lotus/Types/Recipes/Weapons/PhantasmaPrimeBlueprint": "幻离子 Prime 蓝图",
+  "/Lotus/Types/Recipes/Weapons/PlasmaSwordBlueprint": "等离子长剑 蓝图",
+  "/Lotus/Types/Recipes/Weapons/PolearmBlueprint": "欧特鲁斯 蓝图",
   "/Lotus/Types/Recipes/Weapons/PolearmPrimeBlueprint": "欧特鲁斯 Prime 蓝图",
   "/Lotus/Types/Recipes/Weapons/Prime1HShotgunBlueprint": "悦音 Prime 蓝图",
   "/Lotus/Types/Recipes/Weapons/PrimeBallisticaBlueprint": "布里斯提卡 Prime 蓝图",
@@ -250,63 +581,679 @@
   "/Lotus/Types/Recipes/Weapons/PrimeTigrisBlueprint": "猛虎 Prime 蓝图",
   "/Lotus/Types/Recipes/Weapons/PrimeVenkaClawsBlueprint": "凯旋之爪 Prime 蓝图",
   "/Lotus/Types/Recipes/Weapons/PyranaPrimeBlueprint": "食人鱼 Prime 蓝图",
+  "/Lotus/Types/Recipes/Weapons/QuadShotgunBlueprint": "海克 蓝图",
   "/Lotus/Types/Recipes/Weapons/QuassusPrimeBlueprint": "威震武扇 Prime 蓝图",
+  "/Lotus/Types/Recipes/Weapons/QuillDartgunBlueprint": "豪猪 蓝图",
+  "/Lotus/Types/Recipes/Weapons/RailjackRifleGunBlueprint": "压制者 蓝图",
+  "/Lotus/Types/Recipes/Weapons/ReconnasorBlueprint": "咖玛腕甲枪 蓝图",
   "/Lotus/Types/Recipes/Weapons/RedeemerPrimeBlueprint": "救赎者 Prime 蓝图",
+  "/Lotus/Types/Recipes/Weapons/RevenantShotgunBlueprint": "幻离子 蓝图",
+  "/Lotus/Types/Recipes/Weapons/RevolverPistolBlueprint": "瓦斯托 蓝图",
   "/Lotus/Types/Recipes/Weapons/RubicoPrimeBlueprint": "绝路 Prime 蓝图",
+  "/Lotus/Types/Recipes/Weapons/SapientPistolBlueprint": "阿利乌双枪 蓝图",
+  "/Lotus/Types/Recipes/Weapons/SapientPrimaryBlueprint": "迅发电浆炮 蓝图",
   "/Lotus/Types/Recipes/Weapons/SarofangPrimeBlueprint": "沙罗之牙 Prime 蓝图",
   "/Lotus/Types/Recipes/Weapons/ScourgePrimeBlueprint": "祸根 Prime 蓝图",
+  "/Lotus/Types/Recipes/Weapons/SentRifleNewWarGunBlueprint": "巴什穆 蓝图",
+  "/Lotus/Types/Recipes/Weapons/SheduHeavyWeaponBlueprint": "舍杜 蓝图",
   "/Lotus/Types/Recipes/Weapons/SicarusPrimeBlueprint": "暗杀者 Prime 蓝图",
   "/Lotus/Types/Recipes/Weapons/SilvaAegisPrimeBlueprint": "席瓦 & 神盾 Prime 蓝图",
+  "/Lotus/Types/Recipes/Weapons/SingleKamaBlueprint": "短柄战镰 蓝图",
+  "/Lotus/Types/Recipes/Weapons/SingleStaffBlueprint": "卡德斯 蓝图",
+  "/Lotus/Types/Recipes/Weapons/SnipetronVandalBlueprint": "狙击特昂·破坏者 蓝图",
   "/Lotus/Types/Recipes/Weapons/SomaPrimeBlueprint": "月神 Prime 蓝图",
+  "/Lotus/Types/Recipes/Weapons/StaffBlueprint": "玻之武杖 蓝图",
+  "/Lotus/Types/Recipes/Weapons/StalkerBowBlueprint": "恐惧 蓝图",
+  "/Lotus/Types/Recipes/Weapons/StalkerKunaiBlueprint": "绝望 蓝图",
+  "/Lotus/Types/Recipes/Weapons/StalkerMiosBlueprint": "悲痛之刃 蓝图",
   "/Lotus/Types/Recipes/Weapons/SteflosPrimeBlueprint": "Steflos Prime 蓝图",
   "/Lotus/Types/Recipes/Weapons/StradavarPrimeBlueprint": "斯特拉迪瓦 Prime 蓝图",
   "/Lotus/Types/Recipes/Weapons/StrunPrimeBlueprint": "斯特朗 Prime 蓝图",
+  "/Lotus/Types/Recipes/Weapons/SundialAxeBlueprint": "天顶之星 蓝图",
+  "/Lotus/Types/Recipes/Weapons/SundialPistolBlueprint": "方位角 蓝图",
+  "/Lotus/Types/Recipes/Weapons/SundialRifleBlueprint": "天穹之顶 蓝图",
+  "/Lotus/Types/Recipes/Weapons/SundialSwordBoardBlueprint": "西格玛 & 南极座 蓝图",
   "/Lotus/Types/Recipes/Weapons/SybarisPrimeBlueprint": "席芭莉丝 Prime 蓝图",
   "/Lotus/Types/Recipes/Weapons/TatsuPrimeBlueprint": "龙辰 Prime 蓝图",
   "/Lotus/Types/Recipes/Weapons/TekkoPrimeBlueprint": "铁钩手甲 Prime 蓝图",
+  "/Lotus/Types/Recipes/Weapons/TennoARBlueprint": "月神 蓝图",
+  "/Lotus/Types/Recipes/Weapons/TennoClawsBlueprint": "凯旋之爪 蓝图",
+  "/Lotus/Types/Recipes/Weapons/TennoCutlassBlueprint": "海波单剑 蓝图",
+  "/Lotus/Types/Recipes/Weapons/TennoDoubleBarrelShotgunBlueprint": "猛虎 蓝图",
+  "/Lotus/Types/Recipes/Weapons/TennoGreatSwordBlueprint": "迦伦提恩 蓝图",
+  "/Lotus/Types/Recipes/Weapons/TennoHandShotgunBlueprint": "食人鱼 蓝图",
+  "/Lotus/Types/Recipes/Weapons/TennoLeverActionRifleBlueprint": "席芭莉丝 蓝图",
+  "/Lotus/Types/Recipes/Weapons/TennoSaisBlueprint": "翁 蓝图",
+  "/Lotus/Types/Recipes/Weapons/TennoSniperRifleBlueprint": "守望者 蓝图",
+  "/Lotus/Types/Recipes/Weapons/TennoStarsBlueprint": "飞扬 蓝图",
+  "/Lotus/Types/Recipes/Weapons/TennoSwordShieldBlueprint": "席瓦 & 神盾 蓝图",
+  "/Lotus/Types/Recipes/Weapons/TennoTommyGunRifleBlueprint": "斯特拉迪瓦 蓝图",
+  "/Lotus/Types/Recipes/Weapons/TennoTonfaBlueprint": "皇家拐刃 蓝图",
+  "/Lotus/Types/Recipes/Weapons/TennoUziBlueprint": "史提托双枪 蓝图",
   "/Lotus/Types/Recipes/Weapons/TenoraPrimeBlueprint": "双簧管 Prime 蓝图",
+  "/Lotus/Types/Recipes/Weapons/TeshinGlaiveBlueprint": "灵枢 蓝图",
+  "/Lotus/Types/Recipes/Weapons/ThanotechPistolBlueprint": "追击者 蓝图",
+  "/Lotus/Types/Recipes/Weapons/ThanotechRifleBlueprint": "灭杀者 蓝图",
+  "/Lotus/Types/Recipes/Weapons/ThreeLeafBlueprint": "三叶坚韧 蓝图",
+  "/Lotus/Types/Recipes/Weapons/ThrowingHammerBlueprint": "恶狼战锤 蓝图",
   "/Lotus/Types/Recipes/Weapons/TiberonPrimeBlueprint": "狂鲨 Prime 蓝图",
   "/Lotus/Types/Recipes/Weapons/TipedoPrimeBlueprint": "提佩多 Prime 蓝图",
+  "/Lotus/Types/Recipes/Weapons/TnAlchemistShotgunBlueprint": "塞多 蓝图",
+  "/Lotus/Types/Recipes/Weapons/TnBardPistolBlueprint": "手鼓 蓝图",
+  "/Lotus/Types/Recipes/Weapons/TnBardRifleBlueprint": "双簧管 蓝图",
+  "/Lotus/Types/Recipes/Weapons/TnBeltFedRifleBlueprint": "侦察者 蓝图",
+  "/Lotus/Types/Recipes/Weapons/TnChiselKanaboBlueprint": "咀嚼金杖 蓝图",
+  "/Lotus/Types/Recipes/Weapons/TnChoirBowBlueprint": "晚祷 蓝图",
+  "/Lotus/Types/Recipes/Weapons/TnChoirScytheBlueprint": "和谐 蓝图",
+  "/Lotus/Types/Recipes/Weapons/TnConcreteArchgunBlueprint": "辐光弩炮 蓝图",
+  "/Lotus/Types/Recipes/Weapons/TnGlassShotgunBlueprint": "碎裂者 蓝图",
+  "/Lotus/Types/Recipes/Weapons/TnGuandaoPistolBlueprint": "毒芽 蓝图",
+  "/Lotus/Types/Recipes/Weapons/TnGuandaoPolearmBlueprint": "关刀 蓝图",
+  "/Lotus/Types/Recipes/Weapons/TnHalberdPolearmWeaponBlueprint": "鹤鸵长戟 蓝图",
+  "/Lotus/Types/Recipes/Weapons/TnHeavyShotgunBlueprint": "科林斯 蓝图",
+  "/Lotus/Types/Recipes/Weapons/TnHopliteSpearGunWeaponBlueprint": "圣英 蓝图",
+  "/Lotus/Types/Recipes/Weapons/TnModQuestRifleWeaponBlueprint": "棘背 蓝图",
+  "/Lotus/Types/Recipes/Weapons/TnPriestPistolBlueprint": "丧钟 蓝图",
+  "/Lotus/Types/Recipes/Weapons/TnRevolverRifleBlueprint": "草原猎手 蓝图",
+  "/Lotus/Types/Recipes/Weapons/TnSMGWeaponBlueprint": "苍鹰 蓝图",
+  "/Lotus/Types/Recipes/Weapons/TnShieldFrameArchGunBlueprint": "翠雀 蓝图",
+  "/Lotus/Types/Recipes/Weapons/TnTwoHandedKatanaBlueprint": "龙辰 蓝图",
+  "/Lotus/Types/Recipes/Weapons/TnYareliPistolBlueprint": "卡帕压力枪 蓝图",
+  "/Lotus/Types/Recipes/Weapons/TnoBladedPistolsBlueprint": "觉醒双枪 蓝图",
+  "/Lotus/Types/Recipes/Weapons/TnoGunbladeAutomaticBlueprint": "蛇刃 蓝图",
+  "/Lotus/Types/Recipes/Weapons/TnoLotusPodShotgunBlueprint": "石晶之花 蓝图",
+  "/Lotus/Types/Recipes/Weapons/TnoMiterBlueprint": "猎豹 蓝图",
+  "/Lotus/Types/Recipes/Weapons/TnoMonkStaffBlueprint": "提佩多 蓝图",
+  "/Lotus/Types/Recipes/Weapons/TnoNunchakuBlueprint": "双节尺棍 蓝图",
+  "/Lotus/Types/Recipes/Weapons/TnoPrmryXbowBlueprint": "阿提卡 蓝图",
+  "/Lotus/Types/Recipes/Weapons/TnoRapierBlueprint": "技巧之剑 蓝图",
   "/Lotus/Types/Recipes/Weapons/TrumnaPrimeBlueprint": "灭杀者 Prime 蓝图",
+  "/Lotus/Types/Recipes/Weapons/TwinGrakatasBlueprint": "双子葛拉卡达 蓝图",
+  "/Lotus/Types/Recipes/Weapons/TwinKohmakBlueprint": "双子寇恩霰机枪 蓝图",
+  "/Lotus/Types/Recipes/Weapons/TwinVipersWraithBlueprint": "双子蝰蛇·亡魂 蓝图",
+  "/Lotus/Types/Recipes/Weapons/U18ThrowingKnivesBlueprint": "鹰爪 蓝图",
+  "/Lotus/Types/Recipes/Weapons/UmbraKatanaBlueprint": "影生 蓝图",
   "/Lotus/Types/Recipes/Weapons/VastoPrimeBlueprint": "瓦斯托 Prime 蓝图",
   "/Lotus/Types/Recipes/Weapons/VectisPrimeBlueprint": "守望者 Prime 蓝图",
   "/Lotus/Types/Recipes/Weapons/VeloxPrimeBlueprint": "逐电 Prime 蓝图",
   "/Lotus/Types/Recipes/Weapons/VentoPrimeBlueprint": "脉纹 Prime 蓝图",
   "/Lotus/Types/Recipes/Weapons/VolnusPrimeBlueprint": "创伤 Prime 蓝图",
+  "/Lotus/Types/Recipes/Weapons/WarfanBlueprint": "军扇 蓝图",
   "/Lotus/Types/Recipes/Weapons/WeaponParts/CorufellPrimeBarrel": "闪劫 Prime 枪托",
   "/Lotus/Types/Recipes/Weapons/WeaponParts/CorufellPrimeHandle": "闪劫 Prime 握柄",
   "/Lotus/Types/Recipes/Weapons/WeaponParts/CorufellPrimeReceiver": "闪劫 Prime 枪机",
   "/Lotus/Types/Recipes/Weapons/WeaponParts/SteflosPrimeBarrel": "石晶之花 Prime 枪管",
   "/Lotus/Types/Recipes/Weapons/WeaponParts/SteflosPrimeReceiver": "石晶之花 Prime 枪机",
   "/Lotus/Types/Recipes/Weapons/WeaponParts/SteflosPrimeStock": "石晶之花 Prime 枪托",
+  "/Lotus/Types/Recipes/Weapons/WeaponParts/TnDagathBladeWhipBlueprint": "怒斩 蓝图",
+  "/Lotus/Types/Recipes/Weapons/WolfFrameAxeWeaponBlueprint": "沙罗之牙 蓝图",
   "/Lotus/Types/Recipes/Weapons/ZaktiPrimeBlueprint": "毒芽 Prime 蓝图",
   "/Lotus/Types/Recipes/Weapons/ZhugePrimeBlueprint": "诸葛连弩 Prime 蓝图",
-  "/Lotus/Types/Recipes/Weapons/ZylokPrimeBlueprint": "席尔火枪 Prime 蓝图"
+  "/Lotus/Types/Recipes/Weapons/ZylokPrimeBlueprint": "席尔火枪 Prime 蓝图",
+  "/Lotus/Types/Recipes/ZanukaPetParts/ZanukaPetPartBodyABlueprint": "艾莱核心 蓝图",
+  "/Lotus/Types/Recipes/ZanukaPetParts/ZanukaPetPartBodyBBlueprint": "加姆核心 蓝图",
+  "/Lotus/Types/Recipes/ZanukaPetParts/ZanukaPetPartBodyCBlueprint": "莱胡核心 蓝图",
+  "/Lotus/Types/Recipes/ZanukaPetParts/ZanukaPetPartHeadABlueprint": "铎玛猎犬 蓝图",
+  "/Lotus/Types/Recipes/ZanukaPetParts/ZanukaPetPartHeadBBlueprint": "拜拉猎犬 蓝图",
+  "/Lotus/Types/Recipes/ZanukaPetParts/ZanukaPetPartHeadCBlueprint": "骸克猎犬 蓝图",
+  "/Lotus/Types/Recipes/ZanukaPetParts/ZanukaPetPartLegsABlueprint": "塞拉脚架 蓝图",
+  "/Lotus/Types/Recipes/ZanukaPetParts/ZanukaPetPartLegsBBlueprint": "厄加脚架 蓝图",
+  "/Lotus/Types/Recipes/ZanukaPetParts/ZanukaPetPartLegsCBlueprint": "乍布脚架 蓝图",
+  "/Lotus/Types/Recipes/ZanukaPetParts/ZanukaPetPartTailABlueprint": "万兹稳定器 蓝图",
+  "/Lotus/Types/Recipes/ZanukaPetParts/ZanukaPetPartTailBBlueprint": "辛塔稳定器 蓝图",
+  "/Lotus/Types/Recipes/ZanukaPetParts/ZanukaPetPartTailCBlueprint": "锐克稳定器 蓝图",
+  "/Lotus/Types/StoreItems/Consumables/Restoratives/NpcBuffs/EventiumBlueprint": "合成刺激质 蓝图",
+  "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardCorpusA/HoverboardCorpusADeckBlueprint": "坦腹 蓝图",
+  "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardCorpusA/HoverboardCorpusAEngineBlueprint": "十二弧 蓝图",
+  "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardCorpusA/HoverboardCorpusAFrontBlueprint": "翼型螺母 蓝图",
+  "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardCorpusA/HoverboardCorpusAJetBlueprint": "十位步 蓝图",
+  "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardCorpusB/HoverboardCorpusBDeckBlueprint": "针尖鼻 蓝图",
+  "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardCorpusB/HoverboardCorpusBEngineBlueprint": "暴脾气 蓝图",
+  "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardCorpusB/HoverboardCorpusBFrontBlueprint": "叮叮咚咚 蓝图",
+  "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardCorpusB/HoverboardCorpusBJetBlueprint": "胖男孩 蓝图",
+  "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardCorpusC/HoverboardCorpusCDeckBlueprint": "滑道 蓝图",
+  "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardCorpusC/HoverboardCorpusCEngineBlueprint": "学究 蓝图",
+  "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardCorpusC/HoverboardCorpusCFrontBlueprint": "双桅 蓝图",
+  "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardCorpusC/HoverboardCorpusCJetBlueprint": "恶棍 蓝图",
+  "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardInfestedB/HoverboardInfestedBDeckBlueprint": "脊椎热 蓝图",
+  "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardInfestedB/HoverboardInfestedBEngineBlueprint": "软骨雄 蓝图",
+  "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardInfestedB/HoverboardInfestedBFrontBlueprint": "结瘤 蓝图",
+  "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardInfestedB/HoverboardInfestedBJetBlueprint": "蒸肌 蓝图",
+  "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardSolarisA/HoverboardSolarisADeckBlueprint": "坏小孩 蓝图",
+  "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardSolarisA/HoverboardSolarisAEngineBlueprint": "冷聚堆 蓝图",
+  "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardSolarisA/HoverboardSolarisAFrontBlueprint": "鹰钩 蓝图",
+  "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardSolarisA/HoverboardSolarisAJetBlueprint": "双子库娃 蓝图",
+  "/Lotus/Weapons/ClanTech/Bio/AcidDartPistolBlueprint": "阿克里德 蓝图",
+  "/Lotus/Weapons/ClanTech/Bio/BioWeaponBlueprint": "托里德 蓝图",
+  "/Lotus/Weapons/ClanTech/Bio/InfArmCannonBlueprint": "横痃重炮 蓝图",
+  "/Lotus/Weapons/ClanTech/Bio/InfCrpShockSwarmRifleBlueprint": "异融量子枪 蓝图",
+  "/Lotus/Weapons/ClanTech/Bio/InfProximityStarsBlueprint": "脓痘 蓝图",
+  "/Lotus/Weapons/ClanTech/Bio/InfQuantaRifleBlueprint": "附肢寄生者 蓝图",
+  "/Lotus/Weapons/ClanTech/Bio/InfStaffWeaponBlueprint": "毒囊骨茧 蓝图",
+  "/Lotus/Weapons/ClanTech/Bio/InfestedBurstRifleBlueprint": "血肢 蓝图",
+  "/Lotus/Weapons/ClanTech/Bio/InfestedWhipWeaponBlueprint": "脊椎节鞭 蓝图",
+  "/Lotus/Weapons/ClanTech/Bio/PunctureGlaiveWeaponBlueprint": "裸鳃刃 蓝图",
+  "/Lotus/Weapons/ClanTech/Chemical/DualGrnEgyptSwdBlueprint": "双子克鲁古尔 蓝图",
+  "/Lotus/Weapons/ClanTech/Chemical/FlameThrowerBlueprint": "伊格尼斯 蓝图",
+  "/Lotus/Weapons/ClanTech/Chemical/FlamethrowerWraithBlueprint": "伊格尼斯·亡魂 蓝图",
+  "/Lotus/Weapons/ClanTech/Chemical/GLAPistolBlueprint": "玛瑞火枪 蓝图",
+  "/Lotus/Weapons/ClanTech/Chemical/GLARifleBlueprint": "葛恩火枪 蓝图",
+  "/Lotus/Weapons/ClanTech/Chemical/GrnArchHandBlueprint": "<ARCHWING> 克纳克斯 蓝图",
+  "/Lotus/Weapons/ClanTech/Chemical/GrnEgyptSwdBlueprint": "克鲁古尔 蓝图",
+  "/Lotus/Weapons/ClanTech/Chemical/GrnFlameSpearBlueprint": "燃焰标枪 蓝图",
+  "/Lotus/Weapons/ClanTech/Chemical/GrnFourBarrelRifleBlueprint": "夸塔克 蓝图",
+  "/Lotus/Weapons/ClanTech/Chemical/GrnGorgSniperRifleBlueprint": "巴兹火枪 蓝图",
+  "/Lotus/Weapons/ClanTech/Chemical/GrnHalberdBlueprint": "怯薛 蓝图",
+  "/Lotus/Weapons/ClanTech/Chemical/GrnKohmPistolBlueprint": "寇恩霰机枪 蓝图",
+  "/Lotus/Weapons/ClanTech/Chemical/GrnKusarigamaWeaponBlueprint": "喷射锁镰 蓝图",
+  "/Lotus/Weapons/ClanTech/Chemical/GrnMicrowavePistolBlueprint": "努寇微波枪 蓝图",
+  "/Lotus/Weapons/ClanTech/Chemical/GrnTridentWeaponBlueprint": "恶龙 蓝图",
+  "/Lotus/Weapons/ClanTech/Chemical/GrnUziBlueprint": "史度巴 蓝图",
+  "/Lotus/Weapons/ClanTech/Chemical/RegorAxeShieldBlueprint": "认知 & 冲击 蓝图",
+  "/Lotus/Weapons/ClanTech/Chemical/RocketLauncherBlueprint": "食人女魔 蓝图",
+  "/Lotus/Weapons/ClanTech/Energy/ChainLightningRifleBlueprint": "安培克斯 蓝图",
+  "/Lotus/Weapons/ClanTech/Energy/CorpusPolearmWeaponBlueprint": "电能斩锯 蓝图",
+  "/Lotus/Weapons/ClanTech/Energy/CrpBFGBlueprint": "奥堤克光子枪 蓝图",
+  "/Lotus/Weapons/ClanTech/Energy/CrpBowBlueprint": "楞次弓 蓝图",
+  "/Lotus/Weapons/ClanTech/Energy/CrpElectroMagBlueprint": "静电能量导引枪 蓝图",
+  "/Lotus/Weapons/ClanTech/Energy/CrpFreezeRayRifleBlueprint": "冷冻光束步枪 蓝图",
+  "/Lotus/Weapons/ClanTech/Energy/CrpGlaiveBlueprint": "猎鹰轮 蓝图",
+  "/Lotus/Weapons/ClanTech/Energy/CrpHeavyRifleBlueprint": "苏普拉 蓝图",
+  "/Lotus/Weapons/ClanTech/Energy/CrpScopeGunBlueprint": "弧电探知者 蓝图",
+  "/Lotus/Weapons/ClanTech/Energy/CrpShockRifleBlueprint": "量子切割器 蓝图",
+  "/Lotus/Weapons/ClanTech/Energy/CrpShotgunBlueprint": "弧电离子枪 蓝图",
+  "/Lotus/Weapons/ClanTech/Energy/CrpSplitLaserBlueprint": "导热聚焦枪 蓝图",
+  "/Lotus/Weapons/ClanTech/Energy/ElectroProdBlueprint": "普罗沃 蓝图",
+  "/Lotus/Weapons/ClanTech/Energy/EnergyRifleBlueprint": "德拉 蓝图",
+  "/Lotus/Weapons/ClanTech/Energy/RailgunBlueprint": "兰卡 蓝图",
+  "/Lotus/Weapons/Corpus/OperatorAmplifiers/Set1/Barrel/CorpAmpSet1BarrelPartABlueprint": "堪提克棱镜 蓝图",
+  "/Lotus/Weapons/Corpus/OperatorAmplifiers/Set1/Barrel/CorpAmpSet1BarrelPartBBlueprint": "勒咖棱镜 蓝图",
+  "/Lotus/Weapons/Corpus/OperatorAmplifiers/Set1/Barrel/CorpAmpSet1BarrelPartCBlueprint": "克拉莫阿棱镜 蓝图",
+  "/Lotus/Weapons/Corpus/OperatorAmplifiers/Set1/Chassis/CorpAmpSet1ChassisPartABlueprint": "艾克萨德支架 蓝图",
+  "/Lotus/Weapons/Corpus/OperatorAmplifiers/Set1/Chassis/CorpAmpSet1ChassisPartBBlueprint": "迪斯克支架 蓝图",
+  "/Lotus/Weapons/Corpus/OperatorAmplifiers/Set1/Chassis/CorpAmpSet1ChassisPartCBlueprint": "普洛帕支架 蓝图",
+  "/Lotus/Weapons/Corpus/OperatorAmplifiers/Set1/Grip/CorpAmpSet1GripPartABlueprint": "梭曲柄 蓝图",
+  "/Lotus/Weapons/Corpus/OperatorAmplifiers/Set1/Grip/CorpAmpSet1GripPartBBlueprint": "普拉咖曲柄 蓝图",
+  "/Lotus/Weapons/Corpus/OperatorAmplifiers/Set1/Grip/CorpAmpSet1GripPartCBlueprint": "瑟图斯曲柄 蓝图",
+  "/Lotus/Weapons/Infested/Pistols/InfKitGun/Barrels/InfBarrelBeam/InfModularBarrelBeamBlueprint": "虫置 蓝图",
+  "/Lotus/Weapons/Infested/Pistols/InfKitGun/Barrels/InfBarrelEgg/InfModularBarrelEggBlueprint": "孢射 蓝图",
+  "/Lotus/Weapons/Infested/Pistols/InfKitGun/Clips/InfClipBig/InfModularClipBigBlueprint": "巨匣 弃脓 蓝图",
+  "/Lotus/Weapons/Infested/Pistols/InfKitGun/Clips/InfClipBig/InfModularClipBigCritStatBlueprint": "巨匣 抑脓 蓝图",
+  "/Lotus/Weapons/Infested/Pistols/InfKitGun/Clips/InfSmallClip/InfModularClipSmallBlueprint": "抑脓 蓝图",
+  "/Lotus/Weapons/Infested/Pistols/InfKitGun/Clips/InfSmallClip/InfModularClipSmallCritStatBlueprint": "弃脓 蓝图",
+  "/Lotus/Weapons/Infested/Pistols/InfKitGun/Handles/InfPrimaryHandle/InfModularPrimaryHandleBlueprint": "掌筋 蓝图",
+  "/Lotus/Weapons/Infested/Pistols/InfKitGun/Handles/InfSecondaryHandle/InfModularSecondaryHandleBlueprint": "尺骨 蓝图",
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceDamageIBlueprint": "如杭 蓝图",
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceDamageICritIBlueprint": "瓦吉特 如杭 蓝图",
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceDamageICritIIBlueprint": "瓦吉特 II 如杭 蓝图",
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceDamageIIBlueprint": "如杭 II 蓝图",
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceDamageIICritIBlueprint": "瓦吉特 如杭 II 蓝图",
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceDamageIIStatusIBlueprint": "伊克瓦纳 如杭 II 蓝图",
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceDamageIStatusIBlueprint": "伊克瓦纳 如杭 蓝图",
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceDamageIStatusIIBlueprint": "伊克瓦纳 II 如杭 蓝图",
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceSpeedIBlueprint": "翟 蓝图",
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceSpeedICritIBlueprint": "瓦吉特 翟 蓝图",
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceSpeedICritIIBlueprint": "瓦吉特 II 翟 蓝图",
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceSpeedIIBlueprint": "翟 II 蓝图",
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceSpeedIICritIBlueprint": "瓦吉特 翟 II 蓝图",
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceSpeedIIStatusIBlueprint": "伊克瓦纳 翟 II 蓝图",
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceSpeedIStatusIBlueprint": "伊克瓦纳 翟 蓝图",
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceSpeedIStatusIIBlueprint": "伊克瓦纳 II 翟 蓝图",
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Handle/HandleFiveBlueprint": "查亚普 蓝图",
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Handle/HandleFourBlueprint": "斯卡拉 蓝图",
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Handle/HandleOneBlueprint": "佩耶 蓝图",
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Handle/HandleSixBlueprint": "克鲁斯查 蓝图",
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Handle/HandleThreeBlueprint": "库阿斯 蓝图",
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Handle/HandleTwoBlueprint": "拉卡 蓝图",
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Tip/TipFiveBlueprint": "德塔特 蓝图",
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Tip/TipFourBlueprint": "西亚什 蓝图",
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Tip/TipOneBlueprint": "宝拉 蓝图",
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Tip/TipSixBlueprint": "客隆什 蓝图",
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Tip/TipThreeBlueprint": "密丸 蓝图",
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Tip/TipTwoBlueprint": "乌尔萨 蓝图",
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee02/Handle/HandleNineBlueprint": "科布 蓝图",
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee02/Handle/HandleTenBlueprint": "石当 蓝图",
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee02/Tip/TipElevenBlueprint": "多克拉姆 蓝图",
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee02/Tip/TipNineBlueprint": "瑟普梵 蓝图",
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee02/Tip/TipTenBlueprint": "拉比威 蓝图",
+  "/Lotus/Weapons/Ostron/Melee/ModularMeleeInfested/Handles/InfestedHandleOneBlueprint": "瘟疫 艾克文 蓝图",
+  "/Lotus/Weapons/Ostron/Melee/ModularMeleeInfested/Handles/InfestedHandleTwoBlueprint": "瘟疫 柏克文 蓝图",
+  "/Lotus/Weapons/Ostron/Melee/ModularMeleeInfested/Tips/InfestedTipOneBlueprint": "瘟疫 克里帕丝 蓝图",
+  "/Lotus/Weapons/Ostron/Melee/ModularMeleeInfested/Tips/InfestedTipTwoBlueprint": "瘟疫 奇沃 蓝图",
+  "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Barrel/SentAmpSet1BarrelPartABlueprint": "拉普拉克棱镜 蓝图",
+  "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Barrel/SentAmpSet1BarrelPartBBlueprint": "施瓦克棱镜 蓝图",
+  "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Barrel/SentAmpSet1BarrelPartCBlueprint": "格兰姆棱镜 蓝图",
+  "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Chassis/SentAmpSet1ChassisPartABlueprint": "潘查支架 蓝图",
+  "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Chassis/SentAmpSet1ChassisPartBBlueprint": "施拉克孙支架 蓝图",
+  "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Chassis/SentAmpSet1ChassisPartCBlueprint": "克莱布里克支架 蓝图",
+  "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Grip/SentAmpSet1GripPartABlueprint": "克拉普拉克曲柄 蓝图",
+  "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Grip/SentAmpSet1GripPartBBlueprint": "加特尼曲柄 蓝图",
+  "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Grip/SentAmpSet1GripPartCBlueprint": "洛林曲柄 蓝图",
+  "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set2/Barrel/SentAmpSet2BarrelPartABlueprint": "染棱镜 蓝图",
+  "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set2/Chassis/SentAmpSet2ChassisPartABlueprint": "法得支架 蓝图",
+  "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set2/Grip/SentAmpSet2GripPartABlueprint": "安斯帕萨曲柄 蓝图",
+  "/Lotus/Weapons/SolarisUnited/Primary/SUModularPrimarySet1/Handles/SUModularPrimaryHandleAPartBlueprint": "急躁 蓝图",
+  "/Lotus/Weapons/SolarisUnited/Primary/SUModularPrimarySet1/Handles/SUModularPrimaryHandleBPartBlueprint": "精明 蓝图",
+  "/Lotus/Weapons/SolarisUnited/Primary/SUModularPrimarySet1/Handles/SUModularPrimaryHandleCPartBlueprint": "稳击 蓝图",
+  "/Lotus/Weapons/SolarisUnited/Primary/SUModularPrimarySet1/Handles/SUModularPrimaryHandleDPartBlueprint": "震颤 蓝图",
+  "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Barrel/SUModularSecondaryBarrelAPartBlueprint": "捕月 蓝图",
+  "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Barrel/SUModularSecondaryBarrelBPartBlueprint": "墓指 蓝图",
+  "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Barrel/SUModularSecondaryBarrelCPartBlueprint": "响胆 蓝图",
+  "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Barrel/SUModularSecondaryBarrelDPartBlueprint": "凝目 蓝图",
+  "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularCapIClipPartBlueprint": "深息 蓝图",
+  "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularCapIIClipPartBlueprint": "风箱 蓝图",
+  "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularCritICapIClipPartBlueprint": "狂虐 蓝图",
+  "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularCritICapIIClipPartBlueprint": "穿纫 蓝图",
+  "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularCritIICapIClipPartBlueprint": "溅击 蓝图",
+  "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularCritIIReloadIClipPartBlueprint": "连杀 蓝图",
+  "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularCritIReloadIClipPartBlueprint": "拍针 蓝图",
+  "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularCritIReloadIIClipPartBlueprint": "速针 蓝图",
+  "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularReloadIClipPartBlueprint": "掌击 蓝图",
+  "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularReloadIIClipPartBlueprint": "速力 蓝图",
+  "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularStatICapIClipPartBlueprint": "花火 蓝图",
+  "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularStatICapIIClipPartBlueprint": "雷鼓 蓝图",
+  "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularStatIICapIClipPartBlueprint": "猛光 蓝图",
+  "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularStatIIReloadIClipPartBlueprint": "激火 蓝图",
+  "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularStatIReloadIClipPartBlueprint": "颤火 蓝图",
+  "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularStatIReloadIIClipPartBlueprint": "速火 蓝图",
+  "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Handle/SUModularSecondaryHandleAPartBlueprint": "漫游 蓝图",
+  "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Handle/SUModularSecondaryHandleBPartBlueprint": "爱击 蓝图",
+  "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Handle/SUModularSecondaryHandleCPartBlueprint": "重拳 蓝图",
+  "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Handle/SUModularSecondaryHandleDPartBlueprint": "碎语 蓝图",
+  "/Lotus/Weapons/Tenno/Bayonet/TnBayonetRifleBlueprint": "制胜者 蓝图"
  },
  "_detail": {
+  "/Lotus/Types/Gameplay/EntratiLab/Quest/GargoyleRecipeItem": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Items/MiscItems/Forma": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Items/ShipFeatureItems/Railjack/RailjackHoodBraceFeatureItemBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Items/ShipFeatureItems/Railjack/RailjackHoodFeatureItemBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Items/ShipFeatureItems/Railjack/RailjackHullFeatureItemBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Items/ShipFeatureItems/Railjack/RailjackNacelleLeftFeatureItemBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Items/ShipFeatureItems/Railjack/RailjackNacelleRightFeatureItemBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Items/ShipFeatureItems/Railjack/RailjackTailFeatureItemBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Keys/LimboQuest/LimboChassisKeyBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Keys/LimboQuest/LimboHelmetKeyBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Keys/LimboQuest/LimboSystemsKeyBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/ArchwingRecipes/HeavyWeaponCatalystBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
   "/Lotus/Types/Recipes/ArchwingRecipes/PrimeArchwing/PrimeArchwingBlueprint": {
    "en": "Odonata Prime Blueprint",
    "how": "ITEMS"
   },
+  "/Lotus/Types/Recipes/Components/FormaAuraBlueprint": {
+   "en": "",
+   "how": "MANUAL"
+  },
   "/Lotus/Types/Recipes/Components/FormaBlueprint": {
    "en": "Forma Blueprint",
-   "how": "EN2ZH"
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Components/FormaStanceBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Components/OrokinCatalystBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Components/OrokinReactorBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Components/UmbraEchoesBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Components/UtilityUnlockerBlueprint": {
+   "en": "",
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Components/WeaponUtilityUnlockerBlueprint": {
    "en": "Exilus Weapon Adapter Blueprint",
-   "how": "EN2ZH"
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/DarkSwordBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/DeimosRecipes/Pets/InfestedCritterAntigenABlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/DeimosRecipes/Pets/InfestedCritterAntigenBBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/DeimosRecipes/Pets/InfestedCritterAntigenCBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/DeimosRecipes/Pets/InfestedCritterAntigenDBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/DeimosRecipes/Pets/InfestedCritterMutagenABlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/DeimosRecipes/Pets/InfestedCritterMutagenBBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/DeimosRecipes/Pets/InfestedCritterMutagenCBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/DeimosRecipes/Pets/InfestedCritterMutagenDBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/DeimosRecipes/Pets/InfestedPredatorAntigenABlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/DeimosRecipes/Pets/InfestedPredatorAntigenBBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/DeimosRecipes/Pets/InfestedPredatorAntigenCBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/DeimosRecipes/Pets/InfestedPredatorAntigenDBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/DeimosRecipes/Pets/InfestedPredatorMutagenABlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/DeimosRecipes/Pets/InfestedPredatorMutagenBBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/DeimosRecipes/Pets/InfestedPredatorMutagenCBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/DeimosRecipes/Pets/InfestedPredatorMutagenDBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/DeimosRecipes/Prospecting/DeimosCommonGemACutBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/DeimosRecipes/Prospecting/DeimosCommonGemBCutBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/DeimosRecipes/Prospecting/DeimosEidolonGemACutBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/DeimosRecipes/Prospecting/DeimosEidolonGemBCutBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/DeimosRecipes/Prospecting/DeimosRareGemACutBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/DeimosRecipes/Prospecting/DeimosUncommonGemACutBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Drones/AdvancedResourceDroneBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Drones/AdvancedUcResourceDroneBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Drones/BasicResourceDroneBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Drones/BasicUcResourceDroneBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/EidolonRecipes/InfestedEventClanIngredientBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/EidolonRecipes/InfestedEventIngredientBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/EidolonRecipes/Prospecting/CommonOreAAlloyABlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/EidolonRecipes/Prospecting/CommonOreBAlloyABlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/EidolonRecipes/Prospecting/RareOreAAlloyABlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/EidolonRecipes/Prospecting/UncommonOreAAlloyABlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Kubrow/BlankTraitPrintBlueprint": {
+   "en": "",
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Kubrow/Collars/PrimeKubrowCollarABlueprint": {
    "en": "Kavasa Prime Kubrow Collar Blueprint",
    "how": "EN2ZH"
   },
+  "/Lotus/Types/Recipes/Kubrow/EggHatcherBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Lens/AttackLensGreaterBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Lens/AttackLensLuaBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Lens/AttackLensOstronBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Lens/DefenseLensGreaterBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Lens/DefenseLensLuaBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Lens/DefenseLensOstronBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Lens/GenericLensOstronBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Lens/PowerLensGreaterBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Lens/PowerLensLuaBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Lens/PowerLensOstronBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Lens/TacticLensGreaterBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Lens/TacticLensLuaBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Lens/TacticLensOstronBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Lens/WardLensGreaterBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Lens/WardLensLuaBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Lens/WardLensOstronBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/MoaPetParts/MoaPetEngineArcotekBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/MoaPetParts/MoaPetEngineKrisysBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/MoaPetParts/MoaPetEngineMeleeBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/MoaPetParts/MoaPetEngineThricoreBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/MoaPetParts/MoaPetHeadLambeoBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/MoaPetParts/MoaPetHeadMeleeBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/MoaPetParts/MoaPetHeadOloroBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/MoaPetParts/MoaPetHeadParaBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/MoaPetParts/MoaPetLegABlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/MoaPetParts/MoaPetLegBBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/MoaPetParts/MoaPetLegCBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/MoaPetParts/MoaPetLegDBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/MoaPetParts/MoaPetLegMeleeBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/MoaPetParts/MoaPetPayloadAegronBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/MoaPetParts/MoaPetPayloadCryoxionBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/MoaPetParts/MoaPetPayloadDartaBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/MoaPetParts/MoaPetPayloadHextraBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/MoaPetParts/MoaPetPayloadMeleeBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/MoaPetParts/MoaPetPayloadMunitronBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/MoaPetParts/MoaPetPayloadTazronBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/MoaPetParts/MoaPetPayloadThermocorBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/SentinelRecipes/CarrierSentinelBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/SentinelRecipes/EmpyreanSentinelBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
   "/Lotus/Types/Recipes/SentinelRecipes/NautilusPrimeSentinelBlueprint": {
    "en": "Nautilus Prime Blueprint",
-   "how": "PRIMES+蓝图"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/SentinelRecipes/PrimeCarrierSentinelBlueprint": {
    "en": "Carrier Prime Blueprint",
-   "how": "EN2ZH"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/SentinelRecipes/PrimeDethcubeSentinelBlueprint": {
    "en": "Dethcube Prime Blueprint",
@@ -320,17 +1267,53 @@
    "en": "Wyrm Prime Blueprint",
    "how": "ITEMS"
   },
+  "/Lotus/Types/Recipes/SentinelRecipes/RadarSentinelBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
   "/Lotus/Types/Recipes/SentinelRecipes/ShadePrimeSentinelBlueprint": {
    "en": "Shade Prime Blueprint",
    "how": "PRIMES"
   },
+  "/Lotus/Types/Recipes/SentinelRecipes/TnSentinelCrossBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/SolarisRecipes/Prospecting/SolarisCommonGemACutBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/SolarisRecipes/Prospecting/SolarisCommonGemBCutBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/SolarisRecipes/Prospecting/SolarisEidolonGemACutBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/SolarisRecipes/Prospecting/SolarisEidolonGemBCutBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/SolarisRecipes/Prospecting/SolarisRareGemACutBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/SolarisRecipes/Prospecting/SolarisUncommonGemACutBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/WarframeRecipes/AshBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
   "/Lotus/Types/Recipes/WarframeRecipes/AshPrimeBlueprint": {
    "en": "Ash Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/AtlasPrimeBlueprint": {
    "en": "Atlas Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/AtlasPrimeChassisBlueprint": {
    "en": "Atlas Prime Chassis Blueprint",
@@ -338,19 +1321,23 @@
   },
   "/Lotus/Types/Recipes/WarframeRecipes/AtlasPrimeHelmetBlueprint": {
    "en": "Atlas Prime Neuroptics Blueprint",
-   "how": "CC+蓝图"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/AtlasPrimeSystemsBlueprint": {
    "en": "Atlas Prime Systems Blueprint",
    "how": "CC+蓝图"
   },
+  "/Lotus/Types/Recipes/WarframeRecipes/BansheeBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
   "/Lotus/Types/Recipes/WarframeRecipes/BansheePrimeBlueprint": {
    "en": "Banshee Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/BaruukPrimeBlueprint": {
    "en": "Baruuk Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/BaruukPrimeChassisBlueprint": {
    "en": "Baruuk Prime Chassis Blueprint",
@@ -358,11 +1345,15 @@
   },
   "/Lotus/Types/Recipes/WarframeRecipes/BaruukPrimeHelmetBlueprint": {
    "en": "Baruuk Prime Neuroptics Blueprint",
-   "how": "CC+蓝图"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/BaruukPrimeSystemsBlueprint": {
    "en": "Baruuk Prime Systems Blueprint",
    "how": "CC+蓝图"
+  },
+  "/Lotus/Types/Recipes/WarframeRecipes/BrokenFrameBlueprint": {
+   "en": "",
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/CalibanPrimeBlueprint": {
    "en": "Caliban Prime Blueprint",
@@ -374,19 +1365,27 @@
   },
   "/Lotus/Types/Recipes/WarframeRecipes/CalibanPrimeHelmetBlueprint": {
    "en": "Caliban Prime Neuroptics Blueprint",
-   "how": "CC+蓝图"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/CalibanPrimeSystemsBlueprint": {
    "en": "Caliban Prime Systems Blueprint",
    "how": "CC+蓝图"
   },
+  "/Lotus/Types/Recipes/WarframeRecipes/ChoirBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/WarframeRecipes/ChromaBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
   "/Lotus/Types/Recipes/WarframeRecipes/ChromaPrimeBlueprint": {
    "en": "Chroma Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeBlueprint": {
    "en": "Citrine Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeChassisBlueprint": {
    "en": "Citrine Prime Chassis Blueprint",
@@ -394,19 +1393,27 @@
   },
   "/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeHelmetBlueprint": {
    "en": "Citrine Prime Neuroptics Blueprint",
-   "how": "CC+蓝图"
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeHelmetComponent": {
+   "en": "",
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/CitrinePrimeSystemsBlueprint": {
    "en": "Citrine Prime Systems Blueprint",
    "how": "CC+蓝图"
   },
+  "/Lotus/Types/Recipes/WarframeRecipes/EmberBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
   "/Lotus/Types/Recipes/WarframeRecipes/EmberPrimeBlueprint": {
    "en": "Ember Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/EquinoxPrimeBlueprint": {
    "en": "Equinox Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/EquinoxPrimeChassisBlueprint": {
    "en": "Equinox Prime Chassis Blueprint",
@@ -414,15 +1421,27 @@
   },
   "/Lotus/Types/Recipes/WarframeRecipes/EquinoxPrimeHelmetBlueprint": {
    "en": "Equinox Prime Neuroptics Blueprint",
-   "how": "CC+蓝图"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/EquinoxPrimeSystemsBlueprint": {
    "en": "Equinox Prime Systems Blueprint",
    "how": "CC+蓝图"
   },
+  "/Lotus/Types/Recipes/WarframeRecipes/ExcaliburBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/WarframeRecipes/ExcaliburUmbraBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/WarframeRecipes/FrostBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
   "/Lotus/Types/Recipes/WarframeRecipes/FrostPrimeBlueprint": {
    "en": "Frost Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/GaraPrimeBlueprint": {
    "en": "Gara Prime Blueprint",
@@ -434,15 +1453,19 @@
   },
   "/Lotus/Types/Recipes/WarframeRecipes/GaraPrimeHelmetBlueprint": {
    "en": "Gara Prime Neuroptics Blueprint",
-   "how": "CC+蓝图"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/GaraPrimeSystemsBlueprint": {
    "en": "Gara Prime Systems Blueprint",
    "how": "CC+蓝图"
   },
+  "/Lotus/Types/Recipes/WarframeRecipes/GarudaBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
   "/Lotus/Types/Recipes/WarframeRecipes/GarudaPrimeBlueprint": {
    "en": "Garuda Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/GarudaPrimeChassisBlueprint": {
    "en": "Garuda Prime Chassis Blueprint",
@@ -450,7 +1473,7 @@
   },
   "/Lotus/Types/Recipes/WarframeRecipes/GarudaPrimeHelmetBlueprint": {
    "en": "Garuda Prime Neuroptics Blueprint",
-   "how": "CC+蓝图"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/GarudaPrimeSystemsBlueprint": {
    "en": "Garuda Prime Systems Blueprint",
@@ -458,7 +1481,7 @@
   },
   "/Lotus/Types/Recipes/WarframeRecipes/GaussPrimeBlueprint": {
    "en": "Gauss Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/GaussPrimeChassisBlueprint": {
    "en": "Gauss Prime Chassis Blueprint",
@@ -466,15 +1489,19 @@
   },
   "/Lotus/Types/Recipes/WarframeRecipes/GaussPrimeHelmetBlueprint": {
    "en": "Gauss Prime Neuroptics Blueprint",
-   "how": "CC+蓝图"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/GaussPrimeSystemsBlueprint": {
    "en": "Gauss Prime Systems Blueprint",
    "how": "CC+蓝图"
   },
+  "/Lotus/Types/Recipes/WarframeRecipes/GlassBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
   "/Lotus/Types/Recipes/WarframeRecipes/GrendelPrimeBlueprint": {
    "en": "Grendel Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/GrendelPrimeChassisBlueprint": {
    "en": "Grendel Prime Chassis Blueprint",
@@ -482,7 +1509,7 @@
   },
   "/Lotus/Types/Recipes/WarframeRecipes/GrendelPrimeHelmetBlueprint": {
    "en": "Grendel Prime Neuroptics Blueprint",
-   "how": "CC+蓝图"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/GrendelPrimeSystemsBlueprint": {
    "en": "Grendel Prime Systems Blueprint",
@@ -498,7 +1525,7 @@
   },
   "/Lotus/Types/Recipes/WarframeRecipes/GyrePrimeHelmetBlueprint": {
    "en": "Gyre Prime Neuroptics Blueprint",
-   "how": "CC+蓝图"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/GyrePrimeSystemsBlueprint": {
    "en": "Gyre Prime Systems Blueprint",
@@ -506,7 +1533,7 @@
   },
   "/Lotus/Types/Recipes/WarframeRecipes/HarrowPrimeBlueprint": {
    "en": "Harrow Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/HarrowPrimeChassisBlueprint": {
    "en": "Harrow Prime Chassis Blueprint",
@@ -514,7 +1541,7 @@
   },
   "/Lotus/Types/Recipes/WarframeRecipes/HarrowPrimeHelmetBlueprint": {
    "en": "Harrow Prime Neuroptics Blueprint",
-   "how": "CC+蓝图"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/HarrowPrimeSystemsBlueprint": {
    "en": "Harrow Prime Systems Blueprint",
@@ -522,7 +1549,7 @@
   },
   "/Lotus/Types/Recipes/WarframeRecipes/HildrynPrimeBlueprint": {
    "en": "Hildryn Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/HildrynPrimeChassisBlueprint": {
    "en": "Hildryn Prime Chassis Blueprint",
@@ -530,15 +1557,19 @@
   },
   "/Lotus/Types/Recipes/WarframeRecipes/HildrynPrimeHelmetBlueprint": {
    "en": "Hildryn Prime Neuroptics Blueprint",
-   "how": "CC+蓝图"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/HildrynPrimeSystemsBlueprint": {
    "en": "Hildryn Prime Systems Blueprint",
    "how": "CC+蓝图"
   },
+  "/Lotus/Types/Recipes/WarframeRecipes/HydroidBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
   "/Lotus/Types/Recipes/WarframeRecipes/HydroidPrimeBlueprint": {
    "en": "Hydroid Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/InarosPrimeBlueprint": {
    "en": "Inaros Prime Blueprint",
@@ -550,7 +1581,7 @@
   },
   "/Lotus/Types/Recipes/WarframeRecipes/InarosPrimeHelmetBlueprint": {
    "en": "Inaros Prime Neuroptics Blueprint",
-   "how": "CC+蓝图"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/InarosPrimeSystemsBlueprint": {
    "en": "Inaros Prime Systems Blueprint",
@@ -558,7 +1589,7 @@
   },
   "/Lotus/Types/Recipes/WarframeRecipes/IvaraPrimeBlueprint": {
    "en": "Ivara Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/IvaraPrimeChassisBlueprint": {
    "en": "Ivara Prime Chassis Blueprint",
@@ -566,15 +1597,19 @@
   },
   "/Lotus/Types/Recipes/WarframeRecipes/IvaraPrimeHelmetBlueprint": {
    "en": "Ivara Prime Neuroptics Blueprint",
-   "how": "CC+蓝图"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/IvaraPrimeSystemsBlueprint": {
    "en": "Ivara Prime Systems Blueprint",
    "how": "CC+蓝图"
   },
+  "/Lotus/Types/Recipes/WarframeRecipes/KhoraBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
   "/Lotus/Types/Recipes/WarframeRecipes/KhoraPrimeBlueprint": {
    "en": "Khora Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/KhoraPrimeChassisBlueprint": {
    "en": "Khora Prime Chassis Blueprint",
@@ -582,11 +1617,15 @@
   },
   "/Lotus/Types/Recipes/WarframeRecipes/KhoraPrimeHelmetBlueprint": {
    "en": "Khora Prime Neuroptics Blueprint",
-   "how": "CC+蓝图"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/KhoraPrimeSystemsBlueprint": {
    "en": "Khora Prime Systems Blueprint",
    "how": "CC+蓝图"
+  },
+  "/Lotus/Types/Recipes/WarframeRecipes/KoumeiBlueprint": {
+   "en": "",
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/LavosPrimeBlueprint": {
    "en": "Lavos Prime Blueprint",
@@ -598,7 +1637,7 @@
   },
   "/Lotus/Types/Recipes/WarframeRecipes/LavosPrimeHelmetBlueprint": {
    "en": "Lavos Prime Neuroptics Blueprint",
-   "how": "CC+蓝图"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/LavosPrimeSystemsBlueprint": {
    "en": "Lavos Prime Systems Blueprint",
@@ -606,31 +1645,39 @@
   },
   "/Lotus/Types/Recipes/WarframeRecipes/LimboPrimeBlueprint": {
    "en": "Limbo Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/LokiPrimeBlueprint": {
    "en": "Loki Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/WarframeRecipes/MagBlueprint": {
+   "en": "",
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/MagPrimeBlueprint": {
    "en": "Mag Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/MesaPrimeBlueprint": {
    "en": "Mesa Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/MiragePrimeBlueprint": {
    "en": "Mirage Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/NekrosPrimeBlueprint": {
    "en": "Nekros Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/WarframeRecipes/NezhaBlueprint": {
+   "en": "",
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/NezhaPrimeBlueprint": {
    "en": "Nezha Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/NezhaPrimeChassisBlueprint": {
    "en": "Nezha Prime Chassis Blueprint",
@@ -638,7 +1685,7 @@
   },
   "/Lotus/Types/Recipes/WarframeRecipes/NezhaPrimeHelmetBlueprint": {
    "en": "Nezha Prime Neuroptics Blueprint",
-   "how": "CC+蓝图"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/NezhaPrimeSystemsBlueprint": {
    "en": "Nezha Prime Systems Blueprint",
@@ -660,13 +1707,25 @@
    "en": "Nidus Prime Systems Blueprint",
    "how": "CC+蓝图"
   },
+  "/Lotus/Types/Recipes/WarframeRecipes/NokkoBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/WarframeRecipes/NovaBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
   "/Lotus/Types/Recipes/WarframeRecipes/NovaPrimeBlueprint": {
    "en": "Nova Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/WarframeRecipes/NyxBlueprint": {
+   "en": "",
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/NyxPrimeBlueprint": {
    "en": "Nyx Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/NyxPrimeChassisBlueprint": {
    "en": "Nyx Prime Chassis Blueprint",
@@ -682,7 +1741,7 @@
   },
   "/Lotus/Types/Recipes/WarframeRecipes/OberonPrimeBlueprint": {
    "en": "Oberon Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/OctaviaPrimeBlueprint": {
    "en": "Octavia Prime Blueprint",
@@ -694,15 +1753,31 @@
   },
   "/Lotus/Types/Recipes/WarframeRecipes/OctaviaPrimeHelmetBlueprint": {
    "en": "Octavia Prime Neuroptics Blueprint",
-   "how": "CC+蓝图"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/OctaviaPrimeSystemsBlueprint": {
    "en": "Octavia Prime Systems Blueprint",
    "how": "CC+蓝图"
   },
+  "/Lotus/Types/Recipes/WarframeRecipes/OraxiaBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/WarframeRecipes/PacifistBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/WarframeRecipes/PagemasterBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/WarframeRecipes/PriestBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
   "/Lotus/Types/Recipes/WarframeRecipes/ProteaPrimeBlueprint": {
    "en": "Protea Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/ProteaPrimeChassisBlueprint": {
    "en": "Protea Prime Chassis Blueprint",
@@ -710,15 +1785,19 @@
   },
   "/Lotus/Types/Recipes/WarframeRecipes/ProteaPrimeHelmetBlueprint": {
    "en": "Protea Prime Neuroptics Blueprint",
-   "how": "CC+蓝图"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/ProteaPrimeSystemsBlueprint": {
    "en": "Protea Prime Systems Blueprint",
    "how": "CC+蓝图"
   },
+  "/Lotus/Types/Recipes/WarframeRecipes/RevenantBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
   "/Lotus/Types/Recipes/WarframeRecipes/RevenantPrimeBlueprint": {
    "en": "Revenant Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/RevenantPrimeChassisBlueprint": {
    "en": "Revenant Prime Chassis Blueprint",
@@ -726,23 +1805,31 @@
   },
   "/Lotus/Types/Recipes/WarframeRecipes/RevenantPrimeHelmetBlueprint": {
    "en": "Revenant Prime Neuroptics Blueprint",
-   "how": "CC+蓝图"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/RevenantPrimeSystemsBlueprint": {
    "en": "Revenant Prime Systems Blueprint",
    "how": "CC+蓝图"
   },
+  "/Lotus/Types/Recipes/WarframeRecipes/RhinoBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
   "/Lotus/Types/Recipes/WarframeRecipes/RhinoPrimeBlueprint": {
    "en": "Rhino Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/WarframeRecipes/SarynBlueprint": {
+   "en": "",
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/SarynPrimeBlueprint": {
    "en": "Saryn Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/SevagothPrimeBlueprint": {
    "en": "Sevagoth Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/SevagothPrimeChassisBlueprint": {
    "en": "Sevagoth Prime Chassis Blueprint",
@@ -750,7 +1837,7 @@
   },
   "/Lotus/Types/Recipes/WarframeRecipes/SevagothPrimeHelmetBlueprint": {
    "en": "Sevagoth Prime Neuroptics Blueprint",
-   "how": "CC+蓝图"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/SevagothPrimeSystemsBlueprint": {
    "en": "Sevagoth Prime Systems Blueprint",
@@ -766,7 +1853,7 @@
   },
   "/Lotus/Types/Recipes/WarframeRecipes/StyanaxPrimeHelmetBlueprint": {
    "en": "Styanax Prime Neuroptics Blueprint",
-   "how": "CC+蓝图"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/StyanaxPrimeSystemsBlueprint": {
    "en": "Styanax Prime Systems Blueprint",
@@ -774,7 +1861,7 @@
   },
   "/Lotus/Types/Recipes/WarframeRecipes/TitaniaPrimeBlueprint": {
    "en": "Titania Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/TitaniaPrimeChassisBlueprint": {
    "en": "Titania Prime Chassis Blueprint",
@@ -782,27 +1869,31 @@
   },
   "/Lotus/Types/Recipes/WarframeRecipes/TitaniaPrimeHelmetBlueprint": {
    "en": "Titania Prime Neuroptics Blueprint",
-   "how": "CC+蓝图"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/TitaniaPrimeSystemsBlueprint": {
    "en": "Titania Prime Systems Blueprint",
    "how": "CC+蓝图"
   },
+  "/Lotus/Types/Recipes/WarframeRecipes/TrinityBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
   "/Lotus/Types/Recipes/WarframeRecipes/TrinityPrimeBlueprint": {
    "en": "Trinity Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/ValkyrPrimeBlueprint": {
    "en": "Valkyr Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/VaubanPrimeBlueprint": {
    "en": "Vauban Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/VoltPrimeBlueprint": {
    "en": "Volt Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/VoltPrimeChassisBlueprint": {
    "en": "Volt Prime Chassis Blueprint",
@@ -818,7 +1909,7 @@
   },
   "/Lotus/Types/Recipes/WarframeRecipes/VorunaPrimeBlueprint": {
    "en": "Voruna Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/VorunaPrimeChassisBlueprint": {
    "en": "Voruna Prime Chassis Blueprint",
@@ -826,7 +1917,7 @@
   },
   "/Lotus/Types/Recipes/WarframeRecipes/VorunaPrimeHelmetBlueprint": {
    "en": "Voruna Prime Neuroptics Blueprint",
-   "how": "CC+蓝图"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/VorunaPrimeSystemsBlueprint": {
    "en": "Voruna Prime Systems Blueprint",
@@ -834,7 +1925,7 @@
   },
   "/Lotus/Types/Recipes/WarframeRecipes/WispPrimeBlueprint": {
    "en": "Wisp Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/WispPrimeChassisBlueprint": {
    "en": "Wisp Prime Chassis Blueprint",
@@ -842,15 +1933,23 @@
   },
   "/Lotus/Types/Recipes/WarframeRecipes/WispPrimeHelmetBlueprint": {
    "en": "Wisp Prime Neuroptics Blueprint",
-   "how": "CC+蓝图"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/WispPrimeSystemsBlueprint": {
    "en": "Wisp Prime Systems Blueprint",
    "how": "CC+蓝图"
   },
+  "/Lotus/Types/Recipes/WarframeRecipes/WraithBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/WarframeRecipes/WukongBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
   "/Lotus/Types/Recipes/WarframeRecipes/WukongPrimeBlueprint": {
    "en": "Wukong Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/WukongPrimeChassisBlueprint": {
    "en": "Wukong Prime Chassis Blueprint",
@@ -858,7 +1957,7 @@
   },
   "/Lotus/Types/Recipes/WarframeRecipes/WukongPrimeHelmetBlueprint": {
    "en": "Wukong Prime Neuroptics Blueprint",
-   "how": "CC+蓝图"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/WukongPrimeSystemsBlueprint": {
    "en": "Wukong Prime Systems Blueprint",
@@ -874,7 +1973,7 @@
   },
   "/Lotus/Types/Recipes/WarframeRecipes/XakuPrimeHelmetBlueprint": {
    "en": "Xaku Prime Neuroptics Blueprint",
-   "how": "CC+蓝图"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/XakuPrimeSystemsBlueprint": {
    "en": "Xaku Prime Systems Blueprint",
@@ -890,7 +1989,7 @@
   },
   "/Lotus/Types/Recipes/WarframeRecipes/YareliPrimeHelmetBlueprint": {
    "en": "Yareli Prime Neuroptics Blueprint",
-   "how": "CC+蓝图"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/WarframeRecipes/YareliPrimeSystemsBlueprint": {
    "en": "Yareli Prime Systems Blueprint",
@@ -898,7 +1997,11 @@
   },
   "/Lotus/Types/Recipes/WarframeRecipes/ZephyrPrimeBlueprint": {
    "en": "Zephyr Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/1999EntHybridPistolBlueprint": {
+   "en": "",
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Weapons/AcceltraPrimeBlueprint": {
    "en": "Acceltra Prime Blueprint",
@@ -906,7 +2009,7 @@
   },
   "/Lotus/Types/Recipes/Weapons/AfentisPrimeBlueprint": {
    "en": "Afentis Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Weapons/AfurisPrimeBlueprint": {
    "en": "Afuris Prime Blueprint",
@@ -918,7 +2021,7 @@
   },
   "/Lotus/Types/Recipes/Weapons/AkboltoPrimeBlueprint": {
    "en": "Akbolto Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Weapons/AkbroncoPrimeBlueprint": {
    "en": "Akbronco Prime Blueprint",
@@ -934,7 +2037,7 @@
   },
   "/Lotus/Types/Recipes/Weapons/AkmagnusPrimeBlueprint": {
    "en": "Akmagnus Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Weapons/AksomatiPrimeBlueprint": {
    "en": "Aksomati Prime Blueprint",
@@ -946,7 +2049,7 @@
   },
   "/Lotus/Types/Recipes/Weapons/AkvastoPrimeBlueprint": {
    "en": "Akvasto Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Weapons/AlternoxPrimeBlueprint": {
    "en": "Alternox Prime Blueprint",
@@ -954,15 +2057,75 @@
   },
   "/Lotus/Types/Recipes/Weapons/AnkyrosPrimeBlueprint": {
    "en": "Ankyros Prime Blueprint",
-   "how": "ITEMS"
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/AntlerBowBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/ArchAxeBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/ArchBurstGunBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/ArchCannonBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/ArchHammerBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/ArchHeavyPistolsBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/ArchHookSwordBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/ArchLongRifleBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/ArchRailgunBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/ArchRocketCrossbowBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/ArchScytheBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/ArchSwordShieldBlueprint": {
+   "en": "",
+   "how": "SYNTH"
   },
   "/Lotus/Types/Recipes/Weapons/AstillaPrimeBlueprint": {
    "en": "Astilla Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/AsymetricalBowBlueprint": {
+   "en": "",
+   "how": "SYNTH"
   },
   "/Lotus/Types/Recipes/Weapons/AthodaiPrimeBlueprint": {
    "en": "Athodai Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/AutoCrossBowBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/BallasSwordBlueprint": {
+   "en": "",
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Weapons/BazaPrimeBlueprint": {
    "en": "Baza Prime Blueprint",
@@ -970,11 +2133,19 @@
   },
   "/Lotus/Types/Recipes/Weapons/BoarPrimeBlueprint": {
    "en": "Boar Prime Blueprint",
-   "how": "ITEMS"
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/BoltonfaBlueprint": {
+   "en": "",
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Weapons/BoltorPrimeBlueprint": {
    "en": "Boltor Prime Blueprint",
-   "how": "ITEMS"
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/BoomerangBlueprint": {
+   "en": "",
+   "how": "SYNTH"
   },
   "/Lotus/Types/Recipes/Weapons/BowPrimeBlueprint": {
    "en": "Paris Prime Blueprint",
@@ -982,19 +2153,39 @@
   },
   "/Lotus/Types/Recipes/Weapons/BratonPrimeBlueprint": {
    "en": "Braton Prime Blueprint",
-   "how": "ITEMS"
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/BrawlerKnucklesBlueprint": {
+   "en": "",
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Weapons/BroncoPrimeBlueprint": {
    "en": "Bronco Prime Blueprint",
-   "how": "ITEMS"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Weapons/BurstonPrimeBlueprint": {
    "en": "Burston Prime Blueprint",
    "how": "ITEMS"
   },
+  "/Lotus/Types/Recipes/Weapons/CarminePentaBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
   "/Lotus/Types/Recipes/Weapons/CedoPrimeBlueprint": {
    "en": "Cedo Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/CephHammerBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/CephPrimaryBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/CeramicDaggerBlueprint": {
+   "en": "",
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Weapons/CobraCranePrimeBlueprint": {
    "en": "Cobra & Crane Prime Blueprint",
@@ -1002,7 +2193,31 @@
   },
   "/Lotus/Types/Recipes/Weapons/CorinthPrimeBlueprint": {
    "en": "Corinth Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/CorpusHammerWeaponBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/CorpusHandRocketLauncherBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/CorpusMinigunBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/CorpusRailgunBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/CorpusUMPBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/CorpusWhipBlueprint": {
+   "en": "",
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Weapons/CorufellPrimeBlueprint": {
    "en": "Corufell Prime Blueprint",
@@ -1012,25 +2227,245 @@
    "en": "Corvas Prime Blueprint",
    "how": "ALL"
   },
+  "/Lotus/Types/Recipes/Weapons/CrpAirPistolArrayBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/CrpArSniperBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/CrpBigSlashBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/CrpBlastorWeaponBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/CrpBriefcase2HKatanaBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/CrpChargeGunBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/CrpGhostCatcherGlaiveBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/CrpHammerShieldBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/CrpRubanRifleBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/CrpSentAmalgPistolBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/CrpSentAmlgSniperBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/CrpSentExperimentPistolBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/CrpSentExperimentRifleBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/CrpShapeBlastShotgunBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/CrpShockGripWhipBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/CrpTonfaBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/CrpVenusHatchetBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/CutlassPoignardBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/DarkDaggerBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/DarkSwordDaggerHybridBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/DaxDuviriAsymmetricalLongBowPlayerWeaponBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/DaxDuviriHammerBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/DaxDuviriKatanaBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/DaxDuviriMaceShieldBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/DaxDuviriPolearmBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/DaxDuviriTwoHandedKatanaBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/DeraVandalBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/DerelictCernosBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
   "/Lotus/Types/Recipes/Weapons/DestrezaPrimeBlueprint": {
    "en": "Destreza Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/DjinnMacheteBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/DoubleBarrelShotgunBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/DrakeRifleBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/DualAxeBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/DualCorpusMinigunBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/DualDaggerBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/DualEtherDaggerBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/DualEtherSwordBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/DualHeatSwordBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/DualKamasBlueprint": {
+   "en": "",
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Weapons/DualKeresPrimeBlueprint": {
    "en": "Dual Keres Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/DualMagnusBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/DualVastosBlueprint": {
+   "en": "",
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Weapons/DualZorenPrimeBlueprint": {
    "en": "Dual Zoren Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/DuviriDualSwordsBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/DuviriHeavyScytheBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/DuviriRifleBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/EntFistIncarnonBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/EntSphereHammerBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/EntratiWristGunBlueprint": {
+   "en": "",
+   "how": "SYNTH"
   },
   "/Lotus/Types/Recipes/Weapons/EpitaphPrimeBlueprint": {
    "en": "Epitaph Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/EtherScytheBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/EtherSwordBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/Evolving/ZarimanDaggerWeaponBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/Evolving/ZarimanHeavyPistolBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/Evolving/ZarimanPumpShotgunBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/Evolving/ZarimanSemiAutoRifleBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/Evolving/ZarimanTonfaWeaponBlueprint": {
+   "en": "",
+   "how": "SYNTH"
   },
   "/Lotus/Types/Recipes/Weapons/FangPrimeBlueprint": {
    "en": "Fang Prime Blueprint",
-   "how": "ITEMS"
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/FiveShotSniperBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/FlowerPowerPolearmBlueprint": {
+   "en": "",
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Weapons/FragorPrimeBlueprint": {
    "en": "Fragor Prime Blueprint",
@@ -1038,95 +2473,551 @@
   },
   "/Lotus/Types/Recipes/Weapons/FulminPrimeBlueprint": {
    "en": "Fulmin Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/FuraxWraithBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/GarudaCrossbowBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/GauntletBlueprint": {
+   "en": "",
+   "how": "SYNTH"
   },
   "/Lotus/Types/Recipes/Weapons/GlaivePrimeBlueprint": {
    "en": "Glaive Prime Blueprint",
    "how": "ITEMS"
   },
+  "/Lotus/Types/Recipes/Weapons/GlassHammerBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/GlassKunaiBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/GorgonWraithBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
   "/Lotus/Types/Recipes/Weapons/GramPrimeBlueprint": {
    "en": "Gram Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/GreatSwordBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/GrenadeLauncherBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/GrineerFlakCannonBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/GrineerGooGunBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/GrineerJetPolearmBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/GrineerLightPistolBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/GrineerM16RifleBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/GrineerWhipBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/GrnAmphisPistolBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/GrnAssaultRifleBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/GrnBoomerangBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/GrnBurstRifleBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/GrnCannonWeaponBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/GrnChainSawTonfaBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/GrnClawsBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/GrnDualFireAxeBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/GrnGhoulSawBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/GrnGrenadeLauncherBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/GrnHarpoonGunBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/GrnHeatGunBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/GrnHeavyPistolBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/GrnQueenGuardDualPistolsBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/GrnSharbolaWeaponBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/GrnSniperRifleBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/GrnSparkRifleBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/GrnSpiderSparringBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/GrnStaffBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/GrnTorpedoPistolBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/GrnVorStickyBombBlueprint": {
+   "en": "",
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Weapons/GuandaoPrimeBlueprint": {
    "en": "Guandao Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/GunScytheBlueprint": {
+   "en": "",
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Weapons/GunsenPrimeBlueprint": {
    "en": "Gunsen Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/GyreRifleWeaponBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/HammerBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/HarlequinPistolsBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/HeatDaggerBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/HeatSwordBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/HuntingBowBlueprint": {
+   "en": "",
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Weapons/HystrixPrimeBlueprint": {
    "en": "Hystrix Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/IceHammerBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/ImperatorVandalBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/InfBeamPistolBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/InfBoomerangBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/InfCernosBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/InfNunchuckBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/InfSniperRifleBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/InfTransformClawsBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/InfUziBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/InfestedDartPistolBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/InfestedKogakeBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/InfestedShotgunBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/KarakWraithBlueprint": {
+   "en": "",
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Weapons/KarystPrimeBlueprint": {
    "en": "Karyst Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/KatanaBlueprint": {
+   "en": "",
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Weapons/KestrelPrimeBlueprint": {
    "en": "Kestrel Prime Blueprint",
    "how": "PRIMES"
   },
+  "/Lotus/Types/Recipes/Weapons/KickPunchWeaponBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
   "/Lotus/Types/Recipes/Weapons/KnellPrimeBlueprint": {
    "en": "Knell Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Weapons/KogakePrimeBlueprint": {
    "en": "Kogake Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Weapons/KompressaPrimeBlueprint": {
    "en": "Kompressa Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Weapons/KronenPrimeBlueprint": {
    "en": "Kronen Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/KuvaWeapons/GrnHeavyGrenadeLauncherBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/KuvaWeapons/GrnKuvaLichRifleWeaponBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/KuvaWeapons/GrnKuvaLichScytheBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/KuvaWeapons/KuvaBrakkBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/KuvaWeapons/KuvaDrakgoonBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/KuvaWeapons/KuvaGhoulSawBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/KuvaWeapons/KuvaGrattlerBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/KuvaWeapons/KuvaGrnBowBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/KuvaWeapons/KuvaHekBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/KuvaWeapons/KuvaHindBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/KuvaWeapons/KuvaKarakBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/KuvaWeapons/KuvaKohmBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/KuvaWeapons/KuvaKrakenBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/KuvaWeapons/KuvaNukorBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/KuvaWeapons/KuvaOgrisBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/KuvaWeapons/KuvaQuartakkBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/KuvaWeapons/KuvaSeerBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/KuvaWeapons/KuvaSobekBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/KuvaWeapons/KuvaStubbaBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/KuvaWeapons/KuvaTonkorBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/KuvaWeapons/KuvaZarrBlueprint": {
+   "en": "",
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Weapons/LarkspurPrimeBlueprint": {
    "en": "Larkspur Prime Blueprint",
    "how": "ALL"
   },
+  "/Lotus/Types/Recipes/Weapons/LasGooAKPlayerWeaponBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/LasGooPistolPlayerWeaponBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/LasSilencedPistolBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/LasrianNoxPlayerWeaponBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/LatoVandalBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
   "/Lotus/Types/Recipes/Weapons/LatronPrimeBlueprint": {
    "en": "Latron Prime Blueprint",
-   "how": "ITEMS"
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/LatronWraithBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/LawyerWeapons/CrpBEArcaPlasmorBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/LawyerWeapons/CrpBECycronBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/LawyerWeapons/CrpBEDetronBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/LawyerWeapons/CrpBEFerroxBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/LawyerWeapons/CrpBEFluxRifleBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/LawyerWeapons/CrpBEGlaxionBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/LawyerWeapons/CrpBEPlinxBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/LawyerWeapons/CrpBEQuantaBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/LawyerWeapons/CrpBETetraBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/LawyerWeapons/CrpBriefcaseAkimboPistolBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/LawyerWeapons/CrpBriefcaseLauncherBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/LawyerWeapons/CrpBriefcaseScytheBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/LawyerWeapons/CrpIgniterPistolBlueprint": {
+   "en": "",
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Weapons/LexPrimeBlueprint": {
    "en": "Lex Prime Blueprint",
    "how": "ITEMS"
   },
+  "/Lotus/Types/Recipes/Weapons/LiDaggerBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/MagnumBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
   "/Lotus/Types/Recipes/Weapons/MagnusPrimeBlueprint": {
    "en": "Magnus Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Weapons/MasseterPrimeBlueprint": {
    "en": "Masseter Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/MireSwordBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/MortiforShieldAndSwordBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/NWOrokinSwordBlueprint": {
+   "en": "",
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Weapons/NagantakaPrimeBlueprint": {
    "en": "Nagantaka Prime Blueprint",
    "how": "ALL"
   },
+  "/Lotus/Types/Recipes/Weapons/NewWar/ArchonDualDaggersBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/NewWar/ArchonTridentBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/NewWar/ArchonWhipBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/NewWar/SentJointedScytheBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
   "/Lotus/Types/Recipes/Weapons/NinkondiPrimeBlueprint": {
    "en": "Ninkondi Prime Blueprint",
    "how": "PRIMES"
+  },
+  "/Lotus/Types/Recipes/Weapons/NokkoArchGunBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/NunchakuBlueprint": {
+   "en": "",
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Weapons/OkinaPrimeBlueprint": {
    "en": "Okina Prime Blueprint",
    "how": "PRIMES"
   },
+  "/Lotus/Types/Recipes/Weapons/OperationsLaceraBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/PacifistShieldSwordBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/PaladinMaceBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
   "/Lotus/Types/Recipes/Weapons/PanderoPrimeBlueprint": {
    "en": "Pandero Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Weapons/PangolinPrimeBlueprint": {
    "en": "Pangolin Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/PangolinSwordBlueprint": {
+   "en": "",
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Weapons/PantheraPrimeBlueprint": {
    "en": "Panthera Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/ParisScytheBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/PaxDuviricusShotgunBlueprint": {
+   "en": "",
+   "how": "SYNTH"
   },
   "/Lotus/Types/Recipes/Weapons/PerigalePrimeBlueprint": {
    "en": "Perigale Prime Blueprint",
@@ -1136,17 +3027,25 @@
    "en": "Phantasma Prime Blueprint",
    "how": "EN2ZH"
   },
+  "/Lotus/Types/Recipes/Weapons/PlasmaSwordBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/PolearmBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
   "/Lotus/Types/Recipes/Weapons/PolearmPrimeBlueprint": {
    "en": "Orthos Prime Blueprint",
    "how": "EN2ZH"
   },
   "/Lotus/Types/Recipes/Weapons/Prime1HShotgunBlueprint": {
    "en": "Euphona Prime Blueprint",
-   "how": "PRIMES+蓝图"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Weapons/PrimeBallisticaBlueprint": {
    "en": "Ballistica Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Weapons/PrimeBoBlueprint": {
    "en": "Bo Prime Blueprint",
@@ -1154,7 +3053,7 @@
   },
   "/Lotus/Types/Recipes/Weapons/PrimeCernosBlueprint": {
    "en": "Cernos Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Weapons/PrimeCronusLongSwordBlueprint": {
    "en": "Dakra Prime Blueprint",
@@ -1166,11 +3065,11 @@
   },
   "/Lotus/Types/Recipes/Weapons/PrimeDualKamasBlueprint": {
    "en": "Dual Kamas Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Weapons/PrimeGalatineBlueprint": {
    "en": "Galatine Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Weapons/PrimeHikouBlueprint": {
    "en": "Hikou Prime Blueprint",
@@ -1178,19 +3077,19 @@
   },
   "/Lotus/Types/Recipes/Weapons/PrimeLiDaggerBlueprint": {
    "en": "Spira Prime Blueprint",
-   "how": "PRIMES+蓝图"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Weapons/PrimeLightningGunBlueprint": {
    "en": "Vadarya Prime Blueprint",
-   "how": "PRIMES+蓝图"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Weapons/PrimeNamiSkylaBlueprint": {
    "en": "Nami Skyla Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Weapons/PrimeNikanaBlueprint": {
    "en": "Nikana Prime Blueprint",
-   "how": "ITEMS"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Weapons/PrimeScindoBlueprint": {
    "en": "Scindo Prime Blueprint",
@@ -1202,27 +3101,59 @@
   },
   "/Lotus/Types/Recipes/Weapons/PrimeTigrisBlueprint": {
    "en": "Tigris Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Weapons/PrimeVenkaClawsBlueprint": {
    "en": "Venka Prime Blueprint",
-   "how": "PRIMES+蓝图"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Weapons/PyranaPrimeBlueprint": {
    "en": "Pyrana Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/QuadShotgunBlueprint": {
+   "en": "",
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Weapons/QuassusPrimeBlueprint": {
    "en": "Quassus Prime Blueprint",
    "how": "EN2ZH"
   },
+  "/Lotus/Types/Recipes/Weapons/QuillDartgunBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/RailjackRifleGunBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/ReconnasorBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
   "/Lotus/Types/Recipes/Weapons/RedeemerPrimeBlueprint": {
    "en": "Redeemer Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/RevenantShotgunBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/RevolverPistolBlueprint": {
+   "en": "",
+   "how": "SYNTH"
   },
   "/Lotus/Types/Recipes/Weapons/RubicoPrimeBlueprint": {
    "en": "Rubico Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/SapientPistolBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/SapientPrimaryBlueprint": {
+   "en": "",
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Weapons/SarofangPrimeBlueprint": {
    "en": "Sarofang Prime Blueprint",
@@ -1230,7 +3161,15 @@
   },
   "/Lotus/Types/Recipes/Weapons/ScourgePrimeBlueprint": {
    "en": "Scourge Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/SentRifleNewWarGunBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/SheduHeavyWeaponBlueprint": {
+   "en": "",
+   "how": "SYNTH"
   },
   "/Lotus/Types/Recipes/Weapons/SicarusPrimeBlueprint": {
    "en": "Sicarus Prime Blueprint",
@@ -1240,9 +3179,37 @@
    "en": "Silva & Aegis Prime Blueprint",
    "how": "PRIMES"
   },
+  "/Lotus/Types/Recipes/Weapons/SingleKamaBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/SingleStaffBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/SnipetronVandalBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
   "/Lotus/Types/Recipes/Weapons/SomaPrimeBlueprint": {
    "en": "Soma Prime Blueprint",
    "how": "ITEMS"
+  },
+  "/Lotus/Types/Recipes/Weapons/StaffBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/StalkerBowBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/StalkerKunaiBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/StalkerMiosBlueprint": {
+   "en": "",
+   "how": "SYNTH"
   },
   "/Lotus/Types/Recipes/Weapons/SteflosPrimeBlueprint": {
    "en": "Steflos Prime Blueprint",
@@ -1250,11 +3217,27 @@
   },
   "/Lotus/Types/Recipes/Weapons/StradavarPrimeBlueprint": {
    "en": "Stradavar Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Weapons/StrunPrimeBlueprint": {
    "en": "Strun Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/SundialAxeBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/SundialPistolBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/SundialRifleBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/SundialSwordBoardBlueprint": {
+   "en": "",
+   "how": "SYNTH"
   },
   "/Lotus/Types/Recipes/Weapons/SybarisPrimeBlueprint": {
    "en": "Sybaris Prime Blueprint",
@@ -1266,11 +3249,87 @@
   },
   "/Lotus/Types/Recipes/Weapons/TekkoPrimeBlueprint": {
    "en": "Tekko Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/TennoARBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/TennoClawsBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/TennoCutlassBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/TennoDoubleBarrelShotgunBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/TennoGreatSwordBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/TennoHandShotgunBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/TennoLeverActionRifleBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/TennoSaisBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/TennoSniperRifleBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/TennoStarsBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/TennoSwordShieldBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/TennoTommyGunRifleBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/TennoTonfaBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/TennoUziBlueprint": {
+   "en": "",
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Weapons/TenoraPrimeBlueprint": {
    "en": "Tenora Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/TeshinGlaiveBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/ThanotechPistolBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/ThanotechRifleBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/ThreeLeafBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/ThrowingHammerBlueprint": {
+   "en": "",
+   "how": "SYNTH"
   },
   "/Lotus/Types/Recipes/Weapons/TiberonPrimeBlueprint": {
    "en": "Tiberon Prime Blueprint",
@@ -1278,11 +3337,147 @@
   },
   "/Lotus/Types/Recipes/Weapons/TipedoPrimeBlueprint": {
    "en": "Tipedo Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/TnAlchemistShotgunBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/TnBardPistolBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/TnBardRifleBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/TnBeltFedRifleBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/TnChiselKanaboBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/TnChoirBowBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/TnChoirScytheBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/TnConcreteArchgunBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/TnGlassShotgunBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/TnGuandaoPistolBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/TnGuandaoPolearmBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/TnHalberdPolearmWeaponBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/TnHeavyShotgunBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/TnHopliteSpearGunWeaponBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/TnModQuestRifleWeaponBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/TnPriestPistolBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/TnRevolverRifleBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/TnSMGWeaponBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/TnShieldFrameArchGunBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/TnTwoHandedKatanaBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/TnYareliPistolBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/TnoBladedPistolsBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/TnoGunbladeAutomaticBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/TnoLotusPodShotgunBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/TnoMiterBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/TnoMonkStaffBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/TnoNunchakuBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/TnoPrmryXbowBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/TnoRapierBlueprint": {
+   "en": "",
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Weapons/TrumnaPrimeBlueprint": {
    "en": "Trumna Prime Blueprint",
    "how": "EN2ZH"
+  },
+  "/Lotus/Types/Recipes/Weapons/TwinGrakatasBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/TwinKohmakBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/TwinVipersWraithBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/Weapons/U18ThrowingKnivesBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/UmbraKatanaBlueprint": {
+   "en": "",
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Weapons/VastoPrimeBlueprint": {
    "en": "Vasto Prime Blueprint",
@@ -1302,7 +3497,11 @@
   },
   "/Lotus/Types/Recipes/Weapons/VolnusPrimeBlueprint": {
    "en": "Volnus Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/WarfanBlueprint": {
+   "en": "",
+   "how": "SYNTH"
   },
   "/Lotus/Types/Recipes/Weapons/WeaponParts/CorufellPrimeBarrel": {
    "en": "Corufell Prime Stock",
@@ -1328,9 +3527,17 @@
    "en": "Steflos Prime Stock",
    "how": "CC"
   },
+  "/Lotus/Types/Recipes/Weapons/WeaponParts/TnDagathBladeWhipBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/Weapons/WolfFrameAxeWeaponBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
   "/Lotus/Types/Recipes/Weapons/ZaktiPrimeBlueprint": {
    "en": "Zakti Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
   },
   "/Lotus/Types/Recipes/Weapons/ZhugePrimeBlueprint": {
    "en": "Zhuge Prime Blueprint",
@@ -1338,7 +3545,691 @@
   },
   "/Lotus/Types/Recipes/Weapons/ZylokPrimeBlueprint": {
    "en": "Zylok Prime Blueprint",
-   "how": "PRIMES"
+   "how": "SEG"
+  },
+  "/Lotus/Types/Recipes/ZanukaPetParts/ZanukaPetPartBodyABlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/ZanukaPetParts/ZanukaPetPartBodyBBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/ZanukaPetParts/ZanukaPetPartBodyCBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/ZanukaPetParts/ZanukaPetPartHeadABlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/ZanukaPetParts/ZanukaPetPartHeadBBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/ZanukaPetParts/ZanukaPetPartHeadCBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/ZanukaPetParts/ZanukaPetPartLegsABlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/ZanukaPetParts/ZanukaPetPartLegsBBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/ZanukaPetParts/ZanukaPetPartLegsCBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/ZanukaPetParts/ZanukaPetPartTailABlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/ZanukaPetParts/ZanukaPetPartTailBBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/Recipes/ZanukaPetParts/ZanukaPetPartTailCBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Types/StoreItems/Consumables/Restoratives/NpcBuffs/EventiumBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardCorpusA/HoverboardCorpusADeckBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardCorpusA/HoverboardCorpusAEngineBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardCorpusA/HoverboardCorpusAFrontBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardCorpusA/HoverboardCorpusAJetBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardCorpusB/HoverboardCorpusBDeckBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardCorpusB/HoverboardCorpusBEngineBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardCorpusB/HoverboardCorpusBFrontBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardCorpusB/HoverboardCorpusBJetBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardCorpusC/HoverboardCorpusCDeckBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardCorpusC/HoverboardCorpusCEngineBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardCorpusC/HoverboardCorpusCFrontBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardCorpusC/HoverboardCorpusCJetBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardInfestedB/HoverboardInfestedBDeckBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardInfestedB/HoverboardInfestedBEngineBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardInfestedB/HoverboardInfestedBFrontBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardInfestedB/HoverboardInfestedBJetBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardSolarisA/HoverboardSolarisADeckBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardSolarisA/HoverboardSolarisAEngineBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardSolarisA/HoverboardSolarisAFrontBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardSolarisA/HoverboardSolarisAJetBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/ClanTech/Bio/AcidDartPistolBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/ClanTech/Bio/BioWeaponBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/ClanTech/Bio/InfArmCannonBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/ClanTech/Bio/InfCrpShockSwarmRifleBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/ClanTech/Bio/InfProximityStarsBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/ClanTech/Bio/InfQuantaRifleBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/ClanTech/Bio/InfStaffWeaponBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/ClanTech/Bio/InfestedBurstRifleBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/ClanTech/Bio/InfestedWhipWeaponBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/ClanTech/Bio/PunctureGlaiveWeaponBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/ClanTech/Chemical/DualGrnEgyptSwdBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/ClanTech/Chemical/FlameThrowerBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/ClanTech/Chemical/FlamethrowerWraithBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/ClanTech/Chemical/GLAPistolBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/ClanTech/Chemical/GLARifleBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/ClanTech/Chemical/GrnArchHandBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/ClanTech/Chemical/GrnEgyptSwdBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/ClanTech/Chemical/GrnFlameSpearBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/ClanTech/Chemical/GrnFourBarrelRifleBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/ClanTech/Chemical/GrnGorgSniperRifleBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/ClanTech/Chemical/GrnHalberdBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/ClanTech/Chemical/GrnKohmPistolBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/ClanTech/Chemical/GrnKusarigamaWeaponBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/ClanTech/Chemical/GrnMicrowavePistolBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/ClanTech/Chemical/GrnTridentWeaponBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/ClanTech/Chemical/GrnUziBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/ClanTech/Chemical/RegorAxeShieldBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/ClanTech/Chemical/RocketLauncherBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/ClanTech/Energy/ChainLightningRifleBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/ClanTech/Energy/CorpusPolearmWeaponBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/ClanTech/Energy/CrpBFGBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/ClanTech/Energy/CrpBowBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/ClanTech/Energy/CrpElectroMagBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/ClanTech/Energy/CrpFreezeRayRifleBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/ClanTech/Energy/CrpGlaiveBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/ClanTech/Energy/CrpHeavyRifleBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/ClanTech/Energy/CrpScopeGunBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/ClanTech/Energy/CrpShockRifleBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/ClanTech/Energy/CrpShotgunBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/ClanTech/Energy/CrpSplitLaserBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/ClanTech/Energy/ElectroProdBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/ClanTech/Energy/EnergyRifleBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/ClanTech/Energy/RailgunBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/Corpus/OperatorAmplifiers/Set1/Barrel/CorpAmpSet1BarrelPartABlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Corpus/OperatorAmplifiers/Set1/Barrel/CorpAmpSet1BarrelPartBBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Corpus/OperatorAmplifiers/Set1/Barrel/CorpAmpSet1BarrelPartCBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Corpus/OperatorAmplifiers/Set1/Chassis/CorpAmpSet1ChassisPartABlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Corpus/OperatorAmplifiers/Set1/Chassis/CorpAmpSet1ChassisPartBBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Corpus/OperatorAmplifiers/Set1/Chassis/CorpAmpSet1ChassisPartCBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Corpus/OperatorAmplifiers/Set1/Grip/CorpAmpSet1GripPartABlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Corpus/OperatorAmplifiers/Set1/Grip/CorpAmpSet1GripPartBBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Corpus/OperatorAmplifiers/Set1/Grip/CorpAmpSet1GripPartCBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Infested/Pistols/InfKitGun/Barrels/InfBarrelBeam/InfModularBarrelBeamBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/Infested/Pistols/InfKitGun/Barrels/InfBarrelEgg/InfModularBarrelEggBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/Infested/Pistols/InfKitGun/Clips/InfClipBig/InfModularClipBigBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/Infested/Pistols/InfKitGun/Clips/InfClipBig/InfModularClipBigCritStatBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/Infested/Pistols/InfKitGun/Clips/InfSmallClip/InfModularClipSmallBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/Infested/Pistols/InfKitGun/Clips/InfSmallClip/InfModularClipSmallCritStatBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/Infested/Pistols/InfKitGun/Handles/InfPrimaryHandle/InfModularPrimaryHandleBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/Infested/Pistols/InfKitGun/Handles/InfSecondaryHandle/InfModularSecondaryHandleBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceDamageIBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceDamageICritIBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceDamageICritIIBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceDamageIIBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceDamageIICritIBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceDamageIIStatusIBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceDamageIStatusIBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceDamageIStatusIIBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceSpeedIBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceSpeedICritIBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceSpeedICritIIBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceSpeedIIBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceSpeedIICritIBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceSpeedIIStatusIBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceSpeedIStatusIBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceSpeedIStatusIIBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Handle/HandleFiveBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Handle/HandleFourBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Handle/HandleOneBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Handle/HandleSixBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Handle/HandleThreeBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Handle/HandleTwoBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Tip/TipFiveBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Tip/TipFourBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Tip/TipOneBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Tip/TipSixBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Tip/TipThreeBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Tip/TipTwoBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee02/Handle/HandleNineBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee02/Handle/HandleTenBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee02/Tip/TipElevenBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee02/Tip/TipNineBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Ostron/Melee/ModularMelee02/Tip/TipTenBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Ostron/Melee/ModularMeleeInfested/Handles/InfestedHandleOneBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Ostron/Melee/ModularMeleeInfested/Handles/InfestedHandleTwoBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Ostron/Melee/ModularMeleeInfested/Tips/InfestedTipOneBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Ostron/Melee/ModularMeleeInfested/Tips/InfestedTipTwoBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Barrel/SentAmpSet1BarrelPartABlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Barrel/SentAmpSet1BarrelPartBBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Barrel/SentAmpSet1BarrelPartCBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Chassis/SentAmpSet1ChassisPartABlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Chassis/SentAmpSet1ChassisPartBBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Chassis/SentAmpSet1ChassisPartCBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Grip/SentAmpSet1GripPartABlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Grip/SentAmpSet1GripPartBBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Grip/SentAmpSet1GripPartCBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set2/Barrel/SentAmpSet2BarrelPartABlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set2/Chassis/SentAmpSet2ChassisPartABlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set2/Grip/SentAmpSet2GripPartABlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/SolarisUnited/Primary/SUModularPrimarySet1/Handles/SUModularPrimaryHandleAPartBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/SolarisUnited/Primary/SUModularPrimarySet1/Handles/SUModularPrimaryHandleBPartBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/SolarisUnited/Primary/SUModularPrimarySet1/Handles/SUModularPrimaryHandleCPartBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/SolarisUnited/Primary/SUModularPrimarySet1/Handles/SUModularPrimaryHandleDPartBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Barrel/SUModularSecondaryBarrelAPartBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Barrel/SUModularSecondaryBarrelBPartBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Barrel/SUModularSecondaryBarrelCPartBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Barrel/SUModularSecondaryBarrelDPartBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularCapIClipPartBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularCapIIClipPartBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularCritICapIClipPartBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularCritICapIIClipPartBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularCritIICapIClipPartBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularCritIIReloadIClipPartBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularCritIReloadIClipPartBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularCritIReloadIIClipPartBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularReloadIClipPartBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularReloadIIClipPartBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularStatICapIClipPartBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularStatICapIIClipPartBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularStatIICapIClipPartBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularStatIIReloadIClipPartBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularStatIReloadIClipPartBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularStatIReloadIIClipPartBlueprint": {
+   "en": "",
+   "how": "SEG"
+  },
+  "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Handle/SUModularSecondaryHandleAPartBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Handle/SUModularSecondaryHandleBPartBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Handle/SUModularSecondaryHandleCPartBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Handle/SUModularSecondaryHandleDPartBlueprint": {
+   "en": "",
+   "how": "SYNTH"
+  },
+  "/Lotus/Weapons/Tenno/Bayonet/TnBayonetRifleBlueprint": {
+   "en": "",
+   "how": "SYNTH"
   }
  }
 }

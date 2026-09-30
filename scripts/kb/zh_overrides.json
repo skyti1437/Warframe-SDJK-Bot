@@ -1,16 +1,16 @@
 {
   "_meta": {
     "purpose": "人工覆盖层：DE 数据包快照未同步的新内容，官方简中名/描述在此显式补齐（build 时优先于 5 级回落链）。",
-    "source": "玩家客户端本机 Cache.Windows（Update 44.0，2026-09-23 实装）内的 Languages.bin（简中）",
+    "source": "玩家客户端本机 Cache.Windows（Update 44.0，2026-09-23 实装）内的 Languages.bin（简中）；武器/赋能/科研修正词批次为 2026-09-25 热修后的语言包",
     "toolchain": "Warframe-Exporter-CLI 按 internal-path 从本机游戏缓存导出 Languages.bin_H → unpack_lang 对译自 warframe-cache-tools::languages_unpack（zstd 走 libzstd.dll）→ 官方简中字典 → 按本文件结构摘录。",
     "regenerate": "游戏本体打新补丁后：重跑导出/解析得到新 zh 字典，按本文件结构更新对应 uniqueName 条目即可；键均为游戏内部 uniqueName，与 WFCD/PEP 同源。",
-    "updated": "2026-09-24"
+    "updated": "2026-10-01"
   },
   "warframes": {
     "/Lotus/Powersuits/Duelist/Duelist": {
       "name": "Narin",
       "description": "Narin 如旋涡般降临，她的利刃锋利无比，如同凛冽的寒风。她能巧妙地运用冰霜防御，如同她迅捷的细剑攻击一般。",
-      "passive": "敌人身上每叠加一层 <DT_FREEZE_COLOR>冰冻异常状态，生成霜花拾取物的几率就会提高 |CHANCE|%，并使主武器和副武器获得 <DT_FREEZE_COLOR>冰冻伤害，持续 |DURATION| 秒。Narin 的技能也会获得冰冻伤害加成。",
+      "passive": "敌人身上每叠加一层 <DT_FREEZE_COLOR>冰冻异常状态，生成霜花拾取物的几率就会提高 |CHANCE|%，并使主武器和副武器获得额外 <DT_FREEZE_COLOR>冰冻伤害，持续 |DURATION| 秒。Narin 的技能也会获得冰冻伤害加成。",
       "passive_buff": "Narin 的鹤灵会为主要和次要武器提供强化效果，获得 50% 额外 <DT_FREEZE_COLOR>冰冻伤害和异常状态。Narin 的技能还会附加冰冻伤害。",
       "acquire": "主要蓝图和部件蓝图：击败扎里曼任务中的卓越者敌人获得熵之赤毒，在羽化之穹或青春峰顶的中枢梅丽卡（教室物资）处兑换（需先完成《扎里曼的天使》系列任务）。",
       "abilities": {
@@ -36,6 +36,1222 @@
         "/Lotus/Types/Recipes/WarframeRecipes/NarinChassisComponent": "Narin 机体",
         "/Lotus/Types/Recipes/WarframeRecipes/NarinHelmetComponent": "Narin 头部神经光元",
         "/Lotus/Types/Recipes/WarframeRecipes/NarinSystemsComponent": "Narin 系统"
+      }
+    }
+  },
+  "weapons": {
+    "/Lotus/Weapons/Tenno/Bows/DuelistBow/DuelistBow": {
+      "name": "霜冥差",
+      "description": "（英文：NUNCHASA）Narin 的标志性弓箭是北风的冰霜使者。次要开火模式会释放一支充能暴雪箭，冻结接触到的敌人并留下一道寒冰的痕迹。",
+      "components": {
+        "/Lotus/Types/Recipes/Weapons/DuelistBowBlueprint": "霜冥差 蓝图",
+        "/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistBowGrip": "霜冥差 握把",
+        "/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistBowLowerLimb": "霜冥差 下弓臂",
+        "/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistBowString": "霜冥差 弓弦",
+        "/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistBowUpperLimb": "霜冥差 上弓臂"
+      }
+    },
+    "/Lotus/Weapons/Tenno/Pistols/DuelistPistols/DuelistPistols": {
+      "name": "寒怨刺",
+      "description": "（英文：AKSONDOL）Narin 的标志性手枪威力十足，如同凛冬的寒风。每次装填都会释放出一道寒冷的脉冲，使敌人陷入冰冻异常状态，脉冲的范围会随着装填次数的增加而扩大。",
+      "components": {
+        "/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistPistolsBarrel": "寒怨刺 枪管",
+        "/Lotus/Types/Recipes/Weapons/DuelistPistolsBlueprint": "寒怨刺 蓝图",
+        "/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistPistolsLink": "寒怨刺 连接器",
+        "/Lotus/Types/Recipes/Weapons/WeaponParts/DuelistPistolsReceiver": "寒怨刺 枪机"
+      }
+    }
+  },
+  "arcanes": {
+    "/Lotus/Upgrades/CosmeticEnhancers/Antiques/HeatStatusProcOnUltimateKill": {
+      "name": "齐乌",
+      "effect": "|CONDITION|：任务期间次要武器的 <DT_FIRE_COLOR>火焰伤害增加 |BONUS|%，最高可达 |MAX|%"
+    },
+    "/Lotus/Upgrades/CosmeticEnhancers/Antiques/AmmoEfficencyDuringUltimate": {
+      "name": "齐哈",
+      "effect": "进行 Tauron 打击后，战甲的弹药效率增加 |VALUE|%，持续 |DURATION| 秒"
+    },
+    "/Lotus/Upgrades/CosmeticEnhancers/Antiques/UltimateInvisibilty": {
+      "name": "齐塞",
+      "effect": "激活 Tauron 打击后获得隐身效果，持续 |DURATION| 秒"
+    },
+    "/Lotus/Upgrades/CosmeticEnhancers/Antiques/VoidSlingsOverguardStrip": {
+      "name": "齐奥",
+      "effect": "虚空弹射剥离敌人的 |BONUS|% 超宏防护。  \r\n超宏防护被剥离时：增幅器暴击伤害增加 |BONUS2|x，持续 |DURATION| 秒。"
+    },
+    "/Lotus/Upgrades/CosmeticEnhancers/Antiques/StatusChanceOnUltimateHit": {
+      "name": "齐阿",
+      "effect": "每次使用 Tauron 打击击中敌人时，所有战甲武器的触发几率增加 |BONUS|%，最高可达 |MAX|%。增益效果持续 |DURATION| 秒"
+    }
+  },
+  "conquest": {
+    "_note": "1999 科研任务修正词（摘自 2026-09-25 热修版语言包；数据包快照未包含 Conquest 组）。",
+    "condition": {
+      "激进冒险": "敌人造成的伤害 -15%，受到的伤害 +15% ，但移动速度、攻击速度和射速 +15%。",
+      "指挥型重型炮兵": "暴戾重型炮兵装备的武器对超宏防护和殁世机甲造成 5 倍的伤害。",
+      "自动街机": "敌人的枪械发射巨大且缓慢移动的球体，而不是他们平常的弹药。",
+      "炮击信标": "炽蛇军敌人被击杀时会掉落炮击信标召唤轰炸。",
+      "气球嘉年华": "炽蛇军前哨气球数量更多，攻击和移动速度更快。",
+      "竞争优势": "在整个任务过程中，阿米尔和碧的\"对战\"模式将产生随机负面惩罚。",
+      "坚不可摧": "可能会出现守护者卓越者敌人，包括守护者卓越者殁世机甲。",
+      "恶魔契约": "敌人被击杀时 4 米范围内的友军会牺牲 50% 的弹药效率以换取 +25% 的射速。",
+      "浓雾": "艾弗旺气体覆盖整个关卡。敌人可能会掉落提供短暂缓解的过滤器。",
+      "等比增防": "敌人的生命值和护盾增加 100%，每拥有一个小队成员额外增加 50%，最多 300%。卓越者单位的部署更加频繁。",
+      "元素效力": "敌人造成 +100% 元素伤害，并对元素伤害有 +85% 抗性。",
+      "易爆潜能": "爆裂断肢取代蹒跚断肢。",
+      "过量炸药": "所有补给箱都被炸药桶替换。",
+      "炽蛇军竞速": "所有敌人被炽蛇军取代，并且移动的更快。",
+      "科腐者竞速": "所有敌人被科腐者取代，并且移动的更快。",
+      "浓雾之秋": "迷雾限制了整个任务区的视野。",
+      "重装作战": "敌人受到重型武器和热熔火箭炮的伤害增加 1.25 倍，其他来源的伤害降低 95%。敌人会掉落重型弹药包，重型武器的召回时间缩短至 5 秒。",
+      "它是活的": "在地下，如果玩家停止移动，敌方增生物就会发起攻击。",
+      "腐朽之躯": "科腐者敌人被注入艾弗旺并随时间推移受到伤害。他们被击杀后会爆炸并留下致命的艾弗旺。",
+      "翠玉之灵": "翠玉之灵徘徊在该区域。如果玩家靠近，它们就会追逐玩家并转变为翠玉光束。",
+      "迷人弧犬": "当暴戾弧犬发起攻击时，它们会将战甲拉向自己。",
+      "短兵相接": "只出现近战攻击的敌人。",
+      "自爆虫群": "在任务过程中，科腐者自爆虫会从阴影中蜂拥而出。",
+      "墙壁之外": "低语者敌人加入炽蛇军和科腐者阵营。",
+      "短视弹药": "玩家距离敌人 15 米以内时，敌人才会受到伤害。",
+      "牵连": "被击杀敌人 4 米范围内的友军， 移动速度和跑酷速度会降低。",
+      "远程交战": "只出现远程攻击的敌人。",
+      "敌军复生": "敌人的生命值会缓慢恢复。",
+      "延迟供应": "消耗品有 30 秒冷却时间。魅影，待命舰员以及曲翼枪械除外。",
+      "终局": "禁用自我复活。濒死的玩家只能通过击杀嘲讽低语来复活。死亡的玩家无法继续进行连续任务。",
+      "适应异变": "敌人受到元素伤害时产生相应的抗性。如果在 5 秒内没有受到该元素伤害，则抗性会消失。",
+      "强化好战": "所有敌人获得相当于他们最大生命值 50% 的超宏防护。",
+      "卓越支援": "部署额外的卓越者敌人。",
+      "吸血界影": "行动缓慢且不死的双衍王境界影，能从过于接近的友军身上吸取生命和能量。",
+      "死后冲击": "被击杀的敌人会爆发出虚空能量。",
+      "厚冰": "极寒卓越者护罩的耐久度是正常值的 30 倍。"
+    },
+    "hex_variant": {
+      "噪音抑制": "无人机在弗莱尔上方飞行，向他喷射艾弗旺气体。",
+      "屏住呼吸": "整个区域会随着玩家停留时间的延长而造成 <DT_POISON_COLOR>毒素伤害，地狱净化器附近区域除外。有些敌人可能会掉落过滤器，可用于创造额外稳定的临时安全区。",
+      "吸血摇滚": "弗莱尔会创造一个力场，干扰玩家的技能，同时消耗能量以增强弗莱尔的生命值。当没有玩家在范围内时，弗莱尔会缓慢失去生命值。",
+      "有丝分裂": "每轮产生两个传承种，需要两倍的捕获次数才能成功。",
+      "破坏补给": "任务开始时，触发打开补给箱的负面效果，一旦打开就会加剧。未能打开补给箱会导致完成任务所需的击杀数翻倍。",
+      "自爆虫浆": "敌人死亡时掉落的自爆虫会立即冲向弗莱尔。",
+      "密闭装甲": "非弱点命中对敌人造成的伤害降低 90%。",
+      "孢子增殖": "地狱净化器附近会出现科腐者肿瘤，每个活跃的肿瘤都会增加维生系统衰减的速度。",
+      "生长激素": "每一代传承种都更加强大，但同时也需要更长的时间来逃脱。",
+      "破坏之音": "弗莱尔在自身周围发出一个干扰力场，干扰技能并消耗能量。如果范围内没有玩家，弗莱尔将流失生命值。他会根据范围内的玩家数量获得生命值。",
+      "平行进化": "随着传承种进化，其他在场敌人也将获得新技能。",
+      "支援": "战斗过程中会有敌方援军抵达，首先是炽蛇军，然后是科腐者。",
+      "热熔装甲板": "只有热熔火箭弹才能对坦克造成伤害。携带热熔火箭炮的增援部队将在战斗中持续出现。",
+      "剧毒坦克": "坦克拥有 <DT_POISON_COLOR>毒素光环，留下 <DT_POISON_COLOR>毒素尾迹，并且所有的攻击会造成 <DT_POISON_COLOR>毒素伤害。",
+      "科腐围攻": "科腐者敌人会尝试近战攻击地狱净化器，接触后将其引爆，并使净化器污染增加 33%。"
+    },
+    "lab_variant": {
+      "炼金难侵": "有 10% 敌人装备了不可穿透的元素屏障，只有对应元素的元素瓶才能摧毁屏障。",
+      "双重爆破": "两台爆破型殁世机甲会攻击任意导管，但它们的生命值降低。",
+      "双重接肢": "在最终战斗中对战两个接肢怪。",
+      "伤害链接": "相距 10 米内的敌人形成一个伤害链接群体。任何对单个成员造成的伤害都会平均分摊到整个群体。",
+      "危险区域": "激活维生装置塔以为你的小队清除危险区域。",
+      "卓越者元素瓶": "卓越者敌人必定掉落元素瓶，但只有他们会掉落元素瓶。",
+      "密闭装甲": "非弱点命中对敌人造成的伤害降低 90%。",
+      "统一目标": "敌人可以瞄准并摧毁导管。",
+      "裂缝激增": "裂缝在任务中形成，使得敌人的等级每 10 秒提升 1 级。消灭它们以防止等级增加。",
+      "带刺钥符": "每个浮印在被收集时都会造成少量伤害。",
+      "侵蚀感官": "魔耳和魔瞳随着时间逐渐受损，收集所需的荧音浮印可暂停损伤并对它们进行部分修复。",
+      "辐化御敌": "所有敌人都是无敌的，只有在受到辐射异常状态影响时才会受到伤害。辐射柱体随机出现并造成 <DT_RADIATION>辐射异常状态。 ",
+      "无情肢潮": "断肢潮不会停止攻击。",
+      "浮印膨胀": "安全系统需要两倍的荧音浮印才能激活。",
+      "浮印陷阱": "某些荧音浮印附有传送门陷阱，接触它时会被传送到 250 米以外的地方。传送门显性后持续 45 秒。",
+      "殁世机甲激增": "殁世机甲出现的频率更高。",
+      "敌意支援": "禁用维生装置塔运送系统。每 90 秒生成殁世机甲，击杀时掉落 6 个维生模块。",
+      "协调阵线": "卓越者敌人出现并支援断肢潮和最终的接肢怪。",
+      "天使同行": "虚空天使与最终的接肢怪并肩作战。",
+      "暴食贪囤": "所有贪囤断肢都是卓越者。",
+      "寄生装置塔": "维生装置塔只有在其 15 米范围内杀死 20 名敌人后才会激活。 ",
+      "高危物资": "携带元素瓶时会受到与之对应的元素伤害。"
+    },
+    "personal": {
+      "技能禁用": "小队击杀 50 名敌人前，所有技能均被禁止使用。",
+      "乏能护盾": "最大护盾和过载护盾不会超过 500。",
+      "超宏衰减": "战甲和友军超宏防护获取量减少 75%",
+      "低收益": "具有范围攻击的武器爆炸半径固定为 |val| 米。",
+      "破损护甲": "施放技能会使护甲降低 10%，持续 10 秒。",
+      "贪婪导引": "导引技能激活期间，最大护盾和过载护盾每秒都会降低。完全恢复需要 10 秒的冷却时间。",
+      "钝重兵刃": "近战连击数几率减少 50%",
+      "导电侵袭": "每隔几秒就会受到 <DT_ELECTRICITY>电击伤害。",
+      "二次伤害": "每次受到伤害时，获得 1 层 <DT_PUNCTURE>穿刺异常状态。",
+      "致命速率": "静止不动时无法造成伤害。",
+      "永久损伤": "受到生命值伤害时还会扣减最大生命上限",
+      "能量缩减": "最大能量值减少 75%",
+      "能量枯竭": "周围 10 米范围内的所有敌人使你每秒丢失 2 能量。",
+      "显露之诅": "护盾被移除。",
+      "咒甲减益": "激活一项技能时，会对你生命值造成 50 伤害，对护盾造成 150 伤害。",
+      "携带装备限制": "除曲翼枪械、原子摩托车和殁世机甲外，所有装备均受限制",
+      "感染伤口": "每次受到伤害时，获得一层 <DT_POISON_COLOR>毒素异常状态。",
+      "如履刀尖": "移动时损失 2 点生命值。跳跃会暂停效果。",
+      "补给短缺": "所有武器的弹药最大值减少 75%",
+      "宠物禁入": "禁用同伴",
+      "传识失真": "无法传识到指挥官或漂泊者。",
+      "过敏受体": "负面异常状态的持续时间增加到三倍",
+      "咫尺之限": "技能范围减少 |val|%。",
+      "血色减益": "每当你受到伤害时，还会陷入 <DT_SLASH>切割异常状态。",
+      "弹药枯竭": "弹药逐渐耗尽。电池武器充能缓慢。",
+      "嗜睡护盾": "护盾充能延迟增加 |val|%。",
+      "弹药亏空": "通过掉落和道具恢复的弹药减少 75%。",
+      "缩短技能": "技能持续时间减少 |val|%。",
+      "吸血减益": "每秒流失生命值。击杀敌人可恢复生命值。",
+      "震荡耗能": "每当生命值受到伤害，也会消耗最大能量的 5%。",
+      "技能超载": "使用技能将在附近打开一道虚空裂隙",
+      "无法治愈": "拾取无法提供治疗，并且无法拾取生命球。"
+    },
+    "buff": [
+      "+50% 技能效率，+100 最大能量",
+      "+1000 护甲",
+      "+200% 持续时间",
+      "+1000 生命值",
+      "+100% 范围",
+      "+50% 冲刺速度， +50% 跑酷速度",
+      "+200% 强度",
+      "+150% 暴击几率加成，+150% 暴击倍率",
+      "+300% 伤害",
+      "+100% 射速，+50% 弹药效率",
+      "+100% 近战重击伤害，+50% 近战重击效率",
+      "+40 近战初始连击",
+      "+300% 触发几率",
+      "+300% 弱点倍率"
+    ]
+  },
+  "avionics": {
+    "/Lotus/Upgrades/Mods/Railjack/Abilities/CrewShipAttackAbilityCard": {
+      "name": "追踪齐射",
+      "effect": "发射  |COUNT| 枚制导导弹。\r\n能量消耗：|FLUXCOST|"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Abilities/CrewShipAttractorAbilityCard": {
+      "name": "弹药漩涡",
+      "effect": "吸收的伤害在漩涡时间结束后自动放出。漩涡也可以被手动引爆。"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Abilities/CrewShipBlackHoleAbilityCard": {
+      "name": "虚空虹洞",
+      "effect": "创造一个 |RANGE| 米范围的黑洞来将敌人吸入其中，在 |DURATION| 秒内造成每秒 |DPS| 的持续性伤害。\r\n能量消耗：|FLUXCOST|"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Abilities/CrewShipEMPAbilityCard": {
+      "name": "熄扰脉冲",
+      "effect": "手动引爆来增加爆炸范围。在首次爆炸后，根据击中目标的数量来造成额外的脉冲。"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Abilities/CrewShipFlaresAbilityCard": {
+      "name": "反制系统",
+      "effect": "4 秒内每再使用一次该技能都会让能量消耗翻倍，最高可达到 8x。"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Abilities/CrewShipPhoenixAbilityCard": {
+      "name": "凤凰烈焰",
+      "effect": "留下一道炽热的航迹，来对任何被其触及的事物造成伤害；同时可获得速度提升，并减少所受的来袭伤害。航道星舰炮台可获得额外的<DT_FIRE>火焰伤害。伤害随时间累积，并在停用时释放。"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Abilities/CrewShipRamAbilityCard": {
+      "name": "粒子冲撞",
+      "effect": "矢量机动期间可造成额外伤害。停用技能后可向前发射撞击装置。"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Abilities/CrewShipTetherAbilityCard": {
+      "name": "束缚力场",
+      "effect": "受束缚的敌人会在死亡时爆炸。"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Abilities/CrewShipThumperAbilityCard": {
+      "name": "碎裂爆破",
+      "effect": "在 |DURATION| 秒内每秒产生 |FREQUENCY| 次连续爆炸，在 |AOE_RANGE| 米造成 |AOE_DAMAGE| 伤害。\r\n能量消耗：|FLUXCOST|"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Engineering/BaseChemReductionAura": {
+      "name": "未融合过的神器",
+      "effect": "一个未经使用，未融合过的神器。"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Engineering/BaseFrostReductionAura": {
+      "name": "未融合过的神器",
+      "effect": "一个未经使用，未融合过的神器。"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Engineering/BaseHealthBoost": {
+      "name": "未融合过的神器",
+      "effect": "一个未经使用，未融合过的神器。"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Engineering/BaseIncendiaryReductionAura": {
+      "name": "未融合过的神器",
+      "effect": "一个未经使用，未融合过的神器。"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Engineering/BaseIonicReductionAura": {
+      "name": "未融合过的神器",
+      "effect": "一个未经使用，未融合过的神器。"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Engineering/BaseMaxArmor": {
+      "name": "未融合过的神器",
+      "effect": "一个未经使用，未融合过的神器。"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Engineering/BaseMaxShield": {
+      "name": "未融合过的神器",
+      "effect": "一个未经使用，未融合过的神器。"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Engineering/BaseShieldRecharge": {
+      "name": "未融合过的神器",
+      "effect": "一个未经使用，未融合过的神器。"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Engineering/BaseShieldRedirectionMod": {
+      "name": "未融合过的神器",
+      "effect": "一个未经使用，未融合过的神器。"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Engineering/LavanEngineerMatrix": {
+      "name": "能量调谐矩阵",
+      "effect": ""
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Engineering/LavanMaxShieldOnKill": {
+      "name": "防御火力",
+      "effect": "每击落一个敌方单位，最大护盾增加 |VAL|%，持续 |DURATION| 秒（最多叠加 |STACKS| 次）"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Engineering/LavanShieldOnCrit": {
+      "name": "固盾火力",
+      "effect": "暴击命中时：\r\n恢复 |VAL|% 的护盾"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Engineering/VidarDefensiveMatrix": {
+      "name": "铁甲矩阵",
+      "effect": ""
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Gunnery/BaseCorpusFactionDamage": {
+      "name": "未融合过的神器",
+      "effect": "一个未经使用，未融合过的神器。"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Gunnery/BaseDesperateMeasures": {
+      "name": "未融合过的神器",
+      "effect": "一个未经使用，未融合过的神器。"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Gunnery/BaseGrineerFactionDamage": {
+      "name": "未融合过的神器",
+      "effect": "一个未经使用，未融合过的神器。"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Gunnery/BaseGunnerWeaponCritChance": {
+      "name": "未融合过的神器",
+      "effect": "一个未经使用，未融合过的神器。"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Gunnery/BaseGunnerWeaponCritDamage": {
+      "name": "未融合过的神器",
+      "effect": "一个未经使用，未融合过的神器。"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Gunnery/BaseGunnerWeaponDamage": {
+      "name": "未融合过的神器",
+      "effect": "一个未经使用，未融合过的神器。"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Gunnery/BaseGunnerWeaponHeat": {
+      "name": "未融合过的神器",
+      "effect": "一个未经使用，未融合过的神器。"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Gunnery/BaseMaxOrdnanceMunitions": {
+      "name": "未融合过的神器",
+      "effect": "一个未经使用，未融合过的神器。"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Gunnery/BaseOrdnanceDamage": {
+      "name": "未融合过的神器",
+      "effect": "一个未经使用，未融合过的神器。"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Gunnery/BaseProtectiveShots": {
+      "name": "未融合过的神器",
+      "effect": "一个未经使用，未融合过的神器。"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Gunnery/BaseReduceArmorWeaponDamage": {
+      "name": "未融合过的神器",
+      "effect": "一个未经使用，未融合过的神器。"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Gunnery/BaseReducedOrdnanceReload": {
+      "name": "未融合过的神器",
+      "effect": "一个未经使用，未融合过的神器。"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Gunnery/BaseSuperWeaponDamage": {
+      "name": "未融合过的神器",
+      "effect": "一个未经使用，未融合过的神器。"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Gunnery/BaseWeaponFluxBoost": {
+      "name": "未融合过的神器",
+      "effect": "一个未经使用，未融合过的神器。"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Gunnery/LavanBypassShieldOrdnance": {
+      "name": "苦痛弹头",
+      "effect": "火炮有 |val|% 的几率无视敌方护盾"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Gunnery/LavanCritBypassShieldTurret": {
+      "name": "波段干扰",
+      "effect": "炮台暴击命中时有 |val|% 的几率无视敌方护盾"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Gunnery/LavanDamageOnKill": {
+      "name": "猩红逐击",
+      "effect": "每击落一个敌方单位，炮台伤害增加 |VAL|%，持续 |DURATION| 秒（最多叠加 |STACKS| 次）"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Gunnery/LavanFastOrdnanceLock": {
+      "name": "快速锁定",
+      "effect": ""
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Gunnery/LavanFreeOrdnanceAmmo": {
+      "name": "高效火炮",
+      "effect": ""
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Gunnery/LavanMaxOrdnanceMunitions": {
+      "name": "超量载弹",
+      "effect": ""
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Gunnery/LavanOrdnanceDamage": {
+      "name": "湮灭弹头",
+      "effect": ""
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Gunnery/LavanOrdnanceSpeed": {
+      "name": "火炮速度",
+      "effect": ""
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Gunnery/LavanProtectiveShots": {
+      "name": "防护射击",
+      "effect": "当护盾高于 |SHIELD|% 时，炮台伤害 +|DMG|%"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Gunnery/LavanReducedOrdnanceReload": {
+      "name": "撕裂装填",
+      "effect": ""
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Gunnery/VidarCorpusKiller": {
+      "name": "格拉努之劲敌",
+      "effect": ""
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Gunnery/VidarGrineerKiller": {
+      "name": "蠕虫熬煎",
+      "effect": ""
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Gunnery/VidarGunnerWeaponCritChance": {
+      "name": "捕食者",
+      "effect": ""
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Gunnery/VidarGunnerWeaponCritDamage": {
+      "name": "截面密度",
+      "effect": ""
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Gunnery/VidarGunnerWeaponDamage": {
+      "name": "超量打击",
+      "effect": ""
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Gunnery/VidarOffensiveMatrix": {
+      "name": "强攻矩阵",
+      "effect": ""
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Gunnery/VidarSentientKiller": {
+      "name": "Sentient 解剖刀",
+      "effect": ""
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Gunnery/VidarTurretRangeAndSpeed": {
+      "name": "炮台速度",
+      "effect": ""
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Gunnery/ZektiFreeSuperWeaponAmmo": {
+      "name": "高效光能炮",
+      "effect": ""
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Gunnery/ZektiSuperWeaponDamage": {
+      "name": "前装光能炮",
+      "effect": ""
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Piloting/BaseArchwingArmorAura": {
+      "name": "未融合过的神器",
+      "effect": "一个未经使用，未融合过的神器。"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Piloting/BaseArchwingDamageAura": {
+      "name": "未融合过的神器",
+      "effect": "一个未经使用，未融合过的神器。"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Piloting/BaseArchwingShieldAura": {
+      "name": "未融合过的神器",
+      "effect": "一个未经使用，未融合过的神器。"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Piloting/BaseArchwingSpeedAura": {
+      "name": "未融合过的神器",
+      "effect": "一个未经使用，未融合过的神器。"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Piloting/BaseBoostSpeed": {
+      "name": "未融合过的神器",
+      "effect": "一个未经使用，未融合过的神器。"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Piloting/BaseCrewshipSpeedDamageAura": {
+      "name": "未融合过的神器",
+      "effect": "一个未经使用，未融合过的神器。"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Piloting/BaseDodge": {
+      "name": "未融合过的神器",
+      "effect": "一个未经使用，未融合过的神器。"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Piloting/BaseEmpPowerCap": {
+      "name": "未融合过的神器",
+      "effect": "一个未经使用，未融合过的神器。"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Piloting/BaseShieldBoost": {
+      "name": "未融合过的神器",
+      "effect": "一个未经使用，未融合过的神器。"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Piloting/BaseSpeed": {
+      "name": "未融合过的神器",
+      "effect": "一个未经使用，未融合过的神器。"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Piloting/LavanHijackMatrixAura": {
+      "name": "劫袭矩阵",
+      "effect": ""
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Piloting/LavanMultiToolPower": {
+      "name": "节流降耗",
+      "effect": ""
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Piloting/ZektiBoostSpeed": {
+      "name": "离子燃烧",
+      "effect": ""
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Piloting/ZektiNonCombatSpeed": {
+      "name": "巡航速度",
+      "effect": ""
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Piloting/ZektiSiegeMatrixAura": {
+      "name": "不屈矩阵",
+      "effect": ""
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Piloting/ZektiSpeed": {
+      "name": "锥型推进器",
+      "effect": ""
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Tactical/BreachRepair": {
+      "name": "封隙量子",
+      "effect": ""
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Tactical/CrewShipAfterBurnersAbilityCard": {
+      "name": "热流涌动",
+      "effect": "+|SPEEDBUFF|% 速度和助推速度，持续 |DURATION| 秒\r\n冷却时间：|COOLDOWN| 秒"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Tactical/CrewShipBattleCraftingAbilityCard": {
+      "name": "战斗锻造",
+      "effect": "减少 |DURATION| 秒锻造冷却时间\r\n冷却时间：|COOLDOWN| 秒"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Tactical/CrewShipDeathBlossomAbilityCard": {
+      "name": "死亡绽放",
+      "effect": "取消炮台冷却，效果持续 |DURATION| 秒\r\n冷却时间：|COOLDOWN| 秒"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Tactical/CrewShipMassRecallAbilityCard": {
+      "name": "列阵归队",
+      "effect": "召回所有舰员到航道星舰，并为他们恢复 |HEAL|% 生命\r\n冷却时间：|COOLDOWN| 秒"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Tactical/CrewShipQuadDamageAbilityCard": {
+      "name": "战位",
+      "effect": "炮台伤害提高 |DAMAGEBUFF|%，持续 |DURATION| 秒\r\n冷却时间：|COOLDOWN| 秒"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Tactical/CrewShipRenewAbilityCard": {
+      "name": "小队治愈",
+      "effect": "所有航道星舰上成员生命恢复 |VAL|%.\r\n冷却时间：|COOLDOWN| 秒"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Tactical/CrewShipStasisAbilityCard": {
+      "name": "侵入停滞",
+      "effect": "冻结所有敌方登舰部队，持续 |DURATION| 秒\r\n冷却时间：|COOLDOWN| 秒"
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Tactical/FireExtinguish": {
+      "name": "火势抑制",
+      "effect": ""
+    },
+    "/Lotus/Upgrades/Mods/Railjack/Tactical/VoidCloak": {
+      "name": "虚空隐匿",
+      "effect": ""
+    }
+  },
+  "boss_manual": {
+    "_note": "PEP 与 items 均未收录的两只金星大蜘蛛；名与描述摘自官方语言包 SolarisVenus 组（2026-09-25 热修版）。",
+    "ProfitTakerOrb": {
+      "name": "利润收割者圆蛛",
+      "desc": "",
+      "faction": "CORPUS",
+      "note": "福尔图娜「利润收割者」系列抢劫任务（Heist）的最终目标，奥布斯山谷"
+    },
+    "ExploiterOrb": {
+      "name": "剥削者圆蛛",
+      "desc": "剥削者从地貌中收割能量，并使用冰雪风暴来保护润盈殿免受入侵者的破坏。",
+      "faction": "CORPUS",
+      "note": "福尔图娜「剥削者－12 号甲板」任务目标，奥布斯山谷"
+    }
+  },
+  "incarnon_perks": {
+    "_note": "灵化武器进化（Evolution）各级可选 perk 的官方简中名，摘自 2026-09-25 热修版语言包 Mods/Incarnon<X>Tier<n><A-C> 键；效果数值四个数据包均未收录，只列名称不编数值。",
+    "perks": {
+      "VoidHeavyScythe": {
+        "t1": [
+          "恐怖之域",
+          "狂野漂移"
+        ],
+        "t2": [
+          "敏捷镰刀",
+          "怒火回响"
+        ],
+        "t4": [
+          "爆裂进化",
+          "连锁破碎",
+          "虚空碎片"
+        ],
+        "t3": [
+          "致命仁慈"
+        ]
+      },
+      "Destreza": {
+        "t3": [
+          "果断之姿",
+          "致命强攻"
+        ],
+        "t1": [
+          "加权动量",
+          "穿刺之姿"
+        ]
+      },
+      "BratonEvo": {
+        "t1": [
+          "勇敢梦想",
+          "实弹胆魄"
+        ],
+        "t2": [
+          "佣兵枪膛",
+          "虚空指引",
+          "硝烟拾起"
+        ],
+        "t3": [
+          "临界平行",
+          "力量前奏",
+          "生还占优"
+        ]
+      },
+      "LatoEvo": {
+        "t1": [
+          "安逸冒险",
+          "具象克星"
+        ],
+        "t2": [
+          "虚空指引",
+          "善射之获",
+          "精确忏悔"
+        ],
+        "t3": [
+          "生还占优",
+          "死陷触发",
+          "屠杀统治"
+        ]
+      },
+      "SkanaEvo": {
+        "t1": [
+          "守护者的诺言",
+          "战斗神经"
+        ],
+        "t2": [
+          "奥罗金致远",
+          "坚决突进",
+          "迅疾突围"
+        ],
+        "t3": [
+          "生还占优",
+          "元素超量",
+          "绝对勇气"
+        ]
+      },
+      "Paris": {
+        "t1": [
+          "致命步伐",
+          "守护者之力"
+        ],
+        "t2": [
+          "炽热先机",
+          "善射之焦",
+          "迅速判决"
+        ],
+        "t3": [
+          "恶毒之诺",
+          "元素平衡",
+          "连续猛攻"
+        ]
+      },
+      "Kunai": {
+        "t1": [
+          "迅速结果",
+          "贤者的决心"
+        ],
+        "t2": [
+          "迅速判决",
+          "扩充齐发",
+          "急速强化"
+        ],
+        "t3": [
+          "死陷触发",
+          "加速齐发",
+          "生还占优"
+        ]
+      },
+      "Bo": {
+        "t1": [
+          "坚毅之橡",
+          "剑士翩跹"
+        ],
+        "t2": [
+          "奥罗金致远",
+          "过肩",
+          "剑士疾行"
+        ],
+        "t3": [
+          "顷刻淋血",
+          "微妙之力",
+          "绝对主宰"
+        ]
+      },
+      "Latron": {
+        "t1": [
+          "百孔千疮",
+          "迅捷惩罚"
+        ],
+        "t2": [
+          "善射之手",
+          "扩充齐发",
+          "善射之焦"
+        ],
+        "t3": [
+          "剥肤利钉",
+          "死亡头颅",
+          "临界平行"
+        ]
+      },
+      "Furis": {
+        "t1": [
+          "安逸冒险",
+          "风雷骤起"
+        ],
+        "t2": [
+          "熟练之握",
+          "扩充齐发",
+          "行刑者财富"
+        ],
+        "t3": [
+          "碎颅破脑",
+          "力量前奏",
+          "元素平衡"
+        ]
+      },
+      "Furax": {
+        "t1": [
+          "剑士翩跹",
+          "杀戮快意"
+        ],
+        "t2": [
+          "皎月速升",
+          "过肩",
+          "僵持"
+        ],
+        "t3": [
+          "顷刻淋血",
+          "动能杀手",
+          "绝对主宰"
+        ]
+      },
+      "Strun": {
+        "t1": [
+          "Tenno 之瞄",
+          "炽热枪管"
+        ],
+        "t2": [
+          "急速强化",
+          "电流重载",
+          "迅速判决"
+        ],
+        "t3": [
+          "元素平衡",
+          "准将沐福",
+          "残暴锋缘"
+        ]
+      },
+      "Lex": {
+        "t1": [
+          "重兵圣德",
+          "可信赖的副武"
+        ],
+        "t2": [
+          "以牙还牙",
+          "扩充齐发",
+          "待命报复"
+        ],
+        "t3": [
+          "行刑者黎明",
+          "元素平衡",
+          "临界平行"
+        ]
+      },
+      "Magistar": {
+        "t1": [
+          "碾压式判决",
+          "正义之刃"
+        ],
+        "t2": [
+          "震撼抨击",
+          "奥罗金致远",
+          "迅疾突围"
+        ],
+        "t3": [
+          "顷刻淋血",
+          "微妙之力",
+          "临界平行"
+        ]
+      },
+      "Boltor": {
+        "t1": [
+          "猎者密咒",
+          "猩红序曲"
+        ],
+        "t2": [
+          "迅速判决",
+          "扩充齐发",
+          "急速强化"
+        ],
+        "t3": [
+          "元素平衡",
+          "生还占优",
+          "准将沐福"
+        ]
+      },
+      "Bronco": {
+        "t1": [
+          "超速子弹",
+          "注能射击"
+        ],
+        "t2": [
+          "动能战斗",
+          "熟练之握",
+          "扩充齐发"
+        ],
+        "t3": [
+          "人人有份",
+          "准将沐福",
+          "铅雨纷飞"
+        ]
+      },
+      "CeramicDagger": {
+        "t1": [
+          "枪与刃",
+          "突破者之机遇"
+        ],
+        "t2": [
+          "奥罗金致远",
+          "熟练反射",
+          "侠盗战备"
+        ],
+        "t3": [
+          "神圣复仇",
+          "绝对主宰",
+          "绝对勇气"
+        ]
+      },
+      "Torid": {
+        "t1": [
+          "终结齐发",
+          "丰饶混乱"
+        ],
+        "t2": [
+          "迅速判决",
+          "再续恐惧",
+          "扩充齐发"
+        ],
+        "t3": [
+          "准将沐福",
+          "生还占优",
+          "元素平衡"
+        ]
+      },
+      "DualToxocyst": {
+        "t1": [
+          "屠杀统治",
+          "狂热乱暴"
+        ],
+        "t2": [
+          "待命报复",
+          "进化自填器",
+          "善射之手"
+        ],
+        "t3": [
+          "准将沐福",
+          "神经毒素",
+          "撕裂弹头"
+        ]
+      },
+      "DualIchor": {
+        "t1": [
+          "炼金术士之怒",
+          "浪人突刺"
+        ],
+        "t2": [
+          "奥罗金致远",
+          "坚决突进",
+          "迅疾突围"
+        ],
+        "t3": [
+          "绝对勇气",
+          "毒性寄生虫",
+          "寰宇备战"
+        ]
+      },
+      "Miter": {
+        "t1": [
+          "迅捷锯片",
+          "丰饶混乱"
+        ],
+        "t2": [
+          "迅速判决",
+          "待命报复",
+          "佣兵枪膛"
+        ],
+        "t3": [
+          "锯刃风暴",
+          "准将沐福",
+          "临界平行"
+        ]
+      },
+      "Atomos": {
+        "t1": [
+          "骑士圣德",
+          "重兵圣德"
+        ],
+        "t2": [
+          "皎月速升",
+          "佣兵枪膛",
+          "共鸣恢复"
+        ],
+        "t3": [
+          "元素平衡",
+          "准将沐福",
+          "生还占优"
+        ]
+      },
+      "AckAndBrunt": {
+        "t1": [
+          "圣殿骑士之怒",
+          "盾女奇袭"
+        ],
+        "t2": [
+          "奥罗金致远",
+          "定式收势",
+          "迅疾突围"
+        ],
+        "t3": [
+          "侠盗战备",
+          "绝对勇气",
+          "多用途信条"
+        ]
+      },
+      "Soma": {
+        "t1": [
+          "要塞齐射",
+          "固盾血光"
+        ],
+        "t2": [
+          "动能战斗",
+          "熟练之握",
+          "急速强化"
+        ],
+        "t3": [
+          "新生浩劫",
+          "致命苦痛",
+          "归零"
+        ]
+      },
+      "Vasto": {
+        "t1": [
+          "孤枪",
+          "死陷触发"
+        ],
+        "t2": [
+          "扩充齐发",
+          "善射之手",
+          "觉醒备战"
+        ],
+        "t3": [
+          "准将沐福",
+          "生还占优",
+          "死神之裕"
+        ]
+      },
+      "NamiSolo": {
+        "t1": [
+          "强盗狂热",
+          "大师之花"
+        ],
+        "t2": [
+          "孤刃",
+          "迅疾突围",
+          "坚决突进"
+        ],
+        "t3": [
+          "绝对勇气",
+          "多用途信条",
+          "绝对主宰"
+        ]
+      },
+      "Burston": {
+        "t1": [
+          "强制终结",
+          "要塞齐射"
+        ],
+        "t2": [
+          "扩充齐发",
+          "待命报复",
+          "动能战斗"
+        ],
+        "t3": [
+          "掠夺者的狂喜",
+          "绝对勇气",
+          "致命苦痛"
+        ]
+      },
+      "Zylok": {
+        "t1": [
+          "精准回报",
+          "击手的弹匣"
+        ],
+        "t2": [
+          "扩充齐发",
+          "急速强化",
+          "虚空指引"
+        ],
+        "t3": [
+          "生还占优",
+          "准将沐福",
+          "致命苦痛"
+        ]
+      },
+      "Sibear": {
+        "t1": [
+          "大师之碎",
+          "领主之怒"
+        ],
+        "t2": [
+          "奥罗金致远",
+          "动能协调",
+          "坚决突进"
+        ],
+        "t3": [
+          "递增式雪崩",
+          "绝对勇气",
+          "神圣复仇"
+        ]
+      },
+      "Dread": {
+        "t1": [
+          "杀意乘势",
+          "追猎者怨恨"
+        ],
+        "t2": [
+          "迅速判决",
+          "善射之焦",
+          "杀意贮藏"
+        ],
+        "t3": [
+          "生还占优",
+          "元素平衡",
+          "归零"
+        ]
+      },
+      "Despair": {
+        "t1": [
+          "致命苦痛",
+          "追猎者仇杀"
+        ],
+        "t2": [
+          "善射之焦",
+          "迅速判决",
+          "急速强化"
+        ],
+        "t3": [
+          "元素平衡",
+          "生还占优",
+          "临界平行"
+        ]
+      },
+      "Hate": {
+        "t1": [
+          "剑士翩跹",
+          "追猎者传承"
+        ],
+        "t2": [
+          "奥罗金致远",
+          "迅疾突围",
+          "坚决突进"
+        ],
+        "t3": [
+          "绝对勇气",
+          "绝对主宰",
+          "微妙之力"
+        ]
+      },
+      "Boar": {
+        "t1": [
+          "具象克星",
+          "要塞齐射"
+        ],
+        "t2": [
+          "待命报复",
+          "佣兵枪膛",
+          "熟练之握"
+        ],
+        "t3": [
+          "元素平衡",
+          "临界平行",
+          "生还占优"
+        ]
+      },
+      "Gammacor": {
+        "t1": [
+          "贤者的决心",
+          "注能射击"
+        ],
+        "t2": [
+          "进化自填器",
+          "皎月速升",
+          "扩充齐发"
+        ],
+        "t3": [
+          "临界平行",
+          "生还占优",
+          "元素平衡"
+        ]
+      },
+      "Gorgon": {
+        "t1": [
+          "猎者密咒",
+          "重兵圣德"
+        ],
+        "t2": [
+          "共鸣恢复",
+          "急速强化",
+          "虚空指引"
+        ],
+        "t3": [
+          "生还占优",
+          "元素平衡",
+          "绝对勇气"
+        ]
+      },
+      "Angstrum": {
+        "t1": [
+          "安逸冒险",
+          "骑士圣德"
+        ],
+        "t2": [
+          "迅速判决",
+          "急速强化",
+          "杀意贮藏"
+        ],
+        "t3": [
+          "临界平行",
+          "生还占优",
+          "致命苦痛"
+        ]
+      },
+      "Ballistica": {
+        "t1": [
+          "连环贯穿"
+        ]
+      },
+      "Obex": {
+        "t1": [
+          "均衡硬直",
+          "护甲终结者"
+        ],
+        "t2": [
+          "速战速决"
+        ],
+        "t3": [
+          "暴击系数"
+        ]
+      },
+      "Anku": {
+        "t1": [
+          "正义之刃",
+          "守护者的诺言"
+        ],
+        "t2": [
+          "僵持",
+          "剑士疾行",
+          "迅疾突围"
+        ],
+        "t3": [
+          "绝对主宰",
+          "微妙之力",
+          "绝对勇气"
+        ]
+      },
+      "Stug": {
+        "t1": [
+          "过载爆炸"
+        ]
+      },
+      "Vectis": {
+        "t1": [
+          "导火索",
+          "孤胆执法者"
+        ],
+        "t2": [
+          "静步无声"
+        ]
+      },
+      "Ruvox": {
+        "t1": [
+          "致命动力",
+          "积聚动量"
+        ],
+        "t3": [
+          "三段弹跳",
+          "鼓舞处决"
+        ],
+        "t4": [
+          "残暴效率",
+          "易伤血清",
+          "永久穿刺"
+        ]
+      },
+      "Onos": {
+        "t2": [
+          "猎人重装"
+        ],
+        "t3": [
+          "致命穿刺"
+        ],
+        "t4": [
+          "连续爆颅",
+          "穿刺者的凶猛",
+          "毁灭连锁"
+        ]
+      },
+      "Okina": {
+        "t1": [
+          "怒火中烧",
+          "协同保障"
+        ],
+        "t3": [
+          "战争奇术"
+        ]
+      },
+      "Dera": {
+        "t1": [
+          "英豪本源"
+        ],
+        "t3": [
+          "高地优势"
+        ]
+      },
+      "Cestra": {
+        "t1": [
+          "坚定不移"
+        ],
+        "t2": [
+          "杀手的胆识"
+        ]
+      },
+      "Sybaris": {
+        "t1": [
+          "久经锤炼"
+        ],
+        "t3": [
+          "元素主宰"
+        ]
+      },
+      "Sicarus": {
+        "t1": [
+          "假意撤退",
+          "帝王棋局"
+        ],
+        "t3": [
+          "智者慧眼"
+        ]
       }
     }
   }

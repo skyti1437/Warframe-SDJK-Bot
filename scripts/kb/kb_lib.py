@@ -419,6 +419,29 @@ class Sources:
                 self.ov_ability[_au] = _ar
             for _cu, _cn in (_rec.get('components') or {}).items():
                 self.ov_name[_cu] = _cn
+        # 武器覆盖（如 Narin 签名武器的官方简中名/描述）——注入 zh_item，
+        # name/description 命中后 02 号武器条目标题与简介自动升级为官方版；
+        # components（部件官方名，键为 /Lotus/Types/Recipes/... uniqueName）走 ov_name。
+        for _u, _rec in (self.zh_overrides.get('weapons') or {}).items():
+            _z = self.zh_item.setdefault(_u, {})
+            for _f in ('name', 'description'):
+                if _rec.get(_f):
+                    _z[_f] = _rec[_f]
+            for _cu, _cn in (_rec.get('components') or {}).items():
+                self.ov_name[_cu] = _cn
+        # 赋能覆盖（items 包未收录的赋能，如 1999「齐」系古董赋能）
+        self.ov_arcane = dict(self.zh_overrides.get('arcanes') or {})
+        # 科研任务修正词（1999 深层/时光/实验室科研，数据包快照无 Conquest 组）
+        cq = self.zh_overrides.get('conquest') or {}
+        self.conquest_modifiers = {k: v for k, v in cq.items() if not k.startswith('_')}
+        # 锐翰（Railjack Avionics，PEP 表有名但效果文本只在语言包）
+        self.ov_avionic = dict(self.zh_overrides.get('avionics') or {})
+        # 灵化进化 perk 名（语言包 Mods/Incarnon<X>Tier*；效果数值四包均无）
+        _ip = self.zh_overrides.get('incarnon_perks') or {}
+        self.incarnon_perks = dict(_ip.get('perks') or {})
+        # 手工补的首领条目（PEP/items 均未收录，如金星双蛛）
+        self.ov_boss = {k: v for k, v in (self.zh_overrides.get('boss_manual') or {}).items()
+                        if not k.startswith('_')}
         # 生成覆盖层：遗物奖励等散装物品的官方简中名
         # （scripts/kb/extract_relic_overrides.py 从 lang_zh_44.json 摘录，可整体重生成）
         _ovi = os.path.join(os.path.dirname(os.path.abspath(__file__)),

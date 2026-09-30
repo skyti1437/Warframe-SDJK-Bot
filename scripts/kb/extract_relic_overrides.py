@@ -45,6 +45,21 @@ MANUAL = {
     "/Lotus/Types/Recipes/WarframeRecipes/NyxPrimeChassisBlueprint": "Nyx Prime 机体蓝图",
     "/Lotus/Types/Recipes/WarframeRecipes/NyxPrimeHelmetBlueprint": "Nyx Prime 头部神经光元蓝图",
     "/Lotus/Types/Recipes/WarframeRecipes/NyxPrimeSystemsBlueprint": "Nyx Prime 系统蓝图",
+    # 挂在「全能 Forma（Omni Forma）」components 下的合成材料，un 虽带 Blueprint
+    # 后缀但语义是「光环 Forma」本体（DE 内部命名混乱；SYNTH 会错合成「全能 Forma 蓝图」）
+    "/Lotus/Types/Recipes/Components/FormaAuraBlueprint": "光环 Forma",
+}
+
+# 直键精确命中后的弃用名单（2026-09-30 部件批次人工复核：错配/内部占位/场景名）
+DROP_SEGS = {
+    "BardQuestSequencerBlueprint",   # 直键值「曼达和弦琴」与该蓝图无关
+    "InfestedFoundryBlueprint",      # 值是系统名 HELMINTH，非蓝图名
+    "FormaOmegaBlueprint",           # 值带 TEST（内部占位）
+    "MummyBlueprint",                # 值「捍卫者蓝图」语义可疑
+    "NoraShipBlueprint",             # 场景装饰，值是场景名
+    "ZarimanShipBlueprint",          # 同上
+    "SentientBlueprint",             # 值「震荡使齐诺斯库」可疑
+    "SiriusOrionBlueprint",          # Movember 装饰
 }
 
 _STOP = {"warframe", "suit"}
@@ -66,6 +81,7 @@ def build_indexes(lang: dict) -> dict:
     primes_name, primes_c = {}, {}
     items_name, items_c = {}, {}
     all_name, all_c = {}, {}
+    seg_exact = {}
     for k, v in lang.items():
         if k.startswith("/Lotus/Language/Changyou/"):
             continue                      # 国服译名，禁用
@@ -81,9 +97,18 @@ def build_indexes(lang: dict) -> dict:
             if c not in cc_c or prio > cc_c[c][1]:
                 cc_c[c] = (v, prio)
             continue
-        if not k.endswith("Name"):
+        mid = k.rsplit("/", 1)[-1]
+        if mid.endswith("Desc") or mid.startswith("Desc"):
             continue
-        mid = k.rsplit("/", 1)[-1][:-4]
+        # ⓪ 直键：末段与 uniqueName stem 完全一致（新内容部件键常无 Name 后缀，
+        #    如 Iceblade/DuelistBowGrip →「霜冥差 握把」）；Name 后缀键优先级更高
+        if not mid.endswith("Name"):
+            seg_exact.setdefault(mid, v)
+        else:
+            seg_exact.setdefault(mid[:-4], v)
+            mid = mid[:-4]
+        if not mid:
+            continue
         t, c = toks(mid), compact(mid)
         if k.startswith("/Lotus/Language/Primes/"):
             primes_name.setdefault(t, v)
@@ -95,7 +120,8 @@ def build_indexes(lang: dict) -> dict:
             all_name.setdefault(t, v)
             all_c.setdefault(c, v)
     return {"cc": cc, "cc_c": cc_c, "primes": primes_name, "primes_c": primes_c,
-            "items": items_name, "items_c": items_c, "all": all_name, "all_c": all_c}
+            "items": items_name, "items_c": items_c, "all": all_name, "all_c": all_c,
+            "seg": seg_exact}
 
 
 def match(u: str, en: str, S: Sources, ix: dict):
@@ -109,6 +135,22 @@ def match(u: str, en: str, S: Sources, ix: dict):
     dup = seg.endswith("Blueprint")
     sfx_space = " 蓝图" if dup else ""
     sfx_glue = "蓝图" if dup else ""
+    # ⓪ 直键精确命中（uniqueName stem == 语言键末段；新内容部件键常无 Name 后缀。
+    #    候选须含「剥 Blueprint 后的武器名」形态——如 KuvaOgrisBlueprint → 键 KuvaOgris）
+    if seg not in DROP_SEGS:
+        stem_bp = seg[:-len("Blueprint")] if dup else seg
+        base_seg = re.sub(r"(Component|Item)$", "", stem_bp)
+        for cand in (seg, stem_bp, base_seg, seg + "Name", stem_bp + "Name",
+                     base_seg + "Name"):
+            if not cand:
+                continue
+            got = ix["seg"].get(cand)
+            if got and isinstance(got, str) and got.strip() and "TEST" not in got \
+                    and "[PH" not in got and "<" not in got and len(got) <= 40:
+                v = got.strip()
+                if dup and "蓝图" not in v:
+                    v += sfx_space
+                return v, "SEG"
     # ① 组件直配（uniqueName stem）
     if dup:
         stem = seg[:-len("Blueprint")]
@@ -173,6 +215,62 @@ def relic_reward_items(data_dir: str) -> dict:
     return items
 
 
+# 部件词合成映射（官方模式「武器名 + 部件词」，如 PaxDuviricus 枪械部件「锐铁 枪管」；
+# 用于语言包无独立键的部件 —— i18n/dict.zh 对 TnHopliteSpearGunWeaponBlueprint 等零收录）
+PART_WORDS = {
+    "Barrel": "枪管", "Receiver": "枪机", "Stock": "枪托", "Link": "连接器",
+    "Blade": "刀刃", "Handle": "握柄",
+}
+# 类别插入词：父条目末段与部件 stem 比对时两侧都剥掉（同词异序容忍）
+CLASS_WORDS = {"weapon", "sentinel", "guard", "gun", "suit", "warframe"}
+
+
+def component_items(data_dir: str) -> tuple:
+    """条目 components 里的部件 {uniqueName: 英文显示名} 与 {部件: 父条目 uniqueName}
+    （2026-09-30 新增源：消除材料行「｜ ×1」的空部件名——如 Prime 战甲/信条武器的部件蓝图）。"""
+    items = {}
+    parent = {}
+    idir = os.path.join(data_dir, "items")
+    for t in ("Warframes", "Primary", "Secondary", "Melee", "Sentinels",
+              "Arch-Gun", "Arch-Melee", "Archwing", "Misc", "Pets"):
+        fp = os.path.join(idir, t + ".json")
+        if not os.path.exists(fp):
+            continue
+        for r in json.load(open(fp, encoding="utf-8")):
+            for c in (r.get("components") or []):
+                if c.get("uniqueName"):
+                    items[c["uniqueName"]] = c.get("name") or ""
+                    parent.setdefault(c["uniqueName"], r.get("uniqueName") or "")
+    return items, parent
+
+
+def synth_part_name(u: str, parent_un: str, S: Sources) -> str | None:
+    """父条目官方中文名 + 部件词 → 合成部件名。
+
+    两种形态（父末段与部件 stem 是同词异序，按剥类别词后的词集合比对）：
+      · XxxBlueprint → 「父名 蓝图」（TnHopliteSpearGunWeaponBlueprint → 圣英 蓝图）
+      · Xxx<部件词>   → 「父名 部件词」（AfentisPrimeBarrel → 圣英 Prime 枪管）
+    """
+    seg = u.rsplit("/", 1)[-1]
+    stem = seg[:-len("Blueprint")] if seg.endswith("Blueprint") else seg
+    zh_word = "蓝图" if seg.endswith("Blueprint") else None
+    if zh_word is None:
+        for suf, zh in PART_WORDS.items():
+            if stem.endswith(suf):
+                stem, zh_word = stem[:-len(suf)], zh
+                break
+    if zh_word is None or len(stem) < 6 or not parent_un:
+        return None
+    pw = toks(parent_un.rsplit("/", 1)[-1]) - CLASS_WORDS
+    sw = toks(stem) - CLASS_WORDS
+    if pw != sw or not pw:
+        return None
+    base = S.name(parent_un) if parent_un else None
+    if base and re.search(r"[\u4e00-\u9fff]", base) and len(base) <= 30:
+        return "%s %s" % (base, zh_word)
+    return None
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--lang", required=True, help="lang_zh_44.json 路径")
@@ -188,6 +286,9 @@ def main() -> int:
     lang = json.load(open(args.lang, encoding="utf-8"))
     ix = build_indexes(lang)
     items = relic_reward_items(os.environ["WF_KB_DATA"])
+    comp_items, comp_parent = component_items(os.environ["WF_KB_DATA"])
+    for u, en in comp_items.items():
+        items.setdefault(u, en)
 
     need, filled = [], {}
     for u, en in sorted(items.items(), key=lambda kv: kv[1]):
@@ -198,6 +299,10 @@ def main() -> int:
         got, how = match(u, en, S, ix)
         if not got and u in MANUAL:
             got, how = MANUAL[u], "MANUAL"
+        if not got and u in comp_parent and u.rsplit("/", 1)[-1] not in DROP_SEGS:
+            got = synth_part_name(u, comp_parent[u], S)
+            if got:
+                how = "SYNTH"
         if got and got != en:              # 与英文原名相同 = 无增益（如安魂 MOD）
             filled[u] = {"name": got, "en": en, "how": how}
         else:

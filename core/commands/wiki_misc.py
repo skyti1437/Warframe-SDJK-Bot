@@ -26,17 +26,17 @@ class WikiMiscCommands:
     def _kb_hint(self) -> str:
         """知识库（AstrBot 平台侧 RAG）引导 —— 只在本地查不到时补一句。
 
-        插件**不直连**知识库：检索由 AstrBot 平台提供，插件只负责告诉用户
-        「有这份文档、放哪」。开源版用户没配知识库时可以关掉（面板
-        「知识库引导」= 否），免得每次都多一句。
+        插件**不直连**知识库：检索由 AstrBot 平台提供，插件只负责指路。
+        开源包不再随附知识库文档（2026-10-01 起移除 kb/），引导改为指向
+        scripts/kb/ 构建流水线。没配知识库时可关掉（面板「知识库引导」= 否）。
         """
         if not self.cfg.get("kb_enabled", True):
             return ""
-        docs_dir = str(self.cfg.get("kb_docs_dir") or "kb").strip() or "kb"
         kb_id = str(self.cfg.get("kb_id") or "").strip()
         tail = f"（知识库 id：{kb_id}）" if kb_id else ""
-        return (f"\n\n💡 推荐 / 攻略类问题可把 {docs_dir}/ 下的文档"
-                f"传进 AstrBot 知识库{tail}")
+        return ("\n\n💡 百科类问答可由 AstrBot 知识库承接：开源包随附的"
+                "scripts/kb/ 流水线可从 Warframe 官方数据包构建知识库文档后"
+                f"上传{tail}")
 
     def _wiki_intro_on(self) -> bool:
         """wiki 卡片开关（默认开）。

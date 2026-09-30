@@ -109,5 +109,69 @@ for fn in sorted(os.listdir(K)):
     if '  ｜' in txt or '｜ ' in txt: probs.append('分隔符空白')
     w('  %-22s %s' % (fn, probs or '✔ 无异常'))
 
+# ---- 7. 官方名对拍（PEP 主表基准，标题层覆盖率） ----
+# 用 DE 官方导出（Export*.json 的 name 语言键 → dict.zh）作为基准，
+# 与各文档 ### 标题做「真缺」对拍。标题归一规则与误报教训（2026-09-30 实战）：
+#   ① 剥尾部（English）后缀、消歧后缀「 ｜类型…」、重名序号「 #N」（须循环剥到稳定）；
+#   ② dict.zh 的值常带 \r\n 尾巴——两侧都要 strip 控制字符；
+#   ③ 官方名可能带 |COLOR| 富文本宏（挑战类）——两侧都过 demark。
+# Resources（装饰类为主）、Enemies（任务变体/NPC 为主）、Weapons 的 Exalted 属口径外，
+# 只做计数参考；核心表真缺 > 0 时人工复核是否该补（zh_overrides 或 build 补源）。
+w(''); w('=' * 68); w('官方名对拍（PEP 主表 → dict.zh 官方中文名 vs 文档标题）')
+try:
+    from kb_lib import jload, demark
+    PDIR = os.path.join(kb_data_dir(), 'pep')
+    dz = jload(os.path.join(PDIR, 'dict.zh.json'))
+    def _norm(s):
+        s = demark(str(s or '')).replace('\r', ' ').replace('\n', ' ').strip()
+        prev = None
+        while prev != s:
+            prev = s
+            s = re.sub(r'（[^）]*）\s*$', '', s).strip()
+            s = re.sub(r'\s*｜.*$', '', s).strip()
+            s = re.sub(r'\s*#\d+$', '', s).strip()
+        return s
+    def _offical(fname, sub=None):
+        d = jload(os.path.join(PDIR, fname))
+        if sub:
+            d = d[sub]
+        out = set()
+        for _un, e in d.items():
+            if isinstance(e, dict):
+                nm = _norm(dz.get(e.get('name')))
+                if nm:
+                    out.add(nm)
+        return out
+    _docs = {}
+    for fn in sorted(os.listdir(K)):
+        if fn.endswith('.md'):
+            _docs[fn] = {_norm(t) for t in re.findall(r'^### (.+)$', rd(fn), re.M)}
+    _all = set().union(*_docs.values()) if _docs else set()
+    AUDIT = [('ExportWarframes.json', None, ['01_战甲.md'], 'core'),
+             ('ExportWeapons.json', None, ['02_武器.md', '06_资源与蓝图.md', '07_同伴与空战.md'], 'ref'),
+             ('ExportUpgrades.json', None, ['03_MOD与赋能.md'], 'core'),
+             ('ExportArcanes.json', None, ['03_MOD与赋能.md'], 'core'),
+             ('ExportSentinels.json', None, ['07_同伴与空战.md'], 'core'),
+             ('ExportAchievements.json', None, ['09_成就挑战与午夜电波.md'], 'core'),
+             ('ExportChallenges.json', None, ['09_成就挑战与午夜电波.md'], 'core'),
+             ('ExportEnemies.json', 'avatars', ['05_敌人.md'], 'ref'),
+             ('ExportResources.json', None, ['06_资源与蓝图.md'], 'ref')]
+    for fname, sub, files, kind in AUDIT:
+        off = _offical(fname, sub)
+        doc = set()
+        for f in files:
+            doc |= _docs.get(f, set())
+        miss = off - doc - _all
+        tag = '核心' if kind == 'core' else '参考（口径外条目不计缺陷）'
+        w('  %-24s 官方 %4d｜真缺 %4d｜%s' % (fname.replace('Export', '').replace('.json', ''),
+                                            len(off), len(miss), tag))
+        if kind == 'core' and miss:
+            for nm in sorted(miss)[:10]:
+                w('      ⚠ 真缺: %s' % nm)
+            if len(miss) > 10:
+                w('      … 另 %d 条' % (len(miss) - 10))
+except Exception as ex:  # PEP 数据不在时不阻断其余自检
+    w('  !! 对拍跳过：%s' % ex)
+
 open(OUT, 'w', encoding='utf-8').write('\n'.join(L))
 print('ok')
