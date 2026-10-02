@@ -247,7 +247,9 @@ class RivenCommands:
             body = t[1:] if neg else t
             # ★ 2026-09-24：词条名放宽到 1~8 字（卡面原文「滑行攻击暴击几率」6 字，
             #   旧限 1~4 字会整条落到武器名里 → 负词条丢失、反推区间算错）
-            m = _re.fullmatch(r"([\u4e00-\u9fa5]{1,8}?)(\d+(?:\.\d+)?)", body)
+            # ★ 2026-10-02 上限 8→12 字：DE 卡面原文「的几率来获得连击数」是 9 字，
+            #   旧限会让整条落进 weapon_name（静默丢词条 + 污染武器名）。
+            m = _re.fullmatch(r"([\u4e00-\u9fa5]{1,12}?)(\d+(?:\.\d+)?)", body)
             if m:
                 sid = self._stat_id_from_name(m.group(1), rev)
                 if sid:

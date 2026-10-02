@@ -347,6 +347,20 @@ INVERTED_STATS = {"recoil"}
 def is_inverted(sid: str) -> bool:
     """该词条的卡面符号是否与极性相反（`+` 实为负面、`-` 实为正面）。"""
     return sid in INVERTED_STATS
+
+
+# ★ 「仅负向」词条（2026-10-02，官方 wiki「Riven Mods」基值表 Legend：³ 仅负向、
+#   永不作为正面）：「几率来获得连击数」（chance_to_gain_combo_count）——
+#   卡面只会出现「-X% 的几率来获得连击数」。
+#   锁定的理由：模型/OCR 丢符号是实测过的故障模式（曾把 ±43 后坐力都塞进正面槽），
+#   若把该词条读成正数放进正面，会给出一个现实中不存在的正向区间。
+#   （对应另一侧「额外连击数几率」= ¹ 仅正向，但正向本就是默认路径、不做强制。）
+NEGATIVE_ONLY = {"combo_gain_chance"}
+
+
+def is_negative_only(sid: str) -> bool:
+    """该词条是否只以负面形式出现（卡面恒为 `-`）。"""
+    return sid in NEGATIVE_ONLY
 # 词条行 = 极性符号开头（前面只允许装饰性符号：锁图标/圆点/括号/空白）。
 # 非装饰性字符（汉字、字母、数字）开头的行**不是**词条行 —— 武器名、自命名、
 # 内融值、卡面图例都靠这一条排除；而锁图标与行首那点装饰不能反而把真词条挤掉。
@@ -531,8 +545,11 @@ def parse_riven_lines(lines, resolve) -> tuple:
                 # 按乘数还原并据乘数定极性（旧版一律当负词条 ⇒ 正词条会算错）。
                 value, neg_flag = faction_mult_to_mag(value)
         # ★ 2026-10-02：反转词条翻转极性 —— 「+95.4% 武器后坐力」是负面、
-        #   「-20% 武器后坐力」是正面（证据见 INVERTED_STATS 注释）。
-        if is_inverted(sid):
+        #   「-20% 武器后坐力」是正面（证据见 INVERTED_STATS 注释）；
+        #   「仅负向」词条（连击获取）无论读到什么符号都归负面。
+        if is_negative_only(sid):
+            neg_flag = True
+        elif is_inverted(sid):
             neg_flag = not neg_flag
         (neg if neg_flag else pos).append((sid, value))
     # 同一条词条不可能既正又负（卡面每行只出现一次）：两侧都在时以负为准

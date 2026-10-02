@@ -569,6 +569,31 @@ check("★ 别名：几率不获得连击数 → combo_gain_chance（仅负向�
 check("别名：额外连击数几率 → extra_combo_count（仅正向词条）",
       plugin.WarframeSDJK._stat_id_from_name("额外连击数几率", _rev)
       == "extra_combo_count")
+check("★ 别名：DE 卡面原文「的几率来获得连击数」→ combo_gain_chance",
+      plugin.WarframeSDJK._stat_id_from_name("的几率来获得连击数", _rev)
+      == "combo_gain_chance")
+
+# ★ 2026-10-02 用户实卡（翁 Locti-acrium）：「-60.4% 的几率来获得连击数」
+#   —— ① 卡面原文认得出；②「仅负向」锁定生效（读成正数也归负面，wiki Legend ³）；
+#   ③ 基值 104.85 与该卡自洽（d=0.70：四行 U = 0.92/1.02/0.93/1.10 全在 ±10%）。
+_lpO, _lnO, _ = RA.parse_riven_lines(
+    ["+14.8 初始连击", "+1.3 攻击范围", "+54.8% 暴击伤害",
+     "-60.4% 的几率来获得连击数"], _resolve)
+check("★ 实卡四行 → 3 正 1 负（连击获取 60.4 归负、不再「认不出」）",
+      [p[0] for p in _lpO] == ["initial_combo", "range", "crit_damage"]
+      and _lnO == [("combo_gain_chance", 60.4)], f"{_lpO} / {_lnO}")
+_lpO2, _lnO2, _ = RA.parse_riven_lines(["+60.4% 的几率来获得连击数"], _resolve)
+check("★ 仅负向锁定：即使读成正数也归负面（NEGATIVE_ONLY）",
+      not _lpO2 and _lnO2 == [("combo_gain_chance", 60.4)], f"{_lpO2} / {_lnO2}")
+_posO, _negO = _norm({"weapon": "翁",
+                      "positive": [["的几率来获得连击数", 60.4]], "negative": []},
+                     _rev)
+check("★ vision 路由同口径：连击获取进 negative",
+      _negO == [("combo_gain_chance", 60.4)] and not _posO, f"{_posO} / {_negO}")
+_lo_o, _hi_o = RA.stat_range("combo_gain_chance", "melee", 0.70, 3, 1,
+                             negative=True)
+check("基值自洽：翁 d=0.70 时 60.4 落在 104.85 的负档区间（49.54-60.55）",
+      _lo_o is not None and _lo_o <= 60.4 <= _hi_o, f"{_lo_o}-{_hi_o}")
 
 # ---------------------------------------------------------------------------
 # ⑨ 采信判据：**像是词条行却没解析成功** ⇒ 不许判「合法采信」（线上 16:17

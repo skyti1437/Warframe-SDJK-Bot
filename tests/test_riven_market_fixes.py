@@ -1274,12 +1274,60 @@ check("图片路径：区间仍按负面档算（幅度位列，说明按负面�
       "幅度位" in _b11 and "幅度越大越友好" in _b11, _b11[:300])
 
 # ---------------------------------------------------------------------------
-# ★ 追加段（⑫-⑯）出口守卫：本文件原有守卫在第 802 行（①-⑫ 之前），
+# ⑱ 用户实卡（翁 Locti-acrium，2026-10-02）：手动输入路径也要认 DE 卡面原文
+#    「-60.4% 的几率来获得连击数」（9 字 —— 旧限 8 字会整条落进武器名）。
+# ---------------------------------------------------------------------------
+_OKINA = [{"url_name": "okina", "zh": "翁", "en": "Okina", "disposition": 0.7,
+           "riven_type": "melee", "group": "melee", "tags": []}]
+_c18 = WarframeClient.__new__(WarframeClient)
+_c18._aliases = {}
+
+
+async def _w18():
+    return [dict(w) for w in _OKINA]
+
+
+async def _fam18(_w):
+    return []
+
+
+async def _var18(_n):
+    return (None, "")
+
+
+_c18.wm_riven_weapons = _w18
+_c18.riven_family = _fam18
+_c18.resolve_variant_disp = _var18
+_obj18 = plugin.WarframeSDJK.__new__(plugin.WarframeSDJK)
+_obj18.client = _c18
+_obj18.page_size = 12
+_obj18._event_has_image = lambda _e: False
+
+
+class _P18:
+    content = ["翁", "初始连击14.8", "攻击范围1.3", "暴击伤害54.8",
+               "负的几率来获得连击数60.4"]
+    content_str = "紫卡分析 翁 初始连击14.8 攻击范围1.3 暴击伤害54.8 负的几率来获得连击数60.4"
+    preset, page, whisper = "", 1, False
+
+
+_r18 = asyncio.run(_obj18._h_riven_analysis(_P18(), _Ev9(), "pc"))
+_b18 = "\n".join(_r18.lines)
+check("★ 实卡手动输入：9 字 DE 原文词条不丢（不再落进武器名）",
+      "未找到紫卡武器" not in _b18 and "词条应为" not in _b18, _b18[:240])
+check("★ 实卡四行进卡：初始连击 / 范围 / 暴伤 / 连击获取（负）",
+      all(k in _b18 for k in ("+14.8 初始连击", "+1.3m 范围", "+54.8% 暴伤",
+                             "-60.4% 连击获取")), _b18[:400])
+check("★ 连击获取按负档算出区间（104.85 基值生效，不再「无官方基值」）",
+      "49.54%-60.55%" in _b18 and "无官方基值" not in _b18, _b18[:400])
+
+# ---------------------------------------------------------------------------
+# ★ 追加段（⑫-⑱）出口守卫：本文件原有守卫在第 802 行（①-⑫ 之前），
 #   其后的追加段此前**没有守卫** —— 失败不会置退出码（等同静默放行）。
 # ---------------------------------------------------------------------------
 print()
 if FAILED:
     print(f"✗ 追加段失败 {len(FAILED)} 项：" + "、".join(FAILED))
     sys.exit(1)
-print("✓ 追加段（⑫-⑯）全部通过")
+print("✓ 追加段（⑫-⑱）全部通过")
 

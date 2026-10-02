@@ -569,7 +569,11 @@ class VisionCommands:
         #   这行**按卡面原样保留正负号**。仅数值缺失（0）时退回数组。
         def _route(r, bucket: str):
             sid, num = r
-            if _RA.is_inverted(sid):
+            if _RA.is_negative_only(sid):
+                # ★ 2026-10-02「仅负向」词条（连击获取，卡面恒为 -X%）：
+                #   模型丢符号/放进正面槽时仍按负面收（wiki Legend ³）。
+                neg_flag = True
+            elif _RA.is_inverted(sid):
                 neg_flag = (num > 0) if num else (bucket == "neg")
             else:
                 neg_flag = (bucket == "neg") or (num < 0)
