@@ -1292,20 +1292,6 @@ def _clean_challenge_desc(desc: str, count) -> str:
     return re.sub(r"\s+", " ", txt).strip()
 
 
-def _de_task_line(job: dict) -> str:
-    """DE 地区档位的「任务：」行 —— 用 ``ExportBounties`` 的官方目标描述。
-
-    玩家反馈 DE 三地区（地球/金星/火卫二）「貌似也没任务详情」：其实 DE 有 ——
-    ``ExportBounties`` 每条赏金都带 ``description``（这条赏金要干什么），
-    之前只是没接。DE 侧没有挑战名/节点（job 只有资产路径），所以只有描述一段；
-    任务类型已在档位行里上过色，这里不再重复。
-    """
-    desc = (job.get("_jobDesc") or "").strip()
-    if not desc:
-        return ""
-    return f"　　任务：{desc}"
-
-
 # 赏金「档位行」的行首块标记（★ 2026-09-27）：渲染层据此在**块与块之间**画分隔线。
 # 为什么用**显式标记**而不是内容启发式：同一张卡上「档位行 / 奖励行（　　）/ 点位行
 # （　点位：…）」混排，靠内容猜（如「含 ｜N-M级」）会漏掉 oracle 与退路两条路径；
@@ -1354,9 +1340,6 @@ def _bounty_rows(jobs: list[dict], syndicate: str) -> list[str]:
             for r in ("A", "B", "C"):
                 items.extend(pool.get(r) or [])
         out.append(_bounty_head(name, _bounty_type(j), lv_txt, tag))
-        _task = _de_task_line(j)
-        if _task:
-            out.append(_task)
         if items:
             out.append("　　" + _fmt_pool_items(items))
     return out
@@ -1460,9 +1443,6 @@ def _region_summary(syndicate: str, title: str, jobs: list[dict],
     lines.extend(_rot_lines(region_pool, _region_rot_of(jobs)))
     for j in _top_tiers(jobs or [], _OVERVIEW_N):
         lines.append(_bounty_entry_line(syndicate, j))
-        _task = _de_task_line(j)
-        if _task:
-            lines.append(_task)
     return lines
 
 
@@ -1476,30 +1456,36 @@ def _one_word(text: str) -> str:
     return (text or "").replace(" ", "\u00a0")
 
 
+# oracle 三地区详情卡的档位行形态（2026-10-02 用户逐地区指定）：
+#   · 圣所 / 扎里曼：地图（节点）名与「任务：」前缀都去掉，
+#     档位行 = 「类型 挑战名」，等级挂行尾由渲染层抽成右对齐徽章
+#   · 1999（HexCity）：节点名保留，挑战名并入档位行（⟦c⟧ 标记，渲染层染蓝）
+# 一览卡仍走 `_oracle_task_lines` 的「任务：类型 挑战名」行（紧凑不变）。
+
+
 def _oracle_task_lines(node_key: str, ch_path: str) -> list[str]:
-    """oracle 地区的「任务：」行 —— ``任务：任务类型 挑战名 目标``。
+    """**一览卡** oracle 地区的「任务：」行 —— ``任务：类型 挑战名``。
 
     * **任务类型**取该节点的官方 ``missionName``（``nodes_zh[key]['type']``，
       如 哈拉科防线→歼灭、翠径→移动防御）。这是唯一权威来源：oracle 只给
       节点 key + 挑战路径，DE 又不给这三个地区的 jobs，所以没有别的路。
     * **挑战名**是这条赏金的挑战标题（能量超载 / 终结好戏 / 致命低语…）。
       2026-09-12 为了对齐参考版式曾把它去掉，用户随即反馈「这些任务名字怎么没了」，
-      现已恢复：三段各自上色（类型=青、挑战名=紫、目标=正文色）。
-    * **目标描述**取挑战的 desc（``|COUNT|`` 已替换）。整句**不再按句号拆行**
-      —— 曾把第二句当「副目标」缩进一级，维护者确认「第二个科腐者」其实是
-      另一档赏金、不是副目标，那个分级已回退。
+      现已恢复。
+    * ★ **目标描述已整段移除**（2026-10-02 玩家反馈「任务描述没任何作用」）；
+      DE 三地区的纯描述行随之整体下线。
+    * ★ 详情卡 2026-10-02 起**不再出独立任务行**：类型+挑战名并入档位行
+      （圣所/扎里曼无地图名；1999 挑战名 ⟦c⟧ 并入节点名后染蓝），见
+      ``_oracle_region_block``。
     """
-    if not ch_path:
-        return []
     node = _de_zh("nodes_zh.json").get(node_key or "") or {}
     mtype = _one_word((node.get("type") or "").strip())
     ch = _de_zh("challenges_zh.json").get(ch_path) or {}
     cname = _one_word((ch.get("name") or "").strip())
-    goal = _clean_challenge_desc(ch.get("desc"), ch.get("count"))
     head = " ".join(x for x in (mtype, cname) if x)
-    if not head and not goal:
+    if not head:
         return []
-    return [f"　　任务：{head + ' ' if head and goal else head}{goal}".rstrip()]
+    return [f"　　任务：{head}"]
 
 
 def _oracle_summary(pool_key: str, tag: str, title: str,
@@ -1564,10 +1550,37 @@ def _oracle_region_block(pool_key: str, tag: str, title: str,
     for i, b in enumerate(bounties):
         lv = tiers[i] if i < len(tiers) else (tiers[-1] if tiers else "")
         node_key = b.get("node") or ""
-        if not (node_tbl.get(node_key) or {}).get("name"):
+        node_name = (node_tbl.get(node_key) or {}).get("name") or ""
+        if not node_name:
             continue
-        lines.append(f"{_BOUNTY_HEAD_PREFIX}{node_tbl[node_key]['name']}｜{_lv_txt(lv)}")
-        lines.extend(_oracle_task_lines(node_key, b.get("challenge") or ""))
+        lv_txt = _lv_txt(lv)
+        ch = _de_zh("challenges_zh.json").get(b.get("challenge") or "") or {}
+        cname = _one_word((ch.get("name") or "").strip())
+        # 目标描述（额外目标要怎么完成）—— 2026-10-02 曾误删，用户随即反馈
+        # 「之前有的白字不要去掉」：恢复
+        goal = _clean_challenge_desc(ch.get("desc"), ch.get("count"))
+        # 档位行三段染色（2026-10-02 维护者定色）：段1 = 类型（圣所/扎里曼，
+        # 渲染层行首类型色青）/ 节点名（1999，⟦c⟧ 整段蓝 —— 节点名里的派系词
+        # 「炽蛇军」必须跟整体同色，不能被派系词表单独染橙）；
+        # 段2 = 挑战名（⟦v⟧ 紫，沿用早期三段切分的挑战名配色）；
+        # 段3 = 目标（⟦w⟧ 白）。段2/段3 打标记由渲染层直绘，不走语义 token。
+        segs: list[str] = []
+        if pool_key == "HexCity":
+            if node_name:
+                segs.append(f"⟦c⟧{node_name}⟦/c⟧")
+        else:
+            mtype = _one_word((node_tbl[node_key].get("type") or "").strip())
+            if mtype:
+                segs.append(mtype)
+        if cname:
+            segs.append(f"⟦v⟧{cname}⟦/v⟧")
+        if goal:
+            segs.append(f"⟦w⟧{goal}⟦/w⟧")
+        head = " ".join(segs)
+        if head:
+            lines.append(f"{_BOUNTY_HEAD_PREFIX}{head}｜{lv_txt}")
+        else:
+            lines.append(f"{_BOUNTY_HEAD_PREFIX}{lv_txt}")
         items = _pool_at_rot(region_pool.get(lv) or {}, rot)
         if items:
             lines.append("　　" + _fmt_pool_items(items))
@@ -1596,7 +1609,12 @@ def _tent_lines(syndicates, region: str = "Ostrons") -> list[str]:
     rows = _tents.region_locations(region, _tents.seed_of(syndicates))
     if not rows:
         return []
-    out = [f"　{label}：{'｜'.join(names)}" for label, names in rows]
+    # ★ 2026-10-02 改版（维护者要求）：纵列改**底部横向三块**——每点位
+    # 「标题｜任务…」用 ⟦tents⟧ 分隔串成一行机器行，渲染层拆块画框 +
+    # 蓝色高亮指定任务；文本模式由 render.text_card 展开回纵列。
+    # ⚠️ 机器行内不要再出现全角空格 —— 渲染层 _split_cells 按它切列。
+    out = ["⟦tents⟧" + "⟦tents⟧".join(
+        f"{label}｜{'｜'.join(names)}" for label, names in rows)]
     out.append(_TENT_NOTE.get(region)
                or "※ 以上为当前赏金点位（按 DE 世界种子推算，与游戏内一致）")
     return out

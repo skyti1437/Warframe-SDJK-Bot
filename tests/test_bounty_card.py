@@ -197,15 +197,25 @@ check("详情·奖励含内融核心", any("内融核心" in ln for ln in earth)
 check("详情·含钢铁之路档", any("钢铁之路" in ln for ln in earth), "钢铁之路")
 check("详情·含合一众档", any("合一众" in ln for ln in earth), "合一众")
 
-# —— 「赏金 扎里曼」= 详情：节点名 + 任务目标 + 该档奖励 ——
+# —— 「赏金 扎里曼」= 详情：档位行 = 类型+挑战名｜等级（地图名/任务：前缀已去）——
 _tz, zlines = fmt.fmt_bounties(bundle["syndicateMissions"], "扎里曼", cycle=ORACLE)
-check("详情·扎里曼节点名", any("奥金工场" in ln for ln in zlines), "奥金工场")
-check("详情·扎里曼任务目标",
-      any("任务：" in ln and "耀金奖章" in ln for ln in zlines), "耀金奖章")
+check("详情·扎里曼节点名已移除（涂沃主厅/奥金工场不在卡上）",
+      not any("奥金工场" in ln or "涂沃主厅" in ln for ln in zlines),
+      str(zlines[:5]))
+# 描述已移除（「耀金奖章」是 Melica 描述里的词，随之下线）；挑战名保留在档位行
+check("详情·扎里曼档位行带挑战名",
+      any("给梅利卡加油打气" in ln for ln in zlines), "给梅利卡加油打气")
 check("详情·扎里曼有奖励行",
       any(ln.startswith("　　") and "、" in ln for ln in zlines), str(zlines[:4]))
 _tn, nlines = fmt.fmt_bounties(bundle["syndicateMissions"], "实验室", cycle=ORACLE)
-check("详情·解剖圣所节点名", any("卫城区" in ln for ln in nlines), "卫城区")
+# 圣所：地图（节点）名已按维护者要求移除（2026-10-02），横幅与等级档仍在
+check("详情·解剖圣所横幅在、节点名已移除",
+      any("解剖圣所" in ln for ln in nlines)
+      and not any("卫城区" in ln for ln in nlines), str(nlines[:5]))
+check("详情·圣所档位行等级挂行尾（与其他地区一样抽右对齐徽章）",
+      any(ln.startswith(fmt._BOUNTY_HEAD_PREFIX) and ln.endswith("级")
+          and "｜" in ln for ln in nlines),
+      "▸ 类型 挑战名｜55-60级")
 
 # ★ 别名防误删：「赏金 圣所」必须命中 EntratiLab（解剖圣所）—— 沃沃图上那行就是「圣所」
 #   （别名表 formatters `"圣所": "EntratiLab"`；DE 侧该区 Jobs 恒为空，靠 oracle 补节点/挑战）
@@ -293,13 +303,36 @@ _NODES = json.loads((ROOT / "core" / "data" / "de" / "nodes_zh.json")
 _OFFICIAL_TYPES = {v.get("type") for v in _NODES.values() if v.get("type")}
 check("nodes_zh 带官方任务类型", len(_OFFICIAL_TYPES) >= 20, str(len(_OFFICIAL_TYPES)))
 
+# —— oracle 任务行按地区三种形态（2026-10-02 用户分别指定）——
+# 扎里曼维持「任务：类型 挑战名」；圣所去「任务：」前缀；1999 只留挑战名（⟦c⟧ 染蓝）
+# —— oracle 三地区详情卡：独立任务行取消，类型/挑战名并入档位行（2026-10-02）——
+# 圣所/扎里曼 = 「类型 挑战名｜等级」（无地图名）；1999 = 节点名 + ⟦c⟧挑战名｜等级
 for _kw in ("扎里曼", "实验室", "1999"):
     _t, _ls = fmt.fmt_bounties(bundle["syndicateMissions"], _kw, cycle=ORACLE)
-    _task = [ln for ln in _ls if ln.startswith("　　任务：")]
-    check(f"详情 {_kw} 有任务行", bool(_task), str(_ls[:6]))
-    _heads = [ln[len("　　任务："):].split(" ")[0] for ln in _task]
-    check(f"详情 {_kw} 任务行首段是官方任务类型",
-          all(h in _OFFICIAL_TYPES for h in _heads), str(_heads))
+    _heads = [ln for ln in _ls
+              if ln.startswith(fmt._BOUNTY_HEAD_PREFIX) and "级" in ln]
+    check(f"详情 {_kw} 无独立任务行（无「任务：」前缀行）",
+          _heads and not any(ln.startswith("　　任务：") for ln in _ls),
+          str(_ls[:5]))
+    if _kw == "1999":
+        # 节点名整体在蓝段内（派系词「炽蛇军」不得单独变橙），挑战名紫、目标白
+        check(f"详情 {_kw} 节点名整段蓝（⟦c⟧ 跨整个节点名）",
+              all("⟦c⟧地狱净化：炽蛇军⟦/c⟧" in ln for ln in _heads),
+              str(_heads[:2]))
+        check(f"详情 {_kw} 挑战名紫段 + 目标白段",
+              all("⟦v⟧" in ln and "⟦/v⟧" in ln and "⟦w⟧" in ln
+                  for ln in _heads), str(_heads[:2]))
+    else:
+        check(f"详情 {_kw} 档位行 = 类型+挑战名(紫)+目标(白)｜等级",
+              all(ln[len(fmt._BOUNTY_HEAD_PREFIX):].split(" ")[0]
+                  in _OFFICIAL_TYPES and "⟦v⟧" in ln and "⟦w⟧" in ln
+                  and "｜" in ln for ln in _heads),
+              str(_heads[:3]))
+check("详情·圣所档位行无地图名（节点名已去掉）",
+      not any("卫城区" in ln
+              for ln in fmt.fmt_bounties(bundle["syndicateMissions"],
+                                         "实验室", cycle=ORACLE)[1]),
+      "卫城区")
 
 # 一览里现在有两类任务行：DE 地区（只有描述，无类型段）与 oracle 地区（类型+挑战名+目标）
 _ov_task = [ln for ln in lines if ln.startswith("　　任务：")]
@@ -312,8 +345,10 @@ check("一览 oracle 任务行带类型",
       and all(ln[len("　　任务："):].split(" ")[0] in _OFFICIAL_TYPES
               for ln in _ov_oracle),
       str(_ov_oracle[:3]))
-check("一览 DE 任务行带描述（维护者确认 DE 有 detail，已接上）",
-      len(_ov_de) >= 3, str(_ov_de[:3]))
+check("一览 DE 任务行已移除（2026-10-02 维护者要求：描述没作用）",
+      not any(ln.startswith("　　任务：")
+              and ln[len("　　任务："):].split(" ")[0] not in _OFFICIAL_TYPES
+              for ln in _ov_task), str(_ov_de[:3]))
 check("任务行不再拼挑战名（旧形态「任务：给梅利卡加油打气 · …」已移除）",
       not any(" · " in ln for ln in _ov_task), str(_ov_task[:3]))
 # 已知节点→类型映射（来自 DE ExportRegions，与 fixture 无关）
@@ -326,18 +361,15 @@ for _n, _want in (("SolNode231", "歼灭"), ("SolNode230", "虚空洪流"),
           (_NODES.get(_n) or {}).get("type") == _want,
           str((_NODES.get(_n) or {}).get("type")))
 
-# —— 任务行 = 「类型 + 挑战名 + 目标」，三段单行（副目标分级已回退）——
-# 用户先要求「副目标放主目标下一级」，后发现「第二个科腐者」其实是另一档赏金，
-# 于是回退：整句描述不再按句号拆行。
+# —— 任务行 = 「类型 + 挑战名」两段单行（描述段 2026-10-02 应维护者要求移除）——
 _sub = fmt._oracle_task_lines(
     "SolNode852",
     "/Lotus/Types/Challenges/Vania/VaniaAbilityKillVeryHard")
-check("任务行单行（不再拆副目标）", len(_sub) == 1, str(_sub))
-check("任务行 = 类型 + 挑战名 + 目标",
-      bool(_sub) and _sub[0].startswith("　　任务：生存 能量超载 使用战甲技能击杀 40 名敌人"),
-      str(_sub))
-check("第二句保留在同一行",
-      bool(_sub) and "增加能量恢复速率" in _sub[0], str(_sub))
+check("任务行单行", len(_sub) == 1, str(_sub))
+check("任务行 = 类型 + 挑战名（描述已移除）",
+      bool(_sub) and _sub[0] == "　　任务：生存 能量超载", str(_sub))
+check("描述段不再出现在行内",
+      bool(_sub) and "使用战甲技能击杀" not in _sub[0], str(_sub))
 check("任务行不含缩进二级（无四个全角空格）",
       all(not ln.startswith("　　　　") for ln in _sub), str(_sub))
 
@@ -366,7 +398,7 @@ _ka = fmt._oracle_task_lines(
 check("带空格的挑战名已换成 NBSP",
       bool(_ka) and "\u00a0" in _ka[0], str(_ka))
 _ka_seg = _ka[0][len("　　任务："):].split(" ", 2) if _ka else []
-check("任务行切成三段（类型 / 挑战名 / 目标）", len(_ka_seg) == 3, str(_ka_seg))
+check("任务行切成两段（类型 / 挑战名，描述已移除）", len(_ka_seg) == 2, str(_ka_seg))
 check("挑战名段内无 ASCII 空格（不会被误切）",
       len(_ka_seg) >= 2 and " " not in _ka_seg[1], str(_ka_seg[:2]))
 check("类型段内无空格", bool(_ka_seg) and " " not in _ka_seg[0], str(_ka_seg[:1]))
@@ -544,12 +576,16 @@ _REGION_CASES = [
 for _label, _kw, _cyc in _REGION_CASES:
     _t, _ls = fmt.fmt_bounties(bundle["syndicateMissions"], _kw, _cyc)
     _blocks = sum(1 for x in _ls if x.lstrip("　").startswith("▸"))
+    # 2026-10-02 起地球卡带点位三块（⟦tents⟧ 机器行 → 每行 3 个圆角框）
+    _tents_n = sum(1 for x in _ls if x.startswith("⟦tents⟧"))
     _n, _nhg, _ctx = _sep_lines(_t, _ls)
     if _n is None:
         print("[SKIP] 渲染器不可用（缺字体），跳过块间分隔线用例")
         break
-    check(f"★ 赏金块圆角框（{_label}）：{_blocks} 块 → {_n} 个框（应 = 块数）",
-          _blocks >= 1 and _n == _blocks, f"块={_blocks} 框={_n}")
+    check(f"★ 赏金块圆角框（{_label}）：{_blocks} 块 → {_n} 个框"
+          f"（应 = 块数 + 3×点位行）",
+          _blocks >= 1 and _n == _blocks + 3 * _tents_n,
+          f"块={_blocks} 框={_n} 点位行={_tents_n}")
     check(f"赏金块圆角框（{_label}）：◆ 区域行的主题色渐隐线保留",
           _nhg >= 1, str(_nhg))
     if _label == "地球":
@@ -570,10 +606,69 @@ _ost = next(s for s in bundle["syndicateMissions"]
             if s.get("syndicate") == "Ostrons")
 _one = [dict(_ost, jobs=_ost["jobs"][:1])]
 _t1, _l1 = fmt.fmt_bounties(_one, "地球", {})
+_t1_tents = sum(1 for x in _l1 if x.startswith("⟦tents⟧"))
 _n1, _, _ = _sep_lines(_t1, _l1)
-check("反例：单块卡 → 恰好 1 个框（不画卡首/卡尾多余框）",
-      _n1 == 1 and sum(1 for x in _l1 if x.lstrip("　").startswith("▸")) == 1,
-      f"块=1 框={_n1}")
+check("反例：单块卡 → 1 个档位框 + 3×点位框（不画卡首/卡尾多余框）",
+      _n1 == 1 + 3 * _t1_tents
+      and sum(1 for x in _l1 if x.lstrip("　").startswith("▸")) == 1,
+      f"块=1 框={_n1} 点位行={_t1_tents}")
+
+# ---------------------------------------------------------------------------
+# 4) 点位三块（2026-10-02 改版）：机器行格式、解析、蓝色高亮像素
+# ---------------------------------------------------------------------------
+_tent_rows = [x for x in fmt.fmt_bounties(bundle["syndicateMissions"],
+                                          "地球", ORACLE)[1]
+              if x.startswith("⟦tents⟧")]
+check("★ 地球详情卡：点位机器行存在（1 行）", len(_tent_rows) == 1,
+      str(len(_tent_rows)))
+if _tent_rows:
+    _blk = R._tents_of(_tent_rows[0])
+    check("★ 点位机器行解析：3 块、每块标题+任务",
+          _blk is not None and len(_blk) == 3
+          and all(len(b) >= 2 and b[0].startswith("小帐篷") for b in _blk),
+          str(_blk)[:120])
+    _tc = R.text_card("t", _tent_rows)
+    check("★ text_card 展开机器行：3 个点位、无 ⟦tents⟧ 残留",
+          "⟦tents⟧" not in _tc and _tc.count("小帐篷") == 3, _tc)
+# 蓝色高亮像素：地球卡上 4 条指定任务（捕获 Grineer 特工 等）染蓝（BLUE）
+_sep3 = _sep_lines(*fmt.fmt_bounties(bundle["syndicateMissions"], "地球", ORACLE))
+if _sep3[0] is not None:
+    from PIL import Image
+
+    _im3 = Image.open(_sep3[2][1]).convert("RGB")
+    _px3, _W3H3 = _im3.load(), _im3.size
+    _blue = sum(1 for y in range(150, _W3H3[1] - 60, 2)
+                for x in range(40, _W3H3[0] - 40, 2)
+                if abs(_px3[x, y][0] - 111) < 30
+                and abs(_px3[x, y][1] - 168) < 30
+                and abs(_px3[x, y][2] - 220) < 30)
+    check("★ 点位块蓝色高亮像素存在（4 条指定任务）", _blue > 30, str(_blue))
+
+# —— 2026-10-02 追加：Grineer/Corpus 赏金卡不染色 + 1999 挑战名蓝色 ——
+if _sep3[0] is not None:
+    # 派系色 (240,170,110)：抑制后只应剩「合一众」标签等零星像素（<500），
+    # 未抑制时 Grineer×多处 ≫ 该值
+    _fac = sum(1 for y in range(150, _W3H3[1] - 60, 2)
+               for x in range(40, _W3H3[0] - 40, 2)
+               if abs(_px3[x, y][0] - 240) < 20
+               and abs(_px3[x, y][1] - 170) < 20
+               and abs(_px3[x, y][2] - 110) < 20)
+    check("★ 地球卡 Grineer/Corpus 不再派系染色（只剩合一众标签零星像素）",
+          _fac < 500, str(_fac))
+    _t99, _l99 = fmt.fmt_bounties(bundle["syndicateMissions"], "1999", cycle=ORACLE)
+    _r99 = R.ImageRenderer(ROOT / "runtime")
+    _png99 = _r99.render(_t99, _l99, "国际服") if _r99.available else None
+    if _png99:
+        _im99 = Image.open(_png99).convert("RGB")
+        _px99, _WH99 = _im99.load(), _im99.size
+        _blue99 = sum(1 for y in range(150, _WH99[1] - 60, 2)
+                      for x in range(40, _WH99[0] - 40, 2)
+                      if abs(_px99[x, y][0] - 111) < 30
+                      and abs(_px99[x, y][1] - 168) < 30
+                      and abs(_px99[x, y][2] - 220) < 30)
+        check("★ 1999 卡挑战名蓝色像素存在（⟦c⟧ 行染蓝）", _blue99 > 30, str(_blue99))
+    else:
+        print("[SKIP] 渲染器不可用，跳过 1999 蓝色像素用例")
 
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")

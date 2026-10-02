@@ -58,7 +58,9 @@ COMMAND_ALIASES: dict[str, set[str]] = {
     # ---- 世界状态与周期 ----
     "cetus": {"夜灵", "平原时间", "平原", "夜灵平野", "平原昼夜"},
     "timers": {"时效", "周报"},
-    "bounty": {"赏金"},
+    # 「声望」：社区黑话 —— 团体声望只能靠刷该地区赏金攒，查声望=查赏金
+    #   （2026-10-02 维护者要求；裸「声望」= 赏金一览，「金星声望」等见下方预设表）
+    "bounty": {"赏金", "声望"},
     "fissures": {"裂隙"},
     "sortie": {"突击"},
     "archon": {"执刑官", "执刑官猎杀", "大猎杀"},
@@ -87,7 +89,7 @@ COMMAND_ALIASES: dict[str, set[str]] = {
     "tenet": {"信条"},
     "coda": {"终幕"},
     "acrichis": {"言录使"},
-    "descendia": {"沉沦之地", "炼狱塔", "炼狱"},
+    "descendia": {"沉沦之地", "炼狱塔", "炼狱", "沉沦"},
     "incursions": {"侵袭", "钢路侵袭", "钢铁侵袭"},
     # ---- 资料与计算器 ----
     "wiki": {"wiki", "wk", "维基"},
@@ -102,7 +104,7 @@ COMMAND_ALIASES: dict[str, set[str]] = {
     "rank": {"排行", "市场排行"},
     "analysis": {"紫卡分析"},
     "trend": {"趋势", "wm趋势", "价格趋势", "紫卡趋势"},
-    "openrelic": {"开核桃"},
+    "openrelic": {"开核桃", "裂缝"},
     "xh": {"xh", "玄骸"},
     "relic": {"遗物", "核桃"},
     "parts": {"部件", "零件", "组件"},
@@ -117,13 +119,8 @@ _PRESET_COMMANDS: dict[str, tuple[str, str]] = {
     "钢铁裂隙": ("fissures", "钢铁"),
     "虚空裂隙": ("fissures", "普通"),
     "九重天裂隙": ("fissures", "九重天"),
-    "地球赏金": ("bounty", "地球"),
-    "夜灵赏金": ("bounty", "地球"),
-    "金星赏金": ("bounty", "金星"),
-    "山谷赏金": ("bounty", "金星"),
-    "火卫二赏金": ("bounty", "火卫二"),
-    "魔胎赏金": ("bounty", "火卫二"),
-    "深矿赏金": ("bounty", "深矿"),
+    # 赏金/声望的地区预设由下方 _BOUNTY_REGIONS 统一生成
+    # （裸地区词 / 「X赏金」/「X声望」三式等价，见 ALIAS_TO_COMMAND 构建处）
     "金垃圾": ("ducats", "金"),
     "银垃圾": ("ducats", "银"),
     "铜垃圾": ("ducats", "铜"),
@@ -146,10 +143,42 @@ ALIAS_TO_COMMAND: dict[str, str] = {}
 for _cmd, _aliases in COMMAND_ALIASES.items():
     for _a in _aliases:
         ALIAS_TO_COMMAND[_a.lower()] = _cmd
+
+# ---------------------------------------------------------------------------
+# 赏金/声望地区词（2026-10-02 维护者要求）：裸地区词 = 地区赏金 = 地区声望，
+#   即「地球」「地球赏金」「地球声望」三者等价。键 = 可裸发的地区词；
+#   值 = 归并后的地区主词（fmt_bounties._CONTINENT_TARGET 按子串认识这套主词）。
+#   三种写法由这一张表统一生成 —— 手写三份必然出现「金星赏金能查、
+#   金星声望没反应」的方言断层。
+#   ⚠️ 裸词若已被其他主指令占用则跳过（夜灵/平原 → 周期指令），连写不受影响。
+# ---------------------------------------------------------------------------
+_BOUNTY_REGIONS: dict[str, str] = {
+    "地球": "地球", "希图斯": "地球", "尸鬼": "地球", "夜灵": "地球",
+    "金星": "金星", "山谷": "金星", "奥布": "金星", "索拉里": "金星",
+    "福尔图娜": "金星",
+    "火卫二": "火卫二", "魔胎": "火卫二", "英择谛": "火卫二", "隔离库": "火卫二",
+    "深矿": "深矿", "抢劫": "深矿",
+    "扎里曼": "扎里曼", "羽化": "扎里曼", "虚空天使": "扎里曼",
+    "圣所": "圣所", "实验室": "圣所", "解剖": "圣所",
+    "1999": "1999", "六人组": "1999", "霍瓦尼亚": "1999",
+}
+for _w, _region in _BOUNTY_REGIONS.items():
+    if _w not in ALIAS_TO_COMMAND:  # 「夜灵」已归周期指令 → 只保留连写形式
+        _PRESET_COMMANDS[_w] = ("bounty", _region)
+    _PRESET_COMMANDS[_w + "赏金"] = ("bounty", _region)
+    _PRESET_COMMANDS[_w + "声望"] = ("bounty", _region)
+
 for _alias, (_cmd, _preset) in _PRESET_COMMANDS.items():
     ALIAS_TO_COMMAND[_alias.lower()] = _cmd
 # _PRESET_COMMANDS 自身也小写化，方便 parse() 里按 low 取 preset
 _PRESET_COMMANDS = {k.lower(): v for k, v in _PRESET_COMMANDS.items()}
+
+# 无空格连写（2026-10-02 玩家反馈「wm水晶p头」静默无响应）：ASCII 指令别名
+# 直接贴着内容时按前缀切开。只收纯 ASCII 指令别名、最长优先（wmr 先于 wm）；
+# 中文指令无此输入习惯且误伤面大（「帮助我」「趋势图」这类正文词），不参与。
+_ASCII_CMD_ALIASES: tuple[str, ...] = tuple(sorted(
+    (a for a in ALIAS_TO_COMMAND if a.isascii() and a.isalpha()),
+    key=len, reverse=True))
 
 
 # ---------------------------------------------------------------------------
@@ -232,6 +261,18 @@ def parse(message: str, *, extra_commands: Optional[dict[str, str]] = None) -> P
             if low in _PRESET_COMMANDS:
                 res.preset = _PRESET_COMMANDS[low][1]
             continue
+        if res.command is None:
+            # 无空格连写：「wm水晶p头」= wm + 水晶p头（ASCII 指令前缀，最长优先）
+            for pre in _ASCII_CMD_ALIASES:
+                if low.startswith(pre) and len(low) > len(pre):
+                    res.command_raw = pre
+                    res.command = alias_table[pre]
+                    if pre in _PRESET_COMMANDS:
+                        res.preset = _PRESET_COMMANDS[pre][1]
+                    res.content.append(tok[len(pre):])
+                    break
+            if res.command is not None:
+                continue
         res.content.append(tok)
     return res
 

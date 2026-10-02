@@ -349,7 +349,8 @@ HELP_TOPIC: dict[str, list[tuple[str, str]]] = {
     ],
     "周期与日常": [
         ("夜灵 / 平原时间", "夜灵·金星·魔胎·地球·双衍·扎里曼 周期轮换"),
-        ("赏金", "各地区赏金轮次与奖励"),
+        ("赏金 / 声望", "各地区赏金轮次与奖励（「声望」= 赏金；裸发地区词亦可，"
+                        "地球 = 地球赏金 = 地球声望）"),
         ("裂隙", "虚空裂隙；可筛 钢铁 / 任务类型 / 等级"),
         ("突击 / 执刑官", "每日突击三阶段｜本周执刑官猎杀"),
         ("时效 / 周报", "各周期内容剩余时间总览"),
@@ -433,7 +434,7 @@ HELP_TOPIC: dict[str, list[tuple[str, str]]] = {
 
 @register("astrbot_plugin_warframe_sdjkbot", "skyti1437",
           f"{BRAND}：世界状态 / 市场查价 / 蹲点推送",
-          "1.1.2")
+          "1.1.3")
 class WarframeSDJK(DailyCommands, ProgressCommands, ArbitrationCommands, RotationCommands, RelicCommands, MarketCommands, RivenCommands, WikiMiscCommands, VisionCommands, ScanCommands, DunCommands, Star):
     def __init__(self, context: Context, config: AstrBotConfig | None = None):
         super().__init__(context)

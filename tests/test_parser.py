@@ -46,6 +46,44 @@ check("预设指令 金垃圾->ducats", p.command == "ducats" and p.preset == "�
 p = parse("钢铁裂隙 -1")
 check("钢铁裂隙预设 + 文字模式", p.command == "fissures" and p.preset == "钢铁" and p.force_text)
 
+# 声望=赏金（黑话映射，2026-10-02）；地区词裸发/连写三式等价
+p = parse("声望")
+check("声望裸指令=赏金一览", p.command == "bounty")
+p = parse("金星声望")
+check("金星声望预设->bounty+金星", p.command == "bounty" and p.preset == "金星")
+p = parse("魔胎声望")
+check("魔胎声望预设->bounty+火卫二", p.command == "bounty" and p.preset == "火卫二")
+p = parse("深矿声望")
+check("深矿声望预设->bounty+深矿", p.command == "bounty" and p.preset == "深矿")
+p = parse("声望 地球")
+check("声望+地区词走内容匹配", p.command == "bounty" and p.preset is None
+      and p.content == ["地球"])
+p = parse("地球")
+check("裸地区词=地区赏金=地区声望", p.command == "bounty" and p.preset == "地球")
+p = parse("地球赏金")
+check("地球赏金连写保留", p.command == "bounty" and p.preset == "地球")
+p = parse("希图斯")
+check("地区别名归并主词", p.command == "bounty" and p.preset == "地球")
+p = parse("扎里曼")
+check("裸扎里曼->bounty（轮换制地区）", p.command == "bounty" and p.preset == "扎里曼")
+p = parse("1999")
+check("裸1999->bounty", p.command == "bounty" and p.preset == "1999")
+p = parse("夜灵")
+check("被占用地区词不抢指令（夜灵=周期）", p.command == "cetus")
+p = parse("夜灵声望")
+check("夜灵声望连写仍->bounty+地球", p.command == "bounty" and p.preset == "地球")
+
+# 黑话补充（2026-10-02）：沉沦=沉沦之地、裂缝=开核桃
+p = parse("沉沦")
+check("沉沦=沉沦之地", p.command == "descendia")
+p = parse("裂缝")
+check("裂缝=开核桃", p.command == "openrelic")
+
+# 无空格连写：ASCII 指令前缀（wm/wmr 最长优先）
+p = parse("wm水晶p头")
+check("无空格连写 wm水晶p头", p.command == "wm" and p.content == ["水晶p头"])
+p = parse("wmr绝路")
+check("无空格连写最长优先 wmr", p.command == "wr" and p.content == ["绝路"])
 p = parse("今天天气不错")
 check("无指令不误触发", p.command is None)
 

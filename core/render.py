@@ -77,11 +77,31 @@ def pad(text: str, width: int) -> str:
 _POL_MARK_RE = re.compile(r"⟦pol:([a-z_]+)⟧")
 
 
+def _expand_tents_line(line: str) -> list[str]:
+    """⟦tents⟧ 点位机器行 → 文本模式纵列（「　小帐篷 X：任务｜任务」）。
+
+    机器行是图片模式的排版指令；文本模式没有块与颜色，展开回原来的
+    每点位一行，信息不丢（⟦pol:…⟧ 的「剥掉」先例在这里不够 —— 剥掉
+    等于整个点位块消失）。
+    """
+    if "⟦tents⟧" not in line:
+        return [line]
+    out: list[str] = []
+    for seg in _TENT_SPLIT_RE.split(line):
+        parts = [p.strip() for p in seg.split("｜") if p.strip()]
+        if parts:
+            out.append(f"　{parts[0]}：{'｜'.join(parts[1:])}")
+    return out or [line]
+
+
 def text_card(title: str, lines: list[str], footer: str = "",
               max_width: int = 44) -> str:
     """构造排版整齐的字符界面卡片。"""
     title = _POL_MARK_RE.sub("", title or "")
-    lines = [_POL_MARK_RE.sub("", x or "") for x in lines]
+    lines = [seg for x in lines
+             for seg in _expand_tents_line(_POL_MARK_RE.sub("", x or ""))]
+    # ⟦c⟧/⟦v⟧/⟦w⟧ 及其闭合 = 染段标记（画图模式分段上色），文本模式剥掉
+    lines = [_SEG_MARK_RE.sub("", x) for x in lines]
     footer = _POL_MARK_RE.sub("", footer or "")
     inner = [title] + list(lines)
     if footer:
@@ -253,13 +273,15 @@ MAX_BODY_LINES = 90
 _INDENT_PX = 34
 
 # 卡片水印（小更新 +0.1，首个满意版本升 1.0）。
-# 版本从 core.__version__ 取主次版本、品牌从 core.__brand_card__ 取，
+# 版本从 core.__version__ 取**完整三位**、品牌从 core.__brand_card__ 取，
 # 避免与 metadata.yaml / main.py 注册版本走散
 # （曾经三处各写一份、抬版本或换品牌时漏改，水印留在旧号/旧名上）。
+# ★ 2026-10-02 维护者要求：水印/状态卡标题显示**完整版本号**（如 1.1.3），
+#   不再取主次版本（1.1）—— 抬版本时这里无需任何手动改动，单一来源自动跟。
 try:  # pragma: no cover - 兜底分支只在包结构异常时走到
     from . import __version__ as _CORE_VERSION
     from . import __brand_card__ as _CARD_BRAND
-    WATERMARK_VERSION = ".".join(str(_CORE_VERSION).split(".")[:2]) or "1.0"
+    WATERMARK_VERSION = str(_CORE_VERSION) or "1.0"
     CARD_BRAND = str(_CARD_BRAND)
 except Exception:  # noqa: BLE001
     WATERMARK_VERSION = "1.0"
@@ -353,6 +375,48 @@ GROUP_CHIP_COLOR = {
 MISSION_TYPE_COLOR = CYAN          # 任务类型（歼灭/生存/虚空决战…）
 CHALLENGE_COLOR = VIOLET           # 赏金挑战名（能量超载/终结好戏…）
 FACTION_COLOR = (240, 170, 110)    # 派系（Grineer / 科腐者 / 合一众…）与 I系/C系 同色
+# 赏金卡不做派系染色的英文派系名（2026-10-02 维护者要求：Grineer/Corpus 在赏金里
+# 默认不染色 —— 任务名/奖励里混着大段英文名，整片发橙太吵）；其他卡照旧。
+_BOUNTY_PLAIN_FACTION = frozenset({"Grineer", "Corpus"})
+
+# ---------------------------------------------------------------------------
+# 行内染段标记（formatters 侧打标，2026-10-02）：⟦c⟧…⟦/c⟧ 蓝、⟦v⟧…⟦/v⟧ 紫、
+# ⟦w⟧…⟦/w⟧ 白。首标记前的文本走正常绘制路径（行首任务类型染色、标签加粗等）；
+# 首标记之后的所有文本（含标记外的余文与空格）按段直绘、**不走语义 token** ——
+# 目标/节点名里的派系词（低语者/炽蛇军）、类型词（捕获）不能被词表串色。
+# 用于 oracle 三地区档位行的三段染色：类型青 / 挑战名紫 / 目标白（1999 的
+# 节点名整体蓝 —— 派系词在节点名里必须跟整体同色）。
+# ⚠️ 文本模式由 text_card 剥掉；⟦tents⟧/⟦pol:…⟧ 是别的机制，不匹配本模式。
+# ---------------------------------------------------------------------------
+_SEG_MARK_RE = re.compile(r"(⟦/?[a-z]⟧)")
+_SPAN_COLORS = {"c": BLUE, "v": VIOLET, "w": INK}
+
+
+def _parse_color_segs(t: str) -> tuple[str, list[tuple[str, tuple[int, int, int]]]]:
+    """拆行内染段标记，返回 (主文本, [(段文本, 颜色), ...])。
+
+    主文本 = 首标记前的部分（可能为空）；其后每段未标记文本沿用当前段色
+    （段外默认白），开标记切换段色、闭标记回到白。无标记时返回 (原文, [])。
+    """
+    if "⟦" not in t:
+        return t, []
+    main_parts: list[str] = []
+    segs: list[tuple[str, tuple[int, int, int]]] = []
+    color: Optional[tuple[int, int, int]] = None
+    seen = False
+    for part in _SEG_MARK_RE.split(t):
+        if not part:
+            continue
+        if part.startswith("⟦"):
+            seen = True
+            mm = re.fullmatch(r"⟦([a-z])⟧", part)
+            color = _SPAN_COLORS.get(mm.group(1), INK) if mm else INK
+            continue
+        if not seen:
+            main_parts.append(part)
+        else:
+            segs.append((part, color or INK))
+    return "".join(main_parts), segs
 ELEMENT_COLOR = TEAL               # 伤害/元素类型（磁力/冰冻/毒素…）
 BONUS_COLOR = GOLD_BRIGHT          # 加成百分比（25.7%）
 
@@ -367,6 +431,47 @@ TIER_FRAME_FILL = (23, 27, 37, 214)   # 底色比面板亮一档；alpha 与主�
 TIER_FRAME_LINE = (74, 64, 46, 255)   # 描边沿用主面板内框线色（暖金）
 _TIER_PAD = 8      # 框缘到行顶/行底的内边距（设计像素）
 _TIER_TAIL = 24    # 组尾距：组间距 = 尾距 − 2×内边距 = 8px
+# 档位框的左右边界（相对正文列）：框比文字列**外扩**，视觉上包住等级徽章。
+# 点位三块（_draw_tent_blocks）沿用同一对边界 —— 否则最左/最右块与上方档位框
+# 对不齐（2026-10-02 玩家反馈「左右边距去掉」）。⚠️ 两处共用，别再各写数字。
+_TIER_FRAME_L = 16   # 左缘 = x_text − 16
+_TIER_FRAME_R = 46   # 右缘 = box[2] − 46
+
+# ---------------------------------------------------------------------------
+# 赏金点位块（2026-10-02 维护者要求改版）：底部横向三块（小帐篷 A/B/C）
+# ---------------------------------------------------------------------------
+# 格式层把每个点位的「标题｜任务1｜任务2…」用 ⟦tents⟧ 分隔串成**一行机器行**
+# （formatters._tent_lines）；渲染层拆开后每点位画一个圆角框（沿用档位框配色），
+# 块顶标题、下方纵排任务名。文本模式由 text_card 展开回纵列。
+_TENT_SPLIT_RE = re.compile(r"⟦tents⟧")
+_TENT_GAP = 18        # 块间距（设计像素，下同）
+_TENT_PAD_X = 14      # 块内水平内边距
+_TENT_PAD_TOP = 10    # 块内顶部内边距（标题行之上）
+_TENT_HEAD_H = 44     # 标题行高
+_TENT_LINE_H = 40     # 任务行高
+_TENT_PAD_BOT = 14    # 末行之下余量
+# 蓝色高亮的点位任务（官方简中链名；比对前去空白——「捕获 Grineer 特工」带空格）。
+# ⚠️ 拼写以 tents 实际用的 bounty_jobs_zh.json 为准：「搜索并救援」（另一张
+#    官方表 bounty_job_names.json 写「搜索与救援」，两种拼写都收防串表）。
+_TENT_BLUE_TASKS = frozenset({"捕获grineer特工", "找出遗失的器物",
+                              "取回被偷的器物", "搜索并救援", "搜索与救援"})
+
+
+def _tents_of(text: str) -> Optional[list[list[str]]]:
+    """拆 ⟦tents⟧ 机器行 → ``[[标题, 任务…], …]``；非机器行返回 None。"""
+    if "⟦tents⟧" not in text:
+        return None
+    blocks: list[list[str]] = []
+    for seg in _TENT_SPLIT_RE.split(text):
+        parts = [p.strip() for p in seg.split("｜") if p.strip()]
+        if parts:
+            blocks.append(parts)
+    return blocks or None
+
+
+def _tent_norm(name: str) -> str:
+    """任务名比对键：去空白 + 小写（「捕获 Grineer 特工」→「捕获grineer特工」）。"""
+    return re.sub(r"[\s\u3000]+", "", name).lower()
 
 # 任务类型全集 = DE 官方 missionName 中文（ExportRegions / MissionName_*）
 #                  ∪ ExportBounties 末阶段映射出来的那几个。
@@ -481,7 +586,9 @@ _TOKEN_RE = re.compile(
     r"(\[[^\]]*\]|★+[^、\s　]*|▣[^、\s　]+|\d+p(?![a-zA-Z])|" + _TIMER_MARK + _DUR +
     r"|（[0-9hms ]+）|已结束"
     r"|▲[^、\s　]+|▼[^、\s　]+|信\d+"
-    r"|网页在线|在线|离线|钢铁|九重天|执刑官|满级|零级"
+    # 「钢铁之路」必须在「钢铁」前面：alternation 先匹配先赢，反了的话
+    # 赏金标签「钢铁之路」只有前两个字被染红（2026-10-02 维护者要求 4 字全红）。
+    r"|网页在线|在线|离线|钢铁之路|钢铁|九重天|执刑官|满级|零级"
     r"|\d+日\d+时"
     r"|(?:I系|C系|G系|O系)"
     # 语义配色：任务类型 / 元素 / 派系 / 加成百分比（见上面的说明）
@@ -552,7 +659,7 @@ _TOKEN_RULES: tuple[tuple["re.Pattern[str]", tuple[int, int, int]], ...] = (
     (re.compile(r"^网页在线$"), BLUE),
     (re.compile(r"^在线$"), GREEN),
     (re.compile(r"^离线$"), INK_FAINT),
-    (re.compile(r"^(钢铁|执刑官)$"), RED),
+    (re.compile(r"^(钢铁之路|钢铁|执刑官)$"), RED),
     (re.compile(r"^九重天$"), CYAN),
     (re.compile(r"^(满级|零级)$"), GOLD_BRIGHT),
     (re.compile(r"^\d+日\d+时$"), (140, 190, 240)),
@@ -1069,6 +1176,16 @@ class ImageRenderer:
         for _li, raw in enumerate(src):
             clean, had_icon = _strip_emoji(raw)
             cleaned.append((raw, clean, had_icon))
+            # 点位机器行：按「三块总宽」计入卡宽（块内文字最大宽 + 内边距×2，
+            # 等宽三块 + 块间距），不走下面的普通行宽口径
+            if clean.startswith("⟦tents⟧"):
+                _blocks = _tents_of(clean) or []
+                _tw = max((_tlen(measure, body_font, s)
+                           for b in _blocks for s in b), default=0.0)
+                _nb = max(1, len(_blocks))
+                needed = max(needed, (_nb * (_tw + 2 * _TENT_PAD_X * SS)
+                                      + (_nb - 1) * _TENT_GAP * SS) / SS + 10)
+                continue
             if "　" in clean:
                 _cells = _split_cells(clean)
                 if _cells:
@@ -1089,6 +1206,9 @@ class ImageRenderer:
             # 极性图标标记：按图标宽度计入、字符串本身剥离（同 _wrap 口径）
             _n_mark = clean.count("⟦pol:")
             _meas_txt = _POL_MARK_RE.sub("", clean) if _n_mark else clean
+            if "⟦" in _meas_txt:
+                # 染段标记零宽（与 _wrap 的口径一致），不剥会虚增卡宽
+                _meas_txt = _SEG_MARK_RE.sub("", _meas_txt)
             w_line = (max((_tlen(measure, _lf, s)
                            for s in _meas_txt.splitlines()), default=0.0) / SS)
             if _n_mark:
@@ -1179,6 +1299,8 @@ class ImageRenderer:
                 return "note"
             if t.startswith("◆"):
                 return "section"
+            if t.startswith("⟦tents⟧"):
+                return "tents"
             # ★ 2026-09-27：赏金**档位行**（块首，格式层用 `_BOUNTY_HEAD_PREFIX`
             #   显式标记）—— 赏金卡「块与块之间画线」的判据。用显式标记而不是
             #   内容启发式：同卡上档位/奖励/点位行混排，猜会漏 oracle 与退路路径。
@@ -1238,6 +1360,18 @@ class ImageRenderer:
             # 只剩几个字（维护者 2026-09-17：「排版有点干燥」的一个来源）。
             # 按实际绘制字号测量。
             base_kind = kind_of(clean)
+            if base_kind == "tents":
+                # 点位机器行：整行原样保留（不折行），块数据存行上；
+                # 行高 = 顶距 + 标题 + n×任务行 + 底距（n 取各块任务数最大值）
+                _blocks = _tents_of(clean) or []
+                _n = max((len(b) - 1 for b in _blocks), default=0)
+                rows.append({"text": "", "icon": False, "timer": "",
+                             "level": "", "kind": "tents", "indent": 0,
+                             "cells": None, "tents": _blocks,
+                             "_extra_h": (_TENT_PAD_TOP + _TENT_HEAD_H
+                                          + _n * _TENT_LINE_H
+                                          + _TENT_PAD_BOT)})
+                continue
             _wrap_font = note_font if base_kind == "note" else body_font
             wrapped = self._wrap_cached(clean, _wrap_font, max(300, wrap_w))
             # 分列单元格（见 _split_cells 的说明）。
@@ -1270,7 +1404,8 @@ class ImageRenderer:
                         tier_frames.append((_gi, _i - 1))
                     _gi = _i
                     _r["_tier_head"] = True
-                elif _gi is not None and _r["kind"] in ("section", "note"):
+                elif _gi is not None and _r["kind"] in ("section", "note",
+                                                        "tents"):
                     tier_frames.append((_gi, _i - 1))
                     _gi = None
             if _gi is not None:
@@ -1283,10 +1418,12 @@ class ImageRenderer:
                     rows[_s - 1]["_tier_tail"] = _TIER_TAIL
 
         row_h = {"normal": 46, "section": 62, "note": 40, "numbered": 54,
-                 "bounty_head": 46}     # 档位行高度同 normal（只是多了块首语义）
+                 "bounty_head": 46,     # 档位行高度同 normal（只是多了块首语义）
+                 "tents": 0}            # 点位块行高全部走 _extra_h（块内自算）
         # 行高用行上存的 kind（说明列续行的 text 是说明片段，可能恰好以
         # 数字开头被 kind_of 误判成 numbered；存 kind 才是真实排版档位）
         body_h = sum(row_h[r["kind"]] + r.get("_tier_tail", 0)
+                     + r.get("_extra_h", 0)
                      for r in rows) + 10
         header_h = 150
         footer_h = 96
@@ -1433,12 +1570,13 @@ class ImageRenderer:
             _yy = y
             for _r in rows:
                 _row_y.append(_yy)
-                _yy += (row_h[_r["kind"]] + _r.get("_tier_tail", 0)) * SS
+                _yy += (row_h[_r["kind"]] + _r.get("_tier_tail", 0)
+                        + _r.get("_extra_h", 0)) * SS
             for _s, _e in tier_frames:
                 _fy1 = (_row_y[_e] + row_h[rows[_e]["kind"]] * SS
                         + _TIER_PAD * SS)
-                _fr = (x_text - 16 * SS, _row_y[_s] - _TIER_PAD * SS,
-                       box[2] - 46 * SS, _fy1)
+                _fr = (x_text - _TIER_FRAME_L * SS, _row_y[_s] - _TIER_PAD * SS,
+                       box[2] - _TIER_FRAME_R * SS, _fy1)
                 _rad = min(10 * SS,
                            (_fy1 - _row_y[_s] + _TIER_PAD * SS) // 2)
                 d.rounded_rectangle(_fr, radius=_rad, fill=TIER_FRAME_FILL)
@@ -1448,7 +1586,8 @@ class ImageRenderer:
         for i, r_ in enumerate(rows):
             t = r_["text"]
             k = r_["kind"]
-            h = (row_h[k] + r_.get("_tier_tail", 0)) * SS
+            h = (row_h[k] + r_.get("_tier_tail", 0)
+                 + r_.get("_extra_h", 0)) * SS
             # 地区行 = ◆ 开头且不含「｜」（赏金行才含）；做横幅化处理
             is_board = (getattr(self, "_bounty_mode", False) and k == "section"
                         and "｜" not in t)
@@ -1466,6 +1605,13 @@ class ImageRenderer:
             elif k == "note":
                 self._draw_tokens(d, t.lstrip("※").strip(), x_text, y + 8 * SS,
                                   note_font, INK_FAINT, x_right)
+            elif k == "tents":
+                # 与档位框同宽（左缘外扩 16 / 右缘内缩 46），三块与上面对齐
+                self._draw_tent_blocks(
+                    d, r_.get("tents") or [],
+                    x_text - _TIER_FRAME_L * SS, y, h,
+                    (box[2] - _TIER_FRAME_R * SS) - (x_text - _TIER_FRAME_L * SS),
+                    body_font, f.get("bold", 29), accent)
             elif k == "numbered":
                 num, rest = t.split(".", 1)
                 bh = 38 * SS
@@ -1497,6 +1643,9 @@ class ImageRenderer:
                     d.ellipse([x_bullet - 3 * SS, y + h / 2 - 3 * SS,
                                x_bullet + 3 * SS, y + h / 2 + 3 * SS],
                               fill=accent + (205,))
+                # 行内染段标记解析（⟦c⟧蓝 / ⟦v⟧紫 / ⟦w⟧白，见 _parse_color_segs）：
+                # 主文本走下面的正常路径，染段在行尾依序补画
+                t, _tail_segs = _parse_color_segs(t)
                 # 赏金档位行：把行首任务类型单独用类型色画，再接着画后面的
                 # 赏金名 / 等级标签（等级稍后由右对齐徽章覆盖）
                 if self._bounty_mode and r_.get("level") and not r_["icon"]:
@@ -1511,6 +1660,8 @@ class ImageRenderer:
                 # “标签：值” 结构 -> 标签加粗，值常规；
                 # 但分列行一律让位给列对齐（见 _is_label_row）。
                 head, sep, rest = t.partition("：")
+                _x_end = None
+                _tail_y = y + 9 * SS
                 if _is_label_row(head, bool(sep),
                                  bool(arb_cols is not None and r_.get("cells"))):
                     bold_font = f.get("bold", 29)
@@ -1525,8 +1676,8 @@ class ImageRenderer:
                         self._draw_task_rest(d, rest, xt + adv, y + 9 * SS,
                                              body_font, x_right)
                     else:
-                        self._draw_tokens(d, rest, xt + adv, y + 9 * SS,
-                                          body_font, INK, x_right)
+                        _x_end = self._draw_tokens(d, rest, xt + adv, y + 9 * SS,
+                                                   body_font, INK, x_right)
                 else:
                     if arb_cols is not None and r_.get("cells"):
                         for ci, cell in enumerate(r_["cells"]):
@@ -1565,8 +1716,15 @@ class ImageRenderer:
                                               y + 8 * SS, body_font, INK,
                                               x_right)
                         else:
-                            self._draw_tokens(d, t, xt, y + 8 * SS, body_font,
-                                              INK, x_right)
+                            _x_end = self._draw_tokens(d, t, xt, y + 8 * SS,
+                                                       body_font, INK, x_right)
+                            _tail_y = y + 8 * SS
+                if _tail_segs and _x_end is not None:
+                    # 尾段（挑战名蓝段 / 挑战名+目标白段）：依序补画在行尾
+                    for _seg_txt, _seg_col in _tail_segs:
+                        d.text((_x_end, _tail_y), _seg_txt, font=body_font,
+                               fill=_seg_col + (255,))
+                        _x_end += _tlen(d, body_font, _seg_txt)
             # 右对齐等级列（赏金卡）：钢蓝色徽章，整列扫读。
             # 徽章宽度**全卡统一**（lv_box_w），文字居中 —— 早先按各自文本宽画，
             # 「75-80级 / 95-100级 / 115-120级」左缘参差，看着像没对齐。
@@ -1736,6 +1894,9 @@ class ImageRenderer:
         # 极性图标标记：测量时按图标实际宽度计入（剥离标记字符串本身），
         # 否则「⟦pol:vazarin⟧」这 13 个字符会把长行提前挤折。
         mark_px = _pol_mark_px(font) if "⟦pol:" in text else 0.0
+        # 染段标记（⟦c⟧/⟦v⟧/⟦w⟧ 及闭合）从不绘制 → 测量按 0 宽，
+        # 否则 6 个标记 ≈ 200px 的虚宽会把档位行提前挤折（2026-10-02 实测）。
+        has_seg = _SEG_MARK_RE.search(text) is not None
 
         # ------------------------------------------------------------------
         # 增量测量快速路径（仅基本布局）：
@@ -1767,7 +1928,7 @@ class ImageRenderer:
             #   textlength 是逐字步进的纯加和、累计宽单调不减，
             #   「整行宽 ≤ max_w」⟺「逐字路径不触发断行」，结果严格等价；
             #   带极性标记的行在标记闭合处宽度非单调，仍走原逐字路径。
-            if not mark_px and _tlen(d, font, text) <= max_w:
+            if not mark_px and not has_seg and _tlen(d, font, text) <= max_w:
                 seg = text.rstrip(" ·、")
                 return [seg] if seg else []
 
@@ -1779,7 +1940,7 @@ class ImageRenderer:
             return a
 
         def _sum_adv(s: str) -> float:
-            """与旧版 _mw 同口径的精确串宽：完整标记按 mark_px、其余逐字。"""
+            """与旧版 _mw 同口径的精确串宽：完整标记按各自目标宽、其余逐字。"""
             w = 0.0
             k = 0
             while k < len(s):
@@ -1787,27 +1948,40 @@ class ImageRenderer:
                 if m2:
                     w += mark_px
                     k = m2.end()
-                else:
-                    w += _adv(s[k])
-                    k += 1
+                    continue
+                m3 = _SEG_MARK_RE.match(s, k) if has_seg else None
+                if m3:
+                    k = m3.end()      # 染段标记零宽
+                    continue
+                w += _adv(s[k])
+                k += 1
             return w
 
         if incremental:
-            # 预扫描极性标记：记录闭合位与该标记内字符的步进和（闭合时冲账）
+            # 预扫描标记：记录闭合位与该标记内字符的步进和 + 闭合处的目标宽
+            #（极性标记 = 图标宽；染段标记 = 0）。闭合时按「减字符和 + 加目标宽」冲账
             span_adv: dict[tuple[int, int], float] = {}
             span_end_at: dict[int, tuple[int, int]] = {}
+            span_target: dict[tuple[int, int], float] = {}
             if mark_px:
                 for m2 in _POL_MARK_RE.finditer(text):
                     s0, e0 = m2.span()
                     span_end_at[e0 - 1] = (s0, e0)
                     span_adv[(s0, e0)] = sum(_adv(c) for c in m2.group(0))
+                    span_target[(s0, e0)] = mark_px
+            if has_seg:
+                for m2 in _SEG_MARK_RE.finditer(text):
+                    s0, e0 = m2.span()
+                    span_end_at[e0 - 1] = (s0, e0)
+                    span_adv[(s0, e0)] = sum(_adv(c) for c in m2.group(0))
+                    span_target[(s0, e0)] = 0.0
             i = 0
             while i < len(text):
                 ch = text[i]
                 w_try = w_line + _adv(ch)
                 comp = span_end_at.get(i)
-                if comp is not None:      # 标记闭合：换成图标宽（与旧版等值）
-                    w_try = w_try - span_adv[comp] + mark_px
+                if comp is not None:      # 标记闭合：换成目标宽（与旧版等值）
+                    w_try = w_try - span_adv[comp] + span_target[comp]
                 if line and w_try > max_w:
                     # 优先在中文分隔符后断开：不这样，「▣Xaku机体蓝图、★雷射瞄具」
                     # 这类用「、」连起来的奖励串会被从词中间劈开。
@@ -1835,6 +2009,8 @@ class ImageRenderer:
                 i += 1
         else:
             def _mw(s: str) -> float:
+                if has_seg:
+                    s = _SEG_MARK_RE.sub("", s)
                 if not mark_px:
                     return d.textlength(s, font=font)
                 n = s.count("⟦pol:")
@@ -1868,31 +2044,61 @@ class ImageRenderer:
         out = [out[0]] + [seg.lstrip(" ·、") for seg in out[1:]]
         return [seg for seg in out if seg]
 
+    def _draw_tent_blocks(self, d, blocks: list[list[str]], x0: float,
+                          y: float, h: float, avail_w: float, font,
+                          head_font, accent) -> None:
+        """赏金卡底部的点位三块（小帐篷 A/B/C）：等宽圆角框横向排开。
+
+        每块顶部是点位标题（主题色加粗、居中），下方纵排任务名（居中）：
+        命中 :data:`_TENT_BLUE_TASKS` 的染蓝（用户指定的 4 条高亮任务），
+        其余正文色。框配色沿用赏金档位框（TIER_FRAME_FILL/LINE），
+        不引入新色系。
+        """
+        if not blocks:
+            return
+        gap = _TENT_GAP * SS
+        nb = len(blocks)
+        bw = (avail_w - gap * (nb - 1)) / nb
+        for bi, parts in enumerate(blocks):
+            bx = x0 + bi * (bw + gap)
+            d.rounded_rectangle([bx, y, bx + bw, y + h], radius=10 * SS,
+                                fill=TIER_FRAME_FILL, outline=TIER_FRAME_LINE,
+                                width=1 * SS)
+            head = parts[0]
+            _hb = d.textbbox((0, 0), head, font=head_font, anchor="la")
+            d.text((bx + (bw - (_hb[2] - _hb[0])) / 2 - _hb[0],
+                    y + _TENT_PAD_TOP * SS - _hb[1]),
+                   head, font=head_font, fill=accent + (255,))
+            ty = y + (_TENT_PAD_TOP + _TENT_HEAD_H) * SS
+            for name in parts[1:]:
+                color = BLUE if _tent_norm(name) in _TENT_BLUE_TASKS else INK
+                _tb = d.textbbox((0, 0), name, font=font, anchor="la")
+                d.text((bx + (bw - (_tb[2] - _tb[0])) / 2 - _tb[0],
+                        ty - _tb[1]),
+                       name, font=font, fill=color + (255,))
+                ty += _TENT_LINE_H * SS
+
     def _draw_task_rest(self, d, rest: str, x: float, y: float, font,
                         max_w: float) -> None:
-        """赏金「任务：**类型** **挑战名** 目标」三段分别上色。
+        """赏金「任务：**类型** **挑战名**」两段上色。
 
         维护者要求任务类型与挑战名各自有颜色（「任务类型现在像和后面文字是一块的」）。
+        ★ 目标描述段已于 2026-10-02 整体移除（玩家反馈「任务描述没任何作用」），
+        DE 三地区的纯描述行同时下线 —— 本行只剩类型 / 挑战名两段。
+
         结构由 ``formatters._oracle_task_lines`` 保证：**前两段不含 ASCII 空格**
-        （名字里的空格被换成 NBSP），所以按空格切最多三段＝类型 / 挑战名 / 目标。
-        挑战名缺失时第二段会被当成目标（罕见：bounty 恒带 challenge）。
+        （名字里的空格被换成 NBSP），所以按空格切＝类型 / 挑战名。
         """
         parts = rest.split(" ", 2)
-        segs: list[tuple[str, Optional[tuple[int, int, int]]]] = []
+        segs: list[tuple[str, tuple[int, int, int]]] = []
         if parts and parts[0]:
             segs.append((parts[0], MISSION_TYPE_COLOR))
         if len(parts) > 1 and parts[1]:
             segs.append((parts[1], CHALLENGE_COLOR))
-        if len(parts) > 2 and parts[2]:
-            segs.append((parts[2], None))
         gap = _tlen(d, font, " ")       # ★ 记忆化：空格宽度全卡只算一次
         for i, (text, color) in enumerate(segs):
-            if color is None:
-                self._draw_tokens(d, text, x, y, font, INK, max_w)
-                x += _tlen(d, font, text)
-            else:
-                d.text((x, y), text, font=font, fill=color + (255,))
-                x += _tlen(d, font, text)
+            d.text((x, y), text, font=font, fill=color + (255,))
+            x += _tlen(d, font, text)
             if i < len(segs) - 1:
                 x += gap
 
@@ -1995,7 +2201,10 @@ class ImageRenderer:
             elif not plain_body:
                 # 语义配色优先（任务类型 / 元素 / 派系 / 加成%）——
                 # 用集合直查，不走正则表，避免和评级、平台等 token 抢匹配。
-                if special is not None:
+                # 赏金卡例外：Grineer/Corpus 保持正文色（见 _BOUNTY_PLAIN_FACTION）。
+                if special is not None and not (
+                        getattr(self, "_bounty_mode", False)
+                        and tok in _BOUNTY_PLAIN_FACTION):
                     color = special
             wch = _tlen(d, font, tok)   # ★ 记忆化：高频 token（生存/剩余…）只测一次
             if chip:

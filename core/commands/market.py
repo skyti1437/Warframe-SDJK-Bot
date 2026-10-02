@@ -21,6 +21,29 @@ from .base import PLUGIN_DIR, Reply
 
 JUNK_FILE = PLUGIN_DIR / "core" / "data" / "junk.json"
 
+# 「头」部件黑话消歧（2026-10-02 二修）：「水晶头」「水晶p头」「水晶 头」…
+# = 头部部件。判据（用户口径）：**剥掉尾部「头」后的前缀必须精确存在于
+# 物品名/黑话里**（水晶 → Citrine ✓）——白霜弹头的前缀「白霜弹」不是黑话
+# → 不剥，整名按 MOD 解析。⚠️ 两个教训：
+#   ① 消歧必须在整名解析**之前** —— 首版放在「解析失败→给建议」之后，
+#      整名解析不到根本走不到（用户实测四种写法全挂）；
+#   ② 判据只能用**精确**命中（resolve_wm_exact）—— 模糊链路会把「白霜弹」
+#      沾到白霜（Frost）Prime 上，照样误剥。
+async def _head_part_resolve(client, item: str):
+    """整名以「头」结尾且剥头后的前缀精确命中 → 返回 (剥头物品名, 解析结果)。"""
+    full = item.rstrip()
+    if not full.endswith("头"):
+        return None
+    stripped = full[:-1].rstrip()
+    if not stripped:
+        return None
+    if await client.resolve_wm_exact(full):
+        return None                      # 整名本身就是 MOD/物品（白霜弹头…）
+    alt = await client.resolve_wm_exact(stripped)
+    if alt:
+        return stripped, alt
+    return None
+
 
 class MarketCommands:
     """Mixin：warframe.market / 排行 / 趋势 handler（挂载于 main.WarframeSDJK）。"""
@@ -57,10 +80,16 @@ class MarketCommands:
             return Reply(raw_text="用法：wm 物品名 [部件] [收购|合购a*2,b] [N个] [零级/满级/N级] "
                                   "[完整/优良/无瑕/光辉] [墨染] [-r]\n"
                                   "部件：蓝图（总图）/ 机体 / 系统 / 头部 / 配件（全部部件比价），"
-                                  "如 wm 母牛 蓝图\n"
+                                  "如 wm 母牛 蓝图；头部可连写「头」（wm 水晶头 = wm 水晶 头部）\n"
                                   "品级：满级按物品实际满级（赋能 5 级 / 川流不息 5 级 / "
                                   "生命力 10 级）；精炼档只对遗物，墨染只看墨染 Mod")
-        item = await self.client.resolve_wm_item(q.item)
+        # 「头」部件黑话：消歧在整名解析之前（教训见 _head_part_resolve 注释）
+        _head = await _head_part_resolve(self.client, q.item)
+        if _head:
+            q.item, item = _head
+            q.part = "头部"
+        else:
+            item = await self.client.resolve_wm_item(q.item)
         if not item:
             return await self._wm_suggest(q.item)
         # ★ 部件关键词（2026-09-19 玩家反馈「wm 母牛 蓝图」出的是整套）：

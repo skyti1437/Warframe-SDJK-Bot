@@ -1827,6 +1827,27 @@ class WarframeClient:
         cand = await self.resolve_wm_item(base + " prime")
         return cand or item
 
+    async def resolve_wm_exact(self, query: str) -> Optional[dict]:
+        """**仅精确**解析：官方名精确 / 别名词典精确键，绝不做模糊。
+
+        供「头」部件黑话消歧用（2026-10-02）：模糊链路会把「白霜弹»沾到
+        白霜（Frost）Prime 上，导致剥头误判 —— 剥头与否的判据必须只认精确。
+        """
+        query = (query or "").strip()
+        if not query:
+            return None
+        items = await self.wm_items()
+        hit = match_official_name(query, items)
+        if hit:
+            return hit
+        url = ((getattr(self, "_aliases", None) or {}).get("wm_items") or {}).get(
+            query.lower())
+        if isinstance(url, str) and url:
+            for it in items:
+                if it.get("url_name") == url:
+                    return it
+        return None
+
     async def resolve_wm_item(self, query: str) -> Optional[dict]:
         """把用户输入（中文名/黑话/英文名，可带 p/prime 后缀）解析成 WM 物品。
 

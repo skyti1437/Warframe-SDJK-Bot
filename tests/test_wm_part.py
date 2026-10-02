@@ -89,6 +89,38 @@ check("系统 → 系统蓝图",
 check("不存在的部件 → None（上层给准确提示）", pick(parts, "枪管") is None)
 
 print()
+print("=== 三、「头」部件黑话消歧（前缀精确命中才剥，2026-10-02 二修）===")
+import asyncio                                               # noqa: E402
+from core.commands.market import _head_part_resolve          # noqa: E402
+
+_exact = {"水晶": {"url_name": "citrine_prime_set", "tags": ["set"]},
+          "水晶p": {"url_name": "citrine_prime_set", "tags": ["set"]},
+          "白霜弹头": {"url_name": "rime_rounds", "tags": ["mod"]},
+          "石头人": {"url_name": "atlas_prime_set", "tags": ["set"]}}
+
+
+class _StubClient:
+    async def resolve_wm_exact(self, q):
+        return _exact.get(q)
+
+
+def _head(item):
+    return asyncio.run(_head_part_resolve(_StubClient(), item))
+
+
+_cit = _exact["水晶"]
+check("wm 水晶头 → 剥头", _head("水晶头") == ("水晶", _cit), str(_head("水晶头")))
+check("wm 水晶p头 → 剥头", _head("水晶p头") == ("水晶p", _cit), str(_head("水晶p头")))
+check("wm 水晶 头（空格头）→ 剥头", _head("水晶 头") == ("水晶", _cit),
+      str(_head("水晶 头")))
+check("wm 水晶p 头 → 剥头", _head("水晶p 头") == ("水晶p", _cit),
+      str(_head("水晶p 头")))
+check("整名精确存在不剥：白霜弹头", _head("白霜弹头") is None, str(_head("白霜弹头")))
+check("整名精确存在不剥：石头人", _head("石头人") is None, str(_head("石头人")))
+check("剥头后前缀不存在不剥：狗头", _head("狗头") is None, str(_head("狗头")))
+check("不以头结尾不处理：水晶", _head("水晶") is None)
+
+print()
 if _fails:
     print(f"✗ {len(_fails)} 项失败: {_fails}")
     raise SystemExit(1)

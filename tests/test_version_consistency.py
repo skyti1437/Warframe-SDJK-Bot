@@ -36,8 +36,8 @@ MM = ".".join(str(CORE_VERSION).split(".")[:2])       # 1.3.0 -> 1.3
 
 check("core.__version__ 形如 X.Y.Z",
       bool(re.fullmatch(r"\d+\.\d+\.\d+", str(CORE_VERSION))), str(CORE_VERSION))
-check("卡片水印版本由 core.__version__ 派生",
-      R.WATERMARK_VERSION == MM, f"{R.WATERMARK_VERSION} vs {MM}")
+check("卡片水印版本由 core.__version__ 派生（完整三位，2026-10-02 用户口径）",
+      R.WATERMARK_VERSION == str(CORE_VERSION), f"{R.WATERMARK_VERSION} vs {CORE_VERSION}")
 # 水印/品牌断言一律用**派生值**比较（不写死品牌）：2026-09-18 换品牌时因为断言
 # 写死品牌名，改名连带崩了测试；2026-09-19 改名时改为从 core.__brand__ 派生。
 check("水印串含派生版本",

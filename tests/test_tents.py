@@ -21,6 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core import de_worldstate as dw  # noqa: E402
 from core import formatters as fmt  # noqa: E402
+from core import render as R  # noqa: E402
 from core import tents  # noqa: E402
 
 FAILED: list[str] = []
@@ -86,8 +87,11 @@ _cet = next(s for s in bundle["syndicateMissions"]
 check("解析层带 seed（fixture 实测 59620）", _cet.get("seed") == 59620, str(_cet.get("seed")))
 
 _te, earth = fmt.fmt_bounties(bundle["syndicateMissions"], "地球")
-_tent_rows = [ln for ln in earth if "小帐篷" in ln and "※" not in ln]
-check("详情卡有小帐篷 A/B/C 三行", len(_tent_rows) == 3, str(_tent_rows))
+# 2026-10-02 改版：纵列改 ⟦tents⟧ 机器行（1 行 3 块，渲染层画框），不再出 3 行文本
+_tent_rows = [ln for ln in earth if ln.startswith("⟦tents⟧")]
+check("详情卡有点位机器行（1 行 3 块）",
+      len(_tent_rows) == 1 and len(R._tents_of(_tent_rows[0]) or []) == 3,
+      str(_tent_rows)[:160])
 check("详情卡小帐篷行带来源注脚",
       any(ln.startswith("※") and "小帐篷" in ln for ln in earth))
 _tov, ov = fmt.fmt_bounties(bundle["syndicateMissions"])
