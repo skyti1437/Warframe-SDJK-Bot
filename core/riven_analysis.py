@@ -77,7 +77,7 @@ _PCT_IDS = set(_BASE) - {"punch_through", "range", "combo_duration",
                          "initial_combo"}
 
 # 不在基值表（wiki 尚未给基值）、但单位同样按百分比显示的词条：
-# 不补进这个集合的话，「暂无基值数据」那行会漏掉 %，读起来像绝对值。
+# 不补进这个集合的话，「无官方基值」那行会漏掉 %，读起来像绝对值。
 _PCT_UNIT_ONLY = {"extra_combo_count", "combo_gain_chance"}
 
 
@@ -318,6 +318,22 @@ def match_disposition(stats_pos, stats_neg, cls, candidates,
 # 卡面上的锁图标、行颜色（白色行）、右下角内融值、武器名与自命名一律不是词条。
 _POLARITY = {"+": False, "＋": False, "负": True,
              "-": True, "−": True, "–": True, "—": True, "－": True}
+# ★ 极性**反转**词条（2026-10-02 玩家报障「盗贼 Visi-fevacan」四行全 `+`，其中
+#   「+95.4% 武器后坐力」实为负面）：卡面符号与收益方向**相反** —— `+` 是负面、
+#   `-` 是正面。依据（双重证据）：
+#     ① WM 拍卖 1500 条 / 32 个词条字段实测（读 `item.attributes[].positive`）：
+#        **只有 recoil 反转** —— positive=true 的值为负（-9.0/-10.5/-16.1），
+#        positive=false 的值为正（+6.6/+5.9/+81.8）；其余 31 个词条（含 zoom）
+#        正号占比 1.00、负号占比 1.00 ⇒ 符号即极性。
+#     ② 区间反推（不依赖 WM）：盗贼 = Furis（手枪 倾向 1.35）× 3+1 系数下，
+#        95.4 按负词条 ∈ [82.01, 100.24] ✅、按正词条 [102.52, 125.3] ❌。
+#   ⚠️ 新增条目必须先有实测证据 + 配套断言，禁止凭「词条名像负面」推断。
+INVERTED_STATS = {"recoil"}
+
+
+def is_inverted(sid: str) -> bool:
+    """该词条的卡面符号是否与极性相反（`+` 实为负面、`-` 实为正面）。"""
+    return sid in INVERTED_STATS
 # 词条行 = 极性符号开头（前面只允许装饰性符号：锁图标/圆点/括号/空白）。
 # 非装饰性字符（汉字、字母、数字）开头的行**不是**词条行 —— 武器名、自命名、
 # 内融值、卡面图例都靠这一条排除；而锁图标与行首那点装饰不能反而把真词条挤掉。
@@ -421,6 +437,9 @@ def parse_riven_lines(lines, resolve) -> tuple:
     只认**行首带极性符号**的行：锁图标、行颜色（白色行）、右下角内融值、
     武器名与自命名因为没有极性符号，天然被排除。名称与数值取**同一行**——
     不做跨行配对，跨行配对正是模型把两条词条的名称/数值交叉配错的来源。
+    ★ 2026-10-02 两处兼容：① 行首无极性符号时**先试整行乘数**（窄读会把
+    「x1.51 对 Infested 的伤害」抄成「对 X 的伤害 x1.51」，x 挪到行尾）；
+    ② 反转词条（recoil）按 `INVERTED_STATS` 翻转极性。
     """
     pos: list = []
     neg: list = []
@@ -428,6 +447,24 @@ def parse_riven_lines(lines, resolve) -> tuple:
     for raw in merge_polarity_lines(lines):
         m = _POL_RE.match(raw)
         if not m or not m.group(2).strip():
+            # ★ 2026-10-02 派系行兼容：行首无极性符号时先试整行乘数 ——
+            #   兼容 `x1.51 对 X 的伤害` 与 `对 X 的伤害 x1.51` 两种抄写
+            #   顺序（线上 16:18 实证：三条派系行因 x 在行尾被整条丢弃）。
+            mm2 = _MULT_RE.search(raw)
+            if mm2:
+                try:
+                    k2 = float((mm2.group(1) or mm2.group(2)).replace(",", "."))
+                except ValueError:
+                    notes.append(f"乘数读不出：{raw}")
+                    continue
+                name2 = _strip_name(raw)
+                sid2 = resolve(name2) if name2 else None
+                if sid2:
+                    value2, neg2 = faction_mult_to_mag(k2)
+                    if is_inverted(sid2):
+                        neg2 = not neg2
+                    (neg if neg2 else pos).append((sid2, value2))
+                    continue
             notes.append(f"无极性符号：{raw}")
             continue
         neg_flag = _POLARITY.get(m.group(1), False)
@@ -461,6 +498,10 @@ def parse_riven_lines(lines, resolve) -> tuple:
                 # 乘数漏写 x（或只写了 1.51 / 0.55）：对派系真 magnitude ≥ 11，
                 # 按乘数还原并据乘数定极性（旧版一律当负词条 ⇒ 正词条会算错）。
                 value, neg_flag = faction_mult_to_mag(value)
+        # ★ 2026-10-02：反转词条翻转极性 —— 「+95.4% 武器后坐力」是负面、
+        #   「-20% 武器后坐力」是正面（证据见 INVERTED_STATS 注释）。
+        if is_inverted(sid):
+            neg_flag = not neg_flag
         (neg if neg_flag else pos).append((sid, value))
     # 同一条词条不可能既正又负（卡面每行只出现一次）：两侧都在时以负为准
     neg_ids = {sid for sid, _ in neg}

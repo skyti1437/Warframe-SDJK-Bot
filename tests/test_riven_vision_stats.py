@@ -397,7 +397,10 @@ check("窄读答案 4 行 → 采信", _S._parse_riven_lines_text(_FULL)["lines"
 check("窄读答案只给 2 行（漏读）→ 不采信，让位下一个渠道",
       _S._parse_riven_lines_text(_PART) == {}, str(_S._parse_riven_lines_text(_PART)))
 _prose = _S._parse_riven_lines_text("以下是词条行：\n" + _FULL)
-check("窄读答案夹带寒暄行也不影响（无极性符号的行天然跳过）",
+# ★ 2026-10-02 口径细化（见 §⑨）：寒暄/武器名/图例这类**结构性杂行**（无极性
+#   符号）跳过不算致命 —— 词条行 4/4 全在 ⇒ 仍采信；只有「像是词条行却没解析
+#   成功」（词条名认不出/数值读不出）才判不合法（16:17 海波单剑事故口径）。
+check("窄读答案夹带寒暄行不影响（杂行天然跳过；真丢词条才判不合法）",
       _prose.get("lines", [])[:1] == ["以下是词条行："], str(_prose))
 
 
@@ -473,6 +476,92 @@ check("★ 卡面按 1.2 计算区间（不是不吻合的母武器 1.3）",
       "【空刃】倾向 1.2" in _body3 and "倾向 1.3" not in _body3, _body3[:200])
 check("不再回「请带变体名重发」（同值变体无从也无须区分）",
       "请带变体名重发" not in _body3, _body3[:300])
+
+# ---------------------------------------------------------------------------
+# ⑥ 后坐力极性反转（2026-10-02 玩家报障：卡面四行全 `+`，其中
+#    「+95.4% 武器后坐力」实为**负面**）—— WM 1500 条 / 32 字段实测只有 recoil
+#    反转；其余词条（含 zoom）符号即极性，必须原样。
+# ---------------------------------------------------------------------------
+check("数据守卫：INVERTED_STATS 恰为 {recoil}（新增条目必须带实测证据）",
+      RA.INVERTED_STATS == {"recoil"}, str(RA.INVERTED_STATS))
+_SIGN_OK = ["multishot", "crit_chance", "crit_damage", "reload_speed", "zoom",
+            "magazine_capacity", "status_chance", "status_duration", "range",
+            "attack_speed", "damage_vs_grineer"]
+check("数据守卫：实测「符号即极性」的词条与 INVERTED_STATS 互补（一个都不许进）",
+      not (set(_SIGN_OK) & RA.INVERTED_STATS),
+      str(set(_SIGN_OK) & RA.INVERTED_STATS))
+
+_pR, _nR, _ = RA.parse_riven_lines(["+95.4% 武器后坐力"], _resolve)
+check("★ 行解析：`+95.4% 武器后坐力` → 负面 recoil 95.4（不再当正面）",
+      not _pR and _nR == [("recoil", 95.4)], f"{_pR} / {_nR}")
+_pR2, _nR2, _ = RA.parse_riven_lines(["-20% 武器后坐力"], _resolve)
+check("★ 行解析：`-20% 武器后坐力` → 正面 recoil 20（减后坐力是好事）",
+      _pR2 == [("recoil", 20.0)] and not _nR2, f"{_pR2} / {_nR2}")
+_pR3, _nR3, _ = RA.parse_riven_lines(["+95.4% 多重射击"], _resolve)
+check("不许误伤：`+95.4% 多重射击` 仍是正面",
+      _pR3 == [("multishot", 95.4)] and not _nR3, f"{_pR3} / {_nR3}")
+
+_posR, _negR = _norm({"weapon": "盗贼",
+                      "positive": [["后坐力", 95.4], ["多重", 146.7]],
+                      "negative": []}, _rev)
+check("★ vision 路由：后坐力 +95.4 → negative（符号 + 反转表判据）",
+      _negR == [("recoil", 95.4)] and _posR == [("multishot", 146.7)],
+      f"{_posR} / {_negR}")
+_posR2, _negR2 = _norm({"weapon": "盗贼", "positive": [["后坐力", -20]],
+                        "negative": []}, _rev)
+check("★ vision 路由：后坐力 -20 → positive 20",
+      _posR2 == [("recoil", 20.0)] and not _negR2, f"{_posR2} / {_negR2}")
+_posR3, _negR3 = _norm({"weapon": "盗贼", "positive": [["变焦", 30.0]],
+                        "negative": []}, _rev)
+check("不许误伤：变焦（zoom）仍按符号定极性（实测不反转）",
+      _posR3 == [("zoom", 30.0)] and not _negR3, f"{_posR3} / {_negR3}")
+
+# ---------------------------------------------------------------------------
+# ⑦ 派系行兼容：`x` 在**行尾**（`对 X 的伤害 x1.51`）—— 2026-10-02 线上实证：
+#    窄读把 x1.51 抄到行尾 ⇒ 行首无极性符号 ⇒ 旧版整条丢弃（3 条派系行全丢）。
+# ---------------------------------------------------------------------------
+_lpF, _lnF, _ = RA.parse_riven_lines(["对 Grineer 的伤害 x1.51"], _resolve)
+check("★ 派系行：x 在行尾也认（+51% 对 Grineer，不再整条丢弃）",
+      _lpF == [("damage_vs_grineer", 51.0)] and not _lnF, f"{_lpF} / {_lnF}")
+_lpF2, _lnF2, _ = RA.parse_riven_lines(["对 Infested 的伤害 x0.55"], _resolve)
+check("★ 派系行：x 在行尾 + 减伤 ⇒ 负面 45",
+      not _lpF2 and _lnF2 == [("damage_vs_infested", 45.0)], f"{_lpF2} / {_lnF2}")
+_lpF3, _, _ = RA.parse_riven_lines(["x1.51 对 Infested 的伤害"], _resolve)
+check("派系行：x 在行首的旧写法不受影响",
+      _lpF3 == [("damage_vs_infested", 51.0)], f"{_lpF3}")
+
+# ---------------------------------------------------------------------------
+# ⑧ 词条名形近容错（线上实证：OCR 把「触发几率」读成「脆发几率」，整行被跳过）
+# ---------------------------------------------------------------------------
+check("★ 形近容错：脆发几率 → status_chance（触发几率；相似度 0.75）",
+      plugin.WarframeSDJK._stat_id_from_name("脆发几率", _rev) == "status_chance")
+check("形近容错反例：武器伤害（最相近仅 0.5）不采纳",
+      plugin.WarframeSDJK._stat_id_from_name("武器伤害", _rev) is None)
+check("形近容错反例：段位（与任何词条相似度 0）不采纳",
+      plugin.WarframeSDJK._stat_id_from_name("段位", _rev) is None)
+
+# ---------------------------------------------------------------------------
+# ⑨ 采信判据：**像是词条行却没解析成功** ⇒ 不许判「合法采信」（线上 16:17
+#    海波单剑事故：条数恰好达标，但有一条词条行被跳过 —— 旧实现照样「采信」
+#    并覆盖语义表）。结构性杂行（武器名/图例/内融值/段位）不算致命。
+# ---------------------------------------------------------------------------
+_lpL, _lnL, _legalL, _noteL = plugin.WarframeSDJK._riven_lines_legal(
+    ["+231.2% 近战伤害", "+148% 多重射击", "+124.2% 喵喵词条",
+     "-106.1% 触发时间"])
+check("★ 采信判据：词条行认不出（喵喵词条）⇒ 不合法（条数达标也不许采信）",
+      (not _legalL) and any(n.startswith("词条名认不出") for n in _noteL),
+      f"legal={_legalL} notes={_noteL}")
+_lpL2, _lnL2, _legalL2, _noteL2 = plugin.WarframeSDJK._riven_lines_legal(
+    ["+231.2% 近战伤害", "+148% 多重射击", "+2.5 攻击范围",
+     "-106.1% 触发时间", "段位 13"])
+check("对照：结构性杂行（段位 13 无极性符号）被跳过 ⇒ 仍合法（不误杀真读全）",
+      _legalL2 and _noteL2 and len(_lpL2) == 3 and len(_lnL2) == 1,
+      f"legal={_legalL2} notes={_noteL2}")
+_lpL3, _lnL3, _legalL3, _noteL3 = plugin.WarframeSDJK._riven_lines_legal(
+    ["+231.2% 近战伤害", "+148% 多重射击", "-106.1% 触发时间"])
+check("对照：无跳过且条数达标 ⇒ 合法（判据没有过度收紧）",
+      _legalL3 and not _noteL3 and len(_lpL3) == 2 and len(_lnL3) == 1,
+      f"legal={_legalL3} notes={_noteL3}")
 
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")

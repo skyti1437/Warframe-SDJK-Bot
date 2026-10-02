@@ -3250,7 +3250,8 @@ def fmt_riven_analysis(name: str, disposition: float, cls: str,
         lo, hi = RA.stat_range(sid, cls, disposition, len(stats_pos),
                                len(stats_neg))
         if lo is None:
-            lines.append(f"· +{RA.fmt_value(sid, v)} {zh.get(sid, sid)}　暂无基值数据")
+            lines.append(f"· +{RA.fmt_value(sid, v)} {zh.get(sid, sid)}"
+                         "　该词条无官方基值（wiki 未收录），无法算区间")
             continue
         dev = RA.deviation_pct(v, lo, hi)
         pos_pct = RA.range_position(v, lo, hi)
@@ -3263,7 +3264,8 @@ def fmt_riven_analysis(name: str, disposition: float, cls: str,
         lo, hi = RA.stat_range(sid, cls, disposition, len(stats_pos),
                                len(stats_neg), negative=True)
         if lo is None:
-            lines.append(f"· -{RA.fmt_value(sid, v)} {zh.get(sid, sid)}　暂无基值数据")
+            lines.append(f"· -{RA.fmt_value(sid, v)} {zh.get(sid, sid)}"
+                         "　该词条无官方基值（wiki 未收录），无法算区间")
             continue
         dev = RA.deviation_pct(v, lo, hi)
         pos_pct = RA.range_position(v, lo, hi)

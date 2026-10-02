@@ -254,8 +254,17 @@ class VisionCommands:
     def _riven_lines_legal(cls, lines) -> tuple:
         """卡面原文行 → (pos, neg, 是否合法卡面, 备注)。
 
-        合法 = 2~3 条正面 + ≤1 条负面。判据放在这里共用：窄读竞速的采信判据
-        （读丢一行就不合法）与主流程的兜底判据必须是同一套。
+        合法 = 2~3 条正面 + ≤1 条负面 **且没有「像是词条行却没解析成功」的行**。
+        判据放在这里共用：窄读竞速的采信判据（读丢一行就不合法）与主流程的
+        兜底判据必须是同一套。
+        ★ 2026-10-02：线上实证（16:17 海波单剑）——窄读把「触发几率」OCR 成
+        「脆发几率」被跳过，剩下 3 正 1 负恰好满足条数判据，整卡被残缺结果
+        覆盖（丢一条正词条 + 把派系行当正词条）。现在**致命跳过**（词条名认不出 /
+        数值读不出 / 乘数读不出）一律不合法；**结构性杂行**（武器名 / 图例 /
+        内融值 / 段位 —— 均记「无极性符号」）不算致命：解析设计上本就靠无极性
+        符号排除它们（见 parse_riven_lines 注释），它们不承载词条信息。
+        丢符号但像词条的行另有兜底：主流程两路交叉校验（行读条数少于语义表
+        ⇒ 退回语义表）。
         """
         try:  # 服务器以包成员加载，相对导入才可靠
             from .. import riven_analysis as RA
@@ -266,7 +275,8 @@ class VisionCommands:
         rev = {v: k for k, v in RIVEN_STAT_ZH.items()}
         pos, neg, notes = RA.parse_riven_lines(
             lines, lambda nm: cls._stat_id_from_name(nm, rev))
-        return pos, neg, (2 <= len(pos) <= 3 and len(neg) <= 1), notes
+        fatal = [n for n in notes if not n.startswith("无极性符号")]
+        return pos, neg, (2 <= len(pos) <= 3 and len(neg) <= 1 and not fatal), notes
 
     @classmethod
     def _parse_riven_lines_text(cls, text: str) -> dict:
@@ -307,12 +317,20 @@ class VisionCommands:
             "**不要**把乘数直接乘 100（x1.51 填成 151 是错的），"
             "也不要漏掉这一条。"
             "卡面右下角的数字是内融值，与倾向无关，不要输出倾向。"
-            "若截图里出现变体前缀（棱晶/Prime/亡魂/破坏者/赤毒/信条，"
-            "或 Prisma/Wraith/Vandal/Kuva/Tenet），务必保留在 weapon 里"
-            "（紫卡卡面通常只写母武器名，没有前缀就照原样输出）。\n"
+            "⚠ weapon 必须**逐字照抄卡面第一行**，变体前缀一个不漏："
+            "赤毒/信条/终幕/棱晶/Prime/亡魂/破坏者（或 Kuva/Tenet/Coda/"
+            "Prisma/Wraith/Vandal）。反例：卡面写「赤毒 努寇微波枪」，就"
+            "**不能**只输出「努寇微波枪」—— 漏掉前缀会让倾向从 0.50 变成 1.45"
+            "（差 2.9 倍），整卡区间全错。"
+            "（紫卡卡面通常只写母武器名，没有前缀才照原样输出）。\n"
             "⚠ 词条数值**带负号**的（卡面写成「-63.4% 滑行攻击暴击几率」），"
             "必须放进 negative，数值写正数 63.4 —— 放进 positive 会让整张卡"
             "被判成「词条数不对」而失败。\n"
+            "⚠ 例外：**武器后坐力**的符号与好坏相反 —— 卡面「+95.4% 武器后坐力」"
+            "是**负面**（后坐力越大越差）、「-20% 武器后坐力」是**正面**。"
+            "这一行请**按卡面原样保留正负号**（+95.4 写 95.4、-20 写 -20，"
+            "别把负号丢掉），放在 positive 或 negative 数组都不影响"
+            "（机器人以符号为准自行换算）。\n"
             "⚠ weapon 只填**中文武器名**（卡面第一行的中文部分，如「翁」「视使之触」）。"
             "名字后面那串拉丁文是紫卡自命名（Acri-paracron / Locti-acrium 之类），"
             "不要输出它、也不要把它音译成中文，更不要把词条名混进 weapon。\n"
@@ -461,8 +479,26 @@ class VisionCommands:
         for abbr in sorted(rev, key=len, reverse=True):
             if name in abbr or abbr in name:
                 return rev[abbr]
-        close = difflib.get_close_matches(name, list(rev), n=1, cutoff=0.5)
-        return rev[close[0]] if close else None
+        # ★ 2026-10-02 形近容错（线上实证：OCR 把「触发几率」读成「脆发几率」
+        #   被整行跳过，卡面缺一条正词条）。旧实现只在**短名表**（rev）上找、
+        #   且 cutoff 0.5 —— 「触发几率」是**全称表**的键，永远命中不了。
+        #   现在：[全称 + 短名] 并集上找，且必须**高置信**（相似度 ≥0.7 且与
+        #   次名差距 ≥0.1）才采纳；采纳时写日志（红线：禁静默改判）。
+        pool: dict = {}
+        for tbl in (full, rev):
+            for k, v in tbl.items():
+                pool.setdefault(k, v)
+        close = difflib.get_close_matches(name, list(pool), n=2, cutoff=0.7)
+        if close:
+            best = close[0]
+            r1 = difflib.SequenceMatcher(None, name, best).ratio()
+            r2 = (difflib.SequenceMatcher(None, name, close[1]).ratio()
+                  if len(close) > 1 else 0.0)
+            if r1 >= 0.7 and r1 - r2 >= 0.1:
+                logger.info("[sdjk] 紫卡词条名容错：%s → %s（相似度 %.2f）",
+                            name, best, r1)
+                return pool[best]
+        return None
 
     @staticmethod
     def _faction_val_fix(sid: str, num: float) -> float:
@@ -507,17 +543,26 @@ class VisionCommands:
 
         pos: list[tuple[str, float]] = []
         neg: list[tuple[str, float]] = []
+        try:  # 服务器以包成员加载，相对导入才可靠
+            from .. import riven_analysis as _RA
+        except ImportError:  # pragma: no cover - 本地直跑
+            from core import riven_analysis as _RA
 
         # ★ 2026-09-24：卡面负词条常被 vision 整行归进 positive（实测
         #   「-63.4% 滑行攻击暴击几率」→ 4 正 0 负，整卡被词条数校验挡掉）。
         #   规则：**已经放在 negative 的照旧按负词条收**；放在 positive 但
         #   数值带负号的改判为负词条（magnitude 取绝对值）。
+        # ★ 2026-10-02：反转词条（recoil）**以符号为准** —— 卡面「+95.4% 武器
+        #   后坐力」是负面、「-20%」是正面（WM 1500 条实测，见 RA.INVERTED_STATS）；
+        #   数组不作判据（线上实证：模型把 ±43 都塞进了 positive），prompt 已要求
+        #   这行**按卡面原样保留正负号**。仅数值缺失（0）时退回数组。
         def _route(r, bucket: str):
             sid, num = r
-            if bucket == "neg" or num < 0:
-                neg.append((sid, abs(num)))
+            if _RA.is_inverted(sid):
+                neg_flag = (num > 0) if num else (bucket == "neg")
             else:
-                pos.append(r)
+                neg_flag = (bucket == "neg") or (num < 0)
+            (neg if neg_flag else pos).append((sid, abs(num)))
 
         for item in data.get("positive") or []:
             r = to_stat(*item)

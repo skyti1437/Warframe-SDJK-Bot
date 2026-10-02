@@ -262,6 +262,20 @@ class RivenCommands:
                 continue  # 手输倾向覆盖（棱晶等变体 WM 没有数据）
             weapon_name += t
 
+        # ★ 2026-10-02 反转词条自洽改判（用户照抄卡面时不会给后坐力写「负」前缀）：
+        #   4 正 0 负且其中**恰有 1 条**反转词条 ⇒ 该条实为负面（卡面 `+` 号但
+        #   收益为负）。旧流程被下面的词条数闸门拒收，用户拿到「词条数不对」。
+        inverted_note = ""
+        if len(stats_pos) > 3 and not stats_neg:
+            _inv = [(i, s) for i, s in enumerate(stats_pos)
+                    if RA.is_inverted(s[0])]
+            if len(_inv) == 1:
+                _i, _s = _inv[0]
+                stats_pos.pop(_i)
+                stats_neg.append(_s)
+                inverted_note = ("「后坐力」按负面词条计入"
+                                 "（卡面 + 号但为负面效果）")
+
         has_image = self._event_has_image(event)
         source_note = ""
         if not weapon_name or not (stats_pos or stats_neg):
@@ -297,12 +311,23 @@ class RivenCommands:
                 _lines = _lines.splitlines()
             if isinstance(_lines, (list, tuple)) and _lines:
                 _lp, _ln, _legal, _notes = self._riven_lines_legal(_lines)
+                # ★ 2026-10-02 两路交叉校验（问题1）：行读**条数少于语义表**时也
+                #   不许覆盖 —— 行读没报错也可能整行没抄（模型直接漏一行，不会产生
+                #   notes）。但语义表自身必须**合法**才让位，否则会把 2026-09-27
+                #   修掉的「语义表拆条/多条」老 bug 放回来（那次语义表 4 正 2 负）。
+                _n_line = len(_lp) + len(_ln)
+                _n_sem = len(stats_pos) + len(stats_neg)
+                _sem_legal = 2 <= len(stats_pos) <= 3 and len(stats_neg) <= 1
                 logger.info("[sdjk] 紫卡行解析：%d 正 %d 负（模型语义表 %d 正 %d 负）%s",
                             len(_lp), len(_ln), len(stats_pos), len(stats_neg),
                             ("；跳过 " + " / ".join(_notes)) if _notes else "")
-                if _legal:
+                if _legal and (_n_line >= _n_sem or not _sem_legal):
                     stats_pos, stats_neg = _lp, _ln
                     source_note = "（图片识别·卡面逐行）"
+                elif _legal:
+                    logger.warning(
+                        "[sdjk] 紫卡行读条数少于语义表（%d < %d），退回语义表防漏行",
+                        _n_line, _n_sem)
             if not stats_pos:
                 return Reply(raw_text="图片识别到了武器但没读出词条，请按文字格式重发："
                                       "紫卡分析 武器名 暴伤82.8 范围1.6 负滑暴81.3")
@@ -449,8 +474,23 @@ class RivenCommands:
                                 f"{wm_disp:g} 对不上，反推区间 {iv[0]:g}~{iv[1]:g}）"
                                 "—— 疑似倾向调整前洗出的老卡，区间已按反推值计算")
                         else:
-                            infer_note = (f"⚠️ 卡面数值与「{mother_name}」家族的已知倾向"
-                                          "都不吻合，武器名可能识别有误")
+                            # ★ 2026-10-02：本体不吻合、家族变体也解释不了 ⇒ 明确
+                            #   提示「疑似变体卡」并给候选（线上实证：赤毒努寇微波枪
+                            #   被读成努寇微波枪，倾向 0.50 错按 1.45 算 —— 差 2.9 倍；
+                            #   只写「武器名可能识别有误」不够，要用户带前缀重发）。
+                            _cands = [n for n, _v in fam_all][:3]
+                            if not _cands:
+                                try:  # 家族列不出时给名字候选（现成 suggest）
+                                    _cands = list(await self.client
+                                                  .suggest_riven_weapons(
+                                                      weapon_name.strip()) or [])
+                                except Exception:  # noqa: BLE001 - 候选失败不阻断
+                                    _cands = []
+                            _cand_txt = ("；候选：" + "、".join(_cands)) if _cands else ""
+                            infer_note = (
+                                f"⚠️ 卡面数值与「{mother_name}」本体倾向 {wm_disp:g} "
+                                "不吻合，疑似赤毒/变体卡 —— 请带变体前缀重发"
+                                f"（例：紫卡分析 赤毒{mother_name} [截图]）{_cand_txt}")
             elif not RA.disp_feasible(stats_pos, stats_neg, cls, disp):
                 iv = RA.disposition_interval(stats_pos, stats_neg, cls)
                 rng = f"（反推应在 {iv[0]:g}~{iv[1]:g}）" if iv[0] else ""
@@ -482,6 +522,8 @@ class RivenCommands:
             lines.insert(1, f"※ {infer_note}")
         if neg_fix_note:
             lines.insert(1, f"※ {neg_fix_note}")
+        if inverted_note:
+            lines.insert(1, f"※ {inverted_note}")
         if decimal_fix:
             lines.insert(1, "※ 已修正小数点（截图未读出点号）：" +
                          "、".join(decimal_fix))
