@@ -530,6 +530,27 @@ _lpF3, _, _ = RA.parse_riven_lines(["x1.51 对 Infested 的伤害"], _resolve)
 check("派系行：x 在行首的旧写法不受影响",
       _lpF3 == [("damage_vs_infested", 51.0)], f"{_lpF3}")
 
+# ★ 2026-10-02 线上实证（努寇微波枪 16:27）：窄读把词条图标抄成 `×`
+#   （「×59% 多重射击」），旧实现一律按乘数换算 ⇒ |1−59|×100 = **5800%**。
+#   出界的 x/× 不是派系乘数（真实乘数域 ≈0.42~1.95）⇒ 按普通数值读。
+_lpM, _lnM, _nM = RA.parse_riven_lines(["×59% 多重射击"], _resolve)
+check("★ 图标被抄成 ×：`×59% 多重射击` → 多重 59（不再是 5800%）",
+      _lpM == [("multishot", 59.0)] and not _lnM, f"{_lpM} / {_lnM}")
+_lpM2, _lnM2, _ = RA.parse_riven_lines(
+    ["+39.5% 暴击伤害", "+44.9% 暴击伤害", "×59% 多重射击",
+     "×0.83 对 Corpus 的伤害"], _resolve)
+check("★ 报障卡原行：暴伤×2 + 多重 59 + C伤 17（不再出现 5800）",
+      ("multishot", 59.0) in _lpM2 and _lnM2 == [("damage_vs_corpus", 17.0)]
+      and all(p[1] != 5800.0 for p in _lpM2), f"{_lpM2} / {_lnM2}")
+_posN, _negN = _norm({"weapon": "努寇微波枪",
+                      "positive": [["对Corpus伤害", 5800]], "negative": []}, _rev)
+check("语义表同口径：出界的 5800 不再被当乘数换算成 5700",
+      _posN == [("damage_vs_corpus", 5800.0)] and not _negN,
+      f"{_posN} / {_negN}")
+_lpK, _lnK, _ = RA.parse_riven_lines(["x0.55 对 Corpus 的伤害"], _resolve)
+check("带内乘数（0.55）仍照旧换算（守卫没有过度收紧）",
+      _lnK == [("damage_vs_corpus", 45.0)], f"{_lpK} / {_lnK}")
+
 # ---------------------------------------------------------------------------
 # ⑧ 词条名形近容错（线上实证：OCR 把「触发几率」读成「脆发几率」，整行被跳过）
 # ---------------------------------------------------------------------------

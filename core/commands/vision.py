@@ -520,6 +520,10 @@ class VisionCommands:
         if not (num >= 100 or num < RA._FACTION_MIN_MAG):
             return num
         k = num / 100.0 if num >= 100 else num
+        if not RA.is_faction_mult(k):
+            # 出界的「乘数」不是派系乘数（线上实证：5800 这类读数被当乘数换算
+            # 会得到 |1−58|×100 = 5700）⇒ 原样返回，不做乘法换算。
+            return num
         mag, neg = RA.faction_mult_to_mag(k)
         return -mag if neg else mag
 

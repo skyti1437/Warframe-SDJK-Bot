@@ -354,6 +354,18 @@ _MULT_RE = re.compile(r"[x×]\s*(\d+(?:[.,]\d+)?)|(\d+(?:[.,]\d+)?)\s*[x×]",
 # 2正1负的 0.495 ≈ 11 ⇒ 小于 10 的数字一定不是 magnitude，而是「乘数漏写了
 # x / 只写了 1.51 或 0.55」，按乘数还原。
 _FACTION_MIN_MAG = 10.0
+# ★ 派系乘数（净伤害倍率）的合理取值域：卡面这行是 1 ± 基值45%×倾向×系数
+#   ×(0.9~1.1) ⇒ 理论 ≈0.42~1.95，实测样本 0.55/0.63/0.79/0.8/0.83/1.25/1.51。
+#   2026-10-02 线上实证：窄读会把词条图标抄成 `×`（「×59% 多重射击」），旧实现
+#   一律按乘数换算 ⇒ |1−59|×100 = **5800%**。出界（<0.35 或 >2.05）的 x/×
+#   不是乘数 —— 按普通数值读，不做乘法换算。
+_FACTION_MULT_LO = 0.35
+_FACTION_MULT_HI = 2.05
+
+
+def is_faction_mult(k: float) -> bool:
+    """该数值是否是卡面的派系乘数（净伤害倍率）写法。"""
+    return _FACTION_MULT_LO <= k <= _FACTION_MULT_HI
 
 
 def faction_mult_to_mag(k: float) -> tuple:
@@ -459,12 +471,14 @@ def parse_riven_lines(lines, resolve) -> tuple:
                     continue
                 name2 = _strip_name(raw)
                 sid2 = resolve(name2) if name2 else None
-                if sid2:
+                if sid2 and is_faction_mult(k2):
                     value2, neg2 = faction_mult_to_mag(k2)
                     if is_inverted(sid2):
                         neg2 = not neg2
                     (neg if neg2 else pos).append((sid2, value2))
                     continue
+                # 出界的 x/×（如「多重射击 ×59」）：不猜数值，保留「无极性符号」
+                # 跳过（与旧行为一致）；上面主路径的同类出界按普通数值读。
             notes.append(f"无极性符号：{raw}")
             continue
         neg_flag = _POLARITY.get(m.group(1), False)
@@ -475,6 +489,7 @@ def parse_riven_lines(lines, resolve) -> tuple:
             notes.append(f"词条名认不出：{raw}")
             continue
         mm = _MULT_RE.search(raw)
+        k = None
         if mm:
             # 乘数在一整行里找（`x` 可能已被上面的极性正则吃掉），极性由
             # 乘数本身决定：x1.51 是正词条、x0.55 是负词条。
@@ -483,8 +498,12 @@ def parse_riven_lines(lines, resolve) -> tuple:
             except ValueError:
                 notes.append(f"乘数读不出：{raw}")
                 continue
+        if k is not None and is_faction_mult(k):
             value, neg_flag = faction_mult_to_mag(k)
         else:
+            # 普通数值分支。也覆盖「x/× 出界」：窄读把词条图标抄成 × 的行
+            # （线上实证「×59% 多重射击」）——出界的 x 不是派系乘数，数字按
+            # 普通数值读（旧实现按乘数换算成 |1−59|×100 = 5800%）。
             mn = _NUM_RE.search(body)
             if not mn:
                 notes.append(f"无数值：{raw}")
