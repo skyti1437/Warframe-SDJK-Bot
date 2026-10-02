@@ -498,11 +498,35 @@ class RivenCommands:
                         #   能反推倾向：区间够紧（≤25%）时直接按反推值算区间。
                         iv = RA.disposition_interval(stats_pos, stats_neg, cls)
                         if iv[0] and iv[1] / iv[0] <= 1.25:
-                            disp = round((iv[0] + iv[1]) / 2, 2)
-                            infer_note = (
-                                f"卡面数值反推倾向 ≈{disp:g}（{mother_name} 当前值 "
-                                f"{wm_disp:g} 对不上，反推区间 {iv[0]:g}~{iv[1]:g}）"
-                                "—— 疑似倾向调整前洗出的老卡，区间已按反推值计算")
+                            # ★ 2026-10-03（用户口径）：先看反推区间是否落在**家族
+                            #   候选的已知倾向**里（本地 wiki 表，含玄骸变体 —— 家族
+                            #   关系已改走官方 parentName 表，赤毒/信条/终幕列得出了）。
+                            #   命中 ⇒ 判该变体，别一律推给「老卡」。
+                            #   ⚠ 兜底性质：`disposition_interval` 与 `_fit_dev` 判据
+                            #   数学等价（前者即后者的区间形式）⇒ 家族修好后「区间命中
+                            #   但 fit 为空」本不可达（上方「唯一吻合」分支会先接住）；
+                            #   此处保留，防两条判据将来分叉时退化成「老卡」误报。
+                            _hit = [(n, float(v)) for n, v in fam_all
+                                    if iv[0] <= float(v) <= iv[1]]
+                            if _hit:
+                                _mid = (iv[0] + iv[1]) / 2
+                                _vals = sorted({round(v, 4) for _n, v in _hit})
+                                disp = min(_vals, key=lambda v: abs(v - _mid))
+                                _names = "、".join(
+                                    n for n, v in _hit
+                                    if round(v, 4) == disp) or _hit[0][0]
+                                infer_note = (
+                                    f"数值反推倾向 {disp:g}：命中家族变体"
+                                    f"「{_names}」（{mother_name} 当前值 {wm_disp:g} "
+                                    "对不上）—— 疑似变体卡，请带前缀重发核对："
+                                    f"紫卡分析 {_hit[0][0]} [截图]；"
+                                    f"区间已按 {disp:g} 计算")
+                            else:
+                                disp = round((iv[0] + iv[1]) / 2, 2)
+                                infer_note = (
+                                    f"卡面数值反推倾向 ≈{disp:g}（{mother_name} 当前值 "
+                                    f"{wm_disp:g} 对不上，反推区间 {iv[0]:g}~{iv[1]:g}）"
+                                    "—— 疑似倾向调整前洗出的老卡，区间已按反推值计算")
                         else:
                             # ★ 2026-10-02：本体不吻合、家族变体也解释不了 ⇒ 明确
                             #   提示「疑似变体卡」并给候选（线上实证：赤毒努寇微波枪

@@ -500,6 +500,83 @@ def _name_en_zh() -> dict:
     return _name_en_zh_cache
 
 
+# ---------------------------------------------------------------------------
+# ★ 2026-10-03（紫卡变体倾向走本地表）：中英名映射**不再经 WM 物品表**。
+#   玄骸武器（赤毒/信条/终幕）本体不可交易 —— WM 全量 3892 条里 **0 条武器**
+#   ⇒ 绕 WM 的映射必然拿不到它们的英文名/中文名，家族候选与手输变体名双路全挂
+#   （「鳄神」卡反推 0.8 = 赤毒·鳄神 无匹配；手输「赤毒·鳄神」取不到 0.8）。
+#   改用本地三表**级联**（任一命中即用）：
+#     · core/data/weapons_stats.json   {uniqueName: {name(en), zh}}
+#     · core/data/de/name_en_zh.json   键为小写英文名
+#     · core/data/de/de_items_zh.json
+#   ★ 三表全无的 232 件里有倾向的仅 34 件（Kuva Ghoulsaw / Coda Bubonico /
+#     Afentis Prime / Zaw 部件 …）⇒ 退回英文名显示，**绝不丢候选**（用户红线）。
+# ---------------------------------------------------------------------------
+_LOCAL_NAME_INDEX: "tuple | None" = None
+
+
+def _norm_name(s: str) -> str:
+    """名字归一（去空白/中点/连字符 + 小写）——三表与查询侧同口径。"""
+    return re.sub(r"[\s·\-_]+", "", (s or "").lower())
+
+
+def _local_name_index() -> tuple:
+    """本地三表的名字索引 (en_norm → zh, zh_norm → en)，惰性构建一次。"""
+    global _LOCAL_NAME_INDEX
+    if _LOCAL_NAME_INDEX is None:
+        en_zh: dict = {}
+        zh_en: dict = {}
+
+        def _put(en, zh):
+            e, z = _norm_name(en), _norm_name(zh)
+            if e and z and e != z:
+                en_zh.setdefault(e, zh)
+                zh_en.setdefault(z, en)
+
+        try:      # ① weapons_stats.json（en→zh 覆盖最广）
+            raw = json.loads((DATA_DIR / "weapons_stats.json")
+                             .read_text(encoding="utf-8"))
+            for v in raw.values():
+                if isinstance(v, dict):
+                    _put(v.get("name"), v.get("zh"))
+        except Exception:  # noqa: BLE001 - 缺文件只降级
+            pass
+        try:      # ② de/name_en_zh.json（键为小写英文名）
+            for en, zh in _name_en_zh().items():
+                _put(en, zh)
+        except Exception:  # noqa: BLE001
+            pass
+        try:      # ③ de/de_items_zh.json
+            raw = json.loads((DATA_DIR / "de" / "de_items_zh.json")
+                             .read_text(encoding="utf-8"))
+            for it in raw.get("items") or []:
+                _put(it.get("en"), it.get("zh"))
+        except Exception:  # noqa: BLE001
+            pass
+        _LOCAL_NAME_INDEX = (en_zh, zh_en)
+    return _LOCAL_NAME_INDEX
+
+
+def _zh_name_of_en(en: str) -> str:
+    """英文名 → 中文名（本地三表级联；查不到返回 ""）。"""
+    en_zh, _ = _local_name_index()
+    return en_zh.get(_norm_name(en), "")
+
+
+def _en_name_of_zh(zh: str) -> str:
+    """中文名 → 英文名（本地三表级联；「一套/组合包/蓝图」尾缀先剥）。
+
+    查不到返回 "" —— 调用方按「原串可能是英文名」继续试，不要失败退出。
+    """
+    _, zh_en = _local_name_index()
+    z = _norm_name(zh)
+    for suf in ("一套", "组合包", "蓝图", "set", "blueprint", "blueprints"):
+        if z.endswith(suf) and len(z) > len(suf):
+            z = z[: -len(suf)]
+            break
+    return zh_en.get(z, "")
+
+
 class WarframeAPIError(Exception):
     """统一的接口错误（含降级提示语）。"""
 
@@ -2626,75 +2703,63 @@ class WarframeClient:
         return bool(kb and k and kb == k)
 
     async def riven_family(self, weapon: dict) -> list:
-        """同一武器家族的变体（棱晶/Prime/亡魂…）及其 wiki 倾向。
+        """同一武器家族的变体（棱晶/Prime/亡魂/赤毒…）及其 wiki 倾向。
 
-        游戏内紫卡卡面**只写母武器名**（紫卡对家族通用，可装在棱晶等
-        变体上），变体信息不在截图里 —— 所以卡面读到母武器时列出家族
-        变体倾向，用户对照即可知道该用哪个（或按需要带变体名重发）。
-        返回 [(中文名, 倾向), ...]，按倾向升序。
+        游戏内紫卡卡面**只写母武器名**（紫卡对家族通用，可装在棱晶等变体上），
+        变体信息不在截图里 —— 所以卡面读到母武器时列出家族变体倾向，用户对照
+        即可知道该用哪个（或按需要带变体名重发）。
+
+        ★ 2026-10-03 重写（用户口径：变体倾向只准取自本地 wiki 表）：
+          · 家族关系 = DE 官方 parentName 表（core/data/de/riven_families.json）；
+          · 倾向值   = 本地 wiki 快照（core/data/de/wiki_disp.json）；
+          · 展示名   = 本地三表级联（拿不到就退回英文名，**绝不丢候选**）。
+        旧实现遍历 WM 物品表找变体名 —— 玄骸武器本体不可交易（WM 全量 3892 条
+        里 0 条武器）⇒ 赤毒/信条/终幕变体永远列不出候选（「鳄神」卡反推 0.8
+        = 赤毒·鳄神 无匹配 ⇒ 被误判成「倾向调整前洗出的老卡」）。不再依赖 WM，
+        也省掉一次 2.5MB 物品表拉取。
+        返回 [(展示名, 倾向), ...]，按倾向升序。
         """
-        base_zh = (weapon.get("zh") or "").strip()
         base_en = (weapon.get("en") or "").strip()
         table = (self._load_json_file(paths.read_path(WIKI_DISP_NAME)) or {}).get("disp") or {}
-        if not table or not (base_zh or base_en):
+        if not table or not base_en:
             return []
-        try:
-            items = await self.wm_items()
-        except Exception:  # noqa: BLE001 - WM 挂了就不提示家族
-            return []
-        tags = set(weapon.get("tags") or [])
+        by_name = matching._load_riven_families()          # {英文名: 官方家族根}
+        root = matching.family_key(base_en)
         found: dict[str, float] = {}
-        for it in items:
-            zh = (it.get("zh") or "").strip()
-            en = (it.get("en") or "").strip()
-            if zh == base_zh or en.lower() == base_en.lower():
+        for en, r in by_name.items():
+            if r != root or en.lower() == base_en.lower():
+                continue                                   # 非本族成员 / 自身
+            v = table.get(en.strip().lower())              # ★ 本地 wiki 表（键=小写英文）
+            if v is None:
                 continue
-            if not self._family_match(base_zh, base_en, zh, en):
-                continue
-            # 部件/蓝图不是家族成员（「翁 Prime 握柄/刀刃」会被子串判定捞进来）
-            if {"component", "blueprint"} & set(it.get("tags") or []):
-                continue
-            if tags and not (tags & set(it.get("tags") or [])):
-                continue
-            v, _k = await self.resolve_variant_disp(zh)
-            if v:
-                # 展示名去掉 WM 的套装/部件后缀（「翁 Prime 一套」→「翁 Prime」）
-                disp_zh = re.sub(r"\s*(一套|组合包|蓝图|Set|Blueprint)\s*$",
-                                 "", zh.strip())
-                found.setdefault(disp_zh or zh, v)
+            found.setdefault(_zh_name_of_en(en) or en, v)  # 没中文名退回英文名
         return sorted(found.items(), key=lambda kv: kv[1])
 
     async def resolve_variant_disp(self, name: str) -> tuple:
-        """变体武器倾向：中文名 → WM 物品表转英文 → wiki 倾向快照。
+        """变体武器倾向：中文名 → **本地三表**转英文 → 本地 wiki 倾向快照。
 
         棱晶/Prime/亡魂/破坏者/赤毒/信条 等变体的倾向在 WM 紫卡表里
         没有条目（紫卡表只挂母武器），wiki「Riven Mod」页的倾向表
         （core/data/de/wiki_disp.json，618 条静态快照）有完整数据。
+        ★ 2026-10-03：中文名 → 英文名改用**本地三表级联**（`_en_name_of_zh`），
+        不再经 `wm_items()` —— 玄骸武器 WM 必然没有（3892 条里 0 条武器），
+        绕 WM 会让手输「赤毒·鳄神」取不到 0.8、退回母武器值。三表全无时按原串
+        当英文名继续试；保留「逐级剥尾词」兜底（「翁 Prime 一套」→ Okina Prime）。
         返回 (倾向值, 命中的表键)；查不到 (None, "")。
         """
         table = (self._load_json_file(paths.read_path(WIKI_DISP_NAME)) or {}).get("disp") or {}
         if not table or not name:
             return None, ""
-        norm = re.sub(r"[\s·]+", "", (name or "").lower())
-        if not norm:
+        en = (_en_name_of_zh(name) or name).strip()
+        if not re.sub(r"[\s·\-_]+", "", en.lower()):
             return None, ""
-        en = norm
-        try:
-            items = await self.wm_items()
-        except Exception:  # noqa: BLE001 - WM 挂了就走英文名直查
-            items = []
-        for it in items:
-            zh = re.sub(r"[\s·]+", "", (it.get("zh") or "").lower())
-            if zh == norm:
-                en = (it.get("en") or "").lower()
-                break
-        key = re.sub(r"[\s\-]+", "", en)
+        key = re.sub(r"[\s\-]+", "", en.lower())
         # ★ 2026-09-24：WM 的条目名带后缀（套装是「… 一套 / … Set」），而 wiki
         #   倾向表用的是裸名（Okina Prime）—— 直接比对永远命中不了，家族卡因此
         #   拿不到变体倾向（玩家报障卡的数值其实正好卡在 翁 Prime 0.7 上）。
         #   逐级剥尾词（先专用后缀，再按空格丢词）后再比。
         cands = [key]
-        parts = re.sub(r"[\s\-]+", " ", en).strip().split()
+        parts = re.sub(r"[\s\-]+", " ", en.lower()).strip().split()
         while len(parts) > 1:
             parts = parts[:-1]
             cands.append(re.sub(r"[\s\-]+", "", " ".join(parts)))

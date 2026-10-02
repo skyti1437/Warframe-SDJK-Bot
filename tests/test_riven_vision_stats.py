@@ -585,6 +585,19 @@ check("★ 幽灵 sid 已清除（基值表 / 展示名表都不再有 combo_eff
 check("归并后基值不变：额外连击数几率仍为近战 58.77",
       RA._BASE["extra_combo_count"][4] == 58.77)
 
+# ★ 2026-10-03 术语（用户口径：远程叫「射速」、近战叫「攻速」）：`_STAT_ALIAS`
+#   此前把「射速」改写成「攻速」⇒ 远程卡显示成近战词条 attack_speed。
+check("★ 术语：射速 → fire_rate（不再被压成 attack_speed）",
+      plugin.WarframeSDJK._stat_id_from_name("射速", _rev) == "fire_rate")
+check("术语：攻速 → attack_speed（近战词条不受影响）",
+      plugin.WarframeSDJK._stat_id_from_name("攻速", _rev) == "attack_speed")
+check("术语：射击速度 / 射击速率 也走 fire_rate",
+      plugin.WarframeSDJK._stat_id_from_name("射击速度", _rev) == "fire_rate"
+      and plugin.WarframeSDJK._stat_id_from_name("射击速率", _rev) == "fire_rate")
+check("★ 语义相反的跨词条改写已清除（_STAT_ALIAS 不含 射速 / 元素伤害）",
+      "射速" not in plugin.WarframeSDJK._STAT_ALIAS
+      and "元素伤害" not in plugin.WarframeSDJK._STAT_ALIAS)
+
 # ★ 2026-10-02 用户实卡（翁 Locti-acrium）：「-60.4% 的几率来获得连击数」
 #   —— ① 卡面原文认得出；②「仅负向」锁定生效（读成正数也归负面，wiki Legend ³）；
 #   ③ 基值 104.85 与该卡自洽（d=0.70：四行 U = 0.92/1.02/0.93/1.10 全在 ±10%）。

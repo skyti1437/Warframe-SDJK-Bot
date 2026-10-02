@@ -1322,12 +1322,146 @@ check("★ 连击获取按负档算出区间（104.85 基值生效，不再「�
       "49.54%-60.55%" in _b18 and "无官方基值" not in _b18, _b18[:400])
 
 # ---------------------------------------------------------------------------
-# ★ 追加段（⑫-⑱）出口守卫：本文件原有守卫在第 802 行（①-⑫ 之前），
+# ⑲ 变体倾向改走本地表（2026-10-03 交办）：家族候选必须含玄骸变体 + 名称陷阱
+#   旧实现遍历 WM 物品表找变体名，而 WM 全量 3892 条里 **0 件玄骸武器**
+#   （赤毒/信条/终幕本体不可交易）⇒ 玄骸变体永远列不出（「鳄神」卡由此误判）。
+# ---------------------------------------------------------------------------
+_c19 = WarframeClient.__new__(WarframeClient)
+_c19._aliases = {}
+
+
+def _fam19(en):
+    return asyncio.run(_c19.riven_family({"en": en}))
+
+
+_XUANHAI = [("Sobek", 0.8), ("Nukor", 0.5), ("Ogris", 0.7), ("Zarr", 0.7),
+            ("Tonkor", 0.9), ("Kohm", 0.9), ("Kraken", 1.1), ("Hind", 1.1),
+            ("Drakgoon", 1.15), ("Brakk", 0.95), ("Seer", 1.1), ("Quartakk", 1.1),
+            ("Ferrox", 1.15), ("Hema", 0.95), ("Tysis", 1.0), ("Pox", 1.0),
+            ("Bubonico", 0.55), ("Caustacyst", 0.85), ("Hirudo", 0.75),
+            ("Catabolyst", 0.65), ("Glaxion", 0.65), ("Quanta", 0.75),
+            ("Sporothrix", 0.95), ("Plinx", 0.8), ("Grattler", 0.7),
+            ("Pathocyst", 0.65), ("Ghoulsaw", 0.7), ("Mire", 0.75),
+            ("Arca Plasmor", 0.55), ("Cycron", 0.7), ("Synapse", 0.9)]
+_miss19 = [(b, w) for b, w in _XUANHAI
+           if not any(abs(v - w) < 1e-9 for _n, v in _fam19(b))]
+check(f"★ 玄骸族抽查 {len(_XUANHAI)} 族：家族候选都列得出（缺 {len(_miss19)}）",
+      not _miss19, str(_miss19[:4]))
+check("★ 报障族原样：Sobek 族 = [('赤毒·鳄神', 0.8)]",
+      _fam19("Sobek") == [("赤毒·鳄神", 0.8)], str(_fam19("Sobek")))
+check("玄骸单成员族（无本体可对照）：Kuva Bramma 家族为空但不报错",
+      _fam19("Kuva Bramma") == [], str(_fam19("Kuva Bramma")))
+
+# 名称陷阱（清单 §四）：riven_family() 输出层同样要守住
+check("★ 名称陷阱：Afuris 族（除自身）= {盗贼双枪 Prime, Dex 盗贼双枪}",
+      {n for n, _ in _fam19("Afuris")} == {"盗贼双枪 Prime", "Dex 盗贼双枪"},
+      str(_fam19("Afuris")))
+check("★ 名称陷阱：Furis 族（除自身）= {MK1-盗贼}（不含 Dex 盗贼双枪）",
+      {n for n, _ in _fam19("Furis")} == {"MK1-盗贼"}, str(_fam19("Furis")))
+check("★ 名称陷阱：Lacera 族含 天仓·悲痛之刃",
+      "天仓·悲痛之刃" in {n for n, _ in _fam19("Lacera")}, str(_fam19("Lacera")))
+check("★ 名称陷阱：Pangolin Sword 族含 鲮鲤剑 Prime",
+      "鲮鲤剑 Prime" in {n for n, _ in _fam19("Pangolin Sword")},
+      str(_fam19("Pangolin Sword")))
+check("★ 名称陷阱：Dual Decurion 族含 棱晶·什长双枪",
+      "棱晶·什长双枪" in {n for n, _ in _fam19("Dual Decurion")},
+      str(_fam19("Dual Decurion")))
+check("★ Dakra 边界：Dakra Prime 与 Dex Dakra 各自独立（家族互不含对方、倾向 1.10/1.35）",
+      _fam19("Dakra Prime") == [] and _fam19("Dex Dakra") == [],
+      f"{_fam19('Dakra Prime')} / {_fam19('Dex Dakra')}")
+
+# ---------------------------------------------------------------------------
+# ⑳ 「鳄神」报障卡 e2e（2026-10-03）：反推 0.8 = 赤毒·鳄神 ⇒ 报变体，不是「老卡」
+# ---------------------------------------------------------------------------
+_SOBEK = [{"url_name": "sobek", "zh": "鳄神", "en": "Sobek",
+           "disposition": 1.33, "riven_type": "shotgun", "group": "primary",
+           "tags": []},
+          {"url_name": "kuva_sobek", "zh": "赤毒·鳄神", "en": "Kuva Sobek",
+           "disposition": 0.8, "riven_type": "shotgun", "group": "primary",
+           "tags": []}]
+_c20 = WarframeClient.__new__(WarframeClient)
+_c20._aliases = {}
+
+
+async def _w20():
+    return [dict(w) for w in _SOBEK]
+
+
+_c20.wm_riven_weapons = _w20
+
+
+class _P20:
+    preset, page, whisper = "", 1, False
+
+    def __init__(self, tokens):
+        self.content = tokens
+        self.content_str = "紫卡分析 " + " ".join(tokens)
+
+
+_P20_A = _P20(["鳄神", "射速72.9", "多重95.8", "触发71.9", "负装填29.3"])
+_P20_B = _P20(["赤毒·鳄神", "射速72.9", "多重95.8", "触发71.9", "负装填29.3"])
+
+
+def _run20(tokens):
+    obj = plugin.WarframeSDJK.__new__(plugin.WarframeSDJK)
+    obj.client = _c20
+    obj.page_size = 12
+    obj._event_has_image = lambda _e: False
+    reply = asyncio.run(obj._h_riven_analysis(tokens, _Ev9(), "pc"))
+    return "\n".join(getattr(reply, "lines", []) or []) or reply.raw_text or ""
+
+
+_b20 = _run20(_P20_A)
+check("★ 鳄神卡：报告为**变体**（含「赤毒·鳄神」）且不含「老卡」",
+      "赤毒·鳄神" in _b20 and "老卡" not in _b20, _b20[:300])
+check("★ 鳄神卡：按 0.8 计算，四条区间全中（射速/多重/触发/负装填）",
+      all(k in _b20 for k in ("60.75%-74.25%", "80.8%-98.75%", "27%-33%")),
+      _b20[:400])
+check("鳄神卡：术语用「射速」（远程）而非近战「攻速」",
+      "射速" in _b20 and "攻速" not in _b20, _b20[:200])
+_b20b = _run20(_P20_B)
+check("★ 手输「赤毒·鳄神」：直接按 0.8 出卡（【赤毒·鳄神】倾向 0.8）",
+      "【赤毒·鳄神】倾向 0.8" in _b20b, _b20b[:200])
+
+
+class _NoFamClient:
+    """家族列不出（模拟旧状态）：仍须走「老卡」兜底，不误报变体。"""
+
+    def __init__(self):
+        self._aliases = {}
+
+    async def wm_riven_weapons(self):
+        return [dict(w) for w in _SOBEK]
+
+    async def resolve_riven_weapon(self, q):
+        for w in _SOBEK:
+            if q.strip() in (w["zh"], w["en"]):
+                return dict(w)
+        return None
+
+    async def riven_family(self, _w):
+        return []
+
+    async def resolve_variant_disp(self, _n):
+        return (None, "")
+
+
+obj21 = plugin.WarframeSDJK.__new__(plugin.WarframeSDJK)
+obj21.client = _NoFamClient()
+obj21.page_size = 12
+obj21._event_has_image = lambda _e: False
+_r21 = asyncio.run(obj21._h_riven_analysis(_P20_A, _Ev9(), "pc"))
+_b21 = "\n".join(_r21.lines)
+check("对照：家族列不出时仍回「老卡」兜底（兜底逻辑未被改坏）",
+      "老卡" in _b21, _b21[:240])
+
+# ---------------------------------------------------------------------------
+# ★ 追加段（⑫-⑳）出口守卫：本文件原有守卫在第 802 行（①-⑫ 之前），
 #   其后的追加段此前**没有守卫** —— 失败不会置退出码（等同静默放行）。
 # ---------------------------------------------------------------------------
 print()
 if FAILED:
     print(f"✗ 追加段失败 {len(FAILED)} 项：" + "、".join(FAILED))
     sys.exit(1)
-print("✓ 追加段（⑫-⑱）全部通过")
+print("✓ 追加段（⑫-⑳）全部通过")
 
