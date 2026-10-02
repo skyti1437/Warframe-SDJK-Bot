@@ -166,6 +166,28 @@ check("负词条系数（滑暴 76.95-94.05）",
 check("距中计算", RA.deviation_pct(82.8, lo, hi) == 3.3,
       str(RA.deviation_pct(82.8, lo, hi)))
 check("基值缺失返回空区间", RA.stat_range("zoom", "melee", 1.0, 3, 1) == (None, None))
+
+# ★ 2026-10-02：combo 家族两侧基值补录（官方 wiki「Riven Mods」基值表整页核对；
+#   表后 Legend：¹ 仅正向 / ³ 仅负向）。反算自洽：报障卡 海波单剑 3+1
+#   （近战伤害 231.2 / 暴伤 128.8 / 滑暴 130.2）反推 D≈1.39~1.43。
+_lo_c, _hi_c = RA.stat_range("extra_combo_count", "melee", 1.41, 3, 1)
+check("★ 额外连击数几率（仅正向）：基值 58.77 → D=1.41/3+1 区间 69.92-85.46",
+      _lo_c is not None and abs(_lo_c - 69.92) < 0.05
+      and abs(_hi_c - 85.46) < 0.05, f"{_lo_c}-{_hi_c}")
+check("★ 报障卡自洽：+71.1% 额外连击落在该区间内（不再「无官方基值」）",
+      _lo_c is not None and _lo_c <= 71.1 <= _hi_c, f"{_lo_c} <= 71.1 <= {_hi_c}")
+_lo_g, _hi_g = RA.stat_range("combo_gain_chance", "melee", 1.41, 3, 1,
+                             negative=True)
+check("★ 几率不获得连击数（仅负向）：基值 104.85 → 负档区间 99.79-121.97",
+      _lo_g is not None and abs(_lo_g - 99.79) < 0.05
+      and abs(_hi_g - 121.97) < 0.05, f"{_lo_g}-{_hi_g}")
+check("两条 combo 词条只在近战列有基值（其余类别 None → 空区间）",
+      RA.stat_range("extra_combo_count", "rifle", 1.0, 3, 1) == (None, None)
+      and RA.stat_range("combo_gain_chance", "pistol", 1.0, 3, 1) == (None, None))
+check("_PCT_UNIT_ONLY 已清空（两条都进基值表）、且仍按百分比显示",
+      RA._PCT_UNIT_ONLY == set()
+      and RA.fmt_value("extra_combo_count", 71.1) == "71.1%"
+      and RA.fmt_value("combo_gain_chance", 110.9) == "110.9%")
 ta, la = F.fmt_riven_analysis("棱晶·欧玛", 0.95, "melee",
                               [("crit_damage", 82.8), ("range", 1.6),
                                ("attack_speed", 45.8)],

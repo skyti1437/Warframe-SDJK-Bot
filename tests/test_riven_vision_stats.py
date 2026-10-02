@@ -561,6 +561,15 @@ check("形近容错反例：武器伤害（最相近仅 0.5）不采纳",
 check("形近容错反例：段位（与任何词条相似度 0）不采纳",
       plugin.WarframeSDJK._stat_id_from_name("段位", _rev) is None)
 
+# ★ 2026-10-02 别名补录（官方 wiki 基值表两侧 combo 词的核对产物）：中文表里
+#   「仅负向」那行（近战 104.85%）的卡面名 —— 缺它整行会落「词条名认不出」。
+check("★ 别名：几率不获得连击数 → combo_gain_chance（仅负向词条）",
+      plugin.WarframeSDJK._stat_id_from_name("几率不获得连击数", _rev)
+      == "combo_gain_chance")
+check("别名：额外连击数几率 → extra_combo_count（仅正向词条）",
+      plugin.WarframeSDJK._stat_id_from_name("额外连击数几率", _rev)
+      == "extra_combo_count")
+
 # ---------------------------------------------------------------------------
 # ⑨ 采信判据：**像是词条行却没解析成功** ⇒ 不许判「合法采信」（线上 16:17
 #    海波单剑事故：条数恰好达标，但有一条词条行被跳过 —— 旧实现照样「采信」

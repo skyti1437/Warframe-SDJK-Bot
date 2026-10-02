@@ -49,6 +49,15 @@ _BASE: dict[str, tuple] = {
     "combo_duration": (None, None, None, None, 8.1),
     "heavy_attack_efficiency": (None, None, None, None, 73.44),
     "combo_efficiency": (None, None, None, None, 58.77),
+    # ★ 2026-10-02 补录（用户提供官方 wiki「Riven Mods」基值表整页存档核对）：
+    #   同一 combo 家族的两侧 —— 表后 Legend 注明「¹ 仅正向（永不作为负面）」
+    #   「³ 仅负向（永不作为正面）」，两行近战基值即下列两项：
+    #     Additional Combo Count Chance¹ | Laci/Nus | 近战 58.77%
+    #     Chance to Gain Combo Count³   | –/–     | 近战 104.85%
+    #   反算自洽（报障卡 海波单剑 3+1：近战伤害 231.2/暴伤 128.8/滑暴 130.2
+    #   反推 D≈1.39~1.43，58.77×1.41×0.9375×0.915=71.1 ✓ 命中卡面 +71.1%）。
+    "extra_combo_count": (None, None, None, None, 58.77),
+    "combo_gain_chance": (None, None, None, None, 104.85),
     "finisher_damage": (None, None, None, None, 119.7),
     "slide_crit": (None, None, None, None, 120),
     "slash_damage": (119.97, 119.97, 119.97, 90, 119.7),
@@ -68,6 +77,8 @@ _BASE: dict[str, tuple] = {
     "projectile_speed": (90, 90, 90, None, None),
     "punch_through": (2.7, 2.7, 2.7, 2.7, None),
     "reload_speed": (50, 50, 50, 99.9, None),
+    # 后坐力：幅度 90%（官方 EN 表写 90%、中文表带方向写 -90%）—— 效果方向
+    # 由 INVERTED_STATS 表达：卡面「+」= 增加后坐力 = 负面，区间按负档系数算。
     "recoil": (90, 90, 90, 90, None),
     "zoom": (59.99, None, 80.1, 59.99, None),
 }
@@ -78,7 +89,9 @@ _PCT_IDS = set(_BASE) - {"punch_through", "range", "combo_duration",
 
 # 不在基值表（wiki 尚未给基值）、但单位同样按百分比显示的词条：
 # 不补进这个集合的话，「无官方基值」那行会漏掉 %，读起来像绝对值。
-_PCT_UNIT_ONLY = {"extra_combo_count", "combo_gain_chance"}
+# ★ 2026-10-02：原成员 extra_combo_count / combo_gain_chance 已补录基值
+#   （见 _BASE），本集合现为空 —— 机制保留，供将来 wiki 未收录的新词条使用。
+_PCT_UNIT_ONLY: set = set()
 
 
 _CLASS_IDX = {"rifle": 0, "shotgun": 1, "pistol": 2, "archgun": 3, "melee": 4}
