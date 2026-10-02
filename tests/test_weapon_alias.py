@@ -325,6 +325,41 @@ for _u, _e in _disp.items():
 check(f"全表：{_n} 个 Vandal/Wraith 变体全部归到本体家族（修前全部漏列）",
       _n >= 20 and not _bad, f"n={_n} 漏 {_bad[:8]}")
 
+# ---------------------------------------------------------------------------
+# ★ 2026-10-03：中文变体前缀与**游戏内官方简中**对齐（用户《武器中文以及其变体》
+#   清单 + 本地三表逐条反查：保障·勒克塔 / 枢议·咖玛腕甲枪 / 终极·螺钉步枪 /
+#   勇气·海克 / 天仓·悲痛之刃 / 苦痛·德特昂 / 嫣红·潘塔）。
+# ---------------------------------------------------------------------------
+OFFICIAL_PREFIX = [("保障", "secura"), ("枢议", "synoid"), ("终极", "telos"),
+                   ("勇气", "vaykor"), ("天仓", "ceti"), ("苦痛", "mara"),
+                   ("嫣红", "carmine"), ("圣洁", "sancti")]
+check("★ 前缀对齐：官方写法（保障/枢议/终极/勇气/天仓/苦痛/嫣红/圣洁）全部收录",
+      all(matching.VARIANT_TOKENS.get(z) == e for z, e in OFFICIAL_PREFIX),
+      str([(z, matching.VARIANT_TOKENS.get(z)) for z, _ in OFFICIAL_PREFIX]))
+check("★ 修正：绯红 = Rakta（绯红·西诺斯 = Rakta Cernos）；血光 仍同义",
+      matching.VARIANT_TOKENS.get("绯红") == "rakta"
+      and matching.VARIANT_TOKENS.get("血光") == "rakta",
+      str(matching.VARIANT_TOKENS.get("绯红")))
+check("旧译保留为别名（安全/共生/终焉/瓦伊科/玛拉 仍可剥）",
+      all(matching.VARIANT_TOKENS.get(z) == e for z, e in
+          (("安全", "secura"), ("共生", "synoid"), ("终焉", "telos"),
+           ("瓦伊科", "vaykor"), ("玛拉", "mara"))))
+check("剥词实测：官方前缀都能剥到基名",
+      all(matching.strip_variant_norm(matching.normalize(zh))
+          == matching.normalize(base) for zh, base in
+          (("保障勒克塔", "勒克塔"), ("枢议咖玛腕甲枪", "咖玛腕甲枪"),
+           ("终极螺钉步枪", "螺钉步枪"), ("勇气海克", "海克"),
+           ("天仓悲痛之刃", "悲痛之刃"), ("苦痛德特昂", "德特昂"),
+           ("嫣红潘塔", "潘塔"), ("绯红西诺斯", "西诺斯"))))
+_forms = set(matching.expand_variants("保障勒克塔"))
+check("展开实测：「保障勒克塔」展开出 secura 形态（英中互换）",
+      any(f.startswith("secura") or f.endswith("secura") for f in _forms),
+      str(sorted(_forms)[:6]))
+check("变体意图（中英通吃）：Ceti Lacera / Kuva Hek 都算变体、Lacera 不算",
+      matching.variant_intent_any("Ceti Lacera") is True
+      and matching.variant_intent_any("Kuva Hek") is True
+      and matching.variant_intent_any("Lacera") is False)
+
 if FAILED:
     print(f"\nFAILED {len(FAILED)}: {FAILED}")
     sys.exit(1)

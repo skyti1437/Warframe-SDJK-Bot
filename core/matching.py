@@ -34,8 +34,18 @@ _PRIME_WORD = re.compile(r"([\u4e00-\u9fff])[\s·・]*prime$", re.IGNORECASE)
 VARIANT_TOKENS: dict[str, str] = {
     "赤毒": "kuva", "信条": "tenet", "终幕": "coda", "亡魂": "wraith",
     "破坏者": "vandal", "棱晶": "prisma", "棱镜": "prisma", "圣洁": "sancti",
-    "安全": "secura", "终焉": "telos", "共生": "synoid", "血光": "rakta",
-    "瓦伊科": "vaykor", "玛拉": "mara", "绯红": "carmine",
+    # ★ 2026-10-03 与**游戏内官方简中**对齐（用本地三表逐条反查而来：
+    #   保障·勒克塔 / 枢议·咖玛腕甲枪 / 终极·螺钉步枪 / 勇气·海克 /
+    #   天仓·悲痛之刃 / 苦痛·德特昂 / 嫣红·潘塔）。
+    "保障": "secura", "枢议": "synoid", "终极": "telos", "勇气": "vaykor",
+    "天仓": "ceti", "苦痛": "mara", "嫣红": "carmine",
+    # 旧译 / 社区写法保留（互为别名：剥词与展开都受益）
+    "安全": "secura", "共生": "synoid", "终焉": "telos", "瓦伊科": "vaykor",
+    "玛拉": "mara",
+    # ★ 修正：「绯红」按官方简中是 **Rakta** 的前缀（绯红·西诺斯 = Rakta Cernos、
+    #   绯红·暗黑匕首 = Rakta Dark Dagger），不是 Carmine —— Carmine 官方是「嫣红」。
+    #   旧表把 carmine 挂在绯红上，会让「绯红·X」展开出错误的变体形态。
+    "绯红": "rakta", "血光": "rakta",
 }
 # 中英同形/缩写自成一类的独立 token
 _STANDALONE = {"dex", "mk1", "prime"}

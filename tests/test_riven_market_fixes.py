@@ -1370,6 +1370,17 @@ check("★ Dakra 边界：Dakra Prime 与 Dex Dakra 各自独立（家族互不�
       _fam19("Dakra Prime") == [] and _fam19("Dex Dakra") == [],
       f"{_fam19('Dakra Prime')} / {_fam19('Dex Dakra')}")
 
+# ★ 2026-10-03：本地名表补录（用户《武器中文以及其变体》清单核对所得）——
+#   Coda Bubonico 的三张本地表全缺，家族显示名因此出英文；补进索引后双向可查。
+from core import api_client as _AC                        # noqa: E402
+
+check("★ 本地名表补录：Coda Bubonico ↔ 终幕·横痃重炮（双向可查）",
+      _AC._zh_name_of_en("Coda Bubonico") == "终幕·横痃重炮"
+      and _AC._en_name_of_zh("终幕·横痃重炮") != "",
+      f"{_AC._zh_name_of_en('Coda Bubonico')!r} / {_AC._en_name_of_zh('终幕·横痃重炮')!r}")
+check("家族显示名：横痃重炮 家族 → 终幕·横痃重炮（中文，不再是英文名）",
+      _fam19("Bubonico") == [("终幕·横痃重炮", 0.55)], str(_fam19("Bubonico")))
+
 # ---------------------------------------------------------------------------
 # ⑳ 「鳄神」报障卡 e2e（2026-10-03）：反推 0.8 = 赤毒·鳄神 ⇒ 报变体，不是「老卡」
 # ---------------------------------------------------------------------------
