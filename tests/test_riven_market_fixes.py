@@ -687,8 +687,413 @@ check("重复的 MK1 行只列一次（4 行里没有空名行）",
       all("　" not in x.split("　")[0][2:] for x in _r7.lines),
       "\n".join(_r7.lines))
 
+# ---------------------------------------------------------------------------
+# ⑬ 官方名优先于别名词典（2026-10-01 报障：盗贼被认成盗贼双枪）
+# ---------------------------------------------------------------------------
+# 卡面原文「盗贼 Visi-toxican」⇒ OCR 武器名 = 盗贼（Furis 1.35）。旧解析链把
+# **别名词典的包含匹配**排在官方名精确匹配之前：riven_items 的键「盗贼双枪」
+# 满足 ``q in k``（"盗贼" ⊂ "盗贼双枪"）且长度差 2 ≤ 4 ⇒ 直接返回 afuris
+# ⇒ 卡面按 1.45 算，四条数值全部压到区间下沿（暴伤区间 98.72-120.66 对 91.1…）
+# ⇒ 误报「倾向调整前洗出的老卡」。同一类问题还有「猛毒」(komorex) 会被别名键
+# 「猛毒镖枪」(zakti) 捞走。
+print("\n=== ⑬ 官方名优先于别名（盗贼 ≠ 盗贼双枪）===")
+_FAM = [
+    {"url_name": "afuris", "zh": "盗贼双枪", "en": "Afuris", "disposition": 1.45,
+     "riven_type": "pistol", "group": "secondary", "tags": []},
+    {"url_name": "furis", "zh": "盗贼", "en": "Furis", "disposition": 1.35,
+     "riven_type": "pistol", "group": "secondary", "tags": []},
+    {"url_name": "afuris_prime", "zh": "盗贼双枪 Prime", "en": "Afuris Prime",
+     "disposition": 1.1, "riven_type": "pistol", "group": "secondary",
+     "tags": []},
+    {"url_name": "zakti", "zh": "猛毒镖枪", "en": "Zakti", "disposition": 1.1,
+     "riven_type": "pistol", "group": "secondary", "tags": []},
+    {"url_name": "komorex", "zh": "猛毒", "en": "Komorex", "disposition": 0.85,
+     "riven_type": "rifle", "group": "primary", "tags": []},
+]
+_c6 = WarframeClient.__new__(WarframeClient)
+_c6._aliases = {"riven_items": {"盗贼双枪": "afuris", "猛毒镖枪": "zakti",
+                                "捕月": "catchmoon"}}
+
+
+async def _fam_weapons():
+    return [dict(w) for w in _FAM]
+
+
+_c6.wm_riven_weapons = _fam_weapons
+_h6 = asyncio.run(_c6.resolve_riven_weapon("盗贼")) or {}
+check("★「盗贼」→ furis 1.35（旧实现被别名键「盗贼双枪」捞成 afuris 1.45）",
+      _h6.get("url_name") == "furis", str(_h6))
+check("★ 解析出的倾向是 1.35（区间才不会被 1.45 压到 0%）",
+      abs(float(_h6.get("disposition") or 0) - 1.35) < 1e-9, str(_h6))
+_h6b = asyncio.run(_c6.resolve_riven_weapon("盗贼双枪")) or {}
+check("反向：真·盗贼双枪仍按 1.45 解析（未被这次重排改坏）",
+      _h6b.get("url_name") == "afuris"
+      and abs(float(_h6b.get("disposition") or 0) - 1.45) < 1e-9, str(_h6b))
+_h6c = asyncio.run(_c6.resolve_riven_weapon("猛毒")) or {}
+check("★ 同类问题一并修掉：猛毒 → komorex（不是别名键「猛毒镖枪」的 zakti）",
+      _h6c.get("url_name") == "komorex", str(_h6c))
+check("别名**精确键**仍生效（黑话/无中点写法照旧可用）",
+      _c6.alias_lookup("捕月", "riven_items", exact=True) == "catchmoon")
+check("别名的**模糊**匹配仍可用（只是降级到链尾，未被删掉）",
+      _c6._alias_fuzzy("双枪", "riven_items") == "afuris")
+
+# 端到端：报障那张卡现在必须按 1.35 出区间
+async def _no_family(_w):
+    return []
+
+
+async def _no_variant(_n):
+    return (None, "")
+
+
+_c6.riven_family = _no_family
+_c6.resolve_variant_disp = _no_variant
+_obj6 = plugin.WarframeSDJK.__new__(plugin.WarframeSDJK)
+_obj6.client = _c6
+_obj6.page_size = 12
+
+
+async def _imgs6(_e):
+    return ["data:image/jpeg;base64,x"]
+
+
+_obj6._image_data_urls = _imgs6
+
+
+async def _ext6(_u):
+    return {"weapon": "盗贼 Visi-toxican",
+            "positive": [["毒素伤害", 120.5], ["伤害", 299.9],
+                         ["多重射击", 148]],
+            "negative": [["触发时间", 97.2]]}
+
+
+_obj6._extract_riven_from_image = _ext6
+
+
+class _Img6:
+    pass
+
+
+_Img6.__name__ = "Image"
+
+
+class _Ev6:
+    message_obj = types.SimpleNamespace(message=[_Img6()])
+    unified_msg_origin = "group://alias_priority_test"
+
+
+class _P6:
+    content = []
+    content_str = "紫卡分析"
+    preset, page, whisper = "", 1, False
+
+
+_r8 = asyncio.run(_obj6._h_riven_analysis(_P6(), _Ev6(), "pc"))
+_b8 = "\n".join(_r8.lines)
+check("★ 端到端：报障卡按【盗贼】1.35 出区间（不再是盗贼双枪 1.38）",
+      "【盗贼】倾向 1.35" in _b8 and "盗贼双枪" not in _b8, _b8[:200])
+check("★ 端到端：不再误报「倾向调整前洗出的老卡」",
+      "对不上" not in _b8 and "老卡" not in _b8, _b8[:200])
+check("端到端：四条词条都进卡，且不再全落 0%",
+      all(k in _b8 for k in ("+120.5% 毒伤", "+299.9% 基伤", "+148% 多重",
+                            "-97.2% 触时")), _b8[:300])
+
 print()
 if FAILED:
     print(f"✗ {len(FAILED)} 项失败：" + "、".join(FAILED))
     sys.exit(1)
 print("✓ 紫卡市场 5 项修复全部通过")
+
+# ---------------------------------------------------------------------------
+# ⑫ 双向排序合并 + 价格本地过滤（2026-10-01，任务书 output/交接-ZCode-紫卡拍卖双向排序合并）
+# ---------------------------------------------------------------------------
+from core.api_client import WarframeAPIError as _WAE         # noqa: E402
+
+
+class _FakeFetch2:
+    """模拟 _fetch_json：price_asc 500 条低价 + price_desc 500 条高价，中间 50 条 id 重叠。
+
+    用于验证 wm_riven_auctions 的「双查 → 按挂单 id 合并去重 → desc 失败降级」三行为。
+    """
+
+    def __init__(self, asc_auctions=None, desc_auctions=None, desc_error=False,
+                 stat_error=False):
+        self._asc = asc_auctions or []
+        self._desc = desc_auctions or []
+        self._desc_error = desc_error
+        self._stat_error = stat_error
+        self.calls: list[dict] = []
+
+    async def __call__(self, url, ttl=0, params=None, wm_rate_limit=False):
+        from core.api_client import WarframeAPIError as _Err
+        self.calls.append(dict(params or {}))
+        sort = (params or {}).get("sort_by", "")
+        if self._stat_error and sort == "price_desc":
+            raise _Err("400 app.form.invalid")
+        if sort == "price_desc":
+            if self._desc_error:
+                raise _Err("timeout on desc")
+            return {"payload": {"auctions": self._desc}}
+        return {"payload": {"auctions": self._asc}}
+
+
+async def _run_merge(fake):
+    import core.api_client as _api
+    client = _api.WarframeClient.__new__(_api.WarframeClient)
+    client.wm_base = "https://api.warframe.market/v1"
+    client._fetch_json = fake
+    return await client.wm_riven_auctions(
+        "ocucor", "pc",
+        positives=["multishot"], negatives=["toxin_damage"])
+
+
+# ① 双查合并去重：asc 有 id 1-3、desc 有 id 3-5 → 合并后 5 条不重复
+_asc = [{"id": f"a{i}", "buyout_price": i * 100} for i in range(1, 4)]
+_desc = [{"id": f"a{i}", "buyout_price": i * 100} for i in range(3, 6)]
+_fake = _FakeFetch2(asc_auctions=_asc, desc_auctions=_desc)
+_merged = asyncio.run(_run_merge(_fake))
+check("★ 双查合并：asc(3) + desc(3) 重叠 id=a3 → 去重后 5 条",
+      len(_merged) == 5 and len({a["id"] for a in _merged}) == 5,
+      f"{len(_merged)} 条, ids={[a['id'] for a in _merged]}")
+check("★ 两次请求 sort_by 分别是 price_asc / price_desc（TTL 缓存分键）",
+      [c.get("sort_by") for c in _fake.calls] == ["price_asc", "price_desc"],
+      str([c.get("sort_by") for c in _fake.calls]))
+
+# ② desc 失败 → 降级为单方向结果（asc 3 条原样返回，不抛异常）
+_fake2 = _FakeFetch2(asc_auctions=_asc, desc_error=True)
+_degraded = asyncio.run(_run_merge(_fake2))
+check("★ desc 失败降级：返回 asc 3 条（指令不打挂）",
+      len(_degraded) == 3 and all(a["id"].startswith("a") for a in _degraded),
+      f"{len(_degraded)} 条")
+check("★ desc 失败后走词条降级路径再试 1 次（asc 1 + desc 2 = 3 次请求）",
+      len(_fake2.calls) == 3
+      and _fake2.calls[1].get("sort_by") == "price_desc"
+      and _fake2.calls[1].get("positive_stats") is not None
+      and _fake2.calls[2].get("positive_stats") is None,
+      str([(c.get("sort_by"), "stats" if c.get("positive_stats") else "no-stats")
+           for c in _fake2.calls]))
+
+# ③ asc 失败 + 无词条 → 抛异常（第一次失败原样抛，与修前行为一致）
+
+
+class _FakeFetch3(_FakeFetch2):
+    async def __call__(self, url, ttl=0, params=None, wm_rate_limit=False):
+        from core.api_client import WarframeAPIError as _Err
+        self.calls.append(dict(params or {}))
+        raise _Err("WM down")
+
+
+try:
+    asyncio.run(_run_merge(_FakeFetch3()))
+    _asc_error_raised = False
+except _WAE:
+    _asc_error_raised = True
+check("★ asc 失败 + 无词条 → 抛 WarframeAPIError（与修前一致）",
+      _asc_error_raised)
+
+# ④ 价格本地过滤：_auction_match 按 buyout_price 与 q.max_price 判断
+_q_price = parse_wr("多重 1000p".split())
+_q_price.forbid_negative = False
+_q_price.require_negative = False
+_cheap = {"buyout_price": 600, "owner": {"status": "ingame"},
+          "item": {"attributes": [{"url_name": "multishot", "value": 120,
+                                   "positive": True}]}}
+_expensive = {"buyout_price": 4500, "owner": {"status": "ingame"},
+              "item": {"attributes": [{"url_name": "multishot", "value": 120,
+                                       "positive": True}]}}
+check("★ 价格本地过滤：600p ≤ 1000p 保留",
+      plugin.WarframeSDJK._auction_match(_cheap, _q_price, set(), set()) is True)
+check("★ 价格本地过滤：4500p > 1000p 拒绝（服务端忽略 price_min/max，本地必须拦）",
+      plugin.WarframeSDJK._auction_match(_expensive, _q_price, set(), set()) is False)
+_q_noprice = parse_wr("多重".split())
+check("★ 价格本地过滤：无价格条件不误杀",
+      plugin.WarframeSDJK._auction_match(_expensive, _q_noprice, set(), set()) is True)
+
+
+# ---------------------------------------------------------------------------
+# ⑬ 家族判定主干名相等 + 词条参数逗号 AND + require_negative（2026-10-01 追加批）
+# ---------------------------------------------------------------------------
+from core.api_client import WarframeClient as _WC     # noqa: E402
+
+# A: _family_match 主干名相等（8 条验收）
+_fm = _WC._family_match
+for _bz, _be, _z, _e, _want, _label in [
+    ("盗贼", "furis", "盗贼双枪 Prime", "Afuris Prime", False, "同前缀不同武器"),
+    ("盗贼", "furis", "盗贼双枪", "afuris", False, "盗贼双枪≠盗贼的变体"),
+    ("空刃", "nikana", "棱晶·空刃", "prisma nikana", True, "棱晶变体"),
+    ("空刃", "nikana", "空刃 Prime", "nikana prime", True, "Prime变体"),
+    ("空刃", "nikana", "空刃双刀", "dragon nikana", False, "空刃双刀≠空刃的变体"),
+    ("翁", "okina", "翁 Prime 一套", "okina prime set", True, "翁 Prime（带一套后缀）"),
+    ("布莱顿", "braton", "MK1-布莱顿", "mk1-braton", True, "MK1 算变体"),
+    ("欧玛", "ohma", "棱晶·欧玛", "prisma ohma", True, "棱晶·欧玛"),
+]:
+    check(f"★ 家族主干名相等：{_label}", _fm(_bz, _be, _z, _e) is _want,
+          f"{_bz}/{_z} -> {_fm(_bz, _be, _z, _e)}（期望 {_want}）")
+
+# B: 词条参数必须是逗号（AND），不是 list（OR 触顶 500）
+
+
+class _ParamCapture(_FakeFetch2):
+    """捕获 wm_riven_auctions 发出的 params 中 positive_stats 的形态。"""
+
+    def __init__(self):
+        super().__init__(asc_auctions=[], desc_auctions=[])
+        self.pos_stats_forms: list = []
+
+    async def __call__(self, url, ttl=0, params=None, wm_rate_limit=False):
+        self.calls.append(dict(params or {}))
+        ps = (params or {}).get("positive_stats")
+        if ps is not None:
+            self.pos_stats_forms.append(ps)
+        return {"payload": {"auctions": []}}
+
+
+_capture = _ParamCapture()
+asyncio.run(_run_merge(_capture))
+check("★ 词条参数 = 字符串（非 list ⇒ httpx 不拆成重复参数/OR 触顶 500）",
+      _capture.pos_stats_forms
+      and all(isinstance(p, str) for p in _capture.pos_stats_forms),
+      f"实际形态: {_capture.pos_stats_forms}")
+# 多词条：必须拼逗号（AND），不能是 list
+async def _run_multi(fake):
+    import core.api_client as _api
+    client = _api.WarframeClient.__new__(_api.WarframeClient)
+    client.wm_base = "https://api.warframe.market/v1"
+    client._fetch_json = fake
+    return await client.wm_riven_auctions(
+        "burston", "pc", positives=["multishot", "critical_chance", "toxin_damage"])
+
+
+_multi_cap = _ParamCapture()
+asyncio.run(_run_multi(_multi_cap))
+check("★ 多词条 = 逗号拼接（AND 语义）",
+      _multi_cap.pos_stats_forms
+      and all(p == "multishot,critical_chance,toxin_damage"
+              for p in _multi_cap.pos_stats_forms),
+      f"实际形态: {_multi_cap.pos_stats_forms}")
+
+# C: _split_negatives 结尾「负」落地 → require_negative
+
+for _tok, _want_req in [("任意负", True), ("双暴负", True), ("负", True),
+                         ("带负", True)]:
+    _q_test = parse_wr(["伯斯顿", _tok])
+    check(f"★ 任意负落地：{_tok} → require_negative={_want_req}",
+          _q_test.require_negative is _want_req,
+          f"实际 {_q_test.require_negative}")
+
+# 「负变焦」不受影响：具体负面词条（不是 require_negative）
+_q_vj = parse_wr(["伯斯顿", "负变焦"])
+check("★ 负变焦仍正常：negatives=['zoom'] 而非 require_negative",
+      _q_vj.negatives == ["zoom"] and not _q_vj.require_negative,
+      f"neg={_q_vj.negatives} req={_q_vj.require_negative}")
+
+# B+C 联合：require_negative → negative_stats=has
+
+
+class _NegCapture(_FakeFetch2):
+    def __init__(self):
+        super().__init__(asc_auctions=[], desc_auctions=[])
+        self.neg_forms: list = []
+
+    async def __call__(self, url, ttl=0, params=None, wm_rate_limit=False):
+        self.calls.append(dict(params or {}))
+        ns = (params or {}).get("negative_stats")
+        if ns is not None:
+            self.neg_forms.append(ns)
+        return {"payload": {"auctions": []}}
+
+
+async def _run_with_require_neg(fake):
+    import core.api_client as _api
+    client = _api.WarframeClient.__new__(_api.WarframeClient)
+    client.wm_base = "https://api.warframe.market/v1"
+    client._fetch_json = fake
+    return await client.wm_riven_auctions(
+        "burston", "pc", positives=["multishot"], require_negative=True)
+
+
+_negcap = _NegCapture()
+asyncio.run(_run_with_require_neg(_negcap))
+check("★ require_negative → negative_stats=has（服务端筛「带负词条」）",
+      all(v == "has" for v in _negcap.neg_forms) and _negcap.neg_forms,
+      f"实际: {_negcap.neg_forms}")
+
+
+# ---------------------------------------------------------------------------
+# ⑭ wr 完全命中优先排序（2026-10-01 B 口径：在线档 → 档内恰好 → 价格；非硬过滤）
+# ---------------------------------------------------------------------------
+_ps2 = {"multishot", "critical_damage"}
+
+
+def _au2(aid, price, status, pos_slugs, neg_slugs=()):
+    attrs = [{"url_name": s, "value": 100, "positive": True} for s in pos_slugs]
+    attrs += [{"url_name": s, "value": 50, "positive": False} for s in neg_slugs]
+    return {"id": aid, "buyout_price": price,
+            "owner": {"status": status}, "item": {"attributes": attrs}}
+
+
+_a_sup_ig = _au2("sup_ig", 100, "ingame", list(_ps2 | {"cold_damage"}))
+_a_ex_ig = _au2("ex_ig", 900, "ingame", list(_ps2))
+_a_sup_on = _au2("sup_on", 200, "online", list(_ps2 | {"cold_damage"}))
+_a_ex_off = _au2("ex_off", 50, "offline", list(_ps2))
+
+# ① 同档内：恰好(900p) 压 超集(100p)——同档内完全命中优先
+_t, _l, _ = F.fmt_wr_auctions("翁", [_a_sup_ig, _a_ex_ig], exact_ids={"ex_ig"})
+check("★ B① 同档内恰好优先：900p 恰好压 100p 超集",
+      _l[0].startswith("1. 900p"), _l[0])
+
+# ② ★ 跨档（B 口径核心）：恰好离线、超集在线 ⇒ 超集在前（在线档第一优先）
+_t, _l, _ = F.fmt_wr_auctions("翁", [_a_ex_off, _a_sup_on], exact_ids={"ex_off"})
+check("★ B② 跨档：在线超集(200p) 压 离线恰好(50p)——在线档仍是第一优先",
+      _l[0].startswith("1. 200p"), _l[0])
+
+# ③ 在线档次序 ingame → online → offline 不变
+_a_e_on = _au2("e_on", 500, "online", list(_ps2))
+_t, _l, _ = F.fmt_wr_auctions(
+    "翁", [_a_ex_off, _a_e_on, _a_sup_ig], exact_ids={"e_on", "ex_off"})
+check("★ B③ 在线档次序不变：ingame(超集) → online(恰好) → offline(恰好)",
+      _l[0].startswith("1. 100p") and _l[2].startswith("2. 500p")
+      and _l[4].startswith("3. 50p"), str(_l[:5]))
+
+# ④ 同档同命中内价格升序（任务书原例：两条都恰好，500p 在线 / 300p 离线
+#    ⇒ 500p 在前——档位压价格；若同档才轮到价格升序）
+_a_e1 = _au2("e1", 500, "online", list(_ps2))
+_a_e2 = _au2("e2", 300, "offline", list(_ps2))
+_t, _l, _ = F.fmt_wr_auctions("翁", [_a_e1, _a_e2], exact_ids={"e1", "e2"})
+check("★ B④ 恰好内档位压价格（500p 在线在 300p 离线前）",
+      _l[0].startswith("1. 500p") and _l[2].startswith("2. 300p"), str(_l[:3]))
+
+# ⑤ 全部是超集 → exact_ids 为空集（handler 实际产物）⇒ 顺序与改动前逐条一致
+_a_s1 = _au2("s1", 100, "ingame", list(_ps2 | {"cold_damage"}))
+_a_s2 = _au2("s2", 200, "online", list(_ps2 | {"cold_damage"}))
+_t1, _l1, _ = F.fmt_wr_auctions("翁", [_a_s1, _a_s2], exact_ids=set())
+_t2, _l2, _ = F.fmt_wr_auctions("翁", [_a_s1, _a_s2])
+check("★ B⑤ 全超集（exact_ids 空集）→ 顺序与无 exact_ids 逐条一致", _l1 == _l2)
+
+# ⑥ 无指定词条 → exact_ids=None 退化
+_t1, _l1, _ = F.fmt_wr_auctions("翁", [_a_s1, _a_s2], exact_ids=None)
+_t2, _l2, _ = F.fmt_wr_auctions("翁", [_a_s1, _a_s2])
+check("★ B⑥ 无词条 exact_ids=None → 顺序不变", _l1 == _l2)
+
+# ⑦ presorted=True 完全不受新参数影响
+_t1, _l1, _ = F.fmt_wr_auctions("翁", [_a_s2, _a_s1], presorted=True,
+                                exact_ids={"s1"})
+check("★ B⑦ presorted=True 不受新参数影响",
+      _l1[0].startswith("1. 200p"), _l1[0])
+
+# ⑧ 任意负：正恰好 + 1 条负 ⇒ 判为恰好（不得因负词条无名判超集）
+_q_neg = parse_wr(["多重", "任意负"])
+_a_neg = _au2("n1", 300, "ingame", ["multishot"], ["cold_damage"])
+_a_negless = _au2("n2", 300, "ingame", ["multishot"])
+check("★ B⑧ 任意负：1 条负即恰好；无负 = 超集",
+      plugin.WarframeSDJK._is_exact_match(_a_neg, _q_neg, set(), {"multishot"}) is True
+      and plugin.WarframeSDJK._is_exact_match(
+          _a_negless, _q_neg, set(), {"multishot"}) is False)
+
+# ⑨ 注脚文案：有词条时含「完全命中」、无词条时不含
+_t_w, _l_w, _ = F.fmt_wr_auctions("翁", [_a_ex_ig], exact_ids={"ex_ig"})
+_t_wo, _l_wo, _ = F.fmt_wr_auctions("翁", [_a_ex_ig])
+check("★ B⑨ 注脚：有词条含「完全命中词条优先」、无词条不含",
+      any("完全命中词条优先" in x for x in _l_w)
+      and not any("完全命中词条优先" in x for x in _l_wo))
+

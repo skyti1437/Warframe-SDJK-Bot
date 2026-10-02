@@ -192,40 +192,23 @@ class ArbitrationCommands:
                 tv = ""
             t = datetime.fromtimestamp(start + (idx0 + h) * step,
                                        tz=timezone.utc) + timedelta(hours=8)
-            rows.append(f"{t.day}日{t.hour:02d}时　{name} {system} {mtype} {fac} {tv}".rstrip())
+            # ★ 2026-10-02 裂列修复：存**结构化单元格**，输出时才按全角空格拼行。
+            #   不变量：渲染层分列口径（render.py 的 _split_cells / 预扫描 /
+            #   _table_mode 列对齐）**只认全角空格 `　`** ⇒ 单元格内允许 ASCII
+            #   空格，但绝不可把 ASCII 空格当列分隔符。旧写法「ASCII 空格 join →
+            #   split」会把含空格的节点名（V Prime / Tyana Pass / Outer Terminus，
+            #   88 个仲裁节点中 3 个）劈成两列，其后各列整体右移、末列溢出。
+            rows.append((t, name, system, mtype, fac, tv))
         size = 15
         total = len(rows)
         pages = max(1, (total + size - 1) // size)
         page = min(max(1, parsed.page or 1), pages)
         page_rows = rows[(page - 1) * size: page * size]
-        # 列对齐：节点/星球/模式/派系 四列按本页最大宽度 pad
-        import unicodedata as _ud
-
-        def dw(s: str) -> int:
-            return sum(2 if _ud.east_asian_width(c) in ("F", "W") else 1
-                       for c in s)
-
-        def pad(s: str, w: int) -> str:
-            return s + " " * max(2, w - dw(s) + 2)
-
-        cols = [r.split("　", 1) for r in page_rows]
-        fields = []
-        for _, rest in cols:
-            parts = rest.split(" ")
-            # 节点 星球 模式 派系 [评级]（派系可能带词尾，评级可选）
-            f = [p2 for p2 in parts if p2]
-            fields.append(f)
-        chunk = []
-        for (t_head, _), f in zip(cols, fields):
-            node = f[0]
-            sysx = f[1]
-            typ = f[2]
-            fac = f[3] if len(f) > 3 else ""
-            tier = f[4] if len(f) > 4 else ""
-            cells = [t_head, node, sysx, typ, fac]
-            if tier:
-                cells.append(tier)
-            chunk.append("　".join(c for c in cells if c))
+        # 时间 + 节点 + 星球 + 类型 + 派系 + [评级]：节点与星球**各占一列**
+        # （不合并成「V Prime（金星）」——合并列是「仲裁排期」卡的写法）
+        chunk = ["　".join(c for c in (f"{t.day}日{t.hour:02d}时",
+                                       name, system, mtype, fac, tv) if c)
+                 for t, name, system, mtype, fac, tv in page_rows]
         title = f"仲裁时间表（第{page}/{pages}页，共{total}条）"
         return Reply(title, chunk, footer=fmt.fmt_platform_footer(platform))
 

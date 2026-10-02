@@ -228,6 +228,61 @@ check("行首没有极性符号 ⇒ 不当词条（用户口径：只认 +/- 开
 
 
 # ---------------------------------------------------------------------------
+# ⑤b 乘数行（对派系伤害）—— 2026-10-01 玩家报障：3+1 的卡被读成 2+1
+# ---------------------------------------------------------------------------
+# 报障卡面（空刃，近战）：+91.1% 暴击伤害 / x1.51 对 Infested 的伤害 /
+# +29.6 初始连击 / -115.7% 处决伤害。服务器日志（01:42:44）显示**窄读一路抄全
+# 了 4 行**，是我们的解析器把「x1.51 …」那行当「无极性符号」丢掉：
+#   紫卡行解析：2 正 1 负（模型语义表 3 正 1 负）；跳过 无极性符号：x1.51 对 Infested 的伤害
+# 窄读是词条的**唯一权威** ⇒ 词条数错成 2正1负，系数从 0.9375 变 1.2375，
+# 四条数值区间整体偏小，卡面于是报「与家族已知倾向都不吻合」（误导为识别错武器）。
+# 卡面这行写的是**净伤害倍率**：x1.51 = +51%（正词条）、x0.55 = −45%（负词条）。
+_sa = ["+91.1% 暴击伤害", "x1.51 对 Infested 的伤害", "+29.6 初始连击",
+       "-115.7% 处决伤害"]
+_lpa, _lna, _na = RA.parse_riven_lines(_sa, _resolve)
+check("★ 乘数行不再被丢掉：报障卡面 → 3 正 1 负",
+      len(_lpa) == 3 and len(_lna) == 1, f"{_lpa} / {_lna} / 备注 {_na}")
+check("★ 乘数 >1 是**正**词条：damage_vs_infested 51（不是 151、也不是负词条）",
+      ("damage_vs_infested", 51.0) in _lpa, str(_lpa))
+check("乘数行与其余三行各自配对正确",
+      ("crit_damage", 91.1) in _lpa and ("initial_combo", 29.6) in _lpa
+      and _lna == [("finisher_damage", 115.7)], f"{_lpa} / {_lna}")
+check("乘数行不再出现在「无极性符号」备注里",
+      not any("x1.51" in n for n in _na), str(_na))
+
+# 乘数 <1 仍是负词条（既有口径不回退）
+_lpb, _lnb, _ = RA.parse_riven_lines(["x0.55 对 Corpus 的伤害"], _resolve)
+check("乘数 <1 仍是负词条（magnitude 45）",
+      not _lpb and _lnb == [("damage_vs_corpus", 45.0)], f"{_lpb} / {_lnb}")
+# 模型漏写 x / 漏写乘数算式的两种形态也要接住
+_lpc, _lnc, _ = RA.parse_riven_lines(["+1.51 对 Infested 的伤害"], _resolve)
+check("写成 +1.51（漏 x）仍按乘数还原成正词条 51",
+      _lpc == [("damage_vs_infested", 51.0)] and not _lnc, f"{_lpc} / {_lnc}")
+_lpd, _lnd, _ = RA.parse_riven_lines(["-0.45 对 Infested 的伤害"], _resolve)
+check("写成 -0.45（漏 x）也按乘数还原：净倍率 0.45 ⇒ −55%",
+      not _lpd and _lnd == [("damage_vs_infested", 55.0)], f"{_lpd} / {_lnd}")
+
+# 语义表那一路：模型把乘数直接 ×100（x1.51 → 151）也要还原
+_fix = plugin.WarframeSDJK._faction_val_fix
+check("语义表 151 → 正词条 51（不是 151）",
+      _fix("damage_vs_infested", 151.0) == 51.0, str(_fix("damage_vs_infested", 151.0)))
+check("语义表 0.55 → −45（符号交给 _route 归 negative）",
+      _fix("damage_vs_corpus", 0.55) == -45.0, str(_fix("damage_vs_corpus", 0.55)))
+check("正常 magnitude 原样不动（51 / 45）",
+      _fix("damage_vs_infested", 51.0) == 51.0
+      and _fix("damage_vs_corpus", 45.0) == 45.0)
+check("非「对派系」词条一律不动（避免误伤）", _fix("crit_damage", 0.55) == 0.55)
+check("回归：x1.51 经语义表 → 3 正 1 负（与行解析同口径）",
+      (lambda pn: len(pn[0]) == 3 and len(pn[1]) == 1)(
+          _norm({"positive": [["暴伤", 91.1], ["对Infested的伤害", 151],
+                              ["初始连击", 29.6]],
+                 "negative": [["处决伤害", 115.7]]}, _rev)),
+      str(_norm({"positive": [["暴伤", 91.1], ["对Infested的伤害", 151],
+                              ["初始连击", 29.6]],
+                 "negative": [["处决伤害", 115.7]]}, _rev)))
+
+
+# ---------------------------------------------------------------------------
 # ⑥ 端到端：报障那张卡现在必须**走通**（不再是那条计数错误）
 # ---------------------------------------------------------------------------
 class _FakeRivenClient:
@@ -370,6 +425,54 @@ _race2 = asyncio.run(_S.__new__(_S)._vision_race_json(
     parse=_S._parse_riven_lines_text))
 check("只有残缺结果时竞速返回 None（不硬用残缺卡面）",
       _race2 is None, str(_race2))
+
+# ---------------------------------------------------------------------------
+# ⑧ 端到端：空刃 3+1（2026-10-01 报障）—— 必须走通，且按变体倾向算区间
+# ---------------------------------------------------------------------------
+class _FakeSkanaClient(_FakeRivenClient):
+    """空刃（近战，倾向 1.3）+ 家族变体棱晶·空刃 / 空刃 Prime（同为 1.2）。"""
+
+    _weapon = {"url_name": "skana", "zh": "空刃", "en": "Skana",
+               "disposition": 1.3, "riven_type": "melee", "group": "melee"}
+
+    async def riven_family(self, weapon):
+        return [("棱晶·空刃", 1.2), ("空刃 Prime", 1.2)]
+
+
+# 服务器日志（01:42:44）里的原始两路结果：窄读抄全 4 行、语义表 3正1负（乘数写成 151）
+_skana_vision = {
+    "weapon": "空刃 Para-puratis",
+    "lines": ["空刃 Para-puratis", "+91.1% 暴击伤害",
+              "x1.51 对 Infested 的伤害", "+29.6 初始连击", "-115.7% 处决伤害"],
+    "positive": [["暴伤", 91.1], ["对Infested的伤害", 151], ["初始连击", 29.6]],
+    "negative": [["处决伤害", 115.7]]}
+
+
+async def _fake_extract_skana(url):
+    return dict(_skana_vision)
+
+
+_obj2 = plugin.WarframeSDJK.__new__(plugin.WarframeSDJK)
+_obj2.client = _FakeSkanaClient()
+_obj2.page_size = 12
+_obj2._image_data_urls = _fake_imgs
+_obj2._extract_riven_from_image = _fake_extract_skana
+_r3 = asyncio.run(_obj2._h_riven_analysis(_FatParsed("紫卡分析"),
+                                          _FakeImageEvent(), "pc"))
+_body3 = "\n".join(_r3.lines)
+check("★ 端到端：空刃那张 3+1 卡走到分析卡（不是用法/错误提示 —— 防空过守卫）",
+      bool(_r3.lines) and not _r3.raw_text, repr(_r3)[:200])
+check("★ 四条词条全部进卡：暴伤 91.1 / I伤 51 / 初始连击 29.6 / 处决伤 115.7",
+      all(k in _body3 for k in ("+91.1% 暴伤", "+51% I伤", "+29.6 初始连击",
+                               "-115.7% 处决伤")), _body3[:400])
+check("★ 不再误报「与家族已知倾向都不吻合」（旧故障串）",
+      "都不吻合" not in _body3, _body3[:300])
+check("★ 数值反推落到变体倾向 1.2（棱晶·空刃 / 空刃 Prime 同值 ⇒ 不算歧义）",
+      "数值反推倾向 1.2" in _body3, _body3[:300])
+check("★ 卡面按 1.2 计算区间（不是不吻合的母武器 1.3）",
+      "【空刃】倾向 1.2" in _body3 and "倾向 1.3" not in _body3, _body3[:200])
+check("不再回「请带变体名重发」（同值变体无从也无须区分）",
+      "请带变体名重发" not in _body3, _body3[:300])
 
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")

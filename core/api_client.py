@@ -1640,56 +1640,91 @@ class WarframeClient:
         max_rerolls: Optional[int] = None,
         min_rerolls: Optional[int] = None,
         rank_range: Optional[tuple[int, int]] = None,
+        require_negative: bool = False,
     ) -> list[dict]:
-        """WM v1 紫卡拍卖搜索。
+        """WM v1 紫卡拍卖搜索（2026-10-01 双向排序合并 + 逗号 AND + require_negative）。
 
-        ⚠ 参数名踩坑记录（2026-09-11 实测）：
-          · 词条必须用 `positive_stats=a&positive_stats=b`（**不带方括号**）。
-            写成 `positive_stats[]=...` 服务端会静默忽略，返回 500 条无关挂单，
-            导致本地二次筛「一条都出不来」。
-          · 洗数过滤是 `re_rolls_max` / `re_rolls_min`，不是 `rerolls_max`。
-          · `negative_stats` 同样不带方括号，且确实生效（AND 语义）。
+        ⚠ 服务端行为**三坑**（2026-10-01 实测，weapon_url_name=ocucor/burston）：
+          1. **词条参数必须拼逗号**：`positive_stats=a,b,c` = **AND**（服务端就筛好）；
+             httpx 把 list 序列化成**重复参数** `a&b&c` = **OR**（含任一命中即返回）
+             → 500 条截断 → 在线好单被挤掉。`negative_stats` 同理。
+             （2026-09-11 注释「positive_stats=a&positive_stats=b」已过时——那是 OR。）
+          2. 该端点固定最多返回 **500 条**，且 `page` / `price_min` / `buyout_price_*` /
+             `status` 全被忽略 ⇒ `price_max`/`price_min` 传了也白传，
+             真正过滤靠 `_auction_match` 本地判断。
+          3. **唯一有效的是 `sort_by` 的方向**（穷举：`time_asc`/`time_desc`/`re_rolls_asc`
+             均 400 Bad Request）。
+          ⇒ `price_asc` + `price_desc` 各查一次 → 按挂单 id 合并去重
+          （双查合并保留为「结果集 > 500」时的兜底；逗号 AND 后结果集通常很小）。
+          `_fetch_json` 的 TTL 缓存以 params 为 key，两方向互不覆盖（TTL 90s）。
+          限速 3 req/s（`wm_rate_limit=True` 自己排队）。
+          `price_desc` 失败**降级为单方向结果**（不抛异常打挂指令）。
+          `require_negative=True` → 拼 `negative_stats=has`（服务端筛出「带负词条」的挂单）。
         """
-        params: dict[str, Any] = {
+        base_params: dict[str, Any] = {
             "type": "riven",
             "weapon_url_name": weapon_url_name,
             "platform": platform,
-            "sort_by": "price_asc",
             "buyout_policy": "direct",
         }
         pos = list(dict.fromkeys(positives))
         neg = list(dict.fromkeys(negatives))
         if pos:
-            # 服务端为 OR 语义（返回含任一命中词条的挂单），精确匹配仍需本地二次筛
-            params["positive_stats"] = pos
+            # ★ 逗号 = 服务端 AND（实测 46 条精确 / 重复参数 = OR 触顶 500）；
+            #   本地 pos_set ⊆ urls 二次筛保留（防御 + 兼容服务端行为变化）
+            base_params["positive_stats"] = ",".join(pos)
         if neg:
-            params["negative_stats"] = neg
+            base_params["negative_stats"] = ",".join(neg)
+        if require_negative:
+            # 「任意负」：不指定具体词条，只要求带 ≥1 条负面
+            # （与 negative_stats=具体词条互斥——服务端 only accepts one form）
+            if "negative_stats" not in base_params:
+                base_params["negative_stats"] = "has"
         if polarity:
-            params["polarity"] = polarity
+            base_params["polarity"] = polarity
         if max_price is not None:
-            params["price_max"] = max_price
+            base_params["price_max"] = max_price
         if min_price is not None:
-            params["price_min"] = min_price
+            base_params["price_min"] = min_price
         if max_rerolls is not None:
-            params["re_rolls_max"] = max_rerolls
+            base_params["re_rolls_max"] = max_rerolls
         if min_rerolls is not None:
-            params["re_rolls_min"] = min_rerolls
+            base_params["re_rolls_min"] = min_rerolls
         if rank_range:
-            params["mastery_rank_min"], params["mastery_rank_max"] = rank_range
-        try:
-            data = await self._fetch_json(
-                f"{self.wm_base}/auctions/search", ttl=TTL_WM_AUCTIONS, params=params,
-                wm_rate_limit=True)
-        except WarframeAPIError:
-            if not (pos or neg):
-                raise
-            # 个别词条不被服务端接受时：去掉词条过滤重查，交给本地二次筛
-            params.pop("positive_stats", None)
-            params.pop("negative_stats", None)
-            data = await self._fetch_json(
-                f"{self.wm_base}/auctions/search", ttl=TTL_WM_AUCTIONS, params=params,
-                wm_rate_limit=True)
-        return (data or {}).get("payload", {}).get("auctions", [])
+            base_params["mastery_rank_min"], base_params["mastery_rank_max"] = rank_range
+
+        merged: dict[str, dict] = {}
+        for sort in ("price_asc", "price_desc"):
+            params = dict(base_params)
+            params["sort_by"] = sort
+            data = None
+            try:
+                data = await self._fetch_json(
+                    f"{self.wm_base}/auctions/search", ttl=TTL_WM_AUCTIONS,
+                    params=params, wm_rate_limit=True)
+            except WarframeAPIError:
+                if not (pos or neg):
+                    if sort == "price_asc":
+                        raise        # 第一次就失败且无降级路径：原样抛
+                    # 第二次失败（超时/400）：降级为单方向结果，不让指令打挂
+                    continue
+                # 个别词条不被服务端接受时：去掉词条过滤重查，交给本地二次筛
+                params.pop("positive_stats", None)
+                params.pop("negative_stats", None)
+                try:
+                    data = await self._fetch_json(
+                        f"{self.wm_base}/auctions/search", ttl=TTL_WM_AUCTIONS,
+                        params=params, wm_rate_limit=True)
+                except WarframeAPIError:
+                    if sort == "price_asc":
+                        raise
+                    continue
+            for a in (data or {}).get("payload", {}).get("auctions", []) or []:
+                aid = a.get("id")
+                if aid and aid not in merged:
+                    merged[aid] = a
+        # 合并后顺序无所谓：渲染层 fmt_wr_auctions 按「在线优先 → 价格升序」重排
+        return list(merged.values())
 
     async def wm_lich_auctions(self, weapon_url_name: str, platform: str = "pc",
                                *, lich_type: str = "lich",
@@ -1734,13 +1769,22 @@ class WarframeClient:
     # ------------------------------------------------------------------
     # 名称解析（CN 别名 -> WM url_name / wiki 页面）
     # ------------------------------------------------------------------
-    def alias_lookup(self, query: str, table: str = "wm_items") -> Optional[str]:
-        """本地别名词典精确/模糊匹配。返回 WM url_name 或 None。"""
+    def alias_lookup(self, query: str, table: str = "wm_items",
+                     *, exact: bool = False) -> Optional[str]:
+        """本地别名词典精确/模糊匹配。返回 WM url_name 或 None。
+
+        ``exact=True`` 时**只认精确键**、不做双向包含 —— 「官方名优先」的解析链
+        必须用它：2026-10-01 玩家报障，riven_items 的包含匹配（长度差 ≤4）让
+        官方名「盗贼」(Furis 1.35) 命中别名键「盗贼双枪」(Afuris 1.45)，卡面
+        明明写着盗贼、倾向却按 1.45 算。同源纪律见 ``_alias_fuzzy`` 的降级说明。
+        """
         q = query.strip().lower()
         table = self._aliases.get(table, {})
         hit = table.get(q)
         if isinstance(hit, str) and hit:
             return hit
+        if exact:
+            return None
         # 大小写不敏感的包含匹配
         for k, v in table.items():
             if q and (k in q or q in k) and abs(len(k) - len(q)) <= 4:
@@ -2009,16 +2053,21 @@ class WarframeClient:
                 # 2026-09-23 去掉「回落 base」：倾向/紫卡按变体分别计算，
                 # 表中确无该变体条目时返回 None（未找到），绝不冒充本体值。
                 return matching.prime_sibling(base, weapons)
-        # 未命中则继续走常规链
-        alias = self.alias_lookup(query.lower(), "riven_items")
-        if alias:
-            for w in weapons:
-                if w.get("url_name") == alias:
-                    return w
+        # ★ 2026-10-01：**官方名精确匹配先于别名词典**。别名表的「双向包含」
+        #   会让官方名被别名键捞走：实测「盗贼」(Furis, 1.35) 命中别名键
+        #   「盗贼双枪」(Afuris, 1.45)，卡面写着盗贼、倾向却按 1.45 算，
+        #   于是四条数值全落 0% 并误报「倾向调整前洗出的老卡」（玩家报障）。
+        #   别名的**模糊**匹配统一降级到链尾（与 _alias_fuzzy 同一条纪律）。
         low = query.lower().replace(" ", "_")
         for w in weapons:
             if w.get("zh") == query or (w.get("en") or "").lower() == low:
                 return w
+        # 别名**精确键**（黑话/无中点写法，如「棱晶空刃」→ prisma_skana）
+        alias = self.alias_lookup(query.lower(), "riven_items", exact=True)
+        if alias:
+            for w in weapons:
+                if w.get("url_name") == alias:
+                    return w
         # 归一化完全（去空格/分隔符/大小写；不抹 prime）
         nq = matching.normalize(query)
         if nq:
@@ -2065,6 +2114,13 @@ class WarframeClient:
                 hit = dict(best[1])
                 hit["_fuzzy_from"] = query
                 return hit
+        # 链尾最后一跳：别名词典的**模糊**匹配（双向包含 + 长度差 ≤4）——
+        # 只做兜底，绝不抢在官方名前面（2026-10-01 盗贼/盗贼双枪事故）。
+        falias = self._alias_fuzzy(query, "riven_items")
+        if falias:
+            for w in weapons:
+                if w.get("url_name") == falias:
+                    return w
         return None
 
     async def suggest_wm_items(self, query: str, n: int = 3) -> list[str]:
@@ -2526,18 +2582,27 @@ class WarframeClient:
     def _family_match(base_zh: str, base_en: str, zh: str, en: str) -> bool:
         """判断 zh/en 是否属于「母武器」base 的同一家族（变体）。
 
-        家族判定：中文名包含母名（棱晶·欧玛 含 欧玛）或英文名以
-        空格+母名结尾（Prisma Ohma → Ohma）。纯函数，便于离线测试。
+        ★ 2026-10-01 重写：从「子串包含」改为「剥掉变体词后**主干名完全相等**」。
+        旧版 `base_zh in z` 会把同前缀的不同武器也捞进来（空刃双刀 之于 空刃、
+        盗贼双枪 之于 盗贼）——用户口径：本质是两把独立武器/两个独立紫卡类目。
+        变体词与 `core/matching.py::strip_variant_norm` 同源
+        （Prime/棱晶/亡魂/破坏者/赤毒/信条/终幕/Dex/MK1…）。
+        自检样例：棱晶·空刃 → 空刃 ✓ / 空刃 Prime → 空刃 ✓ / 空刃双刀 ❌ /
+        盗贼双枪 → 主干「盗贼双枪」❌ / MK1-盗贼 → 盗贼 ⚠（MK1 惯例算变体，含在库）。
         """
-        z = (zh or "").strip()
-        e = (en or "").strip().lower()
-        if not z and not e:
-            return False
-        if base_zh and z and base_zh in z:
-            return True
-        if base_en and e and e.endswith(" " + base_en.lower()):
-            return True
-        return False
+        _SET_SUFFIXES = ("一套", "组合包", "蓝图", "set", "blueprint", "blueprints")
+
+        def _core(s: str) -> str:
+            n = re.sub(r"[\s·\-]+", "", (s or "").lower())
+            for suf in _SET_SUFFIXES:      # 先剥套装/部件后缀（WM「翁 Prime 一套」）
+                if n.endswith(suf) and len(n) > len(suf):
+                    n = n[:-len(suf)]
+                    break
+            return matching.strip_variant_norm(n)
+
+        bz, z = _core(base_zh), _core(zh)
+        be, e = _core(base_en), _core(en)
+        return bool((bz and bz == z) or (be and be == e))
 
     async def riven_family(self, weapon: dict) -> list:
         """同一武器家族的变体（棱晶/Prime/亡魂…）及其 wiki 倾向。

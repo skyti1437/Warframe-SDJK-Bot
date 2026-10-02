@@ -244,6 +244,9 @@ class VisionCommands:
         "把这张 Warframe 紫卡截图上的**词条行**逐字照抄出来：\n"
         "· 一行一条，卡面上有几条就写几条（通常 3~4 条）\n"
         "· 保留行首的 + / - 号与数值里的 % 号\n"
+        "· ★「对 Grineer/Corpus/Infested 的伤害」这行是**乘数写法**"
+        "（如「x1.51 对 Infested 的伤害」「x0.55 对 Corpus 的伤害」），"
+        "**行首不是 + / - 也照样整行抄下来**，不要跳过他\n"
         "· 只输出这些行本身，不要 JSON、不要解释、"
         "不要武器名、不要右下角的内融值")
 
@@ -296,9 +299,13 @@ class VisionCommands:
             "词条缩写用：基伤/暴伤/暴击/攻速/范围/多重/触发/持续/效率/装填/"
             "弹速/滑暴/冲击/穿刺/切割/电击/火焰/冰冻/毒素/磁力/辐射等，"
             "负词条也放 negative。数值只写数字（去掉 % 和 m 单位）。\n"
-            "⚠ 负词条常写成乘数形式，如「x0.55 对 Corpus 的伤害」——"
-            "这类必须写进 negative：词条名用「对Corpus伤害」（或 Grineer/"
-            "Infested），数值写 55（即 (1−0.55)×100，保留两位小数即可）。"
+            "⚠ 「对 Grineer/Corpus/Infested 的伤害」在卡面上写的是**乘数**"
+            "（净伤害倍率），必须先换算成百分数再填：\n"
+            "    x1.51 → 加伤 51% ⇒ 填 positive，数值写 51\n"
+            "    x0.55 → 减伤 45% ⇒ 填 negative，数值写 45\n"
+            "  词条名用「对Infested伤害」（或 Grineer/Corpus）。"
+            "**不要**把乘数直接乘 100（x1.51 填成 151 是错的），"
+            "也不要漏掉这一条。"
             "卡面右下角的数字是内融值，与倾向无关，不要输出倾向。"
             "若截图里出现变体前缀（棱晶/Prime/亡魂/破坏者/赤毒/信条，"
             "或 Prisma/Wraith/Vandal/Kuva/Tenet），务必保留在 weapon 里"
@@ -458,6 +465,29 @@ class VisionCommands:
         return rev[close[0]] if close else None
 
     @staticmethod
+    def _faction_val_fix(sid: str, num: float) -> float:
+        """对派系伤害：把模型可能填成「乘数」的数值换算回百分数 magnitude。
+
+        卡面这行是乘数写法（净伤害倍率），模型有三种填法都要能接住：
+            x1.51 → 正确填 51（不动）；也可能填 1.51 或 151（都要还原成 +51）
+            x0.55 → 正确填 45（不动）；也可能填 0.55 或 55（还原成 −45）
+        判据：真 magnitude ∈ [≈11, ≈95]（基值 45 × 倾向 0.5~1.55 × 系数 ≤1.2375
+        × 1.1）⇒ 落在 [10, 100) 之外的数值一定是乘数（或乘数×100）。
+        返回带符号的数：负值交给 `_normalize_llm_stats._route` 归到 negative。
+        """
+        if not sid or not sid.startswith("damage_vs_"):
+            return num
+        try:  # 服务器以包成员加载，相对导入才可靠
+            from .. import riven_analysis as RA
+        except ImportError:  # pragma: no cover - 本地直跑
+            from core import riven_analysis as RA
+        if not (num >= 100 or num < RA._FACTION_MIN_MAG):
+            return num
+        k = num / 100.0 if num >= 100 else num
+        mag, neg = RA.faction_mult_to_mag(k)
+        return -mag if neg else mag
+
+    @staticmethod
     def _normalize_llm_stats(data: dict, rev: dict) -> tuple[list, list]:
         """LLM 提取结果 → ([(stat_id, float)...], [...])；词条名宽松匹配。"""
 
@@ -471,7 +501,9 @@ class VisionCommands:
             except (TypeError, ValueError):
                 return None
             sid = VisionCommands._stat_id_from_name(name, rev)
-            return (sid, num) if sid else None
+            if not sid:
+                return None
+            return (sid, VisionCommands._faction_val_fix(sid, num))
 
         pos: list[tuple[str, float]] = []
         neg: list[tuple[str, float]] = []

@@ -321,15 +321,33 @@ _POLARITY = {"+": False, "＋": False, "负": True,
 # 词条行 = 极性符号开头（前面只允许装饰性符号：锁图标/圆点/括号/空白）。
 # 非装饰性字符（汉字、字母、数字）开头的行**不是**词条行 —— 武器名、自命名、
 # 内融值、卡面图例都靠这一条排除；而锁图标与行首那点装饰不能反而把真词条挤掉。
-_POL_RE = re.compile(r"^[^\w]*([+＋\-−–—－]|负)\s*(.*)$")
+# ★ 2026-10-01：`x` / `×` 也算极性前缀 —— 卡面「对派系伤害」是**乘数写法**
+#   （`x1.51 对 Infested 的伤害`），旧版整行被当「无极性符号」丢掉，3+1 的卡
+#   被读成 2+1（玩家报障：+91.1%暴伤 / x1.51对Infested / +29.6初始连击 /
+#   -115.7%处决 只认了三行，区间系数从 0.9375 错成 1.2375，整卡数值全不吻合）。
+_POL_RE = re.compile(r"^[^\w]*([+＋\-−–—－]|负|[x×])\s*(.*)$", re.I)
 _NUM_RE = re.compile(r"\d+(?:[.,]\d+)?")
 # 全角 % 用 \uff05 转义写：它只在**输入匹配**里用到（永远不渲染到卡面），
 # 写成字面量会让「仓库语料」多出一个子集字体没有的字形（test_render_overflow
 # 的字库覆盖用例），逼着去重建字体子集。
 _BARE_NUM_RE = re.compile(r"^[\d.,]+\s*[%\uff05]?\s*[\w米秒]*$")
-# 乘数写法（卡面「x0.55 对 Corpus 的伤害」）：负词条 magnitude = (1−0.55)×100
+# 乘数写法（卡面「x0.55 对 Corpus 的伤害」/「x1.51 对 Infested 的伤害」）
 _MULT_RE = re.compile(r"[x×]\s*(\d+(?:[.,]\d+)?)|(\d+(?:[.,]\d+)?)\s*[x×]",
                       re.I)
+# 乘数写法还原成 magnitude 的下限：对派系伤害基值 45 × 最小倾向 0.5 ×
+# 2正1负的 0.495 ≈ 11 ⇒ 小于 10 的数字一定不是 magnitude，而是「乘数漏写了
+# x / 只写了 1.51 或 0.55」，按乘数还原。
+_FACTION_MIN_MAG = 10.0
+
+
+def faction_mult_to_mag(k: float) -> tuple:
+    """卡面乘数 k → (magnitude, 是否负词条)。
+
+    卡面「对 X 的伤害」显示的是**净伤害倍率**：x1.51 = +51%（正词条）、
+    x0.55 = −45%（负词条）⇒ 极性由乘数本身决定（k>1 加伤、k<1 减伤），
+    不能一律按负词条收。
+    """
+    return (round(abs(1.0 - k) * 100, 2), k < 1.0)
 
 
 def merge_polarity_lines(lines) -> list:
@@ -419,14 +437,16 @@ def parse_riven_lines(lines, resolve) -> tuple:
         if not sid:
             notes.append(f"词条名认不出：{raw}")
             continue
-        mm = _MULT_RE.search(body)
+        mm = _MULT_RE.search(raw)
         if mm:
+            # 乘数在一整行里找（`x` 可能已被上面的极性正则吃掉），极性由
+            # 乘数本身决定：x1.51 是正词条、x0.55 是负词条。
             try:
                 k = float((mm.group(1) or mm.group(2)).replace(",", "."))
             except ValueError:
                 notes.append(f"乘数读不出：{raw}")
                 continue
-            value, neg_flag = round((1 - k) * 100, 2), True
+            value, neg_flag = faction_mult_to_mag(k)
         else:
             mn = _NUM_RE.search(body)
             if not mn:
@@ -437,9 +457,10 @@ def parse_riven_lines(lines, resolve) -> tuple:
             except ValueError:
                 notes.append(f"数值读不出：{raw}")
                 continue
-            if value < 1 and sid.startswith("damage_vs_"):
-                # 对派系伤害的乘数写法漏了 x（基值 45，真 magnitude 不可能 <1）
-                value, neg_flag = round((1 - value) * 100, 2), True
+            if value < _FACTION_MIN_MAG and sid.startswith("damage_vs_"):
+                # 乘数漏写 x（或只写了 1.51 / 0.55）：对派系真 magnitude ≥ 11，
+                # 按乘数还原并据乘数定极性（旧版一律当负词条 ⇒ 正词条会算错）。
+                value, neg_flag = faction_mult_to_mag(value)
         (neg if neg_flag else pos).append((sid, value))
     # 同一条词条不可能既正又负（卡面每行只出现一次）：两侧都在时以负为准
     neg_ids = {sid for sid, _ in neg}

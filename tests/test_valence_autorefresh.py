@@ -20,6 +20,10 @@
 真值来源：门限用 rotations.json 里真实的 epoch/period 复算；
 锚点用 main.py 的显示公式**反解**（枚举所有 anchor，取能显示出观测批的那个），
 不是照抄实现里的表达式。
+
+2026-10-01 追加文末「boot warm」段：`_boot_warm` 把 `self.wm_items()` /
+`self.wm_riven_weapons()` 挂错对象（方法在 `self.client` 上），AttributeError
+被 except 静默吞掉 ⇒ 预热从未生效 —— 用假客户端 + 假 logger 的调用序列钉死。
 """
 from __future__ import annotations
 
@@ -288,7 +292,115 @@ def _flare_checks():
           and 'logger.warning("[sdjk] 变体倾向表刷新失败' in body)
 
 
+# ---------------------------------------------------------------------------
+# ★ 2026-10-01 事故：`_boot_warm` 预热挂错对象 → 从未生效（reload 后首条
+#   wr/wm 指令仍要现下 2.5MB 物品表 + swap-in 风暴，Event loop lag 45s）。
+#   `wm_items()` / `wm_riven_weapons()` 挂在 WarframeClient（`self.client`）上，
+#   插件类没有 __getattr__ ⇒ `self.wm_items()` 抛 AttributeError，被
+#   `except Exception` 静默吞掉（DEBUG 级不可见）⇒「已就绪」日志永不出现。
+#   修复前：本段第一条断言即失败（假客户端调用序列为空）。
+# ---------------------------------------------------------------------------
+def _boot_warm_checks():
+    import asyncio
+    from types import SimpleNamespace
+
+    class _FakeClient:
+        """只记调用序列的假 WarframeClient（覆盖 _boot_warm 用到的两个方法）。"""
+
+        def __init__(self):
+            self.calls: list[str] = []
+
+        async def wm_items(self):
+            self.calls.append("items")
+            return []
+
+        async def wm_riven_weapons(self):
+            self.calls.append("riven")
+            return []
+
+    class _RecLogger:
+        """记录 (level, message)；swap 进 P.logger 用。"""
+
+        def __init__(self):
+            self.records: list[tuple[str, str]] = []
+
+        def _rec(self, level):
+            def _f(fmt, *a):
+                self.records.append((level, fmt % a if a else fmt))
+            return _f
+
+        def __getattr__(self, name):
+            if name in ("info", "warning", "debug", "error", "exception"):
+                return self._rec(name)
+            raise AttributeError(name)
+
+        def has(self, level: str, needle: str) -> bool:
+            return any(lv == level and needle in msg for lv, msg in self.records)
+
+    async def _ok():
+        return None
+
+    async def _boom():
+        raise RuntimeError("snapshot down")
+
+    async def _warm(client, refresh) -> _RecLogger:
+        obj = SimpleNamespace(client=client, _refresh_from_community=refresh)
+        rec = _RecLogger()
+        old = P.logger
+        P.logger = rec
+        try:
+            await P.WarframeSDJK._boot_warm(obj)
+        finally:
+            P.logger = old
+        return rec
+
+    async def cases():
+        # ① 正常：必须真的打到 client 上（修复前 calls == []，必失败）
+        c1 = _FakeClient()
+        rec1 = await _warm(c1, _ok)
+        check("★ boot warm 打到 client 上（items → riven）",
+              c1.calls == ["items", "riven"], repr(c1.calls))
+        check("成功记 INFO「已就绪」（与线上验收判据同源）",
+              rec1.has("info", "首启预热：WM 物品/紫卡武器表已就绪"),
+              repr(rec1.records))
+
+        # ② 两段各自独立：第一段抛异常，第二段仍要执行
+        c2 = _FakeClient()
+        rec2 = await _warm(c2, _boom)
+        check("★ 第一段异常不阻断第二段（calls 仍完整）",
+              c2.calls == ["items", "riven"], repr(c2.calls))
+        check("★ 第一段失败记 WARNING 且带异常类型（%r；%s 只有消息文本）",
+              rec2.has("warning", "RuntimeError"), repr(rec2.records))
+
+        # ③ WM 预热失败可见：WARNING 带类型，且不冒充「已就绪」
+        class _BrokenItems(_FakeClient):
+            async def wm_items(self):
+                self.calls.append("items")
+                raise AttributeError(
+                    "'WarframeSDJK' object has no attribute 'wm_items'")
+
+        c3 = _BrokenItems()
+        rec3 = await _warm(c3, _ok)
+        check("★ WM 预热失败记 WARNING 且带异常类型",
+              rec3.has("warning", "AttributeError"), repr(rec3.records))
+        check("失败时不得出现「已就绪」INFO（日志不撒谎）",
+              not rec3.has("info", "已就绪"), repr(rec3.records))
+
+        # 源码接线：预热必须走 self.client.*（不得再写裸 self.wm_items）
+        # 注意：docstring 里为说明事故会引用旧写法，检查前先剥掉 docstring
+        body = inspect.getsource(P.WarframeSDJK._boot_warm)
+        code = body.split('"""', 2)[2] if body.count('"""') >= 2 else body
+        check("★ 源码接线：self.client.wm_items() / wm_riven_weapons()",
+              "self.client.wm_items()" in code
+              and "self.client.wm_riven_weapons()" in code
+              and "self.wm_items()" not in code,
+              code[:120])
+
+    asyncio.run(cases())
+
+
 _flare_checks()
+_boot_warm_checks()
 
 print()
 if FAILED:

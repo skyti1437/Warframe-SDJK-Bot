@@ -561,10 +561,12 @@ class WarframeSDJK(DailyCommands, ProgressCommands, ArbitrationCommands, Rotatio
         self._valence_task = asyncio.create_task(self._valence_autoloop())
         # 社区快照轻轮询：只对「没装/连不上 FS」的用户生效（见 _community_autoloop）
         self._community_task = asyncio.create_task(self._community_autoloop())
-        # 首启立即拉一次社区快照（2026-09-29 v1.1.2 追加批）：此前只有轻轮询的
-        # 30 分钟 tick 才拉，没装 FS 的用户首启最坏要等半小时才拿到较新数据。
-        # fire-and-forget：异步不阻塞加载、超时收尾、失败仅 DEBUG（与轮询同静默口径）。
-        asyncio.create_task(self._community_boot_pull())
+        # 首启后台预热（2026-09-29 追加批，2026-10-01 扩展为 _boot_warm）：
+        # ①社区快照 ②WM 物品/紫卡武器表（见 `_boot_warm`）。此前社区快照只有
+        # 轻轮询的 30 分钟 tick 才拉，没装 FS 的用户首启最坏要等半小时；
+        # 而 WM 表是 reload 后首条 wr/wm 指令要现下的，挪到启动期后台预拉。
+        # fire-and-forget：异步不阻塞加载、超时收尾、失败记 WARNING（可见）。
+        asyncio.create_task(self._boot_warm())
         # 后台预热伤害计算的全部重 JSON + 武器名索引（不阻塞启动）：
         # 不预热时第一条指令要现读武器库/进化/灵化形态/多段/部署表，叠加后
         # 会让首条指令明显变慢（2026-09-17 玩家反馈「半天才出来」）。
@@ -694,17 +696,33 @@ class WarframeSDJK(DailyCommands, ProgressCommands, ArbitrationCommands, Rotatio
             "· 需要：部署 FlareSolverr 并把可达地址填进「FlareSolverr 地址」"
             "（容器内 127.0.0.1 到不了宿主机，常用 http://172.17.0.1:8191）。")
 
-    async def _community_boot_pull(self) -> None:
-        """首启立即拉一次社区快照（fire-and-forget，2026-09-29 v1.1.2 追加批）。
+    async def _boot_warm(self) -> None:
+        """首启后台预热（fire-and-forget，2026-09-29 追加批 + 2026-10-01 扩展）。
 
-        幂等：`_refresh_from_community` 内部两道刷新都先判「本地是否过期」、
-        且 curl 缓存 ttl=600 ⇒ 刚拉过/未过期时是零成本的空转。
-        失败静默 DEBUG，绝不打扰启动。
+        两段各自独立；失败记 WARNING（带异常类型 %r，INFO 级日志即可见）：
+        1) **社区快照**（元素加成 + 言录使）：内部先判「本地是否过期」，
+           刚拉过/未过期时是零成本空转（幂等）。
+        2) **WM 物品/紫卡武器表**（2026-10-01 扩展）：reload 后缓存全冷，
+           首个 wr/wm 指令要现下 2.5MB 物品表——在低内存宿主机上还会叠加
+           **swap-in 风暴**（2026-10-01 实测：宿主内存吃紧、进程 VmSwap 高达
+           834MB，首个指令触碰冷内存引发换页风暴，Event loop lag 45s，
+           用户观感「半天没反应」）。启动时后台预拉，把这笔成本挪出用户
+           首次指令的关键路径。幂等：表缓存 TTL 24h，刚拉过是零成本空转。
+        ★ 这两张表的方法在 `self.client`（WarframeClient）上，不在插件类上
+        （插件类没有 __getattr__ 代理）——2026-10-01 首版写成 `self.wm_items()`
+        抛 AttributeError 被静默吞掉，预热从未执行（「已就绪」日志不出现）。
+        守卫：tests/test_valence_autorefresh.py 文末「boot warm」段。
         """
         try:
             await asyncio.wait_for(self._refresh_from_community(), timeout=90)
-        except Exception as exc:                    # noqa: BLE001 - 首启拉取静默
-            logger.debug("[sdjk] 首启社区快照拉取跳过/失败：%s", exc)
+        except Exception as exc:                    # noqa: BLE001 - 首启拉取不阻塞启动
+            logger.warning("[sdjk] 首启社区快照拉取跳过/失败：%r", exc)
+        try:
+            await asyncio.wait_for(self.client.wm_items(), timeout=120)
+            await asyncio.wait_for(self.client.wm_riven_weapons(), timeout=120)
+            logger.info("[sdjk] 首启预热：WM 物品/紫卡武器表已就绪")
+        except Exception as exc:                    # noqa: BLE001 - 首启预热不阻塞启动
+            logger.warning("[sdjk] 首启 WM 表预热失败：%r", exc)
 
     async def _refresh_from_community(self) -> None:
         """无 FS 时的社区快照刷新（元素加成 + 言录使货单）。

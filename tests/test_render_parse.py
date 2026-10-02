@@ -267,6 +267,86 @@ try:
 except Exception as _exc:                                       # noqa: BLE001
     print(f"[SKIP] 列对齐出图用例环境异常：{type(_exc).__name__}: {_exc}")
 
+# ------------------------------- 仲裁时间表：含空格节点名不裂列（2026-10-02）
+# 玩家报障：88 个仲裁节点里 3 个 nameZh 带 ASCII 空格（V Prime / Tyana Pass /
+# Outer Terminus）→ 旧实现「ASCII 空格 join → split」把节点劈成两列、其后
+# 各列整体右移。现在 handler 存**结构化单元格**、按全角空格拼行（渲染层分列
+# 口径只认全角空格）。本段 ① 行为断言（假数据走真 handler）② 数据守卫
+# （arbys.nodes.zh.json 是运行时拉的、不入包 ⇒ 用同域的 arb_ratings.json +
+# 官方节点表做离线守卫，防「数据里没有空格名」让本测试静默失效）。
+import asyncio                                                   # noqa: E402
+import inspect                                                   # noqa: E402
+import json                                                      # noqa: E402
+import time as _time                                             # noqa: E402
+from types import SimpleNamespace as _NS                         # noqa: E402
+
+from core.commands.arbitration import ArbitrationCommands as _AC  # noqa: E402
+
+
+class _ArbStubClient:
+    """假客户端：按 URL 返回三张表的固定数据。"""
+
+    async def _fetch_json(self, url: str, ttl: int = 0):
+        if url.endswith("arbys.schedule.v2.json"):
+            return {"startTs": int(_time.time()) - 60, "stepSec": 3600,
+                    "seq": [0, 1, 2, 3],
+                    "nodes": ["vprime", "tyana", "outer", "apollo"]}
+        if url.endswith("arbys.nodes.zh.json"):
+            return {"nodes": {
+                "vprime": {"nameZh": "V Prime", "systemNameZh": "金星",
+                           "missionNameZh": "生存", "factionNameZh": "Corpus"},
+                "tyana": {"nameZh": "Tyana Pass", "systemNameZh": "火星",
+                          "missionNameZh": "镜像防御", "factionNameZh": "Corpus"},
+                "outer": {"nameZh": "Outer Terminus", "systemNameZh": "冥王星",
+                          "missionNameZh": "防御", "factionNameZh": "Corpus"},
+                "apollo": {"nameZh": "Apollodorus", "systemNameZh": "水星",
+                           "missionNameZh": "生存", "factionNameZh": "Infested"},
+            }}
+        return {"tierBuckets": {"S": ["apollo"]}}
+
+
+_arb_obj = _NS(client=_ArbStubClient())
+_arb_reply = asyncio.run(_AC._h_arbtable(_arb_obj, _NS(page=1), None, "国际服"))
+_arb_rows = [_r.split("　") for _r in _arb_reply.lines]
+check("仲裁时间表：注入 4 行（3 个含空格节点 + 1 个评级节点）",
+      len(_arb_rows) == 4, str(len(_arb_rows)))
+check("★ V Prime 行 = 5 列，节点/星球各一列（未合并、未裂列）",
+      _arb_rows[0] == [_arb_rows[0][0], "V Prime", "金星", "生存", "Corpus"],
+      str(_arb_rows[0]))
+check("★ Tyana Pass 行 5 列、节点格完整",
+      len(_arb_rows[1]) == 5 and _arb_rows[1][1] == "Tyana Pass",
+      str(_arb_rows[1]))
+check("★ Outer Terminus 行 5 列、节点格完整",
+      len(_arb_rows[2]) == 5 and _arb_rows[2][1] == "Outer Terminus",
+      str(_arb_rows[2]))
+check("评级节点仍出第 6 列（评级格未被本修波及）",
+      len(_arb_rows[3]) == 6 and _arb_rows[3][5] == "S", str(_arb_rows[3]))
+check("所有单元格非空（格子间无空列）",
+      all(all(_c for _c in _r) for _r in _arb_rows),
+      str([[c for c in r if not c] for r in _arb_rows]))
+
+# 源码接线：死代码 dw()/pad() 已删；不再出现「ASCII 空格当列分隔」
+_arb_src = inspect.getsource(_AC._h_arbtable)
+check("仲裁时间表：死代码 dw()/pad() 已删",
+      "def dw(" not in _arb_src and "def pad(" not in _arb_src)
+check("★ 仲裁时间表：不再把 ASCII 空格当列分隔（无 split(\" \") 往返）",
+      'split(" ")' not in _arb_src and '"　".join' in _arb_src)
+
+# 数据守卫：仓内确实存在含 ASCII 空格的节点名（≥3），否则本段会静默失效
+_arb_ratings = json.loads(
+    (ROOT / "core" / "data" / "arb_ratings.json").read_text(encoding="utf-8"))
+_spaced_rating_nodes = sorted({k.split("|")[0] for k in _arb_ratings
+                               if "|" in k and " " in k.split("|")[0]})
+check("★ 数据守卫：arb_ratings.json 含空格节点名 ≥3（含 V Prime / Tyana Pass）",
+      len(_spaced_rating_nodes) >= 3
+      and {"V Prime", "Tyana Pass"} <= set(_spaced_rating_nodes),
+      str(_spaced_rating_nodes))
+_nodes_zh = json.loads(
+    (ROOT / "core" / "data" / "de" / "nodes_zh.json").read_text(encoding="utf-8"))
+_zh_names = {v.get("name") for v in _nodes_zh.values() if isinstance(v, dict)}
+check("★ 数据守卫：官方节点表含三个含空格样本（V Prime / Tyana Pass / Outer Terminus）",
+      {"V Prime", "Tyana Pass", "Outer Terminus"} <= _zh_names)
+
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")
     sys.exit(1)

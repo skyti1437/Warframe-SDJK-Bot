@@ -410,31 +410,47 @@ class RivenCommands:
             fam_all = [(n, v) for n, v in await self.client.riven_family(weapon)
                        if abs(v - wm_disp) > 1e-9]
             if not variant_disp:
-                fits = RA.match_disposition(stats_pos, stats_neg, cls,
-                                            [(mother_name, wm_disp)] + fam_all)
-                if len(fits) == 1 and abs(fits[0][1] - wm_disp) > 1e-9:
-                    name, disp = fits[0]          # 唯一吻合且不是母武器
-                    infer_note = (f"数值反推倾向 {disp:g}：唯一吻合 {name}"
-                                  f"（母武器 {mother_name} {wm_disp:g} 不吻合）")
-                elif len(fits) > 1:
-                    infer_note = ("数值与多个倾向都吻合：" +
-                                  "、".join(f"{n} {v:g}" for n, v in fits) +
-                                  "　请带变体名重发：紫卡分析 棱晶欧玛 [截图]")
-                elif not fits:
-                    # ★ 2026-09-24 玩家报障：老卡（洗出后该武器倾向被上调过，
-                    #   游戏不回溯重算旧卡数值）会四条词条整体偏低、全落 0%，
-                    #   旧实现只丢一句「武器名可能识别有误」（误导）。数值本身就
-                    #   能反推倾向：区间够紧（≤25%）时直接按反推值算区间。
-                    iv = RA.disposition_interval(stats_pos, stats_neg, cls)
-                    if iv[0] and iv[1] / iv[0] <= 1.25:
-                        disp = round((iv[0] + iv[1]) / 2, 2)
-                        infer_note = (
-                            f"卡面数值反推倾向 ≈{disp:g}（{mother_name} 当前值 "
-                            f"{wm_disp:g} 对不上，反推区间 {iv[0]:g}~{iv[1]:g}）"
-                            "—— 疑似倾向调整前洗出的老卡，区间已按反推值计算")
-                    else:
-                        infer_note = (f"⚠️ 卡面数值与「{mother_name}」家族的已知倾向"
-                                      "都不吻合，武器名可能识别有误")
+                # ★ 2026-10-01：母武器倾向可行就不做变体推断（卡面本来就写着
+                #   武器名）——旧实现会让多值命中回「数值与多个倾向都吻合
+                #   请带变体名重发」，而母武器自身就是合理解释。
+                if RA.disp_feasible(stats_pos, stats_neg, cls, wm_disp):
+                    pass        # 母武器可行：跳过变体推断（family_note 仍可展示参考）
+                else:
+                    fits = RA.match_disposition(stats_pos, stats_neg, cls,
+                                                [(mother_name, wm_disp)] + fam_all)
+                    # 多个变体**倾向同值**时不算歧义 —— 区间只由倾向数值决定，
+                    # 名字（棱晶/Prime）不影响结果（棱晶·空刃与空刃 Prime 同为
+                    # 1.2）。旧实现一律回「请带变体名重发」，卡面就仍按母武器的
+                    # 1.3 计算（2026-10-01 玩家报障的空刃 3+1 那张正是如此）。
+                    fit_vals = sorted({round(float(v), 4) for _, v in fits})
+                    if len(fits) == 1 and abs(fits[0][1] - wm_disp) > 1e-9:
+                        name, disp = fits[0]          # 唯一吻合且不是母武器
+                        infer_note = (f"数值反推倾向 {disp:g}：唯一吻合 {name}"
+                                      f"（母武器 {mother_name} {wm_disp:g} 不吻合）")
+                    elif len(fit_vals) == 1 and abs(fit_vals[0] - wm_disp) > 1e-9:
+                        disp = fit_vals[0]
+                        infer_note = (f"数值反推倾向 {disp:g}：吻合 "
+                                      + "、".join(n for n, _ in fits)
+                                      + f"（母武器 {mother_name} {wm_disp:g} 不吻合）")
+                    elif len(fits) > 1:
+                        infer_note = ("数值与多个倾向都吻合：" +
+                                      "、".join(f"{n} {v:g}" for n, v in fits) +
+                                      "　请带变体名重发：紫卡分析 棱晶欧玛 [截图]")
+                    elif not fits:
+                        # ★ 2026-09-24 玩家报障：老卡（洗出后该武器倾向被上调过，
+                        #   游戏不回溯重算旧卡数值）会四条词条整体偏低、全落 0%，
+                        #   旧实现只丢一句「武器名可能识别有误」（误导）。数值本身就
+                        #   能反推倾向：区间够紧（≤25%）时直接按反推值算区间。
+                        iv = RA.disposition_interval(stats_pos, stats_neg, cls)
+                        if iv[0] and iv[1] / iv[0] <= 1.25:
+                            disp = round((iv[0] + iv[1]) / 2, 2)
+                            infer_note = (
+                                f"卡面数值反推倾向 ≈{disp:g}（{mother_name} 当前值 "
+                                f"{wm_disp:g} 对不上，反推区间 {iv[0]:g}~{iv[1]:g}）"
+                                "—— 疑似倾向调整前洗出的老卡，区间已按反推值计算")
+                        else:
+                            infer_note = (f"⚠️ 卡面数值与「{mother_name}」家族的已知倾向"
+                                          "都不吻合，武器名可能识别有误")
             elif not RA.disp_feasible(stats_pos, stats_neg, cls, disp):
                 iv = RA.disposition_interval(stats_pos, stats_neg, cls)
                 rng = f"（反推应在 {iv[0]:g}~{iv[1]:g}）" if iv[0] else ""

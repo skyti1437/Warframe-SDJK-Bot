@@ -2559,6 +2559,7 @@ def _riven_rolls(a: dict) -> int:
 def fmt_wr_auctions(weapon: str, auctions: list[dict], page: int = 1,
                     page_size: int = 8, riven_type: str = "",
                     group: str = "", *, presorted: bool = False,
+                    exact_ids: Optional[set] = None,
                     ) -> tuple[str, list[str], Optional[dict]]:
     """紫卡拍卖列表。
 
@@ -2571,6 +2572,9 @@ def fmt_wr_auctions(weapon: str, auctions: list[dict], page: int = 1,
     ``presorted=True``：调用方已按**词条命中率**排好序（wr 的「无完全匹配，
     给最接近选项」分支），此时不再按「在线+价格」重排 —— 否则前排会变成
     便宜但词条不匹配的挂单（2026-09-24 玩家报障「前排出现不匹配的项目」）。
+    ``exact_ids``（2026-10-01 B 口径）：**完全命中词条**的挂单 id 集合——
+    只影响默认分支的排序键（在线档 → 档内恰好优先 → 价格升序），**不是硬过滤**
+    （超集仍在结果里可翻页）；`None`（未指定词条）退化为现行为。
     """
     status_cn = {"ingame": "🟢在线", "online": "🔵网页在线", "offline": "⚫离线"}
 
@@ -2582,6 +2586,8 @@ def fmt_wr_auctions(weapon: str, auctions: list[dict], page: int = 1,
 
     pool = list(auctions) if presorted else sorted(
         auctions, key=lambda a: (_ONLINE_RANK.get(status_of(a), 3),
+                                 0 if (exact_ids and a.get("id") in exact_ids)
+                                 else 1,
                                  price_of(a)))
     rank_max = 8          # 紫卡满级 8 级
     total = len(pool)
@@ -2612,7 +2618,11 @@ def fmt_wr_auctions(weapon: str, auctions: list[dict], page: int = 1,
         if attrs:
             lines.append("　　" + "　".join(attrs[:6]))
     title = f"{weapon} 紫卡拍卖（第{page}/{pages}页，共{total}条）"
-    lines.append("※ ▲正面词条（同色）· ▼负面词条（红色）；排序：在线优先，同档按价格升序")
+    if exact_ids:
+        lines.append("※ ▲正面词条（同色）· ▼负面词条（红色）；"
+                     "排序：在线优先 → 完全命中词条优先 → 同档按价格升序")
+    else:
+        lines.append("※ ▲正面词条（同色）· ▼负面词条（红色）；排序：在线优先，同档按价格升序")
     best = pool[0] if pool else None
     return (title, lines or ["没有符合条件的紫卡挂单"], best)
 

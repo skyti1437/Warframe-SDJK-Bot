@@ -242,6 +242,30 @@ class MarketCommands:
         return Reply("合购最优卖家（同卖家买齐更省事）", lines,
                      footer=fmt.fmt_platform_footer(platform))
 
+    @staticmethod
+    def _is_exact_match(a: dict, q, neg_set: set, pos_set: set) -> bool:
+        """「完全命中词条」判定（2026-10-01 B 口径，**仅排序用**，非硬过滤）。
+
+        与 ``_auction_match``（子集判定 + 在线状态/价格过滤）不同：这里只看
+        词条集合**相等**，不看在线状态与价格：
+          · 指定了正词条 → 实际正词条集合 == 指定集合（多一个即超集）；
+          · 指定了具体负词条 → 实际负词条集合 == 指定集合；
+          · 只是「任意负」（require_negative、无具体负词条）→ 实际负词条 ≥1
+            即算命中（紫卡最多 1 条负，等价于 ==1；不得因「没指定名字」判超集）；
+          · 完全没指定词条 → 全部算命中（调用方传 exact_ids=None 退化）。
+        """
+        item = a.get("item", {}) or {}
+        attrs = item.get("attributes") or []
+        urls_p = {at.get("url_name") for at in attrs if at.get("positive")}
+        urls_n = {at.get("url_name") for at in attrs if not at.get("positive")}
+        if pos_set and urls_p != pos_set:
+            return False
+        if neg_set and urls_n != neg_set:
+            return False
+        if q.require_negative and not neg_set and not urls_n:
+            return False
+        return True
+
     async def _h_wr(self, parsed, event, platform) -> Reply:
         pass
 
@@ -262,7 +286,8 @@ class MarketCommands:
         auctions = await self.client.wm_riven_auctions(
             url_name, platform, positives=positives, negatives=negatives,
             polarity=q.polarity, max_price=q.max_price,
-            max_rerolls=q.max_rerolls, min_rerolls=q.rerolls_min)
+            max_rerolls=q.max_rerolls, min_rerolls=q.rerolls_min,
+            require_negative=q.require_negative)
         neg_set = set(negatives)
         pos_set = set(positives)
         pool = [a for a in auctions if self._auction_match(a, q, neg_set, pos_set)]
@@ -306,13 +331,19 @@ class MarketCommands:
             pool = sorted(cand, key=_rank)[:max(4, self.page_size - 4)]
             relaxed = "loose"
         wname = weapon.get("zh") or weapon.get("en") or url_name
+        # 完全命中词条的 id 集合（2026-10-01 B 口径，仅排序用）：在线档优先、
+        # 档内恰好在前、超集仍可翻页。未指定词条 → None（退化为现行为）。
+        # 放宽档（offline/loose）走 presorted，此集合不参与。
+        exact_ids = ({a.get("id") for a in pool
+                      if self._is_exact_match(a, q, neg_set, pos_set)}
+                     if (q.stats or q.negatives or q.require_negative) else None)
         title, lines, best = fmt.fmt_wr_auctions(
             wname, pool,
             page=parsed.page, page_size=max(4, self.page_size - 4),
             riven_type=rtype, group=weapon.get("group", ""),
             # 放宽档的排序是「词条命中率优先」，必须原样保留 —— 渲染层默认
             # 按 在线+价格 重排会把命中的挂单冲散
-            presorted=bool(relaxed))
+            presorted=bool(relaxed), exact_ids=exact_ids)
         if weapon.get("_fuzzy_from"):
             lines.insert(0, f"※ 「{weapon['_fuzzy_from']}」按「{weapon.get('zh') or wname}」查询")
         if relaxed == "offline":
@@ -457,6 +488,16 @@ class MarketCommands:
         attrs = item.get("attributes") or []
         pos = [at for at in attrs if at.get("positive")]
         neg = [at for at in attrs if not at.get("positive")]
+        # 价格本地过滤（2026-10-01）：WM auctions/search 实测忽略 price_min/price_max
+        # 参数（服务端返回与基线逐字节同构）⇒ 此前「1000p 以内」这类条件静默不生效。
+        # 拍卖一口价优先（buyout_policy=direct 恒有 buyout），无 buyout 用起始价兜底。
+        price = a.get("buyout_price")
+        if price is None:
+            price = a.get("starting_price") or 0
+        if q.max_price is not None and price > q.max_price:
+            return False
+        if q.min_price is not None and price < q.min_price:
+            return False
         if q.forbid_negative and neg:
             return False
         if q.require_negative and not neg:

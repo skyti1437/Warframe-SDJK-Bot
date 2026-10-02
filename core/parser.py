@@ -404,6 +404,8 @@ class WRQuery:
     forbid_negative: bool = False         # 无负
     polarity: Optional[str] = None        # madurai/vazarin/naramon/zenurik
     max_price: Optional[int] = None       # 1000p
+    min_price: Optional[int] = None       # 500p以上（2026-10-01 补占位；服务端忽略
+                                          # price_min/max ⇒ 消费端 _auction_match 本地过滤）
     max_rerolls: Optional[int] = None     # 零洗/低洗（≤8）
     rerolls_min: Optional[int] = None     # 废洗（≥10）
     status: str = "recent"                # latest(仅游戏中)/recent(+在线)/offline(全部)
@@ -528,8 +530,12 @@ def _split_negatives(tok: str) -> Optional[list[tuple[str, bool]]]:
                 i += 1
         if buf:
             parts.append((buf, neg))
-        if not parts and neg:
-            # 「负」/「带负」单独成词：负面侧为空
+        if neg and (not parts or not parts[-1][1]):
+            # ★ 2026-10-01 修：「任意负」结尾的「负」曾把 neg=True 标在半路就丢——
+            #   只要结尾时 neg 为 True 且最后一个片段不在负面侧，就补一个空负面片段
+            #   （parse_wr 里 ("", True) ⇒ require_negative=True）。
+            #   既有行为不受影响：「负变焦」→ [("变焦",True)]（尾片段已是负面）；
+            #   「双暴负变焦」→ [("双暴",False),("变焦",True)]。
             parts.append(("", True))
         return parts
     # 无负面标记：整词必须是（组合）词条才吃掉
