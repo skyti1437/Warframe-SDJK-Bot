@@ -572,6 +572,18 @@ check("别名：额外连击数几率 → extra_combo_count（仅正向词条）
 check("★ 别名：DE 卡面原文「的几率来获得连击数」→ combo_gain_chance",
       plugin.WarframeSDJK._stat_id_from_name("的几率来获得连击数", _rev)
       == "combo_gain_chance")
+# ★ 2026-10-02 归并（维护者定）：幽灵 sid combo_efficiency（「连击效率」，
+#   基值恰好等于额外连击数几率）并入 extra_combo_count；三处表都不再有它。
+check("★ 归并：连击效率 / 近战连击效率 → extra_combo_count",
+      plugin.WarframeSDJK._stat_id_from_name("连击效率", _rev)
+      == "extra_combo_count"
+      and plugin.WarframeSDJK._stat_id_from_name("近战连击效率", _rev)
+      == "extra_combo_count")
+check("★ 幽灵 sid 已清除（基值表 / 展示名表都不再有 combo_efficiency）",
+      "combo_efficiency" not in RA._BASE
+      and "combo_efficiency" not in RIVEN_STAT_ZH)
+check("归并后基值不变：额外连击数几率仍为近战 58.77",
+      RA._BASE["extra_combo_count"][4] == 58.77)
 
 # ★ 2026-10-02 用户实卡（翁 Locti-acrium）：「-60.4% 的几率来获得连击数」
 #   —— ① 卡面原文认得出；②「仅负向」锁定生效（读成正数也归负面，wiki Legend ³）；

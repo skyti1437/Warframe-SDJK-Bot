@@ -297,7 +297,9 @@ RIVEN_STAT_ALIASES: dict[str, set[str]] = {
     "initial_combo": {"初始连击", "初始连击数", "连击数"},
     "combo_duration": {"连击持续时间", "连击时间"},
     "heavy_attack_efficiency": {"重击效率"},
-    "combo_efficiency": {"近战连击效率", "连击效率"},
+    # ★ 2026-10-02 归并（维护者定）：原 combo_efficiency（「连击效率」）在 WM 32
+    #   属性与官方基值表里都没有对应行，基值却等于「额外连击数几率」的 58.77 ——
+    #   属早期误录的幽灵 sid。按维护者决定归并到额外连击数几率，这两个词不再单列。
     "finisher_damage": {"处决伤害", "处决"},
     "slide_crit": {"滑行攻击时暴击率", "滑暴", "滑行暴击几率", "滑行暴击",
                    "滑爆", "滑行爆击", "滑行", "滑行攻击",
@@ -332,7 +334,9 @@ RIVEN_STAT_ALIASES: dict[str, set[str]] = {
     "zoom": {"变焦", "缩放"},
     "extra_combo_count": {"额外连击数", "额外连击", "额外连击数几率",
                           "减连击获取", "减额外连击数几率",
-                          "减额外连击", "减额外连击数"},
+                          "减额外连击", "减额外连击数",
+                          # ★ 2026-10-02 归并自原 combo_efficiency 幽灵 sid
+                          "连击效率", "近战连击效率"},
     # WM slug chance_to_gain_combo_count（仅负向；DE 官方文案「…% 的几率来获得连击数」）
     "combo_gain_chance": {"连击数获取几率", "获得连击数几率", "连击获取几率",
                           "连击获取", "连击数获取", "获得连击数", "连击数几率",
@@ -376,7 +380,7 @@ RIVEN_STAT_ZH: dict[str, str] = {
     "multishot": "多重", "attack_speed": "攻速", "fire_rate": "射速",
     "status_chance": "触发", "status_duration": "触时", "range": "范围",
     "initial_combo": "初始连击", "combo_duration": "连击时间",
-    "heavy_attack_efficiency": "重击效率", "combo_efficiency": "连击效率",
+    "heavy_attack_efficiency": "重击效率",
     "finisher_damage": "处决伤", "slide_crit": "滑暴",
     "slash_damage": "切割", "impact_damage": "冲击", "puncture_damage": "穿刺",
     "heat_damage": "火伤", "cold_damage": "冰伤", "toxin_damage": "毒伤",

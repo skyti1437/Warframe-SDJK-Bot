@@ -48,7 +48,6 @@ _BASE: dict[str, tuple] = {
     "initial_combo": (None, None, None, None, 24.5),
     "combo_duration": (None, None, None, None, 8.1),
     "heavy_attack_efficiency": (None, None, None, None, 73.44),
-    "combo_efficiency": (None, None, None, None, 58.77),
     # ★ 2026-10-02 补录（用户提供官方 wiki「Riven Mods」基值表整页存档核对）：
     #   同一 combo 家族的两侧 —— 表后 Legend 注明「¹ 仅正向（永不作为负面）」
     #   「³ 仅负向（永不作为正面）」，两行近战基值即下列两项：
