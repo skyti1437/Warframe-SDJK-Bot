@@ -265,6 +265,7 @@ class RivenCommands:
         # ★ 2026-10-02 反转词条自洽改判（用户照抄卡面时不会给后坐力写「负」前缀）：
         #   4 正 0 负且其中**恰有 1 条**反转词条 ⇒ 该条实为负面（卡面 `+` 号但
         #   收益为负）。旧流程被下面的词条数闸门拒收，用户拿到「词条数不对」。
+        #   （卡面注脚统一在下方的「反转词条注脚」块生成，两条路径同文案。）
         inverted_note = ""
         if len(stats_pos) > 3 and not stats_neg:
             _inv = [(i, s) for i, s in enumerate(stats_pos)
@@ -273,8 +274,6 @@ class RivenCommands:
                 _i, _s = _inv[0]
                 stats_pos.pop(_i)
                 stats_neg.append(_s)
-                inverted_note = ("「后坐力」按负面词条计入"
-                                 "（卡面 + 号但为负面效果）")
 
         has_image = self._event_has_image(event)
         source_note = ""
@@ -342,6 +341,35 @@ class RivenCommands:
         if not 2 <= len(stats_pos) <= 3 or len(stats_neg) > 1:
             return Reply(raw_text="紫卡词条应为 2~3 条正面 + 0~1 条负面，"
                                   f"当前解析到 {len(stats_pos)} 正 {len(stats_neg)} 负")
+        # ★ 2026-10-02 重复词条检测：紫卡同一条词条**不会出现两次**；出现两次
+        #   几乎必是模型读改字（线上实证：`+44.9% ⚡电击伤害` 被两个渠道都读成
+        #   「暴击伤害」）。不静默：卡面明确标注并请重发核对 —— 错的那行会给出
+        #   一段看似正常的区间，最容易误导配卡决策。
+        _all_stats = stats_pos + stats_neg
+        _dup_ids = sorted({sid for sid, _ in _all_stats
+                           if sum(1 for s2, _v in _all_stats if s2 == sid) > 1})
+        dup_note = ""
+        if _dup_ids:
+            dup_note = ("⚠ 同一词条出现两次（"
+                        + "、".join(RIVEN_STAT_ZH.get(s, s) for s in _dup_ids)
+                        + "）—— 紫卡不会有重复词条，其中一条很可能是识别错误"
+                        "（常见：元素伤害被读成暴击伤害），请重发一次截图核对")
+            logger.warning("[sdjk] 紫卡识别到重复词条：%s（stats=%s）",
+                           _dup_ids, _all_stats)
+        # ★ 2026-10-02 反转词条注脚（两条路径都要解释）：图片路径由 vision 按
+        #   符号自动归负、人工输入由上面的自洽改判处理。行内**保留卡面符号**并
+        #   带「卡面+号·负面」标签（见 fmt_riven_analysis），这里再解释机理，
+        #   避免「卡面 + 号」与「分析按负面算」看起来矛盾（用户口径：
+        #   +后坐力 = 增加后坐力 = 负面；-后坐力 = 减少 = 正面）。
+        if not inverted_note:
+            if any(RA.is_inverted(s) for s, _ in stats_neg):
+                inverted_note = ("「后坐力」是反转词条：+ 号 = 增加后坐力 = "
+                                 "负面，区间按负面档系数计算"
+                                 "（- 号 = 减少后坐力 = 正面）")
+            elif any(RA.is_inverted(s) for s, _ in stats_pos):
+                inverted_note = ("「后坐力」是反转词条：- 号 = 减少后坐力 = "
+                                 "正面，区间按正面档系数计算"
+                                 "（+ 号 = 增加后坐力 = 负面）")
         # 武器解析 + 变体倾向查询互不依赖 → 并行（原来串行，实测分析段 4 s）
         _t_res0 = asyncio.gather(
             self.client.resolve_riven_weapon(weapon_name.strip()),
@@ -529,6 +557,8 @@ class RivenCommands:
                          "、".join(decimal_fix))
         if source_note:
             lines.insert(1, f"※ 来源：{source_note.strip('（）')}")
+        if dup_note:
+            lines.insert(1, f"※ {dup_note}")
         logger.info("[sdjk] 紫卡分析耗时 %.0f ms（含识别/查询/计算）",
                     (_tt.perf_counter() - _t_start) * 1000)
         return Reply(title, lines,

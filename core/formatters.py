@@ -3249,23 +3249,33 @@ def fmt_riven_analysis(name: str, disposition: float, cls: str,
         sid = _sid(sid0)
         lo, hi = RA.stat_range(sid, cls, disposition, len(stats_pos),
                                len(stats_neg))
+        # ★ 2026-10-02：反转词条（后坐力）**保留卡面符号**显示 —— 卡面
+        #   「-20% 后坐力」是正面效果，就写「-20% 后坐（卡面-号·正面）」；
+        #   其余正词条照旧 +（用户口径：显示符号必须与卡面一致，极性用标注传达）。
+        _inv = RA.is_inverted(sid)
+        _head = (f"-{RA.fmt_value(sid, v)} {zh.get(sid, sid)}（卡面-号·正面）"
+                 if _inv else f"+{RA.fmt_value(sid, v)} {zh.get(sid, sid)}")
         if lo is None:
-            lines.append(f"· +{RA.fmt_value(sid, v)} {zh.get(sid, sid)}"
-                         "　该词条无官方基值（wiki 未收录），无法算区间")
+            lines.append(f"· {_head}　该词条无官方基值（wiki 未收录），无法算区间")
             continue
         dev = RA.deviation_pct(v, lo, hi)
         pos_pct = RA.range_position(v, lo, hi)
         lines.append("· " + "　".join([
-            f"+{RA.fmt_value(sid, v)} {zh.get(sid, sid)}",
+            _head,
             f"{RA.fmt_value(sid, lo)}-{RA.fmt_value(sid, hi)}",
             f"距中{dev:+.1f}%", f"区间位 {pos_pct}%"]))
     for sid0, v in stats_neg:
         sid = _sid(sid0)
         lo, hi = RA.stat_range(sid, cls, disposition, len(stats_pos),
                                len(stats_neg), negative=True)
+        # ★ 2026-10-02：反转词条在负词组里同样**保留卡面符号** —— 卡面
+        #   「+95.4% 武器后坐力」是负面（增加后坐力），写「+95.4% 后坐
+        #   （卡面+号·负面）」；区间仍按**负面档**系数计算（分组不变）。
+        _inv = RA.is_inverted(sid)
+        _head = (f"+{RA.fmt_value(sid, v)} {zh.get(sid, sid)}（卡面+号·负面）"
+                 if _inv else f"-{RA.fmt_value(sid, v)} {zh.get(sid, sid)}")
         if lo is None:
-            lines.append(f"· -{RA.fmt_value(sid, v)} {zh.get(sid, sid)}"
-                         "　该词条无官方基值（wiki 未收录），无法算区间")
+            lines.append(f"· {_head}　该词条无官方基值（wiki 未收录），无法算区间")
             continue
         dev = RA.deviation_pct(v, lo, hi)
         pos_pct = RA.range_position(v, lo, hi)
@@ -3274,7 +3284,7 @@ def fmt_riven_analysis(name: str, disposition: float, cls: str,
         #   把浅负当深负卖。区间位本身就是「幅度接近上限的程度」，
         #   直接用 pos_pct：0%=最浅、100%=最满。
         lines.append("· " + "　".join([
-            f"-{RA.fmt_value(sid, v)} {zh.get(sid, sid)}",
+            _head,
             f"{RA.fmt_value(sid, lo)}-{RA.fmt_value(sid, hi)}",
             f"幅度位 {pos_pct}%", "幅度越大越友好"]))
     lines.append("※ 区间 = DE 属性基值 × 倾向 × 词条数系数 × 随机 0.9~1.1"

@@ -584,6 +584,20 @@ check("对照：无跳过且条数达标 ⇒ 合法（判据没有过度收紧�
       _legalL3 and not _noteL3 and len(_lpL3) == 2 and len(_lnL3) == 1,
       f"legal={_legalL3} notes={_noteL3}")
 
+# ---------------------------------------------------------------------------
+# ⑩ prompt 负例（2026-10-02 模型误读取证：⚡电击伤害 被两渠道都读成暴击伤害；
+#    图标被抄成 ×59%）—— 两个 prompt 都要带这些负例，防回归。
+# ---------------------------------------------------------------------------
+import inspect as _inspect                                      # noqa: E402
+
+_line_prompt = plugin.WarframeSDJK._RIVEN_LINE_PROMPT
+check("窄读 prompt：含「电击伤害不得抄成暴击伤害」与「图标不是 ×」负例",
+      "不得抄成「暴击伤害」" in _line_prompt and "图标不是 × 号" in _line_prompt)
+_sem_prompt = _inspect.getsource(plugin.WarframeSDJK._extract_riven_from_image)
+check("语义 prompt：含元素伤害负例与「同一条词条不会出现两次」",
+      "不得写成「暴击伤害」" in _sem_prompt
+      and "不会出现两次" in _sem_prompt)
+
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")
     sys.exit(1)
