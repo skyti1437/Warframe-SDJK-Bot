@@ -3030,8 +3030,10 @@ def fmt_rank_overview(rows: list[dict]) -> tuple[str, list[str]]:
                 _fmt_p(r.get("max48")), _fmt_p(r.get("median_prev"))]))
     if empty:
         return ("价格排行", ["暂无落盘数据，请先发「排行 刷新」建立全量榜单"])
-    lines.append("※ 当前价=48h 成交中位（按此排序）　最低/最高=48h 区间")
-    lines.append("※ 上期中位=前一个 48 小时的成交中位；无 48h 成交的物品不入榜")
+    # ★ 2026-10-03 口径注脚（维护者定选 A）：数据源 = statistics_closed 真实成交，
+    #   不是 statistics_live 挂单价（第三方「加权平均价」实为后者，实测高 13~15%）。
+    lines.append("※ 当前价=48h 成交中位（真实成交·非挂单价；挂单请看「wm 物品名」）")
+    lines.append("※ 按当前价降序；最低/最高=48h 成交区间；上期中位=前一 48 小时成交中位")
     lines.append("※ 完整 20 名榜单：「排行 甲/武器/卡/赋能/部件/主武/副武/近战/遗物」")
     return ("价格排行榜", lines)
 
@@ -3053,7 +3055,9 @@ def fmt_rank_table(category: str, rows: list[dict]) -> tuple[str, list[str]]:
         lines.append("· " + "　".join([
             name, _fmt_p(r.get("median48")), _fmt_p(r.get("min48")),
             _fmt_p(r.get("max48")), _fmt_p(r.get("median_prev"))]))
-    lines.append("※ 当前价=48h 成交中位　上期中位=前一 48 小时成交中位；MOD 卡按 0 级成交计")
+    # ★ 2026-10-03 口径注脚（同上）：真实成交↔挂单价 必须写明，防与挂单站对比误判。
+    lines.append("※ 当前价=48h 成交中位（真实成交·非挂单价）"
+                 "　上期中位=前一 48 小时；MOD 卡按 0 级成交计")
     return (f"{category}价格排行", lines)
 
 

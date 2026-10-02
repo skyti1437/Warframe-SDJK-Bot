@@ -556,18 +556,41 @@ class WarframeSDJK(DailyCommands, ProgressCommands, ArbitrationCommands, Rotatio
     # ------------------------------------------------------------------
     # 生命周期
     # ------------------------------------------------------------------
+    @staticmethod
+    def _log_task_death(name: str):
+        """后台常驻任务的 done-callback：死亡必须留痕。
+
+        ★ 2026-10-03（价格排行静默失效事故）：协程在 try 之外抛异常 ⇒ 无日志、
+        无人 await（"Task exception was never retrieved" 也被上层吞掉）⇒ 坏了
+        8 天没人知道。凡 fire-and-forget 的常驻任务一律挂本回调：只要**不是
+        主动取消**（CancelledError）就以 WARNING 记录，便于 grep 发现。
+        """
+        def _cb(task: "asyncio.Task") -> None:
+            if task.cancelled():
+                return
+            exc = task.exception()
+            if exc is not None:
+                logger.warning("[sdjk] 后台任务 %s 异常退出：%r", name, exc)
+        return _cb
+
     async def initialize(self):
         self.push.start()
         self._auto_task = asyncio.create_task(self._rank_autoloop())
+        self._auto_task.add_done_callback(self._log_task_death("_rank_autoloop"))
         self._valence_task = asyncio.create_task(self._valence_autoloop())
+        self._valence_task.add_done_callback(
+            self._log_task_death("_valence_autoloop"))
         # 社区快照轻轮询：只对「没装/连不上 FS」的用户生效（见 _community_autoloop）
         self._community_task = asyncio.create_task(self._community_autoloop())
+        self._community_task.add_done_callback(
+            self._log_task_death("_community_autoloop"))
         # 首启后台预热（2026-09-29 追加批，2026-10-01 扩展为 _boot_warm）：
         # ①社区快照 ②WM 物品/紫卡武器表（见 `_boot_warm`）。此前社区快照只有
         # 轻轮询的 30 分钟 tick 才拉，没装 FS 的用户首启最坏要等半小时；
         # 而 WM 表是 reload 后首条 wr/wm 指令要现下的，挪到启动期后台预拉。
         # fire-and-forget：异步不阻塞加载、超时收尾、失败记 WARNING（可见）。
-        asyncio.create_task(self._boot_warm())
+        _boot_task = asyncio.create_task(self._boot_warm())
+        _boot_task.add_done_callback(self._log_task_death("_boot_warm"))
         # 后台预热伤害计算的全部重 JSON + 武器名索引（不阻塞启动）：
         # 不预热时第一条指令要现读武器库/进化/灵化形态/多段/部署表，叠加后
         # 会让首条指令明显变慢（2026-09-17 玩家反馈「半天才出来」）。
@@ -630,9 +653,16 @@ class WarframeSDJK(DailyCommands, ProgressCommands, ArbitrationCommands, Rotatio
         才开爬，否则继续等下一个检查点。抓取本身每 50 项落一次盘，中断可续。
         失败退避 10 分钟后重试，不阻断插件其他功能。
         """
-        RANKS_FILE = api_client.RANKS_FILE  # 顶层已导入，懒加载绝对导入在服务器上会炸
+        # ★ 2026-10-03 修复（价格排行自动刷新失效事故）：原写
+        #   `api_client.RANKS_FILE` —— 该常量不存在（api_client 只有 RANKS_NAME），
+        #   且本行在 try 之外 ⇒ AttributeError 冒泡出协程、零日志静默死亡
+        #   （榜单陈旧 8 天，48h 内「价格榜单」日志 0 条）。
+        #   两处一并修：① 经 core_paths.read_path() 解析为**绝对路径**（裸字符串
+        #   "wm_ranks.json" 会被当相对路径、随 CWD 读不到 ⇒ ts="" ⇒ 永远判过期）；
+        #   ② 挪进 try —— 后续任何异常都能落到下面的 warning，不再静默。
         while True:
             try:
+                RANKS_FILE = core_paths.read_path(api_client.RANKS_NAME)
                 data = self.client._load_json_file(RANKS_FILE) or {}
                 ts = data.get("ts") or ""
                 import time as _t

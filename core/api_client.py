@@ -1551,12 +1551,22 @@ class WarframeClient:
             it = items[idx]
             slug = it.get("url_name") or ""
             if slug:
+                # ★ 2026-10-03 僵尸行修复（价格排行交办）：`rec is None` 必须与
+                #   「请求失败」严格区分 ——
+                #     · 请求失败（网络抖动）⇒ 保留旧行（不动）；
+                #     · _rank_record 返回 None = 该物品**确实无 48h 成交** ⇒ 出榜
+                #       （旧实现 rec 为 None 时什么都不做 ⇒ 曾入榜的行永远留着
+                #        最后一次有成交时的价格，注脚「无 48h 成交不入榜」失真）。
                 try:
-                    rec = self._rank_record(it, await self.wm_statistics(slug, "pc"))
+                    stats = await self.wm_statistics(slug, "pc")
+                except Exception:  # noqa: BLE001 - 单项请求失败不阻断整轮
+                    stats = None
+                if stats is not None:
+                    rec = self._rank_record(it, stats)
                     if rec:
                         rows[slug] = rec
-                except Exception:  # noqa: BLE001 - 单项失败不阻断整轮
-                    pass
+                    else:
+                        rows.pop(slug, None)     # 确实无 48h 成交 → 出榜
             idx += 1
             done += 1
             if done % 50 == 0:

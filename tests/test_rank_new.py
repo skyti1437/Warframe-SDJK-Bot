@@ -373,6 +373,162 @@ check("渲染无残留同步调用",
       'asyncio.to_thread( self.renderer.render' in _src_norm
       and '= self.renderer.render(' not in _main_src)
 
+# ---------------------------------------------------------------------------
+# ⑥ 价格排行自动刷新：三态分支 + 静默死亡修复（2026-10-03 交办）
+#    事故：`RANKS_FILE = api_client.RANKS_FILE`（该常量不存在）且在 try 之外
+#    ⇒ 协程创建即死于 AttributeError、零日志（榜单陈旧 8 天、48h 内日志 0 条）。
+# ---------------------------------------------------------------------------
+import asyncio as _aio                                    # noqa: E402
+import datetime as _dt                                    # noqa: E402
+import inspect as _ins                                    # noqa: E402
+
+_real_dt_cls = _dt.datetime
+
+
+class _FakeDT:
+    """受控 datetime：now() 返回固定小时；fromisoformat 走真实现。"""
+    hour = 3
+
+    @classmethod
+    def now(cls, tz=None):
+        base = _real_dt_cls(2026, 10, 3, cls.hour, 30, 0)
+        return base.replace(tzinfo=tz) if tz else base
+
+    @classmethod
+    def fromisoformat(cls, s):
+        return _real_dt_cls.fromisoformat(s)
+
+
+class _StopLoop(BaseException):
+    """哨兵：让 autoloop 的第一次 sleep 立刻中断（BaseException 不被 except 吞）。"""
+
+
+class _RecRank:
+    def __init__(self):
+        self.records = []
+
+    def _rec(self, level):
+        def _f(fmt, *a):
+            self.records.append((level, fmt % a if a else fmt))
+        return _f
+
+    def __getattr__(self, name):
+        if name in ("info", "warning", "debug", "error", "exception"):
+            return self._rec(name)
+        raise AttributeError(name)
+
+    def has(self, level, needle):
+        return any(lv == level and needle in m for lv, m in self.records)
+
+
+class _RankLoopClient:
+    """只服务 _rank_autoloop 的假客户端：句柄数据 + 抓取记录。"""
+
+    def __init__(self, data):
+        self.data = data
+        self.crawls = []
+
+    def _load_json_file(self, path):
+        return self.data
+
+    async def crawl_wm_ranks(self, limit=None):
+        self.crawls.append(limit)
+        return 2595
+
+
+async def _run_loop_once(data, hour):
+    obj = plugin.WarframeSDJK.__new__(plugin.WarframeSDJK)
+    obj.client = _RankLoopClient(data)
+    _FakeDT.hour = hour
+    rec = _RecRank()
+    old_logger, old_dt, old_sleep = plugin.logger, _dt.datetime, _aio.sleep
+    plugin.logger, _dt.datetime = rec, _FakeDT
+
+    async def _stop(_delay, *a, **k):
+        raise _StopLoop()
+
+    _aio.sleep = _stop
+    try:
+        try:
+            await obj._rank_autoloop()
+        except _StopLoop:
+            pass
+    finally:
+        plugin.logger, _dt.datetime, _aio.sleep = old_logger, old_dt, old_sleep
+    return obj.client, rec
+
+
+_STALE = {"ts": "2026-09-24T01:53:48+00:00", "cursor": 0, "total": 3240,
+          "rows": {}}
+_FRESH = {"ts": _real_dt_cls.now(_dt.timezone.utc).isoformat(), "cursor": 0,
+          "total": 3240, "rows": {}}
+
+_c1, _r1 = _aio.run(_run_loop_once(_STALE, 3))
+check("★ 自动刷新（过期 + 闲时 3 点）⇒ 确实开爬且带 limit=900",
+      _c1.crawls == [900], str(_c1.crawls))
+check("…且日志含「开始自动重建」与「本轮抓取结束」",
+      _r1.has("info", "开始自动重建") and _r1.has("info", "本轮抓取结束"),
+      str(_r1.records))
+_c2, _r2 = _aio.run(_run_loop_once(_FRESH, 3))
+check("榜单新鲜（48h 内）⇒ 不抓取（不打扰 WM 限速）",
+      _c2.crawls == [], str(_c2.crawls))
+_c3, _r3 = _aio.run(_run_loop_once(_STALE, 18))
+check("★ 过期但非闲时（18 点）⇒ 不开爬，日志写明凌晨窗口",
+      _c3.crawls == [] and _r3.has("info", "非闲时"),
+      str(_c3.crawls) + " | " + str(_r3.records))
+
+_src_loop = _ins.getsource(plugin.WarframeSDJK._rank_autoloop)
+# 只看**代码行**（注释里为说明事故会引用旧写法 api_client.RANKS_FILE）
+_code_lines = [ln for ln in _src_loop.splitlines()
+               if ln.strip() and not ln.lstrip().startswith("#")]
+check("★ 源码接线：RANKS_FILE 经 core_paths.read_path 解析为绝对路径",
+      any("core_paths.read_path(api_client.RANKS_NAME)" in ln
+          for ln in _code_lines)
+      and not any("api_client.RANKS_FILE" in ln for ln in _code_lines),
+      str([ln for ln in _code_lines if "RANKS_FILE" in ln])[:200])
+check("★ 解析语句在 try 内（异常不再冒泡出协程）",
+      _src_loop.index("while True:") < _src_loop.index("RANKS_FILE ="), "位置不对")
+_src_init = _ins.getsource(plugin.WarframeSDJK.initialize)
+check("★ 加固：四个后台任务都挂了 done-callback",
+      _src_init.count("_log_task_death(") >= 4, str(_src_init.count("_log_task_death(")))
+
+
+async def _dead_task():
+    raise RuntimeError("boom")
+
+
+async def _check_death_cb():
+    rec = _RecRank()
+    old = plugin.logger
+    plugin.logger = rec
+    try:
+        t = _aio.get_running_loop().create_task(_dead_task())
+        t.add_done_callback(plugin.WarframeSDJK._log_task_death("_probe"))
+        try:
+            await t
+        except RuntimeError:
+            pass
+        await _aio.sleep(0)          # 让 done-callback 跑完
+        t2 = _aio.get_running_loop().create_task(_aio.sleep(3600))
+        t2.add_done_callback(plugin.WarframeSDJK._log_task_death("_probe2"))
+        t2.cancel()
+        try:
+            await t2
+        except _aio.CancelledError:
+            pass
+        await _aio.sleep(0)
+    finally:
+        plugin.logger = old
+    return rec
+
+
+_rdeath = _aio.run(_check_death_cb())
+check("★ 后台任务异常退出 ⇒ WARNING 留痕（不再是静默死亡）",
+      _rdeath.has("warning", "RuntimeError"), str(_rdeath.records))
+check("主动取消（CancelledError）⇒ 不告警（关插件时不该刷警告）",
+      not any(lv == "warning" and "_probe2" in m for lv, m in _rdeath.records),
+      str(_rdeath.records))
+
 print()
 if FAILED:
     print(f"✗ {len(FAILED)} 项失败：" + "、".join(FAILED))

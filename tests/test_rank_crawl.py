@@ -53,6 +53,10 @@ def _rank_record_stub(it, stats):
     return {"name": it["zh"], "plat": 1}
 
 
+# ★ 2026-10-03：真实现句柄（下面 main2 要还原 —— stub 会掩盖 rec=None 的语义）
+_REAL_RANK_RECORD = WarframeClient.__dict__.get("_rank_record")
+
+
 async def main():
     AC._rank_candidate = lambda it: True
     WarframeClient._rank_record = staticmethod(_rank_record_stub)
@@ -90,6 +94,63 @@ async def main():
 
 
 asyncio.run(main())
+
+
+# ---------------------------------------------------------------------------
+# 2026-10-03 追加：僵尸行修复 + 「请求失败 vs 无成交」严格区分（价格排行交办）
+#   旧实现 `if rec: rows[slug] = rec` —— rec 为 None（无 48h 成交）时什么都不做
+#   ⇒ 曾入榜的行永远留着最后一次有成交时的价格（注脚「无 48h 成交不入榜」失真）。
+#   新语义：请求失败 ⇒ 保留旧行；_rank_record → None ⇒ 该行出榜（pop）。
+# ---------------------------------------------------------------------------
+class ZombieClient(WarframeClient):
+    """3 个物品：①有 48h 成交 ②无 48h 成交 ③请求异常。"""
+
+    def __init__(self, store: dict):
+        self.store = store
+
+    async def wm_items(self):
+        return [{"url_name": f"z_{i}", "id": str(i), "zh": f"僵尸{i}",
+                 "en": f"Zombie {i}", "tags": ["mod"], "tradable": True}
+                for i in range(3)]
+
+    async def wm_statistics(self, slug, platform="pc"):
+        if slug == "z_2":
+            raise RuntimeError("net down")
+        if slug == "z_1":      # h48 里 median 全为 0 ⇒ _rank_record 返回 None
+            return {"h48": [{"median": 0, "min": 0, "max": 0, "volume": 0}],
+                    "d90": []}
+        return {"h48": [{"median": 12.5, "min": 10, "max": 15, "volume": 3}],
+                "d90": [{"median": 9.0, "volume": 1},
+                        {"median": 9.5, "volume": 2}]}
+
+    def _load_json_file(self, path):
+        return self.store
+
+    def _save_json_file(self, path, data):
+        self.store.clear()
+        self.store.update(data)
+
+
+async def main2():
+    WarframeClient._rank_record = _REAL_RANK_RECORD      # 还原真实现
+    store = {"ts": "", "cursor": 0, "total": 3,
+             "rows": {"z_0": {"zh": "旧0", "median48": 1.0},
+                      "z_1": {"zh": "旧1", "median48": 2.0},
+                      "z_2": {"zh": "旧2", "median48": 3.0}}}
+    c = ZombieClient(store)
+    await c.crawl_wm_ranks()
+    rows = store.get("rows") or {}
+    check("★ 僵尸行：本轮无 48h 成交（z_1）⇒ 旧行被 pop 出榜",
+          "z_1" not in rows, str(sorted(rows)))
+    check("★ 请求异常（z_2）⇒ 旧行保留（不得把网络抖动当「无成交」误删）",
+          rows.get("z_2", {}).get("median48") == 3.0, str(rows.get("z_2")))
+    check("有 48h 成交（z_0）⇒ 旧行被新值覆盖（median48=12.5）",
+          rows.get("z_0", {}).get("median48") == 12.5, str(rows.get("z_0")))
+    check("跑满一轮：cursor 归零 + ts 已刷新",
+          store.get("cursor") == 0 and bool(store.get("ts")), str(store.get("ts")))
+
+
+asyncio.run(main2())
 
 print()
 if FAILED:
