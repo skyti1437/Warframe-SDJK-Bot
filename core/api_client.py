@@ -2603,27 +2603,17 @@ class WarframeClient:
     def _family_match(base_zh: str, base_en: str, zh: str, en: str) -> bool:
         """判断 zh/en 是否属于「母武器」base 的同一家族（变体）。
 
-        ★ 2026-10-01 重写：从「子串包含」改为「剥掉变体词后**主干名完全相等**」。
-        旧版 `base_zh in z` 会把同前缀的不同武器也捞进来（空刃双刀 之于 空刃、
-        盗贼双枪 之于 盗贼）——用户口径：本质是两把独立武器/两个独立紫卡类目。
-        变体词与 `core/matching.py::strip_variant_norm` 同源
-        （Prime/棱晶/亡魂/破坏者/赤毒/信条/终幕/Dex/MK1…）。
-        自检样例：棱晶·空刃 → 空刃 ✓ / 空刃 Prime → 空刃 ✓ / 空刃双刀 ❌ /
-        盗贼双枪 → 主干「盗贼双枪」❌ / MK1-盗贼 → 盗贼 ⚠（MK1 惯例算变体，含在库）。
+        ★ 2026-10-02：判据换成 **DE 官方 `parentName` 谱系**（唯一权威 =
+        `core/data/de/riven_families.json`，统一经 `matching.family_key` 读取）。
+        中文只用于显示、**永不参与判定**（`base_zh` / `zh` 仅为形参兼容）；
+        英文名不在表里先剥变体词再查，仍不在 ⇒ 退回英文主干；英文为空 ⇒
+        不入家族（宁可少列，不可错列）。
+        旧版「中文主干相等 **或** 英文主干相等」双分支会让 `Dex 盗贼双枪`
+        （官方 parentName 指向 Afuris）**同时**并进 Furis 族 —— 玩家报障。
         """
-        _SET_SUFFIXES = ("一套", "组合包", "蓝图", "set", "blueprint", "blueprints")
-
-        def _core(s: str) -> str:
-            n = re.sub(r"[\s·\-]+", "", (s or "").lower())
-            for suf in _SET_SUFFIXES:      # 先剥套装/部件后缀（WM「翁 Prime 一套」）
-                if n.endswith(suf) and len(n) > len(suf):
-                    n = n[:-len(suf)]
-                    break
-            return matching.strip_variant_norm(n)
-
-        bz, z = _core(base_zh), _core(zh)
-        be, e = _core(base_en), _core(en)
-        return bool((bz and bz == z) or (be and be == e))
+        kb = matching.family_key(base_en)
+        k = matching.family_key(en)
+        return bool(kb and k and kb == k)
 
     async def riven_family(self, weapon: dict) -> list:
         """同一武器家族的变体（棱晶/Prime/亡魂…）及其 wiki 倾向。

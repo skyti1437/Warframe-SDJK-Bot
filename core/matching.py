@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import difflib
+import json
 import re
 from typing import Optional
 
@@ -309,22 +310,102 @@ def strip_variant_norm(norm: str) -> str:
     return norm
 
 
+# ---------------------------------------------------------------------------
+# ★ 2026-10-02：紫卡家族判定改用 DE 官方 `parentName` 谱系
+#   （玩家报障「紫卡倾向 盗贼」多列 `Dex 盗贼双枪`：官方数据里 `Dex Furis`
+#   的 parentName 指向 **Afuris**，而旧「中文/英文主干相等」双分支把它同时
+#   并进了 Furis 族）。判据唯一权威 = core/data/de/riven_families.json
+#   （DE 官方导出 ExportWeapons.json 沿 parentName 上溯，仅当 parent 本身可上
+#   紫卡时继续爬；+ Hek / Dark Dagger 两条注明理由的人工补丁）。
+#   ★ 中文**永不参与判定**（只用于显示）；名字包含/子串/主干相等**都不得**
+#   再作为主判据 —— 那是本次两个 bug 的共同成因。
+# ---------------------------------------------------------------------------
+_RIVEN_TABLE: Optional[dict] = None        # by_name：英文名 → 家族根
+_RIVEN_INDEX: Optional[tuple] = None       # (exact, low, norm) 三级查找索引
+
+# WM 套装/部件条目的英文尾缀（「Okina Prime Set」→「Okina Prime」；
+# 与 api_client 旧 _SET_SUFFIXES 的英文侧同口径，中文侧由显示层处理）
+_SET_SUFFIXES_EN = (" set", " blueprint", " blueprints")
+
+
+def _load_riven_families() -> dict:
+    """惰性加载官方家族表（by_name）。表缺失/损坏 ⇒ 空表（全部走主干兜底）。"""
+    global _RIVEN_TABLE
+    if _RIVEN_TABLE is None:
+        raw: dict = {}
+        try:
+            from . import paths
+            raw = json.loads(
+                paths.read_path("de/riven_families.json")
+                .read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001 - 表缺失退回主干判定，不阻断查询
+            raw = {}
+        _RIVEN_TABLE = raw.get("by_name") or {}
+    return _RIVEN_TABLE
+
+
+def _riven_index() -> tuple:
+    """(exact, low, norm) 三级索引：容忍大小写、空格/连字符写法差异。"""
+    global _RIVEN_INDEX
+    if _RIVEN_INDEX is None:
+        tbl = _load_riven_families()
+        _RIVEN_INDEX = (
+            dict(tbl),
+            {k.lower(): v for k, v in tbl.items()},
+            {normalize(k): v for k, v in tbl.items()},
+        )
+    return _RIVEN_INDEX
+
+
+def family_key(en: str) -> str:
+    """英文名 → 家族根（DE 官方 parentName 谱系优先；查不到退回英文主干）。
+
+    取值域与比较语义（调用方只应比较两个 family_key 的**返回值是否相等**）：
+      ① 命中官方表（含剥套装尾缀 / 大小写 / 空格连字符归一化）→ 官方家族根；
+      ② 未命中 ⇒ 先剥变体词再看表（表快照落后于新武器发布时，避免把
+         「新变体」漏在家族外 —— 官方表结果永远压过名字推断）；
+      ③ 仍未命中 ⇒ 返回英文主干（两侧都查不到表时互相比对）；
+      ④ 英文为空（或主干为空）⇒ 返回 ""，调用方据此**不入家族**
+         （宁可少列，不可错列）。
+    中文永不参与判定。
+    """
+    s = (en or "").strip()
+    if not s:
+        return ""
+    low = s.lower()
+    for suf in _SET_SUFFIXES_EN:             # 「Okina Prime Set」→「Okina Prime」
+        if low.endswith(suf) and len(s) > len(suf):
+            s = s[: -len(suf)].strip()
+            break
+    exact, low_i, norm = _riven_index()
+    k = exact.get(s) or low_i.get(s.lower()) or norm.get(normalize(s))
+    if k:
+        return k
+    stem = strip_variant_norm(normalize(s))
+    if stem and stem != normalize(s):
+        k = norm.get(stem)                       # ② 剥变体词后命中官方表
+        if k:
+            return k
+    return stem                                  # ③ 主干（可能为空 ⇒ 不入家族）
+
+
 def family_of(entry: dict, entries: list, *, zh: str = "zh",
               en: str = "en") -> list:
     """本体 → 全变体家族（含本体，本体排最前，其余按中文名）。
 
     倾向指令「只报本体名就列出全部变体」用的纯函数；只收 disposition
-    非空的条目。判定：归一化名剥掉变体 token 后同基名即同族。
+    非空的条目。
+
+    ★ 2026-10-02 判据换成 `family_key`（见上）：官方 parentName 谱系相等
+    才是同族；中文只用于**显示/排序**，英文为空则不入家族。
     """
-    bz = strip_variant_norm(normalize(entry.get(zh) or ""))
-    be = strip_variant_norm(normalize(entry.get(en) or ""))
+    bz = strip_variant_norm(normalize(entry.get(zh) or ""))   # ★ 仅排序用
+    bk = family_key(entry.get(en) or "")
     fam = []
     for e in entries:
         if e.get("disposition") is None:
             continue
-        nz, ne = normalize(e.get(zh) or ""), normalize(e.get(en) or "")
-        if (bz and strip_variant_norm(nz) == bz) or \
-                (be and strip_variant_norm(ne) == be):
+        if bk and family_key(e.get(en) or "") == bk:
             fam.append(e)
 
     # ★ 2026-09-27：同一件武器在数据里可能有两行（url_name 相同：一行字段全但

@@ -139,7 +139,9 @@ MARKET_SKIP_FILES = {".gitleaks.toml",        # 仓库门面（防泄漏 CI 配�
 #   vision/scan/dun）—— main.py 拆解为 Mixin 子包，运行期 import 必随包。
 #   ⚠ D1-D11 各笔只同步了 stage 常量漏本常量（优化批不打市场件未暴露），
 #   由合并链 make_market_zip 预检抓出，本笔补正：98 + 13 = 111。）
-EXPECTED_MARKET_ENTRIES = 107
+# → 108（2026-10-02 紫卡家族判定改用 DE 官方 parentName 谱系：
+#   +core/data/de/riven_families.json —— 家族判定运行期必读，市场版同样需要）
+EXPECTED_MARKET_ENTRIES = 108
 
 # ★ 可复现打包（2026-09-26 用户侧建议）：统一 zip 条目时间戳 = 2026-01-01T00:00:00Z。
 #   之前取文件 mtime，导致「内容没变、重建却换 sha」（上传期两次被迫冻结重建：

@@ -911,11 +911,13 @@ check("★ 价格本地过滤：无价格条件不误杀",
 
 
 # ---------------------------------------------------------------------------
-# ⑬ 家族判定主干名相等 + 词条参数逗号 AND + require_negative（2026-10-01 追加批）
+# ⑬ 家族判定（2026-10-02 起 = DE 官方 parentName 谱系）+ 词条参数逗号 AND
+#    + require_negative（2026-10-01 追加批）
+#    ⚠ 判据已从「主干名相等」再换为「官方谱系」（Dex 盗贼双枪 报障）：见 §⑭。
 # ---------------------------------------------------------------------------
 from core.api_client import WarframeClient as _WC     # noqa: E402
 
-# A: _family_match 主干名相等（8 条验收）
+# A: _family_match 家族判定（8 条验收；换判据后结果保持不变）
 _fm = _WC._family_match
 for _bz, _be, _z, _e, _want, _label in [
     ("盗贼", "furis", "盗贼双枪 Prime", "Afuris Prime", False, "同前缀不同武器"),
@@ -927,8 +929,73 @@ for _bz, _be, _z, _e, _want, _label in [
     ("布莱顿", "braton", "MK1-布莱顿", "mk1-braton", True, "MK1 算变体"),
     ("欧玛", "ohma", "棱晶·欧玛", "prisma ohma", True, "棱晶·欧玛"),
 ]:
-    check(f"★ 家族主干名相等：{_label}", _fm(_bz, _be, _z, _e) is _want,
+    check(f"★ 家族判定（官方谱系）：{_label}", _fm(_bz, _be, _z, _e) is _want,
           f"{_bz}/{_z} -> {_fm(_bz, _be, _z, _e)}（期望 {_want}）")
+
+# ---------------------------------------------------------------------------
+# ⑭ 家族判定改用 DE 官方 parentName 谱系（2026-10-02 玩家报障）
+#    症状：`紫卡倾向 盗贼` 多列 `Dex 盗贼双枪`（官方 data 里 Dex Furis 的
+#    parentName 指向 **Afuris**，旧「中文主干相等 或 英文主干相等」双分支
+#    把它同时并进了 Furis 族）。数据件 core/data/de/riven_families.json。
+# ---------------------------------------------------------------------------
+import json as _json2                                    # noqa: E402
+from core import matching as _M2                         # noqa: E402
+
+
+def _W(en: str, zh: str, disp: float = 1.0) -> dict:
+    return {"en": en, "zh": zh, "url_name": en.lower().replace(" ", "_"),
+            "disposition": disp}
+
+
+_AFURIS_POOL = [
+    _W("Afuris", "盗贼双枪", 1.45), _W("Afuris Prime", "盗贼双枪 Prime", 1.10),
+    _W("Dex Furis", "Dex 盗贼双枪", 1.39), _W("Furis", "盗贼", 1.35),
+    _W("MK1-Furis", "MK1-盗贼", 1.40),
+]
+_fam = _M2.family_of(_AFURIS_POOL[0], _AFURIS_POOL)
+check("★ Afuris 族 ≡ {盗贼双枪, 盗贼双枪 Prime, Dex 盗贼双枪}",
+      {e["zh"] for e in _fam} == {"盗贼双枪", "盗贼双枪 Prime", "Dex 盗贼双枪"},
+      str([e["zh"] for e in _fam]))
+_fam = _M2.family_of(_AFURIS_POOL[3], _AFURIS_POOL)
+check("★ Furis 族 ≡ {盗贼, MK1-盗贼}（Dex 盗贼双枪 不再误入）",
+      {e["zh"] for e in _fam} == {"盗贼", "MK1-盗贼"},
+      str([e["zh"] for e in _fam]))
+check("★ _family_match：Dex Furis 属 Afuris 族、不属 Furis 族",
+      _fm("盗贼双枪", "Afuris", "Dex 盗贼双枪", "Dex Furis") is True
+      and _fm("盗贼", "Furis", "Dex 盗贼双枪", "Dex Furis") is False)
+
+_HEK_POOL = [_W("Hek", "海克"), _W("Kuva Hek", "赤毒·海克"),
+             _W("Vaykor Hek", "勇气·海克")]
+check("★ Hek 族含 Kuva/Vaykor Hek（人工补丁族：DE 未设 parentName）",
+      {e["en"] for e in _M2.family_of(_HEK_POOL[0], _HEK_POOL)}
+      == {"Hek", "Kuva Hek", "Vaykor Hek"})
+_DD_POOL = [_W("Dark Dagger", "暗黑匕首"), _W("Rakta Dark Dagger", "绯红·暗黑匕首")]
+check("★ Dark Dagger 族含 Rakta Dark Dagger（人工补丁族）",
+      {e["en"] for e in _M2.family_of(_DD_POOL[0], _DD_POOL)}
+      == {"Dark Dagger", "Rakta Dark Dagger"})
+_LAC_POOL = [_W("Lacera", "悲痛之刃"), _W("Ceti Lacera", "天仓·悲痛之刃")]
+check("★ Lacera 族含 Ceti Lacera（漏列修复：ceti 不是变体词）",
+      {e["en"] for e in _M2.family_of(_LAC_POOL[0], _LAC_POOL)}
+      == {"Lacera", "Ceti Lacera"})
+check("★ 边界：Dakra Prime ≠ Dex Dakra（官方各成根，不许并）",
+      _M2.family_key("Dakra Prime") != _M2.family_key("Dex Dakra"))
+check("★ 边界：Bronco ≠ Akbronco",
+      _M2.family_key("Bronco") != _M2.family_key("Akbronco"))
+check("★ 英文为空 ⇒ 不入家族（宁可少列）",
+      _M2.family_key("") == "" and _fm("", "", "棱晶·欧玛", "Prisma Ohma") is False)
+
+_FAMS = _json2.loads((ROOT / "core" / "data" / "de" / "riven_families.json")
+                     .read_text(encoding="utf-8"))
+_multi = sum(1 for v in _FAMS["families"].values() if len(v) > 1)
+check("★ 数据守卫：多成员族 == 190（官方表换版时本测试会提示复核）",
+      _multi == 190, str(_multi))
+check("★ 数据守卫：AkimboAutoPistols 恰为 3 件（本次报障族）",
+      sorted(_FAMS["families"].get("AkimboAutoPistols", []))
+      == ["Afuris", "Afuris Prime", "Dex Furis"],
+      str(_FAMS["families"].get("AkimboAutoPistols")))
+check("★ 补丁守卫：人工补丁只含 Hek / DarkDagger 两族（红线：不许再加别名）",
+      sorted(set(_FAMS["_patches"]["entries"].values())) == ["DarkDagger", "Hek"],
+      str(sorted(set(_FAMS["_patches"]["entries"].values()))))
 
 # B: 词条参数必须是逗号（AND），不是 list（OR 触顶 500）
 

@@ -1,0 +1,1632 @@
+{
+ "_source": "calamity-inc/warframe-public-export-plus @ExportWeapons.json (DE 官方导出)",
+ "_rule": "家族 = 沿 parentName 上溯，仅在 parent 本身「可上紫卡」(有 omegaAttenuation) 时继续；否则自身为根",
+ "_generated_at": "2026-10-02",
+ "_counts": {
+  "weapons": 819,
+  "families": 600,
+  "multi_member": 190
+ },
+ "_patches": {
+  "reason": "DE 未给这两族设 parentName（Kuva/集团变体各自成根），按同基础武器人工归并",
+  "entries": {
+   "Hek": "Hek",
+   "Kuva Hek": "Hek",
+   "Vaykor Hek": "Hek",
+   "Dark Dagger": "DarkDagger",
+   "Rakta Dark Dagger": "DarkDagger"
+  }
+ },
+ "by_name": {
+  "ADRA MUTAGEN": "InfestedCritterMutagenA",
+  "ARIOLI MUTAGEN": "InfestedPredatorMutagenC",
+  "AX-52": "TC2024AK47Weapon",
+  "Acceltra": "SapientPrimaryWeapon",
+  "Acceltra Prime": "SapientPrimaryWeapon",
+  "Ack & Brunt": "RegorAxeShield",
+  "Acrid": "AcidDartPistol",
+  "Adlet Core": "ZanukaPetPartBodyA",
+  "Aegrit": "GrnVorStickyBomb",
+  "Aegron Gyro": "MoaPetPayloadAegron",
+  "Aeolak": "TnRifleErsatzWeapon",
+  "Afentis": "TnHopliteSpearGunWeapon",
+  "Afentis Prime": "TnHopliteSpearGunWeapon",
+  "Afuris": "AkimboAutoPistols",
+  "Afuris Prime": "AkimboAutoPistols",
+  "Akarius": "SapientPistol",
+  "Akarius Prime": "SapientPistol",
+  "Akaten": "ZanukaPetMeleeWeaponPS",
+  "Akbolto": "AkimboBolto",
+  "Akbolto Prime": "AkimboBolto",
+  "Akbronco": "AkimboShotGun",
+  "Akbronco Prime": "AkimboShotGun",
+  "Akjagara": "TnoBladedPistols",
+  "Akjagara Prime": "TnoBladedPistols",
+  "Aklato": "AkimboPistol",
+  "Aklex": "AkLexPistols",
+  "Aklex Prime": "AkLexPistols",
+  "Akmagnus": "DualMagnus",
+  "Akmagnus Prime": "DualMagnus",
+  "Aksomati": "AkimboSomaPistols",
+  "Aksomati Prime": "AkimboSomaPistols",
+  "Akstiletto": "TennoUzi",
+  "Akstiletto Prime": "TennoUzi",
+  "Akvasto": "DualVastos",
+  "Akvasto Prime": "DualVastos",
+  "Akzani": "HarlequinPistols",
+  "Alcrom Core": "MoaPetEngineArcotek",
+  "Alternox": "GyreRifleWeapon",
+  "Alternox Prime": "GyreRifleWeapon",
+  "Amanata": "ShrineMaidenNaginataWeapon",
+  "Ambassador": "CrpArSniperRifle",
+  "Amphis": "GrnStaff",
+  "Amprex": "ChainLightningRifle",
+  "Angstrum": "CorpusHandRocketLauncher",
+  "Anku": "ParisScythe",
+  "Ankyros": "Gauntlet",
+  "Ankyros Prime": "Gauntlet",
+  "Anspatha Brace": "SentAmpSet2GripPartA",
+  "Arbucep": "NokkoArchGun",
+  "Arc Twelve": "HoverboardCorpusAEngine",
+  "Arca Plasmor": "CrpShotgun",
+  "Arca Scisco": "CrpScopeGun",
+  "Arca Titron": "CorpusHammerWeapon",
+  "Arcroid": "InfModularClipSmallCritStatPart",
+  "Argo & Vel": "DaxDuviriMaceShieldPlayerWeapon",
+  "Argonak": "LaserAimRifle",
+  "Arquebex": "ExaltedArtilleryWeapon",
+  "Artax": "Gremlin",
+  "Artemis Bow": "ExaltedBow",
+  "Artemis Bow Prime": "PrimeExaltedBow",
+  "Arum Spinosa": "InfWarfanWeapon",
+  "Astilla": "TnGlassShotgunGun",
+  "Astilla Prime": "TnGlassShotgunGun",
+  "Atheca Gyro": "MoaPetPayloadThermocor",
+  "Athodai": "TnJetTurbinePistolWeapon",
+  "Athodai Prime": "TnJetTurbinePistolWeapon",
+  "Atomos": "GrnHeatGun",
+  "Atterax": "GrineerWhip",
+  "Attica": "TnoPrmryXbowWeapon",
+  "Azima": "SundialPistol",
+  "Azothane": "DaxDuviriTwoHandedKatanaWeapon",
+  "Bad Baby": "HoverboardSolarisADeck",
+  "Balefire Charger": "BlastWeapon",
+  "Balefire Charger Prime": "BlastWeaponPrime",
+  "Balla": "TipOne",
+  "Ballistica": "AutoCrossBow",
+  "Ballistica Prime": "AutoCrossBow",
+  "Bashrack": "SUModularCritICapIClipPart",
+  "Basmu": "SentRifleNewWarGun",
+  "Batoten": "ZanukaPetMeleeWeaponIP",
+  "Battacor": "CrpSentExperimentRifle",
+  "Baza": "TnSMGWeapon",
+  "Baza Prime": "TnSMGWeapon",
+  "Beaky": "HoverboardSolarisAFront",
+  "Bellows": "SUModularCapIIClipPart",
+  "Bhaira Hound": "ZanukaPetPartHeadB",
+  "Bo": "Staff",
+  "Bo Prime": "Staff",
+  "Boar": "FullAutoShotgun",
+  "Boar Prime": "FullAutoShotgun",
+  "Boltace": "Boltonfa",
+  "Bolto": "CrossBow",
+  "Boltor": "BoltoRifle",
+  "Boltor Prime": "BoltoRifle",
+  "Brakk": "GrineerHandCannon",
+  "Brash": "SUModularPrimaryHandleAPart",
+  "Braton": "Rifle",
+  "Braton Prime": "Rifle",
+  "Braton Vandal": "Rifle",
+  "Broken Scepter": "GrnQueenSceptreWeapon",
+  "Broken War": "StalkerTwoSmallSword",
+  "Bronco": "HandShotGun",
+  "Bronco Prime": "HandShotGun",
+  "Bubonico": "InfArmCannon",
+  "Burst Laser": "BurstLaserPistol",
+  "Burst Laser Prime": "BurstLaserPistol",
+  "Burston": "BurstRifle",
+  "Burston Prime": "BurstRifle",
+  "Buzlok": "GrnGorgSniperRifle",
+  "CHITEN MUTAGEN": "InfestedPredatorMutagenB",
+  "Cadus": "SingleStaff",
+  "Cantare": "TnChoirframeKunai",
+  "Cantic Prism": "CorpAmpSet1BarrelPartA",
+  "Carmine Penta": "GrenadeLauncher",
+  "Cassowar": "TnHalberdPolearmWeapon",
+  "Castanas": "StickyBombs",
+  "Catabolyst": "InfBeamPistol",
+  "Catchmoon": "SUModularSecondaryBarrelAPart",
+  "Caustacyst": "InfestedScythe",
+  "Cedo": "TnAlchemistShotgun",
+  "Cedo Prime": "TnAlchemistShotgun",
+  "Cela Bracket": "ZanukaPetPartLegsA",
+  "Ceramic Dagger": "CeramicDagger",
+  "Cerata": "PunctureGlaiveWeapon",
+  "Cernos": "AntlerBow",
+  "Cernos Prime": "AntlerBow",
+  "Certus Brace": "CorpAmpSet1GripPartC",
+  "Cestra": "CorpusMinigun",
+  "Ceti Lacera": "StalkerMios",
+  "Cinta": "DaxDuviriAsymmetricalLongBowPlayerWeapon",
+  "Clapkra Brace": "SentAmpSet1GripPartA",
+  "Cobra & Crane": "PacifistShieldSword",
+  "Cobra & Crane Prime": "PacifistShieldSword",
+  "Coda Bassocyst": "1999InfShotgunWeapon",
+  "Coda Bubonico": "InfArmCannon",
+  "Coda Catabolyst": "InfBeamPistol",
+  "Coda Caustacyst": "InfestedScythe",
+  "Coda Hema": "InfestedBurstRifle",
+  "Coda Hirudo": "InfestedKogake",
+  "Coda Mire": "MireSword",
+  "Coda Motovore": "InfLichHammerWeapon",
+  "Coda Pathocyst": "InfBoomerangWeapon",
+  "Coda Pox": "InfProximityStars",
+  "Coda Sporothrix": "InfSniperRifle",
+  "Coda Synapse": "InfestedRifle",
+  "Coda Tysis": "InfestedDartPistol",
+  "Coldfusor": "HoverboardSolarisAEngine",
+  "Convectrix": "CrpSplitLaser",
+  "Corinth": "TnHeavyShotgunGun",
+  "Corinth Prime": "TnHeavyShotgunGun",
+  "Cortege": "ThanoTechArchGun",
+  "Corufell": "ExaltedAWScytheWeapon",
+  "Corvas": "ArchCannon",
+  "Corvas Prime": "ArchCannon",
+  "Crescent Vulpaphyla": "WoundedInfestedCritterUncommonRewardItem",
+  "Cronus": "CronusLongSword",
+  "Cryotra": "CryoxionWeapon",
+  "Cyanex": "CrpSentAmalgPistol",
+  "Cyath": "TipFour",
+  "Cycron": "CrpChargeGun",
+  "Cyngas": "ArchBurstGun",
+  "DESUS ANTIGEN": "InfestedCritterAntigenB",
+  "Daikyu": "AsymetricalBow",
+  "Daikyu Prime": "AsymetricalBow",
+  "Dakra Prime": "PrimeCronusLongSword",
+  "Dark Dagger": "DarkDagger",
+  "Dark Split-Sword": "DarkSwordDaggerHybridWeapon",
+  "Dark Sword": "DarkLongSword",
+  "Deconstructor": "SentGlaiveWeapon",
+  "Deconstructor Prime": "SentGlaiveWeapon",
+  "Deepbreath": "SUModularCapIClipPart",
+  "Dehtat": "TipFive",
+  "Dera": "EnergyRifle",
+  "Dera Vandal": "EnergyRifle",
+  "Desert Wind": "PacifistFist",
+  "Desert Wind Prime": "PacifistFist",
+  "Despair": "StalkerKunai",
+  "Destreza": "TnoRapier",
+  "Destreza Prime": "TnoRapier",
+  "Deth Machine Rifle": "DethMachineRifle",
+  "Deth Machine Rifle Prime": "DethMachineRifle",
+  "Detron": "CorpusHandCannon",
+  "Dex Dakra": "DexTheSecond",
+  "Dex Furis": "AkimboAutoPistols",
+  "Dex Nikana": "Katana",
+  "Dex Pixia": "FlightPistols",
+  "Dex Pixia Prime": "PrimeFlightPistols",
+  "Dex Sybaris": "TnoLeverActionRifle",
+  "Dink-A-Donk": "HoverboardCorpusBFront",
+  "Dissic Scaffold": "CorpAmpSet1ChassisPartB",
+  "Diwata": "FlightSword",
+  "Diwata Prime": "PrimeFlightSword",
+  "Dokrahm": "TipEleven",
+  "Dorma Hound": "ZanukaPetPartHeadA",
+  "Dorrclave": "TnDagathBladeWhip",
+  "Dragon Nikana": "LowKatana",
+  "Drakgoon": "FlakCannon",
+  "Dread": "StalkerBow",
+  "Drex Core": "MoaPetEngineThricore",
+  "Drimper Bracket": "MoaPetLegA",
+  "Dual Cestra": "DualCorpusMinigun",
+  "Dual Cleavers": "DualCleaverWeapon",
+  "Dual Coda Torxica": "1999InfSporePistolWeapon",
+  "Dual Decurion": "ArchHeavyPistols",
+  "Dual Ether": "DualEtherSword",
+  "Dual Heat Swords": "DualHeatSwords",
+  "Dual Ichor": "DualInfestedAxesWeapon",
+  "Dual Kamas": "DualKamas",
+  "Dual Kamas Prime": "DualKamas",
+  "Dual Keres": "QuillDualSwords",
+  "Dual Keres Prime": "QuillDualSwords",
+  "Dual Raza": "SomaDualKamas",
+  "Dual Skana": "DualShortSword",
+  "Dual Toxocyst": "InfVomitGunWep",
+  "Dual Viciss": "LasGooSicklePlayerWeapon",
+  "Dual Zoren": "DualAxeWeapon",
+  "Dual Zoren Prime": "DualAxeWeapon",
+  "EFV-5 Jupiter": "LasGooAKPlayerWeapon",
+  "EFV-8 Mars": "LasGooPistolPlayerWeapon",
+  "ELASMUN ANTIGEN": "InfestedPredatorAntigenA",
+  "ELSA MUTAGEN": "InfestedCritterMutagenB",
+  "Edun": "DaxDuviriPolearmWeapon",
+  "Ekhein": "EntSphereHammer",
+  "Ekwana II Jai": "BalanceSpeedIStatusII",
+  "Ekwana II Ruhang": "BalanceDamageIStatusII",
+  "Ekwana Jai": "BalanceSpeedIStatusI",
+  "Ekwana Jai II": "BalanceSpeedIIStatusI",
+  "Ekwana Ruhang": "BalanceDamageIStatusI",
+  "Ekwana Ruhang II": "BalanceDamageIIStatusI",
+  "Embolist": "InfestedPistol",
+  "Endura": "ThreeLeaf",
+  "Enkaus": "TnInkRifleWeapon",
+  "Epitaph": "TnWraitheSidearmWeapon",
+  "Epitaph Prime": "TnWraitheSidearmWeapon",
+  "Ether Daggers": "DualEtherDagger",
+  "Ether Reaper": "EtherScytheWeapon",
+  "Ether Sword": "EtherSword",
+  "Euphona Prime": "AllNew1hSG",
+  "Evensong": "TnChoirBow",
+  "Exalted Blade": "DoomSword",
+  "Exalted Prime Blade": "DoomSword",
+  "Exalted Umbra Blade": "DoomSword",
+  "Exard Scaffold": "CorpAmpSet1ChassisPartA",
+  "Exergis": "CrpShapeBlastShotgun",
+  "Falcor": "CrpGlaive",
+  "Fang": "DualDagger",
+  "Fang Prime": "DualDagger",
+  "Fatboys": "HoverboardCorpusBJet",
+  "Felarx": "ZarimanPumpShotgun",
+  "Ferrox": "CorpusRailgun",
+  "Feverspine": "HoverboardInfestedBDeck",
+  "Flatbelly": "HoverboardCorpusADeck",
+  "Fluctus": "ArchRocketCrossbow",
+  "Flutterfire": "SUModularStatIIReloadIClipPart",
+  "Flux Rifle": "CrpLaserRifle",
+  "Fragor": "HammerWeapon",
+  "Fragor Prime": "HammerWeapon",
+  "Frak Stabilizer": "ZanukaPetPartTailC",
+  "Fulmin": "TnWispRifle",
+  "Fulmin Prime": "TnWispRifle",
+  "Furax": "Fist",
+  "Furax Wraith": "Fist",
+  "Furis": "AutoPistol",
+  "Fusilai": "GlassKunaiWeapon",
+  "Galariak Prime": "GrnDrillScythe",
+  "Galatine": "TennoGreatSword",
+  "Galatine Prime": "TennoGreatSword",
+  "Galvacord": "CrpShockGripWhipWeapon",
+  "Gammacor": "CSDroidArray",
+  "Garmr Core": "ZanukaPetPartBodyB",
+  "Garuda Prime Talons": "GarudaPrimeClaws",
+  "Garuda Talons": "GarudaClaws",
+  "Gauth Bracket": "MoaPetLegD",
+  "Gazal Machete": "DjinnMachete",
+  "Gaze": "SUModularSecondaryBarrelDPart",
+  "Ghoulsaw": "GrnGhoulSawPlayer",
+  "Gibber": "SUModularSecondaryHandleDPart",
+  "Glaive": "LightGlaiveWeapon",
+  "Glaive Prime": "LightGlaiveWeapon",
+  "Glaxion": "CrpFreezeRayRifle",
+  "Glaxion Vandal": "CrpFreezeRayRifle",
+  "Glory": "ChoirEruptWeapon",
+  "Gorgon": "HeavyRifle",
+  "Gorgon Wraith": "HeavyRifle",
+  "Gotva Prime": "GrnOrokinRifleWeapon",
+  "Grakata": "GrnAssaultRifle",
+  "Gram": "GreatSword",
+  "Gram Prime": "GreatSword",
+  "Granmu Prism": "SentAmpSet1BarrelPartC",
+  "Grattler": "ArchGRNAAGun",
+  "Grimoire": "TnGrimoire",
+  "Grinlok": "GLARifle",
+  "Gristlebuck": "HoverboardInfestedBEngine",
+  "Guandao": "TnGuandaoPolearmWeapon",
+  "Guandao Prime": "TnGuandaoPolearmWeapon",
+  "Gunsen": "WarfanWeapon",
+  "Gunsen Prime": "WarfanWeapon",
+  "Haalvu": "SentOctaMiniGun",
+  "Halikar": "GrnBoomerang",
+  "Halikar Wraith": "GrnBoomerang",
+  "Harmony": "TnChoirScythe",
+  "Harpak": "GrnHarpoonGun",
+  "Harpen Gyro": "MoaPetPayloadDarta",
+  "Hate": "StalkerScytheWeapon",
+  "Haymaker": "SUModularSecondaryHandleCPart",
+  "Heat Dagger": "Dagger",
+  "Heat Sword": "HeatLongSword",
+  "Hec Hound": "ZanukaPetPartHeadC",
+  "Hek": "Hek",
+  "Heliocor": "CephHammerWeapon",
+  "Helstrum": "SwarmerWeapon",
+  "Hema": "InfestedBurstRifle",
+  "Hespar": "DuviriHeavyScytheWeapon",
+  "Hextra Gyro": "MoaPetPayloadHextra",
+  "Higasa": "ShrineMaidenGunbrellaWeapon",
+  "Highbrow": "HoverboardCorpusCEngine",
+  "Hikou": "TennoStars",
+  "Hikou Prime": "TennoStars",
+  "Hind": "GrnBurstRifle",
+  "Hinta Stabilizer": "ZanukaPetPartTailB",
+  "Hirudo": "InfestedKogake",
+  "Hona Bracket": "MoaPetLegMelee",
+  "Hothead": "HoverboardCorpusBEngine",
+  "Hystrix": "QuillDartGunWeapon",
+  "Hystrix Prime": "QuillDartGunWeapon",
+  "IBEXAN ANTIGEN": "InfestedPredatorAntigenC",
+  "IRANON ANTIGEN": "InfestedPredatorAntigenB",
+  "Ignis": "FlameThrower",
+  "Ignis Wraith": "FlameThrower",
+  "Imperator": "ArchMachineGun",
+  "Imperator Vandal": "ArchMachineGun",
+  "Innodem": "ZarimanDaggerWeapon",
+  "Iron Staff": "MonkeyKingStaff",
+  "Iron Staff Prime": "WukongPrimeStaff",
+  "Ironbride": "NechroTechSwordWeapon",
+  "Jai": "BalanceSpeedI",
+  "Jai II": "BalanceSpeedII",
+  "Jat Kittag": "GrineerJetPolearm",
+  "Jat Kusar": "GrnKusarigamaWeapon",
+  "Javlok": "GrnFlameSpear",
+  "Jaw Sword": "JawLongSword",
+  "Jayap": "HandleFive",
+  "Jonsin Bracket": "MoaPetLegC",
+  "Juttni Brace": "SentAmpSet1GripPartB",
+  "Kama": "SingleKama",
+  "Karak": "GrineerM16Rifle",
+  "Karak Wraith": "GrineerM16Rifle",
+  "Karyst": "KrisDagger",
+  "Karyst Prime": "KrisDagger",
+  "Keratinos": "InfTransformClawsWeapon",
+  "Kesheg": "GrnHalberd",
+  "Kestrel": "BoomerangWeapon",
+  "Kestrel Prime": "BoomerangWeapon",
+  "Killstream": "SUModularCritIIReloadIClipPart",
+  "Klamora Prism": "CorpAmpSet1BarrelPartC",
+  "Klebrik Scaffold": "SentAmpSet1ChassisPartC",
+  "Knell": "TnPriestPistolWeapon",
+  "Knell Prime": "TnPriestPistolWeapon",
+  "Kogake": "BrassKnuckles",
+  "Kogake Prime": "BrassKnuckles",
+  "Kohm": "GrnSparkRifle",
+  "Kohmak": "GrnKohmPistol",
+  "Komorex": "CrpSentAmlgSniper",
+  "Kompressa": "TnYareliPistolWeapon",
+  "Kompressa Prime": "TnYareliPistolWeapon",
+  "Korb": "HandleNine",
+  "Korrudo": "GrnSpiderSparring",
+  "Korumm": "ArchonTridentPlayerWep",
+  "Kraken": "GrnHeavyPistol",
+  "Kreska": "CrpVenusHatchet",
+  "Krisys Core": "MoaPetEngineKrisys",
+  "Krohkur": "GrnEgyptSwdWeapon",
+  "Kronen": "TennoTonfa",
+  "Kronen Prime": "TennoTonfa",
+  "Kronsh": "TipSix",
+  "Kroostra": "HandleSix",
+  "Kulstar": "GrnTorpedoPistol",
+  "Kunai": "Kunai",
+  "Kuva Ayanga": "GrnHeavyGrenadeLauncher",
+  "Kuva Brakk": "GrineerHandCannon",
+  "Kuva Bramma": "GrnBowWeapon",
+  "Kuva Chakkhurr": "GrnKuvaLichRifleWeapon",
+  "Kuva Drakgoon": "FlakCannon",
+  "Kuva Ghoulsaw": "GrnGhoulSawPlayer",
+  "Kuva Grattler": "ArchGRNAAGun",
+  "Kuva Hek": "Hek",
+  "Kuva Hind": "GrnBurstRifle",
+  "Kuva Karak": "GrineerM16Rifle",
+  "Kuva Kohm": "GrnSparkRifle",
+  "Kuva Kraken": "GrnHeavyPistol",
+  "Kuva Nukor": "GrnMicrowavePistol",
+  "Kuva Ogris": "RocketLauncher",
+  "Kuva Quartakk": "GrnFourBarrelRifleWeapon",
+  "Kuva Seer": "GrnScopedPistolPlayer",
+  "Kuva Shildeg": "GrnKuvaLichScytheWeapon",
+  "Kuva Sobek": "DoubleBarrelShotgun",
+  "Kuva Tonkor": "GrnGrenadeLauncher",
+  "Kuva Twin Stubbas": "KuvaStubba",
+  "Kuva Zarr": "GrnCannonWeapon",
+  "Kwath": "HandleThree",
+  "LEPTOSAM MUTAGEN": "InfestedPredatorMutagenA",
+  "Lacera": "StalkerMios",
+  "Lacerten": "ZanukaPetMeleeWeaponIS",
+  "Laetum": "ZarimanHeavyPistol",
+  "Laka": "HandleTwo",
+  "Lambeo Moa": "MoaPetHeadLambeo",
+  "Landslide Fists": "AtlasPunchWeapon",
+  "Landslide Fists Prime": "AtlasPunchWeapon",
+  "Lanka": "Railgun",
+  "Larkspur": "TnShieldFrameArchGun",
+  "Larkspur Prime": "TnShieldFrameArchGun",
+  "Laser Rifle": "LaserRifle",
+  "Lato": "Pistol",
+  "Lato Prime": "Pistol",
+  "Lato Vandal": "Pistol",
+  "Latron": "SemiAutoRifle",
+  "Latron Prime": "SemiAutoRifle",
+  "Latron Wraith": "SemiAutoRifle",
+  "Lecta": "CorpusWhipWeapon",
+  "Lega Prism": "CorpAmpSet1BarrelPartB",
+  "Lehan Core": "MeleeMoaPetEngine",
+  "Lenz": "CrpBow",
+  "Lesion": "InfTipedoStaff",
+  "Lex": "HeavyPistol",
+  "Lex Prime": "HeavyPistol",
+  "Lohrin Brace": "SentAmpSet1GripPartC",
+  "Lovetap": "SUModularSecondaryHandleBPart",
+  "MK1-Bo": "Staff",
+  "MK1-Braton": "Rifle",
+  "MK1-Furax": "Fist",
+  "MK1-Furis": "AutoPistol",
+  "MK1-Kunai": "Kunai",
+  "MK1-Paris": "HuntingBow",
+  "MK1-Strun": "Shotgun",
+  "MONACHOD MUTAGEN": "InfestedPredatorMutagenD",
+  "Machete": "Machete",
+  "Machete Wraith": "Machete",
+  "Macro Arcroid": "InfModularClipBigPart",
+  "Macro Thymoid": "InfModularClipBigCritStatPart",
+  "Magistar": "PaladinMaceWeapon",
+  "Magnus": "Magnum",
+  "Magnus Prime": "Magnum",
+  "Mandonel": "TnConcreteArchgunWeapon",
+  "Mara Detron": "CorpusHandCannon",
+  "Marelok": "GLAPistol",
+  "Masseter": "TnChiselKanabo",
+  "Masseter Prime": "TnChiselKanabo",
+  "Mausolon": "ThanoTechLongGun",
+  "Medjay Predasite": "WoundedInfestedPredatorRareRewardItem",
+  "Mewan": "TipThree",
+  "Mios": "Mios",
+  "Mire": "MireSword",
+  "Miter": "SawBladeGun",
+  "Morgha": "ThanoTechGrenadeLauncher",
+  "Mote Brace": "SentAmpTrainingGrip",
+  "Mote Prism": "SentAmpTrainingBarrel",
+  "Mote Scaffold": "SentAmpTrainingChassis",
+  "Multron": "HextraWeapon",
+  "Munit Gyro": "MoaPetPayloadMunitron",
+  "Mutalist Cernos": "InfCernos",
+  "Mutalist Quanta": "InfCrpShockSwarmRifle",
+  "Nagantaka": "GarudaCrossbow",
+  "Nagantaka Prime": "GarudaCrossbow",
+  "Nami Skyla": "CutlassPoignardSwords",
+  "Nami Skyla Prime": "CutlassPoignardSwords",
+  "Nami Solo": "TennoCutlass",
+  "Nataruk": "OmicrusPlayerWep",
+  "Needlenose": "HoverboardCorpusBDeck",
+  "Nepheri": "ArchonDualDaggersPlayerWep",
+  "Neutralizer": "ExaltedSniper",
+  "Nikana": "Katana",
+  "Nikana Prime": "Katana",
+  "Ninkondi": "Nunchaku",
+  "Ninkondi Prime": "Nunchaku",
+  "Noctua": "ExaltedBook",
+  "Nodulite": "HoverboardInfestedBFront",
+  "Nukor": "GrnMicrowavePistol",
+  "Nychus Moa": "MoaPetHeadMelee",
+  "Obex": "KickPunchWeapon",
+  "Ocucor": "CrpSentExperimentPistol",
+  "Ogris": "RocketLauncher",
+  "Ohma": "CrpTonfa",
+  "Okina": "TennoSais",
+  "Okina Prime": "TennoSais",
+  "Oloro Moa": "MoaPetHeadOloro",
+  "Onos": "EntratiWristGunWeapon",
+  "Ooltha": "TipTwo",
+  "Opticor": "CrpBFG",
+  "Opticor Vandal": "CrpBFG",
+  "Orthos": "PolearmWeapon",
+  "Orthos Prime": "PolearmWeapon",
+  "Orvius": "TnTeshinGlaiveWep",
+  "PHIJAR MUTAGEN": "InfestedCritterMutagenD",
+  "PLAGEN ANTIGEN": "InfestedCritterAntigenC",
+  "POXI ANTIGEN": "InfestedCritterAntigenD",
+  "Palmaris": "InfModularPrimaryHandlePart",
+  "Pandero": "TnBardPistolGun",
+  "Pandero Prime": "TnBardPistolGun",
+  "Pangolin Prime": "PangolinLongSword",
+  "Pangolin Sword": "PangolinLongSword",
+  "Panthera": "TnoMiter",
+  "Panthera Prime": "TnoMiter",
+  "Panzer Vulpaphyla": "WoundedInfestedCritterRareRewardItem",
+  "Para Moa": "MoaPetHeadPara",
+  "Paracesis": "BallasSwordWeapon",
+  "Paracyst": "InfQuantaRifle",
+  "Paris": "HuntingBow",
+  "Paris Prime": "HuntingBow",
+  "Pathocyst": "InfBoomerangWeapon",
+  "Pencha Scaffold": "SentAmpSet1ChassisPartA",
+  "Pennant": "TnRailJackGreatKatanaWeapon",
+  "Penta": "GrenadeLauncher",
+  "Perigale": "TnQuadSniper",
+  "Perigale Prime": "TnQuadSniper",
+  "Peye": "HandleOne",
+  "Phaedra": "ArchLongRifle",
+  "Phage": "InfestedShotgun",
+  "Phahd Scaffold": "SentAmpSet2ChassisPartA",
+  "Phantasma": "RevenantShotgun",
+  "Phantasma Prime": "RevenantShotgun",
+  "Pharaoh Predasite": "WoundedInfestedPredatorUncommonRewardItem",
+  "Phazor Gyro": "MoaPetPayloadTazron",
+  "Phenmor": "ZarimanSemiAutoRifle",
+  "Plaga Brace": "CorpAmpSet1GripPartB",
+  "Plague Akwin": "InfestedHandleOne",
+  "Plague Bokwin": "InfestedHandleTwo",
+  "Plague Keewar": "InfestedTipTwo",
+  "Plague Kripath": "InfestedTipOne",
+  "Plasma Sword": "PlasmaLongSword",
+  "Plinx": "CrpBlastorWeapon",
+  "Pox": "InfProximityStars",
+  "Praedos": "ZarimanTonfaWeapon",
+  "Pride": "TnSiriusScytheWeapon",
+  "Prime Laser Rifle": "LaserRifle",
+  "Prisma Angstrum": "CorpusHandRocketLauncher",
+  "Prisma Burst Laser": "BurstLaserPistol",
+  "Prisma Dual Cleavers": "DualCleaverWeapon",
+  "Prisma Dual Decurions": "ArchHeavyPistols",
+  "Prisma Gorgon": "HeavyRifle",
+  "Prisma Grakata": "GrnAssaultRifle",
+  "Prisma Grinlok": "GLARifle",
+  "Prisma Lenz": "CrpBow",
+  "Prisma Machete": "Machete",
+  "Prisma Obex": "KickPunchWeapon",
+  "Prisma Ohma": "CrpTonfa",
+  "Prisma Skana": "LongSword",
+  "Prisma Tetra": "CorpusUMP",
+  "Prisma Twin Gremlins": "GrineerAkimboPistol",
+  "Proboscis Cernos": "DerelictCernos",
+  "Propa Scaffold": "CorpAmpSet1ChassisPartC",
+  "Prova": "ElectroProd",
+  "Prova Vandal": "ElectroProd",
+  "Pulmonars": "InfNunchuck",
+  "Pupacyst": "InfStaff",
+  "Purgator 1": "LasrianNoxPlayerWeapon",
+  "Pyrana": "TennoHandShotgun",
+  "Pyrana Prime": "TennoHandShotgun",
+  "Quanta": "CrpShockRifle",
+  "Quanta Vandal": "CrpShockRifle",
+  "Quartakk": "GrnFourBarrelRifleWeapon",
+  "Quassus": "TnBrokenFrameWarfanWeapon",
+  "Quassus Prime": "TnBrokenFrameWarfanWeapon",
+  "Quatz": "GrnAmphisPistol",
+  "Quellor": "RailjackRifleGun",
+  "Rabvee": "TipTen",
+  "Rahn Prism": "SentAmpSet2BarrelPartA",
+  "Raiju Core": "ZanukaPetPartBodyC",
+  "Rakta Ballistica": "AutoCrossBow",
+  "Rakta Cernos": "AntlerBow",
+  "Rakta Dark Dagger": "DarkDagger",
+  "Ramble": "SUModularSecondaryHandleAPart",
+  "Ramflare": "SUModularStatIICapIClipPart",
+  "Raplak Prism": "SentAmpSet1BarrelPartA",
+  "Rattleguts": "SUModularSecondaryBarrelCPart",
+  "Rauta": "PaxDuviricusShotgun",
+  "Reaper Prime": "ReaperWeapon",
+  "Reconifex": "TnBeltFedRifleWeapon",
+  "Redeemer": "TnoGunblade",
+  "Redeemer Prime": "TnoGunblade",
+  "Regulators": "SlingerPistols",
+  "Regulators Prime": "PrimeSlingerPistols",
+  "Riot-848": "1999EntHybridPistolWeapon",
+  "Ripkas": "GrnClaws",
+  "Rubico": "FiveShotSniper",
+  "Rubico Prime": "FiveShotSniper",
+  "Ruhang": "BalanceDamageI",
+  "Ruhang II": "BalanceDamageII",
+  "Rumblejack": "DrifterTazerPlayerWep",
+  "Runway": "HoverboardCorpusCDeck",
+  "Ruvox": "EntFistIncarnon",
+  "Sagek Prime": "GrnOrokinPistol",
+  "Sampotes": "DaxDuviriHammerPlayerWeapon",
+  "Sancti Castanas": "StickyBombs",
+  "Sancti Magistar": "PaladinMaceWeapon",
+  "Sancti Tigris": "TennoDoubleBarrelShotgun",
+  "Sarofang": "WolfFrameAxeWeapon",
+  "Sarofang Prime": "WolfFrameAxeWeapon",
+  "Sarpa": "TnoGunbladeAutomatic",
+  "Scindo": "AxeWeapon",
+  "Scindo Prime": "AxeWeapon",
+  "Scoliac": "InfestedWhipWeapon",
+  "Scourge": "TnPriestSpearGun",
+  "Scourge Prime": "TnPriestSpearGun",
+  "Scyotid": "TnOraxiaFlechette",
+  "Secura Dual Cestra": "DualCorpusMinigun",
+  "Secura Lecta": "CorpusWhipWeapon",
+  "Secura Penta": "GrenadeLauncher",
+  "Seekalla": "HandleFour",
+  "Seer": "GrnScopedPistolPlayer",
+  "Sepfahn": "TipNine",
+  "Sepulcrum": "ThanotechPistol",
+  "Serro": "CorpusPolearmWeapon",
+  "Shadow Claws": "ReaperMeleeWeapon",
+  "Shadow Claws Prime": "ReaperMeleeWeapon",
+  "Shadow Clones": "NinjaStormWeapon",
+  "Shadow Clones Prime": "NinjaStormWeapon",
+  "Shaku": "TnoNunchaku",
+  "Shattered Lash": "GaraShankWeapon",
+  "Shattered Lash Prime": "GaraShankWeapon",
+  "Shedu": "SheduHeavyWeapon",
+  "Sheev": "GrineerCombatKnife",
+  "Shraksun Scaffold": "SentAmpSet1ChassisPartB",
+  "Shrewd": "SUModularPrimaryHandleBPart",
+  "Shtung": "HandleTen",
+  "Shwaak Prism": "SentAmpSet1BarrelPartB",
+  "Sibear": "IceHammer",
+  "Sicarus": "BurstPistol",
+  "Sicarus Prime": "BurstPistol",
+  "Sigma & Octantis": "SundialBoardSword",
+  "Silva & Aegis": "TennoSwordShield",
+  "Silva & Aegis Prime": "TennoSwordShield",
+  "Simulor": "CephPrimary",
+  "Sirocco": "DrifterPistolPlayerWeapon",
+  "Skana": "LongSword",
+  "Skana Prime": "LongSword",
+  "Skiajati": "UmbraKatana",
+  "Slap": "SUModularReloadIClipPart",
+  "Slapneedle": "SUModularCritIReloadIClipPart",
+  "Slaytra": "GrnSharbolaWeapon",
+  "Sly Vulpaphyla": "WoundedInfestedCritterCommonRewardItem",
+  "Snipetron": "SniperRifle",
+  "Snipetron Vandal": "SniperRifle",
+  "Sobek": "DoubleBarrelShotgun",
+  "Soma": "TennoAR",
+  "Soma Prime": "TennoAR",
+  "Sonicor": "CrpAirPistolArray",
+  "Sparkfire": "SUModularStatICapIClipPart",
+  "Spectra": "CrpLaserPistol",
+  "Spectra Vandal": "CrpLaserPistol",
+  "Spinnerex": "SpiderWhipWeapon",
+  "Spira": "LiDagger",
+  "Spira Prime": "LiDagger",
+  "Splat": "SUModularCritIICapIClipPart",
+  "Sporelacer": "InfModularBarrelEggPart",
+  "Sporothrix": "InfSniperRifle",
+  "Stahlta": "CrpRubanRifle",
+  "Staticor": "CrpElectroMag",
+  "Steadyslam": "SUModularPrimaryHandleCPart",
+  "Steeba": "HoverboardInfestedBJet",
+  "Steflos": "TnoLotusPodShotgun",
+  "Step Tens": "HoverboardCorpusAJet",
+  "Stinger": "SentBioWeapon",
+  "Stitch": "SUModularCritICapIIClipPart",
+  "Stradavar": "TennoTommyGunRifle",
+  "Stradavar Prime": "TennoTommyGunRifle",
+  "Stropha": "CrpGunbladeWeapon",
+  "Strun": "Shotgun",
+  "Strun Prime": "Shotgun",
+  "Strun Wraith": "Shotgun",
+  "Stubba": "GrnUziWeapon",
+  "Stug": "GrineerGooGun",
+  "Sun & Moon": "DuviriDualSwordsWeapon",
+  "Suo Brace": "CorpAmpSet1GripPartA",
+  "Supra": "CrpHeavyRifle",
+  "Supra Vandal": "CrpHeavyRifle",
+  "Sweeper": "SentShotgun",
+  "Sweeper Prime": "SentShotgun",
+  "Swiftfire": "SUModularStatIReloadIClipPart",
+  "Syam": "DaxDuviriKatanaPlayerWeapon",
+  "Sybaris": "TnoLeverActionRifle",
+  "Sybaris Prime": "TnoLeverActionRifle",
+  "Sydon": "GrnTridentWeapon",
+  "Synapse": "InfestedRifle",
+  "Synoid Gammacor": "CSDroidArray",
+  "Synoid Heliocor": "CephHammerWeapon",
+  "Synoid Simulor": "CephPrimary",
+  "TETHRON ANTIGEN": "InfestedPredatorAntigenD",
+  "Tak & Lug": "MortiforShieldAndSword",
+  "Talons": "U18throwingknives",
+  "Tatsu": "TnTwoHandedKatana",
+  "Tatsu Prime": "TnTwoHandedKatana",
+  "Tazicor": "TazronWeapon",
+  "Tekko": "BrawlerKnuckles",
+  "Tekko Prime": "BrawlerKnuckles",
+  "Telos Akbolto": "AkimboBolto",
+  "Telos Boltace": "Boltonfa",
+  "Telos Boltor": "BoltoRifle",
+  "Tenet Agendus": "CrpHammerShield",
+  "Tenet Arca Plasmor": "CrpShotgun",
+  "Tenet Cycron": "CrpChargeGun",
+  "Tenet Detron": "CorpusHandCannon",
+  "Tenet Diplos": "CrpBriefcaseAkimboPistol",
+  "Tenet Envoy": "CrpBriefcaseLauncher",
+  "Tenet Exec": "CrpBigSlash",
+  "Tenet Ferrox": "CorpusRailgun",
+  "Tenet Flux Rifle": "CrpLaserRifle",
+  "Tenet Glaxion": "CrpFreezeRayRifle",
+  "Tenet Grigori": "CrpBriefcaseScythe",
+  "Tenet Livia": "CrpBriefcase2HKatana",
+  "Tenet Plinx": "CrpBlastorWeapon",
+  "Tenet Quanta": "CrpShockRifle",
+  "Tenet Spirex": "CrpIgniterPistol",
+  "Tenet Tetra": "CorpusUMP",
+  "Tenora": "TnBardRifle",
+  "Tenora Prime": "TnBardRifle",
+  "Tetra": "CorpusUMP",
+  "Thalys": "ZarimanHeavyScytheWeapon",
+  "Thornbak": "TnModQuestRifleWeapon",
+  "Thugs": "HoverboardCorpusCJet",
+  "Thunderdrum": "SUModularStatICapIIClipPart",
+  "Thymoid": "InfModularClipSmallPart",
+  "Tian Bracket": "MoaPetLegB",
+  "Tiberon": "DrakeRifle",
+  "Tiberon Prime": "DrakeRifle",
+  "Tigris": "TennoDoubleBarrelShotgun",
+  "Tigris Prime": "TennoDoubleBarrelShotgun",
+  "Tipedo": "TnoMonkStaff",
+  "Tipedo Prime": "TnoMonkStaff",
+  "Tombfinger": "SUModularSecondaryBarrelBPart",
+  "Tonbo": "FlowerPowerPolearmWep",
+  "Tonkkatt": "GrnChainSawTonfaWeapon",
+  "Tonkor": "GrnGrenadeLauncher",
+  "Torid": "BioWeapon",
+  "Tremor": "SUModularPrimaryHandleDPart",
+  "Trumna": "ThanotechRifle",
+  "Trumna Prime": "ThanotechRifle",
+  "Trux Gyro": "MoaPetPayloadCryoxion",
+  "Twin Basolk": "GrnDualFireAxe",
+  "Twin Grakatas": "TwinGrakatas",
+  "Twin Gremlins": "GrineerAkimboPistol",
+  "Twin Kavats": "HoverboardSolarisAJet",
+  "Twin Kohmak": "GrnTwinKohmaks",
+  "Twin Krohkur": "DualGrnEgyptSwdWeapon",
+  "Twin Rogga": "GrnQueenGuardDualPistols",
+  "Twin Vipers": "AkimboViperPistols",
+  "Twin Vipers Wraith": "AkimboViperPistols",
+  "Two-Sloops": "HoverboardCorpusCFront",
+  "Tyli Gyro": "MeleeMoaPetPayload",
+  "Tysis": "InfestedDartPistol",
+  "Ulnaris": "InfModularSecondaryHandlePart",
+  "Urga Bracket": "ZanukaPetPartLegsB",
+  "VIROX ANTIGEN": "InfestedCritterAntigenA",
+  "Vadarya Prime": "PrimeLightningGun",
+  "Valkyr Prime Talons": "BerserkerMelee",
+  "Valkyr Talons": "BerserkerMelee",
+  "Vargeet II Jai": "BalanceSpeedICritII",
+  "Vargeet II Ruhang": "BalanceDamageICritII",
+  "Vargeet Jai": "BalanceSpeedICritI",
+  "Vargeet Jai II": "BalanceSpeedIICritI",
+  "Vargeet Ruhang": "BalanceDamageICritI",
+  "Vargeet Ruhang II": "BalanceDamageIICritI",
+  "Vastilok": "GrnGunblade",
+  "Vasto": "RevolverPistol",
+  "Vasto Prime": "RevolverPistol",
+  "Vaykor Hek": "Hek",
+  "Vaykor Marelok": "GLAPistol",
+  "Vaykor Sydon": "GrnTridentWeapon",
+  "Vectis": "TennoSniperRifle",
+  "Vectis Prime": "TennoSniperRifle",
+  "Veldt": "TnRevolverRifleGun",
+  "Velocitus": "ArchRailgun",
+  "Velox": "TnOdaliskSmgPistol",
+  "Velox Prime": "TnOdaliskSmgPistol",
+  "Venato": "SentJointedScytheWeapon",
+  "Venato Prime": "SentJointedScytheWeapon",
+  "Venka": "TennoClaws",
+  "Venka Prime": "TennoClaws",
+  "Verdilac": "ArchonWhipPlayerWep",
+  "Verglas": "SentinelFreezeRayRifle",
+  "Verglas Prime": "SentinelFreezeRayRifle",
+  "Vericres": "MoonWarfanWeapon",
+  "Vermisplicer": "InfModularBarrelBeamPart",
+  "Vesper 77": "LasSilencedPistolWeapon",
+  "Vinquibus": "TnBayonetRifleWeapon",
+  "Vinquibus (Melee)": "TnBayonetMeleeWeapon",
+  "Viper": "GrineerLightPistol",
+  "Viper Wraith": "GrineerLightPistol",
+  "Vitrica": "NWOrokinSword",
+  "Vizier Predasite": "WoundedInfestedPredatorCommonRewardItem",
+  "Volnus": "GlassHammer",
+  "Volnus Prime": "GlassHammer",
+  "Vulcax": "ThermocorMoaWeapon",
+  "Vulkar": "GrnSniperRifle",
+  "Vulkar Wraith": "GrnSniperRifle",
+  "Vulklok": "SentElecRailgun",
+  "Wanz Stabilizer": "ZanukaPetPartTailA",
+  "War": "StalkerTwoGreatSword",
+  "War Prime": "StalkerTwoGreatSword",
+  "Whipclaw": "KhoraWhipclawWeapon",
+  "Whipclaw Prime": "KhoraWhipclawWeapon",
+  "Wingnut": "HoverboardCorpusAFront",
+  "Wolf Sledge": "ThrowingHammer",
+  "Wrath": "TnOrionScytheWeapon",
+  "Xoris": "CrpGhostCatcherGlaive",
+  "ZARIM MUTAGEN": "InfestedCritterMutagenC",
+  "Zakti": "TnGuandoPistolGun",
+  "Zakti Prime": "TnGuandoPistolGun",
+  "Zarr": "GrnCannonWeapon",
+  "Zenistar": "SundialAxeWeapon",
+  "Zenith": "SundialRifle",
+  "Zhuge": "RepeatingCrossbow",
+  "Zhuge Prime": "RepeatingCrossbow",
+  "Zip": "SUModularReloadIIClipPart",
+  "Zipfire": "SUModularStatIReloadIIClipPart",
+  "Zipneedle": "SUModularCritIReloadIIClipPart",
+  "Zubb Bracket": "ZanukaPetPartLegsC",
+  "Zylok": "ConclaveLeverPistol",
+  "Zylok Prime": "ConclaveLeverPistol",
+  "Zymos": "InfUziWeapon"
+ },
+ "families": {
+  "AkLexPistols": [
+   "Aklex",
+   "Aklex Prime"
+  ],
+  "AkimboAutoPistols": [
+   "Afuris",
+   "Afuris Prime",
+   "Dex Furis"
+  ],
+  "AkimboBolto": [
+   "Akbolto",
+   "Akbolto Prime",
+   "Telos Akbolto"
+  ],
+  "AkimboShotGun": [
+   "Akbronco",
+   "Akbronco Prime"
+  ],
+  "AkimboSomaPistols": [
+   "Aksomati",
+   "Aksomati Prime"
+  ],
+  "AkimboViperPistols": [
+   "Twin Vipers",
+   "Twin Vipers Wraith"
+  ],
+  "AntlerBow": [
+   "Cernos",
+   "Cernos Prime",
+   "Rakta Cernos"
+  ],
+  "ArchCannon": [
+   "Corvas",
+   "Corvas Prime"
+  ],
+  "ArchGRNAAGun": [
+   "Grattler",
+   "Kuva Grattler"
+  ],
+  "ArchHeavyPistols": [
+   "Dual Decurion",
+   "Prisma Dual Decurions"
+  ],
+  "ArchMachineGun": [
+   "Imperator",
+   "Imperator Vandal"
+  ],
+  "AsymetricalBow": [
+   "Daikyu",
+   "Daikyu Prime"
+  ],
+  "AtlasPunchWeapon": [
+   "Landslide Fists",
+   "Landslide Fists Prime"
+  ],
+  "AutoCrossBow": [
+   "Ballistica",
+   "Ballistica Prime",
+   "Rakta Ballistica"
+  ],
+  "AutoPistol": [
+   "Furis",
+   "MK1-Furis"
+  ],
+  "AxeWeapon": [
+   "Scindo",
+   "Scindo Prime"
+  ],
+  "BerserkerMelee": [
+   "Valkyr Prime Talons",
+   "Valkyr Talons"
+  ],
+  "BoltoRifle": [
+   "Boltor",
+   "Boltor Prime",
+   "Telos Boltor"
+  ],
+  "Boltonfa": [
+   "Boltace",
+   "Telos Boltace"
+  ],
+  "BoomerangWeapon": [
+   "Kestrel",
+   "Kestrel Prime"
+  ],
+  "BrassKnuckles": [
+   "Kogake",
+   "Kogake Prime"
+  ],
+  "BrawlerKnuckles": [
+   "Tekko",
+   "Tekko Prime"
+  ],
+  "BurstLaserPistol": [
+   "Burst Laser",
+   "Burst Laser Prime",
+   "Prisma Burst Laser"
+  ],
+  "BurstPistol": [
+   "Sicarus",
+   "Sicarus Prime"
+  ],
+  "BurstRifle": [
+   "Burston",
+   "Burston Prime"
+  ],
+  "CSDroidArray": [
+   "Gammacor",
+   "Synoid Gammacor"
+  ],
+  "CephHammerWeapon": [
+   "Heliocor",
+   "Synoid Heliocor"
+  ],
+  "CephPrimary": [
+   "Simulor",
+   "Synoid Simulor"
+  ],
+  "ConclaveLeverPistol": [
+   "Zylok",
+   "Zylok Prime"
+  ],
+  "CorpusHandCannon": [
+   "Detron",
+   "Mara Detron",
+   "Tenet Detron"
+  ],
+  "CorpusHandRocketLauncher": [
+   "Angstrum",
+   "Prisma Angstrum"
+  ],
+  "CorpusRailgun": [
+   "Ferrox",
+   "Tenet Ferrox"
+  ],
+  "CorpusUMP": [
+   "Prisma Tetra",
+   "Tenet Tetra",
+   "Tetra"
+  ],
+  "CorpusWhipWeapon": [
+   "Lecta",
+   "Secura Lecta"
+  ],
+  "CrpBFG": [
+   "Opticor",
+   "Opticor Vandal"
+  ],
+  "CrpBlastorWeapon": [
+   "Plinx",
+   "Tenet Plinx"
+  ],
+  "CrpBow": [
+   "Lenz",
+   "Prisma Lenz"
+  ],
+  "CrpChargeGun": [
+   "Cycron",
+   "Tenet Cycron"
+  ],
+  "CrpFreezeRayRifle": [
+   "Glaxion",
+   "Glaxion Vandal",
+   "Tenet Glaxion"
+  ],
+  "CrpHeavyRifle": [
+   "Supra",
+   "Supra Vandal"
+  ],
+  "CrpLaserPistol": [
+   "Spectra",
+   "Spectra Vandal"
+  ],
+  "CrpLaserRifle": [
+   "Flux Rifle",
+   "Tenet Flux Rifle"
+  ],
+  "CrpShockRifle": [
+   "Quanta",
+   "Quanta Vandal",
+   "Tenet Quanta"
+  ],
+  "CrpShotgun": [
+   "Arca Plasmor",
+   "Tenet Arca Plasmor"
+  ],
+  "CrpTonfa": [
+   "Ohma",
+   "Prisma Ohma"
+  ],
+  "CutlassPoignardSwords": [
+   "Nami Skyla",
+   "Nami Skyla Prime"
+  ],
+  "DarkDagger": [
+   "Dark Dagger",
+   "Rakta Dark Dagger"
+  ],
+  "DethMachineRifle": [
+   "Deth Machine Rifle",
+   "Deth Machine Rifle Prime"
+  ],
+  "DoomSword": [
+   "Exalted Blade",
+   "Exalted Prime Blade",
+   "Exalted Umbra Blade"
+  ],
+  "DoubleBarrelShotgun": [
+   "Kuva Sobek",
+   "Sobek"
+  ],
+  "DrakeRifle": [
+   "Tiberon",
+   "Tiberon Prime"
+  ],
+  "DualAxeWeapon": [
+   "Dual Zoren",
+   "Dual Zoren Prime"
+  ],
+  "DualCleaverWeapon": [
+   "Dual Cleavers",
+   "Prisma Dual Cleavers"
+  ],
+  "DualCorpusMinigun": [
+   "Dual Cestra",
+   "Secura Dual Cestra"
+  ],
+  "DualDagger": [
+   "Fang",
+   "Fang Prime"
+  ],
+  "DualKamas": [
+   "Dual Kamas",
+   "Dual Kamas Prime"
+  ],
+  "DualMagnus": [
+   "Akmagnus",
+   "Akmagnus Prime"
+  ],
+  "DualVastos": [
+   "Akvasto",
+   "Akvasto Prime"
+  ],
+  "ElectroProd": [
+   "Prova",
+   "Prova Vandal"
+  ],
+  "EnergyRifle": [
+   "Dera",
+   "Dera Vandal"
+  ],
+  "Fist": [
+   "Furax",
+   "Furax Wraith",
+   "MK1-Furax"
+  ],
+  "FiveShotSniper": [
+   "Rubico",
+   "Rubico Prime"
+  ],
+  "FlakCannon": [
+   "Drakgoon",
+   "Kuva Drakgoon"
+  ],
+  "FlameThrower": [
+   "Ignis",
+   "Ignis Wraith"
+  ],
+  "FullAutoShotgun": [
+   "Boar",
+   "Boar Prime"
+  ],
+  "GLAPistol": [
+   "Marelok",
+   "Vaykor Marelok"
+  ],
+  "GLARifle": [
+   "Grinlok",
+   "Prisma Grinlok"
+  ],
+  "GaraShankWeapon": [
+   "Shattered Lash",
+   "Shattered Lash Prime"
+  ],
+  "GarudaCrossbow": [
+   "Nagantaka",
+   "Nagantaka Prime"
+  ],
+  "Gauntlet": [
+   "Ankyros",
+   "Ankyros Prime"
+  ],
+  "GlassHammer": [
+   "Volnus",
+   "Volnus Prime"
+  ],
+  "GreatSword": [
+   "Gram",
+   "Gram Prime"
+  ],
+  "GrenadeLauncher": [
+   "Carmine Penta",
+   "Penta",
+   "Secura Penta"
+  ],
+  "GrineerAkimboPistol": [
+   "Prisma Twin Gremlins",
+   "Twin Gremlins"
+  ],
+  "GrineerHandCannon": [
+   "Brakk",
+   "Kuva Brakk"
+  ],
+  "GrineerLightPistol": [
+   "Viper",
+   "Viper Wraith"
+  ],
+  "GrineerM16Rifle": [
+   "Karak",
+   "Karak Wraith",
+   "Kuva Karak"
+  ],
+  "GrnAssaultRifle": [
+   "Grakata",
+   "Prisma Grakata"
+  ],
+  "GrnBoomerang": [
+   "Halikar",
+   "Halikar Wraith"
+  ],
+  "GrnBurstRifle": [
+   "Hind",
+   "Kuva Hind"
+  ],
+  "GrnCannonWeapon": [
+   "Kuva Zarr",
+   "Zarr"
+  ],
+  "GrnFourBarrelRifleWeapon": [
+   "Kuva Quartakk",
+   "Quartakk"
+  ],
+  "GrnGhoulSawPlayer": [
+   "Ghoulsaw",
+   "Kuva Ghoulsaw"
+  ],
+  "GrnGrenadeLauncher": [
+   "Kuva Tonkor",
+   "Tonkor"
+  ],
+  "GrnHeavyPistol": [
+   "Kraken",
+   "Kuva Kraken"
+  ],
+  "GrnMicrowavePistol": [
+   "Kuva Nukor",
+   "Nukor"
+  ],
+  "GrnScopedPistolPlayer": [
+   "Kuva Seer",
+   "Seer"
+  ],
+  "GrnSniperRifle": [
+   "Vulkar",
+   "Vulkar Wraith"
+  ],
+  "GrnSparkRifle": [
+   "Kohm",
+   "Kuva Kohm"
+  ],
+  "GrnTridentWeapon": [
+   "Sydon",
+   "Vaykor Sydon"
+  ],
+  "GyreRifleWeapon": [
+   "Alternox",
+   "Alternox Prime"
+  ],
+  "HammerWeapon": [
+   "Fragor",
+   "Fragor Prime"
+  ],
+  "HandShotGun": [
+   "Bronco",
+   "Bronco Prime"
+  ],
+  "HeavyPistol": [
+   "Lex",
+   "Lex Prime"
+  ],
+  "HeavyRifle": [
+   "Gorgon",
+   "Gorgon Wraith",
+   "Prisma Gorgon"
+  ],
+  "Hek": [
+   "Hek",
+   "Kuva Hek",
+   "Vaykor Hek"
+  ],
+  "HuntingBow": [
+   "MK1-Paris",
+   "Paris",
+   "Paris Prime"
+  ],
+  "InfArmCannon": [
+   "Bubonico",
+   "Coda Bubonico"
+  ],
+  "InfBeamPistol": [
+   "Catabolyst",
+   "Coda Catabolyst"
+  ],
+  "InfBoomerangWeapon": [
+   "Coda Pathocyst",
+   "Pathocyst"
+  ],
+  "InfProximityStars": [
+   "Coda Pox",
+   "Pox"
+  ],
+  "InfSniperRifle": [
+   "Coda Sporothrix",
+   "Sporothrix"
+  ],
+  "InfestedBurstRifle": [
+   "Coda Hema",
+   "Hema"
+  ],
+  "InfestedDartPistol": [
+   "Coda Tysis",
+   "Tysis"
+  ],
+  "InfestedKogake": [
+   "Coda Hirudo",
+   "Hirudo"
+  ],
+  "InfestedRifle": [
+   "Coda Synapse",
+   "Synapse"
+  ],
+  "InfestedScythe": [
+   "Caustacyst",
+   "Coda Caustacyst"
+  ],
+  "Katana": [
+   "Dex Nikana",
+   "Nikana",
+   "Nikana Prime"
+  ],
+  "KhoraWhipclawWeapon": [
+   "Whipclaw",
+   "Whipclaw Prime"
+  ],
+  "KickPunchWeapon": [
+   "Obex",
+   "Prisma Obex"
+  ],
+  "KrisDagger": [
+   "Karyst",
+   "Karyst Prime"
+  ],
+  "Kunai": [
+   "Kunai",
+   "MK1-Kunai"
+  ],
+  "LaserRifle": [
+   "Laser Rifle",
+   "Prime Laser Rifle"
+  ],
+  "LiDagger": [
+   "Spira",
+   "Spira Prime"
+  ],
+  "LightGlaiveWeapon": [
+   "Glaive",
+   "Glaive Prime"
+  ],
+  "LongSword": [
+   "Prisma Skana",
+   "Skana",
+   "Skana Prime"
+  ],
+  "Machete": [
+   "Machete",
+   "Machete Wraith",
+   "Prisma Machete"
+  ],
+  "Magnum": [
+   "Magnus",
+   "Magnus Prime"
+  ],
+  "MireSword": [
+   "Coda Mire",
+   "Mire"
+  ],
+  "NinjaStormWeapon": [
+   "Shadow Clones",
+   "Shadow Clones Prime"
+  ],
+  "Nunchaku": [
+   "Ninkondi",
+   "Ninkondi Prime"
+  ],
+  "PacifistFist": [
+   "Desert Wind",
+   "Desert Wind Prime"
+  ],
+  "PacifistShieldSword": [
+   "Cobra & Crane",
+   "Cobra & Crane Prime"
+  ],
+  "PaladinMaceWeapon": [
+   "Magistar",
+   "Sancti Magistar"
+  ],
+  "PangolinLongSword": [
+   "Pangolin Prime",
+   "Pangolin Sword"
+  ],
+  "Pistol": [
+   "Lato",
+   "Lato Prime",
+   "Lato Vandal"
+  ],
+  "PolearmWeapon": [
+   "Orthos",
+   "Orthos Prime"
+  ],
+  "QuillDartGunWeapon": [
+   "Hystrix",
+   "Hystrix Prime"
+  ],
+  "QuillDualSwords": [
+   "Dual Keres",
+   "Dual Keres Prime"
+  ],
+  "ReaperMeleeWeapon": [
+   "Shadow Claws",
+   "Shadow Claws Prime"
+  ],
+  "RepeatingCrossbow": [
+   "Zhuge",
+   "Zhuge Prime"
+  ],
+  "RevenantShotgun": [
+   "Phantasma",
+   "Phantasma Prime"
+  ],
+  "RevolverPistol": [
+   "Vasto",
+   "Vasto Prime"
+  ],
+  "Rifle": [
+   "Braton",
+   "Braton Prime",
+   "Braton Vandal",
+   "MK1-Braton"
+  ],
+  "RocketLauncher": [
+   "Kuva Ogris",
+   "Ogris"
+  ],
+  "SapientPistol": [
+   "Akarius",
+   "Akarius Prime"
+  ],
+  "SapientPrimaryWeapon": [
+   "Acceltra",
+   "Acceltra Prime"
+  ],
+  "SemiAutoRifle": [
+   "Latron",
+   "Latron Prime",
+   "Latron Wraith"
+  ],
+  "SentGlaiveWeapon": [
+   "Deconstructor",
+   "Deconstructor Prime"
+  ],
+  "SentJointedScytheWeapon": [
+   "Venato",
+   "Venato Prime"
+  ],
+  "SentShotgun": [
+   "Sweeper",
+   "Sweeper Prime"
+  ],
+  "SentinelFreezeRayRifle": [
+   "Verglas",
+   "Verglas Prime"
+  ],
+  "Shotgun": [
+   "MK1-Strun",
+   "Strun",
+   "Strun Prime",
+   "Strun Wraith"
+  ],
+  "SniperRifle": [
+   "Snipetron",
+   "Snipetron Vandal"
+  ],
+  "Staff": [
+   "Bo",
+   "Bo Prime",
+   "MK1-Bo"
+  ],
+  "StalkerMios": [
+   "Ceti Lacera",
+   "Lacera"
+  ],
+  "StalkerTwoGreatSword": [
+   "War",
+   "War Prime"
+  ],
+  "StickyBombs": [
+   "Castanas",
+   "Sancti Castanas"
+  ],
+  "TennoAR": [
+   "Soma",
+   "Soma Prime"
+  ],
+  "TennoClaws": [
+   "Venka",
+   "Venka Prime"
+  ],
+  "TennoDoubleBarrelShotgun": [
+   "Sancti Tigris",
+   "Tigris",
+   "Tigris Prime"
+  ],
+  "TennoGreatSword": [
+   "Galatine",
+   "Galatine Prime"
+  ],
+  "TennoHandShotgun": [
+   "Pyrana",
+   "Pyrana Prime"
+  ],
+  "TennoSais": [
+   "Okina",
+   "Okina Prime"
+  ],
+  "TennoSniperRifle": [
+   "Vectis",
+   "Vectis Prime"
+  ],
+  "TennoStars": [
+   "Hikou",
+   "Hikou Prime"
+  ],
+  "TennoSwordShield": [
+   "Silva & Aegis",
+   "Silva & Aegis Prime"
+  ],
+  "TennoTommyGunRifle": [
+   "Stradavar",
+   "Stradavar Prime"
+  ],
+  "TennoTonfa": [
+   "Kronen",
+   "Kronen Prime"
+  ],
+  "TennoUzi": [
+   "Akstiletto",
+   "Akstiletto Prime"
+  ],
+  "ThanotechRifle": [
+   "Trumna",
+   "Trumna Prime"
+  ],
+  "TnAlchemistShotgun": [
+   "Cedo",
+   "Cedo Prime"
+  ],
+  "TnBardPistolGun": [
+   "Pandero",
+   "Pandero Prime"
+  ],
+  "TnBardRifle": [
+   "Tenora",
+   "Tenora Prime"
+  ],
+  "TnBrokenFrameWarfanWeapon": [
+   "Quassus",
+   "Quassus Prime"
+  ],
+  "TnChiselKanabo": [
+   "Masseter",
+   "Masseter Prime"
+  ],
+  "TnGlassShotgunGun": [
+   "Astilla",
+   "Astilla Prime"
+  ],
+  "TnGuandaoPolearmWeapon": [
+   "Guandao",
+   "Guandao Prime"
+  ],
+  "TnGuandoPistolGun": [
+   "Zakti",
+   "Zakti Prime"
+  ],
+  "TnHeavyShotgunGun": [
+   "Corinth",
+   "Corinth Prime"
+  ],
+  "TnHopliteSpearGunWeapon": [
+   "Afentis",
+   "Afentis Prime"
+  ],
+  "TnJetTurbinePistolWeapon": [
+   "Athodai",
+   "Athodai Prime"
+  ],
+  "TnOdaliskSmgPistol": [
+   "Velox",
+   "Velox Prime"
+  ],
+  "TnPriestPistolWeapon": [
+   "Knell",
+   "Knell Prime"
+  ],
+  "TnPriestSpearGun": [
+   "Scourge",
+   "Scourge Prime"
+  ],
+  "TnQuadSniper": [
+   "Perigale",
+   "Perigale Prime"
+  ],
+  "TnSMGWeapon": [
+   "Baza",
+   "Baza Prime"
+  ],
+  "TnShieldFrameArchGun": [
+   "Larkspur",
+   "Larkspur Prime"
+  ],
+  "TnTwoHandedKatana": [
+   "Tatsu",
+   "Tatsu Prime"
+  ],
+  "TnWispRifle": [
+   "Fulmin",
+   "Fulmin Prime"
+  ],
+  "TnWraitheSidearmWeapon": [
+   "Epitaph",
+   "Epitaph Prime"
+  ],
+  "TnYareliPistolWeapon": [
+   "Kompressa",
+   "Kompressa Prime"
+  ],
+  "TnoBladedPistols": [
+   "Akjagara",
+   "Akjagara Prime"
+  ],
+  "TnoGunblade": [
+   "Redeemer",
+   "Redeemer Prime"
+  ],
+  "TnoLeverActionRifle": [
+   "Dex Sybaris",
+   "Sybaris",
+   "Sybaris Prime"
+  ],
+  "TnoMiter": [
+   "Panthera",
+   "Panthera Prime"
+  ],
+  "TnoMonkStaff": [
+   "Tipedo",
+   "Tipedo Prime"
+  ],
+  "TnoRapier": [
+   "Destreza",
+   "Destreza Prime"
+  ],
+  "WarfanWeapon": [
+   "Gunsen",
+   "Gunsen Prime"
+  ],
+  "WolfFrameAxeWeapon": [
+   "Sarofang",
+   "Sarofang Prime"
+  ]
+ }
+}
