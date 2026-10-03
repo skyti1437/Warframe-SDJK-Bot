@@ -318,6 +318,54 @@ def match_disposition(stats_pos, stats_neg, cls, candidates,
     return out
 
 
+NEAR_MISS_MAX = 0.15
+
+
+def candidate_scores(stats_pos, stats_neg, cls, candidates) -> list:
+    """★ 2026-10-03 最近邻判据：给每个候选倾向打「最大相对偏差」分。
+
+    对候选 (名称, D)：``mid_i = 基值_i × D × 系数_i``（即 `stat_range`
+    区间的中点，复用现成公式）、``U_i = v_i / mid_i``（卷轴系数，理论
+    ∈ [0.9, 1.1]），``score = max_i |U_i − 1|`` —— 越小越像该候选。
+
+    为什么需要它（取证 output/取证-ZCode-组合枪倾向与判据定标-20261003.md
+    §五/§六）：严格区间判据（lo ≤ v ≤ hi）是**硬边界**，组合枪双模式
+    「wiki 与实机差 1%~5%」的腔体级残差会把只差 1% 的真候选判成不吻合
+    （实例：捕月主要 1.1 的多重/切割各差 0.7%/1.1% ⇒ 误报「老卡」）；
+    最近邻只比较**候选之间的相对远近**，对绝对偏差免疫。分档：
+    score ≤ ~0.10 的候选本就落在严格区间内（`match_disposition` 会先接住，
+    与现行判据等价）；0.10 < score ≤ `NEAR_MISS_MAX`（0.15）判该候选但
+    卡面标注残差；> 0.15 不判（老卡/识别异常）。
+
+    无可用基值的词条跳过；一条可用基值都没有的候选不计入。
+
+    Returns:
+        [(名称, 倾向, score), ...] 按 score 升序；空候选/全无基值返回 []。
+    """
+    n_pos, n_neg = len(stats_pos or []), len(stats_neg or [])
+    out = []
+    for name, d in (candidates or []):
+        try:
+            d = float(d)
+        except (TypeError, ValueError):
+            continue
+        if d <= 0:
+            continue
+        worst, used = 0.0, 0
+        for sid, v, neg in _stat_entries(stats_pos, stats_neg):
+            lo, hi = stat_range(sid, cls, d, n_pos, n_neg, negative=neg)
+            if lo is None or v <= 0:
+                continue
+            mid = (lo + hi) / 2
+            if mid <= 0:
+                continue
+            used += 1
+            worst = max(worst, abs(v / mid - 1))
+        if used:
+            out.append((name, d, worst))
+    return sorted(out, key=lambda x: x[2])
+
+
 # ---------------------------------------------------------------------------
 # 卡面原文行解析（2026-09-27）
 # ---------------------------------------------------------------------------

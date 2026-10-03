@@ -988,8 +988,8 @@ check("★ 英文为空 ⇒ 不入家族（宁可少列）",
 _FAMS = _json2.loads((ROOT / "core" / "data" / "de" / "riven_families.json")
                      .read_text(encoding="utf-8"))
 _multi = sum(1 for v in _FAMS["families"].values() if len(v) > 1)
-check("★ 数据守卫：多成员族 == 190（官方表换版时本测试会提示复核）",
-      _multi == 190, str(_multi))
+check("★ 数据守卫：多成员族 == 208（2026-10-03 双模式并入 +18；换版须复核）",
+      _multi == 208, str(_multi))
 check("★ 数据守卫：AkimboAutoPistols 恰为 3 件（本次报障族）",
       sorted(_FAMS["families"].get("AkimboAutoPistols", []))
       == ["Afuris", "Afuris Prime", "Dex Furis"],
@@ -1337,12 +1337,15 @@ def _fam19(en):
 _XUANHAI = [("Sobek", 0.8), ("Nukor", 0.5), ("Ogris", 0.7), ("Zarr", 0.7),
             ("Tonkor", 0.9), ("Kohm", 0.9), ("Kraken", 1.1), ("Hind", 1.1),
             ("Drakgoon", 1.15), ("Brakk", 0.95), ("Seer", 1.1), ("Quartakk", 1.1),
-            ("Ferrox", 1.15), ("Hema", 0.95), ("Tysis", 1.0), ("Pox", 1.0),
-            ("Bubonico", 0.55), ("Caustacyst", 0.85), ("Hirudo", 0.75),
-            ("Catabolyst", 0.65), ("Glaxion", 0.65), ("Quanta", 0.75),
+            ("Ferrox", 1.15), ("Hema", 1.0), ("Tysis", 1.0), ("Pox", 1.05),
+            ("Bubonico", 0.6), ("Caustacyst", 0.85), ("Hirudo", 0.75),
+            ("Catabolyst", 0.7), ("Glaxion", 0.65), ("Quanta", 0.85),
             ("Sporothrix", 0.95), ("Plinx", 0.8), ("Grattler", 0.7),
-            ("Pathocyst", 0.65), ("Ghoulsaw", 0.7), ("Mire", 0.75),
-            ("Arca Plasmor", 0.55), ("Cycron", 0.7), ("Synapse", 0.9)]
+            ("Pathocyst", 0.65), ("Ghoulsaw", 0.8), ("Mire", 0.75),
+            ("Arca Plasmor", 0.6), ("Cycron", 0.7), ("Synapse", 0.9)]
+# ★ 2026-10-03 wiki 倾向页快照刷新（09-13 → 10-02），7 处玄骸倾向更新：
+#   Hema 0.95→1.0 / Pox 1.0→1.05 / Bubonico 0.55→0.6 / Catabolyst 0.65→0.7 /
+#   Quanta 0.75→0.85 / Ghoulsaw 0.7→0.8 / Arca Plasmor 0.55→0.6
 _miss19 = [(b, w) for b, w in _XUANHAI
            if not any(abs(v - w) < 1e-9 for _n, v in _fam19(b))]
 check(f"★ 玄骸族抽查 {len(_XUANHAI)} 族：家族候选都列得出（缺 {len(_miss19)}）",
@@ -1387,8 +1390,8 @@ check("★ 桥接出中文：原本缺口的玄骸/Zaw 件抽查（Kuva Ghoulsaw
       == ["赤毒·尸鬼电锯", "信条·量子切割器", "宝拉", "西亚什", "德塔特", "多克拉姆"],
       str([_AC._zh_name_of_en(e) for e in
            ("Kuva Ghoulsaw", "Tenet Quanta", "Balla", "Cyath", "Dehtat", "Dokrahm")]))
-check("家族显示名：横痃重炮 家族 → 终幕·横痃重炮（中文，不再是英文名）",
-      _fam19("Bubonico") == [("终幕·横痃重炮", 0.55)], str(_fam19("Bubonico")))
+check("家族显示名：横痃重炮 家族 → 终幕·横痃重炮（中文，不再是英文名；2026-10-03 wiki 刷新 0.55→0.6）",
+      _fam19("Bubonico") == [("终幕·横痃重炮", 0.6)], str(_fam19("Bubonico")))
 
 # ---------------------------------------------------------------------------
 # ⑳ 「鳄神」报障卡 e2e（2026-10-03）：反推 0.8 = 赤毒·鳄神 ⇒ 报变体，不是「老卡」
@@ -1562,12 +1565,98 @@ check("㉑⑤ 文案为「疑似变体卡（赤毒 / 信条 / 终幕 等）」�
       "")
 
 # ---------------------------------------------------------------------------
-# ★ 追加段（⑫-㉑）出口守卫：本文件原有守卫在第 802 行（①-⑫ 之前），
+# ㉒ 组合枪双模式 + 最近邻判据（2026-10-03 交办，取证见
+#    output/取证-ZCode-组合枪倾向与判据定标-20261003.md）
+#    ① 家族表：双模式括号键与基名同根（主武器腔体不在 DE 导出，来源 wiki 键）；
+#    ② 判据：严格区间 → 最近邻（score=max|v/(基值×D×系数)−1|）→ 阈值 0.15，
+#      残差必须印在卡面；>0.15 保留「老卡」并附候选残差。
+# ---------------------------------------------------------------------------
+_rows22 = [{"url_name": "catchmoon", "zh": "捕月", "en": "Catchmoon",
+            "disposition": 0.75, "riven_type": "kitgun", "group": "kitgun",
+            "tags": []},
+           {"url_name": "catchmoon_(primary)", "zh": "捕月（主要）",
+            "en": "Catchmoon (Primary)", "disposition": 1.1,
+            "riven_type": "", "group": "", "tags": []},
+           {"url_name": "catchmoon_(secondary)", "zh": "捕月（次要）",
+            "en": "Catchmoon (Secondary)", "disposition": 0.75,
+            "riven_type": "", "group": "", "tags": []}]
+
+
+class _KitClient:
+    """WM 紫卡表回放：捕月 三行（plain + 拆分行，倾向为 wiki 覆盖后的值）。"""
+
+    def __init__(self):
+        self._aliases = {}
+
+    async def wm_riven_weapons(self):
+        return [dict(r) for r in _rows22]
+
+    async def resolve_riven_weapon(self, q):
+        for r in _rows22:
+            if q.strip() in (r["zh"], r["en"]):
+                return dict(r)
+        return None
+
+
+async def _w22():
+    return [dict(r) for r in _rows22]
+
+
+_kc22 = _KitClient()
+_c22 = WarframeClient.__new__(WarframeClient)
+_c22._aliases = {}
+_f22 = asyncio.run(_c22.riven_family({"en": "Catchmoon"}))
+check("㉒① 捕月家族候选 = [捕月（次要）0.75, 捕月（主要）1.1]（双模式成对列出）",
+      _f22 == [("捕月（次要）", 0.75), ("捕月（主要）", 1.1)], str(_f22))
+_f22b = asyncio.run(_c22.riven_family({"en": "Sporelacer"}))
+check("㉒① 孢射家族候选 = [（次要）0.6,（主要）1.15]",
+      _f22b == [("孢射（次要）", 0.6), ("孢射（主要）", 1.15)], str(_f22b))
+_f22c = asyncio.run(_c22.riven_family({"en": "Vinquibus"}))
+check("㉒① 制胜者家族候选 = [（近战）0.7,（主要）0.7]（导出 (Melee) 并入基名根）",
+      _f22c == [("制胜者（近战）", 0.7), ("制胜者（主要）", 0.7)], str(_f22c))
+check("㉒① 无后缀基名仍可查（向后兼容）：family_key 不变",
+      _M2.family_key("Catchmoon") == _M2.family_key("Catchmoon (Primary)")
+      == _M2.family_key("Catchmoon (Secondary)")
+      and _M2.family_key("Sobek") == "DoubleBarrelShotgun")
+
+_pos22 = [("crit_damage", 89.2), ("multishot", 110.3),
+          ("electric_damage", 87.6)]
+_neg22 = [("slash_damage", 88.1)]
+_sc22 = RA.candidate_scores(_pos22, _neg22, "pistol",
+                            [("捕月", 0.75), ("捕月（主要）", 1.1)])
+check("㉒② candidate_scores：捕月（主要）1.1 score≈0.110、（次要/母）0.75 score≈0.41",
+      abs(_sc22[0][1] - 1.1) < 1e-9 and abs(_sc22[0][2] - 0.1099) < 5e-3
+      and abs(_sc22[-1][1] - 0.75) < 1e-9 and abs(_sc22[-1][2] - 0.41) < 5e-3,
+      str(_sc22))
+
+_rc22 = WarframeClient.__new__(WarframeClient)
+_rc22._aliases = {}
+_rc22.wm_riven_weapons = _w22
+_b22a = _run21(_rc22, ["捕月", "暴伤89.2", "多重110.3", "电击87.6", "负切割88.1"])
+check("㉒③ 玩家报障卡：判【捕月（主要）】1.1、卡面含「残差 11%」、不再「老卡」",
+      "【捕月（主要）】倾向 1.1" in _b22a and "残差 11%" in _b22a
+      and "老卡" not in _b22a, _b22a[:240])
+_b22b = _run21(_rc22, ["捕月", "暴伤60.1", "多重84.2", "电击62.8", "负切割65.4"])
+check("㉒④ 次要卡（0.75 档数值）：判【捕月】0.75、家族提示含双模式示例",
+      "【捕月】倾向 0.75" in _b22b and "紫卡分析 捕月（主要）" in _b22b,
+      _b22b[:240])
+_b22c = _run21(_rc22, ["捕月（主要）", "暴伤89.2", "多重110.3", "电击87.6",
+                       "负切割88.1"])
+check("㉒⑤ 手输「捕月（主要）」（拆分行）：1.1 + 继承手枪基值（暴伤 83.53%-102.09%）",
+      "【捕月（主要）】倾向 1.1" in _b22c and "83.53%-102.09%" in _b22c,
+      _b22c[:240])
+_b22d = _run21(_rc22, ["捕月", "暴伤45.1", "多重60.2", "电伤49.8", "负切割40.3"])
+check("㉒⑥ 残差 >15% ⇒ 不判，保留反推（老卡）并附「候选残差」",
+      ("老卡" in _b22d or "疑似变体卡" in _b22d) and "候选残差" in _b22d,
+      _b22d[:260])
+
+# ---------------------------------------------------------------------------
+# ★ 追加段（⑫-㉒）出口守卫：本文件原有守卫在第 802 行（①-⑫ 之前），
 #   其后的追加段此前**没有守卫** —— 失败不会置退出码（等同静默放行）。
 # ---------------------------------------------------------------------------
 print()
 if FAILED:
     print(f"✗ 追加段失败 {len(FAILED)} 项：" + "、".join(FAILED))
     sys.exit(1)
-print("✓ 追加段（⑫-㉑）全部通过")
+print("✓ 追加段（⑫-㉒）全部通过")
 

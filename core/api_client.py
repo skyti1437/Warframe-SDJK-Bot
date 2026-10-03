@@ -562,10 +562,31 @@ def _local_name_index() -> tuple:
     return _LOCAL_NAME_INDEX
 
 
+# ★ 2026-10-03 双模式条目（组合枪 Primary/Secondary、空枪 Atmosphere、
+#   Vinquibus (Melee)、Dark Split-Sword 双形态）的中文模式后缀 —— 与
+#   WM 拆分行的官方写法一致（捕月（主要））。
+_MODE_ZH = {"primary": "（主要）", "secondary": "（次要）",
+            "atmosphere": "（大气）", "melee": "（近战）",
+            "dual swords": "（双剑）", "heavy blade": "（重刃）"}
+
+
 def _zh_name_of_en(en: str) -> str:
-    """英文名 → 中文名（本地三表级联；查不到返回 ""）。"""
+    """英文名 → 中文名（本地三表级联；查不到返回 ""）。
+
+    ★ 2026-10-03：带模式后缀的名字（如 Catchmoon (Primary)）三表没有
+    整名时，按「基名中文 + 模式后缀」拼装（家族候选显示用）。
+    """
     en_zh, _ = _local_name_index()
-    return en_zh.get(_norm_name(en), "")
+    hit = en_zh.get(_norm_name(en))
+    if hit:
+        return hit
+    m = re.match(r"^(.+?)\s*\(([^)]+)\)\s*$", (en or "").strip())
+    if m:
+        mode = _MODE_ZH.get(m.group(2).strip().lower())
+        base = en_zh.get(_norm_name(m.group(1)))
+        if mode and base:
+            return base + mode
+    return ""
 
 
 def _en_name_of_zh(zh: str) -> str:

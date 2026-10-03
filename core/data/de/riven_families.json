@@ -1,11 +1,17 @@
 {
- "_source": "calamity-inc/warframe-public-export-plus @ExportWeapons.json (DE 官方导出)",
- "_rule": "家族 = 沿 parentName 上溯，仅在 parent 本身「可上紫卡」(有 omegaAttenuation) 时继续；否则自身为根",
- "_generated_at": "2026-10-02",
+ "_source": "calamity-inc/warframe-public-export-plus @ExportWeapons.json (DE 官方导出) + 双模式括号键（dispositions_rivenmirror.json，同源 wiki 倾向页）",
+ "_rule": "家族 = 沿 parentName 上溯，仅在 parent 本身「可上紫卡」(有 omegaAttenuation) 时继续；否则自身为根。同名条目（NPC/玩家版、PvP 变体）按 uniqueName 排序后写覆盖；跳过 <ARCHWING> 前缀条目。★ 2026-10-03：双模式条目（组合枪 Primary/Secondary、Atmosphere、Dark Split-Sword 双形态、Vinquibus (Melee) 等）基名同根，无后缀基名键保留（向后兼容）。",
+ "_generated_at": "2026-10-03",
  "_counts": {
-  "weapons": 819,
-  "families": 600,
-  "multi_member": 190
+  "weapons": 854,
+  "families": 208,
+  "multi_member": 208,
+  "dual_mode": 36,
+  "dual_mode_added": 35,
+  "dual_mode_remapped": [
+   "Vinquibus (Melee)"
+  ],
+  "base_before_dual_mode": 819
  },
  "_patches": {
   "reason": "DE 未给这两族设 parentName（Kuva/集团变体各自成根），按同基础武器人工归并",
@@ -67,6 +73,7 @@
   "Ankyros Prime": "Gauntlet",
   "Anspatha Brace": "SentAmpSet2GripPartA",
   "Arbucep": "NokkoArchGun",
+  "Arbucep (Atmosphere)": "NokkoArchGun",
   "Arc Twelve": "HoverboardCorpusAEngine",
   "Arca Plasmor": "CrpShotgun",
   "Arca Scisco": "CrpScopeGun",
@@ -136,6 +143,8 @@
   "Castanas": "StickyBombs",
   "Catabolyst": "InfBeamPistol",
   "Catchmoon": "SUModularSecondaryBarrelAPart",
+  "Catchmoon (Primary)": "SUModularSecondaryBarrelAPart",
+  "Catchmoon (Secondary)": "SUModularSecondaryBarrelAPart",
   "Caustacyst": "InfestedScythe",
   "Cedo": "TnAlchemistShotgun",
   "Cedo Prime": "TnAlchemistShotgun",
@@ -169,9 +178,12 @@
   "Corinth": "TnHeavyShotgunGun",
   "Corinth Prime": "TnHeavyShotgunGun",
   "Cortege": "ThanoTechArchGun",
+  "Cortege (Atmosphere)": "ThanoTechArchGun",
   "Corufell": "ExaltedAWScytheWeapon",
   "Corvas": "ArchCannon",
+  "Corvas (Atmosphere)": "ArchCannon",
   "Corvas Prime": "ArchCannon",
+  "Corvas Prime (Atmosphere)": "ArchCannon",
   "Crescent Vulpaphyla": "WoundedInfestedCritterUncommonRewardItem",
   "Cronus": "CronusLongSword",
   "Cryotra": "CryoxionWeapon",
@@ -179,12 +191,15 @@
   "Cyath": "TipFour",
   "Cycron": "CrpChargeGun",
   "Cyngas": "ArchBurstGun",
+  "Cyngas (Atmosphere)": "ArchBurstGun",
   "DESUS ANTIGEN": "InfestedCritterAntigenB",
   "Daikyu": "AsymetricalBow",
   "Daikyu Prime": "AsymetricalBow",
   "Dakra Prime": "PrimeCronusLongSword",
   "Dark Dagger": "DarkDagger",
   "Dark Split-Sword": "DarkSwordDaggerHybridWeapon",
+  "Dark Split-Sword (Dual Swords)": "DarkSwordDaggerHybridWeapon",
+  "Dark Split-Sword (Heavy Blade)": "DarkSwordDaggerHybridWeapon",
   "Dark Sword": "DarkLongSword",
   "Deconstructor": "SentGlaiveWeapon",
   "Deconstructor Prime": "SentGlaiveWeapon",
@@ -222,6 +237,7 @@
   "Dual Cleavers": "DualCleaverWeapon",
   "Dual Coda Torxica": "1999InfSporePistolWeapon",
   "Dual Decurion": "ArchHeavyPistols",
+  "Dual Decurion (Atmosphere)": "ArchHeavyPistols",
   "Dual Ether": "DualEtherSword",
   "Dual Heat Swords": "DualHeatSwords",
   "Dual Ichor": "DualInfestedAxesWeapon",
@@ -271,6 +287,7 @@
   "Feverspine": "HoverboardInfestedBDeck",
   "Flatbelly": "HoverboardCorpusADeck",
   "Fluctus": "ArchRocketCrossbow",
+  "Fluctus (Atmosphere)": "ArchRocketCrossbow",
   "Flutterfire": "SUModularStatIIReloadIClipPart",
   "Flux Rifle": "CrpLaserRifle",
   "Fragor": "HammerWeapon",
@@ -293,6 +310,8 @@
   "Gauth Bracket": "MoaPetLegD",
   "Gazal Machete": "DjinnMachete",
   "Gaze": "SUModularSecondaryBarrelDPart",
+  "Gaze (Primary)": "SUModularSecondaryBarrelDPart",
+  "Gaze (Secondary)": "SUModularSecondaryBarrelDPart",
   "Ghoulsaw": "GrnGhoulSawPlayer",
   "Gibber": "SUModularSecondaryHandleDPart",
   "Glaive": "LightGlaiveWeapon",
@@ -308,6 +327,7 @@
   "Gram Prime": "GreatSword",
   "Granmu Prism": "SentAmpSet1BarrelPartC",
   "Grattler": "ArchGRNAAGun",
+  "Grattler (Atmosphere)": "ArchGRNAAGun",
   "Grimoire": "TnGrimoire",
   "Grinlok": "GLARifle",
   "Gristlebuck": "HoverboardInfestedBEngine",
@@ -348,7 +368,9 @@
   "Ignis": "FlameThrower",
   "Ignis Wraith": "FlameThrower",
   "Imperator": "ArchMachineGun",
+  "Imperator (Atmosphere)": "ArchMachineGun",
   "Imperator Vandal": "ArchMachineGun",
+  "Imperator Vandal (Atmosphere)": "ArchMachineGun",
   "Innodem": "ZarimanDaggerWeapon",
   "Iron Staff": "MonkeyKingStaff",
   "Iron Staff Prime": "WukongPrimeStaff",
@@ -397,12 +419,14 @@
   "Kulstar": "GrnTorpedoPistol",
   "Kunai": "Kunai",
   "Kuva Ayanga": "GrnHeavyGrenadeLauncher",
+  "Kuva Ayanga (Atmosphere)": "GrnHeavyGrenadeLauncher",
   "Kuva Brakk": "GrineerHandCannon",
   "Kuva Bramma": "GrnBowWeapon",
   "Kuva Chakkhurr": "GrnKuvaLichRifleWeapon",
   "Kuva Drakgoon": "FlakCannon",
   "Kuva Ghoulsaw": "GrnGhoulSawPlayer",
   "Kuva Grattler": "ArchGRNAAGun",
+  "Kuva Grattler (Atmosphere)": "ArchGRNAAGun",
   "Kuva Hek": "Hek",
   "Kuva Hind": "GrnBurstRifle",
   "Kuva Karak": "GrineerM16Rifle",
@@ -428,7 +452,9 @@
   "Landslide Fists Prime": "AtlasPunchWeapon",
   "Lanka": "Railgun",
   "Larkspur": "TnShieldFrameArchGun",
+  "Larkspur (Atmosphere)": "TnShieldFrameArchGun",
   "Larkspur Prime": "TnShieldFrameArchGun",
+  "Larkspur Prime (Atmosphere)": "TnShieldFrameArchGun",
   "Laser Rifle": "LaserRifle",
   "Lato": "Pistol",
   "Lato Prime": "Pistol",
@@ -461,17 +487,20 @@
   "Magnus": "Magnum",
   "Magnus Prime": "Magnum",
   "Mandonel": "TnConcreteArchgunWeapon",
+  "Mandonel (Atmosphere)": "TnConcreteArchgunWeapon",
   "Mara Detron": "CorpusHandCannon",
   "Marelok": "GLAPistol",
   "Masseter": "TnChiselKanabo",
   "Masseter Prime": "TnChiselKanabo",
   "Mausolon": "ThanoTechLongGun",
+  "Mausolon (Atmosphere)": "ThanoTechLongGun",
   "Medjay Predasite": "WoundedInfestedPredatorRareRewardItem",
   "Mewan": "TipThree",
   "Mios": "Mios",
   "Mire": "MireSword",
   "Miter": "SawBladeGun",
   "Morgha": "ThanoTechGrenadeLauncher",
+  "Morgha (Atmosphere)": "ThanoTechGrenadeLauncher",
   "Mote Brace": "SentAmpTrainingGrip",
   "Mote Prism": "SentAmpTrainingBarrel",
   "Mote Scaffold": "SentAmpTrainingChassis",
@@ -534,6 +563,7 @@
   "Perigale Prime": "TnQuadSniper",
   "Peye": "HandleOne",
   "Phaedra": "ArchLongRifle",
+  "Phaedra (Atmosphere)": "ArchLongRifle",
   "Phage": "InfestedShotgun",
   "Phahd Scaffold": "SentAmpSet2ChassisPartA",
   "Phantasma": "RevenantShotgun",
@@ -556,6 +586,7 @@
   "Prisma Burst Laser": "BurstLaserPistol",
   "Prisma Dual Cleavers": "DualCleaverWeapon",
   "Prisma Dual Decurions": "ArchHeavyPistols",
+  "Prisma Dual Decurions (Atmosphere)": "ArchHeavyPistols",
   "Prisma Gorgon": "HeavyRifle",
   "Prisma Grakata": "GrnAssaultRifle",
   "Prisma Grinlok": "GLARifle",
@@ -592,6 +623,8 @@
   "Ramflare": "SUModularStatIICapIClipPart",
   "Raplak Prism": "SentAmpSet1BarrelPartA",
   "Rattleguts": "SUModularSecondaryBarrelCPart",
+  "Rattleguts (Primary)": "SUModularSecondaryBarrelCPart",
+  "Rattleguts (Secondary)": "SUModularSecondaryBarrelCPart",
   "Rauta": "PaxDuviricusShotgun",
   "Reaper Prime": "ReaperWeapon",
   "Reconifex": "TnBeltFedRifleWeapon",
@@ -672,6 +705,8 @@
   "Spira Prime": "LiDagger",
   "Splat": "SUModularCritIICapIClipPart",
   "Sporelacer": "InfModularBarrelEggPart",
+  "Sporelacer (Primary)": "InfModularBarrelEggPart",
+  "Sporelacer (Secondary)": "InfModularBarrelEggPart",
   "Sporothrix": "InfSniperRifle",
   "Stahlta": "CrpRubanRifle",
   "Staticor": "CrpElectroMag",
@@ -747,6 +782,8 @@
   "Tipedo": "TnoMonkStaff",
   "Tipedo Prime": "TnoMonkStaff",
   "Tombfinger": "SUModularSecondaryBarrelBPart",
+  "Tombfinger (Primary)": "SUModularSecondaryBarrelBPart",
+  "Tombfinger (Secondary)": "SUModularSecondaryBarrelBPart",
   "Tonbo": "FlowerPowerPolearmWep",
   "Tonkkatt": "GrnChainSawTonfaWeapon",
   "Tonkor": "GrnGrenadeLauncher",
@@ -789,6 +826,7 @@
   "Vectis Prime": "TennoSniperRifle",
   "Veldt": "TnRevolverRifleGun",
   "Velocitus": "ArchRailgun",
+  "Velocitus (Atmosphere)": "ArchRailgun",
   "Velox": "TnOdaliskSmgPistol",
   "Velox Prime": "TnOdaliskSmgPistol",
   "Venato": "SentJointedScytheWeapon",
@@ -800,9 +838,12 @@
   "Verglas Prime": "SentinelFreezeRayRifle",
   "Vericres": "MoonWarfanWeapon",
   "Vermisplicer": "InfModularBarrelBeamPart",
+  "Vermisplicer (Primary)": "InfModularBarrelBeamPart",
+  "Vermisplicer (Secondary)": "InfModularBarrelBeamPart",
   "Vesper 77": "LasSilencedPistolWeapon",
   "Vinquibus": "TnBayonetRifleWeapon",
-  "Vinquibus (Melee)": "TnBayonetMeleeWeapon",
+  "Vinquibus (Melee)": "TnBayonetRifleWeapon",
+  "Vinquibus (Primary)": "TnBayonetRifleWeapon",
   "Viper": "GrineerLightPistol",
   "Viper Wraith": "GrineerLightPistol",
   "Vitrica": "NWOrokinSword",
@@ -870,21 +911,45 @@
    "Cernos Prime",
    "Rakta Cernos"
   ],
+  "ArchBurstGun": [
+   "Cyngas",
+   "Cyngas (Atmosphere)"
+  ],
   "ArchCannon": [
    "Corvas",
-   "Corvas Prime"
+   "Corvas (Atmosphere)",
+   "Corvas Prime",
+   "Corvas Prime (Atmosphere)"
   ],
   "ArchGRNAAGun": [
    "Grattler",
-   "Kuva Grattler"
+   "Grattler (Atmosphere)",
+   "Kuva Grattler",
+   "Kuva Grattler (Atmosphere)"
   ],
   "ArchHeavyPistols": [
    "Dual Decurion",
-   "Prisma Dual Decurions"
+   "Dual Decurion (Atmosphere)",
+   "Prisma Dual Decurions",
+   "Prisma Dual Decurions (Atmosphere)"
+  ],
+  "ArchLongRifle": [
+   "Phaedra",
+   "Phaedra (Atmosphere)"
   ],
   "ArchMachineGun": [
    "Imperator",
-   "Imperator Vandal"
+   "Imperator (Atmosphere)",
+   "Imperator Vandal",
+   "Imperator Vandal (Atmosphere)"
+  ],
+  "ArchRailgun": [
+   "Velocitus",
+   "Velocitus (Atmosphere)"
+  ],
+  "ArchRocketCrossbow": [
+   "Fluctus",
+   "Fluctus (Atmosphere)"
   ],
   "AsymetricalBow": [
    "Daikyu",
@@ -1036,6 +1101,11 @@
   "DarkDagger": [
    "Dark Dagger",
    "Rakta Dark Dagger"
+  ],
+  "DarkSwordDaggerHybridWeapon": [
+   "Dark Split-Sword",
+   "Dark Split-Sword (Dual Swords)",
+   "Dark Split-Sword (Heavy Blade)"
   ],
   "DethMachineRifle": [
    "Deth Machine Rifle",
@@ -1189,6 +1259,10 @@
    "Kuva Tonkor",
    "Tonkor"
   ],
+  "GrnHeavyGrenadeLauncher": [
+   "Kuva Ayanga",
+   "Kuva Ayanga (Atmosphere)"
+  ],
   "GrnHeavyPistol": [
    "Kraken",
    "Kuva Kraken"
@@ -1255,6 +1329,16 @@
   "InfBoomerangWeapon": [
    "Coda Pathocyst",
    "Pathocyst"
+  ],
+  "InfModularBarrelBeamPart": [
+   "Vermisplicer",
+   "Vermisplicer (Primary)",
+   "Vermisplicer (Secondary)"
+  ],
+  "InfModularBarrelEggPart": [
+   "Sporelacer",
+   "Sporelacer (Primary)",
+   "Sporelacer (Secondary)"
   ],
   "InfProximityStars": [
    "Coda Pox",
@@ -1339,6 +1423,10 @@
    "Shadow Clones",
    "Shadow Clones Prime"
   ],
+  "NokkoArchGun": [
+   "Arbucep",
+   "Arbucep (Atmosphere)"
+  ],
   "Nunchaku": [
    "Ninkondi",
    "Ninkondi Prime"
@@ -1401,6 +1489,26 @@
   "RocketLauncher": [
    "Kuva Ogris",
    "Ogris"
+  ],
+  "SUModularSecondaryBarrelAPart": [
+   "Catchmoon",
+   "Catchmoon (Primary)",
+   "Catchmoon (Secondary)"
+  ],
+  "SUModularSecondaryBarrelBPart": [
+   "Tombfinger",
+   "Tombfinger (Primary)",
+   "Tombfinger (Secondary)"
+  ],
+  "SUModularSecondaryBarrelCPart": [
+   "Rattleguts",
+   "Rattleguts (Primary)",
+   "Rattleguts (Secondary)"
+  ],
+  "SUModularSecondaryBarrelDPart": [
+   "Gaze",
+   "Gaze (Primary)",
+   "Gaze (Secondary)"
   ],
   "SapientPistol": [
    "Akarius",
@@ -1507,6 +1615,18 @@
    "Akstiletto",
    "Akstiletto Prime"
   ],
+  "ThanoTechArchGun": [
+   "Cortege",
+   "Cortege (Atmosphere)"
+  ],
+  "ThanoTechGrenadeLauncher": [
+   "Morgha",
+   "Morgha (Atmosphere)"
+  ],
+  "ThanoTechLongGun": [
+   "Mausolon",
+   "Mausolon (Atmosphere)"
+  ],
   "ThanotechRifle": [
    "Trumna",
    "Trumna Prime"
@@ -1523,6 +1643,11 @@
    "Tenora",
    "Tenora Prime"
   ],
+  "TnBayonetRifleWeapon": [
+   "Vinquibus",
+   "Vinquibus (Melee)",
+   "Vinquibus (Primary)"
+  ],
   "TnBrokenFrameWarfanWeapon": [
    "Quassus",
    "Quassus Prime"
@@ -1530,6 +1655,10 @@
   "TnChiselKanabo": [
    "Masseter",
    "Masseter Prime"
+  ],
+  "TnConcreteArchgunWeapon": [
+   "Mandonel",
+   "Mandonel (Atmosphere)"
   ],
   "TnGlassShotgunGun": [
    "Astilla",
@@ -1577,7 +1706,9 @@
   ],
   "TnShieldFrameArchGun": [
    "Larkspur",
-   "Larkspur Prime"
+   "Larkspur (Atmosphere)",
+   "Larkspur Prime",
+   "Larkspur Prime (Atmosphere)"
   ],
   "TnTwoHandedKatana": [
    "Tatsu",

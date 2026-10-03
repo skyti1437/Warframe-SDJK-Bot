@@ -1,6 +1,6 @@
 {
  "_wiki_url": "https://wiki.warframe.com/w/Riven_Mods/Weapon_Dispos",
- "_生成条数": 649,
+ "_生成条数": 670,
  "_说明": "倾向补全/覆盖表（细粒度值）。主源 wiki.warframe.com/w/Riven_Mods/Weapon_Dispos（维护者确认唯一权威），riven-mirror 兜底；zh=WM i18n 或 DE 官方简中表；riven_type/group 继承 WM 基类。运行期 api_client.wm_riven_weapons() 用本表覆盖同名条目 disposition 并追加缺失（WM 手工值滞后于平衡补丁）。由 scripts/build_disposition.py 生成。",
  "entries": {
   "AX-52": {
@@ -60,7 +60,7 @@
    "zh": "圣英"
   },
   "Afentis Prime": {
-   "disposition": 0.5,
+   "disposition": 0.65,
    "group": "primary",
    "riven_type": "rifle",
    "url_name": "afentis_prime",
@@ -186,11 +186,18 @@
    "zh": "轻灵月神双枪"
   },
   "Aksomati Prime": {
-   "disposition": 1.05,
+   "disposition": 1.1,
    "group": "secondary",
    "riven_type": "pistol",
    "url_name": "aksomati_prime",
    "zh": "轻灵月神双枪 Prime"
+  },
+  "Aksondol": {
+   "disposition": 0.5,
+   "group": "secondary",
+   "riven_type": "pistol",
+   "url_name": "aksondol",
+   "zh": "寒怨刺"
   },
   "Akstiletto": {
    "disposition": 0.95,
@@ -228,14 +235,14 @@
    "zh": "荒谬双枪"
   },
   "Alternox": {
-   "disposition": 1.15,
+   "disposition": 1.2,
    "group": "primary",
    "riven_type": "rifle",
    "url_name": "alternox",
    "zh": "电幻步枪"
   },
   "Alternox Prime": {
-   "disposition": 0.8,
+   "disposition": 0.95,
    "group": "primary",
    "riven_type": "rifle",
    "url_name": "alternox_prime",
@@ -303,6 +310,13 @@
    "riven_type": "rifle",
    "url_name": "arbucep",
    "zh": "蕈菇"
+  },
+  "Arbucep (Atmosphere)": {
+   "disposition": 0.7,
+   "group": "",
+   "riven_type": "",
+   "url_name": "arbucep_(atmosphere)",
+   "zh": ""
   },
   "Arca Plasmor": {
    "disposition": 0.95,
@@ -375,7 +389,7 @@
    "zh": "阿索代"
   },
   "Athodai Prime": {
-   "disposition": 0.5,
+   "disposition": 0.65,
    "group": "secondary",
    "riven_type": "pistol",
    "url_name": "athodai_prime",
@@ -668,13 +682,6 @@
    "url_name": "catabolyst",
    "zh": "异化者"
   },
-  "Catchmoon": {
-   "disposition": 0.75,
-   "group": "kitgun",
-   "riven_type": "kitgun",
-   "url_name": "catchmoon",
-   "zh": "捕月"
-  },
   "Catchmoon (Primary)": {
    "disposition": 1.1,
    "group": "",
@@ -683,7 +690,7 @@
    "zh": ""
   },
   "Catchmoon (Secondary)": {
-   "disposition": 0.65,
+   "disposition": 0.75,
    "group": "",
    "riven_type": "",
    "url_name": "catchmoon_(secondary)",
@@ -781,14 +788,14 @@
    "zh": "终幕·低音爆囊"
   },
   "Coda Bubonico": {
-   "disposition": 0.55,
+   "disposition": 0.6,
    "group": "primary",
    "riven_type": "rifle",
    "url_name": "coda_bubonico",
    "zh": ""
   },
   "Coda Catabolyst": {
-   "disposition": 0.65,
+   "disposition": 0.7,
    "group": "secondary",
    "riven_type": "pistol",
    "url_name": "coda_catabolyst",
@@ -802,7 +809,7 @@
    "zh": "终幕·灼蚀变体镰"
   },
   "Coda Hema": {
-   "disposition": 0.95,
+   "disposition": 1.0,
    "group": "primary",
    "riven_type": "rifle",
    "url_name": "coda_hema",
@@ -837,7 +844,7 @@
    "zh": "终幕·病囊飞刃"
   },
   "Coda Pox": {
-   "disposition": 1.0,
+   "disposition": 1.05,
    "group": "secondary",
    "riven_type": "pistol",
    "url_name": "coda_pox",
@@ -892,12 +899,26 @@
    "url_name": "cortege",
    "zh": "送葬者"
   },
+  "Cortege (Atmosphere)": {
+   "disposition": 1.0,
+   "group": "",
+   "riven_type": "",
+   "url_name": "cortege_(atmosphere)",
+   "zh": ""
+  },
   "Corufell": {
    "disposition": 1.05,
    "group": "melee",
    "riven_type": "melee",
    "url_name": "corufell",
    "zh": "闪劫"
+  },
+  "Corufell Prime": {
+   "disposition": 0.5,
+   "group": "melee",
+   "riven_type": "melee",
+   "url_name": "corufell_prime",
+   "zh": ""
   },
   "Corvas": {
    "disposition": 1.2,
@@ -906,11 +927,25 @@
    "url_name": "corvas",
    "zh": "黑鸦"
   },
+  "Corvas (Atmosphere)": {
+   "disposition": 1.2,
+   "group": "",
+   "riven_type": "",
+   "url_name": "corvas_(atmosphere)",
+   "zh": ""
+  },
   "Corvas Prime": {
-   "disposition": 0.95,
+   "disposition": 1.0,
    "group": "archgun",
    "riven_type": "rifle",
    "url_name": "corvas_prime",
+   "zh": ""
+  },
+  "Corvas Prime (Atmosphere)": {
+   "disposition": 1.0,
+   "group": "",
+   "riven_type": "",
+   "url_name": "corvas_prime_(atmosphere)",
    "zh": ""
   },
   "Cronus": {
@@ -935,7 +970,7 @@
    "zh": "氰毒"
   },
   "Cyath": {
-   "disposition": 1.0,
+   "disposition": 1.05,
    "group": "zaw",
    "riven_type": "zaw",
    "url_name": "cyath",
@@ -955,6 +990,13 @@
    "url_name": "cyngas",
    "zh": "合成燃气炮"
   },
+  "Cyngas (Atmosphere)": {
+   "disposition": 1.3,
+   "group": "",
+   "riven_type": "",
+   "url_name": "cyngas_(atmosphere)",
+   "zh": ""
+  },
   "Daikyu": {
    "disposition": 1.3,
    "group": "primary",
@@ -963,7 +1005,7 @@
    "zh": "大久和弓"
   },
   "Daikyu Prime": {
-   "disposition": 0.9,
+   "disposition": 1.0,
    "group": "primary",
    "riven_type": "rifle",
    "url_name": "daikyu_prime",
@@ -989,6 +1031,20 @@
    "riven_type": "melee",
    "url_name": "dark_split_sword_(dual_swords)",
    "zh": "暗黑分合剑"
+  },
+  "Dark Split-Sword (Dual Swords)": {
+   "disposition": 1.3,
+   "group": "",
+   "riven_type": "",
+   "url_name": "dark_split-sword_(dual_swords)",
+   "zh": ""
+  },
+  "Dark Split-Sword (Heavy Blade)": {
+   "disposition": 1.3,
+   "group": "",
+   "riven_type": "",
+   "url_name": "dark_split-sword_(heavy_blade)",
+   "zh": ""
   },
   "Dark Sword": {
    "disposition": 1.48,
@@ -1165,6 +1221,13 @@
    "url_name": "dual_decurion",
    "zh": "什长双枪"
   },
+  "Dual Decurion (Atmosphere)": {
+   "disposition": 1.3,
+   "group": "",
+   "riven_type": "",
+   "url_name": "dual_decurion_(atmosphere)",
+   "zh": ""
+  },
   "Dual Ether": {
    "disposition": 1.45,
    "group": "melee",
@@ -1250,7 +1313,7 @@
    "zh": "佐伦双斧"
   },
   "Dual Zoren Prime": {
-   "disposition": 0.9,
+   "disposition": 0.95,
    "group": "melee",
    "riven_type": "melee",
    "url_name": "dual_zoren_prime",
@@ -1306,7 +1369,7 @@
    "zh": "三叶坚韧"
   },
   "Enkaus": {
-   "disposition": 0.7,
+   "disposition": 0.8,
    "group": "primary",
    "riven_type": "rifle",
    "url_name": "enkaus",
@@ -1410,6 +1473,13 @@
    "url_name": "fluctus",
    "zh": "巨浪"
   },
+  "Fluctus (Atmosphere)": {
+   "disposition": 1.1,
+   "group": "",
+   "riven_type": "",
+   "url_name": "fluctus_(atmosphere)",
+   "zh": ""
+  },
   "Flux Rifle": {
    "disposition": 1.55,
    "group": "primary",
@@ -1474,7 +1544,7 @@
    "zh": "齐射玻刃"
   },
   "Galariak Prime": {
-   "disposition": 0.8,
+   "disposition": 0.9,
    "group": "melee",
    "riven_type": "melee",
    "url_name": "galariak_prime",
@@ -1515,22 +1585,15 @@
    "url_name": "gazal_machete",
    "zh": "加扎勒反曲刀"
   },
-  "Gaze": {
-   "disposition": 1.0,
-   "group": "kitgun",
-   "riven_type": "kitgun",
-   "url_name": "gaze",
-   "zh": "凝目"
-  },
   "Gaze (Primary)": {
-   "disposition": 1.05,
+   "disposition": 1.1,
    "group": "",
    "riven_type": "",
    "url_name": "gaze_(primary)",
    "zh": ""
   },
   "Gaze (Secondary)": {
-   "disposition": 0.9,
+   "disposition": 1.05,
    "group": "",
    "riven_type": "",
    "url_name": "gaze_(secondary)",
@@ -1607,7 +1670,7 @@
    "zh": "格拉姆"
   },
   "Gram Prime": {
-   "disposition": 0.75,
+   "disposition": 0.8,
    "group": "melee",
    "riven_type": "melee",
    "url_name": "gram_prime",
@@ -1619,6 +1682,13 @@
    "riven_type": "rifle",
    "url_name": "grattler",
    "zh": "葛拉特勒"
+  },
+  "Grattler (Atmosphere)": {
+   "disposition": 1.1,
+   "group": "",
+   "riven_type": "",
+   "url_name": "grattler_(atmosphere)",
+   "zh": ""
   },
   "Grimoire": {
    "disposition": 0.6,
@@ -1663,7 +1733,7 @@
    "zh": "军扇 Prime"
   },
   "Haalvu": {
-   "disposition": 0.5,
+   "disposition": 0.6,
    "group": "primary",
    "riven_type": "rifle",
    "url_name": "haalvu",
@@ -1796,7 +1866,7 @@
    "zh": "豪猪"
   },
   "Hystrix Prime": {
-   "disposition": 1.0,
+   "disposition": 1.05,
    "group": "secondary",
    "riven_type": "pistol",
    "url_name": "hystrix_prime",
@@ -1823,11 +1893,25 @@
    "url_name": "imperator",
    "zh": "凯旋将军"
   },
+  "Imperator (Atmosphere)": {
+   "disposition": 1.1,
+   "group": "",
+   "riven_type": "",
+   "url_name": "imperator_(atmosphere)",
+   "zh": ""
+  },
   "Imperator Vandal": {
    "disposition": 0.95,
    "group": "",
    "riven_type": "",
    "url_name": "imperator_vandal",
+   "zh": ""
+  },
+  "Imperator Vandal (Atmosphere)": {
+   "disposition": 0.95,
+   "group": "",
+   "riven_type": "",
+   "url_name": "imperator_vandal_(atmosphere)",
    "zh": ""
   },
   "Innodem": {
@@ -1929,7 +2013,7 @@
    "zh": "红隼"
   },
   "Kestrel Prime": {
-   "disposition": 0.75,
+   "disposition": 0.85,
    "group": "melee",
    "riven_type": "melee",
    "url_name": "kestrel_prime",
@@ -2075,6 +2159,13 @@
    "url_name": "kuva_ayanga",
    "zh": "赤毒·怒雷"
   },
+  "Kuva Ayanga (Atmosphere)": {
+   "disposition": 0.95,
+   "group": "",
+   "riven_type": "",
+   "url_name": "kuva_ayanga_(atmosphere)",
+   "zh": ""
+  },
   "Kuva Brakk": {
    "disposition": 0.95,
    "group": "secondary",
@@ -2083,7 +2174,7 @@
    "zh": "赤毒·布拉克"
   },
   "Kuva Bramma": {
-   "disposition": 0.65,
+   "disposition": 0.7,
    "group": "primary",
    "riven_type": "rifle",
    "url_name": "kuva_bramma",
@@ -2104,7 +2195,7 @@
    "zh": "赤毒·龙骑兵"
   },
   "Kuva Ghoulsaw": {
-   "disposition": 0.7,
+   "disposition": 0.8,
    "group": "melee",
    "riven_type": "melee",
    "url_name": "kuva_ghoulsaw",
@@ -2115,6 +2206,13 @@
    "group": "archgun",
    "riven_type": "rifle",
    "url_name": "kuva_grattler",
+   "zh": ""
+  },
+  "Kuva Grattler (Atmosphere)": {
+   "disposition": 0.7,
+   "group": "",
+   "riven_type": "",
+   "url_name": "kuva_grattler_(atmosphere)",
    "zh": ""
   },
   "Kuva Hek": {
@@ -2188,7 +2286,7 @@
    "zh": "赤毒·预言者"
   },
   "Kuva Shildeg": {
-   "disposition": 0.8,
+   "disposition": 0.85,
    "group": "melee",
    "riven_type": "melee",
    "url_name": "kuva_shildeg",
@@ -2257,11 +2355,25 @@
    "url_name": "larkspur",
    "zh": "翠雀"
   },
+  "Larkspur (Atmosphere)": {
+   "disposition": 1.05,
+   "group": "",
+   "riven_type": "",
+   "url_name": "larkspur_(atmosphere)",
+   "zh": ""
+  },
   "Larkspur Prime": {
    "disposition": 0.8,
    "group": "archgun",
    "riven_type": "rifle",
    "url_name": "larkspur_prime",
+   "zh": ""
+  },
+  "Larkspur Prime (Atmosphere)": {
+   "disposition": 0.8,
+   "group": "",
+   "riven_type": "",
+   "url_name": "larkspur_prime_(atmosphere)",
    "zh": ""
   },
   "Laser Rifle": {
@@ -2439,6 +2551,13 @@
    "url_name": "mandonel",
    "zh": "辐光弩炮"
   },
+  "Mandonel (Atmosphere)": {
+   "disposition": 1.1,
+   "group": "",
+   "riven_type": "",
+   "url_name": "mandonel_(atmosphere)",
+   "zh": ""
+  },
   "Mara Detron": {
    "disposition": 1.15,
    "group": "secondary",
@@ -2473,6 +2592,13 @@
    "riven_type": "rifle",
    "url_name": "mausolon",
    "zh": "惩戒者"
+  },
+  "Mausolon (Atmosphere)": {
+   "disposition": 0.5,
+   "group": "",
+   "riven_type": "",
+   "url_name": "mausolon_(atmosphere)",
+   "zh": ""
   },
   "Mewan": {
    "disposition": 1.15,
@@ -2557,6 +2683,13 @@
    "riven_type": "rifle",
    "url_name": "morgha",
    "zh": "置灵者"
+  },
+  "Morgha (Atmosphere)": {
+   "disposition": 1.0,
+   "group": "",
+   "riven_type": "",
+   "url_name": "morgha_(atmosphere)",
+   "zh": ""
   },
   "Multron": {
    "disposition": 1.0,
@@ -2670,6 +2803,13 @@
    "url_name": "nukor",
    "zh": "努寇微波枪"
   },
+  "Nunchasa": {
+   "disposition": 0.5,
+   "group": "primary",
+   "riven_type": "rifle",
+   "url_name": "nunchasa",
+   "zh": "霜冥差"
+  },
   "Obex": {
    "disposition": 1.3,
    "group": "melee",
@@ -2713,7 +2853,7 @@
    "zh": "翁 Prime"
   },
   "Onos": {
-   "disposition": 0.8,
+   "disposition": 0.85,
    "group": "secondary",
    "riven_type": "pistol",
    "url_name": "onos",
@@ -2860,7 +3000,7 @@
    "zh": "月面狂风"
   },
   "Perigale Prime": {
-   "disposition": 0.65,
+   "disposition": 0.8,
    "group": "primary",
    "riven_type": "rifle",
    "url_name": "perigale_prime",
@@ -2872,6 +3012,13 @@
    "riven_type": "rifle",
    "url_name": "phaedra",
    "zh": "菲德菈"
+  },
+  "Phaedra (Atmosphere)": {
+   "disposition": 1.25,
+   "group": "",
+   "riven_type": "",
+   "url_name": "phaedra_(atmosphere)",
+   "zh": ""
   },
   "Phage": {
    "disposition": 1.46,
@@ -2902,7 +3049,7 @@
    "zh": "凤殁"
   },
   "Plague Keewar": {
-   "disposition": 0.85,
+   "disposition": 0.9,
    "group": "zaw",
    "riven_type": "zaw",
    "url_name": "plague_keewar",
@@ -2944,7 +3091,7 @@
    "zh": "双雄"
   },
   "Pride": {
-   "disposition": 0.5,
+   "disposition": 0.7,
    "group": "melee",
    "riven_type": "melee",
    "url_name": "pride",
@@ -2983,6 +3130,13 @@
    "group": "",
    "riven_type": "",
    "url_name": "prisma_dual_decurions",
+   "zh": ""
+  },
+  "Prisma Dual Decurions (Atmosphere)": {
+   "disposition": 1.25,
+   "group": "",
+   "riven_type": "",
+   "url_name": "prisma_dual_decurions_(atmosphere)",
    "zh": ""
   },
   "Prisma Gorgon": {
@@ -3091,7 +3245,7 @@
    "zh": "毒囊骨茧"
   },
   "Purgator 1": {
-   "disposition": 1.15,
+   "disposition": 1.2,
    "group": "primary",
    "riven_type": "rifle",
    "url_name": "purgator_1",
@@ -3188,22 +3342,15 @@
    "url_name": "rakta_dark_dagger",
    "zh": "绯红·暗黑匕首"
   },
-  "Rattleguts": {
-   "disposition": 1.0,
-   "group": "kitgun",
-   "riven_type": "kitgun",
-   "url_name": "rattleguts",
-   "zh": "响胆"
-  },
   "Rattleguts (Primary)": {
-   "disposition": 1,
+   "disposition": 1.0,
    "group": "",
    "riven_type": "",
    "url_name": "rattleguts_(primary)",
    "zh": ""
   },
   "Rattleguts (Secondary)": {
-   "disposition": 0.85,
+   "disposition": 1.0,
    "group": "",
    "riven_type": "",
    "url_name": "rattleguts_(secondary)",
@@ -3287,7 +3434,7 @@
    "zh": "古声"
   },
   "Sagek Prime": {
-   "disposition": 0.8,
+   "disposition": 0.9,
    "group": "secondary",
    "riven_type": "pistol",
    "url_name": "sagek_prime",
@@ -3329,7 +3476,7 @@
    "zh": "沙罗之牙"
   },
   "Sarofang Prime": {
-   "disposition": 0.65,
+   "disposition": 0.75,
    "group": "melee",
    "riven_type": "melee",
    "url_name": "sarofang_prime",
@@ -3378,7 +3525,7 @@
    "zh": "祸根 Prime"
   },
   "Scyotid": {
-   "disposition": 0.7,
+   "disposition": 0.75,
    "group": "secondary",
    "riven_type": "pistol",
    "url_name": "scyotid",
@@ -3588,7 +3735,7 @@
    "zh": "光谱切割器·破坏者"
   },
   "Spinnerex": {
-   "disposition": 0.75,
+   "disposition": 0.85,
    "group": "melee",
    "riven_type": "melee",
    "url_name": "spinnerex",
@@ -3608,22 +3755,15 @@
    "url_name": "spira_prime",
    "zh": "旋刃飞刀 Prime"
   },
-  "Sporelacer": {
-   "disposition": 0.6,
-   "group": "kitgun",
-   "riven_type": "kitgun",
-   "url_name": "sporelacer",
-   "zh": "孢射"
-  },
   "Sporelacer (Primary)": {
-   "disposition": 1.1,
+   "disposition": 1.15,
    "group": "",
    "riven_type": "",
    "url_name": "sporelacer_(primary)",
    "zh": ""
   },
   "Sporelacer (Secondary)": {
-   "disposition": 0.55,
+   "disposition": 0.6,
    "group": "",
    "riven_type": "",
    "url_name": "sporelacer_(secondary)",
@@ -3656,6 +3796,13 @@
    "riven_type": "shotgun",
    "url_name": "steflos",
    "zh": "石晶之花"
+  },
+  "Steflos Prime": {
+   "disposition": 0.5,
+   "group": "primary",
+   "riven_type": "shotgun",
+   "url_name": "steflos_prime",
+   "zh": ""
   },
   "Stinger": {
    "disposition": 1.315,
@@ -3812,7 +3959,7 @@
    "zh": "枢议·重力奇点拟成枪"
   },
   "Tak & Lug": {
-   "disposition": 0.95,
+   "disposition": 1.05,
    "group": "melee",
    "riven_type": "melee",
    "url_name": "tak_and_lug",
@@ -3889,7 +4036,7 @@
    "zh": "信条·集议"
   },
   "Tenet Arca Plasmor": {
-   "disposition": 0.55,
+   "disposition": 0.6,
    "group": "primary",
    "riven_type": "shotgun",
    "url_name": "tenet_arca_plasmor",
@@ -3973,7 +4120,7 @@
    "zh": "信条·漫射者"
   },
   "Tenet Quanta": {
-   "disposition": 0.75,
+   "disposition": 0.85,
    "group": "primary",
    "riven_type": "rifle",
    "url_name": "tenet_quanta",
@@ -4015,14 +4162,14 @@
    "zh": "特拉"
   },
   "Thalys": {
-   "disposition": 0.6,
+   "disposition": 0.65,
    "group": "melee",
    "riven_type": "melee",
    "url_name": "thalys",
    "zh": "大力士"
   },
   "Thornbak": {
-   "disposition": 1.1,
+   "disposition": 1.2,
    "group": "primary",
    "riven_type": "rifle",
    "url_name": "thornbak",
@@ -4070,22 +4217,15 @@
    "url_name": "tipedo_prime",
    "zh": "提佩多 Prime"
   },
-  "Tombfinger": {
-   "disposition": 0.85,
-   "group": "kitgun",
-   "riven_type": "kitgun",
-   "url_name": "tombfinger",
-   "zh": "墓指"
-  },
   "Tombfinger (Primary)": {
-   "disposition": 1,
+   "disposition": 1.0,
    "group": "",
    "riven_type": "",
    "url_name": "tombfinger_(primary)",
    "zh": ""
   },
   "Tombfinger (Secondary)": {
-   "disposition": 0.7,
+   "disposition": 0.9,
    "group": "",
    "riven_type": "",
    "url_name": "tombfinger_(secondary)",
@@ -4099,7 +4239,7 @@
    "zh": "蜻蛉薙"
   },
   "Tonkkatt": {
-   "disposition": 0.85,
+   "disposition": 0.95,
    "group": "melee",
    "riven_type": "melee",
    "url_name": "tonkkatt",
@@ -4197,7 +4337,7 @@
    "zh": "啐沫者"
   },
   "Vadarya Prime": {
-   "disposition": 0.75,
+   "disposition": 0.8,
    "group": "primary",
    "riven_type": "rifle",
    "url_name": "vadarya_prime",
@@ -4273,6 +4413,13 @@
    "url_name": "velocitus",
    "zh": "极速电磁步枪"
   },
+  "Velocitus (Atmosphere)": {
+   "disposition": 1.1,
+   "group": "",
+   "riven_type": "",
+   "url_name": "velocitus_(atmosphere)",
+   "zh": ""
+  },
   "Velox": {
    "disposition": 1.25,
    "group": "secondary",
@@ -4295,7 +4442,7 @@
    "zh": "脉纹"
   },
   "Venato Prime": {
-   "disposition": 0.6,
+   "disposition": 0.65,
    "group": "melee",
    "riven_type": "melee",
    "url_name": "venato_prime",
@@ -4343,13 +4490,6 @@
    "url_name": "vericres",
    "zh": "真月武扇"
   },
-  "Vermisplicer": {
-   "disposition": 1.15,
-   "group": "kitgun",
-   "riven_type": "kitgun",
-   "url_name": "vermisplicer",
-   "zh": "虫置"
-  },
   "Vermisplicer (Primary)": {
    "disposition": 0.9,
    "group": "",
@@ -4358,7 +4498,7 @@
    "zh": ""
   },
   "Vermisplicer (Secondary)": {
-   "disposition": 1.1,
+   "disposition": 1.15,
    "group": "",
    "riven_type": "",
    "url_name": "vermisplicer_(secondary)",
@@ -4371,12 +4511,19 @@
    "url_name": "vesper_77",
    "zh": "夜语者 77"
   },
-  "Vinquibus": {
+  "Vinquibus (Melee)": {
    "disposition": 0.7,
-   "group": "primary",
-   "riven_type": "rifle",
-   "url_name": "vinquibus",
-   "zh": "制胜者"
+   "group": "melee",
+   "riven_type": "melee",
+   "url_name": "vinquibus_melee",
+   "zh": "制胜者 (近战)"
+  },
+  "Vinquibus (Primary)": {
+   "disposition": 0.7,
+   "group": "",
+   "riven_type": "",
+   "url_name": "vinquibus_(primary)",
+   "zh": ""
   },
   "Viper": {
    "disposition": 1.45,
@@ -4449,7 +4596,7 @@
    "zh": "战争之剑"
   },
   "War Prime": {
-   "disposition": 0.5,
+   "disposition": 0.65,
    "group": "melee",
    "riven_type": "melee",
    "url_name": "war_prime",
@@ -4463,7 +4610,7 @@
    "zh": "恶狼战锤"
   },
   "Wrath": {
-   "disposition": 0.5,
+   "disposition": 0.7,
    "group": "melee",
    "riven_type": "melee",
    "url_name": "wrath",
@@ -4533,7 +4680,7 @@
    "zh": "席尔火枪"
   },
   "Zylok Prime": {
-   "disposition": 0.9,
+   "disposition": 0.95,
    "group": "secondary",
    "riven_type": "pistol",
    "url_name": "zylok_prime",
