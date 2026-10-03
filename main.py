@@ -381,6 +381,7 @@ HELP_TOPIC: dict[str, list[tuple[str, str]]] = {
         ("日历", "1999 日历：当前季与日程"),
         ("结合目标", "Simaris 结合仪式目标与出处"),
         ("wiki 关键词", "词库直达维基页面"),
+        ("翻译", "中英名称对照（纯文本，如 翻译 腐蚀投射）"),
         ("赤毒 / 钢铁之路", "赤毒历史｜Teshin 荣誉商店"),
     ],
     "遗物与资源": [
@@ -495,6 +496,7 @@ class WarframeSDJK(DailyCommands, ProgressCommands, ArbitrationCommands, Rotatio
             "calendar": self._h_calendar, "deeparchimedea": self._h_deep,
             "temporalarchimedea": self._h_temporal, "steelpath": self._h_steelpath,
             "slivershop": self._h_slivershop,
+            "translate": self._h_translate,
             "arbitration": self._h_arbitration, "arbtable": self._h_arbtable, "alerts": self._h_alerts,
             "invasions": self._h_invasions, "nightwave": self._h_nightwave,
             "news": self._h_news, "kuva": self._h_kuva,

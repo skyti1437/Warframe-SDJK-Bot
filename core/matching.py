@@ -18,6 +18,7 @@ from __future__ import annotations
 import difflib
 import json
 import re
+import unicodedata
 from typing import Optional
 
 # 分隔符：半/全角空格、中点族、连字符族、下划线、引号撇
@@ -495,3 +496,88 @@ def suggest_zh(query: str, entries: list, *, zh: str = "zh", en: str = "en",
             for e in entries if (e.get(zh) or e.get(en))}
     close = difflib.get_close_matches(nq, list(pool), n=n, cutoff=cutoff)
     return [pool[c] for c in close if pool.get(c)]
+
+
+# ---------------------------------------------------------------------------
+# ★ C1/B1（2026-10-03）：名称归一化与双语对照（**共用入口**）
+#   线上实证：`部件 阿索代prime` 未找到（库里是「阿索代 Prime」）—— 按名查表
+#   的指令对大小写/空格敏感。此后 部件 / wiki / 翻译 等一律先过 normalize_name。
+# ---------------------------------------------------------------------------
+def normalize_name(s: str) -> str:
+    """名称归一化（所有「按名查表」的统一匹配键；显示仍用原串）。
+
+    NFKC 全半角（Ｔ５→t5）+ casefold + **去除全部空白与中点变体**（· ・ •）：
+    「阿索代prime」≡「阿索代 Prime」≡「阿索代·Prime」⇒ 同一键；
+    英文「Corrosive Projection」≡「corrosive  projection」同理。
+    """
+    s = unicodedata.normalize("NFKC", s or "").casefold()
+    return re.sub(r"[·・•·\s]+", "", s)
+
+
+_BILINGUAL: Optional[dict] = None
+
+
+def load_bilingual() -> dict:
+    """双语名称表索引（构建期 core/data/de/name_bilingual.json）。
+
+    返回 {"en": {norm: [(en, zh), ...]}, "zh": {norm: [(en, zh), ...]}}；
+    表缺失时返回空索引（查表方按「未收录」处理，不炸）。
+    """
+    global _BILINGUAL
+    if _BILINGUAL is None:
+        pairs: list = []
+        try:
+            from . import paths
+            raw = json.loads(
+                paths.read_path("de/name_bilingual.json").read_text(encoding="utf-8"))
+            pairs = raw.get("pairs") or []
+        except Exception:  # noqa: BLE001 - 表缺失不阻断（未收录提示兜底）
+            pairs = []
+        en_i: dict = {}
+        zh_i: dict = {}
+        for en, zh in pairs:
+            en_i.setdefault(normalize_name(en), []).append((en, zh))
+            zh_i.setdefault(normalize_name(zh), []).append((en, zh))
+        _BILINGUAL = {"en": en_i, "zh": zh_i}
+    return _BILINGUAL
+
+
+def _dedupe_pairs(pairs: list, limit: int) -> list:
+    out, seen = [], set()
+    for p in pairs:
+        if p in seen:
+            continue
+        seen.add(p)
+        out.append(p)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def bilingual_lookup(query: str, limit: int = 5) -> dict:
+    """翻译查询（中英双向）。返回 {"direction", "hits", "candidates"}。
+
+    · 含 CJK ⇒ 按中文侧查（zh→en），否则按英文侧查（en→zh）；
+    · 精确（归一化后全等）优先，多义最多 limit 条；
+    · 未精确命中 ⇒ 子串候选（≤limit）；仍无 ⇒ 两边皆空（调用方明确提示，不猜）。
+    """
+    q = (query or "").strip()
+    has_cjk = any("一" <= c <= "鿿" for c in q)
+    direction = "zh→en" if has_cjk else "en→zh"
+    nq = normalize_name(q)
+    if not nq:
+        return {"direction": direction, "hits": [], "candidates": []}
+    idx = load_bilingual()
+    table = idx["zh"] if has_cjk else idx["en"]
+    hits = table.get(nq) or []
+    if hits:
+        return {"direction": direction,
+                "hits": _dedupe_pairs(hits, limit), "candidates": []}
+    cands: list = []
+    for k, v in table.items():
+        if nq in k:
+            cands.extend(v)
+            if len(cands) >= limit * 4:
+                break
+    return {"direction": direction, "hits": [],
+            "candidates": _dedupe_pairs(cands, limit)}

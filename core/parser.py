@@ -71,6 +71,8 @@ COMMAND_ALIASES: dict[str, set[str]] = {
     "deeparchimedea": {"深层科研", "深层"},
     "temporalarchimedea": {"时光科研", "时光"},
     "steelpath": {"钢铁之路", "钢精"},
+    # ★ 2026-10-03（B1）：中英名称对照（纯文本）
+    "translate": {"翻译"},
     # ★ 2026-10-03（A3）：Palladino 裂罅碎块商店（地球「钢铁守望」）
     "slivershop": {"碎银兑换", "碎银"},
     "arbitration": {"仲裁"},

@@ -161,6 +161,35 @@ class WikiMiscCommands:
         return Reply(raw_text=f"本地词库未收录「{query}」，请前往维基搜索：\n{link}"
                               f"{tip}{self._kb_hint()}")
 
+    async def _h_translate(self, parsed, event, platform) -> Reply:
+        """翻译：中英名称对照（纯文本，**不渲染图片**）。
+
+        数据：构建期生成的 core/data/de/name_bilingual.json（DE 官方 language
+        表筛选，含 MOD/武器/战甲/赋能/资源/部件）；查表走
+        matching.normalize_name（与 部件/wiki 同一套归一化）——
+        「阿索代prime」≡「阿索代 Prime」≡「athodai」都能查到。
+        多义给少量候选（每行一条）；找不到明确提示，不静默、不猜。
+        """
+        q = (parsed.content_str or "").strip()
+        if not q:
+            return Reply(raw_text="用法：翻译 腐蚀投射 ／ 翻译 Corrosive Projection"
+                                  "（中英双向；只查名称类词条）")
+        r = matching.bilingual_lookup(q)
+        # 方向：zh→en 时「原词（中）=> 译名（英）」；en→zh 反之。
+        # 表内 pair 一律 (en, zh)，展示时按 direction 排前后。
+        def _fmt(pairs):
+            if r["direction"] == "zh→en":
+                return [f"[{zh}] => {en}" for en, zh in pairs]
+            return [f"[{en}] => {zh}" for en, zh in pairs]
+
+        if r["hits"]:
+            return Reply(raw_text="\n".join(_fmt(r["hits"])))
+        if r["candidates"]:
+            lines = [f"未找到精确匹配「{q}」，相近候选："] + _fmt(r["candidates"])
+            return Reply(raw_text="\n".join(lines))
+        return Reply(raw_text=f"未找到「{q}」（未收录该名称；"
+                              "可试官方中文或英文全名）")
+
     async def _h_valence(self, parsed, event, platform) -> Reply:
         """玄骸 / 信条 / 科达武器的**效价融合**（Valence Fusion）。
 
