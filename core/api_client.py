@@ -2641,18 +2641,24 @@ class WarframeClient:
     def parse_wiki_dispositions(html: str) -> dict:
         """从 wiki「Riven Mod」页 HTML 解析完整倾向表。
 
-        行形态（管道化后）：``|Weapon Name| (0.95)|``。返回
-        {英文小写名: 倾向值}，值域过滤 0.05-1.6、名称首字母须为字母。
+        ★ 2026-10-03 与 ``scripts/build_disposition.py::parse_wiki_html``
+        同源（链接文本防塌缩）：条目名只写在 ``<a>`` 文本里，模式后缀
+        （(Primary)/(Secondary)/(Atmosphere)/(Melee)…）也在文本中 —— 旧的
+        管道化正则名字段容不下括号，会把双模式条目**整行丢弃**（线上实证：
+        Sep 27 运行期重抓写出 622 条、组合枪双模式全缺，运行目录副本又把
+        批 D 新表遮蔽到 TTL 到期）。返回 {英文小写名: 倾向值}，值域过滤
+        0.05-1.6、名称首字母须为字母、``&amp;`` 等实体解码。
         """
-        txt = re.sub(r"<[^>]+>", "|", html)
-        txt = re.sub(r"\|+", "|", txt)
-        pat = re.compile(r"\|\s*([A-Za-z][^|()]{0,60}?)\s*\|\s*\((\d(?:\.\d+)?)\)")
+        import html as _html
+        pairs = re.findall(
+            r"<li[^>]*>\s*<a href=\"[^\"]*/w/[^\"]*\"[^>]*>([^<]+)</a>"
+            r" \(([\d.]+)\)", html)
         out: dict[str, float] = {}
-        for name, val in pat.findall(txt):
+        for name, val in pairs:
             v = float(val)
             if not 0.05 <= v <= 1.6:
                 continue
-            name = name.strip()
+            name = _html.unescape(name).strip()
             if 2 <= len(name) <= 60 and re.match(r"^[A-Za-z]", name):
                 out[name.lower()] = v
         return out

@@ -216,17 +216,31 @@ check("valence 解析 coda", _v["coda"].get("Coda Bubonico") == ("Heat", 31.2))
 check("valence 残缺时不瞎判批", _WC.parse_wiki_valence("<p>xx</p>")["coda_batch"] == "")
 
 # ---------------------------------------------- wiki 倾向表 HTML 解析
-_disp_html = """<table>
-<tr><td><a>Kuva Chakkhurr</a></td><td>(0.95)</td></tr>
-<tr><td>Prisma Ohma</td><td>(0.95)</td></tr>
-<tr><td>Boltor</td><td>(1.3)</td></tr>
-<tr><td>Some Weapon</td><td>(99)</td></tr>
-</table>"""
+# ★ 2026-10-03 夹具换成 wiki 真实结构（<li><a href="/w/...">名（模式）</a> (值)）：
+#   旧夹具是人造 <td> 表格，从未对准真页；解析器同日改「链接文本」口径
+#   （管道化正则名字段容不下括号 ⇒ 双模式条目整行丢失，线上 622 条实证）。
+_disp_html = """<ul>
+<li><a href="/w/Kuva_Chakkhurr" title="Kuva Chakkhurr">Kuva Chakkhurr</a> (0.95)</li>
+<li><a href="/w/Prisma_Ohma" title="Prisma Ohma">Prisma Ohma</a> (0.95)</li>
+<li><a href="/w/Boltor" title="Boltor">Boltor</a> (1.3)</li>
+<li><a href="/w/Some_Weapon" title="Some Weapon">Some Weapon</a> (99)</li>
+<li><a href="/w/Catchmoon" title="Catchmoon">Catchmoon (Primary)</a> (1.1)</li>
+<li><a href="/w/Catchmoon" title="Catchmoon">Catchmoon (Secondary)</a> (0.75)</li>
+<li><a href="/w/Vermisplicer" title="Vermisplicer">Vermisplicer (Atmosphere)</a> (0.5)</li>
+<li><a href="/w/Ack_%26_Brunt" title="Ack &amp; Brunt">Ack &amp; Brunt</a> (1.3)</li>
+</ul>"""
 _disp = _WC.parse_wiki_dispositions(_disp_html)
 check("倾向表解析（含值域过滤）",
       _disp.get("prisma ohma") == 0.95 and _disp.get("kuva chakkhurr") == 0.95
       and "some weapon" not in _disp, str(_disp))
 check("倾向表 Boltor 1.3", _disp.get("boltor") == 1.3, str(_disp))
+check("倾向表 双模式条目不塌缩（catchmoon (primary) 1.1 / (secondary) 0.75）",
+      _disp.get("catchmoon (primary)") == 1.1
+      and _disp.get("catchmoon (secondary)") == 0.75
+      and "catchmoon" not in _disp, str(_disp))
+check("倾向表 Atmosphere 模式 + &amp; 实体解码",
+      _disp.get("vermisplicer (atmosphere)") == 0.5
+      and _disp.get("ack & brunt") == 1.3, str(_disp))
 
 # ------------------------------------------- 武器家族匹配（变体提示用）
 check("家族匹配 棱晶·欧玛",
