@@ -541,10 +541,25 @@ class RivenCommands:
                                 except Exception:  # noqa: BLE001 - 候选失败不阻断
                                     _cands = []
                             _cand_txt = ("；候选：" + "、".join(_cands)) if _cands else ""
+                            # ★ 2026-10-03：示例不能硬编码「赤毒」——
+                            #   ① mother_name 可能已含变体前缀（用户手输「赤毒·鳄神」⇒
+                            #      旧文案会拼成「紫卡分析 赤毒赤毒·鳄神」）；
+                            #   ② 本分支覆盖赤毒/信条/终幕三类 + 棱晶/圣洁/保障…等，
+                            #      硬编码「赤毒」对非赤毒武器是错示例。
+                            #   ★ 前缀判定**复用既有词表** matching.VARIANT_TOKENS
+                            #     （dict 键即中文前缀），不在本文件新建第三份词表
+                            #     （本仓已有词表漂移史，2026-09-27/10-02 各修过一次）。
+                            #   优先级：已有候选 ⇒ 用候选（最准，往往就是真变体名）；
+                            #   否则已含前缀 ⇒ 原样；否则保留旧「赤毒{本体名}」默认。
+                            _example = (_cands[0] if _cands
+                                        else mother_name
+                                        if any(p in mother_name
+                                               for p in matching.VARIANT_TOKENS)
+                                        else f"赤毒{mother_name}")
                             infer_note = (
                                 f"⚠️ 卡面数值与「{mother_name}」本体倾向 {wm_disp:g} "
-                                "不吻合，疑似赤毒/变体卡 —— 请带变体前缀重发"
-                                f"（例：紫卡分析 赤毒{mother_name} [截图]）{_cand_txt}")
+                                "不吻合，疑似变体卡（赤毒 / 信条 / 终幕 等）—— 请带变体前缀重发"
+                                f"（例：紫卡分析 {_example} [截图]）{_cand_txt}")
             elif not RA.disp_feasible(stats_pos, stats_neg, cls, disp):
                 iv = RA.disposition_interval(stats_pos, stats_neg, cls)
                 rng = f"（反推应在 {iv[0]:g}~{iv[1]:g}）" if iv[0] else ""

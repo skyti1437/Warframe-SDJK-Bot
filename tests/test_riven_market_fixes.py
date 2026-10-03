@@ -357,7 +357,7 @@ check("老卡提示里写明「倾向调整前洗出」与当前值对照",
 _r4 = asyncio.run(_obj3._h_riven_analysis(
     _Parsed("紫卡分析 翁 暴伤60.8 暴击110.1 初始连击100"), None, "pc"))
 check("反推区间不紧时明确提示「疑似变体卡·带前缀重发」（不硬套反推值）",
-      "疑似赤毒/变体卡" in "\n".join(_r4.lines)
+      "疑似变体卡（赤毒 / 信条 / 终幕 等）" in "\n".join(_r4.lines)
       and "请带变体前缀重发" in "\n".join(_r4.lines), "\n".join(_r4.lines[:3]))
 
 # --------------------------------- ⑦ p 后缀必须区分「基础版 / Prime」两件东西
@@ -1476,12 +1476,98 @@ check("对照：家族列不出时仍回「老卡」兜底（兜底逻辑未被�
       "老卡" in _b21, _b21[:240])
 
 # ---------------------------------------------------------------------------
-# ★ 追加段（⑫-⑳）出口守卫：本文件原有守卫在第 802 行（①-⑫ 之前），
+# ㉑ 变体示例文案（2026-10-03）：不硬编码「赤毒」、前缀不得重复
+#    场景数字刻意取「射速属 1.33 档、多重/触发属 0.8 档」的混合值（rifle 基值下
+#    对谁都不吻合且反推区间宽）⇒ 恰落「本体不吻合、家族也解释不了」兜底分支。
+#    fixture 用 rifle 型是校准过的：shotgun 基值下同数字会可行/唯一吻合，落不进该分支。
+# ---------------------------------------------------------------------------
+_RF21 = [{"url_name": "sobek", "zh": "鳄神", "en": "Sobek",
+          "disposition": 1.33, "riven_type": "rifle", "group": "primary",
+          "tags": []},
+         {"url_name": "kuva_sobek", "zh": "赤毒·鳄神", "en": "Kuva Sobek",
+          "disposition": 0.8, "riven_type": "rifle", "group": "primary",
+          "tags": []},
+         {"url_name": "tenet_tetra", "zh": "信条·四核巨枪", "en": "Tenet Tetra",
+          "disposition": 1.15, "riven_type": "rifle", "group": "primary",
+          "tags": []},
+         {"url_name": "coda_mire", "zh": "终幕·米尔", "en": "Coda Mire",
+          "disposition": 1.35, "riven_type": "rifle", "group": "primary",
+          "tags": []}]
+_MIX21 = ["射速72.9", "多重95.8", "触发71.9", "负装填29.3"]
+
+
+class _NoFamRClient:
+    """无家族、无 suggest（模拟家族表拿不到）：_cands 必为空 ⇒ 走示例兜底链。"""
+
+    def __init__(self):
+        self._aliases = {}
+
+    async def wm_riven_weapons(self):
+        return [dict(r) for r in _RF21]
+
+    async def resolve_riven_weapon(self, q):
+        for r in _RF21:
+            if q.strip() in (r["zh"], r["en"]):
+                return dict(r)
+        return None
+
+    async def riven_family(self, _w):
+        return []
+
+    async def resolve_variant_disp(self, _n):
+        return (None, "")
+
+
+async def _w21():
+    return [dict(r) for r in _RF21]
+
+
+def _run21(client, tokens):
+    obj = plugin.WarframeSDJK.__new__(plugin.WarframeSDJK)
+    obj.client = client
+    obj.page_size = 12
+    obj._event_has_image = lambda _e: False
+    reply = asyncio.run(obj._h_riven_analysis(_P20(tokens), _Ev9(), "pc"))
+    return "\n".join(getattr(reply, "lines", []) or []) or reply.raw_text or ""
+
+
+_nf21 = _NoFamRClient()
+_b21a = _run21(_nf21, ["赤毒·鳄神"] + _MIX21)
+check("㉑① 手输「赤毒·鳄神」无候选：示例原样（紫卡分析 赤毒·鳄神），无「赤毒赤毒」",
+      "（例：紫卡分析 赤毒·鳄神 [截图]）" in _b21a and "赤毒赤毒" not in _b21a,
+      _b21a[:240])
+_b21b = _run21(_nf21, ["鳄神"] + _MIX21)
+check("㉑② 手输「鳄神」无候选：保持旧行为（紫卡分析 赤毒鳄神）",
+      "（例：紫卡分析 赤毒鳄神 [截图]）" in _b21b, _b21b[:240])
+_rc21 = WarframeClient.__new__(WarframeClient)
+_rc21._aliases = {}
+_rc21.wm_riven_weapons = _w21
+_b21c = _run21(_rc21, ["鳄神"] + _MIX21)
+check("㉑③ 有家族候选：示例用候选名（紫卡分析 赤毒·鳄神）并附候选",
+      "（例：紫卡分析 赤毒·鳄神 [截图]）" in _b21c and "候选：赤毒·鳄神" in _b21c,
+      _b21c[:240])
+_b21d = _run21(_nf21, ["信条·四核巨枪"] + _MIX21)
+check("㉑④ 信条武器：不硬套「赤毒」（示例 = 本体名 信条·四核巨枪）",
+      "（例：紫卡分析 信条·四核巨枪 [截图]）" in _b21d and "赤毒信条" not in _b21d,
+      _b21d[:240])
+_b21e = _run21(_nf21, ["终幕·米尔"] + _MIX21)
+check("㉑④b 终幕武器：示例 = 本体名 终幕·米尔，无「终幕终幕」",
+      "（例：紫卡分析 终幕·米尔 [截图]）" in _b21e and "终幕终幕" not in _b21e,
+      _b21e[:240])
+check("㉑⑤ 文案为「疑似变体卡（赤毒 / 信条 / 终幕 等）」且全场景无重复前缀",
+      all("疑似变体卡（赤毒 / 信条 / 终幕 等）" in t
+          for t in (_b21a, _b21b, _b21c, _b21d, _b21e))
+      and not any(x in t for t in (_b21a, _b21b, _b21c, _b21d, _b21e)
+                  for x in ("赤毒赤毒", "信条信条", "终幕终幕")),
+      "")
+
+# ---------------------------------------------------------------------------
+# ★ 追加段（⑫-㉑）出口守卫：本文件原有守卫在第 802 行（①-⑫ 之前），
 #   其后的追加段此前**没有守卫** —— 失败不会置退出码（等同静默放行）。
 # ---------------------------------------------------------------------------
 print()
 if FAILED:
     print(f"✗ 追加段失败 {len(FAILED)} 项：" + "、".join(FAILED))
     sys.exit(1)
-print("✓ 追加段（⑫-⑳）全部通过")
+print("✓ 追加段（⑫-㉑）全部通过")
 
