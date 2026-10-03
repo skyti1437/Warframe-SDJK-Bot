@@ -134,7 +134,7 @@ async def run_push():
     store = SubscriptionStore(Path("/tmp") / "test_dun_push_subs.json")
     sent: list[tuple[str, str]] = []
 
-    async def send(umo, text):
+    async def send(umo, text, at=None):
         sent.append((umo, text))
 
     p = PushDaemon(StubClient(), store, send, CORE_LOG, interval=999)

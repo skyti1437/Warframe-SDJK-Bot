@@ -244,13 +244,14 @@ async def main() -> None:
           len(obj2.subs.all()) == 1 and obj2.subs.all()[0].event == "奸商",
           str([s.event for s in obj2.subs.all()]))
 
-    # 9) L-2: created_by 不再落盘 QQ 昵称（哪怕 stub 返回 "tester"）
+    # 9) A1（2026-10-03 用户批准的特例，解除 L-2 自发脱敏）：仅「蹲」订阅
+    #    记录发起人 id（用于命中时 @）；默认空、绝不硬编码；公开包此位恒空。
     # ★ 2026-09-19：警报在 DE 数据里恒为空（系统停用）已被标为不可订阅，
     #   本组断言改用「新闻」（可订阅、无筛选）。
     reply = await _run_one(obj2, "蹲 新闻")
     last = obj2.subs.all()[-1]
-    check("L-2 created_by 不落盘 QQ 昵称（应为空串）",
-          last.created_by == "",
+    check("A1 created_by 记录发起人 id（特例：仅蹲订阅；stub 返回 tester_id）",
+          last.created_by == "tester_id",
           repr(last.created_by))
 
     # 10) L-4: 单 umo 蹲订阅上限（默认 30）

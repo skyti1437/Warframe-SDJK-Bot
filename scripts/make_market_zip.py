@@ -141,7 +141,11 @@ MARKET_SKIP_FILES = {".gitleaks.toml",        # 仓库门面（防泄漏 CI 配�
 #   由合并链 make_market_zip 预检抓出，本笔补正：98 + 13 = 111。）
 # → 108（2026-10-02 紫卡家族判定改用 DE 官方 parentName 谱系：
 #   +core/data/de/riven_families.json —— 家族判定运行期必读，市场版同样需要）
-# → 109（2026-10-03 组合枪双模式：+scripts/build_riven_families.py，与 stage 同笔）
+# ⚠ 2026-10-03 复核：批 E 曾把本常量抬到 109，理由写「+scripts/build_riven_families.py」
+#   —— **该理由不成立**（scripts/ 不进市场件；用 5717837 干净 worktree 重建实测=108），
+#   属「幻觉性抬基线」。真实演进：批 E 实测 108（常量当时误为 109，两值不符未被发现）
+#   → 本笔 +core/data/de/palladino_shop.json（碎银兑换表，运行期必读）⇒ 实测 109，
+#   与既有常量恰好相符；本笔只补注释不改数，**别再照着 109 那个中间值反推历史**。
 EXPECTED_MARKET_ENTRIES = 109
 
 # ★ 可复现打包（2026-09-26 用户侧建议）：统一 zip 条目时间戳 = 2026-01-01T00:00:00Z。

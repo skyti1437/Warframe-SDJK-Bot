@@ -1,0 +1,156 @@
+{
+ "_note": "Palladino（地球「钢铁守望」）裂罅碎块兑换表。来源：wiki.warframe.com/w/Riven_Sliver §Usage（2026-10-03 经 FlareSolverr 抓取）；中文名取 DE 官方 language 表（dict.en/zh 同键对）。★ 取证结论：全表**常驻、无轮换库存**；各项有每周限购，**周一 00:00 UTC 重置**（wiki 原文 Purchase limits reset on Monday 00:00 UTC；Update 32.3 起与 Teshin/言录使等统一，见 rotations.json.acrichis._note）。",
+ "rotation": {
+  "_note": "每周限额重置（周一 00:00 UTC）。epoch 为最近一次重置锚点，period 168h —— 供卡面倒计时与「蹲 碎银兑换」换周检测，勿另写第二份推算。",
+  "epoch": "2026-09-07T00:00:00+00:00",
+  "period_hours": 168
+ },
+ "evergreen": [
+  {
+   "name": "150,000 现金",
+   "cost": 5,
+   "limit": 1
+  },
+  {
+   "name": "6,000 内融核心",
+   "cost": 10,
+   "limit": 1
+  },
+  {
+   "name": "35,000 赤毒",
+   "cost": 10,
+   "limit": 1
+  },
+  {
+   "name": "安魂遗物 I",
+   "cost": 10,
+   "limit": 10
+  },
+  {
+   "name": "安魂遗物 II",
+   "cost": 10,
+   "limit": 10
+  },
+  {
+   "name": "安魂遗物 III",
+   "cost": 10,
+   "limit": 10
+  },
+  {
+   "name": "安魂遗物 IV",
+   "cost": 10,
+   "limit": 10
+  },
+  {
+   "name": "安魂通牒",
+   "cost": 10,
+   "limit": 1
+  },
+  {
+   "name": "裂罅 Mod",
+   "cost": 10,
+   "limit": 1
+  },
+  {
+   "name": "裂罅转化器",
+   "cost": 10,
+   "limit": 3
+  },
+  {
+   "name": "裂罅破解器",
+   "cost": 10,
+   "limit": 1
+  },
+  {
+   "name": "钢铁守望场景",
+   "cost": 10,
+   "limit": null
+  },
+  {
+   "name": "Rell 的 Donda",
+   "cost": 25,
+   "limit": null
+  },
+  {
+   "name": "Rell 的愤怒表情卡牌",
+   "cost": 5,
+   "limit": null
+  },
+  {
+   "name": "Rell 的焦虑表情卡牌",
+   "cost": 5,
+   "limit": null
+  },
+  {
+   "name": "Rell 的无聊表情卡牌",
+   "cost": 5,
+   "limit": null
+  },
+  {
+   "name": "Rell 的困惑表情卡牌",
+   "cost": 5,
+   "limit": null
+  },
+  {
+   "name": "Rell 的厌恶表情卡牌",
+   "cost": 5,
+   "limit": null
+  },
+  {
+   "name": "Rell 的尴尬表情卡牌",
+   "cost": 5,
+   "limit": null
+  },
+  {
+   "name": "Rell 的兴奋表情卡牌",
+   "cost": 5,
+   "limit": null
+  },
+  {
+   "name": "Rell 的疲惫表情卡牌",
+   "cost": 5,
+   "limit": null
+  },
+  {
+   "name": "Rell 的恐惧表情卡牌",
+   "cost": 5,
+   "limit": null
+  },
+  {
+   "name": "Rell 的快乐表情卡牌",
+   "cost": 5,
+   "limit": null
+  },
+  {
+   "name": "Rell 的饥饿表情卡牌",
+   "cost": 5,
+   "limit": null
+  },
+  {
+   "name": "Rell 的任性表情卡牌",
+   "cost": 5,
+   "limit": null
+  },
+  {
+   "name": "Rell 的自豪表情卡牌",
+   "cost": 5,
+   "limit": null
+  },
+  {
+   "name": "Rell 的悲伤表情卡牌",
+   "cost": 5,
+   "limit": null
+  },
+  {
+   "name": "Rell 的害羞表情卡牌",
+   "cost": 5,
+   "limit": null
+  },
+  {
+   "name": "Rell 的惊讶表情卡牌",
+   "cost": 5,
+   "limit": null
+  }
+ ],
+ "_limits_note": "限购数取自 wiki 原文（安魂遗物 10/周、裂罅转化器 3/周；现金/内融核心/赤毒/安魂通牒/裂罅 Mod/裂罅破解器 1/周）；其余项 wiki 未明示（limit=None，视为一次性解锁）。"
+}

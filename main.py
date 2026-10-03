@@ -39,7 +39,7 @@ try:  # 允许脱离 AstrBot 直接跑单元测试
     from .core import wiki_intro
     from .core.parser import (Parsed, normalize_platform, parse,
                               PLATFORM_DISPLAY)
-    from .core.push import PushDaemon
+    from .core.push import PushDaemon, at_targets
     from .core.render import (ImageRenderer, WATERMARK_VERSION,
                               migrate_legacy_user_fonts, text_card)
     from .core.commands import DailyCommands, Reply
@@ -72,7 +72,7 @@ except ImportError as _imp_err:  # pragma: no cover
     from core import wiki_intro
     from core.parser import (Parsed, normalize_platform, parse,
                              PLATFORM_DISPLAY)
-    from core.push import PushDaemon
+    from core.push import PushDaemon, at_targets
     from core.render import (ImageRenderer, WATERMARK_VERSION,
                              migrate_legacy_user_fonts, text_card)
     from core.commands import DailyCommands, Reply
@@ -368,6 +368,7 @@ HELP_TOPIC: dict[str, list[tuple[str, str]]] = {
         ("奸商 / 虚空商人", "Baro Ki'Teer 库存与抵达时间"),
         ("每日特惠 / 商城折扣", "每日折扣商品｜限时礼包"),
         ("言录使", "本周周常商品（苦栓结算）"),
+        ("碎银兑换 / 碎银", "Palladino 裂罅碎块商店（钢铁守望）"),
         ("氏族奖励", "氏族研究进度"),
         ("出库 / 阿耶", "Prime 出库清单｜御品阿耶兑换"),
         ("灵化轮换", "钢铁回廊每周灵化适配器"),
@@ -493,6 +494,7 @@ class WarframeSDJK(DailyCommands, ProgressCommands, ArbitrationCommands, Rotatio
             "voidtrader": self._h_voidtrader, "dailydeals": self._h_dailydeals,
             "calendar": self._h_calendar, "deeparchimedea": self._h_deep,
             "temporalarchimedea": self._h_temporal, "steelpath": self._h_steelpath,
+            "slivershop": self._h_slivershop,
             "arbitration": self._h_arbitration, "arbtable": self._h_arbtable, "alerts": self._h_alerts,
             "invasions": self._h_invasions, "nightwave": self._h_nightwave,
             "news": self._h_news, "kuva": self._h_kuva,
@@ -1214,6 +1216,32 @@ class WarframeSDJK(DailyCommands, ProgressCommands, ArbitrationCommands, Rotatio
     # ------------------------------------------------------------------
     # 推送回调
     # ------------------------------------------------------------------
-    async def _push_send(self, umo: str, text: str):
+    async def _push_send(self, umo: str, text: str, at=None):
+        """推送发送回调。`at` = 本批命中订阅的发起人 id（A1 特例，可空）。
+
+        ★ A1（2026-10-03 用户批准）：仅 aiocqhttp（QQ）平台拼 At 组件；
+        其余平台/解析不到一律回落纯文本（不得因 @ 不支持而丢推送）；
+        不做 @全体（at_targets 已剔除 `all`）。
+        """
         chain = MessageChain().message(text)
+        ids = at_targets(self._platform_name_of(umo), at)
+        if ids:
+            try:
+                from astrbot.api.message_components import At
+                chain = MessageChain()
+                for q in ids:
+                    chain.chain.append(At(qq=q))
+                chain.message(text)
+            except Exception:  # noqa: BLE001 - At 不可用 ⇒ 纯文本，不丢推送
+                chain = MessageChain().message(text)
         await self.context.send_message(umo, chain)
+
+    def _platform_name_of(self, umo: str) -> str:
+        """umo 首段 = 平台实例 id（如「客服小祥」）⇒ 经 Context 解析适配器
+        名（如 aiocqhttp）。解析不到返回空串（@ 回落纯文本）。"""
+        try:
+            pid = (umo or "").split(":", 1)[0]
+            inst = self.context.get_platform_inst(pid) if pid else None
+            return (inst.meta().name or "") if inst else ""
+        except Exception:  # noqa: BLE001
+            return ""

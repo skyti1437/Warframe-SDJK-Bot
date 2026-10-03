@@ -36,7 +36,7 @@
 | 遗物与部件 | `遗物 <名>`（奖励与出处）`遗物 <部件>`（反查）`遗物 出库/入库` `开核桃` `金垃圾` |
 | 市场与紫卡 | `wm <物品>` `wr` `rm` `rank` `trend` `analysis` `disposition` |
 | 伤害计算 | `伤害 <武器> <MOD…>` `识卡`（配卡截图识别）`识卡伤害` `scandamage` |
-| 其他 | `wiki <词>` `状态` `蹲 <事件>` `帮助` … 共 **53 个主指令** |
+| 其他 | `wiki <词>` `状态` `蹲 <事件>` `帮助` … 共 **54 个主指令** |
 
 `帮助` 指令会输出完整指令表（分 9 组），由 `tests/test_help_coverage.py` 锁定覆盖率。
 条数按 `len(COMMAND_ALIASES)` 现算，并另有断言（`tests/test_version_consistency.py`）

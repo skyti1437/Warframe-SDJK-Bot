@@ -15,12 +15,28 @@ import time
 from typing import Awaitable, Callable, Optional
 
 from .api_client import WarframeAPIError, WarframeClient
-from .formatters import (countdown, mission_cn, parse_iso, tier_cn)
+from .formatters import (countdown, mission_cn, palladino_shop, parse_iso,
+                         steel_rotation_index, steel_shop, tier_cn,
+                         weekly_reset_info)
 from .parser import FissureFilter, parse_fissure_filter
 from . import arbi
 from .store import Subscription, SubscriptionStore
 
-SendFunc = Callable[[str, str], Awaitable[None]]
+SendFunc = Callable[[str, str, Optional[list]], Awaitable[None]]
+
+
+def at_targets(platform_name: Optional[str], ids) -> list[str]:
+    """推送 @ 目标过滤（A1，2026-10-03 用户批准的特例）。
+
+    仅 **aiocqhttp（QQ）** 支持 At；其余平台/解析不到平台名一律返回空表
+    ⇒ 调用方回落纯文本（不得因 @ 不支持而丢推送）。**绝不含 @全体**
+    （`all` 一律剔除）；去重保序。
+    """
+    if not ids or (platform_name or "").lower() != "aiocqhttp":
+        return []
+    return list(dict.fromkeys(
+        s for s in (str(x).strip() for x in ids)
+        if s and s.lower() != "all"))
 
 # 蹲类型 -> (说明, 是否已接线)
 PUSH_EVENTS: dict[str, tuple[str, bool]] = {
@@ -46,8 +62,8 @@ PUSH_EVENTS: dict[str, tuple[str, bool]] = {
     "灵化武器": ("本周灵化轮换（需接线数据源）", False),
     "信条": ("Ergo 信条武器轮换（需接线数据源）", False),
     "终幕": ("Coda 终幕武器轮换（需接线数据源）", False),
-    "钢精兑换": ("Varzia 钢精兑换（需接线数据源）", False),
-    "碎银兑换": ("碎银兑换（需接线数据源）", False),
+    "钢精兑换": ("Teshin 钢精兑换周轮换（每周一 00:00 UTC，8 件循环）", True),
+    "碎银兑换": ("Palladino 裂罅碎块商店每周限购重置（周一 00:00 UTC）", True),
     "阿耶兑换": ("阿耶 Priess 兑换（需接线数据源）", False),
     "电波": ("午夜电波周挑战刷新（需接线数据源）", False),
 }
@@ -293,13 +309,20 @@ class PushDaemon:
                 for sub in prefer:
                     if sub.umo in sent:
                         continue
+                    # ★ A1（2026-10-03 用户批准的特例）：同一条推送把「本事件
+                    #   命中、且在同一会话」的订阅发起人收齐去重 ⇒ 一次性 @
+                    #   全部当事人。跨事件/跨会话**绝不合并**；规则未命中的
+                    #   订阅（不在 prefer 里）不得被 @。
+                    at_ids = list(dict.fromkeys(
+                        s.created_by for s in prefer
+                        if s.umo == sub.umo and s.created_by))
                     # 真推出去才占掉这个会话的名额：前面那条被自己的免打扰窗
                     # 挡住时，后面全天候的订阅还能接住同一事件。
-                    if await self._dispatch(sub, key, text, now):
+                    if await self._dispatch(sub, key, text, now, at=at_ids):
                         sent.add(sub.umo)
 
     async def _dispatch(self, sub: Subscription, key: str, text: str,
-                        now: float) -> bool:
+                        now: float, at: Optional[list] = None) -> bool:
         """尝试派发一条订阅；返回是否真的推送成功。"""
         if key in sub.notified:
             return False
@@ -310,7 +333,7 @@ class PushDaemon:
             for k in sorted(sub.notified, key=lambda k: sub.notified[k])[:100]:
                 sub.notified.pop(k, None)
         try:
-            await self.send(sub.umo, text)
+            await self.send(sub.umo, text, at=at)
         except Exception as exc:  # noqa: BLE001
             self.log.warning("[warframe] 推送失败（%s）：%s", sub.umo, exc)
             sub.notified.pop(key, None)
@@ -508,6 +531,45 @@ class PushDaemon:
                                     f"🗡️ 钢铁之路侵袭已刷新（{len(nodes_today)} 个节点）："
                                     f"{names}"))
                     last["sp_incursions"] = sig
+
+            if "钢精兑换" in wanted:
+                # ★ A2（2026-10-03）：每周一 00:00 UTC 轮换（与执刑官猎杀同步）。
+                #   数据与推算**同源** core/data/de/steel_shop.json::rotation
+                #   （formatters.steel_rotation_index，勿另写第二份推算）。
+                try:
+                    _ss = steel_shop() or {}
+                    idx, _nxt = steel_rotation_index(_ss)
+                    weekly = _ss.get("weekly") or []
+                except Exception:  # noqa: BLE001 - 数据缺失降级不报错
+                    idx, weekly = 0, []
+                if weekly:
+                    key = f"steel-rot-{idx}"
+                    if last.get("steel_rotation") is not None \
+                            and last["steel_rotation"] != key:
+                        cur = weekly[idx]
+                        nxt = weekly[(idx + 1) % len(weekly)]
+                        out.append(("钢精兑换", key,
+                                    f"🪙 钢精兑换已轮换：本周 {cur['name']}"
+                                    f"（{cur['cost']} 精华）"
+                                    f" · 下周 {nxt['name']}"))
+                    last["steel_rotation"] = key
+
+            if "碎银兑换" in wanted:
+                # ★ A3（2026-10-03）：Palladino 商店**无轮换库存**，事件语义 =
+                #   每周限购重置（周一 00:00 UTC）。推算同源 palladino_shop.json
+                #   （formatters.weekly_reset_info）。
+                try:
+                    _n, _ = weekly_reset_info(palladino_shop() or {})
+                except Exception:  # noqa: BLE001 - 数据缺失降级不报错
+                    _n = 0
+                key = f"sliver-wk-{_n}"
+                if last.get("sliver_reset") is not None \
+                        and last["sliver_reset"] != key:
+                    out.append(("碎银兑换", key,
+                                "🪙 碎银兑换已重置（Palladino · 钢铁守望）："
+                                "本周限购恢复 —— 可再购安魂遗物 / 裂罅 Mod / "
+                                "安魂通牒等"))
+                last["sliver_reset"] = key
 
             if "警报" in wanted:
                 alerts = await self.client.alerts(platform)

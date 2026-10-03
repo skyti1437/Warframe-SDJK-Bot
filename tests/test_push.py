@@ -80,7 +80,7 @@ async def main():
     store = SubscriptionStore(tmp / "subs.json")
     sent: list[tuple[str, str]] = []
 
-    async def send(umo, text):
+    async def send(umo, text, at=None):
         sent.append((umo, text))
 
     daemon = PushDaemon(FakeClient(), store, send, FakeLogger(), interval=15)
@@ -172,7 +172,7 @@ import core.push as push_mod  # noqa: E402
 _pushed: list[tuple[str, str]] = []
 
 
-async def _send2(umo, text):
+async def _send2(umo, text, at=None):
     _pushed.append((umo, text))
 
 
@@ -253,6 +253,142 @@ _real_local_now = push_mod._local_now
 push_mod._local_now = lambda: datetime(2026, 9, 24, 14, 0, 0)  # 周四 14:00
 asyncio.run(dispatch_scenarios())
 push_mod._local_now = _real_local_now
+
+
+# ---------------------------------------------------------------------------
+# A1 @当事人聚合（2026-10-03 用户批准的特例）：
+#   同一事件、同一会话、命中的订阅发起人收齐去重 ⇒ 一次性 @ 全部；
+#   未命中的规则不得被 @；跨事件/跨会话绝不合并。
+# ---------------------------------------------------------------------------
+async def at_scenarios():
+    tmp3 = Path(tempfile.mkdtemp())
+    st = SubscriptionStore(tmp3 / "subs_at.json")
+    sent_at: list[tuple[str, str, list]] = []
+
+    async def send_at(umo, text, at=None):
+        sent_at.append((umo, text, list(at or [])))
+
+    daemon = PushDaemon(FakeClient(), st, send_at, FakeLogger(), interval=15)
+    await st.add(Subscription(umo="group://AT", platform="pc", event="裂隙",
+                              rule="钢铁捕获", until=-1, once=False,
+                              created_by="1001"))
+    await st.add(Subscription(umo="group://AT", platform="pc", event="裂隙",
+                              rule="捕获", until=-1, once=False,
+                              created_by="1002"))
+    await st.add(Subscription(umo="group://AT", platform="pc", event="裂隙",
+                              rule="钢铁歼灭", until=-1, once=False,
+                              created_by="1003"))
+    await st.add(Subscription(umo="group://AT", platform="pc", event="裂隙",
+                              rule="钢铁捕获", until=-1, once=False,
+                              created_by="1004"))   # 多人同规则
+    await daemon.tick()   # 基线
+    await daemon.tick()   # f2 = Ukko 虚空+钢铁 捕获
+    check("★ A1 一条推送一次性 @ 全部命中发起人（去重保序）",
+          len(sent_at) == 1 and sent_at[0][2] == ["1001", "1002", "1004"],
+          str(sent_at))
+    check("★ A1 未命中的规则不得被 @（1003 排除）",
+          sent_at and "1003" not in sent_at[0][2], str(sent_at))
+
+    # 不同会话独立 @：另一个群的同规则不得混入
+    await st.add(Subscription(umo="group://AT2", platform="pc", event="裂隙",
+                              rule="钢铁捕获", until=-1, once=False,
+                              created_by="2001"))
+    await daemon.tick()
+    await daemon.tick()
+    check("★ A1 跨会话不合并（各自 @ 自己的）",
+          all(set(a) <= ({"1001", "1002", "1004"} if u == "group://AT" else {"2001"})
+              for u, _t, a in sent_at),
+          str(sent_at))
+
+
+asyncio.run(at_scenarios())
+
+# ---------------------------------------------------------------------------
+# A2 钢精兑换换轮点检测（2026-10-03）：每周一 00:00 UTC，同源 steel_rotation_index
+# ---------------------------------------------------------------------------
+import core.formatters as fmt_mod  # noqa: E402
+from core.formatters import steel_shop as _steel_shop  # noqa: E402
+from core.formatters import steel_rotation_index as _sri  # noqa: E402
+
+
+async def steel_scenario():
+    tmp4 = Path(tempfile.mkdtemp())
+    st = SubscriptionStore(tmp4 / "subs_steel.json")
+    sent_s: list[tuple[str, str]] = []
+
+    async def send_s(umo, text, at=None):
+        sent_s.append((umo, text))
+
+    d = PushDaemon(FakeClient(), st, send_s, FakeLogger(), interval=15)
+    await st.add(Subscription(umo="group://S", platform="pc", event="钢精兑换",
+                              rule="", until=-1, once=False, hits_left=None))
+    data = _steel_shop()
+    rot = data["rotation"]
+    boundary = (datetime.fromisoformat(rot["epoch"])
+                + timedelta(hours=int(rot["period_hours"]) * 8))
+    orig = fmt_mod._now
+    fmt_mod._now = lambda: boundary - timedelta(minutes=30)
+    await d.tick()
+    check("A2 首轮只建基线不推", sent_s == [], str(sent_s))
+    fmt_mod._now = lambda: boundary + timedelta(minutes=30)
+    await d.tick()
+    idx2, _ = _sri(data)
+    fmt_mod._now = orig
+    check("A2 跨换轮点推送且带新轮换项名",
+          len(sent_s) == 1 and "钢精兑换已轮换" in sent_s[0][1]
+          and data["weekly"][idx2]["name"] in sent_s[0][1], str(sent_s))
+    # 不跨点不推：同轮内再 tick 一次
+    fmt_mod._now = lambda: boundary + timedelta(hours=1)
+    await d.tick()
+    fmt_mod._now = orig
+    check("A2 同轮内不重复推送", len(sent_s) == 1, str(sent_s))
+
+
+asyncio.run(steel_scenario())
+
+# ---------------------------------------------------------------------------
+# A3 碎银兑换周重置（Palladino；无轮换库存，事件 = 每周限购重置 周一 00:00 UTC）
+# ---------------------------------------------------------------------------
+from core.formatters import palladino_shop as _pshop  # noqa: E402
+
+
+async def sliver_scenario():
+    tmp5 = Path(tempfile.mkdtemp())
+    st = SubscriptionStore(tmp5 / "subs_sliver.json")
+    sent_l: list[tuple[str, str]] = []
+
+    async def send_l(umo, text, at=None):
+        sent_l.append((umo, text))
+
+    d = PushDaemon(FakeClient(), st, send_l, FakeLogger(), interval=15)
+    await st.add(Subscription(umo="group://L", platform="pc", event="碎银兑换",
+                              rule="", until=-1, once=False, hits_left=None))
+    rot = _pshop()["rotation"]
+    boundary = (datetime.fromisoformat(rot["epoch"])
+                + timedelta(hours=int(rot["period_hours"]) * 8))
+    orig = fmt_mod._now
+    fmt_mod._now = lambda: boundary - timedelta(minutes=30)
+    await d.tick()
+    check("A3 首轮只建基线不推", sent_l == [], str(sent_l))
+    fmt_mod._now = lambda: boundary + timedelta(minutes=30)
+    await d.tick()
+    fmt_mod._now = orig
+    check("A3 跨周重置点推送（含 Palladino）",
+          len(sent_l) == 1 and "碎银兑换已重置" in sent_l[0][1]
+          and "Palladino" in sent_l[0][1], str(sent_l))
+
+
+asyncio.run(sliver_scenario())
+
+
+
+# at_targets 单元：平台过滤 + 去重 + 剔除 @全体
+from core.push import at_targets  # noqa: E402
+check("at_targets：仅 aiocqhttp 支持，去重保序、剔除 all",
+      at_targets("aiocqhttp", ["1", "2", "1", "all", ""]) == ["1", "2"]
+      and at_targets("telegram", ["1"]) == []
+      and at_targets(None, ["1"]) == []
+      and at_targets("aiocqhttp", []) == [])
 
 # ---------------------------------------------------------------------------
 # ①-5 推送守护：**进程级**单例（2026-09-26 修「重复推送」）

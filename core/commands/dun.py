@@ -143,7 +143,11 @@ class DunCommands:
             until=-1 if duration == -1 else (now + duration if duration else -1),
             once=duration is None,
             hits_left=None,
-            created_by="",  # L-2: 不再落盘 QQ 昵称/可识别字符串
+            # ★ A1（2026-10-03 用户批准的特例，解除 L-2 自发脱敏）：**仅**
+            #   「蹲」订阅记录发起人 id，用于命中时 @ 当事人。默认空串、
+            #   绝不硬编码；公开仓/公开包内此位置必须恒为空（发版前 grep
+            #   QQ 特征须 OK）；未来如需扩展须再确认。
+            created_by=str(event.get_sender_id() or "").strip(),
         )
         await self.subs.add(sub)
         dur_text = ("永久" if duration == -1 else

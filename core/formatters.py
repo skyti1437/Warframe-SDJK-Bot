@@ -667,6 +667,7 @@ def fmt_steel_path(sp: Optional[dict]) -> tuple[str, list[str]]:
 
 
 _STEEL_SHOP_CACHE: Optional[dict] = None
+_PALLADINO_SHOP_CACHE: Optional[dict] = None
 
 
 def steel_shop() -> dict:
@@ -679,6 +680,58 @@ def steel_shop() -> dict:
         except Exception:  # noqa: BLE001
             _STEEL_SHOP_CACHE = {}
     return _STEEL_SHOP_CACHE
+
+
+def palladino_shop() -> dict:
+    """Palladino 裂罅碎块兑换表（core/data/de/palladino_shop.json）。"""
+    global _PALLADINO_SHOP_CACHE
+    if _PALLADINO_SHOP_CACHE is None:
+        try:
+            p = Path(__file__).resolve().parent / "data" / "de" / "palladino_shop.json"
+            _PALLADINO_SHOP_CACHE = json.loads(p.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001
+            _PALLADINO_SHOP_CACHE = {}
+    return _PALLADINO_SHOP_CACHE
+
+
+def weekly_reset_info(data: dict) -> tuple[int, Optional[str]]:
+    """通用「周一 00:00 UTC」周周期号与下次重置 ISO；数据缺失 (0, None)。
+
+    ★ 2026-10-03（A3）：碎银兑换（Palladino）用 —— 其库存常驻、**无轮换**，
+    只有每周限购在周一重置；卡面倒计时与「蹲 碎银兑换」换周检测**同源此处**。
+    """
+    rot = data.get("rotation") or {}
+    try:
+        epoch = datetime.fromisoformat(rot.get("epoch") or "")
+        hours = int(rot.get("period_hours") or 168)
+        n = int((_now() - epoch).total_seconds() // 3600 // max(1, hours))
+        nxt = (epoch + timedelta(hours=(n + 1) * hours)).isoformat()
+    except Exception:  # noqa: BLE001
+        return 0, None
+    return n, nxt
+
+
+def steel_rotation_index(data: dict) -> tuple[int, Optional[str]]:
+    """钢精兑换当前轮换序号（0 基）与下次轮换时间 ISO；数据缺失 (0, None)。
+
+    ★ 2026-10-03（A2）：push 的「换轮点检测」与卡面推算**同源此处** ——
+    别再写第二份推算。轮换锚点见 data["rotation"]（每周一 00:00 UTC）。
+    """
+    weekly = data.get("weekly") or []
+    if not weekly:
+        return 0, None
+    rot = data.get("rotation") or {}
+    try:
+        epoch = datetime.fromisoformat(rot.get("epoch") or data.get("weekly_epoch", ""))
+        hours = int(rot.get("period_hours") or data.get("weekly_period_hours") or 168)
+        base = int(rot.get("index_at_epoch", 0))
+        # 用 floor 除法保证 epoch 之前/之后都能得到非负的周期数
+        n = int((_now() - epoch).total_seconds() // 3600 // max(1, hours))
+        idx = (base + n) % len(weekly)
+        nxt_reset = (epoch + timedelta(hours=(n + 1) * hours)).isoformat()
+    except Exception:  # noqa: BLE001
+        return 0, None
+    return idx, nxt_reset
 
 
 def _steel_rotation(data: dict) -> tuple[list[str], Optional[str], int]:
@@ -697,17 +750,7 @@ def _steel_rotation(data: dict) -> tuple[list[str], Optional[str], int]:
     weekly = data.get("weekly") or []
     if not weekly:
         return [], None, 0
-    rot = data.get("rotation") or {}
-    try:
-        epoch = datetime.fromisoformat(rot.get("epoch") or data.get("weekly_epoch", ""))
-        hours = int(rot.get("period_hours") or data.get("weekly_period_hours") or 168)
-        base = int(rot.get("index_at_epoch", 0))
-        # 用 floor 除法保证 epoch 之前/之后都能得到非负的周期数
-        n = int((_now() - epoch).total_seconds() // 3600 // max(1, hours))
-        idx = (base + n) % len(weekly)
-        nxt_reset = (epoch + timedelta(hours=(n + 1) * hours)).isoformat()
-    except Exception:  # noqa: BLE001
-        idx, nxt_reset = 0, None
+    idx, nxt_reset = steel_rotation_index(data)
     cur = weekly[idx]
     nxt = weekly[(idx + 1) % len(weekly)]
     lines = [
@@ -760,6 +803,35 @@ def fmt_steel_essence_shop() -> tuple[str, list[str]]:
     lines.append("※ 轮换按官方锚点推算；各商品精华总价 "
                  f"{total_all}（常驻全买 + 轮换各一次）")
     return ("钢铁精华兑换（Teshin 荣誉商店）", lines)
+
+
+def fmt_sliver_shop() -> tuple[str, list[str]]:
+    """碎银兑换 = Palladino 裂罅碎块商店（地球「钢铁守望」）。
+
+    ★ 2026-10-03 取证：全表**常驻、无轮换库存**；每项有每周限购，
+    **周一 00:00 UTC 重置**（wiki 原文 Purchase limits reset on Monday
+    00:00 UTC）。数据 core/data/de/palladino_shop.json，中文名 DE 官方。
+    """
+    data = palladino_shop()
+    if not data:
+        return ("裂罅碎块兑换", ["兑换表缺失：core/data/de/palladino_shop.json"])
+    items = data.get("evergreen") or []
+    _n, nxt = weekly_reset_info(data)
+    lines: list[str] = []
+    if nxt:
+        lines.append(f"◆ 每周限购重置：周一 00:00 UTC　距重置 {countdown(nxt)}")
+    lines.append(f"◆ 常驻商品（共 {len(items)} 件，"
+                 "限购 = 每周可购次数）")
+    for it in items:
+        lim = it.get("limit")
+        tail = f"　每周限购 {lim}" if lim else ""
+        lines.append(f"· {it['name']}　{it['cost']} 碎块{tail}")
+    lines.append("─" * 24)
+    lines.append("※ 数据源：wiki.warframe.com/w/Riven_Sliver（裂罅碎块用途表）；"
+                 "中文名取 DE 官方 language 表")
+    lines.append("※ 碎块获取：开安魂遗物、航道星舰任务、钢铁之路卓越者；"
+                 "每周限购按 wiki 原文（未明示者按一次性解锁）")
+    return ("裂罅碎块兑换（Palladino · 钢铁守望）", lines)
 
 
 def fmt_alerts(alerts: Iterable[dict]) -> tuple[str, list[str]]:

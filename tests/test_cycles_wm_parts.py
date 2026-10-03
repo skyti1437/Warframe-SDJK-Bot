@@ -225,7 +225,7 @@ async def cycles_test():
     store = SubscriptionStore(tmp)
     sent = []
 
-    async def send(umo, text):
+    async def send(umo, text, at=None):
         sent.append((umo, text))
 
     client = CycleClient()

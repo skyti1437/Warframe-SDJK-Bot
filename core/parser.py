@@ -70,7 +70,9 @@ COMMAND_ALIASES: dict[str, set[str]] = {
     "calendar": {"日历", "1999日历"},
     "deeparchimedea": {"深层科研", "深层"},
     "temporalarchimedea": {"时光科研", "时光"},
-    "steelpath": {"钢铁之路"},
+    "steelpath": {"钢铁之路", "钢精"},
+    # ★ 2026-10-03（A3）：Palladino 裂罅碎块商店（地球「钢铁守望」）
+    "slivershop": {"碎银兑换", "碎银"},
     "arbitration": {"仲裁"},
     "arbtable": {"仲裁表"},
     "alerts": {"警报"},
