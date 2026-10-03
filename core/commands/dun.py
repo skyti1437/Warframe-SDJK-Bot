@@ -10,8 +10,8 @@ from __future__ import annotations
 import time
 
 from .. import arbi as _arbi
-from ..parser import (PLATFORM_DISPLAY, dun_rule_hint, parse_duration,
-                      parse_fissure_filter, parse_time_window)
+from ..parser import (PLATFORM_DISPLAY, dun_rule_hint, fissure_tier_hint,
+                      parse_duration, parse_fissure_filter, parse_time_window)
 from ..push import (PUSH_EVENTS, Subscription, build_cancel_selector,
                     normalize_event)
 from .base import Reply
@@ -31,6 +31,8 @@ class DunCommands:
             lines += ["", "时长：永久/7天/两周/N小时…（不写=命中一次后取消）",
                       "时间：22到8 / 每天19点 / 周1/3/5 23点",
                       "筛选：一个词 = 一个条件（如 钢铁防御）；多个条件用逗号/空格并列（取或）",
+                      "档位：T1–T6 = 古纪/前纪/中纪/后纪/安魂/全能，"
+                      "如 蹲 T5歼灭 / 蹲 钢铁T1生存（⚠ 连写=一个条件，空格拆开=取或）",
                       "取消：蹲 取消（全部）/ 蹲 取消 裂隙 捕获（只删匹配项）"]
             # 2026-09-21 修：裸「蹲」应出卡片图（与其它指令一致）。
             # 原 text_only=True 是 v0.5 接手时的祖传写法，全插件唯一一处强制纯文本；
@@ -167,4 +169,9 @@ class DunCommands:
             _hint = dun_rule_hint(rule_parts)
             if _hint:
                 lines.append(_hint)
+            # ★ 2026-10-03：档位写法越界（T0/T7/T9、孤立的 t、T5x…）当场提示，
+            #   不静默（铁律 A）；合法 T1–T6 返回空串。
+            _t_hint = fissure_tier_hint(rule_parts)
+            if _t_hint:
+                lines.append(_t_hint)
         return Reply("◆ 蹲订阅成功", lines)

@@ -213,6 +213,17 @@ check("分开写语义确实变宽（= 钢铁 **或** 普通防御，两组取�
       parse_fissure_filter(_rule_a).describe() == "钢铁，普通防御",
       parse_fissure_filter(_rule_a).describe())
 
+# 5.2b 档位提示（2026-10-03 T1–T6）：越界/孤立 t 必提示；合法档位不提示
+from core.parser import fissure_tier_hint                     # noqa: E402
+_t_hint_bad = fissure_tier_hint(["T0", "歼灭"])
+check("档位提示：越界编号非空且含 T1–T6 对照表",
+      bool(_t_hint_bad) and "T1–T6" in _t_hint_bad
+      and "T5安魂" in _t_hint_bad, _t_hint_bad)
+check("档位提示：合法写法（T5连写/安魂/T1 钢铁连写）均为空串",
+      fissure_tier_hint(["T5歼灭"]) == ""
+      and fissure_tier_hint(["安魂", "歼灭"]) == ""
+      and fissure_tier_hint(["钢铁T1生存"]) == "")
+
 # 5.3 静态守卫：提示只进回执，**不得参与 rule 构造**（防有人顺手改成自动合并）
 # 2026-09-29 D11：_h_dun 随蹲订阅域迁 core/commands/dun.py，本段断言改读现址
 dun_src = (ROOT / "core" / "commands" / "dun.py").read_text(encoding="utf-8")

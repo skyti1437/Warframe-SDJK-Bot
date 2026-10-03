@@ -22,6 +22,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass, field
 from typing import Iterable, Optional
 
@@ -776,6 +777,14 @@ TIER_CN = {"Lith": "古纪", "Meso": "前纪", "Neo": "中纪", "Axi": "后纪",
            "安魂": "Requiem", "全能": "Omnia", "先锋": "Vanguard"}
 _TIER_KEYS = ("Lith", "Meso", "Neo", "Axi", "Requiem", "Omnia")
 
+# ★ 2026-10-03：裂隙档位的 T 编号别名（DE 官方 VoidT1..T6 的编号）。
+#   ★ **不要并入 TIER_CN** —— TIER_CN 被「遗物」等共用（relic.py 明说以它作
+#     真源），塞进去会串味。T 别名只在裂隙筛选侧生效（经 FISSURE_TIER_WORDS
+#     过滤）。映射与 core/data/de/fissureModifiers.json（VoidT1..T6）及
+#     core/de_worldstate.py::fissure_tier() 完全一致（单一真源，勿另写）。
+TIER_T_ALIAS: dict[str, str] = {"t1": "Lith", "t2": "Meso", "t3": "Neo",
+                                "t4": "Axi", "t5": "Requiem", "t6": "Omnia"}
+
 
 # ---------------------------------------------------------------------------
 # ★ 裂隙筛选的「纯修饰词」（2026-09-26）
@@ -789,7 +798,12 @@ FISSURE_HARD_WORDS = ("钢铁", "钢路")
 FISSURE_STORM_WORDS = ("九重天", "empyrean")
 FISSURE_NORMAL_WORD = "普通"
 FISSURE_VOID_WORD = "虚空"
-FISSURE_TIER_WORDS = ("古纪", "前纪", "中纪", "后纪")
+# ★ 2026-10-03：档位词表扩为 古纪/前纪/中纪/后纪 + 安魂 + 全能 + T1–T6。
+#   此前安魂/全能不在表里 ⇒ 退化成节点子串、永不命中（实测坑 2）；T1..T6
+#   同理（坑 1）。FISSURE_MODIFIER_WORDS 是它的派生（dun_rule_hint 自动
+#   跟着走）——**同源一处，别各写一份**。小写 t1..t6 供 p.lower() 匹配。
+FISSURE_TIER_WORDS = ("古纪", "前纪", "中纪", "后纪", "安魂", "全能",
+                      "t1", "t2", "t3", "t4", "t5", "t6")
 FISSURE_MODIFIER_WORDS = (FISSURE_HARD_WORDS + FISSURE_STORM_WORDS
                           + (FISSURE_NORMAL_WORD, FISSURE_VOID_WORD)
                           + FISSURE_TIER_WORDS)
@@ -864,7 +878,13 @@ class FissureFilter:
             if g.get("missions"):
                 seg.append("/".join(MISSION_CN.get(m, m) for m in sorted(g["missions"])))
             if g.get("tiers"):
-                seg.append("/".join(TIER_CN.get(t, t) for t in g["tiers"]))
+                # ★ 2026-10-03：档位统一显示「中文名（Tn）」（古纪（T1）…全能（T6）），
+                #   编号顺序与 formatters._TIER_ORDER（Lith=0…Omnia=5）对齐；此处用
+                #   本地有序元组推编号，避免 parser ↔ formatters 循环 import。
+                seg.append("/".join(
+                    (f"{TIER_CN.get(t, t)}（T{_TIER_ORDER_LOCAL.index(t) + 1}）"
+                     if t in _TIER_ORDER_LOCAL else TIER_CN.get(t, t))
+                    for t in g["tiers"]))
             if g.get("substr"):
                 seg.append(g["substr"])
             parts.append("".join(seg) or "全部")
@@ -881,10 +901,19 @@ def parse_fissure_filter(text: str) -> FissureFilter:
         g: dict = {}
         words = re.split(r"\s+", blob)
         merged = "".join(words)
-        # 纪元层级
+        # 全角/大小写归一：Ｔ５→t5、１→1（中文词不受影响）——T5 / t5 / Ｔ５ 等价。
+        norm = unicodedata.normalize("NFKC", merged)
+        low = norm.lower()
+        # 纪元层级：中文档位词按子串匹配；T 别名（t1..t6）要求词边界
+        #（「T5x / t55 / T05」一律不认 —— 走 fissure_tier_hint 提示，不猜）。
         tiers = set()
-        for cn, en in TIER_CN.items():
-            if cn in merged and cn in FISSURE_TIER_WORDS:
+        for cn, en in {**TIER_CN, **TIER_T_ALIAS}.items():
+            if cn not in FISSURE_TIER_WORDS:
+                continue
+            if cn in TIER_T_ALIAS:
+                if re.search(rf"(?<![a-z0-9]){cn}(?![0-9a-z])", low):
+                    tiers.add(en)
+            elif cn in merged:
                 tiers.add(en)
         if tiers:
             g["tiers"] = tiers
@@ -897,8 +926,10 @@ def parse_fissure_filter(text: str) -> FissureFilter:
             g["storm"] = True
         elif FISSURE_NORMAL_WORD in merged:
             g["storm"] = False
-        # 任务类型：逐个 CN 词匹配后剔除，剩余部分作为节点/星球子串
-        rest = merged
+        # 任务类型：逐个 CN 词匹配后剔除，剩余部分作为节点/星球子串。
+        # rest 从**归一化文本**起算：T 别名是全角/大小写无关的（rest 清理
+        # 必须一并剔除 T 别名，否则 T5 残留成 len≥2 的节点子串 —— 实测坑 3）。
+        rest = norm
         missions = set()
         for cn, en in sorted(_CN_TO_MISSION.items(), key=lambda kv: -len(kv[0])):
             if cn in rest:
@@ -907,7 +938,8 @@ def parse_fissure_filter(text: str) -> FissureFilter:
         for kw in FISSURE_HARD_WORDS + FISSURE_STORM_WORDS + (FISSURE_NORMAL_WORD,):
             rest = rest.replace(kw, "")
         for cn in FISSURE_TIER_WORDS:
-            rest = rest.replace(cn, "")
+            # 大小写不敏感剔除（T5/t5 都清掉；中文词不受影响）
+            rest = re.sub(re.escape(cn), "", rest, flags=re.IGNORECASE)
         # 地区修饰：「虚空」= 只收虚空星系节点（2026-09-14 修「蹲 虚空捕获
         # 却推了木星捕获」——旧版把「虚空」当纯修饰词剔除，等于没写）。
         # 必须在任务名剔除**之后**再判定：虚空覆涌/虚空洪流这类任务名本身
@@ -923,6 +955,40 @@ def parse_fissure_filter(text: str) -> FissureFilter:
         if g:
             flt.groups.append(g)
     return flt
+
+
+# T1–T6 展示编号顺序（与 formatters._TIER_ORDER 的 Lith=0…Omnia=5 对齐；
+# 本地元组避免 parser ↔ formatters 循环 import —— 两处语义必须一致）。
+_TIER_ORDER_LOCAL = ("Lith", "Meso", "Neo", "Axi", "Requiem", "Omnia")
+_TIER_RANGE_TEXT = "T1古纪 / T2前纪 / T3中纪 / T4后纪 / T5安魂 / T6全能"
+
+
+def fissure_tier_hint(text_or_parts) -> str:
+    """裂隙档位写法提示（T 越界编号 / 孤立的 t）；无需提示返回空串。
+
+    合法：T1–T6（大小写与全角均可，与中文档位词等价）。以下一律**明确提示**
+    （铁律 A：不静默）：T0 / T7 / T9、T05、t55、T5x、5T、孤立的 t。
+    与 :func:`dun_rule_hint` 同风格 —— **只提示、不改解析语义**。
+    """
+    if isinstance(text_or_parts, str):
+        parts = [text_or_parts]
+    else:
+        parts = [str(p) for p in (text_or_parts or []) if p]
+    low = " ".join(unicodedata.normalize("NFKC", p).lower() for p in parts)
+    bad = False
+    for m in re.finditer(r"(?<![a-z0-9])t(\d+)", low):
+        if m.group(1) not in ("1", "2", "3", "4", "5", "6"):
+            bad = True
+            break
+    if not bad:
+        bad = bool(
+            re.search(r"(?<![a-z0-9])t(?![0-9a-z])", low)   # 孤立的 t（后面不跟数字）
+            or re.search(r"(?<![a-z0-9])t\d+[a-z]", low)     # T5x 这类
+            or re.search(r"\d+t(?![0-9a-z])", low)           # 5T 这类
+        )
+    if not bad:
+        return ""
+    return f"※ 裂隙档位只支持 T1–T6（{_TIER_RANGE_TEXT}）"
 
 
 def dun_rule_hint(parts: list[str]) -> str:

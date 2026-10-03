@@ -13,7 +13,7 @@ import json
 from .. import baro
 from .. import formatters as fmt
 from .. import paths as core_paths
-from ..parser import parse_fissure_filter
+from ..parser import fissure_tier_hint, parse_fissure_filter
 from .base import Reply
 
 
@@ -96,10 +96,15 @@ class DailyCommands:
         if parsed.preset:
             content = (parsed.preset + " " + content).strip()
         flt = parse_fissure_filter(content) if content else None
+        # ★ 2026-10-03：查询侧与「蹲」共用同一解析器（有意支持 T1–T6），
+        #   档位写法越界同样当场提示（不静默）。
+        _t_hint = fissure_tier_hint(content) if content else ""
         data = await self.client.fissures(platform)
         title, lines = fmt.fmt_fissures(
             data, flt=flt.match if flt else None,
             page=parsed.page, page_size=self.page_size, all_rows=True)
+        if _t_hint:
+            lines.append(_t_hint)
         extra = f"筛选：{flt.describe()}" if flt else ""
         return Reply(title, lines, footer=fmt.fmt_platform_footer(platform, extra))
 

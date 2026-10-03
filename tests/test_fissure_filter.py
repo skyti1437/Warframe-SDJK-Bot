@@ -200,6 +200,89 @@ check("默认分页模式仍是第2/3页", "第2/3页" in _t4, _t4)
 check("默认分页模式只出 12 条",
       len([x for x in _l4 if x and x[0].isdigit()]) == 12)
 
+
+# ------------------------------------------------- T1–T6 档位别名（2026-10-03）
+# 验收（硬标准 = 等价性）：T 写法与中文写法 groups 必须完全相等；
+# 越界编号必须提示（不静默）；describe 档位段统一「中文名（Tn）」。
+from core.de_worldstate import (  # noqa: E402
+    _parse_fissures as _pf6, fissure_tier as _ft6)
+from core.parser import (FISSURE_TIER_WORDS, TIER_T_ALIAS,  # noqa: E402
+                         fissure_tier_hint)
+
+# ② T1..T6 ↔ fissure_tier 单一真源对拍
+_ok6 = True
+for _n, _en in enumerate(("Lith", "Meso", "Neo", "Axi", "Requiem", "Omnia"), 1):
+    if not (_ft6(f"VoidT{_n}")[0] == _en and TIER_T_ALIAS[f"t{_n}"] == _en
+            and f"t{_n}" in FISSURE_TIER_WORDS):
+        _ok6 = False
+check("② T1..T6 ↔ fissure_tier 对拍（Lith/Meso/Neo/Axi/Requiem/Omnia）", _ok6)
+
+# ① T 写法 ≡ 中文写法（groups 完全相等）
+_p6a, _p6b = parse_fissure_filter("T5歼灭"), parse_fissure_filter("安魂歼灭")
+check("① 「T5歼灭」≡「安魂歼灭」（groups 完全相等）",
+      _p6a.groups == _p6b.groups, f"{_p6a.groups} vs {_p6b.groups}")
+_p6c, _p6d = parse_fissure_filter("钢铁T1生存"), parse_fissure_filter("钢铁古纪生存")
+check("① 「钢铁T1生存」≡「钢铁古纪生存」（groups 完全相等）",
+      _p6c.groups == _p6d.groups, f"{_p6c.groups} vs {_p6d.groups}")
+
+# ③ 回归：安魂/全能/T 不再退化成节点子串
+check("③ 安魂/全能/T 不再落 substr（曾静默永不命中）",
+      "substr" not in parse_fissure_filter("安魂歼灭").groups[0]
+      and "substr" not in parse_fissure_filter("全能歼灭").groups[0]
+      and "substr" not in parse_fissure_filter("钢铁T1生存").groups[0])
+
+# ④ 大小写 / 全角等价
+check("④ T5 / t5 / Ｔ５ 三者 groups 相等",
+      parse_fissure_filter("T5歼灭").groups
+      == parse_fissure_filter("t5歼灭").groups
+      == parse_fissure_filter("Ｔ５歼灭").groups)
+
+# ⑤ 越界编号 / 孤立 t ⇒ 明确提示（铁律 A：不静默）；合法 ⇒ 空串
+_bad6 = ("T0歼灭", "T7歼灭", "T9歼灭", "t歼灭", "T5x歼灭", "5T歼灭",
+         "T05歼灭", "t55歼灭")
+_legal6 = ("T1歼灭", "T6捕获", "钢铁T3生存", "安魂歼灭", "全能歼灭",
+           "t5歼灭", "Ｔ５歼灭", "钢铁防御")
+check("⑤ 越界/孤立 t 全部有提示（T0/T7/T9/t/T5x/5T/T05/t55）",
+      all(fissure_tier_hint(x) for x in _bad6),
+      str({x: fissure_tier_hint(x) for x in _bad6}))
+check("⑤ 合法输入提示为空串", all(not fissure_tier_hint(x) for x in _legal6),
+      str({x: fissure_tier_hint(x) for x in _legal6}))
+
+# ⑦ describe 档位段「中文名（Tn）」；不含档位规则输出保持原样
+check("⑦ describe 输出「安魂（T5）」形式",
+      parse_fissure_filter("T5歼灭").describe() == "普通歼灭安魂（T5）"
+      and parse_fissure_filter("T6捕获").describe() == "普通捕获全能（T6）"
+      and parse_fissure_filter("钢铁T1生存").describe() == "钢铁生存古纪（T1）",
+      parse_fissure_filter("T5歼灭").describe())
+check("⑦ 不含档位的规则输出保持原样（既有断言口径不变）",
+      parse_fissure_filter("钢铁防御").describe() == "钢铁防御"
+      and parse_fissure_filter("钢铁,防御").describe() == "钢铁，普通防御")
+
+# ⑥ 真实夹具对拍（tests/fixtures/de_worldstate.json 的 20 条 ActiveMissions）
+_raw6 = json.loads((ROOT / "tests" / "fixtures" / "de_worldstate.json")
+                   .read_text(encoding="utf-8"))
+_fs6 = [f for f in _pf6(_raw6) if not f.get("isStorm")]
+check("⑥ 夹具 ActiveMissions 恰 20 条 / 钢铁 7 条",
+      len(_fs6) == 20 and sum(1 for f in _fs6 if f.get("isHard")) == 7,
+      f"{len(_fs6)} 条 / 钢铁 {sum(1 for f in _fs6 if f.get('isHard'))}")
+_a6 = [f.get("node") for f in _fs6 if parse_fissure_filter("钢铁T1生存").match(f)]
+_b6 = [f.get("node") for f in _fs6 if parse_fissure_filter("钢铁古纪生存").match(f)]
+check("⑥ 「钢铁T1生存」≡「钢铁古纪生存」命中集合逐条相同",
+      _a6 == _b6, f"{_a6} vs {_b6}")
+# 夹具里真实存在的非空等价对（T3 有钢铁生存、T5 有防御、T6 有生存）
+for _t6, _cn6, _lab6 in (("钢铁T3生存", "钢铁中纪生存", "钢铁生存"),
+                         ("T5防御", "安魂防御", "防御"),
+                         ("T6生存", "全能生存", "生存")):
+    _x6 = [f.get("node") for f in _fs6 if parse_fissure_filter(_t6).match(f)]
+    _y6 = [f.get("node") for f in _fs6 if parse_fissure_filter(_cn6).match(f)]
+    check(f"⑥ 「{_t6}」≡「{_cn6}」且命中非空（{_lab6}）",
+          _x6 == _y6 and bool(_x6), f"{_x6} vs {_y6}")
+# 合成一条「钢铁古纪生存」：两种写法都必须命中（覆盖字面组合，夹具无此条）
+_syn6 = _fix("S（虚空）", "生存", "Lith", hard=True)
+check("⑥ 合成钢铁古纪生存条：T1/中文两种写法都命中",
+      parse_fissure_filter("钢铁T1生存").match(_syn6)
+      and parse_fissure_filter("钢铁古纪生存").match(_syn6))
+
 print()
 if FAILED:
     print(f"共 {len(FAILED)} 项失败：{FAILED}")
