@@ -657,6 +657,15 @@ check("语义 prompt：含元素伤害负例与「同一条词条不会出现两
       "不得写成「暴击伤害」" in _sem_prompt
       and "不会出现两次" in _sem_prompt)
 
+# ⑪ prompt 词条枚举（2026-10-03 线上实证：枚举缺「弹匣容量/变焦」，
+#    语义渠道猜成 暴伤/集束、窄读 OCR 成 坦克容星/集中，负词条被整条丢弃）
+check("⑪ 语义 prompt：枚举含 弹匣容量/变焦 + 「照卡面原样照抄」+ 负词条警示",
+      "弹匣容量" in _sem_prompt and "变焦" in _sem_prompt
+      and "照卡面原样照抄" in _sem_prompt and "负词条绝不能丢" in _sem_prompt)
+check("⑪ 窄读 prompt：含 弹匣容量/变焦 正字样与负词条漏抄警示",
+      "弹匣容量" in _line_prompt and "变焦" in _line_prompt
+      and "绝不能漏抄" in _line_prompt)
+
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")
     sys.exit(1)
