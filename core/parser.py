@@ -963,6 +963,18 @@ _TIER_ORDER_LOCAL = ("Lith", "Meso", "Neo", "Axi", "Requiem", "Omnia")
 _TIER_RANGE_TEXT = "T1古纪 / T2前纪 / T3中纪 / T4后纪 / T5安魂 / T6全能"
 
 
+def contains_fissure_tier(text: str) -> bool:
+    """文本是否含裂隙档位词（T1–T6 别名 / 古纪…全能）。
+
+    ★ 2026-10-03（维护者定）：**档位词本身就含裂隙语义** —— 「蹲」用它在
+    用户漏写类型词时自动判定为裂隙（「蹲 钢铁t5歼灭」直接生效）。
+    ⚠ 只认**档位词**（裂隙专属词汇）；钢铁/虚空/地点词一律不推断 ——
+    不重蹈 2026-09-14「地点词被静默当裂隙筛选」的覆辙。
+    """
+    low = unicodedata.normalize("NFKC", text or "").lower()
+    return any(w in low for w in FISSURE_TIER_WORDS)
+
+
 def fissure_tier_hint(text_or_parts) -> str:
     """裂隙档位写法提示（T 越界编号 / 孤立的 t）；无需提示返回空串。
 

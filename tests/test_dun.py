@@ -177,6 +177,25 @@ async def main() -> None:
           repr(reply.title if reply else None))
     check("带筛选的订阅总数=2", len(obj.subs.all()) == 2)
 
+    # 2b) 档位词自动判裂隙（2026-10-03 维护者定：T1–T6 本身就含裂隙语义）
+    reply = await _run_one(obj, "蹲 钢铁t5歼灭")
+    check("「蹲 钢铁t5歼灭」漏写类型词也成功（档位词自动判裂隙）",
+          reply is not None and "订阅成功" in (reply.title or ""),
+          repr(reply.title if reply else None))
+    check("自动判定的订阅 event=裂隙、rule 原样落库",
+          len(obj.subs.all()) == 3 and obj.subs.all()[-1].event == "裂隙"
+          and obj.subs.all()[-1].rule == "钢铁t5歼灭",
+          str([(s.event, s.rule) for s in obj.subs.all()]))
+    check("回执 describe 含「安魂（T5）」编号",
+          any("安魂（T5）" in ln for ln in (reply.lines or [])),
+          str(reply.lines if reply else None))
+    reply = await _run_one(obj, "蹲 钢铁")
+    check("「蹲 钢铁」仍不静默降级（地点/修饰词不推断），且给正确写法提示",
+          reply is not None and reply.raw_text is not None
+          and "未识别为可蹲类型" in reply.raw_text
+          and "像是裂隙筛选词" in reply.raw_text,
+          repr(reply.raw_text if reply else None))
+
     # 3) 帮助（2026-09-21 起卡片化：实现侧有意移除祖传 text_only=True，与其它
     #    指令输出一致，渲染失败由 _build_results 自动降级文字——测试跟进对齐）
     reply = await _run_one(obj, "蹲 帮助")

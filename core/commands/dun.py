@@ -10,7 +10,8 @@ from __future__ import annotations
 import time
 
 from .. import arbi as _arbi
-from ..parser import (PLATFORM_DISPLAY, dun_rule_hint, fissure_tier_hint,
+from ..parser import (FISSURE_MODIFIER_WORDS, PLATFORM_DISPLAY,
+                      contains_fissure_tier, dun_rule_hint, fissure_tier_hint,
                       parse_duration, parse_fissure_filter, parse_time_window)
 from ..push import (PUSH_EVENTS, Subscription, build_cancel_selector,
                     normalize_event)
@@ -31,8 +32,9 @@ class DunCommands:
             lines += ["", "时长：永久/7天/两周/N小时…（不写=命中一次后取消）",
                       "时间：22到8 / 每天19点 / 周1/3/5 23点",
                       "筛选：一个词 = 一个条件（如 钢铁防御）；多个条件用逗号/空格并列（取或）",
-                      "档位：T1–T6 = 古纪/前纪/中纪/后纪/安魂/全能，"
-                      "如 蹲 T5歼灭 / 蹲 钢铁T1生存（⚠ 连写=一个条件，空格拆开=取或）",
+                      "档位：T1–T6 = 古纪/前纪/中纪/后纪/安魂/全能"
+                      "（档位词自动按裂隙订阅），如 蹲 钢铁t5歼灭；"
+                      "⚠ 连写=一个条件，空格拆开=取或",
                       "取消：蹲 取消（全部）/ 蹲 取消 裂隙 捕获（只删匹配项）"]
             # 2026-09-21 修：裸「蹲」应出卡片图（与其它指令一致）。
             # 原 text_only=True 是 v0.5 接手时的祖传写法，全插件唯一一处强制纯文本；
@@ -62,6 +64,12 @@ class DunCommands:
                 event_type = ev
             else:
                 rest.append(tok)
+        # ★ 2026-10-03（维护者定）：「T1–T6 / 古纪…全能」这类**档位词本身
+        #   就含裂隙语义** —— 没写类型词时自动判定为裂隙（「蹲 钢铁t5歼灭」
+        #   直接生效，不必再写「裂隙」）。⚠ 只认档位词：钢铁/虚空/地点词
+        #   仍走「未识别」提示，不重蹈 2026-09-14 静默降级的覆辙。
+        if event_type is None and any(contains_fissure_tier(t) for t in toks):
+            event_type = "裂隙"
         if len(toks) >= 2 and toks[1] == "帮助" and event_type:
             desc, _ = PUSH_EVENTS[event_type]
             return Reply(raw_text=f"【蹲 {event_type}】{desc}" +
@@ -74,10 +82,18 @@ class DunCommands:
             # 可蹲清单从 PUSH_EVENTS 现算（只列已接线的），别手抄——
             # 手抄版把不可订阅的「警报」也列了进去，还漏了山谷/魔胎等类型。
             wired = " / ".join(ev for ev, (_, ok) in PUSH_EVENTS.items() if ok)
+            # ★ 2026-10-03（线上实证）：用户写「蹲 钢铁t5歼灭」漏了类型词，
+            #   收到「未识别」一头雾水。**只提示不改语义**（不做静默推断，
+            #   2026-09-14 的教训）——像裂隙筛选词的补一句正确写法。
+            _fis_like = next(
+                (t for t in toks
+                 if any(w in t.lower() for w in FISSURE_MODIFIER_WORDS)), "")
+            _sug = (f"\n※ 「{_fis_like}」像是裂隙筛选词——正确写法要先写类型："
+                    f"蹲 裂隙 {_fis_like}" if _fis_like else "")
             return Reply(raw_text=(
                 "未识别为可蹲类型「" + (toks[0] if toks else "") + "」。\n"
                 f"可蹲类型：{wired}\n"
-                "发送「蹲 帮助」查看完整说明"))
+                f"发送「蹲 帮助」查看完整说明{_sug}"))
         # 「蹲 类型」正常订阅路径：此处 event_type 已确定，必须先取 desc/wired，
         # 否则下面 `if not wired` 会在未赋值分支触发 NameError（「蹲 类型」直接失效的根因）。
         desc, wired = PUSH_EVENTS[event_type]

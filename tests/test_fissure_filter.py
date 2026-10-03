@@ -207,7 +207,16 @@ check("默认分页模式只出 12 条",
 from core.de_worldstate import (  # noqa: E402
     _parse_fissures as _pf6, fissure_tier as _ft6)
 from core.parser import (FISSURE_TIER_WORDS, TIER_T_ALIAS,  # noqa: E402
-                         fissure_tier_hint)
+                         contains_fissure_tier, fissure_tier_hint)
+
+# 档位词判定（「蹲」用它自动判裂隙；维护者定：T1–T6 本身含裂隙语义）
+check("档位词判定：钢铁t5歼灭/T5/安魂/古纪/Ｔ５ ⇒ True；钢铁/火星/歼灭 ⇒ False",
+      contains_fissure_tier("钢铁t5歼灭") and contains_fissure_tier("T5")
+      and contains_fissure_tier("安魂") and contains_fissure_tier("古纪")
+      and contains_fissure_tier("Ｔ５")
+      and not contains_fissure_tier("钢铁")
+      and not contains_fissure_tier("火星")
+      and not contains_fissure_tier("歼灭"))
 
 # ② T1..T6 ↔ fissure_tier 单一真源对拍
 _ok6 = True
