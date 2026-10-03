@@ -1700,12 +1700,45 @@ finally:
     _M23._RIVEN_TABLE_STAMP = None
 
 # ---------------------------------------------------------------------------
-# ★ 追加段（⑫-㉓）出口守卫：本文件原有守卫在第 802 行（①-⑫ 之前），
+# ㉔ 组合枪主要形态逐腔体基值列（2026-10-03 用户实证 + wiki Kitgun 页分类表）：
+#     捕月/孢射主要=霰弹列，墓指/响胆/凝视/虫置主要=步枪列，次要一律手枪列；
+#     非 kitgun（Vinquibus (Primary)）原样。判据按候选自带类别（三元组）。
+# ---------------------------------------------------------------------------
+check("㉔① kitgun_mode_class：主要形态逐腔体（EN 名）",
+      RA.kitgun_mode_class("Catchmoon (Primary)", "pistol", "kitgun") == "shotgun"
+      and RA.kitgun_mode_class("Sporelacer (Primary)", "pistol", "kitgun") == "shotgun"
+      and RA.kitgun_mode_class("Tombfinger (Primary)", "pistol", "kitgun") == "rifle"
+      and RA.kitgun_mode_class("Rattleguts (Primary)", "pistol", "kitgun") == "rifle"
+      and RA.kitgun_mode_class("Gaze (Primary)", "pistol", "kitgun") == "rifle"
+      and RA.kitgun_mode_class("Vermisplicer (Primary)", "pistol", "kitgun") == "rifle",
+      "主形态类别错")
+check("㉔② kitgun_mode_class：主要形态逐腔体（ZH 显示名）",
+      RA.kitgun_mode_class("捕月（主要）", "pistol", "kitgun") == "shotgun"
+      and RA.kitgun_mode_class("孢射（主要）", "pistol", "kitgun") == "shotgun"
+      and RA.kitgun_mode_class("墓指（主要）", "pistol", "kitgun") == "rifle"
+      and RA.kitgun_mode_class("响胆（主要）", "pistol", "kitgun") == "rifle"
+      and RA.kitgun_mode_class("凝视（主要）", "pistol", "kitgun") == "rifle"
+      and RA.kitgun_mode_class("虫置（主要）", "pistol", "kitgun") == "rifle",
+      "ZH 主形态类别错")
+check("㉔③ kitgun_mode_class：次要/裸行=手枪列；非 kitgun 原样",
+      RA.kitgun_mode_class("Catchmoon (Secondary)", "pistol", "kitgun") == "pistol"
+      and RA.kitgun_mode_class("Catchmoon", "pistol", "kitgun") == "pistol"
+      and RA.kitgun_mode_class("捕月", "pistol", "kitgun") == "pistol"
+      and RA.kitgun_mode_class("Vinquibus (Primary)", "rifle", "rifle") == "rifle"
+      and RA.kitgun_mode_class("Lex (Primary)", "pistol", "pistol") == "pistol",
+      "次要/非kitgun 类别错")
+_b24 = _run21(_rc22, ["捕月（主要）", "暴率92", "暴伤93", "电伤92.5", "负切割88.1"])
+check("㉔④ 判别卡（暴击率）：按霰弹列 90 基值算区间 83.53%-102.09%，不再手枪列/老卡",
+      "【捕月（主要）】倾向 1.1" in _b24 and "83.53%-102.09%" in _b24
+      and "139.21%" not in _b24 and "老卡" not in _b24, _b24[:260])
+
+# ---------------------------------------------------------------------------
+# ★ 追加段（⑫-㉔）出口守卫：本文件原有守卫在第 802 行（①-⑫ 之前），
 #   其后的追加段此前**没有守卫** —— 失败不会置退出码（等同静默放行）。
 # ---------------------------------------------------------------------------
 print()
 if FAILED:
     print(f"✗ 追加段失败 {len(FAILED)} 项：" + "、".join(FAILED))
     sys.exit(1)
-print("✓ 追加段（⑫-㉓）全部通过")
+print("✓ 追加段（⑫-㉔）全部通过")
 

@@ -115,6 +115,56 @@ def weapon_class(riven_type: str = "", group: str = "") -> Optional[str]:
     return "rifle"
 
 
+# ★ 2026-10-03（用户实证 + wiki Kitgun 页触发器分类表）：组合枪**主要形态**
+#   的 MOD 基值列逐腔体不同 —— 捕月/孢射主要=霰弹列，墓指/响胆/凝视/虫置
+#   主要=步枪列（页内补丁记录："Tombfinger and Rattleguts are Rifles, and
+#   Catchmoon is a Shotgun"；Gaze 在分类表里也列于 Rifle 组）。次要形态一律
+#   手枪列（WM 裸行=次要形态）。倾向**数值**不受影响 —— 仍取 Riven Mods 页
+#   （本 Kitgun 页倾向表停留在 2025-08-26，数值有代差，只作类别证据）。
+_KITGUN_PRIMARY_CLASS: dict[str, str] = {
+    "catchmoon": "shotgun", "捕月": "shotgun",
+    "sporelacer": "shotgun", "孢射": "shotgun",
+    "tombfinger": "rifle", "墓指": "rifle",
+    "rattleguts": "rifle", "响胆": "rifle",
+    "gaze": "rifle", "凝视": "rifle", "凝目": "rifle",
+    "vermisplicer": "rifle", "虫置": "rifle",
+}
+_MODE_SUFFIX_RE = re.compile(r"[（(](主要|次要|大气|primary|secondary|atmosphere)[)）]\s*$",
+                             re.I)
+_MODE_ALIASES = {"主要": "primary", "次要": "secondary", "大气": "atmosphere"}
+
+
+def mode_of(name: str) -> Optional[str]:
+    """武器名（EN 或 ZH 显示名）尾部的模式后缀 → 英文模式词；无则 None。"""
+    m = _MODE_SUFFIX_RE.search((name or "").strip())
+    if not m:
+        return None
+    w = m.group(1).lower()
+    return _MODE_ALIASES.get(w, w)
+
+
+def kitgun_mode_class(name: str, base_cls: str, base_riven_type: str) -> str:
+    """kitgun 腔体按模式选基值列；非 kitgun 一律母行类别。
+
+    主要形态查 `_KITGUN_PRIMARY_CLASS`（腔体 EN/ZH 名都认），查不到回落
+    母行类别；次要形态=手枪列；裸行（WM 的 catchmoon，即次要形态）=母行。
+    模式后缀也存在非 kitgun 武器上（如 Vinquibus (Primary) 是步枪），
+    那些必须原样返回母行类别 —— 所以 kitgun 判定只认母行的 riven_type。
+    """
+    if (base_riven_type or "").lower() != "kitgun":
+        return base_cls
+    mode = mode_of(name)
+    if mode == "primary":
+        low = (name or "").lower()
+        for token, c in _KITGUN_PRIMARY_CLASS.items():
+            if token in low:
+                return c
+        return base_cls
+    if mode == "secondary":
+        return "pistol"
+    return base_cls
+
+
 def factor_for(n_pos: int, n_neg: int) -> tuple[float, Optional[float]]:
     """词条数系数：(正词条数, 负词条数) → (正系数, 负系数 magnitude)。"""
     return FACTOR.get((n_pos, n_neg), (0.9375, 0.75))
@@ -306,14 +356,19 @@ def match_disposition(stats_pos, stats_neg, cls, candidates,
     entries = _stat_entries(stats_pos, stats_neg)
     pos_f, neg_f = factor_for(len(stats_pos or []), len(stats_neg or []))
     out = []
-    for name, d in (candidates or []):
+    for cand in (candidates or []):
+        name, d = cand[0], cand[1]
+        # ★ 2026-10-03：候选可带自身基值列（kitgun 主要形态=霰弹/步枪列，
+        #   与母行的手枪列不同）—— 三元组 (名称, 倾向, 类别)；
+        #   二元组沿用整体 cls（向后兼容）。
+        cand_cls = cand[2] if len(cand) > 2 else cls
         try:
             d = float(d)
         except (TypeError, ValueError):
             continue
         if d <= 0:
             continue
-        if _fit_dev(entries, cls, pos_f, neg_f, d, tol_fn) is not None:
+        if _fit_dev(entries, cand_cls, pos_f, neg_f, d, tol_fn) is not None:
             out.append((name, d))
     return out
 
@@ -344,7 +399,11 @@ def candidate_scores(stats_pos, stats_neg, cls, candidates) -> list:
     """
     n_pos, n_neg = len(stats_pos or []), len(stats_neg or [])
     out = []
-    for name, d in (candidates or []):
+    for cand in (candidates or []):
+        name, d = cand[0], cand[1]
+        # ★ 2026-10-03：三元组候选自带基值列（kitgun 主要形态逐腔体霰弹/
+        #   步枪列，与母行手枪列不同）；二元组沿用整体 cls（向后兼容）。
+        cand_cls = cand[2] if len(cand) > 2 else cls
         try:
             d = float(d)
         except (TypeError, ValueError):
@@ -353,7 +412,7 @@ def candidate_scores(stats_pos, stats_neg, cls, candidates) -> list:
             continue
         worst, used = 0.0, 0
         for sid, v, neg in _stat_entries(stats_pos, stats_neg):
-            lo, hi = stat_range(sid, cls, d, n_pos, n_neg, negative=neg)
+            lo, hi = stat_range(sid, cand_cls, d, n_pos, n_neg, negative=neg)
             if lo is None or v <= 0:
                 continue
             mid = (lo + hi) / 2

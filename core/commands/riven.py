@@ -403,10 +403,10 @@ class RivenCommands:
                                   f"{mod_hint}")
         cls = RA.weapon_class(weapon.get("riven_type", ""),
                               weapon.get("group", ""))
+        _kitgun_type = weapon.get("riven_type") or ""
         # ★ 2026-10-03：WM 拆分行（捕月（主要）等 (Primary)/(Secondary) 行）
-        # riven_type/group 为空 ⇒ weapon_class 回落「rifle」会拿错基值（组合枪
-        # 两种模式都是**手枪基值**，取证 §二：多重 110.3 在步枪基值下要求倾向
-        # ≥1.19，不存在）。基名行在表里 ⇒ 继承基名行的类别。
+        # riven_type/group 为空 ⇒ weapon_class 回落「rifle」会拿错基值。
+        # 基名行在表里 ⇒ 继承基名行的类别。
         if not (weapon.get("riven_type") or weapon.get("group")):
             _mb = _re.match(r"^(.+?)\s*\([^)]+\)\s*$",
                             (weapon.get("en") or "").strip())
@@ -414,8 +414,15 @@ class RivenCommands:
                 _base_w = await self.client.resolve_riven_weapon(_mb.group(1))
                 if _base_w and (_base_w.get("riven_type")
                                 or _base_w.get("group")):
+                    _kitgun_type = _base_w.get("riven_type") or ""
                     cls = RA.weapon_class(_base_w.get("riven_type", ""),
                                           _base_w.get("group", ""))
+        # ★ 2026-10-03（用户实证 + wiki Kitgun 页分类表）：kitgun 腔体主要
+        #   形态的 MOD 基值列**逐腔体不同**——捕月/孢射主要=霰弹列，
+        #   墓指/响胆/凝视/虫置主要=步枪列，次要一律手枪列；非 kitgun 原样
+        #   （Vinquibus (Primary) 仍是步枪列）。
+        cls = RA.kitgun_mode_class(weapon.get("en") or weapon.get("zh") or "",
+                                   cls, _kitgun_type)
         # 倾向来历：手输覆盖（棱晶等变体 WM 没数据，卡主最准）> WM/母武器值。
         # 游戏内紫卡不显示倾向数值，LLM 从卡面"读倾向"只会把内融值之类的
         # 数字当倾向（教训：49 → 区间爆表），所以永远不采信 LLM。
@@ -490,8 +497,13 @@ class RivenCommands:
                 if RA.disp_feasible(stats_pos, stats_neg, cls, wm_disp):
                     pass        # 母武器可行：跳过变体推断（family_note 仍可展示参考）
                 else:
-                    fits = RA.match_disposition(stats_pos, stats_neg, cls,
-                                                [(mother_name, wm_disp)] + fam_all)
+                    # ★ 2026-10-03：家族候选按各自模式换基值列（kitgun 主要
+                    #   形态逐腔体霰弹/步枪列），母行用母行类别（三元组）。
+                    _fam_c = [(n, v, RA.kitgun_mode_class(n, cls, _kitgun_type))
+                              for n, v in fam_all]
+                    fits = RA.match_disposition(
+                        stats_pos, stats_neg, cls,
+                        [(mother_name, wm_disp, cls)] + _fam_c)
                     # 多个变体**倾向同值**时不算歧义 —— 区间只由倾向数值决定，
                     # 名字（棱晶/Prime）不影响结果（棱晶·空刃与空刃 Prime 同为
                     # 1.2）。旧实现一律回「请带变体名重发」，卡面就仍按母武器的
@@ -519,7 +531,7 @@ class RivenCommands:
                         #   ≤ 0.15 判该候选并**把残差印在卡面**（可审计）。
                         scored = RA.candidate_scores(
                             stats_pos, stats_neg, cls,
-                            [(mother_name, wm_disp)] + fam_all)
+                            [(mother_name, wm_disp, cls)] + _fam_c)
                         near = [(n, d, s) for n, d, s in scored
                                 if s <= RA.NEAR_MISS_MAX]
 
