@@ -343,6 +343,147 @@ def materials(components, cap=10):
     return mats[:cap], bp
 
 
+# ---------------------------------------------------------------------------
+# 武器获取来源（2026-10-04 增）：基础版走原始 WFCD 掉落表（missionRewards，
+# 与 06 号文件同源）；Prime 版走遗物索引（与 04 号文件同源）。
+# ★ 不用 core/data/drops.json::items —— 那是弃用续传键（build_drops.py 自述
+#   运行期不消费），且含陈旧脏数据（实测：阿索代被凭空挂到 4 条 Axi 遗物上）。
+# ---------------------------------------------------------------------------
+WPN_PART_ZH = {'Blueprint': '蓝图', 'Barrel': '枪管', 'Receiver': '枪机',
+               'Stock': '枪托', 'Blade': '刀刃', 'Handle': '握柄', 'Hilt': '剑柄',
+               'Gauntlet': '拳套', 'Link': '连接器', 'Ornament': '饰件',
+               'Upper Limb': '上弓臂', 'Lower Limb': '下弓臂', 'String': '弓弦',
+               'Grip': '握把', 'Head': '头部', 'Chain': '锁链', 'Boot': '靴部',
+               'Disk': '圆盘', 'Core': '核心', 'Wings': '机翼'}
+_WPN_PART_SUFFIX = frozenset(
+    ('blueprint', 'barrel', 'receiver', 'stock', 'blade', 'handle', 'hilt', 'link',
+     'string', 'grip', 'head', 'gauntlet', 'ornament', 'chain', 'boot',
+     'disk', 'core', 'wings', 'upper limb', 'lower limb'))
+
+_MR_INV = None
+
+
+def mission_drop_index():
+    """{英文物品名(lower): [(planet, node, gameMode, rot, rarity, chance), ...]}
+
+    原始 WFCD missionRewards 的**反向索引**（与 06 号文件同源）：
+    06 是「节点 → 掉落」，这里翻成「掉落物 → 节点」供武器条目查获取来源。
+    """
+    global _MR_INV
+    if _MR_INV is None:
+        idx = defaultdict(list)
+        mr = (S.drop.get('all') or {}).get('missionRewards') or {}
+        for planet, ns in mr.items():
+            for nodename, nd in (ns or {}).items():
+                gm = to_text(nd.get('gameMode'))
+                rw = nd.get('rewards')
+                rows = []
+                if isinstance(rw, dict):
+                    for rot, items in rw.items():
+                        for it in items or []:
+                            rows.append((rot, it))
+                elif isinstance(rw, list):
+                    for it in rw:
+                        rows.append(('', it))
+                for rot, it in rows:
+                    nm = str(it.get('itemName') or '').strip()
+                    if nm:
+                        idx[nm.lower()].append(
+                            (planet, nodename, gm, rot, it.get('rarity'), it.get('chance')))
+        _MR_INV = idx
+    return _MR_INV
+
+
+_RELIC_REV = None
+
+
+def relic_reverse_index():
+    """{部件 uniqueName: [(遗物短名, 档位, chance), ...]}（与 04 号文件同源同规则）。"""
+    global _RELIC_REV
+    if _RELIC_REV is None:
+        groups = OrderedDict()
+        for x in I['Relics']:
+            m = re.match(r'^(.+?)\s+(Intact|Exceptional|Flawless|Radiant)$',
+                         x.get('name') or '')
+            if m:
+                groups.setdefault(m.group(1), {})[m.group(2)] = x
+        rev = defaultdict(list)
+        for gname in sorted(groups):
+            g = groups[gname]
+            rep = g.get('Exceptional') or g.get('Intact') or next(iter(g.values()))
+            zn = title_of((S.zh_item.get(rep['uniqueName']) or {}).get('name'), gname)
+            short = zn.split('（')[0]
+            for k in ('Intact', 'Exceptional', 'Flawless', 'Radiant'):
+                x = g.get(k)
+                if not x:
+                    continue
+                for rw in x.get('rewards') or []:
+                    u = (rw.get('item') or {}).get('uniqueName')
+                    if u:
+                        rev[u].append((short, k, rw.get('chance')))
+        _RELIC_REV = rev
+    return _RELIC_REV
+
+
+def weapon_acquire_line(r):
+    """武器获取来源（行文本，不含前缀）。查不到返回 '' —— 宁可不写，绝不编。"""
+    en = (r.get('name') or '').strip()
+    if not en:
+        return ''
+    if r.get('isPrime'):
+        rev = relic_reverse_index()
+        wzh = S.name(r.get('uniqueName')) or ''
+        per, seen = [], set()
+        for c in (r.get('components') or []):
+            u = c.get('uniqueName') or ''
+            best = {}
+            for short, _k, ch in (rev.get(u) or []):
+                if short not in best or (ch or 0) > best[short]:
+                    best[short] = ch or 0
+            if not best:
+                continue
+            relics = [s for s, _ in sorted(best.items(), key=lambda kv: -kv[1])]
+            label = (S.name(u) or '').strip()
+            if wzh and label.startswith(wzh):
+                label = label[len(wzh):].strip() or label
+            if not label or label == wzh:
+                label = WPN_PART_ZH.get(c.get('name') or '', c.get('name') or '部件')
+            key = (label, tuple(relics[:3]))
+            if key in seen:
+                continue
+            seen.add(key)
+            per.append('%s：%s' % (label, ' / '.join(relics[:3])
+                                   + ('…' if len(relics) > 3 else '')))
+        if per:
+            return '虚空遗物（%s）' % '；'.join(per[:6])
+        return ''
+    idx = mission_drop_index()
+    rows = idx.get((en + ' Blueprint').lower())
+    if not rows:
+        # 部件名一律**精确**匹配（'X Barrel' 等）——绝不用前缀扫描，
+        # 否则「X」会误挂到「X Vandal」这类变体的来源上（2026-10-04 立规）。
+        for part in _WPN_PART_SUFFIX:
+            v = idx.get(('%s %s' % (en, part)).lower())
+            if v:
+                rows = (rows or []) + v
+    if not rows:
+        return ''
+    best = {}
+    for planet, nodename, gm, rot, _rarity, chance in rows:
+        base = re.sub(r'\s*[（(][^）)]*[）)]\s*$', '', nodename).strip()
+        label = '%s · %s · %s' % (S.planet(planet), base, S.mission(gm) if gm else '?')
+        if rot:
+            label += ' · %s轮' % rot
+        if label not in best or (chance or 0) > best[label]:
+            best[label] = chance or 0
+    lst = ['%s %s' % (l, pct_raw(c, 2))
+           for l, c in sorted(best.items(), key=lambda kv: -kv[1])]
+    head = '；'.join(lst[:3])
+    if len(lst) > 3:
+        head += '…（共 %d 处）' % len(lst)
+    return head
+
+
 def mod_effect(rec):
     """→ ([ (档位, 效果文本) ], 模式)  模式 ∈ official / zh / en
 
@@ -555,8 +696,16 @@ def weapon_part(title, key):
             L.append('- 建造材料：%s' % '｜'.join(mats))
         if bp:
             L.append('- 蓝图来源：%s' % bp)
-        elif r.get('drops'):
-            L.append('- 获取：%s' % drops_brief(r['drops'], 3))
+        else:
+            # 获取来源优先级：原始 WFCD 掉落表 / 遗物索引（中文）→ items 包 drops
+            # （英文地点）→ Prime 兜底句。2026-10-04 起「怎么获得」以本行为准。
+            acq = weapon_acquire_line(r)
+            if acq:
+                L.append('- 获取：%s' % acq)
+            elif r.get('drops'):
+                L.append('- 获取：%s' % drops_brief(r['drops'], 3))
+            elif r.get('isPrime'):
+                L.append('- 获取：开启对应虚空遗物获得 Prime 部件蓝图')
         if r.get('marketCost'):
             L.append('- 商店：%s 铂金' % trim_num(r['marketCost'], 0))
         elif r.get('bpCost'):

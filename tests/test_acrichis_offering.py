@@ -96,10 +96,16 @@ def test_seed_catalog_matches_wiki_valid_list():
 
 
 def test_seed_items_are_catalog_zh():
-    """种子快照里本周 5 件必须是 catalog 里英文名的中文映射（防手改漂移）。"""
+    """种子快照里本周 5 件必须是 catalog 里英文名的中文映射（防手改漂移）。
+
+    ★ 不绑定具体某一周的货单 —— 货单每周一 00:00 UTC 轮换，硬编码某一周
+    会在下一周把测试变红（2026-10-04 实测：硬编码 9/21 那周 ⇒ 9/28 种子必挂）。
+    口径：恰 5 件，且每件 name 都能在 catalog 的中文名集合里找到。
+    """
     seed = json.loads(pathlib.Path("core/data/de/acrichis_week.json")
                       .read_text(encoding="utf-8"))
-    cat = seed["_en_catalog"]
-    for en in ("5000 Kuva", "Primary Arcane Adapter", "Orokin Catalyst",
-               "Forma", "Orokin Reactor"):
-        assert any(it["name"] == cat[en]["name"] for it in seed["items"]), en
+    zh_names = {v["name"] for v in seed["_en_catalog"].values()}
+    items = seed["items"]
+    assert len(items) == 5
+    for it in items:
+        assert it["name"] in zh_names, it["name"]

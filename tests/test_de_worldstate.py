@@ -1033,3 +1033,55 @@ _l4 = fmt.fmt_alerts([{**_al[0], "mission": {
 assert (_l4 and "2021 年 QTCC 玩偶" in _l4[0]), str(_l4)
 print("§三 C3 警报解析：MissionInfo 补全 / 奖励不再「?」/ 中文名优先 —— 断言通过")
 
+# ============================================================================
+# §四 警报奖励中文名（2026-10-04）：StoreItems 反查表 + 路径归一 + 三级回落
+# ============================================================================
+import asyncio  # noqa: E402
+
+from core.api_client import (  # noqa: E402
+    WarframeClient, store_item_zh, store_items_path_variants)
+
+# ① 反查表：线上实测三条（QTCC 玩偶；键名不规则 —— Plush2021QTCCName 掉 y、
+#    PlushyVirminkQTCCDecoName 多 Deco，绝不能用「末段 + Name」硬拼）
+for _p, _zh in (
+    ("/Lotus/StoreItems/Types/Items/ShipDecos/Plushies/Plushy2021QTCC", "征服库阿卡玩偶"),
+    ("/Lotus/StoreItems/Types/Items/ShipDecos/Plushies/Plushy2022QTCC", "征服梭歌玩偶"),
+    ("/Lotus/StoreItems/Types/Items/ShipDecos/Plushies/PlushyVirminkQTCC", "征服弗鸣克玩偶"),
+):
+    assert store_item_zh(_p) == _zh, (_p, store_item_zh(_p))
+# ② 导出键形态（无 StoreItems 段）直接命中；未知路径返回空（绝不造名）
+assert store_item_zh(
+    "/Lotus/Types/Items/ShipDecos/Plushies/Plushy2021QTCC") == "征服库阿卡玩偶"
+assert store_item_zh("/Lotus/StoreItems/Types/Items/Nope/Unknown") == ""
+# ③ 路径归一三态
+_vs = store_items_path_variants(
+    "/Lotus/StoreItems/Types/Items/ShipDecos/Plushies/Plushy2021QTCC")
+assert "/Lotus/Types/Items/ShipDecos/Plushies/Plushy2021QTCC" in _vs, _vs
+
+
+# ④ 三级回落整链：新表 → WM gameRef → 未收录（WM 装饰品为空，模拟其返回 []）
+async def _resolve_probe():
+    c = WarframeClient()
+
+    async def _wm():
+        return []
+
+    c.wm_items = _wm  # type: ignore[method-assign]
+    data = [{"mission": {"reward": {
+        "item": "Plushy2021 QTCC",
+        "items": ["/Lotus/StoreItems/Types/Items/ShipDecos/Plushies/Plushy2021QTCC",
+                  "/Lotus/StoreItems/Types/Items/Nope/Unknown"]}}}]
+    rw = (await c._resolve_alert_items(data))[0]["mission"]["reward"]
+    assert rw["item_names"] == ["征服库阿卡玩偶"], rw
+    assert rw["item"] == "征服库阿卡玩偶" and rw["item_unknown"] == ["Unknown"], rw
+    d2 = [{"mission": {"reward": {
+        "item": "Unknown", "items": ["/Lotus/StoreItems/Types/Items/Nope/Unknown"]}}}]
+    rw2 = (await c._resolve_alert_items(d2))[0]["mission"]["reward"]
+    assert rw2["item"] == "Unknown（未收录）" and rw2["item_names"] == [], rw2
+    return rw
+
+
+rw_ok = asyncio.run(_resolve_probe())
+print("§四 警报奖励中文名：反查表（三条玩偶）/ 路径归一 / 三级回落不造名 —— 断言通过")
+
+

@@ -1,4 +1,4 @@
-# AstrBot 插件 · Warframe SDJKBOT v1.1.3（`astrbot_plugin_warframe_sdjkbot`）
+# AstrBot 插件 · Warframe SDJKBOT v1.1.4（`astrbot_plugin_warframe_sdjkbot`）
 
 > **📢 插件 ID 迁移公告（2026-09-28）**
 > 本插件 ID 由 `astrbot_plugin_warframe` 变更为 **`astrbot_plugin_warframe_sdjkbot`**，旧 ID 不再维护。

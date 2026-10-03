@@ -1,6 +1,11 @@
 # -*- coding: utf-8 -*-
 """产出**插件市场专用**的 flat zip（无顶层目录）。
 
+★ **2026-10-04 起用途变更**：市场已与仓库绑定，**公开仓版号一变即自动推送** ——
+本脚本产出的 zip **不再是发版的必经上传件**，保留用途改为：
+（a）本地**体量（16MB 上限）/ 条目数基线**自检；（b）市场绑定故障时的兜底上传件。
+发版链见 `.zcode/commands/wf/pack.md` 与 `09-open-market.md §18.0`。
+
 为什么要单独一个脚本：市场与「本地安装」要的 zip 结构**不一样**。
 
 * `dist/package_release.py` 产出的 `astrbot_plugin_warframe_sdjkbot.zip` 是
@@ -147,7 +152,7 @@ MARKET_SKIP_FILES = {".gitleaks.toml",        # 仓库门面（防泄漏 CI 配�
 #   → 本笔 +core/data/de/palladino_shop.json（碎银兑换表，运行期必读）⇒ 实测 109，
 #   与既有常量恰好相符；本笔只补注释不改数，**别再照着 109 那个中间值反推历史**。
 # → 110（2026-10-03 B1 翻译批：+core/data/de/name_bilingual.json 双语名称表，运行期必读）
-EXPECTED_MARKET_ENTRIES = 110
+EXPECTED_MARKET_ENTRIES = 111
 
 # ★ 可复现打包（2026-09-26 用户侧建议）：统一 zip 条目时间戳 = 2026-01-01T00:00:00Z。
 #   之前取文件 mtime，导致「内容没变、重建却换 sha」（上传期两次被迫冻结重建：

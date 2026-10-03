@@ -39,6 +39,7 @@ except ImportError:  # pragma: no cover
     httpx = None  # type: ignore[assignment]
 
 from . import de_worldstate, paths
+from . import __version__ as _CORE_VERSION   # UA 版本段随插件版本派生（单一来源）
 from .cache import TTLCache
 from .logging_compat import logger
 
@@ -48,6 +49,7 @@ DATA_DIR = Path(__file__).resolve().parent / "data"   # 包内静态数据（只
 RANKS_NAME = "wm_ranks.json"             # 价格排行全量落盘（后台爬取）
 WIKI_DISP_NAME = "de/wiki_disp.json"     # wiki 变体倾向快照
 ACRITHIS_WEEK_NAME = "de/acrichis_week.json"   # 言录使本周货单（运行期覆盖包内种子）
+STOREITEMS_ZH_NAME = "de/storeitems_zh.json"   # StoreItems 路径 → 官方简中名（警报换名）
 ACRITHIS_CURRENT_URL = ("https://wiki.warframe.com/w/Acrithis/"
                         "Current_Offerings?action=raw")  # 社区当期 5 件上报页
 # 社区快照（2026-09-25 方案④）：wiki 这两项数据都在 Cloudflare 盾后，没部署
@@ -89,6 +91,49 @@ FLARESOLR_URLS = ([os.environ["WF_FLARESOLR"]]
                    "http://172.17.0.1:8191/v1",
                    "http://127.0.0.1:8191/v1"])
 TTL_FLARE = 3600
+
+# ---- StoreItems 反查表（2026-10-04）：警报奖励换名的第一级 ----
+# 构建期产物（scripts/build_storeitems_zh.py）；带 mtime 守卫，热重载后自动重读。
+_STOREITEMS_ZH: Optional[dict] = None
+_STOREITEMS_ZH_STAMP: Optional[float] = None
+
+
+def store_items_path_variants(path: str) -> list[str]:
+    """StoreItems 路径的等价形态（查表用，顺序：原样 → 去 StoreItems 段）。
+
+    警报奖励路径多一段 ``/Lotus/StoreItems``，而 DE 导出键是 ``/Lotus/Types/...``
+    （2026-10-04 实测：导出里 0 个键以 /Lotus/StoreItems 开头；
+    另有 ``/Lotus/Types/StoreItems/...`` 变体）。
+    """
+    out = [path]
+    if path.startswith("/Lotus/StoreItems/"):
+        out.append("/Lotus/" + path[len("/Lotus/StoreItems/"):])
+    if path.startswith("/Lotus/Types/StoreItems/"):
+        out.append("/Lotus/Types/" + path[len("/Lotus/Types/StoreItems/"):])
+    return out
+
+
+def store_item_zh(path: str) -> str:
+    """StoreItems 路径 → 官方简中名（查不到返回 ''，绝不造名）。"""
+    global _STOREITEMS_ZH, _STOREITEMS_ZH_STAMP
+    try:
+        p = paths.read_path(STOREITEMS_ZH_NAME)
+        stamp = p.stat().st_mtime
+    except OSError:
+        return ""
+    if _STOREITEMS_ZH is None or _STOREITEMS_ZH_STAMP != stamp:
+        try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as e:  # noqa: BLE001
+            logger.warning("[sdjk] storeitems_zh.json 读取失败：%s", e)
+            return ""
+        _STOREITEMS_ZH = data.get("items") or {}
+        _STOREITEMS_ZH_STAMP = stamp
+    for k in store_items_path_variants(path):
+        v = _STOREITEMS_ZH.get(k)
+        if v:
+            return v
+    return ""
 
 
 def parse_url_list(raw: str) -> list[str]:
@@ -256,7 +301,7 @@ TTL_WM_STATS = 1800           # v1 价格统计（48h/90d）
 TTL_WM_DUCATS = 30 * 60       # v1 tools/ducats 榜单（整点更新一次）
 TTL_WIKI = 6 * 3600
 
-USER_AGENT = "warframe-sdjk/1.0 (AstrBot plugin)"
+USER_AGENT = f"warframe-sdjk/{_CORE_VERSION} (AstrBot plugin)"
 
 # 内部平台码 -> WM v2 Platform 头
 _WM_PLATFORM = {"pc": "pc", "ps": "ps4", "ps4": "ps4", "xb": "xbox",
@@ -823,23 +868,42 @@ class WarframeClient:
         return await self._resolve_alert_items(data)
 
     async def _resolve_alert_items(self, data: list) -> list:
-        """警报奖励路径 → 中文名（尽力而为：拿不到 WM 表就保持原样）。"""
+        """警报奖励路径 → 中文名（三级回落：官方导出反查表 → WM gameRef → 未收录）。
+
+        2026-10-04 新增第一级 `de/storeitems_zh.json`：WM 物品表是**可交易品**，
+        装饰品（ShipDecos）不在其中，此前只能回落 `_prettify` 出 "Plushy2021 QTCC"
+        这类怪名（用户实测报的「警报奖励没翻译」）。三级都未命中时**不造名字**：
+        显示「路径末段（未收录）」。
+        """
+        by_ref: dict[str, str] = {}
         try:
             items = await self.wm_items()
         except WarframeAPIError:
-            return data
-        by_ref: dict[str, str] = {}
+            items = []
         for it in items:
             ref = it.get("game_ref") or ""
             if ref and it.get("zh"):
                 by_ref.setdefault(ref, it["zh"])
         for a in data or []:
             rw = ((a.get("mission") or {}).get("reward") or {})
-            names = [by_ref.get(p) or "" for p in (rw.get("items") or [])]
+            names, unknown = [], []
+            for p in (rw.get("items") or []):
+                nm = store_item_zh(p)
+                if not nm:
+                    nm = next((by_ref[k] for k in store_items_path_variants(p)
+                               if by_ref.get(k)), "")
+                if nm:
+                    names.append(nm)
+                else:
+                    unknown.append(p.rsplit("/", 1)[-1])
             if names:
-                rw["item_names"] = [n for n in names if n]
-                if rw["item_names"]:
-                    rw["item"] = rw["item_names"][0]   # 中文名优先于 prettify 兜底
+                rw["item_names"] = names
+                rw["item"] = names[0]          # 中文名优先于 prettify 兜底
+                if unknown:
+                    rw["item_unknown"] = unknown
+            elif unknown:
+                rw["item_names"] = []
+                rw["item"] = "、".join("%s（未收录）" % t for t in unknown)
         return data
 
     async def invasions(self, platform: str) -> list[dict]:

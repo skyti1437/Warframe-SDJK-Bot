@@ -561,6 +561,16 @@ class Sources:
                 if v:
                     self._stats['L2b_blueprint'] += 1
                     return v + '蓝图'
+        # L2c: 配方路径 → ExportRecipes.resultType → 武器中文名 + 「蓝图」。
+        # warframe-items 部分部件的 name 为 None，L2b 兜不住（2026-10-04 实测：
+        # /Lotus/Types/Recipes/Weapons/AthodaiPistolBlueprint → 阿索代 蓝图）。
+        if seg.endswith('Blueprint'):
+            rec = (self.pep.get('Recipes') or {}).get(path)
+            if isinstance(rec, dict) and rec.get('resultType'):
+                wn = self._name(rec['resultType'])
+                if wn:
+                    self._stats['L2c_recipe'] += 1
+                    return wn + '蓝图'
         k = self.asset2key.get(path)
         if k:
             v = to_text(self.dz.get(k))

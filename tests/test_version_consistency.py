@@ -104,8 +104,11 @@ if oss_meta.exists():
               if ln.startswith("display_name:")),
           "开源包展示名未跟随品牌（改 dist/package_release.py::_oss_metadata）")
     omm = re.search(r"^version:\s*v?([\d.]+)\s*$", om, re.M)
-    check("★ 开源包 metadata.yaml 的版本 == core 主次版本",
-          bool(omm) and _mm(omm.group(1)) == MM, omm.group(1) if omm else "?")
+    # ★ 2026-10-04（v1.1.4 发版实测）：原先只比「主次版本」，补丁号漂移抓不住 ——
+    #   `_oss_metadata()` 把版本写死成 v1.1.3，抬到 v1.1.4 后 stage/metadata.yaml
+    #   与市场 zip 文件名都停在旧号，而本测试仍绿。改为**完整三位**逐字比对。
+    check("★ 开源包 metadata.yaml 的版本 == core.__version__（完整三位）",
+          bool(omm) and omm.group(1) == str(CORE_VERSION), omm.group(1) if omm else "?")
 
 # ★ CHANGELOG.md 是 AstrBot 面板「更新日志」页与插件市场「更新日志」Tab 的数据源。
 #   没有它，市场那片是空的 —— 所以把它变成硬性守卫：发版必须补一条。

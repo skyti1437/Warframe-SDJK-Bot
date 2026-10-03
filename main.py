@@ -331,7 +331,7 @@ def _migrate_legacy_user_data(data_dir: Path) -> None:
 # ★ 两条硬规则（2026-09-17 改版，玩家反馈「主指令乱排 / 缺指令 / 看不懂」）：
 #   1. 左列必须是**真实主指令名**（可照发）＋常用别名，不再是「平台切换」这类
 #      描述性标签 —— 用户是照着这行去发指令的。
-#   2. **全部主指令（当前 53 个）必须出现**，由 tests/test_help_coverage.py 锁住，
+#   2. **全部主指令（当前 55 个）必须出现**，由 tests/test_help_coverage.py 锁住，
 #      以后新增主指令而忘了写进帮助会直接测试失败（条数按 COMMAND_ALIASES 现算，
 #      不写死在测试里）。
 #   分组依据是「玩家在什么场景下会想用它」，同类指令聚在一组。
@@ -436,7 +436,7 @@ HELP_TOPIC: dict[str, list[tuple[str, str]]] = {
 
 @register("astrbot_plugin_warframe_sdjkbot", "skyti1437",
           f"{BRAND}：世界状态 / 市场查价 / 蹲点推送",
-          "1.1.3")
+          "1.1.4")
 class WarframeSDJK(DailyCommands, ProgressCommands, ArbitrationCommands, RotationCommands, RelicCommands, MarketCommands, RivenCommands, WikiMiscCommands, VisionCommands, ScanCommands, DunCommands, Star):
     def __init__(self, context: Context, config: AstrBotConfig | None = None):
         super().__init__(context)
