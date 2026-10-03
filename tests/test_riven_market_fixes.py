@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import sys
+import tempfile
 import types
 from pathlib import Path
 
@@ -1651,12 +1652,60 @@ check("㉒⑥ 残差 >15% ⇒ 不判，保留反推（老卡）并附「候选�
       _b22d[:260])
 
 # ---------------------------------------------------------------------------
-# ★ 追加段（⑫-㉒）出口守卫：本文件原有守卫在第 802 行（①-⑫ 之前），
+# ㉓ 家族表 mtime 护栏（2026-10-03 线上事故：热重载偶发不清 matching 的
+#     模块级缓存 ⇒ 旧表驻留 ⇒ 组合枪双模式家族候选为空）。双向验证：
+#     表文件变了必须重载（该动）；没变不得重载（不该动，避免白读磁盘）。
+# ---------------------------------------------------------------------------
+from core import matching as _M23                     # noqa: E402
+from core import paths as _P23                        # noqa: E402
+import json as _json23                                # noqa: E402
+
+_orig_rp23 = _P23.read_path
+_tbl23 = Path(tempfile.mkdtemp(prefix="fam23_")) / "riven_families.json"
+
+
+def _rp23(name):
+    return _tbl23 if name == "de/riven_families.json" else _orig_rp23(name)
+
+
+_P23.read_path = _rp23
+_M23._RIVEN_TABLE = None
+_M23._RIVEN_INDEX = None
+_M23._RIVEN_TABLE_STAMP = None
+try:
+    _tbl23.write_text(_json23.dumps({"by_name": {"GunA": "RootA"}}),
+                      encoding="utf-8")
+    _t23a = _M23._load_riven_families()
+    check("㉓① 首载：读到表内容", _t23a == {"GunA": "RootA"}, str(_t23a))
+    _t23b = _M23._load_riven_families()
+    check("㉓② 文件未变：不重载（同一对象，stat 不触发重读）",
+          _t23b is _t23a, "意外重新加载了")
+    _M23._riven_index()                    # 索引也建起来（覆盖索引缓存路径）
+    _tbl23.write_text(_json23.dumps(
+        {"by_name": {"GunA": "RootA", "GunB": "RootB",
+                     "Catchmoon (Primary)": "SUModularSecondaryBarrelAPart"}}),
+        encoding="utf-8")
+    _t23c = _M23._load_riven_families()
+    check("㉓③ 表文件变更（size/mtime 变）：自动重载新内容",
+          _t23c is not _t23a and "Catchmoon (Primary)" in _t23c, str(_t23c))
+    check("㉓④ 索引缓存随表一并失效重建（family_key 用上新键）",
+          _M23.family_key("Catchmoon (Primary)")
+          == "SUModularSecondaryBarrelAPart"
+          and _M23._riven_index()[0].get("GunB") == "RootB",
+          str(_M23._riven_index()[0]))
+finally:
+    _P23.read_path = _orig_rp23
+    _M23._RIVEN_TABLE = None               # 还原：后续用例重读真实表
+    _M23._RIVEN_INDEX = None
+    _M23._RIVEN_TABLE_STAMP = None
+
+# ---------------------------------------------------------------------------
+# ★ 追加段（⑫-㉓）出口守卫：本文件原有守卫在第 802 行（①-⑫ 之前），
 #   其后的追加段此前**没有守卫** —— 失败不会置退出码（等同静默放行）。
 # ---------------------------------------------------------------------------
 print()
 if FAILED:
     print(f"✗ 追加段失败 {len(FAILED)} 项：" + "、".join(FAILED))
     sys.exit(1)
-print("✓ 追加段（⑫-㉒）全部通过")
+print("✓ 追加段（⑫-㉓）全部通过")
 

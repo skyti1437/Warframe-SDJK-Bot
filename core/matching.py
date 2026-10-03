@@ -332,15 +332,47 @@ def strip_variant_norm(norm: str) -> str:
 # ---------------------------------------------------------------------------
 _RIVEN_TABLE: Optional[dict] = None        # by_name：英文名 → 家族根
 _RIVEN_INDEX: Optional[tuple] = None       # (exact, low, norm) 三级查找索引
+_RIVEN_TABLE_STAMP: Optional[tuple] = None  # 表文件 (mtime_ns, size)，变更即失效
 
 # WM 套装/部件条目的英文尾缀（「Okina Prime Set」→「Okina Prime」；
 # 与 api_client 旧 _SET_SUFFIXES 的英文侧同口径，中文侧由显示层处理）
 _SET_SUFFIXES_EN = (" set", " blueprint", " blueprints")
 
 
+def _riven_families_stamp() -> Optional[tuple]:
+    """表文件的 (mtime_ns, size)；stat 不到返回 None（不触发失效）。"""
+    try:
+        from . import paths
+        st = paths.read_path("de/riven_families.json").stat()
+        return (st.st_mtime_ns, st.st_size)
+    except Exception:  # noqa: BLE001 - 文件缺失/不可读：保持现状
+        return None
+
+
+def _invalidate_riven_table_if_changed() -> None:
+    """★ mtime 护栏（2026-10-03 线上事故）：模块级缓存与磁盘解耦。
+
+    插件热重载偶发清不掉本模块（AstrBot 按 sys.modules 前缀 purge，异常
+    序列下旧模块对象幸存时，其全局缓存会一直拿着**旧表**）——线上表现：
+    组合枪双模式家族候选为空、用户卡被误判「老卡」。每次调用 stat 一次
+    文件，变了就把表和索引一起作废，下次取数重读磁盘。
+    """
+    global _RIVEN_TABLE, _RIVEN_INDEX, _RIVEN_TABLE_STAMP
+    stamp = _riven_families_stamp()
+    if stamp is not None and stamp != _RIVEN_TABLE_STAMP:
+        _RIVEN_TABLE = None
+        _RIVEN_INDEX = None
+        _RIVEN_TABLE_STAMP = stamp
+
+
 def _load_riven_families() -> dict:
-    """惰性加载官方家族表（by_name）。表缺失/损坏 ⇒ 空表（全部走主干兜底）。"""
+    """惰性加载官方家族表（by_name）。表缺失/损坏 ⇒ 空表（全部走主干兜底）。
+
+    实际（重）加载时打一条 INFO（含条数指纹）—— 线上排障时从日志就能
+    看出进程里这张表是哪个版本、热重载后有没有重读磁盘。
+    """
     global _RIVEN_TABLE
+    _invalidate_riven_table_if_changed()
     if _RIVEN_TABLE is None:
         raw: dict = {}
         try:
@@ -351,12 +383,16 @@ def _load_riven_families() -> dict:
         except Exception:  # noqa: BLE001 - 表缺失退回主干判定，不阻断查询
             raw = {}
         _RIVEN_TABLE = raw.get("by_name") or {}
+        from .logging_compat import logger
+        logger.info("[sdjk] 紫卡家族表已加载：by_name %d 条",
+                    len(_RIVEN_TABLE))
     return _RIVEN_TABLE
 
 
 def _riven_index() -> tuple:
     """(exact, low, norm) 三级索引：容忍大小写、空格/连字符写法差异。"""
     global _RIVEN_INDEX
+    _invalidate_riven_table_if_changed()
     if _RIVEN_INDEX is None:
         tbl = _load_riven_families()
         _RIVEN_INDEX = (
