@@ -670,6 +670,32 @@ if _sep3[0] is not None:
     else:
         print("[SKIP] 渲染器不可用，跳过 1999 蓝色像素用例")
 
+# ---------------------------------------------------------------------------
+# C2 倒计时复核（2026-10-03）：oracle 三地区的横幅倒计时取 cycle["expiry"]
+#（与 DE 地区 SyndicateMissions[].Expiry 同口径）——此前一览缺倒计时。
+# ---------------------------------------------------------------------------
+import copy as _copy  # noqa: E402
+
+_ORACLE_EXP = _copy.deepcopy(ORACLE)
+_ORACLE_EXP["expiry"] = "2030-01-01T00:00:00+00:00"
+_tc, clines = fmt.fmt_bounties(bundle["syndicateMissions"], cycle=_ORACLE_EXP)
+_cb = [ln for ln in clines if ln.startswith("◆ ")]
+check("C2 一览：oracle 三地区有倒计时（扎里曼/实验室/1999）",
+      all(any(r in ln and "剩" in ln for ln in _cb) for r in
+          ("羽化之穹（扎里曼）", "解剖圣所（实验室）", "霍瓦尼亚（1999）")),
+      str(_cb))
+check("C2 一览：DE 三地区仍按 Syndicates[].Expiry 画倒计时",
+      all(any(r in ln and "剩" in ln for ln in _cb) for r in
+          ("希图斯（地球）", "奥布斯山谷（金星）", "英择谛（魔胎之境）")),
+      str(_cb))
+_tc2, dlines2 = fmt.fmt_bounties(bundle["syndicateMissions"], "扎里曼",
+                                 cycle=_ORACLE_EXP)
+check("C2 详情：扎里曼横幅也有倒计时",
+      any(ln.startswith("◆ ") and "剩" in ln for ln in dlines2),
+      str(dlines2[:2]))
+check("C2 无 expiry 时横幅保持原样（不画空倒计时）",
+      all("剩" not in ln for ln in _banner if "羽化之穹" in ln), str(_banner))
+
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")
     sys.exit(1)

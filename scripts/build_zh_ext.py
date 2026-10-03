@@ -33,7 +33,10 @@ OUT = ROOT / "core" / "data" / "de" / "zh_ext.json"
 # · Items：奖励类（催化剂/反应堆/晶体/遗物包/内融核心 bundle …）—— 被日历与入侵卡引用
 PREFIXES = ("/lotus/language/circleofhell/", "/lotus/language/1999/",
             "/lotus/language/narmer/", "/lotus/language/weapons/",
-            "/lotus/language/items/")
+            "/lotus/language/items/",
+            # ★ C3（2026-10-03）：活动型警报的 descText（如 TennoUnitedAlert
+            #   →「Tenno 联合警报」）—— 警报卡标题要用。
+            "/lotus/language/alerts/")
 
 
 def main() -> int:

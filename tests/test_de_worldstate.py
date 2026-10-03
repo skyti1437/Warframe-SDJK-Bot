@@ -999,3 +999,37 @@ for _name, _args in _SWEEP:
         assert not _residue(str(_ln)), f"{_name} 产出带四模式残留：{_ln!r}"
 print(f"§二 四模式残留：数据面 {_res_n} 个卡面键 + 卡面面 {_card_n} 行，零残留")
 print("§二 数字槽清洗：断言通过")
+
+# ---------------------------------------------------------------------------
+# §三 C3 警报解析（2026-10-03）：DE 字段是 MissionInfo（旧实现读 Mission ⇒ 全空
+#   ⇒ 卡面「奖励：?」）。本段用**线上实抓的原始形态**做夹具对拍。
+# ---------------------------------------------------------------------------
+_ALERT_RAW = {"Alerts": [{
+    "_id": {"$oid": "6abdec7a31ca47b57807bccd"},
+    "Activation": {"$date": {"$numberLong": "1790863200000"}},
+    "Expiry": {"$date": {"$numberLong": "1792087200000"}},
+    "MissionInfo": {
+        "location": "SolNode87", "missionType": "MT_ARTIFACT",
+        "faction": "FC_CORPUS",
+        "missionReward": {"credits": 10000,
+                          "items": ["/Lotus/StoreItems/Types/Items/"
+                                    "ShipDecos/Plushies/Plushy2021QTCC"]},
+        "minEnemyLevel": 20, "maxEnemyLevel": 30,
+        "descText": "/Lotus/Language/Alerts/TennoUnitedAlert"},
+    "Tag": "LotusGift"}]}
+_al = dw._parse_alerts(_ALERT_RAW)
+_m = (_al[0].get("mission") or {}) if _al else {}
+assert (_al and _m.get("node") == "Ganymede（木星）"
+        and _m.get("type") == "中断" and _m.get("faction") == "Corpus"
+        and _m.get("min_level") == 20 and _m.get("max_level") == 30
+        and _m.get("desc") == "Tenno 联合警报"), str(_m)
+assert (_m.get("reward") or {}).get("credits") == 10000     and (_m.get("reward") or {}).get("items"), str(_m.get("reward"))
+_t3, _l3 = fmt.fmt_alerts(_al)
+assert (_l3 and "?" not in _l3[0] and "Ganymede" in _l3[0]
+        and "中断" in _l3[0] and "20-30级" in _l3[0]
+        and "10000现金" in _l3[0]), str(_l3)
+_l4 = fmt.fmt_alerts([{**_al[0], "mission": {
+    **_m, "reward": {**_m["reward"], "item_names": ["2021 年 QTCC 玩偶"]}}}])[1]
+assert (_l4 and "2021 年 QTCC 玩偶" in _l4[0]), str(_l4)
+print("§三 C3 警报解析：MissionInfo 补全 / 奖励不再「?」/ 中文名优先 —— 断言通过")
+

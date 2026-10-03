@@ -13,6 +13,7 @@ from .. import arbi as _arbi
 from ..parser import (FISSURE_MODIFIER_WORDS, PLATFORM_DISPLAY,
                       contains_fissure_tier, dun_rule_hint, fissure_tier_hint,
                       parse_duration, parse_fissure_filter, parse_time_window)
+from ..push import parse_bounty_rule
 from ..push import (PUSH_EVENTS, Subscription, build_cancel_selector,
                     normalize_event)
 from .base import Reply
@@ -35,6 +36,8 @@ class DunCommands:
                       "档位：T1–T6 = 古纪/前纪/中纪/后纪/安魂/全能"
                       "（档位词自动按裂隙订阅），如 蹲 钢铁t5歼灭；"
                       "⚠ 连写=一个条件，空格拆开=取或",
+                      "赏金：可筛 地区+任务（如 蹲 赏金 扎里曼 高效歼灭）；"
+                      "覆盖 扎里曼/实验室/1999",
                       "取消：蹲 取消（全部）/ 蹲 取消 裂隙 捕获（只删匹配项）"]
             # 2026-09-21 修：裸「蹲」应出卡片图（与其它指令一致）。
             # 原 text_only=True 是 v0.5 接手时的祖传写法，全插件唯一一处强制纯文本；
@@ -194,4 +197,12 @@ class DunCommands:
             _t_hint = fissure_tier_hint(rule_parts)
             if _t_hint:
                 lines.append(_t_hint)
+        if event_type == "赏金" and rule_parts:
+            # ★ C2（2026-10-03）：赏金筛选建议带地区词（否则任何地区命中都推）。
+            #   只提示、不改语义（rule 原样落库）。
+            _tags = parse_bounty_rule(" ".join(rule_parts))["tags"]
+            if not _tags:
+                lines.append("※ 提示：赏金筛选建议带地区（扎里曼/实验室/圣所/"
+                             "1999），否则各地区命中都会推；例：蹲 赏金 "
+                             "扎里曼 高效歼灭")
         return Reply("◆ 蹲订阅成功", lines)

@@ -63,8 +63,8 @@ print()
 print("=== 二、PUSH_EVENTS 可订阅性 ===")
 from core.push import PUSH_EVENTS                                    # noqa: E402
 
-check("「警报」标为不可订阅（DE 已停用，数据恒空）",
-      PUSH_EVENTS["警报"][1] is False and "停用" in PUSH_EVENTS["警报"][0],
+check("「警报」已接线（C3：常规停用、活动型会下发）",
+      PUSH_EVENTS["警报"][1] is True and "活动型" in PUSH_EVENTS["警报"][0],
       str(PUSH_EVENTS["警报"]))
 check("「仲裁」标为可订阅且描述不再写「外部源不可用」",
       PUSH_EVENTS["仲裁"][1] is True and "不可用" not in PUSH_EVENTS["仲裁"][0],

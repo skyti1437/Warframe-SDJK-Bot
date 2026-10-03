@@ -12,9 +12,29 @@ import re
 
 from .. import drops as drops_db
 from .. import formatters as fmt
+from .. import matching
 from ..logging_compat import logger
 from ..parser import TIER_CN, parse
 from .base import PLUGIN_DIR, Reply
+
+
+def _en_name_to_zh(q: str) -> str:
+    """英文物品/武器名 → 官方中文（复用双语表；C1，2026-10-03）。
+
+    混合写法也认：「afentis prime 蓝图」→「圣英 Prime 蓝图」（英文段查表、
+    中文段原样保留）。查不到返回空串（调用方保持原路径，不阻断）。
+    """
+    toks = (q or "").split()
+    for k in range(len(toks), 0, -1):
+        head = " ".join(toks[:k])
+        if any("\u4e00" <= c <= "\u9fff" for c in head):
+            continue                      # 含中文的段不查英文侧（避免误换）
+        r = matching.bilingual_lookup(head, limit=1)
+        if r.get("hits"):
+            zh = r["hits"][0][1]
+            rest = " ".join(toks[k:])
+            return (zh + (" " + rest if rest else "")).strip()
+    return ""
 
 
 def _relic_tier_en() -> dict:
@@ -215,19 +235,31 @@ class RelicCommands:
                 return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
         # ② 部件优先：带空格或能直接命中部件表
         # 名称归一：去空格精确匹配；非 Prime 输入自动补 Prime 试一次（wiki 上架过的只有 Prime 系）
-        q_nospace = q.replace(" ", "")
-        inv_norm = {k.replace(" ", ""): k for k in inv}
-        cands = [q_nospace]
-        # 非 Prime 输入自动补 Prime：**把 Prime 插到每个位置都试一遍**。
+        # ★ C1（2026-10-03）：匹配一律走 matching.normalize_name（大小写/空格/
+        #   中点/全半角无关）——线上实证「部件 阿索代prime」因裸 replace(" ","")
+        #   大小写敏感而查不到（库里是「阿索代 Prime 蓝图」）。
+        q_raw = q                     # 用户原输入（「未找到」回显用，勿被改写带走）
+        q_nospace = matching.normalize_name(q)
+        inv_norm = {matching.normalize_name(k): k for k in inv}
+        # ★ C1：英文名 → 中文名（「afentis prime 蓝图」⇒「圣英 Prime 蓝图」），
+        #   查不到不阻断（原路径继续）。
+        _zh_alt = _en_name_to_zh(q)
+        bases = [q_nospace]
+        if _zh_alt:
+            bases.insert(0, matching.normalize_name(_zh_alt))
+        cands = []
+        # 非 Prime 输入自动补 Prime：**把 prime 插到每个位置都试一遍**。
         # 旧实现只插在「第一个部件类型字（枪/机/托/蓝/图/弦/管）」之前，
         # 而武器名里本身就可能带这些字 —— 「席尔火枪枪管」会插成
         # 「席尔火Prime枪枪管」，永远查不到（用户真实输入就是不带 Prime 的）。
         # 代价只是几十次 dict 查询，从**靠后**的位置开始插（部件类型词
         # 一般在末尾：枪管/枪机/蓝图），先命中的更可能是正确切分。
-        if "prime" not in q_nospace.lower():
-            for _i in range(len(q_nospace) - 1, 0, -1):
-                cands.append(q_nospace[:_i] + "Prime" + q_nospace[_i:])
-        cands.append(q_nospace + "Prime")
+        for _b in bases:
+            cands.append(_b)
+            if "prime" not in _b:
+                for _i in range(len(_b) - 1, 0, -1):
+                    cands.append(_b[:_i] + "prime" + _b[_i:])
+            cands.append(_b + "prime")
         inv_key = next((inv_norm.get(c) for c in cands if inv_norm.get(c)), None)
         if inv_key is not None:
             q = inv_key
@@ -238,8 +270,9 @@ class RelicCommands:
             #   · 黑话键可能不带 p（「水晶甲」），而用户把 p/prime 跟在黑话后面
             #     （「水晶甲p 蓝图」）→ 拼装前剥掉 rest 前导的 p/prime；
             #   · 只在直接匹配失败后兜底，不改变既有命中路径。
+            #   ★ C1：两侧都用 normalize_name（大小写/空格无关）。
             _tbl = (getattr(self.client, "_aliases", None) or {}).get("wm_items") or {}
-            _lower = {k.replace(" ", "").lower(): k for k in inv}
+            _lower = {matching.normalize_name(k): k for k in inv}
             for _i in range(len(q_nospace) - 1, 0, -1):
                 _slug = _tbl.get(q_nospace[:_i].lower())
                 if not _slug:
@@ -247,9 +280,15 @@ class RelicCommands:
                 _rest = re.sub(r"^(?:prime|p)(?=[\u4e00-\u9fff])", "",
                                q_nospace[_i:], flags=re.I)
                 _en = re.sub(r"_set$", "", _slug).replace("_", " ").title()
-                q = _lower.get((_en + _rest).replace(" ", "").lower()) or q
+                q = _lower.get(matching.normalize_name(_en + _rest)) or q
                 if q in inv:
                     break
+        if q not in inv and _zh_alt \
+                and matching.normalize_name(q) != matching.normalize_name(_zh_alt):
+            # ★ C1：英文名未直中 ⇒ 用解析出的中文名**接管后续路径**——
+            #   「部件 athodai」与「部件 阿索代 Prime」都给出同一份候选
+            #   （阿索代 Prime 蓝图/枪管/枪机）。
+            q = _zh_alt
         if q in inv:
             origins = inv[q]
             # 「能不能获取」三态：在掉落表 / 仅阿耶在售 / 已入库。
@@ -278,7 +317,9 @@ class RelicCommands:
         hit = idx.get(nq) or idx.get(q)
         if not hit:
             # 模糊：任一槽位包含 q
-            cand = [r for r in idx if q.replace(" ", "") in r.replace(" ", "")]
+            # ★ C1：归一化包含（大小写/空格/中点无关）
+            _nq = matching.normalize_name(q)
+            cand = [r for r in idx if _nq in matching.normalize_name(r)]
             if len(cand) == 1:
                 hit = idx[cand[0]]
                 nq = cand[0]
@@ -320,18 +361,21 @@ class RelicCommands:
                         lines.append("◆ 该遗物已入库，当前不可刷取")
             return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
         # ③ 视为部件名模糊（词序无关：把 q 的 token 任意拼接匹配）
-        qn = q.replace(" ", "")
-        fz = [k for k in inv if qn in k.replace(" ", "")]
+        #   ★ C1：两侧归一化（大小写/空格/中点无关）——「阿索代prime」曾因
+        #   裸 replace(" ","") 大小写敏感而在此静默落空。
+        qn = matching.normalize_name(q)
+        fz = [k for k in inv if qn in matching.normalize_name(k)]
         # 词序反转：绝路枪机 -> 枪机绝路
         if not fz:
             fz = [k for k in inv
-                  if "".join(sorted(qn)) == "".join(sorted(k.replace(" ", "")[:len(qn)]))]
+                  if "".join(sorted(qn))
+                  == "".join(sorted(matching.normalize_name(k)[:len(qn)]))]
         fz = list(dict.fromkeys(fz))[:6]
         if len(fz) == 1:
             parsed2 = parse(f"遗物 {fz[0]}")
             parsed2.command = "relic"
             return await self._h_relic(parsed2, event, platform)
-        tip = f"未找到「{q}」。"
+        tip = f"未找到「{q_raw}」。"
         if fz:
             tip += f"你是不是想找：{'、'.join(fz[:3])}"
         tip += "\n" + RELIC_USAGE          # 顺序固定：未找到 → 你是不是想找 → 用法

@@ -995,21 +995,47 @@ def _parse_nightwave(season: dict) -> dict:
 
 
 def _parse_alerts(raw: dict) -> list[dict]:
+    """警报解析（★ C3 2026-10-03 重写）。
+
+    DE 官方字段是 **MissionInfo**（旧实现读 "Mission" ⇒ 全空 ⇒ 卡面「奖励：?」，
+    线上实证：3 条 LotusGift 活动型警报的 loc/type/faction/奖励全丢）。本函数
+    兼容两源形态（DE MissionInfo / 社区 Mission）并富化：
+    location→中文节点、missionType→中文类型、faction→中文派系、等级区间、
+    missionReward.credits、items（保留**路径**，由客户端经 WM gameRef 索引解析
+    中文名，见 api_client._resolve_alert_items）、descText→中文标题。
+    """
     out = []
     for a in raw.get("Alerts") or []:
-        mission = a.get("Mission") or {}
-        reward = mission.get("Reward") or {}
+        mission = a.get("MissionInfo") or a.get("Mission") or {}
+        reward = (mission.get("missionReward")
+                  or mission.get("Reward") or {})
         items = reward.get("items") or reward.get("countedItems") or []
+        paths = [it.get("ItemType") if isinstance(it, dict) else it
+                 for it in items]
+        paths = [p for p in paths if p]
         out.append({
             "id": _oid(a.get("_id")),
             "active": True,
             "activation": _iso_of(a, "Activation"),
             "expiry": _iso_of(a, "Expiry"),
+            "tag": a.get("Tag") or "",
             "mission": {
-                "node": _node_name(mission.get("node", "")),
-                "type": mission_type(mission.get("missionType", "")),
-                "reward": {"credits": reward.get("credits"),
-                           "item": _prettify(items[0].get("ItemType", "")) if items else None},
+                "node": _node_name(mission.get("location")
+                                   or mission.get("node", "")),
+                "type": mission_type(mission.get("missionType")
+                                     or mission.get("type", "")),
+                "faction": faction_name(mission.get("faction", "")),
+                "min_level": mission.get("minEnemyLevel"),
+                "max_level": mission.get("maxEnemyLevel"),
+                "desc": language_text_zh(mission.get("descText", "")) or "",
+                "reward": {
+                    "credits": reward.get("credits"),
+                    # 兼容字段：旧卡面/推送只认 item —— 先给 prettify 兜底
+                    #（WM 不可用时也不至于是裸路径）；客户端拿到 item_names 后
+                    # 会覆盖成中文名。
+                    "item": _prettify(paths[0]) if paths else None,
+                    "items": paths,
+                },
             },
         })
     return out

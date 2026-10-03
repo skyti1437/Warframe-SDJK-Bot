@@ -530,6 +530,43 @@ _ok = asyncio.run(_make_obj([])._h_relic(_Parsed(content="古纪 A1"), None, "pc
 _ok_txt = str(getattr(_ok, "raw_text", "") or "") + "\n".join(_ok.lines)
 check("反向守卫：命中时不出用法串", RELIC_USAGE not in _ok_txt, _ok_txt[:120])
 
+# ---------------------------------------------------------------------------
+# ⑨ C1 名称归一化（2026-10-03）：大小写/空格/中点无关 + 英文名→中文名。
+#   线上实证：`部件 阿索代prime` → 未找到（库里是「阿索代 Prime 蓝图」）；
+#   `部件 afentis prime 蓝图` 亦查不到（索引键全中文名，英文名不在表内）。
+# ---------------------------------------------------------------------------
+def _blob(r):
+    return str(getattr(r, "title", "") or "") + "|" + "|".join(
+        getattr(r, "lines", None) or []) + "|" + str(getattr(r, "raw_text", "") or "")
+
+
+_r9a = asyncio.run(_make_obj([])._h_relic(_Parsed(content="阿索代prime"), None, "pc"))
+_r9b = asyncio.run(_make_obj([])._h_relic(_Parsed(content="阿索代 Prime"), None, "pc"))
+_r9c = asyncio.run(_make_obj([])._h_relic(_Parsed(content="athodai"), None, "pc"))
+def _cand(r):
+    """取候选段（「你是不是想找：…」之后）——回显的原始输入本就该各自不同。"""
+    b = _blob(r)
+    return b.split("你是不是想找：")[-1] if "你是不是想找" in b else b
+
+
+check("⑨ 阿索代prime ≡ 阿索代 Prime ≡ athodai（三者候选集一致）",
+      _cand(_r9a) == _cand(_r9b) == _cand(_r9c),
+      f"{_cand(_r9a)[:80]} / {_cand(_r9b)[:80]} / {_cand(_r9c)[:80]}")
+check("⑨ 三者都给「阿索代 Prime」候选（不静默）",
+      all("阿索代 Prime" in _blob(r) for r in (_r9a, _r9b, _r9c)),
+      _blob(_r9a)[:120])
+
+_r9d = asyncio.run(_make_obj([])._h_relic(_Parsed(content="afentis prime 蓝图"), None, "pc"))
+_r9e = asyncio.run(_make_obj([])._h_relic(_Parsed(content="圣英 Prime 蓝图"), None, "pc"))
+check("⑨ afentis prime 蓝图 ≡ 圣英 Prime 蓝图（英文名→中文名解析）",
+      _blob(_r9d) == _blob(_r9e) and "圣英 Prime 蓝图" in _blob(_r9d),
+      f"{_blob(_r9d)[:100]} vs {_blob(_r9e)[:100]}")
+
+_r9f = asyncio.run(_make_obj([])._h_relic(_Parsed(content="阿索代 蓝图"), None, "pc"))
+check("⑨ 回归：既有中文查询「阿索代 蓝图」仍出部件卡",
+      "阿索代 Prime 蓝图" in _blob(_r9f) and "未找到" not in _blob(_r9f),
+      _blob(_r9f)[:120])
+
 print()
 if FAILED:
     print(f"✗ {len(FAILED)} 项失败：" + "、".join(FAILED))

@@ -264,14 +264,14 @@ async def main() -> None:
     await _run_one(obj3, "蹲 新闻", umo="group://limit")   # 第 30 条（消费订阅位）
     r31 = await _run_one(obj3, "蹲 新闻", umo="group://limit")
     n = len(obj3.subs.for_umo("group://limit"))
-    # ★ 2026-09-19 新增：DE 已停用警报系统 → 订阅时必须明确拒绝并说明原因
+    # ★ C3（2026-10-03）：常规警报停用、但**活动型警报**（Tag=LotusGift）会
+    #   下发（线上实测 3 条）⇒ 已接线，订阅应成功（旧断言「被拒」随之作废）。
     obj4 = _make_plugin(Path(tempfile.mkdtemp()))
     await obj4.groups.set_switch("group://x", "push", True)
     r_al = await _run_one(obj4, "蹲 警报", umo="group://x")
-    check("★ 蹲 警报 被拒且说明原因（DE 已停用，给替代）",
-          r_al is not None and r_al.raw_text is not None
-          and "无法订阅" in r_al.raw_text and "停用" in r_al.raw_text,
-          repr(r_al.raw_text if r_al else None))
+    check("★ 蹲 警报 可订阅（C3：活动型警报已接线）",
+          r_al is not None and "订阅成功" in (r_al.title or ""),
+          repr(getattr(r_al, "title", None) or r_al.raw_text))
     check("L-4 第 30 条仍允许（>= 30 拒绝）",
           n == 30 and r31 is not None and r31.raw_text is not None
           and "蹲订阅已达上限" in r31.raw_text,

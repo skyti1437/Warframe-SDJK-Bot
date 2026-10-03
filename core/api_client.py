@@ -815,7 +815,32 @@ class WarframeClient:
         raise WarframeAPIError(_EXTERNAL_ONLY["arbitration"])
 
     async def alerts(self, platform: str) -> list[dict]:
-        return await self.worldstate(platform, "alerts", ttl=60) or []
+        """警报：解析后把奖励物品**路径**经 WM gameRef 索引换成中文名（C3）。
+
+        模式与 `_resolve_calendar_rewards` 同源（同用 WM v2 物品的 game_ref）。
+        """
+        data = await self.worldstate(platform, "alerts", ttl=60) or []
+        return await self._resolve_alert_items(data)
+
+    async def _resolve_alert_items(self, data: list) -> list:
+        """警报奖励路径 → 中文名（尽力而为：拿不到 WM 表就保持原样）。"""
+        try:
+            items = await self.wm_items()
+        except WarframeAPIError:
+            return data
+        by_ref: dict[str, str] = {}
+        for it in items:
+            ref = it.get("game_ref") or ""
+            if ref and it.get("zh"):
+                by_ref.setdefault(ref, it["zh"])
+        for a in data or []:
+            rw = ((a.get("mission") or {}).get("reward") or {})
+            names = [by_ref.get(p) or "" for p in (rw.get("items") or [])]
+            if names:
+                rw["item_names"] = [n for n in names if n]
+                if rw["item_names"]:
+                    rw["item"] = rw["item_names"][0]   # 中文名优先于 prettify 兜底
+        return data
 
     async def invasions(self, platform: str) -> list[dict]:
         return await self.worldstate(platform, "invasions", ttl=120) or []
@@ -2809,6 +2834,15 @@ class WarframeClient:
     def wiki_lookup(self, query: str) -> Optional[dict]:
         table = self._aliases.get("wiki", {})
         q = query.strip()
+        # ★ C1（2026-10-03）：先做**归一化精确**（大小写/空格/中点/全半角无关，
+        #   matching.normalize_name）——「花p/花P」类混用与「阿索代prime」类
+        #   写法一并覆盖；归一化未中再走原精确/模糊链（零回归）。
+        _nq = matching.normalize_name(q)
+        if _nq:
+            for k, v in table.items():
+                if matching.normalize_name(k) == _nq:
+                    return {"title": v.get("title", k), "url": v["url"]} \
+                        if isinstance(v, dict) else {"title": k, "url": v}
         # 「花p」这类小写 p 后缀 ≡ 「花P」（社区写法混用，2026-09-25）
         cands = [q]
         if len(q) > 1 and q.endswith(("p", "P")) and q[:-1] + "P" != q:

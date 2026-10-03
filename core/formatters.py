@@ -694,6 +694,29 @@ def palladino_shop() -> dict:
     return _PALLADINO_SHOP_CACHE
 
 
+def utc_today() -> str:
+    """今天的 UTC 日期（YYYY-MM-DD）——日历推送与卡面同钟（formatters._now）。"""
+    return _now().astimezone(timezone.utc).date().isoformat()
+
+
+def rotation_window(data: dict) -> tuple[int, Optional[str]]:
+    """轮换数据（rotations.json 单项）的**窗口序号**与下次换轮 ISO。
+
+    ★ C4（2026-10-03）：push 的换轮点检测与卡面（rotations.py::_rotation_lines）
+    同一套锚点算法 —— epoch 起算 floor((now-epoch)/period)。返回
+    (passed, next_iso)；数据缺失 (0, None)。内容映射（anchor_week/anchor_idx
+    取模）由调用方按各自模式做。
+    """
+    try:
+        epoch = datetime.fromisoformat(data.get("epoch") or "")
+        hours = int(data.get("period_hours") or 168)
+        passed = int((_now() - epoch).total_seconds() // 3600 // max(1, hours))
+        nxt = (epoch + timedelta(hours=(passed + 1) * hours)).isoformat()
+    except Exception:  # noqa: BLE001
+        return 0, None
+    return passed, nxt
+
+
 def weekly_reset_info(data: dict) -> tuple[int, Optional[str]]:
     """通用「周一 00:00 UTC」周周期号与下次重置 ISO；数据缺失 (0, None)。
 
@@ -835,15 +858,22 @@ def fmt_sliver_shop() -> tuple[str, list[str]]:
 
 
 def fmt_alerts(alerts: Iterable[dict]) -> tuple[str, list[str]]:
+    """警报卡（★ C3 2026-10-03：奖励不再「?」——解析补全 + 路径换中文名）。"""
     lines = []
     for a in alerts or []:
         if not a.get("active", True):
             continue
         mission = a.get("mission", {}) or {}
         rewards = mission.get("reward", {}) or {}
-        items = "/".join(x for x in [rewards.get("item"), rewards.get("credits")
-                                     and f"{rewards['credits']}现金"] if x)
-        lines.append(f"{mission.get('node', '?')} · {mission_cn(mission.get('type', ''))}"
+        names = rewards.get("item_names") or (
+            [rewards["item"]] if rewards.get("item") else [])
+        items = "、".join([*names, *([f"{rewards['credits']}现金"]
+                                    if rewards.get("credits") else [])])
+        lv = (f"　{mission['min_level']}-{mission['max_level']}级"
+              if mission.get("min_level") and mission.get("max_level") else "")
+        desc = f"{mission.get('desc')}｜" if mission.get("desc") else ""
+        lines.append(f"{desc}{mission.get('node', '?')} · "
+                     f"{mission_cn(mission.get('type', ''))}{lv}"
                      f"　奖励：{items or '?'}　剩{countdown(a.get('expiry', ''))}")
     return ("警报", lines or ["当前没有进行中的警报"])
 
@@ -1239,6 +1269,13 @@ _ORACLE_REGIONS: tuple[tuple[str, str, str], ...] = (
     ("EntratiLab", "EntratiLabSyndicate", "解剖圣所（实验室）"),
     ("HexCity", "HexSyndicate", "霍瓦尼亚（1999）"),
 )
+# ★ C2（2026-10-03）：公开别名供 push 的「蹲 赏金」复用（同源一处）。
+ORACLE_REGIONS = _ORACLE_REGIONS
+
+
+def de_zh(table: str) -> dict:
+    """DE 简中表访问器（nodes_zh / challenges_zh …）——卡面与推送共用同源。"""
+    return _de_zh(table)
 
 # pool 键 → oracle 的 SyndicateMissions Tag（DE 地区不进这张表）
 _ORACLE_TAGS: dict[str, str] = {k: t for k, t, _ in _ORACLE_REGIONS}
@@ -1561,8 +1598,14 @@ def _oracle_task_lines(node_key: str, ch_path: str) -> list[str]:
 
 
 def _oracle_summary(pool_key: str, tag: str, title: str,
-                    bounties: list[dict], rot: str = "") -> list[str]:
-    """一览（oracle 地区）：地区横幅 + 轮换行 + 等级最高的若干档（含任务）。"""
+                    bounties: list[dict], rot: str = "",
+                    expiry: str = "") -> list[str]:
+    """一览（oracle 地区）：地区横幅（含轮换倒计时）+ 轮换行 + 最高若干档。
+
+    ★ C2（2026-10-03 复核修复）：横幅倒计时取 oracle bounty-cycle 的
+    ``expiry``（与 DE 地区用 Syndicates[].Expiry 同口径）——此前 oracle
+    三地区一览只有「◆ 地区」没有「剩X」（cycle 的 expiry 没被传进来）。
+    """
     region_pool = _BOUNTY_POOLS.get(pool_key) or {}
     if not region_pool:
         return []
@@ -1571,7 +1614,7 @@ def _oracle_summary(pool_key: str, tag: str, title: str,
     def _lv_txt(key: str) -> str:
         return key.replace("等级", "") + "级" if key.startswith("等级") else key
 
-    lines = [f"◆ {title}"]
+    lines = [f"◆ {title}" + (f"　剩{countdown(expiry)}" if expiry else "")]
     lines.extend(_rot_lines(region_pool, rot))
     node_tbl = _de_zh("nodes_zh.json")
     if not bounties:
@@ -1591,7 +1634,8 @@ def _oracle_summary(pool_key: str, tag: str, title: str,
 
 
 def _oracle_region_block(pool_key: str, tag: str, title: str,
-                         bounties: list[dict], rot: str = "") -> list[str]:
+                         bounties: list[dict], rot: str = "",
+                         expiry: str = "") -> list[str]:
     """扎里曼 / 解剖圣所 / 1999（详情）：节点 + 挑战来自 browse.wf oracle。
 
     oracle 给出的节点顺序与奖励池的等级档升序一一对应（实测扎里曼
@@ -1607,9 +1651,10 @@ def _oracle_region_block(pool_key: str, tag: str, title: str,
     def _lv_txt(key: str) -> str:
         return key.replace("等级", "") + "级" if key.startswith("等级") else key
 
+    _head = f"◆ {title}" + (f"　剩{countdown(expiry)}" if expiry else "")
     if not bounties:
         # oracle 拿不到 → 按等级档列全部奖励（rot="" 时 _pool_at_rot 合并 A/B/C）
-        lines = [f"◆ {title}"]
+        lines = [_head]
         for lv in tiers:
             items = _pool_at_rot(region_pool.get(lv) or {}, "")
             if items:
@@ -1618,7 +1663,7 @@ def _oracle_region_block(pool_key: str, tag: str, title: str,
         return lines if len(lines) > 1 else []
 
     node_tbl = _de_zh("nodes_zh.json")
-    lines = [f"◆ {title}"]
+    lines = [_head]
     for i, b in enumerate(bounties):
         lv = tiers[i] if i < len(tiers) else (tiers[-1] if tiers else "")
         node_key = b.get("node") or ""
@@ -1731,6 +1776,15 @@ def fmt_bounties(syndicates: Iterable[dict], keyword: str = "",
     boards: set = set()
     detailed = target is not None
     rot = (cycle.get("rot") or "").strip()
+    # ★ C2：oracle 地区的轮换倒计时（cycle.expiry 与 DE Syndicates[].Expiry 同口径）。
+    #   注意 oracle 的 expiry 是 **epoch 毫秒整数**（实测 1791047752866），统一转
+    #   ISO 再交给 countdown（countdown/parse_iso 只吃 ISO 串）。
+    _raw_exp = cycle.get("expiry")
+    if isinstance(_raw_exp, (int, float)) and _raw_exp > 0:
+        cyc_expiry = datetime.fromtimestamp(
+            _raw_exp / 1000, tz=timezone.utc).isoformat()
+    else:
+        cyc_expiry = str(_raw_exp or "").strip()
     community_shown = False     # 本卡是否真的画了社区观测档（注脚按此出现）
 
     # DE 下发的地区先建索引，便于按剧情顺序取用
@@ -1752,10 +1806,11 @@ def fmt_bounties(syndicates: Iterable[dict], keyword: str = "",
             bounty_list = oracle.get(tag) or []
             if detailed:
                 lines.extend(_oracle_region_block(pool_key, tag, title,
-                                                  bounty_list, rot))
+                                                  bounty_list, rot,
+                                                  cyc_expiry))
             else:
                 lines.extend(_oracle_summary(pool_key, tag, title,
-                                             bounty_list, rot))
+                                             bounty_list, rot, cyc_expiry))
             continue
         # ① DE 直接下发 Jobs 的地区：地球 / 金星 / 火卫二
         s = de_by_synd.get(pool_key)

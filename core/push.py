@@ -14,15 +14,91 @@ import asyncio
 import time
 from typing import Awaitable, Callable, Optional
 
+import json
+
+from . import paths
 from .api_client import WarframeAPIError, WarframeClient
-from .formatters import (countdown, mission_cn, palladino_shop, parse_iso,
-                         steel_rotation_index, steel_shop, tier_cn,
+from .formatters import (ORACLE_REGIONS, countdown, de_zh, mission_cn,
+                         palladino_shop, parse_iso, rotation_window,
+                         steel_rotation_index, steel_shop, tier_cn, utc_today,
                          weekly_reset_info)
 from .parser import FissureFilter, parse_fissure_filter
 from . import arbi
 from .store import Subscription, SubscriptionStore
 
 SendFunc = Callable[[str, str, Optional[list]], Awaitable[None]]
+
+
+# ---------------------------------------------------------------------------
+# ★ C2（2026-10-03）：赏金订阅的筛选 —— 地区词 + 挑战名/任务类型词。
+#   地区词 → oracle tag：与 formatters.ORACLE_REGIONS 同源（扎里曼/实验室/1999，
+#   DE 三地区的 Jobs 不带节点/挑战，本轮订阅只覆盖 oracle 三地区）。
+#   任务类型映射来源：challenge 路径族命名（ZarimanExterminateFastComplete →
+#   歼灭、ZarimanSurvivalAbove50 → 生存 …，DE 官方导出/挑战表实查，自建并注释）。
+# ---------------------------------------------------------------------------
+_BOUNTY_REGION_WORDS: tuple[tuple[str, str, str], ...] = (
+    ("扎里曼", "ZarimanSyndicate", "羽化之穹（扎里曼）"),
+    ("羽化之穹", "ZarimanSyndicate", "羽化之穹（扎里曼）"),
+    ("实验室", "EntratiLabSyndicate", "解剖圣所（实验室）"),
+    ("圣所", "EntratiLabSyndicate", "解剖圣所（实验室）"),
+    ("1999", "HexSyndicate", "霍瓦尼亚（1999）"),
+    ("霍瓦尼亚", "HexSyndicate", "霍瓦尼亚（1999）"),
+)
+
+# challenge 路径子串 → 任务类型（玩家口径）。
+# 来源：core/data/de/challenges_zh.json 的 Zariman*/EntratiLab*/Hex* 挑战族命名
+# （如 ZarimanExterminateFastComplete=高效歼灭、ZarimanSurvivalAbove50、
+#  EntratiLabAlchemy…=炼金），逐族人工核对（2026-10-03）。
+_BOUNTY_TYPE_HINTS: tuple[tuple[str, str], ...] = (
+    ("Exterminate", "歼灭"), ("Survival", "生存"), ("MobDef", "移动防御"),
+    ("Assassinate", "刺杀"), ("Cascade", "级联"), ("Flood", "洪流"),
+    ("Corruption", "腐化"), ("DefeatVoidAngel", "天使"), ("Alchemy", "炼金"),
+    ("Defense", "防御"), ("Defend", "防御"), ("Excavation", "挖掘"),
+    ("Capture", "捕获"), ("Sabotage", "破坏"), ("Rescue", "救援"),
+    ("Spy", "间谍"), ("Disruption", "中断"), ("Void", "虚空"),
+)
+
+
+def bounty_type_of(challenge_path: str) -> str:
+    """challenge 路径 → 任务类型（无命中返回空串）。"""
+    p = challenge_path or ""
+    for token, zh in _BOUNTY_TYPE_HINTS:
+        if token in p:
+            return zh
+    return ""
+
+
+def parse_bounty_rule(rule: str) -> dict:
+    """赏金订阅规则 → {"tags": {tag, ...}, "words": [词, ...]}。
+
+    地区词（扎里曼/实验室/圣所/1999/霍瓦尼亚）→ oracle tag；其余词作为
+    「挑战名/任务类型」词（如「高效歼灭」匹配挑战名、「歼灭」匹配类型）。
+    """
+    tags: set = set()
+    words: list = []
+    for tok in [t for t in (rule or "").replace(",", " ").split() if t]:
+        hit = next((tag for w, tag, _t in _BOUNTY_REGION_WORDS if w in tok), None)
+        if hit:
+            tags.add(hit)
+            continue
+        words.append(tok)          # 非地区词：按「挑战名/任务类型」词处理
+    return {"tags": tags, "words": words}
+
+
+def bounty_rule_hit(rule: str, tag: str, challenge_name: str,
+                    challenge_path: str) -> bool:
+    """规则是否命中一条赏金（地区 + 挑战名/类型词，全部条件须满足）。"""
+    r = parse_bounty_rule(rule)
+    if r["tags"] and tag not in r["tags"]:
+        return False
+    if not r["words"]:
+        return True                       # 只写地区（或空规则）：该地区全收
+    t = bounty_type_of(challenge_path)
+    for w in r["words"]:
+        if w in (challenge_name or "") or (t and (w == t or w in t)):
+            continue
+        return False
+    return True
 
 
 def at_targets(platform_name: Optional[str], ids) -> list[str]:
@@ -51,21 +127,24 @@ PUSH_EVENTS: dict[str, tuple[str, bool]] = {
     "执刑官": ("每周执刑官猎杀刷新", True),
     "仲裁": ("仲裁换场次（可筛选：高效 / 传奇 / 生存 / 防御 …）", True),
     "钢路侵袭": ("钢铁之路每日侵袭刷新", True),
-    # ★ DE 已停用警报系统：worldState 的 Alerts 恒为 []（实测 2026-09-19 条数 0），
-    #   订阅了也永远不会触发 —— 按铁律 A 标为不可订阅并给出替代，别让用户白等。
-    "警报": ("DE 官方已停用警报系统（数据恒为空），可改蹲「入侵」或「新闻」", False),
+    # ★ C3（2026-10-03）：常规警报确已停用，但**活动型警报**（Tag=LotusGift
+    #   等）会下发（实测 3 条：SolNode87/MT_ARTIFACT 等）—— 接线；同一 _id
+    #   只推一次（alert_ids 基线去重）。
+    "警报": ("活动型警报出现（常规警报已停用；如 Tenno 联合警报）", True),
     "入侵": ("新入侵出现", True),
     "新闻": ("官方新闻/热修发布", True),
     "每日特惠": ("达沃每日特惠刷新", True),
     "活动": ("限时活动开始 / 结束", True),
-    "1999日历": ("1999 日历轮换（需接线数据源）", False),
-    "灵化武器": ("本周灵化轮换（需接线数据源）", False),
-    "信条": ("Ergo 信条武器轮换（需接线数据源）", False),
-    "终幕": ("Coda 终幕武器轮换（需接线数据源）", False),
+    "1999日历": ("1999 日历：季轮换 / 当日日程刷新", True),
+    "灵化武器": ("本周灵化轮换（钢铁回廊 9 周循环，周一 00:00 UTC）", True),
+    "信条": ("Ergo 信条武器库存与元素加成（每 96 小时）", True),
+    "终幕": ("Coda 终幕武器批次轮换（A/B 两批每 96 小时）", True),
     "钢精兑换": ("Teshin 钢精兑换周轮换（每周一 00:00 UTC，8 件循环）", True),
     "碎银兑换": ("Palladino 裂罅碎块商店每周限购重置（周一 00:00 UTC）", True),
-    "阿耶兑换": ("阿耶 Priess 兑换（需接线数据源）", False),
-    "电波": ("午夜电波周挑战刷新（需接线数据源）", False),
+    "赏金": ("赏金轮换（扎里曼/实验室/1999；可筛 地区+任务，如 扎里曼 高效歼灭）",
+             True),
+    "阿耶兑换": ("Prime 宝库轮换（Regal Aya 兑换包）", True),
+    "电波": ("午夜电波每日/每周挑战刷新", True),
 }
 
 PUSH_ALIAS = {"钢铁裂隙": "裂隙", "虚空裂隙": "裂隙", "执刑官猎杀": "执刑官",
@@ -571,6 +650,169 @@ class PushDaemon:
                                 "安魂通牒等"))
                 last["sliver_reset"] = key
 
+            if "赏金" in wanted:
+                # ★ C2（2026-10-03）：oracle 三地区（扎里曼/实验室/1999）的赏金
+                #   轮换。每条赏金一个事件（key 带本轮 expiry ⇒ 换轮才重推，
+                #   notified 去重兜底）；首轮只建基线不推（与裂隙同口径）。
+                try:
+                    _cyc = await self.client.bounty_cycle()
+                except Exception:  # noqa: BLE001 - oracle 不可达降级不报错
+                    _cyc = {}
+                _bs = (_cyc or {}).get("bounties") or {}
+                _exp = str((_cyc or {}).get("expiry") or "")
+                _bounty_subs = [s for s in subs
+                                if s.platform == platform and s.event == "赏金"]
+                # 基线：首轮只记 bounty_exp（不推）；此后每轮对当前赏金发事件
+                #（key 含 expiry + notified 去重 ⇒ 同轮只推一次、换轮自然重推）。
+                _prev_exp = last.get("bounty_exp")
+                if _bounty_subs and _prev_exp is not None:
+                    _node_tbl = de_zh("nodes_zh.json")
+                    _ch_tbl = de_zh("challenges_zh.json")
+                    for _pool, _tag, _title in ORACLE_REGIONS:
+                        for _b in _bs.get(_tag) or []:
+                            _nk = _b.get("node") or ""
+                            _ck = _b.get("challenge") or ""
+                            _node = (_node_tbl.get(_nk) or {}).get("name") or _nk
+                            _ch = _ch_tbl.get(_ck) or {}
+                            _cname = _ch.get("name") or ""
+                            _ctype = bounty_type_of(_ck)
+                            key = f"bounty-{_tag}-{_nk}-{_ck}-{_exp}"
+                            hit = {s.sid for s in _bounty_subs
+                                   if bounty_rule_hit(s.rule, _tag, _cname, _ck)}
+                            if hit:
+                                _desc = (_ch.get("desc") or "").strip()
+                                _seg = " · ".join(
+                                    x for x in (_title, _node, _ctype, _cname)
+                                    if x)
+                                out.append(("赏金", key,
+                                            f"⚡ 新赏金：{_seg}"
+                                            + (f"（{_desc}）" if _desc else "")))
+                                matched[key] = hit
+                if _exp:
+                    last["bounty_exp"] = _exp
+
+            # ★ C4（2026-10-03）：灵化 / 信条 / 终幕 换轮点检测。窗口序号
+            #   同源 formatters.rotation_window（与卡面同一套锚点算法）；
+            #   跨点才推，文案给出新一批内容。
+            _rot_push = (
+                ("灵化武器", "incarnon", "🔮 灵化轮换"),
+                ("信条", "tenet", "⚔ 信条库存刷新"),
+                ("终幕", "coda", "🪲 终幕轮换"),
+            )
+            if any(ev in wanted for ev, _k, _i in _rot_push):
+                try:
+                    _rot_all = json.loads(
+                        paths.read_path("rotations.json")
+                        .read_text(encoding="utf-8"))
+                except Exception:  # noqa: BLE001 - 数据缺失降级不报错
+                    _rot_all = {}
+                for _ev, _rk, _icon in _rot_push:
+                    if _ev not in wanted:
+                        continue
+                    _rd = _rot_all.get(_rk) or {}
+                    if not _rd:
+                        continue
+                    _passed, _ = rotation_window(_rd)
+                    _weeks = _rd.get("weeks") or []
+                    _batches = _rd.get("batches") or []
+                    if _weeks:                       # weekly_cycle（灵化）
+                        _pos = (int(_rd.get("anchor_week", 1)) - 1
+                                + _passed) % len(_weeks)
+                        _items = _weeks[_pos]
+                        _label = f"第 {_pos + 1}/{len(_weeks)} 周"
+                    elif _batches:                   # batch_cycle（终幕）
+                        _pos = (int(_rd.get("anchor_idx", 0))
+                                + _passed) % len(_batches)
+                        _items = _batches[_pos]
+                        _labels = _rd.get("batch_label") or []
+                        _label = (f"{_labels[_pos]} 批"
+                                  if _pos < len(_labels) else f"第 {_pos + 1} 批")
+                    else:                            # refresh_only（信条）
+                        _items = _rd.get("items") or []
+                        _label = "库存"
+                    if not _items:
+                        continue
+                    _key = f"rot-{_rk}-{_passed}"
+                    _prev = last.get(f"{_rk}_window")
+                    if _prev is not None and _prev != _key:
+                        _names = "、".join(
+                            (it.get("cn") or it.get("en") or "")
+                            + (f"（{it.get('element')} {it.get('bonus')}%）"
+                               if it.get("element") else "")
+                            for it in _items[:8])
+                        out.append((_ev, _key,
+                                    f"{_icon}（{_label}）：{_names}"))
+                    last[f"{_rk}_window"] = _key
+
+            # ★ C5（2026-10-03）：阿耶兑换 / 1999 日历 / 电波。
+            if "阿耶兑换" in wanted:
+                try:
+                    _pv = await self.client.prime_vault(platform)
+                except Exception:  # noqa: BLE001 - 降级不报错
+                    _pv = {}
+                if isinstance(_pv, dict) and _pv.get("expiry"):
+                    _pk = f"pv-{_pv.get('expiry')}"
+                    if last.get("pv_key") is not None and last["pv_key"] != _pk:
+                        _names = "、".join(
+                            (it.get("name") or "") for it in
+                            (_pv.get("items") or [])[:6])
+                        out.append(("阿耶兑换", _pk,
+                                    f"💠 Prime 宝库轮换：{_names}"))
+                    last["pv_key"] = _pk
+
+            if "1999日历" in wanted:
+                try:
+                    _cal = await self.client.calendar(platform)
+                except Exception:  # noqa: BLE001
+                    _cal = {}
+                if isinstance(_cal, dict) and _cal.get("days"):
+                    _sk = (f"cal-season-{_cal.get('season')}"
+                           f"-{_cal.get('yearIteration')}")
+                    if last.get("cal_season") is not None                             and last["cal_season"] != _sk:
+                        out.append(("1999日历", _sk,
+                                    f"🗓 1999 日历轮换：{_cal.get('season')} 季"
+                                    f"（第 {_cal.get('yearIteration')} 年）"))
+                    last["cal_season"] = _sk
+                    _today = utc_today()
+                    _day = next((d for d in _cal["days"]
+                                 if d.get("date") == _today), None)
+                    if _day:
+                        # 键含**日程签名**：同日日程被 DE 更新也推（日切自然推）
+                        _sig_d = ",".join(sorted(
+                            e.get("name") or ""
+                            for e in (_day.get("events") or [])))[:40]
+                        _dk = f"cal-{_today}-{_sig_d}"
+                        if last.get("cal_day") is not None                                 and last["cal_day"] != _dk:
+                            _evs = [e.get("name") for e in
+                                    (_day.get("events") or [])
+                                    if e.get("name")]
+                            out.append(("1999日历", _dk,
+                                        f"🗓 1999 今日日程（{_today}）："
+                                        + ("、".join(_evs[:6]) or "无条目")))
+                        last["cal_day"] = _dk
+
+            if "电波" in wanted:
+                try:
+                    _nw = await self.client.nightwave(platform)
+                except Exception:  # noqa: BLE001
+                    _nw = {}
+                _chs = (_nw or {}).get("activeChallenges") or []
+                if _chs:
+                    _ids = {c.get("id") for c in _chs if c.get("id")}
+                    _prev_ids = set(last.get("nw_ids", []))
+                    _fresh = _ids - _prev_ids
+                    if last.get("nw_ids") is not None and _fresh:
+                        _new = [c for c in _chs if c.get("id") in _fresh]
+                        _names = "、".join(
+                            (c.get("title") or "?")
+                            + ("（每日）" if c.get("isDaily") else "")
+                            for c in _new[:5])
+                        _sig = ",".join(sorted(_fresh))[:60]
+                        out.append(("电波", f"nw-{_sig}",
+                                    f"📻 午夜电波新挑战（{len(_new)} 条）："
+                                    f"{_names}"))
+                    last["nw_ids"] = list(_ids)
+
             if "警报" in wanted:
                 alerts = await self.client.alerts(platform)
                 ids = {a.get("id") for a in alerts if a.get("id") and a.get("active", True)}
@@ -579,10 +821,18 @@ class PushDaemon:
                     a = next((x for x in alerts if x.get("id") == aid), {})
                     mission = a.get("mission", {}) or {}
                     reward = (mission.get("reward", {}) or {})
+                    # ★ C3：解析已补全（节点/类型/等级/奖励中文名），推送照实给
+                    names = reward.get("item_names") or (
+                        [reward["item"]] if reward.get("item") else [])
+                    lv = (f"{mission['min_level']}-{mission['max_level']}级 "
+                          if mission.get("min_level") else "")
+                    rw = "、".join([*names, *([f"{reward['credits']}现金"]
+                                            if reward.get("credits") else [])])
+                    head = f"{mission.get('desc')}｜" if mission.get("desc") else ""
                     out.append(("警报", aid,
-                                f"🔔 新警报：{mission.get('node', '?')} · "
-                                f"{mission_cn(mission.get('type', ''))} 奖励："
-                                f"{reward.get('item', '') or reward.get('credits', '')}"))
+                                f"🔔 新警报：{head}{mission.get('node', '?')} · "
+                                f"{mission_cn(mission.get('type', ''))} {lv}"
+                                f"奖励：{rw or '?'}"))
                 last["alert_ids"] = list(ids)
 
             if "入侵" in wanted:

@@ -65,6 +65,18 @@ class FakeClient:
         return {"_name": name, "state": "day",
                 "expiry": _iso(datetime.now(timezone.utc) + timedelta(minutes=50))}
 
+    async def bounty_cycle(self):
+        return {"expiry": "1791047752866", "rot": "A", "bounties": {
+            "ZarimanSyndicate": [
+                {"node": "SolNode230",
+                 "challenge": "/Lotus/Types/Challenges/Zariman/"
+                              "ZarimanExterminateFastCompleteChallenge"},
+                {"node": "SolNode231",
+                 "challenge": "/Lotus/Types/Challenges/Zariman/"
+                              "ZarimanSurvivalAbove50Challenge"},
+            ],
+        }}
+
 
 FAILED = []
 
@@ -307,6 +319,7 @@ asyncio.run(at_scenarios())
 # A2 钢精兑换换轮点检测（2026-10-03）：每周一 00:00 UTC，同源 steel_rotation_index
 # ---------------------------------------------------------------------------
 import core.formatters as fmt_mod  # noqa: E402
+from core import formatters as F2  # noqa: E402
 from core.formatters import steel_shop as _steel_shop  # noqa: E402
 from core.formatters import steel_rotation_index as _sri  # noqa: E402
 
@@ -379,6 +392,198 @@ async def sliver_scenario():
 
 
 asyncio.run(sliver_scenario())
+
+# ---------------------------------------------------------------------------
+# C2 赏金订阅（2026-10-03）：地区 + 挑战名/任务类型（用户例：扎里曼 高效歼灭）
+# ---------------------------------------------------------------------------
+async def bounty_scenario():
+    tmp7 = Path(tempfile.mkdtemp())
+    st = SubscriptionStore(tmp7 / "subs_bounty.json")
+    sent_b: list[tuple[str, str]] = []
+
+    async def send_b(umo, text, at=None):
+        sent_b.append((umo, text))
+
+    d = PushDaemon(FakeClient(), st, send_b, FakeLogger(), interval=15)
+    await st.add(Subscription(umo="group://B1", platform="pc", event="赏金",
+                              rule="扎里曼 高效歼灭", until=-1, once=False))
+    await st.add(Subscription(umo="group://B2", platform="pc", event="赏金",
+                              rule="扎里曼 生存", until=-1, once=False))
+    await d.tick()
+    check("C2 首轮只建基线不推", sent_b == [], str(sent_b))
+    await d.tick()
+    check("C2 两条订阅各自命中对应赏金（歼灭→B1、生存→B2）",
+          len(sent_b) == 2
+          and any(u == "group://B1" and "高效歼灭" in t for u, t in sent_b)
+          and any(u == "group://B2" and "减少虚空污染" in t for u, t in sent_b),
+          str(sent_b))
+    check("C2 不串台：B2 未收到歼灭赏金 / B1 未收到生存赏金",
+          not any(u == "group://B2" and "高效歼灭" in t for u, t in sent_b)
+          and not any(u == "group://B1" and "减少虚空污染" in t
+                      for u, t in sent_b), str(sent_b))
+    check("C2 推送含 地区/类型/目标",
+          any("羽化之穹" in t and "歼灭" in t and "6 分钟" in t
+              for _u, t in sent_b), str(sent_b)[:150])
+
+
+asyncio.run(bounty_scenario())
+
+# ---------------------------------------------------------------------------
+# C3 警报接线（2026-10-03）：活动型警报（Tag=LotusGift）——推一次；
+#   同一 _id 只推一次（alert_ids 基线去重）。
+# ---------------------------------------------------------------------------
+class AlertClient(FakeClient):
+    """轮次控制：round0 空（建基线）→ round1 出现 a1（推一次）→ 之后保持。"""
+
+    def __init__(self):
+        super().__init__()
+        self._round = 0
+
+    async def alerts(self, platform):
+        self._round += 1
+        if self._round < 2:
+            return []
+        return [{
+            "id": "a1", "active": True,
+            "expiry": _iso(datetime.now(timezone.utc) + timedelta(days=12)),
+            "mission": {"node": "Ganymede（木星）", "type": "中断",
+                        "min_level": 20, "max_level": 30,
+                        "desc": "Tenno 联合警报",
+                        "reward": {"credits": 10000,
+                                   "item": "2021 年 QTCC 玩偶",
+                                   "item_names": ["2021 年 QTCC 玩偶"]}}}]
+
+
+async def alert_scenario():
+    tmp8 = Path(tempfile.mkdtemp())
+    st = SubscriptionStore(tmp8 / "subs_alert.json")
+    sent_a: list[tuple[str, str]] = []
+
+    async def send_a(umo, text, at=None):
+        sent_a.append((umo, text))
+
+    c = AlertClient()
+    d = PushDaemon(c, st, send_a, FakeLogger(), interval=15)
+    await st.add(Subscription(umo="group://A1", platform="pc", event="警报",
+                              rule="", until=-1, once=False))
+    await d.tick()
+    check("C3 首轮只建基线不推", sent_a == [], str(sent_a))
+    await d.tick()
+    check("C3 活动型警报推送一次（含 desc/节点/奖励中文名）",
+          len(sent_a) == 1 and "Tenno 联合警报" in sent_a[0][1]
+          and "Ganymede" in sent_a[0][1] and "2021 年 QTCC 玩偶" in sent_a[0][1],
+          str(sent_a))
+    await d.tick()
+    check("C3 同一 _id 只推一次（基线去重）", len(sent_a) == 1, str(sent_a))
+
+
+asyncio.run(alert_scenario())
+
+# ---------------------------------------------------------------------------
+# C4 灵化/信条/终幕接蹲（2026-10-03）：换轮点检测（同源 rotation_window），
+#   跨点推「新一批内容」。此处以灵化（9 周循环）为例。
+# ---------------------------------------------------------------------------
+async def rotation_scenario():
+    tmp9 = Path(tempfile.mkdtemp())
+    st = SubscriptionStore(tmp9 / "subs_rot.json")
+    sent_r: list[tuple[str, str]] = []
+
+    async def send_r(umo, text, at=None):
+        sent_r.append((umo, text))
+
+    d = PushDaemon(FakeClient(), st, send_r, FakeLogger(), interval=15)
+    await st.add(Subscription(umo="group://R1", platform="pc",
+                              event="灵化武器", rule="", until=-1, once=False))
+    import json as _json
+    rot = _json.loads((Path(__file__).resolve().parent.parent / "core" / "data"
+                       / "rotations.json").read_text(encoding="utf-8"))
+    inc = rot["incarnon"]
+    epoch = datetime.fromisoformat(inc["epoch"])
+    boundary = epoch + timedelta(hours=int(inc["period_hours"]) * 8)
+    orig = fmt_mod._now
+    fmt_mod._now = lambda: boundary - timedelta(minutes=30)
+    await d.tick()
+    check("C4 首轮只建基线不推", sent_r == [], str(sent_r))
+    fmt_mod._now = lambda: boundary + timedelta(minutes=30)
+    await d.tick()
+    passed, _ = F2.rotation_window(inc)
+    pos = (int(inc.get("anchor_week", 1)) - 1 + passed) % len(inc["weeks"])
+    want = inc["weeks"][pos][0].get("cn") or ""
+    fmt_mod._now = orig
+    check("C4 跨周换轮推送且含新一批武器名",
+          len(sent_r) == 1 and "灵化轮换" in sent_r[0][1]
+          and want and want in sent_r[0][1], f"{sent_r} want={want}")
+    fmt_mod._now = lambda: boundary + timedelta(hours=1)
+    await d.tick()
+    fmt_mod._now = orig
+    check("C4 同窗口不重复推送", len(sent_r) == 1, str(sent_r))
+
+
+asyncio.run(rotation_scenario())
+
+# ---------------------------------------------------------------------------
+# C5 阿耶兑换 / 1999 日历 / 电波 接蹲（2026-10-03）：stage 控制数据变化。
+# ---------------------------------------------------------------------------
+class C5Client(FakeClient):
+    def __init__(self):
+        super().__init__()
+        self.stage = 0
+
+    async def prime_vault(self, platform):
+        if self.stage == 0:
+            return {"expiry": "e0", "items": [{"name": "旧宝库包"}]}
+        return {"expiry": "e1", "items": [{"name": "Banshee Prime 组合包"}]}
+
+    async def calendar(self, platform):
+        today = fmt_mod._now().astimezone(timezone.utc).date().isoformat()
+        evs = [] if self.stage == 0 else [{"name": "敲山震虎"}]
+        return {"season": "S1", "yearIteration": 1,
+                "days": [{"date": today, "events": evs}]}
+
+    async def nightwave(self, platform):
+        chs = [{"id": "c1", "title": "旧挑战"}]
+        if self.stage >= 1:
+            chs.append({"id": "c2", "title": "新挑战", "isDaily": True})
+        return {"activeChallenges": chs}
+
+
+async def c5_scenario():
+    tmpA = Path(tempfile.mkdtemp())
+    st = SubscriptionStore(tmpA / "subs_c5.json")
+    sent5: list[tuple[str, str]] = []
+
+    async def send5(umo, text, at=None):
+        sent5.append((umo, text))
+
+    c = C5Client()
+    d = PushDaemon(c, st, send5, FakeLogger(), interval=15)
+    for ev in ("阿耶兑换", "1999日历", "电波"):
+        await st.add(Subscription(umo="group://C5", platform="pc", event=ev,
+                                  rule="", until=-1, once=False))
+    await d.tick()
+    check("C5 首轮只建基线不推", sent5 == [], str(sent5))
+    c.stage = 1
+    await d.tick()
+    check("C5 三事件各自推送一次",
+          len(sent5) == 3, str(sent5))
+    check("C5 阿耶兑换：宝库轮换含新包名",
+          any("Prime 宝库轮换" in t and "Banshee Prime 组合包" in t
+              for _u, t in sent5), str(sent5))
+    check("C5 1999 日历：今日日程含挑战名",
+          any("今日日程" in t and "敲山震虎" in t for _u, t in sent5),
+          str(sent5))
+    check("C5 电波：新挑战（每日标注）",
+          any("午夜电波新挑战" in t and "新挑战（每日）" in t
+              for _u, t in sent5), str(sent5))
+    await d.tick()
+    check("C5 无新变化不重复推送", len(sent5) == 3, str(sent5))
+
+
+asyncio.run(c5_scenario())
+
+
+
+
 
 
 

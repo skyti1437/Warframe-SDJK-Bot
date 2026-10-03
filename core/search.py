@@ -167,6 +167,21 @@ def search(query: str, limit: int = 8) -> list[dict]:
     q = _norm(query)
     if len(q) < 1:
         return []
+    # ★ C1（2026-10-03）：先做一次**归一化精确**（matching.normalize_name：
+    #   大小写/空格/中点/全半角无关）——「阿索代prime」≡「阿索代 Prime」。
+    #   命中直接返回，不动下方原有打分链（零回归）。
+    nq = matching.normalize_name(query)
+    if nq:
+        exact: list[dict] = []
+        for _key, _shown, _second, _source in _index():
+            if nq in (matching.normalize_name(_shown),
+                      matching.normalize_name(_second or "")):
+                exact.append({"name": _shown, "en": _second,
+                              "source": _source, "score": 0})
+                if len(exact) >= limit:
+                    break
+        if exact:
+            return exact
     scored: list[tuple[int, str, str, str, str]] = []
     for key, shown, second, source in _index():
         s = _score(q, key)
