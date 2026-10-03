@@ -1370,14 +1370,23 @@ check("★ Dakra 边界：Dakra Prime 与 Dex Dakra 各自独立（家族互不�
       _fam19("Dakra Prime") == [] and _fam19("Dex Dakra") == [],
       f"{_fam19('Dakra Prime')} / {_fam19('Dex Dakra')}")
 
-# ★ 2026-10-03：本地名表补录（用户《武器中文以及其变体》清单核对所得）——
-#   Coda Bubonico 的三张本地表全缺，家族显示名因此出英文；补进索引后双向可查。
+# ★ 2026-10-03：Coda Bubonico 中英对照 —— 原为运行时手工补丁（_LOCAL_NAME_PATCH），
+#   同日构建脚本补收 DE 官方家族表（riven_families.json 819 件）后，桥上
+#   de/name_en_zh.json 直接命中 ⇒ 补丁已删（单一真源：构建期表，运行期只读）。
 from core import api_client as _AC                        # noqa: E402
 
-check("★ 本地名表补录：Coda Bubonico ↔ 终幕·横痃重炮（双向可查）",
+check("★ 显示名单一真源：_LOCAL_NAME_PATCH 已删（桥接接管，不许回流为手工补丁）",
+      not hasattr(_AC, "_LOCAL_NAME_PATCH"), "仍有运行时手工补丁")
+check("★ 桥接出中文：Coda Bubonico ↔ 终幕·横痃重炮（双向可查）",
       _AC._zh_name_of_en("Coda Bubonico") == "终幕·横痃重炮"
       and _AC._en_name_of_zh("终幕·横痃重炮") != "",
       f"{_AC._zh_name_of_en('Coda Bubonico')!r} / {_AC._en_name_of_zh('终幕·横痃重炮')!r}")
+check("★ 桥接出中文：原本缺口的玄骸/Zaw 件抽查（Kuva Ghoulsaw / Tenet Quanta / Balla / Cyath / Dehtat / Dokrahm）",
+      [_AC._zh_name_of_en(e) for e in
+       ("Kuva Ghoulsaw", "Tenet Quanta", "Balla", "Cyath", "Dehtat", "Dokrahm")]
+      == ["赤毒·尸鬼电锯", "信条·量子切割器", "宝拉", "西亚什", "德塔特", "多克拉姆"],
+      str([_AC._zh_name_of_en(e) for e in
+           ("Kuva Ghoulsaw", "Tenet Quanta", "Balla", "Cyath", "Dehtat", "Dokrahm")]))
 check("家族显示名：横痃重炮 家族 → 终幕·横痃重炮（中文，不再是英文名）",
       _fam19("Bubonico") == [("终幕·横痃重炮", 0.55)], str(_fam19("Bubonico")))
 

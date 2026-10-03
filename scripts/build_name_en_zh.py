@@ -113,6 +113,12 @@ def name_space() -> set[str]:
     for v in _jload(DATA / "weapons_stats.json").values():
         if isinstance(v, dict):
             add(v.get("name") or "")
+    # ★ 2026-10-03：补收 DE 官方 parentName 家族表 —— weapons_stats 只有 582 条，
+    #   而可上紫卡武器有 819 件，差的 237 件（新 Prime / Zaw 部件 / 玄骸新武器）
+    #   本就在 dict.en×dict.zh 的 pair 里有中文，却因不在 name_space 而被裁掉，
+    #   导致「紫卡家族变体」显示名只能退回英文（玩家报障的那 34 件）。
+    for en in (_jload(DE / "riven_families.json").get("by_name") or {}):
+        add(en)
     ms = _jload(DATA / "mods_stats.json")
     for sec in ("mods", "names"):
         for v in (ms.get(sec) or {}).values():

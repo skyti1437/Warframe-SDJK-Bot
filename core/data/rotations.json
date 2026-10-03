@@ -261,36 +261,36 @@
    {
     "en": "Tenet Agendus",
     "cn": "信条·集议",
-    "element": "Impact",
-    "bonus": 56.4
+    "element": "Heat",
+    "bonus": 47.2
    },
    {
     "en": "Tenet Exec",
     "cn": "信条·枢密",
-    "element": "Heat",
-    "bonus": 25.8
+    "element": "Toxin",
+    "bonus": 38.8
    },
    {
     "en": "Tenet Ferrox",
     "cn": "信条·铁晶磁轨炮",
-    "element": "Impact",
-    "bonus": 25.2
+    "element": "Radiation",
+    "bonus": 25.7
    },
    {
     "en": "Tenet Grigori",
     "cn": "信条·格里高利",
     "element": "Electricity",
-    "bonus": 38.6
+    "bonus": 60.0
    },
    {
     "en": "Tenet Livia",
     "cn": "信条·莉薇娅",
-    "element": "Radiation",
-    "bonus": 30.6
+    "element": "Electricity",
+    "bonus": 28.1
    }
   ],
   "_note": "Ergo Glast 在任意中继站出售，不消耗声望",
-  "valence_snapshot": "2026-10-02T00:11:00+00:00",
+  "valence_snapshot": "2026-10-03T02:36:56+00:00",
   "valence_source": "wiki.warframe.com/w/Reset 的 Current Valence Bonuses（玩家上报，无官方 API）；插件侧访问该站被 Cloudflare 拦截，所以是**快照**，每 4 天轮换后需要刷新"
  },
  "coda": {
@@ -350,36 +350,50 @@
    [
     {
      "en": "Coda Bassocyst",
-     "cn": "终幕·低音爆囊"
+     "cn": "终幕·低音爆囊",
+     "element": "Magnetic",
+     "bonus": 31.6
     },
     {
      "en": "Coda Bubonico",
-     "cn": "终幕·横痃重炮"
+     "cn": "终幕·横痃重炮",
+     "element": "Impact",
+     "bonus": 28.3
     },
     {
      "en": "Coda Synapse",
-     "cn": "终幕·突触生化枪"
+     "cn": "终幕·突触生化枪",
+     "element": "Toxin",
+     "bonus": 25.6
     },
     {
      "en": "Coda Tysis",
-     "cn": "终幕·啐沫者"
+     "cn": "终幕·啐沫者",
+     "element": "Radiation",
+     "bonus": 52.2
     },
     {
      "en": "Coda Caustacyst",
-     "cn": "终幕·灼蚀变体镰"
+     "cn": "终幕·灼蚀变体镰",
+     "element": "Impact",
+     "bonus": 55.9
     },
     {
      "en": "Coda Hirudo",
-     "cn": "终幕·蚂蟥"
+     "cn": "终幕·蚂蟥",
+     "element": "Radiation",
+     "bonus": 25.0
     },
     {
      "en": "Coda Pathocyst",
-     "cn": "终幕·病囊飞刃"
+     "cn": "终幕·病囊飞刃",
+     "element": "Cold",
+     "bonus": 56.2
     }
    ]
   ],
   "_note": "Eleanor Nightingale 的 Coda 武器按 A/B 两批轮换（每批 7 把），每 4 天 00:00 UTC 换批；2026-09-14 实测为 A 批，换批边界 09-17 00:00 UTC（比 Ergo Glast 的元素加成重生成晚 24 小时，两者不是同一锚点）；批次表取自 wiki.warframe.com/Reset",
-  "valence_snapshot": "2026-10-02T00:11:00+00:00",
+  "valence_snapshot": "2026-10-03T02:36:56+00:00",
   "valence_source": "wiki「Reset」页玩家上报值（FlareSolverr 抓取 2026-09-21 13:50 GMT+8，Eleanor 售 Batch A）；无官方 API，以游戏内商店为准"
  },
  "acrichis": {

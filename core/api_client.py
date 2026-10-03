@@ -514,13 +514,10 @@ def _name_en_zh() -> dict:
 # ---------------------------------------------------------------------------
 _LOCAL_NAME_INDEX: "tuple | None" = None
 
-# ★ 2026-10-03：三张本地表都没有、但游戏内确实存在的中英对照（用户提供《武器中文
-#   以及其变体》清单逐条核对所得）—— 直接补进本地名表索引（双向可用），
-#   供家族显示名与中文名反查。严格规则下该清单能补的仅此一件：
-#   「Coda Bubonico」的三张表全缺（WM 紫卡表里有 终幕·横痃重炮，本地名表没有）。
-_LOCAL_NAME_PATCH: dict[str, str] = {
-    "Coda Bubonico": "终幕·横痃重炮",
-}
+# ★ 2026-10-03：原先这里有一张手工补录表（_LOCAL_NAME_PATCH: Coda Bubonico）。
+#   构建脚本补收 DE 官方家族表（riven_families.json 819 件）进 name_space 后，
+#   `终幕·横痃重炮` 已由 ② de/name_en_zh.json 桥接直接命中 ⇒ 补丁删除，
+#   中英对照保持**单一真源**（构建期生成，运行期只读表）。
 
 
 def _norm_name(s: str) -> str:
@@ -561,8 +558,6 @@ def _local_name_index() -> tuple:
                 _put(it.get("en"), it.get("zh"))
         except Exception:  # noqa: BLE001
             pass
-        for en, zh in _LOCAL_NAME_PATCH.items():   # 手工补录（核对过游戏内写法）
-            _put(en, zh)
         _LOCAL_NAME_INDEX = (en_zh, zh_en)
     return _LOCAL_NAME_INDEX
 

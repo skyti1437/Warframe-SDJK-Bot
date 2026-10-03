@@ -322,21 +322,22 @@ for _name, _rep, _n in (("信条", _reply_t, 5), ("终幕", _reply_c, 7)):
     check(f"{_name} 卡有快照说明行",
           any("快照" in ln for ln in _rep.lines), str(_rep.lines[-3:]))
 
-# 具体值抽查（对照 wiki「Reset」页 2026-09-28 快照，发版链第 0 步刷新后同步）
-# ★ 2026-09-28 01:06 UTC 刷新：信条本轮换批（窗口 09-28 00:00 UTC 起），**5 把全部重掷**
+# 具体值抽查（对照 wiki 快照，发版链第 0 步刷新后同步）
+# ★ 2026-10-03 刷新（窗口 10-02 00:00 UTC 起，信条本轮换批）：**5 把全部重掷** ——
+#   Ferrox Impact 25.2→Radiation 25.7、Exec Heat 25.8→Toxin 38.8、
+#   Agendus Impact 56.4→Heat 47.2、Grigori Electricity 38.6→60.0、Livia Radiation 30.6→Electricity 28.1。
+#   （本轮起刷新源改为源页 wikitext，见 scripts/fetch_valence.py 头注。）
 _tmap = {i["en"]: (i.get("element"), i.get("bonus")) for i in _tenet_items}
-check("信条·铁晶磁轨炮 = 冲击 25.2%（wiki 2026-09-28 快照）",
-      _tmap.get("Tenet Ferrox") == ("Impact", 25.2), str(_tmap.get("Tenet Ferrox")))
-check("信条·枢密 = 火焰 25.8%（wiki 2026-09-28 快照）",
-      _tmap.get("Tenet Exec") == ("Heat", 25.8), str(_tmap.get("Tenet Exec")))
+check("信条·铁晶磁轨炮 = 辐射 25.7%（wiki 2026-10-03 快照）",
+      _tmap.get("Tenet Ferrox") == ("Radiation", 25.7), str(_tmap.get("Tenet Ferrox")))
+check("信条·枢密 = 毒素 38.8%（wiki 2026-10-03 快照）",
+      _tmap.get("Tenet Exec") == ("Toxin", 38.8), str(_tmap.get("Tenet Exec")))
 _cmap = {i["en"]: (i.get("element"), i.get("bonus")) for i in _cur_batch}
-# 终幕按批次抽查：wiki 只公布**当前生效批**的表，另一批在换批前拿不到真值，
-# 所以每次刷新后要把这里同步成新一批的两把（换批后旧值会失效）。
-# ★ 每次终幕换批后，本表的当前批抽查值必须同步（B 批的值随换批重掷，
-#   逐条取自刷新后的 core/data/rotations.json；2026-09-29 00:06 UTC 刷新回写：
-#   coda 换批回到 A，A 批 7 条元素加成全部重生成（如 Catabolyst Heat 25.0→48.9、
-#   Motovore Heat 38.8→Impact 25.0）；非当前批 B 按写入器规范不带 element/bonus，
-#   B 的钉值待其轮转刷新时再钉。
+# 终幕按批次抽查：★ 每次终幕换批后，本表的当前批抽查值必须同步（两批的值都随换批
+#   重掷，逐条取自刷新后的 core/data/rotations.json）。
+#   2026-10-03 刷新回写：coda 换批到 B —— B 批 7 条首次全量落表（Bassocyst Magnetic
+#   31.6 / Synapse Toxin 25.6 …，与钉值一致）；此前「非当前批拿不到真值」的限制已随
+#   刷新源改源页 wikitext 解除（源页 A/B 两表全量公布 ⇒ 两批都填）。
 _SPOT = {"A": {"Coda Catabolyst": ("Heat", 48.9),
                "Coda Motovore": ("Impact", 25.0)},
          "B": {"Coda Bassocyst": ("Magnetic", 31.6),
@@ -368,6 +369,60 @@ check("终幕当前生效批必须有元素加成（卡面要印）",
           for i in _batches[_idx]),
       str([i.get("en") for i in _batches[_idx]
            if not (i.get("element") and isinstance(i.get("bonus"), (int, float)))]))
+
+# ---------------------------------------------------------------------------
+# ★ 2026-10-03 新增：刷新源解析器（scripts/fetch_valence.py::parse_wikitext）
+#   用内联样例钉住行为（不联网）：Reset 渲染页受解析缓存影响会落后于源页，
+#   换批后进行刷新必须走源页 wikitext（A/B 两批同页全量）。
+# ---------------------------------------------------------------------------
+import importlib.util  # noqa: E402
+
+_spec = importlib.util.spec_from_file_location(
+    "fetch_valence_under_test", ROOT / "scripts" / "fetch_valence.py")
+_fv = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_fv)
+
+# 真源响应的形状：<pre> 包裹 + 实体转义（实测 2026-10-03 抓取同形）
+_WT = (
+    "&lt;table class=\"wikitable\"&gt;"
+    "&lt;tr&gt;&lt;th&gt;Weapon (Batch A)&lt;/th&gt;&lt;th&gt;Element&lt;/th&gt;"
+    "&lt;th&gt;Bonus %&lt;/th&gt;&lt;/tr&gt;"
+    "&lt;tr&gt;&lt;td&gt;Coda Hema&lt;/td&gt;&lt;td&gt;{{D|Magnetic}}&lt;/td&gt;"
+    "&lt;td&gt;{{ValenceBonusPercentageColor|34.2}}&lt;/td&gt;&lt;/tr&gt;"
+    "&lt;tr&gt;&lt;td&gt;Coda Mire&lt;/td&gt;&lt;td&gt;{{D|Impact}}&lt;/td&gt;"
+    "&lt;td&gt;{{ValenceBonusPercentageColor|28.3}}&lt;/td&gt;&lt;/tr&gt;"
+    "&lt;/table&gt;"
+    "&lt;table class=\"wikitable\"&gt;"
+    "&lt;tr&gt;&lt;th&gt;Weapon (Batch B)&lt;/th&gt;&lt;th&gt;Element&lt;/th&gt;"
+    "&lt;th&gt;Bonus %&lt;/th&gt;&lt;/tr&gt;"
+    "&lt;tr&gt;&lt;td&gt;Coda Bassocyst&lt;/td&gt;&lt;td&gt;{{D|Magnetic}}&lt;/td&gt;"
+    "&lt;td&gt;{{ValenceBonusPercentageColor|31.6}}&lt;/td&gt;&lt;/tr&gt;"
+    "&lt;/table&gt;"
+    "&lt;table class=\"wikitable\"&gt;"
+    "&lt;tr&gt;&lt;th&gt;Weapon&lt;/th&gt;&lt;th&gt;Element&lt;/th&gt;"
+    "&lt;th&gt;Bonus %&lt;/th&gt;&lt;/tr&gt;"
+    "&lt;tr&gt;&lt;td&gt;{{Weapon|Tenet Ferrox}}&lt;/td&gt;&lt;td&gt;{{D|Radiation}}&lt;/td&gt;"
+    "&lt;td&gt;{{ValenceBonusPercentageColor|25.7}}&lt;/td&gt;&lt;/tr&gt;"
+    "&lt;/table&gt;"
+)
+_p = _fv.parse_wikitext(_WT)
+check("★ 源页解析器：A/B 两批 + Tenet 一次全解（不再依赖渲染页缓存）",
+      sorted(_p["coda"]) == [1, 2] and len(_p["tenet"]) == 1,
+      f"{_p}")
+check("★ 源页解析器：Batch A 两行、值正确（去 {{D|}} / {{Valence…}} 模板壳）",
+      _p["coda"].get(1) == [{"en": "Coda Hema", "element": "Magnetic", "bonus": 34.2},
+                            {"en": "Coda Mire", "element": "Impact", "bonus": 28.3}],
+      str(_p["coda"].get(1)))
+check("★ 源页解析器：Batch B 同页解析（旧渲染路径正是漏这一批）",
+      _p["coda"].get(2) == [{"en": "Coda Bassocyst", "element": "Magnetic", "bonus": 31.6}],
+      str(_p["coda"].get(2)))
+check("★ 源页解析器：Tenet 名字带 {{Weapon|}} 壳也能剥出（且只收 Tenet 行）",
+      _p["tenet"] == [{"en": "Tenet Ferrox", "element": "Radiation", "bonus": 25.7}],
+      str(_p["tenet"]))
+check("★ 源页解析器：非效价表（无表头/无数据行）不误收",
+      _fv.parse_wikitext("&lt;table&gt;&lt;tr&gt;&lt;td&gt;x&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;")
+      == {"coda": {}, "tenet": []},
+      "空表被误收")
 
 print()
 if FAILED:
