@@ -658,9 +658,13 @@ class RivenCommands:
             if fam:
                 # ★ 2026-10-03 Phase 4：组合枪双模式家族的示例改用
                 # 「腔体名（模式）」——组合枪紫卡卡面不写武器名，模式得用户带。
+                #   ★ 同日晚：mother_name 已带「（主要）」时示例原样，别拼成
+                #     「墓指（主要）（主要）」（线上实证）。
                 if any("（主要）" in n or "（次要）" in n for n, _v in fam):
+                    _ex_name = (mother_name if RA.mode_of(mother_name)
+                                else f"{mother_name}（主要）")
                     _ex_tail = (f"　卡面不显示变体/模式，装在变体或另一模式上"
-                                f"请发「紫卡分析 {mother_name}（主要） [截图]」")
+                                f"请发「紫卡分析 {_ex_name} [截图]」")
                 else:
                     _ex_tail = ("　卡面不显示变体，装在棱晶等变体上请发"
                                 "「紫卡分析 棱晶欧玛 [截图]」")

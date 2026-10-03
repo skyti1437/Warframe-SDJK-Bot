@@ -115,20 +115,13 @@ def weapon_class(riven_type: str = "", group: str = "") -> Optional[str]:
     return "rifle"
 
 
-# ★ 2026-10-03（用户实证 + wiki Kitgun 页触发器分类表）：组合枪**主要形态**
-#   的 MOD 基值列逐腔体不同 —— 捕月/孢射主要=霰弹列，墓指/响胆/凝视/虫置
-#   主要=步枪列（页内补丁记录："Tombfinger and Rattleguts are Rifles, and
-#   Catchmoon is a Shotgun"；Gaze 在分类表里也列于 Rifle 组）。次要形态一律
-#   手枪列（WM 裸行=次要形态）。倾向**数值**不受影响 —— 仍取 Riven Mods 页
-#   （本 Kitgun 页倾向表停留在 2025-08-26，数值有代差，只作类别证据）。
-_KITGUN_PRIMARY_CLASS: dict[str, str] = {
-    "catchmoon": "shotgun", "捕月": "shotgun",
-    "sporelacer": "shotgun", "孢射": "shotgun",
-    "tombfinger": "rifle", "墓指": "rifle",
-    "rattleguts": "rifle", "响胆": "rifle",
-    "gaze": "rifle", "凝视": "rifle", "凝目": "rifle",
-    "vermisplicer": "rifle", "虫置": "rifle",
-}
+# ★ 2026-10-03 晚（用户同卡双态截图实证，推翻本日早间结论）：组合枪紫卡的
+#   基值列**不分模式一律手枪列** —— 墓指（主要）实卡（伤害 194.7/多重 103.5/
+#   弹匣 50.2）按手枪列×倾向 1.0 反推 U=0.95/0.92/1.07 全部落带，按步枪列
+#   反推 U=1.26/1.23 出带（不可能）。kitgun 在 DE 物品系统里 productCategory
+#   就是 Pistols；「主要形态用霰弹枪 MOD」说的是普通 MOD 槽，不约束紫卡基值。
+#   主/次形态只差**倾向值**（omega/primeOmega，按模式拆分行取）。早间按
+#   「霰弹/步枪列」部署的逐腔体映射由此回退（8721dfc 的回归部分）。
 _MODE_SUFFIX_RE = re.compile(r"[（(](主要|次要|大气|primary|secondary|atmosphere)[)）]\s*$",
                              re.I)
 _MODE_ALIASES = {"主要": "primary", "次要": "secondary", "大气": "atmosphere"}
@@ -144,25 +137,14 @@ def mode_of(name: str) -> Optional[str]:
 
 
 def kitgun_mode_class(name: str, base_cls: str, base_riven_type: str) -> str:
-    """kitgun 腔体按模式选基值列；非 kitgun 一律母行类别。
+    """kitgun 腔体的紫卡基值列：**不分模式一律手枪列**（见上，实卡实证）。
 
-    主要形态查 `_KITGUN_PRIMARY_CLASS`（腔体 EN/ZH 名都认），查不到回落
-    母行类别；次要形态=手枪列；裸行（WM 的 catchmoon，即次要形态）=母行。
-    模式后缀也存在非 kitgun 武器上（如 Vinquibus (Primary) 是步枪），
-    那些必须原样返回母行类别 —— 所以 kitgun 判定只认母行的 riven_type。
+    函数保留签名是因为调用方（riven.py 家族候选三元组）按候选传参；
+    非 kitgun 原样返回母行类别。
     """
     if (base_riven_type or "").lower() != "kitgun":
         return base_cls
-    mode = mode_of(name)
-    if mode == "primary":
-        low = (name or "").lower()
-        for token, c in _KITGUN_PRIMARY_CLASS.items():
-            if token in low:
-                return c
-        return base_cls
-    if mode == "secondary":
-        return "pistol"
-    return base_cls
+    return "pistol"
 
 
 def factor_for(n_pos: int, n_neg: int) -> tuple[float, Optional[float]]:
