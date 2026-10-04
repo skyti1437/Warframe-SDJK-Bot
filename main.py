@@ -436,7 +436,7 @@ HELP_TOPIC: dict[str, list[tuple[str, str]]] = {
 
 @register("astrbot_plugin_warframe_sdjkbot", "skyti1437",
           f"{BRAND}：世界状态 / 市场查价 / 蹲点推送",
-          "1.1.4")
+          "1.1.5")
 class WarframeSDJK(DailyCommands, ProgressCommands, ArbitrationCommands, RotationCommands, RelicCommands, MarketCommands, RivenCommands, WikiMiscCommands, VisionCommands, ScanCommands, DunCommands, Star):
     def __init__(self, context: Context, config: AstrBotConfig | None = None):
         super().__init__(context)

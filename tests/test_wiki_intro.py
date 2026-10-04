@@ -326,6 +326,51 @@ check("★ 哨兵：半角标签渲染防线（_localize 清洗生效）",
       "<" not in _probe and "火焰伤害" in _probe and "15 能量" in _probe
       and "  " not in _probe, _probe)
 
+# -------------------------------- 掉落兜底卡：黄金样本（2026-10-04 重建 drops.items 后）
+# 背景：build_drops.py 旧实现把 items 从旧文件「原样续传」，而 places 每次重建、pid 重排
+# ⇒ items[item] 的 pid 指向错误条目（实测 items['athodai blueprint'] 6 条里 4 条错连
+# Axi A16/A17/A19/A2 Relic）。2026-10-04 已重建为「与 places 同源同编号」。
+# ★ 黄金样本（固定期望值，不依赖联网）：Athodai Blueprint 的真值 = 6 个金星 Caches 节点，
+#   B 轮 Rare 6.45%（与 DE 官方掉落页 / WFCD 一致）。
+_drops = json.loads((ROOT / "core" / "data" / "drops.json").read_text(encoding="utf-8"))
+_places = _drops.get("places") or {}
+_ab = _drops.get("items", {}).get("athodai blueprint") or []
+_ab_places = [_places.get(str(r[0])) or "" for r in _ab]
+check("★ 黄金样本：items['athodai blueprint'] 6 条全为金星 Caches（B 轮 6.45%）",
+      len(_ab) == 6 and all(p.startswith("金星 ·") and "储藏库" in p and "B轮" in p
+                            for p in _ab_places)
+      and all(r[1] == "Rare" and r[2] == 6.45 for r in _ab),
+      str(_ab_places))
+check("★ 黄金样本：不得出现遗物被当成掉落地点（旧 bug 形态）",
+      not any("Relic" in p for p in _ab_places), str(_ab_places))
+check("★ 数据不变量：items 的每个 pid 都在 places 键域内（越界 = 0）",
+      all(str(r[0]) in _places for lst in _drops.get("items", {}).values() for r in lst))
+check("★ 数据不变量：zh2en.values() ⊆ items.keys()（死映射已剔除）",
+      all(en in (_drops.get("items") or {}) for en in (_drops.get("zh2en") or {}).values()))
+
+# ★ 补丁回归（2026-10-04）：WFCD 源缺官方页的 Cryotic Front (Excavation) 整表，
+#   build_drops.py::PATCH_CRYOTIC_EXCAVATION 补注入 30 行（A/B/C 轮，与官方页逐行一致）。
+_exc_pids = {p for p, v in _places.items() if "Cryotic Front · 挖掘" in v}
+_exc_labels = sorted(_places[p] for p in _exc_pids)
+check("★ 补丁：Cryotic Front (Excavation) 三张轮次表都在 places",
+      len(_exc_pids) == 3 and all(any(f"{r}轮" in x for x in _exc_labels) for r in "ABC"),
+      str(_exc_labels))
+_a21 = [(str(r[0]), r[2]) for r in (_drops.get("items", {}).get("axi a21 relic") or [])]
+check("★ 补丁：items['axi a21 relic'] 含挖掘 C 轮 11.06% 来源（官方页真值）",
+      any(p in _exc_pids and ch == 11.06 for p, ch in _a21), str(_a21[:6]))
+_e400 = [(str(r[0]), r[2]) for r in (_drops.get("items", {}).get("400 endo") or [])]
+check("★ 补丁：items['400 endo'] 含挖掘 A 轮 25% 来源",
+      any(p in _exc_pids and ch == 25 for p, ch in _e400), str(_e400[:6]))
+
+# ★ 名称回归（2026-10-04）：WFCD 09-25 已把 Neo K10 的名称修回 Gyre Prime Systems
+#   Blueprint；旧快照曾带回「Gyre Systems Blueprint」（与扎里曼赏金的真物品撞名）。
+_gs = [_places.get(str(r[0])) or "" for r in (_drops.get("items", {}).get("gyre systems blueprint") or [])]
+_gp = [_places.get(str(r[0])) or "" for r in (_drops.get("items", {}).get("gyre prime systems blueprint") or [])]
+check("★ 名称回归：'gyre systems blueprint' 不得指向任何 Neo K10 遗物（真值=扎里曼赏金）",
+      bool(_gs) and not any("Neo K10" in p for p in _gs), str(_gs))
+check("★ 名称回归：'gyre prime systems blueprint' 必须含 Neo K10 四档",
+      len([p for p in _gp if "Neo K10" in p]) == 4, str(sorted(_gp)))
+
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")
     sys.exit(1)
