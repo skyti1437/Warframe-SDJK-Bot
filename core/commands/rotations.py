@@ -7,6 +7,7 @@
 随迁模块级函数 _elem_txt / _weapon_rows（_rotation_lines 专用行构造）。
 子包纪律：不 import astrbot（事件对象鸭子类型）。
 """
+
 from __future__ import annotations
 
 import json
@@ -61,7 +62,6 @@ class RotationCommands:
         title, lines = fmt.fmt_bounties(data, keyword, cycle)
         return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
 
-
     # ------------------------------------------------------------------
     # 确定性轮换（灵化/信条/终幕/言录使）：数据驱动，见 core/data/rotations.json
     # ------------------------------------------------------------------
@@ -77,8 +77,9 @@ class RotationCommands:
         try:
             # ★ 数据源三层（2026-09-28 裁定）：运行期副本（自动刷新回写）→ 包内种子 → 空 dict。
             #   旧实现直接读包内常量 ⇒ 自动刷新的回写**到不了卡面**，换批只能靠发版。
-            data = json.loads(core_paths.read_path("rotations.json")
-                              .read_text(encoding="utf-8")).get(key, {})
+            data = json.loads(
+                core_paths.read_path("rotations.json").read_text(encoding="utf-8")
+            ).get(key, {})
         except Exception:  # noqa: BLE001
             pass
         from datetime import datetime, timedelta, timezone
@@ -96,8 +97,7 @@ class RotationCommands:
             nxt = weeks[wk_no % len(weeks)]
             # 本周重置点（周一 00:00 UTC）
             wd = now.weekday()
-            reset = (now - timedelta(days=wd)).replace(hour=0, minute=0, second=0,
-                                                       microsecond=0)
+            reset = (now - timedelta(days=wd)).replace(hour=0, minute=0, second=0, microsecond=0)
             nxt_reset = reset + period
             left = nxt_reset - now
             hrs = int(left.total_seconds() // 3600)
@@ -108,10 +108,13 @@ class RotationCommands:
                 same = var.lower().replace(" ", "") == (it.get("en") or "").lower().replace(" ", "")
                 lines.append(f"· {name}" + (f"（{var}）" if var and not same else ""))
             lines.append("◆ 下周：" + "、".join(x.get("cn") or x.get("en") for x in nxt))
-            lines.append(f"※ 距换轮 {hrs // 24}天{hrs % 24}小时　"
-                         f"（本周期共 {len(weeks)} 周，循环往复）")
-            lines.append("※ 数据源：Update 43 官方轮换表；锚点 Week "
-                         f"{anchor_week} 起于 {epoch.strftime('%Y-%m-%d')}（周一 UTC）")
+            lines.append(
+                f"※ 距换轮 {hrs // 24}天{hrs % 24}小时　（本周期共 {len(weeks)} 周，循环往复）"
+            )
+            lines.append(
+                "※ 数据源：Update 43 官方轮换表；锚点 Week "
+                f"{anchor_week} 起于 {epoch.strftime('%Y-%m-%d')}（周一 UTC）"
+            )
             lines.append("※ 每周可在钢铁回廊 Tier 5 / Tier 10 各选 1 个灵化适配器")
             return Reply(title, lines)
 
@@ -131,10 +134,13 @@ class RotationCommands:
             days = int(data.get("period_hours", 96)) // 24
             lines = [f"◆ 当前为 {labels[idx]} 批（共 {len(batches)} 批轮换，每 {days} 天换一次）"]
             lines.extend(_weapon_rows(cur))
-            lines.append(f"◆ 下一批 {labels[(idx + 1) % len(batches)]}："
-                         + "、".join(x.get("cn") or x.get("en") for x in nxt))
-            lines.append(f"※ 距换批 {hrs // 24}天{hrs % 24}小时"
-                         f"（{nxt_at.strftime('%m-%d %H:%M')} UTC）")
+            lines.append(
+                f"◆ 下一批 {labels[(idx + 1) % len(batches)]}："
+                + "、".join(x.get("cn") or x.get("en") for x in nxt)
+            )
+            lines.append(
+                f"※ 距换批 {hrs // 24}天{hrs % 24}小时（{nxt_at.strftime('%m-%d %H:%M')} UTC）"
+            )
             _vn = self._valence_note(data, epoch + period * passed)
             if _vn:
                 lines.append(_vn)
@@ -154,8 +160,10 @@ class RotationCommands:
             days = int(data.get("period_hours", 96)) // 24
             lines = [f"◆ 常驻 {len(items)} 把（随到随买，各 40 个腐化全息密钥）"]
             lines.extend(_weapon_rows(items))
-            lines.append(f"※ 元素加成每 {days} 天重生成　距下次 {hrs // 24}天{hrs % 24}小时"
-                         f"（{nxt_at.strftime('%m-%d %H:%M')} UTC）")
+            lines.append(
+                f"※ 元素加成每 {days} 天重生成　距下次 {hrs // 24}天{hrs % 24}小时"
+                f"（{nxt_at.strftime('%m-%d %H:%M')} UTC）"
+            )
             _vn = self._valence_note(data, epoch + period * passed)
             if _vn:
                 lines.append(_vn)
@@ -166,8 +174,13 @@ class RotationCommands:
         # —— 模式二：滑动窗口 ——
         items = data.get("items") or []
         if not items:
-            return Reply(title, ["该轮换的数据表（core/data/rotations.json -> "
-                                 f"{key}）尚未接线，请按当前版本校准后填入"])
+            return Reply(
+                title,
+                [
+                    "该轮换的数据表（core/data/rotations.json -> "
+                    f"{key}）尚未接线，请按当前版本校准后填入"
+                ],
+            )
         epoch = datetime.fromisoformat(data["epoch"])
         hours = max(1, int(data.get("period_hours", 168)))
         pick = max(1, int(data.get("pick", 1)))
@@ -193,8 +206,5 @@ class RotationCommands:
             title, lines = fmt.fmt_acrichis_week(week)
         else:
             # 过期时必须明说「这只是候选池」，否则会被当成本周实际在卖的 5 件
-            title, lines = fmt.fmt_acrichis(
-                await self.client.acrithis_pool(), stale=True)
+            title, lines = fmt.fmt_acrichis(await self.client.acrithis_pool(), stale=True)
         return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
-
-

@@ -10,6 +10,7 @@
 
 数据由 ``scripts/build_baro_history.py`` 从 ``Module:Baro/data`` 生成。
 """
+
 from __future__ import annotations
 
 import json
@@ -93,11 +94,14 @@ def names_zh() -> dict:
     global _NAMES
     if _NAMES is None:
         try:
-            _NAMES = json.loads((DATA_FILE.parent / "baro_names_zh.json")
-                                .read_text(encoding="utf-8"))
-        except Exception:                        # noqa: BLE001
+            _NAMES = json.loads(
+                (DATA_FILE.parent / "baro_names_zh.json").read_text(encoding="utf-8")
+            )
+        except Exception:  # noqa: BLE001
             _NAMES = {}
     return _NAMES
+
+
 # 不参与轮换的物品（每次都在卖 / 特殊活动项），预测它们没意义
 _SKIP_TYPES = ("", "AlwaysAvailable", "ExtraItems")
 
@@ -107,7 +111,7 @@ def load() -> dict:
     if _DB is None:
         try:
             _DB = json.loads(DATA_FILE.read_text(encoding="utf-8"))
-        except Exception:                        # noqa: BLE001
+        except Exception:  # noqa: BLE001
             _DB = {}
     return _DB
 
@@ -139,8 +143,7 @@ def next_visit_est() -> Optional[str]:
     return (d + timedelta(days=period)).strftime("%Y-%m-%d")
 
 
-def predict(limit: int = 12, min_seen: int = 3, active_within: int = 120
-            ) -> list[dict]:
+def predict(limit: int = 12, min_seen: int = 3, active_within: int = 120) -> list[dict]:
     """最可能在下期回归的物品（按「逾期程度」降序）。
 
     口径（全部可复算，卡片上也会写）：
@@ -188,21 +191,23 @@ def predict(limit: int = 12, min_seen: int = 3, active_within: int = 120
         if score > 3.0:
             continue
         t_en = rec.get("t") or ""
-        out.append({
-            "name": name,
-            "name_cn": names_zh().get(name, ""),
-            "type": t_en,
-            "type_cn": type_cn(t_en),
-            "group": group_of(t_en),
-            "ducats": rec.get("d") or 0,
-            "credits": rec.get("c") or 0,
-            "last": vs[last_i],
-            "silent": silent,
-            "gap": round(gap, 1),
-            "max_gap": max(gaps),      # 历史最长间隔（停售嫌疑的判据，测试要复算）
-            "score": round(score, 2),
-            "times": len(vidx),
-        })
+        out.append(
+            {
+                "name": name,
+                "name_cn": names_zh().get(name, ""),
+                "type": t_en,
+                "type_cn": type_cn(t_en),
+                "group": group_of(t_en),
+                "ducats": rec.get("d") or 0,
+                "credits": rec.get("c") or 0,
+                "last": vs[last_i],
+                "silent": silent,
+                "gap": round(gap, 1),
+                "max_gap": max(gaps),  # 历史最长间隔（停售嫌疑的判据，测试要复算）
+                "score": round(score, 2),
+                "times": len(vidx),
+            }
+        )
     # 越接近 1 越「按节奏该来」；同分时更常上架的优先
     out.sort(key=lambda r: (abs(r["score"] - 1.0), -r["times"], r["name"]))
     return out[:limit]

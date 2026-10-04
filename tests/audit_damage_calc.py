@@ -12,6 +12,7 @@
   ⑤ 公式不变量：与 wiki 原文对齐的硬性等式（减伤/元素/物理/暴击/DoT/异常）
   ⑥ 解析边界：负数、极端等级、重复 MOD、元素顺序、未知词
 """
+
 from __future__ import annotations
 
 import math
@@ -53,8 +54,10 @@ w = dc._load()["weapons"]
 mods = dc._load()["mods"]
 enemies = dc._load()["enemies"]
 fac = dc._load()["fac_table"]
-print(f"  武器 {len(w)} / MOD {len(mods)}（数值 {sum(1 for m in mods.values() if m.get('numeric'))}）"
-      f" / 敌人 {len(enemies)} / 派系表 {len(fac)} 类型")
+print(
+    f"  武器 {len(w)} / MOD {len(mods)}（数值 {sum(1 for m in mods.values() if m.get('numeric'))}）"
+    f" / 敌人 {len(enemies)} / 派系表 {len(fac)} 类型"
+)
 
 no_zh = [v["name"] for v in w.values() if not v.get("zh")]
 if no_zh:
@@ -65,9 +68,8 @@ if no_dmg:
 
 unknown_type = set()
 for v in w.values():
-    for k in (v.get("damage") or {}):
-        if (k not in dc.TYPE_ZH and k not in ("total",)
-                and k.lower() not in dc._SKIP_TYPES):
+    for k in v.get("damage") or {}:
+        if k not in dc.TYPE_ZH and k not in ("total",) and k.lower() not in dc._SKIP_TYPES:
             unknown_type.add(k)
 if unknown_type:
     lo(f"武器数据里出现了 TYPE_ZH 未收录的伤害类型键：{sorted(unknown_type)}")
@@ -81,8 +83,13 @@ if zh_missing:
     mid(f"派系表里有 FACTION_ZH 没收录的派系（卡面会显示英文名）：{zh_missing}")
 
 # 敌人表：派系必须在派系表的列里，否则弱点倍率恒为 1
-bad_fac = sorted({e.get("faction") for e in enemies.values()
-                  if e.get("faction") and e.get("faction") not in cols})
+bad_fac = sorted(
+    {
+        e.get("faction")
+        for e in enemies.values()
+        if e.get("faction") and e.get("faction") not in cols
+    }
+)
 if bad_fac:
     hi(f"敌人表里有 {len(bad_fac)} 个派系不在派系倍率表的列里（会按 ×1 处理）：{bad_fac}")
 # 数值合理性
@@ -95,15 +102,26 @@ for k, e in enemies.items():
         mid(f"敌人 {k} 基准等级异常：{e.get('base_level')}")
 
 # MOD：标了 numeric 但没有任何可算效果
-empty_numeric = [m.get("title") or m.get("name") for m in mods.values()
-                 if m.get("numeric") and not (m.get("effects") or {})]
+empty_numeric = [
+    m.get("title") or m.get("name")
+    for m in mods.values()
+    if m.get("numeric") and not (m.get("effects") or {})
+]
 if empty_numeric:
     mid(f"{len(empty_numeric)} 张 MOD 标了 numeric 却无 effects：{empty_numeric[:5]}")
 # MOD：数值离谱
 for key, m in mods.items():
     eff = m.get("effects") or {}
-    for f in ("base_dmg", "multishot", "crit_chance", "crit_dmg", "fire_rate",
-              "headshot_bonus", "status_dmg", "faction_dmg"):
+    for f in (
+        "base_dmg",
+        "multishot",
+        "crit_chance",
+        "crit_dmg",
+        "fire_rate",
+        "headshot_bonus",
+        "status_dmg",
+        "faction_dmg",
+    ):
         v = eff.get(f)
         if v is not None and (not sane(v) or abs(v) > 1000):
             mid(f"MOD {key} 的 {f}={v} 离谱")
@@ -139,8 +157,17 @@ for key, wrec in w.items():
             if crashes > 4:
                 traceback.print_exc()
             continue
-        for f in ("health", "shield", "dps", "crit_exp", "armor", "dr",
-                  "head_mult", "multishot_total", "fire_rate"):
+        for f in (
+            "health",
+            "shield",
+            "dps",
+            "crit_exp",
+            "armor",
+            "dr",
+            "head_mult",
+            "multishot_total",
+            "fire_rate",
+        ):
             v = r.get(f)
             if v is None or not sane(v):
                 bad += 1
@@ -218,51 +245,73 @@ def chk(name, cond, detail=""):
 
 
 # 敌人减伤：wiki Armor「Enemy Damage Reduction = 90%·√(Net Armor/2700)」
-chk("敌人 DR 在护甲 2700 时为 90%", close(dc.damage_reduction(2700), 0.90, 1e-9),
-    f"得到 {dc.damage_reduction(2700) if hasattr(dc, 'damage_reduction') else '?'}")
-chk("敌人 DR 在护甲 200 时为 90%·√(200/2700)",
+chk(
+    "敌人 DR 在护甲 2700 时为 90%",
+    close(dc.damage_reduction(2700), 0.90, 1e-9),
+    f"得到 {dc.damage_reduction(2700) if hasattr(dc, 'damage_reduction') else '?'}",
+)
+chk(
+    "敌人 DR 在护甲 200 时为 90%·√(200/2700)",
     close(dc.damage_reduction(200), 0.9 * math.sqrt(200 / 2700), 1e-9),
-    f"得到 {dc.damage_reduction(200)}")
+    f"得到 {dc.damage_reduction(200)}",
+)
 chk("敌人 DR 单调递增", dc.damage_reduction(500) < dc.damage_reduction(2000))
 
 # 元素 = 总基伤百分比；物理 = 同类型基础值百分比
-w100 = {"damage": {"total": 100.0, "impact": 50.0, "slash": 50.0},
-        "criticalChance": 0.0, "criticalMultiplier": 1.0, "fireRate": 1.0}
+w100 = {
+    "damage": {"total": 100.0, "impact": 50.0, "slash": 50.0},
+    "criticalChance": 0.0,
+    "criticalMultiplier": 1.0,
+    "fireRate": 1.0,
+}
 s_e, _ = dc.parse_args(["火90"])
 r_e = dc.calculate(s_e, w100)
-chk("元素 MOD 按总基伤 90%（=90 火伤）",
-    close(r_e["pools"].get("heat", 0), 90.0), str(r_e["pools"]))
+chk(
+    "元素 MOD 按总基伤 90%（=90 火伤）", close(r_e["pools"].get("heat", 0), 90.0), str(r_e["pools"])
+)
 s_p, _ = dc.parse_args(["切90"])
 r_p = dc.calculate(s_p, w100)
-chk("物理 MOD 按同类型基础值（50×1.9=95）",
+chk(
+    "物理 MOD 按同类型基础值（50×1.9=95）",
     close(r_p["per_type_health"]["slash"] / (1 - r_p["dr"]), 95.0, 1e-6),
-    str(r_p["per_type_health"]))
+    str(r_p["per_type_health"]),
+)
 
 # 基伤 MOD 同时放大元素与物理
 s_b, _ = dc.parse_args(["基伤100", "火90"])
 r_b = dc.calculate(s_b, w100)
-chk("基伤+100% 后 元素 = 90%×200 = 180",
+chk(
+    "基伤+100% 后 元素 = 90%×200 = 180",
     close(r_b["pools"].get("heat", 0), 90.0)  # pools 存的是百分比
     and close(r_b["per_type_health"]["heat"] / (1 - r_b["dr"]), 180.0, 1e-6),
-    f"heat 项 {r_b['per_type_health'].get('heat')}")
+    f"heat 项 {r_b['per_type_health'].get('heat')}",
+)
 
 # 异常状态数值
 chk("病毒 10 层 = ×4.25", close(1 + 1.0 + 0.25 * 9, 4.25))
-chk("腐蚀 10 层剥甲 = 80%",
-    close(min(0.26 + 0.06 * 9, 0.80), 0.80))
+chk("腐蚀 10 层剥甲 = 80%", close(min(0.26 + 0.06 * 9, 0.80), 0.80))
 chk("火剥甲 = 50%", close(dc.HEAT_STRIP, 0.50))
 
 # DoT：切割 35% / 火 50%，按 MOD 后基伤、不含元素；派系 MOD 结算两次
 s_d, _ = dc.parse_args(["G系", "基伤100"])
-r_d = dc.calculate(s_d, {"damage": {"total": 100.0, "slash": 100.0},
-                         "criticalChance": 0.0, "criticalMultiplier": 1.0,
-                         "fireRate": 1.0})
+r_d = dc.calculate(
+    s_d,
+    {
+        "damage": {"total": 100.0, "slash": 100.0},
+        "criticalChance": 0.0,
+        "criticalMultiplier": 1.0,
+        "fireRate": 1.0,
+    },
+)
 if "slash" in r_d["dots"]:
     expect = (100.0 * 2.0) * 0.35 * 6  # 基伤 100 → Modded 200；35%/s × 6s
     got = r_d["dots"]["slash"]
     # 注意：卡面 DoT 口径 = 每秒 × 6 秒，含派系倍率与传染病加成
-    chk("切割 DoT ≈ 35%×MOD后基伤×6s", close(got / (1 + r_d.get("viral_mult", 1) - 1), expect, 1e-6)
-        or got > 0, f"got {got} expect≈{expect}")
+    chk(
+        "切割 DoT ≈ 35%×MOD后基伤×6s",
+        close(got / (1 + r_d.get("viral_mult", 1) - 1), expect, 1e-6) or got > 0,
+        f"got {got} expect≈{expect}",
+    )
 else:
     hi("切割 DoT 没算出来（武器有 100 切割基础）")
 
@@ -274,8 +323,7 @@ chk("毒素不计入对盾", close(r_t["per_type_shield"].get("toxin", 0.0), 0.0
 # 多重只影响每次扳机，不影响 DoT
 s_m, _ = dc.parse_args(["多重100"])
 r_m = dc.calculate(s_m, w100)
-chk("多重 100% → 每次扳机翻倍",
-    close(r_m["per_trigger_health"], r_m["health"] * 2, 1e-9))
+chk("多重 100% → 每次扳机翻倍", close(r_m["per_trigger_health"], r_m["health"] * 2, 1e-9))
 
 # ---------------------------------------------------------------------------
 # ⑥ 解析边界
@@ -309,8 +357,10 @@ for toks, label in EDGE:
             flag.append(f"负暴率 {r['crit_cc']}")
         if spec["level"] not in (0, 99999, 100):
             flag.append(f"等级={spec['level']}")
-        print(f"  {label:16s} {'; '.join(flag) if flag else 'ok'}"
-              f"   [pools={r['pools']} 等级={spec['level']}]")
+        print(
+            f"  {label:16s} {'; '.join(flag) if flag else 'ok'}"
+            f"   [pools={r['pools']} 等级={spec['level']}]"
+        )
         for f in flag:
             mid(f"⚠️ 边界「{label}」：{f}")
     except Exception as exc:  # noqa: BLE001
@@ -346,8 +396,10 @@ print("  [OK] 爆头倍率按敌人（Eidolon ×1 / 普通 ×2）")
 
 # ③ 状态伤害只作用于 DoT
 _s1, _ = dc.parse_args(["G系", "100级"])
-_s2 = dict(_s1); _s2["status_dmg"] = 90.0
-_r1 = dc.calculate(_s1, base_w); _r2 = dc.calculate(_s2, base_w)
+_s2 = dict(_s1)
+_s2["status_dmg"] = 90.0
+_r1 = dc.calculate(_s1, base_w)
+_r2 = dc.calculate(_s2, base_w)
 if not close(_r2["health"], _r1["health"], 1e-9):
     hi("🔴 状态伤害改动影响了直伤（应只影响 DoT）")
 if _r1["dots"] and not (_r2["dots"]["slash"] > _r1["dots"]["slash"] * 1.5):
@@ -375,8 +427,9 @@ if _r_gun.get("dps_sustained") and _r_gun["dps_sustained"] > _r_gun["dps"] * 1.0
 print("  [OK] 持续 DPS（枪械有 / 近战无 / 不高于爆发）")
 
 # ⑥ 武器数据字段覆盖
-_no_mag = [v["name"] for v in w.values() if v.get("category") != "Melee"
-           and not v.get("magazineSize")]
+_no_mag = [
+    v["name"] for v in w.values() if v.get("category") != "Melee" and not v.get("magazineSize")
+]
 if len(_no_mag) > len(w) * 0.15:
     mid(f"⚠️ {len(_no_mag)} 件非近战武器缺 magazineSize：{_no_mag[:4]}")
 print(f"  [OK] 弹匣字段覆盖：非近战缺 {len(_no_mag)} 件")
@@ -393,8 +446,7 @@ for _el, _cfg in dc.STATUS_TABLE.items():
     if not _cfg.get("dur"):
         mid(f"⚠️ 异常 {_el} 缺持续时间")
     # 每秒型 DoT 必须与 DOT_RATIO 对齐；instant（爆炸）是一次性结算，不在这张表
-    if (_cfg.get("ratio") and not _cfg.get("instant")
-            and _cfg["ratio"] not in dc.DOT_RATIO.values()):
+    if _cfg.get("ratio") and not _cfg.get("instant") and _cfg["ratio"] not in dc.DOT_RATIO.values():
         hi(f"🔴 {_el} 的 DoT 系数 {_cfg['ratio']} 不在 DOT_RATIO 里（两处口径不一致）")
 for _el, _r in dc.DOT_RATIO.items():
     if not dc.STATUS_TABLE.get(_el, {}).get("ratio"):

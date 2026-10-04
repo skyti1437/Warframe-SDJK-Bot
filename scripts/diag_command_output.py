@@ -7,6 +7,7 @@
 用法（容器内）：
     PYTHONPATH=<plugin> python3 scripts/diag_command_output.py 仲裁 赤毒 钢铁之路
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -42,7 +43,9 @@ async def main():
 
     plugin = WarframeSDJK(context=None, config={})
     routes = plugin._build_routes()
-    print(f"[init] 路由表 {len(routes)} 项，渲染器可用={getattr(plugin.renderer, 'available', '?')}\n")
+    print(
+        f"[init] 路由表 {len(routes)} 项，渲染器可用={getattr(plugin.renderer, 'available', '?')}\n"
+    )
 
     for q in queries:
         parsed = P.parse(q)
@@ -57,6 +60,7 @@ async def main():
             # 复刻 main.chat() 的兜底分支：WarframeAPIError 会被转成
             # 「⚠️ {exc}」文本回复，其它异常走通用内部错误。
             from core.api_client import WarframeAPIError
+
             if isinstance(exc, WarframeAPIError):
                 print("  → 用户实际收到（chat 兜底后）:")
                 for line in f"⚠️ {exc}".splitlines():
@@ -72,7 +76,7 @@ async def main():
         if pages:
             print(f"  ✓ 多页回复 {len(pages)} 页")
             for i, pg in enumerate(pages, 1):
-                t = (getattr(pg, "raw_text", "") or "")
+                t = getattr(pg, "raw_text", "") or ""
                 print(f"     第{i}页: {t[:180]}")
         elif txt:
             print("  ✓ 文本回复:")

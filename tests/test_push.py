@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """推送守护协程离线集成测试：python3 tests/test_push.py"""
+
 from __future__ import annotations
 
 import asyncio
@@ -20,11 +21,14 @@ def _iso(dt: datetime) -> str:
 
 
 class FakeLogger:
-    def info(self, *a, **k): pass
+    def info(self, *a, **k):
+        pass
 
-    def warning(self, *a, **k): pass
+    def warning(self, *a, **k):
+        pass
 
-    def error(self, *a, **k): pass
+    def error(self, *a, **k):
+        pass
 
 
 class RecordingLogger(FakeLogger):
@@ -46,43 +50,68 @@ class FakeClient:
     def __init__(self):
         self.round = 0
         self._fissures = [
-            {"id": "f1", "node": "Teshub (Eris)", "missionType": "Capture",
-             "tier": "Lith", "tierNum": 1, "expiry": _iso(datetime.now(timezone.utc)
-                                                          + timedelta(hours=1))},
+            {
+                "id": "f1",
+                "node": "Teshub (Eris)",
+                "missionType": "Capture",
+                "tier": "Lith",
+                "tierNum": 1,
+                "expiry": _iso(datetime.now(timezone.utc) + timedelta(hours=1)),
+            },
         ]
 
     async def fissures(self, platform):
         if self.round == 0:
             self.round += 1
         else:
-            self._fissures.append({
-                "id": "f2", "node": "Ukko (Void)", "missionType": "Capture",
-                "tier": "Meso", "tierNum": 2, "isHard": True,
-                "expiry": _iso(datetime.now(timezone.utc) + timedelta(minutes=30))})
+            self._fissures.append(
+                {
+                    "id": "f2",
+                    "node": "Ukko (Void)",
+                    "missionType": "Capture",
+                    "tier": "Meso",
+                    "tierNum": 2,
+                    "isHard": True,
+                    "expiry": _iso(datetime.now(timezone.utc) + timedelta(minutes=30)),
+                }
+            )
         return list(self._fissures)
 
     async def cycle(self, platform, name):
-        return {"_name": name, "state": "day",
-                "expiry": _iso(datetime.now(timezone.utc) + timedelta(minutes=50))}
+        return {
+            "_name": name,
+            "state": "day",
+            "expiry": _iso(datetime.now(timezone.utc) + timedelta(minutes=50)),
+        }
 
     async def bounty_cycle(self):
-        return {"expiry": "1791047752866", "rot": "A", "bounties": {
-            "ZarimanSyndicate": [
-                {"node": "SolNode230",
-                 "challenge": "/Lotus/Types/Challenges/Zariman/"
-                              "ZarimanExterminateFastCompleteChallenge"},
-                {"node": "SolNode231",
-                 "challenge": "/Lotus/Types/Challenges/Zariman/"
-                              "ZarimanSurvivalAbove50Challenge"},
-            ],
-        }}
+        return {
+            "expiry": "1791047752866",
+            "rot": "A",
+            "bounties": {
+                "ZarimanSyndicate": [
+                    {
+                        "node": "SolNode230",
+                        "challenge": "/Lotus/Types/Challenges/Zariman/"
+                        "ZarimanExterminateFastCompleteChallenge",
+                    },
+                    {
+                        "node": "SolNode231",
+                        "challenge": "/Lotus/Types/Challenges/Zariman/"
+                        "ZarimanSurvivalAbove50Challenge",
+                    },
+                ],
+            },
+        }
 
 
 FAILED = []
 
 
 def check(name, cond, detail=""):
-    print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -> {detail}" if detail and not cond else ""))
+    print(
+        f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -> {detail}" if detail and not cond else "")
+    )
     if not cond:
         FAILED.append(name)
 
@@ -98,34 +127,58 @@ async def main():
     daemon = PushDaemon(FakeClient(), store, send, FakeLogger(), interval=15)
 
     # 订阅：只蹲 钢铁捕获，命中一次即取消
-    sub = Subscription(umo="group://1", platform="pc", event="裂隙",
-                       rule="钢铁捕获", until=-1, once=True, hits_left=None,
-                       windows={})
+    sub = Subscription(
+        umo="group://1",
+        platform="pc",
+        event="裂隙",
+        rule="钢铁捕获",
+        until=-1,
+        once=True,
+        hits_left=None,
+        windows={},
+    )
     await store.add(sub)
 
-    check("事件词归一化", normalize_event("钢铁裂隙") == "裂隙"
-          and normalize_event("执刑官猎杀") == "执刑官")
+    check(
+        "事件词归一化",
+        normalize_event("钢铁裂隙") == "裂隙" and normalize_event("执刑官猎杀") == "执刑官",
+    )
 
     flt = parse_fissure_filter("钢铁捕获")
-    check("守护协程筛选缓存", daemon.filter_for(sub).describe() == flt.describe(),
-          daemon.filter_for(sub).describe())
+    check(
+        "守护协程筛选缓存",
+        daemon.filter_for(sub).describe() == flt.describe(),
+        daemon.filter_for(sub).describe(),
+    )
 
-    await daemon.tick()   # 第一轮：f1（普通）不命中
+    await daemon.tick()  # 第一轮：f1（普通）不命中
     check("第一轮无推送（普通捕获不命中钢铁规则）", sent == [], str(sent))
 
-    await daemon.tick()   # 第二轮：f2 钢铁捕获 命中
-    check("第二轮推送钢铁捕获", len(sent) == 1 and "Ukko" in sent[0][1] and "钢铁" in sent[0][1],
-          str(sent))
+    await daemon.tick()  # 第二轮：f2 钢铁捕获 命中
+    check(
+        "第二轮推送钢铁捕获",
+        len(sent) == 1 and "Ukko" in sent[0][1] and "钢铁" in sent[0][1],
+        str(sent),
+    )
     check("一次性订阅已消费移除", store.all() == [], str([s.to_dict() for s in store.all()]))
 
-    await daemon.tick()   # 第三轮：无订阅，不再推送
+    await daemon.tick()  # 第三轮：无订阅，不再推送
     check("移除后不再推送", len(sent) == 1)
 
     # 时长订阅（永久+窗口）
     store2 = SubscriptionStore(tmp / "subs2.json")
     daemon2 = PushDaemon(FakeClient(), store2, send, FakeLogger(), interval=15)
-    await store2.add(Subscription(umo="group://2", platform="pc", event="裂隙",
-                                  rule="", until=-1, once=False, hits_left=None))
+    await store2.add(
+        Subscription(
+            umo="group://2",
+            platform="pc",
+            event="裂隙",
+            rule="",
+            until=-1,
+            once=False,
+            hits_left=None,
+        )
+    )
     before = len(sent)
     # 新守护协程首轮只建立基线，不推送
     await daemon2.tick()
@@ -133,8 +186,10 @@ async def main():
     check("持久化文件生成", (tmp / "subs2.json").exists())
 
 
-check("时间窗全天放行",
-      parse_fissure_filter.__globals__["TimeWindow"]().allows(datetime(2026, 9, 9, 3, 0)))
+check(
+    "时间窗全天放行",
+    parse_fissure_filter.__globals__["TimeWindow"]().allows(datetime(2026, 9, 9, 3, 0)),
+)
 
 asyncio.run(main())
 
@@ -159,8 +214,7 @@ def _apply(pred):
 
 _ev, _keys, _exact, _fuzzy, _label = build_cancel_selector(UMO, ["裂隙", "捕获"])
 check("取消选择器：首词识别为事件类型 裂隙", _ev == "裂隙" and _keys == ["捕获"])
-check("「蹲 取消 裂隙 捕获」精确匹配只删 1 条（不误杀虚空捕获/别的群）",
-      _apply(_exact) == 1)
+check("「蹲 取消 裂隙 捕获」精确匹配只删 1 条（不误杀虚空捕获/别的群）", _apply(_exact) == 1)
 
 _ev2, _keys2, _exact2, _fuzzy2, _label2 = build_cancel_selector(UMO, ["虚空捕获"])
 check("「蹲 取消 虚空捕获」精确删 2 条", _ev2 is None and _apply(_exact2) == 2)
@@ -194,71 +248,94 @@ async def dispatch_scenarios():
     # ① 生存订阅在前、捕获订阅在后；新裂隙是钢铁捕获 → 只命中后者。
     st1 = SubscriptionStore(tmp2 / "s1.json")
     d1 = PushDaemon(FakeClient(), st1, _send2, FakeLogger(), interval=15)
-    subA = Subscription(umo="group://A", platform="pc", event="裂隙",
-                        rule="生存", until=-1, once=True)
-    subB = Subscription(umo="group://A", platform="pc", event="裂隙",
-                        rule="捕获", until=-1, once=True)
+    subA = Subscription(
+        umo="group://A", platform="pc", event="裂隙", rule="生存", until=-1, once=True
+    )
+    subB = Subscription(
+        umo="group://A", platform="pc", event="裂隙", rule="捕获", until=-1, once=True
+    )
     await st1.add(subA)
     await st1.add(subB)
-    await d1.tick()          # 基线：f1
+    await d1.tick()  # 基线：f1
     n = len(_pushed)
-    await d1.tick()          # f2 钢铁捕获：只命中 subB
-    check("同群多筛选：派发给筛选命中的订阅", len(_pushed) == n + 1,
-          str(_pushed[n:]))
+    await d1.tick()  # f2 钢铁捕获：只命中 subB
+    check("同群多筛选：派发给筛选命中的订阅", len(_pushed) == n + 1, str(_pushed[n:]))
     left = [s.rule for s in st1.all()]
-    check("同群多筛选：未命中的订阅不被消费（生存留存）",
-          left == ["生存"], str(left))
+    check("同群多筛选：未命中的订阅不被消费（生存留存）", left == ["生存"], str(left))
 
     # ② 免打扰窗挡住首条时，全天候订阅接住同一事件。
     st2 = SubscriptionStore(tmp2 / "s2.json")
     d2 = PushDaemon(FakeClient(), st2, _send2, FakeLogger(), interval=15)
-    subC = Subscription(umo="group://B", platform="pc", event="裂隙",
-                        rule="捕获", until=-1, once=True,
-                        windows={"start": 0, "end": 1})   # 只在 0-1 点推
-    subD = Subscription(umo="group://B", platform="pc", event="裂隙",
-                        rule="捕获", until=-1, once=True)
+    subC = Subscription(
+        umo="group://B",
+        platform="pc",
+        event="裂隙",
+        rule="捕获",
+        until=-1,
+        once=True,
+        windows={"start": 0, "end": 1},
+    )  # 只在 0-1 点推
+    subD = Subscription(
+        umo="group://B", platform="pc", event="裂隙", rule="捕获", until=-1, once=True
+    )
     await st2.add(subC)
     await st2.add(subD)
     await d2.tick()
     n2 = len(_pushed)
     await d2.tick()
-    check("免打扰窗挡住首条时，全天候订阅接住推送", len(_pushed) == n2 + 1,
-          str(_pushed[n2:]))
+    check("免打扰窗挡住首条时，全天候订阅接住推送", len(_pushed) == n2 + 1, str(_pushed[n2:]))
     left2 = {s.sid for s in st2.all()}
-    check("被窗口挡住的订阅留存，接住的那条消费",
-          subC.sid in left2 and subD.sid not in left2, str(left2))
+    check(
+        "被窗口挡住的订阅留存，接住的那条消费",
+        subC.sid in left2 and subD.sid not in left2,
+        str(left2),
+    )
 
     # ③ 持续订阅（hits_left=2）命中后计数与去重键要落盘。
     st3 = SubscriptionStore(tmp2 / "s3.json")
     d3 = PushDaemon(FakeClient(), st3, _send2, FakeLogger(), interval=15)
-    subE = Subscription(umo="group://C", platform="pc", event="裂隙",
-                        rule="捕获", until=-1, once=False, hits_left=2)
+    subE = Subscription(
+        umo="group://C", platform="pc", event="裂隙", rule="捕获", until=-1, once=False, hits_left=2
+    )
     await st3.add(subE)
     await d3.tick()
     await d3.tick()
     saved = [s for s in st3.all() if s.sid == subE.sid]
-    check("hits_left 计数落盘（2→1）",
-          len(saved) == 1 and saved[0].hits_left == 1,
-          str(saved and saved[0].hits_left))
-    check("notified 去重键落盘",
-          len(saved) == 1 and len(saved[0].notified) == 1,
-          str(saved and saved[0].notified))
+    check(
+        "hits_left 计数落盘（2→1）",
+        len(saved) == 1 and saved[0].hits_left == 1,
+        str(saved and saved[0].hits_left),
+    )
+    check(
+        "notified 去重键落盘",
+        len(saved) == 1 and len(saved[0].notified) == 1,
+        str(saved and saved[0].notified),
+    )
 
     # ④ ★ 成功派发留痕（2026-09-26）：带实例 id —— 跨实例重复推送会打印两个 id。
     st4 = SubscriptionStore(tmp2 / "s4.json")
     rec = RecordingLogger()
     d4 = PushDaemon(FakeClient(), st4, _send2, rec, interval=15)
-    await st4.add(Subscription(umo="group://D", platform="pc", event="裂隙",
-                               rule="捕获", until=-1, once=False, hits_left=5))
-    await d4.tick()          # 基线，不推
-    check("首轮只建基线：无派发日志", not [x for x in rec.lines if "已推送" in x],
-          str(rec.lines))
-    await d4.tick()          # 推一条 → 恰一行留痕，且实例 id 正确
+    await st4.add(
+        Subscription(
+            umo="group://D",
+            platform="pc",
+            event="裂隙",
+            rule="捕获",
+            until=-1,
+            once=False,
+            hits_left=5,
+        )
+    )
+    await d4.tick()  # 基线，不推
+    check("首轮只建基线：无派发日志", not [x for x in rec.lines if "已推送" in x], str(rec.lines))
+    await d4.tick()  # 推一条 → 恰一行留痕，且实例 id 正确
     sent_lines = [x for x in rec.lines if "已推送" in x]
-    check("★ 成功派发留痕恰一行且带实例 id",
-          len(sent_lines) == 1 and f"实例 {id(d4)}" in sent_lines[0]
-          and "事件=裂隙" in sent_lines[0],
-          str(sent_lines))
+    check(
+        "★ 成功派发留痕恰一行且带实例 id",
+        len(sent_lines) == 1 and f"实例 {id(d4)}" in sent_lines[0] and "事件=裂隙" in sent_lines[0],
+        str(sent_lines),
+    )
 
 
 _real_local_now = push_mod._local_now
@@ -281,36 +358,85 @@ async def at_scenarios():
         sent_at.append((umo, text, list(at or [])))
 
     daemon = PushDaemon(FakeClient(), st, send_at, FakeLogger(), interval=15)
-    await st.add(Subscription(umo="group://AT", platform="pc", event="裂隙",
-                              rule="钢铁捕获", until=-1, once=False,
-                              created_by="1001"))
-    await st.add(Subscription(umo="group://AT", platform="pc", event="裂隙",
-                              rule="捕获", until=-1, once=False,
-                              created_by="1002"))
-    await st.add(Subscription(umo="group://AT", platform="pc", event="裂隙",
-                              rule="钢铁歼灭", until=-1, once=False,
-                              created_by="1003"))
-    await st.add(Subscription(umo="group://AT", platform="pc", event="裂隙",
-                              rule="钢铁捕获", until=-1, once=False,
-                              created_by="1004"))   # 多人同规则
-    await daemon.tick()   # 基线
-    await daemon.tick()   # f2 = Ukko 虚空+钢铁 捕获
-    check("★ A1 一条推送一次性 @ 全部命中发起人（去重保序）",
-          len(sent_at) == 1 and sent_at[0][2] == ["1001", "1002", "1004"],
-          str(sent_at))
-    check("★ A1 未命中的规则不得被 @（1003 排除）",
-          sent_at and "1003" not in sent_at[0][2], str(sent_at))
+    await st.add(
+        Subscription(
+            umo="group://AT",
+            platform="pc",
+            event="裂隙",
+            rule="钢铁捕获",
+            until=-1,
+            once=False,
+            created_by="1001",
+        )
+    )
+    await st.add(
+        Subscription(
+            umo="group://AT",
+            platform="pc",
+            event="裂隙",
+            rule="捕获",
+            until=-1,
+            once=False,
+            created_by="1002",
+        )
+    )
+    await st.add(
+        Subscription(
+            umo="group://AT",
+            platform="pc",
+            event="裂隙",
+            rule="钢铁歼灭",
+            until=-1,
+            once=False,
+            created_by="1003",
+        )
+    )
+    await st.add(
+        Subscription(
+            umo="group://AT",
+            platform="pc",
+            event="裂隙",
+            rule="钢铁捕获",
+            until=-1,
+            once=False,
+            created_by="1004",
+        )
+    )  # 多人同规则
+    await daemon.tick()  # 基线
+    await daemon.tick()  # f2 = Ukko 虚空+钢铁 捕获
+    check(
+        "★ A1 一条推送一次性 @ 全部命中发起人（去重保序）",
+        len(sent_at) == 1 and sent_at[0][2] == ["1001", "1002", "1004"],
+        str(sent_at),
+    )
+    check(
+        "★ A1 未命中的规则不得被 @（1003 排除）",
+        sent_at and "1003" not in sent_at[0][2],
+        str(sent_at),
+    )
 
     # 不同会话独立 @：另一个群的同规则不得混入
-    await st.add(Subscription(umo="group://AT2", platform="pc", event="裂隙",
-                              rule="钢铁捕获", until=-1, once=False,
-                              created_by="2001"))
+    await st.add(
+        Subscription(
+            umo="group://AT2",
+            platform="pc",
+            event="裂隙",
+            rule="钢铁捕获",
+            until=-1,
+            once=False,
+            created_by="2001",
+        )
+    )
     await daemon.tick()
     await daemon.tick()
-    check("★ A1 跨会话不合并（各自 @ 自己的）",
-          all(set(a) <= ({"1001", "1002", "1004"} if u == "group://AT" else {"2001"})
-              for u, _t, a in sent_at),
-          str(sent_at))
+    check(
+        "★ A1 跨会话不合并（各自 @ 自己的）",
+        all(
+            set(a) <= ({"1001", "1002", "1004"} if u == "group://AT" else {"2001"})
+            for u, _t, a in sent_at
+        ),
+        str(sent_at),
+    )
 
 
 asyncio.run(at_scenarios())
@@ -333,12 +459,20 @@ async def steel_scenario():
         sent_s.append((umo, text))
 
     d = PushDaemon(FakeClient(), st, send_s, FakeLogger(), interval=15)
-    await st.add(Subscription(umo="group://S", platform="pc", event="钢精兑换",
-                              rule="", until=-1, once=False, hits_left=None))
+    await st.add(
+        Subscription(
+            umo="group://S",
+            platform="pc",
+            event="钢精兑换",
+            rule="",
+            until=-1,
+            once=False,
+            hits_left=None,
+        )
+    )
     data = _steel_shop()
     rot = data["rotation"]
-    boundary = (datetime.fromisoformat(rot["epoch"])
-                + timedelta(hours=int(rot["period_hours"]) * 8))
+    boundary = datetime.fromisoformat(rot["epoch"]) + timedelta(hours=int(rot["period_hours"]) * 8)
     orig = fmt_mod._now
     fmt_mod._now = lambda: boundary - timedelta(minutes=30)
     await d.tick()
@@ -347,9 +481,13 @@ async def steel_scenario():
     await d.tick()
     idx2, _ = _sri(data)
     fmt_mod._now = orig
-    check("A2 跨换轮点推送且带新轮换项名",
-          len(sent_s) == 1 and "钢精兑换已轮换" in sent_s[0][1]
-          and data["weekly"][idx2]["name"] in sent_s[0][1], str(sent_s))
+    check(
+        "A2 跨换轮点推送且带新轮换项名",
+        len(sent_s) == 1
+        and "钢精兑换已轮换" in sent_s[0][1]
+        and data["weekly"][idx2]["name"] in sent_s[0][1],
+        str(sent_s),
+    )
     # 不跨点不推：同轮内再 tick 一次
     fmt_mod._now = lambda: boundary + timedelta(hours=1)
     await d.tick()
@@ -374,11 +512,19 @@ async def sliver_scenario():
         sent_l.append((umo, text))
 
     d = PushDaemon(FakeClient(), st, send_l, FakeLogger(), interval=15)
-    await st.add(Subscription(umo="group://L", platform="pc", event="碎银兑换",
-                              rule="", until=-1, once=False, hits_left=None))
+    await st.add(
+        Subscription(
+            umo="group://L",
+            platform="pc",
+            event="碎银兑换",
+            rule="",
+            until=-1,
+            once=False,
+            hits_left=None,
+        )
+    )
     rot = _pshop()["rotation"]
-    boundary = (datetime.fromisoformat(rot["epoch"])
-                + timedelta(hours=int(rot["period_hours"]) * 8))
+    boundary = datetime.fromisoformat(rot["epoch"]) + timedelta(hours=int(rot["period_hours"]) * 8)
     orig = fmt_mod._now
     fmt_mod._now = lambda: boundary - timedelta(minutes=30)
     await d.tick()
@@ -386,12 +532,15 @@ async def sliver_scenario():
     fmt_mod._now = lambda: boundary + timedelta(minutes=30)
     await d.tick()
     fmt_mod._now = orig
-    check("A3 跨周重置点推送（含 Palladino）",
-          len(sent_l) == 1 and "碎银兑换已重置" in sent_l[0][1]
-          and "Palladino" in sent_l[0][1], str(sent_l))
+    check(
+        "A3 跨周重置点推送（含 Palladino）",
+        len(sent_l) == 1 and "碎银兑换已重置" in sent_l[0][1] and "Palladino" in sent_l[0][1],
+        str(sent_l),
+    )
 
 
 asyncio.run(sliver_scenario())
+
 
 # ---------------------------------------------------------------------------
 # C2 赏金订阅（2026-10-03）：地区 + 挑战名/任务类型（用户例：扎里曼 高效歼灭）
@@ -405,28 +554,46 @@ async def bounty_scenario():
         sent_b.append((umo, text))
 
     d = PushDaemon(FakeClient(), st, send_b, FakeLogger(), interval=15)
-    await st.add(Subscription(umo="group://B1", platform="pc", event="赏金",
-                              rule="扎里曼 高效歼灭", until=-1, once=False))
-    await st.add(Subscription(umo="group://B2", platform="pc", event="赏金",
-                              rule="扎里曼 生存", until=-1, once=False))
+    await st.add(
+        Subscription(
+            umo="group://B1",
+            platform="pc",
+            event="赏金",
+            rule="扎里曼 高效歼灭",
+            until=-1,
+            once=False,
+        )
+    )
+    await st.add(
+        Subscription(
+            umo="group://B2", platform="pc", event="赏金", rule="扎里曼 生存", until=-1, once=False
+        )
+    )
     await d.tick()
     check("C2 首轮只建基线不推", sent_b == [], str(sent_b))
     await d.tick()
-    check("C2 两条订阅各自命中对应赏金（歼灭→B1、生存→B2）",
-          len(sent_b) == 2
-          and any(u == "group://B1" and "高效歼灭" in t for u, t in sent_b)
-          and any(u == "group://B2" and "减少虚空污染" in t for u, t in sent_b),
-          str(sent_b))
-    check("C2 不串台：B2 未收到歼灭赏金 / B1 未收到生存赏金",
-          not any(u == "group://B2" and "高效歼灭" in t for u, t in sent_b)
-          and not any(u == "group://B1" and "减少虚空污染" in t
-                      for u, t in sent_b), str(sent_b))
-    check("C2 推送含 地区/类型/目标",
-          any("羽化之穹" in t and "歼灭" in t and "6 分钟" in t
-              for _u, t in sent_b), str(sent_b)[:150])
+    check(
+        "C2 两条订阅各自命中对应赏金（歼灭→B1、生存→B2）",
+        len(sent_b) == 2
+        and any(u == "group://B1" and "高效歼灭" in t for u, t in sent_b)
+        and any(u == "group://B2" and "减少虚空污染" in t for u, t in sent_b),
+        str(sent_b),
+    )
+    check(
+        "C2 不串台：B2 未收到歼灭赏金 / B1 未收到生存赏金",
+        not any(u == "group://B2" and "高效歼灭" in t for u, t in sent_b)
+        and not any(u == "group://B1" and "减少虚空污染" in t for u, t in sent_b),
+        str(sent_b),
+    )
+    check(
+        "C2 推送含 地区/类型/目标",
+        any("羽化之穹" in t and "歼灭" in t and "6 分钟" in t for _u, t in sent_b),
+        str(sent_b)[:150],
+    )
 
 
 asyncio.run(bounty_scenario())
+
 
 # ---------------------------------------------------------------------------
 # C3 警报接线（2026-10-03）：活动型警报（Tag=LotusGift）——推一次；
@@ -443,15 +610,25 @@ class AlertClient(FakeClient):
         self._round += 1
         if self._round < 2:
             return []
-        return [{
-            "id": "a1", "active": True,
-            "expiry": _iso(datetime.now(timezone.utc) + timedelta(days=12)),
-            "mission": {"node": "Ganymede（木星）", "type": "中断",
-                        "min_level": 20, "max_level": 30,
-                        "desc": "Tenno 联合警报",
-                        "reward": {"credits": 10000,
-                                   "item": "2021 年 QTCC 玩偶",
-                                   "item_names": ["2021 年 QTCC 玩偶"]}}}]
+        return [
+            {
+                "id": "a1",
+                "active": True,
+                "expiry": _iso(datetime.now(timezone.utc) + timedelta(days=12)),
+                "mission": {
+                    "node": "Ganymede（木星）",
+                    "type": "中断",
+                    "min_level": 20,
+                    "max_level": 30,
+                    "desc": "Tenno 联合警报",
+                    "reward": {
+                        "credits": 10000,
+                        "item": "2021 年 QTCC 玩偶",
+                        "item_names": ["2021 年 QTCC 玩偶"],
+                    },
+                },
+            }
+        ]
 
 
 async def alert_scenario():
@@ -464,20 +641,26 @@ async def alert_scenario():
 
     c = AlertClient()
     d = PushDaemon(c, st, send_a, FakeLogger(), interval=15)
-    await st.add(Subscription(umo="group://A1", platform="pc", event="警报",
-                              rule="", until=-1, once=False))
+    await st.add(
+        Subscription(umo="group://A1", platform="pc", event="警报", rule="", until=-1, once=False)
+    )
     await d.tick()
     check("C3 首轮只建基线不推", sent_a == [], str(sent_a))
     await d.tick()
-    check("C3 活动型警报推送一次（含 desc/节点/奖励中文名）",
-          len(sent_a) == 1 and "Tenno 联合警报" in sent_a[0][1]
-          and "Ganymede" in sent_a[0][1] and "2021 年 QTCC 玩偶" in sent_a[0][1],
-          str(sent_a))
+    check(
+        "C3 活动型警报推送一次（含 desc/节点/奖励中文名）",
+        len(sent_a) == 1
+        and "Tenno 联合警报" in sent_a[0][1]
+        and "Ganymede" in sent_a[0][1]
+        and "2021 年 QTCC 玩偶" in sent_a[0][1],
+        str(sent_a),
+    )
     await d.tick()
     check("C3 同一 _id 只推一次（基线去重）", len(sent_a) == 1, str(sent_a))
 
 
 asyncio.run(alert_scenario())
+
 
 # ---------------------------------------------------------------------------
 # C4 灵化/信条/终幕接蹲（2026-10-03）：换轮点检测（同源 rotation_window），
@@ -492,11 +675,18 @@ async def rotation_scenario():
         sent_r.append((umo, text))
 
     d = PushDaemon(FakeClient(), st, send_r, FakeLogger(), interval=15)
-    await st.add(Subscription(umo="group://R1", platform="pc",
-                              event="灵化武器", rule="", until=-1, once=False))
+    await st.add(
+        Subscription(
+            umo="group://R1", platform="pc", event="灵化武器", rule="", until=-1, once=False
+        )
+    )
     import json as _json
-    rot = _json.loads((Path(__file__).resolve().parent.parent / "core" / "data"
-                       / "rotations.json").read_text(encoding="utf-8"))
+
+    rot = _json.loads(
+        (Path(__file__).resolve().parent.parent / "core" / "data" / "rotations.json").read_text(
+            encoding="utf-8"
+        )
+    )
     inc = rot["incarnon"]
     epoch = datetime.fromisoformat(inc["epoch"])
     boundary = epoch + timedelta(hours=int(inc["period_hours"]) * 8)
@@ -510,9 +700,11 @@ async def rotation_scenario():
     pos = (int(inc.get("anchor_week", 1)) - 1 + passed) % len(inc["weeks"])
     want = inc["weeks"][pos][0].get("cn") or ""
     fmt_mod._now = orig
-    check("C4 跨周换轮推送且含新一批武器名",
-          len(sent_r) == 1 and "灵化轮换" in sent_r[0][1]
-          and want and want in sent_r[0][1], f"{sent_r} want={want}")
+    check(
+        "C4 跨周换轮推送且含新一批武器名",
+        len(sent_r) == 1 and "灵化轮换" in sent_r[0][1] and want and want in sent_r[0][1],
+        f"{sent_r} want={want}",
+    )
     fmt_mod._now = lambda: boundary + timedelta(hours=1)
     await d.tick()
     fmt_mod._now = orig
@@ -520,6 +712,7 @@ async def rotation_scenario():
 
 
 asyncio.run(rotation_scenario())
+
 
 # ---------------------------------------------------------------------------
 # C5 阿耶兑换 / 1999 日历 / 电波 接蹲（2026-10-03）：stage 控制数据变化。
@@ -537,8 +730,7 @@ class C5Client(FakeClient):
     async def calendar(self, platform):
         today = fmt_mod._now().astimezone(timezone.utc).date().isoformat()
         evs = [] if self.stage == 0 else [{"name": "敲山震虎"}]
-        return {"season": "S1", "yearIteration": 1,
-                "days": [{"date": today, "events": evs}]}
+        return {"season": "S1", "yearIteration": 1, "days": [{"date": today, "events": evs}]}
 
     async def nightwave(self, platform):
         chs = [{"id": "c1", "title": "旧挑战"}]
@@ -558,23 +750,29 @@ async def c5_scenario():
     c = C5Client()
     d = PushDaemon(c, st, send5, FakeLogger(), interval=15)
     for ev in ("阿耶兑换", "1999日历", "电波"):
-        await st.add(Subscription(umo="group://C5", platform="pc", event=ev,
-                                  rule="", until=-1, once=False))
+        await st.add(
+            Subscription(umo="group://C5", platform="pc", event=ev, rule="", until=-1, once=False)
+        )
     await d.tick()
     check("C5 首轮只建基线不推", sent5 == [], str(sent5))
     c.stage = 1
     await d.tick()
-    check("C5 三事件各自推送一次",
-          len(sent5) == 3, str(sent5))
-    check("C5 阿耶兑换：宝库轮换含新包名",
-          any("Prime 宝库轮换" in t and "Banshee Prime 组合包" in t
-              for _u, t in sent5), str(sent5))
-    check("C5 1999 日历：今日日程含挑战名",
-          any("今日日程" in t and "敲山震虎" in t for _u, t in sent5),
-          str(sent5))
-    check("C5 电波：新挑战（每日标注）",
-          any("午夜电波新挑战" in t and "新挑战（每日）" in t
-              for _u, t in sent5), str(sent5))
+    check("C5 三事件各自推送一次", len(sent5) == 3, str(sent5))
+    check(
+        "C5 阿耶兑换：宝库轮换含新包名",
+        any("Prime 宝库轮换" in t and "Banshee Prime 组合包" in t for _u, t in sent5),
+        str(sent5),
+    )
+    check(
+        "C5 1999 日历：今日日程含挑战名",
+        any("今日日程" in t and "敲山震虎" in t for _u, t in sent5),
+        str(sent5),
+    )
+    check(
+        "C5 电波：新挑战（每日标注）",
+        any("午夜电波新挑战" in t and "新挑战（每日）" in t for _u, t in sent5),
+        str(sent5),
+    )
     await d.tick()
     check("C5 无新变化不重复推送", len(sent5) == 3, str(sent5))
 
@@ -582,18 +780,17 @@ async def c5_scenario():
 asyncio.run(c5_scenario())
 
 
-
-
-
-
-
 # at_targets 单元：平台过滤 + 去重 + 剔除 @全体
 from core.push import at_targets  # noqa: E402
-check("at_targets：仅 aiocqhttp 支持，去重保序、剔除 all",
-      at_targets("aiocqhttp", ["1", "2", "1", "all", ""]) == ["1", "2"]
-      and at_targets("telegram", ["1"]) == []
-      and at_targets(None, ["1"]) == []
-      and at_targets("aiocqhttp", []) == [])
+
+check(
+    "at_targets：仅 aiocqhttp 支持，去重保序、剔除 all",
+    at_targets("aiocqhttp", ["1", "2", "1", "all", ""]) == ["1", "2"]
+    and at_targets("telegram", ["1"]) == []
+    and at_targets(None, ["1"]) == []
+    and at_targets("aiocqhttp", []) == [],
+)
+
 
 # ---------------------------------------------------------------------------
 # ①-5 推送守护：**进程级**单例（2026-09-26 修「重复推送」）
@@ -610,23 +807,31 @@ async def daemon_lifecycle():
     a.start()
     ta = a._task
     await asyncio.sleep(0.05)
-    b.start()                                  # 跨实例：应取消 A
+    b.start()  # 跨实例：应取消 A
     await asyncio.sleep(0.05)
     live = [x for x in push_mod._LIVE_DAEMONS if not x.done()]
     check("★ 双实例：B 启动后 A 的守护被取消", ta.done(), f"a.done()={ta.done()}")
-    check("★ 双实例：任一时段只有 1 个活跃守护",
-          len(live) == 1 and live[0] is b._task, f"活跃={len(live)}")
+    check(
+        "★ 双实例：任一时段只有 1 个活跃守护",
+        len(live) == 1 and live[0] is b._task,
+        f"活跃={len(live)}",
+    )
     tb = b._task
-    b.start()                                  # 重复 start 幂等
-    check("重复 start 幂等（不新建 task、活跃数仍 1）",
-          b._task is tb
-          and len([x for x in push_mod._LIVE_DAEMONS if not x.done()]) == 1)
+    b.start()  # 重复 start 幂等
+    check(
+        "重复 start 幂等（不新建 task、活跃数仍 1）",
+        b._task is tb and len([x for x in push_mod._LIVE_DAEMONS if not x.done()]) == 1,
+    )
     await b.stop()
-    check("★ stop 后登记清空、task 置空",
-          b._task is None and not [x for x in push_mod._LIVE_DAEMONS if not x.done()])
-    await a.stop()                             # A 早被取消：stop 幂等不抛
-    check("stop 幂等（对已停止实例再调，登记仍空）",
-          not [x for x in push_mod._LIVE_DAEMONS if not x.done()])
+    check(
+        "★ stop 后登记清空、task 置空",
+        b._task is None and not [x for x in push_mod._LIVE_DAEMONS if not x.done()],
+    )
+    await a.stop()  # A 早被取消：stop 幂等不抛
+    check(
+        "stop 幂等（对已停止实例再调，登记仍空）",
+        not [x for x in push_mod._LIVE_DAEMONS if not x.done()],
+    )
 
 
 asyncio.run(daemon_lifecycle())
@@ -638,23 +843,31 @@ async def leaked_daemon_detection():
     start() 必须靠**扫事件循环里的 `PushDaemon._run` 协程**把它揪出来取消。"""
     push_mod._LIVE_DAEMONS.clear()
 
-    class PushDaemon:              # 与 core.push.PushDaemon 同名 → __qualname__ 命中扫描标记
+    class PushDaemon:  # 与 core.push.PushDaemon 同名 → __qualname__ 命中扫描标记
         async def _run(self):
             await asyncio.sleep(3600)
 
     leaked = asyncio.create_task(PushDaemon()._run())
-    await asyncio.sleep(0)                     # 让它真正跑起来
+    await asyncio.sleep(0)  # 让它真正跑起来
     rec = RecordingLogger()
     d = push_mod.PushDaemon(client=None, store=None, send=None, logger=rec, interval=15)
     d.start()
     await asyncio.sleep(0.05)
-    check("★ 不在登记表里的旧版本守护也会被扫到并取消",
-          leaked.done(), f"leaked.done()={leaked.done()} cancelling={leaked.cancelling()}")
-    check("★ 取消旧守护时留 WARNING 日志（旧版本守护本身无日志，只能靠这条）",
-          any("仍在运行的旧推送守护" in x for x in rec.lines), str(rec.lines))
-    check("★ 扫描不会误伤自己：本实例守护仍活跃",
-          d._task is not None and not d._task.done()
-          and len(push_mod._live_daemon_tasks()) == 1, str(push_mod._live_daemon_tasks()))
+    check(
+        "★ 不在登记表里的旧版本守护也会被扫到并取消",
+        leaked.done(),
+        f"leaked.done()={leaked.done()} cancelling={leaked.cancelling()}",
+    )
+    check(
+        "★ 取消旧守护时留 WARNING 日志（旧版本守护本身无日志，只能靠这条）",
+        any("仍在运行的旧推送守护" in x for x in rec.lines),
+        str(rec.lines),
+    )
+    check(
+        "★ 扫描不会误伤自己：本实例守护仍活跃",
+        d._task is not None and not d._task.done() and len(push_mod._live_daemon_tasks()) == 1,
+        str(push_mod._live_daemon_tasks()),
+    )
     await d.stop()
     push_mod._LIVE_DAEMONS.clear()
 
@@ -667,18 +880,20 @@ _last = {"fissure_ids": ["a", "b", "c", "d"]}
 _d._set_baseline(_last, "fissure_ids", [], "ids")
 check("★ 空响应 → 保留旧基线", _last["fissure_ids"] == ["a", "b", "c", "d"], str(_last))
 _d._set_baseline(_last, "fissure_ids", ["a"], "ids")
-check("★ 骤降（不足旧值一半）→ 保留旧基线", _last["fissure_ids"] == ["a", "b", "c", "d"], str(_last))
+check(
+    "★ 骤降（不足旧值一半）→ 保留旧基线", _last["fissure_ids"] == ["a", "b", "c", "d"], str(_last)
+)
 _d._set_baseline(_last, "fissure_ids", ["a", "b"], "ids")
 check("恰好一半 → 视为正常收缩，允许更新", _last["fissure_ids"] == ["a", "b"], str(_last))
 _last["fissure_ids"] = ["a", "b", "c", "d"]
 _d._set_baseline(_last, "fissure_ids", ["a", "b", "e"], "ids")
 check("正常响应 → 更新基线", _last["fissure_ids"] == ["a", "b", "e"], str(_last))
 _d._set_baseline(_last, "cetus_state", "")
-check("空状态串 → 不写入（保留旧值）", _last.get("cetus_state") is None,
-      str(_last.get("cetus_state")))
+check(
+    "空状态串 → 不写入（保留旧值）", _last.get("cetus_state") is None, str(_last.get("cetus_state"))
+)
 _d._set_baseline(_last, "cetus_state", "night")
-check("首次有效状态 → 写入", _last.get("cetus_state") == "night",
-      str(_last.get("cetus_state")))
+check("首次有效状态 → 写入", _last.get("cetus_state") == "night", str(_last.get("cetus_state")))
 
 print()
 if FAILED:

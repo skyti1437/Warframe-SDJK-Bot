@@ -10,6 +10,7 @@
 
 所有请求经 TTLCache 单飞缓存；WM v2 有限速（3 req/s）内置客户端节流。
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -24,7 +25,7 @@ from typing import Any, Iterable, Optional
 from urllib.parse import quote
 
 try:
-    from . import matching        # core 包内正常导入
+    from . import matching  # core 包内正常导入
 except ImportError:
     # ★ 只在**非包上下文**（离线脚本把 core/ 当顶层路径）才回退绝对导入；
     #   包内失败 = 真错误，原样抛出（2026-09-25 事故：兜底把真错掩盖成
@@ -39,19 +40,20 @@ except ImportError:  # pragma: no cover
     httpx = None  # type: ignore[assignment]
 
 from . import de_worldstate, paths
-from . import __version__ as _CORE_VERSION   # UA 版本段随插件版本派生（单一来源）
+from . import __version__ as _CORE_VERSION  # UA 版本段随插件版本派生（单一来源）
 from .cache import TTLCache
 from .logging_compat import logger
 
-DATA_DIR = Path(__file__).resolve().parent / "data"   # 包内静态数据（只读）
+DATA_DIR = Path(__file__).resolve().parent / "data"  # 包内静态数据（只读）
 # 运行期写盘的文件名（排行落盘 / 快照 / 缓存）：实际路径经 core.paths 解析到
 # data/plugin_data/<插件名>，绝不写插件包目录（AstrBot 插件规范要求）。
-RANKS_NAME = "wm_ranks.json"             # 价格排行全量落盘（后台爬取）
-WIKI_DISP_NAME = "de/wiki_disp.json"     # wiki 变体倾向快照
-ACRITHIS_WEEK_NAME = "de/acrichis_week.json"   # 言录使本周货单（运行期覆盖包内种子）
-STOREITEMS_ZH_NAME = "de/storeitems_zh.json"   # StoreItems 路径 → 官方简中名（警报换名）
-ACRITHIS_CURRENT_URL = ("https://wiki.warframe.com/w/Acrithis/"
-                        "Current_Offerings?action=raw")  # 社区当期 5 件上报页
+RANKS_NAME = "wm_ranks.json"  # 价格排行全量落盘（后台爬取）
+WIKI_DISP_NAME = "de/wiki_disp.json"  # wiki 变体倾向快照
+ACRITHIS_WEEK_NAME = "de/acrichis_week.json"  # 言录使本周货单（运行期覆盖包内种子）
+STOREITEMS_ZH_NAME = "de/storeitems_zh.json"  # StoreItems 路径 → 官方简中名（警报换名）
+ACRITHIS_CURRENT_URL = (
+    "https://wiki.warframe.com/w/Acrithis/Current_Offerings?action=raw"  # 社区当期 5 件上报页
+)
 # 社区快照（2026-09-25 方案④）：wiki 这两项数据都在 Cloudflare 盾后，没部署
 # FlareSolverr 的用户只能吃随包种子。于是把**服务器上已经抓到的新鲜快照**发布到
 # 公开仓的 bot-data 分支（automations/publish_community_snapshot.py），插件在
@@ -65,9 +67,8 @@ ACRITHIS_CURRENT_URL = ("https://wiki.warframe.com/w/Acrithis/"
 #   只保留这两条镜像 + raw。原先的 statically 通道在服务器侧**根本不可用**（名义三通道、实际两通道），
 #   已替换为 gcore；两条 jsDelivr 走同一网络但不同边缘，留作互为冗余（当天 cdn 曾整段 502）。
 #   连通性由服务器巡检每轮探针输出矩阵（`server_patrol.py`），不再"装了就算有"。
-COMMUNITY_SNAPSHOT_BASE = ("https://raw.githubusercontent.com/skyti1437/"
-                           "Warframe-SDJK-Bot/bot-data")
-COMMUNITY_VALENCE_URL = f"{COMMUNITY_SNAPSHOT_BASE}/valence.json"        # 主通道
+COMMUNITY_SNAPSHOT_BASE = "https://raw.githubusercontent.com/skyti1437/Warframe-SDJK-Bot/bot-data"
+COMMUNITY_VALENCE_URL = f"{COMMUNITY_SNAPSHOT_BASE}/valence.json"  # 主通道
 COMMUNITY_ACRITHIS_URL = f"{COMMUNITY_SNAPSHOT_BASE}/acrithis_week.json"
 _REPO_SLUG = "skyti1437/Warframe-SDJK-Bot"
 COMMUNITY_VALENCE_URLS = (
@@ -85,11 +86,11 @@ COMMUNITY_ACRITHIS_URLS = (
 # 127.0.0.1 到不了宿主机端口，所以按候选顺序试（容器名 → docker0 网关 → 本机）。
 # ★ 这些只是**默认值**：开源版用户可以在配置面板里自己填地址
 #   （``flaresolverr_urls``，逗号/换行分隔），或直接关掉（``flaresolverr_enabled``）。
-FLARESOLR_URLS = ([os.environ["WF_FLARESOLR"]]
-                  if os.environ.get("WF_FLARESOLR") else
-                  ["http://flaresolverr:8191/v1",
-                   "http://172.17.0.1:8191/v1",
-                   "http://127.0.0.1:8191/v1"])
+FLARESOLR_URLS = (
+    [os.environ["WF_FLARESOLR"]]
+    if os.environ.get("WF_FLARESOLR")
+    else ["http://flaresolverr:8191/v1", "http://172.17.0.1:8191/v1", "http://127.0.0.1:8191/v1"]
+)
 TTL_FLARE = 3600
 
 # ---- StoreItems 反查表（2026-10-04）：警报奖励换名的第一级 ----
@@ -107,9 +108,9 @@ def store_items_path_variants(path: str) -> list[str]:
     """
     out = [path]
     if path.startswith("/Lotus/StoreItems/"):
-        out.append("/Lotus/" + path[len("/Lotus/StoreItems/"):])
+        out.append("/Lotus/" + path[len("/Lotus/StoreItems/") :])
     if path.startswith("/Lotus/Types/StoreItems/"):
-        out.append("/Lotus/Types/" + path[len("/Lotus/Types/StoreItems/"):])
+        out.append("/Lotus/Types/" + path[len("/Lotus/Types/StoreItems/") :])
     return out
 
 
@@ -155,6 +156,8 @@ def parse_url_list(raw: str) -> list[str]:
         if tok not in out:
             out.append(tok)
     return out
+
+
 RIVEN_WEEKLY_NAME = "riven_weekly.json"  # DE 官方紫卡周报快照
 DE_RIVEN_WEEKLY = "https://www-static.warframe.com/repos/weeklyRivens{plat}.json"
 
@@ -203,6 +206,7 @@ def community_valence_newer(snapshot: str, *locals_: str) -> bool:
     任何一个时间戳解析不了都返回 False（保守：不用它）。
     """
     from datetime import datetime
+
     try:
         pub = datetime.fromisoformat(snapshot)
     except (TypeError, ValueError):
@@ -211,7 +215,7 @@ def community_valence_newer(snapshot: str, *locals_: str) -> bool:
         try:
             loc = datetime.fromisoformat(str(raw))
         except (TypeError, ValueError):
-            continue                       # 本地没有时间戳 → 不构成拒绝理由
+            continue  # 本地没有时间戳 → 不构成拒绝理由
         if pub <= loc:
             return False
     return True
@@ -220,6 +224,7 @@ def community_valence_newer(snapshot: str, *locals_: str) -> bool:
 def community_acrithis_ok(payload: dict, now=None) -> tuple[bool, str]:
     """发布的言录使货单是否可用：未过期 + 有物品 + observed 不早于本周一。"""
     from datetime import datetime, timedelta, timezone
+
     now = now or datetime.now(timezone.utc)
     if not isinstance(payload, dict):
         return False, "不是对象"
@@ -245,10 +250,13 @@ def community_acrithis_ok(payload: dict, now=None) -> tuple[bool, str]:
         # 解析不了的 observed 不算问题（expiry 才是硬判据）
         if obs is not None:
             monday = (now - timedelta(days=now.weekday())).replace(
-                hour=0, minute=0, second=0, microsecond=0)
+                hour=0, minute=0, second=0, microsecond=0
+            )
             if obs < monday:
                 return False, f"observed 早于本周一（{obs_raw}）"
     return True, "ok"
+
+
 _DE_RIVEN_PLATFORM = {"pc": "PC", "ps4": "PS4", "xb1": "XB1", "sw": "SWITCH"}
 TTL_RIVEN_WEEKLY = 6 * 3600
 
@@ -261,8 +269,10 @@ DEFAULT_WM_BASE = "https://api.warframe.market/v1"  # 仅拍卖（v2 未开放�
 # 算法开源在 github.com/calamity-inc/wf.browse.oracle（.pluto 脚本可读）。
 DEFAULT_ORACLE_BASE = "https://oracle.browse.wf"
 _ORACLE_HEADERS = {
-    "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                   "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"),
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+    ),
     "Accept": "application/json",
 }
 
@@ -270,8 +280,9 @@ _ORACLE_HEADERS = {
 # ---------------------------------------------------------------------------
 # 错别字容忍：中文名/英文名的模糊命中
 # ---------------------------------------------------------------------------
-def fuzzy_hits(query: str, candidates: Iterable[str], n: int = 3,
-               cutoff: Optional[float] = None) -> list[str]:
+def fuzzy_hits(
+    query: str, candidates: Iterable[str], n: int = 3, cutoff: Optional[float] = None
+) -> list[str]:
     """在候选名里找与 query 形近的项（支持中文错别字，如 波斯顿→伯斯顿）。
 
     分档阈值：>=4 字 0.70 / 3 字 0.60 / 2 字 0.50（且要求至少一个字相同，
@@ -290,22 +301,30 @@ def fuzzy_hits(query: str, candidates: Iterable[str], n: int = 3,
         hits = [h for h in hits if set(h) & set(q)]
     return hits[:n]
 
+
 # 各端点 TTL（秒）：周期类短缓存，字典类长缓存
-TTL_WORLDSTATE_FAST = 30      # 裂隙/警报/周期等
-TTL_WORLDSTATE_MID = 120      # 突击/奸商/电波等
-TTL_DE_RAW = 30               # DE 原始包（全端点共用）
-TTL_WM_ITEMS = 24 * 3600      # WM 物品字典
-TTL_WM_ORDERS = 90            # 订单
-TTL_WM_AUCTIONS = 90          # 紫卡拍卖
-TTL_WM_STATS = 1800           # v1 价格统计（48h/90d）
-TTL_WM_DUCATS = 30 * 60       # v1 tools/ducats 榜单（整点更新一次）
+TTL_WORLDSTATE_FAST = 30  # 裂隙/警报/周期等
+TTL_WORLDSTATE_MID = 120  # 突击/奸商/电波等
+TTL_DE_RAW = 30  # DE 原始包（全端点共用）
+TTL_WM_ITEMS = 24 * 3600  # WM 物品字典
+TTL_WM_ORDERS = 90  # 订单
+TTL_WM_AUCTIONS = 90  # 紫卡拍卖
+TTL_WM_STATS = 1800  # v1 价格统计（48h/90d）
+TTL_WM_DUCATS = 30 * 60  # v1 tools/ducats 榜单（整点更新一次）
 TTL_WIKI = 6 * 3600
 
 USER_AGENT = f"warframe-sdjk/{_CORE_VERSION} (AstrBot plugin)"
 
 # 内部平台码 -> WM v2 Platform 头
-_WM_PLATFORM = {"pc": "pc", "ps": "ps4", "ps4": "ps4", "xb": "xbox",
-                "xbox": "xbox", "sw": "switch", "switch": "switch"}
+_WM_PLATFORM = {
+    "pc": "pc",
+    "ps": "ps4",
+    "ps4": "ps4",
+    "xb": "xbox",
+    "xbox": "xbox",
+    "sw": "switch",
+    "switch": "switch",
+}
 
 # DE 源不包含、且外部独立源（10o.io）被网络环境阻断时给出降级提示。
 # 文案要求：① 说明为什么没有 ② **给出可执行的替代指令** —— 只说「不可用」
@@ -313,24 +332,21 @@ _WM_PLATFORM = {"pc": "pc", "ps": "ps4", "ps4": "ps4", "xb": "xbox",
 # ★ 提示里提到的每个指令名都必须是 COMMAND_ALIASES 里真实存在的，
 #   否则等于把用户引到第二条死路（曾误写「钢铁」「资源」两个不存在的指令）。
 _EXTERNAL_ONLY = {
-    "kuva":
-        "赤毒虹吸数据源（10o.io）已停摆，DE 官方数据也不含此表，暂时查不到实时虹吸。\n"
-        "可用的替代：\n"
-        "· 赤毒武器 / 姐妹武器的融合数值 →「融合 电60 火58」或「玄骸」\n"
-        "· 在售赤毒武器价格 →「wm 赤毒 布拉玛」\n"
-        "· 每周轮换奖励 →「周报」查看各周期内容",
-    "arbitration":
-        "仲裁实时数据源（10o.io）已停摆。\n"
-        "可用替代：\n"
-        "· 「仲裁」查看当前与下一小时场次（已改用 arbi.wf.wiki 确定性排期）\n"
-        "· 「仲裁表」查看整周排期\n"
-        "· 「仲裁 生存」按任务类型筛选",
-    "steelPath":
-        "钢铁之路轮换需要外部数据源，DE 直连模式下拿不到。\n"
-        "可用替代：\n"
-        "· 「侵袭」查看当前钢铁之路侵袭任务\n"
-        "· 「裂隙 钢铁」筛选钢铁之路模式的裂隙\n"
-        "· 「仲裁」查看钢铁之路仲裁场次",
+    "kuva": "赤毒虹吸数据源（10o.io）已停摆，DE 官方数据也不含此表，暂时查不到实时虹吸。\n"
+    "可用的替代：\n"
+    "· 赤毒武器 / 姐妹武器的融合数值 →「融合 电60 火58」或「玄骸」\n"
+    "· 在售赤毒武器价格 →「wm 赤毒 布拉玛」\n"
+    "· 每周轮换奖励 →「周报」查看各周期内容",
+    "arbitration": "仲裁实时数据源（10o.io）已停摆。\n"
+    "可用替代：\n"
+    "· 「仲裁」查看当前与下一小时场次（已改用 arbi.wf.wiki 确定性排期）\n"
+    "· 「仲裁表」查看整周排期\n"
+    "· 「仲裁 生存」按任务类型筛选",
+    "steelPath": "钢铁之路轮换需要外部数据源，DE 直连模式下拿不到。\n"
+    "可用替代：\n"
+    "· 「侵袭」查看当前钢铁之路侵袭任务\n"
+    "· 「裂隙 钢铁」筛选钢铁之路模式的裂隙\n"
+    "· 「仲裁」查看钢铁之路仲裁场次",
 }
 
 
@@ -352,13 +368,27 @@ def norm_wm_name(s: str) -> str:
 
 # 部件词 -> WM slug 英文词（长词在前，避免「神经光元」被「头部神经光元」截胡）
 COMPONENT_WORDS: list[tuple[str, str]] = [
-    ("头部神经光元", "neuroptics"), ("神经光元", "neuroptics"),
-    ("蓝图", "blueprint"), ("机体", "chassis"), ("系统", "systems"),
-    ("头盔", "helmet"), ("枪管", "barrel"), ("枪机", "receiver"),
-    ("枪托", "stock"), ("枪膛", "barrel"), ("刀刃", "blade"),
-    ("护手", "guard"), ("刃", "blade"), ("握柄", "hilt"), ("握把", "grip"),
-    ("剑柄", "hilt"), ("弓弦", "string"), ("弓臂", "limb"),
-    ("连结部", "link"), ("卷线器", "coil"), ("星体", "orbiter"),
+    ("头部神经光元", "neuroptics"),
+    ("神经光元", "neuroptics"),
+    ("蓝图", "blueprint"),
+    ("机体", "chassis"),
+    ("系统", "systems"),
+    ("头盔", "helmet"),
+    ("枪管", "barrel"),
+    ("枪机", "receiver"),
+    ("枪托", "stock"),
+    ("枪膛", "barrel"),
+    ("刀刃", "blade"),
+    ("护手", "guard"),
+    ("刃", "blade"),
+    ("握柄", "hilt"),
+    ("握把", "grip"),
+    ("剑柄", "hilt"),
+    ("弓弦", "string"),
+    ("弓臂", "limb"),
+    ("连结部", "link"),
+    ("卷线器", "coil"),
+    ("星体", "orbiter"),
 ]
 
 
@@ -370,7 +400,7 @@ def split_component_query(query: str) -> Optional[tuple[str, str, str]]:
     q = query.strip()
     for cn, en in COMPONENT_WORDS:
         if q.endswith(cn) and len(q) > len(cn):
-            return q[:-len(cn)].strip(), cn, en
+            return q[: -len(cn)].strip(), cn, en
     return None
 
 
@@ -412,13 +442,14 @@ def match_wm_normalized(query: str, items: list[dict]) -> Optional[dict]:
     exact = [it for it in items if norm_wm_name(it.get("zh")) == qn]
     if exact:
         return min(_prefer(exact), key=_score)
-    exact_en = [it for it in items
-                if it.get("en") and norm_wm_name(it.get("en")) == qn]
+    exact_en = [it for it in items if it.get("en") and norm_wm_name(it.get("en")) == qn]
     if exact_en:
         return min(_prefer(exact_en), key=_score)
-    contains = [it for it in items
-                if qn in norm_wm_name(it.get("zh"))
-                or (it.get("en") and qn in norm_wm_name(it.get("en")))]
+    contains = [
+        it
+        for it in items
+        if qn in norm_wm_name(it.get("zh")) or (it.get("en") and qn in norm_wm_name(it.get("en")))
+    ]
     if not contains:
         return None
     return min(_prefer(contains), key=_score)
@@ -464,20 +495,30 @@ def match_official_name(query: str, items: list[dict]) -> Optional[dict]:
 # 组合枪腔体名（KB 组合枪部件表口径：08 其他与机制术语）。
 # ⚠ Gaze 在 KB 另有一处「凝视」，组合枪部件节用的是「凝目」，按部件节取。
 _KITGUN_CHAMBER_ZH = {
-    "catchmoon": "捕月", "gaze": "凝目", "rattleguts": "响胆",
-    "sporelacer": "孢射", "tombfinger": "墓指", "vermisplicer": "虫置",
+    "catchmoon": "捕月",
+    "gaze": "凝目",
+    "rattleguts": "响胆",
+    "sporelacer": "孢射",
+    "tombfinger": "墓指",
+    "vermisplicer": "虫置",
 }
 
 # 派系/品质前缀（WM/DE 官方写法：棱晶·什长双枪 / 赤毒·低音爆囊 / 终幕·血肢）
 _VARIANT_PREFIX_ZH = (
-    ("prisma", "棱晶·"), ("kuva", "赤毒·"), ("tenet", "信条·"),
-    ("coda", "终幕·"), ("sancti", "圣洁·"), ("rakta", "绯红·"),
-    ("telos", "终极·"), ("synoid", "共生·"), ("vaykor", "惩击·"),
-    ("secura", "保障·"), ("vandal", None),
+    ("prisma", "棱晶·"),
+    ("kuva", "赤毒·"),
+    ("tenet", "信条·"),
+    ("coda", "终幕·"),
+    ("sancti", "圣洁·"),
+    ("rakta", "绯红·"),
+    ("telos", "终极·"),
+    ("synoid", "共生·"),
+    ("vaykor", "惩击·"),
+    ("secura", "保障·"),
+    ("vandal", None),
 )
 # 品质后缀（官方写法：马谢特砍刀·亡魂 / 凯旋将军·破坏者）
-_VARIANT_SUFFIX_ZH = (("prime", " Prime"), ("vandal", "·破坏者"),
-                      ("wraith", "·亡魂"))
+_VARIANT_SUFFIX_ZH = (("prime", " Prime"), ("vandal", "·破坏者"), ("wraith", "·亡魂"))
 
 
 def _norm_name_key(s: str) -> str:
@@ -519,7 +560,7 @@ def localize_variant_en(en: str, base_zh: dict) -> str:
     # 前缀系：Prisma / Kuva / Tenet / Coda / 派系武器
     for pre, zhprefix in _VARIANT_PREFIX_ZH:
         if zhprefix and low.startswith(pre + " "):
-            b = _base(name[len(pre) + 1:])
+            b = _base(name[len(pre) + 1 :])
             return f"{zhprefix}{b}" if b else ""
     # 后缀系：Prime / Vandal / Wraith
     for suf, zhsuffix in _VARIANT_SUFFIX_ZH:
@@ -537,8 +578,7 @@ def _name_en_zh() -> dict:
     global _name_en_zh_cache
     if _name_en_zh_cache is None:
         try:
-            raw = json.loads((DATA_DIR / "de" / "name_en_zh.json")
-                             .read_text(encoding="utf-8"))
+            raw = json.loads((DATA_DIR / "de" / "name_en_zh.json").read_text(encoding="utf-8"))
             _name_en_zh_cache = raw.get("names") or {}
         except Exception:  # noqa: BLE001 - 缺文件只降级
             _name_en_zh_cache = {}
@@ -583,22 +623,20 @@ def _local_name_index() -> tuple:
                 en_zh.setdefault(e, zh)
                 zh_en.setdefault(z, en)
 
-        try:      # ① weapons_stats.json（en→zh 覆盖最广）
-            raw = json.loads((DATA_DIR / "weapons_stats.json")
-                             .read_text(encoding="utf-8"))
+        try:  # ① weapons_stats.json（en→zh 覆盖最广）
+            raw = json.loads((DATA_DIR / "weapons_stats.json").read_text(encoding="utf-8"))
             for v in raw.values():
                 if isinstance(v, dict):
                     _put(v.get("name"), v.get("zh"))
         except Exception:  # noqa: BLE001 - 缺文件只降级
             pass
-        try:      # ② de/name_en_zh.json（键为小写英文名）
+        try:  # ② de/name_en_zh.json（键为小写英文名）
             for en, zh in _name_en_zh().items():
                 _put(en, zh)
         except Exception:  # noqa: BLE001
             pass
-        try:      # ③ de/de_items_zh.json
-            raw = json.loads((DATA_DIR / "de" / "de_items_zh.json")
-                             .read_text(encoding="utf-8"))
+        try:  # ③ de/de_items_zh.json
+            raw = json.loads((DATA_DIR / "de" / "de_items_zh.json").read_text(encoding="utf-8"))
             for it in raw.get("items") or []:
                 _put(it.get("en"), it.get("zh"))
         except Exception:  # noqa: BLE001
@@ -610,9 +648,14 @@ def _local_name_index() -> tuple:
 # ★ 2026-10-03 双模式条目（组合枪 Primary/Secondary、空枪 Atmosphere、
 #   Vinquibus (Melee)、Dark Split-Sword 双形态）的中文模式后缀 —— 与
 #   WM 拆分行的官方写法一致（捕月（主要））。
-_MODE_ZH = {"primary": "（主要）", "secondary": "（次要）",
-            "atmosphere": "（大气）", "melee": "（近战）",
-            "dual swords": "（双剑）", "heavy blade": "（重刃）"}
+_MODE_ZH = {
+    "primary": "（主要）",
+    "secondary": "（次要）",
+    "atmosphere": "（大气）",
+    "melee": "（近战）",
+    "dual swords": "（双剑）",
+    "heavy blade": "（重刃）",
+}
 
 
 def _zh_name_of_en(en: str) -> str:
@@ -660,8 +703,7 @@ def _rank_candidate(it: dict) -> bool:
     * 卡 / 赋能 / 部件 / 遗物全量。
     """
     tags = set(it.get("tags") or [])
-    if "mod" in tags or "arcane_enhancement" in tags \
-            or "relic" in tags or "component" in tags:
+    if "mod" in tags or "arcane_enhancement" in tags or "relic" in tags or "component" in tags:
         return True
     if "warframe" in tags:
         return "set" in tags
@@ -709,8 +751,9 @@ class WarframeClient:
         flare_urls: Optional[list[str]] = None,
     ):
         if httpx is None:
-            raise WarframeAPIError("缺少依赖 httpx：请在 AstrBot 插件管理中安装依赖，"
-                                   "或手动执行 pip install httpx")
+            raise WarframeAPIError(
+                "缺少依赖 httpx：请在 AstrBot 插件管理中安装依赖，或手动执行 pip install httpx"
+            )
         self._kuvalog_url = kuvalog_url
         self.worldsource = worldsource if worldsource in ("de", "warframestat") else "de"
         self.worldstate_base = worldstate_base.rstrip("/")
@@ -728,7 +771,7 @@ class WarframeClient:
             headers={"User-Agent": USER_AGENT, "Accept": "application/json"},
             proxy=proxy or None,
         )
-        self._flare_url = ""          # FlareSolverr 可用地址（首次连通后记忆）
+        self._flare_url = ""  # FlareSolverr 可用地址（首次连通后记忆）
         # 已确认「WM 无该玄骸武器挂单类目」的 slug（返回 400），避免重复请求
         self._lich_unsupported: set = set()
         self._aliases = load_aliases()
@@ -758,9 +801,13 @@ class WarframeClient:
         cache_key: Optional[str] = None,
         wm_rate_limit: bool = False,
     ) -> Any:
-        key = cache_key or (url + "|" + json.dumps(
-            params or {}, sort_keys=True, ensure_ascii=False)
-            + "|" + json.dumps(headers or {}, sort_keys=True))
+        key = cache_key or (
+            url
+            + "|"
+            + json.dumps(params or {}, sort_keys=True, ensure_ascii=False)
+            + "|"
+            + json.dumps(headers or {}, sort_keys=True)
+        )
 
         async def _do() -> Any:
             last_exc: Exception | None = None
@@ -817,17 +864,16 @@ class WarframeClient:
     # ------------------------------------------------------------------
     # 世界状态统一入口
     # ------------------------------------------------------------------
-    async def worldstate(self, platform: str, endpoint: str,
-                         ttl: float = TTL_WORLDSTATE_FAST) -> Any:
+    async def worldstate(
+        self, platform: str, endpoint: str, ttl: float = TTL_WORLDSTATE_FAST
+    ) -> Any:
         if self.worldsource == "de":
             bundle = await self._de_bundle()
-            if endpoint in ("kuva", "arbitration", "steelPath") \
-                    and not bundle.get(endpoint):
+            if endpoint in ("kuva", "arbitration", "steelPath") and not bundle.get(endpoint):
                 raise WarframeAPIError(_EXTERNAL_ONLY[endpoint])
             return bundle.get(endpoint)
         url = f"{self._ws_base(platform)}/{platform}/{endpoint}"
-        return await self._fetch_json(url, ttl=ttl,
-                                      params={"language": self.language})
+        return await self._fetch_json(url, ttl=ttl, params={"language": self.language})
 
     async def cycle(self, platform: str, name: str) -> dict:
         """name: cetus / vallis / cambion / earth / duviri / zariman"""
@@ -885,20 +931,21 @@ class WarframeClient:
             if ref and it.get("zh"):
                 by_ref.setdefault(ref, it["zh"])
         for a in data or []:
-            rw = ((a.get("mission") or {}).get("reward") or {})
+            rw = (a.get("mission") or {}).get("reward") or {}
             names, unknown = [], []
-            for p in (rw.get("items") or []):
+            for p in rw.get("items") or []:
                 nm = store_item_zh(p)
                 if not nm:
-                    nm = next((by_ref[k] for k in store_items_path_variants(p)
-                               if by_ref.get(k)), "")
+                    nm = next(
+                        (by_ref[k] for k in store_items_path_variants(p) if by_ref.get(k)), ""
+                    )
                 if nm:
                     names.append(nm)
                 else:
                     unknown.append(p.rsplit("/", 1)[-1])
             if names:
                 rw["item_names"] = names
-                rw["item"] = names[0]          # 中文名优先于 prettify 兜底
+                rw["item"] = names[0]  # 中文名优先于 prettify 兜底
                 if unknown:
                     rw["item_unknown"] = unknown
             elif unknown:
@@ -954,10 +1001,12 @@ class WarframeClient:
         一律以 **UTC 判定**，要展示给用户就换算成北京时间（``formatters._to_bj``）。
         """
         from datetime import datetime, timedelta, timezone
+
         now = now or datetime.now(timezone.utc)
         days = (int(weekday) - now.weekday()) % 7
         target = (now + timedelta(days=days)).replace(
-            hour=int(hour_utc) % 24, minute=0, second=0, microsecond=0)
+            hour=int(hour_utc) % 24, minute=0, second=0, microsecond=0
+        )
         if target <= now:
             target += timedelta(days=7)
         return target.isoformat()
@@ -969,18 +1018,22 @@ class WarframeClient:
         ``acrichis.reset_hour_utc``（当前 = 周一 00:00 UTC，wiki 实时口径），改数据即可。
         """
         try:
-            cfg = json.loads((Path(__file__).resolve().parent / "data"
-                              / "rotations.json").read_text(encoding="utf-8"))
+            cfg = json.loads(
+                (Path(__file__).resolve().parent / "data" / "rotations.json").read_text(
+                    encoding="utf-8"
+                )
+            )
             sec = cfg.get("acrichis") or {}
         except Exception:  # noqa: BLE001
             sec = {}
         return self.next_weekly_reset(
-            weekday=int(sec.get("reset_weekday", 0)),
-            hour_utc=int(sec.get("reset_hour_utc", 0)))
+            weekday=int(sec.get("reset_weekday", 0)), hour_utc=int(sec.get("reset_hour_utc", 0))
+        )
 
     def acrithis_week_expired(self) -> bool:
         """言录使本周货单快照是否已过期（用于内置定时自检，过期只告警不抓取）。"""
         from datetime import datetime, timezone
+
         data = self._load_json_file(paths.read_path(ACRITHIS_WEEK_NAME)) or {}
         exp = data.get("expiry") or ""
         try:
@@ -995,6 +1048,7 @@ class WarframeClient:
         卡面据此展示倒计时 + 北京时间，不依赖文件里写死的 expiry。
         """
         from datetime import datetime, timezone
+
         data = self._load_json_file(paths.read_path(ACRITHIS_WEEK_NAME)) or {}
         exp = data.get("expiry") or ""
         try:
@@ -1015,13 +1069,13 @@ class WarframeClient:
         两种形态（转义/纯 wikitext）都能吃。解析不出 5 件返回空 dict。
         """
         import html as _html
+
         text = _html.unescape(raw or "")
         m = re.search(r"\{\{#vardefine:AcrithisObserved\|([^}]*)\}\}", text)
         observed = m.group(1).strip() if m else ""
         items: list[str] = []
         for i in range(1, 6):
-            m = re.search(r"\{\{#vardefine:AcrithisItem" + str(i) +
-                          r"\|([^}]*)\}\}", text)
+            m = re.search(r"\{\{#vardefine:AcrithisItem" + str(i) + r"\|([^}]*)\}\}", text)
             if not m or not m.group(1).strip():
                 return {}
             items.append(m.group(1).strip())
@@ -1047,6 +1101,7 @@ class WarframeClient:
         返回 "fresh"（未过期）/ "refreshed" / "not-updated" / "failed"。
         """
         from datetime import datetime, timedelta, timezone
+
         if not self.acrithis_week_expired():
             return "fresh"
         snap = self._load_json_file(paths.read_path(ACRITHIS_WEEK_NAME)) or {}
@@ -1067,18 +1122,21 @@ class WarframeClient:
             logger.warning("[sdjk] 言录使当期子页解析失败（模板结构变了？）")
             return "failed"
         try:
-            observed = datetime.strptime(
-                parsed["observed"], "%B %d, %Y").replace(tzinfo=timezone.utc)
+            observed = datetime.strptime(parsed["observed"], "%B %d, %Y").replace(
+                tzinfo=timezone.utc
+            )
         except (KeyError, ValueError):
-            logger.warning("[sdjk] 言录使当期上报日期无法解析：%r",
-                           parsed.get("observed"))
+            logger.warning("[sdjk] 言录使当期上报日期无法解析：%r", parsed.get("observed"))
             return "failed"
         now = datetime.now(timezone.utc)
         monday = (now - timedelta(days=now.weekday())).replace(
-            hour=0, minute=0, second=0, microsecond=0)
+            hour=0, minute=0, second=0, microsecond=0
+        )
         if observed < monday:
-            logger.info("[sdjk] 言录使当期上报尚未更新（observed %s < 本周一），"
-                        "本轮不落盘", parsed["observed"])
+            logger.info(
+                "[sdjk] 言录使当期上报尚未更新（observed %s < 本周一），本轮不落盘",
+                parsed["observed"],
+            )
             return "not-updated"
         items: list[dict] = []
         for en in parsed["items"]:
@@ -1087,7 +1145,9 @@ class WarframeClient:
                 # 子页名单与本地目录出现分歧（wiki 改了池子）→ 拒绝写半成品
                 logger.error(
                     "[sdjk] 言录使当期上报出现目录外物品 %r —— wiki 池子可能已"
-                    "改动，需人工核对 _en_catalog 后重试", en)
+                    "改动，需人工核对 _en_catalog 后重试",
+                    en,
+                )
                 return "failed"
             it = {"name": ent["name"]}
             if ent.get("qty") is not None:
@@ -1097,8 +1157,10 @@ class WarframeClient:
         out = {
             "expiry": self.acrithis_next_reset(),
             "observed": parsed["observed"],
-            "source": (f"wiki《Acrithis/Current Offerings》当期上报（observed "
-                       f"{parsed['observed']}）；插件自动抓取"),
+            "source": (
+                f"wiki《Acrithis/Current Offerings》当期上报（observed "
+                f"{parsed['observed']}）；插件自动抓取"
+            ),
             "items": items,
             "_en_catalog": catalog,
             "_catalog_price_source": snap.get("_catalog_price_source", ""),
@@ -1106,10 +1168,11 @@ class WarframeClient:
             "_过期口径": snap.get("_过期口径", ""),
         }
         paths.write_path(ACRITHIS_WEEK_NAME).write_text(
-            json.dumps(out, ensure_ascii=False, indent=1) + "\n",
-            encoding="utf-8")
-        logger.info("[sdjk] 言录使本周货单已自动刷新（observed %s，%d 件）",
-                    parsed["observed"], len(items))
+            json.dumps(out, ensure_ascii=False, indent=1) + "\n", encoding="utf-8"
+        )
+        logger.info(
+            "[sdjk] 言录使本周货单已自动刷新（observed %s，%d 件）", parsed["observed"], len(items)
+        )
         return "refreshed"
 
     async def _community_acrithis_week(self, snap: dict) -> str:
@@ -1133,19 +1196,23 @@ class WarframeClient:
                 ent["price"] = it["price"]
             items.append(ent)
         out = {
-            **snap,                       # 保留 _en_catalog / _reset_rule 等
+            **snap,  # 保留 _en_catalog / _reset_rule 等
             "expiry": payload["expiry"],
             "observed": payload.get("observed") or snap.get("observed", ""),
             "items": items,
-            "source": (payload.get("source")
-                       or "社区快照（wiki《Acrithis/Current Offerings》"
-                          "经有 FS 的机器发布）"),
+            "source": (
+                payload.get("source")
+                or "社区快照（wiki《Acrithis/Current Offerings》经有 FS 的机器发布）"
+            ),
         }
         paths.write_path(ACRITHIS_WEEK_NAME).write_text(
-            json.dumps(out, ensure_ascii=False, indent=1) + "\n",
-            encoding="utf-8")
-        logger.info("[sdjk] 言录使本周货单已从社区快照刷新（observed %s，%d 件）",
-                    out["observed"], len(items))
+            json.dumps(out, ensure_ascii=False, indent=1) + "\n", encoding="utf-8"
+        )
+        logger.info(
+            "[sdjk] 言录使本周货单已从社区快照刷新（observed %s，%d 件）",
+            out["observed"],
+            len(items),
+        )
         return "refreshed"
 
     async def steel_path_incursions(self, platform: str) -> dict:
@@ -1158,8 +1225,7 @@ class WarframeClient:
         """
         url = "https://browse.wf/sp-incursions.txt"
         try:
-            r = await self._http.get(url, timeout=15.0,
-                                     headers={"User-Agent": USER_AGENT})
+            r = await self._http.get(url, timeout=15.0, headers={"User-Agent": USER_AGENT})
             r.raise_for_status()
             txt = r.text
         except Exception:  # noqa: BLE001 - 取不到就降级为空
@@ -1190,8 +1256,7 @@ class WarframeClient:
         return await self.worldstate(platform, "goals", ttl=TTL_WORLDSTATE_MID) or []
 
     async def conclave(self, platform: str) -> list[dict]:
-        return await self.worldstate(platform, "conclaveChallenges",
-                                     ttl=TTL_WORLDSTATE_MID) or []
+        return await self.worldstate(platform, "conclaveChallenges", ttl=TTL_WORLDSTATE_MID) or []
 
     async def prime_vault(self, platform: str) -> dict:
         return await self.worldstate(platform, "primeVault", ttl=TTL_WORLDSTATE_MID) or {}
@@ -1231,10 +1296,14 @@ class WarframeClient:
         """
         try:
             data = await asyncio.wait_for(
-                self._fetch_json(f"{DEFAULT_ORACLE_BASE}/bounty-cycle",
-                                 ttl=900, headers=_ORACLE_HEADERS,
-                                 cache_key="oracle:bounty-cycle"),
-                timeout=3.5)
+                self._fetch_json(
+                    f"{DEFAULT_ORACLE_BASE}/bounty-cycle",
+                    ttl=900,
+                    headers=_ORACLE_HEADERS,
+                    cache_key="oracle:bounty-cycle",
+                ),
+                timeout=3.5,
+            )
         except Exception:  # noqa: BLE001 —— 赏金的附加信息，拿不到不影响主流程
             return {}
         return data if isinstance(data, dict) else {}
@@ -1286,12 +1355,17 @@ class WarframeClient:
         for it in items:
             hay = f"{it.get('zh', '')} {it.get('en', '')} {it.get('url_name', '')}".lower()
             if q in hay:
-                hits.append({
-                    "name": it.get("zh") or it.get("en") or it.get("url_name"),
-                    "category": (it.get("tags") or ["item"])[0],
-                    "description": (f"{it['ducats']} 杜卡德" if it.get("ducats")
-                                    else ("可交易" if it.get("tradable") else "")),
-                })
+                hits.append(
+                    {
+                        "name": it.get("zh") or it.get("en") or it.get("url_name"),
+                        "category": (it.get("tags") or ["item"])[0],
+                        "description": (
+                            f"{it['ducats']} 杜卡德"
+                            if it.get("ducats")
+                            else ("可交易" if it.get("tradable") else "")
+                        ),
+                    }
+                )
             if len(hits) >= 8:
                 break
         return hits
@@ -1299,16 +1373,25 @@ class WarframeClient:
     # ------------------------------------------------------------------
     # Warframe.Market v2：物品字典 / 订单
     # ------------------------------------------------------------------
-    async def _wm_v2(self, path: str, *, ttl: float, headers: Optional[dict] = None,
-                     platform: Optional[str] = None) -> Any:
+    async def _wm_v2(
+        self,
+        path: str,
+        *,
+        ttl: float,
+        headers: Optional[dict] = None,
+        platform: Optional[str] = None,
+    ) -> Any:
         hdr = {"Language": self.language, "Crossplay": "true"}
         if platform:
             hdr["Platform"] = _WM_PLATFORM.get(platform, platform)
         hdr.update(headers or {})
         data = await self._fetch_json(
-            f"{self.wm_v2_base}{path}", ttl=ttl, headers=hdr,
+            f"{self.wm_v2_base}{path}",
+            ttl=ttl,
+            headers=hdr,
             cache_key=f"wmv2:{path}|{platform}|{self.language}",
-            wm_rate_limit=True)
+            wm_rate_limit=True,
+        )
         if isinstance(data, dict):
             if data.get("error"):
                 raise WarframeAPIError(f"WM v2 接口错误：{data['error']}")
@@ -1323,15 +1406,22 @@ class WarframeClient:
             i18n = it.get("i18n") or {}
             zh = (i18n.get("zh-hans") or {}).get("name", "")
             en = (i18n.get("en") or {}).get("name", "")
-            out.append({
-                "id": it.get("id"), "url_name": it.get("slug", ""),
-                "game_ref": it.get("gameRef", ""), "zh": zh, "en": en,
-                "ducats": it.get("ducats"), "trading_tax": it.get("tradingTax"),
-                "tradable": it.get("tradable"), "tags": it.get("tags") or [],
-                # ★ 2026-09-25：WM 自带 maxRank（赋能 5 / 川流不息 5 / 生命力 10）——
-                #   「满级」筛选过去写死 10，赋能与一批 5 级 MOD 必然查空。
-                "max_rank": it.get("maxRank"),
-            })
+            out.append(
+                {
+                    "id": it.get("id"),
+                    "url_name": it.get("slug", ""),
+                    "game_ref": it.get("gameRef", ""),
+                    "zh": zh,
+                    "en": en,
+                    "ducats": it.get("ducats"),
+                    "trading_tax": it.get("tradingTax"),
+                    "tradable": it.get("tradable"),
+                    "tags": it.get("tags") or [],
+                    # ★ 2026-09-25：WM 自带 maxRank（赋能 5 / 川流不息 5 / 生命力 10）——
+                    #   「满级」筛选过去写死 10，赋能与一批 5 级 MOD 必然查空。
+                    "max_rank": it.get("maxRank"),
+                }
+            )
         return out
 
     async def ducats_board(self) -> list[dict]:
@@ -1351,8 +1441,11 @@ class WarframeClient:
         """
         try:
             raw = await self._fetch_json(
-                f"{self.wm_base}/tools/ducats", ttl=TTL_WM_DUCATS,
-                wm_rate_limit=True, cache_key="wmv1:tools/ducats")
+                f"{self.wm_base}/tools/ducats",
+                ttl=TTL_WM_DUCATS,
+                wm_rate_limit=True,
+                cache_key="wmv1:tools/ducats",
+            )
         except Exception:  # noqa: BLE001 - 该接口是增强项，失败要能降级
             return []
         rows = ((raw or {}).get("payload") or {}).get("previous_hour") or []
@@ -1363,17 +1456,19 @@ class WarframeClient:
             it = by_id.get(r.get("item"))
             if not it:
                 continue
-            out.append({
-                "name": it.get("zh") or it.get("en") or it.get("url_name", ""),
-                "url_name": it.get("url_name", ""),
-                "ducats": r.get("ducats") or it.get("ducats") or 0,
-                "dpp": float(r.get("ducats_per_platinum") or 0),
-                "dpp_wa": float(r.get("ducats_per_platinum_wa") or 0),
-                "plat": float(r.get("wa_price") or 0),
-                "median": float(r.get("median") or 0),
-                "volume": int(r.get("volume") or 0),
-                "tags": it.get("tags") or [],
-            })
+            out.append(
+                {
+                    "name": it.get("zh") or it.get("en") or it.get("url_name", ""),
+                    "url_name": it.get("url_name", ""),
+                    "ducats": r.get("ducats") or it.get("ducats") or 0,
+                    "dpp": float(r.get("ducats_per_platinum") or 0),
+                    "dpp_wa": float(r.get("ducats_per_platinum_wa") or 0),
+                    "plat": float(r.get("wa_price") or 0),
+                    "median": float(r.get("median") or 0),
+                    "volume": int(r.get("volume") or 0),
+                    "tags": it.get("tags") or [],
+                }
+            )
         out.sort(key=lambda r: -r["dpp"])
         return out
 
@@ -1391,43 +1486,48 @@ class WarframeClient:
                 key = re.sub(r"\s+", "", r.get("name") or "")
                 if not key:
                     continue
-                out[key] = {"ducats": r.get("ducats", 0),
-                            "plat": r.get("median") or r.get("plat") or 0,
-                            "dpp": r.get("dpp", 0)}
+                out[key] = {
+                    "ducats": r.get("ducats", 0),
+                    "plat": r.get("median") or r.get("plat") or 0,
+                    "dpp": r.get("dpp", 0),
+                }
             return out
 
-        return await self.cache.get_or_fetch(
-            "wmv1:ducats_price_map", TTL_WM_DUCATS, _build) or {}
+        return await self.cache.get_or_fetch("wmv1:ducats_price_map", TTL_WM_DUCATS, _build) or {}
 
-    async def wm_orders(self, url_name: str, platform: str,
-                        rank: Optional[int] = None) -> tuple[list[dict], dict]:
+    async def wm_orders(
+        self, url_name: str, platform: str, rank: Optional[int] = None
+    ) -> tuple[list[dict], dict]:
         """某物品近 48h 可见订单，字段向 v1 对齐（order_type/mod_rank/ingame_name）。"""
         path = f"/orders/item/{quote(url_name)}"
         params = {}
         if rank is not None:
             path += "/top"
             params["rank"] = rank
-        raw = await self._wm_v2(path, ttl=TTL_WM_ORDERS, platform=platform,
-                                headers=params or None)
+        raw = await self._wm_v2(path, ttl=TTL_WM_ORDERS, platform=platform, headers=params or None)
         if isinstance(raw, dict):  # /top 返回 {sell: [...], buy: [...]}
             raw = (raw.get("sell") or []) + (raw.get("buy") or [])
         orders = []
         for o in raw or []:
             user = o.get("user") or {}
-            orders.append({
-                "id": o.get("id"),
-                "order_type": o.get("type", "sell"),
-                "platinum": o.get("platinum", 0),
-                "quantity": o.get("quantity", 1),
-                "mod_rank": o.get("rank"),
-                "subtype": o.get("subtype"),
-                "visible": o.get("visible", True),
-                "platform": user.get("platform", platform),
-                "last_update": o.get("updatedAt", ""),
-                "user": {"ingame_name": user.get("ingameName", "?"),
-                         "status": user.get("status", "offline"),
-                         "reputation": user.get("reputation", 0)},
-            })
+            orders.append(
+                {
+                    "id": o.get("id"),
+                    "order_type": o.get("type", "sell"),
+                    "platinum": o.get("platinum", 0),
+                    "quantity": o.get("quantity", 1),
+                    "mod_rank": o.get("rank"),
+                    "subtype": o.get("subtype"),
+                    "visible": o.get("visible", True),
+                    "platform": user.get("platform", platform),
+                    "last_update": o.get("updatedAt", ""),
+                    "user": {
+                        "ingame_name": user.get("ingameName", "?"),
+                        "status": user.get("status", "offline"),
+                        "reputation": user.get("reputation", 0),
+                    },
+                }
+            )
         return orders, {}
 
     async def wm_item_detail(self, slug: str) -> dict:
@@ -1484,18 +1584,24 @@ class WarframeClient:
             i18n = w.get("i18n") or {}
             url = w.get("slug", "")
             seen_urls.add(url)
-            out.append({
-                "url_name": url,
-                "zh": (i18n.get("zh-hans") or {}).get("name", ""),
-                "en": (i18n.get("en") or {}).get("name", ""),
-                "game_ref": w.get("gameRef", ""),
-                "disposition": w.get("disposition"),
-                "riven_type": w.get("rivenType", ""),
-                "group": w.get("group", ""),
-            })
+            out.append(
+                {
+                    "url_name": url,
+                    "zh": (i18n.get("zh-hans") or {}).get("name", ""),
+                    "en": (i18n.get("en") or {}).get("name", ""),
+                    "game_ref": w.get("gameRef", ""),
+                    "disposition": w.get("disposition"),
+                    "riven_type": w.get("rivenType", ""),
+                    "group": w.get("group", ""),
+                }
+            )
         try:
-            extra = json.loads((DATA_DIR / "dispositions_rivenmirror.json")
-                               .read_text(encoding="utf-8")).get("entries") or {}
+            extra = (
+                json.loads(
+                    (DATA_DIR / "dispositions_rivenmirror.json").read_text(encoding="utf-8")
+                ).get("entries")
+                or {}
+            )
         except Exception as exc:  # noqa: BLE001 - 数据缺失只降级不炸
             logger.warning("[sdjk] 倾向补全数据不可用：%s", exc)
             extra = {}
@@ -1510,11 +1616,15 @@ class WarframeClient:
                 if not hit.get("zh"):
                     hit["zh"] = e.get("zh", "")
                 continue
-            by_url[u] = {"url_name": u, "zh": e.get("zh", ""), "en": en,
-                         "game_ref": "",
-                         "disposition": e.get("disposition"),
-                         "riven_type": e.get("riven_type", ""),
-                         "group": e.get("group", "")}
+            by_url[u] = {
+                "url_name": u,
+                "zh": e.get("zh", ""),
+                "en": en,
+                "game_ref": "",
+                "disposition": e.get("disposition"),
+                "riven_type": e.get("riven_type", ""),
+                "group": e.get("group", ""),
+            }
             out.append(by_url[u])
         # ★ 2026-09-24：补全条目里有一批没有中文名（实测 48 条），不补会
         #   在倾向卡里漏出英文（玩家报障「Larkspur Prime 倾向 0.80」）。
@@ -1584,8 +1694,7 @@ class WarframeClient:
             if zh:
                 e["zh"] = zh
                 filled += 1
-        logger.info("[sdjk] 紫卡武器中文名补全 %d/%d 条（余下保持英文）",
-                    filled, len(miss))
+        logger.info("[sdjk] 紫卡武器中文名补全 %d/%d 条（余下保持英文）", filled, len(miss))
 
     # ------------------------------------------------------------------
     # Warframe.Market v1：价格统计（趋势 / 排行）
@@ -1602,27 +1711,31 @@ class WarframeClient:
         }
         data = await self._fetch_json(
             f"{self.wm_base}/items/{quote(slug)}/statistics",
-            ttl=TTL_WM_STATS, headers=hdr,
-            cache_key=f"wmstats:{slug}|{platform}", wm_rate_limit=True)
+            ttl=TTL_WM_STATS,
+            headers=hdr,
+            cache_key=f"wmstats:{slug}|{platform}",
+            wm_rate_limit=True,
+        )
         payload = (data or {}).get("payload") or {}
         closed = payload.get("statistics_closed") or {}
 
         def norm(rows: list[dict]) -> list[dict]:
             out = []
             for r in rows or []:
-                out.append({
-                    "t": (r.get("datetime") or "")[:16].replace("T", " "),
-                    "volume": r.get("volume") or 0,
-                    "median": r.get("median") or 0,
-                    "avg": r.get("avg_price") or 0,
-                    "min": r.get("min_price") or 0,
-                    "max": r.get("max_price") or 0,
-                    "rank": r.get("mod_rank") or 0,
-                })
+                out.append(
+                    {
+                        "t": (r.get("datetime") or "")[:16].replace("T", " "),
+                        "volume": r.get("volume") or 0,
+                        "median": r.get("median") or 0,
+                        "avg": r.get("avg_price") or 0,
+                        "min": r.get("min_price") or 0,
+                        "max": r.get("max_price") or 0,
+                        "rank": r.get("mod_rank") or 0,
+                    }
+                )
             return out
 
-        return {"h48": norm(closed.get("48hours")),
-                "d90": norm(closed.get("90days"))}
+        return {"h48": norm(closed.get("48hours")), "d90": norm(closed.get("90days"))}
 
     @staticmethod
     def summarize_stats(stats: dict) -> dict:
@@ -1630,20 +1743,23 @@ class WarframeClient:
         h48, d90 = stats.get("h48") or [], stats.get("d90") or []
         vol48 = sum(r["volume"] for r in h48)
         vol90 = sum(r["volume"] for r in d90)
-        med_all = [r["median"] for r in d90 if r["median"]] or \
-            [r["median"] for r in h48 if r["median"]]
+        med_all = [r["median"] for r in d90 if r["median"]] or [
+            r["median"] for r in h48 if r["median"]
+        ]
         med48 = [r["median"] for r in h48 if r["median"]]
         avg90 = [r["avg"] for r in d90 if r["avg"]]
         recent = med48[-1] if med48 else (med_all[-1] if med_all else 0)
         early = med48[0] if med48 else recent
-        prev = med_all[:max(1, len(med_all) // 3)]
+        prev = med_all[: max(1, len(med_all) // 3)]
         base = (sum(prev) / len(prev)) if prev else recent
         return {
-            "vol48": vol48, "vol90": vol90,
+            "vol48": vol48,
+            "vol90": vol90,
             "median": round(sum(med_all) / len(med_all), 1) if med_all else 0,
             "median48": round(sum(med48) / len(med48), 1) if med48 else 0,
             "avg90": round(sum(avg90) / len(avg90), 1) if avg90 else 0,
-            "last": recent, "first": early,
+            "last": recent,
+            "first": early,
             "change": round((recent - base) / base * 100, 1) if base else 0.0,
         }
 
@@ -1672,8 +1788,9 @@ class WarframeClient:
     @staticmethod
     def _save_json_file(path, payload) -> None:
         try:
-            Path(path).write_text(json.dumps(payload, ensure_ascii=False, indent=1),
-                                  encoding="utf-8")
+            Path(path).write_text(
+                json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8"
+            )
         except Exception:  # noqa: BLE001 - 落盘失败不影响本次查询
             pass
 
@@ -1701,7 +1818,8 @@ class WarframeClient:
         prev = [r for r in d90[:-2] if r.get("median")][-2:]
         prev_med = round(sum(r["median"] for r in prev) / len(prev), 1) if prev else 0
         return {
-            "zh": it.get("zh") or "", "en": it.get("en") or "",
+            "zh": it.get("zh") or "",
+            "en": it.get("en") or "",
             "tags": tags,
             "median48": round(sum(med48) / len(med48), 1),
             "min48": min(mins) if mins else 0,
@@ -1733,7 +1851,7 @@ class WarframeClient:
         old = self._load_json_file(paths.read_path(RANKS_NAME)) or {}
         rows: dict = old.get("rows") or {}
         cursor = int(old.get("cursor") or 0)
-        if cursor >= total:        # 上一轮已跑满，从头开始新一轮
+        if cursor >= total:  # 上一轮已跑满，从头开始新一轮
             cursor = 0
         done = 0
         idx = cursor
@@ -1758,25 +1876,45 @@ class WarframeClient:
                     if rec:
                         rows[slug] = rec
                     else:
-                        rows.pop(slug, None)     # 确实无 48h 成交 → 出榜
+                        rows.pop(slug, None)  # 确实无 48h 成交 → 出榜
             idx += 1
             done += 1
             if done % 50 == 0:
-                self._save_json_file(paths.write_path(RANKS_NAME), {
-                    "ts": old.get("ts") or "", "cursor": idx, "total": total,
-                    "done": idx, "rows": rows})
+                self._save_json_file(
+                    paths.write_path(RANKS_NAME),
+                    {
+                        "ts": old.get("ts") or "",
+                        "cursor": idx,
+                        "total": total,
+                        "done": idx,
+                        "rows": rows,
+                    },
+                )
         finished = idx >= total
-        self._save_json_file(paths.write_path(RANKS_NAME), {
-            # 跑满一轮才刷新 ts（整榜 48h 更新一次）；没跑满沿用旧 ts，
-            # 下一轮仍判定为过期 -> 从 cursor 继续
-            "ts": (time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime())
-                   if finished else (old.get("ts") or "")),
-            "cursor": 0 if finished else idx,
-            "total": total, "done": idx, "rows": rows})
+        self._save_json_file(
+            paths.write_path(RANKS_NAME),
+            {
+                # 跑满一轮才刷新 ts（整榜 48h 更新一次）；没跑满沿用旧 ts，
+                # 下一轮仍判定为过期 -> 从 cursor 继续
+                "ts": (
+                    time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime())
+                    if finished
+                    else (old.get("ts") or "")
+                ),
+                "cursor": 0 if finished else idx,
+                "total": total,
+                "done": idx,
+                "rows": rows,
+            },
+        )
         # api_client 没有模块级 logger，这里用标准库（保持与 main.py 前缀一致）
         logger.info(
             "[sdjk] 价格榜单抓取：本轮 %d 项，累计 %d/%d%s",
-            done, idx, total, "（本轮跑满）" if finished else "")
+            done,
+            idx,
+            total,
+            "（本轮跑满）" if finished else "",
+        )
         return len(rows)
 
     def start_rank_crawl(self) -> tuple[bool, int, int]:
@@ -1785,8 +1923,7 @@ class WarframeClient:
         task = getattr(self, "_rank_crawl_task", None)
         if task and not task.done():
             return False, int(data.get("done") or 0), int(data.get("total") or 0)
-        self._rank_crawl_task = asyncio.get_running_loop().create_task(
-            self.crawl_wm_ranks())
+        self._rank_crawl_task = asyncio.get_running_loop().create_task(self.crawl_wm_ranks())
         return True, int(data.get("done") or 0), int(data.get("total") or 0)
 
     def rank_rows(self) -> list[dict]:
@@ -1794,8 +1931,7 @@ class WarframeClient:
         data = self._load_json_file(paths.read_path(RANKS_NAME))
         return [{"slug": k, **v} for k, v in (data.get("rows") or {}).items()]
 
-    async def de_weekly_rivens(self, platform: str = "pc",
-                               force: bool = False) -> dict:
+    async def de_weekly_rivens(self, platform: str = "pc", force: bool = False) -> dict:
         """DE 官方每周紫卡交易数据（周销量/热度榜的权威来源）。
 
         官方文件为 JS 字面量，解析后落盘缓存 6 小时；``force=True``
@@ -1803,8 +1939,7 @@ class WarframeClient:
         """
         if not force:
             snap = self._load_json_file(paths.read_path(RIVEN_WEEKLY_NAME))
-            if snap.get("entries") and \
-                    time.time() - snap.get("fetched", 0) < TTL_RIVEN_WEEKLY:
+            if snap.get("entries") and time.time() - snap.get("fetched", 0) < TTL_RIVEN_WEEKLY:
                 return snap
         plat = _DE_RIVEN_PLATFORM.get(platform, "PC")
         try:
@@ -1819,7 +1954,6 @@ class WarframeClient:
         self._save_json_file(paths.write_path(RIVEN_WEEKLY_NAME), snap)
         return snap
 
-
     # ------------------------------------------------------------------
     # Warframe.Market v1：拍卖（紫卡/玄骸，v2 尚未开放）
     # ------------------------------------------------------------------
@@ -1827,6 +1961,7 @@ class WarframeClient:
     def normalize_riven_stats(stats: Iterable[str], riven_type: str = "") -> list[str]:
         """把插件标准词条 id 转成 WM v1 拍卖数据的 url_name（含合并名）。"""
         from .parser import RIVEN_URL_COMPAT
+
         return list(dict.fromkeys(RIVEN_URL_COMPAT.get(s, s) for s in stats))
 
     async def wm_riven_auctions(
@@ -1902,12 +2037,15 @@ class WarframeClient:
             data = None
             try:
                 data = await self._fetch_json(
-                    f"{self.wm_base}/auctions/search", ttl=TTL_WM_AUCTIONS,
-                    params=params, wm_rate_limit=True)
+                    f"{self.wm_base}/auctions/search",
+                    ttl=TTL_WM_AUCTIONS,
+                    params=params,
+                    wm_rate_limit=True,
+                )
             except WarframeAPIError:
                 if not (pos or neg):
                     if sort == "price_asc":
-                        raise        # 第一次就失败且无降级路径：原样抛
+                        raise  # 第一次就失败且无降级路径：原样抛
                     # 第二次失败（超时/400）：降级为单方向结果，不让指令打挂
                     continue
                 # 个别词条不被服务端接受时：去掉词条过滤重查，交给本地二次筛
@@ -1915,8 +2053,11 @@ class WarframeClient:
                 params.pop("negative_stats", None)
                 try:
                     data = await self._fetch_json(
-                        f"{self.wm_base}/auctions/search", ttl=TTL_WM_AUCTIONS,
-                        params=params, wm_rate_limit=True)
+                        f"{self.wm_base}/auctions/search",
+                        ttl=TTL_WM_AUCTIONS,
+                        params=params,
+                        wm_rate_limit=True,
+                    )
                 except WarframeAPIError:
                     if sort == "price_asc":
                         raise
@@ -1928,10 +2069,15 @@ class WarframeClient:
         # 合并后顺序无所谓：渲染层 fmt_wr_auctions 按「在线优先 → 价格升序」重排
         return list(merged.values())
 
-    async def wm_lich_auctions(self, weapon_url_name: str, platform: str = "pc",
-                               *, lich_type: str = "lich",
-                               element: Optional[str] = None,
-                               damage_max: Optional[int] = None) -> list[dict]:
+    async def wm_lich_auctions(
+        self,
+        weapon_url_name: str,
+        platform: str = "pc",
+        *,
+        lich_type: str = "lich",
+        element: Optional[str] = None,
+        damage_max: Optional[int] = None,
+    ) -> list[dict]:
         """玄骸拍卖挂单。
 
         ★ 2026-09-18 容错（玩家反馈「信条铁晶磁轨炮搜不出来」时暴露）：
@@ -1941,26 +2087,33 @@ class WarframeClient:
         「出错了」。现在：400 → 返回空列表并记入 ``_lich_unsupported``，
         由调用方给出「WM 暂无该武器挂单类目」的准确提示；429 单独提示限速。
         """
-        params: dict[str, Any] = {"type": lich_type, "weapon_url_name": weapon_url_name,
-                                  "platform": platform, "sort_by": "price_asc"}
+        params: dict[str, Any] = {
+            "type": lich_type,
+            "weapon_url_name": weapon_url_name,
+            "platform": platform,
+            "sort_by": "price_asc",
+        }
         if element:
             params["element"] = element
         if damage_max:
             params["having_damage_max"] = damage_max
         try:
             data = await self._fetch_json(
-                f"{self.wm_base}/auctions/search", ttl=TTL_WM_AUCTIONS,
-                params=params, wm_rate_limit=True)
+                f"{self.wm_base}/auctions/search",
+                ttl=TTL_WM_AUCTIONS,
+                params=params,
+                wm_rate_limit=True,
+            )
         except WarframeAPIError as exc:
             msg = str(exc)
             if "400" in msg:
                 self._lich_unsupported.add(weapon_url_name)
-                logger.info("[sdjk] WM 无该玄骸武器的挂单类目：%s（type=%s）",
-                            weapon_url_name, lich_type)
+                logger.info(
+                    "[sdjk] WM 无该玄骸武器的挂单类目：%s（type=%s）", weapon_url_name, lich_type
+                )
                 return []
             if "429" in msg:
-                raise WarframeAPIError(
-                    "warframe.market 限速了（3 请求/秒），请过几秒再试") from exc
+                raise WarframeAPIError("warframe.market 限速了（3 请求/秒），请过几秒再试") from exc
             raise
         return (data or {}).get("payload", {}).get("auctions", [])
 
@@ -1971,8 +2124,9 @@ class WarframeClient:
     # ------------------------------------------------------------------
     # 名称解析（CN 别名 -> WM url_name / wiki 页面）
     # ------------------------------------------------------------------
-    def alias_lookup(self, query: str, table: str = "wm_items",
-                     *, exact: bool = False) -> Optional[str]:
+    def alias_lookup(
+        self, query: str, table: str = "wm_items", *, exact: bool = False
+    ) -> Optional[str]:
         """本地别名词典精确/模糊匹配。返回 WM url_name 或 None。
 
         ``exact=True`` 时**只认精确键**、不做双向包含 —— 「官方名优先」的解析链
@@ -2010,8 +2164,7 @@ class WarframeClient:
             # ★ 2026-09-24：**单字键**（电/猫/沙/鸟 等战甲单字黑话）只认
             #   「本字 / 本字+p / 本字+prime」三种形态 —— 双向包含会让
             #   「电击伤害」「冰霜」这类正常查询被劫持到 Volt/Frost 上。
-            if len(k) == 1 and q not in (k, k + "p", k + "prime",
-                                         k + " p", k + " prime"):
+            if len(k) == 1 and q not in (k, k + "p", k + "prime", k + " p", k + " prime"):
                 continue
             return v
         return None
@@ -2042,8 +2195,7 @@ class WarframeClient:
         hit = match_official_name(query, items)
         if hit:
             return hit
-        url = ((getattr(self, "_aliases", None) or {}).get("wm_items") or {}).get(
-            query.lower())
+        url = ((getattr(self, "_aliases", None) or {}).get("wm_items") or {}).get(query.lower())
         if isinstance(url, str) and url:
             for it in items:
                 if it.get("url_name") == url:
@@ -2089,8 +2241,7 @@ class WarframeClient:
         # 别名词典**精确**键（黑话）；模糊降级到后面的链路，避免劫持官方名
         # ★ getattr 兜底：部分测试用 __new__ 造实例，_aliases 可能还没初始化，
         #   这里不能因为「查不到词典键」就把整条解析链炸掉。
-        url = ((getattr(self, "_aliases", None) or {}).get("wm_items") or {}).get(
-            query.lower())
+        url = ((getattr(self, "_aliases", None) or {}).get("wm_items") or {}).get(query.lower())
         if isinstance(url, str) and url:
             for it in items:
                 if it.get("url_name") == url:
@@ -2121,13 +2272,11 @@ class WarframeClient:
 
         # 中文名包含 -> slug 包含 -> 归一化
         zh_low = query.lower()
-        zh_contains = [it for it in items
-                       if it.get("zh") and zh_low in it["zh"].lower()]
+        zh_contains = [it for it in items if it.get("zh") and zh_low in it["zh"].lower()]
         if zh_contains:
             # 包含命中多个时：整套 > 本体（非部件/蓝图）> 部件/蓝图
             return min(zh_contains, key=_score)
-        url_contains = [it for it in items
-                        if low.replace(" ", "_") in it.get("url_name", "")]
+        url_contains = [it for it in items if low.replace(" ", "_") in it.get("url_name", "")]
         if url_contains:
             return min(url_contains, key=_score)
         # 归一化匹配：用户输入「Saryn蓝图」这类省略 Prime/空格的部件名
@@ -2147,8 +2296,7 @@ class WarframeClient:
             # ★ primed 是**物品 dict**，比较时要取它的 url_name（不是拿 dict 去比）
             target = alias
             if want_prime:
-                primed = next((x for x in items
-                               if x.get("url_name") == "primed_" + alias), None)
+                primed = next((x for x in items if x.get("url_name") == "primed_" + alias), None)
                 if primed:
                     target = primed.get("url_name")
                 else:
@@ -2156,10 +2304,8 @@ class WarframeClient:
                     #   （哨兵/武器成套上架），Prime 版是 `_prime_set` 这类**兄弟
                     #   条目** —— 旧实现只找 primed_，于是「wm 鹦鹉螺p」落回基础版
                     #   nautilus_set（玩家报障）。改为按名称找 Prime 兄弟。
-                    base_it = next((x for x in items
-                                    if x.get("url_name") == alias), None)
-                    sib = (matching.prime_sibling(base_it, items)
-                           if base_it else None)
+                    base_it = next((x for x in items if x.get("url_name") == alias), None)
+                    sib = matching.prime_sibling(base_it, items) if base_it else None
                     if sib:
                         target = sib.get("url_name")
             for it in items:
@@ -2174,23 +2320,25 @@ class WarframeClient:
             base_item = await self._resolve_wm_item_inner(base_q)
             if base_item:
                 prefix = re.sub(r"_set$", "", base_item.get("url_name", ""))
-                cands = [it for it in items
-                         if it.get("url_name", "").startswith(prefix)
-                         and it.get("url_name") != base_item.get("url_name")
-                         and (en_word in it.get("url_name", "")
-                              or cn_word in norm_wm_name(it.get("zh")))]
+                cands = [
+                    it
+                    for it in items
+                    if it.get("url_name", "").startswith(prefix)
+                    and it.get("url_name") != base_item.get("url_name")
+                    and (en_word in it.get("url_name", "") or cn_word in norm_wm_name(it.get("zh")))
+                ]
                 if cands:
                     return min(cands, key=_score)
         close = difflib.get_close_matches(
-            low.replace(" ", "_"), [it.get("url_name", "") for it in items],
-            n=1, cutoff=0.75)
+            low.replace(" ", "_"), [it.get("url_name", "") for it in items], n=1, cutoff=0.75
+        )
         if close:
             return next(it for it in items if it.get("url_name") == close[0])
         close_en = difflib.get_close_matches(
-            low, [(it.get("en") or "").lower() for it in items], n=1, cutoff=0.8)
+            low, [(it.get("en") or "").lower() for it in items], n=1, cutoff=0.8
+        )
         if close_en:
-            return next(it for it in items
-                        if (it.get("en") or "").lower() == close_en[0])
+            return next(it for it in items if (it.get("en") or "").lower() == close_en[0])
         # 中文名错别字容忍（波斯顿 -> 伯斯顿）
         zh_names = [(it.get("zh") or "") for it in items]
         zh_hits = fuzzy_hits(query, zh_names, n=1)
@@ -2223,8 +2371,9 @@ class WarframeClient:
             if re.sub(r"[\s·・]+", "", k).lower() in forms:
                 return v
         # 形近字兜底（「赤毒弧电离子枪」→「赤毒·弧电离子枪」）
-        near = fuzzy_hits(norm, [re.sub(r"[\s·・]+", "", k).lower()
-                                 for k in table], n=1, cutoff=0.75)
+        near = fuzzy_hits(
+            norm, [re.sub(r"[\s·・]+", "", k).lower() for k in table], n=1, cutoff=0.75
+        )
         if near:
             for k, v in table.items():
                 if re.sub(r"[\s·・]+", "", k).lower() == near[0]:
@@ -2252,8 +2401,9 @@ class WarframeClient:
             return cache
         try:
             self._lich_cache = json.loads(
-                (DATA_DIR / "lich_weapons.json").read_text(encoding="utf-8"))
-        except Exception:                        # noqa: BLE001
+                (DATA_DIR / "lich_weapons.json").read_text(encoding="utf-8")
+            )
+        except Exception:  # noqa: BLE001
             self._lich_cache = {}
         return self._lich_cache
 
@@ -2295,22 +2445,27 @@ class WarframeClient:
         nq = matching.normalize(query)
         if nq:
             for w in weapons:
-                if nq in (matching.normalize(w.get("zh") or ""),
-                          matching.normalize(w.get("en") or "")):
+                if nq in (
+                    matching.normalize(w.get("zh") or ""),
+                    matching.normalize(w.get("en") or ""),
+                ):
                     return w
             # 变体等价（p→prime / 语序互换 / zh↔en token）——只做等价变形，
             # 绝不剥 token 配 base（倾向按变体分算）
             forms = set(matching.expand_variants(query)) - {nq}
             if forms:
                 for w in weapons:
-                    if (matching.normalize(w.get("zh") or "") in forms
-                            or matching.normalize(w.get("en") or "") in forms):
+                    if (
+                        matching.normalize(w.get("zh") or "") in forms
+                        or matching.normalize(w.get("en") or "") in forms
+                    ):
                         return w
         for w in weapons:
             if low in w.get("url_name", "") or query in (w.get("zh") or ""):
                 return w
         close = difflib.get_close_matches(
-            low, [w.get("url_name", "") for w in weapons], n=1, cutoff=0.7)
+            low, [w.get("url_name", "") for w in weapons], n=1, cutoff=0.7
+        )
         if close:
             return next(w for w in weapons if w.get("url_name") == close[0])
         # 中文名错别字容忍
@@ -2394,7 +2549,7 @@ class WarframeClient:
 
     # ★ FlareSolverr 调参（2026-09-25 事故：60s 偏紧 + 坏会话不自愈）
     _FLARE_SESSION = "sdjk"
-    _FLARE_MAX_TIMEOUT = 120000   # CF 解页实测 ~61s，60000 会整轮卡在边缘
+    _FLARE_MAX_TIMEOUT = 120000  # CF 解页实测 ~61s，60000 会整轮卡在边缘
     # 命中即销毁重建会话：会话不存在/坏掉、求解失败、标签页崩（tab crashed）
     _FLARE_REBUILD_HINTS = ("session", "solving", "tab crashed", "chrome")
 
@@ -2405,6 +2560,7 @@ class WarframeClient:
         结果按 URL 做 TTL 内存缓存（FlareSolverr 一次求解要数秒，别反复打）。
         """
         import time as _t
+
         hit = self._flare_cache.get(url)
         if hit and _t.time() - hit[0] < ttl:
             return hit[1]
@@ -2426,9 +2582,12 @@ class WarframeClient:
                     continue
 
         async def _solve(base: str) -> dict:
-            payload = {"cmd": "request.get", "url": url,
-                       "session": self._FLARE_SESSION,
-                       "maxTimeout": self._FLARE_MAX_TIMEOUT}
+            payload = {
+                "cmd": "request.get",
+                "url": url,
+                "session": self._FLARE_SESSION,
+                "maxTimeout": self._FLARE_MAX_TIMEOUT,
+            }
             try:
                 data = await _post(base, payload)
             except Exception:  # noqa: BLE001 - 连接级失败/非 JSON：重建后重试一次
@@ -2438,7 +2597,7 @@ class WarframeClient:
                 return data
             msg = str(data.get("message") or "")
             # 会话不存在/求解失败/标签页崩 → destroy→create 再试
-            #（冷启动首次求解常超时，带 cookie 的第二次实测 22s 通过）
+            # （冷启动首次求解常超时，带 cookie 的第二次实测 22s 通过）
             if any(h in msg.lower() for h in self._FLARE_REBUILD_HINTS):
                 await _recreate_session(base)
                 data = await _post(base, payload)
@@ -2451,11 +2610,11 @@ class WarframeClient:
         data: dict = {}
         if not self._flare_enabled:
             # 面板里关掉了：直接失败，让上层走它自己的降级提示（不静默空过）
-            raise WarframeAPIError(
-                "FlareSolverr 已在配置里关闭（「启用 CF 绕过代理」= 否）")
+            raise WarframeAPIError("FlareSolverr 已在配置里关闭（「启用 CF 绕过代理」= 否）")
         # 记住上次可用的地址，优先复用；全挂才报错
-        candidates = ([self._flare_url] if self._flare_url else []) + \
-            [u for u in self._flare_urls if u != self._flare_url]
+        candidates = ([self._flare_url] if self._flare_url else []) + [
+            u for u in self._flare_urls if u != self._flare_url
+        ]
         for base in candidates:
             try:
                 data = await _solve(base)
@@ -2472,10 +2631,10 @@ class WarframeClient:
             err_msg = str(data.get("message") or "")
             last_err = None
             break
-        if data.get("status") != "ok" \
-                or not (data.get("solution") or {}).get("response"):
+        if data.get("status") != "ok" or not (data.get("solution") or {}).get("response"):
             raise WarframeAPIError(
-                f"FlareSolverr 不可用/求解失败（{err_msg or last_err or data.get('message')}）")
+                f"FlareSolverr 不可用/求解失败（{err_msg or last_err or data.get('message')}）"
+            )
         html = data["solution"]["response"]
         self._flare_cache[url] = (_t.time(), html)
         return html
@@ -2494,11 +2653,12 @@ class WarframeClient:
         """
         if not self._flare_enabled:
             return False
-        candidates = ([self._flare_url] if self._flare_url else []) +             [u for u in self._flare_urls if u != self._flare_url]
+        candidates = ([self._flare_url] if self._flare_url else []) + [
+            u for u in self._flare_urls if u != self._flare_url
+        ]
         for base in candidates:
             try:
-                r = await self._http.post(base, json={"cmd": "sessions.list"},
-                                          timeout=timeout)
+                r = await self._http.post(base, json={"cmd": "sessions.list"}, timeout=timeout)
                 if r.status_code < 500:
                     self._flare_url = base
                     return True
@@ -2518,17 +2678,22 @@ class WarframeClient:
         """
         if not self._flare_enabled:
             return False
-        candidates = ([self._flare_url] if self._flare_url else []) + \
-            [u for u in self._flare_urls if u != self._flare_url]
+        candidates = ([self._flare_url] if self._flare_url else []) + [
+            u for u in self._flare_urls if u != self._flare_url
+        ]
         for base in candidates:
             try:
                 r = await self._http.post(
-                    base, json={"cmd": "sessions.destroy",
-                                "session": self._FLARE_SESSION}, timeout=60.0)
+                    base,
+                    json={"cmd": "sessions.destroy", "session": self._FLARE_SESSION},
+                    timeout=60.0,
+                )
                 r.raise_for_status()
                 r2 = await self._http.post(
-                    base, json={"cmd": "sessions.create",
-                                "session": self._FLARE_SESSION}, timeout=60.0)
+                    base,
+                    json={"cmd": "sessions.create", "session": self._FLARE_SESSION},
+                    timeout=60.0,
+                )
                 r2.raise_for_status()
                 self._flare_url = base
                 return True
@@ -2553,7 +2718,8 @@ class WarframeClient:
         pat = re.compile(
             r"((?:Dual )?Coda \w+|Tenet \w+)[\s|]+"
             r"(Magnetic|Impact|Toxin|Cold|Heat|Electricity|Radiation)"
-            r"[\s|]+([\d.]+)%")
+            r"[\s|]+([\d.]+)%"
+        )
         tenet: dict[str, tuple[str, float]] = {}
         coda: dict[str, tuple[str, float]] = {}
         for name, elem, pct in pat.findall(txt):
@@ -2565,10 +2731,10 @@ class WarframeClient:
         # 批次判定优先用 valence 表头「Weapon (Batch B)」——页面同时渲染
         # A/B 两个倒计时模板（"is selling Batch A … until Batch B" 两个都在
         # HTML 里，靠脚本二选一显示），取第一个匹配会判错批
-        m = (re.search(r"Weapon\s*\(\s*Batch\s*(\w+)\s*\)", txt)
-             or re.search(r"is selling[\s|]*Batch[\s|]*(\w+)", txt))
-        return {"tenet": tenet, "coda_batch": m.group(1) if m else "",
-                "coda": coda}
+        m = re.search(r"Weapon\s*\(\s*Batch\s*(\w+)\s*\)", txt) or re.search(
+            r"is selling[\s|]*Batch[\s|]*(\w+)", txt
+        )
+        return {"tenet": tenet, "coda_batch": m.group(1) if m else "", "coda": coda}
 
     @staticmethod
     def valence_is_stale(data: dict, now=None) -> bool:
@@ -2578,6 +2744,7 @@ class WarframeClient:
         快照缺失或时间串不可解析都算过期（宁可重抓，也别拿坏值当新鲜）。
         """
         from datetime import datetime, timedelta, timezone
+
         now = now or datetime.now(timezone.utc)
         epoch = datetime.fromisoformat(data["epoch"])
         period = timedelta(hours=int(data.get("period_hours", 96)))
@@ -2591,8 +2758,7 @@ class WarframeClient:
             return True
 
     @staticmethod
-    def coda_anchor_for(observed_idx: int, epoch, period_hours: int,
-                        now, n_batches: int) -> int:
+    def coda_anchor_for(observed_idx: int, epoch, period_hours: int, now, n_batches: int) -> int:
         """由「wiki 上观测到的当前批」反解 ``anchor_idx``。
 
         ★ 卡面用的是 ``(anchor_idx + 换轮次数) % 批数``，所以 anchor_idx 是
@@ -2600,6 +2766,7 @@ class WarframeClient:
         换轮次数一前进就整体错位一批（09-20 实测：B 批生效时会被算成 A 批）。
         """
         from datetime import timedelta
+
         passed = int((now - epoch) // timedelta(hours=int(period_hours)))
         return (observed_idx - passed) % n_batches
 
@@ -2612,17 +2779,22 @@ class WarframeClient:
         name = urls[0].rsplit("/", 1)[-1]
         for i, url in enumerate(urls):
             try:
-                data = await self._fetch_json(url, ttl=600,
-                                              headers=_ORACLE_HEADERS,
-                                              cache_key=f"community:{name}")
-            except Exception as exc:               # noqa: BLE001
-                logger.info("[sdjk] 社区快照通道 %d/%d 不可用（%s）：%s",
-                            i + 1, len(urls), name, exc)
+                data = await self._fetch_json(
+                    url, ttl=600, headers=_ORACLE_HEADERS, cache_key=f"community:{name}"
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.info(
+                    "[sdjk] 社区快照通道 %d/%d 不可用（%s）：%s", i + 1, len(urls), name, exc
+                )
                 continue
             if isinstance(data, dict):
                 if i:
-                    logger.info("[sdjk] 社区快照走的是备用通道 %d/%d（%s）",
-                                i + 1, len(urls), url.split("/")[2])
+                    logger.info(
+                        "[sdjk] 社区快照走的是备用通道 %d/%d（%s）",
+                        i + 1,
+                        len(urls),
+                        url.split("/")[2],
+                    )
                 return data
         return None
 
@@ -2636,11 +2808,11 @@ class WarframeClient:
         except ValueError as exc:
             logger.warning("[sdjk] 社区元素加成快照校验不过：%s", exc)
             return None
-        locals_ = [(rot.get(k) or {}).get("valence_snapshot", "")
-                   for k in ("tenet", "coda")]
+        locals_ = [(rot.get(k) or {}).get("valence_snapshot", "") for k in ("tenet", "coda")]
         if not community_valence_newer(parsed["snapshot"], *locals_):
-            logger.info("[sdjk] 社区元素加成快照不比本地新（%s），不采用",
-                        parsed["snapshot"] or "无时间戳")
+            logger.info(
+                "[sdjk] 社区元素加成快照不比本地新（%s），不采用", parsed["snapshot"] or "无时间戳"
+            )
             return None
         return parsed
 
@@ -2654,6 +2826,7 @@ class WarframeClient:
         校验失败（解析残缺）抛异常，绝不写半成品。
         """
         from datetime import datetime, timezone
+
         rot_path = paths.read_path("rotations.json")
         rot = json.loads(rot_path.read_text(encoding="utf-8"))
         now = datetime.now(timezone.utc)
@@ -2674,9 +2847,10 @@ class WarframeClient:
         else:
             try:
                 html = await self.fetch_via_flaresolver(
-                    "https://wiki.warframe.com/w/Reset", ttl=600)
+                    "https://wiki.warframe.com/w/Reset", ttl=600
+                )
                 parsed = self.parse_wiki_valence(html)
-            except Exception as exc:           # noqa: BLE001
+            except Exception as exc:  # noqa: BLE001
                 # ★ 没部署 / 连不上 FlareSolverr 时的兜底：读公开仓 bot-data 的
                 #   社区快照（同一份 wiki 数据，由有 FS 的那台机器发布）。校验不过
                 #   就照旧抛错（调用方降级），绝不采用残缺或更旧的数据。
@@ -2689,8 +2863,7 @@ class WarframeClient:
         coda_data = rot.get("coda") or {}
         want_t = {it.get("en") for it in tenet_data.get("items") or []}
         if not want_t or not want_t <= set(parsed["tenet"]):
-            raise WarframeAPIError(
-                f"valence 解析不全：tenet 缺 {want_t - set(parsed['tenet'])}")
+            raise WarframeAPIError(f"valence 解析不全：tenet 缺 {want_t - set(parsed['tenet'])}")
         labels = coda_data.get("batch_label") or ["A", "B"]
         batches = coda_data.get("batches") or []
         batch = parsed["coda_batch"]
@@ -2698,12 +2871,17 @@ class WarframeClient:
             raise WarframeAPIError(f"valence 批次标注异常：{batch!r}")
         bi = labels.index(batch)
         coda_data["anchor_idx"] = self.coda_anchor_for(
-            bi, datetime.fromisoformat(coda_data["epoch"]),
-            int(coda_data.get("period_hours", 96)), now, len(batches))
+            bi,
+            datetime.fromisoformat(coda_data["epoch"]),
+            int(coda_data.get("period_hours", 96)),
+            now,
+            len(batches),
+        )
         want_c = {it.get("en") for it in batches[bi]}
         if not want_c <= set(parsed["coda"]):
             raise WarframeAPIError(
-                f"valence 解析不全：coda {batch} 批缺 {want_c - set(parsed['coda'])}")
+                f"valence 解析不全：coda {batch} 批缺 {want_c - set(parsed['coda'])}"
+            )
         snap = now.replace(microsecond=0).isoformat()
         for it in tenet_data.get("items") or []:
             elem, pct = parsed["tenet"][it["en"]]
@@ -2722,8 +2900,9 @@ class WarframeClient:
             src = "community-snapshot（wiki《Reset》数据，由有 FS 的机器发布）"
             tenet_data["valence_source"] = src
             coda_data["valence_source"] = src
-        paths.write_path("rotations.json").write_text(json.dumps(rot, ensure_ascii=False, indent=1),
-                            encoding="utf-8")
+        paths.write_path("rotations.json").write_text(
+            json.dumps(rot, ensure_ascii=False, indent=1), encoding="utf-8"
+        )
         return f"refreshed {snap} batch={batch}" + ("(community)" if used_community else "")
 
     @staticmethod
@@ -2739,9 +2918,12 @@ class WarframeClient:
         0.05-1.6、名称首字母须为字母、``&amp;`` 等实体解码。
         """
         import html as _html
+
         pairs = re.findall(
             r"<li[^>]*>\s*<a href=\"[^\"]*/w/[^\"]*\"[^>]*>([^<]+)</a>"
-            r" \(([\d.]+)\)", html)
+            r" \(([\d.]+)\)",
+            html,
+        )
         out: dict[str, float] = {}
         for name, val in pairs:
             v = float(val)
@@ -2752,8 +2934,7 @@ class WarframeClient:
                 out[name.lower()] = v
         return out
 
-    async def refresh_wiki_disp(self, max_age_hours: int = 24 * 7,
-                                force: bool = False) -> str:
+    async def refresh_wiki_disp(self, max_age_hours: int = 24 * 7, force: bool = False) -> str:
         """检查并刷新 wiki 变体倾向快照（默认 7 天过期）。
 
         幂等：快照未过期直接返回 "fresh"。解析条数 < 400 视为页面
@@ -2761,36 +2942,38 @@ class WarframeClient:
         WarframeAPIError，由调用方降级（手输倾向仍可用）。
         """
         from datetime import datetime, timezone
+
         old = self._load_json_file(paths.read_path(WIKI_DISP_NAME)) or {}
         if not force:
             snap = old.get("snapshot")
             if snap:
                 try:
-                    age = (datetime.now(timezone.utc)
-                           - datetime.fromisoformat(snap)).total_seconds()
+                    age = (
+                        datetime.now(timezone.utc) - datetime.fromisoformat(snap)
+                    ).total_seconds()
                     if age < max_age_hours * 3600:
                         return "fresh"
                 except ValueError:
                     pass
-        html = await self.fetch_via_flaresolver(
-            "https://wiki.warframe.com/w/Riven_Mod", ttl=600)
+        html = await self.fetch_via_flaresolver("https://wiki.warframe.com/w/Riven_Mod", ttl=600)
         disp = self.parse_wiki_dispositions(html)
         if len(disp) < 400:
-            raise WarframeAPIError(
-                f"wiki 倾向表解析异常：仅 {len(disp)} 条（预期 ≥400）")
+            raise WarframeAPIError(f"wiki 倾向表解析异常：仅 {len(disp)} 条（预期 ≥400）")
         now = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
         meta = {
-            "_note": ("武器倾向表（wiki Riven Mod 页 Riven Disposition，覆盖全部"
-                      "变体：棱晶/Prime/亡魂/破坏者/赤毒/信条…）。来源 "
-                      "wiki.warframe.com（CC BY-NC-SA）；DE 仅在大版本调整倾向，"
-                      "插件内置定时每 7 天自动重抓（需 FlareSolverr）"),
+            "_note": (
+                "武器倾向表（wiki Riven Mod 页 Riven Disposition，覆盖全部"
+                "变体：棱晶/Prime/亡魂/破坏者/赤毒/信条…）。来源 "
+                "wiki.warframe.com（CC BY-NC-SA）；DE 仅在大版本调整倾向，"
+                "插件内置定时每 7 天自动重抓（需 FlareSolverr）"
+            ),
             "snapshot": now,
             "disp": disp,
         }
-        paths.write_path(WIKI_DISP_NAME).write_text(json.dumps(meta, ensure_ascii=False, indent=1),
-                                  encoding="utf-8")
+        paths.write_path(WIKI_DISP_NAME).write_text(
+            json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8"
+        )
         return f"refreshed {len(disp)} 条 @ {now}"
-
 
     async def suggest_riven_weapons(self, query: str, n: int = 3) -> list[str]:
         """给「未找到」的紫卡武器查询提供候选。
@@ -2800,8 +2983,7 @@ class WarframeClient:
         子串能命中。
         """
         weapons = await self.wm_riven_weapons()
-        names = [(w.get("zh") or w.get("en") or w.get("url_name", ""))
-                 for w in weapons]
+        names = [(w.get("zh") or w.get("en") or w.get("url_name", "")) for w in weapons]
         hits = fuzzy_hits(query, names, n=n)
         if not hits:
             hits = [nm for nm in names if nm and nm in query][:n]
@@ -2844,13 +3026,13 @@ class WarframeClient:
         table = (self._load_json_file(paths.read_path(WIKI_DISP_NAME)) or {}).get("disp") or {}
         if not table or not base_en:
             return []
-        by_name = matching._load_riven_families()          # {英文名: 官方家族根}
+        by_name = matching._load_riven_families()  # {英文名: 官方家族根}
         root = matching.family_key(base_en)
         found: dict[str, float] = {}
         for en, r in by_name.items():
             if r != root or en.lower() == base_en.lower():
-                continue                                   # 非本族成员 / 自身
-            v = table.get(en.strip().lower())              # ★ 本地 wiki 表（键=小写英文）
+                continue  # 非本族成员 / 自身
+            v = table.get(en.strip().lower())  # ★ 本地 wiki 表（键=小写英文）
             if v is None:
                 continue
             found.setdefault(_zh_name_of_en(en) or en, v)  # 没中文名退回英文名
@@ -2905,8 +3087,11 @@ class WarframeClient:
         if _nq:
             for k, v in table.items():
                 if matching.normalize_name(k) == _nq:
-                    return {"title": v.get("title", k), "url": v["url"]} \
-                        if isinstance(v, dict) else {"title": k, "url": v}
+                    return (
+                        {"title": v.get("title", k), "url": v["url"]}
+                        if isinstance(v, dict)
+                        else {"title": k, "url": v}
+                    )
         # 「花p」这类小写 p 后缀 ≡ 「花P」（社区写法混用，2026-09-25）
         cands = [q]
         if len(q) > 1 and q.endswith(("p", "P")) and q[:-1] + "P" != q:
@@ -2915,12 +3100,14 @@ class WarframeClient:
             e = table.get(c)
             if e is None:
                 continue
-            return {"title": e.get("title", c), "url": e["url"]} \
-                if isinstance(e, dict) else {"title": c, "url": e}
+            return (
+                {"title": e.get("title", c), "url": e["url"]}
+                if isinstance(e, dict)
+                else {"title": c, "url": e}
+            )
         close = difflib.get_close_matches(q, list(table), n=1, cutoff=0.8)
         if close and isinstance(table[close[0]], dict):
-            return {"title": table[close[0]].get("title", close[0]),
-                    "url": table[close[0]]["url"]}
+            return {"title": table[close[0]].get("title", close[0]), "url": table[close[0]]["url"]}
         return None
 
     def wiki_clarify(self, query: str) -> str:

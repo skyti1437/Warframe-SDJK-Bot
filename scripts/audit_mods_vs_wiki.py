@@ -30,6 +30,7 @@
 ★ 姿态卡哨兵：库里 `base_drain < 0`（-2）表示「姿态卡，不参与折算」，
   这是 `loadout_ocr` 的判据 —— **整条跳过，不要用 wiki 的 0 覆盖**。
 """
+
 from __future__ import annotations
 
 import json
@@ -44,16 +45,27 @@ MODS = ROOT / "core" / "data" / "mods_stats.json"
 #   wfsim 的 yaml 对这 6 条都留了说明：DE 导出 fusionLimit=3、wiki **正文**的等级表
 #   也一致（例：Eagle Eye 是 +10%→+40% Zoom，4 个等级）。
 KNOWN_MODULE_WRONG = {
-    "Charged Chamber", "Eagle Eye", "Energy Channel", "Finishing Touch",
-    "Hawk Eye", "Steady Hands",
+    "Charged Chamber",
+    "Eagle Eye",
+    "Energy Channel",
+    "Finishing Touch",
+    "Hawk Eye",
+    "Steady Hands",
 }
 
 # wiki 的 Polarity 写法 → 我们库里的写法（小写）
 POLARITY = {
-    "madurai": "madurai", "vazarin": "vazarin", "naramon": "naramon",
-    "zenurik": "zenurik", "umbra": "umbra", "penjaga": "penjaga",
-    "unairu": "unairu", "universal": "universal", "any": "any",
-    "": "", "none": "",
+    "madurai": "madurai",
+    "vazarin": "vazarin",
+    "naramon": "naramon",
+    "zenurik": "zenurik",
+    "umbra": "umbra",
+    "penjaga": "penjaga",
+    "unairu": "unairu",
+    "universal": "universal",
+    "any": "any",
+    "": "",
+    "none": "",
 }
 
 
@@ -108,18 +120,19 @@ def main() -> int:
             if not w:
                 continue
             if isinstance(rec.get("base_drain"), int) and rec["base_drain"] < 0:
-                continue                      # ★ 姿态卡哨兵，整条跳过
-            for field, wkey in (("base_drain", "BaseDrain"),
-                                ("max_rank", "MaxRank"),
-                                ("polarity", "Polarity")):
+                continue  # ★ 姿态卡哨兵，整条跳过
+            for field, wkey in (
+                ("base_drain", "BaseDrain"),
+                ("max_rank", "MaxRank"),
+                ("polarity", "Polarity"),
+            ):
                 new = w.get(wkey)
                 if new is None:
                     continue
                 if field == "polarity":
                     new = POLARITY.get(str(new).lower(), str(new).lower())
                 old = rec.get(field)
-                if field == "polarity" and isinstance(old, str) \
-                        and old.lower() == str(new).lower():
+                if field == "polarity" and isinstance(old, str) and old.lower() == str(new).lower():
                     continue
                 if old != new:
                     problems[field].append((tbl, key, old, new))

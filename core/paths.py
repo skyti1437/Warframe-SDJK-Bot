@@ -13,11 +13,12 @@
 
 本模块只做路径拼装，不 import astrbot（离线脚本/单测可直接用）。
 """
+
 from __future__ import annotations
 
 from pathlib import Path
 
-PKG_DATA = Path(__file__).resolve().parent / "data"   # 随包分发的只读资源目录
+PKG_DATA = Path(__file__).resolve().parent / "data"  # 随包分发的只读资源目录
 
 _RUN: Path | None = None
 

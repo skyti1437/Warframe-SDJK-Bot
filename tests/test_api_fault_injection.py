@@ -5,6 +5,7 @@
 验证插件的容错重试、单飞缓存与降级提示是否符合预期。
 所有 Mock 只打在系统边界（client._http.get），不碰内部实现。
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -16,8 +17,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import httpx  # noqa: E402
 
-from core.api_client import (WarframeAPIError, WarframeClient,  # noqa: E402
-                             parse_url_list)
+from core.api_client import (
+    WarframeAPIError,
+    WarframeClient,  # noqa: E402
+    parse_url_list,
+)
 
 FAILED: list[str] = []
 
@@ -39,8 +43,7 @@ class FakeResponse:
 
     def raise_for_status(self):
         if self.status_code >= 400:
-            raise httpx.HTTPStatusError(
-                f"{self.status_code}", request=None, response=None)
+            raise httpx.HTTPStatusError(f"{self.status_code}", request=None, response=None)
 
     def json(self):
         if self._bad_json:
@@ -86,8 +89,7 @@ async def t_connect_error():
         check("断网最终抛 WarframeAPIError", False, "未抛出")
     except WarframeAPIError as e:
         check("断网最终抛 WarframeAPIError", True)
-        check("断网不泄露内部栈（仅外层包装信息）",
-              "Traceback" not in str(e), str(e))
+        check("断网不泄露内部栈（仅外层包装信息）", "Traceback" not in str(e), str(e))
     await c.close()
 
 
@@ -186,12 +188,14 @@ async def t_singleflight_failure():
     c = make_client()
     c._http.get = boom
     results = await asyncio.gather(
-        *[c._fetch_json("https://x.test/ws", ttl=30, retries=0)
-          for _ in range(10)],
-        return_exceptions=True)
-    check("10 并发失败全部拿到 WarframeAPIError",
-          all(isinstance(r, WarframeAPIError) for r in results),
-          str([type(r).__name__ for r in results]))
+        *[c._fetch_json("https://x.test/ws", ttl=30, retries=0) for _ in range(10)],
+        return_exceptions=True,
+    )
+    check(
+        "10 并发失败全部拿到 WarframeAPIError",
+        all(isinstance(r, WarframeAPIError) for r in results),
+        str([type(r).__name__ for r in results]),
+    )
     check("10 并发只回源 1 次（单飞）", calls["n"] == 1, f"实际 {calls['n']}")
     # 错误不缓存：稍后再调应重新回源
     try:
@@ -232,6 +236,7 @@ async def t_close():
 async def t_future_exception_consumed():
     """BUG-1：单飞失败后 GC 不应打印 "Future exception was never retrieved"。"""
     import gc
+
     captured: list[dict] = []
     loop = asyncio.get_running_loop()
     old = loop.get_exception_handler()
@@ -252,10 +257,8 @@ async def t_future_exception_consumed():
         for _ in range(3):  # 让 GC 有机会回收 future 并触发 handler
             gc.collect()
             await asyncio.sleep(0.05)
-        hits = [x for x in captured
-                if "never retrieved" in str(x.get("message", ""))]
-        check("单飞失败无 never-retrieved 警告（BUG-1 回归）",
-              not hits, str(hits[:1]))
+        hits = [x for x in captured if "never retrieved" in str(x.get("message", ""))]
+        check("单飞失败无 never-retrieved 警告（BUG-1 回归）", not hits, str(hits[:1]))
     finally:
         loop.set_exception_handler(old)
 
@@ -264,13 +267,20 @@ async def t_future_exception_consumed():
 def t_parse_url_list():
     check("空字符串 → 空列表", parse_url_list("") == [])
     check("None → 空列表", parse_url_list(None) == [])
-    check("逗号分隔", parse_url_list("http://a:1/v1, http://b:2/v1")
-          == ["http://a:1/v1", "http://b:2/v1"])
-    check("换行分隔", parse_url_list("http://a:1/v1\nhttp://b:2/v1")
-          == ["http://a:1/v1", "http://b:2/v1"])
+    check(
+        "逗号分隔",
+        parse_url_list("http://a:1/v1, http://b:2/v1") == ["http://a:1/v1", "http://b:2/v1"],
+    )
+    check(
+        "换行分隔",
+        parse_url_list("http://a:1/v1\nhttp://b:2/v1") == ["http://a:1/v1", "http://b:2/v1"],
+    )
     check("缺 /v1 自动补", parse_url_list("http://a:8191") == ["http://a:8191/v1"])
-    check("非 http 内容被丢弃", parse_url_list("not-a-url, ftp://x")
-          == [], str(parse_url_list("not-a-url, ftp://x")))
+    check(
+        "非 http 内容被丢弃",
+        parse_url_list("not-a-url, ftp://x") == [],
+        str(parse_url_list("not-a-url, ftp://x")),
+    )
     check("去重", parse_url_list("http://a/v1, http://a/v1") == ["http://a/v1"])
     check("尾部斜杠归一", parse_url_list("http://a:8191/v1/") == ["http://a:8191/v1"])
     check("超长输入不崩", parse_url_list("http://a/" + "x" * 100000)[0].endswith("/v1"))

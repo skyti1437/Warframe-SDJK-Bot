@@ -7,6 +7,7 @@
 
 用法：python scripts/diag_row_edges.py runtime/help_preview.png [--y0 165]
 """
+
 from __future__ import annotations
 
 import sys
@@ -61,7 +62,7 @@ def main():
     print(f"{'y 区间':>13}  {'最左 x':>7}  {'最右 x':>7}")
     print("-" * 34)
     for a, b, l, r in bands:
-        if b - a < 6:          # 太薄的当作噪声/装饰
+        if b - a < 6:  # 太薄的当作噪声/装饰
             continue
         print(f"{a:>5}-{b:<7}  {l:>7}  {r:>7}")
 

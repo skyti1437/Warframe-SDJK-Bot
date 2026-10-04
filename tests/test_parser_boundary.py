@@ -5,6 +5,7 @@
 SQL 风格注入 / 正则注入（ReDoS）。判据是「不抛异常 + 行为可预期 +
 耗时线性」，而不是逐条业务语义（业务语义已由 test_parser.py 等覆盖）。
 """
+
 from __future__ import annotations
 
 import sys
@@ -44,15 +45,16 @@ check("纯空白 command=None", p is not None and p.command is None)
 
 p, e = safe_parse("-pc -w")
 check("只有修饰符不抛异常", e is None, repr(e))
-check("只有修饰符 command=None", p is not None and p.command is None,
-      f"command={p.command!r}")
+check("只有修饰符 command=None", p is not None and p.command is None, f"command={p.command!r}")
 
 # ---------------------------------------------------------------- 非法参数
 p, e = safe_parse("wr")
 check("主指令裸发（无内容）不抛", e is None, repr(e))
-check("主指令裸发 command=wr、content 为空",
-      p is not None and p.command == "wr" and p.content == [],
-      f"{p.command!r} {p.content!r}")
+check(
+    "主指令裸发 command=wr、content 为空",
+    p is not None and p.command == "wr" and p.content == [],
+    f"{p.command!r} {p.content!r}",
+)
 
 p, e = safe_parse("-9")
 check("未知页码修饰符 -9 不抛", e is None, repr(e))
@@ -104,19 +106,21 @@ for i, payload in enumerate(sqlish):
     check(f"SQL 风格注入#{i + 1} 不抛", e is None, repr(e))
     if p is not None:
         joined = " ".join(p.content)
-        check(f"SQL 风格注入#{i + 1} 内容按普通词元保留（不被解释执行）",
-              payload.split()[0] in joined or payload in joined or bool(joined),
-              joined[:80])
+        check(
+            f"SQL 风格注入#{i + 1} 内容按普通词元保留（不被解释执行）",
+            payload.split()[0] in joined or payload in joined or bool(joined),
+            joined[:80],
+        )
 
 # ---------------------------------------------------------------- 特殊字符
 specials = [
     '未闭合引号 "abc',
     '空引号 ""',
     '"带空格的英文名" wr',
-    "wr\x00\x01\x02 裂隙",          # 控制字符 / NUL
+    "wr\x00\x01\x02 裂隙",  # 控制字符 / NUL
     "wr \U0001f600\U0001f525 裂隙",  # emoji
-    "wr 水‍星",               # ZWJ
-    "wr ｆｕｌｌｗｉｄｔｈ ａｂｃ",    # 全角
+    "wr 水‍星",  # ZWJ
+    "wr ｆｕｌｌｗｉｄｔｈ ａｂｃ",  # 全角
     "wr\r\n裂隙\t突击",
 ]
 for i, text in enumerate(specials):
@@ -125,8 +129,11 @@ for i, text in enumerate(specials):
 
 # ---------------------------------------------------------------- tokenize 边界
 check("tokenize 空串 → []", tokenize("") == [])
-check("tokenize 未闭合引号：词元保留不丢（引号字符随词）",
-      tokenize('"abc') == ['"abc'], str(tokenize('"abc')))
+check(
+    "tokenize 未闭合引号：词元保留不丢（引号字符随词）",
+    tokenize('"abc') == ['"abc'],
+    str(tokenize('"abc')),
+)
 check("tokenize 引号内空格合并", tokenize('"a b c" d') == ["a b c", "d"])
 
 # ---------------------------------------------------------------- 全主指令裸发批量
@@ -138,8 +145,7 @@ for alias, cmd in ALIAS_TO_COMMAND.items():
     p, e = safe_parse(alias)
     if e is not None or p is None or p.command != cmd:
         bad.append((alias, cmd, repr(e), p.command if p else None))
-check(f"全部 {len(ALIAS_TO_COMMAND)} 个别名裸发（无参数）不抛异常且正确分派",
-      not bad, str(bad[:5]))
+check(f"全部 {len(ALIAS_TO_COMMAND)} 个别名裸发（无参数）不抛异常且正确分派", not bad, str(bad[:5]))
 
 # ---------------------------------------------------------------- 翻页边界
 p, e = safe_parse("wr 基多 -999999999999999999999")

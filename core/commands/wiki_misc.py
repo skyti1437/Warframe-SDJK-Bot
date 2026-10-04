@@ -4,6 +4,7 @@
 覆盖路由键 3 项：wiki / valence / damage；含知识库引导与 wiki 简介回退。
 子包纪律：不 import astrbot（事件对象鸭子类型）。
 """
+
 from __future__ import annotations
 
 from .. import calculators as calc
@@ -34,9 +35,11 @@ class WikiMiscCommands:
             return ""
         kb_id = str(self.cfg.get("kb_id") or "").strip()
         tail = f"（知识库 id：{kb_id}）" if kb_id else ""
-        return ("\n\n💡 百科类问答可由 AstrBot 知识库承接：开源包随附的"
-                "scripts/kb/ 流水线可从 Warframe 官方数据包构建知识库文档后"
-                f"上传{tail}")
+        return (
+            "\n\n💡 百科类问答可由 AstrBot 知识库承接：开源包随附的"
+            "scripts/kb/ 流水线可从 Warframe 官方数据包构建知识库文档后"
+            f"上传{tail}"
+        )
 
     def _wiki_intro_on(self) -> bool:
         """wiki 卡片开关（默认开）。
@@ -50,9 +53,16 @@ class WikiMiscCommands:
         """
         return bool(self.cfg.get("wiki_intro", True))
 
-    def _wiki_reply(self, page_name: str, url: str, alts: list[str],
-                    platform, *names: str, variants: list[str] | None = None,
-                    note: str = "") -> Reply:
+    def _wiki_reply(
+        self,
+        page_name: str,
+        url: str,
+        alts: list[str],
+        platform,
+        *names: str,
+        variants: list[str] | None = None,
+        note: str = "",
+    ) -> Reply:
         """wiki 结果统一出口：有简介数据 → 卡片 + 链接；没有 → 纯文本链接。
 
         链接必须**可点击**（issue #1 需求②），所以卡片之外永远另发一段
@@ -75,8 +85,9 @@ class WikiMiscCommands:
                     lines = [*lines, var_line]
                 if note_line:
                     lines = [*lines, note_line]
-                return Reply(title, lines, extra_text=link,
-                             footer=fmt.fmt_platform_footer(platform))
+                return Reply(
+                    title, lines, extra_text=link, footer=fmt.fmt_platform_footer(platform)
+                )
         lines = [f"📖 {page_name}", url]
         if var_line:
             lines.append(var_line)
@@ -84,8 +95,7 @@ class WikiMiscCommands:
             lines.append(note_line)
         if alts:
             lines.append(f"同类候选：{'、'.join(alts)}")
-        return Reply("wiki 直达", lines, text_only=True,
-                     footer=fmt.fmt_platform_footer(platform))
+        return Reply("wiki 直达", lines, text_only=True, footer=fmt.fmt_platform_footer(platform))
 
     async def _h_wiki(self, parsed, event, platform) -> Reply:
         """维基页面直达。
@@ -104,8 +114,9 @@ class WikiMiscCommands:
         if hit:
             # 概念页 / 战甲外号页（wiki 段）：同样出卡片（用户口径：都要绘制），
             # 卡片正文若知识库有该页条目就用，没有退最小卡
-            return self._wiki_reply(hit["title"], hit["url"], [], platform,
-                                    hit["title"], query, note=note)
+            return self._wiki_reply(
+                hit["title"], hit["url"], [], platform, hit["title"], query, note=note
+            )
         from urllib.parse import quote as _q
 
         want_variant = matching.variant_intent_any(query)
@@ -119,20 +130,22 @@ class WikiMiscCommands:
         if found:
             # 黑话命中（别名）时页面名取国际服官方名——别名键/国服旧译都不是
             # wiki 页面（「wiki 音妈」「wiki 摸尸」实测死链，2026-09-24）。
-            best_name = search_engine.wiki_page_name(found[0],
-                                                     base=not want_variant)
+            best_name = search_engine.wiki_page_name(found[0], base=not want_variant)
             # 灰机标题归一：含中文的名字要去掉空格与中点（「玻之武杖 Prime」→
             # 「玻之武杖Prime」），否则页面不存在（2026-09-25 浏览器 API 实测）
             page = _q(search_engine.wiki_title(best_name).replace(" ", "_"))
             alts = [f["name"] for f in found[1:] if f["name"] != best_name]
             return self._wiki_reply(
-                best_name, f"https://warframe.huijiwiki.com/wiki/{page}",
-                alts, platform, found[0].get("name") or "",
+                best_name,
+                f"https://warframe.huijiwiki.com/wiki/{page}",
+                alts,
+                platform,
+                found[0].get("name") or "",
                 found[0].get("en") or "",
-                query,          # 前缀命中（「电路」→「电路效果」）时按原词找卡片
-                variants=None if want_variant
-                else wiki_intro.variants(best_name),
-                note=note)
+                query,  # 前缀命中（「电路」→「电路效果」）时按原词找卡片
+                variants=None if want_variant else wiki_intro.variants(best_name),
+                note=note,
+            )
         # WM 中文名 → 灰机 wiki 对应页面（用官方名构造 URL）
         try:
             item = await self.client.resolve_wm_item(query)
@@ -143,23 +156,30 @@ class WikiMiscCommands:
             slug = str(item.get("url_name") or "").strip()
             if slug:
                 page_name = search_engine.page_name_from_slug(
-                    search_engine.base_slug(slug) if not want_variant else slug)
+                    search_engine.base_slug(slug) if not want_variant else slug
+                )
             else:
                 page_name = search_engine.wiki_page_name(
                     {"name": item.get("zh") or "", "en": item.get("en") or ""},
-                    base=not want_variant)
+                    base=not want_variant,
+                )
             page = _q(search_engine.wiki_title(page_name).replace(" ", "_"))
             return self._wiki_reply(
-                page_name, f"https://warframe.huijiwiki.com/wiki/{page}",
-                [], platform, item.get("zh") or "", item.get("en") or "",
-                variants=None if want_variant
-                else wiki_intro.variants(page_name),
-                note=note)
+                page_name,
+                f"https://warframe.huijiwiki.com/wiki/{page}",
+                [],
+                platform,
+                item.get("zh") or "",
+                item.get("en") or "",
+                variants=None if want_variant else wiki_intro.variants(page_name),
+                note=note,
+            )
         link = await self.client.wiki_search_link(query)
         # 未收录时也把澄清带上（如「跑男」这种自带歧义的写法）
         tip = f"\n\n⚠️ {note}" if note else ""
-        return Reply(raw_text=f"本地词库未收录「{query}」，请前往维基搜索：\n{link}"
-                              f"{tip}{self._kb_hint()}")
+        return Reply(
+            raw_text=f"本地词库未收录「{query}」，请前往维基搜索：\n{link}{tip}{self._kb_hint()}"
+        )
 
     async def _h_translate(self, parsed, event, platform) -> Reply:
         """翻译：中英名称对照（纯文本，**不渲染图片**）。
@@ -172,9 +192,12 @@ class WikiMiscCommands:
         """
         q = (parsed.content_str or "").strip()
         if not q:
-            return Reply(raw_text="用法：翻译 腐蚀投射 ／ 翻译 Corrosive Projection"
-                                  "（中英双向；只查名称类词条）")
+            return Reply(
+                raw_text="用法：翻译 腐蚀投射 ／ 翻译 Corrosive Projection"
+                "（中英双向；只查名称类词条）"
+            )
         r = matching.bilingual_lookup(q)
+
         # 方向：zh→en 时「原词（中）=> 译名（英）」；en→zh 反之。
         # 表内 pair 一律 (en, zh)，展示时按 direction 排前后。
         def _fmt(pairs):
@@ -187,8 +210,7 @@ class WikiMiscCommands:
         if r["candidates"]:
             lines = [f"未找到精确匹配「{q}」，相近候选："] + _fmt(r["candidates"])
             return Reply(raw_text="\n".join(lines))
-        return Reply(raw_text=f"未找到「{q}」（未收录该名称；"
-                              "可试官方中文或英文全名）")
+        return Reply(raw_text=f"未找到「{q}」（未收录该名称；可试官方中文或英文全名）")
 
     async def _h_valence(self, parsed, event, platform) -> Reply:
         """玄骸 / 信条 / 科达武器的**效价融合**（Valence Fusion）。
@@ -197,6 +219,7 @@ class WikiMiscCommands:
         元素由玩家在两者间二选一，**不会**合成复合元素。
         """
         import re as _re
+
         toks = parsed.content or []
         pairs: list[tuple[str, float]] = []
         for tok in toks:
@@ -223,31 +246,37 @@ class WikiMiscCommands:
             ]
             # 没给元素时别硬编一个「火」，也别输出「?」
             if has_elem:
-                lines.insert(2, f"◆ 元素：{' 或 '.join(res['options'])}"
-                                f"（{res['note']}）")
+                lines.insert(2, f"◆ 元素：{' 或 '.join(res['options'])}（{res['note']}）")
             if res["percent"] < calc.VALENCE_CAP:
                 steps = calc.fusion_to_cap(res["percent"])
-                lines.append(f"◆ 从 {res['percent']:g}% 到满值还需 {len(steps)} 次融合"
-                             f"（用同数值材料）")
+                lines.append(
+                    f"◆ 从 {res['percent']:g}% 到满值还需 {len(steps)} 次融合（用同数值材料）"
+                )
             lines.append("※ 必须是同款武器（同一把 Kuva/Tenet/Coda，同系列不同名不行）")
-            lines.append("※ 只有受体会被保留：材料的催化剂 / Forma / 架式 Forma / 透镜"
-                         "都不转移，务必用投资多的那把当受体")
+            lines.append(
+                "※ 只有受体会被保留：材料的催化剂 / Forma / 架式 Forma / 透镜"
+                "都不转移，务必用投资多的那把当受体"
+            )
             lines.append("※ 满值判定：≥58% 即进位到 60%，所以材料 ≥52.8% 可一步满值")
             return Reply("效价融合", lines)
 
         if len(pairs) == 1:
             _e1, p1 = pairs[0]
             trace = calc.fusion_to_cap(p1)
-            lines = [f"◆ 从 {p1:g}% 用同数值材料融合到 60% 的轨迹：",
-                     "　→ ".join(f"{x:g}%" for x in trace) or "已是满值",
-                     f"◆ 共需 {len(trace)} 次融合（材料数值越高可少几次）"]
+            lines = [
+                f"◆ 从 {p1:g}% 用同数值材料融合到 60% 的轨迹：",
+                "　→ ".join(f"{x:g}%" for x in trace) or "已是满值",
+                f"◆ 共需 {len(trace)} 次融合（材料数值越高可少几次）",
+            ]
             lines.append("※ 材料 ≥58% 时受体无需再看自身数值，融合后直接 60%")
             return Reply("效价融合规划", lines)
 
-        return Reply(raw_text="用法：\n"
-                              "· 武器融合 电60 火58　两把融合的结果与可选元素\n"
-                              "· 武器融合 44　　　　　从 44% 到 60% 需要融合几次\n"
-                              "支持元素：电 / 火 / 冰 / 毒 / 冲击 / 磁力 / 辐射")
+        return Reply(
+            raw_text="用法：\n"
+            "· 武器融合 电60 火58　两把融合的结果与可选元素\n"
+            "· 武器融合 44　　　　　从 44% 到 60% 需要融合几次\n"
+            "支持元素：电 / 火 / 冰 / 毒 / 冲击 / 磁力 / 辐射"
+        )
 
     async def _h_damage(self, parsed, event, platform) -> Reply:
         """伤害计算器 v1：武器 + 配卡加成 → 对指定派系/等级敌人的期望伤害。
@@ -259,57 +288,70 @@ class WikiMiscCommands:
         spec, name_tokens = dc.parse_args(parsed.content)
         query = " ".join(name_tokens).strip()
         if not query:
-            return Reply("伤害计算", [
-                "◆ 用法",
-                "　伤害 <武器名> [对 敌人名] [派系] [N级] [爆头] [加成项…]",
-                "　例：伤害 布拉玛 对 重机枪手 100级 膛线 分裂膛室 地狱火 电90",
-                "　例：伤害 空刃 对 重机枪手 100级 钢铁凤凰 异况超量 急进猛突 连击120",
-                "◆ 配卡（三种写法可混用）",
-                "　· MOD 名（满级值，可整条配卡直接粘贴）",
-                "　　膛线 / 分裂膛室 / 镀层分裂膛室 / 地狱火 / 关键延迟 / 瞄准目标 …",
-                "　· 手写：基伤 / 多重 / 暴率 / 暴伤 / 爆头倍率 / 派系（%）",
-                "　　电 火 冰 毒（自动合成复合）｜冲击 穿刺 切割（只加同类型）",
-                "　　状态伤害N（只放大 DoT）｜基甲N（覆盖默认敌人基准甲）",
-                "　· 敌人名：枪兵 / 重机枪手 / 轰击者 / 屠夫 / 船员 …（支持模糊）",
-                "　　给了就用它的真实基准甲/血/盾，并算击杀发数",
-                "◆ 异常（U36 后元素差异的主要来源）",
-                "　病毒N / 磁力N（1-10 层，对血 / 对盾加伤）",
-                "　腐蚀N（剥甲 26%+6%×每层，满层 −80%）｜火剥甲（−50%）",
-                "◆ 近战",
-                "　连击N 重击｜架势名（钢铁凤凰 / 猎鹰俯击 …：每段倍率+强制异常）",
-                "　急进猛突 / 创口溃烂 / 异况超量 / 一击必杀 / 奋力一掷 按实际等级折算",
-                "◆ 其它",
-                "　派系：G系 / C系 / I系 / 合一众 / 奥罗金 / 低语者 / 扎里曼 / 炽蛇军 / 科腐者 …",
-                "　赋能 <名>（条件触发只展示不折算）｜异常N（目标异常种类数）",
-                "　镀层N / 满镀层（镀层类击杀堆叠按 N 层计入，如镀层 分裂膛室）",
-                "　超宏[N]（不吃护甲/派系、免疫异常）｜适应N（Sentient 适应 1-4 层）",
-                "　灵化 / 基础形态（有灵化数据的武器默认开灵化形态）",
-                "　空战 / 地面（Archgun 双部署：默认地面・大气；空战用空战面板）",
-                "　进化 基伤/暴击/爆头…（灵化进化选项，可多次；改基础面板）",
-                "　赤毒辐射60（赤毒/信条/终幕回响加成 25-60%，元素要写）",
-                "◆ 输出",
-                "　单发对血/对盾（无暴击）→ 暴击与爆头期望（含暴击）",
-                "　→ 每次扳机、DPS 爆发/持续（均给含暴击与无暴击）",
-            ])
+            return Reply(
+                "伤害计算",
+                [
+                    "◆ 用法",
+                    "　伤害 <武器名> [对 敌人名] [派系] [N级] [爆头] [加成项…]",
+                    "　例：伤害 布拉玛 对 重机枪手 100级 膛线 分裂膛室 地狱火 电90",
+                    "　例：伤害 空刃 对 重机枪手 100级 钢铁凤凰 异况超量 急进猛突 连击120",
+                    "◆ 配卡（三种写法可混用）",
+                    "　· MOD 名（满级值，可整条配卡直接粘贴）",
+                    "　　膛线 / 分裂膛室 / 镀层分裂膛室 / 地狱火 / 关键延迟 / 瞄准目标 …",
+                    "　· 手写：基伤 / 多重 / 暴率 / 暴伤 / 爆头倍率 / 派系（%）",
+                    "　　电 火 冰 毒（自动合成复合）｜冲击 穿刺 切割（只加同类型）",
+                    "　　状态伤害N（只放大 DoT）｜基甲N（覆盖默认敌人基准甲）",
+                    "　· 敌人名：枪兵 / 重机枪手 / 轰击者 / 屠夫 / 船员 …（支持模糊）",
+                    "　　给了就用它的真实基准甲/血/盾，并算击杀发数",
+                    "◆ 异常（U36 后元素差异的主要来源）",
+                    "　病毒N / 磁力N（1-10 层，对血 / 对盾加伤）",
+                    "　腐蚀N（剥甲 26%+6%×每层，满层 −80%）｜火剥甲（−50%）",
+                    "◆ 近战",
+                    "　连击N 重击｜架势名（钢铁凤凰 / 猎鹰俯击 …：每段倍率+强制异常）",
+                    "　急进猛突 / 创口溃烂 / 异况超量 / 一击必杀 / 奋力一掷 按实际等级折算",
+                    "◆ 其它",
+                    "　派系：G系 / C系 / I系 / 合一众 / 奥罗金 / 低语者 / 扎里曼 / 炽蛇军 / 科腐者 …",
+                    "　赋能 <名>（条件触发只展示不折算）｜异常N（目标异常种类数）",
+                    "　镀层N / 满镀层（镀层类击杀堆叠按 N 层计入，如镀层 分裂膛室）",
+                    "　超宏[N]（不吃护甲/派系、免疫异常）｜适应N（Sentient 适应 1-4 层）",
+                    "　灵化 / 基础形态（有灵化数据的武器默认开灵化形态）",
+                    "　空战 / 地面（Archgun 双部署：默认地面・大气；空战用空战面板）",
+                    "　进化 基伤/暴击/爆头…（灵化进化选项，可多次；改基础面板）",
+                    "　赤毒辐射60（赤毒/信条/终幕回响加成 25-60%，元素要写）",
+                    "◆ 输出",
+                    "　单发对血/对盾（无暴击）→ 暴击与爆头期望（含暴击）",
+                    "　→ 每次扳机、DPS 爆发/持续（均给含暴击与无暴击）",
+                ],
+            )
 
         try:
             weapon, alts = dc.find_weapon(query)
             if weapon is None:
                 miss = "、".join(spec.get("unknown") or []) or "—"
-                return Reply("伤害计算", [
-                    f"武器库（warframe-items）里没找到「{query}」。",
-                    f"　本串里没认出来的词：{miss}",
-                    "　换英文名或完整中文名再试，例如「Kuva Bramma / 赤毒布拉玛」。",
-                ])
+                return Reply(
+                    "伤害计算",
+                    [
+                        f"武器库（warframe-items）里没找到「{query}」。",
+                        f"　本串里没认出来的词：{miss}",
+                        "　换英文名或完整中文名再试，例如「Kuva Bramma / 赤毒布拉玛」。",
+                    ],
+                )
             res = dc.calculate(spec, weapon)
             return Reply("伤害计算", dc.card_lines(weapon, spec, res, alts))
         except Exception as exc:  # noqa: BLE001 - 绝不静默：群聊里没输出最难查
             logger.warning(f"[sdjk] 伤害计算失败：{exc!r}")
-            return Reply("伤害计算", [
-                f"❗ 计算出错：{type(exc).__name__}: {exc}",
-                f"　武器：{query}｜已识别 MOD："
-                + ("、".join(m.get("zh") or m.get("name") or ""
-                             for m in spec.get("mods") or []) or "无"),
-            ])
+            return Reply(
+                "伤害计算",
+                [
+                    f"❗ 计算出错：{type(exc).__name__}: {exc}",
+                    f"　武器：{query}｜已识别 MOD："
+                    + (
+                        "、".join(
+                            m.get("zh") or m.get("name") or "" for m in spec.get("mods") or []
+                        )
+                        or "无"
+                    ),
+                ],
+            )
 
     # ------------------------------------------------------------------

@@ -19,6 +19,7 @@
     裁定 B 的机器化：事件对象走鸭子类型，astrbot 依赖只留在 main.py，
     离线桩测试的注入面才不会随拆分膨胀）
 """
+
 import ast
 import sys
 from pathlib import Path
@@ -31,8 +32,8 @@ SOURCES = [MAIN] + sorted((ROOT / "core" / "commands").glob("*.py"))
 
 # 这些必须是静态方法（改动会让调用方悄悄错位）
 MUST_BE_STATIC = {
-    "_detect_pips",        # 豆子像素检测（async 静态）
-    "_fit_scan_image",     # 截图宽度规整
+    "_detect_pips",  # 豆子像素检测（async 静态）
+    "_fit_scan_image",  # 截图宽度规整
 }
 
 FAILED = []
@@ -74,8 +75,9 @@ def main() -> int:
                 if is_static and first == "self":
                     problems.append(f"{cls.name}.{fn.name}: staticmethod 却带 self")
 
-    check("所有方法的首参与被装饰类型一致（self ↔ 实例方法）",
-          not problems, "; ".join(problems[:4]))
+    check(
+        "所有方法的首参与被装饰类型一致（self ↔ 实例方法）", not problems, "; ".join(problems[:4])
+    )
     check("没有重复的 @staticmethod", not dup, "; ".join(dup[:4]))
     for name in sorted(MUST_BE_STATIC):
         check(f"★ {name} 仍是 staticmethod", name in static_names)
@@ -86,13 +88,20 @@ def main() -> int:
         tree = ast.parse(src_path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             if isinstance(node, ast.Import) and any(
-                    alias.name.split(".")[0] == "astrbot" for alias in node.names):
+                alias.name.split(".")[0] == "astrbot" for alias in node.names
+            ):
                 astrbot_hits.append(f"{src_path.name}:{node.lineno}")
-            elif (isinstance(node, ast.ImportFrom) and node.module
-                  and node.module.split(".")[0] == "astrbot"):
+            elif (
+                isinstance(node, ast.ImportFrom)
+                and node.module
+                and node.module.split(".")[0] == "astrbot"
+            ):
                 astrbot_hits.append(f"{src_path.name}:{node.lineno}")
-    check("★ core/commands/ 一律不 import astrbot（astrbot 依赖只留 main.py）",
-          not astrbot_hits, "; ".join(astrbot_hits[:5]))
+    check(
+        "★ core/commands/ 一律不 import astrbot（astrbot 依赖只留 main.py）",
+        not astrbot_hits,
+        "; ".join(astrbot_hits[:5]),
+    )
 
     print()
     if FAILED:

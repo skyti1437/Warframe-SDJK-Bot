@@ -30,6 +30,7 @@ output/outputs 不进对拍；容器树是部署面，目录构成本就与本�
 退出码：核心族存在差异 → 1（巡检告警口径）；仅运行期族差异或无差异 → 0；
 --no-strict 时恒为 0。本脚本运行期不 import 项目任何模块（scripts/ 纪律）。
 """
+
 from __future__ import annotations
 
 import argparse
@@ -108,8 +109,10 @@ def dump_manifest(root: Path, label: str, out: Path | None) -> None:
     root_resolved = root.resolve()
     # 裁定 3-①：清单输出路径不得落在被对拍的树内（否则清单会被后续对拍扫到）
     if out_resolved == root_resolved or root_resolved in out_resolved.parents:
-        sys.exit(f"[tri_sync_audit] 拒绝：清单输出路径落在被对拍的树内 "
-                 f"（{out_resolved} ⊆ {root_resolved}），请指定树外路径")
+        sys.exit(
+            f"[tri_sync_audit] 拒绝：清单输出路径落在被对拍的树内 "
+            f"（{out_resolved} ⊆ {root_resolved}），请指定树外路径"
+        )
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(text + "\n", encoding="utf-8", newline="\n")
     print(f"[tri_sync_audit] 清单已写入 {out}（{len(files)} 文件）", file=sys.stderr)
@@ -119,13 +122,11 @@ def group_of(rel: str) -> str:
     return rel.split("/", 1)[0] if "/" in rel else "<根文件>"
 
 
-def report(label: str, other: dict[str, str], local: dict[str, str],
-           note: str) -> int:
+def report(label: str, other: dict[str, str], local: dict[str, str], note: str) -> int:
     """打印一面对拍差异（按目录族分组），返回核心族差异数。"""
     only_other = sorted(set(other) - set(local))
     only_local = sorted(set(local) - set(other))
-    changed = sorted(rel for rel in set(other) & set(local)
-                     if other[rel] != local[rel])
+    changed = sorted(rel for rel in set(other) & set(local) if other[rel] != local[rel])
 
     groups: dict[str, list[str]] = {}
     for rel in only_other:
@@ -134,7 +135,8 @@ def report(label: str, other: dict[str, str], local: dict[str, str],
         groups.setdefault(group_of(rel), []).append(f"仅local: {rel}")
     for rel in changed:
         groups.setdefault(group_of(rel), []).append(
-            f"内容不同: {rel}  local={local[rel][:8]}… {label}={other[rel][:8]}…")
+            f"内容不同: {rel}  local={local[rel][:8]}… {label}={other[rel][:8]}…"
+        )
 
     core_bad = runtime_bad = 0
     print(f"=== {label} vs local（基准：本地树） ===")
@@ -157,19 +159,22 @@ def report(label: str, other: dict[str, str], local: dict[str, str],
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(
-        description="三面全文件只读 MD5 对拍（本地树/服务器树/容器目录）")
-    ap.add_argument("--local", default=str(Path(__file__).resolve().parent.parent),
-                    help="本地基准树（默认：仓库根）")
+    ap = argparse.ArgumentParser(description="三面全文件只读 MD5 对拍（本地树/服务器树/容器目录）")
+    ap.add_argument(
+        "--local",
+        default=str(Path(__file__).resolve().parent.parent),
+        help="本地基准树（默认：仓库根）",
+    )
     ap.add_argument("--server", help="服务器树：目录或清单 json")
     ap.add_argument("--container", help="容器目录：目录或清单 json")
-    ap.add_argument("--dump-manifest", metavar="DIR",
-                    help="清单模式：扫描 DIR 生成 MD5 清单后退出")
+    ap.add_argument("--dump-manifest", metavar="DIR", help="清单模式：扫描 DIR 生成 MD5 清单后退出")
     ap.add_argument("--label", default="dump", help="清单模式的标签（server/container）")
-    ap.add_argument("--out", type=Path,
-                    help="清单落盘路径（默认打印到 stdout；不得落在被对拍树内）")
-    ap.add_argument("--no-strict", action="store_true",
-                    help="核心族存在差异也返回 0（只看报告不告警）")
+    ap.add_argument(
+        "--out", type=Path, help="清单落盘路径（默认打印到 stdout；不得落在被对拍树内）"
+    )
+    ap.add_argument(
+        "--no-strict", action="store_true", help="核心族存在差异也返回 0（只看报告不告警）"
+    )
     args = ap.parse_args(argv)
 
     if args.dump_manifest:
@@ -183,9 +188,13 @@ def main(argv: list[str] | None = None) -> int:
     if args.server:
         total += report("server", load_tree(args.server), local, note="")
     if args.container:
-        total += report("container", load_tree(args.container), local,
-                        note="容器=部署面：目录构成本就与本地/服务器树不同"
-                             "（无 dist/docs/tests 等），形态差异非漂移")
+        total += report(
+            "container",
+            load_tree(args.container),
+            local,
+            note="容器=部署面：目录构成本就与本地/服务器树不同"
+            "（无 dist/docs/tests 等），形态差异非漂移",
+        )
     if total and not args.no_strict:
         return 1
     return 0

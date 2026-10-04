@@ -11,6 +11,7 @@
 
 本脚本把两侧的真实预算与每行的折行结果都打出来，让结论落在数字上。
 """
+
 from __future__ import annotations
 
 import ast
@@ -69,11 +70,13 @@ _orig_plan = R._plan_desc_col_wrap
 def spy_plan(cells, col0, wrap_fn, measure_fn, w_cap=1500, reserve=178, gap=24):
     res = _orig_plan(cells, col0, wrap_fn, measure_fn, w_cap, reserve, gap)
     log["plan"] = {
-        "n_cells": len(cells), "col0": round(col0, 1),
-        "w_cap_minus_reserve": w_cap - reserve, "gap": gap,
+        "n_cells": len(cells),
+        "col0": round(col0, 1),
+        "w_cap_minus_reserve": w_cap - reserve,
+        "gap": gap,
         "col1": round(res[1], 1),
-        "预算内?": col0 + gap + max((measure_fn(d) for _, _, d in cells),
-                                   default=0) <= w_cap - reserve,
+        "预算内?": col0 + gap + max((measure_fn(d) for _, _, d in cells), default=0)
+        <= w_cap - reserve,
         "wrap_map_keys": list(res[0].keys()),
     }
     return res
@@ -87,6 +90,7 @@ if not r.available:
 p = r.render("Warframe SDJKBOT 指令一览", lines, "平台：国际服")
 
 from PIL import Image  # noqa: E402
+
 W = Image.open(p).size[0]
 print(f"卡宽 W = {W} px")
 print("逐行折行预算 wrap_w = W - pad*2 - 56（pad 见 render，约 54）")

@@ -21,6 +21,7 @@
 产物：core/data/fonts/NotoSansCJKsc-Subset-{Regular,Bold}.otf + charset.txt
 （charset 一并提交，便于复现与审计）。
 """
+
 from __future__ import annotations
 
 import argparse
@@ -30,11 +31,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 FONT_DIR = ROOT / "core" / "data" / "fonts"
-FULL = {"Regular": FONT_DIR / "NotoSansCJK-Regular.ttc",
-        "Bold": FONT_DIR / "NotoSansCJK-Bold.ttc"}
-OUT = {"Regular": FONT_DIR / "NotoSansCJKsc-Subset-Regular.otf",
-       "Bold": FONT_DIR / "NotoSansCJKsc-Subset-Bold.otf"}
-CHARSET = ROOT / "scripts" / "font_subset_charset.txt"   # 开发物料（不进市场件）
+FULL = {"Regular": FONT_DIR / "NotoSansCJK-Regular.ttc", "Bold": FONT_DIR / "NotoSansCJK-Bold.ttc"}
+OUT = {
+    "Regular": FONT_DIR / "NotoSansCJKsc-Subset-Regular.otf",
+    "Bold": FONT_DIR / "NotoSansCJKsc-Subset-Bold.otf",
+}
+CHARSET = ROOT / "scripts" / "font_subset_charset.txt"  # 开发物料（不进市场件）
 
 # .ttc 里的 SC 面索引（fontTools TTCollection 顺序，2026-09-25 实测两档均为 2）
 SC_FACE_INDEX = 2
@@ -102,13 +104,21 @@ def subset(weight: str, chars: set[str]) -> tuple[int, int]:
         raise SystemExit(f"缺完整字库 {src}（先跑 python scripts/fetch_font.py）")
     text = "".join(sorted(chars))
     # ★ 用 --text-file 传字符集；--font-number 选 SC 面；保留默认 layout 特性
-    cmd = [sys.executable, "-m", "fontTools.subset", str(src),
-           f"--font-number={SC_FACE_INDEX}",
-           f"--output-file={dst}",
-           f"--text={text}",
-           "--layout-features=*",      # 保留全部 GSUB/GPOS：渲染与完整字库逐像素一致
-           "--name-IDs=*", "--name-legacy", "--name-languages=*",
-           "--notdef-outline", "--recommended-glyphs"]
+    cmd = [
+        sys.executable,
+        "-m",
+        "fontTools.subset",
+        str(src),
+        f"--font-number={SC_FACE_INDEX}",
+        f"--output-file={dst}",
+        f"--text={text}",
+        "--layout-features=*",  # 保留全部 GSUB/GPOS：渲染与完整字库逐像素一致
+        "--name-IDs=*",
+        "--name-legacy",
+        "--name-languages=*",
+        "--notdef-outline",
+        "--recommended-glyphs",
+    ]
     subprocess.run(cmd, check=True)
     return src.stat().st_size, dst.stat().st_size
 
@@ -129,9 +139,8 @@ def main() -> int:
     for w in weights:
         before, after = subset(w, chars)
         total_out += after
-        print(f"  {w}: {before/1048576:6.1f} MB → {after/1048576:5.2f} MB"
-              f"（{OUT[w].name}）")
-    print(f"子集合计 {total_out/1048576:.2f} MB（两档）")
+        print(f"  {w}: {before / 1048576:6.1f} MB → {after / 1048576:5.2f} MB（{OUT[w].name}）")
+    print(f"子集合计 {total_out / 1048576:.2f} MB（两档）")
     return 0
 
 

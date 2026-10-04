@@ -15,6 +15,7 @@
 判定方式与人工核对一致：渲染成图后按像素扫面板右缘，越界即失败。
 缺 Pillow / 字体时（如精简 CI 容器）跳过，不误报。
 """
+
 from __future__ import annotations
 
 import sys
@@ -40,17 +41,25 @@ def check(name: str, cond: bool, detail: str = ""):
 PAGE_CASES = [
     ("仲裁时间表（第1/23页，共336条）", ("1", "23", "336"), "仲裁时间表"),
     ("开核桃建议（第1/4页，共32场）", ("1", "4", "32"), "开核桃建议"),
-    ("遗物列表：当前可掉落 34，已入库 734（第1/77页，共768个）",
-     ("1", "77", "768"), "遗物列表：当前可掉落 34，已入库 734"),
-    ("遗物入库（已入库、不可刷取）（第1/74页，共734个）",
-     ("1", "74", "734"), "遗物入库（已入库、不可刷取）"),
+    (
+        "遗物列表：当前可掉落 34，已入库 734（第1/77页，共768个）",
+        ("1", "77", "768"),
+        "遗物列表：当前可掉落 34，已入库 734",
+    ),
+    (
+        "遗物入库（已入库、不可刷取）（第1/74页，共734个）",
+        ("1", "74", "734"),
+        "遗物入库（已入库、不可刷取）",
+    ),
     ("膛线 在售单（第1/39页，共386条）", ("1", "39", "386"), "膛线 在售单"),
 ]
 for title, groups, rest in PAGE_CASES:
     m = R._PAGE_RE.search(title)
-    check(f"页码可识别：{title[:20]}…",
-          bool(m) and m.groups() == groups,
-          f"groups={m.groups() if m else None}")
+    check(
+        f"页码可识别：{title[:20]}…",
+        bool(m) and m.groups() == groups,
+        f"groups={m.groups() if m else None}",
+    )
     stripped = R._PAGE_RE.sub("", title).strip()
     check(f"页码已抽离：{stripped[:20]}…", stripped == rest, stripped)
 
@@ -62,7 +71,7 @@ else:
     if not probe.available:
         print("[SKIP] 无可用 CJK 字体，跳过渲染溢出检查")
     else:
-        LUM = 125     # 正文暖白/亮金/青均 > 125；面板底/暗金框约 17~102
+        LUM = 125  # 正文暖白/亮金/青均 > 125；面板底/暗金框约 17~102
 
         def right_overflow(img_path: str, safe_from_edge: int = 30):
             """返回（最右越界 x，越界像素数）；正文带不含四角装饰。"""
@@ -91,25 +100,26 @@ else:
         if p:
             mx, n = right_overflow(p)
             W = R.Image.open(p).size[0]
-            check("6 列表格：正文未越出面板右缘", n == 0,
-                  f"W={W} 越界 {n} 像素，最右 x={mx}")
+            check("6 列表格：正文未越出面板右缘", n == 0, f"W={W} 越界 {n} 像素，最右 x={mx}")
         else:
             check("6 列表格：渲染成功", False, "render() 返回 None 已降级文本")
 
         # 2) 长标题（页码须已被抽走，标题自适应不得压到徽章）
-        long_title = ("遗物列表：当前可掉落 34，已入库 734"
-                      "（第1/77页，共768个）")
-        p = probe.render(long_title, ["[可掉落]中纪 Neo T11", "掉落位置：金星 · Romula · 防御（C轮）"], "")
+        long_title = "遗物列表：当前可掉落 34，已入库 734（第1/77页，共768个）"
+        p = probe.render(
+            long_title, ["[可掉落]中纪 Neo T11", "掉落位置：金星 · Romula · 防御（C轮）"], ""
+        )
         if p:
             im = R.Image.open(p).convert("RGB")
             W, H = im.size
             rgb = im.load()
             # 徽章右缘 = W-64；标题带里 x ∈ [W-56, W-4] 必须为空
             hot = sum(
-                1 for x in range(W - 56, W - 4)
+                1
+                for x in range(W - 56, W - 4)
                 for y in range(68, 118)
-                if 0.2126 * rgb[x, y][0] + 0.7152 * rgb[x, y][1]
-                + 0.0722 * rgb[x, y][2] > LUM)
+                if 0.2126 * rgb[x, y][0] + 0.7152 * rgb[x, y][1] + 0.0722 * rgb[x, y][2] > LUM
+            )
             check("长标题：未压到右上角徽章", hot == 0, f"W={W} 越界像素={hot}")
         else:
             check("长标题：渲染成功", False, "render() 返回 None 已降级文本")
@@ -149,8 +159,11 @@ def _user_font_checks():
         _R._Fonts.PACKED, _R._Fonts.SYSTEM = [], []
         try:
             r = _R.ImageRenderer(tmp / "cards")
-            check("ImageRenderer 采纳 plugin_data/fonts 下的用户字体",
-                  r.available is True, f"available={r.available}")
+            check(
+                "ImageRenderer 采纳 plugin_data/fonts 下的用户字体",
+                r.available is True,
+                f"available={r.available}",
+            )
         finally:
             _R._Fonts.PACKED, _R._Fonts.SYSTEM = old_p, old_s
     finally:
@@ -167,10 +180,14 @@ _user_font_checks()
 # 本段保证：① 仓库语料里出现过的每个非 ASCII 字符都在子集 cmap 内（漏一个就是豆腐块）；
 # ② 子集渲染与完整字库**逐像素一致**（同一套轮廓；缺字形/换面会立刻露馅）。
 _FONT_DIR = Path(__file__).resolve().parent.parent / "core" / "data" / "fonts"
-_SUB = {"Regular": _FONT_DIR / "NotoSansCJKsc-Subset-Regular.otf",
-        "Bold": _FONT_DIR / "NotoSansCJKsc-Subset-Bold.otf"}
-_FULL = {"Regular": _FONT_DIR / "NotoSansCJK-Regular.ttc",
-         "Bold": _FONT_DIR / "NotoSansCJK-Bold.ttc"}
+_SUB = {
+    "Regular": _FONT_DIR / "NotoSansCJKsc-Subset-Regular.otf",
+    "Bold": _FONT_DIR / "NotoSansCJKsc-Subset-Bold.otf",
+}
+_FULL = {
+    "Regular": _FONT_DIR / "NotoSansCJK-Regular.ttc",
+    "Bold": _FONT_DIR / "NotoSansCJK-Bold.ttc",
+}
 
 
 def _corpus_chars() -> set[str]:
@@ -190,17 +207,26 @@ def _corpus_chars() -> set[str]:
 def _subset_cards():
     """对拍语料：符号压力卡 + 真实卡片（能取到就加，取不到不阻断）。"""
     cards = [
-        ("符号压力卡", ["★⚠※▣◆→⏳①②③④⑤·—…", "（）、。，；：？！“”「」《》【】",
-                        "中英混排 ABC 123 % + - / : 4.25x"]),
+        (
+            "符号压力卡",
+            [
+                "★⚠※▣◆→⏳①②③④⑤·—…",
+                "（）、。，；：？！“”「」《》【】",
+                "中英混排 ABC 123 % + - / : 4.25x",
+            ],
+        ),
     ]
     try:
         from core import formatters as F
-        cards.append(F.fmt_timers([("仲裁", None),
-                                   ("每日突击", {"expiry": "2030-01-01T00:00:00+00:00"})]))
+
+        cards.append(
+            F.fmt_timers([("仲裁", None), ("每日突击", {"expiry": "2030-01-01T00:00:00+00:00"})])
+        )
     except Exception:
         pass
     try:
         from core import wiki_intro as W
+
         for q in ("前纪 V11 遗物", "Ash Prime 机体蓝图"):
             c = W.card_for(q)
             if c:
@@ -209,9 +235,15 @@ def _subset_cards():
         pass
     try:
         import json as _json
-        eff = _json.loads((Path(__file__).resolve().parent.parent
-                           / "core" / "data" / "wiki_effect_zh.json")
-                          .read_text(encoding="utf-8")).get("effects") or {}
+
+        eff = (
+            _json.loads(
+                (
+                    Path(__file__).resolve().parent.parent / "core" / "data" / "wiki_effect_zh.json"
+                ).read_text(encoding="utf-8")
+            ).get("effects")
+            or {}
+        )
         k = next(iter(eff))
         cards.append(("效果汉化样例", [f"效果：{eff[k]}"[:60], str(k)[:50]]))
     except Exception:
@@ -221,6 +253,7 @@ def _subset_cards():
 
 def _render_with(regular: Path, bold: Path, cards, cache: Path):
     import core.render as R
+
     old_p, old_s = R._Fonts.PACKED, R._Fonts.SYSTEM
     R._Fonts.PACKED, R._Fonts.SYSTEM = [regular, bold], []
     try:
@@ -248,32 +281,39 @@ def _font_checks():
         full_cmap = TTCollection(str(_FULL["Regular"]), lazy=True).fonts[2].getBestCmap()
         need = {c for c in corpus if ord(c) in full_cmap}
         both_missing = sorted(c for c in corpus if ord(c) not in full_cmap)
-        print(f"[INFO] 语料非 ASCII {len(corpus)} 个；完整字库也缺 {len(both_missing)} 个"
-              f"（原有，非子集引入）：{''.join(both_missing[:12])}")
+        print(
+            f"[INFO] 语料非 ASCII {len(corpus)} 个；完整字库也缺 {len(both_missing)} 个"
+            f"（原有，非子集引入）：{''.join(both_missing[:12])}"
+        )
     else:
         need = corpus
     missing = sorted(c for c in need if ord(c) not in cmap)
-    check("子集覆盖「完整字库能渲染的全部语料字符」", not missing,
-          f"缺 {len(missing)} 个：{missing[:12]}")
+    check(
+        "子集覆盖「完整字库能渲染的全部语料字符」",
+        not missing,
+        f"缺 {len(missing)} 个：{missing[:12]}",
+    )
     syms = "★⚠※▣◆→①②③④⑤·—…“”「」（）、。，；：？！%"
-    check("UI 符号与 ASCII 标点字形齐备", all(ord(s) in cmap for s in syms),
-          str([s for s in syms if ord(s) not in cmap]))
+    check(
+        "UI 符号与 ASCII 标点字形齐备",
+        all(ord(s) in cmap for s in syms),
+        str([s for s in syms if ord(s) not in cmap]),
+    )
     check("ASCII 可打印区齐备", all(ord(chr(c)) in cmap for c in range(0x20, 0x7F)))
 
     if not _FULL["Regular"].exists():
         print("[SKIP] 完整字库不存在（开源树），跳过逐像素对拍")
         return
     from PIL import Image, ImageChops
+
     cards = _subset_cards()
     tmp = Path(tempfile.mkdtemp(prefix="wf_subset_"))
     try:
         # ★ 逐卡「渲完整库 → 渲子集 → 立刻比对」：渲染器有磁盘缓存裁剪
         #   （_cleanup 只保留最新若干张），批量渲染后再比会把早期产物裁掉。
         for i, (title, lines) in enumerate(cards):
-            r_full = _render_one(_FULL["Regular"], _FULL["Bold"], title, lines,
-                                 tmp / f"full_{i}")
-            r_sub = _render_one(_SUB["Regular"], _SUB["Bold"], title, lines,
-                                tmp / f"sub_{i}")
+            r_full = _render_one(_FULL["Regular"], _FULL["Bold"], title, lines, tmp / f"full_{i}")
+            r_sub = _render_one(_SUB["Regular"], _SUB["Bold"], title, lines, tmp / f"sub_{i}")
             if not r_full or not r_sub or not Path(r_full).exists() or not Path(r_sub).exists():
                 check(f"对拍渲染成功：{title}", False, f"{r_full} / {r_sub}")
                 continue
@@ -282,14 +322,14 @@ def _font_checks():
                 check(f"逐像素一致：{title}", False, f"尺寸 {ia.size} vs {ib.size}")
                 continue
             bbox = ImageChops.difference(ia, ib).getbbox()
-            check(f"逐像素一致（完整库 vs 子集）：{title}", bbox is None,
-                  f"差异区域 {bbox}")
+            check(f"逐像素一致（完整库 vs 子集）：{title}", bbox is None, f"差异区域 {bbox}")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
 
 def _render_one(regular: Path, bold: Path, title: str, lines, cache: Path):
     import core.render as R
+
     old_p, old_s = R._Fonts.PACKED, R._Fonts.SYSTEM
     R._Fonts.PACKED, R._Fonts.SYSTEM = [regular, bold], []
     try:
@@ -300,6 +340,7 @@ def _render_one(regular: Path, bold: Path, title: str, lines, cache: Path):
 
 _font_checks()
 
+
 # ---------------------------------------------------------------------------
 # 用户字体迁移（AstrBot 开发原则：持久化数据进 data 目录，别放插件自身目录）
 # ---------------------------------------------------------------------------
@@ -309,6 +350,7 @@ _font_checks()
 # 留在原地；开发/克隆树（有 .git）不迁，避免弄脏工作树。
 def _migration_checks():
     import core.render as _R
+
     T = Path(tempfile.mkdtemp(prefix="wf_migrate_"))
     try:
         # ① 伪造「市场安装树」（无 .git）：2 个随包资产 + 1 个用户手放字体 + 非字体文件
@@ -320,29 +362,36 @@ def _migration_checks():
         (legacy / "notes.txt").write_bytes(b"not a font")
         user = T / "plugin_data" / "astrbot_plugin_warframe_sdjkbot" / "fonts"
         moved = _R.migrate_legacy_user_fonts(user, legacy)
-        check("迁移：用户手放字体被搬进 plugin_data",
-              (user / "MyHandPlaced.ttc").exists() and not (legacy / "MyHandPlaced.ttc").exists(),
-              str(moved))
-        check("迁移：随包子集 otf 留在原地（分发资产不迁）",
-              (legacy / "NotoSansCJKsc-Subset-Regular.otf").exists()
-              and (legacy / "NotoSansCJKsc-Subset-Bold.otf").exists())
+        check(
+            "迁移：用户手放字体被搬进 plugin_data",
+            (user / "MyHandPlaced.ttc").exists() and not (legacy / "MyHandPlaced.ttc").exists(),
+            str(moved),
+        )
+        check(
+            "迁移：随包子集 otf 留在原地（分发资产不迁）",
+            (legacy / "NotoSansCJKsc-Subset-Regular.otf").exists()
+            and (legacy / "NotoSansCJKsc-Subset-Bold.otf").exists(),
+        )
         check("迁移：非字体文件不动", (legacy / "notes.txt").exists())
-        check("迁移：幂等（再跑一次为空）",
-              _R.migrate_legacy_user_fonts(user, legacy) == [])
+        check("迁移：幂等（再跑一次为空）", _R.migrate_legacy_user_fonts(user, legacy) == [])
         # ② 目标已有同名文件 → 跳过、不覆盖
         (legacy / "MyHandPlaced.ttc").write_bytes(b"USER-TTC-2")
-        check("迁移：同名冲突跳过且不覆盖",
-              _R.migrate_legacy_user_fonts(user, legacy) == []
-              and (user / "MyHandPlaced.ttc").read_bytes() == b"USER-TTC")
+        check(
+            "迁移：同名冲突跳过且不覆盖",
+            _R.migrate_legacy_user_fonts(user, legacy) == []
+            and (user / "MyHandPlaced.ttc").read_bytes() == b"USER-TTC",
+        )
         # ③ 开发/克隆树（插件根有 .git）→ 一律不迁
         (T / "devplugin" / ".git").mkdir(parents=True)
         dev_legacy = T / "devplugin" / "core" / "data" / "fonts"
         dev_legacy.mkdir(parents=True)
         (dev_legacy / "RepoFont.ttc").write_bytes(b"TRACKED")
         dev_user = T / "devplugin_data" / "fonts"
-        check("迁移：开发/克隆树（有 .git）不迁移",
-              _R.migrate_legacy_user_fonts(dev_user, dev_legacy) == []
-              and (dev_legacy / "RepoFont.ttc").exists())
+        check(
+            "迁移：开发/克隆树（有 .git）不迁移",
+            _R.migrate_legacy_user_fonts(dev_user, dev_legacy) == []
+            and (dev_legacy / "RepoFont.ttc").exists(),
+        )
         # ④ 迁移目录里的**真字体**能被渲染器采纳（PACKED/SYSTEM 清空，只剩用户目录）
         #   注：上面用的是假字节文件，_probe() 正确地拒绝它；这一步换成真字体。
         real_src = _SUB["Regular"] if _SUB["Regular"].exists() else None
@@ -352,9 +401,11 @@ def _migration_checks():
             _R._Fonts.PACKED, _R._Fonts.SYSTEM = [], []
             try:
                 f = _R._Fonts(user_dirs=[user])
-                check("迁移：搬过去的真字体能被渲染器采用",
-                      f.regular is not None and "MovedReal" in f.regular.name,
-                      str(f.regular))
+                check(
+                    "迁移：搬过去的真字体能被渲染器采用",
+                    f.regular is not None and "MovedReal" in f.regular.name,
+                    str(f.regular),
+                )
             finally:
                 _R._Fonts.PACKED, _R._Fonts.SYSTEM = old_p, old_s
         else:

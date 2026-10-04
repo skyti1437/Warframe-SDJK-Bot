@@ -22,6 +22,7 @@
     export WF_KB_DATA=<解包数据目录>
     python scripts/kb/build_relic_index.py [--out-dir core/data] [--dry-run]
 """
+
 from __future__ import annotations
 
 import argparse
@@ -34,11 +35,10 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 sys.path.insert(0, str(HERE))
-from kb_lib import Sources, RELIC_ERA_ZH              # noqa: E402
+from kb_lib import Sources, RELIC_ERA_ZH  # noqa: E402
 
 _ERA_ORDER = ["古纪", "前纪", "中纪", "后纪", "安魂", "先锋", "全能", "虚空"]
-_RELIC_NAME_RE = re.compile(
-    r"^(.+?)\s+(Intact|Exceptional|Flawless|Radiant)$")
+_RELIC_NAME_RE = re.compile(r"^(.+?)\s+(Intact|Exceptional|Flawless|Radiant)$")
 
 
 def _relic_sort_key(key: str):
@@ -67,8 +67,7 @@ def build(S: Sources):
             groups.setdefault(m.group(1), {})[m.group(2)] = x
         else:
             groups.setdefault(x.get("name") or "?", {})["__other__"] = x
-    groups = {k: v for k, v in groups.items()
-              if any(x.get("rewards") for x in v.values())}
+    groups = {k: v for k, v in groups.items() if any(x.get("rewards") for x in v.values())}
 
     index, inverse = {}, defaultdict(dict)
     for gname, g in groups.items():
@@ -79,8 +78,7 @@ def build(S: Sources):
         code = parts[1] if len(parts) > 1 else ""
         key = f"{era_zh} {parts[0]} {code}".strip()
         slots = defaultdict(list)
-        for rw in sorted(rep.get("rewards") or [],
-                         key=lambda a: -(a.get("chance") or 0)):
+        for rw in sorted(rep.get("rewards") or [], key=lambda a: -(a.get("chance") or 0)):
             it = rw.get("item") or {}
             u, en = it.get("uniqueName"), it.get("name")
             if not u:
@@ -92,8 +90,7 @@ def build(S: Sources):
             ch = rw.get("chance") or 0
             if prev is None or ch > prev[0]:
                 inverse[nm][key] = (ch, rar)
-        index[key] = {r: [nm for _c, nm in sorted(v)]
-                      for r, v in slots.items()}
+        index[key] = {r: [nm for _c, nm in sorted(v)] for r, v in slots.items()}
     return index, dict(inverse)
 
 
@@ -107,8 +104,10 @@ def main() -> int:
     index, inverse = build(S)
     index = {k: index[k] for k in sorted(index, key=_relic_sort_key)}
     inv_payload = {
-        nm: [{"relic": k, "rarity": v[1]}
-             for k, v in sorted(orig.items(), key=lambda kv: _relic_sort_key(kv[0]))]
+        nm: [
+            {"relic": k, "rarity": v[1]}
+            for k, v in sorted(orig.items(), key=lambda kv: _relic_sort_key(kv[0]))
+        ]
         for nm, orig in sorted(inverse.items())
     }
 
@@ -118,10 +117,14 @@ def main() -> int:
     old_idx = json.loads(old_idx_p.read_text(encoding="utf-8")) if old_idx_p.exists() else {}
     old_inv = json.loads(old_inv_p.read_text(encoding="utf-8")) if old_inv_p.exists() else {}
 
-    print(f"遗物 {len(old_idx)} → {len(index)}"
-          f"（新增 {len(set(index) - set(old_idx))}、移除 {len(set(old_idx) - set(index))}）")
-    print(f"部件 {len(old_inv)} → {len(inv_payload)}"
-          f"（新增 {len(set(inv_payload) - set(old_inv))}、移除 {len(set(old_inv) - set(inv_payload))}）")
+    print(
+        f"遗物 {len(old_idx)} → {len(index)}"
+        f"（新增 {len(set(index) - set(old_idx))}、移除 {len(set(old_idx) - set(index))}）"
+    )
+    print(
+        f"部件 {len(old_inv)} → {len(inv_payload)}"
+        f"（新增 {len(set(inv_payload) - set(old_inv))}、移除 {len(set(old_inv) - set(inv_payload))}）"
+    )
     added = sorted(set(index) - set(old_idx), key=_relic_sort_key)
     if added:
         print("  新遗物样例:", added[:8])
@@ -133,10 +136,8 @@ def main() -> int:
 
     if args.dry_run:
         return 0
-    old_idx_p.write_text(json.dumps(index, ensure_ascii=False, indent=1),
-                         encoding="utf-8")
-    old_inv_p.write_text(json.dumps(inv_payload, ensure_ascii=False, indent=1),
-                         encoding="utf-8")
+    old_idx_p.write_text(json.dumps(index, ensure_ascii=False, indent=1), encoding="utf-8")
+    old_inv_p.write_text(json.dumps(inv_payload, ensure_ascii=False, indent=1), encoding="utf-8")
     print("[OK]", old_idx_p, "|", old_inv_p)
     return 0
 

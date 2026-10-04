@@ -20,6 +20,7 @@ issue #1 报告者就是这么丢的）。部署布局识别不出来时回落�
     python scripts/fetch_font.py            # 下载 Regular + Bold
     python scripts/fetch_font.py --check    # 只看当前用的是哪个字体
 """
+
 from __future__ import annotations
 
 import argparse
@@ -30,7 +31,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 PLUGIN = "astrbot_plugin_warframe_sdjkbot"
-LEGACY_DIR = ROOT / "core" / "data" / "fonts"      # 插件包内：旧落点/迁移源 + 随包资产
+LEGACY_DIR = ROOT / "core" / "data" / "fonts"  # 插件包内：旧落点/迁移源 + 随包资产
 
 
 def discover_data_root() -> Path | None:
@@ -56,29 +57,31 @@ def resolve_font_dir(explicit: str = "") -> Path:
     root = discover_data_root()
     if root:
         return root / "plugin_data" / PLUGIN / "fonts"
-    print("⚠ 未识别出 AstrBot 部署布局（在插件数据目录外运行？）——"
-          "本次下载将落到插件包内 core/data/fonts/，"
-          "**更新/重装插件会丢**；部署环境请加 --data-dir <AstrBot>/data")
+    print(
+        "⚠ 未识别出 AstrBot 部署布局（在插件数据目录外运行？）——"
+        "本次下载将落到插件包内 core/data/fonts/，"
+        "**更新/重装插件会丢**；部署环境请加 --data-dir <AstrBot>/data"
+    )
     return LEGACY_DIR
+
 
 # 按顺序尝试的下载源：jsDelivr CDN（国内通常可达）→ GitHub raw
 SOURCES = {
     "NotoSansCJK-Regular.ttc": [
-        "https://cdn.jsdelivr.net/gh/notofonts/noto-cjk@main/Sans/OTC/"
-        "NotoSansCJK-Regular.ttc",
+        "https://cdn.jsdelivr.net/gh/notofonts/noto-cjk@main/Sans/OTC/NotoSansCJK-Regular.ttc",
         "https://raw.githubusercontent.com/notofonts/noto-cjk/main/Sans/OTC/"
         "NotoSansCJK-Regular.ttc",
     ],
     "NotoSansCJK-Bold.ttc": [
-        "https://cdn.jsdelivr.net/gh/notofonts/noto-cjk@main/Sans/OTC/"
-        "NotoSansCJK-Bold.ttc",
-        "https://raw.githubusercontent.com/notofonts/noto-cjk/main/Sans/OTC/"
-        "NotoSansCJK-Bold.ttc",
+        "https://cdn.jsdelivr.net/gh/notofonts/noto-cjk@main/Sans/OTC/NotoSansCJK-Bold.ttc",
+        "https://raw.githubusercontent.com/notofonts/noto-cjk/main/Sans/OTC/NotoSansCJK-Bold.ttc",
     ],
 }
 
-UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-      "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")
+UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+)
 
 
 def _download(url: str, dst: Path) -> bool:
@@ -86,8 +89,7 @@ def _download(url: str, dst: Path) -> bool:
     tmp = dst.with_suffix(dst.suffix + ".part")
     req = urllib.request.Request(url, headers={"User-Agent": UA})
     try:
-        with urllib.request.urlopen(req, timeout=300) as r, \
-                open(tmp, "wb") as f:
+        with urllib.request.urlopen(req, timeout=300) as r, open(tmp, "wb") as f:
             total = int(r.headers.get("Content-Length") or 0)
             got = 0
             while True:
@@ -98,14 +100,17 @@ def _download(url: str, dst: Path) -> bool:
                 got += len(chunk)
                 if total:
                     pct = got * 100 // total
-                    print(f"\r    {pct:3d}%  {got / 1048576:.1f}/"
-                          f"{total / 1048576:.1f} MB", end="", flush=True)
+                    print(
+                        f"\r    {pct:3d}%  {got / 1048576:.1f}/{total / 1048576:.1f} MB",
+                        end="",
+                        flush=True,
+                    )
         print()
         if tmp.stat().st_size < 1024 * 1024:
             raise ValueError(f"文件过小（{tmp.stat().st_size} 字节），疑似不是字库")
         tmp.replace(dst)
         return True
-    except Exception as exc:                     # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001
         print(f"\n    ✗ {type(exc).__name__}: {str(exc)[:80]}")
         tmp.unlink(missing_ok=True)
         return False
@@ -117,7 +122,7 @@ def check(font_dir: Path) -> int:
     sys.path.insert(0, str(ROOT))
     try:
         from core.render import _Fonts
-    except Exception as exc:                     # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001
         print(f"无法导入 render._Fonts：{exc}")
         return 1
     f = _Fonts(user_dirs=[FONT_DIR])
@@ -137,8 +142,11 @@ def check(font_dir: Path) -> int:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true", help="只检查不下载")
-    ap.add_argument("--data-dir", default="",
-                    help="AstrBot 的 data 目录（默认自动推断；指定后写入其 plugin_data/）")
+    ap.add_argument(
+        "--data-dir",
+        default="",
+        help="AstrBot 的 data 目录（默认自动推断；指定后写入其 plugin_data/）",
+    )
     args = ap.parse_args()
     font_dir = resolve_font_dir(args.data_dir)
     if args.check:

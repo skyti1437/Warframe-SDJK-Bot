@@ -9,6 +9,7 @@
 
 产物：runtime/relic_<名称>.png
 """
+
 from __future__ import annotations
 
 import argparse
@@ -19,16 +20,20 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from core import drops as drops_db          # noqa: E402
-from core import formatters as fmt          # noqa: E402
-from core import render as R                # noqa: E402
+from core import drops as drops_db  # noqa: E402
+from core import formatters as fmt  # noqa: E402
+from core import render as R  # noqa: E402
 
-IDX = json.loads((ROOT / "core" / "data" / "relic_index.json")
-                 .read_text(encoding="utf-8"))
-INV = json.loads((ROOT / "core" / "data" / "relic_inverse.json")
-                 .read_text(encoding="utf-8"))
-TIER_EN = {"古纪": "lith", "前纪": "meso", "中纪": "neo",
-           "后纪": "axi", "安魂": "requiem", "全能": "omnia"}
+IDX = json.loads((ROOT / "core" / "data" / "relic_index.json").read_text(encoding="utf-8"))
+INV = json.loads((ROOT / "core" / "data" / "relic_inverse.json").read_text(encoding="utf-8"))
+TIER_EN = {
+    "古纪": "lith",
+    "前纪": "meso",
+    "中纪": "neo",
+    "后纪": "axi",
+    "安魂": "requiem",
+    "全能": "omnia",
+}
 
 # 阿耶（Varzia）当前在售的遗物 —— 真实值由 main.py 从 DE 拉，
 # 预览脚本用实测快照代替（2026-09-17 实测）。
@@ -50,8 +55,7 @@ def build_rows(which: str):
         if len(m) < 3:
             continue
         key = f"{TIER_EN.get(m[0], m[0].lower())} {m[2].lower()}"
-        row = {"cn": k, "tier_cn": m[0],
-               "unvaulted": key in alluv, "varzia": key in vz}
+        row = {"cn": k, "tier_cn": m[0], "unvaulted": key in alluv, "varzia": key in vz}
         (unv_rows if row["unvaulted"] else vaulted_rows).append(row)
     return (unv_rows if which == "出库" else vaulted_rows), vz
 
@@ -62,10 +66,8 @@ def build_piece_rows(piece: str):
     rows = []
     for o in INV.get(piece) or []:
         key = fmt.relic_en_key(o.get("relic") or "")
-        state = ("drop" if key and key in uv
-                 else "varzia" if key and key in vz else "vaulted")
-        rows.append({"relic": o.get("relic"), "rarity": o.get("rarity"),
-                     "state": state})
+        state = "drop" if key and key in uv else "varzia" if key and key in vz else "vaulted"
+        rows.append({"relic": o.get("relic"), "rarity": o.get("rarity"), "state": state})
     return rows
 
 
@@ -95,13 +97,19 @@ def preview_list(which: str, page: int, out_dir: Path) -> int:
             if why:
                 specials[fmt.relic_cn(r["cn"])] = why
 
-    title = {"出库": "遗物出库（当前可掉落）",
-             "入库": "遗物入库（已入库、不可刷取）",
-             "列表": "遗物列表"}[which]
+    title = {
+        "出库": "遗物出库（当前可掉落）",
+        "入库": "遗物入库（已入库、不可刷取）",
+        "列表": "遗物列表",
+    }[which]
     t, lines = fmt.fmt_relic_by_tier(
-        rows, title, page=page, page_size=90,
+        rows,
+        title,
+        page=page,
+        page_size=90,
         farm_hints=drops_db.farm_hints() if which == "出库" else None,
-        specials=specials or None)
+        specials=specials or None,
+    )
     print(f"=== {t} ===")
     for ln in lines:
         print("  " + ln)
@@ -125,8 +133,7 @@ def preview_piece(piece: str, out_dir: Path) -> int:
 
 
 # 四类代表性部件：全可掉落 / 混合 / 全入库 / 超大列表（545 把）
-_PIECE_SAMPLES = ("Styanax Prime蓝图", "电幻步枪Prime蓝图",
-                  "绝路Prime枪管", "Forma蓝图")
+_PIECE_SAMPLES = ("Styanax Prime蓝图", "电幻步枪Prime蓝图", "绝路Prime枪管", "Forma蓝图")
 
 
 def main():

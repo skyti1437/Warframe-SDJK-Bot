@@ -9,6 +9,7 @@
 WarframeSDJK→VisionCommands ×1），导入目标/被调函数不变。
 子包纪律：不 import astrbot（事件对象鸭子类型）。
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -28,8 +29,7 @@ class VisionCommands:
     def _event_has_image(event) -> bool:
         """消息链里是否带图片组件（用于「不支持图片识别」的针对性提示）。"""
         try:
-            chain = getattr(getattr(event, "message_obj", None),
-                            "message", None) or []
+            chain = getattr(getattr(event, "message_obj", None), "message", None) or []
             return any(type(c).__name__ == "Image" for c in chain)
         except Exception:  # noqa: BLE001
             return False
@@ -40,8 +40,8 @@ class VisionCommands:
     #    siliconflow 源超时调到 240）；glm-4.1v-thinking-flash 快（20s）
     #    但伤害行反复读串/整轮崩（最差一次 0/9）→ 32B 首位、glm 兜底，
     #    _extract_loadout_from_image 会按序逐个尝试
-    _ocr_busy: set = set()        # 正在识卡的会话（并发保护）
-    _ocr_last: dict = {}          # 发送者 → 上次识卡时刻（冷却用）
+    _ocr_busy: set = set()  # 正在识卡的会话（并发保护）
+    _ocr_last: dict = {}  # 发送者 → 上次识卡时刻（冷却用）
     # 识卡多渠道路由的等待窗口（秒）：窗口内取「校验全过」的最优；
     # 到点即用当前最好结果走聚焦二读，不无限等慢渠道（实测 glm 25 s、
     # 32B 更慢）。窗口 ≳ 最快渠道的响应时间。
@@ -50,7 +50,7 @@ class VisionCommands:
     # 同一张图下一次 30B 是 38.8 s 才返回 —— 距 40 s 只剩 1.2 s，窗口太紧。
     # 放宽到 60 s：慢渠道仍能被等到，最坏等待仍在用户可接受范围（识卡本就 15~30 s 级）。
     RACE_WINDOW_S = 60.0
-    _render_lock: Optional[asyncio.Lock] = None   # 渲染串行（PIL 吃 CPU）
+    _render_lock: Optional[asyncio.Lock] = None  # 渲染串行（PIL 吃 CPU）
 
     # 按「实测响应速度 + 输出可解析性」排序：识卡是并行竞速 + 面板校验兜底，
     # 先到的先用，所以把小快型号放前面（原来 32B 排第一、取前 3 个时把最快的
@@ -71,9 +71,11 @@ class VisionCommands:
     #                                                      「System is too busy」，4 次全败
     #                                                                          → **移除**
     #   （另测均不入链：Qwen3-Omni-30B-A3B 数值错乱、GLM-4.5V 120 s 超时）
-    _VISION_PROVIDER_IDS = ("zhipu/glm-4v-flash",
-                            "siliconflow/Qwen/Qwen3-VL-30B-A3B-Instruct",
-                            "siliconflow/Qwen/Qwen3-VL-8B-Instruct")
+    _VISION_PROVIDER_IDS = (
+        "zhipu/glm-4v-flash",
+        "siliconflow/Qwen/Qwen3-VL-30B-A3B-Instruct",
+        "siliconflow/Qwen/Qwen3-VL-8B-Instruct",
+    )
     _VISION_ID_HINTS = ("4v", "vl", "vision", "vision-flash", "4o")
 
     def _vision_providers(self) -> list:
@@ -103,8 +105,7 @@ class VisionCommands:
             if prov:
                 out.append(prov)
             else:
-                logger.warning("[sdjk] 配置的 vision_provider_id「%s」取不到，"
-                               "回落到内置候选", want)
+                logger.warning("[sdjk] 配置的 vision_provider_id「%s」取不到，回落到内置候选", want)
         # ② 内置优先级候选
         for pid in self._VISION_PROVIDER_IDS:
             prov = _try_get(pid)
@@ -118,24 +119,26 @@ class VisionCommands:
             allp = []
         for prov in allp:
             try:
-                pid = getattr(getattr(prov, "meta",
-                                      lambda: None)(), "id", "") or ""
+                pid = getattr(getattr(prov, "meta", lambda: None)(), "id", "") or ""
             except Exception:  # noqa: BLE001
                 pid = ""
-            if any(h in str(pid).lower() for h in self._VISION_ID_HINTS) \
-                    and not any(p is prov for p in out):
+            if any(h in str(pid).lower() for h in self._VISION_ID_HINTS) and not any(
+                p is prov for p in out
+            ):
                 out.append(prov)
         if not out:
             # 失败时把实际存在的渠道名打出来，便于一眼看出是配置还是代码问题
             ids = []
             for prov in allp:
                 try:
-                    ids.append(getattr(getattr(prov, "meta",
-                                               lambda: None)(), "id", "") or "?")
+                    ids.append(getattr(getattr(prov, "meta", lambda: None)(), "id", "") or "?")
                 except Exception:  # noqa: BLE001
                     ids.append("?")
-            logger.warning("[sdjk] 没有可用的视觉渠道！现有渠道 %d 个：%s",
-                           len(ids), "、".join(ids[:20]) or "（空）")
+            logger.warning(
+                "[sdjk] 没有可用的视觉渠道！现有渠道 %d 个：%s",
+                len(ids),
+                "、".join(ids[:20]) or "（空）",
+            )
         return out
 
     def _pick_vision_provider(self):
@@ -154,8 +157,7 @@ class VisionCommands:
         """
         out: list[str] = []
         try:
-            chain = getattr(getattr(event, "message_obj", None),
-                            "message", None) or []
+            chain = getattr(getattr(event, "message_obj", None), "message", None) or []
             for c in chain:
                 if type(c).__name__ != "Image":
                     continue
@@ -169,11 +171,17 @@ class VisionCommands:
             pass
         return out[:1]  # 一次只认一张（紫卡截图）
 
-    async def _vision_race_json(self, prompt: str, image_url: str,
-                                provs: list, *, k: int = 2,
-                                tag: str = "识别",
-                                window: Optional[float] = None,
-                                parse=None) -> Optional[dict]:
+    async def _vision_race_json(
+        self,
+        prompt: str,
+        image_url: str,
+        provs: list,
+        *,
+        k: int = 2,
+        tag: str = "识别",
+        window: Optional[float] = None,
+        parse=None,
+    ) -> Optional[dict]:
         """向最多 k 个 vision 渠道**并行**请求，取第一个能解析出 JSON 的结果。
 
         串行试渠道时每条指令要等最慢的那家（实测紫卡识别 13 s）；
@@ -185,17 +193,20 @@ class VisionCommands:
         词条行」那一路用它把判据换成「卡面合法」（能解析 ≠ 读全了）。
         """
         import time as _t
-        provs = [p for p in (provs or []) if p is not None][:max(1, k)]
+
+        provs = [p for p in (provs or []) if p is not None][: max(1, k)]
         if not provs:
             return None
 
         async def _one(prov):
             _t0 = _t.perf_counter()
             import uuid as _uuid
+
             resp = await prov.text_chat(
                 prompt=prompt,
                 session_id=f"sdjk-{tag}-{_uuid.uuid4().hex[:8]}",
-                image_urls=[image_url])
+                image_urls=[image_url],
+            )
             text = (getattr(resp, "completion_text", "") or "").strip()
             return prov, text, (_t.perf_counter() - _t0) * 1000
 
@@ -210,8 +221,8 @@ class VisionCommands:
                 if timeout is not None and timeout <= 0:
                     break
                 done, pending = await asyncio.wait(
-                    pending, timeout=timeout,
-                    return_when=asyncio.FIRST_COMPLETED)
+                    pending, timeout=timeout, return_when=asyncio.FIRST_COMPLETED
+                )
                 for t in done:
                     try:
                         prov, text, ms = t.result()
@@ -223,12 +234,15 @@ class VisionCommands:
                         continue
                     data = (parse or lo.parse_vision_json)(text)
                     if data:
-                        logger.info("[sdjk] %s命中渠道（%.0f ms）：%s", tag, ms,
-                                    json.dumps(data, ensure_ascii=False)[:200])
+                        logger.info(
+                            "[sdjk] %s命中渠道（%.0f ms）：%s",
+                            tag,
+                            ms,
+                            json.dumps(data, ensure_ascii=False)[:200],
+                        )
                         winner = data
                         break
-                    logger.warning("[sdjk] %s JSON 解析失败（%.0f ms）：%s",
-                                   tag, ms, text[:160])
+                    logger.warning("[sdjk] %s JSON 解析失败（%.0f ms）：%s", tag, ms, text[:160])
                 if winner:
                     break
         finally:
@@ -256,7 +270,8 @@ class VisionCommands:
         "「-65.1% 变焦」照抄 变焦（不是 集束/集中）；"
         "负词条行（-xx%）**绝不能漏抄**\n"
         "· 只输出这些行本身，不要 JSON、不要解释、"
-        "不要武器名、不要右下角的内融值")
+        "不要武器名、不要右下角的内融值"
+    )
 
     @classmethod
     def _riven_lines_legal(cls, lines) -> tuple:
@@ -281,8 +296,7 @@ class VisionCommands:
             from core import riven_analysis as RA
             from core.parser import RIVEN_STAT_ZH
         rev = {v: k for k, v in RIVEN_STAT_ZH.items()}
-        pos, neg, notes = RA.parse_riven_lines(
-            lines, lambda nm: cls._stat_id_from_name(nm, rev))
+        pos, neg, notes = RA.parse_riven_lines(lines, lambda nm: cls._stat_id_from_name(nm, rev))
         fatal = [n for n in notes if not n.startswith("无极性符号")]
         return pos, neg, (2 <= len(pos) <= 3 and len(neg) <= 1 and not fatal), notes
 
@@ -295,9 +309,13 @@ class VisionCommands:
         """
         lines = [ln.strip() for ln in str(text or "").splitlines() if ln.strip()]
         pos, neg, legal, notes = cls._riven_lines_legal(lines)
-        logger.info("[sdjk] 紫卡行读候选：%d 正 %d 负（%s）%s", len(pos), len(neg),
-                    "采信" if legal else "不合法，继续等",
-                    ("；跳过 " + " / ".join(notes[:4])) if notes else "")
+        logger.info(
+            "[sdjk] 紫卡行读候选：%d 正 %d 负（%s）%s",
+            len(pos),
+            len(neg),
+            "采信" if legal else "不合法，继续等",
+            ("；跳过 " + " / ".join(notes[:4])) if notes else "",
+        )
         return {"lines": lines} if legal else {}
 
     async def _extract_riven_from_image(self, image_url: str) -> Optional[dict]:
@@ -311,7 +329,8 @@ class VisionCommands:
         prompt = (
             "你是 Warframe 紫卡识别器。从这张紫卡截图中提取信息，"
             "只输出一行 JSON（不要 markdown 围栏、不要解释）：\n"
-            '{"weapon": "武器名（卡面简中，如 欧玛 / 棱晶·欧玛 / 哈利卡）",'            ' "positive": [["词条缩写", 数值], ...],'
+            '{"weapon": "武器名（卡面简中，如 欧玛 / 棱晶·欧玛 / 哈利卡）",'
+            ' "positive": [["词条缩写", 数值], ...],'
             ' "negative": [["词条缩写", 数值], ...]}'
             "\n"
             "词条名**照卡面原样照抄**：不要替换成其它词条名，也不要把"
@@ -356,23 +375,30 @@ class VisionCommands:
             "拉丁自命名（如「捕月 Acri-vexican」）—— weapon 只填腔体中文名"
             "（「捕月」），自命名照旧不要输出。腔体名后**没有**主要/次要模式"
             "标注，不要自行加「（主要）/（次要）」后缀，机器人会按卡面数值"
-            "判定模式。若第一行确实没有任何中文武器名，weapon 才输出空字符串 \"\"。\n"
+            '判定模式。若第一行确实没有任何中文武器名，weapon 才输出空字符串 ""。\n'
             "⚠ 数值要连**小数点**一起读：卡面「+115.7%」就是 115.7，不能读成 1157；"
             "「-110.8%」就是 110.8。点号看不清时宁可按最接近的两位有效数字估，"
-            "也不要直接丢掉点号。")
+            "也不要直接丢掉点号。"
+        )
         provs = self._vision_providers()
         try:
             # 并行竞速（原来串行试渠道，实测要 13 s）；窗口 60s（2026-09-23 补：
             # 渠道级超时可达 240s，不能让用户干等）
             data, lines = await asyncio.gather(
-                self._vision_race_json(prompt, image_url, provs, k=2,
-                                       tag="紫卡识别",
-                                       window=self.RACE_WINDOW_S),
-                self._vision_race_json(self._RIVEN_LINE_PROMPT, image_url, provs,
-                                       k=2, tag="紫卡行读",
-                                       window=self.RACE_WINDOW_S,
-                                       parse=self._parse_riven_lines_text),
-                return_exceptions=True)
+                self._vision_race_json(
+                    prompt, image_url, provs, k=2, tag="紫卡识别", window=self.RACE_WINDOW_S
+                ),
+                self._vision_race_json(
+                    self._RIVEN_LINE_PROMPT,
+                    image_url,
+                    provs,
+                    k=2,
+                    tag="紫卡行读",
+                    window=self.RACE_WINDOW_S,
+                    parse=self._parse_riven_lines_text,
+                ),
+                return_exceptions=True,
+            )
         except Exception as exc:  # noqa: BLE001
             logger.warning("[sdjk] 紫卡识别失败：%s", exc)
             return None
@@ -410,6 +436,7 @@ class VisionCommands:
             import io
 
             from PIL import Image
+
             _head, b64 = image_url.split(",", 1)
             img = Image.open(io.BytesIO(base64.b64decode(b64)))
             return pips_engine.detect_pips(img)
@@ -421,8 +448,9 @@ class VisionCommands:
             return []
         if rows:
             eq = [r for r in rows if not r.get("is_inventory")]
-            logger.info("[sdjk] 豆子检测：装备区 %d 行，豆数 %s",
-                        len(eq), [r.get("counts") for r in eq])
+            logger.info(
+                "[sdjk] 豆子检测：装备区 %d 行，豆数 %s", len(eq), [r.get("counts") for r in eq]
+            )
         return rows
 
     @staticmethod
@@ -439,6 +467,7 @@ class VisionCommands:
             import time as _time
 
             from PIL import Image as _Image
+
             if not image_url.startswith("data:"):
                 return
             _head, _b = image_url.split(",", 1)
@@ -455,16 +484,21 @@ class VisionCommands:
         except Exception as exc:  # noqa: BLE001 —— 排查辅助，绝不能影响识卡
             logger.debug("[sdjk] 存排查图失败：%s", exc)
 
-
     # LLM 可能输出词条全称，先归一到缩写
     # ★ 2026-10-03：只做「全称 → 缩写」归一，**不得做语义相反的跨词条改写**。
     #   删过两条：「射速」→「攻速」（把远程词条压成近战 attack_speed —— 用户
     #   口径「远程叫射速」；RIVEN_STAT_ALIASES 已把「射速」映射到 fire_rate）与
     #   「元素伤害」→「基伤」（紫卡没有「元素伤害」这一通用词条，元素是
     #   火/冰/毒/电伤；删后交给 RIVEN_STAT_ALIASES/形近容错各自处理）。
-    _STAT_ALIAS = {"滑行暴击": "滑暴", "攻击速度": "攻速", "伤害": "基伤",
-                   "装填速度": "装填", "触发几率": "触发", "多重射击": "多重",
-                   "暴击几率": "暴击"}
+    _STAT_ALIAS = {
+        "滑行暴击": "滑暴",
+        "攻击速度": "攻速",
+        "伤害": "基伤",
+        "装填速度": "装填",
+        "触发几率": "触发",
+        "多重射击": "多重",
+        "暴击几率": "暴击",
+    }
     # 卡面全称/别名 → 标准 id（parser.RIVEN_STAT_ALIASES 反查，首次用时构建）。
     # 必须有这张表：「暴击伤害」走包含匹配会先撞上短名「暴击」（crit_chance），
     # 2026-09-24 实测把暴伤按暴击率的基值算（手枪 149.99 vs 90），区间对不上后
@@ -497,9 +531,10 @@ class VisionCommands:
         if not name:
             return None
         import difflib
+
         name = cls._STAT_ALIAS.get(name, name)
         full = cls._full_stat_alias()
-        if name in full:                  # 全称整表命中（暴击伤害 → crit_damage）
+        if name in full:  # 全称整表命中（暴击伤害 → crit_damage）
             return full[name]
         if name in rev:
             return rev[name]
@@ -520,11 +555,9 @@ class VisionCommands:
         if close:
             best = close[0]
             r1 = difflib.SequenceMatcher(None, name, best).ratio()
-            r2 = (difflib.SequenceMatcher(None, name, close[1]).ratio()
-                  if len(close) > 1 else 0.0)
+            r2 = difflib.SequenceMatcher(None, name, close[1]).ratio() if len(close) > 1 else 0.0
             if r1 >= 0.7 and r1 - r2 >= 0.1:
-                logger.info("[sdjk] 紫卡词条名容错：%s → %s（相似度 %.2f）",
-                            name, best, r1)
+                logger.info("[sdjk] 紫卡词条名容错：%s → %s（相似度 %.2f）", name, best, r1)
                 return pool[best]
         return None
 
@@ -562,8 +595,7 @@ class VisionCommands:
         def to_stat(name: str, val):
             if name is None or val is None:
                 return None
-            name = str(name).strip().replace("%", "").replace("+", "") \
-                .replace("-", "")
+            name = str(name).strip().replace("%", "").replace("+", "").replace("-", "")
             try:
                 num = float(str(val).strip().rstrip("%m米"))
             except (TypeError, ValueError):

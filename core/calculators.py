@@ -3,6 +3,7 @@
 
 纯本地计算，不依赖网络。
 """
+
 from __future__ import annotations
 
 from typing import Optional
@@ -20,12 +21,18 @@ from typing import Optional
 # 元素：**玩家在两者之间二选一**（同元素则无需选），不会合成复合元素。
 # ---------------------------------------------------------------------------
 VALENCE_ELEMENTS = {
-    "电": "electricity", "电击": "electricity",
-    "火": "heat", "火焰": "heat",
-    "冰": "cold", "冰冻": "cold",
-    "毒": "toxin", "毒素": "toxin",
+    "电": "electricity",
+    "电击": "electricity",
+    "火": "heat",
+    "火焰": "heat",
+    "冰": "cold",
+    "冰冻": "cold",
+    "毒": "toxin",
+    "毒素": "toxin",
     # Tenet 系还有这三种源于 Progenitor 的元素
-    "冲击": "impact", "磁力": "magnetic", "辐射": "radiation",
+    "冲击": "impact",
+    "磁力": "magnetic",
+    "辐射": "radiation",
 }
 # 内部英文名 -> 展示用的**最短**别名（自动从 VALENCE_ELEMENTS 反推，
 # 这样以后往上面加元素不用同步维护两张表）
@@ -40,10 +47,19 @@ VALENCE_CAP = 60.0
 # 这张只用于「元素：磁力　加成：25.7%」这类**只读展示**，
 # 所以统一用全名，别把 火/冰/毒 这种短名印在卡面上。
 ELEM_ZH: dict[str, str] = {
-    "impact": "冲击", "heat": "火焰", "cold": "冰冻", "electricity": "电击",
-    "toxin": "毒素", "magnetic": "磁力", "radiation": "辐射",
-    "corrosive": "腐蚀", "gas": "毒气", "viral": "病毒", "blast": "爆炸",
-    "slash": "切割", "puncture": "穿刺",
+    "impact": "冲击",
+    "heat": "火焰",
+    "cold": "冰冻",
+    "electricity": "电击",
+    "toxin": "毒素",
+    "magnetic": "磁力",
+    "radiation": "辐射",
+    "corrosive": "腐蚀",
+    "gas": "毒气",
+    "viral": "病毒",
+    "blast": "爆炸",
+    "slash": "切割",
+    "puncture": "穿刺",
 }
 
 
@@ -58,8 +74,8 @@ def valence_bonus(a_pct: float, b_pct: float) -> float:
         融合后的加成百分比。
     """
     top = max(float(a_pct), float(b_pct))
-    val = int(top * 1.1 * 10) / 10          # 向下取一位小数
-    if val >= 58:                            # 官方：>=58 直接进位到 60
+    val = int(top * 1.1 * 10) / 10  # 向下取一位小数
+    if val >= 58:  # 官方：>=58 直接进位到 60
         return VALENCE_CAP
     return min(val, VALENCE_CAP)
 
@@ -92,8 +108,12 @@ def valence_fusion(a_elem: str, a_pct: float, b_elem: str, b_pct: float) -> dict
     else:
         options = [_ELEM_CN.get(a_key, a_key), _ELEM_CN.get(b_key, b_key)]
         note = "两者任选其一，不会合成复合元素"
-    return {"percent": pct, "options": options, "note": note,
-            "higher_is_a": float(a_pct) >= float(b_pct)}
+    return {
+        "percent": pct,
+        "options": options,
+        "note": note,
+        "higher_is_a": float(a_pct) >= float(b_pct),
+    }
 
 
 def fusion_to_cap(start_pct: float) -> list[float]:

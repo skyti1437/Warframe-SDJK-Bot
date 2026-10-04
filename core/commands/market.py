@@ -7,6 +7,7 @@
 本笔唯一非逐字改写点，语义与目标文件逐字节不变）。
 子包纪律：不 import astrbot（事件对象鸭子类型）。
 """
+
 from __future__ import annotations
 
 import difflib
@@ -20,6 +21,7 @@ from ..parser import parse_wm, parse_wr
 from .base import PLUGIN_DIR, Reply
 
 JUNK_FILE = PLUGIN_DIR / "core" / "data" / "junk.json"
+
 
 # 「头」部件黑话消歧（2026-10-02 二修）：「水晶头」「水晶p头」「水晶 头」…
 # = 头部部件。判据（用户口径）：**剥掉尾部「头」后的前缀必须精确存在于
@@ -38,7 +40,7 @@ async def _head_part_resolve(client, item: str):
     if not stripped:
         return None
     if await client.resolve_wm_exact(full):
-        return None                      # 整名本身就是 MOD/物品（白霜弹头…）
+        return None  # 整名本身就是 MOD/物品（白霜弹头…）
     alt = await client.resolve_wm_exact(stripped)
     if alt:
         return stripped, alt
@@ -61,9 +63,12 @@ class MarketCommands:
         """
         if part in ("蓝图", "总图"):
             skip = ("机体", "头部", "系统", "枪管", "枪机", "枪托")
-            cands = [p for p in parts
-                     if (p.get("zh") or "").endswith("蓝图")
-                     and not any(w in (p.get("zh") or "") for w in skip)]
+            cands = [
+                p
+                for p in parts
+                if (p.get("zh") or "").endswith("蓝图")
+                and not any(w in (p.get("zh") or "") for w in skip)
+            ]
             return cands[0] if cands else None
         for p in parts:
             if part in (p.get("zh") or ""):
@@ -77,12 +82,14 @@ class MarketCommands:
         if q.group_buy:
             return await self._wm_group_buy(q, platform)
         if not q.item:
-            return Reply(raw_text="用法：wm 物品名 [部件] [收购|合购a*2,b] [N个] [零级/满级/N级] "
-                                  "[完整/优良/无瑕/光辉] [墨染] [-r]\n"
-                                  "部件：蓝图（总图）/ 机体 / 系统 / 头部 / 配件（全部部件比价），"
-                                  "如 wm 母牛 蓝图；头部可连写「头」（wm 水晶头 = wm 水晶 头部）\n"
-                                  "品级：满级按物品实际满级（赋能 5 级 / 川流不息 5 级 / "
-                                  "生命力 10 级）；精炼档只对遗物，墨染只看墨染 Mod")
+            return Reply(
+                raw_text="用法：wm 物品名 [部件] [收购|合购a*2,b] [N个] [零级/满级/N级] "
+                "[完整/优良/无瑕/光辉] [墨染] [-r]\n"
+                "部件：蓝图（总图）/ 机体 / 系统 / 头部 / 配件（全部部件比价），"
+                "如 wm 母牛 蓝图；头部可连写「头」（wm 水晶头 = wm 水晶 头部）\n"
+                "品级：满级按物品实际满级（赋能 5 级 / 川流不息 5 级 / "
+                "生命力 10 级）；精炼档只对遗物，墨染只看墨染 Mod"
+            )
         # 「头」部件黑话：消歧在整名解析之前（教训见 _head_part_resolve 注释）
         _head = await _head_part_resolve(self.client, q.item)
         if _head:
@@ -105,13 +112,15 @@ class MarketCommands:
             if q.part != "配件":
                 picked = self._pick_wm_set_part(set_parts, q.part)
                 if picked is None:
-                    names = [p.get("zh") or p.get("en") or p.get("url_name", "")
-                             for p in set_parts]
-                    return Reply(raw_text=(
-                        f"「{item.get('zh') or item.get('en') or item['url_name']}」"
-                        f"没有「{q.part}」这个部件。\n"
-                        f"可用部件：{'、'.join(names) or '（未同步到部件表）'}\n"
-                        f"也可以发整套看全部：wm {q.item}"))
+                    names = [p.get("zh") or p.get("en") or p.get("url_name", "") for p in set_parts]
+                    return Reply(
+                        raw_text=(
+                            f"「{item.get('zh') or item.get('en') or item['url_name']}」"
+                            f"没有「{q.part}」这个部件。\n"
+                            f"可用部件：{'、'.join(names) or '（未同步到部件表）'}\n"
+                            f"也可以发整套看全部：wm {q.item}"
+                        )
+                    )
                 item = picked
         # ── 品级 / 遗物精炼 / 墨染 过滤（2026-09-25 补：解析早就有，一直没接）──
         # 先取订单再判品级：满级要参考「挂单里出现的最高级」（WM 有 44 个 MOD
@@ -134,9 +143,17 @@ class MarketCommands:
             notes.append("只看墨染 Mod")
         display = item.get("zh") or item.get("en") or item["url_name"]
         title, lines, best, pool = fmt.fmt_wm_orders(
-            display, orders, buy=q.buy, page=parsed.page, page_size=self.page_size,
-            quantity=q.quantity, rank=rank, refinement=refinement, moran=moran,
-            notes=notes)
+            display,
+            orders,
+            buy=q.buy,
+            page=parsed.page,
+            page_size=self.page_size,
+            quantity=q.quantity,
+            rank=rank,
+            refinement=refinement,
+            moran=moran,
+            notes=notes,
+        )
         hint = "" if parsed.whisper or not best else " · 加 -r 生成游戏密语"
         # 套装附带部件参考价（2026-09-14 维护者要求）：单查部件走上面的
         # 归一化匹配（wm 席瓦蓝图），这里只在命中套装时多拉几个部件订单。
@@ -155,24 +172,27 @@ class MarketCommands:
                     po, _ = await self.client.wm_orders(p_["url_name"], platform)
                 except Exception:  # noqa: BLE001
                     po = []
-                rows.append({
-                    "name": p_.get("zh") or p_.get("en") or p_.get("url_name", ""),
-                    "sell": fmt.wm_best_price(po, "sell"),
-                    "buy": fmt.wm_best_price(po, "buy"),
-                })
+                rows.append(
+                    {
+                        "name": p_.get("zh") or p_.get("en") or p_.get("url_name", ""),
+                        "sell": fmt.wm_best_price(po, "sell"),
+                        "buy": fmt.wm_best_price(po, "buy"),
+                    }
+                )
             lines.extend(fmt.fmt_wm_set_parts(rows))
             if q.part == "配件":
-                lines.append(f"※ 想看某个部件的在售/收购单："
-                             f"wm {q.item} 蓝图（或 机体 / 系统 / 头部）")
-        reply = Reply(title, lines,
-                      footer=fmt.fmt_platform_footer(platform, "warframe.market" + hint))
+                lines.append(
+                    f"※ 想看某个部件的在售/收购单：wm {q.item} 蓝图（或 机体 / 系统 / 头部）"
+                )
+        reply = Reply(
+            title, lines, footer=fmt.fmt_platform_footer(platform, "warframe.market" + hint)
+        )
         if parsed.whisper and pool:
             # -r 给前 5 个卖家各生成一条密语（在线优先同展示顺序，
             # 2026-09-14 维护者要求：原来只有第一个）
             whisper_item = item.get("en") or item["url_name"]
             for o in pool[:5]:
-                reply.whisper.append(
-                    fmt.build_whisper(o, whisper_item, sell=q.buy))
+                reply.whisper.append(fmt.build_whisper(o, whisper_item, sell=q.buy))
         return reply
 
     @staticmethod
@@ -189,8 +209,7 @@ class MarketCommands:
         """
         if q_rank is None:
             return None, ""
-        ranks = {o.get("mod_rank") for o in (orders or [])
-                 if o.get("mod_rank") is not None}
+        ranks = {o.get("mod_rank") for o in (orders or []) if o.get("mod_rank") is not None}
         tags = set(item.get("tags") or [])
         has_rank_meta = bool(item.get("max_rank")) or bool({"mod", "arcane_enhancement"} & tags)
         if orders is None:
@@ -206,8 +225,11 @@ class MarketCommands:
             if not rank:
                 rank, src = (5 if "arcane_enhancement" in tags else 10), "fallback"
             rank = int(rank)
-            note = (f"只列满级（按挂单最高 {rank} 级）" if src == "orders"
-                    else f"只列满级（{rank}级）的单")
+            note = (
+                f"只列满级（按挂单最高 {rank} 级）"
+                if src == "orders"
+                else f"只列满级（{rank}级）的单"
+            )
             return rank, note
         return q_rank, f"只列 {q_rank} 级的单"
 
@@ -223,22 +245,26 @@ class MarketCommands:
             if re.sub(r"[\s·・]+", "", _k).lower() == _nq:
                 _info = self.client.lich_weapon_info(_slug)
                 _zh = _info.get("zh") or _slug
-                return Reply(raw_text=(
-                    f"「{query}」是玄骸武器（{_zh}），不在集市物品表里。\n"
-                    f"价格用：xh {_zh}　（支持元素/数值筛选，如 xh {_zh} 辐射 50）"))
+                return Reply(
+                    raw_text=(
+                        f"「{query}」是玄骸武器（{_zh}），不在集市物品表里。\n"
+                        f"价格用：xh {_zh}　（支持元素/数值筛选，如 xh {_zh} 辐射 50）"
+                    )
+                )
         items = await self.client.wm_items()
         slugs = [it.get("url_name", "") for it in items]
         names = [(it.get("zh") or it.get("en") or it.get("url_name", "")) for it in items]
-        close = difflib.get_close_matches(
-            query.lower().replace(" ", "_"), slugs, n=3, cutoff=0.5)
+        close = difflib.get_close_matches(query.lower().replace(" ", "_"), slugs, n=3, cutoff=0.5)
         hits = list(dict.fromkeys(close))
         if len(hits) < 3:
             for h in api_client.fuzzy_hits(query, names, n=3):
                 if h not in hits:
                     hits.append(h)
-        tip = f"没有找到「{query}」" + (f"，你是不是想找：{'、'.join(hits[:3])}"
-                                  if hits else
-                                  "（可用英文名或在 core/data/aliases.json 中补词条）")
+        tip = f"没有找到「{query}」" + (
+            f"，你是不是想找：{'、'.join(hits[:3])}"
+            if hits
+            else "（可用英文名或在 core/data/aliases.json 中补词条）"
+        )
         return Reply(raw_text=tip)
 
     async def _wm_group_buy(self, q, platform) -> Reply:
@@ -248,17 +274,22 @@ class MarketCommands:
             if not item:
                 return Reply(raw_text=f"合购中有物品未找到：{name}")
             orders, _ = await self.client.wm_orders(item["url_name"], platform)
-            sells = [o for o in orders if o.get("order_type") == "sell"
-                     and o.get("platform", platform) == platform
-                     and (o.get("user", {}).get("status") in ("ingame", "online"))]
+            sells = [
+                o
+                for o in orders
+                if o.get("order_type") == "sell"
+                and o.get("platform", platform) == platform
+                and (o.get("user", {}).get("status") in ("ingame", "online"))
+            ]
             sells.sort(key=lambda o: o["platinum"])
             for o in sells[:5]:
                 seller = o["user"]["ingame_name"]
                 sellers.setdefault(seller, {"items": {}, "total": 0})
                 sellers[seller]["items"][item["url_name"]] = (o["platinum"], qty)
-        ranked = sorted(sellers.items(),
-                        key=lambda kv: (-len(kv[1]["items"]), sum(
-                            p * c for p, c in kv[1]["items"].values())))
+        ranked = sorted(
+            sellers.items(),
+            key=lambda kv: (-len(kv[1]["items"]), sum(p * c for p, c in kv[1]["items"].values())),
+        )
         lines = []
         for seller, info in ranked[:3]:
             total = sum(p * c for p, c in info["items"].values())
@@ -268,8 +299,9 @@ class MarketCommands:
                 lines.append(f"　· {url} × {c} = {p * c}p")
         if not lines:
             return Reply(raw_text="暂时没有在线卖家能凑齐合购单")
-        return Reply("合购最优卖家（同卖家买齐更省事）", lines,
-                     footer=fmt.fmt_platform_footer(platform))
+        return Reply(
+            "合购最优卖家（同卖家买齐更省事）", lines, footer=fmt.fmt_platform_footer(platform)
+        )
 
     @staticmethod
     def _is_exact_match(a: dict, q, neg_set: set, pos_set: set) -> bool:
@@ -300,23 +332,30 @@ class MarketCommands:
 
         q = parse_wr(parsed.content)
         if not q.weapon:
-            return Reply(raw_text="用法：wr 武器名 [最新|离线] [r槽/-槽/角槽] [1000p] "
-                                  "[零洗/低洗/废洗/N洗] [词条连写如:基多暴负变焦] [2+|3+1] [-r]")
+            return Reply(
+                raw_text="用法：wr 武器名 [最新|离线] [r槽/-槽/角槽] [1000p] "
+                "[零洗/低洗/废洗/N洗] [词条连写如:基多暴负变焦] [2+|3+1] [-r]"
+            )
         weapon = await self.client.resolve_riven_weapon(q.weapon)
         if not weapon:
             tips = await self.client.suggest_riven_weapons(q.weapon)
-            tip = ("，你是不是想找：" + "、".join(tips)) if tips else \
-                "，请使用英文名或补充别名表"
+            tip = ("，你是不是想找：" + "、".join(tips)) if tips else "，请使用英文名或补充别名表"
             return Reply(raw_text=f"未找到紫卡武器「{q.weapon}」{tip}")
         url_name = weapon["url_name"]
         rtype = weapon.get("riven_type", "")
         positives = self.client.normalize_riven_stats(q.stats, rtype)
         negatives = self.client.normalize_riven_stats(q.negatives, rtype)
         auctions = await self.client.wm_riven_auctions(
-            url_name, platform, positives=positives, negatives=negatives,
-            polarity=q.polarity, max_price=q.max_price,
-            max_rerolls=q.max_rerolls, min_rerolls=q.rerolls_min,
-            require_negative=q.require_negative)
+            url_name,
+            platform,
+            positives=positives,
+            negatives=negatives,
+            polarity=q.polarity,
+            max_price=q.max_price,
+            max_rerolls=q.max_rerolls,
+            min_rerolls=q.rerolls_min,
+            require_negative=q.require_negative,
+        )
         neg_set = set(negatives)
         pos_set = set(positives)
         pool = [a for a in auctions if self._auction_match(a, q, neg_set, pos_set)]
@@ -327,14 +366,19 @@ class MarketCommands:
             # 在线+价格重排，于是前排全是便宜但与词条无关的挂单）：
             #   ① 先只放宽**在线状态**：词条完全匹配但卖家离线 → 仍排前面
             #   ② 真没有完全匹配的，才按词条命中率给最接近的选项
-            strict_offline = [a for a in auctions
-                              if self._auction_match(a, q, neg_set, pos_set,
-                                                     ignore_status=True)]
+            strict_offline = [
+                a
+                for a in auctions
+                if self._auction_match(a, q, neg_set, pos_set, ignore_status=True)
+            ]
             if strict_offline:
-                pool = sorted(strict_offline, key=lambda a: (
-                    fmt._ONLINE_RANK.get(
-                        (a.get("owner") or {}).get("status") or "offline", 3),
-                    a.get("buyout_price") or a.get("starting_price") or 0))
+                pool = sorted(
+                    strict_offline,
+                    key=lambda a: (
+                        fmt._ONLINE_RANK.get((a.get("owner") or {}).get("status") or "offline", 3),
+                        a.get("buyout_price") or a.get("starting_price") or 0,
+                    ),
+                )
                 relaxed = "offline"
         if not pool and auctions and (q.stats or q.negatives):
             # 服务端词条过滤为 OR 语义，精确匹配仍需本地二次筛；严格匹配为空时
@@ -343,45 +387,54 @@ class MarketCommands:
                 item = a.get("item", {}) or {}
                 attrs = item.get("attributes") or []
                 urls_p = {at.get("url_name") for at in attrs if at.get("positive")}
-                urls_n = {at.get("url_name") for at in attrs
-                          if not at.get("positive")}
+                urls_n = {at.get("url_name") for at in attrs if not at.get("positive")}
                 pos_hit = len(pos_set & urls_p)
                 neg_hit = len(neg_set & urls_n)
                 want_neg = 1 if (q.require_negative or q.negatives) else 0
                 score = pos_hit * 4 + neg_hit * 2 + (want_neg & (1 if urls_n else 0))
                 price = a.get("buyout_price") or a.get("starting_price") or 0
                 # 同档内再按「在线优先 → 价格升序」（与渲染层展示口径一致）
-                online = fmt._ONLINE_RANK.get(
-                    (a.get("owner") or {}).get("status") or "offline", 3)
+                online = fmt._ONLINE_RANK.get((a.get("owner") or {}).get("status") or "offline", 3)
                 return (-score, online, price)
+
             # 洗数过滤是硬条件，放宽词条时不能把它一起放开
-            cand = [a for a in auctions if self._rolls_ok(a, q)] if (
-                q.max_rerolls is not None or q.rerolls_min is not None) else auctions
-            pool = sorted(cand, key=_rank)[:max(4, self.page_size - 4)]
+            cand = (
+                [a for a in auctions if self._rolls_ok(a, q)]
+                if (q.max_rerolls is not None or q.rerolls_min is not None)
+                else auctions
+            )
+            pool = sorted(cand, key=_rank)[: max(4, self.page_size - 4)]
             relaxed = "loose"
         wname = weapon.get("zh") or weapon.get("en") or url_name
         # 完全命中词条的 id 集合（2026-10-01 B 口径，仅排序用）：在线档优先、
         # 档内恰好在前、超集仍可翻页。未指定词条 → None（退化为现行为）。
         # 放宽档（offline/loose）走 presorted，此集合不参与。
-        exact_ids = ({a.get("id") for a in pool
-                      if self._is_exact_match(a, q, neg_set, pos_set)}
-                     if (q.stats or q.negatives or q.require_negative) else None)
+        exact_ids = (
+            {a.get("id") for a in pool if self._is_exact_match(a, q, neg_set, pos_set)}
+            if (q.stats or q.negatives or q.require_negative)
+            else None
+        )
         title, lines, best = fmt.fmt_wr_auctions(
-            wname, pool,
-            page=parsed.page, page_size=max(4, self.page_size - 4),
-            riven_type=rtype, group=weapon.get("group", ""),
+            wname,
+            pool,
+            page=parsed.page,
+            page_size=max(4, self.page_size - 4),
+            riven_type=rtype,
+            group=weapon.get("group", ""),
             # 放宽档的排序是「词条命中率优先」，必须原样保留 —— 渲染层默认
             # 按 在线+价格 重排会把命中的挂单冲散
-            presorted=bool(relaxed), exact_ids=exact_ids)
+            presorted=bool(relaxed),
+            exact_ids=exact_ids,
+        )
         if weapon.get("_fuzzy_from"):
             lines.insert(0, f"※ 「{weapon['_fuzzy_from']}」按「{weapon.get('zh') or wname}」查询")
         if relaxed == "offline":
-            lines.append("※ 完全符合词条的挂单卖家目前都不在线，"
-                         "已按 在线优先 → 价格升序 列出")
+            lines.append("※ 完全符合词条的挂单卖家目前都不在线，已按 在线优先 → 价格升序 列出")
         elif relaxed == "loose":
-            lines.append("※ 没有完全符合条件的挂单，"
-                         "以上按词条命中率与价格给出最接近选项")
-        reply = Reply(title, lines, footer=fmt.fmt_platform_footer(platform, "warframe.market 紫卡"))
+            lines.append("※ 没有完全符合条件的挂单，以上按词条命中率与价格给出最接近选项")
+        reply = Reply(
+            title, lines, footer=fmt.fmt_platform_footer(platform, "warframe.market 紫卡")
+        )
         if not parsed.whisper:
             reply.lines.append("※ 加 -r 生成游戏内私聊密语（与卖家的 /w 消息）")
         if parsed.whisper and best:
@@ -389,8 +442,10 @@ class MarketCommands:
             price = best.get("buyout_price") or best.get("starting_price")
             reply.whisper.append(
                 f"/w {best.get('owner', {}).get('ingame_name', '?')} Hi! I want to buy: "
-                f"\"{item.get('name', weapon.get('url_name'))}\" for {price} platinum. (warframe.market)")
+                f'"{item.get("name", weapon.get("url_name"))}" for {price} platinum. (warframe.market)'
+            )
         return reply
+
     # ------------------------------------------------------------------
     # 排行 / 趋势 / 开核桃（P1 批次）
     # ------------------------------------------------------------------
@@ -399,12 +454,16 @@ class MarketCommands:
     @staticmethod
     def _rank_guide(platform) -> Reply:
         """榜单未建立时的引导卡。"""
-        return Reply("价格排行", [
-            "◆ 全量价格榜单还未建立",
-            "　发「排行 刷新」启动后台抓取",
-            "　（WM 全量约 3800 项、限速约 20 分钟，期间排行照常可查）",
-            "　完成后：「排行」看 甲/武器/卡 三榜，「排行 分类」看 20 名完整榜",
-        ], footer=fmt.fmt_platform_footer(platform, "warframe.market"))
+        return Reply(
+            "价格排行",
+            [
+                "◆ 全量价格榜单还未建立",
+                "　发「排行 刷新」启动后台抓取",
+                "　（WM 全量约 3800 项、限速约 20 分钟，期间排行照常可查）",
+                "　完成后：「排行」看 甲/武器/卡 三榜，「排行 分类」看 20 名完整榜",
+            ],
+            footer=fmt.fmt_platform_footer(platform, "warframe.market"),
+        )
 
     async def _h_rank(self, parsed, event, platform) -> Reply:
         """价格排行：落盘全量榜，按当前成交中位价降序。"""
@@ -412,11 +471,15 @@ class MarketCommands:
         if "刷新" in content and (parsed.preset or "") != "紫卡":
             started, done, total = self.client.start_rank_crawl()
             state = "已启动新一轮全量抓取" if started else "抓取已在进行中"
-            return Reply("排行刷新", [
-                f"◆ {state}（WM 全量 {total or '约 3800'} 项，限速约 20 分钟）",
-                f"　当前进度：{done}/{total or '?'}",
-                "※ 抓取期间排行照常可查（显示已完成部分）；可稍后重发本指令看进度",
-            ], footer=fmt.fmt_platform_footer(platform, "warframe.market"))
+            return Reply(
+                "排行刷新",
+                [
+                    f"◆ {state}（WM 全量 {total or '约 3800'} 项，限速约 20 分钟）",
+                    f"　当前进度：{done}/{total or '?'}",
+                    "※ 抓取期间排行照常可查（显示已完成部分）；可稍后重发本指令看进度",
+                ],
+                footer=fmt.fmt_platform_footer(platform, "warframe.market"),
+            )
         cat = parsed.preset or ""
         if not cat:
             for t in parsed.content or []:
@@ -433,52 +496,55 @@ class MarketCommands:
             if not rows:
                 return self._rank_guide(platform)
             title, lines = fmt.fmt_rank_overview(rows)
-            return Reply(title, lines,
-                         footer=fmt.fmt_platform_footer(platform, "warframe.market 成交"))
+            return Reply(
+                title, lines, footer=fmt.fmt_platform_footer(platform, "warframe.market 成交")
+            )
         if cat not in self.client.RANK_CATEGORIES:
-            return Reply(raw_text=f"未知分类「{cat}」。可选："
-                                  + " / ".join(self._RANK_CN)
-                                  + "；紫卡排行请发「紫卡排行」")
+            return Reply(
+                raw_text=f"未知分类「{cat}」。可选："
+                + " / ".join(self._RANK_CN)
+                + "；紫卡排行请发「紫卡排行」"
+            )
         rows = self.client.rank_rows()
         if not rows:
             return self._rank_guide(platform)
         title, lines = fmt.fmt_rank_table(cat, rows)
-        return Reply(title, lines,
-                     footer=fmt.fmt_platform_footer(platform, "warframe.market 成交"))
+        return Reply(title, lines, footer=fmt.fmt_platform_footer(platform, "warframe.market 成交"))
 
     async def _h_riven_rank(self, parsed, platform) -> Reply:
         """紫卡热度排行：DE 官方周报（0洗/已洗 中位价与热度，周更）。"""
         content = (parsed.content_str or "").strip()
         try:
-            snap = await self.client.de_weekly_rivens(
-                platform, force="刷新" in content)
+            snap = await self.client.de_weekly_rivens(platform, force="刷新" in content)
         except Exception as e:  # noqa: BLE001
             return Reply(raw_text=f"紫卡周报暂时拉取失败：{e}")
-        zhm = {w.get("en", "").lower(): (w.get("zh") or "")
-               for w in await self.client.wm_riven_weapons()}
+        zhm = {
+            w.get("en", "").lower(): (w.get("zh") or "")
+            for w in await self.client.wm_riven_weapons()
+        }
         cat = ""
-        for t in (parsed.content or []):
+        for t in parsed.content or []:
             k = t.replace("排行", "").strip()
             if k in fmt._RIVEN_ITEM_TYPE or k in ("主武", "副武", "未开"):
                 cat = k
                 break
         if not cat:
             title, lines = fmt.fmt_riven_weekly(snap, zhm)
-            return Reply(title, lines,
-                         footer=fmt.fmt_platform_footer(platform, "DE 官方周报"))
-        veiled = await self.client.wm_veiled_stats(platform) \
-            if cat == "未开" else None
-        title, lines = fmt.fmt_riven_type(cat, snap, zhm, page=parsed.page,
-                                          page_size=self.page_size,
-                                          veiled_wm=veiled)
-        return Reply(title, lines,
-                     footer=fmt.fmt_platform_footer(platform, "DE 官方周报"))
+            return Reply(title, lines, footer=fmt.fmt_platform_footer(platform, "DE 官方周报"))
+        veiled = await self.client.wm_veiled_stats(platform) if cat == "未开" else None
+        title, lines = fmt.fmt_riven_type(
+            cat, snap, zhm, page=parsed.page, page_size=self.page_size, veiled_wm=veiled
+        )
+        return Reply(title, lines, footer=fmt.fmt_platform_footer(platform, "DE 官方周报"))
+
     async def _h_trend(self, parsed, event, platform) -> Reply:
         """物品价格趋势（48h 逐小时 + 90d 逐日）。"""
         name = parsed.content_str.strip()
         if not name:
-            return Reply(raw_text="用法：趋势 物品名（也支持「wm趋势 物品名」）\n"
-                                  "　例：趋势 膛线　｜　趋势 绝路Prime")
+            return Reply(
+                raw_text="用法：趋势 物品名（也支持「wm趋势 物品名」）\n"
+                "　例：趋势 膛线　｜　趋势 绝路Prime"
+            )
         item = await self.client.resolve_wm_item(name)
         if not item:
             return await self._wm_suggest(name)
@@ -488,7 +554,6 @@ class MarketCommands:
         title, lines = fmt.fmt_trend(display, stats, summary)
         return Reply(title, lines, footer=fmt.fmt_platform_footer(platform, "warframe.market 统计"))
 
-
     async def _h_rm(self, parsed, event, platform) -> Reply:
         reply = await self._h_wr(parsed, event, platform)
         # 2026-09-14 实测：riven.market 后端（Firebase riven-market）已停用
@@ -496,8 +561,7 @@ class MarketCommands:
         # 没有可用 API。紫卡数据统一走 warframe.market 的紫卡拍卖接口，
         # 这行提示同步改掉，免得用户以为只是"没接线"。
         if reply.title:
-            reply.footer = ("riven.market 已停服（后端数据库停用），"
-                            "紫卡数据走 warframe.market 拍卖")
+            reply.footer = "riven.market 已停服（后端数据库停用），紫卡数据走 warframe.market 拍卖"
         return reply
 
     @staticmethod
@@ -511,8 +575,9 @@ class MarketCommands:
         return True
 
     @staticmethod
-    def _auction_match(a: dict, q, neg_set: set, pos_set: Optional[set] = None,
-                       *, ignore_status: bool = False) -> bool:
+    def _auction_match(
+        a: dict, q, neg_set: set, pos_set: Optional[set] = None, *, ignore_status: bool = False
+    ) -> bool:
         item = a.get("item", {}) or {}
         attrs = item.get("attributes") or []
         pos = [at for at in attrs if at.get("positive")]
@@ -543,7 +608,7 @@ class MarketCommands:
             nurls = {at.get("url_name") for at in neg}
             if not neg_set <= nurls:
                 return False
-        rerolls = fmt._riven_rolls(a)   # WM 字段名是 re_rolls，取错会恒为 0
+        rerolls = fmt._riven_rolls(a)  # WM 字段名是 re_rolls，取错会恒为 0
         if q.rerolls_min is not None and rerolls < q.rerolls_min:
             return False
         if q.max_rerolls is not None and rerolls > q.max_rerolls:
@@ -567,10 +632,19 @@ class MarketCommands:
         """
         pass
 
-        tier = parsed.preset or next((t for t in parsed.content if t in ("金", "银", "铜")), None) \
-            or ("金" if parsed.command_raw in ("金垃圾",) else
-                "银" if parsed.command_raw in ("银垃圾",) else
-                "铜" if parsed.command_raw in ("铜垃圾",) else "金")
+        tier = (
+            parsed.preset
+            or next((t for t in parsed.content if t in ("金", "银", "铜")), None)
+            or (
+                "金"
+                if parsed.command_raw in ("金垃圾",)
+                else "银"
+                if parsed.command_raw in ("银垃圾",)
+                else "铜"
+                if parsed.command_raw in ("铜垃圾",)
+                else "金"
+            )
+        )
         want = getattr(fmt, "_DUCAT_TIER", {}).get(tier, {}).get("values") or (100,)
 
         board = await self.client.ducats_board()
@@ -582,12 +656,13 @@ class MarketCommands:
         page_size = self.page_size
         pages = max(1, (total + page_size - 1) // page_size)
         page = max(1, min(parsed.page, pages))
-        chunk = pool[(page - 1) * page_size: page * page_size]
+        chunk = pool[(page - 1) * page_size : page * page_size]
         title, lines = fmt.fmt_ducat_junk(tier, chunk, page=page, pages=pages)
         if pages > 1:
             lines.append(f"※ 第{page}/{pages}页，共{total}件；加 -2 / -3 翻页")
-        return Reply(title, lines,
-                     footer=fmt.fmt_platform_footer(platform, "杜卡德/白金 越高越值得换"))
+        return Reply(
+            title, lines, footer=fmt.fmt_platform_footer(platform, "杜卡德/白金 越高越值得换")
+        )
 
     async def _ducats_fallback(self, tier: str, want: tuple, platform: str) -> list[dict]:
         """tools/ducats 不可用时的兜底：自己查订单算，样本有限。
@@ -605,25 +680,34 @@ class MarketCommands:
         cands.sort(key=lambda x: x.get("url_name", ""))
         if not cands:
             return []
-        step = max(1, len(cands) // 40)          # 兜底才抽样，正路走全量榜单
+        step = max(1, len(cands) // 40)  # 兜底才抽样，正路走全量榜单
         pool = cands[::step][:40]
-        results = await self._gather([
-            self.client.wm_orders(x["url_name"], platform) for x in pool])
+        results = await self._gather([self.client.wm_orders(x["url_name"], platform) for x in pool])
         rows = []
         for it, res in zip(pool, results):
             if isinstance(res, Exception) or not isinstance(res, tuple):
                 continue
-            sells = [o for o in res[0]
-                     if o.get("order_type") == "sell"
-                     and o.get("platform", platform) == platform
-                     and (o.get("platinum") or 0) > 0]
+            sells = [
+                o
+                for o in res[0]
+                if o.get("order_type") == "sell"
+                and o.get("platform", platform) == platform
+                and (o.get("platinum") or 0) > 0
+            ]
             if not sells:
                 continue
             cheapest = min(o["platinum"] for o in sells)
             ducats = it.get("ducats") or 0
-            rows.append({"name": it.get("zh") or it.get("en") or it["url_name"],
-                         "ducats": ducats, "dpp": ducats / cheapest, "dpp_wa": 0.0,
-                         "plat": float(cheapest), "volume": 0})
+            rows.append(
+                {
+                    "name": it.get("zh") or it.get("en") or it["url_name"],
+                    "ducats": ducats,
+                    "dpp": ducats / cheapest,
+                    "dpp_wa": 0.0,
+                    "plat": float(cheapest),
+                    "volume": 0,
+                }
+            )
         rows.sort(key=lambda r: -r["dpp"])
         return rows
 
@@ -634,4 +718,3 @@ class MarketCommands:
             return data.get(tier) or []
         except Exception:  # noqa: BLE001
             return []
-

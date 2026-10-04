@@ -19,6 +19,7 @@
 ``except WarframeAPIError: pass`` 静默吞掉 —— 于是「蹲 仲裁」**永远不会推**。
 现在两边共用本模块，避免再次漂移。
 """
+
 from __future__ import annotations
 
 import json
@@ -27,7 +28,7 @@ from pathlib import Path
 from typing import Optional
 
 BASE = "https://arbi.wf.wiki/data/"
-MEASURED_FILE = "arb_ratings.json"   # core/data 下的实测种子（构建期生成，不联网）
+MEASURED_FILE = "arb_ratings.json"  # core/data 下的实测种子（构建期生成，不联网）
 
 # 评级别名 -> arbi 的 tier 取值（与仲裁查询指令同一套口径）
 RATING = {"高效": ("S", "A+", "A"), "传奇": ("S",)}
@@ -84,14 +85,37 @@ def tier_source(key: str, tier_of: dict) -> str:
         return ""
     return "arbi" if _ARBI_ONLY.get(key, "") not in ("", "未评级") else "measured"
 
+
 # 可筛选的任务类型（中文，来源 arbi 的 missionNameZh；INFESTED 前缀会被归一化）
 TYPES = (
-    "生存", "防御", "镜像防御", "拦截", "挖掘", "叛逃", "资源回收", "回收",
-    "中断", "歼灭", "捕获", "虚空洪流", "虚空覆涌", "虚空决战", "联结生存",
-    "元素转换", "劫持", "追击", "破坏", "刺杀", "移动防御", "救援", "破坏任务",
+    "生存",
+    "防御",
+    "镜像防御",
+    "拦截",
+    "挖掘",
+    "叛逃",
+    "资源回收",
+    "回收",
+    "中断",
+    "歼灭",
+    "捕获",
+    "虚空洪流",
+    "虚空覆涌",
+    "虚空决战",
+    "联结生存",
+    "元素转换",
+    "劫持",
+    "追击",
+    "破坏",
+    "刺杀",
+    "移动防御",
+    "救援",
+    "破坏任务",
 )
-TYPES_STR = ("生存 / 防御 / 镜像防御 / 拦截 / 挖掘 / 叛逃 / 回收 / 中断 / "
-             "歼灭 / 捕获 / 虚空洪流 / 虚空覆涌 / 虚空决战 / 联结生存 / 元素转换")
+TYPES_STR = (
+    "生存 / 防御 / 镜像防御 / 拦截 / 挖掘 / 叛逃 / 回收 / 中断 / "
+    "歼灭 / 捕获 / 虚空洪流 / 虚空覆涌 / 虚空决战 / 联结生存 / 元素转换"
+)
 
 
 def mission_of(node: dict) -> str:
@@ -147,8 +171,7 @@ def node_cells(nodes: dict, key: str, tier_of: dict) -> list[str]:
     name = n.get("nameZh") or "?"
     system = n.get("systemNameZh") or ""
     tv = tier_of.get(key, "")
-    cells = [f"{name}（{system}）" if system else name,
-             mission_of(n), faction_of(n)]
+    cells = [f"{name}（{system}）" if system else name, mission_of(n), faction_of(n)]
     if tv and tv != "未评级":
         cells.append(f"[{tv}]")
     return cells
@@ -161,16 +184,14 @@ async def fetch_tables(client) -> tuple[dict, dict, dict]:
     查询卡、排期卡与「蹲 仲裁」筛选共用这一份，避免各算各的。
     """
     sched = await client._fetch_json(BASE + "arbys.schedule.v2.json", ttl=3600)
-    nodes = (await client._fetch_json(BASE + "arbys.nodes.zh.json",
-                                      ttl=86400)).get("nodes") or {}
+    nodes = (await client._fetch_json(BASE + "arbys.nodes.zh.json", ttl=86400)).get("nodes") or {}
     try:
         tier = await client._fetch_json(BASE + "tierlist.default.json", ttl=86400)
     except Exception:  # noqa: BLE001 - 评级表缺了不影响排期
         tier = {}
-    tier_of = {nk: tv for tv, lst in (tier.get("tierBuckets") or {}).items()
-               for nk in lst}
+    tier_of = {nk: tv for tv, lst in (tier.get("tierBuckets") or {}).items() for nk in lst}
     _ARBI_ONLY.clear()
-    _ARBI_ONLY.update(tier_of)          # 供 tier_source() 区分「官方 / 实测」
+    _ARBI_ONLY.update(tier_of)  # 供 tier_source() 区分「官方 / 实测」
     return sched, nodes, merge_measured_tiers(tier_of)
 
 

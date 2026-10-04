@@ -6,6 +6,7 @@
 
 用法：python scripts/diag_col_starts.py runtime/help_preview.png
 """
+
 from __future__ import annotations
 
 import sys
@@ -61,8 +62,7 @@ def main():
         # 该行中间高度上，找最长的连续空白段（>25px）
         runs, s = [], None
         for x in range(x_lo, x_hi):
-            blank = all(lum(*px[x, yy]) <= 115
-                        for yy in range(a, min(b + 1, H)))
+            blank = all(lum(*px[x, yy]) <= 115 for yy in range(a, min(b + 1, H)))
             if blank and s is None:
                 s = x
             elif not blank and s is not None:
@@ -89,8 +89,10 @@ def main():
         print(f"\n第二列起点的分布：{Counter(vals).most_common(5)}")
         common = Counter(vals).most_common(1)[0][0]
         odd = [v for v in vals if abs(v - common) > 10]
-        print(f"基准 {common}；偏离 >10px 的行数 = {len(odd)}"
-              + (f"  值：{sorted(set(odd))}" if odd else ""))
+        print(
+            f"基准 {common}；偏离 >10px 的行数 = {len(odd)}"
+            + (f"  值：{sorted(set(odd))}" if odd else "")
+        )
 
 
 if __name__ == "__main__":

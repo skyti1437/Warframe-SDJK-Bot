@@ -21,6 +21,7 @@
 用法：python scripts/build_storeitems_zh.py [--pep <dir>] [--check]
   --check 只校验不写盘（回归用）。
 """
+
 from __future__ import annotations
 
 import argparse
@@ -56,8 +57,7 @@ def build(pep_dir: Path) -> dict:
             items[path] = zh
         else:
             unresolved.append(path)
-    return {"items": dict(sorted(items.items())),
-            "unresolved": unresolved}
+    return {"items": dict(sorted(items.items())), "unresolved": unresolved}
 
 
 def main() -> int:
@@ -76,7 +76,7 @@ def main() -> int:
         "_meta": {
             "purpose": "StoreItems 路径 → 官方简中名（警报奖励等换名用；三级回落第一级）",
             "source": "warframe-public-export-plus：ExportResources(productCategory="
-                      "ShipDecorations) + dict.zh（本地 _work/data/pep）",
+            "ShipDecorations) + dict.zh（本地 _work/data/pep）",
             "built": datetime.date.today().isoformat(),
             "count": len(items),
             "unresolved": len(data["unresolved"]),
@@ -88,8 +88,9 @@ def main() -> int:
         same = cur.get("items") == items
         print("--check：与现表一致 =", same)
         return 0 if same else 1
-    OUT.write_text(json.dumps(payload, ensure_ascii=False, indent=1) + "\n",
-                   encoding="utf-8", newline="\n")
+    OUT.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=1) + "\n", encoding="utf-8", newline="\n"
+    )
     print("写出 %s（%d KB）" % (OUT.relative_to(ROOT), OUT.stat().st_size // 1024))
     return 0
 

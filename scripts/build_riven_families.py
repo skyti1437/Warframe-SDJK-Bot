@@ -26,6 +26,7 @@
     python scripts/build_riven_families.py            # 用本地缓存导出重建
     python scripts/build_riven_families.py --diff     # 只打印与现行表的差异
 """
+
 from __future__ import annotations
 
 import argparse
@@ -48,14 +49,21 @@ EXPORT_URL = "https://browse.wf/warframe-public-export-plus/ExportWeapons.json"
 # 与现行表一致的人工归并（DE 未给 parentName：Kuva/集团变体各自成根）
 PATCHES = {
     "reason": "DE 未给这两族设 parentName（Kuva/集团变体各自成根），按同基础武器人工归并",
-    "entries": {"Hek": "Hek", "Kuva Hek": "Hek", "Vaykor Hek": "Hek",
-                "Dark Dagger": "DarkDagger",
-                "Rakta Dark Dagger": "DarkDagger"},
+    "entries": {
+        "Hek": "Hek",
+        "Kuva Hek": "Hek",
+        "Vaykor Hek": "Hek",
+        "Dark Dagger": "DarkDagger",
+        "Rakta Dark Dagger": "DarkDagger",
+    },
 }
 
 # 双模式后缀（基名 + 后缀 ⇒ 同根）。仅认这些模式词，其它括号键跳过并登记。
-MODE_RE = re.compile(r"^(?P<base>.+?)\s*\((?P<mode>Primary|Secondary|"
-                     r"Atmosphere|Melee|Dual Swords|Heavy Blade)\)$", re.I)
+MODE_RE = re.compile(
+    r"^(?P<base>.+?)\s*\((?P<mode>Primary|Secondary|"
+    r"Atmosphere|Melee|Dual Swords|Heavy Blade)\)$",
+    re.I,
+)
 
 
 def _load_export(refresh: bool) -> dict:
@@ -93,9 +101,9 @@ def build() -> tuple[dict, list[str]]:
     for k in sorted(capable):
         name = _display(capable[k].get("name") or "", den)
         if name.startswith("<ARCHWING>"):
-            skipped_arch += 1          # Archwing 近战：现行表口径即不含
+            skipped_arch += 1  # Archwing 近战：现行表口径即不含
             continue
-        by_name[name] = root[k]        # 同名后写覆盖（NPC/玩家版、PvP 变体）
+        by_name[name] = root[k]  # 同名后写覆盖（NPC/玩家版、PvP 变体）
     for name, r in PATCHES["entries"].items():
         by_name[name] = r
 
@@ -143,20 +151,24 @@ def build() -> tuple[dict, list[str]]:
     multi = sum(1 for ms in families.values() if len(ms) > 1)
     payload = {
         "_source": "calamity-inc/warframe-public-export-plus @ExportWeapons.json "
-                   "(DE 官方导出) + 双模式括号键（dispositions_rivenmirror.json，"
-                   "同源 wiki 倾向页）",
+        "(DE 官方导出) + 双模式括号键（dispositions_rivenmirror.json，"
+        "同源 wiki 倾向页）",
         "_rule": "家族 = 沿 parentName 上溯，仅在 parent 本身「可上紫卡」"
-                 "(有 omegaAttenuation) 时继续；否则自身为根。同名条目（NPC/玩家版、"
-                 "PvP 变体）按 uniqueName 排序后写覆盖；跳过 <ARCHWING> 前缀条目。"
-                 "★ 2026-10-03：双模式条目（组合枪 Primary/Secondary、Atmosphere、"
-                 "Dark Split-Sword 双形态、Vinquibus (Melee) 等）基名同根，"
-                 "无后缀基名键保留（向后兼容）。",
+        "(有 omegaAttenuation) 时继续；否则自身为根。同名条目（NPC/玩家版、"
+        "PvP 变体）按 uniqueName 排序后写覆盖；跳过 <ARCHWING> 前缀条目。"
+        "★ 2026-10-03：双模式条目（组合枪 Primary/Secondary、Atmosphere、"
+        "Dark Split-Sword 双形态、Vinquibus (Melee) 等）基名同根，"
+        "无后缀基名键保留（向后兼容）。",
         "_generated_at": datetime.now(timezone.utc).date().isoformat(),
-        "_counts": {"weapons": len(by_name), "families": len(families),
-                    "multi_member": multi, "dual_mode": len(mode_added) + len(remapped),
-                    "dual_mode_added": len(mode_added),
-                    "dual_mode_remapped": sorted(remapped),
-                    "base_before_dual_mode": base_count},
+        "_counts": {
+            "weapons": len(by_name),
+            "families": len(families),
+            "multi_member": multi,
+            "dual_mode": len(mode_added) + len(remapped),
+            "dual_mode_added": len(mode_added),
+            "dual_mode_remapped": sorted(remapped),
+            "base_before_dual_mode": base_count,
+        },
         "_patches": PATCHES,
         "by_name": dict(sorted(by_name.items())),
         "families": families,
@@ -168,22 +180,24 @@ def build() -> tuple[dict, list[str]]:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--diff", action="store_true",
-                    help="只打印与现行 riven_families.json 的差异，不写文件")
+    ap.add_argument(
+        "--diff", action="store_true", help="只打印与现行 riven_families.json 的差异，不写文件"
+    )
     args = ap.parse_args()
 
     payload, _log = build()
-    print(f"by_name {payload['_counts']['weapons']} 条"
-          f"（双模式 +{payload['_counts']['dual_mode']}）| "
-          f"families {payload['_counts']['families']} | "
-          f"multi_member {payload['_counts']['multi_member']}")
+    print(
+        f"by_name {payload['_counts']['weapons']} 条"
+        f"（双模式 +{payload['_counts']['dual_mode']}）| "
+        f"families {payload['_counts']['families']} | "
+        f"multi_member {payload['_counts']['multi_member']}"
+    )
 
     cur = json.loads(OUT.read_text(encoding="utf-8")) if OUT.exists() else {}
     cur_bn = cur.get("by_name") or {}
     added = {k: v for k, v in payload["by_name"].items() if k not in cur_bn}
     removed = sorted(set(cur_bn) - set(payload["by_name"]))
-    changed = [k for k in cur_bn
-               if k in payload["by_name"] and payload["by_name"][k] != cur_bn[k]]
+    changed = [k for k in cur_bn if k in payload["by_name"] and payload["by_name"][k] != cur_bn[k]]
 
     def _is_dual_merge(k: str) -> bool:
         """值变是否属于「双模式并入基名根」（有意变更，允许）。"""
@@ -191,15 +205,15 @@ def main() -> int:
         if not m:
             return False
         base = m.group("base").strip()
-        hit = next((b for b in payload["by_name"]
-                    if b.lower() == base.lower()), None)
-        return hit is not None and \
-            payload["by_name"][k] == payload["by_name"][hit]
+        hit = next((b for b in payload["by_name"] if b.lower() == base.lower()), None)
+        return hit is not None and payload["by_name"][k] == payload["by_name"][hit]
 
     changed_ok = [k for k in changed if _is_dual_merge(k)]
     changed_bad = [k for k in changed if k not in changed_ok]
-    print(f"与现行差异：新增 {len(added)} | 移除 {len(removed)} | "
-          f"值变 {len(changed)}（其中双模式并入 {len(changed_ok)}）")
+    print(
+        f"与现行差异：新增 {len(added)} | 移除 {len(removed)} | "
+        f"值变 {len(changed)}（其中双模式并入 {len(changed_ok)}）"
+    )
     for k in sorted(added):
         print(f"  + {k} → {added[k]}")
     for k in removed:
@@ -213,10 +227,10 @@ def main() -> int:
         print("[diff] 未写入文件")
         return 0
     if removed or changed_bad:
-        raise SystemExit("★ 出现移除/非双模式值变 —— 现行判定被改动，"
-                         "须人工核对后才能写入")
-    OUT.write_text(json.dumps(payload, ensure_ascii=False, indent=1,
-                              sort_keys=False) + "\n", encoding="utf-8")
+        raise SystemExit("★ 出现移除/非双模式值变 —— 现行判定被改动，须人工核对后才能写入")
+    OUT.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=1, sort_keys=False) + "\n", encoding="utf-8"
+    )
     print(f"[OK] {OUT.relative_to(ROOT)}")
     return 0
 

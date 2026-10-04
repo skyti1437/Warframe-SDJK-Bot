@@ -18,6 +18,7 @@
     python scripts/lookup_zh.py --like HorseCombat      # 模糊匹配
     python scripts/lookup_zh.py --tables                # 只看各表规模
 """
+
 from __future__ import annotations
 
 import argparse
@@ -29,10 +30,18 @@ ROOT = Path(__file__).resolve().parent.parent
 DE = ROOT / "core" / "data" / "de"
 
 ZH_TABLES = [
-    "languages_zh.json", "challenges_zh.json", "name_zh.json",
-    "de_items_zh.json", "nodes_zh.json", "mission_types_zh.json",
-    "mod_names_zh.json", "recipe_names_zh.json", "nightwave_zh.json",
-    "bounty_jobs_zh.json", "wiki_disp.json", "events_zh.json",
+    "languages_zh.json",
+    "challenges_zh.json",
+    "name_zh.json",
+    "de_items_zh.json",
+    "nodes_zh.json",
+    "mission_types_zh.json",
+    "mod_names_zh.json",
+    "recipe_names_zh.json",
+    "nightwave_zh.json",
+    "bounty_jobs_zh.json",
+    "wiki_disp.json",
+    "events_zh.json",
 ]
 
 
@@ -90,7 +99,7 @@ def main():
         en_index.setdefault(v, []).append(k)
 
     if not args.words:
-        print("用法：python scripts/lookup_zh.py \"英文名\" […]  （--like 模糊）")
+        print('用法：python scripts/lookup_zh.py "英文名" […]  （--like 模糊）')
         return
 
     for w in args.words:

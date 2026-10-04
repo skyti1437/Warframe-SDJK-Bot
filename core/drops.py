@@ -10,6 +10,7 @@ drops.json 由 WFCD `warframe-drop-data/all.slim.json`（DE 官方掉落表精�
   places       {pid: "水星 · Apollodorus · 生存 · B轮"}
   relic_drops  {relic_lower: [[pid, rarity, chance], ...]}   # = 当前未入库遗物
 """
+
 from __future__ import annotations
 
 import json
@@ -21,7 +22,7 @@ DATA_FILE = Path(__file__).resolve().parent / "data" / "drops.json"
 
 _DB: Optional[dict] = None
 
-MAX_ROWS = 200          # 单遗物最多展示的出处数（防爆卡）
+MAX_ROWS = 200  # 单遗物最多展示的出处数（防爆卡）
 
 # 缓存：出处三元组 / 推荐刷取点（都是纯函数，数据不变就不必重算）
 _PLACES_CACHE: dict[str, list[tuple[str, str, str]]] = {}
@@ -38,8 +39,7 @@ def load() -> dict:
     return _DB
 
 
-def relic_source_lines(relic_key: str,
-                       limit: Optional[int] = None) -> list[str]:
+def relic_source_lines(relic_key: str, limit: Optional[int] = None) -> list[str]:
     """遗物的掉落位置，按「星球 · 节点 · 任务」合并轮次。
 
     原始出处把每个轮次都当成独立一条（防御 A/B/C 轮算三条），直接铺到卡片上
@@ -78,11 +78,16 @@ def unvaulted_relics() -> dict[str, list[str]]:
     """当前仍在掉落池（= 未入库）的遗物 -> 中文名列表。"""
     db = load()
     out = {}
-    for key in (db.get("relic_drops") or {}):
+    for key in db.get("relic_drops") or {}:
         m = key.split()
         if len(m) >= 3:
-            tier_cn = {"lith": "古纪", "meso": "前纪", "neo": "中纪",
-                       "axi": "后纪", "requiem": "安魂"}.get(m[0], m[0])
+            tier_cn = {
+                "lith": "古纪",
+                "meso": "前纪",
+                "neo": "中纪",
+                "axi": "后纪",
+                "requiem": "安魂",
+            }.get(m[0], m[0])
             out[key] = f"{tier_cn} {m[1].upper()}"
     return out
 
@@ -120,11 +125,29 @@ def relic_sources(relic_key: str, limit: int = 12) -> list[str]:
 # 而九重天储藏库那类只有 4~17 个节点。取 25 留足余量。
 _NARROW_SOURCE_MAX = 25
 # 速刷优先的任务类型（只用于同覆盖率时的排序）
-_FAST_MISSIONS = ("破坏", "捕获", "歼灭", "中断", "防御", "生存", "拦截",
-                  "间谍", "挖掘", "救援", "移动防御", "破坏（航道星舰）")
+_FAST_MISSIONS = (
+    "破坏",
+    "捕获",
+    "歼灭",
+    "中断",
+    "防御",
+    "生存",
+    "拦截",
+    "间谍",
+    "挖掘",
+    "救援",
+    "移动防御",
+    "破坏（航道星舰）",
+)
 
-_TIER_CN_FROM_EN = {"lith": "古纪", "meso": "前纪", "neo": "中纪",
-                    "axi": "后纪", "requiem": "安魂", "omnia": "全能"}
+_TIER_CN_FROM_EN = {
+    "lith": "古纪",
+    "meso": "前纪",
+    "neo": "中纪",
+    "axi": "后纪",
+    "requiem": "安魂",
+    "omnia": "全能",
+}
 
 
 def relic_places(relic_key: str) -> list[tuple[str, str, str]]:
@@ -140,7 +163,7 @@ def relic_places(relic_key: str) -> list[tuple[str, str, str]]:
         return _PLACES_CACHE[relic_key]
     out: list[tuple[str, str, str]] = []
     seen: set[tuple[str, str, str]] = set()
-    for place in relic_sources(relic_key, limit=10 ** 6):
+    for place in relic_sources(relic_key, limit=10**6):
         parts = place.split(" · ")
         if len(parts) < 3:
             continue
@@ -194,7 +217,7 @@ def farm_hints(top: int = 4) -> dict[str, list[str]]:
         return _FARM_CACHE
     db = load()
     per_tier: dict[str, "Counter[str]"] = {}
-    for key in (db.get("relic_drops") or {}):
+    for key in db.get("relic_drops") or {}:
         m = key.split()
         if len(m) < 2:
             continue
@@ -211,11 +234,13 @@ def farm_hints(top: int = 4) -> dict[str, list[str]]:
 
     out: dict[str, list[str]] = {}
     for tier, cnt in per_tier.items():
+
         def _rank(item: tuple[str, int]):
             node, n = item
             mission = node.split(" · ")[-1]
             order = _FAST_MISSIONS.index(mission) if mission in _FAST_MISSIONS else 99
             return (-n, order)
+
         picked: list[str] = []
         # 多样性约束：星球与任务类型都**不重复**。
         # 否则同一颗星球/同一种任务会占满 4 个推荐位（实测中纪会给出

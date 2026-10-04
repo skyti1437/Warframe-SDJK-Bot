@@ -42,6 +42,7 @@ core/wiki_intro.py::_drops_card 读 items 键+值 + places + zh2en）：
       （2026-10-04 实测：09-23 快照带回 4 条 Gyre 名称 + 28 条扎里曼几率旧值）。
       运行日志会打印源 md5 与（--src 时）文件 mtime，便于核对。
 """
+
 from __future__ import annotations
 
 import argparse
@@ -56,53 +57,85 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "core" / "data" / "drops.json"
-SRC_URL = ("https://raw.githubusercontent.com/WFCD/warframe-drop-data/"
-           "master/data/all.slim.json")
+SRC_URL = "https://raw.githubusercontent.com/WFCD/warframe-drop-data/master/data/all.slim.json"
 
 PLACE_RE = re.compile(
     r"^(?P<planet>[^/]+)/(?P<node>.+?)\s*\((?P<mode>[^)]+)\)"
-    r"(?:,\s*Rotation\s+(?P<rot>[ABC]))?\s*$")
+    r"(?:,\s*Rotation\s+(?P<rot>[ABC]))?\s*$"
+)
 
 PLANET_ZH = {
-    "Mercury": "水星", "Venus": "金星", "Earth": "地球", "Mars": "火星",
-    "Phobos": "火卫一", "Ceres": "谷神星", "Jupiter": "木星", "Saturn": "土星",
-    "Uranus": "天王星", "Neptune": "海王星", "Pluto": "冥王星", "Sedna": "塞德娜",
-    "Eris": "阋神星", "Europa": "木卫二", "Lua": "月球", "Deimos": "火卫二",
-    "Void": "虚空", "Kuva Fortress": "女皇要塞", "Zariman": "扎利曼",
-    "Earth Proxima": "地球比邻星域", "Venus Proxima": "金星比邻星域",
-    "Saturn Proxima": "土星比邻星域", "Neptune Proxima": "海王星比邻星域",
-    "Pluto Proxima": "冥王星比邻星域", "Veil Proxima": "面纱比邻星域",
-    "Ceres Proxima": "谷神星比邻星域", "Jupiter Proxima": "木星比邻星域",
+    "Mercury": "水星",
+    "Venus": "金星",
+    "Earth": "地球",
+    "Mars": "火星",
+    "Phobos": "火卫一",
+    "Ceres": "谷神星",
+    "Jupiter": "木星",
+    "Saturn": "土星",
+    "Uranus": "天王星",
+    "Neptune": "海王星",
+    "Pluto": "冥王星",
+    "Sedna": "塞德娜",
+    "Eris": "阋神星",
+    "Europa": "木卫二",
+    "Lua": "月球",
+    "Deimos": "火卫二",
+    "Void": "虚空",
+    "Kuva Fortress": "女皇要塞",
+    "Zariman": "扎利曼",
+    "Earth Proxima": "地球比邻星域",
+    "Venus Proxima": "金星比邻星域",
+    "Saturn Proxima": "土星比邻星域",
+    "Neptune Proxima": "海王星比邻星域",
+    "Pluto Proxima": "冥王星比邻星域",
+    "Veil Proxima": "面纱比邻星域",
+    "Ceres Proxima": "谷神星比邻星域",
+    "Jupiter Proxima": "木星比邻星域",
 }
 
 MODE_ZH = {
-    "Survival": "生存", "Defense": "防御", "Interception": "拦截",
-    "Capture": "捕获", "Rescue": "救援", "Spy": "间谍", "Sabotage": "破坏",
-    "Excavation": "挖掘", "Defection": "防卫", "Disruption": "中断",
-    "Assassination": "刺杀", "Mobile Defense": "移动防御", "Hijack": "劫持",
-    "Skirmish": "前哨战", "Orphix": "奥影母艇", "Vault": "宝藏",
-    "Pursuit": "追击", "Rush": "冲刺", "Volatile": "爆发",
-    "Void Flood": "虚空洪泛", "Void Cascade": "虚空瀑布", "Void Armageddon": "虚空末日",
-    "Conjunction Survival": "交汇生存", "Alchemy": "炼金术", "Assault": "进攻",
+    "Survival": "生存",
+    "Defense": "防御",
+    "Interception": "拦截",
+    "Capture": "捕获",
+    "Rescue": "救援",
+    "Spy": "间谍",
+    "Sabotage": "破坏",
+    "Excavation": "挖掘",
+    "Defection": "防卫",
+    "Disruption": "中断",
+    "Assassination": "刺杀",
+    "Mobile Defense": "移动防御",
+    "Hijack": "劫持",
+    "Skirmish": "前哨战",
+    "Orphix": "奥影母艇",
+    "Vault": "宝藏",
+    "Pursuit": "追击",
+    "Rush": "冲刺",
+    "Volatile": "爆发",
+    "Void Flood": "虚空洪泛",
+    "Void Cascade": "虚空瀑布",
+    "Void Armageddon": "虚空末日",
+    "Conjunction Survival": "交汇生存",
+    "Alchemy": "炼金术",
+    "Assault": "进攻",
 }
 # ★ 2026-10-04 补：原始表里出现、此前无译名的模式（保持既有中文风格）
-MODE_ZH.update({
-    "Caches": "储藏库",        # 金星/火卫二等「储藏库」奖励点（1,579 行）
-    "Exterminate": "歼灭",     # 歼灭（111 行；此前落到英文）
-})
+MODE_ZH.update(
+    {
+        "Caches": "储藏库",  # 金星/火卫二等「储藏库」奖励点（1,579 行）
+        "Exterminate": "歼灭",  # 歼灭（111 行；此前落到英文）
+    }
+)
 # 「Level a - b X」形态的模式：保留等级前缀 + 译尾（与旧数据既有标签同风格，
 # 例：'Level 30 - 40 隔离库' —— 旧标签就是这么写的，这里把它**按模式**写对）
 MODE_PATTERNS = (
-    (re.compile(r"^Level\s+(\d+)\s*-\s*(\d+)\s+Arcana Isolation Vault$"),
-     r"Level \1 - \2 隔离库"),
-    (re.compile(r"^Level\s+(\d+)\s*-\s*(\d+)\s+Isolation Vault$"),
-     r"Level \1 - \2 隔离库"),
-    (re.compile(r"^Level\s+(\d+)\s*-\s*(\d+)\s+Cambion Drift Bounty$"),
-     r"Level \1 - \2 赏金"),
-    (re.compile(r"^Level\s+(\d+)\s*-\s*(\d+)\s+Entrati Lab Bounty$"),
-     r"Level \1 - \2 实验室赏金"),
-    (re.compile(r"^Level\s+(\d+)\s*-\s*(\d+)\s+Plague Star$"),
-     r"Level \1 - \2 瘟疫之星"),
+    (re.compile(r"^Level\s+(\d+)\s*-\s*(\d+)\s+Arcana Isolation Vault$"), r"Level \1 - \2 隔离库"),
+    (re.compile(r"^Level\s+(\d+)\s*-\s*(\d+)\s+Isolation Vault$"), r"Level \1 - \2 隔离库"),
+    (re.compile(r"^Level\s+(\d+)\s*-\s*(\d+)\s+Cambion Drift Bounty$"), r"Level \1 - \2 赏金"),
+    (re.compile(r"^Level\s+(\d+)\s*-\s*(\d+)\s+Entrati Lab Bounty$"), r"Level \1 - \2 实验室赏金"),
+    (re.compile(r"^Level\s+(\d+)\s*-\s*(\d+)\s+Plague Star$"), r"Level \1 - \2 瘟疫之星"),
 )
 
 
@@ -157,16 +190,23 @@ PATCH_CRYOTIC_EXCAVATION = (
 
 def apply_patches(slim: list) -> list:
     """把上游缺表补进原始行（幂等：上游已含该表则跳过）。"""
-    have = any("cryotic front (excavation)" in strip_tags(r.get("place", "")).lower()
-               for r in slim)
+    have = any("cryotic front (excavation)" in strip_tags(r.get("place", "")).lower() for r in slim)
     if have:
         print("  [补丁] Cryotic Front (Excavation)：上游已含该表，跳过注入")
         return slim
     for rot, item, rarity, chance in PATCH_CRYOTIC_EXCAVATION:
-        slim.append({"place": f"Europa/Cryotic Front (<b>Excavation</b>), Rotation {rot}",
-                     "item": item, "rarity": rarity, "chance": chance})
-    print(f"  [补丁] 注入 Cryotic Front (Excavation) {len(PATCH_CRYOTIC_EXCAVATION)} 行"
-          f"（官方页 2026-09-24 build；WFCD 缺该表，drop.wf.wiki 同源核对一致）")
+        slim.append(
+            {
+                "place": f"Europa/Cryotic Front (<b>Excavation</b>), Rotation {rot}",
+                "item": item,
+                "rarity": rarity,
+                "chance": chance,
+            }
+        )
+    print(
+        f"  [补丁] 注入 Cryotic Front (Excavation) {len(PATCH_CRYOTIC_EXCAVATION)} 行"
+        f"（官方页 2026-09-24 build；WFCD 缺该表，drop.wf.wiki 同源核对一致）"
+    )
     return slim
 
 
@@ -179,8 +219,12 @@ def parse_place(place: str):
     m = PLACE_RE.match(strip_tags(place))
     if not m:
         return None
-    return (m.group("planet").strip(), m.group("node").strip(),
-            m.group("mode").strip(), m.group("rot") or "")
+    return (
+        m.group("planet").strip(),
+        m.group("node").strip(),
+        m.group("mode").strip(),
+        m.group("rot") or "",
+    )
 
 
 def base_relic_key(item: str) -> "str | None":
@@ -213,14 +257,18 @@ def main() -> int:
     if args.src:
         raw = Path(args.src).read_bytes()
         st = Path(args.src).stat()
-        src_note = (f"本地 {args.src}（mtime "
-                    f"{datetime.fromtimestamp(st.st_mtime):%Y-%m-%d %H:%M}）"
-                    f" ★ --src 必须是**当前 master 快照**，旧快照会带回过期值")
+        src_note = (
+            f"本地 {args.src}（mtime "
+            f"{datetime.fromtimestamp(st.st_mtime):%Y-%m-%d %H:%M}）"
+            f" ★ --src 必须是**当前 master 快照**，旧快照会带回过期值"
+        )
     else:
-        opener = urllib.request.build_opener(urllib.request.ProxyHandler(
-            {"http": "http://127.0.0.1:7897", "https": "http://127.0.0.1:7897"}))
-        req = urllib.request.Request(SRC_URL,
-                                     headers={"User-Agent": "sdjk-build/1.0"})
+        opener = urllib.request.build_opener(
+            urllib.request.ProxyHandler(
+                {"http": "http://127.0.0.1:7897", "https": "http://127.0.0.1:7897"}
+            )
+        )
+        req = urllib.request.Request(SRC_URL, headers={"User-Agent": "sdjk-build/1.0"})
         raw = opener.open(req, timeout=300).read()
         src_note = "master 拉取"
     slim = json.loads(raw)
@@ -264,7 +312,7 @@ def main() -> int:
     # ★ 模式感知复用（不变量 2）：旧索引键丢了 mode ⇒ 先统计每组 (星球,节点,轮次)
     #   的 mode 集合，**只有单 mode 组才允许复用旧标签**；多 mode 组按 mode 新组合。
     group_modes: dict[tuple, set] = defaultdict(set)
-    for (planet, node, mode, rot) in place_key_to:
+    for planet, node, mode, rot in place_key_to:
         group_modes[(planet, node, rot)].add(mode)
 
     def _reuse_hit(planet: str, node: str, mode: str, rot: str):
@@ -273,7 +321,7 @@ def main() -> int:
         return old_idx.get((planet, node, rot))
 
     new_places: dict[str, str] = {}
-    key_pid: dict[tuple, str] = {}          # 地点四元组 → pid（本次一趟定死）
+    key_pid: dict[tuple, str] = {}  # 地点四元组 → pid（本次一趟定死）
     pid_n = 0
     reused = composed = 0
     # ★ 两趟分配（2026-10-04 修）：**先**把单 mode 组的旧 pid 全部占住，**再**发新编号。
@@ -295,7 +343,7 @@ def main() -> int:
             continue
         planet, node, mode, rot = key
         pid_n += 1
-        while str(pid_n) in new_places:      # 跳过与旧 pid 相撞的编号
+        while str(pid_n) in new_places:  # 跳过与旧 pid 相撞的编号
             pid_n += 1
         pid = str(pid_n)
         if planet == ":raw":
@@ -310,8 +358,7 @@ def main() -> int:
     assert len(set(key_pid.values())) == len(key_pid), "pid 复用冲突（两个地点共号）"
     print(f"  地点 {len(new_places)}（复用旧翻译 {reused} / 新组合 {composed}）")
     if os.environ.get("BD_DEBUG"):
-        miss = [k for k in place_key_to if k[:3] not in
-                {(a, b, c) for (a, b, c) in old_idx}]
+        miss = [k for k in place_key_to if k[:3] not in {(a, b, c) for (a, b, c) in old_idx}]
         print(f"  [debug] 未命中旧索引的地点键 {len(miss)} 个，样例:")
         for k in miss[:8]:
             print("    ", k)
@@ -356,8 +403,7 @@ def main() -> int:
         lst = items.setdefault(it, [])
         if rec not in lst:
             lst.append(rec)
-    over = sum(1 for lst in items.values() for r in lst
-               if str(r[0]) not in new_places)
+    over = sum(1 for lst in items.values() for r in lst if str(r[0]) not in new_places)
     print(f"  items {len(items)} 条（键取旧∪新并集）；pid 越界 {over}（应为 0）")
     # zh2en：值必须都是 items 的合法键（旧数据有 34 条死映射 ⇒ 指向不存在的键；
     # 重建后仍不成立的**剔除**，不再留半成品映射）
@@ -368,22 +414,22 @@ def main() -> int:
 
     payload = dict(old)  # names 等其余辅助键续传（names 无 drops 相关消费）
     payload["source"] = SRC_URL
-    payload["updated"] = datetime.now(timezone.utc).astimezone().strftime(
-        "%Y-%m-%d %H:%M")
+    payload["updated"] = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M")
     payload["places"] = dict(sorted(new_places.items(), key=lambda kv: int(kv[0])))
     payload["items"] = dict(sorted(items.items()))
     payload["zh2en"] = zh2en
     payload["relic_drops"] = {k: sorted(v) for k, v in sorted(relic.items())}
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(json.dumps(payload, ensure_ascii=False, indent=1),
-                        encoding="utf-8")
+    out_path.write_text(json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")
 
     old_keys = set((old.get("relic_drops") or {}))
     new_keys = set(relic)
     print(f"[OK] {out_path}（{out_path.stat().st_size / 1024:.0f} KB）")
-    print(f"  遗物键 {len(old_keys)} → {len(new_keys)}"
-          f"（新增 {len(new_keys - old_keys)}、移除 {len(old_keys - new_keys)}）")
+    print(
+        f"  遗物键 {len(old_keys)} → {len(new_keys)}"
+        f"（新增 {len(new_keys - old_keys)}、移除 {len(old_keys - new_keys)}）"
+    )
     print(f"  新增键样例: {sorted(new_keys - old_keys)[:6]}")
     print(f"  移除键样例: {sorted(old_keys - new_keys)[:6]}")
     return 0

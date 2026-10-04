@@ -7,6 +7,7 @@ wfsim 的 weapons yaml 顶层 attack 是**默认部署**（deployment: atmospher
 
 输出 core/data/weapon_deployments.json（key = 小写 uniqueName）。
 """
+
 import glob
 import json
 import sys
@@ -15,15 +16,29 @@ from pathlib import Path
 try:
     import yaml
 except ImportError:  # noqa: BLE001 —— 插件运行本身不需要 yaml，只有这几个
-    raise SystemExit(   # 数据构建脚本要；给可操作的提示而不是裸 ImportError
-        "本脚本需要 PyYAML：pip install pyyaml"
-        "（插件运行时并不依赖它，仅构建数据用）")
+    raise SystemExit(  # 数据构建脚本要；给可操作的提示而不是裸 ImportError
+        "本脚本需要 PyYAML：pip install pyyaml（插件运行时并不依赖它，仅构建数据用）"
+    )
 
-WFSIM = (Path.home() / "tmp" / "wfsim" / "data")
+WFSIM = Path.home() / "tmp" / "wfsim" / "data"
 OUT = Path(__file__).resolve().parent.parent / "core" / "data" / "weapon_deployments.json"
-DAMAGE_KEYS = ("impact", "puncture", "slash", "heat", "cold", "electricity",
-               "toxin", "blast", "radiation", "gas", "magnetic", "viral",
-               "corrosive", "void", "true")
+DAMAGE_KEYS = (
+    "impact",
+    "puncture",
+    "slash",
+    "heat",
+    "cold",
+    "electricity",
+    "toxin",
+    "blast",
+    "radiation",
+    "gas",
+    "magnetic",
+    "viral",
+    "corrosive",
+    "void",
+    "true",
+)
 
 
 def cd(d) -> dict:
@@ -34,12 +49,14 @@ def cd(d) -> dict:
 
 
 def main() -> None:
-    out: dict = {"_meta": {
-        "source": "github.com/magenie33/wfsim data/weapons/*（deployments 字段）",
-        "updated": "2026-09-17",
-        "note": "Archgun 两种部署：顶层 attack = 地面/大气（Gravimag）默认面板；"
-                "archwing = 空战覆盖值。个别武器覆盖暴击/弹药",
-    }}
+    out: dict = {
+        "_meta": {
+            "source": "github.com/magenie33/wfsim data/weapons/*（deployments 字段）",
+            "updated": "2026-09-17",
+            "note": "Archgun 两种部署：顶层 attack = 地面/大气（Gravimag）默认面板；"
+            "archwing = 空战覆盖值。个别武器覆盖暴击/弹药",
+        }
+    }
     n = 0
     for f in glob.glob(str(WFSIM / "weapons" / "**" / "*.yaml"), recursive=True):
         y = yaml.safe_load(open(f, encoding="utf-8"))
@@ -48,8 +65,7 @@ def main() -> None:
         key = str(y.get("internal_name") or "").lower()
         if not key:
             continue
-        rec: dict = {"name": y.get("name"),
-                     "default": y.get("deployment") or "atmosphere"}
+        rec: dict = {"name": y.get("name"), "default": y.get("deployment") or "atmosphere"}
         aw = (y["deployments"] or {}).get("archwing") or {}
         a: dict = {}
         if aw.get("damage"):
@@ -58,9 +74,11 @@ def main() -> None:
             a["radial_damage"] = cd(aw["radial_damage"])
         if aw.get("reload_seconds"):
             a["reload_seconds"] = float(aw["reload_seconds"])
-        for k, dst in (("crit_chance", "criticalChance"),
-                       ("crit_multiplier", "criticalMultiplier"),
-                       ("ammo_max", "ammo_max")):
+        for k, dst in (
+            ("crit_chance", "criticalChance"),
+            ("crit_multiplier", "criticalMultiplier"),
+            ("ammo_max", "ammo_max"),
+        ):
             if aw.get(k) is not None:
                 a[dst] = float(aw[k])
         if aw.get("no_resupply"):
@@ -69,8 +87,7 @@ def main() -> None:
             rec["archwing"] = a
             out[key] = rec
             n += 1
-    OUT.write_text(json.dumps(out, ensure_ascii=False, indent=1),
-                   encoding="utf-8")
+    OUT.write_text(json.dumps(out, ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"✓ {OUT.name}: {n} 把双部署武器")
     for k, v in list(out.items())[1:3]:
         print("  ", v["name"], "|", json.dumps(v.get("archwing"), ensure_ascii=False)[:200])

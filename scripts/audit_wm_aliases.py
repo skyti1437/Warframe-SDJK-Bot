@@ -17,6 +17,7 @@ B. 词典指向的 slug 在 WM 物品表里不存在（物品已更名 / 绝版 
 
 只用标准库（不依赖 httpx，方便在任何环境跑）。
 """
+
 from __future__ import annotations
 
 import json
@@ -45,16 +46,22 @@ def norm(s: str) -> str:
 
 
 def fetch_items() -> list[dict]:
-    req = urllib.request.Request(WM_ITEMS_URL, headers={
-        "User-Agent": "wfq-alias-audit", "Accept": "application/json",
-        "Language": "zh-hans"})
+    req = urllib.request.Request(
+        WM_ITEMS_URL,
+        headers={
+            "User-Agent": "wfq-alias-audit",
+            "Accept": "application/json",
+            "Language": "zh-hans",
+        },
+    )
     raw = json.load(urllib.request.urlopen(req, timeout=90))
     return raw.get("data") or []
 
 
 def main() -> int:
-    table = json.loads((ROOT / "core" / "data" / "aliases.json").read_text(
-        encoding="utf-8")).get("wm_items", {})
+    table = json.loads((ROOT / "core" / "data" / "aliases.json").read_text(encoding="utf-8")).get(
+        "wm_items", {}
+    )
     print("拉取 WM 物品表 …", file=sys.stderr)
     items_raw = fetch_items()
 
@@ -99,8 +106,10 @@ def main() -> int:
     print()
     print("=" * 72)
     unknown_dangling = [(k, u) for k, u in dangling if u not in KNOWN_ABSENT]
-    print(f"B. 指向 WM 表里不存在的 slug: {len(dangling)} 条"
-          f"（其中 {len(dangling) - len(unknown_dangling)} 条属已知正常）")
+    print(
+        f"B. 指向 WM 表里不存在的 slug: {len(dangling)} 条"
+        f"（其中 {len(dangling) - len(unknown_dangling)} 条属已知正常）"
+    )
     print("=" * 72)
     for key, url in dangling:
         if url in KNOWN_ABSENT:

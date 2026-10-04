@@ -17,6 +17,7 @@
 实测（2026-09-16，用户提供的 Xoris「驱魔之刃」配卡截图）：
 9 张卡全部识别成功；drain 反推等级 8/8 命中；面板四项校验全部吻合。
 """
+
 from __future__ import annotations
 
 import difflib
@@ -37,17 +38,28 @@ PHYS_ZH = {"impact": "冲击", "puncture": "穿刺", "slash": "切割"}
 # 单元素 -> 中文
 ELEM_ZH = {"heat": "火", "cold": "冰", "electricity": "电", "toxin": "毒"}
 # 全部元素（含复合）的中文：卡面里统一用这一套，避免「火」和「火焰」混着显示
-ELEM_ALL_ZH = dict(ELEM_ZH, **{"blast": "爆炸", "corrosive": "腐蚀", "viral": "病毒",
-                              "magnetic": "磁力", "radiation": "辐射", "gas": "毒气"})
+ELEM_ALL_ZH = dict(
+    ELEM_ZH,
+    **{
+        "blast": "爆炸",
+        "corrosive": "腐蚀",
+        "viral": "病毒",
+        "magnetic": "磁力",
+        "radiation": "辐射",
+        "gas": "毒气",
+    },
+)
 # 武器类别中文化
 CATEGORY_ZH = {"Primary": "主武器", "Secondary": "副武器", "Melee": "近战"}
 # 游戏里复合元素的合成顺序（火 > 冰 > 电 > 毒，两两配对）
-ELEM_PAIRS = {frozenset({"heat", "cold"}): "blast",
-              frozenset({"heat", "electricity"}): "radiation",
-              frozenset({"heat", "toxin"}): "gas",
-              frozenset({"cold", "electricity"}): "magnetic",
-              frozenset({"cold", "toxin"}): "viral",
-              frozenset({"electricity", "toxin"}): "corrosive"}
+ELEM_PAIRS = {
+    frozenset({"heat", "cold"}): "blast",
+    frozenset({"heat", "electricity"}): "radiation",
+    frozenset({"heat", "toxin"}): "gas",
+    frozenset({"cold", "electricity"}): "magnetic",
+    frozenset({"cold", "toxin"}): "viral",
+    frozenset({"electricity", "toxin"}): "corrosive",
+}
 
 
 VISION_PROMPT = """这是 Warframe（星际战甲）游戏内武器升级界面的截图。
@@ -167,13 +179,13 @@ def clean_weapon_name(s) -> str:
     而 `find_weapon("暮斩")` 是好的 → 证明问题只在清洗环节）。
     """
     t = str(s or "").strip()
-    t = t.replace("／", "/").replace("＼", "\\")     # 全角分隔符
-    if "/" in t:                       # 「升级 / 武器名」的固定格式
+    t = t.replace("／", "/").replace("＼", "\\")  # 全角分隔符
+    if "/" in t:  # 「升级 / 武器名」的固定格式
         t = t.split("/")[-1]
     t = re.sub(r"^[+＋\-—=\s]*升\s*级\s*[:：]?\s*", "", t)  # 「升级:武器名」
     # 段位/等级方括号：半角、全角、中文书名号式括号都要认
     t = re.sub(r"[（(\[【〔]\s*\d+\s*[)）\]】〕]", "", t)
-    t = re.sub(r"等级\s*\d+\s*$", "", t)            # 「等级 30」后缀（新版 UI）
+    t = re.sub(r"等级\s*\d+\s*$", "", t)  # 「等级 30」后缀（新版 UI）
     t = re.sub(r"^[+＋\-—=\s]+", "", t)
     # ★ 尾部孤立的 1~2 位数字 = 标题栏的**极化次数**（不是武器名的一部分）。
     #   要求前面有空白或分隔符，避免切坏「MK1-布莱顿」这类本就带数字的名字。
@@ -195,7 +207,7 @@ def parse_vision_json(text: str) -> dict:
         s = m.group(1).strip()
     i, j = s.find("{"), s.rfind("}")
     if i >= 0 and j > i:
-        s = s[i:j + 1]
+        s = s[i : j + 1]
     for candidate in (s, re.sub(r",\s*([}\]])", r"\1", s)):
         try:
             d = json.loads(candidate)
@@ -273,8 +285,9 @@ def _color_hint(color) -> Optional[str]:
     return None
 
 
-def infer_rank(mod: dict, drain: Optional[int],
-               color: Optional[str] = None) -> tuple[Optional[int], str]:
+def infer_rank(
+    mod: dict, drain: Optional[int], color: Optional[str] = None
+) -> tuple[Optional[int], str]:
     """用卡片上的容量数字反推实际等级。
 
     三态（wiki /w/Polarity 原文规则）：
@@ -295,21 +308,21 @@ def infer_rank(mod: dict, drain: Optional[int],
         return None, "库中缺少该卡容量元数据"
     base = int(base)
     max_rank = int(max_rank)
-    if base < 0:                      # 姿态卡在原始数据里是 -2，不参与折算
+    if base < 0:  # 姿态卡在原始数据里是 -2，不参与折算
         return None, "姿态卡（不参与伤害折算）"
     hint = _color_hint(color)
     cands: list[tuple[int, str]] = []
-    r_unmatched = drain - base        # ① 无加成
+    r_unmatched = drain - base  # ① 无加成
     if 0 <= r_unmatched <= max_rank:
         cands.append((r_unmatched, ""))
-    lo, hi = 2 * drain - 1 - base, 2 * drain - base    # ② 匹配减半（含进位）
+    lo, hi = 2 * drain - 1 - base, 2 * drain - base  # ② 匹配减半（含进位）
     if hi >= 0 and lo <= max_rank:
         # 区间 [lo, hi] 与 [0, max_rank] 交集内**取最高**（满级假设）
         r_matched = min(hi, max_rank)
         # 复核：取该等级时显示值必须等于 drain（ceil 语义下必然成立）
         if math.ceil((base + r_matched) / 2) == drain:
             cands.append((r_matched, "槽位极性匹配（容量减半）"))
-    r0 = int(drain / 1.25 - base)     # ③ 极性不合 +25%（四舍五入）
+    r0 = int(drain / 1.25 - base)  # ③ 极性不合 +25%（四舍五入）
     for r in (r0 - 1, r0, r0 + 1):
         if 0 <= r <= max_rank and int((base + r) * 1.25 + 0.5) == drain:
             cands.append((r, "极性不合（容量 +25%）"))
@@ -329,13 +342,16 @@ def infer_rank(mod: dict, drain: Optional[int],
     best = max(cands, key=lambda t: t[0])
     if hint:
         kw = {"normal": None, "matched": "匹配", "mismatch": "不合"}[hint]
-        by_color = [c for c in cands if c[1] == ""] if kw is None \
-            else [c for c in cands if kw in c[1]]
+        by_color = (
+            [c for c in cands if c[1] == ""] if kw is None else [c for c in cands if kw in c[1]]
+        )
         if by_color:
             color_best = max(by_color, key=lambda t: t[0])
             if color_best[0] != best[0]:
-                return best[0], (f"⚠歧义：按颜色（{hint}）应为 {color_best[0]} 级，"
-                                 f"按满级假设取 {best[0]} 级（{best[1] or '无加成'}）")
+                return best[0], (
+                    f"⚠歧义：按颜色（{hint}）应为 {color_best[0]} 级，"
+                    f"按满级假设取 {best[0]} 级（{best[1] or '无加成'}）"
+                )
     return best
 
 
@@ -355,11 +371,11 @@ def rank_candidates(mod: dict, drain: Optional[int]) -> list[int]:
         return []
     out = set()
     for r in range(max_rank + 1):
-        if base + r == drain:                        # 白：无加成
+        if base + r == drain:  # 白：无加成
             out.add(r)
-        if math.ceil((base + r) / 2) == drain:       # 绿：极性匹配，消耗减半
+        if math.ceil((base + r) / 2) == drain:  # 绿：极性匹配，消耗减半
             out.add(r)
-        if int((base + r) * 1.25 + 0.5) == drain:    # 红：极性不合 +25%
+        if int((base + r) * 1.25 + 0.5) == drain:  # 红：极性不合 +25%
             out.add(r)
     return sorted(out)
 
@@ -390,7 +406,8 @@ def _incarnon_forms() -> dict:
     if _incarnon_forms_cache is None:
         try:
             _incarnon_forms_cache = json.loads(
-                (_DATA / "incarnon_forms.json").read_text(encoding="utf-8"))
+                (_DATA / "incarnon_forms.json").read_text(encoding="utf-8")
+            )
         except Exception:  # noqa: BLE001
             _incarnon_forms_cache = {}
     return _incarnon_forms_cache
@@ -403,7 +420,7 @@ def _incarnon_names() -> set:
         names: set = set()
         try:
             r = json.loads((_DATA / "rotations.json").read_text(encoding="utf-8"))
-            for week in ((r.get("incarnon") or {}).get("weeks") or []):
+            for week in (r.get("incarnon") or {}).get("weeks") or []:
                 if not isinstance(week, list):
                     continue
                 for it in week:
@@ -424,8 +441,7 @@ def _is_lich_weapon(weapon: dict) -> bool:
     global _lich_keys_cache
     if _lich_keys_cache is None:
         try:
-            d = json.loads(
-                (_DATA / "lich_valence.json").read_text(encoding="utf-8"))
+            d = json.loads((_DATA / "lich_valence.json").read_text(encoding="utf-8"))
             _lich_keys_cache = {k for k in d if k != "_meta"}
         except Exception:  # noqa: BLE001
             _lich_keys_cache = set()
@@ -435,8 +451,7 @@ def _is_lich_weapon(weapon: dict) -> bool:
     return key in _lich_keys_cache
 
 
-def _panel_base_weapon(weapon: dict, panel: dict,
-                       totals: dict) -> tuple[Optional[dict], str]:
+def _panel_base_weapon(weapon: dict, panel: dict, totals: dict) -> tuple[Optional[dict], str]:
     """灵化（Incarnon）/特殊形态检测：从面板**反推**基础数据。
 
     升级界面的面板是「已含 MOD 的最终值」，不能直接当基础（会二次叠算），
@@ -476,8 +491,7 @@ def _panel_base_weapon(weapon: dict, panel: dict,
             continue
         if key in ("impact", "puncture", "slash"):
             _pm = totals.get("physical") or {}
-            pm = (float(_pm.get(key) or 0.0)
-                  if isinstance(_pm, dict) else 0.0)
+            pm = float(_pm.get(key) or 0.0) if isinstance(_pm, dict) else 0.0
             if right:
                 # 右列（MOD 后）反推基础 —— **必须用右列**：左列是 UI 的
                 # 基础显示值（截断、且不含灵化进化对基础面板的平坦加成，
@@ -490,10 +504,10 @@ def _panel_base_weapon(weapon: dict, panel: dict,
             elem_rows.append((key, float(left)))
     lib_dmg = weapon.get("damage") or {}
     lib_total = float(lib_dmg.get("total") or 0.0) or sum(
-        float(lib_dmg.get(k) or 0.0) for k in ("impact", "puncture", "slash"))
+        float(lib_dmg.get(k) or 0.0) for k in ("impact", "puncture", "slash")
+    )
     if base_dmg:
-        ips_total = sum(v for k, v in base_dmg.items()
-                        if k in ("impact", "puncture", "slash"))
+        ips_total = sum(v for k, v in base_dmg.items() if k in ("impact", "puncture", "slash"))
         # 总伤锚定：某行值≈面板总伤（可能是被模型挂错行名的「总计」）时，
         # 不许它进自带元素反推 —— 否则基础总伤直接翻倍（实测踩过）
         pan_total = _panel_total(panel)
@@ -505,7 +519,7 @@ def _panel_base_weapon(weapon: dict, panel: dict,
         composed = dc.compose_elements(dict(totals.get("elements") or {}))
         for key, row_v in elem_rows:
             if pan_total and abs(row_v - pan_total) / pan_total < 0.02:
-                continue          # 这是「总计」行（行名被模型挂错了），跳过
+                continue  # 这是「总计」行（行名被模型挂错了），跳过
             pct = float(composed.get(key) or 0.0) / 100.0
             e0 = (row_v / bd_m - pct * ips_total) / (1 + pct)
             # 幻影自带元素防线：游戏面板行值与「纯 MOD 解释值」有未建模的
@@ -513,20 +527,23 @@ def _panel_base_weapon(weapon: dict, panel: dict,
             # 逆解后会得到占总量百分之几的幽灵自带元素 → 基础总伤虚高、
             # 总伤校验 ⚠。MOD 已能解释行值 90% 以上时视为无自带元素。
             # （真实自带元素远大于此：执法者灵化毒素占行值 ~24%）
-            explained = bd_m * pct * ips_total          # 纯 MOD 贡献
+            explained = bd_m * pct * ips_total  # 纯 MOD 贡献
             if pct > 0 and row_v - explained < 0.10 * row_v:
                 continue
             # 疑似总计行兜底②：无该元素 MOD、库内基础也没有它、而反推出的
             # 自带值却 ≥ IPS 总量的 2 倍 —— 真实自带元素极少这么大（执法者
             # 灵化毒素才 1.65×IPS），大概率是「总计」被挂错了行名（实测踩过）
-            if (pct == 0.0 and not float(lib_dmg.get(key) or 0.0)
-                    and ips_total > 0 and e0 >= 2.0 * ips_total):
+            if (
+                pct == 0.0
+                and not float(lib_dmg.get(key) or 0.0)
+                and ips_total > 0
+                and e0 >= 2.0 * ips_total
+            ):
                 continue
             if e0 > 0:
                 base_dmg[key] = e0
     # wfsim 灵化形态数值（有就是权威判定 + 更准的兜底向量）
-    inc = _incarnon_forms().get(
-        str(weapon.get("uniqueName") or "").lower())
+    inc = _incarnon_forms().get(str(weapon.get("uniqueName") or "").lower())
     inc_dmg = (inc or {}).get("damage") or {}
     inc_total = float(inc_dmg.get("total") or 0.0)
 
@@ -540,14 +557,16 @@ def _panel_base_weapon(weapon: dict, panel: dict,
         if tot_right and (lib_total > 0 or inc_total > 0):
             est = tot_right / bd_m
             ref_dmg, ref_total = lib_dmg, lib_total
-            if inc_total > 0 and (not lib_total
-                                  or abs(est - inc_total) < abs(est - lib_total)):
+            if inc_total > 0 and (not lib_total or abs(est - inc_total) < abs(est - lib_total)):
                 ref_dmg, ref_total = inc_dmg, inc_total
-            base_dmg = {k: float(ref_dmg.get(k) or 0.0) * est / ref_total
-                        for k in ("impact", "puncture", "slash")
-                        if float(ref_dmg.get(k) or 0.0) > 0}
+            base_dmg = {
+                k: float(ref_dmg.get(k) or 0.0) * est / ref_total
+                for k in ("impact", "puncture", "slash")
+                if float(ref_dmg.get(k) or 0.0) > 0
+            }
     if not base_dmg:
         return None, ""
+
     # ---- 反推值校验与取整 ----
     # 游戏面板的基础数值只有整数或一位小数（如 9.6/76.8/9.6）；反推除法
     # 会留下浮点残渣（9.58491…），按「先四舍五入到一位小数、接近整数则
@@ -561,14 +580,17 @@ def _panel_base_weapon(weapon: dict, panel: dict,
     diffs = [abs(base_total - lib_total) / max(lib_total, 1.0)]
     if cc_p is not None:
         # ⚠️ 面板是百分数、库里是小数：反推后先 /100 再比，否则必然误触发覆盖
-        diffs.append(abs(cc_p / cc_m / 100.0
-                         - float(weapon.get("criticalChance") or 0.0))
-                     / max(float(weapon.get("criticalChance") or 0.0), 0.01))
+        diffs.append(
+            abs(cc_p / cc_m / 100.0 - float(weapon.get("criticalChance") or 0.0))
+            / max(float(weapon.get("criticalChance") or 0.0), 0.01)
+        )
     if cm_p is not None:
-        diffs.append(abs(cm_p / cm_m - float(weapon.get("criticalMultiplier") or 1.0))
-                     / max(float(weapon.get("criticalMultiplier") or 1.0), 0.01))
+        diffs.append(
+            abs(cm_p / cm_m - float(weapon.get("criticalMultiplier") or 1.0))
+            / max(float(weapon.get("criticalMultiplier") or 1.0), 0.01)
+        )
     if max(diffs, default=0.0) <= 0.20:
-        return None, ""                # 与库内基础一致（未灵化），不需要覆盖
+        return None, ""  # 与库内基础一致（未灵化），不需要覆盖
 
     # ---- 灵化库命中：面板反推值与灵化基础吻合 → 直接采用灵化基础 ----
     # （基础是真实库数据，MOD 正常叠算，面板校验也保持开启；
@@ -576,29 +598,34 @@ def _panel_base_weapon(weapon: dict, panel: dict,
     if inc_total > 0:
         diffs_inc = [abs(base_total - inc_total) / max(inc_total, 1.0)]
         if cc_p is not None:
-            diffs_inc.append(abs(cc_p / cc_m / 100.0
-                                 - float(inc.get("criticalChance") or 0.0))
-                             / max(float(inc.get("criticalChance") or 0.0), 0.01))
+            diffs_inc.append(
+                abs(cc_p / cc_m / 100.0 - float(inc.get("criticalChance") or 0.0))
+                / max(float(inc.get("criticalChance") or 0.0), 0.01)
+            )
         if cm_p is not None:
-            diffs_inc.append(abs(cm_p / cm_m
-                                 - float(inc.get("criticalMultiplier") or 1.0))
-                             / max(float(inc.get("criticalMultiplier") or 1.0), 0.01))
+            diffs_inc.append(
+                abs(cm_p / cm_m - float(inc.get("criticalMultiplier") or 1.0))
+                / max(float(inc.get("criticalMultiplier") or 1.0), 0.01)
+            )
         if max(diffs_inc, default=0.0) <= 0.20:
             w2 = dict(weapon)
-            w2["damage"] = {**{k: v for k, v in inc_dmg.items() if k != "total"},
-                            "total": inc_total}
+            w2["damage"] = {
+                **{k: v for k, v in inc_dmg.items() if k != "total"},
+                "total": inc_total,
+            }
             w2["criticalChance"] = float(inc.get("criticalChance") or 0.0)
             w2["criticalMultiplier"] = float(inc.get("criticalMultiplier") or 1.0)
             w2["procChance"] = float(inc.get("procChance") or 0.0)
             if float(inc.get("fireRate") or 0.0) > 0:
                 w2["fireRate"] = float(inc["fireRate"])
-            return w2, ("灵化形态：基础数值取自灵化库（wfsim 数据源），"
-                        "MOD 正常叠算，面板校验保持开启")
+            return w2, (
+                "灵化形态：基础数值取自灵化库（wfsim 数据源），MOD 正常叠算，面板校验保持开启"
+            )
 
     w2 = dict(weapon)
     w2["damage"] = {**base_dmg, "total": base_total}
     if cc_p is not None:
-        w2["criticalChance"] = round(cc_p / cc_m / 100.0, 4)   # 面板百分数→库小数
+        w2["criticalChance"] = round(cc_p / cc_m / 100.0, 4)  # 面板百分数→库小数
     if cm_p is not None:
         w2["criticalMultiplier"] = round(cm_p / cm_m, 3)
     if sc_p is not None:
@@ -611,35 +638,53 @@ def _panel_base_weapon(weapon: dict, panel: dict,
     if fr is not None:
         w2["fireRate"] = fr
     names = _incarnon_names()
-    is_inc = (inc_total > 0
-              or (weapon.get("name") or "").lower() in names
-              or (weapon.get("zh") or "") in names)
+    is_inc = (
+        inc_total > 0
+        or (weapon.get("name") or "").lower() in names
+        or (weapon.get("zh") or "") in names
+    )
     is_lich = _is_lich_weapon(weapon)
     if is_lich:
         # 赤毒/信条/终幕：回响加成 25-60% 连续随机、只能从面板反推，
         # 反推基础天然已含 —— 标注提醒实际值以游戏内为准
-        return w2, ("灵化/回响武器：基础数据从面板反推（含回响加成与进化加成，"
-                    "回响为 25-60% 随机值，实际以游戏内为准），"
-                    "MOD 按实际等级正常叠算一次")
-    return w2, ("灵化形态：基础数据从面板反推（含自带元素与灵化进化加成），"
-                "MOD 按实际等级正常叠算一次"
-                if is_inc else
-                "特殊形态：基础数据从面板反推，MOD 按实际等级正常叠算一次")
+        return w2, (
+            "灵化/回响武器：基础数据从面板反推（含回响加成与进化加成，"
+            "回响为 25-60% 随机值，实际以游戏内为准），"
+            "MOD 按实际等级正常叠算一次"
+        )
+    return w2, (
+        "灵化形态：基础数据从面板反推（含自带元素与灵化进化加成），MOD 按实际等级正常叠算一次"
+        if is_inc
+        else "特殊形态：基础数据从面板反推，MOD 按实际等级正常叠算一次"
+    )
 
 
 # ---------------------------------------------------------------------------
 # 主分析
 # ---------------------------------------------------------------------------
-_ADD_FIELDS = ("base_dmg", "multishot", "crit_chance", "crit_dmg", "fire_rate",
-               "status_chance", "status_dmg", "heavy_dmg", "faction_dmg",
-               "headshot_bonus", "initial_combo", "punch_through",
-               "crit_chance_heavy", "throw_dmg",
-               # v1.9 新机制（漏了就会像「急进猛突 rank3」那样什么都不显示）
-               "crit_per_combo", "status_per_combo", "dmg_per_status")
+_ADD_FIELDS = (
+    "base_dmg",
+    "multishot",
+    "crit_chance",
+    "crit_dmg",
+    "fire_rate",
+    "status_chance",
+    "status_dmg",
+    "heavy_dmg",
+    "faction_dmg",
+    "headshot_bonus",
+    "initial_combo",
+    "punch_through",
+    "crit_chance_heavy",
+    "throw_dmg",
+    # v1.9 新机制（漏了就会像「急进猛突 rank3」那样什么都不显示）
+    "crit_per_combo",
+    "status_per_combo",
+    "dmg_per_status",
+)
 
 
-def drain_branch(rec: dict, rank: Optional[int],
-                 drain: Optional[int]) -> str:
+def drain_branch(rec: dict, rank: Optional[int], drain: Optional[int]) -> str:
     """由 (基础容量, 等级, 卡面容量) 反查**极性分支**，返回可读说明。
 
     规则（wiki /w/Polarity，与 ``infer_rank`` 同一套）：
@@ -670,9 +715,12 @@ def drain_branch(rec: dict, rank: Optional[int],
     return ""
 
 
-def _pips_rank(pos, pips_rows: Optional[list],
-               candidates: Optional[list] = None,
-               max_rank: Optional[int] = None) -> tuple[Optional[int], str]:
+def _pips_rank(
+    pos,
+    pips_rows: Optional[list],
+    candidates: Optional[list] = None,
+    max_rank: Optional[int] = None,
+) -> tuple[Optional[int], str]:
     """按**已对齐的位置**取豆数（`pos` 由 `align_rows` 给出）。
 
     ★ 刻意不从模型报的 `row`/`col` 直接取 —— 端到端实测（2026-09-20）
@@ -697,9 +745,9 @@ def _pips_rank(pos, pips_rows: Optional[list],
     n_here = counts[c_i]
     if candidates and n_here not in set(candidates):
         return None, f"豆子 {n_here} 颗与容量候选 {sorted(set(candidates))} 不符（已忽略该格）"
-    return pips_engine.pick_rank(counts, c_i + 1, candidates or [],
-                                 maxed=row.get("maxed") or [],
-                                 max_rank=max_rank)
+    return pips_engine.pick_rank(
+        counts, c_i + 1, candidates or [], maxed=row.get("maxed") or [], max_rank=max_rank
+    )
 
 
 _RIVEN_SUFFIX_RE = re.compile(r"[A-Za-z]{3,}-[A-Za-z]{3,}")
@@ -760,16 +808,26 @@ def analyze(ocr: dict, pips_rows: Optional[list] = None) -> dict:
     反推**互相独立**（一个读数字、一个数像素），一致性本身就是强证据。
     """
     out: dict = {
-        "ok": False, "weapon": None, "weapon_query": "", "alts": [],
-        "raw_mods": ocr.get("mods") or [], "mods": [], "unknown": [],
-        "totals": {}, "panel": dict(ocr.get("panel") or {}),
+        "ok": False,
+        "weapon": None,
+        "weapon_query": "",
+        "alts": [],
+        "raw_mods": ocr.get("mods") or [],
+        "mods": [],
+        "unknown": [],
+        "totals": {},
+        "panel": dict(ocr.get("panel") or {}),
         "panel_base": "",
-        "checks": [], "notes": [], "errors": [],
+        "checks": [],
+        "notes": [],
+        "errors": [],
         "capacity": str(ocr.get("capacity") or "").strip(),
         # ★ 豆子（第二信号）统计：可用行数 / 实际采纳张数 / 与容量反推冲突张数
-        "pips": {"rows": len([r for r in (pips_rows or [])
-                              if not r.get("is_inventory")]),
-                 "used": 0, "conflict": 0},
+        "pips": {
+            "rows": len([r for r in (pips_rows or []) if not r.get("is_inventory")]),
+            "used": 0,
+            "conflict": 0,
+        },
     }
 
     # ---- 伤害行归一：三段式 [标签, 基础, 最终] → [标签, "基础>最终"] ----
@@ -778,10 +836,12 @@ def analyze(ocr: dict, pips_rows: Optional[list] = None) -> dict:
     _panel = out["panel"]
     _fixed = []
     for _r in _panel.get("damage_rows") or []:
-        if (isinstance(_r, (list, tuple)) and len(_r) >= 3
-                and to_float(_r[2]) is not None
-                and (to_float(_r[1]) is None
-                     or to_pair(_r[1])[1] is None)):
+        if (
+            isinstance(_r, (list, tuple))
+            and len(_r) >= 3
+            and to_float(_r[2]) is not None
+            and (to_float(_r[1]) is None or to_pair(_r[1])[1] is None)
+        ):
             _fixed.append([str(_r[0]), f"{_r[1]}>{_r[2]}"])
         elif isinstance(_r, (list, tuple)):
             _fixed.append(list(_r[:2]) if len(_r) > 2 else list(_r))
@@ -790,8 +850,7 @@ def analyze(ocr: dict, pips_rows: Optional[list] = None) -> dict:
     if _fixed:
         _panel["damage_rows"] = _fixed
     _tot = _panel.get("total")
-    if isinstance(_tot, (list, tuple)) and len(_tot) >= 3 \
-            and to_float(_tot[2]) is not None:
+    if isinstance(_tot, (list, tuple)) and len(_tot) >= 3 and to_float(_tot[2]) is not None:
         _panel["total"] = [str(_tot[0]), f"{_tot[1]}>{_tot[2]}"]
 
     # ---- 武器 ----
@@ -816,8 +875,7 @@ def analyze(ocr: dict, pips_rows: Optional[list] = None) -> dict:
                 _cands.append([])
                 continue
             _rec0, _ = match_mod(str(_r0.get("name") or "").strip())
-            _cands.append(rank_candidates(_rec0, to_int(_r0.get("drain")))
-                          if _rec0 else [])
+            _cands.append(rank_candidates(_rec0, to_int(_r0.get("drain"))) if _rec0 else [])
         _eq = [r for r in pips_rows if not r.get("is_inventory")]
         _al = pips_engine.align_rows(_cands, [r.get("counts") or [] for r in _eq])
         if _al:
@@ -825,39 +883,52 @@ def analyze(ocr: dict, pips_rows: Optional[list] = None) -> dict:
 
     # ---- 逐卡识别 ----
     totals: dict = {k: 0.0 for k in _ADD_FIELDS}
-    totals.update({"elements": {}, "physical": {}, "uncalc": [], "no_rank": [],
-                   "throw_max_stacks": 0})
+    totals.update(
+        {"elements": {}, "physical": {}, "uncalc": [], "no_rank": [], "throw_max_stacks": 0}
+    )
     for _mi, raw in enumerate(out["raw_mods"]):
         if not isinstance(raw, dict):
             continue
         name = str(raw.get("name") or "").strip()
         drain = to_int(raw.get("drain"))
         rec, how = match_mod(name)
-        item: dict = {"raw": name, "drain": drain, "how": how,
-                      "found": rec is not None, "rank": None, "note": "",
-                      "effect": {}, "calculable": False}
+        item: dict = {
+            "raw": name,
+            "drain": drain,
+            "how": how,
+            "found": rec is not None,
+            "rank": None,
+            "note": "",
+            "effect": {},
+            "calculable": False,
+        }
         if rec:
-            item.update({
-                "name": rec.get("name"), "zh": rec.get("zh"),
-                "compat": rec.get("compat"), "max_rank": rec.get("max_rank"),
-                "base_drain": rec.get("base_drain"),
-                "polarity": rec.get("polarity"),
-                "calculable": bool(rec.get("calculable")),
-            })
-            rank, why = infer_rank(rec, drain,
-                                    raw.get("color") or raw.get("drain_color"))
+            item.update(
+                {
+                    "name": rec.get("name"),
+                    "zh": rec.get("zh"),
+                    "compat": rec.get("compat"),
+                    "max_rank": rec.get("max_rank"),
+                    "base_drain": rec.get("base_drain"),
+                    "polarity": rec.get("polarity"),
+                    "calculable": bool(rec.get("calculable")),
+                }
+            )
+            rank, why = infer_rank(rec, drain, raw.get("color") or raw.get("drain_color"))
             # ★ 豆子（第二信号）：亮豆数 = 实际等级，与容量反推互相印证
-            _pr, _psrc = _pips_rank(pips_map.get(_mi), pips_rows,
-                                    rank_candidates(rec, drain),
-                                    rec.get("max_rank"))
+            _pr, _psrc = _pips_rank(
+                pips_map.get(_mi), pips_rows, rank_candidates(rec, drain), rec.get("max_rank")
+            )
             if _pr is not None:
                 out["pips"]["used"] += 1
                 if rank is None:
                     why = f"豆子计数 {_pr} 级（{_psrc}）；容量反推无解"
                 elif _pr != rank:
                     out["pips"]["conflict"] += 1
-                    why = (f"豆子计数 {_pr} 级（{_psrc}）—— 容量反推本为 {rank} 级，"
-                           f"已采信豆子（容量有多种解读时以豆子为准）")
+                    why = (
+                        f"豆子计数 {_pr} 级（{_psrc}）—— 容量反推本为 {rank} 级，"
+                        f"已采信豆子（容量有多种解读时以豆子为准）"
+                    )
                 else:
                     why = f"容量与豆子一致（{_pr} 级，{_psrc}）"
                 rank = _pr
@@ -886,11 +957,11 @@ def analyze(ocr: dict, pips_rows: Optional[list] = None) -> dict:
             # 斩铁：「重击时 x2」→ 重击的暴击几率加成额外再吃一份
             _hm = float(eff.get("heavy_crit_mult") or 1.0)
             if _hm > 1.0:
-                totals["crit_chance_heavy"] += (float(eff.get("crit_chance") or 0.0)
-                                                * (_hm - 1.0))
+                totals["crit_chance_heavy"] += float(eff.get("crit_chance") or 0.0) * (_hm - 1.0)
             if eff.get("throw_max_stacks"):
-                totals["throw_max_stacks"] = max(int(totals["throw_max_stacks"]),
-                                                 int(eff["throw_max_stacks"]))
+                totals["throw_max_stacks"] = max(
+                    int(totals["throw_max_stacks"]), int(eff["throw_max_stacks"])
+                )
             for el, val in (eff.get("elements") or {}).items():
                 totals["elements"][el] = totals["elements"].get(el, 0.0) + float(val)
             for el, val in (eff.get("physical") or {}).items():
@@ -904,9 +975,9 @@ def analyze(ocr: dict, pips_rows: Optional[list] = None) -> dict:
                 item["riven"] = True
                 item["zh"] = "裂罅紫卡"
                 item["rank"] = _pips_count_at(pips_map.get(_mi), pips_rows)
-                item["note"] = ("裂罅紫卡：词缀随机生成，数值无法自动核算"
-                                + (f"；豆子计数 {item['rank']} 级" if item["rank"] is not None
-                                   else "；等级未读到"))
+                item["note"] = "裂罅紫卡：词缀随机生成，数值无法自动核算" + (
+                    f"；豆子计数 {item['rank']} 级" if item["rank"] is not None else "；等级未读到"
+                )
             else:
                 out["unknown"].append(name)
         out["mods"].append(item)
@@ -918,20 +989,27 @@ def analyze(ocr: dict, pips_rows: Optional[list] = None) -> dict:
             continue
         fam = dc.mod_extra(item).get("family")
         if fam:
-            fam_seen.setdefault(fam, []).append(
-                str(item.get("zh") or item.get("raw") or ""))
+            fam_seen.setdefault(fam, []).append(str(item.get("zh") or item.get("raw") or ""))
     for fam, zs in fam_seen.items():
         if len(zs) >= 2:
             out["notes"].append(
                 f"⚠️ 互斥家族 {fam}：{'、'.join(zs)} —— 游戏里只能装一张，"
-                "若截图确实如此请人工核对（加成可能重复计了）")
+                "若截图确实如此请人工核对（加成可能重复计了）"
+            )
 
     # ---- 镀层类条件堆叠：默认不计入，但告诉用户可以显式带入 ----
-    _COND_ZH = {"condition_overload": "每异常种类直伤", "multishot": "多重",
-                "crit_chance": "暴击率", "crit_damage": "暴伤",
-                "damage": "直伤", "base_damage": "基伤", "fire_rate": "射速",
-                "status_chance": "触发率", "status_damage": "状态伤害",
-                "punch_through": "穿透"}
+    _COND_ZH = {
+        "condition_overload": "每异常种类直伤",
+        "multishot": "多重",
+        "crit_chance": "暴击率",
+        "crit_damage": "暴伤",
+        "damage": "直伤",
+        "base_damage": "基伤",
+        "fire_rate": "射速",
+        "status_chance": "触发率",
+        "status_damage": "状态伤害",
+        "punch_through": "穿透",
+    }
     hints: list[str] = []
     for item in out["mods"]:
         if not item.get("found") or not item.get("calculable"):
@@ -939,13 +1017,17 @@ def analyze(ocr: dict, pips_rows: Optional[list] = None) -> dict:
         for c in dc.mod_extra(item).get("conditionals") or []:
             if not c.get("mappable"):
                 continue
-            hints.append(f"{item.get('zh') or item.get('raw')}"
-                         f"（{_COND_ZH.get(c.get('grants'), c.get('grants'))}"
-                         f"+{float(c.get('value') or 0):g}%×{c.get('max_stacks')}层）")
+            hints.append(
+                f"{item.get('zh') or item.get('raw')}"
+                f"（{_COND_ZH.get(c.get('grants'), c.get('grants'))}"
+                f"+{float(c.get('value') or 0):g}%×{c.get('max_stacks')}层）"
+            )
     if hints:
         out["notes"].append(
             "💡 条件堆叠默认未计入，伤害指令加「满镀层」或「镀层N」带入："
-            + "、".join(hints[:4]) + ("…" if len(hints) > 4 else ""))
+            + "、".join(hints[:4])
+            + ("…" if len(hints) > 4 else "")
+        )
 
     # ---- 灵化 / 特殊形态：面板与库内基础差得多 → 从面板反推基础数据 ----
     if out["weapon"] is not None:
@@ -960,21 +1042,22 @@ def analyze(ocr: dict, pips_rows: Optional[list] = None) -> dict:
             # 读串（75.6%↔10%）时，反推值会偏离库内基础 3 倍以上 → 亮 ⚠
             _w = out["weapon"]
             for _k, _lab, _libv in (
-                    ("criticalChance", "暴击几率", _lib_stats["cc"]),
-                    ("procChance", "触发几率", _lib_stats["sc"])):
+                ("criticalChance", "暴击几率", _lib_stats["cc"]),
+                ("procChance", "触发几率", _lib_stats["sc"]),
+            ):
                 _v = float(_w.get(_k) or 0.0)
                 if _libv > 0.01 and (_v >= _libv * 3 or _v <= _libv / 3):
                     out["notes"].append(
                         f"⚠ 反推基础{_lab} {_v * 100:g}% 与库内基础 "
                         f"{_libv * 100:g}% 差 3 倍以上 —— 面板暴击/触发两行"
-                        "疑似读串，建议重发截图")
+                        "疑似读串，建议重发截图"
+                    )
 
     # ---- 复合元素合成（火>冰>电>毒 两两配对）----
     leftovers = dict(totals["elements"])
     combined: dict[str, float] = {}
     for pair, res in ELEM_PAIRS.items():
-        names = sorted(pair, key=lambda e: ("heat", "cold", "electricity",
-                                            "toxin").index(e))
+        names = sorted(pair, key=lambda e: ("heat", "cold", "electricity", "toxin").index(e))
         if all(n in leftovers and leftovers[n] > 0 for n in names):
             combined[res] = sum(leftovers.pop(n) for n in names)
     for el, val in leftovers.items():
@@ -993,19 +1076,24 @@ def analyze(ocr: dict, pips_rows: Optional[list] = None) -> dict:
         _pt, _, _, _ = dc._hit_from_damage(
             out["weapon"]["damage"],
             float(out["weapon"]["damage"].get("total") or 0.0),
-            _spec_p, dc._load().get("fac_table") or {}, "__panel__",
-            dr=0.0, viral_mult=1.0, mag_mult=1.0)
+            _spec_p,
+            dc._load().get("fac_table") or {},
+            "__panel__",
+            dr=0.0,
+            viral_mult=1.0,
+            mag_mult=1.0,
+        )
         out["calc_panel"]["total"] = sum(_pt.values())
     # 条件暴击卡（镀层瞄具族）：游戏面板暴击率显示似乎含条件加成 → 跳过该项校验
-    _cond_crit = any("critical" in json.dumps(m.get("effect") or {}, default=str).lower()
-                     for m in out.get("mods") or [])
-    out["checks"] = _panel_checks(out.get("weapon"), totals, out["panel"],
-                                  calc=out.get("calc_panel"),
-                                  cond_crit=_cond_crit)
-    if (out.get("weapon") and (out["panel"].get("damage_rows")
-                               and not _panel_total(out["panel"]))):
-        out["notes"].append("⚠ 面板总伤没读到，伤害行无法交叉验证 —— "
-                            "数字可能有误，请自行核对")
+    _cond_crit = any(
+        "critical" in json.dumps(m.get("effect") or {}, default=str).lower()
+        for m in out.get("mods") or []
+    )
+    out["checks"] = _panel_checks(
+        out.get("weapon"), totals, out["panel"], calc=out.get("calc_panel"), cond_crit=_cond_crit
+    )
+    if out.get("weapon") and (out["panel"].get("damage_rows") and not _panel_total(out["panel"])):
+        out["notes"].append("⚠ 面板总伤没读到，伤害行无法交叉验证 —— 数字可能有误，请自行核对")
 
     out["ok"] = bool(out.get("weapon")) and bool(out["mods"])
 
@@ -1043,8 +1131,7 @@ def _calc_panel(weapon: Optional[dict], totals: dict) -> dict:
     elem_pct = sum(totals["elements"].values())
     res["element_damage"] = base_total * elem_pct / 100.0
     res["total"] = sum(phys.values()) + res["element_damage"]
-    res["base_total"] = sum(float(dmg.get(k) or 0.0)
-                            for k in ("impact", "puncture", "slash"))
+    res["base_total"] = sum(float(dmg.get(k) or 0.0) for k in ("impact", "puncture", "slash"))
     return res
 
 
@@ -1055,6 +1142,7 @@ def splice_damage_rows(ocr: dict, rows: list) -> dict:
     panel.total —— 总伤校验依赖它。
     """
     import copy as _copy
+
     out = _copy.deepcopy(ocr or {})
     panel = out.setdefault("panel", {})
     panel["damage_rows"] = [list(r) for r in rows]
@@ -1071,8 +1159,9 @@ def _panel_total(panel: dict) -> Optional[float]:
     ③ 是防模型幻觉的兜底：实测它会把「总计 1807.3」挂到「爆炸」行名下
     （2026-09-16 执法者截图），这种行不该再被当成自带元素反推。
     """
-    rows = [r for r in (panel.get("damage_rows") or [])
-            if isinstance(r, (list, tuple)) and len(r) >= 2]
+    rows = [
+        r for r in (panel.get("damage_rows") or []) if isinstance(r, (list, tuple)) and len(r) >= 2
+    ]
     finals: list[float] = []
     for r in rows:
         if str(r[0]).lstrip("*").strip() in ("总计", "总伤害", "总"):
@@ -1094,9 +1183,13 @@ def _panel_total(panel: dict) -> Optional[float]:
     return None
 
 
-def _panel_checks(weapon: Optional[dict], totals: dict, panel: dict,
-                  calc: Optional[dict] = None,
-                  cond_crit: bool = False) -> list[dict]:
+def _panel_checks(
+    weapon: Optional[dict],
+    totals: dict,
+    panel: dict,
+    calc: Optional[dict] = None,
+    cond_crit: bool = False,
+) -> list[dict]:
     """识别到的面板值 vs 本地推算值（两条独立路径互验）。
 
     calc：analyze 里用引擎同款结算算好的面板推算（含基伤乘区与自带元素）；
@@ -1112,13 +1205,13 @@ def _panel_checks(weapon: Optional[dict], totals: dict, panel: dict,
     if calc is None:
         calc = _calc_panel(weapon, totals)
 
-    def add(label: str, got: Optional[float], want: Optional[float],
-            unit: str = "", tol: float = 0.04) -> None:
+    def add(
+        label: str, got: Optional[float], want: Optional[float], unit: str = "", tol: float = 0.04
+    ) -> None:
         if got is None or want in (None, 0):
             return
         ok = abs(got - want) <= max(abs(want) * tol, 1e-6)
-        checks.append({"label": label, "panel": got, "calc": want,
-                       "unit": unit, "ok": ok})
+        checks.append({"label": label, "panel": got, "calc": want, "unit": unit, "ok": ok})
 
     if not cond_crit:
         cc_panel = to_float(panel.get("crit_chance"))
@@ -1158,8 +1251,7 @@ def _panel_checks(weapon: Optional[dict], totals: dict, panel: dict,
                     continue
                 if label.startswith("总"):
                     continue
-                vals = [x for x in row[1:]
-                        if x is not None and str(x).strip()]
+                vals = [x for x in row[1:] if x is not None and str(x).strip()]
                 _l, _r = to_pair(vals[-1] if vals else None)
                 v = _r if _r else _l
                 if v:
@@ -1185,10 +1277,16 @@ def _panel_checks(weapon: Optional[dict], totals: dict, panel: dict,
                 add("行和×多重", tot_v, _full * ms, "", tol=0.02)
                 if not any(c["label"] == "行和×多重" and c["ok"] for c in checks):
                     # 面板总计与行和不符 → 记一条明示，别让用户以为是漏卡
-                    checks.append({
-                        "label": "总伤害行", "panel": tot_v, "calc": s * ms,
-                        "unit": "", "ok": True,
-                        "note": "面板总计疑似读串，数值以行和推导为准"})
+                    checks.append(
+                        {
+                            "label": "总伤害行",
+                            "panel": tot_v,
+                            "calc": s * ms,
+                            "unit": "",
+                            "ok": True,
+                            "note": "面板总计疑似读串，数值以行和推导为准",
+                        }
+                    )
     return checks
 
 
@@ -1257,17 +1355,26 @@ def _effect_text(eff: dict) -> str:
         bits.append(f"重击时暴击几率 ×{eff['heavy_crit_mult']:g}")
     if eff.get("throw_dmg"):
         _st = eff.get("throw_max_stacks")
-        bits.append(f"连续投掷伤害 +{eff['throw_dmg']:g}%/层"
-                    + (f"（最多 {_st} 层）" if _st else ""))
-    for key, label in (("base_dmg", "基伤"), ("heavy_dmg", "重击伤害"),
-                       ("multishot", "多重"), ("crit_chance", "暴击率"),
-                       ("crit_dmg", "暴伤"), ("status_chance", "触发率"),
-                       ("status_dmg", "状态伤害"), ("fire_rate", "射速"),
-                       ("faction_dmg", "派系"), ("headshot_bonus", "爆头倍率"),
-                       ("punch_through", "穿透"), ("initial_combo", "初始连击"),
-                       ("crit_per_combo", "暴击率/连击倍率"),
-                       ("status_per_combo", "触发率/连击倍率"),
-                       ("dmg_per_status", "基伤/异常种类")):
+        bits.append(
+            f"连续投掷伤害 +{eff['throw_dmg']:g}%/层" + (f"（最多 {_st} 层）" if _st else "")
+        )
+    for key, label in (
+        ("base_dmg", "基伤"),
+        ("heavy_dmg", "重击伤害"),
+        ("multishot", "多重"),
+        ("crit_chance", "暴击率"),
+        ("crit_dmg", "暴伤"),
+        ("status_chance", "触发率"),
+        ("status_dmg", "状态伤害"),
+        ("fire_rate", "射速"),
+        ("faction_dmg", "派系"),
+        ("headshot_bonus", "爆头倍率"),
+        ("punch_through", "穿透"),
+        ("initial_combo", "初始连击"),
+        ("crit_per_combo", "暴击率/连击倍率"),
+        ("status_per_combo", "触发率/连击倍率"),
+        ("dmg_per_status", "基伤/异常种类"),
+    ):
         val = eff.get(key)
         if val:
             unit = "" if key in ("punch_through", "initial_combo") else "%"
@@ -1281,8 +1388,7 @@ def _effect_text(eff: dict) -> str:
     return "、".join(bits)
 
 
-def to_damage_spec(an: dict, level: int = 100,
-                   faction: str = "Grineer") -> Optional[dict]:
+def to_damage_spec(an: dict, level: int = 100, faction: str = "Grineer") -> Optional[dict]:
     """把识别到的配卡折成伤害计算器的 spec（便于直接复算）。
 
     注意：**先用 `parse_args([])` 拿一份默认 spec 再覆盖**，不要手写字段 ——
@@ -1292,35 +1398,38 @@ def to_damage_spec(an: dict, level: int = 100,
         return None
     spec, _ = dc.parse_args([])
     t = an.get("totals") or {}
-    spec["form"] = "keep"     # 面板已从截图反推（可能就是灵化形态）→ 不再套形态数据
-    spec.update({
-        "level": int(level), "faction": faction,
-        "base_dmg": float(t.get("base_dmg") or 0.0),
-        "multishot": float(t.get("multishot") or 0.0),
-        "crit_chance": float(t.get("crit_chance") or 0.0),
-        "crit_dmg": float(t.get("crit_dmg") or 0.0),
-        "faction_dmg": float(t.get("faction_dmg") or 0.0),
-        "status_chance": float(t.get("status_chance") or 0.0),
-        "status_dmg": float(t.get("status_dmg") or 0.0),
-        "headshot_bonus": float(t.get("headshot_bonus") or 0.0),
-        "crit_chance_heavy": float(t.get("crit_chance_heavy") or 0.0),
-        "throw_dmg": float(t.get("throw_dmg") or 0.0),
-        "throw_max_stacks": int(t.get("throw_max_stacks") or 0),
-        "heavy_dmg": float(t.get("heavy_dmg") or 0.0),
-        "initial_combo": float(t.get("initial_combo") or 0.0),
-        "punch_through": float(t.get("punch_through") or 0.0),
-        "crit_per_combo": float(t.get("crit_per_combo") or 0.0),
-        "status_per_combo": float(t.get("status_per_combo") or 0.0),
-        "dmg_per_status": float(t.get("dmg_per_status") or 0.0),
-        "singles": {k: float(v) for k, v in (t.get("elements") or {}).items()},
-        "physical": {k: float(v) for k, v in (t.get("physical") or {}).items()},
-    })
+    spec["form"] = "keep"  # 面板已从截图反推（可能就是灵化形态）→ 不再套形态数据
+    spec.update(
+        {
+            "level": int(level),
+            "faction": faction,
+            "base_dmg": float(t.get("base_dmg") or 0.0),
+            "multishot": float(t.get("multishot") or 0.0),
+            "crit_chance": float(t.get("crit_chance") or 0.0),
+            "crit_dmg": float(t.get("crit_dmg") or 0.0),
+            "faction_dmg": float(t.get("faction_dmg") or 0.0),
+            "status_chance": float(t.get("status_chance") or 0.0),
+            "status_dmg": float(t.get("status_dmg") or 0.0),
+            "headshot_bonus": float(t.get("headshot_bonus") or 0.0),
+            "crit_chance_heavy": float(t.get("crit_chance_heavy") or 0.0),
+            "throw_dmg": float(t.get("throw_dmg") or 0.0),
+            "throw_max_stacks": int(t.get("throw_max_stacks") or 0),
+            "heavy_dmg": float(t.get("heavy_dmg") or 0.0),
+            "initial_combo": float(t.get("initial_combo") or 0.0),
+            "punch_through": float(t.get("punch_through") or 0.0),
+            "crit_per_combo": float(t.get("crit_per_combo") or 0.0),
+            "status_per_combo": float(t.get("status_per_combo") or 0.0),
+            "dmg_per_status": float(t.get("dmg_per_status") or 0.0),
+            "singles": {k: float(v) for k, v in (t.get("elements") or {}).items()},
+            "physical": {k: float(v) for k, v in (t.get("physical") or {}).items()},
+        }
+    )
     # 反推路径的基础是「把 MOD 除回去」的净基础（v1.11 修正：此前误把 MOD
     # 再零化一次，导致反推路径 MOD 一次都没算、参考伤害只有面板的 ~1/18）。
     # 正确语义 = 净基础 + MOD 正常叠算一次 —— 与灵化库直采路径完全一致，
     # 这里不再对 spec 做任何零化。
     if t.get("heavy_dmg") or t.get("initial_combo"):
-        spec["heavy"] = True          # 配了重击类 MOD 就顺便给重击数据
+        spec["heavy"] = True  # 配了重击类 MOD 就顺便给重击数据
     return spec
 
 
@@ -1330,18 +1439,23 @@ def card_lines(an: dict) -> list[str]:
     w = an.get("weapon")
     if w:
         dmg = w.get("damage") or {}
-        parts = "、".join(f"{PHYS_ZH[k]}{float(dmg.get(k) or 0):g}"
-                          for k in ("impact", "puncture", "slash")
-                          if float(dmg.get(k) or 0) > 0)
+        parts = "、".join(
+            f"{PHYS_ZH[k]}{float(dmg.get(k) or 0):g}"
+            for k in ("impact", "puncture", "slash")
+            if float(dmg.get(k) or 0) > 0
+        )
         cat = CATEGORY_ZH.get(w.get("category") or "", w.get("category") or "")
-        lines.append(f"◆ 武器：{w.get('zh') or w['name']}（{w['name']}）"
-                     f"｜{cat}｜MR{w.get('masteryReq', 0)}")
+        lines.append(
+            f"◆ 武器：{w.get('zh') or w['name']}（{w['name']}）｜{cat}｜MR{w.get('masteryReq', 0)}"
+        )
         if an.get("panel_base"):
             lines.append(f"　{an['panel_base']}")
-        lines.append(f"　基础 {parts}（计 {float(dmg.get('total') or 0):g}）"
-                     f"｜暴击 {float(w.get('criticalChance') or 0) * 100:g}%"
-                     f"×{float(w.get('criticalMultiplier') or 1):g}"
-                     f"｜触发 {float(w.get('procChance') or 0) * 100:g}%")
+        lines.append(
+            f"　基础 {parts}（计 {float(dmg.get('total') or 0):g}）"
+            f"｜暴击 {float(w.get('criticalChance') or 0) * 100:g}%"
+            f"×{float(w.get('criticalMultiplier') or 1):g}"
+            f"｜触发 {float(w.get('procChance') or 0) * 100:g}%"
+        )
     else:
         lines.append(f"◆ 武器：未能识别（读到的是「{an.get('weapon_query') or '空'}」）")
 
@@ -1353,8 +1467,10 @@ def card_lines(an: dict) -> list[str]:
                 # 紫卡是**合法但无法核算**的卡（词缀随机）—— 单独一行说清楚，
                 # 不要混进「库中未收录」里（那会让人以为是我们缺数据）。
                 r = item.get("rank")
-                lines.append(f"　· {item.get('raw')}：裂罅紫卡（词缀随机，数值无法核算）"
-                             + (f"，等级按豆子 {r} 级" if r is not None else ""))
+                lines.append(
+                    f"　· {item.get('raw')}：裂罅紫卡（词缀随机，数值无法核算）"
+                    + (f"，等级按豆子 {r} 级" if r is not None else "")
+                )
             else:
                 lines.append(f"　· {item.get('raw')}：⚠ 库中未收录，已忽略")
             continue
@@ -1374,18 +1490,25 @@ def card_lines(an: dict) -> list[str]:
 
     totals = an.get("totals") or {}
     bits: list[str] = []
-    for key, label in (("base_dmg", "基伤"), ("heavy_dmg", "重击伤害"),
-                       ("multishot", "多重"), ("crit_chance", "暴击率"),
-                       ("crit_dmg", "暴伤"), ("status_chance", "触发率"),
-                       ("status_dmg", "状态伤害"), ("fire_rate", "射速")):
+    for key, label in (
+        ("base_dmg", "基伤"),
+        ("heavy_dmg", "重击伤害"),
+        ("multishot", "多重"),
+        ("crit_chance", "暴击率"),
+        ("crit_dmg", "暴伤"),
+        ("status_chance", "触发率"),
+        ("status_dmg", "状态伤害"),
+        ("fire_rate", "射速"),
+    ):
         if totals.get(key):
             bits.append(f"{label}+{totals[key]:g}%")
     if totals.get("crit_chance_heavy"):
         bits.append(f"重击时暴击率再+{totals['crit_chance_heavy']:g}%")
     if totals.get("throw_dmg"):
         _st = totals.get("throw_max_stacks")
-        bits.append(f"投掷伤害+{totals['throw_dmg']:g}%/层"
-                    + (f"（最多{int(_st)}层）" if _st else ""))
+        bits.append(
+            f"投掷伤害+{totals['throw_dmg']:g}%/层" + (f"（最多{int(_st)}层）" if _st else "")
+        )
     for el, val in (totals.get("elements") or {}).items():
         bits.append(f"{ELEM_ALL_ZH.get(el, el)}+{val:g}%")
     for el, val in (totals.get("physical") or {}).items():
@@ -1397,8 +1520,10 @@ def card_lines(an: dict) -> list[str]:
             lines.append("　" + extra)
     combined = totals.get("combined") or {}
     if combined:
-        lines.append("◆ 合成后元素：" + "、".join(
-            f"{ELEM_ALL_ZH.get(k, k)}+{v:g}%" for k, v in combined.items()))
+        lines.append(
+            "◆ 合成后元素："
+            + "、".join(f"{ELEM_ALL_ZH.get(k, k)}+{v:g}%" for k, v in combined.items())
+        )
 
     checks = an.get("checks") or []
     _tips = [c for c in checks if c.get("note")] if checks else []
@@ -1411,66 +1536,76 @@ def card_lines(an: dict) -> list[str]:
         lines.append(f"◆ 面板校验（识别值 vs 本地推算）—— {head}")
         for i in range(0, len(checks), 2):
             parts = []
-            for c in checks[i:i + 2]:
+            for c in checks[i : i + 2]:
                 got, want = float(c["panel"]), float(c["calc"])
                 # 相对差 <0.1% 视为完全吻合（游戏显示舍入造成的小数残差，
                 # 如 总伤 1488.3 vs 1488.24 —— 差 0.004%，如实显示相等）
                 if c["ok"] and abs(got - want) <= abs(want) * 0.001:
                     parts.append(f"{c['label']} {got:g}{c['unit']} ✓")
                 else:
-                    parts.append(f"{c['label']} {got:g}{c['unit']} vs "
-                                 f"{want:.2f}{c['unit']}"
-                                 + ("" if c["ok"] else " ⚠"))
+                    parts.append(
+                        f"{c['label']} {got:g}{c['unit']} vs "
+                        f"{want:.2f}{c['unit']}" + ("" if c["ok"] else " ⚠")
+                    )
             lines.append("　" + "｜".join(parts))
         if bad:
             lines.append("　⚠ 可能漏读了卡片，或某张卡的等级推断有误")
         for c in _tips:
-            lines.append(f"　※ {c['label']}：{c['note']}"
-                         f"（识别 {float(c['panel']):g}，推导 {float(c['calc']):.0f}）")
+            lines.append(
+                f"　※ {c['label']}：{c['note']}"
+                f"（识别 {float(c['panel']):g}，推导 {float(c['calc']):.0f}）"
+            )
 
     ref = an.get("ref")
     if ref:
         # FACTION_ZH 的值形如「Grineer（G系）」，嵌进括号里会套娃，先去括号
-        fac_zh = re.sub(r"（.*?）", "", dc.FACTION_ZH.get(ref["faction"],
-                                                         ref["faction"]))
+        fac_zh = re.sub(r"（.*?）", "", dc.FACTION_ZH.get(ref["faction"], ref["faction"]))
         lines.append(
             f"◆ 参考（{fac_zh}"
             f" {ref['level']}级·身体，无剥甲/异常层数）：单发 {ref['health']:.0f}"
             f"｜暴击期望 ×{ref['crit_exp']:.2f}"
-            f" → {ref['health'] * ref['crit_exp']:.0f}")
+            f" → {ref['health'] * ref['crit_exp']:.0f}"
+        )
         hv = ref.get("heavy")
         if hv:
             extra = ""
             if hv.get("crit_cc") is not None:
                 extra = f"，暴击 {hv['crit_cc'] * 100:.0f}%"
-            lines.append(f"　重击（{hv['combo_hits']} 连击{extra}）："
-                         f"{hv['health']:.0f}｜含暴击 {hv['health_crit']:.0f}")
+            lines.append(
+                f"　重击（{hv['combo_hits']} 连击{extra}）："
+                f"{hv['health']:.0f}｜含暴击 {hv['health_crit']:.0f}"
+            )
         tw = ref.get("throw")
         if tw:
-            lines.append(f"　投掷（连续 {tw['stacks']}/{tw['max_stacks']} 层"
-                         f"，×{tw['mult']:.1f}）：{tw['health']:.0f}"
-                         f"｜含暴击 {tw['health_crit']:.0f}")
+            lines.append(
+                f"　投掷（连续 {tw['stacks']}/{tw['max_stacks']} 层"
+                f"，×{tw['mult']:.1f}）：{tw['health']:.0f}"
+                f"｜含暴击 {tw['health_crit']:.0f}"
+            )
         _modes = ref.get("modes") or []
         if _modes:
             # 识卡卡面只给摘要：完整各段走「伤害」指令，免得这一页太长
             _top3 = "、".join(f"{m['name']}{m['total']:g}" for m in _modes[:3])
-            lines.append(f"　另有 {len(_modes)} 段独立判定：{_top3}…"
-                         "（用「伤害」指令可看每段明细）")
+            lines.append(f"　另有 {len(_modes)} 段独立判定：{_top3}…（用「伤害」指令可看每段明细）")
     if totals.get("no_rank"):
-        lines.append("　⚠ 等级无法确定的卡：" + "、".join(totals["no_rank"])
-                     + "（已按满级估算，仅供参考）")
+        lines.append(
+            "　⚠ 等级无法确定的卡：" + "、".join(totals["no_rank"]) + "（已按满级估算，仅供参考）"
+        )
     if totals.get("uncalc"):
         lines.append("　注：以下卡无数值或暂不支持，未计入：" + "、".join(totals["uncalc"]))
     if an.get("unknown"):
         lines.append("　注：库中未收录的名称：" + "、".join(an["unknown"]))
     if an.get("alts"):
-        lines.append("　近似武器：" + "、".join(
-            v.get("zh") or v.get("name", "") for v in an["alts"]))
+        lines.append(
+            "　近似武器：" + "、".join(v.get("zh") or v.get("name", "") for v in an["alts"])
+        )
     for note in an.get("notes") or []:
         lines.append(f"　{note}")
     for err in an.get("errors") or []:
         lines.append(f"✘ {err}")
 
-    lines.append("※ 加成一律按卡片实际等级折算（容量数字反推，再用面板数值校验）；"
-                 "复合元素按 火>冰>电>毒 两两配对")
+    lines.append(
+        "※ 加成一律按卡片实际等级折算（容量数字反推，再用面板数值校验）；"
+        "复合元素按 火>冰>电>毒 两两配对"
+    )
     return lines

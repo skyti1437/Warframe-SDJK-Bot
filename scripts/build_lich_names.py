@@ -20,6 +20,7 @@
     python scripts/build_lich_names.py            # 生成
     python scripts/build_lich_names.py --check    # 只看统计不写文件
 """
+
 from __future__ import annotations
 
 import argparse
@@ -71,21 +72,21 @@ def main() -> int:
         zh = zh_map.get(un) or ""
         if not zh:
             missing_zh.append(en)
-        short = en[len(pre) + 1:]                      # 去掉前缀的英文名
+        short = en[len(pre) + 1 :]  # 去掉前缀的英文名
         zh_nodot = SEP.sub("", zh) if zh else ""
         # 别名集合：官方名、去点官方名、纯英文、去掉前缀的英文/中文
         alias = {en, en.lower(), short, short.lower()}
         if zh:
             alias |= {zh, zh_nodot}
             if zh_nodot.startswith(zh_pre):
-                tail = zh_nodot[len(zh_pre):]          # 「布拉玛」
+                tail = zh_nodot[len(zh_pre) :]  # 「布拉玛」
                 alias.add(tail)
-                for alt in EXTRA_ZH_PREFIX.get(kind, ()):   # 「科达血肢」
+                for alt in EXTRA_ZH_PREFIX.get(kind, ()):  # 「科达血肢」
                     alias.add(alt + tail)
         out[slug_of(en)] = {
             "type": kind,
             "en": en,
-            "zh": zh or f"{zh_pre}·{short}",           # 兜底：前缀+英文名
+            "zh": zh or f"{zh_pre}·{short}",  # 兜底：前缀+英文名
             "zh_nodot": zh_nodot or f"{zh_pre}{short}",
             "alias": sorted(a for a in alias if a),
         }
@@ -104,7 +105,8 @@ def main() -> int:
         return 0
 
     (DATA / "lich_weapons.json").write_text(
-        json.dumps(out, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+        json.dumps(out, ensure_ascii=False, indent=1) + "\n", encoding="utf-8"
+    )
     print(f"\n已写 core/data/lich_weapons.json（{len(out)} 把）")
 
     # aliases.json 的 lich_items 由本表重建：别名 → slug（保留原有手工别名）
@@ -115,13 +117,12 @@ def main() -> int:
     for slug, r in out.items():
         for a in r["alias"]:
             merged[a] = slug
-    for k, v in old.items():                            # 手工别名优先（黑话更准）
+    for k, v in old.items():  # 手工别名优先（黑话更准）
         if isinstance(v, str) and v:
             merged[k] = v
     aliases["lich_items"] = dict(sorted(merged.items()))
     aliases.setdefault("_说明", {})
-    ap_path.write_text(json.dumps(aliases, ensure_ascii=False, indent=1) + "\n",
-                       encoding="utf-8")
+    ap_path.write_text(json.dumps(aliases, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     print(f"已更新 aliases.json → lich_items：{len(old)} 条 → {len(merged)} 条")
     return 0
 

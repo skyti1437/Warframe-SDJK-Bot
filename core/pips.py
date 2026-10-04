@@ -31,6 +31,7 @@
 能力边界：截图宽 ≥1280 可用（±1 颗）；≤854（豆子只剩 5px）会失准 →
 上层应退回「容量反推 + 标 `?`」。部分截图可用（裁剪不改变内容尺寸）。
 """
+
 from __future__ import annotations
 
 from typing import Optional
@@ -38,26 +39,26 @@ from typing import Optional
 from PIL import Image, ImageChops
 
 # ---- 判据（相对 pitch，不写死像素；括号内为 1920×1080 实测值）----
-MASK_B_MIN = 140          # 蓝通道下限
-MASK_BR_GAP = 30          # 蓝 - 红 的差值下限
-MASK_G_MIN = 85           # 绿通道下限
-THICK_MIN = 5             # 列亮像素数下限（细线 1~2px 会被滤掉，豆 6~8px 通过）
-ROW_FRAC = 0.12           # 行带判定阈值 = 全图行密度峰值 × 该比例
-ROW_MIN_H = 2             # 行带最小高度（★ 不能是 3：装备区行带常只 2px 高）
+MASK_B_MIN = 140  # 蓝通道下限
+MASK_BR_GAP = 30  # 蓝 - 红 的差值下限
+MASK_G_MIN = 85  # 绿通道下限
+THICK_MIN = 5  # 列亮像素数下限（细线 1~2px 会被滤掉，豆 6~8px 通过）
+ROW_FRAC = 0.12  # 行带判定阈值 = 全图行密度峰值 × 该比例
+ROW_MIN_H = 2  # 行带最小高度（★ 不能是 3：装备区行带常只 2px 高）
 BEAN_PITCH_RATIO = 0.079  # 豆间距 / 卡片宽（实测 12/152）
-CARD_W_OF_W = 0.0792      # 卡片宽 / **图宽**（实测 152/1920；低分辨率同比例缩放）
-CARD_W_REF = 152          # ★ **基准尺度**的卡片宽：所有实测常量都是在它下面量的，
-                          #   检测前会把图归一到这个尺度（见 detect_pips）
-COL_PITCH_RATIO = 1.61    # 列间距 / 卡片宽（实测 245/152）
-CARD_COLS = 4             # 游戏 UI：装备区一行最多 4 格
-INV_BF = 0.62             # 仓库区 y 位置下限（相对图高）
-INV_MIN_COLS = 5          # 仓库区一行格数下限
+CARD_W_OF_W = 0.0792  # 卡片宽 / **图宽**（实测 152/1920；低分辨率同比例缩放）
+CARD_W_REF = 152  # ★ **基准尺度**的卡片宽：所有实测常量都是在它下面量的，
+#   检测前会把图归一到这个尺度（见 detect_pips）
+COL_PITCH_RATIO = 1.61  # 列间距 / 卡片宽（实测 245/152）
+CARD_COLS = 4  # 游戏 UI：装备区一行最多 4 格
+INV_BF = 0.62  # 仓库区 y 位置下限（相对图高）
+INV_MIN_COLS = 5  # 仓库区一行格数下限
 MIN_WIDTH_FOR_PIPS = 1000  # 低于此宽度不检测（豆子太小，直接放弃）
 # ★ 满级卡有一条**横贯全卡**的亮线（维护者 2026-09-20 实测指出）；非满级没有。
 #   实测（1920×1080，8 张卡）：满级卡的「有墨列占比」0.78~0.91、细线列占比 0.27~0.77；
 #   非满级 0.43 / 0.05 / 0（牺牲斩铁 7/10、北风 1/5、长时苦难 0/5）。
-INKED_MIN = 0.70          # 卡宽内「有任何亮像素」的列占比下限
-LINE_MIN = 0.20           # 其中「1~2px 细线」的列占比下限
+INKED_MIN = 0.70  # 卡宽内「有任何亮像素」的列占比下限
+LINE_MIN = 0.20  # 其中「1~2px 细线」的列占比下限
 
 
 def _median(xs):
@@ -168,7 +169,7 @@ def _count_in_cell(thick, cx, card_w, W):
     if not any(sig):
         return 0, []
     bean_pitch = card_w * BEAN_PITCH_RATIO
-    t_bean = max(3, round(card_w * 0.030))        # 豆/线分界（相对卡宽）
+    t_bean = max(3, round(card_w * 0.030))  # 豆/线分界（相对卡宽）
     xs = [lo + i for i, v in enumerate(sig) if v >= t_bean]
     if not xs:
         return 0, []
@@ -178,7 +179,7 @@ def _count_in_cell(thick, cx, card_w, W):
     #   1920 下豆厚 7~8px、线厚 1~2px；1280 下豆厚 4px、线厚 1~2px —— 用
     #   「实测豆厚 × 0.7」才能在任何尺度下把线排除掉。用绝对下限（如 2）会在
     #   低分辨率失效（线正好 2px）→ 一路回填到上限（实测 1280 跑成 11 颗）。
-    seed_t = _median([max(thick[a:b + 1]) for a, b in grp]) or t_bean
+    seed_t = _median([max(thick[a : b + 1]) for a, b in grp]) or t_bean
     t_walk = max(2, round(seed_t * 0.7))
     if len(seeds) >= 2:
         gaps = [seeds[i + 1] - seeds[i] for i in range(len(seeds) - 1)]
@@ -243,9 +244,9 @@ def _scan(img):
     W, H = img.size
     mask = lit_mask(img)
     mb = mask.tobytes()
-    rowcount = [mb[y * W:(y + 1) * W].count(255) for y in range(H)]
+    rowcount = [mb[y * W : (y + 1) * W].count(255) for y in range(H)]
     out = []
-    for (ra, rb) in _find_bands(rowcount):
+    for ra, rb in _find_bands(rowcount):
         pad = max(4, rb - ra)
         y0, y1 = max(0, ra - pad), min(H, rb + pad)
         thick = _col_thickness(mask, y0, y1)
@@ -257,9 +258,13 @@ def _scan(img):
             segs = _contig(nz, gap=6, min_w=max(6, W * 0.004))
         if not segs:
             continue
-        out.append({"band": (ra, rb),
-                    "known": [round((a + b) / 2) for a, b in segs],
-                    "widths": [b - a + 1 for a, b in segs]})
+        out.append(
+            {
+                "band": (ra, rb),
+                "known": [round((a + b) / 2) for a, b in segs],
+                "widths": [b - a + 1 for a, b in segs],
+            }
+        )
     return out
 
 
@@ -277,9 +282,9 @@ def _rows_from_mask(img, mask, W, H):
     """按给定掩码扫描装备区行（行带 → 卡片段 → 列位置/宽度 → 是否装备区）。"""
     exp_w = W * CARD_W_OF_W
     mb = mask.tobytes()
-    rowcount = [mb[y * W:(y + 1) * W].count(255) for y in range(H)]
+    rowcount = [mb[y * W : (y + 1) * W].count(255) for y in range(H)]
     rows = []
-    for (ra, rb) in _find_bands(rowcount):
+    for ra, rb in _find_bands(rowcount):
         pad = max(4, rb - ra)
         y0, y1 = max(0, ra - pad), min(H, rb + pad)
         thick = _col_thickness(mask, y0, y1)
@@ -304,10 +309,18 @@ def _rows_from_mask(img, mask, W, H):
         has_wide = any(w >= exp_w * 0.5 for w in widths)
         # 装备区判定：① 上半部分 ② 列数 ≤4 且最左列靠右（救「只截装备区」的部分截图）
         is_eq = (bf < INV_BF) or (len(known) <= CARD_COLS and min(known) > W * 0.25)
-        rows.append({"band": (ra, rb), "bf": bf, "thick": thick,
-                     "known": known, "widths": widths,
-                     "card_w": _median(widths),
-                     "has_wide": has_wide, "is_eq": is_eq and has_wide})
+        rows.append(
+            {
+                "band": (ra, rb),
+                "bf": bf,
+                "thick": thick,
+                "known": known,
+                "widths": widths,
+                "card_w": _median(widths),
+                "has_wide": has_wide,
+                "is_eq": is_eq and has_wide,
+            }
+        )
     return rows
 
 
@@ -333,8 +346,9 @@ def detect_pips(img: Image.Image) -> list[dict]:
     cw0 = _card_w_hint(_scan(img), img.width)
     if cw0 > CARD_W_REF * 1.05:
         k = CARD_W_REF / cw0
-        img = img.resize((max(1, round(img.width * k)),
-                          max(1, round(img.height * k))), Image.LANCZOS)
+        img = img.resize(
+            (max(1, round(img.width * k)), max(1, round(img.height * k))), Image.LANCZOS
+        )
     W, H = img.size
     rows = _rows_from_mask(img, lit_mask(img), W, H)
     if not any(r["is_eq"] for r in rows):
@@ -354,10 +368,12 @@ def detect_pips(img: Image.Image) -> list[dict]:
     if not eq_rows:
         # 兜底：整张图**一张满级卡都没有**（没有任何宽段）→ 退回原始判定并
         # 把结果写回标记，否则「全是窄豆簇」的界面会被整张丢掉。
-        alt = [r for r in rows
-               if (r["bf"] < INV_BF)
-               or (r["known"] and len(r["known"]) <= CARD_COLS
-                   and min(r["known"]) > W * 0.25)]
+        alt = [
+            r
+            for r in rows
+            if (r["bf"] < INV_BF)
+            or (r["known"] and len(r["known"]) <= CARD_COLS and min(r["known"]) > W * 0.25)
+        ]
         if alt:
             eq_rows = alt
             for r in alt:
@@ -406,16 +422,19 @@ def detect_pips(img: Image.Image) -> list[dict]:
         if est:
             pitch_col = _median(est)
     if pitch_col <= 0:
-        return []                       # 定不出网格 → 放弃（上层安全回退）
+        return []  # 定不出网格 → 放弃（上层安全回退）
     if not cw_ref:
         cw_ref = pitch_col / COL_PITCH_RATIO
 
     # ★ 锚点**投票**而不是取最左：杂散列（面板进度条）可能比真卡片更靠左。
     #   落在候选网格上的列越多，这个锚点越可信。
     def _hits(a):
-        return sum(1 for k in all_known
-                   if 0 <= round((k - a) / pitch_col) < CARD_COLS
-                   and abs((k - a) / pitch_col - round((k - a) / pitch_col)) < 0.25)
+        return sum(
+            1
+            for k in all_known
+            if 0 <= round((k - a) / pitch_col) < CARD_COLS
+            and abs((k - a) / pitch_col - round((k - a) / pitch_col)) < 0.25
+        )
 
     anchor = max(merged, key=lambda a: (_hits(a), -a))
     grid = [int(round(anchor + i * pitch_col)) for i in range(CARD_COLS)]
@@ -437,15 +456,20 @@ def detect_pips(img: Image.Image) -> list[dict]:
         #     开头的回退），绝不在单格上凭空造豆。若将来真出现琥珀豆的实机截图，
         #     表现会是「该卡豆数 0 → 与容量候选不符 → 卡面标 ?」，据此再开这条路。
         inks = [_cell_ink(r["thick"], cx, cw_ref, W) for cx in grid]
-        out.append({"row": idx, "band": r["band"],
-                    "counts": [c[0] for c in cells],
-                    "pos": [c[1] for c in cells],       # 每列豆的 x 坐标（调试/可视化用）
-                    # ★ 满级线（第三信号）：该格是否有一条横贯全卡的亮线
-                    "maxed": [k[2] for k in inks],
-                    "is_inventory": not r["is_eq"],
-                    "grid": list(grid),                  # 列中心（上层做裁剪/交叉校验用）
-                    "card_w": round(cw_ref),
-                    "pitch_col": round(pitch_col)})
+        out.append(
+            {
+                "row": idx,
+                "band": r["band"],
+                "counts": [c[0] for c in cells],
+                "pos": [c[1] for c in cells],  # 每列豆的 x 坐标（调试/可视化用）
+                # ★ 满级线（第三信号）：该格是否有一条横贯全卡的亮线
+                "maxed": [k[2] for k in inks],
+                "is_inventory": not r["is_eq"],
+                "grid": list(grid),  # 列中心（上层做裁剪/交叉校验用）
+                "card_w": round(cw_ref),
+                "pitch_col": round(pitch_col),
+            }
+        )
     return out
 
 
@@ -457,8 +481,9 @@ def expected_min_cards(rows: list[dict]) -> int:
       就一定是**漏读**（2026-09-20 实测：glm-4v-flash 只读了上排 3 张、
       漏掉下排 4 张，却因为「面板校验少错 1 项」而被选中，最终卡面只有 3 张卡）。
     """
-    return sum(1 for r in rows if not r.get("is_inventory")
-               for c in (r.get("counts") or []) if c > 0)
+    return sum(
+        1 for r in rows if not r.get("is_inventory") for c in (r.get("counts") or []) if c > 0
+    )
 
 
 def underread_penalty(rows: list[dict], n_mods: int, weight: int = 3) -> int:
@@ -467,8 +492,9 @@ def underread_penalty(rows: list[dict], n_mods: int, weight: int = 3) -> int:
     return (low - n_mods) * weight if low and n_mods < low else 0
 
 
-def align_rows(cands_list: list[list[int]],
-               row_counts: list[list[int]]) -> Optional[list[tuple[int, int]]]:
+def align_rows(
+    cands_list: list[list[int]], row_counts: list[list[int]]
+) -> Optional[list[tuple[int, int]]]:
     """把模型的**卡序列**与像素的**行列**做整体一致性对齐。
 
     ★ 为什么不用模型报的 row/col：实测（2026-09-20 端到端）在**完整提示词**下
@@ -513,7 +539,7 @@ def align_rows(cands_list: list[list[int]],
             unsat = 0
             for i, p in enumerate(pos):
                 cand, v = cands_list[start + i], row[p]
-                if cand and v not in cand:   # 有候选集 → 豆数应落在里面
+                if cand and v not in cand:  # 有候选集 → 豆数应落在里面
                     unsat += 1
             opts.append((list(pos), unsat))
         return opts
@@ -535,19 +561,17 @@ def align_rows(cands_list: list[list[int]],
                 rec(r + 1, idx, chosen, ok_cnt, mixed, unsat)
                 continue
             for picks, u in row_fit(r, k, idx):
-                seg = cands_list[idx:idx + k]
+                seg = cands_list[idx : idx + k]
                 row = row_counts[r]
                 # 「满足」= 有候选集 **且** 该格豆数落在候选集里（互相印证）
-                st = ok_cnt + sum(1 for i, p in enumerate(picks)
-                                  if seg[i] and row[p] in seg[i])
+                st = ok_cnt + sum(1 for i, p in enumerate(picks) if seg[i] and row[p] in seg[i])
                 n_wild = sum(1 for c in seg if not c)
                 # 次级判据：**专用槽位的卡（通配）应与普通卡分行** ——
                 # 姿态这类卡在 UI 里独占一格，不会与普通卡同排。
                 # 主判据相同时用它破平，避免「姿态卡占掉第 1 排的某一格、
                 # 把后面全部挤错」这种同为满分的错解。
                 mx = mixed + (1 if (n_wild and n_wild < k) else 0)
-                rec(r + 1, idx + k, chosen + [(r, p) for p in picks],
-                    st, mx, unsat + u)
+                rec(r + 1, idx + k, chosen + [(r, p) for p in picks], st, mx, unsat + u)
 
     rec(0, 0, [], 0, 0, 0)
     if best["map"] is None:
@@ -571,10 +595,13 @@ def align_rows(cands_list: list[list[int]],
     return best["map"]
 
 
-def pick_rank(counts: list[int], col: Optional[int],
-              candidates: list[int],
-              maxed: Optional[list] = None,
-              max_rank: Optional[int] = None) -> tuple[Optional[int], str]:
+def pick_rank(
+    counts: list[int],
+    col: Optional[int],
+    candidates: list[int],
+    maxed: Optional[list] = None,
+    max_rank: Optional[int] = None,
+) -> tuple[Optional[int], str]:
     """从一行的豆数里，为某个位置的卡选出等级。
 
     优先级：
@@ -601,8 +628,7 @@ def pick_rank(counts: list[int], col: Optional[int],
             return n, "本列豆数"
     # ② 满级线（第三信号）：见 docstring
     if maxed and max_rank is not None and int(max_rank) in cand:
-        at_col = (bool(maxed[col - 1]) if (col and 1 <= col <= len(maxed))
-                  else any(maxed))
+        at_col = bool(maxed[col - 1]) if (col and 1 <= col <= len(maxed)) else any(maxed)
         if at_col:
             return int(max_rank), "满级线"
     # ③ 全行唯一匹配候选集
@@ -611,7 +637,7 @@ def pick_rank(counts: list[int], col: Optional[int],
         if len(hit) == 1:
             return hit.pop(), "行内唯一匹配"
         if col and 1 <= col <= len(counts) and counts[col - 1] > 0:
-            return None, "ambiguous"        # 本列有豆但对不上候选 → 不硬猜
+            return None, "ambiguous"  # 本列有豆但对不上候选 → 不硬猜
     # ④ 候选集为空时：
     if not cand:
         if col and 1 <= col <= len(counts) and counts[col - 1] > 0:

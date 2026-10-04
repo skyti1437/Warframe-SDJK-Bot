@@ -15,6 +15,7 @@
     python scripts/build_zh_ext.py                 # 提取（默认只读 _cache 全量包）
     python scripts/build_zh_ext.py --stats         # 只看各命名空间规模，不写文件
 """
+
 from __future__ import annotations
 
 import json
@@ -31,19 +32,25 @@ OUT = ROOT / "core" / "data" / "de" / "zh_ext.json"
 # · Narmer：执刑官源力石 —— 官方 149，本地 113
 # · Weapons：赋能槽连接器等 —— 官方 776，本地 624
 # · Items：奖励类（催化剂/反应堆/晶体/遗物包/内融核心 bundle …）—— 被日历与入侵卡引用
-PREFIXES = ("/lotus/language/circleofhell/", "/lotus/language/1999/",
-            "/lotus/language/narmer/", "/lotus/language/weapons/",
-            "/lotus/language/items/",
-            # ★ C3（2026-10-03）：活动型警报的 descText（如 TennoUnitedAlert
-            #   →「Tenno 联合警报」）—— 警报卡标题要用。
-            "/lotus/language/alerts/")
+PREFIXES = (
+    "/lotus/language/circleofhell/",
+    "/lotus/language/1999/",
+    "/lotus/language/narmer/",
+    "/lotus/language/weapons/",
+    "/lotus/language/items/",
+    # ★ C3（2026-10-03）：活动型警报的 descText（如 TennoUnitedAlert
+    #   →「Tenno 联合警报」）—— 警报卡标题要用。
+    "/lotus/language/alerts/",
+)
 
 
 def main() -> int:
     if not FULL.exists():
-        print(f"✗ 找不到全量包：{FULL}\n  先拉：curl -L -o {FULL} "
-              "https://raw.githubusercontent.com/calamity-inc/"
-              "warframe-languages-bin-data/senpai/zh.json")
+        print(
+            f"✗ 找不到全量包：{FULL}\n  先拉：curl -L -o {FULL} "
+            "https://raw.githubusercontent.com/calamity-inc/"
+            "warframe-languages-bin-data/senpai/zh.json"
+        )
         return 2
     full = json.loads(FULL.read_text(encoding="utf-8"))
     picked: dict[str, str] = {}
@@ -57,8 +64,9 @@ def main() -> int:
                 val = v.get("value") if isinstance(v, dict) else v
                 if isinstance(val, str) and val:
                     picked[k] = val
-                    per_ns[p.rstrip("/").rsplit("/", 1)[-1]] = \
+                    per_ns[p.rstrip("/").rsplit("/", 1)[-1]] = (
                         per_ns.get(p.rstrip("/").rsplit("/", 1)[-1], 0) + 1
+                    )
                 break
     print(f"全量包 {len(full)} 键 → 提取 {len(picked)} 键")
     for ns, n in sorted(per_ns.items(), key=lambda x: -x[1]):
@@ -67,7 +75,7 @@ def main() -> int:
     print(f"   其中 CoHChallenge* = {coh} 键（审核要求 ≥68）")
 
     blob = json.dumps(picked, ensure_ascii=False, sort_keys=True).encode("utf-8")
-    print(f"产物大小 {len(blob)} bytes（{len(blob)/1024:.0f} KB）")
+    print(f"产物大小 {len(blob)} bytes（{len(blob) / 1024:.0f} KB）")
     if "--stats" in sys.argv:
         return 0
     OUT.write_bytes(blob)

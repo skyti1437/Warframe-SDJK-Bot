@@ -8,6 +8,7 @@
 
 支持的事件类型与数据源映射见 PUSH_EVENTS；未接线的类型在订阅时即被拒绝。
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -18,10 +19,20 @@ import json
 
 from . import paths
 from .api_client import WarframeAPIError, WarframeClient
-from .formatters import (ORACLE_REGIONS, countdown, de_zh, mission_cn,
-                         palladino_shop, parse_iso, rotation_window,
-                         steel_rotation_index, steel_shop, tier_cn, utc_today,
-                         weekly_reset_info)
+from .formatters import (
+    ORACLE_REGIONS,
+    countdown,
+    de_zh,
+    mission_cn,
+    palladino_shop,
+    parse_iso,
+    rotation_window,
+    steel_rotation_index,
+    steel_shop,
+    tier_cn,
+    utc_today,
+    weekly_reset_info,
+)
 from .parser import FissureFilter, parse_fissure_filter
 from . import arbi
 from .store import Subscription, SubscriptionStore
@@ -50,12 +61,24 @@ _BOUNTY_REGION_WORDS: tuple[tuple[str, str, str], ...] = (
 # （如 ZarimanExterminateFastComplete=高效歼灭、ZarimanSurvivalAbove50、
 #  EntratiLabAlchemy…=炼金），逐族人工核对（2026-10-03）。
 _BOUNTY_TYPE_HINTS: tuple[tuple[str, str], ...] = (
-    ("Exterminate", "歼灭"), ("Survival", "生存"), ("MobDef", "移动防御"),
-    ("Assassinate", "刺杀"), ("Cascade", "级联"), ("Flood", "洪流"),
-    ("Corruption", "腐化"), ("DefeatVoidAngel", "天使"), ("Alchemy", "炼金"),
-    ("Defense", "防御"), ("Defend", "防御"), ("Excavation", "挖掘"),
-    ("Capture", "捕获"), ("Sabotage", "破坏"), ("Rescue", "救援"),
-    ("Spy", "间谍"), ("Disruption", "中断"), ("Void", "虚空"),
+    ("Exterminate", "歼灭"),
+    ("Survival", "生存"),
+    ("MobDef", "移动防御"),
+    ("Assassinate", "刺杀"),
+    ("Cascade", "级联"),
+    ("Flood", "洪流"),
+    ("Corruption", "腐化"),
+    ("DefeatVoidAngel", "天使"),
+    ("Alchemy", "炼金"),
+    ("Defense", "防御"),
+    ("Defend", "防御"),
+    ("Excavation", "挖掘"),
+    ("Capture", "捕获"),
+    ("Sabotage", "破坏"),
+    ("Rescue", "救援"),
+    ("Spy", "间谍"),
+    ("Disruption", "中断"),
+    ("Void", "虚空"),
 )
 
 
@@ -81,18 +104,17 @@ def parse_bounty_rule(rule: str) -> dict:
         if hit:
             tags.add(hit)
             continue
-        words.append(tok)          # 非地区词：按「挑战名/任务类型」词处理
+        words.append(tok)  # 非地区词：按「挑战名/任务类型」词处理
     return {"tags": tags, "words": words}
 
 
-def bounty_rule_hit(rule: str, tag: str, challenge_name: str,
-                    challenge_path: str) -> bool:
+def bounty_rule_hit(rule: str, tag: str, challenge_name: str, challenge_path: str) -> bool:
     """规则是否命中一条赏金（地区 + 挑战名/类型词，全部条件须满足）。"""
     r = parse_bounty_rule(rule)
     if r["tags"] and tag not in r["tags"]:
         return False
     if not r["words"]:
-        return True                       # 只写地区（或空规则）：该地区全收
+        return True  # 只写地区（或空规则）：该地区全收
     t = bounty_type_of(challenge_path)
     for w in r["words"]:
         if w in (challenge_name or "") or (t and (w == t or w in t)):
@@ -110,9 +132,8 @@ def at_targets(platform_name: Optional[str], ids) -> list[str]:
     """
     if not ids or (platform_name or "").lower() != "aiocqhttp":
         return []
-    return list(dict.fromkeys(
-        s for s in (str(x).strip() for x in ids)
-        if s and s.lower() != "all"))
+    return list(dict.fromkeys(s for s in (str(x).strip() for x in ids) if s and s.lower() != "all"))
+
 
 # 蹲类型 -> (说明, 是否已接线)
 PUSH_EVENTS: dict[str, tuple[str, bool]] = {
@@ -141,19 +162,30 @@ PUSH_EVENTS: dict[str, tuple[str, bool]] = {
     "终幕": ("Coda 终幕武器批次轮换（A/B 两批每 96 小时）", True),
     "钢精兑换": ("Teshin 钢精兑换周轮换（每周一 00:00 UTC，8 件循环）", True),
     "碎银兑换": ("Palladino 裂罅碎块商店每周限购重置（周一 00:00 UTC）", True),
-    "赏金": ("赏金轮换（扎里曼/实验室/1999；可筛 地区+任务，如 扎里曼 高效歼灭）",
-             True),
+    "赏金": ("赏金轮换（扎里曼/实验室/1999；可筛 地区+任务，如 扎里曼 高效歼灭）", True),
     "阿耶兑换": ("Prime 宝库轮换（Regal Aya 兑换包）", True),
     "电波": ("午夜电波每日/每周挑战刷新", True),
 }
 
-PUSH_ALIAS = {"钢铁裂隙": "裂隙", "虚空裂隙": "裂隙", "执刑官猎杀": "执刑官",
-              "日历": "1999日历", "夜": "夜灵",
-              "平原时间": "夜灵", "夜灵平野": "夜灵",
-              "奥布山谷": "山谷", "金星": "山谷", "山谷温度": "山谷",
-              "魔胎之境": "魔胎", "火卫二": "魔胎",
-              "地球昼夜": "地球", "白天黑夜": "地球",
-              "双衍王境": "双衍", "螺旋": "双衍", "情绪": "双衍"}
+PUSH_ALIAS = {
+    "钢铁裂隙": "裂隙",
+    "虚空裂隙": "裂隙",
+    "执刑官猎杀": "执刑官",
+    "日历": "1999日历",
+    "夜": "夜灵",
+    "平原时间": "夜灵",
+    "夜灵平野": "夜灵",
+    "奥布山谷": "山谷",
+    "金星": "山谷",
+    "山谷温度": "山谷",
+    "魔胎之境": "魔胎",
+    "火卫二": "魔胎",
+    "地球昼夜": "地球",
+    "白天黑夜": "地球",
+    "双衍王境": "双衍",
+    "螺旋": "双衍",
+    "情绪": "双衍",
+}
 
 
 def normalize_event(word: str) -> Optional[str]:
@@ -233,7 +265,7 @@ def _live_daemon_tasks() -> list:
     """
     try:
         tasks = asyncio.all_tasks()
-    except RuntimeError:        # 没有运行中的事件循环（离线测试/CLI）：退回登记表
+    except RuntimeError:  # 没有运行中的事件循环（离线测试/CLI）：退回登记表
         return []
     out = []
     for t in tasks:
@@ -262,7 +294,7 @@ class PushDaemon:
         self.log = logger
         self.interval = max(15, interval)
         self._task: Optional[asyncio.Task] = None
-        self._last: dict[str, dict] = {}   # platform -> 上次快照摘要
+        self._last: dict[str, dict] = {}  # platform -> 上次快照摘要
         self._filters: dict[str, FissureFilter] = {}  # sub.sid -> 裂隙筛选缓存
         self._matched: dict[str, set[str]] = {}  # 事件key -> 本轮筛选命中的 sub.sid
 
@@ -286,35 +318,47 @@ class PushDaemon:
         if ok:
             last[key] = value
         else:
-            self.log.warning("[warframe] %s 响应为空/骤降（%r），保留旧基线不更新（防跨轮重推）",
-                             key, value)
+            self.log.warning(
+                "[warframe] %s 响应为空/骤降（%r），保留旧基线不更新（防跨轮重推）", key, value
+            )
 
     def start(self) -> None:
         """启动守护；**进程级**幂等 —— 先清掉任何仍活跃的旧 daemon（跨实例泄漏）。"""
         for dead in [x for x in _LIVE_DAEMONS if x.done()]:
-            _LIVE_DAEMONS.discard(dead)          # 已结束的登记顺手清掉，防集合膨胀
+            _LIVE_DAEMONS.discard(dead)  # 已结束的登记顺手清掉，防集合膨胀
         # ★ 2026-09-26 二次修复（线上实测：只记一条日志、群里却收到两条）：
         #   `_LIVE_DAEMONS` 只装**本版本**注册过的守护 —— 修复前泄漏的守护当年创建时
         #   还没有这张表，所以既看不见、也取消不掉，会一直静默推下去（旧代码没有派发日志，
         #   日志里查不到它）。改为**直接扫事件循环**：凡协程名是 `PushDaemon._run` 的任务
         #   都是本类的守护（协程限定名与代码版本、模块对象无关），逐个取消。
         leaked = [x for x in _LIVE_DAEMONS if not x.done() and x is not self._task]
-        leaked += [t for t in _live_daemon_tasks() if t is not self._task
-                   and t not in leaked and t not in _LIVE_DAEMONS]
+        leaked += [
+            t
+            for t in _live_daemon_tasks()
+            if t is not self._task and t not in leaked and t not in _LIVE_DAEMONS
+        ]
         for task in leaked:
-            task.cancel()                        # ★ 旧实例/旧版本泄漏的守护：取消，防重复推送
+            task.cancel()  # ★ 旧实例/旧版本泄漏的守护：取消，防重复推送
             _LIVE_DAEMONS.discard(task)
         if leaked:
-            self.log.warning("[warframe] 发现 %d 个仍在运行的旧推送守护 → 已取消（防重复推送）",
-                             len(leaked))
+            self.log.warning(
+                "[warframe] 发现 %d 个仍在运行的旧推送守护 → 已取消（防重复推送）", len(leaked)
+            )
         if self._task is None or self._task.done():
             self._task = asyncio.create_task(self._run(), name="warframe-push-daemon")
             _LIVE_DAEMONS.add(self._task)
-            self.log.info("[warframe] 推送守护协程已启动（间隔 %ss，实例 %s，活跃 %d）",
-                          self.interval, id(self), len(_LIVE_DAEMONS))
+            self.log.info(
+                "[warframe] 推送守护协程已启动（间隔 %ss，实例 %s，活跃 %d）",
+                self.interval,
+                id(self),
+                len(_LIVE_DAEMONS),
+            )
         else:
-            self.log.info("[warframe] 推送守护已在运行（重复 start 幂等跳过，实例 %s，活跃 %d）",
-                          id(self), len(_LIVE_DAEMONS))
+            self.log.info(
+                "[warframe] 推送守护已在运行（重复 start 幂等跳过，实例 %s，活跃 %d）",
+                id(self),
+                len(_LIVE_DAEMONS),
+            )
 
     async def stop(self) -> None:
         """停止本实例的守护并**注销登记**（幂等；失败也记日志）。"""
@@ -322,14 +366,15 @@ class PushDaemon:
         if task is None:
             self.log.info("[warframe] 推送守护未在运行（stop 幂等跳过，实例 %s）", id(self))
             return
-        self.log.info("[warframe] 正在停止推送守护（实例 %s，task.done()=%s）",
-                      id(self), task.done())
+        self.log.info(
+            "[warframe] 正在停止推送守护（实例 %s，task.done()=%s）", id(self), task.done()
+        )
         task.cancel()
         try:
             await task
         except asyncio.CancelledError:
-            pass                                  # 正常取消路径
-        except Exception as exc:                  # noqa: BLE001 - 停止失败要留痕
+            pass  # 正常取消路径
+        except Exception as exc:  # noqa: BLE001 - 停止失败要留痕
             self.log.warning("[warframe] 推送守护停止时异常：%s", exc)
         finally:
             _LIVE_DAEMONS.discard(task)
@@ -376,15 +421,12 @@ class PushDaemon:
             if not events:
                 continue
             for kind, key, text in events:
-                sent: set[str] = set()      # 同一事件对同一会话只推一次
-                cands = [s for s in subs
-                         if s.platform == platform and s.event == kind]
+                sent: set[str] = set()  # 同一事件对同一会话只推一次
+                cands = [s for s in subs if s.platform == platform and s.event == kind]
                 # 同群常把同义筛选叠好几条（「蹲 裂隙 捕获」+「蹲 裂隙 虚空捕获」…）；
                 # 派发必须选「自身筛选命中」的那条，否则会把没命中的订阅
                 # （一次性）消费掉、或错套它的免打扰时间窗。
-                prefer = ([s for s in cands
-                           if s.sid in self._matched.get(key, set())]
-                          or cands)
+                prefer = [s for s in cands if s.sid in self._matched.get(key, set())] or cands
                 for sub in prefer:
                     if sub.umo in sent:
                         continue
@@ -392,16 +434,19 @@ class PushDaemon:
                     #   命中、且在同一会话」的订阅发起人收齐去重 ⇒ 一次性 @
                     #   全部当事人。跨事件/跨会话**绝不合并**；规则未命中的
                     #   订阅（不在 prefer 里）不得被 @。
-                    at_ids = list(dict.fromkeys(
-                        s.created_by for s in prefer
-                        if s.umo == sub.umo and s.created_by))
+                    at_ids = list(
+                        dict.fromkeys(
+                            s.created_by for s in prefer if s.umo == sub.umo and s.created_by
+                        )
+                    )
                     # 真推出去才占掉这个会话的名额：前面那条被自己的免打扰窗
                     # 挡住时，后面全天候的订阅还能接住同一事件。
                     if await self._dispatch(sub, key, text, now, at=at_ids):
                         sent.add(sub.umo)
 
-    async def _dispatch(self, sub: Subscription, key: str, text: str,
-                        now: float, at: Optional[list] = None) -> bool:
+    async def _dispatch(
+        self, sub: Subscription, key: str, text: str, now: float, at: Optional[list] = None
+    ) -> bool:
         """尝试派发一条订阅；返回是否真的推送成功。"""
         if key in sub.notified:
             return False
@@ -427,34 +472,44 @@ class PushDaemon:
         # ★ 成功派发也留痕（2026-09-26）：此前只有失败才记日志，无法从日志判断
         #   「同一事件被推了几条」。带上实例 id —— 若出现跨实例的重复推送，
         #   同一事件键会打印出**两个不同的实例 id**，一眼可见。
-        self.log.info("[warframe] 已推送 事件=%s 键=%s → %s（实例 %s）",
-                      sub.event, key, sub.umo, id(self))
+        self.log.info(
+            "[warframe] 已推送 事件=%s 键=%s → %s（实例 %s）", sub.event, key, sub.umo, id(self)
+        )
         return True
 
     # ------------------------------------------------------------------
-    async def _snapshot_diff(self, platform: str,
-                             subs: list[Subscription]) -> list[tuple[str, str, str]]:
+    async def _snapshot_diff(
+        self, platform: str, subs: list[Subscription]
+    ) -> list[tuple[str, str, str]]:
         """拉取快照并产出 (事件类型, 去重键, 推送文本) 列表。"""
         wanted = {s.event for s in subs if s.platform == platform}
         out: list[tuple[str, str, str]] = []
-        matched = self._matched = {}   # 事件key -> 命中的 sub.sid（仅筛选类事件）
+        matched = self._matched = {}  # 事件key -> 命中的 sub.sid（仅筛选类事件）
         last = self._last.setdefault(platform, {})
         first = not last  # 首轮只建立基线，不把存量内容当作新事件推送
         try:
             if "裂隙" in wanted:
                 fissures = await self.client.fissures(platform)
-                live = {f["id"]: f for f in fissures if f.get("id") and f.get("expiry")
-                        and parse_iso(f["expiry"]) is not None}
+                live = {
+                    f["id"]: f
+                    for f in fissures
+                    if f.get("id") and f.get("expiry") and parse_iso(f["expiry"]) is not None
+                }
                 prev_ids = set(last.get("fissure_ids", []))
-                for fid, f in (live.items() if not first else []):
+                for fid, f in live.items() if not first else []:
                     if fid in prev_ids:
                         continue
-                    out.append(("裂隙", fid,
-                                f"⚡ 新裂隙：[{tier_cn(f.get('tier', ''))}] "
-                                f"{f.get('node', '?')} · {mission_cn(f.get('missionType', ''))}"
-                                + (" · 钢铁" if f.get("isHard") else "")
-                                + (" · 九重天" if f.get("isStorm") else "")
-                                + f" · 剩{countdown(f['expiry'])}"))
+                    out.append(
+                        (
+                            "裂隙",
+                            fid,
+                            f"⚡ 新裂隙：[{tier_cn(f.get('tier', ''))}] "
+                            f"{f.get('node', '?')} · {mission_cn(f.get('missionType', ''))}"
+                            + (" · 钢铁" if f.get("isHard") else "")
+                            + (" · 九重天" if f.get("isStorm") else "")
+                            + f" · 剩{countdown(f['expiry'])}",
+                        )
+                    )
                 # 只保留订阅规则命中的裂隙事件避免刷屏；命中的订阅 sid 一并
                 # 记下，供 tick 派发时选中（而不是按存储顺序碰运气取第一条）。
                 fissure_subs = [s for s in subs if s.platform == platform and s.event == "裂隙"]
@@ -463,8 +518,9 @@ class PushDaemon:
                     if e[0] != "裂隙":
                         kept.append(e)
                         continue
-                    hit = {s.sid for s in fissure_subs
-                           if self.filter_for(s).match(live.get(e[1], {}))}
+                    hit = {
+                        s.sid for s in fissure_subs if self.filter_for(s).match(live.get(e[1], {}))
+                    }
                     if hit:
                         kept.append(e)
                         matched[e[1]] = hit
@@ -476,11 +532,15 @@ class PushDaemon:
                 state = cetus.get("state")
                 if last.get("cetus_state") and last["cetus_state"] != state:
                     if state == "night":
-                        out.append(("夜灵", f"night-{cetus.get('expiry', '')}",
-                                    f"🌙 夜灵平野已入夜，剩余 {countdown(cetus.get('expiry', ''))}，三傻走起"))
+                        out.append(
+                            (
+                                "夜灵",
+                                f"night-{cetus.get('expiry', '')}",
+                                f"🌙 夜灵平野已入夜，剩余 {countdown(cetus.get('expiry', ''))}，三傻走起",
+                            )
+                        )
                     elif state == "day":
-                        out.append(("夜灵", f"day-{cetus.get('expiry', '')}",
-                                    "☀️ 夜灵平野天亮了"))
+                        out.append(("夜灵", f"day-{cetus.get('expiry', '')}", "☀️ 夜灵平野天亮了"))
                 self._set_baseline(last, "cetus_state", state)
 
             if "山谷" in wanted:
@@ -488,9 +548,13 @@ class PushDaemon:
                 st = vallis.get("state")
                 if last.get("vallis_state") and last["vallis_state"] != st:
                     label = "温暖（可采矿）" if st == "warm" else "寒冷（热美亚）"
-                    out.append(("山谷", f"vallis-{st}-{vallis.get('expiry', '')}",
-                                f"🌡️ 奥布山谷转为{label}，"
-                                f"剩余 {countdown(vallis.get('expiry', ''))}"))
+                    out.append(
+                        (
+                            "山谷",
+                            f"vallis-{st}-{vallis.get('expiry', '')}",
+                            f"🌡️ 奥布山谷转为{label}，剩余 {countdown(vallis.get('expiry', ''))}",
+                        )
+                    )
                 self._set_baseline(last, "vallis_state", st)
 
             if "魔胎" in wanted:
@@ -498,9 +562,14 @@ class PushDaemon:
                 st = cambion.get("state")
                 if last.get("cambion_state") and last["cambion_state"] != st:
                     label = "Fass" if st == "fass" else "Vome"
-                    out.append(("魔胎", f"cambion-{st}-{cambion.get('expiry', '')}",
-                                f"🦠 魔胎之境已切换到 {label}，"
-                                f"剩余 {countdown(cambion.get('expiry', ''))}"))
+                    out.append(
+                        (
+                            "魔胎",
+                            f"cambion-{st}-{cambion.get('expiry', '')}",
+                            f"🦠 魔胎之境已切换到 {label}，"
+                            f"剩余 {countdown(cambion.get('expiry', ''))}",
+                        )
+                    )
                 self._set_baseline(last, "cambion_state", st)
 
             if "地球" in wanted:
@@ -508,9 +577,13 @@ class PushDaemon:
                 st = earth.get("state")
                 if last.get("earth_state") and last["earth_state"] != st:
                     label = "白天" if st == "day" else "夜晚"
-                    out.append(("地球", f"earth-{st}-{earth.get('expiry', '')}",
-                                f"🌍 地球已进入{label}，"
-                                f"剩余 {countdown(earth.get('expiry', ''))}"))
+                    out.append(
+                        (
+                            "地球",
+                            f"earth-{st}-{earth.get('expiry', '')}",
+                            f"🌍 地球已进入{label}，剩余 {countdown(earth.get('expiry', ''))}",
+                        )
+                    )
                 self._set_baseline(last, "earth_state", st)
 
             if "双衍" in wanted:
@@ -518,9 +591,14 @@ class PushDaemon:
                 st = duv.get("state")
                 if last.get("duviri_state") and last["duviri_state"] != st:
                     cn = duv.get("stateCn") or st
-                    out.append(("双衍", f"duviri-{st}-{duv.get('expiry', '')}",
-                                f"🌀 双衍王境螺旋切换为「{cn}」（{st}），"
-                                f"剩余 {countdown(duv.get('expiry', ''))}"))
+                    out.append(
+                        (
+                            "双衍",
+                            f"duviri-{st}-{duv.get('expiry', '')}",
+                            f"🌀 双衍王境螺旋切换为「{cn}」（{st}），"
+                            f"剩余 {countdown(duv.get('expiry', ''))}",
+                        )
+                    )
                 self._set_baseline(last, "duviri_state", st)
 
             if "活动" in wanted:
@@ -528,11 +606,15 @@ class PushDaemon:
                 live_ids = {g.get("tag") or g.get("name") for g in goals if not g.get("ended")}
                 prev = set(last.get("goal_ids", []))
                 for gid in (live_ids - prev) if not first else set():
-                    g = next((x for x in goals
-                              if (x.get("tag") or x.get("name")) == gid), {})
-                    out.append(("活动", f"goal-{gid}",
-                                f"🎯 新活动：{g.get('name', gid)}"
-                                + (f"｜剩{g.get('timeLeft')}" if g.get("timeLeft") else "")))
+                    g = next((x for x in goals if (x.get("tag") or x.get("name")) == gid), {})
+                    out.append(
+                        (
+                            "活动",
+                            f"goal-{gid}",
+                            f"🎯 新活动：{g.get('name', gid)}"
+                            + (f"｜剩{g.get('timeLeft')}" if g.get("timeLeft") else ""),
+                        )
+                    )
                 self._set_baseline(last, "goal_ids", list(live_ids), "ids")
 
             if "奸商" in wanted:
@@ -540,13 +622,23 @@ class PushDaemon:
                 active = bool(trader.get("active"))
                 if last.get("trader_active") is not None and last["trader_active"] != active:
                     if active:
-                        out.append(("奸商", f"in-{trader.get('activation', '')[:10]}",
-                                    f"🛒 奸商已抵达 {trader.get('location', '?')}，"
-                                    f"{countdown(trader.get('expiry', ''))} 后离开"))
+                        out.append(
+                            (
+                                "奸商",
+                                f"in-{trader.get('activation', '')[:10]}",
+                                f"🛒 奸商已抵达 {trader.get('location', '?')}，"
+                                f"{countdown(trader.get('expiry', ''))} 后离开",
+                            )
+                        )
                     else:
-                        out.append(("奸商", f"out-{trader.get('expiry', '')[:10]}",
-                                    "🛒 奸商已离开，下次再见"))
-                if trader:                       # 空响应（源失败）不写基线
+                        out.append(
+                            (
+                                "奸商",
+                                f"out-{trader.get('expiry', '')[:10]}",
+                                "🛒 奸商已离开，下次再见",
+                            )
+                        )
+                if trader:  # 空响应（源失败）不写基线
                     self._set_baseline(last, "trader_active", active, "bool")
                 else:
                     self.log.warning("[warframe] trader_active 响应为空，保留旧基线不更新")
@@ -555,16 +647,16 @@ class PushDaemon:
                 sortie = await self.client.sortie(platform)
                 sid = sortie.get("id")
                 if last.get("sortie_id") and last["sortie_id"] != sid:
-                    out.append(("突击", f"sortie-{sid}",
-                                "⚔️ 每日突击已刷新，发送「突击」查看详情"))
+                    out.append(("突击", f"sortie-{sid}", "⚔️ 每日突击已刷新，发送「突击」查看详情"))
                 last["sortie_id"] = sid
 
             if "执刑官" in wanted:
                 archon = await self.client.archon_hunt(platform)
                 aid = archon.get("id")
                 if last.get("archon_id") and last["archon_id"] != aid:
-                    out.append(("执刑官", f"archon-{aid}",
-                                "👑 本周执刑官猎杀已刷新，发送「执刑官」查看"))
+                    out.append(
+                        ("执刑官", f"archon-{aid}", "👑 本周执刑官猎杀已刷新，发送「执刑官」查看")
+                    )
                 last["archon_id"] = aid
 
             if "仲裁" in wanted:
@@ -579,17 +671,19 @@ class PushDaemon:
                 if sl:
                     prev_key = last.get("arbi_slot")
                     if prev_key and prev_key != sl["key"]:
-                        subs_a = [s for s in subs
-                                  if s.platform == platform and s.event == "仲裁"]
-                        hit = {s.sid for s in subs_a
-                               if arbi.match_rule(s.rule, sl)}
+                        subs_a = [s for s in subs if s.platform == platform and s.event == "仲裁"]
+                        hit = {s.sid for s in subs_a if arbi.match_rule(s.rule, sl)}
                         if not subs_a or hit:
                             tier = f" · 评级 {sl['tier']}" if sl["tier"] else ""
                             left_min = max(0, int((sl["end"] - time.time()) // 60))
                             akey = f"arbi-{sl['key']}-{int(sl['start'])}"
-                            out.append(("仲裁", akey,
-                                        f"⚖️ 仲裁已轮换：{sl['line']}{tier}"
-                                        f" · 剩 {left_min} 分钟"))
+                            out.append(
+                                (
+                                    "仲裁",
+                                    akey,
+                                    f"⚖️ 仲裁已轮换：{sl['line']}{tier} · 剩 {left_min} 分钟",
+                                )
+                            )
                             matched[akey] = hit
                     self._set_baseline(last, "arbi_slot", sl.get("key") or "")
 
@@ -606,9 +700,13 @@ class PushDaemon:
                     sig = ",".join(sorted(nodes_today))
                     if last.get("sp_incursions") and last["sp_incursions"] != sig:
                         names = "、".join(nodes_today[:6])
-                        out.append(("钢路侵袭", f"sp-{sig[:60]}",
-                                    f"🗡️ 钢铁之路侵袭已刷新（{len(nodes_today)} 个节点）："
-                                    f"{names}"))
+                        out.append(
+                            (
+                                "钢路侵袭",
+                                f"sp-{sig[:60]}",
+                                f"🗡️ 钢铁之路侵袭已刷新（{len(nodes_today)} 个节点）：{names}",
+                            )
+                        )
                     last["sp_incursions"] = sig
 
             if "钢精兑换" in wanted:
@@ -623,14 +721,18 @@ class PushDaemon:
                     idx, weekly = 0, []
                 if weekly:
                     key = f"steel-rot-{idx}"
-                    if last.get("steel_rotation") is not None \
-                            and last["steel_rotation"] != key:
+                    if last.get("steel_rotation") is not None and last["steel_rotation"] != key:
                         cur = weekly[idx]
                         nxt = weekly[(idx + 1) % len(weekly)]
-                        out.append(("钢精兑换", key,
-                                    f"🪙 钢精兑换已轮换：本周 {cur['name']}"
-                                    f"（{cur['cost']} 精华）"
-                                    f" · 下周 {nxt['name']}"))
+                        out.append(
+                            (
+                                "钢精兑换",
+                                key,
+                                f"🪙 钢精兑换已轮换：本周 {cur['name']}"
+                                f"（{cur['cost']} 精华）"
+                                f" · 下周 {nxt['name']}",
+                            )
+                        )
                     last["steel_rotation"] = key
 
             if "碎银兑换" in wanted:
@@ -642,12 +744,16 @@ class PushDaemon:
                 except Exception:  # noqa: BLE001 - 数据缺失降级不报错
                     _n = 0
                 key = f"sliver-wk-{_n}"
-                if last.get("sliver_reset") is not None \
-                        and last["sliver_reset"] != key:
-                    out.append(("碎银兑换", key,
-                                "🪙 碎银兑换已重置（Palladino · 钢铁守望）："
-                                "本周限购恢复 —— 可再购安魂遗物 / 裂罅 Mod / "
-                                "安魂通牒等"))
+                if last.get("sliver_reset") is not None and last["sliver_reset"] != key:
+                    out.append(
+                        (
+                            "碎银兑换",
+                            key,
+                            "🪙 碎银兑换已重置（Palladino · 钢铁守望）："
+                            "本周限购恢复 —— 可再购安魂遗物 / 裂罅 Mod / "
+                            "安魂通牒等",
+                        )
+                    )
                 last["sliver_reset"] = key
 
             if "赏金" in wanted:
@@ -660,10 +766,9 @@ class PushDaemon:
                     _cyc = {}
                 _bs = (_cyc or {}).get("bounties") or {}
                 _exp = str((_cyc or {}).get("expiry") or "")
-                _bounty_subs = [s for s in subs
-                                if s.platform == platform and s.event == "赏金"]
+                _bounty_subs = [s for s in subs if s.platform == platform and s.event == "赏金"]
                 # 基线：首轮只记 bounty_exp（不推）；此后每轮对当前赏金发事件
-                #（key 含 expiry + notified 去重 ⇒ 同轮只推一次、换轮自然重推）。
+                # （key 含 expiry + notified 去重 ⇒ 同轮只推一次、换轮自然重推）。
                 _prev_exp = last.get("bounty_exp")
                 if _bounty_subs and _prev_exp is not None:
                     _node_tbl = de_zh("nodes_zh.json")
@@ -677,16 +782,21 @@ class PushDaemon:
                             _cname = _ch.get("name") or ""
                             _ctype = bounty_type_of(_ck)
                             key = f"bounty-{_tag}-{_nk}-{_ck}-{_exp}"
-                            hit = {s.sid for s in _bounty_subs
-                                   if bounty_rule_hit(s.rule, _tag, _cname, _ck)}
+                            hit = {
+                                s.sid
+                                for s in _bounty_subs
+                                if bounty_rule_hit(s.rule, _tag, _cname, _ck)
+                            }
                             if hit:
                                 _desc = (_ch.get("desc") or "").strip()
-                                _seg = " · ".join(
-                                    x for x in (_title, _node, _ctype, _cname)
-                                    if x)
-                                out.append(("赏金", key,
-                                            f"⚡ 新赏金：{_seg}"
-                                            + (f"（{_desc}）" if _desc else "")))
+                                _seg = " · ".join(x for x in (_title, _node, _ctype, _cname) if x)
+                                out.append(
+                                    (
+                                        "赏金",
+                                        key,
+                                        f"⚡ 新赏金：{_seg}" + (f"（{_desc}）" if _desc else ""),
+                                    )
+                                )
                                 matched[key] = hit
                 if _exp:
                     last["bounty_exp"] = _exp
@@ -702,8 +812,8 @@ class PushDaemon:
             if any(ev in wanted for ev, _k, _i in _rot_push):
                 try:
                     _rot_all = json.loads(
-                        paths.read_path("rotations.json")
-                        .read_text(encoding="utf-8"))
+                        paths.read_path("rotations.json").read_text(encoding="utf-8")
+                    )
                 except Exception:  # noqa: BLE001 - 数据缺失降级不报错
                     _rot_all = {}
                 for _ev, _rk, _icon in _rot_push:
@@ -715,19 +825,18 @@ class PushDaemon:
                     _passed, _ = rotation_window(_rd)
                     _weeks = _rd.get("weeks") or []
                     _batches = _rd.get("batches") or []
-                    if _weeks:                       # weekly_cycle（灵化）
-                        _pos = (int(_rd.get("anchor_week", 1)) - 1
-                                + _passed) % len(_weeks)
+                    if _weeks:  # weekly_cycle（灵化）
+                        _pos = (int(_rd.get("anchor_week", 1)) - 1 + _passed) % len(_weeks)
                         _items = _weeks[_pos]
                         _label = f"第 {_pos + 1}/{len(_weeks)} 周"
-                    elif _batches:                   # batch_cycle（终幕）
-                        _pos = (int(_rd.get("anchor_idx", 0))
-                                + _passed) % len(_batches)
+                    elif _batches:  # batch_cycle（终幕）
+                        _pos = (int(_rd.get("anchor_idx", 0)) + _passed) % len(_batches)
                         _items = _batches[_pos]
                         _labels = _rd.get("batch_label") or []
-                        _label = (f"{_labels[_pos]} 批"
-                                  if _pos < len(_labels) else f"第 {_pos + 1} 批")
-                    else:                            # refresh_only（信条）
+                        _label = (
+                            f"{_labels[_pos]} 批" if _pos < len(_labels) else f"第 {_pos + 1} 批"
+                        )
+                    else:  # refresh_only（信条）
                         _items = _rd.get("items") or []
                         _label = "库存"
                     if not _items:
@@ -737,11 +846,14 @@ class PushDaemon:
                     if _prev is not None and _prev != _key:
                         _names = "、".join(
                             (it.get("cn") or it.get("en") or "")
-                            + (f"（{it.get('element')} {it.get('bonus')}%）"
-                               if it.get("element") else "")
-                            for it in _items[:8])
-                        out.append((_ev, _key,
-                                    f"{_icon}（{_label}）：{_names}"))
+                            + (
+                                f"（{it.get('element')} {it.get('bonus')}%）"
+                                if it.get("element")
+                                else ""
+                            )
+                            for it in _items[:8]
+                        )
+                        out.append((_ev, _key, f"{_icon}（{_label}）：{_names}"))
                     last[f"{_rk}_window"] = _key
 
             # ★ C5（2026-10-03）：阿耶兑换 / 1999 日历 / 电波。
@@ -754,10 +866,9 @@ class PushDaemon:
                     _pk = f"pv-{_pv.get('expiry')}"
                     if last.get("pv_key") is not None and last["pv_key"] != _pk:
                         _names = "、".join(
-                            (it.get("name") or "") for it in
-                            (_pv.get("items") or [])[:6])
-                        out.append(("阿耶兑换", _pk,
-                                    f"💠 Prime 宝库轮换：{_names}"))
+                            (it.get("name") or "") for it in (_pv.get("items") or [])[:6]
+                        )
+                        out.append(("阿耶兑换", _pk, f"💠 Prime 宝库轮换：{_names}"))
                     last["pv_key"] = _pk
 
             if "1999日历" in wanted:
@@ -766,29 +877,37 @@ class PushDaemon:
                 except Exception:  # noqa: BLE001
                     _cal = {}
                 if isinstance(_cal, dict) and _cal.get("days"):
-                    _sk = (f"cal-season-{_cal.get('season')}"
-                           f"-{_cal.get('yearIteration')}")
-                    if last.get("cal_season") is not None                             and last["cal_season"] != _sk:
-                        out.append(("1999日历", _sk,
-                                    f"🗓 1999 日历轮换：{_cal.get('season')} 季"
-                                    f"（第 {_cal.get('yearIteration')} 年）"))
+                    _sk = f"cal-season-{_cal.get('season')}-{_cal.get('yearIteration')}"
+                    if last.get("cal_season") is not None and last["cal_season"] != _sk:
+                        out.append(
+                            (
+                                "1999日历",
+                                _sk,
+                                f"🗓 1999 日历轮换：{_cal.get('season')} 季"
+                                f"（第 {_cal.get('yearIteration')} 年）",
+                            )
+                        )
                     last["cal_season"] = _sk
                     _today = utc_today()
-                    _day = next((d for d in _cal["days"]
-                                 if d.get("date") == _today), None)
+                    _day = next((d for d in _cal["days"] if d.get("date") == _today), None)
                     if _day:
                         # 键含**日程签名**：同日日程被 DE 更新也推（日切自然推）
-                        _sig_d = ",".join(sorted(
-                            e.get("name") or ""
-                            for e in (_day.get("events") or [])))[:40]
+                        _sig_d = ",".join(
+                            sorted(e.get("name") or "" for e in (_day.get("events") or []))
+                        )[:40]
                         _dk = f"cal-{_today}-{_sig_d}"
-                        if last.get("cal_day") is not None                                 and last["cal_day"] != _dk:
-                            _evs = [e.get("name") for e in
-                                    (_day.get("events") or [])
-                                    if e.get("name")]
-                            out.append(("1999日历", _dk,
-                                        f"🗓 1999 今日日程（{_today}）："
-                                        + ("、".join(_evs[:6]) or "无条目")))
+                        if last.get("cal_day") is not None and last["cal_day"] != _dk:
+                            _evs = [
+                                e.get("name") for e in (_day.get("events") or []) if e.get("name")
+                            ]
+                            out.append(
+                                (
+                                    "1999日历",
+                                    _dk,
+                                    f"🗓 1999 今日日程（{_today}）："
+                                    + ("、".join(_evs[:6]) or "无条目"),
+                                )
+                            )
                         last["cal_day"] = _dk
 
             if "电波" in wanted:
@@ -804,59 +923,79 @@ class PushDaemon:
                     if last.get("nw_ids") is not None and _fresh:
                         _new = [c for c in _chs if c.get("id") in _fresh]
                         _names = "、".join(
-                            (c.get("title") or "?")
-                            + ("（每日）" if c.get("isDaily") else "")
-                            for c in _new[:5])
+                            (c.get("title") or "?") + ("（每日）" if c.get("isDaily") else "")
+                            for c in _new[:5]
+                        )
                         _sig = ",".join(sorted(_fresh))[:60]
-                        out.append(("电波", f"nw-{_sig}",
-                                    f"📻 午夜电波新挑战（{len(_new)} 条）："
-                                    f"{_names}"))
+                        out.append(
+                            ("电波", f"nw-{_sig}", f"📻 午夜电波新挑战（{len(_new)} 条）：{_names}")
+                        )
                     last["nw_ids"] = list(_ids)
 
             if "警报" in wanted:
                 alerts = await self.client.alerts(platform)
                 ids = {a.get("id") for a in alerts if a.get("id") and a.get("active", True)}
                 prev = set(last.get("alert_ids", []))
-                for aid in ((ids - prev) if not first else ()):
+                for aid in (ids - prev) if not first else ():
                     a = next((x for x in alerts if x.get("id") == aid), {})
                     mission = a.get("mission", {}) or {}
-                    reward = (mission.get("reward", {}) or {})
+                    reward = mission.get("reward", {}) or {}
                     # ★ C3：解析已补全（节点/类型/等级/奖励中文名），推送照实给
                     names = reward.get("item_names") or (
-                        [reward["item"]] if reward.get("item") else [])
-                    lv = (f"{mission['min_level']}-{mission['max_level']}级 "
-                          if mission.get("min_level") else "")
-                    rw = "、".join([*names, *([f"{reward['credits']}现金"]
-                                            if reward.get("credits") else [])])
+                        [reward["item"]] if reward.get("item") else []
+                    )
+                    lv = (
+                        f"{mission['min_level']}-{mission['max_level']}级 "
+                        if mission.get("min_level")
+                        else ""
+                    )
+                    rw = "、".join(
+                        [*names, *([f"{reward['credits']}现金"] if reward.get("credits") else [])]
+                    )
                     head = f"{mission.get('desc')}｜" if mission.get("desc") else ""
-                    out.append(("警报", aid,
-                                f"🔔 新警报：{head}{mission.get('node', '?')} · "
-                                f"{mission_cn(mission.get('type', ''))} {lv}"
-                                f"奖励：{rw or '?'}"))
+                    out.append(
+                        (
+                            "警报",
+                            aid,
+                            f"🔔 新警报：{head}{mission.get('node', '?')} · "
+                            f"{mission_cn(mission.get('type', ''))} {lv}"
+                            f"奖励：{rw or '?'}",
+                        )
+                    )
                 last["alert_ids"] = list(ids)
 
             if "入侵" in wanted:
                 invs = await self.client.invasions(platform)
                 ids = {i.get("id") for i in invs if i.get("id") and not i.get("completed")}
                 prev = set(last.get("invasion_ids", []))
-                for iid in ((ids - prev) if not first else ()):
+                for iid in (ids - prev) if not first else ():
                     inv = next((x for x in invs if x.get("id") == iid), {})
-                    out.append(("入侵", iid,
-                                f"⚔️ 新入侵：{inv.get('node', '?')}（"
-                                f"{(inv.get('attacker', {}) or {}).get('faction', '?')} vs "
-                                f"{(inv.get('defender', {}) or {}).get('faction', '?')}）"))
+                    out.append(
+                        (
+                            "入侵",
+                            iid,
+                            f"⚔️ 新入侵：{inv.get('node', '?')}（"
+                            f"{(inv.get('attacker', {}) or {}).get('faction', '?')} vs "
+                            f"{(inv.get('defender', {}) or {}).get('faction', '?')}）",
+                        )
+                    )
                 last["invasion_ids"] = list(ids)
 
             if "新闻" in wanted:
                 news = await self.client.news(platform)
                 ids = {n.get("id") for n in news if n.get("id")}
                 prev = set(last.get("news_ids", []))
-                for nid in ((ids - prev) if not first else ()):
+                for nid in (ids - prev) if not first else ():
                     n = next((x for x in news if x.get("id") == nid), {})
                     msg = (n.get("message") or n.get("title") or "").strip()
                     if msg:
-                        out.append(("新闻", nid, f"📰 {msg}" +
-                                    (f"\n{n.get('link')}" if n.get("link") else "")))
+                        out.append(
+                            (
+                                "新闻",
+                                nid,
+                                f"📰 {msg}" + (f"\n{n.get('link')}" if n.get("link") else ""),
+                            )
+                        )
                 last["news_ids"] = list(ids)
 
             if "每日特惠" in wanted:
@@ -867,10 +1006,14 @@ class PushDaemon:
                 lead = deals[0] if deals else {}
                 dkey = lead.get("id") or f"{lead.get('item', '')}"
                 if last.get("deal_key") and last["deal_key"] != dkey:
-                    lines = [f"{d.get('item', '?')}：{d.get('salePrice', '?')}p "
-                             f"（库存{d.get('total', '?')}）" for d in deals]
-                    out.append(("每日特惠", f"deal-{dkey}",
-                                "🏷️ 达沃每日特惠：\n" + "\n".join(lines)))
+                    lines = [
+                        f"{d.get('item', '?')}：{d.get('salePrice', '?')}p "
+                        f"（库存{d.get('total', '?')}）"
+                        for d in deals
+                    ]
+                    out.append(
+                        ("每日特惠", f"deal-{dkey}", "🏷️ 达沃每日特惠：\n" + "\n".join(lines))
+                    )
                 last["deal_key"] = dkey
         except WarframeAPIError as exc:
             self.log.warning("[warframe] %s 快照拉取失败：%s", platform, exc)
@@ -879,4 +1022,5 @@ class PushDaemon:
 
 def _local_now():
     from datetime import datetime
+
     return datetime.now()

@@ -4,6 +4,7 @@
 用法：python scripts/bench_supersample_zoom.py
 产物：runtime/ss_zoom_*.png
 """
+
 from __future__ import annotations
 
 import sys
@@ -74,5 +75,8 @@ dst = out_dir / "ss_zoom_compare.png"
 canvas.save(dst)
 print(f"已保存 {dst}  ({canvas.width}x{canvas.height})")
 for ss in (3, 2, 1):
-    print(f"  {ss} 倍 = 第 {[s for s, _ in tiles].index(ss) + 1} 条（自上而下）"
-          if ss in [s for s, _ in tiles] else f"  {ss} 倍 = 未渲染")
+    print(
+        f"  {ss} 倍 = 第 {[s for s, _ in tiles].index(ss) + 1} 条（自上而下）"
+        if ss in [s for s, _ in tiles]
+        else f"  {ss} 倍 = 未渲染"
+    )

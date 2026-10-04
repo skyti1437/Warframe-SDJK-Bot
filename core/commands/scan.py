@@ -6,6 +6,7 @@
 模块级依赖 _num（配置数值容错）经 base.py 单源提供（双处消费禁双源）。
 子包纪律：不 import astrbot（事件对象鸭子类型）。
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -32,14 +33,17 @@ class ScanCommands:
         `core/loadout_ocr.py` 按容量数字反推出的实际等级重算，再用面板数值校验。
         """
         if not self._event_has_image(event):
-            return Reply("配卡识别", [
-                "用法：发一张武器「升级」界面截图，配上文字「识卡」",
-                "　读出：武器（含等级）＋每张 MOD 卡与其实际等级＋面板数值",
-                "　加成按卡片容量数字反推实际等级（绿=匹配减半／红=不合+25%／白=原价）",
-                "　再用面板数值交叉校验；第 2 页直接给伤害详情（同「伤害计算」公式）",
-                "　想换敌人/等级/爆头复算：识卡伤害 对 重机枪手 150级 爆头",
-                "　需要 AstrBot 里配好一个多模态模型（如 Qwen3-VL / glm-4.1v）",
-            ])
+            return Reply(
+                "配卡识别",
+                [
+                    "用法：发一张武器「升级」界面截图，配上文字「识卡」",
+                    "　读出：武器（含等级）＋每张 MOD 卡与其实际等级＋面板数值",
+                    "　加成按卡片容量数字反推实际等级（绿=匹配减半／红=不合+25%／白=原价）",
+                    "　再用面板数值交叉校验；第 2 页直接给伤害详情（同「伤害计算」公式）",
+                    "　想换敌人/等级/爆头复算：识卡伤害 对 重机枪手 150级 爆头",
+                    "　需要 AstrBot 里配好一个多模态模型（如 Qwen3-VL / glm-4.1v）",
+                ],
+            )
 
         # ★★ 安全审查（2026-09-18）：识卡每次会调用**付费**多模态模型。
         #   原来只有「同会话串行」——那只防自己连发，防不住「同一个人狂刷」
@@ -53,26 +57,27 @@ class ScanCommands:
             _last = self._ocr_last.get(_sender, 0.0)
             _left = _cd - (time.time() - _last)
             if _last and _left > 0:
-                return Reply(raw_text=f"⏳ 识卡太频繁了，请 {_left:.0f} 秒后再试\n"
-                                      "（面板「识卡冷却秒数」可调，设 0 关闭限制）")
+                return Reply(
+                    raw_text=f"⏳ 识卡太频繁了，请 {_left:.0f} 秒后再试\n"
+                    "（面板「识卡冷却秒数」可调，设 0 关闭限制）"
+                )
             # 顺手清掉过期记录，避免长期运行把字典撑大
             if len(self._ocr_last) > 512:
                 _now = time.time()
-                for _k in [k for k, v in self._ocr_last.items()
-                           if _now - v > max(_cd * 4, 120)]:
+                for _k in [k for k, v in self._ocr_last.items() if _now - v > max(_cd * 4, 120)]:
                     self._ocr_last.pop(_k, None)
             self._ocr_last[_sender] = time.time()
         _cap = int(_num(self.cfg, "scan_max_concurrent", 3))
         if _cap > 0 and len(self._ocr_busy) >= _cap:
-            return Reply(raw_text=f"⏳ 机器人正在处理其它识卡请求"
-                                  f"（并发上限 {_cap}），请稍后再试")
+            return Reply(raw_text=f"⏳ 机器人正在处理其它识卡请求（并发上限 {_cap}），请稍后再试")
 
         # 同一会话串行：识卡是「多次 vision 调用 + 双页渲染」的重活，
         # 连发会让容器 CPU 争抢（实测单张渲染 0.7s → 39s）。
         _busy_key = f"{getattr(event, 'unified_msg_origin', '') or ''}"
         if _busy_key and _busy_key in self._ocr_busy:
-            return Reply(raw_text="上一张配卡还在识别中（约 15~30 秒），"
-                                  "请稍等一下再发，避免任务叠加变慢")
+            return Reply(
+                raw_text="上一张配卡还在识别中（约 15~30 秒），请稍等一下再发，避免任务叠加变慢"
+            )
         if _busy_key:
             self._ocr_busy.add(_busy_key)
         try:
@@ -88,10 +93,12 @@ class ScanCommands:
             #   受害者——失败重试不该干等 15 秒。成功调用才占冷却。
             if _cd > 0 and _sender:
                 self._ocr_last.pop(_sender, None)
-            return Reply(raw_text="截图识别失败：视觉渠道没给出可解析结果。"
-                                  "可能原因：① 渠道超时/返回空；② 未配视觉模型。"
-                                  "可先重发一次；仍失败请查看机器人日志里的"
-                                  "「配卡识别」条目（会写明是哪个渠道、什么原因）")
+            return Reply(
+                raw_text="截图识别失败：视觉渠道没给出可解析结果。"
+                "可能原因：① 渠道超时/返回空；② 未配视觉模型。"
+                "可先重发一次；仍失败请查看机器人日志里的"
+                "「配卡识别」条目（会写明是哪个渠道、什么原因）"
+            )
 
         an = lo.analyze(ocr, ocr.get("_pips_rows"))
         lines = lo.card_lines(an)
@@ -112,14 +119,13 @@ class ScanCommands:
             #   同群两人先后识卡会互相顶掉「识卡伤害」的上下文。
             key = f"{umo}|{self._safe_sender(event) or ''}"
             self._last_scan[key] = (time.time(), an["weapon"], cached_spec)
-            if len(self._last_scan) > 128:      # 防长期累积
-                for _k in list(self._last_scan)[:len(self._last_scan) - 128]:
+            if len(self._last_scan) > 128:  # 防长期累积
+                for _k in list(self._last_scan)[: len(self._last_scan) - 128]:
                     self._last_scan.pop(_k, None)
 
         detail = self._loadout_detail_lines(an) if cached_spec is not None else None
         if detail:
-            return Reply(pages=[("配卡识别", lines),
-                                ("配卡识别 · 伤害详情", detail)])
+            return Reply(pages=[("配卡识别", lines), ("配卡识别 · 伤害详情", detail)])
         return Reply("配卡识别", lines)
 
     def _loadout_detail_lines(self, an: dict) -> Optional[list[str]]:
@@ -137,8 +143,10 @@ class ScanCommands:
             if not res.get("ok"):
                 return None
             out = dc.card_lines(weapon, spec, res, [])
-            out.append("※ 与「伤害计算」同一套公式（G系 100 级·身体，无 buff 基准）；"
-                       "换敌人/等级/爆头请发「识卡伤害 对 重机枪手 150级 爆头」")
+            out.append(
+                "※ 与「伤害计算」同一套公式（G系 100 级·身体，无 buff 基准）；"
+                "换敌人/等级/爆头请发「识卡伤害 对 重机枪手 150级 爆头」"
+            )
             return out
         except Exception:  # noqa: BLE001 —— 第二页是增强项，失败不挡第一页
             logger.exception("[sdjk] 识卡伤害详情页生成失败")
@@ -157,21 +165,24 @@ class ScanCommands:
         #   （2026-09-23 起识卡按 会话|发送者 分键，防同群互相顶掉）
         hit = self._last_scan.get(f"{umo}|{snd}")
         if not hit:
-            same_umo = [(k, v) for k, v in self._last_scan.items()
-                        if k.startswith(umo + "|") or k == umo]
+            same_umo = [
+                (k, v) for k, v in self._last_scan.items() if k.startswith(umo + "|") or k == umo
+            ]
             if same_umo:
                 hit = max(same_umo, key=lambda kv: kv[1][0])[1]
         if not hit or time.time() - hit[0] > 1800:
-            for k in [k for k in self._last_scan
-                      if k == umo or k.startswith(umo + "|")]:
+            for k in [k for k in self._last_scan if k == umo or k.startswith(umo + "|")]:
                 self._last_scan.pop(k, None)
-            return Reply("识卡伤害", [
-                "本会话 30 分钟内没有识卡记录。",
-                "　先发「识卡 + 武器升级界面截图」，再用本指令复算：",
-                "　　识卡伤害 对 重机枪手 150级 爆头",
-                "　　识卡伤害 C系 120级｜识卡伤害 满镀层 异常4 连击120 重击",
-                "　参数写法与「伤害」指令一致（识卡伤害 = 伤害 + 已识别配卡）。",
-            ])
+            return Reply(
+                "识卡伤害",
+                [
+                    "本会话 30 分钟内没有识卡记录。",
+                    "　先发「识卡 + 武器升级界面截图」，再用本指令复算：",
+                    "　　识卡伤害 对 重机枪手 150级 爆头",
+                    "　　识卡伤害 C系 120级｜识卡伤害 满镀层 异常4 连击120 重击",
+                    "　参数写法与「伤害」指令一致（识卡伤害 = 伤害 + 已识别配卡）。",
+                ],
+            )
         _ts, weapon, cached = hit
         rest = (parsed.content_str or "").strip()
         try:
@@ -180,8 +191,7 @@ class ScanCommands:
                 default_spec, _ = dc.parse_args([])
                 # 只覆盖「目标/条件」类参数（相对默认值有变化的项），
                 # MOD 折算值沿用识卡结果 —— 避免默认 spec 里的零值冲掉折算
-                overrides = {k: v for k, v in arg_spec.items()
-                             if v != default_spec.get(k)}
+                overrides = {k: v for k, v in arg_spec.items() if v != default_spec.get(k)}
                 spec = {**cached, **overrides}
             else:
                 spec = dict(cached)
@@ -189,16 +199,16 @@ class ScanCommands:
             return Reply("识卡伤害", dc.card_lines(weapon, spec, res, []))
         except Exception as exc:  # noqa: BLE001 —— 绝不静默
             logger.warning("[sdjk] 识卡伤害复算失败：%r", exc)
-            return Reply("识卡伤害", [
-                f"❗ 复算出错：{type(exc).__name__}: {exc}",
-                "　重新发一次「识卡」后再试；参数写法见「伤害」指令的用法页。",
-            ])
-
-
+            return Reply(
+                "识卡伤害",
+                [
+                    f"❗ 复算出错：{type(exc).__name__}: {exc}",
+                    "　重新发一次「识卡」后再试；参数写法见「伤害」指令的用法页。",
+                ],
+            )
 
     @staticmethod
-    def _fit_scan_image(image_url: str, min_width: int = 1600,
-                        max_width: int = 1600) -> str:
+    def _fit_scan_image(image_url: str, min_width: int = 1600, max_width: int = 1600) -> str:
         """把配卡截图规整到「能读清又不过大」的宽度区间：**小图放大、大图缩小**。
 
         · 小图（宽 < min_width）→ Lanczos 放大到 ~1280。
@@ -220,11 +230,12 @@ class ScanCommands:
             import io
 
             from PIL import Image as PILImage
+
             head, b64 = image_url.split(",", 1)
             img = PILImage.open(io.BytesIO(base64.b64decode(b64)))
             w, h = img.size
             if min_width <= w <= max_width:
-                return image_url                      # 已在目标区间，原样送
+                return image_url  # 已在目标区间，原样送
             if w < min_width:
                 scale, target = min(1280.0 / w, 4.0), 1280
             else:
@@ -238,14 +249,16 @@ class ScanCommands:
             buf = io.BytesIO()
             img2.convert("RGB" if fmt == "JPEG" else img2.mode).save(buf, fmt)
             new_b64 = base64.b64encode(buf.getvalue()).decode()
-            logger.info("[sdjk] 配卡截图 %dx%d → %dx%d（已%s，目标宽 %d）",
-                        w, h, nw, nh, action, target)
+            logger.info(
+                "[sdjk] 配卡截图 %dx%d → %dx%d（已%s，目标宽 %d）", w, h, nw, nh, action, target
+            )
             return f"data:image/{fmt.lower()};base64,{new_b64}"
         except Exception:  # noqa: BLE001 —— 规整失败就用原图，别让识卡挂掉
             return image_url
 
-    async def _extract_loadout_validated(self, image_url: str,
-                                         max_attempts: int = 2) -> Optional[dict]:
+    async def _extract_loadout_validated(
+        self, image_url: str, max_attempts: int = 2
+    ) -> Optional[dict]:
         """识别 + 校验闭环：面板校验不过就换渠道/重试一次，取最好的结果。
 
         视觉模型偶发漏行/读串（v1.11 实测：毒素行整行漏掉、总计挂到
@@ -256,7 +269,7 @@ class ScanCommands:
         # ★ 豆子检测要在**缩放前**的原图上做（_detect_pips 的说明）
         pips_rows = await self._detect_pips(image_url)
         image_url = self._fit_scan_image(image_url)
-        best: Optional[tuple[int, dict]] = None   # (失败项数, ocr)
+        best: Optional[tuple[int, dict]] = None  # (失败项数, ocr)
 
         def _finish(o: Optional[dict]) -> Optional[dict]:
             """把豆子结果挂到返回的 ocr 上，供上层复用（免得再检测一次）。"""
@@ -277,11 +290,17 @@ class ScanCommands:
             #   检测成功但**对齐失败**时豆子会被整体弃用，光看检测日志看不出来。
             st = an.get("pips") or {}
             if pips_rows and st:
-                logger.info("[sdjk] 豆子对齐：采用 %s 张 / 冲突 %s 张（检测到 %s 行）",
-                            st.get("used"), st.get("conflict"), st.get("rows"))
+                logger.info(
+                    "[sdjk] 豆子对齐：采用 %s 张 / 冲突 %s 张（检测到 %s 行）",
+                    st.get("used"),
+                    st.get("conflict"),
+                    st.get("rows"),
+                )
                 if not st.get("used"):
-                    logger.warning("[sdjk] ★ 豆子检测到了但**对齐无解**，本次退回容量反推"
-                                   "（截图存到 scan_debug/ 便于排查）")
+                    logger.warning(
+                        "[sdjk] ★ 豆子检测到了但**对齐无解**，本次退回容量反推"
+                        "（截图存到 scan_debug/ 便于排查）"
+                    )
                     self._dump_scan_debug(image_url)
             bad = 6 if not an.get("weapon") else 0
             checks = an.get("checks") or []
@@ -302,8 +321,13 @@ class ScanCommands:
                 low = pips_engine.expected_min_cards(pips_rows)
                 pen = pips_engine.underread_penalty(pips_rows, n_mods)
                 if pen:
-                    logger.warning("[sdjk] ★ 疑似漏读：模型只读到 %d 张，但像素网格里"
-                                   "已有 %d 格有豆 → 判为漏读并重罚 +%d", n_mods, low, pen)
+                    logger.warning(
+                        "[sdjk] ★ 疑似漏读：模型只读到 %d 张，但像素网格里"
+                        "已有 %d 格有豆 → 判为漏读并重罚 +%d",
+                        n_mods,
+                        low,
+                        pen,
+                    )
                     bad += pen
             return bad, an
 
@@ -318,17 +342,18 @@ class ScanCommands:
         _names = []
         for _p in provs:
             try:
-                _names.append(getattr(getattr(_p, "meta", lambda: None)(),
-                                      "id", "") or "?")
+                _names.append(getattr(getattr(_p, "meta", lambda: None)(), "id", "") or "?")
             except Exception:  # noqa: BLE001
                 _names.append("?")
-        logger.info("[sdjk] 识卡：并行 %d 个渠道（窗口 %.0f s）：%s",
-                    len(provs), self.RACE_WINDOW_S, "、".join(_names))
+        logger.info(
+            "[sdjk] 识卡：并行 %d 个渠道（窗口 %.0f s）：%s",
+            len(provs),
+            self.RACE_WINDOW_S,
+            "、".join(_names),
+        )
         loop = asyncio.get_event_loop()
         deadline = loop.time() + max(0.5, float(self.RACE_WINDOW_S))
-        tasks = [asyncio.create_task(
-                     self._extract_loadout_from_image(image_url, p))
-                 for p in provs]
+        tasks = [asyncio.create_task(self._extract_loadout_from_image(image_url, p)) for p in provs]
         try:
             pending = set(tasks)
             while pending:
@@ -336,8 +361,8 @@ class ScanCommands:
                 if timeout <= 0:
                     break
                 done, pending = await asyncio.wait(
-                    pending, timeout=timeout,
-                    return_when=asyncio.FIRST_COMPLETED)
+                    pending, timeout=timeout, return_when=asyncio.FIRST_COMPLETED
+                )
                 if not done:
                     break
                 for t in done:
@@ -380,7 +405,8 @@ class ScanCommands:
         ' ["毒素", 1125.3], ["总计", 1807.3]]}\n'
         "要求：伤害栏里的每一行都要给（含最后一行「总计」）；"
         "行名与数值严格对齐；数字保留小数、去掉千分位逗号；"
-        "看不清的行填 null。除了这个 JSON 什么都不要输出。")
+        "看不清的行填 null。除了这个 JSON 什么都不要输出。"
+    )
 
     async def _read_damage_rows(self, image_url: str) -> Optional[list]:
         """聚焦识别：只读伤害栏的「行名+数值」。失败返回 None。
@@ -390,6 +416,7 @@ class ScanCommands:
         """
         import re as _re
         import uuid as _uuid
+
         for prov in self._vision_providers()[:2]:
             pid = getattr(getattr(prov, "meta", lambda: None)(), "id", "")
             try:
@@ -397,8 +424,10 @@ class ScanCommands:
                     prov.text_chat(
                         prompt=self._ROWS_PROMPT,
                         session_id=f"sdjk-rows-{_uuid.uuid4().hex[:8]}",
-                        image_urls=[image_url]),
-                    timeout=75)
+                        image_urls=[image_url],
+                    ),
+                    timeout=75,
+                )
                 text = (getattr(resp, "completion_text", "") or "").strip()
             except Exception as exc:  # noqa: BLE001
                 logger.warning("[sdjk] 聚焦读行 %s 失败：%s", pid, exc)
@@ -419,18 +448,17 @@ class ScanCommands:
                         out.append([label, v])
             if len(out) >= 3:
                 return out
-            logger.warning("[sdjk] 聚焦读行 %s 只读到 %d 行，换下一个渠道",
-                           pid, len(out))
+            logger.warning("[sdjk] 聚焦读行 %s 只读到 %d 行，换下一个渠道", pid, len(out))
         return None
 
-    async def _extract_loadout_from_image(self, image_url: str,
-                                          prov=None) -> Optional[dict]:
+    async def _extract_loadout_from_image(self, image_url: str, prov=None) -> Optional[dict]:
         """调**单个** vision 渠道读配卡截图，返回结构化 dict 或 None。
 
         prov=None 时取首选渠道。多渠道路由与「边到边校验取最优」在
         _extract_loadout_validated 里做（那边能看到面板校验结果）。
         """
         import time as _t
+
         targets = [prov] if prov is not None else self._vision_providers()[:1]
         targets = [p for p in targets if p is not None]
         if not targets:
@@ -441,10 +469,12 @@ class ScanCommands:
             _t0 = _t.perf_counter()
             try:
                 import uuid as _uuid
+
                 resp = await p.text_chat(
                     prompt=lo.VISION_PROMPT,
                     session_id=f"sdjk-loadout-{_uuid.uuid4().hex[:8]}",
-                    image_urls=[image_url])
+                    image_urls=[image_url],
+                )
                 text = (getattr(resp, "completion_text", "") or "").strip()
             except Exception as exc:  # noqa: BLE001
                 logger.warning("[sdjk] 配卡识别 %s 调用失败：%s", pid, exc)
@@ -454,8 +484,7 @@ class ScanCommands:
             if ocr and (ocr.get("weapon") or ocr.get("mods")):
                 logger.info("[sdjk] 配卡识别 %s 返回结构（%.0f ms）", pid, ms)
                 return ocr
-            logger.warning("[sdjk] 配卡识别 %s 未读出有效内容（%.0f ms）",
-                           pid, ms)
+            logger.warning("[sdjk] 配卡识别 %s 未读出有效内容（%.0f ms）", pid, ms)
             return None
 
         tasks = [asyncio.create_task(_one(p)) for p in targets]
@@ -468,6 +497,3 @@ class ScanCommands:
             for t in tasks:
                 t.cancel()
         return None
-
-
-

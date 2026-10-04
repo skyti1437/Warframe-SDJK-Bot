@@ -13,6 +13,7 @@
   push        蹲订阅差量推送守护协程
   main.py     AstrBot 事件响应与指令分发（本文件）
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -32,16 +33,13 @@ from astrbot.api.star import Context, Star, register
 try:  # 允许脱离 AstrBot 直接跑单元测试
     from .core import __brand__ as BRAND
     from .core import api_client
-    from .core.api_client import (WarframeAPIError, WarframeClient,
-                              parse_url_list)
+    from .core.api_client import WarframeAPIError, WarframeClient, parse_url_list
     from .core import formatters as fmt
     from .core import paths as core_paths
     from .core import wiki_intro
-    from .core.parser import (Parsed, normalize_platform, parse,
-                              PLATFORM_DISPLAY)
+    from .core.parser import Parsed, normalize_platform, parse, PLATFORM_DISPLAY
     from .core.push import PushDaemon, at_targets
-    from .core.render import (ImageRenderer, WATERMARK_VERSION,
-                              migrate_legacy_user_fonts, text_card)
+    from .core.render import ImageRenderer, WATERMARK_VERSION, migrate_legacy_user_fonts, text_card
     from .core.commands import DailyCommands, Reply
     from .core.commands import ProgressCommands
     from .core.commands import ArbitrationCommands
@@ -63,18 +61,16 @@ except ImportError as _imp_err:  # pragma: no cover
     if __package__:
         raise
     from core import __brand__ as BRAND
+
     # 打包器门面锚点：OSS_FACADE_DELETIONS 按此行整块删除，勿删/勿改前缀
     from core import api_client
-    from core.api_client import (WarframeAPIError, WarframeClient,
-                             parse_url_list)
+    from core.api_client import WarframeAPIError, WarframeClient, parse_url_list
     from core import formatters as fmt
     from core import paths as core_paths
     from core import wiki_intro
-    from core.parser import (Parsed, normalize_platform, parse,
-                             PLATFORM_DISPLAY)
+    from core.parser import Parsed, normalize_platform, parse, PLATFORM_DISPLAY
     from core.push import PushDaemon, at_targets
-    from core.render import (ImageRenderer, WATERMARK_VERSION,
-                             migrate_legacy_user_fonts, text_card)
+    from core.render import ImageRenderer, WATERMARK_VERSION, migrate_legacy_user_fonts, text_card
     from core.commands import DailyCommands, Reply
     from core.commands import ProgressCommands
     from core.commands import ArbitrationCommands
@@ -87,8 +83,6 @@ except ImportError as _imp_err:  # pragma: no cover
     from core.commands import DunCommands
     from core.commands.base import _num
     from core.store import GroupStore, SubscriptionStore
-
-
 
 
 def _llm_request_hook():
@@ -142,14 +136,26 @@ def _result_hook():
 #   * "/help"、"/新闻" → 让给内置 / dailyhub
 #   * "/仲裁"、"/赏金" → 没被占用，照常由本插件响应（不破坏用户习惯）
 #   * 裸词 "仲裁" / "新闻" → 本来就没有别的处理器在抢（指令过滤需要前缀），维持原样
-_OCCUPIED_FALLBACK = frozenset({
-    # AstrBot 内置指令（astrbot/builtin_stars/builtin_commands/main.py）
-    "help", "sid", "name", "reset", "stop", "new", "stats", "provider",
-    "dashboard_update", "set", "unset",
-    # 已知的第三方占用（本机实测）。运行期探测失败时靠它兜底 ——
-    # 宁可少避让，也不能把内置帮助这种刚需指令再吞一次。
-    "新闻", "news",
-})
+_OCCUPIED_FALLBACK = frozenset(
+    {
+        # AstrBot 内置指令（astrbot/builtin_stars/builtin_commands/main.py）
+        "help",
+        "sid",
+        "name",
+        "reset",
+        "stop",
+        "new",
+        "stats",
+        "provider",
+        "dashboard_update",
+        "set",
+        "unset",
+        # 已知的第三方占用（本机实测）。运行期探测失败时靠它兜底 ——
+        # 宁可少避让，也不能把内置帮助这种刚需指令再吞一次。
+        "新闻",
+        "news",
+    }
+)
 _OCCUPIED_CACHE: Optional[frozenset] = None
 _OCCUPIED_EPOCH: int = -1
 
@@ -182,7 +188,7 @@ def _occupied_command_words() -> frozenset:
         for handler in registry:
             module_path = getattr(handler, "handler_module_path", "") or ""
             if "astrbot_plugin_warframe_sdjkbot" in module_path:
-                continue                      # 跳过自己，只收集「别人的」
+                continue  # 跳过自己，只收集「别人的」
             for flt in getattr(handler, "event_filters", None) or []:
                 if not isinstance(flt, CommandFilter):
                     continue
@@ -211,8 +217,11 @@ def _raw_candidates(event: AstrMessageEvent) -> list[str]:
     if isinstance(raw, str) and raw:
         out.append(raw)
     try:
-        parts = [getattr(seg, "text", "") for seg in event.get_messages()
-                 if isinstance(seg, Plain) and getattr(seg, "text", None)]
+        parts = [
+            getattr(seg, "text", "")
+            for seg in event.get_messages()
+            if isinstance(seg, Plain) and getattr(seg, "text", None)
+        ]
         if parts:
             out.append("".join(parts))
     except Exception:  # noqa: BLE001
@@ -263,21 +272,21 @@ def strip_md(text: str) -> str:
     if not text or not isinstance(text, str):
         return text
     t = text
-    t = _MD_HR.sub("", t)          # 分隔线 --- / ***
-    t = _MD_BOLD.sub(r"\1", t)     # **加粗** → 加粗
-    t = _MD_ITALIC.sub(r"\1", t)   # *斜体* → 斜体
-    t = _MD_HEAD.sub("", t)        # ## 标题 → 标题
-    t = _MD_QUOTE.sub("", t)       # > 引用 → 引用
-    t = _MD_LIST.sub(r"\1· ", t)   # - 列表 → · 列表（保留视觉分段）
-    t = _MD_OLIST.sub(r"\1", t)    # 1. 列表 → 列表
-    t = _MD_CODE.sub("", t)        # 行内代码 / 围栏
+    t = _MD_HR.sub("", t)  # 分隔线 --- / ***
+    t = _MD_BOLD.sub(r"\1", t)  # **加粗** → 加粗
+    t = _MD_ITALIC.sub(r"\1", t)  # *斜体* → 斜体
+    t = _MD_HEAD.sub("", t)  # ## 标题 → 标题
+    t = _MD_QUOTE.sub("", t)  # > 引用 → 引用
+    t = _MD_LIST.sub(r"\1· ", t)  # - 列表 → · 列表（保留视觉分段）
+    t = _MD_OLIST.sub(r"\1", t)  # 1. 列表 → 列表
+    t = _MD_CODE.sub("", t)  # 行内代码 / 围栏
     # 清理因剥离产生的多余空行
     t = re.sub(r"\n{3,}", "\n\n", t)
     return t.strip() if t.strip() else text
 
 
 PLUGIN_DIR = Path(__file__).resolve().parent
-PLUGIN_NAME = "astrbot_plugin_warframe_sdjkbot"   # 插件身份（须与 metadata.yaml.name 一致）
+PLUGIN_NAME = "astrbot_plugin_warframe_sdjkbot"  # 插件身份（须与 metadata.yaml.name 一致）
 # ★ 2026-09-28 裁定：原先这里有个指向 `core/data/rotations.json` 的**包内路径常量**，
 #   两个读点（时效汇总 / 轮换卡）都直接读它 ⇒ **运行期自动刷新的回写到不了卡面**。
 #   现已统一改走 `core_paths.read_path("rotations.json")`（运行期副本优先、内置包内种子回退），
@@ -294,6 +303,7 @@ def _resolve_data_dir() -> Path:
     """
     try:
         from astrbot.core.star.star_tools import StarTools
+
         return Path(StarTools.get_data_dir(PLUGIN_NAME))
     except Exception:  # noqa: BLE001 - 无 astrbot 环境（离线脚本 / 单测）
         d = Path(tempfile.gettempdir()) / PLUGIN_NAME
@@ -325,7 +335,6 @@ def _migrate_legacy_user_data(data_dir: Path) -> None:
             pass
 
 
-
 # 指令一览：(指令写法, 说明) —— 渲染时按全角空格分成两列对齐。
 #
 # ★ 两条硬规则（2026-09-17 改版，玩家反馈「主指令乱排 / 缺指令 / 看不懂」）：
@@ -335,7 +344,6 @@ def _migrate_legacy_user_data(data_dir: Path) -> None:
 #      以后新增主指令而忘了写进帮助会直接测试失败（条数按 COMMAND_ALIASES 现算，
 #      不写死在测试里）。
 #   分组依据是「玩家在什么场景下会想用它」，同类指令聚在一组。
-
 
 
 HELP_TOPIC: dict[str, list[tuple[str, str]]] = {
@@ -349,8 +357,10 @@ HELP_TOPIC: dict[str, list[tuple[str, str]]] = {
     ],
     "周期与日常": [
         ("夜灵 / 平原时间", "夜灵·金星·魔胎·地球·双衍·扎里曼 周期轮换"),
-        ("赏金 / 声望", "各地区赏金轮次与奖励（「声望」= 赏金；裸发地区词亦可，"
-                        "地球 = 地球赏金 = 地球声望）"),
+        (
+            "赏金 / 声望",
+            "各地区赏金轮次与奖励（「声望」= 赏金；裸发地区词亦可，地球 = 地球赏金 = 地球声望）",
+        ),
         ("裂隙", "虚空裂隙；可筛 钢铁 / 任务类型 / 等级"),
         ("突击 / 执刑官", "每日突击三阶段｜本周执刑官猎杀"),
         ("时效 / 周报", "各周期内容剩余时间总览"),
@@ -391,7 +401,10 @@ HELP_TOPIC: dict[str, list[tuple[str, str]]] = {
         ("金垃圾 / 银垃圾 / 铜垃圾", "按杜卡德价值分档清单"),
     ],
     "伤害与配卡": [
-        ("伤害 武器 对 敌人 100级 膛线", "面板/单发/DPS/含段合计；可加 爆头 病毒10 剥甲 满镀层 钢路"),
+        (
+            "伤害 武器 对 敌人 100级 膛线",
+            "面板/单发/DPS/含段合计；可加 爆头 病毒10 剥甲 满镀层 钢路",
+        ),
         ("灵化 / 基础形态", "有灵化形态的武器默认按灵化算（MOD 照常叠算）"),
         ("空战 / 地面", "空战枪双部署切换"),
         ("进化 基伤/暴击/爆头…", "灵化进化选项，可多次，改基础面板"),
@@ -407,8 +420,10 @@ HELP_TOPIC: dict[str, list[tuple[str, str]]] = {
         ("wr / 紫卡 武器名", "紫卡拍卖：词条·洗数·极性筛选"),
         ("rm 武器名", "源紫卡报价"),
         ("紫卡排行 / 排行", "热度榜；「紫卡排行 刷新」强更"),
-        ("wm 物品名", "在售/收购；部件查单加 蓝图/机体/系统/头部；"
-                     "可加 满级 / 光辉 / 墨染 / N个 / -r 密语"),
+        (
+            "wm 物品名",
+            "在售/收购；部件查单加 蓝图/机体/系统/头部；可加 满级 / 光辉 / 墨染 / N个 / -r 密语",
+        ),
         ("趋势 物品名", "48h / 90d 价格走势"),
     ],
     "后台推送": [
@@ -434,33 +449,46 @@ HELP_TOPIC: dict[str, list[tuple[str, str]]] = {
 # ---------------------------------------------------------------------------
 
 
-@register("astrbot_plugin_warframe_sdjkbot", "skyti1437",
-          f"{BRAND}：世界状态 / 市场查价 / 蹲点推送",
-          "1.1.5")
-class WarframeSDJK(DailyCommands, ProgressCommands, ArbitrationCommands, RotationCommands, RelicCommands, MarketCommands, RivenCommands, WikiMiscCommands, VisionCommands, ScanCommands, DunCommands, Star):
+@register(
+    "astrbot_plugin_warframe_sdjkbot", "SDJK", f"{BRAND}：世界状态 / 市场查价 / 蹲点推送", "1.1.5"
+)
+class WarframeSDJK(
+    DailyCommands,
+    ProgressCommands,
+    ArbitrationCommands,
+    RotationCommands,
+    RelicCommands,
+    MarketCommands,
+    RivenCommands,
+    WikiMiscCommands,
+    VisionCommands,
+    ScanCommands,
+    DunCommands,
+    Star,
+):
     def __init__(self, context: Context, config: AstrBotConfig | None = None):
         super().__init__(context)
         self.cfg: dict = dict(config) if config else {}
         # 运行期数据目录：data/plugin_data/<插件名>（规范要求），不再写插件包目录。
         data_dir = _resolve_data_dir()
         self.data_dir = data_dir
-        _migrate_legacy_user_data(data_dir)   # 旧版写在插件目录的数据一次性搬家
-        core_paths.set_run_dir(data_dir)      # core 层的快照/缓存同源
+        _migrate_legacy_user_data(data_dir)  # 旧版写在插件目录的数据一次性搬家
+        core_paths.set_run_dir(data_dir)  # core 层的快照/缓存同源
         # FlareSolverr / 知识库：**开源版要能自己填**（自用版默认值照旧）。
         #   地址按逗号或换行分隔；填了非法值就回退内置默认，不静默猜。
         _flare_urls = parse_url_list(str(self.cfg.get("flaresolverr_urls") or ""))
         self.client = WarframeClient(
             kuvalog_url=(self.cfg.get("kuvalog_url") or ""),
             worldsource=self.cfg.get("worldsource", "de"),
-            worldstate_base=self.cfg.get("worldstate_base",
-                                         "https://api.warframestat.us"),
+            worldstate_base=self.cfg.get("worldstate_base", "https://api.warframestat.us"),
             timeout=_num(self.cfg, "http_timeout", 15.0),
             proxy=(self.cfg.get("proxy") or None),
             flare_enabled=bool(self.cfg.get("flaresolverr_enabled", True)),
             flare_urls=_flare_urls or None,
         )
-        self.groups = GroupStore(data_dir / "groups.json",
-                                 default_platform=self.cfg.get("default_platform", "pc"))
+        self.groups = GroupStore(
+            data_dir / "groups.json", default_platform=self.cfg.get("default_platform", "pc")
+        )
         self.subs = SubscriptionStore(data_dir / "subscriptions.json")
         # 用户自带字体迁移（AstrBot 开发原则：持久化数据进 data 目录）：
         # 插件目录里的手放字体搬到 data 目录；随包子集 otf 留在原地。
@@ -468,10 +496,12 @@ class WarframeSDJK(DailyCommands, ProgressCommands, ArbitrationCommands, Rotatio
         try:
             _moved_fonts = migrate_legacy_user_fonts(data_dir / "fonts")
             if _moved_fonts:
-                logger.info("[sdjk] 已把插件目录里的 %d 个用户字体搬到 %s"
-                            "（插件更新/重装不再丢）",
-                            len(_moved_fonts), data_dir / "fonts")
-        except Exception:                       # noqa: BLE001 - 迁移失败不阻断启动
+                logger.info(
+                    "[sdjk] 已把插件目录里的 %d 个用户字体搬到 %s（插件更新/重装不再丢）",
+                    len(_moved_fonts),
+                    data_dir / "fonts",
+                )
+        except Exception:  # noqa: BLE001 - 迁移失败不阻断启动
             logger.warning("[sdjk] 用户字体迁移失败（不影响启动）", exc_info=True)
         self.renderer = ImageRenderer(data_dir / "cards")
         self._last_scan: dict[str, tuple[float, dict, dict]] = {}  # 会话→(时刻, 武器, 折算spec)
@@ -481,45 +511,73 @@ class WarframeSDJK(DailyCommands, ProgressCommands, ArbitrationCommands, Rotatio
         self._ocr_last: dict[str, float] = {}
         self.render_mode = self.cfg.get("render_mode", "image")
         self.page_size = int(_num(self.cfg, "page_size", 12))
-        self.push = PushDaemon(self.client, self.subs, self._push_send, logger,
-                               interval=int(_num(self.cfg, "push_interval", 45)))
+        self.push = PushDaemon(
+            self.client,
+            self.subs,
+            self._push_send,
+            logger,
+            interval=int(_num(self.cfg, "push_interval", 45)),
+        )
         self._routes = self._build_routes()
 
     def _build_routes(self) -> dict:
         """指令名 -> handler 映射（独立成方法便于离线自检）。"""
         return {
             "help": self._h_help,
-            "cetus": self._h_cetus, "timers": self._h_timers,
-            "bounty": self._h_bounty, "fissures": self._h_fissures,
-            "sortie": self._h_sortie, "archon": self._h_archon,
-            "voidtrader": self._h_voidtrader, "dailydeals": self._h_dailydeals,
-            "calendar": self._h_calendar, "deeparchimedea": self._h_deep,
-            "temporalarchimedea": self._h_temporal, "steelpath": self._h_steelpath,
+            "cetus": self._h_cetus,
+            "timers": self._h_timers,
+            "bounty": self._h_bounty,
+            "fissures": self._h_fissures,
+            "sortie": self._h_sortie,
+            "archon": self._h_archon,
+            "voidtrader": self._h_voidtrader,
+            "dailydeals": self._h_dailydeals,
+            "calendar": self._h_calendar,
+            "deeparchimedea": self._h_deep,
+            "temporalarchimedea": self._h_temporal,
+            "steelpath": self._h_steelpath,
             "slivershop": self._h_slivershop,
             "translate": self._h_translate,
-            "arbitration": self._h_arbitration, "arbtable": self._h_arbtable, "alerts": self._h_alerts,
-            "invasions": self._h_invasions, "nightwave": self._h_nightwave,
-            "news": self._h_news, "kuva": self._h_kuva,
-            "synthtargets": self._h_synth, "construction": self._h_construction,
-            "voidstorms": self._h_voidstorms, "events": self._h_events,
-            "conclave": self._h_conclave, "primevault": self._h_primevault,
-            "clanrewards": self._h_clanrewards, "flashsales": self._h_flashsales,
-            "incarnon": self._h_rotation_incarnon, "tenet": self._h_rotation_tenet,
-            "coda": self._h_rotation_coda, "acrichis": self._h_acrichis,
-            "descendia": self._h_descendia, "incursions": self._h_incursions,
+            "arbitration": self._h_arbitration,
+            "arbtable": self._h_arbtable,
+            "alerts": self._h_alerts,
+            "invasions": self._h_invasions,
+            "nightwave": self._h_nightwave,
+            "news": self._h_news,
+            "kuva": self._h_kuva,
+            "synthtargets": self._h_synth,
+            "construction": self._h_construction,
+            "voidstorms": self._h_voidstorms,
+            "events": self._h_events,
+            "conclave": self._h_conclave,
+            "primevault": self._h_primevault,
+            "clanrewards": self._h_clanrewards,
+            "flashsales": self._h_flashsales,
+            "incarnon": self._h_rotation_incarnon,
+            "tenet": self._h_rotation_tenet,
+            "coda": self._h_rotation_coda,
+            "acrichis": self._h_acrichis,
+            "descendia": self._h_descendia,
+            "incursions": self._h_incursions,
             "wiki": self._h_wiki,
             "valence": self._h_valence,
             "damage": self._h_damage,
             "scan": self._h_scan,
             "scandamage": self._h_scan_damage,
-            "wm": self._h_wm, "wr": self._h_wr, "rm": self._h_rm,
-            "rank": self._h_rank, "trend": self._h_trend,
+            "wm": self._h_wm,
+            "wr": self._h_wr,
+            "rm": self._h_rm,
+            "rank": self._h_rank,
+            "trend": self._h_trend,
             "openrelic": self._h_openrelic,
-            "xh": self._h_xh, "disposition": self._h_disposition,
+            "xh": self._h_xh,
+            "disposition": self._h_disposition,
             "analysis": self._h_riven_analysis,
-            "relic": self._h_relic, "parts": self._h_parts,
+            "relic": self._h_relic,
+            "parts": self._h_parts,
             "ducats": self._h_ducats,
-            "dun": self._h_dun, "status": self._h_status_cmd,
+            "dun": self._h_dun,
+            "status": self._h_status_cmd,
         }
 
 
@@ -569,12 +627,14 @@ class WarframeSDJK(DailyCommands, ProgressCommands, ArbitrationCommands, Rotatio
         8 天没人知道。凡 fire-and-forget 的常驻任务一律挂本回调：只要**不是
         主动取消**（CancelledError）就以 WARNING 记录，便于 grep 发现。
         """
+
         def _cb(task: "asyncio.Task") -> None:
             if task.cancelled():
                 return
             exc = task.exception()
             if exc is not None:
                 logger.warning("[sdjk] 后台任务 %s 异常退出：%r", name, exc)
+
         return _cb
 
     async def initialize(self):
@@ -582,12 +642,10 @@ class WarframeSDJK(DailyCommands, ProgressCommands, ArbitrationCommands, Rotatio
         self._auto_task = asyncio.create_task(self._rank_autoloop())
         self._auto_task.add_done_callback(self._log_task_death("_rank_autoloop"))
         self._valence_task = asyncio.create_task(self._valence_autoloop())
-        self._valence_task.add_done_callback(
-            self._log_task_death("_valence_autoloop"))
+        self._valence_task.add_done_callback(self._log_task_death("_valence_autoloop"))
         # 社区快照轻轮询：只对「没装/连不上 FS」的用户生效（见 _community_autoloop）
         self._community_task = asyncio.create_task(self._community_autoloop())
-        self._community_task.add_done_callback(
-            self._log_task_death("_community_autoloop"))
+        self._community_task.add_done_callback(self._log_task_death("_community_autoloop"))
         # 首启后台预热（2026-09-29 追加批，2026-10-01 扩展为 _boot_warm）：
         # ①社区快照 ②WM 物品/紫卡武器表（见 `_boot_warm`）。此前社区快照只有
         # 轻轮询的 30 分钟 tick 才拉，没装 FS 的用户首启最坏要等半小时；
@@ -599,9 +657,12 @@ class WarframeSDJK(DailyCommands, ProgressCommands, ArbitrationCommands, Rotatio
         # 不预热时第一条指令要现读武器库/进化/灵化形态/多段/部署表，叠加后
         # 会让首条指令明显变慢（2026-09-17 玩家反馈「半天才出来」）。
         asyncio.create_task(asyncio.to_thread(self._warmup))
-        logger.info("[sdjk] 插件已加载，共注册 %d 个主指令（输出模式 %s，渲染器%s）",
-                    len(self._routes), self.render_mode,
-                    "可用" if self.renderer.available else "不可用·降级文字")
+        logger.info(
+            "[sdjk] 插件已加载，共注册 %d 个主指令（输出模式 %s，渲染器%s）",
+            len(self._routes),
+            self.render_mode,
+            "可用" if self.renderer.available else "不可用·降级文字",
+        )
         if not self.renderer.available:
             # ★ 别只说「降级文字」（2026-09-25 立）：市场/开源包不带字体，
             #   给用户能直接照做的排查指引。
@@ -611,7 +672,8 @@ class WarframeSDJK(DailyCommands, ProgressCommands, ArbitrationCommands, Rotatio
                 "（或 fonts-wqy-microhei）；"
                 "② 或下载字体 `python scripts/fetch_font.py`；"
                 "③ 或把任意中文字体（ttc/ttf/otf）放到插件数据目录的 fonts/ 下"
-                "（随插件更新保留）；改完重载插件，本行应变为「渲染器可用」")
+                "（随插件更新保留）；改完重载插件，本行应变为「渲染器可用」"
+            )
         if self._wiki_intro_on():
             try:
                 # 用模块级 `wiki_intro`（顶部 try 双分支已导入）—— 原先这里函数内裸
@@ -623,7 +685,8 @@ class WarframeSDJK(DailyCommands, ProgressCommands, ArbitrationCommands, Rotatio
                     logger.warning(
                         "[sdjk] wiki 简介卡数据缺失（core/data/wiki_intro.json 被删？"
                         "v1.0.7 起随包分发）：该类条目将退「最小卡」+ 可点链接；"
-                        "MOD 效果行回落英文。重装插件或从发行包补齐该文件即可恢复")
+                        "MOD 效果行回落英文。重装插件或从发行包补齐该文件即可恢复"
+                    )
             except Exception:  # noqa: BLE001 - 探测失败不影响启动
                 pass
 
@@ -631,6 +694,7 @@ class WarframeSDJK(DailyCommands, ProgressCommands, ArbitrationCommands, Rotatio
     def _warmup() -> None:
         """预热：伤害计算/紫卡分析用到的静态数据一次性载入。"""
         import time as _t
+
         _t0 = _t.perf_counter()
         try:
             from .core import damage_calc as _dc
@@ -638,8 +702,10 @@ class WarframeSDJK(DailyCommands, ProgressCommands, ArbitrationCommands, Rotatio
             from core import damage_calc as _dc
         try:
             _dc.warmup()
-            logger.info("[sdjk] 预热完成 %.0f ms（武器库/进化/灵化形态/多段/部署）",
-                        (_t.perf_counter() - _t0) * 1000)
+            logger.info(
+                "[sdjk] 预热完成 %.0f ms（武器库/进化/灵化形态/多段/部署）",
+                (_t.perf_counter() - _t0) * 1000,
+            )
         except Exception as exc:  # noqa: BLE001 —— 预热失败不影响功能
             logger.warning("[sdjk] 预热失败（不影响功能）：%s", exc)
 
@@ -671,23 +737,24 @@ class WarframeSDJK(DailyCommands, ProgressCommands, ArbitrationCommands, Rotatio
                 ts = data.get("ts") or ""
                 import time as _t
                 from datetime import datetime
+
                 try:
-                    age = (_t.time() - datetime.fromisoformat(ts).timestamp())
+                    age = _t.time() - datetime.fromisoformat(ts).timestamp()
                 except ValueError:
                     age = float("inf")
                 if age > 48 * 3600:
                     # 闲时闸门：白天不爬（会拖慢用户的 wm/wr 查询）
                     if datetime.now().hour not in self.RANK_CRAWL_IDLE_HOURS:
                         logger.info(
-                            "[sdjk] 价格榜单已过期，但非闲时（%02d 点），"
-                            "凌晨 %d-%d 点再爬", datetime.now().hour,
+                            "[sdjk] 价格榜单已过期，但非闲时（%02d 点），凌晨 %d-%d 点再爬",
+                            datetime.now().hour,
                             self.RANK_CRAWL_IDLE_HOURS[0],
-                            self.RANK_CRAWL_IDLE_HOURS[-1])
+                            self.RANK_CRAWL_IDLE_HOURS[-1],
+                        )
                         await asyncio.sleep(1800)
                         continue
                     logger.info("[sdjk] 价格榜单缺失或超 48 小时，开始自动重建")
-                    n = await self.client.crawl_wm_ranks(
-                        limit=self.RANK_CRAWL_MAX_PER_RUN)
+                    n = await self.client.crawl_wm_ranks(limit=self.RANK_CRAWL_MAX_PER_RUN)
                     logger.info("[sdjk] 价格榜单本轮抓取结束（累计 %d 项）", n)
                 await asyncio.sleep(1800)
             except asyncio.CancelledError:
@@ -729,7 +796,8 @@ class WarframeSDJK(DailyCommands, ProgressCommands, ArbitrationCommands, Rotatio
             "（社区快照来自公开仓 bot-data 分支，免盾，有就自动用），不再直连 wiki。"
             "· 不需要该功能：在配置面板关闭「启用 CF 绕过代理（FlareSolverr）」，本提示随之消失；"
             "· 需要：部署 FlareSolverr 并把可达地址填进「FlareSolverr 地址」"
-            "（容器内 127.0.0.1 到不了宿主机，常用 http://172.17.0.1:8191）。")
+            "（容器内 127.0.0.1 到不了宿主机，常用 http://172.17.0.1:8191）。"
+        )
 
     async def _boot_warm(self) -> None:
         """首启后台预热（fire-and-forget，2026-09-29 追加批 + 2026-10-01 扩展）。
@@ -750,13 +818,13 @@ class WarframeSDJK(DailyCommands, ProgressCommands, ArbitrationCommands, Rotatio
         """
         try:
             await asyncio.wait_for(self._refresh_from_community(), timeout=90)
-        except Exception as exc:                    # noqa: BLE001 - 首启拉取不阻塞启动
+        except Exception as exc:  # noqa: BLE001 - 首启拉取不阻塞启动
             logger.warning("[sdjk] 首启社区快照拉取跳过/失败：%r", exc)
         try:
             await asyncio.wait_for(self.client.wm_items(), timeout=120)
             await asyncio.wait_for(self.client.wm_riven_weapons(), timeout=120)
             logger.info("[sdjk] 首启预热：WM 物品/紫卡武器表已就绪")
-        except Exception as exc:                    # noqa: BLE001 - 首启预热不阻塞启动
+        except Exception as exc:  # noqa: BLE001 - 首启预热不阻塞启动
             logger.warning("[sdjk] 首启 WM 表预热失败：%r", exc)
 
     async def _refresh_from_community(self) -> None:
@@ -768,20 +836,18 @@ class WarframeSDJK(DailyCommands, ProgressCommands, ArbitrationCommands, Rotatio
         """
         for tag, make in (
             ("元素加成", lambda: self.client.refresh_valence(community_only=True)),
-            ("言录使货单",
-             lambda: self.client.refresh_acrichis_week(community_only=True)),
+            ("言录使货单", lambda: self.client.refresh_acrichis_week(community_only=True)),
         ):
             try:
                 st = await make()
-            except Exception as exc:                    # noqa: BLE001
+            except Exception as exc:  # noqa: BLE001
                 logger.debug("[sdjk] 社区快照（%s）不可用：%s", tag, exc)
                 continue
             if isinstance(st, str) and st.startswith("refreshed"):
                 logger.info("[sdjk] %s已从社区快照刷新：%s", tag, st)
 
     @staticmethod
-    def _secs_to_aligned_tick(step_hours: int = 6, minute: int = 5,
-                              jitter_min: int = 15) -> float:
+    def _secs_to_aligned_tick(step_hours: int = 6, minute: int = 5, jitter_min: int = 15) -> float:
         """距下一个「整 step 小时 + minute 分」UTC 边界的秒数（含随机抖动）。
 
         ★ 2026-09-25：旧写法是 ``sleep(6*3600)``，检查点跟着**开机时刻**漂；
@@ -790,9 +856,9 @@ class WarframeSDJK(DailyCommands, ProgressCommands, ArbitrationCommands, Rotatio
         后最坏约 5 分钟；抖动 0–15 分钟避免所有实例在同一分钟扎堆打 wiki。
         """
         from datetime import datetime, timedelta, timezone
+
         now = datetime.now(timezone.utc)
-        nxt = (now + timedelta(hours=step_hours)).replace(
-            minute=0, second=0, microsecond=0)
+        nxt = (now + timedelta(hours=step_hours)).replace(minute=0, second=0, microsecond=0)
         nxt -= timedelta(hours=nxt.hour % step_hours)
         nxt += timedelta(minutes=minute + random.randint(0, jitter_min))
         return max(60.0, (nxt - now).total_seconds())
@@ -808,7 +874,7 @@ class WarframeSDJK(DailyCommands, ProgressCommands, ArbitrationCommands, Rotatio
             try:
                 await asyncio.sleep(30 * 60)
                 if await self._flare_phase() == "ready":
-                    continue          # 有 FS 的用户直连 wiki，不必读快照
+                    continue  # 有 FS 的用户直连 wiki，不必读快照
                 await self._refresh_from_community()
             except asyncio.CancelledError:
                 raise
@@ -841,8 +907,9 @@ class WarframeSDJK(DailyCommands, ProgressCommands, ArbitrationCommands, Rotatio
                                 _k, _v = _ln.split(":", 1)
                                 _st[_k] = _v.strip()
                     if _st:
-                        logger.info("[sdjk] 进程内存自报：%s",
-                                    " ".join(f"{k}={v}" for k, v in _st.items()))
+                        logger.info(
+                            "[sdjk] 进程内存自报：%s", " ".join(f"{k}={v}" for k, v in _st.items())
+                        )
                 except Exception:  # noqa: BLE001 - 非 Linux（本地调试）跳过
                     pass
 
@@ -859,7 +926,7 @@ class WarframeSDJK(DailyCommands, ProgressCommands, ArbitrationCommands, Rotatio
                     await self._refresh_from_community()
                     await asyncio.sleep(self._secs_to_aligned_tick())
                     continue
-                self._flare_absent_warned_at = 0.0        # 恢复可达 → 重置降频计时
+                self._flare_absent_warned_at = 0.0  # 恢复可达 → 重置降频计时
 
                 # 每轮刷新前回收 FlareSolverr 会话（destroy→create）：换一个全新
                 # 标签页，防 Chromium 长跑崩掉后整轮连败（2026-09-25 事故：
@@ -888,12 +955,15 @@ class WarframeSDJK(DailyCommands, ProgressCommands, ArbitrationCommands, Rotatio
                     if acr_status == "refreshed":
                         logger.info("[sdjk] 言录使本周货单已自动刷新")
                     elif acr_status == "not-updated":
-                        logger.warning("[sdjk] 言录使货单已过期且 wiki 当期上报"
-                                       "尚未更新，卡面暂以候选池展示")
+                        logger.warning(
+                            "[sdjk] 言录使货单已过期且 wiki 当期上报尚未更新，卡面暂以候选池展示"
+                        )
                     elif acr_status == "failed":
-                        logger.warning("[sdjk] 言录使本周货单自动抓取失败："
-                                       "需人工更新 core/data/de/acrichis_week.json"
-                                       "（卡面已标注「货单待更新」）")
+                        logger.warning(
+                            "[sdjk] 言录使本周货单自动抓取失败："
+                            "需人工更新 core/data/de/acrichis_week.json"
+                            "（卡面已标注「货单待更新」）"
+                        )
                 except Exception:  # noqa: BLE001 - 自检失败不阻断
                     pass
                 await asyncio.sleep(self._secs_to_aligned_tick())
@@ -969,8 +1039,7 @@ class WarframeSDJK(DailyCommands, ProgressCommands, ArbitrationCommands, Rotatio
     # ------------------------------------------------------------------
     # 输出构建：-w 文字 / -t 图片 / 自适应
     # ------------------------------------------------------------------
-    async def _build_results(self, event: AstrMessageEvent, reply: Reply,
-                             parsed: Parsed):
+    async def _build_results(self, event: AstrMessageEvent, reply: Reply, parsed: Parsed):
         """输出构建（异步生成器）。
 
         渲染是 PIL 同步重活，必须扔到线程池 —— AstrBot 的单事件循环里
@@ -1012,8 +1081,8 @@ class WarframeSDJK(DailyCommands, ProgressCommands, ArbitrationCommands, Rotatio
                     WarframeSDJK._render_lock = asyncio.Lock()
                 async with WarframeSDJK._render_lock:
                     path = await asyncio.to_thread(
-                        self.renderer.render, f"{ptitle}（第{i}/{n}页）",
-                        plines, reply.footer)
+                        self.renderer.render, f"{ptitle}（第{i}/{n}页）", plines, reply.footer
+                    )
                 if path:
                     comps.append(Image.fromFileSystem(path))
                     self._schedule_card_cleanup(path)
@@ -1022,16 +1091,18 @@ class WarframeSDJK(DailyCommands, ProgressCommands, ArbitrationCommands, Rotatio
                     comps.append(Plain(tail_txt))
                 yield event.chain_result(comps)
                 return
-            logger.warning("[sdjk] 多页卡片渲染为空，已降级文字输出：%s",
-                           reply.pages[0][0] if reply.pages else "?")
+            logger.warning(
+                "[sdjk] 多页卡片渲染为空，已降级文字输出：%s",
+                reply.pages[0][0] if reply.pages else "?",
+            )
 
         if use_image:
             if WarframeSDJK._render_lock is None:
                 WarframeSDJK._render_lock = asyncio.Lock()
             async with WarframeSDJK._render_lock:
                 path = await asyncio.to_thread(
-                    self.renderer.render, reply.title,
-                    reply.lines, reply.footer)
+                    self.renderer.render, reply.title, reply.lines, reply.footer
+                )
             if path:
                 components = [Image.fromFileSystem(path)]
                 if tail_txt:
@@ -1044,20 +1115,21 @@ class WarframeSDJK(DailyCommands, ProgressCommands, ArbitrationCommands, Rotatio
 
         if reply.pages:
             # 文本降级：多页按分节拼接
-            card = "\n\n".join(text_card(pt, pl, reply.footer)
-                                for pt, pl in reply.pages)
+            card = "\n\n".join(text_card(pt, pl, reply.footer) for pt, pl in reply.pages)
         else:
             card = text_card(reply.title, reply.lines, reply.footer)
         yield event.plain_result(card + tail_txt)
 
     def _schedule_card_cleanup(self, path: str, delay: float = 120.0):
         """卡片发出后延迟删除本地文件（缓冲期内完成 QQ 上传）。"""
+
         async def _rm():
             await asyncio.sleep(delay)
             try:
                 Path(path).unlink(missing_ok=True)
             except OSError:
                 pass
+
         try:
             asyncio.get_running_loop().create_task(_rm())
         except RuntimeError:
@@ -1116,10 +1188,14 @@ class WarframeSDJK(DailyCommands, ProgressCommands, ArbitrationCommands, Rotatio
                 if not plat:
                     return Reply(raw_text="用法：.默认平台 pc/ps/xb/sw")
                 await self.groups.set_platform(umo, plat)
-                return Reply(raw_text=f"✅ 本群默认平台已设为 {PLATFORM_DISPLAY[plat]}"
-                                      f"（{plat}），可用 -pc/-ps 等临时覆盖")
+                return Reply(
+                    raw_text=f"✅ 本群默认平台已设为 {PLATFORM_DISPLAY[plat]}"
+                    f"（{plat}），可用 -pc/-ps 等临时覆盖"
+                )
             cur = self.groups.get(umo)
-            return Reply(raw_text=f"当前默认平台：{PLATFORM_DISPLAY.get(cur['platform'], cur['platform'])}")
+            return Reply(
+                raw_text=f"当前默认平台：{PLATFORM_DISPLAY.get(cur['platform'], cur['platform'])}"
+            )
 
         if cmd in ("开启", "关闭"):
             if not self._is_admin(event):
@@ -1129,16 +1205,17 @@ class WarframeSDJK(DailyCommands, ProgressCommands, ArbitrationCommands, Rotatio
             value = cmd == "开启"
             await self.groups.set_switch(umo, args[0], value)
             state = "已开启" if value else "已关闭"
-            return Reply(raw_text=f"✅ {args[0]}功能{state}"
-                                  + ("，可以用「蹲 类型」订阅推送了" if value and args[0] == "推送" else ""))
+            return Reply(
+                raw_text=f"✅ {args[0]}功能{state}"
+                + ("，可以用「蹲 类型」订阅推送了" if value and args[0] == "推送" else "")
+            )
 
         if cmd == "状态":
             # ★ 安全审查（2026-09-18）：这条会列出**本群全部订阅明细**
             #   （谁订了什么、还剩多久）与缓存统计，却完全没有权限校验 ——
             #   群里任何人都能看。改为与其它管理指令一致。
             if not self._is_admin(event):
-                return Reply(raw_text="⛔ 该指令需要群管理员权限"
-                                      "（会列出本群订阅明细）")
+                return Reply(raw_text="⛔ 该指令需要群管理员权限（会列出本群订阅明细）")
             g = self.groups.get(umo)
             subs = self.subs.for_umo(umo)
             cache = self.client.cache.stats()
@@ -1153,16 +1230,22 @@ class WarframeSDJK(DailyCommands, ProgressCommands, ArbitrationCommands, Rotatio
                         life = "永久"
                     else:
                         left = s.until - time.time()
-                        life = (f"剩{left // 86400:.0f}天{left % 86400 // 3600:.0f}小时"
-                                if left >= 3600 else f"剩{max(left, 0) // 60:.0f}分钟")
+                        life = (
+                            f"剩{left // 86400:.0f}天{left % 86400 // 3600:.0f}小时"
+                            if left >= 3600
+                            else f"剩{max(left, 0) // 60:.0f}分钟"
+                        )
                     mode = "一次" if s.once else "持续"
-                    lines.append(f"· {i}. {s.event}"
-                                 + (f"：{s.rule}" if s.rule else "")
-                                 + f"　{mode}·{life}")
+                    lines.append(
+                        f"· {i}. {s.event}" + (f"：{s.rule}" if s.rule else "") + f"　{mode}·{life}"
+                    )
             lines.append("◆ 系统")
             lines.append(f"· 缓存　{cache['size']} 项 · 命中率 {cache['hit_rate'] * 100:.0f}%")
-            return Reply(f"{BRAND} {WATERMARK_VERSION}", lines,
-                         footer=fmt.fmt_platform_footer(self.groups.platform(umo)))
+            return Reply(
+                f"{BRAND} {WATERMARK_VERSION}",
+                lines,
+                footer=fmt.fmt_platform_footer(self.groups.platform(umo)),
+            )
 
         if cmd == "锚点":
             # ★★ 安全审查（2026-09-18）发现：本指令写入的锚点**没有任何读取方**。
@@ -1173,10 +1256,12 @@ class WarframeSDJK(DailyCommands, ProgressCommands, ArbitrationCommands, Rotatio
             #   属于跨租户写入。
             #   按项目铁律「失效功能必须给出真实可用的替代指令」，这里保留指令名
             #   但**明确告知已废弃**，且不再写任何全局状态。
-            return Reply(raw_text="「.锚点」已废弃：仲裁表现在按 arbi.wf.wiki 的"
-                                  "确定性排期自动推算，不需要手动校准。\n"
-                                  "· 看当前与下一小时场次：发「仲裁」\n"
-                                  "· 看整周 30 天排期：发「仲裁表」（可筛类型）")
+            return Reply(
+                raw_text="「.锚点」已废弃：仲裁表现在按 arbi.wf.wiki 的"
+                "确定性排期自动推算，不需要手动校准。\n"
+                "· 看当前与下一小时场次：发「仲裁」\n"
+                "· 看整周 30 天排期：发「仲裁表」（可筛类型）"
+            )
         if cmd in ("帮助", "help"):
             return await self._h_help(None, event, self.groups.platform(umo))
         return None
@@ -1186,7 +1271,6 @@ class WarframeSDJK(DailyCommands, ProgressCommands, ArbitrationCommands, Rotatio
     # ------------------------------------------------------------------
     async def _gather(self, coros):
         return await asyncio.gather(*coros, return_exceptions=True)
-
 
     # ------------------------------------------------------------------
     # 资料与计算器
@@ -1204,8 +1288,7 @@ class WarframeSDJK(DailyCommands, ProgressCommands, ArbitrationCommands, Rotatio
             lines.append(f"◆ {t}")
             # 全角空格分隔：渲染层按此切成两列并做首字符垂直线对齐
             lines += [f"· {c}　{d}" for c, d in items]
-        return Reply(f"{BRAND} 指令一览", lines,
-                     footer=fmt.fmt_platform_footer(platform))
+        return Reply(f"{BRAND} 指令一览", lines, footer=fmt.fmt_platform_footer(platform))
 
     # ------------------------------------------------------------------
     # 蹲（后台推送订阅）
@@ -1213,7 +1296,6 @@ class WarframeSDJK(DailyCommands, ProgressCommands, ArbitrationCommands, Rotatio
     async def _h_status_cmd(self, parsed, event, platform) -> Reply:
         """状态指令（同 .状态）。"""
         return await self._handle_admin(event, ".状态")
-
 
     # ------------------------------------------------------------------
     # 推送回调
@@ -1230,6 +1312,7 @@ class WarframeSDJK(DailyCommands, ProgressCommands, ArbitrationCommands, Rotatio
         if ids:
             try:
                 from astrbot.api.message_components import At
+
                 chain = MessageChain()
                 for q in ids:
                     chain.chain.append(At(qq=q))

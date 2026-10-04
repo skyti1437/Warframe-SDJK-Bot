@@ -5,6 +5,7 @@
     python scripts/smoke_all.py            # 全部
     python scripts/smoke_all.py --parse    # 只跑解析层（离线、快）
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -14,7 +15,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core import parser as P                                    # noqa: E402
+from core import parser as P  # noqa: E402
 
 # 参数型指令补样例（其余从别名表自动取）
 EXTRA = {
@@ -60,8 +61,10 @@ def phase_parse() -> None:
             if P.parse(a).command != cmd:
                 bad_alias += 1
                 print(f"  ✗ 别名「{a}」→ {P.parse(a).command}（应为 {cmd}）")
-    print(f"  别名：{sum(len(v) for v in P.COMMAND_ALIASES.values()) - bad_alias}"
-          f"/{sum(len(v) for v in P.COMMAND_ALIASES.values())} 命中")
+    print(
+        f"  别名：{sum(len(v) for v in P.COMMAND_ALIASES.values()) - bad_alias}"
+        f"/{sum(len(v) for v in P.COMMAND_ALIASES.values())} 命中"
+    )
 
     # 预设命令（金/银/铜垃圾、钢铁裂隙…）
     bad_pre = 0
@@ -70,14 +73,17 @@ def phase_parse() -> None:
         if r.command != cmd or r.preset != preset:
             bad_pre += 1
             print(f"  ✗ 预设「{alias}」→ {r.command}/{r.preset}（应为 {cmd}/{preset}）")
-    print(f"  预设命令：{len(P._PRESET_COMMANDS) - bad_pre}"
-          f"/{len(P._PRESET_COMMANDS)} 命中")
+    print(f"  预设命令：{len(P._PRESET_COMMANDS) - bad_pre}/{len(P._PRESET_COMMANDS)} 命中")
 
     # 通用修饰符
     print("  修饰符：", end="")
-    mods = [("-pc 夜灵", "platform", "pc"), ("夜灵 -w", "text_mode", True),
-            ("夜灵 -t", "image_mode", True), ("wm 绝路 -r", "whisper", True),
-            ("裂隙 -2", "page", 2)]
+    mods = [
+        ("-pc 夜灵", "platform", "pc"),
+        ("夜灵 -w", "text_mode", True),
+        ("夜灵 -t", "image_mode", True),
+        ("wm 绝路 -r", "whisper", True),
+        ("裂隙 -2", "page", 2),
+    ]
     bad_mod = 0
     for text, attr, want in mods:
         got = getattr(P.parse(text), attr)
@@ -93,6 +99,7 @@ async def phase_data() -> None:
     print("② 数据链路：真实网络（世界状态 / 市场 / 计算）")
     print("=" * 62)
     from core.api_client import WarframeClient
+
     client = WarframeClient(timeout=20.0)
     rows: list[tuple[str, bool, str, float]] = []
 
@@ -108,11 +115,11 @@ async def phase_data() -> None:
             if optional and not good:
                 rows.append((name, None, "空（本就无此项）", time.perf_counter() - t0))
             else:
-                rows.append((name, good, info if good else "空/异常",
-                             time.perf_counter() - t0))
+                rows.append((name, good, info if good else "空/异常", time.perf_counter() - t0))
         except Exception as exc:  # noqa: BLE001
-            rows.append((name, False, f"{type(exc).__name__}: {str(exc)[:60]}",
-                         time.perf_counter() - t0))
+            rows.append(
+                (name, False, f"{type(exc).__name__}: {str(exc)[:60]}", time.perf_counter() - t0)
+            )
 
     # 合法可为空的条目：DE 原始数据里该表本身为空，属正常而非故障。
     # 例：Warframe 现行版本已停用「警报（Alerts）」系统，DE 下发的
@@ -125,8 +132,9 @@ async def phase_data() -> None:
     # 这里改为直接验证原始 bundle 的可用性 —— 那才是「世界状态整体是否拿到」。
     try:
         bundle = await client._de_bundle()
-        await probe("世界状态全量", asyncio.sleep(0, bundle),
-                    lambda r: isinstance(r, dict) and bool(r))
+        await probe(
+            "世界状态全量", asyncio.sleep(0, bundle), lambda r: isinstance(r, dict) and bool(r)
+        )
     except Exception as exc:  # noqa: BLE001
         rows.append(("世界状态全量", False, f"{type(exc).__name__}: {str(exc)[:60]}", 0.0))
     for name, coro in (
@@ -175,15 +183,21 @@ async def phase_data() -> None:
     print()
     from core import damage_calc as dc
     from core import riven_analysis as ra
+
     w, _ = dc.find_weapon("绝路")
     spec, _ = dc.parse_args(["膛线", "关键延迟"])
     res = dc.calculate(spec, w or {})
-    print(f"  {'✓' if (w and res.get('ok')) else '✗'} 伤害计算："
-          f"{(w or {}).get('zh')} 单发 {res.get('health', 0):.0f}")
+    print(
+        f"  {'✓' if (w and res.get('ok')) else '✗'} 伤害计算："
+        f"{(w or {}).get('zh')} 单发 {res.get('health', 0):.0f}"
+    )
     pos = [("multishot", 113.8), ("heat_damage", 102.6), ("melee_damage", 210.8)]
     iv = ra.disposition_interval(pos, [("damage_vs_corpus", 45.0)], "rifle")
-    print(f"  {'✓' if iv[0] else '✗'} 紫卡分析：反推倾向区间 "
-          f"{iv[0]:.3f}~{iv[1]:.3f}" if iv[0] else "  ✗ 紫卡分析失败")
+    print(
+        f"  {'✓' if iv[0] else '✗'} 紫卡分析：反推倾向区间 {iv[0]:.3f}~{iv[1]:.3f}"
+        if iv[0]
+        else "  ✗ 紫卡分析失败"
+    )
     try:
         await client.close()
     except Exception:  # noqa: BLE001

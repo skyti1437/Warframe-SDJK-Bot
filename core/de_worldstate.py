@@ -10,6 +10,7 @@
 
 翻译数据来自 wfcd/warframe-worldstate-data（core/data/de/）。
 """
+
 from __future__ import annotations
 
 import json
@@ -68,7 +69,7 @@ def node_key_of(mission: str, planet: str) -> str:
     if not mission:
         return ""
     want_node = _PLANET_RE.sub("", mission).strip().lower()  # 去掉 "(Unconfirmed)" 之类注解
-    want_node = want_node.replace("-", " ")                  # E-Prime == E Prime
+    want_node = want_node.replace("-", " ")  # E-Prime == E Prime
     want_planet = (planet or "").strip().lower()
     table = _load("solNodes.json") or {}
     hits: list[str] = []
@@ -126,8 +127,14 @@ def mission_type_zh_by_name(name: str) -> str:
 def fissure_tier(modifier: str) -> tuple[str, int]:
     """VoidT1..T6 -> ("Lith", 1) 等；未知返回原文与 0。"""
     m = re.match(r"VoidT(\d)", modifier or "")
-    table = {"1": ("Lith", 1), "2": ("Meso", 2), "3": ("Neo", 3),
-             "4": ("Axi", 4), "5": ("Requiem", 5), "6": ("Omnia", 6)}
+    table = {
+        "1": ("Lith", 1),
+        "2": ("Meso", 2),
+        "3": ("Neo", 3),
+        "4": ("Axi", 4),
+        "5": ("Requiem", 5),
+        "6": ("Omnia", 6),
+    }
     if m and m.group(1) in table:
         return table[m.group(1)]
     return (modifier or "?", 0)
@@ -140,7 +147,7 @@ def language_text(key: str) -> tuple[str, str]:
     table = _load("languages.json") or {}
     hit = table.get(key)
     if hit is None:
-        hit = table.get(key.lower())          # DE 给的键多为驼峰，表键是小写
+        hit = table.get(key.lower())  # DE 给的键多为驼峰，表键是小写
     if hit is None and "/" in key:
         hit = table.get(key.rstrip("/").rsplit("/", 1)[-1])
     if isinstance(hit, dict):
@@ -209,8 +216,7 @@ def _is_placeholder(value: str) -> bool:
     s = (value or "").lstrip()
     if s.lower().startswith(_PH_PREFIX):
         return True
-    return any(any(ch.islower() for ch in m.group(0))
-               for m in _ANY_SLOT_RE.finditer(s))
+    return any(any(ch.islower() for ch in m.group(0)) for m in _ANY_SLOT_RE.finditer(s))
 
 
 def language_text_zh(key: str) -> str:
@@ -229,7 +235,7 @@ def language_text_zh(key: str) -> str:
     if not key:
         return ""
     table = _load("languages_zh.json") or {}
-    ext = _load("zh_ext.json") or {}          # 构建期提取的补充表（见 scripts/build_zh_ext.py）
+    ext = _load("zh_ext.json") or {}  # 构建期提取的补充表（见 scripts/build_zh_ext.py）
     # 候选顺序：完整路径 → 小写 →（兼容位）裸尾段。命中即返回**非占位符**的值。
     cands = [key, key.lower()]
     if "/" in key:
@@ -240,8 +246,8 @@ def language_text_zh(key: str) -> str:
         tail = key.rstrip("/").rsplit("/", 1)[-1]
         cands.append(tail)
         if tail.endswith("Name"):
-            cands.append(tail[:-4])           # `…NameNoIcon` → `…Name` → `…`
-    for tb in (table, ext):                   # 本地 36k 优先，补充表兜底
+            cands.append(tail[:-4])  # `…NameNoIcon` → `…Name` → `…`
+    for tb in (table, ext):  # 本地 36k 优先，补充表兜底
         for cand in cands:
             hit = tb.get(cand)
             if isinstance(hit, str) and hit and not _is_placeholder(hit):
@@ -290,7 +296,6 @@ def _challenge_table() -> dict:
 def challenge_zh(path: str) -> dict:
     """挑战资产路径 -> ``{"name", "desc", "count"}``（官方简中，已解析）。"""
     return _challenge_table().get(path) or {}
-
 
 
 _STRIP_STORE = re.compile(r"/StoreItems(?=/)", re.I)
@@ -356,7 +361,7 @@ def _blueprint_synth(path: str) -> Optional[str]:
     """
     if not path.endswith(_ITEM_BLUEPRINT_MARK):
         return None
-    base = path[:-len(_ITEM_BLUEPRINT_MARK)]
+    base = path[: -len(_ITEM_BLUEPRINT_MARK)]
     tail = base.rstrip("/").rsplit("/", 1)[-1]
     if not tail:
         return None
@@ -398,7 +403,7 @@ def _item_name_raw(path: str) -> Optional[str]:
         parts = [p for p in key.split("/") if p]
         for i, seg in enumerate(parts):
             if seg.lower() == "storeitems":
-                cands.append("/" + "/".join(parts[:i] + parts[i + 1:]))
+                cands.append("/" + "/".join(parts[:i] + parts[i + 1 :]))
         cands.append(_STRIP_STORE.sub("", key))
         for c in dict.fromkeys(cands):
             if zh.get(c):
@@ -509,7 +514,7 @@ def _ms(value: Any) -> Optional[int]:
         num = int(value)
     except (TypeError, ValueError):
         return None
-    if num < 10 ** 12:  # 秒级
+    if num < 10**12:  # 秒级
         num *= 1000
     return num
 
@@ -535,13 +540,28 @@ def _oid(raw: Any) -> str:
 
 # 星球/区域中文名（点位名保留英文，仅汉化括号内的星球）
 PLANET_CN = {
-    "Earth": "地球", "Venus": "金星", "Mercury": "水星", "Mars": "火星",
-    "Phobos": "火卫一", "Ceres": "谷神星", "Jupiter": "木星",
-    "Europa": "欧罗巴", "Saturn": "土星", "Uranus": "天王星",
-    "Neptune": "海王星", "Pluto": "冥王星", "Sedna": "赛德娜",
-    "Eris": "阋神星", "Deimos": "火卫二", "Lua": "月球", "Void": "虚空",
-    "Veil": "面纱", "Kuva Fortress": "赤毒要塞", "Zariman": "扎里曼",
-    "Duviri": "双衍王境", "Ambulas": "安布拉斯",
+    "Earth": "地球",
+    "Venus": "金星",
+    "Mercury": "水星",
+    "Mars": "火星",
+    "Phobos": "火卫一",
+    "Ceres": "谷神星",
+    "Jupiter": "木星",
+    "Europa": "欧罗巴",
+    "Saturn": "土星",
+    "Uranus": "天王星",
+    "Neptune": "海王星",
+    "Pluto": "冥王星",
+    "Sedna": "赛德娜",
+    "Eris": "阋神星",
+    "Deimos": "火卫二",
+    "Lua": "月球",
+    "Void": "虚空",
+    "Veil": "面纱",
+    "Kuva Fortress": "赤毒要塞",
+    "Zariman": "扎里曼",
+    "Duviri": "双衍王境",
+    "Ambulas": "安布拉斯",
 }
 _PLANET_RE = re.compile(r"\(([^)]+)\)\s*$")
 
@@ -572,7 +592,7 @@ def _node_name(node_key: str) -> str:
     m = _PLANET_RE.search(name)
     if m and m.group(1).strip() in PLANET_CN:
         planet = PLANET_CN[m.group(1).strip()]
-        name = name[:m.start()].rstrip() + f"（{planet}）"
+        name = name[: m.start()].rstrip() + f"（{planet}）"
     return name + suffix
 
 
@@ -626,10 +646,12 @@ def earth_cycle(cetus: dict) -> dict:
        于是同一张卡上会同时出现「夜灵平野：白天 剩 1h8m」和
        「地球：夜晚 剩 3h39m」——两条自相矛盾的记录，实测与 browse.wf 对不上。
     """
-    return {"state": cetus.get("state", "day"),
-            "isDay": cetus.get("isDay", True),
-            "expiry": cetus.get("expiry", ""),
-            "timeLeft": cetus.get("timeLeft", "")}
+    return {
+        "state": cetus.get("state", "day"),
+        "isDay": cetus.get("isDay", True),
+        "expiry": cetus.get("expiry", ""),
+        "timeLeft": cetus.get("timeLeft", ""),
+    }
 
 
 def cetus_cycle(bounty_end_ms: Optional[int], now_ms: int) -> dict:
@@ -640,35 +662,46 @@ def cetus_cycle(bounty_end_ms: Optional[int], now_ms: int) -> dict:
        截断会平白引入最多 59 秒误差，卡面倒计时与游戏内 / browse.wf 就对不上。
     """
     if not bounty_end_ms:
-        return {"state": "day", "isDay": True, "expiry": "",
-                "timeLeft": "?", "_degraded": True}
+        return {"state": "day", "isDay": True, "expiry": "", "timeLeft": "?", "_degraded": True}
     secs_left = (bounty_end_ms - now_ms) // 1000
     if secs_left <= 0:
         secs_left = 3600
-    day = secs_left > 3000                     # 50min 夜晚
+    day = secs_left > 3000  # 50min 夜晚
     left = (secs_left - 3000) * 1000 if day else secs_left * 1000
-    return {"state": "day" if day else "night", "isDay": day,
-            "expiry": _iso(now_ms + left), "timeLeft": _fmt_left(left)}
+    return {
+        "state": "day" if day else "night",
+        "isDay": day,
+        "expiry": _iso(now_ms + left),
+        "timeLeft": _fmt_left(left),
+    }
 
 
 def vallis_cycle(now_ms: int) -> dict:
-    loop, cold = 1600, 1200                    # 26min40s 循环：冷 20min / 暖 6min40s
-    epoch = int(datetime(2026, 2, 4, 19, 46, 48, tzinfo=timezone.utc)
-                .timestamp() * 1000)
+    loop, cold = 1600, 1200  # 26min40s 循环：冷 20min / 暖 6min40s
+    epoch = int(datetime(2026, 2, 4, 19, 46, 48, tzinfo=timezone.utc).timestamp() * 1000)
     since = (now_ms - epoch) % (loop * 1000)
     to_full = loop * 1000 - since
-    warm = to_full > cold * 1000               # 暖期在循环尾段
+    warm = to_full > cold * 1000  # 暖期在循环尾段
     left = to_full - cold * 1000 if warm else to_full
-    return {"state": "warm" if warm else "cold", "isWarm": warm,
-            "expiry": _iso(now_ms + left), "timeLeft": _fmt_left(left)}
+    return {
+        "state": "warm" if warm else "cold",
+        "isWarm": warm,
+        "expiry": _iso(now_ms + left),
+        "timeLeft": _fmt_left(left),
+    }
 
 
 # 双衍王境情绪（螺旋）：官方简中译名取自 oracle 补充词表
 #   /Lotus/Language/Duviri/{Sad,Scared,Happy,Angry,Jealous}MoodTitleShort
 # 顺序与 DE 的 5 值循环一致（悲伤→恐惧→喜悦→愤怒→嫉妒），每相 2 小时。
 DUVIRI_STATES = ["Sorrow", "Fear", "Joy", "Anger", "Envy"]
-DUVIRI_STATES_CN = {"Sorrow": "悲伤", "Fear": "恐惧", "Joy": "喜悦",
-                    "Anger": "愤怒", "Envy": "嫉妒"}
+DUVIRI_STATES_CN = {
+    "Sorrow": "悲伤",
+    "Fear": "恐惧",
+    "Joy": "喜悦",
+    "Anger": "愤怒",
+    "Envy": "嫉妒",
+}
 
 
 def duviri_mood_cn(mood: str) -> str:
@@ -749,9 +782,11 @@ CAL_UPGRADE_CN = {
 #   卡面行为（已实测确认）：`_calendar_upgrade_zh()` 返回 `""`，且它**不在** `CAL_UPGRADE_CN`
 #   ⇒ 落 `fmt._cal_name(_prettify(tail))` = 英文 `Guiding Missiles Chance`，并计入
 #     日历卡的 `noKey` 注脚（`※ 官方无简中、保留原文：…`）——即「留英文 + 注脚」，可接受。
-CAL_UPGRADE_NO_KEY = frozenset({
-    "/Lotus/Upgrades/Calendar/GuidingMissilesChance",
-})
+CAL_UPGRADE_NO_KEY = frozenset(
+    {
+        "/Lotus/Upgrades/Calendar/GuidingMissilesChance",
+    }
+)
 
 
 def duviri_cycle(now_ms: int) -> dict:
@@ -765,19 +800,23 @@ def duviri_cycle(now_ms: int) -> dict:
         ``{"state", "spiral", "stateCn", "choices", "expiry", "timeLeft"}``；
         ``choices`` 为当前及后续共 3 相（与 warframestat 的 duviriCycle.choices 对齐）。
     """
-    period = 7200 * 1000                       # 2 小时
+    period = 7200 * 1000  # 2 小时
     idx = (now_ms // period) % len(DUVIRI_STATES)
     left = period - (now_ms % period)
     state = DUVIRI_STATES[idx]
     choices = [DUVIRI_STATES[(idx + i) % 5] for i in range(3)]
     # spiral 字段只存英文状态名，中文名由 stateCn 提供；
     # 后缀由 fmt_cetus 统一加，避免「Sorrow Spiral 螺旋」重复拼。
-    return {"state": state, "spiral": state,
-            "stateCn": duviri_mood_cn(state),
-            "choices": choices,
-            "choicesCn": [duviri_mood_cn(c) for c in choices],
-            "expiry": _iso(now_ms + left), "timeLeft": _fmt_left(left),
-            "leftMs": left}
+    return {
+        "state": state,
+        "spiral": state,
+        "stateCn": duviri_mood_cn(state),
+        "choices": choices,
+        "choicesCn": [duviri_mood_cn(c) for c in choices],
+        "expiry": _iso(now_ms + left),
+        "timeLeft": _fmt_left(left),
+        "leftMs": left,
+    }
 
 
 # 扎里曼号派系轮换（Grineer / Corpus）。
@@ -797,8 +836,7 @@ def duviri_cycle(now_ms: int) -> dict:
 _ZARIMAN_STATES = ("grineer", "corpus")
 
 
-def zariman_cycle(seed: Optional[int], expiry_ms: Optional[int],
-                  now_ms: int) -> dict:
+def zariman_cycle(seed: Optional[int], expiry_ms: Optional[int], now_ms: int) -> dict:
     """扎里曼号：Grineer / Corpus 派系轮换（周期同赏金，150 分钟一换）。
 
     Args:
@@ -810,9 +848,12 @@ def zariman_cycle(seed: Optional[int], expiry_ms: Optional[int],
         return {}
     state = _ZARIMAN_STATES[(int(seed or 0) & 1)]
     left = max(0, expiry_ms - now_ms)
-    return {"state": state,
-            "stateCn": "Grineer" if state == "grineer" else "Corpus",
-            "expiry": _iso(expiry_ms), "timeLeft": _fmt_left(left)}
+    return {
+        "state": state,
+        "stateCn": "Grineer" if state == "grineer" else "Corpus",
+        "expiry": _iso(expiry_ms),
+        "timeLeft": _fmt_left(left),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -823,9 +864,11 @@ def zariman_cycle(seed: Optional[int], expiry_ms: Optional[int],
 def _synth_table() -> list[dict]:
     import json as _json
     from pathlib import Path as _P
+
     try:
-        return _json.loads((_P(__file__).parent / "data" / "synth_targets.json")
-                           .read_text(encoding="utf-8"))
+        return _json.loads(
+            (_P(__file__).parent / "data" / "synth_targets.json").read_text(encoding="utf-8")
+        )
     except Exception:  # noqa: BLE001
         return {}
 
@@ -846,17 +889,19 @@ def _parse_synth(raw: dict) -> list[dict]:
         mission_en = first.get("mission", "")
         planet_en = first.get("planet", "")
         key = node_key_of(mission_en, planet_en)
-        out.append({
-            "name": en,
-            "planet": PLANET_CN.get(planet_en, planet_en),
-            "mission": mission_en,
-            "node": _node_name(key) if key else mission_en,
-            "type": first.get("type", ""),
-            "faction_en": first.get("faction", ""),
-            "faction": faction_name(first.get("faction", "")),
-            "spawn": first.get("spawn", ""),
-            "active": True,
-        })
+        out.append(
+            {
+                "name": en,
+                "planet": PLANET_CN.get(planet_en, planet_en),
+                "mission": mission_en,
+                "node": _node_name(key) if key else mission_en,
+                "type": first.get("type", ""),
+                "faction_en": first.get("faction", ""),
+                "faction": faction_name(first.get("faction", "")),
+                "spawn": first.get("spawn", ""),
+                "active": True,
+            }
+        )
     return out
 
 
@@ -864,21 +909,22 @@ def _parse_fissures(raw: dict) -> list[dict]:
     out = []
     for src, is_storm in (("ActiveMissions", False), ("VoidStorms", True)):
         for m in raw.get(src) or []:
-            tier, tier_num = fissure_tier(
-                m.get("Modifier") or m.get("ActiveMissionTier") or "")
-            out.append({
-                "id": _oid(m.get("_id")),
-                "node": _node_name(m.get("Node", "")),
-                "nodeKey": m.get("Node", ""),
-                "missionType": mission_type(m.get("MissionType", "")),
-                "tier": tier,
-                "tierNum": tier_num,
-                "isHard": bool(m.get("Hard")),
-                "isStorm": is_storm,
-                "activation": _iso_of(m, "Activation"),
-                "expiry": _iso_of(m, "Expiry"),
-                "enemy": sol_node(m.get("Node", "")).get("enemy", ""),
-            })
+            tier, tier_num = fissure_tier(m.get("Modifier") or m.get("ActiveMissionTier") or "")
+            out.append(
+                {
+                    "id": _oid(m.get("_id")),
+                    "node": _node_name(m.get("Node", "")),
+                    "nodeKey": m.get("Node", ""),
+                    "missionType": mission_type(m.get("MissionType", "")),
+                    "tier": tier,
+                    "tierNum": tier_num,
+                    "isHard": bool(m.get("Hard")),
+                    "isStorm": is_storm,
+                    "activation": _iso_of(m, "Activation"),
+                    "expiry": _iso_of(m, "Expiry"),
+                    "enemy": sol_node(m.get("Node", "")).get("enemy", ""),
+                }
+            )
     return out
 
 
@@ -892,13 +938,16 @@ def node_level(key: str) -> str:
 
 def _parse_sortie(entry: dict, *, archon: bool) -> dict:
     variants_src = entry.get("Variants") or entry.get("Missions") or []
-    variants = [{
-        "node": _node_name(v.get("node", "")),
-        "nodeKey": v.get("node", ""),
-        "level": node_level(v.get("node", "")),
-        "missionType": mission_type(v.get("missionType", "")),
-        "modifier": sortie_modifier(v.get("modifierType", "")),
-    } for v in variants_src]
+    variants = [
+        {
+            "node": _node_name(v.get("node", "")),
+            "nodeKey": v.get("node", ""),
+            "level": node_level(v.get("node", "")),
+            "missionType": mission_type(v.get("missionType", "")),
+            "modifier": sortie_modifier(v.get("modifierType", "")),
+        }
+        for v in variants_src
+    ]
     boss = sortie_boss(entry.get("Boss", ""))
     return {
         "id": _oid(entry.get("_id")),
@@ -923,11 +972,13 @@ def _parse_void_trader(entry: dict, now_ms: int) -> dict:
         #    没有这些键，整卡落成「? 杜卡德 ? 现金」。这里保留旧键做兜底，
         #    万一哪天切回 warframestat 源也不至于再坏一次。
         store = it.get("ItemType") or it.get("StoreItem", "")
-        inventory.append({
-            "item": item_name(store),
-            "ducats": it.get("PrimePrice", it.get("ItemPrice", "?")),
-            "credits": it.get("RegularPrice", it.get("CreditPrice", "?")),
-        })
+        inventory.append(
+            {
+                "item": item_name(store),
+                "ducats": it.get("PrimePrice", it.get("ItemPrice", "?")),
+                "credits": it.get("RegularPrice", it.get("CreditPrice", "?")),
+            }
+        )
     character = entry.get("Character") or ""
     if "Baro" in character or "Teel" in character:
         # DE 源给的是「Baro'Ki Teel」（官方拼写彩蛋），统一成常用名
@@ -936,8 +987,10 @@ def _parse_void_trader(entry: dict, now_ms: int) -> dict:
         "id": _oid(entry.get("_id")),
         "character": character,
         "location": _node_name(entry.get("Node", "")),
-        "activation": _iso(act), "expiry": _iso(exp),
-        "active": active, "inventory": inventory,
+        "activation": _iso(act),
+        "expiry": _iso(exp),
+        "active": active,
+        "inventory": inventory,
     }
 
 
@@ -951,15 +1004,17 @@ def _parse_daily_deals(raw: dict) -> list[dict]:
         #   维护者 2026-09-17 反馈的「Greater Zenurik Lens 没汉化」就是
         #   这条路径只走英文表导致的 —— item_name() 会按
         #   中文词库 → 英文名 → 路径美化 逐级回退，并自动剥离 /StoreItems。
-        out.append({
-            "item": item_name(d.get("StoreItem", "")),
-            "originalPrice": d.get("OriginalPrice"),
-            "salePrice": d.get("SalePrice"),
-            "discount": d.get("Discount"),
-            "total": d.get("AmountTotal"),
-            "sold": d.get("AmountSold"),
-            "expiry": _iso_of(d, "Expiry"),
-        })
+        out.append(
+            {
+                "item": item_name(d.get("StoreItem", "")),
+                "originalPrice": d.get("OriginalPrice"),
+                "salePrice": d.get("SalePrice"),
+                "discount": d.get("Discount"),
+                "total": d.get("AmountTotal"),
+                "sold": d.get("AmountSold"),
+                "expiry": _iso_of(d, "Expiry"),
+            }
+        )
     return out
 
 
@@ -972,18 +1027,20 @@ def _parse_nightwave(season: dict) -> dict:
         name, _ = language_text(path)
         title = meta.get("name") or name or _prettify(path)
         title = re.sub(r"^Season (Daily|Weekly) (Permanent )?", "", title)
-        challenges.append({
-            "id": _oid(ch.get("_id")),
-            "title": title,
-            "desc": meta.get("desc", ""),
-            "standing": meta.get("standing"),
-            "required": meta.get("required"),
-            "path": path,
-            "isDaily": bool(ch.get("Daily") or ch.get("IsDaily")),
-            "isElite": bool(ch.get("Elite") or ch.get("IsElite")) or "Elite" in title,
-            "activation": _iso_of(ch, "Activation"),
-            "expiry": _iso_of(ch, "Expiry"),
-        })
+        challenges.append(
+            {
+                "id": _oid(ch.get("_id")),
+                "title": title,
+                "desc": meta.get("desc", ""),
+                "standing": meta.get("standing"),
+                "required": meta.get("required"),
+                "path": path,
+                "isDaily": bool(ch.get("Daily") or ch.get("IsDaily")),
+                "isElite": bool(ch.get("Elite") or ch.get("IsElite")) or "Elite" in title,
+                "activation": _iso_of(ch, "Activation"),
+                "expiry": _iso_of(ch, "Expiry"),
+            }
+        )
     return {
         "id": _oid(season.get("_id")),
         "season": season.get("Season"),
@@ -1007,37 +1064,35 @@ def _parse_alerts(raw: dict) -> list[dict]:
     out = []
     for a in raw.get("Alerts") or []:
         mission = a.get("MissionInfo") or a.get("Mission") or {}
-        reward = (mission.get("missionReward")
-                  or mission.get("Reward") or {})
+        reward = mission.get("missionReward") or mission.get("Reward") or {}
         items = reward.get("items") or reward.get("countedItems") or []
-        paths = [it.get("ItemType") if isinstance(it, dict) else it
-                 for it in items]
+        paths = [it.get("ItemType") if isinstance(it, dict) else it for it in items]
         paths = [p for p in paths if p]
-        out.append({
-            "id": _oid(a.get("_id")),
-            "active": True,
-            "activation": _iso_of(a, "Activation"),
-            "expiry": _iso_of(a, "Expiry"),
-            "tag": a.get("Tag") or "",
-            "mission": {
-                "node": _node_name(mission.get("location")
-                                   or mission.get("node", "")),
-                "type": mission_type(mission.get("missionType")
-                                     or mission.get("type", "")),
-                "faction": faction_name(mission.get("faction", "")),
-                "min_level": mission.get("minEnemyLevel"),
-                "max_level": mission.get("maxEnemyLevel"),
-                "desc": language_text_zh(mission.get("descText", "")) or "",
-                "reward": {
-                    "credits": reward.get("credits"),
-                    # 兼容字段：旧卡面/推送只认 item —— 先给 prettify 兜底
-                    #（WM 不可用时也不至于是裸路径）；客户端拿到 item_names 后
-                    # 会覆盖成中文名。
-                    "item": _prettify(paths[0]) if paths else None,
-                    "items": paths,
+        out.append(
+            {
+                "id": _oid(a.get("_id")),
+                "active": True,
+                "activation": _iso_of(a, "Activation"),
+                "expiry": _iso_of(a, "Expiry"),
+                "tag": a.get("Tag") or "",
+                "mission": {
+                    "node": _node_name(mission.get("location") or mission.get("node", "")),
+                    "type": mission_type(mission.get("missionType") or mission.get("type", "")),
+                    "faction": faction_name(mission.get("faction", "")),
+                    "min_level": mission.get("minEnemyLevel"),
+                    "max_level": mission.get("maxEnemyLevel"),
+                    "desc": language_text_zh(mission.get("descText", "")) or "",
+                    "reward": {
+                        "credits": reward.get("credits"),
+                        # 兼容字段：旧卡面/推送只认 item —— 先给 prettify 兜底
+                        # （WM 不可用时也不至于是裸路径）；客户端拿到 item_names 后
+                        # 会覆盖成中文名。
+                        "item": _prettify(paths[0]) if paths else None,
+                        "items": paths,
+                    },
                 },
-            },
-        })
+            }
+        )
     return out
 
 
@@ -1061,7 +1116,7 @@ def _parse_invasions(raw: dict) -> list[dict]:
 
         def _side(faction_key: str, reward_key: str) -> dict:
             reward = inv.get(reward_key) or {}
-            if isinstance(reward, list):        # 无奖励时 DE 给 [] 而不是 {}
+            if isinstance(reward, list):  # 无奖励时 DE 给 [] 而不是 {}
                 reward = {}
             items = reward.get("countedItems") or []
             parts: list[str] = []
@@ -1080,25 +1135,26 @@ def _parse_invasions(raw: dict) -> list[dict]:
                 parts.append(f"{credits:,} 现金")
             code = inv.get(faction_key, "")
             # 同时留一份原始代码：显示层要按平台（国际服/国服）换译名体系
-            return {"faction": faction_name(code), "faction_code": code,
-                    "items": parts}
+            return {"faction": faction_name(code), "faction_code": code, "items": parts}
 
-        out.append({
-            "id": _oid(inv.get("_id")),
-            "node": _node_name(inv.get("Node", "")),
-            "desc": text_cn(inv.get("LocTag", "")) or _prettify(inv.get("LocTag", "")),
-            "attacker": _side("Faction", "AttackerReward"),
-            "defender": _side("DefenderFaction", "DefenderReward"),
-            "attacker_pct": at_pct,
-            "defender_pct": vs_pct,
-            "completion": at_pct,
-            "count": count,
-            "goal": goal,
-            "activation": _iso_of(inv, "Activation"),
-            "expiry": "",
-            # 合成译名清单（如「奥罗金催化剂蓝图」）：卡面据此加注脚
-            "synthetic": sorted(set(synth)),
-        })
+        out.append(
+            {
+                "id": _oid(inv.get("_id")),
+                "node": _node_name(inv.get("Node", "")),
+                "desc": text_cn(inv.get("LocTag", "")) or _prettify(inv.get("LocTag", "")),
+                "attacker": _side("Faction", "AttackerReward"),
+                "defender": _side("DefenderFaction", "DefenderReward"),
+                "attacker_pct": at_pct,
+                "defender_pct": vs_pct,
+                "completion": at_pct,
+                "count": count,
+                "goal": goal,
+                "activation": _iso_of(inv, "Activation"),
+                "expiry": "",
+                # 合成译名清单（如「奥罗金催化剂蓝图」）：卡面据此加注脚
+                "synthetic": sorted(set(synth)),
+            }
+        )
     # 与游戏内一致：按「争夺最激烈」排序（越接近 50/50 越靠前）
     out.sort(key=lambda x: abs(x["attacker_pct"] - 50))
     return out
@@ -1133,14 +1189,16 @@ def _parse_news(raw: dict) -> list[dict]:
         text = _news_message(msgs)
         if not text:
             continue
-        out.append({
-            "id": _oid(e.get("_id")),
-            "message": text,
-            "link": e.get("Prop", ""),
-            "date": _iso_of(e, "Date"),
-            "priority": bool(e.get("Priority")),
-            "community": bool(e.get("Community")),
-        })
+        out.append(
+            {
+                "id": _oid(e.get("_id")),
+                "message": text,
+                "link": e.get("Prop", ""),
+                "date": _iso_of(e, "Date"),
+                "priority": bool(e.get("Priority")),
+                "community": bool(e.get("Community")),
+            }
+        )
     out.sort(key=lambda n: (n["date"], n["priority"]), reverse=True)
     return out
 
@@ -1174,9 +1232,8 @@ def _parse_construction(raw: dict) -> dict:
             break
         val = float(pct[i] or 0)
         if val <= 0:
-            continue            # 进度为 0 的项没有展示价值
-        projects.append({"name": name, "en": en, "faction": faction,
-                         "event": event, "pct": val})
+            continue  # 进度为 0 的项没有展示价值
+        projects.append({"name": name, "en": en, "faction": faction, "event": event, "pct": val})
 
     # 进行中的袭击：DE 在这些事件里下发带 HealthPct/VictimNode 的 Goal
     assaults = []
@@ -1184,17 +1241,24 @@ def _parse_construction(raw: dict) -> dict:
         if not isinstance(g, dict) or "VictimNode" not in g:
             continue
         tag = json.dumps(g, ensure_ascii=False)
-        hit = next((p for p in _PROJECT_KEYS
-                    if p[1] and p[1].lower().replace(" ", "") in tag.lower().replace(" ", "")),
-                   None)
+        hit = next(
+            (
+                p
+                for p in _PROJECT_KEYS
+                if p[1] and p[1].lower().replace(" ", "") in tag.lower().replace(" ", "")
+            ),
+            None,
+        )
         if hit is None:
             continue
-        assaults.append({
-            "name": hit[0],
-            "victim": _node_name(g.get("VictimNode") or ""),
-            "health": float(g.get("HealthPct") or 0),
-            "expiry": _iso(_ms(g.get("Expiry"))),
-        })
+        assaults.append(
+            {
+                "name": hit[0],
+                "victim": _node_name(g.get("VictimNode") or ""),
+                "health": float(g.get("HealthPct") or 0),
+                "expiry": _iso(_ms(g.get("Expiry"))),
+            }
+        )
     return {"projects": projects, "assaults": assaults}
 
 
@@ -1241,18 +1305,21 @@ def _parse_void_storms(raw: dict, now_ms: int) -> list[dict]:
         node = s.get("Node") or ""
         end = _ms(s.get("Expiry"))
         if end and end <= now_ms:
-            continue                     # 已结束：用户看卡时已不可玩
+            continue  # 已结束：用户看卡时已不可玩
         left_ms = (end or now_ms) - now_ms
-        out.append({
-            "node": node,
-            "nodeCn": _node_name(node) if node else "?",
-            "missionType": sol_node(node).get("type", ""),
-            "tier": VOIDSTORM_TIER_CN.get(s.get("ActiveMissionTier", ""),
-                                          s.get("ActiveMissionTier", "")),
-            "expiry": _iso(end),
-            "timeLeft": _fmt_left(left_ms),
-            "_msLeft": left_ms,          # 排序用（真实剩余毫秒，别拿字符串排）
-        })
+        out.append(
+            {
+                "node": node,
+                "nodeCn": _node_name(node) if node else "?",
+                "missionType": sol_node(node).get("type", ""),
+                "tier": VOIDSTORM_TIER_CN.get(
+                    s.get("ActiveMissionTier", ""), s.get("ActiveMissionTier", "")
+                ),
+                "expiry": _iso(end),
+                "timeLeft": _fmt_left(left_ms),
+                "_msLeft": left_ms,  # 排序用（真实剩余毫秒，别拿字符串排）
+            }
+        )
     out.sort(key=lambda x: x["_msLeft"])
     return out
 
@@ -1279,27 +1346,29 @@ def _parse_goals(raw: dict, now_ms: int) -> list[dict]:
         # 描述：优先 ToolTip（更完整），去掉 <DT_xxx> 标记与换行
         desc = _DT_TAG_SUB.sub("", tip_zh or "").strip()
         if desc.startswith(name):
-            desc = desc[len(name):].strip(" ：:")
+            desc = desc[len(name) :].strip(" ：:")
             desc = desc.split("获取地点")[0].strip()
         rw = g.get("Reward") or {}
         rewards = [item_name(i) for i in (rw.get("items") or [])]
         for ci in rw.get("countedItems") or []:
             rewards.append(f"{item_name(ci.get('ItemType', ''))} ×{ci.get('ItemCount', '')}")
         rewards = [r for r in rewards if r and r != "?"]
-        out.append({
-            "name": name,
-            "tag": g.get("Tag") or "",
-            "faction": faction_name(g.get("Faction") or "") if g.get("Faction") else "",
-            "desc": desc,
-            "node": _node_name(g.get("Node") or "") if g.get("Node") else "",
-            "count": g.get("Count"),
-            "goal": g.get("Goal"),
-            "expiry": _iso(end),
-            "grace": _iso(grace) if grace else "",
-            "ended": bool(end and end < now_ms),
-            "timeLeft": _fmt_left((end or now_ms) - now_ms),
-            "rewards": rewards,
-        })
+        out.append(
+            {
+                "name": name,
+                "tag": g.get("Tag") or "",
+                "faction": faction_name(g.get("Faction") or "") if g.get("Faction") else "",
+                "desc": desc,
+                "node": _node_name(g.get("Node") or "") if g.get("Node") else "",
+                "count": g.get("Count"),
+                "goal": g.get("Goal"),
+                "expiry": _iso(end),
+                "grace": _iso(grace) if grace else "",
+                "ended": bool(end and end < now_ms),
+                "timeLeft": _fmt_left((end or now_ms) - now_ms),
+                "rewards": rewards,
+            }
+        )
     # 进行中的排前面，其余按剩余时间
     out.sort(key=lambda e: (e["ended"], e["timeLeft"]))
     return out
@@ -1317,13 +1386,15 @@ def _parse_conclave(raw: dict, now_ms: int) -> list[dict]:
                 val = p.get("v")
                 break
         cat = (c.get("Category") or "").upper()
-        out.append({
-            "mode": PVP_MODE_CN.get(c.get("PVPMode", ""), c.get("PVPMode", "")),
-            "text": conclave_text(en) if en else _prettify(ref),
-            "value": val,
-            "cat": "每周" if "WEEKLY" in cat else "每日",
-            "expiry": _iso_of(c, "endDate"),
-        })
+        out.append(
+            {
+                "mode": PVP_MODE_CN.get(c.get("PVPMode", ""), c.get("PVPMode", "")),
+                "text": conclave_text(en) if en else _prettify(ref),
+                "value": val,
+                "cat": "每周" if "WEEKLY" in cat else "每日",
+                "expiry": _iso_of(c, "endDate"),
+            }
+        )
     out.sort(key=lambda x: (x["cat"], x["mode"]))
     return out
 
@@ -1378,10 +1449,16 @@ def _parse_prime_vault(raw: dict, now_ms: int) -> dict:
             prime = True
             if price is None:
                 price = it.get("RegularPrice")
-                prime = price is None          # 两种价格都没有 -> 默认 1 御品阿耶
-            out.append({"name": nm, "path": path, "kind": _vault_kind(path),
-                        "prime": int(price if price is not None else 1),
-                        "prime_currency": prime})
+                prime = price is None  # 两种价格都没有 -> 默认 1 御品阿耶
+            out.append(
+                {
+                    "name": nm,
+                    "path": path,
+                    "kind": _vault_kind(path),
+                    "prime": int(price if price is not None else 1),
+                    "prime_currency": prime,
+                }
+            )
         return out
 
     items = _rows(pv.get("Manifest"))
@@ -1395,12 +1472,16 @@ def _parse_prime_vault(raw: dict, now_ms: int) -> dict:
     #   （= 当前期），再取第一条才是真正的下一期；它的开启时间就是当前期结束。
     cur_exp = _ms(pv.get("Expiry"))
     upcoming = sorted(
-        ((_ms(s.get("Expiry")), s) for s in pv.get("ScheduleInfo") or []
-         if _ms(s.get("Expiry")) and _ms(s.get("Expiry")) > now_ms),
-        key=lambda t: t[0])
+        (
+            (_ms(s.get("Expiry")), s)
+            for s in pv.get("ScheduleInfo") or []
+            if _ms(s.get("Expiry")) and _ms(s.get("Expiry")) > now_ms
+        ),
+        key=lambda t: t[0],
+    )
     nxt, nxt_exp, placeholder = "", None, False
     for exp, s in upcoming:
-        if cur_exp and abs(exp - cur_exp) < 60_000:      # 就是当前期，跳过
+        if cur_exp and abs(exp - cur_exp) < 60_000:  # 就是当前期，跳过
             continue
         name = item_name_opt(s.get("FeaturedItem") or "") or ""
         if not name:
@@ -1432,14 +1513,20 @@ def _parse_clan_rewards(raw: dict, now_ms: int) -> list[dict]:
         raw_region = (w.get("BonusRegion") or "").rsplit("/", 1)[-1]
         rws = []
         for r in w.get("Rewards") or []:
-            rws.append({
-                "points": r.get("PointThreshold"),
-                "name": item_name(r.get("Reward", "")),
-                "count": r.get("ItemCount"),
-            })
-        out.append({"week": w.get("WeekCount"),
-                    "region": PLANET_CN.get(raw_region, raw_region) or "?",
-                    "rewards": rws})
+            rws.append(
+                {
+                    "points": r.get("PointThreshold"),
+                    "name": item_name(r.get("Reward", "")),
+                    "count": r.get("ItemCount"),
+                }
+            )
+        out.append(
+            {
+                "week": w.get("WeekCount"),
+                "region": PLANET_CN.get(raw_region, raw_region) or "?",
+                "rewards": rws,
+            }
+        )
     return out
 
 
@@ -1450,23 +1537,27 @@ def _parse_flash_sales(raw: dict, now_ms: int) -> list[dict]:
         if not s.get("ShowInMarket"):
             continue
         end = _ms(s.get("EndDate"))
-        out.append({
-            "name": item_name(s.get("TypeName", "")),
-            "start": _iso(_ms(s.get("StartDate"))),
-            "end": _iso(end),
-            "timeLeft": _fmt_left((end or now_ms) - now_ms),
-        })
+        out.append(
+            {
+                "name": item_name(s.get("TypeName", "")),
+                "start": _iso(_ms(s.get("StartDate"))),
+                "end": _iso(end),
+                "timeLeft": _fmt_left((end or now_ms) - now_ms),
+            }
+        )
     out.sort(key=lambda x: x["timeLeft"])
     return out
 
 
 def _syndicate_display(tag: str) -> str:
-    table = {"CetusSyndicate": "Ostrons",
-             "SolarisSyndicate": "Solaris United",
-             "EntratiSyndicate": "Entrati",
-             "EntratiLabSyndicate": "EntratiLab",
-             "HexSyndicate": "HexCity",
-             "HoldfastSyndicate": "Holdfasts"}
+    table = {
+        "CetusSyndicate": "Ostrons",
+        "SolarisSyndicate": "Solaris United",
+        "EntratiSyndicate": "Entrati",
+        "EntratiLabSyndicate": "EntratiLab",
+        "HexSyndicate": "HexCity",
+        "HoldfastSyndicate": "Holdfasts",
+    }
     return table.get(tag, "")
 
 
@@ -1528,20 +1619,22 @@ _JOB_META = _load_job_meta()
 #   C = 花园除草  （VenusCoconut 葛嘉里菌孢子 + 头部神经光元/枪托）
 # DE 不下发「当前是哪一档」⇒ 卡面**不写死任务名**（改「深矿（钢铁之路）」），
 # 并在注脚说明轮换；奖励仍列钢铁版三表合并（对未知轮换是超集，见 build_nokko_sp_pool.py）。
-SOLARIS_SUPPLEMENT_JOBS: tuple[dict, ...] = ({
-    "jobType": "深矿 企业重组（钢铁之路）",
-    "jobTypeKey": "NokkoColonyEnterpriseSP",
-    "isNarmer": False,
-    "enemyLevels": [130, 140],
-    "standingStages": [],
-    "masteryReq": None,
-    "rewardTable": "NokkoColonyRewardsSteel",
-    "_jobName": "深矿（钢铁之路）",
-    "_jobDesc": "",
-    "_jobFinal": [],
-    "_jobStages": 0,
-    "source": "community",
-},)
+SOLARIS_SUPPLEMENT_JOBS: tuple[dict, ...] = (
+    {
+        "jobType": "深矿 企业重组（钢铁之路）",
+        "jobTypeKey": "NokkoColonyEnterpriseSP",
+        "isNarmer": False,
+        "enemyLevels": [130, 140],
+        "standingStages": [],
+        "masteryReq": None,
+        "rewardTable": "NokkoColonyRewardsSteel",
+        "_jobName": "深矿（钢铁之路）",
+        "_jobDesc": "",
+        "_jobFinal": [],
+        "_jobStages": 0,
+        "source": "community",
+    },
+)
 
 
 def _parse_syndicate_missions(raw: dict) -> list[dict]:
@@ -1560,40 +1653,46 @@ def _parse_syndicate_missions(raw: dict) -> list[dict]:
             # 100-100 档的 Tier 也与 40-60 档相同，靠位置索引推断必然错位。
             reward_table = (j.get("rewards", "") or "").rsplit("/", 1)[-1]
             _meta = _JOB_META.get(raw_jt.lower()) or {}
-            jobs.append({
-                "jobType": _prettify(raw_jt),
-                "jobTypeKey": jt_tail,
-                "isNarmer": "/Narmer/" in raw_jt,
-                "enemyLevels": [j.get("minEnemyLevel"), j.get("maxEnemyLevel")],
-                "standingStages": j.get("xpAmounts") or [],
-                "masteryReq": j.get("masteryReq"),
-                "rewardTable": reward_table,
-                # 任务名表以完整资产路径（小写）为键：Eidolon 的合一众分支与普通
-                # 分支末段同名（都叫 AttritionBountyExt），只按末段查会把两档混为
-                # 一谈。末段回退仅用于兼容旧的短键条目。
-                # 优先用 DE 官方导出重建的 bounty_jobs_zh.json（含中文名 + 描述 +
-                # 末阶段类型），旧表 bounty_job_names.json 只作兜底。
-                "_jobName": (_meta.get("name")
-                             or _JOB_NAMES.get(raw_jt.lower())
-                             or _JOB_NAMES.get(jt_tail, "")),
-                "_jobDesc": _meta.get("desc") or "",
-                "_jobFinal": _meta.get("final") or [],
-                "_jobStages": _meta.get("stages") or 0,
-            })
+            jobs.append(
+                {
+                    "jobType": _prettify(raw_jt),
+                    "jobTypeKey": jt_tail,
+                    "isNarmer": "/Narmer/" in raw_jt,
+                    "enemyLevels": [j.get("minEnemyLevel"), j.get("maxEnemyLevel")],
+                    "standingStages": j.get("xpAmounts") or [],
+                    "masteryReq": j.get("masteryReq"),
+                    "rewardTable": reward_table,
+                    # 任务名表以完整资产路径（小写）为键：Eidolon 的合一众分支与普通
+                    # 分支末段同名（都叫 AttritionBountyExt），只按末段查会把两档混为
+                    # 一谈。末段回退仅用于兼容旧的短键条目。
+                    # 优先用 DE 官方导出重建的 bounty_jobs_zh.json（含中文名 + 描述 +
+                    # 末阶段类型），旧表 bounty_job_names.json 只作兜底。
+                    "_jobName": (
+                        _meta.get("name")
+                        or _JOB_NAMES.get(raw_jt.lower())
+                        or _JOB_NAMES.get(jt_tail, "")
+                    ),
+                    "_jobDesc": _meta.get("desc") or "",
+                    "_jobFinal": _meta.get("final") or [],
+                    "_jobStages": _meta.get("stages") or 0,
+                }
+            )
         # ★ 金星：补上 DE 不下发的「深矿·企业重组（钢铁之路）」档（社区观测，见上方常量注释）
         if s.get("Tag", "") == "SolarisSyndicate":
             jobs.extend(dict(x) for x in SOLARIS_SUPPLEMENT_JOBS)
-        out.append({
-            "id": _oid(s.get("_id")),
-            "syndicate": display,
-            "syndicateKey": s.get("Tag", ""),
-            # 世界种子：DE 每窗口下发，各 Syndicate 同值；小帐篷 A/B/C 的
-            # 当前赏金由它 + JobManifest 确定性推算（见 core/tents.py）。
-            "seed": s.get("Seed"),
-            "activation": _iso_of(s, "Activation"),
-            "expiry": _iso_of(s, "Expiry"),
-            "jobs": jobs,
-        })
+        out.append(
+            {
+                "id": _oid(s.get("_id")),
+                "syndicate": display,
+                "syndicateKey": s.get("Tag", ""),
+                # 世界种子：DE 每窗口下发，各 Syndicate 同值；小帐篷 A/B/C 的
+                # 当前赏金由它 + JobManifest 确定性推算（见 core/tents.py）。
+                "seed": s.get("Seed"),
+                "activation": _iso_of(s, "Activation"),
+                "expiry": _iso_of(s, "Expiry"),
+                "jobs": jobs,
+            }
+        )
     return out
 
 
@@ -1608,26 +1707,30 @@ def _parse_syndicate_missions(raw: dict) -> list[dict]:
 #   `wiki资源-20260928/wiki-表7-Descents-Type.md`；**不是**第三方社区译文（灰机那份已判不可采信）。
 #   后 6 条当前无卡面影响（官方键已先命中），一并订正防复发。
 DESCENT_TYPES = {
-    "DT_ALCHEMY": "Alchemy", "DT_BOSS": "Assassination",
-    "DT_BREAK_TARGETS": "Destroy Hologlobes",       # 原 Assassination（错）
+    "DT_ALCHEMY": "Alchemy",
+    "DT_BOSS": "Assassination",
+    "DT_BREAK_TARGETS": "Destroy Hologlobes",  # 原 Assassination（错）
     "DT_CAPTURE": "Capture",
-    "DT_COLLECTION": "Void Flood",                  # 原 Recovery（错）
-    "DT_DEFENSE": "Defense of a protoframe",        # 原 Defense（错）
-    "DT_DEFENSE_PROTECT": "Defense",                # 本轮补齐（手译表原有、代码表缺）
-    "DT_EXCAVATION": "Excavation", "DT_EXTERMINATE": "Exterminate",
+    "DT_COLLECTION": "Void Flood",  # 原 Recovery（错）
+    "DT_DEFENSE": "Defense of a protoframe",  # 原 Defense（错）
+    "DT_DEFENSE_PROTECT": "Defense",  # 本轮补齐（手译表原有、代码表缺）
+    "DT_EXCAVATION": "Excavation",
+    "DT_EXTERMINATE": "Exterminate",
     "DT_INFESTED_SALVAGE": "Infested Salvage",
-    "DT_INTERCEPTION": "Mobile Interception",       # 原 Interception（错 ⇒ 卡面「拦截」）
-    "DT_LOOT": "Hijack", "DT_LOOT_CREATURES": "Gruzzling Plunder",   # 原 Hijack（错）
-    "DT_MIMICS": "Plunder Roulette",                # 原 Exterminate（错 ⇒ 卡面「歼灭」）
+    "DT_INTERCEPTION": "Mobile Interception",  # 原 Interception（错 ⇒ 卡面「拦截」）
+    "DT_LOOT": "Hijack",
+    "DT_LOOT_CREATURES": "Gruzzling Plunder",  # 原 Hijack（错）
+    "DT_MIMICS": "Plunder Roulette",  # 原 Exterminate（错 ⇒ 卡面「歼灭」）
     "DT_MOVING_INTERCEPTION": "Mobile Interception",  # 本轮补齐
-    "DT_NETRACELLS": "Targeted Elimination",        # 原 Recovery（错）
-    "DT_PRESURE_GAUGE": "Volatile",                 # 原 Excavation（错）
+    "DT_NETRACELLS": "Targeted Elimination",  # 原 Recovery（错）
+    "DT_PRESURE_GAUGE": "Volatile",  # 原 Excavation（错）
     "DT_PROTOFRAME": "Defense",
-    "DT_RACE": "Pursuit", "DT_SABOTAGE_DEFENSE": "Defense",   # 原 Sabotage（错 ⇒ 卡面英文）
-    "DT_SABOTAGE_HIVE": "Hive",                     # 原 Sabotage（错）
+    "DT_RACE": "Pursuit",
+    "DT_SABOTAGE_DEFENSE": "Defense",  # 原 Sabotage（错 ⇒ 卡面英文）
+    "DT_SABOTAGE_HIVE": "Hive",  # 原 Sabotage（错）
     "DT_SHRINE_DEFENSE": "Defense",
-    "DT_TIME_TRIAL": "Time Tribulation",            # 本轮补齐
-    "DT_UNIQUE": "Assassination",                   # 官方无键、wiki 未收录 ⇒ 保持英文
+    "DT_TIME_TRIAL": "Time Tribulation",  # 本轮补齐
+    "DT_UNIQUE": "Assassination",  # 官方无键、wiki 未收录 ⇒ 保持英文
 }
 
 
@@ -1657,16 +1760,20 @@ def _conquest_text(raw: str, kind: str) -> tuple[str, str]:
     tail = raw.rstrip("/").rsplit("/", 1)[-1]
     tail = _CONQUEST_CODE_ALIAS.get(tail, tail)
     line = "LabConquest" if kind == "CT_LAB" else "HexConquest"
-    for base in (f"MissionVariant_{line}_{tail}", f"Condition_{tail}",
-                 f"PersonalMod_{tail}", f"MissionVariant_HexConquest_{tail}",
-                 f"MissionVariant_LabConquest_{tail}", tail):
+    for base in (
+        f"MissionVariant_{line}_{tail}",
+        f"Condition_{tail}",
+        f"PersonalMod_{tail}",
+        f"MissionVariant_HexConquest_{tail}",
+        f"MissionVariant_LabConquest_{tail}",
+        tail,
+    ):
         key = f"/Lotus/Language/Conquest/{base}"
         name = language_text_zh(key)
         if name:
             return name, language_text_zh(key + "_Desc")
     # 回落：英文语言表 / 美化
-    en_name, en_desc = language_text(
-        f"/Lotus/Language/Conquest/MissionVariant_{line}_{tail}")
+    en_name, en_desc = language_text(f"/Lotus/Language/Conquest/MissionVariant_{line}_{tail}")
     if en_name:
         return en_name, en_desc
     en_name, en_desc = language_text(f"/Lotus/Language/Conquest/Condition_{tail}")
@@ -1703,23 +1810,29 @@ def _parse_archimedea(entry: dict, kind: str) -> dict:
                 if key not in seen and (rn or rd):
                     seen.add(key)
                     risks.append({"name": rn, "description": rd})
-            diffs.append({"tag": tag, "deviation": dv_name,
-                          "deviation_desc": dv_desc, "risks": rk})
-        missions.append({
-            "missionType": mission_type(m.get("missionType", "")),
-            "faction": faction_name(fac_code) if fac_code else "",
-            "faction_code": fac_code,
-            "difficulties": diffs,
-            "expiry": _iso_of(entry, "Expiry"),
-        })
+            diffs.append({"tag": tag, "deviation": dv_name, "deviation_desc": dv_desc, "risks": rk})
+        missions.append(
+            {
+                "missionType": mission_type(m.get("missionType", "")),
+                "faction": faction_name(fac_code) if fac_code else "",
+                "faction_code": fac_code,
+                "difficulties": diffs,
+                "expiry": _iso_of(entry, "Expiry"),
+            }
+        )
     variables = []
     for v in entry.get("Variables") or []:
         vn, vd = _conquest_text(v, kind)
         variables.append({"name": vn, "description": vd})
-    return {"id": _oid(entry.get("_id")), "kind": kind,
-            "activation": _iso_of(entry, "Activation"),
-            "expiry": _iso_of(entry, "Expiry"),
-            "missions": missions, "risks": risks, "variables": variables}
+    return {
+        "id": _oid(entry.get("_id")),
+        "kind": kind,
+        "activation": _iso_of(entry, "Activation"),
+        "expiry": _iso_of(entry, "Expiry"),
+        "missions": missions,
+        "risks": risks,
+        "variables": variables,
+    }
 
 
 def _parse_descents(entry: dict) -> dict:
@@ -1733,22 +1846,34 @@ def _parse_descents(entry: dict) -> dict:
         # ★ 2026-09-28 §二：这里**先走官方解析**再回落英文名 —— 否则 `DESCENT_TYPES`
         #   英文名一改，`mission_cn()` 就会把本路径的 missionType 变成英文，
         #   把「深层科研」卡带崩（该卡只做 mission_cn()，中文会被原样透传）。
-        label = (descent_type_zh(code)
-                 or DESCENT_TYPES.get(code, mission_type(code)
-                                      if code.startswith("MT_") else _prettify(code)))
+        label = descent_type_zh(code) or DESCENT_TYPES.get(
+            code, mission_type(code) if code.startswith("MT_") else _prettify(code)
+        )
         if label in seen:
             continue
         seen.add(label)
         raw = ch.get("Challenge", "")
         name, desc = _conquest_text(raw, "CT_LAB")
-        missions.append({"missionType": label, "faction": "", "risks": [name],
-                         "difficulties": [], "expiry": _iso_of(entry, "Expiry")})
+        missions.append(
+            {
+                "missionType": label,
+                "faction": "",
+                "risks": [name],
+                "difficulties": [],
+                "expiry": _iso_of(entry, "Expiry"),
+            }
+        )
         if name or desc:
             risks.append({"name": name, "description": desc})
-    return {"id": _oid(entry.get("_id")), "kind": "CT_LAB",
-            "activation": _iso_of(entry, "Activation"),
-            "expiry": _iso_of(entry, "Expiry"),
-            "missions": missions, "risks": risks, "variables": []}
+    return {
+        "id": _oid(entry.get("_id")),
+        "kind": "CT_LAB",
+        "activation": _iso_of(entry, "Activation"),
+        "expiry": _iso_of(entry, "Expiry"),
+        "missions": missions,
+        "risks": risks,
+        "variables": [],
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -1777,8 +1902,7 @@ _COH_NS = "/Lotus/Language/CircleOfHell"
 # 键尾的「族前缀」：归一化后先剥掉再比对，让 `fierytrail` 能对上
 # `CoHChallengeFieryTrail`、`escapist` 能对上 `CoHEscapist`。
 # 顺序=从长到短（先剥长前缀，避免 `cohchallenge` 被 `coh` 抢先剥掉）。
-_COH_FAMILIES = ("cohchallengeeximus", "cohchallenge", "cohprotoframe",
-                 "cohgamemode", "coh")
+_COH_FAMILIES = ("cohchallengeeximus", "cohchallenge", "cohprotoframe", "cohgamemode", "coh")
 
 
 def _norm_key(s: str) -> str:
@@ -1791,7 +1915,7 @@ def _coh_stem(tail: str) -> str:
     n = _norm_key(tail)
     for p in _COH_FAMILIES:
         if n.startswith(p):
-            return n[len(p):]
+            return n[len(p) :]
     return n
 
 
@@ -1805,10 +1929,14 @@ def _coh_index() -> dict:
     table = _load("zh_ext.json") or {}
     out: dict = {}
     for path, val in table.items():
-        if not (isinstance(path, str) and isinstance(val, str)
-                and path.startswith(_COH_NS + "/") and val):
+        if not (
+            isinstance(path, str)
+            and isinstance(val, str)
+            and path.startswith(_COH_NS + "/")
+            and val
+        ):
             continue
-        out.setdefault(_norm_key(path[len(_COH_NS) + 1:]), (path, val))
+        out.setdefault(_norm_key(path[len(_COH_NS) + 1 :]), (path, val))
     return out
 
 
@@ -1844,7 +1972,7 @@ def _coh_by_substring(code: str) -> tuple[str, str]:
         return ("", "")
     scored.sort(key=lambda t: -t[0])
     top = [t for t in scored if t[0] == scored[0][0]]
-    if len({t[2] for t in top}) > 1:          # 并列歧义 ⇒ 不猜
+    if len({t[2] for t in top}) > 1:  # 并列歧义 ⇒ 不猜
         return ("", "")
     return (top[0][1], top[0][2])
 
@@ -1853,36 +1981,36 @@ def _coh_by_substring(code: str) -> tuple[str, str]:
 # 只能人工登记。依据 = 参考卡实机核对过的中文与 CircleOfHell 官方值逐字相等
 # ⇒ 由此反查出官方键。**测试会对着官方表复算这一步**（键必须存在、取值必须一致）。
 _DESCENT_GOAL_KEY = {
-    "BasicBreakTargets": "CoHGamemodeDestroyTargets",      # 摧毁全息球
-    "BasicLootCreatures": "CoHCreaturesLoot",              # 贪囤断肢劫掠
-    "BasicLoot": "CoHGamemodeCollectionBasic",             # 掠夺
-    "BasicMimics": "CoHLootMimicDesc",                     # 打开容器
-    "BasicRace": "CoHGamemodeRace",                        # 时间试炼
-    "HeadShotsOnly": "CoHChallengeWeakpointsOnly",         # 只有弱点才会受到伤害
+    "BasicBreakTargets": "CoHGamemodeDestroyTargets",  # 摧毁全息球
+    "BasicLootCreatures": "CoHCreaturesLoot",  # 贪囤断肢劫掠
+    "BasicLoot": "CoHGamemodeCollectionBasic",  # 掠夺
+    "BasicMimics": "CoHLootMimicDesc",  # 打开容器
+    "BasicRace": "CoHGamemodeRace",  # 时间试炼
+    "HeadShotsOnly": "CoHChallengeWeakpointsOnly",  # 只有弱点才会受到伤害
     # 词序被 DE 调换 ⇒ 双向子串够不着（hordeweakpoints vs weakpointhorde），只能登记
-    "HordeWeakpoints": "CoHChallengeWeakpointHorde",       # 弱点敌群
-    "Escapist": "CoHEscapist",                             # 秘密撤离
+    "HordeWeakpoints": "CoHChallengeWeakpointHorde",  # 弱点敌群
+    "Escapist": "CoHEscapist",  # 秘密撤离
 }
 
 _DESCENT_TYPE_KEY = {
-    "DT_INFESTED_SALVAGE": "CoHGamemodePurify",            # 净化
-    "DT_CAPTURE": "CoHGamemode99Capture",                  # 传承种捕获
-    "DT_PRESURE_GAUGE": "CoHGamemodeMeltdown",             # 压力锅
-    "DT_SABOTAGE_HIVE": "CoHGamemodeHive",                 # 清巢
-    "DT_LOOT_CREATURES": "CoHCreaturesLoot",               # 贪囤断肢劫掠
-    "DT_SHRINE_DEFENSE": "CoHGamemodeShrineDefense",       # 祈运坛防御
-    "DT_MOVING_INTERCEPTION": "CoHGamemodeMobileInterception",   # 移动拦截
-    "DT_TIME_TRIAL": "CoHGamemodeRace",                    # 时间试炼
-    "DT_BREAK_TARGETS": "CoHGamemodeDestroyTargets",       # 摧毁全息球
-    "DT_LOOT": "CoHGamemodeLootRoom",                      # 掠夺
-    "DT_RACE": "CoHGamemodeRace",                          # 时间试炼
+    "DT_INFESTED_SALVAGE": "CoHGamemodePurify",  # 净化
+    "DT_CAPTURE": "CoHGamemode99Capture",  # 传承种捕获
+    "DT_PRESURE_GAUGE": "CoHGamemodeMeltdown",  # 压力锅
+    "DT_SABOTAGE_HIVE": "CoHGamemodeHive",  # 清巢
+    "DT_LOOT_CREATURES": "CoHCreaturesLoot",  # 贪囤断肢劫掠
+    "DT_SHRINE_DEFENSE": "CoHGamemodeShrineDefense",  # 祈运坛防御
+    "DT_MOVING_INTERCEPTION": "CoHGamemodeMobileInterception",  # 移动拦截
+    "DT_TIME_TRIAL": "CoHGamemodeRace",  # 时间试炼
+    "DT_BREAK_TARGETS": "CoHGamemodeDestroyTargets",  # 摧毁全息球
+    "DT_LOOT": "CoHGamemodeLootRoom",  # 掠夺
+    "DT_RACE": "CoHGamemodeRace",  # 时间试炼
     # ★ 2026-09-28 §二 本轮新登记的 4 条（算法拼键拼不出：模式名与代码不同字面）
-    "DT_SABOTAGE_DEFENSE": "CoHGamemodeDefense",           # 防御（wiki 本周第 4 层 = Defense）
-    "DT_INTERCEPTION": "CoHGamemodeMobileInterception",    # 移动拦截（wiki = Mobile Interception）
-    "DT_NETRACELLS": "CoHGamemodeKeyTarget",               # 消灭目标（wiki = Targeted Elimination）
+    "DT_SABOTAGE_DEFENSE": "CoHGamemodeDefense",  # 防御（wiki 本周第 4 层 = Defense）
+    "DT_INTERCEPTION": "CoHGamemodeMobileInterception",  # 移动拦截（wiki = Mobile Interception）
+    "DT_NETRACELLS": "CoHGamemodeKeyTarget",  # 消灭目标（wiki = Targeted Elimination）
     # ⚠️ DT_MIMICS 的官方键**不带 `CoHGamemode` 前缀**（是 `CoHMimicsLoot`）——
     #    这是审计 2026-09-28 新找到的键，正是第 11 层「歼灭」错槽的正解。
-    "DT_MIMICS": "CoHMimicsLoot",                          # 掠夺轮盘（wiki = Plunder Roulette）
+    "DT_MIMICS": "CoHMimicsLoot",  # 掠夺轮盘（wiki = Plunder Roulette）
 }
 
 # 少数目标的官方键**不在 CircleOfHell 命名空间**（按 code 推不出来）⇒ 登记完整路径。
@@ -1922,8 +2050,13 @@ def _coh_goal(code: str) -> tuple[str, str]:
     variants = _descent_code_variants(code)
     # ②~⑥ 按模式拼键（归一化精确匹配）
     for base in variants:
-        for pat in ("CoHChallenge{0}", "CoHChallengeEximus{0}",
-                    "CoHChallenge{0}Only", "CoH{0}Desc", "CoHProtoframe{0}"):
+        for pat in (
+            "CoHChallenge{0}",
+            "CoHChallengeEximus{0}",
+            "CoHChallenge{0}Only",
+            "CoH{0}Desc",
+            "CoHProtoframe{0}",
+        ):
             hit = _coh_by_tail(pat.format(base))
             if hit[0]:
                 return hit
@@ -2012,20 +2145,31 @@ def _parse_descendia(entries: list[dict], now_ms: int) -> dict:
     #    会一律得 0 ⇒ 「取当前窗口」退化成永远取 `entries[0]`。线上实测 DE 恰好把
     #    当前周排在首位，所以一直没暴露；一旦顺序变化就会整卡错周。
     #    统一走模块级 :func:`_ms`（它已处理 `$date` 嵌套与秒级时间戳）。
-    cur = next((e for e in entries
-                if (_ms(e.get("Activation")) or 0) <= now_ms
-                < (_ms(e.get("Expiry")) or 0)),
-               entries[0])
+    cur = next(
+        (
+            e
+            for e in entries
+            if (_ms(e.get("Activation")) or 0) <= now_ms < (_ms(e.get("Expiry")) or 0)
+        ),
+        entries[0],
+    )
     chs = []
     for c in cur.get("Challenges") or []:
-        chs.append({"index": c.get("Index"),
-                    "Type": (c.get("Type") or "").strip(),
-                    "type": DESCENT_TYPES.get((c.get("Type") or "").strip(),
-                                              (c.get("Type") or "").strip()),
-                    "code": (c.get("Challenge") or "").strip()})
-    return {"activation": _iso_of(cur, "Activation"),
-            "expiry": _iso_of(cur, "Expiry"),
-            "challenges": chs}
+        chs.append(
+            {
+                "index": c.get("Index"),
+                "Type": (c.get("Type") or "").strip(),
+                "type": DESCENT_TYPES.get(
+                    (c.get("Type") or "").strip(), (c.get("Type") or "").strip()
+                ),
+                "code": (c.get("Challenge") or "").strip(),
+            }
+        )
+    return {
+        "activation": _iso_of(cur, "Activation"),
+        "expiry": _iso_of(cur, "Expiry"),
+        "challenges": chs,
+    }
 
 
 # 1999 日历奖励/升级的官方简中解析（★ 2026-09-27 §三）
@@ -2033,8 +2177,12 @@ def _parse_descendia(entries: list[dict], now_ms: int) -> dict:
 # ⚠️ **运行期只能传完整路径**：`language_text_zh` 的 tail 回退是死代码（两张表里
 #    无斜杠键均为 0，实测）。跨命名空间回退必须**显式枚举候选全路径** ——
 #    同一个「尾段」在不同命名空间里可能是不同东西，猜错就是错名。
-_CARD_LANG_NS = ("/Lotus/Language/1999", "/Lotus/Language/Items",
-                  "/Lotus/Language/Weapons", "/Lotus/Language/Narmer")
+_CARD_LANG_NS = (
+    "/Lotus/Language/1999",
+    "/Lotus/Language/Items",
+    "/Lotus/Language/Weapons",
+    "/Lotus/Language/Narmer",
+)
 # 后缀优先级：`…NameNoIcon` 优先（`…Name` 可能带 `<SHARD_ORANGE_SIMPLE>` 之类图标占位符）
 _CARD_LANG_SUFFIX = ("NameNoIcon", "Name", "")
 
@@ -2083,7 +2231,7 @@ def _card_lang_index() -> dict[str, dict[str, tuple[str, str]]]:
                 continue
             for ns in _CARD_LANG_NS:
                 if path.startswith(ns + "/"):
-                    out[ns].setdefault(_norm_key(path[len(ns) + 1:]), (path, val))
+                    out[ns].setdefault(_norm_key(path[len(ns) + 1 :]), (path, val))
                     break
     return out
 
@@ -2131,8 +2279,7 @@ def _cal_reward_tails(tail: str) -> list[tuple[str, bool]]:
             _expand(alias, is_bp, depth + 1)
         for suf in _CAL_TAIL_STRIP:
             if cand.endswith(suf) and len(cand) > len(suf):
-                _expand(cand[:-len(suf)],
-                        is_bp or suf == _CAL_BLUEPRINT_MARK, depth + 1)
+                _expand(cand[: -len(suf)], is_bp or suf == _CAL_BLUEPRINT_MARK, depth + 1)
 
     _expand(tail, False)
     return order
@@ -2261,13 +2408,16 @@ def _parse_calendar(entry: dict, now_ms: int) -> dict:
                 desc = rec.get("desc") or ""
                 cnt = rec.get("count")
                 if name:
-                    events.append({"type": "CHALLENGE", "name": name,
-                                   "desc": desc, "count": cnt})
+                    events.append({"type": "CHALLENGE", "name": name, "desc": desc, "count": cnt})
                 else:
-                    events.append({"type": "CHALLENGE",
-                                   "name": language_text_zh(ref)
-                                   or language_text(ref)[0]
-                                   or _prettify(ref)})
+                    events.append(
+                        {
+                            "type": "CHALLENGE",
+                            "name": language_text_zh(ref)
+                            or language_text(ref)[0]
+                            or _prettify(ref),
+                        }
+                    )
             elif kind == "CET_UPGRADE":
                 ref = ev.get("upgrade", "") or ""
                 tail = ref.rstrip("/").rsplit("/", 1)[-1]
@@ -2277,15 +2427,20 @@ def _parse_calendar(entry: dict, now_ms: int) -> dict:
                 if not up_cn:
                     up_cn = _prettify(tail)
                     no_key.append(tail)
-                events.append({"type": "UPGRADE", "name": up_cn,
-                               "desc": _calendar_upgrade_desc(ref)})
+                events.append(
+                    {"type": "UPGRADE", "name": up_cn, "desc": _calendar_upgrade_desc(ref)}
+                )
         days.append({"day": num, "date": date1999.date().isoformat(), "events": events})
-    return {"season": entry.get("Season"), "yearIteration": entry.get("YearIteration"),
-            "start": _iso_of(entry, "Activation"), "expiry": _iso_of(entry, "Expiry"),
-            "days": days,
-            # 供卡面加注脚：合成译名（官方无键但照同族格式产出）与无键项
-            "synthesized": sorted(set(synthesized)),
-            "noKey": sorted(set(no_key))}
+    return {
+        "season": entry.get("Season"),
+        "yearIteration": entry.get("YearIteration"),
+        "start": _iso_of(entry, "Activation"),
+        "expiry": _iso_of(entry, "Expiry"),
+        "days": days,
+        # 供卡面加注脚：合成译名（官方无键但照同族格式产出）与无键项
+        "synthesized": sorted(set(synthesized)),
+        "noKey": sorted(set(no_key)),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -2300,8 +2455,9 @@ def parse_worldstate(raw: dict, now_ms: Optional[int] = None) -> dict:
     syndicates = raw.get("SyndicateMissions") or []
     ostrons = next((s for s in syndicates if s.get("Tag") == "CetusSyndicate"), {})
     cetus = cetus_cycle(_ms(ostrons.get("Expiry")), now_ms)
-    zariman = next((s for s in syndicates if s.get("Tag") == "ZarimanSyndicate"), {}) \
-        or next((s for s in syndicates if s.get("Tag") == "HexSyndicate"), {})
+    zariman = next((s for s in syndicates if s.get("Tag") == "ZarimanSyndicate"), {}) or next(
+        (s for s in syndicates if s.get("Tag") == "HexSyndicate"), {}
+    )
 
     sorties = raw.get("Sorties") or []
     lite = raw.get("LiteSorties") or []
@@ -2319,12 +2475,13 @@ def parse_worldstate(raw: dict, now_ms: Optional[int] = None) -> dict:
         "timestamp": _iso_of(raw, "Time"),
         "cetusCycle": cetus,
         "earthCycle": earth_cycle(cetus),
-        "zarimanCycle": zariman_cycle(zariman.get("Seed"),
-                                      _ms(zariman.get("Expiry")), now_ms),
+        "zarimanCycle": zariman_cycle(zariman.get("Seed"), _ms(zariman.get("Expiry")), now_ms),
         "vallisCycle": vallis_cycle(now_ms),
-        "cambionCycle": {"state": "fass" if cetus.get("isDay") else "vome",
-                         "expiry": cetus.get("expiry", ""),
-                         "timeLeft": cetus.get("timeLeft", "")},
+        "cambionCycle": {
+            "state": "fass" if cetus.get("isDay") else "vome",
+            "expiry": cetus.get("expiry", ""),
+            "timeLeft": cetus.get("timeLeft", ""),
+        },
         "duviriCycle": duviri_cycle(now_ms),
         "fissures": _parse_fissures(raw),
         "sortie": _parse_sortie(sorties[0], archon=False) if sorties else {},
@@ -2348,8 +2505,8 @@ def parse_worldstate(raw: dict, now_ms: Optional[int] = None) -> dict:
         "primeVault": _parse_prime_vault(raw, now_ms),
         "clanRewards": _parse_clan_rewards(raw, now_ms),
         "flashSales": _parse_flash_sales(raw, now_ms),
-        "kuva": None,        # DE 源不含赤毒虹吸（10o.io 独立源）
+        "kuva": None,  # DE 源不含赤毒虹吸（10o.io 独立源）
         "arbitration": None,  # 同上
-        "steelPath": None,    # 钢铁之路轮换为外部数据
+        "steelPath": None,  # 钢铁之路轮换为外部数据
     }
     return bundle

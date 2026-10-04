@@ -13,6 +13,7 @@ join 方式：incarnon 文件没有 internal_name，通过 transforms_from → �
 重录；zh 名取自 wfsim i18n/zh（其注明来源为 DE 官方客户端字符串，与我们
 「DE 官方简中」的译名约定一致）。不搬运其 YAML 表达。
 """
+
 import json
 import sys
 from pathlib import Path
@@ -22,16 +23,30 @@ ROOT = Path(__file__).resolve().parent.parent
 try:
     import yaml
 except ImportError:  # noqa: BLE001 —— 插件运行本身不需要 yaml，只有这几个
-    raise SystemExit(   # 数据构建脚本要；给可操作的提示而不是裸 ImportError
-        "本脚本需要 PyYAML：pip install pyyaml"
-        "（插件运行时并不依赖它，仅构建数据用）")
+    raise SystemExit(  # 数据构建脚本要；给可操作的提示而不是裸 ImportError
+        "本脚本需要 PyYAML：pip install pyyaml（插件运行时并不依赖它，仅构建数据用）"
+    )
 
-WFSIM = (Path.home() / "tmp" / "wfsim" / "data")
+WFSIM = Path.home() / "tmp" / "wfsim" / "data"
 OUT = ROOT / "core" / "data" / "incarnon_forms.json"
 
-DAMAGE_KEYS = ("impact", "puncture", "slash", "heat", "cold", "electricity",
-               "toxin", "blast", "radiation", "gas", "magnetic", "viral",
-               "corrosive", "void", "true")
+DAMAGE_KEYS = (
+    "impact",
+    "puncture",
+    "slash",
+    "heat",
+    "cold",
+    "electricity",
+    "toxin",
+    "blast",
+    "radiation",
+    "gas",
+    "magnetic",
+    "viral",
+    "corrosive",
+    "void",
+    "true",
+)
 
 
 def load_yaml(p: Path):
@@ -41,12 +56,14 @@ def load_yaml(p: Path):
 
 def main():
     names = load_yaml(WFSIM / "i18n" / "zh" / "names.yaml").get("weapons") or {}
-    out = {"_meta": {
-        "source": "github.com/magenie33/wfsim data/weapons/*（form: incarnon），"
-                  "数值为其按 wiki/实测整理的事实数据；zh 名为 DE 官方简中",
-        "updated": "2026-09-16",
-        "scope": "枪械灵化（近战灵化 wfsim 尚未导入）；attack 块不含灵化进化 perk",
-    }}
+    out = {
+        "_meta": {
+            "source": "github.com/magenie33/wfsim data/weapons/*（form: incarnon），"
+            "数值为其按 wiki/实测整理的事实数据；zh 名为 DE 官方简中",
+            "updated": "2026-09-16",
+            "scope": "枪械灵化（近战灵化 wfsim 尚未导入）；attack 块不含灵化进化 perk",
+        }
+    }
     n_ok = 0
     for cat in ("primary", "secondary", "sentinel", "archgun"):
         for p in sorted((WFSIM / "weapons" / cat).glob("*.yaml")):
@@ -54,8 +71,7 @@ def main():
             if not isinstance(y, dict) or y.get("form") != "incarnon":
                 continue
             atk = y.get("attack") or {}
-            dmg = {k: float(atk.get("damage", {}).get(k) or 0.0)
-                   for k in DAMAGE_KEYS}
+            dmg = {k: float(atk.get("damage", {}).get(k) or 0.0) for k in DAMAGE_KEYS}
             dmg = {k: v for k, v in dmg.items() if v}
             total = sum(dmg.values())
             if total <= 0:
@@ -63,8 +79,7 @@ def main():
             dmg["total"] = round(total, 4)
 
             # join 基础形态 → internal_name → 我们 weapons_stats 的 key
-            base_id = y.get("transforms_from") or (
-                (y.get("transform_group") or "").split(".")[0])
+            base_id = y.get("transforms_from") or ((y.get("transform_group") or "").split(".")[0])
             base_path = WFSIM / "weapons" / cat / f"{base_id}.yaml"
             internal = ""
             base_name = base_zh = ""
@@ -95,24 +110,19 @@ def main():
             # 范围（AoE）段：灵化形态的第二段伤害（与直击并列结算）
             rad = atk.get("radial")
             if isinstance(rad, dict) and rad.get("damage"):
-                r_dmg = {k: float(rad["damage"].get(k) or 0.0)
-                         for k in DAMAGE_KEYS}
+                r_dmg = {k: float(rad["damage"].get(k) or 0.0) for k in DAMAGE_KEYS}
                 r_dmg = {k: v for k, v in r_dmg.items() if v}
                 if r_dmg:
                     out[internal]["radial"] = {
-                        "damage": {**r_dmg,
-                                   "total": round(sum(r_dmg.values()), 4)},
+                        "damage": {**r_dmg, "total": round(sum(r_dmg.values()), 4)},
                         "criticalChance": float(rad.get("crit_chance") or 0.0),
-                        "criticalMultiplier":
-                            float(rad.get("crit_multiplier") or 1.0),
+                        "criticalMultiplier": float(rad.get("crit_multiplier") or 1.0),
                         "procChance": float(rad.get("status_chance") or 0.0),
                         "radius_m": float(rad.get("radius_m") or 0.0),
-                        "falloff_reduction":
-                            float(rad.get("falloff_reduction") or 0.0),
+                        "falloff_reduction": float(rad.get("falloff_reduction") or 0.0),
                     }
             if atk.get("forced_procs"):
-                out[internal]["forced_procs"] = [str(x)
-                                                 for x in atk["forced_procs"]]
+                out[internal]["forced_procs"] = [str(x) for x in atk["forced_procs"]]
             rc = atk.get("ricochet")
             if isinstance(rc, dict) and rc.get("bounces"):
                 out[internal]["ricochet"] = {
@@ -121,15 +131,23 @@ def main():
                 }
             n_ok += 1
 
-    OUT.write_text(json.dumps(out, ensure_ascii=False, indent=1),
-                   encoding="utf-8")
+    OUT.write_text(json.dumps(out, ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"✓ 写入 {OUT.name}: {n_ok} 个灵化形态")
     # 抽查
     for k in ("/lotus/weapons/tenno/rifle/rifle",):
         if k in out:
             e = out[k]
-            print("  抽查", k, "→", e["base_zh"], e["damage"],
-                  "cc", e["criticalChance"], "cm", e["criticalMultiplier"])
+            print(
+                "  抽查",
+                k,
+                "→",
+                e["base_zh"],
+                e["damage"],
+                "cc",
+                e["criticalChance"],
+                "cm",
+                e["criticalMultiplier"],
+            )
     missing_zh = sum(1 for k, v in out.items() if k != "_meta" and not v["base_zh"])
     print(f"  缺 zh 名: {missing_zh}")
 

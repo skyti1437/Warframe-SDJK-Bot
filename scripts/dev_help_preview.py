@@ -9,6 +9,7 @@
     python scripts/dev_help_preview.py --rev HEAD~1  # 渲染某个历史版本
 产物：runtime/help_preview[_rev].png
 """
+
 from __future__ import annotations
 
 import ast
@@ -42,8 +43,11 @@ def main():
     src = None
     if rev:
         src = subprocess.run(
-            ["git", "show", f"{rev}:main.py"], cwd=ROOT,
-            capture_output=True, text=True, encoding="utf-8",
+            ["git", "show", f"{rev}:main.py"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
         ).stdout
         if not src:
             raise SystemExit(f"取不到 {rev}:main.py")
@@ -61,10 +65,18 @@ def main():
         raise SystemExit("渲染器不可用（缺字体）")
     p = r.render("Warframe SDJKBOT 指令一览", lines, "平台：国际服")
 
-    out = ROOT / "runtime" / ("help_preview.png" if not rev
-                              else f"help_preview_{rev.replace('~', '_').replace('^', '_')}.png")
+    out = (
+        ROOT
+        / "runtime"
+        / (
+            "help_preview.png"
+            if not rev
+            else f"help_preview_{rev.replace('~', '_').replace('^', '_')}.png"
+        )
+    )
     out.parent.mkdir(exist_ok=True)
     import shutil
+
     shutil.copy(p, out)
     total = sum(len(v) for v in topic.values())
     print(f"分类 {len(topic)} 个，条目 {total} 条，行数 {len(lines)}")

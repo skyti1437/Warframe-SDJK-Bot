@@ -29,6 +29,7 @@ Bonuses* 玩家上报表。而插件侧直连 wiki.warframe.com 会被 Cloudflar
   源页 wikitext 是**真源、无解析缓存**，且 A/B 两批同页全量公布 ⇒ 一次抓取两批
   齐全（旧文案「页面只展示当前批」仅对 Reset 渲染页成立，对源页不成立）。
 """
+
 from __future__ import annotations
 
 import argparse
@@ -51,17 +52,16 @@ WIKI_RAW_TENET = "https://wiki.warframe.com/w/Tenet_Weapons?action=raw"
 BATCH_IDX = {"A": 1, "B": 2}
 
 
-def fetch_html(flare: str, url: str = WIKI_URL, timeout: int = 120,
-               min_len: int = 50_000) -> str:
+def fetch_html(flare: str, url: str = WIKI_URL, timeout: int = 120, min_len: int = 50_000) -> str:
     """经 FlareSolverr 取回页面（直连会被 CF 拦）。
 
     ``min_len``：渲染页要求整页（>50KB）；``?action=raw`` 只有十几 KB，
     调用方传小阈值。
     """
-    payload = json.dumps({"cmd": "request.get", "url": url,
-                          "maxTimeout": timeout * 1000}).encode("utf-8")
-    req = urllib.request.Request(
-        flare, data=payload, headers={"Content-Type": "application/json"})
+    payload = json.dumps({"cmd": "request.get", "url": url, "maxTimeout": timeout * 1000}).encode(
+        "utf-8"
+    )
+    req = urllib.request.Request(flare, data=payload, headers={"Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=timeout + 60) as resp:
         data = json.loads(resp.read().decode("utf-8", "replace"))
     if data.get("status") != "ok":
@@ -84,9 +84,11 @@ def _cells(row_html: str) -> list[str]:
 def _weapon_row(cells: list[str]) -> dict:
     """``['Coda Tysis', 'Heat', '48.0%']`` → ``{en, element, bonus}``。"""
     m = re.search(r"([\d.]+)", cells[2]) if len(cells) > 2 else None
-    return {"en": cells[0].strip(),
-            "element": cells[1].strip() if len(cells) > 1 else "",
-            "bonus": float(m.group(1)) if m else None}
+    return {
+        "en": cells[0].strip(),
+        "element": cells[1].strip() if len(cells) > 1 else "",
+        "bonus": float(m.group(1)) if m else None,
+    }
 
 
 def parse(src: str) -> dict:
@@ -102,8 +104,7 @@ def parse(src: str) -> dict:
         end = src.find("</table>", start)
         if end < 0:
             continue
-        rows = [_cells(r) for r in
-                re.findall(r"<tr[^>]*>(.*?)</tr>", src[start:end], re.S)]
+        rows = [_cells(r) for r in re.findall(r"<tr[^>]*>(.*?)</tr>", src[start:end], re.S)]
         rows = [r for r in rows if r and any(r)]
         if not rows:
             continue
@@ -113,9 +114,10 @@ def parse(src: str) -> dict:
             idx = BATCH_IDX[mb.group(1).upper()]
             res["coda"][idx] = [_weapon_row(r) for r in rows[1:] if len(r) >= 3]
             continue
-        if head.lower() == "weapon":       # 无批次后缀的表 = Tenet（Ergo Glast）
-            items = [_weapon_row(r) for r in rows[1:]
-                     if len(r) >= 3 and r[0].lower().startswith("tenet")]
+        if head.lower() == "weapon":  # 无批次后缀的表 = Tenet（Ergo Glast）
+            items = [
+                _weapon_row(r) for r in rows[1:] if len(r) >= 3 and r[0].lower().startswith("tenet")
+            ]
             if items:
                 res["tenet"] = items
     return res
@@ -143,8 +145,9 @@ def _weapon_row_wt(row: str) -> dict:
         m = re.search(r"\{\{\s*D\s*\|\s*([^}|]+?)\s*\}\}", cells[1])
         out["element"] = m.group(1) if m else _wt_plain(cells[1])
     if len(cells) > 2:
-        m = (re.search(r"ValenceBonusPercentageColor\s*\|\s*([\d.]+)", cells[2])
-             or re.search(r"([\d.]+)", _wt_plain(cells[2])))
+        m = re.search(r"ValenceBonusPercentageColor\s*\|\s*([\d.]+)", cells[2]) or re.search(
+            r"([\d.]+)", _wt_plain(cells[2])
+        )
         out["bonus"] = float(m.group(1)) if m else None
     return out
 
@@ -167,7 +170,7 @@ def parse_wikitext(src: str) -> dict:
         if end < 0:
             continue
         rows = re.findall(r"<tr[^>]*>(.*?)</tr>", src[start:end], re.S)
-        heads = [r for r in rows if "<th" in r]          # 表头行（<th>）
+        heads = [r for r in rows if "<th" in r]  # 表头行（<th>）
         data = [r for r in rows if len(re.findall(r"<td", r)) >= 3]
         if not heads or not data:
             continue
@@ -178,10 +181,9 @@ def parse_wikitext(src: str) -> dict:
             idx = BATCH_IDX[mb.group(1).upper()]
             res["coda"][idx] = [_weapon_row_wt(r) for r in data]
             continue
-        if head.lower().startswith("weapon"):     # 无批次后缀 = Tenet
+        if head.lower().startswith("weapon"):  # 无批次后缀 = Tenet
             items = [_weapon_row_wt(r) for r in data]
-            items = [it for it in items
-                     if (it["en"] or "").lower().startswith("tenet")]
+            items = [it for it in items if (it["en"] or "").lower().startswith("tenet")]
             if items:
                 res["tenet"] = items
     return res
@@ -206,7 +208,8 @@ def apply(data: dict, parsed: dict, dry: bool = False) -> list[str]:
                 changes.append(
                     f"  {it.get('cn') or it.get('en')}: "
                     f"{it.get('element')} {it.get('bonus')} → "
-                    f"{src['element']} {src['bonus']}")
+                    f"{src['element']} {src['bonus']}"
+                )
                 if not dry:
                     it["element"], it["bonus"] = src["element"], src["bonus"]
                 n += 1
@@ -220,11 +223,13 @@ def apply(data: dict, parsed: dict, dry: bool = False) -> list[str]:
         if not (1 <= idx <= len(batches)):
             changes.append(f"  [跳过] wiki 的 Batch {idx} 超出本地批次表")
             continue
-        label = (coda.get("batch_label") or [])[idx - 1] if \
-            isinstance(coda.get("batch_label"), list) else str(idx)
+        label = (
+            (coda.get("batch_label") or [])[idx - 1]
+            if isinstance(coda.get("batch_label"), list)
+            else str(idx)
+        )
         n = _merge(batches[idx - 1], items, f"终幕批{label}")
-        changes.append(f"  · Batch {label}：{len(items)} 条来自 wiki，"
-                       f"其中 {n} 条数值有变化")
+        changes.append(f"  · Batch {label}：{len(items)} 条来自 wiki，其中 {n} 条数值有变化")
         if not dry:
             coda["valence_snapshot"] = now
 
@@ -232,8 +237,7 @@ def apply(data: dict, parsed: dict, dry: bool = False) -> list[str]:
     titems = tenet.get("items") or []
     if parsed["tenet"]:
         n = _merge(titems, parsed["tenet"], "信条")
-        changes.append(f"  · Tenet：{len(parsed['tenet'])} 条来自 wiki，"
-                       f"其中 {n} 条数值有变化")
+        changes.append(f"  · Tenet：{len(parsed['tenet'])} 条来自 wiki，其中 {n} 条数值有变化")
         if not dry:
             tenet["valence_snapshot"] = now
 
@@ -250,11 +254,18 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--flare", default=DEFAULT_FLARE)
     ap.add_argument("--url", default=WIKI_URL)
-    ap.add_argument("--reset", action="store_true",
-                    help="旧路径：抓渲染后的 Reset 页（受解析缓存影响，可能落后一批）")
+    ap.add_argument(
+        "--reset",
+        action="store_true",
+        help="旧路径：抓渲染后的 Reset 页（受解析缓存影响，可能落后一批）",
+    )
     ap.add_argument("--html", help="离线：从已保存的 FlareSolverr 渲染页响应 JSON 解析")
-    ap.add_argument("--wikitext", nargs=2, metavar=("CODA_RAW", "TENET_RAW"),
-                    help="离线：从已保存的源页 wikitext 解析（Coda Weapons / Tenet Weapons）")
+    ap.add_argument(
+        "--wikitext",
+        nargs=2,
+        metavar=("CODA_RAW", "TENET_RAW"),
+        help="离线：从已保存的源页 wikitext 解析（Coda Weapons / Tenet Weapons）",
+    )
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
@@ -262,7 +273,7 @@ def main():
         p_coda = parse_wikitext(Path(args.wikitext[0]).read_text(encoding="utf-8"))
         p_tenet = parse_wikitext(Path(args.wikitext[1]).read_text(encoding="utf-8"))
         parsed = {"coda": dict(p_coda["coda"]), "tenet": p_tenet["tenet"]}
-        if not parsed["tenet"]:            # 兜底：源文件顺序与参数相反也能解析
+        if not parsed["tenet"]:  # 兜底：源文件顺序与参数相反也能解析
             parsed["tenet"] = p_coda["tenet"]
         if not parsed["coda"]:
             parsed["coda"] = dict(p_tenet["coda"])
@@ -270,10 +281,10 @@ def main():
         raw = json.loads(Path(args.html).read_text(encoding="utf-8"))
         src = raw.get("solution", {}).get("response") or raw.get("html") or ""
         parsed = parse(src)
-    elif args.reset:                       # 旧路径（保留兼容；见文件头 ★ 2026-10-03）
+    elif args.reset:  # 旧路径（保留兼容；见文件头 ★ 2026-10-03）
         print(f"→ FlareSolverr 抓取（渲染页）{args.url}")
         parsed = parse(fetch_html(args.flare, args.url))
-    else:                                  # ★ 默认：源页 wikitext（真源、两批全量）
+    else:  # ★ 默认：源页 wikitext（真源、两批全量）
         print(f"→ FlareSolverr 抓取源页 wikitext：\n   {WIKI_RAW_CODA}\n   {WIKI_RAW_TENET}")
         p_coda = parse_wikitext(fetch_html(args.flare, WIKI_RAW_CODA, min_len=2_000))
         p_tenet = parse_wikitext(fetch_html(args.flare, WIKI_RAW_TENET, min_len=2_000))
@@ -283,9 +294,11 @@ def main():
         if not parsed["tenet"]:
             parsed["tenet"] = p_coda["tenet"]
 
-    print(f"解析到：Coda 批次 {sorted(parsed['coda'])}（各自 "
-          f"{ {k: len(v) for k, v in parsed['coda'].items()} } 把）、"
-          f"Tenet {len(parsed['tenet'])} 把")
+    print(
+        f"解析到：Coda 批次 {sorted(parsed['coda'])}（各自 "
+        f"{ {k: len(v) for k, v in parsed['coda'].items()} } 把）、"
+        f"Tenet {len(parsed['tenet'])} 把"
+    )
     if not parsed["coda"] and not parsed["tenet"]:
         raise SystemExit("没解析到任何效价表 —— 页面结构可能变了，请人工核对")
 
@@ -299,8 +312,8 @@ def main():
         return
     indent = detect_indent(original)
     ROTATION_FILE.write_text(
-        json.dumps(data, ensure_ascii=False, indent=indent) + "\n",
-        encoding="utf-8")
+        json.dumps(data, ensure_ascii=False, indent=indent) + "\n", encoding="utf-8"
+    )
     print(f"\n已写入 {ROTATION_FILE}（缩进 {indent} 空格，与原文件一致）")
 
 

@@ -16,6 +16,7 @@
 用法：python scripts/build_name_bilingual.py [--check]
   --check 只校验不写盘（用于 CI/回归）。
 """
+
 from __future__ import annotations
 
 import argparse
@@ -28,13 +29,36 @@ CACHE = ROOT / "core" / "data" / "_cache"
 OUT = ROOT / "core" / "data" / "de" / "name_bilingual.json"
 MOD_ZH = ROOT / "core" / "data" / "de" / "mod_names_zh.json"
 
-NS_OK = ("Mods", "Weapons", "Suits", "Items",
-         "Primes",              # Prime 武器/战甲名与部件（Athodai Prime 等）
-         "ClanTech",            # 氏族/特殊资源（突变原聚合物 等）
-         "CraftingComponents")  # 部件名（X 枪管 / X 枪机 等）
-BAD_SUFFIX = ("Desc", "Description", "Desc2", "Desc3", "Tip", "Hint", "Text",
-              "Lore", "Body", "Subtitle", "Quote", "Objective", "Popup",
-              "Info", "Letter", "Mail", "Message", "Story", "Transmission")
+NS_OK = (
+    "Mods",
+    "Weapons",
+    "Suits",
+    "Items",
+    "Primes",  # Prime 武器/战甲名与部件（Athodai Prime 等）
+    "ClanTech",  # 氏族/特殊资源（突变原聚合物 等）
+    "CraftingComponents",
+)  # 部件名（X 枪管 / X 枪机 等）
+BAD_SUFFIX = (
+    "Desc",
+    "Description",
+    "Desc2",
+    "Desc3",
+    "Tip",
+    "Hint",
+    "Text",
+    "Lore",
+    "Body",
+    "Subtitle",
+    "Quote",
+    "Objective",
+    "Popup",
+    "Info",
+    "Letter",
+    "Mail",
+    "Message",
+    "Story",
+    "Transmission",
+)
 
 
 def _has_cjk(s: str) -> bool:
@@ -74,11 +98,13 @@ def build() -> dict:
         pairs.append([pair[0], pair[1]])
     pairs.sort(key=lambda p: p[0].lower())
     return {
-        "_note": ("双语名称对照表（B1「翻译」指令数据）。构建期由 "
-                  "core/data/_cache/dict.en/zh.json（DE 官方 language 表同键对）"
-                  "筛选生成：命名空间 Mods/Weapons/Suits/Items，排除描述类键尾，"
-                  "仅收短名（en≤60/zh≤30、zh 含 CJK 且与 en 不同）。"
-                  "重新生成：python scripts/build_name_bilingual.py"),
+        "_note": (
+            "双语名称对照表（B1「翻译」指令数据）。构建期由 "
+            "core/data/_cache/dict.en/zh.json（DE 官方 language 表同键对）"
+            "筛选生成：命名空间 Mods/Weapons/Suits/Items，排除描述类键尾，"
+            "仅收短名（en≤60/zh≤30、zh 含 CJK 且与 en 不同）。"
+            "重新生成：python scripts/build_name_bilingual.py"
+        ),
         "pairs": pairs,
     }
 
@@ -94,23 +120,23 @@ def main() -> None:
     n = len(data["pairs"])
     payload = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
     size = len(payload.encode("utf-8"))
-    print(f"名称对: {n} 条 · 序列化 {size / 1024:.0f} KB"
-          f"（目标 ≤1536 KB）")
+    print(f"名称对: {n} 条 · 序列化 {size / 1024:.0f} KB（目标 ≤1536 KB）")
     # 抽样哨兵：mod_names_zh 覆盖率
     if MOD_ZH.exists():
         zh_list = json.loads(MOD_ZH.read_text(encoding="utf-8"))
         ours = {z for _e, z in data["pairs"]}
         hit = sum(1 for z in zh_list if z in ours)
-        print(f"mod_names_zh 覆盖: {hit}/{len(zh_list)}"
-              f"（{hit / max(1, len(zh_list)):.0%}；另一来源，不要求 100%）")
+        print(
+            f"mod_names_zh 覆盖: {hit}/{len(zh_list)}"
+            f"（{hit / max(1, len(zh_list)):.0%}；另一来源，不要求 100%）"
+        )
     if size > 1536 * 1024:
         print("✗ 体积超 1.5MB 目标，需收紧筛选口径")
         sys.exit(1)
     if args.check:
         print("✓ --check 通过（未写盘）")
         return
-    OUT.write_text(json.dumps(data, ensure_ascii=False, indent=1),
-                   encoding="utf-8")
+    OUT.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"✓ 已写 {OUT.relative_to(ROOT)}")
 
 

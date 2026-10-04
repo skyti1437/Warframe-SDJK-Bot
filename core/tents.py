@@ -23,6 +23,7 @@ camp/tent 字段，``Nodes`` 为空）。但该归属是**确定性**的：
 金星点位名 7 个里只有 5 个有官方译名、且维护者要求金星卡改列深矿钢铁档奖励，火卫二则
 0/5 无译名。补名/要开时只需把 :data:`REGIONS` 里对应那段取消注释。
 """
+
 from __future__ import annotations
 
 import json
@@ -75,8 +76,9 @@ def on_card(region: str) -> bool:
     """
     return bool((REGIONS.get(region or "") or {}).get("on_card", True))
 
+
 _MASK64 = (1 << 64) - 1
-_MULT = 0x5851F42D4C957F2D      # SRandomInt 的 LCG 常量（PCG 同款）
+_MULT = 0x5851F42D4C957F2D  # SRandomInt 的 LCG 常量（PCG 同款）
 _INCR = 0x14057B7EF767814F
 
 
@@ -84,7 +86,7 @@ _INCR = 0x14057B7EF767814F
 def _manifest(filename: str) -> dict:
     path = DATA_DIR / filename
     try:
-        return (json.loads(path.read_text(encoding="utf-8")).get("data") or {})
+        return json.loads(path.read_text(encoding="utf-8")).get("data") or {}
     except Exception:  # noqa: BLE001
         return {}
 
@@ -93,8 +95,7 @@ def _manifest(filename: str) -> dict:
 def _job_names() -> dict:
     """链资产路径（小写）-> 官方简中链名（与 de_worldstate 同一份表）。"""
     try:
-        return json.loads((DATA_DIR / "bounty_jobs_zh.json")
-                          .read_text(encoding="utf-8"))
+        return json.loads((DATA_DIR / "bounty_jobs_zh.json").read_text(encoding="utf-8"))
     except Exception:  # noqa: BLE001
         return {}
 

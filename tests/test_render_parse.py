@@ -11,6 +11,7 @@
 另外校验 `_tint()` —— ImageDraw 在 RGBA 上不做 alpha 混合，收尾 convert("RGB")
 又会丢 alpha，所以半透明色必须预先混好，否则大面积填充会渲染成纯白块。
 """
+
 from __future__ import annotations
 
 import sys
@@ -79,17 +80,23 @@ for t, exp in SHOULD_TIMER:
     check(f"应抽：{t[:22]}…", got == exp, f"got={got!r} exp={exp!r}")
 
 # ---------------------------------------------------------------- 语义着色
-check("散文里的「剩余时间」不着色", R._TOKEN_RE.findall("商城折扣商品与剩余时间") == [],
-      str(R._TOKEN_RE.findall("商城折扣商品与剩余时间")))
+check(
+    "散文里的「剩余时间」不着色",
+    R._TOKEN_RE.findall("商城折扣商品与剩余时间") == [],
+    str(R._TOKEN_RE.findall("商城折扣商品与剩余时间")),
+)
 toks = R._TOKEN_RE.findall("剩余 32分钟　钢铁　网页在线")
-check("正常计时/关键词仍着色",
-      all(x in toks for x in ("剩余 32分钟", "钢铁", "网页在线")), str(toks))
+check(
+    "正常计时/关键词仍着色", all(x in toks for x in ("剩余 32分钟", "钢铁", "网页在线")), str(toks)
+)
 
 # ---------------------------------------------------------------- _tint 预混
 check("_tint 返回不透明四元组", R._tint((255, 255, 255), 12)[3] == 255)
-check("_tint(白,12) 接近面板底色而非纯白",
-      R._tint((255, 255, 255), 12) < (60, 60, 60),
-      str(R._tint((255, 255, 255), 12)))
+check(
+    "_tint(白,12) 接近面板底色而非纯白",
+    R._tint((255, 255, 255), 12) < (60, 60, 60),
+    str(R._tint((255, 255, 255), 12)),
+)
 check("_tint(白,255) 就是白", R._tint((255, 255, 255), 255)[:3] == (255, 255, 255))
 check("_tint(白,0) 就是底色", R._tint((255, 255, 255), 0)[:3] == R.PANEL_BG)
 
@@ -99,25 +106,23 @@ for src, exp in [
     ("· 指令格式　主指令 + 内容 + 附加项", ["指令格式", "主指令 + 内容 + 附加项"]),
     ("· 突击　每日 3 阶段：节点 · 任务 · 限制", ["突击", "每日 3 阶段：节点 · 任务 · 限制"]),
     ("· 日历　1999 日历：奖励 / 清单 / 覆写", ["日历", "1999 日历：奖励 / 清单 / 覆写"]),
-    ("· 输出方式　-1 或 -w 纯文字 ｜ -t 强制图片",
-     ["输出方式", "-1 或 -w 纯文字 ｜ -t 强制图片"]),
+    ("· 输出方式　-1 或 -w 纯文字 ｜ -t 强制图片", ["输出方式", "-1 或 -w 纯文字 ｜ -t 强制图片"]),
 ]:
     got = R._split_cells(src)
     check(f"分列：{src[:16]}…", got == exp, f"got={got!r}")
-    check(f"分列首列无字面圆点：{src[:12]}…",
-          bool(got) and not got[0].startswith("·"), f"got={got!r}")
+    check(
+        f"分列首列无字面圆点：{src[:12]}…", bool(got) and not got[0].startswith("·"), f"got={got!r}"
+    )
 
 # 没有全角空格 / 不该分列的行
 for src in ["◆ 世界状态", "· 帮助 世界状态（查看分类详情）", "※ 说明文字", ""]:
-    check(f"不分列：{src[:16] or '(空)'}", R._split_cells(src) is None,
-          str(R._split_cells(src)))
+    check(f"不分列：{src[:16] or '(空)'}", R._split_cells(src) is None, str(R._split_cells(src)))
 
 # ---------------------------------------------------------------- 标签行判定
 # 表格式卡片的分列行必须让位给列对齐，否则会出现加粗顶格的“异类行”
 check("分列行不走标签排版", R._is_label_row("突击　每日 3 阶段", True, True) is False)
 check("短标签走标签排版", R._is_label_row("首领", True, False) is True)
-check("超长标签不走标签排版",
-      R._is_label_row("这是一个超过十个字的标签", True, False) is False)
+check("超长标签不走标签排版", R._is_label_row("这是一个超过十个字的标签", True, False) is False)
 check("无冒号不走标签排版", R._is_label_row("没有冒号的一行", False, False) is False)
 
 # ---------------------------------------------------------------- 赏金等级列提取
@@ -126,13 +131,16 @@ check("无冒号不走标签排版", R._is_label_row("没有冒号的一行", Fa
 #    「任务名｜100-100级｜钢铁之路」这种带标签的行被抽走，而「任务名｜5-15级」
 #    这种不带标签的行留在原地内联，同一张卡上两种样式并存，看起来像排版坏了。
 for _src, _exp in [
-    ("　◆ 削弱 Grineer 的据点｜5-15级", "5-15级"),          # 行尾（无标签）
-    ("　◆ 破坏赏金｜100-100级｜钢铁之路", "100-100级"),      # 行中（有标签）
-    ("　◆ 涂沃主厅｜50-55级", "50-55级"),                   # oracle 地区
+    ("　◆ 削弱 Grineer 的据点｜5-15级", "5-15级"),  # 行尾（无标签）
+    ("　◆ 破坏赏金｜100-100级｜钢铁之路", "100-100级"),  # 行中（有标签）
+    ("　◆ 涂沃主厅｜50-55级", "50-55级"),  # oracle 地区
 ]:
     _m = R._LV_RE.search(_src)
-    check(f"等级可抽取：{_src[-14:]}", bool(_m) and _m.group(1) == _exp,
-          f"got={_m.group(1) if _m else None}")
+    check(
+        f"等级可抽取：{_src[-14:]}",
+        bool(_m) and _m.group(1) == _exp,
+        f"got={_m.group(1) if _m else None}",
+    )
 check("普通文字里的等级区间不被误抽", R._LV_RE.search("奖励 5-15级 的物品") is None)
 
 # ---------------------------------------------------------------- 列对齐白名单
@@ -140,9 +148,16 @@ check("普通文字里的等级区间不被误抽", R._LV_RE.search("奖励 5-15
 # 抽成 `is_table_title()`，为的是能用**正/反两组**用例锁住 —— 往白名单加卡片时
 # 不得误改既有卡片的行为。新增卡片请同笔补正例。
 TABLE_TITLES = [
-    "仲裁时间表（第1/2页，共30条）", "指令一览", "赤毒 侵袭", "价格排行",
-    "紫卡热度排行榜", "遗物入库（当前出库）", "遗物出库（当前可掉落）",
-    "遗物列表：后纪", "部件出处：绝路 Prime", "虚空商人 当期货单（第1/2页）",
+    "仲裁时间表（第1/2页，共30条）",
+    "指令一览",
+    "赤毒 侵袭",
+    "价格排行",
+    "紫卡热度排行榜",
+    "遗物入库（当前出库）",
+    "遗物出库（当前可掉落）",
+    "遗物列表：后纪",
+    "部件出处：绝路 Prime",
+    "虚空商人 当期货单（第1/2页）",
     "九重天虚空风暴",
     "仲裁排期 · 生存（第1/1页，共6场）",
     "结合仪式目标（39 种，静态库）",
@@ -151,120 +166,159 @@ for _t in TABLE_TITLES:
     check(f"列对齐白名单命中：{_t[:14]}", R.is_table_title(_t) is True)
 
 # 反向：不相关标题不得命中（误开列对齐会把普通卡切成格子）
-for _t in ("", "状态", "当前仲裁", "紫卡倾向：布莱顿", "遗物：古纪 A1",
-           "每日突击 · 重置：剩余 3小时", "帮助"):
+for _t in (
+    "",
+    "状态",
+    "当前仲裁",
+    "紫卡倾向：布莱顿",
+    "遗物：古纪 A1",
+    "每日突击 · 重置：剩余 3小时",
+    "帮助",
+):
     check(f"不误命中：{_t or '(空)'}", R.is_table_title(_t) is False)
 # ★ 子串串味守卫：新加的「仲裁排期」不是「仲裁时间表」的子串（反之亦然）
-check("「仲裁排期」与「仲裁时间表」互不误命中（子串口径）",
-      "仲裁排期" not in "仲裁时间表（第1/2页）"
-      and "仲裁时间表" not in "仲裁排期 · 生存（第1/1页）")
+check(
+    "「仲裁排期」与「仲裁时间表」互不误命中（子串口径）",
+    "仲裁排期" not in "仲裁时间表（第1/2页）" and "仲裁时间表" not in "仲裁排期 · 生存（第1/1页）",
+)
 
 # ------------------------------------------------- 仲裁排期卡：分列单元格（3.4）
 # 排期卡从「节点·类型·派系 挤一格」改为**一格一字段**，渲染层才能按列对齐。
 # 两条硬约束：① 未评级不生成评级格；② 字段缺失保留**空串**（丢空串会让后面的列串位）。
-from core import arbi as _arbi                                 # noqa: E402
+from core import arbi as _arbi  # noqa: E402
 
 _NODES = {
     # 形态照抄线上 arbys.nodes.zh.json（88 节点实测：missionNameZh 是**纯任务名**，
     # 如「生存」「防御」「挖掘」—— 派系单独在 factionNameZh，别拿它拼进类型格）
-    "a": {"nameZh": "Apollodorus", "systemNameZh": "水星",
-          "missionNameZh": "生存", "factionNameZh": "Infestation"},
-    "b": {"nameZh": "Tycho", "systemNameZh": "月球",
-          "missionNameZh": "生存", "factionNameZh": "Corpus"},
+    "a": {
+        "nameZh": "Apollodorus",
+        "systemNameZh": "水星",
+        "missionNameZh": "生存",
+        "factionNameZh": "Infestation",
+    },
+    "b": {
+        "nameZh": "Tycho",
+        "systemNameZh": "月球",
+        "missionNameZh": "生存",
+        "factionNameZh": "Corpus",
+    },
 }
 _TIER = {"a": "A", "b": "未评级"}
-check("仲裁排期：分列 = [节点（星球）, 类型, 派系, [评级]]",
-      _arbi.node_cells(_NODES, "a", _TIER)
-      == ["Apollodorus（水星）", "生存", "Infested", "[A]"],
-      str(_arbi.node_cells(_NODES, "a", _TIER)))
-check("仲裁排期：未评级行不生成评级格",
-      _arbi.node_cells(_NODES, "b", _TIER) == ["Tycho（月球）", "生存", "Corpus"],
-      str(_arbi.node_cells(_NODES, "b", _TIER)))
-check("仲裁排期：字段缺失保留空串（防后面的列串位）",
-      _arbi.node_cells({"c": {"nameZh": "X"}}, "c", {})[1:] == ["?", ""],
-      str(_arbi.node_cells({"c": {"nameZh": "X"}}, "c", {})))
-check("仲裁排期：node_line（当前仲裁卡用）仍是单行内联写法（未被改动）",
-      _arbi.node_line(_NODES, "a", _TIER)
-      == "Apollodorus（水星） · 生存 · Infested　[A]",
-      _arbi.node_line(_NODES, "a", _TIER))
+check(
+    "仲裁排期：分列 = [节点（星球）, 类型, 派系, [评级]]",
+    _arbi.node_cells(_NODES, "a", _TIER) == ["Apollodorus（水星）", "生存", "Infested", "[A]"],
+    str(_arbi.node_cells(_NODES, "a", _TIER)),
+)
+check(
+    "仲裁排期：未评级行不生成评级格",
+    _arbi.node_cells(_NODES, "b", _TIER) == ["Tycho（月球）", "生存", "Corpus"],
+    str(_arbi.node_cells(_NODES, "b", _TIER)),
+)
+check(
+    "仲裁排期：字段缺失保留空串（防后面的列串位）",
+    _arbi.node_cells({"c": {"nameZh": "X"}}, "c", {})[1:] == ["?", ""],
+    str(_arbi.node_cells({"c": {"nameZh": "X"}}, "c", {})),
+)
+check(
+    "仲裁排期：node_line（当前仲裁卡用）仍是单行内联写法（未被改动）",
+    _arbi.node_line(_NODES, "a", _TIER) == "Apollodorus（水星） · 生存 · Infested　[A]",
+    _arbi.node_line(_NODES, "a", _TIER),
+)
 
 # ------------------------------------------- 结合目标卡：三格（3.3 排版）
 # 原来第二格是「节点·类型（派系）」整块 ⇒ 节点列左边界随名称长短抖动（实测 38px）。
-from core import formatters as _F                              # noqa: E402
+from core import formatters as _F  # noqa: E402
 
-_TG = [{"name": "Ancient Disruptor", "active": True, "node": "Tikal",
-        "type": "Excavation", "faction": "Infested"},
-       {"name": "MOA", "active": True, "node": "Venera",
-        "type": "Capture", "faction": ""}]
+_TG = [
+    {
+        "name": "Ancient Disruptor",
+        "active": True,
+        "node": "Tikal",
+        "type": "Excavation",
+        "faction": "Infested",
+    },
+    {"name": "MOA", "active": True, "node": "Venera", "type": "Capture", "faction": ""},
+]
 _tg_title, _tg_lines = _F.fmt_synth_targets(_TG)
-check("结合目标：行 = 名称 / 节点 / 类型（派系） 三格",
-      _tg_lines[0].split("　")
-      == ["· 远古干扰者（Ancient Disruptor）", "Tikal", "挖掘（Infested）"],
-      str(_tg_lines[0].split("　")))
-check("结合目标：派系缺失时不留空括号（回落成纯类型）",
-      _tg_lines[1].split("　")[2] == "捕获", str(_tg_lines[1].split("　")))
-check("结合目标：所有行格数一致（列对齐的前提）",
-      len({len(x.split("　")) for x in _tg_lines}) == 1,
-      str([len(x.split("　")) for x in _tg_lines]))
+check(
+    "结合目标：行 = 名称 / 节点 / 类型（派系） 三格",
+    _tg_lines[0].split("　") == ["· 远古干扰者（Ancient Disruptor）", "Tikal", "挖掘（Infested）"],
+    str(_tg_lines[0].split("　")),
+)
+check(
+    "结合目标：派系缺失时不留空括号（回落成纯类型）",
+    _tg_lines[1].split("　")[2] == "捕获",
+    str(_tg_lines[1].split("　")),
+)
+check(
+    "结合目标：所有行格数一致（列对齐的前提）",
+    len({len(x.split("　")) for x in _tg_lines}) == 1,
+    str([len(x.split("　")) for x in _tg_lines]),
+)
 
 # 端到端：九重天卡确实走列对齐；超长节点名时安全阀关掉它（不压出面板边框）
 ROOT = Path(__file__).resolve().parent.parent
 try:
-    from PIL import Image as _Image                            # noqa: E402
+    from PIL import Image as _Image  # noqa: E402
 
     _out = ROOT / "runtime"
     _out.mkdir(exist_ok=True)
     _rend = R.ImageRenderer(_out)
     if _rend.available:
-        _st = [{"tier": "T1", "nodeCn": "卫标星环",
-                "missionType": "volatile", "timeLeft": "40m 4s"},
-               {"tier": "T4", "nodeCn": "努秘",
-                "missionType": "volatile", "timeLeft": "40m 4s"}]
+        _st = [
+            {"tier": "T1", "nodeCn": "卫标星环", "missionType": "volatile", "timeLeft": "40m 4s"},
+            {"tier": "T4", "nodeCn": "努秘", "missionType": "volatile", "timeLeft": "40m 4s"},
+        ]
         _t1, _l1 = _F.fmt_void_storms(_st)
         _rend.render(_t1, _l1, "国际服")
-        check("九重天卡：常规数据走列对齐（_table_mode=True）",
-              bool(_rend._table_mode))
+        check("九重天卡：常规数据走列对齐（_table_mode=True）", bool(_rend._table_mode))
         _huge = dict(_st[0], nodeCn="超长节点名压力测试" * 5)
         _t2, _l2 = _F.fmt_void_storms([_huge, *_st[1:]])
         _png2 = _rend.render(_t2, _l2, "国际服")
-        check("九重天卡：超长节点名触发宽度安全阀 ⇒ 退回逐行折行",
-              not bool(_rend._table_mode))
+        check("九重天卡：超长节点名触发宽度安全阀 ⇒ 退回逐行折行", not bool(_rend._table_mode))
         _w2 = _Image.open(_png2).size[0]
         check("九重天卡：极端数据下卡宽封顶 1500（不越界）", _w2 <= 1500, str(_w2))
 
         # 仲裁排期卡（同款两向验证）
-        _arb = ["　".join(["9月27日 10时", "Apollodorus（水星）", "生存",
-                           "Infested", "[A]"]),
-                "　".join(["9月27日 11时", "Tycho（月球）", "生存",
-                           "Corpus", "[B]"])]
+        _arb = [
+            "　".join(["9月27日 10时", "Apollodorus（水星）", "生存", "Infested", "[A]"]),
+            "　".join(["9月27日 11时", "Tycho（月球）", "生存", "Corpus", "[B]"]),
+        ]
         _rend.render("仲裁排期 · 生存（第1/1页，共2场）", _arb, "国际服")
         check("仲裁排期卡：常规数据走列对齐", bool(_rend._table_mode))
-        _arb_long = ["　".join(["9月27日 10时", "超长节点名压力测试" * 6,
-                               "生存", "Infested"]), _arb[1]]
+        _arb_long = [
+            "　".join(["9月27日 10时", "超长节点名压力测试" * 6, "生存", "Infested"]),
+            _arb[1],
+        ]
         _png3 = _rend.render("仲裁排期 · 生存（第1/1页，共2场）", _arb_long, "国际服")
-        check("仲裁排期卡：超长节点名触发安全阀（退回折行）",
-              not bool(_rend._table_mode))
-        check("仲裁排期卡：极端数据卡宽封顶 1500",
-              _Image.open(_png3).size[0] <= 1500,
-              str(_Image.open(_png3).size[0]))
+        check("仲裁排期卡：超长节点名触发安全阀（退回折行）", not bool(_rend._table_mode))
+        check(
+            "仲裁排期卡：极端数据卡宽封顶 1500",
+            _Image.open(_png3).size[0] <= 1500,
+            str(_Image.open(_png3).size[0]),
+        )
 
         # 结合目标卡（同款两向验证）
-        _syn = ["　".join(["· 远古干扰者（Ancient Disruptor）", "Tikal",
-                           "挖掘（Infested）"]),
-                "　".join(["· 恐鸟（MOA）", "Venera", "捕获（Corpus）"])]
+        _syn = [
+            "　".join(["· 远古干扰者（Ancient Disruptor）", "Tikal", "挖掘（Infested）"]),
+            "　".join(["· 恐鸟（MOA）", "Venera", "捕获（Corpus）"]),
+        ]
         _rend.render("结合仪式目标（39 种，静态库）", _syn, "国际服")
         check("结合目标卡：常规数据走列对齐", bool(_rend._table_mode))
-        _syn_long = ["　".join(["· " + "超长名称压力测试" * 6, "Tikal",
-                                "挖掘（Infested）"]), _syn[1]]
+        _syn_long = [
+            "　".join(["· " + "超长名称压力测试" * 6, "Tikal", "挖掘（Infested）"]),
+            _syn[1],
+        ]
         _png4 = _rend.render("结合仪式目标（39 种，静态库）", _syn_long, "国际服")
-        check("结合目标卡：超长名称触发安全阀（退回折行）",
-              not bool(_rend._table_mode))
-        check("结合目标卡：极端数据卡宽封顶 1500",
-              _Image.open(_png4).size[0] <= 1500,
-              str(_Image.open(_png4).size[0]))
+        check("结合目标卡：超长名称触发安全阀（退回折行）", not bool(_rend._table_mode))
+        check(
+            "结合目标卡：极端数据卡宽封顶 1500",
+            _Image.open(_png4).size[0] <= 1500,
+            str(_Image.open(_png4).size[0]),
+        )
     else:
         print("[SKIP] 渲染器不可用（缺字体），跳过列对齐出图用例")
-except Exception as _exc:                                       # noqa: BLE001
+except Exception as _exc:  # noqa: BLE001
     print(f"[SKIP] 列对齐出图用例环境异常：{type(_exc).__name__}: {_exc}")
 
 # ------------------------------- 仲裁时间表：含空格节点名不裂列（2026-10-02）
@@ -274,11 +328,11 @@ except Exception as _exc:                                       # noqa: BLE001
 # 口径只认全角空格）。本段 ① 行为断言（假数据走真 handler）② 数据守卫
 # （arbys.nodes.zh.json 是运行时拉的、不入包 ⇒ 用同域的 arb_ratings.json +
 # 官方节点表做离线守卫，防「数据里没有空格名」让本测试静默失效）。
-import asyncio                                                   # noqa: E402
-import inspect                                                   # noqa: E402
-import json                                                      # noqa: E402
-import time as _time                                             # noqa: E402
-from types import SimpleNamespace as _NS                         # noqa: E402
+import asyncio  # noqa: E402
+import inspect  # noqa: E402
+import json  # noqa: E402
+import time as _time  # noqa: E402
+from types import SimpleNamespace as _NS  # noqa: E402
 
 from core.commands.arbitration import ArbitrationCommands as _AC  # noqa: E402
 
@@ -288,20 +342,41 @@ class _ArbStubClient:
 
     async def _fetch_json(self, url: str, ttl: int = 0):
         if url.endswith("arbys.schedule.v2.json"):
-            return {"startTs": int(_time.time()) - 60, "stepSec": 3600,
-                    "seq": [0, 1, 2, 3],
-                    "nodes": ["vprime", "tyana", "outer", "apollo"]}
+            return {
+                "startTs": int(_time.time()) - 60,
+                "stepSec": 3600,
+                "seq": [0, 1, 2, 3],
+                "nodes": ["vprime", "tyana", "outer", "apollo"],
+            }
         if url.endswith("arbys.nodes.zh.json"):
-            return {"nodes": {
-                "vprime": {"nameZh": "V Prime", "systemNameZh": "金星",
-                           "missionNameZh": "生存", "factionNameZh": "Corpus"},
-                "tyana": {"nameZh": "Tyana Pass", "systemNameZh": "火星",
-                          "missionNameZh": "镜像防御", "factionNameZh": "Corpus"},
-                "outer": {"nameZh": "Outer Terminus", "systemNameZh": "冥王星",
-                          "missionNameZh": "防御", "factionNameZh": "Corpus"},
-                "apollo": {"nameZh": "Apollodorus", "systemNameZh": "水星",
-                           "missionNameZh": "生存", "factionNameZh": "Infested"},
-            }}
+            return {
+                "nodes": {
+                    "vprime": {
+                        "nameZh": "V Prime",
+                        "systemNameZh": "金星",
+                        "missionNameZh": "生存",
+                        "factionNameZh": "Corpus",
+                    },
+                    "tyana": {
+                        "nameZh": "Tyana Pass",
+                        "systemNameZh": "火星",
+                        "missionNameZh": "镜像防御",
+                        "factionNameZh": "Corpus",
+                    },
+                    "outer": {
+                        "nameZh": "Outer Terminus",
+                        "systemNameZh": "冥王星",
+                        "missionNameZh": "防御",
+                        "factionNameZh": "Corpus",
+                    },
+                    "apollo": {
+                        "nameZh": "Apollodorus",
+                        "systemNameZh": "水星",
+                        "missionNameZh": "生存",
+                        "factionNameZh": "Infested",
+                    },
+                }
+            }
         return {"tierBuckets": {"S": ["apollo"]}}
 
 
@@ -311,46 +386,70 @@ _arb_obj = _NS(client=_ArbStubClient())
 _arb_obj._arb_fetch = lambda: _AC._arb_fetch(_arb_obj)
 _arb_reply = asyncio.run(_AC._h_arbtable(_arb_obj, _NS(page=1), None, "国际服"))
 _arb_rows = [_r.split("　") for _r in _arb_reply.lines]
-check("仲裁时间表：注入 4 行（3 个含空格节点 + 1 个评级节点）",
-      len(_arb_rows) == 4, str(len(_arb_rows)))
-check("★ V Prime 行 = 5 列，节点/星球各一列（未合并、未裂列）",
-      _arb_rows[0] == [_arb_rows[0][0], "V Prime", "金星", "生存", "Corpus"],
-      str(_arb_rows[0]))
-check("★ Tyana Pass 行 5 列、节点格完整",
-      len(_arb_rows[1]) == 5 and _arb_rows[1][1] == "Tyana Pass",
-      str(_arb_rows[1]))
-check("★ Outer Terminus 行 5 列、节点格完整",
-      len(_arb_rows[2]) == 5 and _arb_rows[2][1] == "Outer Terminus",
-      str(_arb_rows[2]))
-check("评级节点仍出第 6 列（评级格未被本修波及）",
-      len(_arb_rows[3]) == 6 and _arb_rows[3][5] == "S", str(_arb_rows[3]))
-check("所有单元格非空（格子间无空列）",
-      all(all(_c for _c in _r) for _r in _arb_rows),
-      str([[c for c in r if not c] for r in _arb_rows]))
+check(
+    "仲裁时间表：注入 4 行（3 个含空格节点 + 1 个评级节点）",
+    len(_arb_rows) == 4,
+    str(len(_arb_rows)),
+)
+check(
+    "★ V Prime 行 = 5 列，节点/星球各一列（未合并、未裂列）",
+    _arb_rows[0] == [_arb_rows[0][0], "V Prime", "金星", "生存", "Corpus"],
+    str(_arb_rows[0]),
+)
+check(
+    "★ Tyana Pass 行 5 列、节点格完整",
+    len(_arb_rows[1]) == 5 and _arb_rows[1][1] == "Tyana Pass",
+    str(_arb_rows[1]),
+)
+check(
+    "★ Outer Terminus 行 5 列、节点格完整",
+    len(_arb_rows[2]) == 5 and _arb_rows[2][1] == "Outer Terminus",
+    str(_arb_rows[2]),
+)
+check(
+    "评级节点仍出第 6 列（评级格未被本修波及）",
+    len(_arb_rows[3]) == 6 and _arb_rows[3][5] == "S",
+    str(_arb_rows[3]),
+)
+check(
+    "所有单元格非空（格子间无空列）",
+    all(all(_c for _c in _r) for _r in _arb_rows),
+    str([[c for c in r if not c] for r in _arb_rows]),
+)
 
 # 源码接线：死代码 dw()/pad() 已删；不再出现「ASCII 空格当列分隔」
 _arb_src = inspect.getsource(_AC._h_arbtable)
-check("仲裁时间表：死代码 dw()/pad() 已删",
-      "def dw(" not in _arb_src and "def pad(" not in _arb_src)
-check("★ 仲裁时间表：不再把 ASCII 空格当列分隔（无 split(\" \") 往返）",
-      'split(" ")' not in _arb_src and '"　".join' in _arb_src)
+check(
+    "仲裁时间表：死代码 dw()/pad() 已删", "def dw(" not in _arb_src and "def pad(" not in _arb_src
+)
+check(
+    '★ 仲裁时间表：不再把 ASCII 空格当列分隔（无 split(" ") 往返）',
+    'split(" ")' not in _arb_src and '"　".join' in _arb_src,
+)
 
 # 数据守卫：仓内确实存在含 ASCII 空格的节点名（≥3），否则本段会静默失效
-_arb_ratings = json.loads(
-    (ROOT / "core" / "data" / "arb_ratings.json").read_text(encoding="utf-8"))
+_arb_ratings = json.loads((ROOT / "core" / "data" / "arb_ratings.json").read_text(encoding="utf-8"))
 # ★ 2026-10-04：表结构换代（旧 = 顶层 `名称|类型` 键；新 = `nodes[节点ID]` 里带 name）
 _spaced_rating_nodes = sorted(
-    {v.get("name") or "" for v in (_arb_ratings.get("nodes") or {}).values()
-     if " " in (v.get("name") or "")})
-check("★ 数据守卫：arb_ratings.json 含空格节点名 ≥3（含 V Prime / Tyana Pass）",
-      len(_spaced_rating_nodes) >= 3
-      and {"V Prime", "Tyana Pass"} <= set(_spaced_rating_nodes),
-      str(_spaced_rating_nodes))
+    {
+        v.get("name") or ""
+        for v in (_arb_ratings.get("nodes") or {}).values()
+        if " " in (v.get("name") or "")
+    }
+)
+check(
+    "★ 数据守卫：arb_ratings.json 含空格节点名 ≥3（含 V Prime / Tyana Pass）",
+    len(_spaced_rating_nodes) >= 3 and {"V Prime", "Tyana Pass"} <= set(_spaced_rating_nodes),
+    str(_spaced_rating_nodes),
+)
 _nodes_zh = json.loads(
-    (ROOT / "core" / "data" / "de" / "nodes_zh.json").read_text(encoding="utf-8"))
+    (ROOT / "core" / "data" / "de" / "nodes_zh.json").read_text(encoding="utf-8")
+)
 _zh_names = {v.get("name") for v in _nodes_zh.values() if isinstance(v, dict)}
-check("★ 数据守卫：官方节点表含三个含空格样本（V Prime / Tyana Pass / Outer Terminus）",
-      {"V Prime", "Tyana Pass", "Outer Terminus"} <= _zh_names)
+check(
+    "★ 数据守卫：官方节点表含三个含空格样本（V Prime / Tyana Pass / Outer Terminus）",
+    {"V Prime", "Tyana Pass", "Outer Terminus"} <= _zh_names,
+)
 
 # ------------------------------------- 仲裁评级：节点 ID 键 + 三级回落（2026-10-04）
 # ★ 回归对象（调研 §4.1 的真缺陷）：`_arb_now` 曾用 `中文名|英文类型` 拼 key 查实测表，
@@ -361,41 +460,62 @@ check("★ 数据守卫：官方节点表含三个含空格样本（V Prime / Ty
 _M = _arbi.load_measured()
 check("★ 实测表已加载（core/data/arb_ratings.json 存在且非空）", bool(_M), str(len(_M)))
 # ① 该命中要命中：MT_TERRITORY 的 Xini 用节点 ID 查得到（旧写法必然查不到）
-check("★ bug 回归（命中侧）：SolNode172(Xini, MT_TERRITORY) 按节点 ID 命中实测档",
-      _M.get("SolNode172", {}).get("tier") == "A+"
-      and _M.get("SolNode172", {}).get("median") is not None,
-      str(_M.get("SolNode172")))
+check(
+    "★ bug 回归（命中侧）：SolNode172(Xini, MT_TERRITORY) 按节点 ID 命中实测档",
+    _M.get("SolNode172", {}).get("tier") == "A+"
+    and _M.get("SolNode172", {}).get("median") is not None,
+    str(_M.get("SolNode172")),
+)
 # ② 不该命中的不误挂：旧写法拼出的 key 不在表里（这就是旧 bug 的形态）
-check("★ bug 回归（旧键侧）：`Xini|Territory` 这类旧键在表里**不存在**",
-      "Xini|Territory" not in _M and "Xini|Interception" not in _M
-      and all("|" not in k for k in _M),
-      "表内不应出现任何 `名称|类型` 形态的键")
+check(
+    "★ bug 回归（旧键侧）：`Xini|Territory` 这类旧键在表里**不存在**",
+    "Xini|Territory" not in _M and "Xini|Interception" not in _M and all("|" not in k for k in _M),
+    "表内不应出现任何 `名称|类型` 形态的键",
+)
 # ③ 三级回落：arbi 优先（含 C 档原样）、实测补空白、两者都无 → 未评级
 _tier_syn = {"SolNode172": "S", "SolNode167": "未评级", "SolNode999": "未评级"}
 _arbi._ARBI_ONLY.clear()
-_arbi._ARBI_ONLY.update({"SolNode172": "S", "SolNode167": "未评级"})   # 模拟 fetch_tables 记录
+_arbi._ARBI_ONLY.update({"SolNode172": "S", "SolNode167": "未评级"})  # 模拟 fetch_tables 记录
 _merged = _arbi.merge_measured_tiers(_tier_syn, _M)
-check("★ 三级回落：arbi 有评级 ⇒ 原样保留（实测不覆盖）",
-      _merged["SolNode172"] == "S", str(_merged.get("SolNode172")))
-check("★ 三级回落：arbi 未评级 ⇒ 用实测档补上",
-      _merged["SolNode167"] == _M["SolNode167"]["tier"],
-      "%s vs %s" % (_merged.get("SolNode167"), _M.get("SolNode167")))
-check("★ 三级回落：两者都无 ⇒ 维持「未评级」",
-      _merged["SolNode999"] == "未评级", str(_merged.get("SolNode999")))
-check("★ 回落不丢输入键（列对齐依赖的不变量；允许新增实测键）",
-      set(_tier_syn) <= set(_merged), str(set(_tier_syn) - set(_merged)))
+check(
+    "★ 三级回落：arbi 有评级 ⇒ 原样保留（实测不覆盖）",
+    _merged["SolNode172"] == "S",
+    str(_merged.get("SolNode172")),
+)
+check(
+    "★ 三级回落：arbi 未评级 ⇒ 用实测档补上",
+    _merged["SolNode167"] == _M["SolNode167"]["tier"],
+    "%s vs %s" % (_merged.get("SolNode167"), _M.get("SolNode167")),
+)
+check(
+    "★ 三级回落：两者都无 ⇒ 维持「未评级」",
+    _merged["SolNode999"] == "未评级",
+    str(_merged.get("SolNode999")),
+)
+check(
+    "★ 回落不丢输入键（列对齐依赖的不变量；允许新增实测键）",
+    set(_tier_syn) <= set(_merged),
+    str(set(_tier_syn) - set(_merged)),
+)
 # ④ 来源判定：arbi / measured / 空
-check("★ 档位来源：arbi 覆盖的节点报 arbi、实测补的报 measured、未评级报空",
-      _arbi.tier_source("SolNode172", _merged) == "arbi"
-      and _arbi.tier_source("SolNode167", _merged) == "measured"
-      and _arbi.tier_source("SolNode999", _merged) == "",
-      "%s / %s / %s" % (_arbi.tier_source("SolNode172", _merged),
-                        _arbi.tier_source("SolNode167", _merged),
-                        _arbi.tier_source("SolNode999", _merged)))
-check("★ 实测表结构守卫：每条都是 {name,system,mission,n[,median,tier]} 且 n>=3 才带档",
-      all(isinstance(v, dict) and "n" in v and "name" in v for v in _M.values())
-      and all(("tier" in v) == (v["n"] >= 3) for v in _M.values()),
-      "有 %d 条带档 / 共 %d 条" % (sum(1 for v in _M.values() if v.get("tier")), len(_M)))
+check(
+    "★ 档位来源：arbi 覆盖的节点报 arbi、实测补的报 measured、未评级报空",
+    _arbi.tier_source("SolNode172", _merged) == "arbi"
+    and _arbi.tier_source("SolNode167", _merged) == "measured"
+    and _arbi.tier_source("SolNode999", _merged) == "",
+    "%s / %s / %s"
+    % (
+        _arbi.tier_source("SolNode172", _merged),
+        _arbi.tier_source("SolNode167", _merged),
+        _arbi.tier_source("SolNode999", _merged),
+    ),
+)
+check(
+    "★ 实测表结构守卫：每条都是 {name,system,mission,n[,median,tier]} 且 n>=3 才带档",
+    all(isinstance(v, dict) and "n" in v and "name" in v for v in _M.values())
+    and all(("tier" in v) == (v["n"] >= 3) for v in _M.values()),
+    "有 %d 条带档 / 共 %d 条" % (sum(1 for v in _M.values() if v.get("tier")), len(_M)),
+)
 
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")

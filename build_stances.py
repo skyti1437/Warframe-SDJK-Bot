@@ -11,6 +11,7 @@
 但架势真正决定了近战每一段的伤害倍率与强制异常 —— 不接这块，近战配卡的
 「单发伤害」就是裸基础值，与实际差 1.5~3 倍。
 """
+
 import json
 import os
 import re
@@ -18,17 +19,27 @@ from pathlib import Path
 
 DATA = Path(__file__).resolve().parent / "core" / "data"
 # wiki Lua 源码缓存（抓法见 SKILL：fandom API + 本地代理；?action=raw 会被 CF 拦）
-CACHE = Path(os.environ.get("WF_STANCE_CACHE")
-            or str(Path.home() / "tmp" / "dmgsrc" / "stances_api.json"))
+CACHE = Path(
+    os.environ.get("WF_STANCE_CACHE") or str(Path.home() / "tmp" / "dmgsrc" / "stances_api.json")
+)
 
 # 强制异常的 wiki 写法 → 我们的伤害类型键
 PROC_MAP = {
-    "bleed": "slash", "slash": "slash",
-    "impact": "impact", "puncture": "puncture",
-    "heat": "heat", "cold": "cold", "electricity": "electricity",
-    "toxin": "toxin", "blast": "blast", "corrosive": "corrosive",
-    "gas": "gas", "magnetic": "magnetic", "radiation": "radiation",
-    "viral": "viral", "void": "void",
+    "bleed": "slash",
+    "slash": "slash",
+    "impact": "impact",
+    "puncture": "puncture",
+    "heat": "heat",
+    "cold": "cold",
+    "electricity": "electricity",
+    "toxin": "toxin",
+    "blast": "blast",
+    "corrosive": "corrosive",
+    "gas": "gas",
+    "magnetic": "magnetic",
+    "radiation": "radiation",
+    "viral": "viral",
+    "void": "void",
 }
 
 
@@ -76,7 +87,7 @@ class LuaParser:
             self.i = j + 1
             return "".join(out)
         # 数字 / true / false / nil
-        m = re.match(r"-?[\d.]+|true|false|nil", self.s[self.i:])
+        m = re.match(r"-?[\d.]+|true|false|nil", self.s[self.i :])
         if m:
             tok = m.group(0)
             self.i += len(tok)
@@ -87,7 +98,7 @@ class LuaParser:
             if tok == "nil":
                 return None
             return float(tok) if "." in tok else int(tok)
-        raise ValueError(f"无法解析 @{self.i}: {self.s[self.i:self.i+40]!r}")
+        raise ValueError(f"无法解析 @{self.i}: {self.s[self.i : self.i + 40]!r}")
 
     def table(self):
         assert self.s[self.i] == "{"
@@ -106,8 +117,8 @@ class LuaParser:
                 self.i += 1
                 continue
             # key = value 形式
-            m = re.match(r'(\w+)\s*=\s*', self.s[self.i:])
-            m2 = re.match(r'\["([^"]+)"\]\s*=\s*', self.s[self.i:])
+            m = re.match(r"(\w+)\s*=\s*", self.s[self.i :])
+            m2 = re.match(r'\["([^"]+)"\]\s*=\s*', self.s[self.i :])
             if m2:
                 key = m2.group(1)
                 self.i += m2.end()
@@ -137,7 +148,7 @@ def extract_stance_data(text: str) -> dict:
             if depth == 0:
                 break
         j += 1
-    return LuaParser(text[i:j + 1]).value()
+    return LuaParser(text[i : j + 1]).value()
 
 
 def norm(s: str) -> str:
@@ -162,13 +173,15 @@ def combo_stats(combo: dict) -> dict | None:
             h = float(hits[k]) if k < len(hits) else 1.0
             total += d * h
             hits_n += h
-        for p in (atk.get("Procs") or []):
+        for p in atk.get("Procs") or []:
             key = PROC_MAP.get(norm(str(p)).replace("proc", ""))
             if key:
                 procs.append(key)
-        for k, field in (("impact", "ImpactMultiplier"),
-                         ("puncture", "PunctureMultiplier"),
-                         ("slash", "SlashMultiplier")):
+        for k, field in (
+            ("impact", "ImpactMultiplier"),
+            ("puncture", "PunctureMultiplier"),
+            ("slash", "SlashMultiplier"),
+        ):
             v = atk.get(field)
             # 数据源里既有 `SlashMultiplier = 1.25` 也有 `= { 1.25 }` 两种写法
             if isinstance(v, (int, float)):
@@ -181,7 +194,7 @@ def combo_stats(combo: dict) -> dict | None:
         return None
     return {
         "name": combo.get("Name") or "",
-        "avg_mult": round(total / hits_n, 2),   # 每段平均倍率（%）
+        "avg_mult": round(total / hits_n, 2),  # 每段平均倍率（%）
         "total": round(total, 2),
         "hits": int(hits_n),
         "procs": sorted(set(procs)),
@@ -233,9 +246,12 @@ def build_stances() -> dict:
         "stances": out,
     }
     (DATA / "stances_stats.json").write_text(
-        json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")
-    print(f"stances_stats.json：{len(out)} 个架势"
-          f"（含中文名 {sum(1 for v in out.values() if v['zh'])}）")
+        json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8"
+    )
+    print(
+        f"stances_stats.json：{len(out)} 个架势"
+        f"（含中文名 {sum(1 for v in out.values() if v['zh'])}）"
+    )
     return out
 
 
@@ -247,6 +263,8 @@ if __name__ == "__main__":
             continue
         print(f"\n### {v['name']} ({v['zh']}) / {v['weapon_type']}")
         for c, s in v["combos"].items():
-            print(f"   {c:16s} {s['name'][:28]:30s} 平均 {s['avg_mult']:7.1f}% "
-                  f"命中{s['hits']:3d}  强制异常 {s['procs'] or '-'}"
-                  + (f"  IPS{s['ips']}" if s["ips"] else ""))
+            print(
+                f"   {c:16s} {s['name'][:28]:30s} 平均 {s['avg_mult']:7.1f}% "
+                f"命中{s['hits']:3d}  强制异常 {s['procs'] or '-'}"
+                + (f"  IPS{s['ips']}" if s["ips"] else "")
+            )

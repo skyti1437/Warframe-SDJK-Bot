@@ -25,6 +25,7 @@ DE PublicExportPlus 同时提供两份**键完全一致**的词表：
     python3 scripts/build_baro_names.py            # 联网重建（词表会缓存到 core/data/_cache/）
     python3 scripts/build_baro_names.py --offline  # 只用本地缓存
 """
+
 from __future__ import annotations
 
 import json
@@ -47,8 +48,7 @@ DICT_ZH = f"{BASE}/dict.zh.json"
 UA = {"User-Agent": "Mozilla/5.0 Chrome/124.0"}
 
 # 遗物：Baro 会卖 `Axi A2 Relic`，词表里没有，但规则固定（与遗物指令同口径）
-RELIC_TIER = {"lith": "古纪", "meso": "中纪", "neo": "前纪",
-              "axi": "后纪", "requiem": "安魂"}
+RELIC_TIER = {"lith": "古纪", "meso": "中纪", "neo": "前纪", "axi": "后纪", "requiem": "安魂"}
 RELIC_RE = re.compile(r"^(Lith|Meso|Neo|Axi|Requiem)\s+(\S+)\s+Relic$", re.I)
 
 
@@ -64,13 +64,13 @@ def http_json(url: str, tries: int = 4):
                 time.sleep(3 * (a + 1))
                 continue
             raise
-        except Exception as e:              # noqa: BLE001
+        except Exception as e:  # noqa: BLE001
             last = e
             if a < tries - 1:
                 time.sleep(3)
                 continue
             raise
-    raise last                                   # pragma: no cover
+    raise last  # pragma: no cover
 
 
 def load_dict(name: str, url: str, offline: bool) -> dict:
@@ -80,7 +80,7 @@ def load_dict(name: str, url: str, offline: bool) -> dict:
     if local.exists() and (offline or local.stat().st_size > 100_000):
         try:
             return json.loads(local.read_text(encoding="utf-8"))
-        except Exception:                        # noqa: BLE001
+        except Exception:  # noqa: BLE001
             pass
     if offline:
         raise SystemExit(f"离线模式但缺少缓存 {local}")
@@ -110,7 +110,7 @@ def main() -> int:
     try:
         d_en = load_dict("dict.en", DICT_EN, offline)
         d_zh = load_dict("dict.zh", DICT_ZH, offline)
-    except Exception as e:                       # noqa: BLE001
+    except Exception as e:  # noqa: BLE001
         print(f"  取词表失败（{type(e).__name__}: {e}）—— 保留现有 {OUT.name} 不动")
         return 1
     print(f"  en {len(d_en)} 条 / zh {len(d_zh)} 条 / 同键 {len(set(d_en) & set(d_zh))} 条")
@@ -149,12 +149,15 @@ def main() -> int:
             via["none"] += 1
             misses.append(n)
 
-    OUT.write_text(json.dumps(out, ensure_ascii=False, indent=1, sort_keys=True) + "\n",
-                   encoding="utf-8")
+    OUT.write_text(
+        json.dumps(out, ensure_ascii=False, indent=1, sort_keys=True) + "\n", encoding="utf-8"
+    )
     total = len(names)
     print(f"\n写入 {OUT.relative_to(ROOT)}：{len(out)}/{total} = {len(out) * 100 // total}%")
-    print(f"  词表字面 {via['dict']} ｜ 归一化 {via['norm']} ｜ 遗物规则 {via['relic']}"
-          f" ｜ 未命中 {via['none']}")
+    print(
+        f"  词表字面 {via['dict']} ｜ 归一化 {via['norm']} ｜ 遗物规则 {via['relic']}"
+        f" ｜ 未命中 {via['none']}"
+    )
     if misses:
         print("  未命中（卡片上显示英文原名）：")
         for x in misses[:12]:
@@ -163,15 +166,18 @@ def main() -> int:
     # 预测候选（卡片真正显示的那批）覆盖率
     sys.path.insert(0, str(ROOT))
     try:
-        from core import baro as B                       # noqa: E402
+        from core import baro as B  # noqa: E402
+
         cand = B.predict(60)
         ch = [r for r in cand if out.get(r["name"])]
-        print(f"\n预测候选 {len(cand)} 个 → 中文覆盖 {len(ch)} "
-              f"({len(ch) * 100 // max(len(cand), 1)}%)")
+        print(
+            f"\n预测候选 {len(cand)} 个 → 中文覆盖 {len(ch)} "
+            f"({len(ch) * 100 // max(len(cand), 1)}%)"
+        )
         for r in cand[:16]:
             z = out.get(r["name"]) or ""
             print(f"   {'✓' if z else '·'} {r['name'][:34]:36s} {z}")
-    except Exception as e:                        # noqa: BLE001
+    except Exception as e:  # noqa: BLE001
         print("（跳过候选覆盖率统计：%s）" % e)
     return 0
 

@@ -6,6 +6,7 @@
 例：「充沛」是官方简中「赋能·充沛」(Arcane Energize) 的尾段，词典却指向
 primed_flow（川流不息 Prime）——2026-09-24 实测报障同类问题。
 """
+
 import json
 import re
 import sys
@@ -23,11 +24,17 @@ def norm(s: str) -> str:
 
 
 def main() -> int:
-    table = json.loads((ROOT / "core" / "data" / "aliases.json").read_text(
-        encoding="utf-8")).get("wm_items", {})
-    req = urllib.request.Request(WM_ITEMS_URL, headers={
-        "User-Agent": "wfq-alias-audit", "Accept": "application/json",
-        "Language": "zh-hans"})
+    table = json.loads((ROOT / "core" / "data" / "aliases.json").read_text(encoding="utf-8")).get(
+        "wm_items", {}
+    )
+    req = urllib.request.Request(
+        WM_ITEMS_URL,
+        headers={
+            "User-Agent": "wfq-alias-audit",
+            "Accept": "application/json",
+            "Language": "zh-hans",
+        },
+    )
     items = json.load(urllib.request.urlopen(req, timeout=90)).get("data") or []
     by_url, names = {}, []
     for it in items:
@@ -59,8 +66,10 @@ def main() -> int:
     print(f"候选 {len(hits)} 条（键 = 官方名尾段 却指向别的物品）：")
     for key, url, cur, rec, kind, n in hits:
         print(f"  '{key}' → {url} ({cur.get('zh') or cur.get('en') or '?'})")
-        print(f"       官方名同尾段在 {rec['url_name']} = {rec['zh']} / {rec['en']}"
-              f"（{kind}名『{n}』）—— 请人工判断哪边是社区本意")
+        print(
+            f"       官方名同尾段在 {rec['url_name']} = {rec['zh']} / {rec['en']}"
+            f"（{kind}名『{n}』）—— 请人工判断哪边是社区本意"
+        )
     return 0
 
 

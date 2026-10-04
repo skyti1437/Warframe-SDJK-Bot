@@ -13,6 +13,7 @@
     python scripts/build_baro_history.py --raw <抓下来的源码.txt>
     python scripts/build_baro_history.py --raw ... --check   # 只看统计
 """
+
 from __future__ import annotations
 
 import argparse
@@ -43,19 +44,19 @@ def split_items(text: str) -> dict[str, str]:
         ch = text[i]
         if ch == "{":
             depth += 1
-            if depth == 2:                        # 进入某个物品块
+            if depth == 2:  # 进入某个物品块
                 begin = i
         elif ch == "}":
             if depth == 2 and begin is not None:
                 # 回溯找该块的名字：形如 ["xxx"] = {
-                head = text[max(0, begin - 400):begin]
+                head = text[max(0, begin - 400) : begin]
                 m = None
                 for m in re.finditer(r'\["((?:[^"\\]|\\.)+)"\]\s*=\s*$', head):
                     pass
                 if m:
-                    blocks[m.group(1)] = text[begin:i + 1]
+                    blocks[m.group(1)] = text[begin : i + 1]
             depth -= 1
-            if depth == 0:                        # Items 表结束
+            if depth == 0:  # Items 表结束
                 break
         i += 1
     return blocks
@@ -75,9 +76,15 @@ def main() -> int:
     all_dates: set[str] = set()
     raw_items: dict[str, dict] = {}
     for name, blk in blocks.items():
-        dates = sorted(set(DATE_RE.findall(
-            re.search(r"OfferingDates\s*=\s*\{(.*?)\}", blk, re.S).group(1)
-            if re.search(r"OfferingDates\s*=\s*\{", blk) else "")))
+        dates = sorted(
+            set(
+                DATE_RE.findall(
+                    re.search(r"OfferingDates\s*=\s*\{(.*?)\}", blk, re.S).group(1)
+                    if re.search(r"OfferingDates\s*=\s*\{", blk)
+                    else ""
+                )
+            )
+        )
         if not dates:
             dates = sorted(set(DATE_RE.findall(blk)))
         ducat = re.search(r"DucatCost\s*=\s*(\d+)", blk)
@@ -98,9 +105,10 @@ def main() -> int:
     print(f"访问日：{len(visits)} 次（{visits[0]} → {visits[-1]}）")
     print(f"有库存记录的物品：{len(raw_items)}")
 
-    items = {name: {"t": r["t"], "d": r["d"], "c": r["c"],
-                    "v": [idx[d] for d in r["dates"] if d in idx]}
-             for name, r in raw_items.items()}
+    items = {
+        name: {"t": r["t"], "d": r["d"], "c": r["c"], "v": [idx[d] for d in r["dates"] if d in idx]}
+        for name, r in raw_items.items()
+    }
     # 用最后 20 次访问做「近月」统计参考
     out = {
         "source": "wiki.warframe.com · Module:Baro/data",
@@ -113,8 +121,9 @@ def main() -> int:
     print(f"产出体积：{len(blob) / 1024:.0f} KB")
     if args.check:
         return 0
-    OUT.write_text(json.dumps(out, ensure_ascii=False,
-                              separators=(",", ":")) + "\n", encoding="utf-8")
+    OUT.write_text(
+        json.dumps(out, ensure_ascii=False, separators=(",", ":")) + "\n", encoding="utf-8"
+    )
     print(f"已写 {OUT.relative_to(ROOT)}")
     return 0
 

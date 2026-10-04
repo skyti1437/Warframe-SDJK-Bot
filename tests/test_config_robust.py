@@ -5,6 +5,7 @@
 修复前 main.py 对数值配置直接 float()/int()，填 "abc" 会让插件
 __init__ 抛 ValueError 加载失败。修复后应回退默认值并记 warning。
 """
+
 from __future__ import annotations
 
 import sys
@@ -28,6 +29,7 @@ def _install_astrbot_stub() -> None:
         pass
 
     import logging
+
     logger = logging.getLogger("astrbot_plugin_warframe_sdjkbot")
 
     class AstrMessageEvent:
@@ -38,25 +40,31 @@ def _install_astrbot_stub() -> None:
 
     class _Filter:
         EventMessageType = type("EMT", (), {"ALL": 1})
-        event_message_type = staticmethod(lambda spec: (lambda fn: fn))
+        event_message_type = staticmethod(lambda spec: lambda fn: fn)
 
     event_mod.AstrMessageEvent = AstrMessageEvent
     event_mod.MessageChain = MessageChain
     event_mod.filter = _Filter()
 
-    class Image: pass
-    class Plain: pass
+    class Image:
+        pass
+
+    class Plain:
+        pass
+
     mc_mod.Image = Image
     mc_mod.Plain = Plain
 
-    class Context: pass
+    class Context:
+        pass
 
     class Star:
-        def __init__(self, *a, **k): pass
+        def __init__(self, *a, **k):
+            pass
 
     star_mod.Context = Context
     star_mod.Star = Star
-    star_mod.register = lambda *a, **k: (lambda cls: cls)
+    star_mod.register = lambda *a, **k: lambda cls: cls
 
     api.AstrBotConfig = AstrBotConfig
     api.logger = logger
@@ -75,8 +83,9 @@ FAILED: list[str] = []
 
 
 def check(name: str, cond: bool, detail: str = "") -> None:
-    print(f"[{'PASS' if cond else 'FAIL'}] {name}"
-          + (f" -> {detail}" if detail and not cond else ""))
+    print(
+        f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -> {detail}" if detail and not cond else "")
+    )
     if not cond:
         FAILED.append(name)
 
@@ -100,11 +109,13 @@ BAD_CFG = {
 obj, e = try_init(BAD_CFG)
 check("全部数值配置非法时 init 不抛异常", e is None, repr(e))
 if obj is not None:
-    check("http_timeout 非法 → 回退默认 15", obj.client._http.timeout.read == 15,
-          str(obj.client._http.timeout))
+    check(
+        "http_timeout 非法 → 回退默认 15",
+        obj.client._http.timeout.read == 15,
+        str(obj.client._http.timeout),
+    )
     check("page_size 非法 → 回退默认 12", obj.page_size == 12, str(obj.page_size))
-    check("push_interval 非法 → 回退默认 45",
-          obj.push.interval == 45, str(obj.push.interval))
+    check("push_interval 非法 → 回退默认 45", obj.push.interval == 45, str(obj.push.interval))
 
 # ---------------------------------------------------------------- 正常值不受影响
 obj, e = try_init({"http_timeout": 30, "page_size": 20, "push_interval": 60})
@@ -122,8 +133,7 @@ check("config=None init 不抛", e is None, repr(e))
 obj, e = try_init({"http_timeout": "20", "page_size": "8"})
 check("数字字符串 init 不抛", e is None, repr(e))
 if obj is not None:
-    check("'20' 解析为 20", obj.client._http.timeout.read == 20,
-          str(obj.client._http.timeout))
+    check("'20' 解析为 20", obj.client._http.timeout.read == 20, str(obj.client._http.timeout))
     check("'8' 解析为 8", obj.page_size == 8, str(obj.page_size))
 
 # ---------------------------------------------------------------- _num 单元行为

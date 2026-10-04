@@ -6,6 +6,7 @@
   2. 本日确实无该内容（如无警报、无活动）
   3. 解析/取数代码有 bug（真问题）
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -24,8 +25,16 @@ async def main():
     if isinstance(raw, dict):
         print("总键数:", len(raw))
         print("键名:", sorted(raw.keys()))
-        for k in ("Alerts", "Events", "News", "Sorties", "Invasions",
-                  "VoidFissures", "Goals", "ActiveMissions"):
+        for k in (
+            "Alerts",
+            "Events",
+            "News",
+            "Sorties",
+            "Invasions",
+            "VoidFissures",
+            "Goals",
+            "ActiveMissions",
+        ):
             if k in raw:
                 v = raw[k]
                 print(f"  {k}: {len(v) if hasattr(v, '__len__') else v}")

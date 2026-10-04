@@ -19,6 +19,7 @@
 `fmt_fissures(all_rows=True)` 一次输出全部；标题里不能再有「第 x/y 页」
 （渲染层靠这个正则抽右上角页码芯片）。
 """
+
 from __future__ import annotations
 
 import json
@@ -30,16 +31,18 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from core.formatters import _ALL_ROWS_CAP, fmt_fissures  # noqa: E402
-from core.parser import (                                # noqa: E402
-    _CN_TO_MISSION, parse_fissure_filter,
+from core.parser import (  # noqa: E402
+    _CN_TO_MISSION,
+    parse_fissure_filter,
 )
 
 FAILED: list[str] = []
 
 
 def check(name: str, cond: bool, detail: str = ""):
-    print(f"[{'PASS' if cond else 'FAIL'}] {name}"
-          + (f"  -> {detail}" if detail and not cond else ""))
+    print(
+        f"[{'PASS' if cond else 'FAIL'}] {name}" + (f"  -> {detail}" if detail and not cond else "")
+    )
     if not cond:
         FAILED.append(name)
 
@@ -48,19 +51,34 @@ def _iso(dt: datetime) -> str:
     return dt.isoformat().replace("+00:00", "Z")
 
 
-def _fix(node: str, mt: str, tier: str = "Lith", *, hard: bool = False,
-         storm: bool = False, mins: int = 40) -> dict:
+def _fix(
+    node: str,
+    mt: str,
+    tier: str = "Lith",
+    *,
+    hard: bool = False,
+    storm: bool = False,
+    mins: int = 40,
+) -> dict:
     """生产口径的裂隙字典：missionType 是**中文**（DE 官方简中）。"""
-    return {"id": f"{node}-{mt}", "node": node, "missionType": mt,
-            "tier": tier, "tierNum": 1, "isHard": hard, "isStorm": storm,
-            "expiry": _iso(datetime.now(timezone.utc) + timedelta(minutes=mins))}
+    return {
+        "id": f"{node}-{mt}",
+        "node": node,
+        "missionType": mt,
+        "tier": tier,
+        "tierNum": 1,
+        "isHard": hard,
+        "isStorm": storm,
+        "expiry": _iso(datetime.now(timezone.utc) + timedelta(minutes=mins)),
+    }
 
 
 # ---------------------------------------------------------------- ① 官方简中覆盖
 _de = ROOT / "core" / "data" / "de"
 _zh_tbl = json.loads((_de / "mission_types_zh.json").read_text(encoding="utf-8"))
-_missing = sorted({cn for cn in _zh_tbl.values()
-                   if isinstance(cn, str) and cn and cn not in _CN_TO_MISSION})
+_missing = sorted(
+    {cn for cn in _zh_tbl.values() if isinstance(cn, str) and cn and cn not in _CN_TO_MISSION}
+)
 # ⚠️ 回归守卫（2026-09-17 线上事故）：core/formatters.py 里曾有**两个同名模块级
 # 变量 `_TIER_ORDER`** —— 一个是本文件用的「英文纪元 → 序号」字典，另一个是
 # 遗物按纪元分组用的中文元组；后者定义在后面，把前者**覆盖成元组**，于是
@@ -68,18 +86,30 @@ _missing = sorted({cn for cn in _zh_tbl.values()
 # 线上「裂隙」指令直接报错。这里把两者类型焊死，并强制它们不同名。
 from core import formatters as _F  # noqa: E402
 
-check("_TIER_ORDER 仍是「英文纪元→序号」字典（未被同名变量覆盖）",
-      isinstance(_F._TIER_ORDER, dict) and _F._TIER_ORDER.get("Lith") == 0,
-      f"type={type(_F._TIER_ORDER).__name__} value={_F._TIER_ORDER!r}")
-check("遗物分组顺序另立名字（元组），不再占用 _TIER_ORDER",
-      isinstance(getattr(_F, "_RELIC_TIER_ORDER", None), tuple),
-      f"={getattr(_F, '_RELIC_TIER_ORDER', None)!r}")
+check(
+    "_TIER_ORDER 仍是「英文纪元→序号」字典（未被同名变量覆盖）",
+    isinstance(_F._TIER_ORDER, dict) and _F._TIER_ORDER.get("Lith") == 0,
+    f"type={type(_F._TIER_ORDER).__name__} value={_F._TIER_ORDER!r}",
+)
+check(
+    "遗物分组顺序另立名字（元组），不再占用 _TIER_ORDER",
+    isinstance(getattr(_F, "_RELIC_TIER_ORDER", None), tuple),
+    f"={getattr(_F, '_RELIC_TIER_ORDER', None)!r}",
+)
+
+
 # 端到端冒烟：真实构造一条裂隙行，确认 fmt_fissures 能跑完（不只是导入不报错）
 def _one_row() -> dict:
-    return {"id": "smoke", "node": "Ananke（木星）", "missionType": "捕获",
-            "tier": "Meso", "tierNum": 1, "isHard": False, "isStorm": False,
-            "expiry": (datetime.now(timezone.utc)
-                       + timedelta(minutes=40)).isoformat()}
+    return {
+        "id": "smoke",
+        "node": "Ananke（木星）",
+        "missionType": "捕获",
+        "tier": "Meso",
+        "tierNum": 1,
+        "isHard": False,
+        "isStorm": False,
+        "expiry": (datetime.now(timezone.utc) + timedelta(minutes=40)).isoformat(),
+    }
 
 
 try:
@@ -96,8 +126,22 @@ check("DE 官方简中任务名全部能反查回英文键", not _missing, str(_
 
 
 # 生产实测出现过的任务类型（抓自线上 33 条活跃裂隙）
-_LIVE = ["捕获", "歼灭", "生存", "防御", "拦截", "破坏", "挖掘", "间谍",
-         "救援", "移动防御", "中断", "虚空洪流", "虚空覆涌", "元素转换"]
+_LIVE = [
+    "捕获",
+    "歼灭",
+    "生存",
+    "防御",
+    "拦截",
+    "破坏",
+    "挖掘",
+    "间谍",
+    "救援",
+    "移动防御",
+    "中断",
+    "虚空洪流",
+    "虚空覆涌",
+    "元素转换",
+]
 _unknown = [cn for cn in _LIVE if cn not in _CN_TO_MISSION]
 check("线上出现过的任务类型全部可反查", not _unknown, str(_unknown))
 
@@ -111,186 +155,259 @@ _VCA = _fix("Circulus（月球）", "虚空覆涌", "Omnia")
 _HARD_CAP = _fix("V（火星）", "捕获", hard=True)
 _STORM = _fix("虚天神殿（地球比邻星域）", "", "Neo", storm=True)
 
-check("玩家报障规则「捕获」能命中捕获裂隙",
-      parse_fissure_filter("捕获").match(_CAP))
+check("玩家报障规则「捕获」能命中捕获裂隙", parse_fissure_filter("捕获").match(_CAP))
 _VOID_CAP = _fix("Ukko（虚空）", "捕获", "Meso")
-check("「虚空捕获」只收虚空星系（2026-09-14 二次报障后加地区限定）",
-      parse_fissure_filter("虚空捕获").match(_VOID_CAP)
-      and not parse_fissure_filter("虚空捕获").match(_CAP))
-check("「虚空歼灭」只收虚空星系歼灭",
-      parse_fissure_filter("虚空歼灭").match(_fix("Belenus（虚空）", "歼灭"))
-      and not parse_fissure_filter("虚空歼灭").match(_EXT))
-check("「虚空,捕获」两组任一命中（虚空或捕获均可）",
-      parse_fissure_filter("虚空,捕获").match(_CAP)
-      and parse_fissure_filter("虚空,捕获").match(_VOID_CAP))
-check("「救援」能命中救援裂隙（DE 官方名，旧表写作营救）",
-      parse_fissure_filter("救援").match(_RES))
-check("旧叫法「营救」仍能命中救援裂隙",
-      parse_fissure_filter("营救").match(_RES))
-check("「元素转换」能命中（DE 官方名，旧表写作炼金）",
-      parse_fissure_filter("元素转换").match(_ALC))
-check("「虚空覆涌」能命中（DE 官方名，旧表写作虚空级联）",
-      parse_fissure_filter("虚空覆涌").match(_VCA))
-check("旧叫法「虚空级联」仍能命中虚空覆涌裂隙",
-      parse_fissure_filter("虚空级联").match(_VCA))
-check("带纪元的规则「古纪捕获」纪元也对得上",
-      parse_fissure_filter("古纪捕获").match(_fix("Ananke（木星）", "捕获",
-                                                  "Lith"))
-      and not parse_fissure_filter("古纪捕获").match(_CAP))
-check("「钢铁虚空生存」命中钢铁+虚空的生存（虚空是地区限定）",
-      parse_fissure_filter("钢铁虚空生存").match(_fix("S（虚空）", "生存", hard=True))
-      and not parse_fissure_filter("钢铁虚空生存").match(_SUR))
-check("「虚空覆涌」是任务名，不误触发虚空地区限定",
-      parse_fissure_filter("虚空覆涌").match(_VCA)
-      and parse_fissure_filter("虚空洪流").match(_fix("D（火卫二）", "虚空洪流")))
-check("「普通捕获」不命中钢铁捕获",
-      not parse_fissure_filter("普通捕获").match(_HARD_CAP))
-check("「九重天」只命中九重天裂隙",
-      parse_fissure_filter("九重天").match(_STORM)
-      and not parse_fissure_filter("九重天").match(_CAP))
+check(
+    "「虚空捕获」只收虚空星系（2026-09-14 二次报障后加地区限定）",
+    parse_fissure_filter("虚空捕获").match(_VOID_CAP)
+    and not parse_fissure_filter("虚空捕获").match(_CAP),
+)
+check(
+    "「虚空歼灭」只收虚空星系歼灭",
+    parse_fissure_filter("虚空歼灭").match(_fix("Belenus（虚空）", "歼灭"))
+    and not parse_fissure_filter("虚空歼灭").match(_EXT),
+)
+check(
+    "「虚空,捕获」两组任一命中（虚空或捕获均可）",
+    parse_fissure_filter("虚空,捕获").match(_CAP)
+    and parse_fissure_filter("虚空,捕获").match(_VOID_CAP),
+)
+check("「救援」能命中救援裂隙（DE 官方名，旧表写作营救）", parse_fissure_filter("救援").match(_RES))
+check("旧叫法「营救」仍能命中救援裂隙", parse_fissure_filter("营救").match(_RES))
+check("「元素转换」能命中（DE 官方名，旧表写作炼金）", parse_fissure_filter("元素转换").match(_ALC))
+check(
+    "「虚空覆涌」能命中（DE 官方名，旧表写作虚空级联）",
+    parse_fissure_filter("虚空覆涌").match(_VCA),
+)
+check("旧叫法「虚空级联」仍能命中虚空覆涌裂隙", parse_fissure_filter("虚空级联").match(_VCA))
+check(
+    "带纪元的规则「古纪捕获」纪元也对得上",
+    parse_fissure_filter("古纪捕获").match(_fix("Ananke（木星）", "捕获", "Lith"))
+    and not parse_fissure_filter("古纪捕获").match(_CAP),
+)
+check(
+    "「钢铁虚空生存」命中钢铁+虚空的生存（虚空是地区限定）",
+    parse_fissure_filter("钢铁虚空生存").match(_fix("S（虚空）", "生存", hard=True))
+    and not parse_fissure_filter("钢铁虚空生存").match(_SUR),
+)
+check(
+    "「虚空覆涌」是任务名，不误触发虚空地区限定",
+    parse_fissure_filter("虚空覆涌").match(_VCA)
+    and parse_fissure_filter("虚空洪流").match(_fix("D（火卫二）", "虚空洪流")),
+)
+check("「普通捕获」不命中钢铁捕获", not parse_fissure_filter("普通捕获").match(_HARD_CAP))
+check(
+    "「九重天」只命中九重天裂隙",
+    parse_fissure_filter("九重天").match(_STORM) and not parse_fissure_filter("九重天").match(_CAP),
+)
 # 反向
 check("「捕获」不命中生存裂隙", not parse_fissure_filter("捕获").match(_SUR))
 check("空规则命中全部", parse_fissure_filter("").match(_SUR))
 # 英文口径（历史 fixture / 兜底路径）仍要能用
-check("英文 missionType 仍可匹配",
-      parse_fissure_filter("捕获").match(
-          {"node": "Teshub", "missionType": "Capture", "tier": "Lith",
-           "isHard": False, "isStorm": False}))
-check("带 missionKey 的字典也认",
-      parse_fissure_filter("捕获").match(
-          {"node": "Teshub", "missionKey": "capture", "missionType": "捕获",
-           "tier": "Lith", "isHard": False, "isStorm": False}))
+check(
+    "英文 missionType 仍可匹配",
+    parse_fissure_filter("捕获").match(
+        {
+            "node": "Teshub",
+            "missionType": "Capture",
+            "tier": "Lith",
+            "isHard": False,
+            "isStorm": False,
+        }
+    ),
+)
+check(
+    "带 missionKey 的字典也认",
+    parse_fissure_filter("捕获").match(
+        {
+            "node": "Teshub",
+            "missionKey": "capture",
+            "missionType": "捕获",
+            "tier": "Lith",
+            "isHard": False,
+            "isStorm": False,
+        }
+    ),
+)
 
 
 # ---------------------------------------------------------------- ③ 不翻页单卡
 def _many(n: int) -> list[dict]:
     tiers = ["Lith", "Meso", "Neo", "Axi", "Requiem", "Omnia"]
     mts = ["捕获", "歼灭", "生存", "防御", "拦截", "破坏"]
-    return [_fix(f"节点{i}", mts[i % len(mts)], tiers[i % len(tiers)],
-                 mins=10 + i) for i in range(n)]
+    return [
+        _fix(f"节点{i}", mts[i % len(mts)], tiers[i % len(tiers)], mins=10 + i) for i in range(n)
+    ]
 
 
 _rows = _many(34)
 _title, _lines = fmt_fissures(_rows, all_rows=True)
 check("单卡模式标题不带页码", "第" not in _title and "/" not in _title, _title)
 check("单卡模式标题给出总条数", "共34条" in _title, _title)
-check("单卡模式 34 条全在一张卡（+1 条排序说明）",
-      sum(1 for x in _lines if x.startswith(("1.", "34."))) == 2
-      and len([x for x in _lines if x and x[0].isdigit()]) == 34,
-      str(len(_lines)))
-check("单卡模式不写「-2 翻页」类提示",
-      all("翻页" not in x for x in _lines))
+check(
+    "单卡模式 34 条全在一张卡（+1 条排序说明）",
+    sum(1 for x in _lines if x.startswith(("1.", "34."))) == 2
+    and len([x for x in _lines if x and x[0].isdigit()]) == 34,
+    str(len(_lines)),
+)
+check("单卡模式不写「-2 翻页」类提示", all("翻页" not in x for x in _lines))
 
-_t2, _l2 = fmt_fissures(_rows, all_rows=True,
-                        flt=parse_fissure_filter("捕获").match, page=2)
-check("单卡模式下 page 参数被忽略（筛选仍在）",
-      all("捕获" in x for x in _l2 if x and x[0].isdigit()) and
-      len([x for x in _l2 if x and x[0].isdigit()]) > 0, str(_l2[:3]))
+_t2, _l2 = fmt_fissures(_rows, all_rows=True, flt=parse_fissure_filter("捕获").match, page=2)
+check(
+    "单卡模式下 page 参数被忽略（筛选仍在）",
+    all("捕获" in x for x in _l2 if x and x[0].isdigit())
+    and len([x for x in _l2 if x and x[0].isdigit()]) > 0,
+    str(_l2[:3]),
+)
 
 # 超过行数上限时只截断且显式说明（渲染层 MAX_BODY_LINES=90 会静默截断）
 _t3, _l3 = fmt_fissures(_many(_ALL_ROWS_CAP + 5), all_rows=True)
-check("超上限时显式说明，不静默丢内容",
-      any("本卡只列前" in x for x in _l3), str(_l3[-3:]))
-check("超上限时行数受控（正文 ≤ 上限+2 条注脚）",
-      len([x for x in _l3 if x and x[0].isdigit()]) == _ALL_ROWS_CAP)
+check("超上限时显式说明，不静默丢内容", any("本卡只列前" in x for x in _l3), str(_l3[-3:]))
+check(
+    "超上限时行数受控（正文 ≤ 上限+2 条注脚）",
+    len([x for x in _l3 if x and x[0].isdigit()]) == _ALL_ROWS_CAP,
+)
 
 # 分页模式（默认）不受影响：其他列表类指令仍走翻页
 _t4, _l4 = fmt_fissures(_many(34), page=2, page_size=12)
 check("默认分页模式仍是第2/3页", "第2/3页" in _t4, _t4)
-check("默认分页模式只出 12 条",
-      len([x for x in _l4 if x and x[0].isdigit()]) == 12)
+check("默认分页模式只出 12 条", len([x for x in _l4 if x and x[0].isdigit()]) == 12)
 
 
 # ------------------------------------------------- T1–T6 档位别名（2026-10-03）
 # 验收（硬标准 = 等价性）：T 写法与中文写法 groups 必须完全相等；
 # 越界编号必须提示（不静默）；describe 档位段统一「中文名（Tn）」。
 from core.de_worldstate import (  # noqa: E402
-    _parse_fissures as _pf6, fissure_tier as _ft6)
-from core.parser import (FISSURE_TIER_WORDS, TIER_T_ALIAS,  # noqa: E402
-                         contains_fissure_tier, fissure_tier_hint)
+    _parse_fissures as _pf6,
+    fissure_tier as _ft6,
+)
+from core.parser import (  # noqa: E402
+    FISSURE_TIER_WORDS,
+    TIER_T_ALIAS,
+    contains_fissure_tier,
+    fissure_tier_hint,
+)
 
 # 档位词判定（「蹲」用它自动判裂隙；维护者定：T1–T6 本身含裂隙语义）
-check("档位词判定：钢铁t5歼灭/T5/安魂/古纪/Ｔ５ ⇒ True；钢铁/火星/歼灭 ⇒ False",
-      contains_fissure_tier("钢铁t5歼灭") and contains_fissure_tier("T5")
-      and contains_fissure_tier("安魂") and contains_fissure_tier("古纪")
-      and contains_fissure_tier("Ｔ５")
-      and not contains_fissure_tier("钢铁")
-      and not contains_fissure_tier("火星")
-      and not contains_fissure_tier("歼灭"))
+check(
+    "档位词判定：钢铁t5歼灭/T5/安魂/古纪/Ｔ５ ⇒ True；钢铁/火星/歼灭 ⇒ False",
+    contains_fissure_tier("钢铁t5歼灭")
+    and contains_fissure_tier("T5")
+    and contains_fissure_tier("安魂")
+    and contains_fissure_tier("古纪")
+    and contains_fissure_tier("Ｔ５")
+    and not contains_fissure_tier("钢铁")
+    and not contains_fissure_tier("火星")
+    and not contains_fissure_tier("歼灭"),
+)
 
 # ② T1..T6 ↔ fissure_tier 单一真源对拍
 _ok6 = True
 for _n, _en in enumerate(("Lith", "Meso", "Neo", "Axi", "Requiem", "Omnia"), 1):
-    if not (_ft6(f"VoidT{_n}")[0] == _en and TIER_T_ALIAS[f"t{_n}"] == _en
-            and f"t{_n}" in FISSURE_TIER_WORDS):
+    if not (
+        _ft6(f"VoidT{_n}")[0] == _en
+        and TIER_T_ALIAS[f"t{_n}"] == _en
+        and f"t{_n}" in FISSURE_TIER_WORDS
+    ):
         _ok6 = False
 check("② T1..T6 ↔ fissure_tier 对拍（Lith/Meso/Neo/Axi/Requiem/Omnia）", _ok6)
 
 # ① T 写法 ≡ 中文写法（groups 完全相等）
 _p6a, _p6b = parse_fissure_filter("T5歼灭"), parse_fissure_filter("安魂歼灭")
-check("① 「T5歼灭」≡「安魂歼灭」（groups 完全相等）",
-      _p6a.groups == _p6b.groups, f"{_p6a.groups} vs {_p6b.groups}")
+check(
+    "① 「T5歼灭」≡「安魂歼灭」（groups 完全相等）",
+    _p6a.groups == _p6b.groups,
+    f"{_p6a.groups} vs {_p6b.groups}",
+)
 _p6c, _p6d = parse_fissure_filter("钢铁T1生存"), parse_fissure_filter("钢铁古纪生存")
-check("① 「钢铁T1生存」≡「钢铁古纪生存」（groups 完全相等）",
-      _p6c.groups == _p6d.groups, f"{_p6c.groups} vs {_p6d.groups}")
+check(
+    "① 「钢铁T1生存」≡「钢铁古纪生存」（groups 完全相等）",
+    _p6c.groups == _p6d.groups,
+    f"{_p6c.groups} vs {_p6d.groups}",
+)
 
 # ③ 回归：安魂/全能/T 不再退化成节点子串
-check("③ 安魂/全能/T 不再落 substr（曾静默永不命中）",
-      "substr" not in parse_fissure_filter("安魂歼灭").groups[0]
-      and "substr" not in parse_fissure_filter("全能歼灭").groups[0]
-      and "substr" not in parse_fissure_filter("钢铁T1生存").groups[0])
+check(
+    "③ 安魂/全能/T 不再落 substr（曾静默永不命中）",
+    "substr" not in parse_fissure_filter("安魂歼灭").groups[0]
+    and "substr" not in parse_fissure_filter("全能歼灭").groups[0]
+    and "substr" not in parse_fissure_filter("钢铁T1生存").groups[0],
+)
 
 # ④ 大小写 / 全角等价
-check("④ T5 / t5 / Ｔ５ 三者 groups 相等",
-      parse_fissure_filter("T5歼灭").groups
-      == parse_fissure_filter("t5歼灭").groups
-      == parse_fissure_filter("Ｔ５歼灭").groups)
+check(
+    "④ T5 / t5 / Ｔ５ 三者 groups 相等",
+    parse_fissure_filter("T5歼灭").groups
+    == parse_fissure_filter("t5歼灭").groups
+    == parse_fissure_filter("Ｔ５歼灭").groups,
+)
 
 # ⑤ 越界编号 / 孤立 t ⇒ 明确提示（铁律 A：不静默）；合法 ⇒ 空串
-_bad6 = ("T0歼灭", "T7歼灭", "T9歼灭", "t歼灭", "T5x歼灭", "5T歼灭",
-         "T05歼灭", "t55歼灭")
-_legal6 = ("T1歼灭", "T6捕获", "钢铁T3生存", "安魂歼灭", "全能歼灭",
-           "t5歼灭", "Ｔ５歼灭", "钢铁防御")
-check("⑤ 越界/孤立 t 全部有提示（T0/T7/T9/t/T5x/5T/T05/t55）",
-      all(fissure_tier_hint(x) for x in _bad6),
-      str({x: fissure_tier_hint(x) for x in _bad6}))
-check("⑤ 合法输入提示为空串", all(not fissure_tier_hint(x) for x in _legal6),
-      str({x: fissure_tier_hint(x) for x in _legal6}))
+_bad6 = ("T0歼灭", "T7歼灭", "T9歼灭", "t歼灭", "T5x歼灭", "5T歼灭", "T05歼灭", "t55歼灭")
+_legal6 = (
+    "T1歼灭",
+    "T6捕获",
+    "钢铁T3生存",
+    "安魂歼灭",
+    "全能歼灭",
+    "t5歼灭",
+    "Ｔ５歼灭",
+    "钢铁防御",
+)
+check(
+    "⑤ 越界/孤立 t 全部有提示（T0/T7/T9/t/T5x/5T/T05/t55）",
+    all(fissure_tier_hint(x) for x in _bad6),
+    str({x: fissure_tier_hint(x) for x in _bad6}),
+)
+check(
+    "⑤ 合法输入提示为空串",
+    all(not fissure_tier_hint(x) for x in _legal6),
+    str({x: fissure_tier_hint(x) for x in _legal6}),
+)
 
 # ⑦ describe 档位段「中文名（Tn）」；不含档位规则输出保持原样
-check("⑦ describe 输出「安魂（T5）」形式",
-      parse_fissure_filter("T5歼灭").describe() == "普通歼灭安魂（T5）"
-      and parse_fissure_filter("T6捕获").describe() == "普通捕获全能（T6）"
-      and parse_fissure_filter("钢铁T1生存").describe() == "钢铁生存古纪（T1）",
-      parse_fissure_filter("T5歼灭").describe())
-check("⑦ 不含档位的规则输出保持原样（既有断言口径不变）",
-      parse_fissure_filter("钢铁防御").describe() == "钢铁防御"
-      and parse_fissure_filter("钢铁,防御").describe() == "钢铁，普通防御")
+check(
+    "⑦ describe 输出「安魂（T5）」形式",
+    parse_fissure_filter("T5歼灭").describe() == "普通歼灭安魂（T5）"
+    and parse_fissure_filter("T6捕获").describe() == "普通捕获全能（T6）"
+    and parse_fissure_filter("钢铁T1生存").describe() == "钢铁生存古纪（T1）",
+    parse_fissure_filter("T5歼灭").describe(),
+)
+check(
+    "⑦ 不含档位的规则输出保持原样（既有断言口径不变）",
+    parse_fissure_filter("钢铁防御").describe() == "钢铁防御"
+    and parse_fissure_filter("钢铁,防御").describe() == "钢铁，普通防御",
+)
 
 # ⑥ 真实夹具对拍（tests/fixtures/de_worldstate.json 的 20 条 ActiveMissions）
-_raw6 = json.loads((ROOT / "tests" / "fixtures" / "de_worldstate.json")
-                   .read_text(encoding="utf-8"))
+_raw6 = json.loads((ROOT / "tests" / "fixtures" / "de_worldstate.json").read_text(encoding="utf-8"))
 _fs6 = [f for f in _pf6(_raw6) if not f.get("isStorm")]
-check("⑥ 夹具 ActiveMissions 恰 20 条 / 钢铁 7 条",
-      len(_fs6) == 20 and sum(1 for f in _fs6 if f.get("isHard")) == 7,
-      f"{len(_fs6)} 条 / 钢铁 {sum(1 for f in _fs6 if f.get('isHard'))}")
+check(
+    "⑥ 夹具 ActiveMissions 恰 20 条 / 钢铁 7 条",
+    len(_fs6) == 20 and sum(1 for f in _fs6 if f.get("isHard")) == 7,
+    f"{len(_fs6)} 条 / 钢铁 {sum(1 for f in _fs6 if f.get('isHard'))}",
+)
 _a6 = [f.get("node") for f in _fs6 if parse_fissure_filter("钢铁T1生存").match(f)]
 _b6 = [f.get("node") for f in _fs6 if parse_fissure_filter("钢铁古纪生存").match(f)]
-check("⑥ 「钢铁T1生存」≡「钢铁古纪生存」命中集合逐条相同",
-      _a6 == _b6, f"{_a6} vs {_b6}")
+check("⑥ 「钢铁T1生存」≡「钢铁古纪生存」命中集合逐条相同", _a6 == _b6, f"{_a6} vs {_b6}")
 # 夹具里真实存在的非空等价对（T3 有钢铁生存、T5 有防御、T6 有生存）
-for _t6, _cn6, _lab6 in (("钢铁T3生存", "钢铁中纪生存", "钢铁生存"),
-                         ("T5防御", "安魂防御", "防御"),
-                         ("T6生存", "全能生存", "生存")):
+for _t6, _cn6, _lab6 in (
+    ("钢铁T3生存", "钢铁中纪生存", "钢铁生存"),
+    ("T5防御", "安魂防御", "防御"),
+    ("T6生存", "全能生存", "生存"),
+):
     _x6 = [f.get("node") for f in _fs6 if parse_fissure_filter(_t6).match(f)]
     _y6 = [f.get("node") for f in _fs6 if parse_fissure_filter(_cn6).match(f)]
-    check(f"⑥ 「{_t6}」≡「{_cn6}」且命中非空（{_lab6}）",
-          _x6 == _y6 and bool(_x6), f"{_x6} vs {_y6}")
+    check(
+        f"⑥ 「{_t6}」≡「{_cn6}」且命中非空（{_lab6}）", _x6 == _y6 and bool(_x6), f"{_x6} vs {_y6}"
+    )
 # 合成一条「钢铁古纪生存」：两种写法都必须命中（覆盖字面组合，夹具无此条）
 _syn6 = _fix("S（虚空）", "生存", "Lith", hard=True)
-check("⑥ 合成钢铁古纪生存条：T1/中文两种写法都命中",
-      parse_fissure_filter("钢铁T1生存").match(_syn6)
-      and parse_fissure_filter("钢铁古纪生存").match(_syn6))
+check(
+    "⑥ 合成钢铁古纪生存条：T1/中文两种写法都命中",
+    parse_fissure_filter("钢铁T1生存").match(_syn6)
+    and parse_fissure_filter("钢铁古纪生存").match(_syn6),
+)
 
 print()
 if FAILED:

@@ -10,6 +10,7 @@
 
 用法：python build_damage_data.py   （需可访问 github/jsdelivr；或经 -x 代理）
 """
+
 from __future__ import annotations
 
 import json
@@ -22,7 +23,7 @@ DATA = Path(__file__).resolve().parent / "core" / "data"
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/126.0"
 PROXY = None  # 例如 "http://127.0.0.1:7897"
 # 本地缓存目录（用 curl --proxy 先下好的文件放这里，脚本优先读缓存）
-CACHE = (Path.home() / "tmp" / "dmgsrc")
+CACHE = Path.home() / "tmp" / "dmgsrc"
 
 
 def _fetch(url: str) -> str:
@@ -45,27 +46,57 @@ def _fetch_cached(url: str, cache_name: str) -> str:
 # ---------------------------------------------------------------------------
 # 1) 派系倍率表
 # ---------------------------------------------------------------------------
-FACTIONS = ["Tenno", "Grineer", "Kuva Grineer", "Corpus", "Corpus Amalgam",
-            "Infested", "Infested Deimos", "Orokin", "Sentient", "Narmer",
-            "The Murmur", "Zariman", "Scaldra", "Techrot"]
+FACTIONS = [
+    "Tenno",
+    "Grineer",
+    "Kuva Grineer",
+    "Corpus",
+    "Corpus Amalgam",
+    "Infested",
+    "Infested Deimos",
+    "Orokin",
+    "Sentient",
+    "Narmer",
+    "The Murmur",
+    "Zariman",
+    "Scaldra",
+    "Techrot",
+]
 
 # 倍率表里会出现的伤害类型（物理 + 单元素 + 复合 + 特殊）
 _KNOWN_TYPES = {
-    "Impact", "Puncture", "Slash",
-    "Cold", "Electricity", "Heat", "Toxin",
-    "Blast", "Corrosive", "Gas", "Magnetic", "Radiation", "Viral",
-    "Void", "True", "Tau", "Finisher",
+    "Impact",
+    "Puncture",
+    "Slash",
+    "Cold",
+    "Electricity",
+    "Heat",
+    "Toxin",
+    "Blast",
+    "Corrosive",
+    "Gas",
+    "Magnetic",
+    "Radiation",
+    "Viral",
+    "Void",
+    "True",
+    "Tau",
+    "Finisher",
 }
 
 
 def build_faction_table() -> dict:
-    raw = _fetch_cached("https://warframe.fandom.com/api.php?action=parse"
-                        "&page=Damage/Overview_Table&prop=wikitext&format=json&formatversion=2",
-                        "Overview_Table.json")
+    raw = _fetch_cached(
+        "https://warframe.fandom.com/api.php?action=parse"
+        "&page=Damage/Overview_Table&prop=wikitext&format=json&formatversion=2",
+        "Overview_Table.json",
+    )
     txt = json.loads(raw)["parse"]["wikitext"]
 
     # 表头列顺序（跳过第一列 Damage Type）
-    heads = re.findall(r"skew\(50deg\)[^>]*>\s*(?:<[^>]+>\s*)*<span[^>]*>\s*\{\{D\|([^}]+)\}\}", txt)
+    heads = re.findall(
+        r"skew\(50deg\)[^>]*>\s*(?:<[^>]+>\s*)*<span[^>]*>\s*\{\{D\|([^}]+)\}\}", txt
+    )
     heads = [h.strip() for h in heads]
     if heads != FACTIONS:
         print("⚠️ 表头与预期不一致：", heads)
@@ -74,7 +105,7 @@ def build_faction_table() -> dict:
     # {{D|X}} 模板里本身含 |，先把模板替换成纯名字再按 | 切格
     flat = re.sub(r"\{\{D\|([^}]+)\}\}", r"\1", txt)
     for block in flat.split("|-"):
-        if "skew" in block:      # 表头
+        if "skew" in block:  # 表头
             continue
         cells = [c.strip() for c in block.split("|")]
         cells = [c for c in cells if c != "" or True][1:]  # 去掉行首空段
@@ -87,7 +118,7 @@ def build_faction_table() -> dict:
                 break
         if not dtype:
             continue
-        body = cells[start:start + len(heads)]
+        body = cells[start : start + len(heads)]
         if len(body) < len(heads):
             continue
         vals: dict[str, float] = {}
@@ -97,11 +128,18 @@ def build_faction_table() -> dict:
             elif "indianred" in cell:
                 vals[name] = 0.5
         table[dtype] = vals
-    out = {"_meta": {"source": "warframe.fandom.com/wiki/Damage/Overview_Table",
-                     "retrieved": "2026-09-16", "rule": "U36 起：弱点/抗性按派系，+ = ×1.5，- = ×0.5，其余 ×1"},
-           "factions": FACTIONS, "table": table}
+    out = {
+        "_meta": {
+            "source": "warframe.fandom.com/wiki/Damage/Overview_Table",
+            "retrieved": "2026-09-16",
+            "rule": "U36 起：弱点/抗性按派系，+ = ×1.5，- = ×0.5，其余 ×1",
+        },
+        "factions": FACTIONS,
+        "table": table,
+    }
     (DATA / "damage_faction.json").write_text(
-        json.dumps(out, ensure_ascii=False, indent=1), encoding="utf-8")
+        json.dumps(out, ensure_ascii=False, indent=1), encoding="utf-8"
+    )
     print(f"damage_faction.json：{len(table)} 种伤害类型")
     return table
 
@@ -109,22 +147,60 @@ def build_faction_table() -> dict:
 # ---------------------------------------------------------------------------
 # 2) 武器基础数据
 # ---------------------------------------------------------------------------
-KEEP = ("name", "uniqueName", "category", "masteryReq", "damage", "damageTypes",
-        "criticalChance", "criticalMultiplier", "fireRate", "trigger",
-        "multishot", "projectile", "disposition", "type", "slamAttack",
-        # 持续 DPS 需要：magazineSize（弹匣）+ reloadTime（装填秒）
-        "magazineSize", "reloadTime", "procChance",
-        # 近战重击 / 连击 / 震地
-        "heavyAttackDamage", "heavySlamAttack", "comboDuration",
-        "slamAttack", "slamRadialDamage", "heavySlamRadialDamage",
-        "slamRadius", "slideAttack", "windUp", "followThrough",
-        "omegaAttenuation")
+KEEP = (
+    "name",
+    "uniqueName",
+    "category",
+    "masteryReq",
+    "damage",
+    "damageTypes",
+    "criticalChance",
+    "criticalMultiplier",
+    "fireRate",
+    "trigger",
+    "multishot",
+    "projectile",
+    "disposition",
+    "type",
+    "slamAttack",
+    # 持续 DPS 需要：magazineSize（弹匣）+ reloadTime（装填秒）
+    "magazineSize",
+    "reloadTime",
+    "procChance",
+    # 近战重击 / 连击 / 震地
+    "heavyAttackDamage",
+    "heavySlamAttack",
+    "comboDuration",
+    "slamAttack",
+    "slamRadialDamage",
+    "heavySlamRadialDamage",
+    "slamRadius",
+    "slideAttack",
+    "windUp",
+    "followThrough",
+    "omegaAttenuation",
+)
 
 
 # 伤害类型键（用于把 attacks 里的 damage 归一成完整 dict）
-_DMG_KEYS = ("impact", "puncture", "slash", "heat", "cold", "electricity",
-             "toxin", "blast", "radiation", "gas", "magnetic", "viral",
-             "corrosive", "void", "tau", "true")
+_DMG_KEYS = (
+    "impact",
+    "puncture",
+    "slash",
+    "heat",
+    "cold",
+    "electricity",
+    "toxin",
+    "blast",
+    "radiation",
+    "gas",
+    "magnetic",
+    "viral",
+    "corrosive",
+    "void",
+    "tau",
+    "true",
+)
 
 
 def _collect_attacks(it: dict) -> list[dict]:
@@ -134,10 +210,11 @@ def _collect_attacks(it: dict) -> list[dict]:
     伤害类型都可能不同，必须分别算。
     """
     out: list[dict] = []
-    for a in (it.get("attacks") or []):
+    for a in it.get("attacks") or []:
         raw = a.get("damage") or {}
-        dmg = {k: float(v) for k, v in raw.items()
-               if isinstance(v, (int, float)) and k in _DMG_KEYS}
+        dmg = {
+            k: float(v) for k, v in raw.items() if isinstance(v, (int, float)) and k in _DMG_KEYS
+        }
         if not dmg:
             continue
         rec = {
@@ -145,8 +222,16 @@ def _collect_attacks(it: dict) -> list[dict]:
             "damage": dmg,
             "total": sum(dmg.values()),
         }
-        for key in ("crit_chance", "crit_mult", "status_chance", "speed",
-                    "shot_type", "charge_time", "shot_speed", "flight"):
+        for key in (
+            "crit_chance",
+            "crit_mult",
+            "status_chance",
+            "speed",
+            "shot_type",
+            "charge_time",
+            "shot_speed",
+            "flight",
+        ):
             if a.get(key) is not None:
                 rec[key] = a[key]
         if a.get("falloff"):
@@ -180,8 +265,7 @@ def _fix_physical(it: dict) -> dict:
     #  爆炸类 total 把范围段并了进来）。total 必须自洽 = Σ成分，
     # 蓄力/范围段由 attacks 段单独承担 —— 否则伤害链按 total 分配比例会算错。
     _sk = {"total", "cinematic", "shieldDrain", "healthDrain", "energyDrain"}
-    _s = sum(float(v) for kk, v in dmg.items()
-             if isinstance(v, (int, float)) and kk not in _sk)
+    _s = sum(float(v) for kk, v in dmg.items() if isinstance(v, (int, float)) and kk not in _sk)
     if _s > 0:
         dmg["total"] = round(_s, 4)
     return dmg
@@ -193,7 +277,8 @@ def build_weapons() -> dict:
     for part in ("Primary", "Secondary", "Melee"):
         raw = _fetch_cached(
             f"https://cdn.jsdelivr.net/npm/warframe-items@latest/data/json/{part}.json",
-            f"{part}.json")
+            f"{part}.json",
+        )
         items = json.loads(raw)
         n = 0
         for it in items:
@@ -209,7 +294,7 @@ def build_weapons() -> dict:
             _ats = _collect_attacks(it)
             if _ats:
                 rec["attacks"] = _ats
-            for _a in _ats:                       # 兼容旧字段
+            for _a in _ats:  # 兼容旧字段
                 if _a["name"].strip().lower() == "throw":
                     rec["throwDamage"] = dict(_a["damage"])
                     break
@@ -222,9 +307,10 @@ def build_weapons() -> dict:
             out[key] = rec
             n += 1
         print(f"{part}: {n} 条")
-    (DATA / "weapons_stats.json").write_text(
-        json.dumps(out, ensure_ascii=False), encoding="utf-8")
-    print(f"weapons_stats.json：共 {len(out)} 条，{Path(DATA / 'weapons_stats.json').stat().st_size // 1024} KB")
+    (DATA / "weapons_stats.json").write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
+    print(
+        f"weapons_stats.json：共 {len(out)} 条，{Path(DATA / 'weapons_stats.json').stat().st_size // 1024} KB"
+    )
     return out
 
 
@@ -235,42 +321,81 @@ def build_weapons() -> dict:
 # ---------------------------------------------------------------------------
 # 极镜的 EnemyFaction 枚举序（0 Tenno / 1 Grineer / 2 Corpus / 3 Infested /
 # 4 Orokin(堕落) / 5 Sentient / 6 Wild）
-_FACTIONS = ["Tenno", "Grineer", "Corpus", "Infested", "Orokin",
-             "Sentient", "Wild"]
+_FACTIONS = ["Tenno", "Grineer", "Corpus", "Infested", "Orokin", "Sentient", "Wild"]
 
 # 英文名 -> 官方简中（沿用插件里那张人工核过的表，只收有把握的；其余留英文）
 _ENEMY_ZH = {
-    "Ancient Disruptor": "远古干扰者", "Ancient Healer": "远古治愈者",
-    "Boiler": "痈裂者", "Brood Mother": "病变虫母", "Charger": "疾冲者",
-    "Crawler": "爬行者", "Leaper": "奔跳者", "Runner": "狂奔者",
-    "Anti MOA": "逆进恐鸟", "MOA": "恐鸟",
-    "Fusion MOA": "熔岩恐鸟", "Crewman": "船员", "Elite Crewman": "精英船员",
-    "Nullifier Crewman": "虚能船员", "Corrupted Nullifier": "堕落虚能者",
-    "Butcher": "屠夫", "Flameblade": "焰刃", "Powerfist": "强拳",
-    "Scorpion": "天蝎", "Shield Lancer": "盾枪兵", "Ballista": "弩炮",
-    "Eviscerator": "开膛者", "Hellion": "行刑者", "Lancer": "枪兵",
-    "Elite Lancer": "精英枪兵", "Scorch": "怒焚者", "Seeker": "追踪者",
-    "Trooper": "骑兵", "Bombard": "轰击者", "Commander": "指挥官",
-    "Drahk Master": "爪喀驯兽师", "Heavy Gunner": "重型机枪手",
-    "Hyekka Master": "鬣猫驯兽师", "Manic": "狂躁者", "Napalm": "火焰轰击者",
-    "Nox": "诺克斯", "Ghoul Auger": "尸鬼钻地者", "Ghoul Devourer": "尸鬼吞噬者",
-    "Ghoul Expired": "尸鬼腐化者", "Ghoul Rictus": "尸鬼狞笑者",
-    "Grineer Warden": "Grineer 典狱长", "Sensor Regulator": "传感器调节器",
-    "Corrupted Ancient": "远古堕落者", "Corrupted Bombard": "堕落轰击者",
-    "Corrupted Butcher": "堕落屠夫", "Corrupted Crewman": "堕落船员",
+    "Ancient Disruptor": "远古干扰者",
+    "Ancient Healer": "远古治愈者",
+    "Boiler": "痈裂者",
+    "Brood Mother": "病变虫母",
+    "Charger": "疾冲者",
+    "Crawler": "爬行者",
+    "Leaper": "奔跳者",
+    "Runner": "狂奔者",
+    "Anti MOA": "逆进恐鸟",
+    "MOA": "恐鸟",
+    "Fusion MOA": "熔岩恐鸟",
+    "Crewman": "船员",
+    "Elite Crewman": "精英船员",
+    "Nullifier Crewman": "虚能船员",
+    "Corrupted Nullifier": "堕落虚能者",
+    "Butcher": "屠夫",
+    "Flameblade": "焰刃",
+    "Powerfist": "强拳",
+    "Scorpion": "天蝎",
+    "Shield Lancer": "盾枪兵",
+    "Ballista": "弩炮",
+    "Eviscerator": "开膛者",
+    "Hellion": "行刑者",
+    "Lancer": "枪兵",
+    "Elite Lancer": "精英枪兵",
+    "Scorch": "怒焚者",
+    "Seeker": "追踪者",
+    "Trooper": "骑兵",
+    "Bombard": "轰击者",
+    "Commander": "指挥官",
+    "Drahk Master": "爪喀驯兽师",
+    "Heavy Gunner": "重型机枪手",
+    "Hyekka Master": "鬣猫驯兽师",
+    "Manic": "狂躁者",
+    "Napalm": "火焰轰击者",
+    "Nox": "诺克斯",
+    "Ghoul Auger": "尸鬼钻地者",
+    "Ghoul Devourer": "尸鬼吞噬者",
+    "Ghoul Expired": "尸鬼腐化者",
+    "Ghoul Rictus": "尸鬼狞笑者",
+    "Grineer Warden": "Grineer 典狱长",
+    "Sensor Regulator": "传感器调节器",
+    "Corrupted Ancient": "远古堕落者",
+    "Corrupted Bombard": "堕落轰击者",
+    "Corrupted Butcher": "堕落屠夫",
+    "Corrupted Crewman": "堕落船员",
     "Corrupted Heavy Gunner": "堕落重型机枪手",
-    "Corrupted Lancer": "堕落枪兵", "Corrupted MOA": "堕落恐鸟",
-    "Bailiff": "法警", "Wolf of Saturn Six": "土星六号之狼",
-    "Eidolon Teralyst": "夜灵兆力使", "Eidolon Gantulyst": "夜灵巨力使",
-    "Eidolon Hydrolyst": "夜灵水力使", "Profit-Taker Orb": "利润收割者圆蛛",
-    "Tusk Butcher": "巨牙屠夫", "Tusk Lancer": "巨牙枪兵",
-    "Tusk Bombard": "巨牙轰击者", "Tusk Predator": "巨牙掠食者",
-    "Kuva Lich": "赤毒玄骸", "Kuva Guardian": "赤毒守卫者",
-    "Narmer Lancer": "合一众枪兵", "Deimos Carnis": "魔胎之境的肉类",
-    "Juno Crewman": "朱诺船员", "Terra Crewman": "泰拉船员",
-    "Terra MOA": "泰拉恐鸟", "Terra Provisor": "泰拉供给者",
-    "Vapos Crewman": "瓦波斯船员", "Murex": "骨螺",
-    "Thrax Centurion": "凶魂百夫长", "Thrax Legatus": "凶魂使节",
+    "Corrupted Lancer": "堕落枪兵",
+    "Corrupted MOA": "堕落恐鸟",
+    "Bailiff": "法警",
+    "Wolf of Saturn Six": "土星六号之狼",
+    "Eidolon Teralyst": "夜灵兆力使",
+    "Eidolon Gantulyst": "夜灵巨力使",
+    "Eidolon Hydrolyst": "夜灵水力使",
+    "Profit-Taker Orb": "利润收割者圆蛛",
+    "Tusk Butcher": "巨牙屠夫",
+    "Tusk Lancer": "巨牙枪兵",
+    "Tusk Bombard": "巨牙轰击者",
+    "Tusk Predator": "巨牙掠食者",
+    "Kuva Lich": "赤毒玄骸",
+    "Kuva Guardian": "赤毒守卫者",
+    "Narmer Lancer": "合一众枪兵",
+    "Deimos Carnis": "魔胎之境的肉类",
+    "Juno Crewman": "朱诺船员",
+    "Terra Crewman": "泰拉船员",
+    "Terra MOA": "泰拉恐鸟",
+    "Terra Provisor": "泰拉供给者",
+    "Vapos Crewman": "瓦波斯船员",
+    "Murex": "骨螺",
+    "Thrax Centurion": "凶魂百夫长",
+    "Thrax Legatus": "凶魂使节",
     "Corrupted Vor": "堕落的 Vor",
 }
 
@@ -281,7 +406,7 @@ def build_enemies() -> dict:
         print("⚠️ 跳过敌人表：缺 " + str(src))
         return {}
     txt = src.read_text(encoding="utf-8", errors="ignore")
-    body = txt[txt.index("const _enemyList = ["):txt.index("] as [string")]
+    body = txt[txt.index("const _enemyList = [") : txt.index("] as [string")]
     rows = re.findall(r'\["([^"]+)"((?:\s*,\s*[^,\]]*)*)\]', body)
     out: dict[str, dict] = {}
     for name, tail in rows:
@@ -303,11 +428,20 @@ def build_enemies() -> dict:
         }
         out[name] = rec
     (DATA / "enemies.json").write_text(
-        json.dumps({"_meta": {"source": "riven-mirror src/warframe/codex/enemy.ts",
-                              "retrieved": "2026-09-16",
-                              "note": "仅取基准数值与基准等级；抗性规则以 damage_faction.json 为准"},
-                    "enemies": out},
-                   ensure_ascii=False, indent=1), encoding="utf-8")
+        json.dumps(
+            {
+                "_meta": {
+                    "source": "riven-mirror src/warframe/codex/enemy.ts",
+                    "retrieved": "2026-09-16",
+                    "note": "仅取基准数值与基准等级；抗性规则以 damage_faction.json 为准",
+                },
+                "enemies": out,
+            },
+            ensure_ascii=False,
+            indent=1,
+        ),
+        encoding="utf-8",
+    )
     print(f"enemies.json：{len(out)} 条（有中文名 {sum(1 for v in out.values() if v['zh'])}）")
     return out
 
@@ -315,21 +449,40 @@ def build_enemies() -> dict:
 # ---------------------------------------------------------------------------
 # 4) MOD 数值表（来源：WFCD warframe-items 的 Mods.json，含满级数值与官方简中名）
 # ---------------------------------------------------------------------------
-_ELEM_WORDS = {"Heat": "heat", "Cold": "cold", "Electricity": "electricity",
-               "Toxin": "toxin", "Blast": "blast", "Corrosive": "corrosive",
-               "Gas": "gas", "Magnetic": "magnetic", "Radiation": "radiation",
-               "Viral": "viral", "Void": "void"}
+_ELEM_WORDS = {
+    "Heat": "heat",
+    "Cold": "cold",
+    "Electricity": "electricity",
+    "Toxin": "toxin",
+    "Blast": "blast",
+    "Corrosive": "corrosive",
+    "Gas": "gas",
+    "Magnetic": "magnetic",
+    "Radiation": "radiation",
+    "Viral": "viral",
+    "Void": "void",
+}
 # 物理三系 MOD（Sweeping Serration / Sawtooth Clip…）：只加成**同类型的基础值**，
 # 且对没有该类型基础伤害的武器无效（wiki Damage「Physical Damage」段）
 _PHYS_WORDS = {"Impact": "impact", "Puncture": "puncture", "Slash": "slash"}
 # 只把这些关键词的描述留作「使用限制」提示（火炮弹幕的「射速不可修改」等）
 _NOTE_KEYS = ("cannot", "only compatible", "not compatible", "exclusive")
-_FACTION_WORDS = {"Grineer": "Grineer", "Corpus": "Corpus", "Infested": "Infested",
-                  "Orokin": "Orokin", "Sentient": "Sentient",
-                  "Sentients": "Sentient", "Murmur": "The Murmur",
-                  "Murmurs": "The Murmur", "Grineers": "Grineer",
-                  "Corpuss": "Corpus", "Infesteds": "Infested",
-                  "Narmer": "Narmer", "Scaldra": "Scaldra", "Techrot": "Techrot"}
+_FACTION_WORDS = {
+    "Grineer": "Grineer",
+    "Corpus": "Corpus",
+    "Infested": "Infested",
+    "Orokin": "Orokin",
+    "Sentient": "Sentient",
+    "Sentients": "Sentient",
+    "Murmur": "The Murmur",
+    "Murmurs": "The Murmur",
+    "Grineers": "Grineer",
+    "Corpuss": "Corpus",
+    "Infesteds": "Infested",
+    "Narmer": "Narmer",
+    "Scaldra": "Scaldra",
+    "Techrot": "Techrot",
+}
 
 
 def parse_mod_stats(stats: list[str]) -> dict:
@@ -353,7 +506,10 @@ def parse_mod_stats(stats: list[str]) -> dict:
             # ① 连续投掷（奋力一掷）：每层 +X% 投掷伤害，最多 N 层
             m_throw = re.match(
                 r"On Consecutive throw\s*\(Max stacks (\d+)\)\s*:\s*"
-                r"\+([\d.]+)%\s+Throw Damage", s, re.I)
+                r"\+([\d.]+)%\s+Throw Damage",
+                s,
+                re.I,
+            )
             if m_throw:
                 eff["throw_max_stacks"] = int(m_throw.group(1))
                 eff["throw_dmg"] = float(m_throw.group(2))
@@ -386,8 +542,7 @@ def parse_mod_stats(stats: list[str]) -> dict:
                 elif what.startswith("Fire Rate"):
                     # 数据里带后缀，如「-20% Fire Rate (x2 for Bows)」
                     eff["fire_rate"] = eff.get("fire_rate", 0.0) + pct
-                elif what in ("Melee Damage On Heavy Attack",
-                              "Damage On Heavy Attack"):
+                elif what in ("Melee Damage On Heavy Attack", "Damage On Heavy Attack"):
                     # 一击必杀（Killing Blow）：只加重击，不动普通攻击
                     eff["heavy_dmg"] = eff.get("heavy_dmg", 0.0) + pct
                 elif what == "Magazine Capacity":
@@ -413,10 +568,10 @@ def parse_mod_stats(stats: list[str]) -> dict:
                     eff["combo_duration"] = eff.get("combo_duration", 0.0) + pct
                 elif what == "to Headshot Multiplier":
                     eff["headshot_bonus"] = eff.get("headshot_bonus", 0.0) + pct
-                elif what.lower().startswith("critical chance") and                         re.search(r"combo", what, re.I):
+                elif what.lower().startswith("critical chance") and re.search(r"combo", what, re.I):
                     # 狂怒（Blood Rush）：+40% 暴击几率「随连击倍率」叠加
                     eff["crit_per_combo"] = eff.get("crit_per_combo", 0.0) + pct
-                elif what.lower().startswith("status chance") and                         re.search(r"combo", what, re.I):
+                elif what.lower().startswith("status chance") and re.search(r"combo", what, re.I):
                     # 创口溃烂（Weeping Wounds）：+40% 触发率「随连击倍率」
                     eff["status_per_combo"] = eff.get("status_per_combo", 0.0) + pct
                 elif re.search(r"per\s+Status\s+Type", what, re.I):
@@ -424,14 +579,12 @@ def parse_mod_stats(stats: list[str]) -> dict:
                     eff["dmg_per_status"] = eff.get("dmg_per_status", 0.0) + pct
                 elif what in _ELEM_WORDS:
                     el = _ELEM_WORDS[what]
-                    eff.setdefault("elements", {})[el] = \
-                        eff.get("elements", {}).get(el, 0.0) + pct
+                    eff.setdefault("elements", {})[el] = eff.get("elements", {}).get(el, 0.0) + pct
                 elif what in _PHYS_WORDS:
                     el = _PHYS_WORDS[what]
-                    eff.setdefault("physical", {})[el] = \
-                        eff.get("physical", {}).get(el, 0.0) + pct
+                    eff.setdefault("physical", {})[el] = eff.get("physical", {}).get(el, 0.0) + pct
                 elif what.startswith("Damage to "):
-                    fac = what[len("Damage to "):].strip()
+                    fac = what[len("Damage to ") :].strip()
                     if fac in _FACTION_WORDS:
                         eff["faction_dmg"] = eff.get("faction_dmg", 0.0) + pct
                         eff["faction_of"] = _FACTION_WORDS[fac]
@@ -445,16 +598,17 @@ def parse_mod_stats(stats: list[str]) -> dict:
             # ③ 物理伤害转换：`20% of Damage converted into Impact`
             #    （彗星弹 / 锯齿弹 / 穿刺弹 / 剃刀弹药 …）——会把总伤的 20%
             #    「搬」到该物理类型上，直接改变 IPS 分布与派系弱点命中
-            m_conv = re.fullmatch(
-                r"([\d.]+)%\s+of\s+Damage\s+converted\s+into\s+(.+)", s, re.I)
+            m_conv = re.fullmatch(r"([\d.]+)%\s+of\s+Damage\s+converted\s+into\s+(.+)", s, re.I)
             if m_conv:
                 _to = _PHYS_WORDS.get(m_conv.group(2).strip())
                 if _to:
-                    eff.setdefault("physical_convert", {})[_to] =                         float(m_conv.group(1))
+                    eff.setdefault("physical_convert", {})[_to] = float(m_conv.group(1))
                 continue
             # ④ 条件触发（On Kill / On Headshot / When …）：**一律不折进数值**，
             #    只在卡面列出原文。把它们当常驻加成会系统性高估。
-            if re.match(r"(on\s|when\s|while\s|if\s)", s, re.I) or                     re.search(r"stacks?\s+up\s+to", s, re.I):
+            if re.match(r"(on\s|when\s|while\s|if\s)", s, re.I) or re.search(
+                r"stacks?\s+up\s+to", s, re.I
+            ):
                 eff.setdefault("conditional", []).append(str(raw_stat)[:120])
                 continue
     return eff
@@ -466,15 +620,26 @@ def _mod_compat(it: dict) -> str:
 
 # 只有这些槽位的 MOD 能被塞进武器配卡（战甲/守护/赋能等不参与，免得名表里
 # 混进「聚精会神」这类同名/近名条目，把武器名与 MOD 名搅在一起）
-WEAPON_COMPAT = {"Primary", "Secondary", "Melee", "Shotgun", "Stance",
-                 "Plexus", "Arch-Gun", "Arch-Melee", "Necramech"}
+WEAPON_COMPAT = {
+    "Primary",
+    "Secondary",
+    "Melee",
+    "Shotgun",
+    "Stance",
+    "Plexus",
+    "Arch-Gun",
+    "Arch-Melee",
+    "Necramech",
+}
 
 
 def build_mods() -> dict:
     name_zh = json.loads((DATA / "de" / "name_zh.json").read_text(encoding="utf-8"))
-    items = json.loads(_fetch_cached(
-        "https://cdn.jsdelivr.net/npm/warframe-items@latest/data/json/Mods.json",
-        "Mods.json"))
+    items = json.loads(
+        _fetch_cached(
+            "https://cdn.jsdelivr.net/npm/warframe-items@latest/data/json/Mods.json", "Mods.json"
+        )
+    )
     out: dict[str, dict] = {}
     index: dict[str, dict] = {}
     for it in items:
@@ -489,7 +654,9 @@ def build_mods() -> dict:
             prev = index.get(nm.lower())
             if prev is None or variant < prev.get("_variant", 1):
                 index[nm.lower()] = {
-                    "name": nm, "zh": zh, "compat": compat,
+                    "name": nm,
+                    "zh": zh,
+                    "compat": compat,
                     "polarity": it.get("polarity"),
                     "base_drain": it.get("baseDrain"),
                     "max_rank": it.get("fusionLimit"),
@@ -512,7 +679,7 @@ def build_mods() -> dict:
         # 每级数值：截图识别要靠它折算「这张卡不是满级」时的真实加成
         # （levels[i] = 第 i 级的 effects；索引即等级）
         levels: list[dict] = []
-        for e in ls[:fl + 1]:
+        for e in ls[: fl + 1]:
             levels.append(parse_mod_stats(((e or {}).get("stats") or [])))
         base_drain = it.get("baseDrain")
         rec = {
@@ -523,8 +690,7 @@ def build_mods() -> dict:
             "rarity": it.get("rarity"),
             "drain": base_drain,
             "base_drain": base_drain,
-            "drain_at_max": (int(base_drain) + int(fl))
-                             if isinstance(base_drain, int) else None,
+            "drain_at_max": (int(base_drain) + int(fl)) if isinstance(base_drain, int) else None,
             "max_rank": it.get("fusionLimit"),
             "effects": eff,
             "levels": levels,
@@ -535,38 +701,61 @@ def build_mods() -> dict:
         path = (it.get("uniqueName") or "").lower()
         variant = 1 if ("/beginner/" in path or "/expert/" in path) else 0
         old = out.get(key)
-        if old is None or (variant, -_eff_weight(eff)) < (old["_variant"],
-                                                          -_eff_weight(old["effects"])):
+        if old is None or (variant, -_eff_weight(eff)) < (
+            old["_variant"],
+            -_eff_weight(old["effects"]),
+        ):
             rec["_variant"] = variant
             out[key] = rec
     (DATA / "mods_stats.json").write_text(
-        json.dumps({"_meta": {"source": "WFCD warframe-items Mods.json",
-                              "retrieved": "2026-09-16",
-                              "note": "mods=能参与计算的（满级值）；"
-                                      "names=可识别的全量 MOD 名（可能无词条）"},
-                    "mods": out, "names": index},
-                   ensure_ascii=False, indent=1), encoding="utf-8")
-    print(f"mods_stats.json：可算 {len(out)} 条 / 可识别 {len(index)} 条"
-          f"（有中文名 {sum(1 for v in index.values() if v['zh'])}）")
+        json.dumps(
+            {
+                "_meta": {
+                    "source": "WFCD warframe-items Mods.json",
+                    "retrieved": "2026-09-16",
+                    "note": "mods=能参与计算的（满级值）；names=可识别的全量 MOD 名（可能无词条）",
+                },
+                "mods": out,
+                "names": index,
+            },
+            ensure_ascii=False,
+            indent=1,
+        ),
+        encoding="utf-8",
+    )
+    print(
+        f"mods_stats.json：可算 {len(out)} 条 / 可识别 {len(index)} 条"
+        f"（有中文名 {sum(1 for v in index.values() if v['zh'])}）"
+    )
     return out
 
 
 def _eff_weight(eff: dict) -> float:
-    return (eff.get("base_dmg", 0) + eff.get("heavy_dmg", 0)
-            + eff.get("throw_dmg", 0)
-            + eff.get("multishot", 0)
-            + eff.get("crit_chance", 0) + eff.get("crit_dmg", 0)
-            + sum((eff.get("elements") or {}).values())
-            + sum((eff.get("physical") or {}).values())
-            + eff.get("headshot_bonus", 0)
-            + eff.get("faction_dmg", 0)
-            + (eff.get("faction_mul", 1.0) - 1.0) * 100)
+    return (
+        eff.get("base_dmg", 0)
+        + eff.get("heavy_dmg", 0)
+        + eff.get("throw_dmg", 0)
+        + eff.get("multishot", 0)
+        + eff.get("crit_chance", 0)
+        + eff.get("crit_dmg", 0)
+        + sum((eff.get("elements") or {}).values())
+        + sum((eff.get("physical") or {}).values())
+        + eff.get("headshot_bonus", 0)
+        + eff.get("faction_dmg", 0)
+        + (eff.get("faction_mul", 1.0) - 1.0) * 100
+    )
 
 
 # 武器类赋能（战甲/指挥官/增幅器的不进武器计算）
-_WEAPON_ARCANE_TYPES = ("Primary Arcane", "Secondary Arcane", "Melee Arcane",
-                        "Shotgun Arcane", "Bow Arcane", "Kitgun Arcane",
-                        "Zaw Arcane")
+_WEAPON_ARCANE_TYPES = (
+    "Primary Arcane",
+    "Secondary Arcane",
+    "Melee Arcane",
+    "Shotgun Arcane",
+    "Bow Arcane",
+    "Kitgun Arcane",
+    "Zaw Arcane",
+)
 
 
 def build_arcanes() -> dict:
@@ -576,9 +765,12 @@ def build_arcanes() -> dict:
     这里如实保存文本与数值；是否计入由计算层决定（默认只在卡面标注）。
     """
     name_zh = json.loads((DATA / "de" / "name_zh.json").read_text(encoding="utf-8"))
-    items = json.loads(_fetch_cached(
-        "https://cdn.jsdelivr.net/npm/warframe-items@latest/data/json/Arcanes.json",
-        "Arcanes.json"))
+    items = json.loads(
+        _fetch_cached(
+            "https://cdn.jsdelivr.net/npm/warframe-items@latest/data/json/Arcanes.json",
+            "Arcanes.json",
+        )
+    )
     out: dict[str, dict] = {}
     for it in items:
         if (it.get("type") or "") not in _WEAPON_ARCANE_TYPES:
@@ -590,8 +782,7 @@ def build_arcanes() -> dict:
         levels = []
         for e in ls:
             levels.append(parse_mod_stats(((e or {}).get("stats") or [])))
-        flat_text = " ".join(
-            " ".join((e or {}).get("stats") or []) for e in ls).replace("\\n", " ")
+        flat_text = " ".join(" ".join((e or {}).get("stats") or []) for e in ls).replace("\\n", " ")
         rec = {
             "name": nm,
             "zh": name_zh.get((it.get("uniqueName") or "").lower()) or "",
@@ -604,11 +795,20 @@ def build_arcanes() -> dict:
         }
         out[nm.lower()] = rec
     (DATA / "arcanes_stats.json").write_text(
-        json.dumps({"_meta": {"source": "WFCD warframe-items Arcanes.json",
-                              "retrieved": "2026-09-16",
-                              "note": "只收武器类；数值为满级值"},
-                    "arcanes": out},
-                   ensure_ascii=False, indent=1), encoding="utf-8")
+        json.dumps(
+            {
+                "_meta": {
+                    "source": "WFCD warframe-items Arcanes.json",
+                    "retrieved": "2026-09-16",
+                    "note": "只收武器类；数值为满级值",
+                },
+                "arcanes": out,
+            },
+            ensure_ascii=False,
+            indent=1,
+        ),
+        encoding="utf-8",
+    )
     with_zh = sum(1 for v in out.values() if v["zh"])
     print(f"arcanes_stats.json：{len(out)} 条（有中文名 {with_zh}）")
     return out

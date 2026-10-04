@@ -8,11 +8,13 @@
 脱离 AstrBot 运行时（离线单元测试、独立脚本）退化为静默日志 —— 既不引入
 ``logging`` 依赖，也不影响模块的可导入性（本仓库的离线测试大量直接 import core）。
 """
+
 from __future__ import annotations
 
 try:
     from astrbot.api import logger
 except ImportError:  # pragma: no cover - 仅在无 astrbot 环境（离线测试/脚本）触发
+
     class _SilentLogger:
         """与 astrbot.api.logger 同接口的最小子集：丢弃日志。"""
 

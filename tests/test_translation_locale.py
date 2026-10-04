@@ -23,6 +23,7 @@
 刻意做「区域豁免」而不是「整文件豁免」：国服词只允许出现在那张表里，
 散落到任何别处（日志、兜底文案、拼接的 f-string）依然会被拦下。
 """
+
 from __future__ import annotations
 
 import sys
@@ -43,12 +44,25 @@ def check(name: str, cond: bool, detail: str = ""):
 
 # 国服叫法（不得出现在面向输出的文案里）
 BANNED = [
-    "克隆尼", "科普斯", "感染体", "堕落者", "心智者", "纳玛",
-    "斯卡德拉", "技术腐化", "塑形块",
-    "执刑官碎片", "赋能解锁器", "延伸适配器", "传说级核心",
-    "Orokin 催化剂", "Orokin 反应堆",
+    "克隆尼",
+    "科普斯",
+    "感染体",
+    "堕落者",
+    "心智者",
+    "纳玛",
+    "斯卡德拉",
+    "技术腐化",
+    "塑形块",
+    "执刑官碎片",
+    "赋能解锁器",
+    "延伸适配器",
+    "传说级核心",
+    "Orokin 催化剂",
+    "Orokin 反应堆",
     # 自造译名，官方分别是「巴罗尔巨人战舰」「利刃豺狼舰队」
-    "巴洛巨舰", "剃刀舰队", "剃刀背",
+    "巴洛巨舰",
+    "剃刀舰队",
+    "剃刀背",
 ]
 
 # 输入别名 / 词典表：允许含国服同义词
@@ -82,8 +96,7 @@ targets += sorted((ROOT / "core").glob("*.py"))
 # ★ 排除 core/data/_cache/：那是构建脚本的**原始下载缓存**（DE 的 dict.zh.json
 #   同时含国际服/国服全部中文变体，逐词检查必然误报），不会随插件分发
 #   （.gitignore 与打包脚本都排除了它）。
-targets += sorted(p for p in (ROOT / "core" / "data").rglob("*.json")
-                  if "_cache" not in p.parts)
+targets += sorted(p for p in (ROOT / "core" / "data").rglob("*.json") if "_cache" not in p.parts)
 
 BEG, END = "# >>> CN-LOCALE-TABLE", "# <<< CN-LOCALE-TABLE"
 
@@ -138,8 +151,7 @@ for p in targets:
     # 行级豁免：行尾带 `# INTL` 的行是**官方国际服译名**（例如 DE 词表里
     # Corrupted 系就叫「堕落枪兵 / 远古堕落者」，含「堕落者」子串），
     # 不是自造国服叫法 —— 逐行跳过，别一刀切。
-    body = "\n".join(ln for ln in body.splitlines()
-                     if not ln.rstrip().endswith("# INTL"))
+    body = "\n".join(ln for ln in body.splitlines() if not ln.rstrip().endswith("# INTL"))
     hits = [t for t in BANNED if t in body]
     if hits:
         check(f"输出文案不含国服叫法：{rel}", False, f"命中 {hits}")
@@ -154,35 +166,43 @@ from core import formatters as F  # noqa: E402
 #   Grineer / Corpus / Infestation / SENTIENT 官方保留英文；
 #   奥罗金 / 合一众 / 低语者 / 炽蛇军 / 科腐者 / 血色面纱 官方有中文译名。
 # 数据由 build_de_data.py 重建 factionsData.json，此处是哨兵断言。
-check("FC_GRINEER 保持英文", W.faction_name("FC_GRINEER") == "Grineer",
-      W.faction_name("FC_GRINEER"))
-check("FC_CORPUS 保持英文", W.faction_name("FC_CORPUS") == "Corpus",
-      W.faction_name("FC_CORPUS"))
-check("FC_INFESTATION 官方作 Infestation（非 Infested）",
-      W.faction_name("FC_INFESTATION") == "Infestation",
-      W.faction_name("FC_INFESTATION"))
-check("FC_SENTIENT 官方作 SENTIENT（全大写）",
-      W.faction_name("FC_SENTIENT") == "SENTIENT",
-      W.faction_name("FC_SENTIENT"))
-check("FC_OROKIN 译作奥罗金", W.faction_name("FC_OROKIN") == "奥罗金",
-      W.faction_name("FC_OROKIN"))
-check("FC_NARMER 译作合一众", W.faction_name("FC_NARMER") == "合一众",
-      W.faction_name("FC_NARMER"))
-check("FC_MITW 译作低语者", W.faction_name("FC_MITW") == "低语者",
-      W.faction_name("FC_MITW"))
-check("FC_SCALDRA 译作炽蛇军", W.faction_name("FC_SCALDRA") == "炽蛇军",
-      W.faction_name("FC_SCALDRA"))
-check("FC_TECHROT 译作科腐者", W.faction_name("FC_TECHROT") == "科腐者",
-      W.faction_name("FC_TECHROT"))
+check(
+    "FC_GRINEER 保持英文", W.faction_name("FC_GRINEER") == "Grineer", W.faction_name("FC_GRINEER")
+)
+check("FC_CORPUS 保持英文", W.faction_name("FC_CORPUS") == "Corpus", W.faction_name("FC_CORPUS"))
+check(
+    "FC_INFESTATION 官方作 Infestation（非 Infested）",
+    W.faction_name("FC_INFESTATION") == "Infestation",
+    W.faction_name("FC_INFESTATION"),
+)
+check(
+    "FC_SENTIENT 官方作 SENTIENT（全大写）",
+    W.faction_name("FC_SENTIENT") == "SENTIENT",
+    W.faction_name("FC_SENTIENT"),
+)
+check("FC_OROKIN 译作奥罗金", W.faction_name("FC_OROKIN") == "奥罗金", W.faction_name("FC_OROKIN"))
+check("FC_NARMER 译作合一众", W.faction_name("FC_NARMER") == "合一众", W.faction_name("FC_NARMER"))
+check("FC_MITW 译作低语者", W.faction_name("FC_MITW") == "低语者", W.faction_name("FC_MITW"))
+check(
+    "FC_SCALDRA 译作炽蛇军", W.faction_name("FC_SCALDRA") == "炽蛇军", W.faction_name("FC_SCALDRA")
+)
+check(
+    "FC_TECHROT 译作科腐者", W.faction_name("FC_TECHROT") == "科腐者", W.faction_name("FC_TECHROT")
+)
 check("未知代码原样返回", W.faction_name("FC_UNKNOWN_XX") == "FC_UNKNOWN_XX")
 
 # 执刑官碎片 -> 官方是「源力石」
-check("Amar 碎片官方名",
-      F._ARCHON_SHARD["Amar"][1] == "深红执刑官源力石", F._ARCHON_SHARD["Amar"][1])
-check("Nira 碎片官方名",
-      F._ARCHON_SHARD["Nira"][1] == "琥珀执刑官源力石", F._ARCHON_SHARD["Nira"][1])
-check("Boreal 碎片官方名",
-      F._ARCHON_SHARD["Boreal"][1] == "蔚蓝执刑官源力石", F._ARCHON_SHARD["Boreal"][1])
+check(
+    "Amar 碎片官方名", F._ARCHON_SHARD["Amar"][1] == "深红执刑官源力石", F._ARCHON_SHARD["Amar"][1]
+)
+check(
+    "Nira 碎片官方名", F._ARCHON_SHARD["Nira"][1] == "琥珀执刑官源力石", F._ARCHON_SHARD["Nira"][1]
+)
+check(
+    "Boreal 碎片官方名",
+    F._ARCHON_SHARD["Boreal"][1] == "蔚蓝执刑官源力石",
+    F._ARCHON_SHARD["Boreal"][1],
+)
 
 # 官方术语表
 for en, cn in [
@@ -196,12 +216,13 @@ for en, cn in [
     # 官方写法是「Mod」而不是「MOD」（name_zh.json: 近战裂罅 Mod / Zaw 裂罅 Mod）
     ("Riven Mod", "裂罅 Mod"),
 ]:
-    check(f"官方术语 {en}", F._CAL_REWARD_CN.get(en) == cn,
-          str(F._CAL_REWARD_CN.get(en)))
+    check(f"官方术语 {en}", F._CAL_REWARD_CN.get(en) == cn, str(F._CAL_REWARD_CN.get(en)))
 
-check("突击 3 天加成用官方语序",
-      F._REWARD_NAME_CN["Affinity Booster Store Item"] == "3 天经验值加成",
-      F._REWARD_NAME_CN["Affinity Booster Store Item"])
+check(
+    "突击 3 天加成用官方语序",
+    F._REWARD_NAME_CN["Affinity Booster Store Item"] == "3 天经验值加成",
+    F._REWARD_NAME_CN["Affinity Booster Store Item"],
+)
 
 # arbi 派系对齐。
 # main.py 导入期就会 `from astrbot.api import ...`，所以先塞一个最小 stub。
@@ -209,8 +230,7 @@ import types  # noqa: E402
 
 
 class _FilterStub:
-    EventMessageType = type("X", (), {"ALL": 1, "GROUP_MESSAGE": 2,
-                                      "PRIVATE_MESSAGE": 3})
+    EventMessageType = type("X", (), {"ALL": 1, "GROUP_MESSAGE": 2, "PRIVATE_MESSAGE": 3})
 
     @staticmethod
     def event_message_type(*a, **kw):
@@ -228,8 +248,9 @@ class _FilterStub:
 def _install_astrbot_stub() -> None:
     api = types.ModuleType("astrbot.api")
     api.AstrBotConfig = dict
-    api.logger = type("L", (), {m: (lambda *a, **kw: None)
-                                for m in ("info", "warning", "error", "debug")})()
+    api.logger = type(
+        "L", (), {m: (lambda *a, **kw: None) for m in ("info", "warning", "error", "debug")}
+    )()
     ev = types.ModuleType("astrbot.api.event")
     ev.AstrMessageEvent = object
     ev.MessageChain = list
@@ -239,27 +260,32 @@ def _install_astrbot_stub() -> None:
     st = types.ModuleType("astrbot.api.star")
     st.Context = object
     st.Star = type("Star", (), {"__init__": lambda self, *a, **kw: None})
-    st.register = lambda *a, **kw: (lambda cls: cls)
+    st.register = lambda *a, **kw: lambda cls: cls
     api.event, api.message_components, api.star = ev, mc, st
     root = types.ModuleType("astrbot")
     root.api = api
-    sys.modules.update({"astrbot": root, "astrbot.api": api,
-                        "astrbot.api.event": ev,
-                        "astrbot.api.message_components": mc,
-                        "astrbot.api.star": st})
+    sys.modules.update(
+        {
+            "astrbot": root,
+            "astrbot.api": api,
+            "astrbot.api.event": ev,
+            "astrbot.api.message_components": mc,
+            "astrbot.api.star": st,
+        }
+    )
 
 
 _install_astrbot_stub()
 # 2026-09-28 D3：_arb_faction 别名块随仲裁域迁 core/commands/arbitration.py
 from core.commands.arbitration import _arb_faction  # noqa: E402
 
-check("arbi Infestation 对齐官方 Infested",
-      _arb_faction({"factionNameZh": "Infestation"}) == "Infested",
-      _arb_faction({"factionNameZh": "Infestation"}))
-check("arbi Grineer 保持英文",
-      _arb_faction({"factionNameZh": "Grineer"}) == "Grineer")
-check("arbi 中系派系原样保留",
-      _arb_faction({"factionNameZh": "奥罗金"}) == "奥罗金")
+check(
+    "arbi Infestation 对齐官方 Infested",
+    _arb_faction({"factionNameZh": "Infestation"}) == "Infested",
+    _arb_faction({"factionNameZh": "Infestation"}),
+)
+check("arbi Grineer 保持英文", _arb_faction({"factionNameZh": "Grineer"}) == "Grineer")
+check("arbi 中系派系原样保留", _arb_faction({"factionNameZh": "奥罗金"}) == "奥罗金")
 
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")

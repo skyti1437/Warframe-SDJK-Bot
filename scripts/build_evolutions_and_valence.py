@@ -11,6 +11,7 @@
 
 用法: python scripts/build_evolutions_and_valence.py [wfsim数据目录]
 """
+
 import glob
 import json
 import sys
@@ -19,12 +20,11 @@ from pathlib import Path
 try:
     import yaml
 except ImportError:  # noqa: BLE001 —— 插件运行本身不需要 yaml，只有这几个
-    raise SystemExit(   # 数据构建脚本要；给可操作的提示而不是裸 ImportError
-        "本脚本需要 PyYAML：pip install pyyaml"
-        "（插件运行时并不依赖它，仅构建数据用）")
+    raise SystemExit(  # 数据构建脚本要；给可操作的提示而不是裸 ImportError
+        "本脚本需要 PyYAML：pip install pyyaml（插件运行时并不依赖它，仅构建数据用）"
+    )
 
-WFSIM = Path(sys.argv[1] if len(sys.argv) > 1
-           else str(Path.home() / "tmp" / "wfsim" / "data"))
+WFSIM = Path(sys.argv[1] if len(sys.argv) > 1 else str(Path.home() / "tmp" / "wfsim" / "data"))
 OUT = Path(__file__).resolve().parent.parent / "core" / "data"
 
 # 可直接折算进基础面板的效果 kind → 语义
@@ -50,12 +50,14 @@ MODELLABLE = set(PANEL_KINDS)
 
 
 def build_evolutions() -> dict:
-    out: dict = {"_meta": {
-        "source": "wfsim data/evolutions (magenie33/wfsim)，逐条带 wiki 来源",
-        "note": "selection: choose_one=该层多选一 / fixed=固定。effects 原样"
-                "存档；modellable 标记是否被 damage_calc 折算",
-        "generated": "2026-09-17",
-    }}
+    out: dict = {
+        "_meta": {
+            "source": "wfsim data/evolutions (magenie33/wfsim)，逐条带 wiki 来源",
+            "note": "selection: choose_one=该层多选一 / fixed=固定。effects 原样"
+            "存档；modellable 标记是否被 damage_calc 折算",
+            "generated": "2026-09-17",
+        }
+    }
     for f in sorted((WFSIM / "evolutions").glob("*.yaml")):
         y = yaml.safe_load(open(f, encoding="utf-8"))
         if not isinstance(y, dict) or not y.get("weapon"):
@@ -71,28 +73,31 @@ def build_evolutions() -> dict:
         slot = out.setdefault(w, {})
         tiers = slot.setdefault("tiers", {})
         tier = str(y.get("tier"))
-        tiers.setdefault(tier, []).append({
-            "id": y.get("id"),
-            "name": y.get("name"),
-            "selection": y.get("selection"),
-            "description": y.get("description"),
-            "effects": effects,
-        })
+        tiers.setdefault(tier, []).append(
+            {
+                "id": y.get("id"),
+                "name": y.get("name"),
+                "selection": y.get("selection"),
+                "description": y.get("description"),
+                "effects": effects,
+            }
+        )
     return out
 
 
 def build_valence() -> dict:
-    out: dict = {"_meta": {
-        "source": "wfsim data/weapons/*.{kuva,tenet,coda}* valence 字段",
-        "note": "valence bonus：玩家回响滚出的额外元素加成，数值在 min-max 内；"
-                "元素必须取 elements 列表之一。加成实现 = 总基伤×pct 计入该元素",
-        "generated": "2026-09-17",
-    }}
+    out: dict = {
+        "_meta": {
+            "source": "wfsim data/weapons/*.{kuva,tenet,coda}* valence 字段",
+            "note": "valence bonus：玩家回响滚出的额外元素加成，数值在 min-max 内；"
+            "元素必须取 elements 列表之一。加成实现 = 总基伤×pct 计入该元素",
+            "generated": "2026-09-17",
+        }
+    }
     for f in glob.glob(str(WFSIM / "weapons" / "**" / "*.yaml"), recursive=True):
         fp = Path(f)
         n = fp.name.lower()
-        if not any(n.startswith(k) for k in ("kuva_", "tenet_", "coda_")) \
-                and "dual_coda" not in n:
+        if not any(n.startswith(k) for k in ("kuva_", "tenet_", "coda_")) and "dual_coda" not in n:
             continue
         y = yaml.safe_load(open(f, encoding="utf-8"))
         if not isinstance(y, dict):
@@ -112,26 +117,37 @@ def build_valence() -> dict:
 def main() -> None:
     evo = build_evolutions()
     n_weapons = sum(1 for k, v in evo.items() if k != "_meta")
-    n_opts = sum(len(t) for k, v in evo.items() if k != "_meta"
-                 for t in v.get("tiers", {}).values())
+    n_opts = sum(
+        len(t) for k, v in evo.items() if k != "_meta" for t in v.get("tiers", {}).values()
+    )
     (OUT / "evolutions.json").write_text(
-        json.dumps(evo, ensure_ascii=False, indent=1), encoding="utf-8")
+        json.dumps(evo, ensure_ascii=False, indent=1), encoding="utf-8"
+    )
     print(f"evolutions.json: {n_weapons} 个武器家族, {n_opts} 个进化选项")
 
     val = build_valence()
     n_val = sum(1 for k in val if k != "_meta")
     (OUT / "lich_valence.json").write_text(
-        json.dumps(val, ensure_ascii=False, indent=1), encoding="utf-8")
+        json.dumps(val, ensure_ascii=False, indent=1), encoding="utf-8"
+    )
     print(f"lich_valence.json: {n_val} 把 lich 武器")
 
     # 抽查
     lp = evo.get("latron_prime") or {}
     t2 = (lp.get("tiers", {}).get("2") or [{}])[0]
-    print("抽查 latron_prime EVO II:", t2.get("name"),
-          t2["effects"][0] if t2.get("effects") else None)
+    print(
+        "抽查 latron_prime EVO II:", t2.get("name"), t2["effects"][0] if t2.get("effects") else None
+    )
     kn = val.get("kuva_nukor") or {}
-    print("抽查 kuva_nukor:", kn.get("min"), "-", kn.get("max"),
-          "|", len(kn.get("elements") or []), "种元素")
+    print(
+        "抽查 kuva_nukor:",
+        kn.get("min"),
+        "-",
+        kn.get("max"),
+        "|",
+        len(kn.get("elements") or []),
+        "种元素",
+    )
 
 
 if __name__ == "__main__":

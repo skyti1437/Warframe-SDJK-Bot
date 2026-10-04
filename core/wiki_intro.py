@@ -6,6 +6,7 @@
 本文件**不进开源与市场包**（dist/package_release.py::EXCLUDE_FILES）——
 公开版 wiki 只给链接；文件缺失时这里返回 None，调用方自然回落纯链接。
 """
+
 from __future__ import annotations
 
 import json
@@ -15,8 +16,8 @@ from pathlib import Path
 from typing import Optional
 
 try:
-    from . import matching        # core 包内正常导入（变体词表同源）
-except ImportError:               # 离线脚本把 core/ 当顶层路径导入时
+    from . import matching  # core 包内正常导入（变体词表同源）
+except ImportError:  # 离线脚本把 core/ 当顶层路径导入时
     import matching
 
 _FILE = Path(__file__).resolve().parent / "data" / "wiki_intro.json"
@@ -26,7 +27,7 @@ _RELIC_INDEX_FILE = Path(__file__).resolve().parent / "data" / "relic_index.json
 _RELIC_INVERSE_FILE = Path(__file__).resolve().parent / "data" / "relic_inverse.json"
 
 try:
-    from .parser import TIER_CN as _TIER_CN     # 档位中英对照（含先锋/Vanguard）
+    from .parser import TIER_CN as _TIER_CN  # 档位中英对照（含先锋/Vanguard）
 except ImportError:
     # ★ 包内导入失败 = 真错误 → 原样抛出（别再静默降级成空表：档位中英对照
     #   一旦为空，遗物档位会显示不出中文，且没有痕迹）。只有**非包上下文**
@@ -35,7 +36,7 @@ except ImportError:
         raise
     try:
         from parser import TIER_CN as _TIER_CN
-    except ImportError:                          # pragma: no cover
+    except ImportError:  # pragma: no cover
         _TIER_CN = {}
 
 # 效果行：「效果（满级 5）：+40% Status Chance per Combo Multiplier」
@@ -70,11 +71,11 @@ def _localize_effect(text: str) -> str:
     zh = _effect_zh().get(_norm(m.group("val").strip()))
     return f"{m.group('head')}：{zh}" if zh else text
 
+
 # DE 导出变量占位符（知识库正文保留了官方模板的 〈DAMAGE〉 这类 token）。
 # 数值不在导出包内（pep 只有模板、WFCD 也未替换，wiki 被 CF 拦）——
 # 按 2026-09-24 用户口径处理：能读顺的**直接删**，后随单位的换 X。
-_UNIT_AFTER = set("%×") | {"秒", "米", "次", "层", "倍", "点", "个", "名",
-                           "发", "枚", "颗", "段"}
+_UNIT_AFTER = set("%×") | {"秒", "米", "次", "层", "倍", "点", "个", "名", "发", "枚", "颗", "段"}
 _PH_RE = re.compile(r"〈[^〉]+〉")
 _COLOR_RE = re.compile(r"〈(?:OPEN_COLOR|CLOSE_COLOR)〉", re.I)
 
@@ -92,20 +93,23 @@ _HW_MAP_ALWAYS = {"SECONDARY_FIRE": "次要射击"}
 def _clean_hw_tags(text: str) -> str:
     """半角富文本标签清洗：纯格式剥除；有后随中文词的删；无后随词的映射；
     收尾统一空格（双空格、中文间空格、标点前空格）。数字一律不动。"""
+
     def sub(m: "re.Match[str]") -> str:
         tag = m.group(1)
         if tag in _HW_MAP_ALWAYS:
             return _HW_MAP_ALWAYS[tag]
         word = _HW_WORD_AFTER.get(tag)
         if word:
-            rest = (text or "")[m.end():].lstrip()
+            rest = (text or "")[m.end() :].lstrip()
             return "" if rest.startswith(word) else word
-        return ""                       # <DT_*_COLOR> / <LOWER_IS_BETTER> 等
+        return ""  # <DT_*_COLOR> / <LOWER_IS_BETTER> 等
+
     t = _HW_TAG.sub(sub, text or "")
     t = re.sub(r" {2,}", " ", t)
     t = _SPACE_BETWEEN_CJK.sub("", t)
     t = _SPACE_BEFORE_PUNCT.sub(r"\1", t)
     return t
+
 
 # 删掉占位符后残留的空格（中文之间 / 标点前不留空格）
 _CJK = "一-鿿，。；、（）"
@@ -115,11 +119,16 @@ _SPACE_BEFORE_PUNCT = re.compile(r"\s+([，。；、）])")
 # 极性名 → 图标键（core/data/icons/polarity/<key>.png，wiki 抓取；渲染层
 # 画行内小图标，见 core/render.py::_draw_polarity_icon）。Aura 没有独立图标
 # 文件（wiki 极性页实测），保留文字。
-_POLARITY_KEY = {"madurai": "madurai", "vazarin": "vazarin",
-                 "naramon": "naramon", "zenurik": "zenurik",
-                 "penjaga": "penjaga", "unairu": "unairu", "umbra": "umbra"}
-_POL_NAME_RE = re.compile(
-    r"\b(Madurai|Vazarin|Naramon|Zenurik|Penjaga|Unairu|Umbra)\b", re.I)
+_POLARITY_KEY = {
+    "madurai": "madurai",
+    "vazarin": "vazarin",
+    "naramon": "naramon",
+    "zenurik": "zenurik",
+    "penjaga": "penjaga",
+    "unairu": "unairu",
+    "umbra": "umbra",
+}
+_POL_NAME_RE = re.compile(r"\b(Madurai|Vazarin|Naramon|Zenurik|Penjaga|Unairu|Umbra)\b", re.I)
 
 
 def _mark_polarity(text: str) -> str:
@@ -132,6 +141,7 @@ def _mark_polarity(text: str) -> str:
         name = m.group(1)
         key = _POLARITY_KEY.get(name.lower())
         return f"⟦pol:{key}⟧{name}" if key else name
+
     return _POL_NAME_RE.sub(sub, text)
 
 
@@ -145,15 +155,15 @@ def _localize(text: str) -> str:
     * 〈OPEN_COLOR〉/〈CLOSE_COLOR〉 是富文本记号，删掉。
     """
     t = _COLOR_RE.sub("", text or "")
-    t = _clean_hw_tags(t)          # 半角富文本（<DT_FIRE_COLOR> 等），同上口径
+    t = _clean_hw_tags(t)  # 半角富文本（<DT_FIRE_COLOR> 等），同上口径
 
     def sub(m: "re.Match[str]") -> str:
-        return "X" if t[m.end():m.end() + 1] in _UNIT_AFTER else ""
+        return "X" if t[m.end() : m.end() + 1] in _UNIT_AFTER else ""
 
     t = _PH_RE.sub(sub, t)
     t = _SPACE_BETWEEN_CJK.sub("", t)
     t = _SPACE_BEFORE_PUNCT.sub(r"\1", t)
-    t = t.replace("：；", "：")          # 源自「On Kill:；…」的残留搭配
+    t = t.replace("：；", "：")  # 源自「On Kill:；…」的残留搭配
     t = re.sub(r" {2,}", " ", t).strip()
     return _mark_polarity(t)
 
@@ -175,8 +185,7 @@ def _table() -> tuple[list, dict, dict]:
     entries = data.get("entries") or []
     keys = data.get("keys") or {}
     uses = data.get("uses") or {}
-    if not (isinstance(entries, list) and isinstance(keys, dict)
-            and isinstance(uses, dict)):
+    if not (isinstance(entries, list) and isinstance(keys, dict) and isinstance(uses, dict)):
         return [], {}, {}
     return entries, keys, uses
 
@@ -201,8 +210,7 @@ def intro(*names: str) -> Optional[tuple[str, list[str]]]:
         if isinstance(i, int) and 0 <= i < len(entries):
             e = entries[i]
             if isinstance(e, list) and len(e) == 2:
-                return str(e[0]), [_localize(_localize_effect(str(x)))
-                                   for x in e[1]]
+                return str(e[0]), [_localize(_localize_effect(str(x))) for x in e[1]]
     return None
 
 
@@ -292,12 +300,14 @@ def _uses_card(*names: str, limit: int = 5) -> Optional[tuple[str, list[str]]]:
 @lru_cache(maxsize=1)
 def _relics() -> tuple[dict, dict]:
     """遗物表：(遗物名 → {常见/罕见/稀有: [部件]}, 部件名 → [{relic, rarity}])。"""
+
     def _load(p: Path) -> dict:
         try:
             d = json.loads(p.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             return {}
         return d if isinstance(d, dict) else {}
+
     return _load(_RELIC_INDEX_FILE), _load(_RELIC_INVERSE_FILE)
 
 
@@ -384,9 +394,14 @@ def card_for(*names: str) -> Optional[tuple[str, list[str]]]:
     用户口径（2026-09-25）：「正常情况下无论什么内容都得绘制」——命中条目时
     哪怕本地没有简介数据，也要出一张只含名字的卡（链接另发 Plain）。
     """
-    return (intro(*names) or _drops_card(*names) or _uses_card(*names)
-            or _relic_card(*names) or _relic_part_card(*names)
-            or _minimal_card(*names))
+    return (
+        intro(*names)
+        or _drops_card(*names)
+        or _uses_card(*names)
+        or _relic_card(*names)
+        or _relic_part_card(*names)
+        or _minimal_card(*names)
+    )
 
 
 def _is_variant_title(title: str, base_cmp: str) -> bool:
@@ -416,7 +431,7 @@ def variants(base_name: str, limit: int = 6) -> list[str]:
     if not base:
         return []
     base_cmp = matching.normalize(base_name)
-    self_i = keys.get(base)          # 整名键（中文名 + 英文名）会命中条目自身
+    self_i = keys.get(base)  # 整名键（中文名 + 英文名）会命中条目自身
     out: list[str] = []
     for k, i in keys.items():
         if not k.startswith(base + " ") or not isinstance(i, int):

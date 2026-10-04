@@ -10,6 +10,7 @@
 只取事实（家族归属、堆叠数值/层数/时长），不搬其 YAML 表达。
 许可：wfsim 引擎 AGPL-3.0 —— 只借事实数据，代码一律不抄。
 """
+
 import glob
 import json
 import os
@@ -18,17 +19,16 @@ from pathlib import Path
 try:
     import yaml
 except ImportError:  # noqa: BLE001 —— 插件运行本身不需要 yaml，只有这几个
-    raise SystemExit(   # 数据构建脚本要；给可操作的提示而不是裸 ImportError
-        "本脚本需要 PyYAML：pip install pyyaml"
-        "（插件运行时并不依赖它，仅构建数据用）")
+    raise SystemExit(  # 数据构建脚本要；给可操作的提示而不是裸 ImportError
+        "本脚本需要 PyYAML：pip install pyyaml（插件运行时并不依赖它，仅构建数据用）"
+    )
 
 WFSIM = str(Path.home() / "tmp" / "wfsim" / "data" / "mods")
-OUT = os.path.join(os.path.dirname(__file__), os.pardir, "core", "data",
-                   "mods_wfsim_extra.json")
+OUT = os.path.join(os.path.dirname(__file__), os.pardir, "core", "data", "mods_wfsim_extra.json")
 
 # wfsim grants → 我们 spec 字段（不可映射的记录但 mappable=false）
 GRANTS_MAP = {
-    "condition_overload": "dmg_per_status",   # 每层 = 每异常种类 +N%（CO 同桶）
+    "condition_overload": "dmg_per_status",  # 每层 = 每异常种类 +N%（CO 同桶）
     "multishot": "multishot",
     "crit_chance": "crit_chance",
     "crit_damage": "crit_dmg",
@@ -46,11 +46,13 @@ def main():
     keys = {k.lower() for k in ours["mods"]}
     names = {str(v.get("name") or "").lower() for v in ours["mods"].values()}
 
-    out = {"_meta": {
-        "source": "github.com/magenie33/wfsim data/mods（家族互斥 + 条件堆叠）",
-        "updated": "2026-09-16",
-        "grants_map": GRANTS_MAP,
-    }}
+    out = {
+        "_meta": {
+            "source": "github.com/magenie33/wfsim data/mods（家族互斥 + 条件堆叠）",
+            "updated": "2026-09-16",
+            "grants_map": GRANTS_MAP,
+        }
+    }
     n_fam = n_cond = 0
     for f in glob.glob(os.path.join(WFSIM, "**", "*.yaml"), recursive=True):
         with open(f, encoding="utf-8") as fh:

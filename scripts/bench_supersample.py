@@ -9,6 +9,7 @@
 实测单张会被拖到 30 s+。降 SS 能提速，但会削弱「先放大再缩」的抗锯齿效果，
 可能出现 LANCZOS 在高对比文字边缘的彩色振铃 —— 本脚本就是量化这件事的。
 """
+
 from __future__ import annotations
 
 import sys
@@ -43,7 +44,7 @@ def bench(ss: int):
     r = R.ImageRenderer(d)
     if not r.available:
         return None, None
-    r.render(TITLE, BODY, "")          # 预热（字体/渐变缓存）
+    r.render(TITLE, BODY, "")  # 预热（字体/渐变缓存）
     ts, p = [], None
     for _ in range(3):
         t0 = time.perf_counter()
@@ -62,9 +63,9 @@ def ringing(path: str):
         for y in range(160, min(H - 100, 900)):
             r, g, b = px[x, y]
             mx, mn = max(r, g, b), min(r, g, b)
-            if mx > 90:                 # 只看文字笔画（亮部）
+            if mx > 90:  # 只看文字笔画（亮部）
                 d = mx - mn
-                if d > 40:              # 明显着色 = 振铃
+                if d > 40:  # 明显着色 = 振铃
                     cnt += 1
                     worst = max(worst, d)
     return W, H, cnt, worst
@@ -90,8 +91,10 @@ def main():
         try:
             base, fast = pair
             speed = out[base][0] / out[fast][0]
-            print(f"\n提速 {speed:.2f}x（{out[base][0] * 1000:.0f} ms → "
-                  f"{out[fast][0] * 1000:.0f} ms）")
+            print(
+                f"\n提速 {speed:.2f}x（{out[base][0] * 1000:.0f} ms → "
+                f"{out[fast][0] * 1000:.0f} ms）"
+            )
         except ZeroDivisionError:
             pass
 

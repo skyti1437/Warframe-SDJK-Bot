@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """群级配置与蹲订阅的本地持久化（JSON，原子写）。"""
+
 from __future__ import annotations
 
 import asyncio
@@ -33,8 +34,7 @@ class JsonStore:
         async with self._lock:
             tmp = self.path.with_suffix(".tmp")
             self.path.parent.mkdir(parents=True, exist_ok=True)
-            tmp.write_text(json.dumps(self._data, ensure_ascii=False, indent=1),
-                           encoding="utf-8")
+            tmp.write_text(json.dumps(self._data, ensure_ascii=False, indent=1), encoding="utf-8")
             tmp.replace(self.path)
 
 
@@ -83,13 +83,13 @@ class GroupStore(JsonStore):
 class Subscription:
     """一条“蹲”订阅。"""
 
-    umo: str                       # 会话标识（推送目标）
-    platform: str                  # 订阅平台（推送按平台差量比对）
-    event: str                     # 蹲类型：裂隙/夜灵/奸商/突击/执刑官/仲裁/...
-    rule: str = ""                 # 筛选规则原文（裂隙筛选等）
+    umo: str  # 会话标识（推送目标）
+    platform: str  # 订阅平台（推送按平台差量比对）
+    event: str  # 蹲类型：裂隙/夜灵/奸商/突击/执刑官/仲裁/...
+    rule: str = ""  # 筛选规则原文（裂隙筛选等）
     windows: dict = field(default_factory=dict)  # TimeWindow 序列化
-    until: float = -1.0            # 过期时间戳；-1 永久
-    once: bool = True              # 未写时长 -> 命中一次后取消
+    until: float = -1.0  # 过期时间戳；-1 永久
+    once: bool = True  # 未写时长 -> 命中一次后取消
     hits_left: Optional[int] = None  # None=不限次数
     created_by: str = ""
     created_at: float = field(default_factory=time.time)
@@ -107,9 +107,12 @@ class Subscription:
     def time_window(self) -> TimeWindow:
         w = self.windows or {}
         days = w.get("days")
-        return TimeWindow(start=w.get("start"), end=w.get("end"),
-                          days=set(days) if days else None,
-                          at_hour=w.get("at_hour"))
+        return TimeWindow(
+            start=w.get("start"),
+            end=w.get("end"),
+            days=set(days) if days else None,
+            at_hour=w.get("at_hour"),
+        )
 
     def expired(self, now: Optional[float] = None) -> bool:
         if self.until < 0:

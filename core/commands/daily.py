@@ -6,6 +6,7 @@ dailydeals / alerts / invasions / nightwave / news / kuva / synthtargets /
 construction / voidstorms / events / conclave / primevault / clanrewards /
 flashsales。子包纪律：不 import astrbot（事件对象鸭子类型）。
 """
+
 from __future__ import annotations
 
 import json
@@ -21,9 +22,12 @@ class DailyCommands:
     """Mixin：日常世界状态 handler（挂载于 main.WarframeSDJK）。"""
 
     async def _h_cetus(self, parsed, event, platform) -> Reply:
-        res = await self._gather([self.client.cycle(platform, n)
-                                  for n in ("cetus", "vallis", "cambion", "earth",
-                                            "duviri", "zariman")])
+        res = await self._gather(
+            [
+                self.client.cycle(platform, n)
+                for n in ("cetus", "vallis", "cambion", "earth", "duviri", "zariman")
+            ]
+        )
         cycles = [r for r in res if isinstance(r, dict)]
         title, lines = fmt.fmt_cetus(*cycles)
         return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
@@ -32,6 +36,7 @@ class DailyCommands:
     def _rotation_expiry(data: dict) -> str:
         """轮换表（信条 / 终幕等）的下一次重置时间（ISO）。"""
         from datetime import datetime, timedelta, timezone
+
         try:
             epoch = datetime.fromisoformat(data["epoch"])
             period = timedelta(hours=int(data.get("period_hours", 96)))
@@ -45,28 +50,51 @@ class DailyCommands:
     def _weekly_reset() -> str:
         """每周重置锚点（周一 00:00 UTC）—— 灵化回廊 / 言录使等周常的到期点。"""
         from datetime import datetime, timedelta, timezone
+
         now = datetime.now(timezone.utc)
         base = (now - timedelta(days=now.weekday())).replace(
-            hour=0, minute=0, second=0, microsecond=0)
+            hour=0, minute=0, second=0, microsecond=0
+        )
         if base <= now:
             base += timedelta(days=7)
         return base.isoformat()
 
     async def _h_timers(self, parsed, event, platform) -> Reply:
         # worldState 是整包缓存的，这里多取几个键几乎不加延迟
-        res = await self._gather([
-            self.client.cycle(platform, "cetus"), self.client.cycle(platform, "vallis"),
-            self.client.cycle(platform, "cambion"), self.client.cycle(platform, "duviri"),
-            self.client.cycle(platform, "zariman"),
-            self.client.arbitration(platform), self.client.sortie(platform),
-            self.client.void_trader(platform), self.client.archon_hunt(platform),
-            self.client.steel_path(platform), self.client.nightwave(platform),
-            self.client.calendar(platform), self.client.deep_archimedea(platform),
-            self.client.temporal_archimedea(platform),
-        ])
-        names = ["夜灵平野", "奥布山谷", "魔胎之境", "双衍王境", "扎里曼派系",
-                 "仲裁", "每日突击", "虚空奸商", "执刑官猎杀", "钢铁侵蚀",
-                 "午夜电波", "1999日历", "深层科研", "时光科研"]
+        res = await self._gather(
+            [
+                self.client.cycle(platform, "cetus"),
+                self.client.cycle(platform, "vallis"),
+                self.client.cycle(platform, "cambion"),
+                self.client.cycle(platform, "duviri"),
+                self.client.cycle(platform, "zariman"),
+                self.client.arbitration(platform),
+                self.client.sortie(platform),
+                self.client.void_trader(platform),
+                self.client.archon_hunt(platform),
+                self.client.steel_path(platform),
+                self.client.nightwave(platform),
+                self.client.calendar(platform),
+                self.client.deep_archimedea(platform),
+                self.client.temporal_archimedea(platform),
+            ]
+        )
+        names = [
+            "夜灵平野",
+            "奥布山谷",
+            "魔胎之境",
+            "双衍王境",
+            "扎里曼派系",
+            "仲裁",
+            "每日突击",
+            "虚空奸商",
+            "执刑官猎杀",
+            "钢铁侵蚀",
+            "午夜电波",
+            "1999日历",
+            "深层科研",
+            "时光科研",
+        ]
         # ★ 不许静默丢行（2026-09-25）：源恒抛/未下发（如 DE 源没有的
         #   仲裁、钢铁侵蚀）也要把 None 传给 formatter，由它显式打
         #   「暂无时效数据（源未下发）」；旧写法 isinstance 过滤会让这两行
@@ -83,14 +111,18 @@ class DailyCommands:
             rot = json.loads(core_paths.read_path("rotations.json").read_text(encoding="utf-8"))
         except Exception:  # noqa: BLE001
             rot = {}
-        for key, name in (("incarnon", "钢铁回廊灵化"), ("tenet", "信条元素加成"),
-                          ("coda", "终幕换批")):
+        for key, name in (
+            ("incarnon", "钢铁回廊灵化"),
+            ("tenet", "信条元素加成"),
+            ("coda", "终幕换批"),
+        ):
             exp = self._rotation_expiry(rot.get(key) or {})
             if exp:
                 timers.append((name, {"expiry": exp}))
         timers.append(("周常重置", {"expiry": self._weekly_reset()}))
         title, lines = fmt.fmt_timers(timers)
         return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
+
     async def _h_fissures(self, parsed, event, platform) -> Reply:
         content = parsed.content_str
         if parsed.preset:
@@ -101,8 +133,12 @@ class DailyCommands:
         _t_hint = fissure_tier_hint(content) if content else ""
         data = await self.client.fissures(platform)
         title, lines = fmt.fmt_fissures(
-            data, flt=flt.match if flt else None,
-            page=parsed.page, page_size=self.page_size, all_rows=True)
+            data,
+            flt=flt.match if flt else None,
+            page=parsed.page,
+            page_size=self.page_size,
+            all_rows=True,
+        )
         if _t_hint:
             lines.append(_t_hint)
         extra = f"筛选：{flt.describe()}" if flt else ""
@@ -126,20 +162,25 @@ class DailyCommands:
         if any(t in ("预测", "predict") for t in toks):
             rows = baro.predict(8)
             title, lines = fmt.fmt_baro_predict(
-                rows, baro.next_visit_est() or "",
-                len(baro.visits()), baro.last_visit() or "",
-                names_zh=baro.names_zh())
-            return Reply(title, lines,
-                         footer=fmt.fmt_platform_footer(platform, "wiki 历史统计"))
+                rows,
+                baro.next_visit_est() or "",
+                len(baro.visits()),
+                baro.last_visit() or "",
+                names_zh=baro.names_zh(),
+            )
+            return Reply(title, lines, footer=fmt.fmt_platform_footer(platform, "wiki 历史统计"))
         title, lines = fmt.fmt_void_trader(await self.client.void_trader(platform))
         if baro.visits():
-            lines.append(f"※ 想看下期可能卖什么：发「奸商 预测」"
-                         f"（基于 wiki 的 {len(baro.visits())} 次到访统计）")
+            lines.append(
+                f"※ 想看下期可能卖什么：发「奸商 预测」"
+                f"（基于 wiki 的 {len(baro.visits())} 次到访统计）"
+            )
         return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
 
     async def _h_dailydeals(self, parsed, event, platform) -> Reply:
         title, lines = fmt.fmt_daily_deals(await self.client.daily_deals(platform))
         return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
+
     async def _h_alerts(self, parsed, event, platform) -> Reply:
         title, lines = fmt.fmt_alerts(await self.client.alerts(platform))
         return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
@@ -211,4 +252,3 @@ class DailyCommands:
         sales = await self.client.flash_sales(platform)
         title, lines = fmt.fmt_flash_sales(sales, page=parsed.page)
         return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
-

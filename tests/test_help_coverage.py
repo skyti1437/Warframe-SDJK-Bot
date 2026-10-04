@@ -11,6 +11,7 @@
 
 用法：python tests/test_help_coverage.py   （非 0 退出即失败）
 """
+
 from __future__ import annotations
 
 import ast
@@ -26,8 +27,9 @@ FAILED: list[str] = []
 
 
 def check(name: str, cond: bool, detail: str = ""):
-    print(f"[{'PASS' if cond else 'FAIL'}] {name}"
-          + (f"  -> {detail}" if detail and not cond else ""))
+    print(
+        f"[{'PASS' if cond else 'FAIL'}] {name}" + (f"  -> {detail}" if detail and not cond else "")
+    )
     if not cond:
         FAILED.append(name)
 
@@ -60,9 +62,11 @@ for cmd in sorted(P.COMMAND_ALIASES):
     names = set(P.COMMAND_ALIASES[cmd]) | {cmd}
     if not any(n and n in blob for n in names):
         missing.append(f"{cmd}（可用名：{'/'.join(sorted(names)[:3])}）")
-check(f"{len(P.COMMAND_ALIASES)} 个主指令全部出现在帮助卡里"
-      f"（实缺 {len(missing)}）", not missing,
-      "；".join(missing))
+check(
+    f"{len(P.COMMAND_ALIASES)} 个主指令全部出现在帮助卡里（实缺 {len(missing)}）",
+    not missing,
+    "；".join(missing),
+)
 
 # —— 2. 左列不能是纯描述性标签 ——
 # 判据：左列里若出现「指令名 / 指令名」或单独一个词，至少要有一个 token
@@ -72,16 +76,83 @@ for _c, _al in P.COMMAND_ALIASES.items():
     VALID |= set(_al)
 # 允许出现的非指令词（修饰符 / 参数 / 分类提示）
 ALLOW = {
-    "帮助", "状态", "平台", "输出", "翻页", "群管理", "伤害", "灵化", "空战",
-    "地面", "进化", "赤毒辐射60", "识卡", "识卡伤害", "武器融合", "玄骸",
-    "倾向", "紫卡排行", "毒", "蹲", "夜灵", "赏金", "裂隙", "突击", "执刑官",
-    "时效", "周报", "深层科研", "时光科研", "沉沦之地", "炼狱塔", "侵袭",
-    "仲裁", "仲裁表", "警报", "入侵", "九重天", "虚空风暴", "活动", "武形秘仪",
-    "奸商", "虚空商人", "每日特惠", "商城折扣", "言录使", "氏族奖励", "出库",
-    "阿耶", "灵化轮换", "终幕", "信条", "舰队进度", "新闻", "最近更新", "电波",
-    "午夜电波", "日历", "结合目标", "wiki", "赤毒", "钢铁之路",
-    "遗物", "核桃", "开核桃", "部件", "金垃圾", "银垃圾", "铜垃圾", "伤害",
-    "紫卡分析", "wr", "紫卡", "rm", "wm", "趋势", "蹲", "基础形态",
+    "帮助",
+    "状态",
+    "平台",
+    "输出",
+    "翻页",
+    "群管理",
+    "伤害",
+    "灵化",
+    "空战",
+    "地面",
+    "进化",
+    "赤毒辐射60",
+    "识卡",
+    "识卡伤害",
+    "武器融合",
+    "玄骸",
+    "倾向",
+    "紫卡排行",
+    "毒",
+    "蹲",
+    "夜灵",
+    "赏金",
+    "裂隙",
+    "突击",
+    "执刑官",
+    "时效",
+    "周报",
+    "深层科研",
+    "时光科研",
+    "沉沦之地",
+    "炼狱塔",
+    "侵袭",
+    "仲裁",
+    "仲裁表",
+    "警报",
+    "入侵",
+    "九重天",
+    "虚空风暴",
+    "活动",
+    "武形秘仪",
+    "奸商",
+    "虚空商人",
+    "每日特惠",
+    "商城折扣",
+    "言录使",
+    "氏族奖励",
+    "出库",
+    "阿耶",
+    "灵化轮换",
+    "终幕",
+    "信条",
+    "舰队进度",
+    "新闻",
+    "最近更新",
+    "电波",
+    "午夜电波",
+    "日历",
+    "结合目标",
+    "wiki",
+    "赤毒",
+    "钢铁之路",
+    "遗物",
+    "核桃",
+    "开核桃",
+    "部件",
+    "金垃圾",
+    "银垃圾",
+    "铜垃圾",
+    "伤害",
+    "紫卡分析",
+    "wr",
+    "紫卡",
+    "rm",
+    "wm",
+    "趋势",
+    "蹲",
+    "基础形态",
 }
 
 bad_rows = []
@@ -96,8 +167,7 @@ for cell in lefts:
         toks.append(seg.split()[0] if seg.split() else seg)
     if not any(t in VALID or t in ALLOW for t in toks):
         bad_rows.append(cell)
-check("左列都是真实指令（无凭空标签）", not bad_rows,
-      "；".join(bad_rows[:6]))
+check("左列都是真实指令（无凭空标签）", not bad_rows, "；".join(bad_rows[:6]))
 
 # —— 3. 分类标题不能是空组 ——
 empty = [k for k, v in topic.items() if not v]
@@ -108,9 +178,11 @@ check("没有空的分类", not empty, "；".join(empty))
 # 本群订阅明细，2026-09-18 安全审查收口；「状态」指令直接委托它）。卡面不写
 # 「需群管理员」，普通成员照卡发就被拦 —— 卡是给用户照着发的，属误导。
 # 闸门行为本身由 tests/test_admin.py 锁，这里只锁卡面标注与它对齐。
-admin_rows = [cell for cell, desc in
-              ((c, d) for items in topic.values() for c, d in items)
-              if cell.split()[0] in ("状态", "群管理") and "管理员" not in desc]
+admin_rows = [
+    cell
+    for cell, desc in ((c, d) for items in topic.values() for c, d in items)
+    if cell.split()[0] in ("状态", "群管理") and "管理员" not in desc
+]
 check("需管理员的指令行都标了「管理员」", not admin_rows, "；".join(admin_rows))
 
 print()

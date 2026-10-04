@@ -15,23 +15,23 @@ base_drain/max_rank/rank0/rankMax 可信，用它批量校准。
 不动：zh/别名/条件文本/note/polarity，以及 wfsim 没有的卡。
 带 --dry-run 只报告不写。
 """
+
 import json
 import sys
 
 try:
     import yaml
 except ImportError:  # noqa: BLE001 —— 插件运行本身不需要 yaml，只有这几个
-    raise SystemExit(   # 数据构建脚本要；给可操作的提示而不是裸 ImportError
-        "本脚本需要 PyYAML：pip install pyyaml"
-        "（插件运行时并不依赖它，仅构建数据用）")
+    raise SystemExit(  # 数据构建脚本要；给可操作的提示而不是裸 ImportError
+        "本脚本需要 PyYAML：pip install pyyaml（插件运行时并不依赖它，仅构建数据用）"
+    )
 import glob
 import os
-from pathlib import Path      # ★ 2026-09-20 补：原来漏了这个导入，脚本一跑就
-                              #   NameError（这也是 names 表长期没被校准的原因之一）
+from pathlib import Path  # ★ 2026-09-20 补：原来漏了这个导入，脚本一跑就
+#   NameError（这也是 names 表长期没被校准的原因之一）
 
 WFSIM_DIR = str(Path.home() / "tmp" / "wfsim" / "data" / "mods")
-MODS = os.path.join(os.path.dirname(__file__), os.pardir, "core", "data",
-                    "mods_stats.json")
+MODS = os.path.join(os.path.dirname(__file__), os.pardir, "core", "data", "mods_stats.json")
 
 # wfsim kind → (我们的字段, 是否百分比)
 KIND_MAP = {
@@ -67,7 +67,7 @@ def load_yaml(p):
 def rebuild_levels(w_effects, old_levels, max_rank):
     """按 rank0→rankMax 线性插值重建 levels；保留不可映射的旧字段。"""
     n = max_rank + 1
-    plan = []           # (our_key, elem_or_None, rank0值, rankMax值, pct?)
+    plan = []  # (our_key, elem_or_None, rank0值, rankMax值, pct?)
     for e in w_effects or []:
         if not isinstance(e, dict):
             continue
@@ -76,23 +76,22 @@ def rebuild_levels(w_effects, old_levels, max_rank):
             continue
         if kind in KIND_MAP:
             field, pct = KIND_MAP[kind]
-            plan.append((field, None, e.get("rank0") or 0.0,
-                         e.get("rankMax") or 0.0, pct))
+            plan.append((field, None, e.get("rank0") or 0.0, e.get("rankMax") or 0.0, pct))
             if kind == "crit_chance_bonus_heavy_doubled":
                 plan.append(("heavy_crit_mult", None, 2.0, 2.0, False))
         elif kind in ELEM_MAP:
             el = e.get("element")
             if el:
-                plan.append((ELEM_MAP[kind], el, e.get("rank0") or 0.0,
-                             e.get("rankMax") or 0.0, True))
+                plan.append(
+                    (ELEM_MAP[kind], el, e.get("rank0") or 0.0, e.get("rankMax") or 0.0, True)
+                )
     levels = []
     for rank in range(n):
         t = rank / max_rank if max_rank else 0.0
         new = {}
-        old = old_levels[rank] if rank < len(old_levels) else (
-            old_levels[-1] if old_levels else {})
+        old = old_levels[rank] if rank < len(old_levels) else (old_levels[-1] if old_levels else {})
         if isinstance(old, dict):
-            for k, v in old.items():        # 先保留旧字段（含条件文本等）
+            for k, v in old.items():  # 先保留旧字段（含条件文本等）
                 new[k] = v
         for field, el, v0, v1, pct in plan:
             val = v0 + (v1 - v0) * t
@@ -140,17 +139,18 @@ def sync_names_table(ours, wf, report):
             continue
         b_old = rec.get("base_drain")
         if isinstance(b_old, int) and b_old < 0:
-            continue                      # 姿态卡哨兵，整条跳过
+            continue  # 姿态卡哨兵，整条跳过
         changed = []
-        for field, wkey in (("base_drain", "base_drain"),
-                            ("max_rank", "max_rank"),
-                            ("polarity", "polarity")):
+        for field, wkey in (
+            ("base_drain", "base_drain"),
+            ("max_rank", "max_rank"),
+            ("polarity", "polarity"),
+        ):
             new = w.get(wkey)
             old = rec.get(field)
             if new is None or new == old:
                 continue
-            if field == "polarity" and isinstance(old, str) \
-                    and old.lower() == str(new).lower():
+            if field == "polarity" and isinstance(old, str) and old.lower() == str(new).lower():
                 continue
             changed.append(f"{field} {old}→{new}")
             rec[field] = new
@@ -164,8 +164,7 @@ def main(dry_run):
     ours = json.load(open(MODS, encoding="utf-8"))
     mods = ours["mods"]
     keys = {k.lower() for k in mods}
-    names = {str(v.get("name") or "").lower(): k
-             for k, v in mods.items()}
+    names = {str(v.get("name") or "").lower(): k for k, v in mods.items()}
     n_change = 0
     report = []
     for f in glob.glob(os.path.join(WFSIM_DIR, "**", "*.yaml"), recursive=True):
@@ -190,8 +189,7 @@ def main(dry_run):
         if changed or m_new is not None:
             m_rank = m_new if m_new is not None else (m_old or 0)
             old_levels = rec.get("levels") or []
-            new_levels = rebuild_levels(y.get("effects") or [],
-                                        old_levels, int(m_rank))
+            new_levels = rebuild_levels(y.get("effects") or [], old_levels, int(m_rank))
             if new_levels != old_levels:
                 changed.append(f"levels 重建（{len(old_levels)}→{len(new_levels)} 级）")
                 rec["levels"] = new_levels
@@ -206,11 +204,12 @@ def main(dry_run):
     # ★ 仅识别表（names）也要校准 —— 见 sync_names_table 的说明
     n_names = sync_names_table(ours, _wfsim_index(), report)
     print("\n".join(report))
-    print(f"—— 共 {n_change} 张可算卡 + {n_names} 张仅识别卡有变化"
-          + ("（dry-run，未写入）" if dry_run else ""))
+    print(
+        f"—— 共 {n_change} 张可算卡 + {n_names} 张仅识别卡有变化"
+        + ("（dry-run，未写入）" if dry_run else "")
+    )
     if not dry_run:
-        json.dump(ours, open(MODS, "w", encoding="utf-8"),
-                  ensure_ascii=False, indent=1)
+        json.dump(ours, open(MODS, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
         print("✓ 已写回", MODS)
 
 

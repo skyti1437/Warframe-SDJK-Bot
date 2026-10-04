@@ -10,6 +10,7 @@
   **亮豆数 = 该卡当前等级**；豆子以卡片中心水平居中。
   检测器必须先按细线定出「列网格」，再只在格子内数豆（0 级卡报 0）。
 """
+
 import sys
 from pathlib import Path
 
@@ -29,8 +30,8 @@ def check(name, cond, info=""):
     print(f"[{mark}] {name}" + (f"  ← {info}" if info and not cond else ""))
 
 
-LIT = (143, 191, 229)          # 实测亮豆 RGB（蓝）
-LIT_AMBER = (255, 222, 163)    # 执刑官那类边框的豆色（实测采样，琥珀橙）
+LIT = (143, 191, 229)  # 实测亮豆 RGB（蓝）
+LIT_AMBER = (255, 222, 163)  # 执刑官那类边框的豆色（实测采样，琥珀橙）
 BG = (18, 18, 22)
 CARD = (40, 40, 48)
 COLS = (712, 957, 1202, 1447)  # 装备区 4 列中心（1920 宽）
@@ -39,8 +40,7 @@ CARD_H = 140
 PITCH = 12
 
 
-def make_shot(pips, top=300, W=1920, H=1080, cols=COLS, lines="all", lit=LIT,
-              bg=BG, card=CARD):
+def make_shot(pips, top=300, W=1920, H=1080, cols=COLS, lines="all", lit=LIT, bg=BG, card=CARD):
     """合成一张截图：每列给定豆数（0 = 0 级，只画细线不画豆）。
 
     `lines`：画「与卡片等宽的装饰细线」的列 ——
@@ -59,14 +59,13 @@ def make_shot(pips, top=300, W=1920, H=1080, cols=COLS, lines="all", lit=LIT,
         ly = y1 - 24
         want = (lines == "all") or (lines != "none" and i in lines)
         if want:
-            d.rectangle([x0, ly, x1, ly + 1], fill=lit)      # 装饰细线（与卡等宽）
+            d.rectangle([x0, ly, x1, ly + 1], fill=lit)  # 装饰细线（与卡等宽）
         if n > 0:
             total = (n - 1) * PITCH
             sx = cx - total // 2
             for i2 in range(n):
                 px = sx + i2 * PITCH
-                d.polygon([(px, ly - 5), (px + 4, ly), (px, ly + 5), (px - 4, ly)],
-                          fill=lit)
+                d.polygon([(px, ly - 5), (px + 4, ly), (px, ly + 5), (px - 4, ly)], fill=lit)
     return im
 
 
@@ -98,8 +97,11 @@ try:
     big = make_shot([5, 5, 0, 3])
     small = big.resize((1280, 720), Image.LANCZOS)
     got2 = counts_of(small)
-    ok = got2 is not None and len(got2) == 4 and \
-        all(abs(a - b) <= 1 for a, b in zip(got2, [5, 5, 0, 3]))
+    ok = (
+        got2 is not None
+        and len(got2) == 4
+        and all(abs(a - b) <= 1 for a, b in zip(got2, [5, 5, 0, 3]))
+    )
     check(f"1280 宽降采样后仍正确（±1 容差）→ {got2}", ok, str(got2))
 
     # ④ 部分截图：只截装备区（内容尺寸不变）→ 应完全正确
@@ -110,8 +112,11 @@ try:
     # ⑤ 仓库区识别：下半部分 + 一行 7 格 → 标记为 is_inventory
     inv = make_shot([5] * 7, top=800, cols=(212, 462, 712, 962, 1212, 1462, 1712))
     rows = detect_pips(inv)
-    check("仓库区（下半 + 7 格）被标为 is_inventory",
-          bool(rows) and all(r["is_inventory"] for r in rows), str(rows))
+    check(
+        "仓库区（下半 + 7 格）被标为 is_inventory",
+        bool(rows) and all(r["is_inventory"] for r in rows),
+        str(rows),
+    )
 
     # ⑥ 满级线（第三信号，维护者 2026-09-20 实测指出）：
     #    满级卡底部有一条**横贯全卡**的亮线，非满级卡没有。
@@ -119,8 +124,11 @@ try:
     check(f"满级线：全都有线 → maxed 全 True  {got}", got == [True] * 4, str(got))
 
     got = maxed_of(make_shot([1, 5, 0, 3], lines=(0,)))
-    check(f"满级线：只有第 1 格有线 → 只标第 1 格  {got}",
-          got == [True, False, False, False], str(got))
+    check(
+        f"满级线：只有第 1 格有线 → 只标第 1 格  {got}",
+        got == [True, False, False, False],
+        str(got),
+    )
 
     got = maxed_of(make_shot([1, 5, 0, 3], lines="none"))
     check(f"满级线：全都没线 → maxed 全 False  {got}", got == [False] * 4, str(got))
@@ -149,16 +157,15 @@ try:
     #    在那一格数出 2 颗（真值 0）→ 该卡约束不满足 → 整图对齐无解 →
     #    7 张卡的豆子信号全部作废（用户看到「等级又不对」）。
     #    规则：**整排蓝豆都为 0** 时才允许暖色兜底。
-    im_art = make_shot([5, 0, 5, 1], lit=LIT)          # 一排蓝豆卡
+    im_art = make_shot([5, 0, 5, 1], lit=LIT)  # 一排蓝豆卡
     _d = ImageDraw.Draw(im_art)
     _cx = COLS[1]
     _x0, _x1 = _cx - CARD_W // 2, _cx + CARD_W // 2
     _ly = 300 + CARD_H - 24
-    _d.rectangle([_x0 + 2, _ly - 3, _x1 - 2, _ly + 8], fill=(210, 175, 120))   # 卡面暖色美术
-    _d.rectangle([_x0 + 1, _ly - 4, _x0 + 14, _ly + 9], fill=LIT_AMBER)        # 左缘高光
+    _d.rectangle([_x0 + 2, _ly - 3, _x1 - 2, _ly + 8], fill=(210, 175, 120))  # 卡面暖色美术
+    _d.rectangle([_x0 + 1, _ly - 4, _x0 + 14, _ly + 9], fill=LIT_AMBER)  # 左缘高光
     got = counts_of(im_art)
-    check(f"★ 金框卡的暖色卡面不被当豆（该格应为 0）→ {got}",
-          got == [5, 0, 5, 1], str(got))
+    check(f"★ 金框卡的暖色卡面不被当豆（该格应为 0）→ {got}", got == [5, 0, 5, 1], str(got))
 
     # ⑪ 反过来：整排都没有蓝豆（纯执刑官排）时，**整图**暖色重扫仍要工作
     #    （★ 逐格暖色兜底已在 2026-09-20 删掉 —— 它会把金框卡的卡面美术当成豆）
@@ -170,10 +177,12 @@ try:
     #    白底(245,243,238)、灰卡这类低饱和背景**天然不满足**，不会被误当豆；
     #    而卡片内部（无论主题）仍是深色、豆子仍是蓝的。
     #    这里用 4 种背景/卡面组合把这条性质钉住。
-    for _bg, _card, _why in (((18, 18, 22), (40, 40, 48), "深色主题（基准）"),
-                             ((245, 243, 238), (40, 40, 48), "浅白主题 + 深色卡"),
-                             ((245, 243, 238), (245, 243, 238), "浅白主题 + 浅色卡（最坏）"),
-                             ((245, 243, 238), (220, 218, 214), "浅白主题 + 灰白卡")):
+    for _bg, _card, _why in (
+        ((18, 18, 22), (40, 40, 48), "深色主题（基准）"),
+        ((245, 243, 238), (40, 40, 48), "浅白主题 + 深色卡"),
+        ((245, 243, 238), (245, 243, 238), "浅白主题 + 浅色卡（最坏）"),
+        ((245, 243, 238), (220, 218, 214), "浅白主题 + 灰白卡"),
+    ):
         _im = make_shot([5, 0, 5, 1], bg=_bg, card=_card)
         _got = counts_of(_im)
         check(f"主题鲁棒：[{_why}] → {_got}", _got == [5, 0, 5, 1], str(_got))

@@ -10,6 +10,7 @@ zh 名取自 wfsim i18n/zh/names.yaml（DE 官方客户端串）。
 
 只新增不覆盖：同名 key 已存在时跳过。
 """
+
 import json
 import sys
 from pathlib import Path
@@ -17,15 +18,29 @@ from pathlib import Path
 try:
     import yaml
 except ImportError:  # noqa: BLE001 —— 插件运行本身不需要 yaml，只有这几个
-    raise SystemExit(   # 数据构建脚本要；给可操作的提示而不是裸 ImportError
-        "本脚本需要 PyYAML：pip install pyyaml"
-        "（插件运行时并不依赖它，仅构建数据用）")
+    raise SystemExit(  # 数据构建脚本要；给可操作的提示而不是裸 ImportError
+        "本脚本需要 PyYAML：pip install pyyaml（插件运行时并不依赖它，仅构建数据用）"
+    )
 
-WFSIM = (Path.home() / "tmp" / "wfsim" / "data")
+WFSIM = Path.home() / "tmp" / "wfsim" / "data"
 OUT = Path(__file__).resolve().parent.parent / "core" / "data" / "weapons_stats.json"
-DAMAGE_KEYS = ("impact", "puncture", "slash", "heat", "cold", "electricity",
-               "toxin", "blast", "radiation", "gas", "magnetic", "viral",
-               "corrosive", "void", "true")
+DAMAGE_KEYS = (
+    "impact",
+    "puncture",
+    "slash",
+    "heat",
+    "cold",
+    "electricity",
+    "toxin",
+    "blast",
+    "radiation",
+    "gas",
+    "magnetic",
+    "viral",
+    "corrosive",
+    "void",
+    "true",
+)
 
 
 def cd(d) -> dict:
@@ -37,8 +52,12 @@ def cd(d) -> dict:
 
 def main() -> None:
     ours = json.loads(OUT.read_text(encoding="utf-8"))
-    names = (yaml.safe_load((WFSIM / "i18n" / "zh" / "names.yaml")
-                            .read_text(encoding="utf-8")).get("weapons") or {})
+    names = (
+        yaml.safe_load((WFSIM / "i18n" / "zh" / "names.yaml").read_text(encoding="utf-8")).get(
+            "weapons"
+        )
+        or {}
+    )
     added = []
     for cat, label in (("archgun", "Archgun"), ("sentinel", "Sentinel")):
         for f in sorted((WFSIM / "weapons" / cat).glob("*.yaml")):
@@ -52,24 +71,33 @@ def main() -> None:
             key = str(y.get("internal_name") or "").lower()
             if not key or key in ours:
                 continue
-            attacks = [{"name": "Normal Attack", "damage": dmg,
-                        "total": dmg["total"],
-                        "crit_chance": float(a.get("crit_chance") or 0) * 100,
-                        "crit_mult": float(a.get("crit_multiplier") or 1),
-                        "status_chance": float(a.get("status_chance") or 0) * 100,
-                        "speed": a.get("fire_rate"),
-                        "shot_type": a.get("shot_type")}]
+            attacks = [
+                {
+                    "name": "Normal Attack",
+                    "damage": dmg,
+                    "total": dmg["total"],
+                    "crit_chance": float(a.get("crit_chance") or 0) * 100,
+                    "crit_mult": float(a.get("crit_multiplier") or 1),
+                    "status_chance": float(a.get("status_chance") or 0) * 100,
+                    "speed": a.get("fire_rate"),
+                    "shot_type": a.get("shot_type"),
+                }
+            ]
             rad = a.get("radial")
             if isinstance(rad, dict) and rad.get("damage"):
                 rd = cd(rad["damage"])
                 if rd:
-                    attacks.append({
-                        "name": "Area Attack", "damage": rd, "total": rd["total"],
-                        "crit_chance": float(rad.get("crit_chance") or 0) * 100,
-                        "crit_mult": float(rad.get("crit_multiplier") or 1),
-                        "status_chance":
-                            float(rad.get("status_chance") or 0) * 100,
-                        "shot_type": "AoE"})
+                    attacks.append(
+                        {
+                            "name": "Area Attack",
+                            "damage": rd,
+                            "total": rd["total"],
+                            "crit_chance": float(rad.get("crit_chance") or 0) * 100,
+                            "crit_mult": float(rad.get("crit_multiplier") or 1),
+                            "status_chance": float(rad.get("status_chance") or 0) * 100,
+                            "shot_type": "AoE",
+                        }
+                    )
             ours[key] = {
                 "name": y.get("name"),
                 "zh": names.get(y.get("id")) or None,
@@ -82,16 +110,14 @@ def main() -> None:
                 "procChance": float(a.get("status_chance") or 0),
                 "fireRate": float(a.get("fire_rate") or 0),
                 "magazineSize": float(y.get("magazine") or a.get("magazine") or 0),
-                "reloadTime": float(y.get("reload_seconds")
-                                    or a.get("reload_seconds") or 0),
+                "reloadTime": float(y.get("reload_seconds") or a.get("reload_seconds") or 0),
                 "multishot": float(a.get("multishot") or 1),
                 "damage": dmg,
                 "attacks": attacks,
                 "source": "wfsim data/weapons（wiki/实测整理）",
             }
             added.append(f"{y.get('name')}({names.get(y.get('id')) or '—'})")
-    OUT.write_text(json.dumps(ours, ensure_ascii=False, indent=1),
-                   encoding="utf-8")
+    OUT.write_text(json.dumps(ours, ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"✓ 新增 {len(added)} 把武器")
     for x in added:
         print("   ", x)

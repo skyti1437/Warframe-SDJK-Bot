@@ -18,6 +18,7 @@
 
 退出码：0 = 全部正常；1 = 有需要人工处理项。
 """
+
 from __future__ import annotations
 
 import json
@@ -31,10 +32,14 @@ sys.path.insert(0, str(ROOT))
 
 # 周期口径基准（以 wiki 实时页面为准；若 wiki 变了，**先人工确认**再改这里）
 EXPECTED = {
-    "tenet":    {"period_hours": 96,  "reset_weekday": None, "note": "wiki：每 4 天 00:00 UTC"},
-    "coda":     {"period_hours": 96,  "reset_weekday": None, "note": "wiki：每 4 天 00:00 UTC"},
+    "tenet": {"period_hours": 96, "reset_weekday": None, "note": "wiki：每 4 天 00:00 UTC"},
+    "coda": {"period_hours": 96, "reset_weekday": None, "note": "wiki：每 4 天 00:00 UTC"},
     "incarnon": {"period_hours": 168, "reset_weekday": None, "note": "周常，周一 00:00 UTC"},
-    "acrichis": {"period_hours": 168, "reset_weekday": 0,    "note": "wiki《Acrithis》：Resets every Monday 0:00 UTC"},
+    "acrichis": {
+        "period_hours": 168,
+        "reset_weekday": 0,
+        "note": "wiki《Acrithis》：Resets every Monday 0:00 UTC",
+    },
 }
 
 
@@ -45,8 +50,10 @@ def main() -> int:
     lines: list[str] = []
     todo: list[str] = []
 
-    lines.append(f"只读巡检 · {now.isoformat()}  (北京时间 "
-                 f"{now.astimezone(timezone.utc).astimezone().strftime('%H:%M')} 附近)")
+    lines.append(
+        f"只读巡检 · {now.isoformat()}  (北京时间 "
+        f"{now.astimezone(timezone.utc).astimezone().strftime('%H:%M')} 附近)"
+    )
     lines.append("")
 
     rot_path = ROOT / "core" / "data" / "rotations.json"
@@ -61,7 +68,9 @@ def main() -> int:
         flag = "⚠ 已过期" if stale else "✓ 新鲜"
         lines.append(f"    {key:8s} 快照={snap}  {flag}")
         if stale:
-            todo.append(f"{key} 效价快照已过期 → 抓 wiki 更新 rotations.json（旧值→新值 需人工核对）")
+            todo.append(
+                f"{key} 效价快照已过期 → 抓 wiki 更新 rotations.json（旧值→新值 需人工核对）"
+            )
     lines.append("")
 
     # ---- 2. 言录使本周货单 ----
@@ -73,8 +82,10 @@ def main() -> int:
         left_h = (exp - now).total_seconds() / 3600
         if left_h <= 0:
             lines.append(f"    ⚠ 已过期（expiry={wk['expiry']}，已过 {-left_h:.1f} 小时）")
-            lines.append(f"      当前记录 {len(wk.get('items') or [])} 件；DE 不下发本周 5 件，"
-                         f"需人工到游戏内/wiki 核对后更新")
+            lines.append(
+                f"      当前记录 {len(wk.get('items') or [])} 件；DE 不下发本周 5 件，"
+                f"需人工到游戏内/wiki 核对后更新"
+            )
             todo.append("言录使本周货单已过期 → 人工更新 core/data/de/acrichis_week.json")
         else:
             lines.append(f"    ✓ 未过期（expiry={wk['expiry']}，剩 {left_h:.1f} 小时）")
@@ -93,12 +104,15 @@ def main() -> int:
         ok_p = got_p == exp_conf["period_hours"]
         ok_w = (exp_conf["reset_weekday"] is None) or (got_w == exp_conf["reset_weekday"])
         if ok_p and ok_w:
-            lines.append(f"    ✓ {key:8s} period={got_p}h reset_weekday={got_w}"
-                         f"（{exp_conf['note']}）")
+            lines.append(
+                f"    ✓ {key:8s} period={got_p}h reset_weekday={got_w}（{exp_conf['note']}）"
+            )
         else:
-            lines.append(f"    ⚠ {key:8s} period={got_p}h reset_weekday={got_w}"
-                         f"，基准 period={exp_conf['period_hours']}h "
-                         f"reset_weekday={exp_conf['reset_weekday']}（{exp_conf['note']}）")
+            lines.append(
+                f"    ⚠ {key:8s} period={got_p}h reset_weekday={got_w}"
+                f"，基准 period={exp_conf['period_hours']}h "
+                f"reset_weekday={exp_conf['reset_weekday']}（{exp_conf['note']}）"
+            )
             todo.append(f"{key} 周期口径与基准不一致 → 先抓 wiki 确认，再决定改数据还是改基准")
 
     lines.append("")

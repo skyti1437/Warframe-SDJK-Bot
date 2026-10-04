@@ -13,6 +13,7 @@
   python scripts/repair_panel_basis.py          # dry-run，只报告
   python scripts/repair_panel_basis.py --apply  # 应用修改
 """
+
 import glob
 import json
 import sys
@@ -21,27 +22,46 @@ from pathlib import Path
 try:
     import yaml
 except ImportError:  # noqa: BLE001 —— 插件运行本身不需要 yaml，只有这几个
-    raise SystemExit(   # 数据构建脚本要；给可操作的提示而不是裸 ImportError
-        "本脚本需要 PyYAML：pip install pyyaml"
-        "（插件运行时并不依赖它，仅构建数据用）")
+    raise SystemExit(  # 数据构建脚本要；给可操作的提示而不是裸 ImportError
+        "本脚本需要 PyYAML：pip install pyyaml（插件运行时并不依赖它，仅构建数据用）"
+    )
 
-WFSIM = (Path.home() / "tmp" / "wfsim" / "data")
+WFSIM = Path.home() / "tmp" / "wfsim" / "data"
 STATS = Path(__file__).resolve().parent.parent / "core" / "data" / "weapons_stats.json"
 SKIP = {"total", "cinematic", "shieldDrain", "healthDrain", "energyDrain"}
-DMG_KEYS = ("impact", "puncture", "slash", "heat", "cold", "electricity",
-            "toxin", "blast", "radiation", "gas", "magnetic", "viral",
-            "corrosive", "void", "true")
+DMG_KEYS = (
+    "impact",
+    "puncture",
+    "slash",
+    "heat",
+    "cold",
+    "electricity",
+    "toxin",
+    "blast",
+    "radiation",
+    "gas",
+    "magnetic",
+    "viral",
+    "corrosive",
+    "void",
+    "true",
+)
 
 
 def sig(d: dict) -> dict:
-    return {k: round(float(v), 2) for k, v in d.items()
-            if isinstance(v, (int, float)) and v > 0 and k not in SKIP}
+    return {
+        k: round(float(v), 2)
+        for k, v in d.items()
+        if isinstance(v, (int, float)) and v > 0 and k not in SKIP
+    }
 
 
 def close(a: dict, b: dict) -> bool:
     keys = set(a) | set(b)
-    return all(abs(float(a.get(k, 0)) - float(b.get(k, 0)))
-               <= max(0.05, abs(float(b.get(k, 0))) * 0.01) for k in keys)
+    return all(
+        abs(float(a.get(k, 0)) - float(b.get(k, 0))) <= max(0.05, abs(float(b.get(k, 0))) * 0.01)
+        for k in keys
+    )
 
 
 def main() -> None:
@@ -88,16 +108,28 @@ def main() -> None:
         wf_main = (src or {}).get("main") or {}
         cross_ok = (not wf_main) or close(first, wf_main)
         if cross_ok:
-            fixed.append((k, w.get("zh") or w.get("name"),
-                          round(top_total, 1),
-                          round(sum(first.values()), 1),
-                          first, ats[0].get("name")))
+            fixed.append(
+                (
+                    k,
+                    w.get("zh") or w.get("name"),
+                    round(top_total, 1),
+                    round(sum(first.values()), 1),
+                    first,
+                    ats[0].get("name"),
+                )
+            )
         else:
-            unmatched.append((k, w.get("zh") or w.get("name"),
-                              round(top_total, 1),
-                              [(a.get("name"),
-                                round(sum(sig(a.get("damage") or {}).values()), 1))
-                               for a in ats][:3]))
+            unmatched.append(
+                (
+                    k,
+                    w.get("zh") or w.get("name"),
+                    round(top_total, 1),
+                    [
+                        (a.get("name"), round(sum(sig(a.get("damage") or {}).values()), 1))
+                        for a in ats
+                    ][:3],
+                )
+            )
 
     print(f"顶层已自洽/单段: {ok} 把")
     print(f"可明确修复（wfsim 成分核对通过）: {len(fixed)} 把")
@@ -110,12 +142,11 @@ def main() -> None:
     if apply and fixed:
         for k, zh, t, m, main, nm in fixed:
             # 保留原有键集合（缺失的补 0）——其它代码/测试会直接取键
-            old_keys = {kk: 0.0 for kk in (W[k].get("damage") or {})
-                        if kk != "total" and kk not in SKIP}
-            W[k]["damage"] = {**old_keys, **main,
-                              "total": round(sum(main.values()), 4)}
-        STATS.write_text(json.dumps(W, ensure_ascii=False, indent=1),
-                         encoding="utf-8")
+            old_keys = {
+                kk: 0.0 for kk in (W[k].get("damage") or {}) if kk != "total" and kk not in SKIP
+            }
+            W[k]["damage"] = {**old_keys, **main, "total": round(sum(main.values()), 4)}
+        STATS.write_text(json.dumps(W, ensure_ascii=False, indent=1), encoding="utf-8")
         print(f"✓ 已应用 {len(fixed)} 把")
 
 

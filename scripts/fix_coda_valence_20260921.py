@@ -4,6 +4,7 @@
 2) 把 wiki 实测的 Coda A 批元素/加成写进 core/data/rotations.json。
 用法: python fix_coda_valence.py [--apply]
 """
+
 import io
 import json
 import shutil
@@ -26,8 +27,10 @@ CODA_A = {
     "Coda Motovore": ("Heat", 38.8),
 }
 SNAP = "2026-09-21T05:50:00+00:00"
-SRC = ("wiki「Reset」页玩家上报值（FlareSolverr 抓取 2026-09-21 13:50 GMT+8，"
-       "Eleanor 售 Batch A）；无官方 API，以游戏内商店为准")
+SRC = (
+    "wiki「Reset」页玩家上报值（FlareSolverr 抓取 2026-09-21 13:50 GMT+8，"
+    "Eleanor 售 Batch A）；无官方 API，以游戏内商店为准"
+)
 
 # ---------- 1) 正则 ----------
 src = io.open(API, encoding="utf-8").read()
@@ -59,7 +62,9 @@ for it in batches[idx_a]:
     if en in CODA_A:
         elem, bonus = CODA_A[en]
         if (it.get("element"), it.get("bonus")) != (elem, bonus):
-            changed.append(f"  {it.get('cn') or en}: {it.get('element')} {it.get('bonus')} → {elem} {bonus}")
+            changed.append(
+                f"  {it.get('cn') or en}: {it.get('element')} {it.get('bonus')} → {elem} {bonus}"
+            )
             it["element"], it["bonus"] = elem, bonus
     else:
         changed.append(f"  [缺口] A 批 {en} 不在实测表里")
@@ -71,8 +76,7 @@ coda["valence_source"] = SRC
 
 if APPLY:
     shutil.copy2(ROT, ROT + ".bak_coda_" + time.strftime("%Y%m%d_%H%M%S"))
-    io.open(ROT, "w", encoding="utf-8").write(
-        json.dumps(d, ensure_ascii=False, indent=1) + "\n")
+    io.open(ROT, "w", encoding="utf-8").write(json.dumps(d, ensure_ascii=False, indent=1) + "\n")
     print("已写入 rotations.json（正则补丁:%s）" % patch_ok)
 else:
     print("(dry-run，未写入)")

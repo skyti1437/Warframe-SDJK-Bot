@@ -26,6 +26,7 @@
     python scripts/build_arb_ratings.py --check    # 只对拍现有文件（不写盘）
     python scripts/build_arb_ratings.py --cache <原始记录.json>   # 用已落盘的原始记录离线复算
 """
+
 from __future__ import annotations
 
 import argparse
@@ -44,15 +45,16 @@ OUT = ROOT / "core" / "data" / "arb_ratings.json"
 DATA = "https://arbi.wf.wiki/data/"
 API = "https://arbi.wf.wiki/api/leaderboard"
 UA = {"User-Agent": "sdjk-build-arb/1.0"}
-MIN_PER_HOUR = 300      # 剔除明显过低值（全站 <300 仅 0.5%）
-MIN_N = 3               # 样本不足不出档
+MIN_PER_HOUR = 300  # 剔除明显过低值（全站 <300 仅 0.5%）
+MIN_N = 3  # 样本不足不出档
 TIERS = ((800, "S"), (700, "A+"), (600, "A"), (500, "A-"))
 RETRY = 5
 
 
 def get(url: str, timeout: int = 45):
-    return json.load(urllib.request.urlopen(
-        urllib.request.Request(url, headers=UA), timeout=timeout))
+    return json.load(
+        urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=timeout)
+    )
 
 
 def get_retry(url: str):
@@ -75,8 +77,7 @@ def tier_of(median: float) -> str:
     return "F"
 
 
-def fetch_all_nodes(resume_from: "str | None" = None,
-                    flush_to: "str | None" = None) -> dict:
+def fetch_all_nodes(resume_from: "str | None" = None, flush_to: "str | None" = None) -> dict:
     """拉全 88 个排期节点的原始记录（按 id 去重）。
 
     ★ 断点续抓：``resume_from`` 已存在的原始记录文件会被复用（已抓节点直接跳过），
@@ -97,14 +98,28 @@ def fetch_all_nodes(resume_from: "str | None" = None,
         if nid in prev:
             out[nid] = prev[nid]
             n = nodes_meta.get(nid) or {}
-            print("[%2d/%d] %-12s %-12s %-8s 记录=%d（续用已抓）" % (
-                i, len(node_ids), nid, n.get("nameZh", "?"),
-                n.get("missionNameZh", "?"), len(prev[nid])), flush=True)
+            print(
+                "[%2d/%d] %-12s %-12s %-8s 记录=%d（续用已抓）"
+                % (
+                    i,
+                    len(node_ids),
+                    nid,
+                    n.get("nameZh", "?"),
+                    n.get("missionNameZh", "?"),
+                    len(prev[nid]),
+                ),
+                flush=True,
+            )
             continue
         rows, seen, page = [], set(), 1
         while True:
-            d = get_retry("%s?%s" % (API, urllib.parse.urlencode(
-                {"board": "browse", "nodeId": nid, "page": str(page)})))
+            d = get_retry(
+                "%s?%s"
+                % (
+                    API,
+                    urllib.parse.urlencode({"board": "browse", "nodeId": nid, "page": str(page)}),
+                )
+            )
             rs = d.get("rows") or []
             for r in rs:
                 rid = r.get("id")
@@ -120,12 +135,15 @@ def fetch_all_nodes(resume_from: "str | None" = None,
             time.sleep(0.1)
         out[nid] = rows
         if flush_to:
-            Path(flush_to).write_text(json.dumps(out, ensure_ascii=False),
-                                      encoding="utf-8", newline="\n")
+            Path(flush_to).write_text(
+                json.dumps(out, ensure_ascii=False), encoding="utf-8", newline="\n"
+            )
         n = nodes_meta.get(nid) or {}
-        print("[%2d/%d] %-12s %-12s %-8s 记录=%d" % (
-            i, len(node_ids), nid, n.get("nameZh", "?"),
-            n.get("missionNameZh", "?"), len(rows)), flush=True)
+        print(
+            "[%2d/%d] %-12s %-12s %-8s 记录=%d"
+            % (i, len(node_ids), nid, n.get("nameZh", "?"), n.get("missionNameZh", "?"), len(rows)),
+            flush=True,
+        )
         time.sleep(0.15)
     return out
 
@@ -134,14 +152,15 @@ def build(raw: dict, nodes_meta: dict) -> dict:
     """原始记录 → 新表（逐节点中位数 + 档位）。"""
     out = {}
     for nid, rows in raw.items():
-        ph = [r.get("perHour") for r in rows
-              if isinstance(r.get("perHour"), (int, float))]
+        ph = [r.get("perHour") for r in rows if isinstance(r.get("perHour"), (int, float))]
         used = [v for v in ph if v >= MIN_PER_HOUR]
         n = nodes_meta.get(nid) or {}
-        rec = {"name": n.get("nameZh") or "?",
-               "system": n.get("systemNameZh") or "",
-               "mission": n.get("missionNameZh") or "",
-               "n": len(used)}
+        rec = {
+            "name": n.get("nameZh") or "?",
+            "system": n.get("systemNameZh") or "",
+            "mission": n.get("missionNameZh") or "",
+            "n": len(used),
+        }
         if len(used) >= MIN_N:
             med = round(float(statistics.median(used)), 1)
             rec["median"] = med
@@ -163,31 +182,38 @@ def main() -> int:
     else:
         raw = fetch_all_nodes()
     if args.raw_out:
-        Path(args.raw_out).write_text(json.dumps(raw, ensure_ascii=False),
-                                      encoding="utf-8", newline="\n")
+        Path(args.raw_out).write_text(
+            json.dumps(raw, ensure_ascii=False), encoding="utf-8", newline="\n"
+        )
 
     nodes = build(raw, nodes_meta)
     rated = {k: v for k, v in nodes.items() if v.get("tier")}
     dist = Counter(v["tier"] for v in rated.values())
-    print("\n有档位 %d / %d（剔除 <%d 且 n>=%d）" % (len(rated), len(nodes),
-                                              MIN_PER_HOUR, MIN_N))
+    print("\n有档位 %d / %d（剔除 <%d 且 n>=%d）" % (len(rated), len(nodes), MIN_PER_HOUR, MIN_N))
     print("档位分布：", dict(sorted(dist.items())))
-    print("未出档 %d 个：" % (len(nodes) - len(rated)),
-          [nodes[k]["name"] for k in nodes if not nodes[k].get("tier")])
+    print(
+        "未出档 %d 个：" % (len(nodes) - len(rated)),
+        [nodes[k]["name"] for k in nodes if not nodes[k].get("tier")],
+    )
     print("\n逐节点（回报用）：")
-    for k in sorted(nodes, key=lambda x: (nodes[x]["name"] or "")):
+    for k in sorted(nodes, key=lambda x: nodes[x]["name"] or ""):
         v = nodes[k]
-        print("  %-12s %-10s %-8s n=%-4d median=%-7s tier=%s" % (
-            k, v["name"], v["mission"], v["n"], v.get("median", "-"),
-            v.get("tier", "-")))
+        print(
+            "  %-12s %-10s %-8s n=%-4d median=%-7s tier=%s"
+            % (k, v["name"], v["mission"], v["n"], v.get("median", "-"), v.get("tier", "-"))
+        )
 
     payload = {
-        "_note": ("社区实测（arbi.wf.wiki 排行榜），非官方数据，仅供参考；"
-                  "★ 实测值（尤其「生存 / 中断」）吃队伍熟练度——来自上传记录的高水平队伍，"
-                  "普通队伍未必打得到"),
+        "_note": (
+            "社区实测（arbi.wf.wiki 排行榜），非官方数据，仅供参考；"
+            "★ 实测值（尤其「生存 / 中断」）吃队伍熟练度——来自上传记录的高水平队伍，"
+            "普通队伍未必打得到"
+        ),
         "_source": "https://arbi.wf.wiki/api/leaderboard?board=browse&nodeId=<key>",
-        "_rule": ("每节点 perHour 中位数（按记录 id 去重，剔除 <%d，n>=%d）；"
-                  "S>=800 / A+>=700 / A>=600 / A->=500 / F<500" % (MIN_PER_HOUR, MIN_N)),
+        "_rule": (
+            "每节点 perHour 中位数（按记录 id 去重，剔除 <%d，n>=%d）；"
+            "S>=800 / A+>=700 / A>=600 / A->=500 / F<500" % (MIN_PER_HOUR, MIN_N)
+        ),
         "_updated": date.today().isoformat(),
         "nodes": dict(sorted(nodes.items())),
     }
@@ -201,10 +227,13 @@ def main() -> int:
                 if cn.get(k) != nodes.get(k):
                     print("   差异", k, cn.get(k), "->", nodes.get(k))
         return 0 if same else 1
-    OUT.write_text(json.dumps(payload, ensure_ascii=False, indent=1) + "\n",
-                   encoding="utf-8", newline="\n")
-    print("\n写出 %s（%d KB，%d 节点）" % (OUT.relative_to(ROOT),
-                                       OUT.stat().st_size // 1024, len(nodes)))
+    OUT.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=1) + "\n", encoding="utf-8", newline="\n"
+    )
+    print(
+        "\n写出 %s（%d KB，%d 节点）"
+        % (OUT.relative_to(ROOT), OUT.stat().st_size // 1024, len(nodes))
+    )
     return 0
 
 

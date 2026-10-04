@@ -13,6 +13,7 @@
 * ``api_client.norm_wm_name`` 是 WM 交易路径专用（会抹独立成词的 prime 以支持
   「省略 Prime 也能查」），语义不同，互不替代——WM 路径本轮不动。
 """
+
 from __future__ import annotations
 
 import difflib
@@ -33,20 +34,35 @@ _PRIME_WORD = re.compile(r"([\u4e00-\u9fff])[\s·・]*prime$", re.IGNORECASE)
 # ★ 棱晶/棱镜 双收：DE 官方简中是「棱晶·」（2026-09-23 数据实测 12:0），
 #   「棱镜」为社区常用写法，两者都要能解析。
 VARIANT_TOKENS: dict[str, str] = {
-    "赤毒": "kuva", "信条": "tenet", "终幕": "coda", "亡魂": "wraith",
-    "破坏者": "vandal", "棱晶": "prisma", "棱镜": "prisma", "圣洁": "sancti",
+    "赤毒": "kuva",
+    "信条": "tenet",
+    "终幕": "coda",
+    "亡魂": "wraith",
+    "破坏者": "vandal",
+    "棱晶": "prisma",
+    "棱镜": "prisma",
+    "圣洁": "sancti",
     # ★ 2026-10-03 与**游戏内官方简中**对齐（用本地三表逐条反查而来：
     #   保障·勒克塔 / 枢议·咖玛腕甲枪 / 终极·螺钉步枪 / 勇气·海克 /
     #   天仓·悲痛之刃 / 苦痛·德特昂 / 嫣红·潘塔）。
-    "保障": "secura", "枢议": "synoid", "终极": "telos", "勇气": "vaykor",
-    "天仓": "ceti", "苦痛": "mara", "嫣红": "carmine",
+    "保障": "secura",
+    "枢议": "synoid",
+    "终极": "telos",
+    "勇气": "vaykor",
+    "天仓": "ceti",
+    "苦痛": "mara",
+    "嫣红": "carmine",
     # 旧译 / 社区写法保留（互为别名：剥词与展开都受益）
-    "安全": "secura", "共生": "synoid", "终焉": "telos", "瓦伊科": "vaykor",
+    "安全": "secura",
+    "共生": "synoid",
+    "终焉": "telos",
+    "瓦伊科": "vaykor",
     "玛拉": "mara",
     # ★ 修正：「绯红」按官方简中是 **Rakta** 的前缀（绯红·西诺斯 = Rakta Cernos、
     #   绯红·暗黑匕首 = Rakta Dark Dagger），不是 Carmine —— Carmine 官方是「嫣红」。
     #   旧表把 carmine 挂在绯红上，会让「绯红·X」展开出错误的变体形态。
-    "绯红": "rakta", "血光": "rakta",
+    "绯红": "rakta",
+    "血光": "rakta",
 }
 # 中英同形/缩写自成一类的独立 token
 _STANDALONE = {"dex", "mk1", "prime"}
@@ -87,7 +103,7 @@ def expand_variants(raw: str) -> list[str]:
 
     m = _P_ABBREV.search(s) or _PRIME_WORD.search(s)
     if m:
-        base = s[:m.start(1)] + m.group(1)
+        base = s[: m.start(1)] + m.group(1)
         forms.append(normalize(base + "prime"))
         forms.append(normalize("prime" + base))
 
@@ -96,23 +112,23 @@ def expand_variants(raw: str) -> list[str]:
     rest = ""
     for zh, en in VARIANT_TOKENS.items():
         if low.startswith(zh) and len(low) > len(zh):
-            tok_zh, tok_en, rest = zh, en, low[len(zh):]
+            tok_zh, tok_en, rest = zh, en, low[len(zh) :]
             break
         if low.endswith(zh) and len(low) > len(zh):
-            tok_zh, tok_en, rest = zh, en, low[:-len(zh)]
+            tok_zh, tok_en, rest = zh, en, low[: -len(zh)]
             break
     if not tok_zh:
         for en in sorted(_EN_TOKENS, key=len, reverse=True):
             if low.startswith(en) and len(low) > len(en):
                 zh = _en_to_zh(en)
                 if zh:
-                    tok_zh, tok_en, rest = zh, en, low[len(en):]
+                    tok_zh, tok_en, rest = zh, en, low[len(en) :]
                     break
     if tok_zh and rest:
-        forms.append(normalize(tok_zh + rest))       # 沙皇赤毒 → 赤毒沙皇
-        forms.append(normalize(rest + tok_zh))       # 赤毒沙皇 → 沙皇赤毒
-        forms.append(normalize(rest + tok_en))       # 赤毒沙皇 → 沙皇kuva
-        forms.append(normalize(tok_en + rest))       # 赤毒沙皇 → kuva沙皇
+        forms.append(normalize(tok_zh + rest))  # 沙皇赤毒 → 赤毒沙皇
+        forms.append(normalize(rest + tok_zh))  # 赤毒沙皇 → 沙皇赤毒
+        forms.append(normalize(rest + tok_en))  # 赤毒沙皇 → 沙皇kuva
+        forms.append(normalize(tok_en + rest))  # 赤毒沙皇 → kuva沙皇
 
     return list(dict.fromkeys(f for f in forms if f))
 
@@ -149,9 +165,9 @@ def prime_sibling(base: dict, entries: list, *, zh: str = "zh", en: str = "en"):
     return None
 
 
-def resolve_weapon_name(query: str, entries: list, *,
-                        zh: str = "zh", en: str = "en",
-                        slug: str = "url_name") -> tuple[list, str]:
+def resolve_weapon_name(
+    query: str, entries: list, *, zh: str = "zh", en: str = "en", slug: str = "url_name"
+) -> tuple[list, str]:
     """五级优先解析，返回 (hits, stage)。
 
     1. ``exact``      官方中文名原样完全相等；
@@ -171,8 +187,9 @@ def resolve_weapon_name(query: str, entries: list, *,
 
     nq = normalize(q)
     if nq:
-        hits = [e for e in entries
-                if nq in (normalize(e.get(zh) or ""), normalize(e.get(en) or ""))]
+        hits = [
+            e for e in entries if nq in (normalize(e.get(zh) or ""), normalize(e.get(en) or ""))
+        ]
         if hits:
             return hits, "normalized"
 
@@ -180,16 +197,20 @@ def resolve_weapon_name(query: str, entries: list, *,
         # prime 形态在前、p/prime 缩写的「回落 base」形态垫底（表里没有
         # Prime 条目时按口语习惯给 base 的倾向，如「绝路p」）。
         for form in expand_variants(q)[1:]:
-            hits = [e for e in entries
-                    if form in (normalize(e.get(zh) or ""),
-                                normalize(e.get(en) or ""))]
+            hits = [
+                e
+                for e in entries
+                if form in (normalize(e.get(zh) or ""), normalize(e.get(en) or ""))
+            ]
             if hits:
                 return hits, "variant"
 
         if len(nq) >= 2:
-            hits = [e for e in entries
-                    if nq in normalize(e.get(zh) or "")
-                    or nq in normalize(e.get(en) or "")]
+            hits = [
+                e
+                for e in entries
+                if nq in normalize(e.get(zh) or "") or nq in normalize(e.get(en) or "")
+            ]
             if hits:
                 return hits, "substring"
 
@@ -198,20 +219,21 @@ def resolve_weapon_name(query: str, entries: list, *,
         # 仅在显式 prime 意图下启用；多族全列（调用方给中文候选）。
         m = _P_ABBREV.search(q) or _PRIME_WORD.search(q)
         if m:
-            stem = normalize(q[:m.start(1)] + m.group(1))
+            stem = normalize(q[: m.start(1)] + m.group(1))
             if stem:
-                fam_zh = [e for e in entries
-                          if normalize(e.get(zh) or "").startswith(stem)]
-                fam_en = [e for e in entries
-                          if normalize(e.get(en) or "").startswith(stem)
-                          and e not in fam_zh]
+                fam_zh = [e for e in entries if normalize(e.get(zh) or "").startswith(stem)]
+                fam_en = [
+                    e
+                    for e in entries
+                    if normalize(e.get(en) or "").startswith(stem) and e not in fam_zh
+                ]
                 primes = []
                 seen_u = set()
                 for e in fam_zh + fam_en:
                     p = prime_sibling(e, entries, zh=zh, en=en) or e
                     u = p.get("url_name") or ""
                     if "prime" not in normalize(p.get(zh) or p.get(en) or ""):
-                        continue          # 该族没有 Prime 条目 → 不强推本体
+                        continue  # 该族没有 Prime 条目 → 不强推本体
                     if u not in seen_u:
                         seen_u.add(u)
                         primes.append(p)
@@ -221,8 +243,7 @@ def resolve_weapon_name(query: str, entries: list, *,
     # ★ 含变体前缀（赤毒/信条/…）或 prime 后缀（x p / x prime）的查询禁用
     #   模糊层：变体倾向与本体不同，意图明确的变体查询宁可「未找到+候选」，
     #   绝不能被 fuzzy 吞成 base 卡（2026-09-23 维护者指正：绝路p ≠ 0.95）。
-    explicit_variant = (variant_intent(q)
-                        or any(t in nq for t in VARIANT_TOKENS))
+    explicit_variant = variant_intent(q) or any(t in nq for t in VARIANT_TOKENS)
     if not explicit_variant:
         named = [(e, normalize(e.get(zh) or e.get(en) or "")) for e in entries]
         pool = [n for _, n in named if n]
@@ -231,8 +252,7 @@ def resolve_weapon_name(query: str, entries: list, *,
             want = set(close)
             hits = [e for e, n in named if n in want]
             order = {n: i for i, n in enumerate(close)}
-            hits.sort(key=lambda e: order.get(
-                normalize(e.get(zh) or e.get(en) or ""), 99))
+            hits.sort(key=lambda e: order.get(normalize(e.get(zh) or e.get(en) or ""), 99))
             return hits[:3], "fuzzy"
     return [], ""
 
@@ -253,7 +273,7 @@ def strip_variant_query(raw: str) -> str:
     s = (raw or "").strip()
     m = _P_ABBREV.search(s) or _PRIME_WORD.search(s)
     if m:
-        return (s[:m.start(1)] + m.group(1)).strip()
+        return (s[: m.start(1)] + m.group(1)).strip()
     return s
 
 
@@ -300,12 +320,12 @@ def strip_variant_norm(norm: str) -> str:
         changed = False
         for zh in VARIANT_TOKENS:
             if norm.startswith(zh):
-                norm = norm[len(zh):]
+                norm = norm[len(zh) :]
                 changed = True
                 break
         for en in _EN_TOKENS:
             if norm.startswith(en):
-                norm = norm[len(en):]
+                norm = norm[len(en) :]
                 changed = True
                 break
         if norm.endswith("prime"):
@@ -313,9 +333,9 @@ def strip_variant_norm(norm: str) -> str:
             changed = True
         if changed:
             continue
-        for tok in _VARIANT_SUFFIX_TOKENS:      # 后缀写法：布莱顿·破坏者 / Braton Vandal
+        for tok in _VARIANT_SUFFIX_TOKENS:  # 后缀写法：布莱顿·破坏者 / Braton Vandal
             if len(norm) > len(tok) and norm.endswith(tok):
-                norm = norm[:-len(tok)]
+                norm = norm[: -len(tok)]
                 changed = True
                 break
     return norm
@@ -331,8 +351,8 @@ def strip_variant_norm(norm: str) -> str:
 #   ★ 中文**永不参与判定**（只用于显示）；名字包含/子串/主干相等**都不得**
 #   再作为主判据 —— 那是本次两个 bug 的共同成因。
 # ---------------------------------------------------------------------------
-_RIVEN_TABLE: Optional[dict] = None        # by_name：英文名 → 家族根
-_RIVEN_INDEX: Optional[tuple] = None       # (exact, low, norm) 三级查找索引
+_RIVEN_TABLE: Optional[dict] = None  # by_name：英文名 → 家族根
+_RIVEN_INDEX: Optional[tuple] = None  # (exact, low, norm) 三级查找索引
 _RIVEN_TABLE_STAMP: Optional[tuple] = None  # 表文件 (mtime_ns, size)，变更即失效
 
 # WM 套装/部件条目的英文尾缀（「Okina Prime Set」→「Okina Prime」；
@@ -344,6 +364,7 @@ def _riven_families_stamp() -> Optional[tuple]:
     """表文件的 (mtime_ns, size)；stat 不到返回 None（不触发失效）。"""
     try:
         from . import paths
+
         st = paths.read_path("de/riven_families.json").stat()
         return (st.st_mtime_ns, st.st_size)
     except Exception:  # noqa: BLE001 - 文件缺失/不可读：保持现状
@@ -378,15 +399,14 @@ def _load_riven_families() -> dict:
         raw: dict = {}
         try:
             from . import paths
-            raw = json.loads(
-                paths.read_path("de/riven_families.json")
-                .read_text(encoding="utf-8"))
+
+            raw = json.loads(paths.read_path("de/riven_families.json").read_text(encoding="utf-8"))
         except Exception:  # noqa: BLE001 - 表缺失退回主干判定，不阻断查询
             raw = {}
         _RIVEN_TABLE = raw.get("by_name") or {}
         from .logging_compat import logger
-        logger.info("[sdjk] 紫卡家族表已加载：by_name %d 条",
-                    len(_RIVEN_TABLE))
+
+        logger.info("[sdjk] 紫卡家族表已加载：by_name %d 条", len(_RIVEN_TABLE))
     return _RIVEN_TABLE
 
 
@@ -420,7 +440,7 @@ def family_key(en: str) -> str:
     if not s:
         return ""
     low = s.lower()
-    for suf in _SET_SUFFIXES_EN:             # 「Okina Prime Set」→「Okina Prime」
+    for suf in _SET_SUFFIXES_EN:  # 「Okina Prime Set」→「Okina Prime」
         if low.endswith(suf) and len(s) > len(suf):
             s = s[: -len(suf)].strip()
             break
@@ -430,14 +450,13 @@ def family_key(en: str) -> str:
         return k
     stem = strip_variant_norm(normalize(s))
     if stem and stem != normalize(s):
-        k = norm.get(stem)                       # ② 剥变体词后命中官方表
+        k = norm.get(stem)  # ② 剥变体词后命中官方表
         if k:
             return k
-    return stem                                  # ③ 主干（可能为空 ⇒ 不入家族）
+    return stem  # ③ 主干（可能为空 ⇒ 不入家族）
 
 
-def family_of(entry: dict, entries: list, *, zh: str = "zh",
-              en: str = "en") -> list:
+def family_of(entry: dict, entries: list, *, zh: str = "zh", en: str = "en") -> list:
     """本体 → 全变体家族（含本体，本体排最前，其余按中文名）。
 
     倾向指令「只报本体名就列出全部变体」用的纯函数；只收 disposition
@@ -446,7 +465,7 @@ def family_of(entry: dict, entries: list, *, zh: str = "zh",
     ★ 2026-10-02 判据换成 `family_key`（见上）：官方 parentName 谱系相等
     才是同族；中文只用于**显示/排序**，英文为空则不入家族。
     """
-    bz = strip_variant_norm(normalize(entry.get(zh) or ""))   # ★ 仅排序用
+    bz = strip_variant_norm(normalize(entry.get(zh) or ""))  # ★ 仅排序用
     bk = family_key(entry.get(en) or "")
     fam = []
     for e in entries:
@@ -462,23 +481,23 @@ def family_of(entry: dict, entries: list, *, zh: str = "zh",
     for e in fam:
         key = e.get("url_name") or normalize(e.get(zh) or e.get(en) or "")
         cur = uniq.get(key)
-        if cur is None or (not (cur.get(zh) or "").strip()
-                           and (e.get(zh) or "").strip()):
+        if cur is None or (not (cur.get(zh) or "").strip() and (e.get(zh) or "").strip()):
             uniq[key] = e
     fam = list(uniq.values())
 
     def _is_base(e):
         nz = normalize(e.get(zh) or "")
-        return nz == bz or (nz and not variant_intent(nz)
-                            and not any(t in nz for t in VARIANT_TOKENS))
+        return nz == bz or (
+            nz and not variant_intent(nz) and not any(t in nz for t in VARIANT_TOKENS)
+        )
 
-    fam.sort(key=lambda e: (0 if _is_base(e) else 1,
-                            normalize(e.get(zh) or "")))
+    fam.sort(key=lambda e: (0 if _is_base(e) else 1, normalize(e.get(zh) or "")))
     return fam
 
 
-def zh_names(hits: list, *, zh: str = "zh", en: str = "en",
-             slug: str = "url_name", n: int = 3) -> list[str]:
+def zh_names(
+    hits: list, *, zh: str = "zh", en: str = "en", slug: str = "url_name", n: int = 3
+) -> list[str]:
     """多命中时的中文候选文案（官方中文名 → 英文名 → slug 兜底）。"""
     out = []
     for e in hits[:n]:
@@ -486,14 +505,18 @@ def zh_names(hits: list, *, zh: str = "zh", en: str = "en",
     return out
 
 
-def suggest_zh(query: str, entries: list, *, zh: str = "zh", en: str = "en",
-               n: int = 3, cutoff: float = 0.5) -> list[str]:
+def suggest_zh(
+    query: str, entries: list, *, zh: str = "zh", en: str = "en", n: int = 3, cutoff: float = 0.5
+) -> list[str]:
     """「未找到」时的中文名候选（模糊对**中文名**，宽 cutoff；不作命中依据）。"""
     nq = normalize(query)
     if not nq:
         return []
-    pool = {normalize(e.get(zh) or ""): (e.get(zh) or e.get(en))
-            for e in entries if (e.get(zh) or e.get(en))}
+    pool = {
+        normalize(e.get(zh) or ""): (e.get(zh) or e.get(en))
+        for e in entries
+        if (e.get(zh) or e.get(en))
+    }
     close = difflib.get_close_matches(nq, list(pool), n=n, cutoff=cutoff)
     return [pool[c] for c in close if pool.get(c)]
 
@@ -528,8 +551,8 @@ def load_bilingual() -> dict:
         pairs: list = []
         try:
             from . import paths
-            raw = json.loads(
-                paths.read_path("de/name_bilingual.json").read_text(encoding="utf-8"))
+
+            raw = json.loads(paths.read_path("de/name_bilingual.json").read_text(encoding="utf-8"))
             pairs = raw.get("pairs") or []
         except Exception:  # noqa: BLE001 - 表缺失不阻断（未收录提示兜底）
             pairs = []
@@ -571,13 +594,11 @@ def bilingual_lookup(query: str, limit: int = 5) -> dict:
     table = idx["zh"] if has_cjk else idx["en"]
     hits = table.get(nq) or []
     if hits:
-        return {"direction": direction,
-                "hits": _dedupe_pairs(hits, limit), "candidates": []}
+        return {"direction": direction, "hits": _dedupe_pairs(hits, limit), "candidates": []}
     cands: list = []
     for k, v in table.items():
         if nq in k:
             cands.extend(v)
             if len(cands) >= limit * 4:
                 break
-    return {"direction": direction, "hits": [],
-            "candidates": _dedupe_pairs(cands, limit)}
+    return {"direction": direction, "hits": [], "candidates": _dedupe_pairs(cands, limit)}

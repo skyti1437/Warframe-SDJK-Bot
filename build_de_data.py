@@ -23,6 +23,7 @@
   python build_de_data.py            # 全量重建
   python build_de_data.py --check    # 只做一致性自检，不写文件
 """
+
 from __future__ import annotations
 
 import json
@@ -55,8 +56,7 @@ def fetch(url: str) -> object:
 
 
 def write_json(path: Path, data: object) -> None:
-    path.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")),
-                    encoding="utf-8")
+    path.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     print(f"  -> {path.name}: {path.stat().st_size / 1024:.0f} KB")
 
 
@@ -234,8 +234,7 @@ def build_factions(factions: dict, lang: dict, fallback: dict) -> dict:
     return out
 
 
-def build_acrithis(vendors: dict, lang: dict,
-                   name_zh: dict | None = None) -> dict:
+def build_acrithis(vendors: dict, lang: dict, name_zh: dict | None = None) -> dict:
     """言录使（Acrithis）的**商品池**。
 
     ⚠️ DE **不下发**每周实际卖哪 5 件：``AcrithisVendorManifest`` 是「池子 +
@@ -255,14 +254,15 @@ def build_acrithis(vendors: dict, lang: dict,
         si = (it.get("storeItem") or "").rstrip("/")
         tail = si.rsplit("/", 1)[-1]
         low = si.lower()
-        nm = (name_zh.get(low) or name_zh.get(low.replace("/storeitems/",
-                                                        "/types/")) or tail)
-        rec = {"name": nm, "en": tail,
-               "qty": it.get("quantity", 1),
-               "pct": round(float(it.get("probability", 0)) * 100)}
+        nm = name_zh.get(low) or name_zh.get(low.replace("/storeitems/", "/types/")) or tail
+        rec = {
+            "name": nm,
+            "en": tail,
+            "qty": it.get("quantity", 1),
+            "pct": round(float(it.get("probability", 0)) * 100),
+        }
         if it.get("itemPrices"):
-            rec["price"] = "/".join(
-                f"{p.get('ItemCount')}{'' }" for p in it["itemPrices"])
+            rec["price"] = "/".join(f"{p.get('ItemCount')}{''}" for p in it["itemPrices"])
         bins.setdefault(int(it.get("bin", 0)), []).append(rec)
     prices = m.get("randomItemPricesPerBin") or []
     return {
@@ -271,8 +271,7 @@ def build_acrithis(vendors: dict, lang: dict,
         "oneBinPerCycle": m.get("isOneBinPerCycle"),
         "priceRange": {str(k): v for k, v in enumerate(prices)},
         "bins": {str(k): v for k, v in sorted(bins.items())},
-        "summary": f"{sum(len(v) for v in bins.values())} 件 / "
-                   f"{len(bins)} 个槽位",
+        "summary": f"{sum(len(v) for v in bins.values())} 件 / {len(bins)} 个槽位",
     }
 
 
@@ -291,15 +290,19 @@ def main() -> None:
         if "nodes" in wanted:
             regions = fetch(REGIONS_URL)
             nodes = build_nodes(regions, lang)
-            print(f"  节点 {len(nodes)} 条｜带任务类型 "
-                  f"{sum(1 for v in nodes.values() if v.get('type'))}")
+            print(
+                f"  节点 {len(nodes)} 条｜带任务类型 "
+                f"{sum(1 for v in nodes.values() if v.get('type'))}"
+            )
             if not check_only:
                 write_json(DATA / "nodes_zh.json", nodes)
         if "bounties" in wanted:
             bounties = fetch(BOUNTIES_URL)
             jobs = build_bounty_jobs(bounties, lang)
-            print(f"  赏金 {len(jobs)} 条｜带末阶段类型 "
-                  f"{sum(1 for v in jobs.values() if v.get('final'))}")
+            print(
+                f"  赏金 {len(jobs)} 条｜带末阶段类型 "
+                f"{sum(1 for v in jobs.values() if v.get('final'))}"
+            )
             if not check_only:
                 write_json(DATA / "bounty_jobs_zh.json", jobs)
         if "acrichis" in wanted:
@@ -336,11 +339,13 @@ def main() -> None:
         old_factions = {}
     fac = build_factions(factions, lang, old_factions)
 
-    print(f"词表 {len(lang)} 条｜节点 {len(nodes)} 条（含等级 "
-          f"{sum(1 for v in nodes.values() if v.get('level'))}）｜"
-          f"任务类型 {len(mts)} 条｜挑战 {len(chs)} 条｜"
-          f"MOD 名 {len(mods)} 条｜可制造物 {len(recipe_names)} 条｜"
-          f"派系 {len(fac)} 条")
+    print(
+        f"词表 {len(lang)} 条｜节点 {len(nodes)} 条（含等级 "
+        f"{sum(1 for v in nodes.values() if v.get('level'))}）｜"
+        f"任务类型 {len(mts)} 条｜挑战 {len(chs)} 条｜"
+        f"MOD 名 {len(mods)} 条｜可制造物 {len(recipe_names)} 条｜"
+        f"派系 {len(fac)} 条"
+    )
 
     if check_only:
         return

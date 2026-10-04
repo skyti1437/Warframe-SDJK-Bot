@@ -21,6 +21,7 @@
 
 默认输出 `dist/astrbot_plugin_warframe_sdjkbot-<版本>-market.zip`。
 """
+
 from __future__ import annotations
 
 import json
@@ -49,21 +50,60 @@ except Exception:  # noqa: BLE001
     # 2026-09-21 阶段 3：与主清单对齐 —— 移除本机宿主平台的工作区目录条目
     # （stage 内本就不存在该目录，字面量写入公开仓属私有痕迹残留），补
     # ".zcode"/".archive"（阶段 1 起主清单新增的排除项）。
-    SKIP_DIRS = {".git", "__pycache__", ".pytest_cache", "runtime",
-                 ".venv", "venv", "node_modules", ".idea", ".vscode", "dist",
-                 ".audit", "kb_src", "_cache", "docs", "outputs", "output",
-                 ".zcode", ".archive"}
+    SKIP_DIRS = {
+        ".git",
+        "__pycache__",
+        ".pytest_cache",
+        "runtime",
+        ".venv",
+        "venv",
+        "node_modules",
+        ".idea",
+        ".vscode",
+        "dist",
+        ".audit",
+        "kb_src",
+        "_cache",
+        "docs",
+        "outputs",
+        "output",
+        ".zcode",
+        ".archive",
+    }
     # 注：fonts/ 不再整体排除（2026-09-25）——随包放行子集字体
     # NotoSansCJKsc-Subset-{Regular,Bold}.otf（约 6.6MB，市场版开箱出图）；
     # 完整 ttc 由 SKIP_FILES 兜底排除。
-    SKIP_FILES = {"deploy.sh", ".DS_Store", ".gitattributes", ".gitignore",
-                  "SDJKwfbot_README.md", "wm_ranks.json", "riven_weekly.json",
-                  "wiki_disp.json", "package_reverse_searcher_sdjk.py",
-                  "NotoSansCJK-Regular.ttc", "NotoSansCJK-Bold.ttc"}
+    SKIP_FILES = {
+        "deploy.sh",
+        ".DS_Store",
+        ".gitattributes",
+        ".gitignore",
+        "SDJKwfbot_README.md",
+        "wm_ranks.json",
+        "riven_weekly.json",
+        "wiki_disp.json",
+        "package_reverse_searcher_sdjk.py",
+        "NotoSansCJK-Regular.ttc",
+        "NotoSansCJK-Bold.ttc",
+    }
     SKIP_SUFFIX = {".pyc", ".pyo"}
-    SKIP_GLOBS = ("*报告*.md", "*调研*.md", "*诊断*.md", "*对照*.md", "*核验*.md",
-                  "*体检*.md", "*复评*.md", "*选型*.md", "*实测*.md", "*结案*.md",
-                  "*澄清*.md", "*方案*.md", "*.diff", "*.patch", "*_before_*.json")
+    SKIP_GLOBS = (
+        "*报告*.md",
+        "*调研*.md",
+        "*诊断*.md",
+        "*对照*.md",
+        "*核验*.md",
+        "*体检*.md",
+        "*复评*.md",
+        "*选型*.md",
+        "*实测*.md",
+        "*结案*.md",
+        "*澄清*.md",
+        "*方案*.md",
+        "*.diff",
+        "*.patch",
+        "*_before_*.json",
+    )
     SKIP_SOURCE = "内置回退清单"
     pr = None  # 独立运行（无 dist/）时用下方镜像判据
 
@@ -77,6 +117,7 @@ except Exception:  # noqa: BLE001
 # 过期 ⇒ 拒绝打包（退出码 1）；不提供 bypass。
 def _seed_problems_fallback(now=None, rot_path=None, acr_path=None) -> list[str]:
     from datetime import datetime, timedelta, timezone
+
     now = now or datetime.now(timezone.utc)
     problems: list[str] = []
     rot_p = rot_path or (ROOT / "core" / "data" / "rotations.json")
@@ -97,8 +138,10 @@ def _seed_problems_fallback(now=None, rot_path=None, acr_path=None) -> list[str]
         except (KeyError, TypeError, ValueError):
             stale = True
         if stale:
-            problems.append(f"效价快照过期：{sec} 段 valence_snapshot="
-                            f"{data.get('valence_snapshot')!r}（应为本轮新快照）")
+            problems.append(
+                f"效价快照过期：{sec} 段 valence_snapshot="
+                f"{data.get('valence_snapshot')!r}（应为本轮新快照）"
+            )
     try:
         acr = json.loads(Path(acr_p).read_text(encoding="utf-8"))
         exp = datetime.fromisoformat(acr.get("expiry") or "")
@@ -114,6 +157,7 @@ def _seed_problems(now=None, rot_path=None, acr_path=None) -> list[str]:
         return pr.seed_freshness_problems(now, rot_path, acr_path)
     return _seed_problems_fallback(now, rot_path, acr_path)
 
+
 # ---------------------------------------------------------------------------
 # 市场件专属排除（2026-09-22 瘦身：条目 177 → 80）
 # ---------------------------------------------------------------------------
@@ -123,13 +167,15 @@ def _seed_problems(now=None, rot_path=None, acr_path=None) -> list[str]:
 # requirements.txt / README.md / CHANGELOG.md / LICENSE / kb/。
 # （.gitignore / .gitattributes 已被上方 SKIP_FILES 排除，不重复列。）
 MARKET_SKIP_DIRS = {"tests", "scripts", ".github"}
-MARKET_SKIP_FILES = {".gitleaks.toml",        # 仓库门面（防泄漏 CI 配置），非运行件
-                     # ruff 配置（2026-09-25）：开发物料，市场安装用户不需要
-                     "pyproject.toml",
-                     # 根目录的三个数据构建入口（scripts/ 里的同族已随目录整体排除）
-                     "build_damage_data.py",
-                     "build_de_data.py",
-                     "build_stances.py"}
+MARKET_SKIP_FILES = {
+    ".gitleaks.toml",  # 仓库门面（防泄漏 CI 配置），非运行件
+    # ruff 配置（2026-09-25）：开发物料，市场安装用户不需要
+    "pyproject.toml",
+    # 根目录的三个数据构建入口（scripts/ 里的同族已随目录整体排除）
+    "build_damage_data.py",
+    "build_de_data.py",
+    "build_stances.py",
+}
 # 条目基线：177（v1.0.5 前）→ 80（v1.0.5 瘦身）→ 82（v1.0.6：+core/matching.py、
 # +core/data/dispositions_rivenmirror.json，变体解析倾向数据随市场件分发）。
 # 与 package_release.EXPECTED_OSS_STAGE_FILES 同理——有意变更须同步
@@ -157,7 +203,7 @@ EXPECTED_MARKET_ENTRIES = 111
 # ★ 可复现打包（2026-09-26 用户侧建议）：统一 zip 条目时间戳 = 2026-01-01T00:00:00Z。
 #   之前取文件 mtime，导致「内容没变、重建却换 sha」（上传期两次被迫冻结重建：
 #   727ba7a7 → a5159a32 这类）。可用 SOURCE_DATE_EPOCH 覆盖。
-ZIP_EPOCH_DEFAULT = 1767225600        # 2026-01-01T00:00:00Z
+ZIP_EPOCH_DEFAULT = 1767225600  # 2026-01-01T00:00:00Z
 
 
 def _zip_datetime() -> tuple:
@@ -174,7 +220,7 @@ def _zip_datetime() -> tuple:
         epoch = int(raw) if raw.strip() else ZIP_EPOCH_DEFAULT
     except ValueError:
         epoch = ZIP_EPOCH_DEFAULT
-    t = time.gmtime(max(epoch, 315532800))          # 315532800 = 1980-01-01T00:00:00Z
+    t = time.gmtime(max(epoch, 315532800))  # 315532800 = 1980-01-01T00:00:00Z
     return (t.tm_year, t.tm_mon, t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec)
 
 
@@ -189,18 +235,23 @@ def main() -> int:
         print("✗ [种子新鲜度闸门] 拒绝打包 ——")
         for p in problems:
             print("  - " + p)
-        print("  以容器运行期为权威回写 core/data/rotations.json 与 "
-              "core/data/de/acrichis_week.json 后重跑（见 dist/package_release.py::_SEED_FIX_GUIDE）")
+        print(
+            "  以容器运行期为权威回写 core/data/rotations.json 与 "
+            "core/data/de/acrichis_week.json 后重跑（见 dist/package_release.py::_SEED_FIX_GUIDE）"
+        )
         return 1
 
     meta = (OSS_DIR / "metadata.yaml").read_text(encoding="utf-8")
     ver = re.search(r"^version:\s*v?([\d.]+)\s*$", meta, re.M)
     ver = ver.group(1) if ver else "0.0.0"
-    out = Path(sys.argv[1]) if len(sys.argv) > 1 else (
-        ROOT / "dist" / f"astrbot_plugin_warframe_sdjkbot-{ver}-market.zip")
+    out = (
+        Path(sys.argv[1])
+        if len(sys.argv) > 1
+        else (ROOT / "dist" / f"astrbot_plugin_warframe_sdjkbot-{ver}-market.zip")
+    )
 
     n = 0
-    dt = _zip_datetime()                    # ★ 固定时间戳（同内容 ⇒ 同 sha）
+    dt = _zip_datetime()  # ★ 固定时间戳（同内容 ⇒ 同 sha）
     with zipfile.ZipFile(out, "w") as z:
         for f in sorted(OSS_DIR.rglob("*")):
             if not f.is_file():
@@ -216,16 +267,18 @@ def main() -> int:
                 continue
             zi = zipfile.ZipInfo(rel.as_posix(), date_time=dt)
             zi.compress_type = zipfile.ZIP_DEFLATED
-            zi.external_attr = 0o100644 << 16     # 稳定权限位（不受 umask 影响）
-            z.writestr(zi, f.read_bytes())        # ★ 不套顶层目录
+            zi.external_attr = 0o100644 << 16  # 稳定权限位（不受 umask 影响）
+            z.writestr(zi, f.read_bytes())  # ★ 不套顶层目录
             n += 1
 
     size_mb = out.stat().st_size / 1024 / 1024
     print(f"[flat zip] {out}  ({n} 条目, {size_mb:.2f} MB)")
     print(f"  排除清单来源：{SKIP_SOURCE}")
     if n != EXPECTED_MARKET_ENTRIES:
-        print(f"✗ 条目数 {n} != 基线 {EXPECTED_MARKET_ENTRIES}"
-              "（有意变更请同步常量并在 commit 正文列文件名与理由）")
+        print(
+            f"✗ 条目数 {n} != 基线 {EXPECTED_MARKET_ENTRIES}"
+            "（有意变更请同步常量并在 commit 正文列文件名与理由）"
+        )
         return 1
     if size_mb > 16:
         print("✗ 超过市场 16MB 上限")

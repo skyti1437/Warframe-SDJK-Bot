@@ -4,6 +4,7 @@
 2026-09-14：全量抓取一轮要好几个小时且占用 WM 全局限速（拖慢用户 wm/wr），
 改成：每轮最多 limit 项、落盘 cursor 续跑、跑满一轮才刷新 ts。
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -19,8 +20,9 @@ FAILED = []
 
 
 def check(name, cond, detail=""):
-    print(f"[{'PASS' if cond else 'FAIL'}] {name}"
-          + (f" -> {detail}" if detail and not cond else ""))
+    print(
+        f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -> {detail}" if detail and not cond else "")
+    )
     if not cond:
         FAILED.append(name)
 
@@ -33,9 +35,18 @@ class FakeClient(WarframeClient):
         self.calls = 0
 
     async def wm_items(self):
-        return [{"url_name": f"item_{i}", "id": str(i), "zh": f"物品{i}",
-                 "en": f"Item {i}", "tags": ["prime"], "tradable": True,
-                 "ducats": 10} for i in range(20)]
+        return [
+            {
+                "url_name": f"item_{i}",
+                "id": str(i),
+                "zh": f"物品{i}",
+                "en": f"Item {i}",
+                "tags": ["prime"],
+                "tradable": True,
+                "ducats": 10,
+            }
+            for i in range(20)
+        ]
 
     async def wm_statistics(self, slug, platform="pc"):
         self.calls += 1
@@ -69,10 +80,9 @@ async def main():
     check("rows 数 = 6", len(store.get("rows") or {}) == 6, str(len(store)))
     check("未跑满不刷新 ts", not store.get("ts"), str(store.get("ts")))
 
-    c2 = FakeClient(store)      # 同一份存档 -> 续跑
+    c2 = FakeClient(store)  # 同一份存档 -> 续跑
     await c2.crawl_wm_ranks(limit=6)
-    check("第二轮从第 7 项继续（累计 12）", store.get("cursor") == 12,
-          str(store.get("cursor")))
+    check("第二轮从第 7 项继续（累计 12）", store.get("cursor") == 12, str(store.get("cursor")))
     check("rows 累计 12", len(store.get("rows") or {}) == 12)
 
     c3 = FakeClient(store)
@@ -81,15 +91,15 @@ async def main():
     check("跑满一轮后 rows=20", len(store.get("rows") or {}) == 20)
     check("跑满一轮后刷新 ts", bool(store.get("ts")), str(store.get("ts")))
 
-    c4 = FakeClient(store)      # 新一轮从头开始
+    c4 = FakeClient(store)  # 新一轮从头开始
     await c4.crawl_wm_ranks(limit=3)
-    check("新一轮从头抓（cursor=3）", store.get("cursor") == 3,
-          str(store.get("cursor")))
+    check("新一轮从头抓（cursor=3）", store.get("cursor") == 3, str(store.get("cursor")))
 
     c5 = FakeClient(store)
-    await c5.crawl_wm_ranks()   # 不限量 -> 一次跑满
-    check("不限量一次跑满：cursor 归零且 ts 存在",
-          store.get("cursor") == 0 and bool(store.get("ts")))
+    await c5.crawl_wm_ranks()  # 不限量 -> 一次跑满
+    check(
+        "不限量一次跑满：cursor 归零且 ts 存在", store.get("cursor") == 0 and bool(store.get("ts"))
+    )
     check("总项数记录正确", store.get("total") == 20, str(store.get("total")))
 
 
@@ -109,19 +119,27 @@ class ZombieClient(WarframeClient):
         self.store = store
 
     async def wm_items(self):
-        return [{"url_name": f"z_{i}", "id": str(i), "zh": f"僵尸{i}",
-                 "en": f"Zombie {i}", "tags": ["mod"], "tradable": True}
-                for i in range(3)]
+        return [
+            {
+                "url_name": f"z_{i}",
+                "id": str(i),
+                "zh": f"僵尸{i}",
+                "en": f"Zombie {i}",
+                "tags": ["mod"],
+                "tradable": True,
+            }
+            for i in range(3)
+        ]
 
     async def wm_statistics(self, slug, platform="pc"):
         if slug == "z_2":
             raise RuntimeError("net down")
-        if slug == "z_1":      # h48 里 median 全为 0 ⇒ _rank_record 返回 None
-            return {"h48": [{"median": 0, "min": 0, "max": 0, "volume": 0}],
-                    "d90": []}
-        return {"h48": [{"median": 12.5, "min": 10, "max": 15, "volume": 3}],
-                "d90": [{"median": 9.0, "volume": 1},
-                        {"median": 9.5, "volume": 2}]}
+        if slug == "z_1":  # h48 里 median 全为 0 ⇒ _rank_record 返回 None
+            return {"h48": [{"median": 0, "min": 0, "max": 0, "volume": 0}], "d90": []}
+        return {
+            "h48": [{"median": 12.5, "min": 10, "max": 15, "volume": 3}],
+            "d90": [{"median": 9.0, "volume": 1}, {"median": 9.5, "volume": 2}],
+        }
 
     def _load_json_file(self, path):
         return self.store
@@ -132,22 +150,36 @@ class ZombieClient(WarframeClient):
 
 
 async def main2():
-    WarframeClient._rank_record = _REAL_RANK_RECORD      # 还原真实现
-    store = {"ts": "", "cursor": 0, "total": 3,
-             "rows": {"z_0": {"zh": "旧0", "median48": 1.0},
-                      "z_1": {"zh": "旧1", "median48": 2.0},
-                      "z_2": {"zh": "旧2", "median48": 3.0}}}
+    WarframeClient._rank_record = _REAL_RANK_RECORD  # 还原真实现
+    store = {
+        "ts": "",
+        "cursor": 0,
+        "total": 3,
+        "rows": {
+            "z_0": {"zh": "旧0", "median48": 1.0},
+            "z_1": {"zh": "旧1", "median48": 2.0},
+            "z_2": {"zh": "旧2", "median48": 3.0},
+        },
+    }
     c = ZombieClient(store)
     await c.crawl_wm_ranks()
     rows = store.get("rows") or {}
-    check("★ 僵尸行：本轮无 48h 成交（z_1）⇒ 旧行被 pop 出榜",
-          "z_1" not in rows, str(sorted(rows)))
-    check("★ 请求异常（z_2）⇒ 旧行保留（不得把网络抖动当「无成交」误删）",
-          rows.get("z_2", {}).get("median48") == 3.0, str(rows.get("z_2")))
-    check("有 48h 成交（z_0）⇒ 旧行被新值覆盖（median48=12.5）",
-          rows.get("z_0", {}).get("median48") == 12.5, str(rows.get("z_0")))
-    check("跑满一轮：cursor 归零 + ts 已刷新",
-          store.get("cursor") == 0 and bool(store.get("ts")), str(store.get("ts")))
+    check("★ 僵尸行：本轮无 48h 成交（z_1）⇒ 旧行被 pop 出榜", "z_1" not in rows, str(sorted(rows)))
+    check(
+        "★ 请求异常（z_2）⇒ 旧行保留（不得把网络抖动当「无成交」误删）",
+        rows.get("z_2", {}).get("median48") == 3.0,
+        str(rows.get("z_2")),
+    )
+    check(
+        "有 48h 成交（z_0）⇒ 旧行被新值覆盖（median48=12.5）",
+        rows.get("z_0", {}).get("median48") == 12.5,
+        str(rows.get("z_0")),
+    )
+    check(
+        "跑满一轮：cursor 归零 + ts 已刷新",
+        store.get("cursor") == 0 and bool(store.get("ts")),
+        str(store.get("ts")),
+    )
 
 
 asyncio.run(main2())

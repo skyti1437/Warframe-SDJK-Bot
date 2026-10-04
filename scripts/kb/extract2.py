@@ -4,18 +4,19 @@
 目录由环境变量指定（见 kb_lib.py 头部注释）：WF_KB_DATA=解包数据目录，
 WF_KB_SRC=数据包 zip 所在目录；两者缺一即报错退出。
 """
+
 import zipfile
 import os
 from kb_lib import kb_data_dir, find_zip, zip_root
 
 BASE = kb_data_dir()
-ZI = find_zip('warframe-items')
+ZI = find_zip("warframe-items")
 zi = zipfile.ZipFile(ZI)
 R = zip_root(ZI)
-os.makedirs(os.path.join(BASE, 'cfg'), exist_ok=True)
+os.makedirs(os.path.join(BASE, "cfg"), exist_ok=True)
 for n in zi.namelist():
-    if n.startswith(R + 'config/') and n.endswith('.json'):
-        out = os.path.join(BASE, 'cfg', os.path.basename(n))
-        with zi.open(n) as s, open(out, 'wb') as d:
+    if n.startswith(R + "config/") and n.endswith(".json"):
+        out = os.path.join(BASE, "cfg", os.path.basename(n))
+        with zi.open(n) as s, open(out, "wb") as d:
             d.write(s.read())
-print('cfg:', os.listdir(os.path.join(BASE, 'cfg')))
+print("cfg:", os.listdir(os.path.join(BASE, "cfg")))

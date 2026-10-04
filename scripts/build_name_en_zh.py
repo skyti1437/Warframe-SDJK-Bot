@@ -20,6 +20,7 @@ DE 物品表 / 掉落表 / 玄骸武器），并只收「已翻译」条目（zh
     python3 scripts/build_name_en_zh.py            # 联网重建（词表缓存到 core/data/_cache/）
     python3 scripts/build_name_en_zh.py --offline  # 只用本地缓存
 """
+
 from __future__ import annotations
 
 import json
@@ -54,13 +55,13 @@ def http_json(url: str, tries: int = 4):
                 time.sleep(3 * (a + 1))
                 continue
             raise
-        except Exception as e:              # noqa: BLE001
+        except Exception as e:  # noqa: BLE001
             last = e
             if a < tries - 1:
                 time.sleep(3)
                 continue
             raise
-    raise last                                   # pragma: no cover
+    raise last  # pragma: no cover
 
 
 def load_dict(name: str, url: str, offline: bool) -> dict:
@@ -70,7 +71,7 @@ def load_dict(name: str, url: str, offline: bool) -> dict:
     if local.exists() and (offline or local.stat().st_size > 100_000):
         try:
             return json.loads(local.read_text(encoding="utf-8"))
-        except Exception:                        # noqa: BLE001
+        except Exception:  # noqa: BLE001
             pass
     if offline:
         raise SystemExit(f"离线模式但缺少缓存 {local}")
@@ -108,7 +109,7 @@ def name_space() -> set[str]:
                 continue
             s = str(slug).replace("_", " ")
             add(s)
-            add(s.replace(" set", ""))          # banshee prime set → banshee prime
+            add(s.replace(" set", ""))  # banshee prime set → banshee prime
             add(s.replace(" blueprint", ""))
     for v in _jload(DATA / "weapons_stats.json").values():
         if isinstance(v, dict):
@@ -117,7 +118,7 @@ def name_space() -> set[str]:
     #   而可上紫卡武器有 819 件，差的 237 件（新 Prime / Zaw 部件 / 玄骸新武器）
     #   本就在 dict.en×dict.zh 的 pair 里有中文，却因不在 name_space 而被裁掉，
     #   导致「紫卡家族变体」显示名只能退回英文（玩家报障的那 34 件）。
-    for en in (_jload(DE / "riven_families.json").get("by_name") or {}):
+    for en in _jload(DE / "riven_families.json").get("by_name") or {}:
         add(en)
     ms = _jload(DATA / "mods_stats.json")
     for sec in ("mods", "names"):
@@ -127,10 +128,10 @@ def name_space() -> set[str]:
     for v in (_jload(DATA / "arcanes_stats.json").get("arcanes") or {}).values():
         if isinstance(v, dict):
             add(v.get("name") or "")
-    for it in (_jload(DE / "de_items_zh.json").get("items") or []):
+    for it in _jload(DE / "de_items_zh.json").get("items") or []:
         if isinstance(it, dict):
             add(it.get("en") or "")
-    for k in (_jload(DATA / "drops.json").get("items") or {}):
+    for k in _jload(DATA / "drops.json").get("items") or {}:
         add(k)
     for v in (_jload(DATA / "lich_weapons.json") or {}).values():
         if isinstance(v, dict):
@@ -144,7 +145,7 @@ def main() -> int:
     try:
         d_en = load_dict("dict.en", DICT_EN, offline)
         d_zh = load_dict("dict.zh", DICT_ZH, offline)
-    except Exception as e:                       # noqa: BLE001
+    except Exception as e:  # noqa: BLE001
         print(f"  取词表失败（{type(e).__name__}: {e}）—— 保留现有 {OUT.name} 不动")
         return 1
     print(f"  en {len(d_en)} 条 / zh {len(d_zh)} 条 / 同键 {len(set(d_en) & set(d_zh))} 条")
@@ -162,25 +163,42 @@ def main() -> int:
     names = {k: v for k, v in pair.items() if k in space and norm(v) != k}
     names = dict(sorted(names.items()))
 
-    OUT.write_text(json.dumps({
-        "_meta": {
-            "source": "browse.wf/warframe-public-export-plus dict.en.json + "
-                      "dict.zh.json（同键交集，官方简中）",
-            "note": "归一化英文显示名 → 官方简中名；只收已翻译条目（zh != en）——"
+    OUT.write_text(
+        json.dumps(
+            {
+                "_meta": {
+                    "source": "browse.wf/warframe-public-export-plus dict.en.json + "
+                    "dict.zh.json（同键交集，官方简中）",
+                    "note": "归一化英文显示名 → 官方简中名；只收已翻译条目（zh != en）——"
                     "未翻译内容（如战甲名 Nekros）国际服直接用英文，运行时回落英文原名。"
                     "名空间 = 本地检索索引可达的名字（别名 slug / 武器 / MOD / 赋能 / "
                     "DE 物品 / 掉落 / 玄骸武器）。",
-            "generated": time.strftime("%Y-%m-%d"),
-            "count": len(names),
-        },
-        "names": names,
-    }, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+                    "generated": time.strftime("%Y-%m-%d"),
+                    "count": len(names),
+                },
+                "names": names,
+            },
+            ensure_ascii=False,
+            indent=1,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
 
-    print(f"\n写入 {OUT.relative_to(ROOT)}：{len(names)} 条"
-          f"（名空间内已翻译 {len([k for k in pair if k in space])} 条，"
-          f"去掉 zh==en 后剩 {len(names)}）")
-    for probe in ("nekros prime", "banshee prime", "torid", "fleeting expertise",
-                  "primed continuity", "hunter munitions", "vacuum"):
+    print(
+        f"\n写入 {OUT.relative_to(ROOT)}：{len(names)} 条"
+        f"（名空间内已翻译 {len([k for k in pair if k in space])} 条，"
+        f"去掉 zh==en 后剩 {len(names)}）"
+    )
+    for probe in (
+        "nekros prime",
+        "banshee prime",
+        "torid",
+        "fleeting expertise",
+        "primed continuity",
+        "hunter munitions",
+        "vacuum",
+    ):
         mark = "✓" if probe in names else ("· 未翻译/未收录（回落英文名）")
         print(f"   {probe:22s} -> {names.get(probe, mark)}")
     return 0

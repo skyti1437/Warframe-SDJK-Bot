@@ -8,6 +8,7 @@
 输出每个装备区行的「每列亮豆数」（= 该卡等级，0 = 0 级）；
 仓库区会被标出并建议忽略。
 """
+
 import sys
 from pathlib import Path
 

@@ -15,6 +15,7 @@ incarnon_forms 对齐）。只收有额外段或蓄力的武器。
 
 许可：只取事实数值（伤害向量/暴击/触发/半径），按我们自己的 schema 重录。
 """
+
 import json
 import sys
 from pathlib import Path
@@ -22,15 +23,29 @@ from pathlib import Path
 try:
     import yaml
 except ImportError:  # noqa: BLE001 —— 插件运行本身不需要 yaml，只有这几个
-    raise SystemExit(   # 数据构建脚本要；给可操作的提示而不是裸 ImportError
-        "本脚本需要 PyYAML：pip install pyyaml"
-        "（插件运行时并不依赖它，仅构建数据用）")
+    raise SystemExit(  # 数据构建脚本要；给可操作的提示而不是裸 ImportError
+        "本脚本需要 PyYAML：pip install pyyaml（插件运行时并不依赖它，仅构建数据用）"
+    )
 
-WFSIM = (Path.home() / "tmp" / "wfsim" / "data")
+WFSIM = Path.home() / "tmp" / "wfsim" / "data"
 OUT = Path(__file__).resolve().parent.parent / "core" / "data" / "weapon_attacks.json"
-DAMAGE_KEYS = ("impact", "puncture", "slash", "heat", "cold", "electricity",
-               "toxin", "blast", "radiation", "gas", "magnetic", "viral",
-               "corrosive", "void", "true")
+DAMAGE_KEYS = (
+    "impact",
+    "puncture",
+    "slash",
+    "heat",
+    "cold",
+    "electricity",
+    "toxin",
+    "blast",
+    "radiation",
+    "gas",
+    "magnetic",
+    "viral",
+    "corrosive",
+    "void",
+    "true",
+)
 
 
 def clean_damage(d) -> dict:
@@ -49,9 +64,11 @@ def seg_of(rad: dict, sid: str, name: str) -> dict:
         "criticalMultiplier": float(rad.get("crit_multiplier") or 1.0),
         "procChance": float(rad.get("status_chance") or 0.0),
     }
-    for k, dst in (("radius_m", "radius_m"),
-                   ("falloff_start_m", "falloff_start_m"),
-                   ("falloff_reduction", "falloff_reduction")):
+    for k, dst in (
+        ("radius_m", "radius_m"),
+        ("falloff_start_m", "falloff_start_m"),
+        ("falloff_reduction", "falloff_reduction"),
+    ):
         if rad.get(k) is not None:
             seg[dst] = float(rad[k])
     for k in ("takes_multishot", "takes_blast_radius_mods"):
@@ -61,16 +78,17 @@ def seg_of(rad: dict, sid: str, name: str) -> dict:
 
 
 def main() -> None:
-    out: dict = {"_meta": {
-        "source": "github.com/magenie33/wfsim data/weapons/*（attack 块），"
-                  "其数值按 wiki/实测整理",
-        "updated": "2026-09-17",
-        "note": "只收有额外段（范围/集束）或蓄力的武器；主段仍用 weapons_stats/"
-                "incarnon_forms 的面板。段是独立命中实例，各吃同样的 MOD 乘区",
-    }}
+    out: dict = {
+        "_meta": {
+            "source": "github.com/magenie33/wfsim data/weapons/*（attack 块），"
+            "其数值按 wiki/实测整理",
+            "updated": "2026-09-17",
+            "note": "只收有额外段（范围/集束）或蓄力的武器；主段仍用 weapons_stats/"
+            "incarnon_forms 的面板。段是独立命中实例，各吃同样的 MOD 乘区",
+        }
+    }
     n = 0
-    for cat in ("primary", "secondary", "melee", "sentinel", "archgun",
-                "archmelee", "kitgun"):
+    for cat in ("primary", "secondary", "melee", "sentinel", "archgun", "archmelee", "kitgun"):
         base = WFSIM / "weapons" / cat
         if not base.exists():
             continue
@@ -102,18 +120,21 @@ def main() -> None:
             rec["name"] = y.get("name")
             out[key] = rec
             n += 1
-    OUT.write_text(json.dumps(out, ensure_ascii=False, indent=1),
-                   encoding="utf-8")
-    n_seg = sum(len(v.get("segments") or []) for k, v in out.items()
-                if k != "_meta")
+    OUT.write_text(json.dumps(out, ensure_ascii=False, indent=1), encoding="utf-8")
+    n_seg = sum(len(v.get("segments") or []) for k, v in out.items() if k != "_meta")
     print(f"✓ {OUT.name}: {n} 把武器 / {n_seg} 个额外段")
-    for k in ("/lotus/weapons/grineer/longguns/kuvagrenadelauncherrocket",
-              "/lotus/weapons/grineer/longguns/kuvabow"):
+    for k in (
+        "/lotus/weapons/grineer/longguns/kuvagrenadelauncherrocket",
+        "/lotus/weapons/grineer/longguns/kuvabow",
+    ):
         if k in out:
             e = out[k]
-            print("  抽查", e["name"], "→", json.dumps(
-                (e.get("segments") or [{}])[0].get("damage"),
-                ensure_ascii=False))
+            print(
+                "  抽查",
+                e["name"],
+                "→",
+                json.dumps((e.get("segments") or [{}])[0].get("damage"), ensure_ascii=False),
+            )
 
 
 if __name__ == "__main__":

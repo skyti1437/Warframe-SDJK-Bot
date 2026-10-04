@@ -6,6 +6,7 @@ steelpath / descendia / incursions；另迁 _valence_note（效价快照说明�
 消费者 _rotation_lines 仍留 main.py，经 self 跨 Mixin 调用）。
 子包纪律：不 import astrbot（事件对象鸭子类型）。
 """
+
 from __future__ import annotations
 
 from .. import formatters as fmt
@@ -21,13 +22,13 @@ class ProgressCommands:
         return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
 
     async def _h_deep(self, parsed, event, platform) -> Reply:
-        title, lines = fmt.fmt_archimedea(
-            await self.client.deep_archimedea(platform), "深层科研")
+        title, lines = fmt.fmt_archimedea(await self.client.deep_archimedea(platform), "深层科研")
         return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
 
     async def _h_temporal(self, parsed, event, platform) -> Reply:
         title, lines = fmt.fmt_archimedea(
-            await self.client.temporal_archimedea(platform), "时光科研")
+            await self.client.temporal_archimedea(platform), "时光科研"
+        )
         return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
 
     async def _h_steelpath(self, parsed, event, platform) -> Reply:
@@ -55,6 +56,7 @@ class ProgressCommands:
     def _valence_note(data: dict, window_start) -> str:
         """元素加成快照的说明行（快照落在上一轮时明确标「可能已变」）。"""
         from datetime import datetime, timezone
+
         raw = data.get("valence_snapshot") or ""
         if not raw:
             return ""
@@ -67,8 +69,11 @@ class ProgressCommands:
         stale = snap < window_start
         when = snap.astimezone(timezone.utc).strftime("%m-%d %H:%M")
         flag = "（上一轮快照，数值可能已变）" if stale else "（本轮快照）"
-        return (f"※ 元素与加成为 {when} UTC 快照{flag}：wiki「Reset」页玩家上报值"
-                f"（无官方 API，换轮后需人工刷新），以游戏内商店为准")
+        return (
+            f"※ 元素与加成为 {when} UTC 快照{flag}：wiki「Reset」页玩家上报值"
+            f"（无官方 API，换轮后需人工刷新），以游戏内商店为准"
+        )
+
     async def _h_descendia(self, parsed, event, platform) -> Reply:
         data = await self.client.descendia(platform)
         title, lines = fmt.fmt_descendia(data)

@@ -14,6 +14,7 @@
 本测试用替身 HTTP 客户端逐条钉住：重建动作序列、120s maxTimeout、错误归因、
 回收会话接口。
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -47,8 +48,7 @@ class FakeResponse:
 
     def raise_for_status(self):
         if self.status_code >= 400:
-            raise httpx.HTTPStatusError(
-                f"{self.status_code}", request=None, response=None)
+            raise httpx.HTTPStatusError(f"{self.status_code}", request=None, response=None)
 
     def json(self):
         if self._bad_json:
@@ -101,13 +101,18 @@ def make_client(flare, urls=("http://fs.test/v1",)) -> WarframeClient:
     return c
 
 
-TAB_CRASHED = {"status": "error",
-               "message": "Error solving the challenge. Message: tab crashed\n"
-                          "  (Session info: chrome=152.0.7977.82)\n"}
+TAB_CRASHED = {
+    "status": "error",
+    "message": "Error solving the challenge. Message: tab crashed\n"
+    "  (Session info: chrome=152.0.7977.82)\n",
+}
 CREATE_OK = {"status": "ok", "message": "Session created"}
 DESTROY_OK = {"status": "ok", "message": "The session has been removed."}
-PAGE_OK = {"status": "ok", "message": "",
-           "solution": {"status": 200, "response": "<html>wiki</html>"}}
+PAGE_OK = {
+    "status": "ok",
+    "message": "",
+    "solution": {"status": 200, "response": "<html>wiki</html>"},
+}
 
 
 # ---------------------------------------------------------------- 1. tab crashed → destroy→create
@@ -117,13 +122,21 @@ async def t_tab_crashed_rebuilds():
     html = await c.fetch_via_flaresolver("https://wiki.test/x")
     cmds = [x["cmd"] for x in f.calls]
     check("tab crashed 后成功取到页面", html == "<html>wiki</html>", html)
-    check("重建动作是 destroy→create（不是裸 create）",
-          cmds == ["request.get", "sessions.destroy", "sessions.create", "request.get"],
-          str(cmds))
-    check("重建后重试仍用同一会话名 sdjk",
-          all(x.get("session") == "sdjk" for x in f.calls), str(f.calls))
-    check("maxTimeout 已抬到 120000（CF 解页实测 ~61s）",
-          f.calls[0].get("maxTimeout") == 120000, str(f.calls[0]))
+    check(
+        "重建动作是 destroy→create（不是裸 create）",
+        cmds == ["request.get", "sessions.destroy", "sessions.create", "request.get"],
+        str(cmds),
+    )
+    check(
+        "重建后重试仍用同一会话名 sdjk",
+        all(x.get("session") == "sdjk" for x in f.calls),
+        str(f.calls),
+    )
+    check(
+        "maxTimeout 已抬到 120000（CF 解页实测 ~61s）",
+        f.calls[0].get("maxTimeout") == 120000,
+        str(f.calls[0]),
+    )
     await c.close()
 
 
@@ -135,15 +148,17 @@ async def t_connection_error_rebuilds():
     html = await c.fetch_via_flaresolver("https://wiki.test/y")
     cmds = [x["cmd"] for x in f.calls]
     check("连接级失败后重建并成功", html == "<html>wiki</html>", html)
-    check("连接级失败的调用序列", cmds == ["request.get", "sessions.destroy",
-                                          "sessions.create", "request.get"], str(cmds))
+    check(
+        "连接级失败的调用序列",
+        cmds == ["request.get", "sessions.destroy", "sessions.create", "request.get"],
+        str(cmds),
+    )
     await c.close()
 
 
 # ---------------------------------------------------------------- 3. 非 JSON 响应也触发重建
 async def t_bad_json_rebuilds():
-    f = ScriptedFlare([httpx.ConnectError("Expecting value"),
-                       DESTROY_OK, CREATE_OK, PAGE_OK])
+    f = ScriptedFlare([httpx.ConnectError("Expecting value"), DESTROY_OK, CREATE_OK, PAGE_OK])
     c = make_client(f)
     html = await c.fetch_via_flaresolver("https://wiki.test/z")
     check("非 JSON 响应路径重建后成功", html == "<html>wiki</html>", html)
@@ -177,8 +192,7 @@ async def t_recycle_session():
     await c.close()
 
     c2 = WarframeClient(flare_enabled=False)
-    check("未启用 FlareSolverr 时回收返回 False（不抛）",
-          await c2.recycle_flare_session() is False)
+    check("未启用 FlareSolverr 时回收返回 False（不抛）", await c2.recycle_flare_session() is False)
     await c2.close()
 
 

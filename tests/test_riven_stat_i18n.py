@@ -19,6 +19,7 @@ slug 命名），所以永远走不到中文那一跳。
 ``ComboInitialBonusModDesc`` = 「|val| 初始连击」），其次 WM v2 的 ``zh-hans``；
 卡面用社区习惯的短名（滑暴 / 初始连击 / 重击效率 / 额外连击 / 连击获取）。
 """
+
 from __future__ import annotations
 
 import sys
@@ -78,10 +79,15 @@ WM_RIVEN_SLUGS = [
 
 # slug != 插件标准名的特例（必须显式挂 RIVEN_URL_COMPAT，否则回落英文）
 _SLUG_DIFFERS_FROM_ID = {
-    "ammo_maximum", "base_damage_/_melee_damage", "critical_chance",
-    "critical_damage", "fire_rate_/_attack_speed",
-    "chance_to_gain_combo_count", "chance_to_gain_extra_combo_count",
-    "channeling_damage", "channeling_efficiency",
+    "ammo_maximum",
+    "base_damage_/_melee_damage",
+    "critical_chance",
+    "critical_damage",
+    "fire_rate_/_attack_speed",
+    "chance_to_gain_combo_count",
+    "chance_to_gain_extra_combo_count",
+    "channeling_damage",
+    "channeling_efficiency",
     "critical_chance_on_slide_attack",
 }
 
@@ -89,8 +95,7 @@ from core import formatters as F  # noqa: E402
 from core import parser as P  # noqa: E402
 from core import riven_analysis as RA  # noqa: E402
 
-check("冻结的 slug 数量为 32", len(WM_RIVEN_SLUGS) == 32,
-      str(len(WM_RIVEN_SLUGS)))
+check("冻结的 slug 数量为 32", len(WM_RIVEN_SLUGS) == 32, str(len(WM_RIVEN_SLUGS)))
 check("slug 无重复", len(set(WM_RIVEN_SLUGS)) == len(WM_RIVEN_SLUGS))
 
 # ------------------------------------------------- ① 每个 slug 都能译成中文
@@ -123,49 +128,67 @@ for slug, want in [
     check(f"报障词条译名：{slug} -> {want}", got == want, got)
 
 # ------------------------- ⑤ 搜索参数合法性：发给 WM 的 slug 必须真实存在
-for sid in ("slide_crit", "initial_combo", "heavy_attack_efficiency",
-            "extra_combo_count", "combo_gain_chance"):
+for sid in (
+    "slide_crit",
+    "initial_combo",
+    "heavy_attack_efficiency",
+    "extra_combo_count",
+    "combo_gain_chance",
+):
     mapped = P.RIVEN_URL_COMPAT.get(sid)
     check(f"紫卡搜索 slug 合法：{sid}", mapped in WM_RIVEN_SLUGS, str(mapped))
 
 # ------------------------- ⑥ 展示名唯一（main.py 用 {展示名: id} 反查解析输入）
 _vals = list(P.RIVEN_STAT_ZH.values())
-check("RIVEN_STAT_ZH 展示名无重复", len(set(_vals)) == len(_vals),
-      str([v for v in set(_vals) if _vals.count(v) > 1]))
+check(
+    "RIVEN_STAT_ZH 展示名无重复",
+    len(set(_vals)) == len(_vals),
+    str([v for v in set(_vals) if _vals.count(v) > 1]),
+)
 
 # ------------------------- ⑦ 单位：无基值表的连击词条仍要按百分比显示
-check("额外连击按百分比显示",
-      RA.fmt_value("extra_combo_count", 19.7) == "19.7%",
-      RA.fmt_value("extra_combo_count", 19.7))
-check("连击获取按百分比显示",
-      RA.fmt_value("combo_gain_chance", 42.9) == "42.9%",
-      RA.fmt_value("combo_gain_chance", 42.9))
+check(
+    "额外连击按百分比显示",
+    RA.fmt_value("extra_combo_count", 19.7) == "19.7%",
+    RA.fmt_value("extra_combo_count", 19.7),
+)
+check(
+    "连击获取按百分比显示",
+    RA.fmt_value("combo_gain_chance", 42.9) == "42.9%",
+    RA.fmt_value("combo_gain_chance", 42.9),
+)
 
 # ------------------------------------------------- ⑧ 端到端：拍卖卡不再漏英文
 # 复刻用户截图里那三条（第 1/3 条滑砍暴击、第 8 条两条 channeling）
-_auc = [{
-    "buyout_price": 40,
-    "owner": {"status": "ingame", "ingame_name": "audgbfwo", "reputation": 4},
-    "item": {"re_rolls": 0, "mod_rank": 0, "attributes": [
-        {"url_name": "critical_chance_on_slide_attack",
-         "value": 9.2, "positive": True},
-        {"url_name": "channeling_damage", "value": 19.7, "positive": True},
-        {"url_name": "channeling_efficiency", "value": 42.9, "positive": False},
-    ]},
-}]
+_auc = [
+    {
+        "buyout_price": 40,
+        "owner": {"status": "ingame", "ingame_name": "audgbfwo", "reputation": 4},
+        "item": {
+            "re_rolls": 0,
+            "mod_rank": 0,
+            "attributes": [
+                {"url_name": "critical_chance_on_slide_attack", "value": 9.2, "positive": True},
+                {"url_name": "channeling_damage", "value": 19.7, "positive": True},
+                {"url_name": "channeling_efficiency", "value": 42.9, "positive": False},
+            ],
+        },
+    }
+]
 _title, _lines, _best = F.fmt_wr_auctions("天薙刀", _auc)
 _body = "\n".join(_lines)
 check("拍卖卡标题正常", _title.startswith("天薙刀 紫卡拍卖"), _title)
-check("拍卖卡不含英文词条",
-      "critical chance" not in _body and "channeling" not in _body, _body)
+check("拍卖卡不含英文词条", "critical chance" not in _body and "channeling" not in _body, _body)
 check("拍卖卡显示中文滑暴", "▲滑暴9.2" in _body, _body)
 check("拍卖卡显示中文初始连击", "▲初始连击19.7" in _body, _body)
 check("拍卖卡显示中文重击效率（负向）", "▼重击效率42.9" in _body, _body)
 
 # ⑨ 反向守卫：确认「回落」这条路径确实存在（否则上面 ① 是假阳性）
-check("未收录 slug 仍走英文回落（兜底路径在位）",
-      F._riven_stat_cn("some_future_new_stat") == "some future new stat",
-      F._riven_stat_cn("some_future_new_stat"))
+check(
+    "未收录 slug 仍走英文回落（兜底路径在位）",
+    F._riven_stat_cn("some_future_new_stat") == "some future new stat",
+    F._riven_stat_cn("some_future_new_stat"),
+)
 
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")

@@ -4,6 +4,7 @@
 自 main.py 迁出（结构优化 D1，2026-09-28）；main.py 顶部 re-export，
 既有 ``plugin.Reply`` 等用法不变。子包纪律：不 import astrbot。
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -27,11 +28,12 @@ class Reply:
     lines: list[str] = field(default_factory=list)
     footer: str = ""
     whisper: list[str] = field(default_factory=list)  # -r 生成的密语文本
-    raw_text: Optional[str] = None                    # 直接输出纯文本（wiki/管理类）
-    text_only: bool = False                           # 强制不适配图片
-    extra_text: str = ""                              # 卡片之外的补充文本（如 wiki 链接）
-    pages: list[tuple[str, list[str]]] = field(       # 多页卡片：[(标题, 行), …]
-        default_factory=list)                         # 优先于 title/lines；渲染层自动加页码
+    raw_text: Optional[str] = None  # 直接输出纯文本（wiki/管理类）
+    text_only: bool = False  # 强制不适配图片
+    extra_text: str = ""  # 卡片之外的补充文本（如 wiki 链接）
+    pages: list[tuple[str, list[str]]] = field(  # 多页卡片：[(标题, 行), …]
+        default_factory=list
+    )  # 优先于 title/lines；渲染层自动加页码
 
 
 def _num(cfg: dict, key: str, default: float, cast=float) -> float:
@@ -48,6 +50,5 @@ def _num(cfg: dict, key: str, default: float, cast=float) -> float:
     try:
         return cast(raw)
     except (TypeError, ValueError):
-        logger.warning("[sdjk] 配置项 %s=%r 非法，回退默认值 %s",
-                       key, raw, default)
+        logger.warning("[sdjk] 配置项 %s=%r 非法，回退默认值 %s", key, raw, default)
         return default

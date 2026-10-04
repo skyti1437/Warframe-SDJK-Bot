@@ -15,6 +15,7 @@
 
 用法：python tests/test_external_only_hints.py   （非 0 退出即失败）
 """
+
 from __future__ import annotations
 
 import re
@@ -23,15 +24,16 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core import parser as P                      # noqa: E402
-from core.api_client import _EXTERNAL_ONLY        # noqa: E402
+from core import parser as P  # noqa: E402
+from core.api_client import _EXTERNAL_ONLY  # noqa: E402
 
 FAILED: list[str] = []
 
 
 def check(name: str, cond: bool, detail: str = ""):
-    print(f"[{'PASS' if cond else 'FAIL'}] {name}"
-          + (f"  -> {detail}" if detail and not cond else ""))
+    print(
+        f"[{'PASS' if cond else 'FAIL'}] {name}" + (f"  -> {detail}" if detail and not cond else "")
+    )
     if not cond:
         FAILED.append(name)
 
@@ -43,8 +45,21 @@ for _cmd, _aliases in P.COMMAND_ALIASES.items():
 VALID |= set(P.COMMAND_ALIASES)
 # 参数/筛选词（不是指令，但会出现在提示里，属正常）
 PARAM_WORDS = {
-    "钢铁", "电60", "火58", "生存", "防御", "拦截", "挖掘", "今天",
-    "满镀层", "镀层", "爆头", "病毒10", "剥甲", "灵化", "基础形态",
+    "钢铁",
+    "电60",
+    "火58",
+    "生存",
+    "防御",
+    "拦截",
+    "挖掘",
+    "今天",
+    "满镀层",
+    "镀层",
+    "爆头",
+    "病毒10",
+    "剥甲",
+    "灵化",
+    "基础形态",
 }
 
 # 「xxx」形式的引用：中文书名号内 1~12 字，且不含空白/逗号
@@ -63,13 +78,15 @@ print("① 降级提示里的指令名必须真实存在")
 print("=" * 62)
 for key, text in _EXTERNAL_ONLY.items():
     refs = {command_of(q) for q in QUOTED.findall(text)}
-    bad = {r for r in refs
-           if r not in VALID and r not in PARAM_WORDS
-           # 形如「仲裁表」的拼接指令，拆开也要能对上
-           and r not in ("Steel Path",)}
-    check(f"{key}: 引用指令均存在",
-          not bad,
-          f"不存在的指令 {sorted(bad)}（文案：{text[:40]}…）")
+    bad = {
+        r
+        for r in refs
+        if r not in VALID
+        and r not in PARAM_WORDS
+        # 形如「仲裁表」的拼接指令，拆开也要能对上
+        and r not in ("Steel Path",)
+    }
+    check(f"{key}: 引用指令均存在", not bad, f"不存在的指令 {sorted(bad)}（文案：{text[:40]}…）")
 
 
 print()
@@ -82,11 +99,10 @@ for key in KNOWN_DEAD:
     check(f"{key}: 有降级文案", bool(text))
     refs = [command_of(q) for q in QUOTED.findall(text)]
     usable = [r for r in refs if r in VALID or r in PARAM_WORDS]
-    check(f"{key}: 至少给出 2 个可用替代（实得 {len(usable)}）", len(usable) >= 2,
-          f"仅 {usable}")
-    check(f"{key}: 不是只写「不可用」（含替代引导）",
-          ("替代" in text) or ("可用" in text),
-          text[:60])
+    check(f"{key}: 至少给出 2 个可用替代（实得 {len(usable)}）", len(usable) >= 2, f"仅 {usable}")
+    check(
+        f"{key}: 不是只写「不可用」（含替代引导）", ("替代" in text) or ("可用" in text), text[:60]
+    )
 
 
 print()
@@ -97,10 +113,9 @@ for key, text in _EXTERNAL_ONLY.items():
     for q in QUOTED.findall(text):
         cmd = command_of(q)
         if cmd not in VALID:
-            continue          # 参数词，跳过
+            continue  # 参数词，跳过
         parsed = P.parse(q)
-        check(f"{key} 的替代「{q}」可解析", parsed.command is not None,
-              f"command={parsed.command}")
+        check(f"{key} 的替代「{q}」可解析", parsed.command is not None, f"command={parsed.command}")
 
 
 print()

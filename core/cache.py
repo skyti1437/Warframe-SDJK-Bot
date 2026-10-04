@@ -4,6 +4,7 @@
 所有频繁请求的第三方接口（世界状态 / WM 市场 / 物品搜索）都经由本缓存，
 以降低对他人服务器的压力，并让重复查询的响应稳定在毫秒级。
 """
+
 from __future__ import annotations
 
 import asyncio

@@ -5,6 +5,7 @@
 ``from ..logging_compat import logger``）——由 tests/test_method_contract.py
 机器断言防退化（2026-09-28 裁定 B）。
 """
+
 from __future__ import annotations
 
 from .base import Reply
@@ -20,4 +21,17 @@ from .vision import VisionCommands
 from .wiki_misc import WikiMiscCommands
 from .rotations import RotationCommands
 
-__all__ = ["ArbitrationCommands", "DailyCommands", "MarketCommands", "ProgressCommands", "RelicCommands", "Reply", "RivenCommands", "RotationCommands", "DunCommands", "ScanCommands", "VisionCommands", "WikiMiscCommands"]
+__all__ = [
+    "ArbitrationCommands",
+    "DailyCommands",
+    "MarketCommands",
+    "ProgressCommands",
+    "RelicCommands",
+    "Reply",
+    "RivenCommands",
+    "RotationCommands",
+    "DunCommands",
+    "ScanCommands",
+    "VisionCommands",
+    "WikiMiscCommands",
+]

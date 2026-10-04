@@ -18,6 +18,7 @@ Markdown 也只在本机（warframe知识库/知识库/，技能 warframe-kb-bui
     python3 scripts/build_wiki_intro.py                 # 用默认知识库路径
     python3 scripts/build_wiki_intro.py --kb-dir <路径>  # 或环境变量 WF_KB_OUT
 """
+
 from __future__ import annotations
 
 import argparse
@@ -43,24 +44,23 @@ FILES: dict[str, int] = {
 # 4856 条：披饰/外观/浮印/徽章/装饰），不走 ###-字段 口径，单独解析。
 LINE_ITEM_FILE = "08_其他与机制术语.md"
 LINE_ITEM_SECTION = "外观装饰与杂项"
-_LINE_ITEM = re.compile(
-    r"^(?P<zh>[^：（）()]+)[（(](?P<en>[^）)]+)[）)]：(?P<desc>.+)$")
+_LINE_ITEM = re.compile(r"^(?P<zh>[^：（）()]+)[（(](?P<en>[^）)]+)[）)]：(?P<desc>.+)$")
 # 标题含这些词的不是物品条目（技能详情是补充段；排行/一览是统计表）
 SKIP_TITLE = ("技能详情", "排行", "一览")
 # 06 的第四部分「制造配方」是配方清单，不是物品简介
 SKIP_SECTION = ("制造配方",)
 
-MAX_LEN = 100        # 单行截断长度
+MAX_LEN = 100  # 单行截断长度
 # 效果行例外：MOD 效果是整句（最长实测 309 字），截断会变成残句
 # （翻译表按整句对齐，截断的键与译文都对不上）
 MAX_LEN_EFFECT = 340
 
-_TITLE_TAIL = re.compile(r"\s*[｜|].*$")          # 03 的标题带「｜类型 …」尾巴
+_TITLE_TAIL = re.compile(r"\s*[｜|].*$")  # 03 的标题带「｜类型 …」尾巴
 _PAREN = re.compile(r"^(?P<zh>[^（(]+)[（(](?P<en>[^）)]+)[）)]\s*$")
 # 材料行：「建造材料：合金板 ×1000｜生物质 ×500…」（战甲/武器/配方条目都有）
 _MAT_LINE = re.compile(r"^(?:建造材料|所需材料)[：:](.+)$")
 _MAT_ITEM = re.compile(r"^(?P<name>.+?)\s*×\s*(?P<n>\d+)$")
-USES_MAX_PROD = 8          # 每个材料最多列几个产物
+USES_MAX_PROD = 8  # 每个材料最多列几个产物
 
 
 def norm(s: str) -> str:
@@ -94,8 +94,9 @@ def materials_of(lines: list[str]) -> list[tuple[str, int]]:
     return []
 
 
-def parse_kb(path: Path, max_lines: int) -> tuple[list[tuple[str, list[str]]],
-                                                  list[tuple[str, str, int]]]:
+def parse_kb(
+    path: Path, max_lines: int
+) -> tuple[list[tuple[str, list[str]]], list[tuple[str, str, int]]]:
     """解析一个知识库文档 → (卡片条目, 材料三元组)。
 
     材料三元组 ``(产物名, 材料名, 数量)`` 覆盖**全部条目**（含被卡片跳过的
@@ -160,21 +161,26 @@ def parse_line_items(path: Path) -> list[tuple[str, list[str]]]:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--kb-dir", default=os.environ.get("WF_KB_OUT") or "",
-                    help="知识库产物目录（也可用环境变量 WF_KB_OUT）")
+    ap.add_argument(
+        "--kb-dir",
+        default=os.environ.get("WF_KB_OUT") or "",
+        help="知识库产物目录（也可用环境变量 WF_KB_OUT）",
+    )
     args = ap.parse_args()
     if not args.kb_dir:
-        print("未指定知识库目录：用 --kb-dir <路径> 或环境变量 WF_KB_OUT 指定"
-              "（目录内应有 01_战甲.md / 02_武器.md 等知识库文档）")
+        print(
+            "未指定知识库目录：用 --kb-dir <路径> 或环境变量 WF_KB_OUT 指定"
+            "（目录内应有 01_战甲.md / 02_武器.md 等知识库文档）"
+        )
         return 1
     kb = Path(args.kb_dir)
     if not kb.is_dir():
         print(f"知识库目录不存在：{kb}")
         return 1
 
-    entries: list[list] = []                 # [[标题, [行…]], …]
-    index: dict[str, int] = {}               # 归一化键 → entries 下标
-    uses: dict[str, dict] = {}               # 材料名(归一化) → {"n": 配方数, "p": [产物…]}
+    entries: list[list] = []  # [[标题, [行…]], …]
+    index: dict[str, int] = {}  # 归一化键 → entries 下标
+    uses: dict[str, dict] = {}  # 材料名(归一化) → {"n": 配方数, "p": [产物…]}
     dup = 0
     for name, budget in FILES.items():
         f = kb / name
@@ -203,31 +209,39 @@ def main() -> int:
             e["n"] += 1
             if len(e["p"]) < USES_MAX_PROD and product not in e["p"]:
                 e["p"].append(product)
-        print(f"  {name}: 收录 {n} 键 / 行预算 {budget}"
-              f"（材料用量 {len(mats)} 条）")
+        print(f"  {name}: 收录 {n} 键 / 行预算 {budget}（材料用量 {len(mats)} 条）")
 
     uses = {k: v for k, v in sorted(uses.items()) if v["n"] >= 1}
-    OUT.write_text(json.dumps({
-        "_meta": {
-            "source": "知识库 Markdown（warframe-kb-build 产物）构建期抽取，"
-                      "见 scripts/build_wiki_intro.py",
-            "note": "keys=归一化名 → entries 下标；entries=[标题, 行…]；"
+    OUT.write_text(
+        json.dumps(
+            {
+                "_meta": {
+                    "source": "知识库 Markdown（warframe-kb-build 产物）构建期抽取，"
+                    "见 scripts/build_wiki_intro.py",
+                    "note": "keys=归一化名 → entries 下标；entries=[标题, 行…]；"
                     "uses=材料名 → 配方数 + 前几个产物（反查「用途」）。"
                     "卡片用；本文件不进开源/市场包。",
-            "generated": time.strftime("%Y-%m-%d"),
-            "count": len(entries),
-            "uses": len(uses),
-        },
-        "entries": entries,
-        "keys": dict(sorted(index.items())),
-        "uses": uses,
-    }, ensure_ascii=False, indent=0) + "\n", encoding="utf-8")
+                    "generated": time.strftime("%Y-%m-%d"),
+                    "count": len(entries),
+                    "uses": len(uses),
+                },
+                "entries": entries,
+                "keys": dict(sorted(index.items())),
+                "uses": uses,
+            },
+            ensure_ascii=False,
+            indent=0,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
 
     size = OUT.stat().st_size
-    print(f"\n写入 {OUT.relative_to(ROOT)}：{len(entries)} 个条目 / {len(index)} 键"
-          f" / {len(uses)} 种材料，{size / 1024:.0f} KB")
-    for probe in ("托里德", "torid", "nekros prime", "膛线", "serration",
-                  "搬运者", "ash prime"):
+    print(
+        f"\n写入 {OUT.relative_to(ROOT)}：{len(entries)} 个条目 / {len(index)} 键"
+        f" / {len(uses)} 种材料，{size / 1024:.0f} KB"
+    )
+    for probe in ("托里德", "torid", "nekros prime", "膛线", "serration", "搬运者", "ash prime"):
         i = index.get(norm(probe))
         print(f"   {probe:14s} -> {entries[i][0] if i is not None else '（无）'}")
     return 0

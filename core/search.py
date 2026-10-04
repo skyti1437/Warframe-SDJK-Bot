@@ -21,6 +21,7 @@ WM 那边的 bug 就是栽在「任意子串」上 —— 搜 ``Forma`` 会命�
 ``valence_formation``（Valence Formation / 效价炼成），因为 "forma" 是
 "formation" 的子串。
 """
+
 from __future__ import annotations
 
 import json
@@ -30,8 +31,8 @@ from pathlib import Path
 from typing import Optional
 
 try:
-    from . import matching        # core 包内正常导入（变体词表同源）
-except ImportError:               # 离线脚本把 core/ 当顶层路径导入时
+    from . import matching  # core 包内正常导入（变体词表同源）
+except ImportError:  # 离线脚本把 core/ 当顶层路径导入时
     import matching
 
 _HERE = Path(__file__).resolve().parent
@@ -89,7 +90,7 @@ def _index() -> tuple[tuple[str, str, str, str], ...]:
     Returns:
         每项为 ``(norm_key, 展示名, 次级名, 来源)`` 的元组（不可变，便于缓存）。
     """
-    rows: dict[str, list[str]] = {}   # norm_key -> [展示名, 次级名, 来源]
+    rows: dict[str, list[str]] = {}  # norm_key -> [展示名, 次级名, 来源]
 
     def add(*names: str, source: str) -> None:
         """把一组等价名（中/英/别名）写进索引。
@@ -121,7 +122,7 @@ def _index() -> tuple[tuple[str, str, str, str], ...]:
         add(zh, (slug or "").replace("_", " "), source="别名")
     for zh, slug in (_jload(_ALIAS_FILE).get("riven_items") or {}).items():
         add(zh, (slug or "").replace("_", " "), source="别名")
-    for en in (_jload(_DROPS_FILE).get("items") or {}):
+    for en in _jload(_DROPS_FILE).get("items") or {}:
         add(en, source="掉落表")
     return tuple((k, v[0], v[1], v[2]) for k, v in rows.items())
 
@@ -148,8 +149,7 @@ def _score(query: str, key: str) -> int:
     # 注意这里**不能**退化成「任意子串」——那正是 forma -> valence_formation
     # 的成因。词边界检查必须始终成立。
     for part in query.split():
-        if len(part) >= 2 and re.search(
-                rf"(?<![0-9a-z]){re.escape(part)}(?![0-9a-z])", key):
+        if len(part) >= 2 and re.search(rf"(?<![0-9a-z]){re.escape(part)}(?![0-9a-z])", key):
             return 3
     return -1
 
@@ -174,10 +174,8 @@ def search(query: str, limit: int = 8) -> list[dict]:
     if nq:
         exact: list[dict] = []
         for _key, _shown, _second, _source in _index():
-            if nq in (matching.normalize_name(_shown),
-                      matching.normalize_name(_second or "")):
-                exact.append({"name": _shown, "en": _second,
-                              "source": _source, "score": 0})
+            if nq in (matching.normalize_name(_shown), matching.normalize_name(_second or "")):
+                exact.append({"name": _shown, "en": _second, "source": _source, "score": 0})
                 if len(exact) >= limit:
                     break
         if exact:
@@ -219,7 +217,7 @@ def _alias_slug_index() -> dict[str, str]:
     拿不到 slug，只能回别名词典按归一化键反查（2026-09-24 实测）。
     """
     out: dict[str, str] = {}
-    for sec in ("riven_items", "wm_items"):      # wm 后写 → wm 覆盖
+    for sec in ("riven_items", "wm_items"):  # wm 后写 → wm 覆盖
         for key, slug in (_jload(_ALIAS_FILE).get(sec) or {}).items():
             if key and slug:
                 out[_norm(key)] = slug
@@ -255,9 +253,9 @@ def base_slug(slug: str) -> str:
             s = s[: -len(suf)]
     parts = [p for p in s.split("_") if p]
     while parts and matching.strip_variant_norm(parts[0]) == "":
-        parts.pop(0)                      # 词头变体：kuva_ / prisma_ / mk1_ …
+        parts.pop(0)  # 词头变体：kuva_ / prisma_ / mk1_ …
     while parts and matching.strip_variant_norm(parts[-1]) == "":
-        parts.pop()                       # 词尾变体：_prime / _wraith / _vandal …
+        parts.pop()  # 词尾变体：_prime / _wraith / _vandal …
     return "_".join(parts) or s
 
 
