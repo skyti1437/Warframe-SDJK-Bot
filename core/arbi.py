@@ -5,6 +5,13 @@
   · ``arbys.schedule.v2.json``  逐小时**确定性**排期（``seq`` 索引表 + ``nodes`` 键表）
   · ``arbys.nodes.zh.json``     节点中文名 / 星球 / 任务类型 / 派系
   · ``tierlist.default.json``   站点评级（S / A+ / A / A- / B / C）
+  · ``core/data/arb_ratings.json``  **本地静态种子**：社区实测中位数 → 档位
+    （构建期由 ``scripts/build_arb_ratings.py`` 从该站**排行榜**聚合；口径见该脚本）
+
+★ 评级的**三级回落**（2026-10-04 起）：arbi tierlist（有）→ 社区实测档（有）→ 未评级。
+  arbi 优先 —— 官方 16 个评级（含 C 档）原样保留，实测只补空白（覆盖率 16 → 65/88）。
+  ★ 两套**不是同一把尺子**（tierlist 偏「上限/潜力」，中位数是「典型水平」，
+  2026-10-04 实测一致率仅 2/16）⇒ 卡片上标注来源，冲突不暴露。
 
 ★ 本模块存在的理由（2026-09-19 玩家反馈「蹲 仲裁 高效 永久」没生效）：
 10o.io 停摆后 ``client.arbitration()`` **恒抛** ``WarframeAPIError``，
@@ -14,13 +21,68 @@
 """
 from __future__ import annotations
 
+import json
 import time
+from pathlib import Path
 from typing import Optional
 
 BASE = "https://arbi.wf.wiki/data/"
+MEASURED_FILE = "arb_ratings.json"   # core/data 下的实测种子（构建期生成，不联网）
 
 # 评级别名 -> arbi 的 tier 取值（与仲裁查询指令同一套口径）
 RATING = {"高效": ("S", "A+", "A"), "传奇": ("S",)}
+
+_MEASURED: Optional[dict] = None
+
+
+def load_measured() -> dict:
+    """读「社区实测中位数」表（``core/data/arb_ratings.json``）。
+
+    ★ 静态种子：缺失/损坏一律返回 ``{}``（评级退化为「未评级」，不影响排期）。
+    """
+    global _MEASURED
+    if _MEASURED is None:
+        try:
+            p = Path(__file__).resolve().parent / "data" / MEASURED_FILE
+            _MEASURED = json.loads(p.read_text(encoding="utf-8")).get("nodes") or {}
+        except Exception:  # noqa: BLE001 - 种子缺失不致命
+            _MEASURED = {}
+    return _MEASURED
+
+
+def measured_of(key: str) -> dict:
+    """该节点的实测记录（``median`` / ``tier`` / ``n``；没有返回 ``{}``）。"""
+    return load_measured().get(key) or {}
+
+
+def merge_measured_tiers(tier_of: dict, measured: Optional[dict] = None) -> dict:
+    """三级回落：arbi tierlist（有）→ 社区实测档（有）→ 原样（未评级）。
+
+    ★ **arbi 优先**：官方有评级就原样保留（含 C 档），实测只补空白。
+    ★ **不删键**：返回值保留传入的全部键（未评级节点的「未评级」语义由调用方处理）
+      —— ``node_cells`` 的列对齐依赖「不丢空串」的不变量，别在这里删键。
+    """
+    m = load_measured() if measured is None else measured
+    out = dict(tier_of)
+    for k, v in m.items():
+        if out.get(k, "") in ("", "未评级") and v.get("tier"):
+            out[k] = v["tier"]
+    return out
+
+
+_ARBI_ONLY: dict = {}
+
+
+def tier_source(key: str, tier_of: dict) -> str:
+    """档位来源：``"arbi"``（官方 tierlist 覆盖）/ ``"measured"``（本地实测补的）/ ``""``。
+
+    ⚠️ 依赖 ``fetch_tables()`` 已跑过（它会把**回落前**的 arbi 表记进模块态）——
+    卡片在 ``_arb_fetch()`` 之后立刻调用即可；单独调用只保证"非 arbi 即实测"。
+    """
+    tv = (tier_of.get(key) or "").strip()
+    if tv in ("", "未评级"):
+        return ""
+    return "arbi" if _ARBI_ONLY.get(key, "") not in ("", "未评级") else "measured"
 
 # 可筛选的任务类型（中文，来源 arbi 的 missionNameZh；INFESTED 前缀会被归一化）
 TYPES = (
@@ -93,7 +155,11 @@ def node_cells(nodes: dict, key: str, tier_of: dict) -> list[str]:
 
 
 async def fetch_tables(client) -> tuple[dict, dict, dict]:
-    """拉三张表：排期序列 / 节点中文表 / 站点评级。返回 (sched, nodes, tier_of)。"""
+    """拉三张表：排期序列 / 节点中文表 / 站点评级。返回 (sched, nodes, tier_of)。
+
+    ★ ``tier_of`` 已做**三级回落**（arbi tierlist → 本地社区实测档 → 未评级）：
+    查询卡、排期卡与「蹲 仲裁」筛选共用这一份，避免各算各的。
+    """
     sched = await client._fetch_json(BASE + "arbys.schedule.v2.json", ttl=3600)
     nodes = (await client._fetch_json(BASE + "arbys.nodes.zh.json",
                                       ttl=86400)).get("nodes") or {}
@@ -103,7 +169,9 @@ async def fetch_tables(client) -> tuple[dict, dict, dict]:
         tier = {}
     tier_of = {nk: tv for tv, lst in (tier.get("tierBuckets") or {}).items()
                for nk in lst}
-    return sched, nodes, tier_of
+    _ARBI_ONLY.clear()
+    _ARBI_ONLY.update(tier_of)          # 供 tier_source() 区分「官方 / 实测」
+    return sched, nodes, merge_measured_tiers(tier_of)
 
 
 def key_at(sched: dict, ts: Optional[float] = None) -> tuple[str, int, float, float]:

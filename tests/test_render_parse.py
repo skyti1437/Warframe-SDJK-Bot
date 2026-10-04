@@ -306,6 +306,9 @@ class _ArbStubClient:
 
 
 _arb_obj = _NS(client=_ArbStubClient())
+# ★ 2026-10-04：`_h_arbtable` 改走共用入口 `self._arb_fetch()`（三级回落后的 tier_of）
+#   ⇒ 桩对象也要绑上这个方法（绑真实实现，用假 client 拉三张表）。
+_arb_obj._arb_fetch = lambda: _AC._arb_fetch(_arb_obj)
 _arb_reply = asyncio.run(_AC._h_arbtable(_arb_obj, _NS(page=1), None, "国际服"))
 _arb_rows = [_r.split("　") for _r in _arb_reply.lines]
 check("仲裁时间表：注入 4 行（3 个含空格节点 + 1 个评级节点）",
@@ -335,8 +338,10 @@ check("★ 仲裁时间表：不再把 ASCII 空格当列分隔（无 split(\" \
 # 数据守卫：仓内确实存在含 ASCII 空格的节点名（≥3），否则本段会静默失效
 _arb_ratings = json.loads(
     (ROOT / "core" / "data" / "arb_ratings.json").read_text(encoding="utf-8"))
-_spaced_rating_nodes = sorted({k.split("|")[0] for k in _arb_ratings
-                               if "|" in k and " " in k.split("|")[0]})
+# ★ 2026-10-04：表结构换代（旧 = 顶层 `名称|类型` 键；新 = `nodes[节点ID]` 里带 name）
+_spaced_rating_nodes = sorted(
+    {v.get("name") or "" for v in (_arb_ratings.get("nodes") or {}).values()
+     if " " in (v.get("name") or "")})
 check("★ 数据守卫：arb_ratings.json 含空格节点名 ≥3（含 V Prime / Tyana Pass）",
       len(_spaced_rating_nodes) >= 3
       and {"V Prime", "Tyana Pass"} <= set(_spaced_rating_nodes),
@@ -346,6 +351,51 @@ _nodes_zh = json.loads(
 _zh_names = {v.get("name") for v in _nodes_zh.values() if isinstance(v, dict)}
 check("★ 数据守卫：官方节点表含三个含空格样本（V Prime / Tyana Pass / Outer Terminus）",
       {"V Prime", "Tyana Pass", "Outer Terminus"} <= _zh_names)
+
+# ------------------------------------- 仲裁评级：节点 ID 键 + 三级回落（2026-10-04）
+# ★ 回归对象（调研 §4.1 的真缺陷）：`_arb_now` 曾用 `中文名|英文类型` 拼 key 查实测表，
+#   而 arbi 的 missionType 是**内部代号**（MT_TERRITORY → 本地表写 Interception、
+#   MT_PURIFY → Infested Salvage、MT_ARTIFACT → Disruption、MT_EVACUATE → Excavation、
+#   MT_EVACUATION → Defection）⇒ 17 个节点的「生息效率」行永远查不到（命中率仅 44/88）。
+#   现表改按 **节点 ID**（SolNodeXXX/ClanNodeXX，与 schedule/nodes/tierlist 三表同源）。
+_M = _arbi.load_measured()
+check("★ 实测表已加载（core/data/arb_ratings.json 存在且非空）", bool(_M), str(len(_M)))
+# ① 该命中要命中：MT_TERRITORY 的 Xini 用节点 ID 查得到（旧写法必然查不到）
+check("★ bug 回归（命中侧）：SolNode172(Xini, MT_TERRITORY) 按节点 ID 命中实测档",
+      _M.get("SolNode172", {}).get("tier") == "A+"
+      and _M.get("SolNode172", {}).get("median") is not None,
+      str(_M.get("SolNode172")))
+# ② 不该命中的不误挂：旧写法拼出的 key 不在表里（这就是旧 bug 的形态）
+check("★ bug 回归（旧键侧）：`Xini|Territory` 这类旧键在表里**不存在**",
+      "Xini|Territory" not in _M and "Xini|Interception" not in _M
+      and all("|" not in k for k in _M),
+      "表内不应出现任何 `名称|类型` 形态的键")
+# ③ 三级回落：arbi 优先（含 C 档原样）、实测补空白、两者都无 → 未评级
+_tier_syn = {"SolNode172": "S", "SolNode167": "未评级", "SolNode999": "未评级"}
+_arbi._ARBI_ONLY.clear()
+_arbi._ARBI_ONLY.update({"SolNode172": "S", "SolNode167": "未评级"})   # 模拟 fetch_tables 记录
+_merged = _arbi.merge_measured_tiers(_tier_syn, _M)
+check("★ 三级回落：arbi 有评级 ⇒ 原样保留（实测不覆盖）",
+      _merged["SolNode172"] == "S", str(_merged.get("SolNode172")))
+check("★ 三级回落：arbi 未评级 ⇒ 用实测档补上",
+      _merged["SolNode167"] == _M["SolNode167"]["tier"],
+      "%s vs %s" % (_merged.get("SolNode167"), _M.get("SolNode167")))
+check("★ 三级回落：两者都无 ⇒ 维持「未评级」",
+      _merged["SolNode999"] == "未评级", str(_merged.get("SolNode999")))
+check("★ 回落不丢输入键（列对齐依赖的不变量；允许新增实测键）",
+      set(_tier_syn) <= set(_merged), str(set(_tier_syn) - set(_merged)))
+# ④ 来源判定：arbi / measured / 空
+check("★ 档位来源：arbi 覆盖的节点报 arbi、实测补的报 measured、未评级报空",
+      _arbi.tier_source("SolNode172", _merged) == "arbi"
+      and _arbi.tier_source("SolNode167", _merged) == "measured"
+      and _arbi.tier_source("SolNode999", _merged) == "",
+      "%s / %s / %s" % (_arbi.tier_source("SolNode172", _merged),
+                        _arbi.tier_source("SolNode167", _merged),
+                        _arbi.tier_source("SolNode999", _merged)))
+check("★ 实测表结构守卫：每条都是 {name,system,mission,n[,median,tier]} 且 n>=3 才带档",
+      all(isinstance(v, dict) and "n" in v and "name" in v for v in _M.values())
+      and all(("tier" in v) == (v["n"] >= 3) for v in _M.values()),
+      "有 %d 条带档 / 共 %d 条" % (sum(1 for v in _M.values() if v.get("tier")), len(_M)))
 
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")

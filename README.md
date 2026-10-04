@@ -197,7 +197,8 @@ docker run -d --name flaresolverr -p 8191:8191 flaresolverr/flaresolverr
 
 - 插件**只在你自己的机器人上运行**，不向任何第三方上报数据；所有查询都直接
   打给上表列出的公开数据源。
-- 运行时会在插件目录 `runtime/` 下写入群配置、推送订阅与渲染缓存，
+- 运行时数据写在 AstrBot 的插件数据目录 **`data/plugin_data/astrbot_plugin_warframe_sdjkbot/`**
+  （群配置、推送订阅、渲染缓存与快照；旧版本曾写在插件目录 `runtime/`，启动时会**一次性迁移**过去），
   **这些文件不会随仓库分发**（已在 `.gitignore` 与打包排除里）。
 - 识卡功能会把**你发的截图**交给你自己配置的多模态模型渠道处理 —— 也就是说
   图片会离开你的服务器、进入你选择的模型服务商。介意的话请不要使用该功能，
@@ -228,6 +229,7 @@ docker run -d --name flaresolverr -p 8191:8191 flaresolverr/flaresolverr
 | **排障** | `scripts/diag_command_output.py`、`scripts/diag_worldstate_keys.py`、`scripts/smoke_all.py` | 在容器里直接跑指令看输出 / 查 DE 原始键 / 冒烟全指令 |
 | **版式开发** | `scripts/dev_relic_preview.py`、`scripts/dev_help_preview.py`、`scripts/bench_supersample*.py`、`scripts/diag_col_starts.py`、`scripts/diag_help_layout.py`、`scripts/diag_row_edges.py` | 本地预览卡面、渲染性能基准、列位像素诊断（改版式必用） |
 | **工具** | `scripts/lookup_zh.py` | 反查 DE 官方简中译名（确认某个词条官方到底有没有） |
+| **宿主机运维**（★ **不随包分发**） | `scripts/ops/fix_plugin_deps.py`（仅存在于源码仓库） | 作者服务器专用：容器重建/升级后补齐插件 Python 依赖，需 `sudo` + `docker`。**已从发布包排除**（`package_release.py::OSS_EXCLUDE_DIRS`），不参与插件运行 |
 
 > 排查线上问题最常用的一条：
 > `python scripts/diag_command_output.py "遗物 出库"`（在 AstrBot 容器内跑，

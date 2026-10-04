@@ -8,11 +8,10 @@ _ARB_TYPES_STR 随域迁出（经 Mixin MRO 供 self._ARB_* 寻址，取值不�
 """
 from __future__ import annotations
 
-import json
 
 from .. import arbi as _arbi
 from .. import formatters as fmt
-from .base import PLUGIN_DIR, Reply
+from .base import Reply
 
 # 仲裁的任务类型 / 派系 / 节点渲染：**唯一实现**在 core/arbi.py
 # （「仲裁」查询指令与「蹲 仲裁」推送共用；2026-09-19 收敛，避免两套口径漂移）。
@@ -94,7 +93,8 @@ class ArbitrationCommands:
         lines = ["　".join([f"{t.month}月{t.day}日 {t.hour:02d}时", *cells])
                  for t, cells, _tv in chunk]
         lines.append("※ 每行格式：时间 · 节点（星球） · 任务类型 · 派系 · [站点评级]")
-        lines.append("※ 评级来源 arbi.wf.wiki 社区评级；排期为确定性序列，非随机")
+        lines.append("※ 评级：arbi.wf.wiki 官方 tierlist 优先；官方未评级的节点用"
+                     "「社区实测中位数」补（S≥800/A+≥700/A≥600/A-≥500/F<500 每小时生息）")
         fdesc = "、".join([*(t for t in toks if t in self._ARB_TYPES),
                            *(("高效" if want_ratings == self._ARB_RATING["高效"] else
                               "传奇") for _ in [0] if want_ratings),
@@ -138,44 +138,47 @@ class ArbitrationCommands:
         key_now = sched["nodes"][seq[idx]]
         key_nxt = sched["nodes"][seq[(idx + 1) % len(seq)]]
         n = nodes.get(key_now) or {}
-        eff = ""
 
-        # 生息效率数值：本地社区实测均值（非官方），明确标注来源
-        ratings = {}
-        try:
-            ratings = json.loads((PLUGIN_DIR / "core" / "data" / "arb_ratings.json")
-                                 .read_text(encoding="utf-8"))
-        except Exception:  # noqa: BLE001
-            pass
-        en_type = (n.get("missionType") or "").replace("MT_", "").title()
-        rec = ratings.get(f"{n.get('nameZh', '')}|{en_type}")
-        eff = f"　生息效率 {rec[0]}/小时（社区实测 {rec[1]} 档）" if rec else ""
+        # ★ 2026-10-04 修 bug：实测表改按**节点 ID** 查。
+        #   旧写法 `f"{nameZh}|{missionType.replace('MT_','').title()}"` 拼 key ——
+        #   arbi 的 missionType 是内部代号（MT_TERRITORY/MT_PURIFY/MT_ARTIFACT…），
+        #   与旧表的英文类型名（Interception/Infested Salvage/Disruption…）对不上
+        #   ⇒ 17 个节点的「生息效率」行**永远不显示**（命中率仅 44/88）。
+        #   实测表与 schedule/nodes/tierlist 三表同源同键（SolNodeXXX/ClanNodeXX）。
+        tv = (tier_of.get(key_now) or "").strip()
+        mrec = _arbi.measured_of(key_now)
+        src = _arbi.tier_source(key_now, tier_of)
+        if tv in ("", "未评级"):
+            rate = "评级：未评级"
+        elif src == "arbi":
+            rate = f"评级：{tv}（arbi 社区评级）"
+        else:
+            rate = f"评级：{tv}（社区实测中位）"
+        if mrec.get("median") is not None:
+            rate += (f"　生息效率 {mrec['median']}/小时"
+                     f"（n={mrec.get('n', 0)}，社区实测中位数）")
 
         lines = [f"节点：{n.get('nameZh', '?')}"
                  + (f"（{n.get('systemNameZh')}）" if n.get("systemNameZh") else ""),
                  f"类型：{_arb_mission(n)} · 派系："
                  f"{_arb_faction(n) or '?'}",
-                 "评级：" + (tier_of.get(key_now) or "未评级")
-                 + "（arbi.wf.wiki 社区评级）" + eff,
+                 rate,
                  "下一小时："
                  + self._arb_node_line(nodes, key_nxt, tier_of),
                  f"筛选：仲裁 {self._ARB_TYPES_STR} / 高效 / 传奇 / 今天"]
-        lines.append("※ 排期·节点·派系·等级·评级：arbi.wf.wiki（社区维护的确定性序列）")
-        lines.append("※ 生息效率：社区实测均值表 core/data/arb_ratings.json，非官方数据，仅供参考")
+        lines.append("※ 排期·节点·派系·等级：arbi.wf.wiki（社区维护的确定性序列）")
+        lines.append("※ 评级：arbi 官方 tierlist 优先；官方未评级的用「社区实测中位数」"
+                     "（arbi.wf.wiki 排行榜聚合，非官方，仅供参考）")
         return Reply("当前仲裁", lines, footer=fmt.fmt_platform_footer(platform))
 
     async def _h_arbtable(self, parsed, event, platform) -> Reply:
-        """仲裁时间表：arbi.wf.wiki 官方数据（中文节点+派系+站点评级）。"""
+        """仲裁时间表：arbi.wf.wiki 数据（中文节点+派系+站点评级，含实测回落）。"""
         import time as _t
         from datetime import datetime, timezone, timedelta
-        base = "https://arbi.wf.wiki/data/"
-        sched = await self.client._fetch_json(base + "arbys.schedule.v2.json", ttl=3600)
-        nodes = (await self.client._fetch_json(base + "arbys.nodes.zh.json", ttl=86400))["nodes"]
-        tier = await self.client._fetch_json(base + "tierlist.default.json", ttl=86400)
-        node_tier = {}
-        for t_name, lst in tier.get("tierBuckets", {}).items():
-            for nk in lst:
-                node_tier[nk] = t_name
+        # ★ 2026-10-04：改走共用入口 `_arb_fetch()` —— 它返回**三级回落**后的
+        #   tier_of（arbi 官方 → 社区实测中位 → 未评级）。此前这里自己拉三张表，
+        #   实测档回落会漏掉这张卡（指令 §2.4 的"自动受益"假设在此处不成立）。
+        sched, nodes, node_tier = await self._arb_fetch()
         start, step = sched["startTs"], sched.get("stepSec", 3600)
         seq = sched["seq"]
         idx0 = int((_t.time() - start) // step)
