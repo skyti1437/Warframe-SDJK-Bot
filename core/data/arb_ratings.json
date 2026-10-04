@@ -1,5 +1,5 @@
 {
- "_note": "社区实测（arbi.wf.wiki 排行榜），非官方数据，仅供参考",
+ "_note": "社区实测（arbi.wf.wiki 排行榜），非官方数据，仅供参考；★ 实测值（尤其「生存 / 中断」）吃队伍熟练度——来自上传记录的高水平队伍，普通队伍未必打得到",
  "_source": "https://arbi.wf.wiki/api/leaderboard?board=browse&nodeId=<key>",
  "_rule": "每节点 perHour 中位数（按记录 id 去重，剔除 <300，n>=3）；S>=800 / A+>=700 / A>=600 / A->=500 / F<500",
  "_updated": "2026-10-04",

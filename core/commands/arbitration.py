@@ -95,6 +95,7 @@ class ArbitrationCommands:
         lines.append("※ 每行格式：时间 · 节点（星球） · 任务类型 · 派系 · [站点评级]")
         lines.append("※ 评级：arbi.wf.wiki 官方 tierlist 优先；官方未评级的节点用"
                      "「社区实测中位数」补（S≥800/A+≥700/A≥600/A-≥500/F<500 每小时生息）")
+        lines.append("※ ★ 实测值（尤其「生存 / 中断」）吃队伍熟练度 —— 普通队伍未必打得到该数值")
         fdesc = "、".join([*(t for t in toks if t in self._ARB_TYPES),
                            *(("高效" if want_ratings == self._ARB_RATING["高效"] else
                               "传奇") for _ in [0] if want_ratings),
@@ -169,6 +170,8 @@ class ArbitrationCommands:
         lines.append("※ 排期·节点·派系·等级：arbi.wf.wiki（社区维护的确定性序列）")
         lines.append("※ 评级：arbi 官方 tierlist 优先；官方未评级的用「社区实测中位数」"
                      "（arbi.wf.wiki 排行榜聚合，非官方，仅供参考）")
+        lines.append("※ ★ 实测值（尤其「生存 / 中断」）吃队伍熟练度 —— 来自上传记录的高水平队伍，"
+                     "普通队伍未必打得到该数值")
         return Reply("当前仲裁", lines, footer=fmt.fmt_platform_footer(platform))
 
     async def _h_arbtable(self, parsed, event, platform) -> Reply:
