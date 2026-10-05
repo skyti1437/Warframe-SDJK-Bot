@@ -727,7 +727,8 @@ class RivenCommands:
             disp_note = f"（倾向取自 wiki 变体表：{variant_key} {variant_disp:g}）"
         else:
             disp_note = ""
-        # 家族提示：数值反推没结论时，列出家族变体倾向供对照/手输
+        # 家族提示：列出家族变体倾向供对照（手输倾向仍可用 disp_override）；
+        # 倾向本身已由卡面数值反推/母武器可行确认，不再提示「带名字重发」
         family_note = ""
         if (
             not infer_note
@@ -737,22 +738,18 @@ class RivenCommands:
         ):
             fam = [(n, v) for n, v in fam_all if abs(v - disp) > 1e-9]
             if fam:
-                # ★ 2026-10-03 Phase 4：组合枪双模式家族的示例改用
-                # 「腔体名（模式）」——组合枪紫卡卡面不写武器名，模式得用户带。
-                #   ★ 同日晚：mother_name 已带「（主要）」时示例原样，别拼成
-                #     「墓指（主要）（主要）」（线上实证）。
-                if any("（主要）" in n or "（次要）" in n for n, _v in fam):
-                    _ex_name = mother_name if RA.mode_of(mother_name) else f"{mother_name}（主要）"
-                    _ex_tail = (
-                        f"　卡面不显示变体/模式，装在变体或另一模式上"
-                        f"请发「紫卡分析 {_ex_name} [截图]」"
-                    )
-                else:
-                    _ex_tail = "　卡面不显示变体，装在棱晶等变体上请发「紫卡分析 棱晶欧玛 [截图]」"
+                # ★ 2026-10-05 维护者裁定：删掉「装在棱晶等变体上请发『紫卡分析
+                #   棱晶欧玛 [截图]』」的重发提示 —— 倾向已由卡面数值反推
+                #   （母武器可行才走到这里，数值落位本身就是变体判别），
+                #   再让用户带名字重发没有意义；保留家族列表与
+                #   「卡面不显示变体/模式」的说明即可。
+                _tail = (
+                    "　卡面不显示变体/模式"
+                    if any("（主要）" in n or "（次要）" in n for n, _v in fam)
+                    else "　卡面不显示变体"
+                )
                 family_note = (
-                    "该武器家族有其它倾向："
-                    + "、".join(f"{n} {v:g}" for n, v in fam[:4])
-                    + _ex_tail
+                    "该武器家族有其它倾向：" + "、".join(f"{n} {v:g}" for n, v in fam[:4]) + _tail
                 )
         title, lines = fmt.fmt_riven_analysis(name, disp, cls, stats_pos, stats_neg)
         if family_note:

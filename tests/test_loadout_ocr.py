@@ -336,6 +336,10 @@ _ocr_inc = {
         {"name": "镀层 斩铁", "drain": "6", "polarity": "?"},
         {"name": "急进猛突", "drain": "7", "polarity": "?"},
         {"name": "角斗士 威猛", "drain": "9", "polarity": "?"},
+        # ★ 2026-10-05 订正：真实卡装了热病打击 Prime（旧 fixture 漏了它、
+        #   还把穿刺/切割两行的值互换 —— 那套输入迫使反推编造「自带毒 511.5」，
+        #   即本批证伪并修掉的幻影；详见 output/分析-灵化执法者配卡识别差异-*.md）
+        {"name": "热病打击 Prime", "drain": "8", "polarity": "?"},
     ],
     "panel": {
         "attack_speed": "0.833",
@@ -345,8 +349,8 @@ _ocr_inc = {
         "damage_rows": [
             ["毒素", "1,125.3"],
             ["冲击", "545.6"],
-            ["穿刺", "34.1"],
-            ["切割", "102.3"],
+            ["穿刺", "102.3"],
+            ["切割", "34.1"],
         ],
         "total": ["总计", "1,807.3"],
     },
@@ -361,17 +365,23 @@ check(
 )
 check("反推基础暴伤 = 7 / 1.6 = 4.375", close(_wi["criticalMultiplier"], 4.375, 1e-6))
 check("反推基础触发 = 10%", close(_wi["procChance"], 0.10, 1e-6))
-# 本 fixture 未装毒素 MOD → 毒素行全是自带元素：1125.3/2.2 = 511.5
-# （压迫点满级 +120% → after_base = 2.2）
+# ★ 2026-10-05 订正：旧断言「自带毒 511.5、总伤 821.5」建立在被删掉的
+#   毒素 MOD 与互换的行名上 —— 真值是基础 310（210 + 灵化 +100 按比例分摊）、
+#   **无自带毒素**（毒 100% 来自热病打击 Prime：682×1.65 = 1125.3）；
+#   面板四行校验因此全过（见下「反推路径面板校验」）。幻影由防线③拦截。
 check(
-    "反推自带元素毒素 = 1125.3/2.2 ≈ 511.5（无 MOD 时整行即自带）",
-    close(_wi["damage"].get("toxin", 0.0), 511.5, 0.05),
-    str(_wi["damage"].get("toxin")),
+    "反推基础 = 310（210 + 灵化 +100），无幻影自带毒素",
+    _wi["damage"].get("impact") == 248
+    and _wi["damage"].get("puncture") == 46.5
+    and _wi["damage"].get("slash") == 15.5
+    and close(_wi["damage"]["total"], 310.0, 0.05)
+    and not _wi["damage"].get("toxin"),
+    str(_wi["damage"]),
 )
 check(
-    "反推基础总伤 = IPS 310.0 + 自带毒素 511.5 ≈ 821.5",
-    close(_wi["damage"]["total"], 821.5, 0.05),
-    str(_wi["damage"]["total"]),
+    "  note 带灵化对账（310 ＝ 210 + 100）；毒素行被 MOD 完全解释、无需幻影",
+    "灵化进化 +100" in (_an_inc.get("panel_base") or "") and not _wi["damage"].get("toxin"),
+    str(_an_inc.get("panel_base")),
 )
 check(
     "反推路径面板校验开启且全部吻合（净基础+MOD一次）",
@@ -938,6 +948,145 @@ check(
     any("裂罅紫卡" in ln for ln in _lines_riven)
     and not any("库中未收录" in ln for ln in _lines_riven),
     str([ln for ln in _lines_riven if "紫卡" in ln or "未收录" in ln]),
+)
+
+
+# ---------------------------------------------------------------------------
+# ★ 2026-10-05 灵化反推「锚定补全」回归（执法者实战卡）：
+#   面板穿刺行行名被滚动箭头遮挡 → 旧行为整行静默丢 → 本地推算 1705 ≠ 面板
+#   1807.3、且毒素行反解出幻影自带毒 29（真值 0）。修复后：
+#   缺行按库内比例×中位锚补全、幻影防线收紧、灵化 +100 对账写进 note。
+# ---------------------------------------------------------------------------
+_weapon_magistar = {
+    "name": "Magistar",
+    "uniqueName": "/Lotus/Weapons/Tenno/Melee/Maces/PaladinMace/PaladinMaceWeapon",
+    "damage": {"total": 209.99998, "impact": 168, "puncture": 31.5, "slash": 10.5},
+    "criticalChance": 0.2,
+    "criticalMultiplier": 2.0,
+}
+_totals_mag = {
+    "base_dmg": 120.0,
+    "crit_chance": 110.0,
+    "crit_dmg": 140.0,
+    "status_chance": 0.0,
+    "elements": {"toxin": 165.0},
+    "physical": {},
+}
+_panel_occluded = {
+    "crit_chance": "75.6%",
+    "crit_damage": "7 倍",
+    "status_chance": "10%",
+    "damage_rows": [["毒素", "1,125.3"], ["冲击", "545.6"], ["切割", "34.1"]],
+    "total": ["", "1,807.3"],
+}
+_w_occ, _n_occ = lo._panel_base_weapon(_weapon_magistar, _panel_occluded, _totals_mag)
+_d_occ = (_w_occ or {}).get("damage") or {}
+check(
+    "灵化锚定补全：穿刺行被遮挡 → 按库内比例补出 46.5（基础 248/46.5/15.5，计 310）",
+    _d_occ.get("impact") == 248
+    and _d_occ.get("puncture") == 46.5
+    and _d_occ.get("slash") == 15.5
+    and _d_occ.get("total") == 310,
+    str(_d_occ),
+)
+check(
+    "  不再出现幻影自带毒素（真值 0：毒 100% 来自热病打击 Prime）",
+    not _d_occ.get("toxin"),
+    str(_d_occ.get("toxin")),
+)
+check(
+    "  note 说明「穿刺行未读到…已按库内比例补全」",
+    "穿刺行未读到" in (_n_occ or "") and "46.5" in (_n_occ or ""),
+    _n_occ,
+)
+check(
+    "  note 对账「反推基础 310 ＝ 库内 210 ＋ 灵化进化 +100」",
+    "灵化进化 +100" in (_n_occ or "") and "与 evolutions 数据吻合" in (_n_occ or ""),
+    _n_occ,
+)
+check(
+    "  面板重建逐行吻合（545.6/102.3/34.1/1125.3，总 1807.3）",
+    abs(_d_occ["impact"] * 2.2 - 545.6) < 0.05
+    and abs(_d_occ["puncture"] * 2.2 - 102.3) < 0.05
+    and abs(_d_occ["slash"] * 2.2 - 34.1) < 0.05
+    and abs(
+        (_d_occ["impact"] + _d_occ["puncture"] + _d_occ["slash"] + _d_occ.get("toxin", 0))
+        * 2.2
+        * 1.65
+        - 1125.3
+    )
+    < 0.3,
+    str(
+        [
+            round(_d_occ["impact"] * 2.2, 1),
+            round(_d_occ["puncture"] * 2.2, 1),
+            round(_d_occ["slash"] * 2.2, 1),
+        ]
+    ),
+)
+check(
+    "  行名乱猜（未归属行）同场景 → 同样补全且 note 提示未归属",
+    (lambda w, n: (w or {}).get("damage", {}).get("puncture") == 46.5 and "未能归属" in (n or ""))(
+        *lo._panel_base_weapon(
+            _weapon_magistar,
+            dict(_panel_occluded, damage_rows=_panel_occluded["damage_rows"] + [["", "102.3"]]),
+            _totals_mag,
+        )
+    ),
+)
+check(
+    "对照：库内真有自带元素的武器 → 反解 E0 被接受（防线不误伤）",
+    lo._panel_base_weapon(
+        {
+            "name": "InnateToxin",
+            "uniqueName": "/test/innate",
+            "damage": {"total": 310, "impact": 168, "puncture": 31.5, "slash": 10.5, "toxin": 100},
+            "criticalChance": 0.2,
+            "criticalMultiplier": 2.0,
+        },
+        {"damage_rows": [["毒素", "220.0"], ["冲击", "369.6"], ["穿刺", "69.3"], ["切割", "23.1"]]},
+        {
+            "base_dmg": 120.0,
+            "crit_chance": 0.0,
+            "crit_dmg": 0.0,
+            "status_chance": 0.0,
+            "elements": {},
+            "physical": {},
+        },
+    )[0]
+    is None,
+)
+
+check(
+    "非灵化武器部分行漏读（缩放锚=1）→ 反推与库一致 → 不覆盖（None）",
+    lo._panel_base_weapon(
+        {
+            "name": "TestWeapon",
+            "uniqueName": "/test/w",
+            "damage": {"total": 210, "impact": 168, "puncture": 31.5, "slash": 10.5},
+            "criticalChance": 0.2,
+            "criticalMultiplier": 2.0,
+        },
+        {"damage_rows": [["冲击", "369.6"]], "total": ["", "460.2"]},
+        _totals_mag,
+    )[0]
+    is None,
+)
+check(
+    "幻影防线：库内+灵化库均无该元素 → 反解自带元素判 0（不进基础）",
+    (lambda w, n: (w is None) or not (w.get("damage") or {}).get("toxin"))(
+        *lo._panel_base_weapon(
+            {
+                "name": "NoInnate",
+                "uniqueName": "/test/no_innate",
+                "damage": {"total": 178.5, "impact": 168, "puncture": 0, "slash": 10.5},
+                "criticalChance": 0.2,
+                "criticalMultiplier": 2.0,
+            },
+            {"damage_rows": [["毒素", "1,125.3"], ["冲击", "369.6"], ["切割", "23.1"]]},
+            _totals_mag,
+        )
+    ),
 )
 
 if FAILED:

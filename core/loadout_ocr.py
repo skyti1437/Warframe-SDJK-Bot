@@ -62,13 +62,17 @@ ELEM_PAIRS = {
 }
 
 
+# ★★ 2026-10-05 去掉字面示例值：阴性对照实测（喂**紫卡图**——卡面没有容量栏/
+#   伤害栏）本提示词 8B 3/6、30B 4/5 次吐出 `"capacity": "0/70"`，即照抄旧例子。
+#   旧例子里的 0/70 / 144 / 1,807.3 / 75.6 / 22▶138 / 驱魔之刃 [30] 全部来自
+#   用户真实截图 ⇒ **本提示词不得再出现任何具体数值**，一律用占位符/描述表达。
 VISION_PROMPT = """这是 Warframe（星际战甲）游戏内武器升级界面的截图。
 请**只读出图中确实可见的文字与数字**，不要推测、不要补全、不要翻译。
 
 严格输出如下 JSON（不要 markdown 代码块、不要任何解释文字）：
 {
-  "weapon": "顶部武器名，原文照抄（含方括号里的等级数字，如 驱魔之刃 [30]）",
-  "capacity": "容量那一行右侧的数字，形如 0/70",
+  "weapon": "顶部武器名，原文照抄（含方括号里的等级数字）",
+  "capacity": "容量那一行右侧的数字，形如「左值/右值」",
     "mods": [
     {"name": "卡片上的 MOD 名称，原文照抄（图上中文就用中文）",
      "drain": 卡片右上角的数字（只要整数）,
@@ -97,11 +101,10 @@ VISION_PROMPT = """这是 Warframe（星际战甲）游戏内武器升级界面�
 2. drain 只填整数，不要带箭头、百分号、上标等符号；
 3. **damage_rows 是重点，一条都不能漏**：左侧「伤害」栏里每一行都要给 ——
    冲击 / 穿刺 / 切割 / 各元素行（如 毒素、爆炸）/ 总计。
-   ⚠ **合成元素行**（形如「爆炸（火+冰）144」「腐蚀（电+毒）」「病毒（冰+毒）」
+   ⚠ **合成元素行**（行名形如「爆炸（火+冰）」「腐蚀（电+毒）」「病毒（冰+毒）」
    「磁力」「辐射」「毒气」）**必须读出来**：括号里是合成它的两种基础元素，
-   前面的数值（如 144）要照抄 —— 这一行最常被整行漏掉。
-   数字里的千分位逗号
-   （如 1,807.3）原样保留；若某行是「旧值>新值」形式就两个都给。
+   括号后的那个数要照抄 —— 这一行最常被整行漏掉。
+   数字里的千分位逗号原样保留；若某行是「旧值>新值」形式就两个都给。
    行名必须与数值严格对齐（不要串行）；「总计」是独立的一行，它的数值
    约等于上面所有行之和 —— 不要把总计的数值写到别的行名下，也不要
    凭空新增图中没有的行（图里没有「爆炸」就不要输出爆炸行）。
@@ -109,9 +112,9 @@ VISION_PROMPT = """这是 Warframe（星际战甲）游戏内武器升级界面�
 4. 看不清的内容填 null，不要猜。
 5. 面板数值块在「伤害」栏**上方**，从上到下：暴击几率 / 暴击伤害 /
    触发几率 —— 每行都是「基础值 ▶ MOD后值」两个数（红色左值、绿色右值）。
-   **一律取 ▶ 右边的 MOD 后值**（如「22% ▶ 138%」要填 138%，不是 22%）；
-   暴击伤害的「倍」字保留。暴击几率常带小数（如 75.6%），触发几率是
-   个位数十位数的小百分数（如 10%），两行别看串。
+   **一律取 ▶ 右边的 MOD 后值**（不是左边的那个基础值）；
+   暴击伤害的「倍」字保留。暴击几率常带小数，触发几率通常是
+   个位数十位数的小百分数，两行别看串。
 6. 容量数字的 color 只看**数字本身**的颜色（绿/红/白）—— 数字旁边
    的极性符号（V/—/D 等）自带的颜色不是数字颜色，别搞混。
 """
@@ -193,8 +196,60 @@ def clean_weapon_name(s) -> str:
     return t.strip(" +·|/／").strip()
 
 
+def _balance_brackets(s: str) -> str:
+    """就地修复缺失/多余的收尾括号（模型少写 ``]`` 的常见笔误，字符串字面量内不算）。
+
+    2026-10-05 识图测试实证：30B 对裁剪图（无卡框）吐出
+    ``…"negative": [["装填速度", 23.3]}`` —— 少一个 ``]``，json.loads 直接失败，
+    weapon 全丢（而窄读词条是全对的）。⇒ 扫描时遇到与栈顶不匹配的闭合符，
+    **先把缺的收尾插在它前面**再收当前；多余闭合符直接丢弃；结尾按栈逆序补齐。
+    """
+    out: list = []
+    stack: list = []
+    pairs = {"]": "[", "}": "{"}
+    closer = {"[": "]", "{": "}"}
+    in_str = esc = False
+    for ch in s:
+        if in_str:
+            out.append(ch)
+            if esc:
+                esc = False
+            elif ch == "\\":
+                esc = True
+            elif ch == '"':
+                in_str = False
+            continue
+        if ch == '"':
+            in_str = True
+            out.append(ch)
+            continue
+        if ch in "[{":
+            stack.append(ch)
+            out.append(ch)
+            continue
+        if ch in "]}":
+            want = pairs[ch]
+            if stack and stack[-1] == want:
+                stack.pop()
+                out.append(ch)
+                continue
+            if stack:
+                while stack and stack[-1] != want:
+                    out.append(closer[stack.pop()])
+                if stack and stack[-1] == want:
+                    stack.pop()
+                    out.append(ch)
+                # 栈空仍不匹配 ⇒ 多余闭合符，丢弃
+            # 栈空 ⇒ 多余闭合符，丢弃
+            continue
+        out.append(ch)
+    while stack:
+        out.append(closer[stack.pop()])
+    return "".join(out)
+
+
 def parse_vision_json(text: str) -> dict:
-    """从模型输出里抠出 JSON（容忍思考段、markdown 代码块与前后废话）。
+    """从模型输出里抠出 JSON（容忍思考段、markdown 代码块、前后废话、缺收尾括号）。
 
     注意 thinking 类模型（glm-4.1v-thinking-flash）会先吐一段 ``<think>…</think>``，
     里面可能含花括号，必须先剥掉再取 JSON。
@@ -208,13 +263,13 @@ def parse_vision_json(text: str) -> dict:
     i, j = s.find("{"), s.rfind("}")
     if i >= 0 and j > i:
         s = s[i : j + 1]
-    for candidate in (s, re.sub(r",\s*([}\]])", r"\1", s)):
+    for candidate in (s, re.sub(r",\s*([}\]])", r"\1", s), _balance_brackets(s)):
         try:
             d = json.loads(candidate)
-            if isinstance(d, dict):
-                return d
         except Exception:  # noqa: BLE001
             continue
+        if isinstance(d, dict):
+            return d
     return {}
 
 
@@ -479,12 +534,18 @@ def _panel_base_weapon(weapon: dict, panel: dict, totals: dict) -> tuple[Optiona
         rev.setdefault(str(_zh), _k)
     base_dmg: dict[str, float] = {}
     elem_rows: list[tuple[str, float]] = []
+    unmatched: list[tuple[str, float]] = []  # 行名认不出但有数值的行（★不许静默丢）
+    notes: list[str] = []  # 反推过程的非致命事件，随 note 上卡面
     for row in panel.get("damage_rows") or []:
         if not isinstance(row, (list, tuple)) or len(row) < 2:
             continue
         label = str(row[0]).lstrip("*").strip()
         key = next((k for zh, k in rev.items() if label.startswith(zh)), None)
         if not key:
+            _l0, _r0 = to_pair(row[1])
+            _v0 = float(_r0 or _l0 or 0.0)
+            if _v0 > 0:
+                unmatched.append((label or "（空行名）", _v0))
             continue
         left, right = to_pair(row[1])
         if not left:
@@ -506,12 +567,52 @@ def _panel_base_weapon(weapon: dict, panel: dict, totals: dict) -> tuple[Optiona
     lib_total = float(lib_dmg.get("total") or 0.0) or sum(
         float(lib_dmg.get(k) or 0.0) for k in ("impact", "puncture", "slash")
     )
+    # 灵化形态库提前加载（wfsim 数据源）：元素反解的幻影防线也要看它有没有该元素
+    inc = _incarnon_forms().get(str(weapon.get("uniqueName") or "").lower())
+    inc_dmg = (inc or {}).get("damage") or {}
+    inc_total = float(inc_dmg.get("total") or 0.0)
+
+    # ★★ 2026-10-05 锚定补全（用户方案：库内有基础就只反推一个缩放锚）：
+    #   IPS 三系里「库内有值、反推却缺失」的类型 —— 典型：面板行名被遮挡
+    #   （实测执法者穿刺行被滚动箭头盖住 → 整行静默丢 → 本地推算少 102.3、
+    #   毒素行反解出幻影自带毒 29）。用「已反推行 ÷ 库内同行」的中位锚补全：
+    #   锚 = 基伤 MOD × 灵化进化系数（全类型一致），各行锚应自洽。
+    #   执法者实测两锚同为 310/210 ≈ 1.476，补出穿刺 46.5 → 面板 102.3 逐行吻合。
+    if base_dmg:
+        _lib_phys = {k: float(lib_dmg.get(k) or 0.0) for k in PHYS_ZH}
+        _missing = [k for k in PHYS_ZH if k not in base_dmg and _lib_phys.get(k, 0.0) > 0]
+        _anchors = sorted(
+            base_dmg[k] / _lib_phys[k]
+            for k in base_dmg
+            if k in PHYS_ZH and _lib_phys.get(k, 0.0) > 0
+        )
+        if _missing and _anchors:
+            _scale = _anchors[len(_anchors) // 2]
+            _lo, _hi = _anchors[0], _anchors[-1]
+            if _hi - _lo > 0.02 * max(_hi, _lo):
+                notes.append(f"各行反推锚不一致（{_lo:.3f}~{_hi:.3f}），按中位锚 {_scale:.3f} 补全")
+            for k in _missing:
+                base_dmg[k] = _lib_phys[k] * _scale
+            notes.append(
+                "面板"
+                + "、".join(PHYS_ZH[k] for k in _missing)
+                + "行未读到（行名被遮挡或漏读），已按库内比例补全 "
+                + "、".join(f"{PHYS_ZH[k]} {_lib_phys[k] * _scale:.1f}" for k in _missing)
+            )
+    if unmatched:
+        notes.append(
+            "面板行 "
+            + "、".join(f"「{lb}」{v:g}" for lb, v in unmatched)
+            + " 行名未能归属类型（图标遮挡？），已按库内分布对账"
+        )
     if base_dmg:
         ips_total = sum(v for k, v in base_dmg.items() if k in ("impact", "puncture", "slash"))
         # 总伤锚定：某行值≈面板总伤（可能是被模型挂错行名的「总计」）时，
         # 不许它进自带元素反推 —— 否则基础总伤直接翻倍（实测踩过）
         pan_total = _panel_total(panel)
-        # 元素行 → 自带元素基础（灵化形态普遍改自带元素，如执法者灵化的毒素）。
+        # 元素行 → 自带元素基础（灵化形态可能改自带元素 —— ⚠ 2026-10-05 实证：
+        #   执法者「自带毒 29」其实是穿刺行被遮挡造成的**幻影**，执法者并无
+        #   自带毒素；判定与防线见下）。
         # 我们引擎的语义：元素 MOD 加成 = 元素%×MOD后总基础（含自带元素），即
         #   行值 = after_base×(E0 + pct×(IPS总+E0))
         # → E0 = (行值/after_base − pct×IPS总) / (1+pct)
@@ -526,13 +627,12 @@ def _panel_base_weapon(weapon: dict, panel: dict, totals: dict) -> tuple[Optiona
             # 小偏差（实测拉特昂 Prime 面板各行有 ~+6.7% 的显示系数），
             # 逆解后会得到占总量百分之几的幽灵自带元素 → 基础总伤虚高、
             # 总伤校验 ⚠。MOD 已能解释行值 90% 以上时视为无自带元素。
-            # （真实自带元素远大于此：执法者灵化毒素占行值 ~24%）
             explained = bd_m * pct * ips_total  # 纯 MOD 贡献
             if pct > 0 and row_v - explained < 0.10 * row_v:
                 continue
             # 疑似总计行兜底②：无该元素 MOD、库内基础也没有它、而反推出的
-            # 自带值却 ≥ IPS 总量的 2 倍 —— 真实自带元素极少这么大（执法者
-            # 灵化毒素才 1.65×IPS），大概率是「总计」被挂错了行名（实测踩过）
+            # 自带值却 ≥ IPS 总量的 2 倍 —— 真实自带元素极少这么大，大概率是
+            # 「总计」被挂错了行名（实测踩过）
             if (
                 pct == 0.0
                 and not float(lib_dmg.get(key) or 0.0)
@@ -540,12 +640,19 @@ def _panel_base_weapon(weapon: dict, panel: dict, totals: dict) -> tuple[Optiona
                 and e0 >= 2.0 * ips_total
             ):
                 continue
+            # ★ 幻影防线③（2026-10-05）：库内基础与灵化形态**都没有**该元素时，
+            #   反解出的「自带元素」必是缺行/噪声的假象 —— 实测执法者：穿刺行
+            #   被遮挡 → IPS 少 46.5 → 反解出幻影自带毒 29（真值 0，毒 100% 来自
+            #   热病打击 Prime；上面的锚定补全 + 本防线双保险）。
+            if e0 > 0 and not float(lib_dmg.get(key) or 0.0) and not float(inc_dmg.get(key) or 0.0):
+                notes.append(
+                    f"反解出幻影自带{ELEM_ALL_ZH.get(key, key)} {e0:g}"
+                    "（库内/灵化库均无此自带元素）→ 判 0"
+                )
+                continue
             if e0 > 0:
                 base_dmg[key] = e0
-    # wfsim 灵化形态数值（有就是权威判定 + 更准的兜底向量）
-    inc = _incarnon_forms().get(str(weapon.get("uniqueName") or "").lower())
-    inc_dmg = (inc or {}).get("damage") or {}
-    inc_total = float(inc_dmg.get("total") or 0.0)
+    # wfsim 灵化形态数值（有就是权威判定 + 更准的兜底向量）—— 已提前加载（见上）
 
     if not base_dmg:
         # 兜底：类型行没读到（模型偶发 damage_rows 为空）但总计有值
@@ -577,6 +684,27 @@ def _panel_base_weapon(weapon: dict, panel: dict, totals: dict) -> tuple[Optiona
 
     base_dmg = {k: _snap(v) for k, v in base_dmg.items()}
     base_total = _snap(sum(base_dmg.values()))
+    # ★ 2026-10-05 灵化对账（修复④）：反推总量高于库内的差额若与 evolutions.json
+    #   的 flat_base_damage 吻合（实测执法者 310−210＝100），明说「灵化 +100 已计入」，
+    #   不再让用户对着 47.6% 的差值猜。键 = 英文名小写下划线（Magistar → magistar）。
+    if base_total > lib_total > 0:
+        _evo_key = str(weapon.get("name") or "").strip().lower().replace(" ", "_")
+        _evo_tiers = (dc._load_evo_data()[0].get(_evo_key) or {}).get("tiers") or {}
+        _flat = 0.0
+        for _opts in _evo_tiers.values():
+            _vals = [
+                float(_e.get("value") or 0.0)
+                for _o in _opts
+                for _e in (_o.get("effects") or [])
+                if _e.get("kind") == "flat_base_damage"
+            ]
+            if _vals:
+                _flat += max(_vals)  # choose_one：取该档最高（执法者两选项同为 +100）
+        if _flat > 0 and abs((base_total - lib_total) - _flat) <= 0.05 * max(lib_total, 1.0):
+            notes.append(
+                f"反推基础 {base_total:g} ＝ 库内 {lib_total:g} ＋ 灵化进化 +{_flat:g}"
+                "（与 evolutions 数据吻合，已计入）"
+            )
     diffs = [abs(base_total - lib_total) / max(lib_total, 1.0)]
     if cc_p is not None:
         # ⚠️ 面板是百分数、库里是小数：反推后先 /100 再比，否则必然误触发覆盖
@@ -595,6 +723,8 @@ def _panel_base_weapon(weapon: dict, panel: dict, totals: dict) -> tuple[Optiona
     # ---- 灵化库命中：面板反推值与灵化基础吻合 → 直接采用灵化基础 ----
     # （基础是真实库数据，MOD 正常叠算，面板校验也保持开启；
     #   反推值里吸收的灵化进化 perk 平坦加成会导致小偏差，20% 容差内即可）
+    _extra = "；".join(notes)
+
     if inc_total > 0:
         diffs_inc = [abs(base_total - inc_total) / max(inc_total, 1.0)]
         if cc_p is not None:
@@ -620,6 +750,7 @@ def _panel_base_weapon(weapon: dict, panel: dict, totals: dict) -> tuple[Optiona
                 w2["fireRate"] = float(inc["fireRate"])
             return w2, (
                 "灵化形态：基础数值取自灵化库（wfsim 数据源），MOD 正常叠算，面板校验保持开启"
+                + ("；" + _extra if _extra else "")
             )
 
     w2 = dict(weapon)
@@ -650,13 +781,14 @@ def _panel_base_weapon(weapon: dict, panel: dict, totals: dict) -> tuple[Optiona
         return w2, (
             "灵化/回响武器：基础数据从面板反推（含回响加成与进化加成，"
             "回响为 25-60% 随机值，实际以游戏内为准），"
-            "MOD 按实际等级正常叠算一次"
+            "MOD 按实际等级正常叠算一次" + ("；" + _extra if _extra else "")
         )
-    return w2, (
+    _base_note = (
         "灵化形态：基础数据从面板反推（含自带元素与灵化进化加成），MOD 按实际等级正常叠算一次"
         if is_inc
         else "特殊形态：基础数据从面板反推，MOD 按实际等级正常叠算一次"
     )
+    return w2, _base_note + ("；" + _extra if _extra else "")
 
 
 # ---------------------------------------------------------------------------
