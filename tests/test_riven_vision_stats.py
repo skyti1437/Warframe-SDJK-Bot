@@ -353,6 +353,62 @@ check(
     _fix("damage_vs_infested", 51.0) == 51.0 and _fix("damage_vs_corpus", 45.0) == 45.0,
 )
 check("非「对派系」词条一律不动（避免误伤）", _fix("crit_damage", 0.55) == 0.55)
+
+# ---------------------------------------------------------------------------
+# ★ 2026-10-05 P0 回归：括号后缀「（重击时 x2）」劫持词条数值。
+#   近战紫卡常见「+211.4% 暴击几率（重击时 x2）」——括号里的 x2 命中 _MULT_RE，
+#   k=2.0 落在 is_faction_mult 域内 ⇒ 被当派系乘数换算成 100.0，**211.4 静默
+#   丢失**且条数判据仍合法（整卡区间/评级全错，最难发现的一类）。
+#   修法：搜乘数前剥括号（`_strip_parens`）+ 乘数分支只认 damage_vs_*。
+# ---------------------------------------------------------------------------
+_p0a, _n0a, _nt0a = RA.parse_riven_lines(["+211.4% 暴击几率（重击时 x2）"], _resolve)
+check(
+    "P0 括号后缀：暴击几率（重击时 x2）取主体 211.4，不被 x2 换成 100",
+    _p0a == [("crit_chance", 211.4)] and not _n0a,
+    f"{_p0a} / {_n0a} / {_nt0a}",
+)
+_p0b, _n0b, _ = RA.parse_riven_lines(["+150.0% 连击持续时间 x2"], _resolve)
+check(
+    "P0 行尾乘数：连击持续时间 x2 取主体 150，不被换成 100",
+    _p0b == [("combo_duration", 150.0)] and not _n0b,
+    f"{_p0b} / {_n0b}",
+)
+_p0c, _n0c, _ = RA.parse_riven_lines(["+120.5% 暴击伤害 x3"], _resolve)
+check(
+    "P0 对照：x3 出界（>2.05）本就不命中 —— 修后仍 120.5",
+    _p0c == [("crit_damage", 120.5)] and not _n0c,
+    f"{_p0c} / {_n0c}",
+)
+_p0d, _n0d, _ = RA.parse_riven_lines(["x1.51 对 Infested 的伤害"], _resolve)
+check(
+    "P0 勿破坏：真派系乘数行 x1.51 仍是正词条 51",
+    _p0d == [("damage_vs_infested", 51.0)] and not _n0d,
+    f"{_p0d} / {_n0d}",
+)
+_p0e, _n0e, _ = RA.parse_riven_lines(["-0.55x 对Corpus的伤害"], _resolve)
+check(
+    "P0 勿破坏：真派系乘数行 x0.55 仍是负词条 45",
+    not _p0e and _n0e == [("damage_vs_corpus", 45.0)],
+    f"{_p0e} / {_n0e}",
+)
+_p0f, _n0f, _ = RA.parse_riven_lines(["+72.9% 射速（弓类武器效果加倍）"], _resolve)
+check(
+    "P0 括号文案：射速（弓类武器效果加倍）仍取主体 72.9",
+    _p0f == [("fire_rate", 72.9)] and not _n0f,
+    f"{_p0f} / {_n0f}",
+)
+_p0g, _n0g, _ = RA.parse_riven_lines(["×59% 多重射击"], _resolve)
+check(
+    "P0 勿回归：图标误抄 ×59% 出界 ⇒ 按普通数值 59（旧 2026-10-02 口径）",
+    _p0g == [("multishot", 59.0)] and not _n0g,
+    f"{_p0g} / {_n0g}",
+)
+check(
+    "P0 单点：_strip_parens 只剥括号、保留主体文案",
+    RA._strip_parens("+211.4% 暴击几率（重击时 x2）").strip() == "+211.4% 暴击几率"
+    and RA._strip_parens("x1.51 对 Infested 的伤害") == "x1.51 对 Infested 的伤害",
+    RA._strip_parens("+211.4% 暴击几率（重击时 x2）"),
+)
 check(
     "回归：x1.51 经语义表 → 3 正 1 负（与行解析同口径）",
     (lambda pn: len(pn[0]) == 3 and len(pn[1]) == 1)(
@@ -901,15 +957,52 @@ check(
 )
 
 # ---------------------------------------------------------------------------
-# ⑩ prompt 负例（2026-10-02 模型误读取证：⚡电击伤害 被两渠道都读成暴击伤害；
-#    图标被抄成 ×59%）—— 两个 prompt 都要带这些负例，防回归。
+# ⑩ 窄读 prompt 不变量（2026-10-05 **二次精简**：213 字 → 60 字，提问式）
+#    全过程：A(517)→…→F(213)→ S4(32)→**S6(60，现行)**，判分一律走
+#    `_riven_lines_legal` + `parse_riven_lines`，16 张真实卡 × 2 模型。
+#    ★ 关键实证（勿凭直觉改回长版）：
+#      · 8B 在 213 字版下 **11 个版次全漏** `🔒+59% 多重射击`（05 卡）；
+#        换提问式后 47/48 读到。中性探针「有几行词条？逐行念出来」→ 5/5 读到
+#        ⇒ 不是看不见、不是分辨率，是长提示词的约束框把它筛掉了。
+#      · **「卡面上没有的行绝对不要编造」是副作用源**：S5 只把该句加回 S4，
+#        8B 立刻复现漏锁行（23/24）、30B 输出「第一行：」前缀 3/8 被拒。
+#        它当年防的幻觉源自「x1.51」**字面示例**，示例删掉后该句只剩副作用。
+#      · 隔壁方案「明说无视 emoji」实测无效（8B 仍漏 05）。
 # ---------------------------------------------------------------------------
 import inspect as _inspect  # noqa: E402
 
 _line_prompt = plugin.WarframeSDJK._RIVEN_LINE_PROMPT
 check(
-    "窄读 prompt：含「电击伤害不得抄成暴击伤害」与「图标不是 ×」负例",
-    "不得抄成「暴击伤害」" in _line_prompt and "图标不是 × 号" in _line_prompt,
+    "窄读 prompt：提问式 + 只念词条行（S6 的两处承重件）",
+    "有几行词条" in _line_prompt and "只念词条行" in _line_prompt,
+    _line_prompt,
+)
+check(
+    "窄读 prompt：纯格式约束在（不要编号/列表符号/说明文字 —— 收 markdown 噪声）",
+    "不要编号" in _line_prompt
+    and "不要列表符号" in _line_prompt
+    and "不要任何说明文字" in _line_prompt,
+    _line_prompt,
+)
+check(
+    "窄读 prompt：不含任何示例数值（x1.51/x0.55 是 30B 照抄泄漏源）",
+    "x1.51" not in _line_prompt and "x0.55" not in _line_prompt and "1.51" not in _line_prompt,
+    _line_prompt,
+)
+check(
+    "★ 窄读 prompt：**不得**出现「不要编造」类反声明（实测副作用源）",
+    "不要编造" not in _line_prompt and "别编" not in _line_prompt and "不能编" not in _line_prompt,
+    _line_prompt,
+)
+check(
+    "★ 窄读 prompt：**不得**出现锁行/图标交代（实测 11 版次全无效）",
+    "带锁形图标的行" not in _line_prompt and "无视" not in _line_prompt,
+    _line_prompt,
+)
+check(
+    "窄读 prompt：已精简到 60 字（517 → 213 → 60）",
+    len(_line_prompt) <= 100,
+    f"len={len(_line_prompt)}",
 )
 _sem_prompt = _inspect.getsource(plugin.WarframeSDJK._extract_riven_from_image)
 check(
@@ -919,6 +1012,9 @@ check(
 
 # ⑪ prompt 词条枚举（2026-10-03 线上实证：枚举缺「弹匣容量/变焦」，
 #    语义渠道猜成 暴伤/集束、窄读 OCR 成 坦克容星/集中，负词条被整条丢弃）
+#    窄读侧：2026-10-05 精简版**删掉了这两条正字样**（八版对照实测：8B 侧
+#    14/16→14/16、30B 侧 3/16→14/16，无回退；负例改由「逐字照抄、不要改写」
+#    通用规则承接）。此处只守语义（JSON）渠道仍带枚举。
 check(
     "⑪ 语义 prompt：枚举含 弹匣容量/变焦 + 「照卡面原样照抄」+ 负词条警示",
     "弹匣容量" in _sem_prompt
@@ -927,8 +1023,9 @@ check(
     and "负词条绝不能丢" in _sem_prompt,
 )
 check(
-    "⑪ 窄读 prompt：含 弹匣容量/变焦 正字样与负词条漏抄警示",
-    "弹匣容量" in _line_prompt and "变焦" in _line_prompt and "绝不能漏抄" in _line_prompt,
+    "⑪ 窄读 prompt：改守「先数行数」的计数框架（S6 下负词条/图标行都不丢）",
+    "有几行词条" in _line_prompt,
+    _line_prompt,
 )
 
 if FAILED:

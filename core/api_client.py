@@ -1660,10 +1660,12 @@ class WarframeClient:
         """紫卡武器表（v2，含 zh-hans 名称与倾向指数）。
 
         ★ 2026-09-23 合并 core/data/dispositions_rivenmirror.json 静态补全：
-        WM v2 该端点只有 418 条且几乎不含 Prime/新变体（rubico_prime、
-        kuva_zarr、tenet_arca_plasmor 全缺），变体倾向会错给本体值。
-        补全数据由 scripts/build_disposition.py 生成（riven-mirror 细粒度值
-        + DE 官方 zh + 基类 riven_type 继承），按 url_name 去重后追加。
+        WM v2 该端点（2026-09-23 实测 418 条；**2026-10-05 实测 420 条**）几乎
+        不含 Prime/新变体（rubico_prime、kuva_zarr、tenet_arca_plasmor 全缺），
+        变体倾向会错给本体值。补全数据由 scripts/build_disposition.py 生成
+        （riven-mirror 细粒度值 + DE 官方 zh + 基类 riven_type 继承），按
+        url_name 去重后追加 ⇒ **合并表 670 条**（420 + 去重并入 250；
+        容器内 `wm_riven_weapons()` 实测，2026-10-05）。
         """
         raw = await self._wm_v2("/riven/weapons", ttl=TTL_WM_ITEMS) or []
         out = []
@@ -2555,7 +2557,8 @@ class WarframeClient:
         """WM **自家**紫卡武器 slug 集（原始端点，即拍卖端点接受的取值）。
 
         ★ 与 `wm_riven_weapons()` 的区别：后者合并了本地
-        `dispositions_rivenmirror.json` 的 670 条变体补全（rubico_prime 等），
+        `dispositions_rivenmirror.json` 的 670 条变体补全（按 url_name 去重后
+        实际并入 250 条，合并表 670 条；rubico_prime 等在其中），
         那些 slug **拍卖端点不认**（2026-10-05 实测：`weapon_url_name=rubico_prime`
         → **HTTP 400**，`rubico` → 200）。市场路径（`wr`）必须先过这一关。
         """
@@ -2570,7 +2573,8 @@ class WarframeClient:
         ★ p/P 后缀**优先返回变体条目**（紫卡分析按变体算倾向；表中确无该变体
         条目时返回 None，绝不冒充本体值）。
         ★ 2026-10-05 实测口径（勿再踩）：**运行期表 = WM v2 原始端点（420 条）
-        + 本地 `dispositions_rivenmirror.json` 670 条变体补全 = 677 条**——
+        + 本地 `dispositions_rivenmirror.json` 670 条补全按 url_name 去重后并入
+        （实际新增 250 条）⇒ 合并表 **670 条**（容器内 `wm_riven_weapons()` 实测）**——
         所以 `rubico_prime` **在表里**（拿原始端点验会得出「只挂母武器」的假象）。
         市场路径（`wr`）另有「剥到母武器」口径，见 `market.py::_h_wr`。
         """

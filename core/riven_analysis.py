@@ -486,6 +486,12 @@ _NUM_RE = re.compile(r"\d+(?:[.,]\d+)?")
 _BARE_NUM_RE = re.compile(r"^[\d.,]+\s*[%\uff05]?\s*[\w米秒]*$")
 # 乘数写法（卡面「x0.55 对 Corpus 的伤害」/「x1.51 对 Infested 的伤害」）
 _MULT_RE = re.compile(r"[x×]\s*(\d+(?:[.,]\d+)?)|(\d+(?:[.,]\d+)?)\s*[x×]", re.I)
+# ★ 括号后缀（「暴击几率（重击时 x2）」「射速（弓类武器效果加倍）」）是**卡面说明文案**，
+#   不是词条数值。搜乘数前必须先剥掉：2026-10-05 P0 —— 近战紫卡常见的
+#   「+211.4% 暴击几率（重击时 x2）」里那个 x2 命中 _MULT_RE，k=2.0 落在
+#   is_faction_mult 域内 ⇒ 被当派系乘数换算成 100.0，**211.4 静默丢失**
+#   （条数判据仍合法，整卡区间/评级全错）。同类：`+150.0% 连击持续时间 x2`。
+_PARA_RE = re.compile(r"[（(][^）)]*[）)]")
 # 乘数写法还原成 magnitude 的下限：对派系伤害基值 45 × 最小倾向 0.5 ×
 # 2正1负的 0.495 ≈ 11 ⇒ 小于 10 的数字一定不是 magnitude，而是「乘数漏写了
 # x / 只写了 1.51 或 0.55」，按乘数还原。
@@ -560,6 +566,16 @@ def _strip_name(body: str) -> str:
     return re.sub(r"[%\uff05x×\s　·、:：米秒]", "", name, flags=re.I)
 
 
+def _strip_parens(text: str) -> str:
+    """剥掉括号后缀（连同括号内容），只留主文案。
+
+    ★ 只用于**搜乘数**，不参与词条名解析：`_strip_name` 对
+    「211.4% 暴击几率（重击时 x2）」产出「暴击几率（重击时）」且照旧能 resolve 成
+    crit_chance（`_stat_id_from_name` 走子串包含），保持原样以免动到认名链路。
+    """
+    return _PARA_RE.sub(" ", text or "")
+
+
 def _dedup_pairs(pairs: list) -> list:
     seen: set = set()
     out: list = []
@@ -598,7 +614,9 @@ def parse_riven_lines(lines, resolve) -> tuple:
             # ★ 2026-10-02 派系行兼容：行首无极性符号时先试整行乘数 ——
             #   兼容 `x1.51 对 X 的伤害` 与 `对 X 的伤害 x1.51` 两种抄写
             #   顺序（线上 16:18 实证：三条派系行因 x 在行尾被整条丢弃）。
-            mm2 = _MULT_RE.search(raw)
+            # ★ 2026-10-05 P0：先剥括号后缀再搜乘数，且只认 damage_vs_* 词条 ——
+            #   否则「（重击时 x2）」的 x2 会把非派系词条的数值换成 100.0。
+            mm2 = _MULT_RE.search(_strip_parens(raw))
             if mm2:
                 try:
                     k2 = float((mm2.group(1) or mm2.group(2)).replace(",", "."))
@@ -607,7 +625,7 @@ def parse_riven_lines(lines, resolve) -> tuple:
                     continue
                 name2 = _strip_name(raw)
                 sid2 = resolve(name2) if name2 else None
-                if sid2 and is_faction_mult(k2):
+                if sid2 and sid2.startswith("damage_vs_") and is_faction_mult(k2):
                     value2, neg2 = faction_mult_to_mag(k2)
                     if is_inverted(sid2):
                         neg2 = not neg2
@@ -624,17 +642,22 @@ def parse_riven_lines(lines, resolve) -> tuple:
         if not sid:
             notes.append(f"词条名认不出：{raw}")
             continue
-        mm = _MULT_RE.search(raw)
+        mm = _MULT_RE.search(_strip_parens(raw))
         k = None
         if mm:
             # 乘数在一整行里找（`x` 可能已被上面的极性正则吃掉），极性由
             # 乘数本身决定：x1.51 是正词条、x0.55 是负词条。
+            # ★ 2026-10-05 P0：搜的是剥掉括号后缀的文案 —— 括号里的
+            #   「重击时 x2」不是乘数，参与匹配会把 211.4 换成 100.0。
             try:
                 k = float((mm.group(1) or mm.group(2)).replace(",", "."))
             except ValueError:
                 notes.append(f"乘数读不出：{raw}")
                 continue
-        if k is not None and is_faction_mult(k):
+        if k is not None and sid.startswith("damage_vs_") and is_faction_mult(k):
+            # ★ 2026-10-05 P0：乘数分支**仅**对 damage_vs_* 启用（与下面
+            #   `value < _FACTION_MIN_MAG and sid.startswith("damage_vs_")`
+            #   的兜底同口径）；其余词条一律走普通数值分支，禁止拿乘数换算。
             value, neg_flag = faction_mult_to_mag(k)
         else:
             # 普通数值分支。也覆盖「x/× 出界」：窄读把词条图标抄成 × 的行
