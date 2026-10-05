@@ -54,6 +54,12 @@ STOREITEMS_ZH_NAME = "de/storeitems_zh.json"  # StoreItems 路径 → 官方简�
 ACRITHIS_CURRENT_URL = (
     "https://wiki.warframe.com/w/Acrithis/Current_Offerings?action=raw"  # 社区当期 5 件上报页
 )
+# 该页最近修订时间（防陈旧闸门用；2026-10-05 立——wiki 把 observed 改成了魔法词，
+# 恒等于「今天」，原「observed ≥ 本周一」判据失效，改用修订时间戳）
+ACRITHIS_REVISION_API = (
+    "https://wiki.warframe.com/api.php?action=query&prop=revisions"
+    "&titles=Acrithis/Current_Offerings&rvprop=timestamp&rvlimit=1&format=json"
+)
 # 社区快照（2026-09-25 方案④）：wiki 这两项数据都在 Cloudflare 盾后，没部署
 # FlareSolverr 的用户只能吃随包种子。于是把**服务器上已经抓到的新鲜快照**发布到
 # 公开仓的 bot-data 分支（automations/publish_community_snapshot.py），插件在
@@ -285,8 +291,13 @@ def fuzzy_hits(
 ) -> list[str]:
     """在候选名里找与 query 形近的项（支持中文错别字，如 波斯顿→伯斯顿）。
 
-    分档阈值：>=4 字 0.70 / 3 字 0.60 / 2 字 0.50（且要求至少一个字相同，
+    分档阈值：>=4 字 0.70 / 3 字 0.60 / **2 字 0.75**（且要求至少一个字相同，
     否则「绝路」会把「绝望」也算进来）。
+    ★ 2026-10-05：2 字档由 0.50 提到 0.75 —— 两个字里只共享一个字的 difflib
+      ratio **恰好 = 0.5**，0.50 等于「共用一个字即命中」（`wm 圣剑` 被硬配到
+      「剑风」reach、`wm 呼风` 配到「旋风」）。0.75 起：2 字对 2 字需全同（1.0）、
+      2 字对 3 字需共享两字（0.8）；表里真实存在的 2 字名走 zh_contains 精确命中，
+      不依赖本档（实测 125/125 不受影响）。
     """
     q = (query or "").strip()
     if len(q) < 2:
@@ -295,7 +306,7 @@ def fuzzy_hits(
     if not pool:
         return []
     if cutoff is None:
-        cutoff = 0.70 if len(q) >= 4 else (0.60 if len(q) == 3 else 0.50)
+        cutoff = 0.70 if len(q) >= 4 else (0.60 if len(q) == 3 else 0.75)
     hits = difflib.get_close_matches(q, pool, n=max(n * 3, n), cutoff=cutoff)
     if len(q) == 2:
         hits = [h for h in hits if set(h) & set(q)]
@@ -445,10 +456,24 @@ def match_wm_normalized(query: str, items: list[dict]) -> Optional[dict]:
     exact_en = [it for it in items if it.get("en") and norm_wm_name(it.get("en")) == qn]
     if exact_en:
         return min(_prefer(exact_en), key=_score)
+
+    def _contains_ok(name: str) -> bool:
+        """包含匹配的护栏（2026-10-05）：只认「**前缀**」或「近似整名」。
+
+        ★ 中段子串会静默劫持：实测 `wm Garap` 的 `garap` 是
+          `akjagaraprimeset`（Akjagara Prime Set）的中段子串 ⇒ 被配到
+          akjagara_prime_set；真值是 gara_prime_set（`garap` 是它的前缀）。
+        「近似整名」保留「只写名字后半段」的查询（如 `wm 膛室 → 分裂膛室`）。
+        """
+        n = norm_wm_name(name)
+        if not n or qn not in n:
+            return False
+        return n.startswith(qn) or len(qn) >= len(n) - 4
+
     contains = [
         it
         for it in items
-        if qn in norm_wm_name(it.get("zh")) or (it.get("en") and qn in norm_wm_name(it.get("en")))
+        if _contains_ok(it.get("zh")) or (it.get("en") and _contains_ok(it.get("en")))
     ]
     if not contains:
         return None
@@ -1060,6 +1085,27 @@ class WarframeClient:
         return data
 
     @staticmethod
+    @staticmethod
+    def _expand_mw_current(value: str) -> str:
+        """展开 MediaWiki 魔法词 ``{{CURRENTMONTHNAME}} {{CURRENTDAY}}, {{CURRENTYEAR}}``。
+
+        ★ 2026-10-05：wiki 编辑把 ``AcrithisObserved`` 从字面日期改成了这串魔法词
+        （页面自注「Current UTC date (copy this into AcrithisObserved)」）——
+        旧解析按 ``[^}]*`` 只截到 ``{{CURRENTMONTHNAME``，日期解析必失败 ⇒
+        刷新恒 ``failed``、新货单永远落不了盘。按 MediaWiki 语义展开为
+        **当前 UTC 日期**；不含魔法词的原样返回。
+        """
+        if "{{CURRENT" not in value:
+            return value
+        from datetime import datetime, timezone
+
+        now = datetime.now(timezone.utc)
+        out = re.sub(r"\{\{\s*CURRENTMONTHNAME\s*\}\}", now.strftime("%B"), value)
+        out = re.sub(r"\{\{\s*CURRENTDAY2?\s*\}\}", str(now.day), out)
+        out = re.sub(r"\{\{\s*CURRENTYEAR\s*\}\}", str(now.year), out)
+        return out.strip()
+
+    @staticmethod
     def parse_acrichis_current(raw: str) -> dict:
         """解析 wiki《Acrithis/Current Offerings》子页 wikitext（社区当期 5 件上报）。
 
@@ -1067,12 +1113,21 @@ class WarframeClient:
         + ``AcrithisItem1..5``；注释块里带 15 件合法名单（校验用）。经
         FlareSolverr 抓回时 ``<>`` 被转义进 ``<pre>``，先整体 unescape 再解析，
         两种形态（转义/纯 wikitext）都能吃。解析不出 5 件返回空 dict。
+
+        ★ 2026-10-05：``AcrithisObserved`` 的取值可能是魔法词模板
+        （``{{CURRENTMONTHNAME}} {{CURRENTDAY}}, {{CURRENTYEAR}}``，见
+        `_expand_mw_current`）——取值按「| 之后到模板收尾 ``}}``」整段截取，
+        不能再按 ``[^}]*`` 截（会切在魔法词的第一个 ``}`` 上）。
         """
         import html as _html
 
         text = _html.unescape(raw or "")
-        m = re.search(r"\{\{#vardefine:AcrithisObserved\|([^}]*)\}\}", text)
-        observed = m.group(1).strip() if m else ""
+        m = re.search(r"\{\{#vardefine:AcrithisObserved\|([^\n]*)", text)
+        value = re.sub(r"<!--.*$", "", m.group(1)) if m else ""
+        cut = value.rfind("}}")  # 模板自身收尾
+        if cut >= 0:
+            value = value[:cut]
+        observed = WarframeClient._expand_mw_current(value.strip())
         items: list[str] = []
         for i in range(1, 6):
             m = re.search(r"\{\{#vardefine:AcrithisItem" + str(i) + r"\|([^}]*)\}\}", text)
@@ -1086,6 +1141,28 @@ class WarframeClient:
                 if line and not line.lower().startswith("valid item names"):
                     valid.add(line)
         return {"observed": observed, "items": items, "valid": sorted(valid)}
+
+    async def _acrichis_page_revision(self):
+        """wiki 页面最近修订时间（UTC datetime）；查询/解析失败返回 None（调用方降级）。"""
+        from datetime import datetime
+
+        try:
+            raw = await self.fetch_via_flaresolver(ACRITHIS_REVISION_API, ttl=0)
+        except Exception as exc:  # noqa: BLE001 - 查询失败降级，不阻断刷新
+            logger.warning("[sdjk] 言录使页面修订查询失败（降级按 observed 判定）：%s", exc)
+            return None
+        text = raw if isinstance(raw, str) else str(raw)
+        m = re.search(r"<pre>(.*?)</pre>", text, flags=re.S)
+        if m:
+            text = m.group(1)
+        try:
+            data = json.loads(text)
+            pages = (data.get("query") or {}).get("pages") or {}
+            revs = (next(iter(pages.values()), {}) or {}).get("revisions") or []
+            return datetime.fromisoformat(str(revs[0]["timestamp"]).replace("Z", "+00:00"))
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("[sdjk] 言录使页面修订解析失败（降级按 observed 判定）：%s", exc)
+            return None
 
     async def refresh_acrichis_week(self, community_only: bool = False) -> str:
         """言录使本周货单：过期后自动抓 wiki 当期上报子页刷新（2026-09-21 起）。
@@ -1136,6 +1213,17 @@ class WarframeClient:
             logger.info(
                 "[sdjk] 言录使当期上报尚未更新（observed %s < 本周一），本轮不落盘",
                 parsed["observed"],
+            )
+            return "not-updated"
+        # ★ 2026-10-05：wiki 把 observed 改成魔法词后它恒等于「今天」⇒ 上面的
+        #   observed 闸门对新格式失效。补**页面修订时间戳**闸门（社区每周一编辑
+        #   该页，实测 09-21 / 09-28 / 10-05 各有 "rotation updated"）；
+        #   查询失败时降级为只按 observed 判定（记 WARN，不阻断刷新）。
+        rev = await self._acrichis_page_revision()
+        if rev and rev < monday:
+            logger.info(
+                "[sdjk] 言录使页面本周尚未修订（last rev %s < 本周一），本轮不落盘",
+                rev.isoformat(),
             )
             return "not-updated"
         items: list[dict] = []
@@ -2182,6 +2270,38 @@ class WarframeClient:
         cand = await self.resolve_wm_item(base + " prime")
         return cand or item
 
+    async def _prime_upgrade(self, base: str) -> Optional[dict]:
+        """「基名 + Prime 后缀」→ 该基名的 Prime 条目；找不到返回 **None**。
+
+        三级后备（2026-10-05 立，修「`wm 手枪精通p` 落普通版」——Prime 意图前置用）：
+          ① 基名解析结果**已是 Prime** → 直接返回（武器/战甲多数如此：普通版不可交易、
+             表里根本没有普通条目，`格拉姆 → gram_prime_set`）
+          ② `primed_ + <基名条目 url_name>`（MOD 的固定形态：
+             `pistol_gambit → primed_pistol_gambit`）
+          ③ `matching.prime_sibling()`（普通版可交易时，Prime 是 `_prime_set` 兄弟）
+          ④ 兜底 `resolve(base + " prime")`（官方名精确形态）
+
+        ★ 与 `_resolve_prime_variant` 的区别：**不回落非 Prime 本体** —— 四级全不中
+          必须返回 None，让调用方继续原链（保护「表里没有 Prime 版的基名」，
+          如 `塞多p`：普通版可交易且无 Prime ⇒ 继续原链落 cedo_set）。
+        """
+        items = await self.wm_items()
+        item = await self.resolve_wm_item(base)
+        if item:
+            url = item.get("url_name") or ""
+            if "prime" in url:
+                return item
+            primed = next((x for x in items if x.get("url_name") == "primed_" + url), None)
+            if primed:
+                return primed
+            sib = matching.prime_sibling(item, items)
+            if sib:
+                return sib
+        # ★ 兜底只认**精确**（`resolve_wm_exact`）——用完整模糊链会漏配
+        #   （实测「圣剑p」：`resolve("圣剑 prime")` 经 fuzzy_hits 命中「剑风 Prime」
+        #   ⇒ primed_reach；而「圣剑」在 WM 里根本不存在，应落未找到）。
+        return await self.resolve_wm_exact(base + " prime")
+
     async def resolve_wm_exact(self, query: str) -> Optional[dict]:
         """**仅精确**解析：官方名精确 / 别名词典精确键，绝不做模糊。
 
@@ -2284,6 +2404,20 @@ class WarframeClient:
         norm_hit = match_wm_normalized(query, items)
         if norm_hit:
             return norm_hit
+        # ★ 2026-10-05：Prime 意图前置（修「手枪精通p → 普通版」玩家报障）——
+        #   必须插在 alias 模糊 / difflib / fuzzy_hits **之前**：
+        #   ① fuzzy_hits 的中文错别字兜底会把「手枪精通p」当「手枪精通」的错别字
+        #      提前 return（池化 |len差|≤2 通过、ratio 8/9=0.889 ≥ 阈值 0.70）；
+        #   ② alias 模糊在**带 p 的整串**上会误配（实测「分裂斩斧p」→ split_chamber、
+        #      「野马双枪p」→ bronco_prime_set，真值是 scindo/akbronco_prime_set）——
+        #      而「基名 + Prime 意图」能确定性给出正确答案。
+        #   命中即返回；**全不中必须继续原链**（保护 rifle amp / cold snap
+        #   这类「以 p 结尾但非 Prime」的英文名，以及表里没有 Prime 版的基名）。
+        _pb = matching.prime_base(query)
+        if _pb:
+            _up = await self._prime_upgrade(_pb)
+            if _up:
+                return _up
         # ★ 别名词典模糊**降级到这儿**（2026-09-20）：这条是「双向包含 + 长度差≤4」，
         #   以前排在最前，会把「压迫点 p」里的「压迫点」捞出来配到 serration（膛线）。
         #   现在只有官方名/精确键/包含/归一化都没中时，才允许它兜底。
@@ -2292,10 +2426,20 @@ class WarframeClient:
             # ★ 输入带 p / prime 后缀时，优先返回该物品的 Prime 变体 ——
             #   让「压迫点p」（连写）与「压迫点 p」（带空格）结果一致（2026-09-20）。
             #   找不到 Prime 变体就照常返回原物品（如 sawtooth clip 以 p 结尾也不受影响）。
-            want_prime = bool(re.search(r"(?:^|[^a-z])p$|prime$", query.strip().lower()))
+            # ★ 2026-10-05：口径并入 `matching.prime_base`（含 p版/P版 与混排
+            #   「驱逐 Grineerp」）—— 旧正则不认 p版，别名分支会提前返回普通版
+            #   （实测「压迫点p版 → pressure_point」）。
+            want_prime = (
+                bool(re.search(r"(?:^|[^a-z])p(?:版)?$|prime$", query.strip().lower()))
+                or matching.prime_base(query) is not None
+            )
             # ★ primed 是**物品 dict**，比较时要取它的 url_name（不是拿 dict 去比）
             target = alias
-            if want_prime:
+            # ★ 2026-10-05：别名命中的目标**已经是 Prime** 时直接用 —— 旧逻辑还要去
+            #   找 `primed_` 前缀 / Prime 兄弟，会把**已正确的答案「升级」成错误答案**
+            #   （实测：`wm Garap` → 别名键 `gara` → `gara_prime_set`，被 prime_sibling
+            #   带偏成 `akjagara_prime_set`）。这是 2026-09-24「鹦鹉螺p」修复的同族遗漏。
+            if want_prime and "prime" not in alias:
                 primed = next((x for x in items if x.get("url_name") == "primed_" + alias), None)
                 if primed:
                     target = primed.get("url_name")
@@ -2407,13 +2551,28 @@ class WarframeClient:
             self._lich_cache = {}
         return self._lich_cache
 
+    async def wm_riven_weapon_slugs(self) -> set[str]:
+        """WM **自家**紫卡武器 slug 集（原始端点，即拍卖端点接受的取值）。
+
+        ★ 与 `wm_riven_weapons()` 的区别：后者合并了本地
+        `dispositions_rivenmirror.json` 的 670 条变体补全（rubico_prime 等），
+        那些 slug **拍卖端点不认**（2026-10-05 实测：`weapon_url_name=rubico_prime`
+        → **HTTP 400**，`rubico` → 200）。市场路径（`wr`）必须先过这一关。
+        """
+        raw = await self._wm_v2("/riven/weapons", ttl=TTL_WM_ITEMS) or []
+        return {w.get("slug", "") for w in raw if w.get("slug")}
+
     async def resolve_riven_weapon(self, query: str) -> Optional[dict]:
         """紫卡武器解析：本地别名 + WM v2 紫卡武器表（zh/en），支持 黑话+p。
 
         2026-09-23 变体解析并入（core/matching）：归一化完全与变体等价两层
         插在「精确」与「子串」之间（赤毒沙皇=赤毒 沙皇、kuva沙皇、沙皇赤毒）。
-        ★ p/P 后缀现在**优先返回 Prime 版**——倾向/紫卡类型按变体分别计算，
-        「绝路p」绝不能落回 base（旧实现正是回落 base，已修）。
+        ★ p/P 后缀**优先返回变体条目**（紫卡分析按变体算倾向；表中确无该变体
+        条目时返回 None，绝不冒充本体值）。
+        ★ 2026-10-05 实测口径（勿再踩）：**运行期表 = WM v2 原始端点（420 条）
+        + 本地 `dispositions_rivenmirror.json` 670 条变体补全 = 677 条**——
+        所以 `rubico_prime` **在表里**（拿原始端点验会得出「只挂母武器」的假象）。
+        市场路径（`wr`）另有「剥到母武器」口径，见 `market.py::_h_wr`。
         """
         query = query.strip()
         if not query:
@@ -2425,6 +2584,7 @@ class WarframeClient:
             if base:
                 # 2026-09-23 去掉「回落 base」：倾向/紫卡按变体分别计算，
                 # 表中确无该变体条目时返回 None（未找到），绝不冒充本体值。
+                # ★ 市场路径（wr）按用户口径另行「剥到母武器」，见 market.py::_h_wr。
                 return matching.prime_sibling(base, weapons)
         # ★ 2026-10-01：**官方名精确匹配先于别名词典**。别名表的「双向包含」
         #   会让官方名被别名键捞走：实测「盗贼」(Furis, 1.35) 命中别名键

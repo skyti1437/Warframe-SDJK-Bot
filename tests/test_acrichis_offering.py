@@ -51,6 +51,50 @@ RAW_PLAIN = (
     "-->"
 )
 
+# ★ 2026-10-05 实抓形态：wiki 编辑把 AcrithisObserved 从字面日期改成了
+#   MediaWiki 魔法词（页面自注「Current UTC date (copy this into
+#   AcrithisObserved)」）。旧解析按 [^}]* 只截到 "{{CURRENTMONTHNAME" ⇒
+#   日期解析必失败、刷新恒 failed、新货单永远落不了盘。
+RAW_MW_TEMPLATE = (
+    "<!-- Valid item names for AcrithisItem1\u20135 below (must match exactly, "
+    "including capitalization):\n"
+    "Orokin Reactor\nOrokin Catalyst\nExilus Warframe Adapter\n"
+    "Exilus Weapon Adapter\nPrimary Arcane Adapter\nSecondary Arcane Adapter\n"
+    "Forma\nMelee Riven Mod\nPistol Riven Mod\nRifle Riven Mod\n"
+    "Kitgun Riven Mod\nZaw Riven Mod\nShotgun Riven Mod\n"
+    "Companion Weapon Riven Mod\n5000 Kuva\n"
+    "-->{{#vardefine:AcrithisObserved|{{CURRENTMONTHNAME}} {{CURRENTDAY}}, "
+    "{{CURRENTYEAR}}}}<!--\n"
+    "-->{{#vardefine:AcrithisItem1|5000 Kuva}}<!--\n"
+    "-->{{#vardefine:AcrithisItem2|Exilus Weapon Adapter}}<!--\n"
+    "-->{{#vardefine:AcrithisItem3|Primary Arcane Adapter}}<!--\n"
+    "-->{{#vardefine:AcrithisItem4|Orokin Reactor}}<!--\n"
+    "-->{{#vardefine:AcrithisItem5|Orokin Catalyst}}<!--\n"
+    "-->"
+)
+
+
+def test_parse_mw_current_template_observed():
+    """★ 2026-10-05：魔法词形态的 observed 必须展开为**当前 UTC 日期**。"""
+    from datetime import datetime, timezone
+
+    d = WarframeClient.parse_acrichis_current(RAW_MW_TEMPLATE)
+    now = datetime.now(timezone.utc)
+    assert d["observed"] == f"{now.strftime('%B')} {now.day}, {now.year}", d["observed"]
+    assert d["items"] == [
+        "5000 Kuva",
+        "Exilus Weapon Adapter",
+        "Primary Arcane Adapter",
+        "Orokin Reactor",
+        "Orokin Catalyst",
+    ]
+    assert len(d["valid"]) == 15
+
+
+def test_expand_mw_current_passthrough():
+    """不含魔法词的字面日期原样返回（老格式不回归）。"""
+    assert WarframeClient._expand_mw_current("September 21, 2026") == "September 21, 2026"
+
 
 def test_parse_escaped_html():
     """FlareSolverr 实抓形态（HTML 转义 + <pre> 包裹）。"""
@@ -116,3 +160,29 @@ def test_seed_items_are_catalog_zh():
     assert len(items) == 5
     for it in items:
         assert it["name"] in zh_names, it["name"]
+
+
+if __name__ == "__main__":
+    # 本文件是 pytest 风格（test_* + assert）；补一个脚本入口，保证
+    # 「python tests/test_*.py」全量跑法也能真正执行这些断言
+    # （2026-10-05 立：此前脚本方式跑等于静默跳过）。
+    import traceback
+
+    _failed: list[str] = []
+    for _name in sorted(list(globals())):
+        if not _name.startswith("test_"):
+            continue
+        _fn = globals()[_name]
+        if not callable(_fn):
+            continue
+        try:
+            _fn()
+            print(f"[PASS] {_name}")
+        except Exception:  # noqa: BLE001
+            _failed.append(_name)
+            print(f"[FAIL] {_name}")
+            traceback.print_exc()
+    if _failed:
+        print(f"\n失败 {len(_failed)} 项：{_failed}")
+        sys.exit(1)
+    print("\n全部通过 ✔")

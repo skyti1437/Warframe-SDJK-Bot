@@ -380,6 +380,10 @@ class _FakeClient2:
     async def resolve_riven_weapon(self, q):
         return dict(self._weapon)
 
+    async def wm_riven_weapon_slugs(self):
+        # 市场按母武器认卡（2026-10-05）：本桩条目即 WM 自家条目 ⇒ 不触发回退
+        return {self._weapon["url_name"]}
+
     def normalize_riven_stats(self, stats, rtype=""):
         return WarframeClient.normalize_riven_stats(stats, rtype)
 

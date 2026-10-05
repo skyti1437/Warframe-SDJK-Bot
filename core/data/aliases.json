@@ -1,5 +1,5 @@
 {
- "_说明": "本地轻量词库：wm_items = 中文物品名 -> WM url_name；riven_items = 中文武器名 -> 紫卡武器 url_name；wiki = 关键词 -> 中文维基页面。可自由扩充，机器人重启或重载插件后生效。",
+ "_说明": "本地轻量词库：wm_items = 中文物品名 -> WM url_name；riven_items = 中文武器名 -> 紫卡武器 url_name；wiki = 关键词 -> 中文维基页面。可自由扩充，机器人重启或重载插件后生效。　★ 2026-10-05 注：wm_items 里**允许存在指向 WM 表暂无条目的键**——它们同时是 core/search.py 检索/维基链的载荷（如「咖喱棒 → Excalibur」维基页、「但丁/捷德」等未出 Prime 的战甲）；WM 侧解析不到时链路会落「未找到+候选」，不会错配。清理前先跑 output/check_alias_dangling.py 看清单，**别按悬空直接删**。",
  "wm_items": {
   "充沛": "arcane_energize",
   "盲怒": "blind_rage",
@@ -710,8 +710,8 @@
   "弹道偏转": "redirection",
   "践踏加固": "reinforcing_stomp",
   "强固践踏": "reinforcing_stomp",
-  "震地共鸣": "resonating_quake",
-  "共鸣冲击": "resonating_quake",
+  "震地共鸣": "gaseous_quake",
+  "共鸣冲击": "gaseous_quake",
   "风起云涌": "rising_storm",
   "风暴降临": "rising_storm",
   "翻滚防护": "rolling_guard",
@@ -730,8 +730,8 @@
   "雷霆烈风": "shocking_speed",
   "惩击洗礼": "smite_infusion",
   "重射洗礼": "smite_infusion",
-  "破碎声波": "sonic_fracture",
-  "超声碎裂": "sonic_fracture",
+  "破碎声波": "sonic_siphon",
+  "超声碎裂": "sonic_siphon",
   "光谱虹吸": "spectrosiphon",
   "摆荡钩索": "swing_line",
   "飞悬钩索": "swing_line",

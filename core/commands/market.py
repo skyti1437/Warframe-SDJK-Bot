@@ -17,6 +17,7 @@ from typing import Optional
 
 from .. import api_client
 from .. import formatters as fmt
+from .. import matching
 from ..parser import parse_wm, parse_wr
 from .base import PLUGIN_DIR, Reply
 
@@ -47,6 +48,33 @@ async def _head_part_resolve(client, item: str):
     return None
 
 
+async def riven_market_weapon(client, query: str, weapon: dict) -> dict:
+    """紫卡**市场**（wr）按母武器认卡 —— 2026-10-05 用户口径。
+
+    「wr 绝路」→ 绝路家族（含 Prime）的紫卡都归它；市场路径**不解析倾向**，
+    只要认出是哪把武器。WM 拍卖端点只认**自家列表**里的 slug（实测
+    `weapon_url_name=rubico_prime` → **HTTP 400**，`rubico` → 200），而解析可能
+    先命中本地补全的变体条目（`dispositions_rivenmirror.json` 的 rubico_prime 等）
+    ⇒ 命中 slug 不在自家列表时，剥 Prime 后缀（p / p版 / Prime，含条目 zh 名）
+    回退母武器再解析一次；回退不到就原样返回（交给下游报空，不静默换武器）。
+
+    注：WM 自家列表里本就以 `_prime` 为名的独立武器（euphona_prime 等，其母武器
+    不在表内）**不受影响** —— 它们本来就在自家列表里（第一道判断即放行）。
+    """
+    if not weapon:
+        return weapon
+    own = await client.wm_riven_weapon_slugs()
+    if weapon.get("url_name") in own:
+        return weapon
+    base_q = matching.prime_base(query) or matching.prime_base(weapon.get("zh") or "")
+    if not base_q:
+        return weapon
+    base_w = await client.resolve_riven_weapon(base_q)
+    if base_w and base_w.get("url_name") in own:
+        return base_w
+    return weapon
+
+
 class MarketCommands:
     """Mixin：warframe.market / 排行 / 趋势 handler（挂载于 main.WarframeSDJK）。"""
 
@@ -62,7 +90,29 @@ class MarketCommands:
         （「头部」命中「XX Prime 头部神经光元蓝图」）。
         """
         if part in ("蓝图", "总图"):
-            skip = ("机体", "头部", "系统", "枪管", "枪机", "枪托")
+            # ★ 2026-10-05：skip 与 _PART_SPECIFIC 同步（近战/弓/守护等部件词，
+            #   外加此前漏掉的「头盔」）—— 否则「刀刃蓝图」会被当总图。
+            skip = (
+                "机体",
+                "头部",
+                "系统",
+                "枪管",
+                "枪机",
+                "枪托",
+                "头盔",
+                "握柄",
+                "刀刃",
+                "连接器",
+                "外壳",
+                "弓弦",
+                "弓身",
+                "上弓臂",
+                "下弓臂",
+                "拳套",
+                "武器舱",
+                "镖袋",
+                "护手",
+            )
             cands = [
                 p
                 for p in parts
@@ -97,6 +147,13 @@ class MarketCommands:
             q.part = "头部"
         else:
             item = await self.client.resolve_wm_item(q.item)
+        if not item and q.part:
+            # ★ 2026-10-05：拆件后解析失败 → 用「原文重组」再试一次。部件词表
+            #   扩充后（刀刃/外壳/头盔/枪管…）会与少数 MOD 名相撞（簧压刀刃、
+            #   爆裂刀刃、锐利刀刃、燃烧外壳、震击 秘奥头盔、红晶枪管…），
+            #   这些条目的正解是整名解析。只在主解析失败时触发 ⇒ 只会改善，
+            #   不改变任何现有成功路径。
+            item = await self.client.resolve_wm_item(f"{q.item}{q.part}")
         if not item:
             return await self._wm_suggest(q.item)
         # ★ 部件关键词（2026-09-19 玩家反馈「wm 母牛 蓝图」出的是整套）：
@@ -339,8 +396,9 @@ class MarketCommands:
         weapon = await self.client.resolve_riven_weapon(q.weapon)
         if not weapon:
             tips = await self.client.suggest_riven_weapons(q.weapon)
-            tip = ("，你是不是想找：" + "、".join(tips)) if tips else "，请使用英文名或补充别名表"
+            tip = ("，你是不是想找：" + "、".join(tips)) if tips else ("，请使用英文名或补充别名表")
             return Reply(raw_text=f"未找到紫卡武器「{q.weapon}」{tip}")
+        weapon = await riven_market_weapon(self.client, q.weapon, weapon)
         url_name = weapon["url_name"]
         rtype = weapon.get("riven_type", "")
         positives = self.client.normalize_riven_stats(q.stats, rtype)

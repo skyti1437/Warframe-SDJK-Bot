@@ -29,6 +29,44 @@ _SEPS = re.compile(r"[\s\u3000·・•\-_—―'’]+")
 _P_ABBREV = re.compile(r"([\u4e00-\u9fff])[pP](?:版)?$")
 # 明写的词尾 prime（CJK 后可带空格/中点）：「绝路 Prime」「绝路prime」
 _PRIME_WORD = re.compile(r"([\u4e00-\u9fff])[\s·・]*prime$", re.IGNORECASE)
+# 整串含 CJK 时额外认「拉丁词尾 + p」（「驱逐 Grineerp」这类混排查询）；
+# 纯拉丁查询不启用（保护 rifle amp / cold snap 这类英文词尾 p）。
+_HAS_CJK = re.compile(r"[\u4e00-\u9fff]")
+_LATIN_P = re.compile(r"([A-Za-z])[pP](?:版)?$")
+# 空格分隔的 p / p版（「Gara p」「绝路 p版」）
+_SPACE_P = re.compile(r"[\s·・]+[pP](?:版)?$")
+
+
+def prime_base(q: str) -> Optional[str]:
+    """带 Prime 后缀的查询 → 基名；否则 None。**共享口径，勿再各写正则。**
+
+    认四种形态（2026-10-05 抽出，api_client 的 Prime 意图前置与 match 家族共用）：
+      · CJK + ``p`` / ``P`` / ``p版`` / ``P版``（``_P_ABBREV``，前一字必须 CJK）
+      · CJK + ``prime`` 词（``_PRIME_WORD``）
+      · **整串含 CJK** 且以「拉丁字母 + p/p版」结尾（``_LATIN_P``）——
+        「驱逐 Grineerp」「格拉姆 Gramp」这类混排查询；纯拉丁查询不启用
+      · 空格分隔的 ``p`` / ``p版``（``_SPACE_P``）——「Gara p」「绝路 p版」
+    ★ 拉丁词尾 p（``rifle amp`` / ``cold snap``）**不**算 Prime 缩写；
+      拉丁名 + p 连写（``Garap``）由别名/归一化链路处理，不走本函数。
+    """
+    s = (q or "").strip()
+    if not s:
+        return None
+    m = _P_ABBREV.search(s) or _PRIME_WORD.search(s)
+    if m:
+        base = (s[: m.start(1)] + m.group(1)).strip()
+        return base or None
+    if _HAS_CJK.search(s):
+        m2 = _LATIN_P.search(s)
+        if m2:
+            base = (s[: m2.start(1)] + m2.group(1)).strip()
+            return base or None
+    m3 = _SPACE_P.search(s)
+    if m3:
+        base = s[: m3.start()].strip()
+        return base or None
+    return None
+
 
 # 前缀变体表：官方简中 ↔ 英文词头（WM slug / 英文名里是英文侧）
 # ★ 棱晶/棱镜 双收：DE 官方简中是「棱晶·」（2026-09-23 数据实测 12:0），
@@ -103,7 +141,7 @@ def expand_variants(raw: str) -> list[str]:
 
     m = _P_ABBREV.search(s) or _PRIME_WORD.search(s)
     if m:
-        base = s[: m.start(1)] + m.group(1)
+        base = prime_base(s) or ""
         forms.append(normalize(base + "prime"))
         forms.append(normalize("prime" + base))
 
@@ -217,28 +255,26 @@ def resolve_weapon_name(
         # prime 缩写的「截短」形态（守望p → 守望者 Prime）：base 段不是完整
         # 武器名而是前缀缩写时，按 zh/en 前缀找同族 → 取各族 Prime 版。
         # 仅在显式 prime 意图下启用；多族全列（调用方给中文候选）。
-        m = _P_ABBREV.search(q) or _PRIME_WORD.search(q)
-        if m:
-            stem = normalize(q[: m.start(1)] + m.group(1))
-            if stem:
-                fam_zh = [e for e in entries if normalize(e.get(zh) or "").startswith(stem)]
-                fam_en = [
-                    e
-                    for e in entries
-                    if normalize(e.get(en) or "").startswith(stem) and e not in fam_zh
-                ]
-                primes = []
-                seen_u = set()
-                for e in fam_zh + fam_en:
-                    p = prime_sibling(e, entries, zh=zh, en=en) or e
-                    u = p.get("url_name") or ""
-                    if "prime" not in normalize(p.get(zh) or p.get(en) or ""):
-                        continue  # 该族没有 Prime 条目 → 不强推本体
-                    if u not in seen_u:
-                        seen_u.add(u)
-                        primes.append(p)
-                if primes:
-                    return primes, "prime_prefix"
+        stem = normalize(prime_base(q) or "")
+        if stem:
+            fam_zh = [e for e in entries if normalize(e.get(zh) or "").startswith(stem)]
+            fam_en = [
+                e
+                for e in entries
+                if normalize(e.get(en) or "").startswith(stem) and e not in fam_zh
+            ]
+            primes = []
+            seen_u = set()
+            for e in fam_zh + fam_en:
+                p = prime_sibling(e, entries, zh=zh, en=en) or e
+                u = p.get("url_name") or ""
+                if "prime" not in normalize(p.get(zh) or p.get(en) or ""):
+                    continue  # 该族没有 Prime 条目 → 不强推本体
+                if u not in seen_u:
+                    seen_u.add(u)
+                    primes.append(p)
+            if primes:
+                return primes, "prime_prefix"
 
     # ★ 含变体前缀（赤毒/信条/…）或 prime 后缀（x p / x prime）的查询禁用
     #   模糊层：变体倾向与本体不同，意图明确的变体查询宁可「未找到+候选」，
