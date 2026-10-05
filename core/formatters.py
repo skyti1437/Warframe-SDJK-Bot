@@ -2447,7 +2447,7 @@ def fmt_descendia(data: Optional[dict]) -> tuple[str, list[str]]:
       （``CoHGamemode*``），无键者留英文（见 :func:`descent_type_label`）。
     * **目标**：DE 的 ``Challenge`` 代码 → 官方简中（8 级解析，见
       :func:`core.de_worldstate.descent_goal_zh`），无键者留可读英文 + 注脚。
-    * **7/14/21 层特例（2026-09-29 维护者定）**：这三层是检查点、走
+    * **7/14/21 层特例（2026-09-29 口径）**：这三层是检查点、走
       ``DT_PROTOFRAME``；主标改用官方圣所名（``CoHProtoframe{Wisp,Harrow,Devil}``
       键值），右侧标机制（祝福二选一／附代价／击败罗瑟）——**弃用自编「战甲祈运」**
       （与官方 ``CoHGamemodeShrineDefense``=「祈运坛防御」撞词，属另一个模式）。
@@ -3399,7 +3399,7 @@ def fmt_rank_overview(rows: list[dict]) -> tuple[str, list[str]]:
             )
     if empty:
         return ("价格排行", ["暂无落盘数据，请先发「排行 刷新」建立全量榜单"])
-    # ★ 2026-10-03 口径注脚（维护者定选 A）：数据源 = statistics_closed 真实成交，
+    # ★ 2026-10-03 口径注脚（选 A）：数据源 = statistics_closed 真实成交，
     #   不是 statistics_live 挂单价（第三方「加权平均价」实为后者，实测高 13~15%）。
     lines.append("※ 当前价=48h 成交中位（真实成交·非挂单价；挂单请看「wm 物品名」）")
     lines.append("※ 按当前价降序；最低/最高=48h 成交区间；上期中位=前一 48 小时成交中位")

@@ -859,7 +859,7 @@ check(
     "★ 别名：DE 卡面原文「的几率来获得连击数」→ combo_gain_chance",
     plugin.WarframeSDJK._stat_id_from_name("的几率来获得连击数", _rev) == "combo_gain_chance",
 )
-# ★ 2026-10-02 归并（维护者定）：幽灵 sid combo_efficiency（「连击效率」，
+# ★ 2026-10-02 归并（口径统一）：幽灵 sid combo_efficiency（「连击效率」，
 #   基值恰好等于额外连击数几率）并入 extra_combo_count；三处表都不再有它。
 check(
     "★ 归并：连击效率 / 近战连击效率 → extra_combo_count",

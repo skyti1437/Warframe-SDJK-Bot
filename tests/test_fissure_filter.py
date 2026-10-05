@@ -288,7 +288,7 @@ from core.parser import (  # noqa: E402
     fissure_tier_hint,
 )
 
-# 档位词判定（「蹲」用它自动判裂隙；维护者定：T1–T6 本身含裂隙语义）
+# 档位词判定（「蹲」用它自动判裂隙；口径：T1–T6 本身含裂隙语义）
 check(
     "档位词判定：钢铁t5歼灭/T5/安魂/古纪/Ｔ５ ⇒ True；钢铁/火星/歼灭 ⇒ False",
     contains_fissure_tier("钢铁t5歼灭")

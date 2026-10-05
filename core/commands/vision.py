@@ -71,10 +71,12 @@ class VisionCommands:
     #                                                      「System is too busy」，4 次全败
     #                                                                          → **移除**
     #   （另测均不入链：Qwen3-Omni-30B-A3B 数值错乱、GLM-4.5V 120 s 超时）
+    # ★ 2026-10-06：8B 提到 30B 前 —— S6 提示词下两者准确率持平（各 47/48）、
+    #   8B 成本更低；与线上 vision_provider_id=8B 的部署口径对齐（可按需改回）。
     _VISION_PROVIDER_IDS = (
         "zhipu/glm-4v-flash",
-        "siliconflow/Qwen/Qwen3-VL-30B-A3B-Instruct",
         "siliconflow/Qwen/Qwen3-VL-8B-Instruct",
+        "siliconflow/Qwen/Qwen3-VL-30B-A3B-Instruct",
     )
     _VISION_ID_HINTS = ("4v", "vl", "vision", "vision-flash", "4o")
 

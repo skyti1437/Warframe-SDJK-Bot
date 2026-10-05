@@ -572,7 +572,7 @@ def _panel_base_weapon(weapon: dict, panel: dict, totals: dict) -> tuple[Optiona
     inc_dmg = (inc or {}).get("damage") or {}
     inc_total = float(inc_dmg.get("total") or 0.0)
 
-    # ★★ 2026-10-05 锚定补全（用户方案：库内有基础就只反推一个缩放锚）：
+    # ★★ 2026-10-05 锚定补全（库内有基础时只反推一个缩放锚）：
     #   IPS 三系里「库内有值、反推却缺失」的类型 —— 典型：面板行名被遮挡
     #   （实测执法者穿刺行被滚动箭头盖住 → 整行静默丢 → 本地推算少 102.3、
     #   毒素行反解出幻影自带毒 29）。用「已反推行 ÷ 库内同行」的中位锚补全：
@@ -1099,7 +1099,7 @@ def analyze(ocr: dict, pips_rows: Optional[list] = None) -> dict:
             for el, val in (eff.get("physical") or {}).items():
                 totals["physical"][el] = totals["physical"].get(el, 0.0) + float(val)
         else:
-            # ★ 裂罅紫卡（2026-09-20 用户方案文档 TC-04）：名字由「武器名 + 随机词缀」
+            # ★ 裂罅紫卡（2026-09-20 方案文档 TC-04）：名字由「武器名 + 随机词缀」
             #   组成（如「野猪 Visi-satidex」），**不可能**在静态词典里全字匹配。
             #   以前它会被当成「库中未收录」—— 那是误导（不是我们缺数据，是它本来随机）。
             #   这里单独识别出来：数值无法核算（词缀随机），但**等级仍能从豆子读**。
