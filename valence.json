@@ -1,88 +1,88 @@
 {
  "schema": 1,
- "published_at": "2026-10-03T02:36:56+00:00",
- "source": "wiki《Reset》页，经插件在有 FlareSolverr 的机器上抓取后发布；快照时间 2026-10-03T02:36:56+00:00",
+ "published_at": "2026-10-06T00:12:04+00:00",
+ "source": "wiki《Reset》页，经插件在有 FlareSolverr 的机器上抓取后发布；快照时间 2026-10-06T00:12:04+00:00",
  "license_note": "数据来自 wiki.warframe.com（CC BY-NC-SA 3.0）；Warframe 相关内容版权归 Digital Extremes 所有，本仓库仅供查询。",
  "tenet": {
-  "snapshot": "2026-10-03T02:36:56+00:00",
+  "snapshot": "2026-10-06T00:12:04+00:00",
   "items": [
    {
     "en": "Tenet Agendus",
     "cn": "信条·集议",
-    "element": "Heat",
-    "bonus": 47.2
+    "element": "Impact",
+    "bonus": 39.2
    },
    {
     "en": "Tenet Exec",
     "cn": "信条·枢密",
-    "element": "Toxin",
-    "bonus": 38.8
+    "element": "Cold",
+    "bonus": 39.8
    },
    {
     "en": "Tenet Ferrox",
     "cn": "信条·铁晶磁轨炮",
-    "element": "Radiation",
-    "bonus": 25.7
+    "element": "Magnetic",
+    "bonus": 36.8
    },
    {
     "en": "Tenet Grigori",
     "cn": "信条·格里高利",
-    "element": "Electricity",
-    "bonus": 60.0
+    "element": "Heat",
+    "bonus": 25.5
    },
    {
     "en": "Tenet Livia",
     "cn": "信条·莉薇娅",
-    "element": "Electricity",
-    "bonus": 28.1
+    "element": "Toxin",
+    "bonus": 25.1
    }
   ]
  },
  "coda": {
-  "snapshot": "2026-10-03T02:36:56+00:00",
+  "snapshot": "2026-10-06T00:12:04+00:00",
   "batch": "B",
   "items": [
    {
     "en": "Coda Bassocyst",
     "cn": "终幕·低音爆囊",
-    "element": "Magnetic",
-    "bonus": 31.6
+    "element": "Electricity",
+    "bonus": 44.8
    },
    {
     "en": "Coda Bubonico",
     "cn": "终幕·横痃重炮",
-    "element": "Impact",
-    "bonus": 28.3
+    "element": "Radiation",
+    "bonus": 27.4
    },
    {
     "en": "Coda Synapse",
     "cn": "终幕·突触生化枪",
     "element": "Toxin",
-    "bonus": 25.6
+    "bonus": 40.6
    },
    {
     "en": "Coda Tysis",
     "cn": "终幕·啐沫者",
-    "element": "Radiation",
-    "bonus": 52.2
+    "element": "Impact",
+    "bonus": 25.4
    },
    {
     "en": "Coda Caustacyst",
     "cn": "终幕·灼蚀变体镰",
-    "element": "Impact",
-    "bonus": 55.9
+    "element": "Magnetic",
+    "bonus": 55.5
    },
    {
     "en": "Coda Hirudo",
     "cn": "终幕·蚂蟥",
-    "element": "Radiation",
-    "bonus": 25.0
+    "element": "Heat",
+    "bonus": 25.7
    },
    {
     "en": "Coda Pathocyst",
     "cn": "终幕·病囊飞刃",
-    "element": "Cold",
-    "bonus": 56.2
+    "element": "Radiation",
+    "bonus": 32.4
    }
   ]
  }
