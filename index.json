@@ -1,12 +1,8 @@
 {
  "schema": 1,
- "published_at": "2026-10-06T00:12:04+00:00",
+ "published_at": "2026-10-05T00:00:00+00:00",
  "note": "由 automations/publish_community_snapshot.py 发布；只读，勿手工改",
  "files": {
-  "valence.json": {
-   "published_at": "2026-10-06T00:12:04+00:00",
-   "snapshot": "wiki《Reset》页，经插件在有 FlareSolverr 的机器上抓取后发布；快照时间 2026-10-06T00:12:04+00:00"
-  },
   "acrithis_week.json": {
    "published_at": "2026-10-05T00:00:00+00:00",
    "snapshot": "wiki《Acrithis/Current Offerings》当期上报（observed October 5, 2026）；插件自动抓取"
