@@ -512,9 +512,45 @@ def pct_raw(x, nd=2):
         return ""
 
 
+def load_i18n(idir):
+    """warframe-items 的 i18n 表（``{uniqueName: {lang: {"name": …}}}``）。
+
+    ★ 2026-10-07（上游断链修复）：`WFCD/warframe-items` 于 2026-09-24（v1.1276.17，
+    commit 47aa17ef85）把 `data/json/i18n.json`（46.8MB）**拆成
+    `data/json/i18n/<14 语言>.json`**（无 `en.json` —— 英文是条目的基准名），
+    而 npm 包仍带老文件 ⇒ 两条分发通道布局不一致。这里两种布局都认：
+
+      ① 老布局：`<items>/data/json/i18n.json` 直接读；
+      ② 新布局：`<items>/data/json/i18n/<lang>.json` 逐语言读，**转置合并**回老形状
+         （新文件是「语言 → {uniqueName: {name, description}}」，老形状是
+         「uniqueName → {语言: {name, description}}」）。
+
+    两边都没有 ⇒ 抛 FileNotFoundError（**不静默降级** —— 译名缺失会污染整批 KB）。
+    """
+    old = os.path.join(idir, "i18n.json")
+    if os.path.isfile(old):
+        return jload(old)
+    newdir = os.path.join(idir, "i18n")
+    if os.path.isdir(newdir):
+        merged = {}
+        for fn in sorted(os.listdir(newdir)):
+            if not fn.endswith(".json"):
+                continue
+            lang = fn[:-5]
+            data = jload(os.path.join(newdir, fn)) or {}
+            for uniq, val in data.items():
+                merged.setdefault(uniq, {})[lang] = val
+        if merged:
+            return merged
+    raise FileNotFoundError(
+        f"warframe-items 里既没有 {old}，也没有 {newdir}/*.json —— "
+        "上游 2026-09-24 改过 i18n 布局，见 warframe-kb-build/references/01-data-sources.md 的断链预警"
+    )
+
+
 class Sources:
     def __init__(self):
-        self.i18n = jload(os.path.join(IDIR, "i18n.json"))
+        self.i18n = load_i18n(IDIR)
         self.dz = jload(os.path.join(PDIR, "dict.zh.json"))
         self.de = jload(os.path.join(PDIR, "dict.en.json"))
         self.cfg_dt = jload(os.path.join(CDIR, "damageTypes.json"))

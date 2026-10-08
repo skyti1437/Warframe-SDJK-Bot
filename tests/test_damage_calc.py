@@ -806,6 +806,63 @@ if _w_ay:
         "空战范围伤害作为独立段计入", (_r_aw.get("segments_total") or {}).get("n_segments", 0) >= 1
     )
 
+# ---------------------------------------------------------------------------
+# 9) 三处折算修正回归（2026-10-06）：物理双写 / 派系卡分桶 / 扳机限制卡
+# ---------------------------------------------------------------------------
+dc.warmup()
+_w_rub, _ = dc.find_weapon("绝路 Prime")
+_w_lex, _ = dc.find_weapon("Lex Prime")
+_w_boar, _ = dc.find_weapon("Boar Prime")
+
+# 9a) 物理加成 MOD 只走 physical 通道（旧数据在 elements 里也有一份，
+#     折算循环两份都吃 → 「破裂 +90% 冲击」实测 DPS×3.3，正确 ≈×1.7）
+_s_r0 = dc.parse_args(["绝路"])[0]
+_s_r1 = dc.parse_args(["绝路", "破裂"])[0]
+check("破裂：impact 不进元素通道（无双写）", "impact" not in _s_r1["singles"])
+check("破裂：physical.impact = +90", close(_s_r1["physical"].get("impact", 0.0), 90.0))
+_rr0 = dc.calculate(_s_r0, _w_rub)
+_rr1 = dc.calculate(_s_r1, _w_rub)
+check(
+    "破裂：impact 对血值恰 ×1.9（无双份）",
+    close(_rr1["per_type_health"]["impact"] / _rr0["per_type_health"]["impact"], 1.9),
+)
+_s_ab = dc.parse_args(["绝路", "加速冲击"])[0]
+check("加速冲击：puncture 不进元素通道（无双写）", "puncture" not in _s_ab["singles"])
+
+# 9b) 派系卡（faction_of）按派系分桶：打别的派系不生效，混用手输对G照旧
+_s_f = dc.parse_args(["雷克斯", "灭亡 Corpus", "对G10"])[0]
+check(
+    "灭亡 Corpus：进分桶、通用桶只留手输对G",
+    close(_s_f["faction_dmg"], 10.0)
+    and len(_s_f["faction_dmg_of"]) == 1
+    and _s_f["faction_dmg_of"][0][0] == "Corpus",
+)
+_sA = dc.parse_args(["雷克斯", "对G10"])[0]
+_sA["faction"] = "Corpus"
+_sB = dc.parse_args(["雷克斯", "灭亡 Corpus", "对G10"])[0]
+_sB["faction"] = "Corpus"
+check(
+    "打 Corpus：灭亡生效（fac_mod 1.4 vs 1.1）",
+    close(dc.calculate(_sB, _w_lex)["dps"] / dc.calculate(_sA, _w_lex)["dps"], 1.4 / 1.1),
+)
+_sC = dc.parse_args(["雷克斯", "灭亡 Corpus", "对G10"])[0]
+_sC["faction"] = "Grineer"
+_sA2 = dc.parse_args(["雷克斯", "对G10"])[0]
+_sA2["faction"] = "Grineer"
+check(
+    "打 Grineer：灭亡 Corpus 不生效（比值=1）",
+    close(dc.calculate(_sC, _w_lex)["dps"] / dc.calculate(_sA2, _w_lex)["dps"], 1.0),
+)
+
+# 9c) 扳机限制卡（Cannonade 系「仅限半自动扳机」）：Semi 折算、非 Semi 拒绝并注明。
+#     点射（Burst）不算半自动 —— wiki Cannonade 表逐武器核对（Burston 不吃）。
+_s_sc = dc.parse_args(["绝路", "半自动步枪炮轰"])[0]  # Rubico Prime: Semi
+check("绝路(Semi)：半自动炮轰折算 +240% 基伤", close(_s_sc["base_dmg"], 240.0))
+_s_bc = dc.parse_args(["野猪", "半自动霰弹枪炮轰"])[0]  # Boar Prime: Auto
+check("野猪(Auto)：半自动炮轰不折算", close(_s_bc["base_dmg"], 0.0))
+check("野猪(Auto)：卡面注明拒绝原因", any("仅兼容半自动" in n for n in _s_bc["notes"]))
+check("拒绝的卡仍列在 mods（卡面可见）", any(m.get("name") == "Semi-Shotgun Cannonade" for m in _s_bc["mods"]))
+
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")
     sys.exit(1)

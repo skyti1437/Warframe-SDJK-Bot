@@ -661,6 +661,10 @@ def parse_args(tokens: list[str]) -> tuple[dict, list[str]]:
         "stance": None,
         # 条件触发（On Kill / On Headshot …）：只展示，不折进数值
         "conditional": [],
+        # 派系 MOD（灭亡/歼灭类）按派系分桶：[[派系名, 百分比], ...]；
+        # calculate 按最终派系取匹配项并入 faction_dmg（2026-10-06 修：
+        # 旧版把「灭亡 Corpus」折进通用桶，打 Grineer 也生效）
+        "faction_dmg_of": [],
         # 镀层堆叠（wfsim 结构化条件）：None=未指定，-1=满层，N=N 层
         "galv_stacks": None,
         "galv_applied": [],
@@ -926,9 +930,26 @@ def parse_args(tokens: list[str]) -> tuple[dict, list[str]]:
     # 片段**当武器名，剩下的记进 unknown，卡面明确写出「未识别」。
     weapon_tokens = _salvage_weapon(weapon_tokens, spec)
 
+    # 武器记录（扳机限制卡要用）：Cannonade 系「仅限半自动扳机」是装备规则，
+    # 只对扳机为 Semi 的武器生效；点射（Burst）不算半自动 —— wiki Cannonade
+    # 表逐武器核对过（Burston 不吃 Semi-Rifle Cannonade）。
+    weapon_rec = None
+    _wj = " ".join(weapon_tokens).strip()
+    if _wj:
+        weapon_rec = find_weapon_exact(_wj) or (find_weapon(_wj)[0] or None)
+    _semi_ok = bool(weapon_rec and str(weapon_rec.get("trigger") or "").lower() == "semi")
+
     # MOD 效果折算进 spec（与手写百分比同源：同组相加、派系 MOD 走独立乘区）
     for m in spec["mods"]:
         eff = m.get("effects") or {}
+        _note_l = str(eff.get("note") or "").lower()
+        if "only compatible" in _note_l and "semi" in _note_l and not _semi_ok:
+            # 扳机限制卡装在非半自动武器上：整卡不折算，明示原因
+            spec["notes"].append(
+                f"{m.get('zh') or m.get('name')}：仅兼容半自动扳机"
+                f"（这把武器是 {weapon_rec.get('trigger') if weapon_rec else '未知'}），效果未计入"
+            )
+            continue
         spec["base_dmg"] += eff.get("base_dmg", 0.0)
         spec["multishot"] += eff.get("multishot", 0.0)
         spec["crit_chance"] += eff.get("crit_chance", 0.0)
@@ -970,11 +991,22 @@ def parse_args(tokens: list[str]) -> tuple[dict, list[str]]:
                 int(spec["throw_max_stacks"]), int(eff["throw_max_stacks"])
             )
         # 元素 / 物理 / 派系（这几项原先在循环外，被补丁误并进赋能循环了）
+        _fac_of = str(eff.get("faction_of") or "")
         if eff.get("faction_mul"):  # 派系 MOD 是倍率写法（x1.3）
-            spec["faction_dmg"] += (eff["faction_mul"] - 1) * 100
+            _fac_pct = (eff["faction_mul"] - 1) * 100
         else:
-            spec["faction_dmg"] += eff.get("faction_dmg", 0.0)
+            _fac_pct = eff.get("faction_dmg", 0.0)
+        if _fac_of and _fac_pct:
+            # 灭亡/歼灭类：按派系分桶，calculate 按最终派系取用
+            # （2026-10-06 修：旧版折进通用桶，打任意派系都生效）
+            spec["faction_dmg_of"].append([_fac_of, _fac_pct])
+        else:
+            spec["faction_dmg"] += _fac_pct
         for el, pct in (eff.get("elements") or {}).items():
+            if el in _PHYS_TYPES:
+                # 数据层历史双写（wfsim 同步把物理类型也写进 elements）——
+                # 物理加成只走 physical 通道（同类型基值乘区），这里跳过防重复
+                continue
             spec["singles"][el] = spec["singles"].get(el, 0.0) + pct
         for el, pct in (eff.get("physical") or {}).items():
             spec["physical"][el] = spec["physical"].get(el, 0.0) + pct
@@ -1477,6 +1509,17 @@ def calculate(spec: dict, weapon: dict) -> dict:
         ) or 0.0
     armor = current_armor(level, base_armor, base_level) if base_armor > 0 else 0.0
 
+    # 派系 MOD（灭亡/歼灭类）按最终派系取用：faction_of 与派系名是包含关系即生效
+    # （「Grineer」 ⊂ 「Kuva Grineer」；与 fac_table 按子派系分列的口径一致）。
+    # 2026-10-06 修：旧版把派系卡折进通用桶，打任意派系都生效。
+    _fac_of_extra = sum(
+        float(p)
+        for f, p in (spec.get("faction_dmg_of") or [])
+        if str(f).lower() in str(faction).lower()
+    )
+    if _fac_of_extra:
+        spec = {**spec, "faction_dmg": float(spec.get("faction_dmg") or 0.0) + _fac_of_extra}
+
     # 剥甲：腐蚀层数（26% + 6%×每层，封顶 80%）与火剥甲（−50%）先后相乘
     strip = 0.0
     if spec["corrosive"]:
@@ -1613,13 +1656,12 @@ def calculate(spec: dict, weapon: dict) -> dict:
 
     ms = (weapon.get("multishot") or 1) * (1 + spec["multishot"] / 100.0)
     fire_rate = weapon.get("fireRate") or 0.0
-    # 持续 DPS = 爆发 DPS × 弹匣时间/(弹匣时间+装填)；近战/无弹匣数据则为 None
-    magazine = weapon.get("magazineSize") or 0
-    reload_t = weapon.get("reloadTime") or 0.0
-    dps_sustained = None
-    if magazine > 0 and fire_rate > 0 and reload_t > 0:
-        mag_time = magazine / fire_rate
-        dps_sustained = (health * ms * fire_rate) * mag_time / (mag_time + reload_t)
+    # ★ 射速 MOD **先**乘进来，再算持续 DPS（2026-10-06 修）。
+    # 原来 dps_sustained 用**基础**射速、而下面的 dps 用改造后射速，于是
+    # 「持续/爆发」比值会随射速反向缩小：射速 MOD 的收益被抵消（实测：恐惧
+    # +90% 射速在指标上收益 ≈0，被自动配卡错误淘汰；而 -20% 的负射速卡反而
+    # 被高估）。持续 DPS 的定义就该是「爆发 DPS × 弹匣时间/(弹匣时间+装填)」，
+    # 两项同用改造后射速。
     fr_note = ""
     if spec["no_fire_rate_mod"]:
         fr_note = "射速不可修改，增减已忽略"
@@ -1627,6 +1669,13 @@ def calculate(spec: dict, weapon: dict) -> dict:
         # 只按基础射速乘算（不含其它射速 MOD 的叠加细节）
         fire_rate *= max(0.05, 1 + spec["fire_rate_pct"] / 100.0)
         fr_note = f"含射速 {spec['fire_rate_pct']:+g}%"
+    # 持续 DPS = 爆发 DPS × 弹匣时间/(弹匣时间+装填)；近战/无弹匣数据则为 None
+    magazine = weapon.get("magazineSize") or 0
+    reload_t = weapon.get("reloadTime") or 0.0
+    dps_sustained = None
+    if magazine > 0 and fire_rate > 0 and reload_t > 0:
+        mag_time = magazine / fire_rate
+        dps_sustained = (health * ms * fire_rate) * mag_time / (mag_time + reload_t)
 
     # 敌人血量/护盾（指定敌人时）：按派系公式缩放；钢路 ×2（血量与护盾）
     hp = shield_hp = None

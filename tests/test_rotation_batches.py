@@ -382,30 +382,34 @@ for _name, _rep, _n in (("信条", _reply_t, 5), ("终幕", _reply_c, 7)):
     check(f"{_name} 卡有快照说明行", any("快照" in ln for ln in _rep.lines), str(_rep.lines[-3:]))
 
 # 具体值抽查（对照 wiki 快照，发版链第 0 步刷新后同步）
-# ★ 2026-10-03 刷新（窗口 10-02 00:00 UTC 起，信条本轮换批）：**5 把全部重掷** ——
-#   Ferrox Impact 25.2→Radiation 25.7、Exec Heat 25.8→Toxin 38.8、
-#   Agendus Impact 56.4→Heat 47.2、Grigori Electricity 38.6→60.0、Livia Radiation 30.6→Electricity 28.1。
-#   （本轮起刷新源改为源页 wikitext，见 scripts/fetch_valence.py 头注。）
+# ★ 2026-10-07 刷新（窗口 10-06/10-07 00:00 UTC 起，信条与终幕本轮都重掷）：
+#   刷新源 = Tenet_Weapons / Coda_Weapons **源页 wikitext**（?action=raw，经服务器
+#   FlareSolverr 抓取；口径见 scripts/fetch_valence.py 头注）。信条 5 把全部重掷 ——
+#   Agendus Heat 47.2→Impact 39.2、Exec Toxin 38.8→Cold 39.8、Ferrox Radiation
+#   25.7→Magnetic 36.8、Grigori Electricity 60.0→Heat 25.5、Livia Electricity
+#   28.1→Toxin 25.1（上一轮 10-03 的值可在 git 历史里对）。
 _tmap = {i["en"]: (i.get("element"), i.get("bonus")) for i in _tenet_items}
 check(
-    "信条·铁晶磁轨炮 = 辐射 25.7%（wiki 2026-10-03 快照）",
-    _tmap.get("Tenet Ferrox") == ("Radiation", 25.7),
+    "信条·铁晶磁轨炮 = 磁力 36.8%（wiki 2026-10-07 源页）",
+    _tmap.get("Tenet Ferrox") == ("Magnetic", 36.8),
     str(_tmap.get("Tenet Ferrox")),
 )
 check(
-    "信条·枢密 = 毒素 38.8%（wiki 2026-10-03 快照）",
-    _tmap.get("Tenet Exec") == ("Toxin", 38.8),
+    "信条·枢密 = 冰冻 39.8%（wiki 2026-10-07 源页）",
+    _tmap.get("Tenet Exec") == ("Cold", 39.8),
     str(_tmap.get("Tenet Exec")),
 )
 _cmap = {i["en"]: (i.get("element"), i.get("bonus")) for i in _cur_batch}
 # 终幕按批次抽查：★ 每次终幕换批后，本表的当前批抽查值必须同步（两批的值都随换批
 #   重掷，逐条取自刷新后的 core/data/rotations.json）。
-#   2026-10-03 刷新回写：coda 换批到 B —— B 批 7 条首次全量落表（Bassocyst Magnetic
-#   31.6 / Synapse Toxin 25.6 …，与钉值一致）；此前「非当前批拿不到真值」的限制已随
-#   刷新源改源页 wikitext 解除（源页 A/B 两表全量公布 ⇒ 两批都填）。
+#   2026-10-07 刷新回写：源页 A/B 两表**都**重掷并全量落表（各 7 条；运行期那份走渲染页
+#   只能拿到当前批，所以种子以源页为准）。本窗口（10-07→10-11）生效批 = **B**：
+#   Reset 页活计时器为「Eleanor is selling Batch B weapons. Time left until
+#   Batch A: 3d12h55m」，倒计时精确指向 2026-10-11 00:00 UTC（与 coda epoch 的
+#   4 天网格一致）⇒ `anchor_idx` 由 0 改 1（旧值会让卡面错显成 A 批）。
 _SPOT = {
-    "A": {"Coda Catabolyst": ("Heat", 48.9), "Coda Motovore": ("Impact", 25.0)},
-    "B": {"Coda Bassocyst": ("Magnetic", 31.6), "Coda Synapse": ("Toxin", 25.6)},
+    "A": {"Coda Catabolyst": ("Impact", 37.9), "Coda Motovore": ("Electricity", 56.3)},
+    "B": {"Coda Bassocyst": ("Electricity", 44.8), "Coda Synapse": ("Toxin", 40.6)},
 }
 _cur_label = (coda.get("batch_label") or ["A", "B"])[_idx]
 for _en, _exp in _SPOT.get(_cur_label, {}).items():

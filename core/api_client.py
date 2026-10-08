@@ -3139,6 +3139,32 @@ class WarframeClient:
         )
         return f"refreshed {len(disp)} 条 @ {now}"
 
+    async def nearmiss_riven_weapons(self, query: str, n: int = 4) -> list[dict]:
+        """与 ``query`` **等长且恰有 1 个字不同** 的紫卡武器（近形字候选）。
+
+        ★ 2026-10-07 为何需要它：`fuzzy_hits` 的 2 字档阈值 0.75，而两个字
+        「只差一个」的 difflib ratio 恰好 **0.5** ⇒ 永远命中不了。线上报障
+        （2026-10-07 三次：10:59 / 17:11 / 17:13）卡面「冰凇」被 OCR 读成
+        「冰松」⇒ 纯图路径整卡失败（该卡无手输名可兜底）。
+
+        这里只做**候选生成**（字面近似），是否采纳交给调用方用**卡面数值可行性**
+        （`riven_analysis.disp_feasible`）当闸门 —— 保证不是纯字面替换：表里
+        真实存在的近形对（如 绝路/绝望）也会被列出来，可行性能挡住错配。
+        """
+        q = (query or "").strip()
+        if len(q) < 2:
+            return []
+        out: list[dict] = []
+        for w in await self.wm_riven_weapons():
+            zh = (w.get("zh") or "").strip()
+            if not zh or len(zh) != len(q):
+                continue
+            if sum(1 for a, b in zip(zh, q) if a != b) == 1:
+                out.append(w)
+                if len(out) >= n:
+                    break
+        return out
+
     async def suggest_riven_weapons(self, query: str, n: int = 3) -> list[str]:
         """给「未找到」的紫卡武器查询提供候选。
 
