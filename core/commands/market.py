@@ -10,12 +10,14 @@
 
 from __future__ import annotations
 
+import collections
 import difflib
 import json
 import re
 from typing import Optional
 
 from .. import api_client
+from ..logging_compat import logger
 from .. import formatters as fmt
 from .. import matching
 from ..parser import parse_wm, parse_wr
@@ -437,6 +439,18 @@ class MarketCommands:
         neg_set = set(negatives)
         pos_set = set(positives)
         pool = [a for a in auctions if self._auction_match(a, q, neg_set, pos_set)]
+        # ★ 2026-10-08：可追溯日志 —— 「卡上少一条」类问题直接从日志对：
+        #   API 回来多少 / 本地筛完多少 / 各状态几条（用户报障时按这个对 WM 网页）。
+        _st = collections.Counter(
+            ((a.get("owner") or {}).get("status") or "offline") for a in auctions
+        )
+        _st2 = collections.Counter(
+            ((a.get("owner") or {}).get("status") or "offline") for a in pool
+        )
+        logger.info(
+            "[sdjk] wr 挂单池：API %d 条%s → 本地筛后 %d 条%s（武器 %s，词条 %s）",
+            len(auctions), dict(_st), len(pool), dict(_st2), url_name, sorted(pos_set),
+        )
         relaxed = ""
         if not pool and auctions and (q.stats or q.negatives):
             # 严格匹配为空时分两档放宽（2026-09-24 用户报障「前排出现不匹配的
@@ -506,6 +520,12 @@ class MarketCommands:
         )
         if weapon.get("_fuzzy_from"):
             lines.insert(0, f"※ 「{weapon['_fuzzy_from']}」按「{weapon.get('zh') or wname}」查询")
+        _off = [
+            a for a in pool
+            if ((a.get("owner") or {}).get("status") or "offline") == "offline"
+        ]
+        if _off:
+            lines.append(f"※ 含 {len(_off)} 条离线挂单（已排在在线之后）")
         if relaxed == "offline":
             lines.append("※ 完全符合词条的挂单卖家目前都不在线，已按 在线优先 → 价格升序 列出")
         elif relaxed == "loose":
@@ -696,9 +716,12 @@ class MarketCommands:
             # 离线，也比「词条不匹配的在线单」值得排在前面（2026-09-24）。
             return True
         status = (a.get("owner", {}) or {}).get("status")
+        # ★ 2026-10-08（用户口径）：**默认不再把离线挂单藏起来** ——
+        #   「即使某个词条的在线挂单只有一张，也要把离线的也列出来」。旧行为只在
+        #   「完全匹配的在线单为 0」时才走 relaxed=offline 兜底 ⇒ 像「伯斯顿 + 弱点暴击几率」
+        #   那种「唯一一张还离线」的场景直接空卡。现在默认（recent/在线）= 全部状态，
+        #   靠渲染层「在线优先」把离线排到后面并标 ⚫离线；只有显式「最新」才只留游戏中。
         if q.status == "latest" and status != "ingame":
-            return False
-        if q.status == "recent" and status not in ("ingame", "online"):
             return False
         return True
 

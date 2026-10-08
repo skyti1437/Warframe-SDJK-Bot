@@ -712,6 +712,9 @@ _TIMER_ALT_RE = re.compile(_DUR + r"\s*后(?:开始|抵达)?\s*$")
 #    而「任务名｜等级」这种两段行（无钢铁之路/合一众标签）旧正则匹配不到，
 #    于是同一张卡上前面几行等级内联、后面几行等级右对齐，看起来像排版坏了。
 _LV_RE = re.compile(r"｜(\d+-\d+级)(?:｜|$)")
+# 「上架 6h / 12m / 45s / >100h」—— wr 拍卖行的挂单时长（2026-10-08）：
+#   放行尾，交给同一套「行尾抽取 → 右对齐列」机制，与赏金行的等级/计时同列对齐。
+_AGE_RE = re.compile(r"(?:^|[\s　])(上架\d+[smh]|上架>\d+h)\s*$")
 
 # 「· 武器名　元素 25.7%」—— 第二格是「元素 + 百分比」时，整列按**实测像素宽**对齐
 # （只有渲染层知道真实字形宽度；formatter 端按 CJK=2 / ASCII=1 手算会差出一个字，
@@ -1333,7 +1336,7 @@ class ImageRenderer:
             if "[" in clean and "]" in clean:
                 w_line += 52
             if not clean.startswith(("※", "◆")):
-                mt = _TIMER_RE.search(clean) or _TIMER_ALT_RE.search(clean)
+                mt = _TIMER_RE.search(clean) or _TIMER_ALT_RE.search(clean) or _AGE_RE.search(clean)
                 if mt and timer_font:
                     w_line += _tlen(measure, timer_font, mt.group(0).strip()) / SS + 30
             needed = max(needed, w_line)
@@ -1443,7 +1446,7 @@ class ImageRenderer:
                 _tail = clean[mlv.end() :]
                 clean = (clean[: mlv.start()] + "｜" + _tail) if _tail else clean[: mlv.start()]
             if not clean.startswith(("※", "◆")):
-                mt = _TIMER_RE.search(clean) or _TIMER_ALT_RE.search(clean)
+                mt = _TIMER_RE.search(clean) or _TIMER_ALT_RE.search(clean) or _AGE_RE.search(clean)
                 if mt:
                     timer_txt = mt.group(0).strip()
                     clean = (clean[: mt.start()] + clean[mt.end() :]).rstrip(" ··")

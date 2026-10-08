@@ -2092,7 +2092,9 @@ class WarframeClient:
             "type": "riven",
             "weapon_url_name": weapon_url_name,
             "platform": platform,
-            "buyout_policy": "direct",
+            # ★ 2026-10-08（用户口径）：「也打开」——不再只收一口价直购，
+            #   竞价型（只有起拍价、无 buyout）挂单也列出来；卡片上这类价格前标「起」
+            #   以示区别（见 fmt_wr_auctions）。
         }
         pos = list(dict.fromkeys(positives))
         neg = list(dict.fromkeys(negatives))

@@ -2924,12 +2924,33 @@ def fmt_wr_auctions(
     def status_of(a: dict) -> str:
         return (a.get("owner") or {}).get("status") or "offline"
 
+    def age_of(a: dict) -> str:
+        """挂单上架时长（WM `created`）→ 分/时/天；解析失败返回空串。"""
+        try:
+            t = datetime.fromisoformat((a.get("created") or "").replace("Z", "+00:00"))
+        except (TypeError, ValueError):
+            return ""
+        if t.tzinfo is None:
+            t = t.replace(tzinfo=timezone.utc)
+        secs = max(0.0, (datetime.now(timezone.utc) - t).total_seconds())
+        # ★ 2026-10-08（用户口径）：用 s/m/h 分档、放行尾、可被渲染层右对齐；
+        #   超过 100 小时不再往上加单位（显示 >100h，避免「3天12时」这种长串撑行）。
+        if secs < 60:
+            return f"{int(secs)}s"
+        if secs < 3600:
+            return f"{int(secs // 60)}m"
+        hours = secs / 3600
+        return f">{int(hours // 100) * 100}h" if hours >= 100 else f"{int(hours)}h"
+
     pool = (
         list(auctions)
         if presorted
         else sorted(
             auctions,
             key=lambda a: (
+                # ★ 2026-10-08（用户口径）：「拍卖（竞价型）的权重拉低一点，只比离线高」
+                #   ⇒ 先按挂单类型分档（一口价 0 < 竞价型 1），档内再按在线状态/价格。
+                0 if a.get("buyout_price") else 1,
                 _ONLINE_RANK.get(status_of(a), 3),
                 0 if (exact_ids and a.get("id") in exact_ids) else 1,
                 price_of(a),
@@ -2954,8 +2975,14 @@ def fmt_wr_auctions(
                 f"{abs(at.get('value', 0)):g}"
             )
         rank = item.get("mod_rank")
+        # ★ 2026-10-08（用户口径，排版二改）：价格列统一写成「一口价：Np」；
+        #   **竞价型（无买断价）显示「一口价：♾️」**，其起拍价挪到「信誉之后、时间之前」。
+        _bo, _st = a.get("buyout_price"), a.get("starting_price") or 0
+        # ⚠ 必须写「♾」(U+267E) 本体：加变体选择符 U+FE0F 时子集字体会渲染成**空白**
+        #   （2026-10-08 用户报障「无限图标没显示」实测：带 VS16 的 mask 为空）。
+        _price_txt = f"一口价：{int(_bo)}p" if _bo else "一口价：♾"
         seg = [
-            f"{int(price_of(a))}p",
+            _price_txt,
             status_cn.get(owner.get("status"), "⚫离线"),
             str(owner.get("ingame_name", "?")),
             f"洗{_riven_rolls(a)}次",
@@ -2965,6 +2992,11 @@ def fmt_wr_auctions(
         rep = _rep_txt(owner.get("reputation"))
         if rep:
             seg.append(rep)
+        if not _bo and _st:  # ★ 竞价型：起拍价放「信誉之后、上架时间之前」
+            seg.append(f"起拍价：{int(_st)}p")
+        _age = age_of(a)
+        if _age:  # ★ 2026-10-08：显示挂单上架时长（s/m/h）
+            seg.append(f"上架{_age}")
         lines.append(f"{i}. " + " ".join(seg))
         if attrs:
             lines.append("　　" + "　".join(attrs[:6]))
@@ -2977,7 +3009,11 @@ def fmt_wr_auctions(
     else:
         lines.append("※ ▲正面词条（同色）· ▼负面词条（红色）；排序：在线优先，同档按价格升序")
     best = pool[0] if pool else None
-    return (title, lines or ["没有符合条件的紫卡挂单"], best)
+    # ★ 2026-10-08：空池必须明说「没有挂单」——旧写法 lines 里已有脚注行 ⇒
+    #   `lines or [...]` 恒不触发，空结果只回一条脚注（用户实测的空卡观感）。
+    if not pool:
+        return title, ["没有符合条件的紫卡挂单"], None
+    return (title, lines, best)
 
 
 _DUCAT_TIER = {
