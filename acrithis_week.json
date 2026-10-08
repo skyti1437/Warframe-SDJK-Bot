@@ -1,30 +1,30 @@
 {
  "schema": 1,
- "published_at": "2026-10-05T00:00:00+00:00",
- "source": "wiki《Acrithis/Current Offerings》当期上报（observed October 5, 2026）；插件自动抓取",
+ "published_at": "2026-10-07T00:00:00+00:00",
+ "source": "wiki《Acrithis/Current Offerings》当期上报（observed October 7, 2026）；插件自动抓取",
  "license_note": "数据来自 wiki.warframe.com（CC BY-NC-SA 3.0）；Warframe 相关内容版权归 Digital Extremes 所有，本仓库仅供查询。",
  "expiry": "2026-10-12T00:00:00+00:00",
- "observed": "October 5, 2026",
+ "observed": "October 7, 2026",
  "items": [
+  {
+   "name": "步枪裂罅 MOD",
+   "price": 15
+  },
+  {
+   "name": "同伴裂罅 MOD",
+   "price": 20
+  },
+  {
+   "name": "Forma 蓝图",
+   "price": 10
+  },
   {
    "name": "赤毒",
    "qty": 5000,
    "price": 10
   },
   {
-   "name": "武器特殊功能槽连接器",
-   "price": 20
-  },
-  {
-   "name": "主要武器赋能槽连接器",
-   "price": 25
-  },
-  {
    "name": "奥罗金反应堆蓝图",
-   "price": 20
-  },
-  {
-   "name": "奥罗金催化剂蓝图",
    "price": 20
   }
  ]
