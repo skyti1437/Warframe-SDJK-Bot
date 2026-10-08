@@ -309,7 +309,7 @@ check(
             presorted=True,
         )[1]
         if x.startswith("1. ")
-    ][0].startswith("1. 300p"),
+    ][0].startswith("1. 一口价：300p"),
 )
 check(
     "默认（严格档）仍按价格升序",
@@ -323,7 +323,7 @@ check(
             ],
         )[1]
         if x.startswith("1. ")
-    ][0].startswith("1. 230p"),
+    ][0].startswith("1. 一口价：230p"),
 )
 
 _q = parse_wr("爆率 爆伤 初始连击 负任意 翁".split())
@@ -346,12 +346,15 @@ _match_auction = {
         ]
     },
 }
+# ★ 2026-10-08 口径变更（用户）：「即使某个词条的在线挂单只有一张，也要把离线的也列出来」
+#   ⇒ 默认档不再按在线状态过滤（离线单直接进池，靠渲染层「在线优先」排到后面并标 ⚫离线）；
+#   只有显式「最新」才只留游戏中。旧断言（默认档必须滤掉离线、靠 ignore_status 兜底）已按新口径改写。
 check(
-    "★ 完全匹配但卖家离线 → ignore_status 档收进来（不丢）",
+    "★ 完全匹配且卖家离线 → 默认档就收进来（不再靠 ignore_status 兜底）",
     plugin.WarframeSDJK._auction_match(
         _match_auction, _q, set(), {"critical_chance", "critical_damage", "channeling_damage"}
     )
-    is False
+    is True
     and plugin.WarframeSDJK._auction_match(
         _match_auction,
         _q,
@@ -431,8 +434,8 @@ check(
     str(_rows[:3]),
 )
 check(
-    "给出「卖家都不在线」说明（而不是含糊的近似匹配）",
-    any("都不在线" in x for x in _reply.lines),
+    "给出「含 N 条离线挂单」说明（而不是含糊的近似匹配）",
+    any("离线挂单" in x for x in _reply.lines),
     _body[:200],
 )
 check("近似匹配的兜底文案不再出现在本场景", not any("最接近选项" in x for x in _reply.lines))
@@ -1578,13 +1581,13 @@ _a_ex_off = _au2("ex_off", 50, "offline", list(_ps2))
 
 # ① 同档内：恰好(900p) 压 超集(100p)——同档内完全命中优先
 _t, _l, _ = F.fmt_wr_auctions("翁", [_a_sup_ig, _a_ex_ig], exact_ids={"ex_ig"})
-check("★ B① 同档内恰好优先：900p 恰好压 100p 超集", _l[0].startswith("1. 900p"), _l[0])
+check("★ B① 同档内恰好优先：900p 恰好压 100p 超集", _l[0].startswith("1. 一口价：900p"), _l[0])
 
 # ② ★ 跨档（B 口径核心）：恰好离线、超集在线 ⇒ 超集在前（在线档第一优先）
 _t, _l, _ = F.fmt_wr_auctions("翁", [_a_ex_off, _a_sup_on], exact_ids={"ex_off"})
 check(
     "★ B② 跨档：在线超集(200p) 压 离线恰好(50p)——在线档仍是第一优先",
-    _l[0].startswith("1. 200p"),
+    _l[0].startswith("1. 一口价：200p"),
     _l[0],
 )
 
@@ -1593,7 +1596,7 @@ _a_e_on = _au2("e_on", 500, "online", list(_ps2))
 _t, _l, _ = F.fmt_wr_auctions("翁", [_a_ex_off, _a_e_on, _a_sup_ig], exact_ids={"e_on", "ex_off"})
 check(
     "★ B③ 在线档次序不变：ingame(超集) → online(恰好) → offline(恰好)",
-    _l[0].startswith("1. 100p") and _l[2].startswith("2. 500p") and _l[4].startswith("3. 50p"),
+    _l[0].startswith("1. 一口价：100p") and _l[2].startswith("2. 一口价：500p") and _l[4].startswith("3. 一口价：50p"),
     str(_l[:5]),
 )
 
@@ -1604,7 +1607,7 @@ _a_e2 = _au2("e2", 300, "offline", list(_ps2))
 _t, _l, _ = F.fmt_wr_auctions("翁", [_a_e1, _a_e2], exact_ids={"e1", "e2"})
 check(
     "★ B④ 恰好内档位压价格（500p 在线在 300p 离线前）",
-    _l[0].startswith("1. 500p") and _l[2].startswith("2. 300p"),
+    _l[0].startswith("1. 一口价：500p") and _l[2].startswith("2. 一口价：300p"),
     str(_l[:3]),
 )
 
@@ -1622,7 +1625,7 @@ check("★ B⑥ 无词条 exact_ids=None → 顺序不变", _l1 == _l2)
 
 # ⑦ presorted=True 完全不受新参数影响
 _t1, _l1, _ = F.fmt_wr_auctions("翁", [_a_s2, _a_s1], presorted=True, exact_ids={"s1"})
-check("★ B⑦ presorted=True 不受新参数影响", _l1[0].startswith("1. 200p"), _l1[0])
+check("★ B⑦ presorted=True 不受新参数影响", _l1[0].startswith("1. 一口价：200p"), _l1[0])
 
 # ⑧ 任意负：正恰好 + 1 条负 ⇒ 判为恰好（不得因负词条无名判超集）
 _q_neg = parse_wr(["多重", "任意负"])
