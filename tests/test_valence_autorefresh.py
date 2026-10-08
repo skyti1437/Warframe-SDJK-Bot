@@ -145,6 +145,29 @@ check(
     str(WC.coda_anchor_for(1, C_EPOCH, PERIOD, NOW, 2)),
 )
 
+# ★ 2026-10-07 加强：用**四组外部观测记录**钉住相位（日期无关，且**不是自指** ——
+#   期望值来自观测记录，不是从文件里的 anchor 反算）。任何一组对不上都说明
+#   anchor 被写错了（这正是 10-07 00:09 那次自动刷新犯的错）。观测来源：
+#     09-14 / 09-20 换批实测；10-03 刷新件注释；10-07 本批 —— Reset 页可见文案
+#     「Eleanor is selling Batch A weapons. Time left until Batch B:」+ 表头
+#     「Weapon (Batch A)」+ 表内为 A 批新值，倒计时精确指向 2026-10-11 00:00 UTC。
+#   ⚠ 别照抄服务器运行副本的 anchor：那次读渲染页时其**批次标签还滞后于换轮边界**
+#     （页面仍写 B）⇒ 相位被写错一批（并连带 pop 掉了 A 批的值）。
+_OBS = (
+    ("09-14", 0, datetime(2026, 9, 14, 12, tzinfo=C_EPOCH.tzinfo)),
+    ("09-20", 1, datetime(2026, 9, 20, 12, tzinfo=C_EPOCH.tzinfo)),
+    ("10-03", 1, datetime(2026, 10, 3, 12, tzinfo=C_EPOCH.tzinfo)),
+    ("10-07", 0, datetime(2026, 10, 7, 12, tzinfo=C_EPOCH.tzinfo)),
+)
+for _tag, _obs, _when in _OBS:
+    _a = WC.coda_anchor_for(_obs, C_EPOCH, PERIOD, _when, 2)
+    check(
+        f"★ 相位钉值：{_tag} 观测 {ROT['coda']['batch_label'][_obs]} 批 → 反解 anchor={_a}"
+        f" 应等于文件值 {ROT['coda']['anchor_idx']}",
+        _a == ROT["coda"]["anchor_idx"],
+        str(_a),
+    )
+
 # ---------------------------------------------------------------------------
 # FS 告警分级（v1.0.8；issue #1 实测：不用 FS 的用户更新后连收刷新失败 WARN）
 # 三态：配置关闭→不尝试不告警；开着但不可达→24h 一次提示且跳过；可达但求解失败→照旧 WARN

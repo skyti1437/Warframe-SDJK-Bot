@@ -144,6 +144,76 @@ check("剥头后前缀不存在不剥：狗头", _head("狗头") is None, str(_h
 check("不以头结尾不处理：水晶", _head("水晶") is None)
 
 print()
+print("=== 四、2026-10-07 扩充的 8 个部件词（T1）与「蓝图」分支同步 ===")
+# 报障：`wm 玻之武杖p 饰物` 出「一套」（「饰物」不在表里 ⇒ 整串丢给解析 ⇒ 落 set）。
+# T1 = 饰物/引擎/锤头/机舱/圆盘/机翼/外甲/握把 —— 选自 WM `/v2/items`（zh-hans）
+# 的 component/blueprint 中文名 843 条尾词统计，每个覆盖 ≥2 条真实部件名；
+# 实测在**非部件物品名（3049 条）里 0 撞名**。
+_T1 = ("饰物", "引擎", "锤头", "机舱", "圆盘", "机翼", "外甲", "握把")
+for _w in _T1:
+    _q1 = parse_wm(["玻之武杖p", _w])
+    check(
+        f"T1：`{_w}` 被拆成部件词（p 后缀不失真）",
+        _q1.part == _w and _q1.item.endswith("p"),
+        f"{_q1.item!r}/{_q1.part!r}",
+    )
+    _q2 = parse_wm([f"提佩多{_w}"])
+    check(f"T1：`{_w}` 连写也能拆", _q2.part == _w and _q2.item == "提佩多", f"{_q2.item!r}/{_q2.part!r}")
+
+_q3 = parse_wm(["玻之武杖", "蓝图"])
+check(
+    "回归：加词后 `玻之武杖 蓝图` 仍是总图",
+    _q3.item == "玻之武杖" and _q3.part == "蓝图",
+    f"{_q3.item!r}/{_q3.part!r}",
+)
+
+# ★ skip 同步守卫（_pick_wm_set_part 的 skip 元组必须与 _PART_SPECIFIC 同步）：
+#   「引擎 蓝图」这类**部件蓝图**不能被「蓝图=总图」分支挑走。
+_pick_engine = [
+    {"zh": "Scimitar 引擎", "url_name": "scimitar_engines"},
+    {"zh": "Scimitar 引擎 蓝图", "url_name": "scimitar_engines_blueprint"},
+]
+_pick_bp = [
+    {"zh": "Scimitar 引擎 蓝图", "url_name": "scimitar_engines_blueprint"},
+    {"zh": "Scimitar 蓝图", "url_name": "scimitar_blueprint"},
+]
+check(
+    "新词入表后：引擎 按部件命中",
+    (pick(_pick_engine, "引擎") or {}).get("url_name") == "scimitar_engines",
+)
+check(
+    "★ skip 同步：总图只挑真总图（引擎 蓝图 不被当总图）",
+    (pick(_pick_bp, "蓝图") or {}).get("url_name") == "scimitar_blueprint",
+)
+
+# ★ 结构断言（2026-10-07）：skip 与 _PART_SPECIFIC 必须同步 —— 差集只允许
+#   「头部神经」（parser 侧已被 _PART_STRENGTH 归并成「头部」）。比逐词断言强：
+#   将来任何一侧加词而另一侧漏加，这里立刻红（历史两次漏同步都是靠人记）。
+from core.commands.market import _SET_BLUEPRINT_SKIP as _SKIP  # noqa: E402
+from core.parser import _PART_SPECIFIC as _PS  # noqa: E402
+
+check(
+    "★ 结构：_SET_BLUEPRINT_SKIP == _PART_SPECIFIC − {头部神经}",
+    set(_SKIP) == set(_PS) - {"头部神经"},
+    f"缺={sorted((set(_PS) - {'头部神经'}) - set(_SKIP))} 多={sorted(set(_SKIP) - set(_PS))}",
+)
+
+# 双向护栏（纪律 9）：T2 是**本轮有意未收录**的词（每个只覆盖 1 条部件名），
+# 这里钉住它们「仍不被消费」。将来决定收录时，必须把词从这份白名单挪走 ——
+# 否则本断言会红，提醒同步改测试（防止「加了词却没人验」）。
+_T2 = (
+    "链条", "星镖", "爪刃", "铆钉", "锯片", "散热片", "下皮层",
+    "弓臂", "马达", "刀片", "剑刃", "手套", "靴子",
+)
+for _w in _T2:
+    _q = parse_wm(["降灵追猎者p", _w])
+    check(
+        f"白名单：`{_w}` 本轮有意未收录（part 仍为空）",
+        _q.part == "" and _w in _q.item,
+        f"{_q.item!r}/{_q.part!r}",
+    )
+
+print()
 if _fails:
     print(f"✗ {len(_fails)} 项失败: {_fails}")
     raise SystemExit(1)

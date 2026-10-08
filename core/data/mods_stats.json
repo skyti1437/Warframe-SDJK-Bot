@@ -20,9 +20,7 @@
     "physical": {
      "puncture": 60.0
     },
-    "elements": {
-     "puncture": 60.0
-    }
+    "elements": {}
    },
    "levels": [
     {
@@ -30,36 +28,28 @@
      "physical": {
       "puncture": 15.0
      },
-     "elements": {
-      "puncture": 15.0
-     }
+     "elements": {}
     },
     {
      "fire_rate": 30.0,
      "physical": {
       "puncture": 30.0
      },
-     "elements": {
-      "puncture": 30.0
-     }
+     "elements": {}
     },
     {
      "fire_rate": 45.0,
      "physical": {
       "puncture": 45.0
      },
-     "elements": {
-      "puncture": 45.0
-     }
+     "elements": {}
     },
     {
      "fire_rate": 60.0,
      "physical": {
       "puncture": 60.0
      },
-     "elements": {
-      "puncture": 60.0
-     }
+     "elements": {}
     }
    ],
    "_variant": 0
@@ -2052,58 +2042,44 @@
     "physical": {
      "puncture": 120.0
     },
-    "elements": {
-     "puncture": 120.0
-    }
+    "elements": {}
    },
    "levels": [
     {
      "physical": {
       "puncture": 20.0
      },
-     "elements": {
-      "puncture": 20.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "puncture": 40.0
      },
-     "elements": {
-      "puncture": 40.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "puncture": 60.0
      },
-     "elements": {
-      "puncture": 60.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "puncture": 80.0
      },
-     "elements": {
-      "puncture": 80.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "puncture": 100.0
      },
-     "elements": {
-      "puncture": 100.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "puncture": 120.0
      },
-     "elements": {
-      "puncture": 120.0
-     }
+     "elements": {}
     }
    ],
    "_variant": 0
@@ -4025,58 +4001,44 @@
     "physical": {
      "impact": 120.0
     },
-    "elements": {
-     "impact": 120.0
-    }
+    "elements": {}
    },
    "levels": [
     {
      "physical": {
       "impact": 20.0
      },
-     "elements": {
-      "impact": 20.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "impact": 40.0
      },
-     "elements": {
-      "impact": 40.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "impact": 60.0
      },
-     "elements": {
-      "impact": 60.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "impact": 80.0
      },
-     "elements": {
-      "impact": 80.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "impact": 100.0
      },
-     "elements": {
-      "impact": 100.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "impact": 120.0
      },
-     "elements": {
-      "impact": 120.0
-     }
+     "elements": {}
     }
    ],
    "_variant": 0
@@ -4877,58 +4839,44 @@
     "physical": {
      "impact": 90.0
     },
-    "elements": {
-     "impact": 90.0
-    }
+    "elements": {}
    },
    "levels": [
     {
      "physical": {
       "impact": 15.0
      },
-     "elements": {
-      "impact": 15.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "impact": 30.0
      },
-     "elements": {
-      "impact": 30.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "impact": 45.0
      },
-     "elements": {
-      "impact": 45.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "impact": 60.0
      },
-     "elements": {
-      "impact": 60.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "impact": 75.0
      },
-     "elements": {
-      "impact": 75.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "impact": 90.0
      },
-     "elements": {
-      "impact": 90.0
-     }
+     "elements": {}
     }
    ],
    "_variant": 0
@@ -5608,58 +5556,44 @@
     "physical": {
      "slash": 120.0
     },
-    "elements": {
-     "slash": 120.0
-    }
+    "elements": {}
    },
    "levels": [
     {
      "physical": {
       "slash": 20.0
      },
-     "elements": {
-      "slash": 20.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "slash": 40.0
      },
-     "elements": {
-      "slash": 40.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "slash": 60.0
      },
-     "elements": {
-      "slash": 60.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "slash": 80.0
      },
-     "elements": {
-      "slash": 80.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "slash": 100.0
      },
-     "elements": {
-      "slash": 100.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "slash": 120.0
      },
-     "elements": {
-      "slash": 120.0
-     }
+     "elements": {}
     }
    ],
    "_variant": 0
@@ -6001,58 +5935,44 @@
     "physical": {
      "puncture": 90.0
     },
-    "elements": {
-     "puncture": 90.0
-    }
+    "elements": {}
    },
    "levels": [
     {
      "physical": {
       "puncture": 15.0
      },
-     "elements": {
-      "puncture": 15.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "puncture": 30.0
      },
-     "elements": {
-      "puncture": 30.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "puncture": 45.0
      },
-     "elements": {
-      "puncture": 45.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "puncture": 60.0
      },
-     "elements": {
-      "puncture": 60.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "puncture": 75.0
      },
-     "elements": {
-      "puncture": 75.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "puncture": 90.0
      },
-     "elements": {
-      "puncture": 90.0
-     }
+     "elements": {}
     }
    ],
    "_variant": 0
@@ -6414,58 +6334,44 @@
     "physical": {
      "impact": 120.0
     },
-    "elements": {
-     "impact": 120.0
-    }
+    "elements": {}
    },
    "levels": [
     {
      "physical": {
       "impact": 20.0
      },
-     "elements": {
-      "impact": 20.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "impact": 40.0
      },
-     "elements": {
-      "impact": 40.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "impact": 60.0
      },
-     "elements": {
-      "impact": 60.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "impact": 80.0
      },
-     "elements": {
-      "impact": 80.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "impact": 100.0
      },
-     "elements": {
-      "impact": 100.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "impact": 120.0
      },
-     "elements": {
-      "impact": 120.0
-     }
+     "elements": {}
     }
    ],
    "_variant": 0
@@ -11537,58 +11443,44 @@
     "physical": {
      "puncture": 120.0
     },
-    "elements": {
-     "puncture": 120.0
-    }
+    "elements": {}
    },
    "levels": [
     {
      "physical": {
       "puncture": 20.0
      },
-     "elements": {
-      "puncture": 20.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "puncture": 40.0
      },
-     "elements": {
-      "puncture": 40.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "puncture": 60.0
      },
-     "elements": {
-      "puncture": 60.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "puncture": 80.0
      },
-     "elements": {
-      "puncture": 80.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "puncture": 100.0
      },
-     "elements": {
-      "puncture": 100.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "puncture": 120.0
      },
-     "elements": {
-      "puncture": 120.0
-     }
+     "elements": {}
     }
    ],
    "_variant": 0
@@ -11607,58 +11499,44 @@
     "physical": {
      "puncture": 90.0
     },
-    "elements": {
-     "puncture": 90.0
-    }
+    "elements": {}
    },
    "levels": [
     {
      "physical": {
       "puncture": 15.0
      },
-     "elements": {
-      "puncture": 15.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "puncture": 30.0
      },
-     "elements": {
-      "puncture": 30.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "puncture": 45.0
      },
-     "elements": {
-      "puncture": 45.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "puncture": 60.0
      },
-     "elements": {
-      "puncture": 60.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "puncture": 75.0
      },
-     "elements": {
-      "puncture": 75.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "puncture": 90.0
      },
-     "elements": {
-      "puncture": 90.0
-     }
+     "elements": {}
     }
    ],
    "_variant": 0
@@ -15918,58 +15796,44 @@
     "physical": {
      "impact": 90.0
     },
-    "elements": {
-     "impact": 90.0
-    }
+    "elements": {}
    },
    "levels": [
     {
      "physical": {
       "impact": 15.0
      },
-     "elements": {
-      "impact": 15.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "impact": 30.0
      },
-     "elements": {
-      "impact": 30.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "impact": 45.0
      },
-     "elements": {
-      "impact": 45.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "impact": 60.0
      },
-     "elements": {
-      "impact": 60.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "impact": 75.0
      },
-     "elements": {
-      "impact": 75.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "impact": 90.0
      },
-     "elements": {
-      "impact": 90.0
-     }
+     "elements": {}
     }
    ],
    "_variant": 0
@@ -16166,58 +16030,44 @@
     "physical": {
      "slash": 90.0
     },
-    "elements": {
-     "slash": 90.0
-    }
+    "elements": {}
    },
    "levels": [
     {
      "physical": {
       "slash": 15.0
      },
-     "elements": {
-      "slash": 15.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "slash": 30.0
      },
-     "elements": {
-      "slash": 30.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "slash": 45.0
      },
-     "elements": {
-      "slash": 45.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "slash": 60.0
      },
-     "elements": {
-      "slash": 60.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "slash": 75.0
      },
-     "elements": {
-      "slash": 75.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "slash": 90.0
      },
-     "elements": {
-      "slash": 90.0
-     }
+     "elements": {}
     }
    ],
    "_variant": 0
@@ -17786,58 +17636,44 @@
     "physical": {
      "slash": 90.0
     },
-    "elements": {
-     "slash": 90.0
-    }
+    "elements": {}
    },
    "levels": [
     {
      "physical": {
       "slash": 15.0
      },
-     "elements": {
-      "slash": 15.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "slash": 30.0
      },
-     "elements": {
-      "slash": 30.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "slash": 45.0
      },
-     "elements": {
-      "slash": 45.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "slash": 60.0
      },
-     "elements": {
-      "slash": 60.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "slash": 75.0
      },
-     "elements": {
-      "slash": 75.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "slash": 90.0
      },
-     "elements": {
-      "slash": 90.0
-     }
+     "elements": {}
     }
    ],
    "_variant": 0
@@ -18956,58 +18792,44 @@
     "physical": {
      "slash": 120.0
     },
-    "elements": {
-     "slash": 120.0
-    }
+    "elements": {}
    },
    "levels": [
     {
      "physical": {
       "slash": 20.0
      },
-     "elements": {
-      "slash": 20.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "slash": 40.0
      },
-     "elements": {
-      "slash": 40.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "slash": 60.0
      },
-     "elements": {
-      "slash": 60.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "slash": 80.0
      },
-     "elements": {
-      "slash": 80.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "slash": 100.0
      },
-     "elements": {
-      "slash": 100.0
-     }
+     "elements": {}
     },
     {
      "physical": {
       "slash": 120.0
      },
-     "elements": {
-      "slash": 120.0
-     }
+     "elements": {}
     }
    ],
    "_variant": 0

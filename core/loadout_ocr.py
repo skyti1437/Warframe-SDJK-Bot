@@ -1016,7 +1016,16 @@ def analyze(ocr: dict, pips_rows: Optional[list] = None) -> dict:
     # ---- 逐卡识别 ----
     totals: dict = {k: 0.0 for k in _ADD_FIELDS}
     totals.update(
-        {"elements": {}, "physical": {}, "uncalc": [], "no_rank": [], "throw_max_stacks": 0}
+        {
+            "elements": {},
+            "physical": {},
+            "uncalc": [],
+            "no_rank": [],
+            "throw_max_stacks": 0,
+            # 派系卡（灭亡/歼灭类）按派系分桶：{派系名: 百分比}（2026-10-06 同
+            # damage_calc 口径：不再折进通用 faction_dmg 打任意派系都生效）
+            "faction_dmg_of": {},
+        }
     )
     for _mi, raw in enumerate(out["raw_mods"]):
         if not isinstance(raw, dict):
@@ -1084,6 +1093,8 @@ def analyze(ocr: dict, pips_rows: Optional[list] = None) -> dict:
             if not eff:
                 totals["uncalc"].append(item.get("zh") or name)
             for key in _ADD_FIELDS:
+                if key == "faction_dmg" and eff.get("faction_of"):
+                    continue  # 派系卡走 faction_dmg_of 分桶，不进通用桶
                 if eff.get(key):
                     totals[key] += float(eff[key])
             # 斩铁：「重击时 x2」→ 重击的暴击几率加成额外再吃一份
@@ -1094,7 +1105,22 @@ def analyze(ocr: dict, pips_rows: Optional[list] = None) -> dict:
                 totals["throw_max_stacks"] = max(
                     int(totals["throw_max_stacks"]), int(eff["throw_max_stacks"])
                 )
+            # 派系卡按派系分桶（倍率写法 x1.55 与百分比写法都折成百分点）
+            _fac_of = str(eff.get("faction_of") or "")
+            if _fac_of:
+                _fac_pct = (
+                    (float(eff["faction_mul"]) - 1) * 100
+                    if eff.get("faction_mul")
+                    else float(eff.get("faction_dmg") or 0.0)
+                )
+                if _fac_pct:
+                    totals["faction_dmg_of"][_fac_of] = (
+                        totals["faction_dmg_of"].get(_fac_of, 0.0) + _fac_pct
+                    )
             for el, val in (eff.get("elements") or {}).items():
+                if el in ("impact", "puncture", "slash"):
+                    # 数据层历史双写：物理类型只走 physical 通道，防重复折算
+                    continue
                 totals["elements"][el] = totals["elements"].get(el, 0.0) + float(val)
             for el, val in (eff.get("physical") or {}).items():
                 totals["physical"][el] = totals["physical"].get(el, 0.0) + float(val)
@@ -1512,6 +1538,8 @@ def _effect_text(eff: dict) -> str:
             unit = "" if key in ("punch_through", "initial_combo") else "%"
             bits.append(f"{label}+{val:g}{unit}")
     for el, val in (eff.get("elements") or {}).items():
+        if el in ("impact", "puncture", "slash"):
+            continue  # 物理类型在下一行 physical 里显示，别重复一条
         bits.append(f"{ELEM_ALL_ZH.get(el, el)}+{val:g}%")
     for el, val in (eff.get("physical") or {}).items():
         bits.append(f"{PHYS_ZH.get(el, el)}+{val:g}%")
@@ -1554,6 +1582,10 @@ def to_damage_spec(an: dict, level: int = 100, faction: str = "Grineer") -> Opti
             "dmg_per_status": float(t.get("dmg_per_status") or 0.0),
             "singles": {k: float(v) for k, v in (t.get("elements") or {}).items()},
             "physical": {k: float(v) for k, v in (t.get("physical") or {}).items()},
+            # 派系卡分桶 → calculate 按最终派系取用（与 parse_args 同构）
+            "faction_dmg_of": [
+                [f, float(p)] for f, p in (t.get("faction_dmg_of") or {}).items()
+            ],
         }
     )
     # 反推路径的基础是「把 MOD 除回去」的净基础（v1.11 修正：此前误把 MOD

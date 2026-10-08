@@ -55,6 +55,18 @@ ELEM_MAP = {
     "elemental_damage_bonus": "elements",
     "physical_damage_bonus": "physical",
 }
+# wfsim 把物理类型（impact/puncture/slash）也用 elemental_damage_bonus 表达；
+# 落桶时物理类型必须进 physical（同类型基值乘区），进 elements 会被折算循环
+# 与 physical 各吃一份 = 双重折算（2026-10-06 清洗过 13 张卡 76 行 levels）。
+_PHYS_ELEMENTS = ("impact", "puncture", "slash")
+
+
+def elem_bucket(kind: str, el) -> tuple:
+    """(字段桶, 元素键) —— 物理类型强制走 physical。"""
+    field = ELEM_MAP.get(kind)
+    if field == "elements" and el in _PHYS_ELEMENTS:
+        return "physical", el
+    return field, el
 # 有 condition 的效果是条件触发（如 while_aiming），不折进主数值
 SKIP_IF_CONDITIONAL = True
 
@@ -82,8 +94,9 @@ def rebuild_levels(w_effects, old_levels, max_rank):
         elif kind in ELEM_MAP:
             el = e.get("element")
             if el:
+                field, el2 = elem_bucket(kind, el)
                 plan.append(
-                    (ELEM_MAP[kind], el, e.get("rank0") or 0.0, e.get("rankMax") or 0.0, True)
+                    (field, el2, e.get("rank0") or 0.0, e.get("rankMax") or 0.0, True)
                 )
     levels = []
     for rank in range(n):

@@ -318,6 +318,30 @@ def parse(message: str, *, extra_commands: Optional[dict[str, str]] = None) -> P
 # 依据社区通行的紫卡词条表整理，并补充单字缩写。
 # ---------------------------------------------------------------------------
 RIVEN_STAT_ALIASES: dict[str, set[str]] = {
+    # ★ 2026-10-07 Riven Splicer（Update 44，实机 2026-10-07 上线）的 18 个**新词条**：
+    #   官方 Public Export 七家族 tag 并集 36→54 新增的 18 个 tag，与 wiki「Spliced Traits」
+    #   清单一一对应。**必须注册** —— 否则会被静默错绑（实测：病毒伤害→毒素伤害、
+    #   毒气伤害→毒素伤害、爆炸伤害→暴击伤害、弹药效率→弹药上限、弱点暴击→暴击几率）
+    #   或静默丢弃（⇒ 词条数少算、系数错档、区间偏高约 32%）。
+    #   ⚠ 中文名按既有卡面写法推导（「弹药效率」为官方语言表实证），**待一张实卡复核**。
+    "gas_damage": ["Gas Damage", "毒气", "毒气伤害"],
+    "corrosive_damage": ["Corrosive Damage", "腐蚀", "腐蚀伤害"],
+    "viral_damage": ["Viral Damage", "病毒", "病毒伤害"],
+    "radiation_damage": ["Radiation Damage", "辐射", "辐射伤害"],
+    "blast_damage": ["Blast Damage", "爆炸", "爆炸伤害"],
+    "magnetic_damage": ["Magnetic Damage", "磁力", "磁力伤害"],
+    "damage_vs_orokin": ["对奥罗金的伤害", "对奥罗金伤害", "对Orokin伤害", "对 Orokin 伤害", "Orokin Damage"],
+    "damage_vs_scaldra": ["对炽蛇军的伤害", "对炽蛇军伤害", "对Scaldra伤害", "Scaldra Damage"],
+    "damage_vs_techrot": ["对科腐者的伤害", "对科腐者伤害", "对Techrot伤害", "Techrot Damage"],
+    "weakpoint_damage": ["Weakpoint Damage", "弱点伤害"],
+    "weakpoint_crit_chance": ["弱点暴击几率", "弱点暴击率", "命中弱点暴击几率", "Weakpoint Critical Chance"],
+    "status_damage": ["异常状态伤害", "状态伤害", "Status Damage"],
+    "ammo_efficiency": ["Ammo Efficiency", "弹药效率"],
+    "reload_holstered": ["收起武器时弹匣每秒自动装填", "装填时弹匣", "收起时装填", "Reload While Holstered"],
+    "melee_heavy_attack_damage": ["在重击时的近战伤害", "重击伤害", "Heavy Attack Damage"],
+    "melee_heavy_attack_charge": ["重击准备速度", "重击蓄力速度", "重击蓄力", "Heavy Attack Charge"],
+    "melee_parry_angle": ["招架角度", "格挡角度", "Parry Angle"],
+    "melee_slam_damage": ["震地攻击伤害", "震地伤害", "Slam Damage"],
     "melee_damage": {"近战伤害", "基伤", "基础伤害", "近战", "基础", "基"},
     "crit_chance": {
         "暴击几率",
@@ -458,6 +482,26 @@ RIVEN_STAT_COMBOS: dict[str, list[str]] = {
 }
 # 本插件标准词条 id -> WM v1 拍卖数据里的 url_name（部分为合并名）
 RIVEN_URL_COMPAT: dict[str, str] = {
+    # ★ 2026-10-07：WM `/v2/riven/attributes` 已补上 Splicer 的 18 个新词条（32→50 条，
+    #   zh 名与我方逐字一致）⇒ `wr`（拍卖）侧同步映射，否则新词条会被丢成裸 slug。
+    "gas_damage": "gas",
+    "corrosive_damage": "corrosive",
+    "viral_damage": "viral",
+    "radiation_damage": "radiation",
+    "blast_damage": "blast",
+    "magnetic_damage": "magnetic",
+    "damage_vs_orokin": "damage_to_orokin",
+    "damage_vs_scaldra": "damage_to_scaldra",
+    "damage_vs_techrot": "damage_to_techrot",
+    "weakpoint_damage": "weak_point_damage",
+    "weakpoint_crit_chance": "weak_point_critical_chance",
+    "status_damage": "status_damage",
+    "ammo_efficiency": "ammo_efficiency",
+    "reload_holstered": "magazine_reloaded_s_when_holstered",
+    "melee_heavy_attack_damage": "melee_damage_on_heavy_attack",
+    "melee_heavy_attack_charge": "heavy_attack_wind_up_speed",
+    "melee_parry_angle": "parry_angle",
+    "melee_slam_damage": "slam_attack_damage",
     "damage": "base_damage_/_melee_damage",
     "melee_damage": "base_damage_/_melee_damage",
     "crit_chance": "critical_chance",
@@ -477,6 +521,30 @@ RIVEN_URL_COMPAT: dict[str, str] = {
 }
 # 标准词条 id -> 展示主中文名（拍卖展示用，精选短名）
 RIVEN_STAT_ZH: dict[str, str] = {
+    # ★ 2026-10-07 Riven Splicer（Update 44，实机 2026-10-07 上线）的 18 个**新词条**：
+    #   官方 Public Export 七家族 tag 并集 36→54 新增的 18 个 tag，与 wiki「Spliced Traits」
+    #   清单一一对应。**必须注册** —— 否则会被静默错绑（实测：病毒伤害→毒素伤害、
+    #   毒气伤害→毒素伤害、爆炸伤害→暴击伤害、弹药效率→弹药上限、弱点暴击→暴击几率）
+    #   或静默丢弃（⇒ 词条数少算、系数错档、区间偏高约 32%）。
+    #   ⚠ 中文名按既有卡面写法推导（「弹药效率」为官方语言表实证），**待一张实卡复核**。
+    "gas_damage": "毒气伤害",
+    "corrosive_damage": "腐蚀伤害",
+    "viral_damage": "病毒伤害",
+    "radiation_damage": "辐射伤害",
+    "blast_damage": "爆炸伤害",
+    "magnetic_damage": "磁力伤害",
+    "damage_vs_orokin": "对奥罗金",
+    "damage_vs_scaldra": "对炽蛇军",
+    "damage_vs_techrot": "对科腐者",
+    "weakpoint_damage": "弱点伤",
+    "weakpoint_crit_chance": "弱点暴击",
+    "status_damage": "异常状态伤",
+    "ammo_efficiency": "弹药效率",
+    "reload_holstered": "收起武器时装填",
+    "melee_heavy_attack_damage": "重击时近战",
+    "melee_heavy_attack_charge": "重击准备",
+    "melee_parry_angle": "招架角度",
+    "melee_slam_damage": "震地攻击",
     "melee_damage": "基伤",
     "crit_chance": "暴击",
     "crit_damage": "暴伤",
@@ -771,6 +839,22 @@ _PART_SPECIFIC = (
     "武器舱",
     "镖袋",
     "护手",
+    # ★ 2026-10-07 扩充（守护/殁世机甲/曲翼/飞船/玄骸锤类）：用户报障
+    #   「wm 玻之武杖p 饰物」出整套 —— 「饰物」不在表里 ⇒ 整串丢给解析 ⇒ 落 set。
+    #   选词口径：WM `/v2/items`（Language: zh-hans）的 component/blueprint
+    #   中文名 843 条按「尾词 + 子串」统计，取**每个覆盖 ≥2 条真实部件名**的词；
+    #   这 8 词在**非部件物品名（3049 条）里 0 撞名**（比 2026-10-05 那批干净，
+    #   不依赖 `_h_wm` 的「原文重组再试」兜底）。
+    #   有意未收录（各只覆盖 1 条，等真实报障再加）：链条/星镖/爪刃/铆钉/锯片/
+    #   散热片/下皮层/弓臂/马达/刀片/剑刃/手套/靴子。
+    "饰物",
+    "引擎",
+    "锤头",
+    "机舱",
+    "圆盘",
+    "机翼",
+    "外甲",
+    "握把",
 )
 _PART_GENERIC = ("蓝图", "总图")
 _PART_ANY = ("配件", "部件")

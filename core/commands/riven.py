@@ -308,6 +308,11 @@ class RivenCommands:
 
         has_image = self._event_has_image(event)
         source_note = ""
+        # ★ 2026-10-07：图片路径里 OCR 读到的武器名（清洗后）单独留一份 —— 手输名
+        #   认不出时用它兜底（见下面的解析链），纯文字路径保持空串。
+        _ai_name = ""
+        # 近形字兜底的卡面注记（解析链最后一跳命中时填，见下）
+        nearmiss_note = ""
         if not weapon_name or not (stats_pos or stats_neg):
             # —— 图片识别路径 ——
             if not has_image:
@@ -327,12 +332,18 @@ class RivenCommands:
                     "负滑暴81.3"
                 )
             stats_pos, stats_neg = self._normalize_llm_stats(data, rev)
-            weapon_name = (data.get("weapon") or weapon_name).strip()
+            # ★ 2026-10-07（用户报障「紫卡分析 冰凇 + 截图 ⇒ 未找到紫卡武器「冰松」」）：
+            #   旧写法 `weapon_name = data.get("weapon") or weapon_name` = **OCR 名无条件
+            #   覆盖手输名** —— OCR 吐一个近形字（冰凇→冰松）就把用户写对的名字丢掉，
+            #   整卡解析失败。线上日志实证（2026-10-07 10:59 / 17:11 / 17:13 三次）：
+            #   用户输入确是「紫卡分析 冰凇」，卡面读成「冰松 Visi-critapha」⇒ 回未找到。
+            #   改为**手输名优先**，OCR 名只作兜底（解析链见下方 `_ai_name` 那一跳）。
+            _user_name = weapon_name.strip()
             # 紫卡卡面是「武器名 + 自命名」（欧玛 Acri-loctida）：去掉拉丁
             # 尾巴只留简中母名（WM 紫卡表按母武器挂）
-            _w = _re.sub(r"[A-Za-z\-].*$", "", weapon_name).strip(" ··")
-            if _w:
-                weapon_name = _w
+            _ai_raw = (data.get("weapon") or "").strip()
+            _ai_name = _re.sub(r"[A-Za-z\-].*$", "", _ai_raw).strip(" ··") or _ai_raw
+            weapon_name = _user_name or _ai_name
             source_note = "（图片识别）"
             # ★ 2026-09-27：优先采信「卡面文字行」，而不是模型给的语义词条表。
             #   故障实证（服务器日志 01:11:52）：4 行卡面被吐成 7 条 —— 负词条
@@ -444,18 +455,64 @@ class RivenCommands:
             base = _re2.sub(r"\s*Prime\s*$", "", base, flags=_re2.I)
             if base != weapon_name.strip():
                 weapon = await self.client.resolve_riven_weapon(base)
+        # ★ 2026-10-07：反向兜底一跳 —— 手输名认不出时，用**卡面 OCR 名**再试一次
+        #   （用户手输写错、卡面反倒读对的情形）。纯图路径下 weapon_name 已等于
+        #   _ai_name，此跳自然不触发（行为与改动前逐字一致）。
+        if not weapon and _ai_name and _ai_name != weapon_name.strip():
+            weapon = await self.client.resolve_riven_weapon(_ai_name)
+        # ★ 2026-10-07 近形字兜底（解析链最后一跳）：卡面名被 OCR 读成**近形字**时
+        #   （线上实证：冰凇 → 冰松，10:59/17:11/17:13 三次），2 字名的 difflib
+        #   ratio 恰 0.5 < 模糊档阈值 0.75 ⇒ 正常链路、模糊层、候选提示全都捞不回。
+        #   取「等长 + 仅 1 字不同」的表内名，**用卡面数值可行性当闸门**：
+        #     · 唯一可行 ⇒ 采纳，并在卡面注明「识别名 → 实际按哪个名算」；
+        #     · 多个可行 ⇒ 不猜，把它们列进候选提示；
+        #     · 一个都不行 ⇒ 维持原回落（与改动前一致）。
+        #   闸门保证这不是纯字面替换 —— 数值不吻合的错配会被自己挡掉。
+        _near_names: list[str] = []
+        if not weapon:
+            _feas: list[tuple[dict, float]] = []
+            for _c in await self.client.nearmiss_riven_weapons(weapon_name.strip()):
+                _ccls = RA.weapon_class(_c.get("riven_type", ""), _c.get("group", ""))
+                _ccls = RA.kitgun_mode_class(
+                    _c.get("en") or _c.get("zh") or "", _ccls, _c.get("riven_type") or ""
+                )
+                _cd = float(_c.get("disposition") or 0)
+                if _cd > 0 and RA.disp_feasible(stats_pos, stats_neg, _ccls, _cd):
+                    _feas.append((_c, _cd))
+            if len(_feas) == 1:
+                weapon, _near_disp = _feas[0]
+                # 纪律（2026-09-02 形近容错立的规矩）：**禁静默改判** —— 采纳时
+                # 既写卡面注记，也留一条日志（事后可回溯是哪个名字被换掉了）。
+                logger.info(
+                    "[sdjk] 近形字兜底：卡面名「%s」→ 按「%s」计算（倾向 %g，数值可行）",
+                    weapon_name.strip(),
+                    weapon.get("zh") or weapon.get("en"),
+                    _near_disp,
+                )
+                nearmiss_note = (
+                    f"卡面识别名「{weapon_name.strip()}」→ 已按"
+                    f"「{weapon.get('zh') or weapon.get('en')}」计算"
+                    f"（数值与倾向 {_near_disp:g} 吻合）"
+                )
+            elif _feas:
+                _near_names = [(c.get("zh") or c.get("en") or "") for c, _ in _feas]
         if not weapon:
             tips = await self.client.suggest_riven_weapons(weapon_name.strip())
+            if not tips and _near_names:
+                tips = _near_names[:3]
             tip = ("，你是不是想找：" + "、".join(tips)) if tips else ""
-            # ★ 2026-10-03 Phase 4：组合枪/魔典紫卡卡面**不写武器名**（第一行
-            #   整行是紫卡自命名），图片识别路拿不到武器名时给出补发指引。
-            mod_hint = (
-                "　组合枪/魔典（Kitgun/Zaw/Amp）紫卡卡面没有武器名 —— "
-                "请带腔体名+模式重发：紫卡分析 捕月（主要） [截图]"
-                if has_image
-                else ""
-            )
-            return Reply(raw_text=f"未找到紫卡武器「{weapon_name.strip()}」{tip}{mod_hint}")
+            # ★ 2026-10-07 删除一条旧提示（用户口径 + 线上实证）：原文是一条「模块化
+            #   武器请连腔体与模式一起重发」的补发指引（附示例）。删除理由：
+            #   ① 增幅器（Amp）**没有紫卡**（`_VEILED_SLUGS` 八大类无 Amp、紫卡表
+            #      670 条也没有 Amp 条目），列出来就是错的；
+            #   ② 魔典/Zaw 没有主要/次要之分（Zaw=近战、魔典=副手），与该指引的
+            #      「带模式」前提不符；
+            #   ③ 组合枪已能按卡面数值反推主要/次要（家族候选按模式换基值列 +
+            #      最近邻判据），再让人「带模式重发」是过时指引；
+            #   ④ 线上日志实证（2026-10-07 10:59 / 17:11 / 17:13 三次）：卡面
+            #      **有**武器名、只是被 OCR 读成近形字（冰凇→冰松）时它照样弹出来，
+            #      答非所问（群里当场质疑「你不识字啊」）。
+            return Reply(raw_text=f"未找到紫卡武器「{weapon_name.strip()}」{tip}")
         cls = RA.weapon_class(weapon.get("riven_type", ""), weapon.get("group", ""))
         _kitgun_type = weapon.get("riven_type") or ""
         # ★ 2026-10-03：WM 拆分行（捕月（主要）等 (Primary)/(Secondary) 行）
@@ -766,6 +823,8 @@ class RivenCommands:
             lines.insert(1, "※ 已修正小数点（截图未读出点号）：" + "、".join(decimal_fix))
         if source_note:
             lines.insert(1, f"※ 来源：{source_note.strip('（）')}")
+        if nearmiss_note:
+            lines.insert(1, f"※ {nearmiss_note}")
         if dup_note:
             lines.insert(1, f"※ {dup_note}")
         logger.info(

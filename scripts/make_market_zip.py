@@ -224,6 +224,14 @@ def _zip_datetime() -> tuple:
     return (t.tm_year, t.tm_mon, t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec)
 
 
+# 开源 stage 的期望文件数（★ 必须与 dist/package_release.py::EXPECTED_OSS_STAGE_FILES **同步**；
+# 两处基线任一变动都要同笔改）。
+# 2026-10-08 审核实证：本脚本原先只查「stage 存在」+「种子新鲜」，**不查 stage 是否追平 HEAD**
+# ⇒ 若绕开重建直接打包，会把旧 stage（当时 239 文件、不含本批任何修复）打出去。这里加数量闸门兜住；
+# 数量相同但内容不同的情形，仍靠流程约束（打包前必重跑 dist/package_release.py --opensource）。
+EXPECTED_STAGE_FILES = 240
+
+
 def main() -> int:
     if not OSS_DIR.is_dir():
         print(f"✗ 找不到开源目录 {OSS_DIR}\n  先跑：python dist/package_release.py --opensource")
@@ -238,6 +246,17 @@ def main() -> int:
         print(
             "  以容器运行期为权威回写 core/data/rotations.json 与 "
             "core/data/de/acrichis_week.json 后重跑（见 dist/package_release.py::_SEED_FIX_GUIDE）"
+        )
+        return 1
+
+    _stage_files = [
+        p for p in OSS_DIR.rglob("*")
+        if p.is_file() and "__pycache__" not in p.parts and p.suffix != ".pyc"
+    ]
+    if len(_stage_files) != EXPECTED_STAGE_FILES:
+        print(
+            f"✗ [stage 新鲜度闸门] stage 文件数 {len(_stage_files)} != 基线 {EXPECTED_STAGE_FILES}"
+            " —— stage 未追平 HEAD，先重跑：python dist/package_release.py --opensource"
         )
         return 1
 

@@ -90,7 +90,39 @@ _BASE: dict[str, tuple] = {
     # 后坐力：幅度 90%（官方 EN 表写 90%、中文表带方向写 -90%）—— 效果方向
     # 由 INVERTED_STATS 表达：卡面「+」= 增加后坐力 = 负面，区间按负档系数算。
     "recoil": (90, 90, 90, 90, None),
-    "zoom": (59.99, None, 80.1, 59.99, None),
+    # ★ 2026-10-07：霰弹枪格 None → **41.994**。依据：wiki `Riven_Mods` 页基值表原文
+    #   `| [[Zoom]] | Hera || Lis || 59.99% || 41.994% || 80.1% || 59.99% || –`
+    #   （列序 = rifle|shotgun|pistol|archgun|melee）；且 Update 44 Hotfix 44.0.3
+    #   （wiki 归属 **44.0.2**，原注释误记 44.0.3）补丁说明：**「Shotgun Rivens can now roll Zoom stats」**
+    #   （为 Riven Splicer 铺路，见 wiki 同页）⇒ 此前霰弹枪无 Zoom 词条，故为 None。
+    #   ⚠ 同一批证据还显示：上游导出镜像（senpai @ 2026-09-29）的霰弹枪家族
+    #   `LotusShotgunRandomModRare` **尚未**出现 `WeaponZoomFovMod` 条目 ⇒ 镜像落后
+    #   于 44.0.3，等刷新后再复核（含它是否带 NotSentinel 限制）。
+    "zoom": (59.99, 41.994, 80.1, 59.99, None),
+    # ★ 2026-10-07 Riven Splicer 的 18 个新词条基值（官方 Public Export
+    #   `ExportUpgrades_en.json` upgradeValues ×9000；与 wiki「Spliced Values」表 8 处吻合）。
+    #   弹药效率官方存 -0.005 ⇒ 取绝对值 45（方向由卡面极性表达）【待验证：实卡定档】。
+    #   格挡角度：**实拉导出 upgradeValue = 0.0089999996 ⇒ 满级 0.81**，wiki 写 8.1（差 10 倍）；
+    #   wfsim 也撞到同一冲突并选择 wiki（gen_rivens.py:213 WIKI_BASES）⇒ 我方同样取 8.1，
+    #   单位=纯数字（无 %）。⚠ 原注释「官方 810」是错的（×9000 误算），已订正。
+    "gas_damage": (90, 90, 90, 90, 90),
+    "corrosive_damage": (90, 90, 90, 90, 90),
+    "viral_damage": (90, 90, 90, 90, 90),
+    "radiation_damage": (90, 90, 90, 90, 90),
+    "blast_damage": (90, 90, 90, 90, 90),
+    "magnetic_damage": (90, 90, 90, 90, 90),
+    "damage_vs_orokin": (45, 45, 45, 45, 45),
+    "damage_vs_scaldra": (45, 45, 45, 45, 45),
+    "damage_vs_techrot": (45, 45, 45, 45, 45),
+    "weakpoint_damage": (225, 225, 225, 225, None),
+    "weakpoint_crit_chance": (247.5, 247.5, 247.5, 247.5, None),
+    "status_damage": (90, 90, 90, 90, 90),
+    "ammo_efficiency": (45, 45, 45, 45, None),
+    "reload_holstered": (90, 90, 90, None, None),
+    "melee_heavy_attack_damage": (None, None, None, None, 119.7),
+    "melee_heavy_attack_charge": (None, None, None, None, 119.7),
+    "melee_parry_angle": (None, None, None, None, 8.1),
+    "melee_slam_damage": (None, None, None, None, 119.7),
 }
 
 # 百分比词条（显示时补 %）；其余按原单位（米/秒/纯值）

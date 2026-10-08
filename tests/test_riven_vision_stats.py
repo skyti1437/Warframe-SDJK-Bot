@@ -1028,6 +1028,238 @@ check(
     _line_prompt,
 )
 
+# ---------------------------------------------------------------------------
+# ⑫ 武器名解析优先级：手输名优先 + OCR 名兜底（2026-10-07 线上报障回归）
+# ---------------------------------------------------------------------------
+# 报障（线上日志 10-07 10:59 / 17:11 / 17:13 三次）：
+#   `[图片] 紫卡分析 冰凇` → 回「未找到紫卡武器「冰松」」。
+# 根因：卡面首行被 OCR 读成**近形字**「冰松」（实为冰凇 Verglas），而旧实现
+#   `weapon_name = data.get("weapon") or weapon_name` 让 **OCR 名无条件覆盖手输名**
+#   ⇒ 用户写对的名字被丢掉、整卡失败。现改为「手输名优先，认不出时再用 OCR 名兜底」。
+# 数值沿用 ⑥ 号回归的夹具（该卡能走通出卡），本段的判据**只关心解析用的是哪个名字**。
+
+
+class _RecClient:
+    """记录每次解析传入的武器名；「冰凇」可解析、「冰松」不可（复刻线上形态）。"""
+
+    _weapon = dict(_FakeRivenClient._weapon)
+    _weapon.update({"url_name": "verglas", "zh": "冰凇", "en": "Verglas"})
+
+    def __init__(self):
+        self.queries = []
+
+    async def resolve_riven_weapon(self, q):
+        self.queries.append(q)
+        return dict(self._weapon) if q == "冰凇" else None
+
+    async def resolve_variant_disp(self, name):
+        return (None, "")
+
+    async def riven_family(self, weapon):
+        return []
+
+    async def suggest_riven_weapons(self, q, n=3):
+        return []
+
+    async def wm_riven_weapons(self):
+        return [dict(self._weapon)]  # 近形字兜底的候选池（⑬ 段用）
+
+    async def nearmiss_riven_weapons(self, q, n=4):
+        out = []
+        for w in await self.wm_riven_weapons():
+            zh = (w.get("zh") or "").strip()
+            if zh and len(zh) == len(q) and sum(1 for a, b in zip(zh, q) if a != b) == 1:
+                out.append(w)
+        return out[:n]
+
+
+# 识别结果里的 weapon 就是线上那条「冰松 Visi-critapha」
+_iceq_vision = dict(_incident_vision, weapon="冰松 Visi-critapha")
+# 对照：同一张卡但 OCR 读对（纯图路径用）
+_iceq_vision_ok = dict(_incident_vision, weapon="冰凇 Visi-critapha")
+
+
+def _rec_obj(vision: dict):
+    o = plugin.WarframeSDJK.__new__(plugin.WarframeSDJK)
+    o.client = _RecClient()
+    o.page_size = 12
+    o._image_data_urls = _fake_imgs
+
+    async def _ext(_u):
+        return dict(vision)
+
+    o._extract_riven_from_image = _ext
+    return o
+
+
+# A：手输名对（冰凇）+ OCR 读错（冰松）⇒ 必须用手输名解析
+_objA = _rec_obj(_iceq_vision)
+_rA = asyncio.run(_objA._h_riven_analysis(_FatParsed("紫卡分析 冰凇"), _FakeImageEvent(), "pc"))
+check(
+    "⑫① 手输名优先：解析用的是「冰凇」，不是 OCR 的「冰松」",
+    _objA.client.queries[:1] == ["冰凇"],
+    str(_objA.client.queries),
+)
+check(
+    "⑫② 该卡出卡（不再是「未找到紫卡武器」）",
+    bool(_rA.lines) and not _rA.raw_text,
+    repr(_rA)[:200],
+)
+
+# B：手输名写错（冰松）+ 卡面读对（冰凇）⇒ OCR 名兜底那一跳要接住
+#   （用读音对照件：反过来才是「手输对、卡面读错」，见情形 A）
+_objB = _rec_obj(_iceq_vision_ok)
+_rB = asyncio.run(_objB._h_riven_analysis(_FatParsed("紫卡分析 冰松"), _FakeImageEvent(), "pc"))
+check(
+    "⑫③ OCR 名兜底：手输名认不出时，用卡面名「冰凇」再试一次",
+    _objB.client.queries == ["冰松", "冰凇"],
+    str(_objB.client.queries),
+)
+check(
+    "⑫④ 兜底后同样出卡",
+    bool(_rB.lines) and not _rB.raw_text,
+    repr(_rB)[:200],
+)
+
+# C：纯图路径（不输名）行为不变 —— 仍按 OCR 名解析（此例 OCR 读对）
+_objC = _rec_obj(_iceq_vision_ok)
+_rC = asyncio.run(_objC._h_riven_analysis(_FatParsed("紫卡分析"), _FakeImageEvent(), "pc"))
+check(
+    "⑫⑤ 纯图路径不变：仍用卡面识别名解析、且出卡",
+    _objC.client.queries[:1] == ["冰凇"] and bool(_rC.lines),
+    f"{_objC.client.queries} / {repr(_rC)[:120]}",
+)
+
+# ---------------------------------------------------------------------------
+# ⑬ 近形字兜底（卡面数值可行性当闸门）—— 纯图路径被 OCR 读错时的自愈
+# ---------------------------------------------------------------------------
+# ⑫ 修好的是「用户手输了名字」的情形；**纯图路径（不输名）没有手输名可用**，
+# 只能靠这一跳自愈（线上 10-07 三次报障正是这种卡：冰凇 被读成 冰松）。
+_objD = _rec_obj(_iceq_vision)  # weapon = 冰松 Visi-critapha，表内只有「冰凇」
+_rD = asyncio.run(_objD._h_riven_analysis(_FatParsed("紫卡分析"), _FakeImageEvent(), "pc"))
+_bodyD = "\n".join(_rD.lines)
+check(
+    "⑬① 纯图路径：OCR 读成近形字也能出卡（不再是「未找到」）",
+    bool(_rD.lines) and not _rD.raw_text,
+    repr(_rD)[:200],
+)
+check(
+    "⑬② 卡面注明识别名与实际计算名（数值可行性闸门通过才采纳）",
+    "已按「冰凇」计算" in _bodyD,
+    _bodyD[:300],
+)
+
+# ---------------------------------------------------------------------------
+# ⑭ 「多个近形候选都可行」⇒ 不猜：列进候选提示、不出卡
+# ---------------------------------------------------------------------------
+# 桩数据（名字为合成，只为触发分支）：OCR 读成「七星刃」，表里两个**等长 + 1 字差**
+# 的候选（七星刀 / 七星剑）倾向都是 1.4 ⇒ 数值都能解释卡面 ⇒ 必须**不采纳**。
+_vision_multi = dict(_incident_vision, weapon="七星刃 Seven-star")
+
+
+class _MultiNearClient(_RecClient):
+    _w1 = dict(_RecClient._weapon, url_name="nr1", zh="七星刀", en="Near One")
+    _w2 = dict(_RecClient._weapon, url_name="nr2", zh="七星剑", en="Near Two")
+
+    async def wm_riven_weapons(self):
+        return [dict(self._w1), dict(self._w2)]
+
+
+_objE = plugin.WarframeSDJK.__new__(plugin.WarframeSDJK)
+_objE.client = _MultiNearClient()
+_objE.page_size = 12
+_objE._image_data_urls = _fake_imgs
+
+
+async def _extE(_u):
+    return dict(_vision_multi)
+
+
+_objE._extract_riven_from_image = _extE
+_rE = asyncio.run(_objE._h_riven_analysis(_FatParsed("紫卡分析"), _FakeImageEvent(), "pc"))
+check(
+    "⑭① 多个近形候选都可行 ⇒ 不猜（仍回未找到、不出卡）",
+    bool(_rE.raw_text) and "未找到紫卡武器" in _rE.raw_text,
+    repr(_rE)[:200],
+)
+check(
+    "⑭② 两个可行候选都列进提示",
+    "七星刀" in (_rE.raw_text or "") and "七星剑" in (_rE.raw_text or ""),
+    (_rE.raw_text or "")[:200],
+)
+
+# ---------------------------------------------------------------------------
+# ⑮ 紫卡识别**不竞速**：只取一个渠道，且优先 8B（用户 2026-10-07 裁示）
+# ---------------------------------------------------------------------------
+# 实测（2026-10-07，同一张「冰凇」卡 × 各 5 次）：
+#   glm-4v-flash → 冰松 **5/5**（确定性读错，且最快 ~3.1 s ⇒ k=2 竞速里必赢）；
+#   30B → 冰凇 2/5 ｜ 8B → 冰凇 5/5。线上三次「冰松」的 3.1 s 与 glm 吻合。
+# ⇒ 紫卡这一路只发一个渠道（名字是承重件，宁慢不赌）；识卡那路保留原竞速。
+
+
+class _Prov:
+    def __init__(self, pid):
+        self._pid = pid
+
+    def meta(self):
+        return types.SimpleNamespace(id=self._pid)
+
+
+_seen = {}
+
+
+class _OrderStub:
+    def __init__(self, provs):
+        self._provs = provs
+
+    def _vision_providers(self):
+        return list(self._provs)
+
+    async def _vision_race_json(self, prompt, image_url, provs, **kw):
+        _seen["order"] = [_p.meta().id for _p in provs]
+        return None
+
+
+def _raced_with(prov_ids):
+    _seen.clear()
+    obj = plugin.WarframeSDJK.__new__(plugin.WarframeSDJK)
+    stub = _OrderStub([_Prov(i) for i in prov_ids])
+    obj._vision_providers = stub._vision_providers
+    obj._vision_race_json = stub._vision_race_json
+    asyncio.run(obj._extract_riven_from_image("data:image/png;base64,x"))
+    return _seen.get("order", [])
+
+
+check(
+    "⑮① 紫卡路：候选里挑 8B、且只传一个渠道（不竞速）",
+    _raced_with(
+        [
+            "siliconflow/Qwen/Qwen3-VL-8B-Instruct",
+            "zhipu/glm-4v-flash",
+            "siliconflow/Qwen/Qwen3-VL-30B-A3B-Instruct",
+        ]
+    )
+    == ["siliconflow/Qwen/Qwen3-VL-8B-Instruct"],
+    str(_seen),
+)
+check(
+    "⑮② 配置/候选顺序里 8B 不在首位时，仍优先挑 8B（避免被 glm 顶上）",
+    _raced_with(
+        [
+            "zhipu/glm-4v-flash",
+            "siliconflow/Qwen/Qwen3-VL-8B-Instruct",
+        ]
+    )
+    == ["siliconflow/Qwen/Qwen3-VL-8B-Instruct"],
+    str(_seen),
+)
+check(
+    "⑮③ 没有 8B 时退化为「第一个可用渠道」（单发，不竞速）",
+    _raced_with(["zhipu/glm-4v-flash", "siliconflow/Qwen/Qwen3-VL-30B-A3B-Instruct"])
+    == ["zhipu/glm-4v-flash"],
+    str(_seen),
+)
+
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")
     sys.exit(1)
