@@ -69,7 +69,8 @@
     "description": "截图识别用的多模态模型 id（配卡识别「识卡」/ 紫卡截图共用），留空自动挑选",
     "type": "string",
     "default": "",
-    "hint": "填 AstrBot 里已添加的视觉模型 id，例如 siliconflow/Qwen/Qwen3-VL-32B-Instruct（2026-09 实测伤害行最稳，需 siliconflow 源超时 ≥240s）、zhipu/glm-4.1v-thinking-flash。留空时按实测基准排序逐个尝试。"
+    "_special": "select_provider",
+    "hint": "面板会列出 AstrBot 里已添加的模型渠道供选择（官方 select_provider 选择器，AstrBot ≥ v4.0.0）。留空时按实测基准排序逐个尝试（2026-09 实测 siliconflow/Qwen 系伤害行最稳，需该源超时 ≥240s）。"
   },
   "flaresolverr_enabled": {
     "description": "启用 CF 绕过代理（FlareSolverr）",

@@ -368,7 +368,9 @@ class VisionCommands:
         #   ⚠ 识卡（配卡截图）那一路**保留**原竞速：那里用真实配卡对拍，glm 是
         #   7/7 全对且要速度（见 `_VISION_PROVIDER_IDS` 上方的 2026-09-20 记录）。
         _all_provs = self._vision_providers()
-        provs = [p for p in _all_provs if "qwen3-vl-8b" in _prov_id(p).lower()][:1] or _all_provs[:1]
+        provs = [p for p in _all_provs if "qwen3-vl-8b" in _prov_id(p).lower()][:1] or _all_provs[
+            :1
+        ]
         if provs:
             logger.info("[sdjk] 紫卡识别固定渠道：%s（不竞速）", _prov_id(provs[0]))
         try:

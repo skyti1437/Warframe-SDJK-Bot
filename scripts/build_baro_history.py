@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+# ⚠ 离线构建/开发工具：**不在插件加载路径**（插件运行期不 import 本文件），需手动运行；
+#    shell 调用仅限本机工具（如 pyftsubset/git）或环境变量指定的主机（见 DEPLOY_SSH_HOST）。
 """构建 Baro Ki'Teer 历史库存（用于「预测」）。
 
 数据源：WARFRAME Wiki 的 ``Module:Baro/data``（每件物品的历次上架日期）。

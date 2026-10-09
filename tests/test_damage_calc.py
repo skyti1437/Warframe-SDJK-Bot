@@ -861,7 +861,10 @@ check("绝路(Semi)：半自动炮轰折算 +240% 基伤", close(_s_sc["base_dmg
 _s_bc = dc.parse_args(["野猪", "半自动霰弹枪炮轰"])[0]  # Boar Prime: Auto
 check("野猪(Auto)：半自动炮轰不折算", close(_s_bc["base_dmg"], 0.0))
 check("野猪(Auto)：卡面注明拒绝原因", any("仅兼容半自动" in n for n in _s_bc["notes"]))
-check("拒绝的卡仍列在 mods（卡面可见）", any(m.get("name") == "Semi-Shotgun Cannonade" for m in _s_bc["mods"]))
+check(
+    "拒绝的卡仍列在 mods（卡面可见）",
+    any(m.get("name") == "Semi-Shotgun Cannonade" for m in _s_bc["mods"]),
+)
 
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")

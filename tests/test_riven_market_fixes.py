@@ -1596,7 +1596,9 @@ _a_e_on = _au2("e_on", 500, "online", list(_ps2))
 _t, _l, _ = F.fmt_wr_auctions("翁", [_a_ex_off, _a_e_on, _a_sup_ig], exact_ids={"e_on", "ex_off"})
 check(
     "★ B③ 在线档次序不变：ingame(超集) → online(恰好) → offline(恰好)",
-    _l[0].startswith("1. 一口价：100p") and _l[2].startswith("2. 一口价：500p") and _l[4].startswith("3. 一口价：50p"),
+    _l[0].startswith("1. 一口价：100p")
+    and _l[2].startswith("2. 一口价：500p")
+    and _l[4].startswith("3. 一口价：50p"),
     str(_l[:5]),
 )
 

@@ -67,6 +67,8 @@ def elem_bucket(kind: str, el) -> tuple:
     if field == "elements" and el in _PHYS_ELEMENTS:
         return "physical", el
     return field, el
+
+
 # 有 condition 的效果是条件触发（如 while_aiming），不折进主数值
 SKIP_IF_CONDITIONAL = True
 
@@ -95,9 +97,7 @@ def rebuild_levels(w_effects, old_levels, max_rank):
             el = e.get("element")
             if el:
                 field, el2 = elem_bucket(kind, el)
-                plan.append(
-                    (field, el2, e.get("rank0") or 0.0, e.get("rankMax") or 0.0, True)
-                )
+                plan.append((field, el2, e.get("rank0") or 0.0, e.get("rankMax") or 0.0, True))
     levels = []
     for rank in range(n):
         t = rank / max_rank if max_rank else 0.0

@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+# ⚠ 离线构建/开发工具：**不在插件加载路径**（插件运行期不 import 本文件），需手动运行；
+#    shell 调用仅限本机工具（如 pyftsubset/git）或环境变量指定的主机（见 DEPLOY_SSH_HOST）。
 """离线渲染帮助卡预览（不导入 main.py，避开 astrbot 依赖）。
 
 用 AST 从 main.py 里取出 HELP_TOPIC，复刻 _h_help 的行构造，渲染成图。

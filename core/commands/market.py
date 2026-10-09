@@ -449,7 +449,12 @@ class MarketCommands:
         )
         logger.info(
             "[sdjk] wr 挂单池：API %d 条%s → 本地筛后 %d 条%s（武器 %s，词条 %s）",
-            len(auctions), dict(_st), len(pool), dict(_st2), url_name, sorted(pos_set),
+            len(auctions),
+            dict(_st),
+            len(pool),
+            dict(_st2),
+            url_name,
+            sorted(pos_set),
         )
         relaxed = ""
         if not pool and auctions and (q.stats or q.negatives):
@@ -520,10 +525,7 @@ class MarketCommands:
         )
         if weapon.get("_fuzzy_from"):
             lines.insert(0, f"※ 「{weapon['_fuzzy_from']}」按「{weapon.get('zh') or wname}」查询")
-        _off = [
-            a for a in pool
-            if ((a.get("owner") or {}).get("status") or "offline") == "offline"
-        ]
+        _off = [a for a in pool if ((a.get("owner") or {}).get("status") or "offline") == "offline"]
         if _off:
             lines.append(f"※ 含 {len(_off)} 条离线挂单（已排在在线之后）")
         if relaxed == "offline":

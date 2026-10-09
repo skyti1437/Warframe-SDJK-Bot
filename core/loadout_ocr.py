@@ -1583,9 +1583,7 @@ def to_damage_spec(an: dict, level: int = 100, faction: str = "Grineer") -> Opti
             "singles": {k: float(v) for k, v in (t.get("elements") or {}).items()},
             "physical": {k: float(v) for k, v in (t.get("physical") or {}).items()},
             # 派系卡分桶 → calculate 按最终派系取用（与 parse_args 同构）
-            "faction_dmg_of": [
-                [f, float(p)] for f, p in (t.get("faction_dmg_of") or {}).items()
-            ],
+            "faction_dmg_of": [[f, float(p)] for f, p in (t.get("faction_dmg_of") or {}).items()],
         }
     )
     # 反推路径的基础是「把 MOD 除回去」的净基础（v1.11 修正：此前误把 MOD

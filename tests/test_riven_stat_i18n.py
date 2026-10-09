@@ -211,18 +211,31 @@ check(
 #   病毒伤害/毒气伤害→毒素伤害、爆炸伤害→暴击伤害、弹药效率→弹药上限、弱点暴击→暴击几率；
 #   其余 13 个则**静默丢弃**（⇒ 词条数少算、系数错档、区间偏高约 32%）。
 _NEW_STATS = {
-    "gas_damage": "毒气伤害", "corrosive_damage": "腐蚀伤害", "viral_damage": "病毒伤害",
-    "radiation_damage": "辐射伤害", "blast_damage": "爆炸伤害", "magnetic_damage": "磁力伤害",
-    "damage_vs_orokin": "对奥罗金的伤害", "damage_vs_scaldra": "对炽蛇军的伤害",
-    "damage_vs_techrot": "对科腐者的伤害", "weakpoint_damage": "弱点伤害",
-    "weakpoint_crit_chance": "弱点暴击几率", "status_damage": "状态伤害",
-    "ammo_efficiency": "弹药效率", "reload_holstered": "收起武器时弹匣每秒自动装填",
-    "melee_heavy_attack_damage": "在重击时的近战伤害", "melee_heavy_attack_charge": "重击准备速度",
-    "melee_parry_angle": "招架角度", "melee_slam_damage": "震地伤害",
+    "gas_damage": "毒气伤害",
+    "corrosive_damage": "腐蚀伤害",
+    "viral_damage": "病毒伤害",
+    "radiation_damage": "辐射伤害",
+    "blast_damage": "爆炸伤害",
+    "magnetic_damage": "磁力伤害",
+    "damage_vs_orokin": "对奥罗金的伤害",
+    "damage_vs_scaldra": "对炽蛇军的伤害",
+    "damage_vs_techrot": "对科腐者的伤害",
+    "weakpoint_damage": "弱点伤害",
+    "weakpoint_crit_chance": "弱点暴击几率",
+    "status_damage": "状态伤害",
+    "ammo_efficiency": "弹药效率",
+    "reload_holstered": "收起武器时弹匣每秒自动装填",
+    "melee_heavy_attack_damage": "在重击时的近战伤害",
+    "melee_heavy_attack_charge": "重击准备速度",
+    "melee_parry_angle": "招架角度",
+    "melee_slam_damage": "震地伤害",
 }
 _rev = {v: k for k, v in P.RIVEN_STAT_ZH.items()}
-_bad = [(n, V._stat_id_from_name(n, _rev)) for n, k in ((n, k) for k, n in _NEW_STATS.items())
-        if V._stat_id_from_name(n, _rev) != k]
+_bad = [
+    (n, V._stat_id_from_name(n, _rev))
+    for n, k in ((n, k) for k, n in _NEW_STATS.items())
+    if V._stat_id_from_name(n, _rev) != k
+]
 check(
     "⑪① 18 个 Splicer 新词条全部注册且按**新 id**解析（不再错绑旧词条）",
     not _bad,
@@ -235,9 +248,16 @@ check(
 )
 check(
     "⑪④ 兼容别名仍在：对Orokin伤害/格挡角度/重击蓄力 等旧写法也能解析",
-    all(V._stat_id_from_name(n, _rev) == k for n, k in (("对Orokin伤害", "damage_vs_orokin"),
-        ("对Scaldra伤害", "damage_vs_scaldra"), ("对Techrot伤害", "damage_vs_techrot"),
-        ("格挡角度", "melee_parry_angle"), ("重击蓄力", "melee_heavy_attack_charge"))),
+    all(
+        V._stat_id_from_name(n, _rev) == k
+        for n, k in (
+            ("对Orokin伤害", "damage_vs_orokin"),
+            ("对Scaldra伤害", "damage_vs_scaldra"),
+            ("对Techrot伤害", "damage_vs_techrot"),
+            ("格挡角度", "melee_parry_angle"),
+            ("重击蓄力", "melee_heavy_attack_charge"),
+        )
+    ),
     str([(n, V._stat_id_from_name(n, _rev)) for n in ("对Orokin伤害", "格挡角度")]),
 )
 check(
