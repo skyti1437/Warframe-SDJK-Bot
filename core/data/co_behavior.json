@@ -1,0 +1,196 @@
+{
+ "_meta": {
+  "source": "github.com/magenie33/wfsim data/weapons/**（顶层 co_behavior；只收 default_form 与 form: incarnon 两种形态）",
+  "values": "additive_with_base_damage（缺省，不写）/ independent / inert",
+  "generator": "scripts/build_co_behavior.py"
+ },
+ "weapons": {
+  "/lotus/types/sentinels/sentinelweapons/laserrifle": {
+   "base": "independent"
+  },
+  "/lotus/types/sentinels/sentinelweapons/primelaserrifle": {
+   "base": "independent"
+  },
+  "/lotus/weapons/clantech/bio/bioweapon": {
+   "base": "independent"
+  },
+  "/lotus/weapons/corpus/boardexec/primary/crpbearcaplasmor/crpbearcaplasmor": {
+   "base": "independent"
+  },
+  "/lotus/weapons/corpus/longguns/crpbriefcaselauncher/crpbriefcaselauncher": {
+   "base": "independent"
+  },
+  "/lotus/weapons/corpus/longguns/crprubanrifle/crprubanrifle": {
+   "base": "independent"
+  },
+  "/lotus/weapons/corpus/longguns/crpsentexperimentrifle/crpsentexperimentrifle": {
+   "base": "independent"
+  },
+  "/lotus/weapons/corpus/longguns/crpshapeblast/crpshapeblastshotgun": {
+   "base": "independent"
+  },
+  "/lotus/weapons/corpus/longguns/crpshotgun/crpshotgun": {
+   "base": "independent"
+  },
+  "/lotus/weapons/corpus/pistols/crpairpistol/crpairpistolarray": {
+   "base": "inert"
+  },
+  "/lotus/weapons/corpus/pistols/crphandrl/corpushandrocketlauncher": {
+   "incarnon": "independent"
+  },
+  "/lotus/weapons/corpus/pistols/crphandrl/prismaangstrum": {
+   "incarnon": "independent"
+  },
+  "/lotus/weapons/corpus/pistols/crpigniterpistol/crpigniterpistol": {
+   "base": "independent"
+  },
+  "/lotus/weapons/corpus/pistols/crpsentamalgpistol/crpsentamalgpistol": {
+   "base": "independent"
+  },
+  "/lotus/weapons/grineer/grineerpistol/grnscopedpistolplayer": {
+   "base": "independent"
+  },
+  "/lotus/weapons/grineer/kuvalich/heavyweapons/grattler/kuvagrattler": {
+   "base": "independent"
+  },
+  "/lotus/weapons/grineer/kuvalich/secondaries/seer/kuvaseer": {
+   "base": "independent"
+  },
+  "/lotus/weapons/grineer/longguns/grineersawbladegun/sawbladegun": {
+   "incarnon": "independent"
+  },
+  "/lotus/weapons/grineer/longguns/grnflamespear/grnflamespear": {
+   "base": "independent"
+  },
+  "/lotus/weapons/grineer/longguns/grngorgsniperrifle/grngorgsniperrifle": {
+   "base": "independent"
+  },
+  "/lotus/weapons/grineer/pistols/grineercrossbow/grineergoogun": {
+   "base": "inert"
+  },
+  "/lotus/weapons/grineer/throwingweapons/grnvorstickybomb/grnvorstickybomb": {
+   "base": "independent"
+  },
+  "/lotus/weapons/infested/infestedlich/longguns/1999infshotgun/1999infshotgunweapon": {
+   "base": "independent"
+  },
+  "/lotus/weapons/infested/infestedlich/longguns/codabubonico/codabubonicocannon": {
+   "base": "independent"
+  },
+  "/lotus/weapons/infested/infestedlich/longguns/codahema": {
+   "base": "independent"
+  },
+  "/lotus/weapons/infested/longguns/infarmcannon/infarmcannon": {
+   "base": "independent"
+  },
+  "/lotus/weapons/infested/longguns/infwfaccompanyingpri/infestedburstrifle": {
+   "base": "independent"
+  },
+  "/lotus/weapons/infested/pistols/infkitgun/barrels/infbarrelegg/infmodularbarreleggpart": {
+   "base": "independent"
+  },
+  "/lotus/weapons/mk1series/mk1kunai": {
+   "incarnon": "independent"
+  },
+  "/lotus/weapons/mk1series/mk1paris": {
+   "incarnon": "independent"
+  },
+  "/lotus/weapons/sentients/sentriflenewwar/sentriflenewwargun": {
+   "base": "independent"
+  },
+  "/lotus/weapons/sentients/shedu/sheduheavyweapon": {
+   "base": "independent"
+  },
+  "/lotus/weapons/solarisunited/secondary/sumodularsecondaryset1/barrel/sumodularsecondarybarrelapart": {
+   "base": "independent"
+  },
+  "/lotus/weapons/solarisunited/secondary/sumodularsecondaryset1/barrel/sumodularsecondarybarrelbpart": {
+   "base": "independent"
+  },
+  "/lotus/weapons/syndicates/newloka/pistols/nlcastanas": {
+   "base": "inert"
+  },
+  "/lotus/weapons/syndicates/redveil/pistols/rvballistica": {
+   "incarnon": "independent"
+  },
+  "/lotus/weapons/tenno/archwing/primary/launchgrenade/archcannon": {
+   "base": "independent"
+  },
+  "/lotus/weapons/tenno/archwing/primary/nokkoarchgun/nokkoarchgun": {
+   "base": "independent"
+  },
+  "/lotus/weapons/tenno/archwing/primary/primecorvas/primecorvasweapon": {
+   "base": "independent"
+  },
+  "/lotus/weapons/tenno/archwing/primary/railgun/archrailgun": {
+   "base": "independent"
+  },
+  "/lotus/weapons/tenno/archwing/primary/repurposedgrineerantiaircraftgun/archgrnaagun": {
+   "base": "independent"
+  },
+  "/lotus/weapons/tenno/bows/daxduviriasymetricalbow/daxduviriasymmetricallongbowplayerweapon": {
+   "base": "independent"
+  },
+  "/lotus/weapons/tenno/bows/huntingbow": {
+   "incarnon": "independent"
+  },
+  "/lotus/weapons/tenno/bows/primehuntingbow": {
+   "incarnon": "independent"
+  },
+  "/lotus/weapons/tenno/bows/stalkerbow": {
+   "incarnon": "independent"
+  },
+  "/lotus/weapons/tenno/longguns/gyrerifle/gyrerifleweapon": {
+   "base": "independent"
+  },
+  "/lotus/weapons/tenno/longguns/primealternox/primealternoxweapon": {
+   "base": "independent"
+  },
+  "/lotus/weapons/tenno/longguns/tnolotuspodshotgun/tnolotuspodshotgun": {
+   "base": "independent"
+  },
+  "/lotus/weapons/tenno/longguns/tnrifleersatz/tnrifleersatzweapon": {
+   "base": "independent"
+  },
+  "/lotus/weapons/tenno/longguns/wraithlatron/wraithlatron": {
+   "incarnon": "independent"
+  },
+  "/lotus/weapons/tenno/pistols/automatichandcrossbow/autocrossbow": {
+   "incarnon": "independent"
+  },
+  "/lotus/weapons/tenno/pistols/primeakarius/primeakariusweapon": {
+   "base": "independent"
+  },
+  "/lotus/weapons/tenno/pistols/primeballistica/primeballistica": {
+   "incarnon": "independent"
+  },
+  "/lotus/weapons/tenno/pistols/primeepitaph/primeepitaphsidearmweapon": {
+   "base": "independent"
+  },
+  "/lotus/weapons/tenno/pistols/sapientpistol/sapientpistol": {
+   "base": "independent"
+  },
+  "/lotus/weapons/tenno/pistols/tnwraithesidearm/tnwraithesidearmweapon": {
+   "base": "independent"
+  },
+  "/lotus/weapons/tenno/rifle/latronprime": {
+   "incarnon": "independent"
+  },
+  "/lotus/weapons/tenno/rifle/semiautorifle": {
+   "incarnon": "independent"
+  },
+  "/lotus/weapons/tenno/throwingweapons/kunai": {
+   "incarnon": "independent"
+  },
+  "/lotus/weapons/tenno/throwingweapons/stickybomb/stickybombs": {
+   "base": "inert"
+  },
+  "/lotus/weapons/tenno/zariman/longguns/pumpshotgun/zarimanpumpshotgun": {
+   "base": "independent",
+   "incarnon": "independent"
+  },
+  "/lotus/weapons/thanotech/thanopistol/thanotechpistol": {
+   "base": "independent"
+  }
+ }
+}

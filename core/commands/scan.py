@@ -184,7 +184,9 @@ class ScanCommands:
                 ],
             )
         _ts, weapon, cached = hit
-        rest = (parsed.content_str or "").strip()
+        # ⚠️ 传 token 列表（与「伤害」指令 wiki_misc._h_damage 同口径）：
+        #   传字符串会被逐字符拆开 → 「150级/爆头」全部失效、单字进「未识别」
+        rest = [t for t in (parsed.content or []) if str(t).strip()]
         try:
             if rest:
                 arg_spec, _tokens = dc.parse_args(rest)

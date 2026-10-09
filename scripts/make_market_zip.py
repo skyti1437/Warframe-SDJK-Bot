@@ -200,7 +200,8 @@ MARKET_SKIP_FILES = {
 # → 110（2026-10-03 B1 翻译批：+core/data/de/name_bilingual.json 双语名称表，运行期必读）
 # → 111（2026-10-04 警报奖励批：+core/data/de/storeitems_zh.json，scripts/ 不进市场件）
 # → 112（2026-10-09 插件 Logo：+logo.png —— 顶层文件，随市场卡片展示）
-EXPECTED_MARKET_ENTRIES = 112
+# → 113（2026-10-09 wfsim 对照 B 批：+core/data/co_behavior.json —— CO 桶别表，运行期必读）
+EXPECTED_MARKET_ENTRIES = 113
 
 # ★ 可复现打包（2026-09-26 用户侧建议）：统一 zip 条目时间戳 = 2026-01-01T00:00:00Z。
 #   之前取文件 mtime，导致「内容没变、重建却换 sha」（上传期两次被迫冻结重建：
@@ -231,7 +232,7 @@ def _zip_datetime() -> tuple:
 # 2026-10-08 审核实证：本脚本原先只查「stage 存在」+「种子新鲜」，**不查 stage 是否追平 HEAD**
 # ⇒ 若绕开重建直接打包，会把旧 stage（当时 239 文件、不含本批任何修复）打出去。这里加数量闸门兜住；
 # 数量相同但内容不同的情形，仍靠流程约束（打包前必重跑 dist/package_release.py --opensource）。
-EXPECTED_STAGE_FILES = 242
+EXPECTED_STAGE_FILES = 248
 
 
 def main() -> int:

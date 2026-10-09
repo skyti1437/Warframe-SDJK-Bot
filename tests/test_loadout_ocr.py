@@ -1089,6 +1089,96 @@ check(
     ),
 )
 
+# ---------------------------------------------------------------------------
+# 2026-10-09：识卡射速 MOD 进伤害 spec（修前 totals.fire_rate 从未传下去）
+# 判据 = fireRate 是否取自面板「攻速」行（终值）：是 ⇒ 不叠；否 ⇒ 叠 totals.fire_rate
+# ---------------------------------------------------------------------------
+_lex0 = lo.analyze(
+    {"weapon": "雷克斯", "mods": [{"name": "弹头撞击", "drain": "9", "color": "白"}], "panel": {}}
+)
+_lex1 = lo.analyze(
+    {
+        "weapon": "雷克斯",
+        "mods": [
+            {"name": "乏能迅敏", "drain": "9", "color": "白"},
+            {"name": "弹头撞击", "drain": "9", "color": "白"},
+        ],
+        "panel": {},
+    }
+)
+check("库基础路径：乏能迅敏 totals.fire_rate = 90", close(_lex1["totals"].get("fire_rate"), 90.0))
+check(
+    "库基础路径：参考射速 = 基础 ×1.9",
+    close(_lex1["ref"]["fire_rate"], _lex0["ref"]["fire_rate"] * 1.9, 1e-9),
+    f"{_lex0['ref']['fire_rate']} → {_lex1['ref']['fire_rate']}",
+)
+check(
+    "库基础路径：+90% 射速 −15% 基伤 ⇒ DPS 上升（修前反降 32.4→27.5）",
+    _lex1["ref"]["dps"] > _lex0["ref"]["dps"],
+    f"{_lex0['ref']['dps']:.1f} → {_lex1['ref']['dps']:.1f}",
+)
+check(
+    "面板攻速路径（执法者）：fireRate 取自面板并打标记",
+    _an_inc["weapon"].get(lo.FIRE_RATE_FROM_PANEL) is True,
+)
+_inc_spec = lo.to_damage_spec({**_an_inc, "totals": {**_an_inc["totals"], "fire_rate": 30.0}})
+check(
+    "面板攻速路径：即使有射速 MOD 也不再叠加（防二次加成）", close(_inc_spec["fire_rate_pct"], 0.0)
+)
+check(
+    "反推但无攻速行（拉特昂 Prime）：关键延迟 −20% 计入",
+    _an_lat["weapon"].get(lo.FIRE_RATE_FROM_PANEL) is None
+    and close(lo.to_damage_spec(_an_lat)["fire_rate_pct"], -20.0),
+    str(lo.to_damage_spec(_an_lat)["fire_rate_pct"]),
+)
+
+# ---------------------------------------------------------------------------
+# 2026-10-09 拉特昂 Prime 截图实测（关键延迟 −20%：「射击速度 4.17 ▸ 3.33」）
+# B) 面板=终值：读到攻速行 / 没读到攻速行 两条路径必须取同一值
+# C) 两列取值：模型把「基础 ▸ 终值」两列一起给时，一律取右列（修前取左列=基础值）
+# ---------------------------------------------------------------------------
+import copy  # noqa: E402
+
+
+def _lat_with(**panel):
+    o = copy.deepcopy(_ocr_lat)
+    o["panel"].update(panel)
+    an = lo.analyze(o)
+    return an, dc_mod.calculate(lo.to_damage_spec(an), an["weapon"])
+
+
+_lat_fr = {}
+for _lab, _asp in (
+    ("无攻速行", None),
+    ("右列单值 3.33", "3.33"),
+    ("两列字符串", "4.17 ▸ 3.33"),
+    ("两列列表", ["4.17", "3.33"]),
+):
+    _a, _r = _lat_with(**({} if _asp is None else {"attack_speed": _asp}))
+    _lat_fr[_lab] = _r["fire_rate"]
+    check(
+        f"拉特昂 Prime 截图：{_lab} ⇒ 射速 ≈ 3.33（基础 4.166667 × 0.8）",
+        abs(_r["fire_rate"] - 3.3333) <= 0.005,
+        f"{_r['fire_rate']} / weapon.fireRate={_a['weapon'].get('fireRate')}",
+    )
+check(
+    "拉特昂 Prime 截图：读到面板 / 没读到面板 两条路径同值（差 ≤ 0.005）",
+    max(_lat_fr.values()) - min(_lat_fr.values()) <= 0.005,
+    str(_lat_fr),
+)
+_lat_ref = _lat_with()[0]["weapon"]
+for _k, _pair, _wk in (
+    ("crit_chance", "22% ▸ 138%", "criticalChance"),
+    ("crit_damage", "2.8倍 ▸ 6.6倍", "criticalMultiplier"),
+    ("status_chance", "26% ▸ 41.6%", "procChance"),
+):
+    _w = _lat_with(**{_k: _pair})[0]["weapon"]
+    check(
+        f"两列取右：{_k}={_pair!r} 反推基础与单值输入一致",
+        close(_w[_wk], _lat_ref[_wk]),
+        f"{_w[_wk]} vs {_lat_ref[_wk]}",
+    )
+
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")
     sys.exit(1)

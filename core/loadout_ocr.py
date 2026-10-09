@@ -80,7 +80,7 @@ VISION_PROMPT = """这是 Warframe（星际战甲）游戏内武器升级界面�
      "polarity": "卡片左上角的极性符号，只可能是 V / D / — / Y / = 之一，看不清写 ?"}
   ],
   "panel": {
-    "attack_speed": "攻击速度行的数字",
+    "attack_speed": "射击速度（枪械）或攻击速度（近战）行 ▶ 右边的 MOD 后值",
     "crit_chance": "暴击几率行的数字（含百分号）",
     "crit_damage": "暴击伤害行的数字（含「倍」）",
     "status_chance": "触发几率行的数字（含百分号）",
@@ -112,6 +112,7 @@ VISION_PROMPT = """这是 Warframe（星际战甲）游戏内武器升级界面�
 4. 看不清的内容填 null，不要猜。
 5. 面板数值块在「伤害」栏**上方**，从上到下：暴击几率 / 暴击伤害 /
    触发几率 —— 每行都是「基础值 ▶ MOD后值」两个数（红色左值、绿色右值）。
+   左上「射击速度 / 攻击速度」行同理，也取 ▶ 右边的 MOD 后值。
    **一律取 ▶ 右边的 MOD 后值**（不是左边的那个基础值）；
    暴击伤害的「倍」字保留。暴击几率常带小数，触发几率通常是
    个位数十位数的小百分数，两行别看串。
@@ -768,6 +769,8 @@ def _panel_base_weapon(weapon: dict, panel: dict, totals: dict) -> tuple[Optiona
     fr = to_float(panel.get("attack_speed"))
     if fr is not None:
         w2["fireRate"] = fr
+        # 标记「射速取自面板终值」→ to_damage_spec 据此**不再**叠射速 MOD（防二次加成）
+        w2[FIRE_RATE_FROM_PANEL] = True
     names = _incarnon_names()
     is_inc = (
         inc_total > 0
@@ -789,6 +792,12 @@ def _panel_base_weapon(weapon: dict, panel: dict, totals: dict) -> tuple[Optiona
         else "特殊形态：基础数据从面板反推，MOD 按实际等级正常叠算一次"
     )
     return w2, _base_note + ("；" + _extra if _extra else "")
+
+
+# 武器 dict 上的私有标记键：fireRate 已被面板「攻速」行（终值）覆盖
+FIRE_RATE_FROM_PANEL = "_fire_rate_from_panel"
+# 面板上「基础 ▸ MOD 后」两列的标量行（analyze 入口统一归一为右列）
+_PANEL_SCALARS = ("attack_speed", "crit_chance", "crit_damage", "status_chance")
 
 
 # ---------------------------------------------------------------------------
@@ -981,6 +990,15 @@ def analyze(ocr: dict, pips_rows: Optional[list] = None) -> dict:
             _fixed.append(_r)
     if _fixed:
         _panel["damage_rows"] = _fixed
+    # ---- 面板标量归一：两列都给时一律取右列（MOD 后终值）----
+    # 升级界面每行是「基础 ▸ MOD 后」两列；提示词要求只给右列，但模型常把两列
+    # 一起给（"22% ▸ 138%" / ["4.17", "3.33"]），而下游 to_float 取**第一个**数
+    # ⇒ 把基础值当终值：反推基础被多除一次 MOD、射速还会被打上「取自面板」而跳过
+    # 射速 MOD（2026-10-09 修，拉特昂 Prime 截图实测口径）。单值保持原样。
+    for _k in _PANEL_SCALARS:
+        _l, _r = to_pair(_panel.get(_k))
+        if _l is not None and _r is not None:
+            _panel[_k] = _r
     _tot = _panel.get("total")
     if isinstance(_tot, (list, tuple)) and len(_tot) >= 3 and to_float(_tot[2]) is not None:
         _panel["total"] = [str(_tot[0]), f"{_tot[1]}>{_tot[2]}"]
@@ -1592,6 +1610,20 @@ def to_damage_spec(an: dict, level: int = 100, faction: str = "Grineer") -> Opti
     # 这里不再对 spec 做任何零化。
     if t.get("heavy_dmg") or t.get("initial_combo"):
         spec["heavy"] = True  # 配了重击类 MOD 就顺便给重击数据
+    # ★ 射速 MOD（2026-10-09 修：此前 totals.fire_rate 从未进 spec ⇒ 识卡 DPS 漏算射速，
+    #   带「+射速 −基伤」的卡反而让 DPS 变低）。只在 fireRate **不是**面板终值时叠加：
+    #   · 依据【实测·2026-10-09】拉特昂 Prime 配关键延迟（−20% 射速）的升级界面截图：
+    #     「射击速度 4.17 ▸ 3.33」，库基础 4.166667 × 0.8 = 3.3333 ⇒ 攻速行右列 = 已含 MOD
+    #     的终值（与执法者截图 暴击 75.6% vs 基础 20%、冲击 545.6 vs 168 的结论一致）。
+    #     两条路径取同一值：读到面板 3.33 → 直接用、不叠；没读到 → 基础 × (1 − 20%)。
+    #     守卫：tests/test_loadout_ocr.py「拉特昂 Prime 截图：…两条路径同值」。
+    #   · 判据按「射速来源」而非「是否走了面板反推」：反推分支没读到攻速行、或灵化库直采
+    #     分支，fireRate 仍是基础值（实例：拉特昂 Prime 反推但无攻速行，关键延迟 −20% 须计入）。
+    #   · 两列取值：模型若把「基础 ▸ 终值」两列一起给，analyze 入口已统一归一为右列
+    #     （_PANEL_SCALARS），这里拿到的 attack_speed 一定是终值。
+    w = an.get("weapon") or {}
+    if not w.get(FIRE_RATE_FROM_PANEL):
+        spec["fire_rate_pct"] = float(t.get("fire_rate") or 0.0)
     return spec
 
 
