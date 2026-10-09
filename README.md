@@ -196,6 +196,9 @@ docker run -d --name flaresolverr -p 8191:8191 flaresolverr/flaresolverr
 > **只取其公开的公式与数据事实，未复制其源代码**；相关派生数据表
 > （`core/data/charge_cadence.json`、`core/data/co_behavior.json`）在文件内标注了来源与生成方式。
 > 本插件整体以 GPL-3.0 发布（见 `LICENSE`）。
+>
+> **插件图标**（`logo.png`）：取自 **Warframe 官方 Fan Kit**（素材 `LotusEmblemIcon`），
+> 版权归 Digital Extremes；依其粉丝内容政策用于本非商业粉丝作品，不表示与 DE 有关联或经其认可。
 
 > **非官方声明**：Warframe 与相关商标归 Digital Extremes 所有。本插件是粉丝作品，
 > 与 Digital Extremes 无关；所含游戏数据按 DE 的粉丝内容政策使用，仅用于查询展示。
