@@ -2,7 +2,8 @@
  "_meta": {
   "source": "github.com/magenie33/wfsim data/weapons/*（form: incarnon），数值为其按 wiki/实测整理的事实数据；zh 名为 DE 官方简中",
   "updated": "2026-09-16",
-  "scope": "枪械灵化（近战灵化 wfsim 尚未导入）；attack 块不含灵化进化 perk"
+  "scope": "枪械灵化（近战灵化 wfsim 尚未导入）；attack 块不含灵化进化 perk",
+  "pseudo_reload": "2026-10-09 补入（wfsim @8f3e6a5，灵化弹池 magazine / reload_seconds）；其余字段仍为 2026-09-16 快照 —— HEAD 已漂移 7 处（拉特昂家族 ricochet ×4、forced_procs ×2、Stug 灵化 radial ×1），待单独一批核对后再整表重生成"
  },
  "/lotus/weapons/tenno/shotgun/fullautoshotgun": {
   "form_id": "boar_incarnon",
@@ -20,7 +21,11 @@
   "criticalMultiplier": 1.8,
   "procChance": 0.2,
   "fireRate": 7.5,
-  "multishot": 1.0
+  "multishot": 1.0,
+  "pseudo_reload": {
+   "magazine": 150.0,
+   "reload_seconds": 3.7
+  }
  },
  "/lotus/weapons/tenno/shotgun/primeboar": {
   "form_id": "boar_prime_incarnon",
@@ -38,7 +43,11 @@
   "criticalMultiplier": 2.2,
   "procChance": 0.24,
   "fireRate": 8.0,
-  "multishot": 1.0
+  "multishot": 1.0,
+  "pseudo_reload": {
+   "magazine": 150.0,
+   "reload_seconds": 3.75
+  }
  },
  "/lotus/weapons/tenno/rifle/boltorifle": {
   "form_id": "boltor_incarnon",
@@ -58,7 +67,11 @@
   "criticalMultiplier": 2.8,
   "procChance": 0.0933,
   "fireRate": 10.0,
-  "multishot": 3.0
+  "multishot": 3.0,
+  "pseudo_reload": {
+   "magazine": 160.0,
+   "reload_seconds": 3.6
+  }
  },
  "/lotus/weapons/tenno/longguns/primeboltor/primeboltor": {
   "form_id": "boltor_prime_incarnon",
@@ -78,7 +91,11 @@
   "criticalMultiplier": 3.0,
   "procChance": 0.2,
   "fireRate": 11.33,
-  "multishot": 3.0
+  "multishot": 3.0,
+  "pseudo_reload": {
+   "magazine": 160.0,
+   "reload_seconds": 3.4
+  }
  },
  "/lotus/weapons/tenno/rifle/rifle": {
   "form_id": "braton_incarnon",
@@ -109,6 +126,10 @@
    "procChance": 0.12,
    "radius_m": 3.0,
    "falloff_reduction": 0.1
+  },
+  "pseudo_reload": {
+   "magazine": 200.0,
+   "reload_seconds": 3.0
   }
  },
  "/lotus/weapons/tenno/rifle/bratonprime": {
@@ -140,6 +161,10 @@
    "procChance": 0.3,
    "radius_m": 3.0,
    "falloff_reduction": 0.1
+  },
+  "pseudo_reload": {
+   "magazine": 200.0,
+   "reload_seconds": 3.15
   }
  },
  "/lotus/weapons/tenno/rifle/viprifle": {
@@ -171,6 +196,10 @@
    "procChance": 0.22,
    "radius_m": 3.0,
    "falloff_reduction": 0.1
+  },
+  "pseudo_reload": {
+   "magazine": 200.0,
+   "reload_seconds": 2.75
   }
  },
  "/lotus/weapons/tenno/rifle/burstrifle": {
@@ -200,6 +229,10 @@
    "procChance": 0.3,
    "radius_m": 2.0,
    "falloff_reduction": 1.0
+  },
+  "pseudo_reload": {
+   "magazine": 600.0,
+   "reload_seconds": 3.0
   }
  },
  "/lotus/weapons/tenno/longguns/primeburston/primeburston": {
@@ -229,6 +262,10 @@
    "procChance": 0.3,
    "radius_m": 2.0,
    "falloff_reduction": 1.0
+  },
+  "pseudo_reload": {
+   "magazine": 600.0,
+   "reload_seconds": 3.0
   }
  },
  "/lotus/weapons/clantech/energy/energyrifle": {
@@ -250,7 +287,11 @@
   "criticalMultiplier": 3.0,
   "procChance": 0.18,
   "fireRate": 2.0,
-  "multishot": 1.0
+  "multishot": 1.0,
+  "pseudo_reload": {
+   "magazine": 50.0,
+   "reload_seconds": 2.8
+  }
  },
  "/lotus/weapons/clantech/energy/deravandal": {
   "form_id": "dera_vandal_incarnon",
@@ -271,7 +312,11 @@
   "criticalMultiplier": 3.0,
   "procChance": 0.22,
   "fireRate": 2.0,
-  "multishot": 1.0
+  "multishot": 1.0,
+  "pseudo_reload": {
+   "magazine": 50.0,
+   "reload_seconds": 2.8
+  }
  },
  "/lotus/weapons/tenno/longguns/dexthethird/dexthethird": {
   "form_id": "dex_sybaris_incarnon",
@@ -294,7 +339,11 @@
   "multishot": 1.0,
   "forced_procs": [
    "blast"
-  ]
+  ],
+  "pseudo_reload": {
+   "magazine": 200.0,
+   "reload_seconds": 2.5
+  }
  },
  "/lotus/weapons/tenno/bows/stalkerbow": {
   "form_id": "dread_incarnon",
@@ -314,7 +363,11 @@
   "criticalMultiplier": 3.0,
   "procChance": 0.3,
   "fireRate": 1.5,
-  "multishot": 1.0
+  "multishot": 1.0,
+  "pseudo_reload": {
+   "magazine": 20.0,
+   "reload_seconds": 1.7
+  }
  },
  "/lotus/weapons/tenno/zariman/longguns/pumpshotgun/zarimanpumpshotgun": {
   "form_id": "felarx_incarnon",
@@ -336,7 +389,11 @@
   "multishot": 1.0,
   "forced_procs": [
    "impact"
-  ]
+  ],
+  "pseudo_reload": {
+   "magazine": 60.0,
+   "reload_seconds": 4.7
+  }
  },
  "/lotus/weapons/tenno/rifle/heavyrifle": {
   "form_id": "gorgon_incarnon",
@@ -367,6 +424,10 @@
    "procChance": 0.19,
    "radius_m": 5.0,
    "falloff_reduction": 0.1
+  },
+  "pseudo_reload": {
+   "magazine": 20.0,
+   "reload_seconds": 5.2
   }
  },
  "/lotus/weapons/grineer/longguns/wraithgorgon/wraithgorgon": {
@@ -398,6 +459,10 @@
    "procChance": 0.27,
    "radius_m": 5.0,
    "falloff_reduction": 0.1
+  },
+  "pseudo_reload": {
+   "magazine": 20.0,
+   "reload_seconds": 4.0
   }
  },
  "/lotus/weapons/tenno/rifle/semiautorifle": {
@@ -432,6 +497,10 @@
   "ricochet": {
    "bounces": 5,
    "headshot_chance": 0.5
+  },
+  "pseudo_reload": {
+   "magazine": 40.0,
+   "reload_seconds": 3.4
   }
  },
  "/lotus/weapons/tenno/rifle/latronprime": {
@@ -469,6 +538,10 @@
   "ricochet": {
    "bounces": 5,
    "headshot_chance": 0.5
+  },
+  "pseudo_reload": {
+   "magazine": 40.0,
+   "reload_seconds": 3.4
   }
  },
  "/lotus/weapons/tenno/longguns/wraithlatron/wraithlatron": {
@@ -503,6 +576,10 @@
   "ricochet": {
    "bounces": 5,
    "headshot_chance": 0.5
+  },
+  "pseudo_reload": {
+   "magazine": 40.0,
+   "reload_seconds": 3.4
   }
  },
  "/lotus/weapons/grineer/longguns/grineersawbladegun/sawbladegun": {
@@ -534,6 +611,10 @@
    "procChance": 0.56,
    "radius_m": 3.0,
    "falloff_reduction": 0.2
+  },
+  "pseudo_reload": {
+   "magazine": 20.0,
+   "reload_seconds": 3.0
   }
  },
  "/lotus/weapons/tenno/rifle/startingrifle": {
@@ -565,6 +646,10 @@
    "procChance": 0.1,
    "radius_m": 3.0,
    "falloff_reduction": 0.1
+  },
+  "pseudo_reload": {
+   "magazine": 200.0,
+   "reload_seconds": 3.0
   }
  },
  "/lotus/weapons/mk1series/mk1paris": {
@@ -584,7 +669,11 @@
   "criticalMultiplier": 3.0,
   "procChance": 0.2,
   "fireRate": 1.0,
-  "multishot": 1.0
+  "multishot": 1.0,
+  "pseudo_reload": {
+   "magazine": 20.0,
+   "reload_seconds": 1.55
+  }
  },
  "/lotus/weapons/mk1series/mk1strun": {
   "form_id": "mk1_strun_incarnon",
@@ -615,6 +704,10 @@
    "procChance": 0.4,
    "radius_m": 4.0,
    "falloff_reduction": 0.2
+  },
+  "pseudo_reload": {
+   "magazine": 40.0,
+   "reload_seconds": 4.75
   }
  },
  "/lotus/weapons/tenno/bows/huntingbow": {
@@ -634,7 +727,11 @@
   "criticalMultiplier": 3.0,
   "procChance": 0.2,
   "fireRate": 1.0,
-  "multishot": 1.0
+  "multishot": 1.0,
+  "pseudo_reload": {
+   "magazine": 20.0,
+   "reload_seconds": 1.65
+  }
  },
  "/lotus/weapons/tenno/bows/primehuntingbow": {
   "form_id": "paris_prime_incarnon",
@@ -653,7 +750,11 @@
   "criticalMultiplier": 3.4,
   "procChance": 0.2,
   "fireRate": 1.0,
-  "multishot": 1.0
+  "multishot": 1.0,
+  "pseudo_reload": {
+   "magazine": 20.0,
+   "reload_seconds": 1.7
+  }
  },
  "/lotus/weapons/tenno/zariman/longguns/semiautorifle/zarimansemiautorifle": {
   "form_id": "phenmor_incarnon",
@@ -672,7 +773,11 @@
   "criticalMultiplier": 2.0,
   "procChance": 0.2,
   "fireRate": 13.33,
-  "multishot": 1.0
+  "multishot": 1.0,
+  "pseudo_reload": {
+   "magazine": 408.0,
+   "reload_seconds": 3.8
+  }
  },
  "/lotus/weapons/grineer/longguns/voidtradergorgon/vtgorgon": {
   "form_id": "prisma_gorgon_incarnon",
@@ -703,6 +808,10 @@
    "procChance": 0.21,
    "radius_m": 5.0,
    "falloff_reduction": 0.1
+  },
+  "pseudo_reload": {
+   "magazine": 20.0,
+   "reload_seconds": 4.0
   }
  },
  "/lotus/weapons/tenno/rifle/tennoar": {
@@ -723,7 +832,11 @@
   "criticalMultiplier": 3.0,
   "procChance": 0.025,
   "fireRate": 7.0,
-  "multishot": 8.0
+  "multishot": 8.0,
+  "pseudo_reload": {
+   "magazine": 200.0,
+   "reload_seconds": 4.0
+  }
  },
  "/lotus/weapons/tenno/longguns/primesoma/primesomarifle": {
   "form_id": "soma_prime_incarnon",
@@ -743,7 +856,11 @@
   "criticalMultiplier": 3.4,
   "procChance": 0.03,
   "fireRate": 7.0,
-  "multishot": 8.0
+  "multishot": 8.0,
+  "pseudo_reload": {
+   "magazine": 200.0,
+   "reload_seconds": 4.0
+  }
  },
  "/lotus/weapons/tenno/shotgun/shotgun": {
   "form_id": "strun_incarnon",
@@ -777,7 +894,11 @@
   },
   "forced_procs": [
    "impact"
-  ]
+  ],
+  "pseudo_reload": {
+   "magazine": 40.0,
+   "reload_seconds": 4.75
+  }
  },
  "/lotus/weapons/tenno/longguns/primestrun/primestrunweapon": {
   "form_id": "strun_prime_incarnon",
@@ -811,7 +932,11 @@
   },
   "forced_procs": [
    "impact"
-  ]
+  ],
+  "pseudo_reload": {
+   "magazine": 40.0,
+   "reload_seconds": 5.6
+  }
  },
  "/lotus/weapons/tenno/shotgun/shotgunvandal": {
   "form_id": "strun_wraith_incarnon",
@@ -845,7 +970,11 @@
   },
   "forced_procs": [
    "impact"
-  ]
+  ],
+  "pseudo_reload": {
+   "magazine": 40.0,
+   "reload_seconds": 6.0
+  }
  },
  "/lotus/weapons/tenno/longguns/tnoleveraction/tnoleveractionrifle": {
   "form_id": "sybaris_incarnon",
@@ -868,7 +997,11 @@
   "multishot": 1.0,
   "forced_procs": [
    "blast"
-  ]
+  ],
+  "pseudo_reload": {
+   "magazine": 200.0,
+   "reload_seconds": 3.0
+  }
  },
  "/lotus/weapons/tenno/longguns/primesybaris/primesybarisrifle": {
   "form_id": "sybaris_prime_incarnon",
@@ -891,7 +1024,11 @@
   "multishot": 1.0,
   "forced_procs": [
    "blast"
-  ]
+  ],
+  "pseudo_reload": {
+   "magazine": 200.0,
+   "reload_seconds": 3.0
+  }
  },
  "/lotus/weapons/syndicates/arbitersofhexis/longguns/ahboltor": {
   "form_id": "telos_boltor_incarnon",
@@ -911,7 +1048,11 @@
   "criticalMultiplier": 3.2,
   "procChance": 0.1067,
   "fireRate": 10.33,
-  "multishot": 3.0
+  "multishot": 3.0,
+  "pseudo_reload": {
+   "magazine": 160.0,
+   "reload_seconds": 3.4
+  }
  },
  "/lotus/weapons/clantech/bio/bioweapon": {
   "form_id": "torid_incarnon",
@@ -929,7 +1070,11 @@
   "criticalMultiplier": 3.1,
   "procChance": 0.39,
   "fireRate": 8.0,
-  "multishot": 1.0
+  "multishot": 1.0,
+  "pseudo_reload": {
+   "magazine": 170.0,
+   "reload_seconds": 2.7
+  }
  },
  "/lotus/weapons/tenno/rifle/tennosniperrifle": {
   "form_id": "vectis_incarnon",
@@ -961,7 +1106,11 @@
   },
   "forced_procs": [
    "cold"
-  ]
+  ],
+  "pseudo_reload": {
+   "magazine": 45.0,
+   "reload_seconds": 2.0
+  }
  },
  "/lotus/weapons/tenno/longguns/primevectis/primevectisrifle": {
   "form_id": "vectis_prime_incarnon",
@@ -993,7 +1142,11 @@
   },
   "forced_procs": [
    "cold"
-  ]
+  ],
+  "pseudo_reload": {
+   "magazine": 45.0,
+   "reload_seconds": 1.85
+  }
  },
  "/lotus/weapons/corpus/pistols/crphandrl/corpushandrocketlauncher": {
   "form_id": "angstrum_incarnon",
@@ -1011,7 +1164,11 @@
   "criticalMultiplier": 1.8,
   "procChance": 0.18,
   "fireRate": 6.0,
-  "multishot": 1.0
+  "multishot": 1.0,
+  "pseudo_reload": {
+   "magazine": 120.0,
+   "reload_seconds": 3.5
+  }
  },
  "/lotus/weapons/grineer/pistols/heatgun/grnheatgun": {
   "form_id": "atomos_incarnon",
@@ -1040,6 +1197,10 @@
    "procChance": 0.41,
    "radius_m": 7.9,
    "falloff_reduction": 0.8
+  },
+  "pseudo_reload": {
+   "magazine": 21.0,
+   "reload_seconds": 3.0
   }
  },
  "/lotus/weapons/tenno/pistols/automatichandcrossbow/autocrossbow": {
@@ -1058,7 +1219,11 @@
   "criticalMultiplier": 2.0,
   "procChance": 0.2,
   "fireRate": 3.33,
-  "multishot": 1.0
+  "multishot": 1.0,
+  "pseudo_reload": {
+   "magazine": 18.0,
+   "reload_seconds": 3.0
+  }
  },
  "/lotus/weapons/tenno/pistols/primeballistica/primeballistica": {
   "form_id": "ballistica_prime_incarnon",
@@ -1076,7 +1241,11 @@
   "criticalMultiplier": 2.5,
   "procChance": 0.3,
   "fireRate": 3.33,
-  "multishot": 1.0
+  "multishot": 1.0,
+  "pseudo_reload": {
+   "magazine": 18.0,
+   "reload_seconds": 2.2
+  }
  },
  "/lotus/weapons/tenno/pistol/handshotgun": {
   "form_id": "bronco_incarnon",
@@ -1096,7 +1265,11 @@
   "criticalMultiplier": 3.0,
   "procChance": 0.1886,
   "fireRate": 2.5,
-  "multishot": 7.0
+  "multishot": 7.0,
+  "pseudo_reload": {
+   "magazine": 20.0,
+   "reload_seconds": 2.05
+  }
  },
  "/lotus/weapons/tenno/pistol/broncoprime": {
   "form_id": "bronco_prime_incarnon",
@@ -1116,7 +1289,11 @@
   "criticalMultiplier": 3.2,
   "procChance": 0.2571,
   "fireRate": 3.0,
-  "multishot": 7.0
+  "multishot": 7.0,
+  "pseudo_reload": {
+   "magazine": 20.0,
+   "reload_seconds": 3.0
+  }
  },
  "/lotus/weapons/corpus/pistols/corpusminigun/corpusminigun": {
   "form_id": "cestra_incarnon",
@@ -1135,7 +1312,11 @@
   "criticalMultiplier": 3.0,
   "procChance": 0.18,
   "fireRate": 6.67,
-  "multishot": 1.0
+  "multishot": 1.0,
+  "pseudo_reload": {
+   "magazine": 150.0,
+   "reload_seconds": 3.0
+  }
  },
  "/lotus/weapons/tenno/throwingweapons/stalkerkunai": {
   "form_id": "despair_incarnon",
@@ -1166,6 +1347,10 @@
    "procChance": 0.3,
    "radius_m": 4.0,
    "falloff_reduction": 0.2
+  },
+  "pseudo_reload": {
+   "magazine": 20.0,
+   "reload_seconds": 1.75
   }
  },
  "/lotus/weapons/infested/pistols/infvomitgun/infvomitgunwep": {
@@ -1190,6 +1375,10 @@
   "ricochet": {
    "bounces": 1,
    "headshot_chance": 0.5
+  },
+  "pseudo_reload": {
+   "magazine": 270.0,
+   "reload_seconds": 3.35
   }
  },
  "/lotus/weapons/tenno/pistol/autopistol": {
@@ -1208,7 +1397,11 @@
   "criticalMultiplier": 3.4,
   "procChance": 0.24,
   "fireRate": 12.0,
-  "multishot": 1.0
+  "multishot": 1.0,
+  "pseudo_reload": {
+   "magazine": 280.0,
+   "reload_seconds": 2.4
+  }
  },
  "/lotus/weapons/syndicates/cephalonsuda/pistols/csdroidarray": {
   "form_id": "gammacor_incarnon",
@@ -1240,7 +1433,11 @@
   },
   "forced_procs": [
    "impact"
-  ]
+  ],
+  "pseudo_reload": {
+   "magazine": 15.0,
+   "reload_seconds": 2.4
+  }
  },
  "/lotus/weapons/tenno/throwingweapons/kunai": {
   "form_id": "kunai_incarnon",
@@ -1260,7 +1457,11 @@
   "criticalMultiplier": 2.0,
   "procChance": 0.16,
   "fireRate": 3.33,
-  "multishot": 2.0
+  "multishot": 2.0,
+  "pseudo_reload": {
+   "magazine": 20.0,
+   "reload_seconds": 1.75
+  }
  },
  "/lotus/weapons/tenno/zariman/pistols/heavypistol/zarimanheavypistol": {
   "form_id": "laetum_incarnon",
@@ -1289,6 +1490,10 @@
    "procChance": 0.22,
    "radius_m": 2.0,
    "falloff_reduction": 0.2
+  },
+  "pseudo_reload": {
+   "magazine": 216.0,
+   "reload_seconds": 3.0
   }
  },
  "/lotus/weapons/tenno/pistol/pistol": {
@@ -1309,7 +1514,11 @@
   "criticalMultiplier": 2.6,
   "procChance": 0.06,
   "fireRate": 3.5,
-  "multishot": 2.0
+  "multishot": 2.0,
+  "pseudo_reload": {
+   "magazine": 24.0,
+   "reload_seconds": 2.0
+  }
  },
  "/lotus/weapons/tenno/pistol/latoprime": {
   "form_id": "lato_prime_incarnon",
@@ -1329,7 +1538,11 @@
   "criticalMultiplier": 3.2,
   "procChance": 0.15,
   "fireRate": 4.0,
-  "multishot": 2.0
+  "multishot": 2.0,
+  "pseudo_reload": {
+   "magazine": 24.0,
+   "reload_seconds": 2.0
+  }
  },
  "/lotus/weapons/tenno/pistol/latovandal": {
   "form_id": "lato_vandal_incarnon",
@@ -1349,7 +1562,11 @@
   "criticalMultiplier": 3.0,
   "procChance": 0.1,
   "fireRate": 4.0,
-  "multishot": 2.0
+  "multishot": 2.0,
+  "pseudo_reload": {
+   "magazine": 24.0,
+   "reload_seconds": 2.0
+  }
  },
  "/lotus/weapons/tenno/pistol/heavypistol": {
   "form_id": "lex_incarnon",
@@ -1368,7 +1585,11 @@
   "criticalMultiplier": 3.0,
   "procChance": 0.22,
   "fireRate": 0.67,
-  "multishot": 1.0
+  "multishot": 1.0,
+  "pseudo_reload": {
+   "magazine": 20.0,
+   "reload_seconds": 3.35
+  }
  },
  "/lotus/weapons/tenno/pistols/primelex/primelex": {
   "form_id": "lex_prime_incarnon",
@@ -1390,7 +1611,11 @@
   "multishot": 1.0,
   "forced_procs": [
    "impact"
-  ]
+  ],
+  "pseudo_reload": {
+   "magazine": 20.0,
+   "reload_seconds": 3.35
+  }
  },
  "/lotus/weapons/mk1series/mk1furis": {
   "form_id": "mk1_furis_incarnon",
@@ -1408,7 +1633,11 @@
   "criticalMultiplier": 3.0,
   "procChance": 0.08,
   "fireRate": 12.0,
-  "multishot": 1.0
+  "multishot": 1.0,
+  "pseudo_reload": {
+   "magazine": 280.0,
+   "reload_seconds": 2.4
+  }
  },
  "/lotus/weapons/mk1series/mk1kunai": {
   "form_id": "mk1_kunai_incarnon",
@@ -1428,7 +1657,11 @@
   "criticalMultiplier": 2.0,
   "procChance": 0.05,
   "fireRate": 3.33,
-  "multishot": 2.0
+  "multishot": 2.0,
+  "pseudo_reload": {
+   "magazine": 20.0,
+   "reload_seconds": 1.75
+  }
  },
  "/lotus/weapons/thanotech/entratiwristgun/entratiwristgunweapon": {
   "form_id": "onos_incarnon",
@@ -1446,7 +1679,11 @@
   "criticalMultiplier": 1.6,
   "procChance": 0.18,
   "fireRate": 2.0,
-  "multishot": 1.0
+  "multishot": 1.0,
+  "pseudo_reload": {
+   "magazine": 350.0,
+   "reload_seconds": 3.0
+  }
  },
  "/lotus/weapons/corpus/pistols/crphandrl/prismaangstrum": {
   "form_id": "prisma_angstrum_incarnon",
@@ -1464,7 +1701,11 @@
   "criticalMultiplier": 2.2,
   "procChance": 0.2,
   "fireRate": 6.0,
-  "multishot": 1.0
+  "multishot": 1.0,
+  "pseudo_reload": {
+   "magazine": 120.0,
+   "reload_seconds": 2.8
+  }
  },
  "/lotus/weapons/syndicates/redveil/pistols/rvballistica": {
   "form_id": "rakta_ballistica_incarnon",
@@ -1482,7 +1723,11 @@
   "criticalMultiplier": 2.2,
   "procChance": 0.25,
   "fireRate": 3.33,
-  "multishot": 1.0
+  "multishot": 1.0,
+  "pseudo_reload": {
+   "magazine": 18.0,
+   "reload_seconds": 3.0
+  }
  },
  "/lotus/weapons/tenno/pistol/burstpistol": {
   "form_id": "sicarus_incarnon",
@@ -1502,7 +1747,11 @@
   "criticalMultiplier": 3.0,
   "procChance": 0.2,
   "fireRate": 3.5,
-  "multishot": 1.0
+  "multishot": 1.0,
+  "pseudo_reload": {
+   "magazine": 120.0,
+   "reload_seconds": 3.0
+  }
  },
  "/lotus/weapons/tenno/pistols/primesicarus/primesicaruspistol": {
   "form_id": "sicarus_prime_incarnon",
@@ -1522,7 +1771,11 @@
   "criticalMultiplier": 3.0,
   "procChance": 0.2,
   "fireRate": 5.0,
-  "multishot": 1.0
+  "multishot": 1.0,
+  "pseudo_reload": {
+   "magazine": 120.0,
+   "reload_seconds": 3.0
+  }
  },
  "/lotus/weapons/grineer/pistols/grineercrossbow/grineergoogun": {
   "form_id": "stug_incarnon",
@@ -1551,6 +1804,10 @@
    "procChance": 0.2,
    "radius_m": 0.3,
    "falloff_reduction": 0.3
+  },
+  "pseudo_reload": {
+   "magazine": 120.0,
+   "reload_seconds": 3.0
   }
  },
  "/lotus/weapons/syndicates/cephalonsuda/pistols/cssynoidgammacor": {
@@ -1583,7 +1840,11 @@
   },
   "forced_procs": [
    "impact"
-  ]
+  ],
+  "pseudo_reload": {
+   "magazine": 15.0,
+   "reload_seconds": 2.8
+  }
  },
  "/lotus/weapons/tenno/pistol/revolverpistol": {
   "form_id": "vasto_incarnon",
@@ -1603,7 +1864,11 @@
   "criticalMultiplier": 2.8,
   "procChance": 0.0267,
   "fireRate": 2.5,
-  "multishot": 6.0
+  "multishot": 6.0,
+  "pseudo_reload": {
+   "magazine": 24.0,
+   "reload_seconds": 2.0
+  }
  },
  "/lotus/weapons/tenno/pistols/primevasto/primevastopistol": {
   "form_id": "vasto_prime_incarnon",
@@ -1623,7 +1888,11 @@
   "criticalMultiplier": 3.2,
   "procChance": 0.0667,
   "fireRate": 2.5,
-  "multishot": 6.0
+  "multishot": 6.0,
+  "pseudo_reload": {
+   "magazine": 24.0,
+   "reload_seconds": 2.0
+  }
  },
  "/lotus/weapons/tenno/pistols/conclaveleverpistol/conclaveleverpistol": {
   "form_id": "zylok_incarnon",
@@ -1653,6 +1922,10 @@
    "procChance": 0.4,
    "radius_m": 6.0,
    "falloff_reduction": 0.6
+  },
+  "pseudo_reload": {
+   "magazine": 12.0,
+   "reload_seconds": 2.2
   }
  },
  "/lotus/weapons/tenno/pistols/primezylok/zylokprimepistol": {
@@ -1683,6 +1956,10 @@
    "procChance": 0.4,
    "radius_m": 6.0,
    "falloff_reduction": 0.6
+  },
+  "pseudo_reload": {
+   "magazine": 12.0,
+   "reload_seconds": 2.2
   }
  }
 }

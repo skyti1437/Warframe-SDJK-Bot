@@ -390,9 +390,11 @@ if not close(_r["head_mult"], 1.0, 1e-9):
     hi(f"🔴 Eidolon 爆头倍率应为 1.0，得到 {_r['head_mult']}")
 _sp2, _ = dc.parse_args(["绝路p", "对", "重型机枪手", "100级", "爆头"])
 _r2 = dc.calculate(_sp2, base_w)
-if not close(_r2["head_mult"], 2.0, 1e-9):
-    hi(f"🔴 普通单位爆头倍率应为 2.0，得到 {_r2['head_mult']}")
-print("  [OK] 爆头倍率按敌人（Eidolon ×1 / 普通 ×2）")
+# 2026-10-09 B2：人形头部 ×3（wiki Enemy_Body_Parts / wfsim MECHANICS.md:1001-1003）；
+# 重型机枪手在 enemies.json 为 riven-mirror 通用值 2 ⇒ 视为未分类，按人形计
+if not close(_r2["head_mult"], 3.0, 1e-9):
+    hi(f"🔴 普通单位爆头倍率应为 3.0，得到 {_r2['head_mult']}")
+print("  [OK] 爆头倍率按敌人（Eidolon ×1 / 普通人形 ×3）")
 
 # ③ 状态伤害只作用于 DoT
 _s1, _ = dc.parse_args(["G系", "100级"])

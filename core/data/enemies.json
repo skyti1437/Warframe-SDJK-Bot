@@ -944,7 +944,7 @@
    "base_health": 7500.0,
    "base_shield": 0.0,
    "base_armor": 0.0,
-   "head_mul": 2.0,
+   "head_mul": 1.0,
    "source": "wfsim data/enemies（wiki Module:Enemies/data）"
   },
   "Techrot Babau": {

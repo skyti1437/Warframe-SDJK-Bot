@@ -49,13 +49,21 @@ _w0, _s0, _r0, _ = run("Skana G系 100级 急进猛突 连击0")
 check("0 连击时狂怒不加成（倍率 1.0 → ×0）", close(_r0["crit_cc"], 0.05))
 
 print()
-print("② 创口溃烂（Weeping Wounds）—— wiki：SC = 基础×(1+MOD)×(1+创口×连击倍率)")
+print("② 创口溃烂（Weeping Wounds）—— wiki：SC = 基础×[1+MOD+创口×(连击倍率−1)]")
+# 2026-10-09 订正：wfsim fight/resolve.rs:248-253 引用的 wiki 原式与狂怒同构（同一括号、
+# 乘「倍率 − 1」）。旧断言把错式 基础×(1+MOD)×(1+创口×倍率) 写成了「wiki」（×2.6）。
 _w, _s, _r, _ = run("Skana G系 100级 创口溃烂 连击60")
 _base_sc = _w.get("procChance") or 0.0
 check(
-    f"Skana 触发 {_base_sc:.4f}×(1+0.4×4) = {_base_sc * 2.6:.4f}",
-    close(_r["steady"]["status_chance"], _base_sc * 2.6),
-    f"{_r['steady']['status_chance']} vs {_base_sc * 2.6}",
+    f"Skana 触发 {_base_sc:.4f}×(1+0.4×(4−1)) = {_base_sc * 2.2:.4f}",
+    close(_r["steady"]["status_chance"], _base_sc * 2.2),
+    f"{_r['steady']['status_chance']} vs {_base_sc * 2.2}",
+)
+_w0, _s0, _r0, _ = run("Skana G系 100级 创口溃烂 连击0")
+check(
+    "0 连击时创口溃烂不加成（倍率 1.0 → ×0）",
+    close(_r0["steady"]["status_chance"], _base_sc),
+    f"{_r0['steady']['status_chance']} vs {_base_sc}",
 )
 
 print()

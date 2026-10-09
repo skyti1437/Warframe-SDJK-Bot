@@ -29,6 +29,12 @@ except ImportError:  # noqa: BLE001 —— 插件运行本身不需要 yaml，�
 
 WFSIM = Path.home() / "tmp" / "wfsim" / "data"
 OUT = ROOT / "core" / "data" / "incarnon_forms.json"
+# 用法：python scripts/build_incarnon_forms.py [wfsim 仓库根或其 data 目录] [输出路径]
+if len(sys.argv) > 1:
+    _w = Path(sys.argv[1])
+    WFSIM = _w if (_w / "weapons").is_dir() else _w / "data"
+if len(sys.argv) > 2:
+    OUT = Path(sys.argv[2])
 
 DAMAGE_KEYS = (
     "impact",
@@ -123,6 +129,15 @@ def main():
                     }
             if atk.get("forced_procs"):
                 out[internal]["forced_procs"] = [str(x) for x in atk["forced_procs"]]
+            # 灵化弹池（能量槽供能，非弹匣）：wfsim engine/src/data/weapons/panel.rs:197-200
+            # 「the locked-gauge pseudo-reload supplies the sim's magazine/reload」——
+            # 持续 DPS 的弹匣 / 装填循环要用它，而不是原型的 magazineSize / reloadTime
+            pr = y.get("pseudo_reload")
+            if isinstance(pr, dict) and pr.get("magazine") and pr.get("reload_seconds"):
+                out[internal]["pseudo_reload"] = {
+                    "magazine": float(pr["magazine"]),
+                    "reload_seconds": float(pr["reload_seconds"]),
+                }
             rc = atk.get("ricochet")
             if isinstance(rc, dict) and rc.get("bounces"):
                 out[internal]["ricochet"] = {
