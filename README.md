@@ -174,7 +174,7 @@ docker run -d --name flaresolverr -p 8191:8191 flaresolverr/flaresolverr
 | 数据 | 来源 | 许可 / 说明 |
 | --- | --- | --- |
 | 掉落表（`core/data/drops.json`） | [WFCD/warframe-drop-data](https://github.com/WFCD/warframe-drop-data) | MIT |
-| 物品/武器/MOD 面板 | [WFCD/warframe-items](https://github.com/WFCD/warframe-items) + DE 官方导出 + wfsim 校准 | 数据源头为 DE |
+| 物品/武器/MOD 面板 | [WFCD/warframe-items](https://github.com/WFCD/warframe-items) + DE 官方导出 + [magenie33/wfsim](https://github.com/magenie33/wfsim) 校准 | 数据源头为 DE；wfsim 见下方声明 |
 | 中文译名（`core/data/de/`） | DE 官方 Public Export（经 [calamity-inc/warframe-public-export-plus](https://github.com/calamity-inc/warframe-public-export-plus) 整理） | 数据源头为 DE，见下方声明 |
 | 世界状态 | DE 官方 `api.warframe.com` | 实时接口 |
 | 市场价 / 拍卖 | warframe.market v2 / v1 | 遵守其 3 req/s 限速 |
@@ -189,6 +189,13 @@ docker run -d --name flaresolverr -p 8191:8191 flaresolverr/flaresolverr
 > （其对游戏脚本随机数 / 种子洗牌表的复刻）——该仓库**未附带许可证文件**，因此本仓库
 > 仅依据其公开的算法描述与游戏资产清单，用 Python **独立重写**，未复制其源代码；
 > 所用游戏资产（任务清单 / 译名 / 图标）版权归 Digital Extremes。其余数据来源见上表。
+>
+> **伤害计算器的校准参考**：[magenie33/wfsim](https://github.com/magenie33/wfsim)
+> （AGPL-3.0-or-later）。本插件的伤害口径（蓄力武器有效射速、异况超量三种结算桶、
+> 紫卡负词条「符号不定」表、CO 行为分类等）以该项目为对照基准核对，
+> **只取其公开的公式与数据事实，未复制其源代码**；相关派生数据表
+> （`core/data/charge_cadence.json`、`core/data/co_behavior.json`）在文件内标注了来源与生成方式。
+> 本插件整体以 GPL-3.0 发布（见 `LICENSE`）。
 
 > **非官方声明**：Warframe 与相关商标归 Digital Extremes 所有。本插件是粉丝作品，
 > 与 Digital Extremes 无关；所含游戏数据按 DE 的粉丝内容政策使用，仅用于查询展示。

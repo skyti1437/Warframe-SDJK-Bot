@@ -22,7 +22,11 @@ FAILED: list[str] = []
 
 
 def check(name: str, cond: bool, detail: str = ""):
-    print(("[PASS] " if cond else "[FAIL] ") + name + (f"  -> {detail}" if detail and not cond else ""))
+    print(
+        ("[PASS] " if cond else "[FAIL] ")
+        + name
+        + (f"  -> {detail}" if detail and not cond else "")
+    )
     if not cond:
         FAILED.append(name)
 
@@ -46,10 +50,19 @@ pool = [_auc("offline", 50, 30), _auc("ingame", 200, 5)]
 title, lines, best = F.fmt_wr_auctions("伯斯顿", pool, page=1, page_size=8)
 body = "\n".join(lines)
 check("离线挂单也出现在列表里（不再被藏起来）", "⚫离线" in body, body[:300])
-check("在线档仍排在离线之前（在线优先排序不变）", body.index("🟢在线") < body.index("⚫离线"), body[:300])
+check(
+    "在线档仍排在离线之前（在线优先排序不变）",
+    body.index("🟢在线") < body.index("⚫离线"),
+    body[:300],
+)
 check("行内含上架时长（s/m/h 口径，放行尾）", ("上架30h" in body) or ("上架5h" in body), body[:300])
-check("best = 排序后的第一条（在线那张）", (best or {}).get("owner", {}).get("status") == "ingame", str(best)[:140])
+check(
+    "best = 排序后的第一条（在线那张）",
+    (best or {}).get("owner", {}).get("status") == "ingame",
+    str(best)[:140],
+)
 check("空池给明确文案", F.fmt_wr_auctions("伯斯顿", [])[1] == ["没有符合条件的紫卡挂单"])
+
 
 # 竞价型（无 buyout）与一口价：价格前「起」标记（2026-10-08 用户口径「也打开吧」）
 def _auc2(status: str, buyout, start):
@@ -59,8 +72,11 @@ def _auc2(status: str, buyout, start):
         "starting_price": start,
         "created": (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat(),
         "owner": {"status": status, "ingame_name": "u", "reputation": 0},
-        "item": {"type": "riven", "mod_rank": 8,
-                 "attributes": [{"url_name": "viral", "value": 100, "positive": True}]},
+        "item": {
+            "type": "riven",
+            "mod_rank": 8,
+            "attributes": [{"url_name": "viral", "value": 100, "positive": True}],
+        },
     }
 
 
@@ -71,7 +87,11 @@ check(
     "一口价：\u267e" in _b2 and "\ufe0f" not in _b2 and "起拍价：1800p" in _b2,
     _b2[:320],
 )
-check("一口价挂单写「一口价：Np」且无起拍价段", "一口价：2200p" in _b2 and "起拍价" not in _b2.split("一口价：2200p")[1][:40], _b2[:320])
+check(
+    "一口价挂单写「一口价：Np」且无起拍价段",
+    "一口价：2200p" in _b2 and "起拍价" not in _b2.split("一口价：2200p")[1][:40],
+    _b2[:320],
+)
 
 print()
 if FAILED:

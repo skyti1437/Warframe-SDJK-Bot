@@ -33,7 +33,11 @@ FAILED: list[str] = []
 
 
 def check(name: str, cond: bool, detail: str = ""):
-    print(("[PASS] " if cond else "[FAIL] ") + name + (f"  -> {detail}" if detail and not cond else ""))
+    print(
+        ("[PASS] " if cond else "[FAIL] ")
+        + name
+        + (f"  -> {detail}" if detail and not cond else "")
+    )
     if not cond:
         FAILED.append(name)
 
@@ -44,17 +48,26 @@ OLD = {U: {"zh": {"name": "旧形状"}, "de": {"name": "Alt"}}}
 # ① 老布局
 d1 = Path(tempfile.mkdtemp())
 (d1 / "i18n.json").write_text(json.dumps(OLD, ensure_ascii=False), encoding="utf-8")
-check("老布局 i18n.json 可读且原样返回", kb_lib.load_i18n(str(d1)) == OLD, str(kb_lib.load_i18n(str(d1)))[:120])
+check(
+    "老布局 i18n.json 可读且原样返回",
+    kb_lib.load_i18n(str(d1)) == OLD,
+    str(kb_lib.load_i18n(str(d1)))[:120],
+)
 
 # ② 新布局（语言文件，无 en.json）
 d2 = Path(tempfile.mkdtemp())
 (d2 / "i18n").mkdir()
-(d2 / "i18n" / "zh.json").write_text(json.dumps({U: {"name": "新形状"}}, ensure_ascii=False), encoding="utf-8")
-(d2 / "i18n" / "de.json").write_text(json.dumps({U: {"name": "Alt"}}, ensure_ascii=False), encoding="utf-8")
+(d2 / "i18n" / "zh.json").write_text(
+    json.dumps({U: {"name": "新形状"}}, ensure_ascii=False), encoding="utf-8"
+)
+(d2 / "i18n" / "de.json").write_text(
+    json.dumps({U: {"name": "Alt"}}, ensure_ascii=False), encoding="utf-8"
+)
 got = kb_lib.load_i18n(str(d2))
 check(
     "新布局转置合并成老形状（uniqueName → 语言 → 字段）",
-    got.get(U, {}).get("zh", {}).get("name") == "新形状" and got.get(U, {}).get("de", {}).get("name") == "Alt",
+    got.get(U, {}).get("zh", {}).get("name") == "新形状"
+    and got.get(U, {}).get("de", {}).get("name") == "Alt",
     str(got)[:160],
 )
 check(

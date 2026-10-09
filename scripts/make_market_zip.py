@@ -250,7 +250,8 @@ def main() -> int:
         return 1
 
     _stage_files = [
-        p for p in OSS_DIR.rglob("*")
+        p
+        for p in OSS_DIR.rglob("*")
         if p.is_file() and "__pycache__" not in p.parts and p.suffix != ".pyc"
     ]
     if len(_stage_files) != EXPECTED_STAGE_FILES:
