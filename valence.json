@@ -1,45 +1,45 @@
 {
  "schema": 1,
- "published_at": "2026-10-07T11:08:05+00:00",
- "source": "wiki《Reset》页，经插件在有 FlareSolverr 的机器上抓取后发布；快照时间 2026-10-07T11:08:05+00:00",
+ "published_at": "2026-10-10T00:08:06+00:00",
+ "source": "wiki《Reset》页，经插件在有 FlareSolverr 的机器上抓取后发布；快照时间 2026-10-10T00:08:06+00:00",
  "license_note": "数据来自 wiki.warframe.com（CC BY-NC-SA 3.0）；Warframe 相关内容版权归 Digital Extremes 所有，本仓库仅供查询。",
  "tenet": {
-  "snapshot": "2026-10-07T11:08:05+00:00",
+  "snapshot": "2026-10-10T00:08:06+00:00",
   "items": [
    {
     "en": "Tenet Agendus",
     "cn": "信条·集议",
     "element": "Impact",
-    "bonus": 39.2
+    "bonus": 40.7
    },
    {
     "en": "Tenet Exec",
     "cn": "信条·枢密",
-    "element": "Cold",
-    "bonus": 39.8
+    "element": "Toxin",
+    "bonus": 25.1
    },
    {
     "en": "Tenet Ferrox",
     "cn": "信条·铁晶磁轨炮",
-    "element": "Magnetic",
-    "bonus": 36.8
+    "element": "Electricity",
+    "bonus": 27.7
    },
    {
     "en": "Tenet Grigori",
     "cn": "信条·格里高利",
-    "element": "Heat",
-    "bonus": 25.5
+    "element": "Toxin",
+    "bonus": 46.8
    },
    {
     "en": "Tenet Livia",
     "cn": "信条·莉薇娅",
-    "element": "Toxin",
-    "bonus": 25.1
+    "element": "Electricity",
+    "bonus": 50.9
    }
   ]
  },
  "coda": {
-  "snapshot": "2026-10-07T11:08:05+00:00",
+  "snapshot": "2026-10-10T00:08:06+00:00",
   "batch": "A",
   "items": [
    {
