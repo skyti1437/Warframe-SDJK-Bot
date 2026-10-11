@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 from .. import calculators as calc
 from .. import damage_calc as dc
 from .. import formatters as fmt
@@ -285,6 +287,12 @@ class WikiMiscCommands:
                   [基伤N] [多重N] [暴率N] [暴伤N] [派系N] [电/火/冰/毒N] [基甲N]
         公式与机制基准见 core/damage_calc.py 模块注释（U36 抗性重构后）。
         """
+        # 解析 + 计算是纯 CPU 活（整条配卡粘贴要逐词跑模糊匹配），放线程里跑，
+        # 避免长串参数在事件循环上卡住所有群
+        return await asyncio.to_thread(self._damage_reply, parsed)
+
+    def _damage_reply(self, parsed) -> Reply:
+        """「伤害」指令的同步主体（由 _h_damage 放进线程执行）。"""
         spec, name_tokens = dc.parse_args(parsed.content)
         query = " ".join(name_tokens).strip()
         if not query:
@@ -301,7 +309,7 @@ class WikiMiscCommands:
                     "　· 手写：基伤 / 多重 / 暴率 / 暴伤 / 爆头倍率 / 派系（%）",
                     "　　电 火 冰 毒（自动合成复合）｜冲击 穿刺 切割（只加同类型）",
                     "　　状态伤害N（只放大 DoT）｜基甲N（覆盖默认敌人基准甲）",
-                    "　· 敌人名：枪兵 / 重机枪手 / 轰击者 / 屠夫 / 船员 …（支持模糊）",
+                    "　· 敌人名：枪兵 / 重机枪手 / 轰击者 / 船员 / 恐鸟 / 夜灵 …（常用 19 个，支持模糊）",
                     "　　给了就用它的真实基准甲/血/盾，并算击杀发数",
                     "◆ 异常（U36 后元素差异的主要来源）",
                     "　病毒N / 磁力N（1-10 层，对血 / 对盾加伤）",
@@ -315,6 +323,9 @@ class WikiMiscCommands:
                     "　镀层N / 满镀层（镀层类击杀堆叠按 N 层计入，如镀层 分裂膛室）",
                     "　超宏[N]（不吃护甲/派系、免疫异常）｜适应N（Sentient 适应 1-4 层）",
                     "　灵化 / 基础形态（默认按原型算；加「灵化」切灵化形态）",
+                    "　副开火 / 蓄力 / 未蓄力 / 半自动 / 全自动（切到该形态的整套面板与范围段，"
+                    "选了才算）",
+                    "　开火N秒（火焰单例累加：稳态火层数按开火 N 秒窗口平均，默认 12）",
                     "　空战 / 地面（Archgun 双部署：默认地面・大气；空战用空战面板）",
                     "　进化 基伤/暴击/爆头…（灵化进化选项，可多次；改基础面板）",
                     "　赤毒辐射60（赤毒/信条/终幕回响加成 25-60%，元素要写）",
@@ -339,11 +350,11 @@ class WikiMiscCommands:
             res = dc.calculate(spec, weapon)
             return Reply("伤害计算", dc.card_lines(weapon, spec, res, alts))
         except Exception as exc:  # noqa: BLE001 - 绝不静默：群聊里没输出最难查
-            logger.warning(f"[sdjk] 伤害计算失败：{exc!r}")
+            logger.exception(f"[sdjk] 伤害计算失败：{exc!r}")
             return Reply(
                 "伤害计算",
                 [
-                    f"❗ 计算出错：{type(exc).__name__}: {exc}",
+                    "❗ 计算出错（内部错误，详情已写入日志）",
                     f"　武器：{query}｜已识别 MOD："
                     + (
                         "、".join(

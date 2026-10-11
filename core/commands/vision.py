@@ -14,12 +14,14 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from typing import Optional
 
 from .. import loadout_ocr as lo
 from .. import paths as core_paths
 from .. import pips as pips_engine
 from ..logging_compat import logger
+from .base import Reply, _num
 
 
 def _prov_id(prov) -> str:
@@ -37,6 +39,42 @@ def _prov_id(prov) -> str:
 
 class VisionCommands:
     """Mixin：识别链设施（挂载于 main.WarframeSDJK；消费者为 riven 域与 scan 段）。"""
+
+    def _vision_gate(self, event, what: str) -> tuple[Optional[Reply], str]:
+        """付费识图（识卡 / 紫卡截图）共用的两道防刷闸，返回 (拦截回复或 None, 发送者)。
+
+        ① 同一发送者冷却 scan_cooldown 秒（默认 15，设 0 关闭）—— 识卡与紫卡识图
+           共用一份冷却（同一个人两种识图轮着刷，账单一样涨）；
+        ② 全局并发上限 scan_max_concurrent（默认 3，设 0 关闭），按 _ocr_busy 计数。
+        放行时即记下本次时刻；调用方在识别失败时可 pop 掉以返还冷却。
+        """
+        _cfg = getattr(self, "cfg", None) or {}  # 绕过 __init__ 构造的实例（单测桩）也能用
+        _cd = _num(_cfg, "scan_cooldown", 15)
+        _sender = self._safe_sender(event)
+        if _cd > 0 and _sender:
+            _last = self._ocr_last.get(_sender, 0.0)
+            _left = _cd - (time.time() - _last)
+            if _last and _left > 0:
+                return (
+                    Reply(
+                        raw_text=f"⏳ {what}太频繁了，请 {_left:.0f} 秒后再试\n"
+                        "（面板「识卡冷却秒数」可调，设 0 关闭限制）"
+                    ),
+                    _sender,
+                )
+            # 顺手清掉过期记录，避免长期运行把字典撑大
+            if len(self._ocr_last) > 512:
+                _now = time.time()
+                for _k in [k for k, v in self._ocr_last.items() if _now - v > max(_cd * 4, 120)]:
+                    self._ocr_last.pop(_k, None)
+            self._ocr_last[_sender] = time.time()
+        _cap = int(_num(_cfg, "scan_max_concurrent", 3))
+        if _cap > 0 and len(self._ocr_busy) >= _cap:
+            return (
+                Reply(raw_text=f"⏳ 机器人正在处理其它识图请求（并发上限 {_cap}），请稍后再试"),
+                _sender,
+            )
+        return None, _sender
 
     @staticmethod
     def _event_has_image(event) -> bool:
@@ -156,13 +194,6 @@ class VisionCommands:
             )
         return out
 
-    def _pick_vision_provider(self):
-        """挑一个支持图片输入的 provider（找不到返回 None）。"""
-        try:
-            return self._vision_providers()[:1] or [None][0]
-        except Exception:  # noqa: BLE001
-            return None
-
     async def _image_data_urls(self, event) -> list[str]:
         """消息链里所有图片的 data URL。
 
@@ -180,11 +211,37 @@ class VisionCommands:
                     b64 = await c.convert_to_base64()
                 except Exception:  # noqa: BLE001 - 单张失败继续下一张
                     continue
-                if b64 and len(b64) < 14 * 1024 * 1024:
-                    out.append("data:image/png;base64," + b64)
+                if not b64 or len(b64) >= 14 * 1024 * 1024:
+                    continue
+                if not await asyncio.to_thread(self._image_pixels_ok, b64):
+                    continue
+                out.append("data:image/png;base64," + b64)
         except Exception:  # noqa: BLE001 - 图片取不到就当没有
             pass
         return out[:1]  # 一次只认一张（紫卡截图）
+
+    # 识图截图像素上限：8K 截图约 3300 万像素，留余量取 3600 万。
+    # Pillow 默认只在 ~8900 万像素才告警、~1.79 亿才报错，压缩率高的 PNG
+    # 在 14MB 体积限制内就能解出几百 MB 位图（解压炸弹），后续缩放/豆子检测吃满 CPU。
+    MAX_SCAN_PIXELS = 36_000_000
+
+    @classmethod
+    def _image_pixels_ok(cls, b64: str) -> bool:
+        """只读图片头拿尺寸（不解码像素），超过 MAX_SCAN_PIXELS 或读不出就拒收。"""
+        try:
+            import base64
+            import io
+
+            from PIL import Image
+
+            with Image.open(io.BytesIO(base64.b64decode(b64))) as img:
+                w, h = img.size
+        except Exception:  # noqa: BLE001 - 不是合法图片
+            return False
+        if w * h > cls.MAX_SCAN_PIXELS:
+            logger.warning("[sdjk] 截图尺寸 %dx%d 超过像素上限，已拒收", w, h)
+            return False
+        return True
 
     async def _vision_race_json(
         self,

@@ -1,4 +1,4 @@
-# AstrBot 插件 · Warframe SDJKBOT v1.1.8（`astrbot_plugin_warframe_sdjkbot`）
+# AstrBot 插件 · Warframe SDJKBOT v1.1.9（`astrbot_plugin_warframe_sdjkbot`）
 
 > **📢 插件 ID 迁移公告（2026-09-28）**
 > 本插件 ID 由 `astrbot_plugin_warframe` 变更为 **`astrbot_plugin_warframe_sdjkbot`**，旧 ID 不再维护。
@@ -109,7 +109,7 @@
 | `flaresolverr_enabled` | 是否启用 CF 绕过代理（见下） |
 | `flaresolverr_urls` | FlareSolverr 地址，多个用逗号或换行分隔，**自己填** |
 | `vision_provider_id` | 截图识别用的多模态模型 id（见「AI 相关说明」） |
-| `kb_enabled` / `kb_docs_dir` / `kb_id` | 知识库引导（见下） |
+| `kb_enabled` / `kb_id` | 知识库引导（见下） |
 | `proxy` / `http_timeout` / `push_interval` | 网络与推送参数 |
 
 ### FlareSolverr（可选）

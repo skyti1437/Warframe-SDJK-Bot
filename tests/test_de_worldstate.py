@@ -160,7 +160,19 @@ print("九重天 0s 修复：断言通过")
 # 的本地表 ⇒ 沉沦之地复杂化名 / 1999 升级名 / 源力石 / 赋能槽连接器全落英文。
 # 修法：构建期提取卡面命名空间 → core/data/de/zh_ext.json（运行期由 language_text_zh 第二顺位查）。
 _ext = dw._load("zh_ext.json") or {}
-assert len(_ext) >= 7000, f"zh_ext 键数异常：{len(_ext)}"
+# 2026-10-10 去冗余：与 languages_zh 同键同值的条目运行期永远读不到（先查 languages_zh），
+# 构建时已剔除（7,722 → 2,076；CircleOfHell 整段保留，_coh_index 只读 zh_ext）。
+# ⇒ 覆盖面改按「两表并集」计（实测 38,135），并守住「非 CoH 段不再有同值冗余」。
+_base_zh = dw._load("languages_zh.json") or {}
+assert len(set(_base_zh) | set(_ext)) >= 38000, (
+    f"两表并集键数异常：{len(set(_base_zh) | set(_ext))}"
+)
+_shadowed = [
+    k
+    for k, v in _ext.items()
+    if _base_zh.get(k) == v and not k.startswith("/Lotus/Language/CircleOfHell/")
+]
+assert not _shadowed, f"zh_ext 出现与 languages_zh 同值的冗余键 {len(_shadowed)} 条"
 _coh = [k for k in _ext if "cohchallenge" in k.lower()]
 assert len(_coh) >= 68, f"zh_ext 覆盖 CoHChallenge* 应 ≥68，实得 {len(_coh)}"
 # 抽 6 条与官方值逐字对齐（键/值均经双方独立复算）

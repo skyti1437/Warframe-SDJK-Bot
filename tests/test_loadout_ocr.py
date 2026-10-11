@@ -583,10 +583,15 @@ check(
     all(c["ok"] for c in _an_fix.get("checks") or []),
     str(_an_fix.get("checks")),
 )
+# ★ 2026-10-09 订正：本 fixture 的「穿刺 34.1 / 切割 102.3」本身是对调的读数 ——
+#   同一张截图的另两份 fixture（_ocr_inc、遮挡用例的面板重建）都是穿刺 102.3 /
+#   切割 34.1，库内构成 168/31.5/10.5 ×1.476×2.2 也给出 545.6/102.3/34.1。
+#   旧断言「穿刺 15.5」把对调值钉成了预期；物理行串行纠正后应为 102.3/2.2 = 46.5
 check(
-    "拼接后：穿刺基础恢复正常（34.1/2.2 ≈ 15.5）",
-    close(_an_fix["weapon"]["damage"].get("puncture", 0), 15.5, 0.05),
-    str(_an_fix["weapon"]["damage"].get("puncture")),
+    "拼接后：穿刺/切割对调被纠回（穿刺 102.3/2.2 ≈ 46.5、切割 34.1/2.2 ≈ 15.5）",
+    close(_an_fix["weapon"]["damage"].get("puncture", 0), 46.5, 0.05)
+    and close(_an_fix["weapon"]["damage"].get("slash", 0), 15.5, 0.05),
+    str(_an_fix["weapon"]["damage"]),
 )
 check(
     "拼接后：满级热病 +165% 完全解释毒素行 → 无自带毒素",
@@ -682,7 +687,14 @@ check(
     "第二页：含暴击期望与重击段",
     any("暴击期望" in ln for ln in _detail) and any("重击" in ln for ln in _detail),
 )
-check("第二页：单发与面板对拍一致（456）", any("456" in ln for ln in _detail))
+# 第二页单发须与第一页「参考」单发同值（同一 calculate 管线自洽）。
+# 2026-10-10 改：原写死 456 —— 那是本引擎算出来的值（不是游戏读数），加伤害量化后为 462
+_ref_h = f"单发对血：{(_an_inc.get('ref') or {}).get('health', -1):.0f}"
+check(
+    "第二页：单发与第一页参考值对拍一致（量化后 462，原 456）",
+    _ref_h == "单发对血：462" and any(_ref_h in ln for ln in _detail),
+    _ref_h,
+)
 
 from core.parser import parse as _parse  # noqa: E402
 
@@ -1178,6 +1190,68 @@ for _k, _pair, _wk in (
         close(_w[_wk], _lat_ref[_wk]),
         f"{_w[_wk]} vs {_lat_ref[_wk]}",
     )
+
+# ---------------------------------------------------------------------------
+# 2026-10-09 拉特昂 Prime 线上复报：模型读串 →「冲击 203.5 / 穿刺 25.4」对调 +
+# 病毒行误抄总计 1488.3（线上卡面「行和×多重 1488.3 vs 3136.68」即
+# (203.5+25.4+25.4+1488.3)×1.8 —— 由此反推的读数，原始 JSON 未留档）
+# ---------------------------------------------------------------------------
+_lat_bad, _lat_bad_r = _lat_with(
+    damage_rows=[
+        ["冲击", "72", "203.5"],
+        ["穿刺", "9", "25.4"],
+        ["切割", "9", "25.4"],
+        ["病毒（冰+毒）", "-", "1,488.3"],
+        ["总计", "90", "1,488.3"],
+    ]
+)
+_lat_good_r = _lat_with()[1]
+_bd = _lat_bad["weapon"]["damage"]
+check(
+    "读串纠正：冲击/穿刺对调 ⇒ 按库内构成纠回 冲击 9.6 / 穿刺 76.8",
+    close(_bd["impact"], 9.6) and close(_bd["puncture"], 76.8) and close(_bd["slash"], 9.6),
+    str(_bd),
+)
+check(
+    "读串纠正：单发对血与正确读数一致（修前冲击吃 G 系弱点虚高 203 vs 184）",
+    close(_lat_bad_r["health"], _lat_good_r["health"], 1e-6),
+    f"{_lat_bad_r['health']} vs {_lat_good_r['health']}",
+)
+check(
+    "读串纠正：卡面注明已纠正 + 病毒行误抄总计",
+    "串行" in _lat_bad["panel_base"] and "误抄总计" in _lat_bad["panel_base"],
+    _lat_bad["panel_base"],
+)
+check(
+    "行和自检：误抄总计的元素行剔除后补本地合成元素 ⇒ 全部吻合（修前 3136.68 ⚠）",
+    all(c["ok"] for c in _lat_bad["checks"]) and not any(c.get("note") for c in _lat_bad["checks"]),
+    str([(c["label"], c["panel"], round(c["calc"], 2), c["ok"]) for c in _lat_bad["checks"]]),
+)
+check(
+    "「总计」行不再记为「行名未能归属类型」",
+    "未能归属" not in _lat_bad["panel_base"]
+    and "未能归属" not in lo.analyze(_ocr_lat)["panel_base"],
+)
+check(
+    "普通形态 + 灵化进化的面板不标成「灵化形态」",
+    _lat_bad["panel_base"].startswith("普通形态（含灵化进化加成）"),
+    _lat_bad["panel_base"][:30],
+)
+_lat_card2 = "\n".join(
+    dc_mod.card_lines(_lat_bad["weapon"], lo.to_damage_spec(_lat_bad), _lat_bad_r, [])
+)
+check("面板反推的基础不再标「含多段合并」", "含多段合并" not in _lat_card2)
+check(
+    "不误纠：分布本来就吻合的正确读数不出「串行」",
+    "串行" not in lo.analyze(_ocr_lat)["panel_base"],
+)
+_lat_text = "\n".join(lo.card_lines(lo.analyze(_ocr_lat)))
+check("负值加成不再写成「+-」", "+-" not in _lat_text and "射速-20%" in _lat_text)
+check(
+    "同族近似：「镀层 氚晶猫具」（错两字）⇒ Galvanized Scope",
+    (lo.match_mod("镀层 氚晶猫具")[0] or {}).get("name") == "Galvanized Scope",
+)
+check("同族近似：族内别的卡不被误吸", lo.match_mod("镀层 某某某某")[0] is None)
 
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")

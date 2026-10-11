@@ -33,7 +33,12 @@ from astrbot.api.star import Context, Star, register
 try:  # 允许脱离 AstrBot 直接跑单元测试
     from .core import __brand__ as BRAND
     from .core import api_client
-    from .core.api_client import WarframeAPIError, WarframeClient, parse_url_list
+    from .core.api_client import (
+        DEFAULT_DE_WORLDSTATE,
+        WarframeAPIError,
+        WarframeClient,
+        parse_url_list,
+    )
     from .core import formatters as fmt
     from .core import paths as core_paths
     from .core import wiki_intro
@@ -64,7 +69,12 @@ except ImportError as _imp_err:  # pragma: no cover
 
     # 打包器门面锚点：OSS_FACADE_DELETIONS 按此行整块删除，勿删/勿改前缀
     from core import api_client
-    from core.api_client import WarframeAPIError, WarframeClient, parse_url_list
+    from core.api_client import (
+        DEFAULT_DE_WORLDSTATE,
+        WarframeAPIError,
+        WarframeClient,
+        parse_url_list,
+    )
     from core import formatters as fmt
     from core import paths as core_paths
     from core import wiki_intro
@@ -403,9 +413,9 @@ HELP_TOPIC: dict[str, list[tuple[str, str]]] = {
     "伤害与配卡": [
         (
             "伤害 武器 对 敌人 100级 膛线",
-            "面板/单发/DPS/含段合计；可加 爆头 病毒10 剥甲 满镀层 钢路",
+            "面板/单发/DPS/含段合计；可加 爆头 病毒10 剥甲 满镀层 钢路 开火N秒",
         ),
-        ("灵化 / 基础形态", "默认按原型算；加「灵化」切灵化形态（MOD 照常叠算）"),
+        ("灵化 / 基础形态", "默认按原型算；加 灵化/副开火/蓄力/未蓄力/半自动 切形态"),
         ("空战 / 地面", "空战枪双部署切换"),
         ("进化 基伤/暴击/爆头…", "灵化进化选项，可多次，改基础面板"),
         ("赤毒辐射60", "玄骸/姐妹武器回响加成（25~60%）"),
@@ -428,7 +438,7 @@ HELP_TOPIC: dict[str, list[tuple[str, str]]] = {
     ],
     "后台推送": [
         ("蹲 类型 筛选 时长 时间", "订阅世界状态变化并推送（需先 .开启 推送）"),
-        ("蹲 取消", "不带词=全部；带筛选词=只取消匹配项"),
+        ("蹲 取消", "不带词=自己发起的全部（群管=全群）；带筛选词=只取消匹配项"),
         ("蹲 筛选写法", "一个词=一个条件（钢铁防御）；多词=多条件取或"),
     ],
 }
@@ -450,7 +460,7 @@ HELP_TOPIC: dict[str, list[tuple[str, str]]] = {
 
 
 @register(
-    "astrbot_plugin_warframe_sdjkbot", "SDJK", f"{BRAND}：世界状态 / 市场查价 / 蹲点推送", "1.1.8"
+    "astrbot_plugin_warframe_sdjkbot", "SDJK", f"{BRAND}：世界状态 / 市场查价 / 蹲点推送", "1.1.9"
 )
 class WarframeSDJK(
     DailyCommands,
@@ -480,6 +490,7 @@ class WarframeSDJK(
         self.client = WarframeClient(
             kuvalog_url=(self.cfg.get("kuvalog_url") or ""),
             worldsource=self.cfg.get("worldsource", "de"),
+            de_worldstate_url=(self.cfg.get("de_worldstate_url") or DEFAULT_DE_WORLDSTATE),
             worldstate_base=self.cfg.get("worldstate_base", "https://api.warframestat.us"),
             timeout=_num(self.cfg, "http_timeout", 15.0),
             proxy=(self.cfg.get("proxy") or None),
@@ -708,6 +719,29 @@ class WarframeSDJK(
             )
         except Exception as exc:  # noqa: BLE001 —— 预热失败不影响功能
             logger.warning("[sdjk] 预热失败（不影响功能）：%s", exc)
+        # 其余「首次查询才现解析」的大表（都有模块级缓存）：不预热时第一条
+        # wiki/搜索/活动卡要在事件循环上同步解析数 MB JSON（实测约 1 s 级）
+        _t1 = _t.perf_counter()
+        try:
+            from .core import de_worldstate as _ws
+            from .core import search as _search
+            from .core import wiki_intro as _wi
+        except ImportError:
+            from core import de_worldstate as _ws
+            from core import search as _search
+            from core import wiki_intro as _wi
+        for _name, _fn in (
+            ("wiki 简介表", _wi._table),
+            ("检索索引", _search._index),
+            ("官方简中词表", lambda: _ws._load("languages_zh.json")),
+        ):
+            try:
+                _fn()
+            except Exception as exc:  # noqa: BLE001 —— 预热失败不影响功能
+                logger.warning("[sdjk] 预热 %s 失败（不影响功能）：%s", _name, exc)
+        logger.info(
+            "[sdjk] 预热完成 %.0f ms（wiki/检索/简中词表）", (_t.perf_counter() - _t1) * 1000
+        )
 
     # 价格榜单全量抓取只在**闲时**跑。2026-09-14 玩家反馈「bot 回话间隔很久」：
     # 全量抓取实测远超 18 分钟（约 3200 项、实测 1 项/4 秒，跑好几个小时），
@@ -1025,7 +1059,9 @@ class WarframeSDJK(
         try:
             reply = await handler(parsed, event, platform)
         except WarframeAPIError as exc:
-            reply = Reply(raw_text=f"⚠️ {exc}")
+            # 原文（可能含上游 URL / httpx 异常 / FlareSolverr 内网地址）只进日志
+            logger.warning("[sdjk] 指令 %s 接口错误：%s", parsed.command, exc)
+            reply = Reply(raw_text=f"⚠️ {api_client.public_error_text(exc)}")
         except Exception as exc:  # noqa: BLE001
             logger.exception("[sdjk] 指令处理异常：%s", exc)
             reply = Reply(raw_text="⚠️ 内部错误，请稍后重试或联系管理员查看日志")

@@ -90,12 +90,6 @@
     "default": true,
     "hint": "插件**不直连**知识库：检索由 AstrBot 平台提供，插件只在查不到时提示「可以把哪份文档传进知识库」。没配知识库就关掉，免得多一句提示。"
   },
-  "kb_docs_dir": {
-    "description": "知识库文档目录（相对插件目录）",
-    "type": "string",
-    "default": "kb",
-    "hint": "插件自带的机制术语 / 新手入门 / 玄骸刷取等文档所在目录，会显示在知识库引导里。换成你自己的目录即可。"
-  },
   "kb_id": {
     "description": "AstrBot 知识库 id（可选，只用于引导文案）",
     "type": "string",

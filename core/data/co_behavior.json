@@ -1,8 +1,9 @@
 {
  "_meta": {
-  "source": "github.com/magenie33/wfsim data/weapons/**（顶层 co_behavior；只收 default_form 与 form: incarnon 两种形态）",
+  "source": "github.com/magenie33/wfsim data/weapons/**（顶层 co_behavior；只收默认形态（default_form，或 build_weapon_attacks.MAIN_FORM_OVERRIDE 指定的我方主段）与 form: incarnon 两种形态）",
   "values": "additive_with_base_damage（缺省，不写）/ independent / inert",
-  "generator": "scripts/build_co_behavior.py"
+  "generator": "scripts/build_co_behavior.py",
+  "wfsim_commit": "2e5a8d4b21b0fab49d952b22b4ac8fc4054b8fa0"
  },
  "weapons": {
   "/lotus/types/sentinels/sentinelweapons/laserrifle": {
@@ -69,6 +70,9 @@
    "base": "inert"
   },
   "/lotus/weapons/grineer/throwingweapons/grnvorstickybomb/grnvorstickybomb": {
+   "base": "independent"
+  },
+  "/lotus/weapons/infested/bow/infcernosbow/infcernos": {
    "base": "independent"
   },
   "/lotus/weapons/infested/infestedlich/longguns/1999infshotgun/1999infshotgunweapon": {

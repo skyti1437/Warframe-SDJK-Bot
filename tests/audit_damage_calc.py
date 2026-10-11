@@ -62,7 +62,17 @@ print(
 no_zh = [v["name"] for v in w.values() if not v.get("zh")]
 if no_zh:
     mid(f"{len(no_zh)} 件武器没有中文名（卡面会退化显示英文）：{no_zh[:5]}")
-no_dmg = [v["name"] for v in w.values() if not (v.get("damage") or {}).get("total")]
+# 直击 0 是 wiki 口径的（Simulor 系 Orb Launch = 冲击 0，伤害全在范围段，b7 批）：attacks 里有
+# 一段合计 0、且另有段 > 0 的不算缺失
+no_dmg = [
+    v["name"]
+    for v in w.values()
+    if not (v.get("damage") or {}).get("total")
+    and not (
+        any(a.get("total") == 0 for a in v.get("attacks") or [])
+        and any((a.get("total") or 0) > 0 for a in v.get("attacks") or [])
+    )
+]
 if no_dmg:
     mid(f"{len(no_dmg)} 件武器 damage.total 为 0/缺失：{no_dmg[:5]}")
 
@@ -373,15 +383,19 @@ for toks, label in EDGE:
 print("=" * 74)
 print("⑦ v1.5 新机制")
 
-# ① 敌人名分派：MOD 子串绝不能抢走敌人名
+# ① 敌人名分派：MOD 子串绝不能抢走敌人名。
+# 2026-10-10 敌人表精简到常用 19 个后，这 6 个都已不在表里（且保留的 19 个没有一个是
+# MOD 全名/唯一子串）⇒ 同一语义改为：「对 X」认不出敌人时记进 enemy_miss（卡面提示可用
+# 敌人、按默认派系算），**仍不许被当成 MOD**（修前 Butcher 会被 Butcher's Revelry 子串套上、
+# Scorch/Seeker 被同名 MOD 全名套上）。
 for _n in ("Comba", "Butcher", "Napalm", "Ballista", "Scorch", "Seeker"):
     _sp, _ = dc.parse_args(["绝路p", "对", _n, "100级"])
     got = (_sp["enemy"] or {}).get("name")
-    if got != _n:
-        hi(f"🔴 敌人名被抢：「{_n}」解析成了 {got!r}（应有 {_n}）")
+    if got is not None or _sp.get("enemy_miss") != _n:
+        hi(f"🔴 已删敌人「{_n}」应进 enemy_miss，实得 enemy={got!r} miss={_sp.get('enemy_miss')!r}")
     if _sp["mods"]:
         hi(f"🔴 「{_n}」被当成了 MOD：{[m.get('name') for m in _sp['mods']]}")
-print("  [OK] 敌人名分派（Comba/Butcher/Napalm/Ballista/Scorch/Seeker）")
+print("  [OK] 敌人名分派（Comba/Butcher/Napalm/Ballista/Scorch/Seeker：不在表 → 提示，不当 MOD）")
 
 # ② 敌人爆头倍率：Eidolon 类 head_mul=1 → 爆头不吃加成
 _sp, _ = dc.parse_args(["绝路p", "对", "Eidolon Teralyst", "100级", "爆头"])
@@ -391,7 +405,7 @@ if not close(_r["head_mult"], 1.0, 1e-9):
 _sp2, _ = dc.parse_args(["绝路p", "对", "重型机枪手", "100级", "爆头"])
 _r2 = dc.calculate(_sp2, base_w)
 # 2026-10-09 B2：人形头部 ×3（wiki Enemy_Body_Parts / wfsim MECHANICS.md:1001-1003）；
-# 重型机枪手在 enemies.json 为 riven-mirror 通用值 2 ⇒ 视为未分类，按人形计
+# 重型机枪手 head_mul 3.0（wiki Module:Enemies/data，scripts/merge_wfsim_enemies.py 补丁）
 if not close(_r2["head_mult"], 3.0, 1e-9):
     hi(f"🔴 普通单位爆头倍率应为 3.0，得到 {_r2['head_mult']}")
 print("  [OK] 爆头倍率按敌人（Eidolon ×1 / 普通人形 ×3）")

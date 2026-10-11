@@ -12,7 +12,9 @@ core/wiki_intro.py::_drops_card 读 items 键+值 + places + zh2en）：
   relic_drops  {基名小写: [[pid, rarity, chance], ...]}
   items        {英文物品名小写: [[pid, rarity, chance], ...]}   ← **与 places 同源同编号**
   zh2en        {中文名: 英文键}（值必须都是 items 的合法键；死映射剔除）
-  names/source 等其余辅助键续传（names 无 drops 相关消费）；source/updated 刷新。
+  source/updated 刷新；其余辅助键续传。
+  ★ 旧 ``names``（英文小写 → 英文原写法，3,595 条）2026-10-10 移除：全仓无读者
+  （运行期只读 places/relic_drops/items/zh2en），重建时不再续传。
 
 ★ 两条不变量（2026-10-04 立规，违反即缺陷）：
   1. **items 的 pid 必须与 places 同源同编号，禁止从旧文件续传值**
@@ -412,7 +414,8 @@ def main() -> int:
     if dropped:
         print(f"  zh2en 剔除死映射 {dropped} 条（指向不存在的 items 键）")
 
-    payload = dict(old)  # names 等其余辅助键续传（names 无 drops 相关消费）
+    payload = dict(old)  # 其余辅助键续传
+    payload.pop("names", None)  # 无读者的旧键（见模块文档），不再续传
     payload["source"] = SRC_URL
     payload["updated"] = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M")
     payload["places"] = dict(sorted(new_places.items(), key=lambda kv: int(kv[0])))

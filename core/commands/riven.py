@@ -15,7 +15,7 @@ from typing import Optional
 
 from .. import formatters as fmt
 from .. import matching
-from ..api_client import WarframeAPIError, fuzzy_hits
+from ..api_client import WarframeAPIError, fuzzy_hits, public_error_text
 from ..logging_compat import logger
 from .base import Reply
 
@@ -93,9 +93,10 @@ class RivenCommands:
         try:
             auctions = await self.client.wm_lich_auctions(slug, platform, lich_type=kind)
         except WarframeAPIError as exc:
-            # 市场侧失败要说清原因（限速/网络），不能糊成「内部错误」
+            # 市场侧失败要说清原因（限速/网络），不能糊成「内部错误」；原文只进日志
+            logger.warning("[sdjk] 玄骸拍卖查询失败（%s）：%s", slug, exc)
             return Reply(
-                raw_text=f"warframe.market 查询失败：{exc}\n"
+                raw_text=f"warframe.market 查询失败：{public_error_text(exc)}\n"
                 "多为市场限速（3 请求/秒）或网络抖动，"
                 "过几秒重试即可。"
             )
@@ -321,11 +322,22 @@ class RivenCommands:
                     "　例：紫卡分析 欧玛 暴伤82.8 范围1.6 攻速45.8 负滑暴81.3\n"
                     "　也可直接发「紫卡分析 + 紫卡截图」"
                 )
-            imgs = await self._image_data_urls(event)
-            if not imgs:
-                return Reply(raw_text="图片下载失败，请重发一次截图")
-            data = await self._extract_riven_from_image(imgs[0])
+            # 紫卡识图同样调用付费多模态模型（每次 2 路并行）⇒ 与识卡共用防刷闸
+            _gate, _sender = self._vision_gate(event, "紫卡识图")
+            if _gate is not None:
+                return _gate
+            _busy_key = f"riven:{getattr(event, 'unified_msg_origin', '') or ''}:{_sender}"
+            self._ocr_busy.add(_busy_key)
+            try:
+                imgs = await self._image_data_urls(event)
+                if not imgs:
+                    return Reply(raw_text="图片下载失败，请重发一次截图")
+                data = await self._extract_riven_from_image(imgs[0])
+            finally:
+                self._ocr_busy.discard(_busy_key)
             if not data:
+                if _sender:  # 识别失败返还冷却（同识卡口径）
+                    self._ocr_last.pop(_sender, None)
                 return Reply(
                     raw_text="图片识别失败（vision 渠道不可用或未配）——"
                     "请按文字格式发送：紫卡分析 武器名 暴伤82.8 范围1.6 "

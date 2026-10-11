@@ -108,8 +108,13 @@ _EN_TOKENS = set(VARIANT_TOKENS.values()) | _STANDALONE
 
 
 def normalize(s: str) -> str:
-    """匹配归一化：去空白(含全角 U+3000)/分隔符 + 小写。**不抹 prime**。"""
-    return _SEPS.sub("", (s or "")).lower()
+    """匹配归一化：NFKC 全半角 + 去空白(含全角 U+3000)/分隔符 + 小写。**不抹 prime**。
+
+    ★ 2026-10-10：补 NFKC —— DE 官方简中名用全角括号（「制胜者（近战）」），
+      WM/补全表用半角（「制胜者 (近战)」），不折叠就互不相等，落到形近兜底
+      配成「制胜者（主要）」（另一形态、另一紫卡类别）。
+    """
+    return _SEPS.sub("", unicodedata.normalize("NFKC", s or "")).lower()
 
 
 def _en_to_zh(tok: str) -> Optional[str]:

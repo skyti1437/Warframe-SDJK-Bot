@@ -11,9 +11,15 @@
 第二顺位查它）。**提取时保留原文**（`<...>` 占位符、`|COLOR_*|` 富文本都不动 —— 语义不丢、便于排错；
 清洗放在查询函数里做，见 `de_worldstate.language_text_zh`）。
 
+**去冗余（2026-10-10）**：运行期两处读者 `language_text_zh` 与 `_card_lang_index` 都是
+**先查 languages_zh、后查 zh_ext** ⇒ 与 languages_zh **同键同值**的条目永远读不到，
+产出时剔除（原 7,722 键里有 5,652 条属此类）。例外：`/Lotus/Language/CircleOfHell/`
+整段保留 —— `_coh_index()` **只读 zh_ext**，不查 languages_zh（剔掉会丢沉沦之地索引）。
+
 用法：
     python scripts/build_zh_ext.py                 # 提取（默认只读 _cache 全量包）
     python scripts/build_zh_ext.py --stats         # 只看各命名空间规模，不写文件
+    python scripts/build_zh_ext.py --dedupe-only   # 离线：只对现有 zh_ext.json 做去冗余
 """
 
 from __future__ import annotations
@@ -25,6 +31,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 FULL = ROOT / "core" / "data" / "_cache" / "languages_zh_full.json"
 OUT = ROOT / "core" / "data" / "de" / "zh_ext.json"
+BASE = ROOT / "core" / "data" / "de" / "languages_zh.json"  # 运行期第一顺位表
+
+# 去冗余时**不剔**的命名空间：这些段有「只读 zh_ext」的读者（de_worldstate._coh_index）
+KEEP_NS = ("/lotus/language/circleofhell/",)
 
 # 卡面会用到的命名空间（前缀匹配，大小写不敏感）。
 # · CircleOfHell：沉沦之地（炼狱）复杂化名 —— 官方 268 键，本地 36k 只有 6
@@ -44,7 +54,44 @@ PREFIXES = (
 )
 
 
+def drop_shadowed(picked: dict[str, str]) -> tuple[dict[str, str], int]:
+    """剔除与 languages_zh **同键同值**的条目（运行期先查 languages_zh ⇒ 永远读不到）。
+
+    返回 ``(保留表, 剔除数)``；``KEEP_NS`` 命名空间整段保留。
+    """
+    base = json.loads(BASE.read_text(encoding="utf-8")) if BASE.exists() else {}
+    kept: dict[str, str] = {}
+    dropped = 0
+    for k, v in picked.items():
+        if base.get(k) == v and not k.lower().startswith(KEEP_NS):
+            dropped += 1
+            continue
+        kept[k] = v
+    return kept, dropped
+
+
+def _write(picked: dict[str, str]) -> bytes:
+    blob = json.dumps(picked, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    print(f"产物大小 {len(blob)} bytes（{len(blob) / 1024:.0f} KB）")
+    return blob
+
+
+def dedupe_only() -> int:
+    """离线模式：不需要全量包，直接对现有产物做去冗余。"""
+    cur = json.loads(OUT.read_text(encoding="utf-8"))
+    kept, dropped = drop_shadowed(cur)
+    print(f"现有 {len(cur)} 键 → 剔除与 languages_zh 同值 {dropped} 键 → 保留 {len(kept)} 键")
+    blob = _write(kept)
+    if "--stats" in sys.argv:
+        return 0
+    OUT.write_bytes(blob)
+    print(f"已写 {OUT}")
+    return 0
+
+
 def main() -> int:
+    if "--dedupe-only" in sys.argv:
+        return dedupe_only()
     if not FULL.exists():
         print(
             f"✗ 找不到全量包：{FULL}\n  先拉：curl -L -o {FULL} "
@@ -73,9 +120,10 @@ def main() -> int:
         print(f"   {ns:<14}{n:>6} 键")
     coh = sum(1 for k in picked if "cohchallenge" in k.lower())
     print(f"   其中 CoHChallenge* = {coh} 键（审核要求 ≥68）")
+    picked, dropped = drop_shadowed(picked)
+    print(f"去冗余：剔除与 languages_zh 同值 {dropped} 键 → 产出 {len(picked)} 键")
 
-    blob = json.dumps(picked, ensure_ascii=False, sort_keys=True).encode("utf-8")
-    print(f"产物大小 {len(blob)} bytes（{len(blob) / 1024:.0f} KB）")
+    blob = _write(picked)
     if "--stats" in sys.argv:
         return 0
     OUT.write_bytes(blob)

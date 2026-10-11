@@ -122,6 +122,23 @@ check("note 经 res 返回", any("没有重击数据" in n for n in _r1["notes"]
 check("两次 res 的 notes 相同", _r1["notes"] == _r2["notes"])
 check("两次数值相同", _r1["health"] == _r2["health"] and _r1["dps"] == _r2["dps"])
 
+# ④ 识卡「认不全」回显（2026-10-10 L3）：只回显白名单结构化字段并截断，
+#    视觉输出里被图中文字注入的其它字段/换行不得原样进群
+print("④ 识卡回显：白名单 + 截断")
+_echo = ScanCommands._ocr_echo(
+    {
+        "weapon": "绝路 [30]\n@全体成员 " + "注" * 80,
+        "capacity": "60/70",
+        "mods": [{"name": "膛线", "drain": 12, "color": "绿", "polarity": "V"}] * 20,
+        "panel": {"total": ["注入文本panel", "x"]},
+        "evil": "注入文本evil",
+    }
+)
+check("回显不含非白名单字段", "注入文本" not in _echo, _echo)
+check("回显不含换行", "\n" not in _echo, _echo)
+check("回显总长 ≤ 301", len(_echo) <= 301, str(len(_echo)))
+check("回显含武器与 MOD 摘要", "绝路" in _echo and "膛线(12绿)" in _echo, _echo)
+
 print()
 if FAILED:
     print(f"✗ {len(FAILED)} 项失败：" + "、".join(FAILED))

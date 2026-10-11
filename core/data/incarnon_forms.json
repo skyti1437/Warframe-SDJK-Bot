@@ -1,9 +1,10 @@
 {
  "_meta": {
   "source": "github.com/magenie33/wfsim data/weapons/*（form: incarnon），数值为其按 wiki/实测整理的事实数据；zh 名为 DE 官方简中",
-  "updated": "2026-09-16",
+  "wfsim_commit": "2e5a8d4b21b0fab49d952b22b4ac8fc4054b8fa0",
+  "generator": "scripts/build_incarnon_forms.py",
   "scope": "枪械灵化（近战灵化 wfsim 尚未导入）；attack 块不含灵化进化 perk",
-  "pseudo_reload": "2026-10-09 补入（wfsim @8f3e6a5，灵化弹池 magazine / reload_seconds）；其余字段仍为 2026-09-16 快照 —— HEAD 已漂移 7 处（拉特昂家族 ricochet ×4、forced_procs ×2、Stug 灵化 radial ×1），待单独一批核对后再整表重生成"
+  "radial": "暴击/触发缺省继承直击段（wfsim panel.rs:268-271）；takes_multishot 只写有出处的 false（缺省 = 吃多重，attack.rs:713-731）；takes_condition_overload 只写 true"
  },
  "/lotus/weapons/tenno/shotgun/fullautoshotgun": {
   "form_id": "boar_incarnon",
@@ -125,7 +126,9 @@
    "criticalMultiplier": 3.0,
    "procChance": 0.12,
    "radius_m": 3.0,
-   "falloff_reduction": 0.1
+   "falloff_reduction": 0.1,
+   "takes_multishot": false,
+   "takes_condition_overload": true
   },
   "pseudo_reload": {
    "magazine": 200.0,
@@ -160,7 +163,9 @@
    "criticalMultiplier": 3.0,
    "procChance": 0.3,
    "radius_m": 3.0,
-   "falloff_reduction": 0.1
+   "falloff_reduction": 0.1,
+   "takes_multishot": false,
+   "takes_condition_overload": true
   },
   "pseudo_reload": {
    "magazine": 200.0,
@@ -195,7 +200,9 @@
    "criticalMultiplier": 3.2,
    "procChance": 0.22,
    "radius_m": 3.0,
-   "falloff_reduction": 0.1
+   "falloff_reduction": 0.1,
+   "takes_multishot": false,
+   "takes_condition_overload": true
   },
   "pseudo_reload": {
    "magazine": 200.0,
@@ -228,7 +235,9 @@
    "criticalMultiplier": 3.0,
    "procChance": 0.3,
    "radius_m": 2.0,
-   "falloff_reduction": 1.0
+   "falloff_reduction": 1.0,
+   "takes_multishot": false,
+   "takes_condition_overload": true
   },
   "pseudo_reload": {
    "magazine": 600.0,
@@ -261,7 +270,9 @@
    "criticalMultiplier": 3.0,
    "procChance": 0.3,
    "radius_m": 2.0,
-   "falloff_reduction": 1.0
+   "falloff_reduction": 1.0,
+   "takes_multishot": false,
+   "takes_condition_overload": true
   },
   "pseudo_reload": {
    "magazine": 600.0,
@@ -340,6 +351,10 @@
   "forced_procs": [
    "blast"
   ],
+  "burst": {
+   "count": 4,
+   "delay_seconds": 0.09
+  },
   "pseudo_reload": {
    "magazine": 200.0,
    "reload_seconds": 2.5
@@ -364,6 +379,7 @@
   "procChance": 0.3,
   "fireRate": 1.5,
   "multishot": 1.0,
+  "charge_seconds": 0.6,
   "pseudo_reload": {
    "magazine": 20.0,
    "reload_seconds": 1.7
@@ -494,10 +510,9 @@
    "radius_m": 4.0,
    "falloff_reduction": 0.2
   },
-  "ricochet": {
-   "bounces": 5,
-   "headshot_chance": 0.5
-  },
+  "forced_procs": [
+   "impact"
+  ],
   "pseudo_reload": {
    "magazine": 40.0,
    "reload_seconds": 3.4
@@ -535,10 +550,6 @@
   "forced_procs": [
    "impact"
   ],
-  "ricochet": {
-   "bounces": 5,
-   "headshot_chance": 0.5
-  },
   "pseudo_reload": {
    "magazine": 40.0,
    "reload_seconds": 3.4
@@ -573,10 +584,9 @@
    "radius_m": 4.0,
    "falloff_reduction": 0.2
   },
-  "ricochet": {
-   "bounces": 5,
-   "headshot_chance": 0.5
-  },
+  "forced_procs": [
+   "impact"
+  ],
   "pseudo_reload": {
    "magazine": 40.0,
    "reload_seconds": 3.4
@@ -645,7 +655,9 @@
    "criticalMultiplier": 2.4,
    "procChance": 0.1,
    "radius_m": 3.0,
-   "falloff_reduction": 0.1
+   "falloff_reduction": 0.1,
+   "takes_multishot": false,
+   "takes_condition_overload": true
   },
   "pseudo_reload": {
    "magazine": 200.0,
@@ -670,6 +682,7 @@
   "procChance": 0.2,
   "fireRate": 1.0,
   "multishot": 1.0,
+  "charge_seconds": 0.8,
   "pseudo_reload": {
    "magazine": 20.0,
    "reload_seconds": 1.55
@@ -728,6 +741,7 @@
   "procChance": 0.2,
   "fireRate": 1.0,
   "multishot": 1.0,
+  "charge_seconds": 0.8,
   "pseudo_reload": {
    "magazine": 20.0,
    "reload_seconds": 1.65
@@ -751,6 +765,7 @@
   "procChance": 0.2,
   "fireRate": 1.0,
   "multishot": 1.0,
+  "charge_seconds": 0.8,
   "pseudo_reload": {
    "magazine": 20.0,
    "reload_seconds": 1.7
@@ -998,6 +1013,10 @@
   "forced_procs": [
    "blast"
   ],
+  "burst": {
+   "count": 4,
+   "delay_seconds": 0.101
+  },
   "pseudo_reload": {
    "magazine": 200.0,
    "reload_seconds": 3.0
@@ -1025,6 +1044,10 @@
   "forced_procs": [
    "blast"
   ],
+  "burst": {
+   "count": 4,
+   "delay_seconds": 0.062
+  },
   "pseudo_reload": {
    "magazine": 200.0,
    "reload_seconds": 3.0
@@ -1220,6 +1243,7 @@
   "procChance": 0.2,
   "fireRate": 3.33,
   "multishot": 1.0,
+  "charge_seconds": 0.4,
   "pseudo_reload": {
    "magazine": 18.0,
    "reload_seconds": 3.0
@@ -1242,6 +1266,7 @@
   "procChance": 0.3,
   "fireRate": 3.33,
   "multishot": 1.0,
+  "charge_seconds": 0.4,
   "pseudo_reload": {
    "magazine": 18.0,
    "reload_seconds": 2.2
@@ -1372,13 +1397,13 @@
   "procChance": 0.43,
   "fireRate": 4.5,
   "multishot": 1.0,
-  "ricochet": {
-   "bounces": 1,
-   "headshot_chance": 0.5
-  },
   "pseudo_reload": {
    "magazine": 270.0,
    "reload_seconds": 3.35
+  },
+  "ricochet": {
+   "bounces": 1,
+   "headshot_chance": 0.2
   }
  },
  "/lotus/weapons/tenno/pistol/autopistol": {
@@ -1724,6 +1749,7 @@
   "procChance": 0.25,
   "fireRate": 3.33,
   "multishot": 1.0,
+  "charge_seconds": 0.4,
   "pseudo_reload": {
    "magazine": 18.0,
    "reload_seconds": 3.0
@@ -1748,6 +1774,10 @@
   "procChance": 0.2,
   "fireRate": 3.5,
   "multishot": 1.0,
+  "burst": {
+   "count": 3,
+   "delay_seconds": 0.04
+  },
   "pseudo_reload": {
    "magazine": 120.0,
    "reload_seconds": 3.0
@@ -1772,6 +1802,10 @@
   "procChance": 0.2,
   "fireRate": 5.0,
   "multishot": 1.0,
+  "burst": {
+   "count": 3,
+   "delay_seconds": 0.04
+  },
   "pseudo_reload": {
    "magazine": 120.0,
    "reload_seconds": 3.0
@@ -1794,17 +1828,6 @@
   "procChance": 0.2,
   "fireRate": 4.0,
   "multishot": 1.0,
-  "radial": {
-   "damage": {
-    "corrosive": 200.0,
-    "total": 200.0
-   },
-   "criticalChance": 0.15,
-   "criticalMultiplier": 2.0,
-   "procChance": 0.2,
-   "radius_m": 0.3,
-   "falloff_reduction": 0.3
-  },
   "pseudo_reload": {
    "magazine": 120.0,
    "reload_seconds": 3.0
@@ -1865,6 +1888,10 @@
   "procChance": 0.0267,
   "fireRate": 2.5,
   "multishot": 6.0,
+  "burst": {
+   "count": 6,
+   "delay_seconds": 0.1
+  },
   "pseudo_reload": {
    "magazine": 24.0,
    "reload_seconds": 2.0
@@ -1889,6 +1916,10 @@
   "procChance": 0.0667,
   "fireRate": 2.5,
   "multishot": 6.0,
+  "burst": {
+   "count": 6,
+   "delay_seconds": 0.1
+  },
   "pseudo_reload": {
    "magazine": 24.0,
    "reload_seconds": 2.0
@@ -1921,8 +1952,11 @@
    "criticalMultiplier": 2.0,
    "procChance": 0.4,
    "radius_m": 6.0,
-   "falloff_reduction": 0.6
+   "falloff_reduction": 0.6,
+   "takes_multishot": false,
+   "takes_condition_overload": true
   },
+  "charge_seconds": 0.6,
   "pseudo_reload": {
    "magazine": 12.0,
    "reload_seconds": 2.2
@@ -1955,8 +1989,11 @@
    "criticalMultiplier": 2.4,
    "procChance": 0.4,
    "radius_m": 6.0,
-   "falloff_reduction": 0.6
+   "falloff_reduction": 0.6,
+   "takes_multishot": false,
+   "takes_condition_overload": true
   },
+  "charge_seconds": 0.6,
   "pseudo_reload": {
    "magazine": 12.0,
    "reload_seconds": 2.2

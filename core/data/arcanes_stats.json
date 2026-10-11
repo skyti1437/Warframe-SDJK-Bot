@@ -1103,7 +1103,7 @@
     "conditional": [
      "On Precision Headshot Kill:\\n+120% Damage for 24s. Stacks up to 3x.\\n+30% to Headshot Multiplier\\n-50% Weapon Recoil"
     ],
-    "headshot_bonus": 60.0
+    "headshot_bonus": 30.0
    },
    "levels": [
     {
@@ -1135,7 +1135,7 @@
      "conditional": [
       "On Precision Headshot Kill:\\n+120% Damage for 24s. Stacks up to 3x.\\n+30% to Headshot Multiplier\\n-50% Weapon Recoil"
      ],
-     "headshot_bonus": 60.0
+     "headshot_bonus": 30.0
     }
    ],
    "text": "On Precision Headshot Kill: +20% Damage for 24s. Stacks up to 3x. On Precision Headshot Kill: +40% Damage for 24s. Stacks up to 3x. On Precision Headshot Kill: +60% Damage for 24s. Stacks up to 3x. On Precision Headshot Kill: +80% Damage for 24s. Stacks up to "
@@ -1285,7 +1285,7 @@
     "conditional": [
      "On Kill:\\n+30% Damage for 4s. Stacks up to 12x.\\n+30% Reload Speed"
     ],
-    "reload_pct": 60.0
+    "reload_pct": 30.0
    },
    "levels": [
     {
@@ -1317,7 +1317,7 @@
      "conditional": [
       "On Kill:\\n+30% Damage for 4s. Stacks up to 12x.\\n+30% Reload Speed"
      ],
-     "reload_pct": 60.0
+     "reload_pct": 30.0
     }
    ],
    "text": "On Kill: +5% Damage for 4s. Stacks up to 12x. On Kill: +10% Damage for 4s. Stacks up to 12x. On Kill: +15% Damage for 4s. Stacks up to 12x. On Kill: +20% Damage for 4s. Stacks up to 12x. On Kill: +25% Damage for 4s. Stacks up to 12x. On Kill: +30% Damage for 4"
@@ -1562,7 +1562,7 @@
     "conditional": [
      "On Precision Headshot Kill:\\n+120% Damage for 24s. Stacks up to 3x.\\n+30% to Headshot Multiplier\\n-50% Weapon Recoil"
     ],
-    "headshot_bonus": 60.0
+    "headshot_bonus": 30.0
    },
    "levels": [
     {
@@ -1594,7 +1594,7 @@
      "conditional": [
       "On Precision Headshot Kill:\\n+120% Damage for 24s. Stacks up to 3x.\\n+30% to Headshot Multiplier\\n-50% Weapon Recoil"
      ],
-     "headshot_bonus": 60.0
+     "headshot_bonus": 30.0
     }
    ],
    "text": "On Precision Headshot Kill: +20% Damage for 24s. Stacks up to 3x. On Precision Headshot Kill: +40% Damage for 24s. Stacks up to 3x. On Precision Headshot Kill: +60% Damage for 24s. Stacks up to 3x. On Precision Headshot Kill: +80% Damage for 24s. Stacks up to "
@@ -1806,7 +1806,7 @@
     "conditional": [
      "On Kill:\\n+30% Damage for 4s. Stacks up to 12x.\\n+30% Reload Speed"
     ],
-    "reload_pct": 60.0
+    "reload_pct": 30.0
    },
    "levels": [
     {
@@ -1838,7 +1838,7 @@
      "conditional": [
       "On Kill:\\n+30% Damage for 4s. Stacks up to 12x.\\n+30% Reload Speed"
      ],
-     "reload_pct": 60.0
+     "reload_pct": 30.0
     }
    ],
    "text": "On Kill: +5% Damage for 4s. Stacks up to 12x. On Kill: +10% Damage for 4s. Stacks up to 12x. On Kill: +15% Damage for 4s. Stacks up to 12x. On Kill: +20% Damage for 4s. Stacks up to 12x. On Kill: +25% Damage for 4s. Stacks up to 12x. On Kill: +30% Damage for 4"

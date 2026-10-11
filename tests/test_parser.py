@@ -102,6 +102,13 @@ q = parse_wm(["古纪", "A1", "光辉"])
 check("wm 遗物精炼等级", q.refinement == "radiant" and q.item == "古纪 A1")
 q = parse_wm(["合购", "saryn*2,loki"])
 check("wm 合购列表", q.group_buy == [("saryn", 2), ("loki", 1)])
+check("wm 合购未超上限不计忽略", q.group_buy_dropped == 0)
+# 合购上限（2026-10-10 L1）：每项一次 WM 请求，超出 10 项的部分忽略并计数（回复里提示）
+q = parse_wm(["合购", ",".join(f"item{i}" for i in range(15))])
+check(
+    "wm 合购上限 10 项",
+    len(q.group_buy) == 10 and q.group_buy[-1] == ("item9", 1) and q.group_buy_dropped == 5,
+)
 q = parse_wm(["充沛", "3个", "满级"])
 check("wm 数量+等级", q.quantity == 3 and q.rank == -1 and q.rank_word == "满级")
 

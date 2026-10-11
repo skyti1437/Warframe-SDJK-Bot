@@ -442,18 +442,6 @@ def item_name(path: str) -> str:
     return item_name_opt(path) or _prettify(path)
 
 
-def node_cn(key: str) -> str:
-    """SolNode/CrewBattleNode 等节点键 -> 中文节点名（带星球）。"""
-    if not key:
-        return "?"
-    node = sol_node(key)
-    if node:
-        return _node_name(key)
-    # 导出词库里的 Regions 也带节点名
-    reg = _load("name_zh.json").get(key.lower())
-    return reg or key
-
-
 # 派系显示名。
 #
 # ⚠️ 直接用 **DE 官方导出的 Faction 表**（build_de_data.py 由 ExportFactions +
@@ -861,7 +849,9 @@ def zariman_cycle(seed: Optional[int], expiry_ms: Optional[int], now_ms: int) ->
 # ---------------------------------------------------------------------------
 
 
+@lru_cache(maxsize=1)
 def _synth_table() -> list[dict]:
+    # 静态表（随包分发），worldstate 每 30 s 解析一次都会用到 ⇒ 只读一次盘
     import json as _json
     from pathlib import Path as _P
 
@@ -871,9 +861,6 @@ def _synth_table() -> list[dict]:
         )
     except Exception:  # noqa: BLE001
         return {}
-
-
-_ZH_SYNONYM = {}  # 简-繁/异体占位
 
 
 def _parse_synth(raw: dict) -> list[dict]:

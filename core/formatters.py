@@ -111,13 +111,6 @@ def riven_type_cn(riven_type: str, group: str = "") -> str:
     return RIVEN_TYPE_CN.get(key, riven_type)
 
 
-def _tier_stars(tier_num) -> str:
-    try:
-        return "★" * int(tier_num)
-    except (TypeError, ValueError):
-        return ""
-
-
 def _state_cn(state: str) -> str:
     """周期状态显示名。
 
@@ -373,13 +366,6 @@ def fmt_fissures(
     return (head, lines or ["当前筛选条件下没有进行中的裂隙"])
 
 
-def _t_num(f: dict) -> int:
-    try:
-        return int(f.get("tierNum", 0))
-    except (TypeError, ValueError):
-        return 0
-
-
 _MODIFIER_CN: dict[str, str] = {}
 
 
@@ -606,8 +592,9 @@ def fmt_void_trader(trader: Optional[dict]) -> tuple[str, list[str]]:
     active = trader.get("active", False)
     lines = []
     if active:
+        trader_name = trader.get("character", "Baro Ki'Teer")
         lines.append(
-            f"{trader.get('character', "Baro Ki'Teer")} 已抵达 "
+            f"{trader_name} 已抵达 "
             f"{trader.get('location', '?')}，离开剩余 {countdown(trader.get('expiry', ''))}"
         )
         inv = trader.get("inventory") or []

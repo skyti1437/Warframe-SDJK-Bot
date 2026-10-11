@@ -153,6 +153,17 @@ check("超大页码不抛", e is None, repr(e))
 p, e = safe_parse("wr 基多 -0")
 check("页码 -0 不抛", e is None, repr(e))
 
+# ---------------------------------------------------------------- 恶意长串（2026-10-10）
+# 旧版 segment_stats 对超长连写串是 O(n³) + 递归深度 n：4×950 字 3.7 s，1500+ 字递归过深
+from core.parser import parse_wr, segment_stats  # noqa: E402
+
+_t0 = time.perf_counter()
+_q = parse_wr(["暴" * 950] * 4 + ["暴" * 5000])
+_dt = time.perf_counter() - _t0
+check("★ 超长连写词条串 1 s 内返回且不抛", _dt < 1.0, f"{_dt:.2f}s")
+check("超长串不当词条（返回 None）", segment_stats("暴" * 100) is None)
+check("正常连写照旧：基多暴", segment_stats("基多暴") is not None)
+
 print()
 if FAILED:
     print(f"共 {len(FAILED)} 项失败：{FAILED}")

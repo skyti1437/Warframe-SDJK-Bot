@@ -266,6 +266,94 @@ check(
     str(V._stat_id_from_name("毒素伤害", _rev)),
 )
 
+# ⑫ ★ 2026-10-10 对照 wfsim ce78ffeafd（market.yaml riven_stats）+ WM v2 实测：
+#   `/v2/riven/attributes` 2026-10-10 返回 50 个 slug = 上面 32 个 + 下面 18 个 Splicer 新词条
+#   （与 wfsim 表的 slug 集逐一相等）。冻结在此：WM 再改词条时这里先失败。
+WM_SPLICER_SLUGS = [
+    "ammo_efficiency",
+    "blast",
+    "corrosive",
+    "damage_to_orokin",
+    "damage_to_scaldra",
+    "damage_to_techrot",
+    "gas",
+    "heavy_attack_wind_up_speed",
+    "magazine_reloaded_s_when_holstered",
+    "magnetic",
+    "melee_damage_on_heavy_attack",
+    "parry_angle",
+    "radiation",
+    "slam_attack_damage",
+    "status_damage",
+    "viral",
+    "weak_point_critical_chance",
+    "weak_point_damage",
+]
+_ALL50 = set(WM_RIVEN_SLUGS) | set(WM_SPLICER_SLUGS)
+check("⑫① 32 + 18 = 50 个 slug 无交叠", len(_ALL50) == 50, str(len(_ALL50)))
+check(
+    "⑫② 我方 wr 发出的 slug 集 == WM 50 个（无缺、无多、无错拼）",
+    {P.RIVEN_URL_COMPAT.get(s, s) for s in P.RIVEN_STAT_ALIASES} == _ALL50,
+    str({P.RIVEN_URL_COMPAT.get(s, s) for s in P.RIVEN_STAT_ALIASES} ^ _ALL50),
+)
+for slug in WM_SPLICER_SLUGS:
+    check(f"⑫③ Splicer 拍卖词条已中文化：{slug}", F._riven_stat_cn(slug) != slug.replace("_", " "))
+# 真实入口 parse_wr → normalize_riven_stats：玩家写法 → WM slug
+from core.api_client import WarframeClient as _WC  # noqa: E402
+
+for _text, _pos, _neg in (
+    ("x 病毒 弱爆 负弹效", ["viral", "weak_point_critical_chance"], ["ammo_efficiency"]),
+    ("x 毒气辐射 对炽蛇军", ["gas", "radiation", "damage_to_scaldra"], []),
+    (
+        "x 重击伤害 招架 负震地",
+        ["melee_damage_on_heavy_attack", "parry_angle"],
+        ["slam_attack_damage"],
+    ),
+    (
+        "x 重击速度 收枪装填 负腐蚀",
+        ["heavy_attack_wind_up_speed", "magazine_reloaded_s_when_holstered"],
+        ["corrosive"],
+    ),
+    (
+        "x 磁力爆炸 对奥罗金 负对科腐者",
+        ["magnetic", "blast", "damage_to_orokin"],
+        ["damage_to_techrot"],
+    ),
+    # 原有常用词条不回归
+    ("x 暴击暴伤 多重 负变焦", ["critical_chance", "critical_damage", "multishot"], ["zoom"]),
+    (
+        "x 基伤 攻速 触发 负G",
+        ["base_damage_/_melee_damage", "fire_rate_/_attack_speed", "status_chance"],
+        ["damage_vs_grineer"],
+    ),
+    (
+        "x 双暴 滑暴 负初始连击",
+        ["critical_chance", "critical_damage", "critical_chance_on_slide_attack"],
+        ["channeling_damage"],
+    ),
+):
+    _q = P.parse_wr(_text.split())
+    _gp, _gn = _WC.normalize_riven_stats(_q.stats), _WC.normalize_riven_stats(_q.negatives)
+    check(
+        f"⑫④ parse_wr「{_text}」→ slug",
+        _q.weapon == "x" and _gp == _pos and _gn == _neg,
+        f"weapon={_q.weapon!r} pos={_gp} neg={_gn}",
+    )
+
+# ⑬ ★ 卡面短名回读：wr 卡显示的每个短名（RIVEN_STAT_ZH）都能被 parse_wr 认回同一词条
+#   （修复前 O伤/S伤/T伤/弱点伤/处决伤 5 个认不出，「wr 空刃 异常伤 弱点伤」的武器名
+#   变成「空刃 弱点伤」）。
+_unread = [(k, v) for k, v in P.RIVEN_STAT_ZH.items() if P._STAT_LOOKUP.get(v) != k]
+check("⑬① 卡面短名全部可回读为同一词条", not _unread, str(_unread))
+_q = P.parse_wr("空刃 异常伤 弱点伤 负O伤".split())
+check(
+    "⑬② wr 空刃 异常伤 弱点伤 负O伤 → 武器「空刃」+ 3 词条",
+    _q.weapon == "空刃"
+    and _WC.normalize_riven_stats(_q.stats) == ["status_damage", "weak_point_damage"]
+    and _WC.normalize_riven_stats(_q.negatives) == ["damage_to_orokin"],
+    f"weapon={_q.weapon!r} pos={_q.stats} neg={_q.negatives}",
+)
+
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")
     sys.exit(1)

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import time
 from typing import Optional
 
@@ -51,25 +52,11 @@ class ScanCommands:
         #   渲染 39s+，账单也会跟着涨。这里加两道闸（都能在面板关掉/调整）：
         #     ① 同一发送者冷却 scan_cooldown 秒（默认 15，设 0 关闭）
         #     ② 全局并发上限 scan_max_concurrent（默认 3，设 0 关闭）
+        #   两道闸的实现在 vision._vision_gate（2026-10-10 起与紫卡识图共用）。
+        _gate, _sender = self._vision_gate(event, "识卡")
+        if _gate is not None:
+            return _gate
         _cd = _num(self.cfg, "scan_cooldown", 15)
-        _sender = self._safe_sender(event)
-        if _cd > 0 and _sender:
-            _last = self._ocr_last.get(_sender, 0.0)
-            _left = _cd - (time.time() - _last)
-            if _last and _left > 0:
-                return Reply(
-                    raw_text=f"⏳ 识卡太频繁了，请 {_left:.0f} 秒后再试\n"
-                    "（面板「识卡冷却秒数」可调，设 0 关闭限制）"
-                )
-            # 顺手清掉过期记录，避免长期运行把字典撑大
-            if len(self._ocr_last) > 512:
-                _now = time.time()
-                for _k in [k for k, v in self._ocr_last.items() if _now - v > max(_cd * 4, 120)]:
-                    self._ocr_last.pop(_k, None)
-            self._ocr_last[_sender] = time.time()
-        _cap = int(_num(self.cfg, "scan_max_concurrent", 3))
-        if _cap > 0 and len(self._ocr_busy) >= _cap:
-            return Reply(raw_text=f"⏳ 机器人正在处理其它识卡请求（并发上限 {_cap}），请稍后再试")
 
         # 同一会话串行：识卡是「多次 vision 调用 + 双页渲染」的重活，
         # 连发会让容器 CPU 争抢（实测单张渲染 0.7s → 39s）。
@@ -104,7 +91,7 @@ class ScanCommands:
         lines = lo.card_lines(an)
         # 认不全时把原始识别结果附上：否则用户只看到「没认出来」，无法判断是图的问题还是库的问题
         if not an.get("ok"):
-            lines.append("　原始识别结果：" + json.dumps(ocr, ensure_ascii=False)[:700])
+            lines.append("　原始识别结果：" + self._ocr_echo(ocr))
 
         # 缓存折算结果供「识卡伤害」复算（30 分钟）
         umo = event.unified_msg_origin
@@ -127,6 +114,40 @@ class ScanCommands:
         if detail:
             return Reply(pages=[("配卡识别", lines), ("配卡识别 · 伤害详情", detail)])
         return Reply("配卡识别", lines)
+
+    @staticmethod
+    def _ocr_echo(ocr: dict, limit: int = 300) -> str:
+        """「认不全」时回显的识别结果：**只取白名单结构化字段**并截断。
+
+        视觉模型输出可被图中文字注入任意文本（此前整段 json.dumps 回显 700 字），
+        这里只留武器名 / 容量 / 每张 MOD 的名称 + 容量数字 + 颜色，逐字段限长、
+        去换行与控制字符，总长再截到 ``limit``。
+        """
+
+        def _clean(v, n: int) -> str:
+            t = re.sub(r"[\x00-\x1f\x7f\u2028\u2029]+", " ", str(v or "")).strip()
+            return t[:n] + ("…" if len(t) > n else "")
+
+        parts = []
+        weapon = _clean(ocr.get("weapon"), 30)
+        parts.append(f"武器「{weapon or '未读出'}」")
+        cap = str(ocr.get("capacity") or "")
+        if re.fullmatch(r"\s*\d{1,3}\s*/\s*\d{1,3}\s*", cap):
+            parts.append(f"容量 {cap.strip()}")
+        mods = ocr.get("mods") if isinstance(ocr.get("mods"), list) else []
+        shown = []
+        for m in mods[:12]:
+            if not isinstance(m, dict):
+                continue
+            name = _clean(m.get("name"), 16) or "?"
+            drain = m.get("drain")
+            drain_s = str(drain) if isinstance(drain, int) and 0 <= drain < 100 else "?"
+            color = str(m.get("color") or "")
+            color_s = color if color in ("绿", "红", "白") else "?"
+            shown.append(f"{name}({drain_s}{color_s})")
+        parts.append(f"MOD {len(mods)} 张：" + ("、".join(shown) or "无"))
+        out = "｜".join(parts)
+        return out[:limit] + ("…" if len(out) > limit else "")
 
     def _loadout_detail_lines(self, an: dict) -> Optional[list[str]]:
         """识卡第二页：用与「伤害计算」完全同一套管线出详情。
@@ -200,11 +221,11 @@ class ScanCommands:
             res = dc.calculate(spec, weapon)
             return Reply("识卡伤害", dc.card_lines(weapon, spec, res, []))
         except Exception as exc:  # noqa: BLE001 —— 绝不静默
-            logger.warning("[sdjk] 识卡伤害复算失败：%r", exc)
+            logger.exception("[sdjk] 识卡伤害复算失败：%r", exc)
             return Reply(
                 "识卡伤害",
                 [
-                    f"❗ 复算出错：{type(exc).__name__}: {exc}",
+                    "❗ 复算出错（内部错误，详情已写入日志）",
                     "　重新发一次「识卡」后再试；参数写法见「伤害」指令的用法页。",
                 ],
             )
@@ -270,7 +291,8 @@ class ScanCommands:
         """
         # ★ 豆子检测要在**缩放前**的原图上做（_detect_pips 的说明）
         pips_rows = await self._detect_pips(image_url)
-        image_url = self._fit_scan_image(image_url)
+        # 缩放 + 重编码是纯 CPU 活（Lanczos），放线程里跑，别卡住事件循环
+        image_url = await asyncio.to_thread(self._fit_scan_image, image_url)
         best: Optional[tuple[int, dict]] = None  # (失败项数, ocr)
 
         def _finish(o: Optional[dict]) -> Optional[dict]:
@@ -303,7 +325,10 @@ class ScanCommands:
                         "[sdjk] ★ 豆子检测到了但**对齐无解**，本次退回容量反推"
                         "（截图存到 scan_debug/ 便于排查）"
                     )
-                    self._dump_scan_debug(image_url)
+                    # 解码 + 存 JPEG 放线程池（_score 是同步内层函数，不等它完成）
+                    asyncio.get_running_loop().run_in_executor(
+                        None, self._dump_scan_debug, image_url
+                    )
             bad = 6 if not an.get("weapon") else 0
             checks = an.get("checks") or []
             bad += sum(1 for c in checks if not c["ok"])

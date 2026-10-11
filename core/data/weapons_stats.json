@@ -439,13 +439,13 @@
   "category": "Primary",
   "masteryReq": 10,
   "damage": {
-   "total": 24,
+   "total": 29.0,
    "impact": 0,
    "puncture": 0,
    "slash": 0,
    "heat": 0,
    "cold": 0,
-   "electricity": 24,
+   "electricity": 29.0,
    "toxin": 0,
    "blast": 0,
    "radiation": 0,
@@ -476,9 +476,9 @@
    {
     "name": "Auto",
     "damage": {
-     "electricity": 24.0
+     "electricity": 29.0
     },
-    "total": 24.0,
+    "total": 29.0,
     "crit_chance": 14,
     "crit_mult": 2.8,
     "status_chance": 26,
@@ -572,7 +572,8 @@
     "shot_type": "Hit-Scan"
    }
   ],
-  "zh": "安培克斯"
+  "zh": "安培克斯",
+  "ammoCost": 0.5
  },
  "/lotus/weapons/corpus/longguns/crpshotgun/crpshotgun": {
   "name": "Arca Plasmor",
@@ -1066,7 +1067,7 @@
   },
   "criticalChance": 0.31999999,
   "criticalMultiplier": 2.4000001,
-  "fireRate": 3.571429,
+  "fireRate": 2.5,
   "trigger": "Auto Burst",
   "multishot": 1,
   "disposition": 3,
@@ -1122,7 +1123,9 @@
     }
    }
   ],
-  "zh": "武使之力"
+  "zh": "武使之力",
+  "burstCount": 2,
+  "burstDelay": 0.08
  },
  "/lotus/weapons/tenno/longguns/tnsmg/tnsmgweapon": {
   "name": "Baza",
@@ -1931,7 +1934,7 @@
   },
   "criticalChance": 0.059999999,
   "criticalMultiplier": 1.6,
-  "fireRate": 7.8328986,
+  "fireRate": 5.0,
   "trigger": "Burst",
   "multishot": 1,
   "disposition": 5,
@@ -1985,7 +1988,9 @@
     }
    }
   ],
-  "zh": "伯斯顿"
+  "zh": "伯斯顿",
+  "burstCount": 3,
+  "burstDelay": 0.061
  },
  "/lotus/weapons/tenno/longguns/primeburston/primeburston": {
   "name": "Burston Prime",
@@ -2017,7 +2022,7 @@
   },
   "criticalChance": 0.18000001,
   "criticalMultiplier": 1.8,
-  "fireRate": 9.375,
+  "fireRate": 5.0,
   "trigger": "Burst",
   "multishot": 1,
   "disposition": 5,
@@ -2071,7 +2076,9 @@
     }
    }
   ],
-  "zh": "伯斯顿 Prime"
+  "zh": "伯斯顿 Prime",
+  "burstCount": 3,
+  "burstDelay": 0.04
  },
  "/lotus/weapons/grineer/longguns/grngorgsniperrifle/grngorgsniperrifle": {
   "name": "Buzlok",
@@ -2464,7 +2471,8 @@
     "flight": 90
    }
   ],
-  "zh": "西诺斯"
+  "zh": "西诺斯",
+  "chargeCadence": "draw"
  },
  "/lotus/weapons/tenno/bows/primecernos/primecernos": {
   "name": "Cernos Prime",
@@ -2540,7 +2548,8 @@
     "flight": 95
    }
   ],
-  "zh": "西诺斯 Prime"
+  "zh": "西诺斯 Prime",
+  "chargeCadence": "draw"
  },
  "/lotus/weapons/tenno/bows/daxduviriasymetricalbow/daxduviriasymmetricallongbowplayerweapon": {
   "name": "Cinta",
@@ -2579,7 +2588,7 @@
   "type": "Rifle",
   "magazineSize": 1,
   "reloadTime": 0.60000002,
-  "procChance": 0.31999999,
+  "procChance": 0.3,
   "omegaAttenuation": 1.2,
   "attacks": [
    {
@@ -2629,7 +2638,8 @@
     "flight": 50
    }
   ],
-  "zh": "遂心"
+  "zh": "遂心",
+  "chargeCadence": "draw"
  },
  "/lotus/weapons/infested/infestedlich/longguns/1999infshotgun/1999infshotgunweapon": {
   "name": "Coda Bassocyst",
@@ -2701,7 +2711,7 @@
   },
   "criticalChance": 0.2,
   "criticalMultiplier": 2.3,
-  "fireRate": 6.1538458,
+  "fireRate": 5.33,
   "trigger": "Burst",
   "multishot": 1,
   "type": "Rifle",
@@ -2709,7 +2719,9 @@
   "reloadTime": 2,
   "procChance": 0.30000001,
   "omegaAttenuation": 0.5,
-  "zh": "终幕·血肢"
+  "zh": "终幕·血肢",
+  "burstCount": 3,
+  "burstDelay": 0.1
  },
  "/lotus/weapons/infested/infestedlich/longguns/codasporothrix": {
   "name": "Coda Sporothrix",
@@ -2852,7 +2864,8 @@
   "reloadTime": 1.5,
   "procChance": 0.14999998,
   "omegaAttenuation": 0.5,
-  "zh": "终幕·突触生化枪"
+  "zh": "终幕·突触生化枪",
+  "ammoCost": 0.5
  },
  "/lotus/weapons/corpus/longguns/crpsplitlaser/crpsplitlaser": {
   "name": "Convectrix",
@@ -2922,7 +2935,9 @@
     "shot_type": "Hit-Scan"
    }
   ],
-  "zh": "导热聚焦枪"
+  "zh": "导热聚焦枪",
+  "ammoCost": 0.5,
+  "magazineSize": 70
  },
  "/lotus/weapons/tenno/longguns/tnheavyshotgun/tnheavyshotgungun": {
   "name": "Corinth",
@@ -3168,7 +3183,8 @@
     "flight": 140
    }
   ],
-  "zh": "大久和弓"
+  "zh": "大久和弓",
+  "chargeCadence": "draw"
  },
  "/lotus/weapons/clantech/energy/energyrifle": {
   "name": "Dera",
@@ -3348,7 +3364,7 @@
   },
   "criticalChance": 0.34999999,
   "criticalMultiplier": 2,
-  "fireRate": 4.166667,
+  "fireRate": 3.33,
   "trigger": "Burst",
   "multishot": 1,
   "disposition": 4,
@@ -3387,7 +3403,9 @@
     "shot_type": "Hit-Scan"
    }
   ],
-  "zh": "Dex 席芭莉丝"
+  "zh": "Dex 席芭莉丝",
+  "burstCount": 2,
+  "burstDelay": 0.09
  },
  "/lotus/weapons/grineer/longguns/grineerflakcannon/flakcannon": {
   "name": "Drakgoon",
@@ -3426,7 +3444,7 @@
   "type": "Rifle",
   "magazineSize": 7,
   "reloadTime": 2.3,
-  "procChance": 0.069000006,
+  "procChance": 0.063,
   "omegaAttenuation": 1.4,
   "attacks": [
    {
@@ -3555,7 +3573,8 @@
     "shot_speed": 0
    }
   ],
-  "zh": "恐惧"
+  "zh": "恐惧",
+  "chargeCadence": "draw"
  },
  "/lotus/weapons/lasria/lasgooak/lasgooakplayerweapon": {
   "name": "Efv-5 Jupiter",
@@ -3688,7 +3707,8 @@
     }
    }
   ],
-  "zh": "晚祷"
+  "zh": "晚祷",
+  "chargeCadence": "draw"
  },
  "/lotus/weapons/corpus/longguns/crpshapeblast/crpshapeblastshotgun": {
   "name": "Exergis",
@@ -3991,7 +4011,8 @@
     "shot_type": "Hit-Scan"
    }
   ],
-  "zh": "通量步枪"
+  "zh": "通量步枪",
+  "ammoCost": 0.5
  },
  "/lotus/weapons/tenno/longguns/tnwisprifle/tnwisprifle": {
   "name": "Fulmin",
@@ -4017,16 +4038,16 @@
    "true": 0.0,
    "total": 33.0
   },
-  "criticalChance": 0.30000001,
-  "criticalMultiplier": 2.2,
-  "fireRate": 2.1666667,
+  "criticalChance": 0.28,
+  "criticalMultiplier": 2.4,
+  "fireRate": 9.33,
   "trigger": "Semi",
   "multishot": 1,
   "disposition": 3,
   "type": "Rifle",
-  "magazineSize": 6,
+  "magazineSize": 60,
   "reloadTime": 3,
-  "procChance": 0.15999997,
+  "procChance": 0.1,
   "omegaAttenuation": 0.89999998,
   "attacks": [
    {
@@ -4089,16 +4110,16 @@
    "true": 0.0,
    "total": 33.0
   },
-  "criticalChance": 0.30000001,
-  "criticalMultiplier": 2.2,
-  "fireRate": 2.1666667,
+  "criticalChance": 0.34,
+  "criticalMultiplier": 2.4,
+  "fireRate": 9.33,
   "trigger": "Semi",
   "multishot": 1,
   "disposition": 1,
   "type": "Rifle",
-  "magazineSize": 8,
+  "magazineSize": 80,
   "reloadTime": 2.7,
-  "procChance": 0.22000003,
+  "procChance": 0.1,
   "omegaAttenuation": 0.64999998,
   "attacks": [
    {
@@ -4190,7 +4211,8 @@
     "shot_type": "Hit-Scan"
    }
   ],
-  "zh": "冷冻光束步枪"
+  "zh": "冷冻光束步枪",
+  "ammoCost": 0.5
  },
  "/lotus/weapons/corpus/longguns/crpfreezeray/vandal/crpfreezerayvandalrifle": {
   "name": "Glaxion Vandal",
@@ -4245,7 +4267,8 @@
     "shot_type": "Hit-Scan"
    }
   ],
-  "zh": "冷冻光束步枪·破坏者"
+  "zh": "冷冻光束步枪·破坏者",
+  "ammoCost": 0.5
  },
  "/lotus/weapons/tenno/rifle/heavyrifle": {
   "name": "Gorgon",
@@ -4607,7 +4630,7 @@
   },
   "criticalChance": 0.2,
   "criticalMultiplier": 2.3,
-  "fireRate": 6,
+  "fireRate": 5.0,
   "trigger": "Burst",
   "multishot": 1,
   "disposition": 5,
@@ -4650,7 +4673,9 @@
     "flight": 60
    }
   ],
-  "zh": "哈帕克"
+  "zh": "哈帕克",
+  "burstCount": 3,
+  "burstDelay": 0.1
  },
  "/lotus/weapons/tenno/shotgun/quadshotgun": {
   "name": "Hek",
@@ -4744,7 +4769,7 @@
   },
   "criticalChance": 0.11,
   "criticalMultiplier": 2,
-  "fireRate": 6,
+  "fireRate": 5.0,
   "trigger": "Burst",
   "multishot": 1,
   "disposition": 4,
@@ -4769,7 +4794,9 @@
     "flight": 150
    }
   ],
-  "zh": "血肢"
+  "zh": "血肢",
+  "burstCount": 3,
+  "burstDelay": 0.1
  },
  "/lotus/weapons/tenno/longguns/gunbrella/shrinemaidengunbrellaweapon": {
   "name": "Higasa",
@@ -4801,7 +4828,7 @@
   },
   "criticalChance": 0.23999999,
   "criticalMultiplier": 2,
-  "fireRate": 5.5555558,
+  "fireRate": 2.5,
   "trigger": "Burst",
   "multishot": 1,
   "type": "Rifle",
@@ -4809,7 +4836,9 @@
   "reloadTime": 2.5,
   "procChance": 0.18000001,
   "omegaAttenuation": 0.80000001,
-  "zh": "晴日伞"
+  "zh": "晴日伞",
+  "burstCount": 5,
+  "burstDelay": 0.1
  },
  "/lotus/weapons/grineer/longguns/burstrifle/grnburstrifle": {
   "name": "Hind",
@@ -4841,7 +4870,7 @@
   },
   "criticalChance": 0.07,
   "criticalMultiplier": 1.5,
-  "fireRate": 6.2500005,
+  "fireRate": 5.0,
   "trigger": "Burst",
   "multishot": 1,
   "disposition": 5,
@@ -4879,7 +4908,9 @@
     "speed": 2.5
    }
   ],
-  "zh": "雌鹿"
+  "zh": "雌鹿",
+  "burstCount": 5,
+  "burstDelay": 0.12
  },
  "/lotus/weapons/clantech/chemical/flamethrower": {
   "name": "Ignis",
@@ -4934,7 +4965,8 @@
     "shot_type": "Hit-Scan"
    }
   ],
-  "zh": "伊格尼斯"
+  "zh": "伊格尼斯",
+  "ammoCost": 0.5
  },
  "/lotus/weapons/clantech/chemical/flamethrowerwraith": {
   "name": "Ignis Wraith",
@@ -4989,7 +5021,8 @@
     "shot_type": "Hit-Scan"
    }
   ],
-  "zh": "伊格尼斯·亡魂"
+  "zh": "伊格尼斯·亡魂",
+  "ammoCost": 0.5
  },
  "/lotus/weapons/grineer/longguns/grnflamespear/grnflamespear": {
   "name": "Javlok",
@@ -5241,12 +5274,12 @@
   "criticalMultiplier": 2.3,
   "fireRate": 3.6666667,
   "trigger": "Auto",
-  "multishot": 9,
+  "multishot": 12.0,
   "disposition": 4,
   "type": "Rifle",
   "magazineSize": 245,
   "reloadTime": 2,
-  "procChance": 0.083333313,
+  "procChance": 0.0625,
   "omegaAttenuation": 1.3,
   "attacks": [
    {
@@ -5288,7 +5321,8 @@
     }
    }
   ],
-  "zh": "寇恩热能枪"
+  "zh": "寇恩热能枪",
+  "ammoCost": 4.0
  },
  "/lotus/weapons/corpus/longguns/crpsentamlgsniper/crpsentamlgsniper": {
   "name": "Komorex",
@@ -5507,7 +5541,8 @@
     }
    }
   ],
-  "zh": "赤毒·布拉玛"
+  "zh": "赤毒·布拉玛",
+  "chargeCadence": "draw"
  },
  "/lotus/weapons/grineer/longguns/grnkuvalichrifle/grnkuvalichrifleweapon": {
   "name": "Kuva Chakkhurr",
@@ -5768,7 +5803,7 @@
   },
   "criticalChance": 0.25,
   "criticalMultiplier": 2.0999999,
-  "fireRate": 9.09091,
+  "fireRate": 5.0,
   "trigger": "Burst",
   "multishot": 1,
   "disposition": 3,
@@ -5821,7 +5856,9 @@
     "shot_type": "Hit-Scan"
    }
   ],
-  "zh": "赤毒·雌鹿"
+  "zh": "赤毒·雌鹿",
+  "burstCount": 5,
+  "burstDelay": 0.07
  },
  "/lotus/weapons/grineer/kuvalich/longguns/karak/kuvakarak": {
   "name": "Kuva Karak",
@@ -5912,12 +5949,12 @@
   "criticalMultiplier": 2.3,
   "fireRate": 4.166667,
   "trigger": "Auto",
-  "multishot": 9,
+  "multishot": 12.0,
   "disposition": 3,
   "type": "Rifle",
   "magazineSize": 209,
   "reloadTime": 2,
-  "procChance": 0.10000002,
+  "procChance": 0.075,
   "omegaAttenuation": 0.89999998,
   "attacks": [
    {
@@ -5959,7 +5996,8 @@
     }
    }
   ],
-  "zh": "赤毒·寇恩热能枪"
+  "zh": "赤毒·寇恩热能枪",
+  "ammoCost": 4.0
  },
  "/lotus/weapons/grineer/kuvalich/longguns/ogris/kuvaogris": {
   "name": "Kuva Ogris",
@@ -6367,7 +6405,7 @@
    "energyDrain": 0,
    "true": 0
   },
-  "criticalChance": 0.2,
+  "criticalChance": 0.25,
   "criticalMultiplier": 2,
   "fireRate": 0,
   "trigger": "Charge",
@@ -6413,7 +6451,8 @@
     "flight": 250
    }
   ],
-  "zh": "兰卡"
+  "zh": "兰卡",
+  "chargeCadence": "draw"
  },
  "/lotus/weapons/tenno/rifle/semiautorifle": {
   "name": "Latron",
@@ -6764,7 +6803,8 @@
     }
    }
   ],
-  "zh": "楞次弓"
+  "zh": "楞次弓",
+  "chargeCadence": "draw"
  },
  "/lotus/weapons/grineer/longguns/grineersawbladegun/sawbladegun": {
   "name": "Miter",
@@ -6803,7 +6843,7 @@
   "type": "Rifle",
   "magazineSize": 20,
   "reloadTime": 2,
-  "procChance": 0.5,
+  "procChance": 0.2,
   "omegaAttenuation": 1.5,
   "attacks": [
    {
@@ -7053,7 +7093,8 @@
     "flight": 85
    }
   ],
-  "zh": "MK1-帕里斯"
+  "zh": "MK1-帕里斯",
+  "chargeCadence": "draw"
  },
  "/lotus/weapons/mk1series/mk1strun": {
   "name": "Mk1-Strun",
@@ -7156,14 +7197,14 @@
   "category": "Primary",
   "masteryReq": 7,
   "damage": {
-   "total": 210.0,
+   "total": 205.0,
    "impact": 184.5,
    "puncture": 10.25,
    "slash": 10.25,
    "heat": 0,
    "cold": 0,
    "electricity": 0,
-   "toxin": 5,
+   "toxin": 0,
    "blast": 0,
    "radiation": 0,
    "gas": 0,
@@ -7241,7 +7282,8 @@
     }
    }
   ],
-  "zh": "异融西诺斯"
+  "zh": "异融西诺斯",
+  "chargeCadence": "draw"
  },
  "/lotus/weapons/infested/longguns/infcrpshockswarm/infcrpshockswarmrifle": {
   "name": "Mutalist Quanta",
@@ -7523,8 +7565,8 @@
   "multishot": 1,
   "disposition": 1,
   "type": "Rifle",
-  "reloadTime": 0.050000001,
-  "procChance": 0.5,
+  "reloadTime": 0.6,
+  "procChance": 0.3,
   "omegaAttenuation": 0.64999998,
   "attacks": [
    {
@@ -7575,7 +7617,9 @@
     "flight": 70
    }
   ],
-  "zh": "太始弓"
+  "zh": "太始弓",
+  "chargeCadence": "draw",
+  "magazineSize": 1
  },
  "/lotus/weapons/clantech/chemical/rocketlauncher": {
   "name": "Ogris",
@@ -7894,7 +7938,7 @@
   "multishot": 1,
   "disposition": 5,
   "type": "Rifle",
-  "magazineSize": 30,
+  "magazineSize": 60,
   "reloadTime": 2,
   "procChance": 0.24000001,
   "omegaAttenuation": 1.4,
@@ -7930,7 +7974,8 @@
     "shot_type": "Hit-Scan"
    }
   ],
-  "zh": "猎豹"
+  "zh": "猎豹",
+  "ammoCost": 2.0
  },
  "/lotus/weapons/tenno/longguns/primepanthera/primepanthera": {
   "name": "Panthera Prime",
@@ -7967,7 +8012,7 @@
   "multishot": 1,
   "disposition": 4,
   "type": "Rifle",
-  "magazineSize": 40,
+  "magazineSize": 80,
   "reloadTime": 2.4000001,
   "procChance": 0.30000001,
   "omegaAttenuation": 1.25,
@@ -8018,7 +8063,8 @@
     "shot_type": "Hit-Scan"
    }
   ],
-  "zh": "猎豹 Prime"
+  "zh": "猎豹 Prime",
+  "ammoCost": 2.0
  },
  "/lotus/weapons/infested/longguns/quantafullyinfested/infquantarifle": {
   "name": "Paracyst",
@@ -8050,7 +8096,7 @@
   },
   "criticalChance": 0.1,
   "criticalMultiplier": 2,
-  "fireRate": 11.111112,
+  "fireRate": 8.33,
   "trigger": "Burst",
   "multishot": 1,
   "disposition": 5,
@@ -8101,7 +8147,9 @@
     "speed": 1
    }
   ],
-  "zh": "附肢寄生者"
+  "zh": "附肢寄生者",
+  "burstCount": 3,
+  "burstDelay": 0.05
  },
  "/lotus/weapons/tenno/bows/huntingbow": {
   "name": "Paris",
@@ -8193,7 +8241,8 @@
     "flight": 85
    }
   ],
-  "zh": "帕里斯"
+  "zh": "帕里斯",
+  "chargeCadence": "draw"
  },
  "/lotus/weapons/tenno/bows/primehuntingbow": {
   "name": "Paris Prime",
@@ -8285,7 +8334,8 @@
     "flight": 85
    }
   ],
-  "zh": "帕里斯 Prime"
+  "zh": "帕里斯 Prime",
+  "chargeCadence": "draw"
  },
  "/lotus/weapons/corpus/longguns/grenadelauncher/grenadelauncher": {
   "name": "Penta",
@@ -8387,7 +8437,7 @@
   },
   "criticalChance": 0.28,
   "criticalMultiplier": 2.5999999,
-  "fireRate": 6.0606065,
+  "fireRate": 2.0,
   "trigger": "Burst",
   "multishot": 1,
   "disposition": 4,
@@ -8417,7 +8467,9 @@
     }
    }
   ],
-  "zh": "月面狂风"
+  "zh": "月面狂风",
+  "burstCount": 4,
+  "burstDelay": 0.04
  },
  "/lotus/weapons/infested/longguns/tentacluster/infestedshotgun": {
   "name": "Phage",
@@ -8472,7 +8524,8 @@
     "shot_type": "Hit-Scan"
    }
   ],
-  "zh": "噬菌者"
+  "zh": "噬菌者",
+  "ammoCost": 0.5
  },
  "/lotus/weapons/tenno/longguns/revenantshotgun/revenantshotgun": {
   "name": "Phantasma",
@@ -8586,7 +8639,8 @@
     "shot_type": "AoE"
    }
   ],
-  "zh": "幻离子"
+  "zh": "幻离子",
+  "ammoCost": 0.5
  },
  "/lotus/weapons/tenno/longguns/primephantasma/phantasmaprimeshotgun": {
   "name": "Phantasma Prime",
@@ -8700,7 +8754,8 @@
     "shot_type": "AoE"
    }
   ],
-  "zh": "幻离子 Prime"
+  "zh": "幻离子 Prime",
+  "ammoCost": 0.5
  },
  "/lotus/weapons/tenno/zariman/longguns/semiautorifle/zarimansemiautorifle": {
   "name": "Phenmor",
@@ -9065,7 +9120,8 @@
     }
    }
   ],
-  "zh": "棱晶·楞次弓"
+  "zh": "棱晶·楞次弓",
+  "chargeCadence": "draw"
  },
  "/lotus/weapons/corpus/longguns/corpusump/prismacorpusump": {
   "name": "Prisma Tetra",
@@ -9073,10 +9129,10 @@
   "category": "Primary",
   "masteryReq": 4,
   "damage": {
-   "total": 68.4,
+   "total": 38.0,
    "impact": 7.5999999,
    "puncture": 30.4,
-   "slash": 30.4,
+   "slash": 0,
    "heat": 0,
    "cold": 0,
    "electricity": 0,
@@ -9220,7 +9276,8 @@
     }
    }
   ],
-  "zh": "刺吸西诺斯"
+  "zh": "刺吸西诺斯",
+  "chargeCadence": "draw"
  },
  "/lotus/weapons/lasria/lasgrenadelauncher/lasriannoxplayerweapon": {
   "name": "Purgator 1",
@@ -9228,10 +9285,10 @@
   "category": "Primary",
   "masteryReq": 14,
   "damage": {
-   "total": 1210.55,
+   "total": 781.0,
    "impact": 351.44998,
    "puncture": 429.55,
-   "slash": 429.55002,
+   "slash": 0,
    "heat": 0,
    "cold": 0,
    "electricity": 0,
@@ -9380,7 +9437,8 @@
     }
    }
   ],
-  "zh": "量子切割器"
+  "zh": "量子切割器",
+  "ammoCost": 0.5
  },
  "/lotus/weapons/corpus/longguns/crpshockrifle/quantavandal": {
   "name": "Quanta Vandal",
@@ -9482,7 +9540,8 @@
     }
    }
   ],
-  "zh": "量子切割器·破坏者"
+  "zh": "量子切割器·破坏者",
+  "ammoCost": 0.5
  },
  "/lotus/weapons/grineer/longguns/grnfourbarrelrifle/grnfourbarrelrifleweapon": {
   "name": "Quartakk",
@@ -9514,7 +9573,7 @@
   },
   "criticalChance": 0.19,
   "criticalMultiplier": 2.3,
-  "fireRate": 6.3333335,
+  "fireRate": 1.58,
   "trigger": "Burst",
   "multishot": 1,
   "disposition": 4,
@@ -9539,7 +9598,9 @@
     "shot_type": "Hit-Scan"
    }
   ],
-  "zh": "夸塔克"
+  "zh": "夸塔克",
+  "burstCount": 4,
+  "burstDelay": 0.0
  },
  "/lotus/weapons/tenno/longguns/tnrailjackrifle/railjackriflegun": {
   "name": "Quellor",
@@ -9694,7 +9755,8 @@
     "flight": 100
    }
   ],
-  "zh": "绯红·西诺斯"
+  "zh": "绯红·西诺斯",
+  "chargeCadence": "draw"
  },
  "/lotus/weapons/tenno/longguns/paxduviricusshotgun/paxduviricusshotgun": {
   "name": "Rauta",
@@ -9764,10 +9826,10 @@
   "category": "Primary",
   "masteryReq": 14,
   "damage": {
-   "total": 64.0,
+   "total": 40.0,
    "impact": 16,
    "puncture": 24.0,
-   "slash": 24,
+   "slash": 0,
    "heat": 0,
    "cold": 0,
    "electricity": 0,
@@ -10438,13 +10500,13 @@
    "blast": 0.0,
    "radiation": 0.0,
    "gas": 0.0,
-   "magnetic": 100.0,
+   "magnetic": 0,
    "viral": 0.0,
    "corrosive": 0.0,
    "void": 0.0,
    "tau": 0.0,
    "true": 0.0,
-   "total": 100.0
+   "total": 0.0
   },
   "criticalChance": 0.12,
   "criticalMultiplier": 2,
@@ -10459,15 +10521,29 @@
   "omegaAttenuation": 1.25,
   "attacks": [
    {
+    "name": "Orb Launch",
+    "damage": {
+     "impact": 0.0
+    },
+    "total": 0.0,
+    "crit_chance": 12.0,
+    "crit_mult": 2.0,
+    "status_chance": 30.0,
+    "speed": 3.0,
+    "shot_type": "Projectile",
+    "shot_speed": 80
+   },
+   {
     "name": "Orb Merging Damage",
     "damage": {
      "magnetic": 100.0
     },
     "total": 100.0,
-    "crit_chance": 12,
-    "crit_mult": 2,
-    "status_chance": 30,
-    "speed": 3
+    "crit_chance": 12.0,
+    "crit_mult": 2.0,
+    "status_chance": 30.0,
+    "speed": 3.0,
+    "shot_type": "AoE"
    },
    {
     "name": "Orb Explosion",
@@ -10475,19 +10551,23 @@
      "magnetic": 200.0
     },
     "total": 200.0,
-    "crit_chance": 12,
-    "crit_mult": 2,
-    "status_chance": 30,
-    "speed": 3,
+    "crit_chance": 12.0,
+    "crit_mult": 2.0,
+    "status_chance": 30.0,
+    "speed": 3.0,
     "shot_type": "AoE",
     "falloff": {
      "start": 0,
      "end": 5,
      "reduction": 0.6
-    }
+    },
+    "forced_procs": [
+     "electricity"
+    ]
    }
   ],
-  "zh": "重力奇点拟成枪"
+  "zh": "重力奇点拟成枪",
+  "orbMultishotCap": 4
  },
  "/lotus/weapons/operator/pistols/drifterpistol/drifterpistolplayerweapon": {
   "name": "Sirocco",
@@ -11777,7 +11857,7 @@
   },
   "criticalChance": 0.25,
   "criticalMultiplier": 2,
-  "fireRate": 3.9840639,
+  "fireRate": 3.33,
   "trigger": "Burst",
   "multishot": 1,
   "disposition": 4,
@@ -11816,7 +11896,9 @@
     "shot_type": "Hit-Scan"
    }
   ],
-  "zh": "席芭莉丝"
+  "zh": "席芭莉丝",
+  "burstCount": 2,
+  "burstDelay": 0.101
  },
  "/lotus/weapons/tenno/longguns/primesybaris/primesybarisrifle": {
   "name": "Sybaris Prime",
@@ -11848,7 +11930,7 @@
   },
   "criticalChance": 0.30000001,
   "criticalMultiplier": 2,
-  "fireRate": 4.7169814,
+  "fireRate": 3.33,
   "trigger": "Burst",
   "multishot": 1,
   "disposition": 4,
@@ -11887,7 +11969,9 @@
     "shot_type": "Hit-Scan"
    }
   ],
-  "zh": "席芭莉丝 Prime"
+  "zh": "席芭莉丝 Prime",
+  "burstCount": 2,
+  "burstDelay": 0.062
  },
  "/lotus/weapons/infested/longguns/infestedrifle": {
   "name": "Synapse",
@@ -11942,7 +12026,8 @@
     "shot_type": "Hit-Scan"
    }
   ],
-  "zh": "突触生化枪"
+  "zh": "突触生化枪",
+  "ammoCost": 0.5
  },
  "/lotus/weapons/syndicates/cephalonsuda/longguns/cssimulor": {
   "name": "Synoid Simulor",
@@ -11960,16 +12045,16 @@
    "blast": 0.0,
    "radiation": 0.0,
    "gas": 0.0,
-   "magnetic": 125.0,
+   "magnetic": 0,
    "viral": 0.0,
    "corrosive": 0.0,
    "void": 0.0,
    "tau": 0.0,
    "true": 0.0,
-   "total": 125.0
+   "total": 0.0
   },
-  "criticalChance": 0.14,
-  "criticalMultiplier": 2,
+  "criticalChance": 0.0,
+  "criticalMultiplier": 1.0,
   "fireRate": 3.3333335,
   "trigger": "Active",
   "multishot": 1,
@@ -11977,18 +12062,30 @@
   "type": "Rifle",
   "magazineSize": 16,
   "reloadTime": 2,
-  "procChance": 0.35000002,
+  "procChance": 0.0,
   "omegaAttenuation": 1.2,
   "attacks": [
+   {
+    "name": "Orb Launch",
+    "damage": {
+     "impact": 0.0
+    },
+    "total": 0.0,
+    "crit_chance": 0.0,
+    "crit_mult": 1.0,
+    "status_chance": 0.0,
+    "speed": 3.33,
+    "shot_type": "Projectile"
+   },
    {
     "name": "Orb Merging Damage",
     "damage": {
      "magnetic": 125.0
     },
     "total": 125.0,
-    "crit_chance": 14,
-    "crit_mult": 2,
-    "status_chance": 35,
+    "crit_chance": 14.0,
+    "crit_mult": 2.0,
+    "status_chance": 35.0,
     "speed": 3.33,
     "shot_type": "AoE",
     "falloff": {
@@ -12003,27 +12100,31 @@
      "magnetic": 240.0
     },
     "total": 240.0,
-    "crit_chance": 14,
-    "crit_mult": 2,
-    "status_chance": 35,
+    "crit_chance": 14.0,
+    "crit_mult": 2.0,
+    "status_chance": 35.0,
     "speed": 3.33,
     "shot_type": "AoE",
     "falloff": {
      "start": 0,
      "end": 5,
      "reduction": 1
-    }
+    },
+    "forced_procs": [
+     "electricity"
+    ]
    },
    {
-    "name": "Singularity",
+    "name": "Fully Stacked Orb Singularity",
     "damage": {
      "magnetic": 50.0
     },
     "total": 50.0,
-    "crit_chance": 0,
-    "crit_mult": 0,
-    "status_chance": 0,
-    "speed": 4,
+    "crit_chance": 0.0,
+    "crit_mult": 1.0,
+    "status_chance": 0.0,
+    "speed": 4.0,
+    "shot_type": "DoT",
     "falloff": {
      "start": 0,
      "end": 5,
@@ -12031,7 +12132,8 @@
     }
    }
   ],
-  "zh": "枢议·重力奇点拟成枪"
+  "zh": "枢议·重力奇点拟成枪",
+  "orbMultishotCap": 4
  },
  "/lotus/weapons/syndicates/arbitersofhexis/longguns/ahboltor": {
   "name": "Telos Boltor",
@@ -12449,7 +12551,8 @@
     "shot_type": "Hit-Scan"
    }
   ],
-  "zh": "信条·冷冻光束步枪"
+  "zh": "信条·冷冻光束步枪",
+  "ammoCost": 0.5
  },
  "/lotus/weapons/corpus/boardexec/primary/crpbetetra/crpbetetra": {
   "name": "Tenet Tetra",
@@ -12691,10 +12794,10 @@
   "category": "Primary",
   "masteryReq": 3,
   "damage": {
-   "total": 57.6,
+   "total": 32.0,
    "impact": 6.4000001,
    "puncture": 25.6,
-   "slash": 25.6,
+   "slash": 0,
    "heat": 0,
    "cold": 0,
    "electricity": 0,
@@ -12773,7 +12876,7 @@
   },
   "criticalChance": 0.25999999,
   "criticalMultiplier": 2.4000001,
-  "fireRate": 9.09091,
+  "fireRate": 6.67,
   "trigger": "Burst",
   "multishot": 1,
   "disposition": 3,
@@ -12798,7 +12901,9 @@
     "shot_type": "Hit-Scan"
    }
   ],
-  "zh": "狂鲨"
+  "zh": "狂鲨",
+  "burstCount": 3,
+  "burstDelay": 0.06
  },
  "/lotus/weapons/tenno/longguns/primetiberon/primetiberonrifle": {
   "name": "Tiberon Prime",
@@ -12830,7 +12935,7 @@
   },
   "criticalChance": 0.28,
   "criticalMultiplier": 3,
-  "fireRate": 6.818182,
+  "fireRate": 5.0,
   "trigger": "Burst",
   "multishot": 1,
   "disposition": 3,
@@ -12883,7 +12988,9 @@
     "shot_type": "Hit-Scan"
    }
   ],
-  "zh": "狂鲨 Prime"
+  "zh": "狂鲨 Prime",
+  "burstCount": 3,
+  "burstDelay": 0.08
  },
  "/lotus/weapons/tenno/longguns/doublebarrelshotgun/tennodoublebarrelshotgun": {
   "name": "Tigris",
@@ -14458,7 +14565,7 @@
   },
   "criticalChance": 0.059999999,
   "criticalMultiplier": 1.8,
-  "fireRate": 4.2483659,
+  "fireRate": 4.33,
   "trigger": "Burst",
   "multishot": 1,
   "disposition": 3,
@@ -14500,7 +14607,9 @@
     }
    }
   ],
-  "zh": "阿利乌双枪"
+  "zh": "阿利乌双枪",
+  "burstCount": 2,
+  "burstDelay": 0.12
  },
  "/lotus/weapons/tenno/pistols/primeakarius/primeakariusweapon": {
   "name": "Akarius Prime",
@@ -14528,7 +14637,7 @@
   },
   "criticalChance": 0.18000001,
   "criticalMultiplier": 2,
-  "fireRate": 3.9007094,
+  "fireRate": 3.667,
   "trigger": "Burst",
   "multishot": 1,
   "disposition": 1,
@@ -14570,7 +14679,9 @@
     }
    }
   ],
-  "zh": "阿利乌双枪 Prime"
+  "zh": "阿利乌双枪 Prime",
+  "burstCount": 2,
+  "burstDelay": 0.12
  },
  "/lotus/weapons/tenno/akimbo/akimbobolto": {
   "name": "Akbolto",
@@ -14578,10 +14689,10 @@
   "category": "Secondary",
   "masteryReq": 8,
   "damage": {
-   "total": 121.6,
+   "total": 64.0,
    "impact": 6.4000001,
    "puncture": 57.6,
-   "slash": 57.599998,
+   "slash": 0,
    "heat": 0,
    "cold": 0,
    "electricity": 0,
@@ -14843,7 +14954,7 @@
   },
   "criticalChance": 0.059999999,
   "criticalMultiplier": 2,
-  "fireRate": 10.000001,
+  "fireRate": 5.0,
   "trigger": "Burst",
   "multishot": 1,
   "disposition": 3,
@@ -14868,7 +14979,9 @@
     "shot_type": "Hit-Scan"
    }
   ],
-  "zh": "觉醒双枪"
+  "zh": "觉醒双枪",
+  "burstCount": 2,
+  "burstDelay": 0.0
  },
  "/lotus/weapons/tenno/pistols/primeakjagara/akjagaraprime": {
   "name": "Akjagara Prime",
@@ -14900,7 +15013,7 @@
   },
   "criticalChance": 0.18000001,
   "criticalMultiplier": 2.2,
-  "fireRate": 10.000001,
+  "fireRate": 5.0,
   "trigger": "Burst",
   "multishot": 1,
   "disposition": 3,
@@ -14925,7 +15038,9 @@
     "shot_type": "Hit-Scan"
    }
   ],
-  "zh": "觉醒双枪 Prime"
+  "zh": "觉醒双枪 Prime",
+  "burstCount": 2,
+  "burstDelay": 0.0
  },
  "/lotus/weapons/tenno/akimbo/akimbopistol": {
   "name": "Aklato",
@@ -15997,7 +16112,7 @@
    "energyDrain": 0,
    "true": 0
   },
-  "criticalChance": 0.025,
+  "criticalChance": 0.15,
   "criticalMultiplier": 1.5,
   "fireRate": 3.3333335,
   "trigger": "Charge",
@@ -16080,7 +16195,7 @@
   "multishot": 4,
   "disposition": 4,
   "type": "Pistol",
-  "magazineSize": 8,
+  "magazineSize": 32,
   "reloadTime": 1.2,
   "procChance": 0.14999998,
   "omegaAttenuation": 1.2,
@@ -16119,7 +16234,8 @@
     "flight": 140
    }
   ],
-  "zh": "布里斯提卡 Prime"
+  "zh": "布里斯提卡 Prime",
+  "ammoCost": 4.0
  },
  "/lotus/weapons/tenno/pistol/crossbow": {
   "name": "Bolto",
@@ -16127,10 +16243,10 @@
   "category": "Secondary",
   "masteryReq": 7,
   "damage": {
-   "total": 121.6,
+   "total": 64.0,
    "impact": 6.4000001,
    "puncture": 57.6,
-   "slash": 57.599998,
+   "slash": 0,
    "heat": 0,
    "cold": 0,
    "electricity": 0,
@@ -16658,7 +16774,8 @@
     }
    }
   ],
-  "zh": "异化者"
+  "zh": "异化者",
+  "ammoCost": 0.5
  },
  "/lotus/weapons/corpus/pistols/corpusminigun/corpusminigun": {
   "name": "Cestra",
@@ -16847,7 +16964,8 @@
     }
    }
   ],
-  "zh": "终幕·异化者"
+  "zh": "终幕·异化者",
+  "ammoCost": 0.5
  },
  "/lotus/weapons/infested/infestedlich/pistols/codapox": {
   "name": "Coda Pox",
@@ -16925,10 +17043,10 @@
   "category": "Secondary",
   "masteryReq": 17,
   "damage": {
-   "total": 135,
-   "impact": 18,
-   "puncture": 26,
-   "slash": 32,
+   "total": 76.0,
+   "impact": 18.0,
+   "puncture": 32.0,
+   "slash": 26.0,
    "heat": 0,
    "cold": 0,
    "electricity": 0,
@@ -16938,7 +17056,7 @@
    "gas": 0,
    "magnetic": 0,
    "viral": 0,
-   "corrosive": 59,
+   "corrosive": 0,
    "void": 0,
    "tau": 0,
    "cinematic": 0,
@@ -16957,7 +17075,34 @@
   "reloadTime": 1.2,
   "procChance": 0.5,
   "omegaAttenuation": 0.5,
-  "zh": "终幕·啐沫者"
+  "zh": "终幕·啐沫者",
+  "attacks": [
+   {
+    "name": "Normal Attack",
+    "damage": {
+     "impact": 18.0,
+     "puncture": 32.0,
+     "slash": 26.0
+    },
+    "total": 76.0,
+    "crit_chance": 13.0,
+    "crit_mult": 2.0,
+    "status_chance": 50.0,
+    "speed": 2.5,
+    "shot_type": "Projectile"
+   },
+   {
+    "name": "Corrosive DoT",
+    "damage": {
+     "corrosive": 59.0
+    },
+    "total": 59.0,
+    "crit_chance": 13.0,
+    "crit_mult": 2.0,
+    "status_chance": 50.0,
+    "shot_type": "DoT"
+   }
+  ]
  },
  "/lotus/weapons/corpus/pistols/crpsentamalgpistol/crpsentamalgpistol": {
   "name": "Cyanex",
@@ -17100,7 +17245,8 @@
     "shot_type": "Hit-Scan"
    }
   ],
-  "zh": "循环离子枪"
+  "zh": "循环离子枪",
+  "ammoCost": 0.5
  },
  "/lotus/weapons/tenno/throwingweapons/stalkerkunai": {
   "name": "Despair",
@@ -17318,10 +17464,10 @@
   "category": "Secondary",
   "masteryReq": 7,
   "damage": {
-   "total": 46.8,
+   "total": 26.0,
    "impact": 5.2000003,
    "puncture": 20.8,
-   "slash": 20.800001,
+   "slash": 0,
    "heat": 0,
    "cold": 0,
    "electricity": 0,
@@ -17590,7 +17736,8 @@
     "shot_type": "Hit-Scan"
    }
   ],
-  "zh": "安柏勒斯"
+  "zh": "安柏勒斯",
+  "ammoCost": 0.5
  },
  "/lotus/weapons/tenno/pistols/tnwraithesidearm/tnwraithesidearmweapon": {
   "name": "Epitaph",
@@ -17620,8 +17767,8 @@
    "energyDrain": 0,
    "true": 0
   },
-  "criticalChance": 0.02,
-  "criticalMultiplier": 1.2,
+  "criticalChance": 0.48,
+  "criticalMultiplier": 2.6,
   "fireRate": 1.5000001,
   "trigger": "Charge",
   "multishot": 1,
@@ -17671,8 +17818,8 @@
      "blast": 20.0
     },
     "total": 20.0,
-    "crit_chance": 0,
-    "crit_mult": 1,
+    "crit_chance": 2,
+    "crit_mult": 1.2,
     "status_chance": 50,
     "speed": 1.5,
     "shot_type": "AoE",
@@ -17683,7 +17830,8 @@
     }
    }
   ],
-  "zh": "葬铭"
+  "zh": "葬铭",
+  "noReload": true
  },
  "/lotus/weapons/tenno/pistols/primeepitaph/primeepitaphsidearmweapon": {
   "name": "Epitaph Prime",
@@ -17713,8 +17861,8 @@
    "energyDrain": 0,
    "true": 0
   },
-  "criticalChance": 0.039999999,
-  "criticalMultiplier": 1.8,
+  "criticalChance": 0.5,
+  "criticalMultiplier": 3.0,
   "fireRate": 1.7500001,
   "trigger": "Charge",
   "multishot": 1,
@@ -17764,8 +17912,8 @@
      "blast": 30.0
     },
     "total": 30.0,
-    "crit_chance": 0,
-    "crit_mult": 1,
+    "crit_chance": 4,
+    "crit_mult": 1.8,
     "status_chance": 50,
     "speed": 1.75,
     "shot_type": "AoE",
@@ -17776,7 +17924,8 @@
     }
    }
   ],
-  "zh": "葬铭 Prime"
+  "zh": "葬铭 Prime",
+  "noReload": true
  },
  "/lotus/weapons/tenno/pistols/allnew1hsg/allnew1hsg": {
   "name": "Euphona Prime",
@@ -18086,7 +18235,8 @@
     }
    }
   ],
-  "zh": "咖玛腕甲枪"
+  "zh": "咖玛腕甲枪",
+  "ammoCost": 0.5
  },
  "/lotus/weapons/tenno/grimoire/tndoppelgangergrimoire": {
   "name": "Grimoire",
@@ -18750,7 +18900,8 @@
     }
    }
   ],
-  "zh": "寇恩霰机枪"
+  "zh": "寇恩霰机枪",
+  "ammoCost": 1.67
  },
  "/lotus/weapons/tenno/pistols/tnyarelipistol/tnyarelipistolweapon": {
   "name": "Kompressa",
@@ -18856,7 +19007,7 @@
   },
   "criticalChance": 0.050000001,
   "criticalMultiplier": 2,
-  "fireRate": 4.4155846,
+  "fireRate": 2.83,
   "trigger": "Burst",
   "multishot": 1,
   "disposition": 5,
@@ -18881,7 +19032,9 @@
     "shot_type": "Hit-Scan"
    }
   ],
-  "zh": "北海巨妖"
+  "zh": "北海巨妖",
+  "burstCount": 2,
+  "burstDelay": 0.05
  },
  "/lotus/weapons/grineer/pistols/grntorpedopistol/grntorpedopistol": {
   "name": "Kulstar",
@@ -19151,7 +19304,7 @@
   },
   "criticalChance": 0.20999999,
   "criticalMultiplier": 2.3,
-  "fireRate": 6.7729087,
+  "fireRate": 2.83,
   "trigger": "Burst",
   "multishot": 1,
   "disposition": 3,
@@ -19190,7 +19343,9 @@
     "shot_type": "Hit-Scan"
    }
   ],
-  "zh": "赤毒·北海巨妖"
+  "zh": "赤毒·北海巨妖",
+  "burstCount": 3,
+  "burstDelay": 0.03
  },
  "/lotus/weapons/grineer/kuvalich/secondaries/nukor/kuvanukor": {
   "name": "Kuva Nukor",
@@ -20257,7 +20412,8 @@
     "shot_type": "Hit-Scan"
    }
   ],
-  "zh": "努寇微波枪"
+  "zh": "努寇微波枪",
+  "ammoCost": 0.5
  },
  "/lotus/weapons/corpus/pistols/crpsentexperimentpistol/crpsentexperimentpistol": {
   "name": "Ocucor",
@@ -20265,10 +20421,10 @@
   "category": "Secondary",
   "masteryReq": 8,
   "damage": {
-   "total": 12.0,
+   "total": 11.0,
    "impact": 0,
    "puncture": 1.0,
-   "slash": 1,
+   "slash": 0,
    "heat": 0,
    "cold": 0,
    "electricity": 0,
@@ -20313,7 +20469,8 @@
     "shot_type": "Hit-Scan"
    }
   ],
-  "zh": "视使之触"
+  "zh": "视使之触",
+  "ammoCost": 0.5
  },
  "/lotus/weapons/thanotech/entratiwristgun/entratiwristgunweapon": {
   "name": "Onos",
@@ -20558,10 +20715,10 @@
   "category": "Secondary",
   "masteryReq": 6,
   "damage": {
-   "total": 72.0,
+   "total": 46.0,
    "impact": 0,
    "puncture": 26.0,
-   "slash": 26,
+   "slash": 0,
    "heat": 20,
    "cold": 0,
    "electricity": 0,
@@ -21047,7 +21204,7 @@
    "energyDrain": 0,
    "true": 0
   },
-  "criticalChance": 0.050000001,
+  "criticalChance": 0.2,
   "criticalMultiplier": 1.5,
   "fireRate": 3.3333335,
   "trigger": "Charge",
@@ -21250,10 +21407,10 @@
   "category": "Secondary",
   "masteryReq": 10,
   "damage": {
-   "total": 50.4,
+   "total": 28.0,
    "impact": 5.5999999,
    "puncture": 22.4,
-   "slash": 22.4,
+   "slash": 0,
    "heat": 0,
    "cold": 0,
    "electricity": 0,
@@ -21387,7 +21544,7 @@
   },
   "criticalChance": 0.30000001,
   "criticalMultiplier": 2.2,
-  "fireRate": 3.6666665,
+  "fireRate": 1.83,
   "trigger": "Burst",
   "multishot": 1,
   "disposition": 3,
@@ -21464,7 +21621,9 @@
     }
    }
   ],
-  "zh": "追击者"
+  "zh": "追击者",
+  "burstCount": 2,
+  "burstDelay": 0.0
  },
  "/lotus/weapons/tenno/pistol/burstpistol": {
   "name": "Sicarus",
@@ -21496,7 +21655,7 @@
   },
   "criticalChance": 0.16,
   "criticalMultiplier": 2,
-  "fireRate": 7.3943663,
+  "fireRate": 3.5,
   "trigger": "Burst",
   "multishot": 1,
   "disposition": 4,
@@ -21535,7 +21694,9 @@
     "shot_type": "Hit-Scan"
    }
   ],
-  "zh": "暗杀者"
+  "zh": "暗杀者",
+  "burstCount": 3,
+  "burstDelay": 0.04
  },
  "/lotus/weapons/tenno/pistols/primesicarus/primesicaruspistol": {
   "name": "Sicarus Prime",
@@ -21567,7 +21728,7 @@
   },
   "criticalChance": 0.25,
   "criticalMultiplier": 2,
-  "fireRate": 9.375,
+  "fireRate": 5.0,
   "trigger": "Burst",
   "multishot": 1,
   "disposition": 4,
@@ -21606,7 +21767,9 @@
     "shot_type": "Hit-Scan"
    }
   ],
-  "zh": "暗杀者 Prime"
+  "zh": "暗杀者 Prime",
+  "burstCount": 3,
+  "burstDelay": 0.04
  },
  "/lotus/weapons/corpus/pistols/crpairpistol/crpairpistolarray": {
   "name": "Sonicor",
@@ -21636,8 +21799,8 @@
    "energyDrain": 0,
    "true": 0
   },
-  "criticalChance": 0.1,
-  "criticalMultiplier": 2,
+  "criticalChance": 0.0,
+  "criticalMultiplier": 1.0,
   "fireRate": 1.2500001,
   "trigger": "Semi",
   "multishot": 1,
@@ -21736,7 +21899,8 @@
     "shot_type": "Hit-Scan"
    }
   ],
-  "zh": "光谱切割器"
+  "zh": "光谱切割器",
+  "ammoCost": 0.5
  },
  "/lotus/weapons/corpus/pistols/corpusmodularpistol/vandal/crplaserpistolvandal": {
   "name": "Spectra Vandal",
@@ -21792,7 +21956,8 @@
     "shot_type": "Hit-Scan"
    }
   ],
-  "zh": "光谱切割器·破坏者"
+  "zh": "光谱切割器·破坏者",
+  "ammoCost": 0.5
  },
  "/lotus/weapons/tenno/throwingweapons/lidagger/lidagger": {
   "name": "Spira",
@@ -21943,7 +22108,7 @@
   "multishot": 1,
   "disposition": 3,
   "type": "Pistol",
-  "magazineSize": 12,
+  "magazineSize": 48,
   "reloadTime": 1.5,
   "procChance": 0.27999997,
   "omegaAttenuation": 0.89999998,
@@ -22013,7 +22178,8 @@
     }
    }
   ],
-  "zh": "静电能量导引枪"
+  "zh": "静电能量导引枪",
+  "ammoCost": 5.0
  },
  "/lotus/weapons/grineer/pistols/grnuzi/grnuziweapon": {
   "name": "Stubba",
@@ -22105,7 +22271,7 @@
   "type": "Pistol",
   "magazineSize": 20,
   "reloadTime": 2,
-  "procChance": 0,
+  "procChance": 0.1,
   "omegaAttenuation": 1.48,
   "attacks": [
    {
@@ -22230,7 +22396,8 @@
     }
    }
   ],
-  "zh": "枢议·咖玛腕甲枪"
+  "zh": "枢议·咖玛腕甲枪",
+  "ammoCost": 0.5
  },
  "/lotus/weapons/tenno/throwingweapons/u18throwingknives/u18throwingknives": {
   "name": "Talons",
@@ -22238,8 +22405,8 @@
   "category": "Secondary",
   "masteryReq": 8,
   "damage": {
-   "blast": 120.0,
-   "total": 120.0
+   "blast": 250.0,
+   "total": 250.0
   },
   "criticalChance": 0.22,
   "criticalMultiplier": 2.0,
@@ -22250,20 +22417,26 @@
   "type": "Throwing",
   "magazineSize": 4,
   "reloadTime": 1.0,
-  "procChance": 0.26,
+  "procChance": 0.1,
   "omegaAttenuation": 1.4400001,
   "attacks": [
    {
-    "name": "Normal Attack",
+    "name": "Mid-Flight Detonation",
     "damage": {
      "blast": 120.0
     },
     "total": 120.0,
-    "crit_chance": 22,
+    "crit_chance": 22.0,
     "crit_mult": 2.0,
-    "status_chance": 26,
+    "status_chance": 26.0,
+    "speed": 3.33,
     "shot_type": "AoE",
-    "note": "Mid-Flight Detonation（wiki）"
+    "shot_speed": 60,
+    "falloff": {
+     "start": 0,
+     "end": 4,
+     "reduction": 0.5
+    }
    },
    {
     "name": "Embedded Detonation",
@@ -22271,14 +22444,21 @@
      "blast": 250.0
     },
     "total": 250.0,
-    "crit_chance": 22,
+    "crit_chance": 22.0,
     "crit_mult": 2.0,
-    "status_chance": 10,
-    "forced_procs": [
-     "puncture"
-    ],
+    "status_chance": 10.0,
+    "speed": 3.33,
     "shot_type": "AoE",
-    "note": "黏住后手动引爆（wiki）"
+    "shot_speed": 60,
+    "falloff": {
+     "start": 0,
+     "end": 4,
+     "reduction": 0.5
+    },
+    "forced_procs": [
+     "puncture",
+     "ragdoll"
+    ]
    }
   ],
   "zh": "鹰爪",
@@ -22290,10 +22470,10 @@
   "category": "Secondary",
   "masteryReq": 11,
   "damage": {
-   "total": 133.0,
+   "total": 70.0,
    "impact": 7,
    "puncture": 63.0,
-   "slash": 63,
+   "slash": 0,
    "heat": 0,
    "cold": 0,
    "electricity": 0,
@@ -22395,7 +22575,8 @@
     "shot_type": "Hit-Scan"
    }
   ],
-  "zh": "信条·循环离子枪"
+  "zh": "信条·循环离子枪",
+  "ammoCost": 0.5
  },
  "/lotus/weapons/corpus/boardexec/secondary/crpbedetron/crpbedetron": {
   "name": "Tenet Detron",
@@ -22744,7 +22925,7 @@
   "multishot": 2,
   "disposition": 4,
   "type": "Rifle",
-  "magazineSize": 60,
+  "magazineSize": 120,
   "reloadTime": 3,
   "procChance": 0.16500002,
   "omegaAttenuation": 1.2,
@@ -22764,7 +22945,8 @@
     "shot_type": "Hit-Scan"
    }
   ],
-  "zh": "双子葛拉卡达"
+  "zh": "双子葛拉卡达",
+  "ammoCost": 2.0
  },
  "/lotus/weapons/grineer/grineerpistol/grineerakimbopistol": {
   "name": "Twin Gremlins",
@@ -22904,7 +23086,8 @@
     }
    }
   ],
-  "zh": "双子寇恩霰机枪"
+  "zh": "双子寇恩霰机枪",
+  "ammoCost": 1.67
  },
  "/lotus/weapons/grineer/pistols/grnqueenguarddualpistol/grnqueenguarddualpistols": {
   "name": "Twin Rogga",
@@ -23088,10 +23271,10 @@
   "category": "Secondary",
   "masteryReq": 9,
   "damage": {
-   "total": 103.0,
-   "impact": 18.0,
-   "puncture": 32.0,
-   "slash": 26.0,
+   "total": 49.0,
+   "impact": 9.0,
+   "puncture": 23.0,
+   "slash": 17.0,
    "heat": 0,
    "cold": 0,
    "electricity": 0,
@@ -23101,7 +23284,7 @@
    "gas": 0,
    "magnetic": 0,
    "viral": 0,
-   "corrosive": 27,
+   "corrosive": 0,
    "void": 0,
    "tau": 0,
    "cinematic": 0,
@@ -23125,14 +23308,14 @@
    {
     "name": "Normal Attack",
     "damage": {
-     "impact": 18.0,
-     "slash": 26.0,
-     "puncture": 32.0
+     "impact": 9.0,
+     "puncture": 23.0,
+     "slash": 17.0
     },
-    "total": 76.0,
-    "crit_chance": 13,
-    "crit_mult": 2,
-    "status_chance": 50,
+    "total": 49.0,
+    "crit_chance": 3.0,
+    "crit_mult": 1.5,
+    "status_chance": 50.0,
     "speed": 2.5,
     "shot_type": "Projectile",
     "shot_speed": 75,
@@ -23141,12 +23324,12 @@
    {
     "name": "Corrosive DoT",
     "damage": {
-     "corrosive": 59.0
+     "corrosive": 27.0
     },
-    "total": 59.0,
-    "crit_chance": 13,
-    "crit_mult": 2,
-    "status_chance": 50,
+    "total": 27.0,
+    "crit_chance": 3.0,
+    "crit_mult": 1.5,
+    "status_chance": 50.0,
     "shot_type": "DoT"
    }
   ],
@@ -23481,10 +23664,10 @@
   "category": "Secondary",
   "masteryReq": 14,
   "damage": {
-   "total": 288.0,
+   "total": 180.0,
    "impact": 72,
    "puncture": 108.0,
-   "slash": 108.00001,
+   "slash": 0,
    "heat": 0,
    "cold": 0,
    "electricity": 0,
@@ -23817,7 +24000,7 @@
   },
   "criticalChance": 0.079999998,
   "criticalMultiplier": 2,
-  "fireRate": 1.5000001,
+  "fireRate": 1.8,
   "trigger": "Duplex",
   "multishot": 1,
   "disposition": 4,
@@ -23905,7 +24088,7 @@
   },
   "criticalChance": 0.12,
   "criticalMultiplier": 2.4000001,
-  "fireRate": 1.5000001,
+  "fireRate": 1.8,
   "trigger": "Duplex",
   "multishot": 1,
   "disposition": 2,
@@ -27272,16 +27455,16 @@
   "category": "Melee",
   "masteryReq": 5,
   "damage": {
-   "total": 87.3333,
-   "impact": 3.3333299,
-   "puncture": 56.0,
-   "slash": 28.0,
+   "total": 230.0,
+   "impact": 0,
+   "puncture": 78.0,
+   "slash": 52.0,
    "heat": 0,
    "cold": 0,
    "electricity": 0,
    "toxin": 0,
    "blast": 0,
-   "radiation": 0,
+   "radiation": 100.0,
    "gas": 0,
    "magnetic": 0,
    "viral": 0,
@@ -27294,36 +27477,124 @@
    "energyDrain": 0,
    "true": 0
   },
-  "criticalChance": 0,
-  "criticalMultiplier": 2,
-  "fireRate": 1,
+  "criticalChance": 0.15,
+  "criticalMultiplier": 2.0,
+  "fireRate": 0.917,
   "disposition": 4,
   "type": "Melee",
-  "procChance": 0.10000002,
+  "procChance": 0.25,
   "omegaAttenuation": 1.3,
   "attacks": [
    {
     "name": "Normal Attack",
     "damage": {
-     "slash": 28.0,
+     "puncture": 78.0,
+     "slash": 52.0,
+     "radiation": 100.0
+    },
+    "total": 230.0,
+    "crit_chance": 15.0,
+    "crit_mult": 2.0,
+    "status_chance": 25.0,
+    "speed": 0.917
+   },
+   {
+    "name": "Slam Attack",
+    "damage": {
+     "impact": 460.0
+    },
+    "total": 460.0,
+    "crit_chance": 15.0,
+    "crit_mult": 2.0,
+    "status_chance": 10.0,
+    "speed": 0.917,
+    "shot_type": "AoE",
+    "falloff": {
+     "start": 0,
+     "end": 8,
+     "reduction": 0.5
+    },
+    "forced_procs": [
+     "impact"
+    ]
+   },
+   {
+    "name": "Heavy Slam Attack",
+    "damage": {
+     "blast": 690.0
+    },
+    "total": 690.0,
+    "crit_chance": 15.0,
+    "crit_mult": 2.0,
+    "status_chance": 10.0,
+    "speed": 0.917,
+    "shot_type": "AoE",
+    "falloff": {
+     "start": 0,
+     "end": 9,
+     "reduction": 0.3
+    }
+   },
+   {
+    "name": "Dual Swords Normal Attack",
+    "damage": {
      "puncture": 56.0,
+     "slash": 28.0,
      "radiation": 32.0
     },
     "total": 116.0,
-    "crit_chance": 25,
+    "crit_chance": 25.0,
     "crit_mult": 2.5,
-    "status_chance": 15,
+    "status_chance": 15.0,
+    "speed": 1.17
+   },
+   {
+    "name": "Dual Swords Slam Attack",
+    "damage": {
+     "impact": 232.0
+    },
+    "total": 232.0,
+    "crit_chance": 25.0,
+    "crit_mult": 2.5,
+    "status_chance": 10.0,
     "speed": 1.17,
-    "slam": {
-     "damage": "232.00",
-     "radial": {
-      "damage": "0.00",
-      "radius": 8
-     }
+    "shot_type": "AoE",
+    "falloff": {
+     "start": 0,
+     "end": 8,
+     "reduction": 0.5
+    },
+    "forced_procs": [
+     "impact"
+    ]
+   },
+   {
+    "name": "Dual Swords Heavy Slam Attack",
+    "damage": {
+     "blast": 462.0
+    },
+    "total": 462.0,
+    "crit_chance": 25.0,
+    "crit_mult": 2.5,
+    "status_chance": 10.0,
+    "speed": 1.17,
+    "shot_type": "AoE",
+    "falloff": {
+     "start": 0,
+     "end": 9,
+     "reduction": 0.3
     }
    }
   ],
-  "zh": "暗黑分合剑"
+  "zh": "暗黑分合剑",
+  "heavyAttackDamage": 1380,
+  "slamAttack": 460,
+  "heavySlamAttack": 690,
+  "slamRadius": 8,
+  "slideAttack": 460,
+  "windUp": 1.1,
+  "followThrough": 0.6,
+  "comboDuration": 5
  },
  "/lotus/weapons/tenno/melee/swords/darksword/darklongsword": {
   "name": "Dark Sword",
@@ -27676,9 +27947,9 @@
   "category": "Melee",
   "masteryReq": 8,
   "damage": {
-   "total": 444.0,
+   "total": 222.0,
    "impact": 0,
-   "puncture": 222,
+   "puncture": 0,
    "slash": 222.0,
    "heat": 0,
    "cold": 0,
@@ -33517,9 +33788,9 @@
   "category": "Melee",
   "masteryReq": 8,
   "damage": {
-   "total": 347.04,
+   "total": 241.0,
    "impact": 134.96001,
-   "puncture": 106.04,
+   "puncture": 0,
    "slash": 106.04,
    "heat": 0,
    "cold": 0,
@@ -33585,9 +33856,9 @@
   "category": "Melee",
   "masteryReq": 14,
   "damage": {
-   "total": 374.4,
+   "total": 260.0,
    "impact": 145.60001,
-   "puncture": 114.4,
+   "puncture": 0,
    "slash": 114.4,
    "heat": 0,
    "cold": 0,
@@ -33792,10 +34063,10 @@
   "category": "Melee",
   "masteryReq": 0,
   "damage": {
-   "total": 99.0,
+   "total": 90.0,
    "impact": 81,
    "puncture": 9.0,
-   "slash": 9,
+   "slash": 0,
    "heat": 0,
    "cold": 0,
    "electricity": 0,
@@ -34562,9 +34833,9 @@
   "category": "Melee",
   "masteryReq": 8,
   "damage": {
-   "total": 262.0,
+   "total": 224.0,
    "impact": 76,
-   "puncture": 38,
+   "puncture": 0,
    "slash": 38.0,
    "heat": 0,
    "cold": 0,
@@ -35302,9 +35573,9 @@
   "category": "Melee",
   "masteryReq": 9,
   "damage": {
-   "impact": 58.0,
+   "impact": 57.0,
    "puncture": 55.0,
-   "slash": 65.0,
+   "slash": 61.0,
    "heat": 0.0,
    "cold": 0.0,
    "electricity": 0.0,
@@ -35313,12 +35584,12 @@
    "radiation": 0.0,
    "gas": 0.0,
    "magnetic": 0.0,
-   "viral": 92.0,
+   "viral": 89.0,
    "corrosive": 0.0,
    "void": 0.0,
    "tau": 0.0,
    "true": 0.0,
-   "total": 270.0
+   "total": 262.0
   },
   "criticalChance": 0.15000001,
   "criticalMultiplier": 2.0999999,
@@ -35341,29 +35612,29 @@
    {
     "name": "Normal Attack",
     "damage": {
-     "impact": 58.0,
-     "slash": 65.0,
+     "impact": 57.0,
      "puncture": 55.0,
-     "viral": 92.0
+     "slash": 61.0,
+     "viral": 89.0
     },
-    "total": 270.0,
-    "crit_chance": 20,
-    "crit_mult": 2.3,
-    "status_chance": 35,
+    "total": 262.0,
+    "crit_chance": 15.0,
+    "crit_mult": 2.1,
+    "status_chance": 30.0,
     "speed": 0.667
    },
    {
     "name": "Throw",
     "damage": {
      "impact": 49.0,
-     "slash": 80.0,
-     "puncture": 45.0,
-     "viral": 123.0
+     "puncture": 43.0,
+     "slash": 78.0,
+     "viral": 118.0
     },
-    "total": 297.0,
-    "crit_chance": 22,
-    "crit_mult": 2.4,
-    "status_chance": 36,
+    "total": 288.0,
+    "crit_chance": 17.0,
+    "crit_mult": 2.3,
+    "status_chance": 33.0,
     "speed": 0.667,
     "shot_type": "Thrown",
     "shot_speed": 30,
@@ -35372,12 +35643,12 @@
    {
     "name": "Throw Bounce Explosion",
     "damage": {
-     "viral": 405.0
+     "viral": 393.0
     },
-    "total": 405.0,
-    "crit_chance": 22,
-    "crit_mult": 2.4,
-    "status_chance": 36,
+    "total": 393.0,
+    "crit_chance": 17.0,
+    "crit_mult": 2.3,
+    "status_chance": 33.0,
     "speed": 0.667,
     "shot_type": "AoE",
     "falloff": {
@@ -35389,12 +35660,12 @@
    {
     "name": "Throw Recall Explosion",
     "damage": {
-     "viral": 810.0
+     "viral": 786.0
     },
-    "total": 810.0,
-    "crit_chance": 12,
-    "crit_mult": 2.4,
-    "status_chance": 36,
+    "total": 786.0,
+    "crit_chance": 17.0,
+    "crit_mult": 2.3,
+    "status_chance": 33.0,
     "speed": 0.667,
     "shot_type": "AoE",
     "falloff": {
@@ -35406,33 +35677,33 @@
    {
     "name": "Charged Throw",
     "damage": {
-     "impact": 131.0,
-     "slash": 137.0,
-     "puncture": 125.0,
-     "viral": 201.0
+     "impact": 127.0,
+     "puncture": 121.0,
+     "slash": 135.0,
+     "viral": 193.0
     },
-    "total": 594.0,
-    "crit_chance": 24,
+    "total": 576.0,
+    "crit_chance": 21.0,
     "crit_mult": 2.5,
-    "status_chance": 38,
+    "status_chance": 35.0,
     "speed": 0.833,
     "shot_type": "Thrown",
-    "charge_time": 1.2,
+    "charge_time": 1.192,
     "shot_speed": 30,
     "flight": 30
    },
    {
     "name": "Charged Throw Bounce Explosion",
     "damage": {
-     "viral": 810.0
+     "viral": 786.0
     },
-    "total": 810.0,
-    "crit_chance": 24,
+    "total": 786.0,
+    "crit_chance": 21.0,
     "crit_mult": 2.5,
-    "status_chance": 38,
+    "status_chance": 35.0,
     "speed": 0.833,
     "shot_type": "AoE",
-    "charge_time": 1.2,
+    "charge_time": 1.192,
     "falloff": {
      "start": 0,
      "end": 4.9,
@@ -35442,15 +35713,15 @@
    {
     "name": "Charged Throw Recall Explosion",
     "damage": {
-     "viral": 1620.0
+     "viral": 1572.0
     },
-    "total": 1620.0,
-    "crit_chance": 24,
+    "total": 1572.0,
+    "crit_chance": 21.0,
     "crit_mult": 2.5,
-    "status_chance": 38,
+    "status_chance": 35.0,
     "speed": 0.833,
     "shot_type": "AoE",
-    "charge_time": 1.2,
+    "charge_time": 1.192,
     "falloff": {
      "start": 0,
      "end": 4.9,
@@ -35463,10 +35734,10 @@
      "viral": 524.0
     },
     "total": 524.0,
-    "crit_chance": 20,
-    "crit_mult": 2.3,
-    "status_chance": 10,
-    "speed": 0.833,
+    "crit_chance": 15.0,
+    "crit_mult": 2.1,
+    "status_chance": 30.0,
+    "speed": 0.667,
     "shot_type": "AoE",
     "falloff": {
      "start": 0,
@@ -35480,10 +35751,10 @@
      "viral": 786.0
     },
     "total": 786.0,
-    "crit_chance": 20,
-    "crit_mult": 2.3,
-    "status_chance": 10,
-    "speed": 0.833,
+    "crit_chance": 15.0,
+    "crit_mult": 2.1,
+    "status_chance": 30.0,
+    "speed": 0.667,
     "shot_type": "AoE",
     "falloff": {
      "start": 0,
@@ -35494,9 +35765,9 @@
   ],
   "throwDamage": {
    "impact": 49.0,
-   "slash": 80.0,
-   "puncture": 45.0,
-   "viral": 123.0
+   "puncture": 43.0,
+   "slash": 78.0,
+   "viral": 118.0
   },
   "zh": "病囊飞刃"
  },
@@ -35921,9 +36192,9 @@
   "category": "Melee",
   "masteryReq": 12,
   "damage": {
-   "total": 294.0,
+   "total": 250.0,
    "impact": 82,
-   "puncture": 44,
+   "puncture": 0,
    "slash": 44.0,
    "heat": 0,
    "cold": 0,
@@ -36881,7 +37152,7 @@
    "energyDrain": 0,
    "true": 0
   },
-  "criticalChance": 0.14,
+  "criticalChance": 0.13,
   "criticalMultiplier": 1.8,
   "fireRate": 0.66666669,
   "disposition": 4,
@@ -37577,9 +37848,9 @@
   "category": "Melee",
   "masteryReq": 6,
   "damage": {
-   "total": 330.0,
+   "total": 234.0,
    "impact": 0,
-   "puncture": 96,
+   "puncture": 0,
    "slash": 96.0,
    "heat": 0,
    "cold": 0,
@@ -38534,10 +38805,10 @@
   "category": "Melee",
   "masteryReq": 5,
   "damage": {
-   "total": 438.75,
+   "total": 225.0,
    "impact": 11.25,
    "puncture": 213.75,
-   "slash": 213.75,
+   "slash": 0,
    "heat": 0,
    "cold": 0,
    "electricity": 0,
@@ -39829,10 +40100,10 @@
   "category": "Melee",
   "masteryReq": 11,
   "damage": {
-   "total": 415.35,
+   "total": 213.0,
    "impact": 10.650001,
    "puncture": 202.35,
-   "slash": 202.34999,
+   "slash": 0,
    "heat": 0,
    "cold": 0,
    "electricity": 0,
@@ -41057,7 +41328,8 @@
     "shot_type": "hit_scan"
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）"
+  "source": "wfsim data/weapons（wiki/实测整理）",
+  "ammoCost": 0.5
  },
  "/lotus/weapons/tenno/archwing/primary/launchgrenade/archcannon": {
   "name": "Corvas",
@@ -41172,7 +41444,9 @@
     "shot_type": "hit_scan"
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）"
+  "source": "wfsim data/weapons（wiki/实测整理）",
+  "burstCount": 3,
+  "burstDelay": 0.06
  },
  "/lotus/weapons/tenno/archwing/primary/archwingheavypistols/archheavypistols": {
   "name": "Dual Decurion",
@@ -41514,7 +41788,8 @@
     "shot_type": "hit_scan"
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）"
+  "source": "wfsim data/weapons（wiki/实测整理）",
+  "ammoCost": 0.5
  },
  "/lotus/weapons/tenno/archwing/primary/primelarkspur/primelarkspurweapon": {
   "name": "Larkspur Prime",
@@ -41551,7 +41826,8 @@
     "shot_type": "hit_scan"
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）"
+  "source": "wfsim data/weapons（wiki/实测整理）",
+  "ammoCost": 0.5
  },
  "/lotus/weapons/tenno/archwing/primary/tnconcretearchgun/tnconcretearchgunweapon": {
   "name": "Mandonel",
@@ -41688,7 +41964,9 @@
     "shot_type": "AoE"
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）"
+  "source": "wfsim data/weapons（wiki/实测整理）",
+  "burstCount": 2,
+  "burstDelay": 0.0
  },
  "/lotus/weapons/tenno/archwing/primary/archlongrifle/archlongrifle": {
   "name": "Phaedra",
@@ -41842,7 +42120,8 @@
     "shot_type": "hit_scan"
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）"
+  "source": "wfsim data/weapons（wiki/实测整理）",
+  "ammoCost": 0.5
  },
  "/lotus/types/sentinels/sentinelweapons/burstlaserpistol": {
   "name": "Burst Laser",
@@ -42161,7 +42440,9 @@
     "shot_type": "AoE"
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）"
+  "source": "wfsim data/weapons（wiki/实测整理）",
+  "burstCount": 4,
+  "burstDelay": 0.1
  },
  "/lotus/types/sentinels/sentinelweapons/laserrifle": {
   "name": "Laser Rifle",
@@ -42247,7 +42528,9 @@
     "shot_type": "AoE"
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）"
+  "source": "wfsim data/weapons（wiki/实测整理）",
+  "burstCount": 3,
+  "burstDelay": 0.4
  },
  "/lotus/types/sentinels/sentinelweapons/primelaserrifle": {
   "name": "Prime Laser Rifle",
@@ -42473,7 +42756,8 @@
     "shot_type": "hit_scan"
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）"
+  "source": "wfsim data/weapons（wiki/实测整理）",
+  "ammoCost": 0.5
  },
  "/lotus/types/sentinels/sentinelweapons/sentinelfreezerayrifle": {
   "name": "Verglas",

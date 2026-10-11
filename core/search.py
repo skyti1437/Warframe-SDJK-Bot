@@ -35,6 +35,11 @@ try:
 except ImportError:  # 离线脚本把 core/ 当顶层路径导入时
     import matching
 
+try:
+    from . import paths as _paths  # 共享只读 JSON 缓存（drops.json 三处读者同一份）
+except ImportError:  # 离线脚本把 core/ 当顶层路径导入时
+    import paths as _paths
+
 _HERE = Path(__file__).resolve().parent
 _DATA = _HERE / "data"
 _ALIAS_FILE = _DATA / "aliases.json"
@@ -122,7 +127,8 @@ def _index() -> tuple[tuple[str, str, str, str], ...]:
         add(zh, (slug or "").replace("_", " "), source="别名")
     for zh, slug in (_jload(_ALIAS_FILE).get("riven_items") or {}).items():
         add(zh, (slug or "").replace("_", " "), source="别名")
-    for en in _jload(_DROPS_FILE).get("items") or {}:
+    _drops = _paths.load_json(_DROPS_FILE)  # 与 drops / wiki_intro 共享（只读）
+    for en in (_drops.get("items") if isinstance(_drops, dict) else None) or {}:
         add(en, source="掉落表")
     return tuple((k, v[0], v[1], v[2]) for k, v in rows.items())
 

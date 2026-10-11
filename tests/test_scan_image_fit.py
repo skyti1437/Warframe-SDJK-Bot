@@ -207,6 +207,29 @@ check(
     f"{len(small)} vs {len(big)}",
 )
 
+# ---------------------------------------------------------------------------
+# 6. 像素上限（2026-10-10 安全审查：防 PNG 解压炸弹）
+# ---------------------------------------------------------------------------
+OK = plugin.WarframeSDJK._image_pixels_ok
+
+
+def _b64_png(w: int, h: int) -> str:
+    buf = io.BytesIO()
+    from PIL import Image as PILImage
+
+    PILImage.new("1", (w, h)).save(buf, "PNG")  # 1-bit 全黑：大尺寸也只有几十 KB
+    return base64.b64encode(buf.getvalue()).decode()
+
+
+check("正常截图尺寸放行（2560×1440）", OK(_b64_png(2560, 1440)))
+_bomb = _b64_png(8000, 6000)
+check(
+    "★ 4800 万像素图拒收（体积远小于 14MB 也拦得住）",
+    not OK(_bomb) and len(_bomb) < 14 * 1024 * 1024,
+    str(len(_bomb)),
+)
+check("非图片 base64 拒收且不抛", not OK(base64.b64encode(b"not an image").decode()))
+
 print()
 if FAILED:
     print(f"✗ {len(FAILED)} 项失败：" + "、".join(FAILED))

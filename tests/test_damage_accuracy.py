@@ -115,8 +115,18 @@ def raw_types(toks: str) -> dict[str, float]:
     spec, name = dc.parse_args(toks.split())
     w, _ = dc.find_weapon(" ".join(name))
     d = w["damage"]
+    # quantize=False：这里验的是「转换只搬物理、总量守恒」的 MOD 算术；量化（1/32 取整）
+    # 会让各类型各自取整、总量随构成变（2026-10-10 加量化后 12.0 vs 12.375），另有专测
     pt, _, _, _ = dc._hit_from_damage(
-        d, float(d.get("total") or 0.0), spec, dc._load()["fac_table"], "Grineer", 0.0, 1.0, 1.0
+        d,
+        float(d.get("total") or 0.0),
+        spec,
+        dc._load()["fac_table"],
+        "Grineer",
+        0.0,
+        1.0,
+        1.0,
+        quantize=False,
     )
     return pt
 

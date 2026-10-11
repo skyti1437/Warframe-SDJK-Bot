@@ -21,6 +21,7 @@ from core.api_client import (
     WarframeAPIError,
     WarframeClient,  # noqa: E402
     parse_url_list,
+    public_error_text,
 )
 
 FAILED: list[str] = []
@@ -286,6 +287,49 @@ def t_parse_url_list():
     check("超长输入不崩", parse_url_list("http://a/" + "x" * 100000)[0].endswith("/v1"))
 
 
+# ---------------------------------------------------------------- 报错脱敏（2026-10-10 L2）
+def t_public_error_text():
+    """发到群里的报错不得带上游 URL / 内网地址 / httpx 原文，但要说清是哪个数据源。"""
+    cases = [
+        (
+            "请求失败（https://api.warframe.market/v2/orders/item/x?a=1）："
+            "All connection attempts failed",
+            "warframe.market 暂时不可用，请稍后再试",
+        ),
+        (
+            "接口不存在或暂未开放：https://api.warframestat.us/pc/kuva",
+            "warframestat.us 接口不存在或暂未开放，请稍后再试",
+        ),
+        (
+            "FlareSolverr 不可用/求解失败（[Errno 111] Connect call failed "
+            "('172.17.0.1', 8191)；http://172.17.0.1:8191/v1）",
+            "FlareSolverr（CF 绕过代理） 暂时不可用，请稍后再试",
+        ),
+        (
+            "DE 紫卡周报拉取失败：Client error '403 Forbidden' for url "
+            "'https://www-static.warframe.com/repos/weeklyRivensPC.json'",
+            "DE 官方紫卡周报 暂时不可用，请稍后再试",
+        ),
+        ("WM v2 接口错误：{'detail': 'x'}", "warframe.market 暂时不可用，请稍后再试"),
+        # 插件自己写的降级提示：原样保留（不该被糊成通用句）
+        ("warframe.market 限速（3 请求/秒）", "warframe.market 限速（3 请求/秒）"),
+        (
+            "FlareSolverr 已在配置里关闭（「启用 CF 绕过代理」= 否）",
+            "FlareSolverr 已在配置里关闭（「启用 CF 绕过代理」= 否）",
+        ),
+        # 兜底：未知文本里混进的 URL / IP:端口 也要去掉
+        ("奇怪错误 http://10.0.0.5:9000/x 与 192.168.1.2:80", "奇怪错误 上游接口 与 内部地址"),
+    ]
+    for raw, want in cases:
+        got = public_error_text(WarframeAPIError(raw))
+        check(f"脱敏：{raw[:24]}…", got == want, got)
+        check(
+            f"脱敏无 URL/IP：{raw[:24]}…",
+            "http" not in got and "172.17" not in got and "8191" not in got,
+            got,
+        )
+
+
 async def main():
     await t_timeout()
     await t_connect_error()
@@ -298,6 +342,7 @@ async def main():
     await t_close()
     await t_future_exception_consumed()
     t_parse_url_list()
+    t_public_error_text()
 
     print()
     if FAILED:

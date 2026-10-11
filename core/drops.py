@@ -13,10 +13,14 @@ drops.json 由 WFCD `warframe-drop-data/all.slim.json`（DE 官方掉落表精�
 
 from __future__ import annotations
 
-import json
 from collections import Counter
 from pathlib import Path
 from typing import Optional
+
+try:
+    from . import paths as _paths  # 共享只读 JSON 缓存（drops.json 三处读者同一份）
+except ImportError:  # 离线脚本把 core/ 当顶层路径导入时
+    import paths as _paths
 
 DATA_FILE = Path(__file__).resolve().parent / "data" / "drops.json"
 
@@ -30,12 +34,11 @@ _FARM_CACHE: Optional[dict[str, list[str]]] = None
 
 
 def load() -> dict:
+    """掉落表（共享只读对象：与 search / wiki_intro 同一份，**不得就地修改**）。"""
     global _DB
     if _DB is None:
-        try:
-            _DB = json.loads(DATA_FILE.read_text(encoding="utf-8"))
-        except Exception:  # noqa: BLE001
-            _DB = {}
+        data = _paths.load_json(DATA_FILE)
+        _DB = data if isinstance(data, dict) else {}
     return _DB
 
 

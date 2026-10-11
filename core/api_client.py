@@ -720,6 +720,76 @@ class WarframeAPIError(Exception):
     """统一的接口错误（含降级提示语）。"""
 
 
+# ---------------------------------------------------------------------------
+# 报错脱敏：异常原文（上游 URL / httpx 异常 / FlareSolverr 内网地址）只进日志，
+# 发到群里的只保留「哪个数据源 + 怎么办」。调用方：main.py 指令总入口、各 commands。
+# ---------------------------------------------------------------------------
+_ERR_URL_RE = re.compile(r"https?://[^\s'\"<>()（）\[\]，,]+")
+# IPv4（可带端口）以及 httpx/OSError 的元组写法 ('172.17.0.1', 8191)
+_ERR_IP_RE = re.compile(
+    r"\(\s*'\d{1,3}(?:\.\d{1,3}){3}'\s*,\s*\d{1,5}\s*\)|\b\d{1,3}(?:\.\d{1,3}){3}(?::\d{1,5})?\b"
+)
+# (关键词, 对外展示的数据源名)；按顺序取第一个命中
+_ERR_SOURCES: tuple[tuple[str, str], ...] = (
+    ("flaresolverr", "FlareSolverr（CF 绕过代理）"),
+    ("warframe.market", "warframe.market"),
+    ("wm v2", "warframe.market"),
+    ("紫卡周报", "DE 官方紫卡周报"),
+    ("warframestat", "warframestat.us"),
+    ("huijiwiki", "灰机 wiki"),
+    ("wf.wiki", "arbi.wf.wiki"),
+    ("wiki.warframe", "Warframe wiki"),
+    ("valence", "Warframe wiki（言录使数据）"),
+    ("倾向表", "Warframe wiki（紫卡倾向表）"),
+    ("warframe.com", "DE 官方接口"),
+    ("世界状态", "DE 官方接口"),
+)
+# 这些前缀的报错文本里拼了上游原文（URL / 异常串 / 内网地址）⇒ 整句换成通用提示
+_ERR_RAW_PREFIXES = (
+    "请求失败（",
+    "接口不存在或暂未开放：",
+    "FlareSolverr 不可用",
+    "DE 紫卡周报拉取失败：",
+    "WM v2 接口错误：",
+    "valence ",
+    "wiki 倾向表解析异常",
+)
+
+
+def error_source(text: str) -> str:
+    """从报错原文里认出数据源名（不认识返回空串）。"""
+    low = str(text).lower()
+    for key, label in _ERR_SOURCES:
+        if key in low:
+            return label
+    return ""
+
+
+def redact_error_text(text: str) -> str:
+    """去掉文本里的 URL（换成数据源名）与 IP/端口（换成「内部地址」）。"""
+
+    def _url(m: re.Match) -> str:
+        return error_source(m.group(0)) or "上游接口"
+
+    out = _ERR_URL_RE.sub(_url, str(text))
+    return _ERR_IP_RE.sub("内部地址", out)
+
+
+def public_error_text(exc: BaseException | str) -> str:
+    """把接口异常转成可以发到群里的提示（详情由调用方写日志）。
+
+    * 本插件自己写的降级提示（限速 / 数据源停摆 / 开关关闭等）原样保留，仅兜底去 URL/IP；
+    * 拼了上游原文的（见 ``_ERR_RAW_PREFIXES``）整句换成「<数据源> 暂时不可用，请稍后再试」。
+    """
+    msg = str(exc).strip()
+    if msg.startswith(_ERR_RAW_PREFIXES):
+        src = error_source(msg) or "上游接口"
+        if msg.startswith("接口不存在或暂未开放"):
+            return f"{src} 接口不存在或暂未开放，请稍后再试"
+        return f"{src} 暂时不可用，请稍后再试"
+    return redact_error_text(msg) or "上游接口暂时不可用，请稍后再试"
+
+
 def _rank_candidate(it: dict) -> bool:
     """价格榜爬取候选（决定抓取规模与榜单口径）。
 
@@ -1255,8 +1325,9 @@ class WarframeClient:
             "_reset_rule": snap.get("_reset_rule", ""),
             "_过期口径": snap.get("_过期口径", ""),
         }
-        paths.write_path(ACRITHIS_WEEK_NAME).write_text(
-            json.dumps(out, ensure_ascii=False, indent=1) + "\n", encoding="utf-8"
+        paths.atomic_write_text(
+            paths.write_path(ACRITHIS_WEEK_NAME),
+            json.dumps(out, ensure_ascii=False, indent=1) + "\n",
         )
         logger.info(
             "[sdjk] 言录使本周货单已自动刷新（observed %s，%d 件）", parsed["observed"], len(items)
@@ -1293,8 +1364,9 @@ class WarframeClient:
                 or "社区快照（wiki《Acrithis/Current Offerings》经有 FS 的机器发布）"
             ),
         }
-        paths.write_path(ACRITHIS_WEEK_NAME).write_text(
-            json.dumps(out, ensure_ascii=False, indent=1) + "\n", encoding="utf-8"
+        paths.atomic_write_text(
+            paths.write_path(ACRITHIS_WEEK_NAME),
+            json.dumps(out, ensure_ascii=False, indent=1) + "\n",
         )
         logger.info(
             "[sdjk] 言录使本周货单已从社区快照刷新（observed %s，%d 件）",
@@ -1434,29 +1506,6 @@ class WarframeClient:
                 if ref and not ev.get("name"):
                     ev["name"] = by_ref.get(ref) or ev.get("name")
         return data
-
-    async def search_items(self, query: str) -> list[dict]:
-        """物品搜索：WM v2 字典本地匹配（zh/en 包含）。"""
-        items = await self.wm_items()
-        q = query.strip().lower()
-        hits = []
-        for it in items:
-            hay = f"{it.get('zh', '')} {it.get('en', '')} {it.get('url_name', '')}".lower()
-            if q in hay:
-                hits.append(
-                    {
-                        "name": it.get("zh") or it.get("en") or it.get("url_name"),
-                        "category": (it.get("tags") or ["item"])[0],
-                        "description": (
-                            f"{it['ducats']} 杜卡德"
-                            if it.get("ducats")
-                            else ("可交易" if it.get("tradable") else "")
-                        ),
-                    }
-                )
-            if len(hits) >= 8:
-                break
-        return hits
 
     # ------------------------------------------------------------------
     # Warframe.Market v2：物品字典 / 订单
@@ -1878,9 +1927,7 @@ class WarframeClient:
     @staticmethod
     def _save_json_file(path, payload) -> None:
         try:
-            Path(path).write_text(
-                json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8"
-            )
+            paths.atomic_write_text(path, json.dumps(payload, ensure_ascii=False, indent=1))
         except Exception:  # noqa: BLE001 - 落盘失败不影响本次查询
             pass
 
@@ -2584,6 +2631,12 @@ class WarframeClient:
         if not query:
             return None
         weapons = await self.wm_riven_weapons()
+        # 官方全名精确命中先于「p = Prime」简写：英文名本身以 p 结尾的武器
+        # （如 Arbucep）此前会被拆成「Arbuce + p」再找 Prime 变体 ⇒ 查不到
+        _low0 = query.lower().replace(" ", "_")
+        for w in weapons:
+            if w.get("zh") == query or (w.get("en") or "").lower().replace(" ", "_") == _low0:
+                return w
         m = self._PRIME_SUFFIX.match(query)
         if m and len(m.group(1).strip()) >= 1:
             base = await self.resolve_riven_weapon(m.group(1).strip())
@@ -2591,6 +2644,10 @@ class WarframeClient:
                 # 2026-09-23 去掉「回落 base」：倾向/紫卡按变体分别计算，
                 # 表中确无该变体条目时返回 None（未找到），绝不冒充本体值。
                 # ★ 市场路径（wr）按用户口径另行「剥到母武器」，见 market.py::_h_wr。
+                # 母名本身已解析到 Prime 条目（只有 Prime 版的武器，如「悦音」→ 悦音 Prime）
+                # ⇒ 「悦音p」就是它，不再去找「Prime 的 Prime」
+                if matching.normalize(base.get("en") or "").endswith("prime"):
+                    return base
                 return matching.prime_sibling(base, weapons)
         # ★ 2026-10-01：**官方名精确匹配先于别名词典**。别名表的「双向包含」
         #   会让官方名被别名键捞走：实测「盗贼」(Furis, 1.35) 命中别名键
@@ -2629,6 +2686,18 @@ class WarframeClient:
         for w in weapons:
             if low in w.get("url_name", "") or query in (w.get("zh") or ""):
                 return w
+        # 归一化子串（**唯一命中才采纳**）：玩家常省略官方名里的间隔号 / 后缀，
+        #   如「赤毒努寇」「信条弧电」——上一步按原文比，「赤毒努寇」不是
+        #   「赤毒·努寇微波枪」的子串（中间隔着「·」）。多个命中时不猜，交给后面的模糊兜底。
+        if nq and len(nq) >= 2:
+            sub = [
+                w
+                for w in weapons
+                if nq in matching.normalize(w.get("zh") or "")
+                or nq in matching.normalize(w.get("en") or "")
+            ]
+            if len({w.get("url_name") for w in sub}) == 1:
+                return sub[0]
         close = difflib.get_close_matches(
             low, [w.get("url_name", "") for w in weapons], n=1, cutoff=0.7
         )
@@ -2666,12 +2735,6 @@ class WarframeClient:
                 if w.get("url_name") == falias:
                     return w
         return None
-
-    async def suggest_wm_items(self, query: str, n: int = 3) -> list[str]:
-        """给「未找到」的 wm 物品查询提供中文名候选。"""
-        items = await self.wm_items()
-        names = [(it.get("zh") or it.get("en") or it.get("url_name", "")) for it in items]
-        return fuzzy_hits(query, names, n=n)
 
     _VEILED_SLUGS = {
         "Melee": "melee_riven_mod_(veiled)",
@@ -3066,8 +3129,8 @@ class WarframeClient:
             src = "community-snapshot（wiki《Reset》数据，由有 FS 的机器发布）"
             tenet_data["valence_source"] = src
             coda_data["valence_source"] = src
-        paths.write_path("rotations.json").write_text(
-            json.dumps(rot, ensure_ascii=False, indent=1), encoding="utf-8"
+        paths.atomic_write_text(
+            paths.write_path("rotations.json"), json.dumps(rot, ensure_ascii=False, indent=1)
         )
         return f"refreshed {snap} batch={batch}" + ("(community)" if used_community else "")
 
@@ -3136,8 +3199,8 @@ class WarframeClient:
             "snapshot": now,
             "disp": disp,
         }
-        paths.write_path(WIKI_DISP_NAME).write_text(
-            json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8"
+        paths.atomic_write_text(
+            paths.write_path(WIKI_DISP_NAME), json.dumps(meta, ensure_ascii=False, indent=1)
         )
         return f"refreshed {len(disp)} 条 @ {now}"
 

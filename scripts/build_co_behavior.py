@@ -13,8 +13,14 @@ Mandonel 未蓄力与蓄力两行不同）。计算器的主段 = 默认形态�
 副开火 / 蓄力 / 点射等形态的值若按武器名混进来，会覆盖主形态 —— 研究仓旧表
 （2026-10-06）即有 16 把因此错配（如 Grimoire 主开火 additive 被记成 inert）。
 
-key = 默认形态的 internal_name 小写（= weapons_stats.json 的 uniqueName 小写）；
-灵化形态没有 internal_name，经 transforms_from 回到其原型的 internal_name。
+key = 默认形态的 internal_name 小写（= weapons_stats.json 的 uniqueName 小写）；默认形态
+自身没写 internal_name 的沿 inherits 取；灵化形态没有 internal_name，经 transforms_from 回到
+其原型的 internal_name。
+
+「默认形态」按 build_weapon_attacks.is_main_form：一般 = wfsim default_form；
+MAIN_FORM_OVERRIDE 的组以我方 weapons_stats 主段对应的条目为准（2026-10-10 第四批：Nataruk
+主段是快速射击 nataruk.yaml，CO additive；wfsim 默认的完美射击 nataruk_perfect independent
+改走 weapon_attacks.json forms「蓄力」，带它自己的 co_behavior）。
 只写非 additive 的条目：``{"base": "independent"}`` / ``{"incarnon": "inert"}``。
 
 用法：python scripts/build_co_behavior.py [wfsim 仓库根或其 data 目录]
@@ -32,6 +38,10 @@ except ImportError:  # noqa: BLE001 —— 插件运行本身不需要 yaml，�
     raise SystemExit("本脚本需要 PyYAML：pip install pyyaml（插件运行时并不依赖它，仅构建数据用）")
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+# 默认形态 → uniqueName 与 weapon_attacks 同源（自身无 internal_name 的沿 inherits 取）
+from build_weapon_attacks import default_form_key, is_main_form, wfsim_commit  # noqa: E402
+
 OUT = ROOT / "core" / "data" / "co_behavior.json"
 DEFAULT = "additive_with_base_damage"
 VALID = {DEFAULT, "independent", "inert"}
@@ -54,8 +64,8 @@ def main(argv: list[str]) -> int:
 
     weapons: dict[str, dict] = {}
     for d in ents.values():
-        if d.get("default_form"):
-            key, slot = str(d.get("internal_name") or "").lower(), "base"
+        if is_main_form(d):
+            key, slot = default_form_key(d, ents), "base"
         elif d.get("form") == "incarnon":
             base = ents.get(str(d.get("transforms_from") or "")) or {}
             key, slot = str(base.get("internal_name") or "").lower(), "incarnon"
@@ -71,9 +81,11 @@ def main(argv: list[str]) -> int:
     out = {
         "_meta": {
             "source": "github.com/magenie33/wfsim data/weapons/**（顶层 co_behavior；"
-            "只收 default_form 与 form: incarnon 两种形态）",
+            "只收默认形态（default_form，或 build_weapon_attacks.MAIN_FORM_OVERRIDE 指定的"
+            "我方主段）与 form: incarnon 两种形态）",
             "values": "additive_with_base_damage（缺省，不写）/ independent / inert",
             "generator": "scripts/build_co_behavior.py",
+            "wfsim_commit": wfsim_commit(data),
         },
         "weapons": dict(sorted(weapons.items())),
     }

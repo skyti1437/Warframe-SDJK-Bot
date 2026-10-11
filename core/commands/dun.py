@@ -46,7 +46,7 @@ class DunCommands:
                 "（档位词自动按裂隙订阅），如 蹲 钢铁t5歼灭；"
                 "⚠ 连写=一个条件，空格拆开=取或",
                 "赏金：可筛 地区+任务（如 蹲 赏金 扎里曼 高效歼灭）；覆盖 扎里曼/实验室/1999",
-                "取消：蹲 取消（全部）/ 蹲 取消 裂隙 捕获（只删匹配项）",
+                "取消：蹲 取消（自己发起的全部；群管理员可删全群）/ 蹲 取消 裂隙 捕获（只删匹配项）",
             ]
             # 2026-09-21 修：裸「蹲」应出卡片图（与其它指令一致）。
             # 原 text_only=True 是 v0.5 接手时的祖传写法，全插件唯一一处强制纯文本；
@@ -55,21 +55,34 @@ class DunCommands:
 
         # 取消：「取消」位置无关——「蹲 取消」「蹲 裂隙 取消」「蹲 取消 裂隙 捕获」
         # 都合法；其余词构成筛选条件（2026-09-14 修：旧版见「取消」就删全群）。
+        # 权限（2026-10-10 安全审查）：管理员可删本群任意订阅；普通成员只能删
+        # **自己发起的**（created_by == 自己）—— 旧版任何群成员一句「蹲 取消」
+        # 就能清空全群订阅。created_by 为空的旧订阅只有管理员能删。
         if "取消" in toks:
             heads = [t for t in toks if t != "取消"]
+            _admin = self._is_admin(event)
+            _me = str(event.get_sender_id() or "").strip()
+
+            def _mine(s) -> bool:
+                return _admin or (bool(_me) and s.created_by == _me)
+
+            _scope = "本群" if _admin else "你在本群发起的"
             if not heads:
-                removed = await self.subs.remove(lambda s: s.umo == umo)
+                removed = await self.subs.remove(lambda s: s.umo == umo and _mine(s))
                 return Reply(
-                    raw_text=f"已取消本群全部 {removed} 条蹲订阅" if removed else "本群没有蹲订阅"
+                    raw_text=f"已取消{_scope}全部 {removed} 条蹲订阅"
+                    if removed
+                    else f"{_scope}蹲订阅为空"
+                    + ("" if _admin else "（他人发起的订阅需群管理员取消）")
                 )
             _ev, _keys, _exact, _fuzzy, _label = build_cancel_selector(umo, heads)
-            removed = await self.subs.remove(_exact)
+            removed = await self.subs.remove(lambda s: _exact(s) and _mine(s))
             if not removed and _keys:
-                removed = await self.subs.remove(_fuzzy)
+                removed = await self.subs.remove(lambda s: _fuzzy(s) and _mine(s))
             return Reply(
                 raw_text=f"已取消「{_label}」相关订阅 {removed} 条"
                 if removed
-                else f"本群没有「{_label}」相关订阅"
+                else f"{_scope}没有「{_label}」相关订阅"
             )
 
         event_type = None

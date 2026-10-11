@@ -234,6 +234,30 @@ async def main() -> None:
         str(len(obj4._ocr_last)),
     )
 
+    # ⑧ 紫卡识图与识卡共用防刷闸（2026-10-10 安全审查：紫卡截图同样调用付费模型）
+    obj5 = _plugin({"scan_cooldown": 60})
+    g1, _ = obj5._vision_gate(_Ev(sender="u9"), "紫卡识图")
+    g2, _ = obj5._vision_gate(_Ev(sender="u9"), "紫卡识图")
+    check(
+        "★ 紫卡识图：同一人冷却内第二次被拦",
+        g1 is None and g2 is not None and "紫卡识图太频繁" in (g2.raw_text or ""),
+        repr(getattr(g2, "raw_text", None)),
+    )
+    r6 = await obj5._h_scan(_Parsed(), _Ev(sender="u9"), "pc")
+    check(
+        "紫卡识图与识卡共用冷却",
+        r6 is not None and "太频繁" in (r6.raw_text or ""),
+        repr(getattr(r6, "raw_text", None)),
+    )
+    obj6 = _plugin({"scan_cooldown": 0, "scan_max_concurrent": 1})
+    obj6._ocr_busy = {"riven:group://a:u1"}
+    g3, _ = obj6._vision_gate(_Ev(sender="u10"), "紫卡识图")
+    check(
+        "紫卡识图计入全局并发上限",
+        g3 is not None and "并发上限" in (g3.raw_text or ""),
+        repr(getattr(g3, "raw_text", None)),
+    )
+
     print()
     if FAILED:
         print(f"✗ {len(FAILED)} 项失败：" + "、".join(FAILED))

@@ -6,7 +6,6 @@
 
 from __future__ import annotations
 
-from typing import Optional
 
 # ---------------------------------------------------------------------------
 # 武器融合：玄骸/信条/科达武器的「效价融合」（Valence Fusion）
@@ -131,12 +130,3 @@ def fusion_to_cap(start_pct: float) -> list[float]:
         cur = valence_bonus(cur, cur)
         trace.append(cur)
     return trace
-
-
-# ---------------------------------------------------------------------------
-# 杜卡德性价比
-# ---------------------------------------------------------------------------
-def ducat_per_plat(ducats: int, plat: float) -> Optional[float]:
-    if plat <= 0:
-        return None
-    return round(ducats / plat, 1)

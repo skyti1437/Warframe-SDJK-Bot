@@ -168,15 +168,6 @@ _MODE_SUFFIX_RE = re.compile(r"[（(](主要|次要|大气|primary|secondary|atm
 _MODE_ALIASES = {"主要": "primary", "次要": "secondary", "大气": "atmosphere"}
 
 
-def mode_of(name: str) -> Optional[str]:
-    """武器名（EN 或 ZH 显示名）尾部的模式后缀 → 英文模式词；无则 None。"""
-    m = _MODE_SUFFIX_RE.search((name or "").strip())
-    if not m:
-        return None
-    w = m.group(1).lower()
-    return _MODE_ALIASES.get(w, w)
-
-
 def kitgun_mode_class(name: str, base_cls: str, base_riven_type: str) -> str:
     """kitgun 腔体的紫卡基值列：**不分模式一律手枪列**（见上，实卡实证）。
 

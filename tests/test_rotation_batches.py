@@ -388,15 +388,18 @@ for _name, _rep, _n in (("信条", _reply_t, 5), ("终幕", _reply_c, 7)):
 #   Agendus Heat 47.2→Impact 39.2、Exec Toxin 38.8→Cold 39.8、Ferrox Radiation
 #   25.7→Magnetic 36.8、Grigori Electricity 60.0→Heat 25.5、Livia Electricity
 #   28.1→Toxin 25.1（上一轮 10-03 的值可在 git 历史里对）。
+# ★ 2026-10-11 刷新（窗口 10-10 00:00 UTC 起，信条本轮重掷）：刷新源 = 运行期
+#   rotations.json（部署容器回写；插件自动抓取源页）。本窗口抽查的两把：
+#   Ferrox Magnetic 36.8→Electricity 27.7、Exec Cold 39.8→Toxin 25.1。
 _tmap = {i["en"]: (i.get("element"), i.get("bonus")) for i in _tenet_items}
 check(
-    "信条·铁晶磁轨炮 = 磁力 36.8%（wiki 2026-10-07 源页）",
-    _tmap.get("Tenet Ferrox") == ("Magnetic", 36.8),
+    "信条·铁晶磁轨炮 = 电击 27.7%（wiki 2026-10-10 源页）",
+    _tmap.get("Tenet Ferrox") == ("Electricity", 27.7),
     str(_tmap.get("Tenet Ferrox")),
 )
 check(
-    "信条·枢密 = 冰冻 39.8%（wiki 2026-10-07 源页）",
-    _tmap.get("Tenet Exec") == ("Cold", 39.8),
+    "信条·枢密 = 毒素 25.1%（wiki 2026-10-10 源页）",
+    _tmap.get("Tenet Exec") == ("Toxin", 25.1),
     str(_tmap.get("Tenet Exec")),
 )
 _cmap = {i["en"]: (i.get("element"), i.get("bonus")) for i in _cur_batch}
@@ -406,10 +409,21 @@ _cmap = {i["en"]: (i.get("element"), i.get("bonus")) for i in _cur_batch}
 #   只能拿到当前批，所以种子以源页为准）。本窗口（10-07→10-11）生效批 = **B**：
 #   Reset 页活计时器为「Eleanor is selling Batch B weapons. Time left until
 #   Batch A: 3d12h55m」，倒计时精确指向 2026-10-11 00:00 UTC（与 coda epoch 的
-#   4 天网格一致）⇒ `anchor_idx` 由 0 改 1（旧值会让卡面错显成 A 批）。
+#   4 天网格一致）。⚠ 2026-10-11 复核订正：当时把「anchor_idx 0→1」是误判 ——
+#   页面文案 selling A、until B ⇒ 10-11 起 **B 批**生效，anchor_idx=0 才正确
+#   （决定性证据：10-11 源页 B 表重掷 Bassocyst 44.8→38.3、Synapse 40.6→54.9，
+#   而 A 表未动 —— 重掷发生在轮到生效的批上）。anchor_idx 现维持 0。
+# ★ 2026-10-11 刷新（fetch_valence 源页抓取，快照 10-11T00:29）：B 批（当前生效）
+#   更新为 Bassocyst 38.3 / Synapse 54.9（与 _SPOT.B 同步）；A 批（10-15 起）值未变。
+#   本轮容器渲染页抓取的 coda items 为空（上游上报表窗口期），数据以源页为准回写。
+# ★ 2026-10-11 刷新（fetch_valence 源页抓取，快照 10-11T00:29）：10-11 起 **A 批生效**
+#   （timer 前值印证），A/B 两批值均重掷 —— A 批（当前生效）与 _SPOT.A 逐条一致；
+#   B 批（10-15 起）更新为 Bassocyst 38.3 / Synapse 54.9。本轮容器渲染页抓取的
+#   coda items 为空（上游上报表窗口期），数据以源页为准回写；anchor_idx 修正回 1
+#   （曾在 6dcedda 修过一次，今日回写时随旧值带入 0，已归位）。
 _SPOT = {
     "A": {"Coda Catabolyst": ("Impact", 37.9), "Coda Motovore": ("Electricity", 56.3)},
-    "B": {"Coda Bassocyst": ("Electricity", 44.8), "Coda Synapse": ("Toxin", 40.6)},
+    "B": {"Coda Bassocyst": ("Radiation", 38.3), "Coda Synapse": ("Heat", 54.9)},
 }
 _cur_label = (coda.get("batch_label") or ["A", "B"])[_idx]
 for _en, _exp in _SPOT.get(_cur_label, {}).items():

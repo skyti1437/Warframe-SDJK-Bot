@@ -147,6 +147,24 @@ check(
     str((_s["galv_stacks"], _s["status_types"], _s["combo_hits"], _s["throw_stacks"])),
 )
 
+# —— 恶意长串（2026-10-10 安全审查）：旧版「伤害 绝路 x×300」在事件循环上跑约 95 s ——
+import time as _time  # noqa: E402
+
+_t0 = _time.perf_counter()
+_s, _nt = dc.parse_args(["绝路"] + ["x"] * 2000)
+_dt = _time.perf_counter() - _t0
+check(
+    "★ 2000 个垃圾词：截到上限、3 s 内返回、武器名照常摘出",
+    _dt < 3.0 and _nt == ["绝路"] and any("参数过多" in n for n in _s["notes"]),
+    f"{_dt:.2f}s nt={_nt} notes={_s['notes'][:1]}",
+)
+_s, _nt = dc.parse_args(["绝路", "暴" * 5000])
+check(
+    "超长单词直接进「未识别」（截断展示），不参与匹配",
+    _nt == ["绝路"] and len(_s["unknown"]) == 1 and _s["unknown"][0].endswith("…"),
+    str((_nt, [u[:8] for u in _s["unknown"]])),
+)
+
 print()
 if FAILED:
     print(f"✗ {len(FAILED)} 项失败：" + "、".join(FAILED))

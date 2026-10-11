@@ -533,6 +533,17 @@ check(
     str(sorted(_gp)),
 )
 
+# 掉率缺失（chance 为 None）的条目不得让掉落卡崩溃（2026-10-10：asterite 等 6 个物品 TypeError）
+_bad = []
+for _n in ("asterite", "aucrux capacitors", "gallos rods", "isos", "komms"):
+    try:
+        _c = WI._drops_card(_n)
+        if not _c:
+            _bad.append((_n, "无卡"))
+    except Exception as _e:  # noqa: BLE001
+        _bad.append((_n, repr(_e)))
+check("掉率缺失的条目不崩：asterite / aucrux capacitors 等出卡", not _bad, str(_bad))
+
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")
     sys.exit(1)

@@ -130,7 +130,7 @@ def _make_plugin(tmp: Path) -> "plugin.WarframeSDJK":
     return obj
 
 
-async def _run_one(obj, text: str, umo: str = "group://test"):
+async def _run_one(obj, text: str, umo: str = "group://test", role: str = "admin"):
     parsed = parse(text)
     event = (
         plugin.AstrMessageEvent(umo=umo, sender="tester")
@@ -138,7 +138,7 @@ async def _run_one(obj, text: str, umo: str = "group://test"):
         else None
     )
     # 用桩事件：直接构造，避免依赖 stub 名
-    event = _StubEvent(umo)
+    event = _StubEvent(umo, role=role)
     return await obj._h_dun(parsed, event, "pc")
 
 
@@ -329,6 +329,27 @@ async def main() -> None:
 
     # —— 状态卡回归（2026-09-14 修「.状态 platform 未定义」崩溃）——
     from core.store import Subscription as _Sub
+
+    # 11) 取消权限（2026-10-10 安全审查）：普通成员只能删自己发起的订阅，
+    #     管理员可删全群；created_by 为空的旧订阅只有管理员能删
+    obj5 = _make_plugin(Path(tempfile.mkdtemp()))
+    for ev, who in (("新闻", "tester_id"), ("奸商", "other_id"), ("夜灵", "")):
+        await obj5.subs.add(_Sub("group://perm", "pc", ev, created_by=who))
+    r_m = await _run_one(obj5, "蹲 取消", umo="group://perm", role="member")
+    check(
+        "★ 普通成员「蹲 取消」只删自己发起的",
+        sorted(s.event for s in obj5.subs.all()) == ["夜灵", "奸商"]
+        and "你在本群发起的" in (r_m.raw_text or ""),
+        f"{[s.event for s in obj5.subs.all()]} | {r_m.raw_text!r}",
+    )
+    r_m2 = await _run_one(obj5, "蹲 奸商 取消", umo="group://perm", role="member")
+    check(
+        "★ 普通成员不能按筛选词删他人订阅",
+        len(obj5.subs.all()) == 2 and "没有" in (r_m2.raw_text or ""),
+        f"{[s.event for s in obj5.subs.all()]} | {r_m2.raw_text!r}",
+    )
+    await _run_one(obj5, "蹲 取消", umo="group://perm", role="admin")
+    check("管理员「蹲 取消」可清空全群（含旧订阅）", len(obj5.subs.all()) == 0)
 
     class _CacheStub:
         def stats(self):

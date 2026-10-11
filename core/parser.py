@@ -324,6 +324,9 @@ RIVEN_STAT_ALIASES: dict[str, set[str]] = {
     #   毒气伤害→毒素伤害、爆炸伤害→暴击伤害、弹药效率→弹药上限、弱点暴击→暴击几率）
     #   或静默丢弃（⇒ 词条数少算、系数错档、区间偏高约 32%）。
     #   ⚠ 中文名按既有卡面写法推导（「弹药效率」为官方语言表实证），**待一张实卡复核**。
+    # ★ 2026-10-10：RIVEN_STAT_ZH 的卡面短名（O伤/S伤/T伤/弱点伤/处决伤）必须也是别名 ——
+    #   wr 卡上显示什么，玩家就照抄什么；漏了会被并进武器名（「wr 空刃 弱点伤」→ 武器
+    #   「空刃 弱点伤」）。守卫见 tests/test_riven_stat_i18n.py ⑫。
     "gas_damage": ["毒气伤害", "毒气", "Gas Damage"],
     "corrosive_damage": ["腐蚀伤害", "腐蚀", "Corrosive Damage"],
     "viral_damage": ["病毒伤害", "病毒", "Viral Damage"],
@@ -337,6 +340,7 @@ RIVEN_STAT_ALIASES: dict[str, set[str]] = {
         "对 Orokin 伤害",
         "对奥罗金",
         "对O伤",
+        "O伤",
         "Orokin Damage",
     ],
     "damage_vs_scaldra": [
@@ -346,6 +350,7 @@ RIVEN_STAT_ALIASES: dict[str, set[str]] = {
         "对 Scaldra 伤害",
         "对炽蛇军",
         "对S伤",
+        "S伤",
         "Scaldra Damage",
     ],
     "damage_vs_techrot": [
@@ -355,9 +360,10 @@ RIVEN_STAT_ALIASES: dict[str, set[str]] = {
         "对 Techrot 伤害",
         "对科腐者",
         "对T伤",
+        "T伤",
         "Techrot Damage",
     ],
-    "weakpoint_damage": ["弱点伤害", "弱点", "弱伤", "Weakpoint Damage"],
+    "weakpoint_damage": ["弱点伤害", "弱点", "弱伤", "弱点伤", "Weakpoint Damage"],
     "weakpoint_crit_chance": [
         "弱点暴击几率",
         "弱点暴击率",
@@ -431,7 +437,7 @@ RIVEN_STAT_ALIASES: dict[str, set[str]] = {
     # ★ 2026-10-02 归并（口径统一）：原 combo_efficiency（「连击效率」）在 WM 32
     #   属性与官方基值表里都没有对应行，基值却等于「额外连击数几率」的 58.77 ——
     #   属早期误录的幽灵 sid。按维护者决定归并到额外连击数几率，这两个词不再单列。
-    "finisher_damage": {"处决伤害", "处决"},
+    "finisher_damage": {"处决伤害", "处决", "处决伤"},
     "slide_crit": {
         "滑行攻击时暴击率",
         "滑暴",
@@ -653,6 +659,11 @@ for _std, _aliases in RIVEN_STAT_ALIASES.items():
         _STAT_LOOKUP.setdefault(_a, _std)
 for _combo in RIVEN_STAT_COMBOS:
     _STAT_LOOKUP.setdefault(_combo, _combo)
+# 最长别名长度：分词时片段不必试得比它更长
+_STAT_KEY_MAX = max(map(len, _STAT_LOOKUP))
+# 连写词条串长度上限：紫卡最多 4 条词条，再长不可能是词条串（直接当普通内容词），
+# 也挡住超长 token 让递归分词卡住事件循环 / 递归过深（2026-10-10 实测 4×950 字 3.7 s）
+_SEGMENT_MAX_LEN = 64
 
 
 def segment_stats(blob: str) -> Optional[list[str]]:
@@ -663,6 +674,8 @@ def segment_stats(blob: str) -> Optional[list[str]]:
     n = len(blob)
     if n == 0:
         return []
+    if n > _SEGMENT_MAX_LEN:
+        return None
     memo: dict[int, Optional[list[str]]] = {}
 
     def dp(i: int) -> Optional[list[str]]:
@@ -672,7 +685,7 @@ def segment_stats(blob: str) -> Optional[list[str]]:
             return memo[i]
         best: Optional[list[str]] = None
         # 贪心：先长后短
-        for j in range(n, i, -1):
+        for j in range(min(n, i + _STAT_KEY_MAX), i, -1):
             piece = blob[i:j]
             std = _STAT_LOOKUP.get(piece)
             if std is None:
@@ -858,6 +871,7 @@ class WMQuery:
     item: str = ""  # 物品名（EN 或 CN 别名）
     buy: bool = False  # 收购（查看收购单）
     group_buy: Optional[list[tuple[str, int]]] = None  # 合购 [(item, qty)]
+    group_buy_dropped: int = 0  # 合购超出 GROUP_BUY_MAX 被忽略的项数（回复里提示）
     quantity: Optional[int] = None  # 3个 -> 同时出售 >= 3
     rank: Optional[int] = None  # 零级/满级/3级；满级用 -1 表示
     rank_word: str = ""  # 原始 rank 词（展示用）
@@ -986,7 +1000,9 @@ def parse_wm(content: Iterable[str], preset: Optional[str] = None) -> WMQuery:
         elif tok == "合购":
             i += 1
             if i < len(tokens) and ("," in tokens[i] or "*" in tokens[i]):
-                q.group_buy = _parse_group_list(tokens[i])
+                full = _parse_group_list(tokens[i])
+                q.group_buy = full[:GROUP_BUY_MAX]
+                q.group_buy_dropped = len(full) - len(q.group_buy)
             else:
                 item_parts.append(tok)
         elif re.fullmatch(r"(\d+)个", tok):
@@ -1008,6 +1024,10 @@ def parse_wm(content: Iterable[str], preset: Optional[str] = None) -> WMQuery:
         i += 1
     q.item = " ".join(item_parts).strip()
     return q
+
+
+# 合购单项数上限：每项一次 WM 订单请求，共享全局限速锁；超出部分忽略并在回复里提示。
+GROUP_BUY_MAX = 10
 
 
 def _parse_group_list(blob: str) -> list[tuple[str, int]]:

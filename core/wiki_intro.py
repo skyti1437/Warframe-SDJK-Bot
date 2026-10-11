@@ -20,6 +20,11 @@ try:
 except ImportError:  # 离线脚本把 core/ 当顶层路径导入时
     import matching
 
+try:
+    from . import paths as _paths  # 共享只读 JSON 缓存（drops.json 三处读者同一份）
+except ImportError:  # 离线脚本把 core/ 当顶层路径导入时
+    import paths as _paths
+
 _FILE = Path(__file__).resolve().parent / "data" / "wiki_intro.json"
 _DROPS_FILE = Path(__file__).resolve().parent / "data" / "drops.json"
 _EFFECT_ZH_FILE = Path(__file__).resolve().parent / "data" / "wiki_effect_zh.json"
@@ -216,11 +221,11 @@ def intro(*names: str) -> Optional[tuple[str, list[str]]]:
 
 @lru_cache(maxsize=1)
 def _drops() -> tuple[dict, dict, dict, dict]:
-    """drops.json 的 (items, 归一化英文名 → 原键, places, zh2en)。"""
-    try:
-        d = json.loads(_DROPS_FILE.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}, {}, {}, {}
+    """drops.json 的 (items, 归一化英文名 → 原键, places, zh2en)。
+
+    原表经 ``paths.load_json`` 与 core/drops.py、core/search.py 共享（只读，不得就地修改）。
+    """
+    d = _paths.load_json(_DROPS_FILE)
     if not isinstance(d, dict):
         return {}, {}, {}, {}
     items = d.get("items") or {}
@@ -259,7 +264,8 @@ def _drops_card(*names: str, limit: int = 5) -> Optional[tuple[str, list[str]]]:
         # 遗物来源（「Lith T1 Relic (Exceptional)」这类）对「在哪刷」没用，
         # 排到任务节点后面，再按几率降序
         relic = ("relic" in place.lower()) or ("遗物" in place)
-        return (relic, -float(row[2]))
+        # 掉率可能缺失（drops.json 里少数条目 chance 为 None）：排最后，不让整张卡崩掉
+        return (relic, -float(row[2]) if row[2] is not None else 1.0)
 
     rows = sorted(srcs, key=_rank)[:limit]
     title = (names[0] or key).strip() or key
@@ -267,7 +273,7 @@ def _drops_card(*names: str, limit: int = 5) -> Optional[tuple[str, list[str]]]:
     for row in rows:
         pid, _rarity, chance = row[0], row[1], row[2]
         place = places.get(str(pid)) or places.get(pid) or "?"
-        lines.append(f"· {place}（{chance}%）")
+        lines.append(f"· {place}（{chance}%）" if chance is not None else f"· {place}（几率未知）")
     return title, lines
 
 

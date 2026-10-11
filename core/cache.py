@@ -25,12 +25,6 @@ class TTLCache:
         self._hits = 0
         self._misses = 0
 
-    def _purge(self) -> None:
-        now = time.monotonic()
-        expired = [k for k, (exp, _) in self._store.items() if exp <= now]
-        for k in expired:
-            self._store.pop(k, None)
-
     async def get(self, key: str) -> Optional[Any]:
         async with self._lock:
             item = self._store.get(key)
@@ -52,12 +46,6 @@ class TTLCache:
             self._store.move_to_end(key)
             while len(self._store) > self._maxsize:
                 self._store.popitem(last=False)
-
-    async def drop_prefix(self, prefix: str) -> None:
-        """按前缀批量失效（例如强制刷新某平台全部世界状态缓存）。"""
-        async with self._lock:
-            for k in [k for k in self._store if k.startswith(prefix)]:
-                self._store.pop(k, None)
 
     async def get_or_fetch(
         self,

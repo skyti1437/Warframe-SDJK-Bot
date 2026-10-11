@@ -20,7 +20,7 @@ from .. import api_client
 from ..logging_compat import logger
 from .. import formatters as fmt
 from .. import matching
-from ..parser import parse_wm, parse_wr
+from ..parser import GROUP_BUY_MAX, parse_wm, parse_wr
 from .base import PLUGIN_DIR, Reply
 
 JUNK_FILE = PLUGIN_DIR / "core" / "data" / "junk.json"
@@ -91,30 +91,99 @@ async def _head_part_resolve(client, item: str):
 
 
 async def riven_market_weapon(client, query: str, weapon: dict) -> dict:
-    """紫卡**市场**（wr）按母武器认卡 —— 2026-10-05 用户口径。
+    """紫卡**市场**（wr）按**家族主武器**认卡 —— 2026-10-05 / 2026-10-10 用户口径。
 
-    「wr 绝路」→ 绝路家族（含 Prime）的紫卡都归它；市场路径**不解析倾向**，
-    只要认出是哪把武器。WM 拍卖端点只认**自家列表**里的 slug（实测
-    `weapon_url_name=rubico_prime` → **HTTP 400**，`rubico` → 200），而解析可能
-    先命中本地补全的变体条目（`dispositions_rivenmirror.json` 的 rubico_prime 等）
-    ⇒ 命中 slug 不在自家列表时，剥 Prime 后缀（p / p版 / Prime，含条目 zh 名）
-    回退母武器再解析一次；回退不到就原样返回（交给下游报空，不静默换武器）。
+    紫卡在家族内通用，挂单按主武器挂 ⇒ 「wr Dex侍刃 / 侍刃p / 棱晶空刃」一律查
+    家族主武器（nikana / skana）的挂单；市场路径**不解析倾向**，只要认出是哪把武器。
+    WM 拍卖端点只认**自家列表**里的 slug（实测 `weapon_url_name=rubico_prime` →
+    **HTTP 400**，`rubico` → 200；`prisma_skana` → 400 item_not_exist）。
 
-    注：WM 自家列表里本就以 `_prime` 为名的独立武器（euphona_prime 等，其母武器
-    不在表内）**不受影响** —— 它们本来就在自家列表里（第一道判断即放行）。
+    解析顺序（家族判据只认 DE 官方 parentName 谱系 `riven_families.json`，经
+    `matching.family_key`；名字不参与判族）：
+      ① 家族主武器在自家列表 ⇒ 用它（`_riven_family_root`）——
+         Dex侍刃 → nikana（2026-10-10 用户口径：WM 虽另列 dex_nikana，也查主武器）；
+      ② 武器本身就在自家列表 ⇒ 原样（Dex Dakra 自成一族、euphona_prime 等独立条目）；
+      ③ 剥 Prime 后缀（p / p版 / Prime，含条目 zh 名）回退母武器再解析一次；
+      ④ 同族的自家列表成员（`_riven_family_listed`，主武器未上 WM 时）；
+      都认不出唯一一把就原样返回（交给下游报空，不静默换武器）。
     """
     if not weapon:
         return weapon
     own = await client.wm_riven_weapon_slugs()
+    entries = await client.wm_riven_weapons()
+    root = _riven_family_root(weapon, entries, own)
+    if root:
+        return root
     if weapon.get("url_name") in own:
         return weapon
     base_q = matching.prime_base(query) or matching.prime_base(weapon.get("zh") or "")
-    if not base_q:
-        return weapon
-    base_w = await client.resolve_riven_weapon(base_q)
-    if base_w and base_w.get("url_name") in own:
-        return base_w
-    return weapon
+    if base_q:
+        base_w = await client.resolve_riven_weapon(base_q)
+        if base_w and base_w.get("url_name") in own:
+            return base_w
+    return _riven_family_listed(weapon, entries, own) or weapon
+
+
+def _same_family_listed(weapon: dict, entries: list, own: set) -> tuple[str, list]:
+    """(家族根, 同族且在 WM 自家列表里的条目)；同 url_name 只留一条。
+
+    紫卡类别（riven_type）已知时先收窄：Vinquibus 枪 / 近战两形态同族却是两种紫卡，
+    近战形态不得落到步枪主武器；收窄后为空才退回不收窄（与第一版同口径）。
+    """
+    key = matching.family_key(weapon.get("en") or "")
+    if not key:
+        return "", []
+    seen: set = set()
+    cands = []
+    for e in entries:
+        u = e.get("url_name")
+        if u in own and u not in seen and matching.family_key(e.get("en") or "") == key:
+            seen.add(u)
+            cands.append(e)
+    rtype = weapon.get("riven_type") or ""
+    if rtype and len(cands) > 1:
+        cands = [e for e in cands if e.get("riven_type") == rtype] or cands
+    return key, cands
+
+
+def _riven_family_root(weapon: dict, entries: list, own: set) -> Optional[dict]:
+    """家族**主武器**（谱系根）在 WM 自家列表里的条目；认不出 ⇒ None。
+
+    ★ 2026-10-10 用户口径：wr 只查家族主武器（Dex侍刃 → nikana，不查 dex_nikana）。
+    根 = `riven_families.json` 的家族根键（ExportWeapons uniqueName 尾段，如 Katana）：
+      · WM 条目的 `game_ref`（= DE uniqueName）尾段 == 根键 ⇒ 主武器（nikana 的
+        `.../KatanaAndWakizashi/Katana`）；
+      · 人工补丁族（Hek / DarkDagger，根键取自基础武器名）：英文名归一化 == 根键
+        （Hek 的 uniqueName 是 QuadShotgun，只能这样认）；
+      · 都没有 ⇒ None（交给后续回退，不猜）。
+    不跨族：Dex Furis 的根是 AkimboAutoPistols（Afuris），Dex Dakra 自成 DexTheSecond。
+    """
+    key, cands = _same_family_listed(weapon, entries, own)
+    if not cands:
+        return None
+    hit = [e for e in cands if (e.get("game_ref") or "").rsplit("/", 1)[-1] == key]
+    if not hit:
+        nk = matching.normalize(key)
+        hit = [e for e in cands if matching.normalize(e.get("en") or "") == nk]
+    return hit[0] if len(hit) == 1 else None
+
+
+def _riven_family_listed(weapon: dict, entries: list, own: set) -> Optional[dict]:
+    """主武器不在 WM 列表时的回退：同族里 **WM 自家列表**的成员（2026-10-10 第一版）。
+
+    ★ 对照 wfsim ce78ffeafd：紫卡按家族通用，WM 拍卖只认家族里它自家列出的条目
+    （实测 `weapon_url_name=prisma_skana` → **HTTP 400** item_not_exist）。
+    候选 = 同族且在自家列表里的条目（`_same_family_listed`，已按紫卡类别收窄）：
+      · 只有一个 ⇒ 就是它；
+      · 多个 ⇒ 取**名字就是家族名**的那个（候选英文名被查询英文名包含，且唯一）；
+      · 认不出唯一一个 ⇒ None（不猜）。
+    """
+    _key, cands = _same_family_listed(weapon, entries, own)
+    if len(cands) == 1:
+        return cands[0]
+    qn = matching.normalize(weapon.get("en") or "")
+    named = [e for e in cands if (n := matching.normalize(e.get("en") or "")) and n in qn]
+    return named[0] if len(named) == 1 else None
 
 
 class MarketCommands:
@@ -376,8 +445,14 @@ class MarketCommands:
             lines.append(f"🟢 {seller}｜覆盖 {covered}/{len(q.group_buy)} 件｜合计约 {total}p")
             for url, (p, c) in info["items"].items():
                 lines.append(f"　· {url} × {c} = {p * c}p")
+        dropped = getattr(q, "group_buy_dropped", 0)
+        cap_tip = f"⚠ 合购单最多 {GROUP_BUY_MAX} 项，超出的 {dropped} 项已忽略" if dropped else ""
         if not lines:
-            return Reply(raw_text="暂时没有在线卖家能凑齐合购单")
+            return Reply(
+                raw_text="暂时没有在线卖家能凑齐合购单" + (f"\n{cap_tip}" if cap_tip else "")
+            )
+        if cap_tip:
+            lines.append(cap_tip)
         return Reply(
             "合购最优卖家（同卖家买齐更省事）", lines, footer=fmt.fmt_platform_footer(platform)
         )
@@ -420,6 +495,7 @@ class MarketCommands:
             tips = await self.client.suggest_riven_weapons(q.weapon)
             tip = ("，你是不是想找：" + "、".join(tips)) if tips else ("，请使用英文名或补充别名表")
             return Reply(raw_text=f"未找到紫卡武器「{q.weapon}」{tip}")
+        asked = weapon
         weapon = await riven_market_weapon(self.client, q.weapon, weapon)
         url_name = weapon["url_name"]
         rtype = weapon.get("riven_type", "")
@@ -523,8 +599,13 @@ class MarketCommands:
             presorted=bool(relaxed),
             exact_ids=exact_ids,
         )
-        if weapon.get("_fuzzy_from"):
-            lines.insert(0, f"※ 「{weapon['_fuzzy_from']}」按「{weapon.get('zh') or wname}」查询")
+        _asked = asked.get("zh") or asked.get("en") or asked.get("url_name")
+        if url_name != asked.get("url_name"):
+            # ★ 2026-10-10：变体（Dex/Prime/棱晶/赤毒…）改查家族主武器 ⇒ 卡面写明，
+            #   免得玩家以为把「Dex 侍刃」看成了「侍刃」。
+            lines.insert(0, f"※ 紫卡按家族挂单，「{_asked}」已按主武器「{wname}」查")
+        if asked.get("_fuzzy_from"):  # 形近兜底标记在解析结果上（改查主武器后仍要提示）
+            lines.insert(0, f"※ 「{asked['_fuzzy_from']}」按「{_asked}」查询")
         _off = [a for a in pool if ((a.get("owner") or {}).get("status") or "offline") == "offline"]
         if _off:
             lines.append(f"※ 含 {len(_off)} 条离线挂单（已排在在线之后）")
@@ -617,7 +698,8 @@ class MarketCommands:
         try:
             snap = await self.client.de_weekly_rivens(platform, force="刷新" in content)
         except Exception as e:  # noqa: BLE001
-            return Reply(raw_text=f"紫卡周报暂时拉取失败：{e}")
+            logger.warning("[sdjk] 紫卡周报拉取失败：%r", e)
+            return Reply(raw_text=f"紫卡周报暂时拉取失败：{api_client.public_error_text(e)}")
         zhm = {
             w.get("en", "").lower(): (w.get("zh") or "")
             for w in await self.client.wm_riven_weapons()

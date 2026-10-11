@@ -387,6 +387,10 @@ class _FakeClient2:
         # 市场按母武器认卡（2026-10-05）：本桩条目即 WM 自家条目 ⇒ 不触发回退
         return {self._weapon["url_name"]}
 
+    async def wm_riven_weapons(self):
+        # 2026-10-10 起 wr 先按家族主武器认卡（riven_market_weapon 每次都读合并表）
+        return [dict(self._weapon)]
+
     def normalize_riven_stats(self, stats, rtype=""):
         return WarframeClient.normalize_riven_stats(stats, rtype)
 
