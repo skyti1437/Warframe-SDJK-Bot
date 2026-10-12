@@ -63,7 +63,7 @@ def _run(weapon: dict, cached: dict, text: str) -> list[str]:
 print("① 识卡伤害：参数生效")
 _w_mel, _c_mel = _scan_cache("迦伦提恩", [{"name": "压迫点", "drain": "9", "color": "白"}])
 _lines = _run(_w_mel, _c_mel, "识卡伤害 对 重机枪手 150级 爆头 重击")
-_target = next((ln for ln in _lines if ln.startswith("◆ 目标")), "")
+_target = next((ln for ln in _lines if ln.startswith("· 目标")), "")
 check("等级 150级 生效（目标行）", "150级" in _target, _target)
 check("敌人 重型机枪手 生效", any("敌人：重型机枪手" in ln for ln in _lines))
 # 「爆头期望」行恒显示；爆头开关只体现在 DoT（继承爆头倍率）上 ⇒ 对照组比 DoT 行
@@ -71,7 +71,7 @@ _no_hs = _run(_w_mel, _c_mel, "识卡伤害 对 重机枪手 150级 重击")
 
 
 def _dot(ls: list[str]) -> str:
-    return next((ln for ln in ls if ln.startswith("◆ 异常 DoT")), "")
+    return next((ln for ln in ls if ln.startswith("· 异常 DoT")), "")
 
 
 check(
@@ -79,7 +79,7 @@ check(
     bool(_dot(_lines)) and _dot(_lines) != _dot(_no_hs),
     f"{_dot(_lines)} vs {_dot(_no_hs)}",
 )
-check("重击 生效（出现重击段）", any(ln.startswith("◆ 重击") for ln in _lines))
+check("重击 生效（出现重击段）", any(ln.startswith("· 重击") for ln in _lines))
 check(
     "无「未识别」行（不再逐字符拆分）",
     not any("未识别" in ln for ln in _lines),
@@ -90,7 +90,7 @@ check(
 _plain = _run(_w_mel, _c_mel, "识卡伤害")
 check(
     "无参数 → 默认 100级",
-    any(ln.startswith("◆ 目标") and "100级" in ln for ln in _plain),
+    any(ln.startswith("· 目标") and "100级" in ln for ln in _plain),
 )
 
 # ---------------------------------------------------------------------------

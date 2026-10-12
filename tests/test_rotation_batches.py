@@ -223,7 +223,8 @@ _idx = (int(coda["anchor_idx"]) + _passed) % len(_batches)
 _labels = coda["batch_label"]
 check(
     f"终幕卡标注当前批次（{_labels[_idx]} 批）",
-    any(f"当前为 {_labels[_idx]} 批" in ln for ln in lines),
+    # ★ 2026-10-11 第二步改版：「◆ 当前为 B 批（…）」改为 KV「◆ 当前批次：B 批｜共 2 批轮换…」，语义不变
+    any(ln.startswith("◆ 当前批次：") and f"{_labels[_idx]} 批" in ln for ln in lines),
     str(lines[:1]),
 )
 check("终幕卡列出当前批 7 把", sum(1 for ln in lines if ln.startswith("· 终幕·")) == 7, str(lines))

@@ -246,8 +246,11 @@ check("单卡模式标题不带页码", "第" not in _title and "/" not in _titl
 check("单卡模式标题给出总条数", "共34条" in _title, _title)
 check(
     "单卡模式 34 条全在一张卡（+1 条排序说明）",
-    sum(1 for x in _lines if x.startswith(("1.", "34."))) == 2
-    and len([x for x in _lines if x and x[0].isdigit()]) == 34,
+    # ★ 2026-10-11 第二步改版：裂隙行不再带序号「N.」，统一为「· 纪元　类型　节点…」列表行；
+    #   护栏改为「34 条列表行 + 首尾节点都在」，语义不变（一条不少、都在同一张卡）。
+    len([x for x in _lines if x.startswith("· ")]) == 34
+    and any("节点0" in x for x in _lines if x.startswith("· "))
+    and any("节点33" in x for x in _lines if x.startswith("· ")),
     str(len(_lines)),
 )
 check("单卡模式不写「-2 翻页」类提示", all("翻页" not in x for x in _lines))
@@ -256,7 +259,7 @@ _t2, _l2 = fmt_fissures(_rows, all_rows=True, flt=parse_fissure_filter("捕获")
 check(
     "单卡模式下 page 参数被忽略（筛选仍在）",
     all("捕获" in x for x in _l2 if x and x[0].isdigit())
-    and len([x for x in _l2 if x and x[0].isdigit()]) > 0,
+    and len([x for x in _l2 if x.startswith("· ")]) > 0,
     str(_l2[:3]),
 )
 
@@ -265,13 +268,13 @@ _t3, _l3 = fmt_fissures(_many(_ALL_ROWS_CAP + 5), all_rows=True)
 check("超上限时显式说明，不静默丢内容", any("本卡只列前" in x for x in _l3), str(_l3[-3:]))
 check(
     "超上限时行数受控（正文 ≤ 上限+2 条注脚）",
-    len([x for x in _l3 if x and x[0].isdigit()]) == _ALL_ROWS_CAP,
+    len([x for x in _l3 if x.startswith("· ")]) == _ALL_ROWS_CAP,
 )
 
 # 分页模式（默认）不受影响：其他列表类指令仍走翻页
 _t4, _l4 = fmt_fissures(_many(34), page=2, page_size=12)
 check("默认分页模式仍是第2/3页", "第2/3页" in _t4, _t4)
-check("默认分页模式只出 12 条", len([x for x in _l4 if x and x[0].isdigit()]) == 12)
+check("默认分页模式只出 12 条", len([x for x in _l4 if x.startswith("· ")]) == 12)
 
 
 # ------------------------------------------------- T1–T6 档位别名（2026-10-03）
@@ -366,17 +369,27 @@ check(
 )
 
 # ⑦ describe 档位段「中文名（Tn）」；不含档位规则输出保持原样
+# ★ 2026-10-11 改断言：未写难度的组不再补「普通」（实际匹配不限难度，旧注脚与结果不符）；
+#   显式写「普通」才输出「普通」。
 check(
     "⑦ describe 输出「安魂（T5）」形式",
-    parse_fissure_filter("T5歼灭").describe() == "普通歼灭安魂（T5）"
-    and parse_fissure_filter("T6捕获").describe() == "普通捕获全能（T6）"
+    parse_fissure_filter("T5歼灭").describe() == "歼灭安魂（T5）"
+    and parse_fissure_filter("T6捕获").describe() == "捕获全能（T6）"
     and parse_fissure_filter("钢铁T1生存").describe() == "钢铁生存古纪（T1）",
     parse_fissure_filter("T5歼灭").describe(),
 )
 check(
     "⑦ 不含档位的规则输出保持原样（既有断言口径不变）",
     parse_fissure_filter("钢铁防御").describe() == "钢铁防御"
-    and parse_fissure_filter("钢铁,防御").describe() == "钢铁，普通防御",
+    and parse_fissure_filter("钢铁,防御").describe() == "钢铁，防御",
+)
+check(
+    "⑦b 注脚与条件一致：未写难度不写「普通」，显式「普通」才写",
+    parse_fissure_filter("生存").describe() == "生存"
+    and parse_fissure_filter("普通生存").describe() == "普通生存"
+    and parse_fissure_filter("普通 中断").describe() == "普通中断"
+    and parse_fissure_filter("生存").match({"isHard": True, "missionType": "生存"}),
+    parse_fissure_filter("生存").describe(),
 )
 
 # ⑥ 真实夹具对拍（tests/fixtures/de_worldstate.json 的 20 条 ActiveMissions）

@@ -216,15 +216,15 @@ rows = [
 ]
 lines = fmt_wm_set_parts(rows)
 check("部件价标题行", lines[0] == "◆ 部件参考价")
+# 2026-10-11 卡片改版：「部件｜在售｜收购」三列表（部件名去掉套装公共前缀；价格只写数字+p）
+_rows3 = [ln[2:].split("　") for ln in lines if ln.startswith("· ")]
+check("表头为「部件｜在售｜收购」", "　部件　在售　收购" in lines, str(lines))
 check(
-    "在售+收购格式（无单数计数）",
-    any(
-        "蓝图" in l and "在售 45p" in l and "收购 38p" in l and "×" not in l.split("　")[1]
-        for l in lines
-    ),
+    "在售+收购格式（无单数计数）：蓝图 = 45p / 38p，部件名已去套装前缀",
+    ["蓝图", "45p", "38p"] in _rows3 and all("×" not in c for r in _rows3 for c in r),
     str(lines),
 )
-check("仅收购格式", any("机体" in l and "收购 20p" in l for l in lines))
+check("仅收购格式（在售写「—」）", ["机体", "—", "20p"] in _rows3, str(lines))
 check("不标注在线状态", all("（离线）" not in l and "离线" not in l for l in lines), str(lines))
 check("无挂单格式", any("头盔　暂无挂单" in l for l in lines))
 check("空输入返回空列表", fmt_wm_set_parts([]) == [])

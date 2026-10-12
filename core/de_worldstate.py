@@ -491,13 +491,28 @@ def sortie_modifier(code: str) -> str:
 
 
 def _ms(value: Any) -> Optional[int]:
-    """{"$date": {"$numberLong": "..."}} / 秒级整数 -> 毫秒时间戳。"""
+    """{"$date": {"$numberLong": "..."}} / {"$date": ISO 串或数字} / 秒级整数 -> 毫秒时间戳。
+
+    ★ 2026-10-11（B6 健壮性）：Mongo 扩展 JSON 的 ``$date`` 也可能直接是 ISO 字符串
+    （``{"$date": "2026-10-11T01:00:00Z"}``）或裸数字；旧实现对字符串调 ``.get`` 抛
+    AttributeError ⇒ 整包解析失败。现在三种形态都认，认不出返回 None。
+    """
     if value is None:
         return None
     if isinstance(value, dict):
-        value = (value.get("$date") or {}).get("$numberLong")
+        value = value.get("$date")
+        if isinstance(value, dict):
+            value = value.get("$numberLong")
     if value is None:
         return None
+    if isinstance(value, str) and not value.strip().lstrip("-").isdigit():
+        try:
+            dt = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return int(dt.timestamp() * 1000)
     try:
         num = int(value)
     except (TypeError, ValueError):
@@ -577,6 +592,10 @@ def _node_name(node_key: str) -> str:
     if node_key.endswith("HUB"):  # 中继站/中枢不带敌派后缀
         return name
     suffix = ""
+    if name.strip() in PLANET_CN:
+        # ★ 2026-10-11：活动节点（EventNode35 = "Earth"）的值是**无括号**的星球名，
+        #   旧逻辑只汉化括号里的星球 ⇒ 卡面露英文「Earth」。
+        return PLANET_CN[name.strip()]
     m = _PLANET_RE.search(name)
     if m and m.group(1).strip() in PLANET_CN:
         planet = PLANET_CN[m.group(1).strip()]
@@ -642,6 +661,10 @@ def earth_cycle(cetus: dict) -> dict:
     }
 
 
+# 夜灵平野 / 赏金周期：150 分钟（100 分钟白天 + 50 分钟夜晚）
+CETUS_PERIOD_S = 9000
+
+
 def cetus_cycle(bounty_end_ms: Optional[int], now_ms: int) -> dict:
     """夜灵平野：希图斯赏金截止 = 当前期相结束；剩 >50 分钟为白天。
 
@@ -653,7 +676,11 @@ def cetus_cycle(bounty_end_ms: Optional[int], now_ms: int) -> dict:
         return {"state": "day", "isDay": True, "expiry": "", "timeLeft": "?", "_degraded": True}
     secs_left = (bounty_end_ms - now_ms) // 1000
     if secs_left <= 0:
-        secs_left = 3600
+        # ★ 2026-10-11：DE 包过期未轮换（缓存/维护）时**按 150 分钟周期前滚**，
+        #   不再伪造「剩 3600s」（旧写法：任何时刻都显示白天剩 10 分钟，昼夜可能整个反掉）。
+        secs_left %= CETUS_PERIOD_S
+        if secs_left == 0:
+            secs_left = CETUS_PERIOD_S
     day = secs_left > 3000  # 50min 夜晚
     left = (secs_left - 3000) * 1000 if day else secs_left * 1000
     return {
@@ -834,8 +861,17 @@ def zariman_cycle(seed: Optional[int], expiry_ms: Optional[int], now_ms: int) ->
     """
     if not expiry_ms:
         return {}
-    state = _ZARIMAN_STATES[(int(seed or 0) & 1)]
     left = max(0, expiry_ms - now_ms)
+    if seed is None:
+        # ★ 2026-10-11：没有 Seed 就判不出派系 —— 返回「未知」，不再默认成 grineer
+        #   （旧写法 ``int(seed or 0)`` 把缺字段当偶数，卡面上是一条编出来的派系）。
+        return {
+            "state": "unknown",
+            "stateCn": "未知",
+            "expiry": _iso(expiry_ms),
+            "timeLeft": _fmt_left(left),
+        }
+    state = _ZARIMAN_STATES[(int(seed) & 1)]
     return {
         "state": state,
         "stateCn": "Grineer" if state == "grineer" else "Corpus",
@@ -902,7 +938,10 @@ def _parse_fissures(raw: dict) -> list[dict]:
                     "id": _oid(m.get("_id")),
                     "node": _node_name(m.get("Node", "")),
                     "nodeKey": m.get("Node", ""),
-                    "missionType": mission_type(m.get("MissionType", "")),
+                    # ★ 2026-10-11：VoidStorms 条目**不带** MissionType（实测），
+                    #   旧写法恒为空 ⇒ 裂隙卡上九重天行没有任务类型；回落节点表的类型。
+                    "missionType": mission_type(m.get("MissionType", ""))
+                    or sol_node(m.get("Node", "")).get("type", ""),
                     "tier": tier,
                     "tierNum": tier_num,
                     "isHard": bool(m.get("Hard")),
@@ -923,22 +962,59 @@ def node_level(key: str) -> str:
     return ""
 
 
+# 执刑官猎杀三个阶段的敌人等级 —— **wiki `Archon Hunt` 原文**（Rules 节）：
+#   "Enemy level is based on the mission: First Mission: Level 130-135 /
+#    Second Mission: Level 135-140 / Third Mission: Level 145-150"
+# 与节点本身的星图等级**无关**（旧实现套用普通节点等级，卡面成了「15-17级」）。
+# wiki 未给钢铁之路下的等级 ⇒ 不写（不推算、不编）。
+ARCHON_STAGE_LEVELS = ("130-135级", "135-140级", "145-150级")
+
+
+def archon_code(boss_code: str) -> str:
+    """``SORTIE_BOSS_NIRA`` -> ``Nira``（非执刑官返回空串）。"""
+    code = (boss_code or "").upper()
+    for name in ("AMAR", "NIRA", "BOREAL"):
+        if code.endswith(name):
+            return name.capitalize()
+    return ""
+
+
+def archon_name(boss_code: str) -> str:
+    """执刑官官方简中名：``/Lotus/Language/Narmer/Archon<X>``（如 执刑官混沌蛇主）。
+
+    官方词表查不到时回落 sortieData 的英文名（``Archon Nira``），不拼中英混写。
+    """
+    code = archon_code(boss_code)
+    if code:
+        zh = language_text_zh(f"/Lotus/Language/Narmer/Archon{code}")
+        if zh:
+            return zh
+    return sortie_boss(boss_code)
+
+
 def _parse_sortie(entry: dict, *, archon: bool) -> dict:
     variants_src = entry.get("Variants") or entry.get("Missions") or []
     variants = [
         {
             "node": _node_name(v.get("node", "")),
             "nodeKey": v.get("node", ""),
-            "level": node_level(v.get("node", "")),
+            "level": (
+                (ARCHON_STAGE_LEVELS[i] if i < len(ARCHON_STAGE_LEVELS) else "")
+                if archon
+                else node_level(v.get("node", ""))
+            ),
             "missionType": mission_type(v.get("missionType", "")),
             "modifier": sortie_modifier(v.get("modifierType", "")),
         }
-        for v in variants_src
+        for i, v in enumerate(variants_src)
     ]
-    boss = sortie_boss(entry.get("Boss", ""))
+    boss_code = entry.get("Boss", "")
     return {
         "id": _oid(entry.get("_id")),
-        "boss": ("执刑官 " + boss) if archon else boss,
+        # ★ 2026-10-11：执刑官名走官方词表（执刑官混沌蛇主 / 欺谋狼主 / 诡文枭主），
+        #   不再拼「执刑官 Archon Nira」；bossCode 供卡面按代码匹配源力石颜色。
+        "boss": archon_name(boss_code) if archon else sortie_boss(boss_code),
+        "bossCode": archon_code(boss_code) if archon else "",
         "variants": variants,
         "activation": _iso_of(entry, "Activation"),
         "expiry": _iso_of(entry, "Expiry"),
@@ -1023,7 +1099,12 @@ def _parse_nightwave(season: dict) -> dict:
                 "required": meta.get("required"),
                 "path": path,
                 "isDaily": bool(ch.get("Daily") or ch.get("IsDaily")),
-                "isElite": bool(ch.get("Elite") or ch.get("IsElite")) or "Elite" in title,
+                # ★ 2026-10-11：精英周常的资产路径在 `/WeeklyHard/` 下（如
+                #   `.../Seasons/WeeklyHard/SeasonWeeklyHardKuvaSurvivalNoCapsules`），DE 不给 Elite 字段、
+                #   中文标题也不含 "Elite" ⇒ 旧判据恒假，7000 声望的精英项混在普通周常里。
+                "isElite": bool(ch.get("Elite") or ch.get("IsElite"))
+                or "Elite" in title
+                or "/WeeklyHard/" in path,
                 "activation": _iso_of(ch, "Activation"),
                 "expiry": _iso_of(ch, "Expiry"),
             }
@@ -1090,6 +1171,15 @@ def _parse_invasions(raw: dict) -> list[dict]:
     显示的其实是双方占比：``攻击方 = (Goal + Count) / (2·Goal)``、防御方为其补数。
     旧实现只输出 ``Count/Goal``（负数直接夹成 0%），把「48% vs 52%」显示成
     「攻击方 0%（被反推 4%）」，与游戏内完全对不上。
+
+    ★ 2026-10-11 **Infested 入侵口径不同**：玩家只能协助防御方，``Count`` 从 0
+    单向走到 ``-Goal``（实测已完成条目 Count=-41368 / Goal=41000）⇒ 攻击方
+    （Infested）起点 100%、防御方起点 0%，``攻击方 = (1 + Count/Goal) × 100``。
+    依据：WFCD warframe-worldstate-parser ``lib/models/Invasion.ts``
+    （``completion = (1 + Count/Goal) * (vsInfestation ? 100 : 50)``，
+    「Grineer vs. Corpus invasions start at 50, Infested invasions start at 100」）；
+    判据同该实现：``DefenderMissionInfo.faction`` 含 infest（兼认攻方 ``Faction``）。
+    旧口径对 Infested 一律按 50 起算，把「21% vs 79%」显示成「11% vs 89%」。
     """
     out = []
     for inv in raw.get("Invasions") or []:
@@ -1097,7 +1187,16 @@ def _parse_invasions(raw: dict) -> list[dict]:
             continue
         count = inv.get("Count", 0) or 0
         goal = inv.get("Goal") or 1
-        at_pct = max(0.0, min(100.0, (goal + count) / (2 * goal) * 100))
+        vs_infested = bool(
+            re.search(
+                r"infest", str((inv.get("DefenderMissionInfo") or {}).get("faction", "")), re.I
+            )
+            or re.search(r"infest", str(inv.get("Faction", "")), re.I)
+        )
+        if vs_infested:
+            at_pct = max(0.0, min(100.0, (1 + count / goal) * 100))
+        else:
+            at_pct = max(0.0, min(100.0, (goal + count) / (2 * goal) * 100))
         vs_pct = 100.0 - at_pct
         synth: list[str] = []
 
@@ -1136,6 +1235,7 @@ def _parse_invasions(raw: dict) -> list[dict]:
                 "completion": at_pct,
                 "count": count,
                 "goal": goal,
+                "vsInfestation": vs_infested,
                 "activation": _iso_of(inv, "Activation"),
                 "expiry": "",
                 # 合成译名清单（如「奥罗金催化剂蓝图」）：卡面据此加注脚
@@ -1353,11 +1453,13 @@ def _parse_goals(raw: dict, now_ms: int) -> list[dict]:
                 "grace": _iso(grace) if grace else "",
                 "ended": bool(end and end < now_ms),
                 "timeLeft": _fmt_left((end or now_ms) - now_ms),
+                "_endMs": end or 0,
                 "rewards": rewards,
             }
         )
     # 进行中的排前面，其余按剩余时间
-    out.sort(key=lambda e: (e["ended"], e["timeLeft"]))
+    # ★ 2026-10-11：按**真实到期毫秒**排序（旧写法拿 timeLeft 字符串排，"254h" < "54m"）
+    out.sort(key=lambda e: (e["ended"], e["_endMs"] or float("inf")))
     return out
 
 
@@ -1425,13 +1527,20 @@ def _parse_prime_vault(raw: dict, now_ms: int) -> dict:
     if not pv:
         return {}
 
+    unnamed: list[str] = []
+
     def _rows(src: list) -> list[dict]:
         out = []
         for it in src or []:
             path = it.get("ItemType", "")
             nm = item_name_opt(path)
             if not nm:
-                continue
+                # ★ 2026-10-11：词表没有的条目（如新组合包 MPVProteaPrimeSinglePack —— DE 简中
+                #   词表与 browse.wf 镜像都还没有 PrimePacks/MPVProteaSinglePackName）**不再丢弃**：
+                #   用路径美化名 +「（未收录）」显示，并计数给卡面注脚（旧写法 continue
+                #   让 2026-10-11 实测 9 件（本期 2 + 常驻 7）静默消失，可兑换总数少算）。
+                nm = f"{_prettify(path)}（未收录）"
+                unnamed.append(nm)
             price = it.get("PrimePrice")
             prime = True
             if price is None:
@@ -1490,6 +1599,7 @@ def _parse_prime_vault(raw: dict, now_ms: int) -> dict:
         # 前者还能告诉用户下一轮何时开启，后者只能说数据没下发。
         "next_unannounced": bool(not nxt and placeholder),
         "next_open": _iso(cur_exp) if cur_exp else "",
+        "unnamed": unnamed,
     }
 
 
@@ -1530,9 +1640,12 @@ def _parse_flash_sales(raw: dict, now_ms: int) -> list[dict]:
                 "start": _iso(_ms(s.get("StartDate"))),
                 "end": _iso(end),
                 "timeLeft": _fmt_left((end or now_ms) - now_ms),
+                "_endMs": end or 0,
             }
         )
-    out.sort(key=lambda x: x["timeLeft"])
+    # ★ 2026-10-11：按**到期时间戳**排序（旧写法按 timeLeft 字符串排：
+    #   "1000h …" < "23h …" < "9m …"，顺序与剩余时间无关）
+    out.sort(key=lambda x: x["_endMs"] or float("inf"))
     return out
 
 
@@ -1717,13 +1830,19 @@ DESCENT_TYPES = {
     "DT_SABOTAGE_HIVE": "Hive",  # 原 Sabotage（错）
     "DT_SHRINE_DEFENSE": "Defense",
     "DT_TIME_TRIAL": "Time Tribulation",  # 本轮补齐
-    "DT_UNIQUE": "Assassination",  # 官方无键、wiki 未收录 ⇒ 保持英文
+    # ★ 2026-10-11：原写 "Assassination" 是**编造**的（官方无键、wiki 未收录），
+    #   卡面会出现英文「Assassination」而注脚又说保留内部代码 ⇒ 两边对不上。
+    #   置空：类型列显示内部代码（与注脚「官方无简中、保留内部代码：DT_UNIQUE」一致）。
+    "DT_UNIQUE": "",
 }
 
 
 # DE 内部代码 -> 语言表键尾的别名（code 与语言键不同名的少数几个）。
 # 用英文描述对上了：EMPBlackHole(Alluring Arcocanids) = Condition_MagneticHounds(迷人弧犬)。
-_CONQUEST_CODE_ALIAS = {"EMPBlackHole": "MagneticHounds"}
+# ★ 2026-10-11：DullBlades（英文 Dull Blades「-50% melee combo chance」）的官方键是
+#   `Conquest/PersonalMod_ComboCountChance` = 钝重兵刃（描述「近战连击数几率减少 50%」逐义对上）。
+#   ChannelDrain / NoPets 实测官方简中/英文表均无键（DE 占位）⇒ 保留英文，不编。
+_CONQUEST_CODE_ALIAS = {"EMPBlackHole": "MagneticHounds", "DullBlades": "ComboCountChance"}
 
 
 def _conquest_text(raw: str, kind: str) -> tuple[str, str]:
@@ -2354,6 +2473,11 @@ def _cal_desc_clean(s: str) -> str:
     s = _clean_lang_text(s)
     s = _SOFT_SLOT_RE.sub("", s)
     s = re.sub(r"\s+([，。；、）%])", r"\1", s)
+    # ★ 2026-10-11：剥掉 <DT_RADIATION> 这类标记后，官方原文里紧挨标记的空格会留在
+    #   中文之间（「、 5 米范围的 辐射爆炸」「和 电击异常」）。只删「中文/中文标点 与 中文」
+    #   之间以及「中文标点 与 数字」之间的空格；「250 伤害」这种数字+单位空格是官方写法，保留。
+    s = re.sub(r"(?<=[\u4e00-\u9fff])\s+(?=[\u4e00-\u9fff])", "", s)
+    s = re.sub(r"(?<=[，。；、：（])\s+", "", s)
     return " ".join(s.split())
 
 
@@ -2435,63 +2559,122 @@ def _parse_calendar(entry: dict, now_ms: int) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def parse_worldstate(raw: dict, now_ms: Optional[int] = None) -> dict:
-    """DE 原始 worldstate -> 归一化 bundle（键与 warframestat.us 端点同名）。"""
-    now_ms = now_ms or int(datetime.now(timezone.utc).timestamp() * 1000)
+# 各 section 解析失败时的空值（与正常产物同型，下游 `or {}` / `or []` 照常工作）
+_SECTION_EMPTY_LIST = frozenset(
+    {
+        "fissures",
+        "dailyDeals",
+        "alerts",
+        "invasions",
+        "news",
+        "synthTargets",
+        "syndicateMissions",
+        "voidStorms",
+        "goals",
+        "conclaveChallenges",
+        "clanRewards",
+        "flashSales",
+    }
+)
 
-    syndicates = raw.get("SyndicateMissions") or []
+
+def _section(name: str, fn, *args, **kwargs):
+    """单个 section 的解析护栏：失败写空值并记日志，**不让整包失败**。
+
+    ★ 2026-10-11（B6）：旧实现任一 section 抛异常（字段形态变化、`$date` 变成 ISO
+    串……）⇒ 整个 parse_worldstate 抛 ⇒ 所有日常指令一起报「DE 世界状态返回异常」。
+    现在每段独立兜底：坏一段只空一段，其余卡照常出。
+    """
+    try:
+        return fn(*args, **kwargs)
+    except Exception as e:  # noqa: BLE001 - 单段失败不得拖垮整包
+        from .logging_compat import logger
+
+        logger.warning(f"[sdjk] worldstate section {name} 解析失败，已置空：{e!r}")
+        if name == "timestamp":
+            return ""
+        return [] if name in _SECTION_EMPTY_LIST else {}
+
+
+def parse_worldstate(raw: dict, now_ms: Optional[int] = None) -> dict:
+    """DE 原始 worldstate -> 归一化 bundle（键与 warframestat.us 端点同名）。
+
+    每个 section 经 :func:`_section` 独立兜底（失败置空 + 记日志，不整包失败）。
+    """
+    now_ms = now_ms or int(datetime.now(timezone.utc).timestamp() * 1000)
+    raw = raw if isinstance(raw, dict) else {}
+
+    def _list(key: str) -> list:
+        v = raw.get(key)
+        return v if isinstance(v, list) else []
+
+    syndicates = [s for s in _list("SyndicateMissions") if isinstance(s, dict)]
     ostrons = next((s for s in syndicates if s.get("Tag") == "CetusSyndicate"), {})
-    cetus = cetus_cycle(_ms(ostrons.get("Expiry")), now_ms)
+    cetus = _section("cetusCycle", lambda: cetus_cycle(_ms(ostrons.get("Expiry")), now_ms))
     zariman = next((s for s in syndicates if s.get("Tag") == "ZarimanSyndicate"), {}) or next(
         (s for s in syndicates if s.get("Tag") == "HexSyndicate"), {}
     )
 
-    sorties = raw.get("Sorties") or []
-    lite = raw.get("LiteSorties") or []
-    descents = raw.get("Descents") or []
-    conquests = raw.get("Conquests") or []
+    sorties = _list("Sorties")
+    lite = _list("LiteSorties")
+    descents = _list("Descents")
+    conquests = [c for c in _list("Conquests") if isinstance(c, dict)]
 
     def _conquest(kind: str) -> dict:
         hit = next((c for c in conquests if c.get("Type") == kind), None)
         return _parse_archimedea(hit, kind) if hit else {}
 
-    deep = _conquest("CT_LAB") or (_parse_descents(descents[0]) if descents else {})
-    temporal = _conquest("CT_HEX")
+    def _deep() -> dict:
+        return _conquest("CT_LAB") or (_parse_descents(descents[0]) if descents else {})
+
+    def _first(lst: list) -> dict:
+        return lst[0] if lst and isinstance(lst[0], dict) else {}
 
     bundle = {
-        "timestamp": _iso_of(raw, "Time"),
+        "timestamp": _section("timestamp", _iso_of, raw, "Time"),
         "cetusCycle": cetus,
-        "earthCycle": earth_cycle(cetus),
-        "zarimanCycle": zariman_cycle(zariman.get("Seed"), _ms(zariman.get("Expiry")), now_ms),
-        "vallisCycle": vallis_cycle(now_ms),
+        "earthCycle": _section("earthCycle", earth_cycle, cetus),
+        "zarimanCycle": _section(
+            "zarimanCycle",
+            lambda: zariman_cycle(zariman.get("Seed"), _ms(zariman.get("Expiry")), now_ms),
+        ),
+        "vallisCycle": _section("vallisCycle", vallis_cycle, now_ms),
         "cambionCycle": {
             "state": "fass" if cetus.get("isDay") else "vome",
             "expiry": cetus.get("expiry", ""),
             "timeLeft": cetus.get("timeLeft", ""),
         },
-        "duviriCycle": duviri_cycle(now_ms),
-        "fissures": _parse_fissures(raw),
-        "sortie": _parse_sortie(sorties[0], archon=False) if sorties else {},
-        "archonHunt": _parse_sortie(lite[0], archon=True) if lite else {},
-        "voidTrader": _parse_void_trader((raw.get("VoidTraders") or [{}])[0], now_ms),
-        "dailyDeals": _parse_daily_deals(raw),
-        "nightwave": _parse_nightwave(raw.get("SeasonInfo") or {}),
-        "alerts": _parse_alerts(raw),
-        "invasions": _parse_invasions(raw),
-        "news": _parse_news(raw),
-        "constructionProgress": _parse_construction(raw),
-        "synthTargets": _parse_synth(raw),
-        "syndicateMissions": _parse_syndicate_missions(raw),
-        "deepArchimedea": deep,
-        "temporalArchimedea": temporal,
-        "descendia": _parse_descendia(raw.get("Descents") or [], now_ms),
-        "calendar": _parse_calendar((raw.get("KnownCalendarSeasons") or [{}])[0], now_ms),
-        "voidStorms": _parse_void_storms(raw, now_ms),
-        "goals": _parse_goals(raw, now_ms),
-        "conclaveChallenges": _parse_conclave(raw, now_ms),
-        "primeVault": _parse_prime_vault(raw, now_ms),
-        "clanRewards": _parse_clan_rewards(raw, now_ms),
-        "flashSales": _parse_flash_sales(raw, now_ms),
+        "duviriCycle": _section("duviriCycle", duviri_cycle, now_ms),
+        "fissures": _section("fissures", _parse_fissures, raw),
+        "sortie": _section(
+            "sortie", lambda: _parse_sortie(_first(sorties), archon=False) if sorties else {}
+        ),
+        "archonHunt": _section(
+            "archonHunt", lambda: _parse_sortie(_first(lite), archon=True) if lite else {}
+        ),
+        "voidTrader": _section(
+            "voidTrader", lambda: _parse_void_trader(_first(_list("VoidTraders")), now_ms)
+        ),
+        "dailyDeals": _section("dailyDeals", _parse_daily_deals, raw),
+        "nightwave": _section("nightwave", _parse_nightwave, raw.get("SeasonInfo") or {}),
+        "alerts": _section("alerts", _parse_alerts, raw),
+        "invasions": _section("invasions", _parse_invasions, raw),
+        "news": _section("news", _parse_news, raw),
+        "constructionProgress": _section("constructionProgress", _parse_construction, raw),
+        "synthTargets": _section("synthTargets", _parse_synth, raw),
+        "syndicateMissions": _section("syndicateMissions", _parse_syndicate_missions, raw),
+        "deepArchimedea": _section("deepArchimedea", _deep),
+        "temporalArchimedea": _section("temporalArchimedea", _conquest, "CT_HEX"),
+        "descendia": _section("descendia", _parse_descendia, descents, now_ms),
+        "calendar": _section(
+            "calendar", lambda: _parse_calendar(_first(_list("KnownCalendarSeasons")), now_ms)
+        ),
+        "voidStorms": _section("voidStorms", _parse_void_storms, raw, now_ms),
+        "goals": _section("goals", _parse_goals, raw, now_ms),
+        "conclaveChallenges": _section("conclaveChallenges", _parse_conclave, raw, now_ms),
+        "primeVault": _section("primeVault", _parse_prime_vault, raw, now_ms),
+        "clanRewards": _section("clanRewards", _parse_clan_rewards, raw, now_ms),
+        "flashSales": _section("flashSales", _parse_flash_sales, raw, now_ms),
         "kuva": None,  # DE 源不含赤毒虹吸（10o.io 独立源）
         "arbitration": None,  # 同上
         "steelPath": None,  # 钢铁之路轮换为外部数据

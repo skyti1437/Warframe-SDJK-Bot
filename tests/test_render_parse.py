@@ -91,13 +91,15 @@ check(
 )
 
 # ---------------------------------------------------------------- _tint 预混
-check("_tint 返回不透明四元组", R._tint((255, 255, 255), 12)[3] == 255)
+check(
+    "_tint 返回不透明 RGB 三元组（扁平 RGB 画布，无 alpha）", len(R._tint((255, 255, 255), 12)) == 3
+)
 check(
     "_tint(白,12) 接近面板底色而非纯白",
     R._tint((255, 255, 255), 12) < (60, 60, 60),
     str(R._tint((255, 255, 255), 12)),
 )
-check("_tint(白,255) 就是白", R._tint((255, 255, 255), 255)[:3] == (255, 255, 255))
+check("_tint(白,255) 就是白", R._tint((255, 255, 255), 255) == (255, 255, 255))
 check("_tint(白,0) 就是底色", R._tint((255, 255, 255), 0)[:3] == R.PANEL_BG)
 
 # ---------------------------------------------------------------- 分列单元格
@@ -150,6 +152,7 @@ check("普通文字里的等级区间不被误抽", R._LV_RE.search("奖励 5-15
 TABLE_TITLES = [
     "仲裁时间表（第1/2页，共30条）",
     "指令一览",
+    "可蹲类型",
     "赤毒 侵袭",
     "价格排行",
     "紫卡热度排行榜",
@@ -240,6 +243,9 @@ _TG = [
     {"name": "MOA", "active": True, "node": "Venera", "type": "Capture", "faction": ""},
 ]
 _tg_title, _tg_lines = _F.fmt_synth_targets(_TG)
+# ★ 2026-10-11 第二步改版：卡首多了「◆ 共收录」答案行 / 「◆ 目标一览」标题 / 表头行；
+#   下面三条断言只针对数据行（「· 」开头），断言内容不变。
+_tg_lines = [x for x in _tg_lines if x.startswith("· ")]
 check(
     "结合目标：行 = 名称 / 节点 / 类型（派系） 三格",
     _tg_lines[0].split("　") == ["· 远古干扰者（Ancient Disruptor）", "Tikal", "挖掘（Infested）"],
@@ -385,7 +391,9 @@ _arb_obj = _NS(client=_ArbStubClient())
 #   ⇒ 桩对象也要绑上这个方法（绑真实实现，用假 client 拉三张表）。
 _arb_obj._arb_fetch = lambda: _AC._arb_fetch(_arb_obj)
 _arb_reply = asyncio.run(_AC._h_arbtable(_arb_obj, _NS(page=1), None, "国际服"))
-_arb_rows = [_r.split("　") for _r in _arb_reply.lines]
+# ★ 2026-10-11 第二步改版：数据行加「· 」前缀（列表项）并有表头 / 答案行；只取数据行并剥掉前缀再按列切，
+#   断言内容（列数、节点格完整、无空列、不拿 ASCII 空格当分隔）不变。
+_arb_rows = [_r[2:].split("　") for _r in _arb_reply.lines if _r.startswith("· ")]
 check(
     "仲裁时间表：注入 4 行（3 个含空格节点 + 1 个评级节点）",
     len(_arb_rows) == 4,
@@ -424,7 +432,7 @@ check(
 )
 check(
     '★ 仲裁时间表：不再把 ASCII 空格当列分隔（无 split(" ") 往返）',
-    'split(" ")' not in _arb_src and '"　".join' in _arb_src,
+    'split(" ")' not in _arb_src and 'S = "　"' in _arb_src and "S.join(" in _arb_src,
 )
 
 # 数据守卫：仓内确实存在含 ASCII 空格的节点名（≥3），否则本段会静默失效
@@ -516,6 +524,314 @@ check(
     and all(("tier" in v) == (v["n"] >= 3) for v in _M.values()),
     "有 %d 条带档 / 共 %d 条" % (sum(1 for v in _M.values() if v.get("tier")), len(_M)),
 )
+
+
+# ===========================================================================
+# B12（2026-10-11）：A「Orokin 精修」绘制层 —— 解析/判定层用例
+# ===========================================================================
+def _toks(text: str) -> list[str]:
+    return [m.group(0) for m in R._TOKEN_RE.finditer(text)]
+
+
+# ---- 渲染 bug ①：序号徽章不吃小数（「3.5x Zoom」不是第 3 条）
+check("序号：「3. 绝路」仍是序号行", R._NUM_HEAD_RE.match("3. 绝路") is not None)
+check("序号：「12. 紫卡」两位数仍是序号行", R._NUM_HEAD_RE.match("12. 紫卡") is not None)
+check("序号反例：「3.5x Zoom」不画序号徽章", R._NUM_HEAD_RE.match("3.5x Zoom") is None)
+check("序号反例：「0.75 倍」不画序号徽章", R._NUM_HEAD_RE.match("0.75 倍") is None)
+
+# ---- 渲染 bug ②：价格 token 认小数（「127.5p」整染，不是只染「5p」）
+check("价格：整数 120p 成 token", _toks("价格 120p") == ["120p"], str(_toks("价格 120p")))
+check(
+    "价格：小数 127.5p 整串成 token", _toks("价格 127.5p") == ["127.5p"], str(_toks("价格 127.5p"))
+)
+check(
+    "价格：小数价按青色规则整染",
+    R._token_style("127.5p")[3] == R.CYAN and R._token_style("120p")[3] == R.CYAN,
+    str(R._token_style("127.5p")),
+)
+check("价格反例：「50pa」后接字母不是价格", _toks("50pa") == [], str(_toks("50pa")))
+check("价格反例：「1.5.5p」不从中间截一段", _toks("1.5.5p") == [], str(_toks("1.5.5p")))
+
+# ---- 渲染 bug ③：词表染色加右边界（不再半词染色）
+for _w in ("钢铁", "执刑官"):
+    check(
+        f"词边界反例：「{_w}意志」不半词染色", _w not in _toks(f"{_w}意志"), str(_toks(f"{_w}意志"))
+    )
+    check(f"词边界正例：「{_w}」独立成词仍染", _w in _toks(f"　{_w}　"), str(_toks(f"　{_w}　")))
+    check(
+        f"词边界正例：「{_w}」后接标点仍染", _w in _toks(f"{_w}，剩余"), str(_toks(f"{_w}，剩余"))
+    )
+check(
+    "词边界：「钢铁之路」四字整体仍是一个 token",
+    _toks("钢铁之路") == ["钢铁之路"],
+    str(_toks("钢铁之路")),
+)
+
+# ---- 渲染 bug ④：✦ 的去留以「子集字体有没有字形」为准
+# 实测（2026-10-11）：NotoSansCJKsc 子集（含 charset 里写了 ✦）没有 U+2726 的字形，
+# 画出来就是 .notdef 豆腐块 —— 所以渲染层**继续剥掉 ✦**，formatter 改用有字形的 ★。
+_FD = Path(__file__).resolve().parent.parent / "core" / "data" / "fonts"
+_SUB_R = _FD / "NotoSansCJKsc-Subset-Regular.otf"
+_SUB_B = _FD / "NotoSansCJKsc-Subset-Bold.otf"
+_CHARSET = (
+    Path(__file__).resolve().parent.parent / "scripts" / "font_subset_charset.txt"
+).read_text(encoding="utf-8")
+
+
+def _has_glyph(font, ch: str) -> bool:
+    nd = font.getmask("\U0001f9ff")  # 子集里必然没有的码位 = .notdef
+    m = font.getmask(ch)
+    return not (m.size == nd.size and bytes(m) == bytes(nd))
+
+
+if R.Image is not None and _SUB_R.exists() and _SUB_B.exists():
+    _fr = R.ImageFont.truetype(str(_SUB_R), 40)
+    _fb = R.ImageFont.truetype(str(_SUB_B), 40)
+    check(
+        "✦ 子集字体无字形（渲染层剥掉它的前提）",
+        not _has_glyph(_fr, "✦") and not _has_glyph(_fb, "✦"),
+    )
+    check("★ 子集字体有字形（玄骸幻纹标记改用它）", _has_glyph(_fr, "★") and _has_glyph(_fb, "★"))
+    # 新绘制层新增/依赖的字面量：必须在 charset 里、且两档字重都有真字形
+    # （▸ 是行首指令标记，绘制时被剥掉、从不上屏，子集里也没有它的字形 —— 不在此列）
+    _NEW_LITERALS = "◆※⚠·★▲▼▣…：／×"
+    _lit_slugs = {s for _k, s in R._SLUG_OVERRIDE} | {s for _k, (_c, s) in R.TITLE_THEME}
+    _lit = set(_NEW_LITERALS) | {c for s in _lit_slugs for c in s} | set("0123456789/ ")
+    _not_in_charset = sorted(c for c in _lit if c not in _CHARSET)
+    check("新绘制层字面量全在 font_subset_charset.txt", not _not_in_charset, str(_not_in_charset))
+    _no_glyph = sorted(
+        c for c in _lit if c != " " and not (_has_glyph(_fr, c) and _has_glyph(_fb, c))
+    )
+    check("新绘制层字面量在子集字体里都有字形（常规+粗体）", not _no_glyph, str(_no_glyph))
+else:
+    print("[SKIP] 无 Pillow/子集字体，跳过 ✦/★ 与字面量缺字用例")
+check("✦ 仍被 _strip_emoji 剥掉（避免豆腐）", R._strip_emoji("幻纹✦")[0] == "幻纹")
+check("★ 不被 _strip_emoji 剥", R._strip_emoji("｜幻纹★")[0] == "｜幻纹★")
+
+# ---- _LV_RE 放宽：单值「100级」也进右对齐等级列
+for _src, _exp in [
+    ("　▸ 捕获 Grineer 特工｜100级｜钢铁之路", "100级"),
+    ("　▸ 刺杀 焦土大地｜100级", "100级"),
+    ("　▸ 防御 削弱据点｜40-60级", "40-60级"),
+]:
+    _m = R._LV_RE.search(_src)
+    check(f"等级可抽取（含单值）：{_src[-12:]}", bool(_m) and _m.group(1) == _exp, str(_m))
+for _src in ("奖励 100级 的物品", "｜满级", "｜100级别", "· 川流不息 10级 在线"):
+    check(f"等级反例不误抽：{_src}", R._LV_RE.search(_src) is None)
+
+
+# ---- 行类型二次判定：KV / 分区标题 / 结论行 / 表头
+def _mk(texts, kinds=None, cells=None):
+    rows = []
+    for i, tx in enumerate(texts):
+        k = (kinds or {}).get(i) or ("section" if tx.startswith("◆") else "normal")
+        rows.append({"text": tx, "kind": k, "cells": (cells or {}).get(i)})
+    return rows
+
+
+_r = _mk(["◆ 状态：在线"])
+R._classify_rows(_r, bounty=False, plain=False)
+check(
+    "KV：「◆ 标签：值」判 kv", _r[0]["kind"] == "kv" and _r[0]["kv"] == ("状态", "在线"), str(_r[0])
+)
+
+_r = _mk(["◆ 本周轮换", "· 甲", "· 乙"])
+R._classify_rows(_r, bounty=False, plain=False)
+check("区块：「◆ 纯标题」仍是分区标题", _r[0]["kind"] == "section" and "kv" not in _r[0])
+
+_r = _mk(["◆ 本周：", "· 甲"])
+R._classify_rows(_r, bounty=False, plain=False)
+check("区块反例：冒号后无值 = 标题，不是 KV", _r[0]["kind"] == "section")
+
+_r = _mk(["◆ " + "长" * 31 + "：值", "· 甲"])
+R._classify_rows(_r, bounty=False, plain=False)
+check("区块反例：标签超 30 字 = 标题，不是 KV", _r[0]["kind"] == "section")
+
+_r = _mk(["◆ 持续：1", "◆ DPS 持续 ≈ 48（含暴击）", "◆ 末尾：2"])
+R._classify_rows(_r, bounty=False, plain=False)
+check(
+    "结论行：卡上有 KV 且紧跟另一个 ◆ 行 → 整句按 KV 处理",
+    _r[1]["kind"] == "kv" and _r[1]["kv"] == ("DPS 持续 ≈ 48（含暴击）", ""),
+    str(_r[1]),
+)
+
+_r = _mk(["◆ 持续：1", "◆ 某标题", "· 内容"])
+R._classify_rows(_r, bounty=False, plain=False)
+check("结论行反例：后面有内容行可装 → 仍是分区标题", _r[1]["kind"] == "section")
+
+_r = _mk(["◆ 甲", "◆ 乙", "· 内容"])
+R._classify_rows(_r, bounty=False, plain=False)
+check(
+    "结论行反例：整卡没有任何 KV → 连续 ◆ 都是标题",
+    [x["kind"] for x in _r[:2]] == ["section", "section"],
+)
+
+_r = _mk(["◆ 地球：夜灵平原", "▸ 甲"])
+R._classify_rows(_r, bounty=True, plain=False)
+check("赏金卡的 ◆ 是地区横幅，不判 KV", _r[0]["kind"] == "section")
+
+_r = _mk(["◆ 状态：在线"])
+_r[0]["cont"] = True
+R._classify_rows(_r, bounty=False, plain=False)
+check("折行续行不参与 KV 判定", _r[0]["kind"] == "section")
+
+_r = _mk(
+    ["◆ 榜单", "名称　数量　备注", "· 甲　1　a", "· 乙　2　b"], cells={1: ["名称", "数量", "备注"]}
+)
+R._classify_rows(_r, bounty=False, plain=False)
+check("表头：分区标题后的分列行、下一行是「·」项 → 表头", _r[1].get("thead") is True)
+_r = _mk(["◆ 榜单", "名称　数量　备注", "· 甲　1　a"], cells={1: ["名称", "数量", "备注"]})
+R._classify_rows(_r, bounty=False, plain=True)
+check("表头反例：语法文档卡（plain）不判表头", not _r[1].get("thead"))
+_r = _mk(
+    ["◆ 榜单", "· 先来一行", "名称　数量　备注", "· 甲　1　a"], cells={2: ["名称", "数量", "备注"]}
+)
+R._classify_rows(_r, bounty=False, plain=False)
+check("表头反例：前一行不是分区标题且非首行 → 不判表头", not _r[2].get("thead"))
+_r = _mk(["◆ 榜单", "· 甲　1　a", "· 乙　2　b"], cells={1: ["· 甲", "1", "a"]})
+R._classify_rows(_r, bounty=False, plain=False)
+check("表头反例：「·」开头的数据行不是表头", not _r[1].get("thead"))
+
+# ---- 头部英文栏目名（kicker）：本批实测发现的 11 张「落到品牌名兜底」的卡 + 1 张误命中
+for _title, _slug in [
+    ("本周钢铁回廊灵化", "INCARNON ROTATION"),
+    ("Ergo 信条武器轮换", "TENET ROTATION"),
+    ("Coda 终幕武器轮换", "CODA ROTATION"),
+    ("沉沦之地 · 炼狱塔", "DESCENDIA"),
+    ("九重天虚空风暴", "VOID STORMS"),
+    ("钢铁精华兑换（Teshin 荣誉商店）", "STEEL ESSENCE SHOP"),
+    ("言录使（Acrithis）本周货单", "ACRITHIS"),
+    ("裂罅碎块兑换（Palladino · 钢铁守望）", "PALLADINO SHOP"),
+    ("Prime 出库清单（本期）", "PRIME VAULT"),
+    ("开核桃建议（共38场）", "RELIC CRACKING"),
+    ("进行中的活动", "LIVE EVENTS"),
+    ("赋能·专注（Arcane Concentration）", "CODEX ENTRY"),
+    ("钢铁之路侵袭", "STEEL PATH"),  # 反例：原有映射不被新补表劫持
+    ("时效总览", "TIMERS OVERVIEW"),
+]:
+    check(f"栏目英文名：{_title[:12]}", R._card_slug(_title) == _slug, R._card_slug(_title))
+check("栏目英文名：全无命中时回落品牌名", R._card_slug("乱七八糟").startswith("WARFRAME "))
+
+
+# ---- 第二步（2026-10-11）：从属行 / 标记芯片 / 列表网格宽度
+def _mk_lead(texts, lead):
+    rows = _mk(texts)
+    for i, n in lead.items():
+        rows[i]["lead"] = n
+    return rows
+
+
+_r = _mk_lead(["◆ 每周", "· 标题　1000 声望", "说明文字"], {2: 1})
+R._classify_rows(_r, bounty=False, plain=False)
+check(
+    "从属行：行首缩进的普通行并入上一条（cont+sub，斑马纹不再把「标题行 + 说明行」拆成两种底色）",
+    _r[2].get("cont") and _r[2].get("sub") and _r[2].get("indent") == 1,
+    str(_r[2]),
+)
+_r = _mk_lead(["◆ 表", "列甲　列乙", "· 甲　乙", "· 丙　丁"], {1: 1})
+_r[1]["cells"] = ["列甲", "列乙"]
+R._classify_rows(_r, bounty=False, plain=False)
+check(
+    "从属行反例：表头行（紧跟分区标题、下一行是「·」项）不算从属",
+    not _r[1].get("sub") and _r[1].get("thead"),
+)
+_r = _mk_lead(["◆ 区块", "说明文字"], {1: 1})
+R._classify_rows(_r, bounty=False, plain=False)
+check("从属行反例：紧跟分区标题的缩进行（无上一条可并）不判从属", not _r[1].get("sub"))
+_r = _mk_lead(
+    ["◆ 木星（第 660 周）", "500 分：甲", "1000 分：乙", "1500 分：丙"], {1: 2, 2: 2, 3: 2}
+)
+R._classify_rows(_r, bounty=False, plain=False)
+check(
+    "从属行反例：整排缩进的同级列表（氏族奖励）不判从属（缩进不得前后不一）",
+    not any(x.get("sub") for x in _r),
+    str([x.get("sub") for x in _r]),
+)
+_r = _mk_lead(["▸ 档位", "奖励行"], {1: 2})
+_r[0]["kind"] = "bounty_head"
+R._classify_rows(_r, bounty=True, plain=False)
+check("从属行反例：赏金卡（自有档位框）不套用", not _r[1].get("sub"))
+_r = _mk_lead(["· 标题", "折行第一段", "折行第二段"], {1: 1})
+_r[2]["cont"] = True
+_r[2]["subcont"] = True
+R._classify_rows(_r, bounty=False, plain=False)
+check("从属行折行后续行：同缩进同灰度", _r[2].get("sub") and _r[2].get("indent") == 1, str(_r[2]))
+
+for _w in ("钢铁", "九重天", "速刷"):
+    check(
+        f"标记芯片：「{_w}」可切成独立 token 且有芯片色",
+        _w in R._MARK_CHIPS and R._TOKEN_RE.search(f"Grineer　{_w}　剩9分钟") is not None,
+    )
+check(
+    "标记芯片反例：「钢铁之路」整词仍是文字 token（不被拆成「钢铁」芯片 + 「之路」）",
+    R._TOKEN_RE.search("钢铁之路").group(0) == "钢铁之路" and "钢铁之路" not in R._MARK_CHIPS,
+)
+check(
+    "纪元 / 稀有度 / 本期 芯片都有色（否则静默退成朴素文字）",
+    all(k in R.GROUP_CHIP_COLOR for k in ("常见", "罕见", "稀有", "本期", "常驻", "精英")),
+)
+
+try:
+    _out2 = ROOT / "runtime"
+    _out2.mkdir(exist_ok=True)
+    _rend2 = R.ImageRenderer(_out2)
+    if _rend2.available:
+        _S = "　"
+        _rows = [
+            f"· [古纪]{_S}前哨战{_S}虚无神殿（地球比邻星域）{_S}Grineer{_S}九重天{_S}剩25分钟",
+            f"· [前纪]{_S}拦截{_S}Callisto（木星）{_S}Corpus{_S}钢铁{_S}剩1小时9分",
+            f"· [中纪]{_S}间谍{_S}Nereid（海王星）{_S}Corpus{_S}{_S}剩9分钟",
+            f"· [后纪]{_S}生存{_S}初裔冰渍区（海王星比邻星域）{_S}Corpus{_S}钢铁 九重天{_S}剩3小时9分",
+        ]
+        _lines = ["◆ 进行中：4 条", "◆ 列表", f"{_S}纪元{_S}类型{_S}节点{_S}派系{_S}标记", *_rows]
+        _png3 = _rend2.render("虚空裂隙（共4条）", _lines, "国际服")
+        _im3 = _Image.open(_png3)
+        check(
+            "列表网格：多格列表行出图不抛、卡宽不越界（≤1500）",
+            _im3.size[0] <= 1500,
+            str(_im3.size),
+        )
+        check("列表网格：未折行（带标记的长行不被折成孤字）", _im3.size[1] < 900, str(_im3.size))
+        _png4 = _rend2.render(
+            "午夜电波",
+            [
+                "◆ 每日挑战（1 项）",
+                "· 吸引力　1000 声望　剩 3小时",
+                f"{_S}使用磁力伤害击杀 150 名敌人。",
+            ],
+            "国际服",
+        )
+        check("从属行：出图不抛", _png4 is not None)
+except ImportError:
+    pass
+
+# ---------------------------------------------------------------- 报错卡片 err_card（B13）
+from core.commands.base import err_card  # noqa: E402
+
+_ec = err_card(
+    "没有找到「xx」",
+    "换英文名重发",
+    ("你是不是想找", "甲、乙"),
+    "· 示例　wm 母牛 蓝图",
+    title="wm 查价",
+)
+check("err_card：标题沿用指令标题", _ec.title == "wm 查价" and _ec.raw_text is None)
+check(
+    "err_card：结构 = 原因 + KV + 示例行 + 怎么改（首尾固定）",
+    _ec.lines[0] == "◆ 原因：没有找到「xx」"
+    and _ec.lines[1] == "◆ 你是不是想找：甲、乙"
+    and _ec.lines[2] == "· 示例　wm 母牛 蓝图"
+    and _ec.lines[-1] == "※ ⚠ 怎么改：换英文名重发",
+    str(_ec.lines),
+)
+check("err_card：空 kv 字符串被忽略", len(err_card("a", "b", "").lines) == 2)
+_ect = R.text_card(_ec.title, _ec.lines, _ec.footer)
+check(
+    "文字降级（-w / render_mode=text）：原因、KV、怎么改都在",
+    all(k in _ect for k in ("wm 查价", "没有找到「xx」", "甲、乙", "wm 母牛 蓝图", "换英文名重发")),
+    _ect,
+)
+
 
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")

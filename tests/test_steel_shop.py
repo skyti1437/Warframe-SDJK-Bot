@@ -37,8 +37,10 @@ def cur_week_name(iso: str) -> str:
     """在指定时刻推算本周轮换商品名。"""
     _at(iso)
     lines, _, _ = F._steel_rotation(F.steel_shop())
-    # 第 2 行形如「· 霰弹枪紫卡　75 精华」
-    return lines[1].split("　")[0].lstrip("· ")
+    # ★ 2026-10-11 第二步改版：本周轮换是首行 KV「◆ 本周轮换：霰弹枪紫卡（75 精华）｜第 N/8 周 …」
+    import re
+
+    return re.match(r"◆ 本周轮换：(.+?)（\d+ 精华）", lines[0]).group(1)
 
 
 # ---------------------------------------------------------------- 表结构
@@ -109,7 +111,8 @@ text = "\n".join(body)
 check("标题含 Teshin 荣誉商店", "Teshin" in title)
 check("正文含本周/下周轮换", "本周轮换" in text and "下周轮换" in text)
 check("正文含轮换倒计时", "距轮换" in text)
-check("正文含分组标题", all(f"【{g}】" in text for g in {i["group"] for i in ever}))
+# ★ 改版：分组标题由「【分组】」改为「◆ 分组」分区标题（分区后各自一块面板）
+check("正文含分组标题", all(f"◆ {g}" in text for g in {i["group"] for i in ever}))
 check("正文列出全部常驻商品", all(i["name"] in text for i in ever))
 
 # ---------------------------------------------------------------------------

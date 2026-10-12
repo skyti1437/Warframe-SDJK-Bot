@@ -186,7 +186,9 @@ _BOUNTY_REGIONS: dict[str, str] = {
     "英择谛": "火卫二",
     "隔离库": "火卫二",
     "深矿": "深矿",
-    "抢劫": "深矿",
+    # ★ 2026-10-11：「抢劫」是金星**抢劫（Heist）**奖励池（bounty_pools「抢劫」：陀螺磁抵系统 /
+    #   大气系统…），不是深矿；旧映射成「深矿」⇒ 发「抢劫」看到的是深矿档。
+    "抢劫": "抢劫",
     "扎里曼": "扎里曼",
     "羽化": "扎里曼",
     "虚空天使": "扎里曼",
@@ -1260,12 +1262,10 @@ class FissureFilter:
                 seg.append("九重天")
             if g.get("void"):
                 seg.append("虚空")
-            if (
-                not g.get("hard")
-                and not g.get("storm")
-                and not g.get("void")
-                and (g.get("missions") or g.get("tiers"))
-            ):
+            # ★ 2026-10-11：只有**显式**写了「普通」（hard=False）才写「普通」。旧判据
+            #   「没写钢铁/九重天就补普通」⇒「裂隙 生存」注脚写「普通生存」，而实际条件
+            #   不限难度（钢铁生存也在列表里），注脚与筛选结果对不上。「蹲」共用本函数。
+            if g.get("hard") is False:
                 seg.append("普通")
             if g.get("missions"):
                 seg.append("/".join(MISSION_CN.get(m, m) for m in sorted(g["missions"])))
@@ -1355,6 +1355,13 @@ def parse_fissure_filter(text: str) -> FissureFilter:
     return flt
 
 
+# 裂隙筛选 0 结果时给出的可用筛选词（「裂隙」查询卡用；与 parse_fissure_filter 的词表一致）
+FISSURE_FILTER_HELP = (
+    "※ 可用筛选词：钢铁 / 九重天 / 普通 / 虚空 ｜ 纪元 古纪…全能（T1–T6）｜"
+    " 任务类型（生存 / 防御 / 中断…）｜ 节点或星球名；多个条件用逗号分隔"
+)
+
+
 # T1–T6 展示编号顺序（与 formatters._TIER_ORDER 的 Lith=0…Omnia=5 对齐；
 # 本地元组避免 parser ↔ formatters 循环 import —— 两处语义必须一致）。
 _TIER_ORDER_LOCAL = ("Lith", "Meso", "Neo", "Axi", "Requiem", "Omnia")
@@ -1407,7 +1414,7 @@ def dun_rule_hint(parts: list[str]) -> str:
     多词元 = 多个并列条件（`FissureFilter.match` 里 groups 之间是 `any()`/OR），
     而「钢铁 / 九重天 / 普通 / 虚空 / 古纪…」这类**纯修饰词**本意是与任务词
     合成**一个**条件（见 :data:`FISSURE_MODIFIER_WORDS`）。拆开写会把语义放大：
-    「钢铁 防御」落库成 `钢铁,防御` = 钢铁 **或** 普通防御。
+    「钢铁 防御」落库成 `钢铁,防御` = 钢铁 **或** 防御（后者不限难度）。
 
     只在「≥2 个词元且至少一个是纯修饰词」时提示 —— 纯任务词并列
     （「捕获 生存」= 两种任务取或）是正常写法，不提示。

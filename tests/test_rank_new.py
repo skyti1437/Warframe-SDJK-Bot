@@ -71,7 +71,13 @@ rows = [
 ]
 title, lines = F.fmt_rank_overview(rows)
 check("裸排行标题", title == "价格排行榜", title)
-check("三组各前五", sum(1 for ln in lines if ln.startswith("◆ ")) == 3, str(lines[:12]))
+# 2026-10-11 改版：卡首多一条 KV「◆ 各榜榜首：…」，分区标题 = 不含「：」的 ◆ 行
+check(
+    "三组各前五",
+    sum(1 for ln in lines if ln.startswith("◆ ") and "：" not in ln) == 3,
+    str(lines[:12]),
+)
+check("卡首榜首 KV", lines[0].startswith("◆ 各榜榜首：甲 "), lines[0])
 check(
     "Mesa Prime 榜首（120 > 90）",
     any("Mesa Prime" in ln and "120p" in ln for ln in lines),
@@ -267,7 +273,7 @@ ta, la = F.fmt_riven_analysis(
     [("slide_crit", 81.3)],
 )
 check("分析卡倾向行", any("倾向 0.95" in ln and "●●●○○" in ln for ln in la), str(la))
-check("分析卡区间行", any("72.14%-88.17%" in ln for ln in la), str(la))
+check("分析卡区间行（72.14~88.17%）", any("72.14~88.17%" in ln for ln in la), str(la))
 check("分析卡负词条提示", any("幅度越大越友好" in ln for ln in la))
 
 # ------------------------------------------------- wiki valence HTML 解析

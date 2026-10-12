@@ -246,7 +246,9 @@ if WI.available():
     for _m in ("创口溃烂", "适应", "膛线", "瞬时狡诈", "角斗士的壁垒", "猎人 战备", "菌株 热毒"):
         _c = WI.intro(_m)
         for _l in _c[1] if _c else []:
-            if _l.startswith("效果") and re.search(r"(?i)\b(the|and|with|that|will|for)\b", _l):
+            if _l.removeprefix("◆ ").startswith("效果") and re.search(
+                r"(?i)\b(the|and|with|that|will|for)\b", _l
+            ):
                 _left.append(_l[:40])
     check("★ 抽样 MOD 效果行无整句未翻译英文", not _left, str(_left))
     # 知识库「半中半英」残留行的人工覆盖（2026-09-25，赋能卡实测可见）
@@ -300,13 +302,17 @@ if WI.available():
     _rt = "\n".join(_rc[1]) if _rc else ""
     check(
         "★ 遗物卡（前纪 V11 → 三档奖励）",
-        bool(_rc) and "常见：" in _rt and "稀有：" in _rt,
+        bool(_rc)
+        and "· 常见　" in _rt
+        and "· 稀有　" in _rt,  # 2026-10-11：「常见：」→ 表行「· 常见　」
         _rt[:150],
     )
     # 先锋档位（Vanguard，2026 新增）：档位中英对照必须走 parser.TIER_CN
     _vc = WI.card_for("先锋 C1 遗物")
     check(
-        "★ 先锋遗物卡（Vanguard 档位）", bool(_vc) and "常见：" in "\n".join(_vc[1]), str(_vc)[:150]
+        "★ 先锋遗物卡（Vanguard 档位）",
+        bool(_vc) and "· 常见　" in "\n".join(_vc[1]),
+        str(_vc)[:150],
     )
     _pc = WI._relic_part_card("Ash Prime 机体蓝图")
     check(

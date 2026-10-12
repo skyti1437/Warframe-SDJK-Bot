@@ -34,23 +34,27 @@ def check(name: str, cond: bool, detail: str = ""):
         FAILED.append(name)
 
 
-def load_help_topic() -> dict:
+def load_main_literal(name: str) -> dict:
     tree = ast.parse((ROOT / "main.py").read_text(encoding="utf-8"))
     for node in ast.walk(tree):
         if isinstance(node, ast.AnnAssign):
             tgt = node.target
-            if isinstance(tgt, ast.Name) and tgt.id == "HELP_TOPIC":
+            if isinstance(tgt, ast.Name) and tgt.id == name:
                 return ast.literal_eval(node.value)
         if isinstance(node, ast.Assign):
             for t in node.targets:
-                if isinstance(t, ast.Name) and t.id == "HELP_TOPIC":
+                if isinstance(t, ast.Name) and t.id == name:
                     return ast.literal_eval(node.value)
-    raise SystemExit("main.py 里没找到 HELP_TOPIC")
+    raise SystemExit(f"main.py 里没找到 {name}")
 
 
-topic = load_help_topic()
+topic = load_main_literal("HELP_TOPIC")
+# 2026-10-11 卡片改版：伤害修饰词 / 群管理 / 平台说明从指令行挪进注脚（HELP_NOTES）。
+# 「主指令覆盖」「管理员标注」「修饰符照发」三条护栏的取材范围 = 指令行左列 + 注脚文本。
+notes = load_main_literal("HELP_NOTES")
+note_texts = [n for ns in notes.values() for n in ns]
 lefts = [c for items in topic.values() for c, _ in items]
-blob = "\n".join(lefts)
+blob = "\n".join(lefts + note_texts)
 
 print("=" * 64)
 print(f"帮助卡：{len(topic)} 个分类 / {len(lefts)} 条指令行")
@@ -173,7 +177,7 @@ check("左列都是真实指令（无凭空标签）", not bad_rows, "；".join(
 empty = [k for k, v in topic.items() if not v]
 check("没有空的分类", not empty, "；".join(empty))
 
-# —— 4. 需管理员的指令行必须在卡面标注 ——
+# —— 4. 需管理员的指令必须在卡面标注（指令行 + 注脚两处都查）——
 # 「状态」与「群管理」两组都要过 _handle_admin 的 _is_admin 闸门（.状态 会列出
 # 本群订阅明细，2026-09-18 安全审查收口；「状态」指令直接委托它）。卡面不写
 # 「需群管理员」，普通成员照卡发就被拦 —— 卡是给用户照着发的，属误导。
@@ -184,6 +188,74 @@ admin_rows = [
     if cell.split()[0] in ("状态", "群管理") and "管理员" not in desc
 ]
 check("需管理员的指令行都标了「管理员」", not admin_rows, "；".join(admin_rows))
+# 注脚里提到「状态 / 群管理」的每一条都必须带「管理员」字样（原「用法速查」行挪进注脚后的护栏）
+admin_notes = [
+    n
+    for n in note_texts
+    if ("状态" in n or "群管理" in n) and "管理员" not in n.split("状态", 1)[-1]
+]
+check(
+    "注脚里的「状态 / 群管理」都标了「管理员」",
+    not admin_notes and any("群管理" in n for n in note_texts),
+    "；".join(admin_notes),
+)
+
+# —— 5. 左列「照发」都能落到一个真实 handler（2026-10-11 B11）——
+# 判据（离线、不联网）：左列按「 / 」「｜」切段，每段 parse 出的 command 必须在
+# main._build_routes 的路由表里；后续段不能独立解析时，带上首段的「指令 + 占位」前缀再试
+# （「伤害 <武器> 灵化 / 基础形态」⇒「伤害 <武器> 基础形态」）。
+# 「用法速查」里的修饰符行（平台 / 输出 / 翻页）挂到「夜灵」上验证；「群管理」走点号指令，不在此列。
+# 额外：「伤害与配卡」组每段都必须落到伤害族 handler —— 旧写法「灵化 / 基础形态」
+# 照发「灵化」会落到**灵化轮换**卡（incarnon），与该行说明对不上。
+import re as _re  # noqa: E402
+
+_src_main = (ROOT / "main.py").read_text(encoding="utf-8")
+ROUTES = set(_re.findall(r'"(\w+)": self\._h_\w+', _src_main))
+_DAMAGE_FAMILY = {"damage", "scan", "scandamage", "valence", "xh"}
+_MODIFIER_ROWS = ("平台", "输出", "翻页")  # 旧「用法速查」组的行首词（组已撤，保留给旧数据兜底）
+_bad_send: list[str] = []
+for _grp, _items in topic.items():
+    for _cell, _desc in _items:
+        _head = _cell.split()[0]
+        if _head == "群管理":
+            continue
+        _segs = [x.strip() for x in _re.split(r" / |｜", _cell) if x.strip()]
+        if _head in _MODIFIER_ROWS:
+            for _seg in _segs:
+                _mods = [t for t in _seg.split() if t.startswith("-")]
+                for _m in _mods:
+                    _p = P.parse(f"夜灵 {_m}")
+                    if not _p or _p.command != "cetus" or _p.unknown_modifiers:
+                        _bad_send.append(f"夜灵 {_m}")
+            continue
+        _first = P.parse(_segs[0])
+        _stem = " ".join(_segs[0].split()[:2]) if len(_segs[0].split()) > 1 else ""
+        for _seg in _segs:
+            _p = P.parse(_seg)
+            if (not _p or _p.command not in ROUTES) and _stem:
+                _p = P.parse(f"{_stem} {_seg}")
+            if not _p or _p.command not in ROUTES:
+                _bad_send.append(f"{_grp}:{_seg}")
+            elif _grp == "伤害与配卡" and _p.command not in _DAMAGE_FAMILY:
+                _bad_send.append(f"{_grp}:{_seg}→{_p.command}")
+# 注脚里写的修饰后缀（-pc / -2 / -w …）也必须能照发：挂到「夜灵」上验证（语义同旧「用法速查」行）
+_mods_in_notes = sorted(
+    set(_re.findall(r"(?<![\w-])-(?:pc|ps|xb|sw|1|2|3|w|t|r)(?![\w-])", "\n".join(note_texts)))
+)
+for _m in _mods_in_notes:
+    _p = P.parse(f"夜灵 {_m}")
+    if not _p or _p.command != "cetus" or _p.unknown_modifiers:
+        _bad_send.append(f"夜灵 {_m}")
+check(
+    "注脚里的修饰后缀（平台 / 输出 / 翻页）都能照发",
+    len(_mods_in_notes) >= 9 and not [x for x in _bad_send if x.startswith("夜灵")],
+    str(_mods_in_notes),
+)
+check(
+    f"左列照发都能落到真实 handler（{len(ROUTES)} 条路由）",
+    not _bad_send and bool(ROUTES),
+    "；".join(_bad_send[:8]),
+)
 
 print()
 if FAILED:

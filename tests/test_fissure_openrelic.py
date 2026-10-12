@@ -178,14 +178,20 @@ _FS = [
     },
 ]
 _title, flines = fmt.fmt_fissures(_FS)
-_body = [ln for ln in flines if ln[:1].isdigit()]
+# ★ 2026-10-11 第二步改版：裂隙行统一为「· [纪元]　类型　节点　派系　标记　剩…」列表行（不再有序号）
+_body = [ln for ln in flines if ln.startswith("· ")]
 check("裂隙三行都在", len(_body) == 3, str(flines))
 check("裂隙带 Grineer", any("Grineer" in ln for ln in _body), str(_body[:1]))
 check("裂隙带 Corpus", any("Corpus" in ln for ln in _body), str(_body[1:2]))
 check("裂隙 Orokin 显示为奥罗金", any("奥罗金" in ln for ln in _body), str(_body[2:]))
 check(
-    "裂隙派系在任务类型之后",
-    all(ln.find("· ") < ln.find("Grineer") for ln in _body if "Grineer" in ln),
+    "裂隙派系在任务类型之后（列序 纪元 / 类型 / 节点 / 派系）",
+    all(
+        ln[2:].split("　")[3] in ("Grineer", "Corpus", "奥罗金")
+        and ln[2:].split("　")[1] in set(fmt.MISSION_CN.values())
+        for ln in _body
+    ),
+    str(_body),
 )
 
 
@@ -217,8 +223,9 @@ async def _openrelic_lines(text: str) -> tuple[str, list[str]]:
 
 async def _main() -> None:
     _t, o_lines = await _openrelic_lines("开核桃")
-    # 正文行 = 带「可掉落 N 种 · 剩…」的行（图例行也含「可掉落」，用「剩」排除）
-    _body = [ln for ln in o_lines if "可掉落" in ln and "剩" in ln]
+    # 正文行 = 「· 」列表行（★ 2026-10-11 改版：「可掉落 N 种」是纪元级数字，已汇总进卡首
+    #   「◆ 各纪元可掉落遗物」答案行，不再逐行重复）
+    _body = [ln for ln in o_lines if ln.startswith("· ")]
     check("开核桃有三行", len(_body) == 3, str(o_lines))
     check("开核桃带派系 Grineer", any("Grineer" in ln for ln in _body), str(_body[:1]))
     check("开核桃带派系 Corpus", any("Corpus" in ln for ln in _body), str(_body[1:2]))
@@ -228,20 +235,28 @@ async def _main() -> None:
     check("速刷只标快节奏任务（2/3 条）", len(_quick) == 2, str(_body))
     check("生存不算速刷", not any("生存" in ln and "速刷" in ln for ln in _body), str(_body))
     check(
-        "速刷在行尾而非行首",
-        all(not ln.lstrip().startswith("速刷") for ln in _body)
-        and all(ln.find("可掉落") < ln.find("速刷") for ln in _quick),
+        "速刷在标记列（派系之后）而非行首",
+        all(not ln.lstrip("· ").startswith("速刷") for ln in _body)
+        and all(
+            ln.find("Grineer") < ln.find("速刷") or ln.find("Corpus") < ln.find("速刷")
+            for ln in _quick
+        ),
         str(_quick),
+    )
+    check(
+        "卡首汇总各纪元可掉落遗物数",
+        any(ln.startswith("◆ 各纪元可掉落遗物：") and "种" in ln for ln in o_lines),
+        str(o_lines[:2]),
     )
     # 行内不得出现「· ·」双点（任务类型为空时的拼接瑕疵）
     check("开核桃无 · ·  双点", not any("· ·" in ln for ln in o_lines), str(o_lines))
 
     # ★ 2026-09-27 用户口径：**任务类型前移到节点之前**（与裂隙卡同一列序）
-    #   [纪元] 任务类型 节点 · 派系　可掉落 N 种 · 钢铁/九重天 · 速刷 · 剩X
-    #   判据：纪元芯片后**第一个词必须是任务类型**（若列序回退成「节点 任务」，
+    #   [纪元]　任务类型　节点　派系　标记　剩X（改版后按列分格）
+    #   判据：纪元芯片后**第一格必须是任务类型**（若列序回退成「节点 任务」，
     #   节点名首词不会落在任务类型词表里 ⇒ 必红）。
     _MT = set(fmt.MISSION_CN.values())
-    _bad_seq = [ln for ln in _body if "] " in ln and ln.split("] ", 1)[1].split(" ")[0] not in _MT]
+    _bad_seq = [ln for ln in _body if ln[2:].split("　")[1] not in _MT]
     check(
         "★ 开核桃：任务类型前移（[纪元] 后第一个词是任务类型）",
         bool(_body) and not _bad_seq,

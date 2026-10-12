@@ -39,7 +39,13 @@ class ProgressCommands:
         完整版 worldState 均已不可用（403 / 404），改用本地表 + 官方轮换锚点推算。
         """
         title, lines = fmt.fmt_steel_essence_shop()
-        return Reply(title, lines, footer=fmt.fmt_platform_footer(platform, "钢铁精华兑换"))
+        return Reply(
+            title,
+            lines,
+            footer=fmt.fmt_platform_footer(
+                platform, "来源 wiki.warframe.com/w/Steel_Essence（每周轮换 8 件循环）"
+            ),
+        )
 
     async def _h_slivershop(self, parsed, event, platform) -> Reply:
         """碎银兑换 = Palladino 裂罅碎块商店（地球「钢铁守望」）。
@@ -48,7 +54,13 @@ class ProgressCommands:
         数据 core/data/de/palladino_shop.json，中文名 DE 官方 language 表。
         """
         title, lines = fmt.fmt_sliver_shop()
-        return Reply(title, lines, footer=fmt.fmt_platform_footer(platform, "裂罅碎块兑换"))
+        return Reply(
+            title,
+            lines,
+            footer=fmt.fmt_platform_footer(
+                platform, "来源 wiki.warframe.com/w/Riven_Sliver · 中文名取 DE 官方 language 表"
+            ),
+        )
 
     # 仲裁筛选关键词 -> arbi.wf.wiki 的 missionNameZh 规范值
     # （该站中文表把 Infested Salvage 写作「INFESTED 资源回收」，比对前需去前缀）

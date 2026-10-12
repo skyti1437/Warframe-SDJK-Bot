@@ -23,6 +23,13 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 
+def _txt(r) -> str:
+    """Reply 的可读文本：raw_text 或 title + lines（报错卡片迁移后断言用）。"""
+    if r is None:
+        return ""
+    return r.raw_text or (r.title + "\n" + "\n".join(r.lines))
+
+
 def _install_astrbot_stub() -> None:
     """注入最小 astrbot.api 桩，使 main.py 可在无运行环境下 import。"""
     if "astrbot" in sys.modules:
@@ -224,10 +231,10 @@ async def main() -> None:
     check(
         "「蹲 钢铁」仍不静默降级（地点/修饰词不推断），且给正确写法提示",
         reply is not None
-        and reply.raw_text is not None
-        and "未识别为可蹲类型" in reply.raw_text
-        and "像是裂隙筛选词" in reply.raw_text,
-        repr(reply.raw_text if reply else None),
+        and "未识别为可蹲类型" in _txt(reply)
+        and "像是裂隙筛选词" in _txt(reply)
+        and "怎么改" in _txt(reply),
+        repr(_txt(reply)),
     )
 
     # 3) 帮助（2026-09-21 起卡片化：实现侧有意移除祖传 text_only=True，与其它
@@ -243,8 +250,8 @@ async def main() -> None:
     reply = await _run_one(obj, "蹲 火星")
     check(
         "「蹲 火星」报错而非静默降级",
-        reply is not None and reply.raw_text is not None and "未识别为可蹲类型" in reply.raw_text,
-        repr(reply.raw_text if reply else None),
+        reply is not None and "未识别为可蹲类型" in _txt(reply),
+        repr(_txt(reply)),
     )
 
     # 5) 推送未开启时拒绝
@@ -253,8 +260,8 @@ async def main() -> None:
     reply = await _run_one(obj2, "蹲 突击")
     check(
         "推送未开启时拒绝订阅",
-        reply is not None and reply.raw_text is not None and "推送功能未开启" in reply.raw_text,
-        repr(reply.raw_text if reply else None),
+        reply is not None and "推送功能未开启" in _txt(reply) and ".开启 推送" in _txt(reply),
+        repr(_txt(reply)),
     )
     check("未开启时不应写入订阅", len(obj2.subs.all()) == 0)
 
@@ -271,8 +278,8 @@ async def main() -> None:
     reply = await _run_one(obj2, "蹲 取消")
     check(
         "「蹲 取消」清空订阅",
-        reply is not None and "已取消" in (reply.raw_text or "") and len(obj2.subs.all()) == 0,
-        repr(reply.raw_text if reply else None) + f" | left={len(obj2.subs.all())}",
+        reply is not None and "已取消" in _txt(reply) and len(obj2.subs.all()) == 0,
+        repr(_txt(reply)) + f" | left={len(obj2.subs.all())}",
     )
 
     # 8) 「蹲 类型 取消」
@@ -316,15 +323,12 @@ async def main() -> None:
     check(
         "★ 蹲 警报 可订阅（C3：活动型警报已接线）",
         r_al is not None and "订阅成功" in (r_al.title or ""),
-        repr(getattr(r_al, "title", None) or r_al.raw_text),
+        repr(getattr(r_al, "title", None) or _txt(r_al)),
     )
     check(
         "L-4 第 30 条仍允许（>= 30 拒绝）",
-        n == 30
-        and r31 is not None
-        and r31.raw_text is not None
-        and "蹲订阅已达上限" in r31.raw_text,
-        f"n={n}, r31.raw={r31.raw_text if r31 else None}",
+        n == 30 and r31 is not None and "蹲订阅已达上限" in _txt(r31),
+        f"n={n}, r31={_txt(r31)!r}",
     )
 
     # —— 状态卡回归（2026-09-14 修「.状态 platform 未定义」崩溃）——
@@ -339,14 +343,14 @@ async def main() -> None:
     check(
         "★ 普通成员「蹲 取消」只删自己发起的",
         sorted(s.event for s in obj5.subs.all()) == ["夜灵", "奸商"]
-        and "你在本群发起的" in (r_m.raw_text or ""),
-        f"{[s.event for s in obj5.subs.all()]} | {r_m.raw_text!r}",
+        and "你在本群发起的" in _txt(r_m),
+        f"{[s.event for s in obj5.subs.all()]} | {_txt(r_m)!r}",
     )
     r_m2 = await _run_one(obj5, "蹲 奸商 取消", umo="group://perm", role="member")
     check(
         "★ 普通成员不能按筛选词删他人订阅",
-        len(obj5.subs.all()) == 2 and "没有" in (r_m2.raw_text or ""),
-        f"{[s.event for s in obj5.subs.all()]} | {r_m2.raw_text!r}",
+        len(obj5.subs.all()) == 2 and "没有" in _txt(r_m2),
+        f"{[s.event for s in obj5.subs.all()]} | {_txt(r_m2)!r}",
     )
     await _run_one(obj5, "蹲 取消", umo="group://perm", role="admin")
     check("管理员「蹲 取消」可清空全群（含旧订阅）", len(obj5.subs.all()) == 0)

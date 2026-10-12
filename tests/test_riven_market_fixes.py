@@ -201,9 +201,15 @@ _title, _lines = F.fmt_riven_analysis(
     [("crit_damage", 108.2), ("multishot", 141.7), ("toxin_damage", 98.2)],
     [("slash_damage", 99.9)],
 )
+# 2026-10-11 改版：负词条行 = 「▼切割 -99.9%　区间　幅度位　13%」（幅度位值在第 4 列）
 _neg_line = next((x for x in _lines if "切割" in x and x.startswith("·")), "")
-check("★ -99.9 切割贴区间下限 → 幅度位 13%（不是反的 87%）", "幅度位 13%" in _neg_line, _neg_line)
-check("不再出现方向相反的字样", "幅度位 87%" not in _neg_line, _neg_line)
+_nc = _neg_line[2:].split("　")
+check(
+    "★ -99.9 切割贴区间下限 → 幅度位 13%（不是反的 87%）",
+    _nc[2:] == ["幅度位", "13%"],
+    _neg_line,
+)
+check("不再出现方向相反的字样", _nc[3:] != ["87%"], _neg_line)
 # 反向锚点：贴上限的负词条应显示高幅度位
 _t2, _l2 = F.fmt_riven_analysis(
     "视使之触",
@@ -213,9 +219,10 @@ _t2, _l2 = F.fmt_riven_analysis(
     [("slash_damage", 118.0)],
 )
 _neg_line2 = next((x for x in _l2 if "切割" in x and x.startswith("·")), "")
+_nc2 = _neg_line2[2:].split("　")
 check(
     "贴上限的负词条 → 幅度位接近 100%（正负号都验过）",
-    "幅度位 10" not in _neg_line2 and "幅度位 9" in _neg_line2,
+    _nc2[2] == "幅度位" and _nc2[3].endswith("%") and 90 <= int(_nc2[3][:-1]) < 100,
     _neg_line2,
 )
 
@@ -308,8 +315,8 @@ check(
             ],
             presorted=True,
         )[1]
-        if x.startswith("1. ")
-    ][0].startswith("1. 一口价：300p"),
+        if x.startswith("· ")  # 2026-10-11 改版：明细表行（原「1. 一口价：…」）
+    ][0].startswith("· 300p"),
 )
 check(
     "默认（严格档）仍按价格升序",
@@ -322,8 +329,8 @@ check(
                 {"buyout_price": 230, "owner": {"status": "offline"}, "item": {"attributes": []}},
             ],
         )[1]
-        if x.startswith("1. ")
-    ][0].startswith("1. 一口价：230p"),
+        if x.startswith("· ")
+    ][0].startswith("· 230p"),
 )
 
 _q = parse_wr("爆率 爆伤 初始连击 负任意 翁".split())
@@ -431,7 +438,7 @@ _obj.client = _FakeClient2()
 _obj.page_size = 12
 _reply = asyncio.run(_obj._h_wr(_Parsed("wr 爆率 爆伤 初始连击 负任意 翁"), None, "pc"))
 _body = "\n".join(_reply.lines)
-_rows = [x for x in _reply.lines if x.startswith(("1. ", "2. ", "3. "))]
+_rows = [x for x in _reply.lines if x.startswith("· ")]  # 2026-10-11 改版：明细表行
 check(
     "★ 前排是完全匹配条（750p/1000p），不是更便宜的无关单",
     len(_rows) >= 2 and "750p" in _rows[0] and "1000p" in _rows[1],
@@ -492,7 +499,8 @@ check(
 )
 check(
     "★ 区间按反推值计算（区间位不再是清一色 0%）",
-    "区间位 0%" not in _body3 and "区间位 72%" in _body3,
+    all(not x.endswith("　0%") for x in _r3.lines if x.startswith("· ▲"))
+    and any(x.endswith("　72%") for x in _r3.lines if x.startswith("· ▲")),
     "\n".join(_r3.lines[:5]),
 )
 check(
@@ -651,13 +659,13 @@ _r5 = asyncio.run(
 _b5 = "\n".join(_r5.lines)
 check(
     "★ 丢点数值 1157 → 115.7（按合法区间判据回捞）",
-    "+115.7% 电伤" in _b5 and "+1157%" not in _b5,
+    "▲电伤 +115.7%" in _b5 and "+1157%" not in _b5,
     _b5[:300],
 )
 check(
     "修正会在卡面注明（透明可复核）", "已修正小数点" in _b5 and "1157% → 115.7%" in _b5, _b5[:200]
 )
-check("负词条同样修正（1108 → 110.8）", "-110.8% 冲击" in _b5, _b5[:300])
+check("负词条同样修正（1108 → 110.8）", "▼冲击 -110.8%" in _b5, _b5[:300])
 _r6 = asyncio.run(
     _obj5._h_riven_analysis(
         _Parsed("紫卡分析 玻之武杖 电伤115.7 攻速67.7 基伤212.9 负冲击110.8"), None, "pc"
@@ -1030,7 +1038,7 @@ _r7 = asyncio.run(_o7._h_disposition(_ParsedDispo("布莱顿"), None, "pc"))
 _row_v = next((x for x in _r7.lines if "布莱顿·破坏者" in x), "")
 check(
     "★ 布莱顿家族列出 4 行（含此前漏列的布莱顿·破坏者）",
-    len(_r7.lines) == 4 and bool(_row_v),
+    len([x for x in _r7.lines if x.startswith("· ")]) == 4 and bool(_row_v),  # 家族表 4 行
     "\n".join(_r7.lines),
 )
 check("★ 布莱顿·破坏者 倾向 1.30", "1.30" in _row_v, repr(_row_v))
@@ -1200,7 +1208,7 @@ _r8 = asyncio.run(_obj6._h_riven_analysis(_P6(), _Ev6(), "pc"))
 _b8 = "\n".join(_r8.lines)
 check(
     "★ 端到端：报障卡按【盗贼】1.35 出区间（不再是盗贼双枪 1.38）",
-    "【盗贼】倾向 1.35" in _b8 and "盗贼双枪" not in _b8,
+    "武器：盗贼｜倾向 1.35" in _b8 and "盗贼双枪" not in _b8,
     _b8[:200],
 )
 check(
@@ -1210,7 +1218,7 @@ check(
 )
 check(
     "端到端：四条词条都进卡，且不再全落 0%",
-    all(k in _b8 for k in ("+120.5% 毒伤", "+299.9% 基伤", "+148% 多重", "-97.2% 触时")),
+    all(k in _b8 for k in ("▲毒伤 +120.5%", "▲基伤 +299.9%", "▲多重 +148%", "▼触时 -97.2%")),
     _b8[:300],
 )
 
@@ -1583,16 +1591,26 @@ _a_ex_ig = _au2("ex_ig", 900, "ingame", list(_ps2))
 _a_sup_on = _au2("sup_on", 200, "online", list(_ps2 | {"cold_damage"}))
 _a_ex_off = _au2("ex_off", 50, "offline", list(_ps2))
 
+
 # ① 同档内：恰好(900p) 压 超集(100p)——同档内完全命中优先
+def _wr_rows(lines):
+    """2026-10-11 改版：wr 明细表行（「· 900p　卖家…」），词条行是缩进从属行不计。"""
+    return [x for x in lines if x.startswith("· ")]
+
+
 _t, _l, _ = F.fmt_wr_auctions("翁", [_a_sup_ig, _a_ex_ig], exact_ids={"ex_ig"})
-check("★ B① 同档内恰好优先：900p 恰好压 100p 超集", _l[0].startswith("1. 一口价：900p"), _l[0])
+check(
+    "★ B① 同档内恰好优先：900p 恰好压 100p 超集",
+    _wr_rows(_l)[0].startswith("· 900p"),
+    _wr_rows(_l)[0],
+)
 
 # ② ★ 跨档（B 口径核心）：恰好离线、超集在线 ⇒ 超集在前（在线档第一优先）
 _t, _l, _ = F.fmt_wr_auctions("翁", [_a_ex_off, _a_sup_on], exact_ids={"ex_off"})
 check(
     "★ B② 跨档：在线超集(200p) 压 离线恰好(50p)——在线档仍是第一优先",
-    _l[0].startswith("1. 一口价：200p"),
-    _l[0],
+    _wr_rows(_l)[0].startswith("· 200p"),
+    _wr_rows(_l)[0],
 )
 
 # ③ 在线档次序 ingame → online → offline 不变
@@ -1600,10 +1618,8 @@ _a_e_on = _au2("e_on", 500, "online", list(_ps2))
 _t, _l, _ = F.fmt_wr_auctions("翁", [_a_ex_off, _a_e_on, _a_sup_ig], exact_ids={"e_on", "ex_off"})
 check(
     "★ B③ 在线档次序不变：ingame(超集) → online(恰好) → offline(恰好)",
-    _l[0].startswith("1. 一口价：100p")
-    and _l[2].startswith("2. 一口价：500p")
-    and _l[4].startswith("3. 一口价：50p"),
-    str(_l[:5]),
+    [r.split("　")[0] for r in _wr_rows(_l)[:3]] == ["· 100p", "· 500p", "· 50p"],
+    str(_wr_rows(_l)[:3]),
 )
 
 # ④ 同档同命中内价格升序（任务书原例：两条都恰好，500p 在线 / 300p 离线
@@ -1613,8 +1629,8 @@ _a_e2 = _au2("e2", 300, "offline", list(_ps2))
 _t, _l, _ = F.fmt_wr_auctions("翁", [_a_e1, _a_e2], exact_ids={"e1", "e2"})
 check(
     "★ B④ 恰好内档位压价格（500p 在线在 300p 离线前）",
-    _l[0].startswith("1. 一口价：500p") and _l[2].startswith("2. 一口价：300p"),
-    str(_l[:3]),
+    [r.split("　")[0] for r in _wr_rows(_l)[:2]] == ["· 500p", "· 300p"],
+    str(_wr_rows(_l)[:2]),
 )
 
 # ⑤ 全部是超集 → exact_ids 为空集（handler 实际产物）⇒ 顺序与改动前逐条一致
@@ -1631,7 +1647,7 @@ check("★ B⑥ 无词条 exact_ids=None → 顺序不变", _l1 == _l2)
 
 # ⑦ presorted=True 完全不受新参数影响
 _t1, _l1, _ = F.fmt_wr_auctions("翁", [_a_s2, _a_s1], presorted=True, exact_ids={"s1"})
-check("★ B⑦ presorted=True 不受新参数影响", _l1[0].startswith("1. 一口价：200p"), _l1[0])
+check("★ B⑦ presorted=True 不受新参数影响", _wr_rows(_l1)[0].startswith("· 200p"), _wr_rows(_l1)[0])
 
 # ⑧ 任意负：正恰好 + 1 条负 ⇒ 判为恰好（不得因负词条无名判超集）
 _q_neg = parse_wr(["多重", "任意负"])
@@ -1682,17 +1698,17 @@ _r9 = asyncio.run(_obj9._h_riven_analysis(_P9(), _Ev9(), "pc"))
 _b9 = "\n".join(_r9.lines)
 check(
     "★ 后坐力反转 e2e：不再报「词条数不对」（4 正含 1 反转 ⇒ 3 正 1 负）",
-    "当前解析到" not in _b9 and "词条应为" not in _b9 and "+95.4% 后坐" in _b9,
+    "当前解析到" not in _b9 and "词条应为" not in _b9 and "▼后坐 +95.4%" in _b9,
     _b9[:240],
 )
 check(
     "★ 后坐力**保留卡面符号** + 负面标注（+95.4% 后坐（卡面+号·负面）+ 注脚）",
-    "+95.4% 后坐（卡面+号·负面）" in _b9 and "是反转词条" in _b9,
+    "▼后坐 +95.4%（卡面+号·负面）" in _b9 and "是反转词条" in _b9,
     _b9[:300],
 )
 check(
     "★ 其余三行仍按正面且都命中区间（未被这次改动带偏）",
-    all(k in _b9 for k in ("+61.5% 装填", "+146.7% 多重", "+274.5% 基伤"))
+    all(k in _b9 for k in ("▲装填 +61.5%", "▲多重 +146.7%", "▲基伤 +274.5%"))
     and "无法算区间" not in _b9,
     _b9[:400],
 )
@@ -1769,7 +1785,7 @@ _r11 = asyncio.run(_obj11._h_riven_analysis(_P6(), _Ev6(), "pc"))
 _b11 = "\n".join(_r11.lines)
 check(
     "★ 图片路径：卡面 +95.4% 后坐力 ⇒ 行内符号与卡面一致、标注负面",
-    "+95.4% 后坐（卡面+号·负面）" in _b11,
+    "▼后坐 +95.4%（卡面+号·负面）" in _b11,
     _b11[:300],
 )
 check(
@@ -1838,12 +1854,12 @@ check(
 )
 check(
     "★ 实卡四行进卡：初始连击 / 范围 / 暴伤 / 连击获取（负）",
-    all(k in _b18 for k in ("+14.8 初始连击", "+1.3m 范围", "+54.8% 暴伤", "-60.4% 连击获取")),
+    all(k in _b18 for k in ("▲初始连击 +14.8", "▲范围 +1.3m", "▲暴伤 +54.8%", "▼连击获取 -60.4%")),
     _b18[:400],
 )
 check(
     "★ 连击获取按负档算出区间（104.85 基值生效，不再「无官方基值」）",
-    "49.54%-60.55%" in _b18 and "无官方基值" not in _b18,
+    "49.54~60.55%" in _b18 and "无官方基值" not in _b18,
     _b18[:400],
 )
 
@@ -2044,7 +2060,7 @@ check(
 )
 check(
     "★ 鳄神卡：按 0.8 计算，四条区间全中（射速/多重/触发/负装填）",
-    all(k in _b20 for k in ("60.75%-74.25%", "80.8%-98.75%", "27%-33%")),
+    all(k in _b20 for k in ("60.75~74.25%", "80.8~98.75%", "27~33%")),
     _b20[:400],
 )
 check(
@@ -2055,7 +2071,7 @@ check(
 _b20b = _run20(_P20_B)
 check(
     "★ 手输「赤毒·鳄神」：直接按 0.8 出卡（【赤毒·鳄神】倾向 0.8）",
-    "【赤毒·鳄神】倾向 0.8" in _b20b,
+    "武器：赤毒·鳄神｜倾向 0.8" in _b20b,
     _b20b[:200],
 )
 
@@ -2340,13 +2356,13 @@ _rc22.wm_riven_weapons = _w22
 _b22a = _run21(_rc22, ["捕月", "暴伤89.2", "多重110.3", "电击87.6", "负切割88.1"])
 check(
     "㉒③ 玩家报障卡：判【捕月（主要）】1.1、卡面含「残差 11%」、不再「老卡」",
-    "【捕月（主要）】倾向 1.1" in _b22a and "残差 11%" in _b22a and "老卡" not in _b22a,
+    "武器：捕月（主要）｜倾向 1.1" in _b22a and "残差 11%" in _b22a and "老卡" not in _b22a,
     _b22a[:240],
 )
 _b22b = _run21(_rc22, ["捕月", "暴伤60.1", "多重84.2", "电击62.8", "负切割65.4"])
 check(
     "㉒④ 次要卡（0.75 档数值）：判【捕月】0.75、家族提示列变体且无重发示例",
-    "【捕月】倾向 0.75" in _b22b
+    "武器：捕月｜倾向 0.75" in _b22b
     and "该武器家族有其它倾向" in _b22b
     and "卡面不显示变体/模式" in _b22b
     # 2026-10-05：反推已定变体，不再提示「带名字重发」
@@ -2355,8 +2371,8 @@ check(
 )
 _b22c = _run21(_rc22, ["捕月（主要）", "暴伤89.2", "多重110.3", "电击87.6", "负切割88.1"])
 check(
-    "㉒⑤ 手输「捕月（主要）」（拆分行）：1.1 + 继承手枪基值（暴伤 83.53%-102.09%）",
-    "【捕月（主要）】倾向 1.1" in _b22c and "83.53%-102.09%" in _b22c,
+    "㉒⑤ 手输「捕月（主要）」（拆分行）：1.1 + 继承手枪基值（暴伤 83.53~102.09%）",
+    "武器：捕月（主要）｜倾向 1.1" in _b22c and "83.53~102.09%" in _b22c,
     _b22c[:240],
 )
 _b22d = _run21(_rc22, ["捕月", "暴伤45.1", "多重60.2", "电伤49.8", "负切割40.3"])
@@ -2453,7 +2469,7 @@ _b24 = _run21(_rc22, ["墓指（主要）", "伤害194.7", "弹匣50.2", "多重
 check(
     "㉔③ 实卡判别（墓指主要，用户双态截图装配态）：按手枪列 1.0 严格命中，"
     "多重区间上限 123.44%（手枪列），不再步枪列 92.81%/老卡",
-    "【墓指（主要）】倾向 1" in _b24
+    "武器：墓指（主要）｜倾向 1" in _b24
     and "123.44%" in _b24
     and "92.81%" not in _b24
     and "老卡" not in _b24,

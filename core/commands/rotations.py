@@ -60,6 +60,9 @@ class RotationCommands:
         # 客户端内置 15 分钟缓存 + 3.5s 硬超时，拿不到就降级为只列等级，不拖主流程。
         cycle = await self.client.bounty_cycle()
         title, lines = fmt.fmt_bounties(data, keyword, cycle)
+        if (parsed.page or 1) > 1:
+            # ★ 2026-10-11：赏金卡不分页，-N 无效 —— 明说，不静默
+            lines.append("※ 赏金不分页：一览已列全部地区，发「赏金 <地区>」看该地区详情")
         return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
 
     # ------------------------------------------------------------------
@@ -99,24 +102,28 @@ class RotationCommands:
             wd = now.weekday()
             reset = (now - timedelta(days=wd)).replace(hour=0, minute=0, second=0, microsecond=0)
             nxt_reset = reset + period
-            left = nxt_reset - now
-            hrs = int(left.total_seconds() // 3600)
-            lines = [f"◆ 本周为第 {wk_no}/{len(weeks)} 周（周一 00:00 UTC 换轮）"]
+            lines = [
+                f"◆ 本周：第 {wk_no}/{len(weeks)} 周｜距换轮 剩余 {fmt.countdown(nxt_reset.isoformat())}",
+                "◆ 下周：" + "、".join(x.get("cn") or x.get("en") for x in nxt),
+                f"◆ 本周灵化武器（{len(cur)} 件）",
+            ]
             for it in cur:
                 name = it.get("cn") or it.get("en")
                 var = it.get("variant") or ""
                 same = var.lower().replace(" ", "") == (it.get("en") or "").lower().replace(" ", "")
                 lines.append(f"· {name}" + (f"（{var}）" if var and not same else ""))
-            lines.append("◆ 下周：" + "、".join(x.get("cn") or x.get("en") for x in nxt))
             lines.append(
-                f"※ 距换轮 {hrs // 24}天{hrs % 24}小时　（本周期共 {len(weeks)} 周，循环往复）"
+                # ★ 2026-10-11：统一走 countdown（「X天X小时 / X小时X分」），
+                #   不再出现「0天22小时」
+                f"※ 周一 00:00 UTC 换轮（本周期共 {len(weeks)} 周，循环往复）；"
+                "每周可在钢铁回廊 Tier 5 / Tier 10 各选 1 个灵化适配器"
             )
-            lines.append(
-                "※ 数据源：Update 43 官方轮换表；锚点 Week "
-                f"{anchor_week} 起于 {epoch.strftime('%Y-%m-%d')}（周一 UTC）"
+            return Reply(
+                title,
+                lines,
+                footer=f"来源 Update 43 官方轮换表 · 锚点 Week {anchor_week} 起于 "
+                f"{epoch.strftime('%Y-%m-%d')}（周一 UTC）",
             )
-            lines.append("※ 每周可在钢铁回廊 Tier 5 / Tier 10 各选 1 个灵化适配器")
-            return Reply(title, lines)
 
         # —— 模式：批次轮换（Coda 终幕：A/B 两批每 4 天交替）——
         batches = data.get("batches") or []
@@ -130,17 +137,15 @@ class RotationCommands:
             labels = data.get("batch_label") or [str(i + 1) for i in range(len(batches))]
             cur, nxt = batches[idx], batches[(idx + 1) % len(batches)]
             nxt_at = epoch + period * (passed + 1)
-            hrs = max(0, int((nxt_at - now).total_seconds() // 3600))
             days = int(data.get("period_hours", 96)) // 24
-            lines = [f"◆ 当前为 {labels[idx]} 批（共 {len(batches)} 批轮换，每 {days} 天换一次）"]
-            lines.extend(_weapon_rows(cur))
-            lines.append(
+            lines = [
+                f"◆ 当前批次：{labels[idx]} 批｜共 {len(batches)} 批轮换，每 {days} 天换一次",
+                f"◆ 距换批：剩余 {fmt.countdown(nxt_at.isoformat())}（{nxt_at.strftime('%m-%d %H:%M')} UTC）",
                 f"◆ 下一批 {labels[(idx + 1) % len(batches)]}："
-                + "、".join(x.get("cn") or x.get("en") for x in nxt)
-            )
-            lines.append(
-                f"※ 距换批 {hrs // 24}天{hrs % 24}小时（{nxt_at.strftime('%m-%d %H:%M')} UTC）"
-            )
+                + "、".join(x.get("cn") or x.get("en") for x in nxt),
+                f"◆ 本批武器（{len(cur)} 把）",
+            ]
+            lines.extend(_weapon_rows(cur))
             _vn = self._valence_note(data, epoch + period * passed)
             if _vn:
                 lines.append(_vn)
@@ -156,14 +161,13 @@ class RotationCommands:
             now = datetime.now(timezone.utc)
             passed = int((now - epoch) // period)
             nxt_at = epoch + period * (passed + 1)
-            hrs = max(0, int((nxt_at - now).total_seconds() // 3600))
             days = int(data.get("period_hours", 96)) // 24
-            lines = [f"◆ 常驻 {len(items)} 把（随到随买，各 40 个腐化全息密钥）"]
+            lines = [
+                f"◆ 距元素加成重生成：剩余 {fmt.countdown(nxt_at.isoformat())}"
+                f"（{nxt_at.strftime('%m-%d %H:%M')} UTC，每 {days} 天一次）",
+                f"◆ 常驻武器（{len(items)} 把，随到随买，各 40 个腐化全息密钥）",
+            ]
             lines.extend(_weapon_rows(items))
-            lines.append(
-                f"※ 元素加成每 {days} 天重生成　距下次 {hrs // 24}天{hrs % 24}小时"
-                f"（{nxt_at.strftime('%m-%d %H:%M')} UTC）"
-            )
             _vn = self._valence_note(data, epoch + period * passed)
             if _vn:
                 lines.append(_vn)

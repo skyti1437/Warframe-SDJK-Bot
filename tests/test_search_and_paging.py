@@ -189,8 +189,13 @@ inv = [
 ]
 ta, la = F.fmt_invasions(inv, page=1, page_size=6)
 tb, lb = F.fmt_invasions(inv, page=3, page_size=6)
-check("入侵分页：共 3 页", "第1/3页" in la[-3], str(la[-3:]))
-check("入侵第 3 页只余 2 场", "第3/3页，共14场" in lb[-3], str(lb[-3:]))
+# ★ 2026-10-11 第二步改版：翻页信息挪到卡首答案行「◆ 进行中：14 场（第 1/3 页…）」（注脚统一卡尾、≤3 行）
+check("入侵分页：共 3 页", "第 1/3 页" in la[0] and "14 场" in la[0], str(la[:1]))
+check(
+    "入侵第 3 页只余 2 场",
+    "第 3/3 页" in lb[0] and sum(1 for x in lb if x.startswith("◆ 节点")) == 2,
+    str(lb[:1]),
+)
 
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")

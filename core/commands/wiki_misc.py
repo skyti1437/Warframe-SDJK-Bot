@@ -17,7 +17,7 @@ from .. import search as search_engine
 from .. import wiki_intro
 from ..api_client import WarframeAPIError
 from ..logging_compat import logger
-from .base import Reply
+from .base import Reply, err_card
 
 
 class WikiMiscCommands:
@@ -110,7 +110,12 @@ class WikiMiscCommands:
         """
         query = parsed.content_str
         if not query:
-            return Reply(raw_text="用法：wiki 关键词（本地词库优先，未命中给搜索链接）")
+            return err_card(
+                "没有写关键词",
+                "按 wiki 关键词 的格式重发，例如「wiki 夜灵平原」",
+                ("用法", "wiki 关键词（本地词库优先，未命中给搜索链接）"),
+                title="wiki 直达",
+            )
         note = self.client.wiki_clarify(query)
         hit = self.client.wiki_lookup(query)
         if hit:
@@ -178,10 +183,14 @@ class WikiMiscCommands:
             )
         link = await self.client.wiki_search_link(query)
         # 未收录时也把澄清带上（如「跑男」这种自带歧义的写法）
-        tip = f"\n\n⚠️ {note}" if note else ""
-        return Reply(
-            raw_text=f"本地词库未收录「{query}」，请前往维基搜索：\n{link}{tip}{self._kb_hint()}"
+        r = err_card(
+            f"本地词库未收录「{query}」",
+            "点下方链接前往维基搜索；或换官方中文 / 英文名重发",
+            ("提示", note) if note else "",
+            title="wiki 直达",
         )
+        r.extra_text = f"{link}{self._kb_hint()}"  # 链接必须是可点的纯文本
+        return r
 
     async def _h_translate(self, parsed, event, platform) -> Reply:
         """翻译：中英名称对照（纯文本，**不渲染图片**）。
@@ -194,9 +203,11 @@ class WikiMiscCommands:
         """
         q = (parsed.content_str or "").strip()
         if not q:
-            return Reply(
-                raw_text="用法：翻译 腐蚀投射 ／ 翻译 Corrosive Projection"
-                "（中英双向；只查名称类词条）"
+            return err_card(
+                "没有写要翻译的名称",
+                "按 翻译 名称 的格式重发，例如「翻译 腐蚀投射」",
+                ("用法", "翻译 腐蚀投射 ／ 翻译 Corrosive Projection（中英双向；只查名称类词条）"),
+                title="名称翻译",
             )
         r = matching.bilingual_lookup(q)
 
@@ -212,7 +223,11 @@ class WikiMiscCommands:
         if r["candidates"]:
             lines = [f"未找到精确匹配「{q}」，相近候选："] + _fmt(r["candidates"])
             return Reply(raw_text="\n".join(lines))
-        return Reply(raw_text=f"未找到「{q}」（未收录该名称；可试官方中文或英文全名）")
+        return err_card(
+            f"未找到「{q}」（未收录该名称）",
+            "改用官方中文或英文全名再试",
+            title="名称翻译",
+        )
 
     async def _h_valence(self, parsed, event, platform) -> Reply:
         """玄骸 / 信条 / 科达武器的**效价融合**（Valence Fusion）。
@@ -234,26 +249,32 @@ class WikiMiscCommands:
             has_elem = bool(e1 or e2)
             res = calc.valence_fusion(e1 or "火", p1, e2 or "火", p2)
             if "error" in res:
-                return Reply(raw_text=res["error"])
+                return err_card(
+                    res["error"],
+                    "元素写成：电 / 火 / 冰 / 毒 / 冲击 / 磁力 / 辐射，例如「武器融合 电60 火58」",
+                    title="效价融合",
+                )
             # 没给元素时不硬编一个「火」，也不输出问号
             if has_elem:
                 labels = [f"{e or '—'}{p:g}%" for e, p in pairs[:2]]
             else:
                 labels = [f"{p:g}%" for _, p in pairs[:2]]
+            # 行文法：卡首答案「融合结果」→ 材料 / 元素 / 公式
+            _res = f"加成 {res['percent']:g}%"
+            if res["percent"] < calc.VALENCE_CAP:
+                steps = calc.fusion_to_cap(res["percent"])
+                _res += f"｜到满值还需 {len(steps)} 次融合（用同数值材料）"
             lines = [
+                f"◆ 融合结果：{_res}",
                 f"◆ 融合材料：{' ＋ '.join(labels)}",
-                f"◆ 融合结果：加成 {res['percent']:g}%",
-                f"　公式 结果 = 较高值 {max(p1, p2):g}% × 1.1"
-                + (" → ≥58% 直接进位 60%" if res["percent"] >= 60 else ""),
             ]
             # 没给元素时别硬编一个「火」，也别输出「?」
             if has_elem:
-                lines.insert(2, f"◆ 元素：{' 或 '.join(res['options'])}（{res['note']}）")
-            if res["percent"] < calc.VALENCE_CAP:
-                steps = calc.fusion_to_cap(res["percent"])
-                lines.append(
-                    f"◆ 从 {res['percent']:g}% 到满值还需 {len(steps)} 次融合（用同数值材料）"
-                )
+                lines.append(f"◆ 元素：{' 或 '.join(res['options'])}（{res['note']}）")
+            lines.append(
+                f"◆ 公式：结果 = 较高值 {max(p1, p2):g}% × 1.1"
+                + (" → ≥58% 直接进位 60%" if res["percent"] >= 60 else "")
+            )
             lines.append("※ 必须是同款武器（同一把 Kuva/Tenet/Coda，同系列不同名不行）")
             lines.append(
                 "※ 只有受体会被保留：材料的催化剂 / Forma / 架式 Forma / 透镜"
@@ -266,18 +287,20 @@ class WikiMiscCommands:
             _e1, p1 = pairs[0]
             trace = calc.fusion_to_cap(p1)
             lines = [
-                f"◆ 从 {p1:g}% 用同数值材料融合到 60% 的轨迹：",
-                "　→ ".join(f"{x:g}%" for x in trace) or "已是满值",
-                f"◆ 共需 {len(trace)} 次融合（材料数值越高可少几次）",
+                f"◆ 共需：{len(trace)} 次融合（用同数值材料；材料数值越高可少几次）",
+                f"◆ 融合轨迹（从 {p1:g}% 到 60%）",
+                "· " + (" → ".join(f"{x:g}%" for x in trace) or "已是满值"),
             ]
             lines.append("※ 材料 ≥58% 时受体无需再看自身数值，融合后直接 60%")
             return Reply("效价融合规划", lines)
 
-        return Reply(
-            raw_text="用法：\n"
-            "· 武器融合 电60 火58　两把融合的结果与可选元素\n"
-            "· 武器融合 44　　　　　从 44% 到 60% 需要融合几次\n"
-            "支持元素：电 / 火 / 冰 / 毒 / 冲击 / 磁力 / 辐射"
+        return err_card(
+            "没有给出可计算的数值",
+            "按上面的示例重发",
+            "· 武器融合 电60 火58　两把融合的结果与可选元素",
+            "· 武器融合 44　　　　　从 44% 到 60% 需要融合几次",
+            ("支持元素", "电 / 火 / 冰 / 毒 / 冲击 / 磁力 / 辐射"),
+            title="效价融合",
         )
 
     async def _h_damage(self, parsed, event, platform) -> Reply:
@@ -299,39 +322,38 @@ class WikiMiscCommands:
             return Reply(
                 "伤害计算",
                 [
-                    "◆ 用法",
-                    "　伤害 <武器名> [对 敌人名] [派系] [N级] [爆头] [加成项…]",
-                    "　例：伤害 布拉玛 对 重机枪手 100级 膛线 分裂膛室 地狱火 电90",
-                    "　例：伤害 空刃 对 重机枪手 100级 钢铁凤凰 异况超量 急进猛突 连击120",
+                    "◆ 用法：伤害 <武器名> [对 敌人名] [派系] [N级] [爆头] [加成项…]",
+                    "◆ 示例",
+                    "· 步枪　伤害 布拉玛 对 重机枪手 100级 膛线 分裂膛室 地狱火 电90",
+                    "· 近战　伤害 空刃 对 重机枪手 100级 钢铁凤凰 异况超量 急进猛突 连击120",
                     "◆ 配卡（三种写法可混用）",
-                    "　· MOD 名（满级值，可整条配卡直接粘贴）",
-                    "　　膛线 / 分裂膛室 / 镀层分裂膛室 / 地狱火 / 关键延迟 / 瞄准目标 …",
-                    "　· 手写：基伤 / 多重 / 暴率 / 暴伤 / 爆头倍率 / 派系（%）",
-                    "　　电 火 冰 毒（自动合成复合）｜冲击 穿刺 切割（只加同类型）",
-                    "　　状态伤害N（只放大 DoT）｜基甲N（覆盖默认敌人基准甲）",
-                    "　· 敌人名：枪兵 / 重机枪手 / 轰击者 / 船员 / 恐鸟 / 夜灵 …（常用 19 个，支持模糊）",
-                    "　　给了就用它的真实基准甲/血/盾，并算击杀发数",
+                    "· MOD 名　满级值，可整条配卡直接粘贴：膛线 / 分裂膛室 / 镀层分裂膛室 / 地狱火 / "
+                    "关键延迟 / 瞄准目标 …",
+                    "· 手写加成　基伤 / 多重 / 暴率 / 暴伤 / 爆头倍率 / 派系（%）",
+                    "· 元素　电 火 冰 毒（自动合成复合）｜冲击 穿刺 切割（只加同类型）",
+                    "· 其它手写　状态伤害N（只放大 DoT）｜基甲N（覆盖默认敌人基准甲）",
+                    "· 敌人名　枪兵 / 重机枪手 / 轰击者 / 船员 / 恐鸟 / 夜灵 …（常用 19 个，支持模糊）；"
+                    "给了就用它的真实基准甲/血/盾，并算击杀发数",
                     "◆ 异常（U36 后元素差异的主要来源）",
-                    "　病毒N / 磁力N（1-10 层，对血 / 对盾加伤）",
-                    "　腐蚀N（剥甲 26%+6%×每层，满层 −80%）｜火剥甲（−50%）",
+                    "· 病毒N / 磁力N　1-10 层，对血 / 对盾加伤",
+                    "· 腐蚀N / 火剥甲　腐蚀N：剥甲 26%+6%×每层，满层 −80%｜火剥甲：−50%",
                     "◆ 近战",
-                    "　连击N 重击｜架势名（钢铁凤凰 / 猎鹰俯击 …：每段倍率+强制异常）",
-                    "　急进猛突 / 创口溃烂 / 异况超量 / 一击必杀 / 奋力一掷 按实际等级折算",
+                    "· 连击N / 重击 / 架势名　钢铁凤凰 / 猎鹰俯击 …：每段倍率+强制异常",
+                    "· 急进猛突 / 创口溃烂 / 异况超量 / 一击必杀 / 奋力一掷　按实际等级折算",
                     "◆ 其它",
-                    "　派系：G系 / C系 / I系 / 合一众 / 奥罗金 / 低语者 / 扎里曼 / 炽蛇军 / 科腐者 …",
-                    "　赋能 <名>（条件触发只展示不折算）｜异常N（目标异常种类数）",
-                    "　镀层N / 满镀层（镀层类击杀堆叠按 N 层计入，如镀层 分裂膛室）",
-                    "　超宏[N]（不吃护甲/派系、免疫异常）｜适应N（Sentient 适应 1-4 层）",
-                    "　灵化 / 基础形态（默认按原型算；加「灵化」切灵化形态）",
-                    "　副开火 / 蓄力 / 未蓄力 / 半自动 / 全自动（切到该形态的整套面板与范围段，"
-                    "选了才算）",
-                    "　开火N秒（火焰单例累加：稳态火层数按开火 N 秒窗口平均，默认 12）",
-                    "　空战 / 地面（Archgun 双部署：默认地面・大气；空战用空战面板）",
-                    "　进化 基伤/暴击/爆头…（灵化进化选项，可多次；改基础面板）",
-                    "　赤毒辐射60（赤毒/信条/终幕回响加成 25-60%，元素要写）",
+                    "· 派系　G系 / C系 / I系 / 合一众 / 奥罗金 / 低语者 / 扎里曼 / 炽蛇军 / 科腐者 …",
+                    "· 赋能 <名> / 异常N　赋能：条件触发只展示不折算｜异常N：目标异常种类数",
+                    "· 镀层N / 满镀层　镀层类击杀堆叠按 N 层计入，如镀层 分裂膛室",
+                    "· 超宏[N] / 适应N　超宏：不吃护甲/派系、免疫异常｜适应：Sentient 适应 1-4 层",
+                    "· 灵化 / 基础形态　默认按原型算；加「灵化」切灵化形态",
+                    "· 副开火 / 蓄力 / 未蓄力 / 半自动 / 全自动　切到该形态的整套面板与范围段，选了才算",
+                    "· 开火N秒　火焰单例累加：稳态火层数按开火 N 秒窗口平均，默认 12",
+                    "· 空战 / 地面　Archgun 双部署：默认地面・大气；空战用空战面板",
+                    "· 进化 基伤/暴击/爆头…　灵化进化选项，可多次；改基础面板",
+                    "· 赤毒辐射60　赤毒/信条/终幕回响加成 25-60%，元素要写",
                     "◆ 输出",
-                    "　单发对血/对盾（无暴击）→ 暴击与爆头期望（含暴击）",
-                    "　→ 每次扳机、DPS 爆发/持续（均给含暴击与无暴击）",
+                    "· 单发　对血/对盾（无暴击）→ 暴击与爆头期望（含暴击）",
+                    "· 每次扳机 / DPS　爆发/持续（均给含暴击与无暴击）",
                 ],
             )
 
@@ -342,26 +364,31 @@ class WikiMiscCommands:
                 return Reply(
                     "伤害计算",
                     [
-                        f"武器库（warframe-items）里没找到「{query}」。",
-                        f"　本串里没认出来的词：{miss}",
-                        "　换英文名或完整中文名再试，例如「Kuva Bramma / 赤毒布拉玛」。",
+                        f"◆ 原因：武器库（warframe-items）里没找到「{query}」",
+                        f"◆ 没认出来的词：{miss}",
+                        "※ ⚠ 怎么改：换英文名或完整中文名再试，例如「Kuva Bramma / 赤毒布拉玛」",
                     ],
                 )
             res = dc.calculate(spec, weapon)
-            return Reply("伤害计算", dc.card_lines(weapon, spec, res, alts))
+            return Reply(
+                "伤害计算",
+                dc.card_lines(weapon, spec, res, alts),
+                footer=dc.card_footer(weapon, res),
+            )
         except Exception as exc:  # noqa: BLE001 - 绝不静默：群聊里没输出最难查
             logger.exception(f"[sdjk] 伤害计算失败：{exc!r}")
             return Reply(
                 "伤害计算",
                 [
-                    "❗ 计算出错（内部错误，详情已写入日志）",
-                    f"　武器：{query}｜已识别 MOD："
+                    "◆ 原因：计算出错（内部错误，详情已写入日志）",
+                    f"◆ 输入：武器 {query}｜已识别 MOD："
                     + (
                         "、".join(
                             m.get("zh") or m.get("name") or "" for m in spec.get("mods") or []
                         )
                         or "无"
                     ),
+                    "※ ⚠ 怎么改：换个写法重发；仍出错请把这条指令原文反馈给管理员",
                 ],
             )
 

@@ -21,6 +21,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+
+def _txt(r) -> str:
+    """Reply 的可读文本：raw_text 或 title + lines（报错卡片迁移后断言用）。"""
+    if r is None:
+        return ""
+    return r.raw_text or (r.title + "\n" + "\n".join(r.lines))
+
+
 from core import matching as M  # noqa: E402
 from core.commands.wiki_misc import WikiMiscCommands  # noqa: E402
 from core.parser import parse  # noqa: E402
@@ -111,8 +119,8 @@ check("指令出口：英→中", _r2.raw_text == "[Corrosive Projection] => 腐
 _r3 = _run("绝对不存在的词xyzzy")
 check(
     "指令出口：未找到明确提示（不静默）",
-    _r3.raw_text and "未找到" in _r3.raw_text,
-    repr(_r3.raw_text),
+    "未找到" in _txt(_r3) and "怎么改" in _txt(_r3),
+    repr(_txt(_r3)),
 )
 _r4 = _run("projection")
 check(
@@ -121,7 +129,11 @@ check(
     repr(_r4.raw_text),
 )
 _r5 = _run("")
-check("指令出口：空参给用法", _r5.raw_text and "用法" in _r5.raw_text, repr(_r5.raw_text))
+check(
+    "指令出口：空参给用法（报错卡含用法与怎么改）",
+    "用法" in _txt(_r5) and "怎么改" in _txt(_r5),
+    repr(_txt(_r5)),
+)
 check("路由：翻译 → translate", parse("翻译").command == "translate")
 
 if FAILED:

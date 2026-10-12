@@ -200,6 +200,21 @@ def available() -> bool:
     return bool(_table()[1])
 
 
+# 简介数据里的「标签：值」行 → 行文法的 KV 行（◆ 标签：值）；叙述性正文（无标签）原样保留。
+_KV_LINE_RE = re.compile(
+    r"^(?:(类型)(?:[：:]\s*|\s*)|(定位|获取|效果（[^）]{1,12}）|效果|建造材料|说明|简介|数据|特性|属性"
+    r"|总伤害|可交易|商店|自带极性|用途|技能|被动|状态)(?:[：:]\s*|\s+))(\S.*)$"
+)
+
+
+def _kvify(line: str) -> str:
+    """「类型 主武器 MOD｜…」「效果（满级 3）：…」→「◆ 类型：…」「◆ 效果（满级 3）：…」。"""
+    m = _KV_LINE_RE.match(line)
+    if not m:
+        return line
+    return f"◆ {m.group(1) or m.group(2)}：{m.group(3).strip()}"
+
+
 def intro(*names: str) -> Optional[tuple[str, list[str]]]:
     """按候选名字（页面名 / 检索名 / 英文名）查简介条目。
 
@@ -215,7 +230,7 @@ def intro(*names: str) -> Optional[tuple[str, list[str]]]:
         if isinstance(i, int) and 0 <= i < len(entries):
             e = entries[i]
             if isinstance(e, list) and len(e) == 2:
-                return str(e[0]), [_localize(_localize_effect(str(x))) for x in e[1]]
+                return str(e[0]), [_kvify(_localize(_localize_effect(str(x)))) for x in e[1]]
     return None
 
 
@@ -269,11 +284,11 @@ def _drops_card(*names: str, limit: int = 5) -> Optional[tuple[str, list[str]]]:
 
     rows = sorted(srcs, key=_rank)[:limit]
     title = (names[0] or key).strip() or key
-    lines = [f"掉落来源（共 {len(srcs)} 处，按几率排序）："]
+    lines = [f"◆ 掉落来源（共 {len(srcs)} 处，按几率排序）", "　来源　几率"]
     for row in rows:
         pid, _rarity, chance = row[0], row[1], row[2]
-        place = places.get(str(pid)) or places.get(pid) or "?"
-        lines.append(f"· {place}（{chance}%）" if chance is not None else f"· {place}（几率未知）")
+        place = str(places.get(str(pid)) or places.get(pid) or "?").replace("　", " ")
+        lines.append(f"· {place}　{chance}%" if chance is not None else f"· {place}　几率未知")
     return title, lines
 
 
@@ -298,8 +313,8 @@ def _uses_card(*names: str, limit: int = 5) -> Optional[tuple[str, list[str]]]:
     if not prods:
         return None
     title = (names[0] or prods[0]).strip() or prods[0]
-    lines = [f"用途：用于制造（共 {hit.get('n', len(prods))} 个配方）："]
-    lines += [f"· {p}" for p in prods]
+    lines = [f"◆ 用途 · 用于制造（共 {hit.get('n', len(prods))} 个配方）"]
+    lines += [f"· {str(p).replace('　', ' ')}" for p in prods]
     return title, lines
 
 
@@ -356,9 +371,10 @@ def _relic_card(*names: str, limit: int = 3) -> Optional[tuple[str, list[str]]]:
     for tag in ("常见", "罕见", "稀有"):
         items = [str(x) for x in (rar.get(tag) or [])]
         if items:
-            lines.append(f"{tag}：{'、'.join(items[:limit])}")
+            lines.append(f"· {tag}　{'、'.join(items[:limit])}")
     if not lines:
         return None
+    lines.insert(0, "◆ 奖励（三档）")
     title = next((n for n in names if (n or "").strip()), hit).strip() or hit
     return title, lines
 
@@ -381,8 +397,8 @@ def _relic_part_card(*names: str, limit: int = 8) -> Optional[tuple[str, list[st
     if not rows:
         return None
     title = next((n for n in names if (n or "").strip()), hit).strip() or hit
-    lines = [f"所在遗物（共 {len(rows)} 个）："]
-    lines += [f"· {r.get('relic')}（{r.get('rarity')}）" for r in rows[:limit]]
+    lines = [f"◆ 所在遗物（共 {len(rows)} 个）", "　遗物　稀有度"]
+    lines += [f"· {r.get('relic')}　{r.get('rarity')}" for r in rows[:limit]]
     return title, lines
 
 
@@ -391,7 +407,7 @@ def _minimal_card(*names: str) -> Optional[tuple[str, list[str]]]:
     title = next((n.strip() for n in names if (n or "").strip()), "")
     if not title:
         return None
-    return title, ["本地资料库暂无该条目的简介，详见下方 wiki 页面"]
+    return title, ["◆ 状态：本地资料库暂无该条目的简介", "※ 详见下方 wiki 页面链接"]
 
 
 def card_for(*names: str) -> Optional[tuple[str, list[str]]]:

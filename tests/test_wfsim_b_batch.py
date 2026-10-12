@@ -29,6 +29,11 @@ from core import damage_calc as dc  # noqa: E402
 FAILED: list[str] = []
 
 
+def _panel_row(lines: list[str]) -> str:
+    """卡面「· 面板　基伤…｜暴击…｜射速…」行（2026-10-11 改版前是 lines[1] 的「　基伤…」缩进行）。"""
+    return next(x for x in lines if x.startswith("· 面板"))
+
+
 def check(name: str, cond: bool, detail: str = "") -> None:
     print(("  ✓ " if cond else "  ✗ ") + name + ("" if cond else f"  —— {detail}"))
     if not cond:
@@ -845,7 +850,7 @@ check(
     close(_rn["fire_rate_eff"], 9 / (0.2 + 8 * 0.15)),
     str(_rn["fire_rate_eff"]),
 )
-_hdr = dc.card_lines(dc.find_weapon("Burston")[0], dc.parse_args([])[0], _rb, [])[1]
+_hdr = _panel_row(dc.card_lines(dc.find_weapon("Burston")[0], dc.parse_args([])[0], _rb, []))
 check("卡面头部：射速 5（有效 9.32 发/s）", "射速 5（有效 9.32 发/s）" in _hdr, _hdr)
 
 # ③ 蓄力：wiki Fire Rate §Charge Time
@@ -855,7 +860,7 @@ check(
     close(_rl["fire_rate_eff"], 1.0) and close(_rl["dps"], 114.984, 1e-4),
     f"{_rl['fire_rate_eff']} {_rl['dps']}",
 )
-_hdl = dc.card_lines(dc.find_weapon("Lanka")[0], dc.parse_args([])[0], _rl, [])[1]
+_hdl = _panel_row(dc.card_lines(dc.find_weapon("Lanka")[0], dc.parse_args([])[0], _rl, []))
 check("Lanka 卡面：射速 —（有效 1 发/s）", "射速 —（有效 1 发/s）" in _hdl, _hdl)
 _, _ro = calc("Opticor")
 check(
@@ -964,8 +969,9 @@ check(
 _cl = dc.card_lines(dc.find_weapon("Simulor")[0], dc.parse_args([])[0], _rs, [])
 check(
     "Simulor 卡面：DPS 行注明「直击 0，按含段合计」；面板口径 = 发射球体（直击）",
-    any("DPS 爆发：147" in x and "直击 0，按含段合计" in x for x in _cl)
-    and any("本表主段 = 发射球体（直击）" in x for x in _cl),
+    any("爆发 DPS：147" in x and "直击 0，按含段合计" in x for x in _cl)
+    # 2026-10-11 改版：认出主段且有分段表时，「面板口径」并进「分段」区块标题（主段 X）
+    and any(x.startswith("◆ 分段") and "主段 发射球体（直击）" in x for x in _cl),
     "\n".join(x for x in _cl if "DPS" in x or "面板口径" in x),
 )
 
@@ -1163,7 +1169,7 @@ _w, _r = calc("Epitaph")
 _cl = dc.card_lines(_w, dc.parse_args([])[0], _r, [])
 check(
     "葬铭卡面：持续行注明不装填；Uncharged AoE 暴击 0.02（wiki；修前 WFCD 0 被回落成主段 0.48）",
-    any("不装填" in x and "DPS 持续" in x for x in _cl)
+    any("不装填" in x and "持续 DPS" in x for x in _cl)
     and close(next(m for m in _r["modes"] if m["name"] == "Uncharged AoE")["crit_cc"], 0.02),
 )
 
@@ -1193,7 +1199,9 @@ _w, _r = calc("Staticor")
 _cl = dc.card_lines(_w, dc.parse_args([])[0], _r, [])
 check(
     "Staticor 面板口径：主段 = Fully Charged Projectile（修前写成 Uncharged Projectile）",
-    any("本表主段 = Fully Charged Projectile" in x for x in _cl),
+    any(
+        x.startswith("◆ 分段") and "主段 Fully Charged Projectile" in x for x in _cl
+    ),  # 改版：并进分段标题
 )
 
 # ⑤ 弓（弹匣 1）：有效射速 = 1/(蓄力 + 装填)，爆发 = 持续

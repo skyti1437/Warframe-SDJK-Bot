@@ -62,7 +62,9 @@ if _r:
     check(
         "Kuva Ayanga 范围段显示「射程内衰减 50%」",
         # 2026-10-09：同签名去重后保留 attacks 段（段名 Area Attack），衰减由 wfsim 段补上
-        any("射程内衰减 50%" in ln for ln in _r[1]),
+        # 2026-10-11 改版：分段表「射程衰减」列（行尾 50%），原「｜射程内衰减 50%」行内写法
+        any("　射程衰减" in ln for ln in _r[1])
+        and any(ln.startswith("· ") and ln.endswith("　50%") for ln in _r[1]),
         str([ln for ln in _r[1] if "范围" in ln]),
     )
 _r, _err = _safe(_card, "伤害 Kuva Ayanga 空战")
@@ -108,7 +110,7 @@ _res_k["modes"] = [dict(m, falloff=0.3) for m in _res_k["modes"]] or [
 _lines, _err = _safe(dc.card_lines, _w_k, _s_k, _res_k, [])
 check(
     "card_lines 兜底：裸数字 falloff 不崩且按比例显示",
-    _err is None and any("射程内衰减 30%" in ln for ln in _lines or []),
+    _err is None and any(ln.startswith("· ") and ln.endswith("　30%") for ln in _lines or []),
     str(_err),
 )
 

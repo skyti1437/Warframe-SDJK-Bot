@@ -117,12 +117,12 @@ check(
     len(lines) >= len(rows) * 2,
     f"lines={len(lines)} rows={len(rows)}",
 )
+# ★ 2026-10-11 第二步改版：主行不再带序号「N.」（序号会让斑马纹/列对齐判成编号行），
+#   改为「· [大类]　名称　杜卡德」的列表项；护栏改为「每件物品都有一条含杜卡德的主行」。
 check(
-    "主行含序号与杜卡德",
-    all(
-        any(ln.startswith(f"{i}.") and "杜卡德" in ln for ln in lines)
-        for i in range(1, len(rows) + 1)
-    ),
+    "主行含大类芯片与杜卡德（每件一条）",
+    sum(1 for ln in lines if ln.startswith("· [") and "杜卡德" in ln) == len(rows),
+    str(lines[:6]),
 )
 check("末尾声明「不是官方预测」", any("不是官方预测" in ln for ln in lines), str(lines[-3:]))
 check(
@@ -163,6 +163,43 @@ t3, l3 = fmt.fmt_baro_predict(rows, "", 0, "")  # 不传 names_zh
 check(
     "缺中文映射时回落英文原名，不崩",
     all(r["name"] in " ".join(l3) or True for r in rows) and len(l3) > 0,
+)
+
+print("\n=== 六、B11（2026-10-11）下次到访前推 + 静默同步 + 快照日期 ===")
+from datetime import datetime as _dt, timezone as _tz  # noqa: E402
+
+_last = baro.last_visit()
+_now = _dt.fromisoformat(_last).replace(tzinfo=_tz.utc) + baro._period() * 1.6
+_est = baro.next_visit_est(now=_now)
+check(
+    "快照过旧时下次到访按周期前推、不早于今天",
+    _est is not None and _est >= _now.strftime("%Y-%m-%d"),
+    f"{_est} vs {_now:%Y-%m-%d}",
+)
+check("快照后已发生的到访计数（1.6 个周期 ⇒ 1 次）", baro.missed_visits(_now) == 1)
+check(
+    "worldstate Activation 优先（DE 官方排期）",
+    baro.next_visit_est(now=_now, activation="2099-01-02T13:00:00Z") == "2099-01-02",
+)
+check(
+    "过去的 Activation（>48h 前）不采用，回落周期推算",
+    baro.next_visit_est(now=_now, activation="2000-01-01T13:00:00Z") == _est,
+)
+_r0 = {r["name"]: r for r in baro.predict(60, extra_silent=0)}
+_r1 = {r["name"]: r for r in baro.predict(60, extra_silent=1)}
+_both = [n for n in _r0 if n in _r1]
+check(
+    "静默次数同步 +N（快照后到访视为未上架）",
+    _both and all(_r1[n]["silent"] == _r0[n]["silent"] + 1 for n in _both),
+    str(_both[:3]),
+)
+_t6, _l6 = fmt.fmt_baro_predict(
+    rows, "2026-10-16", len(vs), _last or "", names_zh=zh, snapshot="2026-09-24", missed=1
+)
+check(
+    "卡面注明历史快照日期与未入库次数",
+    any("历史记录快照：2026-09-24" in ln and "1 次到访未入库" in ln for ln in _l6),
+    str(_l6[-2:]),
 )
 
 print()

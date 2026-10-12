@@ -264,9 +264,13 @@ check(
     parse_fissure_filter(_rule_c).describe() == "钢铁防御",
     parse_fissure_filter(_rule_c).describe(),
 )
+# ★ 2026-10-11 改断言：describe 不再给未写难度的组补「普通」（「防御」组实际不限难度，
+#   旧描述「普通防御」与匹配语义不符）；语义变宽本身另用 match 实测锁住。
 check(
-    "分开写语义确实变宽（= 钢铁 **或** 普通防御，两组取或）",
-    parse_fissure_filter(_rule_a).describe() == "钢铁，普通防御",
+    "分开写语义确实变宽（= 钢铁 **或** 防御，两组取或）",
+    parse_fissure_filter(_rule_a).describe() == "钢铁，防御"
+    and parse_fissure_filter(_rule_a).match({"isHard": True, "missionType": "生存"})
+    and parse_fissure_filter(_rule_a).match({"isHard": False, "missionType": "防御"}),
     parse_fissure_filter(_rule_a).describe(),
 )
 

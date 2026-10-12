@@ -16,10 +16,11 @@ import time
 from typing import Optional
 
 from .. import damage_calc as dc
+from .. import formatters as fmt
 from .. import loadout_ocr as lo
 from .. import pips as pips_engine
 from ..logging_compat import logger
-from .base import Reply, _num
+from .base import Reply, _num, err_card
 
 
 class ScanCommands:
@@ -37,12 +38,13 @@ class ScanCommands:
             return Reply(
                 "配卡识别",
                 [
-                    "用法：发一张武器「升级」界面截图，配上文字「识卡」",
-                    "　读出：武器（含等级）＋每张 MOD 卡与其实际等级＋面板数值",
-                    "　加成按卡片容量数字反推实际等级（绿=匹配减半／红=不合+25%／白=原价）",
-                    "　再用面板数值交叉校验；第 2 页直接给伤害详情（同「伤害计算」公式）",
-                    "　想换敌人/等级/爆头复算：识卡伤害 对 重机枪手 150级 爆头",
-                    "　需要 AstrBot 里配好一个多模态模型（如 Qwen3-VL / glm-4.1v）",
+                    "◆ 用法：发一张武器「升级」界面截图，配上文字「识卡」",
+                    "◆ 说明",
+                    "· 读出　武器（含等级）＋每张 MOD 卡与其实际等级＋面板数值",
+                    "· 折算　加成按卡片容量数字反推实际等级（绿=匹配减半／红=不合+25%／白=原价）",
+                    "· 校验　再用面板数值交叉校验；第 2 页直接给伤害详情（同「伤害计算」公式）",
+                    "· 复算　想换敌人/等级/爆头：识卡伤害 对 重机枪手 150级 爆头",
+                    "· 前置　需要 AstrBot 里配好一个多模态模型（如 Qwen3-VL / glm-4.1v）",
                 ],
             )
 
@@ -80,11 +82,11 @@ class ScanCommands:
             #   受害者——失败重试不该干等 15 秒。成功调用才占冷却。
             if _cd > 0 and _sender:
                 self._ocr_last.pop(_sender, None)
-            return Reply(
-                raw_text="截图识别失败：视觉渠道没给出可解析结果。"
-                "可能原因：① 渠道超时/返回空；② 未配视觉模型。"
-                "可先重发一次；仍失败请查看机器人日志里的"
-                "「配卡识别」条目（会写明是哪个渠道、什么原因）"
+            return err_card(
+                "截图识别失败：视觉渠道没给出可解析结果",
+                "先重发一次；仍失败请查看机器人日志里的「配卡识别」条目（会写明是哪个渠道、什么原因）",
+                ("可能原因", "① 渠道超时/返回空；② 未配视觉模型"),
+                title="识卡",
             )
 
         an = lo.analyze(ocr, ocr.get("_pips_rows"))
@@ -168,7 +170,7 @@ class ScanCommands:
                 "※ 与「伤害计算」同一套公式（G系 100 级·身体，无 buff 基准）；"
                 "换敌人/等级/爆头请发「识卡伤害 对 重机枪手 150级 爆头」"
             )
-            return out
+            return fmt.limit_notes(out)
         except Exception:  # noqa: BLE001 —— 第二页是增强项，失败不挡第一页
             logger.exception("[sdjk] 识卡伤害详情页生成失败")
             return None
@@ -197,11 +199,11 @@ class ScanCommands:
             return Reply(
                 "识卡伤害",
                 [
-                    "本会话 30 分钟内没有识卡记录。",
-                    "　先发「识卡 + 武器升级界面截图」，再用本指令复算：",
-                    "　　识卡伤害 对 重机枪手 150级 爆头",
-                    "　　识卡伤害 C系 120级｜识卡伤害 满镀层 异常4 连击120 重击",
-                    "　参数写法与「伤害」指令一致（识卡伤害 = 伤害 + 已识别配卡）。",
+                    "◆ 原因：本会话 30 分钟内没有识卡记录",
+                    "◆ 用法：先发「识卡 + 武器升级界面截图」，再用本指令复算",
+                    "· 示例　识卡伤害 对 重机枪手 150级 爆头",
+                    "· 示例　识卡伤害 C系 120级｜识卡伤害 满镀层 异常4 连击120 重击",
+                    "※ ⚠ 怎么改：先发一次「识卡」；参数写法与「伤害」指令一致（识卡伤害 = 伤害 + 已识别配卡）",
                 ],
             )
         _ts, weapon, cached = hit
@@ -219,14 +221,16 @@ class ScanCommands:
             else:
                 spec = dict(cached)
             res = dc.calculate(spec, weapon)
-            return Reply("识卡伤害", dc.card_lines(weapon, spec, res, []))
+            return Reply(
+                "识卡伤害", dc.card_lines(weapon, spec, res, []), footer=dc.card_footer(weapon, res)
+            )
         except Exception as exc:  # noqa: BLE001 —— 绝不静默
             logger.exception("[sdjk] 识卡伤害复算失败：%r", exc)
             return Reply(
                 "识卡伤害",
                 [
-                    "❗ 复算出错（内部错误，详情已写入日志）",
-                    "　重新发一次「识卡」后再试；参数写法见「伤害」指令的用法页。",
+                    "◆ 原因：复算出错（内部错误，详情已写入日志）",
+                    "※ ⚠ 怎么改：重新发一次「识卡」后再试；参数写法见「伤害」指令的用法页",
                 ],
             )
 

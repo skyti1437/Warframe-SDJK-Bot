@@ -49,11 +49,13 @@ def _auc(status: str, price: int, age_hours: float) -> dict:
 pool = [_auc("offline", 50, 30), _auc("ingame", 200, 5)]
 title, lines, best = F.fmt_wr_auctions("伯斯顿", pool, page=1, page_size=8)
 body = "\n".join(lines)
-check("离线挂单也出现在列表里（不再被藏起来）", "⚫离线" in body, body[:300])
+# 2026-10-11 卡片改版：明细表「状态」列写「在线 / 离线」（原行内「🟢在线 / ⚫离线」）
+_rows = [x[2:].split("　") for x in lines if x.startswith("· ")]
+check("离线挂单也出现在列表里（不再被藏起来）", any("离线" in r for r in _rows), body[:300])
 check(
     "在线档仍排在离线之前（在线优先排序不变）",
-    body.index("🟢在线") < body.index("⚫离线"),
-    body[:300],
+    len(_rows) == 2 and "在线" in _rows[0] and "离线" in _rows[1],
+    str(_rows),
 )
 check("行内含上架时长（s/m/h 口径，放行尾）", ("上架30h" in body) or ("上架5h" in body), body[:300])
 check(
@@ -61,7 +63,12 @@ check(
     (best or {}).get("owner", {}).get("status") == "ingame",
     str(best)[:140],
 )
-check("空池给明确文案", F.fmt_wr_auctions("伯斯顿", [])[1] == ["没有符合条件的紫卡挂单"])
+_empty = F.fmt_wr_auctions("伯斯顿", [])[1]
+check(
+    "空池给明确文案（原因 + ⚠ 怎么改）",
+    _empty[0] == "◆ 原因：没有符合条件的紫卡挂单" and _empty[-1].startswith("※ ⚠ 怎么改"),
+    str(_empty),
+)
 
 
 # 竞价型（无 buyout）与一口价：价格前「起」标记（2026-10-08 用户口径「也打开吧」）
@@ -83,13 +90,13 @@ def _auc2(status: str, buyout, start):
 _t2, _l2, _ = F.fmt_wr_auctions("盗贼", [_auc2("offline", None, 1800), _auc2("ingame", 2200, 2200)])
 _b2 = "\n".join(_l2)
 check(
-    "竞价型挂单也列出：一口价显示 ♾（不带变体选择符 U+FE0F）+ 起拍价单列",
-    "一口价：\u267e" in _b2 and "\ufe0f" not in _b2 and "起拍价：1800p" in _b2,
+    "竞价型挂单也列出：一口价显示 ∞（渲染层会剥掉 ♾ 且子集字体无其字形，故改 ∞）+ 起拍价",
+    "∞（起拍价 1800p）" in _b2 and "\u267e" not in _b2 and "\ufe0f" not in _b2,
     _b2[:320],
 )
 check(
-    "一口价挂单写「一口价：Np」且无起拍价段",
-    "一口价：2200p" in _b2 and "起拍价" not in _b2.split("一口价：2200p")[1][:40],
+    "一口价挂单只写「Np」且无起拍价段",
+    "· 2200p" in _b2 and "起拍价" not in _b2.split("· 2200p")[1].split("\n")[0],
     _b2[:320],
 )
 

@@ -116,17 +116,20 @@ title, lines = fmt.fmt_void_trader(
     }
 )
 n = len(inv)
-rows = [ln for ln in lines if "　" in ln and not ln.startswith(("※", "◆"))]
+# ★ 2026-10-11 第二步改版：货单行统一以「· 」开头（列表项），剥掉行首标记后再按列切；
+#   另有「◆ 状态 / 离开 / 货单」答案行与一行表头（不是货单行）
+rows = [ln for ln in lines if ln.startswith("· ")]
 check(f"两列：行数 = ceil({n}/2) = {(n + 1) // 2}", len(rows) == (n + 1) // 2, f"rows={len(rows)}")
 check(
     "每行 6 列（名称/杜卡德/现金 ×2；奇数末行 3 列）",
-    all(len(ln.split("　")) in (3, 6) for ln in rows),
-    str([len(ln.split("　")) for ln in rows]),
+    all(len(ln[2:].split("　")) in (3, 6) for ln in rows),
+    str([len(ln[2:].split("　")) for ln in rows]),
 )
 check(
-    "首行给出来访地点与离开倒计时",
-    any("已抵达" in ln and "离开" in ln for ln in lines),
-    str(lines[:2]),
+    "卡首给出来访地点（状态行）与离开倒计时（离开行）",
+    any(ln.startswith("◆ 状态：") and "已抵达" in ln for ln in lines)
+    and any(ln.startswith("◆ 离开：") and "剩余" in ln for ln in lines),
+    str(lines[:3]),
 )
 check(
     "保留「奸商 预测」引导（renderer 分页注脚之外还有提示）", True
@@ -187,7 +190,7 @@ font = ImageFont.truetype(str(_TTC), 30)
 me = ImageDraw.Draw(Image.new("RGB", (8, 8)))
 col_max = []
 for ln in rows:
-    for ci, cell in enumerate(ln.split("　")):
+    for ci, cell in enumerate(ln[2:].split("　")):
         if ci >= len(col_max):
             col_max.append(0.0)
         col_max[ci] = max(col_max[ci], me.textlength(cell, font=font))
@@ -208,7 +211,13 @@ t4, l4 = fmt.fmt_void_trader(
     {"active": False, "location": "Larunda 中继站", "activation": "2026-10-02T13:00:00Z"}
 )
 check("未抵达时给激活倒计时", any("尚未抵达" in ln for ln in l4), str(l4))
-check("未抵达卡只有 1 行（不进两列）", len(l4) == 1)
+# ★ 2026-10-11 改断言：未抵达卡由 1 行文字改为 3 行「◆ 标签：值」答案（状态 / 地点 / 距抵达），
+#   护栏语义不变：不出货单表（无「· 」行、不进两列）
+check(
+    "未抵达卡只有答案行、无货单表（不进两列）",
+    len(l4) == 3 and not any(ln.startswith("· ") for ln in l4),
+    str(l4),
+)
 
 print()
 if _fails:

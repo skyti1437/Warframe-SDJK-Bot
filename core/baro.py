@@ -126,24 +126,71 @@ def last_visit() -> Optional[str]:
     return v[-1] if v else None
 
 
-def next_visit_est() -> Optional[str]:
-    """下次到访的**估计**日期（上一次 + period_days，默认 14 天）。
+def snapshot_date() -> str:
+    """历史快照的抓取日期（``baro_history.json`` 的 ``fetched``）。"""
+    return str(load().get("fetched") or "")
 
-    Baro 是每两周的周五 13:00 UTC 到访、停留 48 小时。这里是纯日期估算，
-    精确到小时的排期由 worldstate 的 voidTrader 提供（奸商指令主卡片会给）。
-    """
+
+def _period() -> timedelta:
+    return timedelta(days=int(load().get("period_days") or 14))
+
+
+def _last_dt() -> Optional[datetime]:
     last = last_visit()
     if not last:
         return None
-    period = int(load().get("period_days") or 14)
     try:
-        d = datetime.fromisoformat(last).replace(tzinfo=timezone.utc)
+        return datetime.fromisoformat(last).replace(tzinfo=timezone.utc)
     except ValueError:
         return None
-    return (d + timedelta(days=period)).strftime("%Y-%m-%d")
 
 
-def predict(limit: int = 12, min_seen: int = 3, active_within: int = 120) -> list[dict]:
+def missed_visits(now: Optional[datetime] = None) -> int:
+    """快照之后、到 ``now`` 为止**已开始**的到访次数（按 period_days 等距推算）。
+
+    ★ 2026-10-11：历史快照不会自动增长（上次 2026-09-18，抓于 09-24），
+    其后的 10-02 那次到访不在表里 ⇒「已静默 N 次」整体少算。用它把静默次数同步到今天。
+    """
+    d = _last_dt()
+    if d is None:
+        return 0
+    now = now or datetime.now(timezone.utc)
+    if now <= d:
+        return 0
+    return int((now - d) // _period())
+
+
+def next_visit_est(now: Optional[datetime] = None, activation: str = "") -> Optional[str]:
+    """下次到访日期（``YYYY-MM-DD``）。
+
+    ① worldstate 的 ``voidTrader.activation`` 在未来（或正在到访中）⇒ 直接用它（DE 官方排期）；
+    ② 否则按「上一次 + k × period_days」**前推到不早于今天**的第一个日期。
+    ★ 2026-10-11：旧写法只加一个周期（09-18 + 14 = 10-02），快照一旧就给出**过去的日期**
+    （10-11 查看时卡面写「下次预计到访 2026-10-02」）。
+    """
+    now = now or datetime.now(timezone.utc)
+    if activation:
+        try:
+            act = datetime.fromisoformat(activation.replace("Z", "+00:00"))
+            if act.tzinfo is None:
+                act = act.replace(tzinfo=timezone.utc)
+            if act + timedelta(hours=48) > now:
+                return act.strftime("%Y-%m-%d")
+        except ValueError:
+            pass
+    d = _last_dt()
+    if d is None:
+        return None
+    nxt = d + _period() * (missed_visits(now) + 1)
+    return nxt.strftime("%Y-%m-%d")
+
+
+def predict(
+    limit: int = 12,
+    min_seen: int = 3,
+    active_within: int = 120,
+    extra_silent: Optional[int] = None,
+) -> list[dict]:
     """最可能在下期回归的物品（按「逾期程度」降序）。
 
     口径（全部可复算，卡片上也会写）：
@@ -160,13 +207,18 @@ def predict(limit: int = 12, min_seen: int = 3, active_within: int = 120) -> lis
 
     过滤：至少上架 min_seen 次、且最近 active_within 次到访内活跃过
     （否则会把 2015 年就绝版的老物件排满，没有参考意义）。
+
+    ``extra_silent``：快照之后又过去的到访次数（默认按今天现算 :func:`missed_visits`），
+    计入每件物品的静默次数 —— 快照里不可能有这些到访的上架记录，视为都没上。
     """
     db = load()
     vs = db.get("visits") or []
     items = db.get("items") or {}
     if not vs or not items:
         return []
-    now_i = len(vs) - 1
+    if extra_silent is None:
+        extra_silent = missed_visits()
+    now_i = len(vs) - 1 + max(0, int(extra_silent))
     out: list[dict] = []
     for name, rec in items.items():
         if (rec.get("t") or "") in _SKIP_TYPES:

@@ -36,6 +36,23 @@ class Reply:
     )  # 优先于 title/lines；渲染层自动加页码
 
 
+def err_card(reason: str, fix: str, *kv, title: str = "提示") -> Reply:
+    """统一报错 / 用法卡片：「◆ 原因」+ 可选 KV 行 +「※ ⚠ 怎么改」。
+
+    kv 每项：``(标签, 内容)`` -> 「◆ 标签：内容」；或已成型的字符串（原样一行，
+    如「· 示例 …」「　续行」）。文字降级（-w / render_mode=text）走 text_card，
+    原因与怎么改都在。限流 / 并发 / 权限这类高频系统提示不要用它（保持纯文本）。
+    """
+    lines = [f"◆ 原因：{reason}"]
+    for item in kv:
+        if isinstance(item, (tuple, list)):
+            lines.append(f"◆ {item[0]}：{item[1]}")
+        elif item:
+            lines.append(str(item))
+    lines.append(f"※ ⚠ 怎么改：{fix}")
+    return Reply(title, lines)
+
+
 def _num(cfg: dict, key: str, default: float, cast=float) -> float:
     """面板数值容错读取（BUG-2，2026-09-18 验收）。
 

@@ -689,10 +689,11 @@ check(
 )
 # 第二页单发须与第一页「参考」单发同值（同一 calculate 管线自洽）。
 # 2026-10-10 改：原写死 456 —— 那是本引擎算出来的值（不是游戏读数），加伤害量化后为 462
-_ref_h = f"单发对血：{(_an_inc.get('ref') or {}).get('health', -1):.0f}"
+# 2026-10-11 卡片改版：第二页「单发对血：462」→ 单发表行「· 对血　462（无暴击）…」
+_ref_h = f"· 对血　{(_an_inc.get('ref') or {}).get('health', -1):.0f}（无暴击）"
 check(
     "第二页：单发与第一页参考值对拍一致（量化后 462，原 456）",
-    _ref_h == "单发对血：462" and any(_ref_h in ln for ln in _detail),
+    _ref_h.startswith("· 对血　462") and any(ln.startswith(_ref_h) for ln in _detail),
     _ref_h,
 )
 

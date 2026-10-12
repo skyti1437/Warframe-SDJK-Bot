@@ -416,6 +416,287 @@ def _migration_checks():
 
 _migration_checks()
 
+
+# ===========================================================================
+# B12（2026-10-11）：A「Orokin 精修」绘制层 —— 版式用例
+# ===========================================================================
+# 不手抄版式规则，直接打桩 ImageDraw 量「实际画了什么」：规则改了不会假绿。
+def _spy_render(title: str, lines: list, footer: str = "国际服", draw_tokens: bool = False):
+    """渲染一张卡，返回 dict：png 路径 + 各类绘制调用记录（坐标均为超采样像素）。"""
+    from PIL import ImageDraw as _ID
+
+    rec: dict = {"rr": [], "rect": [], "line": [], "text": [], "tok": [], "png": None}
+    o_rr, o_rect, o_line, o_text = (
+        _ID.ImageDraw.rounded_rectangle,
+        _ID.ImageDraw.rectangle,
+        _ID.ImageDraw.line,
+        _ID.ImageDraw.text,
+    )
+    o_tok = R.ImageRenderer._draw_tokens
+
+    def s_rr(self, xy, radius=0, fill=None, outline=None, width=1, **k):
+        rec["rr"].append((list(xy), fill))
+        return o_rr(self, xy, radius=radius, fill=fill, outline=outline, width=width, **k)
+
+    def s_rect(self, xy, fill=None, outline=None, width=1):
+        rec["rect"].append((list(xy), fill))
+        return o_rect(self, xy, fill=fill, outline=outline, width=width)
+
+    def s_line(self, xy, fill=None, width=0, joint=None):
+        rec["line"].append((list(xy), fill))
+        return o_line(self, xy, fill=fill, width=width, joint=joint)
+
+    def s_text(self, xy, text, fill=None, font=None, *a, **k):
+        rec["text"].append((tuple(xy), text, fill, font))
+        return o_text(self, xy, text, fill, font, *a, **k)
+
+    def s_tok(self, d, text, x, y, font, base_color, max_w):
+        rec["tok"].append((text, x, base_color))
+        return o_tok(self, d, text, x, y, font, base_color, max_w)
+
+    _ID.ImageDraw.rounded_rectangle, _ID.ImageDraw.rectangle = s_rr, s_rect
+    _ID.ImageDraw.line, _ID.ImageDraw.text = s_line, s_text
+    R.ImageRenderer._draw_tokens = s_tok
+    try:
+        r = R.ImageRenderer(Path(tempfile.mkdtemp(prefix="sdjk_b12_")))
+        rec["png"] = r.render(title, lines, footer)
+        rec["r"] = r
+    finally:
+        _ID.ImageDraw.rounded_rectangle, _ID.ImageDraw.rectangle = o_rr, o_rect
+        _ID.ImageDraw.line, _ID.ImageDraw.text = o_line, o_text
+        R.ImageRenderer._draw_tokens = o_tok
+    return rec
+
+
+def _count(rec, kind, fill):
+    return sum(1 for _xy, f in rec[kind] if f == fill)
+
+
+if R.Image is None or not probe.available:
+    print("[SKIP] 无 Pillow/字体，跳过 A 款版式用例")
+else:
+    # ---- 去逐行分隔线 + 斑马纹 + 续行紧排同一条纹
+    _long = "这是一条很长的说明文字用来触发折行" * 8
+    _zl = ["◆ 列表"] + [f"· 条目{i}" for i in range(5)]
+    _zl[2] = "· " + _long  # 第 2 项（斑马序号 1）折成多行
+    rec = _spy_render("斑马纹测试", _zl)
+    check("渲染成功（斑马纹卡）", bool(rec["png"]))
+    _raw = sorted((xy for xy, f in rec["rect"] if f == R.PANEL_ALT), key=lambda xy: xy[1])
+    _stripes: list = []  # 折行续行各画一块、纵向首尾相接 → 合并后才是「一条」条纹
+    for xy in _raw:
+        if _stripes and xy[1] <= _stripes[-1][3] + 1:
+            _stripes[-1][3] = xy[3]
+        else:
+            _stripes.append(list(xy))
+    check("斑马纹：5 项列表 → 奇数项 2 条纹", len(_stripes) == 2, str(len(_stripes)))
+    if len(_stripes) == 2:
+        _h = [xy[3] - xy[1] for xy in _stripes]
+        check("续行紧排同一条纹：折行项的条纹比单行项高", _h[0] > _h[1], str(_h))
+        check("续行紧排同一条纹：折行项占多块（>1 个矩形）", len(_raw) > 2, str(len(_raw)))
+    check(
+        "去逐行分隔线：正文区没有 HAIR 色横线（只剩头/脚各一条）",
+        _count(rec, "line", R.HAIR) == 2,
+        str(_count(rec, "line", R.HAIR)),
+    )
+    rec3 = _spy_render("斑马纹测试", ["◆ 列表", "· 甲", "· 乙", "· 丙"])
+    check("斑马纹反例：不足 4 项的列表不画条纹", _count(rec3, "rect", R.PANEL_ALT) == 0)
+
+    # ---- 注释合并成注释面板；含 ⚠ 的进琥珀警示面板
+    rec = _spy_render("注释测试", ["◆ 区块", "· 甲", "※ 注释一", "※ 注释二", "※ ⚠ 小心"])
+    check(
+        "注释：相邻 ※ 行并成 1 块注释面板",
+        _count(rec, "rr", R.NOTE_BG) == 1,
+        str(_count(rec, "rr", R.NOTE_BG)),
+    )
+    check(
+        "警示：含 ⚠ 的 ※ 行进琥珀警示面板",
+        _count(rec, "rr", R.WARN_BG) == 1,
+        str(_count(rec, "rr", R.WARN_BG)),
+    )
+    rec = _spy_render("注释测试", ["◆ 区块", "· 甲", "※ 只是注释"])
+    check("注释反例：无 ⚠ 时不出警示面板", _count(rec, "rr", R.WARN_BG) == 0)
+
+    # ---- KV 行：标签金色、值提亮、值列对齐
+    rec = _spy_render("KV 测试", ["◆ 状态：在线", "◆ 位置：地球 夜灵平原", "◆ 很长很长的标签：值"])
+    _lab = [
+        (xy, tx)
+        for xy, tx, f, _ft in rec["text"]
+        if f == R.GOLD and tx in ("状态", "位置", "很长很长的标签")
+    ]
+    check("KV：标签以 GOLD 绘制", {tx for _xy, tx in _lab} >= {"状态", "位置"}, str(_lab))
+    _vals = {tx: x for tx, x, _c in rec["tok"] if tx in ("在线", "地球 夜灵平原", "值")}
+    check(
+        "KV：值走 INK 基色",
+        all(c == R.INK for tx, _x, c in rec["tok"] if tx in _vals),
+        str(rec["tok"][:4]),
+    )
+    check(
+        "KV：各行值列起点对齐",
+        len({round(x) for x in _vals.values()}) == 1 and len(_vals) == 3,
+        str(_vals),
+    )
+
+    # ---- KV 值超宽：在值列内折行，不越界
+    _bigv = "很长的值" * 40
+    rec = _spy_render("KV 折行", ["◆ 标签：" + _bigv, "◆ 另一个：短"])
+    check("渲染成功（KV 折行卡）", bool(rec["png"]))
+    if rec["png"]:
+        _W = R.Image.open(rec["png"]).size[0]
+        _vx = {round(x) for tx, x, _c in rec["tok"] if tx and tx[0] in "很长的值"}
+        check("KV 折行：值的各行共用同一个值列起点", len(_vx) == 1 and len(_vx) > 0, str(_vx))
+        _rights = [
+            xy[0] + font.getlength(tx)
+            for xy, tx, _f, font in rec["text"]
+            if tx and tx[0] in "很长的值"
+        ]
+        check(
+            "KV 折行：每一行值的右缘都在内容区内（W−70 设计像素）",
+            bool(_rights) and max(_rights) <= (_W - 70) * R.SS,
+            f"max={max(_rights, default=0):.0f} 上限={(_W - 70) * R.SS}",
+        )
+        _mx, _n = right_overflow(rec["png"])
+        check("KV 折行：正文未越出面板右缘", _n == 0, f"W={_W} 越界 {_n} 像素")
+        check(
+            "KV 折行：折成多行（值被拆开）",
+            sum(1 for tx, _x, _c in rec["tok"] if tx and tx[0] in "很长的值") >= 2,
+        )
+
+    # ---- 同面板 ≥2 格自动列对齐 + 表头
+    rec = _spy_render(
+        "对齐测试",
+        [
+            "◆ 榜单",
+            "名称　数量　备注",
+            "· 短　一二三四五六七　尾",
+            "· 比较长的第一格内容　乙　丙丙丙",
+            "· 中等长度　乙乙乙　丁",
+        ],
+    )
+    _by = {}
+    for tx, x, _c in rec["tok"]:
+        _by.setdefault(tx, x)
+    check(
+        "自动列对齐：第 2 格同一列起点",
+        round(_by["一二三四五六七"]) == round(_by["乙"]) == round(_by["乙乙乙"]),
+        str({k: _by.get(k) for k in ("一二三四五六七", "乙", "乙乙乙")}),
+    )
+    check(
+        "自动列对齐：第 3 格同一列起点",
+        round(_by["尾"]) == round(_by["丙丙丙"]) == round(_by["丁"]),
+        str({k: _by.get(k) for k in ("尾", "丙丙丙", "丁")}),
+    )
+    _head = [(tx, f) for _xy, tx, f, _ft in rec["text"] if tx in ("名称", "数量", "备注")]
+    check(
+        "表头：小号灰粗字（INK_FAINT）",
+        len(_head) == 3 and all(f == R.INK_FAINT for _tx, f in _head),
+        str(_head),
+    )
+    check(
+        "表头：下方一条细线（头/脚 + 表头线 = 3）",
+        _count(rec, "line", R.HAIR) == 3,
+        str(_count(rec, "line", R.HAIR)),
+    )
+
+    # ---- 卡宽在 [960, 1260]（列对齐卡的列宽合计本身超限时放宽到 1500，仍保列对齐）
+    _wide_cases = {
+        "极短": ["· 甲"],
+        "中等": ["◆ 区块"] + [f"· 第 {i} 条说明文字，内容中等长度" for i in range(6)],
+        "超长无空格": ["· " + "很长的一整行文字" * 40],
+        "超长标题": ["· 甲"],
+    }
+    for _nm, _ls in _wide_cases.items():
+        _ti = "很长很长的标题" * 6 if _nm == "超长标题" else "宽度测试"
+        _p = probe.render(_ti, _ls, "国际服")
+        _w = R.Image.open(_p).size[0] if _p else 0
+        check(f"卡宽 ∈ [960,1260]：{_nm}", 960 <= _w <= 1260, f"W={_w}")
+    _tab = ["◆ 古纪"] + ["· " + "　".join(f"古纪 A{i}{j}" for j in range(9)) for i in range(3)]
+    _p = probe.render("遗物出库（当前可掉落）", _tab, "国际服")
+    _w = R.Image.open(_p).size[0] if _p else 0
+    check(
+        "列对齐卡：列宽合计超 1260 时放宽（≤1500）而不放弃列对齐",
+        960 <= _w <= R.CARD_W_TABLE_MAX and probe._table_mode is True,
+        f"W={_w} table_mode={probe._table_mode}",
+    )
+
+# ---- 耗时闸门（2026-10-11 起取代「旧版 vs 新版逐字节对拍」）
+# 背景：A 款有意改了像素（去星点/拱纹/暗角、面板/斑马纹、配色），逐字节基准必然失效；
+# 但护栏不能就此消失 —— 换成「相对耗时」闸门：渲染 min-of-N 耗时 ÷ 同机校准负载耗时，
+# 与旧版（git 3e16266 的 render.py，同一批合成卡、同机同法实测）的比值上限对比。
+# 比值而不是绝对毫秒 —— 不随机器快慢/并行负载漂移；上限取旧版实测比值（"不高于旧版"）。
+# 旧版比值实测（2 轮）：小 0.34/0.35、中 1.10/1.15、大 2.32/2.49；新版 0.21 / 0.81 / 1.73。
+# 想临时跳过（极端抖动的宿主机）：环境变量 WF_SKIP_PERF_GATE=1。
+import os as _os  # noqa: E402
+import time as _time  # noqa: E402
+
+
+def _perf_cards() -> dict:
+    s = ["◆ 区块一"] + [f"· 第 {i} 条说明文字　数值 {i}%　剩余 {i}分钟" for i in range(8)]
+    m = (
+        ["◆ 状态：在线"]
+        + [f"· 条目{i}　元素 25.7%　钢铁之路 [古纪] 120p" for i in range(40)]
+        + ["※ 注释一"]
+    )
+    big: list = []
+    for g in range(6):
+        big.append(f"◆ 分组{g}")
+        big += [f"· 武器{g}-{i}　辐射 25.{i}%　暴击　一段说明文字用来撑宽" for i in range(14)]
+    return {"小(9行)": s, "中(42行)": m, "大(90行)": big}
+
+
+_PERF_CEIL = {"小(9行)": 0.34, "中(42行)": 1.10, "大(90行)": 2.30}
+
+
+def _perf_calib(rr, n: int = 5) -> float:
+    from PIL import Image, ImageDraw
+
+    f = rr.fonts.get("regular", 30)
+    best = 1e9
+    for _ in range(n):
+        t0 = _time.perf_counter()
+        im = Image.new("RGB", (2400, 1600), (12, 15, 22))
+        d = ImageDraw.Draw(im)
+        for i in range(300):
+            d.text(
+                (20 + (i % 7) * 300, 10 + (i % 40) * 36),
+                f"校准文字 {i} Warframe",
+                font=f,
+                fill=(236, 232, 222),
+            )
+        im.resize((1200, 800), Image.BOX)
+        best = min(best, _time.perf_counter() - t0)
+    return best * 1000
+
+
+def _perf_ratios(rr, cards: dict) -> dict:
+    calib = _perf_calib(rr)
+    out = {}
+    for nm, ls in cards.items():
+        rr._render("性能闸门", ls, "国际服")  # 预热（字体度量缓存/首次分配）
+        ts = []
+        for _ in range(5):
+            t0 = _time.perf_counter()
+            rr._render("性能闸门", ls, "国际服")
+            ts.append((_time.perf_counter() - t0) * 1000)
+        out[nm] = min(ts) / calib
+    return out
+
+
+if _os.environ.get("WF_SKIP_PERF_GATE") == "1":
+    print("[SKIP] WF_SKIP_PERF_GATE=1，跳过耗时闸门")
+elif R.Image is None or not probe.available:
+    print("[SKIP] 无 Pillow/字体，跳过耗时闸门")
+else:
+    _cards = _perf_cards()
+    _ratios = _perf_ratios(probe, _cards)
+    if any(_ratios[k] > _PERF_CEIL[k] for k in _cards):  # 抖动重试一次
+        _ratios = _perf_ratios(probe, _cards)
+    for _k in _cards:
+        check(
+            f"耗时闸门：{_k} 相对耗时 ≤ 旧版比值 {_PERF_CEIL[_k]}",
+            _ratios[_k] <= _PERF_CEIL[_k],
+            f"比值={_ratios[_k]:.3f}",
+        )
+
 print()
 if FAILED:
     print(f"FAILED {len(FAILED)}: " + ", ".join(FAILED))

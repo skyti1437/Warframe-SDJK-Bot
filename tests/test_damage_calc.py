@@ -19,6 +19,11 @@ from core import damage_calc as dc  # noqa: E402
 FAILED: list[str] = []
 
 
+def _panel_row(lines: list[str]) -> str:
+    """卡面「· 面板　基伤…｜暴击…｜射速…」行（2026-10-11 改版前是 lines[1] 的「　基伤…」缩进行）。"""
+    return next(x for x in lines if x.startswith("· 面板"))
+
+
 def check(name: str, cond: bool, detail: str = ""):
     status = "PASS" if cond else "FAIL"
     print(f"[{status}] {name}" + (f"  -> {detail}" if detail and not cond else ""))
@@ -489,8 +494,9 @@ check(
 )
 _linesA = dc.card_lines(_wR, _sA, _rA)
 _linesB = dc.card_lines(_wR, _sB, _rB)
-_dpsA = [ln for ln in _linesA if ln.startswith("◆ DPS")]
-_dpsB = [ln for ln in _linesB if ln.startswith("◆ DPS")]
+# 2026-10-11 卡片改版：「◆ DPS 爆发/持续」→ 卡首 KV「◆ 爆发 DPS / ◆ 持续 DPS」
+_dpsA = [ln for ln in _linesA if ln.startswith("◆ 爆发 DPS")]
+_dpsB = [ln for ln in _linesB if ln.startswith("◆ 爆发 DPS")]
 check(
     "DPS 爆发行同时给出「含暴击」与「无暴击」",
     _dpsA and "含暴击" in _dpsA[0] and "无暴击" in _dpsA[0],
@@ -498,17 +504,17 @@ check(
 )
 check(
     "DPS 持续行给出弹匣+装填循环",
-    any(ln.startswith("◆ DPS 持续") and "装填" in ln for ln in _linesA),
-    str([ln for ln in _linesA if ln.startswith("◆ DPS")]),
+    any(ln.startswith("◆ 持续 DPS") and "装填" in ln for ln in _linesA),
+    str([ln for ln in _linesA if "DPS" in ln]),
 )
 check(
     "两套卡的含暴击 DPS 确实不同", _dpsA and _dpsB and _dpsA[0] != _dpsB[0], f"{_dpsA} vs {_dpsB}"
 )
 check(
-    "每次扳机行也带「含暴击」",
-    any(ln.startswith("◆ 每次扳机") and "含暴击" in ln for ln in _linesA),
+    "每次扳机 / 单发（对血行已并入时）也带「含暴击」",
+    any(ln.startswith(("· 每次扳机", "· 单发", "· 对血")) and "含暴击" in ln for ln in _linesA),
 )
-check("单发行标注「无暴击」", any("单发对血" in ln and "无暴击" in ln for ln in _linesA))
+check("对血行标注「无暴击」", any(ln.startswith("· 对血") and "无暴击" in ln for ln in _linesA))
 
 
 # ---------------------------------------------------------------------------
@@ -863,8 +869,8 @@ check(
     and close(_r_cd_inc["weapon_eff"]["fireRate"], 3.33),
     f"{_r_cd_inc['fire_rate']} / eff {_r_cd_inc['weapon_eff'].get('fireRate')}",
 )
-_hdr_inc = dc.card_lines(_w_lat, _s_cd_inc, _r_cd_inc, [])[1]
-_hdr_base = dc.card_lines(_w_lat, _s_cd_base, _r_cd_base, [])[1]
+_hdr_inc = _panel_row(dc.card_lines(_w_lat, _s_cd_inc, _r_cd_inc, []))
+_hdr_base = _panel_row(dc.card_lines(_w_lat, _s_cd_base, _r_cd_base, []))
 check(
     "卡面头部（灵化）按实际计算面板：基伤 50 / 暴击 44% ×3.4 / 射速 3.33 ▸ 2.66",
     "基伤 50" in _hdr_inc and "暴击 44% ×3.4" in _hdr_inc and "射速 3.33 ▸ 2.66" in _hdr_inc,
@@ -877,7 +883,7 @@ check(
 )
 check(
     "无射速 MOD 时头部不出现箭头",
-    "▸" not in dc.card_lines(_w_lat, _s_def, _r_def, [])[1],
+    "▸" not in _panel_row(dc.card_lines(_w_lat, _s_def, _r_def, [])),
 )
 
 # 灵化形态 + 进化暴击（EVO IV 临界平行 +24% cc / +0.2x cd）
@@ -1114,7 +1120,7 @@ _lines_ig = dc.card_lines(_w_ig, _s_30, dc.calculate(_s_30, _w_ig), [])
 check(
     "卡面注明火的单例累加口径与 T",
     any("单例累加：开火 30s" in ln for ln in _lines_ig)
-    and any("开火 T 秒" in ln and "默认 T = 12s" in ln for ln in _lines_ig),
+    and any("开火 T 秒" in ln and "默认 12s" in ln for ln in _lines_ig),
 )
 _s_clamp = dc.parse_args(["开火0秒"])[0]
 check(

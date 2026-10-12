@@ -25,6 +25,13 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 
+def _txt(r) -> str:
+    """Reply 的可读文本：raw_text 或 title + lines（报错卡片迁移后断言用）。"""
+    if r is None:
+        return ""
+    return r.raw_text or (r.title + "\n" + "\n".join(r.lines))
+
+
 def _install_astrbot_stub() -> None:
     if "astrbot" in sys.modules:
         return
@@ -536,20 +543,21 @@ check(
 )
 check(
     "★ 四条词条按卡面行原文配对：120.5 毒伤 / 299.9 基伤 / 148 多重",
-    all(k in _body for k in ("120.5% 毒伤", "299.9% 基伤", "148% 多重")),
+    all(k in _body for k in ("▲毒伤 +120.5%", "▲基伤 +299.9%", "▲多重 +148%")),
     _body[:300],
 )
 check(
     "★ 反向守卫：不再按语义表交叉配错（120.5 基伤 / 299.9 毒伤）",
-    "120.5% 基伤" not in _body and "299.9% 毒伤" not in _body,
+    "▲基伤 +120.5%" not in _body and "▲毒伤 +299.9%" not in _body,
     _body[:300],
 )
 check(
     "★ 负词条 = 触时 97.2（不再冒出「滑暴」）",
-    "-97.2% 触时" in _body and "滑暴" not in _body,
+    "▼触时 -97.2%" in _body and "滑暴" not in _body,
     _body[:300],
 )
-check("卡面注明来源为「卡面逐行」而不是语义表", "卡面逐行" in _body, _body[:220])
+# 2026-10-11 改版：来源说明进页脚（不再占卡面注脚行）
+check("页脚注明来源为「卡面逐行」而不是语义表", "卡面逐行" in _reply.footer, _reply.footer)
 
 
 # 拿不到 lines（渠道/模型没给这个字段）⇒ 安全退回语义 JSON，不崩
@@ -561,7 +569,7 @@ _obj._extract_riven_from_image = _fake_extract_nolines
 _r2 = asyncio.run(_obj._h_riven_analysis(_FatParsed("紫卡分析"), _FakeImageEvent(), "pc"))
 check(
     "没给 lines 时退回语义 JSON（不崩，仍按原判据提示词条数）",
-    bool(_r2.raw_text) and "词条应为" in _r2.raw_text,
+    "词条应为" in _txt(_r2) and "怎么改" in _txt(_r2),
     repr(_r2)[:200],
 )
 
@@ -687,7 +695,7 @@ check(
 )
 check(
     "★ 四条词条全部进卡：暴伤 91.1 / I伤 51 / 初始连击 29.6 / 处决伤 115.7",
-    all(k in _body3 for k in ("+91.1% 暴伤", "+51% I伤", "+29.6 初始连击", "-115.7% 处决伤")),
+    all(k in _body3 for k in ("▲暴伤 +91.1%", "▲I伤 +51%", "▲初始连击 +29.6", "▼处决伤 -115.7%")),
     _body3[:400],
 )
 check("★ 不再误报「与家族已知倾向都不吻合」（旧故障串）", "都不吻合" not in _body3, _body3[:300])
@@ -698,7 +706,7 @@ check(
 )
 check(
     "★ 卡面按 1.2 计算区间（不是不吻合的母武器 1.3）",
-    "【空刃】倾向 1.2" in _body3 and "倾向 1.3" not in _body3,
+    "武器：空刃｜倾向 1.2" in _body3 and "倾向 1.3" not in _body3,
     _body3[:200],
 )
 check(
@@ -1179,22 +1187,27 @@ _objE._extract_riven_from_image = _extE
 _rE = asyncio.run(_objE._h_riven_analysis(_FatParsed("紫卡分析"), _FakeImageEvent(), "pc"))
 check(
     "⑭① 多个近形候选都可行 ⇒ 不猜（仍回未找到、不出卡）",
-    bool(_rE.raw_text) and "未找到紫卡武器" in _rE.raw_text,
+    "未找到紫卡武器" in _txt(_rE),
     repr(_rE)[:200],
 )
 check(
     "⑭② 两个可行候选都列进提示",
-    "七星刀" in (_rE.raw_text or "") and "七星剑" in (_rE.raw_text or ""),
-    (_rE.raw_text or "")[:200],
+    "七星刀" in _txt(_rE) and "七星剑" in _txt(_rE),
+    _txt(_rE)[:200],
 )
 
 # ---------------------------------------------------------------------------
-# ⑮ 紫卡识别**不竞速**：只取一个渠道，且优先 8B（维护者 2026-10-07 裁示）
+# ⑮ 紫卡识别**不竞速**：只取一个渠道（维护者 2026-10-07 裁示"宁慢不赌"）
 # ---------------------------------------------------------------------------
-# 实测（2026-10-07，同一张「冰凇」卡 × 各 5 次）：
-#   glm-4v-flash → 冰松 **5/5**（确定性读错，且最快 ~3.1 s ⇒ k=2 竞速里必赢）；
-#   30B → 冰凇 2/5 ｜ 8B → 冰凇 5/5。线上三次「冰松」的 3.1 s 与 glm 吻合。
-# ⇒ 紫卡这一路只发一个渠道（名字是承重件，宁慢不赌）；识卡那路保留原竞速。
+# 2026-10-07 起因：同张「冰凇」卡 × 各 5 次 —— glm-4v-flash → 冰松 5/5（读错且最快
+#   ⇒ 竞速里必赢）；30B 2/5；8B 5/5 ⇒ 紫卡路只发一个渠道。识卡那路保留原竞速。
+# 2026-10-12 订正选渠道口径：**不再无条件挑 8B**，改为信任 `_vision_providers()`
+#   的排序（它已把面板配置的 `vision_provider_id` 排在首位；没配置时才轮到内置
+#   候选优先级）。旧实现把面板配置对整个紫卡路**静默失效**（用户实测：配置改 30B、
+#   重载两次，紫卡仍打印"固定渠道 8B"）。换 30B 的依据见 vision.py 内注释
+#   （bench3：65/70 vs 62/70、perfect 15 vs 12、9.1 s vs 18.3 s）。
+#   ⚠ 本组用例只锚定「怎么取渠道」；"配置了 X 就发 X"由 `_vision_providers()` 自身
+#   的单测（`test_vision_providers` 若存在）+ 线上日志共同覆盖。
 
 
 class _Prov:
@@ -1231,30 +1244,30 @@ def _raced_with(prov_ids):
 
 
 check(
-    "⑮① 紫卡路：候选里挑 8B、且只传一个渠道（不竞速）",
+    "⑮① 紫卡路只传一个渠道（不竞速）：候选首个 = 配置渠道时，发它且只发它",
     _raced_with(
         [
-            "siliconflow/Qwen/Qwen3-VL-8B-Instruct",
-            "zhipu/glm-4v-flash",
             "siliconflow/Qwen/Qwen3-VL-30B-A3B-Instruct",
-        ]
-    )
-    == ["siliconflow/Qwen/Qwen3-VL-8B-Instruct"],
-    str(_seen),
-)
-check(
-    "⑮② 配置/候选顺序里 8B 不在首位时，仍优先挑 8B（避免被 glm 顶上）",
-    _raced_with(
-        [
             "zhipu/glm-4v-flash",
             "siliconflow/Qwen/Qwen3-VL-8B-Instruct",
         ]
     )
+    == ["siliconflow/Qwen/Qwen3-VL-30B-A3B-Instruct"],
+    str(_seen),
+)
+check(
+    "⑮② 未配置时回落内置候选序首个（`_vision_providers()` 已把 8B 排在 glm 之前）",
+    _raced_with(
+        [
+            "siliconflow/Qwen/Qwen3-VL-8B-Instruct",
+            "zhipu/glm-4v-flash",
+        ]
+    )
     == ["siliconflow/Qwen/Qwen3-VL-8B-Instruct"],
     str(_seen),
 )
 check(
-    "⑮③ 没有 8B 时退化为「第一个可用渠道」（单发，不竞速）",
+    "⑮③ 候选里只有非 8B 时同样单发首个（不再按名字硬挑 8B）",
     _raced_with(["zhipu/glm-4v-flash", "siliconflow/Qwen/Qwen3-VL-30B-A3B-Instruct"])
     == ["zhipu/glm-4v-flash"],
     str(_seen),

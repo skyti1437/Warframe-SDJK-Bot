@@ -1726,9 +1726,16 @@ def to_damage_spec(an: dict, level: int = 100, faction: str = "Grineer") -> Opti
 
 
 def card_lines(an: dict) -> list[str]:
-    """识别结果卡面。"""
+    """识别结果卡面。
+
+    行文法（2026-10-11 卡片改版）：卡首 KV（武器 / 识别 / 折算加成 / 参考）→ 武器面板 →
+    卡片表（名称｜容量与等级｜效果）→ 面板校验表 → ⚠ 警示与注脚（≤3 行）。
+    """
+    from .formatters import limit_notes
+
     lines: list[str] = []
     w = an.get("weapon")
+    panel_rows: list[str] = []
     if w:
         dmg = w.get("damage") or {}
         parts = "、".join(
@@ -1740,45 +1747,30 @@ def card_lines(an: dict) -> list[str]:
         lines.append(
             f"◆ 武器：{w.get('zh') or w['name']}（{w['name']}）｜{cat}｜MR{w.get('masteryReq', 0)}"
         )
-        if an.get("panel_base"):
-            lines.append(f"　{an['panel_base']}")
-        lines.append(
-            f"　基础 {parts}（计 {float(dmg.get('total') or 0):g}）"
+        panel_rows.append(
+            f"· 基础　{parts}（计 {float(dmg.get('total') or 0):g}）"
             f"｜暴击 {float(w.get('criticalChance') or 0) * 100:g}%"
             f"×{float(w.get('criticalMultiplier') or 1):g}"
             f"｜触发 {float(w.get('procChance') or 0) * 100:g}%"
         )
+        if an.get("panel_base"):
+            panel_rows.append(f"· 面板　{an['panel_base']}")
     else:
         lines.append(f"◆ 武器：未能识别（读到的是「{an.get('weapon_query') or '空'}」）")
 
+    # —— 面板校验结论（先算好，卡首「识别」行引用）——
+    checks = an.get("checks") or []
+    _tips = [c for c in checks if c.get("note")] if checks else []
+    if checks:
+        # 带 note 的项是「说明性提示」（如面板总计读串），不参与 ✓/⚠ 对比
+        checks = [c for c in checks if not c.get("note")]
+    bad = [c for c in checks if not c["ok"]]
+    verdict = ""
+    if checks:
+        verdict = "｜面板校验 " + ("全部吻合" if not bad else f"{len(bad)} 项对不上")
+
     cap = f"｜容量 {an['capacity']}" if an.get("capacity") else ""
-    lines.append(f"◆ 识别到 {len(an.get('mods') or [])} 张卡{cap}")
-    for item in an.get("mods") or []:
-        if not item.get("found"):
-            if item.get("riven"):
-                # 紫卡是**合法但无法核算**的卡（词缀随机）—— 单独一行说清楚，
-                # 不要混进「库中未收录」里（那会让人以为是我们缺数据）。
-                r = item.get("rank")
-                lines.append(
-                    f"　· {item.get('raw')}：裂罅紫卡（词缀随机，数值无法核算）"
-                    + (f"，等级按豆子 {r} 级" if r is not None else "")
-                )
-            else:
-                lines.append(f"　· {item.get('raw')}：⚠ 库中未收录，已忽略")
-            continue
-        name = item.get("zh") or item.get("name")
-        en = item.get("name") or ""
-        tail = _effect_text(item.get("effect") or {})
-        line = f"　· {name}（{en}）{_rank_text(item)}"
-        if tail:
-            line += f" → {tail}"
-        elif not item.get("calculable"):
-            line += " → 无数值（不影响伤害）"
-        elif item.get("rank") is None:
-            line += " → ⚠ 等级未定，按满级估"
-        if item.get("note"):
-            line += f"；{item['note']}"
-        lines.append(line)
+    lines.append(f"◆ 识别：{len(an.get('mods') or [])} 张卡{cap}{verdict}")
 
     totals = an.get("totals") or {}
     bits: list[str] = []
@@ -1806,47 +1798,13 @@ def card_lines(an: dict) -> list[str]:
     for el, val in (totals.get("physical") or {}).items():
         bits.append(f"{PHYS_ZH.get(el, el)}{val:+g}%")
     if bits:
-        wrapped = _wrap_bits(bits)
-        lines.append("◆ 按实际等级折算的加成：" + wrapped[0])
-        for extra in wrapped[1:]:
-            lines.append("　" + extra)
+        lines.append("◆ 按实际等级折算的加成：" + "、".join(bits))
     combined = totals.get("combined") or {}
     if combined:
         lines.append(
             "◆ 合成后元素："
             + "、".join(f"{ELEM_ALL_ZH.get(k, k)}{v:+g}%" for k, v in combined.items())
         )
-
-    checks = an.get("checks") or []
-    _tips = [c for c in checks if c.get("note")] if checks else []
-    if checks:
-        # 带 note 的项是「说明性提示」（如面板总计读串），不参与 ✓/⚠ 对比
-        checks = [c for c in checks if not c.get("note")]
-    if checks:
-        bad = [c for c in checks if not c["ok"]]
-        head = "全部吻合" if not bad else f"{len(bad)} 项对不上"
-        lines.append(f"◆ 面板校验（识别值 vs 本地推算）—— {head}")
-        for i in range(0, len(checks), 2):
-            parts = []
-            for c in checks[i : i + 2]:
-                got, want = float(c["panel"]), float(c["calc"])
-                # 相对差 <0.1% 视为完全吻合（游戏显示舍入造成的小数残差，
-                # 如 总伤 1488.3 vs 1488.24 —— 差 0.004%，如实显示相等）
-                if c["ok"] and abs(got - want) <= abs(want) * 0.001:
-                    parts.append(f"{c['label']} {got:g}{c['unit']} ✓")
-                else:
-                    parts.append(
-                        f"{c['label']} {got:g}{c['unit']} vs "
-                        f"{want:.2f}{c['unit']}" + ("" if c["ok"] else " ⚠")
-                    )
-            lines.append("　" + "｜".join(parts))
-        if bad:
-            lines.append("　⚠ 可能漏读了卡片，或某张卡的等级推断有误")
-        for c in _tips:
-            lines.append(
-                f"　※ {c['label']}：{c['note']}"
-                f"（识别 {float(c['panel']):g}，推导 {float(c['calc']):.0f}）"
-            )
 
     ref = an.get("ref")
     if ref:
@@ -1882,25 +1840,89 @@ def card_lines(an: dict) -> list[str]:
             # 识卡卡面只给摘要：完整各段走「伤害」指令，免得这一页太长
             _top3 = "、".join(f"{m['name']}{m['total']:g}" for m in _modes[:3])
             lines.append(f"　另有 {len(_modes)} 段独立判定：{_top3}…（用「伤害」指令可看每段明细）")
+
+    if panel_rows:
+        lines.append("◆ 武器面板")
+        lines += panel_rows
+
+    # —— 卡片表：名称｜容量与等级｜效果 ——
+    en_pairs: list[str] = []
+    if an.get("mods"):
+        lines.append(f"◆ 卡片（{len(an['mods'])} 张）")
+        lines.append("　卡片　容量与等级　效果")
+    for item in an.get("mods") or []:
+        if not item.get("found"):
+            if item.get("riven"):
+                # 紫卡是**合法但无法核算**的卡（词缀随机）—— 单独一行说清楚，
+                # 不要混进「库中未收录」里（那会让人以为是我们缺数据）。
+                r = item.get("rank")
+                lines.append(
+                    f"· {item.get('raw')}　　裂罅紫卡（词缀随机，数值无法核算）"
+                    + (f"，等级按豆子 {r} 级" if r is not None else "")
+                )
+            else:
+                lines.append(f"· {item.get('raw')}　　⚠ 库中未收录，已忽略")
+            continue
+        name = item.get("zh") or item.get("name")
+        en = item.get("name") or ""
+        tail = _effect_text(item.get("effect") or {})
+        if tail:
+            eff = tail
+        elif not item.get("calculable"):
+            eff = "无数值（不影响伤害）"
+        elif item.get("rank") is None:
+            eff = "⚠ 等级未定，按满级估"
+        else:
+            eff = ""
+        # 英文名不进表格（名称列过宽会让整张表放弃列对齐）：统一进卡尾「英文名对照」注脚
+        if en and en != name:
+            en_pairs.append(f"{name} {en}")
+        lines.append(f"· {name}　{_rank_text(item)}　{eff}".rstrip("　"))
+        if item.get("note"):  # 备注（姿态卡 / 槽位极性匹配…）作为从属行缩进在该卡之下
+            lines.append(f"　{item['note']}")
+
+    # —— 面板校验表 ——
+    if checks:
+        lines.append("◆ 面板校验（识别值 vs 本地推算）")
+        lines.append("　项目　识别值　本地推算　结果")
+        for c in checks:
+            got, want = float(c["panel"]), float(c["calc"])
+            # 相对差 <0.1% 视为完全吻合（游戏显示舍入造成的小数残差，
+            # 如 总伤 1488.3 vs 1488.24 —— 差 0.004%，如实显示相等）
+            if c["ok"] and abs(got - want) <= abs(want) * 0.001:
+                lines.append(f"· {c['label']}　{got:g}{c['unit']}　{got:g}{c['unit']}　吻合")
+            else:
+                lines.append(
+                    f"· {c['label']}　{got:g}{c['unit']}　{want:.2f}{c['unit']}"
+                    + ("　吻合" if c["ok"] else "　⚠ 对不上")
+                )
+        for c in _tips:
+            lines.append(
+                f"· {c['label']}　{float(c['panel']):g}　{float(c['calc']):.0f}　{c['note']}"
+            )
+    if en_pairs:
+        lines.append("※ 英文名对照：" + "、".join(en_pairs))
+    if bad:
+        lines.append("※ ⚠ 可能漏读了卡片，或某张卡的等级推断有误")
     if totals.get("no_rank"):
         lines.append(
-            "　⚠ 等级无法确定的卡：" + "、".join(totals["no_rank"]) + "（已按满级估算，仅供参考）"
+            "※ ⚠ 等级无法确定的卡：" + "、".join(totals["no_rank"]) + "（已按满级估算，仅供参考）"
         )
     if totals.get("uncalc"):
-        lines.append("　注：以下卡无数值或暂不支持，未计入：" + "、".join(totals["uncalc"]))
+        lines.append("※ 以下卡无数值或暂不支持，未计入：" + "、".join(totals["uncalc"]))
     if an.get("unknown"):
-        lines.append("　注：库中未收录的名称：" + "、".join(an["unknown"]))
+        lines.append("※ 库中未收录的名称：" + "、".join(an["unknown"]))
     if an.get("alts"):
         lines.append(
-            "　近似武器：" + "、".join(v.get("zh") or v.get("name", "") for v in an["alts"])
+            "※ 近似武器：" + "、".join(v.get("zh") or v.get("name", "") for v in an["alts"])
         )
     for note in an.get("notes") or []:
-        lines.append(f"　{note}")
+        lines.append(f"※ {note}")
     for err in an.get("errors") or []:
-        lines.append(f"✘ {err}")
+        lines.append(f"※ ⚠ {err}")
 
     lines.append(
         "※ 加成一律按卡片实际等级折算（容量数字反推，再用面板数值校验）；"
         "复合元素按 火>冰>电>毒 两两配对"
     )
-    return lines
+    return limit_notes(lines)

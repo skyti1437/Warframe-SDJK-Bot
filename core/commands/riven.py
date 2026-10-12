@@ -17,7 +17,7 @@ from .. import formatters as fmt
 from .. import matching
 from ..api_client import WarframeAPIError, fuzzy_hits, public_error_text
 from ..logging_compat import logger
-from .base import Reply
+from .base import Reply, err_card
 
 
 def _xh_element(toks: list[str]) -> tuple[Optional[str], Optional[str]]:
@@ -53,23 +53,28 @@ class RivenCommands:
         """
         toks = parsed.content or []
         if not toks:
-            return Reply(
-                raw_text=(
-                    "用法：xh 武器名 [元素] [数值]\n"
-                    "　例：xh 赤毒怒雷 ｜ xh 信条弧电离子枪 辐射 ｜ xh 赤毒海克 50\n"
-                    "　元素：磁力/电击/毒素/火焰/冰冻/冲击/切割/辐射\n"
-                    f"　已收录 {len(self.client._aliases.get('lich_items', {}))} 个中文写法"
-                    "（赤毒/信条/科达三类）"
-                )
+            return err_card(
+                "没有写武器名",
+                "按 xh 武器名 [元素] [数值] 的格式重发，例如「xh 赤毒怒雷」",
+                ("用法", "xh 武器名 [元素] [数值]"),
+                "· 示例　xh 赤毒怒雷 ｜ xh 信条弧电离子枪 辐射 ｜ xh 赤毒海克 50",
+                ("元素", "磁力/电击/毒素/火焰/冰冻/冲击/切割/辐射"),
+                (
+                    "已收录",
+                    f"{len(self.client._aliases.get('lich_items', {}))} 个中文写法"
+                    "（赤毒/信条/科达三类）",
+                ),
+                title="玄骸拍卖",
             )
         first = toks[0]
         slug = self.client.resolve_lich_weapon(first) or await self._lich_slug_by_riven(first)
         if not slug:
             near = fuzzy_hits(first, list(self.client._aliases.get("lich_items", {})), n=3) or []
-            hint = ("；你是不是想找：" + "、".join(near)) if near else ""
-            return Reply(
-                raw_text=f"未找到玄骸武器「{first}」{hint}\n"
-                "支持赤毒/信条/科达三类，可只写后半段（如「怒雷」）"
+            return err_card(
+                f"未找到玄骸武器「{first}」",
+                "支持赤毒/信条/科达三类，可只写后半段（如「怒雷」）；或照候选改名重发",
+                ("你是不是想找", "、".join(near)) if near else "",
+                title="玄骸拍卖",
             )
 
         info = self.client.lich_weapon_info(slug)
@@ -95,10 +100,10 @@ class RivenCommands:
         except WarframeAPIError as exc:
             # 市场侧失败要说清原因（限速/网络），不能糊成「内部错误」；原文只进日志
             logger.warning("[sdjk] 玄骸拍卖查询失败（%s）：%s", slug, exc)
-            return Reply(
-                raw_text=f"warframe.market 查询失败：{public_error_text(exc)}\n"
-                "多为市场限速（3 请求/秒）或网络抖动，"
-                "过几秒重试即可。"
+            return err_card(
+                f"warframe.market 查询失败：{public_error_text(exc)}",
+                "多为市场限速（3 请求/秒）或网络抖动，过几秒重试即可",
+                title="玄骸拍卖",
             )
         pool = auctions
         if want_eph:
@@ -132,16 +137,22 @@ class RivenCommands:
             if self.client.lich_unsupported(slug):
                 return self._xh_no_category(name, slug, kind, platform)
             elif not auctions:
-                msg = "该武器当前没有挂单（冷门武器挂单少，可过段时间再看）"
+                lines = [
+                    "◆ 原因：该武器当前没有挂单（冷门武器挂单少，可过段时间再看）",
+                    "※ ⚠ 怎么改：过段时间重发；或换一把同系列武器查",
+                ]
             else:
-                msg = "暂无符合条件的挂单" + (f"（筛选：{'·'.join(filters)}）" if filters else "")
+                lines = [
+                    "◆ 原因：暂无符合条件的挂单"
+                    + (f"（筛选：{'·'.join(filters)}）" if filters else ""),
+                    "※ ⚠ 怎么改：去掉元素 / 数值 / 幻纹筛选词，或放宽数值下限后重发",
+                ]
             return Reply(
                 title,
-                msg.splitlines(),
+                lines,
                 footer=fmt.fmt_platform_footer(platform, "warframe.market 玄骸"),
             )
-        lines = [fmt.fmt_lich_row(i, a) for i, a in enumerate(pool[:12], 1)]
-        lines.append("※ 在线优先排序；信用=卖家交易信誉等级（0~5），幻纹✦ 表示带幻纹")
+        lines = fmt.fmt_lich_table(pool[:12], total=len(pool))
         return Reply(title, lines, footer=fmt.fmt_platform_footer(platform, "warframe.market 玄骸"))
 
     def _xh_no_category(self, name: str, slug: str, kind: str, platform: str) -> Reply:
@@ -164,13 +175,14 @@ class RivenCommands:
         return Reply(
             f"{name} 玄骸拍卖（市场无此类目）",
             [
-                f"warframe.market 没有「{name}」的拍卖类目。",
-                f"这**不是识别失败**：中文名已正常匹配到 {slug}，是市场侧没这个类目。",
+                f"◆ 原因：warframe.market 没有「{name}」的拍卖类目",
+                f"◆ 说明：这不是识别失败——中文名已正常匹配到 {slug}，是市场侧没这个类目"
                 f"（已逐把核对全部 {total} 把玄骸武器：{has} 把有挂单、{total - has} 把没有）",
-                f"· 换一把同系列：发「{example}」",
-                f"· 网站自查：warframe.market/zh-hans/auctions/search"
+                "◆ 替代路径",
+                f"· 换一把同系列　发「{example}」",
+                f"· 网站自查　warframe.market/zh-hans/auctions/search"
                 f"?type={kind}&weapon_url_name={slug}",
-                f"· 这类武器（全部终幕 + 部分近战{sibling}）只能游戏内交易频道收",
+                f"· 游戏内交易　这类武器（全部终幕 + 部分近战{sibling}）只能游戏内交易频道收",
             ],
             footer=fmt.fmt_platform_footer(platform, "warframe.market 玄骸"),
         )
@@ -189,7 +201,15 @@ class RivenCommands:
                 [w for w in weapons if w.get("disposition")], key=lambda w: -w["disposition"]
             )[:8]
             lines = [
-                f"· {(w.get('zh') or w.get('en') or w['url_name'])}　倾向 {w['disposition']:.2f}"
+                f"◆ 倾向最高：{top[0].get('zh') or top[0].get('en') or top[0]['url_name']}"
+                f"｜{top[0]['disposition']:.2f}（{fmt._disp_dots(top[0]['disposition'])}）"
+                if top
+                else "◆ 倾向最高：暂无数据",
+                "◆ 倾向 Top8（越高越容易出好卡）",
+                "　武器　倾向",
+            ]
+            lines += [
+                f"· {(w.get('zh') or w.get('en') or w['url_name'])}　{w['disposition']:.2f}"
                 for w in top
             ]
             return Reply(
@@ -206,8 +226,11 @@ class RivenCommands:
                 stage = "alias"
         if not hits:
             close = matching.suggest_zh(query, weapons)
-            return Reply(
-                raw_text="未找到该武器" + (f"，你是不是想找：{'、'.join(close)}" if close else "")
+            return err_card(
+                "未找到该武器",
+                "照候选改名重发" if close else "换官方中文名或英文名重发",
+                ("你是不是想找", "、".join(close)) if close else "",
+                title="紫卡倾向",
             )
         logger.info(
             "[sdjk] 倾向武器解析：%s → %s（%s）", query, "/".join(matching.zh_names(hits)), stage
@@ -237,14 +260,24 @@ class RivenCommands:
                 rt, gp = base_rt, base_gp
             return fmt.riven_type_cn(rt, gp)
 
+        # 卡首答案：查询词对应的第一个（本体）倾向；家族多于 1 个再列表
+        _h0 = hits[0]
         lines = [
-            f"· {(w.get('zh') or w.get('en') or w['url_name'])}　"
-            f"倾向 {w.get('disposition', 0):.2f}　"
-            # ★ 2026-09-24：带上 group —— WM 把曲翼枪械的 rivenType 也标成
-            #   rifle（翠雀显示成「步枪」），group 才是准的（曲翼枪械/守护武器）
-            f"{_cls(w)}"
-            for w in hits[:8]
+            f"◆ {(_h0.get('zh') or _h0.get('en') or _h0['url_name'])}："
+            f"倾向 {_h0.get('disposition', 0):.2f}（{fmt._disp_dots(_h0.get('disposition', 0))}）"
+            f"｜{_cls(_h0)}"
         ]
+        if len(hits) > 1:
+            lines.append(f"◆ 同家族（共 {len(hits)} 种）")
+            lines.append("　武器　倾向　类别")
+            lines += [
+                f"· {(w.get('zh') or w.get('en') or w['url_name'])}　"
+                f"{w.get('disposition', 0):.2f}　"
+                # ★ 2026-09-24：带上 group —— WM 把曲翼枪械的 rivenType 也标成
+                #   rifle（翠雀显示成「步枪」），group 才是准的（曲翼枪械/守护武器）
+                f"{_cls(w)}"
+                for w in hits[:8]
+            ]
         return Reply(f"紫卡倾向：{query}", lines, footer=fmt.fmt_platform_footer(platform))
 
     async def _h_riven_analysis(self, parsed, event, platform) -> Reply:
@@ -317,10 +350,12 @@ class RivenCommands:
         if not weapon_name or not (stats_pos or stats_neg):
             # —— 图片识别路径 ——
             if not has_image:
-                return Reply(
-                    raw_text="用法：紫卡分析 武器名 词条数值…（负词条加「负」前缀）\n"
-                    "　例：紫卡分析 欧玛 暴伤82.8 范围1.6 攻速45.8 负滑暴81.3\n"
-                    "　也可直接发「紫卡分析 + 紫卡截图」"
+                return err_card(
+                    "没有给出武器名和词条数值，也没有附紫卡截图",
+                    "按用法补全重发；也可直接发「紫卡分析 + 紫卡截图」",
+                    ("用法", "紫卡分析 武器名 词条数值…（负词条加「负」前缀）"),
+                    "· 示例　紫卡分析 欧玛 暴伤82.8 范围1.6 攻速45.8 负滑暴81.3",
+                    title="紫卡分析",
                 )
             # 紫卡识图同样调用付费多模态模型（每次 2 路并行）⇒ 与识卡共用防刷闸
             _gate, _sender = self._vision_gate(event, "紫卡识图")
@@ -338,10 +373,10 @@ class RivenCommands:
             if not data:
                 if _sender:  # 识别失败返还冷却（同识卡口径）
                     self._ocr_last.pop(_sender, None)
-                return Reply(
-                    raw_text="图片识别失败（vision 渠道不可用或未配）——"
-                    "请按文字格式发送：紫卡分析 武器名 暴伤82.8 范围1.6 "
-                    "负滑暴81.3"
+                return err_card(
+                    "图片识别失败（vision 渠道不可用或未配）",
+                    "请按文字格式发送：紫卡分析 武器名 暴伤82.8 范围1.6 负滑暴81.3",
+                    title="紫卡分析",
                 )
             stats_pos, stats_neg = self._normalize_llm_stats(data, rev)
             # ★ 2026-10-07（玩家报障「紫卡分析 冰凇 + 截图 ⇒ 未找到紫卡武器「冰松」」）：
@@ -393,23 +428,27 @@ class RivenCommands:
                         _n_sem,
                     )
             if not stats_pos:
-                return Reply(
-                    raw_text="图片识别到了武器但没读出词条，请按文字格式重发："
-                    "紫卡分析 武器名 暴伤82.8 范围1.6 负滑暴81.3"
+                return err_card(
+                    "图片识别到了武器但没读出词条",
+                    "请按文字格式重发：紫卡分析 武器名 暴伤82.8 范围1.6 负滑暴81.3",
+                    title="紫卡分析",
                 )
             if not weapon_name:
                 # ★ 2026-09-25 ruff F821 修复：原写成未定义的 `abbr`，这条路一走
                 #   就 NameError（用户拿到内部错误而不是下面这条提示）。
                 hint = " ".join(f"{RIVEN_STAT_ZH.get(sid, sid)}{num:g}" for sid, num in stats_pos)
-                return Reply(
-                    raw_text="图片识别到了词条但没读出武器名，"
-                    f"请按文字格式补一次：紫卡分析 武器名 {hint}"
+                return err_card(
+                    "图片识别到了词条但没读出武器名",
+                    f"请按文字格式补一次：紫卡分析 武器名 {hint}",
+                    title="紫卡分析",
                 )
 
         if not 2 <= len(stats_pos) <= 3 or len(stats_neg) > 1:
-            return Reply(
-                raw_text="紫卡词条应为 2~3 条正面 + 0~1 条负面，"
-                f"当前解析到 {len(stats_pos)} 正 {len(stats_neg)} 负"
+            return err_card(
+                "紫卡词条应为 2~3 条正面 + 0~1 条负面，"
+                f"当前解析到 {len(stats_pos)} 正 {len(stats_neg)} 负",
+                "核对词条条数后重发（负词条加「负」前缀）；截图发错也请重发",
+                title="紫卡分析",
             )
         # ★ 2026-10-02 重复词条检测：紫卡同一条词条**不会出现两次**；出现两次
         #   几乎必是模型读改字（线上实证：`+44.9% ⚡电击伤害` 被两个渠道都读成
@@ -512,7 +551,6 @@ class RivenCommands:
             tips = await self.client.suggest_riven_weapons(weapon_name.strip())
             if not tips and _near_names:
                 tips = _near_names[:3]
-            tip = ("，你是不是想找：" + "、".join(tips)) if tips else ""
             # ★ 2026-10-07 删除一条旧提示（用户口径 + 线上实证）：原文是一条「模块化
             #   武器请连腔体与模式一起重发」的补发指引（附示例）。删除理由：
             #   ① 增幅器（Amp）**没有紫卡**（`_VEILED_SLUGS` 八大类无 Amp、紫卡表
@@ -524,7 +562,12 @@ class RivenCommands:
             #   ④ 线上日志实证（2026-10-07 10:59 / 17:11 / 17:13 三次）：卡面
             #      **有**武器名、只是被 OCR 读成近形字（冰凇→冰松）时它照样弹出来，
             #      答非所问（群里当场质疑「你不识字啊」）。
-            return Reply(raw_text=f"未找到紫卡武器「{weapon_name.strip()}」{tip}")
+            return err_card(
+                f"未找到紫卡武器「{weapon_name.strip()}」",
+                "照候选改名重发" if tips else "换官方中文名或英文名重发",
+                ("你是不是想找", "、".join(tips)) if tips else "",
+                title="紫卡分析",
+            )
         cls = RA.weapon_class(weapon.get("riven_type", ""), weapon.get("group", ""))
         _kitgun_type = weapon.get("riven_type") or ""
         # ★ 2026-10-03：WM 拆分行（捕月（主要）等 (Primary)/(Secondary) 行）
@@ -552,9 +595,10 @@ class RivenCommands:
             variant_disp, variant_key = (variant_disp_pre, variant_key_pre)
         disp = disp_override or variant_disp or wm_disp
         if disp <= 0:
-            return Reply(
-                raw_text=f"WM 未返回「{weapon_name.strip()}」的倾向数值，无法计算区间；"
-                "变体武器可手输：紫卡分析 武器名 倾向0.95 词条…"
+            return err_card(
+                f"WM 未返回「{weapon_name.strip()}」的倾向数值，无法计算区间",
+                "变体武器可手输倾向：紫卡分析 武器名 倾向0.95 词条…",
+                title="紫卡分析",
             )
         name = weapon.get("zh") or weapon.get("en") or weapon["url_name"]
         mother_name = name
@@ -608,6 +652,7 @@ class RivenCommands:
         # （母武器 + 棱晶/Prime/亡魂…）通常只有一个候选能解释全部词条，
         # 据此自动判定该按谁的倾向算 —— 不用手输、也不用带变体名。
         infer_note = ""
+        verdict = ""  # 卡首「判定」一行（短结论；完整说明仍在下面的提示行里）
         fam_all = []
         if not disp_override:
             fam_all = [
@@ -635,18 +680,21 @@ class RivenCommands:
                     fit_vals = sorted({round(float(v), 4) for _, v in fits})
                     if len(fits) == 1 and abs(fits[0][1] - wm_disp) > 1e-9:
                         name, disp = fits[0]  # 唯一吻合且不是母武器
+                        verdict = f"按数值反推：唯一吻合 {name}（倾向 {disp:g}）"
                         infer_note = (
                             f"数值反推倾向 {disp:g}：唯一吻合 {name}"
                             f"（母武器 {mother_name} {wm_disp:g} 不吻合）"
                         )
                     elif len(fit_vals) == 1 and abs(fit_vals[0] - wm_disp) > 1e-9:
                         disp = fit_vals[0]
+                        verdict = f"按数值反推倾向 {disp:g}（本体 {wm_disp:g} 不吻合）"
                         infer_note = (
                             f"数值反推倾向 {disp:g}：吻合 "
                             + "、".join(n for n, _ in fits)
                             + f"（母武器 {mother_name} {wm_disp:g} 不吻合）"
                         )
                     elif len(fits) > 1:
+                        verdict = "疑似变体卡（数值与多个倾向都吻合，需带变体名）"
                         infer_note = (
                             "数值与多个倾向都吻合："
                             + "、".join(f"{n} {v:g}" for n, v in fits)
@@ -682,6 +730,11 @@ class RivenCommands:
                                 if abs(d - _bd) <= 1e-9 and abs(s - _bs) <= 1e-9
                             ]
                             name, disp = _bn, _bd
+                            verdict = (
+                                f"最近邻 {_bn}（倾向 {_bd:g}，残差 {_fmt_pct(_bs)}%）"
+                                if not (_bn == mother_name and abs(_bd - wm_disp) < 1e-9)
+                                else f"本体倾向 {wm_disp:g}（残差 {_fmt_pct(_bs)}%，略有偏差）"
+                            )
                             _tie_txt = ""
                             if len(_tied) > 1:
                                 _tie_txt = "；同倾向候选：" + "、".join(
@@ -725,6 +778,7 @@ class RivenCommands:
                                     _mid = (iv[0] + iv[1]) / 2
                                     _vals = sorted({round(v, 4) for _n, v in _hit})
                                     disp = min(_vals, key=lambda v: abs(v - _mid))
+                                    verdict = f"疑似变体卡（命中家族变体，倾向 {disp:g}）"
                                     _names = (
                                         "、".join(n for n, v in _hit if round(v, 4) == disp)
                                         or _hit[0][0]
@@ -738,6 +792,7 @@ class RivenCommands:
                                     )
                                 else:
                                     disp = round((iv[0] + iv[1]) / 2, 2)
+                                    verdict = f"疑似倾向调整前的老卡（反推倾向 ≈{disp:g}）"
                                     infer_note = (
                                         f"卡面数值反推倾向 ≈{disp:g}（{mother_name} 当前值 "
                                         f"{wm_disp:g} 对不上，反推区间 {iv[0]:g}~{iv[1]:g}）"
@@ -777,6 +832,7 @@ class RivenCommands:
                                     if any(p in mother_name for p in matching.VARIANT_TOKENS)
                                     else f"赤毒{mother_name}"
                                 )
+                                verdict = "疑似变体卡（与本体倾向不吻合）"
                                 infer_note = (
                                     f"⚠️ 卡面数值与「{mother_name}」本体倾向 {wm_disp:g} "
                                     "不吻合，疑似变体卡（赤毒 / 信条 / 终幕 等）—— 请带变体前缀重发"
@@ -785,6 +841,7 @@ class RivenCommands:
             elif not RA.disp_feasible(stats_pos, stats_neg, cls, disp):
                 iv = RA.disposition_interval(stats_pos, stats_neg, cls)
                 rng = f"（反推应在 {iv[0]:g}~{iv[1]:g}）" if iv[0] else ""
+                verdict = f"卡面数值与倾向 {disp:g} 不吻合"
                 infer_note = f"⚠️ 卡面数值与倾向 {disp:g} 不吻合{rng}，请核对武器"
         if disp_override:
             disp_note = (
@@ -820,25 +877,31 @@ class RivenCommands:
                 family_note = (
                     "该武器家族有其它倾向：" + "、".join(f"{n} {v:g}" for n, v in fam[:4]) + _tail
                 )
-        title, lines = fmt.fmt_riven_analysis(name, disp, cls, stats_pos, stats_neg)
-        if family_note:
-            lines.insert(1, f"※ {family_note}")
-        if disp_note:
-            lines.insert(1, f"※ {disp_note}")
-        if infer_note:
-            lines.insert(1, f"※ {infer_note}")
-        if neg_fix_note:
-            lines.insert(1, f"※ {neg_fix_note}")
-        if inverted_note:
-            lines.insert(1, f"※ {inverted_note}")
-        if decimal_fix:
-            lines.insert(1, "※ 已修正小数点（截图未读出点号）：" + "、".join(decimal_fix))
-        if source_note:
-            lines.insert(1, f"※ 来源：{source_note.strip('（）')}")
-        if nearmiss_note:
-            lines.insert(1, f"※ {nearmiss_note}")
-        if dup_note:
-            lines.insert(1, f"※ {dup_note}")
+
+        # 提示分流（2026-10-11 卡片改版）：需要用户行动的（重发 / 核对）进 ⚠ 警示；
+        #   其余说明合并成一条注脚；来源（图片识别）进页脚。
+        def _needs_action(t: str) -> bool:
+            return "⚠" in t or "请带变体" in t or "请核对" in t or "请重发" in t
+
+        _cands_n = [infer_note, neg_fix_note, dup_note]
+        warns = [t for t in _cands_n if t and _needs_action(t)]
+        infos = [
+            t
+            for t in (
+                nearmiss_note,
+                infer_note if infer_note and not _needs_action(infer_note) else "",
+                disp_note,
+                family_note,
+                inverted_note,
+                ("已修正小数点（截图未读出点号）：" + "、".join(decimal_fix))
+                if decimal_fix
+                else "",
+            )
+            if t
+        ]
+        title, lines = fmt.fmt_riven_analysis(
+            name, disp, cls, stats_pos, stats_neg, verdict=verdict, warns=warns, infos=infos
+        )
         logger.info(
             "[sdjk] 紫卡分析耗时 %.0f ms（含识别/查询/计算）",
             (_tt.perf_counter() - _t_start) * 1000,
@@ -846,5 +909,9 @@ class RivenCommands:
         return Reply(
             title,
             lines,
-            footer=fmt.fmt_platform_footer(platform, "DE 属性基值公式 · 倾向可由卡面数值反推"),
+            footer=fmt.fmt_platform_footer(
+                platform,
+                (f"{source_note.strip('（）')} · " if source_note else "")
+                + "DE 属性基值公式 · 倾向可由卡面数值反推",
+            ),
         )

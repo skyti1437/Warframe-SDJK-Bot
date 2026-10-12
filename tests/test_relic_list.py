@@ -22,6 +22,13 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 
+def _txt(r) -> str:
+    """Reply 的可读文本：raw_text 或 title + lines（报错卡片迁移后断言用）。"""
+    if r is None:
+        return ""
+    return r.raw_text or (r.title + "\n" + "\n".join(r.lines))
+
+
 def _install_astrbot_stub() -> None:
     if "astrbot" in sys.modules:
         return
@@ -148,7 +155,7 @@ for src, want in cases:
 check("认不出来的原样返回（不猜）", fmt.relic_cn("绝路 Prime 枪机") == "绝路 Prime 枪机")
 
 # ------------------------------------------------------------- ② 自然序与版式
-print("\n=== ② 自然序 + 每行 9 列 + 中文 ===")
+print("\n=== ② 自然序 + 每行 12 列（格内只写代号）+ 中文 ===")
 check(
     "自然序 A1 < A2 < A10（不是字符串序）",
     [
@@ -157,7 +164,10 @@ check(
     ]
     == ["A1", "A2", "A10", "B1"],
 )
-check("每行 9 列（实测宽度算出来的，改动需重测）", fmt._TIER_PER_LINE == 9)
+# ★ 2026-10-11 第二步改版：纪元已写在 ◆ 分区标题里，格内只写代号（「A1」而非「古纪 A1」，
+#   全行相同的列不写）⇒ 单格实测宽度 119px → 约 60px；按 12 列重测：12×60+11×24 ≈ 980px，
+#   远在列对齐安全阀（≤1322）之内，所以每行由 9 列放宽到 12 列。
+check("每行 12 列（实测宽度算出来的，改动需重测）", fmt._TIER_PER_LINE == 12)
 
 _sample = [
     {"cn": k, "tier_cn": k.split()[0], "unvaulted": True} for k in IDX if k.startswith("古纪 ")
@@ -171,7 +181,10 @@ check(
     _body[:200],
 )
 _row = [x for x in _l if x.startswith("· ")][0]
-check("首行 9 个条目", len([c for c in _row[2:].split("　") if c]) == 9, _row)
+check("首行 12 个条目", len([c for c in _row[2:].split("　") if c]) == 12, _row)
+check(
+    "格内只写代号（不重复纪元）", all(not c.startswith("古纪") for c in _row[2:].split("　")), _row
+)
 check(
     "注脚行不含全角空格（会污染渲染层的列宽计算）",
     all("　" not in x for x in _l if x.startswith("※")),
@@ -445,7 +458,8 @@ _srows = _piece_rows(_sample)
 _stitle, _slines = fmt.fmt_relic_piece(_sample, _srows, farm_hints=_hints)
 check(
     f"部件卡标题带可获取/已入库计数（{_sample} = {_drop_n}+{_vault_n}）",
-    f"可获取 {_drop_n}" in _slines[0] and f"已入库 {_vault_n}" in _slines[0],
+    # ★ 改版：计数在卡首答案行「◆ 可获取：N 把｜已入库 M 把」
+    f"可获取：{_drop_n} 把" in _slines[0] and f"已入库 {_vault_n} 把" in _slines[0],
     _slines[0],
 )
 check(
@@ -458,7 +472,8 @@ check(
     any("已入库" in x for x in _slines),
     str(_slines),
 )
-check("可掉落的遗物排在最前（用户先看到能刷的）", "可掉落" in _slines[1], _slines[1])
+_srow0 = [x for x in _slines if x.startswith("· ")][0]  # 改版：首条「· 遗物　槽位　状态」数据行
+check("可掉落的遗物排在最前（用户先看到能刷的）", "可掉落" in _srow0, _srow0)
 check(
     "★★ 给出「推荐刷取」位置（只对可掉落的纪元给）",
     any("推荐刷取" in x for x in _slines),
@@ -481,7 +496,7 @@ _allvaulted = next(
 )
 _arows = _piece_rows(_allvaulted)
 _atitle, _alines = fmt.fmt_relic_piece(_allvaulted, _arows, farm_hints=_hints)
-check(f"全部入库的部件（{_allvaulted}）标题写明 可获取 0", "可获取 0" in _alines[0], _alines[0])
+check(f"全部入库的部件（{_allvaulted}）卡首写明 可获取 0", "可获取：0 把" in _alines[0], _alines[0])
 check(
     "全部入库时**不**出现推荐刷取（刷不到，给了是误导）",
     not any("推荐刷取" in x for x in _alines),
@@ -637,17 +652,21 @@ except Exception as _exc:  # noqa: BLE001
 # ★ 样本必须**结构性不可能命中**：旧样本「遗物 虚无」后来撞上了真条目
 #   （虚无 = Void 系），断言随之静默失效 —— 别再拿像真名的词当样本。
 _nf = asyncio.run(_make_obj([])._h_relic(_Parsed(content="乱写zzq9"), None, "pc"))
-_nf_txt = str(getattr(_nf, "raw_text", "") or "")
-check("未命中：走纯文本分支（不是卡片）", bool(_nf_txt), repr(_nf)[:80])
-check("未命中：以「未找到「」开头", _nf_txt.startswith("未找到「"), _nf_txt[:60])
+_nf_txt = _txt(_nf)
+check(
+    "未命中：走报错卡（原因 + 怎么改）",
+    _nf.raw_text is None and "原因" in _nf_txt and "怎么改" in _nf_txt,
+    repr(_nf)[:80],
+)
+check("未命中：原因行含「未找到「」", "未找到「" in _nf_txt, _nf_txt[:60])
 check(
     "未命中：带上用法常量 RELIC_USAGE（告诉用户下一步能发什么）",
-    RELIC_USAGE in _nf_txt,
+    RELIC_USAGE.removeprefix("用法：") in _nf_txt,
     _nf_txt[:160],
 )
 check(
     "未命中：顺序固定「未找到 → 你是不是想找 → 用法」",
-    _nf_txt.index("未找到") < _nf_txt.index(RELIC_USAGE),
+    _nf_txt.index("未找到") < _nf_txt.index(RELIC_USAGE.removeprefix("用法：")),
     _nf_txt[:160],
 )
 # 反向：命中的卡不能捎带用法串（否则每次查遗物都被塞一段用法）

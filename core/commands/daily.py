@@ -11,10 +11,11 @@ from __future__ import annotations
 
 import json
 
+from .. import arbi as _arbi
 from .. import baro
 from .. import formatters as fmt
 from .. import paths as core_paths
-from ..parser import fissure_tier_hint, parse_fissure_filter
+from ..parser import FISSURE_FILTER_HELP, fissure_tier_hint, parse_fissure_filter
 from .base import Reply
 
 
@@ -68,11 +69,11 @@ class DailyCommands:
                 self.client.cycle(platform, "cambion"),
                 self.client.cycle(platform, "duviri"),
                 self.client.cycle(platform, "zariman"),
-                self.client.arbitration(platform),
+                self._arb_timer(),
                 self.client.sortie(platform),
                 self.client.void_trader(platform),
                 self.client.archon_hunt(platform),
-                self.client.steel_path(platform),
+                self.client.steel_path_incursions(platform),
                 self.client.nightwave(platform),
                 self.client.calendar(platform),
                 self.client.deep_archimedea(platform),
@@ -95,10 +96,12 @@ class DailyCommands:
             "深层科研",
             "时光科研",
         ]
-        # ★ 不许静默丢行（2026-09-25）：源恒抛/未下发（如 DE 源没有的
-        #   仲裁、钢铁侵蚀）也要把 None 传给 formatter，由它显式打
-        #   「暂无时效数据（源未下发）」；旧写法 isinstance 过滤会让这两行
+        # ★ 不许静默丢行（2026-09-25）：源恒抛/未下发也要把 None 传给 formatter，
+        #   由它显式打「暂无时效数据（源未下发）」；旧写法 isinstance 过滤会让行
         #   从卡面里静默消失（用户以为看全了）。
+        # ★ 2026-10-11：「仲裁」改由 core/arbi 算到下一个整点（不联网）；「钢铁侵蚀」
+        #   改读 steel_path_incursions（browse.wf 排期表，「侵袭」指令同源）的到期 ——
+        #   旧接口 client.arbitration() / client.steel_path() 在 DE 源下恒抛，两行恒「源未下发」。
         timers = [(n, r if isinstance(r, dict) else None) for n, r in zip(names, res)]
         timers.append(("沉沦之地", await self.client.descendia(platform)))
         # 本地可推算的确定性轮换（不占网络请求）
@@ -123,6 +126,13 @@ class DailyCommands:
         title, lines = fmt.fmt_timers(timers)
         return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
 
+    @staticmethod
+    async def _arb_timer() -> dict:
+        """仲裁换场时刻：每小时整点（core/arbi.next_switch，不联网）。"""
+        from datetime import datetime, timezone
+
+        return {"expiry": datetime.fromtimestamp(_arbi.next_switch(), tz=timezone.utc).isoformat()}
+
     async def _h_fissures(self, parsed, event, platform) -> Reply:
         content = parsed.content_str
         if parsed.preset:
@@ -141,6 +151,11 @@ class DailyCommands:
         )
         if _t_hint:
             lines.append(_t_hint)
+        if flt and lines and "没有进行中的裂隙" in lines[0]:
+            lines.append(FISSURE_FILTER_HELP)
+        if (parsed.page or 1) > 1:
+            # ★ 2026-10-11：裂隙是整表一张卡（all_rows），-N 翻页无效 —— 明说，不静默
+            lines.append("※ 裂隙已全部列在本卡，无需翻页")
         extra = f"筛选：{flt.describe()}" if flt else ""
         return Reply(title, lines, footer=fmt.fmt_platform_footer(platform, extra))
 
@@ -160,13 +175,22 @@ class DailyCommands:
         """
         toks = [str(t).lower() for t in (parsed.content or [])]
         if any(t in ("预测", "predict") for t in toks):
-            rows = baro.predict(8)
+            # ★ 2026-10-11：下次到访优先用 worldstate 的 Activation（DE 官方排期）；
+            #   静默次数按快照后已发生的到访数同步（baro.missed_visits）。
+            try:
+                trader = await self.client.void_trader(platform)
+            except Exception:  # noqa: BLE001 - 取不到实时排期就退回周期推算
+                trader = {}
+            missed = baro.missed_visits()
+            rows = baro.predict(8, extra_silent=missed)
             title, lines = fmt.fmt_baro_predict(
                 rows,
-                baro.next_visit_est() or "",
+                baro.next_visit_est(activation=(trader or {}).get("activation") or "") or "",
                 len(baro.visits()),
                 baro.last_visit() or "",
                 names_zh=baro.names_zh(),
+                snapshot=baro.snapshot_date(),
+                missed=missed,
             )
             return Reply(title, lines, footer=fmt.fmt_platform_footer(platform, "wiki 历史统计"))
         title, lines = fmt.fmt_void_trader(await self.client.void_trader(platform))
@@ -210,7 +234,11 @@ class DailyCommands:
     async def _h_construction(self, parsed, event, platform) -> Reply:
         data = await self.client.construction(platform)
         title, lines = fmt.fmt_construction(data)
-        return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
+        return Reply(
+            title,
+            lines,
+            footer=fmt.fmt_platform_footer(platform, "数据源：DE worldState（ProjectPct / Goals）"),
+        )
 
     # ------------------------------------------------------------------
     # 新增世界状态：九重天 / 活动 / 武形秘仪 / 阿耶兑换 / 氏族奖励 / 商城折扣

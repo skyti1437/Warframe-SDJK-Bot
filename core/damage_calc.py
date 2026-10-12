@@ -3515,10 +3515,10 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
     免得用户以为「换了元素数值却一样」是算错了。
     """
     if res and res.get("ok") is False:  # 绝不返回空：出错也要有卡面
-        out = [f"❗ {res.get('error') or '数据缺失，无法计算'}"]
+        out = [f"◆ 原因：{res.get('error') or '数据缺失，无法计算'}"]
         if res.get("unknown"):
-            out.append("未识别（已忽略）：" + "、".join(res["unknown"]))
-        out.append("换英文名或完整中文名再试；「伤害」不带参数可看用法。")
+            out.append("◆ 未识别（已忽略）：" + "、".join(res["unknown"]))
+        out.append("※ ⚠ 怎么改：换英文名或完整中文名再试；「伤害」不带参数可看用法。")
         return out
     # 头部与「面板口径」都按**实际参与计算**的面板（形态/进化已套用），库值只取名字与 MR
     pw = res.get("weapon_eff") or weapon or {}
@@ -3568,20 +3568,237 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
         # 点射 / 蓄力：面板射速 ≠ 每秒有效射弹数（DPS 用后者，算式见备注）
         _fr_txt += f"（有效 {_fr_eff:.3g} 发/s）"
 
-    lines = [
-        f"◆ 武器：{weapon.get('zh') or weapon['name']}（{weapon['name']}）"
-        f"｜MR{weapon.get('masteryReq', 0)}",
-        f"　基伤 {dt.get('total', 0):g}"
+    ssr = res.get("steady") or {}
+    crit_exp = res["crit_exp"]
+    pt = res["per_trigger_health"]
+    dps = res["dps"]
+    _dseg = res.get("dps_seg")
+
+    # ==================================================================
+    # 行文法（2026-10-11 卡片改版）：卡首 KV 答案 → 单发 → 专项 → 输入回显 → 分段表 → 注脚
+    # ==================================================================
+    # —— 卡首答案（≤4 行）：实战 / 爆发 / 持续 DPS + 击杀 ——
+    kv: list[str] = []
+    if ssr.get("dps_total"):
+        kv.append(
+            f"◆ 实战 DPS：≈ {ssr['dps_total']:.0f}"
+            f"｜直伤 {ssr['dps_direct']:.0f} + DoT {ssr['dps_dot']:.0f}"
+        )
+    if _dseg:
+        # 直击 0（Simulor 系，b7 批）：DPS 按含段合计（各段自带暴击期望）
+        kv.append(
+            f"◆ 爆发 DPS：{_dseg['crit']:.0f}（含暴击）"
+            + (
+                f"｜{_dseg['nocrit']:.0f}（无暴击）"
+                if abs(_dseg["crit"] - _dseg["nocrit"]) > 1e-9
+                else ""
+            )
+            + "｜直击 0，按含段合计"
+        )
+    else:
+        kv.append(
+            f"◆ 爆发 DPS：{dps * crit_exp:.0f}（含暴击）"
+            + (f"｜{dps:.0f}（无暴击）" if crit_exp != 1.0 else "")
+        )
+    if _dseg:
+        _sus = _dseg.get("sustained_crit")
+    else:
+        _sus = res["dps_sustained"] * crit_exp if res.get("dps_sustained") else None
+    if _sus:
+        _ac = float(1.0 if res.get("ammo_cost") is None else res["ammo_cost"])
+        if res.get("no_cycle"):
+            kv.append(
+                f"◆ 持续 DPS：≈ {_sus:.0f}"
+                + (
+                    "（该形态不耗弹，无装填循环）"
+                    if _ac <= 0
+                    else "（不装填：射击间隔只看射速，面板装填时间不起作用；wiki 葬铭 Notes）"
+                    if pw.get("noReload")
+                    else "（未蓄力点按：每发一次上弦，循环已含装填）"
+                    if nock_only(pw)
+                    else "（弓：有效射速已按 1/(蓄力 + 上弦) 含装填，爆发 = 持续）"
+                )
+            )
+        else:
+            kv.append(
+                f"◆ 持续 DPS：≈ {_sus:.0f}"
+                # 弹匣 = wiki 弹药口径（b8 批 MAGAZINE_FIX）；每发耗弹 ≠ 1 时写出折算发数
+                + (
+                    f"（弹匣 {res['magazine']:g} ÷ 每发耗 {_ac:g} 弹 = "
+                    f"{res['magazine'] / _ac:.3g} 发"
+                    if _ac != 1.0
+                    else f"（{res['magazine']:.0f} 发弹匣"
+                )
+                + f" + 装填 {res['reload']:.1f}s 循环）"
+            )
+    if res.get("hp") is not None:
+        _pool = f"血量 {res['hp']:.0f}"
+        if res.get("shield_hp"):
+            _pool = f"护盾 {res['shield_hp']:.0f} → " + _pool
+        kv.append(f"◆ 击杀：平均 {res['shots']} 发（身体、含暴击期望）｜目标{_pool}")
+    lines: list[str] = kv[:]
+
+    # —— 单发：对血 / 对盾 / 每次扳机 / 爆头 / 暴击期望 / 明细 / DoT / 触发 ——
+    sing: list[str] = []
+    _mult = res["multishot_total"]
+    _merged = _mult <= 1 and abs(pt - res["health"]) < 0.5
+    _row = f"· 对血　{res['health']:.0f}（无暴击）"
+    if _merged and crit_exp != 1.0:
+        _row += f"｜{pt * crit_exp:.0f}（含暴击）"
+    sing.append(_row)
+    sing.append(f"· 对盾　{res['shield']:.0f}")
+    if not _merged:
+        _crit_txt = f"｜{pt:.0f}（无暴击）" if crit_exp != 1.0 else ""
+        _lab = f"每次扳机（多重 ×{_mult:.2f}）" if _mult > 1 else "单发"
+        sing.append(f"· {_lab}　{pt * crit_exp:.0f}（含暴击）{_crit_txt}")
+    # 多段合计：主段 + 各额外段（范围/AoE/集束…），段吃同样的 MOD 乘区
+    _st = res.get("segments_total")
+    if _st and _st.get("n_segments"):
+        _parts = [f"主段 {_st['main']:.0f}"]
+        _detail = []
+        for _m in res.get("modes") or []:
+            _pv = float(_m.get("per_trigger_health") or 0.0)
+            if _pv <= 0 or not _m.get("in_total"):
+                continue
+            _extra = []
+            if _m.get("radius_m"):
+                _extra.append(f"半径 {_m['radius_m']:g}m")
+            if float(_m.get("count") or 1.0) != 1.0:
+                _extra.append(f"×{float(_m['count']):g} 颗")
+            if _m.get("takes_multishot") is False:
+                _extra.append("不吃多重")
+            if _m.get("takes_condition_overload"):
+                _extra.append("吃异况超量")
+            _detail.append(
+                f"{SEG_ZH.get(_m['name'], _m['name'])} {_pv:.0f}"
+                + (f"（{'、'.join(_extra)}）" if _extra else "")
+            )
+        sing.append(f"· 含段合计　{_st['total']:.0f}（含暴击）＝" + " + ".join(_parts + _detail))
+        sing.append(
+            "　段是独立命中实例，各吃同一套 MOD 乘区；范围段按命中中心（100%）计，边缘会衰减"
+        )
+    _hce = res.get("head_crit_exp") or crit_exp
+    sing.append(
+        f"· 爆头期望　{res['health'] * _hce * res['head_mult']:.0f}"
+        f"（含暴击{'与暴击爆头' if res.get('head_crit') else ''}；爆头倍率 ×{res['head_mult']:.2f}）"
+    )
+    if res.get("head_src"):
+        _hl = f"　爆头口径：{res['head_src']}"
+        if res.get("head_formula"):
+            _hl += f"；倍率 = {res['head_formula']}"
+        if res.get("head_crit_note"):
+            _hl += f"；{res['head_crit_note']}"
+        sing.append(_hl)
+    sing.append(
+        f"· 暴击期望　×{crit_exp:.2f}"
+        f"（暴率 {res['crit_cc'] * 100:.0f}% ×暴伤 {res['crit_cm']:.2f}）"
+        f"｜单发 {res['health'] * crit_exp:.0f}"
+    )
+    top = sorted(res["per_type_health"].items(), key=lambda kv_: -kv_[1])[:4]
+    if len(top) > 1:
+        sing.append("· 明细　" + "、".join(f"{TYPE_ZH.get(k, k)} {v:.0f}" for k, v in top if v > 0))
+    if res["dots"]:
+        sing.append(
+            "· 异常 DoT　"
+            + "、".join(
+                f"{TYPE_ZH.get(k, k)} {v:.0f}"
+                for k, v in sorted(res["dots"].items(), key=lambda kv_: -kv_[1])
+            )
+            + "（6s 总量，含暴击期望）"
+        )
+    if ssr.get("dps_total"):
+        bits = [f"{ssr['status_chance'] * 100:.0f}%（{ssr['procs_per_sec']:.2f} 次/秒）"]
+        if ssr.get("viral_stacks"):
+            bits.append(f"病毒 {ssr['viral_stacks']:.0f} 层 ×{ssr['viral_mult']:.2f}")
+        if ssr.get("corrosive_stacks"):
+            bits.append(f"腐蚀剥甲 {ssr['strip'] * 100:.0f}%")
+        if ssr.get("cm_bonus"):
+            if ssr.get("frozen_share"):
+                bits.append(
+                    f"冰满层冻结 {ssr['frozen_share'] * 100:.0f}% 时间"
+                    f"（+1.0/阶梯均值 +{ssr['cm_bonus']:.2f}暴伤）"
+                )
+            else:
+                bits.append(f"冰 +{ssr['cm_bonus']:.2f}暴伤")
+        if ssr.get("cc_bonus"):
+            bits.append(f"穿刺 +{ssr['cc_bonus'] * 100:.0f}%暴率")
+        if ssr.get("heat_stacks"):
+            bits.append(
+                f"火 {ssr['heat_stacks']:.1f} 层"
+                + (
+                    f"（单例累加：开火 {ssr['fire_seconds']:g}s 内平均 = 触发率×{ssr['fire_seconds']:g}/2）"
+                    if ssr.get("heat_refreshed")
+                    else "（触发间隔 > 6s，每层独立过期 = 触发率×6）"
+                )
+            )
+        det = "、".join(
+            f"{TYPE_ZH.get(k, k)} {v:.0f}"
+            for k, v in sorted(ssr["dots_detail"].items(), key=lambda kv_: -kv_[1])[:3]
+            if v > 0
+        )
+        if det:
+            bits.append(f"DoT：{det}")
+        sing.append("· 触发　" + "｜".join(bits))
+    lines.append("◆ 单发")
+    lines += sing
+
+    # —— 专项：重击 / 对超宏 / 适应 ——
+    spec_rows: list[str] = []
+    hv = res.get("heavy")
+    if hv:
+        spec_rows.append(
+            f"· 重击　连击 {hv['combo_hits']} → ×{hv['multiplier']:.1f}"
+            f"｜单发 {hv['health']:.0f}｜含暴击 {hv['health_crit']:.0f}"
+            f"｜爆头 {hv['head']:.0f}" + "（重击会清空连击数）"
+        )
+        if hv.get("initial_combo"):
+            spec_rows.append(
+                f"　初始连击 {hv['initial_combo']} 是下限（清空后按每秒 40 回到该值），"
+                "不与连击数相加"
+            )
+    og = res.get("overguard")
+    if og:
+        line = (
+            f"· 对超宏　{og['damage']:.0f}（含暴击 {og['crit']:.0f}）"
+            f"｜磁力 ×{og['mag_mult']:.2f}"
+            "｜超宏不吃护甲与派系弱点、免疫异常（虚空 +50%）"
+        )
+        if og.get("pool"):
+            line += (
+                f"｜超宏池 {og['pool']:.0f} → "
+                f"{math.ceil(og['pool'] / og['crit']) if og['crit'] > 0 else '—'} 发打穿"
+            )
+        spec_rows.append(line)
+    ad = res.get("adapt")
+    if ad:
+        who = "、".join(f"{TYPE_ZH.get(k, k)} −{v * 100:.0f}%" for k, v in ad["resisted"].items())
+        spec_rows.append(
+            f"· 适应　Sentient {ad['levels']} 层：{who}"
+            f" → 有效伤害 ×{ad['factor']:.2f}"
+            "（虚空伤害可重置适应）"
+        )
+    if spec_rows:
+        lines.append("◆ 专项判定")
+        lines += spec_rows
+
+    # —— 输入回显：武器 / 面板 / 配卡 / 目标 / 弱点 / MOD / 赋能 / 架势 … ——
+    inp: list[str] = []
+    inp.append(
+        f"· 武器　{weapon.get('zh') or weapon['name']}（{weapon['name']}）"
+        f"｜MR{weapon.get('masteryReq', 0)}"
+    )
+    inp.append(
+        f"· 面板　基伤 {dt.get('total', 0):g}"
         + (f"（{base_parts}）" if base_parts else "")
         + f"｜暴击 {cc * 100:g}% ×{cm:g}"
         + f"｜射速 {_fr_txt}"
         + (f"（{res['fire_note']}）" if res.get("fire_note") else "")
-        + (f"｜多重 {ms:g}" if ms and ms > 1 else ""),
-    ]
+        + (f"｜多重 {ms:g}" if ms and ms > 1 else "")
+    )
     if mod_bits:
-        lines.append(f"◆ 配卡：{'、'.join(mod_bits)}")
-    lines.append(
-        f"◆ 目标：{FACTION_ZH.get(res['faction'], res['faction'])}"
+        inp.append(f"· 配卡　{'、'.join(mod_bits)}")
+    inp.append(
+        f"· 目标　{FACTION_ZH.get(res['faction'], res['faction'])}"
         f" {res['level']}级｜护甲 {res['armor']:.0f}"
         + (
             f"（减免 {res.get('dr_raw', res['dr']) * 100:.1f}%）"
@@ -3593,13 +3810,20 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
     en = res.get("enemy")
     if en:
         nm = en.get("zh") or en.get("name")
-        lines.append(
+        inp.append(
             f"　敌人：{nm}（基准 {en.get('base_level')} 级 / "
             f"血量 {en.get('base_health'):.0f}"
             + (f" / 护盾 {en.get('base_shield'):.0f}" if en.get("base_shield") else "")
             + (f" / 护甲 {en.get('base_armor'):.0f}" if en.get("base_armor") else "")
             + "）"
         )
+    if res["fac_weak"] or res["fac_resist"]:
+        weak_txt = "、".join(TYPE_ZH.get(k, k) for k in res["fac_weak"]) or "无"
+        res_txt = "、".join(TYPE_ZH.get(k, k) for k in res["fac_resist"]) or "无"
+        inp.append(f"· 派系弱点　{weak_txt} ×1.5｜抗性：{res_txt} ×0.5")
+        if res["fac_weak"]:
+            hit = [TYPE_ZH.get(k, k) for k in res["hit_weak"]] or ["（本配卡没用到）"]
+            inp.append(f"　本配卡吃到加成的：{'、'.join(hit)}")
     if res.get("arcanes"):
         _cond = [
             a
@@ -3619,14 +3843,14 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
             )
         ]
         _plain = [a for a in res["arcanes"] if a not in _cond]
-        lines.append(
-            "◆ 赋能："
+        inp.append(
+            "· 赋能　"
             + "、".join((a.get("zh") or a["name"]) for a in res["arcanes"])
             + ("（条件触发，未计入数值）" if _cond and not _plain else "")
         )
         for _a in res["arcanes"][:2]:
             if _a.get("text"):
-                lines.append(f"　{_a.get('zh') or _a['name']}：{_a['text'][:110]}")
+                inp.append(f"　{_a.get('zh') or _a['name']}：{_a['text'][:110]}")
     if res.get("mods"):
         # 注释乘区：直接回答「这张卡属于哪个乘区、和谁相加」；
         # 认得出但算不动的卡（射速/装填/弹匣…）标明「未计入」，不装作算过
@@ -3673,36 +3897,29 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
             if eff.get("conditional"):
                 where.append("含条件触发(未计入)")
             tag.append(f"{name}（{'、'.join(where) or '未计入'}）")
-        lines.append("◆ MOD：" + "｜".join(tag))
+        inp.append("· MOD　" + "｜".join(tag))
     _stc = res.get("stance")
     if _stc:
         _p = "、".join(TYPE_ZH.get(k, k) for k in _stc["procs"])
-        lines.append(
-            f"◆ 架势：{_stc['zh'] or _stc['name']}（{_stc['combo']}）"
+        inp.append(
+            f"· 架势　{_stc['zh'] or _stc['name']}（{_stc['combo']}）"
             f" 每段 ×{_stc['mult']:.2f}" + (f"｜强制异常 {_p}" if _p else "｜无强制异常")
         )
     if res.get("status_types"):
-        lines.append(f"◆ 异况超量类：按目标身上 {res['status_types']} 种异常计（用「异常N」改）")
+        inp.append(f"· 异况超量类　按目标身上 {res['status_types']} 种异常计（用「异常N」改）")
     _cond = res.get("conditional") or []
     for _c in _cond[:3]:
-        lines.append(f"✎ 条件触发·未计入：{_c}".replace("\\n", " "))
+        inp.append(f"· 条件触发　未计入：{_c}".replace("\\n", " "))
     if len(_cond) > 3:
-        lines.append(f"✎ …另有 {len(_cond) - 3} 条条件触发未计入")
+        inp.append(f"· 条件触发　…另有 {len(_cond) - 3} 条条件触发未计入")
     _galv = res.get("galv_applied") or []
     if _galv:
-        lines.append(
-            "◆ 镀层堆叠已计入：" + "｜".join(_galv[:4]) + ("｜…" if len(_galv) > 4 else "")
+        inp.append(
+            "· 镀层　堆叠已计入：" + "｜".join(_galv[:4]) + ("｜…" if len(_galv) > 4 else "")
         )
-    if res["fac_weak"] or res["fac_resist"]:
-        weak_txt = "、".join(TYPE_ZH.get(k, k) for k in res["fac_weak"]) or "无"
-        res_txt = "、".join(TYPE_ZH.get(k, k) for k in res["fac_resist"]) or "无"
-        lines.append(f"◆ 派系弱点：{weak_txt} ×1.5｜抗性：{res_txt} ×0.5")
-        if res["fac_weak"]:
-            hit = [TYPE_ZH.get(k, k) for k in res["hit_weak"]] or ["（本配卡没用到）"]
-            lines.append(f"　本配卡吃到加成的：{'、'.join(hit)}")
     if res["strip_note"]:
-        lines.append(
-            f"◆ 剥甲：{'、'.join(res['strip_note'])}"
+        inp.append(
+            f"· 剥甲　{'、'.join(res['strip_note'])}"
             f" → 护甲 {res['armor']:.0f}→{res['armor_eff']:.0f}"
             f"（减免 {res['dr_raw'] * 100:.1f}%→{res['dr'] * 100:.1f}%）"
         )
@@ -3712,114 +3929,13 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
     if res["magnetic"]:
         st_bits.append(f"磁力{res['magnetic']}层（对盾 ×{res['mag_mult']:.2f}）")
     if st_bits:
-        lines.append(f"◆ 状态加伤：{'、'.join(st_bits)}")
-    lines.append(f"◆ 单发对血：{res['health']:.0f}（无暴击）｜单发对盾：{res['shield']:.0f}")
-    top = sorted(res["per_type_health"].items(), key=lambda kv: -kv[1])[:4]
-    if len(top) > 1:
-        lines.append(
-            "　明细：" + "、".join(f"{TYPE_ZH.get(k, k)} {v:.0f}" for k, v in top if v > 0)
-        )
-    if res["dots"]:
-        lines.append(
-            "◆ 异常 DoT（6s 总量，含暴击期望）："
-            + "、".join(
-                f"{TYPE_ZH.get(k, k)} {v:.0f}"
-                for k, v in sorted(res["dots"].items(), key=lambda kv: -kv[1])
-            )
-        )
-    crit_exp = res["crit_exp"]
-    lines.append(
-        f"◆ 暴击期望：×{crit_exp:.2f}"
-        f"（暴率 {res['crit_cc'] * 100:.0f}% ×暴伤 {res['crit_cm']:.2f}）"
-        f"｜单发 {res['health'] * crit_exp:.0f}"
-    )
-    _hce = res.get("head_crit_exp") or crit_exp
-    lines.append(
-        f"◆ 爆头期望：{res['health'] * _hce * res['head_mult']:.0f}"
-        f"（含暴击{'与暴击爆头' if res.get('head_crit') else ''}；爆头倍率 ×{res['head_mult']:.2f}）"
-    )
-    if res.get("head_src"):
-        _hl = f"　爆头口径：{res['head_src']}"
-        if res.get("head_formula"):
-            _hl += f"；倍率 = {res['head_formula']}"
-        if res.get("head_crit_note"):
-            _hl += f"；{res['head_crit_note']}"
-        lines.append(_hl)
-    if res.get("hp") is not None:
-        pool = f"　血量 {res['hp']:.0f}"
-        if res.get("shield_hp"):
-            pool = f"　护盾 {res['shield_hp']:.0f} → " + pool.strip()
-        lines.append(f"◆ 该目标：{pool.strip()}｜平均 {res['shots']} 发击杀（身体、含暴击期望）")
-    # 每次扳机 / DPS 都给两个口径：含暴击期望（换卡会变）+ 无暴击（白字）
-    pt = res["per_trigger_health"]
-    dps = res["dps"]
-    crit_txt = f"｜{pt:.0f}（无暴击）" if crit_exp != 1.0 else ""
-    if res["multishot_total"] > 1:
-        lines.append(
-            f"◆ 每次扳机（多重 ×{res['multishot_total']:.2f}）："
-            f"{pt * crit_exp:.0f}（含暴击）{crit_txt}"
-        )
-    else:
-        lines.append(f"◆ 单发：{pt * crit_exp:.0f}（含暴击）{crit_txt}")
-    _fr_txt = (
-        f"｜射速 {res['fire_rate']:.2f}".rstrip("0").rstrip(".")
-        if abs(res.get("fire_rate_eff", res["fire_rate"]) - res["fire_rate"]) <= 1e-6
-        else f"｜有效射速 {res['fire_rate_eff']:.2f}".rstrip("0").rstrip(".")
-    )
-    _dseg = res.get("dps_seg")
-    if _dseg:
-        # 直击 0（Simulor 系，b7 批）：DPS 按含段合计（各段自带暴击期望）
-        lines.append(
-            f"◆ DPS 爆发：{_dseg['crit']:.0f}（含暴击）"
-            + (
-                f"｜{_dseg['nocrit']:.0f}（无暴击）"
-                if abs(_dseg["crit"] - _dseg["nocrit"]) > 1e-9
-                else ""
-            )
-            + _fr_txt
-            + "｜直击 0，按含段合计"
-        )
-    else:
-        lines.append(
-            f"◆ DPS 爆发：{dps * crit_exp:.0f}（含暴击）"
-            + (f"｜{dps:.0f}（无暴击）" if crit_exp != 1.0 else "")
-            + _fr_txt
-        )
-    if _dseg:
-        _sus = _dseg.get("sustained_crit")
-    else:
-        _sus = res["dps_sustained"] * crit_exp if res.get("dps_sustained") else None
-    if _sus:
-        _ac = float(1.0 if res.get("ammo_cost") is None else res["ammo_cost"])
-        if res.get("no_cycle"):
-            lines.append(
-                f"◆ DPS 持续 ≈ {_sus:.0f}"
-                + (
-                    "（该形态不耗弹，无装填循环）"
-                    if _ac <= 0
-                    else "（不装填：射击间隔只看射速，面板装填时间不起作用；wiki 葬铭 Notes）"
-                    if pw.get("noReload")
-                    else "（未蓄力点按：每发一次上弦，循环已含装填）"
-                    if nock_only(pw)
-                    else "（弓：有效射速已按 1/(蓄力 + 上弦) 含装填，爆发 = 持续）"
-                )
-            )
-        else:
-            lines.append(
-                f"◆ DPS 持续 ≈ {_sus:.0f}"
-                # 弹匣 = wiki 弹药口径（b8 批 MAGAZINE_FIX）；每发耗弹 ≠ 1 时写出折算发数
-                + (
-                    f"（弹匣 {res['magazine']:g} ÷ 每发耗 {_ac:g} 弹 = "
-                    f"{res['magazine'] / _ac:.3g} 发"
-                    if _ac != 1.0
-                    else f"（{res['magazine']:.0f} 发弹匣"
-                )
-                + f" + 装填 {res['reload']:.1f}s 循环）"
-            )
+        inp.append(f"· 状态加伤　{'、'.join(st_bits)}")
     # 面板口径：顶层伤害取自 attacks 里哪一段（弓箭=蓄力、爆炸=含范围段…）
     # —— 不同计算器对「基础伤害」的口径常不同（wfsim 面板对弓显示未蓄力、
     # 对 lich 默认套 +60% 回响、爆炸只显示直击段），显式标注免得被当算错。
     _ats = pw.get("attacks") or []
+    _basis_name = None  # 找到「本表主段」时并进「分段」区块标题
+    _basis_row = ""
     # 识卡从面板反推的基础（loadout_ocr 打 _panel_derived）就是面板那一种攻击，
     # 与库内 attacks 的多段口径无关 —— 不标，免得把 96 说成「含多段合并」
     if len(_ats) > 1 and not pw.get("_panel_derived"):
@@ -3858,183 +3974,118 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
         )
         _all_names = [a.get("name") for a in _ats if a.get("name")][:4]
         if _basis:
-            lines.append(
-                f"◆ 面板口径：本表主段 = {SEG_ZH.get(_basis, _basis)}"
+            _basis_name = SEG_ZH.get(_basis, _basis)
+            _basis_row = (
+                f"· 面板口径　本表主段 = {_basis_name}"
                 f"（该武器另有段：{'、'.join(SEG_ZH.get(n, n) for n in _all_names if n != _basis)}）"
             )
         else:
             # 顶层伤害不等于任何单段 → 它把多段合并了（爆炸/蓄力武器常见，
             # warframe-items 的顶层 damage 就是这么给的）。这是数据源口径，
             # 逐把核对 wiki 前先如实标注，避免被当成算错。
-            lines.append(
-                "◆ 面板口径：本表基础伤害含多段合并（"
+            _basis_row = (
+                "· 面板口径　本表基础伤害含多段合并（"
                 + "、".join(SEG_ZH.get(n, n) for n in _all_names)
                 + "）——下限请以「含段合计」行拆分为准"
             )
-    # 多段合计：主段 + 各额外段（范围/AoE/集束…），段吃同样的 MOD 乘区
-    _st = res.get("segments_total")
-    if _st and _st.get("n_segments"):
-        _parts = [f"主段 {_st['main']:.0f}"]
-        _detail = []
-        for _m in res.get("modes") or []:
-            _pv = float(_m.get("per_trigger_health") or 0.0)
-            if _pv <= 0 or not _m.get("in_total"):
-                continue
-            _extra = []
-            if _m.get("radius_m"):
-                _extra.append(f"半径 {_m['radius_m']:g}m")
-            if float(_m.get("count") or 1.0) != 1.0:
-                _extra.append(f"×{float(_m['count']):g} 颗")
-            if _m.get("takes_multishot") is False:
-                _extra.append("不吃多重")
-            if _m.get("takes_condition_overload"):
-                _extra.append("吃异况超量")
-            _detail.append(
-                f"{SEG_ZH.get(_m['name'], _m['name'])} {_pv:.0f}"
-                + (f"（{'、'.join(_extra)}）" if _extra else "")
-            )
-        lines.append(
-            f"◆ 含段合计（每次扳机）：{_st['total']:.0f}（含暴击）＝" + " + ".join(_parts + _detail)
-        )
-        lines.append(
-            "　※ 段是独立命中实例，各吃同一套 MOD 乘区；范围段按命中中心（100%）计，边缘会衰减"
-        )
-    # v1.6：实战（异常稳态）/ 重击 / 超宏 / 适应
-    ssr = res.get("steady") or {}
-    if ssr.get("dps_total"):
-        lines.append(
-            f"◆ 实战（稳态，异常已建立）：DPS ≈ {ssr['dps_total']:.0f}"
-            f"｜直伤 {ssr['dps_direct']:.0f} + DoT {ssr['dps_dot']:.0f}"
-        )
-        bits = [f"触发 {ssr['status_chance'] * 100:.0f}%（{ssr['procs_per_sec']:.2f} 次/秒）"]
-        if ssr.get("viral_stacks"):
-            bits.append(f"病毒 {ssr['viral_stacks']:.0f} 层 ×{ssr['viral_mult']:.2f}")
-        if ssr.get("corrosive_stacks"):
-            bits.append(f"腐蚀剥甲 {ssr['strip'] * 100:.0f}%")
-        if ssr.get("cm_bonus"):
-            if ssr.get("frozen_share"):
-                bits.append(
-                    f"冰满层冻结 {ssr['frozen_share'] * 100:.0f}% 时间"
-                    f"（+1.0/阶梯均值 +{ssr['cm_bonus']:.2f}暴伤）"
-                )
-            else:
-                bits.append(f"冰 +{ssr['cm_bonus']:.2f}暴伤")
-        if ssr.get("cc_bonus"):
-            bits.append(f"穿刺 +{ssr['cc_bonus'] * 100:.0f}%暴率")
-        if ssr.get("heat_stacks"):
-            bits.append(
-                f"火 {ssr['heat_stacks']:.1f} 层"
-                + (
-                    f"（单例累加：开火 {ssr['fire_seconds']:g}s 内平均 = 触发率×{ssr['fire_seconds']:g}/2）"
-                    if ssr.get("heat_refreshed")
-                    else "（触发间隔 > 6s，每层独立过期 = 触发率×6）"
-                )
-            )
-        det = "、".join(
-            f"{TYPE_ZH.get(k, k)} {v:.0f}"
-            for k, v in sorted(ssr["dots_detail"].items(), key=lambda kv: -kv[1])[:3]
-            if v > 0
-        )
-        if det:
-            bits.append(f"DoT：{det}")
-        lines.append("　" + "｜".join(bits))
-    hv = res.get("heavy")
-    if hv:
-        lines.append(
-            f"◆ 重击（连击 {hv['combo_hits']} → ×{hv['multiplier']:.1f}）："
-            f"单发 {hv['health']:.0f}｜含暴击 {hv['health_crit']:.0f}"
-            f"｜爆头 {hv['head']:.0f}" + "（重击会清空连击数）"
-        )
-        if hv.get("initial_combo"):
-            lines.append(
-                f"　初始连击 {hv['initial_combo']} 是下限（清空后按每秒 40 回到该值），"
-                "不与连击数相加"
-            )
-    og = res.get("overguard")
-    if og:
-        line = (
-            f"◆ 对超宏：{og['damage']:.0f}（含暴击 {og['crit']:.0f}）"
-            f"｜磁力 ×{og['mag_mult']:.2f}"
-            "｜超宏不吃护甲与派系弱点、免疫异常（虚空 +50%）"
-        )
-        if og.get("pool"):
-            line += (
-                f"｜超宏池 {og['pool']:.0f} → "
-                f"{math.ceil(og['pool'] / og['crit']) if og['crit'] > 0 else '—'} 发打穿"
-            )
-        lines.append(line)
-    ad = res.get("adapt")
-    if ad:
-        who = "、".join(f"{TYPE_ZH.get(k, k)} −{v * 100:.0f}%" for k, v in ad["resisted"].items())
-        lines.append(
-            f"◆ 适应（Sentient {ad['levels']} 层）：{who}"
-            f" → 有效伤害 ×{ad['factor']:.2f}"
-            "（虚空伤害可重置适应）"
-        )
-    # 多段判定：投掷 / 投掷爆炸 / 充能投掷 / 震地…（各段类型构成常常完全不同）
     modes = res.get("modes") or []
+    if _basis_row and not (_basis_name and modes):
+        inp.append(_basis_row)  # 有分段表且认出主段时，并进分段区块标题
+    if alts:
+        inp.append("· 同类候选　" + "、".join(v.get("zh") or v.get("name", "") for v in alts))
+    for n in res.get("notes") or []:
+        inp.append(f"· MOD 说明　{_note_zh(n)}")
+    if res["steel_path"]:
+        inp.append("· 钢路　敌人血量/护盾 +100%（护甲已不加成），本卡未乘算")
+    lines.append("◆ 输入")
+    lines += inp
+
+    # —— 分段表：多段判定（投掷 / 投掷爆炸 / 充能投掷 / 震地…各段类型构成常常完全不同）——
     if modes:
-        lines.append(f"◆ 其它段判定（{len(modes)} 段，含元素/派系/护甲）")
+        lines.append(
+            f"◆ 分段（{len(modes)} 段"
+            + (f"，主段 {_basis_name}" if _basis_name else "")
+            + "，含元素/派系/护甲）"
+        )
+        recs = []
         for m in modes[:8]:
-            _top = max((m["damage"] or {"?": 0}).items(), key=lambda kv: kv[1])
+            _top = max((m["damage"] or {"?": 0}).items(), key=lambda kv_: kv_[1])
             _tag = "同普通" if m.get("same_as_main") else TYPE_ZH.get(_top[0], _top[0])
-            line = (
-                f"　{m['name']}（{_tag}{m['total']:g}）"
-                f" → {m['health']:.0f}｜含暴击 {m['health_crit']:.0f}"
-            )
             _fo = m.get("falloff")
             # 兜底：段结构来自多份数据源，裸数字也按衰减比例读（不许因形状不同崩卡）
             _rv = _fo.get("reduction") if isinstance(_fo, dict) else _fo
             _redu = float(_rv) if isinstance(_rv, (int, float)) else 0.0
-            if _redu > 0:
-                line += f"｜射程内衰减 {_redu * 100:.0f}%"
-            if m.get("shot_type") == "DoT":
-                line += "｜持续伤害单跳值，未计入 DPS"
-            lines.append(line)
+            recs.append(
+                (
+                    f"{m['name']}（{_tag}{m['total']:g}）",
+                    f"{m['health']:.0f}",
+                    f"{m['health_crit']:.0f}",
+                    f"{_redu * 100:.0f}%" if _redu > 0 else "",
+                    "持续伤害单跳值，未计入 DPS" if m.get("shot_type") == "DoT" else "",
+                )
+            )
+        _has_fo = any(r[3] for r in recs)
+        _has_dot = any(r[4] for r in recs)
+        lines.append(
+            "　段　单发　含暴击"
+            + ("　射程衰减" if _has_fo else "")
+            + ("　备注" if _has_dot else "")
+        )
+        for r in recs:
+            cells = [r[0], r[1], r[2]]
+            if _has_fo:
+                cells.append(r[3])
+            if _has_dot:
+                cells.append(r[4])
+            lines.append("· " + "　".join(cells).rstrip("　"))
         if len(modes) > 8:
-            lines.append(f"　…另 {len(modes) - 8} 段（次级开火/灵化等）")
-    if alts:
-        lines.append("同类候选：" + "、".join(v.get("zh") or v.get("name", "") for v in alts))
-    for n in res.get("notes") or []:
-        lines.append(f"✎ {_note_zh(n)}")
+            lines.append(f"· 另 {len(modes) - 8} 段　次级开火/灵化等未列出")
+
+    # —— 警示 / 注脚（≤3 行）——
     if spec.get("enemy_miss"):
         lines.append(
-            enemy_miss_line(
+            "※ "
+            + enemy_miss_line(
                 spec["enemy_miss"], res.get("faction") or spec.get("faction"), res.get("enemy")
             )
         )
     if res.get("unknown"):
         lines.append(
-            "⚠ 未识别（已忽略）："
+            "※ ⚠ 未识别（已忽略）："
             + "、".join(res["unknown"])
-            + "　—— 该词条没进 MOD 名表，如有误请换官方名再试"
+            + "；该词条没进 MOD 名表，如有误请换官方名再试"
         )
     lines.append(
-        "※ U36 起血量/护甲不再分类型，元素差异只有两处："
-        "①派系弱点 ±50% ②异常状态（病毒/磁力/腐蚀剥甲/DoT）"
-    )
-    lines.append(
-        "※ 敌人护甲减伤 = 90%×√(护甲/2700)（与玩家护甲公式不同）；"
-        "复合元素按 火>冰>电>毒 两两配对（槽位顺序无法从指令推断）"
+        "※ 实战 DPS 为稳态近似：异常层已建立、持续挨打；未计爬升/掉层/击杀截断与 Boss 衰减；"
+        "火焰按单例累加、每次触发刷新计时（wfsim ignite.yaml），取「开火 T 秒」窗口平均"
+        f"（默认 {FIRE_SECONDS_DEFAULT:g}s，可写「开火N秒」）"
     )
     # #6 口径（2026-10-09，不改算法）：游戏与 wfsim 按 MOD 槽位顺序配对、武器自带元素排
     # 最后参与合成（wfsim rules/elements.rs:119-153）；本计算器固定顺序且自带元素不合成
     lines.append(
-        "※ 元素合成口径：游戏内按 MOD 槽位顺序两两配对、武器自带元素也参与合成；"
-        "本卡按上述固定顺序、自带元素单独计 —— 多元素配卡请以游戏内面板为准"
+        "※ 护甲减伤 = 90%×√(护甲/2700)；元素合成口径：按 火>冰>电>毒 两两配对（游戏内按 MOD 槽位顺序配对、"
+        "自带元素也参与合成，多元素配卡以游戏面板为准）；U36 起元素差异只有派系弱点 ±50% 与异常状态"
     )
     lines.append(
-        "※ 乘区：基伤/多重/暴率/暴伤各组内相加，元素同元素相加后合成，"
-        "派系 MOD 独立乘区；暴击按期望值（含超 100% 的多段暴击，"
-        "公式 1+暴率×(暴伤−1)），每次扳机/DPS 同时给「含暴击」与「无暴击」"
+        "※ 乘区：基伤/多重/暴率/暴伤组内相加，元素先相加后合成，派系独立乘区；"
+        "暴击按期望 1+暴率×(暴伤−1)；公式来源 wiki，2026-09-16 核对"
     )
-    lines.append(
-        "※ 「实战 DPS」是**稳态近似**：异常层数已建立、目标持续挨打；"
-        "未计入前几秒的爬升、换目标掉层、目标死亡截断与 Boss 伤害衰减。"
-        "火焰例外：单例累加、每次触发刷新计时（wfsim ignite.yaml），按「开火 T 秒」窗口平均"
-        f"（默认 T = {FIRE_SECONDS_DEFAULT:g}s，可写「开火N秒」）。"
-        "公式来源 wiki（wiki.warframe.com），2026-09-16 核对"
-    )
-    if res["steel_path"]:
-        lines.append("※ 钢路：敌人血量/护盾 +100%（护甲已不加成），本卡未乘算")
     return lines
+
+
+def card_footer(weapon: Optional[dict], res: dict) -> str:
+    """伤害卡页脚：武器与敌人回显（卡面输入区之外再给一眼能确认「算的是谁」）。
+
+    形如「绝路（Rubico） 对 重型机枪手 · Grineer 100级」；出错 / 无武器返回空串。
+    """
+    if not weapon or not res or res.get("ok") is False:
+        return ""
+    zh, en_name = weapon.get("zh") or "", weapon.get("name") or ""
+    wtxt = f"{zh}（{en_name}）" if zh and en_name else (zh or en_name)
+    fac = re.sub(
+        r"（.*?）", "", FACTION_ZH.get(res.get("faction"), res.get("faction") or "")
+    ).strip()
+    en = res.get("enemy")
+    who = (en.get("zh") or en.get("name")) if en else ""
+    tgt = f"{fac} {res.get('level', '')}级".strip()
+    return f"{wtxt} 对 {who} · {tgt}" if who else f"{wtxt} 对 {tgt}"

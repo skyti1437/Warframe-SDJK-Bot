@@ -62,18 +62,20 @@ title, cyc_lines = fmt.fmt_cetus(
 )
 check("周期卡标题", title == "平原时间", title)
 # 周期名开头的行 = 6（夜灵/奥布/魔胎/地球/双衍/扎里曼），「当前材料」之类不数
-_cycle_starts = ("夜灵平野", "奥布山谷", "魔胎之境", "地球：", "双衍王境", "扎里曼号")
+# ★ 2026-10-11 第二步改版：周期行改为「· 名称　状态　剩余 …」列表项（卡首另有「◆ 最先换轮」答案行，
+#   它不是周期行，不数、也不要求「中文（紧凑）」成对）。
+_cycle_starts = ("· 夜灵平野", "· 奥布山谷", "· 魔胎之境", "· 地球　", "· 双衍王境", "· 扎里曼号")
 check(
     "六个周期各一行",
     sum(any(ln.startswith(s) for s in _cycle_starts) for ln in cyc_lines) == 6,
     str(cyc_lines),
 )
 for _ln in cyc_lines:
-    if "剩余" not in _ln:
+    if "剩余" not in _ln or not _ln.startswith("· "):
         continue
     check(f"倒计时成对：{_ln[:14]}…", "（" in _ln and "）" in _ln and "剩余" in _ln, _ln)
 # 双衍王境曾经只写中文秒级、缺「（Xh Ym）」，与其它行格式不一致
-_duv = [ln for ln in cyc_lines if ln.startswith("双衍王境")][0]
+_duv = [ln for ln in cyc_lines if ln.startswith("· 双衍王境")][0]
 check("双衍王境有紧凑倒计时括号", "（" in _duv and "m" in _duv and "）" in _duv, _duv)
 
 # 中文与紧凑两份必须同源同刻（旧实现一份来自 countdown()、一份抄数据的 timeLeft，
@@ -154,7 +156,7 @@ check("赏金卡标题", _title == "赏金任务", _title)
 # 且必须按**剧情推进顺序**排列——不能跟随 DE 的 SyndicateMissions 数组顺序。
 _REGION_ORDER = [
     "希图斯（地球）",
-    "奥布斯山谷（金星）",
+    "奥布山谷（金星）",
     "英择谛（魔胎之境）",
     "羽化之穹（扎里曼）",
     "解剖圣所（实验室）",
@@ -223,7 +225,7 @@ check("一览·扎里曼任务目标", any("任务：" in ln for ln in lines), "
 
 # —— 「赏金 地球」= 详情：每档任务名 + 等级 + **完整奖励**（v1.1 既定形态）——
 _te, earth = fmt.fmt_bounties(bundle["syndicateMissions"], "地球", cycle=ORACLE)
-check("详情·地球只一块", not any("奥布斯山谷" in ln for ln in earth))
+check("详情·地球只一块", not any("奥布山谷" in ln for ln in earth))
 # 每档后面必须跟一行奖励（◆ 档位行数量 == 奖励行数量）
 _bars = [ln for ln in earth if ln.startswith(fmt._BOUNTY_HEAD_PREFIX) and "级" in ln]
 _rewards = [ln for ln in earth if ln.startswith("　　") and "、" in ln]
@@ -290,6 +292,23 @@ check(
     str([ln for ln in _lv_rows if not R._LV_RE.search(ln)][:3]),
 )
 
+# 上下限相同的档（100-100）写成单值「100级」，且同样进右对齐等级列（_LV_RE 放宽后）
+_one_lv = [ln for ln in dlines if ln.startswith(fmt._BOUNTY_HEAD_PREFIX) and "100级" in ln]
+check(
+    "★ 赏金单值等级：火卫二 100 级档写「100级」且能抽等级",
+    bool(_one_lv) and all(R._LV_RE.search(ln) for ln in _one_lv),
+    str(_one_lv[:3]),
+)
+check(
+    "★ 赏金卡不再出现「100-100级」",
+    not any("100-100级" in ln for ln in dlines)
+    and not any(
+        "100-100级" in ln
+        for kw in ("地球", "金星", "扎里曼", "圣所", "1999")
+        for ln in fmt.fmt_bounties(bundle["syndicateMissions"], kw, ORACLE)[1]
+    ),
+)
+
 # oracle 不可达时：详情与一览都降级（按等级档），不空白
 _t2, degraded = fmt.fmt_bounties(bundle["syndicateMissions"], "扎里曼", cycle={})
 check("oracle 不可达仍有扎里曼块", any("羽化之穹（扎里曼）" in ln for ln in degraded))
@@ -305,7 +324,7 @@ _t3, only_earth = fmt.fmt_bounties(bundle["syndicateMissions"], "地球", cycle=
 check(
     "筛选 地球 只剩一块",
     any("希图斯（地球）" in ln for ln in only_earth)
-    and not any("奥布斯山谷" in ln for ln in only_earth),
+    and not any("奥布山谷" in ln for ln in only_earth),
 )
 _t4, bad = fmt.fmt_bounties(bundle["syndicateMissions"], "不存在的地区", cycle=ORACLE)
 check("未识别地区明确报错", any("未识别地区" in ln for ln in bad))
@@ -358,7 +377,7 @@ check(
     ),
     str(_tier_rows[:5]),
 )
-for _reg in ("希图斯（地球）", "奥布斯山谷（金星）", "英择谛（魔胎之境）"):
+for _reg in ("希图斯（地球）", "奥布山谷（金星）", "英择谛（魔胎之境）"):
     _blk = [x for x in _block_of(lines, _reg) if x.startswith(fmt._BOUNTY_HEAD_PREFIX)]
     check(
         f"{_reg} 至少一档带任务类型",
@@ -698,11 +717,11 @@ def _sep_lines(title: str, lines: list):
     """渲染并数「块间细线」的**真实绘制次数**（打桩 ImageDraw.line，只数赏金签名）。
 
     不手抄渲染规则来复刻 —— 直接量实际画了几条，规则改了也不会假绿。
-    同时数 `_hgrad_line`（◆ 区域行的主题色渐隐线）以证明它没被替换掉。
+    同时数 ◆ 区域行的延伸细线（A 款绘制层：PANEL_LINE 色的 ImageDraw.line）以证明它没被替换掉。
     """
     from PIL import ImageDraw
 
-    n: list = []
+    _hg: list = []
     nbox: list = []
     orig = ImageDraw.ImageDraw.line
     orig_rr = ImageDraw.ImageDraw.rounded_rectangle
@@ -720,19 +739,11 @@ def _sep_lines(title: str, lines: list):
     ImageDraw.ImageDraw.rounded_rectangle = spy_rr
 
     def spy(self, xy, fill=None, width=1, *a, **k):
-        if fill == (255, 255, 255, 9):
-            n.append(1)
+        if fill == R.PANEL_LINE:
+            _hg.append(1)
         return orig(self, xy, fill=fill, width=width, *a, **k)
 
     ImageDraw.ImageDraw.line = spy
-    _hg: list = []
-    orig_hg = R._hgrad_line
-
-    def spy_hg(*a, **k):
-        _hg.append(1)
-        return orig_hg(*a, **k)
-
-    R._hgrad_line = spy_hg
     try:
         r = R.ImageRenderer(ROOT / "runtime")
         if not r.available:
@@ -742,7 +753,6 @@ def _sep_lines(title: str, lines: list):
     finally:
         ImageDraw.ImageDraw.line = orig
         ImageDraw.ImageDraw.rounded_rectangle = orig_rr
-        R._hgrad_line = orig_hg
 
 
 _REGION_CASES = [
@@ -770,7 +780,7 @@ for _label, _kw, _cyc in _REGION_CASES:
         _blocks >= 1 and _n == _blocks + 3 * _tents_n,
         f"块={_blocks} 框={_n} 点位行={_tents_n}",
     )
-    check(f"赏金块圆角框（{_label}）：◆ 区域行的主题色渐隐线保留", _nhg >= 1, str(_nhg))
+    check(f"赏金块圆角框（{_label}）：◆ 区域行的延伸细线保留", _nhg >= 1, str(_nhg))
     if _label == "地球":
         check(
             "★ 赏金卡未走 _plain_body（彩色 token 路径必须保留）",
@@ -844,17 +854,39 @@ if _sep3[0] is not None:
 
 # —— 2026-10-02 追加：Grineer/Corpus 赏金卡不染色 + 1999 挑战名蓝色 ——
 if _sep3[0] is not None:
-    # 派系色 (240,170,110)：抑制后只应剩「合一众」标签等零星像素（<500），
-    # 未抑制时 Grineer×多处 ≫ 该值
-    _fac = sum(
-        1
-        for y in range(150, _W3H3[1] - 60, 2)
-        for x in range(40, _W3H3[0] - 40, 2)
-        if abs(_px3[x, y][0] - 240) < 20
-        and abs(_px3[x, y][1] - 170) < 20
-        and abs(_px3[x, y][2] - 110) < 20
+    # 派系色（A 款 = 冷灰 R.FACTION_COLOR，与次文字灰接近，像素计数分不开）：
+    # 改为打桩 ImageDraw.text，按「文本 + 填充色」精确数——赏金卡里
+    # Grineer/Corpus 不得以派系色绘制；对照组（非赏金卡）必须能以派系色绘制。
+    from PIL import ImageDraw as _ID
+
+    def _fac_draws(title, lines):
+        got: list = []
+        _orig_text = _ID.ImageDraw.text
+
+        def _spy_text(self, xy, text, fill=None, *a, **k):
+            if fill == R.FACTION_COLOR and text in ("Grineer", "Corpus"):
+                got.append(text)
+            return _orig_text(self, xy, text, fill, *a, **k)
+
+        _ID.ImageDraw.text = _spy_text
+        try:
+            R.ImageRenderer(ROOT / "runtime").render(title, lines, "国际服")
+        finally:
+            _ID.ImageDraw.text = _orig_text
+        return got
+
+    _fac = _fac_draws(*fmt.fmt_bounties(bundle["syndicateMissions"], "地球", ORACLE))
+    check(
+        "★ 地球卡 Grineer/Corpus 不再派系染色（按文本+填充色打桩计数 = 0）",
+        len(_fac) == 0,
+        str(_fac),
     )
-    check("★ 地球卡 Grineer/Corpus 不再派系染色（只剩合一众标签零星像素）", _fac < 500, str(_fac))
+    _fac_ctl = _fac_draws("每日突击", ["· Grineer 据点　Corpus 前哨"])
+    check(
+        "★ 派系染色对照组：非赏金卡的 Grineer/Corpus 仍以派系色绘制",
+        len(_fac_ctl) >= 1,
+        str(_fac_ctl),
+    )
     _t99, _l99 = fmt.fmt_bounties(bundle["syndicateMissions"], "1999", cycle=ORACLE)
     _r99 = R.ImageRenderer(ROOT / "runtime")
     _png99 = _r99.render(_t99, _l99, "国际服") if _r99.available else None
@@ -895,7 +927,7 @@ check(
     "C2 一览：DE 三地区仍按 Syndicates[].Expiry 画倒计时",
     all(
         any(r in ln and "剩" in ln for ln in _cb)
-        for r in ("希图斯（地球）", "奥布斯山谷（金星）", "英择谛（魔胎之境）")
+        for r in ("希图斯（地球）", "奥布山谷（金星）", "英择谛（魔胎之境）")
     ),
     str(_cb),
 )
@@ -909,6 +941,94 @@ check(
     "C2 无 expiry 时横幅保持原样（不画空倒计时）",
     all("剩" not in ln for ln in _banner if "羽化之穹" in ln),
     str(_banner),
+)
+
+# ---------------------------------------------------------------------------
+# B11（2026-10-11）赏金卡审计修复
+# ---------------------------------------------------------------------------
+# ④ 火卫二各档轮次不同：按每档自己的 rewardTable 汇总，不再拿第一个 job 套全地区
+_deimos_jobs = [
+    {"rewardTable": "TierATableBRewards", "enemyLevels": [5, 15]},
+    {"rewardTable": "TierCTableBRewards", "enemyLevels": [15, 25]},
+    {"rewardTable": "TierBTableARewards", "enemyLevels": [25, 30]},
+    {"rewardTable": "TierDTableARewards", "enemyLevels": [30, 40]},
+    {"rewardTable": "TierETableARewards", "enemyLevels": [40, 60]},
+]
+_rmap = fmt._region_rot_map("Entrati", _deimos_jobs)
+check(
+    "④ 火卫二按档取轮次（阶段1/2=B、阶段3/4/5=A）",
+    _rmap == {"阶段1": "B", "阶段2": "B", "阶段3": "A", "阶段4": "A", "阶段5": "A"},
+    str(_rmap),
+)
+_dpool = fmt._BOUNTY_POOLS["Entrati"]
+_exp_items: list = []
+for _k, _r in _rmap.items():
+    _exp_items.extend(fmt._pool_at_rot(_dpool[_k], _r))
+_exp_mods = [
+    t
+    for t in fmt._fmt_pool_items(_exp_items).split("、")
+    if t.startswith("★") and fmt._is_high_value(t)
+]
+_rl = fmt._rot_lines(_dpool, _rmap)
+check(
+    "④ 轮换行 = 各档自身轮次的并集（标注各档轮次）",
+    _rl and "各档轮次 A/B" in _rl[0] and _rl[0].endswith("、".join(_exp_mods[:6])),
+    str(_rl),
+)
+check(
+    "④ 整区同轮次时仍标单字母",
+    "（B）" in fmt._rot_lines(_dpool, {"阶段1": "B", "阶段2": "B"})[0],
+)
+
+# ⑫ 深矿档：名字已含「钢铁之路」⇒ 标签不再重复
+_venus = next(s for s in bundle["syndicateMissions"] if s["syndicate"] == "Solaris United")
+_tv, _vl = fmt.fmt_bounties([_venus], "金星", cycle={})
+_deep = [ln for ln in _vl if "深矿" in ln and ln.startswith(fmt._BOUNTY_HEAD_PREFIX)]
+check(
+    "⑫ 深矿行「钢铁之路」只出现一次",
+    _deep and all(ln.count("钢铁之路") == 1 for ln in _deep) and "社区观测" in _deep[0],
+    str(_deep),
+)
+check("⑫ 金星地名统一官方「奥布山谷」", any("◆ 奥布山谷（金星）" in ln for ln in _vl), _vl[0])
+
+# ⑰ 「深矿」「抢劫」聚焦对应档位
+_t1, _dm = fmt.fmt_bounties([_venus], "深矿", cycle={})
+_heads = [ln for ln in _dm if ln.startswith(fmt._BOUNTY_HEAD_PREFIX)]
+check("⑰ 赏金 深矿 只列深矿档", _heads and all("深矿" in ln for ln in _heads), str(_heads))
+from core import parser as _P  # noqa: E402
+
+check(
+    "⑰ 裸发「抢劫」preset=抢劫（不再落到深矿）",
+    _P.parse("抢劫").preset == "抢劫" and _P.parse("深矿").preset == "深矿",
+    str(_P.parse("抢劫").preset),
+)
+_t2, _hs = fmt.fmt_bounties([_venus], "抢劫", cycle={})
+check(
+    "⑰ 赏金 抢劫 列抢劫奖励池（不再整板金星）",
+    any("· 抢劫" in ln for ln in _hs)
+    and not any(ln.startswith(fmt._BOUNTY_HEAD_PREFIX) for ln in _hs),
+    str(_hs[:3]),
+)
+
+# ⑫ 1999 一览：节点名即任务类型时不再重复出「任务：传承种收割 …」
+_cyc99 = {
+    "bounties": {
+        "HexSyndicate": [
+            {
+                "node": "SolNode850",
+                "challenge": "/Lotus/Types/Challenges/Vania/Lich/LichVaniaDestroySpeakers",
+            }
+        ]
+    }
+}
+_ov = fmt._oracle_summary(
+    "HexCity", "HexSyndicate", "霍瓦尼亚（1999）", _cyc99["bounties"]["HexSyndicate"]
+)
+_hx = [ln for ln in _ov if "传承种收割" in ln]
+check(
+    "⑫ 1999 一览「传承种收割」只出现一次（挑战名并入档位行）",
+    len(_hx) == 1 and "噪音污染" in _hx[0] and _hx[0].count("传承种收割") == 1,
+    str(_ov),
 )
 
 if FAILED:

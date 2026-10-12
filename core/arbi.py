@@ -195,8 +195,48 @@ async def fetch_tables(client) -> tuple[dict, dict, dict]:
     return sched, nodes, merge_measured_tiers(tier_of)
 
 
+class ScheduleExpired(Exception):
+    """给定时刻超出排期表覆盖范围（表已到期 / 尚未开始）。"""
+
+    def __init__(self, end_ts: float, start_ts: float = 0.0):
+        self.end_ts = end_ts
+        self.start_ts = start_ts
+        super().__init__(f"arbi schedule covers [{start_ts}, {end_ts})")
+
+
+def schedule_end(sched: dict) -> float:
+    """排期表覆盖到的最后时刻（epoch 秒，开区间）。"""
+    return sched["startTs"] + len(sched["seq"]) * sched.get("stepSec", 3600)
+
+
+def expired_hint(sched: dict) -> str:
+    """排期表到期时给用户看的提示（北京时间）。"""
+    from datetime import datetime, timedelta, timezone
+
+    end = datetime.fromtimestamp(schedule_end(sched), tz=timezone(timedelta(hours=8)))
+    return (
+        f"仲裁排期表已于 {end:%Y-%m-%d %H:%M}（北京时间）到期，数据源 arbi.wf.wiki 尚未更新；"
+        "为避免显示错误场次，暂停推算"
+    )
+
+
+def next_switch(ts: Optional[float] = None, sched: Optional[dict] = None) -> float:
+    """下一次仲裁换场的时刻（epoch 秒）。
+
+    仲裁每小时整点轮换（排期表 ``stepSec`` = 3600、``startTs`` 对齐整点）；
+    给了 ``sched`` 就按表的起点/步长算，否则按整点算（不联网，供「时效」卡用）。
+    """
+    now = time.time() if ts is None else ts
+    start = (sched or {}).get("startTs", 0)
+    step = (sched or {}).get("stepSec", 3600) or 3600
+    return start + (int((now - start) // step) + 1) * step
+
+
 def key_at(sched: dict, ts: Optional[float] = None) -> tuple[str, int, float, float]:
     """给定时刻的仲裁节点 key。
+
+    ★ 2026-10-11：超出排期表覆盖范围时**抛 ScheduleExpired**（旧写法 ``% len(seq)``
+    回绕到表头 ⇒ 表到期（约 2029-10）后会静默给出几年前的场次）。
 
     Returns:
         ``(key, idx, start_ts, step)`` —— ``idx`` 用于算「下一小时」。
@@ -204,7 +244,9 @@ def key_at(sched: dict, ts: Optional[float] = None) -> tuple[str, int, float, fl
     seq = sched["seq"]
     start = sched["startTs"]
     step = sched.get("stepSec", 3600)
-    idx = int(((time.time() if ts is None else ts) - start) // step) % len(seq)
+    idx = int(((time.time() if ts is None else ts) - start) // step)
+    if idx < 0 or idx >= len(seq):
+        raise ScheduleExpired(schedule_end(sched), start)
     return sched["nodes"][seq[idx]], idx, start, step
 
 
@@ -213,7 +255,7 @@ def slot(sched: dict, nodes: dict, tier_of: dict, ts: Optional[float] = None) ->
     key, idx, start, step = key_at(sched, ts)
     n = nodes.get(key) or {}
     seq = sched["seq"]
-    nxt_key = sched["nodes"][seq[(idx + 1) % len(seq)]]
+    nxt_key = sched["nodes"][seq[idx + 1]] if idx + 1 < len(seq) else ""
     tier = tier_of.get(key, "") or ""
     if tier == "未评级":
         tier = ""
@@ -225,7 +267,7 @@ def slot(sched: dict, nodes: dict, tier_of: dict, ts: Optional[float] = None) ->
         "faction": faction_of(n),
         "tier": tier,
         "line": node_line(nodes, key, tier_of),
-        "next_line": node_line(nodes, nxt_key, tier_of),
+        "next_line": node_line(nodes, nxt_key, tier_of) if nxt_key else "（排期表已到末尾）",
         "start": start + idx * step,
         "end": start + (idx + 1) * step,
     }

@@ -23,6 +23,13 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 
+def _txt(r) -> str:
+    """Reply 的可读文本：raw_text 或 title + lines（报错卡片迁移后断言用）。"""
+    if r is None:
+        return ""
+    return r.raw_text or (r.title + "\n" + "\n".join(r.lines))
+
+
 def _install_astrbot_stub() -> None:
     if "astrbot" in sys.modules:
         return
@@ -191,7 +198,7 @@ row2 = fmt.fmt_lich_row(
         "owner": {"status": "online", "reputation": 0},
     },
 )
-check("幻纹标记与在线状态", "幻纹✦" in row2 and "在线" in row2, row2)
+check("幻纹标记与在线状态", "幻纹★" in row2 and "在线" in row2, row2)
 row3 = fmt.fmt_lich_row(3, {"item": {}, "owner": {}})
 check("字段缺失不崩（占位 ?）", "?" in row3, row3)
 
@@ -282,7 +289,8 @@ o = _plugin_with(fake)
 r = asyncio.run(o._h_xh(_P("信条弧电离子枪"), None, "pc"))
 check("★ 信条武器走 type=sister", fake.last_type == "sister", str(fake.last_type))
 check("信条武器能出结果卡", not r.raw_text and r.lines, str(r)[:80])
-check("★ 排序：游戏内优先（第 1 行）", "游戏内" in r.lines[0], r.lines[0])
+_rows = [ln for ln in r.lines if ln.startswith("· ")]  # 2026-10-11 改版：明细表的首条数据行
+check("★ 排序：游戏内优先（表内第 1 行）", bool(_rows) and "游戏内" in _rows[0], str(_rows[:1]))
 check("卡面含在线/信用说明", any("信用" in ln for ln in r.lines), str(r.lines[-1]))
 
 o2 = _plugin_with(_FakeClient())
@@ -311,7 +319,11 @@ check(
 
 o5 = _plugin_with(_FakeClient())
 r5 = asyncio.run(o5._h_xh(_P("不存在的武器xyz"), None, "pc"))
-check("未知武器给出提示而非崩溃", bool(r5.raw_text), str(r5)[:60])
+check(
+    "未知武器给出提示而非崩溃（报错卡：原因 + 怎么改）",
+    "未找到玄骸武器" in _txt(r5) and "怎么改" in _txt(r5),
+    str(r5)[:60],
+)
 
 print()
 if FAILED:
