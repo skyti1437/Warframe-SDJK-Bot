@@ -1256,20 +1256,19 @@ check(
     str(_seen),
 )
 check(
-    "⑮② 未配置时回落内置候选序首个（`_vision_providers()` 已把 8B 排在 glm 之前）",
+    "⑮② 候选序为 [glm, 8B] 时照发首位（不再按名字回落 8B——维护者 2026-10-12 裁示去定死）",
     _raced_with(
         [
-            "siliconflow/Qwen/Qwen3-VL-8B-Instruct",
             "zhipu/glm-4v-flash",
+            "siliconflow/Qwen/Qwen3-VL-8B-Instruct",
         ]
     )
-    == ["siliconflow/Qwen/Qwen3-VL-8B-Instruct"],
+    == ["zhipu/glm-4v-flash"],
     str(_seen),
 )
 check(
-    "⑮③ 候选里只有非 8B 时同样单发首个（不再按名字硬挑 8B）",
-    _raced_with(["zhipu/glm-4v-flash", "siliconflow/Qwen/Qwen3-VL-30B-A3B-Instruct"])
-    == ["zhipu/glm-4v-flash"],
+    "⑮③ 候选为空：不猜渠道、不发请求（交调用方按无渠道报错）",
+    _raced_with([]) == [],
     str(_seen),
 )
 

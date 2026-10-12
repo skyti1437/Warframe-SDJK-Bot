@@ -421,17 +421,20 @@ class VisionCommands:
         #   ⚠ 识卡（配卡截图）那一路**保留**原竞速：那里用真实配卡对拍，glm 是 7/7 全对
         #   且要速度（见 `_VISION_PROVIDER_IDS` 上方的 2026-09-20 记录）。
         #
-        # ★ 2026-10-12 改选渠道口径：**优先面板配置的 `vision_provider_id`**，没配置时才
-        #   回落 8B。原实现无条件优先 8B，使面板配置对紫卡一路**静默无效**（用户本次实测：
-        #   配置改 30B、插件重载两次，紫卡仍打印"固定渠道 8B"，被误判成配置没生效）。
+        # ★ 2026-10-12 改选渠道口径（维护者裁定"别再有定死"）：**完全按
+        #   `_vision_providers()` 的顺序取第一个**——它已把面板配置的 `vision_provider_id`
+        #   排在首位、其余按内置候选优先级排。原实现有两处名字级硬编码（无条件优先 8B），
+        #   使面板配置对紫卡一路**静默无效**（用户实测：配置改 30B、插件重载两次仍走 8B）。
+        #   此次连"候选为空时按名字回落 8B"的分支也一并删除：没有候选就交给调用方
+        #   按"无可用视觉渠道"正常报错，不再靠名字猜。
         #   换 30B 的依据（bench3，2026-10-12，同一批 16+2 卡）：30B 数值 65/70 优于
-        #   8B 的 62/70、16 卡 perfect 15 vs 12；两张「努寇微波枪」难例 4/4 全对
-        #   （8B 3/4）；耗时 9.1 s vs 18.3 s。旧注释里"30B 只 2/5"的结论已过期。
+        #   8B 的 62/70、16 卡 perfect 15 vs 12；耗时 9.1 s vs 18.3 s。
         _all_provs = self._vision_providers()
-        _cfg_first = _all_provs[:1]  # `_vision_providers()` 已把配置渠道排在首位
-        provs = _cfg_first or [p for p in _all_provs if "qwen3-vl-8b" in _prov_id(p).lower()][:1]
+        provs = _all_provs[:1]
+        if not provs:
+            logger.warning("[sdjk] 紫卡识别：没有可用视觉渠道（配置/渠道状态见上一条）")
         if provs:
-            logger.info("[sdjk] 紫卡识别固定渠道：%s（不竞速）", _prov_id(provs[0]))
+            logger.info("[sdjk] 紫卡识别渠道（不竞速）：%s", _prov_id(provs[0]))
         try:
             # 并行竞速（原来串行试渠道，实测要 13 s）；窗口 60s（2026-09-23 补：
             # 渠道级超时可达 240s，不能让用户干等）
