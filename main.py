@@ -57,6 +57,7 @@ try:  # 允许脱离 AstrBot 直接跑单元测试
     from .core.commands import DunCommands
     from .core.commands.base import _num
     from .core.store import GroupStore, SubscriptionStore
+    from .core.webpanel import WebPanel
 except ImportError as _imp_err:  # pragma: no cover
     # ★ 2026-09-25 事故修正：**只在确实不是包上下文时**才回退到绝对导入
     #   （脱离 AstrBot 单独跑脚本/测试的情形）。包内导入失败 = 真错误，
@@ -92,6 +93,7 @@ except ImportError as _imp_err:  # pragma: no cover
     from core.commands import DunCommands
     from core.commands.base import _num
     from core.store import GroupStore, SubscriptionStore
+    from core.webpanel import WebPanel
 
 
 def _result_hook():
@@ -433,7 +435,7 @@ HELP_NOTES: dict[str, list[str]] = {
 
 
 @register(
-    "astrbot_plugin_warframe_sdjkbot", "SDJK", f"{BRAND}：世界状态 / 市场查价 / 蹲点推送", "1.2.0"
+    "astrbot_plugin_warframe_sdjkbot", "SDJK", f"{BRAND}：世界状态 / 市场查价 / 蹲点推送", "1.2.1"
 )
 class WarframeSDJK(
     DailyCommands,
@@ -452,6 +454,7 @@ class WarframeSDJK(
     def __init__(self, context: Context, config: AstrBotConfig | None = None):
         super().__init__(context)
         self.cfg: dict = dict(config) if config else {}
+        self._config = config  # 运维面板「设置」页写回用（save_config）；cfg 是快照
         # 运行期数据目录：data/plugin_data/<插件名>（规范要求），不再写插件包目录。
         data_dir = _resolve_data_dir()
         self.data_dir = data_dir
@@ -469,6 +472,7 @@ class WarframeSDJK(
             proxy=(self.cfg.get("proxy") or None),
             flare_enabled=bool(self.cfg.get("flaresolverr_enabled", True)),
             flare_urls=_flare_urls or None,
+            community_base=str(self.cfg.get("community_data_url") or ""),
         )
         self.groups = GroupStore(
             data_dir / "groups.json", default_platform=self.cfg.get("default_platform", "pc")
@@ -505,6 +509,9 @@ class WarframeSDJK(
             state_path=data_dir / "push_baseline.json",  # 基线落盘：30 分钟内重启补推
         )
         self._routes = self._build_routes()
+        # 插件页面「运维面板」（pages/sdjk/）的接口；AstrBot 不支持时只记日志
+        self._panel = WebPanel(self, PLUGIN_NAME)
+        self._panel.register(context)
 
     def _build_routes(self) -> dict:
         """指令名 -> handler 映射（独立成方法便于离线自检）。"""
@@ -825,16 +832,37 @@ class WarframeSDJK(
         抛 AttributeError 被静默吞掉，预热从未执行（「已就绪」日志不出现）。
         守卫：tests/test_valence_autorefresh.py 文末「boot warm」段。
         """
-        try:
-            await asyncio.wait_for(self._refresh_from_community(), timeout=90)
-        except Exception as exc:  # noqa: BLE001 - 首启拉取不阻塞启动
-            logger.warning("[sdjk] 首启社区快照拉取跳过/失败：%r", exc)
-        try:
-            await asyncio.wait_for(self.client.wm_items(), timeout=120)
-            await asyncio.wait_for(self.client.wm_riven_weapons(), timeout=120)
+        # ★ 2026-10-16（GPT 评估 P04）：逐项独立 try + 各自限时 —— 原先两段社区刷新共用一个 try，
+        #   前一段超时会把后一段（静态快照）一起跳过；WM 两张表同理。
+        ok, wm_ok = 0, 0
+        for tag, make, limit in (
+            ("社区快照（元素加成 / 言录使）", self._refresh_from_community, 90),
+            ("社区静态快照（仲裁评级 / 奸商 / 紫卡倾向）", self._refresh_static_community, 90),
+            ("WM 物品表", self.client.wm_items, 120),
+            ("WM 紫卡武器表", self.client.wm_riven_weapons, 120),
+        ):
+            try:
+                await asyncio.wait_for(make(), timeout=limit)
+                ok += 1
+                wm_ok += tag.startswith("WM")
+            except Exception as exc:  # noqa: BLE001 - 首启预热不阻塞启动，单项失败不连累其它项
+                logger.warning("[sdjk] 首启预热「%s」跳过/失败：%r", tag, exc)
+        if wm_ok == 2:  # 线上验收判据（ZCode 按这行日志确认预热生效），保持原文
             logger.info("[sdjk] 首启预热：WM 物品/紫卡武器表已就绪")
-        except Exception as exc:  # noqa: BLE001 - 首启预热不阻塞启动
-            logger.warning("[sdjk] 首启 WM 表预热失败：%r", exc)
+        logger.info("[sdjk] 首启预热完成 %d/4 项", ok)
+
+    async def _refresh_static_community(self) -> None:
+        """静态快照（仲裁评级 / 奸商到访历史 / 紫卡倾向）从 bot-data 拉新；与有没有 FS 无关。"""
+        try:
+            res = await self.client.refresh_community_static()
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("[sdjk] 社区静态快照不可用：%s", exc)
+            return
+        for name, st in res.items():
+            if st.startswith("refreshed"):
+                logger.info("[sdjk] %s 已从社区快照更新：%s", name, st)
+            elif st.startswith("invalid"):
+                logger.warning("[sdjk] 社区快照 %s 校验不过，未采用：%s", name, st)
 
     async def _refresh_from_community(self) -> None:
         """无 FS 时的社区快照刷新（元素加成 + 言录使货单）。
@@ -879,9 +907,13 @@ class WarframeSDJK(
         **整段跳过**的，而他们正是社区快照要服务的人。这里每次只读一个几 KB 的
         公开 JSON，且只有本地快照确实过期时才会落盘；成功记 INFO，其余静默。
         """
+        n = 0
         while True:
             try:
                 await asyncio.sleep(30 * 60)
+                n += 1
+                if n % 6 == 0:  # 静态快照每 3 小时看一次（变化慢；有没有 FS 都要）
+                    await self._refresh_static_community()
                 if await self._flare_phase() == "ready":
                     continue  # 有 FS 的用户直连 wiki，不必读快照
                 await self._refresh_from_community()
@@ -983,6 +1015,10 @@ class WarframeSDJK(
                 await asyncio.sleep(3600)
 
     async def terminate(self):
+        # AstrBot 没有注销路由的 API ⇒ 停用后面板接口一律拒绝（见 core/webpanel.py）
+        panel = getattr(self, "_panel", None)
+        if panel:
+            panel.close()
         for name in ("_auto_task", "_valence_task", "_community_task"):
             task = getattr(self, name, None)
             if task:

@@ -1143,6 +1143,14 @@ CHARGE_DRAW_ONLY: dict[str, tuple] = {
 # 值 = (名字, AmmoCost, 出处 wiki Module:Weapons/data/<模块>:<该攻击段起始行> <段名>)；逐把与
 # wfsim attack.ammo_cost 一致，唯一分歧 Kuva Nukor（wfsim 0.5、wiki secondary:5055 为 1 ⇒ 按 wiki 不填）。
 AMMO_COST_FIX: dict[str, tuple] = {
+    # 2026-10-16：wiki《Arbucep》Codex「simultaneously fires six homing rockets」（每枚独立攻击、弹匣 36）
+    #   ⇒ 一次扣扳机耗 6 发；wfsim d73ecfc 将 arbucep.yaml ammo_cost 1→6（实测 M112）。
+    #   原先按 1 发算：弹匣时间 24 s（实为 4 s），持续 DPS 高估约 38%。
+    "/lotus/weapons/tenno/archwing/primary/nokkoarchgun/nokkoarchgun": (
+        "Arbucep",
+        6,
+        "archgun: Codex six rockets + wfsim M112",
+    ),
     "/lotus/weapons/corpus/longguns/chainlightninggun/chainlightningrifle": (
         "Amprex",
         0.5,

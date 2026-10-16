@@ -47,6 +47,13 @@ class TTLCache:
             while len(self._store) > self._maxsize:
                 self._store.popitem(last=False)
 
+    def drop_prefix(self, prefix: str) -> int:
+        """丢掉某个前缀下的全部条目（同步：只在事件循环线程里调，dict 操作本身原子）。返回丢掉的条数。"""
+        keys = [k for k in self._store if str(k).startswith(prefix)]
+        for k in keys:
+            self._store.pop(k, None)
+        return len(keys)
+
     async def get_or_fetch(
         self,
         key: str,

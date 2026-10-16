@@ -136,6 +136,11 @@ class ArbitrationCommands:
                 for t, cells, _tv in chunk
             ],
             _arbi.TIER_NOTE,
+            *(
+                [_arbi.LOW_NOTE]
+                if any(_arbi.LOW_MARK in "".join(c) for _t, c, _tv in chunk)
+                else []
+            ),
             "★ 实测值（尤其「生存 / 中断」）吃队伍熟练度，普通队伍未必打得到",
         ]
         title = f"仲裁排期 · {fdesc}（第{page}/{pages}页，共{total}场）"
@@ -202,6 +207,8 @@ class ArbitrationCommands:
             rate = "评级：未评级"
         elif src == "arbi":
             rate = f"评级：{tv}（arbi 社区评级）"
+        elif _arbi.low_sample(key_now, tier_of):
+            rate = f"评级：{tv}（社区实测中位 · 样本少）"
         else:
             rate = f"评级：{tv}（社区实测中位）"
         if mrec.get("median") is not None:
@@ -219,6 +226,7 @@ class ArbitrationCommands:
             "◆ 下一小时：" + (S.join(nxt_cells[:4]) if nxt_cells else "（排期表已到末尾）"),
             "※ 筛选：发「仲裁 类型 / 高效 / 传奇 / 今天」，类型 " + self._ARB_TYPES_STR,
             _arbi.TIER_NOTE + "（实测非官方，仅供参考）",
+            *([_arbi.LOW_NOTE] if nxt_cells and _arbi.LOW_MARK in "".join(nxt_cells) else []),
             "★ 实测值（尤其「生存 / 中断」）来自上传记录的高水平队伍，普通队伍未必打得到",
         ]
         return Reply(
@@ -258,9 +266,7 @@ class ArbitrationCommands:
             system = n.get("systemNameZh", "")
             mtype = _arb_mission(n)
             fac = _arb_faction(n)
-            tv = node_tier.get(key, "")
-            if tv == "未评级":
-                tv = ""
+            tv = _arbi.tier_label(key, node_tier)  # 样本少的实测档带「*」
             t = datetime.fromtimestamp(start + (idx0 + h) * step, tz=timezone.utc) + timedelta(
                 hours=8
             )
@@ -310,6 +316,8 @@ class ArbitrationCommands:
         if over:
             chunk.append(f"※ 只有 {pages} 页，已显示最后一页")
         chunk.append(_arbi.TIER_NOTE)  # 评级列下方标评分范围（2026-10-16 维护者要求）
+        if any(r[5].endswith(_arbi.LOW_MARK) for r in page_rows):
+            chunk.append(_arbi.LOW_NOTE)
         # ★ 2026-10-11：时间列是北京时间 —— 标在标题上（正文行全是列对齐的数据行）
         fdesc = "、".join(t for t in toks if t in self._ARB_TYPES)
         title = (

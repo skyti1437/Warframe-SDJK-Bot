@@ -323,6 +323,10 @@ CARD_W_MIN, CARD_W_MAX = 960, 1260  # 卡宽范围
 # 列对齐卡（遗物出库/入库等 9 列网格）的列宽合计本身就超过 1260 时，允许放宽到
 # 旧版上限 1500：宁可卡宽，也不能触发下面的「安全阀」放弃列对齐（对齐是这类卡的存在意义）。
 CARD_W_TABLE_MAX = 1500
+# 奸商卡专用上限（2026-10-16 用户：「宽度不够你可以拉长」）：货单两件一行共 6 列，长商品名
+# （如「蒙面者的经纬仪号」船员套服袖件）会让 Σ列宽超过 1500 → 安全阀关掉列对齐、左右挤成一团。
+# 只对这张卡放宽，宁可卡宽也保住列对齐；其他卡不受影响。
+CARD_W_BARO_MAX = 2000
 FS_BODY, FS_NOTE, FS_TITLE = 30, 24, 44  # 正文 / 注释 / 标题字号
 RH_ROW, RH_CONT, RH_NOTE, RH_SEC = 50, 40, 36, 58  # 行高：正文 / 续行 / 注释 / 分区标题
 
@@ -336,7 +340,7 @@ def _mix(a, b, t: float) -> tuple[int, int, int]:
 
 
 def _tint(
-    color: tuple[int, int, int], alpha: int, bg: tuple[int, int, int] = PANEL_BG
+    color: tuple[int, int, int], alpha: int, bg: Optional[tuple[int, int, int]] = None
 ) -> tuple[int, int, int]:
     """把带透明度的颜色预混到背景上，返回**不透明** RGB。
 
@@ -347,8 +351,10 @@ def _tint(
     Args:
         color: 前景 RGB。
         alpha: 等效不透明度（0-255）。
-        bg: 背景 RGB，默认面板底色。
+        bg: 背景 RGB，默认面板底色（运行时取：主题会改 PANEL_BG，默认参数不能在定义时绑死）。
     """
+    if bg is None:
+        bg = PANEL_BG
     return _mix(bg, color, max(0, min(255, int(alpha))) / 255.0)
 
 
@@ -916,6 +922,67 @@ def _strip_emoji(text: str) -> tuple[str, bool]:
     return clean, had_head
 
 
+# 字形覆盖探测（2026-10-16：原先 _probe 只认 Noto/雅黑/苹方/文泉驿的族名，用户导入的
+# 霞鹜文楷、思源宋体等一律选不中）。改为「这些字都有字形」才算能用：
+FONT_PROBE_HANZI = "国的一是战甲紫卡遗物仲裁蹲赏金"  # 必须全有（卡片正文最常见的字）
+FONT_PROBE_SYMBOLS = "◆※·★▲▼▣"  # 卡片符号；缺了只提示（会显示成方块），不拒用
+_NOTDEF_PROBE = "\U0010fffd"  # 私用区末位：任何字体都不会有 ⇒ 拿它画出来的就是 .notdef
+
+
+def _glyph_missing(font, ch: str, notdef) -> bool:
+    """该字符是否缺字形：画出来是空的，或与 .notdef 位图完全一样。"""
+    try:
+        m = font.getmask(ch)
+    except Exception:  # noqa: BLE001
+        return True
+    if not m.getbbox():
+        return True
+    return notdef is not None and m.size == notdef[0] and bytes(m) == notdef[1]
+
+
+def font_face_coverage(font) -> dict:
+    """单个字体面的覆盖情况：{hanzi_missing, symbol_missing, ok}。"""
+    try:
+        nd = font.getmask(_NOTDEF_PROBE)
+        notdef = (nd.size, bytes(nd)) if nd.getbbox() else None
+    except Exception:  # noqa: BLE001
+        notdef = None
+    hz = [c for c in FONT_PROBE_HANZI if _glyph_missing(font, c, notdef)]
+    sy = [c for c in FONT_PROBE_SYMBOLS if _glyph_missing(font, c, notdef)]
+    return {"hanzi_missing": hz, "symbol_missing": sy, "ok": not hz}
+
+
+_PREFERRED_FACE = ("Noto Sans CJK SC", "YaHei", "PingFang", "WenQuanYi")
+
+
+def pick_cjk_face(path) -> Optional[dict]:
+    """在字体文件（ttc 多面）里挑能用的中文面：已知简中族名优先，否则取第一个覆盖达标的面。
+
+    返回 {index, name, coverage} 或 None（没有可用面 / 打不开）。
+    """
+    if ImageFont is None:
+        return None
+    first_ok = None
+    for idx in range(12):
+        try:
+            f = ImageFont.truetype(str(path), 24, index=idx)
+        except Exception:  # noqa: BLE001
+            break
+        try:
+            name = " ".join(x for x in f.getname() if x)
+        except Exception:  # noqa: BLE001
+            name = ""
+        if any(k in name for k in _PREFERRED_FACE) and "Mono" not in name:
+            cov = font_face_coverage(f)
+            if cov["ok"]:
+                return {"index": idx, "name": name, "coverage": cov}
+        if first_ok is None:
+            cov = font_face_coverage(f)
+            if cov["ok"]:
+                first_ok = {"index": idx, "name": name, "coverage": cov}
+    return first_ok
+
+
 class _Fonts:
     """字体加载：打包 Noto CJK 优先，其次**用户自放字体**，随后系统常见 CJK 字体。
 
@@ -947,13 +1014,28 @@ class _Fonts:
 
     _FONT_SUFFIXES = (".ttc", ".ttf", ".otf")
 
-    def __init__(self, user_dirs: Optional[list[Path]] = None):
+    def __init__(
+        self,
+        user_dirs: Optional[list[Path]] = None,
+        prefer_regular: Optional[Path] = None,
+        prefer_bold: Optional[Path] = None,
+    ):
         self.regular: Optional[Path] = None
         self.bold: Optional[Path] = None
         self._sc_index = 0
+        self._idx: dict[str, int] = {}  # 每个文件各自的字体面下标（正文 / 粗体可来自不同 ttc）
         self._cache: dict[tuple[str, int], "ImageFont.FreeTypeFont"] = {}
-        # 打包 → 用户自放 → 系统（用户字体优先于系统字体：明确放了就该用它）
-        for path in self.PACKED + self._user_fonts(user_dirs or []) + self.SYSTEM:
+        # 运维面板「外观」里指定的字体优先（appearance.json）；不存在或不含中文就照常自动挑
+        for want, slot in ((prefer_regular, "regular"), (prefer_bold, "bold")):
+            if want and Path(want).is_file() and self._probe(Path(want)):
+                setattr(self, slot, Path(want))
+        # 包内完整字库 → 用户字体目录 → 随包子集 → 系统。
+        # ★ 2026-10-16：原先是「整个 PACKED（含子集）→ 用户 → 系统」⇒ 市场版永远带着子集，
+        #   用户放进 plugin_data/<插件>/fonts/ 的完整字库（fetch_font.py / 运维面板下载）**永远用不上**，
+        #   生僻字仍是方块。_probe 要求常用汉字都有字形（pick_cjk_face），误放的西文字体选不中，挪前是安全的。
+        full = [p for p in self.PACKED if "Subset" not in p.name]
+        subset = [p for p in self.PACKED if "Subset" in p.name]
+        for path in full + self._user_fonts(user_dirs or []) + subset + self.SYSTEM:
             if not path.exists():
                 continue
             if "Bold" in path.name or "bold" in path.name:
@@ -991,31 +1073,16 @@ class _Fonts:
         return out
 
     def _probe(self, path: Path) -> bool:
-        """选到含简体中文的字体面；ttc 多面集合时优先非 Mono 的 SC 面。"""
+        """选到含简体中文的字体面并记下下标；已知简中族名优先，其次按字形覆盖判断（见 pick_cjk_face）。"""
         try:
-            best = None
-            for idx in range(12):
-                try:
-                    f = ImageFont.truetype(str(path), 24, index=idx)
-                except Exception:  # noqa: BLE001
-                    break
-                name = f.getname()[0]
-                if (
-                    name in ("Noto Sans CJK SC",)
-                    or "YaHei" in name
-                    or "PingFang" in name
-                    or "WenQuanYi" in name
-                ):
-                    self._sc_index = idx
-                    return True
-                if "CJK SC" in name and best is None:  # Mono 兜底
-                    best = idx
-            if best is not None:
-                self._sc_index = best
-                return True
-            return False
+            face = pick_cjk_face(path)
         except Exception:  # noqa: BLE001
             return False
+        if face is None:
+            return False
+        self._idx[str(path)] = face["index"]
+        self._sc_index = face["index"]
+        return True
 
     def get(self, which: str, size: int):
         path = self.regular if which == "regular" else self.bold
@@ -1024,7 +1091,8 @@ class _Fonts:
         key = (str(path), size)
         if key not in self._cache:
             try:
-                self._cache[key] = ImageFont.truetype(str(path), size * SS, index=self._sc_index)
+                idx = self._idx.get(str(path), self._sc_index)
+                self._cache[key] = ImageFont.truetype(str(path), size * SS, index=idx)
             except Exception:  # noqa: BLE001
                 return None
         return self._cache[key]
@@ -1293,7 +1361,90 @@ class ImageRenderer:
         if font_path:
             user_dirs.append(Path(font_path))
         user_dirs.append(self.cache_dir.parent / "fonts")
-        self.fonts = _Fonts(user_dirs=user_dirs) if Image is not None else None
+        self._user_dirs = user_dirs
+        self.fonts = None
+        self.reload_fonts()
+        self.reload_theme()
+
+    @property
+    def theme_dir(self) -> Path:
+        """主题图片（背景图 bg.png / 角标 logo.png）：plugin_data/<插件>/theme/。"""
+        return self.cache_dir.parent / "theme"
+
+    def theme_image(self, kind: str):
+        """读主题图片（kind = bg / logo）；没有或坏了返回 None。"""
+        if Image is None:
+            return None
+        f = self.theme_dir / f"{kind}.png"
+        try:
+            with Image.open(f) as im:
+                im.load()
+                return im.convert("RGBA" if kind == "logo" else "RGB")
+        except Exception:  # noqa: BLE001
+            return None
+
+    def reload_theme(self) -> None:
+        """按 appearance.json 的 theme 套用主题（主题是模块级状态，见文件末「主题」一节）。"""
+        if Image is None:
+            return
+        t = self.load_appearance().get("theme") or {}
+        try:
+            apply_theme(
+                t.get("colors") or {},
+                bg_image=self.theme_image("bg") if t.get("bg_image") else None,
+                bg_dim=float(t.get("bg_dim", 0.55)),
+                panel_alpha=float(t.get("panel_alpha", 1.0)),
+                logo=self.theme_image("logo") if t.get("logo") else None,
+            )
+        except Exception:  # noqa: BLE001 - 主题坏了退回默认，别让出图挂掉
+            apply_theme({})
+
+    @property
+    def appearance_path(self) -> Path:
+        """外观设置（字体选择 / 主题）：plugin_data/<插件>/appearance.json，运维面板写。"""
+        return self.cache_dir.parent / "appearance.json"
+
+    def load_appearance(self) -> dict:
+        try:
+            import json
+
+            data = json.loads(self.appearance_path.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001 - 没有 / 坏了都按默认
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    @property
+    def user_font_dir(self) -> Path:
+        """用户字体目录（plugin_data/<插件>/fonts/；运维面板下载完整字库的落点）。"""
+        return self.cache_dir.parent / "fonts"
+
+    def reload_fonts(self) -> None:
+        """重新挑选字体（下载 / 导入字库或改了字体选择后调用，不必重载插件）。"""
+        if Image is None:
+            return
+        app = self.load_appearance()
+        pr, pb = app.get("font_regular"), app.get("font_bold")
+        self.fonts = _Fonts(
+            user_dirs=self._user_dirs,
+            prefer_regular=Path(pr) if pr else None,
+            prefer_bold=Path(pb) if pb else None,
+        )
+
+    def font_kind(self) -> str:
+        """当前正文字体的来源：full（完整字库）/ subset（随包子集）/ user（导入）/ system / none。"""
+        reg = getattr(self.fonts, "regular", None)
+        if reg is None:
+            return "none"
+        if "Subset" in reg.name:
+            return "subset"
+        if reg.name in ("NotoSansCJK-Regular.ttc", "NotoSansCJK-Bold.ttc"):
+            return "full"
+        try:
+            if reg.parent.resolve() == self.user_font_dir.resolve():
+                return "user"  # 运维面板导入 / 上传的字体
+        except OSError:
+            pass
+        return "system"
 
     @property
     def available(self) -> bool:
@@ -1348,6 +1499,9 @@ class ImageRenderer:
         )  # 语法文档不做行内装饰
         # 赏金卡：地区行做横幅、等级右对齐成列、同组行之间不画分隔线
         self._bounty_mode = "赏金任务" in title
+        # 奸商卡：正文全是商品名 ——「净化 Corpus Prime」的「净化」不是任务类型、
+        # 「冲击」类 MOD 名也不是元素，词表染色在这张卡上只会误染（2026-10-16 用户截图）
+        self._baro_mode = "虚空商人" in title
         # 侵袭卡的 4 列（类型/派系/等级/地点）走既有列对齐机制；
         # 价格榜 / 紫卡热度榜的多列数字同样按全角空格切列对齐
         # 遗物三张列表卡（入库/出库/列表）同样是网格排版：不开这个模式的话
@@ -1539,8 +1693,9 @@ class ImageRenderer:
         w_cap = CARD_W_MAX
         if self._table_mode and len(col_max) > 1:
             _tbl_need = sum(col_max) + 24 * (len(col_max) - 1) + pad * 2 + 56
+            _tbl_cap = CARD_W_BARO_MAX if getattr(self, "_baro_mode", False) else CARD_W_TABLE_MAX
             w_cap = int(
-                max(CARD_W_MAX, min(CARD_W_TABLE_MAX, int(_tbl_need) + 1))
+                max(CARD_W_MAX, min(_tbl_cap, int(_tbl_need) + 1))
             )  # +1：向上取整，防安全阀差 1px 误关
         elif grid_need:
             # 列表网格（自动列对齐）放不进常规卡宽时，同表格卡一样放宽到 1500，
@@ -1662,6 +1817,17 @@ class ImageRenderer:
                 and grid_need <= W - pad * 2 - 56
             ):
                 wrapped = [clean]  # 网格整体放得下：不按「单行 + 空格」折行（会把标记折成孤字）
+            elif (
+                getattr(self, "_baro_mode", False)
+                and self._table_mode
+                and base_kind == "normal"
+                and clean.lstrip().startswith("·")
+                and "　" in clean
+            ):
+                # 奸商货单行按列对齐绘制：列宽已逐列计入卡宽（安全阀保证放得下），
+                # 不能再按「整行原文」折行 —— 原文的全角空格分隔比列间隙宽，两件长名
+                # 同行时原文超宽被折、退回普通排版，整行脱离列对齐（2026-10-16 实测）。
+                wrapped = [clean]
             else:
                 wrapped = self._wrap_cached(clean, _wrap_font, max(300, wrap_w))
             # 分列单元格（见 _split_cells 的说明）。
@@ -1858,6 +2024,8 @@ class ImageRenderer:
         # —— 画布：扁平 RGB + 一条竖向细渐变（1×256 列 BILINEAR 直接放大，无叠层）——
         Wp, Hp = W * SS, H * SS
         img = _bg_column().resize((Wp, Hp), Image.BILINEAR)
+        if _THEME["bg_image"] is not None:
+            img = _with_bg_image(img, _THEME["bg_image"], _THEME["bg_dim"])
         d = ImageDraw.Draw(img)
 
         X0 = (outer + PADX) * SS
@@ -1941,9 +2109,13 @@ class ImageRenderer:
                 continue
             rect = [PX0, by + b0 * SS, PX1, by + b1 * SS]
             if bk == "body":
-                d.rounded_rectangle(
-                    rect, radius=12 * SS, fill=PANEL_BG, outline=PANEL_LINE, width=SS
-                )
+                if _panel_translucent():
+                    _translucent_fill(img, rect, PANEL_BG, _THEME["panel_alpha"], 12 * SS)
+                    d.rounded_rectangle(rect, radius=12 * SS, outline=PANEL_LINE, width=SS)
+                else:
+                    d.rounded_rectangle(
+                        rect, radius=12 * SS, fill=PANEL_BG, outline=PANEL_LINE, width=SS
+                    )
                 items = [lay for lay in layout if lay[4] == bi]
                 has_kv = any(lay[0]["kind"] == "kv" for lay in items)
                 n_items = sum(1 for lay in items if not lay[0].get("cont"))
@@ -1959,11 +2131,18 @@ class ImageRenderer:
                         if idx % 2 == 1:
                             zebra_rows.add(id(r))
                             ry = by + lay[1] * SS
-                            d.rectangle([PX0 + SS, ry, PX1 - SS, ry + lay[3] * SS], fill=PANEL_ALT)
+                            zr = [PX0 + SS, ry, PX1 - SS, ry + lay[3] * SS]
+                            if _panel_translucent():
+                                _translucent_fill(img, zr, PANEL_ALT, _THEME["panel_alpha"], 0)
+                            else:
+                                d.rectangle(zr, fill=PANEL_ALT)
             else:
                 fill = WARN_BG if bk == "warn" else NOTE_BG
                 bar = WARN_BAR if bk == "warn" else NOTE_BAR
-                d.rounded_rectangle(rect, radius=10 * SS, fill=fill)
+                if _panel_translucent():
+                    _translucent_fill(img, rect, fill, _THEME["panel_alpha"], 10 * SS)
+                else:
+                    d.rounded_rectangle(rect, radius=10 * SS, fill=fill)
                 d.rectangle([PX0, rect[1] + 6 * SS, PX0 + 4 * SS, rect[3] - 6 * SS], fill=bar)
 
         # KV 值列：标签宽取最大（上限 300px），值整列对齐
@@ -2309,6 +2488,9 @@ class ImageRenderer:
             d.text((X0, _ty(sf_, fyc)), left, font=sf_, fill=INK_FAINT)
         wm = f"{CARD_BRAND} {WATERMARK_VERSION}"
         d.text((X1, fyc), wm, font=f.get("bold", 18), fill=GOLD_FAINT, anchor="rm")
+        if _THEME["logo"] is not None:  # 用户角标：水印左侧，高 40 设计像素
+            wm_w = d.textlength(wm, font=f.get("bold", 18))
+            _paste_logo(img, _THEME["logo"], int(X1 - wm_w - 14 * SS), fyc, 40 * SS)
 
         d = None
         final = img.resize((W, H), Image.Resampling.BOX)
@@ -2710,8 +2892,13 @@ class ImageRenderer:
                 # 语义配色优先（任务类型 / 元素 / 派系 / 加成%）——
                 # 用集合直查，不走正则表，避免和评级、平台等 token 抢匹配。
                 # 赏金卡例外：Grineer/Corpus 保持正文色（见 _BOUNTY_PLAIN_FACTION）。
-                if special is not None and not (
-                    getattr(self, "_bounty_mode", False) and tok in _BOUNTY_PLAIN_FACTION
+                if (
+                    special is not None
+                    and not (getattr(self, "_bounty_mode", False) and tok in _BOUNTY_PLAIN_FACTION)
+                    and not (
+                        getattr(self, "_baro_mode", False)
+                        and (tok in _MISSION_TYPE_SET or tok in _ELEMENT_SET)
+                    )
                 ):
                     color = special
             wch = _tlen(d, font, tok)  # ★ 记忆化：高频 token（生存/剩余…）只测一次
@@ -2781,3 +2968,248 @@ class ImageRenderer:
                 old.unlink()
         except OSError:
             pass
+
+
+# ===========================================================================
+# 主题（运维面板「外观」，2026-10-16 维护者要求：可调颜色 / 背景图 / 角标，附实时预览）
+# ===========================================================================
+# 设计：
+#   · 默认主题 = 上面的常量原值；**不覆盖任何项时像素级不变**（tests/test_render_* 的对拍依赖这一点）。
+#   · 颜色常量大多在绘制时按全局名读取，直接改模块全局即可；但 TIER_COLOR / TITLE_THEME / _TOKEN_RULES
+#     等表在 import 时就把颜色值抄进去了 ⇒ 首次换肤时给这些表拍快照，每次 apply_theme 从快照
+#     按「原值 → 新值」重建（只换 _CONTAINER_CONSTS 里那些色，警示竖条与琥珀同值，不能混在一起换）。
+#   · 派生色（GOLD_DIM / PANEL_ALT / INK_FAINT …）只在其来源色被改时才按比例重算，系数按默认值反推。
+#   · 主题是**模块级**状态：主渲染器与面板预览共用 —— 预览要在 main 的渲染锁里「套用→渲染→还原」。
+THEME_SLOTS: list[tuple[str, str, str, str, str]] = [
+    # (键, 名称, 影响的部分, 常量名, 分组)
+    ("bg", "背景", "整张卡的底色（竖向渐变，底部自动压暗一档）", "BG_TOP", "base"),
+    (
+        "accent",
+        "强调色",
+        "外框描边、表头分隔线、KV 标签、未单独配色的栏目色条 / 页码 / 序号底；水印与注释竖条按它自动推算",
+        "GOLD",
+        "base",
+    ),
+    (
+        "highlight",
+        "高亮色",
+        "四角金饰、分区标题文字、序号数字、★ / 满级 / 杜卡德 100 档",
+        "GOLD_BRIGHT",
+        "base",
+    ),
+    ("ink", "正文", "标题与正文文字", "INK", "base"),
+    (
+        "ink_dim",
+        "次要文字",
+        "副行、多列的非首列、页脚；注释文字与分隔细线按它自动推算",
+        "INK_DIM",
+        "base",
+    ),
+    ("panel", "面板", "正文面板底色；斑马纹、注释面板、档位框按它自动推算", "PANEL_BG", "base"),
+    ("line", "描边线", "面板描边、分区标题后的延伸线", "PANEL_LINE", "base"),
+    ("warn", "警示", "含 ⚠ 的警示面板左侧竖条（面板底色自动推算）", "WARN_BAR", "base"),
+    ("cyan", "青", "任务类型、裂隙 / 仲裁栏目、寒冷", "CYAN", "adv"),
+    ("violet", "紫", "赏金挑战、MOD、夜晚、安魂", "VIOLET", "adv"),
+    ("red", "红", "钢铁、S 级、下跌 ▼、警报 / 赤毒栏目", "RED", "adv"),
+    ("green", "绿", "上涨 ▲、在线、A 级、已抵达", "GREEN", "adv"),
+    ("amber", "琥珀", "倒计时、平原 / 赏金栏目、「剩 / 已结束」", "AMBER", "adv"),
+    ("blue", "蓝", "染色段、点位、新闻栏目", "BLUE", "adv"),
+    ("magenta", "品红", "电波 / 对话栏目、外观 / 精英标签", "MAGENTA", "adv"),
+    ("teal", "青绿", "伤害元素类型、先锋纪元、特惠栏目", "TEAL", "adv"),
+    ("steel", "钢蓝", "前纪、罕见 / 常驻标签、页码", "STEEL", "adv"),
+    ("blueprint", "橙金", "蓝图 ▣", "BLUEPRINT", "adv"),
+    ("rarity_silver", "银", "杜卡德 45 / 65 档部件", "RARITY_SILVER", "adv"),
+    ("rarity_bronze", "铜", "杜卡德 15 / 25 档部件", "RARITY_BRONZE", "adv"),
+]
+_DERIVED = (
+    "BG_BOT",
+    "GOLD_DIM",
+    "GOLD_FAINT",
+    "NOTE_BAR",
+    "TIER_FRAME_LINE",
+    "RARITY_GOLD",
+    "BONUS_COLOR",
+    "INK_FAINT",
+    "HAIR",
+    "PANEL_ALT",
+    "NOTE_BG",
+    "TIER_FRAME_FILL",
+    "WARN_BG",
+    "MISSION_TYPE_COLOR",
+    "CHALLENGE_COLOR",
+    "ELEMENT_COLOR",
+)
+# 会被抄进表里的颜色（重建表时按「原值 → 新值」替换）；值两两不同，替换不会串
+_CONTAINER_CONSTS = (
+    "GOLD",
+    "GOLD_BRIGHT",
+    "AMBER",
+    "CYAN",
+    "VIOLET",
+    "RED",
+    "GREEN",
+    "BLUE",
+    "MAGENTA",
+    "TEAL",
+    "STEEL",
+    "BLUEPRINT",
+    "INK",
+    "INK_DIM",
+    "INK_FAINT",
+    "RARITY_SILVER",
+    "RARITY_BRONZE",
+)
+_CONTAINERS = (
+    "TIER_COLOR",
+    "GROUP_CHIP_COLOR",
+    "_SPAN_COLORS",
+    "TITLE_THEME",
+    "_TOKEN_RULES",
+    "_MARK_CHIPS",
+)
+_THEME_DEFAULTS: dict[str, tuple[int, int, int]] = {
+    n: globals()[n]
+    for n in {c for *_, c, _g in THEME_SLOTS} | set(_DERIVED) | set(_CONTAINER_CONSTS)
+}
+_THEME_SNAPSHOT: dict = {}
+_THEME: dict = {"bg_image": None, "bg_dim": 0.55, "panel_alpha": 1.0, "logo": None, "colors": {}}
+
+
+def theme_defaults() -> dict[str, str]:
+    """各槽位默认色（#rrggbb）。"""
+    return {k: "#%02x%02x%02x" % _THEME_DEFAULTS[c] for k, _l, _w, c, _g in THEME_SLOTS}
+
+
+def parse_hex_color(v) -> Optional[tuple[int, int, int]]:
+    m = re.fullmatch(r"#?([0-9a-fA-F]{6})", str(v or "").strip())
+    if not m:
+        return None
+    h = m.group(1)
+    return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
+
+
+def _sub_colors(obj, cmap: dict):
+    """深拷贝式替换：RGB 三元组按 cmap 换，其余（字符串、正则、嵌套结构）原样保留。"""
+    if isinstance(obj, tuple) and len(obj) == 3 and all(isinstance(x, int) for x in obj):
+        return cmap.get(obj, obj)
+    if isinstance(obj, tuple):
+        return tuple(_sub_colors(x, cmap) for x in obj)
+    if isinstance(obj, list):
+        return [_sub_colors(x, cmap) for x in obj]
+    if isinstance(obj, dict):
+        return {k: _sub_colors(v, cmap) for k, v in obj.items()}
+    return obj
+
+
+def apply_theme(
+    colors: Optional[dict] = None,
+    bg_image=None,
+    bg_dim: float = 0.55,
+    panel_alpha: float = 1.0,
+    logo=None,
+) -> None:
+    """套用主题（colors：槽位键 → RGB 或 #hex；不给的用默认）。幂等，可反复调用 / 还原。
+
+    bg_image / logo：PIL Image 或 None；bg_dim：背景图上压一层底色的不透明度（越大越暗、文字越清楚）；
+    panel_alpha：有背景图时面板的不透明度（1 = 不透明，背景只在边框与留白处露出）。
+    """
+    g = globals()
+    if not _THEME_SNAPSHOT:
+        _THEME_SNAPSHOT.update({n: g[n] for n in _CONTAINERS})
+        _THEME_SNAPSHOT["_HELP_CMD_COLORS"] = ImageRenderer._HELP_CMD_COLORS
+    vals = dict(_THEME_DEFAULTS)
+    changed: set[str] = set()
+    for key, _l, _w, const, _g in THEME_SLOTS:
+        raw = (colors or {}).get(key)
+        rgb = raw if isinstance(raw, tuple) else parse_hex_color(raw)
+        if rgb is not None and tuple(rgb) != _THEME_DEFAULTS[const]:
+            vals[const] = tuple(rgb)
+            changed.add(key)
+    v = vals
+    if "bg" in changed:
+        v["BG_BOT"] = _mix(v["BG_TOP"], (0, 0, 0), 0.24)
+    if changed & {"accent", "bg", "panel"}:
+        v["GOLD_DIM"] = _mix(v["GOLD"], v["BG_BOT"], 0.46)
+        v["GOLD_FAINT"] = _mix(v["GOLD"], v["BG_BOT"], 0.575)
+        v["NOTE_BAR"] = _mix(v["GOLD"], v["PANEL_BG"], 0.62)
+        v["TIER_FRAME_LINE"] = _mix(v["GOLD"], v["PANEL_BG"], 0.72)
+    if "highlight" in changed:
+        v["RARITY_GOLD"] = v["BONUS_COLOR"] = v["GOLD_BRIGHT"]
+    if changed & {"ink_dim", "panel"}:
+        v["INK_FAINT"] = _mix(v["INK_DIM"], v["PANEL_BG"], 0.24)
+        v["HAIR"] = _mix(v["PANEL_BG"], v["INK_DIM"], 0.14)
+    if changed & {"panel", "ink", "bg"}:
+        v["PANEL_ALT"] = _mix(v["PANEL_BG"], v["INK"], 0.025)
+        v["NOTE_BG"] = _mix(v["PANEL_BG"], v["BG_BOT"], 0.4)
+        v["TIER_FRAME_FILL"] = _mix(v["PANEL_BG"], v["INK"], 0.018)
+    if changed & {"warn", "bg"}:
+        v["WARN_BG"] = _mix(v["WARN_BAR"], v["BG_BOT"], 0.87)
+    v["MISSION_TYPE_COLOR"], v["CHALLENGE_COLOR"], v["ELEMENT_COLOR"] = (
+        v["CYAN"],
+        v["VIOLET"],
+        v["TEAL"],
+    )
+    for name, rgb in v.items():
+        g[name] = rgb
+    cmap = {_THEME_DEFAULTS[c]: v[c] for c in _CONTAINER_CONSTS if v[c] != _THEME_DEFAULTS[c]}
+    for name in _CONTAINERS:
+        g[name] = _sub_colors(_THEME_SNAPSHOT[name], cmap)
+    ImageRenderer._HELP_CMD_COLORS = _sub_colors(_THEME_SNAPSHOT["_HELP_CMD_COLORS"], cmap)
+    g["_BG_COL"] = None
+    _TOKEN_STYLE.clear()
+    _THEME.update(
+        bg_image=bg_image,
+        bg_dim=max(0.0, min(0.95, float(bg_dim))),
+        panel_alpha=max(0.3, min(1.0, float(panel_alpha))),
+        logo=logo,
+        colors={k: "#%02x%02x%02x" % v[c] for k, _l, _w, c, _g in THEME_SLOTS if k in changed},
+    )
+
+
+def theme_state() -> dict:
+    """当前生效的主题（预览后还原用）。"""
+    return {
+        "colors": dict(_THEME["colors"]),
+        "bg_image": _THEME["bg_image"],
+        "bg_dim": _THEME["bg_dim"],
+        "panel_alpha": _THEME["panel_alpha"],
+        "logo": _THEME["logo"],
+    }
+
+
+def _panel_translucent() -> bool:
+    return _THEME["bg_image"] is not None and _THEME["panel_alpha"] < 0.999
+
+
+def _with_bg_image(canvas: "Image.Image", src: "Image.Image", dim: float) -> "Image.Image":
+    """背景图按 cover 缩放铺满画布，再压一层底色渐变（dim = 底色的不透明度），保证文字对比度。"""
+    W_, H_ = canvas.size
+    sw, sh = src.size
+    k = max(W_ / sw, H_ / sh)
+    im = src.convert("RGB").resize(
+        (max(1, int(sw * k + 0.5)), max(1, int(sh * k + 0.5))), Image.BILINEAR
+    )
+    l_, t_ = (im.width - W_) // 2, (im.height - H_) // 2
+    im = im.crop((l_, t_, l_ + W_, t_ + H_))
+    return Image.blend(im, canvas, max(0.0, min(1.0, dim)))
+
+
+def _translucent_fill(img: "Image.Image", rect, color, alpha: float, radius: int) -> None:
+    """半透明填充：按形状画遮罩，用纯色带遮罩贴上去（PIL 的 paste+mask 就是 alpha 混合）。"""
+    x0, y0, x1, y1 = (int(round(x)) for x in rect)
+    w, h = max(1, x1 - x0), max(1, y1 - y0)
+    m = Image.new("L", (w, h), 0)
+    md = ImageDraw.Draw(m)
+    a = int(255 * max(0.0, min(1.0, alpha)))
+    if radius:
+        md.rounded_rectangle([0, 0, w - 1, h - 1], radius=radius, fill=a)
+    else:
+        md.rectangle([0, 0, w - 1, h - 1], fill=a)
+    img.paste(tuple(color), (x0, y0, x0 + w, y0 + h), m)
+
+
+def _paste_logo(img: "Image.Image", logo: "Image.Image", right: int, yc: int, height: int) -> None:
+    lg = logo.convert("RGBA")
+    k = height / max(1, lg.height)
+    lg = lg.resize((max(1, int(lg.width * k)), height), Image.LANCZOS)
+    img.paste(lg, (right - lg.width, int(yc - height / 2)), lg)

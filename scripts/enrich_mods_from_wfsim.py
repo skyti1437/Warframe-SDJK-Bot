@@ -46,10 +46,22 @@ def main():
     keys = {k.lower() for k in ours["mods"]}
     names = {str(v.get("name") or "").lower() for v in ours["mods"].values()}
 
+    # ★ 2026-10-16：wfsim 把「卡面写的武器排除」做成了数据 —— MOD 的 excludes_weapon（标签）+
+    #   武器的 compatibility_tags。这里按标签解析成**被排除的武器英文名**（小写）写进 excludes_weapons，
+    #   计算器装到这些武器上时整卡不计入（例：Split Flights「(Non-AOE Bows)」排除 Lenz / Kuva Bramma / 弩…）。
+    weapon_tags: dict[str, set] = {}
+    for wf in glob.glob(os.path.join(WFSIM, os.pardir, "weapons", "**", "*.yaml"), recursive=True):
+        with open(wf, encoding="utf-8") as fh:
+            wy = yaml.safe_load(fh)
+        if isinstance(wy, dict) and wy.get("name") and wy.get("compatibility_tags"):
+            weapon_tags.setdefault(str(wy["name"]).lower(), set()).update(
+                str(t) for t in wy["compatibility_tags"]
+            )
+
     out = {
         "_meta": {
-            "source": "github.com/magenie33/wfsim data/mods（家族互斥 + 条件堆叠）",
-            "updated": "2026-09-16",
+            "source": "github.com/magenie33/wfsim data/mods（家族互斥 + 条件堆叠 + 武器排除）",
+            "updated": __import__("datetime").date.today().isoformat(),
             "grants_map": GRANTS_MAP,
         }
     }
@@ -90,6 +102,10 @@ def main():
         if conds:
             entry["conditionals"] = conds
             n_cond += 1
+        excl = {str(t) for t in (y.get("excludes_weapon") or [])}
+        if excl:
+            entry["excludes_tags"] = sorted(excl)
+            entry["excludes_weapons"] = sorted(n for n, tags in weapon_tags.items() if tags & excl)
         if entry:
             out[our_key] = entry
 

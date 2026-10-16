@@ -18,6 +18,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
+from . import paths
+
 DATA_FILE = Path(__file__).resolve().parent / "data" / "baro_history.json"
 
 _DB: Optional[dict] = None
@@ -108,6 +110,54 @@ def group_of(t: str) -> str:
     return "其他"
 
 
+# 当期货单（DE worldState 的 ``ItemType`` 路径）→ 卡片类别：分组顺序 + 判定表。
+#
+# ★ 2026-10-16：与 :func:`group_of` 是**两套口径**，缺一不可 ——
+#   预测卡的数据源（wiki ``Module:Baro/data``）只有类型文字 ``Type``，走 group_of；
+#   当期货单的数据源（DE worldstate）只有资源路径 ``ItemType``，走 group_of_store。
+#   顺序即语义：「/upgrades/skins/」排在「/weapons/」**之前** —— 武器外观的路径是
+#   ``/Upgrades/Skins/Weapons/…``，先判 /weapons/ 会把外观错归「武器」（DeepSeek 实现时发现，Claude 调序）。
+STORE_GROUP_ORDER = ("武器", "MOD", "外观", "装饰", "遗物", "消耗品", "礼包", "其他")
+
+# (路径子串, 类别)；子串一律**小写**比较（DE 路径是 CamelCase：ShipDecos / BoosterPacks…）
+_STORE_RULES = (
+    ("/upgrades/skins/", "外观"),
+    # ★ 2026-10-16（ZCode 冒烟 + 玩家反馈分类不对）：CosmeticEnhancers 名为「外观增强」，实为
+    #   怪奇 MOD（Peculiars，wiki 类型 Mod (Warframe)）与赋能的目录 —— 原先整目录归「外观」，
+    #   当期「终劫怪奇」因此错归外观。怪奇归 MOD；该目录其余（赋能等）不再默认外观，落「其他」。
+    ("/cosmeticenhancers/peculiars/", "MOD"),
+    ("/weapons/", "武器"),
+    ("/upgrades/mods/", "MOD"),
+    ("/sentinelprecepts/", "MOD"),
+    ("/shipdecos/", "装饰"),
+    ("/avatarimages/", "装饰"),
+    ("/songitems/", "装饰"),
+    ("/captura", "装饰"),
+    ("/colourpicker", "装饰"),
+    ("/projections/", "遗物"),
+    ("/boosters/", "消耗品"),
+    ("/boosterpacks/", "消耗品"),
+    ("/restoratives/", "消耗品"),
+    ("/consumable", "消耗品"),
+    ("/packages/", "礼包"),
+    ("bundle", "礼包"),
+)
+
+
+def group_of_store(path: str) -> str:
+    """DE 商品路径（``ItemType``）→ 卡片类别（当期货单的分组芯片用）。
+
+    ★ 2026-10-16：纯函数、无数据依赖。按子串**不区分大小写**匹配，先命中先返回；
+    一个都不命中即「其他」—— 老数据 / warframestat 源没有路径、或以后 DE 新品类
+    都落这一支，不抛异常、不猜。
+    """
+    p = (path or "").lower()
+    for sub, grp in _STORE_RULES:
+        if sub in p:
+            return grp
+    return "其他"
+
+
 def names_zh() -> dict:
     """Baro 物品的官方简中名（由 scripts/build_baro_names.py 生成）。"""
     global _NAMES
@@ -129,10 +179,17 @@ def load() -> dict:
     global _DB
     if _DB is None:
         try:
-            _DB = json.loads(DATA_FILE.read_text(encoding="utf-8"))
+            # ★ 2026-10-16：运行目录优先（社区快照刷新后写在那里），没有再读包内种子 DATA_FILE
+            _DB = json.loads(paths.read_path(DATA_FILE.name).read_text(encoding="utf-8"))
         except Exception:  # noqa: BLE001
             _DB = {}
     return _DB
+
+
+def reset() -> None:
+    """社区快照换新后清缓存（下次 load 重读）。"""
+    global _DB
+    _DB = None
 
 
 def visits() -> list[str]:

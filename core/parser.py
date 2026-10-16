@@ -333,12 +333,12 @@ RIVEN_STAT_ALIASES: dict[str, set[str]] = {
     # ★ 2026-10-10：RIVEN_STAT_ZH 的卡面短名（O伤/S伤/T伤/弱点伤/处决伤）必须也是别名 ——
     #   wr 卡上显示什么，玩家就照抄什么；漏了会被并进武器名（「wr 空刃 弱点伤」→ 武器
     #   「空刃 弱点伤」）。守卫见 tests/test_riven_stat_i18n.py 第 12 段。
-    "gas_damage": ["毒气伤害", "毒气", "Gas Damage"],
-    "corrosive_damage": ["腐蚀伤害", "腐蚀", "Corrosive Damage"],
-    "viral_damage": ["病毒伤害", "病毒", "Viral Damage"],
-    "radiation_damage": ["辐射伤害", "辐射", "Radiation Damage"],
-    "blast_damage": ["爆炸伤害", "爆炸", "Blast Damage"],
-    "magnetic_damage": ["磁力伤害", "磁力", "Magnetic Damage"],
+    "gas_damage": {"毒气伤害", "毒气伤", "毒气", "Gas Damage", "Gas"},
+    "corrosive_damage": {"腐蚀伤害", "腐蚀伤", "腐蚀", "Corrosive Damage", "Corrosive"},
+    "viral_damage": {"病毒伤害", "病毒伤", "病毒", "Viral Damage", "Viral"},
+    "radiation_damage": {"辐射伤害", "辐射伤", "辐射", "Radiation Damage", "Radiation"},
+    "blast_damage": {"爆炸伤害", "爆炸伤", "爆炸", "Blast Damage", "Blast"},
+    "magnetic_damage": {"磁力伤害", "磁力伤", "磁力", "Magnetic Damage", "Magnetic"},
     "damage_vs_orokin": [
         "对奥罗金的伤害",
         "对奥罗金伤害",
@@ -347,7 +347,16 @@ RIVEN_STAT_ALIASES: dict[str, set[str]] = {
         "对奥罗金",
         "对O伤",
         "O伤",
+        "O系",
+        "O系伤害",
+        "O歧视",
+        "O",
+        "奥罗金伤害",
+        "奥罗金歧视",
+        "对Orokin的伤害",
         "Orokin Damage",
+        "Damage to Orokin",
+        "Damage vs Orokin",
     ],
     "damage_vs_scaldra": [
         "对炽蛇军的伤害",
@@ -357,7 +366,16 @@ RIVEN_STAT_ALIASES: dict[str, set[str]] = {
         "对炽蛇军",
         "对S伤",
         "S伤",
+        "S系",
+        "S系伤害",
+        "S歧视",
+        "S",
+        "炽蛇军伤害",
+        "炽蛇军歧视",
+        "对Scaldra的伤害",
         "Scaldra Damage",
+        "Damage to Scaldra",
+        "Damage vs Scaldra",
     ],
     "damage_vs_techrot": [
         "对科腐者的伤害",
@@ -367,9 +385,25 @@ RIVEN_STAT_ALIASES: dict[str, set[str]] = {
         "对科腐者",
         "对T伤",
         "T伤",
+        "T系",
+        "T系伤害",
+        "T歧视",
+        "T",
+        "科腐者伤害",
+        "科腐者歧视",
+        "对Techrot的伤害",
         "Techrot Damage",
+        "Damage to Techrot",
+        "Damage vs Techrot",
     ],
-    "weakpoint_damage": ["弱点伤害", "弱点", "弱伤", "弱点伤", "Weakpoint Damage"],
+    "weakpoint_damage": [
+        "弱点伤害",
+        "弱点",
+        "弱伤",
+        "弱点伤",
+        "Weakpoint Damage",
+        "Weak Point Damage",
+    ],
     "weakpoint_crit_chance": [
         "弱点暴击几率",
         "弱点暴击率",
@@ -377,7 +411,12 @@ RIVEN_STAT_ALIASES: dict[str, set[str]] = {
         "弱点暴击",
         "弱点暴",
         "弱爆",
+        "弱点爆击",
+        "弱点爆击几率",
+        "弱点暴率",
+        "弱点爆率",
         "Weakpoint Critical Chance",
+        "Weak Point Critical Chance",
     ],
     "status_damage": [
         "异常状态伤害",
@@ -386,22 +425,34 @@ RIVEN_STAT_ALIASES: dict[str, set[str]] = {
         "异常状态",
         "异常伤",
         "状态伤",
+        "异常",
+        "异",
         "Status Damage",
+        "异常状态的伤害",
     ],
-    "ammo_efficiency": ["弹药效率", "弹效", "Ammo Efficiency"],
+    "ammo_efficiency": ["弹药效率", "弹效", "弹药效能", "Ammo Efficiency"],
     "reload_holstered": [
         "收起武器时弹匣每秒自动装填",
         "收起时装填",
         "收枪装填",
         "收枪",
+        "收起武器时自动装填",
+        "收起武器时装填",
+        "收起装填",
+        "收枪装弹",
+        "后台装填",
         "Reload While Holstered",
+        "Holster Reload",
     ],
     "melee_heavy_attack_damage": [
         "在重击时的近战伤害",
         "重击伤害",
         "重击",
         "重击伤",
+        "近战重击伤害",
+        "重攻击伤害",
         "Heavy Attack Damage",
+        "Melee Damage on Heavy Attack",
     ],
     "melee_heavy_attack_charge": [
         "重击准备速度",
@@ -409,11 +460,41 @@ RIVEN_STAT_ALIASES: dict[str, set[str]] = {
         "重击蓄力",
         "重击准备",
         "重击速度",
+        "重击准备速率",
+        "重击蓄力速率",
         "Heavy Attack Charge",
+        "Heavy Attack Wind Up Speed",
     ],
-    "melee_parry_angle": ["招架角度", "格挡角度", "招架", "Parry Angle"],
-    "melee_slam_damage": ["震地攻击伤害", "震地伤害", "震地", "震地伤", "Slam Damage"],
-    "melee_damage": {"近战伤害", "基伤", "基础伤害", "近战", "基础", "基"},
+    "melee_parry_angle": [
+        "招架角度",
+        "格挡角度",
+        "格挡范围",
+        "格挡",
+        "招架",
+        "Parry Angle",
+        "Block Angle",
+    ],
+    "melee_slam_damage": [
+        "震地攻击伤害",
+        "震地伤害",
+        "震地",
+        "震地伤",
+        "Slam Damage",
+        "Slam Attack Damage",
+    ],
+    "melee_damage": {
+        "近战伤害",
+        "基伤",
+        "基础伤害",
+        "近战",
+        "基础",
+        "基",
+        "伤害",
+        "Damage",
+        "Base Damage",
+        "Melee Damage",
+        "DMG",
+    },
     "crit_chance": {
         "暴击几率",
         "暴率",
@@ -429,21 +510,59 @@ RIVEN_STAT_ALIASES: dict[str, set[str]] = {
         "爆",
         "爆率几率",
         "暴几率",
+        "Critical Chance",
+        "Crit Chance",
+        "CC",
     },
-    "crit_damage": {"暴击伤害", "暴伤", "爆伤", "爆击伤害", "暴击伤", "爆击伤"},
-    "multishot": {"多重射击", "多重", "多"},
-    "attack_speed": {"攻击速度", "攻速", "速度"},
-    "fire_rate": {"射击速度", "射击速率", "射速"},
-    "status_chance": {"触发几率", "触发", "触率", "触发概率"},
-    "status_duration": {"触发时间", "触时", "触发持续时间"},
-    "range": {"攻击范围", "范围"},
-    "initial_combo": {"初始连击", "初始连击数", "连击数"},
-    "combo_duration": {"连击持续时间", "连击时间"},
-    "heavy_attack_efficiency": {"重击效率"},
+    "crit_damage": {
+        "暴击伤害",
+        "暴伤",
+        "爆伤",
+        "爆击伤害",
+        "暴击伤",
+        "爆击伤",
+        "Critical Damage",
+        "Crit Damage",
+        "CD",
+    },
+    "multishot": {"多重射击", "多重", "多", "Multishot", "Multi Shot", "MS"},
+    "attack_speed": {"攻击速度", "攻击速率", "攻速", "速度", "Attack Speed", "AS"},
+    "fire_rate": {"射击速度", "射击速率", "射速", "Fire Rate", "Firerate", "FR"},
+    "status_chance": {
+        "触发几率",
+        "触发",
+        "触率",
+        "触发概率",
+        "触发率",
+        "触",
+        "异常几率",
+        "异常概率",
+        "异常触发几率",
+        "异常状态几率",
+        "状态触发几率",
+        "Status Chance",
+        "SC",
+    },
+    "status_duration": {
+        "触发时间",
+        "触时",
+        "触发持续时间",
+        "触发时长",
+        "异常持续时间",
+        "异常状态持续时间",
+        "异常时间",
+        "异常时长",
+        "状态持续时间",
+        "Status Duration",
+    },
+    "range": {"攻击范围", "范围", "近战范围", "近战攻击范围", "Range", "Melee Range"},
+    "initial_combo": {"初始连击", "初始连击数", "初始", "初始连击点数", "连击数", "Initial Combo"},
+    "combo_duration": {"连击持续时间", "连击时间", "连击时长", "连击持续", "Combo Duration"},
+    "heavy_attack_efficiency": {"重击效率", "重击效能", "重击连击效率", "Heavy Attack Efficiency"},
     # ★ 2026-10-02 归并（口径统一）：原 combo_efficiency（「连击效率」）在 WM 32
     #   属性与官方基值表里都没有对应行，基值却等于「额外连击数几率」的 58.77 ——
     #   属早期误录的幽灵 sid。按维护者决定归并到额外连击数几率，这两个词不再单列。
-    "finisher_damage": {"处决伤害", "处决", "处决伤"},
+    "finisher_damage": {"处决伤害", "处决", "处决伤", "终结伤害", "终结伤", "Finisher Damage"},
     "slide_crit": {
         "滑行攻击时暴击率",
         "滑暴",
@@ -459,14 +578,31 @@ RIVEN_STAT_ALIASES: dict[str, set[str]] = {
         "滑行攻击暴击几率",
         "滑行攻击暴击率",
         "滑行攻击爆击几率",
+        "滑行暴击率",
+        "滑行爆击率",
+        "滑行攻击爆击率",
+        "滑铲暴击",
+        "滑铲暴击率",
+        "Slide Critical Chance",
+        "Critical Chance on Slide Attack",
     },
-    "slash_damage": {"切割伤害", "切割"},
-    "impact_damage": {"冲击伤害", "冲击"},
-    "puncture_damage": {"穿刺伤害", "穿刺"},
-    "heat_damage": {"火焰伤害", "火伤", "火", "火焰"},
-    "cold_damage": {"冰冻伤害", "冰伤", "冰", "冰冻"},
-    "toxin_damage": {"毒素伤害", "毒伤", "毒", "毒素"},
-    "electric_damage": {"电击伤害", "电伤", "电", "电击"},
+    "slash_damage": {"切割伤害", "切割", "切割伤", "切伤", "切", "Slash Damage", "Slash"},
+    "impact_damage": {"冲击伤害", "冲击", "冲击伤", "冲伤", "冲", "Impact Damage", "Impact"},
+    "puncture_damage": {"穿刺伤害", "穿刺", "穿刺伤", "刺伤", "Puncture Damage", "Puncture"},
+    "heat_damage": {"火焰伤害", "火伤", "火", "火焰", "火焰伤", "火伤害", "Heat Damage"},
+    "cold_damage": {"冰冻伤害", "冰伤", "冰", "冰冻", "冰冻伤", "冰伤害", "Cold Damage", "Cold"},
+    "toxin_damage": {"毒素伤害", "毒伤", "毒", "毒素", "毒素伤", "毒伤害", "Toxin Damage", "Toxin"},
+    "electric_damage": {
+        "电击伤害",
+        "电伤",
+        "电",
+        "电击",
+        "电击伤",
+        "电伤害",
+        "电气伤害",
+        "Electric Damage",
+        "Electricity",
+    },
     "damage_vs_grineer": {
         "对Grineer伤害",
         "G系伤害",
@@ -480,6 +616,10 @@ RIVEN_STAT_ALIASES: dict[str, set[str]] = {
         # ★ 2026-09-27：卡面原文带「的」（「对 Grineer 的伤害」），
         #   逐行解析读到的是卡面原文，不带这个别名会整条认不出。
         "对Grineer的伤害",
+        "对G伤",
+        "对Grineer",
+        "Damage to Grineer",
+        "Damage vs Grineer",
     },
     "damage_vs_corpus": {
         "对Corpus伤害",
@@ -492,6 +632,10 @@ RIVEN_STAT_ALIASES: dict[str, set[str]] = {
         "C歧视",
         "C",
         "对Corpus的伤害",
+        "对C伤",
+        "对Corpus",
+        "Damage to Corpus",
+        "Damage vs Corpus",
     },
     "damage_vs_infested": {
         "对Infested伤害",
@@ -504,14 +648,61 @@ RIVEN_STAT_ALIASES: dict[str, set[str]] = {
         "I歧视",
         "I",
         "对Infested的伤害",
+        "对I伤",
+        "对Infested",
+        "Damage to Infested",
+        "Damage vs Infested",
     },
-    "magazine_capacity": {"弹匣容量", "弹匣", "弹夹", "弹夹容量", "弹容"},
-    "ammo_max": {"弹药最大值", "弹药", "弹药上限"},
-    "projectile_speed": {"投射物速度", "弹道", "投射", "弹道飞行速度", "弹道速度"},
-    "punch_through": {"穿透"},
-    "reload_speed": {"装填速度", "装填", "装弹"},
-    "recoil": {"武器后坐力", "后坐", "后坐力", "后座", "后座力"},
-    "zoom": {"变焦", "缩放"},
+    "magazine_capacity": {
+        "弹匣容量",
+        "弹匣",
+        "弹夹",
+        "弹夹容量",
+        "弹容",
+        "弹匣上限",
+        "Magazine Capacity",
+        "Magazine Size",
+        "Magazine",
+    },
+    "ammo_max": {
+        "弹药最大值",
+        "弹药",
+        "弹药上限",
+        "最大弹药",
+        "最大弹药量",
+        "备弹",
+        "备弹量",
+        "Ammo Maximum",
+        "Max Ammo",
+        "Ammo Max",
+    },
+    "projectile_speed": {
+        "投射物速度",
+        "弹道",
+        "投射",
+        "弹道飞行速度",
+        "弹道速度",
+        "弹速",
+        "飞行速度",
+        "投射物飞行速度",
+        "Projectile Speed",
+        "Projectile Flight Speed",
+        "Flight Speed",
+    },
+    "punch_through": {"穿透", "穿透深度", "穿透距离", "Punch Through", "Punchthrough"},
+    "reload_speed": {
+        "装填速度",
+        "装填",
+        "装弹",
+        "装填速率",
+        "装弹速度",
+        "换弹",
+        "换弹速度",
+        "Reload Speed",
+        "Reload",
+    },
+    "recoil": {"武器后坐力", "后坐", "后坐力", "后座", "后座力", "Recoil", "Weapon Recoil"},
+    "zoom": {"变焦", "缩放", "瞄准变焦", "瞄准倍率", "瞄准缩放", "Zoom"},
     "extra_combo_count": {
         "额外连击数",
         "额外连击",
@@ -523,6 +714,11 @@ RIVEN_STAT_ALIASES: dict[str, set[str]] = {
         # ★ 2026-10-02 归并自原 combo_efficiency 幽灵 sid
         "连击效率",
         "近战连击效率",
+        "额外连击几率",
+        "额外连击概率",
+        "额外连击率",
+        "Chance to Gain Extra Combo Count",
+        "Extra Combo Count Chance",
     },
     # WM slug chance_to_gain_combo_count（仅负向；DE 官方文案「…% 的几率来获得连击数」）
     "combo_gain_chance": {
@@ -542,6 +738,10 @@ RIVEN_STAT_ALIASES: dict[str, set[str]] = {
         "的几率来获得连击数",
         "几率来获得连击数",
         "来获得连击数",
+        "连击获取概率",
+        "获得连击几率",
+        "不获得连击的几率",
+        "Chance to Gain Combo Count",
     },
 }
 # 组合词：一个别名展开为多个词条需求
@@ -661,12 +861,14 @@ _NEG_MARKS = ("带负", "负")
 _STAT_LOOKUP: dict[str, str] = {}
 for _std, _aliases in RIVEN_STAT_ALIASES.items():
     for _a in _aliases:
-        # 短别名（<=2 字符且为中文）允许覆盖，保留最先注册的标准名
+        # 保留原文键供展示名回读；英文大小写统一后也指向同一词条。
         _STAT_LOOKUP.setdefault(_a, _std)
+        _STAT_LOOKUP.setdefault(_a.casefold(), _std)
 for _combo in RIVEN_STAT_COMBOS:
     _STAT_LOOKUP.setdefault(_combo, _combo)
 # 最长别名长度：分词时片段不必试得比它更长
 _STAT_KEY_MAX = max(map(len, _STAT_LOOKUP))
+_STAT_WORD_MAX = max(len(alias.split()) for alias in _STAT_LOOKUP)
 # 连写词条串长度上限：紫卡最多 4 条词条，再长不可能是词条串（直接当普通内容词），
 # 也挡住超长 token 让递归分词卡住事件循环 / 递归过深（2026-10-10 实测 4×950 字 3.7 s）
 _SEGMENT_MAX_LEN = 64
@@ -677,11 +879,16 @@ def segment_stats(blob: str) -> Optional[list[str]]:
 
     成功完整切分时返回标准名列表；否则返回 None（当作普通内容词）。
     """
+    blob = blob.casefold()
     n = len(blob)
     if n == 0:
         return []
     if n > _SEGMENT_MAX_LEN:
         return None
+    if blob.isascii():
+        # 英文只接受完整别名，不能把武器单词拆成多个字母缩写。
+        std = _STAT_LOOKUP.get(blob)
+        return [std] if std is not None else None
     memo: dict[int, Optional[list[str]]] = {}
 
     def dp(i: int) -> Optional[list[str]]:
@@ -728,6 +935,7 @@ class WRQuery:
     status: str = "recent"  # latest(仅游戏中)/recent(+在线)/offline(全部)
     positive_count: Optional[int] = None  # 2+ / 3+
     negative_count: Optional[int] = None  # 2+1 的"1"
+    unrecognized_stats: list[str] = field(default_factory=list)  # 带负面标记却无法完整解析
 
     @property
     def stat_filter(self) -> list[str]:
@@ -753,12 +961,35 @@ _PRICE_RE = re.compile(r"^(\d+(?:\.\d+)?)p$", re.I)
 _RANK_TOKEN_RE = re.compile(r"^(零|满|\d+)级$")
 
 
+def _join_stat_tokens(content: Iterable[str]) -> Iterable[str]:
+    """最长匹配带空格的词条别名，英文全称不要求用户额外加引号。"""
+    tokens = list(content)
+    i = 0
+    while i < len(tokens):
+        # 双持武器名中的 & 两侧属于同一个名称，不能把其中一侧当词条。
+        if i + 2 < len(tokens) and tokens[i + 1] in ("&", "＆"):
+            yield " ".join(tokens[i : i + 3])
+            i += 3
+            continue
+        for end in range(min(len(tokens), i + _STAT_WORD_MAX + 1), i, -1):
+            candidate = " ".join(tokens[i:end])
+            candidate = re.sub(r"^(带负|负)\s+", r"\1", candidate)
+            name = re.sub(r"^(?:带负|负)", "", candidate)
+            if name.casefold() in _STAT_LOOKUP:
+                yield candidate
+                i = end
+                break
+        else:
+            yield tokens[i]
+            i += 1
+
+
 def parse_wr(content: Iterable[str]) -> WRQuery:
     """解析 wr 内容 token：词条连写、极性槽、价格、洗数、词条数、状态词。"""
     q = WRQuery()
     weapon_parts: list[str] = []
-    neg_side = False  # 一旦出现 负/带负，后续词条归入负面
-    for tok in list(content):
+    neg_side = False  # 用于「负 任意」等独立负面修饰符的判断
+    for tok in _join_stat_tokens(content):
         low = tok.lower()
         if low in _POLARITY_MAP:
             q.polarity = _POLARITY_MAP[low]
@@ -794,30 +1025,40 @@ def parse_wr(content: Iterable[str]) -> WRQuery:
         segs = _split_negatives(tok)
         if segs is not None:
             seg_matched = True
+            positives: list[str] = []
+            negatives: list[str] = []
+            require_negative = False
+            forbid_negative = False
             for part, is_neg in segs:
                 if not part:
                     if is_neg:
                         # 「负」/「带负」单独成词：要求存在任意负面
-                        q.require_negative = True
+                        require_negative = True
                     continue
                 if part in _ANY_MARK:
                     if is_neg:
-                        q.require_negative = True
+                        require_negative = True
                     continue
                 if part in _NONE_MARK:
-                    q.forbid_negative = True
+                    forbid_negative = True
                     continue
                 stds = segment_stats(part)
                 if stds is None:
                     # 该片段无法识别为词条：整个 token 退回武器名
                     seg_matched = False
                     break
-                target = q.negatives if is_neg else q.stats
+                target = negatives if is_neg else positives
                 for std in stds:
                     target.extend(RIVEN_STAT_COMBOS.get(std, [std]))
             if seg_matched:
+                q.stats.extend(positives)
+                q.negatives.extend(negatives)
+                q.require_negative |= require_negative
+                q.forbid_negative |= forbid_negative
                 neg_side = neg_side or any(is_neg for _, is_neg in segs)
                 continue
+            if any(is_neg for _, is_neg in segs):
+                q.unrecognized_stats.append(tok)
         weapon_parts.append(tok)
     q.weapon = " ".join(weapon_parts).strip()
     return q

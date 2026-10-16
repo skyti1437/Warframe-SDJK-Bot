@@ -1,7 +1,7 @@
 {
  "_meta": {
-  "source": "github.com/magenie33/wfsim data/mods（家族互斥 + 条件堆叠）",
-  "updated": "2026-09-16",
+  "source": "github.com/magenie33/wfsim data/mods（家族互斥 + 条件堆叠 + 武器排除）",
+  "updated": "2026-10-16",
   "grants_map": {
    "condition_overload": "dmg_per_status",
    "multishot": "multishot",
@@ -15,586 +15,14 @@
    "punch_through": "punch_through"
   }
  },
- "archgun ace": {
-  "conditionals": [
-   {
-    "trigger": "on_headshot_kill",
-    "grants": "fire_rate",
-    "field": "fire_rate",
-    "mappable": true,
-    "value": 50.0,
-    "max_stacks": 1,
-    "duration": 9
-   },
-   {
-    "trigger": "on_headshot_kill",
-    "grants": "reload_speed",
-    "field": null,
-    "mappable": false,
-    "value": 100.0,
-    "max_stacks": 1,
-    "duration": 9
-   }
-  ]
- },
- "combustion rounds": {
-  "family": "combustion_rounds"
- },
- "deadly efficiency": {
-  "family": "deadly_efficiency",
-  "conditionals": [
-   {
-    "trigger": "on_reload",
-    "grants": "base_damage",
-    "field": "base_dmg",
-    "mappable": true,
-    "value": 120.0,
-    "max_stacks": 1,
-    "duration": 9
-   }
-  ]
- },
- "dual rounds": {
-  "family": "dual_rounds"
- },
- "electrified barrel": {
-  "family": "electrified_barrel"
- },
- "polar magazine": {
-  "family": "polar_magazine"
- },
- "primed deadly efficiency": {
-  "family": "deadly_efficiency",
-  "conditionals": [
-   {
-    "trigger": "on_reload",
-    "grants": "base_damage",
-    "field": "base_dmg",
-    "mappable": true,
-    "value": 220.0,
-    "max_stacks": 1,
-    "duration": 16.5
-   }
-  ]
- },
- "primed dual rounds": {
-  "family": "dual_rounds"
- },
- "primed rubedo-lined barrel": {
-  "family": "rubedo_lined_barrel"
- },
- "rubedo-lined barrel": {
-  "family": "rubedo_lined_barrel"
- },
- "venomous clip": {
-  "family": "venomous_clip"
- },
- "spring-loaded chamber": {
-  "conditionals": [
-   {
-    "trigger": "on_reload",
-    "grants": "fire_rate",
-    "field": "fire_rate",
-    "mappable": true,
-    "value": 75.0,
-    "max_stacks": 1,
-    "duration": 9
-   }
-  ]
- },
- "split flights": {
-  "family": "split_chamber",
-  "conditionals": [
-   {
-    "trigger": "on_hit",
-    "grants": "multishot",
-    "field": "multishot",
-    "mappable": true,
-    "value": 100.0,
-    "max_stacks": 4,
-    "duration": 2.0
-   }
-  ]
- },
- "amalgam organ shatter": {
-  "family": "organ_shatter"
- },
- "berserker fury": {
-  "family": "fury",
-  "conditionals": [
-   {
-    "trigger": "on_kill",
-    "grants": "fire_rate",
-    "field": "fire_rate",
-    "mappable": true,
-    "value": 35.0,
-    "max_stacks": 2,
-    "duration": 10
-   }
-  ]
- },
- "drifting contact": {
-  "family": "combo_duration"
- },
- "fever strike": {
-  "family": "fever_strike"
- },
- "fury": {
-  "family": "fury"
- },
- "galvanized elementalist": {
-  "family": "melee_elementalist",
-  "conditionals": [
-   {
-    "trigger": "on_kill",
-    "grants": "status_chance",
-    "field": "status_chance",
-    "mappable": true,
-    "value": 30.0,
-    "max_stacks": 4,
-    "duration": 20.0
-   }
-  ]
- },
- "galvanized reflex": {
-  "family": "reflex_coil",
-  "conditionals": [
-   {
-    "trigger": "on_kill",
-    "grants": "initial_combo",
-    "field": null,
-    "mappable": false,
-    "value": 2000.0,
-    "max_stacks": 4,
-    "duration": 20.0
-   }
-  ]
- },
- "galvanized steel": {
-  "family": "true_steel",
-  "conditionals": [
-   {
-    "trigger": "on_kill",
-    "grants": "crit_damage",
-    "field": "crit_dmg",
-    "mappable": true,
-    "value": 30.0,
-    "max_stacks": 4,
-    "duration": 20.0
-   }
-  ]
- },
- "heavy trauma": {
-  "family": "heavy_trauma"
- },
- "jagged edge": {
-  "family": "jagged_edge"
- },
- "melee elementalist": {
-  "family": "melee_elementalist"
- },
- "melee prowess": {
-  "family": "melee_prowess"
- },
- "organ shatter": {
-  "family": "organ_shatter"
- },
- "pressure point": {
-  "family": "pressure_point"
- },
- "primed fever strike": {
-  "family": "fever_strike"
- },
- "primed fury": {
-  "family": "fury"
- },
- "primed heavy trauma": {
-  "family": "heavy_trauma"
- },
- "primed pressure point": {
-  "family": "pressure_point"
- },
- "primed smite corpus": {
-  "family": "smite_corpus"
- },
- "primed smite orokin": {
-  "family": "smite_corrupted"
- },
- "primed smite grineer": {
-  "family": "smite_grineer"
- },
- "primed smite infested": {
-  "family": "smite_infested"
- },
- "sacrificial pressure": {
-  "family": "pressure_point"
- },
- "sacrificial steel": {
-  "family": "true_steel"
- },
- "smite corpus": {
-  "family": "smite_corpus"
- },
- "smite grineer": {
-  "family": "smite_grineer"
- },
- "smite infested": {
-  "family": "smite_infested"
- },
- "smite orokin": {
-  "family": "smite_corrupted"
- },
- "smite the murmur": {
-  "family": "smite_the_murmur"
- },
- "spring-loaded blade": {
-  "conditionals": [
-   {
-    "trigger": "on_status_applied",
-    "grants": "melee_range",
-    "field": null,
-    "mappable": false,
-    "value": 100.0,
-    "max_stacks": 2,
-    "duration": 24
-   }
-  ]
- },
- "sundering strike": {
-  "family": "sundering_strike"
- },
- "true steel": {
-  "family": "true_steel"
- },
- "amalgam barrel diffusion": {
-  "family": "barrel_diffusion"
- },
- "barrel diffusion": {
-  "family": "barrel_diffusion"
- },
- "convulsion": {
-  "family": "convulsion"
- },
- "creeping bullseye": {
-  "family": "pistol_gambit"
- },
- "dizzying rounds": {
-  "family": "dizzying_rounds"
- },
- "embedded catalyzer": {
-  "conditionals": [
-   {
-    "trigger": "on_ability_cast",
-    "grants": "status_chance",
-    "field": "status_chance",
-    "mappable": true,
-    "value": 90.0,
-    "max_stacks": 1,
-    "duration": 9
-   }
-  ]
- },
- "expel corpus": {
-  "family": "expel_corpus"
- },
- "expel grineer": {
-  "family": "expel_grineer"
- },
- "expel infested": {
-  "family": "expel_infested"
- },
- "expel orokin": {
-  "family": "expel_orokin"
- },
- "expel the murmur": {
-  "family": "expel_the_murmur"
- },
- "galvanized crosshairs": {
-  "family": "hydraulic_crosshairs",
-  "conditionals": [
-   {
-    "trigger": "on_headshot",
-    "grants": "crit_chance",
-    "field": "crit_chance",
-    "mappable": true,
-    "value": 120.0,
-    "max_stacks": 1,
-    "duration": 12
-   },
-   {
-    "trigger": "on_headshot_kill",
-    "grants": "crit_chance",
-    "field": "crit_chance",
-    "mappable": true,
-    "value": 40.0,
-    "max_stacks": 5,
-    "duration": 12
-   }
-  ]
- },
- "galvanized diffusion": {
-  "family": "barrel_diffusion",
-  "conditionals": [
-   {
-    "trigger": "on_kill",
-    "grants": "multishot",
-    "field": "multishot",
-    "mappable": true,
-    "value": 30.0,
-    "max_stacks": 4,
-    "duration": 20
-   }
-  ]
- },
- "galvanized shot": {
-  "family": "sure_shot",
-  "conditionals": [
-   {
-    "trigger": "on_kill",
-    "grants": "condition_overload",
-    "field": "dmg_per_status",
-    "mappable": true,
-    "value": 40.0,
-    "max_stacks": 3,
-    "duration": 14
-   }
-  ]
- },
- "heated charge": {
-  "family": "heated_charge"
- },
- "hydraulic crosshairs": {
-  "family": "hydraulic_crosshairs",
-  "conditionals": [
-   {
-    "trigger": "on_headshot",
-    "grants": "crit_chance",
-    "field": "crit_chance",
-    "mappable": true,
-    "value": 135.0,
-    "max_stacks": 1,
-    "duration": 9
-   }
-  ]
- },
- "pistol gambit": {
-  "family": "pistol_gambit"
- },
- "pressurized magazine": {
-  "conditionals": [
-   {
-    "trigger": "on_reload",
-    "grants": "fire_rate",
-    "field": "fire_rate",
-    "mappable": true,
-    "value": 90.0,
-    "max_stacks": 1,
-    "duration": 9
-   }
-  ]
- },
- "primed convulsion": {
-  "family": "convulsion"
- },
- "primed expel corpus": {
-  "family": "expel_corpus"
- },
- "primed expel grineer": {
-  "family": "expel_grineer"
- },
- "primed expel infested": {
-  "family": "expel_infested"
- },
- "primed expel orokin": {
-  "family": "expel_orokin"
- },
- "primed heated charge": {
-  "family": "heated_charge"
- },
- "primed pistol gambit": {
-  "family": "pistol_gambit"
- },
- "primed quickdraw": {
-  "family": "quickdraw"
- },
- "primed slip magazine": {
-  "family": "slip_magazine"
- },
- "primed target cracker": {
-  "family": "target_cracker"
- },
- "quickdraw": {
-  "family": "quickdraw"
- },
- "reflex draw": {
-  "conditionals": [
-   {
-    "trigger": "on_equip",
-    "grants": "recoil",
-    "field": null,
-    "mappable": false,
-    "value": -40.0,
-    "max_stacks": 1,
-    "duration": 8
-   },
-   {
-    "trigger": "on_equip",
-    "grants": "accuracy",
-    "field": null,
-    "mappable": false,
-    "value": 40.0,
-    "max_stacks": 1,
-    "duration": 8
-   }
-  ]
- },
- "sharpened bullets": {
-  "conditionals": [
-   {
-    "trigger": "on_kill",
-    "grants": "crit_damage",
-    "field": "crit_dmg",
-    "mappable": true,
-    "value": 75.0,
-    "max_stacks": 1,
-    "duration": 9
-   }
-  ]
- },
- "slip magazine": {
-  "family": "slip_magazine"
- },
- "stockpiled blight": {
-  "family": "stockpiled_blight"
- },
- "sure shot": {
-  "family": "sure_shot"
- },
- "targeting subsystem": {
-  "conditionals": [
-   {
-    "trigger": "on_hit",
-    "grants": "accuracy",
-    "field": null,
-    "mappable": false,
-    "value": 30.0,
-    "max_stacks": 1,
-    "duration": 9
-   }
-  ]
- },
- "target cracker": {
-  "family": "target_cracker"
- },
- "amalgam serration": {
-  "family": "serration"
- },
- "argon scope": {
-  "family": "argon_scope",
-  "conditionals": [
-   {
-    "trigger": "on_headshot",
-    "grants": "crit_chance",
-    "field": "crit_chance",
-    "mappable": true,
-    "value": 135.0,
-    "max_stacks": 1,
-    "duration": 9
-   }
-  ]
- },
- "bane of corpus": {
-  "family": "bane_of_corpus"
- },
- "bane of grineer": {
-  "family": "bane_of_grineer"
- },
- "bane of infested": {
+ "primed bane of infested": {
   "family": "bane_of_infested"
- },
- "bane of orokin": {
-  "family": "bane_of_orokin"
- },
- "bane of the murmur": {
-  "family": "bane_of_the_murmur"
- },
- "bhisaj-bal": {
-  "family": "bhisaj_bal"
- },
- "bladed rounds": {
-  "conditionals": [
-   {
-    "trigger": "on_kill",
-    "grants": "crit_damage",
-    "field": "crit_dmg",
-    "mappable": true,
-    "value": 120.0,
-    "max_stacks": 1,
-    "duration": 9
-   }
-  ]
- },
- "catalyzer link": {
-  "conditionals": [
-   {
-    "trigger": "on_ability_cast",
-    "grants": "status_chance",
-    "field": "status_chance",
-    "mappable": true,
-    "value": 60.0,
-    "max_stacks": 1,
-    "duration": 9
-   }
-  ]
- },
- "critical delay": {
-  "family": "point_strike"
- },
- "cryo rounds": {
-  "family": "cryo_rounds"
- },
- "deadly sequence": {
-  "family": "deadly_sequence"
- },
- "double tap": {
-  "family": "double_tap"
- },
- "fast hands": {
-  "family": "fast_hands"
- },
- "galvanized aptitude": {
-  "family": "rifle_aptitude",
-  "conditionals": [
-   {
-    "trigger": "on_kill",
-    "grants": "condition_overload",
-    "field": "dmg_per_status",
-    "mappable": true,
-    "value": 40.0,
-    "max_stacks": 2,
-    "duration": 20
-   }
-  ]
- },
- "galvanized chamber": {
-  "family": "split_chamber",
-  "conditionals": [
-   {
-    "trigger": "on_kill",
-    "grants": "multishot",
-    "field": "multishot",
-    "mappable": true,
-    "value": 30.0,
-    "max_stacks": 5,
-    "duration": 20
-   }
-  ]
  },
  "galvanized scope": {
   "family": "argon_scope",
   "conditionals": [
    {
-    "trigger": "on_headshot",
+    "trigger": "headshot",
     "grants": "crit_chance",
     "field": "crit_chance",
     "mappable": true,
@@ -603,7 +31,7 @@
     "duration": 12
    },
    {
-    "trigger": "on_headshot_kill",
+    "trigger": "headshot_kill",
     "grants": "crit_chance",
     "field": "crit_chance",
     "mappable": true,
@@ -616,56 +44,68 @@
  "gilded truth": {
   "family": "gilded_truth"
  },
- "magazine warp": {
-  "family": "magazine_warp"
- },
- "metamorphic magazine": {
-  "family": "metamorphic_magazine"
- },
- "point strike": {
-  "family": "point_strike"
- },
- "primed bane of corpus": {
-  "family": "bane_of_corpus"
- },
- "primed bane of grineer": {
-  "family": "bane_of_grineer"
- },
- "primed bane of infested": {
-  "family": "bane_of_infested"
- },
- "primed bane of orokin": {
-  "family": "bane_of_orokin"
+ "galvanized chamber": {
+  "family": "split_chamber",
+  "conditionals": [
+   {
+    "trigger": "kill",
+    "grants": "multishot",
+    "field": "multishot",
+    "mappable": true,
+    "value": 30.0,
+    "max_stacks": 5,
+    "duration": 20
+   }
+  ]
  },
  "primed cryo rounds": {
   "family": "cryo_rounds"
  },
- "primed fast hands": {
-  "family": "fast_hands"
- },
- "primed magazine warp": {
-  "family": "magazine_warp"
- },
- "primed shred": {
-  "family": "shred"
- },
- "rifle aptitude": {
-  "family": "rifle_aptitude"
+ "bladed rounds": {
+  "conditionals": [
+   {
+    "trigger": "kill",
+    "grants": "crit_damage",
+    "field": "crit_dmg",
+    "mappable": true,
+    "value": 120.0,
+    "max_stacks": 1,
+    "duration": 9
+   }
+  ]
  },
  "serration": {
   "family": "serration"
  },
- "shred": {
-  "family": "shred"
+ "double tap": {
+  "family": "double_tap"
  },
- "split chamber": {
-  "family": "split_chamber"
+ "aerial ace": {
+  "excludes_tags": [
+   "power_weapon"
+  ],
+  "excludes_weapons": []
+ },
+ "fast hands": {
+  "family": "fast_hands"
+ },
+ "bane of infested": {
+  "family": "bane_of_infested"
+ },
+ "bane of corpus": {
+  "family": "bane_of_corpus"
+ },
+ "semi-rifle cannonade": {
+  "excludes_tags": [
+   "modular_gun"
+  ],
+  "excludes_weapons": []
  },
  "twitch": {
   "conditionals": [
    {
-    "trigger": "on_equip",
-    "grants": "recoil_reduction",
+    "trigger": "equip",
+    "grants": "recoil",
     "field": null,
     "mappable": false,
     "value": -40.0,
@@ -673,7 +113,7 @@
     "duration": 8
    },
    {
-    "trigger": "on_equip",
+    "trigger": "equip",
     "grants": "accuracy",
     "field": null,
     "mappable": false,
@@ -683,82 +123,393 @@
    }
   ]
  },
- "amalgam shotgun barrage": {
-  "family": "shotgun_barrage"
+ "primed magazine warp": {
+  "family": "magazine_warp"
  },
- "ammo stock": {
-  "family": "ammo_stock"
+ "deadly sequence": {
+  "family": "deadly_sequence"
  },
- "charged shell": {
-  "family": "charged_shell"
+ "amalgam argonak metal auger": {
+  "excludes_tags": [
+   "sentinel_weapon"
+  ],
+  "excludes_weapons": []
  },
- "chilling grasp": {
-  "family": "chilling_grasp"
+ "amalgam daikyu target acquired": {
+  "excludes_tags": [
+   "sentinel_weapon"
+  ],
+  "excludes_weapons": []
  },
- "cleanse corpus": {
-  "family": "cleanse_corpus"
+ "amalgam serration": {
+  "family": "serration",
+  "excludes_tags": [
+   "sentinel_weapon"
+  ],
+  "excludes_weapons": []
  },
- "cleanse grineer": {
-  "family": "cleanse_grineer"
+ "primed bane of orokin": {
+  "family": "bane_of_orokin"
  },
- "cleanse infested": {
-  "family": "cleanse_infested"
+ "point strike": {
+  "family": "point_strike"
  },
- "cleanse orokin": {
-  "family": "cleanse_orokin"
- },
- "cleanse the murmur": {
-  "family": "cleanse_the_murmur"
- },
- "clip delegation": {
+ "catalyzer link": {
   "conditionals": [
    {
-    "trigger": "on_reload",
+    "trigger": "ability_cast",
     "grants": "status_chance",
     "field": "status_chance",
     "mappable": true,
-    "value": 15.0,
-    "max_stacks": 15,
-    "duration": null
-   },
+    "value": 60.0,
+    "max_stacks": 1,
+    "duration": 9
+   }
+  ]
+ },
+ "bane of orokin": {
+  "family": "bane_of_orokin"
+ },
+ "shred": {
+  "family": "shred"
+ },
+ "bane of grineer": {
+  "family": "bane_of_grineer"
+ },
+ "split chamber": {
+  "family": "split_chamber"
+ },
+ "metamorphic magazine": {
+  "family": "metamorphic_magazine"
+ },
+ "magazine warp": {
+  "family": "magazine_warp"
+ },
+ "bane of the murmur": {
+  "family": "bane_of_the_murmur"
+ },
+ "higasa serration": {
+  "family": "serration"
+ },
+ "cryo rounds": {
+  "family": "cryo_rounds"
+ },
+ "primed shred": {
+  "family": "shred"
+ },
+ "primed bane of grineer": {
+  "family": "bane_of_grineer"
+ },
+ "primed fast hands": {
+  "family": "fast_hands"
+ },
+ "primed bane of corpus": {
+  "family": "bane_of_corpus"
+ },
+ "bhisaj-bal": {
+  "family": "bhisaj_bal"
+ },
+ "critical delay": {
+  "family": "point_strike"
+ },
+ "amalgam javlok magazine warp": {
+  "excludes_tags": [
+   "sentinel_weapon"
+  ],
+  "excludes_weapons": []
+ },
+ "argon scope": {
+  "family": "argon_scope",
+  "conditionals": [
    {
-    "trigger": "on_reload",
+    "trigger": "headshot",
+    "grants": "crit_chance",
+    "field": "crit_chance",
+    "mappable": true,
+    "value": 135.0,
+    "max_stacks": 1,
+    "duration": 9
+   }
+  ]
+ },
+ "galvanized aptitude": {
+  "family": "rifle_aptitude",
+  "conditionals": [
+   {
+    "trigger": "kill",
+    "grants": "condition_overload",
+    "field": "dmg_per_status",
+    "mappable": true,
+    "value": 40.0,
+    "max_stacks": 2,
+    "duration": 20
+   }
+  ]
+ },
+ "rifle aptitude": {
+  "family": "rifle_aptitude"
+ },
+ "brain storm": {
+  "conditionals": [
+   {
+    "trigger": "headshot",
+    "grants": "ammo_efficiency",
+    "field": null,
+    "mappable": false,
+    "value": 100.0,
+    "max_stacks": 1,
+    "duration": 0.5
+   }
+  ]
+ },
+ "split flights": {
+  "family": "split_chamber",
+  "conditionals": [
+   {
+    "trigger": "hit",
     "grants": "multishot",
     "field": "multishot",
     "mappable": true,
-    "value": 15.0,
-    "max_stacks": 15,
-    "duration": null
+    "value": 100.0,
+    "max_stacks": 4,
+    "duration": 2.0
+   }
+  ],
+  "excludes_tags": [
+   "crossbow",
+   "crpbow",
+   "grnbow",
+   "infbow",
+   "omicrus",
+   "power_weapon"
+  ],
+  "excludes_weapons": [
+   "attica",
+   "kuva bramma",
+   "lenz",
+   "nagantaka",
+   "nagantaka prime",
+   "nataruk",
+   "prisma lenz",
+   "proboscis cernos",
+   "zhuge",
+   "zhuge prime"
+  ]
+ },
+ "expel infested": {
+  "family": "expel_infested"
+ },
+ "expel orokin": {
+  "family": "expel_orokin"
+ },
+ "creeping bullseye": {
+  "family": "pistol_gambit"
+ },
+ "convulsion": {
+  "family": "convulsion"
+ },
+ "primed heated charge": {
+  "family": "heated_charge"
+ },
+ "barrel diffusion": {
+  "family": "barrel_diffusion"
+ },
+ "amalgam barrel diffusion": {
+  "family": "barrel_diffusion",
+  "excludes_tags": [
+   "sentinel_weapon"
+  ],
+  "excludes_weapons": []
+ },
+ "primed convulsion": {
+  "family": "convulsion"
+ },
+ "dizzying rounds": {
+  "family": "dizzying_rounds"
+ },
+ "slip magazine": {
+  "family": "slip_magazine"
+ },
+ "expel corpus": {
+  "family": "expel_corpus"
+ },
+ "hydraulic crosshairs": {
+  "family": "hydraulic_crosshairs",
+  "conditionals": [
+   {
+    "trigger": "headshot",
+    "grants": "crit_chance",
+    "field": "crit_chance",
+    "mappable": true,
+    "value": 135.0,
+    "max_stacks": 1,
+    "duration": 9
    }
   ]
  },
- "galvanized acceleration": {
+ "primed expel corpus": {
+  "family": "expel_corpus"
+ },
+ "pistol gambit": {
+  "family": "pistol_gambit"
+ },
+ "primed expel orokin": {
+  "family": "expel_orokin"
+ },
+ "expel the murmur": {
+  "family": "expel_the_murmur"
+ },
+ "pressurized magazine": {
   "conditionals": [
    {
-    "trigger": "on_kill",
-    "grants": "projectile_speed",
+    "trigger": "reload_complete",
+    "grants": "fire_rate",
+    "field": "fire_rate",
+    "mappable": true,
+    "value": 90.0,
+    "max_stacks": 1,
+    "duration": 9
+   }
+  ]
+ },
+ "primed target cracker": {
+  "family": "target_cracker"
+ },
+ "quickdraw": {
+  "family": "quickdraw"
+ },
+ "skull shots": {
+  "conditionals": [
+   {
+    "trigger": "headshot",
+    "grants": "ammo_efficiency",
     "field": null,
     "mappable": false,
-    "value": 30.0,
-    "max_stacks": 2,
-    "duration": 10
+    "value": 100.0,
+    "max_stacks": 1,
+    "duration": 2.0
+   }
+  ]
+ },
+ "galvanized shot": {
+  "family": "sure_shot",
+  "conditionals": [
+   {
+    "trigger": "kill",
+    "grants": "condition_overload",
+    "field": "dmg_per_status",
+    "mappable": true,
+    "value": 40.0,
+    "max_stacks": 3,
+    "duration": 14
+   }
+  ]
+ },
+ "target cracker": {
+  "family": "target_cracker"
+ },
+ "primed expel infested": {
+  "family": "expel_infested"
+ },
+ "sharpened bullets": {
+  "conditionals": [
+   {
+    "trigger": "kill",
+    "grants": "crit_damage",
+    "field": "crit_dmg",
+    "mappable": true,
+    "value": 75.0,
+    "max_stacks": 1,
+    "duration": 9
+   }
+  ]
+ },
+ "expel grineer": {
+  "family": "expel_grineer"
+ },
+ "leaded gas": {
+  "family": "leaded_gas",
+  "conditionals": [
+   {
+    "trigger": "headshot",
+    "grants": "element_and_status_chance",
+    "field": null,
+    "mappable": false,
+    "value": 300.0,
+    "max_stacks": 1,
+    "duration": 6
+   }
+  ]
+ },
+ "primed quickdraw": {
+  "family": "quickdraw"
+ },
+ "primed expel grineer": {
+  "family": "expel_grineer"
+ },
+ "primed pistol gambit": {
+  "family": "pistol_gambit"
+ },
+ "galvanized crosshairs": {
+  "family": "hydraulic_crosshairs",
+  "conditionals": [
+   {
+    "trigger": "headshot",
+    "grants": "crit_chance",
+    "field": "crit_chance",
+    "mappable": true,
+    "value": 120.0,
+    "max_stacks": 1,
+    "duration": 12
    },
    {
-    "trigger": "on_kill",
-    "grants": "beam_range_percent",
+    "trigger": "headshot_kill",
+    "grants": "crit_chance",
+    "field": "crit_chance",
+    "mappable": true,
+    "value": 40.0,
+    "max_stacks": 5,
+    "duration": 12
+   }
+  ],
+  "excludes_tags": [
+   "power_weapon"
+  ],
+  "excludes_weapons": []
+ },
+ "sure shot": {
+  "family": "sure_shot"
+ },
+ "stockpiled blight": {
+  "family": "stockpiled_blight"
+ },
+ "reflex draw": {
+  "conditionals": [
+   {
+    "trigger": "equip",
+    "grants": "recoil",
     "field": null,
     "mappable": false,
-    "value": 30.0,
-    "max_stacks": 2,
-    "duration": 10
+    "value": -40.0,
+    "max_stacks": 1,
+    "duration": 8
+   },
+   {
+    "trigger": "equip",
+    "grants": "accuracy",
+    "field": null,
+    "mappable": false,
+    "value": 40.0,
+    "max_stacks": 1,
+    "duration": 8
    }
   ]
  },
- "galvanized hell": {
-  "family": "hells_chamber",
+ "galvanized diffusion": {
+  "family": "barrel_diffusion",
   "conditionals": [
    {
-    "trigger": "on_kill",
+    "trigger": "kill",
     "grants": "multishot",
     "field": "multishot",
     "mappable": true,
@@ -768,11 +519,283 @@
    }
   ]
  },
+ "targeting subsystem": {
+  "conditionals": [
+   {
+    "trigger": "hit",
+    "grants": "accuracy",
+    "field": null,
+    "mappable": false,
+    "value": 30.0,
+    "max_stacks": 1,
+    "duration": 9
+   }
+  ]
+ },
+ "embedded catalyzer": {
+  "conditionals": [
+   {
+    "trigger": "ability_cast",
+    "grants": "status_chance",
+    "field": "status_chance",
+    "mappable": true,
+    "value": 90.0,
+    "max_stacks": 1,
+    "duration": 9
+   }
+  ]
+ },
+ "primed slip magazine": {
+  "family": "slip_magazine"
+ },
+ "damzav-vati": {
+  "family": "damzav_vati"
+ },
+ "heated charge": {
+  "family": "heated_charge"
+ },
+ "primed dual rounds": {
+  "family": "dual_rounds"
+ },
+ "primed deadly efficiency": {
+  "family": "deadly_efficiency",
+  "conditionals": [
+   {
+    "trigger": "reload_complete",
+    "grants": "base_damage",
+    "field": "base_dmg",
+    "mappable": true,
+    "value": 220.0,
+    "max_stacks": 1,
+    "duration": 16.5
+   }
+  ]
+ },
+ "rubedo-lined barrel": {
+  "family": "rubedo_lined_barrel"
+ },
+ "primed rubedo-lined barrel": {
+  "family": "rubedo_lined_barrel"
+ },
+ "deadly efficiency": {
+  "family": "deadly_efficiency",
+  "conditionals": [
+   {
+    "trigger": "reload_complete",
+    "grants": "base_damage",
+    "field": "base_dmg",
+    "mappable": true,
+    "value": 120.0,
+    "max_stacks": 1,
+    "duration": 9
+   }
+  ]
+ },
+ "dual rounds": {
+  "family": "dual_rounds"
+ },
+ "combustion rounds": {
+  "family": "combustion_rounds"
+ },
+ "venomous clip": {
+  "family": "venomous_clip"
+ },
+ "electrified barrel": {
+  "family": "electrified_barrel"
+ },
+ "archgun ace": {
+  "conditionals": [
+   {
+    "trigger": "headshot_kill",
+    "grants": "fire_rate",
+    "field": "fire_rate",
+    "mappable": true,
+    "value": 50.0,
+    "max_stacks": 1,
+    "duration": 9
+   },
+   {
+    "trigger": "headshot_kill",
+    "grants": "reload_speed",
+    "field": null,
+    "mappable": false,
+    "value": 100.0,
+    "max_stacks": 1,
+    "duration": 9
+   }
+  ]
+ },
+ "polar magazine": {
+  "family": "polar_magazine"
+ },
+ "primed charged shell": {
+  "family": "charged_shell"
+ },
+ "repeater clip": {
+  "conditionals": [
+   {
+    "trigger": "reload_complete",
+    "grants": "fire_rate",
+    "field": "fire_rate",
+    "mappable": true,
+    "value": 105.0,
+    "max_stacks": 1,
+    "duration": 9
+   }
+  ]
+ },
+ "primed cleanse orokin": {
+  "family": "cleanse_orokin"
+ },
+ "amalgam shotgun barrage": {
+  "family": "shotgun_barrage",
+  "excludes_tags": [
+   "power_weapon",
+   "sentinel_weapon"
+  ],
+  "excludes_weapons": []
+ },
+ "primed cleanse grineer": {
+  "family": "cleanse_grineer"
+ },
+ "narrow barrel": {
+  "conditionals": [
+   {
+    "trigger": "hit",
+    "grants": "accuracy",
+    "field": null,
+    "mappable": false,
+    "value": 30.0,
+    "max_stacks": 1,
+    "duration": 9
+   }
+  ]
+ },
+ "cleanse orokin": {
+  "family": "cleanse_orokin"
+ },
+ "nano-applicator": {
+  "conditionals": [
+   {
+    "trigger": "ability_cast",
+    "grants": "status_chance",
+    "field": "status_chance",
+    "mappable": true,
+    "value": 90.0,
+    "max_stacks": 1,
+    "duration": 9
+   }
+  ]
+ },
+ "shrapnel shot": {
+  "conditionals": [
+   {
+    "trigger": "kill",
+    "grants": "crit_damage",
+    "field": "crit_dmg",
+    "mappable": true,
+    "value": 99.0,
+    "max_stacks": 1,
+    "duration": 9
+   }
+  ]
+ },
+ "galvanized hell": {
+  "family": "hells_chamber",
+  "conditionals": [
+   {
+    "trigger": "kill",
+    "grants": "multishot",
+    "field": "multishot",
+    "mappable": true,
+    "value": 30.0,
+    "max_stacks": 4,
+    "duration": 20
+   }
+  ]
+ },
+ "shotgun savvy": {
+  "family": "shotgun_savvy"
+ },
+ "clip delegation": {
+  "conditionals": [
+   {
+    "trigger": "reload_complete",
+    "grants": "status_chance",
+    "field": "status_chance",
+    "mappable": true,
+    "value": 15.0,
+    "max_stacks": 15,
+    "duration": null
+   },
+   {
+    "trigger": "reload_complete",
+    "grants": "multishot",
+    "field": "multishot",
+    "mappable": true,
+    "value": 15.0,
+    "max_stacks": 15,
+    "duration": null
+   }
+  ]
+ },
+ "primed ammo stock": {
+  "family": "ammo_stock"
+ },
+ "cleanse grineer": {
+  "family": "cleanse_grineer"
+ },
+ "primed tactical pump": {
+  "family": "tactical_pump"
+ },
+ "point blank": {
+  "family": "point_blank"
+ },
+ "cleanse infested": {
+  "family": "cleanse_infested"
+ },
+ "charged shell": {
+  "family": "charged_shell"
+ },
+ "galvanized acceleration": {
+  "conditionals": [
+   {
+    "trigger": "kill",
+    "grants": "projectile_speed",
+    "field": null,
+    "mappable": false,
+    "value": 30.0,
+    "max_stacks": 2,
+    "duration": 10
+   },
+   {
+    "trigger": "kill",
+    "grants": "beam_range_percent",
+    "field": null,
+    "mappable": false,
+    "value": 30.0,
+    "max_stacks": 2,
+    "duration": 10
+   }
+  ]
+ },
+ "cleanse the murmur": {
+  "family": "cleanse_the_murmur"
+ },
+ "primed point blank": {
+  "family": "point_blank"
+ },
+ "shotgun barrage": {
+  "family": "shotgun_barrage"
+ },
+ "cleanse corpus": {
+  "family": "cleanse_corpus"
+ },
  "galvanized savvy": {
   "family": "shotgun_savvy",
   "conditionals": [
    {
-    "trigger": "on_kill",
+    "trigger": "kill",
     "grants": "condition_overload",
     "field": "dmg_per_status",
     "mappable": true,
@@ -785,117 +808,16 @@
  "hell's chamber": {
   "family": "hells_chamber"
  },
- "laser sight": {
-  "conditionals": [
-   {
-    "trigger": "on_headshot",
-    "grants": "crit_chance",
-    "field": "crit_chance",
-    "mappable": true,
-    "value": 120.0,
-    "max_stacks": 1,
-    "duration": 9
-   }
-  ]
- },
- "nano-applicator": {
-  "conditionals": [
-   {
-    "trigger": "on_ability_cast",
-    "grants": "status_chance",
-    "field": "status_chance",
-    "mappable": true,
-    "value": 90.0,
-    "max_stacks": 1,
-    "duration": 9
-   }
-  ]
- },
- "narrow barrel": {
-  "conditionals": [
-   {
-    "trigger": "on_hit",
-    "grants": "accuracy",
-    "field": null,
-    "mappable": false,
-    "value": 30.0,
-    "max_stacks": 1,
-    "duration": 9
-   }
-  ]
- },
- "point blank": {
-  "family": "point_blank"
- },
- "primed ammo stock": {
-  "family": "ammo_stock"
- },
- "primed charged shell": {
-  "family": "charged_shell"
- },
- "primed chilling grasp": {
-  "family": "chilling_grasp"
- },
- "primed cleanse corpus": {
-  "family": "cleanse_corpus"
- },
- "primed cleanse grineer": {
-  "family": "cleanse_grineer"
- },
- "primed cleanse infested": {
-  "family": "cleanse_infested"
- },
- "primed cleanse orokin": {
-  "family": "cleanse_orokin"
- },
- "primed point blank": {
-  "family": "point_blank"
- },
  "primed ravage": {
   "family": "ravage"
  },
- "primed tactical pump": {
+ "tactical pump": {
   "family": "tactical_pump"
- },
- "ravage": {
-  "family": "ravage"
- },
- "repeater clip": {
-  "conditionals": [
-   {
-    "trigger": "on_reload",
-    "grants": "fire_rate",
-    "field": "fire_rate",
-    "mappable": true,
-    "value": 105.0,
-    "max_stacks": 1,
-    "duration": 9
-   }
-  ]
- },
- "shotgun barrage": {
-  "family": "shotgun_barrage"
- },
- "shotgun savvy": {
-  "family": "shotgun_savvy"
- },
- "shrapnel shot": {
-  "conditionals": [
-   {
-    "trigger": "on_kill",
-    "grants": "crit_damage",
-    "field": "crit_dmg",
-    "mappable": true,
-    "value": 99.0,
-    "max_stacks": 1,
-    "duration": 9
-   }
-  ]
  },
  "soft hands": {
   "conditionals": [
    {
-    "trigger": "on_equip",
+    "trigger": "equip",
     "grants": "recoil",
     "field": null,
     "mappable": false,
@@ -904,7 +826,7 @@
     "duration": 8
    },
    {
-    "trigger": "on_equip",
+    "trigger": "equip",
     "grants": "accuracy",
     "field": null,
     "mappable": false,
@@ -914,7 +836,202 @@
    }
   ]
  },
- "tactical pump": {
-  "family": "tactical_pump"
+ "primed cleanse corpus": {
+  "family": "cleanse_corpus"
+ },
+ "ravage": {
+  "family": "ravage"
+ },
+ "laser sight": {
+  "conditionals": [
+   {
+    "trigger": "headshot",
+    "grants": "crit_chance",
+    "field": "crit_chance",
+    "mappable": true,
+    "value": 120.0,
+    "max_stacks": 1,
+    "duration": 9
+   }
+  ]
+ },
+ "primed chilling grasp": {
+  "family": "chilling_grasp"
+ },
+ "chilling grasp": {
+  "family": "chilling_grasp"
+ },
+ "primed cleanse infested": {
+  "family": "cleanse_infested"
+ },
+ "ammo stock": {
+  "family": "ammo_stock"
+ },
+ "spring-loaded chamber": {
+  "conditionals": [
+   {
+    "trigger": "reload_complete",
+    "grants": "fire_rate",
+    "field": "fire_rate",
+    "mappable": true,
+    "value": 75.0,
+    "max_stacks": 1,
+    "duration": 9
+   }
+  ]
+ },
+ "smite grineer": {
+  "family": "smite_grineer"
+ },
+ "melee elementalist": {
+  "family": "melee_elementalist"
+ },
+ "organ shatter": {
+  "family": "organ_shatter"
+ },
+ "primed fever strike": {
+  "family": "fever_strike"
+ },
+ "drifting contact": {
+  "family": "combo_duration"
+ },
+ "sundering strike": {
+  "family": "sundering_strike"
+ },
+ "sacrificial pressure": {
+  "family": "pressure_point"
+ },
+ "smite the murmur": {
+  "family": "smite_the_murmur"
+ },
+ "spring-loaded blade": {
+  "conditionals": [
+   {
+    "trigger": "status_applied",
+    "grants": "melee_range",
+    "field": null,
+    "mappable": false,
+    "value": 100.0,
+    "max_stacks": 2,
+    "duration": 24
+   }
+  ]
+ },
+ "fever strike": {
+  "family": "fever_strike"
+ },
+ "smite orokin": {
+  "family": "smite_corrupted"
+ },
+ "primed smite corpus": {
+  "family": "smite_corpus"
+ },
+ "galvanized reflex": {
+  "family": "reflex_coil",
+  "conditionals": [
+   {
+    "trigger": "kill",
+    "grants": "initial_combo",
+    "field": null,
+    "mappable": false,
+    "value": 2000.0,
+    "max_stacks": 4,
+    "duration": 20.0
+   }
+  ]
+ },
+ "melee prowess": {
+  "family": "melee_prowess"
+ },
+ "berserker fury": {
+  "family": "fury",
+  "conditionals": [
+   {
+    "trigger": "kill",
+    "grants": "fire_rate",
+    "field": "fire_rate",
+    "mappable": true,
+    "value": 35.0,
+    "max_stacks": 2,
+    "duration": 10
+   }
+  ]
+ },
+ "smite infested": {
+  "family": "smite_infested"
+ },
+ "pressure point": {
+  "family": "pressure_point"
+ },
+ "smite corpus": {
+  "family": "smite_corpus"
+ },
+ "galvanized elementalist": {
+  "family": "melee_elementalist",
+  "conditionals": [
+   {
+    "trigger": "kill",
+    "grants": "status_chance",
+    "field": "status_chance",
+    "mappable": true,
+    "value": 30.0,
+    "max_stacks": 4,
+    "duration": 20.0
+   }
+  ]
+ },
+ "amalgam organ shatter": {
+  "family": "organ_shatter",
+  "excludes_tags": [
+   "sentinel_weapon"
+  ],
+  "excludes_weapons": []
+ },
+ "primed smite grineer": {
+  "family": "smite_grineer"
+ },
+ "primed smite orokin": {
+  "family": "smite_corrupted"
+ },
+ "primed heavy trauma": {
+  "family": "heavy_trauma"
+ },
+ "galvanized steel": {
+  "family": "true_steel",
+  "conditionals": [
+   {
+    "trigger": "kill",
+    "grants": "crit_damage",
+    "field": "crit_dmg",
+    "mappable": true,
+    "value": 30.0,
+    "max_stacks": 4,
+    "duration": 20.0
+   }
+  ]
+ },
+ "true steel": {
+  "family": "true_steel"
+ },
+ "primed smite infested": {
+  "family": "smite_infested"
+ },
+ "heavy trauma": {
+  "family": "heavy_trauma"
+ },
+ "primed fury": {
+  "family": "fury"
+ },
+ "jagged edge": {
+  "family": "jagged_edge"
+ },
+ "fury": {
+  "family": "fury"
+ },
+ "primed pressure point": {
+  "family": "pressure_point"
+ },
+ "sacrificial steel": {
+  "family": "true_steel"
  }
 }

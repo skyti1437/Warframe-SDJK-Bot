@@ -24,8 +24,9 @@ from __future__ import annotations
 
 import json
 import time
-from pathlib import Path
 from typing import Optional
+
+from . import paths
 
 BASE = "https://arbi.wf.wiki/data/"
 MEASURED_FILE = "arb_ratings.json"  # core/data 下的实测种子（构建期生成，不联网）
@@ -44,11 +45,29 @@ def load_measured() -> dict:
     global _MEASURED
     if _MEASURED is None:
         try:
-            p = Path(__file__).resolve().parent / "data" / MEASURED_FILE
+            # ★ 2026-10-16：走 paths.read_path —— 社区快照（bot-data）刷新后写在运行目录，优先于包内种子
+            p = paths.read_path(MEASURED_FILE)
             _MEASURED = json.loads(p.read_text(encoding="utf-8")).get("nodes") or {}
         except Exception:  # noqa: BLE001 - 种子缺失不致命
             _MEASURED = {}
     return _MEASURED
+
+
+def reset_measured() -> None:
+    """社区快照换新后清缓存（下次 load_measured 重读）。"""
+    global _MEASURED
+    _MEASURED = None
+
+
+def measured_updated() -> str:
+    """当前生效的实测表日期（``_updated``；运行目录优先）。"""
+    try:
+        return str(
+            json.loads(paths.read_path(MEASURED_FILE).read_text(encoding="utf-8")).get("_updated")
+            or ""
+        )
+    except Exception:  # noqa: BLE001
+        return ""
 
 
 def measured_of(key: str) -> dict:
@@ -84,6 +103,30 @@ def tier_source(key: str, tier_of: dict) -> str:
     if tv in ("", "未评级"):
         return ""
     return "arbi" if _ARBI_ONLY.get(key, "") not in ("", "未评级") else "measured"
+
+
+# ★ 2026-10-16 用户口径：出档门槛仍是 n≥3（scripts/build_arb_ratings.py::MIN_N），
+#   但 n<5 的**实测档**在卡片上标「*」、推送标「（样本少）」—— 档位照常参与筛选与订阅匹配。
+#   只标实测补的档；arbi 官方 tierlist 的档不看样本数。
+LOW_N = 5
+LOW_MARK = "*"
+LOW_NOTE = f"※ 评级带「{LOW_MARK}」= 样本少：该节点社区实测不足 {LOW_N} 条记录，档位仅供参考"
+
+
+def low_sample(key: str, tier_of: dict) -> bool:
+    """该节点的档位是否为「样本少」的实测档（官方 tierlist 档一律 False）。"""
+    if tier_source(key, tier_of) != "measured":
+        return False
+    n = measured_of(key).get("n") or 0
+    return 0 < n < LOW_N
+
+
+def tier_label(key: str, tier_of: dict) -> str:
+    """显示用档位（样本少的实测档带 ``LOW_MARK``；未评级返回空串）。"""
+    tv = tier_of.get(key, "")
+    if not tv or tv == "未评级":
+        return ""
+    return tv + LOW_MARK if low_sample(key, tier_of) else tv
 
 
 # 可筛选的任务类型（中文，来源 arbi 的 missionNameZh；INFESTED 前缀会被归一化）
@@ -163,9 +206,7 @@ def node_line(nodes: dict, key: str, tier_of: dict) -> str:
     system = n.get("systemNameZh") or ""
     mtype = mission_of(n)
     fac = faction_of(n)
-    tv = tier_of.get(key, "")
-    if tv == "未评级":
-        tv = ""
+    tv = tier_label(key, tier_of)
     parts = [f"{name}（{system}）" if system else name, mtype, fac]
     head = " · ".join(p for p in parts if p)
     return f"{head}　[{tv}]" if tv else head
@@ -181,9 +222,9 @@ def node_cells(nodes: dict, key: str, tier_of: dict) -> list[str]:
     n = nodes.get(key) or {}
     name = n.get("nameZh") or "?"
     system = n.get("systemNameZh") or ""
-    tv = tier_of.get(key, "")
+    tv = tier_label(key, tier_of)
     cells = [f"{name}（{system}）" if system else name, mission_of(n), faction_of(n)]
-    if tv and tv != "未评级":
+    if tv:
         cells.append(f"[{tv}]")
     return cells
 
@@ -277,6 +318,7 @@ def slot(sched: dict, nodes: dict, tier_of: dict, ts: Optional[float] = None) ->
         "mission": mission_of(n),
         "faction": faction_of(n),
         "tier": tier,
+        "low_sample": low_sample(key, tier_of),
         "line": node_line(nodes, key, tier_of),
         "next_line": node_line(nodes, nxt_key, tier_of) if nxt_key else "（排期表已到末尾）",
         "start": start + idx * step,

@@ -411,9 +411,9 @@ check(
     all("statically" not in u for u in COMMUNITY_VALENCE_URLS + COMMUNITY_ACRITHIS_URLS),
 )
 check(
-    "★ 接线：_community_json 按序试通道（命中备用通道会记一条 INFO）",
-    "for i, url in enumerate(urls)" in API_SRC
-    and "备用通道" in API_SRC
+    "★ 接线：_community_json 按序试通道（成功主机优先 + 失败冷却，行为见文末用例）",
+    "for i, url in enumerate(live)" in API_SRC
+    and "COMMUNITY_COOLDOWN" in API_SRC
     and "_community_json(COMMUNITY_VALENCE_URLS)" in API_SRC
     and "_community_json(COMMUNITY_ACRITHIS_URLS)" in API_SRC,
 )
@@ -502,6 +502,400 @@ else:
     print(
         "[SKIP] 巡检侧三通道探针：本树无 .zcode/.../server_patrol.py（私有运维脚本，不随开源包分发）"
     )
+
+
+# ---------------------------------------------------------------------------
+# ★ 2026-10-16：静态快照进 bot-data（仲裁评级 / 奸商到访历史 / 紫卡倾向）+ 用户自填社区地址
+# ---------------------------------------------------------------------------
+import asyncio as _aio  # noqa: E402
+import json as _json  # noqa: E402
+import shutil as _shutil  # noqa: E402
+import tempfile as _tmp  # noqa: E402
+
+from core import api_client as _AC  # noqa: E402
+from core import arbi as _arbi  # noqa: E402
+from core import baro as _baro  # noqa: E402
+from core import paths as _paths  # noqa: E402
+
+_PKG = Path(_paths.PKG_DATA)
+_seed = {
+    n: _json.loads((_PKG / s_["local"]).read_text(encoding="utf-8"))
+    for n, s_ in _AC.COMMUNITY_STATIC.items()
+}
+for _n, _d in _seed.items():
+    check(
+        f"静态快照校验：随包种子本身能过（{_n}）",
+        _AC.community_static_ok(_n, _d)[0],
+        _AC.community_static_ok(_n, _d)[1],
+    )
+check(
+    "静态快照校验：节点太少被拒",
+    not _AC.community_static_ok("arb_ratings.json", {"_updated": "2026-10-16", "nodes": {}})[0],
+)
+check(
+    "静态快照校验：缺时间戳被拒",
+    not _AC.community_static_ok("baro_history.json", {**_seed["baro_history.json"], "fetched": ""})[
+        0
+    ],
+)
+_bad_tier = _json.loads(_json.dumps(_seed["arb_ratings.json"]))
+next(iter(_bad_tier["nodes"].values()))["tier"] = "SSS"
+check(
+    "静态快照校验：档位取值不认识被拒",
+    not _AC.community_static_ok("arb_ratings.json", _bad_tier)[0],
+)
+check(
+    "静态快照校验：倾向条目 < 400 被拒",
+    not _AC.community_static_ok(
+        "wiki_disp.json", {"snapshot": "2026-10-16T00:00:00+00:00", "disp": {"a": 1}}
+    )[0],
+)
+check(
+    "社区地址：只收 http(s)，去尾斜杠",
+    _AC.normalize_community_base(" https://x.org/data/ ") == "https://x.org/data"
+    and _AC.normalize_community_base("file:///etc") == ""
+    and _AC.normalize_community_base("") == "",
+)
+
+_rt = Path(_tmp.mkdtemp(prefix="_tmp_static_comm_"))
+try:
+    _paths.set_run_dir(_rt)
+    _c = _AC.WarframeClient()
+    _served = {}
+    _urls_seen = []
+
+    async def _fake_fetch(url, ttl=0, headers=None, cache_key=None, **kw):
+        _urls_seen.append(url)
+        name = url.rsplit("/", 1)[-1]
+        if name in _served:
+            return _served[name]
+        raise RuntimeError("404")
+
+    _c._fetch_json = _fake_fetch
+    newer_arb = _json.loads(_json.dumps(_seed["arb_ratings.json"]))
+    newer_arb["_updated"] = "2099-01-01"
+    k0 = next(iter(newer_arb["nodes"]))
+    newer_arb["nodes"][k0]["n"] = 777
+    older_baro = {**_seed["baro_history.json"], "fetched": "2000-01-01"}
+    _served = {
+        "arb_ratings.json": newer_arb,
+        "baro_history.json": older_baro,
+        "wiki_disp.json": {"snapshot": "2099-01-01T00:00:00+00:00", "disp": {"x": 1}},
+    }
+    _arbi.reset_measured()
+    _arbi.load_measured()  # 先把旧表缓存进来，验证刷新后会清缓存
+    res = _aio.run(_c.refresh_community_static())
+    check(
+        "★ 更新的仲裁评级：落到运行目录",
+        res["arb_ratings.json"].startswith("refreshed") and (_rt / "arb_ratings.json").exists(),
+        str(res),
+    )
+    check(
+        "★ 落盘后清缓存：立刻读到新表",
+        _arbi.load_measured()[k0]["n"] == 777 and _arbi.measured_updated() == "2099-01-01",
+    )
+    check(
+        "★ 比本地旧的奸商历史：不采用",
+        res["baro_history.json"] == "fresh" and not (_rt / "baro_history.json").exists(),
+    )
+    check(
+        "★ 校验不过的倾向表：不采用",
+        res["wiki_disp.json"].startswith("invalid")
+        and not (_rt / "de" / "wiki_disp.json").exists(),
+    )
+    check(
+        "默认走本项目 bot-data（raw 打头）",
+        any("raw.githubusercontent.com" in u and "bot-data" in u for u in _urls_seen),
+    )
+    _served["arb_ratings.json"] = newer_arb
+    res = _aio.run(_c.refresh_community_static(("arb_ratings.json",)))
+    check("同一份再拉一次：fresh、不重复写", res["arb_ratings.json"] == "fresh")
+
+    # 奸商：更新后 baro.load 也要立刻换
+    newer_baro = {**_seed["baro_history.json"], "fetched": "2099-02-02"}
+    _served["baro_history.json"] = newer_baro
+    _baro.load()
+    _aio.run(_c.refresh_community_static(("baro_history.json",)))
+    check("★ 奸商历史刷新后 baro.load 读到新快照", _baro.snapshot_date() == "2099-02-02")
+
+    # 用户自填地址：只用它
+    _urls_seen.clear()
+    _c.community_base = _AC.normalize_community_base("https://mirror.example.com/wf/")
+    _aio.run(_c.refresh_community_static(("arb_ratings.json",)))
+    check(
+        "★ 自填社区地址：只请求该地址下的同名文件",
+        _urls_seen == ["https://mirror.example.com/wf/arb_ratings.json"],
+        str(_urls_seen),
+    )
+    _aio.run(_c.close())
+finally:
+    _paths.set_run_dir(None)
+    _arbi.reset_measured()
+    _baro.reset()
+    _shutil.rmtree(_rt, ignore_errors=True)
+
+
+# 发布端（私有运维脚本）与消费端的静态快照校验同口径：同一批样本结论必须一致
+_pub_path = (
+    ROOT / ".zcode/skills/astrbot-server-triage/scripts/automations/publish_community_snapshot.py"
+)
+if _pub_path.exists():
+    import importlib.util as _ilu
+
+    _spec = _ilu.spec_from_file_location("_pub_static", _pub_path)
+    _pub = _ilu.module_from_spec(_spec)
+    _spec.loader.exec_module(_pub)
+    _samples = []
+    for _n, _d in _seed.items():
+        _samples.append((_n, _d))
+        _samples.append((_n, {**_d, _AC.COMMUNITY_STATIC[_n]["stamp"]: ""}))
+    _samples += [
+        ("arb_ratings.json", _bad_tier),
+        ("arb_ratings.json", {"_updated": "2026-10-16", "nodes": {}}),
+        ("wiki_disp.json", {"snapshot": "2026-10-16T00:00:00+00:00", "disp": {"a": 1}}),
+        ("baro_history.json", {**_seed["baro_history.json"], "visits": []}),
+    ]
+    _diff = [
+        (n, _AC.community_static_ok(n, d)[0], not _pub.static_ok(n, d))
+        for n, d in _samples
+        if _AC.community_static_ok(n, d)[0] != (not _pub.static_ok(n, d))
+    ]
+    check("★ 静态快照校验：发布端与消费端结论一致", not _diff, str(_diff))
+    check("发布端静态快照文件集合 == 消费端", set(_pub.STATIC_PATHS) == set(_AC.COMMUNITY_STATIC))
+else:
+    print("[SKIP] 发布端静态快照对拍：本树无私有运维脚本")
+
+
+# ---------------------------------------------------------------------------
+# ★ 2026-10-16（GPT 评估 P04 / V01）：社区通道记忆 + 冷却 + 总预算；元素加成快照必须属于当前轮次
+# ---------------------------------------------------------------------------
+import time as _time  # noqa: E402
+
+_cc = _AC.WarframeClient()
+_calls = []
+_mode = {"raw": "down", "cdn": "ok"}
+
+
+async def _ff(url, ttl=0, headers=None, cache_key=None, retries=2, **kw):
+    _calls.append((url.split("/")[2], retries))
+    h = url.split("/")[2]
+    if "raw.githubusercontent" in h and _mode["raw"] == "down":
+        raise _AC.WarframeAPIError(f"请求失败（{url}）：timeout")
+    if "raw.githubusercontent" in h and _mode["raw"] == "404":
+        raise _AC.WarframeAPIError(f"接口不存在或暂未开放：{url}")
+    return {"ok": h}
+
+
+_cc._fetch_json = _ff
+r = _aio.run(_cc._community_json(_AC.community_static_urls("arb_ratings.json")))
+check("raw 不通 → 换 cdn 拿到", r == {"ok": "cdn.jsdelivr.net"}, str(r))
+check("每条通道只试一次（retries=0，多通道本身就是重试）", all(rt == 0 for _h, rt in _calls))
+_calls.clear()
+_aio.run(_cc._community_json(_AC.community_static_urls("baro_history.json")))
+check(
+    "★ raw 冷却中：别的文件也直接走上次成功的 cdn，不再等 raw 超时",
+    [h for h, _ in _calls] == ["cdn.jsdelivr.net"],
+    str(_calls),
+)
+_cc._comm_cool["cdn.jsdelivr.net"] = _time.monotonic() + 999
+_cc._comm_cool["gcore.jsdelivr.net"] = _time.monotonic() + 999
+_calls.clear()
+_aio.run(_cc._community_json(_AC.community_static_urls("wiki_disp.json")))
+check("全部冷却时仍重探排第一的那个（网络恢复能自己回来）", len(_calls) == 1, str(_calls))
+_cc2 = _AC.WarframeClient()
+_cc2._fetch_json = _ff
+_mode["raw"] = "404"
+_aio.run(_cc2._community_json(_AC.community_static_urls("arb_ratings.json")))
+check("404（镜像没这个文件）不冷却主机", "raw.githubusercontent.com" not in _cc2._comm_cool)
+
+
+async def _slow(url, **kw):
+    await _aio.sleep(5)
+    return {}
+
+
+_cc3 = _AC.WarframeClient()
+_cc3._fetch_json = _slow
+_old_budget = _AC.COMMUNITY_BUDGET
+_AC.COMMUNITY_BUDGET = 1.5
+try:
+    t0 = _time.monotonic()
+    r = _aio.run(_cc3._community_json(_AC.community_static_urls("arb_ratings.json")))
+    check(
+        "★ 总预算截断：三条慢通道不会叠加等待",
+        r is None and _time.monotonic() - t0 < 3.5,
+        f"{_time.monotonic() - t0:.1f}s",
+    )
+finally:
+    _AC.COMMUNITY_BUDGET = _old_budget
+
+
+async def _hang_raw(url, **kw):
+    if "raw.githubusercontent" in url:
+        await _aio.sleep(60)  # 模拟 raw 卡死（不报错、一直不回）
+    return {"ok": url.split("/")[2]}
+
+
+_cc4 = _AC.WarframeClient()
+_cc4._fetch_json = _hang_raw
+_old_pc = _AC.COMMUNITY_PER_CHANNEL
+_AC.COMMUNITY_PER_CHANNEL = 0.3
+try:
+    r = _aio.run(_cc4._community_json(_AC.community_static_urls("arb_ratings.json")))
+    check(
+        "★ raw 卡死：单通道上限到点就换镜像，同一次取数拿到数据（ZCode 10-16 线上发现）",
+        r == {"ok": "cdn.jsdelivr.net"},
+        str(r),
+    )
+    check("卡死的主机进入冷却", "raw.githubusercontent.com" in _cc4._comm_cool)
+finally:
+    _AC.COMMUNITY_PER_CHANNEL = _old_pc
+check("失败日志带异常类型（超时类异常 str 为空）", "str(exc) or type(exc).__name__" in API_SRC)
+for _c in (_cc, _cc2, _cc3, _cc4):
+    _aio.run(_c.close())
+
+# V01：社区元素加成快照必须落在当前轮次窗口内（信条 / 终幕两段 epoch 不同，各算各的窗口）
+from datetime import datetime as _dt, timedelta as _td, timezone as _tz  # noqa: E402
+
+_rot = _json.loads((_PKG / "rotations.json").read_text(encoding="utf-8"))
+_cv = _AC.WarframeClient()
+_now = _dt.now(_tz.utc)
+
+
+def _win(sect):
+    ep = _dt.fromisoformat(sect["epoch"])
+    per = _td(hours=int(sect.get("period_hours", 96)))
+    return ep + (_now - ep) // per * per, per
+
+
+_starts = [_win(_rot[k]) for k in ("tenet", "coda")]
+for _k in ("tenet", "coda"):
+    _rot[_k]["valence_snapshot"] = (
+        min(st for st, _ in _starts) - _td(days=30)
+    ).isoformat()  # 本地很旧
+
+
+def _payload(ts):
+    return {
+        "published_at": ts,
+        "tenet": {"items": [{"en": "x", "element": "Heat", "bonus": 0.6}]},
+        "coda": {"batch": "A", "items": [{"en": "y", "element": "Heat", "bonus": 0.6}]},
+    }
+
+
+async def _serve(ts):
+    async def _f(urls):
+        return _payload(ts)
+
+    _cv._community_json = _f
+    return await _cv._community_valence_parsed(_rot)
+
+
+_prev = (max(st for st, _ in _starts) - _td(hours=1)).isoformat()
+check("★ V01：上一轮的快照（比本地新但早于本轮开始）不采用", _aio.run(_serve(_prev)) is None, _prev)
+_cur = (_now - _td(minutes=1)).isoformat()
+_res = _aio.run(_serve(_cur))
+check(
+    "V01：本轮内的快照照常采用（对照组，证明上一条不是被别的校验拦下）",
+    _res is not None and _res.get("snapshot") == _cur,
+    str(_res)[:120],
+)
+check("V01：社区路径写回数据源时刻而非 now", 'snap = str(raw["snapshot"])' in API_SRC)
+_aio.run(_cv.close())
+
+
+# ---------------------------------------------------------------------------
+# ★ 2026-10-16（GPT 评估 P01 / P02）：告警出口只在确认送达后去重；OneBot 带正文；多通道兜底
+# ---------------------------------------------------------------------------
+_ap_path = ROOT / ".zcode/skills/astrbot-server-triage/scripts/automations/alert_push.py"
+if _ap_path.exists():
+    import importlib.util as _ilu2
+    import os as _os
+
+    _spec2 = _ilu2.spec_from_file_location("_alert_push_t", _ap_path)
+    _ap = _ilu2.module_from_spec(_spec2)
+    _spec2.loader.exec_module(_ap)
+    _td_ap = Path(_tmp.mkdtemp(prefix="_tmp_alert_"))
+    _ap.LOG_DIR, _ap.ALERTS = _td_ap, _td_ap / "ALERTS.md"
+    _env_keys = (
+        "ASTRBOT_OPENAPI_BASE",
+        "ASTRBOT_OPENAPI_KEY",
+        "ASTRBOT_ALERT_UMO",
+        "ALERT_WEBHOOK_URL",
+        "ALERT_ONEBOT_URL",
+        "ALERT_TARGET",
+        "ALERT_ONEBOT_TOKEN",
+    )
+    _env_bak = {k: _os.environ.get(k) for k in _env_keys}
+    _sent = []
+    _behave = {}
+
+    def _fake_post(url, payload, token=""):
+        _sent.append((url, payload))
+        b = _behave.get(url.split("/")[2], "ok")
+        if b == "raise":
+            raise OSError("connection refused")
+        if b == "biz_fail":
+            return {"status": "failed", "retcode": 100, "message": "bot offline"}
+        return {"status": "ok", "retcode": 0}
+
+    _ap._post = _fake_post
+    try:
+        for k in _env_keys:
+            _os.environ.pop(k, None)
+        _os.environ.update(
+            {
+                "ASTRBOT_OPENAPI_BASE": "http://api.local",
+                "ASTRBOT_OPENAPI_KEY": "k",
+                "ASTRBOT_ALERT_UMO": "bot:FriendMessage:1",
+                "ALERT_ONEBOT_URL": "http://ob.local",
+                "ALERT_TARGET": "10001",
+            }
+        )
+        _behave = {"api.local": "raise"}
+        r = _ap.push("T1", "body1")
+        check(
+            "★ 主通道抛异常 → 用已配置的 OneBot 兜底送达",
+            r.startswith("onebot") and len(_sent) == 2,
+            r,
+        )
+        check(
+            "★ OneBot 请求带消息正文（原先只有目标）",
+            _sent[-1][1].get("message", "").startswith("T1"),
+            str(_sent[-1]),
+        )
+        _sent.clear()
+        check("送达后 24h 去重", "去重" in _ap.push("T1", "body1") and not _sent)
+        _behave = {"api.local": "raise", "ob.local": "biz_fail"}
+        r = _ap.push("T2", "body2")
+        check(
+            "★ HTTP 200 但业务失败也算失败；全部失败不记送达", r.startswith("全部远程通道失败"), r
+        )
+        _behave = {}
+        _sent.clear()
+        r = _ap.push("T2", "body2")
+        check(
+            "★ 上次没送达的同一告警，下次触发会重试并送达",
+            r.startswith("openapi") and len(_sent) == 1,
+            r,
+        )
+        txt = _ap.ALERTS.read_text(encoding="utf-8")
+        check("文件落档同一摘要 24h 只一次（重试不刷文件）", txt.count("]** T2") == 1, txt[-300:])
+        for k in _env_keys:
+            _os.environ.pop(k, None)
+        check(
+            "没配远程通道：落文件即视为送达",
+            _ap.push("T3", "b3") == "文件(ALERTS.md)" and "去重" in _ap.push("T3", "b3"),
+        )
+    finally:
+        for k, v in _env_bak.items():
+            if v is None:
+                _os.environ.pop(k, None)
+            else:
+                _os.environ[k] = v
+        _shutil.rmtree(_td_ap, ignore_errors=True)
+else:
+    print("[SKIP] 告警出口用例：本树无私有运维脚本")
 
 print()
 if FAILED:

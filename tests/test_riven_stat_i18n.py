@@ -22,6 +22,9 @@ slug 命名），所以永远走不到中文那一跳。
 
 from __future__ import annotations
 
+import asyncio
+import copy
+import json
 import sys
 from pathlib import Path
 
@@ -95,6 +98,7 @@ from core import formatters as F  # noqa: E402
 from core import parser as P  # noqa: E402
 from core import riven_analysis as RA  # noqa: E402
 from core.commands.vision import VisionCommands as V  # noqa: E402
+from core.commands.market import MarketCommands as M  # noqa: E402
 
 check("冻结的 slug 数量为 32", len(WM_RIVEN_SLUGS) == 32, str(len(WM_RIVEN_SLUGS)))
 check("slug 无重复", len(set(WM_RIVEN_SLUGS)) == len(WM_RIVEN_SLUGS))
@@ -352,6 +356,264 @@ check(
     and _WC.normalize_riven_stats(_q.stats) == ["status_damage", "weak_point_damage"]
     and _WC.normalize_riven_stats(_q.negatives) == ["damage_to_orokin"],
     f"weapon={_q.weapon!r} pos={_q.stats} neg={_q.negatives}",
+)
+
+# ⑭ wr 别名等价 + handler 筛选：只替换网络边界，武器解析、请求构造和本地筛选走真代码。
+_WR_EQUIVALENT = (
+    "wr 冰凇 基础 多重 异常伤害 负i伤",
+    "wr 冰凇 基多异常 负i",
+    "wr 冰凇 基多异 负i",
+)
+_WANT_POS = ["base_damage_/_melee_damage", "multishot", "status_damage"]
+_WANT_NEG = ["damage_vs_infested"]
+for _text in _WR_EQUIVALENT:
+    _q = P.parse_wr(P.parse(_text).content)
+    check(
+        f"⑭① 三种写法等价：{_text}",
+        _q.weapon == "冰凇"
+        and _WC.normalize_riven_stats(_q.stats) == _WANT_POS
+        and _WC.normalize_riven_stats(_q.negatives) == _WANT_NEG
+        and not _q.unrecognized_stats,
+        repr(_q),
+    )
+
+# 英文别名逐个验证原文/小写/大写/混合大小写，含负面及与中文词条连写。
+for _sid, _aliases in P.RIVEN_STAT_ALIASES.items():
+    for _alias in sorted(_aliases):
+        if not any(c.isascii() and c.isalpha() for c in _alias):
+            continue
+        for _variant in dict.fromkeys((_alias, _alias.lower(), _alias.upper(), _alias.swapcase())):
+            for _neg in (False, True):
+                _q = P.parse_wr(["冰凇", ("负" if _neg else "") + _variant])
+                check(
+                    f"⑭② 英文词条大小写一致：{'负' if _neg else ''}{_variant}",
+                    _q.weapon == "冰凇"
+                    and (_q.negatives if _neg else _q.stats) == [_sid]
+                    and not (_q.stats if _neg else _q.negatives),
+                    repr(_q),
+                )
+_q = P.parse_wr(P.parse("wr 冰凇 基多异负i伤").content)
+check(
+    "⑭③ 正负连写与分写等价",
+    _q.weapon == "冰凇"
+    and _WC.normalize_riven_stats(_q.stats) == _WANT_POS
+    and _WC.normalize_riven_stats(_q.negatives) == _WANT_NEG,
+    repr(_q),
+)
+for _text in ("wr 冰凇 触发", "wr 冰凇 触时"):
+    _q = P.parse_wr(P.parse(_text).content)
+    check(
+        f"⑭④ 触发几率/触发时间不与异常伤害混淆：{_text}",
+        _q.stats == (["status_chance"] if _text.endswith("触发") else ["status_duration"]),
+        repr(_q),
+    )
+for _blob in ("基多负未知", "基多负任意未知"):
+    _q = P.parse_wr(["冰凇", _blob])
+    check(
+        f"⑭⑤ 词条串失败不残留半截条件：{_blob}",
+        not _q.stats and not _q.negatives and not _q.require_negative,
+        repr(_q),
+    )
+
+
+def _wr_auction(aid, positives, negatives, *, price=300, status="ingame", rolls=0):
+    return {
+        "id": aid,
+        "buyout_price": price,
+        "owner": {"status": status, "ingame_name": aid},
+        "item": {
+            "re_rolls": rolls,
+            "attributes": [
+                {"url_name": s, "positive": positive, "value": 60}
+                for positive, stats in ((True, positives), (False, negatives))
+                for s in stats
+            ],
+        },
+    }
+
+
+class _WrReplayClient(_WC):
+    def __init__(self, auctions):
+        # 不初始化 HTTP 客户端；网络边界全部回放，避免测试联网。
+        self._aliases = {"riven_items": {}}
+        self.wm_base = "https://api.warframe.market/v1"
+        self.auctions = auctions
+        self.requests = []
+        self.resolved = []
+
+    async def resolve_riven_weapon(self, query):
+        self.resolved.append(query)
+        return await super().resolve_riven_weapon(query)
+
+    async def wm_riven_weapons(self):
+        return [
+            {
+                "url_name": "glaxion",
+                "en": "Glaxion",
+                "zh": "冰凇",
+                "riven_type": "rifle",
+                "group": "primary",
+            }
+        ]
+
+    async def wm_riven_weapon_slugs(self):
+        return {"glaxion"}
+
+    async def _fetch_json(self, url, **kwargs):
+        self.requests.append(copy.deepcopy(kwargs.get("params")))
+        return {"payload": {"auctions": copy.deepcopy(self.auctions)}}
+
+
+def _wr_replay(text, auctions):
+    handler = M()
+    handler.client = _WrReplayClient(auctions)
+    handler.page_size = 12
+    parsed = P.parse(text)
+    entry = handler._h_rm if parsed.command == "rm" else handler._h_wr
+    reply = asyncio.run(entry(parsed, None, "pc"))
+    return reply, handler.client
+
+
+_full = _wr_auction("full_match", _WANT_POS, _WANT_NEG, price=500)
+_wrong_neg = _wr_auction("wrong_negative", _WANT_POS, ["damage_vs_corpus"], price=100)
+_wrong_pos = _wr_auction(
+    "wrong_positive", ["base_damage_/_melee_damage", "multishot", "status_chance"], _WANT_NEG
+)
+_no_neg = _wr_auction("missing_negative", _WANT_POS, [])
+_wrong_sign = _wr_auction(
+    "wrong_sign",
+    ["multishot", "status_damage", "damage_vs_infested"],
+    ["base_damage_/_melee_damage"],
+)
+_replies, _requests = [], []
+for _text in _WR_EQUIVALENT:
+    _reply, _client = _wr_replay(_text, [_wrong_neg, _wrong_pos, _no_neg, _wrong_sign, _full])
+    _body = "\n".join(_reply.lines)
+    _replies.append((_reply.title, _reply.lines, _reply.footer))
+    _requests.append(_client.requests)
+    check(
+        f"⑭⑥ 完整 handler 只显示符合三个正词条和负I伤的挂单：{_text}",
+        "full_match" in _body
+        and not any(a["id"] in _body for a in (_wrong_neg, _wrong_pos, _no_neg, _wrong_sign))
+        and _client.resolved == ["冰凇"],
+        _body,
+    )
+check(
+    "⑭⑦ 三种输入返回相同卡片与 API 参数",
+    _replies.count(_replies[0]) == 3 and _requests.count(_requests[0]) == 3,
+)
+check(
+    "⑭⑧ 请求携带完整正负词条（逗号 AND），升/降序各查一次",
+    len(_requests[0]) == 2
+    and all(
+        r.get("positive_stats") == ",".join(_WANT_POS)
+        and r.get("negative_stats") == "damage_vs_infested"
+        for r in _requests[0]
+    ),
+    repr(_requests[0]),
+)
+for _text, _pool in (
+    *((text, [_wrong_neg, _no_neg]) for text in _WR_EQUIVALENT),
+    ("wr 冰凇 基多 3+1", [_no_neg]),
+    ("wr 冰凇 基多异 带负", [_wrong_pos, _no_neg]),
+    ("rm 冰凇 基多异 负i", [_wrong_neg, _no_neg]),
+):
+    _reply, _ = _wr_replay(_text, _pool)
+    _body = "\n".join(_reply.lines)
+    check(
+        f"⑭⑨ 显式/隐式 3+1 无匹配不自动放宽：{_text}",
+        "没有符合条件" in _body
+        and not any(a["id"] in _body for a in _pool)
+        and "最接近选项" not in _body,
+        _body,
+    )
+_reply, _ = _wr_replay(
+    "wr 冰凇 基多异 负i 最新",
+    [dict(_full, owner={"status": "offline", "ingame_name": "offline_match"})],
+)
+check(
+    "⑭⑩ 3+1 也不自动放宽显式在线条件",
+    "没有符合条件" in "\n".join(_reply.lines),
+    repr(_reply.lines),
+)
+_reply, _ = _wr_replay("wr 冰凇 基多 负i", [_wrong_neg])
+check(
+    "⑭⑪ 其余查询保留近似推荐并明确提示",
+    "wrong_negative" in "\n".join(_reply.lines)
+    and any("最接近选项" in line for line in _reply.lines),
+    repr(_reply.lines),
+)
+_reply, _client = _wr_replay("wr 冰凇 基多负未知", [_full])
+check(
+    "⑭⑫ 无法识别的负词条在解析武器/请求挂单前报错",
+    "无法识别" in "\n".join(_reply.lines) and not _client.resolved and not _client.requests,
+    repr(_reply.lines),
+)
+for _text, _auction in (
+    ("wr 冰凇 基多 负i 50p", _wrong_neg),
+    ("wr 冰凇 基多 负i 零洗", _wr_auction("rerolled", _WANT_POS, [], rolls=10)),
+    ("wr 冰凇 基多 负i 2+1", _wrong_neg),
+    ("wr 冰凇 基多 带负", _no_neg),
+    ("wr 冰凇 基多 无", _wrong_neg),
+):
+    _reply, _ = _wr_replay(_text, [_auction])
+    check(
+        f"⑭⑬ 近似推荐保留价格/洗数/词条数/有无负面硬条件：{_text}",
+        "没有符合条件" in "\n".join(_reply.lines),
+        repr(_reply.lines),
+    )
+
+# ⑮ 扩充别名的边界：整张词表正负回读 + 名称冲突 + 真实武器名不被拆成词条。
+_alias_targets: dict[str, set[str]] = {}
+for _sid, _aliases in P.RIVEN_STAT_ALIASES.items():
+    for _alias in sorted(_aliases):
+        _alias_targets.setdefault(_alias.casefold(), set()).add(P.RIVEN_URL_COMPAT.get(_sid, _sid))
+        for _is_negative in (False, True):
+            # 走 parse，顺带覆盖无需引号的英文多词全称。
+            _q = P.parse_wr(P.parse("wr 冰凇 " + ("负" if _is_negative else "") + _alias).content)
+            check(
+                f"⑮① 别名正负回读：{'负' if _is_negative else ''}{_alias}",
+                _q.weapon == "冰凇"
+                and (_q.negatives if _is_negative else _q.stats) == [_sid]
+                and not (_q.stats if _is_negative else _q.negatives)
+                and not _q.unrecognized_stats,
+                repr(_q),
+            )
+_conflicts = {alias: targets for alias, targets in _alias_targets.items() if len(targets) > 1}
+check("⑮② 别名大小写归一后不跨词条冲突（WM 合并词条视为同项）", not _conflicts, repr(_conflicts))
+for _text in (
+    "wr 冰凇 base damage multishot status damage 负damage to infested",
+    "wr 冰凇 基多异 负 i伤",
+    "wr 冰凇 基多异 负 Damage to Infested",
+    "紫卡 冰凇 基多异 负i",
+):
+    _reply, _client = _wr_replay(_text, [_wrong_neg, _full])
+    _body = "\n".join(_reply.lines)
+    check(
+        f"⑮③ 完整 handler 支持英文全称/负面分写/紫卡别名：{_text}",
+        "full_match" in _body
+        and "wrong_negative" not in _body
+        and _client.requests == _requests[0],
+        _body,
+    )
+_names = set(json.loads((ROOT / "core/data/aliases.json").read_text())["riven_items"])
+for _en, _weapon in json.loads((ROOT / "core/data/dispositions_rivenmirror.json").read_text())[
+    "entries"
+].items():
+    _names.update((_en, _weapon.get("zh", ""), _weapon.get("url_name", "")))
+_broken_names = []
+for _name in sorted(_names - {""}):
+    _q = P.parse_wr(P.parse("wr " + _name).content)
+    if _q.weapon != _name or _q.stats or _q.negatives or _q.unrecognized_stats:
+        _broken_names.append((_name, _q))
+check(
+    f"⑮④ 本地 {len(_names - {''})} 个紫卡武器名称/别名不被误拆成词条",
+    not _broken_names,
+    repr(_broken_names),
+)
+check(
+    "⑮⑤ 易歧义缩写不注册：SD / 穿 / 连 / 效",
+    all(P.segment_stats(alias) is None for alias in ("SD", "穿", "连", "效")),
 )
 
 if FAILED:

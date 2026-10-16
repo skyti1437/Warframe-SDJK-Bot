@@ -20,7 +20,7 @@ from .. import api_client
 from ..logging_compat import logger
 from .. import formatters as fmt
 from .. import matching
-from ..parser import GROUP_BUY_MAX, parse_wm, parse_wr
+from ..parser import GROUP_BUY_MAX, RIVEN_STAT_ZH, parse_wm, parse_wr
 from .base import PLUGIN_DIR, Reply, err_card
 
 JUNK_FILE = PLUGIN_DIR / "core" / "data" / "junk.json"
@@ -514,6 +514,12 @@ class MarketCommands:
         pass
 
         q = parse_wr(parsed.content)
+        if q.unrecognized_stats:
+            return err_card(
+                "无法识别紫卡筛选词：「" + "、".join(q.unrecognized_stats) + "」",
+                "检查负词条写法后重发；可使用卡面全称或短名，英文不区分大小写",
+                title="紫卡拍卖",
+            )
         if not q.weapon:
             return err_card(
                 "没有写武器名",
@@ -559,6 +565,10 @@ class MarketCommands:
         )
         neg_set = set(negatives)
         pos_set = set(positives)
+        # 显式 3+1，或三个指定正词条 + 具体/任意负面，均不自动放宽条件。
+        strict_3p1 = (q.positive_count == 3 or len(pos_set) >= 3) and (
+            q.negative_count == 1 or q.require_negative or bool(neg_set)
+        )
         pool = [a for a in auctions if self._auction_match(a, q, neg_set, pos_set)]
         # ★ 2026-10-08：可追溯日志 —— 「卡上少一条」类问题直接从日志对：
         #   API 回来多少 / 本地筛完多少 / 各状态几条（玩家报障时按这个对 WM 网页）。
@@ -578,7 +588,7 @@ class MarketCommands:
             sorted(pos_set),
         )
         relaxed = ""
-        if not pool and auctions and (q.stats or q.negatives):
+        if not strict_3p1 and not pool and auctions and (q.stats or q.negatives):
             # 严格匹配为空时分两档放宽（2026-09-24 玩家报障「前排出现不匹配的
             # 项目」——旧实现直接跳到「近似匹配」，而近似排序又被渲染层按
             # 在线+价格重排，于是前排全是便宜但与词条无关的挂单）：
@@ -598,9 +608,9 @@ class MarketCommands:
                     ),
                 )
                 relaxed = "offline"
-        if not pool and auctions and (q.stats or q.negatives):
-            # 服务端词条过滤为 OR 语义，精确匹配仍需本地二次筛；严格匹配为空时
-            # 按 词条命中率+价格 给出最接近的选项，而不是一句「没有」
+        if not strict_3p1 and not pool and auctions and (q.stats or q.negatives):
+            # 服务端降级时可能未筛词条，本地二次筛为空则按命中率给近似选项。
+            # 3+1 查询不进入此分支，避免指定整张卡的条件被自动放宽。
             def _rank(a: dict):
                 item = a.get("item", {}) or {}
                 attrs = item.get("attributes") or []
@@ -615,14 +625,13 @@ class MarketCommands:
                 online = fmt._ONLINE_RANK.get((a.get("owner") or {}).get("status") or "offline", 3)
                 return (-score, online, price)
 
-            # 洗数过滤是硬条件，放宽词条时不能把它一起放开
-            cand = (
-                [a for a in auctions if self._rolls_ok(a, q)]
-                if (q.max_rerolls is not None or q.rerolls_min is not None)
-                else auctions
-            )
+            # 只放宽具体词条与在线状态，价格/洗数/词条数/有无负面仍是硬条件。
+            cand = [
+                a for a in auctions if self._auction_match(a, q, set(), set(), ignore_status=True)
+            ]
             pool = sorted(cand, key=_rank)[: max(4, self.page_size - 4)]
-            relaxed = "loose"
+            if pool:
+                relaxed = "loose"
         wname = weapon.get("zh") or weapon.get("en") or url_name
         # 完全命中词条的 id 集合（2026-10-01 B 口径，仅排序用）：在线档优先、
         # 档内恰好在前、超集仍可翻页。未指定词条 → None（退化为现行为）。
@@ -644,6 +653,13 @@ class MarketCommands:
             presorted=bool(relaxed),
             exact_ids=exact_ids,
         )
+        filters = [f"▲{RIVEN_STAT_ZH.get(s, s)}" for s in dict.fromkeys(q.stats)]
+        filters += [f"▼{RIVEN_STAT_ZH.get(s, s)}" for s in dict.fromkeys(q.negatives)]
+        if q.require_negative and not q.negatives:
+            filters.append("任意负面")
+        if filters or strict_3p1:
+            suffix = "（3+1，不自动放宽）" if strict_3p1 else ""
+            lines.insert(0, "◆ 筛选：" + "、".join(filters) + suffix)
         _asked = asked.get("zh") or asked.get("en") or asked.get("url_name")
         if url_name != asked.get("url_name"):
             # ★ 2026-10-10：变体（Dex/Prime/棱晶/赤毒…）改查家族主武器 ⇒ 卡面写明，

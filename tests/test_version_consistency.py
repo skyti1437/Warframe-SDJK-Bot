@@ -111,6 +111,21 @@ check(
     mn or "缺 name 字段",
 )
 check("显示名放 display_name，不占用 name 字段", "display_name:" in meta, "缺 display_name")
+# ★ 2026-10-16：市场（cloud.astrbot.app）分类读 metadata 的 category 字段，缺省落「其他」。
+#   取值必须是市场已有分类名（三方集成 / 生活 / 工具 / 长期记忆 / 知识库 / 娱乐 / 其他）。
+MARKET_CATEGORIES = ("三方集成", "生活", "工具", "长期记忆", "知识库", "娱乐", "其他")
+
+
+def _meta_category(text: str) -> str:
+    m = re.search(r"^category:\s*(\S+)\s*$", text, re.M)
+    return m.group(1) if m else ""
+
+
+check(
+    "metadata.yaml 的 category 是市场已有分类且不是「其他」",
+    _meta_category(meta) in MARKET_CATEGORIES and _meta_category(meta) != "其他",
+    _meta_category(meta) or "缺 category 字段",
+)
 
 # 开源包那份（由 dist/package_release.py 生成）同样要合法
 oss_meta = ROOT / "dist" / "opensource" / "astrbot_plugin_warframe_sdjkbot" / "metadata.yaml"
@@ -132,6 +147,12 @@ if oss_meta.exists():
             if ln.startswith("display_name:")
         ),
         "开源包展示名未跟随品牌（改 dist/package_release.py::_oss_metadata）",
+    )
+    check(
+        "开源包 metadata.yaml 的 category == 源 metadata.yaml",
+        _meta_category(om) == _meta_category(meta) != "",
+        "%s vs %s（改 dist/package_release.py::_oss_metadata）"
+        % (_meta_category(om), _meta_category(meta)),
     )
     omm = re.search(r"^version:\s*v?([\d.]+)\s*$", om, re.M)
     # ★ 2026-10-04（v1.1.4 发版实测）：原先只比「主次版本」，补丁号漂移抓不住 ——

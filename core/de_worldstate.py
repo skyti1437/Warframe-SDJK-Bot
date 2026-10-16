@@ -1046,12 +1046,17 @@ def _parse_void_trader(entry: dict, now_ms: int) -> dict:
         #    的字段名（StoreItem / ItemPrice / CreditPrice）读 —— DE 源里根本
         #    没有这些键，整卡落成「? 杜卡德 ? 现金」。这里保留旧键做兜底，
         #    万一哪天切回 warframestat 源也不至于再坏一次。
+        # ★ 2026-10-16：路径原样留档，供当期货单按**商品类别**分组排版
+        #   （core/baro.py::group_of_store 判定，render 的行首彩色芯片）。
+        #   之前这里读完就丢，货单只能按 DE 的原始混杂顺序两列排（玩家反馈
+        #   「同种类的商品放一块」就没数据基础）。缺键时留空串 = 归「其他」。
         store = it.get("ItemType") or it.get("StoreItem", "")
         inventory.append(
             {
                 "item": item_name(store),
                 "ducats": it.get("PrimePrice", it.get("ItemPrice", "?")),
                 "credits": it.get("RegularPrice", it.get("CreditPrice", "?")),
+                "store": store,
             }
         )
     character = entry.get("Character") or ""

@@ -1,273 +1,163 @@
-# AstrBot 插件 · Warframe SDJKBOT v1.2.0（`astrbot_plugin_warframe_sdjkbot`）
+# AstrBot 插件 · Warframe SDJKBOT v1.2.1（`astrbot_plugin_warframe_sdjkbot`）
 
-> **📢 插件 ID 迁移公告（2026-09-28）**
-> 本插件 ID 由 `astrbot_plugin_warframe` 变更为 **`astrbot_plugin_warframe_sdjkbot`**，旧 ID 不再维护。
-> 原因：AstrBot 插件市场已取消压缩包上传通道、仅支持 GitHub 仓库发布，而旧记录与仓库的绑定校验存在缺陷
-> （AstrBotDevs/AstrBot#10198），旧 ID 无法继续发版。
->
-> **迁移流程（老用户三步）**：
-> 1. 在 AstrBot 中卸载旧插件 `astrbot_plugin_warframe`；
-> 2. 在插件市场搜索并安装 `astrbot_plugin_warframe_sdjkbot`（展示名仍为 Warframe SDJKBOT）；
-> 3. 如需保留订阅等运行数据，将 `data/plugin_data/astrbot_plugin_warframe/` 整目录改名为
->    `data/plugin_data/astrbot_plugin_warframe_sdjkbot/`。
->
-> 版本延续 v1.0.9，功能与旧版一致。旧市场记录仅作存档，后续更新请安装新 ID 插件。
+在 QQ 群里查 Warframe 的一切：**世界状态、市场价、遗物与部件、伤害计算、配卡截图识别、紫卡分析、玄骸拍卖、奸商预测、蹲点推送**——
+回复渲染成 Orokin 风格的图片卡片，后台还带一个可视化的运维面板。
 
-一个给 AstrBot 用的 Warframe 工具集：**世界状态 / 市场查价 / 伤害计算与配卡识别 /
-紫卡分析 / 遗物与部件反查 / 玄骸拍卖 / 奸商预测 / 蹲点推送**，
-并支持渲染成 Orokin 风格图片卡片。
+<p align="center">
+  <img src="https://cdn.jsdelivr.net/gh/skyti1437/Warframe-SDJK-Bot@main/assets/readme/arbitration.png" width="49%" alt="当前仲裁卡片" />
+  <img src="https://cdn.jsdelivr.net/gh/skyti1437/Warframe-SDJK-Bot@main/assets/readme/relic.png" width="49%" alt="遗物卡片" />
+</p>
 
-指令为**自由参数式**：`主指令 + 内容 + 附加项`，三者位置任意、空格分隔。
-例如 `伤害 绝路 镀层3`、`遗物 出库 -2`、`仲裁 钢铁` 都可以。
-
-> 本插件以 GPL-3.0 开源。数据与人格相关的私有集成**已移除**
-> （见「开源版与自用版的差异」）。
+指令是**自由参数式**的：`主指令 + 内容 + 附加项`，顺序随意、空格分隔。比如 `伤害 绝路 镀层3`、`遗物 出库`、`仲裁 生存 高效` 都行。
+发送 `帮助` 查看完整指令表——共 **55 个主指令**，分 9 组。
 
 ---
 
-## 一、功能一览
+## 卡片一览
 
-| 分组 | 代表指令 |
-| --- | --- |
-| 周期与日常 | `夜灵` `赏金` `裂隙` `突击` `执刑官` `时效` |
-| 任务与轮换 | `深层科研` `沉沦之地` `侵袭` `仲裁` `仲裁表` `九重天` |
-| 商店与周常 | `奸商` `奸商 预测` `每日特惠` `言录使` `氏族奖励` `出库` |
-| 玄骸拍卖 | `xh <武器> [元素] [数值]`（赤毒/信条/终幕三类） |
-| 遗物与部件 | `遗物 <名>`（奖励与出处）`遗物 <部件>`（反查）`遗物 出库/入库` `开核桃` `金垃圾` |
-| 市场与紫卡 | `wm <物品>` `wr` `rm` `rank` `trend` `analysis` `disposition` |
-| 伤害计算 | `伤害 <武器> <MOD…>` `识卡`（配卡截图识别）`识卡伤害` `scandamage` |
-| 其他 | `wiki <词>` `状态` `蹲 <事件>` `帮助` … 共 **55 个主指令** |
+| 虚空裂隙（按纪元排序、钢铁 / 九重天标记） | 伤害计算（实战 / 爆发 / 持续 DPS、分段明细） |
+| :---: | :---: |
+| <img src="https://cdn.jsdelivr.net/gh/skyti1437/Warframe-SDJK-Bot@main/assets/readme/fissures.png" alt="虚空裂隙卡片" /> | <img src="https://cdn.jsdelivr.net/gh/skyti1437/Warframe-SDJK-Bot@main/assets/readme/damage.png" alt="伤害计算卡片" /> |
+| **Prime 出库清单（出库遗物按杜卡德金 / 银 / 铜着色）** | **指令一览（`帮助`）** |
+| <img src="https://cdn.jsdelivr.net/gh/skyti1437/Warframe-SDJK-Bot@main/assets/readme/prime-vault.png" alt="Prime 出库卡片" /> | <img src="https://cdn.jsdelivr.net/gh/skyti1437/Warframe-SDJK-Bot@main/assets/readme/help.png" alt="指令一览卡片" /> |
 
-`帮助` 指令会输出完整指令表（分 9 组），由 `tests/test_help_coverage.py` 锁定覆盖率。
-条数按 `len(COMMAND_ALIASES)` 现算，并另有断言（`tests/test_version_consistency.py`）
-钉住本文档与门面 `desc` 里的数字 —— 以后增删指令时漏改这里会直接测试失败。
+> 截图均由插件的真实渲染器用实时数据生成，配色是默认的「Orokin」主题，可以在运维面板里换。
 
-## 一点五、三个值得单独说的功能
+## 功能
 
-**① 玄骸拍卖（`xh`）** —— 覆盖赤毒（Kuva）/ 信条（Tenet）/ 终幕（Coda）
-三类共 47 把武器，中文名支持 `赤毒怒雷` / `赤毒·布拉玛` / `布拉玛` 等多种写法。
-每行给：价格 · **元素（中文）** · 伤害 · **卖家在线情况** · **信用等级**，在线优先。
-支持筛选：`xh 赤毒怒雷 辐射 50`（元素 + 伤害下限）。
-部分武器（近战 Tenet、全部终幕）warframe.market 没有挂单类目，插件会明确说明
-「市场查不到，只能游戏内交易」，不会报错。
+| 分组 | 代表指令 | 能做什么 |
+| --- | --- | --- |
+| 周期与日常 | `夜灵` `赏金` `裂隙` `突击` `执刑官` `时效` | 各开放世界昼夜、赏金与奖励、裂隙列表（可按钢铁 / 类型 / 纪元筛） |
+| 任务与轮换 | `仲裁` `仲裁表` `深层科研` `沉沦之地` `侵袭` `九重天` | 当前与未来 14 天仲裁（带社区实测评级）、每周轮换 |
+| 商店 | `奸商` `奸商 预测` `每日特惠` `言录使` `钢铁` `出库` | 虚空商人当期货单（按武器 / MOD / 外观等分组）与历史统计预测、Prime 出库与阿耶精华兑换 |
+| 遗物与部件 | `遗物 <名>` `遗物 <部件>` `开核桃` `金垃圾` | 奖励、出处与当前可获取状态，部件反查推荐刷取点，杜卡德 / 白金性价比 |
+| 市场与紫卡 | `wm` `wr` `rm` `趋势` `排行` `紫卡分析` `倾向` | warframe.market 在售 / 收购、紫卡拍卖、价格趋势、紫卡词条区间与评分 |
+| 玄骸拍卖 | `xh <武器> [元素] [数值]` | 赤毒 / 信条 / 终幕 47 把武器，元素与数值筛选、卖家在线优先 |
+| 伤害与配卡 | `伤害 <武器> <MOD…>` `识卡` `识卡伤害` | 按 wiki 口径算 DPS；发配卡截图自动识别并复算 |
+| 推送 | `蹲 <事件> [条件]` | 裂隙、仲裁、警报、夜灵等事件出现时在群里提醒 |
 
-**② 奸商预测（`奸商 预测`）** —— 基于 wiki 记录的 **314 次到访 / 466 件商品**
-历史做统计推测：按「已静默次数 ÷ 它自己的平均上架间隔」排序，越接近 1
-越「该回来了」。**不是官方预测**（DE 从不公布下期库存），卡片上写明口径与样本量。
+几个值得单独说的：
 
-**③ 遗物与部件（`遗物`）** —— 遗物名全中文（`古纪 A12`）；部件反查会标注每把
-遗物的**当前可获取状态**（可掉落 / 仅阿耶兑换 / 已入库），并给出**推荐刷取点**
-与「只在特定位置能获取」的特殊渠道。
+- **玄骸拍卖**：中文名支持 `赤毒怒雷` / `赤毒·布拉玛` / `布拉玛` 等写法。warframe.market 没有挂单类目的武器（近战信条、全部终幕）会明确说明「只能游戏内交易」，不会报错。
+- **紫卡拍卖（`wr`）**：词条可以写全称、简称或连写，`wr 冰凇 基础 多重 异常伤害 负i伤`、`wr 冰凇 基多异 负i` 查到的是同一组；英文写法不分大小写、全称不用加引号（`wr glaxion Critical Chance`、`CC` / `CD` / `MS`）。卡片顶部回显实际用了哪些词条。指定 `3+1`（或三正一负）时只给完全匹配的挂单，没有就直说；其他查询在没有完全匹配时给最接近的选项。
+- **奸商预测**：基于 wiki 记录的 300 多次到访、460 多件商品做统计推测——按「已缺席次数 ÷ 它自己的平均上架间隔」排序。**这不是官方预测**（DE 从不公布下期库存），卡片上写明了口径和样本量。
+- **伤害计算 / 识卡伤害**：按 wiki 公式计算，并以开源模拟器 [wfsim](https://github.com/magenie33/wfsim) 对照核对。**这是理论推算，没有经过大规模实战检验**，可能和游戏面板或实战有出入，请以游戏内为准；卡片上也有同样的提醒。发现对不上的欢迎提 issue。
+- **仲裁评级**：官方 tierlist 优先，没评级的节点用社区实测生息中位数补；样本少于 5 条的标 `*`。实测值来自高水平队伍，普通队伍未必打得到，卡片上也写了。
 
----
+## 运维面板
 
-## 二、安装
+在 AstrBot 后台的插件详情页打开「SDJKBOT 运维面板」（需要 AstrBot ≥ 4.24.1；只有登录后台的管理员能看到）。
 
-1. 安装 AstrBot（≥ 4.x），并准备好消息平台适配器（NapCat / aiocqhttp 等）。
-2. 把本仓库放到 AstrBot 插件目录（或打包成 zip 后在 WebUI 里上传）：
-   ```
-   data/plugins/astrbot_plugin_warframe_sdjkbot/
-   ```
-3. 安装依赖：
-   ```bash
-   pip install -r requirements.txt      # httpx、pillow
-   ```
-   > 依赖装在 **Python 环境**（市场安装时 AstrBot 会自动补齐缺的），插件更新不会动；
-   > 只有**容器/环境重建**才会丢。额外可选依赖（如构建数据用的 PyYAML）同样装进环境，
-   > **别放进插件目录** —— 那里更新/重装会被整包替换。
-4. **字体：已随包带子集，开箱即可出图**（无需操作）。想要完整字库（40 MB，含
-   全部字形）再跑这条（可选）：
-   ```bash
-   python scripts/fetch_font.py
-   ```
-   验证当前用的是哪个字体：`python scripts/fetch_font.py --check`
-   > 下载**落点是插件数据目录** `data/plugin_data/astrbot_plugin_warframe_sdjkbot/fonts/`
-   > （AstrBot 开发原则：持久化数据进 data 目录，别放插件自身目录——放包内更新/重装
-   > 会被整包替换）。脚本会自动识别部署布局；识别不出（开发树）会告警并回落到包内，
-   > 也可用 `--data-dir <AstrBot>/data` 显式指定。
-5. 重载插件，发送 `帮助` 验证。
+| 概览 | 外观（配色、字体、实时预览） |
+| :---: | :---: |
+| <img src="https://cdn.jsdelivr.net/gh/skyti1437/Warframe-SDJK-Bot@main/assets/readme/panel-overview.png" alt="运维面板概览" /> | <img src="https://cdn.jsdelivr.net/gh/skyti1437/Warframe-SDJK-Bot@main/assets/readme/panel-appearance.png" alt="运维面板外观页" /> |
 
-> **关于字体**：卡片渲染用 Noto Sans CJK。**随包分发的是子集**
-> （`core/data/fonts/NotoSansCJKsc-Subset-{Regular,Bold}.otf`：GB2312 全表
-> 6763 字 + 语料符号 + ASCII，两档共约 6.7 MB）—— 装完就能出图，**不依赖系统
-> 中文字体**。完整字库 40 MB 不进包（会超过插件市场 16 MB 上限），需要时跑
-> 第 4 步下载；自放字体可放**插件数据目录**的 `fonts/`
-> （`data/plugin_data/astrbot_plugin_warframe_sdjkbot/fonts/`，任意 ttc/ttf/otf）——
-> **随插件更新保留**（市场更新是整包替换插件目录，放进包内的字体会被删）。
-> 查找顺序：完整字库 → 随包子集 → 用户自放 → 系统字体（Windows `msyh` /
-> macOS `PingFang` / Linux Noto/WQY）；都没有才降级纯文本，日志会写明排查步骤。
+- **概览**：推送守护、订阅、数据、依赖、字体一眼看完，「需要处理」列出过期数据和该做的事，点一下就跳过去。
+- **数据**：每份数据快照的时间和状态；一键从社区快照拉新数据。
+- **推送与订阅**：按群查看「蹲」订阅（号码默认打码），可删订阅、开关某个群的推送。
+- **设置**：插件全部配置项，每项标注「即时生效」还是「需要重载」。
+- **外观**：
+  - 卡片配色有 8 个基础色和 12 个类别色、4 套预设，每项都写明改的是卡片哪部分；
+  - 「定位」按钮会把这一项在预览里临时染成品红，一眼看出它管哪里；
+  - 支持背景图（可调压暗程度和面板透明度）和角标；
+  - 字体可以从链接导入或上传，正文和粗体分别选；
+  - 预览用的是真实出图程序，保存后新卡片立即生效。
+- **依赖与资源 / 连通性**：一键安装依赖（走 AstrBot 自己的 pip 设置）；测试 FlareSolverr 和识卡模型渠道是否可用。
 
-## 三、配置（WebUI 插件配置页）
+## 安装
 
-常用项：
+1. 准备好 AstrBot（≥ 4.x）和消息平台适配器（NapCat / aiocqhttp 等）。
+2. 在 AstrBot 插件市场搜索 **Warframe SDJKBOT** 安装；或者把本仓库放到 `data/plugins/astrbot_plugin_warframe_sdjkbot/`，再执行 `pip install -r requirements.txt`（只有 httpx 和 pillow 两个依赖）。
+3. 重载插件，在群里发 `帮助` 试试。
+
+**不需要额外操作就能出图**：插件自带常用 6763 字的中文字体。想让生僻字也能显示，到运维面板「外观」页点「下载完整字库」（约 40 MB），或导入任意你喜欢的中文字体。字体存在插件数据目录，插件更新不会丢。
+
+## 配置
+
+在 AstrBot 后台的插件配置页（或运维面板「设置」页）修改。常用的几项：
 
 | 配置项 | 说明 |
 | --- | --- |
-| `worldsource` | 世界状态数据源：`de`=DE 官方直连（默认，无 CF 风险）/ `warframestat`=社区镜像 |
-| `default_platform` | 默认平台 `pc`/`ps`/`xb`/`sw` |
-| `render_mode` | `image`（默认图片卡片）/ `auto` / `text` |
-| `flaresolverr_enabled` | 是否启用 CF 绕过代理（见下） |
-| `flaresolverr_urls` | FlareSolverr 地址，多个用逗号或换行分隔，**自己填** |
-| `vision_provider_id` | 截图识别用的多模态模型 id（见「AI 相关说明」） |
-| `proxy` / `http_timeout` / `push_interval` | 网络与推送参数 |
+| `worldsource` | 世界状态数据源：`de` = DE 官方直连（默认）/ `warframestat` = 社区镜像 |
+| `default_platform` | 默认平台 `pc` / `ps` / `xb` / `sw`（群里可用 `.默认平台` 覆盖） |
+| `render_mode` | `image`（默认图片卡片）/ `auto`（长内容才出图）/ `text` |
+| `vision_provider_id` | 识卡用的多模态模型（留空自动挑选） |
+| `flaresolverr_enabled` / `flaresolverr_urls` | FlareSolverr 开关与地址（可选，见下） |
+| `community_data_url` | 社区数据地址，留空用本项目公开仓的 bot-data（见下） |
+| `push_interval` / `proxy` / `http_timeout` | 推送轮询间隔与网络参数 |
 
-### FlareSolverr（可选）
+### 数据怎么保持新鲜
 
-`wiki.warframe.com` 对非浏览器请求直接 403，取效价轮换、紫卡倾向快照需要它：
+- **实时数据**直接查官方或社区接口：世界状态、市场价、仲裁排期等。
+- **wiki 上的数据**（元素加成、言录使货单、紫卡倾向、奸商到访历史）在 Cloudflare 后面，普通请求拿不到。插件有两条路：
+  - **社区快照（默认，零配置）**：本项目在一台装了 FlareSolverr 的服务器上定时抓取，发布到本仓库的 [`bot-data` 分支](https://github.com/skyti1437/Warframe-SDJK-Bot/tree/bot-data)。插件每 30 分钟到 3 小时检查一次，**内容校验通过而且比本地新**才采用。仲裁评级也从这里更新。
+  - **自建 FlareSolverr（可选）**：自己直连 wiki。
+    ```bash
+    docker run -d --name flaresolverr -p 8191:8191 flaresolverr/flaresolverr
+    ```
+    然后把地址填进 `flaresolverr_urls`。插件跑在容器里时 `127.0.0.1` 通常连不到宿主机，要填容器名（`http://flaresolverr:8191`）或 Docker 网关（常见 `http://172.17.0.1:8191`）。
+- 不想用本项目的数据，可以在 `community_data_url` 填自己的地址：在那个地址下放同名文件（`valence.json`、`arb_ratings.json` 等），格式与 bot-data 分支一致。
+- 其余随包数据（武器 / MOD 数值、掉落表、中文译名等）随插件版本更新。
 
-```bash
-docker run -d --name flaresolverr -p 8191:8191 flaresolverr/flaresolverr
-```
+## AI 相关说明
 
-然后在面板把地址填进 `flaresolverr_urls`。**插件跑在容器里时 `127.0.0.1` 通常到不了
-宿主机端口**，要填容器名（`http://flaresolverr:8191`）或 Docker 网桥网关
-（常见 `http://172.17.0.1:8191`）。不需要这个功能就把 `flaresolverr_enabled` 关掉，
-相关指令会给出降级提示而不是卡住。
-
-> v1.0.7 起：单次求解超时放宽到 **120s**（CF 解页实测约 61s，60s 会卡在超时边缘）；
-> 每轮快照刷新前会**主动回收会话**（destroy→create，换全新标签页），会话崩掉
-> （`tab crashed`）时自动重建重试 —— 不再出现「拿坏会话每小时连败」。
-
-### 知识库（可选）
-
-插件**不直连**知识库，也不提供相关开关：检索完全交给 AstrBot 平台侧的 RAG
-（在面板「知识库」里自行上传文档、按需挂载即可）。插件侧只做本地词库与 wiki
-直达链接，查不到时给一个可点击的维基搜索链接。
-
-## 四、AI 相关说明
-
-### 1. 运行时会用到 AI 的地方
+**插件本身不内置任何模型，也不代持任何 API Key。**
 
 | 场景 | 用 AI 做什么 | 由谁提供 |
 | --- | --- | --- |
-| **识卡 / 紫卡截图识别** | 把配卡截图读成结构化数据（MOD 名、等级、面板数值） | 你在 AstrBot 里配置的**多模态模型**，用 `vision_provider_id` 指定 |
-| **推荐/攻略类问答** | 走 AstrBot 平台的 LLM + 知识库（RAG） | AstrBot 平台自带，插件不参与 |
+| 识卡 / 紫卡截图识别 | 把配卡截图读成结构化数据（MOD、等级、面板数值） | 你在 AstrBot 里配置的多模态模型 |
+| 推荐 / 攻略类问答 | 走 AstrBot 平台的 LLM + 知识库 | AstrBot 平台，插件不参与 |
 
-也就是说：**插件本身不内置任何模型、不代持任何 API Key**。识卡功能必须你自己
-配一个多模态渠道；没配时识卡会直接给出「未配置视觉模型」的提示，不会静默失败。
+识卡必须自己配一个多模态渠道；没配会直接提示，不会静默失败。插件内部会核对识别结果和游戏面板，对不上时自动换下一个渠道重试。
 
-实测可用的视觉模型（2026-09，仅供参考）：
-`Qwen/Qwen3-VL-32B-Instruct`（伤害行识别最稳，但一次调用较慢）、
-`glm-4.1v-thinking-flash`（快，复杂面板容易读串）。插件内部有**面板校验 + 换渠道重试**
-的闭环，识别结果对不上游戏面板时会自动换下一个渠道再试。
+**开发过程**：这个项目的绝大部分代码是在 AI 辅助下完成的。由作者（Sky）提需求、提供截图和实测反馈，AI 负责写代码、核对数据、写测试和文档。所以代码里有大量「为什么这么写」的注释和防回归测试，用来弥补 AI 改动容易引入静默回归的问题。
 
-### 2. 开发过程中 AI 的参与
+## 隐私
 
-诚实说明：**这个项目的绝大部分代码是在 AI 辅助下完成的**。
+- 插件只在你自己的机器人上运行，不向任何第三方上报数据，所有查询都直接发给下表的公开数据源。
+- 运行数据（群配置、订阅、外观设置、渲染缓存）写在 `data/plugin_data/astrbot_plugin_warframe_sdjkbot/`，不会进仓库。
+- 识卡会把**你发的截图**交给你自己配置的模型服务商。介意的话不用这个功能，或改用本地 / 自建的视觉模型。
+- 运维面板只有登录 AstrBot 后台的管理员能打开；订阅里的群号、QQ 号默认打码。
 
-- 主要开发方式：由人类（Sky）提出需求、提供截图与实测反馈，AI 负责
-  代码编写、数据核对、测试与文档。
-- AI 也用于：伤害公式的交叉验证（对拍 wiki 与游戏面板）、译名查证
-  （DE 官方简中导出表）、卡片版式的像素级调整。
-- 因此代码里保留了大量「为什么这么写」的注释和防回归测试 —— 那正是
-  为了弥补 AI 改动容易引入静默回归的问题。
+## 数据来源与许可
 
-如果你要接手维护，**改任何公式 / 版式前先跑统一检查入口**（本地与 CI 同一条命令）：
+| 数据 | 来源 | 说明 |
+| --- | --- | --- |
+| 世界状态 | DE 官方 `api.warframe.com` | 实时接口 |
+| 掉落表 | [WFCD/warframe-drop-data](https://github.com/WFCD/warframe-drop-data) + DE 官方掉落页 | MIT |
+| 物品 / 武器 / MOD 数值 | [WFCD/warframe-items](https://github.com/WFCD/warframe-items) + DE 官方导出 + [magenie33/wfsim](https://github.com/magenie33/wfsim) 校准 | 数据源头为 DE |
+| 中文译名 | DE 官方 Public Export（经 [warframe-public-export-plus](https://github.com/calamity-inc/warframe-public-export-plus) 整理） | 数据源头为 DE |
+| 市场价 / 拍卖 | warframe.market | 遵守其 3 次/秒限速 |
+| 赏金轮换 / 钢铁侵袭 | [browse.wf](https://browse.wf) | calamity-inc 开源项目 |
+| 仲裁排期与社区实测 | [arbi.wf.wiki](https://arbi.wf.wiki) | 社区站点，非官方 |
+| 元素加成、紫卡倾向、奸商历史 | wiki.warframe.com | CC BY-NC-SA 3.0 |
+| 字体 | Noto Sans CJK | SIL OFL |
+
+- **算法参考**：赏金「小帐篷」推算参考了 [calamity-inc/wf.browse.oracle](https://github.com/calamity-inc/wf.browse.oracle) 公开的算法描述。该仓库没有附带许可证，因此本插件用 Python 独立重写，未复制其源代码。
+- **伤害计算**：以 [magenie33/wfsim](https://github.com/magenie33/wfsim)（AGPL-3.0-or-later）为对照基准核对公式，只取其公开的公式与数据事实，未复制源代码。派生数据表在文件内标注了来源。
+- **插件图标**：取自 Warframe 官方 Fan Kit（`LotusEmblemIcon`），依粉丝内容政策用于本非商业作品。
+- **代码许可**：GPL-3.0（见 `LICENSE`）。
+- **非官方声明**：Warframe 与相关商标、游戏图标、名称与译文归 Digital Extremes 所有。本插件是粉丝作品，与 Digital Extremes 无关。
+
+---
+
+<details>
+<summary><b>开发与维护</b></summary>
+
+改任何公式或版式之前，先跑统一检查入口（本地和 CI 是同一条命令）：
 
 ```bash
-pip install -r requirements.txt -r scripts/requirements-dev.txt  # 运行依赖 + 检查依赖（ruff、fonttools、PyYAML）
+pip install -r requirements.txt -r scripts/requirements-dev.txt
 python scripts/run_checks.py          # regression（默认）：ruff + 全部 tests/test_*.py + 伤害审计
-python scripts/run_checks.py health   # 随包时效数据（效价快照 / 言录使货单）是否过期；只读、不联网
-python scripts/run_checks.py all      # 两类都跑、分开汇总，任一失败即非零
+python scripts/run_checks.py health   # 随包时效数据是否过期（只读、不联网）
 ```
 
-- **regression 与 health 分开看**：regression 红 = 代码回归；health 红 = 随包时效数据过期
-  （需要刷新数据），不代表算法出错。CI（`.github/workflows/ci.yml`）在 push / PR 上只跑
-  regression（Python 3.10 与 3.12），health 在 Actions 页手动触发。
-- **测试数不写死**：入口按 `tests/test_*.py` 动态发现，每个脚本独立子进程运行；汇总列出
-  通过 / 失败 / 超时，以及脚本输出里的 `[SKIP]` 记录（只是记录，不折算成用例数）。
-- **缺能力时明示跳过、不静默**：本仓库不带完整字库 TTC ⇒ 子集字体覆盖改按「语料 ∩ GB2312」
-  判定、逐像素对拍跳过；变体倾向表 `core/data/de/wiki_disp.json` 是运行期刷新件、不随包 ⇒
-  家族解析用内置小表回归、快照数值抽查跳过；作者私有的发布 / 巡检脚本与构建缓存不随仓库
-  分发 ⇒ 对应段落跳过并打印原因。
-- Python 支持 **≥ 3.10**（CI 在 3.10 与 3.12 上跑）。
+- regression 红 = 代码回归；health 红 = 随包时效数据过期，需要刷新数据，不代表算法出错。CI 在 push / PR 上跑 regression（Python 3.10 与 3.12），health 在 Actions 页手动触发。
+- 测试按 `tests/test_*.py` 自动发现、每个脚本独立运行；缺能力（例如不带完整字库、没有作者私有的运维脚本）时会明确打印跳过原因，不会静默。
+- `scripts/` 下是数据构建、排障和版式开发工具，插件运行不需要它们：
+  - 数据构建：`scripts/build_*.py`（从 WFCD / DE 导出 / wfsim 重新生成 `core/data/`，需要额外装 PyYAML）；
+  - 排障：`scripts/diag_command_output.py "遗物 出库"`（在 AstrBot 容器里直接打印指令的真实返回）、`scripts/smoke_all.py`；
+  - 版式：`scripts/dev_relic_preview.py`、`scripts/dev_help_preview.py` 等，本地预览卡面。
+- 版本历史见 [`CHANGELOG.md`](CHANGELOG.md)（也是插件面板与市场「更新日志」页的数据源）。
 
-版本历史见仓库根目录的 [`CHANGELOG.md`](CHANGELOG.md) —— 它也是插件面板与
-插件市场「更新日志」页面的数据源，**发版时记得补一条**。
-
-## 五、数据来源与许可
-
-| 数据 | 来源 | 许可 / 说明 |
-| --- | --- | --- |
-| 掉落表（`core/data/drops.json`） | [WFCD/warframe-drop-data](https://github.com/WFCD/warframe-drop-data) | MIT |
-| 物品/武器/MOD 面板 | [WFCD/warframe-items](https://github.com/WFCD/warframe-items) + DE 官方导出 + [magenie33/wfsim](https://github.com/magenie33/wfsim) 校准 | 数据源头为 DE；wfsim 见下方声明 |
-| 中文译名（`core/data/de/`） | DE 官方 Public Export（经 [calamity-inc/warframe-public-export-plus](https://github.com/calamity-inc/warframe-public-export-plus) 整理） | 数据源头为 DE，见下方声明 |
-| 世界状态 | DE 官方 `api.warframe.com` | 实时接口 |
-| 市场价 / 拍卖 | warframe.market v2 / v1 | 遵守其 3 req/s 限速 |
-| 赏金轮换 / 钢铁侵袭 | [oracle.browse.wf](https://oracle.browse.wf)、[browse.wf](https://browse.wf) | calamity-inc 开源项目 |
-| 仲裁排期 | [arbi.wf.wiki](https://arbi.wf.wiki) | 社区站点 |
-| wiki 抓取（效价、紫卡倾向） | `wiki.warframe.com` | 需 FlareSolverr |
-| 字体 | Noto Sans CJK（子集随包；完整库由 `scripts/fetch_font.py` 另下） | SIL OFL |
-| wiki 简介卡 / MOD 效果汉化（`wiki_intro.json`、`wiki_effect_zh.json`） | 本仓知识库构建产出 + agent 逐条翻译（v1.0.7 起随包分发） | 数据源头为 DE |
-
-> **第三方来源与许可**：赏金「小帐篷」推算的算法参考社区项目
-> [calamity-inc/wf.browse.oracle](https://github.com/calamity-inc/wf.browse.oracle)
-> （其对游戏脚本随机数 / 种子洗牌表的复刻）——该仓库**未附带许可证文件**，因此本仓库
-> 仅依据其公开的算法描述与游戏资产清单，用 Python **独立重写**，未复制其源代码；
-> 所用游戏资产（任务清单 / 译名 / 图标）版权归 Digital Extremes。其余数据来源见上表。
->
-> **伤害计算器的校准参考**：[magenie33/wfsim](https://github.com/magenie33/wfsim)
-> （AGPL-3.0-or-later）。本插件的伤害口径（蓄力武器有效射速、异况超量三种结算桶、
-> 紫卡负词条「符号不定」表、CO 行为分类等）以该项目为对照基准核对，
-> **只取其公开的公式与数据事实，未复制其源代码**；相关派生数据表
-> （`core/data/charge_cadence.json`、`core/data/co_behavior.json`）在文件内标注了来源与生成方式。
-> 本插件整体以 GPL-3.0 发布（见 `LICENSE`）。
->
-> **插件图标**（`logo.png`）：取自 **Warframe 官方 Fan Kit**（素材 `LotusEmblemIcon`），
-> 版权归 Digital Extremes；依其粉丝内容政策用于本非商业粉丝作品，不表示与 DE 有关联或经其认可。
-
-> **非官方声明**：Warframe 与相关商标归 Digital Extremes 所有。本插件是粉丝作品，
-> 与 Digital Extremes 无关；所含游戏数据按 DE 的粉丝内容政策使用，仅用于查询展示。
-
-## 六、隐私说明
-
-- 插件**只在你自己的机器人上运行**，不向任何第三方上报数据；所有查询都直接
-  打给上表列出的公开数据源。
-- 运行时数据写在 AstrBot 的插件数据目录 **`data/plugin_data/astrbot_plugin_warframe_sdjkbot/`**
-  （群配置、推送订阅、渲染缓存与快照；旧版本曾写在插件目录 `runtime/`，启动时会**一次性迁移**过去），
-  **这些文件不会随仓库分发**（已在 `.gitignore` 与打包排除里）。
-- 识卡功能会把**你发的截图**交给你自己配置的多模态模型渠道处理 —— 也就是说
-  图片会离开你的服务器、进入你选择的模型服务商。介意的话请不要使用该功能，
-  或改用一个本地/自建的视觉模型。
-- 本插件**不读取、也不依赖**任何外部插件里的用户维度数据（例如某些人格插件用的
-  「好感度 / 情绪」关系数据）—— 这类联动已于 2026-10-16 从源码中彻底移除，
-  相关代码与配置项均已清理。
-
-## 七、开源版与自用版的差异
-
-| 项目 | 开源版 | 自用版 |
-| --- | --- | --- |
-| 品牌标识 | 通用插件名（Warframe SDJKBOT） | 原氏族品牌 |
-| 内部文档、运维脚本、第三方插件打包脚本 | 不带 | 保留 |
-
-技术上是**同一份源码**：开源包由 `dist/package_release.py --opensource` 构建，
-自用包照旧打包，两边互不干扰。
-（历史上开源包还会在构建时剥离若干私有集成，这些集成现已从私有树一并移除，
-剥离清单**已清空**——机制保留以备后用。）
-
-## 八、附带的脚本（`scripts/` 与根目录）
-
-平时用不到；只在「改数据 / 调版式 / 排障」时需要。按用途分组：
-
-| 分组 | 脚本 | 说明 |
-| --- | --- | --- |
-| **安装必需** | `scripts/fetch_font.py` | 下载渲染字体（见第二节第 4 步） |
-| **数据刷新** | `scripts/fetch_valence.py` | 刷新玄骸效价轮换（wiki 每 4 天换批，**只展示当前批**，要定期重跑） |
-| **数据构建** | `build_damage_data.py`、`build_de_data.py`、`build_stances.py`、`scripts/build_*.py`、`scripts/enrich_mods_from_wfsim.py`、`scripts/merge_wfsim_enemies.py`、`scripts/sync_mods_from_wfsim.py`、`scripts/repair_panel_basis.py` | 从 WFCD / DE 导出 / wfsim 重新生成 `core/data/*.json`。**需要额外装 PyYAML**：`pip install pyyaml`（插件运行本身不需要它） |
-| **排障** | `scripts/diag_command_output.py`、`scripts/diag_worldstate_keys.py`、`scripts/smoke_all.py` | 在容器里直接跑指令看输出 / 查 DE 原始键 / 冒烟全指令 |
-| **版式开发** | `scripts/dev_relic_preview.py`、`scripts/dev_help_preview.py`、`scripts/bench_supersample*.py`、`scripts/diag_col_starts.py`、`scripts/diag_help_layout.py`、`scripts/diag_row_edges.py` | 本地预览卡面、渲染性能基准、列位像素诊断（改版式必用） |
-| **工具** | `scripts/lookup_zh.py` | 反查 DE 官方简中译名（确认某个词条官方到底有没有） |
-| **宿主机运维**（★ **不随包分发**） | `scripts/ops/fix_plugin_deps.py`（仅存在于源码仓库） | 作者服务器专用：容器重建/升级后补齐插件 Python 依赖，需 `sudo` + `docker`。**已从发布包排除**（`package_release.py::OSS_EXCLUDE_DIRS`），不参与插件运行 |
-
-> 排查线上问题最常用的一条：
-> `python scripts/diag_command_output.py "遗物 出库"`（在 AstrBot 容器内跑，
-> 直接打印 handler 的真实返回，绕过 QQ 只看结果）。
-
-## 九、许可
-
-- 代码：**GPL-3.0**（见 `LICENSE`）
-- 数据：见上表各来源的许可；游戏内容归 Digital Extremes
-- **游戏素材**：仓库内的游戏图标（如 `core/data/icons/polarity/` 极性图标）与
-  名称/译文，版权归 **Digital Extremes** 所有，本仓库仅作功能展示使用，
-  非官方产品、亦无任何关联
-- 字体：SIL Open Font License
+</details>

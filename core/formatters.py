@@ -719,6 +719,9 @@ def fmt_void_trader(trader: Optional[dict]) -> tuple[str, list[str]]:
 
     ★ 2026-10-11 第二步改版：开头先给答案（状态 / 地点 / 离开或抵达倒计时 / 件数），
     货单加表头；颜色：名称暖白（默认）、杜卡德金色、现金青色（render 的 token 规则）。
+
+    ★ 2026-10-16 第三版：按商品类别分组（武器 / MOD / 外观 / 装饰 / 遗物 / 消耗品 / 礼包 / 其他），
+    每行两件同组商品、行首彩色类别芯片；类别由 DE 商品路径判定（core/baro.py::group_of_store）。
     """
     if not trader:
         return ("虚空商人", ["数据暂不可用"])
@@ -736,23 +739,36 @@ def fmt_void_trader(trader: Optional[dict]) -> tuple[str, list[str]]:
         if not inv:
             lines.append("◆ 货单：同步中，请稍后再查")
             return ("虚空商人", lines)
-        lines.append(f"◆ 货单：共 {len(inv)} 件")
+        # ★ 2026-10-16 维护者要求「同种类的商品放一块，用异色标记，像赏金那样」：
+        #   按 DE 商品路径分组（baro.group_of_store），固定组序；每组先一行彩色类别芯片
+        #   （render 的 GROUP_CHIP_COLOR），下面每行两件**同组**商品，奇数组末行单件，绝不跨组拼行。
+        #   ⚠ 芯片**单独占一行**、不做成每行行首的一列：实测加一列后 55 件货单表宽超过渲染层安全阀
+        #   （1322），列对齐被整体放弃、长名折行；单格的芯片行只占第一列，而第一列本来就被商品名撑宽。
+        from .baro import STORE_GROUP_ORDER, group_of_store
+
+        groups: dict[str, list] = {g: [] for g in STORE_GROUP_ORDER}
+        for it in inv:
+            groups.setdefault(group_of_store(it.get("store") or ""), []).append(it)
+        counts = " · ".join(f"{g} {len(v)}" for g, v in groups.items() if v)
+        lines.append(f"◆ 货单：共 {len(inv)} 件（{counts}）")
 
         def cell(it: dict) -> str:
             name = it.get("item") or "?"
             return f"{name}{S}{it.get('ducats', '?')}杜{S}{_baro_cash(it.get('credits'))}"
 
-        half = (len(inv) + 1) // 2
         lines.append("◆ 在售货单")
         lines.append(
             f"{S}商品{S}杜卡德{S}现金" + (f"{S}商品{S}杜卡德{S}现金" if len(inv) > 1 else "")
         )
-        for i in range(half):
-            row = cell(inv[i])
-            if i + half < len(inv):
-                row += S + cell(inv[i + half])
-            lines.append("· " + row)
-        lines.append("※ 金色＝杜卡德 · 青色＝现金")
+        for g, items in groups.items():
+            if items:
+                lines.append(f"· [{g}]")
+            for i in range(0, len(items), 2):
+                row = cell(items[i])
+                if i + 1 < len(items):
+                    row += S + cell(items[i + 1])
+                lines.append("· " + row)
+        lines.append("※ 金色＝杜卡德 · 青色＝现金 · 彩色标签＝商品类别")
     else:
         lines += [
             "◆ 状态：尚未抵达",

@@ -91,6 +91,12 @@
     "default": "http://flaresolverr:8191/v1, http://172.17.0.1:8191/v1, http://127.0.0.1:8191/v1",
     "hint": "填你的 FlareSolverr 地址，只填主机端口也行（会自动补 /v1）。插件跑在容器里时 127.0.0.1 通常到不了宿主机端口，所以要填容器名或 docker0 网关（172.17.0.1）。留空则用内置默认值。"
   },
+  "community_data_url": {
+    "description": "社区数据地址（留空 = 本项目公开仓 bot-data）",
+    "type": "string",
+    "default": "",
+    "hint": "没装 FlareSolverr 的用户靠它拿到较新的元素加成、言录使货单、仲裁评级、奸商到访历史、紫卡倾向。不想用本项目的数据可以填自己的地址：该地址下放同名文件（valence.json、acrithis_week.json、arb_ratings.json、baro_history.json、wiki_disp.json），格式与公开仓 bot-data 分支一致；填了就只用它，不再回落本项目。"
+  },
   "wiki_intro": {
     "description": "wiki 简介卡片（战甲 / 武器 / MOD / 资源 / 同伴）",
     "type": "bool",

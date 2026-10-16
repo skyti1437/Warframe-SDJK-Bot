@@ -92,6 +92,97 @@ COMMUNITY_ACRITHIS_URLS = (
     f"https://cdn.jsdelivr.net/gh/{_REPO_SLUG}@bot-data/acrithis_week.json",
     f"https://gcore.jsdelivr.net/gh/{_REPO_SLUG}@bot-data/acrithis_week.json",
 )
+# ★ 2026-10-16 用户：原本只随版本更新的静态快照也进 bot-data，让用户能拉新的
+#   （掉落表 + 遗物表这一组先不做）。文件内容与包内种子**同结构**，校验通过且比本地新才落盘。
+#   键 = bot-data 上的文件名；local = 运行目录 / 包内种子的相对路径；stamp = 时间戳字段。
+COMMUNITY_STATIC = {
+    "arb_ratings.json": {"local": "arb_ratings.json", "stamp": "_updated", "label": "仲裁评级"},
+    "baro_history.json": {
+        "local": "baro_history.json",
+        "stamp": "fetched",
+        "label": "奸商到访历史",
+    },
+    "wiki_disp.json": {"local": "de/wiki_disp.json", "stamp": "snapshot", "label": "紫卡倾向"},
+}
+
+
+COMMUNITY_COOLDOWN = 1800  # 社区通道网络失败后冷却（秒）
+COMMUNITY_BUDGET = 30.0  # 一次社区取数的总时间预算（秒）
+# 单条通道的上限（秒）：ZCode 10-16 线上发现 raw 卡住时一个文件就吃满 30 s 总预算、镜像连试都没试
+COMMUNITY_PER_CHANNEL = 10.0
+
+
+def community_static_urls(name: str) -> tuple[str, ...]:
+    return (
+        f"{COMMUNITY_SNAPSHOT_BASE}/{name}",
+        f"https://cdn.jsdelivr.net/gh/{_REPO_SLUG}@bot-data/{name}",
+        f"https://gcore.jsdelivr.net/gh/{_REPO_SLUG}@bot-data/{name}",
+    )
+
+
+def normalize_community_base(raw: str) -> str:
+    """用户自填的社区数据地址：只收 http(s)，去掉末尾斜杠；不合法返回空串（= 用默认 bot-data）。"""
+    v = str(raw or "").strip().rstrip("/")
+    return v if re.match(r"^https?://[^\s/]+(/\S*)?$", v) else ""
+
+
+def _stamp_dt(v):
+    """时间戳字段 → aware datetime（ISO 串或 YYYY-MM-DD；不认识返回 None）。"""
+    from datetime import datetime, timezone
+
+    try:
+        d = datetime.fromisoformat(str(v).strip())
+    except (TypeError, ValueError):
+        return None
+    return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
+
+
+def community_static_ok(name: str, d) -> tuple[bool, str]:
+    """静态快照的结构校验（纯函数，离线可测）。不过就不采用。"""
+    if not isinstance(d, dict):
+        return False, "不是 JSON 对象"
+    spec = COMMUNITY_STATIC.get(name)
+    if spec is None:
+        return False, "未知快照"
+    if _stamp_dt(d.get(spec["stamp"])) is None:
+        return False, f"缺时间戳 {spec['stamp']}"
+    if name == "arb_ratings.json":
+        nodes = d.get("nodes")
+        if not isinstance(nodes, dict) or len(nodes) < 50:
+            return False, "节点太少"
+        if not all(isinstance(v, dict) and isinstance(v.get("n"), int) for v in nodes.values()):
+            return False, "节点缺样本数 n"
+        tiers = {"S", "A+", "A", "A-", "F"}
+        if any(v.get("tier") not in (None, *tiers) for v in nodes.values()):
+            return False, "档位取值不认识"
+    elif name == "baro_history.json":
+        visits, items = d.get("visits"), d.get("items")
+        if not isinstance(visits, list) or len(visits) < 10:
+            return False, "到访记录太少"
+        if not isinstance(items, dict) or len(items) < 50:
+            return False, "物品太少"
+    elif name == "wiki_disp.json":
+        disp = d.get("disp")
+        if not isinstance(disp, dict) or len(disp) < 400:
+            return False, "倾向条目太少（< 400）"
+    return True, ""
+
+
+def _invalidate_static(name: str) -> None:
+    """静态快照换新后清进程内缓存（wiki_disp 每次现读，不用清）。"""
+    try:
+        if name == "arb_ratings.json":
+            from . import arbi
+
+            arbi.reset_measured()
+        elif name == "baro_history.json":
+            from . import baro
+
+            baro.reset()
+    except Exception:  # noqa: BLE001 - 清缓存失败最多是下次重启才生效
+        pass
+
+
 # Cloudflare 绕过代理（FlareSolverr）：wiki.warframe.com 等对非浏览器 403。
 # 服务器上跑一个 flaresolverr 容器后自动启用；插件跑在 astrbot 容器里，
 # 127.0.0.1 到不了宿主机端口，所以按候选顺序试（容器名 → docker0 网关 → 本机）。
@@ -849,6 +940,7 @@ class WarframeClient:
         language: str = "zh-hans",
         flare_enabled: bool = True,
         flare_urls: Optional[list[str]] = None,
+        community_base: str = "",
     ):
         if httpx is None:
             raise WarframeAPIError(
@@ -864,6 +956,13 @@ class WarframeClient:
         # FlareSolverr：开关 + 候选地址（面板可填；没填就用内置默认值）
         self._flare_enabled = bool(flare_enabled)
         self._flare_urls = list(flare_urls) if flare_urls else list(FLARESOLR_URLS)
+        # 社区快照地址：留空 = 本项目 bot-data（raw + 两个 jsDelivr 镜像）；填了就只用它
+        #   （用户不想用我们的数据时自建，目录下放同名文件：valence.json / arb_ratings.json …）
+        self.community_base = normalize_community_base(community_base)
+        # 社区通道记忆（2026-10-16 GPT 评估 P04）：国内服务器到 raw 必超时，每次都等它超时再换镜像
+        #   ⇒ 按**主机**记上次成功的通道、失败的主机冷却一段时间（raw 挂了是五个文件一起挂）
+        self._comm_good_host: Optional[str] = None
+        self._comm_cool: dict[str, float] = {}
         self.cache = cache or TTLCache(maxsize=1024)
         self._http = httpx.AsyncClient(
             timeout=httpx.Timeout(timeout),
@@ -3084,31 +3183,94 @@ class WarframeClient:
         passed = int((now - epoch) // timedelta(hours=int(period_hours)))
         return (observed_idx - passed) % n_batches
 
+    async def refresh_community_static(self, names: Optional[tuple[str, ...]] = None) -> dict:
+        """拉 bot-data 的静态快照（仲裁评级 / 奸商历史 / 紫卡倾向），校验通过且**比本地新**才落盘。
+
+        返回 {文件名: 状态}：refreshed <时间戳> / fresh（本地不旧）/ invalid: 原因 / unavailable。
+        落盘后清掉对应模块缓存（arbi / baro 在进程内缓存了整表）。
+        """
+        out: dict[str, str] = {}
+        for name in names or tuple(COMMUNITY_STATIC):
+            spec = COMMUNITY_STATIC[name]
+            payload = await self._community_json(community_static_urls(name))
+            if payload is None:
+                out[name] = "unavailable"
+                continue
+            ok, why = community_static_ok(name, payload)
+            if not ok:
+                out[name] = f"invalid: {why}"
+                continue
+            local = self._load_json_file(paths.read_path(spec["local"])) or {}
+            new_t, old_t = (
+                _stamp_dt(payload.get(spec["stamp"])),
+                _stamp_dt(local.get(spec["stamp"])),
+            )
+            if old_t is not None and new_t <= old_t:
+                out[name] = "fresh"
+                continue
+            paths.atomic_write_text(
+                paths.write_path(spec["local"]), json.dumps(payload, ensure_ascii=False, indent=1)
+            )
+            _invalidate_static(name)
+            out[name] = f"refreshed {payload.get(spec['stamp'])}"
+        return out
+
     async def _community_json(self, urls: tuple[str, ...]) -> Optional[dict]:
         """读公开仓 bot-data 的社区快照（普通 GET、免盾）。取不到返回 None。
 
         ★ 按 URL 顺序试（raw → cdn.jsdelivr → gcore.jsdelivr）：国内网络实测读不到 raw，
         有备用通道才不至于让这批用户卡在第一条。命中即返回，全部失败才 None。
+        ★ 2026-10-16（GPT 评估 P04）：
+          · 上次成功的主机排最前；网络失败的主机冷却 COMMUNITY_COOLDOWN 秒（404 只说明该镜像没这个文件，不冷却）；
+          · 全部在冷却时仍试排第一的那个（低频重探，网络恢复能自己回来）；
+          · 每条通道只试一次（多通道本身就是重试），整次取数受 COMMUNITY_BUDGET 秒总预算约束。
         """
         name = urls[0].rsplit("/", 1)[-1]
-        for i, url in enumerate(urls):
+        if self.community_base:  # 用户自填地址：只走它，不再回落到本项目 bot-data
+            urls = (f"{self.community_base}/{name}",)
+        now = time.monotonic()
+
+        def host(u: str) -> str:
+            return u.split("/")[2]
+
+        order = sorted(urls, key=lambda u: host(u) != self._comm_good_host)
+        live = [u for u in order if self._comm_cool.get(host(u), 0.0) <= now] or order[:1]
+        deadline = now + COMMUNITY_BUDGET
+        for i, url in enumerate(live):
+            left = deadline - time.monotonic()
+            if left <= 1.0:
+                logger.info("[sdjk] 社区快照（%s）超出本次时间预算，余下通道下次再试", name)
+                break
             try:
-                data = await self._fetch_json(
-                    url, ttl=600, headers=_ORACLE_HEADERS, cache_key=f"community:{name}"
+                data = await asyncio.wait_for(
+                    self._fetch_json(
+                        url,
+                        ttl=600,
+                        headers=_ORACLE_HEADERS,
+                        cache_key=f"community:{name}",
+                        retries=0,
+                    ),
+                    timeout=min(left, COMMUNITY_PER_CHANNEL),
                 )
             except Exception as exc:  # noqa: BLE001
+                missing = isinstance(exc, WarframeAPIError) and str(exc).startswith("接口不存在")
+                if not missing:
+                    self._comm_cool[host(url)] = time.monotonic() + COMMUNITY_COOLDOWN
                 logger.info(
-                    "[sdjk] 社区快照通道 %d/%d 不可用（%s）：%s", i + 1, len(urls), name, exc
+                    "[sdjk] 社区快照通道 %s 不可用（%s）：%s%s",
+                    host(url),
+                    name,
+                    # 超时类异常 str() 为空（ZCode 10-16：日志冒号后啥都没有）⇒ 退回异常类型名
+                    str(exc) or type(exc).__name__,
+                    "" if missing else f"；冷却 {COMMUNITY_COOLDOWN // 60} 分钟",
                 )
                 continue
             if isinstance(data, dict):
-                if i:
-                    logger.info(
-                        "[sdjk] 社区快照走的是备用通道 %d/%d（%s）",
-                        i + 1,
-                        len(urls),
-                        url.split("/")[2],
-                    )
+                self._comm_cool.pop(host(url), None)
+                if host(url) != self._comm_good_host:
+                    if self._comm_good_host is not None or i:
+                        logger.info("[sdjk] 社区快照改走通道 %s", host(url))
+                    self._comm_good_host = host(url)
                 return data
         return None
 
@@ -3123,6 +3285,22 @@ class WarframeClient:
             logger.warning("[sdjk] 社区元素加成快照校验不过：%s", exc)
             return None
         locals_ = [(rot.get(k) or {}).get("valence_snapshot", "") for k in ("tenet", "coda")]
+        # ★ 2026-10-16（GPT 评估 V01）：只比「比本地新」不够 —— 上一轮（或 8 天前同批）的快照也可能比本地新，
+        #   采用后再把快照时刻写成 now，旧数据就伪装成本轮。快照时刻必须落在**当前轮次窗口内**。
+        from datetime import datetime, timezone
+
+        now = datetime.now(timezone.utc)
+        for sect in ("tenet", "coda"):
+            d = rot.get(sect) or {}
+            if d.get("epoch") and self.valence_is_stale(
+                {**d, "valence_snapshot": parsed["snapshot"]}, now
+            ):
+                logger.info(
+                    "[sdjk] 社区元素加成快照属于上一轮（%s，%s 段），不采用",
+                    parsed["snapshot"],
+                    sect,
+                )
+                return None
         if not community_valence_newer(parsed["snapshot"], *locals_):
             logger.info(
                 "[sdjk] 社区元素加成快照不比本地新（%s），不采用", parsed["snapshot"] or "无时间戳"
@@ -3233,6 +3411,9 @@ class WarframeClient:
             )
 
         snap = now.replace(microsecond=0).isoformat()
+        if used_community and raw.get("snapshot"):
+            # ★ 社区快照保留**数据源的时刻**（GPT 评估 V01）：写 now 会让旧数据看起来是刚抓的
+            snap = str(raw["snapshot"])
         for it in tenet_data.get("items") or []:
             elem, pct = parsed["tenet"][it["en"]]
             it["element"], it["bonus"] = elem, pct
