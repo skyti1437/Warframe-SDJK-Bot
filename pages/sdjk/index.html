@@ -1,0 +1,889 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SDJKBOT 运维面板</title>
+<!--
+  ★ 注意：AstrBot 注入页面接口脚本的方式是「替换文档里第一处 body 结束标签」。
+    本文件除了真正的结尾外，任何地方（含注释、JS 字符串）都不能出现 body / script 的结束标签字样，
+    否则注入会落进注释里、把下面的脚本提前截断（2026-10-16 线上踩过）。tests/test_webpanel.py 有守卫。
+  ★ 页面跑在 AstrBot 的沙箱 iframe 里（没有 allow-modals）：confirm / alert 一律无效，危险操作用「再点一次确认」。
+  配色沿用插件图片卡片的「Orokin 精修」（core/render.py：暗金 + 暖白 + Tenno 能量色）。
+-->
+<style>
+  :root {
+    --bg-top: #0c0f16; --bg-bot: #090b11;
+    --panel: #131823; --panel-alt: #181e2b; --line: #342f26; --hair: #282c36;
+    --gold: #d4b06a; --gold-bright: #f0d79a; --gold-dim: #7a643e; --gold-faint: #605236;
+    --ink: #ece8de; --ink-dim: #a8b0be; --ink-faint: #848c9a;
+    --ok: #6cc88a; --warn: #e8b26a; --stale: #d86458; --info: #848c9a; --cyan: #6fd3e8;
+    --btn-ink: #0c0f16; --glow: rgba(212, 176, 106, .10); --field: #0f131c;
+  }
+  [data-theme="light"] {
+    --bg-top: #f4f0e6; --bg-bot: #ebe5d7;
+    --panel: #fbf8f1; --panel-alt: #f4efe3; --line: #d9c9a3; --hair: #e4dccb;
+    --gold: #8a6a2c; --gold-bright: #6e531f; --gold-dim: #a68d5c; --gold-faint: #c8b588;
+    --ink: #2a2620; --ink-dim: #5a5448; --ink-faint: #857d6e;
+    --ok: #2f8a52; --warn: #a8701f; --stale: #b2433a; --info: #857d6e; --cyan: #1f8aa3;
+    --btn-ink: #fbf8f1; --glow: rgba(138, 106, 44, .08); --field: #ffffff;
+  }
+  * { box-sizing: border-box; }
+  html { min-height: 100%; background: var(--bg-bot); }
+  body {
+    margin: 0; color: var(--ink); min-height: 100vh;
+    background: radial-gradient(ellipse 900px 260px at 50% 0, var(--glow), transparent 70%),
+                linear-gradient(180deg, var(--bg-top), var(--bg-bot) 600px, var(--bg-bot));
+    font: 14px/1.6 system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+
+  /* —— 布局：左侧子菜单 + 右侧内容 —— */
+  .shell { display: grid; grid-template-columns: 210px minmax(0, 1fr); min-height: 100vh; }
+  nav { border-right: 1px solid var(--line); padding: 20px 0 16px; position: sticky; top: 0;
+        height: 100vh; overflow-y: auto; background: color-mix(in srgb, var(--panel) 55%, transparent); }
+  .brand { padding: 0 18px 16px; border-bottom: 1px solid var(--hair); margin-bottom: 10px; }
+  .eyebrow { color: var(--gold-dim); font-size: 10px; letter-spacing: .32em; }
+  .brand h1 { margin: 2px 0 0; font-size: 17px; font-weight: 600; letter-spacing: .1em; color: var(--gold-bright); }
+  .brand .ver { color: var(--ink-faint); font-size: 11px; letter-spacing: .08em; }
+  nav a { display: flex; align-items: center; gap: 10px; padding: 9px 18px; color: var(--ink-dim);
+          text-decoration: none; letter-spacing: .08em; border-left: 2px solid transparent; }
+  nav a::before { content: "◇"; font-size: 10px; color: var(--gold-faint); }
+  nav a:hover { color: var(--ink); background: var(--glow); }
+  nav a.on { color: var(--gold-bright); border-left-color: var(--gold); background: var(--glow); }
+  nav a.on::before { content: "◆"; color: var(--gold); }
+  nav a .badge { margin-left: auto; font-size: 11px; padding: 0 6px; border-left: 2px solid currentColor;
+                 background: color-mix(in srgb, currentColor 13%, transparent); }
+  .navfoot { padding: 14px 18px 0; color: var(--ink-faint); font-size: 11px; }
+  .content { padding: 20px 22px 32px; min-width: 0; }
+  .pagehead { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+  .pagehead h2 { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: .14em; color: var(--gold-bright); }
+  .pagehead .desc { color: var(--ink-faint); font-size: 12px; }
+  .pagehead .grow { flex: 1; }
+  [data-view] { display: none; max-width: 1080px; }
+  [data-view].on { display: block; }
+
+  /* —— 面板：暖金描边 + 四角金饰 —— */
+  .panel { position: relative; background: var(--panel); border: 1px solid var(--line);
+           padding: 16px 18px 14px; margin-bottom: 16px; }
+  .panel::before, .panel::after, .panel > .c1, .panel > .c2 {
+    content: ""; position: absolute; width: 12px; height: 12px; pointer-events: none; }
+  .panel::before { top: -1px; left: -1px; border-top: 2px solid var(--gold); border-left: 2px solid var(--gold); }
+  .panel::after { bottom: -1px; right: -1px; border-bottom: 2px solid var(--gold); border-right: 2px solid var(--gold); }
+  .panel > .c1 { top: -1px; right: -1px; border-top: 2px solid var(--gold); border-right: 2px solid var(--gold); }
+  .panel > .c2 { bottom: -1px; left: -1px; border-bottom: 2px solid var(--gold); border-left: 2px solid var(--gold); }
+  .ptitle { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; flex-wrap: wrap; }
+  .ptitle h3 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: .14em; color: var(--gold); }
+  .ptitle h3::before { content: "◆ "; font-size: 10px; vertical-align: 2px; color: var(--gold-dim); }
+  .ptitle .ext { flex: 1; min-width: 40px; height: 1px; background: linear-gradient(90deg, var(--line), transparent); }
+  .hint { color: var(--ink-faint); font-size: 12px; }
+
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; }
+  th { text-align: left; font-weight: 500; font-size: 11px; letter-spacing: .14em; color: var(--gold-dim);
+       padding: 6px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  td { padding: 7px 10px; border-bottom: 1px solid var(--hair); vertical-align: middle; }
+  tbody tr:nth-child(even) td { background: var(--panel-alt); }
+  td.nw { white-space: nowrap; }
+  td.dim, .dim { color: var(--ink-dim); }
+  td.cond { min-width: 7em; }
+  tr.expired td { color: var(--ink-faint); }
+
+  .tag { display: inline-block; padding: 1px 10px 1px 8px; font-size: 12px; white-space: nowrap; letter-spacing: .06em;
+         border-left: 2px solid currentColor; background: color-mix(in srgb, currentColor 13%, transparent); }
+  .s-ok { color: var(--ok); } .s-warn { color: var(--warn); }
+  .s-stale { color: var(--stale); } .s-info { color: var(--info); }
+
+  button { font: inherit; font-size: 13px; letter-spacing: .08em; cursor: pointer; color: var(--gold);
+           background: transparent; border: 1px solid var(--gold-dim); padding: 5px 16px; border-radius: 0;
+           transition: background .15s, color .15s, border-color .15s, box-shadow .15s; }
+  button:hover:not(:disabled) { background: var(--glow); border-color: var(--gold); color: var(--gold-bright);
+                                box-shadow: 0 0 0 1px var(--glow), 0 0 12px var(--glow); }
+  button.primary { background: var(--gold); border-color: var(--gold); color: var(--btn-ink); font-weight: 600; }
+  button.primary:hover:not(:disabled) { background: var(--gold-bright); color: var(--btn-ink); }
+  button.danger { color: var(--stale); border-color: color-mix(in srgb, var(--stale) 55%, transparent); }
+  button.danger.arm { background: var(--stale); color: #fff; border-color: var(--stale); }
+  button.sm { font-size: 12px; padding: 1px 10px; }
+  button:disabled { color: var(--cyan); border-color: var(--cyan); background: transparent; cursor: progress; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
+  .stat { background: var(--panel-alt); border-top: 1px solid var(--gold-dim); padding: 8px 12px 9px; }
+  .stat .k { color: var(--ink-faint); font-size: 11px; letter-spacing: .12em; }
+  .stat .v { display: block; font-size: 17px; margin-top: 2px; }
+  a.stat { color: inherit; text-decoration: none; }
+  a.stat:hover { border-top-color: var(--gold); background: var(--glow); }
+
+  .todo { list-style: none; margin: 0; padding: 0; }
+  .todo li { display: flex; gap: 10px; align-items: center; padding: 8px 2px; border-bottom: 1px solid var(--hair); }
+  .todo li:last-child { border-bottom: 0; }
+  .todo a { margin-left: auto; color: var(--gold); font-size: 12px; text-decoration: none; letter-spacing: .08em; white-space: nowrap; }
+
+  .session { margin-top: 14px; }
+  .session:first-child { margin-top: 0; }
+  .shead { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 4px; }
+  .shead b { color: var(--ink); font-weight: 600; letter-spacing: .04em; }
+
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 8px 0; border-bottom: 1px solid var(--hair); }
+  .row:last-child { border-bottom: 0; }
+  .row > button { min-width: 168px; }
+  .row > button.sm { min-width: 0; }
+  .result { font-size: 13px; flex-basis: 100%; padding-left: 2px; }
+  .result:empty { display: none; }
+  .sub { margin: 14px 0 6px; font-size: 13px; color: var(--ink-dim); letter-spacing: .1em; }
+  .bar { height: 4px; background: var(--hair); margin: 8px 0 4px; overflow: hidden; }
+  .bar > i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--gold-dim), var(--gold-bright)); transition: width .4s; }
+  .log { font-size: 12px; color: var(--ink-dim); white-space: pre-wrap; margin-top: 4px; }
+  .log:empty { display: none; }
+
+  /* —— 设置表单 —— */
+  .field { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 340px); gap: 6px 18px;
+           padding: 12px 0; border-bottom: 1px solid var(--hair); align-items: start; }
+  .field:last-child { border-bottom: 0; }
+  .field.dirty { box-shadow: inset 2px 0 0 var(--cyan); padding-left: 10px; }
+  .field .lab { color: var(--ink); }
+  .field .key { font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--ink-faint); margin-left: 6px; }
+  .field .fh { color: var(--ink-faint); font-size: 12px; margin-top: 2px; }
+  .field .eff { font-size: 11px; margin-left: 6px; }
+  input[type="text"], input[type="number"], select, textarea {
+    width: 100%; font: inherit; font-size: 13px; color: var(--ink); background: var(--field);
+    border: 1px solid var(--hair); border-radius: 0; padding: 6px 9px; outline: none; }
+  input:focus, select:focus, textarea:focus { border-color: var(--gold); box-shadow: 0 0 0 1px var(--glow); }
+  textarea { min-height: 64px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .switch { position: relative; width: 44px; height: 22px; display: inline-block; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .switch span { position: absolute; inset: 0; background: var(--hair); border: 1px solid var(--line); cursor: pointer; transition: .15s; }
+  .switch span::after { content: ""; position: absolute; width: 16px; height: 16px; left: 2px; top: 2px; background: var(--ink-faint); transition: .15s; }
+  .switch input:checked + span { background: color-mix(in srgb, var(--gold) 30%, transparent); border-color: var(--gold); }
+  .switch input:checked + span::after { left: 24px; background: var(--gold-bright); }
+  .savebar { position: sticky; bottom: 0; z-index: 2; display: none; align-items: center; gap: 12px; flex-wrap: wrap;
+             padding: 10px 16px; margin-top: 4px; background: var(--panel); border: 1px solid var(--gold-dim);
+             box-shadow: 0 -8px 24px rgba(0, 0, 0, .25); }
+  .savebar.on { display: flex; }
+  .savebar .grow { flex: 1; }
+
+  .guide { margin: 0 0 12px; padding-left: 20px; color: var(--ink-dim); font-size: 13px; }
+  .guide li { margin: 2px 0; }
+  .guide b { color: var(--gold); font-weight: 600; }
+  .themeGrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 18px; align-items: start; }
+  .previewCol { position: sticky; top: 12px; }
+  .previewCol img { display: block; width: 100%; border: 1px solid var(--line); min-height: 120px; background: var(--panel-alt); }
+  .previewCol img.busy { opacity: .55; }
+  .slot { display: grid; grid-template-columns: 34px 82px minmax(0, 1fr) auto; gap: 4px 10px; align-items: center;
+          padding: 7px 0; border-bottom: 1px solid var(--hair); }
+  .slot.dirty { box-shadow: inset 2px 0 0 var(--cyan); padding-left: 6px; }
+  .slot input[type="color"] { width: 34px; height: 26px; padding: 0; border: 1px solid var(--line); background: none; cursor: pointer; }
+  .slot input.hex { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; padding: 4px 6px; }
+  .slot .nm { color: var(--ink); }
+  .slot .wh { grid-column: 3 / 4; color: var(--ink-faint); font-size: 12px; }
+  .slot .ops { grid-row: 1 / 3; grid-column: 4; display: flex; gap: 4px; }
+  details.adv { margin-top: 8px; }
+  details.adv summary { cursor: pointer; color: var(--gold); letter-spacing: .08em; padding: 6px 0; }
+  .imgrow, .slider { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 6px 0; }
+  .slider input[type="range"] { accent-color: var(--gold); width: 160px; }
+  #themeBar { margin-top: 12px; }
+  @media (max-width: 980px) { .themeGrid { grid-template-columns: 1fr; } .previewCol { position: static; } }
+  .sample { margin: 10px 0 2px; }
+  .sample:empty { display: none; }
+  .sample img { display: block; max-width: 100%; border: 1px solid var(--line); margin-top: 4px; }
+  select.fsel { width: auto; min-width: 200px; margin-left: 4px; }
+  input[type="file"] { color: var(--ink-dim); font-size: 12px; }
+  input[type="file"]::file-selector-button { font: inherit; color: var(--gold); background: transparent;
+    border: 1px solid var(--gold-dim); padding: 4px 12px; margin-right: 8px; cursor: pointer; }
+  #err { color: var(--stale); white-space: pre-wrap; margin-bottom: 10px; }
+  #err:empty { display: none; }
+  label { user-select: none; cursor: pointer; }
+  input[type="checkbox"] { accent-color: var(--gold); vertical-align: -2px; }
+
+  /* —— 窄屏：子菜单改顶部横向标签；表单单列；新鲜度表逐行卡片 —— */
+  @media (max-width: 760px) {
+    .shell { grid-template-columns: 1fr; }
+    nav { position: sticky; top: 0; z-index: 3; height: auto; display: flex; overflow-x: auto; padding: 0;
+          border-right: 0; border-bottom: 1px solid var(--line); background: var(--panel); }
+    .brand, .navfoot { display: none; }
+    nav a { border-left: 0; border-bottom: 2px solid transparent; padding: 10px 14px; white-space: nowrap; }
+    nav a.on { border-bottom-color: var(--gold); }
+    nav a::before { display: none; }
+    .content { padding: 14px 10px 20px; }
+    .panel { padding: 14px 12px 12px; }
+    .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .field { grid-template-columns: 1fr; }
+    .row > button { min-width: 0; }
+    #freshTable thead { display: none; }
+    #freshTable, #freshTable tbody, #freshTable td { display: block; }
+    #freshTable tr { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 8px 10px; border-bottom: 1px solid var(--hair); }
+    #freshTable td { padding: 0; border: 0; background: transparent !important; }
+    #freshTable tbody tr:nth-child(even) { background: var(--panel-alt); }
+    #freshTable td:nth-child(3), #freshTable td:nth-child(4) { grid-column: 1 / -1; font-size: 12px; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+<nav id="nav">
+  <div class="brand"><div class="eyebrow">TENNO · OPERATIONS</div><h1>SDJKBOT</h1><div class="ver" id="ver">连接中…</div></div>
+  <a href="#/overview" data-go="overview">概览<span class="badge" id="b-overview" hidden></span></a>
+  <a href="#/data" data-go="data">数据<span class="badge" id="b-data" hidden></span></a>
+  <a href="#/push" data-go="push">推送与订阅<span class="badge" id="b-push" hidden></span></a>
+  <a href="#/settings" data-go="settings">设置</a>
+  <a href="#/appearance" data-go="appearance">外观<span class="badge" id="b-appearance" hidden></span></a>
+  <a href="#/resources" data-go="resources">依赖与资源<span class="badge" id="b-resources" hidden></span></a>
+  <a href="#/conn" data-go="conn">连通性</a>
+  <div class="navfoot" id="updated"></div>
+</nav>
+
+<div class="content">
+<div id="err"></div>
+
+<!-- ============ 概览 ============ -->
+<section data-view="overview">
+  <div class="pagehead"><h2>概览</h2><span class="desc">机器人当前状态与需要处理的事项</span><span class="grow"></span><button id="reload">重新加载</button></div>
+  <section class="panel"><i class="c1"></i><i class="c2"></i>
+    <div class="grid" id="ovTiles"></div>
+  </section>
+  <section class="panel"><i class="c1"></i><i class="c2"></i>
+    <div class="ptitle"><h3>需要处理</h3><span class="ext"></span></div>
+    <ul class="todo" id="todo"></ul>
+  </section>
+</section>
+
+<!-- ============ 数据 ============ -->
+<section data-view="data">
+  <div class="pagehead"><h2>数据</h2><span class="desc">各数据快照是否新鲜；过期的卡片会提示或不再展示</span></div>
+  <section class="panel"><i class="c1"></i><i class="c2"></i>
+    <div class="ptitle"><h3>数据新鲜度</h3><span class="ext"></span><button class="primary" id="refresh">刷新社区快照</button></div>
+    <div class="hint">刷新会从社区快照（默认本项目公开仓 bot-data，可在「设置 → 社区数据地址」换成自己的）拉元素加成、言录使货单、仲裁评级、奸商到访历史、紫卡倾向；只有比本地新的才会替换。</div>
+    <div id="refreshResult" class="result"></div>
+    <div class="scroll"><table id="freshTable">
+      <thead><tr><th>数据</th><th>状态</th><th>快照时间</th><th>说明</th></tr></thead>
+      <tbody id="fresh"></tbody>
+    </table></div>
+  </section>
+</section>
+
+<!-- ============ 推送与订阅 ============ -->
+<section data-view="push">
+  <div class="pagehead"><h2>推送与订阅</h2><span class="desc">推送守护运行状态；按群管理「蹲」订阅与推送开关</span></div>
+  <section class="panel"><i class="c1"></i><i class="c2"></i>
+    <div class="ptitle"><h3>推送守护</h3><span class="ext"></span></div>
+    <div class="grid" id="push"></div>
+  </section>
+  <section class="panel"><i class="c1"></i><i class="c2"></i>
+    <div class="ptitle"><h3>蹲订阅</h3><span class="hint" id="subsSummary"></span><span class="ext"></span>
+      <label class="hint"><input type="checkbox" id="reveal" /> 显示完整号码</label></div>
+    <div class="hint" style="margin-bottom:8px">群推送关闭时，该群的订阅暂停推送但不会被删除。删除订阅要点两次确认。</div>
+    <div id="subs"></div>
+  </section>
+</section>
+
+<!-- ============ 设置 ============ -->
+<section data-view="settings">
+  <div class="pagehead"><h2>设置</h2><span class="desc">与 AstrBot 插件配置页同一份配置；标「即时生效」的保存后马上用上，标「需重载」的要在后台重载插件</span></div>
+  <div id="settingsForm"></div>
+  <div class="savebar" id="savebar"><span id="saveInfo"></span><span class="grow"></span>
+    <button id="discard">撤销改动</button><button class="primary" id="save">保存设置</button></div>
+  <div id="saveResult" class="result" style="margin-top:8px"></div>
+</section>
+
+<!-- ============ 依赖与资源 ============ -->
+<section data-view="resources">
+  <div class="pagehead"><h2>依赖与资源</h2><span class="desc">插件运行需要的 Python 包；字体在「外观」页</span></div>
+  <section class="panel"><i class="c1"></i><i class="c2"></i>
+    <div class="ptitle"><h3>Python 依赖</h3><span class="ext"></span></div>
+    <div class="scroll"><table>
+      <thead><tr><th>包</th><th>要求</th><th>已安装</th><th>状态</th></tr></thead>
+      <tbody id="deps"></tbody>
+    </table></div>
+    <div class="row"><button id="depsInstall">安装 / 修复依赖</button>
+      <span class="hint">按插件的 requirements.txt 安装，走 AstrBot 自己的 pip 设置（镜像源、版本约束）；装完需重载插件</span>
+      <span class="result" id="r-deps"></span></div>
+  </section>
+</section>
+
+<!-- ============ 外观 ============ -->
+<section data-view="appearance">
+  <div class="pagehead"><h2>外观</h2><span class="desc">图片卡片的配色、背景图、角标与字体（保存后新出的卡片立即生效，不用重载）</span></div>
+  <section class="panel"><i class="c1"></i><i class="c2"></i>
+    <div class="ptitle"><h3>配色</h3><span class="ext"></span></div>
+    <ol class="guide">
+      <li>先挑一个<b>预设</b>，或者在下面逐项改颜色；右边的<b>预览</b>会在你停手约半秒后自动刷新（用的是机器人真实的出图程序）。</li>
+      <li>不知道某一项管哪里？点它旁边的 <b>定位</b>：预览会把这一项临时染成<span style="color:#ff2bd6">品红</span>，一眼看出它改的是卡片哪个部分。</li>
+      <li>「高级」里是表示类别的颜色（裂隙青、钢铁红、MOD 紫…），改了会影响一眼认出类别，建议保持区分度。</li>
+      <li>满意后点底部<b>保存主题</b>；随时可以点「Orokin（默认）」恢复原样。</li>
+    </ol>
+    <div class="themeGrid">
+      <div>
+        <div class="row" id="presets"></div>
+        <div id="slotsBase"></div>
+        <details class="adv"><summary>高级：类别色</summary><div id="slotsAdv"></div></details>
+        <div class="sub">背景图与角标</div>
+        <div class="imgrow">
+          <label class="hint"><input type="checkbox" id="useBg" /> 使用背景图</label>
+          <input type="file" id="bgFile" accept="image/*" /><button class="sm" id="bgUp">上传</button>
+          <button class="sm danger" id="bgDel">删除</button><span class="hint" id="bgInfo"></span>
+        </div>
+        <div class="slider"><span class="hint">背景压暗</span><input type="range" id="bgDim" min="0" max="0.95" step="0.05" /><span id="bgDimV" class="hint"></span>
+          <span class="hint">越大背景越暗、文字越清楚</span></div>
+        <div class="slider"><span class="hint">面板不透明度</span><input type="range" id="panelAlpha" min="0.3" max="1" step="0.05" /><span id="panelAlphaV" class="hint"></span>
+          <span class="hint">有背景图时生效；1 = 不透明</span></div>
+        <div class="imgrow">
+          <label class="hint"><input type="checkbox" id="useLogo" /> 使用角标</label>
+          <input type="file" id="logoFile" accept="image/*" /><button class="sm" id="logoUp">上传</button>
+          <button class="sm danger" id="logoDel">删除</button><span class="hint">显示在页脚右侧水印左边（建议透明底 PNG）</span>
+        </div>
+        <div class="result" id="r-theme"></div>
+      </div>
+      <div class="previewCol">
+        <div class="hint" id="pvInfo">预览</div>
+        <img id="pvImg" alt="主题预览" />
+      </div>
+    </div>
+    <div class="savebar" id="themeBar"><span id="themeInfo">主题有改动未保存</span><span class="grow"></span>
+      <button id="themeDiscard">撤销改动</button><button class="primary" id="themeSave">保存主题</button></div>
+  </section>
+  <section class="panel"><i class="c1"></i><i class="c2"></i>
+    <div class="ptitle"><h3>字体</h3><span class="ext"></span></div>
+    <div class="row"><span id="fontState">—</span></div>
+    <div class="row">
+      <label class="hint">正文 <select id="selRegular" class="fsel"></select></label>
+      <label class="hint">粗体（标题 / 分区标题） <select id="selBold" class="fsel"></select></label>
+      <span class="hint">「自动」= 完整字库 → 你导入的字体 → 随包子集 → 系统字体，取第一个可用的</span>
+    </div>
+    <div class="sub">字体库</div>
+    <div class="scroll"><table>
+      <thead><tr><th>文件</th><th>字体名</th><th>来源</th><th>大小</th><th>中文</th><th></th></tr></thead>
+      <tbody id="fontLib"></tbody>
+    </table></div>
+    <div id="fontSample" class="sample"></div>
+    <div class="sub">添加字体</div>
+    <div class="row"><button id="fontDl">下载完整字库（约 40 MB）</button>
+      <span class="hint">Noto Sans CJK 完整版：随包只带常用 6763 字，生僻字会显示为方块</span></div>
+    <div class="row"><input type="text" id="fontUrl" placeholder="https://…/字体.ttf（.ttf / .otf / .ttc 直链）" style="flex:1;min-width:220px" />
+      <button id="fontImport">从链接导入</button></div>
+    <div class="row"><input type="file" id="fontFile" accept=".ttf,.otf,.ttc" />
+      <button id="fontUpload">上传字体文件</button>
+      <span class="hint">不超过 64 MB；必须包含常用汉字，否则卡片会出方块，不会导入</span>
+      <span class="result" id="r-upload"></span></div>
+    <div class="result" id="r-font" style="display:none"><div class="bar"><i id="fontBar"></i></div><div id="fontProg" class="hint"></div><div id="fontLog" class="log"></div></div>
+    <div class="hint" style="margin-top:8px">导入的字体保存在插件数据目录（plugin_data/…/fonts），插件更新不会丢。请只导入你有权使用的字体。</div>
+  </section>
+</section>
+
+<!-- ============ 连通性 ============ -->
+<section data-view="conn">
+  <div class="pagehead"><h2>连通性</h2><span class="desc">检查外部服务是否可用</span></div>
+  <section class="panel"><i class="c1"></i><i class="c2"></i>
+    <div class="row"><button data-test="flare">FlareSolverr</button>
+      <span class="hint">只探活，不做真实求解</span><span class="result" id="r-flare"></span></div>
+    <div class="row"><button data-test="vision">识卡渠道 · 解析</button>
+      <span class="hint">列出会用到的多模态渠道，不调用模型</span><span class="result" id="r-vision"></span></div>
+    <div class="row"><button data-test="vision_live">识卡渠道 · 真调</button>
+      <span class="hint">按优先级逐个发一张 32×32 小图，成功即停；会消耗少量 token</span><span class="result" id="r-vision_live"></span></div>
+  </section>
+</section>
+</div>
+</div>
+
+<script type="module">
+  // 页面接口由 AstrBot 注入在文档末尾；module 脚本在文档解析完成后才执行，届时已就绪
+  const bridge = window.AstrBotPluginPage || window.AstrBotPluginView;
+  const $ = (id) => document.getElementById(id);
+  const STATUS = { ok: "正常", warn: "该刷新了", stale: "已过期", info: "静态快照" };
+  const VIEWS = ["overview", "data", "push", "settings", "appearance", "resources", "conn"];
+  const state = { ov: null, res: null, settings: null, orig: {}, edits: {} };
+
+  // 一律 textContent：订阅条件是群友输入的文本，绝不拼 HTML
+  function el(tag, attrs = {}, ...kids) {
+    const n = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (v === undefined || v === null || v === false) continue;
+      if (k === "class") n.className = v;
+      else if (k.startsWith("on")) n.addEventListener(k.slice(2), v);
+      else if (k === "checked" || k === "value") n[k] = v;
+      else n.setAttribute(k, v === true ? "" : v);
+    }
+    for (const k of kids) if (k !== null && k !== undefined && k !== false)
+      n.append(k instanceof Node ? k : document.createTextNode(String(k)));
+    return n;
+  }
+  const fmtTime = (s) => {
+    if (s === null || s === undefined || s === "") return "—";
+    const d = typeof s === "number" ? new Date(s * 1000) : new Date(s);
+    return isNaN(d) ? String(s) : d.toLocaleString("zh-CN", { hour12: false });
+  };
+  const ago = (ts) => {
+    if (!ts) return "—";
+    const s = Date.now() / 1000 - ts;
+    if (s < 90) return `${Math.max(0, Math.round(s))} 秒前`;
+    if (s < 5400) return `${Math.round(s / 60)} 分钟前`;
+    return `${(s / 3600).toFixed(1)} 小时前`;
+  };
+  const showErr = (e) => { $("err").textContent = e ? "出错：" + (e.message || e) : ""; };
+  const badge = (id, text, cls) => {
+    const b = $(id); if (!b) return;
+    b.hidden = !text; b.textContent = text || ""; b.className = "badge " + (cls || "");
+  };
+
+  // —— 路由（hash）——
+  function route() {
+    const v = (location.hash.match(/^#\/(\w+)/) || [])[1];
+    const view = VIEWS.includes(v) ? v : "overview";
+    document.querySelectorAll("[data-view]").forEach((s) => s.classList.toggle("on", s.dataset.view === view));
+    document.querySelectorAll("nav a").forEach((a) => a.classList.toggle("on", a.dataset.go === view));
+    if (view === "settings" && !state.settings) loadSettings();
+    if (view === "appearance" && !TH.meta) loadTheme();
+  }
+  window.addEventListener("hashchange", route);
+
+  // —— 概览 ——
+  function renderOverview() {
+    const ov = state.ov, res = state.res;
+    if (!ov) return;
+    const fr = ov.freshness || [];
+    const nStale = fr.filter((r) => r.status === "stale").length;
+    const nWarn = fr.filter((r) => r.status === "warn").length;
+    const p = ov.push, s = ov.subs;
+    const depsBad = res ? res.deps.filter((d) => !d.ok).length : 0;
+    const fk = res ? res.fonts.kind : "";
+    const tiles = [
+      ["推送守护", p.alive ? "运行中" : "未运行", p.alive ? "s-ok" : "s-stale", "push"],
+      ["订阅", `${s.total} 条 / ${s.sessions.length} 个群`, "", "push"],
+      ["数据", nStale ? `${nStale} 项已过期` : (nWarn ? `${nWarn} 项该刷新` : "全部正常"), nStale ? "s-stale" : (nWarn ? "s-warn" : "s-ok"), "data"],
+      ["依赖", res ? (depsBad ? `缺 ${depsBad} 个` : "全部满足") : "—", depsBad ? "s-stale" : "s-ok", "resources"],
+      ["字体", { full: "完整字库", subset: "随包子集", user: "自选字体", system: "系统字体", none: "无" }[fk] || "—", fk === "full" || fk === "user" ? "s-ok" : (fk === "none" ? "s-stale" : "s-warn"), "appearance"],
+      ["上次轮询", ago(p.last_tick), "", "push"],
+    ];
+    $("ovTiles").replaceChildren(...tiles.map(([k, v, c, go]) =>
+      el("a", { class: "stat", href: "#/" + go }, el("span", { class: "k" }, k), el("b", { class: "v " + (c || "") }, v))));
+
+    const todo = [];
+    if (!p.alive) todo.push(["s-stale", "推送守护没有在运行，订阅不会推送", "push", "去看看"]);
+    for (const r of fr.filter((r) => r.status === "stale")) todo.push(["s-stale", `${r.item}已过期：${r.detail}`, "data", "去刷新"]);
+    for (const r of fr.filter((r) => r.status === "warn")) todo.push(["s-warn", `${r.item}：${r.detail}`, "data", "查看"]);
+    if (p.failing_sessions) todo.push(["s-warn", `${p.failing_sessions} 个群发送失败（机器人可能被移出群或禁言）`, "push", "查看"]);
+    if (res) {
+      for (const d of res.deps.filter((d) => !d.ok)) todo.push(["s-stale", `依赖 ${d.name} ${d.installed ? "版本过低（" + d.installed + "）" : "未安装"}`, "resources", "去安装"]);
+      if (fk === "subset") todo.push(["s-warn", "正在用随包子集字体，生僻字会显示为方块", "appearance", "换字体"]);
+    }
+    $("todo").replaceChildren(...(todo.length ? todo.map(([c, t, go, act]) =>
+      el("li", {}, el("span", { class: "tag " + c }, c === "s-stale" ? "处理" : "留意"), el("span", {}, t), el("a", { href: "#/" + go }, act + " ›")))
+      : [el("li", {}, el("span", { class: "tag s-ok" }, "正常"), el("span", { class: "dim" }, "没有需要处理的事项"))]));
+
+    badge("b-data", nStale ? String(nStale) : (nWarn ? String(nWarn) : ""), nStale ? "s-stale" : "s-warn");
+    badge("b-push", p.alive ? "" : "停", "s-stale");
+    badge("b-resources", depsBad ? String(depsBad) : "", "s-stale");
+    badge("b-appearance", fk === "subset" ? "!" : "", "s-warn");
+    badge("b-overview", todo.length ? String(todo.length) : "", todo.some((t) => t[0] === "s-stale") ? "s-stale" : "s-warn");
+  }
+
+  // —— 数据 ——
+  function renderFresh(rows) {
+    $("fresh").replaceChildren(...rows.map((r) => el("tr", {},
+      el("td", { class: "nw" }, r.item),
+      el("td", {}, el("span", { class: "tag s-" + r.status }, STATUS[r.status] || r.status)),
+      el("td", { class: "nw dim" }, r.snapshot ? fmtTime(r.snapshot) : "—"),
+      el("td", { class: "dim" }, r.detail))));
+  }
+
+  // —— 推送与订阅 ——
+  function renderPush(p) {
+    const items = [
+      ["守护进程", p.alive ? "运行中" : "未运行", p.alive ? "s-ok" : "s-stale"],
+      ["上次轮询", ago(p.last_tick)],
+      ["轮询间隔", p.interval ? p.interval + " 秒" : "—"],
+      ["启动以来轮询", p.ticks + " 次"],
+      ["最近一轮数据源", p.idle ? "无订阅，未拉取" : `成功 ${p.last_round_ok} / 失败 ${p.last_round_fail}`, p.last_round_fail ? "s-warn" : ""],
+      ["连续失败", p.fail_streak, p.fail_streak ? "s-warn" : ""],
+      ["下次等待", p.next_delay != null ? Math.round(p.next_delay) + " 秒" : "—"],
+      ["待重发", p.pending, p.pending ? "s-warn" : ""],
+      ["发送失败的群", p.failing_sessions, p.failing_sessions ? "s-warn" : ""],
+    ];
+    $("push").replaceChildren(...items.map(([k, v, c]) =>
+      el("div", { class: "stat" }, el("span", { class: "k" }, k), el("b", { class: "v " + (c || "") }, v))));
+  }
+
+  // 危险操作：第一次点「武装」，3 秒内再点才执行（沙箱里 confirm 无效）
+  function armed(btn, label, fn) {
+    btn.addEventListener("click", async () => {
+      if (!btn.classList.contains("arm")) {
+        btn.classList.add("arm"); btn.textContent = "再点确认";
+        setTimeout(() => { btn.classList.remove("arm"); btn.textContent = label; }, 3000);
+        return;
+      }
+      btn.disabled = true;
+      try { await fn(); } catch (e) { showErr(e); btn.disabled = false; btn.classList.remove("arm"); btn.textContent = label; }
+    });
+    return btn;
+  }
+
+  function renderSubs(s) {
+    if (s.error) { $("subs").replaceChildren(el("div", { class: "s-stale" }, s.error)); return; }
+    const ev = Object.entries(s.events || {}).map(([k, v]) => `${k} ${v}`).join("、");
+    $("subsSummary").textContent = `共 ${s.total} 条` + (ev ? `（${ev}）` : "");
+    if (!s.sessions.length) { $("subs").replaceChildren(el("div", { class: "hint" }, "暂无订阅（群里发「蹲 …」添加）")); return; }
+    $("subs").replaceChildren(...s.sessions.map((g) => {
+      const tog = g.push === null ? null : el("button", { class: "sm" + (g.push ? "" : " primary") }, g.push ? "关闭本群推送" : "开启本群推送");
+      if (tog) tog.onclick = () => busy(tog, async () => {
+        await bridge.apiPost("group_push", { key: g.key, push: !g.push });
+        await load();
+      });
+      return el("div", { class: "session" },
+        el("div", { class: "shead" }, el("b", {}, g.umo),
+          g.push === null ? null : el("span", { class: "tag " + (g.push ? "s-ok" : "s-warn") }, g.push ? "推送开启" : "推送已关闭（订阅暂停）"),
+          tog),
+        el("div", { class: "scroll" }, el("table", {},
+          el("thead", {}, el("tr", {}, ...["事件", "条件", "次数", "到期", "订阅人", "创建", ""].map((h) => el("th", {}, h)))),
+          el("tbody", {}, ...g.subs.map((x) => el("tr", { class: x.expired ? "expired" : "" },
+            el("td", { class: "nw" }, x.event),
+            el("td", { class: "cond" }, x.rule || "（全部）"),
+            el("td", { class: "nw dim" }, x.once ? "一次性" : (x.hits_left > 0 ? `剩 ${x.hits_left} 次` : "不限")),
+            el("td", { class: "nw dim" }, x.until < 0 ? "永久" : fmtTime(x.until) + (x.expired ? "（已过期）" : "")),
+            el("td", { class: "nw dim" }, x.created_by || "—"),
+            el("td", { class: "nw dim" }, fmtTime(x.created_at)),
+            el("td", { class: "nw" }, armed(el("button", { class: "sm danger", title: "订阅 ID " + x.sid }, "删除"), "删除", async () => {
+              await bridge.apiPost("sub_remove", { sid: x.sid });
+              await load();
+            }))))))));
+    }));
+  }
+
+  // —— 设置 ——
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  function control(f) {
+    const set = (v) => { if (same(v, state.orig[f.key])) delete state.edits[f.key]; else state.edits[f.key] = v; markDirty(); };
+    const v = f.key in state.edits ? state.edits[f.key] : f.value;
+    if (f.type === "bool") {
+      const cb = el("input", { type: "checkbox", checked: !!v, onchange: (e) => set(e.target.checked) });
+      return el("label", { class: "switch" }, cb, el("span"));
+    }
+    if (f.options) {
+      return el("select", { onchange: (e) => set(e.target.value) },
+        ...f.options.map((o) => { const op = el("option", { value: o }, o); op.selected = o === v; return op; }));
+    }
+    if (f.type === "list") {
+      return el("textarea", { placeholder: "每行一个", value: (v || []).join("\n"),
+        oninput: (e) => set(e.target.value.split(/[\n,，]+/).map((x) => x.trim()).filter(Boolean)) });
+    }
+    if (f.type === "int") {
+      return el("input", { type: "number", min: "0", step: "1", value: String(v ?? ""),
+        oninput: (e) => set(e.target.value === "" ? "" : Number(e.target.value)) });
+    }
+    const inp = el("input", { type: "text", value: String(v ?? ""), placeholder: f.provider ? "留空 = 自动挑选" : "",
+      oninput: (e) => set(e.target.value) });
+    if (f.provider) inp.setAttribute("list", "providers");
+    return inp;
+  }
+  function renderSettings() {
+    const st = state.settings;
+    const dl = el("datalist", { id: "providers" }, ...st.providers.map((p) => el("option", { value: p })));
+    $("settingsForm").replaceChildren(dl, ...st.groups.map((g) =>
+      el("section", { class: "panel" }, el("i", { class: "c1" }), el("i", { class: "c2" }),
+        el("div", { class: "ptitle" }, el("h3", {}, g.title), el("span", { class: "ext" })),
+        ...g.fields.map((f) => el("div", { class: "field", "data-key": f.key },
+          el("div", {},
+            el("span", { class: "lab" }, f.label),
+            el("span", { class: "eff " + (f.reload ? "s-warn" : "s-ok") }, f.reload ? "需重载" : "即时生效"),
+            el("div", {}, el("span", { class: "key" }, f.key)),
+            f.hint ? el("div", { class: "fh" }, f.hint) : null),
+          el("div", {}, control(f)))))));
+    markDirty();
+  }
+  function markDirty() {
+    const n = Object.keys(state.edits).length;
+    document.querySelectorAll(".field").forEach((d) => d.classList.toggle("dirty", d.dataset.key in state.edits));
+    $("savebar").classList.toggle("on", n > 0);
+    $("saveInfo").textContent = `${n} 项未保存`;
+  }
+  async function loadSettings() {
+    try {
+      state.settings = await bridge.apiGet("settings", {});
+      state.orig = {}; state.edits = {};
+      for (const g of state.settings.groups) for (const f of g.fields) state.orig[f.key] = f.value;
+      renderSettings();
+    } catch (e) { showErr(e); }
+  }
+
+  // —— 依赖与资源 ——
+  const FONT_KIND = {
+    full: ["完整字库", "s-ok", "Noto Sans CJK 完整版，生僻字也能显示"],
+    subset: ["随包子集", "s-warn", "常用 6763 字，生僻字会显示为方块"],
+    user: ["自选字体", "s-ok", "用的是你导入的字体"],
+    system: ["系统字体", "s-info", "用的是系统自带中文字体，字形可能与作者出图不同"],
+    none: ["没有可用字体", "s-stale", "图片卡片会降级为文字；先安装依赖（Pillow）"],
+  };
+  let fontTimer = null;
+  function renderDeps(rows) {
+    $("deps").replaceChildren(...rows.map((r) => el("tr", {},
+      el("td", { class: "nw" }, r.name),
+      el("td", { class: "nw dim" }, r.spec),
+      el("td", { class: "nw dim" }, r.installed || "未安装"),
+      el("td", {}, el("span", { class: "tag " + (r.ok ? "s-ok" : "s-stale") }, r.ok ? "满足" : (r.installed ? "版本过低" : "缺失"))))));
+    $("depsInstall").className = rows.some((r) => !r.ok) ? "primary" : "";
+  }
+  function renderFonts(f) {
+    const [label, cls, desc] = FONT_KIND[f.kind] || FONT_KIND.none;
+    $("fontState").replaceChildren(el("span", { class: "tag " + cls }, label),
+      el("span", { class: "hint" }, ` ${desc}；正文 ${f.regular || "—"} · 粗体 ${f.bold || "—"}`));
+    renderFontLib(f);
+    const job = f.job || {};
+    const running = job.state === "running";
+    $("fontDl").disabled = running; $("fontImport").disabled = running;
+    $("fontDl").className = f.kind === "full" ? "" : "primary";
+    $("r-font").style.display = job.state && job.state !== "idle" ? "" : "none";
+    if (job.state && job.state !== "idle") {
+      const pct = job.total ? Math.min(100, (job.got / job.total) * 100) : 0;
+      $("fontBar").style.width = (running ? pct : 100) + "%";
+      const imp = job.kind === "import";
+      $("fontProg").textContent = running
+        ? `正在下载 ${job.file}：${(job.got / 1048576).toFixed(1)} / ${job.total ? (job.total / 1048576).toFixed(1) : "?"} MB`
+        : job.state === "done" ? (imp ? `✓ ${job.file} 已导入，在上面的字体库里设为正文 / 粗体` : "✓ 完整字库已就绪，新出的卡片立即生效")
+        : (imp ? "✗ 导入失败（原因见下）" : "✗ 下载没有完成，可重试（会换下载源）");
+      $("fontProg").className = running ? "hint" : (job.state === "done" ? "s-ok" : "s-stale");
+      $("fontLog").textContent = (job.log || []).join("\n");
+    }
+    if (running && !fontTimer) fontTimer = setInterval(pollRes, 1000);
+    if (!running && fontTimer) { clearInterval(fontTimer); fontTimer = null; }
+  }
+  const ORIGIN = { bundled: "随包", user: "导入", system: "系统" };
+  function renderFontLib(f) {
+    const lib = f.library || [];
+    for (const [id, slot] of [["selRegular", "regular"], ["selBold", "bold"]]) {
+      const sel = $(id);
+      const cur = f.auto && f.auto[slot] ? "auto" : (lib.find((x) => x[slot]) || {}).id;
+      sel.replaceChildren(el("option", { value: "auto" }, "自动"),
+        ...lib.filter((x) => x.ok).map((x) => el("option", { value: x.id }, `${x.family || x.file}（${ORIGIN[x.origin]}）`)));
+      sel.value = cur || "auto";
+      sel.onchange = () => selectFont(slot, sel.value);
+    }
+    $("fontLib").replaceChildren(...lib.map((x) => el("tr", {},
+      el("td", { class: "nw" }, x.file, x.regular ? el("span", { class: "tag s-ok", style: "margin-left:6px" }, "正文") : null,
+        x.bold ? el("span", { class: "tag s-ok", style: "margin-left:4px" }, "粗体") : null),
+      el("td", { class: "dim" }, x.family || "—"),
+      el("td", { class: "nw dim" }, ORIGIN[x.origin] || x.origin),
+      el("td", { class: "nw dim" }, x.size_mb + " MB"),
+      el("td", { class: "nw" }, x.ok ? el("span", { class: "tag s-ok" }, x.symbol_missing ? "可用（缺符号 " + x.symbol_missing + "）" : "可用")
+        : el("span", { class: "tag s-stale" }, "缺常用汉字")),
+      el("td", { class: "nw" },
+        el("button", { class: "sm", onclick: () => showSample(x) }, "样张"), " ",
+        x.ok ? el("button", { class: "sm", onclick: () => selectFont("both", x.id) }, "设为当前字体") : null, " ",
+        x.origin === "user" ? armed(el("button", { class: "sm danger" }, "删除"), "删除", async () => {
+          const d = await bridge.apiPost("font_delete", { id: x.id }); renderFonts(d.fonts); renderOverview();
+        }) : null))));
+  }
+  async function selectFont(slot, id) {
+    try { const d = await bridge.apiPost("font_select", { slot, id }); state.res.fonts = d.fonts; renderFonts(d.fonts); renderOverview(); }
+    catch (e) { showErr(e); }
+  }
+  async function showSample(x) {
+    $("fontSample").replaceChildren(el("span", { class: "hint" }, "生成样张…"));
+    try {
+      const d = await bridge.apiGet("font_sample", { id: x.id });
+      $("fontSample").replaceChildren(el("div", { class: "hint" }, `样张：${x.family || x.file}`), el("img", { src: d.png, alt: "字体样张" }));
+    } catch (e) { $("fontSample").replaceChildren(el("span", { class: "s-stale" }, "✗ " + (e.message || e))); }
+  }
+
+  // —— 配色 ——
+  const TH = { meta: null, orig: null, cur: null, timer: null, seq: 0, locate: null };
+  function thDirty() { return JSON.stringify(TH.cur) !== JSON.stringify(TH.orig); }
+  function thBody(extraColors) {
+    return { colors: { ...TH.cur.colors, ...(extraColors || {}) }, bg_dim: TH.cur.bg_dim,
+             panel_alpha: TH.cur.panel_alpha, use_bg: TH.cur.use_bg, use_logo: TH.cur.use_logo };
+  }
+  function schedulePreview(extraColors, label) {
+    clearTimeout(TH.timer);
+    TH.timer = setTimeout(() => runPreview(extraColors, label), extraColors ? 0 : 550);
+    $("themeBar").classList.toggle("on", thDirty());
+  }
+  async function runPreview(extraColors, label) {
+    const my = ++TH.seq;
+    $("pvImg").classList.add("busy");
+    try {
+      const d = await bridge.apiPost("theme_preview", thBody(extraColors));
+      if (my !== TH.seq) return;
+      $("pvImg").src = d.png;
+      $("pvInfo").textContent = label ? `定位：「${label}」已临时染成品红（再改任意一项或点「取消定位」恢复）` : `预览（${d.ms} ms，未保存的改动也会显示在这里）`;
+      $("pvInfo").className = label ? "hint s-warn" : "hint";
+    } catch (e) { $("pvInfo").textContent = "✗ " + (e.message || e); $("pvInfo").className = "hint s-stale"; }
+    finally { if (my === TH.seq) $("pvImg").classList.remove("busy"); }
+  }
+  function slotRow(sl) {
+    const val = () => TH.cur.colors[sl.key] || sl.default;
+    const pick = el("input", { type: "color", value: val() });
+    const hex = el("input", { type: "text", class: "hex", value: val(), maxlength: "7" });
+    const set = (v) => {
+      if (!/^#[0-9a-fA-F]{6}$/.test(v)) return;
+      v = v.toLowerCase();
+      if (v === sl.default.toLowerCase()) delete TH.cur.colors[sl.key]; else TH.cur.colors[sl.key] = v;
+      pick.value = v; hex.value = v; row.classList.toggle("dirty", (TH.orig.colors[sl.key] || sl.default) !== v);
+      schedulePreview();
+    };
+    pick.oninput = () => set(pick.value);
+    hex.oninput = () => set(hex.value.trim().startsWith("#") ? hex.value.trim() : "#" + hex.value.trim());
+    const row = el("div", { class: "slot", "data-slot": sl.key }, pick, hex,
+      el("span", { class: "nm" }, sl.label),
+      el("span", { class: "ops" },
+        el("button", { class: "sm", onclick: () => schedulePreview({ [sl.key]: "#ff2bd6" }, sl.label) }, "定位"),
+        el("button", { class: "sm", title: "恢复默认 " + sl.default, onclick: () => set(sl.default) }, "默认")),
+      el("span", {}), el("span", {}), el("span", { class: "wh" }, sl.where));
+    return row;
+  }
+  function renderTheme() {
+    const m = TH.meta;
+    $("presets").replaceChildren(el("span", { class: "hint" }, "预设："), ...m.presets.map((p) =>
+      el("button", { class: "sm", onclick: () => { TH.cur.colors = { ...p.colors }; renderTheme(); schedulePreview(); } }, p.name)),
+      el("button", { class: "sm", onclick: () => runPreview() }, "取消定位"));
+    $("slotsBase").replaceChildren(...m.slots.filter((x) => x.group === "base").map(slotRow));
+    $("slotsAdv").replaceChildren(...m.slots.filter((x) => x.group === "adv").map(slotRow));
+    $("useBg").checked = TH.cur.use_bg; $("useLogo").checked = TH.cur.use_logo;
+    $("useBg").disabled = !m.has_bg; $("useLogo").disabled = !m.has_logo;
+    $("bgDel").hidden = !m.has_bg; $("logoDel").hidden = !m.has_logo;
+    $("bgInfo").textContent = m.has_bg ? "已上传" : "未上传";
+    $("bgDim").value = TH.cur.bg_dim; $("bgDimV").textContent = Math.round(TH.cur.bg_dim * 100) + "%";
+    $("panelAlpha").value = TH.cur.panel_alpha; $("panelAlphaV").textContent = Math.round(TH.cur.panel_alpha * 100) + "%";
+    $("themeBar").classList.toggle("on", thDirty());
+  }
+  async function loadTheme() {
+    try {
+      const m = await bridge.apiGet("theme", {});
+      TH.meta = m;
+      const colors = {};
+      for (const sl of m.slots) if (sl.value.toLowerCase() !== sl.default.toLowerCase()) colors[sl.key] = sl.value.toLowerCase();
+      TH.orig = { colors, bg_dim: m.bg_dim, panel_alpha: m.panel_alpha, use_bg: m.use_bg, use_logo: m.use_logo };
+      TH.cur = JSON.parse(JSON.stringify(TH.orig));
+      renderTheme(); runPreview();
+    } catch (e) { $("r-theme").className = "result s-stale"; $("r-theme").textContent = "✗ " + (e.message || e); }
+  }
+  async function uploadImg(kind) {
+    const f = $(kind + "File").files[0], out = $("r-theme");
+    if (!f) { out.className = "result s-stale"; out.textContent = "先选择一张图片"; return; }
+    out.className = "result dim"; out.textContent = "上传中…";
+    try {
+      const d = await bridge.upload(kind === "bg" ? "theme_upload_bg" : "theme_upload_logo", f);
+      out.className = "result s-ok"; out.textContent = `✓ 已上传（${d.size[0]}×${d.size[1]}），已勾选使用，记得保存主题`;
+      $(kind + "File").value = "";
+      const keep = TH.cur; await loadThemeMetaOnly(); TH.cur = keep;
+      if (kind === "bg") TH.cur.use_bg = true; else TH.cur.use_logo = true;
+      renderTheme(); schedulePreview();
+    } catch (e) { out.className = "result s-stale"; out.textContent = "✗ " + (e.message || e); }
+  }
+  async function loadThemeMetaOnly() { TH.meta = await bridge.apiGet("theme", {}); }
+
+  async function pollRes() {
+    try {
+      state.res = await bridge.apiGet("resources", {});
+      renderDeps(state.res.deps); renderFonts(state.res.fonts); renderOverview();
+    } catch (e) { showErr(e); }
+  }
+
+  // —— 加载 ——
+  async function load() {
+    showErr("");
+    try {
+      state.ov = await bridge.apiGet("overview", { reveal: $("reveal").checked ? "1" : "0" });
+      $("ver").textContent = `v${state.ov.version}`;
+      $("updated").textContent = `更新于 ${fmtTime(state.ov.now)}`;
+      renderFresh(state.ov.freshness); renderPush(state.ov.push); renderSubs(state.ov.subs);
+    } catch (e) { showErr(e); }
+    await pollRes();
+  }
+  async function busy(btn, fn) {
+    btn.disabled = true;
+    try { await fn(); } catch (e) { showErr(e); } finally { btn.disabled = false; }
+  }
+
+  $("reload").onclick = (e) => busy(e.currentTarget, load);
+  $("reveal").onchange = load;
+  $("refresh").onclick = (e) => busy(e.currentTarget, async () => {
+    $("refreshResult").className = "result dim";
+    $("refreshResult").textContent = "刷新中…";
+    const d = await bridge.apiPost("refresh", {});
+    const r = d.results || {};
+    const ST = { fresh: "本地已是最新", unavailable: "取不到" };
+    const NAME = { "arb_ratings.json": "仲裁评级", "baro_history.json": "奸商到访历史", "wiki_disp.json": "紫卡倾向" };
+    const st = Object.entries(r.static || {}).map(([k, v]) => `${NAME[k] || k}：${ST[v] || v}`);
+    $("refreshResult").textContent = [`元素加成：${ST[r.valence] || r.valence}`, `言录使货单：${ST[r.acrithis] || r.acrithis}`, ...st].join("；");
+    state.ov.freshness = d.freshness; renderFresh(d.freshness); renderOverview();
+  });
+  $("save").onclick = (e) => busy(e.currentTarget, async () => {
+    const out = $("saveResult");
+    try {
+      const d = await bridge.apiPost("settings_save", { changes: state.edits });
+      const lab = (k) => { for (const g of state.settings.groups) for (const f of g.fields) if (f.key === k) return f.label.split(/[（(：:]/)[0]; return k; };
+      out.className = "result s-ok";
+      out.textContent = `✓ 已保存 ${d.saved.length} 项` +
+        (d.need_reload.length ? `；以下需在 AstrBot 后台重载插件后生效：${d.need_reload.map(lab).join("、")}` : "，已即时生效");
+      await loadSettings();
+    } catch (err) { out.className = "result s-stale"; out.textContent = "✗ " + (err.message || err); }
+  });
+  $("discard").onclick = () => { state.edits = {}; renderSettings(); $("saveResult").textContent = ""; };
+  $("depsInstall").onclick = (e) => busy(e.currentTarget, async () => {
+    const out = $("r-deps");
+    out.className = "result dim"; out.textContent = "安装中…（可能要一两分钟）";
+    try {
+      const d = await bridge.apiPost("deps_install", {});
+      out.className = "result " + (d.ok ? "s-ok" : "s-stale");
+      out.textContent = `${d.ok ? "✓" : "✗"} ${d.detail.replace(/\*\*/g, "")}（${Math.round(d.ms / 1000)} 秒）`;
+      if (d.deps) { state.res.deps = d.deps; renderDeps(d.deps); renderOverview(); }
+    } catch (err) { out.className = "result s-stale"; out.textContent = "✗ " + (err.message || err); }
+  });
+  $("fontDl").onclick = async () => {
+    try { const d = await bridge.apiPost("font_download", {}); renderFonts(d.fonts); }
+    catch (e) { showErr(e); }
+  };
+  $("bgUp").onclick = (e) => busy(e.currentTarget, () => uploadImg("bg"));
+  $("logoUp").onclick = (e) => busy(e.currentTarget, () => uploadImg("logo"));
+  for (const kind of ["bg", "logo"]) {
+    armed($(kind + "Del"), "删除", async () => {
+      await bridge.apiPost("theme_image_delete", { kind });
+      const keep = TH.cur; await loadThemeMetaOnly(); TH.cur = keep;
+      if (kind === "bg") { TH.cur.use_bg = false; TH.orig.use_bg = false; } else { TH.cur.use_logo = false; TH.orig.use_logo = false; }
+      renderTheme(); schedulePreview(); $(kind + "Del").disabled = false;
+    });
+  }
+  $("useBg").onchange = () => { TH.cur.use_bg = $("useBg").checked; schedulePreview(); };
+  $("useLogo").onchange = () => { TH.cur.use_logo = $("useLogo").checked; schedulePreview(); };
+  $("bgDim").oninput = () => { TH.cur.bg_dim = Number($("bgDim").value); $("bgDimV").textContent = Math.round(TH.cur.bg_dim * 100) + "%"; schedulePreview(); };
+  $("panelAlpha").oninput = () => { TH.cur.panel_alpha = Number($("panelAlpha").value); $("panelAlphaV").textContent = Math.round(TH.cur.panel_alpha * 100) + "%"; schedulePreview(); };
+  $("themeDiscard").onclick = () => { TH.cur = JSON.parse(JSON.stringify(TH.orig)); renderTheme(); schedulePreview(); };
+  $("themeSave").onclick = (e) => busy(e.currentTarget, async () => {
+    const out = $("r-theme");
+    try {
+      await bridge.apiPost("theme_save", thBody());
+      out.className = "result s-ok"; out.textContent = "✓ 主题已保存，新出的卡片立即生效";
+      await loadTheme();
+    } catch (err) { out.className = "result s-stale"; out.textContent = "✗ " + (err.message || err); }
+  });
+  $("fontImport").onclick = async () => {
+    try { const d = await bridge.apiPost("font_import_url", { url: $("fontUrl").value.trim() }); renderFonts(d.fonts); }
+    catch (e) { showErr(e); }
+  };
+  $("fontUpload").onclick = (e) => busy(e.currentTarget, async () => {
+    const out = $("r-upload"), file = $("fontFile").files[0];
+    if (!file) { out.className = "result s-stale"; out.textContent = "先选择一个字体文件"; return; }
+    out.className = "result dim"; out.textContent = `上传中…（${(file.size / 1048576).toFixed(1)} MB）`;
+    try {
+      const d = await bridge.upload("font_upload", file);
+      out.className = "result s-ok"; out.textContent = `✓ ${d.saved} 已导入，在上面的字体库里设为当前字体`;
+      $("fontFile").value = ""; renderFonts(d.fonts);
+    } catch (err) { out.className = "result s-stale"; out.textContent = "✗ " + (err.message || err); }
+  });
+  document.querySelectorAll("button[data-test]").forEach((b) => {
+    b.onclick = () => busy(b, async () => {
+      const out = $("r-" + b.dataset.test);
+      out.className = "result dim"; out.textContent = "测试中…";
+      try {
+        const d = await bridge.apiPost("conntest", { target: b.dataset.test });
+        out.className = "result " + (d.ok ? "s-ok" : "s-stale");
+        out.textContent = `${d.ok ? "✓" : "✗"} ${d.detail}（${d.ms} ms）`;
+      } catch (e) { out.className = "result s-stale"; out.textContent = "✗ " + (e.message || e); }
+    });
+  });
+  // 自动刷新：页面可见、没有操作进行中、设置页没有未保存改动时，每 30 秒重拉一次
+  setInterval(() => {
+    if (document.visibilityState === "visible" && !document.querySelector("button:disabled") && !Object.keys(state.edits).length) load();
+  }, 30000);
+
+  route();
+  if (!bridge) showErr("没有拿到 AstrBot 页面接口（请从 AstrBot 后台的插件详情页打开本页）");
+  else { await bridge.ready(); await load(); renderOverview(); }
+</script>
+</body>
+</html>

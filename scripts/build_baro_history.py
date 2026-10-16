@@ -68,6 +68,11 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--raw", required=True, help="Module:Baro/data 的源码文本")
     ap.add_argument("--check", action="store_true")
+    ap.add_argument(
+        "--out",
+        default=str(OUT),
+        help="输出路径（默认写仓库 core/data；服务器生成社区快照时写到暂存目录）",
+    )
     args = ap.parse_args()
 
     text = Path(args.raw).read_text(encoding="utf-8", errors="replace")
@@ -123,10 +128,12 @@ def main() -> int:
     print(f"产出体积：{len(blob) / 1024:.0f} KB")
     if args.check:
         return 0
-    OUT.write_text(
+    dst = Path(args.out)
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    dst.write_text(
         json.dumps(out, ensure_ascii=False, separators=(",", ":")) + "\n", encoding="utf-8"
     )
-    print(f"已写 {OUT.relative_to(ROOT)}")
+    print(f"已写 {dst}")
     return 0
 
 

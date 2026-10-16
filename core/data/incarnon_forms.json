@@ -1,7 +1,7 @@
 {
  "_meta": {
   "source": "github.com/magenie33/wfsim data/weapons/*（form: incarnon），数值为其按 wiki/实测整理的事实数据；zh 名为 DE 官方简中",
-  "wfsim_commit": "2e5a8d4b21b0fab49d952b22b4ac8fc4054b8fa0",
+  "wfsim_commit": "f1d988b592d683f8e639864707609300cb3107bb",
   "generator": "scripts/build_incarnon_forms.py",
   "scope": "枪械灵化（近战灵化 wfsim 尚未导入）；attack 块不含灵化进化 perk",
   "radial": "暴击/触发缺省继承直击段（wfsim panel.rs:268-271）；takes_multishot 只写有出处的 false（缺省 = 吃多重，attack.rs:713-731）；takes_condition_overload 只写 true"

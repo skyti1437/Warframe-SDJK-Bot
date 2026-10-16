@@ -87,7 +87,7 @@
       {
        "kind": "gated_by_tenno",
        "condition": "overshields",
-       "grant": "flat_base_damage",
+       "grants": "flat_base_damage",
        "value": 50.0,
        "_modellable": false
       }
@@ -106,8 +106,8 @@
       },
       {
        "kind": "gated_by_tenno",
-       "condition": "energy_max > 700",
-       "grant": "base_crit_damage",
+       "condition": "max_energy > 700",
+       "grants": "base_crit_damage",
        "value": 0.5,
        "_modellable": false
       }
@@ -149,8 +149,7 @@
      "description": "+30% Projectile Speed.",
      "effects": [
       {
-       "kind": "indirect",
-       "stat": "projectile_speed",
+       "kind": "projectile_speed_bonus",
        "value": 0.3,
        "_modellable": false
       }
@@ -255,8 +254,8 @@
       },
       {
        "kind": "gated_by_tenno",
-       "condition": "energy_max > 700",
-       "grant": "base_crit_damage",
+       "condition": "max_energy > 700",
+       "grants": "base_crit_damage",
        "value": 1.0,
        "_modellable": false
       }
@@ -284,8 +283,7 @@
      "description": "Increase Range by +7. Does not affect Incarnon Form.",
      "effects": [
       {
-       "kind": "indirect",
-       "stat": "beam_range",
+       "kind": "beam_range_bonus",
        "value": 7.0,
        "_modellable": false
       }
@@ -396,6 +394,7 @@
        "max_stacks": 10,
        "duration": 4.0,
        "chance": 0.5,
+       "misprint": "The card omits that a headshot adds a stack only half the time: the wiki gives it a 50% chance, and the sim rolls it.",
        "decay": "per_stack_expiry",
        "_modellable": false
       }
@@ -415,9 +414,8 @@
       {
        "kind": "stacking_buff",
        "trigger": "punch_through",
-       "per_stack": {
-        "crit_chance": 0.1
-       },
+       "grants": "crit_chance",
+       "per_stack": 0.1,
        "max_stacks": 8,
        "duration_seconds": 3.0,
        "decay": "all_at_once",
@@ -447,8 +445,7 @@
      "description": "+50% Projectile Speed.",
      "effects": [
       {
-       "kind": "indirect",
-       "stat": "projectile_speed",
+       "kind": "projectile_speed_bonus",
        "value": 0.5,
        "_modellable": false
       }
@@ -563,6 +560,7 @@
        "max_stacks": 10,
        "duration": 4.0,
        "chance": 0.5,
+       "misprint": "The card omits that a headshot adds a stack only half the time: the wiki gives it a 50% chance, and the sim rolls it.",
        "decay": "per_stack_expiry",
        "_modellable": false
       }
@@ -582,9 +580,8 @@
       {
        "kind": "stacking_buff",
        "trigger": "punch_through",
-       "per_stack": {
-        "crit_chance": 0.1
-       },
+       "grants": "crit_chance",
+       "per_stack": 0.1,
        "max_stacks": 8,
        "duration_seconds": 3.0,
        "decay": "all_at_once",
@@ -614,8 +611,7 @@
      "description": "+50% Projectile Speed.",
      "effects": [
       {
-       "kind": "indirect",
-       "stat": "projectile_speed",
+       "kind": "projectile_speed_bonus",
        "value": 0.5,
        "_modellable": false
       }
@@ -746,7 +742,7 @@
       {
        "kind": "flat_base_damage_on_empty_reload",
        "value": 14.0,
-       "misprint": "the card prints +10 and the effect is +14, measured in the damage on the Boar Prime, which shares this card",
+       "misprint": "The card says +10; the effect is +14, measured on the Boar Prime, which shares this card.",
        "_modellable": false
       }
      ]
@@ -900,7 +896,7 @@
       {
        "kind": "flat_base_damage_on_empty_reload",
        "value": 14.0,
-       "misprint": "the card prints +10 and the effect is +14, measured in the damage: a pellet at 2 Galvanized stacks x 3 status types reads 266, where +10 would read 255",
+       "misprint": "The card says +10; the effect is +14, measured: a pellet at 2 Galvanized stacks and 3 status types reads 266, where +10 would read 255.",
        "_modellable": false
       }
      ]
@@ -1012,9 +1008,8 @@
       },
       {
        "kind": "stacking_buff",
-       "per_stack": {
-        "base_damage": 2.0
-       },
+       "grants": "flat_base_damage",
+       "per_stack": 2.0,
        "max_stacks": 4,
        "duration_seconds": 5.0,
        "trigger": "kill",
@@ -1048,7 +1043,7 @@
       {
        "kind": "gated_by_tenno",
        "condition": "channeling",
-       "grant": "accuracy_bonus",
+       "grants": "accuracy",
        "value": 0.4,
        "_modellable": false
       }
@@ -1104,8 +1099,7 @@
      "description": "+60% Projectile Speed.",
      "effects": [
       {
-       "kind": "indirect",
-       "stat": "projectile_speed",
+       "kind": "projectile_speed_bonus",
        "value": 0.6,
        "_modellable": false
       }
@@ -1171,9 +1165,8 @@
      "effects": [
       {
        "kind": "stacking_buff",
-       "per_stack": {
-        "base_damage": 2.0
-       },
+       "grants": "flat_base_damage",
+       "per_stack": 2.0,
        "max_stacks": 3,
        "duration_seconds": 5.0,
        "trigger": "kill",
@@ -1207,7 +1200,7 @@
       {
        "kind": "gated_by_tenno",
        "condition": "channeling",
-       "grant": "accuracy_bonus",
+       "grants": "accuracy",
        "value": 0.4,
        "_modellable": false
       }
@@ -1263,8 +1256,7 @@
      "description": "+60% Projectile Speed.",
      "effects": [
       {
-       "kind": "indirect",
-       "stat": "projectile_speed",
+       "kind": "projectile_speed_bonus",
        "value": 0.6,
        "_modellable": false
       }
@@ -1342,7 +1334,7 @@
       {
        "kind": "gated_by_tenno",
        "condition": "channeling",
-       "grant": "flat_base_damage",
+       "grants": "flat_base_damage",
        "value": 30.0,
        "_modellable": false
       },
@@ -1511,7 +1503,7 @@
       {
        "kind": "gated_by_tenno",
        "condition": "channeling",
-       "grant": "flat_base_damage",
+       "grants": "flat_base_damage",
        "value": 38.0,
        "_modellable": false
       },
@@ -1680,7 +1672,7 @@
       {
        "kind": "gated_by_tenno",
        "condition": "channeling",
-       "grant": "flat_base_damage",
+       "grants": "flat_base_damage",
        "value": 34.0,
        "_modellable": false
       },
@@ -1919,7 +1911,7 @@
       {
        "kind": "gated_by_tenno",
        "condition": "sprint_speed >= 1.2",
-       "grant": "projectile_speed",
+       "grants": "projectile_speed",
        "value": 0.6,
        "_modellable": false
       }
@@ -2067,7 +2059,7 @@
       {
        "kind": "gated_by_tenno",
        "condition": "sprint_speed >= 1.2",
-       "grant": "projectile_speed",
+       "grants": "projectile_speed",
        "value": 0.6,
        "_modellable": false
       }
@@ -2113,11 +2105,10 @@
      "effects": [
       {
        "kind": "stacking_buff",
-       "per_stack": {
-        "base_damage_bonus": 0.2
-       },
+       "grants": "base_damage",
+       "per_stack": 0.2,
        "max_stacks": 5,
-       "trigger": "full_burst_hit",
+       "trigger": "full_burst",
        "_modellable": false
       }
      ]
@@ -2259,11 +2250,10 @@
      "effects": [
       {
        "kind": "stacking_buff",
-       "per_stack": {
-        "base_damage_bonus": 0.2
-       },
+       "grants": "base_damage",
+       "per_stack": 0.2,
        "max_stacks": 5,
-       "trigger": "full_burst_hit",
+       "trigger": "full_burst",
        "_modellable": false
       }
      ]
@@ -2442,7 +2432,7 @@
       {
        "kind": "gated_by_tenno",
        "condition": "armor > 450",
-       "grant": "multishot",
+       "grants": "multishot",
        "value": 0.8,
        "_modellable": false
       }
@@ -2507,8 +2497,7 @@
      "description": "+50% Projectile Speed.",
      "effects": [
       {
-       "kind": "indirect",
-       "stat": "projectile_speed",
+       "kind": "projectile_speed_bonus",
        "value": 0.5,
        "_modellable": false
       }
@@ -2557,9 +2546,8 @@
       {
        "kind": "stacking_buff",
        "trigger": "status_applied",
-       "per_stack": {
-        "fire_rate_bonus": 0.05
-       },
+       "grants": "fire_rate",
+       "per_stack": 0.05,
        "max_stacks": 6,
        "duration_seconds": 5.0,
        "_modellable": false
@@ -2664,8 +2652,7 @@
      "description": "+50% Projectile Speed.",
      "effects": [
       {
-       "kind": "indirect",
-       "stat": "projectile_speed",
+       "kind": "projectile_speed_bonus",
        "value": 0.5,
        "_modellable": false
       }
@@ -2714,9 +2701,8 @@
       {
        "kind": "stacking_buff",
        "trigger": "status_applied",
-       "per_stack": {
-        "fire_rate_bonus": 0.05
-       },
+       "grants": "fire_rate",
+       "per_stack": 0.05,
        "max_stacks": 6,
        "duration_seconds": 5.0,
        "_modellable": false
@@ -2821,8 +2807,7 @@
      "description": "+50% Projectile Speed.",
      "effects": [
       {
-       "kind": "indirect",
-       "stat": "projectile_speed",
+       "kind": "projectile_speed_bonus",
        "value": 0.5,
        "_modellable": false
       }
@@ -2946,8 +2931,7 @@
      "description": "-30% Zoom.",
      "effects": [
       {
-       "kind": "indirect",
-       "stat": "zoom",
+       "kind": "zoom_bonus",
        "value": -0.3,
        "_modellable": false
       }
@@ -2973,8 +2957,7 @@
      "description": "+50% Projectile Speed.",
      "effects": [
       {
-       "kind": "indirect",
-       "stat": "projectile_speed",
+       "kind": "projectile_speed_bonus",
        "value": 0.5,
        "_modellable": false
       }
@@ -3020,9 +3003,8 @@
       {
        "kind": "stacking_buff",
        "trigger": "consecutive_headshot",
-       "per_stack": {
-        "base_damage": 5.0
-       },
+       "grants": "flat_base_damage",
+       "per_stack": 5.0,
        "max_stacks": 3,
        "cleared_by": "reload",
        "_modellable": false
@@ -3053,11 +3035,10 @@
      "effects": [
       {
        "kind": "stacking_buff",
-       "per_stack": {
-        "base_damage_bonus": 0.2
-       },
+       "grants": "base_damage",
+       "per_stack": 0.2,
        "max_stacks": 4,
-       "trigger": "full_burst_hit",
+       "trigger": "full_burst",
        "_modellable": false
       }
      ]
@@ -3224,8 +3205,7 @@
      "description": "-30% Zoom.",
      "effects": [
       {
-       "kind": "indirect",
-       "stat": "zoom",
+       "kind": "zoom_bonus",
        "value": -0.3,
        "_modellable": false
       }
@@ -3238,8 +3218,7 @@
      "description": "+30% Projectile Speed.",
      "effects": [
       {
-       "kind": "indirect",
-       "stat": "projectile_speed",
+       "kind": "projectile_speed_bonus",
        "value": 0.3,
        "_modellable": false
       }
@@ -3314,9 +3293,10 @@
       },
       {
        "kind": "gated_by_tenno",
-       "condition": "energy_max >= 200",
-       "grant": "condition_overload",
+       "condition": "max_energy >= 200",
+       "grants": "condition_overload",
        "value": 0.33,
+       "misprint": "The card omits a requirement: the +33% Direct Damage per Status Type pays only with Energy Max 200 or higher, and nothing below it.",
        "_modellable": false
       }
      ]
@@ -3334,10 +3314,9 @@
       },
       {
        "kind": "stacking_buff",
-       "trigger": "on_ability_cast",
-       "per_stack": {
-        "multishot_bonus": 0.05
-       },
+       "trigger": "ability_cast",
+       "grants": "multishot",
+       "per_stack": 0.05,
        "max_stacks": 20,
        "duration": "permanent",
        "cleared_on": [
@@ -3369,13 +3348,9 @@
      "description": "On Headshot: +70% Toxin for 3s.",
      "effects": [
       {
-       "kind": "stacking_buff",
-       "trigger": "on_headshot",
-       "per_stack": {
-        "toxin_damage_bonus": 0.7
-       },
-       "max_stacks": 1,
-       "duration": 3,
+       "kind": "frenzy_injected_element",
+       "element": "toxin",
+       "amount": 0.7,
        "_modellable": false
       }
      ]
@@ -3387,7 +3362,12 @@
      "description": "On Kill: +3 Punch Through for 7s.",
      "effects": [
       {
-       "kind": "unmodelled_punch_through_on_kill_for_a_window",
+       "kind": "stacking_buff",
+       "trigger": "kill",
+       "grants": "punch_through",
+       "per_stack": 3.0,
+       "max_stacks": 1,
+       "duration_seconds": 7.0,
        "_modellable": false
       }
      ]
@@ -3416,7 +3396,7 @@
      "description": "+50% Magazine Reloaded/s when holstered.",
      "effects": [
       {
-       "kind": "holstered_magazine_regen",
+       "kind": "holstered_reload",
        "value": 0.5,
        "_modellable": false
       }
@@ -3519,8 +3499,7 @@
      "description": "+50% Projectile Speed.",
      "effects": [
       {
-       "kind": "indirect",
-       "stat": "projectile_speed",
+       "kind": "projectile_speed_bonus",
        "value": 0.5,
        "_modellable": false
       }
@@ -3599,8 +3578,7 @@
      "description": "Reload toggles the weapon between +100% Projectile Speed and +4m Punch Through.",
      "effects": [
       {
-       "kind": "indirect",
-       "stat": "projectile_speed",
+       "kind": "projectile_speed_bonus",
        "value": 1.0,
        "_modellable": false
       },
@@ -3684,6 +3662,7 @@
        "max_stacks": 10,
        "duration": 2,
        "chance": 0.5,
+       "misprint": "The card omits that a headshot adds a stack only half the time: the wiki gives it a 50% chance, and the sim rolls it.",
        "decay": "per_stack_expiry",
        "_modellable": false
       }
@@ -3775,7 +3754,7 @@
       {
        "kind": "gated_by_tenno",
        "condition": "overshields",
-       "grant": "flat_base_damage",
+       "grants": "flat_base_damage",
        "value": 30.0,
        "_modellable": false
       }
@@ -3908,8 +3887,7 @@
      "description": "Increase Range by +8.",
      "effects": [
       {
-       "kind": "indirect",
-       "stat": "beam_range",
+       "kind": "beam_range_bonus",
        "value": 8.0,
        "_modellable": false
       }
@@ -4065,7 +4043,7 @@
       {
        "kind": "gated_by_tenno",
        "condition": "channeling",
-       "grant": "accuracy_bonus",
+       "grants": "accuracy",
        "value": 0.4,
        "_modellable": false
       }
@@ -4219,7 +4197,7 @@
       {
        "kind": "gated_by_tenno",
        "condition": "channeling",
-       "grant": "accuracy_bonus",
+       "grants": "accuracy",
        "value": 0.4,
        "_modellable": false
       }
@@ -4282,9 +4260,8 @@
       {
        "kind": "stacking_buff",
        "trigger": "firing",
-       "per_stack": {
-        "fire_rate_bonus": 0.2
-       },
+       "grants": "fire_rate",
+       "per_stack": 0.2,
        "max_stacks": 5,
        "duration_seconds": 0.5,
        "_modellable": false
@@ -4373,8 +4350,7 @@
      "description": "+60% Projectile Speed.",
      "effects": [
       {
-       "kind": "indirect",
-       "stat": "projectile_speed",
+       "kind": "projectile_speed_bonus",
        "value": 0.6,
        "_modellable": false
       }
@@ -4432,8 +4408,7 @@
      "description": "30% Magazine reloaded per second while Holstered.",
      "effects": [
       {
-       "kind": "indirect",
-       "stat": "holstered_reload_per_second",
+       "kind": "holstered_reload",
        "value": 0.3,
        "_modellable": false
       }
@@ -4583,10 +4558,9 @@
      "description": "-40% Recoil.",
      "effects": [
       {
-       "kind": "indirect",
-       "stat": "recoil",
+       "kind": "recoil_reduction",
        "value": -0.4,
-       "_modellable": false
+       "_modellable": true
       }
      ]
     },
@@ -4610,8 +4584,7 @@
      "description": "+50% Movement Speed while Aiming.",
      "effects": [
       {
-       "kind": "indirect",
-       "stat": "movement_speed_aiming",
+       "kind": "movement_speed_bonus",
        "value": 0.5,
        "_modellable": false
       }
@@ -4746,7 +4719,7 @@
       {
        "kind": "gated_by_tenno",
        "condition": "overshields",
-       "grant": "flat_base_damage",
+       "grants": "flat_base_damage",
        "value": 40.0,
        "_modellable": false
       }
@@ -4899,7 +4872,7 @@
       {
        "kind": "gated_by_tenno",
        "condition": "overshields",
-       "grant": "flat_base_damage",
+       "grants": "flat_base_damage",
        "value": 34.0,
        "_modellable": false
       }
@@ -5052,7 +5025,7 @@
       {
        "kind": "gated_by_tenno",
        "condition": "overshields",
-       "grant": "flat_base_damage",
+       "grants": "flat_base_damage",
        "value": 40.0,
        "_modellable": false
       }
@@ -5163,8 +5136,7 @@
      "description": "-30% Zoom",
      "effects": [
       {
-       "kind": "indirect",
-       "stat": "zoom",
+       "kind": "zoom_bonus",
        "value": -0.3,
        "_modellable": false
       }
@@ -5220,7 +5192,7 @@
        "kind": "condition_overload",
        "value": 0.3,
        "condition": "sprint_speed >= 1.1",
-       "misprint": "the card prints Sprint Speed 1.2 or Higher and the effect requires 1.1 — so it pays on frames the card says it should not, and Amalgam Serration alone carries any Warframe over the line",
+       "misprint": "The card says Sprint Speed 1.2 or higher; the effect requires 1.1, so it pays on Warframes the card excludes. Amalgam Serration alone carries any Warframe past it.",
        "_modellable": false
       }
      ]
@@ -5312,8 +5284,7 @@
      "description": "-30% Zoom",
      "effects": [
       {
-       "kind": "indirect",
-       "stat": "zoom",
+       "kind": "zoom_bonus",
        "value": -0.3,
        "_modellable": false
       }
@@ -5369,7 +5340,7 @@
        "kind": "condition_overload",
        "value": 0.3,
        "condition": "sprint_speed >= 1.1",
-       "misprint": "the card prints Sprint Speed 1.2 or Higher and the effect requires 1.1 — so it pays on frames the card says it should not, and Amalgam Serration alone carries any Warframe over the line",
+       "misprint": "The card says Sprint Speed 1.2 or higher; the effect requires 1.1, so it pays on Warframes the card excludes. Amalgam Serration alone carries any Warframe past it.",
        "_modellable": false
       }
      ]
@@ -5461,8 +5432,7 @@
      "description": "-30% Zoom",
      "effects": [
       {
-       "kind": "indirect",
-       "stat": "zoom",
+       "kind": "zoom_bonus",
        "value": -0.3,
        "_modellable": false
       }
@@ -5518,7 +5488,7 @@
        "kind": "condition_overload",
        "value": 0.3,
        "condition": "sprint_speed >= 1.1",
-       "misprint": "the card prints Sprint Speed 1.2 or Higher and the effect requires 1.1 — so it pays on frames the card says it should not, and Amalgam Serration alone carries any Warframe over the line",
+       "misprint": "The card says Sprint Speed 1.2 or higher; the effect requires 1.1, so it pays on Warframes the card excludes. Amalgam Serration alone carries any Warframe past it.",
        "_modellable": false
       }
      ]
@@ -5861,8 +5831,8 @@
      "effects": [
       {
        "kind": "proc_conversion",
-       "trigger": "impact",
-       "applies": "slash",
+       "from": "impact",
+       "to": "slash",
        "value": 0.5,
        "_modellable": false
       }
@@ -5920,7 +5890,7 @@
       {
        "kind": "fire_rate_bonus",
        "value": 0.4,
-       "condition": "with_melee_equipped",
+       "condition": "melee_equipped",
        "_modellable": true
       }
      ]
@@ -6103,8 +6073,7 @@
      "description": "+50% Projectile Speed.",
      "effects": [
       {
-       "kind": "indirect",
-       "stat": "projectile_speed",
+       "kind": "projectile_speed_bonus",
        "value": 0.5,
        "_modellable": false
       }
@@ -6221,7 +6190,7 @@
       {
        "kind": "gated_by_tenno",
        "condition": "channeling",
-       "grant": "flat_base_damage",
+       "grants": "flat_base_damage",
        "value": 22.0,
        "_modellable": false
       },
@@ -6349,6 +6318,7 @@
        "max_stacks": 10,
        "duration": 2,
        "chance": 0.5,
+       "misprint": "The card omits that a headshot adds a stack only half the time: the wiki gives it a 50% chance, and the sim rolls it.",
        "decay": "per_stack_expiry",
        "_modellable": false
       }
@@ -6440,7 +6410,7 @@
       {
        "kind": "gated_by_tenno",
        "condition": "overshields",
-       "grant": "flat_base_damage",
+       "grants": "flat_base_damage",
        "value": 30.0,
        "_modellable": false
       }
@@ -6482,9 +6452,8 @@
       {
        "kind": "stacking_buff",
        "trigger": "firing",
-       "per_stack": {
-        "fire_rate_bonus": 0.2
-       },
+       "grants": "fire_rate",
+       "per_stack": 0.2,
        "max_stacks": 5,
        "duration_seconds": 0.5,
        "_modellable": false
@@ -6573,8 +6542,7 @@
      "description": "+60% Projectile Speed.",
      "effects": [
       {
-       "kind": "indirect",
-       "stat": "projectile_speed",
+       "kind": "projectile_speed_bonus",
        "value": 0.6,
        "_modellable": false
       }
@@ -6634,9 +6602,8 @@
       {
        "kind": "stacking_buff",
        "trigger": "punch_through",
-       "per_stack": {
-        "fire_rate_bonus": 0.4
-       },
+       "grants": "fire_rate",
+       "per_stack": 0.4,
        "max_stacks": 1,
        "duration_seconds": 6.0,
        "_modellable": false
@@ -6650,8 +6617,7 @@
      "description": "-30% Zoom.",
      "effects": [
       {
-       "kind": "indirect",
-       "stat": "zoom",
+       "kind": "zoom_bonus",
        "value": -0.3,
        "_modellable": false
       }
@@ -6664,8 +6630,7 @@
      "description": "+60% Projectile Speed.",
      "effects": [
       {
-       "kind": "indirect",
-       "stat": "projectile_speed",
+       "kind": "projectile_speed_bonus",
        "value": 0.6,
        "_modellable": false
       }
@@ -6688,7 +6653,7 @@
        "kind": "fire_rate_bonus",
        "value": 0.8,
        "condition": "sprint_speed >= 1.1",
-       "misprint": "the card prints Sprint Speed 1.2 or Higher and the effect requires 1.1 — so it pays on frames the card says it should not, and Amalgam Serration alone carries any Warframe over the line",
+       "misprint": "The card says Sprint Speed 1.2 or higher; the effect requires 1.1, so it pays on Warframes the card excludes. Amalgam Serration alone carries any Warframe past it.",
        "_modellable": true
       }
      ]
@@ -6707,7 +6672,7 @@
       {
        "kind": "gated_by_tenno",
        "condition": "overshields",
-       "grant": "flat_base_damage",
+       "grants": "flat_base_damage",
        "value": 40.0,
        "_modellable": false
       }
@@ -6737,9 +6702,8 @@
       {
        "kind": "stacking_buff",
        "trigger": "hit",
-       "per_stack": {
-        "base_damage": 15.0
-       },
+       "grants": "flat_base_damage",
+       "per_stack": 15.0,
        "max_stacks": 4,
        "duration_seconds": 3.0,
        "_modellable": false
@@ -6920,9 +6884,360 @@
      "description": "+30% Projectile Speed.",
      "effects": [
       {
-       "kind": "indirect",
-       "stat": "projectile_speed",
+       "kind": "projectile_speed_bonus",
        "value": 0.3,
+       "_modellable": false
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "okina": {
+  "tiers": {
+   "4": [
+    {
+     "id": "okina_alchemy_of_war",
+     "name": "Alchemy of War",
+     "selection": "choose_one",
+     "description": "Increase Base Status Chance by +16%.\n+25% Status Duration",
+     "effects": [
+      {
+       "kind": "flat_base_status_chance",
+       "value": 0.16,
+       "_modellable": true
+      },
+      {
+       "kind": "status_duration_bonus",
+       "value": 0.25,
+       "_modellable": false
+      }
+     ]
+    },
+    {
+     "id": "okina_commodores_fortune",
+     "name": "Commodore's Fortune",
+     "selection": "choose_one",
+     "description": "Increase Base Critical Chance by +12%.",
+     "effects": [
+      {
+       "kind": "flat_base_crit_chance",
+       "value": 0.12,
+       "_modellable": true
+      }
+     ]
+    },
+    {
+     "id": "okina_survivors_edge",
+     "name": "Survivor's Edge",
+     "selection": "choose_one",
+     "description": "Increase Base Critical Chance by +6%\nIncrease Base Status Chance by +10%",
+     "effects": [
+      {
+       "kind": "flat_base_crit_chance",
+       "value": 0.06,
+       "_modellable": true
+      },
+      {
+       "kind": "flat_base_status_chance",
+       "value": 0.1,
+       "_modellable": true
+      }
+     ]
+    }
+   ],
+   "1": [
+    {
+     "id": "okina_evo1_incarnon_form",
+     "name": "Incarnon Form",
+     "selection": "fixed",
+     "description": "Reach 6x Combo and then Heavy Attack to activate Incarnon Form for 180 seconds. Kills generate spectral daggers that target enemies, applying max Cold Status stacks. +100% Melee Damage, +20% Sprint Speed, +20% to Parkour Velocity.",
+     "effects": [
+      {
+       "kind": "incarnon_window",
+       "arm_at_combo": 6.0,
+       "seconds": 180.0,
+       "_modellable": false
+      },
+      {
+       "kind": "base_damage_bonus",
+       "value": 1.0,
+       "_modellable": false
+      },
+      {
+       "kind": "spectral_daggers",
+       "max_alive": 6,
+       "seek_range_m": 15.0,
+       "orbit_seconds": 1.0,
+       "forced_cold_stacks": 10,
+       "_modellable": false
+      },
+      {
+       "kind": "out_of_scope",
+       "clause": "+20% Sprint Speed, +20% to Parkour Velocity",
+       "reason": "no_movement",
+       "_modellable": false
+      }
+     ]
+    }
+   ],
+   "3": [
+    {
+     "id": "okina_orokin_reach",
+     "name": "Orokin Reach",
+     "selection": "choose_one",
+     "description": "+1 Range",
+     "effects": [
+      {
+       "kind": "melee_range_bonus_m",
+       "value": 1.0,
+       "_modellable": true
+      }
+     ]
+    },
+    {
+     "id": "okina_standoff",
+     "name": "Standoff",
+     "selection": "choose_one",
+     "description": "Combo Timer pauses when weapon is holstered",
+     "effects": [
+      {
+       "kind": "out_of_scope",
+       "clause": "Combo Timer pauses when weapon is holstered",
+       "reason": "no_holster",
+       "_modellable": false
+      }
+     ]
+    },
+    {
+     "id": "okina_swordsmans_celerity",
+     "name": "Swordsman's Celerity",
+     "selection": "choose_one",
+     "description": "+30% Movement Speed",
+     "effects": [
+      {
+       "kind": "out_of_scope",
+       "clause": "+30% Movement Speed",
+       "reason": "no_movement",
+       "_modellable": false
+      }
+     ]
+    }
+   ],
+   "2": [
+    {
+     "id": "okina_seeing_red",
+     "name": "Seeing Red",
+     "selection": "choose_one",
+     "description": "Increase Base Damage by +60.\n5 additional Combos on targets affected by Slash Status",
+     "effects": [
+      {
+       "kind": "spectral_dagger_flat_base_damage",
+       "value": 60.0,
+       "_modellable": false
+      },
+      {
+       "kind": "combo_count_on_status_hit",
+       "status": "slash",
+       "value": 5.0,
+       "_modellable": false
+      }
+     ]
+    },
+    {
+     "id": "okina_synergist_surety",
+     "name": "Synergist Surety",
+     "selection": "choose_one",
+     "description": "Increase Base Damage by +60.\nOn Critical Hit: +8% Status Damage for 10s. Stacks up to 5x.",
+     "effects": [
+      {
+       "kind": "spectral_dagger_flat_base_damage",
+       "value": 60.0,
+       "_modellable": false
+      },
+      {
+       "kind": "stacking_buff",
+       "trigger": "crit",
+       "grants": "status_damage",
+       "per_stack": 0.08,
+       "max_stacks": 5,
+       "duration_seconds": 10.0,
+       "_modellable": false
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "okina_prime": {
+  "tiers": {
+   "4": [
+    {
+     "id": "okina_prime_alchemy_of_war",
+     "name": "Alchemy of War",
+     "selection": "choose_one",
+     "description": "Increase Base Status Chance by +12%.\n+25% Status Duration",
+     "effects": [
+      {
+       "kind": "flat_base_status_chance",
+       "value": 0.12,
+       "_modellable": true
+      },
+      {
+       "kind": "status_duration_bonus",
+       "value": 0.25,
+       "_modellable": false
+      }
+     ]
+    },
+    {
+     "id": "okina_prime_commodores_fortune",
+     "name": "Commodore's Fortune",
+     "selection": "choose_one",
+     "description": "Increase Base Critical Chance by +6%.",
+     "effects": [
+      {
+       "kind": "flat_base_crit_chance",
+       "value": 0.06,
+       "_modellable": true
+      }
+     ]
+    },
+    {
+     "id": "okina_prime_survivors_edge",
+     "name": "Survivor's Edge",
+     "selection": "choose_one",
+     "description": "Increase Base Critical Chance by +2%\nIncrease Base Status Chance by +8%",
+     "effects": [
+      {
+       "kind": "flat_base_crit_chance",
+       "value": 0.02,
+       "_modellable": true
+      },
+      {
+       "kind": "flat_base_status_chance",
+       "value": 0.08,
+       "_modellable": true
+      }
+     ]
+    }
+   ],
+   "1": [
+    {
+     "id": "okina_prime_evo1_incarnon_form",
+     "name": "Incarnon Form",
+     "selection": "fixed",
+     "description": "Reach 6x Combo and then Heavy Attack to activate Incarnon Form for 180 seconds. Kills generate spectral daggers that target enemies, applying max Cold Status stacks. +100% Melee Damage, +20% Sprint Speed, +20% to Parkour Velocity.",
+     "effects": [
+      {
+       "kind": "incarnon_window",
+       "arm_at_combo": 6.0,
+       "seconds": 180.0,
+       "_modellable": false
+      },
+      {
+       "kind": "base_damage_bonus",
+       "value": 1.0,
+       "_modellable": false
+      },
+      {
+       "kind": "spectral_daggers",
+       "max_alive": 6,
+       "seek_range_m": 15.0,
+       "orbit_seconds": 1.0,
+       "forced_cold_stacks": 10,
+       "_modellable": false
+      },
+      {
+       "kind": "out_of_scope",
+       "clause": "+20% Sprint Speed, +20% to Parkour Velocity",
+       "reason": "no_movement",
+       "_modellable": false
+      }
+     ]
+    }
+   ],
+   "3": [
+    {
+     "id": "okina_prime_orokin_reach",
+     "name": "Orokin Reach",
+     "selection": "choose_one",
+     "description": "+1 Range",
+     "effects": [
+      {
+       "kind": "melee_range_bonus_m",
+       "value": 1.0,
+       "_modellable": true
+      }
+     ]
+    },
+    {
+     "id": "okina_prime_standoff",
+     "name": "Standoff",
+     "selection": "choose_one",
+     "description": "Combo Timer pauses when weapon is holstered",
+     "effects": [
+      {
+       "kind": "out_of_scope",
+       "clause": "Combo Timer pauses when weapon is holstered",
+       "reason": "no_holster",
+       "_modellable": false
+      }
+     ]
+    },
+    {
+     "id": "okina_prime_swordsmans_celerity",
+     "name": "Swordsman's Celerity",
+     "selection": "choose_one",
+     "description": "+30% Movement Speed",
+     "effects": [
+      {
+       "kind": "out_of_scope",
+       "clause": "+30% Movement Speed",
+       "reason": "no_movement",
+       "_modellable": false
+      }
+     ]
+    }
+   ],
+   "2": [
+    {
+     "id": "okina_prime_seeing_red",
+     "name": "Seeing Red",
+     "selection": "choose_one",
+     "description": "Increase Base Damage by +20.\n5 additional Combos on targets affected by Slash Status",
+     "effects": [
+      {
+       "kind": "spectral_dagger_flat_base_damage",
+       "value": 20.0,
+       "_modellable": false
+      },
+      {
+       "kind": "combo_count_on_status_hit",
+       "status": "slash",
+       "value": 5.0,
+       "_modellable": false
+      }
+     ]
+    },
+    {
+     "id": "okina_prime_synergist_surety",
+     "name": "Synergist Surety",
+     "selection": "choose_one",
+     "description": "Increase Base Damage by +20.\nOn Critical Hit: +6% Status Damage for 10s. Stacks up to 5x.",
+     "effects": [
+      {
+       "kind": "spectral_dagger_flat_base_damage",
+       "value": 20.0,
+       "_modellable": false
+      },
+      {
+       "kind": "stacking_buff",
+       "trigger": "crit",
+       "grants": "status_damage",
+       "per_stack": 0.06,
+       "max_stacks": 5,
+       "duration_seconds": 10.0,
        "_modellable": false
       }
      ]
@@ -6966,9 +7281,8 @@
       {
        "kind": "stacking_buff",
        "trigger": "consecutive_headshot",
-       "per_stack": {
-        "headshot_damage_bonus": 0.3
-       },
+       "grants": "headshot_damage",
+       "per_stack": 0.3,
        "max_stacks": 4,
        "_modellable": false
       }
@@ -7111,8 +7425,7 @@
      "description": "+50% Projectile Speed.",
      "effects": [
       {
-       "kind": "indirect",
-       "stat": "projectile_speed",
+       "kind": "projectile_speed_bonus",
        "value": 0.5,
        "_modellable": false
       }
@@ -7133,9 +7446,8 @@
       {
        "kind": "stacking_buff",
        "trigger": "punch_through",
-       "per_stack": {
-        "fire_rate_bonus": 0.4
-       },
+       "grants": "fire_rate",
+       "per_stack": 0.4,
        "max_stacks": 1,
        "duration_seconds": 6.0,
        "_modellable": false
@@ -7149,8 +7461,7 @@
      "description": "-30% Zoom.",
      "effects": [
       {
-       "kind": "indirect",
-       "stat": "zoom",
+       "kind": "zoom_bonus",
        "value": -0.3,
        "_modellable": false
       }
@@ -7163,8 +7474,7 @@
      "description": "+60% Projectile Speed.",
      "effects": [
       {
-       "kind": "indirect",
-       "stat": "projectile_speed",
+       "kind": "projectile_speed_bonus",
        "value": 0.6,
        "_modellable": false
       }
@@ -7187,7 +7497,7 @@
        "kind": "fire_rate_bonus",
        "value": 0.8,
        "condition": "sprint_speed >= 1.1",
-       "misprint": "the card prints Sprint Speed 1.2 or Higher and the effect requires 1.1 — so it pays on frames the card says it should not, and Amalgam Serration alone carries any Warframe over the line",
+       "misprint": "The card says Sprint Speed 1.2 or higher; the effect requires 1.1, so it pays on Warframes the card excludes. Amalgam Serration alone carries any Warframe past it.",
        "_modellable": true
       }
      ]
@@ -7206,7 +7516,7 @@
       {
        "kind": "gated_by_tenno",
        "condition": "overshields",
-       "grant": "flat_base_damage",
+       "grants": "flat_base_damage",
        "value": 52.0,
        "_modellable": false
       }
@@ -7236,9 +7546,8 @@
       {
        "kind": "stacking_buff",
        "trigger": "hit",
-       "per_stack": {
-        "base_damage": 15.0
-       },
+       "grants": "flat_base_damage",
+       "per_stack": 15.0,
        "max_stacks": 4,
        "duration_seconds": 3.0,
        "_modellable": false
@@ -7289,9 +7598,8 @@
       {
        "kind": "stacking_buff",
        "trigger": "punch_through",
-       "per_stack": {
-        "fire_rate_bonus": 0.4
-       },
+       "grants": "fire_rate",
+       "per_stack": 0.4,
        "max_stacks": 1,
        "duration_seconds": 6.0,
        "_modellable": false
@@ -7305,8 +7613,7 @@
      "description": "-30% Zoom.",
      "effects": [
       {
-       "kind": "indirect",
-       "stat": "zoom",
+       "kind": "zoom_bonus",
        "value": -0.3,
        "_modellable": false
       }
@@ -7319,8 +7626,7 @@
      "description": "+60% Projectile Speed.",
      "effects": [
       {
-       "kind": "indirect",
-       "stat": "projectile_speed",
+       "kind": "projectile_speed_bonus",
        "value": 0.6,
        "_modellable": false
       }
@@ -7343,7 +7649,7 @@
        "kind": "fire_rate_bonus",
        "value": 0.8,
        "condition": "sprint_speed >= 1.1",
-       "misprint": "the card prints Sprint Speed 1.2 or Higher and the effect requires 1.1 — so it pays on frames the card says it should not, and Amalgam Serration alone carries any Warframe over the line",
+       "misprint": "The card says Sprint Speed 1.2 or higher; the effect requires 1.1, so it pays on Warframes the card excludes. Amalgam Serration alone carries any Warframe past it.",
        "_modellable": true
       }
      ]
@@ -7362,7 +7668,7 @@
       {
        "kind": "gated_by_tenno",
        "condition": "overshields",
-       "grant": "flat_base_damage",
+       "grants": "flat_base_damage",
        "value": 74.0,
        "_modellable": false
       }
@@ -7392,9 +7698,8 @@
       {
        "kind": "stacking_buff",
        "trigger": "hit",
-       "per_stack": {
-        "base_damage": 15.0
-       },
+       "grants": "flat_base_damage",
+       "per_stack": 15.0,
        "max_stacks": 4,
        "duration_seconds": 3.0,
        "_modellable": false
@@ -7611,8 +7916,7 @@
      "description": "+80% Projectile Speed",
      "effects": [
       {
-       "kind": "indirect",
-       "stat": "projectile_speed",
+       "kind": "projectile_speed_bonus",
        "value": 0.8,
        "_modellable": false
       }
@@ -7920,7 +8224,7 @@
       {
        "kind": "gated_by_tenno",
        "condition": "overshields",
-       "grant": "flat_base_damage",
+       "grants": "flat_base_damage",
        "value": 50.0,
        "_modellable": false
       }
@@ -7939,8 +8243,8 @@
       },
       {
        "kind": "gated_by_tenno",
-       "condition": "energy_max > 700",
-       "grant": "base_crit_damage",
+       "condition": "max_energy > 700",
+       "grants": "base_crit_damage",
        "value": 0.5,
        "_modellable": false
       }
@@ -7982,8 +8286,7 @@
      "description": "+30% Projectile Speed.",
      "effects": [
       {
-       "kind": "indirect",
-       "stat": "projectile_speed",
+       "kind": "projectile_speed_bonus",
        "value": 0.3,
        "_modellable": false
       }
@@ -8095,7 +8398,7 @@
       {
        "kind": "gated_by_tenno",
        "condition": "channeling",
-       "grant": "accuracy_bonus",
+       "grants": "accuracy",
        "value": 0.4,
        "_modellable": false
       }
@@ -8234,6 +8537,7 @@
        "max_stacks": 10,
        "duration": 4.0,
        "chance": 0.5,
+       "misprint": "The card omits that a headshot adds a stack only half the time: the wiki gives it a 50% chance, and the sim rolls it.",
        "decay": "per_stack_expiry",
        "_modellable": false
       }
@@ -8253,9 +8557,8 @@
       {
        "kind": "stacking_buff",
        "trigger": "punch_through",
-       "per_stack": {
-        "crit_chance": 0.1
-       },
+       "grants": "crit_chance",
+       "per_stack": 0.1,
        "max_stacks": 8,
        "duration_seconds": 3.0,
        "decay": "all_at_once",
@@ -8285,8 +8588,7 @@
      "description": "+50% Projectile Speed.",
      "effects": [
       {
-       "kind": "indirect",
-       "stat": "projectile_speed",
+       "kind": "projectile_speed_bonus",
        "value": 0.5,
        "_modellable": false
       }
@@ -8342,8 +8644,8 @@
      "effects": [
       {
        "kind": "proc_conversion",
-       "trigger": "impact",
-       "applies": "slash",
+       "from": "impact",
+       "to": "slash",
        "value": 0.5,
        "_modellable": false
       }
@@ -8401,7 +8703,7 @@
       {
        "kind": "fire_rate_bonus",
        "value": 0.4,
-       "condition": "with_melee_equipped",
+       "condition": "melee_equipped",
        "_modellable": true
       }
      ]
@@ -8820,9 +9122,8 @@
      "effects": [
       {
        "kind": "stacking_buff",
-       "per_stack": {
-        "base_damage": 6.0
-       },
+       "grants": "flat_base_damage",
+       "per_stack": 6.0,
        "max_stacks": 2,
        "trigger": "reload_from_empty",
        "card_opens_full": true,
@@ -8967,9 +9268,8 @@
      "effects": [
       {
        "kind": "stacking_buff",
-       "per_stack": {
-        "base_damage": 6.0
-       },
+       "grants": "flat_base_damage",
+       "per_stack": 6.0,
        "max_stacks": 2,
        "trigger": "reload_from_empty",
        "card_opens_full": true,
@@ -9217,8 +9517,7 @@
      "description": "+30% Projectile Speed.",
      "effects": [
       {
-       "kind": "indirect",
-       "stat": "projectile_speed",
+       "kind": "projectile_speed_bonus",
        "value": 0.3,
        "_modellable": false
       }
@@ -9369,8 +9668,7 @@
      "description": "+30% Projectile Speed.",
      "effects": [
       {
-       "kind": "indirect",
-       "stat": "projectile_speed",
+       "kind": "projectile_speed_bonus",
        "value": 0.3,
        "_modellable": false
       }
@@ -9521,8 +9819,7 @@
      "description": "+30% Projectile Speed.",
      "effects": [
       {
-       "kind": "indirect",
-       "stat": "projectile_speed",
+       "kind": "projectile_speed_bonus",
        "value": 0.3,
        "_modellable": false
       }
@@ -9674,8 +9971,7 @@
      "description": "+50% Projectile Speed.",
      "effects": [
       {
-       "kind": "indirect",
-       "stat": "projectile_speed",
+       "kind": "projectile_speed_bonus",
        "value": 0.5,
        "_modellable": false
       }
@@ -9721,9 +10017,8 @@
       {
        "kind": "stacking_buff",
        "trigger": "consecutive_headshot",
-       "per_stack": {
-        "base_damage": 5.0
-       },
+       "grants": "flat_base_damage",
+       "per_stack": 5.0,
        "max_stacks": 3,
        "cleared_by": "reload",
        "_modellable": false
@@ -9754,11 +10049,10 @@
      "effects": [
       {
        "kind": "stacking_buff",
-       "per_stack": {
-        "base_damage_bonus": 0.2
-       },
+       "grants": "base_damage",
+       "per_stack": 0.2,
        "max_stacks": 4,
-       "trigger": "full_burst_hit",
+       "trigger": "full_burst",
        "_modellable": false
       }
      ]
@@ -9878,9 +10172,8 @@
       {
        "kind": "stacking_buff",
        "trigger": "consecutive_headshot",
-       "per_stack": {
-        "base_damage": 5.0
-       },
+       "grants": "flat_base_damage",
+       "per_stack": 5.0,
        "max_stacks": 3,
        "cleared_by": "reload",
        "_modellable": false
@@ -9911,11 +10204,10 @@
      "effects": [
       {
        "kind": "stacking_buff",
-       "per_stack": {
-        "base_damage_bonus": 0.2
-       },
+       "grants": "base_damage",
+       "per_stack": 0.2,
        "max_stacks": 4,
-       "trigger": "full_burst_hit",
+       "trigger": "full_burst",
        "_modellable": false
       }
      ]
@@ -10101,8 +10393,7 @@
      "description": "Increase Range by +8.",
      "effects": [
       {
-       "kind": "indirect",
-       "stat": "beam_range",
+       "kind": "beam_range_bonus",
        "value": 8.0,
        "_modellable": false
       }
@@ -10212,9 +10503,8 @@
      "effects": [
       {
        "kind": "stacking_buff",
-       "per_stack": {
-        "base_damage": 2.0
-       },
+       "grants": "flat_base_damage",
+       "per_stack": 2.0,
        "max_stacks": 3,
        "duration_seconds": 5.0,
        "trigger": "kill",
@@ -10248,7 +10538,7 @@
       {
        "kind": "gated_by_tenno",
        "condition": "channeling",
-       "grant": "accuracy_bonus",
+       "grants": "accuracy",
        "value": 0.4,
        "_modellable": false
       }
@@ -10304,8 +10594,7 @@
      "description": "+60% Projectile Speed.",
      "effects": [
       {
-       "kind": "indirect",
-       "stat": "projectile_speed",
+       "kind": "projectile_speed_bonus",
        "value": 0.6,
        "_modellable": false
       }
@@ -10411,8 +10700,7 @@
      "description": "+50% Projectile Speed",
      "effects": [
       {
-       "kind": "indirect",
-       "stat": "projectile_speed",
+       "kind": "projectile_speed_bonus",
        "value": 0.5,
        "_modellable": false
       }
@@ -10585,14 +10873,14 @@
       {
        "kind": "gated_by_tenno",
        "condition": "solo_weapon",
-       "grant": "flat_base_damage",
+       "grants": "flat_base_damage",
        "value": 40.0,
        "_modellable": false
       },
       {
        "kind": "gated_by_tenno",
        "condition": "solo_weapon",
-       "grant": "flat_base_magazine",
+       "grants": "flat_base_magazine",
        "value": 14.0,
        "_modellable": false
       }
@@ -10741,14 +11029,14 @@
       {
        "kind": "gated_by_tenno",
        "condition": "solo_weapon",
-       "grant": "flat_base_damage",
+       "grants": "flat_base_damage",
        "value": 40.0,
        "_modellable": false
       },
       {
        "kind": "gated_by_tenno",
        "condition": "solo_weapon",
-       "grant": "flat_base_magazine",
+       "grants": "flat_base_magazine",
        "value": 14.0,
        "_modellable": false
       }
@@ -11191,11 +11479,11 @@
       },
       {
        "kind": "stacking_buff",
-       "per_stack": {
-        "base_crit_damage": 1.0
-       },
+       "grants": "base_crit_damage",
+       "per_stack": 1.0,
        "max_stacks": 2,
        "trigger": "reload_from_empty",
+       "cleared_by": "partial_reload",
        "_modellable": false
       }
      ]
@@ -11347,11 +11635,11 @@
       },
       {
        "kind": "stacking_buff",
-       "per_stack": {
-        "base_crit_damage": 1.0
-       },
+       "grants": "base_crit_damage",
+       "per_stack": 1.0,
        "max_stacks": 2,
        "trigger": "reload_from_empty",
+       "cleared_by": "partial_reload",
        "_modellable": false
       }
      ]

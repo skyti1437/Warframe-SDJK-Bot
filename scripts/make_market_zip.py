@@ -166,7 +166,8 @@ def _seed_problems(now=None, rot_path=None, acr_path=None) -> list[str]:
 # 扩大审读面。目标形态：core / main.py / metadata.yaml / _conf_schema.json /
 # requirements.txt / README.md / CHANGELOG.md / LICENSE / kb/。
 # （.gitignore / .gitattributes 已被上方 SKIP_FILES 排除，不重复列。）
-MARKET_SKIP_DIRS = {"tests", "scripts", ".github"}
+# assets：README 参考图，插件运行用不到
+MARKET_SKIP_DIRS = {"tests", "scripts", ".github", "assets"}
 MARKET_SKIP_FILES = {
     ".gitleaks.toml",  # 仓库门面（防泄漏 CI 配置），非运行件
     # ruff 配置（2026-09-25）：开发物料，市场安装用户不需要
@@ -201,7 +202,8 @@ MARKET_SKIP_FILES = {
 # → 111（2026-10-04 警报奖励批：+core/data/de/storeitems_zh.json，scripts/ 不进市场件）
 # → 112（2026-10-09 插件 Logo：+logo.png —— 顶层文件，随市场卡片展示）
 # → 113（2026-10-09 wfsim 对照 B 批：+core/data/co_behavior.json —— CO 桶别表，运行期必读）
-EXPECTED_MARKET_ENTRIES = 114
+# 2026-10-16 插件页面批 +3：core/webpanel.py、pages/sdjk/index.html、.astrbot-plugin/i18n/zh-CN.json
+EXPECTED_MARKET_ENTRIES = 117
 
 # ★ 可复现打包（2026-09-26 用户侧建议）：统一 zip 条目时间戳 = 2026-01-01T00:00:00Z。
 #   之前取文件 mtime，导致「内容没变、重建却换 sha」（上传期两次被迫冻结重建：
@@ -232,7 +234,7 @@ def _zip_datetime() -> tuple:
 # 2026-10-08 审核实证：本脚本原先只查「stage 存在」+「种子新鲜」，**不查 stage 是否追平 HEAD**
 # ⇒ 若绕开重建直接打包，会把旧 stage（当时 239 文件、不含本批任何修复）打出去。这里加数量闸门兜住；
 # 数量相同但内容不同的情形，仍靠流程约束（打包前必重跑 dist/package_release.py --opensource）。
-EXPECTED_STAGE_FILES = 255
+EXPECTED_STAGE_FILES = 267  # 与 dist/package_release.py::EXPECTED_OSS_STAGE_FILES 同步
 
 
 def main() -> int:
@@ -309,7 +311,7 @@ def main() -> int:
     with zipfile.ZipFile(out) as z:
         names = z.namelist()
         top = sorted({x.split("/")[0] for x in names if "/" in x})
-        print("  顶层目录（应只有 core）：", top or "无")
+        print("  顶层目录（应为 core + 插件页面 pages、.astrbot-plugin）：", top or "无")
         for must in ("metadata.yaml", "main.py", "README.md", "CHANGELOG.md"):
             mark = "✓" if must in names else "✗ 缺失"
             print(f"  {mark} {must}")

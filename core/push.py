@@ -387,6 +387,10 @@ class PushDaemon:
         self.state_path = Path(state_path) if state_path else None
         self._state_warned = False
         self._tick_no = 0
+        # 最近一次 tick 的时刻与「本轮有没有订阅」（运维面板展示用；零订阅时不落盘基线，
+        # 基线文件的 ts 会停在旧时刻，不能拿它当「守护还活着」的证据 —— 2026-10-16 ZCode 线上发现）
+        self.last_tick_at: Optional[float] = None
+        self.last_tick_idle = False
         self._tick_ok = 0
         self._tick_fail = 0
         self._fail_streak = 0  # 数据源整体失败的连续 tick 数（指数退避）
@@ -513,12 +517,14 @@ class PushDaemon:
     async def tick(self) -> None:
         now = time.time()
         self._tick_no += 1
+        self.last_tick_at = now
         self._tick_ok = 0
         self._tick_fail = 0
         self._dead = set()  # 本 tick 内已消费 / 已移除的订阅 sid（防同 tick 超额派发）
         self._purged_umos = set()
         await self._expire_sweep(now)
         subs = [s for s in self.store.all() if not s.expired(now)]
+        self.last_tick_idle = not subs
         if not subs:
             self._filters.clear()
             if self._last or self._pending:
@@ -1046,6 +1052,8 @@ class PushDaemon:
                     hit = {s.sid for s in subs_a if arbi.match_rule(s.rule, sl)}
                     if not subs_a or hit:
                         tier = f" · 评级 {sl['tier']}" if sl["tier"] else ""
+                        if sl["tier"] and sl.get("low_sample"):
+                            tier += "（样本少）"
                         left_min = max(0, int((sl["end"] - time.time()) // 60))
                         akey = f"arbi-{sl['key']}-{int(sl['start'])}"
                         out.append(

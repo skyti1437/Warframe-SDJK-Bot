@@ -435,8 +435,15 @@ def _boot_warm_checks():
     async def _boom():
         raise RuntimeError("snapshot down")
 
+    static_calls: list[str] = []
+
+    async def _static():
+        static_calls.append("static")
+
     async def _warm(client, refresh) -> _RecLogger:
-        obj = SimpleNamespace(client=client, _refresh_from_community=refresh)
+        obj = SimpleNamespace(
+            client=client, _refresh_from_community=refresh, _refresh_static_community=_static
+        )
         rec = _RecLogger()
         old = P.logger
         P.logger = rec
@@ -474,6 +481,36 @@ def _boot_warm_checks():
             rec2.has("warning", "RuntimeError"),
             repr(rec2.records),
         )
+        check(
+            "★ 2026-10-16：动态社区快照失败不连累静态快照（逐项独立）",
+            static_calls.count("static") == 2,
+            repr(static_calls),
+        )
+
+        async def _hang():
+            await asyncio.sleep(3600)
+
+        old_wait = asyncio.wait_for
+
+        async def _fast_wait(coro, timeout):  # 把 90 s 限时压到 0.05 s，验证超时也只跳过该项
+            return await old_wait(coro, 0.05)
+
+        P.asyncio.wait_for = _fast_wait
+        try:
+            c4 = _FakeClient()
+            rec4 = await _warm(c4, _hang)
+        finally:
+            P.asyncio.wait_for = old_wait
+        check(
+            "★ 动态社区快照超时：静态快照与 WM 预热照常执行",
+            static_calls.count("static") == 3 and c4.calls == ["items", "riven"],
+            repr((static_calls, c4.calls)),
+        )
+        check(
+            "超时记 WARNING 带 TimeoutError",
+            rec4.has("warning", "TimeoutError"),
+            repr(rec4.records),
+        )
 
         # ③ WM 预热失败可见：WARNING 带类型，且不冒充「已就绪」
         class _BrokenItems(_FakeClient):
@@ -500,9 +537,10 @@ def _boot_warm_checks():
         code = body.split('"""', 2)[2] if body.count('"""') >= 2 else body
         check(
             "★ 源码接线：self.client.wm_items() / wm_riven_weapons()",
-            "self.client.wm_items()" in code
-            and "self.client.wm_riven_weapons()" in code
-            and "self.wm_items()" not in code,
+            # 2026-10-16 起逐项表驱动，传的是方法本身（不带括号）；行为见上面的调用序列用例
+            "self.client.wm_items" in code
+            and "self.client.wm_riven_weapons" in code
+            and "self.wm_items" not in code,
             code[:120],
         )
 

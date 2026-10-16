@@ -176,7 +176,13 @@ def main() -> int:
     ap.add_argument("--check", action="store_true", help="只对拍不写盘")
     ap.add_argument("--cache", help="用已落盘的原始记录 JSON（{nodeId: [rows]}）离线复算")
     ap.add_argument("--raw-out", help="把原始记录落盘（便于日后离线复算）")
+    ap.add_argument(
+        "--out",
+        default=str(OUT),
+        help="输出路径（默认写仓库 core/data；服务器生成社区快照时写到暂存目录）",
+    )
     args = ap.parse_args()
+    out = Path(args.out)
 
     nodes_meta = get_retry(DATA + "arbys.nodes.zh.json").get("nodes") or {}
     if args.cache:
@@ -229,13 +235,11 @@ def main() -> int:
                 if cn.get(k) != nodes.get(k):
                     print("   差异", k, cn.get(k), "->", nodes.get(k))
         return 0 if same else 1
-    OUT.write_text(
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(
         json.dumps(payload, ensure_ascii=False, indent=1) + "\n", encoding="utf-8", newline="\n"
     )
-    print(
-        "\n写出 %s（%d KB，%d 节点）"
-        % (OUT.relative_to(ROOT), OUT.stat().st_size // 1024, len(nodes))
-    )
+    print("\n写出 %s（%d KB，%d 节点）" % (out, out.stat().st_size // 1024, len(nodes)))
     return 0
 
 

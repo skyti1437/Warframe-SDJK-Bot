@@ -1,7 +1,7 @@
 {
  "_meta": {
   "source": "github.com/magenie33/wfsim data/weapons/*（attack 块），其数值按 wiki/实测整理",
-  "wfsim_commit": "2e5a8d4b21b0fab49d952b22b4ac8fc4054b8fa0",
+  "wfsim_commit": "f1d988b592d683f8e639864707609300cb3107bb",
   "generator": "scripts/build_weapon_attacks.py",
   "scope": "顶层 segments / main / charge_seconds 只收默认形态（default_form，或 MAIN_FORM_OVERRIDE 指定的我方主段；有非灵化形态的记录 main_form 记我方主段的形态种类（base = 未蓄力）；自身无 internal_name 的沿 inherits 取）；非默认形态收在 forms（键 <形态>:<yaml_id>，沿 transform_group 回到母武器），只在用户显式选了该形态时整套替换主段与额外段；灵化形态只收带额外段的（主段面板在 incarnon_forms.json）；近战招式形态不收",
   "note": "段是独立命中实例，各吃同样的 MOD 乘区；暴击/触发缺省继承直击段；takes_multishot 只写有出处的 false（缺省 = 吃多重）；cluster 段带 count；lingering 段 merge_only（只给同签名 attacks 段带 CO 标记）"

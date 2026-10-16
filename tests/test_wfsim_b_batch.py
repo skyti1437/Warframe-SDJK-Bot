@@ -1022,7 +1022,8 @@ check(
 _bad = [v[0] for k, v in _bd.AMMO_COST_FIX.items() if _ws[k].get("ammoCost") != float(v[1])]
 check(
     f"AMMO_COST_FIX {len(_bd.AMMO_COST_FIX)} 把落进 weapons_stats（wiki 主段 AmmoCost ≠ 1）",
-    len(_bd.AMMO_COST_FIX) == 38 and not _bad,
+    # 38 → 39（2026-10-16 +Arbucep 6：wiki Codex 齐射 6 枚火箭 + wfsim M112）
+    len(_bd.AMMO_COST_FIX) == 39 and not _bad,
     str(_bad),
 )
 check(

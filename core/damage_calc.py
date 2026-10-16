@@ -1343,6 +1343,13 @@ def parse_args(tokens: list[str]) -> tuple[dict, list[str]]:
                 f"（这把武器是 {weapon_rec.get('trigger') if weapon_rec else '未知'}），效果未计入"
             )
             continue
+        _excl = mod_extra(m).get("excludes_weapons") or []
+        if weapon_rec and str(weapon_rec.get("name") or "").lower() in _excl:
+            # 卡面写明不兼容这类武器（wfsim excludes_weapon，如分裂飞行「(Non-AOE Bows)」）：整卡不折算
+            spec["notes"].append(
+                f"{m.get('zh') or m.get('name')}：卡面写明不适用于 {weapon_rec.get('name')}，效果未计入"
+            )
+            continue
         spec["base_dmg"] += eff.get("base_dmg", 0.0)
         spec["multishot"] += eff.get("multishot", 0.0)
         spec["crit_chance"] += eff.get("crit_chance", 0.0)
@@ -2282,7 +2289,8 @@ def calculate(spec: dict, weapon: dict) -> dict:
         mag_mult = 1 + MAGNETIC_BASE + MAGNETIC_STEP * (spec["magnetic"] - 1)
 
     if spec["steel_path"]:
-        # 钢路：血量/护盾 +100%（护甲自 U36 起不再加成）——只影响「击杀发数」，
+        # 钢路：血量/护盾 ×2.5（+150%，wiki《The Steel Path》Enemy Health / Shield 250%；
+        #   护甲自 U36 起不再加成）——只影响「击杀发数」，
         # 本卡是对敌伤害，故不乘算，仅提示。
         pass
 
@@ -2531,11 +2539,13 @@ def calculate(spec: dict, weapon: dict) -> dict:
             mag_time = magazine / (fire_rate_eff * _ammo_cost)
             dps_sustained = (health * ms * fire_rate_eff) * mag_time / (mag_time + reload_t)
 
-    # 敌人血量/护盾（指定敌人时）：按派系公式缩放；钢路 ×2（血量与护盾）
+    # 敌人血量/护盾（指定敌人时）：按派系公式缩放；钢路 ×2.5（血量与护盾）
+    # ★ 2026-10-16：原为 ×2（注释写 +100%），wiki《The Steel Path》写 Enemy Health / Shield 250%，
+    #   wfsim rules/scaling.rs STEEL_PATH_HEALTH_MULT = 2.5 同口径（wfsim 引擎对照审查发现的旧差异）
     hp = shield_hp = None
     shots = None
     if enemy:
-        sp_mult = 2.0 if spec["steel_path"] else 1.0
+        sp_mult = 2.5 if spec["steel_path"] else 1.0
         hp = (
             (enemy.get("base_health") or 0.0)
             * health_multiplier(faction, level, base_level)
@@ -3507,6 +3517,12 @@ def adapt_damage(per_type: dict[str, float], levels: int) -> tuple[float, dict]:
     return sum(remaining.values()), resisted
 
 
+DAMAGE_DISCLAIMER = (
+    "※ ⚠ 理论推算，未经大规模实战检验：按 wiki 公式与 wfsim 对照算出，"
+    "可能与游戏面板 / 实战有出入，以游戏内为准；发现对不上欢迎反馈"
+)
+
+
 def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None) -> list[str]:
     """伤害计算卡的正文行（独立成模块函数：便于离线渲染探针与测试复用）。
 
@@ -3996,7 +4012,7 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
     for n in res.get("notes") or []:
         inp.append(f"· MOD 说明　{_note_zh(n)}")
     if res["steel_path"]:
-        inp.append("· 钢路　敌人血量/护盾 +100%（护甲已不加成），本卡未乘算")
+        inp.append("· 钢路　敌人血量/护盾 ×2.5（护甲已不加成）；只计入击杀发数，伤害数值不受影响")
     lines.append("◆ 输入")
     lines += inp
 
@@ -4041,7 +4057,9 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
         if len(modes) > 8:
             lines.append(f"· 另 {len(modes) - 8} 段　次级开火/灵化等未列出")
 
-    # —— 警示 / 注脚（≤3 行）——
+    # —— 警示 / 注脚 ——
+    # ★ 2026-10-16 用户要求：伤害分析没经过大规模实战检验，卡面要明说（「※ ⚠」走琥珀警示面板，伤害 / 识卡伤害共用）
+    lines.append(DAMAGE_DISCLAIMER)
     if spec.get("enemy_miss"):
         lines.append(
             "※ "

@@ -118,8 +118,17 @@ title, lines = fmt.fmt_void_trader(
 n = len(inv)
 # ★ 2026-10-11 第二步改版：货单行统一以「· 」开头（列表项），剥掉行首标记后再按列切；
 #   另有「◆ 状态 / 离开 / 货单」答案行与一行表头（不是货单行）
-rows = [ln for ln in lines if ln.startswith("· ")]
+# ★ 2026-10-16 第三版：每组先一行「· [类别]」芯片行（单格），货单行另算
+import re as _re  # noqa: E402
+
+_chip = _re.compile(r"^· \[[^\]]+\]$")
+rows = [ln for ln in lines if ln.startswith("· ") and not _chip.match(ln)]
+# 无 store 的旧数据全落「其他」一组 ⇒ 行数仍是 ceil(n/2)
 check(f"两列：行数 = ceil({n}/2) = {(n + 1) // 2}", len(rows) == (n + 1) // 2, f"rows={len(rows)}")
+check(
+    "无 store 的商品归「其他」、不抛异常",
+    sum(1 for ln in lines if _chip.match(ln)) == 1 and "· [其他]" in lines,
+)
 check(
     "每行 6 列（名称/杜卡德/现金 ×2；奇数末行 3 列）",
     all(len(ln[2:].split("　")) in (3, 6) for ln in rows),
@@ -172,6 +181,117 @@ check(
     all(v for v in MANUAL_ITEM_NAMES.values()),
 )
 
+print("\n=== 六、按类别分组（2026-10-16 用户要求，参照赏金卡）===")
+from core import baro as _baro  # noqa: E402
+
+_allowed = set(_baro.STORE_GROUP_ORDER)
+_sample = ROOT / ".baro_paths_sample.txt"
+_paths = [
+    "/Lotus/StoreItems/Weapons/Corpus/LongGuns/CorpusUMP/PrismaCorpusUMP",
+    "/Lotus/StoreItems/Upgrades/Mods/Rifle/Expert/PrimedWeaponFactionDamageGrineer",
+    "/Lotus/StoreItems/Types/Sentinels/SentinelPrecepts/PrimedRegen",
+    "/Lotus/StoreItems/Upgrades/Skins/Weapons/Rapier/CrpRapierSkin",
+    "/Lotus/StoreItems/Upgrades/CosmeticEnhancers/Peculiars/DissolveEnemyMod",
+    "/Lotus/StoreItems/Types/Items/ShipDecos/Plushies/PlushyInaros",
+    "/Lotus/StoreItems/Types/StoreItems/AvatarImages/ImageBaroKiteerEvil",
+    "/Lotus/StoreItems/Types/Items/SongItems/TheSacrificeLoginSongItem",
+    "/Lotus/StoreItems/Types/Game/Projections/T4VoidProjectionVoltOdonataPrimeBronze",
+    "/Lotus/StoreItems/Types/BoosterPacks/BaroTreasureBox",
+    "/Lotus/Types/StoreItems/Boosters/ResourceAmount3DayStoreItem",
+    "/Lotus/StoreItems/Types/Keys/MummyQuestKeyBlueprint",
+    # 赋能也在 CosmeticEnhancers 目录下（路径形态按 DE 资源树，非当期实测）：不能再默认归「外观」
+    "/Lotus/StoreItems/Upgrades/CosmeticEnhancers/Offensive/ExampleArcane",
+]
+_want = [
+    "武器",
+    "MOD",
+    "MOD",
+    "外观",
+    # ★ 2026-10-16 改：怪奇（终劫怪奇，wiki 类型 Mod (Warframe)）原先错归「外观」（用户反馈分类不对）
+    "MOD",
+    "装饰",
+    "装饰",
+    "装饰",
+    "遗物",
+    "消耗品",
+    "消耗品",
+    "其他",
+    "其他",
+]
+_got = [_baro.group_of_store(x) for x in _paths]
+check("★ 商品路径分类（含武器外观归外观、不归武器）", _got == _want, str(list(zip(_got, _want))))
+check(
+    "无路径 / 空串 → 其他",
+    _baro.group_of_store("") == "其他" and _baro.group_of_store(None) == "其他",
+)
+if _sample.exists():
+    _all = [ln.strip() for ln in _sample.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    check("实测 55 件全部分进合法类别", all(_baro.group_of_store(x) in _allowed for x in _all))
+
+_inv2 = [
+    {
+        "item": f"装饰{i}",
+        "ducats": 50,
+        "credits": 50000,
+        "store": "/Lotus/StoreItems/Types/Items/ShipDecos/X",
+    }
+    for i in range(3)
+] + [
+    {"item": "武器A", "ducats": 400, "credits": 50000, "store": "/Lotus/StoreItems/Weapons/A"},
+    {
+        "item": "外观A",
+        "ducats": 300,
+        "credits": 250000,
+        "store": "/Lotus/StoreItems/Upgrades/Skins/A",
+    },
+    {"item": "武器B", "ducats": 410, "credits": 200000, "store": "/Lotus/StoreItems/Weapons/B"},
+    {"item": "无路径", "ducats": 1, "credits": 1},
+]
+_t5, _l5 = fmt.fmt_void_trader(
+    {"active": True, "character": "Baro Ki'Teer", "location": "X", "expiry": "", "inventory": _inv2}
+)
+_order = [ln[3:-1] for ln in _l5 if _chip.match(ln)]
+check(
+    "★ 组序固定：武器 → 外观 → 装饰 → 其他（空组不出）",
+    _order == ["武器", "外观", "装饰", "其他"],
+    str(_order),
+)
+_cur, _bad = None, []
+for ln in _l5:
+    if _chip.match(ln):
+        _cur = ln[3:-1]
+    elif ln.startswith("· "):
+        names = [c for c in ln[2:].split("　") if not c.endswith("杜") and not c.endswith("现金")]
+        grp = {"武器A": "武器", "武器B": "武器", "外观A": "外观", "无路径": "其他"}
+        if any(grp.get(nm, "装饰") != _cur for nm in names):
+            _bad.append(ln)
+check("★ 一行只放同组商品（不跨组拼行）", not _bad, str(_bad))
+check("装饰 3 件 ⇒ 两行（2 + 1）", sum(1 for ln in _l5 if ln.startswith("· 装饰")) == 2)
+check(
+    "货单行给出各类件数",
+    any(ln.startswith("◆ 货单：共 7 件（武器 2 · 外观 1 · 装饰 3 · 其他 1）") for ln in _l5),
+    str(_l5[:4]),
+)
+check("注脚说明彩色标签", any("彩色标签＝商品类别" in ln for ln in _l5))
+
+from core.de_worldstate import _parse_void_trader  # noqa: E402
+
+_pv = _parse_void_trader(
+    {
+        "Activation": {"$date": {"$numberLong": "0"}},
+        "Expiry": {"$date": {"$numberLong": "9999999999999"}},
+        "Manifest": [
+            {"ItemType": "/Lotus/StoreItems/Weapons/A", "PrimePrice": 1, "RegularPrice": 2}
+        ],
+    },
+    1,
+)
+check(
+    "解析保留商品路径 store",
+    _pv["inventory"][0].get("store") == "/Lotus/StoreItems/Weapons/A",
+    str(_pv),
+)
+
 print("\n=== 四、表宽安全阀（两列布局的生命线）===")
 # 渲染层安全阀：Σ列宽 + 24×(列数-1) ≤ W-178（W 上限 1500 → 1322）
 # 开源包不带 40MB 字库（同 test_relic_list）：无字体环境跳过宽度断言，
@@ -195,7 +315,65 @@ for ln in rows:
             col_max.append(0.0)
         col_max[ci] = max(col_max[ci], me.textlength(cell, font=font))
 table_w = sum(col_max) + 24 * (len(col_max) - 1)
-check(f"表宽 {table_w:.0f} ≤ 1322（否则列对齐被安全阀整体放弃）", table_w <= 1322, f"{table_w:.0f}")
+# ★ 2026-10-16：奸商卡表宽上限改为 CARD_W_BARO_MAX（2000 → 可用 1822），用户「宽度不够可以拉长」
+_baro_avail = R.CARD_W_BARO_MAX - 178
+check(
+    f"表宽 {table_w:.0f} ≤ {_baro_avail}（否则列对齐被安全阀整体放弃）",
+    table_w <= _baro_avail,
+    f"{table_w:.0f}",
+)
+
+# ★ 2026-10-16 真实渲染器回归（ZCode 线上截图「左右两件挤成一团」）：当期 55 件里两件
+#   「蒙面者的经纬仪号」长名同行，6 列总宽超出旧上限 1500 → 安全阀关掉列对齐；放宽后
+#   该行又因「整行原文」超过折行宽度被折、单独脱离列对齐。两处都要守住。
+_long = [
+    ("「蒙面者的经纬仪号」船员套服", "/Lotus/StoreItems/Upgrades/Skins/Operator/BodySuits/X"),
+    ("「蒙面者的经纬仪号」船员套服袖件", "/Lotus/StoreItems/Upgrades/Skins/Operator/Sleeves/X"),
+    ("Excalibur 原型护甲战斗姿态浮印", "/Lotus/StoreItems/Types/StoreItems/AvatarImages/X"),
+    ("席瓦 & 神盾 终劫外观", "/Lotus/StoreItems/Upgrades/Skins/VoidTrader/X"),
+    ("暗黑长剑亡灵节外观", "/Lotus/StoreItems/Upgrades/Skins/VoidTrader/Y"),
+    ("净化 Corpus Prime", "/Lotus/StoreItems/Upgrades/Mods/Shotgun/Expert/X"),
+]
+_inv_long = [{"item": n, "ducats": 300, "credits": 275000, "store": p} for n, p in _long] * 4
+_tl, _ll = fmt.fmt_void_trader(
+    {
+        "active": True,
+        "character": "Baro Ki'Teer",
+        "location": "X",
+        "expiry": "",
+        "inventory": _inv_long,
+    }
+)
+import tempfile  # noqa: E402
+
+_rr = R.ImageRenderer(Path(tempfile.mkdtemp()) / "cache")
+_orig_render, _orig_wrap, _st, _wrapped_long = _rr._render, _rr._wrap_cached, {}, []
+
+
+def _spy_render(*a, **k):
+    out = _orig_render(*a, **k)
+    _st["table"] = _rr._table_mode
+    return out
+
+
+def _spy_wrap(text, *a, **k):
+    res = _orig_wrap(text, *a, **k)
+    if "蒙面者" in text and len(res) > 1:
+        _wrapped_long.append(text)
+    return res
+
+
+_rr._render, _rr._wrap_cached = _spy_render, _spy_wrap
+_png = _rr.render(_tl, _ll, "SDJKBOT")
+check(
+    "★ 真实渲染：长名货单仍走列对齐（安全阀未关）",
+    _png is not None and _st.get("table") is True,
+    str(_st),
+)
+check("★ 真实渲染：两件长名同行不被按原文折行", not _wrapped_long, str(_wrapped_long[:1]))
+if _png:
+    _cw = Image.open(_png).size[0]
+    check(f"卡宽 {_cw} 在奸商上限内", _cw <= R.CARD_W_BARO_MAX, str(_cw))
 check(
     "最长商品名在手（手持弹箭韵转枪 Prime 是实测最长）", any("手持弹箭韵转枪" in ln for ln in lines)
 )

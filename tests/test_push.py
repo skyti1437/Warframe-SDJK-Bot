@@ -2019,13 +2019,72 @@ async def z_arbi_tier_note():
     )
 
 
+# ★ 2026-10-16（用户口径）：n<5 的实测档标「样本少」，官方 tierlist 档不标；推送也标
+async def z_arbi_low_sample():
+    d, st, cl, box, lg, _ = _zmk()
+    await st.add(_zsub("g1", "仲裁", once=False))
+    real_cur = push_mod.arbi.current
+    base = {"start": 0, "end": 4102444800, "mission": "生存"}
+    slots = iter(
+        [
+            {**base, "key": "k1", "line": "甲", "tier": "A"},
+            {**base, "key": "k2", "line": "乙", "tier": "A+", "low_sample": True, "start": 1},
+        ]
+    )
+
+    async def _cur(client, ts=None):
+        return next(slots)
+
+    push_mod.arbi.current = _cur
+    try:
+        await d.tick()
+        await d.tick()
+    finally:
+        push_mod.arbi.current = real_cur
+    msgs = [b[1] for b in box if "仲裁已轮换" in b[1]]
+    check(
+        "★ 仲裁轮换推送：样本少的实测档标「（样本少）」",
+        len(msgs) == 1 and "评级 A+（样本少）" in msgs[0],
+        str(msgs),
+    )
+
+
+def z_arbi_low_sample_label():
+    a = push_mod.arbi
+    real_m, real_only = a._MEASURED, dict(a._ARBI_ONLY)
+    a._MEASURED = {
+        "N3": {"n": 3, "median": 705.8, "tier": "A+"},
+        "N5": {"n": 5, "median": 650.0, "tier": "A"},
+        "OFF": {"n": 2, "median": 900.0, "tier": "S"},
+    }
+    a._ARBI_ONLY.clear()
+    a._ARBI_ONLY.update({"OFF": "B"})  # 官方有档 ⇒ 不看样本数
+    try:
+        tier_of = a.merge_measured_tiers({"OFF": "B"})
+        nodes = {"N3": {"nameZh": "Piscinas", "systemNameZh": "土星", "missionNameZh": "生存"}}
+        check("样本少（n=3）的实测档带 *", a.tier_label("N3", tier_of) == "A+*")
+        check("n=5 的实测档不带 *", a.tier_label("N5", tier_of) == "A")
+        check("官方 tierlist 档不看样本数", a.tier_label("OFF", tier_of) == "B")
+        check("排期卡单元格带 *", a.node_cells(nodes, "N3", tier_of)[-1] == "[A+*]")
+        check(
+            "★ 样本少只改显示、不改筛选口径（tier_of 仍是 A+）",
+            tier_of["N3"] == "A+" and "A+" in a.RATING["高效"],
+        )
+    finally:
+        a._MEASURED = real_m
+        a._ARBI_ONLY.clear()
+        a._ARBI_ONLY.update(real_only)
+
+
 _real_ln2 = push_mod._local_now
 push_mod._local_now = _ALWAYS
 try:
     asyncio.run(z_arbi_expired())
     asyncio.run(z_arbi_tier_note())
+    asyncio.run(z_arbi_low_sample())
 finally:
     push_mod._local_now = _real_ln2
+z_arbi_low_sample_label()
 
 print()
 if FAILED:

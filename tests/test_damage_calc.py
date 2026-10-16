@@ -350,8 +350,40 @@ check(
 
 spec_sp, _ = dc.parse_args(["基础形态", "Soma", "船员", "60级", "钢路"])
 r_sp = dc.calculate(spec_sp, w_soma)
-check("钢路血量 ×2", close(r_sp["hp"], r_c["hp"] * 2, 1e-6))
-check("钢路护盾 ×2", close(r_sp["shield_hp"], r_c["shield_hp"] * 2, 1e-6))
+# 2026-10-16：wiki《The Steel Path》Enemy Health / Shield 250%（原先按 ×2 算错）
+check("钢路血量 ×2.5", close(r_sp["hp"], r_c["hp"] * 2.5, 1e-6))
+check("钢路护盾 ×2.5", close(r_sp["shield_hp"], r_c["shield_hp"] * 2.5, 1e-6))
+
+# ★ 2026-10-16（wfsim 引擎对照）：Arbucep 一次扣扳机齐射 6 枚火箭、耗 6 发（wiki Codex + wfsim M112）
+w_arb, _ = dc.find_weapon("Arbucep")
+spec_arb, _ = dc.parse_args(["Arbucep"])
+r_arb = dc.calculate(spec_arb, w_arb)
+_cyc = (36 / 6) / r_arb["fire_rate_eff"]  # 一个弹匣 6 次齐射
+check("Arbucep 每次扣扳机耗 6 发", r_arb["ammo_cost"] == 6, str(r_arb.get("ammo_cost")))
+check(
+    "★ Arbucep 持续 DPS 按弹匣 4 s + 装填算（原先按 24 s，高估约 38%）",
+    close(r_arb["dps_sustained"] / r_arb["dps"], _cyc / (_cyc + r_arb["reload"]), 1e-3),
+    f"{r_arb['dps_sustained'] / r_arb['dps']:.3f} vs {_cyc / (_cyc + r_arb['reload']):.3f}",
+)
+
+# ★ 2026-10-16：分裂飞行卡面「(Non-AOE Bows)」—— 装到 Lenz（范围弓）上整卡不计入并说明
+w_lenz, _ = dc.find_weapon("Lenz")
+spec_l0, _ = dc.parse_args(["Lenz"])
+spec_l1, _ = dc.parse_args(["Lenz", "分裂飞行", "满层"])
+r_l0, r_l1 = dc.calculate(spec_l0, w_lenz), dc.calculate(spec_l1, w_lenz)
+check(
+    "★ 分裂飞行不适用于 Lenz：多重不变且注明原因",
+    close(r_l0["multishot_total"], r_l1["multishot_total"], 1e-9)
+    and any("不适用" in str(n) for n in (spec_l1.get("notes") or [])),
+    str(spec_l1.get("notes")),
+)
+w_cer, _ = dc.find_weapon("Cernos Prime")
+spec_c1, _ = dc.parse_args(["Cernos Prime", "分裂飞行", "满层"])
+check(
+    "分裂飞行在普通弓（Cernos Prime）上照常生效",
+    not any("不适用" in str(n) for n in (spec_c1.get("notes") or [])),
+    str(spec_c1.get("notes")),
+)
 
 
 # ---------------------------------------------------------------------------
