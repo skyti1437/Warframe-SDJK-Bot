@@ -518,10 +518,18 @@ from core import baro as _baro  # noqa: E402
 from core import paths as _paths  # noqa: E402
 
 _PKG = Path(_paths.PKG_DATA)
+# ★ 2026-10-16（v1.2.1 公开仓 CI 红）：de/wiki_disp.json 在开源包排除表里（OSS_EXCLUDE_FILES，
+#   「运行时产物」口径），公开仓没有这份种子 —— 只校验本树实际带着的种子，缺的记 SKIP。
+#   下面用到倾向表的用例都是自造数据，不依赖本地种子。
 _seed = {
     n: _json.loads((_PKG / s_["local"]).read_text(encoding="utf-8"))
     for n, s_ in _AC.COMMUNITY_STATIC.items()
+    if (_PKG / s_["local"]).exists()
 }
+for _n in sorted(set(_AC.COMMUNITY_STATIC) - set(_seed)):
+    print(
+        f"[SKIP] 随包种子自检（{_n}）：本树不带该种子（开源包排除，运行期由社区快照 / FlareSolverr 补）"
+    )
 for _n, _d in _seed.items():
     check(
         f"静态快照校验：随包种子本身能过（{_n}）",
