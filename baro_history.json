@@ -318,7 +318,8 @@
   "2026-08-21",
   "2026-09-04",
   "2026-09-18",
-  "2026-10-02"
+  "2026-10-02",
+  "2026-10-16"
  ],
  "items": {
   "10 x Ki'Teer Fireworks": {
@@ -1629,7 +1630,8 @@
    "v": [
     288,
     289,
-    290
+    290,
+    316
    ]
   },
   "Eskhatos Ki'Teer Chest Guard": {
@@ -1639,7 +1641,8 @@
    "v": [
     288,
     289,
-    290
+    290,
+    316
    ]
   },
   "Eskhatos Ki'Teer Ephemera": {
@@ -1650,7 +1653,24 @@
     287,
     288,
     289,
-    290
+    290,
+    316
+   ]
+  },
+  "Eskhatos Ki'Teer Floof": {
+   "t": "Decoration",
+   "d": 111,
+   "c": 111111,
+   "v": [
+    316
+   ]
+  },
+  "Eskhatos Ki'Teer Glyph": {
+   "t": "Glyph",
+   "d": 67,
+   "c": 67,
+   "v": [
+    316
    ]
   },
   "Eskhatos Ki'Teer Knee Guards": {
@@ -1659,7 +1679,8 @@
    "c": 251000,
    "v": [
     289,
-    290
+    290,
+    316
    ]
   },
   "Eskhatos Ki'Teer Shoulder Guards": {
@@ -1670,7 +1691,8 @@
     287,
     288,
     289,
-    290
+    290,
+    316
    ]
   },
   "Eskhatos Necraloid Sigil": {
@@ -1678,7 +1700,24 @@
    "d": 34,
    "c": 61000,
    "v": [
-    290
+    290,
+    316
+   ]
+  },
+  "Eskhatos Necramech Skin": {
+   "t": "Cosmetic (Necramech)",
+   "d": 236,
+   "c": 448114,
+   "v": [
+    316
+   ]
+  },
+  "Eskhatos Sugatra": {
+   "t": "Cosmetic (Weapon)",
+   "d": 181,
+   "c": 209066,
+   "v": [
+    316
    ]
   },
   "Excalibur Proto-Armor in Action Glyph": {
@@ -1689,7 +1728,8 @@
     245,
     263,
     277,
-    293
+    293,
+    316
    ]
   },
   "Exo-Sac Archwing Skin": {
@@ -2224,7 +2264,8 @@
    "c": 90000,
    "v": [
     273,
-    298
+    298,
+    316
    ]
   },
   "Inaros Tomb Scene": {
@@ -3806,7 +3847,8 @@
     301,
     302,
     307,
-    312
+    312,
+    316
    ]
   },
   "Masker's Theodolite Crewsuit Hood": {
@@ -3864,7 +3906,8 @@
     301,
     302,
     307,
-    312
+    312,
+    316
    ]
   },
   "Mesa Immortal Skin": {
@@ -3946,7 +3989,8 @@
    "d": 21,
    "c": 88000,
    "v": [
-    290
+    290,
+    316
    ]
   },
   "Necraloid Floof": {
@@ -4390,7 +4434,8 @@
    "d": 228,
    "c": 1000001,
    "v": [
-    290
+    290,
+    316
    ]
   },
   "Pedestal Prime": {
@@ -6416,7 +6461,8 @@
    "v": [
     266,
     281,
-    295
+    295,
+    316
    ]
   },
   "Rathuum Display": {
@@ -6805,7 +6851,8 @@
     221,
     246,
     265,
-    290
+    290,
+    316
    ]
   },
   "Shell Shock": {
@@ -6835,7 +6882,8 @@
    "c": 298000,
    "v": [
     289,
-    290
+    290,
+    316
    ]
   },
   "Sima Luxxum Ornament": {
@@ -7161,7 +7209,8 @@
    "d": 135,
    "c": 180000,
    "v": [
-    300
+    300,
+    316
    ]
   },
   "The Seven Crimes of Kullervo Login Music": {
@@ -7321,7 +7370,8 @@
     275,
     283,
     294,
-    304
+    304,
+    316
    ]
   },
   "Vermillion Storm": {
