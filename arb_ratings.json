@@ -30,8 +30,8 @@
    "name": "Zeugma",
    "system": "火卫一",
    "mission": "生存",
-   "n": 4,
-   "median": 480.4,
+   "n": 5,
+   "median": 503.5,
    "tier": "A-"
   },
   "ClanNode12": {
@@ -156,8 +156,8 @@
    "name": "Sinai",
    "system": "木星",
    "mission": "防御",
-   "n": 163,
-   "median": 642.6,
+   "n": 162,
+   "median": 643.2,
    "tier": "A"
   },
   "ClanNode5": {
@@ -171,7 +171,7 @@
    "system": "欧罗巴",
    "mission": "防御",
    "n": 182,
-   "median": 609.3,
+   "median": 609.9,
    "tier": "A"
   },
   "ClanNode7": {
@@ -184,8 +184,8 @@
    "name": "卡迪什圣地",
    "system": "火星",
    "mission": "防御",
-   "n": 103,
-   "median": 600.7,
+   "n": 102,
+   "median": 602.0,
    "tier": "A"
   },
   "ClanNode9": {
@@ -234,16 +234,16 @@
    "name": "Laomedeia",
    "system": "海王星",
    "mission": "中断",
-   "n": 21,
-   "median": 777.7,
+   "n": 25,
+   "median": 771.6,
    "tier": "A+"
   },
   "SolNode122": {
    "name": "Stephano",
    "system": "天王星",
    "mission": "防御",
-   "n": 125,
-   "median": 554.0,
+   "n": 128,
+   "median": 554.5,
    "tier": "A-"
   },
   "SolNode123": {
@@ -282,16 +282,16 @@
    "name": "Cinxia",
    "system": "谷神星",
    "mission": "拦截",
-   "n": 1226,
-   "median": 620.4,
+   "n": 1224,
+   "median": 620.5,
    "tier": "A"
   },
   "SolNode149": {
    "name": "Casta",
    "system": "谷神星",
    "mission": "防御",
-   "n": 787,
-   "median": 639.7,
+   "n": 786,
+   "median": 639.8,
    "tier": "A"
   },
   "SolNode16": {
@@ -444,8 +444,8 @@
    "name": "Callisto",
    "system": "木星",
    "mission": "拦截",
-   "n": 817,
-   "median": 803.0,
+   "n": 911,
+   "median": 803.3,
    "tier": "S"
   },
   "SolNode26": {
@@ -588,7 +588,7 @@
    "name": "Hyf",
    "system": "火卫二",
    "mission": "防御",
-   "n": 651,
+   "n": 649,
    "median": 587.9,
    "tier": "A-"
   },
@@ -612,8 +612,8 @@
    "name": "墓垒",
    "system": "火卫二",
    "mission": "镜像防御",
-   "n": 447,
-   "median": 714.5,
+   "n": 505,
+   "median": 718.5,
    "tier": "A+"
   },
   "SolNode72": {
