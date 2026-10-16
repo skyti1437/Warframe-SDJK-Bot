@@ -3684,6 +3684,35 @@ def fmt_prime_vault(
     return ("御品阿耶精华 / Prime 重生", lines)
 
 
+# ★ 2026-10-16 部件按**杜卡德价值**金 / 银 / 铜三色（渲染层 render._SPAN_COLORS 的 g / s / b）：
+#   100 = 金、45 / 65 = 银、15 / 25 = 铜；查不到价值（Forma 蓝图等、或价格源不可用）不染色。
+#   ⚠ 不按遗物槽位稀有度 —— 100 金币的部件也会出现在罕见 / 常见槽位（维护者 10-16 指出）。
+#   价格与「遗物」卡同源（WM 杜卡德榜单，api_client.ducats_price_map）。
+
+
+def ducats_of(prices: Optional[dict], name: str) -> int:
+    """部件名 → 杜卡德价值（查不到返回 0）。键与 fmt_relic_rewards 同口径（原名或去空格名）。"""
+    p = (prices or {}).get(name) or (prices or {}).get(re.sub(r"\s+", "", name or "")) or {}
+    try:
+        return int(p.get("ducats") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def ducat_span(ducats: int, text: str) -> str:
+    """按杜卡德价值给文本包染段标记：100 金 / 45·65 银 / 15·25 铜；0 原样返回。"""
+    c = "g" if ducats >= 100 else "s" if ducats >= 45 else "b" if ducats > 0 else ""
+    return f"⟦{c}⟧{text}⟦/{c}⟧" if c and text else text
+
+
+def _vault_relic_order(name: str) -> tuple:
+    """出库遗物排序：古纪 → 前纪 → 中纪 → 后纪（→ 安魂 / 全能），同档按代号自然序。"""
+    cn = relic_cn(name)
+    tier = cn.split(" ")[0] if " " in cn else ""
+    rank = _RELIC_CN_TIERS.index(tier) if tier in _RELIC_CN_TIERS else 99
+    return (rank, _relic_sort_key(cn.split(" ")[-1]) if " " in cn else (9, cn, 0))
+
+
 # 「出库」清单的分组顺序与标题（kind 值见 de_worldstate._vault_kind）
 _VAULT_GROUPS: tuple[tuple[str, str], ...] = (
     ("frame", "Prime 战甲"),
@@ -3692,7 +3721,9 @@ _VAULT_GROUPS: tuple[tuple[str, str], ...] = (
 )
 
 
-def fmt_prime_vault_list(data: Optional[dict]) -> tuple[str, list[str]]:
+def fmt_prime_vault_list(
+    data: Optional[dict], relic_parts: Optional[dict] = None, prices: Optional[dict] = None
+) -> tuple[str, list[str]]:
     """出库清单：按「战甲 / 武器 / 守护」分组，**只列整套名**（不含部件）。
 
     与 :func:`fmt_prime_vault` 的分工（2026-09-17 维护者要求拆开）：
@@ -3714,7 +3745,29 @@ def fmt_prime_vault_list(data: Optional[dict]) -> tuple[str, list[str]]:
         lines.append(f"◆ {label}（{len(group)}）")
         lines += [f"· {it['name']}" for it in group]
 
-    other = [it for it in items if it.get("kind") not in known]
+    # ★ 2026-10-16：本期出库遗物 + 每个遗物的全部部件（稀有 → 罕见 → 常见，对应金 / 银 / 铜）。
+    #   旧实现把遗物也算进下面「装饰 / 组合包（不能用遗物刷取）」注脚，等于把遗物说成了装饰品。
+    relics = sorted(
+        (it for it in items if it.get("kind") == "relic"),
+        key=lambda it: _vault_relic_order(it["name"]),
+    )
+    if relics:
+        lines.append(f"◆ 出库遗物（{len(relics)}，瓦奇娅处用阿耶精华兑换）")
+        for it in relics:
+            cur = "御品阿耶" if it.get("prime_currency", True) else "阿耶精华"
+            lines.append(f"◆ {relic_cn(it['name'])}　{it.get('prime', 1)} {cur}")
+            rw = (relic_parts or {}).get(it["name"]) or {}
+            rows = [(tag, rw.get(tag) or []) for tag in ("稀有", "罕见", "常见")]
+            rows = [(tag, parts) for tag, parts in rows if parts]
+            if rows:
+                lines += [
+                    f"· {tag}　"
+                    + "、".join(ducat_span(ducats_of(prices, str(x)), str(x)) for x in parts)
+                    for tag, parts in rows
+                ]
+            else:
+                lines.append("· 部件　遗物表未收录（发「遗物 名称」查询）")
+    other = [it for it in items if it.get("kind") not in known and it.get("kind") != "relic"]
     if other:
         names = "、".join(it["name"] for it in other[:3])
         more = f" 等 {len(other)} 件" if len(other) > 3 else ""
@@ -3723,7 +3776,11 @@ def fmt_prime_vault_list(data: Optional[dict]) -> tuple[str, list[str]]:
         )
     if not items:
         lines.append("◆ 出库：本期没有出库的 Prime 道具")
-    lines.append("※ 均为整套（不含部件）；部件与出处发「遗物 名称」查询")
+    lines.append(
+        "※ 战甲 / 武器 / 守护为整套名；遗物部件取自遗物掉落表快照，单件出处发「遗物 名称」查询"
+        if relics
+        else "※ 均为整套（不含部件）；部件与出处发「遗物 名称」查询"
+    )
     lines += _vault_unnamed_note(
         {"unnamed": [it["name"] for it in items if "（未收录）" in it["name"]]}
     )
@@ -4858,7 +4915,7 @@ def fmt_relic_rewards(
     for s in slots:
         name = s.get("name") or "?"
         p = prices.get(name) or prices.get(re.sub(r"\s+", "", name)) or {}
-        cells = [f"[{s.get('rarity', '?')}]", name]
+        cells = [f"[{s.get('rarity', '?')}]", ducat_span(ducats_of(prices, name), name)]
         if p:
             cells += [
                 f"{int(p['ducats'])}杜" if p.get("ducats") else "",

@@ -388,27 +388,39 @@ def item_name_opt_ex(path: str) -> tuple[Optional[str], bool]:
     return (_item_name_raw(path), False)
 
 
-def _item_name_raw(path: str) -> Optional[str]:
-    """官方词库 -> 英文名 -> 路径美化（不含「蓝图」合成）。"""
+def official_item_zh(path: str) -> Optional[str]:
+    """物品路径 → **官方简中名**（只查官方词表，查不到返回 None，不回落英文 / 美化）。
+
+    两张表、主表优先：``name_zh.json``（DE 官方导出）→ ``name_zh_wfcd.json``
+    （WFCD warframe-items 官方 i18n 的补充，只含主表没有的键；新活动资源常先出现在这里，
+    如「月华脯」RoadToTauEventResource，2026-10-16 警报实例）。
+    """
     if not path:
         return None
     key = path.strip().lower()
-    zh = _load("name_zh.json")
-    name = zh.get(key)
+    cands = [key]
     # ``/Lotus/StoreItems/Types/...`` 与 ``/Lotus/Types/StoreItems/...`` 两种写法都存在，
     # 而中文词库只收录其中一种。逐个剥掉 ``/StoreItems`` 段（只剥一层 / 全剥）都试一遍，
     # 否则会出现该命中却不命中、退化成英文路径美化的假象。
-    if not name and "/storeitems/" in key:
-        cands = [key]
+    if "/storeitems/" in key:
         parts = [p for p in key.split("/") if p]
         for i, seg in enumerate(parts):
             if seg.lower() == "storeitems":
                 cands.append("/" + "/".join(parts[:i] + parts[i + 1 :]))
         cands.append(_STRIP_STORE.sub("", key))
-        for c in dict.fromkeys(cands):
-            if zh.get(c):
-                name = zh[c]
-                break
+    cands = list(dict.fromkeys(cands))
+    for tbl in (_load("name_zh.json"), (_load("name_zh_wfcd.json") or {}).get("names") or {}):
+        for c in cands:
+            if tbl.get(c):
+                return tbl[c]
+    return None
+
+
+def _item_name_raw(path: str) -> Optional[str]:
+    """官方词库 -> 英文名 -> 路径美化（不含「蓝图」合成）。"""
+    if not path:
+        return None
+    name = official_item_zh(path)
     if name:
         return name
     pack = _prime_pack_name(path)
@@ -1134,8 +1146,15 @@ def _parse_alerts(raw: dict) -> list[dict]:
         mission = a.get("MissionInfo") or a.get("Mission") or {}
         reward = mission.get("missionReward") or mission.get("Reward") or {}
         items = reward.get("items") or reward.get("countedItems") or []
-        paths = [it.get("ItemType") if isinstance(it, dict) else it for it in items]
-        paths = [p for p in paths if p]
+        # ★ 2026-10-16：countedItems 带 ItemCount（如活动资源 ×50），与路径成对保留；
+        #   旧实现只取 ItemType，数量被丢（入侵 / 其他段都保留了，唯独警报漏）。
+        pairs = [
+            (it.get("ItemType"), it.get("ItemCount")) if isinstance(it, dict) else (it, None)
+            for it in items
+        ]
+        pairs = [(p, c) for p, c in pairs if p]
+        paths = [p for p, _ in pairs]
+        counts = [int(c) if isinstance(c, (int, float)) and c > 0 else 1 for _, c in pairs]
         out.append(
             {
                 "id": _oid(a.get("_id")),
@@ -1157,6 +1176,7 @@ def _parse_alerts(raw: dict) -> list[dict]:
                         # 会覆盖成中文名。
                         "item": _prettify(paths[0]) if paths else None,
                         "items": paths,
+                        "counts": counts,
                     },
                 },
             }

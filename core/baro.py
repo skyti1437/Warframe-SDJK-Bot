@@ -63,6 +63,25 @@ TYPE_CN = {
     "Cosmetic (Archwing)": "空战外观",
     "Cosmetic (Orbiter)": "轨道飞行器外观",
     "Cosmetic": "外观",
+    # ★ 2026-10-16（第十五批 B3）：wiki Module:Baro/data 里出现、此前未收录的 17 种类型（缺则卡面显示英文）。
+    #   库娃 / 恐鸟 / 原子摩托车 / 守护 / K 式悬浮板 取自 DE 官方简中词表；「空战」沿用本表既有口径。
+    "Primed Mod (Warframe)": "主要 MOD（战甲）",
+    "Primed Mod (Companion)": "主要 MOD（同伴）",
+    "Primed Mod (Archwing)": "主要 MOD（空战）",
+    "Primed Mod (Sniper)": "主要 MOD（狙击枪）",
+    "Mod (Warframe)": "MOD（战甲）",
+    "Mod (Sniper)": "MOD（狙击枪）",
+    "Mod (Bow)": "MOD（弓箭）",
+    "Weapon (Archwing)": "空战武器",
+    "Sentinel": "守护",
+    "Cosmetic (K-Drive)": "K 式悬浮板外观",
+    "Cosmetic (Kavat)": "库娃外观",
+    "Cosmetic (Kubrow)": "库狛外观",
+    "Cosmetic (MOA)": "恐鸟外观",
+    "Cosmetic (Atomicycle)": "原子摩托车外观",
+    "Emote": "表情",
+    "Quest": "任务",
+    "Lootbox": "宝箱",
 }
 # 卡片分组顺序（借鉴社区预测站的分类习惯）
 GROUP_ORDER = ("MOD", "武器", "遗物", "装饰", "外观", "其他")
@@ -78,7 +97,7 @@ def group_of(t: str) -> str:
     t = (t or "").strip()
     if "Mod" in t:
         return "MOD"
-    if t == "Weapon":
+    if t == "Weapon" or t.startswith("Weapon ("):  # 含「Weapon (Archwing)」（第十五批 B3）
         return "武器"
     if "Relic" in t:
         return "遗物"

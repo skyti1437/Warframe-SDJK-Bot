@@ -681,6 +681,26 @@ if _PR is not None:
 else:
     check("种子闸门：dist/ 不在场时跳过（开源包环境）", True)
 
+# ★ 2026-10-15：剥离块接缝空行（开源件 main.py 曾因此过不了 ruff format --check）—— 双向验证
+if _PR is not None:
+    _cls = "class A:\n    x = 1\n\n    # 私有起\n    y = 2\n    # 私有止\n\n    z = 3\n"
+    _got = _PR._drop_block(_cls, "# 私有起", "# 私有止", "t")
+    check(
+        "剥离接缝（缩进体内）：两空行合成一个",
+        _got == "class A:\n    x = 1\n\n    z = 3\n",
+        repr(_got),
+    )
+    _mod = "import a\n\n# 私有起\nimport b\n# 私有止\n\n\ndef f():\n    pass\n"
+    _got = _PR._drop_block(_mod, "# 私有起", "# 私有止", "t")
+    check(
+        "剥离接缝（模块级）：顶格定义前的空行不动",
+        _got == "import a\n\n\n\ndef f():\n    pass\n",
+        repr(_got),
+    )
+    _one = "class A:\n    x = 1\n\n    import_private = 1\n\n    z = 3\n"
+    _got = _PR._drop_block(_one, "import_private", "import_private", "t")
+    check("剥离接缝（单行块）：同样合并", _got == "class A:\n    x = 1\n\n    z = 3\n", repr(_got))
+
 # 追加段自己的收尾（本文件原汇总在上面，须为追加检查再守一次退出码）
 print()
 if FAILED:

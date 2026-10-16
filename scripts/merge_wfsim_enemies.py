@@ -120,7 +120,7 @@ HEAD_PATCH.update(
         "Ancient Disrupter": (3.0, "wiki Enemy_Body_Parts（Ancient Disruptor：Head 3x）"),
         # 头部 1x（不吃爆头基数；1x 部位也没有暴击爆头）
         "Charger": (1.0, "wiki Module:Enemies/data（Head: 1.0x）"),
-        "MOA": (1.0, "wiki Module:Enemies/data（Head: 1.0x）；Body_Parts 屁股 3x† 非爆头"),
+        "MOA": (1.0, "wiki Module:Enemies/data（Head: 1.0x）；Body_Parts 屁股 3x（非爆头弱点）"),
         "Anti MOA": (1.0, "wiki Enemy_Body_Parts（Anti MOA：Head 1x*）"),
         "Fusion MOA": (1.0, "wiki Enemy_Body_Parts（Fusion MOA：Head 1x*）"),
         "Corrupted MOA": (1.0, "wiki Enemy_Body_Parts（Fusion MOA 变体：Head 1x*）"),

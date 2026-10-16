@@ -394,6 +394,21 @@ _arb_reply = asyncio.run(_AC._h_arbtable(_arb_obj, _NS(page=1), None, "国际服
 # ★ 2026-10-11 第二步改版：数据行加「· 」前缀（列表项）并有表头 / 答案行；只取数据行并剥掉前缀再按列切，
 #   断言内容（列数、节点格完整、无空列、不拿 ASCII 空格当分隔）不变。
 _arb_rows = [_r[2:].split("　") for _r in _arb_reply.lines if _r.startswith("· ")]
+# ★ 2026-10-16（维护者要求）：凡出现评级的仲裁卡，下方都标评分范围（共用 core/arbi.py::TIER_NOTE）
+from core import arbi as _arbi_mod  # noqa: E402
+
+check(
+    "仲裁时间表：评级列下方标评分范围",
+    any(_arbi_mod.TIER_RANGE in ln for ln in _arb_reply.lines),
+    str(_arb_reply.lines[-3:]),
+)
+check(
+    "筛选排期 / 当前仲裁 / 时间表三张卡都引用共用评分范围说明",
+    (ROOT / "core" / "commands" / "arbitration.py")
+    .read_text(encoding="utf-8")
+    .count("_arbi.TIER_NOTE")
+    >= 3,
+)
 check(
     "仲裁时间表：注入 4 行（3 个含空格节点 + 1 个评级节点）",
     len(_arb_rows) == 4,

@@ -36,6 +36,7 @@ import argparse
 import html as _html
 import json
 import re
+import sys
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
@@ -50,6 +51,14 @@ WIKI_RAW_CODA = "https://wiki.warframe.com/w/Coda_Weapons?action=raw"
 WIKI_RAW_TENET = "https://wiki.warframe.com/w/Tenet_Weapons?action=raw"
 
 BATCH_IDX = {"A": 1, "B": 2}
+
+# ★ 2026-10-15：源页 wikitext 解析器已上移到 core/api_client.py（插件**运行期**也要用，
+#   而运行期不 import scripts/ —— 两处实现会漂移）。这里直接复用同一份。
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+from core.api_client import WarframeClient as _WC  # noqa: E402
+
+parse_wikitext = _WC.parse_wikitext
 
 
 def fetch_html(flare: str, url: str = WIKI_URL, timeout: int = 120, min_len: int = 50_000) -> str:
@@ -123,70 +132,9 @@ def parse(src: str) -> dict:
     return res
 
 
-def _wt_plain(cell: str) -> str:
-    """wikitext 单元格 → 纯文本（去模板壳不在这里，见 _weapon_row_wt）。"""
-    txt = re.sub(r"<[^>]+>", " ", cell)
-    return re.sub(r"\s+", " ", _html.unescape(txt)).strip()
-
-
-def _weapon_row_wt(row: str) -> dict:
-    """wikitext 数据行 → ``{en, element, bonus}``。
-
-    行形如 ``<tr><td>Coda Hema</td><td>{{D|Magnetic}}</td>
-    <td>{{ValenceBonusPercentageColor|34.2}}</td></tr>``；
-    Tenet 页名字带模板壳 ``{{Weapon|Tenet Ferrox}}``。
-    """
-    cells = re.findall(r"<td[^>]*>(.*?)</td>", row, re.S)
-    out = {"en": "", "element": "", "bonus": None}
-    if cells:
-        m = re.search(r"\{\{\s*Weapon\s*\|\s*([^}|]+?)\s*\}\}", cells[0])
-        out["en"] = m.group(1) if m else _wt_plain(cells[0])
-    if len(cells) > 1:
-        m = re.search(r"\{\{\s*D\s*\|\s*([^}|]+?)\s*\}\}", cells[1])
-        out["element"] = m.group(1) if m else _wt_plain(cells[1])
-    if len(cells) > 2:
-        m = re.search(r"ValenceBonusPercentageColor\s*\|\s*([\d.]+)", cells[2]) or re.search(
-            r"([\d.]+)", _wt_plain(cells[2])
-        )
-        out["bonus"] = float(m.group(1)) if m else None
-    return out
-
-
-def parse_wikitext(src: str) -> dict:
-    """解析 Coda Weapons / Tenet Weapons 源页的 wikitext（真源，无解析缓存）。
-
-    ★ 2026-10-03：Reset 页的这两段是 ``{{#lst:…}}`` 跨页嵌入，渲染页受解析
-    缓存影响会落后于源页（换批当天实测：源页 A/B 两表俱全，Reset 渲染页只有
-    旧表）⇒ 改从源页 wikitext 解析。A/B 两批**同页全量**，一次抓取即两批齐全。
-
-    ``?action=raw`` 的响应是 ``<pre>`` 包裹、实体转义过的 wikitext ⇒ 先
-    ``html.unescape``。返回与 `parse()` 同构：``{"coda": {1:…, 2:…}, "tenet": […]}``。
-    """
-    src = _html.unescape(src)
-    res: dict = {"coda": {}, "tenet": []}
-    for tm in re.finditer(r"<table[^>]*>", src):
-        start = tm.end()
-        end = src.find("</table>", start)
-        if end < 0:
-            continue
-        rows = re.findall(r"<tr[^>]*>(.*?)</tr>", src[start:end], re.S)
-        heads = [r for r in rows if "<th" in r]  # 表头行（<th>）
-        data = [r for r in rows if len(re.findall(r"<td", r)) >= 3]
-        if not heads or not data:
-            continue
-        head = re.sub(r"<[^>]+>", " ", heads[0])
-        head = re.sub(r"\s+", " ", _html.unescape(head)).strip()
-        mb = re.match(r"Weapon\s*\(Batch\s*([AB])\)", head, re.I)
-        if mb:
-            idx = BATCH_IDX[mb.group(1).upper()]
-            res["coda"][idx] = [_weapon_row_wt(r) for r in data]
-            continue
-        if head.lower().startswith("weapon"):  # 无批次后缀 = Tenet
-            items = [_weapon_row_wt(r) for r in data]
-            items = [it for it in items if (it["en"] or "").lower().startswith("tenet")]
-            if items:
-                res["tenet"] = items
-    return res
+# 源页 wikitext 解析器（原 ``_wt_plain`` / ``_weapon_row_wt`` / ``parse_wikitext``）
+# 已于 2026-10-15 上移到 ``core/api_client.py``，文件头已 import 复用（插件运行期也要用，
+# 运行期不 import scripts/，两处实现会漂移）。
 
 
 def apply(data: dict, parsed: dict, dry: bool = False) -> list[str]:

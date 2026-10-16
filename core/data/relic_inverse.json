@@ -1,4 +1,686 @@
 {
+ "2X Forma 蓝图": [
+  {
+   "relic": "古纪 Lith A6",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "古纪 Lith C1",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "古纪 Lith C8",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "古纪 Lith C15",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "古纪 Lith E2",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "古纪 Lith G1",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "古纪 Lith G3",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "古纪 Lith G5",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "古纪 Lith G12",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "古纪 Lith H3",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "古纪 Lith H7",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "古纪 Lith H8",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "古纪 Lith H9",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "古纪 Lith K2",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "古纪 Lith K7",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "古纪 Lith K12",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "古纪 Lith M2",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "古纪 Lith M7",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "古纪 Lith M9",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "古纪 Lith N1",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "古纪 Lith N3",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "古纪 Lith N14",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "古纪 Lith N19",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "古纪 Lith O1",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "古纪 Lith O2",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "古纪 Lith P1",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "古纪 Lith P4",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "古纪 Lith P8",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "古纪 Lith S1",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "古纪 Lith S2",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "古纪 Lith S18",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "古纪 Lith T3",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "古纪 Lith T12",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "古纪 Lith V1",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "古纪 Lith V2",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "古纪 Lith V6",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "古纪 Lith Z1",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "前纪 Meso A1",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "前纪 Meso A3",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "前纪 Meso B6",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "前纪 Meso C4",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "前纪 Meso C5",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "前纪 Meso C6",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "前纪 Meso C11",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "前纪 Meso D1",
+   "rarity": "常见"
+  },
+  {
+   "relic": "前纪 Meso D1",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "前纪 Meso E1",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "前纪 Meso F2",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "前纪 Meso F3",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "前纪 Meso G4",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "前纪 Meso G8",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "前纪 Meso G9",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "前纪 Meso H3",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "前纪 Meso H6",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "前纪 Meso H7",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "前纪 Meso K3",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "前纪 Meso K4",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "前纪 Meso K7",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "前纪 Meso K8",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "前纪 Meso M4",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "前纪 Meso N1",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "前纪 Meso N2",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "前纪 Meso N4",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "前纪 Meso N7",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "前纪 Meso N11",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "前纪 Meso P3",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "前纪 Meso P5",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "前纪 Meso P15",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "前纪 Meso R4",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "前纪 Meso S2",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "前纪 Meso S3",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "前纪 Meso S5",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "前纪 Meso S9",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "前纪 Meso S12",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "前纪 Meso T1",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "前纪 Meso V1",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "前纪 Meso V2",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "前纪 Meso V14",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "前纪 Meso V15",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "前纪 Meso W4",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "中纪 Neo A2",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "中纪 Neo A14",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "中纪 Neo B2",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "中纪 Neo C6",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "中纪 Neo D1",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "中纪 Neo D3",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "中纪 Neo D8",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "中纪 Neo E1",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "中纪 Neo F1",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "中纪 Neo K9",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "中纪 Neo M3",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "中纪 Neo M4",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "中纪 Neo M5",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "中纪 Neo N2",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "中纪 Neo N4",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "中纪 Neo N8",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "中纪 Neo N9",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "中纪 Neo N11",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "中纪 Neo N13",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "中纪 Neo N17",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "中纪 Neo N18",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "中纪 Neo P2",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "中纪 Neo P4",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "中纪 Neo S1",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "中纪 Neo S3",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "中纪 Neo S9",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "中纪 Neo S11",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "中纪 Neo S13",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "中纪 Neo S20",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "中纪 Neo T2",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "中纪 Neo T7",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "中纪 Neo V2",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "中纪 Neo V3",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "中纪 Neo V5",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "中纪 Neo V8",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "中纪 Neo V13",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "中纪 Neo W1",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "中纪 Neo W2",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "中纪 Neo Y1",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "中纪 Neo Y2",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "中纪 Neo Z1",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "中纪 Neo Z4",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "中纪 Neo Z5",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "中纪 Neo Z8",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "后纪 Axi A7",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "后纪 Axi A8",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "后纪 Axi A22",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "后纪 Axi B2",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "后纪 Axi C1",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "后纪 Axi C10",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "后纪 Axi D1",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "后纪 Axi D2",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "后纪 Axi E1",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "后纪 Axi E2",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "后纪 Axi G1",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "后纪 Axi G5",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "后纪 Axi G8",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "后纪 Axi G12",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "后纪 Axi G14",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "后纪 Axi H3",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "后纪 Axi H4",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "后纪 Axi H5",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "后纪 Axi H6",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "后纪 Axi H7",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "后纪 Axi I1",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "后纪 Axi K1",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "后纪 Axi L1",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "后纪 Axi L2",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "后纪 Axi N2",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "后纪 Axi N7",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "后纪 Axi N13",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "后纪 Axi P6",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "后纪 Axi P7",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "后纪 Axi P8",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "后纪 Axi P9",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "后纪 Axi S2",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "后纪 Axi S5",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "后纪 Axi S14",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "后纪 Axi S17",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "后纪 Axi S21",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "后纪 Axi T2",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "后纪 Axi T3",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "后纪 Axi T5",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "后纪 Axi T10",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "后纪 Axi T13",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "后纪 Axi V1",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "后纪 Axi V4",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "后纪 Axi V10",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "后纪 Axi V14",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "后纪 Axi W1",
+   "rarity": "罕见"
+  }
+ ],
  "<ARCHWING> 陨蜓 Prime 蓝图": [
   {
    "relic": "古纪 Lith F1",
@@ -889,10 +1571,6 @@
    "rarity": "常见"
   },
   {
-   "relic": "古纪 Lith A6",
-   "rarity": "罕见"
-  },
-  {
    "relic": "古纪 Lith A9",
    "rarity": "常见"
   },
@@ -941,10 +1619,6 @@
    "rarity": "常见"
   },
   {
-   "relic": "古纪 Lith C1",
-   "rarity": "罕见"
-  },
-  {
    "relic": "古纪 Lith C4",
    "rarity": "常见"
   },
@@ -961,10 +1635,6 @@
    "rarity": "常见"
   },
   {
-   "relic": "古纪 Lith C8",
-   "rarity": "罕见"
-  },
-  {
    "relic": "古纪 Lith C10",
    "rarity": "常见"
   },
@@ -975,10 +1645,6 @@
   {
    "relic": "古纪 Lith C14",
    "rarity": "常见"
-  },
-  {
-   "relic": "古纪 Lith C15",
-   "rarity": "罕见"
   },
   {
    "relic": "古纪 Lith D2",
@@ -1001,10 +1667,6 @@
    "rarity": "常见"
   },
   {
-   "relic": "古纪 Lith E2",
-   "rarity": "罕见"
-  },
-  {
    "relic": "古纪 Lith F1",
    "rarity": "常见"
   },
@@ -1013,20 +1675,8 @@
    "rarity": "常见"
   },
   {
-   "relic": "古纪 Lith G1",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "古纪 Lith G3",
-   "rarity": "罕见"
-  },
-  {
    "relic": "古纪 Lith G4",
    "rarity": "常见"
-  },
-  {
-   "relic": "古纪 Lith G5",
-   "rarity": "罕见"
   },
   {
    "relic": "古纪 Lith G6",
@@ -1053,10 +1703,6 @@
    "rarity": "常见"
   },
   {
-   "relic": "古纪 Lith G12",
-   "rarity": "罕见"
-  },
-  {
    "relic": "古纪 Lith G13",
    "rarity": "常见"
   },
@@ -1069,10 +1715,6 @@
    "rarity": "常见"
   },
   {
-   "relic": "古纪 Lith H3",
-   "rarity": "罕见"
-  },
-  {
    "relic": "古纪 Lith H4",
    "rarity": "常见"
   },
@@ -1081,28 +1723,12 @@
    "rarity": "常见"
   },
   {
-   "relic": "古纪 Lith H7",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "古纪 Lith H8",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "古纪 Lith H9",
-   "rarity": "罕见"
-  },
-  {
    "relic": "古纪 Lith H10",
    "rarity": "常见"
   },
   {
    "relic": "古纪 Lith I1",
    "rarity": "常见"
-  },
-  {
-   "relic": "古纪 Lith K2",
-   "rarity": "罕见"
   },
   {
    "relic": "古纪 Lith K3",
@@ -1117,10 +1743,6 @@
    "rarity": "常见"
   },
   {
-   "relic": "古纪 Lith K7",
-   "rarity": "罕见"
-  },
-  {
    "relic": "古纪 Lith K8",
    "rarity": "常见"
   },
@@ -1131,10 +1753,6 @@
   {
    "relic": "古纪 Lith K11",
    "rarity": "常见"
-  },
-  {
-   "relic": "古纪 Lith K12",
-   "rarity": "罕见"
   },
   {
    "relic": "古纪 Lith L1",
@@ -1157,10 +1775,6 @@
    "rarity": "常见"
   },
   {
-   "relic": "古纪 Lith M2",
-   "rarity": "罕见"
-  },
-  {
    "relic": "古纪 Lith M3",
    "rarity": "常见"
   },
@@ -1169,24 +1783,8 @@
    "rarity": "常见"
   },
   {
-   "relic": "古纪 Lith M7",
-   "rarity": "罕见"
-  },
-  {
    "relic": "古纪 Lith M8",
    "rarity": "常见"
-  },
-  {
-   "relic": "古纪 Lith M9",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "古纪 Lith N1",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "古纪 Lith N3",
-   "rarity": "罕见"
   },
   {
    "relic": "古纪 Lith N4",
@@ -1205,10 +1803,6 @@
    "rarity": "常见"
   },
   {
-   "relic": "古纪 Lith N14",
-   "rarity": "罕见"
-  },
-  {
    "relic": "古纪 Lith N15",
    "rarity": "常见"
   },
@@ -1217,24 +1811,8 @@
    "rarity": "常见"
   },
   {
-   "relic": "古纪 Lith N19",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "古纪 Lith O1",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "古纪 Lith O2",
-   "rarity": "罕见"
-  },
-  {
    "relic": "古纪 Lith O3",
    "rarity": "常见"
-  },
-  {
-   "relic": "古纪 Lith P1",
-   "rarity": "罕见"
   },
   {
    "relic": "古纪 Lith P2",
@@ -1245,16 +1823,8 @@
    "rarity": "常见"
   },
   {
-   "relic": "古纪 Lith P4",
-   "rarity": "罕见"
-  },
-  {
    "relic": "古纪 Lith P7",
    "rarity": "常见"
-  },
-  {
-   "relic": "古纪 Lith P8",
-   "rarity": "罕见"
   },
   {
    "relic": "古纪 Lith P9",
@@ -1271,14 +1841,6 @@
   {
    "relic": "古纪 Lith R5",
    "rarity": "常见"
-  },
-  {
-   "relic": "古纪 Lith S1",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "古纪 Lith S2",
-   "rarity": "罕见"
   },
   {
    "relic": "古纪 Lith S4",
@@ -1325,10 +1887,6 @@
    "rarity": "常见"
   },
   {
-   "relic": "古纪 Lith S18",
-   "rarity": "罕见"
-  },
-  {
    "relic": "古纪 Lith S19",
    "rarity": "常见"
   },
@@ -1343,10 +1901,6 @@
   {
    "relic": "古纪 Lith T2",
    "rarity": "常见"
-  },
-  {
-   "relic": "古纪 Lith T3",
-   "rarity": "罕见"
   },
   {
    "relic": "古纪 Lith T5",
@@ -1373,24 +1927,8 @@
    "rarity": "常见"
   },
   {
-   "relic": "古纪 Lith T12",
-   "rarity": "罕见"
-  },
-  {
    "relic": "古纪 Lith T13",
    "rarity": "常见"
-  },
-  {
-   "relic": "古纪 Lith V1",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "古纪 Lith V2",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "古纪 Lith V6",
-   "rarity": "罕见"
   },
   {
    "relic": "古纪 Lith V8",
@@ -1425,10 +1963,6 @@
    "rarity": "常见"
   },
   {
-   "relic": "古纪 Lith Z1",
-   "rarity": "罕见"
-  },
-  {
    "relic": "古纪 Lith Z2",
    "rarity": "常见"
   },
@@ -1437,16 +1971,8 @@
    "rarity": "常见"
   },
   {
-   "relic": "前纪 Meso A1",
-   "rarity": "罕见"
-  },
-  {
    "relic": "前纪 Meso A2",
    "rarity": "常见"
-  },
-  {
-   "relic": "前纪 Meso A3",
-   "rarity": "罕见"
   },
   {
    "relic": "前纪 Meso A6",
@@ -1481,10 +2007,6 @@
    "rarity": "常见"
   },
   {
-   "relic": "前纪 Meso B6",
-   "rarity": "罕见"
-  },
-  {
    "relic": "前纪 Meso B7",
    "rarity": "常见"
   },
@@ -1501,18 +2023,6 @@
    "rarity": "常见"
   },
   {
-   "relic": "前纪 Meso C4",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "前纪 Meso C5",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "前纪 Meso C6",
-   "rarity": "罕见"
-  },
-  {
    "relic": "前纪 Meso C7",
    "rarity": "常见"
   },
@@ -1522,14 +2032,6 @@
   },
   {
    "relic": "前纪 Meso C10",
-   "rarity": "常见"
-  },
-  {
-   "relic": "前纪 Meso C11",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "前纪 Meso D1",
    "rarity": "常见"
   },
   {
@@ -1547,10 +2049,6 @@
   {
    "relic": "前纪 Meso D7",
    "rarity": "常见"
-  },
-  {
-   "relic": "前纪 Meso E1",
-   "rarity": "罕见"
   },
   {
    "relic": "前纪 Meso E3",
@@ -1577,14 +2075,6 @@
    "rarity": "常见"
   },
   {
-   "relic": "前纪 Meso F2",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "前纪 Meso F3",
-   "rarity": "罕见"
-  },
-  {
    "relic": "前纪 Meso F4",
    "rarity": "常见"
   },
@@ -1601,20 +2091,8 @@
    "rarity": "常见"
   },
   {
-   "relic": "前纪 Meso G4",
-   "rarity": "罕见"
-  },
-  {
    "relic": "前纪 Meso G6",
    "rarity": "常见"
-  },
-  {
-   "relic": "前纪 Meso G8",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "前纪 Meso G9",
-   "rarity": "罕见"
   },
   {
    "relic": "前纪 Meso G10",
@@ -1625,20 +2103,8 @@
    "rarity": "常见"
   },
   {
-   "relic": "前纪 Meso H3",
-   "rarity": "罕见"
-  },
-  {
    "relic": "前纪 Meso H5",
    "rarity": "常见"
-  },
-  {
-   "relic": "前纪 Meso H6",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "前纪 Meso H7",
-   "rarity": "罕见"
   },
   {
    "relic": "前纪 Meso H8",
@@ -1653,28 +2119,12 @@
    "rarity": "常见"
   },
   {
-   "relic": "前纪 Meso K3",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "前纪 Meso K4",
-   "rarity": "罕见"
-  },
-  {
    "relic": "前纪 Meso K5",
    "rarity": "常见"
   },
   {
    "relic": "前纪 Meso K6",
    "rarity": "常见"
-  },
-  {
-   "relic": "前纪 Meso K7",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "前纪 Meso K8",
-   "rarity": "罕见"
   },
   {
    "relic": "前纪 Meso L2",
@@ -1689,24 +2139,8 @@
    "rarity": "常见"
   },
   {
-   "relic": "前纪 Meso M4",
-   "rarity": "罕见"
-  },
-  {
    "relic": "前纪 Meso M5",
    "rarity": "常见"
-  },
-  {
-   "relic": "前纪 Meso N1",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "前纪 Meso N2",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "前纪 Meso N4",
-   "rarity": "罕见"
   },
   {
    "relic": "前纪 Meso N5",
@@ -1717,20 +2151,12 @@
    "rarity": "常见"
   },
   {
-   "relic": "前纪 Meso N7",
-   "rarity": "罕见"
-  },
-  {
    "relic": "前纪 Meso N8",
    "rarity": "常见"
   },
   {
    "relic": "前纪 Meso N9",
    "rarity": "常见"
-  },
-  {
-   "relic": "前纪 Meso N11",
-   "rarity": "罕见"
   },
   {
    "relic": "前纪 Meso N15",
@@ -1765,16 +2191,8 @@
    "rarity": "常见"
   },
   {
-   "relic": "前纪 Meso P3",
-   "rarity": "罕见"
-  },
-  {
    "relic": "前纪 Meso P4",
    "rarity": "常见"
-  },
-  {
-   "relic": "前纪 Meso P5",
-   "rarity": "罕见"
   },
   {
    "relic": "前纪 Meso P6",
@@ -1797,20 +2215,12 @@
    "rarity": "常见"
   },
   {
-   "relic": "前纪 Meso P15",
-   "rarity": "罕见"
-  },
-  {
    "relic": "前纪 Meso P16",
    "rarity": "常见"
   },
   {
    "relic": "前纪 Meso R2",
    "rarity": "常见"
-  },
-  {
-   "relic": "前纪 Meso R4",
-   "rarity": "罕见"
   },
   {
    "relic": "前纪 Meso R5",
@@ -1821,18 +2231,6 @@
    "rarity": "常见"
   },
   {
-   "relic": "前纪 Meso S2",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "前纪 Meso S3",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "前纪 Meso S5",
-   "rarity": "罕见"
-  },
-  {
    "relic": "前纪 Meso S7",
    "rarity": "常见"
   },
@@ -1841,16 +2239,8 @@
    "rarity": "常见"
   },
   {
-   "relic": "前纪 Meso S9",
-   "rarity": "罕见"
-  },
-  {
    "relic": "前纪 Meso S10",
    "rarity": "常见"
-  },
-  {
-   "relic": "前纪 Meso S12",
-   "rarity": "罕见"
   },
   {
    "relic": "前纪 Meso S13",
@@ -1863,10 +2253,6 @@
   {
    "relic": "前纪 Meso S15",
    "rarity": "常见"
-  },
-  {
-   "relic": "前纪 Meso T1",
-   "rarity": "罕见"
   },
   {
    "relic": "前纪 Meso T2",
@@ -1887,14 +2273,6 @@
   {
    "relic": "前纪 Meso T6",
    "rarity": "常见"
-  },
-  {
-   "relic": "前纪 Meso V1",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "前纪 Meso V2",
-   "rarity": "罕见"
   },
   {
    "relic": "前纪 Meso V3",
@@ -1933,14 +2311,6 @@
    "rarity": "常见"
   },
   {
-   "relic": "前纪 Meso V14",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "前纪 Meso V15",
-   "rarity": "罕见"
-  },
-  {
    "relic": "前纪 Meso V16",
    "rarity": "常见"
   },
@@ -1951,10 +2321,6 @@
   {
    "relic": "前纪 Meso W3",
    "rarity": "常见"
-  },
-  {
-   "relic": "前纪 Meso W4",
-   "rarity": "罕见"
   },
   {
    "relic": "前纪 Meso W5",
@@ -1989,10 +2355,6 @@
    "rarity": "常见"
   },
   {
-   "relic": "中纪 Neo A2",
-   "rarity": "罕见"
-  },
-  {
    "relic": "中纪 Neo A4",
    "rarity": "常见"
   },
@@ -2025,16 +2387,8 @@
    "rarity": "常见"
   },
   {
-   "relic": "中纪 Neo A14",
-   "rarity": "罕见"
-  },
-  {
    "relic": "中纪 Neo A15",
    "rarity": "常见"
-  },
-  {
-   "relic": "中纪 Neo B2",
-   "rarity": "罕见"
   },
   {
    "relic": "中纪 Neo B3",
@@ -2073,10 +2427,6 @@
    "rarity": "常见"
   },
   {
-   "relic": "中纪 Neo C6",
-   "rarity": "罕见"
-  },
-  {
    "relic": "中纪 Neo C7",
    "rarity": "常见"
   },
@@ -2089,16 +2439,8 @@
    "rarity": "常见"
   },
   {
-   "relic": "中纪 Neo D1",
-   "rarity": "罕见"
-  },
-  {
    "relic": "中纪 Neo D2",
    "rarity": "常见"
-  },
-  {
-   "relic": "中纪 Neo D3",
-   "rarity": "罕见"
   },
   {
    "relic": "中纪 Neo D4",
@@ -2113,10 +2455,6 @@
    "rarity": "常见"
   },
   {
-   "relic": "中纪 Neo D8",
-   "rarity": "罕见"
-  },
-  {
    "relic": "中纪 Neo D9",
    "rarity": "常见"
   },
@@ -2125,20 +2463,12 @@
    "rarity": "常见"
   },
   {
-   "relic": "中纪 Neo E1",
-   "rarity": "罕见"
-  },
-  {
    "relic": "中纪 Neo E3",
    "rarity": "常见"
   },
   {
    "relic": "中纪 Neo E4",
    "rarity": "常见"
-  },
-  {
-   "relic": "中纪 Neo F1",
-   "rarity": "罕见"
   },
   {
    "relic": "中纪 Neo F2",
@@ -2213,10 +2543,6 @@
    "rarity": "常见"
   },
   {
-   "relic": "中纪 Neo K9",
-   "rarity": "罕见"
-  },
-  {
    "relic": "中纪 Neo K10",
    "rarity": "常见"
   },
@@ -2237,18 +2563,6 @@
    "rarity": "常见"
   },
   {
-   "relic": "中纪 Neo M3",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "中纪 Neo M4",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "中纪 Neo M5",
-   "rarity": "罕见"
-  },
-  {
    "relic": "中纪 Neo M6",
    "rarity": "常见"
   },
@@ -2257,36 +2571,12 @@
    "rarity": "常见"
   },
   {
-   "relic": "中纪 Neo N2",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "中纪 Neo N4",
-   "rarity": "罕见"
-  },
-  {
    "relic": "中纪 Neo N5",
    "rarity": "常见"
   },
   {
-   "relic": "中纪 Neo N8",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "中纪 Neo N9",
-   "rarity": "罕见"
-  },
-  {
    "relic": "中纪 Neo N10",
    "rarity": "常见"
-  },
-  {
-   "relic": "中纪 Neo N11",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "中纪 Neo N13",
-   "rarity": "罕见"
   },
   {
    "relic": "中纪 Neo N14",
@@ -2299,14 +2589,6 @@
   {
    "relic": "中纪 Neo N16",
    "rarity": "常见"
-  },
-  {
-   "relic": "中纪 Neo N17",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "中纪 Neo N18",
-   "rarity": "罕见"
   },
   {
    "relic": "中纪 Neo N19",
@@ -2331,14 +2613,6 @@
   {
    "relic": "中纪 Neo O4",
    "rarity": "常见"
-  },
-  {
-   "relic": "中纪 Neo P2",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "中纪 Neo P4",
-   "rarity": "罕见"
   },
   {
    "relic": "中纪 Neo P5",
@@ -2377,32 +2651,12 @@
    "rarity": "常见"
   },
   {
-   "relic": "中纪 Neo S1",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "中纪 Neo S3",
-   "rarity": "罕见"
-  },
-  {
    "relic": "中纪 Neo S6",
    "rarity": "常见"
   },
   {
    "relic": "中纪 Neo S8",
    "rarity": "常见"
-  },
-  {
-   "relic": "中纪 Neo S9",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "中纪 Neo S11",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "中纪 Neo S13",
-   "rarity": "罕见"
   },
   {
    "relic": "中纪 Neo S14",
@@ -2429,16 +2683,8 @@
    "rarity": "常见"
   },
   {
-   "relic": "中纪 Neo S20",
-   "rarity": "罕见"
-  },
-  {
    "relic": "中纪 Neo T1",
    "rarity": "常见"
-  },
-  {
-   "relic": "中纪 Neo T2",
-   "rarity": "罕见"
   },
   {
    "relic": "中纪 Neo T3",
@@ -2451,10 +2697,6 @@
   {
    "relic": "中纪 Neo T6",
    "rarity": "常见"
-  },
-  {
-   "relic": "中纪 Neo T7",
-   "rarity": "罕见"
   },
   {
    "relic": "中纪 Neo T8",
@@ -2477,28 +2719,12 @@
    "rarity": "常见"
   },
   {
-   "relic": "中纪 Neo V2",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "中纪 Neo V3",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "中纪 Neo V5",
-   "rarity": "罕见"
-  },
-  {
    "relic": "中纪 Neo V6",
    "rarity": "常见"
   },
   {
    "relic": "中纪 Neo V7",
    "rarity": "常见"
-  },
-  {
-   "relic": "中纪 Neo V8",
-   "rarity": "罕见"
   },
   {
    "relic": "中纪 Neo V9",
@@ -2509,52 +2735,16 @@
    "rarity": "常见"
   },
   {
-   "relic": "中纪 Neo V13",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "中纪 Neo W1",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "中纪 Neo W2",
-   "rarity": "罕见"
-  },
-  {
    "relic": "中纪 Neo X1",
    "rarity": "常见"
-  },
-  {
-   "relic": "中纪 Neo Y1",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "中纪 Neo Y2",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "中纪 Neo Z1",
-   "rarity": "罕见"
   },
   {
    "relic": "中纪 Neo Z3",
    "rarity": "常见"
   },
   {
-   "relic": "中纪 Neo Z4",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "中纪 Neo Z5",
-   "rarity": "罕见"
-  },
-  {
    "relic": "中纪 Neo Z7",
    "rarity": "常见"
-  },
-  {
-   "relic": "中纪 Neo Z8",
-   "rarity": "罕见"
   },
   {
    "relic": "中纪 Neo Z9",
@@ -2579,14 +2769,6 @@
   {
    "relic": "后纪 Axi A5",
    "rarity": "常见"
-  },
-  {
-   "relic": "后纪 Axi A7",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "后纪 Axi A8",
-   "rarity": "罕见"
   },
   {
    "relic": "后纪 Axi A10",
@@ -2617,16 +2799,8 @@
    "rarity": "常见"
   },
   {
-   "relic": "后纪 Axi A22",
-   "rarity": "罕见"
-  },
-  {
    "relic": "后纪 Axi A23",
    "rarity": "常见"
-  },
-  {
-   "relic": "后纪 Axi B2",
-   "rarity": "罕见"
   },
   {
    "relic": "后纪 Axi B3",
@@ -2657,10 +2831,6 @@
    "rarity": "常见"
   },
   {
-   "relic": "后纪 Axi C1",
-   "rarity": "罕见"
-  },
-  {
    "relic": "后纪 Axi C2",
    "rarity": "常见"
   },
@@ -2681,28 +2851,8 @@
    "rarity": "常见"
   },
   {
-   "relic": "后纪 Axi C10",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "后纪 Axi D1",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "后纪 Axi D2",
-   "rarity": "罕见"
-  },
-  {
    "relic": "后纪 Axi D4",
    "rarity": "常见"
-  },
-  {
-   "relic": "后纪 Axi E1",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "后纪 Axi E2",
-   "rarity": "罕见"
   },
   {
    "relic": "后纪 Axi F1",
@@ -2713,24 +2863,12 @@
    "rarity": "常见"
   },
   {
-   "relic": "后纪 Axi G1",
-   "rarity": "罕见"
-  },
-  {
    "relic": "后纪 Axi G3",
    "rarity": "常见"
   },
   {
-   "relic": "后纪 Axi G5",
-   "rarity": "罕见"
-  },
-  {
    "relic": "后纪 Axi G6",
    "rarity": "常见"
-  },
-  {
-   "relic": "后纪 Axi G8",
-   "rarity": "罕见"
   },
   {
    "relic": "后纪 Axi G9",
@@ -2745,16 +2883,8 @@
    "rarity": "常见"
   },
   {
-   "relic": "后纪 Axi G12",
-   "rarity": "罕见"
-  },
-  {
    "relic": "后纪 Axi G13",
    "rarity": "常见"
-  },
-  {
-   "relic": "后纪 Axi G14",
-   "rarity": "罕见"
   },
   {
    "relic": "后纪 Axi G15",
@@ -2765,32 +2895,8 @@
    "rarity": "常见"
   },
   {
-   "relic": "后纪 Axi H3",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "后纪 Axi H4",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "后纪 Axi H5",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "后纪 Axi H6",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "后纪 Axi H7",
-   "rarity": "罕见"
-  },
-  {
    "relic": "后纪 Axi H8",
    "rarity": "常见"
-  },
-  {
-   "relic": "后纪 Axi I1",
-   "rarity": "罕见"
   },
   {
    "relic": "后纪 Axi I2",
@@ -2799,10 +2905,6 @@
   {
    "relic": "后纪 Axi I3",
    "rarity": "常见"
-  },
-  {
-   "relic": "后纪 Axi K1",
-   "rarity": "罕见"
   },
   {
    "relic": "后纪 Axi K2",
@@ -2841,14 +2943,6 @@
    "rarity": "常见"
   },
   {
-   "relic": "后纪 Axi L1",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "后纪 Axi L2",
-   "rarity": "罕见"
-  },
-  {
    "relic": "后纪 Axi L4",
    "rarity": "常见"
   },
@@ -2869,16 +2963,8 @@
    "rarity": "常见"
   },
   {
-   "relic": "后纪 Axi N2",
-   "rarity": "罕见"
-  },
-  {
    "relic": "后纪 Axi N3",
    "rarity": "常见"
-  },
-  {
-   "relic": "后纪 Axi N7",
-   "rarity": "罕见"
   },
   {
    "relic": "后纪 Axi N8",
@@ -2895,10 +2981,6 @@
   {
    "relic": "后纪 Axi N12",
    "rarity": "常见"
-  },
-  {
-   "relic": "后纪 Axi N13",
-   "rarity": "罕见"
   },
   {
    "relic": "后纪 Axi N14",
@@ -2929,22 +3011,6 @@
    "rarity": "常见"
   },
   {
-   "relic": "后纪 Axi P6",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "后纪 Axi P7",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "后纪 Axi P8",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "后纪 Axi P9",
-   "rarity": "罕见"
-  },
-  {
    "relic": "后纪 Axi P10",
    "rarity": "常见"
   },
@@ -2961,16 +3027,8 @@
    "rarity": "常见"
   },
   {
-   "relic": "后纪 Axi S2",
-   "rarity": "罕见"
-  },
-  {
    "relic": "后纪 Axi S4",
    "rarity": "常见"
-  },
-  {
-   "relic": "后纪 Axi S5",
-   "rarity": "罕见"
   },
   {
    "relic": "后纪 Axi S6",
@@ -2997,16 +3055,8 @@
    "rarity": "常见"
   },
   {
-   "relic": "后纪 Axi S14",
-   "rarity": "罕见"
-  },
-  {
    "relic": "后纪 Axi S15",
    "rarity": "常见"
-  },
-  {
-   "relic": "后纪 Axi S17",
-   "rarity": "罕见"
   },
   {
    "relic": "后纪 Axi S18",
@@ -3021,22 +3071,6 @@
    "rarity": "常见"
   },
   {
-   "relic": "后纪 Axi S21",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "后纪 Axi T2",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "后纪 Axi T3",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "后纪 Axi T5",
-   "rarity": "罕见"
-  },
-  {
    "relic": "后纪 Axi T6",
    "rarity": "常见"
   },
@@ -3049,28 +3083,12 @@
    "rarity": "常见"
   },
   {
-   "relic": "后纪 Axi T10",
-   "rarity": "罕见"
-  },
-  {
    "relic": "后纪 Axi T11",
    "rarity": "常见"
   },
   {
    "relic": "后纪 Axi T12",
    "rarity": "常见"
-  },
-  {
-   "relic": "后纪 Axi T13",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "后纪 Axi V1",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "后纪 Axi V4",
-   "rarity": "罕见"
   },
   {
    "relic": "后纪 Axi V5",
@@ -3089,10 +3107,6 @@
    "rarity": "常见"
   },
   {
-   "relic": "后纪 Axi V10",
-   "rarity": "罕见"
-  },
-  {
    "relic": "后纪 Axi V11",
    "rarity": "常见"
   },
@@ -3103,14 +3117,6 @@
   {
    "relic": "后纪 Axi V13",
    "rarity": "常见"
-  },
-  {
-   "relic": "后纪 Axi V14",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "后纪 Axi W1",
-   "rarity": "罕见"
   },
   {
    "relic": "后纪 Axi W2",
@@ -3669,6 +3675,10 @@
   {
    "relic": "前纪 Meso Y2",
    "rarity": "常见"
+  },
+  {
+   "relic": "中纪 Neo K10",
+   "rarity": "常见"
   }
  ],
  "Gyre Prime 蓝图": [
@@ -3935,11 +3945,11 @@
  ],
  "Hydroid Prime 头部神经光元蓝图": [
   {
-   "relic": "前纪 Meso E8",
+   "relic": "中纪 Neo G1",
    "rarity": "罕见"
   },
   {
-   "relic": "中纪 Neo G1",
+   "relic": "中纪 Neo N25",
    "rarity": "罕见"
   },
   {
@@ -4021,11 +4031,11 @@
  ],
  "Hydroid Prime 蓝图": [
   {
-   "relic": "古纪 Lith S20",
+   "relic": "前纪 Meso B2",
    "rarity": "罕见"
   },
   {
-   "relic": "前纪 Meso B2",
+   "relic": "前纪 Meso E8",
    "rarity": "罕见"
   },
   {
@@ -6167,8 +6177,8 @@
    "rarity": "稀有"
   },
   {
-   "relic": "中纪 Neo H5",
-   "rarity": "罕见"
+   "relic": "古纪 Lith S20",
+   "rarity": "稀有"
   },
   {
    "relic": "中纪 Neo S20",
@@ -6213,8 +6223,8 @@
    "rarity": "常见"
   },
   {
-   "relic": "后纪 Axi B10",
-   "rarity": "罕见"
+   "relic": "中纪 Neo N25",
+   "rarity": "常见"
   }
  ],
  "Sevagoth Prime 蓝图": [
@@ -6224,7 +6234,7 @@
   },
   {
    "relic": "古纪 Lith S20",
-   "rarity": "稀有"
+   "rarity": "罕见"
   },
   {
    "relic": "古纪 Lith Z4",
@@ -7633,10 +7643,6 @@
    "rarity": "常见"
   },
   {
-   "relic": "中纪 Neo H5",
-   "rarity": "常见"
-  },
-  {
    "relic": "中纪 Neo M2",
    "rarity": "常见"
   },
@@ -7674,6 +7680,10 @@
   },
   {
    "relic": "后纪 Axi A23",
+   "rarity": "常见"
+  },
+  {
+   "relic": "后纪 Axi B10",
    "rarity": "常见"
   },
   {
@@ -7747,10 +7757,6 @@
    "rarity": "常见"
   },
   {
-   "relic": "古纪 Lith S20",
-   "rarity": "常见"
-  },
-  {
    "relic": "古纪 Lith T9",
    "rarity": "常见"
   },
@@ -7812,6 +7818,10 @@
   },
   {
    "relic": "中纪 Neo H1",
+   "rarity": "常见"
+  },
+  {
+   "relic": "中纪 Neo H5",
    "rarity": "常见"
   },
   {
@@ -7957,10 +7967,6 @@
    "rarity": "罕见"
   },
   {
-   "relic": "中纪 Neo N25",
-   "rarity": "罕见"
-  },
-  {
    "relic": "中纪 Neo P5",
    "rarity": "罕见"
   },
@@ -7974,6 +7980,10 @@
   },
   {
    "relic": "后纪 Axi A23",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "后纪 Axi B10",
    "rarity": "罕见"
   },
   {
@@ -8095,6 +8105,10 @@
    "rarity": "常见"
   },
   {
+   "relic": "中纪 Neo N25",
+   "rarity": "常见"
+  },
+  {
    "relic": "中纪 Neo P10",
    "rarity": "常见"
   },
@@ -8124,10 +8138,6 @@
   },
   {
    "relic": "后纪 Axi B8",
-   "rarity": "常见"
-  },
-  {
-   "relic": "后纪 Axi B10",
    "rarity": "常见"
   },
   {
@@ -10599,15 +10609,15 @@
    "rarity": "罕见"
   },
   {
+   "relic": "中纪 Neo H5",
+   "rarity": "罕见"
+  },
+  {
    "relic": "中纪 Neo N10",
    "rarity": "罕见"
   },
   {
    "relic": "后纪 Axi M3",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "后纪 Axi N14",
    "rarity": "罕见"
   }
  ],
@@ -10617,12 +10627,12 @@
    "rarity": "常见"
   },
   {
-   "relic": "前纪 Meso A1",
+   "relic": "古纪 Lith S20",
    "rarity": "常见"
   },
   {
-   "relic": "前纪 Meso E8",
-   "rarity": "罕见"
+   "relic": "前纪 Meso A1",
+   "rarity": "常见"
   },
   {
    "relic": "前纪 Meso M3",
@@ -10659,8 +10669,8 @@
    "rarity": "罕见"
   },
   {
-   "relic": "中纪 Neo N25",
-   "rarity": "常见"
+   "relic": "中纪 Neo H5",
+   "rarity": "罕见"
   },
   {
    "relic": "后纪 Axi A4",
@@ -10677,10 +10687,6 @@
    "rarity": "罕见"
   },
   {
-   "relic": "古纪 Lith S20",
-   "rarity": "常见"
-  },
-  {
    "relic": "前纪 Meso P1",
    "rarity": "罕见"
   },
@@ -10690,6 +10696,10 @@
   },
   {
    "relic": "中纪 Neo L1",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "中纪 Neo N25",
    "rarity": "罕见"
   },
   {
@@ -13662,7 +13672,7 @@
   },
   {
    "relic": "后纪 Axi N14",
-   "rarity": "稀有"
+   "rarity": "罕见"
   }
  ],
  "海波斯库拉对剑 Prime 握柄": [
@@ -13687,8 +13697,8 @@
    "rarity": "罕见"
   },
   {
-   "relic": "中纪 Neo H5",
-   "rarity": "常见"
+   "relic": "后纪 Axi B10",
+   "rarity": "罕见"
   }
  ],
  "海波斯库拉对剑 Prime 蓝图": [
@@ -13701,12 +13711,12 @@
    "rarity": "常见"
   },
   {
-   "relic": "中纪 Neo A6",
+   "relic": "前纪 Meso E8",
    "rarity": "常见"
   },
   {
-   "relic": "中纪 Neo N25",
-   "rarity": "罕见"
+   "relic": "中纪 Neo A6",
+   "rarity": "常见"
   },
   {
    "relic": "后纪 Axi L2",
@@ -16341,6 +16351,10 @@
    "rarity": "罕见"
   },
   {
+   "relic": "古纪 Lith S20",
+   "rarity": "罕见"
+  },
+  {
    "relic": "古纪 Lith W4",
    "rarity": "罕见"
   },
@@ -16350,10 +16364,6 @@
   },
   {
    "relic": "中纪 Neo V11",
-   "rarity": "罕见"
-  },
-  {
-   "relic": "后纪 Axi B10",
    "rarity": "罕见"
   },
   {
@@ -16375,7 +16385,7 @@
    "rarity": "常见"
   },
   {
-   "relic": "中纪 Neo N25",
+   "relic": "中纪 Neo H5",
    "rarity": "常见"
   },
   {
@@ -17971,6 +17981,10 @@
    "rarity": "常见"
   },
   {
+   "relic": "古纪 Lith S20",
+   "rarity": "常见"
+  },
+  {
    "relic": "前纪 Meso B4",
    "rarity": "常见"
   },
@@ -17980,10 +17994,6 @@
   },
   {
    "relic": "前纪 Meso E3",
-   "rarity": "常见"
-  },
-  {
-   "relic": "前纪 Meso E8",
    "rarity": "常见"
   },
   {
@@ -18105,10 +18115,6 @@
    "rarity": "罕见"
   },
   {
-   "relic": "古纪 Lith S20",
-   "rarity": "罕见"
-  },
-  {
    "relic": "古纪 Lith T10",
    "rarity": "罕见"
   },
@@ -18178,6 +18184,10 @@
   },
   {
    "relic": "后纪 Axi N10",
+   "rarity": "罕见"
+  },
+  {
+   "relic": "后纪 Axi N14",
    "rarity": "罕见"
   },
   {
@@ -20011,8 +20021,8 @@
    "rarity": "常见"
   },
   {
-   "relic": "后纪 Axi N14",
-   "rarity": "罕见"
+   "relic": "后纪 Axi B10",
+   "rarity": "常见"
   },
   {
    "relic": "后纪 Axi V13",
@@ -20033,11 +20043,11 @@
    "rarity": "稀有"
   },
   {
-   "relic": "中纪 Neo N25",
+   "relic": "后纪 Axi N13",
    "rarity": "稀有"
   },
   {
-   "relic": "后纪 Axi N13",
+   "relic": "后纪 Axi N14",
    "rarity": "稀有"
   }
  ],
@@ -20055,11 +20065,11 @@
    "rarity": "罕见"
   },
   {
-   "relic": "前纪 Meso V11",
+   "relic": "前纪 Meso E8",
    "rarity": "罕见"
   },
   {
-   "relic": "中纪 Neo H5",
+   "relic": "前纪 Meso V11",
    "rarity": "罕见"
   },
   {
@@ -20089,8 +20099,8 @@
    "rarity": "稀有"
   },
   {
-   "relic": "后纪 Axi B10",
-   "rarity": "常见"
+   "relic": "中纪 Neo N25",
+   "rarity": "稀有"
   }
  ],
  "麦格努斯 Prime 枪机": [

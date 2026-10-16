@@ -5,12 +5,14 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import time
 import uuid
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Optional
 
+from .logging_compat import logger
 from .parser import TimeWindow
 
 
@@ -27,14 +29,49 @@ class JsonStore:
         if self.path.exists():
             try:
                 self._data = json.loads(self.path.read_text(encoding="utf-8"))
-            except Exception:  # noqa: BLE001 - 损坏则重置
+            except Exception as exc:  # noqa: BLE001 - 损坏：先留底再按空处理
                 self._data = None
+                self._quarantine(f"JSON 解析失败：{exc!r}")
+
+    def _quarantine(self, reason: str) -> None:
+        """把坏文件改名为 ``<原名>.bak-<时间戳>`` 并 WARNING，再由调用方按空处理。
+
+        旧实现静默按空处理 ⇒ 下一次 save 直接覆盖原文件，全部订阅/群设置无声丢光、
+        也没有任何可追溯的备份。
+        """
+        try:
+            bak = self.path.with_name(f"{self.path.name}.bak-{time.strftime('%Y%m%d-%H%M%S')}")
+            n = 1
+            while bak.exists():  # 同秒多次损坏不互相覆盖
+                bak = self.path.with_name(
+                    f"{self.path.name}.bak-{time.strftime('%Y%m%d-%H%M%S')}-{n}"
+                )
+                n += 1
+            self.path.rename(bak)
+            logger.warning(
+                "[warframe] 存储文件 %s 损坏（%s）→ 已备份为 %s，按空数据继续",
+                self.path,
+                reason,
+                bak,
+            )
+        except OSError as exc:
+            logger.warning(
+                "[warframe] 存储文件 %s 损坏（%s），且备份失败：%s；按空数据继续",
+                self.path,
+                reason,
+                exc,
+            )
 
     async def save(self) -> None:
         async with self._lock:
             tmp = self.path.with_suffix(".tmp")
             self.path.parent.mkdir(parents=True, exist_ok=True)
-            tmp.write_text(json.dumps(self._data, ensure_ascii=False, indent=1), encoding="utf-8")
+            payload = json.dumps(self._data, ensure_ascii=False, indent=1)
+            # 先写盘并 fsync，再原子替换：断电 / 崩溃时不会留下「已 replace 但内容未落盘」的空文件
+            with open(tmp, "w", encoding="utf-8") as fh:
+                fh.write(payload)
+                fh.flush()
+                os.fsync(fh.fileno())
             tmp.replace(self.path)
 
 
@@ -52,6 +89,8 @@ class GroupStore(JsonStore):
     def __init__(self, path: Path, default_platform: str = "pc"):
         super().__init__(path)
         if not isinstance(self._data, dict):
+            if self._data is not None:
+                self._quarantine(f"顶层应为对象，实为 {type(self._data).__name__}")
             self._data = {}
         self._default_platform = default_platform
 
@@ -107,6 +146,10 @@ class Subscription:
     def time_window(self) -> TimeWindow:
         w = self.windows or {}
         days = w.get("days")
+        if w.get("start") == 0 and w.get("end") == 0 and not days and w.get("at_hour") is None:
+            # 旧版把「0到24」解析成 0/0（取模丢了 24），实际只放行 0 点一个小时；
+            # 存档里的这种窗口一律按用户当初的本意（全天）处理。
+            return TimeWindow()
         return TimeWindow(
             start=w.get("start"),
             end=w.get("end"),
@@ -131,13 +174,33 @@ class SubscriptionStore(JsonStore):
     def __init__(self, path: Path):
         super().__init__(path)
         if not isinstance(self._data, list):
+            if self._data is not None:
+                self._quarantine(f"顶层应为数组，实为 {type(self._data).__name__}")
             self._data = []
+        self._bad_warned: set[str] = set()
+
+    def _load_one(self, d) -> Optional[Subscription]:
+        """坏条目（缺必填字段/类型不对）返回 None 并 WARNING 一次，不拖垮整个推送。"""
+        try:
+            if not isinstance(d, dict):
+                raise TypeError(f"条目不是对象：{type(d).__name__}")
+            return Subscription.from_dict(d)
+        except Exception as exc:  # noqa: BLE001
+            tag = json.dumps(d, ensure_ascii=False, sort_keys=True, default=str)[:200]
+            if tag not in self._bad_warned:
+                self._bad_warned.add(tag)
+                logger.warning("[warframe] 订阅存档含坏条目，已跳过（%s）：%s", exc, tag)
+            return None
 
     def all(self) -> list[Subscription]:
-        return [Subscription.from_dict(d) for d in self._data]
+        return [s for s in (self._load_one(d) for d in self._data) if s is not None]
 
     def for_umo(self, umo: str) -> list[Subscription]:
         return [s for s in self.all() if s.umo == umo]
+
+    def has(self, sid: str) -> bool:
+        """订阅 sid 当前是否仍在存档里（派发前复查：并发取消 / 同 tick 已消费）。"""
+        return any(isinstance(d, dict) and d.get("sid") == sid for d in self._data)
 
     async def add(self, sub: Subscription) -> None:
         self._data.append(sub.to_dict())
@@ -147,10 +210,11 @@ class SubscriptionStore(JsonStore):
         keep = []
         removed = 0
         for d in self._data:
-            if predicate(Subscription.from_dict(d)):
+            sub = self._load_one(d)
+            if sub is not None and predicate(sub):
                 removed += 1
             else:
-                keep.append(d)
+                keep.append(d)  # 坏条目原样保留（不替用户删数据）
         if removed:
             self._data = keep
             await self.save()
@@ -159,7 +223,7 @@ class SubscriptionStore(JsonStore):
     async def update(self, sub: Subscription) -> None:
         """按 sid 原位回写一条订阅（notified / hits_left 等运行期状态落盘）。"""
         for i, d in enumerate(self._data):
-            if d.get("sid") == sub.sid:
+            if isinstance(d, dict) and d.get("sid") == sub.sid:
                 self._data[i] = sub.to_dict()
                 break
         else:
@@ -170,9 +234,20 @@ class SubscriptionStore(JsonStore):
         self._data = [s.to_dict() for s in subs]
         await self.save()
 
+    def expired_list(self, now: Optional[float] = None) -> list[Subscription]:
+        """已过期（尚未 gc）的订阅，供到期提醒用。"""
+        now = now or time.time()
+        return [s for s in self.all() if s.expired(now)]
+
     def gc(self, now: Optional[float] = None) -> bool:
         """清理过期订阅，返回是否有变化。"""
         now = now or time.time()
         before = len(self._data)
-        self._data = [d for d in self._data if not Subscription.from_dict(d).expired(now)]
+        keep = []
+        for d in self._data:
+            sub = self._load_one(d)
+            if sub is not None and sub.expired(now):
+                continue
+            keep.append(d)
+        self._data = keep
         return len(self._data) != before

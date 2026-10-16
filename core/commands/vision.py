@@ -131,6 +131,40 @@ class VisionCommands:
     )
     _VISION_ID_HINTS = ("4v", "vl", "vision", "vision-flash", "4o")
 
+    def _cfg_str(self, key: str) -> str:
+        """读一个字符串配置项；读取异常一律当空串（识别链不能因配置读取炸掉）。"""
+        try:
+            return str(self.cfg.get(key) or "").strip()
+        except Exception:  # noqa: BLE001
+            return ""
+
+    def _try_get_provider(self, pid: str):
+        """按 id 取渠道，取不到返回 None（不抛）。"""
+        try:
+            return self.context.get_provider_by_id(pid)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("[sdjk] 取渠道 %s 失败：%s", pid, exc)
+            return None
+
+    def _line_vision_providers(self) -> list:
+        """紫卡「窄读路」的渠道。
+
+        ★ 2026-10-15（三路基准 20 图实测）：窄读路要给「逐行念出来」这类指令，
+        OCR 专用模型（qwen-vl-ocr）在此会退回带 bbox 坐标的原生输出 ⇒ 整卡判
+        不合法（qwen-vl-ocr 窄读 15/20，5 张被坐标打穿；同批卡不发提示词时 19/20）；
+        通用指令跟随模型（qwen3.5-omni-flash）窄读 20/20。两路对模型的要求不同，
+        故支持分开配置 —— 配了 ``vision_provider_id_line`` 就用它，否则与主渠道同源。
+        报告：output/报告-视觉模型三路基准-20261015.md
+        """
+        want = self._cfg_str("vision_provider_id_line")
+        if not want:
+            return self._vision_providers()
+        prov = self._try_get_provider(want)
+        if prov:
+            return [prov]
+        logger.warning("[sdjk] 配置的 vision_provider_id_line「%s」取不到，窄读路回落主渠道", want)
+        return self._vision_providers()
+
     def _vision_providers(self) -> list:
         """按优先级返回可用 vision provider 列表（逐个尝试用）。
 
@@ -139,20 +173,10 @@ class VisionCommands:
         识卡全挂、日志里却一条渠道记录都没有，就是栽在这。
         """
         out: list = []
-
-        def _try_get(pid: str):
-            try:
-                return self.context.get_provider_by_id(pid)
-            except Exception as exc:  # noqa: BLE001
-                logger.warning("[sdjk] 取渠道 %s 失败：%s", pid, exc)
-                return None
+        _try_get = self._try_get_provider
 
         # ① 面板里显式指定的（可指向任意多模态模型）
-        want = ""
-        try:
-            want = str(self.cfg.get("vision_provider_id") or "").strip()
-        except Exception:  # noqa: BLE001
-            want = ""
+        want = self._cfg_str("vision_provider_id")
         if want:
             prov = _try_get(want)
             if prov:
@@ -435,6 +459,16 @@ class VisionCommands:
             logger.warning("[sdjk] 紫卡识别：没有可用视觉渠道（配置/渠道状态见上一条）")
         if provs:
             logger.info("[sdjk] 紫卡识别渠道（不竞速）：%s", _prov_id(provs[0]))
+        # ★ 2026-10-15：窄读路可用**独立渠道**（`vision_provider_id_line`）。
+        #   两路对模型的要求不同 —— 窄读是「逐行念出来」的指令跟随任务，OCR 专用模型
+        #   在此退回带坐标的原生输出 ⇒ 整卡判不合法（三路基准 20 图：qwen-vl-ocr 窄读
+        #   15/20、5 张被坐标打穿；同批卡不发提示词时 19/20）。未配置时与主渠道同源。
+        # 未配置独立渠道时直接复用主渠道结果（别再枚举一遍、重复打「取不到」告警）
+        line_provs = (
+            self._line_vision_providers()[:1] if self._cfg_str("vision_provider_id_line") else provs
+        )
+        if line_provs and (not provs or line_provs[0] is not provs[0]):
+            logger.info("[sdjk] 紫卡窄读渠道（独立配置）：%s", _prov_id(line_provs[0]))
         try:
             # 并行竞速（原来串行试渠道，实测要 13 s）；窗口 60s（2026-09-23 补：
             # 渠道级超时可达 240s，不能让用户干等）
@@ -445,7 +479,7 @@ class VisionCommands:
                 self._vision_race_json(
                     self._RIVEN_LINE_PROMPT,
                     image_url,
-                    provs,
+                    line_provs,
                     k=2,
                     tag="紫卡行读",
                     window=self.RACE_WINDOW_S,
@@ -642,6 +676,50 @@ class VisionCommands:
         mag, neg = RA.faction_mult_to_mag(k)
         return -mag if neg else mag
 
+    # ★ 2026-10-14：视觉模型对 positive/negative 的**元素形状**会漂移，键名也不固定。
+    #   实测四种形态（同一张卡两次跑就换一种）：
+    #     [["名", 值], ...]（正常）/ ["名", 值]（整条扁平）/ [{"name":..,"value":..}]
+    #     / [{"词条缩写":..,"数值":..}]。
+    _STAT_NAME_KEYS = ("name", "词条缩写", "词条", "词条名", "stat")
+    _STAT_VAL_KEYS = ("value", "数值", "val", "值")
+
+    @classmethod
+    def _iter_stat_pairs(cls, raw) -> list:
+        """模型输出的 positive/negative → [(词条名, 数值)]，兼容形状漂移。
+
+        ★ 2026-10-14 线上事故（`紫卡分析` + 截图连续报「内部错误」）：
+        旧实现 `to_stat(*item)` 假定每条都是二元序列 ——
+          · 整条是**扁平** `["变焦", "60.8"]` 时，迭代拿到裸字符串，`*item` 把它
+            **按字符拆成位置参数**（"60.8"→4 个）⇒ TypeError ⇒ 整条指令崩掉；
+          · 元素是**字典**时，`*item` 解包的是**键**（"name"/"value"）⇒ to_stat 恒
+            返回 None ⇒ 词条**静默全丢**（日志实证：语义表 0 正 0 负）。
+        这里统一归一成二元对；认不出的条目**跳过**，绝不 `*item` 解包。
+        """
+        if not raw:
+            return []
+        if isinstance(raw, dict):
+            raw = [raw]
+        if not isinstance(raw, (list, tuple)):
+            return []
+        # 扁平形态：整条就是 ["名", 值, "名", 值, ...]（元素全是裸字符串/数字）
+        if all(not isinstance(x, (list, tuple, dict)) for x in raw):
+            return [(raw[i], raw[i + 1]) for i in range(0, len(raw) - 1, 2)]
+        out: list = []
+        for item in raw:
+            if isinstance(item, dict):
+                name = next(
+                    (item[k] for k in cls._STAT_NAME_KEYS if item.get(k) not in (None, "")), None
+                )
+                val = next(
+                    (item[k] for k in cls._STAT_VAL_KEYS if item.get(k) not in (None, "")), None
+                )
+                if name is not None and val is not None:
+                    out.append((name, val))
+            elif isinstance(item, (list, tuple)) and len(item) == 2:
+                out.append((item[0], item[1]))
+            # 其余形状（裸字符串 / 长度≠2 的序列）：跳过
+        return out
+
     @staticmethod
     def _normalize_llm_stats(data: dict, rev: dict) -> tuple[list, list]:
         """LLM 提取结果 → ([(stat_id, float)...], [...])；词条名宽松匹配。"""
@@ -686,12 +764,12 @@ class VisionCommands:
                 neg_flag = (bucket == "neg") or (num < 0)
             (neg if neg_flag else pos).append((sid, abs(num)))
 
-        for item in data.get("positive") or []:
-            r = to_stat(*item)
+        for _name, _val in VisionCommands._iter_stat_pairs(data.get("positive")):
+            r = to_stat(_name, _val)
             if r:
                 _route(r, "pos")
-        for item in data.get("negative") or []:
-            r = to_stat(*item)
+        for _name, _val in VisionCommands._iter_stat_pairs(data.get("negative")):
+            r = to_stat(_name, _val)
             if r:
                 _route(r, "neg")
         return pos, neg

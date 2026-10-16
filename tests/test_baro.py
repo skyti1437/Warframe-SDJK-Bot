@@ -106,6 +106,24 @@ check(
     baro.type_cn("Primed Mod (Rifle)"),
 )
 
+# ★ 2026-10-16（第十五批 B3）：历史库里出现的每种类型都要有中文名（缺则卡面露英文）；空战武器归武器组
+import json as _json  # noqa: E402
+
+_hist_types = {
+    v.get("t")
+    for v in _json.loads(
+        (ROOT / "core" / "data" / "baro_history.json").read_text(encoding="utf-8")
+    )["items"].values()
+    if v.get("t")
+}
+_unmapped = sorted(t for t in _hist_types if t not in baro.TYPE_CN)
+check("历史库全部类型都有中文名（wiki 新增类型时这里会报）", not _unmapped, str(_unmapped))
+check(
+    "Weapon (Archwing) → 空战武器、归武器组",
+    baro.type_cn("Weapon (Archwing)") == "空战武器"
+    and baro.group_of("Weapon (Archwing)") == "武器",
+)
+
 print("\n=== 四、卡片排版与颜色 ===")
 title, lines = fmt.fmt_baro_predict(
     rows, "2026-09-25", len(vs), baro.last_visit() or "", names_zh=zh

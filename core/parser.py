@@ -25,6 +25,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from typing import Iterable, Optional
 
 # ---------------------------------------------------------------------------
@@ -69,7 +70,7 @@ COMMAND_ALIASES: dict[str, set[str]] = {
     # 「声望」：社区黑话 —— 团体声望只能靠刷该地区赏金攒，查声望=查赏金
     #   （2026-10-02 维护者要求；裸「声望」= 赏金一览，「金星声望」等见下方预设表）
     "bounty": {"赏金", "声望"},
-    "fissures": {"裂隙"},
+    "fissures": {"裂隙", "裂缝"},  # 裂缝：玩家常用写法（2026-10-16 用户口径，原属开核桃）
     "sortie": {"突击"},
     "archon": {"执刑官", "执刑官猎杀", "大猎杀"},
     "voidtrader": {"奸商", "虚空商人", "巴罗"},
@@ -116,7 +117,7 @@ COMMAND_ALIASES: dict[str, set[str]] = {
     "rank": {"排行", "市场排行"},
     "analysis": {"紫卡分析"},
     "trend": {"趋势", "wm趋势", "价格趋势", "紫卡趋势"},
-    "openrelic": {"开核桃", "裂缝"},
+    "openrelic": {"开核桃", "开裂缝"},
     "xh": {"xh", "玄骸"},
     "relic": {"遗物", "核桃"},
     "parts": {"部件", "零件", "组件"},
@@ -131,6 +132,9 @@ _PRESET_COMMANDS: dict[str, tuple[str, str]] = {
     "钢铁裂隙": ("fissures", "钢铁"),
     "虚空裂隙": ("fissures", "普通"),
     "九重天裂隙": ("fissures", "九重天"),
+    "钢铁裂缝": ("fissures", "钢铁"),
+    "虚空裂缝": ("fissures", "普通"),
+    "九重天裂缝": ("fissures", "九重天"),
     # 赏金/声望的地区预设由下方 _BOUNTY_REGIONS 统一生成
     # （裸地区词 / 「X赏金」/「X声望」三式等价，见 ALIAS_TO_COMMAND 构建处）
     "金垃圾": ("ducats", "金"),
@@ -328,7 +332,7 @@ RIVEN_STAT_ALIASES: dict[str, set[str]] = {
     #   ⚠ 中文名按既有卡面写法推导（「弹药效率」为官方语言表实证），**待一张实卡复核**。
     # ★ 2026-10-10：RIVEN_STAT_ZH 的卡面短名（O伤/S伤/T伤/弱点伤/处决伤）必须也是别名 ——
     #   wr 卡上显示什么，玩家就照抄什么；漏了会被并进武器名（「wr 空刃 弱点伤」→ 武器
-    #   「空刃 弱点伤」）。守卫见 tests/test_riven_stat_i18n.py ⑫。
+    #   「空刃 弱点伤」）。守卫见 tests/test_riven_stat_i18n.py 第 12 段。
     "gas_damage": ["毒气伤害", "毒气", "Gas Damage"],
     "corrosive_damage": ["腐蚀伤害", "腐蚀", "Corrosive Damage"],
     "viral_damage": ["病毒伤害", "病毒", "Viral Damage"],
@@ -1119,6 +1123,11 @@ _CN_TO_MISSION.update(
         "虚空级联": "void cascade",
         "追猎": "pursuit",
         "突袭": "assault",
+        # 九重天风暴任务类型（与 formatters._RAILJACK_TYPE_CN 卡面译名一致；
+        # 「蹲 裂隙 九重天前哨战」靠它命中 skirmish）
+        "前哨战": "skirmish",
+        "爆发": "volatile",
+        "奥影母艇": "orphix",
     }
 )
 
@@ -1161,10 +1170,9 @@ TIER_T_ALIAS: dict[str, str] = {
 # ---------------------------------------------------------------------------
 # ★ 裂隙筛选的「纯修饰词」（2026-09-26）
 #   这类词**单独出现时不构成条件**，本意是与任务/纪元词**合成一个词元**
-#   （「钢铁防御」= 钢铁之路的防御裂隙）。逗号/空格把它们拆开后会变成
-#   「并列条件取或」（「钢铁,防御」= 钢铁 或 普通防御），语义被放大。
-#   ⚠️ **解析与提示共用这一处** —— `dun_rule_hint()` 靠它判断要不要提示，
-#      别再各写一份清单（「同源两处」是这个项目反复踩的坑）。
+#   （「钢铁防御」= 钢铁之路的防御裂隙）。★ 2026-10-16 维护者定：「蹲」与「裂隙」查询统一为
+#   **空格 = 且、逗号 = 或**（此前蹲把空格转成逗号 = 或，9-26 只加了提示，10-16 再次踩坑后改语义）。
+#   ⚠️ 别再各写一份清单（「同源两处」是这个项目反复踩的坑）。
 # ---------------------------------------------------------------------------
 FISSURE_HARD_WORDS = ("钢铁", "钢路")
 FISSURE_STORM_WORDS = ("九重天", "empyrean")
@@ -1172,8 +1180,7 @@ FISSURE_NORMAL_WORD = "普通"
 FISSURE_VOID_WORD = "虚空"
 # ★ 2026-10-03：档位词表扩为 古纪/前纪/中纪/后纪 + 安魂 + 全能 + T1–T6。
 #   此前安魂/全能不在表里 ⇒ 退化成节点子串、永不命中（实测坑 2）；T1..T6
-#   同理（坑 1）。FISSURE_MODIFIER_WORDS 是它的派生（dun_rule_hint 自动
-#   跟着走）——**同源一处，别各写一份**。小写 t1..t6 供 p.lower() 匹配。
+#   同理（坑 1）。FISSURE_MODIFIER_WORDS 是它的派生 ——**同源一处，别各写一份**。小写 t1..t6 供 p.lower() 匹配。
 FISSURE_TIER_WORDS = (
     "古纪",
     "前纪",
@@ -1286,14 +1293,31 @@ class FissureFilter:
             if g.get("substr"):
                 seg.append(g["substr"])
             parts.append("".join(seg) or "全部")
-        return "，".join(parts)
+        # ★ 2026-10-16：分组之间是「或」（逗号分组 = 任一命中）。旧写法用「，」连接，读起来像「且」，
+        #   用户看不出自己建的是或订阅（「钢铁,古纪」显示成「钢铁，古纪（T1）」）。
+        return " 或 ".join(parts)
+
+
+# ★ 2026-10-16：筛选串里的「裂隙 / 裂缝」本身是事件名，不是节点名。旧实现把剔除档位词后的
+#   残余当节点子串 ⇒「蹲 钢铁裂隙古纪」残余「裂隙」要求节点名含「裂隙」⇒ 永不命中（静默死订阅，
+#   ZCode 实测）。连写词先归一成档位词（与 _PRESET_COMMANDS 同口径：虚空裂隙 = 普通），
+#   单独的「裂隙 / 裂缝」直接去掉。节点名里带「裂缝」的（如「热美亚裂缝」）剩余部分仍能子串命中。
+_FISSURE_WORD_MAP = {
+    "钢铁裂隙": "钢铁",
+    "钢铁裂缝": "钢铁",
+    "虚空裂隙": "普通",
+    "虚空裂缝": "普通",
+    "九重天裂隙": "九重天",
+    "九重天裂缝": "九重天",
+}
+_FISSURE_WORD_RE = re.compile("|".join([*_FISSURE_WORD_MAP, "裂隙", "裂缝"]))
 
 
 def parse_fissure_filter(text: str) -> FissureFilter:
     """解析 `普通捕获,钢铁虚空生存,九重天拦截` 这类筛选串。"""
     flt = FissureFilter()
     for blob in re.split(r"[,，;；]", text.strip()):
-        blob = blob.strip()
+        blob = _FISSURE_WORD_RE.sub(lambda m: _FISSURE_WORD_MAP.get(m.group(0), ""), blob).strip()
         if not blob:
             continue
         g: dict = {}
@@ -1358,7 +1382,7 @@ def parse_fissure_filter(text: str) -> FissureFilter:
 # 裂隙筛选 0 结果时给出的可用筛选词（「裂隙」查询卡用；与 parse_fissure_filter 的词表一致）
 FISSURE_FILTER_HELP = (
     "※ 可用筛选词：钢铁 / 九重天 / 普通 / 虚空 ｜ 纪元 古纪…全能（T1–T6）｜"
-    " 任务类型（生存 / 防御 / 中断…）｜ 节点或星球名；多个条件用逗号分隔"
+    " 任务类型（生存 / 防御 / 中断…）｜ 节点或星球名；空格分开 = 同时满足，逗号分开 = 任一满足"
 )
 
 
@@ -1385,7 +1409,7 @@ def fissure_tier_hint(text_or_parts) -> str:
 
     合法：T1–T6（大小写与全角均可，与中文档位词等价）。以下一律**明确提示**
     （铁律 A：不静默）：T0 / T7 / T9、T05、t55、T5x、5T、孤立的 t。
-    与 :func:`dun_rule_hint` 同风格 —— **只提示、不改解析语义**。
+    **只提示、不改解析语义**。
     """
     if isinstance(text_or_parts, str):
         parts = [text_or_parts]
@@ -1406,32 +1430,6 @@ def fissure_tier_hint(text_or_parts) -> str:
     if not bad:
         return ""
     return f"※ 裂隙档位只支持 T1–T6（{_TIER_RANGE_TEXT}）"
-
-
-def dun_rule_hint(parts: list[str]) -> str:
-    """「蹲」筛选串的**空格陷阱**提示；无需提示时返回空串。
-
-    多词元 = 多个并列条件（`FissureFilter.match` 里 groups 之间是 `any()`/OR），
-    而「钢铁 / 九重天 / 普通 / 虚空 / 古纪…」这类**纯修饰词**本意是与任务词
-    合成**一个**条件（见 :data:`FISSURE_MODIFIER_WORDS`）。拆开写会把语义放大：
-    「钢铁 防御」落库成 `钢铁,防御` = 钢铁 **或** 防御（后者不限难度）。
-
-    只在「≥2 个词元且至少一个是纯修饰词」时提示 —— 纯任务词并列
-    （「捕获 生存」= 两种任务取或）是正常写法，不提示。
-    **只提示、不改语义**：订阅仍按用户原样落库。
-    """
-    parts = [p for p in parts if p and p.strip()]
-    if len(parts) < 2:
-        return ""
-    if not any(any(w in p.lower() for w in FISSURE_MODIFIER_WORDS) for p in parts):
-        return ""
-    return (
-        "※ 提示：多词=多条件取或；要合并请连写「"
-        + "".join(parts)
-        + '」或加引号「"'
-        + " ".join(parts)
-        + '"」'
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -1479,56 +1477,115 @@ def parse_duration(text: str) -> Optional[int]:
     return None
 
 
+# 推送时间窗一律按**北京时间**（UTC+8）判定，与服务器时区无关（2026-10-11 立）。
+try:  # 优先 IANA 名；容器缺 tzdata 时退回固定 UTC+8（中国无夏令时，二者等价）
+    from zoneinfo import ZoneInfo as _ZoneInfo
+
+    BEIJING_TZ = _ZoneInfo("Asia/Shanghai")
+except Exception:  # noqa: BLE001 - 无 tzdata
+    BEIJING_TZ = timezone(timedelta(hours=8))
+
+
+def beijing_now() -> datetime:
+    """当前北京时间（带 tzinfo）。"""
+    return datetime.now(BEIJING_TZ)
+
+
 @dataclass
 class TimeWindow:
-    """免打扰/允许推送时间窗。空对象表示全天允许。"""
+    """允许推送的时间窗（北京时间）。空对象表示全天允许。
 
-    start: Optional[int] = None  # 小时 0-23
-    end: Optional[int] = None  # 小时 0-23
-    days: Optional[set[int]] = None  # 星期集合（1=周一 ... 7=周日）
-    at_hour: Optional[int] = None  # 每天 HH 点推送
+    口径（2026-10-11 维护者定）：
+    · ``start``~``end`` 为小时，**结束小时是开区间**：「22到8」= 22:00 到次日 8:00（8 点整结束）；
+      「8到22」= 8:00–21:59；「0到24」= 全天（解析时直接归一成空窗）；
+      ``start == end``（如「周1 23点」存成 23/23）= 只那一个整点小时。
+    · ``days`` 的星期按**窗口起始那天**算：「周五 22到8」含周六凌晨 0–8 点。
+    · ``at_hour``（每天 HH 点）= 该整点小时内（HH:00–HH:59）。
+    """
+
+    start: Optional[int] = None  # 起始小时 0-23
+    end: Optional[int] = None  # 结束小时 0-24（开区间）
+    days: Optional[set[int]] = None  # 星期集合（1=周一 ... 7=周日），按窗口起始日
+    at_hour: Optional[int] = None  # 每天 HH 点（整个小时）
 
     @property
     def is_always(self) -> bool:
         return self.start is None and self.days is None and self.at_hour is None
 
     def allows(self, now) -> bool:
-        """now: datetime（本地时区）。"""
-        if self.days is not None and now.isoweekday() not in self.days:
-            return False
-        if self.at_hour is not None:
-            return now.hour == self.at_hour and now.minute < 30
-        if self.start is None:
-            return True
+        """now: datetime（北京时间；调用方负责换算）。"""
         h = now.hour
-        if self.start <= self.end:
-            return self.start <= h <= self.end
-        return h >= self.start or h <= self.end  # 跨零点，如 22到8
+        wd = now.isoweekday()
+        if self.at_hour is not None:
+            return h == self.at_hour and (self.days is None or wd in self.days)
+        if self.start is None:
+            return self.days is None or wd in self.days
+        end = self.end if self.end is not None else self.start
+        if end == self.start:  # 单个整点小时
+            return h == self.start and (self.days is None or wd in self.days)
+        if self.start < end:  # 不跨午夜
+            ok = self.start <= h < end
+            start_wd = wd
+        else:  # 跨午夜，如 22到8
+            ok = h >= self.start or h < end
+            # 凌晨段属于「前一天开始」的窗口
+            start_wd = wd if h >= self.start else (wd - 2) % 7 + 1
+        return ok and (self.days is None or start_wd in self.days)
 
     def describe(self) -> str:
         bits = []
         if self.start is not None:
-            bits.append(f"{self.start}:00-{self.end}:00")
+            end = self.end if self.end is not None else self.start
+            if end == self.start:
+                bits.append(f"{self.start}:00-{self.start + 1}:00")
+            elif end < self.start:
+                bits.append(f"{self.start}:00-次日{end}:00")
+            else:
+                bits.append(f"{self.start}:00-{end}:00")
         if self.days:
             bits.append("周" + "/".join(map(str, sorted(self.days))))
         if self.at_hour is not None:
-            bits.append(f"每天{self.at_hour}点")
+            bits.append(f"每天{self.at_hour}点（{self.at_hour}:00-{self.at_hour}:59）")
         return " ".join(bits) or "全天"
 
 
 def parse_time_window(text: str) -> Optional[TimeWindow]:
-    """解析 `0到24`、`22到8`、`每天19点`、`周1/3/5 23点`。"""
+    """解析 `0到24`、`22到8`、`每天19点`、`周1/3/5 23点`、`周5 22到8`（北京时间）。"""
     t = text.strip().replace("：", ":")
     if not t:
         return None
     m = re.fullmatch(r"周([1-7](?:[/，][1-7])*)\s*(\d{1,2})点?", t)
     if m:
         days = {int(x) for x in re.split(r"[/，]", m.group(1))}
-        return TimeWindow(days=days, start=int(m.group(2)), end=int(m.group(2)))
+        hh = int(m.group(2))
+        if hh > 23:
+            return None
+        return TimeWindow(days=days, start=hh, end=hh)
+    m = re.fullmatch(r"周([1-7](?:[/，][1-7])*)\s*(\d{1,2})到(\d{1,2})(?:点)?", t)
+    if m:
+        days = {int(x) for x in re.split(r"[/，]", m.group(1))}
+        w = _range_window(int(m.group(2)), int(m.group(3)))
+        if w is None:
+            return None
+        if w.is_always:  # 「周5 0到24」= 周五全天
+            return TimeWindow(days=days, start=0, end=24)
+        w.days = days
+        return w
     m = re.fullmatch(r"每天\s*(\d{1,2})点?", t)
     if m:
-        return TimeWindow(at_hour=int(m.group(1)))
+        hh = int(m.group(1))
+        return TimeWindow(at_hour=hh) if hh <= 23 else None
     m = re.fullmatch(r"(\d{1,2})到(\d{1,2})(?:点)?", t)
     if m:
-        return TimeWindow(start=int(m.group(1)) % 24, end=int(m.group(2)) % 24)
+        return _range_window(int(m.group(1)), int(m.group(2)))
     return None
+
+
+def _range_window(a: int, b: int) -> Optional[TimeWindow]:
+    """「a到b」→ 窗口；0到24 / 24到0 归一成全天（空窗）；越界返回 None。"""
+    if a > 24 or b > 24:
+        return None
+    a = a % 24  # 24 点即次日 0 点
+    if a == 0 and b in (0, 24):
+        return TimeWindow()  # 0到24 = 全天（0到0 视同：旧版把 0到24 存成 0/0，口径统一）
+    return TimeWindow(start=a, end=b)

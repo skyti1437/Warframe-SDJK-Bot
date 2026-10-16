@@ -111,7 +111,7 @@ def _install_astrbot_stub() -> None:
 _install_astrbot_stub()
 
 import main as plugin  # noqa: E402
-from core.store import GroupStore  # noqa: E402
+from core.store import GroupStore, Subscription  # noqa: E402
 
 FAILED: list[str] = []
 
@@ -243,6 +243,56 @@ async def main() -> None:
     )
     reply = await obj2._h_status_cmd(None, _AdminEvent(), "pc")
     check("管理员「状态」正常返回卡片", reply is not None and reply.raw_text is None, repr(reply))
+
+    # 7) 2026-10-11：.关闭 推送 = 该群已有订阅暂停（订阅保留）；重新开启后恢复
+    obj3 = _make_plugin(tmp)
+    obj3.subs = plugin.SubscriptionStore(tmp / "subs_pause.json")
+    for ev in ("夜灵", "裂隙"):
+        await obj3.subs.add(Subscription(umo="group://admin_test", platform="pc", event=ev))
+    await obj3.subs.add(Subscription(umo="group://other", platform="pc", event="夜灵"))
+    await obj3.groups.set_switch("group://admin_test", "push", True)
+    reply = await obj3._handle_admin(_AdminEvent(), ".关闭 推送")
+    txt = reply.raw_text if reply else ""
+    check(
+        "★ .关闭 推送 回复写明「已有 2 条订阅暂停」（只数本群）",
+        "已有 2 条订阅暂停" in txt and "恢复" in txt,
+        repr(txt),
+    )
+    check(
+        "★ .关闭 推送 只改开关：订阅全部保留，群开关为关",
+        len(obj3.subs.all()) == 3 and obj3.groups.get("group://admin_test")["push"] is False,
+    )
+    reply = await obj3._handle_admin(_AdminEvent(), ".开启 推送")
+    txt = reply.raw_text if reply else ""
+    check(
+        "★ .开启 推送 回复写明已有 2 条订阅恢复",
+        "已有 2 条订阅恢复推送" in txt and obj3.groups.get("group://admin_test")["push"] is True,
+        repr(txt),
+    )
+    obj7 = _make_plugin(tmp)
+    obj7.subs = plugin.SubscriptionStore(tmp / "subs_empty.json")
+    reply = await obj7._handle_admin(_AdminEvent(), ".关闭 推送")
+    check(
+        "护栏：没有订阅时关闭回复不带「暂停」字样",
+        reply is not None and "暂停" not in (reply.raw_text or "") and "已关闭" in reply.raw_text,
+        repr(reply.raw_text if reply else None),
+    )
+    reply = await obj7._handle_admin(_AdminEvent(), ".关闭 聊天")
+    check(
+        "护栏：.关闭 聊天 不带订阅暂停说明",
+        reply is not None and "暂停" not in (reply.raw_text or ""),
+        repr(reply.raw_text if reply else None),
+    )
+    import inspect as _inspect
+
+    _init_src = _inspect.getsource(plugin.WarframeSDJK.__init__)
+    check(
+        "接线：PushDaemon 构造注入 groups 与基线落盘路径；initialize 挂 done-callback",
+        "groups=self.groups" in _init_src
+        and "push_baseline.json" in _init_src
+        and 'self._log_task_death("push_daemon")'
+        in _inspect.getsource(plugin.WarframeSDJK.initialize),
+    )
 
 
 if __name__ == "__main__":

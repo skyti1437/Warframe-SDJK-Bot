@@ -379,9 +379,18 @@ check(
     parse_fissure_filter("T5歼灭").describe(),
 )
 check(
-    "⑦ 不含档位的规则输出保持原样（既有断言口径不变）",
+    "⑦ 不含档位的规则输出：组内连写、组间写「或」（2026-10-16：旧「，」读着像「且」）",
     parse_fissure_filter("钢铁防御").describe() == "钢铁防御"
-    and parse_fissure_filter("钢铁,防御").describe() == "钢铁，防御",
+    and parse_fissure_filter("钢铁,防御").describe() == "钢铁 或 防御",
+    parse_fissure_filter("钢铁,防御").describe(),
+)
+check(
+    "⑦c 筛选串里的「裂隙 / 裂缝」不当节点名（连写不再变成永不命中的死订阅）",
+    parse_fissure_filter("钢铁裂隙古纪").groups == [{"tiers": {"Lith"}, "hard": True}]
+    and parse_fissure_filter("九重天裂缝").groups == [{"storm": True}]
+    and parse_fissure_filter("虚空裂隙生存").describe() == "普通生存"
+    and parse_fissure_filter("热美亚裂缝").groups == [{"substr": "热美亚"}],
+    str(parse_fissure_filter("钢铁裂隙古纪").groups),
 )
 check(
     "⑦b 注脚与条件一致：未写难度不写「普通」，显式「普通」才写",

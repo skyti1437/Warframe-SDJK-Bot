@@ -286,6 +286,12 @@ BG_TOP = (12, 15, 22)  # 底色竖向渐变：顶 → 底
 BG_BOT = (9, 11, 17)
 GOLD = (212, 176, 106)
 GOLD_BRIGHT = (240, 215, 154)
+# ★ 2026-10-16 遗物部件按**杜卡德价值**金 / 银 / 铜三色（维护者要求，参考 warframe.market 重生页）：
+#   100 = 金、45 / 65 = 银、15 / 25 = 铜。⚠ 按部件自身价值，不按遗物槽位稀有度 ——
+#   100 金币的部件也会出现在罕见 / 常见槽位（维护者 10-16 指出）。
+RARITY_GOLD = GOLD_BRIGHT
+RARITY_SILVER = (178, 202, 236)  # 冷蓝银：须与正文暖白（INK）和次列暗灰（INK_DIM）都拉开
+RARITY_BRONZE = (214, 146, 92)
 GOLD_DIM = (122, 100, 62)
 GOLD_FAINT = (96, 82, 54)
 INK = (236, 232, 222)  # 主文字：暖白
@@ -457,7 +463,15 @@ _BOUNTY_PLAIN_FACTION = frozenset({"Grineer", "Corpus"})
 # ⚠️ 文本模式由 text_card 剥掉；⟦tents⟧/⟦pol:…⟧ 是别的机制，不匹配本模式。
 # ---------------------------------------------------------------------------
 _SEG_MARK_RE = re.compile(r"(⟦/?[a-z]⟧)")
-_SPAN_COLORS = {"c": BLUE, "v": VIOLET, "w": INK}
+# g / s / b = 部件杜卡德价值金 / 银 / 铜（formatters.ducat_span 生成，2026-10-16）
+_SPAN_COLORS = {
+    "c": BLUE,
+    "v": VIOLET,
+    "w": INK,
+    "g": RARITY_GOLD,
+    "s": RARITY_SILVER,
+    "b": RARITY_BRONZE,
+}
 
 
 def _parse_color_segs(t: str) -> tuple[str, list[tuple[str, tuple[int, int, int]]]]:
@@ -834,6 +848,10 @@ _TOKEN_RULES: tuple[tuple["re.Pattern[str]", tuple[int, int, int]], ...] = (
     # 奸商预测卡：序号用暗金（弱化）、杜卡德报价金色（价格类统一高亮）
     (re.compile(r"^\d+\.$"), INK_FAINT),
     (re.compile(r"^\d+\s*杜卡德$"), GOLD_BRIGHT),
+    # 部件杜卡德价值按金 / 银 / 铜分档（100 / 45·65 / 15·25）；其余数值（奸商报价等）保持金色
+    (re.compile(r"^100杜$"), RARITY_GOLD),
+    (re.compile(r"^(?:45|65)杜$"), RARITY_SILVER),
+    (re.compile(r"^(?:15|25)杜$"), RARITY_BRONZE),
     (re.compile(r"^\d+杜$"), GOLD_BRIGHT),
     (re.compile(r"^\d+(?:\.\d+)?万?现金$"), CYAN),
 )
@@ -1454,7 +1472,7 @@ class ImageRenderer:
                 #    （例如遗物卡的「※ 共 734 个：古纪 188　前纪 179　…」），
                 #    混进来会把前几列的列宽算成注释片的宽度 → 表格总宽虚高
                 #    → 触发下面的安全阀整体放弃列对齐（遗物列表曾因此不对齐）。
-                for ci, cell in enumerate(clean.split("　")):
+                for ci, cell in enumerate(_SEG_MARK_RE.sub("", clean).split("　")):
                     if ci == 0 and cell.lstrip().startswith("·"):
                         cell = cell.lstrip()[1:].strip()  # 与 _split_cells 一致
                     if ci >= len(col_max):
@@ -1967,7 +1985,14 @@ class ImageRenderer:
                     continue
                 _n = max(len(c) for c in _cl)
                 _ws = [
-                    max((_tlen(d, body_font, c[i]) for c in _cl if len(c) > i), default=0)
+                    max(
+                        (
+                            _tlen(d, body_font, _SEG_MARK_RE.sub("", c[i]))
+                            for c in _cl
+                            if len(c) > i
+                        ),
+                        default=0,
+                    )
                     for i in range(_n)
                 ]
                 _pos, _acc = [], 0.0
@@ -2608,6 +2633,23 @@ class ImageRenderer:
         文本含 ``⟦pol:<key>⟧`` 标记时，就地画小图标再继续画后面的文本；
         无标记时与原实现完全一致（零行为变化）。返回绘制结束的 x。
         """
+        # ★ 2026-10-16：颜色染段标记（⟦g⟧…⟦/g⟧ 等，见 _SPAN_COLORS）在任何绘制路径都生效 ——
+        #   此前只有 kv 行与普通条目行先过 _parse_color_segs，表格单元格直接进来会把标记原样画出（方块）。
+        if text and "⟦" in text and _SEG_MARK_RE.search(text):
+            color = None
+            for part in _SEG_MARK_RE.split(text):
+                if not part:
+                    continue
+                mm = re.fullmatch(r"⟦(/?)([a-z])⟧", part)
+                if mm:
+                    color = None if mm.group(1) else _SPAN_COLORS.get(mm.group(2))
+                    continue
+                if color is None:
+                    x = self._draw_tokens(d, part, x, y, font, base_color, max_w)
+                else:
+                    d.text((x, y), part, font=font, fill=color)
+                    x += _tlen(d, font, part)
+            return x
         if text and "⟦pol:" in text:
             for i, part in enumerate(_POL_MARK_RE.split(text)):
                 if i % 2 == 0:

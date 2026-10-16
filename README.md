@@ -1,4 +1,4 @@
-# AstrBot 插件 · Warframe SDJKBOT v1.1.9（`astrbot_plugin_warframe_sdjkbot`）
+# AstrBot 插件 · Warframe SDJKBOT v1.2.0（`astrbot_plugin_warframe_sdjkbot`）
 
 > **📢 插件 ID 迁移公告（2026-09-28）**
 > 本插件 ID 由 `astrbot_plugin_warframe` 变更为 **`astrbot_plugin_warframe_sdjkbot`**，旧 ID 不再维护。
@@ -109,7 +109,6 @@
 | `flaresolverr_enabled` | 是否启用 CF 绕过代理（见下） |
 | `flaresolverr_urls` | FlareSolverr 地址，多个用逗号或换行分隔，**自己填** |
 | `vision_provider_id` | 截图识别用的多模态模型 id（见「AI 相关说明」） |
-| `kb_enabled` / `kb_id` | 知识库引导（见下） |
 | `proxy` / `http_timeout` / `push_interval` | 网络与推送参数 |
 
 ### FlareSolverr（可选）
@@ -131,9 +130,9 @@ docker run -d --name flaresolverr -p 8191:8191 flaresolverr/flaresolverr
 
 ### 知识库（可选）
 
-插件**不直连**知识库：检索由 AstrBot 平台的 RAG 提供。这里只是把 `kb/` 目录下的
-文档（机制术语 / 新手入门 / 玄骸刷取）交给你，自行上传到 AstrBot 知识库后，
-「推荐类」问题的回答质量会明显更好。`kb_enabled=false` 可以关掉相关提示。
+插件**不直连**知识库，也不提供相关开关：检索完全交给 AstrBot 平台侧的 RAG
+（在面板「知识库」里自行上传文档、按需挂载即可）。插件侧只做本地词库与 wiki
+直达链接，查不到时给一个可点击的维基搜索链接。
 
 ## 四、AI 相关说明
 
@@ -163,8 +162,25 @@ docker run -d --name flaresolverr -p 8191:8191 flaresolverr/flaresolverr
 - 因此代码里保留了大量「为什么这么写」的注释和防回归测试 —— 那正是
   为了弥补 AI 改动容易引入静默回归的问题。
 
-如果你要接手维护，建议：**改任何公式/版式前先跑 `tests/`**（共 40 个测试文件），
-尤其是 `tests/audit_damage_calc.py`（伤害引擎不变量审计）。
+如果你要接手维护，**改任何公式 / 版式前先跑统一检查入口**（本地与 CI 同一条命令）：
+
+```bash
+pip install -r requirements.txt -r scripts/requirements-dev.txt  # 运行依赖 + 检查依赖（ruff、fonttools、PyYAML）
+python scripts/run_checks.py          # regression（默认）：ruff + 全部 tests/test_*.py + 伤害审计
+python scripts/run_checks.py health   # 随包时效数据（效价快照 / 言录使货单）是否过期；只读、不联网
+python scripts/run_checks.py all      # 两类都跑、分开汇总，任一失败即非零
+```
+
+- **regression 与 health 分开看**：regression 红 = 代码回归；health 红 = 随包时效数据过期
+  （需要刷新数据），不代表算法出错。CI（`.github/workflows/ci.yml`）在 push / PR 上只跑
+  regression（Python 3.10 与 3.12），health 在 Actions 页手动触发。
+- **测试数不写死**：入口按 `tests/test_*.py` 动态发现，每个脚本独立子进程运行；汇总列出
+  通过 / 失败 / 超时，以及脚本输出里的 `[SKIP]` 记录（只是记录，不折算成用例数）。
+- **缺能力时明示跳过、不静默**：本仓库不带完整字库 TTC ⇒ 子集字体覆盖改按「语料 ∩ GB2312」
+  判定、逐像素对拍跳过；变体倾向表 `core/data/de/wiki_disp.json` 是运行期刷新件、不随包 ⇒
+  家族解析用内置小表回归、快照数值抽查跳过；作者私有的发布 / 巡检脚本与构建缓存不随仓库
+  分发 ⇒ 对应段落跳过并打印原因。
+- Python 支持 **≥ 3.10**（CI 在 3.10 与 3.12 上跑）。
 
 版本历史见仓库根目录的 [`CHANGELOG.md`](CHANGELOG.md) —— 它也是插件面板与
 插件市场「更新日志」页面的数据源，**发版时记得补一条**。
@@ -213,19 +229,21 @@ docker run -d --name flaresolverr -p 8191:8191 flaresolverr/flaresolverr
 - 识卡功能会把**你发的截图**交给你自己配置的多模态模型渠道处理 —— 也就是说
   图片会离开你的服务器、进入你选择的模型服务商。介意的话请不要使用该功能，
   或改用一个本地/自建的视觉模型。
-- 开源版本已移除自用版里依赖外部「好感度」插件的功能（它会读取用户维度的
-  关系数据），并清理了相关数据。
+- 本插件**不读取、也不依赖**任何外部插件里的用户维度数据（例如某些人格插件用的
+  「好感度 / 情绪」关系数据）—— 这类联动已于 2026-10-16 从源码中彻底移除，
+  相关代码与配置项均已清理。
 
 ## 七、开源版与自用版的差异
 
 | 项目 | 开源版 | 自用版 |
 | --- | --- | --- |
-| 好感度 → 人格温度联动（读取外部好感度插件的数据） | **移除** | 保留 |
 | 品牌标识 | 通用插件名（Warframe SDJKBOT） | 原氏族品牌 |
 | 内部文档、运维脚本、第三方插件打包脚本 | 不带 | 保留 |
 
-技术上是**同一份源码**，开源包由 `dist/package_release.py --opensource` 构建时剥离，
+技术上是**同一份源码**：开源包由 `dist/package_release.py --opensource` 构建，
 自用包照旧打包，两边互不干扰。
+（历史上开源包还会在构建时剥离若干私有集成，这些集成现已从私有树一并移除，
+剥离清单**已清空**——机制保留以备后用。）
 
 ## 八、附带的脚本（`scripts/` 与根目录）
 

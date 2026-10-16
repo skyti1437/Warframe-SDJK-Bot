@@ -1296,6 +1296,66 @@ rw_ok = asyncio.run(_resolve_probe())
 print("§四 警报奖励中文名：反查表（三条玩偶）/ 路径归一 / 三级回落不造名 —— 断言通过")
 
 
+# ⑤ 2026-10-16 线上实例（ZCode 诊断）：《奔赴 Tau 星系》活动警报 countedItems ×50。
+#    修前：卡面「RoadToTauEventResource（未收录）」且数量丢失。
+#    官方名在 WFCD i18n 补充表（de/name_zh_wfcd.json，DE 官方导出尚无此条）。
+_TAU = "/Lotus/Types/Gameplay/Events/RoadToTauEvent/RoadToTauEventResource"
+assert dw.official_item_zh(_TAU) == "月华脯", dw.official_item_zh(_TAU)
+assert dw.official_item_zh("/Lotus/Types/Nope/Unknown") is None  # 查不到不造名、不回落英文
+_raw_tau = {
+    "Alerts": [
+        {
+            "_id": {"$oid": "tau1"},
+            "Expiry": {"$date": {"$numberLong": "4102444800000"}},
+            "MissionInfo": {
+                "location": "SolNode1",
+                "missionType": "MT_EXTERMINATION",
+                "faction": "FC_INFESTATION",
+                "minEnemyLevel": 50,
+                "maxEnemyLevel": 50,
+                "descText": "/Lotus/Language/TauPrologue/EventAlertTitle",
+                "missionReward": {
+                    "credits": 17000,
+                    "items": None,
+                    "countedItems": [
+                        {"ItemType": _TAU, "ItemCount": 50},
+                        {"ItemType": "/Lotus/Types/Nope/UnknownThing", "ItemCount": 3},
+                    ],
+                },
+            },
+        }
+    ]
+}
+_al_tau = dw._parse_alerts(_raw_tau)
+assert _al_tau[0]["mission"]["reward"]["counts"] == [50, 3], _al_tau[0]["mission"]["reward"]
+
+
+async def _tau_probe():
+    c = WarframeClient()
+
+    async def _wm():
+        return []
+
+    c.wm_items = _wm  # type: ignore[method-assign]
+    return await c._resolve_alert_items(_al_tau)
+
+
+_al_tau = asyncio.run(_tau_probe())
+_rw_tau = _al_tau[0]["mission"]["reward"]
+assert _rw_tau["item_names"] == ["月华脯 ×50"], _rw_tau
+_t_tau, _l_tau = fmt.fmt_alerts(_al_tau)
+assert any("月华脯 ×50" in ln and "17000现金" in ln for ln in _l_tau), _l_tau
+assert not any("RoadToTauEventResource" in ln for ln in _l_tau), _l_tau
+# 全部未收录时：末段 + （未收录）+ 数量（不造名字）
+_rw_u = asyncio.run(
+    WarframeClient()._resolve_alert_items(
+        [{"mission": {"reward": {"items": ["/Lotus/Types/Nope/X"], "counts": [7]}}}]
+    )
+)[0]["mission"]["reward"]
+assert _rw_u["item"] == "X（未收录） ×7" and _rw_u["item_names"] == [], _rw_u
+print("§四⑤ 警报 countedItems 数量保留 + WFCD i18n 补充表命中「月华脯 ×50」—— 断言通过")
+
+
 # ---------------------------------------------------------------------------
 # §B11（2026-10-11）世界状态解析审计修复：逐项回归（内嵌桩，不联网）
 # ---------------------------------------------------------------------------
@@ -1571,6 +1631,56 @@ _t, _vl = fmt.fmt_prime_vault_list(
     {"expiry": _in(hours=448, minutes=58), "timeLeft": "448h 56m", "items": []}
 )
 assert _vl[0] == "◆ 本期剩余：剩余 18天16小时", _vl[0]  # 改版：KV 答案行替代「⏳ 本期剩余」
+
+# ★ 2026-10-16（维护者要求）：「出库」列本期出库遗物 + 每个遗物的全部部件（稀有 → 罕见 → 常见）。
+#   名字取自 2026-10-16 实时 worldstate：新出库遗物简中词表常缺，回落英文「Lith B12 Relic」。
+from core import wiki_intro as _wi  # noqa: E402
+
+assert _wi.relic_rewards("Lith B12 Relic") == _wi.relic_rewards("古纪 B12 遗物") is not None
+assert _wi.relic_rewards("Lith B12 Relic")["稀有"] == ["苍鹰 Prime 枪托"]
+assert _wi.relic_rewards("Lith Z99 Relic") is None and _wi.relic_rewards("Foo B1") is None  # 不猜
+_vr_items = [
+    {"name": "Protea Prime", "kind": "frame"},
+    {"name": "Axi A23 Relic", "kind": "relic", "prime": 1, "prime_currency": False},
+    {"name": "Lith B12 Relic", "kind": "relic", "prime": 1, "prime_currency": False},
+    {"name": "Neo Q99 Relic", "kind": "relic", "prime": 1, "prime_currency": False},
+    {"name": "Ivara Prime 组合包", "kind": "pack"},
+]
+_t, _vr = fmt.fmt_prime_vault_list(
+    {"expiry": _in(days=3), "items": _vr_items},
+    relic_parts={
+        it["name"]: _wi.relic_rewards(it["name"]) for it in _vr_items if it["kind"] == "relic"
+    },
+)
+assert "◆ 出库遗物（3，瓦奇娅处用阿耶精华兑换）" in _vr, _vr
+_i_lith, _i_axi = _vr.index("◆ 古纪 B12　1 阿耶精华"), _vr.index("◆ 后纪 A23　1 阿耶精华")
+assert _i_lith < _i_axi, _vr  # 古纪在前、后纪在后
+assert _vr[_i_lith + 1] == "· 稀有　苍鹰 Prime 枪托", _vr[_i_lith + 1]
+assert _vr[_i_lith + 2].startswith("· 罕见　") and _vr[_i_lith + 3].startswith("· 常见　Forma 蓝图")
+assert "· 部件　遗物表未收录（发「遗物 名称」查询）" in _vr, _vr  # 查不到不造部件
+# ★ 部件按**杜卡德价值**金 / 银 / 铜上色（不按槽位稀有度）：前纪 I3 的罕见槽「Protea Prime 系统蓝图」值 100 ⇒ 金
+#   （10-16 实测 WM 杜卡德榜单）；无价格（Forma）与价格源不可用时都不染色。
+assert fmt.ducat_span(100, "X") == "⟦g⟧X⟦/g⟧" and fmt.ducat_span(65, "X") == "⟦s⟧X⟦/s⟧"
+assert fmt.ducat_span(45, "X") == "⟦s⟧X⟦/s⟧" and fmt.ducat_span(25, "X") == "⟦b⟧X⟦/b⟧"
+assert fmt.ducat_span(0, "Forma 蓝图") == "Forma 蓝图"
+_i3 = [{"name": "Meso I3 Relic", "kind": "relic", "prime": 1, "prime_currency": False}]
+_px = {"Protea Prime 系统蓝图": {"ducats": 100}, "苍鹰Prime蓝图": {"ducats": 65}}
+_t, _vi3 = fmt.fmt_prime_vault_list(
+    {"expiry": _in(days=3), "items": _i3},
+    relic_parts={"Meso I3 Relic": _wi.relic_rewards("Meso I3 Relic")},
+    prices=_px,
+)
+_row = next(ln for ln in _vi3 if ln.startswith("· 罕见"))
+assert "⟦g⟧Protea Prime 系统蓝图⟦/g⟧" in _row and "⟦s⟧苍鹰 Prime 蓝图⟦/s⟧" in _row, _row
+assert all("⟦" not in ln for ln in _vr), _vr  # 未给价格 ⇒ 全部不染色（不拿稀有度冒充价值）
+_t, _rr = fmt.fmt_relic_rewards(
+    "古纪 Lith B12",
+    [{"rarity": "罕见", "name": "Protea Prime 系统蓝图"}],
+    {"Protea Prime 系统蓝图": {"ducats": 100, "plat": 10, "dpp": 10.0}},
+)
+assert any("⟦g⟧Protea Prime 系统蓝图⟦/g⟧" in ln and "100杜" in ln for ln in _rr), _rr
+_note = next(ln for ln in _vr if ln.startswith("※ 另有装饰"))
+assert "Relic" not in _note and "Ivara Prime 组合包" in _note, _note  # 遗物不再被说成装饰品
 _t, _vl2 = fmt.fmt_prime_vault(
     {
         "expiry": _in(days=3),

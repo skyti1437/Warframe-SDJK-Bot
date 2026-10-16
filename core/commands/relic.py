@@ -83,24 +83,20 @@ class RelicCommands:
         2026-09 新增「先锋」档后「遗物 先锋 C1」直接「未找到」（资料会话交接）；
         代号支持 字母+数字（A2/A 2）、罗马数字（I..IV）、词式（Eterna，安魂档）。
         """
-        import re as _re
-
         zh2en = {k: v for k, v in TIER_CN.items() if not k.isascii()}
-        q = _re.sub(r"\s+", " ", q.strip().replace("纪元", ""))
-        era = next((k for k in zh2en if q.startswith(k)), None)
-        if not era:
-            return q
-        code = q[len(era) :].strip()
-        code = code.split()[0] if code else ""
-        m2 = _re.match(r"^([A-Za-z])(\d{1,2})$", code) or _re.match(
-            r"^([A-Za-z])\s+(\d{1,2})$", code
-        )
-        if m2:
-            return f"{era} {zh2en[era]} {m2.group(1).upper()}{int(m2.group(2))}"
-        if code and _re.fullmatch(r"[IVX]+", code, _re.I):
-            return f"{era} {zh2en[era]} {code.upper()}"
-        if code and _re.fullmatch(r"[A-Za-z]{2,}", code):
-            return f"{era} {zh2en[era]} {code.capitalize()}"
+        q = re.sub(r"\s+", " ", q.strip().replace("纪元", ""))
+        q = re.sub(r"\s+(?:relic|遗物)$", "", q, flags=re.I)
+        for zh, en in zh2en.items():
+            match = re.fullmatch(rf"(?:{zh}\s*(?:{en}\s+)?|{en}\s+)(.+)", q, re.I)
+            if not match:
+                continue
+            code = re.sub(r"\s+", "", match[1])
+            if m := re.fullmatch(r"([A-Za-z])(\d+)", code):
+                return f"{zh} {en} {m[1].upper()}{int(m[2])}"
+            if re.fullmatch(r"[IVX]+", code, re.I):
+                return f"{zh} {en} {code.upper()}"
+            if code.casefold() == "eterna":
+                return f"{zh} {en} Eterna"
         return q
 
     async def _varzia_relic_keys(self, platform: str) -> set:
@@ -258,6 +254,9 @@ class RelicCommands:
         #   中点/全半角无关）——线上实证「部件 阿索代prime」因裸 replace(" ","")
         #   大小写敏感而查不到（库里是「阿索代 Prime 蓝图」）。
         q_raw = q  # 用户原输入（「未找到」回显用，勿被改写带走）
+        exact_relic = self._norm_relic(q)
+        if exact_relic in idx:
+            q = exact_relic  # 英文 Axi A2 必须先精确命中，不能与 A20/A21 做包含匹配
         q_nospace = matching.normalize_name(q)
         inv_norm = {matching.normalize_name(k): k for k in inv}
         # ★ C1：英文名 → 中文名（「afentis prime 蓝图」⇒「圣英 Prime 蓝图」），
@@ -360,6 +359,7 @@ class RelicCommands:
                     slots.append({"rarity": rarity, "name": nm})
             title, lines = fmt.fmt_relic_rewards(nq, slots, prices)
             status = ""
+            tier_key, k = "", ""
             unv = drops_db.unvaulted_relics()
             en = nq.split()
             if len(en) >= 3:
@@ -379,6 +379,27 @@ class RelicCommands:
                         status = "该遗物可在阿耶商店兑换（当前可获取）"
                     else:
                         status = "该遗物已入库，当前不可刷取"
+            source_key = f"{tier_key} {en[2].lower()} relic" if len(en) >= 3 else ""
+            notes = drops_db.relic_source_notes(source_key)
+            # 「阿耶商店当前可兑换」是更强的当前可获取结论，不被活动 / 特殊渠道说明覆盖（Claude 审阅补）
+            if not any(x.startswith(k + " ") for x in unv) and "阿耶商店" not in status:
+                if notes:
+                    status = "特殊渠道获取（见来源说明）"
+                elif source_key in (drops_db.load().get("relic_drops") or {}):
+                    status = "仅见于活动掉落表（以活动开放情况为准）"
+            sources = drops_db.relic_source_lines(source_key)
+            if sources:
+                # 先给特殊渠道和一处活动样例，再列常规地点，避免历史活动挤掉可刷节点。
+                event_sample = [x for x in sources if x.startswith("活动 · ") and x not in notes][
+                    :1
+                ]
+                regular = [
+                    x for x in sources if not x.startswith(("活动 · ", "奸商 · ", "敌人 · "))
+                ]
+                shown = list(dict.fromkeys([*notes, *event_sample, *regular, *sources]))[:8]
+                lines.extend(["◆ 获取来源", *[f"· {x}" for x in shown]])
+                if len(sources) > len(shown):
+                    lines.append(f"※ 另有 {len(sources) - len(shown)} 处来源未列出")
             if status:
                 # 状态是卡首「答案」：放最前，不再挂在注脚后面（原来是一条孤零零的 ◆ 行）
                 lines.insert(0, f"◆ 状态：{status}")

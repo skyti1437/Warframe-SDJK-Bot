@@ -1121,9 +1121,12 @@ def build_mods():
             )
         if r.get("rarity"):
             seg.append("稀有度 %s" % RARITY_ZH.get(r["rarity"], r["rarity"]))
-        if r.get("baseDrain") is not None:
+        # ★ 2026-10-16 合理性闸门：旧版上游快照里裂罅 / Railjack 随机 MOD 的 baseDrain=2025586688、
+        #   fusionLimit=593（占位怪值，0x78BC0000），被原样写进 wiki 卡。上游 10-15 版已是 9 / 0；
+        #   这里只收合理区间（全表实测 baseDrain -4..10、fusionLimit 0..13），越界整段省略、不写怪数。
+        if r.get("baseDrain") is not None and -30 <= float(r["baseDrain"]) <= 30:
             seg.append("基础容量 %s" % trim_num(r["baseDrain"], 0))
-        if r.get("fusionLimit") is not None:
+        if r.get("fusionLimit") is not None and 0 <= float(r["fusionLimit"]) <= 30:
             seg.append("满级 %s" % trim_num(r["fusionLimit"], 0))
         if r.get("isAugment"):
             seg.append("战甲强化 MOD")

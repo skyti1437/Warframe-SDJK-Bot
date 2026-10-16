@@ -377,6 +377,130 @@ async def main() -> None:
         f"title={getattr(rep, 'title', None)}",
     )
 
+    # —— 2026-10-11 时间段口径（北京时间；0到24=全天；22到8 的 8 点整结束；跨午夜按起始日）——
+    obj6 = _make_plugin(tmp)
+    await obj6.groups.set_switch("group://tw", "push", True)
+    r_all = await _run_one(obj6, "蹲 夜灵 永久 0到24", umo="group://tw")
+    sub_all = obj6.subs.all()[-1]
+    check(
+        "★ 蹲 夜灵 永久 0到24：回执当全天、不存窗口",
+        "时间　全天" in _txt(r_all) and sub_all.windows == {},
+        f"{_txt(r_all)!r} {sub_all.windows}",
+    )
+    r_night = await _run_one(obj6, "蹲 夜灵 永久 22到8", umo="group://tw")
+    check(
+        "★ 蹲 夜灵 永久 22到8：回执写明 22:00-次日8:00",
+        "22:00-次日8:00" in _txt(r_night),
+        _txt(r_night),
+    )
+    r_fri = await _run_one(obj6, "蹲 夜灵 永久 周5 22到8", umo="group://tw")
+    sub_fri = obj6.subs.all()[-1]
+    check(
+        "蹲 … 周5 22到8：解析为周五起始的跨午夜窗口",
+        sub_fri.windows.get("days") == [5]
+        and sub_fri.windows.get("start") == 22
+        and sub_fri.windows.get("end") == 8,
+        f"{sub_fri.windows} {_txt(r_fri)!r}",
+    )
+    r_h = await _run_one(obj6, "蹲 夜灵 永久 每天19点", umo="group://tw")
+    check(
+        "护栏：每天19点 回执仍是整点小时口径",
+        "每天19点" in _txt(r_h) and "19:59" in _txt(r_h),
+        _txt(r_h),
+    )
+
+    # ★ 2026-10-16：带档位语义的连写别名（钢铁裂隙 / 裂缝 系）不得把筛选词吃掉。
+    #   修前「蹲 钢铁裂隙」落库 rule=""（=订阅全部裂隙），九重天裂隙 / 钢铁裂缝 直接不认识。
+    for _word, _rule in (
+        ("钢铁裂隙", "钢铁"),
+        ("虚空裂隙", "普通"),
+        ("九重天裂隙", "九重天"),
+        ("钢铁裂缝", "钢铁"),
+        ("虚空裂缝", "普通"),
+        ("九重天裂缝", "九重天"),
+        ("裂缝", ""),
+    ):
+        _tmp7 = Path(tempfile.mkdtemp())
+        obj7 = _make_plugin(_tmp7)
+        await obj7.groups.set_switch("group://pre", "push", True)
+        r7 = await _run_one(obj7, f"蹲 {_word}", umo="group://pre")
+        _subs7 = obj7.subs.all()
+        check(
+            f"蹲 {_word} ⇒ 裂隙订阅、筛选「{_rule or '（全部）'}」",
+            len(_subs7) == 1 and _subs7[0].event == "裂隙" and _subs7[0].rule == _rule,
+            f"{[(x.event, x.rule) for x in _subs7]} {_txt(r7)!r}",
+        )
+    # 预设筛选词与用户自写筛选并存（不覆盖用户写的）
+    _tmp8 = Path(tempfile.mkdtemp())
+    obj8 = _make_plugin(_tmp8)
+    await obj8.groups.set_switch("group://pre2", "push", True)
+    await _run_one(obj8, "蹲 钢铁裂隙 生存", umo="group://pre2")
+    _s8 = obj8.subs.all()
+    check(
+        "蹲 钢铁裂隙 生存 ⇒ 筛选同时含 钢铁 与 生存",
+        len(_s8) == 1 and "钢铁" in _s8[0].rule and "生存" in _s8[0].rule,
+        str([(x.event, x.rule) for x in _s8]),
+    )
+
+    # ★ 2026-10-16（ZCode 线上实例）：「蹲 钢铁裂隙 古纪」推来了安魂（T5）钢铁 ——
+    #   旧实现用逗号拼 rule（逗号 = 或），连写「钢铁裂隙古纪」则残余「裂隙」当节点名 ⇒ 永不命中。
+    #   六种写法都必须等价于「钢铁 且 古纪」；显式逗号仍是「或」。
+    from core.parser import parse_fissure_filter as _pff
+
+    _lith_steel = {"tier": "Lith", "isHard": True, "node": "某节点（土星）", "missionType": "生存"}
+    _req_steel = {"tier": "Requiem", "isHard": True, "node": "Taveuni（赤毒要塞）"}
+    _lith_norm = {"tier": "Lith", "isHard": False, "node": "某节点（火星）"}
+    for _w in (
+        "钢铁裂隙 古纪",
+        "钢铁裂隙古纪",
+        "裂隙 钢铁 古纪",
+        "裂隙 古纪 钢铁",
+        "裂隙 钢铁古纪",
+        "钢铁古纪 裂隙",
+        "钢铁裂缝 古纪",
+    ):
+        _tmp9 = Path(tempfile.mkdtemp())
+        obj9 = _make_plugin(_tmp9)
+        await obj9.groups.set_switch("group://and", "push", True)
+        r9 = await _run_one(obj9, f"蹲 {_w}", umo="group://and")
+        _s9 = obj9.subs.all()
+        _f9 = _pff(_s9[0].rule) if _s9 else None
+        check(
+            f"蹲 {_w} ⇒ 钢铁且古纪：古纪钢铁命中、安魂钢铁 / 古纪普通都不命中",
+            len(_s9) == 1
+            and _s9[0].event == "裂隙"
+            and _f9.match(_lith_steel)
+            and not _f9.match(_req_steel)
+            and not _f9.match(_lith_norm),
+            f"{[(x.event, x.rule) for x in _s9]} {_txt(r9)!r}",
+        )
+        check(
+            f"蹲 {_w} 确认卡：筛选描述为「钢铁古纪（T1）」且无节点名提示",
+            "钢铁古纪（T1）" in _txt(r9) and "按节点" not in _txt(r9),
+            _txt(r9),
+        )
+    # 显式逗号仍是或，且确认卡写明「或」
+    _tmp10 = Path(tempfile.mkdtemp())
+    obj10 = _make_plugin(_tmp10)
+    await obj10.groups.set_switch("group://or", "push", True)
+    r10 = await _run_one(obj10, "蹲 裂隙 钢铁,古纪", umo="group://or")
+    _f10 = _pff(obj10.subs.all()[0].rule)
+    check(
+        "蹲 裂隙 钢铁,古纪 ⇒ 或：安魂钢铁与古纪普通都命中，确认卡写「或」",
+        _f10.match(_req_steel) and _f10.match(_lith_norm) and "钢铁 或 古纪（T1）" in _txt(r10),
+        _txt(r10),
+    )
+    # 识别不了的残余（按节点名匹配）当场提示
+    _tmp11 = Path(tempfile.mkdtemp())
+    obj11 = _make_plugin(_tmp11)
+    await obj11.groups.set_switch("group://sub", "push", True)
+    r11 = await _run_one(obj11, "蹲 裂隙 钢铁 赛德娜", umo="group://sub")
+    check(
+        "节点名残余：确认卡提示「按节点 / 星球名匹配」",
+        "按节点 / 星球名匹配" in _txt(r11) and "赛德娜" in _txt(r11),
+        _txt(r11),
+    )
+
 
 if __name__ == "__main__":
     asyncio.run(main())

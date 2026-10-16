@@ -55,8 +55,17 @@ _spec = importlib.util.spec_from_file_location(
     / "automations"
     / "publish_community_snapshot.py",
 )
-P = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(P)
+# 发布器是私有运维脚本（.zcode/ 不进开源包）⇒ 缺失时只跳过发布侧段落并说明原因，
+# 消费侧（core/api_client 纯函数 + main/api_client 接线）照常回归。
+P = None
+if Path(_spec.origin).is_file():
+    P = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(P)
+else:
+    print(
+        "[SKIP] 发布侧 §3–§6、§8 --direct、§9：本树无 publish_community_snapshot.py"
+        "（私有运维脚本，不随开源包分发）；消费侧 §1/§2/§7/§8 照常检查"
+    )
 
 NOW = datetime(2026, 9, 25, 12, 0, tzinfo=timezone.utc)
 STAMP = "2026-09-25T02:07:46+00:00"
@@ -197,143 +206,149 @@ check(
     COMMUNITY_VALENCE_URL,
 )
 
-# ---------------------------------------------------------------------------
-# 3. 发布侧：当前批推导必须与卡面同款（锚点+已过轮数，不是 anchor_idx）
-# ---------------------------------------------------------------------------
-coda = _rot(anchor=0)["coda"]
-check(
-    "★ 发布侧：当前批 = (anchor + passed) % 批数（照抄卡面公式）",
-    P.current_coda_index(coda, NOW) == 1,
-    f"得到 {P.current_coda_index(coda, NOW)}，期望 1",
-)
-check(
-    "  （若误用 anchor_idx 会拿到没填元素的那批）",
-    coda["anchor_idx"] == 0 and P.current_coda_index(coda, NOW) == 1,
-)
-coda2 = _rot(anchor=1)["coda"]
-check("发布侧：相位基准变一档 → 当前批跟着变", P.current_coda_index(coda2, NOW) == 0)
-
-# ---------------------------------------------------------------------------
-# 4. 发布侧：校验不过就**不发**（残缺 / 相位不符 / 已过期）
-# ---------------------------------------------------------------------------
-payload = P.build_valence(_rot(filled_idx=1), STAMP, NOW)
-check(
-    "★ 发布侧：相位与填充吻合 → 构建成功",
-    payload["coda"]["batch"] == "B" and len(payload["coda"]["items"]) == 2,
-    str(payload)[:120],
-)
-check(
-    "  带来源与许可署名", "CC BY-NC-SA" in payload["license_note"] and "wiki" in payload["source"]
-)
-
-# ★ 包内种子形状：两批都填 → 只要**相位推导的当前批**完整就接受（2026-09-26 实测修）
-_both = _rot(filled_idx=1)
-for _b in _both["coda"]["batches"]:
-    for _x in _b:
-        _x.setdefault("element", "Heat")
-        _x.setdefault("bonus", 27.4)
-try:
-    _payload_both = P.build_valence(_both, STAMP, NOW)
+if P is not None:
+    # ---------------------------------------------------------------------------
+    # 3. 发布侧：当前批推导必须与卡面同款（锚点+已过轮数，不是 anchor_idx）
+    # ---------------------------------------------------------------------------
+    coda = _rot(anchor=0)["coda"]
     check(
-        "★ 包内种子形状（两批都填）→ 接受并按相位取当前批",
-        _payload_both["coda"]["batch"] == "B",
-        str(_payload_both["coda"]["batch"]),
+        "★ 发布侧：当前批 = (anchor + passed) % 批数（照抄卡面公式）",
+        P.current_coda_index(coda, NOW) == 1,
+        f"得到 {P.current_coda_index(coda, NOW)}，期望 1",
     )
-except ValueError as exc:
-    check("★ 包内种子形状（两批都填）→ 接受并按相位取当前批", False, str(exc))
+    check(
+        "  （若误用 anchor_idx 会拿到没填元素的那批）",
+        coda["anchor_idx"] == 0 and P.current_coda_index(coda, NOW) == 1,
+    )
+    coda2 = _rot(anchor=1)["coda"]
+    check("发布侧：相位基准变一档 → 当前批跟着变", P.current_coda_index(coda2, NOW) == 0)
 
-for rot, why in (
-    (_rot(filled_idx=0), "相位说 B 批、元素却填在 A 批"),
-    (_rot(filled_idx=1, anchor=1), "相位说 A 批、元素却填在 B 批"),
-):
+    # ---------------------------------------------------------------------------
+    # 4. 发布侧：校验不过就**不发**（残缺 / 相位不符 / 已过期）
+    # ---------------------------------------------------------------------------
+    payload = P.build_valence(_rot(filled_idx=1), STAMP, NOW)
+    check(
+        "★ 发布侧：相位与填充吻合 → 构建成功",
+        payload["coda"]["batch"] == "B" and len(payload["coda"]["items"]) == 2,
+        str(payload)[:120],
+    )
+    check(
+        "  带来源与许可署名",
+        "CC BY-NC-SA" in payload["license_note"] and "wiki" in payload["source"],
+    )
+
+    # ★ 包内种子形状：两批都填 → 只要**相位推导的当前批**完整就接受（2026-09-26 实测修）
+    _both = _rot(filled_idx=1)
+    for _b in _both["coda"]["batches"]:
+        for _x in _b:
+            _x.setdefault("element", "Heat")
+            _x.setdefault("bonus", 27.4)
     try:
-        P.build_valence(rot, STAMP, NOW)
-        check(f"★ 发布侧：{why} → 拒绝发布", False, "没抛异常")
+        _payload_both = P.build_valence(_both, STAMP, NOW)
+        check(
+            "★ 包内种子形状（两批都填）→ 接受并按相位取当前批",
+            _payload_both["coda"]["batch"] == "B",
+            str(_payload_both["coda"]["batch"]),
+        )
     except ValueError as exc:
-        check(f"★ 发布侧：{why} → 拒绝发布", "拒绝发布" in str(exc), str(exc))
+        check("★ 包内种子形状（两批都填）→ 接受并按相位取当前批", False, str(exc))
 
-rot_missing = _rot(filled_idx=1)
-rot_missing["tenet"]["items"][0].pop("element")
-try:
-    P.build_valence(rot_missing, STAMP, NOW)
-    check("★ 发布侧：tenet 缺 element/bonus → 拒绝发布", False, "没抛异常")
-except ValueError as exc:
-    check("★ 发布侧：tenet 缺 element/bonus → 拒绝发布", True, str(exc))
+    for rot, why in (
+        (_rot(filled_idx=0), "相位说 B 批、元素却填在 A 批"),
+        (_rot(filled_idx=1, anchor=1), "相位说 A 批、元素却填在 B 批"),
+    ):
+        try:
+            P.build_valence(rot, STAMP, NOW)
+            check(f"★ 发布侧：{why} → 拒绝发布", False, "没抛异常")
+        except ValueError as exc:
+            check(f"★ 发布侧：{why} → 拒绝发布", "拒绝发布" in str(exc), str(exc))
 
-rot_empty = _rot(filled_idx=1)
-rot_empty["tenet"]["items"] = []
-try:
-    P.build_valence(rot_empty, STAMP, NOW)
-    check("★ 发布侧：tenet 空表 → 拒绝发布", False, "没抛异常")
-except ValueError:
-    check("★ 发布侧：tenet 空表 → 拒绝发布", True)
-
-acr = P.build_acrithis(
-    {
-        "expiry": EXPIRY,
-        "observed": "September 21, 2026",
-        "items": [{"name": "Orokin Catalyst", "qty": 1, "price": 20}],
-    },
-    STAMP,
-    NOW,
-)
-check(
-    "★ 发布侧：合格言录使 → 构建成功",
-    acr["expiry"] == EXPIRY and len(acr["items"]) == 1,
-    str(acr)[:120],
-)
-for bad, why in (
-    ({"expiry": "2026-09-21T00:00:00+00:00", "items": [{"name": "x"}]}, "已过期"),
-    ({"expiry": EXPIRY, "items": []}, "无货"),
-    ({"items": [{"name": "x"}]}, "缺 expiry"),
-):
+    rot_missing = _rot(filled_idx=1)
+    rot_missing["tenet"]["items"][0].pop("element")
     try:
-        P.build_acrithis(bad, STAMP, NOW)
-        check(f"★ 发布侧：言录使{why} → 拒绝发布", False, "没抛异常")
+        P.build_valence(rot_missing, STAMP, NOW)
+        check("★ 发布侧：tenet 缺 element/bonus → 拒绝发布", False, "没抛异常")
+    except ValueError as exc:
+        check("★ 发布侧：tenet 缺 element/bonus → 拒绝发布", True, str(exc))
+
+    rot_empty = _rot(filled_idx=1)
+    rot_empty["tenet"]["items"] = []
+    try:
+        P.build_valence(rot_empty, STAMP, NOW)
+        check("★ 发布侧：tenet 空表 → 拒绝发布", False, "没抛异常")
     except ValueError:
-        check(f"★ 发布侧：言录使{why} → 拒绝发布", True)
+        check("★ 发布侧：tenet 空表 → 拒绝发布", True)
 
-# ---------------------------------------------------------------------------
-# 5. 发布侧：默认 dry-run（不加 --yes 一个字节都不写远端）
-# ---------------------------------------------------------------------------
-_src = (
-    ROOT
-    / ".zcode"
-    / "skills"
-    / "astrbot-server-triage"
-    / "scripts"
-    / "automations"
-    / "publish_community_snapshot.py"
-).read_text(encoding="utf-8")
-check(
-    "★ 发布侧：默认 dry-run，--yes 才写远端",
-    'ap.add_argument("--yes", action="store_true"' in _src and "DRY-RUN（默认）" in _src,
-)
-check(
-    "★ 发布侧：只写 bot-data 分支（不碰公开仓 main）",
-    'BRANCH = "bot-data"' in _src and "refs/heads/main" not in _src,
-)
-check("发布侧：读服务器走只读 ssh（BatchMode）", '"BatchMode=yes"' in _src)
-check("发布侧：孤儿分支（首次提交无 parents）", '"parents": [head] if head else []' in _src)
-check("发布侧：零变化不产生空提交", "无需提交（不产生空提交）" in _src)
+    acr = P.build_acrithis(
+        {
+            "expiry": EXPIRY,
+            "observed": "September 21, 2026",
+            "items": [{"name": "Orokin Catalyst", "qty": 1, "price": 20}],
+        },
+        STAMP,
+        NOW,
+    )
+    check(
+        "★ 发布侧：合格言录使 → 构建成功",
+        acr["expiry"] == EXPIRY and len(acr["items"]) == 1,
+        str(acr)[:120],
+    )
+    for bad, why in (
+        ({"expiry": "2026-09-21T00:00:00+00:00", "items": [{"name": "x"}]}, "已过期"),
+        ({"expiry": EXPIRY, "items": []}, "无货"),
+        ({"items": [{"name": "x"}]}, "缺 expiry"),
+    ):
+        try:
+            P.build_acrithis(bad, STAMP, NOW)
+            check(f"★ 发布侧：言录使{why} → 拒绝发布", False, "没抛异常")
+        except ValueError:
+            check(f"★ 发布侧：言录使{why} → 拒绝发布", True)
 
-# 6. 发布侧：时间戳取「数据自身」的时刻 → 数据没变就不重发（幂等）
-check(
-    "★ 发布侧：observed_to_iso 解析 wiki 上报日期",
-    P.observed_to_iso("September 21, 2026") == "2026-09-21T00:00:00+00:00",
-    P.observed_to_iso("September 21, 2026"),
-)
-check(
-    "发布侧：解析不了 → 空串（调用方回落 expiry/now）",
-    P.observed_to_iso("") == "" and P.observed_to_iso("上周一") == "",
-)
-check(
-    "★ 发布侧：payload 时间戳不用「本次运行时间」（否则每轮都产生新提交）",
-    "val_pub" in _src and "acr_pub" in _src and "published_at = now.isoformat()" not in _src,
-)
-_a = json.dumps(P.build_valence(_rot(filled_idx=1), STAMP, NOW), ensure_ascii=False, sort_keys=True)
-_b = json.dumps(P.build_valence(_rot(filled_idx=1), STAMP, NOW), ensure_ascii=False, sort_keys=True)
-check("★ 发布侧：同输入两次构建逐字节相同（幂等）", _a == _b)
+    # ---------------------------------------------------------------------------
+    # 5. 发布侧：默认 dry-run（不加 --yes 一个字节都不写远端）
+    # ---------------------------------------------------------------------------
+    _src = (
+        ROOT
+        / ".zcode"
+        / "skills"
+        / "astrbot-server-triage"
+        / "scripts"
+        / "automations"
+        / "publish_community_snapshot.py"
+    ).read_text(encoding="utf-8")
+    check(
+        "★ 发布侧：默认 dry-run，--yes 才写远端",
+        'ap.add_argument("--yes", action="store_true"' in _src and "DRY-RUN（默认）" in _src,
+    )
+    check(
+        "★ 发布侧：只写 bot-data 分支（不碰公开仓 main）",
+        'BRANCH = "bot-data"' in _src and "refs/heads/main" not in _src,
+    )
+    check("发布侧：读服务器走只读 ssh（BatchMode）", '"BatchMode=yes"' in _src)
+    check("发布侧：孤儿分支（首次提交无 parents）", '"parents": [head] if head else []' in _src)
+    check("发布侧：零变化不产生空提交", "无需提交（不产生空提交）" in _src)
+
+    # 6. 发布侧：时间戳取「数据自身」的时刻 → 数据没变就不重发（幂等）
+    check(
+        "★ 发布侧：observed_to_iso 解析 wiki 上报日期",
+        P.observed_to_iso("September 21, 2026") == "2026-09-21T00:00:00+00:00",
+        P.observed_to_iso("September 21, 2026"),
+    )
+    check(
+        "发布侧：解析不了 → 空串（调用方回落 expiry/now）",
+        P.observed_to_iso("") == "" and P.observed_to_iso("上周一") == "",
+    )
+    check(
+        "★ 发布侧：payload 时间戳不用「本次运行时间」（否则每轮都产生新提交）",
+        "val_pub" in _src and "acr_pub" in _src and "published_at = now.isoformat()" not in _src,
+    )
+    _a = json.dumps(
+        P.build_valence(_rot(filled_idx=1), STAMP, NOW), ensure_ascii=False, sort_keys=True
+    )
+    _b = json.dumps(
+        P.build_valence(_rot(filled_idx=1), STAMP, NOW), ensure_ascii=False, sort_keys=True
+    )
+    check("★ 发布侧：同输入两次构建逐字节相同（幂等）", _a == _b)
 
 # ---------------------------------------------------------------------------
 # 7. 接线：**没部署 FS 的用户**（面板关闭 / 不可达）也要走社区快照
@@ -402,58 +417,60 @@ check(
     and "_community_json(COMMUNITY_VALENCE_URLS)" in API_SRC
     and "_community_json(COMMUNITY_ACRITHIS_URLS)" in API_SRC,
 )
-check(
-    "发布侧：支持 --direct（在服务器上直读本机绝对路径，不走 ssh）",
-    '"--direct"' in _src
-    and "direct: bool = False" in _src
-    and 'return (ROOT / "core/data/rotations.json",' not in _src,
-)
-
-# ---------------------------------------------------------------------------
-# 9. 发布器「多候选取最新」（评审侧提：第一个存在的可能更旧 → 白丢新鲜数据）
-# ---------------------------------------------------------------------------
-_OLD = {
-    "expiry": "2026-09-28T00:00:00+00:00",
-    "observed": "September 14, 2026",
-    "items": [{"name": "x"}],
-}
-_NEW = {
-    "expiry": "2026-10-05T00:00:00+00:00",
-    "observed": "September 21, 2026",
-    "items": [{"name": "y"}],
-}
-check(
-    "★ 发布器：快照新鲜度取自身时间戳（观测日 → ISO）",
-    P.snapshot_freshness(_OLD) == "2026-09-14T00:00:00+00:00"
-    and P.snapshot_freshness(_NEW) == "2026-09-21T00:00:00+00:00",
-    f"{P.snapshot_freshness(_OLD)} / {P.snapshot_freshness(_NEW)}",
-)
-check(
-    "★ 发布器：两份候选取**最新**那份（不是第一个存在的）",
-    P.pick_freshest([(_OLD, "包内旧"), (_NEW, "运行期新")])[1] == "运行期新"
-    and P.pick_freshest([(_NEW, "运行期新"), (_OLD, "包内旧")])[1] == "运行期新",
-)
-check(
-    "  时间戳都取不到 → 保留最先前那份（等价原优先序）",
-    P.pick_freshest([({"a": 1}, "第一"), ({"b": 2}, "第二")])[1] == "第一",
-)
-check(
-    "  效价快照读 tenet/coda 段的 valence_snapshot",
-    P.snapshot_freshness(
-        {
-            "tenet": {"valence_snapshot": "2026-09-25T02:07:46+00:00"},
-            "coda": {"valence_snapshot": "2026-09-25T02:07:46+00:00"},
-        }
+if P is not None:
+    check(
+        "发布侧：支持 --direct（在服务器上直读本机绝对路径，不走 ssh）",
+        '"--direct"' in _src
+        and "direct: bool = False" in _src
+        and 'return (ROOT / "core/data/rotations.json",' not in _src,
     )
-    == "2026-09-25T02:07:46+00:00",
-)
-_cands = ("/opt/x/de/acrichis_week.json", "/y/z.json")
-check(
-    "★ 发布器：来源说明点明「运行期副本」/「包内种子」及原因",
-    P._src_label(_cands[0], _cands, 2).startswith("运行期副本")
-    and P._src_label(_cands[1], _cands, 1).startswith("包内种子回落（运行期副本不存在）")
-    and P._src_label(_cands[1], _cands, 2).startswith("包内种子（时间戳比运行期副本新）"),
-)
+
+if P is not None:
+    # ---------------------------------------------------------------------------
+    # 9. 发布器「多候选取最新」（评审侧提：第一个存在的可能更旧 → 白丢新鲜数据）
+    # ---------------------------------------------------------------------------
+    _OLD = {
+        "expiry": "2026-09-28T00:00:00+00:00",
+        "observed": "September 14, 2026",
+        "items": [{"name": "x"}],
+    }
+    _NEW = {
+        "expiry": "2026-10-05T00:00:00+00:00",
+        "observed": "September 21, 2026",
+        "items": [{"name": "y"}],
+    }
+    check(
+        "★ 发布器：快照新鲜度取自身时间戳（观测日 → ISO）",
+        P.snapshot_freshness(_OLD) == "2026-09-14T00:00:00+00:00"
+        and P.snapshot_freshness(_NEW) == "2026-09-21T00:00:00+00:00",
+        f"{P.snapshot_freshness(_OLD)} / {P.snapshot_freshness(_NEW)}",
+    )
+    check(
+        "★ 发布器：两份候选取**最新**那份（不是第一个存在的）",
+        P.pick_freshest([(_OLD, "包内旧"), (_NEW, "运行期新")])[1] == "运行期新"
+        and P.pick_freshest([(_NEW, "运行期新"), (_OLD, "包内旧")])[1] == "运行期新",
+    )
+    check(
+        "  时间戳都取不到 → 保留最先前那份（等价原优先序）",
+        P.pick_freshest([({"a": 1}, "第一"), ({"b": 2}, "第二")])[1] == "第一",
+    )
+    check(
+        "  效价快照读 tenet/coda 段的 valence_snapshot",
+        P.snapshot_freshness(
+            {
+                "tenet": {"valence_snapshot": "2026-09-25T02:07:46+00:00"},
+                "coda": {"valence_snapshot": "2026-09-25T02:07:46+00:00"},
+            }
+        )
+        == "2026-09-25T02:07:46+00:00",
+    )
+    _cands = ("/opt/x/de/acrichis_week.json", "/y/z.json")
+    check(
+        "★ 发布器：来源说明点明「运行期副本」/「包内种子」及原因",
+        P._src_label(_cands[0], _cands, 2).startswith("运行期副本")
+        and P._src_label(_cands[1], _cands, 1).startswith("包内种子回落（运行期副本不存在）")
+        and P._src_label(_cands[1], _cands, 2).startswith("包内种子（时间戳比运行期副本新）"),
+    )
 
 # 巡检侧：三通道探针必须存在（否则"名义三通道、实际两通道"长期无人发现）
 _PATROL = (
@@ -480,6 +497,10 @@ if _PATROL.is_file():
         and "cdn.jsdelivr.net" in ptxt
         and "gcore.jsdelivr.net" in ptxt
         and "statically.io" not in ptxt,
+    )
+else:
+    print(
+        "[SKIP] 巡检侧三通道探针：本树无 .zcode/.../server_patrol.py（私有运维脚本，不随开源包分发）"
     )
 
 print()

@@ -112,6 +112,17 @@ TYPES = (
     "救援",
     "破坏任务",
 )
+# 简写 → 规范值（与查询侧同口径：回收 = 资源回收）。
+# ★ 2026-10-16（第十五批 A1）：此前 parse_rule 把「回收」原样放进集合，而 mission_of() 归一后是
+#   「资源回收」⇒ `蹲 仲裁 回收` 永远 match 不上、永不推送。
+TYPE_ALIAS = {"回收": "资源回收"}
+# ★ 2026-10-16（维护者要求）：仲裁卡上凡出现评级，下方都标评分范围 —— 三张卡共用这一句，阈值改了只改这里。
+#   范围与 scripts/build_arb_ratings.py::TIERS 一致（F 放宽到 <450 为维护者 10-16 口径）。
+TIER_RANGE = "S≥800 / A+≥700 / A≥600 / A-≥450 / F<450（每小时生息）"
+TIER_NOTE = (
+    "※ 评级：arbi.wf.wiki 官方 tierlist 优先，官方未评级的节点用「社区实测中位数」补；"
+    f"评分范围 {TIER_RANGE}"
+)
 TYPES_STR = (
     "生存 / 防御 / 镜像防御 / 拦截 / 挖掘 / 叛逃 / 回收 / 中断 / "
     "歼灭 / 捕获 / 虚空洪流 / 虚空覆涌 / 虚空决战 / 联结生存 / 元素转换"
@@ -297,7 +308,7 @@ def parse_rule(rule: str) -> tuple[set[str], tuple[str, ...], list[str]]:
         if w in RATING:
             ratings = RATING[w]
         elif w in TYPES:
-            types.add(w)
+            types.add(TYPE_ALIAS.get(w, w))
         else:
             unknown.append(w)
     return types, ratings, unknown

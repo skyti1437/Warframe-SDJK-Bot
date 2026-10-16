@@ -47,7 +47,9 @@ API = "https://arbi.wf.wiki/api/leaderboard"
 UA = {"User-Agent": "sdjk-build-arb/1.0"}
 MIN_PER_HOUR = 300  # 剔除明显过低值（全站 <300 仅 0.5%）
 MIN_N = 3  # 样本不足不出档
-TIERS = ((800, "S"), (700, "A+"), (600, "A"), (500, "A-"))
+# ★ 2026-10-16 用户口径：F 放宽为中位数 < 450（原 < 500，与数据源站点分档一致）⇒ A- 下限 500 → 450。
+#   这一档从此与站点分档不再一一对应（450–500 的节点站点记 F、我们记 A-）。
+TIERS = ((800, "S"), (700, "A+"), (600, "A"), (450, "A-"))
 RETRY = 5
 
 
@@ -212,7 +214,7 @@ def main() -> int:
         "_source": "https://arbi.wf.wiki/api/leaderboard?board=browse&nodeId=<key>",
         "_rule": (
             "每节点 perHour 中位数（按记录 id 去重，剔除 <%d，n>=%d）；"
-            "S>=800 / A+>=700 / A>=600 / A->=500 / F<500" % (MIN_PER_HOUR, MIN_N)
+            "S>=800 / A+>=700 / A>=600 / A->=450 / F<450" % (MIN_PER_HOUR, MIN_N)
         ),
         "_updated": date.today().isoformat(),
         "nodes": dict(sorted(nodes.items())),

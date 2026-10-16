@@ -1,5 +1,5 @@
 {
- "_说明": "确定性轮换数据表（按周期从基准时间起循环取模）。相关指令：本周灵化（钢铁回廊每周轮换）、信条（Ergo Glast 每4天轮换）、终幕（Coda 每周轮换）、言录使。epoch 为 ISO 时间基准，period_hours 为单格时长，items 按顺序循环；items 为空时对应指令回复“暂未接线”。数据请按当前版本自行校准。",
+ "_说明": "确定性轮换数据表（按周期从基准时间起循环取模）。相关指令：本周灵化（钢铁回廊每周轮换）、信条（Ergo Glast 常驻 5 把，元素加成每 4 天重生成）、终幕（Coda A/B 两批每 4 天交替）、言录使。epoch 为 ISO 时间基准，period_hours 为单格时长，items 按顺序循环；items 为空时对应指令回复“暂未接线”。数据请按当前版本自行校准。",
  "incarnon": {
   "_note": "钢铁回廊灵化 9 周循环；锚点取自 Update 43 官方 patch notes（Week 9 自 2026-06-22 00:00 UTC 起）",
   "epoch": "2026-06-22T00:00:00+00:00",
@@ -261,37 +261,37 @@
    {
     "en": "Tenet Agendus",
     "cn": "信条·集议",
-    "element": "Impact",
-    "bonus": 40.7
+    "element": "Magnetic",
+    "bonus": 45.2
    },
    {
     "en": "Tenet Exec",
     "cn": "信条·枢密",
-    "element": "Toxin",
-    "bonus": 25.1
+    "element": "Magnetic",
+    "bonus": 29.8
    },
    {
     "en": "Tenet Ferrox",
     "cn": "信条·铁晶磁轨炮",
-    "element": "Electricity",
-    "bonus": 27.7
+    "element": "Cold",
+    "bonus": 57.0
    },
    {
     "en": "Tenet Grigori",
     "cn": "信条·格里高利",
-    "element": "Toxin",
-    "bonus": 46.8
+    "element": "Heat",
+    "bonus": 36.5
    },
    {
     "en": "Tenet Livia",
     "cn": "信条·莉薇娅",
-    "element": "Electricity",
-    "bonus": 50.9
+    "element": "Impact",
+    "bonus": 29.2
    }
   ],
   "_note": "Ergo Glast 在任意中继站出售，不消耗声望",
-  "valence_snapshot": "2026-10-11T00:29:25+00:00",
-  "valence_source": "wiki.warframe.com/w/Reset 的 Current Valence Bonuses（玩家上报，无官方 API）；插件侧访问该站被 Cloudflare 拦截，所以是**快照**，每 4 天轮换后需要刷新"
+  "valence_snapshot": "2026-10-15T12:09:05+00:00",
+  "valence_source": "wiki 源页 wikitext（Coda_Weapons / Tenet_Weapons，经 FlareSolverr）"
  },
  "coda": {
   "mode": "batch_cycle",
@@ -307,44 +307,44 @@
     {
      "en": "Coda Hema",
      "cn": "终幕·血肢",
-     "element": "Impact",
-     "bonus": 31.7
+     "element": "Electricity",
+     "bonus": 28.8
     },
     {
      "en": "Coda Sporothrix",
      "cn": "终幕·孢丝感染枪",
-     "element": "Radiation",
-     "bonus": 25.1
+     "element": "Electricity",
+     "bonus": 31.6
     },
     {
      "en": "Coda Catabolyst",
      "cn": "终幕·异化者",
-     "element": "Impact",
-     "bonus": 37.9
+     "element": "Toxin",
+     "bonus": 33.2
     },
     {
      "en": "Coda Pox",
      "cn": "终幕·脓痘",
-     "element": "Electricity",
-     "bonus": 52.7
+     "element": "Magnetic",
+     "bonus": 34.7
     },
     {
      "en": "Dual Coda Torxica",
      "cn": "终幕·孢蚀双枪",
-     "element": "Radiation",
-     "bonus": 25.7
+     "element": "Electricity",
+     "bonus": 46.3
     },
     {
      "en": "Coda Mire",
      "cn": "终幕·米尔",
-     "element": "Electricity",
-     "bonus": 45.1
+     "element": "Heat",
+     "bonus": 35.8
     },
     {
      "en": "Coda Motovore",
      "cn": "终幕·噬轮",
-     "element": "Electricity",
-     "bonus": 56.3
+     "element": "Magnetic",
+     "bonus": 25.7
     }
    ],
    [
@@ -392,9 +392,9 @@
     }
    ]
   ],
-  "_note": "Eleanor Nightingale 的 Coda 武器按 A/B 两批轮换（每批 7 把），每 4 天 00:00 UTC 换批；2026-09-14 实测为 A 批，换批边界 09-17 00:00 UTC（比 Ergo Glast 的元素加成重生成晚 24 小时，两者不是同一锚点）；批次表取自 wiki.warframe.com/Reset",
-  "valence_snapshot": "2026-10-11T00:29:25+00:00",
-  "valence_source": "wiki「Reset」页玩家上报值（FlareSolverr 抓取 2026-09-21 13:50 GMT+8，Eleanor 售 Batch A）；无官方 API，以游戏内商店为准"
+  "_note": "Eleanor Nightingale 的 Coda 武器按 A/B 两批轮换（每批 7 把），每 4 天 00:00 UTC 换批；2026-09-14 实测为 A 批，换批边界 09-17 00:00 UTC（比 Ergo Glast 的元素加成重生成晚 24 小时，两者不是同一锚点）；批次表与加成取自 wiki Coda_Weapons 源页（2026-10-15 起，原 Reset 页已弃用）",
+  "valence_snapshot": "2026-10-15T12:09:05+00:00",
+  "valence_source": "wiki 源页 wikitext（Coda_Weapons / Tenet_Weapons，经 FlareSolverr）"
  },
  "acrichis": {
   "_note": "言录使（Acrithis / Duviri 档案管理员）周常货单。官方周期：**每周一 00:00 UTC** 轮换 5 件 —— wiki《Acrithis》页原文「Resets every Monday 0:00 UTC」并带实时倒计时；《Reset》总表同，且 Update 32.3 已把各商人周常统一到周一（Palladino/Chipper/Teshin 等）。⚠️ DE《Update 33.0》补丁说明里那句「rotating at Sundays at 00:00 UTC」是 2023 年初版、已被后续调整覆盖，不要再引用它。时刻一律以 UTC 判定，卡面按北京时间（UTC+8）展示。",

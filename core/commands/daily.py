@@ -15,6 +15,7 @@ from .. import arbi as _arbi
 from .. import baro
 from .. import formatters as fmt
 from .. import paths as core_paths
+from .. import wiki_intro
 from ..parser import FISSURE_FILTER_HELP, fissure_tier_hint, parse_fissure_filter
 from .base import Reply
 
@@ -267,7 +268,20 @@ class DailyCommands:
         vault = await self.client.prime_vault(platform)
         trigger = (parsed.command_raw or "").strip()
         if trigger in ("出库", "御品"):
-            title, lines = fmt.fmt_prime_vault_list(vault)
+            # ★ 2026-10-16（维护者要求）：本期出库遗物连同全部部件一起列（参考 warframe.market 重生页）
+            relics = {
+                it["name"]: wiki_intro.relic_rewards(it["name"])
+                for it in (vault or {}).get("items") or []
+                if it.get("kind") == "relic"
+            }
+            # 部件按杜卡德价值上色，价格与「遗物」卡同源（WM 杜卡德榜单，有缓存）；不可用时不染色
+            prices: dict = {}
+            if relics:
+                try:
+                    prices = await self.client.ducats_price_map()
+                except Exception:  # noqa: BLE001
+                    prices = {}
+            title, lines = fmt.fmt_prime_vault_list(vault, relic_parts=relics, prices=prices)
         else:
             title, lines = fmt.fmt_prime_vault(vault, page=parsed.page)
         return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))

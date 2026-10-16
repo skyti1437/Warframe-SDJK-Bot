@@ -24,13 +24,19 @@ print("数据包:", os.path.basename(Z_ITEMS), "/", os.path.basename(Z_PEP))
 t0 = time.time()
 
 # --- warframe-items: data/json/*.json ---
+# ★ 2026-10-16：**保留 data/json/ 下的子目录**（不再一律 basename 拍平）。
+#   上游 2026-09-24 起把 i18n.json 拆成 data/json/i18n/<14 语言>.json，
+#   拍平后落成 items/<lang>.json ⇒ 两处都错：
+#     ① kb_lib.load_i18n 的新布局判据是 items/i18n/ **目录** ⇒ 找不到，抛 FileNotFoundError；
+#     ② Sources.__init__ 遍历 IDIR 时会把 zh.json/de.json 当成**物品表**载入（污染 items）。
+#   顶层文件（Mods.json 等）仍然平铺在 items/ 下，行为不变。
 zi = zipfile.ZipFile(Z_ITEMS)
-items_json = [
-    n for n in zi.namelist() if n.startswith(I_ROOT + "data/json/") and n.endswith(".json")
-]
+REL_ROOT = I_ROOT + "data/json/"
+items_json = [n for n in zi.namelist() if n.startswith(REL_ROOT) and n.endswith(".json")]
 os.makedirs(os.path.join(BASE, "items"), exist_ok=True)
 for n in items_json:
-    out = os.path.join(BASE, "items", os.path.basename(n))
+    out = os.path.join(BASE, "items", n[len(REL_ROOT) :])
+    os.makedirs(os.path.dirname(out), exist_ok=True)
     with zi.open(n) as src, open(out, "wb") as dst:
         dst.write(src.read())
 print("items json extracted: %d" % len(items_json))

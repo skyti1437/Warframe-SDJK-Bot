@@ -1,0 +1,61 @@
+name: ci
+
+# 代码门禁：push / PR 跑 regression（ruff + tests/test_*.py + 伤害审计），与本地
+#   python scripts/run_checks.py regression
+# 是同一条命令。随包时效数据的新鲜度（health）**不进**代码门禁 —— 种子会随日期自然过期，
+# 不能让每个无关 PR 跟着变红；需要时在 Actions 页手动 workflow_dispatch 选 health / all。
+# 无项目凭据、只读权限、不发布不部署。
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "检查类别"
+        type: choice
+        default: regression
+        options: [regression, health, all]
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    if: github.event_name != 'workflow_dispatch' || inputs.mode != 'health'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.10 = README 声明的支持下限；3.12 = 本地开发实测版本
+        python: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: 安装运行依赖 + 检查依赖
+        run: python -m pip install -r requirements.txt -r scripts/requirements-dev.txt
+      - name: regression
+        run: python scripts/run_checks.py regression --log-dir "$RUNNER_TEMP/checks"
+      - name: 上传日志
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: checks-regression-py${{ matrix.python }}
+          path: ${{ runner.temp }}/checks
+          retention-days: 7
+
+  health:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode != 'regression'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 安装运行依赖
+        run: python -m pip install -r requirements.txt
+      - name: health（随包数据新鲜度，非代码回归）
+        run: python scripts/run_checks.py health --log-dir "$RUNNER_TEMP/checks"

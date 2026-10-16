@@ -103,6 +103,13 @@ check(
     "未知词不阻塞（拼错也不至于永远收不到）",
     arbi.match_rule("高效mispell", {**SLOT, "tier": "S"}) is True,
 )
+# ★ 2026-10-16（第十五批 A1）：「回收」= 资源回收（mission_of 把 INFESTED 资源回收归一成「资源回收」）
+check(
+    "「蹲 仲裁 回收」能命中资源回收场次",
+    arbi.parse_rule("回收")[0] == {"资源回收"}
+    and arbi.match_rule("回收", {**SLOT, "mission": "资源回收"}) is True,
+    str(arbi.parse_rule("回收")),
+)
 check(
     "parse_rule 能报出未知词（供订阅时提示）",
     arbi.parse_rule("高效,乱写")[2] == ["乱写"],
@@ -204,74 +211,44 @@ async def run_push():
 asyncio.run(run_push())
 
 # ---------------------------------------------------------------------------
-# 五、蹲「空格陷阱」提示（2026-09-26 审核通过；只提示、不改语义）
-#   实测触发：`蹲 裂隙 钢铁 防御 永久` 落库 `钢铁,防御` = 钢铁 **或** 普通防御
-#   （`FissureFilter` 的 groups 之间是 any/OR），比用户预期宽得多。
+# 五、蹲筛选的空格语义（2026-09-26 只加提示 → 2026-10-16 维护者定改语义：空格 = 且、逗号 = 或）
+#   9-26 实测：`蹲 裂隙 钢铁 防御 永久` 落库 `钢铁,防御` = 钢铁 **或** 防御；只加了「请连写」提示。
+#   10-16 用户「蹲 钢铁裂隙 古纪」又推来安魂钢铁 ⇒ 统一为与「裂隙」查询相同的口径。
 # ---------------------------------------------------------------------------
-print("=== 五、空格陷阱提示 ===")
-from core.parser import (  # noqa: E402
-    dun_rule_hint,
-    parse,
-    parse_fissure_filter,
-)
+print("=== 五、蹲筛选：空格 = 且、逗号 = 或 ===")
+import core.parser as _cp  # noqa: E402
+from core.parser import parse, parse_fissure_filter  # noqa: E402
 
-# 5.1 提示函数：正反两侧
-for parts in (
-    ["钢铁", "防御"],
-    ["虚空", "捕获"],
-    ["后纪", "捕获"],
-    ["钢铁", "虚空", "防御"],
-    ["九重天", "拦截"],
-):
-    h = dun_rule_hint(parts)
+check("「空格陷阱」提示函数已删除（语义已统一，不再需要劝连写）", not hasattr(_cp, "dun_rule_hint"))
+
+
+def _rule_of(text: str) -> str:
+    """与 core/commands/dun.py 裂隙分支同口径：词元用空格拼。"""
+    return " ".join(x for x in (parse(text).content or []) if x != "永久")
+
+
+_rule_a = _rule_of("裂隙 钢铁 防御 永久")
+_rule_b = _rule_of("裂隙 钢铁防御 永久")
+_rule_c = _rule_of('裂隙 "钢铁 防御" 永久')
+_rule_d = _rule_of("裂隙 钢铁,防御 永久")
+_steel_def = {"isHard": True, "missionType": "防御"}
+_steel_surv = {"isHard": True, "missionType": "生存"}
+_norm_def = {"isHard": False, "missionType": "防御"}
+for _nm, _r in (("分开写", _rule_a), ("连写", _rule_b), ("引号写", _rule_c)):
+    _f = parse_fissure_filter(_r)
     check(
-        f"应提示：{parts} → 给出连写与引号两种改法",
-        bool(h) and "".join(parts) in h and '"' in h and "\n" not in h,
-        h,
+        f"★ {_nm}（{_r}）= 钢铁且防御：只命中钢铁防御",
+        _f.describe() == "钢铁防御"
+        and _f.match(_steel_def)
+        and not _f.match(_steel_surv)
+        and not _f.match(_norm_def),
+        _f.describe(),
     )
-for parts in (["钢铁防御"], ["捕获", "生存"], ["高效"], [], ["防御"]):
-    check(f"不应提示：{parts}", dun_rule_hint(parts) == "", dun_rule_hint(parts))
-check("提示是**单行**文案（卡片高度只 +1 行）", "\n" not in dun_rule_hint(["钢铁", "防御"]))
-
-
-# 5.2 指令入口：三种写法（与用户实测口径一致）
-def _rule_of(text: str) -> tuple:
-    toks = list(parse(text).content or [])
-    parts = [x for x in toks if x != "永久"]
-    return ",".join(parts), parts
-
-
-_rule_a, _parts_a = _rule_of("裂隙 钢铁 防御 永久")
-_rule_b, _parts_b = _rule_of("裂隙 钢铁防御 永久")
-_rule_c, _parts_c = _rule_of('裂隙 "钢铁 防御" 永久')
+_fd = parse_fissure_filter(_rule_d)
 check(
-    "★ 分开写：落库 钢铁,防御 且**触发**提示",
-    _rule_a == "钢铁,防御" and bool(dun_rule_hint(_parts_a)),
-    _rule_a,
-)
-check(
-    "★ 连写：落库 钢铁防御 且**不**提示",
-    _rule_b == "钢铁防御" and dun_rule_hint(_parts_b) == "",
-    _rule_b,
-)
-check(
-    "★ 引号写法：落库 钢铁 防御（词元内空格合并）且**不**提示",
-    _rule_c == "钢铁 防御" and dun_rule_hint(_parts_c) == "",
-    _rule_c,
-)
-check(
-    "★ 引号写法语义正确（= 钢铁之路的防御，不是取或）",
-    parse_fissure_filter(_rule_c).describe() == "钢铁防御",
-    parse_fissure_filter(_rule_c).describe(),
-)
-# ★ 2026-10-11 改断言：describe 不再给未写难度的组补「普通」（「防御」组实际不限难度，
-#   旧描述「普通防御」与匹配语义不符）；语义变宽本身另用 match 实测锁住。
-check(
-    "分开写语义确实变宽（= 钢铁 **或** 防御，两组取或）",
-    parse_fissure_filter(_rule_a).describe() == "钢铁，防御"
-    and parse_fissure_filter(_rule_a).match({"isHard": True, "missionType": "生存"})
-    and parse_fissure_filter(_rule_a).match({"isHard": False, "missionType": "防御"}),
-    parse_fissure_filter(_rule_a).describe(),
+    "★ 显式逗号（钢铁,防御）仍是或：钢铁生存与普通防御都命中，描述写「或」",
+    _fd.describe() == "钢铁 或 防御" and _fd.match(_steel_surv) and _fd.match(_norm_def),
+    _fd.describe(),
 )
 
 # 5.2b 档位提示（2026-10-03 T1–T6）：越界/孤立 t 必提示；合法档位不提示
@@ -290,25 +267,42 @@ check(
     and fissure_tier_hint(["钢铁T1生存"]) == "",
 )
 
-# 5.3 静态守卫：提示只进回执，**不得参与 rule 构造**（防有人顺手改成自动合并）
-# 2026-09-29 D11：_h_dun 随蹲订阅域迁 core/commands/dun.py，本段断言改读现址
+# 5.3 静态守卫：裂隙分支用空格拼 rule，其他事件仍用逗号（仲裁 / 赏金各有解析口径）
 dun_src = (ROOT / "core" / "commands" / "dun.py").read_text(encoding="utf-8")
-_i_join = dun_src.index('rule=",".join(rule_parts)')
-_i_hint = dun_src.index("dun_rule_hint(rule_parts)")
 check(
-    "★ 提示调用在 rule 拼接**之后**（不改语义）",
-    _i_join < _i_hint,
-    f"join@{_i_join} vs hint@{_i_hint}",
+    "★ dun.py：裂隙事件 rule 用空格拼、其他事件用逗号",
+    'rule=(" " if event_type == "裂隙" else ",").join(rule_parts)' in dun_src,
 )
 check(
-    "★ 提示只在「裂隙」分支（非裂隙类型 rule 语义不同，本轮不做）",
-    'if event_type == "裂隙":' in dun_src[max(0, _i_hint - 600) : _i_hint],
+    "★ 修饰词清单同源：解析侧仍集中在 FISSURE_MODIFIER_WORDS",
+    "FISSURE_MODIFIER_WORDS" in (ROOT / "core" / "parser.py").read_text(encoding="utf-8"),
 )
+
+print()
+print("=== 二、九重天风暴筛选词（2026-10-11 P3-4）===")
+from core.formatters import _RAILJACK_TYPE_CN  # noqa: E402
+from core.parser import parse_fissure_filter  # noqa: E402
+
+_storm = {"isStorm": True, "missionType": "Skirmish", "tier": "Axi", "node": "Gian Point（面纱）"}
+_volatile = dict(_storm, missionType="Volatile")
+_normal_skirm = {"isStorm": False, "missionType": "Skirmish", "tier": "Axi", "node": "N"}
+check("★ 「九重天前哨战」命中风暴前哨战", parse_fissure_filter("九重天前哨战").match(_storm))
+check("★ 「前哨战」命中", parse_fissure_filter("前哨战").match(_storm))
+check("「九重天爆发」命中 Volatile", parse_fissure_filter("九重天爆发").match(_volatile))
+check("护栏：「九重天前哨战」不命中爆发", not parse_fissure_filter("九重天前哨战").match(_volatile))
 check(
-    "★ 修饰词清单同源：解析与提示共用 FISSURE_MODIFIER_WORDS",
-    "FISSURE_MODIFIER_WORDS" in (ROOT / "core" / "parser.py").read_text(encoding="utf-8")
-    and "FISSURE_MODIFIER_WORDS"
-    in (ROOT / "core" / "parser.py").read_text(encoding="utf-8").split("def dun_rule_hint")[1],
+    "护栏：「九重天前哨战」不命中非风暴的前哨战",
+    not parse_fissure_filter("九重天前哨战").match(_normal_skirm),
+)
+_aliases_ok = all(
+    parse_fissure_filter(cn).groups[0].get("missions") == {en}
+    for en, cn in _RAILJACK_TYPE_CN.items()
+    if en in ("skirmish", "volatile", "orphix")
+)
+check("别名与卡面译表（_RAILJACK_TYPE_CN）同源：前哨战/爆发/奥影母艇", _aliases_ok)
+check(
+    "★ 静态：首轮判据已按「事件类型」分别记（不再有全平台 first = not last）",
+    "first = not last" not in push_src,
 )
 
 print()

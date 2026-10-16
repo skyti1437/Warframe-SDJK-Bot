@@ -108,6 +108,74 @@ from core.api_client import (  # noqa: E402
 )
 from core.parser import RIVEN_STAT_ZH, parse_wr  # noqa: E402
 
+# 变体倾向表 core/data/de/wiki_disp.json 是运行期刷新件，开源包不带（OSS_EXCLUDE_FILES）。
+# 本树没有它时，把本脚本用到的 52 个键（取自 2026-10-03 快照）放进临时运行目录，
+# 让家族 / 变体解析逻辑照常回归；校验快照**数值本身**的 ⑲ 抽查另行按有无快照跳过。
+_DISP_FIXTURE = {
+    "afuris prime": 1.1,
+    "catchmoon (primary)": 1.1,
+    "catchmoon (secondary)": 0.75,
+    "ceti lacera": 1.2,
+    "coda bubonico": 0.6,
+    "coda catabolyst": 0.7,
+    "coda caustacyst": 0.85,
+    "coda hema": 1.0,
+    "coda hirudo": 0.75,
+    "coda mire": 0.75,
+    "coda pathocyst": 0.65,
+    "coda pox": 1.05,
+    "coda sporothrix": 0.95,
+    "coda synapse": 0.9,
+    "coda tysis": 1.0,
+    "dex furis": 1.39,
+    "dual decurion (atmosphere)": 1.3,
+    "glaxion vandal": 1.25,
+    "grattler (atmosphere)": 1.1,
+    "kuva brakk": 0.95,
+    "kuva drakgoon": 1.15,
+    "kuva ghoulsaw": 0.8,
+    "kuva grattler": 0.7,
+    "kuva grattler (atmosphere)": 0.7,
+    "kuva hind": 1.1,
+    "kuva kohm": 0.9,
+    "kuva kraken": 1.1,
+    "kuva nukor": 0.5,
+    "kuva ogris": 0.7,
+    "kuva quartakk": 1.1,
+    "kuva seer": 1.1,
+    "kuva sobek": 0.8,
+    "kuva tonkor": 0.9,
+    "kuva zarr": 0.7,
+    "mk1-furis": 1.4,
+    "okina prime": 0.7,
+    "pangolin prime": 1.05,
+    "prisma dual decurions": 1.25,
+    "prisma dual decurions (atmosphere)": 1.25,
+    "quanta vandal": 1.4,
+    "sobek": 1.33,
+    "sporelacer (primary)": 1.15,
+    "sporelacer (secondary)": 0.6,
+    "tenet arca plasmor": 0.6,
+    "tenet cycron": 0.7,
+    "tenet ferrox": 1.15,
+    "tenet glaxion": 0.65,
+    "tenet plinx": 0.8,
+    "tenet quanta": 0.85,
+    "tombfinger (secondary)": 0.9,
+    "vinquibus (melee)": 0.7,
+    "vinquibus (primary)": 0.7,
+}
+if not (ROOT / "core" / "data" / "de" / "wiki_disp.json").is_file():
+    from core import paths as _fx_paths  # noqa: E402
+
+    _fx_run = Path(tempfile.mkdtemp())
+    (_fx_run / "de").mkdir()
+    (_fx_run / "de" / "wiki_disp.json").write_text(
+        __import__("json").dumps({"disp": _DISP_FIXTURE}), encoding="utf-8"
+    )
+    _fx_paths.set_run_dir(_fx_run)
+    print(f"[SKIP] 本树无随包 wiki_disp.json，改用内置 {len(_DISP_FIXTURE)} 键 fixture 跑解析逻辑")
+
 FAILED: list[str] = []
 
 
@@ -710,17 +778,45 @@ class _FakeClient6:
 _c6 = WarframeClient.__new__(WarframeClient)
 _c6._aliases = _FakeClient6._aliases
 _c6.wm_items = _FakeClient6().wm_items
-_fam = asyncio.run(_c6.riven_family({"url_name": "okina", "zh": "翁", "en": "Okina"}))
+# 倾向表用固定 fixture 放进临时运行目录（read_path 运行目录优先）：wiki_disp.json 是运行期
+# 刷新件，开源包不带（OSS_EXCLUDE_FILES），且随包快照会随刷新变 ⇒ 解析回归不依赖它。
+from core import api_client as _AC6  # noqa: E402
+from core import paths as _core_paths  # noqa: E402
+
+_run6 = Path(tempfile.mkdtemp())
+(_run6 / "de").mkdir()
+(_run6 / "de" / "wiki_disp.json").write_text(
+    '{"disp": {"okina": 1.4, "okina prime": 0.7}}', encoding="utf-8"
+)
+_prev6 = _core_paths._RUN
+_core_paths.set_run_dir(_run6)
+try:
+    _fam = asyncio.run(_c6.riven_family({"url_name": "okina", "zh": "翁", "en": "Okina"}))
+    _v, _k = asyncio.run(_c6.resolve_variant_disp("翁 Prime 一套"))
+    # 缺表降级：表不存在时家族为空、变体倾向为 None，不抛异常（开源装机首次刷新前即此态）
+    _name6 = _AC6.WIKI_DISP_NAME
+    _AC6.WIKI_DISP_NAME = "de/__absent_wiki_disp__.json"
+    try:
+        _fam_none = asyncio.run(_c6.riven_family({"url_name": "okina", "zh": "翁", "en": "Okina"}))
+        _v_none, _ = asyncio.run(_c6.resolve_variant_disp("翁 Prime 一套"))
+    finally:
+        _AC6.WIKI_DISP_NAME = _name6
+finally:
+    _core_paths.set_run_dir(_prev6)
 check(
     "★ 翁 家族 = [翁 Prime 0.7]（套装后缀已剥、部件行已过滤）",
     _fam == [("翁 Prime", 0.7)],
     str(_fam),
 )
-_v, _k = asyncio.run(_c6.resolve_variant_disp("翁 Prime 一套"))
 check(
     "变体倾向查询容忍「一套」后缀（找到 wiki 表的 okina prime）",
     _v == 0.7 and _k == "okina prime",
     f"{_v} / {_k}",
+)
+check(
+    "缺倾向表 ⇒ 家族为空、变体倾向 None（降级不抛错）",
+    _fam_none == [] and _v_none is None,
+    f"{_fam_none} / {_v_none}",
 )
 
 # --------------------------------------- ⑩ 战甲单字黑话（猫p/电p/沙p/鸟p）
@@ -1912,54 +2008,97 @@ _XUANHAI = [
 # ★ 2026-10-03 wiki 倾向页快照刷新（09-13 → 10-02），7 处玄骸倾向更新：
 #   Hema 0.95→1.0 / Pox 1.0→1.05 / Bubonico 0.55→0.6 / Catabolyst 0.65→0.7 /
 #   Quanta 0.75→0.85 / Ghoulsaw 0.7→0.8 / Arca Plasmor 0.55→0.6
-_miss19 = [(b, w) for b, w in _XUANHAI if not any(abs(v - w) < 1e-9 for _n, v in _fam19(b))]
-check(
-    f"★ 玄骸族抽查 {len(_XUANHAI)} 族：家族候选都列得出（缺 {len(_miss19)}）",
-    not _miss19,
-    str(_miss19[:4]),
-)
-check(
-    "★ 报障族原样：Sobek 族 = [('赤毒·鳄神', 0.8)]",
-    _fam19("Sobek") == [("赤毒·鳄神", 0.8)],
-    str(_fam19("Sobek")),
-)
-check(
-    "玄骸单成员族（无本体可对照）：Kuva Bramma 家族为空但不报错",
-    _fam19("Kuva Bramma") == [],
-    str(_fam19("Kuva Bramma")),
-)
+# 倾向**数值**抽查校验的是随包 wiki_disp.json 快照本身；该表是运行期刷新件、开源包不带
+# （dist/package_release.py::OSS_EXCLUDE_FILES）⇒ 无快照的树明确跳过，不拿 fixture 冒充数据。
+_SEED_DISP19 = ROOT / "core" / "data" / "de" / "wiki_disp.json"
+if _SEED_DISP19.is_file():
+    _miss19 = [(b, w) for b, w in _XUANHAI if not any(abs(v - w) < 1e-9 for _n, v in _fam19(b))]
+    check(
+        f"★ 玄骸族抽查 {len(_XUANHAI)} 族：家族候选都列得出（缺 {len(_miss19)}）",
+        not _miss19,
+        str(_miss19[:4]),
+    )
+    check(
+        "★ 报障族原样：Sobek 族 = [('赤毒·鳄神', 0.8)]",
+        _fam19("Sobek") == [("赤毒·鳄神", 0.8)],
+        str(_fam19("Sobek")),
+    )
+    check(
+        "玄骸单成员族（无本体可对照）：Kuva Bramma 家族为空但不报错",
+        _fam19("Kuva Bramma") == [],
+        str(_fam19("Kuva Bramma")),
+    )
 
-# 名称陷阱（清单 §四）：riven_family() 输出层同样要守住
-check(
-    "★ 名称陷阱：Afuris 族（除自身）= {盗贼双枪 Prime, Dex 盗贼双枪}",
-    {n for n, _ in _fam19("Afuris")} == {"盗贼双枪 Prime", "Dex 盗贼双枪"},
-    str(_fam19("Afuris")),
+else:
+    print(
+        "[SKIP] ⑲ 玄骸族倾向数值抽查（31 族 + Sobek + Kuva Bramma）："
+        "本树无 core/data/de/wiki_disp.json（运行期刷新件，不随开源包分发）"
+    )
+
+# 名称陷阱是家族**解析逻辑** ⇒ 用内联最小倾向表（取自 2026-10-03 快照的 15 个相关键），
+# 两棵树都跑；家族成员来自随包的 de/riven_families.json。
+_run19 = Path(tempfile.mkdtemp())
+(_run19 / "de").mkdir()
+(_run19 / "de" / "wiki_disp.json").write_text(
+    __import__("json").dumps(
+        {
+            "disp": {
+                "afuris": 1.45,
+                "afuris prime": 1.1,
+                "ceti lacera": 1.2,
+                "dakra prime": 1.1,
+                "dex dakra": 1.35,
+                "dex furis": 1.39,
+                "dual decurion": 1.3,
+                "dual decurion (atmosphere)": 1.3,
+                "furis": 1.35,
+                "lacera": 1.31,
+                "mk1-furis": 1.4,
+                "pangolin prime": 1.05,
+                "pangolin sword": 1.47,
+                "prisma dual decurions": 1.25,
+                "prisma dual decurions (atmosphere)": 1.25,
+            }
+        }
+    ),
+    encoding="utf-8",
 )
-check(
-    "★ 名称陷阱：Furis 族（除自身）= {MK1-盗贼}（不含 Dex 盗贼双枪）",
-    {n for n, _ in _fam19("Furis")} == {"MK1-盗贼"},
-    str(_fam19("Furis")),
-)
-check(
-    "★ 名称陷阱：Lacera 族含 天仓·悲痛之刃",
-    "天仓·悲痛之刃" in {n for n, _ in _fam19("Lacera")},
-    str(_fam19("Lacera")),
-)
-check(
-    "★ 名称陷阱：Pangolin Sword 族含 鲮鲤剑 Prime",
-    "鲮鲤剑 Prime" in {n for n, _ in _fam19("Pangolin Sword")},
-    str(_fam19("Pangolin Sword")),
-)
-check(
-    "★ 名称陷阱：Dual Decurion 族含 棱晶·什长双枪",
-    "棱晶·什长双枪" in {n for n, _ in _fam19("Dual Decurion")},
-    str(_fam19("Dual Decurion")),
-)
-check(
-    "★ Dakra 边界：Dakra Prime 与 Dex Dakra 各自独立（家族互不含对方、倾向 1.10/1.35）",
-    _fam19("Dakra Prime") == [] and _fam19("Dex Dakra") == [],
-    f"{_fam19('Dakra Prime')} / {_fam19('Dex Dakra')}",
-)
+_prev19 = _core_paths._RUN
+_core_paths.set_run_dir(_run19)
+try:
+    # 名称陷阱（清单 §四）：riven_family() 输出层同样要守住
+    check(
+        "★ 名称陷阱：Afuris 族（除自身）= {盗贼双枪 Prime, Dex 盗贼双枪}",
+        {n for n, _ in _fam19("Afuris")} == {"盗贼双枪 Prime", "Dex 盗贼双枪"},
+        str(_fam19("Afuris")),
+    )
+    check(
+        "★ 名称陷阱：Furis 族（除自身）= {MK1-盗贼}（不含 Dex 盗贼双枪）",
+        {n for n, _ in _fam19("Furis")} == {"MK1-盗贼"},
+        str(_fam19("Furis")),
+    )
+    check(
+        "★ 名称陷阱：Lacera 族含 天仓·悲痛之刃",
+        "天仓·悲痛之刃" in {n for n, _ in _fam19("Lacera")},
+        str(_fam19("Lacera")),
+    )
+    check(
+        "★ 名称陷阱：Pangolin Sword 族含 鲮鲤剑 Prime",
+        "鲮鲤剑 Prime" in {n for n, _ in _fam19("Pangolin Sword")},
+        str(_fam19("Pangolin Sword")),
+    )
+    check(
+        "★ 名称陷阱：Dual Decurion 族含 棱晶·什长双枪",
+        "棱晶·什长双枪" in {n for n, _ in _fam19("Dual Decurion")},
+        str(_fam19("Dual Decurion")),
+    )
+    check(
+        "★ Dakra 边界：Dakra Prime 与 Dex Dakra 各自独立（家族互不含对方、倾向 1.10/1.35）",
+        _fam19("Dakra Prime") == [] and _fam19("Dex Dakra") == [],
+        f"{_fam19('Dakra Prime')} / {_fam19('Dex Dakra')}",
+    )
+finally:
+    _core_paths.set_run_dir(_prev19)
 
 # ★ 2026-10-03：Coda Bubonico 中英对照 —— 原为运行时手工补丁（_LOCAL_NAME_PATCH），
 #   同日构建脚本补收 DE 官方家族表（riven_families.json 819 件）后，桥上

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """资料与计算器域（D8 自 main.py 迁入，方法体逐字未改）。
 
-覆盖路由键 3 项：wiki / valence / damage；含知识库引导与 wiki 简介回退。
+覆盖路由键 3 项：wiki / valence / damage；含 wiki 简介回退。
 子包纪律：不 import astrbot（事件对象鸭子类型）。
 """
 
@@ -26,23 +26,6 @@ class WikiMiscCommands:
     # ------------------------------------------------------------------
     # wiki（资料）
     # ------------------------------------------------------------------
-    def _kb_hint(self) -> str:
-        """知识库（AstrBot 平台侧 RAG）引导 —— 只在本地查不到时补一句。
-
-        插件**不直连**知识库：检索由 AstrBot 平台提供，插件只负责指路。
-        开源包不再随附知识库文档（2026-10-01 起移除 kb/），引导改为指向
-        scripts/kb/ 构建流水线。没配知识库时可关掉（面板「知识库引导」= 否）。
-        """
-        if not self.cfg.get("kb_enabled", True):
-            return ""
-        kb_id = str(self.cfg.get("kb_id") or "").strip()
-        tail = f"（知识库 id：{kb_id}）" if kb_id else ""
-        return (
-            "\n\n💡 百科类问答可由 AstrBot 知识库承接：开源包随附的"
-            "scripts/kb/ 流水线可从 Warframe 官方数据包构建知识库文档后"
-            f"上传{tail}"
-        )
-
     def _wiki_intro_on(self) -> bool:
         """wiki 卡片开关（默认开）。
 
@@ -189,7 +172,7 @@ class WikiMiscCommands:
             ("提示", note) if note else "",
             title="wiki 直达",
         )
-        r.extra_text = f"{link}{self._kb_hint()}"  # 链接必须是可点的纯文本
+        r.extra_text = link  # 链接必须是可点的纯文本
         return r
 
     async def _h_translate(self, parsed, event, platform) -> Reply:

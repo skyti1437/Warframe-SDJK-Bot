@@ -26,8 +26,6 @@ DATA_FILE = Path(__file__).resolve().parent / "data" / "drops.json"
 
 _DB: Optional[dict] = None
 
-MAX_ROWS = 200  # 单遗物最多展示的出处数（防爆卡）
-
 # 缓存：出处三元组 / 推荐刷取点（都是纯函数，数据不变就不必重算）
 _PLACES_CACHE: dict[str, list[tuple[str, str, str]]] = {}
 _FARM_CACHE: Optional[dict[str, list[str]]] = None
@@ -61,7 +59,7 @@ def relic_source_lines(relic_key: str, limit: Optional[int] = None) -> list[str]
         return []
     rots: dict[str, list[str]] = {}
     order: list[str] = []
-    for place in relic_sources(relic_key, limit=MAX_ROWS):
+    for place in relic_sources(relic_key, limit=10**6):
         parts = place.split(" · ")
         head, rot = place, ""
         # 末段形如 "C轮" 就是轮次。注意不能假定有 4 段 ——
@@ -74,6 +72,7 @@ def relic_source_lines(relic_key: str, limit: Optional[int] = None) -> list[str]
         if head not in order:
             order.append(head)
     merged = [f"{h}（{'/'.join(rots[h])}轮）" if rots[h] else h for h in order]
+    merged.sort(key=lambda x: not x.startswith(("活动 · ", "奸商 · ", "敌人 · ")))
     return merged if limit is None else merged[:limit]
 
 
@@ -81,7 +80,10 @@ def unvaulted_relics() -> dict[str, list[str]]:
     """当前仍在掉落池（= 未入库）的遗物 -> 中文名列表。"""
     db = load()
     out = {}
-    for key in db.get("relic_drops") or {}:
+    places = db.get("places") or {}
+    for key, records in (db.get("relic_drops") or {}).items():
+        if not any(not places.get(str(r[0]), "").startswith("活动 · ") for r in records):
+            continue  # 活动历史表不代表当前常驻出库
         m = key.split()
         if len(m) >= 3:
             tier_cn = {
@@ -104,12 +106,18 @@ def droppable_keys() -> set[str]:
     return {k.rsplit(" relic", 1)[0] for k in unvaulted_relics()}
 
 
+def relic_source_notes(relic_key: str) -> list[str]:
+    """活动敌人/奸商等特殊来源，不据此推断当前活动开放或本期在售。"""
+    return list((load().get("relic_special_sources") or {}).get(relic_key) or [])
+
+
 def relic_sources(relic_key: str, limit: int = 12) -> list[str]:
     """遗物的原始出处串（未合并轮次），按掉落表顺序去重。"""
     db = load()
     places = db.get("places") or {}
     rows = (db.get("relic_drops") or {}).get(relic_key) or []
-    seen, out = set(), []
+    out = relic_source_notes(relic_key)
+    seen = set(out)
     for pid, rarity, chance in rows:
         p = places.get(str(pid), "?")
         if p in seen:
@@ -156,10 +164,8 @@ _TIER_CN_FROM_EN = {
 def relic_places(relic_key: str) -> list[tuple[str, str, str]]:
     """遗物的掉落地点，(星球, 节点, 任务类型) 去重后的列表。
 
-    ★ limit 必须给足：`relic_source_lines` 的 MAX_ROWS（200）是给**展示**用的
-      上限，而这里的计数需要完整出处 —— 截断会让「某节点能掉几个遗物」的
-      统计偏小，进而把推荐刷取点选错（实测：截到 200 条时火星 · Olympus
-      从中断类的最高覆盖掉到选不中）。
+    ★ limit 必须给足：地点统计需要完整出处；展示行数由调用方独立截断。
+      截断统计会让「某节点能掉几个遗物」偏小，进而把推荐刷取点选错。
     ★ 结果缓存：出库卡要按遗物逐条问，重复解析很浪费（每次都要 split 上千行）。
     """
     if relic_key in _PLACES_CACHE:
@@ -167,6 +173,8 @@ def relic_places(relic_key: str) -> list[tuple[str, str, str]]:
     out: list[tuple[str, str, str]] = []
     seen: set[tuple[str, str, str]] = set()
     for place in relic_sources(relic_key, limit=10**6):
+        if place.startswith(("活动 · ", "奸商 · ", "敌人 · ")):
+            continue
         parts = place.split(" · ")
         if len(parts) < 3:
             continue

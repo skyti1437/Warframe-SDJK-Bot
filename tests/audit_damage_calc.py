@@ -279,11 +279,22 @@ r_e = dc.calculate(s_e, w100)
 chk(
     "元素 MOD 按总基伤 90%（=90 火伤）", close(r_e["pools"].get("heat", 0), 90.0), str(r_e["pools"])
 )
+
+
+# per_type_health 是**量化后**、乘派系与护甲后的值（量化 2026-10-10 加，67668d9）。
+# 预期按 wiki Damage/Calculation §Quantization 独立推导：各类型取整到
+# 「改后基伤 / 32」的整数倍，floor(x/scale + 0.5)；元素/物理 MOD 不改 scale，基伤 MOD 改。
+# 默认派系 Grineer 对切割/火焰均 ×1.0，故 ÷(1-DR) 即回到量化后的分伤。
+def wiki_quantized(x: float, modded_base: float) -> float:
+    scale = modded_base / 32
+    return math.floor(x / scale + 0.5) * scale
+
+
 s_p, _ = dc.parse_args(["切90"])
 r_p = dc.calculate(s_p, w100)
 chk(
-    "物理 MOD 按同类型基础值（50×1.9=95）",
-    close(r_p["per_type_health"]["slash"] / (1 - r_p["dr"]), 95.0, 1e-6),
+    "物理 MOD 按同类型基础值（50×1.9=95，量化到 100/32 ⇒ 93.75）",
+    close(r_p["per_type_health"]["slash"] / (1 - r_p["dr"]), wiki_quantized(50 * 1.9, 100.0), 1e-6),
     str(r_p["per_type_health"]),
 )
 
@@ -291,9 +302,11 @@ chk(
 s_b, _ = dc.parse_args(["基伤100", "火90"])
 r_b = dc.calculate(s_b, w100)
 chk(
-    "基伤+100% 后 元素 = 90%×200 = 180",
+    "基伤+100% 后 元素 = 90%×200 = 180（量化到 200/32 ⇒ 181.25）",
     close(r_b["pools"].get("heat", 0), 90.0)  # pools 存的是百分比
-    and close(r_b["per_type_health"]["heat"] / (1 - r_b["dr"]), 180.0, 1e-6),
+    and close(
+        r_b["per_type_health"]["heat"] / (1 - r_b["dr"]), wiki_quantized(0.9 * 200, 200.0), 1e-6
+    ),
     f"heat 项 {r_b['per_type_health'].get('heat')}",
 )
 

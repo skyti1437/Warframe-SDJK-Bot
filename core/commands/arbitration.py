@@ -135,8 +135,7 @@ class ArbitrationCommands:
                 "· " + S.join([f"{t.month}月{t.day}日 {t.hour:02d}时", *cells])
                 for t, cells, _tv in chunk
             ],
-            "※ 评级：arbi.wf.wiki 官方 tierlist 优先，官方未评级的节点用「社区实测中位数」补"
-            "（S≥800/A+≥700/A≥600/A-≥500/F<500 每小时生息）；"
+            _arbi.TIER_NOTE,
             "★ 实测值（尤其「生存 / 中断」）吃队伍熟练度，普通队伍未必打得到",
         ]
         title = f"仲裁排期 · {fdesc}（第{page}/{pages}页，共{total}场）"
@@ -219,7 +218,7 @@ class ArbitrationCommands:
             f"◆ 本场时段：{t0:%H:%M}–{t1:%H:%M}（北京时间）｜剩余 {left}",
             "◆ 下一小时：" + (S.join(nxt_cells[:4]) if nxt_cells else "（排期表已到末尾）"),
             "※ 筛选：发「仲裁 类型 / 高效 / 传奇 / 今天」，类型 " + self._ARB_TYPES_STR,
-            "※ 评级：arbi 官方 tierlist 优先，官方未评级的用「社区实测中位数」（非官方，仅供参考）；"
+            _arbi.TIER_NOTE + "（实测非官方，仅供参考）",
             "★ 实测值（尤其「生存 / 中断」）来自上传记录的高水平队伍，普通队伍未必打得到",
         ]
         return Reply(
@@ -310,6 +309,7 @@ class ArbitrationCommands:
         ]
         if over:
             chunk.append(f"※ 只有 {pages} 页，已显示最后一页")
+        chunk.append(_arbi.TIER_NOTE)  # 评级列下方标评分范围（2026-10-16 维护者要求）
         # ★ 2026-10-11：时间列是北京时间 —— 标在标题上（正文行全是列对齐的数据行）
         fdesc = "、".join(t for t in toks if t in self._ARB_TYPES)
         title = (

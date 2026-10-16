@@ -4,7 +4,7 @@
 为什么需要
 ----------
 `wiki <关键词>` 的卡片要给出**简短介绍**（战甲 / 武器 / MOD / 资源 / 同伴…）。
-AstrBot 侧知识库（RAG）插件**不直连**（见 main.py::_kb_hint），完整知识库
+AstrBot 侧知识库（RAG）插件**不直连**，完整知识库
 Markdown 也只在本机（warframe知识库/知识库/，技能 warframe-kb-build 产物），
 所以构建期抽成随包数据文件，运行时离线查。
 
@@ -220,7 +220,7 @@ def main() -> int:
                     "见 scripts/build_wiki_intro.py",
                     "note": "keys=归一化名 → entries 下标；entries=[标题, 行…]；"
                     "uses=材料名 → 配方数 + 前几个产物（反查「用途」）。"
-                    "卡片用；本文件不进开源/市场包。",
+                    "卡片用；随开源 / 市场包分发（2026-09-25 维护者定）。",
                     "generated": time.strftime("%Y-%m-%d"),
                     "count": len(entries),
                     "uses": len(uses),

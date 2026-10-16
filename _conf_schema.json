@@ -72,6 +72,13 @@
     "_special": "select_provider",
     "hint": "面板会列出 AstrBot 里已添加的模型渠道供选择（官方 select_provider 选择器，AstrBot ≥ v4.0.0）。留空时按实测基准排序逐个尝试（2026-09 实测 siliconflow/Qwen 系伤害行最稳，需该源超时 ≥240s）。"
   },
+  "vision_provider_id_line": {
+    "description": "紫卡「窄读路」专用多模态模型 id（留空=与上面同一个渠道）",
+    "type": "string",
+    "default": "",
+    "_special": "select_provider",
+    "hint": "紫卡识别并行两路：语义 JSON 路（要武器名）与窄读路（逐行读词条，是词条与极性的唯一权威）。两者对模型的要求不同，可分开配。窄读路要给「逐行念出来」这类指令，OCR 专用模型（qwen-vl-ocr 等）在此会退回带坐标的原生输出、整卡判不合法；通用指令跟随模型（如 qwen3.5-omni-flash）实测 20/20 全对。留空则两路共用 vision_provider_id。"
+  },
   "flaresolverr_enabled": {
     "description": "启用 CF 绕过代理（FlareSolverr）",
     "type": "bool",
@@ -83,18 +90,6 @@
     "type": "string",
     "default": "http://flaresolverr:8191/v1, http://172.17.0.1:8191/v1, http://127.0.0.1:8191/v1",
     "hint": "填你的 FlareSolverr 地址，只填主机端口也行（会自动补 /v1）。插件跑在容器里时 127.0.0.1 通常到不了宿主机端口，所以要填容器名或 docker0 网关（172.17.0.1）。留空则用内置默认值。"
-  },
-  "kb_enabled": {
-    "description": "知识库引导（AstrBot 平台侧 RAG）",
-    "type": "bool",
-    "default": true,
-    "hint": "插件**不直连**知识库：检索由 AstrBot 平台提供，插件只在查不到时提示「可以把哪份文档传进知识库」。没配知识库就关掉，免得多一句提示。"
-  },
-  "kb_id": {
-    "description": "AstrBot 知识库 id（可选，只用于引导文案）",
-    "type": "string",
-    "default": "",
-    "hint": "填了会在提示里显示这个 id，方便你自己按 id 上传文档；不填不影响任何功能。"
   },
   "wiki_intro": {
     "description": "wiki 简介卡片（战甲 / 武器 / MOD / 资源 / 同伴）",

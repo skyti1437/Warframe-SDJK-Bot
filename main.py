@@ -67,7 +67,6 @@ except ImportError as _imp_err:  # pragma: no cover
         raise
     from core import __brand__ as BRAND
 
-    # 打包器门面锚点：OSS_FACADE_DELETIONS 按此行整块删除，勿删/勿改前缀
     from core import api_client
     from core.api_client import (
         DEFAULT_DE_WORLDSTATE,
@@ -93,17 +92,6 @@ except ImportError as _imp_err:  # pragma: no cover
     from core.commands import DunCommands
     from core.commands.base import _num
     from core.store import GroupStore, SubscriptionStore
-
-
-def _llm_request_hook():
-    """LLM 请求钩子装饰器；测试桩/旧版 AstrBot 没有该钩子时退化为空装饰器。"""
-    deco = getattr(filter, "on_llm_request", None)
-    if deco is None:
-        return lambda fn: fn
-    try:
-        return deco()
-    except Exception:  # noqa: BLE001
-        return lambda fn: fn
 
 
 def _result_hook():
@@ -445,7 +433,7 @@ HELP_NOTES: dict[str, list[str]] = {
 
 
 @register(
-    "astrbot_plugin_warframe_sdjkbot", "SDJK", f"{BRAND}：世界状态 / 市场查价 / 蹲点推送", "1.1.9"
+    "astrbot_plugin_warframe_sdjkbot", "SDJK", f"{BRAND}：世界状态 / 市场查价 / 蹲点推送", "1.2.0"
 )
 class WarframeSDJK(
     DailyCommands,
@@ -513,6 +501,8 @@ class WarframeSDJK(
             self._push_send,
             logger,
             interval=int(_num(self.cfg, "push_interval", 45)),
+            groups=self.groups,  # 派发前查群推送开关（.关闭 推送 = 订阅暂停）
+            state_path=data_dir / "push_baseline.json",  # 基线落盘：30 分钟内重启补推
         )
         self._routes = self._build_routes()
 
@@ -576,9 +566,6 @@ class WarframeSDJK(
             "status": self._h_status_cmd,
         }
 
-
-    # ------------------------------------------------------------------
-
     # ------------------------------------------------------------------
     # 出站兜底：剥掉 QQ 渲染不了的 Markdown（2026-09-15 维护者要求）
     # ------------------------------------------------------------------
@@ -635,6 +622,9 @@ class WarframeSDJK(
 
     async def initialize(self):
         self.push.start()
+        # 守护协程意外退出必须留痕（stop/重载的主动取消不报）
+        if self.push.task is not None:
+            self.push.task.add_done_callback(self._log_task_death("push_daemon"))
         self._auto_task = asyncio.create_task(self._rank_autoloop())
         self._auto_task.add_done_callback(self._log_task_death("_rank_autoloop"))
         self._valence_task = asyncio.create_task(self._valence_autoloop())
@@ -1226,10 +1216,22 @@ class WarframeSDJK(
             value = cmd == "开启"
             await self.groups.set_switch(umo, args[0], value)
             state = "已开启" if value else "已关闭"
-            return Reply(
-                raw_text=f"✅ {args[0]}功能{state}"
-                + ("，可以用「蹲 类型」订阅推送了" if value and args[0] == "推送" else "")
-            )
+            tail = ""
+            if args[0] == "推送":
+                n_subs = len(self.subs.for_umo(umo))
+                if value:
+                    tail = (
+                        f"，已有 {n_subs} 条订阅恢复推送"
+                        if n_subs
+                        else "，可以用「蹲 类型」订阅推送了"
+                    )
+                else:
+                    tail = (
+                        f"，已有 {n_subs} 条订阅暂停（订阅保留，重新 .开启 推送 后恢复）"
+                        if n_subs
+                        else ""
+                    )
+            return Reply(raw_text=f"✅ {args[0]}功能{state}{tail}")
 
         if cmd == "状态":
             # ★ 安全审查（2026-09-18）：这条会列出**本群全部订阅明细**

@@ -137,13 +137,17 @@ import core.render as _R  # noqa: E402
 
 
 def _user_font_checks():
-    src = next((p for p in _R._Fonts.SYSTEM if p.exists()), None)
+    # 样本只需「一个真实 CJK 字体文件」（下面会临时清空 PACKED/SYSTEM）：先用系统字体，
+    # 没有就用随包子集 otf —— 2026-10-16 起不再依赖系统字体，Linux CI / macOS / 开源树都能真跑
+    # （此前 SYSTEM 里唯一的 macOS 路径 PingFang.ttc 在实机上不存在 ⇒ Mac 上恒 SKIP）。
+    src = next((p for p in list(_R._Fonts.SYSTEM) + list(_R._Fonts.PACKED) if p.exists()), None)
     if src is None:
-        print("[SKIP] 本机无系统 CJK 字体，跳过用户字体目录用例")
+        print("[SKIP] 无系统 CJK 字体且随包子集字体缺失，跳过用户字体目录用例")
         return
     tmp = Path(tempfile.mkdtemp(prefix="wf_fonts_"))
+    _name = "MyCJK" + src.suffix
     try:
-        shutil.copy2(src, tmp / "MyCJK.ttc")
+        shutil.copy2(src, tmp / _name)
         # ① _Fonts 直接吃用户目录（屏蔽打包/系统候选，证明能独立供字体）
         old_p, old_s = _R._Fonts.PACKED, _R._Fonts.SYSTEM
         _R._Fonts.PACKED, _R._Fonts.SYSTEM = [], []
@@ -155,7 +159,7 @@ def _user_font_checks():
         # ② ImageRenderer 从 cache_dir 父目录推导 fonts/（plugin_data/<插件>/fonts）
         fonts_dir = tmp / "fonts"
         fonts_dir.mkdir(exist_ok=True)
-        shutil.copy2(src, fonts_dir / "MyCJK.ttc")
+        shutil.copy2(src, fonts_dir / _name)
         _R._Fonts.PACKED, _R._Fonts.SYSTEM = [], []
         try:
             r = _R.ImageRenderer(tmp / "cards")
@@ -286,10 +290,26 @@ def _font_checks():
             f"（原有，非子集引入）：{''.join(both_missing[:12])}"
         )
     else:
-        need = corpus
+        # 开源树不带完整 TTC ⇒ 无法知道「完整字库能渲染什么」。改用独立依据：子集构建承诺
+        # GB2312 汉字区全表（scripts/build_font_subset.py::_gb2312），GB2312 符号区是中文排版
+        # 标点/全角字符 ⇒ 语料里落在 GB2312 内的字必须全在子集；其余（emoji 等）无从判定，只报数。
+        def _in_gb2312(c: str) -> bool:
+            try:
+                c.encode("gb2312")
+                return True
+            except UnicodeEncodeError:
+                return False
+
+        need = {c for c in corpus if _in_gb2312(c)}
+        print(
+            f"[SKIP] 完整字库不存在（开源树）：覆盖判据降为「语料 ∩ GB2312」{len(need)} 字；"
+            f"其余 {len(corpus) - len(need)} 个非 GB2312 字符无独立依据，不判定"
+        )
     missing = sorted(c for c in need if ord(c) not in cmap)
     check(
-        "子集覆盖「完整字库能渲染的全部语料字符」",
+        "子集覆盖「完整字库能渲染的全部语料字符」"
+        if _FULL["Regular"].exists()
+        else "子集覆盖语料中的全部 GB2312 字符",
         not missing,
         f"缺 {len(missing)} 个：{missing[:12]}",
     )

@@ -60,6 +60,11 @@ ACRITHIS_REVISION_API = (
     "https://wiki.warframe.com/api.php?action=query&prop=revisions"
     "&titles=Acrithis/Current_Offerings&rvprop=timestamp&rvlimit=1&format=json"
 )
+# 效价加成（信条/终幕）的**真源页**：Reset 页那两段是 {{#lst:}} 跨页嵌入、走 MediaWiki
+# 解析缓存 —— 换批当天会吐**旧表**（2026-10-15 事故：00:05 对齐刷新抓到上一批，整轮数据
+# 钉死）。源页 wikitext 无解析缓存，且 A/B 两批**同页全量**（一次抓取两批齐全）。
+WIKI_RAW_CODA = "https://wiki.warframe.com/w/Coda_Weapons?action=raw"
+WIKI_RAW_TENET = "https://wiki.warframe.com/w/Tenet_Weapons?action=raw"
 # 社区快照（2026-09-25 方案④）：wiki 这两项数据都在 Cloudflare 盾后，没部署
 # FlareSolverr 的用户只能吃随包种子。于是把**服务器上已经抓到的新鲜快照**发布到
 # 公开仓的 bot-data 分支（automations/publish_community_snapshot.py），插件在
@@ -1025,27 +1030,34 @@ class WarframeClient:
             ref = it.get("game_ref") or ""
             if ref and it.get("zh"):
                 by_ref.setdefault(ref, it["zh"])
+        from .de_worldstate import official_item_zh
+
         for a in data or []:
             rw = (a.get("mission") or {}).get("reward") or {}
             names, unknown = [], []
-            for p in rw.get("items") or []:
-                nm = store_item_zh(p)
+            paths = rw.get("items") or []
+            counts = list(rw.get("counts") or []) + [1] * len(paths)
+            for p, cnt in zip(paths, counts):
+                # 四级：装饰品反查表 → 官方词表（name_zh + WFCD i18n 补充，2026-10-16 加）
+                #   → WM gameRef → 未收录（不造名字）。数量 >1 时追加「 ×N」（同入侵段写法）。
+                nm = store_item_zh(p) or official_item_zh(p) or ""
                 if not nm:
                     nm = next(
                         (by_ref[k] for k in store_items_path_variants(p) if by_ref.get(k)), ""
                     )
+                suffix = f" ×{cnt}" if isinstance(cnt, int) and cnt > 1 else ""
                 if nm:
-                    names.append(nm)
+                    names.append(nm + suffix)
                 else:
-                    unknown.append(p.rsplit("/", 1)[-1])
+                    unknown.append((p.rsplit("/", 1)[-1], suffix))
             if names:
                 rw["item_names"] = names
                 rw["item"] = names[0]  # 中文名优先于 prettify 兜底
                 if unknown:
-                    rw["item_unknown"] = unknown
+                    rw["item_unknown"] = [t for t, _ in unknown]
             elif unknown:
                 rw["item_names"] = []
-                rw["item"] = "、".join("%s（未收录）" % t for t in unknown)
+                rw["item"] = "、".join(f"{t}（未收录）{sfx}" for t, sfx in unknown)
         return data
 
     async def invasions(self, platform: str) -> list[dict]:
@@ -2965,6 +2977,79 @@ class WarframeClient:
         )
         return {"tenet": tenet, "coda_batch": m.group(1) if m else "", "coda": coda}
 
+    # ★ 2026-10-15：**源页 wikitext** 解析（Coda_Weapons / Tenet_Weapons ``?action=raw``）。
+    #   与上面的 ``parse_wiki_valence``（Reset **渲染页**）相对：渲染页那两张表是
+    #   ``{{#lst:}}`` 跨页嵌入、走 MediaWiki **解析缓存**，换批当天会吐**旧表**
+    #   （2026-10-15 事故：对齐到 00:05 的刷新抓到上一批，anchor 反解成 1、整轮
+    #   数据钉死）；源页是真源、**无解析缓存**，且 A/B 两批**同页全量**。
+    @staticmethod
+    def _wt_plain(cell: str) -> str:
+        """wikitext 单元格 → 纯文本（模板壳由 ``_weapon_row_wt`` 再剥）。"""
+        import html as _h
+
+        txt = re.sub(r"<[^>]+>", " ", cell)
+        return re.sub(r"\s+", " ", _h.unescape(txt)).strip()
+
+    @classmethod
+    def _weapon_row_wt(cls, row: str) -> dict:
+        """源页数据行 → ``{en, element, bonus}``。
+
+        行形如 ``<tr><td>Coda Hema</td><td>{{D|Magnetic}}</td>
+        <td>{{ValenceBonusPercentageColor|34.2}}</td></tr>``；Tenet 页名字带
+        ``{{Weapon|Tenet Ferrox}}`` 壳。
+        """
+        cells = re.findall(r"<td[^>]*>(.*?)</td>", row, re.S)
+        out = {"en": "", "element": "", "bonus": None}
+        if cells:
+            m = re.search(r"\{\{\s*Weapon\s*\|\s*([^}|]+?)\s*\}\}", cells[0])
+            out["en"] = m.group(1) if m else cls._wt_plain(cells[0])
+        if len(cells) > 1:
+            m = re.search(r"\{\{\s*D\s*\|\s*([^}|]+?)\s*\}\}", cells[1])
+            out["element"] = m.group(1) if m else cls._wt_plain(cells[1])
+        if len(cells) > 2:
+            m = re.search(r"ValenceBonusPercentageColor\s*\|\s*([\d.]+)", cells[2]) or re.search(
+                r"([\d.]+)", cls._wt_plain(cells[2])
+            )
+            out["bonus"] = float(m.group(1)) if m else None
+        return out
+
+    @classmethod
+    def parse_wikitext(cls, src: str) -> dict:
+        """解析 Coda Weapons / Tenet Weapons 源页的 wikitext（真源，无解析缓存）。
+
+        ``?action=raw`` 的响应是 ``<pre>`` 包裹、实体转义过的 wikitext ⇒ 先
+        ``html.unescape``。返回 ``{"coda": {1: [{en,element,bonus}…], 2: […]},
+        "tenet": [ … ]}`` —— coda 的键是**批次号**（1=A、2=B），两批同页全量。
+        """
+        import html as _h
+
+        src = _h.unescape(src)
+        res: dict = {"coda": {}, "tenet": []}
+        for tm in re.finditer(r"<table[^>]*>", src):
+            start = tm.end()
+            end = src.find("</table>", start)
+            if end < 0:
+                continue
+            rows = re.findall(r"<tr[^>]*>(.*?)</tr>", src[start:end], re.S)
+            heads = [r for r in rows if "<th" in r]  # 表头行（<th>）
+            data = [r for r in rows if len(re.findall(r"<td", r)) >= 3]
+            if not heads or not data:
+                continue
+            head = re.sub(r"<[^>]+>", " ", heads[0])
+            head = re.sub(r"\s+", " ", _h.unescape(head)).strip()
+            mb = re.match(r"Weapon\s*\(Batch\s*([AB])\)", head, re.I)
+            if mb:
+                res["coda"][{"A": 1, "B": 2}[mb.group(1).upper()]] = [
+                    cls._weapon_row_wt(r) for r in data
+                ]
+                continue
+            if head.lower().startswith("weapon"):  # 无批次后缀 = Tenet（Ergo Glast）
+                items = [cls._weapon_row_wt(r) for r in data]
+                items = [it for it in items if (it["en"] or "").lower().startswith("tenet")]
+                if items:
+                    res["tenet"] = items
+        return res
+
     @staticmethod
     def valence_is_stale(data: dict, now=None) -> bool:
         """该段的效价快照是否已过期（不在当前轮次窗口内）。
@@ -3046,7 +3131,16 @@ class WarframeClient:
         return parsed
 
     async def refresh_valence(self, community_only: bool = False) -> str:
-        """检查并刷新信条/终幕元素加成快照（数据源 wiki Reset 页）。
+        """检查并刷新信条/终幕元素加成快照。
+
+        ★ 2026-10-15 数据源改为**源页 wikitext**（``Coda_Weapons`` /
+        ``Tenet_Weapons`` 的 ``?action=raw``）。原先走 Reset **渲染页**，而那段是
+        ``{{#lst:}}`` 跨页嵌入、受 MediaWiki 解析缓存影响 —— 换批当天会吐**旧表**
+        （2026-10-15 事故：对齐到 00:05 的刷新抓到上一批，anchor 反解成 1、整轮
+        数据钉死）。源页是真源、无解析缓存，且 **A/B 两批同页全量** ⇒ 两批都能
+        填值（旧实现只填当前批、把另一批的 element/bonus 清空）。
+        当前批**由 epoch+anchor 计算**（``(anchor_idx + 换轮次数) % 批数``），不再
+        从页面反解 —— 页面那份不可靠；anchor_idx 是**相位基准**，只在首次标定时改。
 
         ``community_only=True``（FS 关闭/不可达时由后台循环调用）：**不碰
         FlareSolverr**，直接用公开仓社区快照；取不到就返回 "no-community" 静默跳过。
@@ -3054,7 +3148,7 @@ class WarframeClient:
         幂等：快照仍在当前 96h 轮次内则直接返回「fresh」不动文件。
         校验失败（解析残缺）抛异常，绝不写半成品。
         """
-        from datetime import datetime, timezone
+        from datetime import datetime, timedelta, timezone
 
         rot_path = paths.read_path("rotations.json")
         rot = json.loads(rot_path.read_text(encoding="utf-8"))
@@ -3067,72 +3161,100 @@ class WarframeClient:
         _sections = [rot.get(k) for k in ("tenet", "coda")]
         if not any(self.valence_is_stale(s, now) for s in _sections if s):
             return "fresh"
+
+        tenet_data = rot.get("tenet") or {}
+        coda_data = rot.get("coda") or {}
+        labels = coda_data.get("batch_label") or ["A", "B"]
+        batches = coda_data.get("batches") or []
+        if len(batches) != len(labels):
+            raise WarframeAPIError("valence 批次表与标签数不一致")
+
         used_community = False
+        # 归一形：tenet {en: (elem, pct)}、coda {批次号(1-based): {en: (elem, pct)}}
         if community_only:
-            parsed = await self._community_valence_parsed(rot)
-            if parsed is None:
+            raw = await self._community_valence_parsed(rot)
+            if raw is None:
                 return "no-community"
             used_community = True
         else:
             try:
-                html = await self.fetch_via_flaresolver(
-                    "https://wiki.warframe.com/w/Reset", ttl=600
+                p_coda = self.parse_wikitext(
+                    await self.fetch_via_flaresolver(WIKI_RAW_CODA, ttl=600)
                 )
-                parsed = self.parse_wiki_valence(html)
+                p_tenet = self.parse_wikitext(
+                    await self.fetch_via_flaresolver(WIKI_RAW_TENET, ttl=600)
+                )
+                raw = None
             except Exception as exc:  # noqa: BLE001
                 # ★ 没部署 / 连不上 FlareSolverr 时的兜底：读公开仓 bot-data 的
                 #   社区快照（同一份 wiki 数据，由有 FS 的那台机器发布）。校验不过
                 #   就照旧抛错（调用方降级），绝不采用残缺或更旧的数据。
-                logger.info("[sdjk] 元素加成 wiki 不可用（%s），尝试社区快照", exc)
-                parsed = await self._community_valence_parsed(rot)
-                if parsed is None:
+                logger.info("[sdjk] 元素加成源页不可用（%s），尝试社区快照", exc)
+                raw = await self._community_valence_parsed(rot)
+                if raw is None:
                     raise
                 used_community = True
-        tenet_data = rot.get("tenet") or {}
-        coda_data = rot.get("coda") or {}
+
+        if used_community:
+            cb = raw.get("coda_batch") or ""
+            if cb not in labels:
+                raise WarframeAPIError(f"valence 批次标注异常：{cb!r}")
+            parsed = {"tenet": raw["tenet"], "coda": {labels.index(cb) + 1: raw["coda"]}}
+        else:
+            parsed = {
+                "tenet": {it["en"]: (it["element"], it["bonus"]) for it in p_tenet["tenet"]},
+                "coda": {
+                    idx: {it["en"]: (it["element"], it["bonus"]) for it in items}
+                    for idx, items in p_coda["coda"].items()
+                },
+            }
+            if not parsed["tenet"]:  # 兜底：源文件顺序与预期相反也能解析
+                parsed["tenet"] = {it["en"]: (it["element"], it["bonus"]) for it in p_coda["tenet"]}
+            if not parsed["coda"]:
+                parsed["coda"] = {
+                    idx: {it["en"]: (it["element"], it["bonus"]) for it in items}
+                    for idx, items in p_tenet["coda"].items()
+                }
+
         want_t = {it.get("en") for it in tenet_data.get("items") or []}
         if not want_t or not want_t <= set(parsed["tenet"]):
             raise WarframeAPIError(f"valence 解析不全：tenet 缺 {want_t - set(parsed['tenet'])}")
-        labels = coda_data.get("batch_label") or ["A", "B"]
-        batches = coda_data.get("batches") or []
-        batch = parsed["coda_batch"]
-        if batch not in labels or len(batches) != len(labels):
-            raise WarframeAPIError(f"valence 批次标注异常：{batch!r}")
-        bi = labels.index(batch)
-        coda_data["anchor_idx"] = self.coda_anchor_for(
-            bi,
-            datetime.fromisoformat(coda_data["epoch"]),
-            int(coda_data.get("period_hours", 96)),
-            now,
-            len(batches),
-        )
+
+        # 当前批 = **计算**（anchor_idx 是相位基准；不读页面 —— 页面那份受缓存影响不可靠）
+        epoch = datetime.fromisoformat(coda_data["epoch"])
+        period = timedelta(hours=int(coda_data.get("period_hours", 96)))
+        passed = int((now - epoch) // period)
+        bi = (int(coda_data.get("anchor_idx", 0)) + passed) % len(batches)
         want_c = {it.get("en") for it in batches[bi]}
-        if not want_c <= set(parsed["coda"]):
+        if not want_c <= set(parsed["coda"].get(bi + 1, {})):
             raise WarframeAPIError(
-                f"valence 解析不全：coda {batch} 批缺 {want_c - set(parsed['coda'])}"
+                f"valence 解析不全：coda {labels[bi]} 批缺 "
+                f"{want_c - set(parsed['coda'].get(bi + 1, {}))}"
             )
+
         snap = now.replace(microsecond=0).isoformat()
         for it in tenet_data.get("items") or []:
             elem, pct = parsed["tenet"][it["en"]]
             it["element"], it["bonus"] = elem, pct
-        coda_data["valence_snapshot"] = snap
+        # ★ A/B 两批都给值（源页两批同页全量）；缺的那批保留原值，不清空
         for idx, b_items in enumerate(batches):
+            table = parsed["coda"].get(idx + 1) or {}
             for it in b_items:
-                if idx == bi:
-                    elem, pct = parsed["coda"][it["en"]]
+                if it.get("en") in table:
+                    elem, pct = table[it["en"]]
                     it["element"], it["bonus"] = elem, pct
-                else:
-                    it.pop("element", None)
-                    it.pop("bonus", None)
         tenet_data["valence_snapshot"] = snap
+        coda_data["valence_snapshot"] = snap
         if used_community:
             src = "community-snapshot（wiki《Reset》数据，由有 FS 的机器发布）"
-            tenet_data["valence_source"] = src
-            coda_data["valence_source"] = src
+        else:
+            src = "wiki 源页 wikitext（Coda_Weapons / Tenet_Weapons，经 FlareSolverr）"
+        tenet_data["valence_source"] = src
+        coda_data["valence_source"] = src
         paths.atomic_write_text(
             paths.write_path("rotations.json"), json.dumps(rot, ensure_ascii=False, indent=1)
         )
-        return f"refreshed {snap} batch={batch}" + ("(community)" if used_community else "")
+        return f"refreshed {snap} batch={labels[bi]}" + ("(community)" if used_community else "")
 
     @staticmethod
     def parse_wiki_dispositions(html: str) -> dict:

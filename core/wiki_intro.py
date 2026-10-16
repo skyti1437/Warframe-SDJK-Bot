@@ -349,6 +349,27 @@ def _relic_key(name: str) -> str:
     return f"{cn} {en} {code.upper()}"
 
 
+def relic_rewards(name: str) -> Optional[dict]:
+    """遗物名 → ``{"稀有"/"罕见"/"常见": [部件…]}``；查不到返回 None（不猜）。
+
+    中英文写法都吃：「古纪 K5 遗物」（DE 简中）/「Lith B12 Relic」（新出库遗物简中词表常缺，
+    回落英文名 —— 2026-10-16 实测本期 6 个出库遗物全是英文名）/「后纪A2」。
+    """
+    s = re.sub(r"(?i)\s*(?:遗物|relics?)\s*$", "", (name or "").strip())
+    m = re.match(r"^([A-Za-z]+)\s*([A-Za-z]\d{1,2})$", s)
+    if m:
+        en2cn = {en.lower(): cn for cn, en in _TIER_CN.items()}
+        cn = en2cn.get(m.group(1).lower())
+        if not cn:
+            return None
+        s = f"{cn}{m.group(2)}"
+    key = _relic_key(s)
+    if not key:
+        return None
+    idx, _inv = _relics()
+    return idx.get(key) or None
+
+
 def _relic_card(*names: str, limit: int = 3) -> Optional[tuple[str, list[str]]]:
     """遗物卡：三档奖励（前纪 V11 遗物这类 —— 知识库/掉落表都没有条目）。"""
     idx, _inv = _relics()

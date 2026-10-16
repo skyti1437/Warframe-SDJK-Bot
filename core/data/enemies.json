@@ -120,7 +120,7 @@
    "base_shield": 150.0,
    "base_armor": 0.0,
    "head_mul": 1.0,
-   "head_src": "wiki Module:Enemies/data（Head: 1.0x）；Body_Parts 屁股 3x† 非爆头"
+   "head_src": "wiki Module:Enemies/data（Head: 1.0x）；Body_Parts 屁股 3x（非爆头弱点）"
   },
   "Leech Osprey": {
    "name": "Leech Osprey",

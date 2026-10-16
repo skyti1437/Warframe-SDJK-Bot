@@ -175,10 +175,21 @@ if changelog.exists():
 #    漏改会让市场件内 README 停在旧版（用户实测 v1.0.4 市场件里还是 v1.0.3）。
 #    2026-09-28 结构优化 Slice 1 补 dist/SDJKwfbot_README.md：该门面曾停在
 #    v1.0.5 四版未跟（cf44265 收口批已对齐 v1.0.9），此断言防再次脱节。
+# 开源树（无 dist/）：README.md 本身就是 OPENSOURCE_README 模板的产物，两份门面模板不随包
+# ⇒ 只查真实 README；私有树有 dist/ 时模板缺失照常判失败。
+_HAS_DIST = (ROOT / "dist").is_dir()
+if not _HAS_DIST:
+    print("[SKIP] dist/ 门面模板（OPENSOURCE_README / SDJKwfbot_README）不在开源树，改查 README.md")
 for _rd, _tag in (
     (ROOT / "README.md", "工作树 README"),
-    (ROOT / "dist" / "OPENSOURCE_README.md", "dist/OPENSOURCE_README"),
-    (ROOT / "dist" / "SDJKwfbot_README.md", "dist/SDJKwfbot_README"),
+    *(
+        (
+            (ROOT / "dist" / "OPENSOURCE_README.md", "dist/OPENSOURCE_README"),
+            (ROOT / "dist" / "SDJKwfbot_README.md", "dist/SDJKwfbot_README"),
+        )
+        if _HAS_DIST
+        else ()
+    ),
 ):
     if not _rd.exists():
         check(f"★ {_tag} 存在（版本标题第五处）", False, str(_rd))
@@ -249,17 +260,28 @@ def _num(text: str, pattern: str):
     return int(_m.group(1)) if _m else None
 
 
-_oss_readme = (ROOT / "dist" / "OPENSOURCE_README.md").read_text(encoding="utf-8")
+_OSS_README_SRC = ROOT / "dist" / "OPENSOURCE_README.md" if _HAS_DIST else ROOT / "README.md"
+_oss_readme = _OSS_README_SRC.read_text(encoding="utf-8")
 _got = _num(_oss_readme, r"共 \*\*(\d+) 个主指令\*\*")
-check(f"★ dist/OPENSOURCE_README.md 的主指令数 == {_N_CMD}", _got == _N_CMD, str(_got))
-_overview = (ROOT / "docs" / "项目总览.md").read_text(encoding="utf-8")
-_c = _num(_overview, r"\*\*(\d+) 个主指令 /")
-_a = _num(_overview, r"个主指令 / (\d+) 个别名")
 check(
-    f"★ docs/项目总览.md 规模数字 == {_N_CMD} 主指令 / {_N_ALIAS} 别名",
-    _c == _N_CMD and _a == _N_ALIAS,
-    f"{_c} / {_a}",
+    f"★ {_OSS_README_SRC.relative_to(ROOT).as_posix()} 的主指令数 == {_N_CMD}",
+    _got == _N_CMD,
+    str(_got),
 )
+_OVERVIEW = ROOT / "docs" / "项目总览.md"
+if _OVERVIEW.is_file():
+    _overview = _OVERVIEW.read_text(encoding="utf-8")
+    _c = _num(_overview, r"\*\*(\d+) 个主指令 /")
+    _a = _num(_overview, r"个主指令 / (\d+) 个别名")
+    check(
+        f"★ docs/项目总览.md 规模数字 == {_N_CMD} 主指令 / {_N_ALIAS} 别名",
+        _c == _N_CMD and _a == _N_ALIAS,
+        f"{_c} / {_a}",
+    )
+elif _HAS_DIST:
+    check("★ docs/项目总览.md 存在（私有树）", False, str(_OVERVIEW))
+else:
+    print("[SKIP] docs/项目总览.md 是内部文档，不在开源树")
 
 _PKG = ROOT / "dist" / "package_release.py"
 if _PKG.exists():

@@ -78,11 +78,28 @@ check("被占用地区词不抢指令（夜灵=周期）", p.command == "cetus")
 p = parse("夜灵声望")
 check("夜灵声望连写仍->bounty+地球", p.command == "bounty" and p.preset == "地球")
 
-# 黑话补充（2026-10-02）：沉沦=沉沦之地、裂缝=开核桃
+# 黑话补充（2026-10-02）：沉沦=沉沦之地
 p = parse("沉沦")
 check("沉沦=沉沦之地", p.command == "descendia")
+# 2026-10-16 用户口径：「裂缝」改归裂隙（原 2026-10-02 归开核桃），开核桃改用「开裂缝」
 p = parse("裂缝")
-check("裂缝=开核桃", p.command == "openrelic")
+check("裂缝=裂隙", p.command == "fissures")
+p = parse("裂缝 生存")
+check("裂缝 生存 → 裂隙 + 筛选内容", p.command == "fissures" and p.content == ["生存"], str(p))
+for _w, _pre in (("钢铁裂缝", "钢铁"), ("虚空裂缝", "普通"), ("九重天裂缝", "九重天")):
+    p = parse(_w)
+    check(
+        f"{_w} = {_w.replace('裂缝', '裂隙')}（预设 {_pre}）",
+        p.command == "fissures" and p.preset == _pre,
+        str(p),
+    )
+p = parse("开裂缝")
+check("开裂缝=开核桃", p.command == "openrelic")
+p = parse("开核桃")
+check("开核桃不受影响", p.command == "openrelic")
+from core.push import normalize_event as _ne  # noqa: E402
+
+check("蹲 侧：裂缝 = 裂隙事件", _ne("裂缝") == "裂隙", str(_ne("裂缝")))
 
 # 无空格连写：ASCII 指令前缀（wm/wmr 最长优先）
 p = parse("wm水晶p头")

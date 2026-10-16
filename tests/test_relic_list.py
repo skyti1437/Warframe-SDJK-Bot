@@ -727,6 +727,277 @@ check(
     _blob(_r9f)[:120],
 )
 
+# ---------------------------------------------------------------------------
+# ⑩ 第十五批 R1–R7：真实 parse → handler、官方黄金样本与构建器离线护栏。
+# ---------------------------------------------------------------------------
+from collections import defaultdict as _defaultdict  # noqa: E402
+from contextlib import redirect_stdout as _redirect_stdout  # noqa: E402
+from io import StringIO as _StringIO  # noqa: E402
+from unittest.mock import patch as _patch  # noqa: E402
+from core.parser import parse as _parse_command, MISSION_CN as _MISSION_CN  # noqa: E402
+from scripts.kb import build_relic_index as _ri  # noqa: E402
+from scripts import build_drops as _bd  # noqa: E402
+
+print("\n=== ⑩ 第十五批：奖励 / 数量 / 英文精确匹配 / 来源 ===")
+# 黄金样本：DE 2026-10-07 完整档，独立冻结期望，不从生成器计算期望。
+_EXPECTED_B15 = {
+    "后纪 Axi B10": {
+        "常见": ["Forma 蓝图", "伯斯顿 Prime 枪托", "鹦鹉螺 Prime 外壳"],
+        "罕见": ["伯斯顿 Prime 枪管", "海波斯库拉对剑 Prime 握柄"],
+        "稀有": ["布里斯提卡 Prime 蓝图"],
+    },
+    "后纪 Axi N14": {
+        "常见": ["Forma 蓝图", "Hydroid Prime 机体蓝图", "野马 Prime 蓝图"],
+        "罕见": ["海波斯库拉对剑 Prime 刀刃", "野马 Prime 枪管"],
+        "稀有": ["鹦鹉螺 Prime 头部"],
+    },
+    "古纪 Lith S20": {
+        "常见": ["Forma 蓝图", "布里斯提卡 Prime 下弓臂", "野马 Prime 枪机"],
+        "罕见": ["Sevagoth Prime 蓝图", "葬铭 Prime 枪管"],
+        "稀有": ["Sevagoth Prime 机体蓝图"],
+    },
+    "前纪 Meso E8": {
+        "常见": ["Forma 蓝图", "Sevagoth Prime 头部神经光元蓝图", "海波斯库拉对剑 Prime 蓝图"],
+        "罕见": ["Hydroid Prime 蓝图", "鹦鹉螺 Prime 系统"],
+        "稀有": ["葬铭 Prime 枪机"],
+    },
+    "中纪 Neo H5": {
+        "常见": ["Forma 蓝图", "伯斯顿 Prime 枪机", "葬铭 Prime 蓝图"],
+        "罕见": ["布里斯提卡 Prime 上弓臂", "布里斯提卡 Prime 弓弦"],
+        "稀有": ["Hydroid Prime 系统蓝图"],
+    },
+    "中纪 Neo K10": {
+        "常见": ["Forma 蓝图", "Gyre Prime 系统蓝图", "野马 Prime 蓝图"],
+        "罕见": ["大久和弓 Prime 下弓臂", "脉纹 Prime 蓝图"],
+        "稀有": ["卡帕压力枪 Prime 枪管"],
+    },
+    "中纪 Neo N25": {
+        "常见": ["Forma 蓝图", "Sevagoth Prime 系统蓝图", "伯斯顿 Prime 蓝图"],
+        "罕见": ["Hydroid Prime 头部神经光元蓝图", "布里斯提卡 Prime 枪机"],
+        "稀有": ["鹦鹉螺 Prime 蓝图"],
+    },
+}
+for _key, _expected in _EXPECTED_B15.items():
+    check(f"R1 官方黄金样本 {_key}", IDX[_key] == _expected)
+check(
+    "R1 普通遗物均为 3/2/1 槽位",
+    all(
+        [len(v.get(r, [])) for r in ("常见", "罕见", "稀有")] == [3, 2, 1]
+        for k, v in IDX.items()
+        if not k.startswith("安魂 ")
+    ),
+)
+_expected_inverse = _defaultdict(list)
+for _key, _slots in IDX.items():
+    for _rarity, _rewards in _slots.items():
+        for _name in _rewards:
+            _expected_inverse[_name].append({"relic": _key, "rarity": _rarity})
+check("R1 正反表逐项闭合", dict(_expected_inverse) == _inv)
+check("R3 双份 Forma 与单张蓝图分键", "2X Forma 蓝图" in _inv and "Forma 蓝图" in _inv)
+check(
+    "R3 Axi A7 双份 Forma 不混入单张反查",
+    any(x["relic"] == "后纪 Axi A7" for x in _inv["2X Forma 蓝图"])
+    and not any(x["relic"] == "后纪 Axi A7" for x in _inv["Forma 蓝图"]),
+)
+for _query in ("Axi A2", "axi a2", "AXI A 02", "Axi A2 Relic", "后纪 Axi A2"):
+    _result = asyncio.run(_make_obj([])._h_relic(_parse_command("遗物 " + _query), None, "pc"))
+    check(
+        f"R4 真实入口 {_query} 精确命中 A2", _result.title == "遗物：后纪 A2", _txt(_result)[:100]
+    )
+_query = asyncio.run(_make_obj([])._h_relic(_parse_command("遗物 Axi A2000"), None, "pc"))
+check("R4 不存在的完整代号不误命中 A2", "未找到" in _txt(_query))
+_query = asyncio.run(_make_obj([])._h_relic(_parse_command("遗物 2X Forma 蓝图"), None, "pc"))
+check("R3 双份 Forma 真实反查入口", _query.title == "部件出处：2X Forma 蓝图", _txt(_query)[:100])
+for _code in ("Axi A2", "Axi A5", "Axi M5", "Axi V8", "Neo O1"):
+    _result = asyncio.run(_make_obj([])._h_relic(_parse_command("遗物 " + _code), None, "pc"))
+    _text = _txt(_result)
+    check(
+        f"R6 {_code} 卡面显示奸商轮换来源",
+        "奸商" in _text
+        and "以当期货单为准" in _text
+        and "已入库" not in _text
+        and "◆ 获取来源" in _text,
+        _text[:100],
+    )
+_result = asyncio.run(_make_obj([])._h_relic(_parse_command("遗物 Lith A13"), None, "pc"))
+check("R6 Hemocyte 活动来源进入卡面", "Hemocyte" in _txt(_result) and "活动开放时" in _txt(_result))
+_event_reply = asyncio.run(_make_obj([])._h_relic(_parse_command("遗物 Axi A21"), None, "pc"))
+_event_text = _txt(_event_reply)
+check("R6 Event 前缀进入卡面", "活动 · " in _event_text)
+_regular_example = next(
+    x
+    for x in drops_db.relic_source_lines("axi a21 relic")
+    if not x.startswith(("活动 · ", "奸商 · ", "敌人 · "))
+)
+check("R6 常规可刷地点不会被历史活动挤掉", _regular_example in _event_text)
+check(
+    "R5 生成器任务译名与 MISSION_CN 同源",
+    all(_bd.mode_zh(k.title()) == v for k, v in _MISSION_CN.items()),
+)
+
+# 构建器微型夹具：验证官方覆盖、异常源拒写、数量保留与 --check 的双向行为。
+_test_rewards = [
+    ("Part" + str(i), chance, "Uncommon" if chance > 5 else "Rare")
+    for i, chance in enumerate((25.33, 25.33, 25.33, 11, 11, 2))
+]
+_test_names = {
+    "/test/" + name.lower(): "奖励" + str(i) for i, (name, _, _) in enumerate(_test_rewards)
+}
+_test_items = [
+    {
+        "name": "Axi Z999 Intact",
+        "rewards": [
+            {
+                "item": {"name": name, "uniqueName": "/test/" + name.lower()},
+                "chance": chance,
+                "rarity": rar,
+            }
+            for name, chance, rar in _test_rewards
+        ],
+    }
+]
+_test_html = (
+    '<h3 id="relicRewards">Relics:</h3><table><tr><th>Axi Z999 Relic (Intact)</th></tr>'
+    + "".join(
+        f"<tr><td>{name}</td><td>{rar} ({chance}%)</td></tr>" for name, chance, rar in _test_rewards
+    )
+    + "</table>"
+)
+_mini_index, _, _audit = _ri.build(_test_items, _test_html, _test_names)
+# 交换两个部件的概率，只改 WFCD：结果仍须按官方页，且冲突有记录。
+_wrong = json.loads(json.dumps(_test_items))
+_wrong[0]["rewards"][0]["chance"], _wrong[0]["rewards"][-1]["chance"] = 2, 25.33
+_official_index, _, _audit = _ri.build(_wrong, _test_html, _test_names)
+check("R1 两源冲突按官方覆盖并记录", _official_index == _mini_index and bool(_audit["conflicts"]))
+check(
+    "R3 数量基于奖励原名，不被相同路径抹掉",
+    _ri.translated("2X Part0", {"Part0": "/test/part0"}, _test_names) == "2X 奖励0",
+)
+for _bad_html in (
+    "<html>blocked</html>",
+    _test_html.replace("Part5</td><td>Rare (2%)", "Part5</td><td>invalid"),
+):
+    try:
+        _ri.build(_test_items, _bad_html, _test_names)
+        _rejected = False
+    except ValueError:
+        _rejected = True
+    check("R1 缺表/缺奖励拒绝生成", _rejected)
+with tempfile.TemporaryDirectory() as _tmp:
+    _src = Path(_tmp) / "Relics.json"
+    _html_file = Path(_tmp) / "official.html"
+    _src.write_text(json.dumps(_test_items), encoding="utf-8")
+    _html_file.write_text(_test_html, encoding="utf-8")
+    _args = [
+        "build_relic_index.py",
+        "--src",
+        str(_src),
+        "--official",
+        str(_html_file),
+        "--out-dir",
+        _tmp,
+    ]
+    with _patch.object(_ri, "load_names", return_value=_test_names), _redirect_stdout(_StringIO()):
+        with _patch.object(sys, "argv", [*_args, "--dry-run"]):
+            _dry_rc = _ri.main()
+        _dry_kept = not (Path(_tmp) / "relic_index.json").exists()
+        with _patch.object(sys, "argv", _args):
+            _write_rc = _ri.main()
+        with _patch.object(sys, "argv", [*_args, "--check"]):
+            _equal_rc = _ri.main()
+        _tamper_file = Path(_tmp) / "relic_inverse.json"
+        _tamper_file.write_text("{}", encoding="utf-8")
+        with _patch.object(sys, "argv", [*_args, "--check"]):
+            _diff_rc = _ri.main()
+    check("R1 --dry-run 不写产物", _dry_rc == 0 and _dry_kept)
+    check("R1 --check 相等返回 0", _write_rc == 0 and _equal_rc == 0)
+    check("R1 --check 不等返回非零且不覆盖", _diff_rc != 0 and _tamper_file.read_text() == "{}")
+
+# 删除/替换逻辑双向守卫：任务旧值该移除；独立模式/非任务来源不能被误删。
+_drop_html = (
+    '<b>Last Update:</b> 07 October, 2026<h3 id="missionRewards">Missions:</h3>'
+    "<table><tr><th>Event: Europa/Cryotic Front (Excavation)</th></tr>"
+    "<tr><th>Rotation C</th></tr><tr><td>Axi Z999 Relic</td><td>Rare (6.67%)</td></tr>"
+    "<tr><th>Venus/Shared (Caches)</th></tr><tr><th>Rotation B</th></tr>"
+    "<tr><td>Cache Part</td><td>Rare (6.45%)</td></tr></table>"
+    '<h3 id="relicByAvatar">Enemies:</h3><table><tr><th>Hemocyte</th>'
+    "<th>Relic Drop Chance: 20.00%</th></tr><tr><td></td><td>Axi Z999 Relic</td>"
+    "<td>Uncommon (12.91%)</td></tr></table>"
+)
+_drop_rows = [
+    {
+        "place": "Europa/Cryotic Front (Excavation), Rotation C",
+        "item": "Stale Part",
+        "rarity": "Rare",
+        "chance": 1,
+    },
+    {
+        "place": "Venus/Shared (Skirmish), Rotation B",
+        "item": "Other Mode Part",
+        "rarity": "Rare",
+        "chance": 2,
+    },
+    {"place": "Independent Source", "item": "Independent Part", "rarity": "Rare", "chance": 3},
+]
+with _redirect_stdout(_StringIO()):
+    _payload = _bd.build(
+        _drop_rows,
+        _drop_html,
+        {
+            "items": {"stale part": [[99, "Rare", 1]]},
+            "places": {"0": "金星 · Shared · 遭遇战 · B轮"},
+        },
+    )
+check("R2 过期来源行移除，不续传旧 items 值", _payload["items"]["stale part"] == [])
+check("R2 非任务来源保留", len(_payload["items"]["independent part"]) == 1)
+_pids = {rows[0][0] for name, rows in _payload["items"].items() if rows}
+check("R2 不同模式/新地点不共用 pid", len(_pids) == 4 and len(_payload["places"]) == 4)
+check(
+    "R6 官方 Event 前缀保留且任务补丁幂等",
+    "活动 · 木卫二 · Cryotic Front · 挖掘 · C轮" in _payload["places"].values(),
+)
+with _redirect_stdout(_StringIO()):
+    _again = _bd.build(_drop_rows, _drop_html, _payload)
+# 不同上游键可能译成同一显示标签（如 Exterminate/Extermination）；仍需稳定保留各自 pid。
+_duplicate_modes = [
+    {
+        "place": f"Venus/Twin ({mode}), Rotation B",
+        "item": f"Part {i}",
+        "rarity": "Rare",
+        "chance": 1,
+    }
+    for i, mode in enumerate(("Exterminate", "Extermination"))
+]
+with _redirect_stdout(_StringIO()):
+    _duplicates = _bd.build(_duplicate_modes, _drop_html, {})
+    _duplicates_again = _bd.build(_duplicate_modes, _drop_html, _duplicates)
+check("R2 重复显示标签的不同模式编号仍幂等", _duplicates == _duplicates_again)
+check("R2 重跑编号与数据幂等", _again == _payload)
+check("R6 Hemocyte 补充来源来自官方表", "axi z999 relic" in _payload["relic_special_sources"])
+_saved_db = drops_db._DB
+try:
+    drops_db._DB = {
+        "places": {"0": "活动 · 木卫二 · Cryotic Front · 挖掘 · C轮"},
+        "relic_drops": {"axi z999 relic": [[0, "Rare", 6.67]]},
+    }
+    check("R6 仅活动来源不当作常驻出库", "axi z999 relic" not in drops_db.unvaulted_relics())
+    drops_db._DB["places"]["1"] = "虚空 · Mot · 生存 · C轮"
+    drops_db._DB["relic_drops"]["axi z999 relic"].append([1, "Rare", 6.67])
+    check("R6 活动+常规双来源仍可常驻出库", "axi z999 relic" in drops_db.unvaulted_relics())
+finally:
+    drops_db._DB = _saved_db
+check("R2 辐射遗物合并到基名", _bd.base_relic_key("Lith Q3 Relic (Radiant)") == "lith q3 relic")
+check(
+    "R2 非遗物条目不混入遗物池",
+    _bd.base_relic_key("Syndicate Relic Pack") is None
+    and _bd.base_relic_key("Eidolon Relic") is None,
+)
+check(
+    "R7 安魂 Eterna 保留罕见分槽等待裁决",
+    IDX["安魂 Requiem Eterna"]
+    == {"罕见": ["Fass", "Jahu", "Khra", "Lohk", "Netra", "Ris", "Vome", "Xata"]},
+)
+
 print()
 if FAILED:
     print(f"✗ {len(FAILED)} 项失败：" + "、".join(FAILED))

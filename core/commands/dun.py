@@ -15,14 +15,19 @@ from ..parser import (
     FISSURE_MODIFIER_WORDS,
     PLATFORM_DISPLAY,
     contains_fissure_tier,
-    dun_rule_hint,
     fissure_tier_hint,
     parse_duration,
     parse_fissure_filter,
     parse_time_window,
 )
 from ..push import parse_bounty_rule
-from ..push import PUSH_EVENTS, Subscription, build_cancel_selector, normalize_event
+from ..push import (
+    PUSH_EVENTS,
+    Subscription,
+    alias_preset,
+    build_cancel_selector,
+    normalize_event,
+)
 from .base import Reply, err_card
 
 
@@ -40,13 +45,14 @@ class DunCommands:
             lines += [
                 "◆ 写法（蹲 类型 筛选 时长 时间）",
                 "· 时长　永久/7天/两周/N小时…（不写=命中一次后取消）",
-                "· 时间　22到8 / 每天19点 / 周1/3/5 23点",
-                "· 筛选　一个词 = 一个条件（如 钢铁防御）；多个条件用逗号/空格并列（取或）",
+                "· 时间　北京时间：22到8（22:00–次日8:00，8 点整结束）/ 0到24（全天）/ 每天19点（19:00–19:59）"
+                " / 周1/3/5 23点 / 周5 22到8（含周六凌晨）",
+                "· 筛选　空格分开 = 同时满足（钢铁 古纪 = 钢铁的古纪裂隙）；逗号分开 = 任一满足（钢铁,古纪）",
                 "· 档位　T1–T6 = 古纪/前纪/中纪/后纪/安魂/全能（档位词自动按裂隙订阅），"
                 "如 蹲 钢铁t5歼灭",
                 "· 赏金　可筛 地区+任务（如 蹲 赏金 扎里曼 高效歼灭）；覆盖 扎里曼/实验室/1999",
                 "· 取消　蹲 取消（自己发起的全部；群管理员可删全群）/ 蹲 取消 裂隙 捕获（只删匹配项）",
-                "※ ⚠ 筛选连写 = 一个条件，空格拆开 = 取或：「钢铁防御」≠「钢铁 防御」",
+                "※ 筛选：空格 = 且、逗号 = 或 ——「钢铁 古纪」只蹲钢铁古纪，「钢铁,古纪」钢铁或古纪都推",
             ]
             # 2026-09-21 修：裸「蹲」应出卡片图（与其它指令一致）。
             # 原 text_only=True 是 v0.5 接手时的祖传写法，全插件唯一一处强制纯文本；
@@ -94,6 +100,8 @@ class DunCommands:
             ev = normalize_event(tok)
             if ev and event_type is None:
                 event_type = ev
+                if alias_preset(tok):  # 钢铁裂隙 → 裂隙 + 筛选「钢铁」（别把档位吃掉）
+                    rest.append(alias_preset(tok))
             else:
                 rest.append(tok)
         # ★ 2026-10-03（口径）：「T1–T6 / 古纪…全能」这类**档位词本身
@@ -190,7 +198,10 @@ class DunCommands:
             umo=umo,
             platform=platform,
             event=event_type,
-            rule=",".join(rule_parts),
+            # ★ 2026-10-16：裂隙筛选里**逗号 = 或、空格 = 且**（parse_fissure_filter，与「裂隙」查询同口径）。
+            #   旧实现一律用逗号拼 ⇒「蹲 钢铁裂隙 古纪」落成「钢铁,古纪」= 钢铁 或 古纪（推来安魂钢铁）。
+            #   用户自己敲的逗号仍在 token 内，「蹲 裂隙 生存,防御」照旧是或。其他事件的规则解析不变。
+            rule=(" " if event_type == "裂隙" else ",").join(rule_parts),
             windows={}
             if window is None or window.is_always
             else {
@@ -237,6 +248,15 @@ class DunCommands:
                 f"上面的「{sub.rule}」不会生效"
                 f"（目前只有 裂隙 / 仲裁 支持筛选）"
             )
+        elif event_type == "裂隙":
+            # ★ 2026-10-16：识别不了的残余按节点 / 星球名子串匹配 —— 写错就永远不命中，当场说清。
+            _sub_names = [
+                g["substr"] for g in parse_fissure_filter(sub.rule).groups if g.get("substr")
+            ]
+            if _sub_names:
+                lines.append(
+                    f"※ 「{'、'.join(_sub_names)}」按节点 / 星球名匹配，名字写错会一直收不到推送"
+                )
         elif event_type == "仲裁":
             _types, _ratings, _unknown = _arbi.parse_rule(sub.rule)
             if _unknown:
@@ -249,14 +269,7 @@ class DunCommands:
                     f"※ 只在评级 {'/'.join(_ratings)} 的场次推送（想全都收就别写「高效/传奇」）"
                 )
         if event_type == "裂隙":
-            # ★ 2026-09-26（审核通过）：多词元 = 多条件取或，而「钢铁/虚空/后纪…」
-            #   这类纯修饰词本意是与任务词合成一个条件 → 拆开写语义被放大。
-            #   只提示、**不改语义**（订阅按用户原样落库）。
-            #   非裂隙类型（仲裁 / 钢路侵袭）的 rule 由 `arbi.match_rule` 等各自解释，
-            #   语义不同、也不共用逗号分组，**本轮不做提示**（免将来重复问）。
-            _hint = dun_rule_hint(rule_parts)
-            if _hint:
-                lines.append(_hint)
+            # 2026-09-26 的「空格陷阱」提示（多词 = 取或，请连写）已随 10-16 语义统一（空格 = 且）删除。
             # ★ 2026-10-03：档位写法越界（T0/T7/T9、孤立的 t、T5x…）当场提示，
             #   不静默（铁律 A）；合法 T1–T6 返回空串。
             _t_hint = fissure_tier_hint(rule_parts)
