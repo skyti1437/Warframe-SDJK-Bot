@@ -208,10 +208,59 @@ def freshness_items(root: Path, now=None) -> list[dict]:
     return items
 
 
+def registry_items(root: Path, now=None) -> list[dict]:
+    """数据登记表（``core/data_registry``）判定 → health 条目（只读）。
+
+    规则（拆步「只读展示 → 警告 → 仅高风险阻断」的第二步）：
+      · ``risk == "high"`` 且 status ∈ {stale, unknown} ⇒ 条目 ``ok=True, warn=True``（警告不算失败）；
+      · ``unregistered`` / ``missing`` ⇒ 条目 ``ok=False``（不论风险，阻断）；
+      · 其余（ok / no_ttl / 低中风险的 stale、unknown）不输出。
+    """
+    from datetime import datetime, timezone
+
+    sys.dont_write_bytecode = True  # 进程内导入 core，不往被测树写 __pycache__
+    sys.path.insert(0, str(root))
+    from core import data_registry
+
+    now = now or datetime.now(timezone.utc)
+    try:
+        rows = data_registry.evaluate(root / "core" / "data", now)
+    except Exception as exc:  # noqa: BLE001
+        return [{"item": "data_registry", "ok": False, "reason": f"登记表判据起不来：{exc!r}"}]
+    items: list[dict] = []
+    for r in rows:
+        status = r.get("status")
+        if status in ("unregistered", "missing"):
+            items.append(
+                {
+                    "item": f"registry::{r['file']}",
+                    "ok": False,
+                    "reason": f"{status}：{r.get('detail')}",
+                    "warn": False,
+                }
+            )
+        elif r.get("risk") == "high" and status in ("stale", "unknown"):
+            items.append(
+                {
+                    "item": f"registry::{r['file']}",
+                    "ok": True,
+                    "warn": True,
+                    "reason": f"{status}：{r.get('detail')}",
+                }
+            )
+    for it in items:
+        it.setdefault("checked_at", now.isoformat())
+    return items
+
+
 def health(root: Path, log_dir: Path, now=None) -> list[Result]:
+    from datetime import datetime, timezone
+
     log = log_dir / "health.json"
+    now = now or datetime.now(timezone.utc)
     try:
         items = freshness_items(root, now)
+        items = items + registry_items(root, now)
     except Exception as exc:  # noqa: BLE001
         return [Result("health", [], "ERROR", detail=f"新鲜度检查起不来：{exc!r}")]
     log.write_text(json.dumps(items, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -222,6 +271,8 @@ def health(root: Path, log_dir: Path, now=None) -> list[Result]:
             + (f" 当前窗口={it['window']}" if it.get("window") else "")
             + (f" 原因={it['reason']}" if it.get("reason") else "")
         )
+        if it.get("warn"):
+            detail = "（警告，不计失败）" + detail
         out.append(
             Result(it["item"], [], "PASS" if it.get("ok") else "FAIL", log=str(log), detail=detail)
         )

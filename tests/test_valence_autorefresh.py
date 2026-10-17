@@ -108,7 +108,8 @@ check("refresh_valence 用 any(...) 汇总各段是否过期", "any(" in _src)
 _loops = [i for i, ln in enumerate(_src.splitlines()) if 'return "fresh"' in ln]
 check(
     "refresh_valence 不在逐段循环里 return fresh",
-    len(_loops) == 1 and "any(" in _src.splitlines()[_loops[0] - 1],
+    # 2026-10-17：any(...) 与 return 之间多了一行 _note_comm（社区快照采用记录），往上看两行
+    len(_loops) == 1 and "any(" in "\n".join(_src.splitlines()[_loops[0] - 2 : _loops[0]]),
     str(_src.splitlines()[max(0, (_loops or [0])[0] - 1) : (_loops or [1])[0] + 1]),
 )
 

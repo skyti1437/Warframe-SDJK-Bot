@@ -1440,7 +1440,8 @@ async def z_send_failure_scenarios():
         f"{calls} {d._pending}",
     )
 
-    # 连续失败达阈值 ⇒ 清理该会话订阅（别的会话不受影响）
+    # 连续失败达阈值 ⇒ 不再清理订阅，改为「暂停该会话推送」（别的会话不受影响）
+    # ★ 2026-10-17 用户口径：见 z_pause_scenarios 的完整语义回归
     d, st, cl, box, lg, _ = _zmk()
     cl.data["invasions"] = [_zinv("a")]
     await st.add(_zsub("g1", "入侵", once=False))
@@ -1458,17 +1459,30 @@ async def z_send_failure_scenarios():
         await d.tick()
         if i < push_mod.FAIL_PURGE_THRESHOLD - 1:
             assert len(st.for_umo("g1")) == 1
-    check("★ P2-3 连续失败达阈值 ⇒ 清理该会话订阅", st.for_umo("g1") == [], str(st.all()))
     check(
-        "P2-3 清理留 WARNING",
-        any("已清理该会话" in x and "g1" in x for x in lg.warn_lines),
+        "★ P2-3 连续失败达阈值 ⇒ 订阅保留、该会话推送被暂停（不再清理）",
+        len(st.for_umo("g1")) == 1 and d._pause_of("g1") is not None,
+        str(st.all()),
+    )
+    check(
+        "P2-3 暂停留 WARNING",
+        any("已暂停该会话推送" in x and "g1" in x for x in lg.warn_lines),
         str(lg.warn_lines[-3:]),
     )
     check("P2-3 护栏：别的会话订阅不受影响且照常收到", len(st.for_umo("g2")) == 1 and len(box) >= 1)
+    check(
+        "P2-3 暂停时清掉该会话的待发队列",
+        all(p["umo"] != "g1" for p in d._pending),
+        str(d._pending),
+    )
     warn_n = len(lg.warn_lines)
     cl.data["invasions"].append(_zinv("after"))
     await d.tick()
-    check("P2-3 清理后不再刷失败日志", len(lg.warn_lines) == warn_n, str(lg.warn_lines[warn_n:]))
+    check(
+        "P2-3 暂停后不再刷失败日志（未到重试时刻不发）",
+        len(lg.warn_lines) == warn_n,
+        str(lg.warn_lines[warn_n:]),
+    )
 
     # 失败后成功 ⇒ 计数复位，订阅不被清
     d, st, cl, box, lg, _ = _zmk()
@@ -1521,6 +1535,181 @@ async def z_send_failure_scenarios():
         st.all() == [] and any("已清理该会话" in x for x in lg.warn_lines),
         str(lg.warn_lines),
     )
+
+
+async def z_pause_scenarios():
+    """★ 2026-10-17 订阅推送「暂停可恢复」语义回归（GPT 自维护性评估 §6 第 11 项 / P15）。"""
+
+    def _ok_send(box):
+        async def send(umo, text, at=None):
+            box.append((umo, text, list(at or [])))
+
+        return send
+
+    async def _make_paused(gpath, umo="g1"):
+        """真 GroupStore + 真守护：把该会话推到「连续失败暂停」态。"""
+        gs = GroupStore(gpath)
+        await gs.set_switch(umo, "推送", True)  # 群推送开关默认关，先打开
+        d, st, cl, box, lg, _tmp = _zmk(groups=gs)
+        cl.data["invasions"] = [_zinv("a")]
+        await st.add(_zsub(umo, "入侵", once=False))
+        await d.tick()
+
+        async def fail(u, text, at=None):
+            raise RuntimeError("timeout")
+
+        d.send = fail
+        for i in range(push_mod.FAIL_PURGE_THRESHOLD):
+            cl.data["invasions"] = [_zinv("a")] + [_zinv(f"y{i}-{k}") for k in range(i + 1)]
+            await d.tick()
+        assert gs.pause_of(umo) is not None, "前置未进入暂停态"
+        return d, st, cl, box, lg, gs
+
+    # —— 1. 连续 5 轮非致命失败 ⇒ 订阅仍在、会话暂停、记录落 GroupStore（重启能读回）——
+    tmp1 = Path(tempfile.mkdtemp())
+    gpath1 = tmp1 / "groups.json"
+    d, st, cl, box, lg, gs = await _make_paused(gpath1)
+    p = gs.pause_of("g1")
+    check(
+        "★ 连续 5 轮非致命失败 ⇒ 订阅保留 + 会话暂停",
+        len(st.for_umo("g1")) == 1 and isinstance(p, dict),
+        str(p),
+    )
+    check(
+        "暂停记录字段齐全（since / next_try / reason / fails）",
+        all(k in (p or {}) for k in ("since", "next_try", "reason", "fails"))
+        and p["since"]
+        and p["next_try"]
+        and p["fails"] == push_mod.FAIL_PURGE_THRESHOLD,
+        str(p),
+    )
+    check(
+        "下次重试 = 暂停起 + 6 小时（PAUSE_RETRY_SECS）",
+        abs((p["next_try"] - p["since"]) - push_mod.PAUSE_RETRY_SECS) < 1,
+        str(p),
+    )
+    check(
+        "暂停 reason = 异常短文本，且不含会话号",
+        "timeout" in str(p["reason"]) and "g1" not in str(p["reason"]),
+        str(p["reason"]),
+    )
+    gs_reload = GroupStore(gpath1)
+    check(
+        "★ 暂停记录落盘：重新 load 能读回（重启不丢）",
+        gs_reload.pause_of("g1") is not None and gs_reload.get("g1")["push"] is True,
+        str(gs_reload.pause_of("g1")),
+    )
+
+    # —— 2. 暂停中、未到 next_try ⇒ 不发、不消费、不记 notified、不入待发队列 ——
+    notified_before = dict(st.for_umo("g1")[0].notified)
+    box.clear()
+    cl.data["invasions"].append(_zinv("blocked"))
+    await d.tick()
+    check("★ 暂停中未到重试时刻：不发送（send 桩未被调用）", box == [], str(box))
+    check("暂停中：订阅未被消费", len(st.for_umo("g1")) == 1, str(st.all()))
+    check(
+        "暂停中：不记 notified",
+        st.for_umo("g1")[0].notified == notified_before,
+        str(st.for_umo("g1")[0].notified),
+    )
+    check("暂停中：不进待发队列", all(x["umo"] != "g1" for x in d._pending), str(d._pending))
+
+    # —— 3. 到 next_try 试发成功 ⇒ 解除暂停（内存 + 存档）——
+    p = gs.pause_of("g1")
+    p["next_try"] = time.time() - 1
+    await gs.set_pause("g1", p)
+    box.clear()
+    d.send = _ok_send(box)
+    cl.data["invasions"].append(_zinv("resumed"))
+    await d.tick()
+    check("★ 到重试时刻试发成功 ⇒ 照常发送", len(box) >= 1, str(box))
+    check(
+        "★ 试发成功 ⇒ 解除暂停（内存与存档都清）",
+        d._pause_of("g1") is None and gs.pause_of("g1") is None,
+        str(gs.pause_of("g1")),
+    )
+    check(
+        "试发成功 ⇒ INFO 留「推送已恢复」",
+        any("推送已恢复" in x for x in lg.info_lines),
+        str(lg.info_lines[-3:]),
+    )
+    check("解除暂停后订阅仍在", len(st.for_umo("g1")) == 1, str(st.all()))
+
+    # —— 4. 试发失败 ⇒ next_try 推后 6 小时、订阅仍在、since 不重置 ——
+    tmp4 = Path(tempfile.mkdtemp())
+    d4, st4, cl4, box4, lg4, gs4 = await _make_paused(tmp4 / "groups.json")
+    p = gs4.pause_of("g1")
+    since0, fails0 = p["since"], p["fails"]
+    p["next_try"] = time.time() - 1
+    await gs4.set_pause("g1", p)
+    cl4.data["invasions"].append(_zinv("retryfail"))
+    await d4.tick()
+    p2 = gs4.pause_of("g1")
+    check(
+        "★ 试发失败 ⇒ next_try 推后 6 小时、订阅仍在",
+        isinstance(p2, dict)
+        and len(st4.for_umo("g1")) == 1
+        and abs(p2["next_try"] - (time.time() + push_mod.PAUSE_RETRY_SECS)) < 5,
+        str(p2),
+    )
+    check("试发失败 ⇒ fails 递增", p2["fails"] == fails0 + 1, f"{fails0} -> {p2['fails']}")
+    check("试发失败 ⇒ since 不变（7 天倒计时不重置）", p2["since"] == since0, str(p2))
+
+    # —— 5. 暂停满 7 天后再试仍失败 ⇒ 才清理订阅 ——
+    tmp5 = Path(tempfile.mkdtemp())
+    d5, st5, cl5, box5, lg5, gs5 = await _make_paused(tmp5 / "groups.json")
+    p = gs5.pause_of("g1")
+    p["since"] = time.time() - push_mod.PAUSE_PURGE_SECS - 10
+    p["next_try"] = time.time() - 1
+    await gs5.set_pause("g1", p)
+    cl5.data["invasions"].append(_zinv("purge"))
+    await d5.tick()
+    check("★ 暂停满 7 天试发仍失败 ⇒ 清理订阅", st5.for_umo("g1") == [], str(st5.all()))
+    check(
+        "清理原因写「暂停 7 天仍发送失败」",
+        any("暂停 7 天仍发送失败" in x for x in lg5.warn_lines),
+        str(lg5.warn_lines[-3:]),
+    )
+    check(
+        "清理后暂停记录一并清掉（内存 + 存档）",
+        d5._pause_of("g1") is None and gs5.pause_of("g1") is None,
+        str(gs5.pause_of("g1")),
+    )
+
+    # —— 6. fatal 错误 ⇒ 仍立即清理（暂停机制不改变这条）——
+    tmp6 = Path(tempfile.mkdtemp())
+    gs6 = GroupStore(tmp6 / "groups.json")
+    await gs6.set_switch("g1", "推送", True)
+    d6, st6, cl6, box6, lg6, _tmp6 = _zmk(groups=gs6)
+    cl6.data["invasions"] = [_zinv("a")]
+    await st6.add(_zsub("g1", "入侵", once=False))
+    await d6.tick()
+
+    async def kicked(umo, text, at=None):
+        raise RuntimeError("retcode=100 群不存在或已被踢出")
+
+    d6.send = kicked
+    cl6.data["invasions"].append(_zinv("b"))
+    await d6.tick()
+    check(
+        "★ fatal 错误一次即清理订阅（不被暂停机制拦住）",
+        st6.for_umo("g1") == [] and d6._pause_of("g1") is None,
+        str(st6.all()),
+    )
+
+    # —— 7. 群里重新 .开启 推送 ⇒ 视为手动恢复（解除暂停）——
+    tmp7 = Path(tempfile.mkdtemp())
+    d7, st7, cl7, box7, lg7, gs7 = await _make_paused(tmp7 / "groups.json")
+    check("前置：确实处于暂停", gs7.pause_of("g1") is not None)
+    await gs7.set_switch("g1", "推送", True)  # main.py 的 .开启 推送 走同一入口
+    check("★ set_switch(推送, True) ⇒ 存档里的暂停记录被清", gs7.pause_of("g1") is None)
+    check("★ 守护同步看到解除（不依赖重载 / 手动清内存）", d7._pause_of("g1") is None)
+    box7.clear()
+    d7.send = _ok_send(box7)
+    cl7.data["invasions"].append(_zinv("after_switch"))
+    await d7.tick()
+    check("手动恢复后照常推送", len(box7) >= 1, str(box7))
+    check("手动恢复不清订阅", len(st7.for_umo("g1")) == 1, str(st7.all()))
 
 
 async def z_state_persist_scenarios():
@@ -1948,6 +2137,7 @@ try:
     asyncio.run(z_empty_response_scenarios())
     asyncio.run(z_group_switch_scenarios())
     asyncio.run(z_send_failure_scenarios())
+    asyncio.run(z_pause_scenarios())
     asyncio.run(z_state_persist_scenarios())
     asyncio.run(z_store_failure_scenarios())
     asyncio.run(z_cancel_scenarios())

@@ -195,6 +195,20 @@ check(
     f"{_est} vs {_now:%Y-%m-%d}",
 )
 check("快照后已发生的到访计数（1.6 个周期 ⇒ 1 次）", baro.missed_visits(_now) == 1)
+# 2026-10-17 宽限：到访开始后 3 天内不算「未收录」（健康提示用），卡片静默计数不受影响
+from datetime import timedelta as _td  # noqa: E402
+
+_start = _dt.fromisoformat(_last).replace(tzinfo=_tz.utc) + baro._period()  # 下一次到访开始
+_g = baro.STALE_GRACE_HOURS
+check("到访开始 1 天：不带宽限计 1 次", baro.missed_visits(_start + _td(days=1)) == 1)
+check(
+    "到访开始 1 天：带 3 天宽限计 0 次（wiki 还没来得及收录）",
+    baro.missed_visits(_start + _td(days=1), grace_hours=_g) == 0,
+)
+check(
+    "到访开始 4 天：带宽限也计 1 次（该提示了）",
+    baro.missed_visits(_start + _td(days=4), grace_hours=_g) == 1,
+)
 check(
     "worldstate Activation 优先（DE 官方排期）",
     baro.next_visit_est(now=_now, activation="2099-01-02T13:00:00Z") == "2099-01-02",

@@ -257,6 +257,30 @@
       <tbody id="fresh"></tbody>
     </table></div>
   </section>
+  <section class="panel"><i class="c1"></i><i class="c2"></i>
+    <div class="ptitle"><h3>社区快照通道</h3><span class="hint" id="commSrc"></span><span class="ext"></span></div>
+    <div class="hint">本机最近一次检查每份社区快照的结论：走的哪条通道、有没有采用、为什么没采用。插件重启后清空，下次检查时重新记录。</div>
+    <div class="scroll"><table>
+      <thead><tr><th>数据</th><th>结论</th><th>通道</th><th>数据时间</th><th>检查时间</th><th>说明</th></tr></thead>
+      <tbody id="comm"></tbody>
+    </table></div>
+  </section>
+  <section class="panel"><i class="c1"></i><i class="c2"></i>
+    <div class="ptitle"><h3>有效数据账本</h3><span class="hint" id="ledgerHint"></span><span class="ext"></span></div>
+    <div class="hint">逐份对照「运行目录副本」与「随包种子」，说明插件此刻实际读到的是哪一份。只列正在生效或需要处理的；账本只读，不会改名、删除或写入任何数据文件。</div>
+    <div class="scroll"><table>
+      <thead><tr><th>文件</th><th>实际采用</th><th>运行副本时间</th><th>种子时间</th><th>结论</th><th>建议</th></tr></thead>
+      <tbody id="ledger"></tbody>
+    </table></div>
+  </section>
+  <section class="panel"><i class="c1"></i><i class="c2"></i>
+    <div class="ptitle"><h3>数据登记</h3><span class="ext"></span></div>
+    <div class="hint">每份随包数据文件的来源、生产器与判定方式。「不按时间判」= 稳定表，上游变了才重建；「来源未确认」= 登记表里查不到来源。</div>
+    <div class="scroll"><table>
+      <thead><tr><th>分组</th><th>文件</th><th>判定方式</th><th>状态</th><th>内容时间</th><th>说明</th></tr></thead>
+      <tbody id="reg"></tbody>
+    </table></div>
+  </section>
 </section>
 
 <!-- ============ 推送与订阅 ============ -->
@@ -269,7 +293,7 @@
   <section class="panel"><i class="c1"></i><i class="c2"></i>
     <div class="ptitle"><h3>蹲订阅</h3><span class="hint" id="subsSummary"></span><span class="ext"></span>
       <label class="hint"><input type="checkbox" id="reveal" /> 显示完整号码</label></div>
-    <div class="hint" style="margin-bottom:8px">群推送关闭时，该群的订阅暂停推送但不会被删除。删除订阅要点两次确认。</div>
+    <div class="hint" style="margin-bottom:8px">群推送关闭时，该群的订阅暂停推送但不会被删除；连续发送失败的群会被暂停推送（可点「恢复推送」，或到点自动重试）。删除订阅要点两次确认。</div>
     <div id="subs"></div>
   </section>
 </section>
@@ -458,7 +482,15 @@
     if (!p.alive) todo.push(["s-stale", "推送守护没有在运行，订阅不会推送", "push", "去看看"]);
     for (const r of fr.filter((r) => r.status === "stale")) todo.push(["s-stale", `${r.item}已过期：${r.detail}`, "data", "去刷新"]);
     for (const r of fr.filter((r) => r.status === "warn")) todo.push(["s-warn", `${r.item}：${r.detail}`, "data", "查看"]);
+    for (const c of (ov.community || []).filter((c) => ["unavailable", "invalid", "stale"].includes(c.result)))
+      todo.push([c.result === "stale" ? "s-warn" : "s-stale", `社区快照「${c.label}」${(COMM[c.result] || [c.result])[0]}${c.reason ? "：" + c.reason : ""}`, "data", "查看"]);
+    for (const r of (ov.registry || []).filter((r) => r.risk === "high" && ["stale", "unknown"].includes(r.status)))
+      todo.push([r.status === "stale" ? "s-stale" : "s-warn", `数据登记「${r.file}」${(RSTATUS[r.status] || [r.status])[0]}${r.detail ? "：" + r.detail : ""}`, "data", "查看"]);
+    for (const r of (ov.ledger || []).filter(isLedgerProblem))
+      todo.push([["run_bad", "none"].includes(r.verdict) ? "s-stale" : "s-warn",
+        `有效数据账本「${r.file}」${(LEDGER[r.verdict] || [r.verdict])[0]}${r.advice ? "：" + r.advice : ""}`, "data", "查看"]);
     if (p.failing_sessions) todo.push(["s-warn", `${p.failing_sessions} 个群发送失败（机器人可能被移出群或禁言）`, "push", "查看"]);
+    if (p.paused_sessions) todo.push(["s-warn", `${p.paused_sessions} 个群推送已暂停（连续发送失败，到点会自动重试；也可手动恢复）`, "push", "去恢复"]);
     if (res) {
       for (const d of res.deps.filter((d) => !d.ok)) todo.push(["s-stale", `依赖 ${d.name} ${d.installed ? "版本过低（" + d.installed + "）" : "未安装"}`, "resources", "去安装"]);
       if (fk === "subset") todo.push(["s-warn", "正在用随包子集字体，生僻字会显示为方块", "appearance", "换字体"]);
@@ -475,6 +507,83 @@
   }
 
   // —— 数据 ——
+  const COMM = {
+    adopted: ["已采用新快照", "s-ok"], fresh: ["远端不比本地新", "s-ok"], local_ok: ["本地仍有效", "s-ok"],
+    stale: ["远端是旧一轮", "s-warn"], invalid: ["校验不过", "s-stale"], unavailable: ["取不到", "s-stale"],
+    unchecked: ["还没检查", "s-info"],
+  };
+  function renderComm(rows, base) {
+    $("commSrc").textContent = base ? `地址：${base}（自填）` : "地址：本项目公开仓 bot-data";
+    $("comm").replaceChildren(...(rows || []).map((r) => {
+      const [lab, cls] = COMM[r.result] || [r.result, "s-info"];
+      return el("tr", {},
+        el("td", { class: "nw" }, r.label),
+        el("td", {}, el("span", { class: "tag " + cls }, lab)),
+        el("td", { class: "nw dim" }, r.channel || "—"),
+        el("td", { class: "nw dim" }, r.stamp ? fmtTime(r.stamp) : "—"),
+        el("td", { class: "nw dim" }, r.checked_at ? ago(r.checked_at) : "—"),
+        el("td", { class: "dim" }, r.reason || ""));
+    }));
+  }
+
+  const RGROUP = {
+    damage: "伤害数值", drops_relics: "掉落/遗物", names_zh: "中文名", rotation: "轮换/到期",
+    community: "社区快照", market: "市场/紫卡", world: "世界状态", misc: "其它",
+    asset: "字体/图标", runtime_cache: "运行期缓存", unregistered: "未登记",
+  };
+  const RPOLICY = {
+    rotating: "按轮次", max_age: "按内容年龄", on_upstream_change: "上游变更",
+    manual_curated: "人工策展", static_asset: "静态资源", runtime_cache: "运行期缓存",
+    unused: "疑似无用", unregistered: "未登记",
+  };
+  const RSTATUS = {
+    ok: ["正常", "s-ok"], stale: ["过期", "s-stale"], no_ttl: ["不按时间判", "s-info"],
+    unknown: ["来源未确认", "s-warn"], missing: ["缺文件", "s-stale"], unregistered: ["未登记", "s-stale"],
+  };
+  function renderReg(rows) {
+    $("reg").replaceChildren(...(rows || []).map((r) => {
+      const [lab, cls] = RSTATUS[r.status] || [r.status, "s-info"];
+      return el("tr", {},
+        el("td", { class: "nw dim" }, RGROUP[r.group] || r.group),
+        el("td", { class: "nw" }, r.file),
+        el("td", { class: "nw dim" }, RPOLICY[r.policy] || r.policy),
+        el("td", {}, el("span", { class: "tag " + cls }, lab)),
+        el("td", { class: "nw dim" }, r.observed ? String(r.observed) : "—"),
+        el("td", { class: "dim" }, r.detail || ""));
+    }));
+  }
+
+  const LEDGER = {
+    seed_in_use: ["用随包种子", "s-ok"], run_ok: ["用运行副本", "s-ok"], run_only: ["运行期缓存", "s-info"],
+    run_bad: ["副本损坏", "s-stale"], run_unexpected: ["不该有的副本", "s-stale"],
+    run_older: ["副本比种子旧", "s-warn"], none: ["缺文件", "s-stale"], not_yet: ["还没生成", "s-info"],
+  };
+  const LACTIVE = { run: "运行副本", seed: "随包种子", none: "无" };
+  const isLedgerProblem = (r) =>
+    ["run_bad", "run_unexpected", "run_older"].includes(r.verdict) || (r.verdict === "none" && r.tracked);
+  const sideTime = (s) => {  // 那一份的时间：优先内容时间，没有就退到文件修改时间
+    if (!s || !s.exists) return "—";
+    if (s.observed) return fmtTime(s.observed);
+    return s.mtime ? fmtTime(s.mtime) : "—";
+  };
+  function renderLedger(rows) {
+    rows = rows || [];
+    const shown = rows.filter((r) => r.active === "run" || isLedgerProblem(r));
+    const nSeed = rows.filter((r) => r.active === "seed").length;
+    $("ledgerHint").textContent = (nSeed ? `其余 ${nSeed} 份用的是随包种子。` : "") +
+      `共 ${rows.length} 份，列 ${shown.length} 份。`;
+    $("ledger").replaceChildren(...shown.map((r) => {
+      const [lab, cls] = LEDGER[r.verdict] || [r.verdict, "s-info"];
+      return el("tr", {},
+        el("td", { class: "nw" }, r.file),
+        el("td", { class: "nw dim" }, LACTIVE[r.active] || r.active),
+        el("td", { class: "nw dim" }, sideTime(r.run)),
+        el("td", { class: "nw dim" }, sideTime(r.seed)),
+        el("td", {}, el("span", { class: "tag " + cls }, lab)),
+        el("td", { class: "dim" }, r.advice || ""));
+    }));
+  }
+
   function renderFresh(rows) {
     $("fresh").replaceChildren(...rows.map((r) => el("tr", {},
       el("td", { class: "nw" }, r.item),
@@ -495,6 +604,7 @@
       ["下次等待", p.next_delay != null ? Math.round(p.next_delay) + " 秒" : "—"],
       ["待重发", p.pending, p.pending ? "s-warn" : ""],
       ["发送失败的群", p.failing_sessions, p.failing_sessions ? "s-warn" : ""],
+      ["已暂停的群", p.paused_sessions, p.paused_sessions ? "s-warn" : ""],
     ];
     $("push").replaceChildren(...items.map(([k, v, c]) =>
       el("div", { class: "stat" }, el("span", { class: "k" }, k), el("b", { class: "v " + (c || "") }, v))));
@@ -525,9 +635,16 @@
         await bridge.apiPost("group_push", { key: g.key, push: !g.push });
         await load();
       });
+      const res = g.paused ? el("button", { class: "sm primary", title: "解除连续发送失败导致的暂停" }, "恢复推送") : null;
+      if (res) res.onclick = () => busy(res, async () => {
+        await bridge.apiPost("push_resume", { key: g.key });
+        await load();
+      });
       return el("div", { class: "session" },
         el("div", { class: "shead" }, el("b", {}, g.umo),
           g.push === null ? null : el("span", { class: "tag " + (g.push ? "s-ok" : "s-warn") }, g.push ? "推送开启" : "推送已关闭（订阅暂停）"),
+          g.paused ? el("span", { class: "tag s-warn" }, `已暂停（自 ${fmtTime(g.paused.since)}，下次重试 ${fmtTime(g.paused.next_try)}${g.paused.reason ? "，原因 " + g.paused.reason : ""}）`) : null,
+          res,
           tog),
         el("div", { class: "scroll" }, el("table", {},
           el("thead", {}, el("tr", {}, ...["事件", "条件", "次数", "到期", "订阅人", "创建", ""].map((h) => el("th", {}, h)))),
@@ -781,6 +898,9 @@
       $("ver").textContent = `v${state.ov.version}`;
       $("updated").textContent = `更新于 ${fmtTime(state.ov.now)}`;
       renderFresh(state.ov.freshness); renderPush(state.ov.push); renderSubs(state.ov.subs);
+      renderComm(state.ov.community, state.ov.community_base);
+      renderReg(state.ov.registry);
+      renderLedger(state.ov.ledger);
     } catch (e) { showErr(e); }
     await pollRes();
   }

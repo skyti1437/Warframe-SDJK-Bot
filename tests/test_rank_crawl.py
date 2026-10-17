@@ -176,13 +176,107 @@ async def main2():
         str(rows.get("z_0")),
     )
     check(
-        "跑满一轮：cursor 归零 + ts 已刷新",
-        store.get("cursor") == 0 and bool(store.get("ts")),
-        str(store.get("ts")),
+        "跑满一轮但 1/3 失败（67% < 80%）⇒ cursor 归零、ts 不刷新、记 low_coverage、z_2 进待补",
+        store.get("cursor") == 0
+        and not store.get("ts")
+        and store.get("low_coverage") is True
+        and store.get("retry") == ["z_2"],
+        str({k: store.get(k) for k in ("ts", "low_coverage", "retry", "coverage")}),
     )
 
 
 asyncio.run(main2())
+
+
+# ---------------------------------------------------------------------------
+# 2026-10-17 覆盖率闸门（用户定 80%）：游标跑完 ≠ 成功跑完
+# ---------------------------------------------------------------------------
+class FlakyClient(WarframeClient):
+    """10 个物品；fail 集合里的请求抛异常。"""
+
+    def __init__(self, store: dict, fail: set, n: int = 10):
+        self.store, self.fail, self.n, self.calls = store, fail, n, []
+
+    async def wm_items(self):
+        return [
+            {"url_name": f"f_{i}", "id": str(i), "zh": f"物{i}", "en": f"I{i}", "tags": ["prime"]}
+            for i in range(self.n)
+        ]
+
+    async def wm_statistics(self, slug, platform="pc"):
+        self.calls.append(slug)
+        if slug in self.fail:
+            raise RuntimeError("429")
+        return {"h48": [{"median": 5, "min": 4, "max": 6, "volume": 1}], "d90": []}
+
+    def _load_json_file(self, path):
+        return self.store
+
+    def _save_json_file(self, path, data):
+        self.store.clear()
+        self.store.update(data)
+
+
+async def main3():
+    AC._rank_candidate = lambda it: True
+    WarframeClient._rank_record = staticmethod(_rank_record_stub)
+
+    # ① 2/10 失败 = 80% ⇒ 刚好达标：刷新 ts，失败项进待补
+    st: dict = {}
+    c = FlakyClient(st, {"f_3", "f_7"})
+    await c.crawl_wm_ranks()
+    check("80% 达标 ⇒ ts 刷新", bool(st.get("ts")) and st.get("low_coverage") is False, str(st))
+    check("80% 达标 ⇒ 失败项进待补", st.get("retry") == ["f_3", "f_7"], str(st.get("retry")))
+    check("每行带成功时间 at", all(r.get("at") for r in st["rows"].values()), str(st["rows"]))
+
+    # ② 下一轮先补待补项：f_3 恢复 ⇒ 出待补；f_7 仍失败 ⇒ 留着
+    c.fail, c.calls = {"f_7"}, []
+    st["cursor"] = 0
+    await c.crawl_wm_ranks(limit=2)
+    check(
+        "下一轮先补待补项（前两次请求就是 f_3、f_7）", c.calls[:2] == ["f_3", "f_7"], str(c.calls)
+    )
+    check("补成功的出待补、失败的留着", st.get("retry") == ["f_7"], str(st.get("retry")))
+
+    # ③ 3/10 失败 = 70% ⇒ ts 不动 + low_coverage
+    st3: dict = {"ts": "2026-10-01T00:00:00+00:00"}
+    c3 = FlakyClient(st3, {"f_1", "f_2", "f_3"})
+    await c3.crawl_wm_ranks()
+    check(
+        "70% ⇒ ts 不刷新、low_coverage、覆盖率 0.7",
+        st3.get("ts") == "2026-10-01T00:00:00+00:00"
+        and st3.get("low_coverage") is True
+        and st3.get("coverage") == 0.7,
+        str({k: st3.get(k) for k in ("ts", "low_coverage", "coverage")}),
+    )
+
+    # ④ 上一轮不足，下次补抓后达标 ⇒ 刷新 ts、解除 low_coverage
+    c3.fail = set()
+    await c3.crawl_wm_ranks(limit=3)
+    check(
+        "补抓后达标 ⇒ ts 刷新、解除 low_coverage",
+        st3.get("ts") != "2026-10-01T00:00:00+00:00" and st3.get("low_coverage") is False,
+        str({k: st3.get(k) for k in ("ts", "low_coverage", "retry")}),
+    )
+
+    # ⑤ 全部失败 ⇒ ts 不动（整榜全失败不得获得新鲜时间）
+    st5: dict = {"ts": "2026-10-01T00:00:00+00:00"}
+    await FlakyClient(st5, {f"f_{i}" for i in range(10)}).crawl_wm_ranks()
+    check(
+        "整榜全失败 ⇒ ts 不刷新", st5.get("ts") == "2026-10-01T00:00:00+00:00", str(st5.get("ts"))
+    )
+
+    # ⑥ 物品表为空（取不到）⇒ 不刷新 ts、不写盘
+    st6: dict = {"ts": "2026-10-01T00:00:00+00:00", "rows": {"x": {}}}
+    n6 = await FlakyClient(st6, set(), n=0).crawl_wm_ranks()
+    check(
+        "物品表为空 ⇒ 跳过、不刷新 ts、行数照旧",
+        st6.get("ts") == "2026-10-01T00:00:00+00:00" and n6 == 1,
+        str(st6),
+    )
+
+
+asyncio.run(main3())
 
 print()
 if FAILED:

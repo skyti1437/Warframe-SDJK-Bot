@@ -210,6 +210,63 @@ check("health CLI：有不新鲜项 ⇒ 退出非零", rc != 0, out[-300:])
 check("health CLI：结果不混进 regression", "regression" not in sm and "health" in sm, str(list(sm)))
 shutil.rmtree(_h, ignore_errors=True)
 
+# ⑦ health：数据登记表 —— 未登记文件不论风险都阻断（core/data_registry 接入）
+_h2 = Path(tempfile.mkdtemp(prefix="wf_registry_health_"))
+(_h2 / "core" / "data" / "de").mkdir(parents=True)
+(_h2 / "core" / "data" / "rotations.json").write_text(
+    json.dumps(
+        {
+            "tenet": {
+                "epoch": "2026-09-12T00:00:00+00:00",
+                "period_hours": 96,
+                "valence_snapshot": "2026-09-20T06:00:00+00:00",
+            },
+            "coda": {
+                "epoch": "2026-09-12T00:00:00+00:00",
+                "period_hours": 96,
+                "valence_snapshot": "2026-09-20T06:00:00+00:00",
+            },
+        }
+    ),
+    encoding="utf-8",
+)
+(_h2 / "core" / "data" / "de" / "acrichis_week.json").write_text(
+    json.dumps({"expiry": "2026-10-01T00:00:00+00:00"}), encoding="utf-8"
+)
+(_h2 / "core" / "data" / "de" / "wiki_disp.json").write_text(
+    json.dumps({"snapshot": "2026-09-01T00:00:00+00:00"}), encoding="utf-8"
+)
+(_h2 / "core" / "data" / "zzz_unregistered.json").write_text("{}", encoding="utf-8")
+_at2 = datetime(2026, 9, 21, 0, 0, tzinfo=timezone.utc)
+_hit = {i["item"]: i for i in RC.registry_items(_h2, _at2)}
+check(
+    "登记表：未登记文件 ⇒ 条目不通过",
+    _hit.get("registry::zzz_unregistered.json", {}).get("ok") is False,
+    str(sorted(_hit)[:5]),
+)
+check(
+    "登记表：未登记条目说明写明原因",
+    "未登记" in _hit.get("registry::zzz_unregistered.json", {}).get("reason", ""),
+    str(_hit.get("registry::zzz_unregistered.json")),
+)
+check(
+    "登记表：高风险过期项算警告（ok=True，不计失败）",
+    _hit.get("registry::de/wiki_disp.json", {}).get("ok") is True
+    and _hit.get("registry::de/wiki_disp.json", {}).get("warn") is True,
+    str(_hit.get("registry::de/wiki_disp.json")),
+)
+_hlogs = Path(tempfile.mkdtemp(prefix="wf_registry_logs_"))
+_hres = {r.name: r for r in RC.health(_h2, _hlogs, _at2)}
+check(
+    "health：登记表未登记 ⇒ 整体未通过",
+    _hres.get("registry::zzz_unregistered.json", None) is not None
+    and _hres["registry::zzz_unregistered.json"].status == "FAIL"
+    and not all(r.status == "PASS" for r in _hres.values()),
+    str({k: v.status for k, v in _hres.items() if k.startswith("registry::")}),
+)
+shutil.rmtree(_hlogs, ignore_errors=True)
+shutil.rmtree(_h2, ignore_errors=True)
+
 print()
 if FAILED:
     print(f"✗ {len(FAILED)} 项失败：" + "、".join(FAILED))

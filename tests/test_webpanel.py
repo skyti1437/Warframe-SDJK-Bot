@@ -142,6 +142,7 @@ check(
         "settings_save": ["POST"],
         "sub_remove": ["POST"],
         "group_push": ["POST"],
+        "push_resume": ["POST"],
         "font_import_url": ["POST"],
         "font_upload": ["POST"],
         "font_select": ["POST"],
@@ -589,6 +590,17 @@ class _Groups:
     async def set_switch(self, umo, key, value):
         self.d.setdefault(umo, {})[key] = value
 
+    def pause_of(self, umo):
+        p = self.d.get(umo, {}).get("push_pause")
+        return dict(p) if isinstance(p, dict) else None
+
+    async def set_pause(self, umo, info):
+        rec = self.d.setdefault(umo, {})
+        if info is None:
+            rec.pop("push_pause", None)
+        else:
+            rec["push_pause"] = dict(info)
+
 
 class _SubStore(_Store):
     async def remove(self, pred):
@@ -701,13 +713,58 @@ check(
     "非法 sid 被拒（不进 predicate）",
     _post(pg, "sub_remove", {"sid": "../x"}).get("status") == "error",
 )
+
+# ★ 2026-10-17：连续失败「暂停推送」在面板上的展示与手动恢复
+pg.p.groups.d["aiocqhttp:GroupMessage:111222333"] = {
+    "push": True,
+    "push_pause": {
+        "since": 1760000000.0,
+        "next_try": 1760021600.0,
+        "reason": "timeout",
+        "fails": 5,
+    },
+}
+pg.p.push.groups = pg.p.groups  # 面板的 paused_sessions 回落读 GroupStore
+pg.p.subs._s.append(  # 再加一个「未暂停」的会话作对照（444555666 的订阅上面已被删掉）
+    Subscription(umo="aiocqhttp:GroupMessage:777888999", platform="pc", event="仲裁", rule="")
+)
+ov2 = W.subscriptions(pg.p.subs, pg.p.groups)
+row_a = next(x for x in ov2["sessions"] if x["umo"].endswith("33"))
+row_b = next(x for x in ov2["sessions"] if x["umo"].endswith("99"))
+check(
+    "★ subscriptions() 每个会话带 paused（since / next_try / reason / fails）",
+    isinstance(row_a["paused"], dict)
+    and row_a["paused"]["reason"] == "timeout"
+    and row_a["paused"]["fails"] == 5
+    and row_a["paused"]["since"] == 1760000000.0,
+    str(row_a),
+)
+check("未暂停的会话 paused 为 None", row_b["paused"] is None, str(row_b))
+check(
+    "paused 的 reason 不含会话号",
+    "111222333" not in json.dumps(row_a["paused"], ensure_ascii=False),
+)
+ps_paused = W.push_state(pg.p.push)
+check("★ push_state() 带 paused_sessions", ps_paused.get("paused_sessions") == 1, str(ps_paused))
+r = _post(pg, "push_resume", {"key": key_a})
+check(
+    "★ push_resume 按 key 回查并解除暂停（存档里的 push_pause 清掉）",
+    r.get("resumed") is True and pg.p.groups.pause_of("aiocqhttp:GroupMessage:111222333") is None,
+    str(r),
+)
+check(
+    "未知 key 的 push_resume 被拒",
+    _post(pg, "push_resume", {"key": "nope"}).get("status") == "error",
+)
+check("push_state 的 paused_sessions 随之归零", W.push_state(pg.p.push)["paused_sessions"] == 0)
+
 pc = _panel()
 pc.close()
 check(
     "停用后设置 / 订阅操作一律拒绝",
     all(
         asyncio.run(getattr(pc, n)()).get("status") == "error"
-        for n in ("settings", "settings_save", "sub_remove", "group_push")
+        for n in ("settings", "settings_save", "sub_remove", "group_push", "push_resume")
     ),
 )
 
@@ -717,7 +774,10 @@ check(
 )
 check(
     "页面调用的设置 / 订阅端点都已注册",
-    all(f'"{ep}"' in html for ep in ("settings", "settings_save", "sub_remove", "group_push")),
+    all(
+        f'"{ep}"' in html
+        for ep in ("settings", "settings_save", "sub_remove", "group_push", "push_resume")
+    ),
 )
 check(
     "子菜单的每个视图都有对应区块",
@@ -1147,6 +1207,86 @@ check(
 )
 p13._apply_live({"community_data_url": "javascript:alert(1)"})
 check("非 http(s) 地址等同留空（回落本项目 bot-data）", _P13.client.community_base == "")
+
+
+# ---- 14. 社区快照通道记录（2026-10-17 批次 B 全链路健康记录·插件侧）----
+from core import api_client as _AC14  # noqa: E402
+from core import paths as _paths14  # noqa: E402
+
+_rt14 = Path(tempfile.mkdtemp(prefix="_tmp_comm_log_"))
+try:
+    _paths14.set_run_dir(_rt14)
+    _c14 = _AC14.WarframeClient()
+    _seed14 = json.loads((ROOT / "core/data/arb_ratings.json").read_text(encoding="utf-8"))
+    _serve14 = {}
+
+    async def _ff14(url, ttl=0, headers=None, cache_key=None, retries=2, **kw):
+        h = url.split("/")[2]
+        name = url.rsplit("/", 1)[-1]
+        if "raw.githubusercontent" in h:
+            raise _AC14.WarframeAPIError(f"请求失败（{url}）：timeout")
+        if name in _serve14:
+            return _serve14[name]
+        raise _AC14.WarframeAPIError(f"接口不存在或暂未开放：{url}")
+
+    _c14._fetch_json = _ff14
+    rep0 = {r["name"]: r for r in _c14.community_report()}
+    check(
+        "没检查过的快照显示 unchecked，五份齐全",
+        len(rep0) == 5 and all(r["result"] == "unchecked" for r in rep0.values()),
+    )
+    _newer = dict(_seed14, _updated="2099-01-01")
+    _serve14 = {
+        "arb_ratings.json": _newer,
+        "wiki_disp.json": {"snapshot": "2099-01-01T00:00:00+00:00", "disp": {"x": 1}},
+    }
+    asyncio.run(_c14.refresh_community_static())
+    rep = {r["name"]: r for r in _c14.community_report()}
+    check(
+        "★ 采用新快照：记 adopted + 走的通道 + 数据时间",
+        rep["arb_ratings.json"]["result"] == "adopted"
+        and rep["arb_ratings.json"]["channel"] == "cdn.jsdelivr.net"
+        and rep["arb_ratings.json"]["stamp"] == "2099-01-01",
+        str(rep["arb_ratings.json"]),
+    )
+    check(
+        "★ 校验不过：记 invalid + 原因",
+        rep["wiki_disp.json"]["result"] == "invalid" and "400" in rep["wiki_disp.json"]["reason"],
+        str(rep["wiki_disp.json"]),
+    )
+    check(
+        "★ 所有通道取不到：记 unavailable + 各通道原因（raw 超时 / 镜像没文件）",
+        rep["baro_history.json"]["result"] == "unavailable"
+        and "没有这个文件" in rep["baro_history.json"]["reason"],
+        str(rep["baro_history.json"]),
+    )
+    asyncio.run(_c14.refresh_community_static(("arb_ratings.json",)))
+    check("同一份再拉：fresh", _c14.community_log["arb_ratings.json"]["result"] == "fresh")
+    asyncio.run(_c14.close())
+
+    class _P14:
+        cfg = {}
+        client = _c14
+        subs = type("S", (), {"all": lambda self: []})()
+        push = _Push()
+        groups = None
+
+    _pn14 = W.WebPanel(_P14(), PLUGIN)
+    _pn14._query = staticmethod(lambda k, d="": d)  # 测试环境没有 web 请求对象
+    ov14 = asyncio.run(_pn14.overview())
+    check(
+        "面板概览带社区快照记录与地址",
+        isinstance(ov14.get("community"), list)
+        and len(ov14["community"]) == 5
+        and "community_base" in ov14,
+        str(ov14.get("community"))[:200],
+    )
+finally:
+    _paths14.set_run_dir(None)
+    import shutil as _sh14
+
+    _sh14.rmtree(_rt14, ignore_errors=True)
+check("页面渲染社区快照通道表", 'id="comm"' in html and "renderComm(" in html)
 
 print()
 if fails:

@@ -203,7 +203,9 @@ MARKET_SKIP_FILES = {
 # → 112（2026-10-09 插件 Logo：+logo.png —— 顶层文件，随市场卡片展示）
 # → 113（2026-10-09 wfsim 对照 B 批：+core/data/co_behavior.json —— CO 桶别表，运行期必读）
 # 2026-10-16 插件页面批 +3：core/webpanel.py、pages/sdjk/index.html、.astrbot-plugin/i18n/zh-CN.json
-EXPECTED_MARKET_ENTRIES = 117
+# 2026-10-17 数据登记表批 +1：core/data_registry.py（随包数据登记表与统一健康判据，
+# 面板 / health / 打包闸门读同一份；tests/ 不进市场件）
+EXPECTED_MARKET_ENTRIES = 118
 
 # ★ 可复现打包（2026-09-26 用户侧建议）：统一 zip 条目时间戳 = 2026-01-01T00:00:00Z。
 #   之前取文件 mtime，导致「内容没变、重建却换 sha」（上传期两次被迫冻结重建：
@@ -234,7 +236,11 @@ def _zip_datetime() -> tuple:
 # 2026-10-08 审核实证：本脚本原先只查「stage 存在」+「种子新鲜」，**不查 stage 是否追平 HEAD**
 # ⇒ 若绕开重建直接打包，会把旧 stage（当时 239 文件、不含本批任何修复）打出去。这里加数量闸门兜住；
 # 数量相同但内容不同的情形，仍靠流程约束（打包前必重跑 dist/package_release.py --opensource）。
-EXPECTED_STAGE_FILES = 267  # 与 dist/package_release.py::EXPECTED_OSS_STAGE_FILES 同步
+EXPECTED_STAGE_FILES = 272  # 与 dist/package_release.py::EXPECTED_OSS_STAGE_FILES 同步
+# 2026-10-17 数据登记表批：267 → 269（+core/data_registry.py、+tests/test_data_registry.py）
+# 2026-10-17 部署计划批：269 → 270（+tests/test_deploy_plan.py；tests/ 不进市场件）
+# 2026-10-17 发版计划器批：270 → 272（+scripts/release_plan.py、+tests/test_release_plan.py；
+# 两者都不进市场件）
 
 
 def main() -> int:

@@ -759,7 +759,82 @@ try:
 finally:
     _AC.COMMUNITY_PER_CHANNEL = _old_pc
 check("失败日志带异常类型（超时类异常 str 为空）", "str(exc) or type(exc).__name__" in API_SRC)
-for _c in (_cc, _cc2, _cc3, _cc4):
+
+
+# ZCode 10-17 线上：raw 超时后「超出本次时间预算」，镜像没轮到 —— 外层取消不能及时打断
+#   httpx（连接清理受保护）。模拟一条「取消不掉」的 raw：只有把单通道上限作为请求自身的
+#   timeout 传进去，它才会按时失败；否则要拖满 3 秒（远超 1.5 s 总预算）。
+async def _uncancellable_raw(url, **kw):
+    if "raw.githubusercontent" in url:
+        t = kw.get("timeout")
+        if t is None:
+            try:
+                await _aio.sleep(3.0)
+            except _aio.CancelledError:
+                await _aio.sleep(3.0)  # 被取消后清理还要拖一阵（仿 httpx 受保护的连接清理）
+                raise
+            raise _aio.TimeoutError()
+        await _aio.sleep(t)
+        raise _AC.WarframeAPIError("请求失败（模拟 httpx 自身超时）")
+    return {"ok": url.split("/")[2]}
+
+
+_cc5 = _AC.WarframeClient()
+_cc5._fetch_json = _uncancellable_raw
+_old_pc, _old_budget = _AC.COMMUNITY_PER_CHANNEL, _AC.COMMUNITY_BUDGET
+_AC.COMMUNITY_PER_CHANNEL, _AC.COMMUNITY_BUDGET = 0.3, 1.5
+try:
+    t0 = _time.monotonic()
+    r = _aio.run(_cc5._community_json(_AC.community_static_urls("arb_ratings.json")))
+    check(
+        "★ raw 取消不掉时：单通道上限作为请求 timeout 传入 ⇒ 按时换镜像拿到数据（ZCode 10-17）",
+        r == {"ok": "cdn.jsdelivr.net"} and _time.monotonic() - t0 < 1.5,
+        f"{r} {_time.monotonic() - t0:.1f}s",
+    )
+finally:
+    _AC.COMMUNITY_PER_CHANNEL, _AC.COMMUNITY_BUDGET = _old_pc, _old_budget
+
+
+class _RecHttp:
+    def __init__(self):
+        self.kw = None
+
+    async def get(self, url, **kw):
+        self.kw = kw
+        raise _AC.httpx.ConnectTimeout("t")
+
+    async def aclose(self):
+        pass
+
+
+_cc6 = _AC.WarframeClient()
+_rec = _RecHttp()
+_real_http, _cc6._http = _cc6._http, _rec
+try:
+    _aio.run(_cc6._fetch_json("https://example.invalid/x.json", ttl=1, retries=0, timeout=4.0))
+except _AC.WarframeAPIError:
+    pass
+check(
+    "_fetch_json 把 timeout 透传给 httpx 请求", (_rec.kw or {}).get("timeout") == 4.0, str(_rec.kw)
+)
+
+
+class _EmptyTimeoutHttp(_RecHttp):
+    async def get(self, url, **kw):
+        raise _AC.httpx.ReadTimeout("")  # 超时类异常 str() 为空
+
+
+_cc6._http = _EmptyTimeoutHttp()
+try:
+    _aio.run(_cc6._fetch_json("https://example.invalid/y.json", ttl=1, retries=0))
+    _why = ""
+except _AC.WarframeAPIError as _e:
+    _why = str(_e)
+check(
+    "超时异常文本为空时，失败原因退回类型名（不再「：」后空白）", _why.endswith("ReadTimeout"), _why
+)
+_cc6._http = _real_http
+for _c in (_cc, _cc2, _cc3, _cc4, _cc5, _cc6):
     _aio.run(_c.close())
 
 # V01：社区元素加成快照必须落在当前轮次窗口内（信条 / 终幕两段 epoch 不同，各算各的窗口）
@@ -904,6 +979,795 @@ if _ap_path.exists():
         _shutil.rmtree(_td_ap, ignore_errors=True)
 else:
     print("[SKIP] 告警出口用例：本树无私有运维脚本")
+
+# ---------------------------------------------------------------------------
+# ★ 2026-10-17：社区快照链路健康记录（生成 → 发布 → 远端内容 → 镜像）+ 独立检查器
+#   —— 生成器/发布器把每次结果写成机读记录，community_health.py 独立复核并「状态变化才告警」。
+#   全部用本地 git（bare origin + 克隆，file:// 协议）与临时 gen 目录，不联网。
+# ---------------------------------------------------------------------------
+_ch_path = ROOT / ".zcode/skills/astrbot-server-triage/scripts/automations/community_health.py"
+if _ch_path.exists():
+    import hashlib as _hl
+    import importlib.util as _ilu3
+    import os as _os2
+    import subprocess as _sp
+    from datetime import timedelta as _tdlt
+
+    def _load_mod(_p, _name):
+        _s = _ilu3.spec_from_file_location(_name, _p)
+        _m = _ilu3.module_from_spec(_s)
+        _s.loader.exec_module(_m)
+        return _m
+
+    _GEN = _load_mod(_ch_path.parent / "gen_static_snapshots.py", "_gen_static_t")
+    _CH = _load_mod(_ch_path, "_community_health_t")
+    _PUBW = _load_mod(_ch_path.parent / "publish_community_snapshot.py", "_pub_health_t")
+    # 推送成功后请 CDN 清缓存是**真网络调用**：本地用例一律打桩（本文件全部离线跑）
+    _PUBW.purge_cdn_cache = lambda *a, **k: None
+
+    _GIT_ID = {
+        "GIT_AUTHOR_NAME": "t",
+        "GIT_AUTHOR_EMAIL": "t@t",
+        "GIT_COMMITTER_NAME": "t",
+        "GIT_COMMITTER_EMAIL": "t@t",
+    }
+
+    def _git(*_args, _cwd=None):
+        return _sp.run(
+            ["git", *_args],
+            cwd=_cwd,
+            capture_output=True,
+            text=True,
+            env={**_os2.environ, **_GIT_ID, "GIT_CONFIG_NOSYSTEM": "1"},
+        )
+
+    def _mk_repo(_td, _files):
+        """造「本地 bare origin + 克隆出的 bot-data 工作副本」，返回工作副本路径（零网络）。"""
+        _bare, _seed = _td / "origin.git", _td / "seed"
+        _git("init", "-q", "--bare", str(_bare))
+        _seed.mkdir()
+        _git("init", "-q", "-b", "bot-data", _cwd=str(_seed))
+        for _n, _t in _files.items():
+            (_seed / _n).write_text(_t, encoding="utf-8")
+        _git("add", "-A", _cwd=str(_seed))
+        _git("commit", "-q", "-m", "init", _cwd=str(_seed))
+        _git("remote", "add", "origin", str(_bare), _cwd=str(_seed))
+        _git("push", "-q", "origin", "bot-data", _cwd=str(_seed))
+        _work = _td / "work"
+        _git(
+            "clone",
+            "-q",
+            "--depth",
+            "1",
+            "--branch",
+            "bot-data",
+            "file://" + str(_bare),
+            str(_work),
+        )
+        return _work
+
+    def _arb_doc(_nodes=60):
+        return {
+            "_updated": "2026-10-17",
+            "nodes": {f"n{i}": {"n": 20 + i, "tier": "A"} for i in range(_nodes)},
+        }
+
+    def _baro_doc(_visits=12):
+        return {
+            "source": "wiki",
+            "fetched": "2026-10-17",
+            "visits": [{"d": "2026-10-17"} for _ in range(_visits)],
+            "items": {f"i{i}": {"t": 1, "d": 1, "c": 1, "v": 1} for i in range(60)},
+        }
+
+    def _wiki_doc(_entries=450):
+        return {
+            "snapshot": "2026-10-16T00:00:00+00:00",
+            "disp": {f"w{i}": 1.0 for i in range(_entries)},
+        }
+
+    def _txt(_d):
+        return _json.dumps(_d, ensure_ascii=False, indent=1) + "\n"
+
+    _NOW = datetime(2026, 10, 17, 12, 0, tzinfo=timezone.utc)
+    # 窗口起点：tenet 2026-10-14T00:00Z、coda 2026-10-15T00:00Z → 取较晚者判定
+    _ROT = {
+        "tenet": {"epoch": "2026-09-12T00:00:00+00:00", "period_hours": 96},
+        "coda": {"epoch": "2026-09-13T00:00:00+00:00", "period_hours": 96},
+    }
+
+    def _remote_files(
+        _valence_pub="2026-10-16T00:00:00+00:00",
+        _acrithis_exp="2026-10-19T00:00:00+00:00",
+        _arb=None,
+        _baro=None,
+        _wiki=None,
+    ):
+        return {
+            "valence.json": _txt(
+                {
+                    "schema": 1,
+                    "published_at": _valence_pub,
+                    "tenet": {"items": []},
+                    "coda": {"batch": "A", "items": []},
+                }
+            ),
+            "acrithis_week.json": _txt(
+                {
+                    "schema": 1,
+                    "published_at": "2026-10-12T00:00:00+00:00",
+                    "expiry": _acrithis_exp,
+                    "items": [{"name": "x"}],
+                }
+            ),
+            "arb_ratings.json": _txt(_arb if _arb is not None else _arb_doc()),
+            "baro_history.json": _txt(_baro if _baro is not None else _baro_doc()),
+            "wiki_disp.json": _txt(_wiki if _wiki is not None else _wiki_doc()),
+            "index.json": _txt({"schema": 1, "published_at": _valence_pub, "files": {}}),
+        }
+
+    def _sha(_s):
+        return _hl.sha256(_s.encode("utf-8")).hexdigest()
+
+    def _gen_rec(_last, _result="updated", _sha256="", _count=60):
+        return {
+            "last_run": _last,
+            "last_success": _last,
+            "result": _result,
+            "reason": "",
+            "stamp": "2026-10-17",
+            "sha256": _sha256,
+            "count": _count,
+        }
+
+    def _gen_health(_now=_NOW, _arb_sha="", _baro_sha="", _arb_last=None, _baro_last=None):
+        return {
+            "arb_ratings.json": _gen_rec((_arb_last or _now).isoformat(), _sha256=_arb_sha),
+            "baro_history.json": _gen_rec((_baro_last or _now).isoformat(), _sha256=_baro_sha),
+        }
+
+    def _pub_health(_now=_NOW, _result="unchanged", _age_min=10):
+        return {
+            "last_run": (_now - _tdlt(minutes=_age_min)).isoformat(),
+            "mode": "git",
+            "dry_run": False,
+            "result": _result,
+            "head": "abc1234",
+            "files": {},
+        }
+
+    def _case(
+        _remote=None,
+        _gh=None,
+        _ph=None,
+        _now=_NOW,
+        _rotations=_ROT,
+        _fetch=False,
+        _alert=False,
+        _work=None,
+    ):
+        _td = Path(_tmp.mkdtemp(prefix="_ch_"))
+        _gen = _td / "gen"
+        _gen.mkdir()
+        if _gh is not None:
+            (_gen / "_health.json").write_text(_json.dumps(_gh), encoding="utf-8")
+        if _ph is not None:
+            (_gen / "_publish_health.json").write_text(_json.dumps(_ph), encoding="utf-8")
+        _files = _remote if _remote is not None else _remote_files()
+        _work = _work if _work is not None else _mk_repo(_td, _files)
+        _rc, _rep = _CH.run(
+            gen_dir=_gen,
+            work_dir=_work,
+            fetch=_fetch,
+            alert=_alert,
+            now=_now,
+            rotations=_rotations,
+            quiet=True,
+        )
+        return _rc, _rep, _gen, _td
+
+    def _st(_rep, _cid):
+        return next((_c["status"] for _c in _rep["checks"] if _c["id"] == _cid), "（缺）")
+
+    # —— 全绿场景（顺便跑真 fetch：本地 file:// origin）——
+    _rf = _remote_files()
+    _rc, _rep, _gen, _td = _case(
+        _remote=_rf,
+        _fetch=True,
+        _gh=_gen_health(
+            _arb_sha=_sha(_rf["arb_ratings.json"]), _baro_sha=_sha(_rf["baro_history.json"])
+        ),
+        _ph=_pub_health(),
+    )
+    check(
+        "★ 健康检查器：全绿 → exit 0 / overall=ok（含真 fetch）",
+        _rc == 0 and _rep["overall"] == "ok",
+        _json.dumps(_rep["checks"], ensure_ascii=False)[:400],
+    )
+    check(
+        "健康检查器：检查项 id 唯一（状态比对才有意义）",
+        len({_c["id"] for _c in _rep["checks"]}) == len(_rep["checks"]),
+        str([_c["id"] for _c in _rep["checks"]]),
+    )
+    check(
+        "健康检查器：报告落盘（checked_at / overall / checks）",
+        _json.loads((_gen / "_community_health.json").read_text(encoding="utf-8"))["overall"]
+        == "ok",
+    )
+    check(
+        "健康检查器：SUMMARY 行与 server_patrol 同款",
+        _CH.summary_line(_rep["checks"]) == (0, "SUMMARY|exit=0|todo=0|全部正常"),
+        str(_CH.summary_line(_rep["checks"])),
+    )
+    check(
+        "健康检查器：--no-alert 连状态文件都不写（免得吞掉下一次真告警）",
+        not (_gen / "_community_health_state.json").exists(),
+    )
+    _shutil.rmtree(_td, ignore_errors=True)
+
+    # —— 发布器心跳 ——
+    _rc, _rep, _gen, _td = _case(_gh=_gen_health(), _ph=_pub_health(_age_min=180))
+    check(
+        "★ 检查器：发布器 3h 没跑 → publisher_alive=fail / exit 2",
+        _st(_rep, "publisher_alive") == "fail" and _rc == 2,
+        str(_rep["checks"][0]),
+    )
+    _shutil.rmtree(_td, ignore_errors=True)
+    _rc, _rep, _gen, _td = _case(_gh=_gen_health(), _ph=_pub_health(_result="failed"))
+    check(
+        "★ 检查器：上次发布 result=failed → publisher_alive=fail（哪怕刚跑过）",
+        _st(_rep, "publisher_alive") == "fail" and "失败" in _rep["checks"][0]["detail"],
+        _rep["checks"][0]["detail"],
+    )
+    _shutil.rmtree(_td, ignore_errors=True)
+    _rc, _rep, _gen, _td = _case(_gh=_gen_health(), _ph=None)
+    check(
+        "★ 检查器：没有发布记录 → publisher_alive=fail（不能默认健康）",
+        _st(_rep, "publisher_alive") == "fail",
+        _rep["checks"][0]["detail"],
+    )
+    _shutil.rmtree(_td, ignore_errors=True)
+
+    # —— 生成器心跳 ——
+    _rc, _rep, _gen, _td = _case(_gh=_gen_health(_arb_last=_NOW - _tdlt(days=9)), _ph=_pub_health())
+    check(
+        "★ 检查器：仲裁评级 9 天没成功生成 → gen_arb_alive=fail",
+        _st(_rep, "gen_arb_alive") == "fail",
+        str(_rep["checks"][1]),
+    )
+    _shutil.rmtree(_td, ignore_errors=True)
+    _rc, _rep, _gen, _td = _case(
+        _gh={"baro_history.json": _gen_rec(_NOW.isoformat())}, _ph=_pub_health()
+    )
+    check(
+        "★ 检查器：缺生成记录 → gen_arb_alive=warn（缺失不当成 fail，直说看不到）",
+        _st(_rep, "gen_arb_alive") == "warn" and _st(_rep, "gen_baro_alive") == "ok",
+        str(_rep["checks"][1:3]),
+    )
+    _shutil.rmtree(_td, ignore_errors=True)
+
+    # —— 远端内容：相位（换轮）/ 失效阈值 ——
+    _old_val = _remote_files(_valence_pub="2026-10-14T00:00:00+00:00")
+    _rc, _rep, _gen, _td = _case(_remote=_old_val, _gh=_gen_health(), _ph=_pub_health())
+    check(
+        "★ 检查器：远端 valence 早于当前窗口起点且过 8h 宽限 → fail / exit 2",
+        _st(_rep, "valence_current") == "fail" and _rc == 2,
+        next(_c["detail"] for _c in _rep["checks"] if _c["id"] == "valence_current"),
+    )
+    _shutil.rmtree(_td, ignore_errors=True)
+    # 刚换轮（10-15T00:00Z 窗口起点，取 02:00Z = 宽限内）
+    _grace_now = datetime(2026, 10, 15, 2, 0, tzinfo=timezone.utc)
+    _rc, _rep, _gen, _td = _case(
+        _remote=_old_val,
+        _now=_grace_now,
+        _gh=_gen_health(_now=_grace_now),
+        _ph=_pub_health(_now=_grace_now),
+    )
+    check(
+        "★ 检查器：刚换轮 8h 宽限内 → valence_current=warn / exit 1",
+        _st(_rep, "valence_current") == "warn" and _rc == 1,
+        next(_c["detail"] for _c in _rep["checks"] if _c["id"] == "valence_current"),
+    )
+    _shutil.rmtree(_td, ignore_errors=True)
+    _rc, _rep, _gen, _td = _case(
+        _remote=_remote_files(_acrithis_exp="2026-10-16T00:00:00+00:00"),
+        _gh=_gen_health(),
+        _ph=_pub_health(),
+    )
+    check(
+        "★ 检查器：言录使过期超 12h 宽限 → acrithis_current=fail / exit 2",
+        _st(_rep, "acrithis_current") == "fail" and _rc == 2,
+        next(_c["detail"] for _c in _rep["checks"] if _c["id"] == "acrithis_current"),
+    )
+    _shutil.rmtree(_td, ignore_errors=True)
+    _rc, _rep, _gen, _td = _case(
+        _remote=_remote_files(_acrithis_exp="2026-10-17T06:00:00+00:00"),
+        _gh=_gen_health(),
+        _ph=_pub_health(),
+    )
+    check(
+        "★ 检查器：言录使刚过期（12h 宽限内）→ warn",
+        _st(_rep, "acrithis_current") == "warn",
+        next(_c["detail"] for _c in _rep["checks"] if _c["id"] == "acrithis_current"),
+    )
+    _shutil.rmtree(_td, ignore_errors=True)
+
+    # —— 远端静态快照：校验 / 发布滞后 / 倾向年龄 ——
+    _bad_arb = _remote_files(_arb=_arb_doc(3))
+    _rc, _rep, _gen, _td = _case(_remote=_bad_arb, _gh=_gen_health(), _ph=_pub_health())
+    check(
+        "★ 检查器：远端静态文件校验不过 → static_valid_*=fail（消费端会拒收）",
+        _st(_rep, "static_valid_arb_ratings.json") == "fail" and _rc == 2,
+        next(_c["detail"] for _c in _rep["checks"] if _c["id"] == "static_valid_arb_ratings.json"),
+    )
+    _shutil.rmtree(_td, ignore_errors=True)
+
+    _old_wiki = _remote_files(_wiki=_wiki_doc())
+    _old_wiki["wiki_disp.json"] = _txt(
+        {"snapshot": "2026-10-01T00:00:00+00:00", "disp": {f"w{i}": 1.0 for i in range(450)}}
+    )
+    _rc, _rep, _gen, _td = _case(_remote=_old_wiki, _gh=_gen_health(), _ph=_pub_health())
+    check(
+        "★ 检查器：远端倾向快照 16 天 → wiki_disp_age=warn",
+        _st(_rep, "wiki_disp_age") == "warn",
+        next(_c["detail"] for _c in _rep["checks"] if _c["id"] == "wiki_disp_age"),
+    )
+    _shutil.rmtree(_td, ignore_errors=True)
+
+    # 已生成未发布：本地生成内容 ≠ 远端，且 last_success 已 3h
+    _td2 = Path(_tmp.mkdtemp(prefix="_ch_pub2_"))
+    _gen2 = _td2 / "gen"
+    _gen2.mkdir()
+    _new_arb = _arb_doc(70)  # 本地新内容（远端还是 60 节点的旧版）
+    _gen2_text = _txt(_new_arb)
+    (_gen2 / "arb_ratings.json").write_text(_gen2_text, encoding="utf-8")
+    (_gen2 / "_health.json").write_text(
+        _json.dumps(_gen_health(_arb_sha=_sha(_gen2_text), _arb_last=_NOW - _tdlt(hours=3))),
+        encoding="utf-8",
+    )
+    (_gen2 / "_publish_health.json").write_text(_json.dumps(_pub_health()), encoding="utf-8")
+    _work2 = _mk_repo(_td2, _remote_files())
+    _rc, _rep = _CH.run(
+        gen_dir=_gen2,
+        work_dir=_work2,
+        fetch=False,
+        alert=False,
+        now=_NOW,
+        rotations=_ROT,
+        quiet=True,
+    )
+    check(
+        "★ 检查器：已生成未发布 > 2h → static_published_*=warn / exit 1",
+        _st(_rep, "static_published_arb_ratings.json") == "warn" and _rc == 1,
+        next(
+            _c["detail"] for _c in _rep["checks"] if _c["id"] == "static_published_arb_ratings.json"
+        ),
+    )
+    # 同一份，只是刚生成（< 2h）→ ok
+    (_gen2 / "_health.json").write_text(
+        _json.dumps(_gen_health(_arb_sha=_sha(_gen2_text), _arb_last=_NOW - _tdlt(minutes=30))),
+        encoding="utf-8",
+    )
+    _rc, _rep = _CH.run(
+        gen_dir=_gen2,
+        work_dir=_work2,
+        fetch=False,
+        alert=False,
+        now=_NOW,
+        rotations=_ROT,
+        quiet=True,
+    )
+    check(
+        "检查器：刚生成 < 2h → static_published=ok（等下一轮发布即可）",
+        _st(_rep, "static_published_arb_ratings.json") == "ok",
+        next(
+            _c["detail"] for _c in _rep["checks"] if _c["id"] == "static_published_arb_ratings.json"
+        ),
+    )
+    _shutil.rmtree(_td2, ignore_errors=True)
+
+    # —— 远端读不到（fetch 失败）→ 远端相关检查记 warn，不能崩 ——
+    _td3 = Path(_tmp.mkdtemp(prefix="_ch_nofetch_"))
+    _gen3 = _td3 / "gen"
+    _gen3.mkdir()
+    (_gen3 / "_health.json").write_text(_json.dumps(_gen_health()), encoding="utf-8")
+    (_gen3 / "_publish_health.json").write_text(_json.dumps(_pub_health()), encoding="utf-8")
+    _work3 = _td3 / "no_origin"
+    _work3.mkdir()
+    _git("init", "-q", "-b", "bot-data", _cwd=str(_work3))  # 有 .git 但没有 origin
+    _rc, _rep = _CH.run(
+        gen_dir=_gen3,
+        work_dir=_work3,
+        fetch=True,
+        alert=False,
+        now=_NOW,
+        rotations=_ROT,
+        quiet=True,
+    )
+    check(
+        "★ 检查器：fetch 失败 → 远端相关检查全 warn（「无法读取远端」），本地检查照常 ok",
+        _st(_rep, "valence_current") == "warn"
+        and _st(_rep, "static_valid_arb_ratings.json") == "warn"
+        and _st(_rep, "publisher_alive") == "ok"
+        and _rc == 1,
+        _json.dumps(_rep["checks"], ensure_ascii=False)[:400],
+    )
+    _rc, _rep = _CH.run(
+        gen_dir=_gen3,
+        work_dir=_td3 / "nope",
+        fetch=True,
+        alert=False,
+        now=_NOW,
+        rotations=_ROT,
+        quiet=True,
+    )
+    check(
+        "检查器：工作副本不存在也只是一片 warn（不抛异常）",
+        _st(_rep, "valence_current") == "warn" and _rc == 1,
+        next(_c["detail"] for _c in _rep["checks"] if _c["id"] == "valence_current"),
+    )
+    _shutil.rmtree(_td3, ignore_errors=True)
+
+    # —— 镜像滞后（--mirrors；纯函数，不联网）——
+    _idx = {k: v.encode("utf-8") for k, v in _remote_files().items()}  # 与 read_remote 同型（字节）
+    check(
+        "★ 检查器：镜像比 git 旧 24h → mirror_lag=warn",
+        _CH.check_mirror_lag(_idx, "", {"published_at": "2026-10-15T00:00:00+00:00"})["status"]
+        == "warn",
+    )
+    check(
+        "检查器：镜像跟得上（0h）→ mirror_lag=ok",
+        _CH.check_mirror_lag(_idx, "", {"published_at": "2026-10-16T00:00:00+00:00"})["status"]
+        == "ok",
+    )
+    check(
+        "检查器：镜像读不到 → mirror_lag=warn（不误报 fail）",
+        _CH.check_mirror_lag(_idx, "", {})["status"] == "warn",
+    )
+    _chk_ids = [
+        c["id"]
+        for c in _CH.evaluate(_NOW, {}, {}, {}, _ROT, gen_dir=Path("/tmp"), mirror={}, mirrors=True)
+    ]
+    check(
+        "检查器：--mirrors 才追加 mirror_lag 检查项",
+        _chk_ids[-1] == "mirror_lag" and "mirror_lag" not in _chk_ids[:-1],
+        str(_chk_ids),
+    )
+
+    # —— 生成器健康记录：updated / unchanged / failed / 坏记录 / 读-改-写 ——
+    _tdg = Path(_tmp.mkdtemp(prefix="_ch_gen_"))
+    _gd = _tdg / "gen"
+    _gd.mkdir()
+    _part = _gd / "arb.part"
+    _part.write_text(_txt(_arb_doc()), encoding="utf-8")
+    _grc, _gres, _gwhy = _GEN._install("arb_ratings.json", _part, _gd)
+    _GEN._record(_gd, "arb_ratings.json", _gres, _gwhy)
+    _hg = _json.loads((_gd / "_health.json").read_text(encoding="utf-8"))
+    _rec = _hg["arb_ratings.json"]
+    check(
+        "★ 生成健康：updated → result / last_success / sha256 / count / stamp 齐",
+        _grc == 0
+        and _gres == "updated"
+        and _rec["result"] == "updated"
+        and _rec["last_success"]
+        and _rec["count"] == 60
+        and _rec["stamp"] == "2026-10-17"
+        and _rec["sha256"] == _hl.sha256((_gd / "arb_ratings.json").read_bytes()).hexdigest(),
+        str(_rec),
+    )
+    check("生成健康：.part 用完即删（不在暂存目录留残渣）", not _part.exists())
+    check("生成健康：健康记录原子写（不留 .tmp）", not (_gd / "_health.json.tmp").exists())
+
+    _hg["arb_ratings.json"]["last_success"] = "2026-01-01T00:00:00+00:00"  # 手动压旧
+    (_gd / "_health.json").write_text(_json.dumps(_hg), encoding="utf-8")
+    _part2 = _gd / "arb.part"
+    _part2.write_text(_txt({**_arb_doc(), "_updated": "2026-10-18"}), encoding="utf-8")
+    _grc, _gres, _gwhy = _GEN._install("arb_ratings.json", _part2, _gd)
+    _GEN._record(_gd, "arb_ratings.json", _gres, _gwhy)
+    _hg2 = _json.loads((_gd / "_health.json").read_text(encoding="utf-8"))
+    check(
+        "★ 生成健康：内容没变（unchanged）→ last_success 前进，不被旧值卡住",
+        _gres == "unchanged"
+        and _hg2["arb_ratings.json"]["last_success"] != "2026-01-01T00:00:00+00:00"
+        and _hg2["arb_ratings.json"]["last_success"] > _rec["last_success"],
+        str(_hg2["arb_ratings.json"]),
+    )
+    check(
+        "生成健康：unchanged 不动数据文件（幂等，时间戳保持）",
+        _json.loads((_gd / "arb_ratings.json").read_text(encoding="utf-8"))["_updated"]
+        == "2026-10-17",
+    )
+    _keep_ok = _hg2["arb_ratings.json"]["last_success"]
+    _GEN._record(_gd, "arb_ratings.json", "failed", "生成失败（退出码 1）")
+    _hg3 = _json.loads((_gd / "_health.json").read_text(encoding="utf-8"))
+    check(
+        "★ 生成健康：failed → 保留上一次 last_success（区分「今天挂了」与「一周没成功」）",
+        _hg3["arb_ratings.json"]["last_success"] == _keep_ok
+        and _hg3["arb_ratings.json"]["result"] == "failed"
+        and "退出码 1" in _hg3["arb_ratings.json"]["reason"],
+        str(_hg3["arb_ratings.json"]),
+    )
+    _part4 = _gd / "arb.part"
+    _part4.write_text(_json.dumps({"_updated": "2026-10-18", "nodes": {}}), encoding="utf-8")
+    _grc, _gres, _gwhy = _GEN._install("arb_ratings.json", _part4, _gd)
+    check(
+        "生成健康：校验不过 → _install 记 failed（不写坏文件）",
+        (_grc, _gres, _gwhy) == (1, "failed", "节点太少"),
+        f"{_grc} {_gres} {_gwhy}",
+    )
+    _part5 = _gd / "baro.part"
+    _part5.write_text(_txt(_baro_doc()), encoding="utf-8")
+    _b_rc, _b_res, _b_why = _GEN._install("baro_history.json", _part5, _gd)
+    _GEN._record(_gd, "baro_history.json", _b_res, _b_why)
+    _hg4 = _json.loads((_gd / "_health.json").read_text(encoding="utf-8"))
+    check(
+        "★ 生成健康：写一类不动另一类（读-改-写，两类条目都在）",
+        set(_hg4) == {"arb_ratings.json", "baro_history.json"}
+        and _hg4["arb_ratings.json"]["result"] == "failed"
+        and _hg4["baro_history.json"]["result"] == "updated"
+        and _hg4["baro_history.json"]["count"] == 12,
+        str({k: v["result"] for k, v in _hg4.items()}),
+    )
+    (_gd / "_health.json").write_text("{ 这不是 JSON", encoding="utf-8")
+    _part6 = _gd / "arb.part"
+    _part6.write_text(_txt(_arb_doc()), encoding="utf-8")
+    _grc, _gres, _gwhy = _GEN._install("arb_ratings.json", _part6, _gd)
+    _GEN._record(_gd, "arb_ratings.json", _gres, _gwhy)
+    _hg5 = _json.loads((_gd / "_health.json").read_text(encoding="utf-8"))
+    check(
+        "★ 生成健康：_health.json 损坏 → 生成器照跑（从 {} 重建，不抛）",
+        _grc == 0
+        and "arb_ratings.json" in _hg5
+        and _hg5["arb_ratings.json"]["result"] == "unchanged",
+        str(_hg5),
+    )
+    _shutil.rmtree(_tdg, ignore_errors=True)
+
+    # —— 发布健康记录（直接调写函数；不跑 main 也能钉住契约）——
+    _tdp = Path(_tmp.mkdtemp(prefix="_ch_pubh_"))
+    _pd = _tdp / "gen"
+    _pstat = {
+        "valence.json": {"status": "ok", "reason": "", "stamp": "2026-10-16T00:00:00+00:00"},
+        "acrithis_week.json": {"status": "invalid", "reason": "言录使快照已过期（…）", "stamp": ""},
+        "arb_ratings.json": {"status": "missing", "reason": "未找到源文件", "stamp": ""},
+    }
+    _PUBW._write_publish_health(
+        gen_dir=_pd, mode="git", dry_run=False, result="pushed", head="abc1234", files=_pstat
+    )
+    _ph = _json.loads((_pd / "_publish_health.json").read_text(encoding="utf-8"))
+    check(
+        "★ 发布健康：成功落盘（last_run/mode/dry_run/result/head/files 齐）",
+        _ph["mode"] == "git"
+        and _ph["dry_run"] is False
+        and _ph["result"] == "pushed"
+        and _ph["head"] == "abc1234"
+        and _ph["last_run"]
+        and _ph["files"]["arb_ratings.json"]["status"] == "missing"
+        and _ph["files"]["acrithis_week.json"]["reason"],
+        str(_ph),
+    )
+    _PUBW._write_publish_health(
+        gen_dir=_pd, mode="api", dry_run=True, result="nothing", head="", files={}
+    )
+    _ph2 = _json.loads((_pd / "_publish_health.json").read_text(encoding="utf-8"))
+    check(
+        "★ 发布健康：「没东西可发」也落盘（result=nothing / files 空）",
+        _ph2["result"] == "nothing" and _ph2["dry_run"] is True and _ph2["files"] == {},
+        str(_ph2),
+    )
+    check("发布健康：写完不留 .tmp（原子写）", not (_pd / "_publish_health.json.tmp").exists())
+    (_pd / "blocker").write_text("x", encoding="utf-8")
+    try:  # 目标路径被文件占住 → mkdir 必失败
+        _PUBW._write_publish_health(
+            gen_dir=_pd / "blocker", mode="api", dry_run=True, result="failed", head="", files={}
+        )
+        _no_raise = True
+    except Exception as _exc:  # noqa: BLE001
+        _no_raise = False
+    check("★ 发布健康：写不进去也不抛（绝不改退出码 / 掀翻发布）", _no_raise)
+
+    # 「没有任何可发布的数据」这条退出路径：_publish 记 result=nothing（退出码仍是 1）
+    _Ns = type("_Ns", (), {})
+    _args_none = _Ns()
+    _args_none.local, _args_none.direct, _args_none.via_git, _args_none.yes = (
+        False,
+        False,
+        False,
+        False,
+    )
+    _args_none.work_dir, _args_none.git_remote, _args_none.git_key = ".", "", ""
+    _orig_ls = _PUBW.load_snapshot
+    _PUBW.load_snapshot = lambda *a, **k: ({}, "（测试：无源）")
+    try:
+        _PUBW._LAST_PUSH.clear()
+        _rc = _PUBW._publish(_args_none, _NOW, {})
+    finally:
+        _PUBW.load_snapshot = _orig_ls
+    check(
+        "★ 发布器：没有任何可发布的数据 → _publish 记 result=nothing（退出码 1 不变）",
+        _rc == 1 and _PUBW._LAST_PUSH.get("result") == "nothing",
+        str(_PUBW._LAST_PUSH),
+    )
+    _shutil.rmtree(_tdp, ignore_errors=True)
+
+    # —— 发布器接线：push_via_git 真推（本地 file:// origin）→ _LAST_PUSH 记结果 ——
+    _tdw = Path(_tmp.mkdtemp(prefix="_ch_pubg_"))
+    _workw = _mk_repo(_tdw, _remote_files())
+    _bare_url = "file://" + str(_tdw / "origin.git")
+    _newval = _txt(
+        {
+            "schema": 1,
+            "published_at": "2026-10-17T00:00:00+00:00",
+            "tenet": {"items": []},
+            "coda": {"batch": "A", "items": []},
+        }
+    )
+    _PUBW._LAST_PUSH.clear()
+    _rc = _PUBW.push_via_git(
+        {"valence.json": _newval}, True, work=_workw, remote=_bare_url, key=None
+    )
+    check(
+        "★ 发布器接线：git 通道真推 → result=pushed + 短 sha（健康记录要的两个字段）",
+        _rc == 0
+        and _PUBW._LAST_PUSH.get("result") == "pushed"
+        and len(_PUBW._LAST_PUSH.get("head", "")) >= 7,
+        str(_PUBW._LAST_PUSH),
+    )
+    _PUBW._LAST_PUSH.clear()
+    _rc = _PUBW.push_via_git(
+        {"valence.json": _newval}, True, work=_workw, remote=_bare_url, key=None
+    )
+    check(
+        "★ 发布器接线：内容没变 → result=unchanged（不产生空提交）",
+        _rc == 0 and _PUBW._LAST_PUSH.get("result") == "unchanged",
+        str(_PUBW._LAST_PUSH),
+    )
+    _PUBW._LAST_PUSH.clear()
+    _rc = _PUBW.push_via_git(
+        {"valence.json": _txt({"schema": 1, "published_at": "2026-10-18T00:00:00+00:00"})},
+        False,
+        work=_workw,
+        remote=_bare_url,
+        key=None,
+    )
+    check(
+        "★ 发布器接线：dry-run → result=dry_run（默认不写远端）",
+        _rc == 0 and _PUBW._LAST_PUSH.get("result") == "dry_run",
+        str(_PUBW._LAST_PUSH),
+    )
+    _shutil.rmtree(_tdw, ignore_errors=True)
+
+    # —— 告警：只在状态变化时响（首次异常 / 无变化静默 / 恢复一条）——
+    _tdal = Path(_tmp.mkdtemp(prefix="_ch_alert_"))
+    _genal = _tdal / "gen"
+    _genal.mkdir()
+    _rfal = _remote_files()
+    _workal = _mk_repo(_tdal, _rfal)
+    (_genal / "_health.json").write_text(
+        _json.dumps(
+            _gen_health(
+                _arb_sha=_sha(_rfal["arb_ratings.json"]), _baro_sha=_sha(_rfal["baro_history.json"])
+            )
+        ),
+        encoding="utf-8",
+    )
+    (_genal / "_publish_health.json").write_text(
+        _json.dumps(_pub_health(_age_min=180)), encoding="utf-8"
+    )
+    _alerts = []
+    _orig_send = _CH.send_alert
+    _deliver = {"ok": True}
+    _CH.send_alert = lambda _t, _b: (
+        _alerts.append((_t, _b)),
+        "已推送，通道：stub" if _deliver["ok"] else "未推送：全部远程通道失败",
+    )[1]
+    try:
+        _rc1, _rep1 = _CH.run(
+            gen_dir=_genal,
+            work_dir=_workal,
+            fetch=False,
+            alert=True,
+            now=_NOW,
+            rotations=_ROT,
+            quiet=True,
+        )
+        check(
+            "★ 告警：首次异常 → 一条告警（标题带项数，正文列变化项）",
+            _rc1 == 2
+            and len(_alerts) == 1
+            and _alerts[0][0] == "社区快照健康：1 项异常"
+            and "publisher_alive" in _alerts[0][1],
+            str(_alerts),
+        )
+        check(
+            "告警：状态落盘（状态文件逐项记状态）",
+            _json.loads((_genal / "_community_health_state.json").read_text(encoding="utf-8"))[
+                "checks"
+            ]["publisher_alive"]
+            == "fail",
+        )
+        _rc2, _rep2 = _CH.run(
+            gen_dir=_genal,
+            work_dir=_workal,
+            fetch=False,
+            alert=True,
+            now=_NOW,
+            rotations=_ROT,
+            quiet=True,
+        )
+        check(
+            "★ 告警：状态没变 → 一条都不推（不刷屏）", _rc2 == 2 and len(_alerts) == 1, str(_alerts)
+        )
+        (_genal / "_publish_health.json").write_text(
+            _json.dumps(_pub_health(_age_min=5)), encoding="utf-8"
+        )
+        _rc3, _rep3 = _CH.run(
+            gen_dir=_genal,
+            work_dir=_workal,
+            fetch=False,
+            alert=True,
+            now=_NOW,
+            rotations=_ROT,
+            quiet=True,
+        )
+        check(
+            "★ 告警：恢复 → 一条恢复告警，exit 回 0",
+            _rc3 == 0
+            and len(_alerts) == 2
+            and _alerts[1][0] == "社区快照健康：已恢复 publisher_alive",
+            str(_alerts),
+        )
+        _rc4, _rep4 = _CH.run(
+            gen_dir=_genal,
+            work_dir=_workal,
+            fetch=False,
+            alert=True,
+            now=_NOW,
+            rotations=_ROT,
+            quiet=True,
+        )
+        check("告警：恢复后重复跑不再推", _rc4 == 0 and len(_alerts) == 2, str(_alerts))
+        # ★ 2026-10-17（Claude 审核补）：告警没送达 → 状态不前进，下一轮照样再推（不吞告警）
+        (_genal / "_publish_health.json").write_text(
+            _json.dumps(_pub_health(_age_min=180)), encoding="utf-8"
+        )
+        _deliver["ok"] = False
+        _CH.run(
+            gen_dir=_genal,
+            work_dir=_workal,
+            fetch=False,
+            alert=True,
+            now=_NOW,
+            rotations=_ROT,
+            quiet=True,
+        )
+        _st = _json.loads((_genal / "_community_health_state.json").read_text(encoding="utf-8"))
+        check(
+            "★ 告警没送达：状态停在 ok（不当成已通知）",
+            _st["checks"]["publisher_alive"] == "ok",
+            str(_st),
+        )
+        _deliver["ok"] = True
+        _n_before = len(_alerts)
+        _CH.run(
+            gen_dir=_genal,
+            work_dir=_workal,
+            fetch=False,
+            alert=True,
+            now=_NOW,
+            rotations=_ROT,
+            quiet=True,
+        )
+        check(
+            "★ 下一轮送达成功：同一异常再推一次",
+            len(_alerts) == _n_before + 1 and "publisher_alive" in _alerts[-1][1],
+            str(_alerts[-2:]),
+        )
+    finally:
+        _CH.send_alert = _orig_send
+        _shutil.rmtree(_tdal, ignore_errors=True)
+else:
+    print("[SKIP] 社区快照健康用例：本树无私有运维脚本（.zcode/.../community_health.py）")
 
 print()
 if FAILED:

@@ -48,6 +48,7 @@ DATA_DIR = Path(__file__).resolve().parent / "data"  # 包内静态数据（只�
 # 运行期写盘的文件名（排行落盘 / 快照 / 缓存）：实际路径经 core.paths 解析到
 # data/plugin_data/<插件名>，绝不写插件包目录（AstrBot 插件规范要求）。
 RANKS_NAME = "wm_ranks.json"  # 价格排行全量落盘（后台爬取）
+RANK_MIN_COVERAGE = 0.8  # 价格排行整轮成功率 ≥ 此值才刷新 ts（用户 2026-10-17 定）
 WIKI_DISP_NAME = "de/wiki_disp.json"  # wiki 变体倾向快照
 ACRITHIS_WEEK_NAME = "de/acrichis_week.json"  # 言录使本周货单（运行期覆盖包内种子）
 STOREITEMS_ZH_NAME = "de/storeitems_zh.json"  # StoreItems 路径 → 官方简中名（警报换名）
@@ -77,6 +78,7 @@ WIKI_RAW_TENET = "https://wiki.warframe.com/w/Tenet_Weapons?action=raw"
 #   raw.githack 全部 12s 超时 HTTP 000）；住宅网络虽然六个都通，但按**最差 vantage**取交集，
 #   只保留这两条镜像 + raw。原先的 statically 通道在服务器侧**根本不可用**（名义三通道、实际两通道），
 #   已替换为 gcore；两条 jsDelivr 走同一网络但不同边缘，留作互为冗余（当天 cdn 曾整段 502）。
+#   2026-10-17 复测：服务器上 raw 已变为**间歇可达**（时而 1.8s 200、时而 12s 超时），失败即冷却 30 分钟改走 jsDelivr。
 #   连通性由服务器巡检每轮探针输出矩阵（`server_patrol.py`），不再"装了就算有"。
 COMMUNITY_SNAPSHOT_BASE = "https://raw.githubusercontent.com/skyti1437/Warframe-SDJK-Bot/bot-data"
 COMMUNITY_VALENCE_URL = f"{COMMUNITY_SNAPSHOT_BASE}/valence.json"  # 主通道
@@ -105,6 +107,24 @@ COMMUNITY_STATIC = {
     "wiki_disp.json": {"local": "de/wiki_disp.json", "stamp": "snapshot", "label": "紫卡倾向"},
 }
 
+
+# 运维面板展示顺序 + 中文名；检查结论取值（面板按此上色）
+COMMUNITY_FILES = (
+    ("valence.json", "元素加成"),
+    ("acrithis_week.json", "言录使货单"),
+    ("arb_ratings.json", "仲裁评级"),
+    ("baro_history.json", "奸商到访历史"),
+    ("wiki_disp.json", "紫卡倾向"),
+)
+COMMUNITY_RESULTS = {
+    "adopted": "已采用新快照",
+    "fresh": "远端不比本地新",
+    "local_ok": "本地仍有效，本次未拉取",
+    "stale": "远端是上一轮的旧快照",
+    "invalid": "校验不过，未采用",
+    "unavailable": "取不到",
+    "unchecked": "本次启动后还没检查",
+}
 
 COMMUNITY_COOLDOWN = 1800  # 社区通道网络失败后冷却（秒）
 COMMUNITY_BUDGET = 30.0  # 一次社区取数的总时间预算（秒）
@@ -963,6 +983,9 @@ class WarframeClient:
         #   ⇒ 按**主机**记上次成功的通道、失败的主机冷却一段时间（raw 挂了是五个文件一起挂）
         self._comm_good_host: Optional[str] = None
         self._comm_cool: dict[str, float] = {}
+        # 社区快照采用记录（2026-10-17 批次 B「全链路健康记录」插件侧）：文件名 → 最近一次检查的结论、
+        #   走的通道、数据自身时间、原因。运维面板「数据」页展示；只在内存里，重启清空（这是「本进程看到了什么」）。
+        self.community_log: dict[str, dict] = {}
         self.cache = cache or TTLCache(maxsize=1024)
         self._http = httpx.AsyncClient(
             timeout=httpx.Timeout(timeout),
@@ -999,6 +1022,7 @@ class WarframeClient:
         retries: int = 2,
         cache_key: Optional[str] = None,
         wm_rate_limit: bool = False,
+        timeout: Optional[float] = None,
     ) -> Any:
         key = cache_key or (
             url
@@ -1018,7 +1042,11 @@ class WarframeClient:
                             if gap > 0:
                                 await asyncio.sleep(gap)
                             self._wm_last = time.monotonic()
-                    resp = await self._http.get(url, params=params, headers=headers)
+                    # timeout：单次请求自己的上限（社区通道用）。只靠外层 wait_for 取消不够 ——
+                    #   httpx 被取消时连接清理是受保护的，可能拖到客户端默认超时才返回（ZCode 10-17：
+                    #   raw 卡住吃满 30 s 预算，镜像没轮到）。
+                    kw = {"timeout": timeout} if timeout is not None else {}
+                    resp = await self._http.get(url, params=params, headers=headers, **kw)
                     if resp.status_code == 404:
                         raise WarframeAPIError(f"接口不存在或暂未开放：{url}")
                     if resp.status_code == 429:  # 限速：退避后重试
@@ -1035,7 +1063,9 @@ class WarframeClient:
                     last_exc = exc
                     if attempt < retries:
                         await asyncio.sleep(0.6 * (attempt + 1) + random.random() * 0.3)
-            raise WarframeAPIError(f"请求失败（{url}）：{last_exc}")
+            # 超时类异常 str() 为空（ZCode 10-17：日志 / 面板「请求失败（…）：」冒号后啥都没有）⇒ 退回类型名
+            why = (str(last_exc) or type(last_exc).__name__) if last_exc else "未知错误"
+            raise WarframeAPIError(f"请求失败（{url}）：{why}")
 
         return await self.cache.get_or_fetch(key, ttl, _do)
 
@@ -1361,6 +1391,7 @@ class WarframeClient:
         from datetime import datetime, timedelta, timezone
 
         if not self.acrithis_week_expired():
+            self._note_comm("acrithis_week.json", "local_ok", "本周货单未到期")
             return "fresh"
         snap = self._load_json_file(paths.read_path(ACRITHIS_WEEK_NAME)) or {}
         catalog = snap.get("_en_catalog") or {}
@@ -1456,6 +1487,7 @@ class WarframeClient:
         ok, why = community_acrithis_ok(payload)
         if not ok:
             logger.warning("[sdjk] 社区言录使快照校验不过：%s", why)
+            self._note_comm("acrithis_week.json", "invalid", why, payload.get("expiry"))
             return "failed"
         items: list[dict] = []
         for it in payload["items"]:
@@ -1484,6 +1516,7 @@ class WarframeClient:
             out["observed"],
             len(items),
         )
+        self._note_comm("acrithis_week.json", "adopted", "", payload.get("expiry"))
         return "refreshed"
 
     async def steel_path_incursions(self, platform: str) -> dict:
@@ -2036,11 +2069,13 @@ class WarframeClient:
             return {}
 
     @staticmethod
-    def _save_json_file(path, payload) -> None:
+    def _save_json_file(path, payload) -> bool:
+        """落盘；失败不抛（不影响本次查询），返回 False 让关心的调用方（如价格榜单）记状态。"""
         try:
             paths.atomic_write_text(path, json.dumps(payload, ensure_ascii=False, indent=1))
+            return True
         except Exception:  # noqa: BLE001 - 落盘失败不影响本次查询
-            pass
+            return False
 
     @staticmethod
     def _rank_record(it: dict, stats: dict) -> Optional[dict]:
@@ -2085,7 +2120,8 @@ class WarframeClient:
 
         - 落盘记录 ``cursor``（下次从第几项继续）与 ``rows``（已抓结果）；
         - 每轮最多抓 ``limit`` 项，抓完就收工，下一轮（次日闲时）接着跑；
-        - 跑满一轮（cursor 回到 0）才更新 ``ts``，即整体刷新周期仍是 48h；
+        - 跑满一轮（cursor 回到 0）**且成功率 ≥ RANK_MIN_COVERAGE** 才更新 ``ts``，整体刷新周期仍是 48h；
+          失败项进 ``retry``，下次先补（2026-10-17）；不足 80% 记 ``low_coverage``、``ts`` 不动；
         - 每 50 项落一次盘，中断不丢已抓部分，排行查询始终能显示已完成部分。
 
         Args:
@@ -2097,11 +2133,85 @@ class WarframeClient:
         items = [it for it in await self.wm_items() if _rank_candidate(it)]
         total = len(items)
         old = self._load_json_file(paths.read_path(RANKS_NAME)) or {}
+        if total == 0:
+            # 物品表取不到时 total=0，旧实现会「瞬间跑满一轮」并刷新 ts（一项没抓却标成新的）
+            logger.warning("[sdjk] 价格榜单抓取：WM 物品表为空（可能取不到），本轮跳过、不刷新时间")
+            return len(old.get("rows") or {})
         rows: dict = old.get("rows") or {}
         cursor = int(old.get("cursor") or 0)
         if cursor >= total:  # 上一轮已跑满，从头开始新一轮
             cursor = 0
+        # ★ 2026-10-17 覆盖率闸门（用户定 80%，GPT 评估 P14）：游标跑完 ≠ 成功跑完。
+        #   failed = 本轮（进行中）请求失败的物品；retry = 上一轮失败、本次先补的物品。
+        #   整轮成功率 ≥ RANK_MIN_COVERAGE 才刷新 ts；不足则 ts 不动（48h 闸门仍判过期 ⇒
+        #   下个闲时继续先补失败项），low_coverage 供面板提示，旧行照常展示。
+        failed: set = set(old.get("round_failed") or [])
+        retry: list = list(dict.fromkeys(old.get("retry") or []))
+        low = bool(old.get("low_coverage"))
+        ts = old.get("ts") or ""
+        coverage = old.get("coverage")
+        by_slug = {it.get("url_name"): it for it in items if it.get("url_name")}
+        save_failed = False
+
+        def _now_iso() -> str:
+            return time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime())
+
+        async def _fetch(it: dict) -> bool:
+            """抓一项；返回请求是否成功（成功但无 48h 成交 = 成功 + 出榜）。"""
+            slug = it.get("url_name") or ""
+            # ★ 2026-10-03 僵尸行修复（价格排行交办）：`rec is None` 必须与「请求失败」严格区分 ——
+            #   请求失败（网络抖动）⇒ 保留旧行；_rank_record 返回 None = 确实无 48h 成交 ⇒ 出榜。
+            try:
+                stats = await self.wm_statistics(slug, "pc")
+            except Exception:  # noqa: BLE001 - 单项请求失败不阻断整轮
+                stats = None
+            if stats is None:
+                return False
+            rec = self._rank_record(it, stats)
+            if rec:
+                rec["at"] = _now_iso()  # 每行记自己的成功时间（整榜 ts 不代表每行都新）
+                rows[slug] = rec
+            else:
+                rows.pop(slug, None)
+            return True
+
+        def _save(cur: int) -> None:
+            nonlocal save_failed
+            ok = self._save_json_file(
+                paths.write_path(RANKS_NAME),
+                {
+                    "ts": ts,
+                    "cursor": cur,
+                    "total": total,
+                    "done": cur,
+                    "rows": rows,
+                    "round_failed": sorted(failed),
+                    "retry": retry,
+                    "coverage": coverage,
+                    "low_coverage": low,
+                },
+            )
+            if ok is False:
+                save_failed = True
+
         done = 0
+        # ① 先补上一轮失败的物品
+        still: list = []
+        for slug in retry:
+            it = by_slug.get(slug)
+            if it is None:  # 已不在候选里（下架 / 不再可交易）
+                continue
+            if limit is not None and done >= limit:
+                still.append(slug)
+                continue
+            done += 1
+            if not await _fetch(it):
+                still.append(slug)
+        retry = still
+        if low and (total - len(retry)) / total >= RANK_MIN_COVERAGE:
+            ts, low = _now_iso(), False  # 上一轮靠补抓达标
+            coverage = round((total - len(retry)) / total, 3)
+        # ② 主游标续跑
         idx = cursor
         while idx < total:
             if limit is not None and done >= limit:
@@ -2109,59 +2219,38 @@ class WarframeClient:
             it = items[idx]
             slug = it.get("url_name") or ""
             if slug:
-                # ★ 2026-10-03 僵尸行修复（价格排行交办）：`rec is None` 必须与
-                #   「请求失败」严格区分 ——
-                #     · 请求失败（网络抖动）⇒ 保留旧行（不动）；
-                #     · _rank_record 返回 None = 该物品**确实无 48h 成交** ⇒ 出榜
-                #       （旧实现 rec 为 None 时什么都不做 ⇒ 曾入榜的行永远留着
-                #        最后一次有成交时的价格，注脚「无 48h 成交不入榜」失真）。
-                try:
-                    stats = await self.wm_statistics(slug, "pc")
-                except Exception:  # noqa: BLE001 - 单项请求失败不阻断整轮
-                    stats = None
-                if stats is not None:
-                    rec = self._rank_record(it, stats)
-                    if rec:
-                        rows[slug] = rec
-                    else:
-                        rows.pop(slug, None)  # 确实无 48h 成交 → 出榜
+                if await _fetch(it):
+                    failed.discard(slug)
+                    if slug in retry:
+                        retry.remove(slug)
+                else:
+                    failed.add(slug)
             idx += 1
             done += 1
             if done % 50 == 0:
-                self._save_json_file(
-                    paths.write_path(RANKS_NAME),
-                    {
-                        "ts": old.get("ts") or "",
-                        "cursor": idx,
-                        "total": total,
-                        "done": idx,
-                        "rows": rows,
-                    },
-                )
+                _save(idx)
         finished = idx >= total
-        self._save_json_file(
-            paths.write_path(RANKS_NAME),
-            {
-                # 跑满一轮才刷新 ts（整榜 48h 更新一次）；没跑满沿用旧 ts，
-                # 下一轮仍判定为过期 -> 从 cursor 继续
-                "ts": (
-                    time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime())
-                    if finished
-                    else (old.get("ts") or "")
-                ),
-                "cursor": 0 if finished else idx,
-                "total": total,
-                "done": idx,
-                "rows": rows,
-            },
-        )
-        # api_client 没有模块级 logger，这里用标准库（保持与 main.py 前缀一致）
+        if finished:
+            cov = (total - len(failed)) / total
+            coverage = round(cov, 3)
+            if cov >= RANK_MIN_COVERAGE:
+                ts, low = _now_iso(), False
+            else:
+                low = True  # ts 不动：下个闲时继续，先补失败项
+            retry = sorted(set(retry) | failed)
+            failed = set()
+        _save(0 if finished else idx)
+        if save_failed:
+            logger.warning("[sdjk] 价格榜单落盘失败（磁盘满 / 无权限？），本轮结果可能未保存")
         logger.info(
-            "[sdjk] 价格榜单抓取：本轮 %d 项，累计 %d/%d%s",
+            "[sdjk] 价格榜单抓取：本轮 %d 项，累计 %d/%d%s；待补 %d 项",
             done,
             idx,
             total,
-            "（本轮跑满）" if finished else "",
+            (f"（本轮跑满，覆盖率 {coverage:.0%}" + ("，不足 80%，时间不刷新）" if low else "）"))
+            if finished
+            else "",
+            len(retry),
         )
         return len(rows)
 
@@ -3199,6 +3288,7 @@ class WarframeClient:
             ok, why = community_static_ok(name, payload)
             if not ok:
                 out[name] = f"invalid: {why}"
+                self._note_comm(name, "invalid", why, payload.get(spec["stamp"]))
                 continue
             local = self._load_json_file(paths.read_path(spec["local"])) or {}
             new_t, old_t = (
@@ -3207,12 +3297,32 @@ class WarframeClient:
             )
             if old_t is not None and new_t <= old_t:
                 out[name] = "fresh"
+                self._note_comm(
+                    name, "fresh", f"本地 {local.get(spec['stamp'])}", payload.get(spec["stamp"])
+                )
                 continue
             paths.atomic_write_text(
                 paths.write_path(spec["local"]), json.dumps(payload, ensure_ascii=False, indent=1)
             )
             _invalidate_static(name)
             out[name] = f"refreshed {payload.get(spec['stamp'])}"
+            self._note_comm(name, "adopted", "", payload.get(spec["stamp"]))
+        return out
+
+    def _note_comm(self, name: str, result: str, reason: str = "", stamp: str = "") -> None:
+        """记一笔社区快照检查结论（result 取值见 COMMUNITY_RESULTS）。通道由 _community_json 记。"""
+        ent = self.community_log.setdefault(name, {})
+        ent.update(
+            checked_at=time.time(), result=result, reason=str(reason)[:200], stamp=str(stamp or "")
+        )
+
+    def community_report(self) -> list[dict]:
+        """五份社区快照的最近检查记录（按固定顺序；没检查过的给 result=unchecked）。"""
+        out = []
+        for name, label in COMMUNITY_FILES:
+            ent = dict(self.community_log.get(name) or {})
+            ent.setdefault("result", "unchecked")
+            out.append({"name": name, "label": label, **ent})
         return out
 
     async def _community_json(self, urls: tuple[str, ...]) -> Optional[dict]:
@@ -3236,11 +3346,14 @@ class WarframeClient:
         order = sorted(urls, key=lambda u: host(u) != self._comm_good_host)
         live = [u for u in order if self._comm_cool.get(host(u), 0.0) <= now] or order[:1]
         deadline = now + COMMUNITY_BUDGET
+        errors: list[str] = []
         for i, url in enumerate(live):
             left = deadline - time.monotonic()
             if left <= 1.0:
                 logger.info("[sdjk] 社区快照（%s）超出本次时间预算，余下通道下次再试", name)
+                errors.append("超出本次时间预算")
                 break
+            cap = min(left - 0.5, COMMUNITY_PER_CHANNEL)
             try:
                 data = await asyncio.wait_for(
                     self._fetch_json(
@@ -3249,8 +3362,9 @@ class WarframeClient:
                         headers=_ORACLE_HEADERS,
                         cache_key=f"community:{name}",
                         retries=0,
+                        timeout=cap,  # httpx 自己按时中止（主保险）
                     ),
-                    timeout=min(left, COMMUNITY_PER_CHANNEL),
+                    timeout=cap + 2.0,  # 外层取消只作兜底
                 )
             except Exception as exc:  # noqa: BLE001
                 missing = isinstance(exc, WarframeAPIError) and str(exc).startswith("接口不存在")
@@ -3264,6 +3378,11 @@ class WarframeClient:
                     str(exc) or type(exc).__name__,
                     "" if missing else f"；冷却 {COMMUNITY_COOLDOWN // 60} 分钟",
                 )
+                errors.append(
+                    f"{host(url)}：{'该镜像没有这个文件' if missing else (str(exc) or type(exc).__name__)}"[
+                        :80
+                    ]
+                )
                 continue
             if isinstance(data, dict):
                 self._comm_cool.pop(host(url), None)
@@ -3271,7 +3390,14 @@ class WarframeClient:
                     if self._comm_good_host is not None or i:
                         logger.info("[sdjk] 社区快照改走通道 %s", host(url))
                     self._comm_good_host = host(url)
+                self.community_log.setdefault(name, {})["channel"] = host(url)
                 return data
+        self.community_log.setdefault(name, {})["channel"] = ""
+        self._note_comm(
+            name,
+            "unavailable",
+            "；".join(errors) or ("所有通道都在冷却中" if not live else "取不到"),
+        )
         return None
 
     async def _community_valence_parsed(self, rot: dict) -> Optional[dict]:
@@ -3283,6 +3409,7 @@ class WarframeClient:
             parsed = parse_community_valence(payload)
         except ValueError as exc:
             logger.warning("[sdjk] 社区元素加成快照校验不过：%s", exc)
+            self._note_comm("valence.json", "invalid", exc, payload.get("published_at"))
             return None
         locals_ = [(rot.get(k) or {}).get("valence_snapshot", "") for k in ("tenet", "coda")]
         # ★ 2026-10-16（GPT 评估 V01）：只比「比本地新」不够 —— 上一轮（或 8 天前同批）的快照也可能比本地新，
@@ -3300,11 +3427,13 @@ class WarframeClient:
                     parsed["snapshot"],
                     sect,
                 )
+                self._note_comm("valence.json", "stale", f"{sect} 段属于上一轮", parsed["snapshot"])
                 return None
         if not community_valence_newer(parsed["snapshot"], *locals_):
             logger.info(
                 "[sdjk] 社区元素加成快照不比本地新（%s），不采用", parsed["snapshot"] or "无时间戳"
             )
+            self._note_comm("valence.json", "fresh", "", parsed["snapshot"])
             return None
         return parsed
 
@@ -3338,6 +3467,7 @@ class WarframeClient:
         #   记录都没有，plugin_data 下也从没写出过 rotations.json。
         _sections = [rot.get(k) for k in ("tenet", "coda")]
         if not any(self.valence_is_stale(s, now) for s in _sections if s):
+            self._note_comm("valence.json", "local_ok", "本地快照在本轮窗口内")
             return "fresh"
 
         tenet_data = rot.get("tenet") or {}
@@ -3435,6 +3565,8 @@ class WarframeClient:
         paths.atomic_write_text(
             paths.write_path("rotations.json"), json.dumps(rot, ensure_ascii=False, indent=1)
         )
+        if used_community:
+            self._note_comm("valence.json", "adopted", f"批次 {labels[bi]}", snap)
         return f"refreshed {snap} batch={labels[bi]}" + ("(community)" if used_community else "")
 
     @staticmethod
