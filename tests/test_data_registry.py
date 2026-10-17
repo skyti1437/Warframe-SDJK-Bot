@@ -42,6 +42,7 @@ REQUIRED_KEYS = (
     "risk",
     "game_version",
     "tracked",
+    "oss",
     "check",
     "note",
 )
@@ -96,11 +97,18 @@ check(
 )
 check("登记表键数 ≥ 62 JSON + 资产 + 运行期缓存", len(DR.REGISTRY) >= 66, str(len(DR.REGISTRY)))
 
+# 开源 stage / 公开仓：没有 dist/sync_opensource.py（私有工具不进包）。这时 oss=False 的数据文件、
+#   以及不进包的生产器脚本（scripts/merge_effect_zh.py、.zcode/…）本来就不在（2026-10-17 v1.2.2 公开仓 CI 红）
+IN_OSS = not (ROOT / "dist" / "sync_opensource.py").exists()
+
 absent = []
 for key, meta in DR.REGISTRY.items():
     if "*" in key or not meta.get("tracked", True):
         continue
     if not (DATA / key).exists():
+        if not meta.get("oss", True) and IN_OSS:
+            print(f"[SKIP] {key} 开源包不随附（oss=False）")
+            continue
         absent.append(key)
 check("tracked=True 的非通配键文件都在场", not absent, str(absent))
 
@@ -136,7 +144,12 @@ for key, meta in DR.REGISTRY.items():
         bad_enums.append(f"{key}.readers")
     producer = meta.get("producer")
     if producer not in (None, "manual", "runtime") and not (ROOT / str(producer)).exists():
-        bad_producer.append(f"{key} -> {producer}")
+        if IN_OSS:
+            print(f"[SKIP] {key} 的生产器 {producer} 不进开源包")
+        else:
+            bad_producer.append(f"{key} -> {producer}")
+    if not isinstance(meta.get("oss"), bool):
+        bad_enums.append(f"{key}.oss")
 check("每条字段齐全", not bad_fields, str(bad_fields[:5]))
 check("group/policy/override/risk 取值在枚举内", not bad_enums, str(bad_enums[:5]))
 check("producer 非 manual/runtime 时脚本路径真实存在", not bad_producer, str(bad_producer))
@@ -525,6 +538,30 @@ check(
     "CLI：汇总数字与账本一致",
     _out[-1] == f"LEDGER|rows={len(_clrows)}|problems={len(DR.ledger_problems(_clrows))}",
     _out[-1] if _out else "",
+)
+
+# ------------------------------------------------------------------ ⑨ oss=False：开源 / 市场包不随附
+check(
+    "wiki_disp.json 标 oss=False（与 package_release.OSS_EXCLUDE_FILES 一致）",
+    DR.REGISTRY["de/wiki_disp.json"].get("oss") is False,
+)
+d9 = _tmpdir()
+_tmp.append(d9)
+r = _row(DR.evaluate(d9, NOW, tracked_files=()), "de/wiki_disp.json")
+check(
+    "oss=False 缺文件 ⇒ not_bundled（不是 missing，不进完整性问题）",
+    r is not None and r["status"] == "not_bundled" and not [x for x in DR.integrity_problems([r])],
+    str(r),
+)
+r = _row(DR.evaluate(d9, NOW, tracked_files=()), "weapons_stats.json")
+check("对照：oss=True 缺文件仍 ⇒ missing", r is not None and r["status"] == "missing", str(r))
+_d9run = _tmpdir()
+_tmp.append(_d9run)
+_lr = [x for x in DR.ledger(_d9run, d9) if x["file"] == "de/wiki_disp.json"]
+check(
+    "账本：oss=False 两边都没有 ⇒ not_yet，不进 ledger_problems",
+    _lr and _lr[0]["verdict"] == "not_yet" and not DR.ledger_problems(_lr),
+    str(_lr),
 )
 
 for _p in _tmp:

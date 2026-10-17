@@ -41,7 +41,20 @@ def check(name: str, cond: bool, detail: str = ""):
         FAILED.append(name)
 
 
+# CI 是浅克隆（只有当前分支一个提交，没有 origin/main）⇒ 真实仓库跑 CLI 时基准退回 HEAD
+#   （2026-10-17 私有 CI：「取不到 base 版本 'origin/main'」）
+_HAS_ORIGIN_MAIN = (
+    subprocess.run(
+        ["git", "-C", str(ROOT), "rev-parse", "--verify", "-q", "origin/main^{commit}"],
+        capture_output=True,
+    ).returncode
+    == 0
+)
+
+
 def _run(*args: str, cwd: Path = ROOT) -> subprocess.CompletedProcess:
+    if cwd == ROOT and not _HAS_ORIGIN_MAIN and "--base" not in args:
+        args = ("--base", "HEAD", *args)
     return subprocess.run(
         [sys.executable, str(SCRIPT), *args],
         cwd=str(cwd),
