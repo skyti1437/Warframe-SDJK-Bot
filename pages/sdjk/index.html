@@ -260,6 +260,7 @@
   <section class="panel"><i class="c1"></i><i class="c2"></i>
     <div class="ptitle"><h3>社区快照通道</h3><span class="hint" id="commSrc"></span><span class="ext"></span></div>
     <div class="hint">本机最近一次检查每份社区快照的结论：走的哪条通道、有没有采用、为什么没采用。插件重启后清空，下次检查时重新记录。</div>
+    <div class="row" id="commCustom" hidden></div>
     <div class="scroll"><table>
       <thead><tr><th>数据</th><th>结论</th><th>通道</th><th>数据时间</th><th>检查时间</th><th>说明</th></tr></thead>
       <tbody id="comm"></tbody>
@@ -482,7 +483,10 @@
     if (!p.alive) todo.push(["s-stale", "推送守护没有在运行，订阅不会推送", "push", "去看看"]);
     for (const r of fr.filter((r) => r.status === "stale")) todo.push(["s-stale", `${r.item}已过期：${r.detail}`, "data", "去刷新"]);
     for (const r of fr.filter((r) => r.status === "warn")) todo.push(["s-warn", `${r.item}：${r.detail}`, "data", "查看"]);
-    for (const c of (ov.community || []).filter((c) => ["unavailable", "invalid", "stale"].includes(c.result)))
+    // 自填社区地址取不到时合并成一条（插件只读自填地址、不回落默认，逐份列「取不到」看不出根因）
+    const customBad = ov.community_base ? (ov.community || []).filter((c) => c.result === "unavailable") : [];
+    if (customBad.length) todo.push(["s-stale", `自填的社区数据地址取不到数据（${customBad.length} 份）：检查地址，或在「数据」页一键恢复默认地址`, "data", "查看"]);
+    for (const c of (ov.community || []).filter((c) => ["unavailable", "invalid", "stale"].includes(c.result) && !(customBad.length && c.result === "unavailable")))
       todo.push([c.result === "stale" ? "s-warn" : "s-stale", `社区快照「${c.label}」${(COMM[c.result] || [c.result])[0]}${c.reason ? "：" + c.reason : ""}`, "data", "查看"]);
     for (const r of (ov.registry || []).filter((r) => r.risk === "high" && ["stale", "unknown"].includes(r.status)))
       todo.push([r.status === "stale" ? "s-stale" : "s-warn", `数据登记「${r.file}」${(RSTATUS[r.status] || [r.status])[0]}${r.detail ? "：" + r.detail : ""}`, "data", "查看"]);
@@ -514,6 +518,24 @@
   };
   function renderComm(rows, base) {
     $("commSrc").textContent = base ? `地址：${base}（自填）` : "地址：本项目公开仓 bot-data";
+    // 自填地址不可用提示（2026-10-17，自维护性评估 V02）：自填后只读该地址、不会回落默认，要让人一眼看出根因
+    const bad = base ? (rows || []).filter((r) => r.result === "unavailable") : [];
+    const box = $("commCustom");
+    if (bad.length) {
+      const reset = el("button", { class: "sm primary", title: "清空「社区数据地址」设置并立即重新拉取" }, "恢复默认地址");
+      reset.onclick = () => busy(reset, async () => {
+        await bridge.apiPost("settings_save", { changes: { community_data_url: "" } });
+        await bridge.apiPost("refresh", {});
+        await load();
+      });
+      box.replaceChildren(
+        el("span", { class: "s-stale" }, `自填的社区数据地址取不到数据（${bad.length} 份）。插件只读你填的地址，不会回落到本项目默认地址；检查地址是否正确、能否访问，或恢复默认。`),
+        reset);
+      box.hidden = false;
+    } else {
+      box.replaceChildren();
+      box.hidden = true;
+    }
     $("comm").replaceChildren(...(rows || []).map((r) => {
       const [lab, cls] = COMM[r.result] || [r.result, "s-info"];
       return el("tr", {},

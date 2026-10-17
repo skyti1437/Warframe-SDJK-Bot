@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+import tempfile as _tempfile_rp
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -267,8 +268,9 @@ ROOT = Path(__file__).resolve().parent.parent
 try:
     from PIL import Image as _Image  # noqa: E402
 
-    _out = ROOT / "runtime"
-    _out.mkdir(exist_ok=True)
+    _out = Path(
+        _tempfile_rp.mkdtemp(prefix="sdjk_render_parse_")
+    )  # 不写 ROOT/runtime（会污染开源 stage）
     _rend = R.ImageRenderer(_out)
     if _rend.available:
         _st = [
@@ -787,8 +789,9 @@ check(
 )
 
 try:
-    _out2 = ROOT / "runtime"
-    _out2.mkdir(exist_ok=True)
+    _out2 = Path(
+        _tempfile_rp.mkdtemp(prefix="sdjk_render_parse_")
+    )  # 不写 ROOT/runtime（会污染开源 stage）
     _rend2 = R.ImageRenderer(_out2)
     if _rend2.available:
         _S = "　"

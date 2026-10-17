@@ -1396,7 +1396,7 @@ _TIER_KEYS = ("Lith", "Meso", "Neo", "Axi", "Requiem", "Omnia")
 # ★ 2026-10-03：裂隙档位的 T 编号别名（DE 官方 VoidT1..T6 的编号）。
 #   ★ **不要并入 TIER_CN** —— TIER_CN 被「遗物」等共用（relic.py 明说以它作
 #     真源），塞进去会串味。T 别名只在裂隙筛选侧生效（经 FISSURE_TIER_WORDS
-#     过滤）。映射与 core/data/de/fissureModifiers.json（VoidT1..T6）及
+#     过滤）。映射与 DE 官方 VoidT1..T6（原 core/data/de/fissureModifiers.json，2026-10-17 因无人读取删除）及
 #     core/de_worldstate.py::fissure_tier() 完全一致（单一真源，勿另写）。
 TIER_T_ALIAS: dict[str, str] = {
     "t1": "Lith",

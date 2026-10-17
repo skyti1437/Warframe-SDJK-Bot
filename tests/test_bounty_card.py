@@ -710,7 +710,11 @@ check(
 # `bounty_head` 并在块首画线（◆ 区域行下方仍是主题色渐隐线，未动）。
 # ★ 逐地区断言（防「只改了扎里曼」）：6 个地区 + 3 个 oracle 退路**各跑一遍**。
 ROOT = Path(__file__).resolve().parent.parent
-(ROOT / "runtime").mkdir(exist_ok=True)
+# 渲染缓存写临时目录：原先写 ROOT/runtime，在开源 stage 里跑会多出 runtime/card_*.png，
+#   把同步闸门顶红（ZCode 10-17 回执）。
+import tempfile as _tempfile  # noqa: E402
+
+_CARD_DIR = Path(_tempfile.mkdtemp(prefix="sdjk_bounty_"))
 
 
 def _sep_lines(title: str, lines: list):
@@ -745,7 +749,7 @@ def _sep_lines(title: str, lines: list):
 
     ImageDraw.ImageDraw.line = spy
     try:
-        r = R.ImageRenderer(ROOT / "runtime")
+        r = R.ImageRenderer(_CARD_DIR)
         if not r.available:
             return None, None, None
         png = r.render(title, lines, "国际服")
@@ -870,7 +874,7 @@ if _sep3[0] is not None:
 
         _ID.ImageDraw.text = _spy_text
         try:
-            R.ImageRenderer(ROOT / "runtime").render(title, lines, "国际服")
+            R.ImageRenderer(_CARD_DIR).render(title, lines, "国际服")
         finally:
             _ID.ImageDraw.text = _orig_text
         return got
@@ -888,7 +892,7 @@ if _sep3[0] is not None:
         str(_fac_ctl),
     )
     _t99, _l99 = fmt.fmt_bounties(bundle["syndicateMissions"], "1999", cycle=ORACLE)
-    _r99 = R.ImageRenderer(ROOT / "runtime")
+    _r99 = R.ImageRenderer(_CARD_DIR)
     _png99 = _r99.render(_t99, _l99, "国际服") if _r99.available else None
     if _png99:
         _im99 = Image.open(_png99).convert("RGB")

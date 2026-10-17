@@ -1287,6 +1287,19 @@ finally:
 
     _sh14.rmtree(_rt14, ignore_errors=True)
 check("页面渲染社区快照通道表", 'id="comm"' in html and "renderComm(" in html)
+# 2026-10-17（V02）：自填社区地址取不到时，通道表上方提示根因 + 一键恢复默认（清空设置后立即重拉）
+check(
+    "页面：自填社区地址不可用提示区与「恢复默认地址」按钮",
+    'id="commCustom"' in html
+    and "恢复默认地址" in html
+    and 'apiPost("settings_save", { changes: { community_data_url: "" } })' in html,
+)
+check("页面：自填地址取不到时「需要处理」合并为一条", "customBad" in html)
+_sch = W.load_schema()
+check(
+    "设置：community_data_url 允许清空（恢复默认地址按钮依赖）",
+    "community_data_url" in _sch and W.coerce_setting(_sch["community_data_url"], "") == "",
+)
 
 print()
 if fails:

@@ -1002,6 +1002,9 @@ class WarframeClient:
         self._de_parsed_cache: tuple[str, dict] = ("", {})
 
     async def close(self) -> None:
+        self._closed = (
+            True  # 之后的请求直接报「插件已卸载」，不再撞 httpx「client has been closed」
+        )
         await self._http.aclose()
 
     @property
@@ -1031,6 +1034,9 @@ class WarframeClient:
             + "|"
             + json.dumps(headers or {}, sort_keys=True)
         )
+
+        if getattr(self, "_closed", False):
+            raise WarframeAPIError("客户端已关闭（插件已卸载或正在重载），本次请求未发出")
 
         async def _do() -> Any:
             last_exc: Exception | None = None

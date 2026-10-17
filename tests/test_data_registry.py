@@ -95,7 +95,7 @@ check(
     not missing_reg,
     str(missing_reg),
 )
-check("登记表键数 ≥ 62 JSON + 资产 + 运行期缓存", len(DR.REGISTRY) >= 66, str(len(DR.REGISTRY)))
+check("登记表键数 ≥ 60 JSON + 资产 + 运行期缓存", len(DR.REGISTRY) >= 64, str(len(DR.REGISTRY)))
 
 # 开源 stage / 公开仓：没有 dist/sync_opensource.py（私有工具不进包）。这时 oss=False 的数据文件、
 #   以及不进包的生产器脚本（scripts/merge_effect_zh.py、.zcode/…）本来就不在（2026-10-17 v1.2.2 公开仓 CI 红）

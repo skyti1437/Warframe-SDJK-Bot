@@ -550,6 +550,94 @@ for _n in ("asterite", "aucrux capacitors", "gallos rods", "isos", "komms"):
         _bad.append((_n, repr(_e)))
 check("掉率缺失的条目不崩：asterite / aucrux capacitors 等出卡", not _bad, str(_bad))
 
+# ---- 2026-10-17：资料卡显示层兜底（Zaw 部件垃圾伤害 / 全零面板 / float32 残渣）----
+_raw = [
+    "定位：近战武器（Melee）｜Zaw 部件｜精通等级需求 0",
+    "总伤害：0（磁力 0.5｜腐蚀 -28322093000000001802240｜Tau -28315716000000000393216…",
+    "数据：暴击几率 0%｜暴击倍率 0×｜触发几率 0%｜射速 0",
+    "特性：紫卡倾向 0.8",
+]
+_clean = WI._sanitize(list(_raw))
+check(
+    "兜底：总伤害 ≤ 0 的垃圾行不显示", not any(x.startswith("总伤害") for x in _clean), str(_clean)
+)
+check("兜底：全零「数据」行不显示", not any(x.startswith("数据") for x in _clean), str(_clean))
+check("兜底：Zaw 部件补「组合后才有面板」说明", WI.MODULAR_NOTE in _clean, str(_clean))
+_normal = ["定位：主武器（Primary）｜步枪", "总伤害：24（冲击 7.92｜穿刺 7.92｜切割 8.16）"]
+check("兜底：正常武器原样不动", WI._sanitize(list(_normal)) == _normal)
+check(
+    "兜底：float32 残渣 → 合理精度",
+    WI._sanitize(["效果：explodes after 0.6000000238418579s."]) == ["效果：explodes after 0.6s."],
+)
+_E, _K, _U = WI._table()
+_left = [
+    t
+    for t, ls in _E
+    if any(
+        re.search(r"\d{13,}", x) or re.search(r"\d+\.\d{6,}", x)
+        for x in WI._sanitize([str(y) for y in ls])
+    )
+]
+check("兜底：全表处理后无 ≥13 位数字与 ≥6 位小数残渣", not _left, str(_left[:5]))
+_r = WI.intro("宝拉")
+check(
+    "兜底：「宝拉」卡片无乱码、条目仍在",
+    bool(_r) and not any(re.search(r"\d{13,}", x) for x in _r[1]),
+    str(_r),
+)
+# 反向验证：去掉兜底时上面那条必红（证明测试不是空转）
+_saved = WI._sanitize
+WI._sanitize = lambda ls: ls
+_r_raw = WI.intro("宝拉")
+WI._sanitize = _saved
+check(
+    "反向：没有兜底时「宝拉」确实带巨数（测试有效）",
+    bool(_r_raw) and any(re.search(r"\d{13,}", x) for x in _r_raw[1]),
+)
+
+# ---- 2026-10-17：wiki 指令错选（知识库审计）—— 调真实 _h_wiki ----
+import asyncio as _aio  # noqa: E402
+
+from core import parser as _P  # noqa: E402
+from core.api_client import WarframeClient as _WC  # noqa: E402
+from core.commands.wiki_misc import WikiMiscCommands as _WMC  # noqa: E402
+
+
+class _WikiProbe(_WMC):
+    def __init__(self):
+        self.client = _WC()
+
+    def _wiki_intro_on(self):
+        return True
+
+
+async def _wiki_titles(qs):
+    probe = _WikiProbe()
+    try:
+        out = {}
+        for q in qs:
+            r = await probe._h_wiki(_P.parse("wiki " + q), None, "pc")
+            out[q] = (r.title, r.extra_text or "")
+        return out
+    finally:
+        await probe.client.close()
+
+
+_res = _aio.run(_wiki_titles(["Balla", "仲裁", "Arbitration", "布莱顿", "花P"]))
+check(
+    "wiki Balla → 宝拉（Balla），不是 Ballas 的权杖",
+    _res["Balla"][0] == "宝拉（Balla）",
+    str(_res["Balla"]),
+)
+check(
+    "wiki 仲裁 → 仲裁（搜索直达），不是仲裁雕像",
+    _res["仲裁"][0] == "仲裁" and "search=" in _res["仲裁"][1],
+    str(_res["仲裁"]),
+)
+check("wiki Arbitration → 仲裁", _res["Arbitration"][0] == "仲裁", str(_res["Arbitration"]))
+check("回归：wiki 布莱顿 照常", _res["布莱顿"][0].startswith("布莱顿"), str(_res["布莱顿"]))
+check("回归：wiki 花P 照常（概念页）", _res["花P"][0] == "Wisp Prime", str(_res["花P"]))
+
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")
     sys.exit(1)
