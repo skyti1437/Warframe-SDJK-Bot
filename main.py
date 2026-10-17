@@ -644,8 +644,10 @@ class WarframeSDJK(
         # 轻轮询的 30 分钟 tick 才拉，没装 FS 的用户首启最坏要等半小时；
         # 而 WM 表是 reload 后首条 wr/wm 指令要现下的，挪到启动期后台预拉。
         # fire-and-forget：异步不阻塞加载、超时收尾、失败记 WARNING（可见）。
-        _boot_task = asyncio.create_task(self._boot_warm())
-        _boot_task.add_done_callback(self._log_task_death("_boot_warm"))
+        # ★ 2026-10-17：记到 self 上，terminate 才取消得到（v1.2.2 部署实测：reload 后旧实例的预热还在跑，
+        #   在已关闭的 httpx client 上报「Cannot send a request, as the client has been closed」、打出「2/4 项」）
+        self._boot_task = asyncio.create_task(self._boot_warm())
+        self._boot_task.add_done_callback(self._log_task_death("_boot_warm"))
         # 后台预热伤害计算的全部重 JSON + 武器名索引（不阻塞启动）：
         # 不预热时第一条指令要现读武器库/进化/灵化形态/多段/部署表，叠加后
         # 会让首条指令明显变慢（2026-09-17 用户反馈「半天才出来」）。
@@ -1019,10 +1021,21 @@ class WarframeSDJK(
         panel = getattr(self, "_panel", None)
         if panel:
             panel.close()
-        for name in ("_auto_task", "_valence_task", "_community_task"):
+        pending = []
+        for name in ("_auto_task", "_valence_task", "_community_task", "_boot_task"):
             task = getattr(self, name, None)
-            if task:
+            if task and not task.done():
                 task.cancel()
+                pending.append(task)
+        crawl = getattr(
+            self.client, "_rank_crawl_task", None
+        )  # 「价格榜单 刷新」手动触发的全量爬取
+        if crawl and not crawl.done():
+            crawl.cancel()
+            pending.append(crawl)
+        if pending:
+            # 等它们真正退出再关 client（只 cancel 不等，在飞的请求会撞上已关闭的连接）；最多等 5 秒，不卡卸载
+            await asyncio.wait(pending, timeout=5)
         try:
             # ★ 2026-09-26：确认 await 生效并留痕（旧实现在这里静默 —— 一旦 stop 没生效，
             #   旧推送守护会与新实例的并存 → 同一事件推两次，且日志里查不到线索）。

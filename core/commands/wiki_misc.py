@@ -8,6 +8,9 @@
 from __future__ import annotations
 
 import asyncio
+import functools
+import json
+from pathlib import Path
 
 from .. import calculators as calc
 from .. import damage_calc as dc
@@ -18,6 +21,83 @@ from .. import wiki_intro
 from ..api_client import WarframeAPIError
 from ..logging_compat import logger
 from .base import Reply, err_card
+
+
+# 玩法 / 任务类型词（wiki 指令里优先于前缀模糊命中，见 _h_wiki）。任务类型取官方简中任务类型表；
+# 活动取机器人已有指令覆盖的玩法（和世界状态卡片同一套叫法）。
+_PLAY_ACTIVITIES = (
+    "仲裁",
+    "虚空裂缝",
+    "裂缝",
+    "九重天",
+    "钢铁之路",
+    "执刑官猎杀",
+    "执刑官",
+    "突击",
+    "午夜电波",
+    "电波",
+    "赏金",
+    "入侵",
+    "警报",
+    "夜灵平野",
+    "夜灵平原",
+    "奥布山谷",
+    "魔胎之境",
+    "双衍王境",
+    "虚空风暴",
+    "沉沦之地",
+    "无尽回廊",
+    "扎里曼",
+    "坚战",
+)
+
+
+# 常见玩法英文名 → 中文页面词（灰机 wiki 标题是中文；英文直接搜不一定能跳到页面）
+_PLAY_EN = {
+    "arbitration": "仲裁",
+    "arbitrations": "仲裁",
+    "void fissure": "虚空裂缝",
+    "fissure": "虚空裂缝",
+    "sortie": "突击",
+    "archon hunt": "执刑官猎杀",
+    "nightwave": "午夜电波",
+    "steel path": "钢铁之路",
+    "bounty": "赏金",
+    "bounties": "赏金",
+    "invasion": "入侵",
+    "alert": "警报",
+    "duviri": "双衍王境",
+    "zariman": "扎里曼",
+    "plains of eidolon": "夜灵平野",
+    "orb vallis": "奥布山谷",
+    "cambion drift": "魔胎之境",
+    "void storm": "虚空风暴",
+    "the circuit": "无尽回廊",
+}
+
+
+@functools.lru_cache(maxsize=1)
+def _play_terms() -> frozenset:
+    terms = set(_PLAY_ACTIVITIES)
+    try:
+        data = json.loads(
+            (
+                Path(__file__).resolve().parent.parent / "data" / "de" / "mission_types_zh.json"
+            ).read_text(encoding="utf-8")
+        )
+        terms |= {str(v) for v in (data.values() if isinstance(data, dict) else []) if v}
+    except (OSError, ValueError):
+        pass
+    return frozenset(matching.normalize_name(t) for t in terms if t)
+
+
+def _play_term(query: str) -> str:
+    """玩法 / 任务类型词 → 用于 wiki 的中文词；不是返回空串。"""
+    q = query.strip()
+    zh = _PLAY_EN.get(" ".join(q.lower().split()))
+    if zh:
+        return zh
+    return q if matching.normalize_name(q) in _play_terms() else ""
 
 
 class WikiMiscCommands:
@@ -111,6 +191,38 @@ class WikiMiscCommands:
 
         want_variant = matching.variant_intent_any(query)
         found = search_engine.search(query, limit=3)
+        exact = bool(found) and found[0].get("score") == 0
+        if not exact and not want_variant:
+            # ★ 2026-10-17（知识库审计：「wiki Balla」→ Ballas 的合一众权杖、「wiki 仲裁」→ 仲裁雕像）：
+            #   检索只有前缀模糊命中时，先看两类更可靠的精确来源，再退模糊——
+            #   ① 简介数据的键精确相等（含玩家可见英文名；检索索引里 Zaw 部件只有内部名「tip one」）；
+            #   ② 玩法 / 任务类型词（官方任务类型表 + 机器人已有玩法指令覆盖的活动）：链到 wiki 搜索直达
+            #      （页面存在即跳转，不会死链），不落到同前缀的外观 / 装饰品上。
+            title = wiki_intro.exact_title(query)
+            if title:
+                base = title.split("（", 1)[0].strip() or title
+                page = _q(search_engine.wiki_title(base).replace(" ", "_"))
+                return self._wiki_reply(
+                    base,
+                    f"https://warframe.huijiwiki.com/wiki/{page}",
+                    [],
+                    platform,
+                    title,
+                    query,
+                    variants=wiki_intro.variants(base),
+                    note=note,
+                )
+            play = _play_term(query)
+            if play:
+                return self._wiki_reply(
+                    play,
+                    await self.client.wiki_search_link(play),
+                    [],
+                    platform,
+                    play,
+                    query,
+                    note=note,
+                )
         if not found and want_variant:
             # 「摸尸p」这类带 p 后缀的查询词库里没有（别名表只登记无后缀形态）
             # → 剥掉 p/prime 再查，命中后按变体解析（want_variant 已为 True）

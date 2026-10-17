@@ -295,8 +295,58 @@ async def main() -> None:
     )
 
 
+async def terminate_checks() -> None:
+    """2026-10-17（v1.2.2 部署实测）：reload 后旧实例的首启预热还在已关闭的 client 上发请求。"""
+    from core.api_client import WarframeAPIError, WarframeClient
+
+    tmp = Path(tempfile.mkdtemp())
+    obj = _make_plugin(tmp)
+    obj.client = WarframeClient()
+    events: list[str] = []
+
+    class _Push:
+        async def stop(self):
+            events.append("push.stop")
+
+    obj.push = _Push()
+    obj._panel = None
+    real_close = obj.client.close
+
+    async def _close():
+        events.append("client.close")
+        await real_close()
+
+    obj.client.close = _close
+
+    async def _hanging_warm():
+        try:
+            await asyncio.sleep(30)  # 模拟预热还在等网络
+        except asyncio.CancelledError:
+            events.append("boot.cancelled")
+            raise
+
+    obj._boot_task = asyncio.create_task(_hanging_warm())
+    await asyncio.sleep(0)
+    await obj.terminate()
+    check("terminate 取消首启预热任务（_boot_task）", obj._boot_task.cancelled(), str(events))
+    check(
+        "预热任务先退出、再关 client（不在已关闭的连接上发请求）",
+        "boot.cancelled" in events
+        and "client.close" in events
+        and events.index("boot.cancelled") < events.index("client.close"),
+        str(events),
+    )
+    try:
+        await obj.client._fetch_json("https://example.invalid/x.json", ttl=1, retries=0)
+        why = ""
+    except WarframeAPIError as exc:
+        why = str(exc)
+    check("client 关闭后请求直接报「插件已卸载」，不发出", "已关闭" in why, why)
+
+
 if __name__ == "__main__":
     asyncio.run(main())
+    asyncio.run(terminate_checks())
     print()
     if FAILED:
         print(f"共 {len(FAILED)} 项失败：{FAILED}")

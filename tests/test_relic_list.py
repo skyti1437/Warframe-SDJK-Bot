@@ -616,8 +616,9 @@ check(
 try:
     from core import render as _R  # noqa: E402
 
-    _out = ROOT / "runtime"
-    _out.mkdir(exist_ok=True)
+    import tempfile as _tempfile
+
+    _out = Path(_tempfile.mkdtemp(prefix="sdjk_relic_"))  # 不写 ROOT/runtime（会污染开源 stage）
     _idx = json.loads((ROOT / "core" / "data" / "relic_index.json").read_text(encoding="utf-8"))
     _out_rows = [
         {"cn": k, "tier_cn": k.split()[0]}

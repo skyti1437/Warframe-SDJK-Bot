@@ -215,6 +215,77 @@ def _kvify(line: str) -> str:
     return f"◆ {m.group(1) or m.group(2)}：{m.group(3).strip()}"
 
 
+# ---- 显示层兜底（2026-10-17 用户截图「宝拉」）：上游对 Zaw 部件给的伤害数组是巨型负数（±2.8e22）、
+#   暴击 / 触发 / 射速全 0，知识库生成器原样写进了卡片数据。源头闸门由知识库重构 P1 做；这里保证
+#   插件即使拿到旧数据也不把乱码画到卡上（不按物品名特判，只按数值规则）。
+_DMG_ABS_MAX = 1e6  # 单个伤害分量的合理上限（游戏内最大面板远小于此）
+_DMG_PART_RE = re.compile(r"^\s*(\S+?)\s+(-?\d+(?:\.\d+)?)\s*$")
+_FLOAT_TAIL_RE = re.compile(r"(\d+\.\d{6,})")
+_ZERO_PANEL_RE = re.compile(r"^数据[：:]\s*暴击几率 0%｜暴击倍率 0×｜触发几率 0%｜射速 0\s*$")
+MODULAR_NOTE = (
+    "说明：Zaw 由打击 + 握柄 + 环扣组合而成，单个部件没有独立面板；实际数值看组合后的武器"
+)
+
+
+def _round_float_tail(m: re.Match) -> str:
+    """float32 残渣（0.6000000238418579）→ 最多 3 位小数（0.6）。"""
+    try:
+        return f"{float(m.group(1)):.3f}".rstrip("0").rstrip(".")
+    except ValueError:
+        return m.group(1)
+
+
+def _clean_damage(line: str) -> Optional[str]:
+    """「总伤害：T（a 1｜b 2…）」：总伤害 ≤ 0 ⇒ 整行不要；否则丢掉非有限 / 负数 / 超大的分量。"""
+    m = re.match(r"^(总伤害[：:]\s*)(-?\d+(?:\.\d+)?)(?:（(.*?)）?)?(…)?$", line)
+    if not m:
+        return line
+    head, total, body = m.group(1), m.group(2), m.group(3) or ""
+    keep = []
+    for part in [x for x in body.replace("…", "").split("｜") if x.strip()]:
+        pm = _DMG_PART_RE.match(part)
+        if not pm:
+            continue
+        try:
+            v = float(pm.group(2))
+        except ValueError:
+            continue
+        if v < 0 or v != v or abs(v) > _DMG_ABS_MAX:
+            continue
+        keep.append(part.strip())
+    try:
+        t = float(total)
+    except ValueError:
+        t = 0.0
+    if t <= 0:  # 总伤害 ≤ 0 时分量必是垃圾（实测 Zaw 部件「总伤害 0（磁力 0.5｜腐蚀 -2.8e22…）」）
+        return None
+    if not body:
+        return line
+    return f"{head}{total}" + (f"（{'｜'.join(keep)}）" if keep else "")
+
+
+def _sanitize(lines: list[str]) -> list[str]:
+    out: list[str] = []
+    dropped = False
+    modular = any("Zaw 部件" in x for x in lines)
+    for raw in lines:
+        x = _FLOAT_TAIL_RE.sub(_round_float_tail, raw)
+        if x.startswith("总伤害"):
+            y = _clean_damage(x)
+            if y is None:
+                dropped = True
+                continue
+            x = y
+        elif _ZERO_PANEL_RE.match(x):
+            dropped = True
+            continue
+        out.append(x)
+    if modular and dropped and not any(x.startswith("说明") for x in out):
+        at = next((i + 1 for i, x in enumerate(out) if x.startswith("定位")), 0)
+        out.insert(at, MODULAR_NOTE)
+    return out
+
+
 def intro(*names: str) -> Optional[tuple[str, list[str]]]:
     """按候选名字（页面名 / 检索名 / 英文名）查简介条目。
 
@@ -230,7 +301,21 @@ def intro(*names: str) -> Optional[tuple[str, list[str]]]:
         if isinstance(i, int) and 0 <= i < len(entries):
             e = entries[i]
             if isinstance(e, list) and len(e) == 2:
-                return str(e[0]), [_kvify(_localize(_localize_effect(str(x)))) for x in e[1]]
+                lines = _sanitize([str(x) for x in e[1]])
+                return str(e[0]), [_kvify(_localize(_localize_effect(x))) for x in lines]
+    return None
+
+
+def exact_title(name: str) -> Optional[str]:
+    """名字与简介数据的某个键**归一化后完全相等**时返回该条目标题（如「Balla」→「宝拉（Balla）」）。
+
+    给 wiki 指令用：本地检索索引只有内部英文名（Zaw 部件是「tip one」），精确未中时会退到前缀模糊，
+    把「Balla」错配成「Ballas 的合一众权杖」（2026-10-17 知识库审计）。简介数据的键含玩家可见英文名。
+    """
+    entries, keys, _ = _table()
+    i = keys.get(_norm(name))
+    if isinstance(i, int) and 0 <= i < len(entries) and isinstance(entries[i], list):
+        return str(entries[i][0])
     return None
 
 

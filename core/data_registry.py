@@ -573,26 +573,6 @@ REGISTRY: dict[str, dict] = {
         readers=["core/de_worldstate.py"],
         risk="low",
     ),
-    "de/fissureModifiers.json": _e(
-        "world",
-        None,
-        None,
-        policy="unused",
-        readers=[],
-        risk="low",
-        note="grep -rn --fixed-strings fissureModifiers core main.py ⇒ 仅 core/parser.py:1399 注释提及，"
-        "运行期映射为 core/de_worldstate.py 内联；疑似无人读取，待确认后再安排重建。",
-    ),
-    "de/syndicatesData.json": _e(
-        "world",
-        None,
-        None,
-        policy="unused",
-        readers=[],
-        risk="low",
-        note="grep -rn --fixed-strings syndicatesData core main.py ⇒ 零命中（退出码 1）；"
-        "精确文件名检索未发现消费者，疑似留存表，先查消费者勿为不用的文件建自动化。",
-    ),
     "bounty_job_names.json": _e(
         "world",
         "manual",
@@ -604,11 +584,11 @@ REGISTRY: dict[str, dict] = {
     ),
     "de/eidolon_job_manifest.json": _e(
         "world",
-        None,
-        "oracle EidolonJobManifest（DE 下发的世界任务清单）",
+        "manual",
+        "github.com/calamity-inc/wf.browse.oracle data/EidolonJobManifest.json（DE /Lotus/Types/Game/EidolonJobManifest 资产的社区镜像；PEP 未收录）",
         readers=["core/tents.py"],
         risk="medium",
-        note="小帐篷按「世界种子 + JobManifest」推算点位当前赏金。",
+        note="小帐篷按「世界种子 + JobManifest」推算点位当前赏金；2026-09-24 人工拷贝落地（3f58319），与 oracle.browse.wf/location-bounties 对拍一致。",
     ),
     "de/venus_job_manifest.json": _e(
         "world",
@@ -620,12 +600,12 @@ REGISTRY: dict[str, dict] = {
     ),
     "synth_targets.json": _e(
         "world",
-        None,
-        None,
+        "manual",
+        "WFCD warframe-worldstate-data synthTargets.json（西蒙斯扫描目标出现地点）",
         policy="on_upstream_change",
         readers=["core/de_worldstate.py"],
         risk="low",
-        note="幻影装置敌人出现地点表；生产器与来源待追溯。",
+        note="西蒙斯扫描目标出现地点表；09-11 接手基线自带的 WFCD 拷贝（格式与 warframe-worldstate-data 一致），上游变了再人工更新。",
     ),
     # ================================================== misc
     "aliases.json": _e(
