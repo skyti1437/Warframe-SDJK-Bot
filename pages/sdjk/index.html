@@ -539,6 +539,7 @@
   const RSTATUS = {
     ok: ["正常", "s-ok"], stale: ["过期", "s-stale"], no_ttl: ["不按时间判", "s-info"],
     unknown: ["来源未确认", "s-warn"], missing: ["缺文件", "s-stale"], unregistered: ["未登记", "s-stale"],
+    not_bundled: ["未随包", "s-info"],
   };
   function renderReg(rows) {
     $("reg").replaceChildren(...(rows || []).map((r) => {

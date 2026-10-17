@@ -616,131 +616,143 @@ check("--json 未配 --plan ⇒ 报错退出（非 0）", _rc != 0 and "--plan" 
 # ---------------------------------------------------------------------------
 # 7. deploy.sh：语法检查 + 先验后写（P10：校验挪到 rsync 之前、读空也算失败）
 # ---------------------------------------------------------------------------
-_r = subprocess.run(["bash", "-n", str(DEPLOY)], capture_output=True, text=True)
-check("deploy.sh：bash -n 语法检查通过", _r.returncode == 0, _r.stderr)
+# deploy.sh 不进开源包（dist/package_release.py::EXCLUDE_FILES）⇒ 公开仓 / 开源 stage 里整节跳过
+#   （2026-10-17 v1.2.2 公开仓 CI 红：这里直接读 deploy.sh 抛 FileNotFoundError）
+if not DEPLOY.is_file():
+    print("[SKIP] deploy.sh 不在本树（开源包不含），跳过第 7 节")
+else:
+    _r = subprocess.run(["bash", "-n", str(DEPLOY)], capture_output=True, text=True)
+    check("deploy.sh：bash -n 语法检查通过", _r.returncode == 0, _r.stderr)
 
-_SRC = DEPLOY.read_text(encoding="utf-8")
-_DST_LINE = 'DST="/opt/astrbot/data/plugins/astrbot_plugin_warframe_sdjkbot"'
-check("deploy.sh：DST 行仍可被测试替换（夹具前提，防误写真实目标）", _DST_LINE in _SRC)
+    _SRC = DEPLOY.read_text(encoding="utf-8")
+    _DST_LINE = 'DST="/opt/astrbot/data/plugins/astrbot_plugin_warframe_sdjkbot"'
+    check("deploy.sh：DST 行仍可被测试替换（夹具前提，防误写真实目标）", _DST_LINE in _SRC)
 
-_lines_src = _SRC.splitlines()
-_start = next((i for i, ln in enumerate(_lines_src) if ln.startswith("check_version()")), None)
-_end = next((i for i in range((_start or 0) + 1, len(_lines_src)) if _lines_src[i] == "}"), None)
-check(
-    "deploy.sh：含 check_version() 闸门函数（可直接单测）",
-    _start is not None and _end is not None,
-    f"start={_start} end={_end}",
-)
-_FUNC = "\n".join(_lines_src[_start : _end + 1]) if _start is not None and _end is not None else ""
+    _lines_src = _SRC.splitlines()
+    _start = next((i for i, ln in enumerate(_lines_src) if ln.startswith("check_version()")), None)
+    _end = next(
+        (i for i in range((_start or 0) + 1, len(_lines_src)) if _lines_src[i] == "}"), None
+    )
+    check(
+        "deploy.sh：含 check_version() 闸门函数（可直接单测）",
+        _start is not None and _end is not None,
+        f"start={_start} end={_end}",
+    )
+    _FUNC = (
+        "\n".join(_lines_src[_start : _end + 1]) if _start is not None and _end is not None else ""
+    )
 
+    def _check_version(dirpath: Path) -> int:
+        script = f'{_FUNC}\ncheck_version {shlex.quote(str(dirpath))} "测试"\n'
+        return subprocess.run(["bash", "-c", script], capture_output=True, text=True).returncode
 
-def _check_version(dirpath: Path) -> int:
-    script = f'{_FUNC}\ncheck_version {shlex.quote(str(dirpath))} "测试"\n'
-    return subprocess.run(["bash", "-c", script], capture_output=True, text=True).returncode
-
-
-check(
-    "check_version：两侧一致 ⇒ 0",
-    _check_version(
-        _tree(
-            {
-                "metadata.yaml": "name: t\nversion: 1.2.3\n",
-                "core/__init__.py": '__version__ = "1.2.3"\n',
-            }
+    check(
+        "check_version：两侧一致 ⇒ 0",
+        _check_version(
+            _tree(
+                {
+                    "metadata.yaml": "name: t\nversion: 1.2.3\n",
+                    "core/__init__.py": '__version__ = "1.2.3"\n',
+                }
+            )
         )
+        == 0,
     )
-    == 0,
-)
-check(
-    "check_version：metadata 版本读空 ⇒ 非 0（旧判据会放行）",
-    _check_version(
-        _tree({"metadata.yaml": "name: t\n", "core/__init__.py": '__version__ = "1.2.3"\n'})
+    check(
+        "check_version：metadata 版本读空 ⇒ 非 0（旧判据会放行）",
+        _check_version(
+            _tree({"metadata.yaml": "name: t\n", "core/__init__.py": '__version__ = "1.2.3"\n'})
+        )
+        != 0,
     )
-    != 0,
-)
-check(
-    "check_version：core.__version__ 读空 ⇒ 非 0",
-    _check_version(_tree({"metadata.yaml": "version: 1.2.3\n"})) != 0,
-)
-check(
-    "check_version：两侧不一致 ⇒ 非 0",
-    _check_version(
-        _tree({"metadata.yaml": "version: 1.2.2\n", "core/__init__.py": '__version__ = "1.2.3"\n'})
+    check(
+        "check_version：core.__version__ 读空 ⇒ 非 0",
+        _check_version(_tree({"metadata.yaml": "version: 1.2.3\n"})) != 0,
     )
-    != 0,
-)
-
-
-def _deploy_sandbox(meta: str, core: str) -> tuple[int, bool, str, Path]:
-    """把 deploy.sh 复制到临时 SRC、DST 改指临时目录、PATH 前插假 rsync。
-
-    假 rsync 记录自己是否被调用（marker），并把临时 SRC 的两个门面文件"同步"到 DST
-    （模拟真实 rsync 的搬运），这样写后复验也能走通。
-    返回 (退出码, rsync 是否被调用, 输出, 目标目录)。
-    """
-    sandbox = Path(tempfile.mkdtemp(prefix="wf_plan_deploy_"))
-    dst = sandbox / "dst"
-    dst.mkdir()
-    marker = sandbox / "rsync_called"
-    fakebin = sandbox / "fakebin"
-    fakebin.mkdir()
-    fake = fakebin / "rsync"
-    fake.write_text(
-        "#!/bin/sh\n"
-        f"touch {shlex.quote(str(marker))}\n"
-        f"mkdir -p {shlex.quote(str(dst))}/core\n"
-        f"cp {shlex.quote(str(sandbox))}/metadata.yaml {shlex.quote(str(dst))}/metadata.yaml\n"
-        f"cp {shlex.quote(str(sandbox))}/core/__init__.py {shlex.quote(str(dst))}/core/__init__.py\n"
-        "exit 0\n",
-        encoding="utf-8",
+    check(
+        "check_version：两侧不一致 ⇒ 非 0",
+        _check_version(
+            _tree(
+                {"metadata.yaml": "version: 1.2.2\n", "core/__init__.py": '__version__ = "1.2.3"\n'}
+            )
+        )
+        != 0,
     )
-    fake.chmod(0o755)
-    body = _SRC.replace(_DST_LINE, f'DST="{dst}"')
-    if body == _SRC:  # 兜底：宁可测试失败，也不许误跑到真实 DST
-        return -1, False, "DST 行未替换，已中止（避免误写真实目标）", dst
-    (sandbox / "deploy.sh").write_text(body, encoding="utf-8", newline="")
-    (sandbox / "metadata.yaml").write_text(meta, encoding="utf-8", newline="")
-    (sandbox / "core").mkdir(exist_ok=True)
-    (sandbox / "core" / "__init__.py").write_text(core, encoding="utf-8", newline="")
-    env = {**os.environ, "PATH": f"{fakebin}{os.pathsep}{os.environ.get('PATH', '')}"}
-    p = subprocess.run(
-        ["bash", str(sandbox / "deploy.sh")], capture_output=True, text=True, env=env
+
+    def _deploy_sandbox(meta: str, core: str) -> tuple[int, bool, str, Path]:
+        """把 deploy.sh 复制到临时 SRC、DST 改指临时目录、PATH 前插假 rsync。
+
+        假 rsync 记录自己是否被调用（marker），并把临时 SRC 的两个门面文件"同步"到 DST
+        （模拟真实 rsync 的搬运），这样写后复验也能走通。
+        返回 (退出码, rsync 是否被调用, 输出, 目标目录)。
+        """
+        sandbox = Path(tempfile.mkdtemp(prefix="wf_plan_deploy_"))
+        dst = sandbox / "dst"
+        dst.mkdir()
+        marker = sandbox / "rsync_called"
+        fakebin = sandbox / "fakebin"
+        fakebin.mkdir()
+        fake = fakebin / "rsync"
+        fake.write_text(
+            "#!/bin/sh\n"
+            f"touch {shlex.quote(str(marker))}\n"
+            f"mkdir -p {shlex.quote(str(dst))}/core\n"
+            f"cp {shlex.quote(str(sandbox))}/metadata.yaml {shlex.quote(str(dst))}/metadata.yaml\n"
+            f"cp {shlex.quote(str(sandbox))}/core/__init__.py {shlex.quote(str(dst))}/core/__init__.py\n"
+            "exit 0\n",
+            encoding="utf-8",
+        )
+        fake.chmod(0o755)
+        body = _SRC.replace(_DST_LINE, f'DST="{dst}"')
+        if body == _SRC:  # 兜底：宁可测试失败，也不许误跑到真实 DST
+            return -1, False, "DST 行未替换，已中止（避免误写真实目标）", dst
+        (sandbox / "deploy.sh").write_text(body, encoding="utf-8", newline="")
+        (sandbox / "metadata.yaml").write_text(meta, encoding="utf-8", newline="")
+        (sandbox / "core").mkdir(exist_ok=True)
+        (sandbox / "core" / "__init__.py").write_text(core, encoding="utf-8", newline="")
+        env = {**os.environ, "PATH": f"{fakebin}{os.pathsep}{os.environ.get('PATH', '')}"}
+        p = subprocess.run(
+            ["bash", str(sandbox / "deploy.sh")], capture_output=True, text=True, env=env
+        )
+        return p.returncode, marker.exists(), p.stdout + p.stderr, dst
+
+    _rc, _called, _out, _dst = _deploy_sandbox(
+        "name: t\nversion: 1.2.3\n", '__version__ = "1.2.3"\n'
     )
-    return p.returncode, marker.exists(), p.stdout + p.stderr, dst
+    check(
+        "deploy.sh：源树版本一致 ⇒ 通过且调用 rsync",
+        _rc == 0 and _called,
+        f"rc={_rc} called={_called} {_out[-300:]}",
+    )
+    check(
+        "deploy.sh：rsync 之后对目标侧复验同一判据",
+        "门面版本一致（目标" in _out,
+        _out[-300:],
+    )
 
+    _rc, _called, _out, _dst = _deploy_sandbox("name: t\n", '__version__ = "1.2.3"\n')
+    check("deploy.sh：源树 metadata 版本读空 ⇒ 退出非 0", _rc != 0, f"rc={_rc} {_out[-300:]}")
+    check(
+        "deploy.sh：源树校验失败 ⇒ rsync 根本没被调用（先验后写）",
+        not _called,
+        f"called={_called} {_out[-300:]}",
+    )
+    check(
+        "deploy.sh：源树校验失败 ⇒ 目标目录一个字节都没写",
+        list(_dst.iterdir()) == [],
+        str(list(_dst.iterdir())),
+    )
+    check("deploy.sh：失败信息点明是门面版本问题", "门面版本校验失败" in _out, _out[-300:])
 
-_rc, _called, _out, _dst = _deploy_sandbox("name: t\nversion: 1.2.3\n", '__version__ = "1.2.3"\n')
-check(
-    "deploy.sh：源树版本一致 ⇒ 通过且调用 rsync",
-    _rc == 0 and _called,
-    f"rc={_rc} called={_called} {_out[-300:]}",
-)
-check(
-    "deploy.sh：rsync 之后对目标侧复验同一判据",
-    "门面版本一致（目标" in _out,
-    _out[-300:],
-)
+    _rc, _called, _out, _dst = _deploy_sandbox(
+        "name: t\nversion: 1.2.2\n", '__version__ = "1.2.3"\n'
+    )
+    check(
+        "deploy.sh：源树两侧版本不一致 ⇒ 非 0 且不调 rsync",
+        _rc != 0 and not _called,
+        f"rc={_rc} called={_called} {_out[-300:]}",
+    )
 
-_rc, _called, _out, _dst = _deploy_sandbox("name: t\n", '__version__ = "1.2.3"\n')
-check("deploy.sh：源树 metadata 版本读空 ⇒ 退出非 0", _rc != 0, f"rc={_rc} {_out[-300:]}")
-check(
-    "deploy.sh：源树校验失败 ⇒ rsync 根本没被调用（先验后写）",
-    not _called,
-    f"called={_called} {_out[-300:]}",
-)
-check(
-    "deploy.sh：源树校验失败 ⇒ 目标目录一个字节都没写",
-    list(_dst.iterdir()) == [],
-    str(list(_dst.iterdir())),
-)
-check("deploy.sh：失败信息点明是门面版本问题", "门面版本校验失败" in _out, _out[-300:])
-
-_rc, _called, _out, _dst = _deploy_sandbox("name: t\nversion: 1.2.2\n", '__version__ = "1.2.3"\n')
-check(
-    "deploy.sh：源树两侧版本不一致 ⇒ 非 0 且不调 rsync",
-    _rc != 0 and not _called,
-    f"rc={_rc} called={_called} {_out[-300:]}",
-)
 
 # ---------------------------------------------------------------------------
 print()

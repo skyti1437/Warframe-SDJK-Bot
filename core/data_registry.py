@@ -59,7 +59,7 @@ POLICIES = (
 OVERRIDES = ("seed_only", "community_snapshot", "runtime_refresh", "runtime_only")
 RISKS = ("high", "medium", "low")
 # 判定结果（evaluate 返回行的 status 取值）
-STATUSES = ("ok", "stale", "no_ttl", "unknown", "missing", "unregistered")
+STATUSES = ("ok", "stale", "no_ttl", "unknown", "missing", "unregistered", "not_bundled")
 # 需要按时间/轮次判定的 policy
 TIMED_POLICIES = ("rotating", "max_age")
 
@@ -78,6 +78,7 @@ def _e(
     risk: str = "medium",
     game_version=None,
     tracked: bool = True,
+    oss: bool = True,
     check=None,
     note: str = "",
 ) -> dict:
@@ -95,6 +96,9 @@ def _e(
         "risk": risk,
         "game_version": game_version,
         "tracked": tracked,
+        # oss=False：开源 / 市场包不随附（dist/package_release.py::OSS_EXCLUDE_FILES），运行期从社区快照 / 刷新获取。
+        #   缺这个文件不是「缺文件」（2026-10-17 v1.2.2 公开仓 CI 红 + 开源用户面板会误报）
+        "oss": oss,
         "check": check,
         "note": note,
     }
@@ -500,7 +504,8 @@ REGISTRY: dict[str, dict] = {
         readers=["core/api_client.py"],
         override="runtime_refresh",
         risk="high",
-        note="有 FlareSolverr 时超过 7 天自动重抓；另每 3 小时检查社区快照。",
+        oss=False,
+        note="有 FlareSolverr 时超过 7 天自动重抓；另每 3 小时检查社区快照。开源 / 市场包不随附（OSS_EXCLUDE_FILES）。",
     ),
     "dispositions_rivenmirror.json": _e(
         "community",
@@ -878,6 +883,10 @@ def _eval_one(key: str, meta: dict, data_dir: Path, now: datetime, resolve=None)
             fpath = Path(resolve(key))  # 面板：看实际生效的那份（运行期刷新 / 社区快照优先）
         present = fpath.exists()
     if tracked and not present:
+        if not meta.get("oss", True):
+            row["status"] = "not_bundled"
+            row["detail"] = "开源 / 市场包不随附，运行期首次从社区快照或刷新获取"
+            return row
         row["status"] = "missing"
         row["detail"] = f"缺文件：{key} 不在 {data_dir}"
         return row
@@ -1126,6 +1135,8 @@ def _run_side_parse(path: Path, meta: dict, key: str, seed_type: str | None, st)
 def _verdict(meta: dict, seed: dict, run: dict, active: str) -> tuple[str, str]:
     """按顺序取第一个命中的结论（顺序即优先级，改顺序等于改口径）。"""
     if active == "none":
+        if not meta.get("oss", True):
+            return "not_yet", "开源 / 市场包不随附，还没从社区快照取到：插件会自己获取，不用管"
         if meta.get("tracked", True):
             return "none", "随包种子缺失：这个文件本该随包分发，重新安装或补齐随包数据"
         return "not_yet", "还没生成过（运行期缓存）：插件用到时会自己生成，不用管"
@@ -1223,7 +1234,9 @@ def ledger_problems(rows) -> list[dict]:
     out = []
     for r in rows:
         v = r.get("verdict")
-        if v in LEDGER_PROBLEMS or (v == "none" and r.get("tracked", True)):
+        if v in LEDGER_PROBLEMS or (
+            v == "none" and r.get("tracked", True)
+        ):  # oss=False 缺文件已归 not_yet
             out.append(r)
     return out
 

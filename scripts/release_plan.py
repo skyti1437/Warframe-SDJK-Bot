@@ -531,6 +531,8 @@ def make_patch(repo: Path, head: str, edits: list[dict]) -> str:
 # ---------------------------------------------------------------------------
 MANUAL_STEPS = (
     "scripts/run_checks.py regression（ruff + 全量 tests + 伤害审计；解释器须 ≥3.10）",
+    # 2026-10-17 v1.2.2 教训：私有 CI 的 oss-stage 从批次 B 起一直红，没人看就发了版，公开仓随即变红
+    "私有仓 CI 在 head 提交上全绿（regression 3.10 / 3.12 + **oss-stage**）——看 Actions 运行结果，不要只看徽章",
     "dist/package_release.py --opensource（Gate A/B 白名单 + 数量基线 + 种子新鲜度闸门）",
     "合 main（需维护者授权）",
     "公开仓同步 dist/sync_opensource.py（需用户**单独**授权；默认 dry-run，ZCode 执行）",

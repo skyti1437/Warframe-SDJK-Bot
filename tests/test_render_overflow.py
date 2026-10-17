@@ -703,6 +703,13 @@ def _perf_ratios(rr, cards: dict) -> dict:
 
 if _os.environ.get("WF_SKIP_PERF_GATE") == "1":
     print("[SKIP] WF_SKIP_PERF_GATE=1，跳过耗时闸门")
+elif _os.environ.get("GITHUB_ACTIONS") == "true":
+    # 2026-10-17：上限是本机同法实测的比值（旧版本机 0.34/0.35 …），而 GitHub 共享 runner 上同一份代码
+    #   比值约为本机 1.6 倍且随 runner 浮动（10-16 23:56 UTC 起 3.12 / oss-stage 时红时绿：0.347 vs 0.34）。
+    #   比值并非真的与机器无关 ⇒ 这道闸门只在本机 / 服务器（同机前后对比）上有意义；CI 上跳过，其余渲染检查照跑。
+    print(
+        "[SKIP] GitHub Actions 共享 runner：耗时比值与本机基准不可比，耗时闸门只在本机 / 服务器跑"
+    )
 elif R.Image is None or not probe.available:
     print("[SKIP] 无 Pillow/字体，跳过耗时闸门")
 else:
