@@ -2,7 +2,7 @@
  "_note": "社区实测（arbi.wf.wiki 排行榜），非官方数据，仅供参考；★ 实测值（尤其「生存 / 中断」）吃队伍熟练度——来自上传记录的高水平队伍，普通队伍未必打得到",
  "_source": "https://arbi.wf.wiki/api/leaderboard?board=browse&nodeId=<key>",
  "_rule": "每节点 perHour 中位数（按记录 id 去重，剔除 <300，n>=3）；S>=800 / A+>=700 / A>=600 / A->=450 / F<450",
- "_updated": "2026-10-16",
+ "_updated": "2026-10-17",
  "nodes": {
   "ClanNode0": {
    "name": "Romula",
@@ -120,7 +120,7 @@
    "name": "Seimeni",
    "system": "谷神星",
    "mission": "防御",
-   "n": 824,
+   "n": 822,
    "median": 638.8,
    "tier": "A"
   },
@@ -234,8 +234,8 @@
    "name": "Laomedeia",
    "system": "海王星",
    "mission": "中断",
-   "n": 25,
-   "median": 771.6,
+   "n": 26,
+   "median": 774.7,
    "tier": "A+"
   },
   "SolNode122": {
@@ -282,8 +282,8 @@
    "name": "Cinxia",
    "system": "谷神星",
    "mission": "拦截",
-   "n": 1224,
-   "median": 620.5,
+   "n": 1220,
+   "median": 620.7,
    "tier": "A"
   },
   "SolNode149": {
@@ -416,8 +416,8 @@
    "name": "Cytherean",
    "system": "金星",
    "mission": "拦截",
-   "n": 360,
-   "median": 760.2,
+   "n": 425,
+   "median": 767.6,
    "tier": "A+"
   },
   "SolNode230": {
@@ -444,8 +444,8 @@
    "name": "Callisto",
    "system": "木星",
    "mission": "拦截",
-   "n": 911,
-   "median": 803.3,
+   "n": 914,
+   "median": 803.7,
    "tier": "S"
   },
   "SolNode26": {
@@ -526,7 +526,7 @@
    "name": "死灵塔",
    "system": "虚空",
    "mission": "生存",
-   "n": 14,
+   "n": 20,
    "median": 814.2,
    "tier": "S"
   },
@@ -542,7 +542,7 @@
    "name": "Helene",
    "system": "土星",
    "mission": "防御",
-   "n": 465,
+   "n": 464,
    "median": 586.0,
    "tier": "A-"
   },
@@ -596,9 +596,9 @@
    "name": "Terrorem",
    "system": "火卫二",
    "mission": "生存",
-   "n": 58,
-   "median": 792.8,
-   "tier": "A+"
+   "n": 64,
+   "median": 828.3,
+   "tier": "S"
   },
   "SolNode718": {
    "name": "异化区",

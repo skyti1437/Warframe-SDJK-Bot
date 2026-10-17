@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "published_at": "2026-10-16",
+ "published_at": "2026-10-17",
  "note": "由 automations/publish_community_snapshot.py 发布；只读，勿手工改",
  "files": {
   "valence.json": {
@@ -12,7 +12,7 @@
    "snapshot": "用户提供的游戏内言录使货单实拍（2026-10-12 09:00 JST）；wiki 上报表未更新时的临时录入"
   },
   "arb_ratings.json": {
-   "published_at": "2026-10-16",
+   "published_at": "2026-10-17",
    "snapshot": "https://arbi.wf.wiki/api/leaderboard?board=browse&nodeId=<key>"
   },
   "baro_history.json": {
