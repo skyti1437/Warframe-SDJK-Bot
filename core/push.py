@@ -44,16 +44,31 @@ SendFunc = Callable[[str, str, Optional[list]], Awaitable[None]]
 
 # 基线（重启补推）：落盘快照在此秒数内视为有效
 BASELINE_MAX_AGE = 30 * 60
-# 发送失败：待发队列最多重投轮数 / 事件过期秒数；会话连续失败多少轮清理订阅
+# 发送失败：待发队列最多重投轮数 / 事件过期秒数；会话连续失败多少轮 ⇒ 暂停推送
 PENDING_MAX_TRIES = 3
 PENDING_TTL = 15 * 60
 FAIL_PURGE_THRESHOLD = 5
+# ★ 2026-10-17 用户口径：连续失败达阈值不再直接清理订阅，改为「暂停」该会话推送 ——
+#   暂停期间不发送；每 PAUSE_RETRY_SECS 到点试发一次，成功即恢复；
+#   自暂停起满 PAUSE_PURGE_SECS 仍失败才清理订阅。
+PAUSE_RETRY_SECS = 6 * 3600
+PAUSE_PURGE_SECS = 7 * 86400
 # 能识别为「目标会话已不存在」的发送异常 ⇒ 立即清理该会话订阅
 _FATAL_SEND_RE = re.compile(
     r"群.{0,6}(不存在|已解散|解散)|被踢|踢出|不在群|已退群|退出了群|"
     r"not in group|kicked|chat not found|group (not found|does not exist)|no such group",
     re.I,
 )
+
+
+def _brief_reason(err: BaseException, limit: int = 120) -> str:
+    """发送异常的简短文本（落盘进暂停记录用）。
+
+    ★ 只取异常文本、绝不拼 umo —— 暂停原因会显示在运维面板上，不能把会话号带出去。
+    """
+    text = str(err).strip().replace("\n", " ").replace("\r", " ")
+    return (text or err.__class__.__name__)[:limit]
+
 
 # 每种事件类型在 PushDaemon._last[platform] 里占用的基线键（按「平台 × 事件类型」独立管理）
 BASELINE_KEYS: dict[str, tuple[str, ...]] = {
@@ -399,6 +414,8 @@ class PushDaemon:
         self._pending: list[dict] = []  # 发送失败待重投的事件
         self._fail_count: dict[str, int] = {}  # umo -> 连续失败轮数
         self._fail_tick: dict[str, int] = {}  # umo -> 最近一次记失败的 tick 序号
+        # ★ 2026-10-17：umo -> 暂停记录。只在拿不到 GroupStore 时使用；有 GroupStore 时它就是真源
+        self._pause: dict[str, dict] = {}
         self._load_state()
 
     # ------------------------------------------------------------------
@@ -682,6 +699,81 @@ class PushDaemon:
         except Exception:  # noqa: BLE001 - 查不到开关就按开处理（宁可多推，不丢推送）
             return True
 
+    # ---- 连续失败「暂停推送」（2026-10-17）--------------------------------
+    def _pause_of(self, umo: str) -> Optional[dict]:
+        """该会话的暂停记录；没有 ⇒ None。
+
+        有 GroupStore 时**只认它**（它本身常驻内存，``set_pause`` 先改内存再写盘，写盘失败也不丢）：
+        若另存一份守护内存镜像，群内 ``.开启 推送`` 清了存档却清不到镜像，会话会继续被暂停到重载。
+        拿不到 GroupStore（离线 / 测试桩）才退回守护内存表。
+        """
+        if self.groups is not None:
+            try:
+                info = self.groups.pause_of(umo)
+            except Exception:  # noqa: BLE001 - 读不到按未暂停处理（宁可多推，不丢推送）
+                return None
+            return dict(info) if isinstance(info, dict) else None
+        info = self._pause.get(umo)
+        return dict(info) if info is not None else None
+
+    async def _write_pause(self, umo: str, info: Optional[dict]) -> None:
+        """写 / 解除暂停：有 GroupStore 写它（内存先变、语义立刻生效，落盘失败只记 WARNING），否则写守护内存表。"""
+        if self.groups is None:
+            if info is None:
+                self._pause.pop(umo, None)
+            else:
+                self._pause[umo] = dict(info)
+            return
+        try:
+            await self.groups.set_pause(umo, info)
+        except Exception as exc:  # noqa: BLE001 - 写盘失败不影响内存语义（照 _purge_umo）
+            self.log.warning("[warframe] 暂停状态写盘失败（%s）：%s", umo, exc)
+
+    async def _pause_or_purge(self, umo: str, err: BaseException, n_fail: int, now: float) -> None:
+        """连续失败达阈值：未暂停 ⇒ 改为暂停推送；已暂停（本次是试发）⇒ 满 7 天才清理订阅。"""
+        prev = self._pause_of(umo)
+        if prev is None:
+            await self._write_pause(
+                umo,
+                {
+                    "since": now,
+                    "next_try": now + PAUSE_RETRY_SECS,
+                    "reason": _brief_reason(err),
+                    "fails": n_fail,
+                },
+            )
+            # 暂停期间不再重投 ⇒ 清掉该会话的待发队列（照 _purge_umo 的写法）
+            self._pending[:] = [p for p in self._pending if p["umo"] != umo]
+            self.log.warning(
+                "[warframe] %s：连续 %d 轮发送失败 → 已暂停该会话推送"
+                "（%d 小时后重试；满 %d 天仍失败才清理，面板可手动恢复）",
+                umo,
+                n_fail,
+                PAUSE_RETRY_SECS // 3600,
+                PAUSE_PURGE_SECS // 86400,
+            )
+            return
+        since = float(prev.get("since") or now)
+        if now - since >= PAUSE_PURGE_SECS:
+            await self._purge_umo(umo, f"暂停 {PAUSE_PURGE_SECS // 86400} 天仍发送失败")
+            await self._write_pause(umo, None)
+            return
+        await self._write_pause(
+            umo,
+            {
+                "since": since,
+                "next_try": now + PAUSE_RETRY_SECS,
+                "reason": _brief_reason(err),
+                "fails": int(prev.get("fails") or 0) + 1,
+            },
+        )
+        self.log.warning(
+            "[warframe] %s：暂停期间试发仍失败（暂停已 %d 天）→ %d 小时后再试",
+            umo,
+            int((now - since) // 86400),
+            PAUSE_RETRY_SECS // 3600,
+        )
+
     def _eligible(self, subs_u: list[Subscription], key: str) -> list[Subscription]:
         """本事件对这批（同会话）订阅里：仍存活 / 当前时间窗允许 / 没就此事件通知过的那些。"""
         local = _local_now()
@@ -717,6 +809,11 @@ class PushDaemon:
         """
         if not self._group_on(umo):
             return "skip"
+        # ★ 2026-10-17：连续失败被暂停的会话 —— 未到重试时刻一律不发（不消费、不记 notified、
+        #   不入待发队列）；到了 next_try 就正常走下面的发送，这一次即「试发」。
+        pause = self._pause_of(umo)
+        if pause is not None and now < float(pause.get("next_try") or 0):
+            return "skip"
         elig = self._eligible(subs_u, key)
         if not elig:
             return "skip"
@@ -724,10 +821,11 @@ class PushDaemon:
         if not body:
             return "skip"
         at_ids = list(dict.fromkeys(s.created_by for s in elig if s.created_by))
-        if not await self._send_guarded(umo, body, at_ids):
+        if not await self._send_guarded(umo, body, at_ids, now):
             if retry is not None:
                 retry["tries"] += 1
-            elif umo not in self._purged_umos:
+            elif umo not in self._purged_umos and self._pause_of(umo) is None:
+                # 暂停中的会话不再入队（刚被暂停的这一步会命中上面的 _pause_of 判断）
                 self._pending.append(
                     {
                         "umo": umo,
@@ -741,6 +839,9 @@ class PushDaemon:
                 )
             return "fail"
         self._fail_count.pop(umo, None)
+        if self._pause_of(umo) is not None:  # 试发成功 ⇒ 解除暂停
+            await self._write_pause(umo, None)
+            self.log.info("[warframe] %s：推送已恢复（试发成功，解除暂停）", umo)
         await self._commit(elig, key, now)
         # ★ 成功派发也留痕（2026-09-26）：此前只有失败才记日志，无法从日志判断
         #   「同一事件被推了几条」。带上实例 id —— 若出现跨实例的重复推送，
@@ -748,8 +849,15 @@ class PushDaemon:
         self.log.info("[warframe] 已推送 事件=%s 键=%s → %s（实例 %s）", kind, key, umo, id(self))
         return "ok"
 
-    async def _send_guarded(self, umo: str, body: str, at_ids: list) -> bool:
-        """真正发送一次；失败记 WARNING 并累计连续失败（达阈值 / 识别出「群不在了」则清理订阅）。"""
+    async def _send_guarded(
+        self, umo: str, body: str, at_ids: list, now: Optional[float] = None
+    ) -> bool:
+        """真正发送一次；失败记 WARNING 并累计连续失败。
+
+        · 识别出「群不在了」⇒ 照旧立即清理订阅；
+        · 连续失败达 FAIL_PURGE_THRESHOLD ⇒ 暂停该会话推送（满 PAUSE_PURGE_SECS 才清理）。
+        """
+        now = time.time() if now is None else now
         try:
             await self.send(umo, body, at=at_ids)
             return True
@@ -772,9 +880,10 @@ class PushDaemon:
             self._fail_count[umo] = self._fail_count.get(umo, 0) + 1
         fatal = bool(_FATAL_SEND_RE.search(str(err)))
         n_fail = self._fail_count.get(umo, 0)
-        if fatal or n_fail >= FAIL_PURGE_THRESHOLD:
-            why = "群不存在/被踢类错误" if fatal else f"连续 {n_fail} 轮发送失败"
-            await self._purge_umo(umo, f"发送目标不可达（{why}）")
+        if fatal:
+            await self._purge_umo(umo, "发送目标不可达（群不存在/被踢类错误）")
+        elif n_fail >= FAIL_PURGE_THRESHOLD:
+            await self._pause_or_purge(umo, err, n_fail, now)
         return False
 
     async def _purge_umo(self, umo: str, reason: str) -> None:
@@ -833,7 +942,9 @@ class PushDaemon:
                 it["umo"], it["kind"], it["key"], it["text"], subs_u, now, None, retry=it
             )
             if res == "fail" and it["umo"] not in self._purged_umos:
-                self._pending.append(it)  # 下一轮再试（tries 已 +1，超限在入口处丢弃）
+                # 刚被「暂停」的会话不再回队（暂停期间不重投；`_deliver` 对暂停会话返回 skip）
+                if self._pause_of(it["umo"]) is None:
+                    self._pending.append(it)  # 下一轮再试（tries 已 +1，超限在入口处丢弃）
 
     # ------------------------------------------------------------------
     async def _snapshot_diff(

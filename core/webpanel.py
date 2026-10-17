@@ -30,7 +30,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional
 
-from . import baro, paths
+from . import baro, data_registry, paths
 from .api_client import (
     ACRITHIS_WEEK_NAME,
     RANKS_NAME,
@@ -181,12 +181,26 @@ def freshness(now: Optional[datetime] = None) -> list[dict]:
 
     wm = _load(RANKS_NAME)
     wm_at = _parse_iso(wm.get("ts"))
+    wm_low = bool(wm.get("low_coverage"))
+    try:
+        wm_cov = f"{float(wm['coverage']):.0%}" if wm.get("coverage") is not None else ""
+    except (TypeError, ValueError):
+        wm_cov = ""
+    wm_retry = len(wm.get("retry") or [])
     rows.append(
         _row(
             "WM 价格排行",
-            (WARN if now - wm_at > timedelta(hours=48) else OK) if wm_at else INFO,
+            WARN
+            if wm_low
+            else ((WARN if now - wm_at > timedelta(hours=48) else OK) if wm_at else INFO),
             str(wm.get("ts") or ""),
             (
+                f"上轮覆盖率不足（{wm_cov} < 80%），时间未刷新，旧行照常展示；"
+                if wm_low
+                else (f"上轮覆盖率 {wm_cov}；" if wm_cov else "")
+            )
+            + (f"待补 {wm_retry} 项（下次先补）；" if wm_retry else "")
+            + (
                 f"{_age_text(wm_at, now)}；进度 {wm.get('done', '?')}/{wm.get('total', '?')}；"
                 if wm_at
                 else "还没跑完过一整轮；"
@@ -196,21 +210,27 @@ def freshness(now: Optional[datetime] = None) -> list[dict]:
     )
 
     try:
-        missed = baro.missed_visits(now)
+        missed = baro.missed_visits(now, grace_hours=baro.STALE_GRACE_HOURS)
+        recent = baro.missed_visits(now) - missed  # 宽限期内（到访中 / 刚结束）尚未收录的次数
         bsnap = baro.snapshot_date()
     except Exception:  # noqa: BLE001
-        missed, bsnap = -1, ""
+        missed, recent, bsnap = -1, 0, ""
+    if missed < 0:
+        bdetail = "读取失败"
+    elif missed:
+        bdetail = f"快照后已有 {missed} 次到访超过 3 天仍未收录"
+    elif recent:
+        bdetail = "本次到访进行中或刚结束，wiki 通常 1–3 天内收录，过 3 天仍未收录再提示"
+    else:
+        bdetail = "已含最近一次到访"
     rows.append(
         _row(
             "奸商到访历史",
             INFO if missed <= 0 else WARN,
             bsnap,
-            "读取失败"
+            bdetail
             if missed < 0
-            else (
-                (f"快照后已有 {missed} 次到访未收录" if missed else "已含最近一次到访")
-                + f"；{_origin('baro_history.json')}；每 3 小时检查社区快照"
-            ),
+            else bdetail + f"；{_origin('baro_history.json')}；每 3 小时检查社区快照",
         )
     )
 
@@ -226,6 +246,28 @@ def freshness(now: Optional[datetime] = None) -> list[dict]:
     drops = _load("drops.json")
     rows.append(_row("掉落表", INFO, str(drops.get("updated") or ""), "官方掉落表快照，随版本更新"))
     return rows
+
+
+def registry_rows() -> list[dict]:
+    """数据登记表判定（``core/data_registry.evaluate``；出错不拖垮整页）。
+
+    运行期刷新 / 社区快照类看实际生效的那份（``paths.read_path``）；``tracked_files=()``：
+    面板不做「未登记」扫描（不起 git 子进程），完整性由测试与打包闸门把关。"""
+    try:
+        return data_registry.evaluate(tracked_files=(), resolve=paths.read_path)
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def ledger_rows() -> list[dict]:
+    """有效数据账本（``core/data_registry.ledger``；出错不拖垮整页）。
+
+    逐份对照「运行目录副本 / 随包种子」，说明插件实际读到哪一份；**只读**（不改名 /
+    不删除 / 不写任何数据文件）。运行目录未注入（== 包内目录）时 ``ledger()`` 返回 ``[]``。"""
+    try:
+        return data_registry.ledger()
+    except Exception:  # noqa: BLE001
+        return []
 
 
 def mask_id(s: str) -> str:
@@ -249,6 +291,29 @@ def session_key(umo: str) -> str:
     import hashlib
 
     return hashlib.sha1(str(umo).encode("utf-8")).hexdigest()[:12]
+
+
+def pause_info(groups, umo: str) -> Optional[dict]:
+    """该会话的「连续失败暂停」记录（面板展示用）；没有 ⇒ None。
+
+    ★ reason 只取推送层写入的异常短文本（≤120 字），绝不拼 umo —— 面板默认打码会话号，
+      暂停原因里也不能把号码带出去。
+    """
+    if groups is None:
+        return None
+    try:
+        info = groups.pause_of(umo)
+    except Exception:  # noqa: BLE001 - 读不到按未暂停处理
+        return None
+    if not isinstance(info, dict):
+        return None
+    reason = str(info.get("reason") or "")[:120]
+    return {
+        "since": info.get("since"),
+        "next_try": info.get("next_try"),
+        "reason": reason,
+        "fails": info.get("fails"),
+    }
 
 
 def subscriptions(store, groups=None, reveal: bool = False, now: Optional[float] = None) -> dict:
@@ -298,10 +363,33 @@ def subscriptions(store, groups=None, reveal: bool = False, now: Optional[float]
                 "key": session_key(umo),  # 打码后前端拿不到原 umo，操作按这个不透明键回查
                 "push": bool(g.get("push")) if groups is not None else None,
                 "quiet": g.get("quiet"),
+                # 连续失败被暂停（2026-10-17）：None = 未暂停
+                "paused": pause_info(groups, umo),
                 "subs": items,
             }
         )
     return {"total": len(subs), "events": events, "sessions": sessions}
+
+
+def paused_session_count(push) -> int:
+    """被「连续失败暂停」且**仍有订阅**的会话数（与推送页列表同口径）。
+
+    暂停记录存在 GroupStore；订阅被删光后记录可能残留，那种会话推送页列不出来，也不该计数。
+    """
+    groups = getattr(push, "groups", None)
+    store = getattr(push, "store", None)
+    if groups is None:
+        mem = getattr(push, "_pause", None)
+        return len([u for u, v in mem.items() if v]) if isinstance(mem, dict) else 0
+    try:
+        live = {s.umo for s in store.all()} if store is not None else None
+        return sum(
+            1
+            for umo, rec in (groups.all() or {}).items()
+            if isinstance(rec, dict) and rec.get("push_pause") and (live is None or umo in live)
+        )
+    except Exception:  # noqa: BLE001
+        return 0
 
 
 def push_state(push) -> dict:
@@ -326,6 +414,7 @@ def push_state(push) -> dict:
         "next_delay": nxt,
         "pending": len(getattr(push, "_pending", []) or []),
         "failing_sessions": sum(1 for v in (getattr(push, "_fail_count", {}) or {}).values() if v),
+        "paused_sessions": paused_session_count(push),
         "last_tick": last_ts,
     }
 
@@ -652,6 +741,7 @@ class WebPanel:
             (f"/{n}/settings_save", self.settings_save, ["POST"], "SDJKBOT 面板：保存设置"),
             (f"/{n}/sub_remove", self.sub_remove, ["POST"], "SDJKBOT 面板：删除订阅"),
             (f"/{n}/group_push", self.group_push, ["POST"], "SDJKBOT 面板：群推送开关"),
+            (f"/{n}/push_resume", self.push_resume, ["POST"], "SDJKBOT 面板：恢复被暂停的群推送"),
         ]
 
     def register(self, context) -> bool:
@@ -715,9 +805,20 @@ class WebPanel:
             "version": ver,
             "now": time.time(),
             "freshness": freshness(),
+            # 数据登记表（来源/生产器/判定方式/新鲜度结论）；与 health / 打包闸门读同一份判据
+            "registry": registry_rows(),
+            # 有效数据账本：逐份对照「运行目录副本 / 随包种子」（只读）
+            "ledger": ledger_rows(),
             "push": push_state(self.p.push),
             "subs": subscriptions(self.p.subs, getattr(self.p, "groups", None), reveal=reveal),
             "flare_enabled": bool(getattr(self.p.client, "flare_enabled", False)),
+            # 社区快照采用记录（批次 B 全链路健康记录·插件侧）：这台机器最近一次检查每份快照的结论
+            "community": (
+                self.p.client.community_report()
+                if hasattr(self.p.client, "community_report")
+                else []
+            ),
+            "community_base": str(getattr(self.p.client, "community_base", "") or ""),
         }
 
     async def refresh(self):
@@ -1393,6 +1494,28 @@ class WebPanel:
         await groups.set_switch(umo, "push", on)
         logger.info("[sdjk] 面板%s群推送：%s", "开启" if on else "关闭", mask_umo(umo))
         return {"push": on}
+
+    async def push_resume(self):
+        """手动恢复被「连续失败暂停」的会话推送：解除暂停并清零失败计数。"""
+        if (g := self._gone()) is not None:
+            return g
+        body = await self._body()
+        umo = self._umo_of(str(body.get("key") or ""))
+        if umo is None:
+            return {"status": "error", "message": "会话不合法"}
+        groups = getattr(self.p, "groups", None)
+        if groups is None:
+            return {"status": "error", "message": "群设置不可用"}
+        await groups.set_pause(umo, None)
+        push = getattr(self.p, "push", None)
+        mem = getattr(push, "_pause", None)
+        if isinstance(mem, dict):
+            mem.pop(umo, None)  # 守护内存镜像同步（下次 tick 立刻恢复发送）
+        fails = getattr(push, "_fail_count", None)
+        if isinstance(fails, dict):
+            fails.pop(umo, None)
+        logger.info("[sdjk] 面板手动恢复群推送：%s", mask_umo(umo))
+        return {"resumed": True}
 
     # ---- 主题 ----
     def _renderer(self):

@@ -111,8 +111,33 @@ class GroupStore(JsonStore):
 
     async def set_switch(self, umo: str, key: str, value: bool) -> None:
         """写开关。key 必须是存储键（push/quiet），传入显示名会自动归一化。"""
-        self._data.setdefault(umo, {})[self.SWITCH_KEYS.get(key, key)] = value
+        key = self.SWITCH_KEYS.get(key, key)
+        rec = self._data.setdefault(umo, {})
+        rec[key] = value
+        if key == "push" and value:
+            # ★ 2026-10-17：手动重新打开推送 = 手动恢复 —— 顺带解除「连续失败暂停」记录
+            #   （同一次 save；`.开启 推送` 与面板开关都走这里）。
+            rec.pop("push_pause", None)
         await self.save()
+
+    # ---- 「连续失败暂停」记录（2026-10-17）-----------------------------------
+    # 会话连续 FAIL_PURGE_THRESHOLD 轮发送失败后不再清理订阅，而是写一条暂停记录；
+    # 记录形如 {"since": ts, "next_try": ts, "reason": str, "fails": int}。
+    # 与 push/quiet 同存一个 umo 记录里：`get()` 会把它一并带出来（调用方只读已知键，不受影响）。
+    async def set_pause(self, umo: str, info: Optional[dict]) -> None:
+        """写入 / 解除暂停记录（info=None 表示解除并 pop 掉该键）。"""
+        rec = self._data.setdefault(umo, {})
+        if info is None:
+            rec.pop("push_pause", None)
+        else:
+            rec["push_pause"] = dict(info)
+        await self.save()
+
+    def pause_of(self, umo: str) -> Optional[dict]:
+        """读该会话的暂停记录；没有 / 类型不对 ⇒ None。"""
+        rec = self._data.get(umo)
+        p = rec.get("push_pause") if isinstance(rec, dict) else None
+        return dict(p) if isinstance(p, dict) else None
 
     def all(self) -> dict:
         return self._data

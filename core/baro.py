@@ -221,16 +221,23 @@ def _last_dt() -> Optional[datetime]:
         return None
 
 
-def missed_visits(now: Optional[datetime] = None) -> int:
+# 「未收录」提示的宽限（2026-10-17 用户看面板反馈）：到访本身 48 h，wiki 通常到访中或结束后才补货单，
+# 服务器每日抓一次 ⇒ 到访开始后 3 天内没收录属正常，健康提示（面板 / 数据登记）不报。卡片静默计数不用宽限。
+STALE_GRACE_HOURS = 72
+
+
+def missed_visits(now: Optional[datetime] = None, grace_hours: float = 0) -> int:
     """快照之后、到 ``now`` 为止**已开始**的到访次数（按 period_days 等距推算）。
 
     ★ 2026-10-11：历史快照不会自动增长（上次 2026-09-18，抓于 09-24），
     其后的 10-02 那次到访不在表里 ⇒「已静默 N 次」整体少算。用它把静默次数同步到今天。
+    ``grace_hours``：只数开始时间早于 ``now - grace_hours`` 的到访（健康提示用 STALE_GRACE_HOURS）。
     """
     d = _last_dt()
     if d is None:
         return 0
     now = now or datetime.now(timezone.utc)
+    now = now - timedelta(hours=grace_hours)
     if now <= d:
         return 0
     return int((now - d) // _period())
