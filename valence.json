@@ -9,25 +9,25 @@
    {
     "en": "Tenet Agendus",
     "cn": "信条·集议",
-    "element": "Magnetic",
+    "element": "Radiation",
     "bonus": 34.8
    },
    {
     "en": "Tenet Exec",
     "cn": "信条·枢密",
-    "element": "Magnetic",
+    "element": "Toxin",
     "bonus": 25.1
    },
    {
     "en": "Tenet Ferrox",
     "cn": "信条·铁晶磁轨炮",
-    "element": "Cold",
+    "element": "Electricity",
     "bonus": 26.5
    },
    {
     "en": "Tenet Grigori",
     "cn": "信条·格里高利",
-    "element": "Heat",
+    "element": "Impact",
     "bonus": 25.0
    },
    {
