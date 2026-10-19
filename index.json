@@ -12,7 +12,7 @@
    "snapshot": "用户提供的游戏内言录使货单实拍（2026-10-19 08:17 北京时间）"
   },
   "arb_ratings.json": {
-   "published_at": "2026-10-17",
+   "published_at": "2026-10-19",
    "snapshot": "https://arbi.wf.wiki/api/leaderboard?board=browse&nodeId=<key>"
   },
   "baro_history.json": {
