@@ -1,18 +1,18 @@
 {
  "schema": 1,
- "published_at": "2026-10-12T00:00:00+00:00",
- "source": "用户提供的游戏内言录使货单实拍（2026-10-12 09:00 JST）；wiki 上报表未更新时的临时录入",
+ "published_at": "2026-10-19T00:00:00+00:00",
+ "source": "用户提供的游戏内言录使货单实拍（2026-10-19 08:17 北京时间）",
  "license_note": "数据来自 wiki.warframe.com（CC BY-NC-SA 3.0）；Warframe 相关内容版权归 Digital Extremes 所有，本仓库仅供查询。",
- "expiry": "2026-10-19T00:00:00+00:00",
- "observed": "October 12, 2026",
+ "expiry": "2026-10-26T00:00:00+00:00",
+ "observed": "October 19, 2026",
  "items": [
   {
-   "name": "战甲特殊功能槽连接器",
-   "price": 20
+   "name": "主要武器赋能槽连接器",
+   "price": 25
   },
   {
-   "name": "次要武器赋能槽连接器",
-   "price": 25
+   "name": "奥罗金催化剂蓝图",
+   "price": 20
   },
   {
    "name": "赤毒",
@@ -20,12 +20,12 @@
    "price": 10
   },
   {
-   "name": "手枪裂罅 MOD",
+   "name": "近战裂罅 MOD",
    "price": 15
   },
   {
-   "name": "Forma 蓝图",
-   "price": 10
+   "name": "武器特殊功能槽连接器",
+   "price": 20
   }
  ]
 }

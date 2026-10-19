@@ -39,50 +39,50 @@
   ]
  },
  "coda": {
-  "snapshot": "2026-10-18T06:56:52+00:00",
+  "snapshot": "2026-10-19T00:17:00+00:00",
   "batch": "B",
   "items": [
    {
     "en": "Coda Bassocyst",
     "cn": "终幕·低音爆囊",
-    "element": "Radiation",
-    "bonus": 38.3
+    "element": "Toxin",
+    "bonus": 40.4
    },
    {
     "en": "Coda Bubonico",
     "cn": "终幕·横痃重炮",
-    "element": "Magnetic",
-    "bonus": 60.0
+    "element": "Radiation",
+    "bonus": 42.3
    },
    {
     "en": "Coda Synapse",
     "cn": "终幕·突触生化枪",
-    "element": "Heat",
-    "bonus": 54.9
+    "element": "Toxin",
+    "bonus": 39.4
    },
    {
     "en": "Coda Tysis",
     "cn": "终幕·啐沫者",
-    "element": "Cold",
-    "bonus": 35.6
+    "element": "Heat",
+    "bonus": 25.9
    },
    {
     "en": "Coda Caustacyst",
     "cn": "终幕·灼蚀变体镰",
-    "element": "Heat",
-    "bonus": 30.6
+    "element": "Toxin",
+    "bonus": 28.6
    },
    {
     "en": "Coda Hirudo",
     "cn": "终幕·蚂蟥",
-    "element": "Toxin",
-    "bonus": 25.6
+    "element": "Magnetic",
+    "bonus": 48.9
    },
    {
     "en": "Coda Pathocyst",
     "cn": "终幕·病囊飞刃",
     "element": "Heat",
-    "bonus": 25.0
+    "bonus": 50.9
    }
   ]
  }

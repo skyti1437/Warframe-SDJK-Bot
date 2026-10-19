@@ -1,11 +1,15 @@
 {
  "schema": 1,
- "published_at": "2026-10-18T06:56:58+00:00",
+ "published_at": "2026-10-19T00:00:00+00:00",
  "note": "由 automations/publish_community_snapshot.py 发布；只读，勿手工改",
  "files": {
   "valence.json": {
    "published_at": "2026-10-18T06:56:52+00:00",
    "snapshot": "wiki《Reset》页，经插件在有 FlareSolverr 的机器上抓取后发布；快照时间 2026-10-18T06:56:52+00:00"
+  },
+  "acrithis_week.json": {
+   "published_at": "2026-10-19T00:00:00+00:00",
+   "snapshot": "用户提供的游戏内言录使货单实拍（2026-10-19 08:17 北京时间）"
   },
   "arb_ratings.json": {
    "published_at": "2026-10-17",
