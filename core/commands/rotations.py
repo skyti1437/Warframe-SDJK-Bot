@@ -10,12 +10,47 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+import time
 
 from .. import calculators as calc
 from .. import formatters as fmt
 from .. import paths as core_paths
+from ..logging_compat import logger
 from .base import Reply
+
+# 「信条 刷新」「终幕 重抓」「言录使 更新」：不等定时，立即从 wiki 源头重抓（2026-10-18 维护者要求）。
+# 要经 FlareSolverr 抓页面，比较重，防滥用两道限（全局共享，不分群不分人）：
+#   ① 同一项 5 分钟内只重抓一次（群管理 / 超管不受这条限制）；
+#   ② 同一项 1 小时内最多重抓 6 次（**所有人都算**，管理员也不例外）。
+_PULL_WORDS = frozenset({"刷新", "重抓", "更新"})
+_PULL_COOLDOWN = 300.0
+_PULL_WINDOW = 3600.0
+_PULL_MAX_PER_WINDOW = 6
+
+
+def _pull_say(status: str) -> str:
+    """把 refresh_* 的返回值翻成人话（与网页面板「从源头重抓」同口径）。"""
+    v = str(status or "")
+    if v == "fresh":
+        return "本地已是最新"
+    if v.startswith("refreshed"):
+        via = (
+            "（wiki 抓不到，用的社区快照）"
+            if "(community)" in v
+            else "（wiki 抓不到，用的 WFHelper）"
+            if "(wfhelper)" in v
+            else ""
+        )
+        return "已更新为 wiki 最新数据" + via
+    if v.startswith("not-updated"):
+        return "wiki 还没人更新本轮数据，未覆盖（后台会继续重抓）"
+    if v == "no-community":
+        return "wiki 与社区快照都取不到"
+    if v == "failed":
+        return "重抓失败（详见日志）"
+    return v
 
 
 def _elem_txt(it: dict) -> str:
@@ -197,13 +232,58 @@ class RotationCommands:
     async def _h_rotation_incarnon(self, parsed, event, platform) -> Reply:
         return self._rotation_lines("incarnon", "本周钢铁回廊灵化")
 
+    @staticmethod
+    def _wants_pull(parsed) -> bool:
+        return any(t in _PULL_WORDS for t in (parsed.content or []))
+
+    async def _pull_now(self, key: str, event) -> str:
+        """立即从源头重抓（``key``：valence = 信条 + 终幕，acrichis = 言录使）；返回一行说明。"""
+        hist = self.__dict__.setdefault("_pull_hist", {}).setdefault(key, [])
+        lock = self.__dict__.setdefault("_pull_lock", asyncio.Lock())
+        now = time.monotonic()
+        hist[:] = [t for t in hist if now - t < _PULL_WINDOW]
+        if len(hist) >= _PULL_MAX_PER_WINDOW:
+            wait = _PULL_WINDOW - (now - hist[0])
+            return (
+                f"※ 这一小时已重抓 {len(hist)} 次（上限 {_PULL_MAX_PER_WINDOW} 次），"
+                f"{int(wait // 60) + 1} 分钟后可再试；下面是当前数据"
+            )
+        wait = _PULL_COOLDOWN - (now - hist[-1]) if hist else 0
+        is_admin = getattr(self, "_is_admin", None)
+        if wait > 0 and not (callable(is_admin) and is_admin(event)):
+            return f"※ 刚重抓过，{int(wait // 60) + 1} 分钟后可再试（群管理不受限）；下面是当前数据"
+        if lock.locked():
+            return "※ 正在重抓中，请稍后再查；下面是当前数据"
+        async with lock:
+            hist.append(time.monotonic())
+            fn = (
+                self.client.refresh_acrichis_week
+                if key == "acrichis"
+                else self.client.refresh_valence
+            )
+            try:
+                status = str(await asyncio.wait_for(fn(force=True), 150))
+            except Exception as exc:  # noqa: BLE001 - 重抓失败照样给出当前数据
+                logger.warning("[sdjk] 指令重抓失败（%s）：%r", key, exc)
+                return f"※ 重抓失败：{type(exc).__name__}；下面是当前数据"
+        logger.info("[sdjk] 指令重抓（%s）：%s", key, status)
+        return "※ 已从源头重抓：" + _pull_say(status)
+
+    def _with_note(self, reply: Reply, note: str) -> Reply:
+        if note:
+            reply.lines.insert(0, note)
+        return reply
+
     async def _h_rotation_tenet(self, parsed, event, platform) -> Reply:
-        return self._rotation_lines("tenet", "Ergo 信条武器轮换")
+        note = await self._pull_now("valence", event) if self._wants_pull(parsed) else ""
+        return self._with_note(self._rotation_lines("tenet", "Ergo 信条武器轮换"), note)
 
     async def _h_rotation_coda(self, parsed, event, platform) -> Reply:
-        return self._rotation_lines("coda", "Coda 终幕武器轮换")
+        note = await self._pull_now("valence", event) if self._wants_pull(parsed) else ""
+        return self._with_note(self._rotation_lines("coda", "Coda 终幕武器轮换"), note)
 
     async def _h_acrichis(self, parsed, event, platform) -> Reply:
+        note = await self._pull_now("acrichis", event) if self._wants_pull(parsed) else ""
         # 本周货单是社区维护快照（DE 不下发），过期后回落到静态商品池
         week = await self.client.acrithis_week()
         if week:
@@ -211,4 +291,4 @@ class RotationCommands:
         else:
             # 过期时必须明说「这只是候选池」，否则会被当成本周实际在卖的 5 件
             title, lines = fmt.fmt_acrichis(await self.client.acrithis_pool(), stale=True)
-        return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
+        return self._with_note(Reply(title, lines, footer=fmt.fmt_platform_footer(platform)), note)

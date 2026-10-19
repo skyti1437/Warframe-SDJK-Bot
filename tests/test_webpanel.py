@@ -66,13 +66,17 @@ class _Client:
             self._flare_url = self._flare_urls[0]
         return self._reach
 
-    async def refresh_valence(self, community_only=False):
-        self.calls.append(("valence", community_only))
-        return "fresh"
+    async def refresh_valence(self, community_only=False, force=False):
+        self.calls.append(("valence", community_only) + (("force",) if force else ()))
+        return "not-updated 2026-10-18T00:17:04+00:00 batch=A" if force else "fresh"
 
-    async def refresh_acrichis_week(self, community_only=False):
-        self.calls.append(("acrithis", community_only))
+    async def refresh_acrichis_week(self, community_only=False, force=False):
+        self.calls.append(("acrithis", community_only) + (("force",) if force else ()))
         raise RuntimeError("boom")
+
+    async def refresh_wiki_disp(self, force=False):
+        self.calls.append(("wiki_disp", force))
+        return "refreshed 600 条"
 
 
 class _Store:
@@ -134,6 +138,7 @@ check(
     == {
         "overview": ["GET"],
         "refresh": ["POST"],
+        "pull": ["POST"],
         "conntest": ["POST"],
         "resources": ["GET"],
         "deps_install": ["POST"],
@@ -325,6 +330,28 @@ check(
     r6["results"]["valence"] == "fresh" and r6["results"]["acrithis"].startswith("失败"),
 )
 check("刷新后带回新鲜度", isinstance(r6.get("freshness"), list) and r6["freshness"])
+
+# ---- 6½. 从源头重抓（2026-10-18）：三项都 force、不限社区快照，单项失败不连累其他项 ----
+p6b = _panel()
+r6b = asyncio.run(p6b.pull())
+check(
+    "★ 从源头重抓：元素加成 / 言录使 / 紫卡倾向都带 force，且不限 community_only",
+    p6b.p.client.calls
+    == [("valence", False, "force"), ("acrithis", False, "force"), ("wiki_disp", True)],
+    str(p6b.p.client.calls),
+)
+check(
+    "重抓结果原样带回（含 wiki 未更新），单项失败写进结果",
+    r6b["results"]["valence"].startswith("not-updated")
+    and r6b["results"]["acrithis"].startswith("失败")
+    and r6b["results"]["wiki_disp"].startswith("refreshed"),
+    str(r6b["results"]),
+)
+_html = (ROOT / "pages" / "sdjk" / "index.html").read_text(encoding="utf-8")
+check(
+    "页面有「从源头重抓」按钮并接到 pull 接口",
+    'id="pull"' in _html and 'apiPost("pull"' in _html,
+)
 
 
 # ---- 7. 连通性测试 ----

@@ -13,7 +13,7 @@ import glob
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from kb_lib import kb_data_dir, kb_out_dir
+from kb_lib import kb_data_dir, kb_out_dir, load_i18n
 import kb_lib as KB
 
 K = kb_out_dir()
@@ -53,24 +53,33 @@ dt = json.load(open(os.path.join(DATA, "pep", "dict.tc.json"), encoding="utf-8")
 
 
 def cjk_set(d):
-    """取字典所有字符串值里出现过的汉字集合。"""
-    s = set()
-    for v in d.values():
-        vals = v if isinstance(v, list) else [v]
-        for x in vals:
-            if isinstance(x, str):
-                s |= {c for c in x if "\u4e00" <= c <= "\u9fff"}
-    return s
+    """递归读取官方中文层；排除来源说明元数据。"""
+    if isinstance(d, str):
+        return {c for c in d if "\u4e00" <= c <= "\u9fff"}
+    values = (
+        [v for k, v in d.items() if not k.startswith("_")]
+        if isinstance(d, dict)
+        else d
+        if isinstance(d, list)
+        else []
+    )
+    return set().union(*(cjk_set(v) for v in values)) if values else set()
 
 
 # 「简体基准字集」= DE 官方简中 dict.zh ∪ warframe-items 的 i18n.zh（两者均为 zh-CN）
 GOOD = cjk_set(dz)
-i18n = json.load(open(os.path.join(DATA, "items", "i18n.json"), encoding="utf-8"))
+i18n = load_i18n(os.path.join(DATA, "items"))
 for _v in i18n.values():
     _z = (_v or {}).get("zh") or {}
     for _s in _z.values():
         if isinstance(_s, str):
             GOOD |= {c for c in _s if "\u4e00" <= c <= "\u9fff"}
+# 构建器实际使用的官方简中覆盖层也属于简体基准，避免将简繁同形字误报。
+for filename in ("zh_overrides.json", "zh_overrides_items.json"):
+    path = os.path.join(os.path.dirname(__file__), filename)
+    with open(path, encoding="utf-8") as f:
+        GOOD |= cjk_set(json.load(f))
+
 # 繁体字 = 出现在 dict.tc 但简体基准字集从不使用的汉字
 # ⚠ 简繁同形字白名单：这些字简体/繁体写法相同，只是恰好不在游戏简中串表里，
 #   会被上式误判（已确认无误的假阳性）。诚实登记，避免误报。

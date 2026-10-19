@@ -97,6 +97,12 @@
     "default": "",
     "hint": "没装 FlareSolverr 的用户靠它拿到较新的元素加成、言录使货单、仲裁评级、奸商到访历史、紫卡倾向。不想用本项目的数据可以填自己的地址：该地址下放同名文件（valence.json、acrithis_week.json、arb_ratings.json、baro_history.json、wiki_disp.json），格式与公开仓 bot-data 分支一致；填了就只用它，不再回落本项目。"
   },
+  "wfhelper_valence": {
+    "description": "元素加成备用来源：WFHelper（第三方，可选）",
+    "type": "bool",
+    "default": false,
+    "hint": "打开后，信条 / 终幕元素加成在抓不到 wiki 源页时，先试第三方站点 WFHelper 的公开接口，再用社区快照。WFHelper 的数据同样来自 wiki 玩家上报，不会更快；适合没装 FlareSolverr、又想多一条通道的用户。它是第三方站点，可用性由对方负责。保存即生效。"
+  },
   "wiki_intro": {
     "description": "wiki 简介卡片（战甲 / 武器 / MOD / 资源 / 同伴）",
     "type": "bool",

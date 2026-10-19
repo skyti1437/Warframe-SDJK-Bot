@@ -248,10 +248,21 @@ def section_versions(repo: Path, base: str, head: str) -> dict:
     base_ver = S.version_of_file("core/__init__.py", base_txt)
     base_ver_str = ".".join(map(str, base_ver)) if base_ver else None
     bumped = bool(base_ver_str and current and base_ver_str != current)
+    # 发版后复核（ZCode 10-17 v1.2.3 实测）：发版提交已合进 main ⇒ base（origin/main）与 head 是同一提交，
+    #   上面的「base 版本 ≠ 当前」不成立，会误判成「尚未抬版」去建议 +1、并把 CHANGELOG 首条判为未就绪。
+    #   只认这一种场景（base 与 head 同一提交），不放宽成「CHANGELOG 首条 == 当前」——那会把发版后的新开发
+    #   （CHANGELOG 首条仍是上一版）误判成已抬版。
+    same_commit = bool(rev_sha(repo, base)) and rev_sha(repo, base) == rev_sha(repo, head)
+    if same_commit and current:
+        bumped = True
     note = (
-        f"head 已抬到 {current}（base {base_ver_str}），本次发版目标即 {current}，不再 +1"
-        if bumped
-        else ""
+        f"base 与 head 是同一提交（发版后复核），目标即当前版本 {current}"
+        if same_commit and current
+        else (
+            f"head 已抬到 {current}（base {base_ver_str}），本次发版目标即 {current}，不再 +1"
+            if bumped
+            else ""
+        )
     )
 
     # 目标版本：head 已抬过（≠ base）⇒ 就是当前版本（发版提交已就位，CHANGELOG 首条应等于它）；否则 +0.0.1

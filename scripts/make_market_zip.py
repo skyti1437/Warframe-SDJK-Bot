@@ -237,7 +237,7 @@ def _zip_datetime() -> tuple:
 # 2026-10-08 审核实证：本脚本原先只查「stage 存在」+「种子新鲜」，**不查 stage 是否追平 HEAD**
 # ⇒ 若绕开重建直接打包，会把旧 stage（当时 239 文件、不含本批任何修复）打出去。这里加数量闸门兜住；
 # 数量相同但内容不同的情形，仍靠流程约束（打包前必重跑 dist/package_release.py --opensource）。
-EXPECTED_STAGE_FILES = 270  # 与 dist/package_release.py::EXPECTED_OSS_STAGE_FILES 同步
+EXPECTED_STAGE_FILES = 271  # 与 dist/package_release.py::EXPECTED_OSS_STAGE_FILES 同步
 # 2026-10-17 清理批：272 → 270（−fissureModifiers.json、−syndicatesData.json）
 # 2026-10-17 数据登记表批：267 → 269（+core/data_registry.py、+tests/test_data_registry.py）
 # 2026-10-17 部署计划批：269 → 270（+tests/test_deploy_plan.py；tests/ 不进市场件）

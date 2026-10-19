@@ -1718,6 +1718,39 @@ def parse_duration(text: str) -> Optional[int]:
     return None
 
 
+_CN_COUNT = {
+    "一": 1,
+    "两": 2,
+    "二": 2,
+    "三": 3,
+    "四": 4,
+    "五": 5,
+    "六": 6,
+    "七": 7,
+    "八": 8,
+    "九": 9,
+    "十": 10,
+}
+HIT_COUNT_MAX = 99
+
+
+def parse_hit_count(text: str) -> Optional[int]:
+    """「蹲」的命中次数：「2次」「两次」「10 次」→ 整数（1–99）；不是次数写法返回 None。
+
+    2026-10-17 用户需求：「蹲 裂隙 钢铁阋神星生存 2次」。在此之前「2次」会被当成筛选词，
+    订阅永远不命中且不提示（静默失效）。
+    """
+    t = (text or "").strip()
+    m = re.fullmatch(r"(\d{1,3})\s*次", t)
+    if m:
+        n = int(m.group(1))
+    elif len(t) == 2 and t[1] == "次" and t[0] in _CN_COUNT:
+        n = _CN_COUNT[t[0]]
+    else:
+        return None
+    return n if 1 <= n <= HIT_COUNT_MAX else None
+
+
 # 推送时间窗一律按**北京时间**（UTC+8）判定，与服务器时区无关（2026-10-11 立）。
 try:  # 优先 IANA 名；容器缺 tzdata 时退回固定 UTC+8（中国无夏令时，二者等价）
     from zoneinfo import ZoneInfo as _ZoneInfo

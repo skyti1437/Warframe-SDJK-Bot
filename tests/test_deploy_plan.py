@@ -57,9 +57,9 @@ LOCAL_FILES: dict[str, str | bytes] = {
     ".gitignore": "core/data/wm_ranks.json\n",
     ".zcode/skills/astrbot-server-triage/scripts/automations/crontab.template": "# cron\n",
     ".zcode/skills/astrbot-server-triage/scripts/automations/server_patrol.py": "print('patrol')\n",
+    "deploy.sh": "#!/bin/sh\n",  # 2026-10-19 起归 plugin 工具面（服务器树运行，不进容器）
     # 以下均**不在** plugin profile 内：用于验证它们不进计划
     "AGENTS.md": "agents\n",
-    "deploy.sh": "#!/bin/sh\n",
     "docs/notes.md": "notes\n",
     "tests/test_x.py": "pass\n",
     "dist/package_release.py": "# pkg\n",
@@ -300,7 +300,8 @@ shutil.rmtree(SRV_BIN, ignore_errors=True)
 # 2. 动作决策表（改动类型 → 动作）
 # ---------------------------------------------------------------------------
 for _name, _ov, _expect_code in (
-    ("只改 _conf_schema.json ⇒ restart", {"_conf_schema.json": '{"a": {"b": 1}}\n'}, "restart"),
+    # 2026-10-18 ZCode 实测 AstrBot 4.28.1：reload 即重读 schema ⇒ 配置项改动只需 reload
+    ("只改 _conf_schema.json ⇒ reload", {"_conf_schema.json": '{"a": {"b": 1}}\n'}, "reload"),
     (
         "只改 requirements.txt ⇒ deps_restart",
         {"requirements.txt": "requests\nnumpy\n"},
@@ -309,6 +310,11 @@ for _name, _ov, _expect_code in (
     (
         "只改 scripts/x.py ⇒ none（工具面有需传但无需重载）",
         {"scripts/x.py": "print('t2')\n"},
+        "none",
+    ),
+    (
+        "只改 deploy.sh ⇒ none（工具面：服务器树里要更新，但不进容器、无需重载）",
+        {"deploy.sh": "#!/bin/sh\necho old\n"},
         "none",
     ),
     ("只改 pages/… ⇒ reload", {"pages/sdjk/index.html": "<html>2</html>\n"}, "reload"),
@@ -358,6 +364,14 @@ check(
 shutil.rmtree(_srv, ignore_errors=True)
 
 # 工具面：有需传、动作 none（两面都要显式验证）
+# 2026-10-19：deploy.sh 改了 ⇒ 进需传清单（以前两个 profile 都不覆盖，服务器上静默留旧版）
+_srv_d = _server(overrides={"deploy.sh": "#!/bin/sh\necho old\n"})
+_rc_d, _p_d, _err_d = _plan_json("plugin", LOCAL, _srv_d)
+check(
+    "需传：deploy.sh 有差异 ⇒ 出现在 plugin 计划的需传清单（工具面）",
+    _rc_d == 0 and [r.get("path") for r in (_p_d or {}).get("transfer", [])] == ["deploy.sh"],
+    f"rc={_rc_d} {(_p_d or {}).get('transfer')} {_err_d[-200:]}",
+)
 _srv = _server(overrides={"scripts/x.py": "print('t2')\n"})
 _rc, _p, _err = _plan_json("plugin", LOCAL, _srv)
 check(
@@ -644,7 +658,11 @@ else:
 
     def _check_version(dirpath: Path) -> int:
         script = f'{_FUNC}\ncheck_version {shlex.quote(str(dirpath))} "测试"\n'
-        return subprocess.run(["bash", "-c", script], capture_output=True, text=True).returncode
+        # 只看返回码；输出按 utf-8 宽松解码 —— macOS 自带 bash 3.2 下 `local` 会把中文参数压成
+        # 单字节（如 0xbc），text=True 严格解码会抛 UnicodeDecodeError（10-18/19 ZCode 本机实测）
+        return subprocess.run(
+            ["bash", "-c", script], capture_output=True, encoding="utf-8", errors="replace"
+        ).returncode
 
     check(
         "check_version：两侧一致 ⇒ 0",
@@ -711,8 +729,14 @@ else:
         (sandbox / "core").mkdir(exist_ok=True)
         (sandbox / "core" / "__init__.py").write_text(core, encoding="utf-8", newline="")
         env = {**os.environ, "PATH": f"{fakebin}{os.pathsep}{os.environ.get('PATH', '')}"}
+        # 同 _check_version：只看返回码与输出文本，输出按 utf-8 宽松解码 —— macOS 自带 bash 3.2
+        # 会把 deploy.sh 里的中文压成单字节，text=True 严格解码会抛 UnicodeDecodeError（10-19 ZCode 实测）
         p = subprocess.run(
-            ["bash", str(sandbox / "deploy.sh")], capture_output=True, text=True, env=env
+            ["bash", str(sandbox / "deploy.sh")],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
         )
         return p.returncode, marker.exists(), p.stdout + p.stderr, dst
 

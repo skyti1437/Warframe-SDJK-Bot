@@ -585,13 +585,19 @@ check(
     bool(_r) and not any(re.search(r"\d{13,}", x) for x in _r[1]),
     str(_r),
 )
-# 反向验证：去掉兜底时上面那条必红（证明测试不是空转）
-_saved = WI._sanitize
-WI._sanitize = lambda ls: ls
-_r_raw = WI.intro("宝拉")
-WI._sanitize = _saved
+# 旧脏数据用夹具保留；生成器修好后，不能要求随包真数据继续带巨数。
+from unittest.mock import patch as _patch  # noqa: E402
+
+with _patch.object(WI, "_table", return_value=([["宝拉", list(_raw)]], {"宝拉": 0}, {})):
+    _r_old = WI.intro("宝拉")
+    with _patch.object(WI, "_sanitize", side_effect=lambda ls: ls):
+        _r_raw = WI.intro("宝拉")
 check(
-    "反向：没有兜底时「宝拉」确实带巨数（测试有效）",
+    "旧数据夹具：intro 确实调用兜底并滤掉巨数",
+    bool(_r_old) and not any(re.search(r"\d{13,}", x) for x in _r_old[1]),
+)
+check(
+    "反向：没有兜底时旧宝拉夹具确实带巨数（测试有效）",
     bool(_r_raw) and any(re.search(r"\d{13,}", x) for x in _r_raw[1]),
 )
 

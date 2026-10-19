@@ -69,10 +69,10 @@ for e in es[:3] + random.sample(es, 3):
     w("-" * 50)
     w(e.strip()[:400])
 
-# ---- 4. 分块模拟（512 / 重叠 50）----
+# ---- 4. 近似体量估算（512 / 重叠 50，非验收判据）----
 w("")
 w("=" * 68)
-w("分块模拟：chunk=512, overlap=50")
+w("近似体量估算（固定切片，非线上 Markdown 感知分块，不作为合格判据）：chunk=512, overlap=50")
 tot_chunks = 0
 rows = []
 for fn in sorted(os.listdir(K)):

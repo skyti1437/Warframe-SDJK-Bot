@@ -108,8 +108,9 @@ check("refresh_valence 用 any(...) 汇总各段是否过期", "any(" in _src)
 _loops = [i for i, ln in enumerate(_src.splitlines()) if 'return "fresh"' in ln]
 check(
     "refresh_valence 不在逐段循环里 return fresh",
-    # 2026-10-17：any(...) 与 return 之间多了一行 _note_comm（社区快照采用记录），往上看两行
-    len(_loops) == 1 and "any(" in "\n".join(_src.splitlines()[_loops[0] - 2 : _loops[0]]),
+    # 2026-10-17：any(...) 与 return 之间多了一行 _note_comm（社区快照采用记录）；
+    # 2026-10-18：any(...) 里加了「数值未更新」判据、拆成多行 ⇒ 往上看 8 行
+    len(_loops) == 1 and "any(" in "\n".join(_src.splitlines()[_loops[0] - 8 : _loops[0]]),
     str(_src.splitlines()[max(0, (_loops or [0])[0] - 1) : (_loops or [1])[0] + 1]),
 )
 
@@ -550,6 +551,526 @@ def _boot_warm_checks():
 
 _flare_checks()
 _boot_warm_checks()
+
+
+# ---------------------------------------------------------------------------
+# ★ 2026-10-18：换轮后 wiki 还没人更新 ⇒ 抓到的是上一轮数值，却被标成「本轮快照」
+#   （信条 10-18 00:17 / 10-02 00:11 两次实测）。判据：当前在售那组数值最早出现的
+#   时刻早于本轮窗口起点 ⇒ 数值已存在超过一个周期 ⇒ 未更新；后台必须继续重抓。
+#   言录使同理：与上周货单完全相同 ⇒ 不落盘。
+# ---------------------------------------------------------------------------
+def _stale_value_checks():
+    import asyncio
+    import copy
+    import tempfile
+    from datetime import timezone
+
+    from core import paths
+    from core.commands.progress import ProgressCommands
+
+    now = datetime.now(timezone.utc)
+
+    def _win(sect):
+        ep = datetime.fromisoformat(sect["epoch"])
+        per = timedelta(hours=int(sect["period_hours"]))
+        passed = int((now - ep) // per)
+        return ep + per * passed, passed
+
+    t_win, _ = _win(ROT["tenet"])
+    c_win, c_passed = _win(ROT["coda"])
+    cur_bi = (int(ROT["coda"].get("anchor_idx", 0)) + c_passed) % len(ROT["coda"]["batches"])
+    prev = (min(t_win, c_win) - timedelta(hours=1)).isoformat()
+
+    _ELEMS = ["Heat", "Cold", "Electricity", "Toxin", "Impact", "Magnetic", "Radiation"]
+
+    def _shift(elem, on):
+        """真实换轮时元素也会重新随机：bump≠0 时把元素轮换到下一个（keep_elem 模拟半更新）。"""
+        return _ELEMS[(_ELEMS.index(elem) + 1) % len(_ELEMS)] if on and elem in _ELEMS else elem
+
+    def _page(rot, bump_tenet=0.0, bump_coda=0.0, keep_elem=False):
+        """模拟 wiki 源页解析结果；bump=0 即「页面还是上一轮的值」。"""
+        return {
+            "tenet": [
+                {
+                    "en": it["en"],
+                    "element": _shift(it["element"], bump_tenet and not keep_elem),
+                    "bonus": it["bonus"] + bump_tenet,
+                }
+                for it in rot["tenet"]["items"]
+            ],
+            "coda": {
+                i + 1: [
+                    {
+                        "en": it["en"],
+                        "element": _shift(
+                            it["element"], i == cur_bi and bump_coda and not keep_elem
+                        ),
+                        "bonus": it["bonus"] + (bump_coda if i == cur_bi else 0.0),
+                    }
+                    for it in b
+                ]
+                for i, b in enumerate(rot["coda"]["batches"])
+            },
+        }
+
+    async def _run(rot0, pages, revs=None):
+        out = []
+        with tempfile.TemporaryDirectory() as tmp:
+            paths.set_run_dir(tmp)
+            try:
+                (Path(tmp) / "rotations.json").write_text(json.dumps(rot0), encoding="utf-8")
+                c = WC()
+                try:
+                    for page in pages:
+
+                        async def _fetch(url, ttl=0, _p=page):
+                            return json.dumps(_p)
+
+                        c.fetch_via_flaresolver = _fetch
+                        c.parse_wikitext = lambda src: {
+                            k: ({int(i): v for i, v in x.items()} if k == "coda" else x)
+                            for k, x in json.loads(src).items()
+                        }
+
+                        async def _revs(url, what, _r=revs):
+                            return dict(_r or {})
+
+                        c._wiki_revisions = _revs
+                        st = await c.refresh_valence()
+                        rot = json.loads((Path(tmp) / "rotations.json").read_text("utf-8"))
+                        out.append((st, rot))
+                finally:
+                    await c.close()
+            finally:
+                paths.set_run_dir(None)
+        return out
+
+    rot0 = copy.deepcopy(ROT)
+    for k in ("tenet", "coda"):
+        rot0[k]["valence_snapshot"] = prev  # 上一轮的快照
+        rot0[k].pop("valence_values_since", None)
+        rot0[k].pop("batch_values_since", None)
+
+    # ① 换轮后 wiki 仍是旧值 → not-updated；② 再跑一次不能当 fresh 跳过；③ wiki 更新后恢复
+    res = asyncio.run(_run(rot0, [_page(ROT), _page(ROT), _page(ROT, 1.5, 2.5)]))
+    (s1, r1), (s2, _r2), (s3, r3) = res
+    check("★ 换轮后数值与上一轮相同 → 返回 not-updated", s1.startswith("not-updated"), s1)
+    check(
+        "数值没变时 valence_values_since 沿用上一轮快照时刻",
+        r1["tenet"].get("valence_values_since") == prev,
+        str(r1["tenet"].get("valence_values_since")),
+    )
+    check("信条段判为数值未更新", WC.valence_values_stale(r1["tenet"], now))
+    check("终幕当前批判为数值未更新", WC.valence_values_stale(r1["coda"], now))
+    check("快照时刻本身在本轮（旧判据看不出问题）", not WC.valence_is_stale(r1["tenet"], now))
+    check("★ 未更新时下一轮不当 fresh 跳过，继续重抓", s2 != "fresh", s2)
+    check("wiki 更新后 → refreshed", s3.startswith("refreshed"), s3)
+    check(
+        "wiki 更新后两段都不再判未更新",
+        not WC.valence_values_stale(r3["tenet"], now)
+        and not WC.valence_values_stale(r3["coda"], now),
+    )
+
+    # ④ 只有终幕当前批没更新（信条已更新）→ 仍是 not-updated，且只点名终幕
+    res = asyncio.run(_run(rot0, [_page(ROT, bump_tenet=1.5)]))
+    (s4, r4) = res[0]
+    check(
+        "只有终幕当前批没更新 → not-updated，信条不误报",
+        s4.startswith("not-updated")
+        and not WC.valence_values_stale(r4["tenet"], now)
+        and WC.valence_values_stale(r4["coda"], now),
+        s4,
+    )
+
+    # ④½ 用 wiki 页面修订时间判（2026-10-18 第二道判据）
+    before = {"Tenet Weapons": t_win - timedelta(days=3), "Coda Weapons": c_win - timedelta(days=3)}
+    after = {
+        "Tenet Weapons": t_win + timedelta(minutes=5),
+        "Coda Weapons": c_win + timedelta(minutes=5),
+    }
+    s5, r5 = asyncio.run(_run(rot0, [_page(ROT, 1.5, 2.5)], before))[0]
+    check(
+        "★ 数值变了但页面最后修订早于本轮起点 → 仍判未更新（页面上是我们没见过的上一轮值）",
+        s5.startswith("not-updated")
+        and WC.valence_values_stale(r5["tenet"], now)
+        and WC.valence_values_stale(r5["coda"], now),
+        s5,
+    )
+    s6, r6 = asyncio.run(_run(rot0, [_page(ROT, 1.5, 2.5)], after))[0]
+    check(
+        "数值变了且页面在本轮修订过 → refreshed，since 取修订时刻",
+        s6.startswith("refreshed")
+        and r6["tenet"]["valence_values_since"] == after["Tenet Weapons"].isoformat(),
+        f"{s6} {r6['tenet'].get('valence_values_since')}",
+    )
+    s7, r7 = asyncio.run(_run(rot0, [_page(ROT)], after))[0]
+    check(
+        "页面在本轮有修订但数值没变（无关编辑）→ 仍判未更新",
+        s7.startswith("not-updated") and WC.valence_values_stale(r7["tenet"], now),
+        s7,
+    )
+    # ★ 线上 10-18 的真实情形：升级前的数据没有记录、快照时刻在本轮、数值与页面相同、页面停在上一轮
+    legacy = copy.deepcopy(ROT)
+    for k in ("tenet", "coda"):
+        legacy[k]["valence_snapshot"] = (max(t_win, c_win) + timedelta(minutes=17)).isoformat()
+        legacy[k].pop("valence_values_since", None)
+        legacy[k].pop("batch_values_since", None)
+    s8, r8 = asyncio.run(_run(legacy, [_page(ROT)], before))[0]
+    check(
+        "★ 升级前数据（无记录、快照在本轮）不当 fresh 跳过，补记录后认出未更新",
+        s8.startswith("not-updated")
+        and r8["tenet"]["valence_values_since"] == before["Tenet Weapons"].isoformat(),
+        f"{s8} {r8['tenet'].get('valence_values_since')}",
+    )
+    s9, r9 = asyncio.run(_run(legacy, [_page(ROT)], {}))[0]
+    check(
+        "修订时间查不到时：升级前数据补记录沿用旧快照时刻（不误报）",
+        s9.startswith("refreshed") and not WC.valence_values_stale(r9["tenet"], now),
+        s9,
+    )
+
+    # ④¾ 面板「从源头重抓」：本地已在本轮且有记录（平时直接 fresh）→ force 照样重抓
+    async def _forced(rot_in, page, revs_in):
+        with tempfile.TemporaryDirectory() as tmp:
+            paths.set_run_dir(tmp)
+            try:
+                (Path(tmp) / "rotations.json").write_text(json.dumps(rot_in), encoding="utf-8")
+                c = WC()
+                fetched = []
+
+                async def _fetch(url, ttl=0):
+                    fetched.append(ttl)
+                    return json.dumps(page)
+
+                async def _revs(url, what):
+                    return dict(revs_in)
+
+                c.fetch_via_flaresolver = _fetch
+                c.parse_wikitext = lambda src: {
+                    k: ({int(i): v for i, v in x.items()} if k == "coda" else x)
+                    for k, x in json.loads(src).items()
+                }
+                c._wiki_revisions = _revs
+                try:
+                    plain = await c.refresh_valence()
+                    forced = await c.refresh_valence(force=True)
+                finally:
+                    await c.close()
+                return plain, forced, fetched
+            finally:
+                paths.set_run_dir(None)
+
+    plain, forced, fetched = asyncio.run(_forced(r6, _page(ROT, 4.0, 5.0), after))
+    check("本地已在本轮：平时返回 fresh、不抓", plain == "fresh", plain)
+    check(
+        "★ force=True：跳过新鲜门照样重抓，且不吃 10 分钟页面缓存",
+        forced.startswith("refreshed") and fetched and all(t == 0 for t in fetched),
+        f"{forced} ttl={fetched}",
+    )
+
+    # ④⅞ ★ 2026-10-18 半更新：wiki 只改了百分比、元素列原样是上一轮（页面修订在本轮内）→ 仍判未更新
+    sh, rh = asyncio.run(_run(rot0, [_page(ROT, 1.5, 2.5, keep_elem=True)], after))[0]
+    check(
+        "★ 只改了百分比、元素与上一轮逐把相同 → not-updated（半更新）",
+        sh.startswith("not-updated")
+        and WC.valence_values_stale(rh["tenet"], now)
+        and WC.valence_values_stale(rh["coda"], now),
+        sh,
+    )
+    check(
+        "半更新时百分比照样写入（卡面标注疑似上一轮，等元素也更新后自动恢复）",
+        rh["tenet"]["items"][0]["bonus"] == ROT["tenet"]["items"][0]["bonus"] + 1.5,
+    )
+    s2, r2b = asyncio.run(
+        _run(
+            rh,
+            [
+                {
+                    **_page(rh),
+                    "tenet": [
+                        {**it, "element": _shift(it["element"], True)} for it in _page(rh)["tenet"]
+                    ],
+                }
+            ],
+            after,
+        )
+    )[0]
+    check(
+        "元素列随后也改好 → 信条恢复为已更新",
+        not WC.valence_values_stale(r2b["tenet"], now),
+        s2,
+    )
+
+    # ⑤ 旧数据没有 since 字段、快照在本轮 → 不误报
+    plain = copy.deepcopy(ROT)
+    plain["tenet"]["valence_snapshot"] = now.isoformat()
+    plain["tenet"].pop("valence_values_since", None)
+    check("没有 since 记录时不判未更新（不误报）", not WC.valence_values_stale(plain["tenet"], now))
+
+    # ⑥ 卡面说明行
+    note = ProgressCommands._valence_note(r1["tenet"], t_win)
+    check("卡面标注「数值疑似仍是上一轮：wiki 尚未完整更新」", "wiki 尚未完整更新" in note, note)
+    note3 = ProgressCommands._valence_note(r3["tenet"], t_win)
+    check("更新后卡面恢复「本轮快照」", "（本轮快照）" in note3, note3)
+
+    # ⑦ 言录使社区快照：与上周货单完全相同 → not-updated，不落盘
+    acr = json.loads((ROOT / "core/data/de/acrichis_week.json").read_text("utf-8"))
+    monday = (now - timedelta(days=now.weekday())).date().isoformat()
+
+    async def _acr(items):
+        with tempfile.TemporaryDirectory() as tmp:
+            paths.set_run_dir(tmp)
+            try:
+                c = WC()
+
+                async def _cj(urls):
+                    return {
+                        "expiry": (now + timedelta(days=3)).isoformat(),
+                        "observed": monday,
+                        "items": items,
+                    }
+
+                c._community_json = _cj
+                try:
+                    st = await c._community_acrithis_week(acr)
+                finally:
+                    await c.close()
+                return st, (Path(tmp) / mod.ACRITHIS_WEEK_NAME).exists()
+            finally:
+                paths.set_run_dir(None)
+
+    st, wrote = asyncio.run(_acr(acr["items"]))
+    check(
+        "★ 言录使：与上周货单完全相同 → not-updated 且不落盘", st == "not-updated" and not wrote, st
+    )
+
+    async def _acr_fresh(items):
+        with tempfile.TemporaryDirectory() as tmp:
+            paths.set_run_dir(tmp)
+            try:
+                c = WC()
+
+                async def _cj(urls):
+                    return {
+                        "expiry": (now + timedelta(days=3)).isoformat(),
+                        "observed": monday,
+                        "items": items,
+                    }
+
+                c._community_json = _cj
+                try:
+                    return await c._community_acrithis_week(acr, expired=False)
+                finally:
+                    await c.close()
+            finally:
+                paths.set_run_dir(None)
+
+    st = asyncio.run(_acr_fresh(acr["items"]))
+    check("言录使强制重抓、本地未到期且货单相同 → 本地已是最新（不报未更新）", st == "fresh", st)
+    st, wrote = asyncio.run(_acr(acr["items"][1:] + [{"name": "新的一件", "price": 1}]))
+    check("言录使：货单有变化 → 正常采用（对照组）", st == "refreshed" and wrote, st)
+    check(
+        "言录使 wiki 抓取路径同样比对上周货单",
+        "与上周货单完全相同" in inspect.getsource(WC.refresh_acrichis_week),
+    )
+
+
+_stale_value_checks()
+
+
+# ---------------------------------------------------------------------------
+# ★ 2026-10-18：WFHelper 可选通道（后台开关，默认关；开了排在社区快照前面）
+# ---------------------------------------------------------------------------
+def _wfhelper_checks():
+    import asyncio
+    import copy
+    import tempfile
+
+    from core import paths
+
+    t_items = ROT["tenet"]["items"]
+    b0, b1 = ROT["coda"]["batches"]
+    labels = ROT["coda"].get("batch_label") or ["A", "B"]
+
+    def _vend(items, bump=0.0):
+        return [{"name": it["en"], "element": "Heat", "bonus": 30 + bump} for it in items]
+
+    payload = {
+        "ok": True,
+        "source": "wiki",
+        "tenet": {"items": _vend(t_items, 1)},
+        "coda": {"batch": labels[0], "items": _vend(b0, 2)},
+        "codaNext": {"batch": labels[1], "items": _vend(b1, 3)},
+    }
+    got = mod.parse_wfhelper_valence(payload)
+    check(
+        "WFHelper 解析：信条 5 件 + 终幕两批都收",
+        len(got["tenet"]) == len(t_items) and set(got["coda"]) == set(labels[:2]),
+        str(sorted(got["coda"])),
+    )
+    for bad, why in (
+        ({**payload, "ok": False}, "ok≠true"),
+        ({**payload, "tenet": {"items": []}}, "信条空"),
+        ({**payload, "codaNext": {"items": payload["codaNext"]["items"]}}, "缺 batch"),
+        (
+            {**payload, "tenet": {"items": [{"name": "x", "element": "Heat", "bonus": True}]}},
+            "bonus 是布尔",
+        ),
+    ):
+        try:
+            mod.parse_wfhelper_valence(bad)
+            ok = False
+        except ValueError:
+            ok = True
+        check(f"WFHelper 解析拒绝畸形输入（{why}）", ok)
+
+    rot0 = copy.deepcopy(ROT)
+    for k in ("tenet", "coda"):
+        rot0[k]["valence_snapshot"] = "2020-01-01T00:00:00+00:00"
+
+    async def _run(enabled, wf_ok=True):
+        calls = []
+        with tempfile.TemporaryDirectory() as tmp:
+            paths.set_run_dir(tmp)
+            try:
+                (Path(tmp) / "rotations.json").write_text(json.dumps(rot0), encoding="utf-8")
+                c = WC(wfhelper_valence=enabled)
+
+                async def _wf():
+                    calls.append("wfhelper")
+                    return mod.parse_wfhelper_valence(payload) if wf_ok else None
+
+                async def _comm(rot):
+                    calls.append("community")
+                    return None
+
+                c._wfhelper_valence_parsed = _wf
+                c._community_valence_parsed = _comm
+                try:
+                    st = await c.refresh_valence(community_only=True)
+                finally:
+                    await c.close()
+                rot = json.loads((Path(tmp) / "rotations.json").read_text("utf-8"))
+            finally:
+                paths.set_run_dir(None)
+        return st, calls, rot
+
+    st, calls, rot = asyncio.run(_run(False))
+    check("开关关闭（默认）：不调 WFHelper，只走社区快照", calls == ["community"], str(calls))
+    st, calls, rot = asyncio.run(_run(True))
+    check(
+        "★ 开关打开：先用 WFHelper，成功就不再查社区快照",
+        calls == ["wfhelper"] and "(wfhelper)" in st,
+        f"{calls} {st}",
+    )
+    check(
+        "WFHelper 数值写进信条与终幕两批，来源标注 WFHelper",
+        rot["tenet"]["items"][0]["bonus"] == 31.0
+        and rot["coda"]["batches"][0][0]["bonus"] == 32.0
+        and rot["coda"]["batches"][1][0]["bonus"] == 33.0
+        and "WFHelper" in rot["tenet"]["valence_source"],
+        str(rot["tenet"].get("valence_source")),
+    )
+    st, calls, rot = asyncio.run(_run(True, wf_ok=False))
+    check("WFHelper 取不到 → 回落社区快照", calls == ["wfhelper", "community"], str(calls))
+    sch = json.loads((ROOT / "_conf_schema.json").read_text(encoding="utf-8"))
+    check(
+        "配置项 wfhelper_valence 存在且默认关闭",
+        sch.get("wfhelper_valence", {}).get("default") is False,
+    )
+
+
+_wfhelper_checks()
+
+
+# ---------------------------------------------------------------------------
+# ★ 2026-10-18：指令「信条 刷新」「终幕 重抓」「言录使 更新」—— 立即从源头重抓，5 分钟冷却（管理员不受限）
+# ---------------------------------------------------------------------------
+def _pull_cmd_checks():
+    import asyncio
+
+    from core.commands.progress import ProgressCommands
+    from core.commands.rotations import RotationCommands
+    from core.parser import parse
+
+    class _Cli:
+        def __init__(self):
+            self.calls = []
+
+        async def refresh_valence(self, community_only=False, force=False):
+            self.calls.append(("valence", force))
+            return "refreshed 2026-10-18T02:20:00+00:00 batch=A"
+
+        async def refresh_acrichis_week(self, community_only=False, force=False):
+            self.calls.append(("acrichis", force))
+            return "not-updated"
+
+        async def acrithis_week(self):
+            return {}
+
+        async def acrithis_pool(self):
+            return []
+
+    class _Host(RotationCommands, ProgressCommands):
+        def __init__(self, admin=False):
+            self.client = _Cli()
+            self._admin = admin
+
+        def _is_admin(self, event):
+            return self._admin
+
+    def _run(host, text):
+        p = parse(text)
+        h = {
+            "tenet": host._h_rotation_tenet,
+            "coda": host._h_rotation_coda,
+            "acrichis": host._h_acrichis,
+        }[p.command]
+        return asyncio.run(h(p, None, "pc"))
+
+    h = _Host()
+    r = _run(h, "信条")
+    check("只发「信条」不重抓", h.client.calls == [] and not r.lines[0].startswith("※ 已从源头"))
+    r = _run(h, "信条 刷新")
+    check(
+        "★「信条 刷新」→ 强制重抓元素加成，卡片首行写结果",
+        h.client.calls == [("valence", True)] and r.lines[0].startswith("※ 已从源头重抓：已更新"),
+        str(r.lines[:1]),
+    )
+    r = _run(h, "终幕 重抓")
+    check(
+        "★ 5 分钟内再次重抓（非管理员）→ 不抓，提示冷却并照常出卡",
+        h.client.calls == [("valence", True)] and "分钟后可再试" in r.lines[0] and len(r.lines) > 1,
+        str(r.lines[:1]),
+    )
+    r = _run(h, "言录使 更新")
+    check(
+        "言录使与元素加成各算各的冷却；wiki 未更新时如实说明",
+        h.client.calls[-1] == ("acrichis", True) and "wiki 还没人更新" in r.lines[0],
+        str(r.lines[:1]),
+    )
+    ha = _Host(admin=True)
+    _run(ha, "信条 刷新")
+    _run(ha, "信条 刷新")
+    check(
+        "群管理不受冷却限制",
+        ha.client.calls == [("valence", True), ("valence", True)],
+        str(ha.client.calls),
+    )
+    for _ in range(6):
+        r = _run(ha, "信条 刷新")
+    check(
+        "★ 1 小时内同一项最多重抓 6 次，管理员也不例外",
+        ha.client.calls.count(("valence", True)) == 6 and "上限 6 次" in r.lines[0],
+        f"{len(ha.client.calls)} {r.lines[:1]}",
+    )
+    ha._pull_hist["valence"] = [t - 3600 for t in ha._pull_hist["valence"]]
+    _run(ha, "信条 刷新")
+    check("一小时窗口过去后恢复", ha.client.calls.count(("valence", True)) == 7)
+
+
+_pull_cmd_checks()
+
 
 print()
 if FAILED:
