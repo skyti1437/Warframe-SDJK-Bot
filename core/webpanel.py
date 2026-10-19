@@ -126,15 +126,22 @@ def freshness(now: Optional[datetime] = None) -> list[dict]:
         snap = d.get("valence_snapshot") or ""
         try:
             stale = WarframeClient.valence_is_stale(d, now)
+            same = WarframeClient.valence_values_stale(d, now)
         except Exception:  # noqa: BLE001 - epoch 缺失等
-            stale = True
+            stale, same = True, False
         src = d.get("valence_source") or ""
         rows.append(
             _row(
                 label,
-                STALE if stale else OK,
+                STALE if stale or same else OK,
                 snap,
-                ("已过本轮窗口，卡面会提示过期；" if stale else "在本轮窗口内；")
+                (
+                    "已过本轮窗口，卡面会提示过期；"
+                    if stale
+                    else "已换轮但数值疑似仍是上一轮（wiki 未完整更新）；"
+                    if same
+                    else "在本轮窗口内；"
+                )
                 + (f"来源 {src}" if src else "来源未记录"),
             )
         )
@@ -619,6 +626,7 @@ SETTINGS_GROUPS = [
             "flaresolverr_enabled",
             "flaresolverr_urls",
             "community_data_url",
+            "wfhelper_valence",
         ],
     ),
     ("输出", ["render_mode", "page_size", "default_platform", "strip_markdown", "wiki_intro"]),
@@ -712,6 +720,7 @@ class WebPanel:
         return [
             (f"/{n}/overview", self.overview, ["GET"], "SDJKBOT 面板：新鲜度 / 订阅 / 推送"),
             (f"/{n}/refresh", self.refresh, ["POST"], "SDJKBOT 面板：刷新社区快照"),
+            (f"/{n}/pull", self.pull, ["POST"], "SDJKBOT 面板：从源头重抓"),
             (f"/{n}/conntest", self.conntest, ["POST"], "SDJKBOT 面板：连通性测试"),
             (f"/{n}/resources", self.resources, ["GET"], "SDJKBOT 面板：依赖与字库状态"),
             (f"/{n}/deps_install", self.deps_install, ["POST"], "SDJKBOT 面板：安装依赖"),
@@ -844,6 +853,29 @@ class WebPanel:
                 except Exception as exc:  # noqa: BLE001
                     out["static"] = {"*": f"失败：{type(exc).__name__}: {exc}"[:200]}
         logger.info("[sdjk] 面板手动刷新快照：%s", out)
+        return {"results": out, "freshness": freshness()}
+
+    async def pull(self):
+        """从源头重抓（2026-10-18 用户：不能只靠定时）：不管本地新不新鲜，立即从 wiki 源页重抓
+        元素加成、言录使货单、紫卡倾向。校验照旧（数值未更新 / 货单目录 / 条数下限），校验不过不落盘；
+        源页抓不到时各自按原兜底链回落。"""
+        if (g := self._gone()) is not None:
+            return g
+        if self._refresh_lock.locked():
+            return {"status": "error", "message": "上一次刷新还没结束"}
+        c = self.p.client
+        out = {}
+        async with self._refresh_lock:
+            for key, fn in (
+                ("valence", lambda: c.refresh_valence(force=True)),
+                ("acrithis", lambda: c.refresh_acrichis_week(force=True)),
+                ("wiki_disp", lambda: c.refresh_wiki_disp(force=True)),
+            ):
+                try:
+                    out[key] = str(await asyncio.wait_for(fn(), 150))
+                except Exception as exc:  # noqa: BLE001
+                    out[key] = f"失败：{type(exc).__name__}: {exc}"[:200]
+        logger.info("[sdjk] 面板从源头重抓：%s", out)
         return {"results": out, "freshness": freshness()}
 
     async def conntest(self):
@@ -1450,6 +1482,8 @@ class WebPanel:
             p.page_size = clean["page_size"]
         if "push_interval" in clean and getattr(p, "push", None) is not None:
             p.push.interval = max(15, clean["push_interval"])
+        if "wfhelper_valence" in clean and getattr(p, "client", None) is not None:
+            p.client.wfhelper_valence = bool(clean["wfhelper_valence"])
         if "community_data_url" in clean and getattr(p, "client", None) is not None:
             from .api_client import normalize_community_base
 

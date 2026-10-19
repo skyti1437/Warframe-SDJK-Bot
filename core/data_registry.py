@@ -767,6 +767,8 @@ def _judge_timed(meta: dict, data, now: datetime, row: dict) -> tuple[str, str]:
             try:
                 if WarframeClient.valence_is_stale(d, now):
                     bad.append(sec)
+                elif WarframeClient.valence_values_stale(d, now):
+                    bad.append(f"{sec}（数值疑似仍是上一轮，wiki 未完整更新）")
             except Exception:  # noqa: BLE001 - epoch 缺失等一律算过期
                 bad.append(sec)
         if bad:

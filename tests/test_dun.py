@@ -502,8 +502,57 @@ async def main() -> None:
     )
 
 
+async def hit_count_checks() -> None:
+    """2026-10-17 用户需求：「蹲 裂隙 钢铁阋神星生存 2次」。原先「2次」落进筛选词 ⇒ 永不命中且不提示。"""
+    from core.parser import parse_fissure_filter as _pff
+    from core.parser import parse_hit_count as _phc
+
+    check("次数解析：2次 / 两次 / 10 次", (_phc("2次"), _phc("两次"), _phc("10 次")) == (2, 2, 10))
+    check(
+        "次数解析：0次 / 100次 / 次 / 2 不算",
+        [_phc(x) for x in ("0次", "100次", "次", "2")] == [None] * 4,
+    )
+
+    tmp = Path(tempfile.mkdtemp())
+    obj = _make_plugin(tmp)
+    await obj.groups.set_switch("group://hits", "push", True)
+    r = await _run_one(obj, "蹲 裂隙 钢铁阋神星生存 2次", umo="group://hits")
+    s = obj.subs.all()
+    check(
+        "用户原句：订阅成功、剩 2 次、不限时、不是一次性",
+        len(s) == 1 and s[0].hits_left == 2 and s[0].until == -1 and s[0].once is False,
+        str([(x.rule, x.hits_left, x.until, x.once) for x in s]),
+    )
+    check("「2次」不再混进筛选词", s and "次" not in s[0].rule, str([x.rule for x in s]))
+    check("回执写明「命中 2 次后取消」", "命中 2 次后取消" in _txt(r), _txt(r))
+    _f = _pff(s[0].rule) if s else None
+    _hit = {"tier": "Neo", "isHard": True, "node": "某节点（阋神星）", "missionType": "生存"}
+    _miss = {"tier": "Neo", "isHard": False, "node": "某节点（阋神星）", "missionType": "生存"}
+    check(
+        "筛选「钢铁阋神星生存」= 钢铁 且 阋神星 且 生存",
+        bool(_f) and _f.match(_hit) and not _f.match(_miss),
+        _f.describe() if _f else "",
+    )
+    # 命中计数：第 1 次保留，第 2 次后取消
+    check(
+        "consume：第 1 次后仍保留、第 2 次后取消", (s[0].consume(), s[0].consume()) == (True, False)
+    )
+
+    r2 = await _run_one(obj, "蹲 裂隙 钢铁生存 7天 3次", umo="group://hits")
+    s2 = [x for x in obj.subs.all() if x.hits_left == 3]
+    check(
+        "时长 + 次数：剩 3 次且 7 天后到期（先到为准）",
+        len(s2) == 1 and s2[0].until > 0 and s2[0].once is False,
+        str([(x.hits_left, x.until) for x in obj.subs.all()]),
+    )
+    check("回执写明「先到为准」", "先到为准" in _txt(r2), _txt(r2))
+    r3 = await _run_one(obj, "蹲 帮助", umo="group://hits")
+    check("「蹲 帮助」写了次数用法", "次数" in _txt(r3) and "2次" in _txt(r3), _txt(r3))
+
+
 if __name__ == "__main__":
     asyncio.run(main())
+    asyncio.run(hit_count_checks())
     print()
     if FAILED:
         print(f"共 {len(FAILED)} 项失败：{FAILED}")

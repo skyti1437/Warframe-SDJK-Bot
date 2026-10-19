@@ -61,6 +61,12 @@ ACRITHIS_REVISION_API = (
     "https://wiki.warframe.com/api.php?action=query&prop=revisions"
     "&titles=Acrithis/Current_Offerings&rvprop=timestamp&rvlimit=1&format=json"
 )
+# 信条/终幕源页的最近修订时间（2026-10-18 立）：wiki 是玩家人工上报，换轮后常拖几小时才有人改
+# （10-02 拖 12h、10-03 终幕拖 18h、10-18 信条）；页面最后修订早于本轮起点 ⇒ 页面上还是上一轮
+VALENCE_REVISION_API = (
+    "https://wiki.warframe.com/api.php?action=query&prop=revisions"
+    "&titles=Tenet_Weapons|Coda_Weapons&rvprop=timestamp&format=json"
+)
 # 效价加成（信条/终幕）的**真源页**：Reset 页那两段是 {{#lst:}} 跨页嵌入、走 MediaWiki
 # 解析缓存 —— 换批当天会吐**旧表**（2026-10-15 事故：00:05 对齐刷新抓到上一批，整轮数据
 # 钉死）。源页 wikitext 无解析缓存，且 A/B 两批**同页全量**（一次抓取两批齐全）。
@@ -319,6 +325,44 @@ def parse_community_valence(payload: dict) -> dict:
         raise ValueError("社区快照缺 coda.batch")
     out["coda_batch"] = batch
     out["snapshot"] = str(payload.get("published_at") or "")
+    return out
+
+
+# WFHelper 公开接口（2026-10-18 ZCode 调研；后台可选，默认关）：免登录、无 Cloudflare，直接给信条 5 件与
+# 终幕 A/B 两批的元素 / 加成。它自己注明数据同样来自 wiki 玩家上报 ⇒ **不比 wiki 快**，用处是给没装
+# FlareSolverr、又不想只靠本项目社区快照的使用者多一条通道（第三方站点，稳定性由对方负责）。
+WFHELPER_VALENCE_URL = "https://api.wfhelper.com/v1/adversary-vendors"
+
+
+def parse_wfhelper_valence(payload: dict) -> dict:
+    """WFHelper ``adversary-vendors`` → ``{"tenet": {en: (elem, bonus)}, "coda": {批次标签: {...}}}``。
+
+    ``coda`` / ``codaNext`` 两段各带 ``batch``（A/B），两批都收；任何缺失/畸形抛 ``ValueError``。
+    """
+    if not isinstance(payload, dict) or payload.get("ok") is not True:
+        raise ValueError("WFHelper 返回不是 ok 对象")
+
+    def _items(sect, tag):
+        items = (sect or {}).get("items") if isinstance(sect, dict) else None
+        if not isinstance(items, list) or not items:
+            raise ValueError(f"WFHelper {tag} 无物品")
+        m: dict[str, tuple[str, float]] = {}
+        for it in items:
+            if not isinstance(it, dict):
+                raise ValueError(f"WFHelper {tag} 条目畸形")
+            en, elem, bonus = it.get("name"), it.get("element"), it.get("bonus")
+            if not en or not elem or isinstance(bonus, bool) or not isinstance(bonus, (int, float)):
+                raise ValueError(f"WFHelper {tag} 条目缺字段：{en!r}")
+            m[str(en)] = (str(elem), float(bonus))
+        return m
+
+    out = {"tenet": _items(payload.get("tenet"), "tenet"), "coda": {}}
+    for key in ("coda", "codaNext"):
+        sect = payload.get(key)
+        batch = sect.get("batch") if isinstance(sect, dict) else None
+        if not isinstance(batch, str) or not batch:
+            raise ValueError(f"WFHelper {key} 缺 batch")
+        out["coda"][batch] = _items(sect, key)
     return out
 
 
@@ -961,6 +1005,7 @@ class WarframeClient:
         flare_enabled: bool = True,
         flare_urls: Optional[list[str]] = None,
         community_base: str = "",
+        wfhelper_valence: bool = False,
     ):
         if httpx is None:
             raise WarframeAPIError(
@@ -979,6 +1024,8 @@ class WarframeClient:
         # 社区快照地址：留空 = 本项目 bot-data（raw + 两个 jsDelivr 镜像）；填了就只用它
         #   （用户不想用我们的数据时自建，目录下放同名文件：valence.json / arb_ratings.json …）
         self.community_base = normalize_community_base(community_base)
+        # 元素加成可选第三方通道 WFHelper（后台开关，默认关）：开了就排在社区快照前面
+        self.wfhelper_valence = bool(wfhelper_valence)
         # 社区通道记忆（2026-10-16 GPT 评估 P04）：国内服务器到 raw 必超时，每次都等它超时再换镜像
         #   ⇒ 按**主机**记上次成功的通道、失败的主机冷却一段时间（raw 挂了是五个文件一起挂）
         self._comm_good_host: Optional[str] = None
@@ -1359,29 +1406,38 @@ class WarframeClient:
                     valid.add(line)
         return {"observed": observed, "items": items, "valid": sorted(valid)}
 
-    async def _acrichis_page_revision(self):
-        """wiki 页面最近修订时间（UTC datetime）；查询/解析失败返回 None（调用方降级）。"""
+    async def _wiki_revisions(self, api_url: str, what: str) -> dict:
+        """wiki 页面最近修订时间 ``{页面标题: UTC datetime}``；查询/解析失败返回 {}（调用方降级）。"""
         from datetime import datetime
 
         try:
-            raw = await self.fetch_via_flaresolver(ACRITHIS_REVISION_API, ttl=0)
+            raw = await self.fetch_via_flaresolver(api_url, ttl=0)
         except Exception as exc:  # noqa: BLE001 - 查询失败降级，不阻断刷新
-            logger.warning("[sdjk] 言录使页面修订查询失败（降级按 observed 判定）：%s", exc)
-            return None
+            logger.warning("[sdjk] %s页面修订查询失败（降级不按修订时间判定）：%s", what, exc)
+            return {}
         text = raw if isinstance(raw, str) else str(raw)
         m = re.search(r"<pre>(.*?)</pre>", text, flags=re.S)
         if m:
             text = m.group(1)
         try:
-            data = json.loads(text)
-            pages = (data.get("query") or {}).get("pages") or {}
-            revs = (next(iter(pages.values()), {}) or {}).get("revisions") or []
-            return datetime.fromisoformat(str(revs[0]["timestamp"]).replace("Z", "+00:00"))
+            pages = (json.loads(text).get("query") or {}).get("pages") or {}
+            out = {}
+            for page in pages.values():
+                revs = (page or {}).get("revisions") or []
+                if revs:
+                    ts = str(revs[0]["timestamp"]).replace("Z", "+00:00")
+                    out[str(page.get("title"))] = datetime.fromisoformat(ts)
+            return out
         except Exception as exc:  # noqa: BLE001
-            logger.warning("[sdjk] 言录使页面修订解析失败（降级按 observed 判定）：%s", exc)
-            return None
+            logger.warning("[sdjk] %s页面修订解析失败（降级不按修订时间判定）：%s", what, exc)
+            return {}
 
-    async def refresh_acrichis_week(self, community_only: bool = False) -> str:
+    async def _acrichis_page_revision(self):
+        """言录使当期子页最近修订时间（UTC datetime）；失败返回 None（调用方降级按 observed 判定）。"""
+        revs = await self._wiki_revisions(ACRITHIS_REVISION_API, "言录使")
+        return next(iter(revs.values()), None)
+
+    async def refresh_acrichis_week(self, community_only: bool = False, force: bool = False) -> str:
         """言录使本周货单：过期后自动抓 wiki 当期上报子页刷新（2026-09-21 起）。
 
         DE 不下发每周实际 5 件；wiki《Acrithis/Current Offerings》是社区人工
@@ -1396,7 +1452,8 @@ class WarframeClient:
         """
         from datetime import datetime, timedelta, timezone
 
-        if not self.acrithis_week_expired():
+        expired = self.acrithis_week_expired()
+        if not expired and not force:  # force：面板「从源头重抓」跳过这道门，其余闸门照旧
             self._note_comm("acrithis_week.json", "local_ok", "本周货单未到期")
             return "fresh"
         snap = self._load_json_file(paths.read_path(ACRITHIS_WEEK_NAME)) or {}
@@ -1406,12 +1463,12 @@ class WarframeClient:
             return "failed"
         if community_only:
             # FS 关闭/不可达：不碰 FlareSolverr，只读公开仓社区快照
-            return await self._community_acrithis_week(snap)
+            return await self._community_acrithis_week(snap, expired)
         try:
             raw = await self.fetch_via_flaresolver(ACRITHIS_CURRENT_URL, ttl=0)
         except Exception as e:  # noqa: BLE001 - 抓取失败走告警，不阻断
             logger.warning("[sdjk] 言录使当期子页抓取失败：%s，尝试社区快照", e)
-            return await self._community_acrithis_week(snap)
+            return await self._community_acrithis_week(snap, expired)
         parsed = self.parse_acrichis_current(raw)
         if not parsed:
             logger.warning("[sdjk] 言录使当期子页解析失败（模板结构变了？）")
@@ -1460,6 +1517,14 @@ class WarframeClient:
                 it["qty"] = ent["qty"]
             it["price"] = ent["price"]
             items.append(it)
+        # ★ 2026-10-18：observed / 页面修订两道闸门都可能被「本周有人编辑过页面、
+        #   但货单还没改」骗过；每周 5 件不会与上周完全相同 ⇒ 与上周一致就当未更新。
+        prev = sorted(str(it.get("name")) for it in snap.get("items") or [])
+        if prev and sorted(it["name"] for it in items) == prev:
+            if not expired:  # 强制重抓、本地货单还没到期：一样就是本地已是最新
+                return "fresh"
+            logger.info("[sdjk] 言录使当期上报与上周货单完全相同（wiki 尚未更新），本轮不落盘")
+            return "not-updated"
         out = {
             "expiry": self.acrithis_next_reset(),
             "observed": parsed["observed"],
@@ -1482,7 +1547,7 @@ class WarframeClient:
         )
         return "refreshed"
 
-    async def _community_acrithis_week(self, snap: dict) -> str:
+    async def _community_acrithis_week(self, snap: dict, expired: bool = True) -> str:
         """言录使兜底：读公开仓社区快照并落盘；校验不过返回 ``"failed"``。
 
         只替换动态字段（expiry/observed/items），本地 ``_en_catalog`` 等归档信息保留。
@@ -1503,6 +1568,13 @@ class WarframeClient:
             if it.get("price") is not None:
                 ent["price"] = it["price"]
             items.append(ent)
+        prev = sorted(str(it.get("name")) for it in snap.get("items") or [])
+        if prev and sorted(it["name"] for it in items) == prev:
+            if not expired:  # 强制重抓、本地货单还没到期：一样就是本地已是最新
+                return "fresh"
+            # 发布端也可能抓到「还没改的上周货单」⇒ 与上周一致不采用（同 refresh_acrichis_week）
+            logger.info("[sdjk] 社区言录使快照与上周货单完全相同（wiki 尚未更新），不采用")
+            return "not-updated"
         out = {
             **snap,  # 保留 _en_catalog / _reset_rule 等
             "expiry": payload["expiry"],
@@ -3266,6 +3338,49 @@ class WarframeClient:
             return True
 
     @staticmethod
+    def valence_values(items) -> list:
+        """一组武器的数值指纹（武器名 + 元素 + 加成），用来判断「换轮后数值到底变没变」。"""
+        return sorted(
+            (str(it.get("en")), str(it.get("element")), str(it.get("bonus"))) for it in items or []
+        )
+
+    @staticmethod
+    def valence_values_stale(data: dict, now=None) -> bool:
+        """快照时刻在本轮，但**当前在售那组数值从上一轮起就没变过** ⇒ wiki 还没人更新。
+
+        ★ 2026-10-18 实测：信条 00:00Z 换轮，00:17 的刷新从 wiki 抓到的仍是上一轮
+        的 5 个值（wiki 是玩家人工上报，换轮后要等人改），却因快照时刻落在本轮窗口
+        而被标成「本轮快照」，并且整轮不再重抓（10-02 换轮也出过同样的事）。
+        信条与终幕的元素 / 加成每轮都会重新生成，所以「当前这组数值最早出现的时刻」
+        早于本轮窗口起点 ⇒ 数值已存在超过一个周期 ⇒ 判为未更新。该时刻优先取 wiki
+        源页的最近修订时间（数值真正发布的时间），查不到才退回快照时刻。
+
+        - 信条：``valence_values_since``；
+        - 终幕：``batch_values_since[当前批]``（每批各记各的，当前批按 epoch+anchor 计算）。
+        没有记录时不判（旧数据无从比较）。
+        """
+        from datetime import datetime, timedelta, timezone
+
+        now = now or datetime.now(timezone.utc)
+        epoch = datetime.fromisoformat(data["epoch"])
+        period = timedelta(hours=int(data.get("period_hours", 96)))
+        passed = int((now - epoch) // period)
+        win = epoch + period * passed
+        batches = data.get("batches")
+        if batches:
+            sinces = data.get("batch_values_since") or []
+            bi = (int(data.get("anchor_idx", 0)) + passed) % len(batches)
+            since = sinces[bi] if bi < len(sinces) else None
+        else:
+            since = data.get("valence_values_since")
+        if not since:
+            return False
+        try:
+            return datetime.fromisoformat(since) < win
+        except (TypeError, ValueError):
+            return False
+
+    @staticmethod
     def coda_anchor_for(observed_idx: int, epoch, period_hours: int, now, n_batches: int) -> int:
         """由「wiki 上观测到的当前批」反解 ``anchor_idx``。
 
@@ -3443,7 +3558,27 @@ class WarframeClient:
             return None
         return parsed
 
-    async def refresh_valence(self, community_only: bool = False) -> str:
+    async def _wfhelper_valence_parsed(self) -> Optional[dict]:
+        """WFHelper 元素加成（开关打开时才调用）；取不到 / 校验不过返回 None。"""
+        try:
+            r = await self._http.get(
+                WFHELPER_VALENCE_URL, timeout=15.0, headers={"User-Agent": USER_AGENT}
+            )
+            r.raise_for_status()
+            return parse_wfhelper_valence(r.json())
+        except Exception as exc:  # noqa: BLE001 - 第三方通道失败只降级，不阻断
+            logger.info("[sdjk] WFHelper 元素加成不可用（%s），改用社区快照", exc)
+            return None
+
+    async def _valence_fallback(self, rot: dict) -> tuple[str, Optional[dict]]:
+        """源页抓不到时的兜底：WFHelper（开关打开时）→ 社区快照。返回 ``(通道, 结果)``。"""
+        if self.wfhelper_valence:
+            w = await self._wfhelper_valence_parsed()
+            if w is not None:
+                return "wfhelper", w
+        return "community", await self._community_valence_parsed(rot)
+
+    async def refresh_valence(self, community_only: bool = False, force: bool = False) -> str:
         """检查并刷新信条/终幕元素加成快照。
 
         ★ 2026-10-15 数据源改为**源页 wikitext**（``Coda_Weapons`` /
@@ -3458,7 +3593,8 @@ class WarframeClient:
         ``community_only=True``（FS 关闭/不可达时由后台循环调用）：**不碰
         FlareSolverr**，直接用公开仓社区快照；取不到就返回 "no-community" 静默跳过。
 
-        幂等：快照仍在当前 96h 轮次内则直接返回「fresh」不动文件。
+        幂等：快照仍在当前 96h 轮次内则直接返回「fresh」不动文件；``force=True``（面板「从源头
+        重抓」）跳过这道门，其余校验（解析完整、数值未更新判定）照旧。
         校验失败（解析残缺）抛异常，绝不写半成品。
         """
         from datetime import datetime, timedelta, timezone
@@ -3472,7 +3608,19 @@ class WarframeClient:
         #   服务器快照停在 2026-09-17，09-19 以来 52 条 sdjk 日志里一条刷新
         #   记录都没有，plugin_data 下也从没写出过 rotations.json。
         _sections = [rot.get(k) for k in ("tenet", "coda")]
-        if not any(self.valence_is_stale(s, now) for s in _sections if s):
+        # 升级前的数据还没有「数值最早出现时刻」记录 ⇒ 先刷一次补上（否则本轮未更新也认不出来）
+        _unrecorded = not (rot.get("tenet") or {}).get("valence_values_since") or not (
+            rot.get("coda") or {}
+        ).get("batch_values_since")
+        if (
+            not force
+            and not _unrecorded
+            and not any(
+                self.valence_is_stale(s, now) or self.valence_values_stale(s, now)
+                for s in _sections
+                if s
+            )
+        ):
             self._note_comm("valence.json", "local_ok", "本地快照在本轮窗口内")
             return "fresh"
 
@@ -3483,33 +3631,41 @@ class WarframeClient:
         if len(batches) != len(labels):
             raise WarframeAPIError("valence 批次表与标签数不一致")
 
-        used_community = False
+        used_community = used_wfhelper = False
+        revs: dict = {}  # 源页最近修订时间（只在直抓源页时查；兜底通道没有）
         # 归一形：tenet {en: (elem, pct)}、coda {批次号(1-based): {en: (elem, pct)}}
         if community_only:
-            raw = await self._community_valence_parsed(rot)
+            kind, raw = await self._valence_fallback(rot)
             if raw is None:
                 return "no-community"
-            used_community = True
+            used_community, used_wfhelper = kind == "community", kind == "wfhelper"
         else:
             try:
+                ttl = 0 if force else 600  # 强制重抓不吃 10 分钟页面缓存
                 p_coda = self.parse_wikitext(
-                    await self.fetch_via_flaresolver(WIKI_RAW_CODA, ttl=600)
+                    await self.fetch_via_flaresolver(WIKI_RAW_CODA, ttl=ttl)
                 )
                 p_tenet = self.parse_wikitext(
-                    await self.fetch_via_flaresolver(WIKI_RAW_TENET, ttl=600)
+                    await self.fetch_via_flaresolver(WIKI_RAW_TENET, ttl=ttl)
                 )
                 raw = None
+                revs = await self._wiki_revisions(VALENCE_REVISION_API, "元素加成")
             except Exception as exc:  # noqa: BLE001
                 # ★ 没部署 / 连不上 FlareSolverr 时的兜底：读公开仓 bot-data 的
                 #   社区快照（同一份 wiki 数据，由有 FS 的那台机器发布）。校验不过
                 #   就照旧抛错（调用方降级），绝不采用残缺或更旧的数据。
-                logger.info("[sdjk] 元素加成源页不可用（%s），尝试社区快照", exc)
-                raw = await self._community_valence_parsed(rot)
+                logger.info("[sdjk] 元素加成源页不可用（%s），尝试兜底通道", exc)
+                kind, raw = await self._valence_fallback(rot)
                 if raw is None:
                     raise
-                used_community = True
+                used_community, used_wfhelper = kind == "community", kind == "wfhelper"
 
-        if used_community:
+        if used_wfhelper:
+            coda = {labels.index(b) + 1: m for b, m in raw["coda"].items() if b in labels}
+            if not coda:
+                raise WarframeAPIError(f"WFHelper 批次标注异常：{sorted(raw['coda'])!r}")
+            parsed = {"tenet": raw["tenet"], "coda": coda}
+        elif used_community:
             cb = raw.get("coda_batch") or ""
             if cb not in labels:
                 raise WarframeAPIError(f"valence 批次标注异常：{cb!r}")
@@ -3550,19 +3706,64 @@ class WarframeClient:
         if used_community and raw.get("snapshot"):
             # ★ 社区快照保留**数据源的时刻**（GPT 评估 V01）：写 now 会让旧数据看起来是刚抓的
             snap = str(raw["snapshot"])
+
+        half: list = []  # 判为「只改了百分比」的源页（日志用）
+
+        def _since(old_vals, new_items, recorded, legacy, page):
+            # 「这组数值最早出现的时刻」：数值没变且已有记录 ⇒ 沿用；否则取 wiki 页面最近修订时刻
+            # （数值真正发布的时间；早于本轮起点即「页面上还是上一轮」）；查不到修订时间时，
+            # 没变沿用旧快照时刻（升级前的数据没有记录）、变了从本次快照算起
+            new_vals = self.valence_values(new_items)
+            same = new_vals == old_vals
+            if not same and old_vals and len(new_vals) == len(old_vals):
+                # ★ 2026-10-18 半更新：wiki 编辑者只改了百分比、元素列原样留着上一轮（游戏内实拍
+                #   5 把里 4 把元素不同）。元素每轮重新随机，整组元素与上一轮逐把相同 ⇒ 按未更新处理
+                old_el = [v[:2] for v in old_vals]
+                if (
+                    all(e not in ("None", "") for _, e in old_el)
+                    and [v[:2] for v in new_vals] == old_el
+                ):
+                    same = True
+                    half.append(page)
+            if same and recorded:
+                return recorded
+            rev = revs.get(page)
+            rev = rev.replace(microsecond=0).isoformat() if rev else None
+            if not same:
+                return rev or snap
+            # 数值没变、升级前又没记录：页面修订可能是无关编辑 ⇒ 取修订时刻与旧快照时刻中较早者
+            cands = [t for t in (rev, legacy) if t]
+            return min(cands, key=datetime.fromisoformat) if cands else snap
+
+        old_t = self.valence_values(tenet_data.get("items"))
+        old_t_since = tenet_data.get("valence_values_since")
+        old_t_snap = tenet_data.get("valence_snapshot")
         for it in tenet_data.get("items") or []:
             elem, pct = parsed["tenet"][it["en"]]
             it["element"], it["bonus"] = elem, pct
+        tenet_data["valence_values_since"] = _since(
+            old_t, tenet_data.get("items"), old_t_since, old_t_snap, "Tenet Weapons"
+        )
         # ★ A/B 两批都给值（源页两批同页全量）；缺的那批保留原值，不清空
+        old_c_since = list(coda_data.get("batch_values_since") or [])
+        old_c_since += [None] * (len(batches) - len(old_c_since))
+        old_c_snap = coda_data.get("valence_snapshot")
+        new_c_since = []
         for idx, b_items in enumerate(batches):
+            old_c = self.valence_values(b_items)
             table = parsed["coda"].get(idx + 1) or {}
             for it in b_items:
                 if it.get("en") in table:
                     elem, pct = table[it["en"]]
                     it["element"], it["bonus"] = elem, pct
+            new_c_since.append(_since(old_c, b_items, old_c_since[idx], old_c_snap, "Coda Weapons"))
+        coda_data["batch_values_since"] = new_c_since
         tenet_data["valence_snapshot"] = snap
         coda_data["valence_snapshot"] = snap
-        if used_community:
+        via = "(wfhelper)" if used_wfhelper else "(community)" if used_community else ""
+        if used_wfhelper:
+            src = "WFHelper 公开接口（数据同样来自 wiki 玩家上报；后台可选通道）"
+        elif used_community:
             src = "community-snapshot（wiki《Reset》数据，由有 FS 的机器发布）"
         else:
             src = "wiki 源页 wikitext（Coda_Weapons / Tenet_Weapons，经 FlareSolverr）"
@@ -3573,7 +3774,20 @@ class WarframeClient:
         )
         if used_community:
             self._note_comm("valence.json", "adopted", f"批次 {labels[bi]}", snap)
-        return f"refreshed {snap} batch={labels[bi]}" + ("(community)" if used_community else "")
+        same = [
+            n
+            for n, d in (("信条", tenet_data), ("终幕", coda_data))
+            if self.valence_values_stale(d, now)
+        ]
+        if same:
+            logger.warning(
+                "[sdjk] %s元素加成已换轮，但抓到的数值疑似仍是上一轮（wiki 尚未完整更新%s），"
+                "卡面标注疑似上一轮；后台每轮继续重抓",
+                "、".join(same),
+                "：元素列与上一轮完全相同、只改了百分比" if half else "",
+            )
+            return f"not-updated {snap} batch={labels[bi]}{via}"
+        return f"refreshed {snap} batch={labels[bi]}{via}"
 
     @staticmethod
     def parse_wiki_dispositions(html: str) -> dict:

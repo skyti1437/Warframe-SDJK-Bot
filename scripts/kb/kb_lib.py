@@ -10,6 +10,7 @@ Warframe 知识库构建 · 公共层
 """
 
 import json
+import math
 import os
 import re
 from collections import Counter, OrderedDict
@@ -450,11 +451,43 @@ def strip_tags(t):
     return _TAG_ANY.sub("", t)
 
 
+_LONG_DECIMAL = re.compile(r"(?<![\w.])[-+]?\d+\.\d{7,}(?![\d.])")
+
+
+def normalize_float_text(text):
+    """只收敛处于 float32 误差范围内的长小数，保留有意义的高精度值。"""
+
+    def replace(match):
+        value = float(match.group())
+        if not math.isfinite(value):
+            return match.group()
+        tolerance = min(1e-6, max(1e-12, abs(value) * 1.2e-7))
+        for decimals in range(7):
+            rounded = round(value, decimals)
+            if abs(rounded - value) <= tolerance:
+                return (
+                    format(rounded, f".{decimals}f").rstrip("0").rstrip(".")
+                    if decimals
+                    else str(int(rounded))
+                )
+        return match.group()
+
+    return _LONG_DECIMAL.sub(replace, text)
+
+
+def valid_damage(value):
+    """未加 MOD 的伤害字段：有限、非负，拒绝损坏快照的极端量级。"""
+    try:
+        return math.isfinite(float(value)) and 0 <= float(value) <= 1e9
+    except (ValueError, TypeError, OverflowError):
+        return False
+
+
 def clean(text, limit=None):
     """清洗富文本：去颜色标签、`\\n` 字面转分隔、|MACRO| → 〈MACRO〉。"""
     if text is None:
         return ""
-    t = strip_tags(text)
+    t = normalize_float_text(strip_tags(text))
     t = t.replace("\\n", "；").replace("\\r", "")
     t = _unmacro(t)
     t = t.replace("\r\n", "\n").replace("\r", "\n")
@@ -474,7 +507,7 @@ def fmt_damage(arr, dt_order):
     """damagePerShot → '冲击 26｜穿刺 35.2｜切割 8.8'（顺序取 config/damageTypes.json）"""
     out = []
     for i, v in enumerate(arr or []):
-        if not v or i >= len(dt_order):
+        if not v or i >= len(dt_order) or not valid_damage(v):
             continue
         out.append("%s %s" % (DT_ZH.get(dt_order[i].lower(), dt_order[i]), trim_num(v, 2)))
     return "｜".join(out)

@@ -19,6 +19,7 @@ from kb_lib import (
     trim_num,
     clean,
     fmt_damage,
+    valid_damage,
     zh_stat,
     residue_words,
     to_text,
@@ -342,12 +343,40 @@ def zhname(rec):
     return title_of((S.zh_item.get(rec.get("uniqueName")) or {}).get("name"), rec.get("name"))
 
 
-def entry(title, body):
-    return "### %s\n%s\n" % (title, body.rstrip())
+QUALITY_EVENTS = []
+
+
+def asset_marker(unique_name, category="", item_type=""):
+    meta = {"asset_id": "de:" + unique_name, "category": category, "type": item_type}
+    return "<!-- wf-asset " + json.dumps(meta, ensure_ascii=False, sort_keys=True) + " -->"
+
+
+def entry(title, body, asset_id="", category="", item_type=""):
+    marker = (asset_marker(asset_id, category, item_type) + "\n") if asset_id else ""
+    return "### %s\n%s%s\n" % (title, marker, body.rstrip())
+
+
+def asset_entry(rec, body):
+    return entry(
+        zhname(rec), body, rec.get("uniqueName", ""), rec.get("category", ""), rec.get("type", "")
+    )
+
+
+def valid_mod_capacity(value, low, high):
+    try:
+        number = float(value)
+        return low <= number <= high
+    except (ValueError, TypeError, OverflowError):
+        return False
+
+
+def modular_component(rec):
+    kind = str(rec.get("type") or "").lower()
+    return "component" in kind and any(tag in kind for tag in ("zaw", "kitgun", "amp", "modular"))
 
 
 def dedupe_body(body):
-    """同标题条目：正文完全相同 → 去重；正文不同 → 用首个区分行给标题加后缀。"""
+    """仅对同名标题消歧；不同来源记录即使正文相同也保留。"""
     parts = [p for p in re.split(r"\n(?=### )", body) if p.strip()]
     groups = OrderedDict()
     for p in parts:
@@ -360,14 +389,12 @@ def dedupe_body(body):
             out.append(ps[0])
             seen_titles.add(ps[0].split("\n", 1)[0])
             continue
-        if len({p.split("\n", 1)[1] if "\n" in p else "" for p in ps}) == 1:
-            out.append(ps[0])
-            n_drop += len(ps) - 1
-            continue
         for p in ps:
             lines = p.split("\n")
             sig = ""
-            for ln in lines[1:4]:
+            for ln in lines[1:5]:
+                if ln.startswith("<!--"):
+                    continue
                 s = ln.lstrip("- ").strip()
                 if s:
                     sig = "｜".join(s.split("｜")[:2])[:32]
@@ -716,7 +743,9 @@ def build_warframes():
         mats, _ = materials(r.get("components"), cap=8)
         if mats:
             L.append("- 建造材料：%s" % "｜".join(mats))
-        body.append(entry(ttl, "\n".join(L)))
+        body.append(
+            entry(ttl, "\n".join(L), r["uniqueName"], r.get("category", ""), r.get("type", ""))
+        )
         if ab:
             AL = []
             for a, x in zip(ab, an):
@@ -813,40 +842,55 @@ def weapon_part(title, key):
         ttl = zhname(r)
         sub = weapon_subtype(r, key)
         L = ["- 定位：%s｜%s｜精通等级需求 %s" % (title, sub, trim_num(r.get("masteryReq"), 0))]
-        td = r.get("totalDamage")
-        dmg = fmt_damage(r.get("damagePerShot"), S.cfg_dt)
-        if td is not None:
-            L.append("- 总伤害：%s%s" % (trim_num(td, 1), ("（%s）" % dmg) if dmg else ""))
-        elif dmg:
-            L.append("- 伤害构成：%s" % dmg)
-        st = []
-        for f, fmt in (
-            ("criticalChance", lambda v: "暴击几率 %s" % pct_frac(v)),
-            ("criticalMultiplier", lambda v: "暴击倍率 %s×" % trim_num(v, 1)),
-            ("procChance", lambda v: "触发几率 %s" % pct_frac(v, 2)),
-            ("fireRate", lambda v: "射速 %s" % trim_num(v, 2)),
-            ("magazineSize", lambda v: "弹匣 %s" % trim_num(v, 0)),
-            ("reloadTime", lambda v: "装填 %s 秒" % trim_num(v, 2)),
-            ("multishot", lambda v: "多重射击 %s" % trim_num(v, 1)),
-            ("accuracy", lambda v: "精准度 %s" % trim_num(v, 1)),
-        ):
-            if r.get(f) is not None:
-                st.append(fmt(r[f]))
-        if st:
-            L.append("- 数据：%s" % "｜".join(st))
-        st2 = []
-        for f, fmt in (
-            ("trigger", lambda v: "扳机 %s" % TRIGGER_ZH.get(v, v)),
-            ("noise", lambda v: "噪音 %s" % NOISE_ZH.get(v, v)),
-            ("range", lambda v: "攻击范围 %s 米" % trim_num(v, 2)),
-            ("comboDuration", lambda v: "连击持续 %s 秒" % trim_num(v, 1)),
-            ("followThrough", lambda v: "穿透 %s" % trim_num(v, 2)),
-            ("omegaAttenuation", lambda v: "紫卡倾向 %s" % trim_num(v, 3)),
-        ):
-            if r.get(f) is not None:
-                st2.append(fmt(r[f]))
-        if st2:
-            L.append("- 特性：%s" % "｜".join(st2))
+        if modular_component(r):
+            L.append("- 面板：模块化部件需组合后才有完整武器面板；未组装数值不适用。")
+            QUALITY_EVENTS.append(
+                {"asset_id": "de:" + r["uniqueName"], "rule": "unassembled_component_panel"}
+            )
+        else:
+            td = r.get("totalDamage")
+            dmg = fmt_damage(r.get("damagePerShot"), S.cfg_dt)
+            if td is not None and valid_damage(td):
+                L.append("- 总伤害：%s%s" % (trim_num(td, 1), ("（%s）" % dmg) if dmg else ""))
+            elif dmg:
+                L.append("- 伤害构成：%s" % dmg)
+            st = []
+            for f, fmt in (
+                ("criticalChance", lambda v: "暴击几率 %s" % pct_frac(v)),
+                ("criticalMultiplier", lambda v: "暴击倍率 %s×" % trim_num(v, 1)),
+                ("procChance", lambda v: "触发几率 %s" % pct_frac(v, 2)),
+                ("fireRate", lambda v: "射速 %s" % trim_num(v, 2)),
+                ("magazineSize", lambda v: "弹匣 %s" % trim_num(v, 0)),
+                ("reloadTime", lambda v: "装填 %s 秒" % trim_num(v, 2)),
+                ("multishot", lambda v: "多重射击 %s" % trim_num(v, 1)),
+                ("accuracy", lambda v: "精准度 %s" % trim_num(v, 1)),
+            ):
+                if r.get(f) is not None:
+                    st.append(fmt(r[f]))
+            if st:
+                L.append("- 数据：%s" % "｜".join(st))
+            st2 = []
+            for f, fmt in (
+                ("trigger", lambda v: "扳机 %s" % TRIGGER_ZH.get(v, v)),
+                ("noise", lambda v: "噪音 %s" % NOISE_ZH.get(v, v)),
+                ("range", lambda v: "攻击范围 %s 米" % trim_num(v, 2)),
+                ("comboDuration", lambda v: "连击持续 %s 秒" % trim_num(v, 1)),
+                ("followThrough", lambda v: "穿透 %s" % trim_num(v, 2)),
+                ("omegaAttenuation", lambda v: "紫卡倾向 %s" % trim_num(v, 3)),
+            ):
+                if r.get(f) is not None:
+                    st2.append(fmt(r[f]))
+            if st2:
+                L.append("- 特性：%s" % "｜".join(st2))
+        bad_damage = [v for v in (r.get("damagePerShot") or []) if not valid_damage(v)]
+        if bad_damage and not modular_component(r):
+            QUALITY_EVENTS.append(
+                {
+                    "asset_id": "de:" + r["uniqueName"],
+                    "rule": "invalid_damage",
+                    "values": bad_damage,
+                }
+            )
         # 灵化形态（attacks 含 Incarnon Form 的 69 把枪械；面板与灵化之源索引同源）
         _inc_a = incarnon_form_of(r)
         if _inc_a:
@@ -883,7 +927,9 @@ def weapon_part(title, key):
             L.append("- 蓝图价：%s 现金" % trim_num(r["bpCost"], 0))
         if r.get("vaulted"):
             L.append("- 状态：已入库（Vaulted）")
-        body.append(entry(ttl, "\n".join(L)))
+        body.append(
+            entry(ttl, "\n".join(L), r["uniqueName"], r.get("category", ""), r.get("type", ""))
+        )
     return recs, body
 
 
@@ -912,7 +958,7 @@ def form_panel(a):
     parts = [
         "%s %s" % (DT_ZH.get(k.lower(), k), trim_num(v, 1))
         for k, v in dmg.items()
-        if k != "total" and v
+        if k != "total" and v and valid_damage(v)
     ]
     if parts:
         seg.append("｜".join(parts))
@@ -950,6 +996,7 @@ def incarnon_index():
         wzh = nm[: -len("灵化之源")] if nm.endswith("灵化之源") else ""
         slot = "副武器" if "/Secondary/" in un else ("主武器" if "/Primary/" in un else "")
         idx[seg[: -len("IncarnonUnlocker")]] = {
+            "asset_id": un,
             "unlocker": nm,
             "weapon_zh": wzh,
             "desc": desc,
@@ -1065,7 +1112,7 @@ def build_weapons():
             if d.get("perks"):
                 L.append("- %s" % d["perks"])
             ttl2 = "%s灵化之源（%s Incarnon Genesis）" % (d.get("weapon_zh") or "", stem)
-            B.append(entry(ttl2, "\n".join(L)))
+            B.append(entry(ttl2, "\n".join(L), d["asset_id"], "Resources", "Incarnon Adapter"))
     tot_n = sum(cnt)
     intro = f"""# Warframe 知识库 · 武器（主武器 / 副武器 / 近战）
 
@@ -1124,10 +1171,21 @@ def build_mods():
         # ★ 2026-10-16 合理性闸门：旧版上游快照里裂罅 / Railjack 随机 MOD 的 baseDrain=2025586688、
         #   fusionLimit=593（占位怪值，0x78BC0000），被原样写进 wiki 卡。上游 10-15 版已是 9 / 0；
         #   这里只收合理区间（全表实测 baseDrain -4..10、fusionLimit 0..13），越界整段省略、不写怪数。
-        if r.get("baseDrain") is not None and -30 <= float(r["baseDrain"]) <= 30:
+        if r.get("baseDrain") is not None and valid_mod_capacity(r["baseDrain"], -30, 30):
             seg.append("基础容量 %s" % trim_num(r["baseDrain"], 0))
-        if r.get("fusionLimit") is not None and 0 <= float(r["fusionLimit"]) <= 30:
+        if r.get("fusionLimit") is not None and valid_mod_capacity(r["fusionLimit"], 0, 30):
             seg.append("满级 %s" % trim_num(r["fusionLimit"], 0))
+        for field, low, high in (("baseDrain", -30, 30), ("fusionLimit", 0, 30)):
+            value = r.get(field)
+            if value is not None and not valid_mod_capacity(value, low, high):
+                QUALITY_EVENTS.append(
+                    {
+                        "asset_id": "de:" + r["uniqueName"],
+                        "rule": "invalid_mod_capacity",
+                        "field": field,
+                        "value": value,
+                    }
+                )
         if r.get("isAugment"):
             seg.append("战甲强化 MOD")
         if r.get("isExilus"):
@@ -1148,7 +1206,7 @@ def build_mods():
             L.append("- 可通过转换（Transmutation）获得")
         if r.get("tradable"):
             L.append("- 可交易")
-        body.append(entry(zhname(r), "\n".join(L)))
+        body.append(asset_entry(r, "\n".join(L)))
     # WSD 旧版赋能表（带官方中文效果），按「X 赋能」↔「赋能·X」与现行 172 个赋能对齐
     wsd_arc = {}
     for a in S.wsd.get("zh_arcanes") or []:
@@ -1191,7 +1249,7 @@ def build_mods():
             L.append("- 获取：%s" % drops_brief(r["drops"], 3))
         if r.get("tradable"):
             L.append("- 可交易")
-        body.append(entry(zhname(r), "\n".join(L)))
+        body.append(asset_entry(r, "\n".join(L)))
     # ---------------- 三、MOD 套装 ----------------
     sets_ = P.get("ModSet") or {}
     by_set = defaultdict(list)
@@ -1248,7 +1306,7 @@ def build_mods():
                     vals.append("%s = %s" % (kk, " / ".join(seq)))
                 L.append("- 加成档位（随件数递增）：%s" % "；".join(vals))
             ttl = ("套装 · %s（%s）" % (zh_set, seg)) if zh_set else ("套装 · %s" % seg)
-            body.append(entry(ttl, "\n".join(L)))
+            body.append(entry(ttl, "\n".join(L), k, "ModSet", "Mod Set"))
 
     intro = f"""# Warframe 知识库 · MOD 与赋能
 
@@ -1533,7 +1591,7 @@ def build_resources():
                 L.append("- 用途 / 掉落：%s" % drops_brief(r["drops"], 3))
             if r.get("tradable"):
                 L.append("- 可交易")
-            out.append(entry(zhname(r), "\n".join(L)))
+            out.append(asset_entry(r, "\n".join(L)))
         return out
 
     B = ["## 一、资源与材料", ""]
@@ -1563,7 +1621,7 @@ def build_resources():
             L.append("- 商店：%s 铂金" % trim_num(r["marketCost"], 0))
         if r.get("drops"):
             L.append("- 获取：%s" % drops_brief(r["drops"], 3))
-        B.append(entry(zhname(r), "\n".join(L)))
+        B.append(asset_entry(r, "\n".join(L)))
 
     B += ["", "## 三、鱼类（开放世界垂钓）", ""]
     B += simple(I["Fish"], "鱼类（开放世界垂钓）")
@@ -1595,7 +1653,7 @@ def build_resources():
             L.append("- 使用后消耗")
         if v.get("tradable"):
             L.append("- 可交易")
-        B.append(entry(title_of(zn, seg), "\n".join(L)))
+        B.append(entry(title_of(zn, seg), "\n".join(L), k, "Recipes", "Recipe"))
     intro = f"""# Warframe 知识库 · 资源、装备品、鱼类与制造配方
 
 {NAV}
@@ -1644,7 +1702,7 @@ def build_companions():
                 L.append("- 获取：%s" % drops_brief(r["drops"], 3))
             if r.get("marketCost"):
                 L.append("- 商店：%s 铂金" % trim_num(r["marketCost"], 0))
-            out.append(entry(zhname(r), "\n".join(L)))
+            out.append(asset_entry(r, "\n".join(L)))
         return out
 
     B = ["## 一、守护（Sentinels）与守护武器", ""]
@@ -1687,7 +1745,15 @@ def build_companions():
             L = ["- %s" % "｜".join(seg)]
             if ov_.get("effect"):
                 L.append("- 效果（官方简中）：%s" % clean(ov_["effect"], 300))
-            B.append(entry(ov_.get("name") or un.rsplit("/", 1)[-1], "\n".join(L)))
+            B.append(
+                entry(
+                    ov_.get("name") or un.rsplit("/", 1)[-1],
+                    "\n".join(L),
+                    un,
+                    "Avionics",
+                    "Railjack Mod",
+                )
+            )
     intro = f"""# Warframe 知识库 · 同伴、Archwing 空战与九重天
 
 {NAV}
@@ -2135,7 +2201,10 @@ def build_others():
                 zn = to_text((S.zh_item.get(r["uniqueName"]) or {}).get("name")) or r["name"]
                 d = clean((S.zh_item.get(r["uniqueName"]) or {}).get("description"), 110)
                 lines.append(
-                    "- %s%s%s"
+                    (
+                        asset_marker(r["uniqueName"], r.get("category", ""), r.get("type", ""))
+                        + "\n- %s%s%s"
+                    )
                     % (
                         zn,
                         ("（%s）" % r["name"]) if zn != r["name"] else "",
@@ -2155,7 +2224,10 @@ def build_others():
             zn = to_text((S.zh_item.get(r["uniqueName"]) or {}).get("name")) or r["name"]
             d = clean((S.zh_item.get(r["uniqueName"]) or {}).get("description"), 120)
             lines.append(
-                "- %s%s%s"
+                (
+                    asset_marker(r["uniqueName"], r.get("category", ""), r.get("type", ""))
+                    + "\n- %s%s%s"
+                )
                 % (zn, ("（%s）" % r["name"]) if zn != r["name"] else "", ("：" + d) if d else "")
             )
         B.append(entry("%s（%d 条）" % (label, len(lines)), "\n".join(lines)))
@@ -2844,7 +2916,13 @@ def main():
                 dup_titles=ndup,
             )
         )
-    out = dict(name_stats=stats, files=rep, total_chars=tot, total_kb=round(tot / 1024.0, 1))
+    out = dict(
+        name_stats=stats,
+        files=rep,
+        total_chars=tot,
+        total_kb=round(tot / 1024.0, 1),
+        quality_events=QUALITY_EVENTS,
+    )
     with open(os.path.join(WORKDIR, "build_report.json"), "w", encoding="utf-8") as f:
         json.dump(out, f, ensure_ascii=False, indent=1)
     print("耗时 %.1fs" % (time.time() - T0))

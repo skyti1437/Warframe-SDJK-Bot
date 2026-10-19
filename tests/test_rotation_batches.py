@@ -418,15 +418,27 @@ for _name, _rep, _n in (("信条", _reply_t, 5), ("终幕", _reply_c, 7)):
 #   Coda_Weapons / Tenet_Weapons **源页 wikitext**（经服务器 FlareSolverr，见
 #   scripts/fetch_valence.py）。本窗口抽查的两把：Ferrox Electricity 27.7→Cold 57.0、
 #   Exec Toxin 25.1→Magnetic 29.8。
+# ★ 2026-10-18 刷新（窗口 10-18 00:00 UTC 起，信条 5 把全重掷）：
+#   上游 10-18T02:05:08Z 由 ~2026-ThinkingSingTogetherJiggy48724 修订该页
+#   （"Updated the new valence percentages"）；运行期换轮后 17 分钟就抓到**尚未更新**
+#   的旧表、把快照盖成新窗口时间，因而本轮不再重抓（详见
+#   output/交接-给ZCode-信条种子探测-20261018-*.md），本段按上游源页实测值回写。
+#   抽查两把：Ferrox Cold 57.0→26.5、Exec Magnetic 29.8→25.1。
+# ★ 2026-10-18 元素列校正（用户 12:18 游戏内实拍 vs wiki 逐条比对）：
+#   **wiki 这一轮只改了百分比、元素列原样留在 10-14 那轮** —— 编辑者备注自述
+#   "Updated the new valence percentages"。百分比五个全对得上，元素四个不同：
+#   Ferrox Cold→Electricity(电击)、Grigori Heat→Impact(冲击)、
+#   Exec Magnetic→Toxin(毒素)、Agendus Magnetic→Radiation(辐射)；Livia Impact 未变。
+#   故本段元素按**游戏内实拍**为准（wiki 修好后可回归 wiki 源）。
 _tmap = {i["en"]: (i.get("element"), i.get("bonus")) for i in _tenet_items}
 check(
-    "信条·铁晶磁轨炮 = 冰冻 57.0%（wiki 2026-10-15 源页）",
-    _tmap.get("Tenet Ferrox") == ("Cold", 57.0),
+    "信条·铁晶磁轨炮 = 电击 26.5%（游戏内实拍校正，wiki 元素列滞后）",
+    _tmap.get("Tenet Ferrox") == ("Electricity", 26.5),
     str(_tmap.get("Tenet Ferrox")),
 )
 check(
-    "信条·枢密 = 磁力 29.8%（wiki 2026-10-15 源页）",
-    _tmap.get("Tenet Exec") == ("Magnetic", 29.8),
+    "信条·枢密 = 毒素 25.1%（游戏内实拍校正，wiki 元素列滞后）",
+    _tmap.get("Tenet Exec") == ("Toxin", 25.1),
     str(_tmap.get("Tenet Exec")),
 )
 _cmap = {i["en"]: (i.get("element"), i.get("bonus")) for i in _cur_batch}
@@ -435,12 +447,12 @@ _cmap = {i["en"]: (i.get("element"), i.get("bonus")) for i in _cur_batch}
 #   批次归属由 ``(anchor_idx + 换轮次数) % 2`` 计算 —— anchor_idx 是**相位基准**，
 #   不等于当前批下标；epoch 2026-09-13、anchor_idx=0 ⇒ 该日起第 1 个 4 天窗口为 A 批。
 #   终幕换批边界比信条晚 24h，**不要**为了整齐去对齐 epoch（对齐会整体错位一天）。
-# ★ 2026-10-15 刷新（快照 10-15T11:59，源页 wikitext）：A 批（当前生效）7 条全重掷 ——
-#   Catabolyst Impact 37.9→Toxin 33.2、Motovore Electricity 56.3→Magnetic 25.7；
-#   B 批本轮未动（Bassocyst Radiation 38.3 / Synapse Heat 54.9 保持）。
+# ★ 2026-10-19 刷新（快照 10-19T00:17，用户游戏内实拍 —— FlareSolverr 当时 OOM 不可达）：
+#   当期批 B 7 条全重掷 —— Bassocyst Radiation 38.3→Toxin 40.4、Synapse Heat 54.9→Toxin 39.4；
+#   A 批本轮未取到新值（保持 10-15 的 Catabolyst Toxin 33.2 / Motovore Magnetic 25.7）。
 _SPOT = {
     "A": {"Coda Catabolyst": ("Toxin", 33.2), "Coda Motovore": ("Magnetic", 25.7)},
-    "B": {"Coda Bassocyst": ("Radiation", 38.3), "Coda Synapse": ("Heat", 54.9)},
+    "B": {"Coda Bassocyst": ("Toxin", 40.4), "Coda Synapse": ("Toxin", 39.4)},
 }
 _cur_label = (coda.get("batch_label") or ["A", "B"])[_idx]
 for _en, _exp in _SPOT.get(_cur_label, {}).items():

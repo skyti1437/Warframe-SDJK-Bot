@@ -3,8 +3,7 @@
 
 数据由 ``scripts/build_wiki_intro.py`` 在构建期从知识库 Markdown 抽取
 （``core/data/wiki_intro.json``：战甲 / 武器 / MOD / 资源 / 同伴等）。
-本文件**不进开源与市场包**（dist/package_release.py::EXCLUDE_FILES）——
-公开版 wiki 只给链接；文件缺失时这里返回 None，调用方自然回落纯链接。
+数据与读取代码随开源、市场包分发；文件缺失时返回 None，调用方回落纯链接。
 """
 
 from __future__ import annotations
@@ -178,25 +177,95 @@ def _norm(s: str) -> str:
     return " ".join(re.sub(r"[^0-9a-z一-鿿]+", " ", (s or "").lower()).split())
 
 
+class _EntryRows(list):
+    """保留原 entries 接口，旁挂每条记录的来源与资产身份。"""
+
+    def __init__(self, rows, assets, pvp=(), views=None):
+        super().__init__(rows)
+        self.assets = assets
+        self.pvp = frozenset(pvp)
+        self.views = views or {}
+
+
 @lru_cache(maxsize=1)
 def _table() -> tuple[list, dict, dict]:
-    """读简介数据；文件缺失/损坏时返回空表（可选项，不是硬依赖）。"""
+    """兼容旧下标、完整身份格式与紧凑数字引用；保留同名资产。"""
     try:
         data = json.loads(_FILE.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return [], {}, {}
     if not isinstance(data, dict):
         return [], {}, {}
-    entries = data.get("entries") or []
-    keys = data.get("keys") or {}
-    uses = data.get("uses") or {}
+    entries, keys, uses = data.get("entries") or [], data.get("keys") or {}, data.get("uses") or {}
     if not (isinstance(entries, list) and isinstance(keys, dict) and isinstance(uses, dict)):
         return [], {}, {}
-    return entries, keys, uses
+    if isinstance(data.get("_meta"), dict) and data["_meta"].get("schema") == 3:
+        pvp = data.get("pvp") or []
+        views = data.get("views") or {}
+        if not isinstance(pvp, list) or not isinstance(views, dict):
+            return [], {}, {}
+        return _EntryRows(entries, [], (i for i in pvp if isinstance(i, int)), views), keys, uses
+    ids = data.get("id_entries") or {}
+    if not isinstance(ids, dict):
+        return [], {}, {}
+    resolved = {}
+    for key, value in keys.items():
+        if isinstance(value, int):
+            resolved[key] = value
+            continue
+        indices = []
+        for asset_id in value if isinstance(value, list) else []:
+            if isinstance(asset_id, str):
+                indices.extend(ids.get(asset_id, []))
+            elif isinstance(asset_id, int):
+                indices.append(asset_id)
+        resolved[key] = list(dict.fromkeys(i for i in indices if isinstance(i, int)))
+    assets = data.get("assets") or []
+    return _EntryRows(entries, assets if isinstance(assets, list) else []), resolved, uses
+
+
+def candidates(name: str) -> list[dict]:
+    """精确中/英文名的全部同名资产；不以显示标题去重。"""
+    entries, keys, _ = _table()
+    value = keys.get(_norm(name), [])
+    indices = [value] if isinstance(value, int) else value if isinstance(value, list) else []
+    rows = []
+    assets = getattr(entries, "assets", [])
+    for i in indices:
+        if not isinstance(i, int) or not 0 <= i < len(entries):
+            continue
+        e = entries[i]
+        if not isinstance(e, list) or len(e) != 2:
+            continue
+        meta = assets[i] if i < len(assets) and isinstance(assets[i], dict) else {}
+        rows.append(
+            {
+                "title": str(e[0]),
+                "lines": e[1],
+                "index": i,
+                "asset_index": i,
+                "variant": "pvp" if i in getattr(entries, "pvp", ()) else "normal",
+                **meta,
+            }
+        )
+    rows.sort(
+        key=lambda x: (
+            x.get("variant") == "pvp",
+            x.get("source_file") == "08_其他与机制术语.md",
+            x["index"],
+        )
+    )
+    out, seen = [], set()
+    for row in rows:
+        asset_id = row.get("asset_id", row["asset_index"])
+        if asset_id not in seen:
+            seen.add(asset_id)
+            out.append(row)
+    return out
 
 
 def available() -> bool:
-    """简介数据是否存在（开源/市场包不带该文件）。"""
+    """简介数据是否存在（随开源/市场包分发）。"""
     return bool(_table()[1])
 
 
@@ -292,17 +361,27 @@ def intro(*names: str) -> Optional[tuple[str, list[str]]]:
     Returns:
         ``(标题, 行列表)``；都查不到返回 ``None``。
     """
-    entries, keys, _ = _table()
-    for n in names:
-        k = _norm(n)
-        if not k:
+    # 页面名与原查询会一起传入；显式 PvP 查询不能被排在前面的普通页面别名盖掉。
+    ordered_names = sorted(names, key=lambda name: not _norm(name).endswith(" pvp"))
+    for name in ordered_names:
+        rows = candidates(name)
+        if not rows:
             continue
-        i = keys.get(k)
-        if isinstance(i, int) and 0 <= i < len(entries):
-            e = entries[i]
-            if isinstance(e, list) and len(e) == 2:
-                lines = _sanitize([str(x) for x in e[1]])
-                return str(e[0]), [_kvify(_localize(_localize_effect(x))) for x in lines]
+        chosen = rows[0]
+        lines = [
+            _kvify(_localize(_localize_effect(x)))
+            for x in _sanitize([str(x) for x in chosen["lines"]])
+        ]
+        if chosen.get("variant") == "pvp":
+            lines.append("◆ 版本：PvP 变体")
+        if len(rows) > 1:
+            hint = (
+                "（含 PvP 变体，可加 PvP 查询）"
+                if any(r.get("variant") == "pvp" for r in rows)
+                else ""
+            )
+            lines.append(f"◆ 同名条目：共 {len(rows)} 条{hint}")
+        return chosen["title"], lines
     return None
 
 
@@ -312,11 +391,8 @@ def exact_title(name: str) -> Optional[str]:
     给 wiki 指令用：本地检索索引只有内部英文名（Zaw 部件是「tip one」），精确未中时会退到前缀模糊，
     把「Balla」错配成「Ballas 的合一众权杖」（2026-10-17 知识库审计）。简介数据的键含玩家可见英文名。
     """
-    entries, keys, _ = _table()
-    i = keys.get(_norm(name))
-    if isinstance(i, int) and 0 <= i < len(entries) and isinstance(entries[i], list):
-        return str(entries[i][0])
-    return None
+    rows = candidates(name)
+    return rows[0]["title"] if rows else None
 
 
 @lru_cache(maxsize=1)
@@ -561,14 +637,14 @@ def variants(base_name: str, limit: int = 6) -> list[str]:
     base_cmp = matching.normalize(base_name)
     self_i = keys.get(base)  # 整名键（中文名 + 英文名）会命中条目自身
     out: list[str] = []
-    for k, i in keys.items():
-        if not k.startswith(base + " ") or not isinstance(i, int):
+    self_indices = {self_i} if isinstance(self_i, int) else set(self_i or [])
+    for k, value in keys.items():
+        if not k.startswith(base + " "):
             continue
-        if i == self_i or not (0 <= i < len(entries)):
-            continue
-        title = str(entries[i][0])
-        if not _is_variant_title(title, base_cmp):
-            continue
-        if title not in out:
-            out.append(title)
+        for i in [value] if isinstance(value, int) else value:
+            if i in self_indices or not isinstance(i, int) or not 0 <= i < len(entries):
+                continue
+            title = str(entries[i][0])
+            if _is_variant_title(title, base_cmp) and title not in out:
+                out.append(title)
     return out[:limit]

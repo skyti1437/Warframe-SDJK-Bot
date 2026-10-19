@@ -278,6 +278,10 @@ PLUGIN_RUNTIME_EXACT = (
 PLUGIN_DOCS_EXACT = ("README.md", "CHANGELOG.md", "logo.png", "LICENSE")
 PLUGIN_RUNTIME_PREFIX = ("core/", "pages/", ".astrbot-plugin/")
 PLUGIN_TOOLS_PREFIX = ("scripts/",)
+# 根目录的部署脚本本身（2026-10-19 ZCode 回执：deploy.sh 不在任何面 ⇒ 改了也永远不进计划，服务器上
+# 静默留着旧版）。它在服务器树里运行、不 rsync 进容器（见 RSYNC_EXCLUDES），按工具面记、不触发重载。
+# 根目录的 build_*.py 是本地开发用生成器，服务器不跑，故意不纳入。
+PLUGIN_TOOLS_EXACT = ("deploy.sh",)
 # ops profile：服务器树内同路径（deploy.sh 的 rsync 够不到 .zcode/**，靠 scp/人工同步）
 OPS_PREFIX = ".zcode/skills/astrbot-server-triage/scripts/automations/"
 
@@ -289,7 +293,7 @@ def _match_face(profile: str, rel: str) -> str | None:
             return "runtime"
         if rel in PLUGIN_DOCS_EXACT:
             return "docs"
-        if rel.startswith(PLUGIN_TOOLS_PREFIX):
+        if rel in PLUGIN_TOOLS_EXACT or rel.startswith(PLUGIN_TOOLS_PREFIX):
             return "tools"
         return None
     if profile == "ops":
@@ -302,7 +306,8 @@ def _match_face(profile: str, rel: str) -> str | None:
 #   (profile, 路径判据, 级别, 动作代码, 动作说明)。级别越大越重，取最重的一项；
 #   同一 profile 内**按从重到轻排列、命中即取第一条**（requirements.txt 与
 #   _conf_schema.json 同时也命中运行期面，靠顺序让更重的赢）。
-#   ★ _conf_schema.json 的 restart 口径待在 **AstrBot 4.28.1 实测确认**（AGENTS 第 24 行）。
+#   ★ _conf_schema.json：2026-10-18 ZCode 在 AstrBot 4.28.1 实测 reload 即重读 schema（日志
+#     「Config key missing; added default.」、插件配置长出新键）⇒ 由 restart 收窄为 reload。
 DECISION_TABLE = (
     (
         "plugin",
@@ -310,13 +315,6 @@ DECISION_TABLE = (
         4,
         "deps_restart",
         "先装依赖（面板「依赖与资源」页或容器内 pip）→ restart",
-    ),
-    (
-        "plugin",
-        lambda rel: rel == "_conf_schema.json",
-        3,
-        "restart",
-        "restart（AGENTS 第 24 行：配置项改动 reload 不生效；★ 待在 AstrBot 4.28.1 实测确认）",
     ),
     (
         "plugin",
@@ -447,10 +445,6 @@ def _plan_commands(
             cmds.append(
                 "重载：容器内 POST http://127.0.0.1:6185/api/v1/plugins/reload "
                 '{"plugin_id":"astrbot_plugin_warframe_sdjkbot"}'
-            )
-        elif code == "restart":
-            cmds.append(
-                "重启：docker restart astrbot（配置项改动 reload 不生效；★ 待在 AstrBot 4.28.1 实测确认）"
             )
         elif code == "deps_restart":
             cmds.append(

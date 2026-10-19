@@ -366,13 +366,13 @@ HELP_TOPIC: dict[str, list[tuple[str, str]]] = {
         ("深层科研 / 时光科研", "本周 3 任务 × 普通 / 硬化"),
         ("沉沦之地 / 炼狱塔", "本周 21 层与复杂化"),
         ("侵袭 / 九重天", "钢路侵袭节点｜虚空风暴"),
-        ("灵化轮换 / 信条 / 终幕", "每周轮换武器与元素加成"),
+        ("灵化轮换 / 信条 / 终幕", "每周轮换武器与元素加成（加 刷新 立即重抓）"),
         ("舰队进度 / 氏族奖励", "舰队建造｜氏族研究"),
     ],
     "商店": [
         ("奸商 / 虚空商人", "Baro 库存与抵达时间"),
         ("每日特惠 / 商城折扣", "每日折扣｜限时礼包"),
-        ("言录使 / 碎银 / 钢铁之路", "苦栓周常｜碎银兑换｜Teshin 商店"),
+        ("言录使 / 碎银 / 钢铁之路", "苦栓周常（加 刷新 重抓）｜碎银｜Teshin"),
         ("出库 / 阿耶", "Prime 出库清单｜阿耶兑换"),
     ],
     "市场与紫卡": [
@@ -473,6 +473,7 @@ class WarframeSDJK(
             flare_enabled=bool(self.cfg.get("flaresolverr_enabled", True)),
             flare_urls=_flare_urls or None,
             community_base=str(self.cfg.get("community_data_url") or ""),
+            wfhelper_valence=bool(self.cfg.get("wfhelper_valence", False)),
         )
         self.groups = GroupStore(
             data_dir / "groups.json", default_platform=self.cfg.get("default_platform", "pc")
@@ -1299,7 +1300,7 @@ class WarframeSDJK(
                 lines.append("◆ 订阅明细")
                 for i, s in enumerate(subs, 1):
                     if s.until < 0:
-                        life = "永久"
+                        life = "不限时" if s.hits_left is not None else "永久"
                     else:
                         left = s.until - time.time()
                         life = (
@@ -1307,7 +1308,11 @@ class WarframeSDJK(
                             if left >= 3600
                             else f"剩{max(left, 0) // 60:.0f}分钟"
                         )
-                    mode = "一次" if s.once else "持续"
+                    mode = (
+                        f"剩{s.hits_left}次"
+                        if s.hits_left is not None
+                        else ("一次" if s.once else "持续")
+                    )
                     lines.append(
                         f"· {i}. {s.event}" + (f"：{s.rule}" if s.rule else "") + f"　{mode}·{life}"
                     )

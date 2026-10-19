@@ -297,6 +297,23 @@ check(
 )
 check("已抬版：CHANGELOG 首条 = 目标 ⇒ ready", plan3["changelog"]["ready"] is True)
 check("已抬版：草稿无待改行", plan3["draft"]["edits"] == [], str(plan3["draft"]["edits"]))
+# ④c 发版后复核：发版提交已合进 main ⇒ base 与 head 同一提交（ZCode 10-17 v1.2.3 实测误判为「下一版 1.2.4」）
+_rel3 = _git(_fx3, "rev-parse", "HEAD").stdout.strip()
+plan4 = RP.build_plan(_fx3, _rel3, "HEAD")
+check(
+    "发版后复核（base == head）：目标 = 当前 1.2.2，CHANGELOG 就绪",
+    plan4["versions"]["next"] == "1.2.2" and plan4["changelog"]["ready"] is True,
+    str((plan4["versions"].get("next"), plan4["changelog"].get("ready"))),
+)
+# ④d 反向：发版后继续开发（head 比 base 新、版本未抬、CHANGELOG 首条仍是上一版）⇒ 仍建议 +1
+_write(_fx3, "core/y.py", "Y = 1\n")
+_commit(_fx3, "feat(core): 发版后的新功能")
+plan5 = RP.build_plan(_fx3, _rel3, "HEAD")
+check(
+    "发版后新开发（base ≠ head、未抬版）：仍建议下一版 1.2.3、CHANGELOG 未就绪",
+    plan5["versions"]["next"] == "1.2.3" and plan5["changelog"]["ready"] is False,
+    str((plan5["versions"].get("next"), plan5["changelog"].get("ready"))),
+)
 shutil.rmtree(_fx, ignore_errors=True)
 shutil.rmtree(_fx2, ignore_errors=True)
 shutil.rmtree(_fx3, ignore_errors=True)

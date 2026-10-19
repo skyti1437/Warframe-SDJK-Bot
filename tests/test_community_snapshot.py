@@ -366,8 +366,9 @@ check(
 )
 check(
     "★ 接线：两个刷新都支持 community_only（跳过 FS 的直通路径）",
-    "async def refresh_valence(self, community_only: bool = False)" in API_SRC
-    and "async def refresh_acrichis_week(self, community_only: bool = False)" in API_SRC,
+    # 2026-10-18 起两者另带 force（面板「从源头重抓」），只核对 community_only 仍是第一个参数
+    "async def refresh_valence(self, community_only: bool = False" in API_SRC
+    and "async def refresh_acrichis_week(self, community_only: bool = False" in API_SRC,
 )
 check(
     "接线：取不到社区快照 → 返回 no-community 静默跳过（不告警）",
@@ -1428,9 +1429,20 @@ if _ch_path.exists():
         c["id"]
         for c in _CH.evaluate(_NOW, {}, {}, {}, _ROT, gen_dir=Path("/tmp"), mirror={}, mirrors=True)
     ]
+    _chk_ids_nomirror = [
+        c["id"] for c in _CH.evaluate(_NOW, {}, {}, {}, _ROT, gen_dir=Path("/tmp"))
+    ]
+    # ★ 2026-10-18：原断言写的是 `_chk_ids[-1] == "mirror_lag"`（假定它在末尾）；
+    #   同日加了 `host_mem`（追加在末尾）后该位置假设失效 ⇒ 改为**与位置无关**的等价断言：
+    #   开 --mirrors 时恰好出现一次、不开时一次都不出现。
     check(
         "检查器：--mirrors 才追加 mirror_lag 检查项",
-        _chk_ids[-1] == "mirror_lag" and "mirror_lag" not in _chk_ids[:-1],
+        _chk_ids.count("mirror_lag") == 1 and "mirror_lag" not in _chk_ids_nomirror,
+        str(_chk_ids),
+    )
+    check(
+        "检查器：host_mem 每轮都在（追加在末尾，位置固定）",
+        _chk_ids[-1] == "host_mem" and _chk_ids_nomirror[-1] == "host_mem",
         str(_chk_ids),
     )
 
@@ -1768,6 +1780,254 @@ if _ch_path.exists():
         _shutil.rmtree(_tdal, ignore_errors=True)
 else:
     print("[SKIP] 社区快照健康用例：本树无私有运维脚本（.zcode/.../community_health.py）")
+
+
+# ---------------------------------------------------------------------------
+# ★ 2026-10-18（ZCode 内存加固 §G）：主机内存告警（每 30 分钟健康检查的 host_mem 项）
+#   原为独立文件 tests/test_mem_alert.py；它只测不进开源包的运维脚本、在包内恒为 SKIP，
+#   Claude 审核时并入本文件（同为「本树无私有运维脚本则跳过」），开源 stage 基线不变。
+#   钉住：host_metrics 读取与阈值（含读不到）/ check_host_mem 三态 / unknown 不误报 /
+#   community_health 与 server_patrol 阈值同源。
+# ---------------------------------------------------------------------------
+def _mem_alert_checks():
+    import importlib.util
+    import json
+    import shutil
+    import tempfile
+
+    AUTO = ROOT / ".zcode/skills/astrbot-server-triage/scripts/automations"
+
+    def _load(path: Path, name: str):
+        spec = importlib.util.spec_from_file_location(name, path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+
+    if not (AUTO / "community_health.py").is_file():
+        print("[SKIP] 主机内存告警用例：本树无私有运维脚本（.zcode/.../automations/）")
+    else:
+        HM = _load(AUTO / "host_metrics.py", "_host_metrics_t")
+        CH = _load(AUTO / "community_health.py", "_community_health_mem_t")
+        SP = _load(AUTO / "server_patrol.py", "_server_patrol_mem_t")
+
+        _TD = Path(tempfile.mkdtemp())
+
+        def _meminfo_file(text: str, name: str = "meminfo") -> Path:
+            p = _TD / name
+            p.write_text(text, encoding="utf-8")
+            return p
+
+        _GOOD = (
+            "MemTotal:        1752592 kB\n"
+            "MemFree:           91164 kB\n"
+            "MemAvailable:     700000 kB\n"
+            "SwapTotal:       6228988 kB\n"
+            "SwapFree:        5110000 kB\n"
+        )
+
+        try:
+            # ---------------------------------------------------------------- 1. 读取
+            mi = HM.read_meminfo(_meminfo_file(_GOOD))
+            check(
+                "read_meminfo 正常文件 ⇒ 解析出 kB 表",
+                isinstance(mi, dict) and mi["MemAvailable"] == 700000,
+                str(mi),
+            )
+            check(
+                "read_meminfo 读得到 swap 两项（调用方要用）",
+                mi.get("SwapTotal") == 6228988 and mi.get("SwapFree") == 5110000,
+                str(mi),
+            )
+            check("read_meminfo 文件不存在 ⇒ None（不抛）", HM.read_meminfo(_TD / "nope") is None)
+            check(
+                "read_meminfo 文件格式坏 ⇒ None（不抛）",
+                HM.read_meminfo(_meminfo_file("垃圾内容\n")) is None,
+            )
+            check(
+                "read_meminfo 键无值 ⇒ None",
+                HM.read_meminfo(_meminfo_file("MemTotal:\nMemAvailable:\n")) is None,
+            )
+
+            check(
+                "mem_available_mb 正常 ⇒ MB", HM.mem_available_mb({"MemAvailable": 204800}) == 200.0
+            )
+            check("mem_available_mb 缺键 ⇒ None", HM.mem_available_mb({"MemTotal": 1}) is None)
+            check("mem_available_mb 空表 ⇒ None", HM.mem_available_mb(None) is None)
+
+            # ---------------------------------------------------------------- 2. 阈值
+            check(
+                "阈值常量 = 200（与 server_patrol 第 ⑦ 项口径）",
+                HM.MEM_AVAIL_WARN_MB == 200,
+                str(HM.MEM_AVAIL_WARN_MB),
+            )
+            check("mem_is_low：199.9 ⇒ True", HM.mem_is_low(199.9) is True)
+            check("mem_is_low：正好 200 ⇒ False（等于阈值不算低）", HM.mem_is_low(200.0) is False)
+            check("mem_is_low：201 ⇒ False", HM.mem_is_low(201.0) is False)
+            check("mem_is_low：读不到(None) ⇒ False（不误报）", HM.mem_is_low(None) is False)
+
+            # ---------------------------------------------------------------- 3. 三态
+            _low = CH.check_host_mem({"MemAvailable": 150 * 1024})
+            check("check_host_mem 低于阈值 ⇒ warn", _low["status"] == "warn", str(_low))
+            check(
+                "  warn 文案带具体数值与阈值",
+                "150MB" in _low["detail"] and "200" in _low["detail"],
+                _low["detail"],
+            )
+
+            _ok = CH.check_host_mem({"MemAvailable": 700 * 1024})
+            check("check_host_mem 高于阈值 ⇒ ok", _ok["status"] == "ok", str(_ok))
+
+            _eq = CH.check_host_mem({"MemAvailable": 200 * 1024})
+            check("check_host_mem 正好等于阈值 ⇒ ok（不误报）", _eq["status"] == "ok", str(_eq))
+
+            _chk_read = CH.read_meminfo
+            CH.read_meminfo = lambda *a, **k: None
+            try:
+                _unk = CH.check_host_mem()
+            finally:
+                CH.read_meminfo = _chk_read
+            check(
+                "check_host_mem 读不到 meminfo ⇒ unknown（不误报）",
+                _unk["status"] == "unknown",
+                str(_unk),
+            )
+
+            # ------------------------------------------------- 4. unknown 不误报（聚合口径）
+            _mix = [CH._check("a", "ok", ""), CH._check("host_mem", "unknown", "")]
+            _code, _line = CH.summary_line(_mix)
+            check("summary：只有 unknown ⇒ 退出码 0", _code == 0, f"{_code} {_line}")
+            check("summary：unknown 不计入 todo", "todo=0" in _line, _line)
+            check("summary：unknown 不列进摘要", "host_mem" not in _line, _line)
+            check(
+                "overall_of：unknown 视作 ok（严重度 0）",
+                CH.overall_of(_mix) == "ok",
+                CH.overall_of(_mix),
+            )
+            check("SEV：unknown = 0", CH.SEV.get("unknown") == 0, str(CH.SEV))
+
+            _warn_mix = [CH._check("host_mem", "warn", "低"), CH._check("host_mem2", "unknown", "")]
+            _code2, _line2 = CH.summary_line(_warn_mix)
+            check(
+                "summary：warn 仍照常计入（unknown 不掩盖真问题）",
+                _code2 == 1 and "host_mem(warn)" in _line2,
+                _line2,
+            )
+
+            # ------------------------------------------------- 5. 告警去重 / 恢复（复用现有机制）
+            _pushed: list[tuple[str, str]] = []
+            _orig_send = CH.send_alert
+            CH.send_alert = lambda title, body: (
+                _pushed.append((title, body)),
+                "已推送，通道：test",
+            )[1]
+            try:
+
+                def _state(gen: Path, statuses: dict):
+                    CH._write_json_atomic(
+                        gen / CH.STATE_NAME,
+                        {"checked_at": "2026-10-18T00:00:00+00:00", "checks": statuses},
+                    )
+
+                def _alert(gen: Path, checks):
+                    _pushed.clear()
+                    CH._alert_on_change(gen, checks, quiet=True)
+                    return list(_pushed)
+
+                _g1 = _TD / "g1"
+                _g1.mkdir()
+                _state(_g1, {"host_mem": "ok"})
+                _r = _alert(_g1, [CH._check("host_mem", "unknown", "读不到")])
+                check("★ unknown 不触发降级告警（ok → unknown 静默）", _r == [], str(_r))
+
+                _g2 = _TD / "g2"
+                _g2.mkdir()
+                _state(_g2, {"host_mem": "unknown"})
+                _r = _alert(_g2, [CH._check("host_mem", "ok", "正常")])
+                check("★ unknown → ok 不误发「已恢复」", _r == [], str(_r))
+
+                _g3 = _TD / "g3"
+                _g3.mkdir()
+                _state(_g3, {"host_mem": "ok"})
+                _r = _alert(_g3, [CH._check("host_mem", "warn", "可用内存仅 150MB")])
+                check(
+                    "★ ok → warn 照常告警（真问题不放过）",
+                    len(_r) == 1 and "host_mem" in _r[0][1],
+                    str(_r),
+                )
+
+                _g4 = _TD / "g4"
+                _g4.mkdir()
+                _state(_g4, {"host_mem": "warn"})
+                _r = _alert(_g4, [CH._check("host_mem", "ok", "可用内存 700MB")])
+                check("★ warn → ok 照常发恢复通知", len(_r) == 1 and "已恢复" in _r[0][0], str(_r))
+
+                _g5 = _TD / "g5"
+                _g5.mkdir()
+                _state(_g5, {"host_mem": "warn"})
+                _r = _alert(_g5, [CH._check("host_mem", "warn", "还是低")])
+                check("★ warn 持续 ⇒ 不重复刷屏（去重）", _r == [], str(_r))
+            finally:
+                CH.send_alert = _orig_send
+
+            # ------------------------------------------------- 6. 阈值同源 + evaluate 接线
+            check(
+                "阈值同源：community_health 与 host_metrics 是同一个常量",
+                CH.MEM_AVAIL_WARN_MB == HM.MEM_AVAIL_WARN_MB,
+                f"{CH.MEM_AVAIL_WARN_MB} vs {HM.MEM_AVAIL_WARN_MB}",
+            )
+            check(
+                "阈值同源：server_patrol 也取自 host_metrics",
+                SP.MEM_AVAIL_WARN_MB == HM.MEM_AVAIL_WARN_MB,
+                f"{SP.MEM_AVAIL_WARN_MB} vs {HM.MEM_AVAIL_WARN_MB}",
+            )
+            _sp_src = (AUTO / "server_patrol.py").read_text(encoding="utf-8")
+            _sp_mem = "\n".join(
+                ln
+                for ln in _sp_src.splitlines()
+                if "avail_mb" in ln or "composite" in ln or "read_meminfo" in ln
+            )
+            check(
+                "server_patrol 内存段不再有裸 200（已改为共享常量）",
+                "200" not in _sp_mem and "MEM_AVAIL_WARN_MB" in _sp_mem,
+                _sp_mem,
+            )
+            check(
+                "server_patrol 不再内联解析 /proc/meminfo（改用 host_metrics.read_meminfo）",
+                'Path("/proc/meminfo").read_text' not in _sp_src
+                and "read_meminfo()" in _sp_src
+                and "MEMINFO_PATH.exists()" in _sp_src,
+                "",
+            )
+
+            _gen = _TD / "gen"
+            _gen.mkdir()
+            _checks = CH.evaluate(
+                CH._now_utc(), {}, {}, {}, {}, gen_dir=_gen, meminfo={"MemAvailable": 700 * 1024}
+            )
+            _ids = [c["id"] for c in _checks]
+            check("evaluate 末尾接上 host_mem", _ids[-1] == "host_mem", str(_ids))
+            check(
+                "evaluate 注入高内存 ⇒ host_mem ok",
+                [c for c in _checks if c["id"] == "host_mem"][0]["status"] == "ok",
+                str([c for c in _checks if c["id"] == "host_mem"]),
+            )
+            _checks2 = CH.evaluate(
+                CH._now_utc(), {}, {}, {}, {}, gen_dir=_gen, meminfo={"MemAvailable": 100 * 1024}
+            )
+            check(
+                "evaluate 注入低内存 ⇒ host_mem warn",
+                [c for c in _checks2 if c["id"] == "host_mem"][0]["status"] == "warn",
+                str([c for c in _checks2 if c["id"] == "host_mem"]),
+            )
+
+            # 报告文件里也要能带上 unknown（JSON 可序列化、状态落盘不炸）
+            _report = {"checks": [CH._check("host_mem", "unknown", "读不到")]}
+            check("unknown 可 JSON 序列化（落报告/状态不炸）", json.dumps(_report) != "", "")
+        finally:
+            shutil.rmtree(_TD, ignore_errors=True)
+
+
+_mem_alert_checks()
 
 print()
 if FAILED:

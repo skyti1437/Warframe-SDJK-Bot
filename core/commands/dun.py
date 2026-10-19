@@ -17,6 +17,7 @@ from ..parser import (
     contains_fissure_tier,
     fissure_tier_hint,
     parse_duration,
+    parse_hit_count,
     parse_fissure_filter,
     parse_time_window,
 )
@@ -43,8 +44,9 @@ class DunCommands:
             for ev, (desc, wired) in PUSH_EVENTS.items():
                 lines.append(f"· {ev}　{desc}" + ("" if wired else "（未接线）"))
             lines += [
-                "◆ 写法（蹲 类型 筛选 时长 时间）",
-                "· 时长　永久/7天/两周/N小时…（不写=命中一次后取消）",
+                "◆ 写法（蹲 类型 筛选 时长 次数 时间）",
+                "· 时长　永久/7天/两周/N小时…（时长和次数都不写=命中一次后取消）",
+                "· 次数　2次 / 两次…：命中 N 次后取消；和时长一起写时先到为准，如 蹲 裂隙 钢铁生存 7天 3次",
                 "· 时间　北京时间：22到8（22:00–次日8:00，8 点整结束）/ 0到24（全天）/ 每天19点（19:00–19:59）"
                 " / 周1/3/5 23点 / 周5 22到8（含周六凌晨）",
                 "· 筛选　空格分开 = 同时满足（钢铁 古纪 = 钢铁的古纪裂隙）；逗号分开 = 任一满足（钢铁,古纪）",
@@ -162,11 +164,17 @@ class DunCommands:
             )
 
         duration = None
+        hits = None
         window = None
         rule_parts: list[str] = []
         i = 0
         while i < len(rest):
             tok = rest[i]
+            # ★ 2026-10-17：「2次」= 命中次数（原先落进筛选词 ⇒ 订阅永远不命中且不提示）
+            if hits is None and parse_hit_count(tok) is not None:
+                hits = parse_hit_count(tok)
+                i += 1
+                continue
             if duration is None and parse_duration(tok) is not None:
                 duration = parse_duration(tok)
                 i += 1
@@ -211,8 +219,9 @@ class DunCommands:
                 "at_hour": window.at_hour,
             },
             until=-1 if duration == -1 else (now + duration if duration else -1),
-            once=duration is None,
-            hits_left=None,
+            # 次数与时长：只写次数 ⇒ 不限时、命中 N 次取消；两者都写 ⇒ 先到为准（Subscription.consume / expired）
+            once=duration is None and hits is None,
+            hits_left=hits,
             # ★ A1（2026-10-03 用户批准的特例，解除 L-2 自发脱敏）：**仅**
             #   「蹲」订阅记录发起人 id，用于命中时 @ 当事人。默认空串、
             #   绝不硬编码；公开仓/公开包内此位置必须恒为空（发版前 grep
@@ -220,11 +229,20 @@ class DunCommands:
             created_by=str(event.get_sender_id() or "").strip(),
         )
         await self.subs.add(sub)
-        dur_text = (
-            "永久"
-            if duration == -1
-            else (f"{duration // 3600} 小时" if duration else "命中一次即取消")
-        )
+        if hits is not None:
+            # 规则（用户 10-17）：只写时长 ⇒ 不限次数；只写次数 ⇒ 命中 N 次取消；两者一起写 ⇒ 都生效、先到为准
+            if duration and duration != -1:
+                dur_text = f"{duration // 3600} 小时内命中 {hits} 次即取消（先到为准）"
+            else:
+                dur_text = (
+                    f"命中 {hits} 次后取消（不限时）" if duration == -1 else f"命中 {hits} 次后取消"
+                )
+        else:
+            dur_text = (
+                "永久"
+                if duration == -1
+                else (f"{duration // 3600} 小时" if duration else "命中一次即取消")
+            )
         win_text = window.describe() if window else "全天"
         rule_text = sub.rule or "无"
         if event_type == "裂隙" and sub.rule:

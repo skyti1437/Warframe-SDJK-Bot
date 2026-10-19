@@ -81,6 +81,15 @@ class ProgressCommands:
         stale = snap < window_start
         when = snap.astimezone(timezone.utc).strftime("%m-%d %H:%M")
         flag = "（上一轮快照，数值可能已变）" if stale else "（本轮快照）"
+        from ..api_client import WarframeClient
+
+        try:
+            same = WarframeClient.valence_values_stale(data)
+        except Exception:  # noqa: BLE001 - epoch 缺失等：不加标注
+            same = False
+        if not stale and same:
+            # 快照时刻在本轮、数值却与上一轮相同 ⇒ wiki 还没人更新（见 valence_values_stale）
+            flag = "（数值疑似仍是上一轮：wiki 尚未完整更新，可能已变）"
         return (
             f"※ 元素与加成为 {when} UTC 快照{flag}：wiki「Reset」页玩家上报值"
             f"（无官方 API，换轮后需人工刷新），以游戏内商店为准"
