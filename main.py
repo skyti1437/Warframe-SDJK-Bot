@@ -435,7 +435,7 @@ HELP_NOTES: dict[str, list[str]] = {
 
 
 @register(
-    "astrbot_plugin_warframe_sdjkbot", "SDJK", f"{BRAND}：世界状态 / 市场查价 / 蹲点推送", "1.2.3"
+    "astrbot_plugin_warframe_sdjkbot", "SDJK", f"{BRAND}：世界状态 / 市场查价 / 蹲点推送", "1.2.4"
 )
 class WarframeSDJK(
     DailyCommands,

@@ -1,4 +1,4 @@
-# AstrBot 插件 · Warframe SDJKBOT v1.2.3（`astrbot_plugin_warframe_sdjkbot`）
+# AstrBot 插件 · Warframe SDJKBOT v1.2.4（`astrbot_plugin_warframe_sdjkbot`）
 
 在 QQ 群里查 Warframe 的一切：**世界状态、市场价、遗物与部件、伤害计算、配卡截图识别、紫卡分析、玄骸拍卖、奸商预测、蹲点推送**——
 回复渲染成 Orokin 风格的图片卡片，后台还带一个可视化的运维面板。
