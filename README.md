@@ -9,7 +9,7 @@
 | `acrithis_week.json` | 言录使**当期货单**（每周一 00:00 UTC 轮换） | 每周刷新后 |
 | `arb_ratings.json` | 仲裁节点**社区实测评级**（arbi.wf.wiki 排行榜每节点生息中位数） | 每周重算，有变化才发 |
 | `baro_history.json` | 奸商（Baro Ki'Teer）**历次到访与货品** | 每天检查，有新到访才发 |
-| `wiki_disp.json` | 紫卡**武器倾向**（wiki Riven Mods 页） | 每 7 天重抓，有变化才发 |
+| `wiki_disp.json` | 紫卡**武器倾向**（wiki Riven Mods 页）—— 2026-10 DE 取消倾向后**停更**，保留最后一版 | 不再更新 |
 | `index.json` | 发布时间与各文件的时间戳 | 同上 |
 
 ## 为什么有这个东西
