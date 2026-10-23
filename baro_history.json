@@ -1,6 +1,6 @@
 {
  "source": "wiki.warframe.com · Module:Baro/data",
- "fetched": "2026-10-16",
+ "fetched": "2026-10-23",
  "period_days": 14,
  "visits": [
   "2015-02-20",
@@ -319,7 +319,8 @@
   "2026-09-04",
   "2026-09-18",
   "2026-10-02",
-  "2026-10-16"
+  "2026-10-16",
+  "2026-10-23"
  ],
  "items": {
   "10 x Ki'Teer Fireworks": {
@@ -351,7 +352,8 @@
     270,
     283,
     296,
-    300
+    300,
+    317
    ]
   },
   "1999 Drippy Glyph": {
@@ -1449,7 +1451,8 @@
    "c": 45000,
    "v": [
     268,
-    282
+    282,
+    317
    ]
   },
   "Dual Sword Lemnas Skin": {
@@ -1631,7 +1634,8 @@
     288,
     289,
     290,
-    316
+    316,
+    317
    ]
   },
   "Eskhatos Ki'Teer Chest Guard": {
@@ -1642,7 +1646,8 @@
     288,
     289,
     290,
-    316
+    316,
+    317
    ]
   },
   "Eskhatos Ki'Teer Ephemera": {
@@ -1654,7 +1659,8 @@
     288,
     289,
     290,
-    316
+    316,
+    317
    ]
   },
   "Eskhatos Ki'Teer Floof": {
@@ -1662,7 +1668,8 @@
    "d": 111,
    "c": 111111,
    "v": [
-    316
+    316,
+    317
    ]
   },
   "Eskhatos Ki'Teer Glyph": {
@@ -1670,7 +1677,8 @@
    "d": 67,
    "c": 67,
    "v": [
-    316
+    316,
+    317
    ]
   },
   "Eskhatos Ki'Teer Knee Guards": {
@@ -1680,7 +1688,8 @@
    "v": [
     289,
     290,
-    316
+    316,
+    317
    ]
   },
   "Eskhatos Ki'Teer Shoulder Guards": {
@@ -1692,7 +1701,8 @@
     288,
     289,
     290,
-    316
+    316,
+    317
    ]
   },
   "Eskhatos Necraloid Sigil": {
@@ -1701,7 +1711,8 @@
    "c": 61000,
    "v": [
     290,
-    316
+    316,
+    317
    ]
   },
   "Eskhatos Necramech Skin": {
@@ -1709,7 +1720,24 @@
    "d": 236,
    "c": 448114,
    "v": [
-    316
+    316,
+    317
+   ]
+  },
+  "Eskhatos Pauldrons": {
+   "t": "Cosmetic (Armor)",
+   "d": 303,
+   "c": 303303,
+   "v": [
+    317
+   ]
+  },
+  "Eskhatos Sekhara": {
+   "t": "Cosmetic (Emblem)",
+   "d": 172,
+   "c": 336801,
+   "v": [
+    317
    ]
   },
   "Eskhatos Sugatra": {
@@ -1717,7 +1745,8 @@
    "d": 181,
    "c": 209066,
    "v": [
-    316
+    316,
+    317
    ]
   },
   "Excalibur Proto-Armor in Action Glyph": {
@@ -3867,7 +3896,8 @@
     301,
     302,
     307,
-    312
+    312,
+    317
    ]
   },
   "Masker's Theodolite Crewsuit Leggings": {
@@ -3990,7 +4020,8 @@
    "c": 88000,
    "v": [
     290,
-    316
+    316,
+    317
    ]
   },
   "Necraloid Floof": {
@@ -4155,7 +4186,8 @@
     264,
     275,
     301,
-    302
+    302,
+    317
    ]
   },
   "Noggle Statue - Octavia": {
@@ -4435,7 +4467,8 @@
    "c": 1000001,
    "v": [
     290,
-    316
+    316,
+    317
    ]
   },
   "Pedestal Prime": {
@@ -4678,7 +4711,8 @@
    "v": [
     283,
     293,
-    307
+    307,
+    317
    ]
   },
   "Primed Combustion Rounds": {
@@ -4855,7 +4889,8 @@
    "v": [
     281,
     292,
-    305
+    305,
+    317
    ]
   },
   "Primed Fast Hands": {
@@ -6883,7 +6918,8 @@
    "v": [
     289,
     290,
-    316
+    316,
+    317
    ]
   },
   "Sima Luxxum Ornament": {
