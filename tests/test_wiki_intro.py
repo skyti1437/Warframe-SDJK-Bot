@@ -23,6 +23,16 @@ sys.path.insert(0, str(ROOT))
 from core import matching as M  # noqa: E402
 from core import search as S  # noqa: E402
 from core import wiki_intro as WI  # noqa: E402
+import importlib.util as _ilu  # noqa: E402
+from pathlib import Path as _P  # noqa: E402
+
+_ROOT = _P(__file__).resolve().parents[1]
+_bs = _ilu.spec_from_file_location("_bw2", str(_ROOT / "scripts" / "build_wiki_intro.py"))
+_BIZ = _ilu.module_from_spec(_bs)
+_bs.loader.exec_module(_BIZ)
+_ENTRIES = __import__("json").loads(
+    (_ROOT / "core" / "data" / "wiki_intro.json").read_text(encoding="utf-8")
+)["entries"]
 
 FAILED: list[str] = []
 
@@ -643,6 +653,157 @@ check(
 check("wiki Arbitration → 仲裁", _res["Arbitration"][0] == "仲裁", str(_res["Arbitration"]))
 check("回归：wiki 布莱顿 照常", _res["布莱顿"][0].startswith("布莱顿"), str(_res["布莱顿"]))
 check("回归：wiki 花P 照常（概念页）", _res["花P"][0] == "Wisp Prime", str(_res["花P"]))
+
+# ★ 2026-10-22：资料卡标题兜底 —— **内部资产名 / 路径不许原样上卡面**（用户 10-19 报
+#   `ChromaPrimeHelmetComponent` / `de:/Lotus/…/Forma`）。源头是知识库给资产条目的 id
+#   （`scripts/kb/build_kb.py` 的 `"de:" + uniqueName`）：拿不到显示名时标题就成了内部名。
+for _raw, _want in (
+    ("de:/Lotus/Types/Recipes/Components/OrokinCatalyst", "Orokin Catalyst"),  # 路径 → 末段
+    ("/Lotus/Types/Items/MiscItems/Forma", "Forma"),
+    ("ChromaPrimeHelmetComponent", "Chroma Prime Helmet Component"),  # 驼峰拆词
+    ("Ash", "Ash"),  # 正常名不动
+    ("宝拉（Balla）", "宝拉（Balla）"),
+):
+    check(f"★ 标题兜底：{_raw} → {_want}", WI.display_title(_raw) == _want, WI.display_title(_raw))
+check(
+    "★ 标题兜底：结果里绝不残留路径",
+    "/" not in WI.display_title("de:/Lotus/Types/Items/MiscItems/Forma"),
+)
+# ★ 反向守卫（2026-10-22 Claude 审出的误伤）：正常标题一律不动 —— 旧版改了 390 条
+for _ok in (
+    "红/白/蓝（Red/White/Blue）",
+    "宽剑今昔纹章（Broadsword Past/Future Sigil）",
+    "TennoCon 2016 披饰（Tennocon 2016 Syandana）",
+    "RixtyMOL 拉托双枪（Rixtymol Aklato）",
+    "Excalibur Prime",
+):
+    check(f"★ 标题兜底不误伤：{_ok}", WI.display_title(_ok) == _ok, WI.display_title(_ok))
+_wi_raw = json.loads(WI._FILE.read_text(encoding="utf-8"))
+_all = [e[0] for e in (_wi_raw["entries"] if isinstance(_wi_raw, dict) else _wi_raw)]
+_chg = [t for t in _all if WI.display_title(t) != t]
+check("★ 全量标题：只动代码名（≤ 20 条，现 16）", len(_chg) <= 20, str(len(_chg)))
+
+# ★ 2026-10-22（返工版）：「获取」行**只翻结构性词**，专名整段保持英文。
+for _raw, _want in (
+    ("获取：Jupiter/Ganymede (Disruption), Rotation C 10%", "获取：木星/Ganymede（中断）, C轮 10%"),
+    (
+        "获取：Earth/Cetus (Level 50 - 70 Cetus Bounty), Rotation A 20%",
+        "获取：地球/Cetus（等级 50 - 70 Cetus 赏金）, A轮 20%",
+    ),
+    ("获取：Duviri/Endless: Tier 6 (Hard) 11.9%", "获取：双衍王境/无尽: 层级 6（困难） 11.9%"),
+    # 专名整段不动（返工的核心口径）
+    ("获取：Fomorian Sabotage 5%", "获取：Fomorian Sabotage 5%"),
+    (
+        "获取：天王星 · The Kuva Wytch · 遭遇战 14.29%",
+        "获取：天王星 · The Kuva Wytch · 遭遇战 14.29%",
+    ),
+    ("获取：Elite Orm Weaver 0.54%", "获取：Elite Orm Weaver 0.54%"),
+    # 只动结构词、别的一律不动
+    ("获取：Nightmare Mode Rewards, Rotation A 18.97%", "获取：Nightmare Mode Rewards, A轮 18.97%"),
+):
+    check(
+        f"★ 获取行：{_raw[3:34]}…",
+        _BIZ.translate_source(_raw) == _want,
+        _BIZ.translate_source(_raw),
+    )
+
+# ★ 返工口径的**全量断言**（Claude 要求，仿标题兜底那条）：
+_GET = [str(x) for _t, _ls in _ENTRIES for x in _ls if str(x).startswith("获取")]
+_GET_NEW = [_BIZ.translate_source(x) for x in _GET]
+check(
+    "★ 全量：`The ` 计数与改前一致（不许删专名里的冠词）",
+    sum(x.count("The ") for x in _GET) == sum(x.count("The ") for x in _GET_NEW),
+)
+check(
+    "★ 全量：改后不出现行首 / 冒号后多余空格",
+    not [x for x in _GET_NEW if re.match(r"^获取：\s", x) or re.search(r"：\s{2,}", x)],
+)
+check(
+    "★ 全量：改动条数在预期量级（≤1200，防哪天规则失控全量改写）",
+    sum(1 for a, b in zip(_GET, _GET_NEW) if a != b) <= 1200,
+    str(sum(1 for a, b in zip(_GET, _GET_NEW) if a != b)),
+)
+_STRUCT_WORDS = (
+    set(_BIZ._PLANET_ZH)
+    | set(_BIZ._MISSION_ZH)
+    | set(_BIZ._DIFF_ZH)
+    | {
+        "Rotation",
+        "Level",
+        "Tier",
+        "Bounty",
+        "Duviri",
+        "Endless",
+        "Normal",
+        "Hard",
+        "Elite",
+    }
+)
+_broke = []
+for _a, _b in zip(_GET, _GET_NEW):
+    _wa = {w for w in re.findall(r"[A-Za-z][A-Za-z'\-]{3,}", _a)}
+    _wb = {w for w in re.findall(r"[A-Za-z][A-Za-z'\-]{3,}", _b)}
+    _lost = _wa - _wb - _STRUCT_WORDS
+    if _lost:
+        _broke.append((_a[:50], sorted(_lost)))
+check("★ 全量：专名（≥4 字母的 ASCII 词）一条都没被打断", not _broke, str(_broke[:3]))
+check(
+    "★ 效果行卫生：未命中译文 ⇒ and → 和、去行末句点",
+    WI.tidy_effect_text("tar within 30m and dealing 120 Damage.")
+    == "tar within 30m 和 dealing 120 Damage",
+)
+
+# ★ 2026-10-23（Claude 定案）：代码名标题的条目**并入同资产的中文孪生条目**
+#   （直接改名会造出两张同名卡；代码名那条是游戏内部的套装加成 Mod，玩家不会搜）。
+_m, _e2, _a2, _i2 = _BIZ.merge_code_name_twins(
+    [["套装 · 诡文枭主（Boreal）", ["类型 MOD 套装"]], ["Borealsetmod", ["类型 MOD 套装 MOD"]]],
+    [{"asset_id": "de:/BorealSetMod"}, {"asset_id": "de:/BorealSetMod"}],
+    {"de:/BorealSetMod": [0, 1]},
+)
+check(
+    "并入：代码名那条不再单独出条目",
+    len(_e2) == 1 and _e2[0][0] == "套装 · 诡文枭主（Boreal）",
+    str(_e2),
+)
+check("并入：孪生缺的行补过去", "类型 MOD 套装 MOD" in _e2[0][1], str(_e2[0][1]))
+check("并入：下标整体重映射", _i2 == {"de:/BorealSetMod": [0]}, str(_i2))
+check("并入：报告记下并入了哪条", bool(_m) and _m[0]["code_name"] == "Borealsetmod", str(_m))
+# 反向护栏：单条目 / 代码名但没有中文孪生 ⇒ 一条都不动
+_m3, _e4, _, _ = _BIZ.merge_code_name_twins(
+    [["Ash", ["x"]], ["Excalibur", ["y"]]],
+    [{"asset_id": "de:/A"}, {"asset_id": "de:/B"}],
+    {"de:/A": [0], "de:/B": [1]},
+)
+check("反向：各自单条 ⇒ 不动", _m3 == [] and len(_e4) == 2, str(_m3))
+_m5, _e6, _, _ = _BIZ.merge_code_name_twins(
+    [["Borealsetmod", ["a"]]], [{"asset_id": "de:/S"}], {"de:/S": [0]}
+)
+check("反向：代码名但没有中文孪生 ⇒ 不动", _m5 == [] and len(_e6) == 1, str(_m5))
+# 真数据：19 条 setmod 代码名已从标题消失、但仍可当检索别名（不显示）
+_W = json.loads((ROOT / "core" / "data" / "wiki_intro.json").read_text(encoding="utf-8"))
+_titles = {e[0] for e in _W["entries"]}
+_left = sorted(t for t in _titles if t.lower().endswith("setmod"))
+check("真数据：`*setmod` 代码名标题已归零", not _left, str(_left))
+check(
+    "真数据：19 条代码名仍作检索别名",
+    sum(1 for k in _W["keys"] if "setmod" in k) == 19,
+    str(sum(1 for k in _W["keys"] if "setmod" in k)),
+)
+# ★ 指令要求的是「无**新增**重名」—— 真数据里本来就有同名条目（如不同来源的同名资源），
+#   所以这里只钉「并入没把孪生变成重名」（并入 = 摘掉一条 + 给孪生补行，不该制造同名卡）。
+_cnt: dict = {}
+for _e in _W["entries"]:
+    _cnt[_e[0]] = _cnt.get(_e[0], 0) + 1
+_aliases = [k for k in _W["keys"] if "setmod" in k]
+_twin_idx = {
+    (_W["keys"][k][0] if isinstance(_W["keys"][k], list) else _W["keys"][k]) for k in _aliases
+}
+_twin_titles = [_W["entries"][i][0] for i in _twin_idx]
+check(
+    "真数据：并入的孪生条目没变成重名（并入不制造同名卡）",
+    len(_twin_titles) == 19 and all(_cnt[t] == 1 for t in _twin_titles),
+    str([t for t in _twin_titles if _cnt[t] != 1][:3]) + f" 孪生数={len(_twin_titles)}",
+)
 
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")

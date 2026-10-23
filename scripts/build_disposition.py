@@ -67,7 +67,74 @@ VARIANT_PREFIX_EN = (
     "Carmine ",
     "Dex ",
     "MK1-",
+    # ★ 2026-10-19：`Ceti `（天仓·悲痛之刃）此前不在表里 ⇒ 继承不到基类。
+    "Ceti ",
 )
+
+# ★ 2026-10-19：变体 token 在名字里**多数是后缀**（`Braton Vandal`、`Strun Wraith`、
+#   `Lato Vandal`…），而上面的表只当**前缀**用 ⇒ 这些变体一律继承不到基类、`group`/
+#   `riven_type` 留空，运行期被 `weapon_class()` 静默按步枪列算（曲翼 `(Atmosphere)`
+#   那批更明显：archgun 与 rifle 的暴伤基值 80.1 vs 120）。
+VARIANT_SUFFIX_EN = (
+    "Prime",
+    "Vandal",
+    "Wraith",
+    "Sancti",
+    "Secura",
+    "Telos",
+    "Synoid",
+    "Rakta",
+    "Vaykor",
+    "Carmine",
+    "Kuva",
+    "Tenet",
+    "Coda",
+    "Mara",
+    "Prisma",
+    "Dex",
+)
+
+# 双模式条目的**尾部括号**：曲翼 `(Atmosphere)`、组合枪 `(Primary)/(Secondary)`、
+# 分合剑 `(Dual Swords)/(Heavy Blade)` —— 基类名在括号之前。
+_MODE_PAREN_RE = re.compile(r"\s*[（(][^)）]*[)）]\s*$")
+
+
+# ★ 2026-10-19：WM 的 rivenType 在**这几把**上是错的（实卡 + wfsim 双证）——
+#   布巴尼科是霰弹枪，WM 却标 `primary/rifle` ⇒ 卡面按步枪列算（暴伤基值 120 vs 90）。
+#   wfsim：`data/weapons/primary/bubonico.yaml` → `class: shotgun, mod_pools: [primary, shotgun]`。
+#   值为 `(group, riven_type)`；运行期 `wm_riven_weapons()` 会优先采用本地非空值。
+SOURCE_TYPE_FIXES: dict[str, tuple[str, str]] = {
+    "Bubonico": ("primary", "shotgun"),
+    "Coda Bubonico": ("primary", "shotgun"),
+}
+
+
+def base_candidates(en: str) -> list[str]:
+    """由「变体 / 形态」全名推出**基类名候选**（按优先级，最多剥两轮）。
+
+    ★ 2026-10-19：原实现只剥**前缀** + 后缀 `Prime`，于是 `Braton Vandal` /
+    `Strun Wraith` / `Ceti Lacera` / `Arbucep (Atmosphere)` 这些全继承不到 ⇒
+    `group`/`riven_type` 留空。这里补上后缀剥壳、尾部形态括号、**大小写不敏感**
+    （词表写 `MK1-`，数据里是 `Mk1-Braton`）。
+    """
+    out: list[str] = []
+    stripped = _MODE_PAREN_RE.sub("", en)
+    if stripped != en:
+        out.append(stripped)
+    frontier = [stripped]
+    for _ in range(2):
+        nxt: list[str] = []
+        for x in frontier:
+            low = x.lower()
+            for s in VARIANT_SUFFIX_EN:
+                if low.endswith(" " + s.lower()):
+                    nxt.append(x[: -(len(s) + 1)])
+            for p in VARIANT_PREFIX_EN:
+                if low.startswith(p.lower()):
+                    nxt.append(x[len(p) :])
+        frontier = nxt
+        out.extend(nxt)
+    return [x for x in dict.fromkeys(out) if x]
 
 
 def get(url: str, proxy: bool = False):
@@ -157,6 +224,36 @@ def slugify(en: str) -> str:
     return en.lower().replace("'", "").replace(".", "").replace(" ", "_")
 
 
+# ★ 2026-10-23：wiki 倾向页里混着**根本不是武器**的行，逐条附证据。判据 = 英文 wiki
+#   没有武器页（或页是重定向到用户页的玩笑页）**且** WM 物品表 / 紫卡武器表里都查不到。
+#   实测（2026-10-23）：
+#     · Keles —— `/w/Keles` 是 `User:Twilight053/Keles` 的重定向页，正文原文
+#       「NO KELES IS A NOT A REAL WEAPON」（还挂了个投票）；WM 3892 件物品里无 keles。
+#       「Kuva Keles」同源（`kuva_keles` 在 WM 紫卡武器表 420 条里也不存在）。
+#     · EFV-0 Somnus —— `/w/EFV-0_Somnus` **404**；WM 物品表与紫卡武器表都没有
+#       （EFV 系只有 EFV-8 Mars / EFV-5 Jupiter）。
+#   这三行在表里 `group` / `riven_type` / `zh` 全空 —— 正是「只有 wiki 一行字、
+#   没有任何武器数据」的特征。留着会让 `resolve_riven_weapon` 把非武器名解析成
+#   一把「按步枪基值估算」的假武器（中文名为空，中文输入其实进不来，英文名可以）。
+_NOT_A_WEAPON: dict[str, str] = {
+    "Keles": "wiki /w/Keles 重定向到 User:Twilight053/Keles 的玩笑页；WM 无此物品",
+    "Kuva Keles": "同上（Keles 的赤毒变体，WM 紫卡武器表里不存在 kuva_keles）",
+    "EFV-0 Somnus": "wiki /w/EFV-0_Somnus 404；WM 物品表与紫卡武器表都没有",
+}
+
+
+def _drop_non_weapons(rows: dict) -> dict:
+    """从 wiki 解析结果里剔掉 `_NOT_A_WEAPON` 里的行（键与「Kuva X」变体都判）。"""
+    out = {}
+    for name, val in rows.items():
+        base = re.sub(r"^(Kuva|Tenet|Coda|Prisma|MK1-?|Prime)\s+", "", name.strip())
+        if name in _NOT_A_WEAPON or base in _NOT_A_WEAPON:
+            print(f"  [剔除] {name!r} —— {_NOT_A_WEAPON.get(name) or _NOT_A_WEAPON[base]}")
+            continue
+        out[name] = val
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--wiki-html", help="本地 wiki 页 HTML 文件")
@@ -172,6 +269,8 @@ def main() -> int:
         page = fetch_wiki_via_fs()
     wiki = parse_wiki_html(page)
     print(f"  {len(wiki)} 条")
+    wiki = _drop_non_weapons(wiki)  # 剔掉 wiki 页里混着的非武器行（见 _NOT_A_WEAPON）
+    print(f"  剔除非武器行后 {len(wiki)} 条")
 
     # ★ 2026-10-03：wiki_disp.json（紫卡倾向唯一真源：riven_family /
     #   resolve_variant_disp 读它）与 rivenmirror **同源重建** —— 同一份
@@ -266,16 +365,19 @@ def main() -> int:
             zh = name_zh.get(uniq, "")
             if not zh:
                 no_zh += 1
-            base_en = en
-            for p in VARIANT_PREFIX_EN:
-                if base_en.startswith(p):
-                    base_en = base_en[len(p) :]
+            # ★ 2026-10-19：改用 base_candidates()（前缀 + **后缀** + 尾部形态括号，
+            #   大小写不敏感）。旧实现只剥前缀与后缀 `Prime` ⇒ `Braton Vandal` /
+            #   `Strun Wraith` / `Ceti Lacera` / `Arbucep (Atmosphere)` 等一律继承不到。
+            info: dict = {}
+            for _cand in base_candidates(en):
+                info = wm_by_en.get(_cand) or {}
+                if info:
                     break
-            base_en = re.sub(r"\s*Prime$", "", base_en)
-            info = wm_by_en.get(base_en) or {}
             if not info:
                 no_base += 1
             rtype, group = info.get("riven_type", ""), info.get("group", "")
+            if en in SOURCE_TYPE_FIXES:  # ★ 2026-10-19 源数据修正（见表处注释）
+                group, rtype = SOURCE_TYPE_FIXES[en]
             url = slugify(en)
         out[en] = {
             "zh": zh,

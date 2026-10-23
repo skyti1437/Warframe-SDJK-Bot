@@ -206,7 +206,11 @@ MARKET_SKIP_FILES = {
 # 2026-10-17 数据登记表批 +1：core/data_registry.py（随包数据登记表与统一健康判据，
 # 面板 / health / 打包闸门读同一份；tests/ 不进市场件）
 # 2026-10-17 清理批 −2：core/data/de/fissureModifiers.json、core/data/de/syndicatesData.json（插件零读取）
-EXPECTED_MARKET_ENTRIES = 116
+EXPECTED_MARKET_ENTRIES = 119
+# 2026-10-23 紫卡词条池补抽样批：118 → 119（+core/data/de/riven_pools_survey.json；
+#   scripts/ 不进市场件）
+# 2026-10-23 紫卡词条范围批：116 → 118（+core/riven_pools.py、+core/data/de/riven_pools.json；
+#   scripts/ tests/ 不进市场件）
 
 # ★ 可复现打包（2026-09-26 用户侧建议）：统一 zip 条目时间戳 = 2026-01-01T00:00:00Z。
 #   之前取文件 mtime，导致「内容没变、重建却换 sha」（上传期两次被迫冻结重建：
@@ -237,7 +241,12 @@ def _zip_datetime() -> tuple:
 # 2026-10-08 审核实证：本脚本原先只查「stage 存在」+「种子新鲜」，**不查 stage 是否追平 HEAD**
 # ⇒ 若绕开重建直接打包，会把旧 stage（当时 239 文件、不含本批任何修复）打出去。这里加数量闸门兜住；
 # 数量相同但内容不同的情形，仍靠流程约束（打包前必重跑 dist/package_release.py --opensource）。
-EXPECTED_STAGE_FILES = 271  # 与 dist/package_release.py::EXPECTED_OSS_STAGE_FILES 同步
+EXPECTED_STAGE_FILES = 280  # 与 dist/package_release.py::EXPECTED_OSS_STAGE_FILES 同步
+# 2026-10-23 紫卡词条池补抽样批：278 → 280（+scripts/survey_riven_pools.py、+core/data/de/riven_pools_survey.json）
+# 2026-10-23 紫卡词条范围批：274 → 278（+core/riven_pools.py、+core/data/de/riven_pools.json、
+#   +scripts/build_riven_pools.py、+tests/test_riven_ranges.py）
+# 2026-10-23 趋势折线图批：273 → 274（+tests/test_trend_chart.py；tests/ 不进市场件）
+# 2026-10-23 紫卡实时排行批：272 → 273（+tests/test_riven_realtime_rank.py；tests/ 不进市场件）
 # 2026-10-17 清理批：272 → 270（−fissureModifiers.json、−syndicatesData.json）
 # 2026-10-17 数据登记表批：267 → 269（+core/data_registry.py、+tests/test_data_registry.py）
 # 2026-10-17 部署计划批：269 → 270（+tests/test_deploy_plan.py；tests/ 不进市场件）

@@ -250,7 +250,7 @@
   <div class="pagehead"><h2>数据</h2><span class="desc">各数据快照是否新鲜；过期的卡片会提示或不再展示</span></div>
   <section class="panel"><i class="c1"></i><i class="c2"></i>
     <div class="ptitle"><h3>数据新鲜度</h3><span class="ext"></span><button id="pull">从源头重抓</button><button class="primary" id="refresh">刷新社区快照</button></div>
-    <div class="hint">「刷新社区快照」从社区快照（默认本项目公开仓 bot-data，可在「设置 → 社区数据地址」换成自己的）拉元素加成、言录使货单、仲裁评级、奸商到访历史、紫卡倾向；只有比本地新的才会替换。<br>「从源头重抓」不等定时、也不管本地是否还新鲜，立即从 wiki 重抓元素加成、言录使货单、紫卡倾向（需要 FlareSolverr，抓不到会回落社区快照）；wiki 还没人更新时不会覆盖，结果里会写明。</div>
+    <div class="hint">「刷新社区快照」从社区快照（默认本项目公开仓 bot-data，可在「设置 → 社区数据地址」换成自己的）拉元素加成、言录使货单、仲裁评级、奸商到访历史；只有比本地新的才会替换。<br>「从源头重抓」不等定时、也不管本地是否还新鲜，立即从 wiki 重抓元素加成、言录使货单（需要 FlareSolverr，抓不到会回落社区快照）；wiki 还没人更新时不会覆盖，结果里会写明。</div>
     <div id="refreshResult" class="result"></div>
     <div class="scroll"><table id="freshTable">
       <thead><tr><th>数据</th><th>状态</th><th>快照时间</th><th>说明</th></tr></thead>
@@ -940,7 +940,7 @@
     const d = await bridge.apiPost("refresh", {});
     const r = d.results || {};
     const ST = { fresh: "本地已是最新", unavailable: "取不到" };
-    const NAME = { "arb_ratings.json": "仲裁评级", "baro_history.json": "奸商到访历史", "wiki_disp.json": "紫卡倾向" };
+    const NAME = { "arb_ratings.json": "仲裁评级", "baro_history.json": "奸商到访历史" };
     const st = Object.entries(r.static || {}).map(([k, v]) => `${NAME[k] || k}：${ST[v] || v}`);
     $("refreshResult").textContent = [`元素加成：${ST[r.valence] || r.valence}`, `言录使货单：${ST[r.acrithis] || r.acrithis}`, ...st].join("；");
     state.ov.freshness = d.freshness; renderFresh(d.freshness); renderOverview();
@@ -959,7 +959,7 @@
       if (v === "failed") return "失败（详见日志）";
       return v;
     };
-    $("refreshResult").textContent = `元素加成：${say(r.valence)}；言录使货单：${say(r.acrithis)}；紫卡倾向：${say(r.wiki_disp)}`;
+    $("refreshResult").textContent = `元素加成：${say(r.valence)}；言录使货单：${say(r.acrithis)}`;
     state.ov.freshness = d.freshness; renderFresh(d.freshness); renderOverview();
   });
   $("save").onclick = (e) => busy(e.currentTarget, async () => {

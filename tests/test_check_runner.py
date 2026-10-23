@@ -233,9 +233,15 @@ _h2 = Path(tempfile.mkdtemp(prefix="wf_registry_health_"))
 (_h2 / "core" / "data" / "de" / "acrichis_week.json").write_text(
     json.dumps({"expiry": "2026-10-01T00:00:00+00:00"}), encoding="utf-8"
 )
-(_h2 / "core" / "data" / "de" / "wiki_disp.json").write_text(
-    json.dumps({"snapshot": "2026-09-01T00:00:00+00:00"}), encoding="utf-8"
+(_h2 / "core" / "data" / "arb_ratings.json").write_text(
+    json.dumps({"_updated": "2026-09-01T00:00:00+00:00"}), encoding="utf-8"
 )
+# 现役登记表里没有「高风险 + 按年龄判」的项了（wiki_disp 2026-10 倾向取消后冻结），
+# 借仲裁评级临时标高风险来走这条规则（本段末还原）。
+from core import data_registry as _DR7  # noqa: E402
+
+_arb_risk7 = _DR7.REGISTRY["arb_ratings.json"]["risk"]
+_DR7.REGISTRY["arb_ratings.json"]["risk"] = "high"
 (_h2 / "core" / "data" / "zzz_unregistered.json").write_text("{}", encoding="utf-8")
 _at2 = datetime(2026, 9, 21, 0, 0, tzinfo=timezone.utc)
 _hit = {i["item"]: i for i in RC.registry_items(_h2, _at2)}
@@ -251,9 +257,9 @@ check(
 )
 check(
     "登记表：高风险过期项算警告（ok=True，不计失败）",
-    _hit.get("registry::de/wiki_disp.json", {}).get("ok") is True
-    and _hit.get("registry::de/wiki_disp.json", {}).get("warn") is True,
-    str(_hit.get("registry::de/wiki_disp.json")),
+    _hit.get("registry::arb_ratings.json", {}).get("ok") is True
+    and _hit.get("registry::arb_ratings.json", {}).get("warn") is True,
+    str(_hit.get("registry::arb_ratings.json")),
 )
 _hlogs = Path(tempfile.mkdtemp(prefix="wf_registry_logs_"))
 _hres = {r.name: r for r in RC.health(_h2, _hlogs, _at2)}
@@ -264,6 +270,7 @@ check(
     and not all(r.status == "PASS" for r in _hres.values()),
     str({k: v.status for k, v in _hres.items() if k.startswith("registry::")}),
 )
+_DR7.REGISTRY["arb_ratings.json"]["risk"] = _arb_risk7
 shutil.rmtree(_hlogs, ignore_errors=True)
 shutil.rmtree(_h2, ignore_errors=True)
 

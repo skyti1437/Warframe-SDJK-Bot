@@ -136,9 +136,9 @@ def _result_hook():
 #   * "/help"、"/新闻" → 让给内置 / dailyhub
 #   * "/仲裁"、"/赏金" → 没被占用，照常由本插件响应（不破坏用户习惯）
 #   * 裸词 "仲裁" / "新闻" → 本来就没有别的处理器在抢（指令过滤需要前缀），维持原样
-_OCCUPIED_FALLBACK = frozenset(
+# AstrBot 内置指令（astrbot/builtin_stars/builtin_commands/main.py）
+_BUILTIN_COMMANDS = frozenset(
     {
-        # AstrBot 内置指令（astrbot/builtin_stars/builtin_commands/main.py）
         "help",
         "sid",
         "name",
@@ -150,6 +150,10 @@ _OCCUPIED_FALLBACK = frozenset(
         "dashboard_update",
         "set",
         "unset",
+    }
+)
+_OCCUPIED_FALLBACK = _BUILTIN_COMMANDS | frozenset(
+    {
         # 已知的第三方占用（本机实测）。运行期探测失败时靠它兜底 ——
         # 宁可少避让，也不能把内置帮助这种刚需指令再吞一次。
         "新闻",
@@ -354,6 +358,7 @@ HELP_TOPIC: dict[str, list[tuple[str, str]]] = {
         ("wm 物品名", "市场在售/收购（加 蓝图/机体 查部件）"),
         ("伤害 武器 对 敌人 100级", "面板 / 单发 / DPS / 分段"),
         ("紫卡分析 武器名 词条数值", "词条区间与距中（负词条加「负」）"),
+        ("词条范围 武器名 [3+1-]", "该武器能刷出的词条区间（可点名词条 / 切组合）"),
     ],
     "周期与日常": [
         ("夜灵 / 平原时间", "各开放世界昼夜 / 派系周期"),
@@ -378,7 +383,8 @@ HELP_TOPIC: dict[str, list[tuple[str, str]]] = {
     "市场与紫卡": [
         ("趋势 物品名", "48h / 90d 价格走势"),
         ("wr / 紫卡 / rm 武器名", "紫卡拍卖｜源紫卡报价"),
-        ("倾向 / 紫卡排行", "倾向值｜热度榜（加 刷新 强更）"),
+        ("wr 未开 [类别]", "未开紫卡挂单，如「wr 手枪未开」；不加类别看 8 类行情"),
+        ("倾向 / 紫卡排行", "倾向已统一 1.2（看原倾向与缩放）｜热度榜（加 刷新 强更）"),
     ],
     "遗物与资源": [
         ("遗物 / 核桃 名称", "奖励与出处；出库 / 入库 / 列表"),
@@ -567,6 +573,7 @@ class WarframeSDJK(
             "xh": self._h_xh,
             "disposition": self._h_disposition,
             "analysis": self._h_riven_analysis,
+            "ranges": self._h_riven_ranges,
             "relic": self._h_relic,
             "parts": self._h_parts,
             "ducats": self._h_ducats,
@@ -635,6 +642,9 @@ class WarframeSDJK(
             self.push.task.add_done_callback(self._log_task_death("push_daemon"))
         self._auto_task = asyncio.create_task(self._rank_autoloop())
         self._auto_task.add_done_callback(self._log_task_death("_rank_autoloop"))
+        # 紫卡实时排行快照（2026-10-23）：6h 一次、只在凌晨闲时
+        self._riven_rt_task = asyncio.create_task(self._riven_rt_autoloop())
+        self._riven_rt_task.add_done_callback(self._log_task_death("_riven_rt_autoloop"))
         self._valence_task = asyncio.create_task(self._valence_autoloop())
         self._valence_task.add_done_callback(self._log_task_death("_valence_autoloop"))
         # 社区快照轻轮询：只对「没装/连不上 FS」的用户生效（见 _community_autoloop）
@@ -652,7 +662,11 @@ class WarframeSDJK(
         # 后台预热伤害计算的全部重 JSON + 武器名索引（不阻塞启动）：
         # 不预热时第一条指令要现读武器库/进化/灵化形态/多段/部署表，叠加后
         # 会让首条指令明显变慢（2026-09-17 用户反馈「半天才出来」）。
-        asyncio.create_task(asyncio.to_thread(self._warmup))
+        # ★ 2026-10-21（GPT 评估 P08）：记到 self 上并挂死亡日志 —— 原先不落引用，异常只剩一条
+        #   「Task exception was never retrieved」。线程本身取消不了（只读本地 JSON、不联网，旧实例的
+        #   预热跑完自行结束）；terminate 里 cancel 只是不再等它，避免卸载时悬着一个无主任务。
+        self._warm_task = asyncio.create_task(asyncio.to_thread(self._warmup))
+        self._warm_task.add_done_callback(self._log_task_death("_warmup"))
         logger.info(
             "[sdjk] 插件已加载，共注册 %d 个主指令（输出模式 %s，渲染器%s）",
             len(self._routes),
@@ -782,6 +796,50 @@ class WarframeSDJK(
                 logger.warning("[sdjk] 价格榜单自动刷新失败，10 分钟后重试：%s", e)
                 await asyncio.sleep(600)
 
+    # ★ 2026-10-23：紫卡实时排行快照（WM 拍卖）—— 频率 6h，且只在凌晨闲时抓
+    RIVEN_RT_TTL_HOURS = 6
+    RIVEN_RT_MAX_PER_RUN = 200  # 目标集实测 ~101 把，留余量
+
+    async def _riven_rt_autoloop(self):
+        """插件内置定时：紫卡实时排行快照每 6 小时重建（且只在凌晨闲时）。
+
+        与 `_rank_autoloop` 同套口径：每 30 分钟检查落盘时间戳；超 6h **且**处于闲时
+        （02:00-06:59）才开抓 —— 白天**大批量打 WM** 会拖慢用户的 wm/wr 查询。
+        目标集实测 ~101 把、速率 ≤3 req/s，一轮约 1 分钟；失败退避 10 分钟。
+        """
+        while True:
+            try:
+                snap = self.client.riven_realtime_rows()
+                ts = snap.get("ts") or ""
+                import time as _t
+                from datetime import datetime
+
+                try:
+                    age = _t.time() - datetime.fromisoformat(ts).timestamp()
+                except ValueError:
+                    age = float("inf")
+                if age > self.RIVEN_RT_TTL_HOURS * 3600:
+                    if datetime.now().hour not in self.RANK_CRAWL_IDLE_HOURS:
+                        logger.info(
+                            "[sdjk] 紫卡实时排行已过期，但非闲时（%02d 点），凌晨 %d-%d 点再抓",
+                            datetime.now().hour,
+                            self.RANK_CRAWL_IDLE_HOURS[0],
+                            self.RANK_CRAWL_IDLE_HOURS[-1],
+                        )
+                        await asyncio.sleep(1800)
+                        continue
+                    logger.info(
+                        "[sdjk] 紫卡实时排行缺失或超 %dh，开始重建", self.RIVEN_RT_TTL_HOURS
+                    )
+                    n = await self.client.crawl_riven_realtime(limit=self.RIVEN_RT_MAX_PER_RUN)
+                    logger.info("[sdjk] 紫卡实时排行本轮结束（累计 %d 把）", n)
+                await asyncio.sleep(1800)
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:  # noqa: BLE001
+                logger.warning("[sdjk] 紫卡实时排行自动刷新失败，10 分钟后重试：%s", e)
+                await asyncio.sleep(600)
+
     async def _flare_phase(self) -> str:
         """wiki 类刷新的前置判定：``off`` / ``absent`` / ``ready``。
 
@@ -840,7 +898,7 @@ class WarframeSDJK(
         ok, wm_ok = 0, 0
         for tag, make, limit in (
             ("社区快照（元素加成 / 言录使）", self._refresh_from_community, 90),
-            ("社区静态快照（仲裁评级 / 奸商 / 紫卡倾向）", self._refresh_static_community, 90),
+            ("社区静态快照（仲裁评级 / 奸商）", self._refresh_static_community, 90),
             ("WM 物品表", self.client.wm_items, 120),
             ("WM 紫卡武器表", self.client.wm_riven_weapons, 120),
         ):
@@ -855,7 +913,7 @@ class WarframeSDJK(
         logger.info("[sdjk] 首启预热完成 %d/4 项", ok)
 
     async def _refresh_static_community(self) -> None:
-        """静态快照（仲裁评级 / 奸商到访历史 / 紫卡倾向）从 bot-data 拉新；与有没有 FS 无关。"""
+        """静态快照（仲裁评级 / 奸商到访历史）从 bot-data 拉新；与有没有 FS 无关。"""
         try:
             res = await self.client.refresh_community_static()
         except Exception as exc:  # noqa: BLE001
@@ -928,8 +986,8 @@ class WarframeSDJK(
     async def _valence_autoloop(self):
         """插件内置定时：每 6 小时检查一轮 wiki 类快照。
 
-        ① 信条/终幕元素加成（换轮即刷新）；② 变体倾向表（7 天过期重抓）；
-        ③ 言录使货单。三者都需要 FlareSolverr（**可选组件**）。
+        ① 信条/终幕元素加成（换轮即刷新）；② 言录使货单。都需要 FlareSolverr（**可选组件**）。
+        （原 ② 变体倾向表 7 天重抓已退役：2026-10 DE 取消紫卡倾向，旧表冻结只作旧截图判据。）
 
         ★ 告警分级（2026-09-25 v1.0.8，issue #1 用户实测反馈：更新后连收
         「元素加成/变体倾向表刷新失败（All connection attempts failed）」）：
@@ -985,12 +1043,6 @@ class WarframeSDJK(
                 status = await self.client.refresh_valence()
                 if status != "fresh":
                     logger.info("[sdjk] 元素加成快照已刷新：%s", status)
-                try:
-                    disp_status = await self.client.refresh_wiki_disp()
-                    if disp_status != "fresh":
-                        logger.info("[sdjk] 变体倾向表已刷新：%s", disp_status)
-                except Exception as e:  # noqa: BLE001 - 倾向表失败不阻断
-                    logger.warning("[sdjk] 变体倾向表刷新失败：%s", e)
                 # 言录使（Acrithis）本周货单：DE 不下发。过期后自动抓 wiki
                 # 《Acrithis/Current Offerings》子页（社区人工维护的当期 5 件，
                 # 2026-09-21 起；原先只告警等人工，实际永远没人更）。
@@ -1023,7 +1075,14 @@ class WarframeSDJK(
         if panel:
             panel.close()
         pending = []
-        for name in ("_auto_task", "_valence_task", "_community_task", "_boot_task"):
+        for name in (
+            "_auto_task",
+            "_valence_task",
+            "_community_task",
+            "_riven_rt_task",
+            "_boot_task",
+            "_warm_task",
+        ):
             task = getattr(self, name, None)
             if task and not task.done():
                 task.cancel()
@@ -1059,8 +1118,16 @@ class WarframeSDJK(
         # 带唤醒前缀（"/xxx"）时，AstrBot 已把 "/" 剥掉，此处按原始消息还原判断：
         # 若该词已被内置指令或其他插件占用，就让路 —— 直接 return 且**不** stop_event，
         # 后面的处理器照常接住（详见文件头「指令空间避让」注释）。
+        # ★ 2026-10-22（用户报「/help 又被本插件吞了」）：只靠「原文比 message_str 长」还原前缀不稳 ——
+        #   适配器 / AstrBot 升级后原文也可能被改写，判据失效就 fail-open 抢答。**内置指令**另看
+        #   AstrBot 自己设的 `is_at_or_wake_command`（内置 CommandFilter 正是看它才响应）⇒ 只要内置会接，
+        #   我们就让路。第三方占用词（新闻）仍只按前缀判 —— 私聊 / @机器人 也会置该标记，
+        #   对它们一并让路会改变「私聊发新闻由本插件回答」的既有行为。
+        head = text.split(" ", 1)[0].lower()
+        if head in _BUILTIN_COMMANDS and getattr(event, "is_at_or_wake_command", False) is True:
+            logger.info("[sdjk] 「%s」是 AstrBot 内置指令（已唤醒），本次让路", head)
+            return
         if _wake_prefix_stripped(event):
-            head = text.split(" ", 1)[0].lower()
             if head in _occupied_command_words():
                 logger.info("[sdjk] 「/%s」已由内置指令或其他插件占用，本次让路", head)
                 return

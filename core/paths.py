@@ -22,6 +22,8 @@ import threading
 from pathlib import Path
 from typing import Any
 
+from .logging_compat import logger
+
 PKG_DATA = Path(__file__).resolve().parent / "data"  # 随包分发的只读资源目录
 
 _RUN: Path | None = None
@@ -38,12 +40,41 @@ def run_dir() -> Path:
     return _RUN if _RUN is not None else PKG_DATA
 
 
+# 运行副本 JSON 可读性缓存：{路径: (mtime_ns, size, 可读)} —— 同一份文件只解析一次
+_RUN_JSON_OK: dict[str, tuple[int, int, bool]] = {}
+
+
+def _run_json_ok(p: Path) -> bool:
+    """运行目录里的 .json 副本能否解析（按 mtime/size 缓存；读不到 stat 视为可用，交给调用方）。"""
+    try:
+        st = p.stat()
+    except OSError:
+        return True
+    hit = _RUN_JSON_OK.get(str(p))
+    if hit is not None and hit[0] == st.st_mtime_ns and hit[1] == st.st_size:
+        return hit[2]
+    try:
+        json.loads(p.read_text(encoding="utf-8"))
+        ok = True
+    except (OSError, ValueError) as exc:
+        ok = False
+        logger.warning("[sdjk] 运行目录副本 JSON 损坏，已回落随包种子：%s（%s）", p, exc)
+    _RUN_JSON_OK[str(p)] = (st.st_mtime_ns, st.st_size, ok)
+    return ok
+
+
 def read_path(name: str) -> Path:
-    """读路径：运行目录优先，缺则回退包内种子文件。"""
+    """读路径：运行目录优先，缺则回退包内种子文件。
+
+    ★ GPT 评估 P07（2026-10-21）：运行副本是**坏 JSON** 且包内有种子时也回落种子 ——
+    原先坏副本会一直遮蔽种子（各处读法读坏返回空），表现为「部署成功但线上数据是空的」。
+    只认 JSON 解析失败；结构校验不过（条数太少等）仍按原样读，由数据账本 / 面板提示。
+    没有包内种子的文件（用户存档等）不受影响。
+    """
     p = run_dir() / name
-    if _RUN is not None and not p.exists():
+    if _RUN is not None:
         seed = PKG_DATA / name
-        if seed.exists():
+        if seed.exists() and (not p.exists() or (name.endswith(".json") and not _run_json_ok(p))):
             return seed
     return p
 

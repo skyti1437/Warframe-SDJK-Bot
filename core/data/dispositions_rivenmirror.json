@@ -313,8 +313,8 @@
   },
   "Arbucep (Atmosphere)": {
    "disposition": 0.7,
-   "group": "",
-   "riven_type": "",
+   "group": "archgun",
+   "riven_type": "rifle",
    "url_name": "arbucep_(atmosphere)",
    "zh": ""
   },
@@ -565,8 +565,8 @@
   },
   "Braton Vandal": {
    "disposition": 1.3,
-   "group": "",
-   "riven_type": "",
+   "group": "primary",
+   "riven_type": "rifle",
    "url_name": "braton_vandal",
    "zh": "布莱顿·破坏者"
   },
@@ -601,7 +601,7 @@
   "Bubonico": {
    "disposition": 0.75,
    "group": "primary",
-   "riven_type": "rifle",
+   "riven_type": "shotgun",
    "url_name": "bubonico",
    "zh": "横痃重炮"
   },
@@ -754,8 +754,8 @@
   },
   "Ceti Lacera": {
    "disposition": 1.2,
-   "group": "",
-   "riven_type": "",
+   "group": "melee",
+   "riven_type": "melee",
    "url_name": "ceti_lacera",
    "zh": "天仓·悲痛之刃"
   },
@@ -790,7 +790,7 @@
   "Coda Bubonico": {
    "disposition": 0.6,
    "group": "primary",
-   "riven_type": "rifle",
+   "riven_type": "shotgun",
    "url_name": "coda_bubonico",
    "zh": ""
   },
@@ -901,8 +901,8 @@
   },
   "Cortege (Atmosphere)": {
    "disposition": 1.0,
-   "group": "",
-   "riven_type": "",
+   "group": "archgun",
+   "riven_type": "rifle",
    "url_name": "cortege_(atmosphere)",
    "zh": ""
   },
@@ -929,8 +929,8 @@
   },
   "Corvas (Atmosphere)": {
    "disposition": 1.2,
-   "group": "",
-   "riven_type": "",
+   "group": "archgun",
+   "riven_type": "rifle",
    "url_name": "corvas_(atmosphere)",
    "zh": ""
   },
@@ -943,8 +943,8 @@
   },
   "Corvas Prime (Atmosphere)": {
    "disposition": 1.0,
-   "group": "",
-   "riven_type": "",
+   "group": "archgun",
+   "riven_type": "rifle",
    "url_name": "corvas_prime_(atmosphere)",
    "zh": ""
   },
@@ -992,8 +992,8 @@
   },
   "Cyngas (Atmosphere)": {
    "disposition": 1.3,
-   "group": "",
-   "riven_type": "",
+   "group": "archgun",
+   "riven_type": "rifle",
    "url_name": "cyngas_(atmosphere)",
    "zh": ""
   },
@@ -1034,15 +1034,15 @@
   },
   "Dark Split-Sword (Dual Swords)": {
    "disposition": 1.3,
-   "group": "",
-   "riven_type": "",
+   "group": "melee",
+   "riven_type": "melee",
    "url_name": "dark_split-sword_(dual_swords)",
    "zh": ""
   },
   "Dark Split-Sword (Heavy Blade)": {
    "disposition": 1.3,
-   "group": "",
-   "riven_type": "",
+   "group": "melee",
+   "riven_type": "melee",
    "url_name": "dark_split-sword_(heavy_blade)",
    "zh": ""
   },
@@ -1083,8 +1083,8 @@
   },
   "Dera Vandal": {
    "disposition": 1.35,
-   "group": "",
-   "riven_type": "",
+   "group": "primary",
+   "riven_type": "rifle",
    "url_name": "dera_vandal",
    "zh": "德拉·破坏者"
   },
@@ -1223,8 +1223,8 @@
   },
   "Dual Decurion (Atmosphere)": {
    "disposition": 1.3,
-   "group": "",
-   "riven_type": "",
+   "group": "archgun",
+   "riven_type": "rifle",
    "url_name": "dual_decurion_(atmosphere)",
    "zh": ""
   },
@@ -1475,8 +1475,8 @@
   },
   "Fluctus (Atmosphere)": {
    "disposition": 1.1,
-   "group": "",
-   "riven_type": "",
+   "group": "archgun",
+   "riven_type": "rifle",
    "url_name": "fluctus_(atmosphere)",
    "zh": ""
   },
@@ -1524,8 +1524,8 @@
   },
   "Furax Wraith": {
    "disposition": 1.15,
-   "group": "",
-   "riven_type": "",
+   "group": "melee",
+   "riven_type": "melee",
    "url_name": "furax_wraith",
    "zh": "弗拉克斯·亡魂"
   },
@@ -1629,8 +1629,8 @@
   },
   "Glaxion Vandal": {
    "disposition": 1.25,
-   "group": "",
-   "riven_type": "",
+   "group": "primary",
+   "riven_type": "rifle",
    "url_name": "glaxion_vandal",
    "zh": "冷冻光束步枪·破坏者"
   },
@@ -1643,8 +1643,8 @@
   },
   "Gorgon Wraith": {
    "disposition": 1.35,
-   "group": "",
-   "riven_type": "",
+   "group": "primary",
+   "riven_type": "rifle",
    "url_name": "gorgon_wraith",
    "zh": "蛇发女妖·亡魂"
   },
@@ -1685,8 +1685,8 @@
   },
   "Grattler (Atmosphere)": {
    "disposition": 1.1,
-   "group": "",
-   "riven_type": "",
+   "group": "archgun",
+   "riven_type": "rifle",
    "url_name": "grattler_(atmosphere)",
    "zh": ""
   },
@@ -1748,8 +1748,8 @@
   },
   "Halikar Wraith": {
    "disposition": 1.2,
-   "group": "",
-   "riven_type": "",
+   "group": "melee",
+   "riven_type": "melee",
    "url_name": "halikar_wraith",
    "zh": "哈利卡·亡魂"
   },
@@ -1881,8 +1881,8 @@
   },
   "Ignis Wraith": {
    "disposition": 0.65,
-   "group": "",
-   "riven_type": "",
+   "group": "primary",
+   "riven_type": "rifle",
    "url_name": "ignis_wraith",
    "zh": "伊格尼斯·亡魂"
   },
@@ -1895,22 +1895,22 @@
   },
   "Imperator (Atmosphere)": {
    "disposition": 1.1,
-   "group": "",
-   "riven_type": "",
+   "group": "archgun",
+   "riven_type": "rifle",
    "url_name": "imperator_(atmosphere)",
    "zh": ""
   },
   "Imperator Vandal": {
    "disposition": 0.95,
-   "group": "",
-   "riven_type": "",
+   "group": "archgun",
+   "riven_type": "rifle",
    "url_name": "imperator_vandal",
    "zh": ""
   },
   "Imperator Vandal (Atmosphere)": {
    "disposition": 0.95,
-   "group": "",
-   "riven_type": "",
+   "group": "archgun",
+   "riven_type": "rifle",
    "url_name": "imperator_vandal_(atmosphere)",
    "zh": ""
   },
@@ -1965,8 +1965,8 @@
   },
   "Karak Wraith": {
    "disposition": 1.28,
-   "group": "",
-   "riven_type": "",
+   "group": "primary",
+   "riven_type": "rifle",
    "url_name": "karak_wraith",
    "zh": "卡拉克·亡魂"
   },
@@ -2161,8 +2161,8 @@
   },
   "Kuva Ayanga (Atmosphere)": {
    "disposition": 0.95,
-   "group": "",
-   "riven_type": "",
+   "group": "archgun",
+   "riven_type": "rifle",
    "url_name": "kuva_ayanga_(atmosphere)",
    "zh": ""
   },
@@ -2210,8 +2210,8 @@
   },
   "Kuva Grattler (Atmosphere)": {
    "disposition": 0.7,
-   "group": "",
-   "riven_type": "",
+   "group": "archgun",
+   "riven_type": "rifle",
    "url_name": "kuva_grattler_(atmosphere)",
    "zh": ""
   },
@@ -2357,8 +2357,8 @@
   },
   "Larkspur (Atmosphere)": {
    "disposition": 1.05,
-   "group": "",
-   "riven_type": "",
+   "group": "archgun",
+   "riven_type": "rifle",
    "url_name": "larkspur_(atmosphere)",
    "zh": ""
   },
@@ -2371,8 +2371,8 @@
   },
   "Larkspur Prime (Atmosphere)": {
    "disposition": 0.8,
-   "group": "",
-   "riven_type": "",
+   "group": "archgun",
+   "riven_type": "rifle",
    "url_name": "larkspur_prime_(atmosphere)",
    "zh": ""
   },
@@ -2399,8 +2399,8 @@
   },
   "Lato Vandal": {
    "disposition": 1.35,
-   "group": "",
-   "riven_type": "",
+   "group": "secondary",
+   "riven_type": "pistol",
    "url_name": "lato_vandal",
    "zh": "拉托·破坏者"
   },
@@ -2420,8 +2420,8 @@
   },
   "Latron Wraith": {
    "disposition": 1.35,
-   "group": "",
-   "riven_type": "",
+   "group": "primary",
+   "riven_type": "rifle",
    "url_name": "latron_wraith",
    "zh": "拉特昂·亡魂"
   },
@@ -2518,8 +2518,8 @@
   },
   "Machete Wraith": {
    "disposition": 1.4,
-   "group": "",
-   "riven_type": "",
+   "group": "melee",
+   "riven_type": "melee",
    "url_name": "machete_wraith",
    "zh": "马谢特砍刀·亡魂"
   },
@@ -2553,8 +2553,8 @@
   },
   "Mandonel (Atmosphere)": {
    "disposition": 1.1,
-   "group": "",
-   "riven_type": "",
+   "group": "archgun",
+   "riven_type": "rifle",
    "url_name": "mandonel_(atmosphere)",
    "zh": ""
   },
@@ -2595,8 +2595,8 @@
   },
   "Mausolon (Atmosphere)": {
    "disposition": 0.5,
-   "group": "",
-   "riven_type": "",
+   "group": "archgun",
+   "riven_type": "rifle",
    "url_name": "mausolon_(atmosphere)",
    "zh": ""
   },
@@ -2630,50 +2630,50 @@
   },
   "Mk1-Bo": {
    "disposition": 1.4,
-   "group": "",
-   "riven_type": "",
+   "group": "melee",
+   "riven_type": "melee",
    "url_name": "mk1-bo",
    "zh": "MK1-玻之武杖"
   },
   "Mk1-Braton": {
    "disposition": 1.35,
-   "group": "",
-   "riven_type": "",
+   "group": "primary",
+   "riven_type": "rifle",
    "url_name": "mk1-braton",
    "zh": "MK1-布莱顿"
   },
   "Mk1-Furax": {
    "disposition": 1.45,
-   "group": "",
-   "riven_type": "",
+   "group": "melee",
+   "riven_type": "melee",
    "url_name": "mk1-furax",
    "zh": "MK1-弗拉克斯"
   },
   "Mk1-Furis": {
    "disposition": 1.4,
-   "group": "",
-   "riven_type": "",
+   "group": "secondary",
+   "riven_type": "pistol",
    "url_name": "mk1-furis",
    "zh": "MK1-盗贼"
   },
   "Mk1-Kunai": {
    "disposition": 1.51,
-   "group": "",
-   "riven_type": "",
+   "group": "secondary",
+   "riven_type": "pistol",
    "url_name": "mk1-kunai",
    "zh": "MK1-苦无"
   },
   "Mk1-Paris": {
    "disposition": 1.45,
-   "group": "",
-   "riven_type": "",
+   "group": "primary",
+   "riven_type": "rifle",
    "url_name": "mk1-paris",
    "zh": "MK1-帕里斯"
   },
   "Mk1-Strun": {
    "disposition": 1.45,
-   "group": "",
-   "riven_type": "",
+   "group": "primary",
+   "riven_type": "shotgun",
    "url_name": "mk1-strun",
    "zh": "MK1-斯特朗"
   },
@@ -2686,8 +2686,8 @@
   },
   "Morgha (Atmosphere)": {
    "disposition": 1.0,
-   "group": "",
-   "riven_type": "",
+   "group": "archgun",
+   "riven_type": "rifle",
    "url_name": "morgha_(atmosphere)",
    "zh": ""
   },
@@ -2875,8 +2875,8 @@
   },
   "Opticor Vandal": {
    "disposition": 1.1,
-   "group": "",
-   "riven_type": "",
+   "group": "primary",
+   "riven_type": "rifle",
    "url_name": "opticor_vandal",
    "zh": "奥堤克光子枪·破坏者"
   },
@@ -2917,8 +2917,8 @@
   },
   "Pangolin Prime": {
    "disposition": 1.05,
-   "group": "",
-   "riven_type": "",
+   "group": "melee",
+   "riven_type": "melee",
    "url_name": "pangolin_prime",
    "zh": "鲮鲤剑 Prime"
   },
@@ -3015,8 +3015,8 @@
   },
   "Phaedra (Atmosphere)": {
    "disposition": 1.25,
-   "group": "",
-   "riven_type": "",
+   "group": "archgun",
+   "riven_type": "rifle",
    "url_name": "phaedra_(atmosphere)",
    "zh": ""
   },
@@ -3099,8 +3099,8 @@
   },
   "Prime Laser Rifle": {
    "disposition": 1.21,
-   "group": "",
-   "riven_type": "",
+   "group": "sentinel",
+   "riven_type": "rifle",
    "url_name": "prime_laser_rifle",
    "zh": ""
   },
@@ -3127,15 +3127,15 @@
   },
   "Prisma Dual Decurions": {
    "disposition": 1.25,
-   "group": "",
-   "riven_type": "",
+   "group": "archgun",
+   "riven_type": "rifle",
    "url_name": "prisma_dual_decurions",
    "zh": ""
   },
   "Prisma Dual Decurions (Atmosphere)": {
    "disposition": 1.25,
-   "group": "",
-   "riven_type": "",
+   "group": "archgun",
+   "riven_type": "rifle",
    "url_name": "prisma_dual_decurions_(atmosphere)",
    "zh": ""
   },
@@ -3225,8 +3225,8 @@
   },
   "Prova Vandal": {
    "disposition": 1.35,
-   "group": "",
-   "riven_type": "",
+   "group": "melee",
+   "riven_type": "melee",
    "url_name": "prova_vandal",
    "zh": "普罗沃·破坏者"
   },
@@ -3274,8 +3274,8 @@
   },
   "Quanta Vandal": {
    "disposition": 1.4,
-   "group": "",
-   "riven_type": "",
+   "group": "primary",
+   "riven_type": "rifle",
    "url_name": "quanta_vandal",
    "zh": "量子切割器·破坏者"
   },
@@ -3687,8 +3687,8 @@
   },
   "Snipetron Vandal": {
    "disposition": 1.25,
-   "group": "",
-   "riven_type": "",
+   "group": "primary",
+   "riven_type": "rifle",
    "url_name": "snipetron_vandal",
    "zh": "狙击特昂·破坏者"
   },
@@ -3729,8 +3729,8 @@
   },
   "Spectra Vandal": {
    "disposition": 1.45,
-   "group": "",
-   "riven_type": "",
+   "group": "secondary",
+   "riven_type": "pistol",
    "url_name": "spectra_vandal",
    "zh": "光谱切割器·破坏者"
   },
@@ -3848,8 +3848,8 @@
   },
   "Strun Wraith": {
    "disposition": 1.35,
-   "group": "",
-   "riven_type": "",
+   "group": "primary",
+   "riven_type": "shotgun",
    "url_name": "strun_wraith",
    "zh": "斯特朗·亡魂"
   },
@@ -3883,8 +3883,8 @@
   },
   "Supra Vandal": {
    "disposition": 1.0,
-   "group": "",
-   "riven_type": "",
+   "group": "primary",
+   "riven_type": "rifle",
    "url_name": "supra_vandal",
    "zh": "苏普拉·破坏者"
   },
@@ -4324,8 +4324,8 @@
   },
   "Twin Vipers Wraith": {
    "disposition": 1.41,
-   "group": "",
-   "riven_type": "",
+   "group": "secondary",
+   "riven_type": "pistol",
    "url_name": "twin_vipers_wraith",
    "zh": "双子蝰蛇·亡魂"
   },
@@ -4415,8 +4415,8 @@
   },
   "Velocitus (Atmosphere)": {
    "disposition": 1.1,
-   "group": "",
-   "riven_type": "",
+   "group": "archgun",
+   "riven_type": "rifle",
    "url_name": "velocitus_(atmosphere)",
    "zh": ""
   },
@@ -4534,8 +4534,8 @@
   },
   "Viper Wraith": {
    "disposition": 1.4,
-   "group": "",
-   "riven_type": "",
+   "group": "secondary",
+   "riven_type": "pistol",
    "url_name": "viper_wraith",
    "zh": "蝰蛇·亡魂"
   },
@@ -4576,8 +4576,8 @@
   },
   "Vulkar Wraith": {
    "disposition": 1.4,
-   "group": "",
-   "riven_type": "",
+   "group": "primary",
+   "riven_type": "rifle",
    "url_name": "vulkar_wraith",
    "zh": "金工火神·亡魂"
   },

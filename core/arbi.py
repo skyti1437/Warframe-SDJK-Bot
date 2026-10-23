@@ -129,6 +129,32 @@ def tier_label(key: str, tier_of: dict) -> str:
     return tv + LOW_MARK if low_sample(key, tier_of) else tv
 
 
+def tier_label_with_median(key: str, tier_of: dict) -> str:
+    """显示用档位 + **社区实测每小时生息中位数（取整）**，如 ``A 612`` / ``A+* 705``。
+
+    ★ 2026-10-22（用户要求）：仲裁时间表在评级后带上该节点的实测中位数，让「档位相同
+      但收益差很多」的节点一眼可比。
+    ★ 单位 = **每小时生息** —— 与 `TIER_RANGE` 的档位阈值（S≥800 / A≥600…）同单位，
+      来源 `core/data/arb_ratings.json` 的 ``median``（`scripts/build_arb_ratings.py`
+      从 arbi 排行榜聚合）。
+    ★ 无实测样本（没有 ``median``，例如官方 tierlist 评了级但社区没数据）的节点
+      **只显示档位**；未评级仍返回空串。
+    """
+    tv = tier_label(key, tier_of)
+    if not tv:
+        return ""
+    med = measured_of(key).get("median")
+    try:
+        m = int(round(float(med)))
+    except (TypeError, ValueError):
+        return tv
+    return f"{tv} {m}"
+
+
+# ★ 2026-10-22：仲裁时间表的图例补一句（只在带中位数的表上出现，故不并进共用的 TIER_NOTE）。
+TIER_MEDIAN_NOTE = "※ 评级后的数字 = 社区实测每小时生息中位数（取整）"
+
+
 # 可筛选的任务类型（中文，来源 arbi 的 missionNameZh；INFESTED 前缀会被归一化）
 TYPES = (
     "生存",
@@ -212,7 +238,7 @@ def node_line(nodes: dict, key: str, tier_of: dict) -> str:
     return f"{head}　[{tv}]" if tv else head
 
 
-def node_cells(nodes: dict, key: str, tier_of: dict) -> list[str]:
+def node_cells(nodes: dict, key: str, tier_of: dict, *, with_median: bool = False) -> list[str]:
     """节点 → **分列单元格**：[节点（星球）, 类型, 派系, [评级]]（评级可缺省）。
 
     ★ 2026-09-27：仲裁排期卡改走渲染层的列对齐（按全角空格切列），需要「一格一
@@ -222,11 +248,30 @@ def node_cells(nodes: dict, key: str, tier_of: dict) -> list[str]:
     n = nodes.get(key) or {}
     name = n.get("nameZh") or "?"
     system = n.get("systemNameZh") or ""
-    tv = tier_label(key, tier_of)
+    # ★ 2026-10-22：`with_median=True` 时评级列带社区实测中位数（`A 612`）——
+    #   「仲裁」卡的「下一小时 / 下次高效」两行要它；排期卡（多列表格）不传，保持原样。
+    tv = tier_label_with_median(key, tier_of) if with_median else tier_label(key, tier_of)
     cells = [f"{name}（{system}）" if system else name, mission_of(n), faction_of(n)]
     if tv:
         cells.append(f"[{tv}]")
     return cells
+
+
+def next_efficient(sched: dict, tier_of: dict, from_idx: int):
+    """从 `from_idx` 起（含）往后找**第一个**评级 ∈ `RATING["高效"]`（S / A+ / A）的场次。
+
+    与「仲裁 高效」筛选**同一口径**（同一张 `RATING` 表、同一份 `tier_of`）。
+    Returns: ``(下标, 节点 key)``；排期内找不到返回 ``None``。
+    ★ 2026-10-22：「仲裁」卡新增「下次高效」行用。
+    """
+    eff = set(RATING["高效"])
+    seq = sched.get("seq") or []
+    keys = sched.get("nodes") or []
+    for i in range(max(0, from_idx), len(seq)):
+        k = keys[seq[i]] if seq[i] < len(keys) else ""
+        if k and (tier_of.get(k) or "").strip() in eff:
+            return i, k
+    return None
 
 
 async def fetch_tables(client) -> tuple[dict, dict, dict]:

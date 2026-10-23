@@ -4,6 +4,7 @@
 用法：
     python scripts/smoke_all.py            # 全部
     python scripts/smoke_all.py --parse    # 只跑解析层（离线、快）
+    python scripts/smoke_all.py --panel    # 只跑面板只读冒烟（部署后验收，容器内）
 """
 
 from __future__ import annotations
@@ -204,10 +205,94 @@ async def phase_data() -> None:
         pass
 
 
+PANEL_BASE = "http://127.0.0.1:6185"
+PANEL_PLUGIN_ID = "astrbot_plugin_warframe_sdjkbot"
+CMD_CONFIG = "/AstrBot/data/cmd_config.json"  # 容器内路径；本机跑不到就整段跳过
+
+
+def _panel_token() -> str:
+    """自签面板 JWT（读容器内 cmd_config.json 的 dashboard.jwt_secret）。"""
+    import datetime
+    import json as _json
+
+    import jwt
+
+    cfg = _json.loads(open(CMD_CONFIG, "rb").read().decode("utf-8-sig"))
+    dash = cfg["dashboard"]
+    return jwt.encode(
+        {
+            "username": dash["username"],
+            "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=1),
+        },
+        dash["jwt_secret"],
+        algorithm="HS256",
+    )
+
+
+def phase_panel() -> None:
+    """面板**只读**真机冒烟（GPT 评估 P11，2026-10-22）。
+
+    在**部署后**的机器上跑（容器内），断言两件事：
+      · 带 JWT 打只读接口（概览 / 资源 / 连通性）→ **200**；
+      · 不带鉴权打同样接口 → **401**（鉴权确实在生效，不是裸奔）。
+    ★ 全程只读：概览/资源是 GET；连通性（conntest）只做一次外部探测，**不写任何数据**。
+    ★ 读不到 `cmd_config.json`（本机 / 非容器）⇒ 打印跳过，不算失败。
+    """
+    import urllib.error
+    import urllib.request
+
+    try:
+        tok = _panel_token()
+    except Exception as exc:  # noqa: BLE001
+        print(
+            f"  [跳过] 面板冒烟：{type(exc).__name__}: {exc}"
+            f"（需在容器内跑；{CMD_CONFIG} 与 PyJWT 都只在那边有）"
+        )
+        return
+    print("  面板冒烟（只读）：")
+    base = f"{PANEL_BASE}/api/v1/plugins/extensions/{PANEL_PLUGIN_ID}"
+    cases = (
+        ("概览", "GET", "/overview", None),
+        ("资源", "GET", "/resources", None),
+        ("连通性", "POST", "/conntest", b"{}"),
+    )
+    for label, method, path, body in cases:
+        for auth in (True, False):
+            req = urllib.request.Request(base + path, data=body, method=method)
+            if body is not None:
+                req.add_header("Content-Type", "application/json")
+            if auth:
+                req.add_header("Authorization", "Bearer " + tok)
+            want = 200 if auth else 401
+            try:
+                with urllib.request.urlopen(req, timeout=60) as r:
+                    code = r.status
+            except urllib.error.HTTPError as exc:
+                code = exc.code
+            except Exception as exc:  # noqa: BLE001
+                code = f"ERR {type(exc).__name__}"
+            ok = code == want
+            print(
+                f"    [{'OK ' if ok else 'FAIL'}] {label}{'（带鉴权）' if auth else '（无鉴权）'}"
+                f" → {code}（期望 {want}）"
+            )
+            if not ok:
+                FAIL_PARSE.append(f"面板冒烟 {label} auth={auth} → {code}（期望 {want}）")
+
+
 def main() -> None:
+    if "--panel" in sys.argv:  # 部署后验收：只跑面板只读冒烟
+        phase_panel()
+        print()
+        if FAIL_PARSE:
+            print(f"⚠ 面板冒烟有 {len(FAIL_PARSE)} 项失败：{FAIL_PARSE}")
+            sys.exit(1)
+        print("✓ 面板冒烟完成")
+        return
     phase_parse()
     if "--parse" not in sys.argv:
         asyncio.run(phase_data())
+        phase_panel()
     print()
     if FAIL_PARSE:
         print(f"⚠ 解析层有 {len(FAIL_PARSE)} 项失败")

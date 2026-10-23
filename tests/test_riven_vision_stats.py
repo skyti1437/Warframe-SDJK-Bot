@@ -162,6 +162,32 @@ check(
 )
 check("武器类别归一：pistol/secondary → pistol", RA.weapon_class("pistol", "secondary") == "pistol")
 
+# ------------------------- ②c 「霰弹式副手」：食人鱼实卡（2026-10-19 报障）
+# 食人鱼（Pyrana）在 WM 里是 group=secondary、rivenType=shotgun；那批「霰弹式副手」
+# 共 15 把（德特昂/野马/布拉克/科马克…）都被标成 shotgun。此前 `_CLASS_KEYS` 没有
+# secondary → group 那层对副手静默失效，落到 rivenType ⇒ 整类按**霰弹枪基值列**算。
+#
+# 实卡（3+1，倾向 0.95）：暴击 +124.4 / 多重 +103.9 / 射速 +71.7 / 装填 −32.1
+#   · 按霰弹列：暴击 124.4 出界（72.14~88.17）、射速 71.7 出界（下限 72.14）⇒ 误判
+#   · 按手枪列：四条全部落带
+# 口径与 wfsim 一致：它按武器能吃哪些 MOD 定类（这些武器 `mod_pools: [pistol]`，
+# `class: shotgun_sidearm` 只是伤害模拟用的武器类）。
+_py_pos = [("crit_chance", 124.4), ("multishot", 103.9), ("fire_rate", 71.7)]
+_py_neg = [("reload_speed", 32.1)]
+check(
+    "★ 霰弹式副手：group=secondary 必须压过被标错的 rivenType=shotgun",
+    RA.weapon_class("shotgun", "secondary") == "pistol",
+    RA.weapon_class("shotgun", "secondary"),
+)
+check(
+    "★ 食人鱼实卡 4/4 可行（倾向 0.95，不再误报「疑似变体卡」）",
+    RA.disp_feasible(_py_pos, _py_neg, RA.weapon_class("shotgun", "secondary"), 0.95) is True,
+)
+check(
+    "  反证：同一张卡按霰弹列不可行（证明这条链真在区分列，不是恒真）",
+    RA.disp_feasible(_py_pos, _py_neg, "shotgun", 0.95) is False,
+)
+
 # ------------------------- ③ 全称与缩写的常见写法都要通
 for name, want in [
     ("暴击伤害", "crit_damage"),
@@ -700,8 +726,8 @@ check(
 )
 check("★ 不再误报「与家族已知倾向都不吻合」（旧故障串）", "都不吻合" not in _body3, _body3[:300])
 check(
-    "★ 数值反推落到变体倾向 1.2（棱晶·空刃 / 空刃 Prime 同值 ⇒ 不算歧义）",
-    "数值反推倾向 1.2" in _body3,
+    "★ 倾向统一 1.2：不再走变体反推（卡面直接按 1.2，无反推注记）",
+    "数值反推" not in _body3,
     _body3[:300],
 )
 check(
@@ -1081,10 +1107,31 @@ class _RecClient:
         return out[:n]
 
 
+# ★ 2026-10 倾向统一 1.2：近形字兜底的可行性闸门按 1.2 判，报障卡（按倾向 1.4 洗出）
+#   换成**按 1.2/1.4 缩放后**的同一张卡（倾向取消后游戏内显示的就是缩放值）。
+_incident_vision_12 = {
+    "weapon": "盗贼 Visi-toxican",
+    "lines": [
+        "盗贼 Visi-toxican",
+        "🔒 +103.3% 毒素伤害",
+        "+257.1% 伤害",
+        "+126.9% 多重射击",
+        "-83.3% 触发时间",
+        "内融值 1,234",
+    ],
+    "positive": [
+        ["基伤", 103.3],
+        ["毒素伤害", 257.1],
+        ["多重", 126.9],
+        ["触发", 83.3],
+        ["持续", 83.3],
+    ],
+    "negative": [["滑暴", 83.3], ["触发时间", 83.3]],
+}
 # 识别结果里的 weapon 就是线上那条「冰松 Visi-critapha」
-_iceq_vision = dict(_incident_vision, weapon="冰松 Visi-critapha")
+_iceq_vision = dict(_incident_vision_12, weapon="冰松 Visi-critapha")
 # 对照：同一张卡但 OCR 读对（纯图路径用）
-_iceq_vision_ok = dict(_incident_vision, weapon="冰凇 Visi-critapha")
+_iceq_vision_ok = dict(_incident_vision_12, weapon="冰凇 Visi-critapha")
 
 
 def _rec_obj(vision: dict):
@@ -1162,7 +1209,7 @@ check(
 # ---------------------------------------------------------------------------
 # 桩数据（名字为合成，只为触发分支）：OCR 读成「七星刃」，表里两个**等长 + 1 字差**
 # 的候选（七星刀 / 七星剑）倾向都是 1.4 ⇒ 数值都能解释卡面 ⇒ 必须**不采纳**。
-_vision_multi = dict(_incident_vision, weapon="七星刃 Seven-star")
+_vision_multi = dict(_incident_vision_12, weapon="七星刃 Seven-star")
 
 
 class _MultiNearClient(_RecClient):
@@ -1366,6 +1413,56 @@ check(
     [s for s, _ in _pd] == ["cold_damage", "reload_speed", "status_chance"]
     and _nd == [("crit_chance", 55.2)],
     f"{_pd} / {_nd}",
+)
+
+# ---------------------------------------------------------------------------
+# 用户实卡（2026-10-21，食人女魔 Parci-argiada）：长词条「收起武器时弹匣每秒自动装填」
+#   数值写在名字后面、卡面还折了行。旧实现整条静默丢掉 ⇒ 按 2+1 系数算（实为 3+1）；
+#   即便值在前也会因「每秒」的「秒」被当单位剥掉而认成弹匣容量。
+# ---------------------------------------------------------------------------
+_ogre_rev = {v: k for k, v in RIVEN_STAT_ZH.items()}
+_ogre_cases = {
+    "卡面折行": [
+        "食人女魔 Parci-argiada",
+        "x1.53 对 Grineer 的伤害",
+        "🔒 收起武器时弹匣每秒自",
+        "动装填 +112.9 %",
+        "x1.5 对 Infested 的伤害",
+        "-59.3% 射速（弓类武器效果加倍）",
+    ],
+    "值在后整行": ["收起武器时弹匣每秒自动装填 +112.9 %", "-59.3% 射速"],
+    "值在前": ["+112.9% 收起武器时弹匣每秒自动装填", "-59.3% 射速"],
+}
+for _k, _L in _ogre_cases.items():
+    _po, _ne, _no = RA.parse_riven_lines(
+        _L, lambda nm: plugin.WarframeSDJK._stat_id_from_name(nm, _ogre_rev)
+    )
+    check(
+        f"★ 实卡长词条（{_k}）：收枪装填 112.9 不丢、不认成弹匣容量",
+        ("reload_holstered", 112.9) in _po
+        and not any(sid == "magazine_capacity" for sid, _v in _po)
+        and ("fire_rate", 59.3) in _ne,
+        f"{_po} / {_ne} / {_no}",
+    )
+check(
+    "★ 实卡整卡：3 正 1 负（派系×2 + 收枪装填 / 射速）",
+    len(
+        RA.parse_riven_lines(
+            _ogre_cases["卡面折行"],
+            lambda nm: plugin.WarframeSDJK._stat_id_from_name(nm, _ogre_rev),
+        )[0]
+    )
+    == 3,
+)
+check(
+    "折行拼接不误伤：武器名行（带拉丁自命名）不拼进词条",
+    RA.merge_polarity_lines(["食人女魔 Parci-argiada", "+10% 射速"])
+    == ["食人女魔 Parci-argiada", "+10% 射速"],
+)
+check(
+    "「米/秒」单位仍照剥（两端）：「+12.5秒 连击持续时间」名字不带秒",
+    RA._strip_name("12.5秒 连击持续时间") == "连击持续时间",
+    RA._strip_name("12.5秒 连击持续时间"),
 )
 
 if FAILED:

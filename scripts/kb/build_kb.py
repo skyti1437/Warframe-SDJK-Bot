@@ -344,19 +344,59 @@ def zhname(rec):
 
 
 QUALITY_EVENTS = []
+MISSING_ASSET_IDS = []
+UNIFIED_DISPOSITION = 1.2
+RIVEN_DISPOSITION_SOURCE = "https://www.warframe.com/en/patch-notes/pc/44-1-3"
 
 
-def asset_marker(unique_name, category="", item_type=""):
+def riven_disposition_mode():
+    """默认使用已上线的统一口径；historical 只供回退与历史对照。"""
+    mode = os.environ.get("WF_KB_RIVEN_DISPOSITION", "unified").strip()
+    if mode not in ("unified", "historical"):
+        raise ValueError("WF_KB_RIVEN_DISPOSITION 仅允许 unified / historical")
+    return mode
+
+
+RIVEN_DISPOSITION_MODE = riven_disposition_mode()
+
+
+def riven_disposition_text(value):
+    old = trim_num(value, 3)
+    if RIVEN_DISPOSITION_MODE == "historical":
+        return "紫卡倾向（历史快照）：%s" % old
+    return "紫卡倾向：2026-10 起统一 %s（取消前 %s）" % (UNIFIED_DISPOSITION, old)
+
+
+def asset_marker(unique_name, category="", item_type="", related_asset_ids=()):
+    if not unique_name.startswith("/"):
+        raise ValueError("资产身份必须来自源数据的内部路径，不能使用标题或内容哈希")
     meta = {"asset_id": "de:" + unique_name, "category": category, "type": item_type}
+    if related_asset_ids:
+        if any(not value.startswith("/") for value in related_asset_ids):
+            raise ValueError("聚合视图的关联资产也必须使用源内部路径")
+        meta["asset_ids"] = ["de:" + value for value in sorted(set(related_asset_ids))]
     return "<!-- wf-asset " + json.dumps(meta, ensure_ascii=False, sort_keys=True) + " -->"
 
 
-def entry(title, body, asset_id="", category="", item_type=""):
-    marker = (asset_marker(asset_id, category, item_type) + "\n") if asset_id else ""
+def entry(title, body, asset_id="", category="", item_type="", related_asset_ids=()):
+    if asset_id and not asset_id.startswith("/"):
+        MISSING_ASSET_IDS.append(
+            {
+                "title": title,
+                "source_key": asset_id,
+                "reason": "源记录仅有短代号，没有 uniqueName 路径",
+            }
+        )
+        asset_id = ""
+    marker = (
+        asset_marker(asset_id, category, item_type, related_asset_ids) + "\n" if asset_id else ""
+    )
     return "### %s\n%s%s\n" % (title, marker, body.rstrip())
 
 
 def asset_entry(rec, body):
+    if not rec.get("uniqueName"):
+        MISSING_ASSET_IDS.append({"title": zhname(rec), "reason": "源记录缺少 uniqueName"})
     return entry(
         zhname(rec), body, rec.get("uniqueName", ""), rec.get("category", ""), rec.get("type", "")
     )
@@ -642,13 +682,30 @@ def weapon_acquire_line(r):
     return head
 
 
+def hotfix_asset_effect(rec):
+    """热修覆盖按原生路径匹配；不对名称或旧数值做全局替换。"""
+    return S.zh_overrides.get("hotfix_44_1_3", {}).get("assets", {}).get(rec.get("uniqueName"))
+
+
+def hotfix_line(effect, name=""):
+    source = S.zh_overrides["hotfix_44_1_3"]["source"]
+    return "- 44.1.3 补丁（英文原文归纳）%s：%s 来源：%s" % (
+        " · " + name if name else "",
+        effect,
+        source,
+    )
+
+
 def mod_effect(rec):
-    """→ ([ (档位, 效果文本) ], 模式)  模式 ∈ official / zh / en
+    """→ ([ (档位, 效果文本) ], 模式)  模式 ∈ patch / official / zh / en
 
     规则：优先官方简中；官方未收录时按「术语规范化」转写；
     若某条转写后仍残留 ≥2 个英文词（说明是整句而非数值词条），
     则整体回退英文原文，避免出现「半英半中」的混排。
     """
+    patch = hotfix_asset_effect(rec)
+    if patch:
+        return [("44.1.3 补丁·英文原文归纳", patch["effect"])], "patch"
     z = S.mod_effect_zh(rec)
     if z:
         return [("", z)], "official"
@@ -751,7 +808,7 @@ def build_warframes():
             for a, x in zip(ab, an):
                 dd = S.ability_desc(a, 120)
                 AL.append("- %s · %s：%s" % (nm_zh, x, dd) if dd else "- %s · %s" % (nm_zh, x))
-            body.append(entry("%s 技能详情" % ttl, "\n".join(AL)))
+            body.append(entry("%s 技能详情" % ttl, "\n".join(AL), r["uniqueName"]))
 
     # ---------------- 战甲基础属性排行（自建，回答「谁最高 / 排行」这类跨实体问题）----------------
     def _disp(r):
@@ -876,7 +933,7 @@ def weapon_part(title, key):
                 ("range", lambda v: "攻击范围 %s 米" % trim_num(v, 2)),
                 ("comboDuration", lambda v: "连击持续 %s 秒" % trim_num(v, 1)),
                 ("followThrough", lambda v: "穿透 %s" % trim_num(v, 2)),
-                ("omegaAttenuation", lambda v: "紫卡倾向 %s" % trim_num(v, 3)),
+                ("omegaAttenuation", riven_disposition_text),
             ):
                 if r.get(f) is not None:
                     st2.append(fmt(r[f]))
@@ -891,6 +948,9 @@ def weapon_part(title, key):
                     "values": bad_damage,
                 }
             )
+        patch = hotfix_asset_effect(r)
+        if patch:
+            L.append(hotfix_line(patch["effect"], patch["name"]))
         # 灵化形态（attacks 含 Incarnon Form 的 69 把枪械；面板与灵化之源索引同源）
         _inc_a = incarnon_form_of(r)
         if _inc_a:
@@ -1066,16 +1126,22 @@ def build_weapons():
                 continue
             riv.append((float(v), zhname(r), lb))
     riv.sort(key=lambda x: (-x[0], x[1]))
+    unified = RIVEN_DISPOSITION_MODE == "unified"
     B += [
         "## 四、紫卡倾向一览（Riven Disposition）",
         "",
-        "紫卡（裂罅）MOD 的词条数值由武器的**倾向值（Disposition）**缩放：倾向越高，"
-        "洗出的词条数值越强、负面也越弱。倾向随 Prime 武器更替定期调整，区间约 "
-        "**0.50（最低）– 1.55（最高）**。下列按倾向**从高到低**排列：",
+        (
+            "自 2026-10 热修起，**武器差异化紫卡倾向已取消，所有紫卡统一使用 1.2**。"
+            "下表仅保留数据包中的取消前倾向，作为历史对照；旧值不代表当前值，也不可据此比较当前强弱。"
+            if unified
+            else "**历史快照模式**：下表为取消前数据，不代表 2026-10 热修后的当前口径。"
+        ),
+        "",
+        "来源：" + RIVEN_DISPOSITION_SOURCE,
         "",
     ]
-    B.append("### 紫卡倾向一览（按倾向降序，共 %d 件武器）" % len(riv))
-    B += ["- %s｜%s｜紫卡倾向 %s" % (nm, lb, trim_num(v, 3)) for v, nm, lb in riv]
+    B.append("### 紫卡倾向一览（取消前历史对照，按旧值降序，共 %d 件武器）" % len(riv))
+    B += ["- %s｜%s｜%s" % (nm, lb, riven_disposition_text(v)) for v, nm, lb in riv]
     # ---- 五、灵化武器与灵化之源一览 ----
     inc_idx = incarnon_index()
     if inc_idx:
@@ -1092,7 +1158,7 @@ def build_weapons():
             % (len(inc_idx), n_form),
             "",
             "> **灵化形态的伤害类型即「元素」答案**：如野猪灵化形态为纯**火焰**伤害。"
-            "进化 perk 的效果数值四个数据包均未收录，本表只列官方 perk 名称。",
+            "进化 perk 的效果数值四个数据包均未收录；除单列的 44.1.3 补丁效果外，本表只列官方 perk 名称。",
             "",
         ]
         for stem in sorted(inc_idx, key=lambda k: inc_idx[k].get("weapon_zh") or k):
@@ -1111,9 +1177,25 @@ def build_weapons():
                 L.append("- 进化解锁配方：%s" % d["recipe"])
             if d.get("perks"):
                 L.append("- %s" % d["perks"])
+            for patch in S.zh_overrides.get("hotfix_44_1_3", {}).get("incarnon", {}).get(stem, []):
+                L.append(hotfix_line(patch["effect"], patch["name"]))
             ttl2 = "%s灵化之源（%s Incarnon Genesis）" % (d.get("weapon_zh") or "", stem)
             B.append(entry(ttl2, "\n".join(L), d["asset_id"], "Resources", "Incarnon Adapter"))
+    hotfix = S.zh_overrides.get("hotfix_44_1_3") or {}
+    if hotfix:
+        B += ["", "## 六、弹药效率热修规则（44.1.3）", ""]
+        B.append(
+            entry(
+                "弹药效率与无限弹药一览（44.1.3）",
+                "\n".join(hotfix_line(rule) for rule in hotfix["rules"]),
+            )
+        )
     tot_n = sum(cnt)
+    riven_summary = (
+        "说明差异化倾向已取消、当前统一 1.2；原倾向仅作历史对照"
+        if unified
+        else "保留取消前历史快照；不作为当前版本数据"
+    )
     intro = f"""# Warframe 知识库 · 武器（主武器 / 副武器 / 近战）
 
 {NAV}
@@ -1121,7 +1203,7 @@ def build_weapons():
 > 收录 **{tot_n}** 件武器：主武器 **{cnt[0]}**｜副武器 **{cnt[1]}**｜近战 **{cnt[2]}**，各按英文名 A–Z 排序。
 > 每条格式：**中文名（English）**｜定位｜总伤害与元素构成｜暴击/触发/射速等数值｜特性（含**紫卡倾向**）｜简介｜建造材料｜获取。
 > 数值口径：**未安装 MOD 的出厂基础值**。
-> 第四部分「**紫卡倾向一览**」按倾向降序汇总全部武器，用于回答「某武器紫卡倾向多少 / 哪些武器倾向最高」。
+> 第四部分「**紫卡倾向一览**」{riven_summary}。
 > 第五部分「**灵化武器与灵化之源一览**」汇总全部灵化之源（效果 / 灵化形态面板含**伤害元素** / 进化解锁配方 / 进化 perk 名），用于回答「某武器灵化什么元素 / 灵化解锁要什么材料」。
 > 元素顺序：冲击 / 穿刺 / 切割 / 火焰 / 冰冻 / 电击 / 毒素 / 爆炸 / 辐射 / 毒气 / 磁力 / 病毒 / 腐蚀 / 虚空。"""
     return write_file("02_武器.md", intro, "\n".join(B))
@@ -1153,7 +1235,7 @@ def build_mods():
         _n_pep_arc += 1
     arcs.sort(key=lambda r: (r.get("name") or "").lower())
     body = ["## 一、MOD", ""]
-    n_off = n_zh = n_en = 0
+    n_off = n_zh = n_en = n_patch = 0
     for r in mods:
         L = []
         seg = ["类型 %s" % MODTYPE_ZH.get(r.get("type"), r.get("type") or "MOD")]
@@ -1194,7 +1276,10 @@ def build_mods():
         pairs, mode = mod_effect(r)
         for label, txt in pairs:
             L.append("- 效果：%s" % txt if not label else "- 效果（%s）：%s" % (label, txt))
-        if mode == "official":
+        if mode == "patch":
+            n_patch += 1
+            L.append("- 补丁来源：%s" % S.zh_overrides["hotfix_44_1_3"]["source"])
+        elif mode == "official":
             n_off += 1
         elif mode == "zh":
             n_zh += 1
@@ -1213,7 +1298,7 @@ def build_mods():
         stem = to_text(a.get("name")).replace(" 赋能", "").replace("赋能", "").strip()
         if stem:
             wsd_arc[stem] = a
-    n_arc_off = n_arc_zh = n_arc_en = 0
+    n_arc_off = n_arc_zh = n_arc_en = n_arc_patch = 0
     body += ["", "## 二、赋能（Arcanes）", ""]
     for r in arcs:
         lv = r.get("levelStats") or []
@@ -1227,10 +1312,13 @@ def build_mods():
         for label, txt in pairs:
             L.append("- 效果：%s" % txt if not label else "- 效果（%s）：%s" % (label, txt))
         _ov_a = S.ov_arcane.get(r.get("uniqueName")) or {}
-        if _ov_a.get("effect"):
+        if mode != "patch" and _ov_a.get("effect"):
             # 覆盖层官方简中效果（PEP 补源的赋能走这里）
             L.append("- 效果（官方简中）：%s" % clean(_ov_a["effect"], 300))
-        if mode == "official":
+        if mode == "patch":
+            n_arc_patch += 1
+            L.append("- 补丁来源：%s" % S.zh_overrides["hotfix_44_1_3"]["source"])
+        elif mode == "official":
             n_arc_off += 1
         else:
             # 回退：WSD 旧版赋能表的官方中文效果
@@ -1316,6 +1404,7 @@ def build_mods():
 > （一 MOD｜二 赋能｜三 MOD 套装），按英文名 A–Z 排序。
 > 每条格式：**中文名（English）**｜类型/适配/极性/稀有度/容量/满级｜效果｜获取。
 > **效果文本来源**（透明标注）：
+> · **{n_patch}** 张 MOD / **{n_arc_patch}** 个赋能 —— **44.1.3 英文补丁归纳**，优先于旧快照，不补写未给出的新档位；
 > · **{n_off}** 张 MOD / **{n_arc_off}** 个赋能 —— **DE 官方简中**原文；
 > · **{n_zh}** 张 MOD / **{n_arc_zh}** 个赋能 —— 按「术语规范化」把英文词条转写为中文（**数值原样保留、属性术语采用官方简中译名**，如 Fire Rate → 射速、Status Chance → 触发几率）；
 > · **{n_en}** 张 MOD / **{n_arc_en}** 个赋能 —— 效果是整句描述（强化 MOD 等），无法用术语替换表达，**保留英文原文**，以免出现半英半中的混排。
@@ -1408,7 +1497,14 @@ def build_relics():
                 if cur is None or (rw.get("chance") or 0) > cur[2]:
                     prev[k] = (short, gname, rw.get("chance"))
             L.append("- %s %s（%s）掉落：%s" % (short, REFINE_ZH[k], k, "｜".join(items)))
-        body.append(entry(zn, "\n".join(L)))
+        body.append(
+            entry(
+                zn,
+                "\n".join(L),
+                rep["uniqueName"],
+                related_asset_ids=[x["uniqueName"] for x in g.values()],
+            )
+        )
     body += ["", "## 二、按奖励反查遗物（某部件由哪些遗物产出）", ""]
     n_rev = 0
     for u in sorted(rev, key=lambda k: S.name(k) or "zzz"):
@@ -1419,7 +1515,7 @@ def build_relics():
         m = rev[u]
         lst = ["%s（%s档 %s）" % (m[k][0], REFINE_ZH[k], pct_raw(m[k][2])) for k in order if k in m]
         peer = "；".join(lst[:10]) + ("…（共 %d 个遗物）" % len(lst) if len(lst) > 10 else "")
-        body.append(entry(title_of(zn, u.rsplit("/", 1)[-1]), "- 产出遗物：%s" % peer))
+        body.append(entry(title_of(zn, u.rsplit("/", 1)[-1]), "- 产出遗物：%s" % peer, u))
     intro = f"""# Warframe 知识库 · 遗物（虚空遗物 / Void Relics）
 
 {NAV}
@@ -1494,7 +1590,7 @@ def build_enemies():
             L.append("- 简介：%s" % d)
         if r.get("drops"):
             L.append("- 掉落：%s" % drops_brief(r["drops"], 3))
-        body.append(entry(title_of(zn, r["name"]), "\n".join(L)))
+        body.append(entry(title_of(zn, r["name"]), "\n".join(L), r["uniqueName"]))
 
     # ---------------- 首领（Boss）与大型敌人 ----------------
     # items Codex 表不含 Boss；从 PEP 官方 avatars 分拣（魅影/战斗友军/剧情 VIP 不收），
@@ -1517,7 +1613,8 @@ def build_enemies():
         zn2 = to_text(S.dz.get(e.get("name")))
         if not zn2:
             continue
-        b = bosses.setdefault(zn2, {"first": un, "e": e, "variants": []})
+        b = bosses.setdefault(zn2, {"first": un, "e": e, "variants": [], "asset_ids": []})
+        b["asset_ids"].append(un)
         if un != b["first"]:
             b["variants"].append(un.rsplit("/", 1)[-1])
     n_boss = 0
@@ -1549,7 +1646,7 @@ def build_enemies():
                 L.append("- 简介（官方简中）：%s" % d)
             if b["variants"]:
                 L.append("- 变体：%s" % "、".join(sorted(set(b["variants"]))[:6]))
-            body.append(entry(zn2, "\n".join(L)))
+            body.append(entry(zn2, "\n".join(L), b["first"], related_asset_ids=b["asset_ids"]))
             n_boss += 1
         for key in sorted(S.ov_boss):
             bm = S.ov_boss[key]
@@ -1561,7 +1658,15 @@ def build_enemies():
                 L.append("- 简介（官方简中）：%s" % clean(bm["desc"], 260))
             if bm.get("note"):
                 L.append("- 出现：%s" % bm["note"])
-            body.append(entry(bm.get("name") or key, "\n".join(L)))
+            body.append(entry(bm.get("name") or key, "\n".join(L), bm.get("uniqueName", "")))
+            if not bm.get("uniqueName"):
+                MISSING_ASSET_IDS.append(
+                    {
+                        "title": bm.get("name") or key,
+                        "source": "boss_manual",
+                        "reason": "两源缺少对应内部路径，保留人工说明",
+                    }
+                )
             n_boss += 1
     intro = f"""# Warframe 知识库 · 敌人（Enemies）
 
@@ -2174,7 +2279,7 @@ def build_others():
             L.append("- 说明：%s" % d)
         if r.get("drops"):
             L.append("- 奖励：%s" % drops_brief(r["drops"], 4))
-        B.append(entry(zhname(r), "\n".join(L) or "- 类型：剧情任务"))
+        B.append(asset_entry(r, "\n".join(L) or "- 类型：剧情任务"))
 
     B += [
         "",
@@ -2272,13 +2377,13 @@ def build_achievements():
             continue
         if zn:
             n_az += 1
-        ach.append((zn or en or k, en or k, dz_))
+        ach.append((zn or en or k, en or k, dz_, k))
     n_ach = len(ach)
-    for zn, en, dz_ in sorted(ach, key=lambda x: x[0].lower()):
+    for zn, en, dz_, asset in sorted(ach, key=lambda x: x[0].lower()):
         L = ["- 类型：成就（Achievement）"]
         if dz_:
             L.append("- 达成条件：%s" % dz_)
-        B.append(entry(title_of(zn, en), "\n".join(L)))
+        B.append(entry(title_of(zn, en), "\n".join(L), asset))
 
     # ---------------- 二、挑战 ----------------
     nw_keys = set((nw.get("challenges") or {}).keys())
@@ -2314,19 +2419,19 @@ def build_achievements():
                 lab = nm
                 break
         seg = k.rsplit("/", 1)[-1]
-        groups[lab].append((zn or en or seg, en or seg, dz_, v.get("requiredCount")))
+        groups[lab].append((zn or en or seg, en or seg, dz_, v.get("requiredCount"), k))
         n_ch += 1
     for lab, rows in groups.items():
         if not rows:
             continue
         B += ["#### %s（%d 条）" % (lab, len(rows)), ""]
-        for zn, en, dz_, rc in sorted(rows, key=lambda x: x[0].lower()):
+        for zn, en, dz_, rc, asset in sorted(rows, key=lambda x: x[0].lower()):
             L = ["- 类型：挑战 · %s" % lab]
             if rc is not None:
                 L.append("- 要求次数：%s" % trim_num(rc, 0))
             if dz_:
                 L.append("- 说明：%s" % dz_)
-            B.append(entry(title_of(zn, en), "\n".join(L)))
+            B.append(entry(title_of(zn, en), "\n".join(L), asset))
 
     # ---------------- 三、午夜电波 ----------------
     nwc = nw.get("challenges") or {}
@@ -2365,9 +2470,10 @@ def build_achievements():
                 clean(S.dz.get(v.get("tip")), 170),
                 v.get("standing"),
                 v.get("required"),
+                k,
             )
         )
-    for zn, en, dz_, tip, st, rq in sorted(rows, key=lambda x: x[0].lower()):
+    for zn, en, dz_, tip, st, rq, asset in sorted(rows, key=lambda x: x[0].lower()):
         L = ["- 类型：午夜电波挑战"]
         if st is not None:
             L.append("- 声望：%s" % trim_num(st, 0))
@@ -2377,7 +2483,7 @@ def build_achievements():
             L.append("- 描述：%s" % dz_)
         if tip:
             L.append("- 提示：%s" % tip)
-        B.append(entry(title_of(zn, en), "\n".join(L)))
+        B.append(entry(title_of(zn, en), "\n".join(L), asset))
     # 奖励清单按等级槽位重复（180 条里 156 条是同一种代币）→ 先按 uniqueName 去重
     uniq = OrderedDict()
     for r in rw:
@@ -2406,7 +2512,7 @@ def build_achievements():
             L.append("- 清单中出现次数：×%s" % e["n"])
         if dz_:
             L.append("- 说明：%s" % dz_)
-        B.append(entry(title_of(zn, en), "\n".join(L)))
+        B.append(entry(title_of(zn, en), "\n".join(L), r.get("uniqueName", "")))
     intro = f"""# Warframe 知识库 · 成就、挑战与午夜电波
 
 {NAV}
@@ -2498,9 +2604,10 @@ def build_codex_life():
                 clean(S.dz.get(v.get("description")), 220),
                 v.get("reqScans"),
                 v.get("secret"),
+                k,
             )
         )
-    for zn, en, dz_, rs, sec in sorted(rows, key=lambda x: x[0].lower()):
+    for zn, en, dz_, rs, sec, asset in sorted(rows, key=lambda x: x[0].lower()):
         L = ["- 类型：造物图鉴（可扫描目标）"]
         if rs is not None:
             L.append("- 扫描需求：%s 次" % trim_num(rs, 0))
@@ -2508,7 +2615,7 @@ def build_codex_life():
             L.append("- 隐藏条目（需先满足条件才会出现）")
         if dz_:
             L.append("- 说明：%s" % dz_)
-        B.append(entry(title_of(zn, en), "\n".join(L)))
+        B.append(entry(title_of(zn, en), "\n".join(L), asset))
 
     B += [
         "### 资料片段（Lore Fragments，%d 条）" % len(lf),
@@ -2522,14 +2629,16 @@ def build_codex_life():
             continue
         zn = to_text(S.dz.get(v.get("name")))
         en = to_text(S.de.get(v.get("name"))) or k.rsplit("/", 1)[-1]
-        rows.append((zn or en, en, clean(S.dz.get(v.get("description")), 400), v.get("reqScans")))
-    for zn, en, dz_, rs in sorted(rows, key=lambda x: x[0].lower()):
+        rows.append(
+            (zn or en, en, clean(S.dz.get(v.get("description")), 400), v.get("reqScans"), k)
+        )
+    for zn, en, dz_, rs, asset in sorted(rows, key=lambda x: x[0].lower()):
         L = ["- 类型：资料片段（Lore Fragment）"]
         if rs is not None:
             L.append("- 扫描需求：%s 次" % trim_num(rs, 0))
         if dz_:
             L.append("- 内容：%s" % dz_)
-        B.append(entry(title_of(zn, en), "\n".join(L)))
+        B.append(entry(title_of(zn, en), "\n".join(L), asset))
 
     rows = []
     for k, v in songs.items():
@@ -2537,10 +2646,12 @@ def build_codex_life():
             continue
         zn = to_text(S.dz.get(v.get("name")))
         en = to_text(S.de.get(v.get("name"))) or k.rsplit("/", 1)[-1]
-        rows.append((zn or en, en, v.get("reqScans")))
+        rows.append((zn or en, en, v.get("reqScans"), k))
     B += ["### 音乐片段（Songs / 三线琴谱，%d 条）" % len(rows), ""]
-    for zn, en, rs in sorted(rows, key=lambda x: x[0].lower()):
-        B.append("- %s｜扫描需求 %s 次" % (title_of(zn, en), trim_num(rs, 0)))
+    for zn, en, rs, asset in sorted(rows, key=lambda x: x[0].lower()):
+        B.append(
+            asset_marker(asset) + "\n- %s｜扫描需求 %s 次" % (title_of(zn, en), trim_num(rs, 0))
+        )
 
     rows = []
     for k, v in ff.items():
@@ -2548,10 +2659,13 @@ def build_codex_life():
             continue
         zn = to_text(S.dz.get(v.get("name")))
         en = to_text(S.de.get(v.get("name"))) or k.rsplit("/", 1)[-1]
-        rows.append((zn or en, en, to_text(v.get("suit")).rsplit("/", 1)[-1], v.get("reqScans")))
+        rows.append((zn or en, en, to_text(v.get("suit")).rsplit("/", 1)[-1], v.get("reqScans"), k))
     B += ["", "### 战甲霸王资料（Frame Fighter Data，%d 条）" % len(rows), ""]
-    for zn, en, su, rs in sorted(rows, key=lambda x: x[0].lower()):
-        B.append("- %s｜对应战甲 %s｜扫描 %s 次" % (title_of(zn, en), su, trim_num(rs, 0)))
+    for zn, en, su, rs, asset in sorted(rows, key=lambda x: x[0].lower()):
+        B.append(
+            asset_marker(asset)
+            + "\n- %s｜对应战甲 %s｜扫描 %s 次" % (title_of(zn, en), su, trim_num(rs, 0))
+        )
 
     # ---------------- 二、赏金任务 ----------------
     byarea = OrderedDict()
@@ -2581,7 +2695,7 @@ def build_codex_life():
             dz_ = clean(S.dz.get(v.get("description")), 240)
             if dz_:
                 L.append("- 说明：%s" % dz_)
-            B.append(entry(title_of(zn or en, en), "\n".join(L)))
+            B.append(entry(title_of(zn or en, en), "\n".join(L), k))
 
     # ---------------- 三、保育动物 ----------------
     seen = OrderedDict()
@@ -2604,9 +2718,11 @@ def build_codex_life():
                 "tag": tag,
                 "st": cons.get("standingReward"),
                 "n": 1,
+                "asset_ids": [k],
             }
         else:
             r["n"] += 1
+            r["asset_ids"].append(k)
     B += [
         "",
         "## 三、保育动物（Conservation）",
@@ -2634,7 +2750,14 @@ def build_codex_life():
             L.append("- 声望奖励：%s" % trim_num(r["st"], 0))
         if r["d"]:
             L.append("- 说明：%s" % r["d"])
-        B.append(entry(title_of(r["zh"] or r["en"], r["en"]), "\n".join(L)))
+        B.append(
+            entry(
+                title_of(r["zh"] or r["en"], r["en"]),
+                "\n".join(L),
+                r["asset_ids"][0],
+                related_asset_ids=r["asset_ids"],
+            )
+        )
 
     # ---------------- 四、商人库存 ----------------
     bygrp = OrderedDict()
@@ -2710,7 +2833,7 @@ def build_codex_life():
                             )
                     if comp:
                         L.append("  - 第 %d 档随机定价：%s" % (bi + 1, " + ".join(comp)))
-            B.append(entry("商人库存 · %s · %s" % (grp, nm), "\n".join(L)))
+            B.append(entry("商人库存 · %s · %s" % (grp, nm), "\n".join(L), k))
 
     # ---------------- 五、界面风味文本 ----------------
     byg = OrderedDict()
@@ -2741,7 +2864,7 @@ def build_codex_life():
             d = clean(S.dz.get(v.get("description")), 70)
             if d:
                 seg.append(d)
-            lines.append("- " + "｜".join(seg))
+            lines.append(asset_marker(k) + "\n- " + "｜".join(seg))
         B.append(entry("界面风味 · %s（%d 条）" % (lab, len(lines)), "\n".join(lines)))
 
     # ---------------- 六、Kuva 巫妖与帕尔沃斯姐妹（系统索引）----------------
@@ -2922,6 +3045,14 @@ def main():
         total_chars=tot,
         total_kb=round(tot / 1024.0, 1),
         quality_events=QUALITY_EVENTS,
+        missing_asset_ids=MISSING_ASSET_IDS,
+        hotfix_44_1_3=S.zh_overrides.get("hotfix_44_1_3"),
+        riven_disposition={
+            "mode": RIVEN_DISPOSITION_MODE,
+            "unified_value": UNIFIED_DISPOSITION if RIVEN_DISPOSITION_MODE == "unified" else None,
+            "source": RIVEN_DISPOSITION_SOURCE,
+            "historical_snapshot_preserved": True,
+        },
     )
     with open(os.path.join(WORKDIR, "build_report.json"), "w", encoding="utf-8") as f:
         json.dump(out, f, ensure_ascii=False, indent=1)

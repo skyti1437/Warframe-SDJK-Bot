@@ -104,6 +104,80 @@ else:
         else:
             check("6 列表格：渲染成功", False, "render() 返回 None 已降级文本")
 
+        # 1b) ★ 2026-10-22：评级列带**社区实测中位数**（「A+* 705」）—— 末列比原来宽 4 字符。
+        #     仍是 6 列、仍不得越界（这条正是「加数字后把末列压出面板」的回归哨）。
+        arb_med = [
+            "12日12时　光理塔　虚空　拦截　奥罗金　A 612",
+            "12日13时　Apollodorus　水星　生存　Infested",
+            "12日15时　Stöfler　月球　防御　Grineer　A+* 705",
+            "13日00时　Cinxia　谷神星　拦截　Grineer　A- 480",
+        ]
+        p = probe.render("仲裁时间表·北京时间（第1/23页，共336条）", arb_med, "")
+        if p:
+            mx, n = right_overflow(p)
+            W = R.Image.open(p).size[0]
+            check(
+                "★ 评级带中位数（A+* 705）时正文未越出面板右缘",
+                n == 0,
+                f"W={W} 越界 {n} 像素，最右 x={mx}",
+            )
+        else:
+            check("★ 评级带中位数：渲染成功", False, "render() 返回 None 已降级文本")
+
+        # 1c) ★ 2026-10-22：「仲裁」卡新增的「下次高效」行（时间｜节点｜类型｜派系｜评级+中位数｜还有 X 小时）
+        arb_now = [
+            "◆ 当前仲裁：Seimeni（谷神星）　防御　Infested",
+            "◆ 评级：A（社区实测中位）　生息效率 638.8/小时（n=824，社区实测中位数）",
+            "◆ 本场时段：22:00–23:00（北京时间）｜剩余 49分钟",
+            "◆ 下一小时：死灵塔（虚空）　生存　奥罗金　[S 814]",
+            "◆ 下次高效：22日23时（北京）　阿波罗多罗斯撞击坑（水星）　生存　Infested　[A+* 705]｜还有 49分钟",
+        ]
+        p = probe.render("当前仲裁", arb_now, "")
+        if p:
+            mx, n = right_overflow(p)
+            W = R.Image.open(p).size[0]
+            check("★「下次高效」长行未越出面板右缘", n == 0, f"W={W} 越界 {n} 像素，最右 x={mx}")
+        else:
+            check("★「下次高效」长行：渲染成功", False, "render() 返回 None 已降级文本")
+
+        # 1d) ★ 2026-10-23：趋势卡改画**真实折线图**（§CHART 图表行）—— 图表行是
+        #     机器行，绘图区铺满正文宽度，刻度标签、三个关键点标注（最高/最低/最新）
+        #     都在正文区内。这条哨盯「标注小片被挤到面板外」（首版实测：末点的
+        #     「最新」标注贴右缘，标注被整条丢掉）。
+        import json as _json
+
+        def _cline(_title, _labels, _vals):
+            return "§CHART" + _json.dumps(
+                {"title": _title, "unit": "p", "labels": _labels, "values": _vals},
+                ensure_ascii=True,
+                separators=(",", ":"),
+            )
+
+        _h48 = [f"10-21 {i % 24:02d}时" for i in range(48)]
+        _trend = [
+            "◆ 近 48 小时：120 笔成交｜中位 214.5p｜90 天均价 190.2p",
+            "◆ 走势图",
+            _cline(
+                "48h 中位走势",
+                _h48,
+                [None if i in (12, 40) else 180 + (i % 7) * 12 for i in range(48)],
+            ),
+            _cline(
+                "90d 中位走势",
+                [f"0{(i % 9) + 1}-01" for i in range(90)],
+                [120 + i for i in range(90)],
+            ),
+            "◆ 成交要点",
+            "· 峰值成交　07-03｜2 笔｜中位 122p",
+        ]
+        p = probe.render("绝路Prime 价格趋势", _trend, "warframe.market 统计 · PC")
+        if p:
+            mx, n = right_overflow(p)
+            W = R.Image.open(p).size[0]
+            check("★ 趋势折线图未越出面板右缘", n == 0, f"W={W} 越界 {n} 像素，最右 x={mx}")
+        else:
+            check("★ 趋势折线图：渲染成功", False, "render() 返回 None 已降级文本")
+
         # 2) 长标题（页码须已被抽走，标题自适应不得压到徽章）
         long_title = "遗物列表：当前可掉落 34，已入库 734（第1/77页，共768个）"
         p = probe.render(

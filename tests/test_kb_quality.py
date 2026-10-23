@@ -90,6 +90,146 @@ class QualityTest(unittest.TestCase):
         finally:
             b.I["Melee"] = original
 
+    def test_hotfix_exact_assets_and_real_builders(self):
+        from unittest.mock import patch
+
+        b = self.builder
+        hotfix = b.S.zh_overrides["hotfix_44_1_3"]
+        assets = hotfix["assets"]
+        records = [
+            {"uniqueName": key, "name": value["name"], "levelStats": [{"stats": ["OLD 102%"]}]}
+            for key, value in assets.items()
+        ]
+        mods = [r for r in records if r["name"] in ("Brain Storm", "Skull Shots")]
+        arcs = [r for r in records if r["name"] in ("Arcane Pistoleer", "Eternal Logistics")]
+        ax = next(r for r in records if r["name"] == "AX-52")
+        decoy = {"uniqueName": "/fixture/other", "name": "Brain Storm"}
+        self.assertIsNone(b.hotfix_asset_effect(decoy))
+        self.assertEqual(b.mod_effect(decoy), ([], "official"))
+        # 真实生成器必须跳过赋能旧覆盖，不把新旧效果并列。
+        stale = {r["uniqueName"]: {"effect": "STALE 102% / 72%"} for r in arcs}
+        with patch.dict(b.I, {"Mods": mods, "Arcanes": arcs}), patch.object(b, "P", {}):
+            with patch.object(b.S, "ov_arcane", stale):
+                b.build_mods()
+        text = (self.base / "out/03_MOD与赋能.md").read_text()
+        self.assertNotIn("OLD", text)
+        self.assertNotIn("STALE", text)
+        self.assertIn("2** 张 MOD / **2** 个赋能 —— **44.1.3 英文补丁归纳", text)
+        for r in mods + arcs:
+            self.assertIn(assets[r["uniqueName"]]["effect"], text)
+        self.assertIn("10%，持续时间同为 12 秒", text)
+        self.assertIn("补丁未列出未升级数值", text)
+        # 进化效果按源索引的武器段分配，机制说明不伪造资产 ID。
+        index = {
+            stem: {"asset_id": "/fixture/" + stem, "weapon_zh": stem} for stem in hotfix["incarnon"]
+        }
+        with patch.dict(b.I, {"Primary": [ax], "Secondary": [], "Melee": []}):
+            with patch.object(b, "incarnon_index", return_value=index):
+                b.build_weapons()
+        text = (self.base / "out/02_武器.md").read_text()
+        self.assertIn("腰射时弹药效率 +75%", text)
+        self.assertEqual(text.count("Crimson Overture"), 2)
+        self.assertEqual(text.count("Enough for Everyone"), 1)
+        self.assertIn("Flowing Slayer", text)
+        self.assertIn("其他时候弹药效率 -25%", text)
+        self.assertIn("多个来源合计也受此上限限制", text)
+        self.assertIn("效果不变，不能解释成普通弹药效率被封顶到 75%", text)
+        self.assertNotIn("de:Flowing", text)
+        self.assertNotIn("DE 官方简中）：腰射", text)
+
+    def test_riven_unified_and_historical_real_builders(self):
+        from unittest.mock import patch
+        import ast
+
+        b = self.builder
+        rec = {
+            "uniqueName": "/fixture/riven-weapon",
+            "name": "Fixture Rifle",
+            "type": "Rifle",
+            "totalDamage": 100,
+            "damagePerShot": [40, 60],
+            "omegaAttenuation": 0.65,
+        }
+        with patch.dict(b.I, {"Primary": [rec], "Secondary": [], "Melee": []}):
+            for mode in ("unified", "historical"):
+                with patch.object(b, "RIVEN_DISPOSITION_MODE", mode):
+                    b.build_weapons()
+                    text = (self.base / "out/02_武器.md").read_text()
+                    self.assertIn('"asset_id": "de:/fixture/riven-weapon"', text)
+                    self.assertIn("总伤害：100", text)
+                    self.assertIn("0.65", text)
+                    if mode == "unified":
+                        self.assertIn("2026-10 起统一 1.2（取消前 0.65）", text)
+                        self.assertIn("差异化紫卡倾向已取消", text)
+                        self.assertNotIn("倾向随 Prime 武器更替", text)
+                    else:
+                        self.assertIn("紫卡倾向（历史快照）：0.65", text)
+                        self.assertIn("历史快照模式", text)
+                        self.assertNotIn("2026-10 起统一 1.2（取消前 0.65）", text)
+        for mode in ("unified", "historical"):
+            with patch.dict(os.environ, {"WF_KB_RIVEN_DISPOSITION": mode}):
+                self.assertEqual(b.riven_disposition_mode(), mode)
+        with patch.dict(os.environ, {"WF_KB_RIVEN_DISPOSITION": "typo"}):
+            with self.assertRaises(ValueError):
+                b.riven_disposition_mode()
+        plugin = ast.parse((ROOT / "core/riven_analysis.py").read_text())
+        constant = next(
+            n.value.value
+            for n in plugin.body
+            if isinstance(n, ast.Assign)
+            and any(isinstance(t, ast.Name) and t.id == "UNIFIED_DISPOSITION" for t in n.targets)
+        )
+        self.assertEqual(b.UNIFIED_DISPOSITION, constant)
+
+    def test_native_identity_aggregates_and_manual_missing(self):
+        from unittest.mock import patch
+
+        b = self.builder
+        marker = b.asset_marker("/fixture/a", related_asset_ids=["/fixture/b", "/fixture/a"])
+        identity = json.loads(marker[len("<!-- wf-asset ") : -len(" -->")])
+        self.assertEqual(identity["asset_ids"], ["de:/fixture/a", "de:/fixture/b"])
+        with self.assertRaises(ValueError):
+            b.asset_marker("kb:content-hash")
+        with self.assertRaises(ValueError):
+            b.asset_marker("/fixture/a", related_asset_ids=["guessed-name"])
+        self.assertNotIn("wf-asset", b.entry("机制概览", "- 说明：无单一资产"))
+        with patch.object(b, "MISSING_ASSET_IDS", []):
+            self.assertNotIn("wf-asset", b.entry("成就", "- 说明：保留原文", "Own1Sentinel"))
+            self.assertEqual(b.MISSING_ASSET_IDS[0]["source_key"], "Own1Sentinel")
+        enemy = {"uniqueName": "/fixture/enemy", "name": "Enemy", "health": 100}
+        with (
+            patch.dict(b.I, {"Enemy": [enemy]}),
+            patch.dict(b.P, {"Enemies": {}}),
+            patch.object(b.S, "ov_boss", {"manual": {"name": "人工首领", "desc": "两源无ID"}}),
+            patch.object(b, "MISSING_ASSET_IDS", []),
+        ):
+            b.build_enemies()
+            text = (self.base / "out/05_敌人.md").read_text()
+            self.assertIn('"asset_id": "de:/fixture/enemy"', text)
+            self.assertEqual(b.MISSING_ASSET_IDS[0]["title"], "人工首领")
+            self.assertNotIn("de:manual", text)
+
+    def test_codex_rows_carry_source_key_through_sort_and_group(self):
+        from unittest.mock import patch
+
+        b = self.builder
+        animals = {
+            "/fixture/animal/a": {"name": "/fixture/name", "health": 100},
+            "/fixture/animal/b": {"name": "/fixture/name", "health": 100},
+        }
+        codex = {"objects": {"/fixture/object": {"name": "/fixture/name"}}}
+        with (
+            patch.dict(b.P, {"Animals": animals, "Codex": codex}, clear=True),
+            patch.dict(b.I, {"Relics": []}),
+            patch.dict(b.S.dz, {"/fixture/name": "身份测试样本"}),
+            patch.dict(b.S.de, {"/fixture/name": "Identity Test"}),
+        ):
+            b.build_codex_life()
+            text = (self.base / "out/10_图鉴与生态.md").read_text()
+            self.assertIn('"asset_id": "de:/fixture/object"', text)
+            self.assertIn('"asset_ids": ["de:/fixture/animal/a", "de:/fixture/animal/b"]', text)
+            self.assertIn("共 2 个变体资产", text)
+
     def test_damage_bounds_and_text_precision(self):
         lib = self.lib
         for v in (-1, 1e22, float("inf"), float("nan"), "bad"):

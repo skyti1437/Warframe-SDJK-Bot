@@ -343,16 +343,16 @@ finally:
 # ------------------------------------------------------------------ ⑦ resolve：面板看实际生效的那份
 d4, d5 = _tmpdir(), _tmpdir()  # d5 充当运行目录
 _tmp += [d4, d5]
-_write(d4, "de/wiki_disp.json", {"snapshot": "2026-01-01T00:00:00+00:00"})  # 种子：旧
-_write(d5, "de/wiki_disp.json", {"snapshot": NOW.isoformat()})  # 运行期刷新件：新
+_write(d4, "arb_ratings.json", {"_updated": "2026-01-01T00:00:00+00:00"})  # 种子：旧
+_write(d5, "arb_ratings.json", {"_updated": NOW.isoformat()})  # 社区快照副本：新
 _write(d4, "weapons_stats.json", {})
 _res = lambda n: d5 / n  # noqa: E731 - weapons_stats 在 d5 不存在：seed_only 若误改看 d5 会报缺文件
-_names = ["de/wiki_disp.json", "weapons_stats.json"]
-r = _row(DR.evaluate(d4, NOW, tracked_files=_names), "de/wiki_disp.json")
-check("resolve 缺省：读种子 ⇒ wiki_disp 过期", r is not None and r["status"] == "stale", str(r))
-r = _row(DR.evaluate(d4, NOW, tracked_files=_names, resolve=_res), "de/wiki_disp.json")
+_names = ["arb_ratings.json", "weapons_stats.json"]
+r = _row(DR.evaluate(d4, NOW, tracked_files=_names), "arb_ratings.json")
+check("resolve 缺省：读种子 ⇒ 仲裁评级过期", r is not None and r["status"] == "stale", str(r))
+r = _row(DR.evaluate(d4, NOW, tracked_files=_names, resolve=_res), "arb_ratings.json")
 check(
-    "resolve=运行目录：runtime_refresh 改看生效副本 ⇒ ok",
+    "resolve=运行目录：community_snapshot 改看生效副本 ⇒ ok",
     r is not None and r["status"] == "ok",
     str(r),
 )
@@ -412,16 +412,45 @@ check(
     any(x["file"] == "mods_stats.json" for x in DR.ledger_problems(rows)),
 )
 
-# —— 运行副本坏 JSON ⇒ run_bad（插件正在读它，不会回落种子）——
+# —— 运行副本坏 JSON ⇒ run_bad，插件已自动回落随包种子（P07，与 paths.read_path 同口径）——
 _write(d7, "de/wiki_disp.json", {"snapshot": "x"})
 (d7 / "de/wiki_disp.json").write_text("{坏", encoding="utf-8")
 rows = DR.ledger(d7, d6)
 r = _row(rows, "de/wiki_disp.json")
 check(
-    "ledger：运行副本坏 JSON ⇒ run_bad / active=run",
-    r is not None and r["verdict"] == "run_bad" and r["active"] == "run",
+    "ledger：运行副本坏 JSON ⇒ run_bad / active=seed（已回落种子）",
+    r is not None
+    and r["verdict"] == "run_bad"
+    and r["active"] == "seed"
+    and "已自动回落随包种子" in r["advice"],
     str(r),
 )
+
+# —— P07：paths.read_path 坏 JSON 副本回落种子（双向）——
+from core import paths as _P07  # noqa: E402
+
+_d07 = _tmpdir()
+_tmp.append(_d07)
+_prev07 = _P07._RUN
+_P07.set_run_dir(_d07)
+try:
+    (_d07 / "arb_ratings.json").write_text("{坏", encoding="utf-8")
+    check(
+        "P07：运行副本坏 JSON + 有种子 ⇒ read_path 回落种子",
+        _P07.read_path("arb_ratings.json") == _P07.PKG_DATA / "arb_ratings.json",
+    )
+    (_d07 / "arb_ratings.json").write_text('{"ok": 1}', encoding="utf-8")
+    check(
+        "P07：副本修好（内容变了）⇒ 重新判定，读回运行副本",
+        _P07.read_path("arb_ratings.json") == _d07 / "arb_ratings.json",
+    )
+    (_d07 / "zz_no_seed.json").write_text("{坏", encoding="utf-8")
+    check(
+        "P07：没有包内种子的文件（用户存档等）坏了也不改路径",
+        _P07.read_path("zz_no_seed.json") == _d07 / "zz_no_seed.json",
+    )
+finally:
+    _P07.set_run_dir(_prev07)
 check(
     "ledger：run_bad 进 ledger_problems 且记了原因",
     any(x["file"] == "de/wiki_disp.json" for x in DR.ledger_problems(rows))
@@ -431,13 +460,14 @@ check(
 )
 
 # —— 社区静态快照校验（复用 community_static_ok）——
-_write(d7, "de/wiki_disp.json", {"snapshot": NOW.isoformat(), "disp": {"a": 1}})
-r = _row(DR.ledger(d7, d6), "de/wiki_disp.json")
+_write(d7, "arb_ratings.json", {"_updated": NOW.isoformat(), "nodes": {"a": {"n": 1}}})
+r = _row(DR.ledger(d7, d6), "arb_ratings.json")
 check(
-    "ledger：社区快照校验生效（disp < 400）⇒ run_bad",
-    r is not None and r["verdict"] == "run_bad" and "倾向条目太少" in r["run"]["why"],
+    "ledger：社区快照校验生效（节点 < 50）⇒ run_bad",
+    r is not None and r["verdict"] == "run_bad" and "节点太少" in r["run"]["why"],
     str(r),
 )
+(d7 / "arb_ratings.json").unlink()
 
 # —— 新旧对照：比种子旧 ⇒ run_older；比种子新 ⇒ run_ok ——
 _disp_run = {"snapshot": "2026-01-01T00:00:00+00:00", "disp": {f"k{i}": i for i in range(450)}}

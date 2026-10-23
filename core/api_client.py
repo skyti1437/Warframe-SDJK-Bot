@@ -48,8 +48,10 @@ DATA_DIR = Path(__file__).resolve().parent / "data"  # 包内静态数据（只�
 # 运行期写盘的文件名（排行落盘 / 快照 / 缓存）：实际路径经 core.paths 解析到
 # data/plugin_data/<插件名>，绝不写插件包目录（AstrBot 插件规范要求）。
 RANKS_NAME = "wm_ranks.json"  # 价格排行全量落盘（后台爬取）
+RIVEN_RT_NAME = "riven_rt.json"  # 紫卡实时排行快照（WM 拍卖；2026-10-23 加）
+RIVEN_RT_TOP_PRICES = 20  # 算「前 N 条中位价」的 N
 RANK_MIN_COVERAGE = 0.8  # 价格排行整轮成功率 ≥ 此值才刷新 ts（用户 2026-10-17 定）
-WIKI_DISP_NAME = "de/wiki_disp.json"  # wiki 变体倾向快照
+WIKI_DISP_NAME = "de/wiki_disp.json"  # wiki 变体倾向快照（2026-10 倾向取消后冻结，只作旧截图判据）
 ACRITHIS_WEEK_NAME = "de/acrichis_week.json"  # 言录使本周货单（运行期覆盖包内种子）
 STOREITEMS_ZH_NAME = "de/storeitems_zh.json"  # StoreItems 路径 → 官方简中名（警报换名）
 ACRITHIS_CURRENT_URL = (
@@ -103,6 +105,9 @@ COMMUNITY_ACRITHIS_URLS = (
 # ★ 2026-10-16 用户：原本只随版本更新的静态快照也进 bot-data，让用户能拉新的
 #   （掉落表 + 遗物表这一组先不做）。文件内容与包内种子**同结构**，校验通过且比本地新才落盘。
 #   键 = bot-data 上的文件名；local = 运行目录 / 包内种子的相对路径；stamp = 时间戳字段。
+# ★ 2026-10-22（V06 后半）：静态快照的结构版本号（与发布端同值、同判据）。
+COMMUNITY_STATIC_SCHEMA = 1
+
 COMMUNITY_STATIC = {
     "arb_ratings.json": {"local": "arb_ratings.json", "stamp": "_updated", "label": "仲裁评级"},
     "baro_history.json": {
@@ -110,7 +115,6 @@ COMMUNITY_STATIC = {
         "stamp": "fetched",
         "label": "奸商到访历史",
     },
-    "wiki_disp.json": {"local": "de/wiki_disp.json", "stamp": "snapshot", "label": "紫卡倾向"},
 }
 
 
@@ -120,7 +124,6 @@ COMMUNITY_FILES = (
     ("acrithis_week.json", "言录使货单"),
     ("arb_ratings.json", "仲裁评级"),
     ("baro_history.json", "奸商到访历史"),
-    ("wiki_disp.json", "紫卡倾向"),
 )
 COMMUNITY_RESULTS = {
     "adopted": "已采用新快照",
@@ -170,8 +173,22 @@ def community_static_ok(name: str, d) -> tuple[bool, str]:
     spec = COMMUNITY_STATIC.get(name)
     if spec is None:
         return False, "未知快照"
-    if _stamp_dt(d.get(spec["stamp"])) is None:
+    # ★ 2026-10-22（GPT 评估 V06 后半）：结构版本号，与发布端
+    #   `publish_community_snapshot.py::static_ok` **同口径** —— **缺省视为 1**
+    #   （兼容旧快照），未知的**更高**版本拒收并给原因（免得新版结构被本端误读）。
+    _ver = d.get("schema", COMMUNITY_STATIC_SCHEMA)
+    if not isinstance(_ver, int) or isinstance(_ver, bool) or _ver < 1:
+        return False, f"schema 不是正整数：{_ver!r}"
+    if _ver > COMMUNITY_STATIC_SCHEMA:
+        return False, f"schema {_ver} 高于本端支持的 {COMMUNITY_STATIC_SCHEMA}"
+    from datetime import datetime, timedelta, timezone
+
+    _st = _stamp_dt(d.get(spec["stamp"]))
+    if _st is None:
         return False, f"缺时间戳 {spec['stamp']}"
+    # GPT 评估 V06：未来时间的快照会永远「比本地新」、压住之后的正常快照 ⇒ 超过 1 天的未来时间拒收
+    if _st > datetime.now(timezone.utc) + timedelta(days=1):
+        return False, f"时间戳在未来：{d.get(spec['stamp'])}"
     if name == "arb_ratings.json":
         nodes = d.get("nodes")
         if not isinstance(nodes, dict) or len(nodes) < 50:
@@ -187,15 +204,11 @@ def community_static_ok(name: str, d) -> tuple[bool, str]:
             return False, "到访记录太少"
         if not isinstance(items, dict) or len(items) < 50:
             return False, "物品太少"
-    elif name == "wiki_disp.json":
-        disp = d.get("disp")
-        if not isinstance(disp, dict) or len(disp) < 400:
-            return False, "倾向条目太少（< 400）"
     return True, ""
 
 
 def _invalidate_static(name: str) -> None:
-    """静态快照换新后清进程内缓存（wiki_disp 每次现读，不用清）。"""
+    """静态快照换新后清进程内缓存。"""
     try:
         if name == "arb_ratings.json":
             from . import arbi
@@ -325,6 +338,13 @@ def parse_community_valence(payload: dict) -> dict:
         raise ValueError("社区快照缺 coda.batch")
     out["coda_batch"] = batch
     out["snapshot"] = str(payload.get("published_at") or "")
+    # ★ 2026-10-19 分段时间戳：信条与终幕各自换轮（epoch 差一天），一个 published_at 表达不了两段。
+    #   新发布器给每段写 `<段>.snapshot`（= 发布端运行期该段的 valence_snapshot）；旧快照没有 ⇒
+    #   回退 published_at（兼容旧发布器）。published_at 本身保留（= 两段较晚者，供旧版插件用）。
+    out["snapshots"] = {
+        tag: str((payload.get(tag) or {}).get("snapshot") or out["snapshot"])
+        for tag in ("tenet", "coda")
+    }
     return out
 
 
@@ -978,6 +998,106 @@ def parse_de_riven_weekly(text: str) -> list[dict]:
     return json.loads(fixed)
 
 
+# ★ 2026-10-23：紫卡实时排行（WM 拍卖）的目标武器集参数。
+RIVEN_RT_TOP_N = 60  # 取 DE 周报热度前 N 把
+RIVEN_RT_MAX_DISP = 0.7  # 原倾向（取消前旧值）≤ 此值：数值 ×1.7~2.4，1.2 热修后涨幅最大
+
+
+def riven_realtime_targets(
+    weekly_entries: list,
+    wm_weapons: list,
+    dispositions: dict,
+    families: dict | None = None,
+    *,
+    top_n: int = RIVEN_RT_TOP_N,
+    max_disp: float = RIVEN_RT_MAX_DISP,
+) -> list[str]:
+    """紫卡实时排行的**目标武器集**（WM ``url_name`` 列表，已去重、家族只留主武器）。
+
+    ★ 关键：DE 周报的 ``compatibility`` 是**内部名**（`1999InfShotgunWeapon` / `CrpBriefcaseLauncher`
+    这类），**不是 WM 的 url_name** —— 必须经 ``wm_weapons``（WM 紫卡武器表，含 ``en``/``zh``/``url_name``）
+    按英文名（小写）或中文名解析；解析不到的（内部/废弃条目）直接跳过。
+
+    两路合并（2026-10-23 指令）：
+      ① DE 周报**热度前 N** —— 按解析出的 ``url_name`` 聚合，热度 = 0 洗 + 已洗的 ``pop`` 之和；
+      ② **原倾向 ≤ ``max_disp``**（取消前旧值，来自 ``dispositions_rivenmirror.json``）——
+         这批紫卡数值 ×1.7~2.4，1.2 热修后涨幅最大，周报里反而可能排不上前 N。
+
+    家族处理与 ``wr`` 同规则：变体折算到**母武器** ``url_name``（WM 紫卡拍卖按母武器挂）。
+    **不抓全部 670 把**，只抓这批目标。
+    """
+    fam_groups = (families or {}).get("families") or {}
+    fam_by_name = (families or {}).get("by_name") or {}
+
+    by_name: dict[str, str] = {}
+    name_of_url: dict[str, str] = {}
+    for w in wm_weapons or []:
+        url = str(w.get("url_name") or "")
+        if not url:
+            continue
+        for key in (w.get("en"), w.get("zh")):
+            k = str(key or "").strip()
+            if k:
+                by_name.setdefault(k.lower(), url)
+        nm = str(w.get("en") or w.get("zh") or "").strip()
+        if nm:
+            name_of_url.setdefault(url, nm)
+
+    # ★ 变体（Prime/赤毒/…）在**原始** WM `/riven/weapons` 里常常缺席，是插件从
+    #   `dispositions_rivenmirror.json` 静态补全进合并表的（该表**以英文名为键**，
+    #   行内另有 `zh`/`url_name`）⇒ 名字来源**同时**取两边，家族折叠才不会因传了哪张表而失效。
+    for en_name, row in (dispositions or {}).items():
+        if not isinstance(row, dict):
+            continue
+        url = str(row.get("url_name") or "")
+        if not url:
+            continue
+        for nm in (str(en_name or "").strip(), str(row.get("zh") or "").strip()):
+            if nm:
+                by_name.setdefault(nm.lower(), url)
+        nm = str(en_name or row.get("zh") or "").strip()
+        if nm:
+            name_of_url.setdefault(url, nm)
+
+    url_of_name = {v: k for k, v in name_of_url.items()}
+
+    def main_of(url: str) -> str:
+        """变体 → 母武器 url_name（家族表按**显示名**索引，故先 url→名→家族→首成员）。"""
+        name = name_of_url.get(url)
+        key = fam_by_name.get(name) if name else None
+        members = fam_groups.get(key) if key else None
+        if not members:
+            return url
+        main_name = str(members[0])
+        return by_name.get(main_name.lower(), url_of_name.get(main_name, url))
+
+    picked: dict[str, int] = {}
+
+    hot: dict[str, int] = {}
+    for e in weekly_entries or []:
+        c = e.get("compatibility")
+        if not c:
+            continue
+        url = by_name.get(str(c).strip().lower())
+        if not url:
+            continue
+        hot[url] = hot.get(url, 0) + int(e.get("pop") or 0)
+    for url, pop in sorted(hot.items(), key=lambda kv: -kv[1])[: max(0, top_n)]:
+        picked[main_of(url)] = max(picked.get(main_of(url), 0), pop)
+
+    for row in (dispositions or {}).values():
+        if not isinstance(row, dict):
+            continue
+        url = str(row.get("url_name") or "")
+        disp = row.get("disposition")
+        if not url or not isinstance(disp, (int, float)):
+            continue
+        if float(disp) <= max_disp:
+            picked.setdefault(main_of(url), 0)
+
+    return sorted(picked)
+
+
 def load_aliases() -> dict:
     path = DATA_DIR / "aliases.json"
     if path.exists():
@@ -1153,6 +1273,12 @@ class WarframeClient:
             bundle = await self._de_bundle()
             if endpoint in ("kuva", "arbitration", "steelPath") and not bundle.get(endpoint):
                 raise WarframeAPIError(_EXTERNAL_ONLY[endpoint])
+            if endpoint in (bundle.get("_failed") or ()):
+                # P09：这段解析失败 ≠ 当前没有事件 —— 明说，别回空值让卡片显示「暂无」
+                raise WarframeAPIError(
+                    f"DE 世界状态的「{endpoint}」这一段解析失败（DE 数据格式可能有变），"
+                    "其余功能不受影响，请稍后重试"
+                )
             return bundle.get(endpoint)
         url = f"{self._ws_base(platform)}/{platform}/{endpoint}"
         return await self._fetch_json(url, ttl=ttl, params={"language": self.language})
@@ -1976,6 +2102,16 @@ class WarframeClient:
                 hit["disposition"] = e.get("disposition")
                 if not hit.get("zh"):
                     hit["zh"] = e.get("zh", "")
+                # ★ 2026-10-19：`riven_type`/`group` 也**本地非空则优先**。
+                #   本地表这两列绝大多数继承自 WM（同值 ⇒ 无影响），但这样能带上少量
+                #   **源数据修正**：WM 把 Bubonico/Coda Bubonico 标成 `rifle`，实为霰弹枪
+                #   （实卡 + wfsim `mod_pools: [primary, shotgun]` 双证），按步枪列算会把
+                #   暴伤基值 120 当成 90 用。**空值不覆盖** —— 免得把 WM 有值的条目标空
+                #   （本地表里仍有 21 条 group/riven_type 为空，多为基类不在表里的形态行）。
+                if e.get("riven_type"):
+                    hit["riven_type"] = e["riven_type"]
+                if e.get("group"):
+                    hit["group"] = e["group"]
                 continue
             by_url[u] = {
                 "url_name": u,
@@ -2331,6 +2467,157 @@ class WarframeClient:
             len(retry),
         )
         return len(rows)
+
+    # ------------------------------------------------------------------
+    # 紫卡实时排行（WM 拍卖快照）
+    # ------------------------------------------------------------------
+    async def crawl_riven_realtime(self, limit: Optional[int] = None) -> int:
+        """抓紫卡实时排行快照（WM 拍卖）并落盘；返回已入表武器数。
+
+        2026-10-23（用户报「紫卡排行用的 DE 周报时效差，1.2 热修后暴涨看不出」）：
+        周报**每周一 00:00 UTC 才更新一次**，热修后那几周全是旧数；这里改用
+        **WM 拍卖的实时挂单**做默认视图（周报保留作 `紫卡排行 周报` 子视图）。
+
+        续跑逻辑与 `crawl_wm_ranks` 同套（用户口径一致）：
+        - 目标集 = `riven_realtime_targets()`（周报热度前 N + 原倾向 ≤0.7，去重、折母武器）；
+        - 落盘记 ``cursor`` / ``rows``，每轮最多 ``limit`` 项，**每 20 项落一次盘**，中断可续；
+        - 跑满一轮**且成功率 ≥ RANK_MIN_COVERAGE** 才更新 ``ts``；失败项进 ``retry`` 下次先补；
+        - 速率靠 `wm_riven_auctions` 的 `wm_rate_limit=True`（≤3 req/s）自己排队。
+        """
+        weekly = await self.de_weekly_rivens()
+        weapons = await self.wm_riven_weapons()
+        try:
+            disp = (
+                json.loads(
+                    (DATA_DIR / "dispositions_rivenmirror.json").read_text(encoding="utf-8")
+                ).get("entries")
+                or {}
+            )
+        except Exception:  # noqa: BLE001 - 缺表就只用周报那一路
+            disp = {}
+        try:
+            fam = json.loads(paths.read_path("de/riven_families.json").read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001
+            fam = {}
+        targets = riven_realtime_targets(weekly.get("entries") or [], weapons, disp, fam)
+
+        old = self._load_json_file(paths.read_path(RIVEN_RT_NAME)) or {}
+        rows: dict = old.get("rows") or {}
+        cursor = int(old.get("cursor") or 0)
+        total = len(targets)
+        if total == 0:
+            logger.warning("[sdjk] 紫卡实时排行：目标集为空（周报/武器表取不到？），本轮跳过")
+            return len(rows)
+        if cursor >= total:
+            cursor = 0
+        failed: set = set(old.get("round_failed") or [])
+        retry: list = list(dict.fromkeys(old.get("retry") or []))
+        ts = old.get("ts") or ""
+        coverage = old.get("coverage")
+        save_failed = False
+
+        def _now_iso() -> str:
+            return time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime())
+
+        async def _one(slug: str) -> bool:
+            """取一把武器的挂单并算指标；返回请求是否成功。"""
+            try:
+                auctions = await self.wm_riven_auctions(slug, "pc")
+            except Exception:  # noqa: BLE001 - 单项失败不阻断整轮
+                return False
+            prices: list[int] = []
+            online_low: Optional[int] = None
+            for a in auctions or []:
+                if a.get("closed") or a.get("visible") is False:
+                    continue
+                b = a.get("buyout_price")
+                if b is None:
+                    b = a.get("starting_price")
+                if not b:
+                    continue
+                prices.append(int(b))
+                owner = (a.get("owner") or {}).get("status")
+                if owner in ("ingame", "online"):
+                    online_low = int(b) if online_low is None else min(online_low, int(b))
+            if not prices:
+                rows.pop(slug, None)
+                return True
+            top = sorted(prices)[:RIVEN_RT_TOP_PRICES]
+            mid = (
+                top[len(top) // 2]
+                if len(top) % 2
+                else round((top[len(top) // 2 - 1] + top[len(top) // 2]) / 2, 1)
+            )
+            rows[slug] = {
+                "online_low": online_low,
+                "low": min(prices),
+                "median": mid,
+                "listings": len(prices),
+                "at": _now_iso(),
+            }
+            return True
+
+        todo = [s for s in (retry + targets[cursor:]) if s]
+        seen: set = set()
+        todo = [s for s in todo if not (s in seen or seen.add(s))]
+        n_done = 0
+        for slug in todo:
+            if limit is not None and n_done >= limit:
+                break
+            ok = await _one(slug)
+            n_done += 1
+            if ok:
+                failed.discard(slug)
+            else:
+                failed.add(slug)
+            if n_done % 20 == 0:
+                cursor = (cursor + n_done) % total
+                save_failed = (
+                    self._save_json_file(
+                        paths.read_path(RIVEN_RT_NAME),
+                        {
+                            "ts": ts,
+                            "cursor": cursor,
+                            "rows": rows,
+                            "round_failed": sorted(failed),
+                            "retry": sorted(failed),
+                            "coverage": coverage,
+                            "total": total,
+                        },
+                    )
+                    is False
+                ) or save_failed
+        cursor = (cursor + n_done) % total
+        if cursor == 0:  # 跑满一轮
+            cov = (total - len(failed)) / total if total else 0.0
+            coverage = round(cov, 3)
+            if cov >= RANK_MIN_COVERAGE:
+                ts = _now_iso()
+                failed.clear()
+            else:
+                logger.warning(
+                    "[sdjk] 紫卡实时排行本轮成功率 %.0f%% < %.0f%%，不刷新时间戳",
+                    cov * 100,
+                    RANK_MIN_COVERAGE * 100,
+                )
+        if not save_failed:
+            self._save_json_file(
+                paths.read_path(RIVEN_RT_NAME),
+                {
+                    "ts": ts,
+                    "cursor": cursor,
+                    "rows": rows,
+                    "round_failed": sorted(failed),
+                    "retry": sorted(failed),
+                    "coverage": coverage,
+                    "total": total,
+                },
+            )
+        return len(rows)
+
+    def riven_realtime_rows(self) -> dict:
+        """落盘的紫卡实时排行快照（``{"ts":…, "rows":{slug: {…}}}``）。"""
+        return self._load_json_file(paths.read_path(RIVEN_RT_NAME)) or {}
 
     def start_rank_crawl(self) -> tuple[bool, int, int]:
         """启动后台全量抓取；返回 (是否新启动, 已完成项, 总项数)。"""
@@ -3014,15 +3301,17 @@ class WarframeClient:
                     return w
         return None
 
+    # ★ 2026-10-23：WM 现行 slug 无括号（`pistol_riven_mod_veiled`）；旧写法 `…_(veiled)` 在 v1 返回 301，
+    #   只靠 httpx 跟随跳转才能用，跳转一撤「紫卡排行 未开」就整张表空掉。8 个已逐个实测 200。
     _VEILED_SLUGS = {
-        "Melee": "melee_riven_mod_(veiled)",
-        "Rifle": "rifle_riven_mod_(veiled)",
-        "Shotgun": "shotgun_riven_mod_(veiled)",
-        "Pistol": "pistol_riven_mod_(veiled)",
-        "Archgun": "archgun_riven_mod_(veiled)",
-        "Kitgun": "kitgun_riven_mod_(veiled)",
-        "Zaw": "zaw_riven_mod_(veiled)",
-        "Robotic": "companion_weapon_riven_mod_(veiled)",
+        "Melee": "melee_riven_mod_veiled",
+        "Rifle": "rifle_riven_mod_veiled",
+        "Shotgun": "shotgun_riven_mod_veiled",
+        "Pistol": "pistol_riven_mod_veiled",
+        "Archgun": "archgun_riven_mod_veiled",
+        "Kitgun": "kitgun_riven_mod_veiled",
+        "Zaw": "zaw_riven_mod_veiled",
+        "Robotic": "companion_weapon_riven_mod_veiled",
     }
 
     async def wm_veiled_stats(self, platform: str = "pc") -> dict:
@@ -3333,9 +3622,11 @@ class WarframeClient:
         if not snap:
             return True
         try:
-            return datetime.fromisoformat(snap) < win
+            dt = datetime.fromisoformat(snap)
         except (TypeError, ValueError):
             return True
+        # GPT 评估 V01：未来时间（> now + 1 天）的快照会永远「在窗口内」⇒ 一样算过期
+        return dt < win or dt > now + timedelta(days=1)
 
     @staticmethod
     def valence_values(items) -> list:
@@ -3532,27 +3823,40 @@ class WarframeClient:
             logger.warning("[sdjk] 社区元素加成快照校验不过：%s", exc)
             self._note_comm("valence.json", "invalid", exc, payload.get("published_at"))
             return None
-        locals_ = [(rot.get(k) or {}).get("valence_snapshot", "") for k in ("tenet", "coda")]
+        snaps = parsed["snapshots"]
         # ★ 2026-10-16（GPT 评估 V01）：只比「比本地新」不够 —— 上一轮（或 8 天前同批）的快照也可能比本地新，
         #   采用后再把快照时刻写成 now，旧数据就伪装成本轮。快照时刻必须落在**当前轮次窗口内**。
+        # ★ 2026-10-19：两道闸门都**按段**比（各段用自己的快照时刻、对照自己的窗口与本地同段）。原先共用
+        #   一个 published_at（发布器取的是信条时刻），终幕换轮后整份快照被误判「上一轮」而拒用。
         from datetime import datetime, timezone
 
         now = datetime.now(timezone.utc)
         for sect in ("tenet", "coda"):
             d = rot.get(sect) or {}
             if d.get("epoch") and self.valence_is_stale(
-                {**d, "valence_snapshot": parsed["snapshot"]}, now
+                {**d, "valence_snapshot": snaps[sect]}, now
             ):
                 logger.info(
-                    "[sdjk] 社区元素加成快照属于上一轮（%s，%s 段），不采用",
-                    parsed["snapshot"],
-                    sect,
+                    "[sdjk] 社区元素加成快照属于上一轮（%s，%s 段），不采用", snaps[sect], sect
                 )
-                self._note_comm("valence.json", "stale", f"{sect} 段属于上一轮", parsed["snapshot"])
+                self._note_comm("valence.json", "stale", f"{sect} 段属于上一轮", snaps[sect])
                 return None
-        if not community_valence_newer(parsed["snapshot"], *locals_):
+        # 各段都不能比本地同段旧（防拿旧的覆盖新的），且至少一段严格更新（否则没必要采用）
+        older = [
+            s
+            for s in ("tenet", "coda")
+            if not community_valence_newer(snaps[s], (rot.get(s) or {}).get("valence_snapshot", ""))
+            and snaps[s] != str((rot.get(s) or {}).get("valence_snapshot", ""))
+        ]
+        newer = [
+            s
+            for s in ("tenet", "coda")
+            if community_valence_newer(snaps[s], (rot.get(s) or {}).get("valence_snapshot", ""))
+        ]
+        if older or not newer:
             logger.info(
-                "[sdjk] 社区元素加成快照不比本地新（%s），不采用", parsed["snapshot"] or "无时间戳"
+                "[sdjk] 社区元素加成快照不比本地新（%s），不采用",
+                "、".join(f"{s} {snaps[s] or '无时间戳'}" for s in ("tenet", "coda")),
             )
             self._note_comm("valence.json", "fresh", "", parsed["snapshot"])
             return None
@@ -3709,7 +4013,14 @@ class WarframeClient:
 
         half: list = []  # 判为「只改了百分比」的源页（日志用）
 
-        def _since(old_vals, new_items, recorded, legacy, page):
+        # 社区快照各段带自己的快照时刻（2026-10-19）；其它通道两段同一时刻
+        sect_snap = {
+            k: (str(raw["snapshots"][k]) if used_community and raw.get("snapshots") else snap)
+            for k in ("tenet", "coda")
+        }
+
+        def _since(old_vals, new_items, recorded, legacy, page, fb=None):
+            fb = fb or snap
             # 「这组数值最早出现的时刻」：数值没变且已有记录 ⇒ 沿用；否则取 wiki 页面最近修订时刻
             # （数值真正发布的时间；早于本轮起点即「页面上还是上一轮」）；查不到修订时间时，
             # 没变沿用旧快照时刻（升级前的数据没有记录）、变了从本次快照算起
@@ -3730,10 +4041,10 @@ class WarframeClient:
             rev = revs.get(page)
             rev = rev.replace(microsecond=0).isoformat() if rev else None
             if not same:
-                return rev or snap
+                return rev or fb
             # 数值没变、升级前又没记录：页面修订可能是无关编辑 ⇒ 取修订时刻与旧快照时刻中较早者
             cands = [t for t in (rev, legacy) if t]
-            return min(cands, key=datetime.fromisoformat) if cands else snap
+            return min(cands, key=datetime.fromisoformat) if cands else fb
 
         old_t = self.valence_values(tenet_data.get("items"))
         old_t_since = tenet_data.get("valence_values_since")
@@ -3742,7 +4053,12 @@ class WarframeClient:
             elem, pct = parsed["tenet"][it["en"]]
             it["element"], it["bonus"] = elem, pct
         tenet_data["valence_values_since"] = _since(
-            old_t, tenet_data.get("items"), old_t_since, old_t_snap, "Tenet Weapons"
+            old_t,
+            tenet_data.get("items"),
+            old_t_since,
+            old_t_snap,
+            "Tenet Weapons",
+            sect_snap["tenet"],
         )
         # ★ A/B 两批都给值（源页两批同页全量）；缺的那批保留原值，不清空
         old_c_since = list(coda_data.get("batch_values_since") or [])
@@ -3756,10 +4072,14 @@ class WarframeClient:
                 if it.get("en") in table:
                     elem, pct = table[it["en"]]
                     it["element"], it["bonus"] = elem, pct
-            new_c_since.append(_since(old_c, b_items, old_c_since[idx], old_c_snap, "Coda Weapons"))
+            new_c_since.append(
+                _since(
+                    old_c, b_items, old_c_since[idx], old_c_snap, "Coda Weapons", sect_snap["coda"]
+                )
+            )
         coda_data["batch_values_since"] = new_c_since
-        tenet_data["valence_snapshot"] = snap
-        coda_data["valence_snapshot"] = snap
+        tenet_data["valence_snapshot"] = sect_snap["tenet"]
+        coda_data["valence_snapshot"] = sect_snap["coda"]
         via = "(wfhelper)" if used_wfhelper else "(community)" if used_community else ""
         if used_wfhelper:
             src = "WFHelper 公开接口（数据同样来自 wiki 玩家上报；后台可选通道）"
@@ -3788,76 +4108,6 @@ class WarframeClient:
             )
             return f"not-updated {snap} batch={labels[bi]}{via}"
         return f"refreshed {snap} batch={labels[bi]}{via}"
-
-    @staticmethod
-    def parse_wiki_dispositions(html: str) -> dict:
-        """从 wiki「Riven Mod」页 HTML 解析完整倾向表。
-
-        ★ 2026-10-03 与 ``scripts/build_disposition.py::parse_wiki_html``
-        同源（链接文本防塌缩）：条目名只写在 ``<a>`` 文本里，模式后缀
-        （(Primary)/(Secondary)/(Atmosphere)/(Melee)…）也在文本中 —— 旧的
-        管道化正则名字段容不下括号，会把双模式条目**整行丢弃**（线上实证：
-        Sep 27 运行期重抓写出 622 条、组合枪双模式全缺，运行目录副本又把
-        批 D 新表遮蔽到 TTL 到期）。返回 {英文小写名: 倾向值}，值域过滤
-        0.05-1.6、名称首字母须为字母、``&amp;`` 等实体解码。
-        """
-        import html as _html
-
-        pairs = re.findall(
-            r"<li[^>]*>\s*<a href=\"[^\"]*/w/[^\"]*\"[^>]*>([^<]+)</a>"
-            r" \(([\d.]+)\)",
-            html,
-        )
-        out: dict[str, float] = {}
-        for name, val in pairs:
-            v = float(val)
-            if not 0.05 <= v <= 1.6:
-                continue
-            name = _html.unescape(name).strip()
-            if 2 <= len(name) <= 60 and re.match(r"^[A-Za-z]", name):
-                out[name.lower()] = v
-        return out
-
-    async def refresh_wiki_disp(self, max_age_hours: int = 24 * 7, force: bool = False) -> str:
-        """检查并刷新 wiki 变体倾向快照（默认 7 天过期）。
-
-        幂等：快照未过期直接返回 "fresh"。解析条数 < 400 视为页面
-        结构变化，抛异常不写文件。FlareSolverr 未部署时抛
-        WarframeAPIError，由调用方降级（手输倾向仍可用）。
-        """
-        from datetime import datetime, timezone
-
-        old = self._load_json_file(paths.read_path(WIKI_DISP_NAME)) or {}
-        if not force:
-            snap = old.get("snapshot")
-            if snap:
-                try:
-                    age = (
-                        datetime.now(timezone.utc) - datetime.fromisoformat(snap)
-                    ).total_seconds()
-                    if age < max_age_hours * 3600:
-                        return "fresh"
-                except ValueError:
-                    pass
-        html = await self.fetch_via_flaresolver("https://wiki.warframe.com/w/Riven_Mod", ttl=600)
-        disp = self.parse_wiki_dispositions(html)
-        if len(disp) < 400:
-            raise WarframeAPIError(f"wiki 倾向表解析异常：仅 {len(disp)} 条（预期 ≥400）")
-        now = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-        meta = {
-            "_note": (
-                "武器倾向表（wiki Riven Mod 页 Riven Disposition，覆盖全部"
-                "变体：棱晶/Prime/亡魂/破坏者/赤毒/信条…）。来源 "
-                "wiki.warframe.com（CC BY-NC-SA）；DE 仅在大版本调整倾向，"
-                "插件内置定时每 7 天自动重抓（需 FlareSolverr）"
-            ),
-            "snapshot": now,
-            "disp": disp,
-        }
-        paths.atomic_write_text(
-            paths.write_path(WIKI_DISP_NAME), json.dumps(meta, ensure_ascii=False, indent=1)
-        )
-        return f"refreshed {len(disp)} 条 @ {now}"
 
     async def nearmiss_riven_weapons(self, query: str, n: int = 4) -> list[dict]:
         """与 ``query`` **等长且恰有 1 个字不同** 的紫卡武器（近形字候选）。
@@ -3916,11 +4166,10 @@ class WarframeClient:
         return bool(kb and k and kb == k)
 
     async def riven_family(self, weapon: dict) -> list:
-        """同一武器家族的变体（棱晶/Prime/亡魂/赤毒…）及其 wiki 倾向。
+        """同一武器家族的变体（棱晶/Prime/亡魂/赤毒…）及其**取消前的旧**倾向。
 
-        游戏内紫卡卡面**只写母武器名**（紫卡对家族通用，可装在棱晶等变体上），
-        变体信息不在截图里 —— 所以卡面读到母武器时列出家族变体倾向，用户对照
-        即可知道该用哪个（或按需要带变体名重发）。
+        ★ 2026-10 DE 取消倾向后只剩一个用途：卡面数值按 1.2 对不上时，看它是否吻合
+        家族某成员的旧倾向 ⇒ 判「倾向取消前的旧截图」。wiki 表已冻结（不再重抓）。
 
         ★ 2026-10-03 重写（用户口径：变体倾向只准取自本地 wiki 表）：
           · 家族关系 = DE 官方 parentName 表（core/data/de/riven_families.json）；
@@ -3947,42 +4196,6 @@ class WarframeClient:
                 continue
             found.setdefault(_zh_name_of_en(en) or en, v)  # 没中文名退回英文名
         return sorted(found.items(), key=lambda kv: kv[1])
-
-    async def resolve_variant_disp(self, name: str) -> tuple:
-        """变体武器倾向：中文名 → **本地三表**转英文 → 本地 wiki 倾向快照。
-
-        棱晶/Prime/亡魂/破坏者/赤毒/信条 等变体的倾向在 WM 紫卡表里
-        没有条目（紫卡表只挂母武器），wiki「Riven Mod」页的倾向表
-        （core/data/de/wiki_disp.json，618 条静态快照）有完整数据。
-        ★ 2026-10-03：中文名 → 英文名改用**本地三表级联**（`_en_name_of_zh`），
-        不再经 `wm_items()` —— 玄骸武器 WM 必然没有（3892 条里 0 条武器），
-        绕 WM 会让手输「赤毒·鳄神」取不到 0.8、退回母武器值。三表全无时按原串
-        当英文名继续试；保留「逐级剥尾词」兜底（「翁 Prime 一套」→ Okina Prime）。
-        返回 (倾向值, 命中的表键)；查不到 (None, "")。
-        """
-        table = (self._load_json_file(paths.read_path(WIKI_DISP_NAME)) or {}).get("disp") or {}
-        if not table or not name:
-            return None, ""
-        en = (_en_name_of_zh(name) or name).strip()
-        if not re.sub(r"[\s·\-_]+", "", en.lower()):
-            return None, ""
-        key = re.sub(r"[\s\-]+", "", en.lower())
-        # ★ 2026-09-24：WM 的条目名带后缀（套装是「… 一套 / … Set」），而 wiki
-        #   倾向表用的是裸名（Okina Prime）—— 直接比对永远命中不了，家族卡因此
-        #   拿不到变体倾向（用户报障卡的数值其实正好卡在 翁 Prime 0.7 上）。
-        #   逐级剥尾词（先专用后缀，再按空格丢词）后再比。
-        cands = [key]
-        parts = re.sub(r"[\s\-]+", " ", en.lower()).strip().split()
-        while len(parts) > 1:
-            parts = parts[:-1]
-            cands.append(re.sub(r"[\s\-]+", "", " ".join(parts)))
-        for cand in cands:
-            if not cand:
-                continue
-            for k, v in table.items():
-                if re.sub(r"[\s\-]+", "", k) == cand:
-                    return v, k
-        return None, ""
 
     # ------------------------------------------------------------------
     # Wiki（本地词库优先，搜不到给搜索链接）

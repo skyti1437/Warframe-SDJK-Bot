@@ -3860,43 +3860,35 @@ def fmt_flash_sales(
 # ---------------------------------------------------------------------------
 
 
-def _short_t(t: str, seq: list) -> str:
-    """把统计时间戳压短：日线只留 MM-DD，小时线留 MM-DD HH时。"""
+def _short_t(t: str, hourly: bool) -> str:
+    """把统计时间戳压短：日线只留 MM-DD，小时线留 MM-DD HH时。
+
+    ``hourly`` 由**调用方按序列口径**给（不能按序列长度猜：48 小时线有 48 个点，
+    比 90 天日线的点数还多，长度启发式会把小时线判成日线 —— 2026-10-23 修）。
+    """
     s = (t or "").strip()
     if len(s) < 16:
         return s
-    day, hhmm = s[:10], s[11:16]
-    if len(seq) >= 30:  # 90 天日线
-        return day[5:]
-    hh = hhmm[:2]
-    return f"{day[5:]} {hh}时"
+    day = s[:10][5:]
+    return f"{day} {s[11:13]}时" if hourly else day
 
 
-def _downsample(values: list[float], target: int = 30) -> list[float]:
-    """把长序列等比压缩到 target 个点（取每段均值），避免折行。"""
-    v = list(values or [])
-    if len(v) <= target:
-        return v
-    out, n = [], len(v)
-    for i in range(target):
-        lo = i * n // target
-        hi = max(lo + 1, (i + 1) * n // target)
-        seg = [x for x in v[lo:hi] if x]
-        out.append(sum(seg) / len(seg) if seg else 0)
-    return out
+# 图表行协议（见 core/render.py「图表行（§CHART）」一节）：格式层只产出**机器行**，
+# 画图模式画真实折线图、文本模式展开回方块字 + 「最高/最低/最新」一行。
+# JSON 一律 ASCII（ensure_ascii）—— 机器行不参与折行与列宽判定，含全角字符会撑爆卡宽。
+def _chart_line(title: str, rows: list[dict], *, hourly: bool, unit: str = "p") -> str:
+    """把统计行（``t`` / ``median``）编成一条 §CHART 机器行。
 
-
-def _spark(values: list[float], target: int = 30) -> str:
-    """把价格序列压成一行趋势条（8 档，自动降采样到 ``target`` 格以内）。"""
-    v = [x for x in values if x]
-    if len(v) < 2:
-        return ""
-    v = _downsample(v, target)
-    lo, hi = min(v), max(v)
-    if hi <= lo:
-        return "▁" * len(v)
-    blocks = "▁▂▃▄▅▆▇█"
-    return "".join(blocks[min(7, int((x - lo) / (hi - lo) * 7.999))] for x in v)
+    ``median`` 为 0（该小时 / 该日无成交）记 ``null`` —— 渲染层据此**断开折线**，
+    不把无成交时段连成一条假直线。
+    """
+    labels = [_short_t(r.get("t") or "", hourly) for r in rows]
+    values = [(r.get("median") or None) for r in rows]
+    return "§CHART" + json.dumps(
+        {"title": title, "unit": unit, "labels": labels, "values": values},
+        ensure_ascii=True,
+        separators=(",", ":"),
+    )
 
 
 def _fmt_p(v) -> str:
@@ -4084,6 +4076,76 @@ _VEILED_TYPE_ZH = {
     "Amalgam": "融合未开紫卡",
 }
 
+# 「wr 未开」不带类别时用的固定展示顺序（与 _VEILED_SLUGS 的键一致）
+_VEILED_ORDER = ("Melee", "Rifle", "Shotgun", "Pistol", "Archgun", "Kitgun", "Zaw", "Robotic")
+
+
+def fmt_wm_veiled_summary(stats: dict) -> tuple[str, list[str]]:
+    """「wr 未开」不带类别：列 8 个类别当前中位/最低/最高（数据源 `wm_veiled_stats`）。
+
+    ★ 2026-10-23 加：用户报「wr 手枪未开 搜不到」，顺手给无类别时一个总览入口。
+    """
+    if not stats:
+        return ("未开紫卡 · warframe.market", ["※ 未取到未开紫卡的实时成交（稍后再试）"])
+    lines = ["◆ 未开紫卡 · warframe.market 实时成交（48h）", "　类别　当前中位　最低　最高"]
+    for key in _VEILED_ORDER:
+        d = stats.get(key)
+        if not d:
+            continue
+        lines.append(
+            "· "
+            + "　".join(
+                [
+                    _VEILED_TYPE_ZH.get(key, key + "未开紫卡"),
+                    _fmt_p(d.get("median")),
+                    _fmt_p(d.get("min")),
+                    _fmt_p(d.get("max")),
+                ]
+            )
+        )
+    lines.append("※ 加类别看具体卖家：wr 手枪未开（也认 近战/步枪/霰弹/曲翼/组合枪/Zaw/守护）")
+    return ("未开紫卡 · 各类别行情", lines)
+
+
+def fmt_riven_realtime(
+    rows: dict, ts: str, zhm: dict, *, page: int = 1, page_size: int = 10
+) -> tuple[str, list[str]]:
+    """紫卡**实时**排行（WM 拍卖快照）：在线最低一口价 / 前 N 中位 / 挂单数。
+
+    ★ 2026-10-23（用户报「周报时效差，1.2 热修后暴涨看不出」）：DE 周报每周一才更新一次，
+    热修后那几周全是旧数；这里用 **WM 拍卖实时挂单**当默认视图，周报保留作 `紫卡排行 周报`。
+
+    排序口径：**挂单数降序**（实时市场里挂单量最接近「热度」）⇒ 与周报口径可比。
+    """
+    if not rows:
+        return ("紫卡实时排行", ["※ 还没有实时快照（后台每 6h 在凌晨闲时重建一次）"])
+    when = ts[:16].replace("T", " ") if ts else "未知"
+    items = sorted(rows.items(), key=lambda kv: -(kv[1].get("listings") or 0))
+    total = len(items)
+    pages = max(1, (total + page_size - 1) // page_size)
+    page = max(1, min(page, pages))
+    chunk = items[(page - 1) * page_size : page * page_size]
+    title = f"紫卡实时排行（第{page}/{pages}页，共{total}把）"
+    lines = [
+        f"◆ 来源：warframe.market 拍卖实时挂单｜更新于 {when} UTC",
+        "　武器　在线最低　前20中位　挂单数",
+    ]
+    for slug, d in chunk:
+        name = zhm.get(slug) or slug
+        lines.append(
+            "· "
+            + "　".join(
+                [
+                    name,
+                    _fmt_p(d.get("online_low")),
+                    _fmt_p(d.get("median")),
+                    str(d.get("listings") or 0),
+                ]
+            )
+        )
+    lines.append("※ 看 DE 官方周报口径：紫卡排行 周报；按类别：紫卡排行 手枪")
+    return (title, lines)
+
 
 def _riven_row(name: str, d: dict, veiled: bool = False) -> str:
     """紫卡榜一行：武器　0洗中位　0洗热度　已洗中位　已洗热度　参考价。"""
@@ -4248,6 +4310,111 @@ def _range_txt(RA, sid: str, lo: float, hi: float) -> str:
     return f"{a}~{b}"
 
 
+def _riven_range_text(RA, sid: str, lo: float, hi: float, *, negative: bool) -> str:
+    """一条词条的卡面区间文本（符号 + 单位只写一次）。
+
+    · **派系伤害**（对 G/C/I/O/S/T）按**乘数**显示（基值 45% ⇒ ×1.45~1.56，用户口径）；
+    · 反转词条（后坐力，`RA.INVERTED_STATS`）的卡面符号与收益方向相反 ——
+      负面表里写「+」（+95% 后坐力才是负面）；
+    · 其余按 `_range_txt` 的既有写法（单位只写在上限后面）。
+    """
+    if sid.startswith("damage_vs_"):
+        # ★ 2026-10-23 Claude 审：负面派系是**减伤**，乘数 < 1（参考卡 0.55×~0.64×），旧写法给成 ×1.36~1.45
+        if negative:
+            return f"×{1 - hi / 100:.2f}~{1 - lo / 100:.2f}"
+        return f"×{1 + lo / 100:.2f}~{1 + hi / 100:.2f}"
+    # 卡面符号：正面「+」、负面「−」；反转词条（后坐力）反过来 —— 正面是「−后坐力」、负面是「+后坐力」
+    plus = (not negative) != bool(RA.is_inverted(sid))
+    if plus:
+        return "+" + _range_txt(RA, sid, lo, hi)
+    # 负号区间两头都带符号、绝对值大的在前（「−89.1~−72.9%」），避免读成「−89.1 到 +72.9」
+    a, b = _range_txt(RA, sid, hi, lo).split("~", 1)
+    return f"−{a}~−{b}"
+
+
+# 「词条范围」的组合写法 → 中文标签（卡面用）
+_RIVEN_COMBO_ZH = {(2, 0): "2正", (2, 1): "2正1负", (3, 0): "3正", (3, 1): "3正1负"}
+# 卡上给出的组合切换提示（列出当前组合以外的三种）
+_RIVEN_COMBO_HINT = {(2, 0): "2+", (2, 1): "2+1-", (3, 0): "3+", (3, 1): "3+1-"}
+
+
+def fmt_riven_ranges(
+    weapon: str,
+    cls: str,
+    combo: tuple[int, int],
+    pos: list[str],
+    spliced: list[str],
+    neg: list[str],
+    unconfirmed: set,
+    *,
+    only: Optional[list[str]] = None,
+    dropped: Optional[list[str]] = None,
+) -> tuple[str, list[str]]:
+    """「词条范围」卡：按武器列出紫卡每条词条的**卡面取值区间**。
+
+    只显示当前统一倾向（`RA.UNIFIED_DISPOSITION` = 1.2，2026-10 起 DE 取消旧倾向）；
+    三段 = 正面 / 融合词条·正面（同一张卡最多 1 项）/ 负面。
+
+    Args:
+        weapon: 展示用武器名。
+        cls: 基值列名（rifle / shotgun / pistol / archgun / melee）。
+        combo: ``(正词条数, 负词条数)``，四种之一。
+        pos / spliced / neg: 三段各自的词条 id（已按武器过滤）。
+        unconfirmed: 物理「未确认」词条 id（卡上标「?」）。
+        only: 用户显式点名的词条（非空时卡上注明已过滤）。
+        dropped: 用户点名了、但该武器刷不出（或被过滤掉）的词条展示名。
+    """
+    from . import riven_analysis as RA
+    from .parser import RIVEN_STAT_ZH
+
+    n_pos, n_neg = combo
+    disp = RA.UNIFIED_DISPOSITION
+    if n_neg <= 0:
+        # 2+ / 3+ 没有负词条槽 —— 负面表必须为空，否则 stat_range 的负系数是 None
+        # （`FACTOR[(3,0)][1] is None`）会直接抛 TypeError。
+        neg = []
+
+    def _rows(sids: list[str], *, negative: bool) -> list[str]:
+        out = []
+        for sid in sids:
+            lo, hi = RA.stat_range(sid, cls, disp, n_pos, n_neg, negative=negative)
+            if lo is None:
+                continue
+            zh = RIVEN_STAT_ZH.get(sid, sid)
+            mark = "?" if sid in unconfirmed else ""
+            out.append(f"· {zh}{mark}　{_riven_range_text(RA, sid, lo, hi, negative=negative)}")
+        return out
+
+    lines: list[str] = []
+    for label, sids, is_neg in (
+        ("正面", pos, False),
+        ("融合词条·正面", spliced, False),
+        ("负面", neg, True),
+    ):
+        rows = _rows(sids, negative=is_neg)
+        if not rows:
+            continue
+        lines.append(f"◆ {label}（{len(rows)} 条）")
+        lines += rows
+    if not lines:
+        lines.append("◆ 原因：该武器在这个组合下列不出词条（职业池为空？）")
+
+    if only:
+        lines.append(f"※ 已按你点名的 {len(only)} 条词条过滤")
+    if dropped:
+        lines.append(f"※ ⚠ 这些词条该武器刷不出，已略去：{'、'.join(dropped)}")
+    if spliced:
+        lines.append("※ 融合词条同一张卡最多 1 项（Update 44 Riven Splicer）")
+    if unconfirmed:
+        lines.append("※ 带 ? 的是物理伤害词条：占比低于 25% 但家族证据未表态，按「未确认」照列")
+    lines.append(
+        f"※ 以上为满级紫卡卡面范围（统一倾向 {disp}，随机系数 ±10%）；"
+        f"切换组合：词条范围 {weapon} "
+        + " / ".join(v for k, v in _RIVEN_COMBO_HINT.items() if k != combo)
+    )
+    return (f"{weapon} 紫卡词条范围（{_RIVEN_COMBO_ZH.get(combo, '')}）", lines)
+
+
 def fmt_riven_analysis(
     name: str,
     disposition: float,
@@ -4373,13 +4540,14 @@ def fmt_trend(name: str, stats: dict, summary: dict) -> tuple[str, list[str]]:
         lines.append(
             f"◆ 走势：{arrow}{abs(s['change'])}%（最新 {s['last']}p vs 区间初 {s['first']}p）"
         )
+    # 走势图：交给渲染层画真实折线图（§CHART 机器行）；文本模式自动回退方块字 +
+    # 「最高/最低/最新」一行。有效点 < 2 的序列不出图 —— 出一个点的「图」没有意义，
+    # 而且会让「◆ 走势图」分区标题下面空着。
     charts = []
-    hourly = _spark([r["median"] for r in h48])
-    if hourly:
-        charts.append(f"· 48h 中位走势　{hourly}")
-    daily = _spark([r["median"] for r in d90], target=24)
-    if daily:
-        charts.append(f"· 90d 中位走势　{daily}")
+    if sum(1 for r in h48 if r["median"]) >= 2:
+        charts.append(_chart_line("48h 中位走势", h48, hourly=True))
+    if sum(1 for r in d90 if r["median"]) >= 2:
+        charts.append(_chart_line("90d 中位走势", d90, hourly=False))
     if charts:
         lines.append("◆ 走势图")
         lines += charts
@@ -4388,11 +4556,11 @@ def fmt_trend(name: str, stats: dict, summary: dict) -> tuple[str, list[str]]:
     if best:
         peak = max(best, key=lambda r: r["volume"])
         rows.append(
-            f"· 峰值成交　{_short_t(peak['t'], d90)}｜{peak['volume']} 笔｜中位 {peak['median']}p"
+            f"· 峰值成交　{_short_t(peak['t'], not d90)}｜{peak['volume']} 笔｜中位 {peak['median']}p"
         )
     lo = min((r for r in h48 if r["min"]), key=lambda r: r["min"], default=None)
     if lo:
-        rows.append(f"· 48h 最低成交　{lo['min']}p（{_short_t(lo['t'], h48)}）")
+        rows.append(f"· 48h 最低成交　{lo['min']}p（{_short_t(lo['t'], True)}）")
     if rows:
         lines.append("◆ 成交要点")
         lines += rows
