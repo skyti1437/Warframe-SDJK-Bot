@@ -62,6 +62,11 @@ _MAT_LINE = re.compile(r"^(?:建造材料|所需材料)[：:](.+)$")
 _MAT_ITEM = re.compile(r"^(?P<name>.+?)\s*×\s*(?P<n>\d+)$")
 USES_MAX_PROD = 8  # 每个材料最多列几个产物
 
+# ★ 2026-10-23（Claude 定案）：识别「代码名标题」用 —— 单 token ASCII 标识符
+#   （`Borealsetmod` / `Entratilabdogtag`；带空格或连字符的如 `Ash Prime`、`AX-52` 不算）。
+_CJK_RE = re.compile(r"[\u4e00-\u9fa5]")
+_CODE_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9]*$")
+
 
 def norm(s: str) -> str:
     """与 core/search.py::_norm 同口径。"""
@@ -94,6 +99,149 @@ def materials_of(lines: list[str]) -> list[tuple[str, int]]:
     return []
 
 
+# ★ 2026-10-22（返工版，Claude 审 7d14b93 的两条）：「获取」行的结构性词汉化。
+#   ① **不设任何「译成空串」的规则** —— 上一版 `"The": ""` 把 `The Severed Warden` 削成
+#      ` Severed Warden`（名字残缺 + 行首多空格，全量 80 处）；
+#   ② **不逐词拆译专名** —— `Operation: Orphix Venom` → `Operation: 奥菲斯 Venom` 之类
+#      中英夹杂比原文更难读。
+#   现行口径：**只翻结构性词，且只在识别到的结构位置**；其余整段原样。实测结构形态：
+#     `Planet/Node (Mission), Rotation X 20%` / `Planet/Node (Mission) 20%`
+#     `Earth/Cetus (Level 50 - 70 Cetus Bounty), Rotation A 20%`
+#     `Duviri/Endless: Tier 6 (Hard) 11.9%`
+#   明确**不翻**（不落在任何结构里）：`Fomorian Sabotage`（专名+任务类型）、
+#   `Elite Orm Weaver`（敌名）、`Nightmare Mode Rewards`（模式名）。
+_PLANET_ZH = {
+    "Mercury": "水星",
+    "Venus": "金星",
+    "Earth": "地球",
+    "Mars": "火星",
+    "Phobos": "火卫一",
+    "Deimos": "火卫二",
+    "Ceres": "谷神星",
+    "Jupiter": "木星",
+    "Europa": "欧罗巴",
+    "Saturn": "土星",
+    "Uranus": "天王星",
+    "Neptune": "海王星",
+    "Pluto": "冥王星",
+    "Sedna": "赛德娜",
+    "Eris": "阋神星",
+    "Lua": "月球",
+    "Void": "虚空",
+    "Kuva Fortress": "赤毒要塞",
+    "Cambion Drift": "恶魔漂移",
+}
+_MISSION_ZH = {
+    "Spy": "间谍",
+    "Defense": "防御",
+    "Mobile Defense": "移动防御",
+    "Survival": "生存",
+    "Interception": "拦截",
+    "Excavation": "挖掘",
+    "Disruption": "中断",
+    "Capture": "捕获",
+    "Exterminate": "歼灭",
+    "Sabotage": "破坏",
+    "Rescue": "救援",
+    "Hijack": "劫持",
+    "Assault": "强袭",
+    "Defection": "叛逃",
+    "Pursuit": "追击",
+    "Rush": "突袭",
+    "Assassination": "刺杀",
+    "Conclave": "武形秘仪",
+    "Skirmish": "遭遇战",
+    "Volatile": "易爆",
+    "Orphix": "奥菲斯",
+    "Isolation Vault": "隔离库",
+    "Sanctuary Onslaught": "圣殿突袭",
+    "Elite Sanctuary Onslaught": "精英圣殿突袭",
+    "Circuit": "回廊",
+    "Undercroft": "地下区",
+    "Ascension": "扬升",
+    "Alchemy": "炼金",
+    "Mirror Defense": "镜像防御",
+}
+_DIFF_ZH = {"Normal": "普通", "Hard": "困难", "Elite": "精英"}
+_ROTATION_RE = re.compile(r"\bRotation\s+([A-C])\b")
+_LEVEL_RE = re.compile(r"\bLevel\s+(\d+)\s*-\s*(\d+)\b")
+_TIER_RE = re.compile(r"\bTier\s+(\d+)\b")
+_DIFF_RE = re.compile(r"\((Normal|Hard|Elite)\)")
+_BOUNTY_RE = re.compile(r"\bBount(?:y|ies)\b")
+# `星球/节点 …`：行星**只在段首这个位置**翻（别处一律不动，免得动到专名）
+_LEAD_PLANET_RE = re.compile(r"(?<![A-Za-z])((?:[A-Z][A-Za-z'\-]*\s?){1,3})/(?=[A-Z])")
+_PAREN_RE = re.compile(r"\(([A-Za-z][A-Za-z0-9 /\-]*)\)")
+
+
+def translate_source(line: str) -> str:
+    """「获取」行里的**结构性词** → 中文；**专名整段保持英文**。
+
+    ★ **绝不删词**（没有译成空串的规则）⇒ 不会出现行首 / 冒号后多余空格。
+    ★ 只做四类替换，且都限定在可识别的结构位置：
+      ① `Rotation X` → `X轮`（与数据里已有的「C轮」同写法）；
+      ② `Level a - b` / `Tier n` / `(Normal|Hard|Elite)` / `Duviri/Endless` / `Bounty`；
+      ③ **段首**的 `行星/` → 中文行星；
+      ④ `(任务类型)` → 括号内任务类型（只翻表内的）。
+    """
+    if not line.startswith("获取"):
+        return line
+
+    def _paren(m: re.Match) -> str:
+        inner = m.group(1).strip()
+        if inner in _MISSION_ZH:
+            return f"（{_MISSION_ZH[inner]}）"
+        out = _LEVEL_RE.sub(lambda x: f"等级 {x.group(1)} - {x.group(2)}", inner)
+        out = _BOUNTY_RE.sub("赏金", out)
+        return f"（{out}）" if out != inner else m.group(0)
+
+    # ★ 顺序要紧：**先处理括号**（此时括号内还是纯 ASCII，`_PAREN_RE` 才认得出），
+    #   再跑全局结构词 —— 否则 `Level` 会先把括号内容译成中文、括号正则就再也匹配不上。
+    out = _PAREN_RE.sub(_paren, line)
+    out = _ROTATION_RE.sub(lambda m: f"{m.group(1).upper()}轮", out)
+    out = _LEVEL_RE.sub(lambda m: f"等级 {m.group(1)} - {m.group(2)}", out)
+    out = _TIER_RE.sub(lambda m: f"层级 {m.group(1)}", out)
+    out = _DIFF_RE.sub(lambda m: f"（{_DIFF_ZH[m.group(1)]}）", out)
+    out = out.replace("Duviri/Endless", "双衍王境/无尽")
+
+    def _planet(m: re.Match) -> str:
+        zh = _PLANET_ZH.get(m.group(1).strip())
+        return f"{zh}/" if zh else m.group(0)
+
+    out = _LEAD_PLANET_RE.sub(_planet, out)
+    # 中文全角括号前不留半角空格（`Ganymede （中断）` → `Ganymede（中断）`）
+    return re.sub(r"\s+（", "（", out)
+
+
+def untranslated_source_tokens(lines: list[str]) -> list[str]:
+    """「获取」行里**仍剩的**英文 token（回执用）。"""
+    left: set = set()
+    for x in lines:
+        s = str(x)
+        if s.startswith("获取"):
+            for w in re.findall(r"[A-Za-z][A-Za-z'\-]*", translate_source(s)):
+                if len(w) > 1:
+                    left.add(w)
+    return sorted(left)
+
+
+def dedup_effect_lines(lines: list[str]) -> list[str]:
+    """「效果（满级 N）」与「效果（0 级）」**逐字相同**时丢掉 0 级那条（重复占位）。
+
+    只在**完全相同**时丢；数值不同（正常的两档）一律保留。
+    """
+    fx = [i for i, x in enumerate(lines) if str(x).startswith("效果（")]
+    if len(fx) < 2:
+        return lines
+    drop = set()
+    for a in range(len(fx)):
+        for b in range(a + 1, len(fx)):
+            ta = str(lines[fx[a]]).split("）：", 1)[-1]
+            tb = str(lines[fx[b]]).split("）：", 1)[-1]
+            if ta and ta == tb:
+                drop.add(fx[b])
+    return [x for i, x in enumerate(lines) if i not in drop]
+
+
 def parse_kb(
     path: Path, max_lines: int, identities: list[dict] | None = None
 ) -> tuple[list[tuple[str, list[str]]], list[tuple[str, str, int]]]:
@@ -111,7 +259,7 @@ def parse_kb(
         if not title:
             return
         if lines and card_ok:
-            out.append((title, lines))
+            out.append((title, dedup_effect_lines(lines)))
             if identities is not None:
                 identities.append(dict(identity))
         for name, n in materials_of(lines):
@@ -139,6 +287,10 @@ def parse_kb(
             cap = MAX_LEN_EFFECT if line.startswith("效果") else MAX_LEN
             if len(line) > cap:
                 line = line[: cap - 1] + "…"
+            if line.startswith("获取"):
+                line = translate_source(line)
+            # ★ 效果行**不在这里动** —— 数据里的效果行是 `wiki_effect_zh.json` 的**翻译键**，
+            #   在这里改会打坏键（卫生放在 core/wiki_intro.py 的查表之后）。
             lines.append(line)
     flush()
     return ([(t, ls[:max_lines]) for t, ls in out], mats)
@@ -200,6 +352,63 @@ def compact_cards(data: dict) -> dict:
         "pvp": sorted(first[a] for a in first if "pvp" in a.lower()),
         "uses": data["uses"],
     }
+
+
+def merge_code_name_twins(
+    entries: list, assets: list, id_entries: dict
+) -> tuple[list, list, list, dict]:
+    """把**代码名标题**的条目并入同 `de:` 资产的中文孪生条目（2026-10-23 Claude 定案）。
+
+    背景：KB 里同一资产常有两张 —— 一张标题是内部代码名（如 `Borealsetmod`，type
+    `Mod Set Mod`，是游戏内部的套装加成 Mod，玩家不会搜它），一张是正常显示名
+    （如 `套装 · 诡文枭主（Boreal）`）。**直接改名会造出两张同名卡**（查「诡文枭主」撞名），
+    故改为：代码名那条**缺的内容行补进孪生（去重）**、它**不再单独出条目**；
+    它的代码名靠既有 `keys`（`keys_for(标题)`）继续当**检索别名**（不显示）。
+
+    并入后 `entries` / `assets` / `id_entries` 的下标整体重映射（`keys` 存的是资产 ID，
+    不受影响）。只认「同一 asset_id + 中文孪生 + 单 token ASCII 代码名」三条件齐备者。
+
+    返回 ``(merged 报告, entries, assets, id_entries)``。
+    """
+    merged: list[dict] = []
+    drop: set[int] = set()
+    for aid, idxs in list(id_entries.items()):
+        if len(idxs) < 2:
+            continue
+        twin = next((i for i in idxs if _CJK_RE.search(entries[i][0])), None)
+        if twin is None:
+            continue
+        for i in idxs:
+            if i == twin or i in drop:
+                continue
+            title = entries[i][0]
+            if not _CODE_NAME_RE.match(title):
+                continue
+            added = [ln for ln in entries[i][1] if ln not in entries[twin][1]]
+            entries[twin][1].extend(added)
+            drop.add(i)
+            merged.append(
+                {
+                    "code_name": title,
+                    "asset_id": aid,
+                    "into": entries[twin][0],
+                    "added_lines": added,
+                    "source_file": assets[i].get("source_file", ""),
+                }
+            )
+    if not drop:
+        return merged, entries, assets, id_entries
+    keep = [i for i in range(len(entries)) if i not in drop]
+    remap = {old: new for new, old in enumerate(keep)}
+    new_id_entries = {
+        aid: [remap[i] for i in idxs if i not in drop] for aid, idxs in id_entries.items()
+    }
+    return (
+        merged,
+        [entries[i] for i in keep],
+        [assets[i] for i in keep],
+        {k: v for k, v in new_id_entries.items() if v},
+    )
 
 
 def main() -> int:
@@ -279,6 +488,13 @@ def main() -> int:
             if len(e["p"]) < USES_MAX_PROD and product not in e["p"]:
                 e["p"].append(product)
         print(f"  {name}: 收录 {n} 键 / 行预算 {budget}（材料用量 {len(mats)} 条）")
+
+    # ★ 2026-10-23（Claude 定案）：**代码名标题的条目并入同资产的中文孪生条目**（见函数注释）。
+    merged, entries, assets, id_entries = merge_code_name_twins(entries, assets, id_entries)
+    if merged:
+        print(f"  代码名标题并入孪生：{len(merged)} 条（条目数 −{len(merged)}）")
+        for _m in merged:
+            print(f"    {_m['code_name']} → {_m['into']}（补 {len(_m['added_lines'])} 行）")
 
     uses = {k: v for k, v in sorted(uses.items()) if v["n"] >= 1}
     full_data = {

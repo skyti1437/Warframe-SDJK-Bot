@@ -2276,6 +2276,20 @@ finally:
     push_mod._local_now = _real_ln2
 z_arbi_low_sample_label()
 
+# ★ V03（2026-10-21）：用户用记事本手改存档会带 UTF-8 BOM —— 必须照常读出，不能当坏文件隔离
+import tempfile as _tf_bom  # noqa: E402
+
+from core.store import JsonStore as _JS_bom  # noqa: E402
+
+_d_bom = Path(_tf_bom.mkdtemp(prefix="wf_bom_"))
+(_d_bom / "g.json").write_bytes(b"\xef\xbb\xbf" + '{"g1": {"platform": "pc"}}'.encode("utf-8"))
+_st_bom = _JS_bom(_d_bom / "g.json")
+check(
+    "V03：带 BOM 的存档照常读出、不被隔离成 .bak",
+    _st_bom._data == {"g1": {"platform": "pc"}} and not list(_d_bom.glob("g.json.bak-*")),
+    str(_st_bom._data),
+)
+
 print()
 if FAILED:
     print(f"共 {len(FAILED)} 项失败：{FAILED}")

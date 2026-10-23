@@ -430,15 +430,18 @@ for _name, _rep, _n in (("信条", _reply_t, 5), ("终幕", _reply_c, 7)):
 #   Ferrox Cold→Electricity(电击)、Grigori Heat→Impact(冲击)、
 #   Exec Magnetic→Toxin(毒素)、Agendus Magnetic→Radiation(辐射)；Livia Impact 未变。
 #   故本段元素按**游戏内实拍**为准（wiki 修好后可回归 wiki 源）。
+# ★ 2026-10-22 换轮（wiki Tenet_Weapons revid 2820686，2026-10-22T00:40:26Z，经用户实拍核对）：
+#   五把全重掷 —— Ferrox Electricity 30.8、Exec Magnetic 28.8；种子由 fetch_valence 写回并同步
+#   valence_values_since = 该次修订时刻（不再出现「数值新、时刻旧」）。
 _tmap = {i["en"]: (i.get("element"), i.get("bonus")) for i in _tenet_items}
 check(
-    "信条·铁晶磁轨炮 = 电击 26.5%（游戏内实拍校正，wiki 元素列滞后）",
-    _tmap.get("Tenet Ferrox") == ("Electricity", 26.5),
+    "信条·铁晶磁轨炮 = 电击 30.8%（10-22 轮）",
+    _tmap.get("Tenet Ferrox") == ("Electricity", 30.8),
     str(_tmap.get("Tenet Ferrox")),
 )
 check(
-    "信条·枢密 = 毒素 25.1%（游戏内实拍校正，wiki 元素列滞后）",
-    _tmap.get("Tenet Exec") == ("Toxin", 25.1),
+    "信条·枢密 = 磁力 28.8%（10-22 轮）",
+    _tmap.get("Tenet Exec") == ("Magnetic", 28.8),
     str(_tmap.get("Tenet Exec")),
 )
 _cmap = {i["en"]: (i.get("element"), i.get("bonus")) for i in _cur_batch}
@@ -450,8 +453,10 @@ _cmap = {i["en"]: (i.get("element"), i.get("bonus")) for i in _cur_batch}
 # ★ 2026-10-19 刷新（快照 10-19T00:17，用户游戏内实拍 —— FlareSolverr 当时 OOM 不可达）：
 #   当期批 B 7 条全重掷 —— Bassocyst Radiation 38.3→Toxin 40.4、Synapse Heat 54.9→Toxin 39.4；
 #   A 批本轮未取到新值（保持 10-15 的 Catabolyst Toxin 33.2 / Motovore Magnetic 25.7）。
+# ★ 2026-10-23 刷新（wiki Coda_Weapons revid 2821059，2026-10-23T00:56:34Z）：A 批 7 条全重掷 ——
+#   Catabolyst Toxin 29.7、Motovore Electricity 49.8；batch_values_since[A] 同步为该修订时刻。
 _SPOT = {
-    "A": {"Coda Catabolyst": ("Toxin", 33.2), "Coda Motovore": ("Magnetic", 25.7)},
+    "A": {"Coda Catabolyst": ("Toxin", 29.7), "Coda Motovore": ("Electricity", 49.8)},
     "B": {"Coda Bassocyst": ("Toxin", 40.4), "Coda Synapse": ("Toxin", 39.4)},
 }
 _cur_label = (coda.get("batch_label") or ["A", "B"])[_idx]
@@ -687,6 +692,50 @@ _ls = _card_at(
 check("[固定时钟] 缺快照 ⇒ 不印快照说明行", not any("快照" in ln for ln in _ls), str(_ls))
 
 _dt.datetime = _REAL_DT
+
+
+# ★ 2026-10-23：fetch_valence.apply 改数值必须同步写「数值最早出现时刻」（不变量，源于信条误报）
+def _rot_fixture():
+    return {
+        "tenet": {"items": [{"en": "Tenet Arca Plasmor", "element": "Heat", "bonus": 30.0}]},
+        "coda": {
+            "batch_label": ["A", "B"],
+            "batches": [
+                [{"en": "Coda Bubonico", "element": "Cold", "bonus": 20.0}],
+                [{"en": "Coda Mire", "element": "Toxin", "bonus": 25.0}],
+            ],
+            "batch_values_since": ["2026-10-01T00:00:00+00:00", "2026-10-01T00:00:00+00:00"],
+        },
+    }
+
+
+_pv = {
+    "tenet": [{"en": "Tenet Arca Plasmor", "element": "Electricity", "bonus": 40.0}],
+    "coda": {1: [{"en": "Coda Bubonico", "element": "Heat", "bonus": 33.0}]},
+}
+_d = _rot_fixture()
+_fv.apply(_d, _pv, revs={"tenet": "2026-10-22T00:40:26+00:00", "coda": "2026-10-23T00:56:34+00:00"})
+check(
+    "★ apply：数值有变化 ⇒ 同步写 valence_values_since / 该批 batch_values_since（= 源页修订时刻）",
+    _d["tenet"].get("valence_values_since") == "2026-10-22T00:40:26+00:00"
+    and _d["coda"]["batch_values_since"]
+    == ["2026-10-23T00:56:34+00:00", "2026-10-01T00:00:00+00:00"],
+    str((_d["tenet"].get("valence_values_since"), _d["coda"]["batch_values_since"])),
+)
+_d2 = _rot_fixture()
+try:
+    _fv.apply(_d2, _pv, revs={})
+    check("★ apply：数值变了却没有修订时刻 ⇒ 拒绝写入", False, "未抛 SystemExit")
+except SystemExit:
+    # main() 在 apply 之后才落盘 ⇒ 抛 SystemExit 时文件不会被写（内存里的 dict 不重要）
+    check("★ apply：数值变了却没有修订时刻 ⇒ 抛 SystemExit（main 不落盘）", True)
+_d3 = _rot_fixture()
+_same = {"tenet": [{"en": "Tenet Arca Plasmor", "element": "Heat", "bonus": 30.0}], "coda": {}}
+_fv.apply(_d3, _same, revs={})
+check(
+    "apply：数值没变化 ⇒ 不需要修订时刻、不改 since",
+    "valence_values_since" not in _d3["tenet"],
+)
 
 print()
 if FAILED:

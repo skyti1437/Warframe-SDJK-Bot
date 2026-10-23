@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import asyncio
+import json as _json_rv
 import sys
 import tempfile
 import types
@@ -369,6 +370,42 @@ check(
     RA.weapon_class("rifle", "sentinel") == "rifle",
 )
 
+# ★ 2026-10-19：倾向补全表补上变体/形态的 group+riven_type 后，基值列必须落对。
+#   这批条目此前 `group`/`riven_type` **全空**（生成器只剥前缀 + 后缀 Prime ⇒
+#   后缀变体 Vandal/Wraith、尾部形态括号 (Atmosphere)、前缀 Ceti 全继承不到），
+#   运行期被 `weapon_class()` 静默按**步枪列**算 —— 曲翼那批尤其明显
+#   （archgun 与 rifle 的暴伤基值 80.1 vs 120）。
+_DISP = _json_rv.loads(
+    (ROOT / "core/data/dispositions_rivenmirror.json").read_text(encoding="utf-8")
+)["entries"]
+for _name, _want in (
+    ("Lato Vandal", "pistol"),  # 后缀变体：继承 Lato
+    ("Strun Wraith", "shotgun"),  # 后缀变体：继承 Strun
+    ("Imperator Vandal", "archgun"),  # 曲翼
+    ("Arbucep (Atmosphere)", "archgun"),  # 尾部形态括号：继承 Arbucep
+    ("Ceti Lacera", "melee"),  # 前缀 Ceti（此前不在词表里）
+    ("Mk1-Braton", "rifle"),  # 前缀大小写不敏感（词表写 MK1-）
+    ("Bubonico", "shotgun"),  # WM 源数据错（标 rifle），本地表修正
+):
+    _e = _DISP.get(_name) or {}
+    check(
+        f"★ 基值列：{_name} → {_want}",
+        RA.weapon_class(_e.get("riven_type", ""), _e.get("group", "")) == _want,
+        f"group={_e.get('group')!r} riven_type={_e.get('riven_type')!r}",
+    )
+check(
+    "★ 类别推不出 ⇒ class_estimated=True（卡面据此注「⚠ 武器类别未知，按步枪基值估算」）",
+    RA.class_estimated("", "") is True
+    and RA.class_estimated("shotgun", "secondary") is False
+    and RA.class_estimated("rifle", "sentinel") is False,
+)
+check(
+    "★ 修正只落在该落的地方：Bubonico 是 shotgun、Coda Bubonico 同（本地表非空才覆盖 WM）",
+    (_DISP.get("Coda Bubonico") or {}).get("riven_type") == "shotgun"
+    and (_DISP.get("Pyrana") or {}).get("riven_type") == "shotgun"  # 未被误改，靠 group 生效
+    and RA.weapon_class("shotgun", "secondary") == "pistol",
+)
+
 # ------------------------------------------------------- ⑤ wr 排序与放宽分档
 print("\n=== ⑤ wr：放宽分档 + 排序保留 ===")
 check(
@@ -560,30 +597,51 @@ _r3 = asyncio.run(
     )
 )
 _body3 = "\n".join(_r3.lines)
+# ★ 2026-10 DE 取消倾向：一律按 1.2 算，不再按数值反推倾向 / 变体。
+#   翁的旧倾向（1.4）解释不了这张卡 ⇒ 只给「请核对武器与词条」，不冒充「旧截图」。
 check(
-    "★ 老卡不再报「武器名可能识别有误」，而是反推倾向 ≈0.69",
-    "反推倾向 ≈0.69" in _body3 and "识别有误" not in _body3,
+    "★ 倾向统一：老卡不再反推倾向，卡面按 1.2 计算",
+    "倾向 1.2（" in _body3 and "反推倾向" not in _body3,
     "\n".join(_r3.lines[:3]),
 )
 check(
-    "★ 区间按反推值计算（区间位不再是清一色 0%）",
-    all(not x.endswith("　0%") for x in _r3.lines if x.startswith("· ▲"))
-    and any(x.endswith("　72%") for x in _r3.lines if x.startswith("· ▲")),
-    "\n".join(_r3.lines[:5]),
-)
-check(
-    "老卡提示里写明「倾向调整前洗出」与当前值对照",
-    "疑似倾向调整前洗出的老卡" in _body3 and "当前值 1.4" in _body3,
+    "数值对不上 ⇒ 提示核对武器与词条（旧倾向 1.4 也解释不了 ⇒ 不报「旧截图」）",
+    "不吻合，请核对武器与词条" in _body3 and "旧截图" not in _body3,
     "\n".join(_r3.lines[:3]),
 )
-# 反向守卫：反推区间不紧（词条互相矛盾）时，仍给「武器名可能识别有误」
+
+
+class _FakeClient3b(_FakeClient3):
+    """同一张卡，但翁取消前的旧倾向就是 0.7 ⇒ 这是倾向取消前的截图。"""
+
+    async def resolve_riven_weapon(self, q):
+        return dict(_WEAPONS_FAKE[0], disposition=0.7)
+
+
+_obj3b = plugin.WarframeSDJK.__new__(plugin.WarframeSDJK)
+_obj3b.client = _FakeClient3b()
+_obj3b.page_size = 12
+_body3b = "\n".join(
+    asyncio.run(
+        _obj3b._h_riven_analysis(
+            _Parsed("紫卡分析 翁 暴伤60.8 暴击110.1 初始连击15.4 负滑暴63.4"), None, "pc"
+        )
+    ).lines
+)
+check(
+    "★ 卡面数值与取消前旧倾向吻合 ⇒ 明说「疑似倾向取消前的截图」并请重新截图",
+    "疑似倾向取消前的旧截图" in _body3b and "请重新截图" in _body3b and "翁" in _body3b,
+    _body3b[:300],
+)
+# 反向守卫：词条互相矛盾（反推区间为空）时，只给核对提示，不报旧截图
 _r4 = asyncio.run(
     _obj3._h_riven_analysis(_Parsed("紫卡分析 翁 暴伤60.8 暴击110.1 初始连击100"), None, "pc")
 )
 check(
-    "反推区间不紧时明确提示「疑似变体卡·带前缀重发」（不硬套反推值）",
-    "疑似变体卡（赤毒 / 信条 / 终幕 等）" in "\n".join(_r4.lines)
-    and "请带变体前缀重发" in "\n".join(_r4.lines),
+    "词条互相矛盾 ⇒ 只提示核对（不报旧截图、不再让带变体前缀重发）",
+    "请核对武器与词条" in "\n".join(_r4.lines)
+    and "旧截图" not in "\n".join(_r4.lines)
+    and "变体前缀" not in "\n".join(_r4.lines),
     "\n".join(_r4.lines[:3]),
 )
 
@@ -792,13 +850,11 @@ _prev6 = _core_paths._RUN
 _core_paths.set_run_dir(_run6)
 try:
     _fam = asyncio.run(_c6.riven_family({"url_name": "okina", "zh": "翁", "en": "Okina"}))
-    _v, _k = asyncio.run(_c6.resolve_variant_disp("翁 Prime 一套"))
-    # 缺表降级：表不存在时家族为空、变体倾向为 None，不抛异常（开源装机首次刷新前即此态）
+    # 缺表降级：表不存在时家族为空，不抛异常（开源装机首次刷新前即此态）
     _name6 = _AC6.WIKI_DISP_NAME
     _AC6.WIKI_DISP_NAME = "de/__absent_wiki_disp__.json"
     try:
         _fam_none = asyncio.run(_c6.riven_family({"url_name": "okina", "zh": "翁", "en": "Okina"}))
-        _v_none, _ = asyncio.run(_c6.resolve_variant_disp("翁 Prime 一套"))
     finally:
         _AC6.WIKI_DISP_NAME = _name6
 finally:
@@ -809,14 +865,9 @@ check(
     str(_fam),
 )
 check(
-    "变体倾向查询容忍「一套」后缀（找到 wiki 表的 okina prime）",
-    _v == 0.7 and _k == "okina prime",
-    f"{_v} / {_k}",
-)
-check(
-    "缺倾向表 ⇒ 家族为空、变体倾向 None（降级不抛错）",
-    _fam_none == [] and _v_none is None,
-    f"{_fam_none} / {_v_none}",
+    "缺倾向表 ⇒ 家族为空（降级不抛错）",
+    _fam_none == [],
+    f"{_fam_none}",
 )
 
 # --------------------------------------- ⑩ 战甲单字黑话（猫p/电p/沙p/鸟p）
@@ -1303,8 +1354,8 @@ class _P6:
 _r8 = asyncio.run(_obj6._h_riven_analysis(_P6(), _Ev6(), "pc"))
 _b8 = "\n".join(_r8.lines)
 check(
-    "★ 端到端：报障卡按【盗贼】1.35 出区间（不再是盗贼双枪 1.38）",
-    "武器：盗贼｜倾向 1.35" in _b8 and "盗贼双枪" not in _b8,
+    "★ 端到端：报障卡解析为【盗贼】（不是盗贼双枪；倾向已统一 1.2）",
+    "武器：盗贼｜倾向 1.2" in _b8 and "盗贼双枪" not in _b8,
     _b8[:200],
 )
 check(
@@ -1954,9 +2005,23 @@ check(
     _b18[:400],
 )
 check(
-    "★ 连击获取按负档算出区间（104.85 基值生效，不再「无官方基值」）",
-    "49.54~60.55%" in _b18 and "无官方基值" not in _b18,
+    "★ 连击获取按负档算出区间（104.85 基值 × 统一倾向 1.2 生效，不再「无官方基值」）",
+    "84.93~103.8%" in _b18 and "无官方基值" not in _b18,
     _b18[:400],
+)
+
+
+class _P18b:
+    content = ["翁", "初始连击14.8", "攻击范围1.3", "暴击伤害54.8", "负对Infested伤害44"]
+    content_str = "紫卡分析 翁 初始连击14.8 攻击范围1.3 暴击伤害54.8 负对Infested伤害44"
+    preset, page, whisper = "", 1, False
+
+
+_b18b = "\n".join(asyncio.run(_obj18._h_riven_analysis(_P18b(), _Ev9(), "pc")).lines)
+check(
+    "★ 手输夹英文的派系词条「负对Infested伤害44」：识别成负词条、不落进武器名（2026-10-23）",
+    "未找到紫卡武器" not in _b18b and "▼I伤 -44%" in _b18b and "武器：翁｜" in _b18b,
+    _b18b[:300],
 )
 
 # ---------------------------------------------------------------------------
@@ -2198,8 +2263,8 @@ check(
     _b20[:300],
 )
 check(
-    "★ 鳄神卡：按 0.8 计算，四条区间全中（射速/多重/触发/负装填）",
-    all(k in _b20 for k in ("60.75~74.25%", "80.8~98.75%", "27~33%")),
+    "★ 鳄神卡（取消前 0.8 时代的截图）：按 1.2 计算，并提示「疑似倾向取消前的旧截图」",
+    "武器：鳄神｜倾向 1.2" in _b20 and "疑似倾向取消前的旧截图" in _b20,
     _b20[:400],
 )
 check(
@@ -2209,14 +2274,14 @@ check(
 )
 _b20b = _run20(_P20_B)
 check(
-    "★ 手输「赤毒·鳄神」：直接按 0.8 出卡（【赤毒·鳄神】倾向 0.8）",
-    "武器：赤毒·鳄神｜倾向 0.8" in _b20b,
+    "★ 手输「赤毒·鳄神」：按 1.2 出卡，旧倾向 0.8 吻合 ⇒ 提示旧截图",
+    "武器：赤毒·鳄神｜倾向 1.2" in _b20b and "旧截图" in _b20b,
     _b20b[:200],
 )
 
 
 class _NoFamClient:
-    """家族列不出（模拟旧状态）：仍须走「老卡」兜底，不误报变体。"""
+    """家族列不出：本体旧倾向 1.33 解释不了 ⇒ 只给核对提示，不报旧截图。"""
 
     def __init__(self):
         self._aliases = {}
@@ -2243,7 +2308,11 @@ obj21.page_size = 12
 obj21._event_has_image = lambda _e: False
 _r21 = asyncio.run(obj21._h_riven_analysis(_P20_A, _Ev9(), "pc"))
 _b21 = "\n".join(_r21.lines)
-check("对照：家族列不出时仍回「老卡」兜底（兜底逻辑未被改坏）", "老卡" in _b21, _b21[:240])
+check(
+    "对照：家族列不出 ⇒ 只提示核对武器与词条（不报旧截图）",
+    "请核对武器与词条" in _b21 and "旧截图" not in _b21,
+    _b21[:240],
+)
 
 # ---------------------------------------------------------------------------
 # ㉑ 变体示例文案（2026-10-03）：不硬编码「赤毒」、前缀不得重复
@@ -2329,47 +2398,24 @@ def _run21(client, tokens):
 
 _nf21 = _NoFamRClient()
 _b21a = _run21(_nf21, ["赤毒·鳄神"] + _MIX21)
-check(
-    "㉑① 手输「赤毒·鳄神」无候选：示例原样（紫卡分析 赤毒·鳄神），无「赤毒赤毒」",
-    "（例：紫卡分析 赤毒·鳄神 [截图]）" in _b21a and "赤毒赤毒" not in _b21a,
-    _b21a[:240],
-)
 _b21b = _run21(_nf21, ["鳄神"] + _MIX21)
-check(
-    "㉑② 手输「鳄神」无候选：保持旧行为（紫卡分析 赤毒鳄神）",
-    "（例：紫卡分析 赤毒鳄神 [截图]）" in _b21b,
-    _b21b[:240],
-)
+_b21d = _run21(_nf21, ["信条·四核巨枪"] + _MIX21)
+_b21e = _run21(_nf21, ["终幕·米尔"] + _MIX21)
 _rc21 = WarframeClient.__new__(WarframeClient)
 _rc21._aliases = {}
 _rc21.wm_riven_weapons = _w21
 _b21c = _run21(_rc21, ["鳄神"] + _MIX21)
+# ★ 2026-10 倾向取消：「带变体前缀重发」的示例文案整段退役 —— 守住它不再出现、
+#   数值对不上时只给核对提示（混合值卡对谁都不吻合）。
 check(
-    "㉑③ 有家族候选：示例用候选名（紫卡分析 赤毒·鳄神）并附候选",
-    "（例：紫卡分析 赤毒·鳄神 [截图]）" in _b21c and "候选：赤毒·鳄神" in _b21c,
-    _b21c[:240],
-)
-_b21d = _run21(_nf21, ["信条·四核巨枪"] + _MIX21)
-check(
-    "㉑④ 信条武器：不硬套「赤毒」（示例 = 本体名 信条·四核巨枪）",
-    "（例：紫卡分析 信条·四核巨枪 [截图]）" in _b21d and "赤毒信条" not in _b21d,
-    _b21d[:240],
-)
-_b21e = _run21(_nf21, ["终幕·米尔"] + _MIX21)
-check(
-    "㉑④b 终幕武器：示例 = 本体名 终幕·米尔，无「终幕终幕」",
-    "（例：紫卡分析 终幕·米尔 [截图]）" in _b21e and "终幕终幕" not in _b21e,
-    _b21e[:240],
-)
-check(
-    "㉑⑤ 文案为「疑似变体卡（赤毒 / 信条 / 终幕 等）」且全场景无重复前缀",
-    all("疑似变体卡（赤毒 / 信条 / 终幕 等）" in t for t in (_b21a, _b21b, _b21c, _b21d, _b21e))
+    "㉑ 数值对不上：五个场景都只提示「不吻合」，不再出现「变体前缀」重发示例与重复前缀",
+    all("不吻合" in t for t in (_b21a, _b21b, _b21c, _b21d, _b21e))
     and not any(
         x in t
         for t in (_b21a, _b21b, _b21c, _b21d, _b21e)
-        for x in ("赤毒赤毒", "信条信条", "终幕终幕")
+        for x in ("变体前缀", "疑似变体卡", "赤毒赤毒", "信条信条", "终幕终幕")
     ),
-    "",
+    _b21a[:240],
 )
 
 # ---------------------------------------------------------------------------
@@ -2477,47 +2523,33 @@ check(
     and _M2.family_key("Sobek") == "DoubleBarrelShotgun",
 )
 
-_pos22 = [("crit_damage", 89.2), ("multishot", 110.3), ("electric_damage", 87.6)]
-_neg22 = [("slash_damage", 88.1)]
-_sc22 = RA.candidate_scores(_pos22, _neg22, "pistol", [("捕月", 0.75), ("捕月（主要）", 1.1)])
-check(
-    "㉒② candidate_scores：捕月（主要）1.1 score≈0.110、（次要/母）0.75 score≈0.41",
-    abs(_sc22[0][1] - 1.1) < 1e-9
-    and abs(_sc22[0][2] - 0.1099) < 5e-3
-    and abs(_sc22[-1][1] - 0.75) < 1e-9
-    and abs(_sc22[-1][2] - 0.41) < 5e-3,
-    str(_sc22),
-)
-
 _rc22 = WarframeClient.__new__(WarframeClient)
 _rc22._aliases = {}
 _rc22.wm_riven_weapons = _w22
+# ★ 2026-10 倾向取消：组合枪主/次模式基值列相同（手枪列）、倾向统一 1.2 ⇒ 不再按数值
+#   判模式；取消前的截图（数值吻合某个模式的旧倾向）明说是旧截图。
 _b22a = _run21(_rc22, ["捕月", "暴伤89.2", "多重110.3", "电击87.6", "负切割88.1"])
 check(
-    "㉒③ 玩家报障卡：判【捕月（主要）】1.1、卡面含「残差 11%」、不再「老卡」",
-    "武器：捕月（主要）｜倾向 1.1" in _b22a and "残差 11%" in _b22a and "老卡" not in _b22a,
+    "㉒③ 玩家报障卡：按【捕月】1.2 计算，不再判模式 / 不印残差",
+    "武器：捕月｜倾向 1.2" in _b22a and "残差" not in _b22a and "捕月（主要）" not in _b22a,
     _b22a[:240],
 )
 _b22b = _run21(_rc22, ["捕月", "暴伤60.1", "多重84.2", "电击62.8", "负切割65.4"])
 check(
-    "㉒④ 次要卡（0.75 档数值）：判【捕月】0.75、家族提示列变体且无重发示例",
-    "武器：捕月｜倾向 0.75" in _b22b
-    and "该武器家族有其它倾向" in _b22b
-    and "卡面不显示变体/模式" in _b22b
-    # 2026-10-05：反推已定变体，不再提示「带名字重发」
-    and "请发「紫卡分析" not in _b22b,
+    "㉒④ 0.75 时代的截图：提示「疑似倾向取消前的旧截图」，不再列家族倾向",
+    "疑似倾向取消前的旧截图" in _b22b and "该武器家族有其它倾向" not in _b22b,
     _b22b[:240],
 )
 _b22c = _run21(_rc22, ["捕月（主要）", "暴伤89.2", "多重110.3", "电击87.6", "负切割88.1"])
 check(
-    "㉒⑤ 手输「捕月（主要）」（拆分行）：1.1 + 继承手枪基值（暴伤 83.53~102.09%）",
-    "武器：捕月（主要）｜倾向 1.1" in _b22c and "83.53~102.09%" in _b22c,
+    "㉒⑤ 手输「捕月（主要）」（拆分行）：1.2 + 继承手枪基值（暴伤 91.12~111.38%）",
+    "武器：捕月（主要）｜倾向 1.2" in _b22c and "91.12~111.38%" in _b22c,
     _b22c[:240],
 )
 _b22d = _run21(_rc22, ["捕月", "暴伤45.1", "多重60.2", "电伤49.8", "负切割40.3"])
 check(
-    "㉒⑥ 残差 >15% ⇒ 不判，保留反推（老卡）并附「候选残差」",
-    ("老卡" in _b22d or "疑似变体卡" in _b22d) and "候选残差" in _b22d,
+    "㉒⑥ 谁都解释不了 ⇒ 只提示核对（不再「老卡 / 疑似变体卡 / 候选残差」）",
+    "请核对武器与词条" in _b22d and not any(x in _b22d for x in ("老卡", "疑似变体卡", "候选残差")),
     _b22d[:260],
 )
 
@@ -2606,12 +2638,12 @@ check(
 )
 _b24 = _run21(_rc22, ["墓指（主要）", "伤害194.7", "弹匣50.2", "多重103.5", "负变焦65.1"])
 check(
-    "㉔③ 实卡判别（墓指主要，用户双态截图装配态）：按手枪列 1.0 严格命中，"
-    "多重区间上限 123.44%（手枪列），不再步枪列 92.81%/老卡",
-    "武器：墓指（主要）｜倾向 1" in _b24
-    and "123.44%" in _b24
-    and "92.81%" not in _b24
-    and "老卡" not in _b24,
+    "㉔③ 实卡（墓指主要，取消前 1.0 时代）：按手枪列 × 1.2，多重区间上限 148.13%"
+    "（步枪列会是 111.38%），旧倾向 1.0 吻合 ⇒ 提示旧截图",
+    "武器：墓指（主要）｜倾向 1.2" in _b24
+    and "148.13%" in _b24
+    and "111.38%" not in _b24
+    and "旧截图" in _b24,
     _b24[:260],
 )
 

@@ -90,6 +90,17 @@ check(
     )
     is True,
 )
+check(
+    "V01：快照时间在未来（> now + 1 天）= 过期（不能永远算本轮新鲜）",
+    WC.valence_is_stale(
+        dict(ROT["tenet"], valence_snapshot=(NOW + timedelta(days=30)).isoformat()), NOW
+    )
+    is True
+    and WC.valence_is_stale(
+        dict(ROT["tenet"], valence_snapshot=(NOW + timedelta(hours=2)).isoformat()), NOW
+    )
+    is False,
+)
 # 两段都新鲜才该返回 fresh —— 用 any() 组合，不是遇到第一个就 return
 check(
     "★ 一段过期就整体不算 fresh（旧 bug：终幕新鲜会吞掉信条）",
@@ -293,10 +304,6 @@ class _StubFlareClient:
         self.calls.append("valence")
         return "fresh"
 
-    async def refresh_wiki_disp(self):
-        self.calls.append("disp")
-        return "fresh"
-
     async def refresh_acrichis_week(self):
         self.calls.append("acrichis")
         return "none"
@@ -379,9 +386,9 @@ def _flare_checks():
         'if phase == "absent":' in body and "_warn_flare_absent_once()" in body,
     )
     check(
-        "★ 真故障告警未被静默（可达时刷新失败仍 WARN）",
+        "★ 真故障告警未被静默（可达时刷新失败仍 WARN）；倾向表重抓已退役",
         'logger.warning("[sdjk] 元素加成快照刷新失败' in body
-        and 'logger.warning("[sdjk] 变体倾向表刷新失败' in body,
+        and "refresh_wiki_disp" not in body,  # 2026-10 倾向取消：倾向表定时重抓已退役
     )
 
 

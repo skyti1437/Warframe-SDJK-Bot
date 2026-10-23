@@ -74,10 +74,6 @@ class _Client:
         self.calls.append(("acrithis", community_only) + (("force",) if force else ()))
         raise RuntimeError("boom")
 
-    async def refresh_wiki_disp(self, force=False):
-        self.calls.append(("wiki_disp", force))
-        return "refreshed 600 条"
-
 
 class _Store:
     def __init__(self, subs):
@@ -206,6 +202,18 @@ try:
         json.dumps({"ts": (now - timedelta(hours=72)).isoformat(), "done": 1, "total": 2}),
         encoding="utf-8",
     )
+    # 紫卡实时排行快照：ts 已 20 小时（>12h ⇒ warn）、覆盖率 100%、已收录 3/101
+    (tmp / "riven_rt.json").write_text(
+        json.dumps(
+            {
+                "ts": (now - timedelta(hours=20)).isoformat(),
+                "rows": {"a": 1, "b": 2, "c": 3},
+                "total": 101,
+                "coverage": 1.0,
+            }
+        ),
+        encoding="utf-8",
+    )
     rows = {r["item"]: r for r in W.freshness(now)}
     check(
         "信条在本轮窗口内 ⇒ ok", rows["信条元素加成"]["status"] == W.OK, str(rows["信条元素加成"])
@@ -214,6 +222,24 @@ try:
     check("★ 言录使货单过期 ⇒ stale（读运行期覆盖）", rows["言录使本周货单"]["status"] == W.STALE)
     check("WM 排行超过 48h ⇒ warn", rows["WM 价格排行"]["status"] == W.WARN)
     check("紫卡周报没查过 ⇒ info 不报错", rows["紫卡周报（DE 官方）"]["status"] == W.INFO)
+    # ★ 2026-10-23 紫卡实时排行（指令 §A.5）：快照的新鲜度行
+    check("★ 紫卡实时排行：超 12h ⇒ warn", rows["紫卡实时排行（WM 拍卖）"]["status"] == W.WARN)
+    check(
+        "★ 紫卡实时排行：写明已收录数 / 覆盖率",
+        "已收录 3/101 把" in rows["紫卡实时排行（WM 拍卖）"]["detail"]
+        and "100%" in rows["紫卡实时排行（WM 拍卖）"]["detail"],
+        rows["紫卡实时排行（WM 拍卖）"]["detail"],
+    )
+    check(
+        "★ 紫卡实时排行：写明已收录数 / 覆盖率",
+        "已收录 3/101 把" in rows["紫卡实时排行（WM 拍卖）"]["detail"]
+        and "100%" in rows["紫卡实时排行（WM 拍卖）"]["detail"],
+        rows["紫卡实时排行（WM 拍卖）"]["detail"],
+    )
+    # 快照还没生成（后台首轮未跑完）⇒ info，不报错、不当成过期
+    (tmp / "riven_rt.json").unlink()
+    _miss = {r["item"]: r for r in W.freshness(now)}["紫卡实时排行（WM 拍卖）"]
+    check("紫卡实时排行：快照缺失 ⇒ info 不报错", _miss["status"] == W.INFO, str(_miss))
     check(
         "仲裁评级 / 掉落表 读到包内种子日期",
         rows["仲裁评级（社区实测）"]["snapshot"] != "" and rows["掉落表"]["snapshot"] != "",
@@ -331,20 +357,20 @@ check(
 )
 check("刷新后带回新鲜度", isinstance(r6.get("freshness"), list) and r6["freshness"])
 
-# ---- 6½. 从源头重抓（2026-10-18）：三项都 force、不限社区快照，单项失败不连累其他项 ----
+# ---- 6½. 从源头重抓（2026-10-18）：两项都 force、不限社区快照，单项失败不连累其他项 ----
+#   （紫卡倾向 2026-10 随 DE 取消倾向退出重抓）
 p6b = _panel()
 r6b = asyncio.run(p6b.pull())
 check(
-    "★ 从源头重抓：元素加成 / 言录使 / 紫卡倾向都带 force，且不限 community_only",
-    p6b.p.client.calls
-    == [("valence", False, "force"), ("acrithis", False, "force"), ("wiki_disp", True)],
+    "★ 从源头重抓：元素加成 / 言录使都带 force，且不限 community_only（不再重抓紫卡倾向）",
+    p6b.p.client.calls == [("valence", False, "force"), ("acrithis", False, "force")],
     str(p6b.p.client.calls),
 )
 check(
     "重抓结果原样带回（含 wiki 未更新），单项失败写进结果",
     r6b["results"]["valence"].startswith("not-updated")
     and r6b["results"]["acrithis"].startswith("失败")
-    and r6b["results"]["wiki_disp"].startswith("refreshed"),
+    and "wiki_disp" not in r6b["results"],
     str(r6b["results"]),
 )
 _html = (ROOT / "pages" / "sdjk" / "index.html").read_text(encoding="utf-8")
@@ -1259,13 +1285,14 @@ try:
     _c14._fetch_json = _ff14
     rep0 = {r["name"]: r for r in _c14.community_report()}
     check(
-        "没检查过的快照显示 unchecked，五份齐全",
-        len(rep0) == 5 and all(r["result"] == "unchecked" for r in rep0.values()),
+        "没检查过的快照显示 unchecked，四份齐全",
+        len(rep0) == 4 and all(r["result"] == "unchecked" for r in rep0.values()),
     )
-    _newer = dict(_seed14, _updated="2099-01-01")
+    _now14 = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    _newer = dict(_seed14, _updated=_now14)
     _serve14 = {
         "arb_ratings.json": _newer,
-        "wiki_disp.json": {"snapshot": "2099-01-01T00:00:00+00:00", "disp": {"x": 1}},
+        "baro_history.json": {"fetched": _now14, "visits": []},
     }
     asyncio.run(_c14.refresh_community_static())
     rep = {r["name"]: r for r in _c14.community_report()}
@@ -1273,14 +1300,18 @@ try:
         "★ 采用新快照：记 adopted + 走的通道 + 数据时间",
         rep["arb_ratings.json"]["result"] == "adopted"
         and rep["arb_ratings.json"]["channel"] == "cdn.jsdelivr.net"
-        and rep["arb_ratings.json"]["stamp"] == "2099-01-01",
+        and rep["arb_ratings.json"]["stamp"] == _now14,
         str(rep["arb_ratings.json"]),
     )
     check(
         "★ 校验不过：记 invalid + 原因",
-        rep["wiki_disp.json"]["result"] == "invalid" and "400" in rep["wiki_disp.json"]["reason"],
-        str(rep["wiki_disp.json"]),
+        rep["baro_history.json"]["result"] == "invalid"
+        and "到访记录太少" in rep["baro_history.json"]["reason"],
+        str(rep["baro_history.json"]),
     )
+    _serve14 = {"arb_ratings.json": _newer}
+    asyncio.run(_c14.refresh_community_static(("baro_history.json",)))
+    rep = {r["name"]: r for r in _c14.community_report()}
     check(
         "★ 所有通道取不到：记 unavailable + 各通道原因（raw 超时 / 镜像没文件）",
         rep["baro_history.json"]["result"] == "unavailable"
@@ -1304,7 +1335,7 @@ try:
     check(
         "面板概览带社区快照记录与地址",
         isinstance(ov14.get("community"), list)
-        and len(ov14["community"]) == 5
+        and len(ov14["community"]) == 4
         and "community_base" in ov14,
         str(ov14.get("community"))[:200],
     )

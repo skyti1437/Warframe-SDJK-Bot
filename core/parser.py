@@ -116,6 +116,7 @@ COMMAND_ALIASES: dict[str, set[str]] = {
     "rm": {"rm"},
     "rank": {"排行", "市场排行"},
     "analysis": {"紫卡分析"},
+    "ranges": {"词条范围", "紫卡范围", "紫卡词条范围"},
     "trend": {"趋势", "wm趋势", "价格趋势", "紫卡趋势"},
     "openrelic": {"开核桃", "开裂缝"},
     "xh": {"xh", "玄骸"},

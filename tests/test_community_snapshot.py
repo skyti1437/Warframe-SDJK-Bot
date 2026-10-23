@@ -237,6 +237,33 @@ if P is not None:
         "CC BY-NC-SA" in payload["license_note"] and "wiki" in payload["source"],
     )
 
+    # ★ 2026-10-19 分段时间戳：每段写**自己的**快照时刻；缺时间戳就**不写**该字段（别拿 now 填）
+    check(
+        "★ 发布侧：分段快照时刻 —— 每段写自己的 valence_snapshot",
+        payload["tenet"].get("snapshot") == STAMP and payload["coda"].get("snapshot") == STAMP,
+        f"tenet={payload['tenet'].get('snapshot')!r} coda={payload['coda'].get('snapshot')!r}",
+    )
+    _no_ts = _rot(filled_idx=1)
+    _no_ts["tenet"].pop("valence_snapshot")
+    _p_no_ts = P.build_valence(_no_ts, STAMP, NOW)
+    check(
+        "★ 发布侧：某段没有时间戳 ⇒ **不写** snapshot（不是空串、也不是 now）",
+        "snapshot" not in _p_no_ts["tenet"] and _p_no_ts["coda"].get("snapshot") == STAMP,
+        f"tenet keys={sorted(_p_no_ts['tenet'])}",
+    )
+    _later = P._latest_stamp("2026-10-18T06:56:52+00:00", "2026-10-19T00:17:00+00:00")
+    check(
+        "★ 发布侧：published_at 取两段**较晚者**（留给 ≤1.2.4 旧版插件）",
+        _later == "2026-10-19T00:17:00+00:00",
+        _later,
+    )
+    check(
+        "  较晚者：解析不了的忽略 / 全空返回空串（调用方再退 now）",
+        P._latest_stamp("", None, "2026-10-18T06:56:52+00:00") == "2026-10-18T06:56:52+00:00"
+        and P._latest_stamp("", None) == "",
+        f"{P._latest_stamp('', None, '2026-10-18T06:56:52+00:00')!r} / {P._latest_stamp('', None)!r}",
+    )
+
     # ★ 包内种子形状：两批都填 → 只要**相位推导的当前批**完整就接受（2026-09-26 实测修）
     _both = _rot(filled_idx=1)
     for _b in _both["coda"]["batches"]:
@@ -519,9 +546,8 @@ from core import baro as _baro  # noqa: E402
 from core import paths as _paths  # noqa: E402
 
 _PKG = Path(_paths.PKG_DATA)
-# ★ 2026-10-16（v1.2.1 公开仓 CI 红）：de/wiki_disp.json 在开源包排除表里（OSS_EXCLUDE_FILES，
-#   「运行时产物」口径），公开仓没有这份种子 —— 只校验本树实际带着的种子，缺的记 SKIP。
-#   下面用到倾向表的用例都是自造数据，不依赖本地种子。
+# ★ 2026-10-16（v1.2.1 公开仓 CI 红）：开源包排除表（OSS_EXCLUDE_FILES）里的种子公开仓没有
+#   —— 只校验本树实际带着的种子，缺的记 SKIP。（紫卡倾向表 2026-10 已退出社区快照。）
 _seed = {
     n: _json.loads((_PKG / s_["local"]).read_text(encoding="utf-8"))
     for n, s_ in _AC.COMMUNITY_STATIC.items()
@@ -554,10 +580,17 @@ check(
     not _AC.community_static_ok("arb_ratings.json", _bad_tier)[0],
 )
 check(
-    "静态快照校验：倾向条目 < 400 被拒",
-    not _AC.community_static_ok(
+    "静态快照校验：已退役的倾向表不再认（未知快照）",
+    _AC.community_static_ok(
         "wiki_disp.json", {"snapshot": "2026-10-16T00:00:00+00:00", "disp": {"a": 1}}
-    )[0],
+    )
+    == (False, "未知快照"),
+)
+check(
+    "V06：时间戳在未来（> 1 天）被拒，消费端与发布端同口径",
+    _AC.community_static_ok(
+        "arb_ratings.json", {**_seed["arb_ratings.json"], "_updated": "2099-01-01"}
+    )[1].startswith("时间戳在未来"),
 )
 check(
     "社区地址：只收 http(s)，去尾斜杠",
@@ -582,14 +615,14 @@ try:
 
     _c._fetch_json = _fake_fetch
     newer_arb = _json.loads(_json.dumps(_seed["arb_ratings.json"]))
-    newer_arb["_updated"] = "2099-01-01"
+    _now_iso = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    newer_arb["_updated"] = _now_iso
     k0 = next(iter(newer_arb["nodes"]))
     newer_arb["nodes"][k0]["n"] = 777
     older_baro = {**_seed["baro_history.json"], "fetched": "2000-01-01"}
     _served = {
         "arb_ratings.json": newer_arb,
         "baro_history.json": older_baro,
-        "wiki_disp.json": {"snapshot": "2099-01-01T00:00:00+00:00", "disp": {"x": 1}},
     }
     _arbi.reset_measured()
     _arbi.load_measured()  # 先把旧表缓存进来，验证刷新后会清缓存
@@ -601,16 +634,16 @@ try:
     )
     check(
         "★ 落盘后清缓存：立刻读到新表",
-        _arbi.load_measured()[k0]["n"] == 777 and _arbi.measured_updated() == "2099-01-01",
+        _arbi.load_measured()[k0]["n"] == 777 and _arbi.measured_updated() == _now_iso,
     )
     check(
         "★ 比本地旧的奸商历史：不采用",
         res["baro_history.json"] == "fresh" and not (_rt / "baro_history.json").exists(),
     )
     check(
-        "★ 校验不过的倾向表：不采用",
-        res["wiki_disp.json"].startswith("invalid")
-        and not (_rt / "de" / "wiki_disp.json").exists(),
+        "★ 倾向表已退出社区快照：不再拉取、不落盘",
+        "wiki_disp.json" not in res and not (_rt / "de" / "wiki_disp.json").exists(),
+        str(res),
     )
     check(
         "默认走本项目 bot-data（raw 打头）",
@@ -621,11 +654,11 @@ try:
     check("同一份再拉一次：fresh、不重复写", res["arb_ratings.json"] == "fresh")
 
     # 奸商：更新后 baro.load 也要立刻换
-    newer_baro = {**_seed["baro_history.json"], "fetched": "2099-02-02"}
+    newer_baro = {**_seed["baro_history.json"], "fetched": _now_iso}
     _served["baro_history.json"] = newer_baro
     _baro.load()
     _aio.run(_c.refresh_community_static(("baro_history.json",)))
-    check("★ 奸商历史刷新后 baro.load 读到新快照", _baro.snapshot_date() == "2099-02-02")
+    check("★ 奸商历史刷新后 baro.load 读到新快照", _baro.snapshot_date() == _now_iso)
 
     # 用户自填地址：只用它
     _urls_seen.clear()
@@ -661,8 +694,16 @@ if _pub_path.exists():
     _samples += [
         ("arb_ratings.json", _bad_tier),
         ("arb_ratings.json", {"_updated": "2026-10-16", "nodes": {}}),
-        ("wiki_disp.json", {"snapshot": "2026-10-16T00:00:00+00:00", "disp": {"a": 1}}),
         ("baro_history.json", {**_seed["baro_history.json"], "visits": []}),
+        # ★ 2026-10-22（V06 后半）：schema 版本 —— 两端必须同判。
+        #   （`_seed` 自身**没有** schema 字段 ⇒ 上面那批已覆盖「缺省视为 1」。）
+        ("arb_ratings.json", {**_seed["arb_ratings.json"], "schema": 1}),
+        ("arb_ratings.json", {**_seed["arb_ratings.json"], "schema": 2}),
+        ("arb_ratings.json", {**_seed["arb_ratings.json"], "schema": 0}),
+        ("arb_ratings.json", {**_seed["arb_ratings.json"], "schema": "1"}),
+        ("arb_ratings.json", {**_seed["arb_ratings.json"], "schema": True}),
+        ("baro_history.json", {**_seed["baro_history.json"], "schema": 2}),
+        ("baro_history.json", {**_seed["baro_history.json"], "schema": 1}),
     ]
     _diff = [
         (n, _AC.community_static_ok(n, d)[0], not _pub.static_ok(n, d))
@@ -670,7 +711,27 @@ if _pub_path.exists():
         if _AC.community_static_ok(n, d)[0] != (not _pub.static_ok(n, d))
     ]
     check("★ 静态快照校验：发布端与消费端结论一致", not _diff, str(_diff))
+    check(
+        "★ V06 后半：schema 缺省视为 1 ⇒ 旧快照照收",
+        _AC.community_static_ok("arb_ratings.json", _seed["arb_ratings.json"])[0] is True,
+    )
+    _hi = {**_seed["arb_ratings.json"], "schema": 2}
+    check(
+        "★ V06 后半：schema 高于本端 ⇒ 拒收并给原因",
+        _AC.community_static_ok("arb_ratings.json", _hi)[0] is False
+        and "schema" in _AC.community_static_ok("arb_ratings.json", _hi)[1],
+        _AC.community_static_ok("arb_ratings.json", _hi)[1],
+    )
+    check(
+        "★ V06 后半：发布端写入 schema（发布出去的静态快照带版本号）",
+        _pub.STATIC_SCHEMA == _AC.COMMUNITY_STATIC_SCHEMA == 1,
+        f"{getattr(_pub, 'STATIC_SCHEMA', None)} / {_AC.COMMUNITY_STATIC_SCHEMA}",
+    )
     check("发布端静态快照文件集合 == 消费端", set(_pub.STATIC_PATHS) == set(_AC.COMMUNITY_STATIC))
+    check(
+        "★ 倾向表退役：发布端不再发、但远端旧文件保留（不进待删除）",
+        "wiki_disp.json" not in _pub.STATIC_PATHS and "wiki_disp.json" in _pub.RETIRED_STATIC,
+    )
 else:
     print("[SKIP] 发布端静态快照对拍：本树无私有运维脚本")
 
@@ -709,7 +770,7 @@ check(
 _cc._comm_cool["cdn.jsdelivr.net"] = _time.monotonic() + 999
 _cc._comm_cool["gcore.jsdelivr.net"] = _time.monotonic() + 999
 _calls.clear()
-_aio.run(_cc._community_json(_AC.community_static_urls("wiki_disp.json")))
+_aio.run(_cc._community_json(_AC.community_static_urls("acrithis_week.json")))
 check("全部冷却时仍重探排第一的那个（网络恢复能自己回来）", len(_calls) == 1, str(_calls))
 _cc2 = _AC.WarframeClient()
 _cc2._fetch_json = _ff
@@ -885,6 +946,62 @@ check(
     str(_res)[:120],
 )
 check("V01：社区路径写回数据源时刻而非 now", 'snap = str(raw["snapshot"])' in API_SRC)
+
+# ★ 2026-10-19 分段时间戳：信条 / 终幕各自换轮。10-19 实况：published_at = 信条时刻（10-18，早于终幕
+#   本轮起点 10-19），终幕段自己的快照在本轮 ⇒ 旧逻辑整份拒用，新逻辑按段判应采用。
+_t_start, _ = _win(_rot["tenet"])
+_c_start, _ = _win(_rot["coda"])
+_early, _late = sorted([_t_start, _c_start])
+_late_key = "tenet" if _t_start >= _c_start else "coda"
+_early_key = "coda" if _late_key == "tenet" else "tenet"
+
+
+def _payload2(pub, t_snap=None, c_snap=None):
+    p = _payload(pub)
+    if t_snap is not None:
+        p["tenet"]["snapshot"] = t_snap
+    if c_snap is not None:
+        p["coda"]["snapshot"] = c_snap
+    return p
+
+
+async def _serve2(payload, rot):
+    async def _f(urls):
+        return payload
+
+    _cv._community_json = _f
+    return await _cv._community_valence_parsed(rot)
+
+
+# 较早换轮的那段在它自己的本轮内、但早于较晚那段的窗口起点；较晚那段在自己的本轮内
+_e_ts = (
+    (_early + _td(minutes=17)).isoformat()
+    if _early + _td(minutes=17) < _late
+    else _early.isoformat()
+)
+_l_ts = (_late + _td(minutes=17)).isoformat()
+_seg = {_early_key: _e_ts, _late_key: _l_ts}
+_r2 = _aio.run(_serve2(_payload2(_e_ts, t_snap=_seg["tenet"], c_snap=_seg["coda"]), _rot))
+check(
+    "★ 分段时间戳：published_at 早于较晚一段的窗口，但两段各自都在本轮 ⇒ 采用",
+    _r2 is not None and _r2["snapshots"] == _seg,
+    str(_r2 and _r2.get("snapshots")),
+)
+_r3 = _aio.run(_serve2(_payload2(_e_ts), _rot))
+check(
+    "旧发布器（无分段时间戳）：回退 published_at，较晚那段判上一轮 ⇒ 仍拒用（行为不变）",
+    _r3 is None,
+    str(_r3),
+)
+_rot_new = json.loads(json.dumps(_rot))
+_rot_new[_late_key]["valence_snapshot"] = (_late + _td(hours=2)).isoformat()  # 本地这段比快照还新
+_r4 = _aio.run(_serve2(_payload2(_l_ts, t_snap=_seg["tenet"], c_snap=_seg["coda"]), _rot_new))
+check("分段时间戳：任一段比本地同段旧 ⇒ 拒用（防拿旧的覆盖新的）", _r4 is None, str(_r4))
+check(
+    "社区路径按段写回 valence_snapshot（不再两段同写一个时刻）",
+    'tenet_data["valence_snapshot"] = sect_snap["tenet"]' in API_SRC
+    and 'coda_data["valence_snapshot"] = sect_snap["coda"]' in API_SRC,
+)
 _aio.run(_cv.close())
 
 
@@ -1061,12 +1178,6 @@ if _ch_path.exists():
             "items": {f"i{i}": {"t": 1, "d": 1, "c": 1, "v": 1} for i in range(60)},
         }
 
-    def _wiki_doc(_entries=450):
-        return {
-            "snapshot": "2026-10-16T00:00:00+00:00",
-            "disp": {f"w{i}": 1.0 for i in range(_entries)},
-        }
-
     def _txt(_d):
         return _json.dumps(_d, ensure_ascii=False, indent=1) + "\n"
 
@@ -1082,15 +1193,23 @@ if _ch_path.exists():
         _acrithis_exp="2026-10-19T00:00:00+00:00",
         _arb=None,
         _baro=None,
-        _wiki=None,
+        _valence_snaps=None,
     ):
+        # ★ 2026-10-19 分段时间戳：`_valence_snaps={"tenet": …, "coda": …}` 时给对应段写
+        #   `<段>.snapshot`；不传则**不写该字段**（= 旧格式快照，检查器应回退 published_at）。
+        _tenet = {"items": []}
+        _coda = {"batch": "A", "items": []}
+        for _sect, _blk in (("tenet", _tenet), ("coda", _coda)):
+            _s = (_valence_snaps or {}).get(_sect)
+            if _s:
+                _blk["snapshot"] = _s
         return {
             "valence.json": _txt(
                 {
                     "schema": 1,
                     "published_at": _valence_pub,
-                    "tenet": {"items": []},
-                    "coda": {"batch": "A", "items": []},
+                    "tenet": _tenet,
+                    "coda": _coda,
                 }
             ),
             "acrithis_week.json": _txt(
@@ -1103,7 +1222,6 @@ if _ch_path.exists():
             ),
             "arb_ratings.json": _txt(_arb if _arb is not None else _arb_doc()),
             "baro_history.json": _txt(_baro if _baro is not None else _baro_doc()),
-            "wiki_disp.json": _txt(_wiki if _wiki is not None else _wiki_doc()),
             "index.json": _txt({"schema": 1, "published_at": _valence_pub, "files": {}}),
         }
 
@@ -1270,6 +1388,72 @@ if _ch_path.exists():
         next(_c["detail"] for _c in _rep["checks"] if _c["id"] == "valence_current"),
     )
     _shutil.rmtree(_td, ignore_errors=True)
+
+    # —— 分段时间戳（2026-10-19）：信条与终幕 epoch 差一天，各判各的窗口 ——
+    # now=10-19T12:00Z 时窗口起点 = 信条 10-18T00:00 / 终幕 10-19T00:00（与线上实况同）。
+    _seg_now = datetime(2026, 10, 19, 12, 0, tzinfo=timezone.utc)
+    _rc, _rep, _gen, _td = _case(
+        _remote=_remote_files(
+            # ★ published_at 故意留**信条时刻**（旧发布器的短路结果）—— 旧逻辑正是因此判 fail
+            _valence_pub="2026-10-18T06:56:52+00:00",
+            _acrithis_exp="2026-10-26T00:00:00+00:00",
+            _valence_snaps={
+                "tenet": "2026-10-18T06:56:52+00:00",
+                "coda": "2026-10-19T00:17:00+00:00",
+            },
+        ),
+        _now=_seg_now,
+        _gh=_gen_health(_now=_seg_now),
+        _ph=_pub_health(_now=_seg_now),
+    )
+    check(
+        "★ 检查器：分段时间戳 —— 信条早/终幕晚但各在自己窗口内 ⇒ ok（旧逻辑会误判 fail）",
+        _st(_rep, "valence_current") == "ok" and _rc == 0,
+        next(_c["detail"] for _c in _rep["checks"] if _c["id"] == "valence_current"),
+    )
+    _shutil.rmtree(_td, ignore_errors=True)
+
+    _rc, _rep, _gen, _td = _case(
+        _remote=_remote_files(
+            _valence_pub="2026-10-18T06:56:52+00:00",
+            _acrithis_exp="2026-10-26T00:00:00+00:00",
+            _valence_snaps={
+                "tenet": "2026-10-18T06:56:52+00:00",
+                "coda": "2026-10-18T00:00:00+00:00",  # 早于终幕窗口起点 10-19T00:00 且过 8h 宽限
+            },
+        ),
+        _now=_seg_now,
+        _gh=_gen_health(_now=_seg_now),
+        _ph=_pub_health(_now=_seg_now),
+    )
+    _seg_detail = next(_c["detail"] for _c in _rep["checks"] if _c["id"] == "valence_current")
+    check(
+        "★ 检查器：分段时间戳 —— 终幕段真落后 ⇒ fail 且只点名终幕（信条在窗口内不冤枉）",
+        _st(_rep, "valence_current") == "fail"
+        and _rc == 2
+        and "终幕" in _seg_detail
+        and "信条" not in _seg_detail,
+        _seg_detail,
+    )
+    _shutil.rmtree(_td, ignore_errors=True)
+
+    _rc, _rep, _gen, _td = _case(
+        _remote=_remote_files(
+            # 旧格式快照：两段都没有 `<段>.snapshot` ⇒ 两段都回退 published_at（= 旧逻辑）
+            _acrithis_exp="2026-10-26T00:00:00+00:00",
+            _valence_pub="2026-10-19T00:17:00+00:00",
+        ),
+        _now=_seg_now,
+        _gh=_gen_health(_now=_seg_now),
+        _ph=_pub_health(_now=_seg_now),
+    )
+    check(
+        "★ 检查器：分段时间戳 —— 缺分段字段（旧快照）⇒ 回退 published_at 旧逻辑（够新 ⇒ ok）",
+        _st(_rep, "valence_current") == "ok" and _rc == 0,
+        next(_c["detail"] for _c in _rep["checks"] if _c["id"] == "valence_current"),
+    )
+    _shutil.rmtree(_td, ignore_errors=True)
+
     _rc, _rep, _gen, _td = _case(
         _remote=_remote_files(_acrithis_exp="2026-10-16T00:00:00+00:00"),
         _gh=_gen_health(),
@@ -1303,15 +1487,13 @@ if _ch_path.exists():
     )
     _shutil.rmtree(_td, ignore_errors=True)
 
-    _old_wiki = _remote_files(_wiki=_wiki_doc())
-    _old_wiki["wiki_disp.json"] = _txt(
-        {"snapshot": "2026-10-01T00:00:00+00:00", "disp": {f"w{i}": 1.0 for i in range(450)}}
-    )
-    _rc, _rep, _gen, _td = _case(_remote=_old_wiki, _gh=_gen_health(), _ph=_pub_health())
+    _rc, _rep, _gen, _td = _case(_remote=_remote_files(), _gh=_gen_health(), _ph=_pub_health())
     check(
-        "★ 检查器：远端倾向快照 16 天 → wiki_disp_age=warn",
-        _st(_rep, "wiki_disp_age") == "warn",
-        next(_c["detail"] for _c in _rep["checks"] if _c["id"] == "wiki_disp_age"),
+        "★ 检查器：倾向快照检查已退役（无 wiki_disp_age / static_valid_wiki_disp.json）",
+        not any(
+            _c["id"] in ("wiki_disp_age", "static_valid_wiki_disp.json") for _c in _rep["checks"]
+        ),
+        str([_c["id"] for _c in _rep["checks"]]),
     )
     _shutil.rmtree(_td, ignore_errors=True)
 
@@ -1360,6 +1542,31 @@ if _ch_path.exists():
     )
     check(
         "检查器：刚生成 < 2h → static_published=ok（等下一轮发布即可）",
+        _st(_rep, "static_published_arb_ratings.json") == "ok",
+        next(
+            _c["detail"] for _c in _rep["checks"] if _c["id"] == "static_published_arb_ratings.json"
+        ),
+    )
+    # ★ 2026-10-23 线上误报复现：远端 = 同内容 + 发布端加的 `schema: 1`（生成器产物没有）
+    #   ⇒ 必须判「已发布」，不能 3h 后报「已生成未发布」
+    (_gen2 / "_health.json").write_text(
+        _json.dumps(_gen_health(_arb_sha=_sha(_gen2_text), _arb_last=_NOW - _tdlt(hours=3))),
+        encoding="utf-8",
+    )
+    _work3 = _mk_repo(
+        Path(_tmp.mkdtemp(prefix="_ch_pub3_")), _remote_files(_arb={**_new_arb, "schema": 1})
+    )
+    _rc, _rep = _CH.run(
+        gen_dir=_gen2,
+        work_dir=_work3,
+        fetch=False,
+        alert=False,
+        now=_NOW,
+        rotations=_ROT,
+        quiet=True,
+    )
+    check(
+        "★ 检查器：远端只多发布端的 schema 键 ⇒ static_published=ok（不再永久误报）",
         _st(_rep, "static_published_arb_ratings.json") == "ok",
         next(
             _c["detail"] for _c in _rep["checks"] if _c["id"] == "static_published_arb_ratings.json"

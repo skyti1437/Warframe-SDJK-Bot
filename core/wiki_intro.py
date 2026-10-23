@@ -27,6 +27,7 @@ except ImportError:  # 离线脚本把 core/ 当顶层路径导入时
 _FILE = Path(__file__).resolve().parent / "data" / "wiki_intro.json"
 _DROPS_FILE = Path(__file__).resolve().parent / "data" / "drops.json"
 _EFFECT_ZH_FILE = Path(__file__).resolve().parent / "data" / "wiki_effect_zh.json"
+_NAME_EN_ZH_FILE = Path(__file__).resolve().parent / "data" / "de" / "name_en_zh.json"
 _RELIC_INDEX_FILE = Path(__file__).resolve().parent / "data" / "relic_index.json"
 _RELIC_INVERSE_FILE = Path(__file__).resolve().parent / "data" / "relic_inverse.json"
 
@@ -73,7 +74,19 @@ def _localize_effect(text: str) -> str:
     if not m:
         return text
     zh = _effect_zh().get(_norm(m.group("val").strip()))
-    return f"{m.group('head')}：{zh}" if zh else text
+    if not zh:
+        # ★ 2026-10-22（维护者 10-19 报）：**表里没有**这条效果 ⇒ 卡面直接显示英文原文，
+        #   于是夹着英文 `and`、行末还留英文句点。这里只做**排版卫生**（不翻译、不猜词）。
+        #   ⚠ 不能改数据里的效果行 —— 那是翻译表的**键**，改了查表就失效（见生成器注释）。
+        return tidy_effect_text(text)
+    return f"{m.group('head')}：{zh}"
+
+
+def tidy_effect_text(text: str) -> str:
+    """未命中翻译表的英文效果行：夹的 ` and ` → 「 和 」、去掉行末英文句点。"""
+    s = re.sub(r"\s+and\s+", " 和 ", text or "")
+    s = re.sub(r"\s*\.\s*$", "", s)
+    return s
 
 
 # DE 导出变量占位符（知识库正文保留了官方模板的 〈DAMAGE〉 这类 token）。
@@ -592,13 +605,83 @@ def _minimal_card(*names: str) -> Optional[tuple[str, list[str]]]:
     return title, ["◆ 状态：本地资料库暂无该条目的简介", "※ 详见下方 wiki 页面链接"]
 
 
+_PATH_SEG_RE = re.compile(r"^(?:de:)?.*?/([^/]+)$")
+_CAMEL_RE = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
+_CODE_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9]{11,}$")
+_TITLE_WORDS: Optional[set] = None
+_CJK_RE = re.compile(r"[\u4e00-\u9fff]")
+
+
+def _title_words() -> set:
+    """英文显示名词表（`core/data/de/name_en_zh.json::names` 的键按空格拆）——切词用。"""
+    global _TITLE_WORDS
+    if _TITLE_WORDS is None:
+        words: set = set()
+        try:
+            raw = json.loads((_NAME_EN_ZH_FILE).read_text(encoding="utf-8")).get("names") or {}
+            for k in raw:
+                words.update(str(k).split())
+        except Exception:  # noqa: BLE001 - 词表缺失只影响切词质量，不阻断出卡
+            words = set()
+        _TITLE_WORDS = words
+    return _TITLE_WORDS
+
+
+def _greedy_words(s: str) -> str:
+    """无空格代码名按词表**贪心切词**（`gladiatorsetmod` → `gladiator set mod`）；切不动原样返回。"""
+    words = _title_words()
+    if not words:
+        return s
+    out, i = [], 0
+    while i < len(s):
+        best = ""
+        for w in words:
+            if len(w) <= 22 and s.startswith(w, i) and len(w) > len(best):
+                best = w
+        if not best:
+            return s
+        out.append(best)
+        i += len(best)
+    return " ".join(out)
+
+
+def display_title(title: str) -> str:
+    """标题兜底：**内部资产名 / 路径不许原样上卡面**（维护者 2026-10-19 报）。
+
+    资料卡数据抽自知识库，KB 给资产条目的 id 是 `de:<uniqueName>`；拿不到显示名时
+    标题就成了 `de:/Lotus/Types/…/Forma`、`ChromaPrimeHelmetComponent` 这类内部名。
+    兜底顺序：**路径取末段**（永不显示路径）→ 驼峰拆词 → 词表贪心切词 → 首字母大写。
+    官方名能查到的一律不动（本函数只处理「看起来是代码名」的形态）。
+    """
+    t = (title or "").strip()
+    # ★ 2026-10-22 Claude 审：只动「看起来就是代码名」的标题。旧版对全部 13065 条标题生效，
+    #   改了 390 条 —— 「红/白/蓝（Red/White/Blue）」被当路径截成「Blue）」、
+    #   「TennoCon 2016 披饰」被拆成「Tenno Con」。带中文 = 已有显示名，一律不动。
+    if not t or _CJK_RE.search(t):
+        return t
+    if t.startswith(
+        ("de:", "/")
+    ):  # 只有整条是路径才取末段（标题里的「A/V」「Past/Future」不是路径）
+        m = _PATH_SEG_RE.match(t)
+        if m:
+            t = m.group(1)
+    head, sep, tail = t.partition("（")
+    token = head.strip()
+    if not re.fullmatch(r"[A-Za-z][A-Za-z0-9]*", token):  # 多词英文名是正常显示名
+        return t
+    t2 = _CAMEL_RE.sub(" ", token)
+    if t2 == token and _CODE_NAME_RE.match(token):
+        t2 = _greedy_words(token.lower())
+    return t2[:1].upper() + t2[1:] + sep + tail
+
+
 def card_for(*names: str) -> Optional[tuple[str, list[str]]]:
     """卡片入口：知识库 → 掉落表 → 配方用途 → 遗物 → 兜底（**永远有卡**）。
 
     用户口径（2026-09-25）：「正常情况下无论什么内容都得绘制」——命中条目时
     哪怕本地没有简介数据，也要出一张只含名字的卡（链接另发 Plain）。
     """
-    return (
+    card = (
         intro(*names)
         or _drops_card(*names)
         or _uses_card(*names)
@@ -606,6 +689,13 @@ def card_for(*names: str) -> Optional[tuple[str, list[str]]]:
         or _relic_part_card(*names)
         or _minimal_card(*names)
     )
+    # ★ 2026-10-22：出口统一兜底标题 —— 内部资产名/路径不许原样上卡面（维护者 10-19 报）。
+    if card:
+        _t, _lines = card
+        _t2 = display_title(_t)
+        if _t2 != _t:
+            return _t2, _lines
+    return card
 
 
 def _is_variant_title(title: str, base_cmp: str) -> bool:

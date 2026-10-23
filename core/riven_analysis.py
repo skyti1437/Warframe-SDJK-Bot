@@ -6,6 +6,8 @@ Attribute Value Formula / Base Values 两节）：
 
     数值 = 属性基值 × 武器倾向 D × 词条数系数 × 随机系数 U
 
+    （2026-10 起 DE 取消倾向，D 对所有武器统一为 UNIFIED_DISPOSITION = 1.2。）
+
     * U ∈ [0.9, 1.1] —— 同一把武器同词条的 rolled 区间就是基值×D×系数 的 ±10%；
     * 词条数系数（正词条 / 负词条 magnitude）：
         2正0负  +0.99
@@ -22,6 +24,14 @@ from __future__ import annotations
 import re
 from typing import Optional
 
+from .logging_compat import logger
+
+# ★ 2026-10 DE 取消紫卡倾向（Dev Workshop「Ammo Efficiency Changes & Riven Disposition
+#   Retirement」，forums topic 1529475）：所有紫卡共用同一组数值区间，等同倾向 1.2（4 点），
+#   已有紫卡词条不变、数值按 1.2/原倾向缩放。插件里所有「按武器取倾向」的地方统一取这个值；
+#   变体反推、wiki 倾向表定时重抓随之退役。
+UNIFIED_DISPOSITION = 1.2
+
 # 武器类别（WM riven weapons 的 group/rivenType 归一化）→ 基值表列名
 _CLASS_KEYS = {
     "rifle": "rifle",
@@ -31,6 +41,16 @@ _CLASS_KEYS = {
     "melee": "melee",
     "zaw": "melee",
     "kitgun": "pistol",
+    # ★ 2026-10-19：WM 的 group 对**副手**写 `secondary`（不是 `pistol`）。缺这一项时
+    #   「先看 group」那层对副手**静默失效**，会落到 rivenType —— 而 WM 把那些
+    #   「霰弹式副手」（食人鱼 Pyrana / 德特昂 / 野马 / 布拉克 / 科马克…，共 15 把）
+    #   的 rivenType 标成 `shotgun`，于是整类被按**霰弹枪基值列**算。
+    #   实卡反证：食人鱼 3+1（暴击 +124.4 / 多重 +103.9 / 射速 +71.7 / 装填 −32.1，
+    #   倾向 0.95）四条**只有按手枪列才全部落带**，按霰弹列暴击与射速出界 ⇒ 误判
+    #   「疑似变体卡」。口径与 wfsim 一致：它按武器能吃哪些 MOD 定类（这些武器
+    #   `mod_pools: [pistol]`；`class: shotgun_sidearm` 只是**伤害模拟**用的武器类，
+    #   与紫卡基值列是两回事）。
+    "secondary": "pistol",
 }
 
 # 词条数系数表：{(正词条数, 负词条数): (正系数, 负系数 magnitude)}
@@ -148,13 +168,42 @@ def weapon_class(riven_type: str = "", group: str = "") -> Optional[str]:
     「MOD 适用类别」，曲翼枪械（翠雀 Larkspur / 凯旋将军 Imperator 等）
     在 WM 数据里 rivenType 也是 ``rifle``，先看 rivenType 会拿步枪基值
     算曲翼枪械（暴伤基值 120 vs 80.1，差 50%）。
+
+    ★ 2026-10-19：同一条思路补上 **``secondary`` → 手枪列**（见 `_CLASS_KEYS` 处
+    的长注释）。副手在 WM 里 group 写 `secondary`，此前没有映射 ⇒ group 这层对
+    副手不生效，落到被标错的 rivenType。**与 `rifle` 回落一样，这条也适用于
+    「group 为空」的条目**——那种情况仍只能靠 rivenType 或回落。
     """
     for key in (group, riven_type):
         k = (key or "").lower()
         for name, col in _CLASS_KEYS.items():
             if name in k:
                 return col
+    # ★ 2026-10-22：**不再静默回落**。推不出类别时仍按步枪列算（保持卡面可用），
+    #   但记一条 INFO 日志留痕，并由调用方在卡面注明「按步枪基值估算」
+    #   （判据见 class_estimated()）—— 此前是彻底静默的，13 把变体/形态条目
+    #   就这么被按步枪列算了很久（详见 2026-10-19 的回执）。
+    logger.info(
+        "[sdjk] 紫卡基值列推不出类别（group=%r riven_type=%r）⇒ 按步枪列估算", group, riven_type
+    )
     return "rifle"
+
+
+def class_estimated(riven_type: str = "", group: str = "") -> bool:
+    """类别是否**推不出来**（`weapon_class` 回落成了步枪列）。
+
+    调用方据此在卡面注明「⚠ 武器类别未知，按步枪基值估算」。**不猜**：只要
+    group / riven_type 里任何一个能命中 `_CLASS_KEYS` 就算推得出。
+
+    ★ 与 `weapon_class` 同源判据（同一张表、同一段匹配），改一处必须改两处 ——
+      故写成独立函数而不是让调用方自己再判一次。
+    """
+    for key in (group, riven_type):
+        k = (key or "").lower()
+        for name in _CLASS_KEYS:
+            if name in k:
+                return False
+    return True
 
 
 # ★ 2026-10-03 晚（用户同卡双态截图实证，推翻本日早间结论）：组合枪紫卡的
@@ -356,92 +405,6 @@ def disp_feasible(stats_pos, stats_neg, cls, disp: float, *, tol_fn=None) -> boo
     )
 
 
-def match_disposition(stats_pos, stats_neg, cls, candidates, *, tol_fn=None) -> list:
-    """在候选 [(名称, 倾向)] 中筛出与卡面数值吻合的项（保持原顺序）。
-
-    变体名不在截图里，但数值一定落在某个倾向的 ±10% 区间内；家族内
-    （母武器 + 棱晶/Prime/亡魂…）通常只有一个候选能解释全部词条，
-    据此即可自动判定该按谁的倾向计算。
-
-    Args:
-        candidates: [(显示名, 倾向值), ...]。
-
-    Returns:
-        [(显示名, 倾向值), ...] —— 可行的子集；无可行项返回 []。
-    """
-    tol_fn = tol_fn or display_tol
-    entries = _stat_entries(stats_pos, stats_neg)
-    pos_f, neg_f = factor_for(len(stats_pos or []), len(stats_neg or []))
-    out = []
-    for cand in candidates or []:
-        name, d = cand[0], cand[1]
-        # ★ 2026-10-03：候选可带自身基值列（kitgun 主要形态=霰弹/步枪列，
-        #   与母行的手枪列不同）—— 三元组 (名称, 倾向, 类别)；
-        #   二元组沿用整体 cls（向后兼容）。
-        cand_cls = cand[2] if len(cand) > 2 else cls
-        try:
-            d = float(d)
-        except (TypeError, ValueError):
-            continue
-        if d <= 0:
-            continue
-        if _fit_dev(entries, cand_cls, pos_f, neg_f, d, tol_fn) is not None:
-            out.append((name, d))
-    return out
-
-
-NEAR_MISS_MAX = 0.15
-
-
-def candidate_scores(stats_pos, stats_neg, cls, candidates) -> list:
-    """★ 2026-10-03 最近邻判据：给每个候选倾向打「最大相对偏差」分。
-
-    对候选 (名称, D)：``mid_i = 基值_i × D × 系数_i``（即 `stat_range`
-    区间的中点，复用现成公式）、``U_i = v_i / mid_i``（卷轴系数，理论
-    ∈ [0.9, 1.1]），``score = max_i |U_i − 1|`` —— 越小越像该候选。
-
-    为什么需要它（取证 output/取证-ZCode-组合枪倾向与判据定标-20261003.md
-    §五/§六）：严格区间判据（lo ≤ v ≤ hi）是**硬边界**，组合枪双模式
-    「wiki 与实机差 1%~5%」的腔体级残差会把只差 1% 的真候选判成不吻合
-    （实例：捕月主要 1.1 的多重/切割各差 0.7%/1.1% ⇒ 误报「老卡」）；
-    最近邻只比较**候选之间的相对远近**，对绝对偏差免疫。分档：
-    score ≤ ~0.10 的候选本就落在严格区间内（`match_disposition` 会先接住，
-    与现行判据等价）；0.10 < score ≤ `NEAR_MISS_MAX`（0.15）判该候选但
-    卡面标注残差；> 0.15 不判（老卡/识别异常）。
-
-    无可用基值的词条跳过；一条可用基值都没有的候选不计入。
-
-    Returns:
-        [(名称, 倾向, score), ...] 按 score 升序；空候选/全无基值返回 []。
-    """
-    n_pos, n_neg = len(stats_pos or []), len(stats_neg or [])
-    out = []
-    for cand in candidates or []:
-        name, d = cand[0], cand[1]
-        # ★ 2026-10-03：三元组候选自带基值列（kitgun 主要形态逐腔体霰弹/
-        #   步枪列，与母行手枪列不同）；二元组沿用整体 cls（向后兼容）。
-        cand_cls = cand[2] if len(cand) > 2 else cls
-        try:
-            d = float(d)
-        except (TypeError, ValueError):
-            continue
-        if d <= 0:
-            continue
-        worst, used = 0.0, 0
-        for sid, v, neg in _stat_entries(stats_pos, stats_neg):
-            lo, hi = stat_range(sid, cand_cls, d, n_pos, n_neg, negative=neg)
-            if lo is None or v <= 0:
-                continue
-            mid = (lo + hi) / 2
-            if mid <= 0:
-                continue
-            used += 1
-            worst = max(worst, abs(v / mid - 1))
-        if used:
-            out.append((name, d, worst))
-    return sorted(out, key=lambda x: x[2])
-
-
 # ---------------------------------------------------------------------------
 # 卡面原文行解析（2026-09-27）
 # ---------------------------------------------------------------------------
@@ -543,6 +506,26 @@ def faction_mult_to_mag(k: float) -> tuple:
     return (round(abs(1.0 - k) * 100, 2), k < 1.0)
 
 
+# ★ 2026-10-21 用户实卡（食人女魔 Parci-argiada）：长词条卡面把数值写在**名字后面**并折行 ——
+#   「🔒 收起武器时弹匣每秒自」/「动装填 +112.9 %」。旧实现只认行首极性 ⇒ 整条静默丢掉，
+#   剩 2 正 1 负照样判合法，词条系数按 2+1 算（实为 3+1）⇒ 整卡区间全错。
+_TRAIL_RE = re.compile(
+    r"^[^\w]*(?P<name>[^\d+＋\-−–—－]*?[^\W\d_])\s*(?P<sign>[+＋\-−–—－])\s*"
+    r"(?P<num>\d+(?:[.,]\d+)?)\s*(?P<unit>[%\uff05米秒m]?)\s*$",
+    re.I,
+)
+# 折行的半截词条名：去掉行首图标后**纯中文、无数字**（武器名行带拉丁自命名，天然排除）
+_FRAG_RE = re.compile(r"^[^\w]*[\u4e00-\u9fff]+$")
+
+
+def _trailing_to_leading(t: str):
+    """「词条名 +数值」→「+数值 词条名」；不是这种写法返回 None。"""
+    m = _TRAIL_RE.match(t)
+    if not m:
+        return None
+    return f"{m.group('sign')}{m.group('num')}{m.group('unit')} {m.group('name').strip()}"
+
+
 def merge_polarity_lines(lines) -> list:
     """把被拆行的词条行拼回一行（极性符号与数值不在同一行时）。
 
@@ -554,10 +537,25 @@ def merge_polarity_lines(lines) -> list:
     """
     out: list = []
     buf = ""
+    frag = ""  # 折行的半截词条名（等下一行「…+数值」来拼）
     for raw in lines or []:
         t = str(raw or "").strip()
         if not t:
             continue
+        if not _POL_RE.match(t):
+            joined = _trailing_to_leading(frag + t) if frag else None
+            if frag and not joined:
+                out.append(frag)
+            frag = ""
+            lead = joined or _trailing_to_leading(t)
+            if lead:
+                t = lead
+            elif _FRAG_RE.match(t):
+                frag = t
+                continue
+        elif frag:
+            out.append(frag)
+            frag = ""
         m = _POL_RE.match(t)
         if m:
             body = m.group(2).strip()
@@ -579,6 +577,8 @@ def merge_polarity_lines(lines) -> list:
         out.append(t)
     if buf:
         out.append(buf)
+    if frag:
+        out.append(frag)
     return out
 
 
@@ -586,7 +586,10 @@ def _strip_name(body: str) -> str:
     """词条行去掉数值/乘数/单位后剩下的词条名（去空格便于对表）。"""
     name = _MULT_RE.sub(" ", body)
     name = _NUM_RE.sub(" ", name)
-    return re.sub(r"[%\uff05x×\s　·、:：米秒]", "", name, flags=re.I)
+    name = re.sub(r"[%\uff05x×\s　·、:：]", "", name, flags=re.I)
+    # 「米/秒」只在两端剥（紧挨数值的单位）：词条名中间的「每秒」是名字的一部分
+    #   （「收起武器时弹匣每秒自动装填」剥成「…每自动装填」会被短名「弹匣」抢走）
+    return re.sub(r"^[米秒]+|[米秒]+$", "", name)
 
 
 def _strip_parens(text: str) -> str:

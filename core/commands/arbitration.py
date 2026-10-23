@@ -215,8 +215,26 @@ class ArbitrationCommands:
             rate += f"　生息效率 {mrec['median']}/小时（n={mrec.get('n', 0)}，社区实测中位数）"
 
         S = "　"
-        nxt_cells = _arbi.node_cells(nodes, key_nxt, tier_of) if key_nxt else []
+        # ★ 2026-10-22：下一小时的评级**带社区实测中位数**（与时间表同口径）。
+        nxt_cells = _arbi.node_cells(nodes, key_nxt, tier_of, with_median=True) if key_nxt else []
         left = fmt.countdown(t1.astimezone(timezone.utc).isoformat())
+        # ★ 2026-10-22：新增「下次高效」—— 从**下一场起**往后找第一个 S/A+/A（与「仲裁 高效」
+        #   同一口径）。下一场本身就是高效时就直接是它（与上一行重复，属预期）。
+        _hit = _arbi.next_efficient(sched, tier_of, idx + 1)
+        if not _hit:
+            eff_line = "◆ 下次高效：排期内暂无（未来排期里没有 S / A+ / A 的场次）"
+        else:
+            _ei, _ek = _hit
+            _et = datetime.fromtimestamp(start + _ei * step, tz=bj)
+            _ecells = _arbi.node_cells(nodes, _ek, tier_of, with_median=True)
+            _eleft = fmt.countdown(
+                datetime.fromtimestamp(start + _ei * step, tz=timezone.utc).isoformat()
+            )
+            eff_line = (
+                f"◆ 下次高效：{_et.day}日{_et.hour:02d}时（北京）"
+                + S.join(["", *_ecells])
+                + f"｜还有 {_eleft}"
+            )
         lines = [
             f"◆ 当前仲裁：{n.get('nameZh', '?')}"
             + (f"（{n.get('systemNameZh')}）" if n.get("systemNameZh") else "")
@@ -224,6 +242,7 @@ class ArbitrationCommands:
             f"◆ {rate}",
             f"◆ 本场时段：{t0:%H:%M}–{t1:%H:%M}（北京时间）｜剩余 {left}",
             "◆ 下一小时：" + (S.join(nxt_cells[:4]) if nxt_cells else "（排期表已到末尾）"),
+            eff_line,
             "※ 筛选：发「仲裁 类型 / 高效 / 传奇 / 今天」，类型 " + self._ARB_TYPES_STR,
             _arbi.TIER_NOTE + "（实测非官方，仅供参考）",
             *([_arbi.LOW_NOTE] if nxt_cells and _arbi.LOW_MARK in "".join(nxt_cells) else []),
@@ -266,7 +285,9 @@ class ArbitrationCommands:
             system = n.get("systemNameZh", "")
             mtype = _arb_mission(n)
             fac = _arb_faction(n)
-            tv = _arbi.tier_label(key, node_tier)  # 样本少的实测档带「*」
+            # ★ 2026-10-22：评级后带该节点**社区实测每小时生息中位数**（如「A 612」）；
+            #   无实测样本的节点只给档位（见 arbi.tier_label_with_median 的说明）。
+            tv = _arbi.tier_label_with_median(key, node_tier)
             t = datetime.fromtimestamp(start + (idx0 + h) * step, tz=timezone.utc) + timedelta(
                 hours=8
             )
@@ -278,7 +299,9 @@ class ArbitrationCommands:
             #   88 个仲裁节点中 3 个）劈成两列，其后各列整体右移、末列溢出。
             if want_types and mtype not in want_types:
                 continue
-            rows.append((t, name, system, mtype, fac, tv))
+            # ★ 2026-10-22：行元组末位带上节点 key（图例判「本页有没有带中位数的行」用；
+            #   `r[5]` 仍是评级列，不动既有下标口径）。
+            rows.append((t, name, system, mtype, fac, tv, key))
         if bad and not want_types:
             return err_card(
                 f"仲裁表：不认识的筛选词「{'、'.join(bad)}」",
@@ -305,7 +328,7 @@ class ArbitrationCommands:
         body = [
             "· "
             + S.join(c for c in (f"{t.day}日{t.hour:02d}时", name, system, mtype, fac, tv) if c)
-            for t, name, system, mtype, fac, tv in page_rows
+            for t, name, system, mtype, fac, tv, _k in page_rows
         ]
         chunk = [
             f"◆ 范围：未来 14 天共 {total} 场（北京时间 UTC+8）",
@@ -316,6 +339,10 @@ class ArbitrationCommands:
         if over:
             chunk.append(f"※ 只有 {pages} 页，已显示最后一页")
         chunk.append(_arbi.TIER_NOTE)  # 评级列下方标评分范围（2026-10-16 维护者要求）
+        # ★ 2026-10-22：本卡评级列带了实测中位数 ⇒ 图例补一句说明那个数字是什么。
+        #   只在**本页真有带中位数的行**时加，免得纯官方档位页多一句废话。
+        if any(_arbi.measured_of(_r[6]).get("median") is not None for _r in page_rows):
+            chunk.append(_arbi.TIER_MEDIAN_NOTE)
         if any(r[5].endswith(_arbi.LOW_MARK) for r in page_rows):
             chunk.append(_arbi.LOW_NOTE)
         # ★ 2026-10-11：时间列是北京时间 —— 标在标题上（正文行全是列对齐的数据行）

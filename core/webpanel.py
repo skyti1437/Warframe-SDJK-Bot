@@ -34,8 +34,8 @@ from . import baro, data_registry, paths
 from .api_client import (
     ACRITHIS_WEEK_NAME,
     RANKS_NAME,
+    RIVEN_RT_NAME,
     RIVEN_WEEKLY_NAME,
-    WIKI_DISP_NAME,
     WarframeClient,
 )
 from .logging_compat import logger
@@ -158,19 +158,6 @@ def freshness(now: Optional[datetime] = None) -> list[dict]:
         )
     )
 
-    wd = _load(WIKI_DISP_NAME)
-    wd_at = _parse_iso(wd.get("snapshot"))
-    wd_old = wd_at is None or now - wd_at > timedelta(hours=168)
-    rows.append(
-        _row(
-            "紫卡倾向（wiki）",
-            WARN if wd_old else OK,
-            str(wd.get("snapshot") or ""),
-            f"{_age_text(wd_at, now)}；{_origin(WIKI_DISP_NAME)}；有 FlareSolverr 时超过 7 天自动重抓，"
-            "另外每 3 小时检查社区快照",
-        )
-    )
-
     rw = _load(RIVEN_WEEKLY_NAME)
     try:
         rw_at = datetime.fromtimestamp(float(rw["fetched"]), timezone.utc) if rw else None
@@ -183,6 +170,33 @@ def freshness(now: Optional[datetime] = None) -> list[dict]:
             rw_at.isoformat(timespec="seconds") if rw_at else "",
             (f"{_age_text(rw_at, now)}；" if rw_at else "还没查询过；")
             + "超过 6 小时下次查询时自动刷新",
+        )
+    )
+
+    # 紫卡实时排行快照（WM 拍卖；2026-10-23 加）——「紫卡排行」默认视图读它。
+    # 判据与 WM 价格排行同口径：跑满一轮且覆盖率 ≥80% 才刷新 ts，所以 ts 陈旧
+    # 只说明「还没跑完一整轮 / 上轮成功率不足」，不是采集失败（旧行照常展示）。
+    rt = _load(RIVEN_RT_NAME)
+    rt_at = _parse_iso(rt.get("ts"))
+    try:
+        rt_cov = f"{float(rt['coverage']):.0%}" if rt.get("coverage") is not None else ""
+    except (TypeError, ValueError):
+        rt_cov = ""
+    rt_retry = len(rt.get("retry") or [])
+    rt_n = len(rt.get("rows") or {})
+    rows.append(
+        _row(
+            "紫卡实时排行（WM 拍卖）",
+            (WARN if now - rt_at > timedelta(hours=12) else OK) if rt_at else INFO,
+            str(rt.get("ts") or ""),
+            (
+                f"{_age_text(rt_at, now)}；已收录 {rt_n}/{rt.get('total', '?')} 把；"
+                if rt_at
+                else f"还没跑完过一整轮（已收录 {rt_n} 把）；"
+            )
+            + (f"上轮覆盖率 {rt_cov}（< 80% 不刷新时间戳）；" if rt_cov else "")
+            + (f"待补 {rt_retry} 项（下次先补）；" if rt_retry else "")
+            + "每 6 小时在凌晨 2–7 点空闲时段重建",
         )
     )
 
@@ -857,7 +871,7 @@ class WebPanel:
 
     async def pull(self):
         """从源头重抓（2026-10-18 用户：不能只靠定时）：不管本地新不新鲜，立即从 wiki 源页重抓
-        元素加成、言录使货单、紫卡倾向。校验照旧（数值未更新 / 货单目录 / 条数下限），校验不过不落盘；
+        元素加成、言录使货单。校验照旧（数值未更新 / 货单目录），校验不过不落盘；
         源页抓不到时各自按原兜底链回落。"""
         if (g := self._gone()) is not None:
             return g
@@ -869,7 +883,6 @@ class WebPanel:
             for key, fn in (
                 ("valence", lambda: c.refresh_valence(force=True)),
                 ("acrithis", lambda: c.refresh_acrichis_week(force=True)),
-                ("wiki_disp", lambda: c.refresh_wiki_disp(force=True)),
             ):
                 try:
                     out[key] = str(await asyncio.wait_for(fn(), 150))

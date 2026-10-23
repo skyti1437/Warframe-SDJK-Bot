@@ -1,0 +1,6982 @@
+{
+ "_counts": {
+  "class_pools": {
+   "archgun": 36,
+   "melee": 29,
+   "pistol": 38,
+   "rifle": 38,
+   "shotgun": 37
+  },
+  "families": 311,
+  "no_ammo_pool": 72,
+  "wf_families_unmatched": 0,
+  "wf_families_without_our_root": 0,
+  "with_evidence": 240,
+  "with_survey": 97
+ },
+ "_generated_at": "2026-10-23T17:51:37+00:00",
+ "_rule": "词条池判据（与 wfsim engine/src/build/rivens/pools.rs 对齐）：① 职业池 = 该职业的 stat 清单（本表 class_pools 的 bonus/malus 即正负限制，可用性另见 core/riven_analysis._BASE 的 None 列）；② 逐武器规则：守护武器不出变焦/后坐力、无弹药池不出弹药上限、无飞行且无伤害衰减不出弹道速度；物理三项按 25% 份额只标「未确认」不删；③ 家族证据最高优先：exceptions.yaml + physical.yaml 的 never/rolls 合并；★ 与 wfsim 的差异：wfsim 计算路径刻意不读 pools.yaml（怕坏抓取改池），本表按维护者 2026-10-23 指令把 pools.yaml 的 never/rollable 也并入逐家族证据。★ 家族键 = 我方家族根（core/matching.family_key 的取值域，可由 by_name 反查）；查不到我方家族根时退化为 `wf:<wfsim 家族名>`。",
+ "_source": "github.com/magenie33/wfsim data/rivens/{rifle,shotgun,pistol,archgun,melee,exceptions,physical,pools}.yaml + data/weapons/**.yaml",
+ "_wfsim_commit": "d14cdf453fcfa38494c88d33ea29446c459acddc",
+ "class_pools": {
+  "archgun": {
+   "ammo_efficiency": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "ammo_max": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "blast_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "cold_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": false
+   },
+   "corrosive_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "crit_chance": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "crit_damage": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "damage_vs_corpus": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "damage_vs_grineer": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "damage_vs_infested": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "damage_vs_orokin": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "damage_vs_scaldra": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "damage_vs_techrot": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "electric_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": false
+   },
+   "fire_rate": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "gas_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "heat_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": false
+   },
+   "impact_damage": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "magazine_capacity": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "magnetic_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "melee_damage": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "multishot": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "punch_through": {
+    "bonus": true,
+    "malus": false,
+    "spliced": false
+   },
+   "puncture_damage": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "radiation_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "recoil": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "reload_speed": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "slash_damage": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "status_chance": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "status_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "status_duration": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "toxin_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": false
+   },
+   "viral_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "weakpoint_crit_chance": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "weakpoint_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "zoom": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   }
+  },
+  "melee": {
+   "attack_speed": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "cold_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": false
+   },
+   "combo_duration": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "combo_gain_chance": {
+    "bonus": false,
+    "malus": true,
+    "spliced": false
+   },
+   "crit_chance": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "crit_damage": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "damage_vs_corpus": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "damage_vs_grineer": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "damage_vs_infested": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "electric_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": false
+   },
+   "extra_combo_count": {
+    "bonus": true,
+    "malus": false,
+    "spliced": false
+   },
+   "finisher_damage": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "heat_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": false
+   },
+   "heavy_attack_efficiency": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "impact_damage": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "initial_combo": {
+    "bonus": true,
+    "malus": false,
+    "spliced": false
+   },
+   "melee_damage": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "melee_heavy_attack_charge": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "melee_heavy_attack_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "melee_parry_angle": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "melee_slam_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "puncture_damage": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "range": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "slash_damage": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "slide_crit": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "status_chance": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "status_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "status_duration": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "toxin_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": false
+   }
+  },
+  "pistol": {
+   "ammo_efficiency": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "ammo_max": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "blast_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "cold_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": false
+   },
+   "corrosive_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "crit_chance": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "crit_damage": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "damage_vs_corpus": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "damage_vs_grineer": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "damage_vs_infested": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "damage_vs_orokin": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "damage_vs_scaldra": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "damage_vs_techrot": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "electric_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": false
+   },
+   "fire_rate": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "gas_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "heat_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": false
+   },
+   "impact_damage": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "magazine_capacity": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "magnetic_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "melee_damage": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "multishot": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "projectile_speed": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "punch_through": {
+    "bonus": true,
+    "malus": false,
+    "spliced": false
+   },
+   "puncture_damage": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "radiation_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "recoil": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "reload_holstered": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "reload_speed": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "slash_damage": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "status_chance": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "status_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "status_duration": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "toxin_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": false
+   },
+   "viral_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "weakpoint_crit_chance": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "weakpoint_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "zoom": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   }
+  },
+  "rifle": {
+   "ammo_efficiency": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "ammo_max": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "blast_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "cold_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": false
+   },
+   "corrosive_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "crit_chance": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "crit_damage": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "damage_vs_corpus": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "damage_vs_grineer": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "damage_vs_infested": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "damage_vs_orokin": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "damage_vs_scaldra": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "damage_vs_techrot": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "electric_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": false
+   },
+   "fire_rate": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "gas_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "heat_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": false
+   },
+   "impact_damage": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "magazine_capacity": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "magnetic_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "melee_damage": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "multishot": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "projectile_speed": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "punch_through": {
+    "bonus": true,
+    "malus": false,
+    "spliced": false
+   },
+   "puncture_damage": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "radiation_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "recoil": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "reload_holstered": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "reload_speed": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "slash_damage": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "status_chance": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "status_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "status_duration": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "toxin_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": false
+   },
+   "viral_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "weakpoint_crit_chance": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "weakpoint_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "zoom": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   }
+  },
+  "shotgun": {
+   "ammo_efficiency": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "ammo_max": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "blast_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "cold_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": false
+   },
+   "corrosive_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "crit_chance": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "crit_damage": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "damage_vs_corpus": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "damage_vs_grineer": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "damage_vs_infested": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "damage_vs_orokin": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "damage_vs_scaldra": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "damage_vs_techrot": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "electric_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": false
+   },
+   "fire_rate": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "gas_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "heat_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": false
+   },
+   "impact_damage": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "magazine_capacity": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "magnetic_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "melee_damage": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "multishot": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "projectile_speed": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "punch_through": {
+    "bonus": true,
+    "malus": false,
+    "spliced": false
+   },
+   "puncture_damage": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "radiation_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "recoil": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "reload_holstered": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "reload_speed": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "slash_damage": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "status_chance": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "status_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "status_duration": {
+    "bonus": true,
+    "malus": true,
+    "spliced": false
+   },
+   "toxin_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": false
+   },
+   "viral_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "weakpoint_crit_chance": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   },
+   "weakpoint_damage": {
+    "bonus": true,
+    "malus": false,
+    "spliced": true
+   }
+  }
+ },
+ "families": {
+  "1999EntHybridPistolWeapon": {
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage"
+   ],
+   "survey": null,
+   "wf": "Riot-848"
+  },
+  "1999InfShotgunWeapon": {
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [],
+   "survey": null,
+   "wf": "Coda Bassocyst"
+  },
+  "1999InfSporePistolWeapon": {
+   "never": [
+    "impact_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Dual Coda Torxica"
+  },
+  "AcidDartPistol": {
+   "no_ammo_pool": false,
+   "survey": {
+    "n": 43,
+    "never": [],
+    "rollable": [],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": [
+     "ammo_max",
+     "cold_damage",
+     "crit_chance",
+     "crit_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "fire_rate",
+     "heat_damage",
+     "impact_damage",
+     "magazine_capacity",
+     "melee_damage",
+     "multishot",
+     "projectile_speed",
+     "punch_through",
+     "puncture_damage",
+     "recoil",
+     "reload_speed",
+     "slash_damage",
+     "status_chance",
+     "status_damage",
+     "status_duration",
+     "toxin_damage",
+     "zoom"
+    ]
+   },
+   "wf": "Acrid"
+  },
+  "AkLexPistols": {
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage"
+   ],
+   "survey": null,
+   "wf": "Aklex"
+  },
+  "AkimboAutoPistols": {
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage"
+   ],
+   "survey": null,
+   "wf": "Afuris"
+  },
+  "AkimboBolto": {
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage"
+   ],
+   "survey": null,
+   "wf": "Akbolto"
+  },
+  "AkimboPistol": {
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Aklato"
+  },
+  "AkimboShotGun": {
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage"
+   ],
+   "survey": null,
+   "wf": "Akbronco"
+  },
+  "AkimboSomaPistols": {
+   "never": [
+    "impact_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Aksomati"
+  },
+  "AkimboViperPistols": {
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage"
+   ],
+   "survey": null,
+   "wf": "Twin Vipers"
+  },
+  "AllNew1hSG": {
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage"
+   ],
+   "survey": null,
+   "wf": "Euphona Prime"
+  },
+  "AntlerBow": {
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage"
+   ],
+   "survey": {
+    "n": 497,
+    "never": [
+     "puncture_damage",
+     "slash_damage"
+    ],
+    "rollable": [
+     "ammo_max",
+     "cold_damage",
+     "crit_chance",
+     "crit_damage",
+     "melee_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "fire_rate",
+     "heat_damage",
+     "impact_damage",
+     "magazine_capacity",
+     "multishot",
+     "projectile_speed",
+     "punch_through",
+     "reload_speed",
+     "status_chance",
+     "status_duration",
+     "toxin_damage",
+     "recoil",
+     "zoom"
+    ],
+    "surveyed": "2026-08-08",
+    "unclear": []
+   },
+   "wf": "Cernos"
+  },
+  "ArchBurstGun": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Cyngas"
+  },
+  "ArchCannon": {
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage"
+   ],
+   "survey": null,
+   "wf": "Corvas"
+  },
+  "ArchGRNAAGun": {
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage"
+   ],
+   "survey": null,
+   "wf": "Grattler"
+  },
+  "ArchHeavyPistols": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Dual Decurion"
+  },
+  "ArchLongRifle": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage"
+   ],
+   "survey": null,
+   "wf": "Phaedra"
+  },
+  "ArchMachineGun": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Imperator"
+  },
+  "ArchRailgun": {
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [],
+   "survey": null,
+   "wf": "Velocitus"
+  },
+  "ArchRocketCrossbow": {
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Fluctus"
+  },
+  "AsymetricalBow": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Daikyu"
+  },
+  "AutoCrossBow": {
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage"
+   ],
+   "survey": null,
+   "wf": "Ballistica"
+  },
+  "AutoPistol": {
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "projectile_speed",
+    "puncture_damage"
+   ],
+   "survey": {
+    "n": 500,
+    "never": [
+     "impact_damage",
+     "slash_damage"
+    ],
+    "rollable": [
+     "ammo_max",
+     "cold_damage",
+     "crit_chance",
+     "crit_damage",
+     "melee_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "fire_rate",
+     "heat_damage",
+     "magazine_capacity",
+     "multishot",
+     "punch_through",
+     "puncture_damage",
+     "reload_speed",
+     "status_chance",
+     "status_duration",
+     "toxin_damage",
+     "recoil",
+     "zoom"
+    ],
+    "surveyed": "2026-08-08",
+    "unclear": [
+     "projectile_speed"
+    ]
+   },
+   "wf": "Furis"
+  },
+  "AxeWeapon": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 69,
+    "never": [
+     "impact_damage",
+     "puncture_damage"
+    ],
+    "rollable": [
+     "attack_speed",
+     "cold_damage",
+     "combo_duration",
+     "crit_chance",
+     "crit_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "extra_combo_count",
+     "finisher_damage",
+     "heat_damage",
+     "heavy_attack_efficiency",
+     "initial_combo",
+     "melee_damage",
+     "range",
+     "slash_damage",
+     "slide_crit",
+     "status_chance",
+     "status_duration",
+     "toxin_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": [
+     "combo_gain_chance",
+     "melee_heavy_attack_charge",
+     "melee_heavy_attack_damage",
+     "melee_parry_angle",
+     "melee_slam_damage",
+     "status_damage"
+    ]
+   },
+   "wf": "Scindo"
+  },
+  "BallasSwordWeapon": {
+   "survey": {
+    "n": 74,
+    "never": [
+     "impact_damage",
+     "puncture_damage"
+    ],
+    "rollable": [
+     "slash_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": []
+   },
+   "wf": "Paracesis"
+  },
+  "BioWeapon": {
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [],
+   "survey": {
+    "n": 500,
+    "never": [
+     "impact_damage",
+     "puncture_damage",
+     "slash_damage"
+    ],
+    "rollable": [
+     "ammo_max",
+     "cold_damage",
+     "crit_chance",
+     "crit_damage",
+     "melee_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "fire_rate",
+     "heat_damage",
+     "magazine_capacity",
+     "multishot",
+     "projectile_speed",
+     "reload_speed",
+     "status_chance",
+     "status_duration",
+     "toxin_damage",
+     "recoil",
+     "zoom"
+    ],
+    "surveyed": "2026-08-08",
+    "unclear": [
+     "punch_through"
+    ]
+   },
+   "wf": "Torid"
+  },
+  "BoltoRifle": {
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage"
+   ],
+   "survey": {
+    "n": 500,
+    "never": [
+     "impact_damage",
+     "slash_damage"
+    ],
+    "rollable": [
+     "ammo_max",
+     "cold_damage",
+     "crit_chance",
+     "crit_damage",
+     "melee_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "fire_rate",
+     "heat_damage",
+     "magazine_capacity",
+     "multishot",
+     "projectile_speed",
+     "punch_through",
+     "puncture_damage",
+     "reload_speed",
+     "status_chance",
+     "status_duration",
+     "toxin_damage",
+     "recoil",
+     "zoom"
+    ],
+    "surveyed": "2026-08-08",
+    "unclear": []
+   },
+   "wf": "Boltor"
+  },
+  "Boltonfa": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 53,
+    "never": [
+     "impact_damage",
+     "slash_damage"
+    ],
+    "rollable": [
+     "attack_speed",
+     "cold_damage",
+     "combo_duration",
+     "crit_chance",
+     "crit_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "extra_combo_count",
+     "finisher_damage",
+     "heat_damage",
+     "heavy_attack_efficiency",
+     "initial_combo",
+     "melee_damage",
+     "puncture_damage",
+     "range",
+     "slide_crit",
+     "status_chance",
+     "status_duration",
+     "toxin_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": [
+     "combo_gain_chance",
+     "melee_heavy_attack_charge",
+     "melee_heavy_attack_damage",
+     "melee_parry_angle",
+     "melee_slam_damage",
+     "status_damage"
+    ]
+   },
+   "wf": "Boltace"
+  },
+  "BoomerangWeapon": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 54,
+    "never": [
+     "puncture_damage",
+     "slash_damage"
+    ],
+    "rollable": [
+     "attack_speed",
+     "cold_damage",
+     "combo_duration",
+     "combo_gain_chance",
+     "crit_chance",
+     "crit_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "extra_combo_count",
+     "finisher_damage",
+     "heat_damage",
+     "heavy_attack_efficiency",
+     "impact_damage",
+     "initial_combo",
+     "melee_damage",
+     "range",
+     "slide_crit",
+     "status_chance",
+     "status_duration",
+     "toxin_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": [
+     "melee_heavy_attack_charge",
+     "melee_heavy_attack_damage",
+     "melee_parry_angle",
+     "melee_slam_damage",
+     "status_damage"
+    ]
+   },
+   "wf": "Kestrel"
+  },
+  "BrassKnuckles": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 59,
+    "never": [
+     "puncture_damage",
+     "slash_damage"
+    ],
+    "rollable": [
+     "attack_speed",
+     "cold_damage",
+     "combo_duration",
+     "combo_gain_chance",
+     "crit_chance",
+     "crit_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "extra_combo_count",
+     "finisher_damage",
+     "heat_damage",
+     "heavy_attack_efficiency",
+     "impact_damage",
+     "initial_combo",
+     "melee_damage",
+     "range",
+     "slide_crit",
+     "status_chance",
+     "status_duration",
+     "toxin_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": [
+     "melee_heavy_attack_charge",
+     "melee_heavy_attack_damage",
+     "melee_parry_angle",
+     "melee_slam_damage",
+     "status_damage"
+    ]
+   },
+   "wf": "Kogake"
+  },
+  "BrawlerKnuckles": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 69,
+    "never": [
+     "impact_damage",
+     "puncture_damage"
+    ],
+    "rollable": [
+     "attack_speed",
+     "cold_damage",
+     "combo_duration",
+     "crit_chance",
+     "crit_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "extra_combo_count",
+     "finisher_damage",
+     "heat_damage",
+     "heavy_attack_efficiency",
+     "initial_combo",
+     "melee_damage",
+     "range",
+     "slash_damage",
+     "slide_crit",
+     "status_chance",
+     "status_duration",
+     "toxin_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": [
+     "combo_gain_chance",
+     "melee_heavy_attack_charge",
+     "melee_heavy_attack_damage",
+     "melee_parry_angle",
+     "melee_slam_damage",
+     "status_damage"
+    ]
+   },
+   "wf": "Tekko"
+  },
+  "BurstLaserPistol": {
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": true,
+   "rolls": [
+    "puncture_damage"
+   ],
+   "survey": null,
+   "wf": "Burst Laser"
+  },
+  "BurstPistol": {
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage"
+   ],
+   "survey": {
+    "n": 500,
+    "never": [
+     "puncture_damage",
+     "slash_damage"
+    ],
+    "rollable": [
+     "ammo_max",
+     "cold_damage",
+     "crit_chance",
+     "crit_damage",
+     "melee_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "fire_rate",
+     "heat_damage",
+     "impact_damage",
+     "magazine_capacity",
+     "multishot",
+     "punch_through",
+     "reload_speed",
+     "status_chance",
+     "status_duration",
+     "toxin_damage",
+     "recoil",
+     "zoom"
+    ],
+    "surveyed": "2026-08-08",
+    "unclear": [
+     "projectile_speed"
+    ]
+   },
+   "wf": "Sicarus"
+  },
+  "BurstRifle": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": {
+    "n": 499,
+    "never": [
+     "projectile_speed"
+    ],
+    "rollable": [
+     "ammo_max",
+     "cold_damage",
+     "crit_chance",
+     "crit_damage",
+     "melee_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "fire_rate",
+     "heat_damage",
+     "impact_damage",
+     "magazine_capacity",
+     "multishot",
+     "puncture_damage",
+     "reload_speed",
+     "slash_damage",
+     "status_chance",
+     "status_duration",
+     "toxin_damage",
+     "recoil",
+     "zoom"
+    ],
+    "surveyed": "2026-08-08",
+    "unclear": [
+     "punch_through"
+    ]
+   },
+   "wf": "Burston"
+  },
+  "CSDroidArray": {
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [],
+   "survey": null,
+   "wf": "Gammacor"
+  },
+  "CephHammerWeapon": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 83,
+    "never": [
+     "puncture_damage",
+     "slash_damage"
+    ],
+    "rollable": [
+     "attack_speed",
+     "cold_damage",
+     "combo_duration",
+     "combo_gain_chance",
+     "crit_chance",
+     "crit_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "extra_combo_count",
+     "finisher_damage",
+     "heat_damage",
+     "heavy_attack_efficiency",
+     "impact_damage",
+     "initial_combo",
+     "melee_damage",
+     "melee_slam_damage",
+     "range",
+     "slide_crit",
+     "status_chance",
+     "status_duration",
+     "toxin_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": [
+     "melee_heavy_attack_charge",
+     "melee_heavy_attack_damage",
+     "melee_parry_angle",
+     "status_damage"
+    ]
+   },
+   "wf": "Heliocor"
+  },
+  "CephPrimary": {
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage"
+   ],
+   "survey": null,
+   "wf": "Simulor"
+  },
+  "ChainLightningRifle": {
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [],
+   "survey": null,
+   "wf": "Amprex"
+  },
+  "ConclaveLeverPistol": {
+   "never": [
+    "puncture_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Zylok"
+  },
+  "CorpusHandCannon": {
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [],
+   "survey": null,
+   "wf": "Detron"
+  },
+  "CorpusHandRocketLauncher": {
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [],
+   "survey": null,
+   "wf": "Angstrum"
+  },
+  "CorpusMinigun": {
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage"
+   ],
+   "survey": {
+    "n": 338,
+    "never": [
+     "impact_damage",
+     "slash_damage"
+    ],
+    "rollable": [
+     "ammo_max",
+     "cold_damage",
+     "crit_chance",
+     "crit_damage",
+     "melee_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "fire_rate",
+     "heat_damage",
+     "magazine_capacity",
+     "multishot",
+     "projectile_speed",
+     "punch_through",
+     "puncture_damage",
+     "reload_speed",
+     "status_chance",
+     "status_duration",
+     "toxin_damage",
+     "recoil",
+     "zoom"
+    ],
+    "surveyed": "2026-08-08",
+    "unclear": []
+   },
+   "wf": "Cestra"
+  },
+  "CorpusRailgun": {
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage"
+   ],
+   "survey": null,
+   "wf": "Ferrox"
+  },
+  "CorpusUMP": {
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage"
+   ],
+   "survey": null,
+   "wf": "Tetra"
+  },
+  "CorpusWhipWeapon": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 66,
+    "never": [
+     "impact_damage",
+     "puncture_damage",
+     "slash_damage"
+    ],
+    "rollable": [
+     "attack_speed",
+     "cold_damage",
+     "combo_duration",
+     "combo_gain_chance",
+     "crit_chance",
+     "crit_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "extra_combo_count",
+     "finisher_damage",
+     "heat_damage",
+     "heavy_attack_efficiency",
+     "initial_combo",
+     "melee_damage",
+     "range",
+     "slide_crit",
+     "status_chance",
+     "status_duration",
+     "toxin_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": [
+     "melee_heavy_attack_charge",
+     "melee_heavy_attack_damage",
+     "melee_parry_angle",
+     "melee_slam_damage",
+     "status_damage"
+    ]
+   },
+   "wf": "Lecta"
+  },
+  "CrossBow": {
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage"
+   ],
+   "survey": null,
+   "wf": "Bolto"
+  },
+  "CrpAirPistolArray": {
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage"
+   ],
+   "survey": null,
+   "wf": "Sonicor"
+  },
+  "CrpArSniperRifle": {
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [],
+   "survey": null,
+   "wf": "Ambassador"
+  },
+  "CrpBFG": {
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage"
+   ],
+   "survey": null,
+   "wf": "Opticor"
+  },
+  "CrpBlastorWeapon": {
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage"
+   ],
+   "survey": null,
+   "wf": "Plinx"
+  },
+  "CrpBow": {
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage"
+   ],
+   "survey": null,
+   "wf": "Lenz"
+  },
+  "CrpBriefcaseAkimboPistol": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Tenet Diplos"
+  },
+  "CrpBriefcaseLauncher": {
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage"
+   ],
+   "survey": null,
+   "wf": "Tenet Envoy"
+  },
+  "CrpChargeGun": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Cycron"
+  },
+  "CrpElectroMag": {
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [],
+   "survey": null,
+   "wf": "Staticor"
+  },
+  "CrpFreezeRayRifle": {
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [],
+   "survey": null,
+   "wf": "Glaxion"
+  },
+  "CrpGhostCatcherGlaive": {
+   "survey": {
+    "n": 100,
+    "never": [
+     "impact_damage"
+    ],
+    "rollable": [
+     "puncture_damage",
+     "slash_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": []
+   },
+   "wf": "Xoris"
+  },
+  "CrpGunbladeWeapon": {
+   "survey": {
+    "n": 87,
+    "never": [],
+    "rollable": [
+     "impact_damage",
+     "puncture_damage",
+     "slash_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": []
+   },
+   "wf": "Stropha"
+  },
+  "CrpHeavyRifle": {
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage"
+   ],
+   "survey": null,
+   "wf": "Supra"
+  },
+  "CrpIgniterPistol": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Tenet Spirex"
+  },
+  "CrpLaserPistol": {
+   "never": [
+    "impact_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Spectra"
+  },
+  "CrpLaserRifle": {
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Flux Rifle"
+  },
+  "CrpRubanRifle": {
+   "never": [
+    "impact_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Stahlta"
+  },
+  "CrpScopeGun": {
+   "never": [
+    "impact_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Arca Scisco"
+  },
+  "CrpSentAmalgPistol": {
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage"
+   ],
+   "survey": null,
+   "wf": "Cyanex"
+  },
+  "CrpSentAmlgSniper": {
+   "never": [
+    "impact_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Komorex"
+  },
+  "CrpSentExperimentPistol": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "projectile_speed",
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": {
+    "n": 500,
+    "never": [],
+    "rollable": [
+     "ammo_max",
+     "cold_damage",
+     "crit_chance",
+     "crit_damage",
+     "melee_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "fire_rate",
+     "heat_damage",
+     "impact_damage",
+     "magazine_capacity",
+     "multishot",
+     "projectile_speed",
+     "puncture_damage",
+     "reload_speed",
+     "slash_damage",
+     "status_chance",
+     "status_duration",
+     "toxin_damage",
+     "recoil",
+     "zoom"
+    ],
+    "surveyed": "2026-08-08",
+    "unclear": [
+     "punch_through"
+    ]
+   },
+   "wf": "Ocucor"
+  },
+  "CrpSentExperimentRifle": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Battacor"
+  },
+  "CrpShapeBlastShotgun": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Exergis"
+  },
+  "CrpShockRifle": {
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [],
+   "survey": null,
+   "wf": "Quanta"
+  },
+  "CrpShotgun": {
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [],
+   "survey": null,
+   "wf": "Arca Plasmor"
+  },
+  "CrpSplitLaser": {
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Convectrix"
+  },
+  "CrpTonfa": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 100,
+    "never": [
+     "puncture_damage",
+     "slash_damage"
+    ],
+    "rollable": [
+     "attack_speed",
+     "cold_damage",
+     "combo_duration",
+     "combo_gain_chance",
+     "crit_chance",
+     "crit_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "extra_combo_count",
+     "finisher_damage",
+     "heat_damage",
+     "heavy_attack_efficiency",
+     "initial_combo",
+     "melee_damage",
+     "range",
+     "slide_crit",
+     "status_chance",
+     "status_damage",
+     "status_duration",
+     "toxin_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": [
+     "impact_damage",
+     "melee_heavy_attack_charge",
+     "melee_heavy_attack_damage",
+     "melee_parry_angle",
+     "melee_slam_damage"
+    ]
+   },
+   "wf": "Ohma"
+  },
+  "CryoxionWeapon": {
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": true,
+   "rolls": [
+    "impact_damage"
+   ],
+   "survey": null,
+   "wf": "Cryotra"
+  },
+  "CutlassPoignardSwords": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 100,
+    "never": [],
+    "rollable": [
+     "attack_speed",
+     "cold_damage",
+     "combo_duration",
+     "combo_gain_chance",
+     "crit_chance",
+     "crit_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "extra_combo_count",
+     "finisher_damage",
+     "heat_damage",
+     "heavy_attack_efficiency",
+     "initial_combo",
+     "melee_damage",
+     "range",
+     "slash_damage",
+     "slide_crit",
+     "status_chance",
+     "status_duration",
+     "toxin_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": [
+     "impact_damage",
+     "melee_heavy_attack_charge",
+     "melee_heavy_attack_damage",
+     "melee_parry_angle",
+     "melee_slam_damage",
+     "puncture_damage",
+     "status_damage"
+    ]
+   },
+   "wf": "Nami Skyla"
+  },
+  "DarkDagger": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 60,
+    "never": [
+     "impact_damage",
+     "puncture_damage",
+     "slash_damage"
+    ],
+    "rollable": [
+     "attack_speed",
+     "cold_damage",
+     "combo_duration",
+     "combo_gain_chance",
+     "crit_chance",
+     "crit_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "extra_combo_count",
+     "finisher_damage",
+     "heat_damage",
+     "heavy_attack_efficiency",
+     "initial_combo",
+     "melee_damage",
+     "range",
+     "slide_crit",
+     "status_chance",
+     "status_duration",
+     "toxin_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": [
+     "melee_heavy_attack_charge",
+     "melee_heavy_attack_damage",
+     "melee_parry_angle",
+     "melee_slam_damage",
+     "status_damage"
+    ]
+   },
+   "wf": "Dark Dagger"
+  },
+  "DaxDuviriAsymmetricalLongBowPlayerWeapon": {
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage"
+   ],
+   "survey": null,
+   "wf": "Cinta"
+  },
+  "DerelictCernos": {
+   "never": [
+    "puncture_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Proboscis Cernos"
+  },
+  "DethMachineRifle": {
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "no_ammo_pool": true,
+   "rolls": [
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Deth Machine Rifle"
+  },
+  "DoubleBarrelShotgun": {
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage"
+   ],
+   "survey": null,
+   "wf": "Sobek"
+  },
+  "DrakeRifle": {
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage"
+   ],
+   "survey": null,
+   "wf": "Tiberon"
+  },
+  "DualAxeWeapon": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 66,
+    "never": [
+     "puncture_damage"
+    ],
+    "rollable": [
+     "attack_speed",
+     "cold_damage",
+     "combo_duration",
+     "crit_chance",
+     "crit_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "extra_combo_count",
+     "finisher_damage",
+     "heat_damage",
+     "heavy_attack_efficiency",
+     "initial_combo",
+     "melee_damage",
+     "range",
+     "slash_damage",
+     "slide_crit",
+     "status_chance",
+     "status_duration",
+     "toxin_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": [
+     "combo_gain_chance",
+     "impact_damage",
+     "melee_heavy_attack_charge",
+     "melee_heavy_attack_damage",
+     "melee_parry_angle",
+     "melee_slam_damage",
+     "status_damage"
+    ]
+   },
+   "wf": "Dual Zoren"
+  },
+  "DualCleaverWeapon": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 48,
+    "never": [],
+    "rollable": [],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": [
+     "attack_speed",
+     "cold_damage",
+     "combo_duration",
+     "combo_gain_chance",
+     "crit_chance",
+     "crit_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "extra_combo_count",
+     "finisher_damage",
+     "heat_damage",
+     "heavy_attack_efficiency",
+     "impact_damage",
+     "initial_combo",
+     "melee_damage",
+     "melee_heavy_attack_charge",
+     "melee_heavy_attack_damage",
+     "melee_parry_angle",
+     "melee_slam_damage",
+     "puncture_damage",
+     "range",
+     "slash_damage",
+     "slide_crit",
+     "status_chance",
+     "status_damage",
+     "status_duration",
+     "toxin_damage"
+    ]
+   },
+   "wf": "Dual Cleavers"
+  },
+  "DualCorpusMinigun": {
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage"
+   ],
+   "survey": null,
+   "wf": "Dual Cestra"
+  },
+  "DualDagger": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 54,
+    "never": [
+     "impact_damage",
+     "slash_damage"
+    ],
+    "rollable": [
+     "attack_speed",
+     "cold_damage",
+     "combo_duration",
+     "combo_gain_chance",
+     "crit_chance",
+     "crit_damage",
+     "damage_vs_corpus",
+     "damage_vs_infested",
+     "electric_damage",
+     "extra_combo_count",
+     "finisher_damage",
+     "heat_damage",
+     "heavy_attack_efficiency",
+     "initial_combo",
+     "melee_damage",
+     "puncture_damage",
+     "range",
+     "slide_crit",
+     "status_chance",
+     "status_duration",
+     "toxin_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": [
+     "damage_vs_grineer",
+     "melee_heavy_attack_charge",
+     "melee_heavy_attack_damage",
+     "melee_parry_angle",
+     "melee_slam_damage",
+     "status_damage"
+    ]
+   },
+   "wf": "Fang"
+  },
+  "DualKamas": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 54,
+    "never": [
+     "impact_damage",
+     "puncture_damage"
+    ],
+    "rollable": [
+     "attack_speed",
+     "combo_duration",
+     "combo_gain_chance",
+     "crit_chance",
+     "crit_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "extra_combo_count",
+     "finisher_damage",
+     "heat_damage",
+     "heavy_attack_efficiency",
+     "initial_combo",
+     "melee_damage",
+     "range",
+     "slash_damage",
+     "slide_crit",
+     "status_chance",
+     "status_duration",
+     "toxin_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": [
+     "cold_damage",
+     "melee_heavy_attack_charge",
+     "melee_heavy_attack_damage",
+     "melee_parry_angle",
+     "melee_slam_damage",
+     "status_damage"
+    ]
+   },
+   "wf": "Dual Kamas"
+  },
+  "DualMagnus": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Akmagnus"
+  },
+  "DualVastos": {
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Akvasto"
+  },
+  "ElectroProd": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 38,
+    "never": [],
+    "rollable": [],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": [
+     "attack_speed",
+     "cold_damage",
+     "combo_duration",
+     "combo_gain_chance",
+     "crit_chance",
+     "crit_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "extra_combo_count",
+     "finisher_damage",
+     "heat_damage",
+     "heavy_attack_efficiency",
+     "impact_damage",
+     "initial_combo",
+     "melee_damage",
+     "melee_heavy_attack_charge",
+     "melee_heavy_attack_damage",
+     "melee_parry_angle",
+     "melee_slam_damage",
+     "puncture_damage",
+     "range",
+     "slash_damage",
+     "slide_crit",
+     "status_chance",
+     "status_damage",
+     "status_duration",
+     "toxin_damage"
+    ]
+   },
+   "wf": "Prova"
+  },
+  "EnergyRifle": {
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage"
+   ],
+   "survey": {
+    "n": 499,
+    "never": [
+     "impact_damage",
+     "slash_damage"
+    ],
+    "rollable": [
+     "ammo_max",
+     "cold_damage",
+     "crit_chance",
+     "crit_damage",
+     "melee_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "fire_rate",
+     "heat_damage",
+     "magazine_capacity",
+     "multishot",
+     "projectile_speed",
+     "punch_through",
+     "puncture_damage",
+     "reload_speed",
+     "status_chance",
+     "status_duration",
+     "toxin_damage",
+     "recoil",
+     "zoom"
+    ],
+    "surveyed": "2026-08-08",
+    "unclear": []
+   },
+   "wf": "Dera"
+  },
+  "EntratiWristGunWeapon": {
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage"
+   ],
+   "survey": null,
+   "wf": "Onos"
+  },
+  "ExaltedAWScytheWeapon": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 100,
+    "never": [
+     "slash_damage"
+    ],
+    "rollable": [
+     "impact_damage",
+     "puncture_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": []
+   },
+   "wf": "Corufell"
+  },
+  "Fist": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 100,
+    "never": [
+     "puncture_damage",
+     "slash_damage"
+    ],
+    "rollable": [
+     "attack_speed",
+     "cold_damage",
+     "combo_duration",
+     "combo_gain_chance",
+     "crit_chance",
+     "crit_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "extra_combo_count",
+     "finisher_damage",
+     "heat_damage",
+     "heavy_attack_efficiency",
+     "impact_damage",
+     "initial_combo",
+     "melee_damage",
+     "melee_slam_damage",
+     "range",
+     "slide_crit",
+     "status_chance",
+     "status_duration",
+     "toxin_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": [
+     "melee_heavy_attack_charge",
+     "melee_heavy_attack_damage",
+     "melee_parry_angle",
+     "status_damage"
+    ]
+   },
+   "wf": "Furax"
+  },
+  "FiveShotSniper": {
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage"
+   ],
+   "survey": null,
+   "wf": "Rubico"
+  },
+  "FlakCannon": {
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Drakgoon"
+  },
+  "FlameThrower": {
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [],
+   "survey": null,
+   "wf": "Ignis"
+  },
+  "FullAutoShotgun": {
+   "never": [
+    "projectile_speed",
+    "zoom",
+    "puncture_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "survey": {
+    "n": 500,
+    "never": [
+     "projectile_speed",
+     "puncture_damage",
+     "zoom"
+    ],
+    "rollable": [
+     "ammo_max",
+     "cold_damage",
+     "crit_chance",
+     "crit_damage",
+     "melee_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "fire_rate",
+     "heat_damage",
+     "impact_damage",
+     "magazine_capacity",
+     "multishot",
+     "punch_through",
+     "reload_speed",
+     "slash_damage",
+     "status_chance",
+     "status_duration",
+     "toxin_damage",
+     "recoil"
+    ],
+    "surveyed": "2026-08-08",
+    "unclear": []
+   },
+   "wf": "Boar"
+  },
+  "GLAPistol": {
+   "never": [
+    "puncture_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Marelok"
+  },
+  "GLARifle": {
+   "never": [
+    "puncture_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "survey": {
+    "n": 315,
+    "never": [
+     "projectile_speed",
+     "puncture_damage"
+    ],
+    "rollable": [
+     "ammo_max",
+     "cold_damage",
+     "crit_chance",
+     "crit_damage",
+     "melee_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "fire_rate",
+     "heat_damage",
+     "impact_damage",
+     "magazine_capacity",
+     "multishot",
+     "punch_through",
+     "reload_speed",
+     "slash_damage",
+     "status_chance",
+     "status_duration",
+     "toxin_damage",
+     "recoil",
+     "zoom"
+    ],
+    "surveyed": "2026-08-08",
+    "unclear": []
+   },
+   "wf": "Grinlok"
+  },
+  "GarudaCrossbow": {
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Nagantaka"
+  },
+  "Gauntlet": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 77,
+    "never": [
+     "puncture_damage",
+     "slash_damage"
+    ],
+    "rollable": [
+     "attack_speed",
+     "cold_damage",
+     "combo_duration",
+     "combo_gain_chance",
+     "crit_chance",
+     "crit_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "extra_combo_count",
+     "finisher_damage",
+     "heat_damage",
+     "heavy_attack_efficiency",
+     "impact_damage",
+     "initial_combo",
+     "melee_damage",
+     "range",
+     "slide_crit",
+     "status_chance",
+     "status_duration",
+     "toxin_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": [
+     "melee_heavy_attack_charge",
+     "melee_heavy_attack_damage",
+     "melee_parry_angle",
+     "melee_slam_damage",
+     "status_damage"
+    ]
+   },
+   "wf": "Ankyros"
+  },
+  "GlassHammer": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 51,
+    "never": [
+     "impact_damage"
+    ],
+    "rollable": [
+     "attack_speed",
+     "cold_damage",
+     "combo_duration",
+     "crit_chance",
+     "crit_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "extra_combo_count",
+     "finisher_damage",
+     "heavy_attack_efficiency",
+     "initial_combo",
+     "melee_damage",
+     "puncture_damage",
+     "range",
+     "slash_damage",
+     "slide_crit",
+     "status_chance",
+     "status_duration",
+     "toxin_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": [
+     "combo_gain_chance",
+     "heat_damage",
+     "melee_heavy_attack_charge",
+     "melee_heavy_attack_damage",
+     "melee_parry_angle",
+     "melee_slam_damage",
+     "status_damage"
+    ]
+   },
+   "wf": "Volnus"
+  },
+  "GlassKunaiWeapon": {
+   "never": [
+    "impact_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Fusilai"
+  },
+  "GreatSword": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 90,
+    "never": [
+     "impact_damage",
+     "puncture_damage"
+    ],
+    "rollable": [
+     "attack_speed",
+     "cold_damage",
+     "combo_duration",
+     "crit_chance",
+     "crit_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "extra_combo_count",
+     "finisher_damage",
+     "heat_damage",
+     "heavy_attack_efficiency",
+     "initial_combo",
+     "melee_damage",
+     "range",
+     "slash_damage",
+     "slide_crit",
+     "status_chance",
+     "status_duration",
+     "toxin_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": [
+     "combo_gain_chance",
+     "melee_heavy_attack_charge",
+     "melee_heavy_attack_damage",
+     "melee_parry_angle",
+     "melee_slam_damage",
+     "status_damage"
+    ]
+   },
+   "wf": "Gram"
+  },
+  "Gremlin": {
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": true,
+   "rolls": [],
+   "survey": null,
+   "wf": "Artax"
+  },
+  "GrenadeLauncher": {
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage"
+   ],
+   "survey": null,
+   "wf": "Penta"
+  },
+  "GrineerAkimboPistol": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Twin Gremlins"
+  },
+  "GrineerGooGun": {
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [],
+   "survey": null,
+   "wf": "Stug"
+  },
+  "GrineerHandCannon": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Brakk"
+  },
+  "GrineerLightPistol": {
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage"
+   ],
+   "survey": null,
+   "wf": "Viper"
+  },
+  "GrineerM16Rifle": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": {
+    "n": 424,
+    "never": [
+     "projectile_speed"
+    ],
+    "rollable": [
+     "ammo_max",
+     "cold_damage",
+     "crit_chance",
+     "crit_damage",
+     "melee_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "fire_rate",
+     "heat_damage",
+     "impact_damage",
+     "magazine_capacity",
+     "multishot",
+     "punch_through",
+     "puncture_damage",
+     "reload_speed",
+     "slash_damage",
+     "status_chance",
+     "status_duration",
+     "toxin_damage",
+     "recoil",
+     "zoom"
+    ],
+    "surveyed": "2026-08-08",
+    "unclear": []
+   },
+   "wf": "Karak"
+  },
+  "GrnAmphisPistol": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Quatz"
+  },
+  "GrnAssaultRifle": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Grakata"
+  },
+  "GrnBoomerang": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 37,
+    "never": [],
+    "rollable": [],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": [
+     "attack_speed",
+     "cold_damage",
+     "combo_duration",
+     "combo_gain_chance",
+     "crit_chance",
+     "crit_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "extra_combo_count",
+     "finisher_damage",
+     "heat_damage",
+     "heavy_attack_efficiency",
+     "impact_damage",
+     "initial_combo",
+     "melee_damage",
+     "melee_heavy_attack_charge",
+     "melee_heavy_attack_damage",
+     "melee_parry_angle",
+     "melee_slam_damage",
+     "puncture_damage",
+     "range",
+     "slash_damage",
+     "slide_crit",
+     "status_chance",
+     "status_damage",
+     "status_duration",
+     "toxin_damage"
+    ]
+   },
+   "wf": "Halikar"
+  },
+  "GrnBowWeapon": {
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage"
+   ],
+   "survey": null,
+   "wf": "Kuva Bramma"
+  },
+  "GrnBurstRifle": {
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Hind"
+  },
+  "GrnCannonWeapon": {
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage"
+   ],
+   "survey": null,
+   "wf": "Zarr"
+  },
+  "GrnFlameSpear": {
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [],
+   "survey": null,
+   "wf": "Javlok"
+  },
+  "GrnFourBarrelRifleWeapon": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Quartakk"
+  },
+  "GrnGhoulSawPlayer": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 69,
+    "never": [
+     "impact_damage",
+     "puncture_damage"
+    ],
+    "rollable": [
+     "attack_speed",
+     "cold_damage",
+     "combo_duration",
+     "combo_gain_chance",
+     "crit_chance",
+     "crit_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "extra_combo_count",
+     "finisher_damage",
+     "heat_damage",
+     "heavy_attack_efficiency",
+     "initial_combo",
+     "melee_damage",
+     "range",
+     "slash_damage",
+     "slide_crit",
+     "status_chance",
+     "status_duration",
+     "toxin_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": [
+     "melee_heavy_attack_charge",
+     "melee_heavy_attack_damage",
+     "melee_parry_angle",
+     "melee_slam_damage",
+     "status_damage"
+    ]
+   },
+   "wf": "Ghoulsaw"
+  },
+  "GrnGorgSniperRifle": {
+   "never": [
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "survey": null,
+   "wf": "Buzlok"
+  },
+  "GrnGrenadeLauncher": {
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage"
+   ],
+   "survey": null,
+   "wf": "Tonkor"
+  },
+  "GrnHarpoonGun": {
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage"
+   ],
+   "survey": null,
+   "wf": "Harpak"
+  },
+  "GrnHeatGun": {
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [],
+   "survey": {
+    "n": 500,
+    "never": [
+     "impact_damage",
+     "projectile_speed",
+     "puncture_damage",
+     "slash_damage"
+    ],
+    "rollable": [
+     "ammo_max",
+     "cold_damage",
+     "crit_chance",
+     "crit_damage",
+     "melee_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "fire_rate",
+     "heat_damage",
+     "magazine_capacity",
+     "multishot",
+     "punch_through",
+     "reload_speed",
+     "status_chance",
+     "status_duration",
+     "toxin_damage",
+     "recoil",
+     "zoom"
+    ],
+    "surveyed": "2026-08-08",
+    "unclear": []
+   },
+   "wf": "Atomos"
+  },
+  "GrnHeavyGrenadeLauncher": {
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage"
+   ],
+   "survey": null,
+   "wf": "Kuva Ayanga"
+  },
+  "GrnHeavyPistol": {
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage"
+   ],
+   "survey": null,
+   "wf": "Kraken"
+  },
+  "GrnKohmPistol": {
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Kohmak"
+  },
+  "GrnKuvaLichRifleWeapon": {
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage"
+   ],
+   "survey": null,
+   "wf": "Kuva Chakkhurr"
+  },
+  "GrnMicrowavePistol": {
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [],
+   "survey": null,
+   "wf": "Nukor"
+  },
+  "GrnOrokinPistol": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Sagek Prime"
+  },
+  "GrnOrokinRifleWeapon": {
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage"
+   ],
+   "survey": null,
+   "wf": "Gotva Prime"
+  },
+  "GrnQueenGuardDualPistols": {
+   "never": [
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "survey": null,
+   "wf": "Twin Rogga"
+  },
+  "GrnScopedPistolPlayer": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Seer"
+  },
+  "GrnSniperRifle": {
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage"
+   ],
+   "survey": null,
+   "wf": "Vulkar"
+  },
+  "GrnSparkRifle": {
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Kohm"
+  },
+  "GrnTorpedoPistol": {
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage"
+   ],
+   "survey": null,
+   "wf": "Kulstar"
+  },
+  "GrnTridentWeapon": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 54,
+    "never": [
+     "slash_damage"
+    ],
+    "rollable": [
+     "attack_speed",
+     "cold_damage",
+     "combo_duration",
+     "combo_gain_chance",
+     "crit_chance",
+     "crit_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "extra_combo_count",
+     "finisher_damage",
+     "heat_damage",
+     "heavy_attack_efficiency",
+     "initial_combo",
+     "melee_damage",
+     "melee_heavy_attack_damage",
+     "puncture_damage",
+     "range",
+     "slide_crit",
+     "status_chance",
+     "status_duration",
+     "toxin_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": [
+     "impact_damage",
+     "melee_heavy_attack_charge",
+     "melee_parry_angle",
+     "melee_slam_damage",
+     "status_damage"
+    ]
+   },
+   "wf": "Sydon"
+  },
+  "GrnTwinKohmaks": {
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Twin Kohmak"
+  },
+  "GrnUziWeapon": {
+   "never": [
+    "puncture_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Stubba"
+  },
+  "GrnVorStickyBomb": {
+   "never": [
+    "puncture_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Aegrit"
+  },
+  "GyreRifleWeapon": {
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [],
+   "survey": null,
+   "wf": "Alternox"
+  },
+  "HammerWeapon": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 88,
+    "never": [
+     "puncture_damage",
+     "slash_damage"
+    ],
+    "rollable": [
+     "attack_speed",
+     "cold_damage",
+     "combo_duration",
+     "combo_gain_chance",
+     "crit_chance",
+     "crit_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "extra_combo_count",
+     "finisher_damage",
+     "heat_damage",
+     "heavy_attack_efficiency",
+     "impact_damage",
+     "initial_combo",
+     "melee_damage",
+     "range",
+     "slide_crit",
+     "status_chance",
+     "status_duration",
+     "toxin_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": [
+     "melee_heavy_attack_charge",
+     "melee_heavy_attack_damage",
+     "melee_parry_angle",
+     "melee_slam_damage",
+     "status_damage"
+    ]
+   },
+   "wf": "Fragor"
+  },
+  "HandShotGun": {
+   "never": [
+    "projectile_speed",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage"
+   ],
+   "survey": {
+    "n": 309,
+    "never": [
+     "projectile_speed",
+     "puncture_damage",
+     "slash_damage"
+    ],
+    "rollable": [
+     "ammo_max",
+     "cold_damage",
+     "crit_chance",
+     "crit_damage",
+     "melee_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "fire_rate",
+     "heat_damage",
+     "impact_damage",
+     "magazine_capacity",
+     "multishot",
+     "punch_through",
+     "reload_speed",
+     "status_chance",
+     "status_duration",
+     "toxin_damage",
+     "recoil",
+     "zoom"
+    ],
+    "surveyed": "2026-08-08",
+    "unclear": []
+   },
+   "wf": "Bronco"
+  },
+  "HarlequinPistols": {
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage"
+   ],
+   "survey": null,
+   "wf": "Akzani"
+  },
+  "HeavyPistol": {
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage"
+   ],
+   "survey": {
+    "n": 500,
+    "never": [
+     "impact_damage",
+     "projectile_speed",
+     "slash_damage"
+    ],
+    "rollable": [
+     "ammo_max",
+     "cold_damage",
+     "crit_chance",
+     "crit_damage",
+     "melee_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "fire_rate",
+     "heat_damage",
+     "magazine_capacity",
+     "multishot",
+     "punch_through",
+     "puncture_damage",
+     "reload_speed",
+     "status_chance",
+     "status_duration",
+     "toxin_damage",
+     "recoil",
+     "zoom"
+    ],
+    "surveyed": "2026-08-08",
+    "unclear": []
+   },
+   "wf": "Lex"
+  },
+  "HeavyRifle": {
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage"
+   ],
+   "survey": null,
+   "wf": "Gorgon"
+  },
+  "Hek": {
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage"
+   ],
+   "survey": null,
+   "wf": "Hek"
+  },
+  "HextraWeapon": {
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": true,
+   "rolls": [
+    "puncture_damage"
+   ],
+   "survey": null,
+   "wf": "Multron"
+  },
+  "HuntingBow": {
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage"
+   ],
+   "survey": null,
+   "wf": "Paris"
+  },
+  "InfArmCannon": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Bubonico"
+  },
+  "InfBeamPistol": {
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [],
+   "survey": null,
+   "wf": "Catabolyst"
+  },
+  "InfBoomerangWeapon": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 100,
+    "never": [],
+    "rollable": [
+     "impact_damage",
+     "puncture_damage",
+     "slash_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": []
+   },
+   "wf": "Pathocyst"
+  },
+  "InfCernos": {
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage"
+   ],
+   "survey": null,
+   "wf": "Mutalist Cernos"
+  },
+  "InfCrpShockSwarmRifle": {
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage"
+   ],
+   "survey": null,
+   "wf": "Mutalist Quanta"
+  },
+  "InfModularBarrelBeamPart": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Vermisplicer"
+  },
+  "InfModularBarrelEggPart": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Sporelacer"
+  },
+  "InfProximityStars": {
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [],
+   "survey": null,
+   "wf": "Pox"
+  },
+  "InfQuantaRifle": {
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [],
+   "survey": null,
+   "wf": "Paracyst"
+  },
+  "InfSniperRifle": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Sporothrix"
+  },
+  "InfUziWeapon": {
+   "never": [
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "survey": null,
+   "wf": "Zymos"
+  },
+  "InfVomitGunWep": {
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "projectile_speed",
+    "puncture_damage"
+   ],
+   "survey": {
+    "n": 500,
+    "never": [
+     "impact_damage",
+     "slash_damage"
+    ],
+    "rollable": [
+     "ammo_max",
+     "cold_damage",
+     "crit_chance",
+     "crit_damage",
+     "melee_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "fire_rate",
+     "heat_damage",
+     "magazine_capacity",
+     "multishot",
+     "punch_through",
+     "puncture_damage",
+     "reload_speed",
+     "status_chance",
+     "status_duration",
+     "toxin_damage",
+     "recoil",
+     "zoom"
+    ],
+    "surveyed": "2026-08-08",
+    "unclear": [
+     "projectile_speed"
+    ]
+   },
+   "wf": "Dual Toxocyst"
+  },
+  "InfestedBurstRifle": {
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [],
+   "survey": null,
+   "wf": "Hema"
+  },
+  "InfestedDartPistol": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Tysis"
+  },
+  "InfestedKogake": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 87,
+    "never": [
+     "impact_damage",
+     "slash_damage"
+    ],
+    "rollable": [
+     "attack_speed",
+     "cold_damage",
+     "combo_duration",
+     "crit_chance",
+     "crit_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "extra_combo_count",
+     "finisher_damage",
+     "heat_damage",
+     "heavy_attack_efficiency",
+     "initial_combo",
+     "melee_damage",
+     "puncture_damage",
+     "range",
+     "slide_crit",
+     "status_chance",
+     "status_duration",
+     "toxin_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": [
+     "combo_gain_chance",
+     "melee_heavy_attack_charge",
+     "melee_heavy_attack_damage",
+     "melee_parry_angle",
+     "melee_slam_damage",
+     "status_damage"
+    ]
+   },
+   "wf": "Hirudo"
+  },
+  "InfestedPistol": {
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [],
+   "survey": null,
+   "wf": "Embolist"
+  },
+  "InfestedRifle": {
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [],
+   "survey": null,
+   "wf": "Synapse"
+  },
+  "InfestedScythe": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 100,
+    "never": [
+     "impact_damage",
+     "puncture_damage",
+     "slash_damage"
+    ],
+    "rollable": [
+     "attack_speed",
+     "cold_damage",
+     "combo_duration",
+     "combo_gain_chance",
+     "crit_chance",
+     "crit_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "extra_combo_count",
+     "finisher_damage",
+     "heat_damage",
+     "heavy_attack_efficiency",
+     "initial_combo",
+     "melee_damage",
+     "range",
+     "slide_crit",
+     "status_chance",
+     "status_damage",
+     "status_duration",
+     "toxin_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": [
+     "melee_heavy_attack_charge",
+     "melee_heavy_attack_damage",
+     "melee_parry_angle",
+     "melee_slam_damage"
+    ]
+   },
+   "wf": "Caustacyst"
+  },
+  "InfestedShotgun": {
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [],
+   "survey": null,
+   "wf": "Phage"
+  },
+  "InfestedTipOne": {
+   "survey": {
+    "n": 87,
+    "never": [],
+    "rollable": [
+     "impact_damage",
+     "puncture_damage",
+     "slash_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": []
+   },
+   "wf": "Plague Kripath"
+  },
+  "Katana": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 100,
+    "never": [
+     "impact_damage",
+     "puncture_damage"
+    ],
+    "rollable": [
+     "slash_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": []
+   },
+   "wf": "Nikana"
+  },
+  "KickPunchWeapon": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 100,
+    "never": [
+     "puncture_damage",
+     "slash_damage"
+    ],
+    "rollable": [
+     "attack_speed",
+     "cold_damage",
+     "combo_duration",
+     "combo_gain_chance",
+     "crit_chance",
+     "crit_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "extra_combo_count",
+     "finisher_damage",
+     "heat_damage",
+     "heavy_attack_efficiency",
+     "impact_damage",
+     "initial_combo",
+     "melee_damage",
+     "range",
+     "slide_crit",
+     "status_chance",
+     "status_duration",
+     "toxin_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": [
+     "melee_heavy_attack_charge",
+     "melee_heavy_attack_damage",
+     "melee_parry_angle",
+     "melee_slam_damage",
+     "status_damage"
+    ]
+   },
+   "wf": "Obex"
+  },
+  "KrisDagger": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 61,
+    "never": [
+     "impact_damage",
+     "puncture_damage",
+     "slash_damage"
+    ],
+    "rollable": [
+     "attack_speed",
+     "cold_damage",
+     "combo_duration",
+     "combo_gain_chance",
+     "crit_chance",
+     "crit_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "extra_combo_count",
+     "finisher_damage",
+     "heat_damage",
+     "heavy_attack_efficiency",
+     "initial_combo",
+     "melee_damage",
+     "range",
+     "slide_crit",
+     "status_chance",
+     "status_duration",
+     "toxin_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": [
+     "melee_heavy_attack_charge",
+     "melee_heavy_attack_damage",
+     "melee_parry_angle",
+     "melee_slam_damage",
+     "status_damage"
+    ]
+   },
+   "wf": "Karyst"
+  },
+  "Kunai": {
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage"
+   ],
+   "survey": {
+    "n": 430,
+    "never": [
+     "impact_damage",
+     "slash_damage"
+    ],
+    "rollable": [
+     "ammo_max",
+     "cold_damage",
+     "crit_chance",
+     "crit_damage",
+     "melee_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "fire_rate",
+     "heat_damage",
+     "magazine_capacity",
+     "multishot",
+     "projectile_speed",
+     "punch_through",
+     "puncture_damage",
+     "reload_speed",
+     "status_chance",
+     "status_duration",
+     "toxin_damage",
+     "recoil",
+     "zoom"
+    ],
+    "surveyed": "2026-08-08",
+    "unclear": []
+   },
+   "wf": "Kunai"
+  },
+  "KuvaStubba": {
+   "never": [
+    "puncture_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Kuva Twin Stubbas"
+  },
+  "LasGooAKPlayerWeapon": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "EFV-5 Jupiter"
+  },
+  "LasGooPistolPlayerWeapon": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "EFV-8 Mars"
+  },
+  "LasSilencedPistolWeapon": {
+   "never": [
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "survey": null,
+   "wf": "Vesper 77"
+  },
+  "LaserAimRifle": {
+   "never": [
+    "puncture_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Argonak"
+  },
+  "LaserRifle": {
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": true,
+   "rolls": [
+    "puncture_damage"
+   ],
+   "survey": null,
+   "wf": "Laser Rifle"
+  },
+  "LasrianNoxPlayerWeapon": {
+   "never": [
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "survey": null,
+   "wf": "Purgator 1"
+  },
+  "LiDagger": {
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage"
+   ],
+   "survey": null,
+   "wf": "Spira"
+  },
+  "LightGlaiveWeapon": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 100,
+    "never": [
+     "puncture_damage"
+    ],
+    "rollable": [
+     "impact_damage",
+     "slash_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": []
+   },
+   "wf": "Glaive"
+  },
+  "LongSword": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 100,
+    "never": [
+     "impact_damage"
+    ],
+    "rollable": [
+     "attack_speed",
+     "cold_damage",
+     "combo_duration",
+     "crit_chance",
+     "crit_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "finisher_damage",
+     "heat_damage",
+     "heavy_attack_efficiency",
+     "initial_combo",
+     "melee_damage",
+     "range",
+     "slash_damage",
+     "slide_crit",
+     "status_chance",
+     "status_damage",
+     "status_duration",
+     "toxin_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": [
+     "combo_gain_chance",
+     "extra_combo_count",
+     "melee_heavy_attack_charge",
+     "melee_heavy_attack_damage",
+     "melee_parry_angle",
+     "melee_slam_damage",
+     "puncture_damage"
+    ]
+   },
+   "wf": "Skana"
+  },
+  "Machete": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 37,
+    "never": [],
+    "rollable": [],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": [
+     "attack_speed",
+     "cold_damage",
+     "combo_duration",
+     "combo_gain_chance",
+     "crit_chance",
+     "crit_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "extra_combo_count",
+     "finisher_damage",
+     "heat_damage",
+     "heavy_attack_efficiency",
+     "impact_damage",
+     "initial_combo",
+     "melee_damage",
+     "melee_heavy_attack_charge",
+     "melee_heavy_attack_damage",
+     "melee_parry_angle",
+     "melee_slam_damage",
+     "puncture_damage",
+     "range",
+     "slash_damage",
+     "slide_crit",
+     "status_chance",
+     "status_damage",
+     "status_duration",
+     "toxin_damage"
+    ]
+   },
+   "wf": "Machete"
+  },
+  "Magnum": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Magnus"
+  },
+  "MireSword": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 91,
+    "never": [],
+    "rollable": [
+     "attack_speed",
+     "cold_damage",
+     "combo_duration",
+     "combo_gain_chance",
+     "crit_chance",
+     "crit_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "extra_combo_count",
+     "finisher_damage",
+     "heat_damage",
+     "heavy_attack_efficiency",
+     "impact_damage",
+     "initial_combo",
+     "melee_damage",
+     "puncture_damage",
+     "range",
+     "slash_damage",
+     "slide_crit",
+     "status_chance",
+     "status_duration",
+     "toxin_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": [
+     "melee_heavy_attack_charge",
+     "melee_heavy_attack_damage",
+     "melee_parry_angle",
+     "melee_slam_damage",
+     "status_damage"
+    ]
+   },
+   "wf": "Mire"
+  },
+  "NokkoArchGun": {
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [],
+   "survey": null,
+   "wf": "Arbucep"
+  },
+  "Nunchaku": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 57,
+    "never": [
+     "impact_damage",
+     "puncture_damage",
+     "slash_damage"
+    ],
+    "rollable": [
+     "attack_speed",
+     "cold_damage",
+     "combo_duration",
+     "combo_gain_chance",
+     "crit_chance",
+     "crit_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "extra_combo_count",
+     "finisher_damage",
+     "heat_damage",
+     "heavy_attack_efficiency",
+     "initial_combo",
+     "melee_damage",
+     "range",
+     "slide_crit",
+     "status_chance",
+     "status_duration",
+     "toxin_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": [
+     "melee_heavy_attack_charge",
+     "melee_heavy_attack_damage",
+     "melee_parry_angle",
+     "melee_slam_damage",
+     "status_damage"
+    ]
+   },
+   "wf": "Ninkondi"
+  },
+  "OmicrusPlayerWep": {
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage"
+   ],
+   "survey": null,
+   "wf": "Nataruk"
+  },
+  "PacifistShieldSword": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 43,
+    "never": [],
+    "rollable": [],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": [
+     "attack_speed",
+     "cold_damage",
+     "combo_duration",
+     "combo_gain_chance",
+     "crit_chance",
+     "crit_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "extra_combo_count",
+     "finisher_damage",
+     "heat_damage",
+     "heavy_attack_efficiency",
+     "impact_damage",
+     "initial_combo",
+     "melee_damage",
+     "melee_heavy_attack_charge",
+     "melee_heavy_attack_damage",
+     "melee_parry_angle",
+     "melee_slam_damage",
+     "puncture_damage",
+     "range",
+     "slash_damage",
+     "slide_crit",
+     "status_chance",
+     "status_damage",
+     "status_duration",
+     "toxin_damage"
+    ]
+   },
+   "wf": "Cobra & Crane"
+  },
+  "PaladinMaceWeapon": {
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": true,
+   "rolls": [
+    "impact_damage"
+   ],
+   "survey": null,
+   "wf": "Magistar"
+  },
+  "PangolinLongSword": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 68,
+    "never": [
+     "impact_damage",
+     "puncture_damage"
+    ],
+    "rollable": [
+     "attack_speed",
+     "cold_damage",
+     "combo_duration",
+     "combo_gain_chance",
+     "crit_chance",
+     "crit_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "extra_combo_count",
+     "finisher_damage",
+     "heat_damage",
+     "heavy_attack_efficiency",
+     "initial_combo",
+     "melee_damage",
+     "range",
+     "slash_damage",
+     "slide_crit",
+     "status_chance",
+     "status_duration",
+     "toxin_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": [
+     "melee_heavy_attack_charge",
+     "melee_heavy_attack_damage",
+     "melee_parry_angle",
+     "melee_slam_damage",
+     "status_damage"
+    ]
+   },
+   "wf": "Pangolin Sword"
+  },
+  "PaxDuviricusShotgun": {
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Rauta"
+  },
+  "Pistol": {
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "slash_damage"
+   ],
+   "survey": {
+    "n": 500,
+    "never": [
+     "impact_damage",
+     "projectile_speed",
+     "puncture_damage"
+    ],
+    "rollable": [
+     "ammo_max",
+     "cold_damage",
+     "crit_chance",
+     "crit_damage",
+     "melee_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "fire_rate",
+     "heat_damage",
+     "magazine_capacity",
+     "multishot",
+     "punch_through",
+     "reload_speed",
+     "slash_damage",
+     "status_chance",
+     "status_duration",
+     "toxin_damage",
+     "recoil",
+     "zoom"
+    ],
+    "surveyed": "2026-08-08",
+    "unclear": []
+   },
+   "wf": "Lato"
+  },
+  "PolearmWeapon": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 69,
+    "never": [
+     "puncture_damage"
+    ],
+    "rollable": [
+     "impact_damage",
+     "slash_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": []
+   },
+   "wf": "Orthos"
+  },
+  "PrimeLightningGun": {
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [],
+   "survey": null,
+   "wf": "Vadarya Prime"
+  },
+  "QuillDartGunWeapon": {
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage"
+   ],
+   "survey": null,
+   "wf": "Hystrix"
+  },
+  "QuillDualSwords": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 92,
+    "never": [
+     "impact_damage"
+    ],
+    "rollable": [
+     "attack_speed",
+     "cold_damage",
+     "combo_duration",
+     "combo_gain_chance",
+     "crit_chance",
+     "crit_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "extra_combo_count",
+     "finisher_damage",
+     "heat_damage",
+     "heavy_attack_efficiency",
+     "initial_combo",
+     "melee_damage",
+     "puncture_damage",
+     "range",
+     "slash_damage",
+     "slide_crit",
+     "status_chance",
+     "status_duration",
+     "toxin_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": [
+     "melee_heavy_attack_charge",
+     "melee_heavy_attack_damage",
+     "melee_parry_angle",
+     "melee_slam_damage",
+     "status_damage"
+    ]
+   },
+   "wf": "Dual Keres"
+  },
+  "Railgun": {
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [],
+   "survey": null,
+   "wf": "Lanka"
+  },
+  "RailjackRifleGun": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Quellor"
+  },
+  "RepeatingCrossbow": {
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage"
+   ],
+   "survey": null,
+   "wf": "Zhuge"
+  },
+  "RevenantShotgun": {
+   "never": [
+    "projectile_speed",
+    "zoom"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": {
+    "n": 500,
+    "never": [
+     "projectile_speed",
+     "zoom"
+    ],
+    "rollable": [
+     "ammo_max",
+     "cold_damage",
+     "crit_chance",
+     "crit_damage",
+     "melee_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "fire_rate",
+     "heat_damage",
+     "impact_damage",
+     "magazine_capacity",
+     "multishot",
+     "punch_through",
+     "puncture_damage",
+     "reload_speed",
+     "slash_damage",
+     "status_chance",
+     "status_duration",
+     "toxin_damage",
+     "recoil"
+    ],
+    "surveyed": "2026-08-08",
+    "unclear": []
+   },
+   "wf": "Phantasma"
+  },
+  "RevolverPistol": {
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "slash_damage"
+   ],
+   "survey": {
+    "n": 462,
+    "never": [
+     "impact_damage",
+     "puncture_damage"
+    ],
+    "rollable": [
+     "ammo_max",
+     "cold_damage",
+     "crit_chance",
+     "crit_damage",
+     "melee_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "fire_rate",
+     "heat_damage",
+     "magazine_capacity",
+     "multishot",
+     "punch_through",
+     "reload_speed",
+     "slash_damage",
+     "status_chance",
+     "status_duration",
+     "toxin_damage",
+     "recoil",
+     "zoom"
+    ],
+    "surveyed": "2026-08-08",
+    "unclear": [
+     "projectile_speed"
+    ]
+   },
+   "wf": "Vasto"
+  },
+  "Rifle": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": {
+    "n": 500,
+    "never": [
+     "projectile_speed"
+    ],
+    "rollable": [
+     "ammo_max",
+     "cold_damage",
+     "crit_chance",
+     "crit_damage",
+     "melee_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "fire_rate",
+     "heat_damage",
+     "impact_damage",
+     "magazine_capacity",
+     "multishot",
+     "punch_through",
+     "puncture_damage",
+     "reload_speed",
+     "slash_damage",
+     "status_chance",
+     "status_duration",
+     "toxin_damage",
+     "recoil",
+     "zoom"
+    ],
+    "surveyed": "2026-08-08",
+    "unclear": []
+   },
+   "wf": "Braton"
+  },
+  "RocketLauncher": {
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [],
+   "survey": null,
+   "wf": "Ogris"
+  },
+  "SUModularSecondaryBarrelAPart": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Catchmoon"
+  },
+  "SUModularSecondaryBarrelBPart": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Tombfinger"
+  },
+  "SUModularSecondaryBarrelCPart": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Rattleguts"
+  },
+  "SUModularSecondaryBarrelDPart": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Gaze"
+  },
+  "SapientPistol": {
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage"
+   ],
+   "survey": null,
+   "wf": "Akarius"
+  },
+  "SapientPrimaryWeapon": {
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage"
+   ],
+   "survey": null,
+   "wf": "Acceltra"
+  },
+  "SawBladeGun": {
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Miter"
+  },
+  "SemiAutoRifle": {
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage"
+   ],
+   "survey": {
+    "n": 500,
+    "never": [
+     "impact_damage",
+     "projectile_speed",
+     "slash_damage"
+    ],
+    "rollable": [
+     "ammo_max",
+     "cold_damage",
+     "crit_chance",
+     "crit_damage",
+     "melee_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "fire_rate",
+     "heat_damage",
+     "magazine_capacity",
+     "multishot",
+     "punch_through",
+     "puncture_damage",
+     "reload_speed",
+     "status_chance",
+     "status_duration",
+     "toxin_damage",
+     "recoil",
+     "zoom"
+    ],
+    "surveyed": "2026-08-08",
+    "unclear": []
+   },
+   "wf": "Latron"
+  },
+  "SentBioWeapon": {
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": true,
+   "rolls": [],
+   "survey": null,
+   "wf": "Stinger"
+  },
+  "SentElecRailgun": {
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": true,
+   "rolls": [],
+   "survey": null,
+   "wf": "Vulklok"
+  },
+  "SentGlaiveWeapon": {
+   "never": [],
+   "no_ammo_pool": true,
+   "rolls": [
+    "impact_damage"
+   ],
+   "survey": null,
+   "wf": "Deconstructor"
+  },
+  "SentJointedScytheWeapon": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 72,
+    "never": [],
+    "rollable": [
+     "puncture_damage",
+     "slash_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": [
+     "impact_damage"
+    ]
+   },
+   "wf": "Venato"
+  },
+  "SentOctaMiniGun": {
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [],
+   "survey": null,
+   "wf": "Haalvu"
+  },
+  "SentRifleNewWarGun": {
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [],
+   "survey": null,
+   "wf": "Basmu"
+  },
+  "SentShotgun": {
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": true,
+   "rolls": [
+    "impact_damage"
+   ],
+   "survey": null,
+   "wf": "Sweeper"
+  },
+  "SentinelFreezeRayRifle": {
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": true,
+   "rolls": [],
+   "survey": null,
+   "wf": "Verglas"
+  },
+  "SheduHeavyWeapon": {
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [],
+   "survey": null,
+   "wf": "Shedu"
+  },
+  "Shotgun": {
+   "never": [
+    "puncture_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Strun"
+  },
+  "ShrineMaidenGunbrellaWeapon": {
+   "never": [
+    "impact_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Higasa"
+  },
+  "SniperRifle": {
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage"
+   ],
+   "survey": null,
+   "wf": "Snipetron"
+  },
+  "Staff": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 100,
+    "never": [
+     "puncture_damage",
+     "slash_damage"
+    ],
+    "rollable": [
+     "attack_speed",
+     "cold_damage",
+     "combo_duration",
+     "crit_chance",
+     "crit_damage",
+     "damage_vs_corpus",
+     "damage_vs_infested",
+     "electric_damage",
+     "finisher_damage",
+     "heat_damage",
+     "heavy_attack_efficiency",
+     "impact_damage",
+     "initial_combo",
+     "melee_damage",
+     "range",
+     "slide_crit",
+     "status_chance",
+     "status_damage",
+     "toxin_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": [
+     "combo_gain_chance",
+     "damage_vs_grineer",
+     "extra_combo_count",
+     "melee_heavy_attack_charge",
+     "melee_heavy_attack_damage",
+     "melee_parry_angle",
+     "melee_slam_damage",
+     "status_duration"
+    ]
+   },
+   "wf": "Bo"
+  },
+  "StalkerBow": {
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Dread"
+  },
+  "StalkerKunai": {
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage"
+   ],
+   "survey": {
+    "n": 500,
+    "never": [
+     "impact_damage",
+     "slash_damage"
+    ],
+    "rollable": [
+     "ammo_max",
+     "cold_damage",
+     "crit_chance",
+     "crit_damage",
+     "melee_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "fire_rate",
+     "heat_damage",
+     "magazine_capacity",
+     "multishot",
+     "projectile_speed",
+     "punch_through",
+     "puncture_damage",
+     "reload_speed",
+     "status_chance",
+     "status_duration",
+     "toxin_damage",
+     "recoil",
+     "zoom"
+    ],
+    "surveyed": "2026-08-08",
+    "unclear": []
+   },
+   "wf": "Despair"
+  },
+  "StalkerMios": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 51,
+    "never": [
+     "impact_damage",
+     "puncture_damage",
+     "slash_damage"
+    ],
+    "rollable": [
+     "attack_speed",
+     "cold_damage",
+     "combo_duration",
+     "combo_gain_chance",
+     "crit_chance",
+     "crit_damage",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "extra_combo_count",
+     "finisher_damage",
+     "heat_damage",
+     "heavy_attack_efficiency",
+     "initial_combo",
+     "melee_damage",
+     "range",
+     "slide_crit",
+     "status_chance",
+     "status_duration",
+     "toxin_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": [
+     "damage_vs_corpus",
+     "melee_heavy_attack_charge",
+     "melee_heavy_attack_damage",
+     "melee_parry_angle",
+     "melee_slam_damage",
+     "status_damage"
+    ]
+   },
+   "wf": "Lacera"
+  },
+  "StalkerTwoGreatSword": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 100,
+    "never": [
+     "puncture_damage"
+    ],
+    "rollable": [
+     "impact_damage",
+     "slash_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": []
+   },
+   "wf": "War"
+  },
+  "StickyBombs": {
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage"
+   ],
+   "survey": null,
+   "wf": "Castanas"
+  },
+  "SundialPistol": {
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Azima"
+  },
+  "SundialRifle": {
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Zenith"
+  },
+  "SwarmerWeapon": {
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": true,
+   "rolls": [
+    "impact_damage"
+   ],
+   "survey": null,
+   "wf": "Helstrum"
+  },
+  "TC2024AK47Weapon": {
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage"
+   ],
+   "survey": null,
+   "wf": "AX-52"
+  },
+  "TazronWeapon": {
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": true,
+   "rolls": [],
+   "survey": null,
+   "wf": "Tazicor"
+  },
+  "TennoAR": {
+   "never": [
+    "impact_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Soma"
+  },
+  "TennoClaws": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 95,
+    "never": [
+     "puncture_damage"
+    ],
+    "rollable": [
+     "attack_speed",
+     "cold_damage",
+     "combo_duration",
+     "combo_gain_chance",
+     "crit_chance",
+     "crit_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "extra_combo_count",
+     "finisher_damage",
+     "heat_damage",
+     "heavy_attack_efficiency",
+     "initial_combo",
+     "melee_damage",
+     "range",
+     "slash_damage",
+     "slide_crit",
+     "status_chance",
+     "status_duration",
+     "toxin_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": [
+     "impact_damage",
+     "melee_heavy_attack_charge",
+     "melee_heavy_attack_damage",
+     "melee_parry_angle",
+     "melee_slam_damage",
+     "status_damage"
+    ]
+   },
+   "wf": "Venka"
+  },
+  "TennoDoubleBarrelShotgun": {
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Tigris"
+  },
+  "TennoGreatSword": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 68,
+    "never": [
+     "impact_damage",
+     "puncture_damage"
+    ],
+    "rollable": [
+     "attack_speed",
+     "cold_damage",
+     "combo_duration",
+     "combo_gain_chance",
+     "crit_chance",
+     "crit_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "extra_combo_count",
+     "finisher_damage",
+     "heat_damage",
+     "heavy_attack_efficiency",
+     "initial_combo",
+     "melee_damage",
+     "range",
+     "slash_damage",
+     "slide_crit",
+     "status_chance",
+     "status_duration",
+     "toxin_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": [
+     "melee_heavy_attack_charge",
+     "melee_heavy_attack_damage",
+     "melee_parry_angle",
+     "melee_slam_damage",
+     "status_damage"
+    ]
+   },
+   "wf": "Galatine"
+  },
+  "TennoHandShotgun": {
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Pyrana"
+  },
+  "TennoSais": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 100,
+    "never": [
+     "impact_damage"
+    ],
+    "rollable": [
+     "puncture_damage",
+     "slash_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": []
+   },
+   "wf": "Okina"
+  },
+  "TennoSniperRifle": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Vectis"
+  },
+  "TennoStars": {
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage"
+   ],
+   "survey": null,
+   "wf": "Hikou"
+  },
+  "TennoSwordShield": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 53,
+    "never": [
+     "puncture_damage",
+     "slash_damage"
+    ],
+    "rollable": [
+     "attack_speed",
+     "cold_damage",
+     "combo_duration",
+     "combo_gain_chance",
+     "crit_chance",
+     "crit_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "extra_combo_count",
+     "finisher_damage",
+     "heat_damage",
+     "heavy_attack_efficiency",
+     "initial_combo",
+     "melee_damage",
+     "range",
+     "slide_crit",
+     "status_chance",
+     "status_duration",
+     "toxin_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": [
+     "impact_damage",
+     "melee_heavy_attack_charge",
+     "melee_heavy_attack_damage",
+     "melee_parry_angle",
+     "melee_slam_damage",
+     "status_damage"
+    ]
+   },
+   "wf": "Silva & Aegis"
+  },
+  "TennoTommyGunRifle": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Stradavar"
+  },
+  "TennoTonfa": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 100,
+    "never": [
+     "puncture_damage"
+    ],
+    "rollable": [
+     "impact_damage",
+     "slash_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": []
+   },
+   "wf": "Kronen"
+  },
+  "TennoUzi": {
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage"
+   ],
+   "survey": null,
+   "wf": "Akstiletto"
+  },
+  "ThanoTechArchGun": {
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [],
+   "survey": null,
+   "wf": "Cortege"
+  },
+  "ThanoTechGrenadeLauncher": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage"
+   ],
+   "survey": null,
+   "wf": "Morgha"
+  },
+  "ThanoTechLongGun": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Mausolon"
+  },
+  "ThanotechPistol": {
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage"
+   ],
+   "survey": null,
+   "wf": "Sepulcrum"
+  },
+  "ThanotechRifle": {
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [],
+   "survey": null,
+   "wf": "Trumna"
+  },
+  "ThermocorMoaWeapon": {
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": true,
+   "rolls": [],
+   "survey": null,
+   "wf": "Vulcax"
+  },
+  "TipNine": {
+   "survey": {
+    "n": 58,
+    "never": [],
+    "rollable": [
+     "impact_damage",
+     "puncture_damage",
+     "slash_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": []
+   },
+   "wf": "Sepfahn"
+  },
+  "TnAlchemistShotgun": {
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage"
+   ],
+   "survey": null,
+   "wf": "Cedo"
+  },
+  "TnBardPistolGun": {
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Pandero"
+  },
+  "TnBardRifle": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Tenora"
+  },
+  "TnBayonetRifleWeapon": {
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage"
+   ],
+   "survey": null,
+   "wf": "Vinquibus"
+  },
+  "TnBeltFedRifleWeapon": {
+   "never": [
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "survey": null,
+   "wf": "Reconifex"
+  },
+  "TnBrokenFrameWarfanWeapon": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 100,
+    "never": [
+     "impact_damage",
+     "puncture_damage"
+    ],
+    "rollable": [
+     "attack_speed",
+     "cold_damage",
+     "combo_duration",
+     "combo_gain_chance",
+     "crit_chance",
+     "crit_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "extra_combo_count",
+     "finisher_damage",
+     "heat_damage",
+     "heavy_attack_efficiency",
+     "initial_combo",
+     "melee_damage",
+     "range",
+     "slash_damage",
+     "slide_crit",
+     "status_chance",
+     "status_duration",
+     "toxin_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": [
+     "melee_heavy_attack_charge",
+     "melee_heavy_attack_damage",
+     "melee_parry_angle",
+     "melee_slam_damage",
+     "status_damage"
+    ]
+   },
+   "wf": "Quassus"
+  },
+  "TnChiselKanabo": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 41,
+    "never": [],
+    "rollable": [],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": [
+     "attack_speed",
+     "cold_damage",
+     "combo_duration",
+     "combo_gain_chance",
+     "crit_chance",
+     "crit_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "extra_combo_count",
+     "finisher_damage",
+     "heat_damage",
+     "heavy_attack_efficiency",
+     "impact_damage",
+     "initial_combo",
+     "melee_damage",
+     "melee_heavy_attack_charge",
+     "melee_heavy_attack_damage",
+     "melee_parry_angle",
+     "melee_slam_damage",
+     "puncture_damage",
+     "range",
+     "slash_damage",
+     "slide_crit",
+     "status_chance",
+     "status_damage",
+     "status_duration",
+     "toxin_damage"
+    ]
+   },
+   "wf": "Masseter"
+  },
+  "TnChoirBow": {
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Evensong"
+  },
+  "TnChoirScythe": {
+   "survey": {
+    "n": 100,
+    "never": [
+     "impact_damage",
+     "slash_damage"
+    ],
+    "rollable": [
+     "puncture_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": []
+   },
+   "wf": "Harmony"
+  },
+  "TnChoirframeKunai": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Cantare"
+  },
+  "TnConcreteArchgunWeapon": {
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [],
+   "survey": null,
+   "wf": "Mandonel"
+  },
+  "TnGlassShotgunGun": {
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage"
+   ],
+   "survey": null,
+   "wf": "Astilla"
+  },
+  "TnGrimoire": {
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [],
+   "survey": null,
+   "wf": "Grimoire"
+  },
+  "TnGuandaoPolearmWeapon": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 100,
+    "never": [
+     "impact_damage",
+     "puncture_damage"
+    ],
+    "rollable": [
+     "slash_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": []
+   },
+   "wf": "Guandao"
+  },
+  "TnGuandoPistolGun": {
+   "never": [
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "survey": null,
+   "wf": "Zakti"
+  },
+  "TnHeavyShotgunGun": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Corinth"
+  },
+  "TnHopliteSpearGunWeapon": {
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage"
+   ],
+   "survey": null,
+   "wf": "Afentis"
+  },
+  "TnInkRifleWeapon": {
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage"
+   ],
+   "survey": null,
+   "wf": "Enkaus"
+  },
+  "TnJetTurbinePistolWeapon": {
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [],
+   "survey": null,
+   "wf": "Athodai"
+  },
+  "TnModQuestRifleWeapon": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Thornbak"
+  },
+  "TnOdaliskSmgPistol": {
+   "never": [
+    "impact_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Velox"
+  },
+  "TnOraxiaFlechette": {
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [],
+   "survey": null,
+   "wf": "Scyotid"
+  },
+  "TnOrionScytheWeapon": {
+   "survey": {
+    "n": 47,
+    "never": [
+     "impact_damage",
+     "puncture_damage"
+    ],
+    "rollable": [
+     "slash_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": []
+   },
+   "wf": "Wrath"
+  },
+  "TnPriestPistolWeapon": {
+   "never": [
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "survey": null,
+   "wf": "Knell"
+  },
+  "TnPriestSpearGun": {
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [],
+   "survey": null,
+   "wf": "Scourge"
+  },
+  "TnQuadSniper": {
+   "never": [
+    "impact_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Perigale"
+  },
+  "TnRevolverRifleGun": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Veldt"
+  },
+  "TnRifleErsatzWeapon": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Aeolak"
+  },
+  "TnSMGWeapon": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Baza"
+  },
+  "TnShieldFrameArchGun": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Larkspur"
+  },
+  "TnSiriusScytheWeapon": {
+   "survey": {
+    "n": 44,
+    "never": [
+     "impact_damage"
+    ],
+    "rollable": [
+     "puncture_damage",
+     "slash_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": []
+   },
+   "wf": "Pride"
+  },
+  "TnTwoHandedKatana": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 87,
+    "never": [],
+    "rollable": [
+     "attack_speed",
+     "cold_damage",
+     "combo_duration",
+     "combo_gain_chance",
+     "crit_chance",
+     "crit_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "extra_combo_count",
+     "finisher_damage",
+     "heat_damage",
+     "heavy_attack_efficiency",
+     "impact_damage",
+     "initial_combo",
+     "melee_damage",
+     "puncture_damage",
+     "range",
+     "slash_damage",
+     "slide_crit",
+     "status_chance",
+     "status_duration",
+     "toxin_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": [
+     "melee_heavy_attack_charge",
+     "melee_heavy_attack_damage",
+     "melee_parry_angle",
+     "melee_slam_damage",
+     "status_damage"
+    ]
+   },
+   "wf": "Tatsu"
+  },
+  "TnWispRifle": {
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage"
+   ],
+   "survey": null,
+   "wf": "Fulmin"
+  },
+  "TnWraitheSidearmWeapon": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Epitaph"
+  },
+  "TnYareliPistolWeapon": {
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [],
+   "survey": null,
+   "wf": "Kompressa"
+  },
+  "TnoBladedPistols": {
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Akjagara"
+  },
+  "TnoGunblade": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 100,
+    "never": [
+     "impact_damage",
+     "puncture_damage"
+    ],
+    "rollable": [
+     "slash_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": []
+   },
+   "wf": "Redeemer"
+  },
+  "TnoLeverActionRifle": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": {
+    "n": 500,
+    "never": [
+     "projectile_speed"
+    ],
+    "rollable": [
+     "ammo_max",
+     "cold_damage",
+     "crit_chance",
+     "crit_damage",
+     "melee_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "fire_rate",
+     "heat_damage",
+     "impact_damage",
+     "magazine_capacity",
+     "multishot",
+     "punch_through",
+     "puncture_damage",
+     "reload_speed",
+     "slash_damage",
+     "status_chance",
+     "status_duration",
+     "toxin_damage",
+     "recoil",
+     "zoom"
+    ],
+    "surveyed": "2026-08-08",
+    "unclear": []
+   },
+   "wf": "Sybaris"
+  },
+  "TnoLotusPodShotgun": {
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage"
+   ],
+   "survey": null,
+   "wf": "Steflos"
+  },
+  "TnoMiter": {
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Panthera"
+  },
+  "TnoMonkStaff": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 71,
+    "never": [
+     "impact_damage",
+     "puncture_damage"
+    ],
+    "rollable": [
+     "attack_speed",
+     "cold_damage",
+     "combo_duration",
+     "combo_gain_chance",
+     "crit_chance",
+     "crit_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "extra_combo_count",
+     "finisher_damage",
+     "heat_damage",
+     "heavy_attack_efficiency",
+     "initial_combo",
+     "melee_damage",
+     "range",
+     "slash_damage",
+     "slide_crit",
+     "status_chance",
+     "status_duration",
+     "toxin_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": [
+     "melee_heavy_attack_charge",
+     "melee_heavy_attack_damage",
+     "melee_parry_angle",
+     "melee_slam_damage",
+     "status_damage"
+    ]
+   },
+   "wf": "Tipedo"
+  },
+  "TnoPrmryXbowWeapon": {
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage"
+   ],
+   "survey": null,
+   "wf": "Attica"
+  },
+  "TnoRapier": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 100,
+    "never": [
+     "slash_damage"
+    ],
+    "rollable": [
+     "attack_speed",
+     "cold_damage",
+     "combo_duration",
+     "combo_gain_chance",
+     "crit_chance",
+     "crit_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "extra_combo_count",
+     "finisher_damage",
+     "heat_damage",
+     "heavy_attack_efficiency",
+     "impact_damage",
+     "initial_combo",
+     "melee_damage",
+     "puncture_damage",
+     "range",
+     "slide_crit",
+     "status_chance",
+     "status_duration",
+     "toxin_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": [
+     "melee_heavy_attack_charge",
+     "melee_heavy_attack_damage",
+     "melee_parry_angle",
+     "melee_slam_damage",
+     "status_damage"
+    ]
+   },
+   "wf": "Destreza"
+  },
+  "TwinGrakatas": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Twin Grakatas"
+  },
+  "U18throwingknives": {
+   "never": [],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage"
+   ],
+   "survey": null,
+   "wf": "Talons"
+  },
+  "WarfanWeapon": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 52,
+    "never": [
+     "impact_damage",
+     "puncture_damage"
+    ],
+    "rollable": [
+     "attack_speed",
+     "cold_damage",
+     "combo_duration",
+     "combo_gain_chance",
+     "crit_chance",
+     "crit_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "extra_combo_count",
+     "finisher_damage",
+     "heat_damage",
+     "heavy_attack_efficiency",
+     "initial_combo",
+     "melee_damage",
+     "range",
+     "slash_damage",
+     "slide_crit",
+     "status_chance",
+     "status_duration",
+     "toxin_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": [
+     "melee_heavy_attack_charge",
+     "melee_heavy_attack_damage",
+     "melee_parry_angle",
+     "melee_slam_damage",
+     "status_damage"
+    ]
+   },
+   "wf": "Gunsen"
+  },
+  "WolfFrameAxeWeapon": {
+   "no_ammo_pool": true,
+   "survey": {
+    "n": 78,
+    "never": [
+     "puncture_damage"
+    ],
+    "rollable": [
+     "attack_speed",
+     "cold_damage",
+     "combo_duration",
+     "combo_gain_chance",
+     "crit_chance",
+     "crit_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "extra_combo_count",
+     "finisher_damage",
+     "heat_damage",
+     "heavy_attack_efficiency",
+     "impact_damage",
+     "initial_combo",
+     "melee_damage",
+     "range",
+     "slash_damage",
+     "slide_crit",
+     "status_chance",
+     "status_duration",
+     "toxin_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": [
+     "melee_heavy_attack_charge",
+     "melee_heavy_attack_damage",
+     "melee_parry_angle",
+     "melee_slam_damage",
+     "status_damage"
+    ]
+   },
+   "wf": "Sarofang"
+  },
+  "ZarimanDaggerWeapon": {
+   "survey": {
+    "n": 100,
+    "never": [
+     "impact_damage"
+    ],
+    "rollable": [
+     "puncture_damage",
+     "slash_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": []
+   },
+   "wf": "Innodem"
+  },
+  "ZarimanHeavyPistol": {
+   "never": [
+    "puncture_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "survey": {
+    "n": 500,
+    "never": [
+     "puncture_damage"
+    ],
+    "rollable": [
+     "ammo_max",
+     "cold_damage",
+     "crit_chance",
+     "crit_damage",
+     "melee_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "fire_rate",
+     "heat_damage",
+     "impact_damage",
+     "magazine_capacity",
+     "multishot",
+     "projectile_speed",
+     "reload_speed",
+     "slash_damage",
+     "status_chance",
+     "status_duration",
+     "toxin_damage",
+     "recoil",
+     "zoom"
+    ],
+    "surveyed": "2026-08-08",
+    "unclear": [
+     "punch_through"
+    ]
+   },
+   "wf": "Laetum"
+  },
+  "ZarimanHeavyScytheWeapon": {
+   "survey": {
+    "n": 100,
+    "never": [
+     "puncture_damage"
+    ],
+    "rollable": [
+     "impact_damage",
+     "slash_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": []
+   },
+   "wf": "Thalys"
+  },
+  "ZarimanPumpShotgun": {
+   "never": [
+    "impact_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "survey": null,
+   "wf": "Felarx"
+  },
+  "ZarimanSemiAutoRifle": {
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "no_ammo_pool": false,
+   "rolls": [
+    "slash_damage"
+   ],
+   "survey": {
+    "n": 500,
+    "never": [
+     "impact_damage",
+     "puncture_damage"
+    ],
+    "rollable": [
+     "ammo_max",
+     "cold_damage",
+     "crit_chance",
+     "crit_damage",
+     "melee_damage",
+     "damage_vs_corpus",
+     "damage_vs_grineer",
+     "damage_vs_infested",
+     "electric_damage",
+     "fire_rate",
+     "heat_damage",
+     "magazine_capacity",
+     "multishot",
+     "projectile_speed",
+     "reload_speed",
+     "slash_damage",
+     "status_chance",
+     "status_duration",
+     "toxin_damage",
+     "recoil",
+     "zoom"
+    ],
+    "surveyed": "2026-08-08",
+    "unclear": [
+     "punch_through"
+    ]
+   },
+   "wf": "Phenmor"
+  },
+  "ZarimanTonfaWeapon": {
+   "survey": {
+    "n": 100,
+    "never": [
+     "impact_damage",
+     "puncture_damage"
+    ],
+    "rollable": [
+     "slash_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": []
+   },
+   "wf": "Praedos"
+  },
+  "aksondol": {
+   "survey": {
+    "n": 74,
+    "never": [
+     "impact_damage",
+     "slash_damage"
+    ],
+    "rollable": [
+     "puncture_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": []
+   },
+   "wf": "Aksondol"
+  },
+  "nunchasa": {
+   "survey": {
+    "n": 89,
+    "never": [],
+    "rollable": [
+     "impact_damage",
+     "puncture_damage",
+     "slash_damage"
+    ],
+    "source": "local",
+    "surveyed": "2026-10-23",
+    "unclear": []
+   },
+   "wf": "Nunchasa"
+  }
+ }
+}

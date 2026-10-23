@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import json
+import threading
 import re
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
@@ -2603,6 +2604,11 @@ _SECTION_EMPTY_LIST = frozenset(
 )
 
 
+# ★ 2026-10-21（GPT 评估 P09）：本次解析失败的 section 名（线程局部 —— 解析走 to_thread）。
+#   parse_worldstate 把它写进 bundle["_failed"]，取数层据此报「解析失败」，不再拿空值冒充「真没事件」。
+_FAILED = threading.local()
+
+
 def _section(name: str, fn, *args, **kwargs):
     """单个 section 的解析护栏：失败写空值并记日志，**不让整包失败**。
 
@@ -2616,6 +2622,9 @@ def _section(name: str, fn, *args, **kwargs):
         from .logging_compat import logger
 
         logger.warning(f"[sdjk] worldstate section {name} 解析失败，已置空：{e!r}")
+        failed = getattr(_FAILED, "names", None)
+        if failed is not None:
+            failed.append(name)
         if name == "timestamp":
             return ""
         return [] if name in _SECTION_EMPTY_LIST else {}
@@ -2626,6 +2635,7 @@ def parse_worldstate(raw: dict, now_ms: Optional[int] = None) -> dict:
 
     每个 section 经 :func:`_section` 独立兜底（失败置空 + 记日志，不整包失败）。
     """
+    _FAILED.names = []
     now_ms = now_ms or int(datetime.now(timezone.utc).timestamp() * 1000)
     raw = raw if isinstance(raw, dict) else {}
 
@@ -2704,4 +2714,8 @@ def parse_worldstate(raw: dict, now_ms: Optional[int] = None) -> dict:
         "arbitration": None,  # 同上
         "steelPath": None,  # 钢铁之路轮换为外部数据
     }
+    failed = set(_FAILED.names)
+    if "cetusCycle" in failed:  # 地球 / 魔胎之境由希图斯派生，母段坏了它们也不可信
+        failed |= {"earthCycle", "cambionCycle"}
+    bundle["_failed"] = sorted(failed)
     return bundle

@@ -1254,5 +1254,58 @@
         ]
       }
     }
+  },
+  "hotfix_44_1_3": {
+    "source": "https://www.warframe.com/en/patch-notes/pc/44-1-3",
+    "source_language": "en",
+    "note": "以下中文为英文补丁归纳，不是 DE 官方简中文案。只覆盖明确列出的来源，不推算未给出的档位。",
+    "assets": {
+      "/Lotus/Weapons/Lasria/AK47/TC2024AK47Weapon": {
+        "name": "AX-52",
+        "effect": "腰射时弹药效率 +75%。"
+      },
+      "/Lotus/Upgrades/CosmeticEnhancers/Zariman/AmpOnVoidSlingAmpAmmoEfficiency": {
+        "name": "Eternal Logistics",
+        "effect": "满级：虚空弹射后，增幅器弹药效率 +75%，持续 8 秒。补丁未列出未升级数值。"
+      },
+      "/Lotus/Upgrades/CosmeticEnhancers/Offensive/AmmoEfficiencyOnPistolHeadshot": {
+        "name": "Arcane Pistoleer",
+        "effect": "手枪弱点击杀时：满级有 60% 概率获得无限弹药（Infinite Ammo），持续 12 秒；未升级触发概率为 10%，持续时间同为 12 秒。"
+      },
+      "/Lotus/Upgrades/Mods/PvPMods/Rifle/GrakataUnlimitedAmmo": {
+        "name": "Brain Storm",
+        "effect": "Grakata 增幅：爆头时，满级有 40% 概率获得无限弹药（Infinite Ammo），持续 2 秒；未升级为 10% 概率，持续 0.5 秒。"
+      },
+      "/Lotus/Upgrades/Mods/PvPMods/Pistol/ViperUnlimitedAmmo": {
+        "name": "Skull Shots",
+        "effect": "Viper 增幅：爆头时，满级有 40% 概率获得无限弹药（Infinite Ammo），持续 2 秒；未升级为 10% 概率，持续 0.5 秒。"
+      }
+    },
+    "incarnon": {
+      "Bronco": [
+        {
+          "name": "Enough for Everyone",
+          "effect": "人人有份：6 米内至少有 6 名敌人时，弹药效率 +75%。"
+        }
+      ],
+      "Dera": [
+        {
+          "name": "Crimson Overture",
+          "effect": "猩红序曲：击杀后每层弹药效率 +25%，持续 5 秒，最多叠加 3 层；基础伤害增益不变。"
+        }
+      ],
+      "Boltor": [
+        {
+          "name": "Crimson Overture",
+          "effect": "猩红序曲：击杀后每层弹药效率 +25%，持续 5 秒，最多叠加 3 层；基础伤害增益不变。"
+        }
+      ]
+    },
+    "rules": [
+      "弹药效率总上限为 75%，多个来源合计也受此上限限制；适用于所有消耗弹药的装备，包括殁世机甲与增幅器。",
+      "无限弹药（Infinite Ammo）是单独效果：原本旨在提供真正无限弹药的来源只改描述，效果不变，不能解释成普通弹药效率被封顶到 75%。",
+      "仅改称 Infinite Ammo、机制不变的来源：虚空遗物开启增益；Chamber Cascade（Akmagnus Prime / Magnus Prime）；Overdrive（Athodai / Prime）；Frenzy（Dual Toxocyst）；Death Knell（Knell / Prime）；Gale Force（Perigale / Prime）；Reaper’s Plenty（Vasto Incarnon）。",
+      "Flowing Slayer（The Descendia 中 Lyon 的祝福）：滑行或蹲伏时弹药效率 +75%，其他时候弹药效率 -25%；热修同时修复该祝福在任务中未正确生效的问题。"
+    ]
   }
 }

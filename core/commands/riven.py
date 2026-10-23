@@ -10,11 +10,11 @@ try 分支 from .core.* → from ..*（模块自插件根迁入 core 包，相�
 
 from __future__ import annotations
 
-import asyncio
 from typing import Optional
 
 from .. import formatters as fmt
 from .. import matching
+from .. import riven_analysis as RA
 from ..api_client import WarframeAPIError, fuzzy_hits, public_error_text
 from ..logging_compat import logger
 from .base import Reply, err_card
@@ -193,28 +193,33 @@ class RivenCommands:
         return f"kuva_{hit.split('_prime')[0]}" if hit and hit.split("_prime")[0] else None
 
     async def _h_disposition(self, parsed, event, platform) -> Reply:
-        """紫卡倾向查询。"""
+        """紫卡倾向查询。
+
+        ★ 2026-10 DE 取消倾向：所有武器统一 ``RA.UNIFIED_DISPOSITION``（1.2）。表里的
+        ``disposition`` 是取消前的旧值（wiki 静态表覆盖 WM，不再重抓），只用来告诉玩家
+        已有紫卡数值缩放了多少（新值 = 旧值 × 1.2 / 原倾向）。
+        """
         query = parsed.content_str
         weapons = await self.client.wm_riven_weapons()
+        unified = RA.UNIFIED_DISPOSITION
+        head = f"◆ DE 已取消紫卡倾向：所有武器统一按 {unified:.2f}（{fmt._disp_dots(unified)}）计算"
+        note = "◆ 已有紫卡词条不变，数值按「1.2 / 原倾向」缩放；原倾向越低涨得越多"
         if not query:
-            top = sorted(
-                [w for w in weapons if w.get("disposition")], key=lambda w: -w["disposition"]
-            )[:8]
-            lines = [
-                f"◆ 倾向最高：{top[0].get('zh') or top[0].get('en') or top[0]['url_name']}"
-                f"｜{top[0]['disposition']:.2f}（{fmt._disp_dots(top[0]['disposition'])}）"
-                if top
-                else "◆ 倾向最高：暂无数据",
-                "◆ 倾向 Top8（越高越容易出好卡）",
-                "　武器　倾向",
-            ]
-            lines += [
-                f"· {(w.get('zh') or w.get('en') or w['url_name'])}　{w['disposition']:.2f}"
-                for w in top
-            ]
-            return Reply(
-                "紫卡倾向 Top8（越高越容易出好卡）", lines, footer=fmt.fmt_platform_footer(platform)
+            old = sorted(
+                [w for w in weapons if w.get("disposition")], key=lambda w: w["disposition"]
             )
+
+            def _row(w: dict) -> str:
+                return (
+                    f"· {(w.get('zh') or w.get('en') or w['url_name'])}　"
+                    f"{w['disposition']:.2f}　×{unified / w['disposition']:.2f}"
+                )
+
+            lines = [head, note, "◆ 涨幅最大 Top8（原倾向最低）", "　武器　原倾向　数值缩放"]
+            lines += [_row(w) for w in old[:8]]
+            lines += ["◆ 降幅最大 Top5（原倾向最高）"] + [_row(w) for w in old[::-1][:5]]
+            lines.append("◆ 查单把武器：紫卡倾向 武器名")
+            return Reply("紫卡倾向（已统一 1.2）", lines, footer=fmt.fmt_platform_footer(platform))
         hits, stage = matching.resolve_weapon_name(
             query, weapons, zh="zh", en="en", slug="url_name"
         )
@@ -260,25 +265,112 @@ class RivenCommands:
                 rt, gp = base_rt, base_gp
             return fmt.riven_type_cn(rt, gp)
 
-        # 卡首答案：查询词对应的第一个（本体）倾向；家族多于 1 个再列表
+        def _scale(w: dict) -> str:
+            d = float(w.get("disposition") or 0)
+            return f"{d:.2f}　×{unified / d:.2f}" if d > 0 else "—　—"
+
+        # 卡首答案：查询词对应的第一个（本体）；家族多于 1 个再列表（各自原倾向不同，缩放也不同）
         _h0 = hits[0]
+        _d0 = float(_h0.get("disposition") or 0)
         lines = [
             f"◆ {(_h0.get('zh') or _h0.get('en') or _h0['url_name'])}："
-            f"倾向 {_h0.get('disposition', 0):.2f}（{fmt._disp_dots(_h0.get('disposition', 0))}）"
-            f"｜{_cls(_h0)}"
+            f"倾向 {unified:.2f}（{fmt._disp_dots(unified)}）｜{_cls(_h0)}",
+            f"◆ 原倾向 {_d0:.2f} → 已有紫卡数值 ×{unified / _d0:.2f}"
+            if _d0 > 0
+            else "◆ 原倾向：无数据",
         ]
         if len(hits) > 1:
             lines.append(f"◆ 同家族（共 {len(hits)} 种）")
-            lines.append("　武器　倾向　类别")
+            lines.append("　武器　原倾向　数值缩放　类别")
             lines += [
-                f"· {(w.get('zh') or w.get('en') or w['url_name'])}　"
-                f"{w.get('disposition', 0):.2f}　"
+                f"· {(w.get('zh') or w.get('en') or w['url_name'])}　{_scale(w)}　"
                 # ★ 2026-09-24：带上 group —— WM 把曲翼枪械的 rivenType 也标成
                 #   rifle（翠雀显示成「步枪」），group 才是准的（曲翼枪械/守护武器）
                 f"{_cls(w)}"
                 for w in hits[:8]
             ]
+        lines.append(head)
         return Reply(f"紫卡倾向：{query}", lines, footer=fmt.fmt_platform_footer(platform))
+
+    # 「词条范围」的组合写法（用户口径：不写组合默认 3正1负）
+    _RANGE_COMBOS = {
+        "2+": (2, 0),
+        "2+1-": (2, 1),
+        "2正": (2, 0),
+        "2正1负": (2, 1),
+        "3+": (3, 0),
+        "3正": (3, 0),
+        "3+1-": (3, 1),
+        "3正1负": (3, 1),
+    }
+
+    async def _h_riven_ranges(self, parsed, event, platform) -> Reply:
+        """词条范围：按武器列出紫卡每条词条的卡面取值区间（只显示统一倾向 1.2）。
+
+        用法：词条范围 武器名 [2+ | 2+1- | 3+ | 3+1-] [词条名…]
+        不写组合默认 3正1负；带上词条名就只列那几条。
+        **按武器过滤**：该武器刷不出的词条不列（逐家族证据 > 武器自身推导 > 职业池）。
+        """
+        try:  # 服务器以包成员加载，相对导入才可靠（同 _h_riven_analysis）
+            from .. import riven_pools as RP
+            from .. import riven_analysis as RA
+            from ..parser import RIVEN_STAT_ZH, _STAT_LOOKUP
+        except ImportError:  # pragma: no cover - 本地直跑
+            from core import riven_pools as RP
+            from core import riven_analysis as RA
+            from core.parser import RIVEN_STAT_ZH, _STAT_LOOKUP
+
+        combo = (3, 1)
+        stats: list[str] = []
+        weapon_toks: list[str] = []
+        for tok in parsed.content or []:
+            t = (tok or "").strip()
+            if not t:
+                continue
+            if t in self._RANGE_COMBOS:
+                combo = self._RANGE_COMBOS[t]
+                continue
+            sid = _STAT_LOOKUP.get(t) or _STAT_LOOKUP.get(t.casefold())
+            if sid:
+                stats.append(sid)
+                continue
+            weapon_toks.append(t)
+        query = " ".join(weapon_toks).strip()
+        if not query:
+            return err_card(
+                "没有写武器名",
+                "按 词条范围 武器名 [组合] [词条名…] 的格式重发，例如「词条范围 绝路Prime」"
+                "「词条范围 冰凇 3+」「词条范围 绝路 基伤 多重 毒气 3+1-」",
+                ("用法", "词条范围 武器名 [2+ / 2+1- / 3+ / 3+1-] [词条名…]"),
+                title="紫卡词条范围",
+            )
+        item = await self.client.resolve_riven_weapon(query)
+        if not item:
+            return await self._wm_suggest(query)
+        display = item.get("zh") or item.get("en") or query
+        cls = RA.weapon_class(item.get("riven_type") or "", item.get("group") or "")
+        root, members = RP.family_members(item.get("en") or "")
+        pos, unc = RP.available(cls, root, members, positive=True)
+        neg, _ = RP.available(cls, root, members, positive=False)
+        # 融合词条单列一段（同一张卡最多 1 项）
+        pool = RP.class_pool(cls)
+        spliced = [s for s in pos if (pool.get(s) or {}).get("spliced")]
+        pos = [s for s in pos if s not in spliced]
+        only = stats or None
+        dropped: list[str] = []
+        if only:
+            keep = set(stats)
+            avail = set(pos) | set(spliced) | set(neg)
+            dropped = [RIVEN_STAT_ZH.get(s, s) for s in stats if s not in avail]
+            pos = [s for s in pos if s in keep]
+            spliced = [s for s in spliced if s in keep]
+            neg = [s for s in neg if s in keep]
+        title, lines = fmt.fmt_riven_ranges(
+            display, cls, combo, pos, spliced, neg, unc, only=only, dropped=dropped
+        )
+        if RA.class_estimated(item.get("riven_type") or "", item.get("group") or ""):
+            lines.insert(0, "※ ⚠ 武器类别未知，按步枪基值列估算（区间可能有偏差）")
+        return Reply(title, lines, footer=fmt.fmt_platform_footer(platform, "紫卡词条池"))
 
     async def _h_riven_analysis(self, parsed, event, platform) -> Reply:
         import time as _tt
@@ -314,7 +406,9 @@ class RivenCommands:
             #   旧限 1~4 字会整条落到武器名里 → 负词条丢失、反推区间算错）
             # ★ 2026-10-02 上限 8→12 字：DE 卡面原文「的几率来获得连击数」是 9 字，
             #   旧限会让整条落进 weapon_name（静默丢词条 + 污染武器名）。
-            m = _re.fullmatch(r"([\u4e00-\u9fa5]{1,12}?)(\d+(?:\.\d+)?)", body)
+            # ★ 2026-10-23（ZCode 部署回执）：派系词条卡面原文夹英文「对Infested伤害」，
+            #   只收汉字会整条落进武器名 ⇒ 放宽到汉字 + 英文字母（认不出的照旧归武器名）。
+            m = _re.fullmatch(r"([\u4e00-\u9fa5A-Za-z]{1,24}?)(\d+(?:\.\d+)?)", body)
             if m:
                 sid = self._stat_id_from_name(m.group(1), rev)
                 if sid:
@@ -485,18 +579,10 @@ class RivenCommands:
                     "正面，区间按正面档系数计算"
                     "（+ 号 = 增加后坐力 = 负面）"
                 )
-        # 武器解析 + 变体倾向查询互不依赖 → 并行（原来串行，实测分析段 4 s）
-        _t_res0 = asyncio.gather(
-            self.client.resolve_riven_weapon(weapon_name.strip()),
-            self.client.resolve_variant_disp(weapon_name.strip()),
-            return_exceptions=True,
-        )
-        weapon, _t_variant = await _t_res0
-        if isinstance(weapon, BaseException):
+        try:
+            weapon = await self.client.resolve_riven_weapon(weapon_name.strip())
+        except Exception:  # noqa: BLE001 - 解析失败走下面的兜底链
             weapon = None
-        if isinstance(_t_variant, BaseException):
-            _t_variant = (None, "")
-        variant_disp_pre, variant_key_pre = _t_variant or (None, "")
         if not weapon:
             # 变体兜底：棱晶·X / Prime X → 母武器（WM 紫卡表只挂母武器，
             # 变体倾向取母武器值）
@@ -527,7 +613,7 @@ class RivenCommands:
                 _ccls = RA.kitgun_mode_class(
                     _c.get("en") or _c.get("zh") or "", _ccls, _c.get("riven_type") or ""
                 )
-                _cd = float(_c.get("disposition") or 0)
+                _cd = RA.UNIFIED_DISPOSITION
                 if _cd > 0 and RA.disp_feasible(stats_pos, stats_neg, _ccls, _cd):
                     _feas.append((_c, _cd))
             if len(_feas) == 1:
@@ -585,21 +671,22 @@ class RivenCommands:
         #   墓指/响胆/凝视/虫置主要=步枪列，次要一律手枪列；非 kitgun 原样
         #   （Vinquibus (Primary) 仍是步枪列）。
         cls = RA.kitgun_mode_class(weapon.get("en") or weapon.get("zh") or "", cls, _kitgun_type)
-        # 倾向来历：手输覆盖（棱晶等变体 WM 没数据，卡主最准）> WM/母武器值。
+        # ★ 2026-10-22：类别**推不出**时不再静默 —— 卡面明说按步枪估算（此前 13 把
+        #   变体/形态条目被静默按步枪列算了很久）。判据：最终仍是步枪列**且**
+        #   group/riven_type 都命不中表；kitgun 形态行虽也空字段，但上面那步已按
+        #   腔体给了手枪列 ⇒ 不会被误报。
+        class_est_note = (
+            "⚠ 武器类别未知，按步枪基值估算"
+            if cls == "rifle"
+            and RA.class_estimated(weapon.get("riven_type", ""), weapon.get("group", ""))
+            else ""
+        )
+        # 倾向：DE 已统一（RA.UNIFIED_DISPOSITION）；手输覆盖仍保留作逃生口。
         # 游戏内紫卡不显示倾向数值，LLM 从卡面"读倾向"只会把内融值之类的
         # 数字当倾向（教训：49 → 区间爆表），所以永远不采信 LLM。
-        wm_disp = float(weapon.get("disposition") or 0)
-        # 倾向来历：手输覆盖 > wiki 变体表（棱晶等变体 WM 没数据）> WM 母武器。
-        variant_disp, variant_key = None, ""
-        if weapon_name.strip() != (weapon.get("zh") or weapon.get("en") or ""):
-            variant_disp, variant_key = (variant_disp_pre, variant_key_pre)
-        disp = disp_override or variant_disp or wm_disp
-        if disp <= 0:
-            return err_card(
-                f"WM 未返回「{weapon_name.strip()}」的倾向数值，无法计算区间",
-                "变体武器可手输倾向：紫卡分析 武器名 倾向0.95 词条…",
-                title="紫卡分析",
-            )
+        # 表里的 disposition 是取消前的旧值，只用于识别旧截图。
+        legacy_disp = float(weapon.get("disposition") or 0)
+        disp = disp_override or RA.UNIFIED_DISPOSITION
         name = weapon.get("zh") or weapon.get("en") or weapon["url_name"]
         mother_name = name
         # ── 小数点修正（2026-09-24 玩家报障：115.7% 读成 1157%）────────────
@@ -644,246 +731,41 @@ class RivenCommands:
                     )
             except Exception:  # noqa: BLE001 —— 纠错失败不影响主流程
                 pass
-        if variant_disp or disp_override:
-            name = weapon_name.strip() or name  # 保留用户输入的变体名
-        # ── 数值反推倾向 ────────────────────────────────────────────────
-        # 卡面只写母武器名（变体信息根本不在截图里），但数值 =
-        # 基值 × 倾向 × 词条系数 × U(0.9~1.1) 可以反着解出倾向；家族内
-        # （母武器 + 棱晶/Prime/亡魂…）通常只有一个候选能解释全部词条，
-        # 据此自动判定该按谁的倾向算 —— 不用手输、也不用带变体名。
+        if disp_override:
+            name = weapon_name.strip() or name  # 保留用户输入的名字
+        # ── 倾向吻合检查 ────────────────────────────────────────────────
+        # ★ 2026-10 DE 取消倾向后，家族变体（棱晶/Prime/赤毒…）与组合枪主/次模式都按同一个
+        #   1.2 算，原先「按数值反推该按谁的倾向算」整段退役。数值对不上只剩三种原因：
+        #   武器认错、词条读错，或是**取消前的旧截图**（数值还没按 1.2 缩放）——
+        #   最后一种用取消前的旧倾向（本地静态表，不再更新）对一下，命中就明说。
         infer_note = ""
         verdict = ""  # 卡首「判定」一行（短结论；完整说明仍在下面的提示行里）
-        fam_all = []
-        if not disp_override:
-            fam_all = [
-                (n, v) for n, v in await self.client.riven_family(weapon) if abs(v - wm_disp) > 1e-9
-            ]
-            if not variant_disp:
-                # ★ 2026-10-01：母武器倾向可行就不做变体推断（卡面本来就写着
-                #   武器名）——旧实现会让多值命中回「数值与多个倾向都吻合
-                #   请带变体名重发」，而母武器自身就是合理解释。
-                if RA.disp_feasible(stats_pos, stats_neg, cls, wm_disp):
-                    pass  # 母武器可行：跳过变体推断（family_note 仍可展示参考）
-                else:
-                    # ★ 2026-10-03：家族候选按各自模式换基值列（kitgun 主要
-                    #   形态逐腔体霰弹/步枪列），母行用母行类别（三元组）。
-                    _fam_c = [
-                        (n, v, RA.kitgun_mode_class(n, cls, _kitgun_type)) for n, v in fam_all
-                    ]
-                    fits = RA.match_disposition(
-                        stats_pos, stats_neg, cls, [(mother_name, wm_disp, cls)] + _fam_c
+        if not RA.disp_feasible(stats_pos, stats_neg, cls, disp):
+            iv = RA.disposition_interval(stats_pos, stats_neg, cls)
+            verdict = f"卡面数值与倾向 {disp:g} 不吻合"
+            infer_note = f"⚠️ 卡面数值与倾向 {disp:g} 不吻合，请核对武器与词条"
+            if iv[0] and not disp_override:
+                _old = [(mother_name, legacy_disp)] if legacy_disp > 0 else []
+                _old += list(await self.client.riven_family(weapon))
+                _hit = [n for n, v in _old if iv[0] <= float(v) <= iv[1]]
+                if _hit:
+                    verdict = "疑似倾向取消前的旧截图"
+                    infer_note = (
+                        f"⚠️ 卡面数值与取消前的旧倾向吻合（{'、'.join(_hit[:3])}）"
+                        f"—— 疑似倾向取消前的截图，游戏内数值已按 {disp:g} 缩放，请重新截图后再发"
                     )
-                    # 多个变体**倾向同值**时不算歧义 —— 区间只由倾向数值决定，
-                    # 名字（棱晶/Prime）不影响结果（棱晶·空刃与空刃 Prime 同为
-                    # 1.2）。旧实现一律回「请带变体名重发」，卡面就仍按母武器的
-                    # 1.3 计算（2026-10-01 玩家报障的空刃 3+1 那张正是如此）。
-                    fit_vals = sorted({round(float(v), 4) for _, v in fits})
-                    if len(fits) == 1 and abs(fits[0][1] - wm_disp) > 1e-9:
-                        name, disp = fits[0]  # 唯一吻合且不是母武器
-                        verdict = f"按数值反推：唯一吻合 {name}（倾向 {disp:g}）"
-                        infer_note = (
-                            f"数值反推倾向 {disp:g}：唯一吻合 {name}"
-                            f"（母武器 {mother_name} {wm_disp:g} 不吻合）"
-                        )
-                    elif len(fit_vals) == 1 and abs(fit_vals[0] - wm_disp) > 1e-9:
-                        disp = fit_vals[0]
-                        verdict = f"按数值反推倾向 {disp:g}（本体 {wm_disp:g} 不吻合）"
-                        infer_note = (
-                            f"数值反推倾向 {disp:g}：吻合 "
-                            + "、".join(n for n, _ in fits)
-                            + f"（母武器 {mother_name} {wm_disp:g} 不吻合）"
-                        )
-                    elif len(fits) > 1:
-                        verdict = "疑似变体卡（数值与多个倾向都吻合，需带变体名）"
-                        infer_note = (
-                            "数值与多个倾向都吻合："
-                            + "、".join(f"{n} {v:g}" for n, v in fits)
-                            + "　请带变体名重发：紫卡分析 棱晶欧玛 [截图]"
-                        )
-                    elif not fits:
-                        # ★ 2026-10-03 最近邻判据（取证 §六，修组合枪双模式报障）：
-                        #   严格区间（lo ≤ v ≤ hi）是硬边界，组合枪「wiki 与实机
-                        #   差 1%~5%」的腔体级残差会把只差 1% 的真候选判死（实例：
-                        #   捕月主要 1.1 多重/切割各差 0.7%/1.1% ⇒ 误报「老卡」）。
-                        #   先看最近邻：score = max|v/(基值×D×系数) − 1|，
-                        #   ≤ 0.15 判该候选并**把残差印在卡面**（可审计）。
-                        scored = RA.candidate_scores(
-                            stats_pos, stats_neg, cls, [(mother_name, wm_disp, cls)] + _fam_c
-                        )
-                        near = [(n, d, s) for n, d, s in scored if s <= RA.NEAR_MISS_MAX]
-
-                        def _fmt_pct(x: float) -> str:
-                            """残差百分数：整数省小数（11.0%→11%），否则一位小数。"""
-                            return f"{x * 100:.1f}".rstrip("0").rstrip(".") or "0"
-
-                        _res_txt = ""
-                        if scored:
-                            _res_txt = "；候选残差：" + "、".join(
-                                f"{n} {_fmt_pct(s)}%" for n, _d, s in scored[:4]
-                            )
-
-                        if near:
-                            _bn, _bd, _bs = near[0]
-                            _tied = [
-                                n
-                                for n, d, s in near
-                                if abs(d - _bd) <= 1e-9 and abs(s - _bs) <= 1e-9
-                            ]
-                            name, disp = _bn, _bd
-                            verdict = (
-                                f"最近邻 {_bn}（倾向 {_bd:g}，残差 {_fmt_pct(_bs)}%）"
-                                if not (_bn == mother_name and abs(_bd - wm_disp) < 1e-9)
-                                else f"本体倾向 {wm_disp:g}（残差 {_fmt_pct(_bs)}%，略有偏差）"
-                            )
-                            _tie_txt = ""
-                            if len(_tied) > 1:
-                                _tie_txt = "；同倾向候选：" + "、".join(
-                                    n for n in _tied if n != _bn
-                                )
-                            if _bn == mother_name and abs(_bd - wm_disp) < 1e-9:
-                                # 最近邻就是母武器自身（严格区间差一点）：
-                                # 按「本体 + 残差」表述，别写「对不上」。
-                                infer_note = (
-                                    f"卡面数值与「{mother_name}」倾向 {wm_disp:g} "
-                                    f"略有偏差（最近邻残差 {_fmt_pct(_bs)}%，"
-                                    "未超阈值）—— 已按该倾向计算"
-                                )
-                            else:
-                                infer_note = (
-                                    f"数值最近邻倾向 {_bd:g}：{_bn}"
-                                    f"（母武器 {mother_name} {wm_disp:g} 对不上）"
-                                    f"⚠ 残差 {_fmt_pct(_bs)}%"
-                                    "（接近该倾向，非严格命中）" + _tie_txt
-                                )
-                        else:
-                            # ★ 2026-09-24 玩家报障：老卡（洗出后该武器倾向被上调过，
-                            #   游戏不回溯重算旧卡数值）会四条词条整体偏低、全落 0%，
-                            #   旧实现只丢一句「武器名可能识别有误」（误导）。数值本身就
-                            #   能反推倾向：区间够紧（≤25%）时直接按反推值算区间。
-                            #   （2026-10-03 起排在最近邻判据之后：残差 >15% 才到这。）
-                            iv = RA.disposition_interval(stats_pos, stats_neg, cls)
-                            if iv[0] and iv[1] / iv[0] <= 1.25:
-                                # ★ 2026-10-03（用户口径）：先看反推区间是否落在**家族
-                                #   候选的已知倾向**里（本地 wiki 表，含玄骸变体 —— 家族
-                                #   关系已改走官方 parentName 表，赤毒/信条/终幕列得出了）。
-                                #   命中 ⇒ 判该变体，别一律推给「老卡」。
-                                #   ⚠ 兜底性质：`disposition_interval` 与 `_fit_dev` 判据
-                                #   数学等价（前者即后者的区间形式）⇒ 家族修好后「区间命中
-                                #   但 fit 为空」本不可达（上方「唯一吻合」分支会先接住）；
-                                #   此处保留，防两条判据将来分叉时退化成「老卡」误报。
-                                _hit = [
-                                    (n, float(v)) for n, v in fam_all if iv[0] <= float(v) <= iv[1]
-                                ]
-                                if _hit:
-                                    _mid = (iv[0] + iv[1]) / 2
-                                    _vals = sorted({round(v, 4) for _n, v in _hit})
-                                    disp = min(_vals, key=lambda v: abs(v - _mid))
-                                    verdict = f"疑似变体卡（命中家族变体，倾向 {disp:g}）"
-                                    _names = (
-                                        "、".join(n for n, v in _hit if round(v, 4) == disp)
-                                        or _hit[0][0]
-                                    )
-                                    infer_note = (
-                                        f"数值反推倾向 {disp:g}：命中家族变体"
-                                        f"「{_names}」（{mother_name} 当前值 {wm_disp:g} "
-                                        "对不上）—— 疑似变体卡，请带前缀重发核对："
-                                        f"紫卡分析 {_hit[0][0]} [截图]；"
-                                        f"区间已按 {disp:g} 计算"
-                                    )
-                                else:
-                                    disp = round((iv[0] + iv[1]) / 2, 2)
-                                    verdict = f"疑似倾向调整前的老卡（反推倾向 ≈{disp:g}）"
-                                    infer_note = (
-                                        f"卡面数值反推倾向 ≈{disp:g}（{mother_name} 当前值 "
-                                        f"{wm_disp:g} 对不上，反推区间 {iv[0]:g}~{iv[1]:g}）"
-                                        "—— 疑似倾向调整前洗出的老卡，区间已按反推值计算" + _res_txt
-                                    )
-                            else:
-                                # ★ 2026-10-02：本体不吻合、家族变体也解释不了 ⇒ 明确
-                                #   提示「疑似变体卡」并给候选（线上实证：赤毒努寇微波枪
-                                #   被读成努寇微波枪，倾向 0.50 错按 1.45 算 —— 差 2.9 倍；
-                                #   只写「武器名可能识别有误」不够，要用户带前缀重发）。
-                                _cands = [n for n, _v in fam_all][:3]
-                                if not _cands:
-                                    try:  # 家族列不出时给名字候选（现成 suggest）
-                                        _cands = list(
-                                            await self.client.suggest_riven_weapons(
-                                                weapon_name.strip()
-                                            )
-                                            or []
-                                        )
-                                    except Exception:  # noqa: BLE001 - 候选失败不阻断
-                                        _cands = []
-                                _cand_txt = ("；候选：" + "、".join(_cands)) if _cands else ""
-                                # ★ 2026-10-03：示例不能硬编码「赤毒」——
-                                #   ① mother_name 可能已含变体前缀（用户手输「赤毒·鳄神」⇒
-                                #      旧文案会拼成「紫卡分析 赤毒赤毒·鳄神」）；
-                                #   ② 本分支覆盖赤毒/信条/终幕三类 + 棱晶/圣洁/保障…等，
-                                #      硬编码「赤毒」对非赤毒武器是错示例。
-                                #   ★ 前缀判定**复用既有词表** matching.VARIANT_TOKENS
-                                #     （dict 键即中文前缀），不在本文件新建第三份词表
-                                #     （本仓已有词表漂移史，2026-09-27/10-02 各修过一次）。
-                                #   优先级：已有候选 ⇒ 用候选（最准，往往就是真变体名）；
-                                #   否则已含前缀 ⇒ 原样；否则保留旧「赤毒{本体名}」默认。
-                                _example = (
-                                    _cands[0]
-                                    if _cands
-                                    else mother_name
-                                    if any(p in mother_name for p in matching.VARIANT_TOKENS)
-                                    else f"赤毒{mother_name}"
-                                )
-                                verdict = "疑似变体卡（与本体倾向不吻合）"
-                                infer_note = (
-                                    f"⚠️ 卡面数值与「{mother_name}」本体倾向 {wm_disp:g} "
-                                    "不吻合，疑似变体卡（赤毒 / 信条 / 终幕 等）—— 请带变体前缀重发"
-                                    f"（例：紫卡分析 {_example} [截图]）{_cand_txt}{_res_txt}"
-                                )
-            elif not RA.disp_feasible(stats_pos, stats_neg, cls, disp):
-                iv = RA.disposition_interval(stats_pos, stats_neg, cls)
-                rng = f"（反推应在 {iv[0]:g}~{iv[1]:g}）" if iv[0] else ""
-                verdict = f"卡面数值与倾向 {disp:g} 不吻合"
-                infer_note = f"⚠️ 卡面数值与倾向 {disp:g} 不吻合{rng}，请核对武器"
-        if disp_override:
-            disp_note = (
-                f"（已按手输倾向 {disp:g} 计算，母武器 WM 值 {wm_disp:g}）"
-                if wm_disp
-                else f"（已按手输倾向 {disp:g} 计算）"
-            )
-        elif variant_disp:
-            disp_note = f"（倾向取自 wiki 变体表：{variant_key} {variant_disp:g}）"
-        else:
-            disp_note = ""
-        # 家族提示：列出家族变体倾向供对照（手输倾向仍可用 disp_override）；
-        # 倾向本身已由卡面数值反推/母武器可行确认，不再提示「带名字重发」
-        family_note = ""
-        if (
-            not infer_note
-            and not disp_override
-            and not variant_disp
-            and weapon_name.strip() == mother_name
-        ):
-            fam = [(n, v) for n, v in fam_all if abs(v - disp) > 1e-9]
-            if fam:
-                # ★ 2026-10-05：删掉「装在棱晶等变体上请发『紫卡分析
-                #   棱晶欧玛 [截图]』」的重发提示 —— 倾向已由卡面数值反推
-                #   （母武器可行才走到这里，数值落位本身就是变体判别），
-                #   再让用户带名字重发没有意义；保留家族列表与
-                #   「卡面不显示变体/模式」的说明即可。
-                _tail = (
-                    "　卡面不显示变体/模式"
-                    if any("（主要）" in n or "（次要）" in n for n, _v in fam)
-                    else "　卡面不显示变体"
-                )
-                family_note = (
-                    "该武器家族有其它倾向：" + "、".join(f"{n} {v:g}" for n, v in fam[:4]) + _tail
-                )
+        disp_note = (
+            f"（已按手输倾向 {disp:g} 计算；DE 已统一为 {RA.UNIFIED_DISPOSITION:g}）"
+            if disp_override
+            else ""
+        )
 
         # 提示分流（2026-10-11 卡片改版）：需要用户行动的（重发 / 核对）进 ⚠ 警示；
         #   其余说明合并成一条注脚；来源（图片识别）进页脚。
         def _needs_action(t: str) -> bool:
             return "⚠" in t or "请带变体" in t or "请核对" in t or "请重发" in t
 
-        _cands_n = [infer_note, neg_fix_note, dup_note]
+        _cands_n = [infer_note, neg_fix_note, dup_note, class_est_note]
         warns = [t for t in _cands_n if t and _needs_action(t)]
         infos = [
             t
@@ -891,7 +773,6 @@ class RivenCommands:
                 nearmiss_note,
                 infer_note if infer_note and not _needs_action(infer_note) else "",
                 disp_note,
-                family_note,
                 inverted_note,
                 ("已修正小数点（截图未读出点号）：" + "、".join(decimal_fix))
                 if decimal_fix
@@ -912,6 +793,6 @@ class RivenCommands:
             footer=fmt.fmt_platform_footer(
                 platform,
                 (f"{source_note.strip('（）')} · " if source_note else "")
-                + "DE 属性基值公式 · 倾向可由卡面数值反推",
+                + f"DE 属性基值公式 · 倾向统一 {RA.UNIFIED_DISPOSITION:g}",
             ),
         )

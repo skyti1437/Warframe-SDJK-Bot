@@ -136,6 +136,53 @@ def t_source_guards():
 def t_b11_arbi_and_sources():
     from core import arbi
 
+    # ★ 2026-10-22：仲裁时间表的评级列带**社区实测每小时生息中位数**（取整）。
+    #   档位+中位数、只档位、未评级三种形态都要对；中位数取整（528.9 → 529）。
+    _tier_of = {"N1": "A", "N2": "A+", "N3": "S"}
+    _med = {
+        "N1": {"tier": "A", "median": 612.4, "n": 9},
+        "N2": {"tier": "A+", "median": 705.0, "n": 9},
+    }
+    _saved = arbi._MEASURED
+    arbi._MEASURED = dict(_med, N3={"tier": "S"})  # N3：官方有档、社区无样本
+    try:
+        check(
+            "★ 评级后带每小时中位数（取整）：A 612 / A+ 705",
+            arbi.tier_label_with_median("N1", _tier_of) == "A 612"
+            and arbi.tier_label_with_median("N2", _tier_of) == "A+ 705",
+            f"{arbi.tier_label_with_median('N1', _tier_of)!r} {arbi.tier_label_with_median('N2', _tier_of)!r}",
+        )
+        check(
+            "★ 有档无样本 ⇒ 只给档位；未评级 ⇒ 空串",
+            arbi.tier_label_with_median("N3", _tier_of) == "S"
+            and arbi.tier_label_with_median("NX", _tier_of) == "",
+        )
+        check(
+            "  图例句在场（只在带中位数的表上出现）",
+            "每小时生息中位数" in arbi.TIER_MEDIAN_NOTE,
+            arbi.TIER_MEDIAN_NOTE,
+        )
+    finally:
+        arbi._MEASURED = _saved
+
+    # ★ 2026-10-22：「下次高效」—— 从下一场起找第一个 S/A+/A（与「仲裁 高效」同口径）。
+    _sched = {"startTs": 0, "stepSec": 3600, "seq": [0, 1, 2, 3], "nodes": ["kA", "kB", "kC", "kD"]}
+    _tier2 = {"kA": "B", "kB": "A-", "kC": "A", "kD": "S"}
+    check(
+        "★ next_efficient：跳过 B/A-，命中第一个 A",
+        arbi.next_efficient(_sched, _tier2, 0) == (2, "kC"),
+        str(arbi.next_efficient(_sched, _tier2, 0)),
+    )
+    check(
+        "★ next_efficient：从下一场起（含），全不高效 ⇒ None",
+        arbi.next_efficient({"seq": [0, 1], "nodes": ["kA", "kB"]}, _tier2, 0) is None,
+    )
+    check(
+        "★ next_efficient：下一场就是高效 ⇒ 就是它",
+        arbi.next_efficient(_sched, _tier2, 3) == (3, "kD"),
+        str(arbi.next_efficient(_sched, _tier2, 3)),
+    )
+
     # 仲裁换场 = 下一个整点（排期表 startTs 对齐整点、步长 3600）
     ts = 1791680400 + 1234  # 2026-10-11T01:20:34Z
     check("arbi.next_switch → 下一个整点", arbi.next_switch(ts) == 1791680400 + 3600)

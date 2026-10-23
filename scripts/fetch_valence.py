@@ -137,10 +137,69 @@ def parse(src: str) -> dict:
 # 运行期不 import scripts/，两处实现会漂移）。
 
 
-def apply(data: dict, parsed: dict, dry: bool = False) -> list[str]:
-    """把解析结果写进 rotations.json 结构，返回变更描述。"""
+VALENCE_REVISION_API = (
+    "https://wiki.warframe.com/api.php?action=query&prop=revisions"
+    "&titles=Tenet_Weapons|Coda_Weapons&rvprop=timestamp&format=json"
+)
+
+
+def fetch_revisions(url: str = VALENCE_REVISION_API, timeout: int = 30) -> dict:
+    """两张源页的最近修订时刻 ``{"tenet": iso, "coda": iso}``（直连 wiki api.php；在本地 Mac 跑）。
+
+    取不到返回 ``{}``，由调用方决定是否拒绝写入（见 ``apply`` 的不变量）。
+    """
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "SDJKBOT-fetch-valence"})
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            pages = (json.loads(r.read().decode("utf-8")).get("query") or {}).get("pages") or {}
+    except Exception as exc:  # noqa: BLE001 - 取不到修订时刻不让脚本崩，交给调用方判
+        print(f"⚠ 取不到 wiki 修订时刻：{exc!r}")
+        return {}
+    out: dict = {}
+    for page in pages.values():
+        title = str((page or {}).get("title") or "")
+        ts = (((page or {}).get("revisions") or [{}])[0] or {}).get("timestamp")
+        if not ts:
+            continue
+        iso = datetime.fromisoformat(ts.replace("Z", "+00:00")).isoformat()
+        if title.startswith("Tenet"):
+            out["tenet"] = iso
+        elif title.startswith("Coda"):
+            out["coda"] = iso
+    return out
+
+
+def apply(data: dict, parsed: dict, dry: bool = False, revs: dict | None = None) -> list[str]:
+    """把解析结果写进 rotations.json 结构，返回变更描述。
+
+    ★★ 不变量（2026-10-23 立，源于线上误报）：**改了 items 的数值，就必须同步改
+    「数值最早出现时刻」** —— 信条 ``tenet.valence_values_since``、终幕
+    ``coda.batch_values_since[批]``（每批各记各的），取值 = **源页那次改数值的修订时刻**
+    （不是 ``now``，也不是 ``valence_snapshot``）。
+
+    为什么：`core/api_client.py::valence_values_stale()` 拿这个时刻跟**本轮窗口起点**比，
+    早于窗口起点就判「数值仍是上一轮」，卡面会打上「数值疑似仍是上一轮：wiki 尚未完整更新」。
+    插件自己的 `refresh_valence()` 有 `_since()` 会正确维护它，但判据是「数值与本地相同就
+    **沿用旧记录**」（有意为之）⇒ **外部写坏之后插件也修不回来**。
+
+    实例：2026-10-22 手工把信条新值写进种子时只改了 items + ``valence_snapshot``，
+    ``valence_values_since`` 留在 ``2026-10-18T02:05:08`` ⇒ 信条卡从 10-22 起一直误报。
+    ★ 2026-10-23 补上：``revs`` = 源页修订时刻（``{"tenet": iso, "coda": iso}``，``fetch_revisions``
+    或 ``--since``）。某段数值**有变化**时同步写该段的 ``*_since``；有变化却没有该段修订时刻 ⇒
+    **抛 SystemExit 拒绝写入**（宁可不写，也不能再写出「数值新、时刻旧」的种子）。
+    """
     changes: list[str] = []
     now = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    revs = revs or {}
+
+    def _since_for(section: str) -> str:
+        ts = revs.get(section)
+        if not ts:
+            raise SystemExit(
+                f"✗ {section} 数值有变化，但拿不到源页修订时刻 —— 拒绝写入（会写出「数值新、时刻旧」）。"
+                "\n  在本地 Mac 跑（wiki api.php 可直连），或用 --since 手动指定该页那次改数值的修订时刻"
+            )
+        return ts
 
     def _merge(container: list[dict], src_items: list[dict], tag: str) -> int:
         """按英文名对齐，更新 element/bonus；返回更新条数。"""
@@ -178,6 +237,14 @@ def apply(data: dict, parsed: dict, dry: bool = False) -> list[str]:
         )
         n = _merge(batches[idx - 1], items, f"终幕批{label}")
         changes.append(f"  · Batch {label}：{len(items)} 条来自 wiki，其中 {n} 条数值有变化")
+        if n:
+            since = _since_for("coda")
+            changes.append(f"  · Batch {label} 数值最早出现时刻 → {since}")
+            if not dry:
+                sinces = list(coda.get("batch_values_since") or [])
+                sinces += [None] * (len(batches) - len(sinces))
+                sinces[idx - 1] = since
+                coda["batch_values_since"] = sinces
         if not dry:
             coda["valence_snapshot"] = now
 
@@ -186,6 +253,11 @@ def apply(data: dict, parsed: dict, dry: bool = False) -> list[str]:
     if parsed["tenet"]:
         n = _merge(titems, parsed["tenet"], "信条")
         changes.append(f"  · Tenet：{len(parsed['tenet'])} 条来自 wiki，其中 {n} 条数值有变化")
+        if n:
+            since = _since_for("tenet")
+            changes.append(f"  · Tenet 数值最早出现时刻 → {since}")
+            if not dry:
+                tenet["valence_values_since"] = since
         if not dry:
             tenet["valence_snapshot"] = now
 
@@ -215,6 +287,12 @@ def main():
         help="离线：从已保存的源页 wikitext 解析（Coda Weapons / Tenet Weapons）",
     )
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument(
+        "--since",
+        nargs=2,
+        metavar=("TENET_ISO", "CODA_ISO"),
+        help="手动指定两张源页那次改数值的修订时刻（不填则从 wiki api.php 现取；填 - 表示该段不改）",
+    )
     args = ap.parse_args()
 
     if args.wikitext:
@@ -252,7 +330,11 @@ def main():
 
     original = ROTATION_FILE.read_text(encoding="utf-8")
     data = json.loads(original)
-    changes = apply(data, parsed, dry=args.dry_run)
+    if args.since:
+        revs = {k: v for k, v in zip(("tenet", "coda"), args.since) if v and v != "-"}
+    else:
+        revs = fetch_revisions()
+    changes = apply(data, parsed, dry=args.dry_run, revs=revs)
     print("\n".join(changes))
 
     if args.dry_run:

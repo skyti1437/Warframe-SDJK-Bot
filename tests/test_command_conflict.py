@@ -322,6 +322,31 @@ async def main() -> None:
         await _drive(obj, ev)
         check("@机器人「新闻」不被误判为带前缀 → 照常响应", obj.called == ["news"], str(obj.called))
 
+        # ★ 2026-10-22 复发回归：原文拿不到前缀差异（适配器改写了原文）时，内置指令
+        #   仍须靠 AstrBot 的 is_at_or_wake_command 让路；第三方词不受该标记影响
+        obj.called.clear()
+        ev = _Ev("help", raw="help")
+        ev.is_at_or_wake_command = True
+        out = await _drive(obj, ev)
+        check(
+            "★ 「/help」原文已被改写：靠唤醒标记仍让给内置（无输出、未调用）",
+            out == [] and obj.called == [],
+            f"{out} {obj.called}",
+        )
+        obj.called.clear()
+        ev = _Ev("新闻", raw="新闻")
+        ev.is_at_or_wake_command = True
+        await _drive(obj, ev)
+        check(
+            "第三方占用词（新闻）不因唤醒标记让路（私聊 / @ 照旧由本插件响应）",
+            obj.called == ["news"],
+            str(obj.called),
+        )
+        obj.called.clear()
+        ev = _Ev("help", raw="help")
+        await _drive(obj, ev)
+        check("裸词 help（未唤醒）照旧由本插件响应", obj.called == ["help"], str(obj.called))
+
         # ---------- 4) 前缀探测的判据与容错 ----------
         check(
             "判据：raw 比 message_str 多一截且以其结尾 → 判定带前缀",

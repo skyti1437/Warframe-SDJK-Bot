@@ -1381,6 +1381,32 @@ _bb = dw.parse_worldstate(_bad, now_ms=1788964350000)
 assert not _bb["voidTrader"].get("active") and not _bb["voidTrader"].get("inventory")
 assert _bb["invasions"] == [] and _bb["nightwave"] == {}, (_bb["invasions"], _bb["nightwave"])
 assert _bb["fissures"] and _bb["sortie"], "其余 section 必须照常解析"
+# ★ P09（2026-10-21）：解析失败的段记进 _failed（与「真没事件」区分），好的段不进；干净包为空
+assert _bb["_failed"] and set(_bb["_failed"]) <= {"voidTrader", "invasions", "nightwave"}, _bb[
+    "_failed"
+]
+assert "fissures" not in _bb["_failed"] and "sortie" not in _bb["_failed"], _bb["_failed"]
+assert dw.parse_worldstate(raw, now_ms=1788964350000)["_failed"] == [], "干净包不得有失败段"
+print("P09 失败段：", _bb["_failed"])
+import asyncio as _aio09  # noqa: E402
+
+from core import api_client as _AC09  # noqa: E402
+
+_c09 = _AC09.WarframeClient.__new__(_AC09.WarframeClient)
+_c09.worldsource = "de"
+
+
+async def _bundle09():
+    return _bb
+
+
+_c09._de_bundle = _bundle09
+try:
+    _aio09.run(_c09.worldstate("pc", "invasions"))
+    raise AssertionError("失败段必须报错，不能回空列表冒充「当前没有入侵」")
+except _AC09.WarframeAPIError as _e09:
+    assert "解析失败" in str(_e09), _e09
+assert _aio09.run(_c09.worldstate("pc", "fissures")), "好段照常返回"
 _bad2 = dict(raw)
 _bad2["Sorties"] = [{"Activation": {"$date": "2026-10-11T00:00:00Z"}, "Boss": "SORTIE_BOSS_HEK"}]
 assert dw.parse_worldstate(_bad2, now_ms=_NOW)["sortie"]["activation"].startswith("2026-10-11")

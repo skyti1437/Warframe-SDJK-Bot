@@ -30,6 +30,7 @@
 
 from __future__ import annotations
 
+import json
 import random
 import re
 import sys
@@ -85,10 +86,152 @@ def _expand_tents_line(line: str) -> list[str]:
     return out or [line]
 
 
+# ---------------------------------------------------------------------------
+# 图表行（§CHART）：格式层输出机器行，画图模式画真实折线图，文本模式展开回方块字
+# ---------------------------------------------------------------------------
+# 格式层（formatters.fmt_trend）用一行 `§CHART{"title":…,"unit":…,"labels":[…],"values":[…]}`，
+# JSON 走 ``ensure_ascii=True``（全 ASCII）—— 机器行不参与折行/列宽判定，含全角字符
+# 会让宽度预扫描把卡撑爆。文本模式（text_card / 渲染器不可用）由 chart_text_lines
+# 展开为「方块字走势 + 最高/最低/最新一行」，信息不丢（同 ⟦tents⟧ 的先例）。
+_CHART_RE = re.compile(r"^§CHART(\{.*\})$")
+_CHART_BLOCKS = "▁▂▃▄▅▆▇█"
+
+
+def parse_chart(text: str) -> Optional[dict]:
+    """解析 ``§CHART{json}`` 机器行 → ``{title, unit, labels, values}``；非机器行/坏行返回 None。
+
+    ``values`` 里的 ``None`` **与 0 同义**（价格统计里 0 = 该小时 / 该日无成交），
+    都记成「无数据」：折线在此断开，也不参与最高/最低 —— 否则图上会出现
+    「最低 0p」这种把用户吓一跳的假点（旧 `_spark` 的 `if x` 也是这个口径）。
+
+    **至少 2 个有效点**才成图，否则返回 None（调用方退回纯文字，避免画出只有一个点的
+    「图」）。``labels`` 按需补空串 / 截齐到与 ``values`` 等长（轴标签缺失不影响出图）。
+    """
+    m = _CHART_RE.match((text or "").strip())
+    if not m:
+        return None
+    try:
+        obj = json.loads(m.group(1))
+    except ValueError:
+        return None
+    if not isinstance(obj, dict):
+        return None
+    raw = obj.get("values")
+    if not isinstance(raw, list) or len(raw) < 2:
+        return None
+    vals: list[Optional[float]] = []
+    for v in raw:
+        try:
+            f = None if v is None else float(v)
+        except (TypeError, ValueError):
+            f = None
+        vals.append(None if not f else f)
+    if sum(1 for v in vals if v is not None) < 2:
+        return None
+    labs = obj.get("labels")
+    if not isinstance(labs, list):
+        labs = []
+    labs = [str(x) for x in labs[: len(vals)]] + [""] * max(0, len(vals) - len(labs))
+    return {
+        "title": str(obj.get("title") or "走势"),
+        "unit": str(obj.get("unit") or ""),
+        "labels": labs,
+        "values": vals,
+    }
+
+
+def _fit_title(d, font, text: str, max_w: float) -> str:
+    """把标题收进 ``max_w``：**只在真的超宽时**截断并补省略号。
+
+    ★ 2026-10-24 修：原写法是「先逐字砍到放得下、再无条件补一个『…』」，
+    于是**没超宽的短标题也被缀上省略号**（线上实测：每张趋势图的
+    「48h 中位走势（p）」都渲染成「48h 中位走势（p）…」）。判据改成
+    「先问要不要截」——放得下就原样返回。
+    """
+    if not text or d.textlength(text, font=font) <= max_w:
+        return text
+    cut = text
+    while cut and d.textlength(cut + "…", font=font) > max_w:
+        cut = cut[:-1]
+    return (cut + "…") if cut else ""
+
+
+def _fmt_num(v: float) -> str:
+    """数值显示：整数不带小数、小数留 1 位（118.667 → 118.7）。"""
+    return f"{v:.1f}".rstrip("0").rstrip(".")
+
+
+def _spark(values: list[float], target: int = 30) -> str:
+    """把价格序列压成一行趋势条（8 档；分段取均值降到 ``target`` 格以内）。
+
+    分段的点**取段均值**而不是抽样 —— 抽样会把单小时的尖峰整个丢掉。
+    """
+    v = [x for x in values if x]
+    if len(v) < 2:
+        return ""
+    n = len(v)
+    if n > target:
+        out: list[float] = []
+        for i in range(target):
+            lo = i * n // target
+            hi = max(lo + 1, (i + 1) * n // target)
+            seg = v[lo:hi]
+            out.append(sum(seg) / len(seg))
+        v = out
+    lo, hi = min(v), max(v)
+    if hi <= lo:
+        return _CHART_BLOCKS[0] * len(v)
+    return "".join(_CHART_BLOCKS[min(7, int((x - lo) / (hi - lo) * 7.999))] for x in v)
+
+
+def chart_text_lines(chart: dict) -> list[str]:
+    """图表行的文本模式展开：方块字走势 + 「最高 / 最低 / 最新」一行。
+
+    文字模式没有坐标轴，最高最低必须用这一行说清楚（维护者 2026-10-23 的原始诉求
+    就是「最高最低不明确」）。空值点跳过，时间取该点的轴标签。
+    """
+    vals = chart.get("values") or []
+    labs = chart.get("labels") or []
+    title = chart.get("title") or "走势"
+    unit = chart.get("unit") or ""
+    idx = [i for i, v in enumerate(vals) if v is not None]
+    if not idx:
+        return [f"· {title}　（区间内无有效数据）"]
+
+    def _lab(i: int) -> str:
+        s = labs[i] if i < len(labs) else ""
+        return f"（{s}）" if s else ""
+
+    out: list[str] = []
+    spark = _spark([vals[i] for i in idx])
+    if spark:
+        out.append(f"· {title}　{spark}")
+    hi = max(idx, key=lambda i: vals[i])
+    lo = min(idx, key=lambda i: vals[i])
+    last = idx[-1]
+    out.append(
+        f"· 最高 {_fmt_num(vals[hi])}{unit}{_lab(hi)}｜"
+        f"最低 {_fmt_num(vals[lo])}{unit}{_lab(lo)}｜"
+        f"最新 {_fmt_num(vals[last])}{unit}{_lab(last)}"
+    )
+    return out
+
+
+def _expand_chart_line(line: str) -> list[str]:
+    """``§CHART{…}`` 机器行 → 文本模式行（方块字 + 最高/最低/最新）；非机器行原样返回。"""
+    if not line.startswith("§CHART"):
+        return [line]
+    chart = parse_chart(line)
+    if chart is None:
+        return []  # 坏行/点太少：整行丢掉，不留一串裸 JSON 给用户看
+    return chart_text_lines(chart)
+
+
 def text_card(title: str, lines: list[str], footer: str = "", max_width: int = 44) -> str:
     """构造排版整齐的字符界面卡片。"""
     title = _POL_MARK_RE.sub("", title or "")
     lines = [seg for x in lines for seg in _expand_tents_line(_POL_MARK_RE.sub("", x or ""))]
+    lines = [seg for x in lines for seg in _expand_chart_line(x)]
     # ⟦c⟧/⟦v⟧/⟦w⟧ 及其闭合 = 染段标记（画图模式分段上色），文本模式剥掉
     lines = [_SEG_MARK_RE.sub("", x) for x in lines]
     footer = _POL_MARK_RE.sub("", footer or "")
@@ -546,6 +689,21 @@ _TENT_PAD_BOT = 14  # 末行之下余量
 _TENT_BLUE_TASKS = frozenset(
     {"捕获grineer特工", "找出遗失的器物", "取回被偷的器物", "搜索并救援", "搜索与救援"}
 )
+
+# ---------------------------------------------------------------------------
+# 图表行（§CHART）：折线图的几何参数（设计像素；绘制时乘 SS）
+# ---------------------------------------------------------------------------
+# 一行机器行 = 一整块绘图区。绘图区内部再切：顶部标题带、左侧价格刻度沟、底部时间轴。
+# 留白是给刻度标签的，不能让折线压到标签上（维护者 2026-10-23：「线条看不见」）。
+CHART_MIN_W = 620  # 图表行要求的最小卡宽（其余正文行更宽时以它们为准）
+CHART_H = 236  # 图表行总高
+CHART_PAD_T = 40  # 顶部标题带（标题 + 与顶网格线标签的净空）
+CHART_PAD_B = 34  # 底部时间轴带（刻度标签）
+CHART_PAD_L = 92  # 左侧价格刻度沟（「1.2kp」这类最宽标签）
+CHART_PAD_R = 14  # 右侧留白（末端「最新」标注不许贴边）
+CHART_LINE_W = 3  # 折线线宽
+CHART_DOT_R = 5  # 最高/最低/最新三个点标记的半径
+CHART_AXIS_LINES = 4  # 横向网格线条数（含顶/底）
 
 
 def _tents_of(text: str) -> Optional[list[list[str]]]:
@@ -1138,6 +1296,7 @@ _TABLE_TITLE_PATTERNS = (
     "九重天虚空风暴",  # 2026-09-27：节点/类型/剩余时间 三列（原来用 ｜ 串联）
     "仲裁排期",  # 2026-09-27：时间/节点（星球）/类型/派系/[评级] 分列
     "结合仪式目标",  # 2026-09-27：名称/节点/类型（派系）三列
+    "词条范围",  # 2026-10-23：紫卡词条范围卡「词条　区间」两列对齐
 )
 
 
@@ -1548,6 +1707,11 @@ class ImageRenderer:
                     (_nb * (_tw + 2 * _TENT_PAD_X * SS) + (_nb - 1) * _TENT_GAP * SS) / SS + 10,
                 )
                 continue
+            # 图表机器行：内容是 JSON，按原文测宽会把卡撑爆 —— 只保证图表有最小可用宽度，
+            # 实际绘图铺满正文区（其余正文行照常决定卡宽）。
+            if clean.startswith("§CHART"):
+                needed = max(needed, CHART_MIN_W)
+                continue
             if "　" in clean:
                 _cells = _split_cells(clean)
                 if (
@@ -1721,6 +1885,8 @@ class ImageRenderer:
                 return "section"
             if t.startswith("⟦tents⟧"):
                 return "tents"
+            if t.startswith("§CHART"):
+                return "chart"
             # ★ 2026-09-27：赏金**档位行**（块首，格式层用 `_BOUNTY_HEAD_PREFIX`
             #   显式标记）—— 赏金卡「块与块之间画线」的判据。用显式标记而不是
             #   内容启发式：同卡上档位/奖励/点位行混排，猜会漏 oracle 与退路路径。
@@ -1807,6 +1973,25 @@ class ImageRenderer:
                         ),
                     }
                 )
+                continue
+            if base_kind == "chart":
+                # 图表机器行：JSON 原样存行上（不折行、不参与计时/分列判定），
+                # 高度全走 _extra_h（_base_h 返回 0），由 _draw_chart 铺满这一块。
+                _chart = parse_chart(clean)
+                if _chart is not None:
+                    rows.append(
+                        {
+                            "text": "",
+                            "icon": False,
+                            "timer": "",
+                            "level": "",
+                            "kind": "chart",
+                            "indent": 0,
+                            "cells": None,
+                            "chart": _chart,
+                            "_extra_h": CHART_H,
+                        }
+                    )
                 continue
             _wrap_font = note_font if base_kind == "note" else body_font
             if (
@@ -1967,6 +2152,7 @@ class ImageRenderer:
             "section": RH_SEC,
             "note": RH_NOTE,
             "tents": 0,
+            "chart": 0,
             "kvcont": RH_CONT,
         }
 
@@ -2269,6 +2455,20 @@ class ImageRenderer:
                     body_font,
                     f.get("bold", 29),
                     accent,
+                )
+                continue
+            if k == "chart":
+                self._draw_chart(
+                    img,
+                    d,
+                    r_.get("chart") or {},
+                    x_text - 6 * SS,
+                    x_right + 6 * SS,
+                    y,
+                    tot * SS,
+                    accent,
+                    note_font,
+                    f.get("bold", 22),
                 )
                 continue
             if k == "kvcont":
@@ -2703,6 +2903,216 @@ class ImageRenderer:
         out = [seg.rstrip(" ·、") for seg in out]
         out = [out[0]] + [seg.lstrip(" ·、") for seg in out[1:]]
         return [seg for seg in out if seg]
+
+    @staticmethod
+    def _chart_label_rect(
+        d,
+        cx: float,
+        cy: float,
+        lines: list[str],
+        font,
+        side: str,
+        box: tuple[float, float, float, float],
+    ) -> Optional[tuple[float, float, float, float]]:
+        """算关键点标注小片的外接框 —— **纯几何、不落笔**；放不下返回 None。
+
+        ``side`` = ``"up"`` / ``"down"``：放在关键点的上方还是下方。横向不按锚点放，
+        先按「点上方居中」定位再整体收进画区（``box``）—— 序列末点贴着右缘时，
+        任何右锚标注都会越界（2026-10-23 实测：48h 图的「最新」标注因此消失）。
+
+        ★ 必须与落笔分离：调用方要拿框先去重（撞上已放的标注就翻面重算）。
+        先画后判会在画布上留下被否决的残片（同日实测：48h 图出现两个「最新」小片）。
+        """
+        lh = font.size + 4 * SS
+        th = lh * len(lines) + 2 * 4 * SS
+        tw = max((d.textlength(s, font=font) for s in lines), default=0.0)
+        w = tw + 2 * 8 * SS
+        if w > box[2] - box[0]:
+            return None
+        bx = min(max(cx - w / 2, box[0]), box[2] - w)
+        if side == "up":
+            by = cy - CHART_DOT_R * SS - 5 * SS - th
+        else:
+            by = cy + CHART_DOT_R * SS + 5 * SS
+        rect = (bx, by, bx + w, by + th)
+        if rect[1] < box[1] or rect[3] > box[3]:
+            return None
+        return rect
+
+    @staticmethod
+    def _draw_chart_label(img, d, rect, lines: list[str], font) -> None:
+        """把已定好位的标注小片画出来：底色小片 + 居中两行（数值行 / 时间行）。
+
+        底色用面板底色 —— 折线与网格穿字而过时读不清（维护者 2026-10-23 的原始诉求），
+        压一层底再写字。
+        """
+        _translucent_fill(img, rect, PANEL_BG, 0.86, 6 * SS)
+        d.rectangle(list(rect), outline=PANEL_LINE, width=max(1, SS // 2))
+        lh = font.size + 4 * SS
+        cy = rect[1] + 4 * SS + lh / 2
+        for i, s in enumerate(lines):
+            d.text(((rect[0] + rect[2]) / 2, cy + i * lh), s, font=font, fill=INK, anchor="mm")
+
+    def _draw_chart(
+        self,
+        img,
+        d,
+        chart: dict,
+        x0: float,
+        x1: float,
+        y: float,
+        h: float,
+        accent,
+        label_font,
+        title_font,
+    ) -> None:
+        """价格趋势折线图（§CHART 行）：坐标轴 + 网格 + 折线 + 最高/最低/最新标注。
+
+        坐标：``x0/x1`` 是横向可用区（光栅像素），``y`` 是行顶、``h`` 是行高。
+        画法固定四层：底板 → 网格与刻度 → 折线 → 三个关键点标注。配色全部取
+        主题槽位（底板 PANEL_ALT、网格 PANEL_LINE、刻度 INK_DIM、折线 accent），
+        所以**亮暗主题都成立**（主题改的是这些槽位本身，不是写死的颜色）。
+        空值（该小时/该日无成交）断开折线，不连成假直线。
+        """
+        vals: list[Optional[float]] = chart.get("values") or []
+        labs: list[str] = chart.get("labels") or []
+        unit = chart.get("unit") or ""
+        n = len(vals)
+        px0 = x0 + CHART_PAD_L * SS
+        px1 = x1 - CHART_PAD_R * SS
+        py0 = y + CHART_PAD_T * SS
+        py1 = y + h - CHART_PAD_B * SS
+        if n < 2 or px1 - px0 < 60 * SS or py1 - py0 < 40 * SS:
+            return
+        plot = (px0, py0, px1, py1)
+        # —— 底板：整行一块圆角板，折线不会「浮」在背景图上 ——
+        _translucent_fill(img, (x0, y + 2 * SS, x1, y + h - 2 * SS), PANEL_ALT, 1.0, 10 * SS)
+        d.rounded_rectangle(
+            (x0, y + 2 * SS, x1, y + h - 2 * SS), radius=10 * SS, outline=PANEL_LINE, width=SS
+        )
+        # —— 标题带（超宽截断：标题来自机器行字段，长度不受本函数控制）——
+        ttl = chart.get("title") or ""
+        if unit:
+            ttl = f"{ttl}（{unit}）"
+        if ttl:
+            ttl = _fit_title(d, title_font, ttl, (x1 - 14 * SS) - (x0 + 14 * SS))
+            d.text((x0 + 14 * SS, y + 5 * SS), ttl, font=title_font, fill=INK_DIM)
+        # —— 纵轴值域：上下各留 8% 余量，全等序列也要有高度（否则除零）——
+        known = [v for v in vals if v is not None]
+        lo, hi = min(known), max(known)
+        if hi <= lo:
+            span = max(1.0, abs(hi) * 0.1)
+            lo, hi = lo - span, hi + span
+        else:
+            pad = (hi - lo) * 0.08
+            lo, hi = lo - pad, hi + pad
+        if lo < 0:
+            lo = 0.0
+
+        def _xv(i: int) -> float:
+            return px0 + (px1 - px0) * i / (n - 1)
+
+        def _yv(v: float) -> float:
+            return py1 - (py1 - py0) * (v - lo) / (hi - lo)
+
+        # —— 网格 + 纵轴刻度（含顶/底）——
+        for gi in range(CHART_AXIS_LINES):
+            t = gi / (CHART_AXIS_LINES - 1)
+            gy = py1 - (py1 - py0) * t
+            d.line([(px0, gy), (px1, gy)], fill=PANEL_LINE, width=max(1, SS // 2))
+            # 刻度标签纵向收进画区：顶/底那条网格线的标签居中画会探进标题带
+            # 与横轴标签带（2026-10-23 实测「48h 中位走势」被 270p 压住）。
+            _lh = label_font.size
+            ly = min(max(gy, py0 + _lh / 2), py1 - _lh / 2)
+            d.text(
+                (px0 - 12 * SS, ly),
+                f"{_fmt_num(lo + (hi - lo) * t)}{unit}",
+                font=label_font,
+                fill=INK_DIM,
+                anchor="rm",
+            )
+        # —— 横轴刻度：首/中/尾三点，避免 48 个小时标签糊成一片 ——
+        # 首点左对齐、末点右对齐：居中画会有一半探进左侧价格沟里（与底部的
+        # 纵轴刻度标签叠在一起）。
+        for ti in sorted({0, n // 2, n - 1}):
+            lab = labs[ti] if ti < len(labs) else ""
+            if not lab:
+                continue
+            d.text(
+                (_xv(ti), py1 + 6 * SS),
+                lab,
+                font=label_font,
+                fill=INK_FAINT,
+                anchor="la" if ti == 0 else ("ra" if ti == n - 1 else "ma"),
+            )
+        # —— 折线：空值断段（相邻索引才连），末端圆角接合 ——
+        prev: Optional[tuple[float, float]] = None
+        for i, v in enumerate(vals):
+            if v is None:
+                prev = None
+                continue
+            pt = (_xv(i), _yv(v))
+            if prev is not None:
+                d.line([prev, pt], fill=accent, width=CHART_LINE_W * SS, joint="curve")
+            prev = pt
+        # —— 三个关键点：最高 / 最低 / 最新，各自标数值 + 时间 ——
+        idx = [i for i, v in enumerate(vals) if v is not None]
+        hi_i = max(idx, key=lambda i: vals[i])
+        lo_i = min(idx, key=lambda i: vals[i])
+        last_i = idx[-1]
+        # 同一索引可能身兼数职：单调上升的序列上「最高」就是「最新」，全程持平的序列
+        # 「最高」就是「最低」。合成一条标注 —— 拆成两条会抢同一位置，去重逻辑只留先放的
+        # 那条，用户就看不到「最新」了（2026-10-23 实测）。
+        roles: dict[int, list[str]] = {}
+        for _tag, _i in (("最高", hi_i), ("最低", lo_i), ("最新", last_i)):
+            roles.setdefault(_i, []).append(_tag)
+        marks = []
+        for _i, _tags in roles.items():  # dict 保序 = 最高 → 最低 → 最新（先放的占好位置）
+            if "最低" in _tags and "最高" not in _tags:
+                _col, _side = RED, ("down", "up")
+            elif "最高" in _tags:
+                _col, _side = GREEN, ("up", "down")
+            else:
+                _col, _side = GOLD_BRIGHT, ("up", "down")
+            marks.append((_i, _col, "·".join(_tags), _side))
+        placed: list[tuple[float, float, float, float]] = []
+        for mi, mcol, mtag, sides in marks:
+            mv = vals[mi]
+            cx, cy = _xv(mi), _yv(mv)
+            d.ellipse(
+                [
+                    cx - CHART_DOT_R * SS,
+                    cy - CHART_DOT_R * SS,
+                    cx + CHART_DOT_R * SS,
+                    cy + CHART_DOT_R * SS,
+                ],
+                fill=mcol,
+                outline=PANEL_BG,
+                width=SS,
+            )
+            lab = labs[mi] if mi < len(labs) else ""
+            head = f"{mtag} {_fmt_num(mv)}{unit}"
+            # 两行小片（数值行 + 时间行）比一行窄近一半 —— 48 小时序列上「最高」与
+            # 「最新」常常只隔几个点，一行装不下两个标注。
+            variants = [[head, lab] if lab else [head], [head]]
+            # 先按偏好面（最高朝上、最低朝下、最新朝上）放；放不下或撞上已放的标注就
+            # 翻面，再不行丢掉时间行 —— 宁可少一行时间，也不把字压出画区或互相盖住。
+            rect: Optional[tuple[float, float, float, float]] = None
+            chosen: list[str] = []
+            for side in sides:
+                for lines_ in variants:
+                    cand = self._chart_label_rect(d, cx, cy, lines_, label_font, side, plot)
+                    if cand is not None and not any(
+                        cand[0] < p[2] and cand[2] > p[0] and cand[1] < p[3] and cand[3] > p[1]
+                        for p in placed
+                    ):
+                        rect, chosen = cand, lines_
+                        break
+                if rect is not None:
+                    break
+            if rect is not None:
+                self._draw_chart_label(img, d, rect, chosen, label_font)
+                placed.append(rect)
 
     def _draw_tent_blocks(
         self,

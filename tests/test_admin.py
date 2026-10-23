@@ -326,9 +326,11 @@ async def terminate_checks() -> None:
             raise
 
     obj._boot_task = asyncio.create_task(_hanging_warm())
+    obj._warm_task = asyncio.create_task(asyncio.sleep(30))  # 线程预热（P08）：纳入统一收尾
     await asyncio.sleep(0)
     await obj.terminate()
     check("terminate 取消首启预热任务（_boot_task）", obj._boot_task.cancelled(), str(events))
+    check("terminate 也收尾线程预热任务（_warm_task）", obj._warm_task.cancelled())
     check(
         "预热任务先退出、再关 client（不在已关闭的连接上发请求）",
         "boot.cancelled" in events

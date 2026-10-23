@@ -510,8 +510,88 @@ class MarketCommands:
             return False
         return True
 
+    # ★ 2026-10-23：wr「未开紫卡」词表（玩家报「wr 手枪未开 搜不到」）。
+    #   类别词**不新造**，对齐 `fmt._RIVEN_ITEM_TYPE` / `_VEILED_SLUGS` 的既有中文与键；
+    #   同义词（副武/主武/曲翼/霰弹/守护/同伴）来自用户在用的叫法。
+    _WR_VEILED_WORDS = ("未揭示", "未开", "未解", "veiled")
+    # ★ 长词在前（霰弹枪 先于 霰弹），否则匹配到「霰弹」会残留「枪」被判成非未开查询
+    _WR_VEILED_CATS = (
+        ("霰弹枪", "Shotgun"),
+        ("霰弹", "Shotgun"),
+        ("组合枪", "Kitgun"),
+        ("手枪", "Pistol"),
+        ("副武", "Pistol"),
+        ("步枪", "Rifle"),
+        ("主武", "Rifle"),
+        ("近战", "Melee"),
+        ("曲翼", "Archgun"),
+        ("空战", "Archgun"),
+        ("zaw", "Zaw"),
+        ("守护", "Robotic"),
+        ("同伴", "Robotic"),
+    )
+
+    def _wr_veiled_query(self, content) -> "str | None":
+        """识别「类别 + 未开」；返回类别键（无类别时返回 ``""``）；不是未开查询返回 None。
+
+        ★ 只在「除未开词与类别词之外没有别的实质内容」时才认（维护者要求「wr 武器名」
+        原行为一字不改，别把「未开」误吞成武器名的一部分）。
+        四种写法都认：`wr 手枪未开` / `wr 手枪 未开` / `wr 未开 手枪` / `wr 未开手枪`。
+        """
+        toks = [str(t).strip() for t in (content or []) if str(t).strip()]
+        if not toks:
+            return None
+        blob = " ".join(toks).lower()
+        if not any(w in blob for w in self._WR_VEILED_WORDS):
+            return None
+        cat = ""
+        for word, key in self._WR_VEILED_CATS:
+            if word in blob:
+                cat = key
+                break
+        # 去掉未开词与类别词后应无残留（否则当普通 wr 处理）
+        rest = blob
+        for w in self._WR_VEILED_WORDS:
+            rest = rest.replace(w, " ")
+        if cat:
+            for word, key in self._WR_VEILED_CATS:
+                if key == cat:
+                    rest = rest.replace(word, " ")
+        if rest.strip():
+            return None
+        return cat
+
+    async def _wr_veiled(self, cat: str, parsed, platform) -> Reply:
+        """未开紫卡：有类别 ⇒ 该 slug 的 WM 挂单；无类别 ⇒ 8 类中位/最低/最高。"""
+        if not cat:
+            stats = await self.client.wm_veiled_stats(platform)
+            title, lines = fmt.fmt_wm_veiled_summary(stats)
+            return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
+        slug = self.client._VEILED_SLUGS.get(cat)
+        if not slug:
+            return err_card(
+                "没有这个未开紫卡类别", "改用：近战/步枪/霰弹枪/手枪/曲翼/组合枪/Zaw/守护"
+            )
+        orders, _info = await self.client.wm_orders(slug, platform)
+        # 短名（「手枪」而不是「手枪未开紫卡」），免得标题变成「未开紫卡 · 手枪未开紫卡」；
+        # 短名从既有 _VEILED_TYPE_ZH 去后缀得到，不新造词表。
+        label = fmt._VEILED_TYPE_ZH.get(cat, cat).removesuffix("未开紫卡").strip() or cat
+        title, lines, _best, _pool = fmt.fmt_wm_orders(
+            f"未开紫卡 · {label}",
+            orders,
+            buy=False,
+            page=parsed.page,
+            page_size=self.page_size,
+        )
+        lines.append("※ 未开紫卡只有「武器类别」没有具体武器名；加类别看别的：wr 未开")
+        return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
+
     async def _h_wr(self, parsed, event, platform) -> Reply:
         pass
+
+        _vc = self._wr_veiled_query(parsed.content)
+        if _vc is not None:
+            return await self._wr_veiled(_vc, parsed, platform)
 
         q = parse_wr(parsed.content)
         if q.unrecognized_stats:
@@ -757,7 +837,11 @@ class MarketCommands:
         return Reply(title, lines, footer=fmt.fmt_platform_footer(platform, "warframe.market 成交"))
 
     async def _h_riven_rank(self, parsed, platform) -> Reply:
-        """紫卡热度排行：DE 官方周报（0洗/已洗 中位价与热度，周更）。"""
+        """紫卡排行：**默认实时**（WM 拍卖快照）；`紫卡排行 周报` = DE 官方周报；带类别 = 周报分类。
+
+        ★ 2026-10-23（玩家报「周报时效差，1.2 热修后暴涨看不出」）：周报每周一才更新一次，
+        热修后那几周全是旧数 ⇒ 默认改看 WM 拍卖**实时**挂单；实时缺失/过期自动回落周报并写明。
+        """
         content = (parsed.content_str or "").strip()
         try:
             snap = await self.client.de_weekly_rivens(platform, force="刷新" in content)
@@ -768,16 +852,33 @@ class MarketCommands:
                 "稍后重发「紫卡排行」",
                 title="紫卡排行",
             )
-        zhm = {
-            w.get("en", "").lower(): (w.get("zh") or "")
-            for w in await self.client.wm_riven_weapons()
-        }
+        weapons = await self.client.wm_riven_weapons()
+        zhm = {w.get("en", "").lower(): (w.get("zh") or "") for w in weapons}
+        by_url_zh = {w.get("url_name") or "": (w.get("zh") or "") for w in weapons}
         cat = ""
         for t in parsed.content or []:
             k = t.replace("排行", "").strip()
             if k in fmt._RIVEN_ITEM_TYPE or k in ("主武", "副武", "未开"):
                 cat = k
                 break
+        # —— 默认：实时（WM 拍卖快照）；显式「周报」或有类别时走周报 ——
+        if not cat and "周报" not in content:
+            rt = self.client.riven_realtime_rows()
+            rt_rows = rt.get("rows") or {}
+            rt_ts = rt.get("ts") or ""
+            if rt_rows:
+                title, lines = fmt.fmt_riven_realtime(
+                    rt_rows, rt_ts, by_url_zh, page=parsed.page, page_size=self.page_size
+                )
+                return Reply(
+                    title,
+                    lines,
+                    footer=fmt.fmt_platform_footer(platform, "warframe.market 拍卖实时"),
+                )
+            # 实时快照还没有 ⇒ 回落周报并写明
+            title, lines = fmt.fmt_riven_weekly(snap, zhm)
+            lines.insert(0, "※ 实时快照尚未生成（后台每 6h 凌晨闲时重建），下面是 DE 官方周报口径")
+            return Reply(title, lines, footer=fmt.fmt_platform_footer(platform, "DE 官方周报"))
         if not cat:
             title, lines = fmt.fmt_riven_weekly(snap, zhm)
             return Reply(title, lines, footer=fmt.fmt_platform_footer(platform, "DE 官方周报"))

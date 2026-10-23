@@ -499,21 +499,22 @@ REGISTRY: dict[str, dict] = {
         "scripts/build_disposition.py",
         "wiki Riven_Mods 倾向表（CC BY-NC-SA）",
         observed="snapshot",
-        policy="max_age",
-        max_age_days=9,
+        policy="manual_curated",
         readers=["core/api_client.py"],
         override="runtime_refresh",
-        risk="high",
+        risk="low",
         oss=False,
-        note="有 FlareSolverr 时超过 7 天自动重抓；另每 3 小时检查社区快照。开源 / 市场包不随附（OSS_EXCLUDE_FILES）。",
+        note="2026-10 DE 取消紫卡倾向后冻结：不再重抓、不进社区快照，只作「倾向取消前的旧截图」判据。"
+        "开源 / 市场包不随附（OSS_EXCLUDE_FILES），缺失时只少这条提示。",
     ),
     "dispositions_rivenmirror.json": _e(
         "community",
         "scripts/build_disposition.py",
         "wiki 主源 + riven-mirror 兜底 + WM 类别",
         readers=["core/api_client.py", "core/matching.py"],
-        risk="high",
-        note="运行期覆盖同名条目并追加缺失；与 wiki_disp 同一次 wiki 解析。",
+        risk="low",
+        note="运行期覆盖同名条目并追加缺失；与 wiki_disp 同一次 wiki 解析。2026-10 倾向取消后冻结为"
+        "「取消前旧倾向」，只用于倾向卡的数值缩放提示与旧截图判据。",
     ),
     # ================================================== market（市场/紫卡）
     "junk.json": _e(
@@ -540,6 +541,28 @@ REGISTRY: dict[str, dict] = {
         readers=["core/api_client.py", "core/matching.py", "core/commands/market.py"],
         risk="medium",
         note="家族 = 沿 parentName 上溯；mtime 缓存护栏不等于新鲜度。",
+    ),
+    "de/riven_pools.json": _e(
+        "market",
+        "scripts/build_riven_pools.py",
+        "wfsim data/rivens/{职业池,exceptions,physical,pools}.yaml + data/weapons（家族/弹药池）"
+        " + 本地抽样覆盖层 de/riven_pools_survey.json",
+        observed="_generated_at",
+        readers=["core/riven_pools.py", "core/commands/riven.py"],
+        risk="medium",
+        note="词条池证据表（「词条范围」按武器过滤用）。静态快照：上游改动须重跑生成器，"
+        "`--check` 可复现校验；`_wfsim_commit` 记上游版本。",
+    ),
+    "de/riven_pools_survey.json": _e(
+        "market",
+        "scripts/survey_riven_pools.py",
+        "warframe.market /v1/auctions/search 逐词条带过滤计数（本地抽样）",
+        observed="_surveyed",
+        policy="manual_curated",
+        readers=["scripts/build_riven_pools.py"],
+        risk="medium",
+        note="抽样覆盖层：只被生成器读（运行期不读），合并进 de/riven_pools.json 的 "
+        "families[*].survey。WM 速率受限，补抽样要慢跑（脚本内置 2.5s/请求 + 退避）。",
     ),
     # ================================================== world（世界状态/节点）
     "de/solNodes.json": _e(
@@ -667,6 +690,17 @@ REGISTRY: dict[str, dict] = {
         risk="low",
         tracked=False,
         note="被 .gitignore 忽略，只在运行目录；不随包分发。",
+    ),
+    "riven_rt.json": _e(
+        "runtime_cache",
+        "runtime",
+        "紫卡实时排行快照（WM 拍卖；2026-10-23 加）",
+        policy="runtime_cache",
+        readers=["core/api_client.py"],
+        override="runtime_only",
+        risk="low",
+        tracked=False,
+        note="被 .gitignore 忽略，只在运行目录；不随包分发。游标续跑 + 覆盖率闸门见 crawl_riven_realtime。",
     ),
 }
 
@@ -968,7 +1002,7 @@ LEDGER_VERDICTS = (
     "seed_in_use",  # 运行目录没有副本，用随包种子（正常）
     "run_ok",  # 用运行目录副本，且不比种子旧（正常）
     "run_only",  # 运行期缓存（override=runtime_only），本就不随包（正常）
-    "run_bad",  # 副本坏 / 校验不过 —— 插件正在读它，不会回落种子
+    "run_bad",  # 副本坏 / 校验不过 —— 坏 JSON 已回落种子（active=seed），校验不过仍在读它
     "run_unexpected",  # override=seed_only 却有副本（这个文件插件不会自己写）
     "run_older",  # 副本比随包种子旧（多半是升级前留下的）
     "none",  # 两边都没有（tracked=True ⇒ 随包种子缺失）
@@ -1016,7 +1050,7 @@ def _valid(key: str, data, seed_type: str | None = None) -> tuple[bool, str]:
     """单份数据的结构校验（纯函数）：``(是否可用, 原因)``。
 
     * 社区静态快照（本地路径命中 ``COMMUNITY_STATIC[*]["local"]``，如
-      ``de/wiki_disp.json``）走运行期同一套判据 ``community_static_ok``；
+      ``arb_ratings.json``）走运行期同一套判据 ``community_static_ok``；
     * 其余：顶层必须是非空 dict/list；给了 ``seed_type`` 还要求类型与种子一致
       （防「副本是数组、种子是对象」这类张冠李戴）。
     """
@@ -1151,6 +1185,13 @@ def _ledger_one(key: str, meta: dict, run_root: Path, pkg_root: Path) -> dict:
     run = _run_side(run_root / key, meta, key, seed_type)
     active = "run" if run["exists"] else ("seed" if seed["exists"] else "none")
     verdict, advice = _verdict(meta, seed, run, active)
+    if verdict == "run_bad" and seed["exists"] and str(run["why"]).startswith("JSON 解析失败"):
+        # 与 paths.read_path 同口径（P07）：坏 JSON 副本插件已自动回落随包种子
+        active = "seed"
+        advice = (
+            f"运行目录副本 JSON 损坏（{run['why']}），插件已自动回落随包种子；"
+            "建议移走该副本（下次刷新再生成）"
+        )
     if verdict == "run_ok" and _parse_time(run["observed"]) is None:
         run["why"] = "无内容时间，未比新旧"  # 比不了新旧，但副本结构是好的
     return {

@@ -28,7 +28,8 @@ class JsonStore:
     def load(self) -> None:
         if self.path.exists():
             try:
-                self._data = json.loads(self.path.read_text(encoding="utf-8"))
+                # utf-8-sig：用户用记事本等手改存档会带 BOM，按 utf-8 读会被当坏文件隔离（GPT 评估 V03）
+                self._data = json.loads(self.path.read_text(encoding="utf-8-sig"))
             except Exception as exc:  # noqa: BLE001 - 损坏：先留底再按空处理
                 self._data = None
                 self._quarantine(f"JSON 解析失败：{exc!r}")
