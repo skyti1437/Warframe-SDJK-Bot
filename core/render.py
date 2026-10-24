@@ -140,6 +140,79 @@ def parse_chart(text: str) -> Optional[dict]:
     }
 
 
+# ---------------------------------------------------------------------------
+# 「词条范围」机器行（§RANGES）：格式层给四种组合的区间，图片模式排成五列表格，
+# 文字模式塞不下四列 ⇒ 只出**高亮那一列** + 一行「其余组合怎么查」。
+# 与 §CHART / ⟦tents⟧ 同一套：格式层只产出机器行，渲染层按模式展开。
+# ---------------------------------------------------------------------------
+_RANGES_RE = re.compile(r"^§RANGES(\{.*\})$")
+
+
+def parse_ranges(text: str) -> Optional[dict]:
+    """解析 ``§RANGES{json}`` → ``{cols, primary, rows, text_hint}``；坏行返回 None。
+
+    ``rows`` 每行 = ``[词条名, 组合1的值, 组合2的值, …]``（长度 = ``len(cols)+1``）；
+    ``primary`` = 高亮列下标（用户指定的组合）。整行坏掉时**丢弃**，不留裸 JSON 给用户。
+    """
+    m = _RANGES_RE.match((text or "").strip())
+    if not m:
+        return None
+    try:
+        obj = json.loads(m.group(1))
+    except ValueError:
+        return None
+    if not isinstance(obj, dict):
+        return None
+    cols = obj.get("cols")
+    rows = obj.get("rows")
+    if not isinstance(cols, list) or not cols or not isinstance(rows, list) or not rows:
+        return None
+    out_rows = []
+    for r in rows:
+        if not isinstance(r, list) or len(r) != len(cols) + 1:
+            continue
+        out_rows.append([str(x) for x in r])
+    if not out_rows:
+        return None
+    try:
+        primary = int(obj.get("primary") or 0)
+    except (TypeError, ValueError):
+        primary = 0
+    return {
+        "cols": [str(c) for c in cols],
+        "primary": max(0, min(primary, len(cols) - 1)),
+        "rows": out_rows,
+        "text_hint": str(obj.get("text_hint") or ""),
+    }
+
+
+def _expand_ranges_line(line: str, *, for_text: bool = False) -> list[str]:
+    """§RANGES 机器行 → 可绘制的普通行。
+
+    · 图片模式：表头行（无「·」，走既有 thead 小灰粗字）+ 每词条一行五格；
+      高亮列的数据格包金色染段标记 ``⟦g⟧…⟦/g⟧``（表头是纯 ``d.text`` 绘制、不吃标记，
+      所以**只给数据格上色**）；
+    · 文字模式：只出高亮那一列（``· 词条　值``）+ 一行「其余组合」提示。
+    """
+    obj = parse_ranges(line)
+    if obj is None:
+        # ★ 非 §RANGES 行**原样返回**（与 `_expand_tents_line` 同规矩）。
+        #   首版写成 `return []` ⇒ 展开时把所有普通行都吃掉：整张卡只剩表格，
+        #   ◆ 分区标题与 ※ 注释全没了，且所有别的卡渲染成空
+        #   （2026-10-24 实测：4 个渲染测试直接红）。
+        return [line]
+    if for_text:
+        out = [f"· {r[0]}　{r[1 + obj['primary']]}" for r in obj["rows"]]
+        if obj["text_hint"]:
+            out.append(obj["text_hint"])
+        return out
+    out = ["　词条　" + "　".join(obj["cols"])]
+    for r in obj["rows"]:
+        cells = [f"⟦g⟧{v}⟦/g⟧" if i == obj["primary"] else v for i, v in enumerate(r[1:])]
+        out.append(f"· {r[0]}　" + "　".join(cells))
+    return out
+
+
 def _fit_title(d, font, text: str, max_w: float) -> str:
     """把标题收进 ``max_w``：**只在真的超宽时**截断并补省略号。
 
@@ -232,6 +305,24 @@ def text_card(title: str, lines: list[str], footer: str = "", max_width: int = 4
     title = _POL_MARK_RE.sub("", title or "")
     lines = [seg for x in lines for seg in _expand_tents_line(_POL_MARK_RE.sub("", x or ""))]
     lines = [seg for x in lines for seg in _expand_chart_line(x)]
+    # §RANGES 机器行：文字模式塞不下四列 ⇒ 只出高亮那一列；「其余组合」提示全卡只留一行
+    _rng: list[str] = []
+    _hints: set[str] = set()
+    for _x in lines:
+        if not _x.startswith("§RANGES"):
+            _rng.append(_x)
+            continue
+        _o = parse_ranges(_x)
+        if _o is None:
+            continue
+        _h = _o["text_hint"]
+        _rng += (
+            _expand_ranges_line(_x, for_text=True)
+            if _h not in _hints
+            else [f"· {r[0]}　{r[1 + _o['primary']]}" for r in _o["rows"]]
+        )
+        _hints.add(_h)
+    lines = _rng
     # ⟦c⟧/⟦v⟧/⟦w⟧ 及其闭合 = 染段标记（画图模式分段上色），文本模式剥掉
     lines = [_SEG_MARK_RE.sub("", x) for x in lines]
     footer = _POL_MARK_RE.sub("", footer or "")
@@ -516,6 +607,7 @@ def _bg_column() -> "Image.Image":
 
 # 栏目英文名补表（TITLE_THEME 没覆盖或误命中的卡；先于 TITLE_THEME 匹配）
 _SLUG_OVERRIDE = [
+    (("词条范围",), "RIVEN RANGES"),  # 2026-10-24：原先按「紫卡」子串命中 RIVEN AUCTIONS
     (("紫卡分析",), "RIVEN ANALYSIS"),
     (("紫卡倾向",), "RIVEN DISPOSITION"),
     (("伤害计算",), "DAMAGE CALCULATOR"),
@@ -1691,7 +1783,10 @@ class ImageRenderer:
         two_cells: list[tuple[int, str, str]] = []  # 说明列规划用的双列行
         descent_cells: list[list[str]] = []
         grid_rows: list[tuple[list[str], float]] = []
-        src = (lines or [""])[:MAX_BODY_LINES]
+        # §RANGES 机器行在**宽度扫描之前**展开成普通表格行 —— 否则五列宽度不进
+        # `needed`，卡宽会按没展开的机器行算（本卡就会窄到放不下四列）。
+        lines = [seg for x in (lines or [""]) for seg in _expand_ranges_line(x)]
+        src = lines[:MAX_BODY_LINES]
         cleaned: list[tuple[str, str, bool]] = []
         for _li, raw in enumerate(src):
             clean, had_icon = _strip_emoji(raw)
@@ -1763,6 +1858,12 @@ class ImageRenderer:
                 mt = _TIMER_RE.search(clean) or _TIMER_ALT_RE.search(clean) or _AGE_RE.search(clean)
                 if mt and timer_font:
                     w_line += _tlen(measure, timer_font, mt.group(0).strip()) / SS + 30
+            # ★ 2026-10-24（词条范围四列并排）：**表模式卡的注释不参与卡宽**。
+            #   注释绘制时按 x_right 折行 ⇒ 拿它的未折行原文算宽度，等于为一条
+            #   永远不会以那个宽度出现的行买宽（实测「词条范围」卡被一条 1118px 的
+            #   注释撑到上限 1260，而表格只用到 ~40% 宽度）。
+            if self._table_mode and clean.startswith("※"):
+                continue
             needed = max(needed, w_line)
             _is_sub = (
                 raw.startswith("　")
@@ -2385,8 +2486,17 @@ class ImageRenderer:
             arb_cols = []
             acc = 0
             for ci in range(ncol):
+                # ★ 量列宽必须先剥掉行内染段标记（`⟦g⟧…⟦/g⟧` 之类）：标记本身不显示，
+                #   但会被 textlength 当成可见字符算进去 —— 「词条范围」卡的高亮列因此
+                #   量宽 ~120px，把后面各列整体右推、末列被切在面板外（2026-10-24 实测）。
+                #   宽度预扫描（col_max）本来就剥了，这里漏了 ⇒ 两处口径不一致。
                 wpx = max(
-                    (_tlen(d, body_font, r[ci]) for r in split_rows if len(r) > ci), default=0
+                    (
+                        _tlen(d, body_font, _SEG_MARK_RE.sub("", r[ci]))
+                        for r in split_rows
+                        if len(r) > ci
+                    ),
+                    default=0,
                 )
                 arb_cols.append(acc)
                 acc += wpx + 24 * SS

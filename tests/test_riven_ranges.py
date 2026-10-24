@@ -30,6 +30,11 @@ from core import riven_analysis as RA  # noqa: E402
 from core import riven_pools as RP  # noqa: E402
 from core.parser import RIVEN_STAT_ZH  # noqa: E402
 
+try:  # 渲染器可能缺 Pillow（精简 CI 容器）—— 缺了后面按 [SKIP] 处理
+    from core import render as R  # noqa: E402
+except Exception:  # noqa: BLE001
+    R = None
+
 FAILED: list[str] = []
 
 
@@ -184,12 +189,78 @@ check("正面带 + 号", "+91.12~111.38%" in body, body)
 check("负面带 − 号（U+2212），两头都带符号、绝对值大的在前", "−118.5~−96.96%" in body, body)
 check("融合词条单列一段", "融合词条·正面" in body, body)
 check("注明融合词条最多 1 项", "最多 1 项" in body, body)
-check("注明满级卡面范围", "满级紫卡卡面范围" in body, body)
-check("给出组合切换提示（另外三种）", all(x in body for x in ("2+", "2+1-", "3+")), body)
+check("注明满级卡面与统一倾向", "满级卡面" in body and "统一倾向 1.2" in body, body)
+# ★ 2026-10-24：四种组合并排后，「切换组合」长句删掉，改成一行图例（四列标签全列）
 check(
-    "★ 切换提示只列另外三种、不重复（3+1- 卡上不再出现「3+ / 3+」）",
-    "切换组合：词条范围 测试枪 2+ / 2+1- / 3+" in body and "3+ / 3+" not in body,
+    "图例一行列出四种组合（不再有「切换组合」长句）",
+    "列：3正1负 / 3正 / 2正1负 / 2正" in body and "切换组合" not in body,
     body,
+)
+# 四列并排：同一词条一行里应能取到 4 个不同组合的值（数值逐格与 RA.stat_range 对拍）
+_rng = [x for x in lines if x.startswith("§RANGES")]
+check("★ 每段一条 §RANGES 机器行（正面/融合/负面）", len(_rng) == 3, str(len(_rng)))
+if _rng:
+    _o = json.loads(_rng[0][len("§RANGES") :])
+    check(
+        "§RANGES 列标签 = 四种组合",
+        _o["cols"] == ["3正1负", "3正", "2正1负", "2正"],
+        str(_o["cols"]),
+    )
+    _row = [r for r in _o["rows"] if r[0].startswith("暴伤")]
+    check("★ 暴伤一行四格", bool(_row) and len(_row[0]) == 5, str(_row))
+    if _row:
+        _want = []
+        for _c in ((3, 1), (3, 0), (2, 1), (2, 0)):
+            _lo, _hi = RA.stat_range("crit_damage", "shotgun", RA.UNIFIED_DISPOSITION, *_c)
+            _want.append(F._riven_range_text(RA, "crit_damage", _lo, _hi, negative=False))
+        check(
+            "★ 四格数值与 RA.stat_range 逐格一致", _row[0][1:] == _want, f"{_row[0][1:]} vs {_want}"
+        )
+    # 负面段只出「带负词条槽」的两列
+    _oneg = [x for x in lines if x.startswith("§RANGES")]
+    _lo2 = json.loads(_oneg[2][len("§RANGES") :]) if len(_oneg) > 2 else {}
+    check(
+        "★ 负面段只出 3正1负 / 2正1负 两列",
+        _lo2.get("cols") == ["3正1负", "2正1负"],
+        str(_lo2.get("cols")),
+    )
+
+# ★ 指定组合 ⇒ 该列提到首列并高亮（§RANGES 的 primary=0 + 展开后该格带金色染段）
+_tp, _lp = F.fmt_riven_ranges("测试枪", "shotgun", (2, 0), ["crit_damage"], [], [], set())
+_op = json.loads([x for x in _lp if x.startswith("§RANGES")][0][len("§RANGES") :])
+check(
+    "★ 指定 2+ ⇒ 首列是 2正且 primary=0",
+    _op["cols"][0] == "2正" and _op["primary"] == 0,
+    str(_op["cols"]),
+)
+_exp = [seg for x in _lp for seg in R._expand_ranges_line(x)]
+check("★ 高亮列的数据格带金色染段标记", any("⟦g⟧" in x for x in _exp), str(_exp[:3]))
+check(
+    "展开后是五列表格行（表头 + 数据）",
+    any(x.startswith("　词条　") for x in _exp) and any(x.startswith("· 暴伤　") for x in _exp),
+    str(_exp[:3]),
+)
+
+# ★ 纯文字模式：只出高亮那一列 + 一行「其余组合」
+_cp = R.text_card("测试枪 紫卡词条范围（3正1负）", _lp, "紫卡词条池")
+check("★ 文字模式无 §RANGES 残留", "§RANGES" not in _cp)
+_mine = _op["rows"][0][1]  # 高亮列（2正）的值
+_others = _op["rows"][0][2:]
+check(
+    "★ 文字模式只出高亮那一列的值（其余组合的值都不出现）",
+    _mine in _cp and all(v not in _cp for v in _others),
+    f"mine={_mine} others={_others}",
+)
+check(
+    "★ 文字模式给出「其余组合」查询提示",
+    "其余组合：词条范围 测试枪" in _cp and _cp.count("其余组合") == 1,
+    _cp[:600],
+)
+
+# ★ kicker 专属：不再命中拍卖那档
+check(
+    "★ 英文栏目名 = RIVEN RANGES（不再 RIVEN AUCTIONS）",
+    R._card_slug("冰凇 紫卡词条范围（3正1负）") == "RIVEN RANGES",
 )
 # ★ 2026-10-23 Claude 审：负面派系乘数 < 1；后坐力（反转词条）正面写 −、负面写 +
 _t2, _l2 = F.fmt_riven_ranges(
@@ -210,7 +281,8 @@ check("★ 反转词条后坐力在负面表写「+」", rec and "+" in rec[0], 
 # 元素在负面表里根本不出现（正负限制）
 check("元素不出现在负面段", "火伤" not in "\n".join(lines2))
 
-# 四种组合都不抛异常，且 2+ / 3+ 没有负面段
+# 四种组合都不抛异常；负面段**始终**出（四种并排后它是 3正1负 / 2正1负 两列，
+# 与「用户当前点名哪个组合」无关 —— 2026-10-24 指令改的口径）
 for combo in ((2, 0), (2, 1), (3, 0), (3, 1)):
     _t3, l3 = F.fmt_riven_ranges(
         "测试枪",
@@ -223,7 +295,7 @@ for combo in ((2, 0), (2, 1), (3, 0), (3, 1)):
     )
     has_neg = any("◆ 负面" in x for x in l3)
     check(f"组合 {combo} 渲染成功", bool(l3))
-    check(f"组合 {combo} 负面段 {'有' if combo[1] else '无'}", has_neg == bool(combo[1]))
+    check(f"组合 {combo} 负面段始终出（两列：3正1负 / 2正1负）", has_neg)
 
 # 点名词条过滤 + 刷不出的词条要写明
 _t4, l4 = F.fmt_riven_ranges(
@@ -351,11 +423,6 @@ check("职业池词条 id 全部已注册中文名", not unknown, str(unknown))
 
 if RA is None:  # pragma: no cover
     pass
-try:
-    from core import render as R  # noqa: E402
-except Exception:  # noqa: BLE001
-    R = None
-
 if R is None or R.Image is None:
     print("[SKIP] 未安装 Pillow，跳过出图检查")
 else:
