@@ -208,7 +208,11 @@ def _expand_ranges_line(line: str, *, for_text: bool = False) -> list[str]:
         return out
     out = ["　词条　" + "　".join(obj["cols"])]
     for r in obj["rows"]:
-        cells = [f"⟦g⟧{v}⟦/g⟧" if i == obj["primary"] else v for i, v in enumerate(r[1:])]
+        # ★ 2026-10-24 Claude 审：非高亮列也要显式包白色段 ⟦w⟧ —— 不包就落到默认的
+        #   「百分数染金」规则，出图里其它列的上限数字也成了金色，高亮列反而不显眼。
+        cells = [
+            f"⟦g⟧{v}⟦/g⟧" if i == obj["primary"] else f"⟦w⟧{v}⟦/w⟧" for i, v in enumerate(r[1:])
+        ]
         out.append(f"· {r[0]}　" + "　".join(cells))
     return out
 
@@ -1968,6 +1972,11 @@ class ImageRenderer:
             w_cap = int(max(CARD_W_MAX, min(CARD_W_TABLE_MAX, int(grid_need + pad * 2 + 56) + 1)))
         W = int(max(CARD_W_MIN, min(w_cap, needed + pad * 2 + 96)))
         W = int(max(W, min(title_min + 120, w_cap)))
+        # ★ 2026-10-24 Claude 审「词条范围」四列表：w_cap 已按表格总宽放到 ≤1500，但 W 只按逐行
+        #   文字宽算 ⇒ 表格总宽 > W 时最宽的行被折行（折点还会切进染段标记，露出「⟦/w⟧」）。
+        #   表格模式下卡宽至少放得下整张表（仍受 w_cap 约束；放不下照旧走下面的安全阀）。
+        if self._table_mode and len(col_max) > 1:
+            W = int(max(W, min(w_cap, int(_tbl_need) + 1)))
         # 安全阀：卡宽有 960/1260 上下限，列对齐即便按上面的公式也可能在
         # 极端数据下仍放不进正文区。此时放弃列对齐、退回逐行折行，
         # 宁可少一点对齐观感，也不能把文字压出面板边框。
@@ -2938,15 +2947,20 @@ class ImageRenderer:
                     span_end_at[e0 - 1] = (s0, e0)
                     span_adv[(s0, e0)] = sum(_adv(c) for c in m2.group(0))
                     span_target[(s0, e0)] = mark_px
+            # ★ 2026-10-24 Claude 审：染段标记**逐字零宽、标记内不断行**。旧做法是读到闭合「⟧」
+            #   才冲账，读标记中间那几个字时宽度临时计入 ⇒ 恰在此处超宽就从标记中间折断，
+            #   卡面露出「⟦/w⟧」（「词条范围」四列表实测）。
+            seg_chars: set[int] = set()
             if has_seg:
                 for m2 in _SEG_MARK_RE.finditer(text):
-                    s0, e0 = m2.span()
-                    span_end_at[e0 - 1] = (s0, e0)
-                    span_adv[(s0, e0)] = sum(_adv(c) for c in m2.group(0))
-                    span_target[(s0, e0)] = 0.0
+                    seg_chars.update(range(*m2.span()))
             i = 0
             while i < len(text):
                 ch = text[i]
+                if i in seg_chars:
+                    line += ch
+                    i += 1
+                    continue
                 w_try = w_line + _adv(ch)
                 comp = span_end_at.get(i)
                 if comp is not None:  # 标记闭合：换成目标宽（与旧版等值）
@@ -2987,7 +3001,15 @@ class ImageRenderer:
                 n = s.count("⟦pol:")
                 return d.textlength(_POL_MARK_RE.sub("", s), font=font) + n * mark_px
 
-            for ch in text:
+            # 同上：染段标记内的字不参与断行判定（半截标记「⟦/」剥不掉、会被当可见字计宽）
+            seg_chars2: set[int] = set()
+            if has_seg:
+                for m2 in _SEG_MARK_RE.finditer(text):
+                    seg_chars2.update(range(*m2.span()))
+            for ci, ch in enumerate(text):
+                if ci in seg_chars2:
+                    line += ch
+                    continue
                 if line and _mw(line + ch) > max_w and ch not in _NO_LINE_START:
                     # 优先在中文分隔符后断开：不这样，「▣Xaku机体蓝图、★雷射瞄具」这类
                     # 用「、」连起来的奖励串会被从词中间劈开（「▣X」/「aku机体蓝图」）。
