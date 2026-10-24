@@ -4338,6 +4338,10 @@ _RIVEN_COMBO_ZH = {(2, 0): "2正", (2, 1): "2正1负", (3, 0): "3正", (3, 1): "
 _RIVEN_COMBO_HINT = {(2, 0): "2+", (2, 1): "2+1-", (3, 0): "3+", (3, 1): "3+1-"}
 
 
+# 「词条范围」的四种组合（**列顺序 = 卡面默认顺序**）；用户指定哪个就提到首列并高亮
+_RIVEN_COMBO_COLS = ((3, 1), (3, 0), (2, 1), (2, 0))
+
+
 def fmt_riven_ranges(
     weapon: str,
     cls: str,
@@ -4350,15 +4354,22 @@ def fmt_riven_ranges(
     only: Optional[list[str]] = None,
     dropped: Optional[list[str]] = None,
 ) -> tuple[str, list[str]]:
-    """「词条范围」卡：按武器列出紫卡每条词条的**卡面取值区间**。
+    """「词条范围」卡：按武器列出紫卡每条词条在**四种组合**下的卡面取值区间。
 
-    只显示当前统一倾向（`RA.UNIFIED_DISPOSITION` = 1.2，2026-10 起 DE 取消旧倾向）；
-    三段 = 正面 / 融合词条·正面（同一张卡最多 1 项）/ 负面。
+    只显示当前统一倾向（`RA.UNIFIED_DISPOSITION` = 1.2，2026-10 起 DE 取消旧倾向）。
+
+    版面：三段（正面 / 融合词条·正面 / 负面），每段一张**五列表**——
+    ``词条 | 3正1负 | 3正 | 2正1负 | 2正``。用户指定了组合就把那一列提到首列并**高亮**
+    （渲染层用金色染段标记；纯文字模式取不到颜色，改成只出那一列 + 一行提示）。
+    负面段只有 ``3正1负`` / ``2正1负`` 两列有值（``3+`` / ``2+`` 没有负词条槽）⇒ 只出这两列。
+
+    数据经 `§RANGES{json}` 机器行交给渲染层（见 core/render.py 的「词条范围」一节）——
+    与 `§CHART` / `⟦tents⟧` 同一套做法：格式层只产出机器行，文本模式展开回单列。
 
     Args:
         weapon: 展示用武器名。
         cls: 基值列名（rifle / shotgun / pistol / archgun / melee）。
-        combo: ``(正词条数, 负词条数)``，四种之一。
+        combo: 用户指定（或默认）的 ``(正词条数, 负词条数)``。
         pos / spliced / neg: 三段各自的词条 id（已按武器过滤）。
         unconfirmed: 物理「未确认」词条 id（卡上标「?」）。
         only: 用户显式点名的词条（非空时卡上注明已过滤）。
@@ -4367,23 +4378,18 @@ def fmt_riven_ranges(
     from . import riven_analysis as RA
     from .parser import RIVEN_STAT_ZH
 
-    n_pos, n_neg = combo
     disp = RA.UNIFIED_DISPOSITION
-    if n_neg <= 0:
-        # 2+ / 3+ 没有负词条槽 —— 负面表必须为空，否则 stat_range 的负系数是 None
-        # （`FACTOR[(3,0)][1] is None`）会直接抛 TypeError。
-        neg = []
+    # 列顺序：指定组合提到首列（仍出全部四列）
+    cols = list(_RIVEN_COMBO_COLS)
+    if combo in cols:
+        cols.remove(combo)
+        cols.insert(0, combo)
 
-    def _rows(sids: list[str], *, negative: bool) -> list[str]:
-        out = []
-        for sid in sids:
-            lo, hi = RA.stat_range(sid, cls, disp, n_pos, n_neg, negative=negative)
-            if lo is None:
-                continue
-            zh = RIVEN_STAT_ZH.get(sid, sid)
-            mark = "?" if sid in unconfirmed else ""
-            out.append(f"· {zh}{mark}　{_riven_range_text(RA, sid, lo, hi, negative=negative)}")
-        return out
+    def _cell(sid: str, c: tuple[int, int], *, negative: bool) -> str:
+        lo, hi = RA.stat_range(sid, cls, disp, c[0], c[1], negative=negative)
+        if lo is None:
+            return "—"
+        return _riven_range_text(RA, sid, lo, hi, negative=negative)
 
     lines: list[str] = []
     for label, sids, is_neg in (
@@ -4391,11 +4397,30 @@ def fmt_riven_ranges(
         ("融合词条·正面", spliced, False),
         ("负面", neg, True),
     ):
-        rows = _rows(sids, negative=is_neg)
+        # 负面段只出「带负词条槽」的组合（3+ / 2+ 整列都会是「—」，留着只是噪声）
+        sec = [c for c in cols if c[1] > 0] if is_neg else list(cols)
+        if not sec or not sids:
+            continue
+        rows = []
+        for sid in sids:
+            lo, _hi = RA.stat_range(sid, cls, disp, sec[0][0], sec[0][1], negative=is_neg)
+            if lo is None:
+                continue
+            zh = RIVEN_STAT_ZH.get(sid, sid) + ("?" if sid in unconfirmed else "")
+            rows.append([zh] + [_cell(sid, c, negative=is_neg) for c in sec])
         if not rows:
             continue
+        payload = {
+            "cols": [_RIVEN_COMBO_ZH.get(c, "") for c in sec],
+            "primary": sec.index(combo) if combo in sec else 0,
+            "rows": rows,
+            "text_hint": (
+                f"※ 其余组合：词条范围 {weapon} "
+                + " / ".join(v for k, v in _RIVEN_COMBO_HINT.items() if k != combo)
+            ),
+        }
         lines.append(f"◆ {label}（{len(rows)} 条）")
-        lines += rows
+        lines.append("§RANGES" + json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
     if not lines:
         lines.append("◆ 原因：该武器在这个组合下列不出词条（职业池为空？）")
 
@@ -4407,10 +4432,11 @@ def fmt_riven_ranges(
         lines.append("※ 融合词条同一张卡最多 1 项（Update 44 Riven Splicer）")
     if unconfirmed:
         lines.append("※ 带 ? 的是物理伤害词条：占比低于 25% 但家族证据未表态，按「未确认」照列")
+    # 图例（一行，替代原来的「切换组合」长句）：四种组合都在表里，不必再点名
     lines.append(
-        f"※ 以上为满级紫卡卡面范围（统一倾向 {disp}，随机系数 ±10%）；"
-        f"切换组合：词条范围 {weapon} "
-        + " / ".join(v for k, v in _RIVEN_COMBO_HINT.items() if k != combo)
+        "※ 列："
+        + " / ".join(_RIVEN_COMBO_ZH[c] for c in cols)
+        + f"（满级卡面，统一倾向 {disp}，随机系数 ±10%）"
     )
     return (f"{weapon} 紫卡词条范围（{_RIVEN_COMBO_ZH.get(combo, '')}）", lines)
 
