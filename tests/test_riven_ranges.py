@@ -184,9 +184,10 @@ _t, lines = F.fmt_riven_ranges(
 )
 body = "\n".join(lines)
 check("派系词条按乘数显示", "×1.46~1.56" in body, body)
-check("穿透按米显示", "m" in body and "2.73~3.34m" in body, body)
-check("正面带 + 号", "+91.12~111.38%" in body, body)
-check("负面带 − 号（U+2212），两头都带符号、绝对值大的在前", "−118.5~−96.96%" in body, body)
+# ★ 2026-10-24：区间统一 1 位小数（参考卡口径；两位小数让四列并排时最宽的格断行）
+check("穿透按米显示", "m" in body and "2.7~3.3m" in body, body)
+check("正面带 + 号", "+91.1~111.4%" in body, body)
+check("负面带 − 号（U+2212），两头都带符号、绝对值大的在前", "−118.5~−97%" in body, body)
 check("融合词条单列一段", "融合词条·正面" in body, body)
 check("注明融合词条最多 1 项", "最多 1 项" in body, body)
 check("注明满级卡面与统一倾向", "满级卡面" in body and "统一倾向 1.2" in body, body)
@@ -269,8 +270,8 @@ _t2, _l2 = F.fmt_riven_ranges(
 _b2 = "\n".join(_l2)
 check("★ 负面派系按减伤乘数（×0.55~0.64，参考卡同值）", "×0.55~0.64" in _b2, _b2)
 check(
-    "★ 后坐力：正面 −111.38~−91.12%、负面 +72.9~89.1%（参考卡同值）",
-    "−111.38~−91.12%" in _b2 and "+72.9~89.1%" in _b2,
+    "★ 后坐力：正面 −111.4~−91.1%、负面 +72.9~89.1%（参考卡同值）",
+    "−111.4~−91.1%" in _b2 and "+72.9~89.1%" in _b2,
     _b2,
 )
 
@@ -472,6 +473,30 @@ else:
             check(f"出图：{_n} 未越出面板右缘", n == 0, f"越界 {n} 像素，最右 x={mx}")
 
 print()
+
+# ★ 2026-10-24 Claude 审：染段标记不得被折行切开（四列表实测露出「⟦/w⟧」）——
+#   两条折行路径（基本布局增量 / 整形引擎逐次测量）都要零宽、标记内不断行
+from PIL import ImageFont  # noqa: E402
+
+from core import render as _R  # noqa: E402
+
+_fonts = sorted((ROOT / "core" / "data" / "fonts").glob("*.ttc")) + sorted(
+    (ROOT / "core" / "data" / "fonts").glob("*.otf")
+)
+if _fonts:
+    _f = ImageFont.truetype(str(_fonts[0]), 30)
+    _txt = "· 暴伤　" + "　".join(f"⟦w⟧+{100 + i}.5~{150 + i}.8%⟦/w⟧" for i in range(6))
+    # 扫一串宽度：折点落在标记中间与否取决于宽度，单个宽度测不出
+    _bad = []
+    for _w in range(150, 900, 3):
+        for _sg in _R.ImageRenderer._wrap(_txt, _f, _w):
+            if _sg.count("⟦") != _sg.count("⟧"):
+                _bad.append((_w, _sg))
+                break
+    check("★ 折行不切开染段标记：任意宽度下每段的 ⟦ 都成对闭合", not _bad, str(_bad[:3]))
+else:
+    print("[SKIP] 折行标记守卫：本树无字体（开源包）")
+
 if FAILED:
     print(f"FAILED {len(FAILED)}: " + ", ".join(FAILED))
     sys.exit(1)

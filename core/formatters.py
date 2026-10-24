@@ -4318,6 +4318,10 @@ def _riven_range_text(RA, sid: str, lo: float, hi: float, *, negative: bool) -> 
       负面表里写「+」（+95% 后坐力才是负面）；
     · 其余按 `_range_txt` 的既有写法（单位只写在上限后面）。
     """
+    # ★ 2026-10-24 Claude 审：区间统一保留 1 位小数（参考卡口径 +91.1%~+111.4%）——
+    #   两位小数让四列并排时最宽的格（「−117.61~−96.23%」）断行；派系乘数仍两位。
+    if not sid.startswith("damage_vs_"):
+        lo, hi = round(lo + 1e-9, 1), round(hi + 1e-9, 1)
     if sid.startswith("damage_vs_"):
         # ★ 2026-10-23 Claude 审：负面派系是**减伤**，乘数 < 1（参考卡 0.55×~0.64×），旧写法给成 ×1.36~1.45
         if negative:
