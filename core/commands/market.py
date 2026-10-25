@@ -186,6 +186,23 @@ def _riven_family_listed(weapon: dict, entries: list, own: set) -> Optional[dict
     return named[0] if len(named) == 1 else None
 
 
+def _riven_now_by_name(rt: dict, weapons: list) -> dict:
+    """WM 现价快照（键 = WM url）→ 按武器**英文名小写**索引（周报 compatibility 用英文名）。
+
+    只收「跑满过一轮」（``ts`` 非空）的快照里的行；行内带 ``at``（该把抓取时间）。
+    """
+    rows = (rt or {}).get("rows") or {}
+    if not rows or not (rt or {}).get("ts"):
+        return {}
+    out: dict = {}
+    for w in weapons or []:
+        r = rows.get(w.get("url_name") or "")
+        en = (w.get("en") or "").lower()
+        if r and en:
+            out[en] = r
+    return out
+
+
 class MarketCommands:
     """Mixin：warframe.market / 排行 / 趋势 handler（挂载于 main.WarframeSDJK）。"""
 
@@ -814,7 +831,7 @@ class MarketCommands:
             else:
                 cat = content.strip()
         if cat == "紫卡":
-            return await self._h_riven_rank(parsed, platform)
+            return await self._h_riven_rank(parsed, event, platform)
         if not cat:
             rows = self.client.rank_rows()
             if not rows:
@@ -836,11 +853,14 @@ class MarketCommands:
         title, lines = fmt.fmt_rank_table(cat, rows)
         return Reply(title, lines, footer=fmt.fmt_platform_footer(platform, "warframe.market 成交"))
 
-    async def _h_riven_rank(self, parsed, platform) -> Reply:
-        """紫卡排行：**默认实时**（WM 拍卖快照）；`紫卡排行 周报` = DE 官方周报；带类别 = 周报分类。
+    async def _h_riven_rank(self, parsed, event, platform) -> Reply:
+        """紫卡排行：DE 官方周报为主体；管理员手动拉过 WM 现价后，附「WM挂单 / 变化」两列。
 
-        ★ 2026-10-23（玩家报「周报时效差，1.2 热修后暴涨看不出」）：周报每周一才更新一次，
-        热修后那几周全是旧数 ⇒ 默认改看 WM 拍卖**实时**挂单；实时缺失/过期自动回落周报并写明。
+        ★ 2026-10-25 用户改口径：上一版「实时排行」（凌晨自动抓 WM 拍卖、按挂单数排序）用处不大
+        —— WM 拍卖搜索单次最多回 100 条，挂单数一律 100，排序没意义；整轮约 30 分钟还容易触发限流。
+        改为：周报热度榜照旧（不打 WM），**大更后由管理员手动拉一次现价**（「紫卡排行 刷新」或
+        面板按钮，约 30 分钟），对比周报参考价看哪些武器涨跌明显。不再自动抓。
+        「紫卡排行 刷新」：所有人都会顺带强更 DE 周报文件；只有管理员会启动 WM 现价抓取。
         """
         content = (parsed.content_str or "").strip()
         try:
@@ -854,37 +874,52 @@ class MarketCommands:
             )
         weapons = await self.client.wm_riven_weapons()
         zhm = {w.get("en", "").lower(): (w.get("zh") or "") for w in weapons}
-        by_url_zh = {w.get("url_name") or "": (w.get("zh") or "") for w in weapons}
         cat = ""
         for t in parsed.content or []:
             k = t.replace("排行", "").strip()
             if k in fmt._RIVEN_ITEM_TYPE or k in ("主武", "副武", "未开"):
                 cat = k
                 break
-        # —— 默认：实时（WM 拍卖快照）；显式「周报」或有类别时走周报 ——
-        if not cat and "周报" not in content:
-            rt = self.client.riven_realtime_rows()
-            rt_rows = rt.get("rows") or {}
-            rt_ts = rt.get("ts") or ""
-            if rt_rows:
-                title, lines = fmt.fmt_riven_realtime(
-                    rt_rows, rt_ts, by_url_zh, page=parsed.page, page_size=self.page_size
-                )
+        rt = self.client.riven_realtime_rows()
+        if "刷新" in content:
+            if not self._is_admin(event):
+                when = (rt.get("ts") or "")[:16].replace("T", " ")
                 return Reply(
-                    title,
-                    lines,
-                    footer=fmt.fmt_platform_footer(platform, "warframe.market 拍卖实时"),
+                    "紫卡排行刷新",
+                    [
+                        "◆ 状态：已强制更新 DE 官方周报",
+                        "◆ WM 现价：由管理员手动拉取（「紫卡排行 刷新」或面板按钮），避免频繁触发市场限流",
+                        f"◆ 最近一次现价：{when + ' UTC' if when else '还没拉过'}",
+                    ],
+                    footer=fmt.fmt_platform_footer(platform, "DE 官方周报"),
                 )
-            # 实时快照还没有 ⇒ 回落周报并写明
-            title, lines = fmt.fmt_riven_weekly(snap, zhm)
-            lines.insert(0, "※ 实时快照尚未生成（后台每 6h 凌晨闲时重建），下面是 DE 官方周报口径")
-            return Reply(title, lines, footer=fmt.fmt_platform_footer(platform, "DE 官方周报"))
+            state, n, total = self.client.start_riven_rt_crawl(force=True)
+            say = {"started": "已启动拉取", "running": "拉取已在进行中"}.get(state, state)
+            return Reply(
+                "紫卡排行刷新",
+                [
+                    "◆ 周报：已强制更新 DE 官方周报",
+                    f"◆ WM 现价：{say}（目标 {total or '约 100'} 把，WM 限流下约 30 分钟）",
+                    f"◆ 当前已收录：{n}/{total or '?'} 把",
+                    "※ 拉完后「紫卡排行」各行末尾会多出「WM挂单 / 变化」两列",
+                ],
+                footer=fmt.fmt_platform_footer(platform, "warframe.market 拍卖"),
+            )
+        now = _riven_now_by_name(rt, weapons)
+        now_ts = rt.get("ts") or ""
         if not cat:
-            title, lines = fmt.fmt_riven_weekly(snap, zhm)
+            title, lines = fmt.fmt_riven_weekly(snap, zhm, now=now, now_ts=now_ts)
             return Reply(title, lines, footer=fmt.fmt_platform_footer(platform, "DE 官方周报"))
         veiled = await self.client.wm_veiled_stats(platform) if cat == "未开" else None
         title, lines = fmt.fmt_riven_type(
-            cat, snap, zhm, page=parsed.page, page_size=self.page_size, veiled_wm=veiled
+            cat,
+            snap,
+            zhm,
+            page=parsed.page,
+            page_size=self.page_size,
+            veiled_wm=veiled,
+            now=now,
+            now_ts=now_ts,
         )
         return Reply(title, lines, footer=fmt.fmt_platform_footer(platform, "DE 官方周报"))
 

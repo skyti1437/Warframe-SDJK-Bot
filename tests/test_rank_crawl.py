@@ -278,6 +278,26 @@ async def main3():
 
 asyncio.run(main3())
 
+
+# 单飞（2026-10-24）：自动循环与手动「排行 刷新」/ 面板按钮同时触发 ⇒ 只抓一份，手动入口报「在抓」
+class SlowClient(FakeClient):
+    async def wm_statistics(self, slug, platform="pc"):
+        await asyncio.sleep(0.001)
+        return await super().wm_statistics(slug, platform)
+
+
+async def main4():
+    c = SlowClient({})
+    first = asyncio.ensure_future(c.crawl_wm_ranks())
+    await asyncio.sleep(0)
+    started, _, _ = c.start_rank_crawl()
+    await asyncio.gather(first, c.crawl_wm_ranks())
+    check("★ 单飞：并发两轮只抓一份（20 次而非 40 次）", c.calls == 20, str(c.calls))
+    check("★ 单飞：自动循环在抓时手动入口不另起一份", started is False)
+
+
+asyncio.run(main4())
+
 print()
 if FAILED:
     print(f"共 {len(FAILED)} 项失败：{FAILED}")

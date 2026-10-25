@@ -4107,48 +4107,28 @@ def fmt_wm_veiled_summary(stats: dict) -> tuple[str, list[str]]:
     return ("未开紫卡 · 各类别行情", lines)
 
 
-def fmt_riven_realtime(
-    rows: dict, ts: str, zhm: dict, *, page: int = 1, page_size: int = 10
-) -> tuple[str, list[str]]:
-    """紫卡**实时**排行（WM 拍卖快照）：在线最低一口价 / 前 N 中位 / 挂单数。
+# 「WM挂单 vs 周报参考价」的变化：相对偏离不足此值记「≈」（挂单价≠成交价，只看大幅偏离）
+_RIVEN_NOW_FLAT = 0.15
 
-    ★ 2026-10-23（玩家报「周报时效差，1.2 热修后暴涨看不出」）：DE 周报每周一才更新一次，
-    热修后那几周全是旧数；这里用 **WM 拍卖实时挂单**当默认视图，周报保留作 `紫卡排行 周报`。
 
-    排序口径：**挂单数降序**（实时市场里挂单量最接近「热度」）⇒ 与周报口径可比。
+def _riven_delta(ref, now) -> str:
+    """周报参考价 → WM 挂单中位的变化：``▲133%`` / ``▼19%`` / ``≈`` / ``—``（缺数）。"""
+    if not ref or not now:
+        return "—"
+    r = float(now) / float(ref) - 1
+    if abs(r) < _RIVEN_NOW_FLAT:
+        return "≈"
+    return f"{'▲' if r > 0 else '▼'}{abs(r) * 100:.0f}%"
+
+
+def _riven_row(
+    name: str, d: dict, veiled: bool = False, *, now: Optional[dict] = None, with_now: bool = False
+) -> str:
+    """紫卡榜一行：武器　0洗中位　0洗热度　已洗中位　已洗热度　参考价［　WM挂单　变化］。
+
+    ``with_now``（2026-10-25）：管理员手动拉过 WM 现价时追加两列；``now`` = 该武器的快照行
+    （``median`` = 挂单最低 20 条中位），没抓到的武器两列写「—」。
     """
-    if not rows:
-        return ("紫卡实时排行", ["※ 还没有实时快照（后台每 6h 在凌晨闲时重建一次）"])
-    when = ts[:16].replace("T", " ") if ts else "未知"
-    items = sorted(rows.items(), key=lambda kv: -(kv[1].get("listings") or 0))
-    total = len(items)
-    pages = max(1, (total + page_size - 1) // page_size)
-    page = max(1, min(page, pages))
-    chunk = items[(page - 1) * page_size : page * page_size]
-    title = f"紫卡实时排行（第{page}/{pages}页，共{total}把）"
-    lines = [
-        f"◆ 来源：warframe.market 拍卖实时挂单｜更新于 {when} UTC",
-        "　武器　在线最低　前20中位　挂单数",
-    ]
-    for slug, d in chunk:
-        name = zhm.get(slug) or slug
-        lines.append(
-            "· "
-            + "　".join(
-                [
-                    name,
-                    _fmt_p(d.get("online_low")),
-                    _fmt_p(d.get("median")),
-                    str(d.get("listings") or 0),
-                ]
-            )
-        )
-    lines.append("※ 看 DE 官方周报口径：紫卡排行 周报；按类别：紫卡排行 手枪")
-    return (title, lines)
-
-
-def _riven_row(name: str, d: dict, veiled: bool = False) -> str:
-    """紫卡榜一行：武器　0洗中位　0洗热度　已洗中位　已洗热度　参考价。"""
     if veiled:  # 未开卡只有一张「中位 + 热度」，放进 0 洗列
         d = {"m0": d.get("m0"), "p0": d.get("p0"), "m1": None, "p1": None}
     ref = min([x for x in (d.get("m0"), d.get("m1")) if x], default=None)
@@ -4160,12 +4140,36 @@ def _riven_row(name: str, d: dict, veiled: bool = False) -> str:
         f"{d['p1']}%" if d.get("p1") is not None else "—",
         _fmt_p(ref),
     ]
+    if with_now:
+        med = (now or {}).get("median")
+        cells += [_fmt_p(med) if med else "—", _riven_delta(ref, med)]
     return "· " + "　".join(cells)
 
 
-def fmt_riven_weekly(snap: dict, zhmap: dict) -> tuple[str, list[str]]:
-    """裸「紫卡排行」：近战/手枪/步枪/霰弹枪/未开 五组各前五（按周销量热度）。"""
+_RIVEN_HEAD = "　武器　0洗中位　0洗热度　已洗中位　已洗热度　参考价"
+
+
+def _riven_now_note(now_ts: str) -> str:
+    """WM 现价两列的注脚；没拉过现价时提示管理员可拉。"""
+    if not now_ts:
+        return "※ 大更后价格波动大时，管理员可发「紫卡排行 刷新」拉一次 WM 现价对比（约 30 分钟）"
+    when = now_ts[:16].replace("T", " ")
+    return (
+        f"※ WM挂单 = 管理员 {when} UTC 手动拉取的挂单最低 20 条中位；变化 = 对比周报参考价"
+        f"（挂单价≠成交价，±{_RIVEN_NOW_FLAT * 100:.0f}% 内记 ≈，看大幅偏离即可）"
+    )
+
+
+def fmt_riven_weekly(
+    snap: dict, zhmap: dict, *, now: Optional[dict] = None, now_ts: str = ""
+) -> tuple[str, list[str]]:
+    """裸「紫卡排行」：近战/手枪/步枪/霰弹枪/未开 五组各前五（按周销量热度）。
+
+    ``now`` / ``now_ts``（2026-10-25）：管理员手动拉的 WM 现价（键 = 武器英文名小写），
+    有就每行追加「WM挂单 / 变化」两列。
+    """
     entries = snap.get("entries") or []
+    with_now = bool(now)
     lines: list[str] = []
     for label, itype in (
         ("近战", ("Melee Riven Mod",)),
@@ -4179,19 +4183,22 @@ def fmt_riven_weekly(snap: dict, zhmap: dict) -> tuple[str, list[str]]:
         if not ranked:
             continue
         lines.append(f"◆ {label}")
-        lines.append("　武器　0洗中位　0洗热度　已洗中位　已洗热度　参考价")
+        lines.append(_RIVEN_HEAD + ("　WM挂单　变化" if with_now else ""))
         for c in ranked:
             name = zhmap.get((c or "").lower()) or c or "未开紫卡"
-            lines.append(_riven_row(name, pool[c]))
+            lines.append(
+                _riven_row(name, pool[c], now=(now or {}).get((c or "").lower()), with_now=with_now)
+            )
     import datetime as _dt
 
     when = _dt.datetime.fromtimestamp(snap.get("fetched") or 0, tz=_dt.timezone.utc)
     lines.append("※ 0洗与已洗并列展示，按本周成交热度（≈7 天销量）降序；参考价为两者较低的中位价")
     lines.append(
         "※ 完整榜：「紫卡排行 近战/步枪/霰弹枪/手枪/主武/副武/空战/组合枪/Zaw/未开」"
-        "｜强制更新：「紫卡排行 刷新」；未开紫卡实时价（warframe.market 成交）：「紫卡排行 未开」"
+        "｜未开紫卡实时价（warframe.market 成交）：「紫卡排行 未开」"
     )
-    lines.append(f"※ DE 官方周报（每周更新一次），抓取于 {when:%m-%d %H:%M} UTC")
+    lines.append(_riven_now_note(now_ts if with_now else ""))
+    lines.append(f"※ DE 官方周报（每周一更新），抓取于 {when:%m-%d %H:%M} UTC")
     return ("紫卡热度排行榜", lines)
 
 
@@ -4202,8 +4209,12 @@ def fmt_riven_type(
     page: int = 1,
     page_size: int = 10,
     veiled_wm: Optional[dict] = None,
+    now: Optional[dict] = None,
+    now_ts: str = "",
 ) -> tuple[str, list[str]]:
     """「紫卡排行 类型」：按首要排序 0洗热度降序、次要已洗热度降序；参考价=较低中位。
+
+    ``now`` / ``now_ts``：同 `fmt_riven_weekly`（未开视图不加）。
 
     ``veiled_wm``：未开紫卡的 WM 实时成交价（``wm_veiled_stats`` 产物）。
     DE 周报的未开条目是一周口径且明显偏高（组合枪/Zaw 报 590-600p，WM 实时
@@ -4258,10 +4269,11 @@ def fmt_riven_type(
         )
         return ("紫卡热度·未开", lines)
     lines = [f"◆ 共 {total} 种 · 按首要 0洗热度降序（次要：已洗热度）"]
+    with_now = bool(now) and cat != "未开"
     if cat == "未开":
         lines.append("　类别　中位　热度　参考价")
     else:
-        lines.append("　武器　0洗中位　0洗热度　已洗中位　已洗热度　参考价")
+        lines.append(_RIVEN_HEAD + ("　WM挂单　变化" if with_now else ""))
     for c, d in chunk:
         if cat == "未开":
             base_t = (c or "").replace("未开·", "").replace(" Riven Mod", "")
@@ -4280,7 +4292,9 @@ def fmt_riven_type(
             )
             continue
         name = zhmap.get((c or "").lower()) or c or "未开紫卡"
-        lines.append(_riven_row(name, d))
+        lines.append(_riven_row(name, d, now=(now or {}).get((c or "").lower()), with_now=with_now))
+    if cat != "未开":
+        lines.append(_riven_now_note(now_ts if with_now else ""))
     lines.append(
         f"※ 页码:{page}/{pages}　使用「紫卡排行 {cat} -{page + 1}」查看下一页"
         if page < pages
@@ -4344,6 +4358,12 @@ _RIVEN_COMBO_HINT = {(2, 0): "2+", (2, 1): "2+1-", (3, 0): "3+", (3, 1): "3+1-"}
 
 # 「词条范围」的四种组合（**列顺序 = 卡面默认顺序**）；用户指定哪个就提到首列并高亮
 _RIVEN_COMBO_COLS = ((3, 1), (3, 0), (2, 1), (2, 0))
+
+# 组合 → 染段字母（见 core/render.py 的 _SPAN_COLORS / _SPAN_DIM）。
+# ★ 颜色跟**组合**走、不跟列位置走：指定组合提到首列后颜色不变；渲染层再按
+#   「是否指定列」选全饱和（a/m/y/t）或与 INK_DIM 各半的次列变体（d/e/f/h）。
+#   暖冷分组 = 有没有负词条槽：带负用暖色（AMBER / MAGENTA）、无负用冷色（CYAN / STEEL）。
+_RIVEN_COMBO_SPAN = {(3, 1): "a", (2, 1): "m", (3, 0): "y", (2, 0): "t"}
 
 
 def fmt_riven_ranges(
@@ -4410,12 +4430,17 @@ def fmt_riven_ranges(
             lo, _hi = RA.stat_range(sid, cls, disp, sec[0][0], sec[0][1], negative=is_neg)
             if lo is None:
                 continue
-            zh = RIVEN_STAT_ZH.get(sid, sid) + ("?" if sid in unconfirmed else "")
+            # 未确认的物理词条：名字照普通色，只把「?」压暗（⟦n⟧ = INK_DIM）
+            zh = RIVEN_STAT_ZH.get(sid, sid) + ("⟦n⟧?⟦/n⟧" if sid in unconfirmed else "")
             rows.append([zh] + [_cell(sid, c, negative=is_neg) for c in sec])
         if not rows:
             continue
+        # 名字列配色：普通词条 INK（w）、融合词条 VIOLET（v）—— 渲染层据此包显式染段
+        _name_span = "v" if label == "融合词条·正面" else "w"
         payload = {
             "cols": [_RIVEN_COMBO_ZH.get(c, "") for c in sec],
+            "spans": [_RIVEN_COMBO_SPAN.get(c, "") for c in sec],
+            "name_span": _name_span,
             "primary": sec.index(combo) if combo in sec else 0,
             "rows": rows,
             "text_hint": (
@@ -4423,7 +4448,8 @@ def fmt_riven_ranges(
                 + " / ".join(v for k, v in _RIVEN_COMBO_HINT.items() if k != combo)
             ),
         }
-        lines.append(f"◆ {label}（{len(rows)} 条）")
+        _title_txt = f"⟦v⟧{label}⟦/v⟧" if _name_span == "v" else label
+        lines.append(f"◆ {_title_txt}（{len(rows)} 条）")
         lines.append("§RANGES" + json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
     if not lines:
         lines.append("◆ 原因：该武器在这个组合下列不出词条（职业池为空？）")
@@ -4436,10 +4462,13 @@ def fmt_riven_ranges(
         lines.append("※ 融合词条同一张卡最多 1 项（Update 44 Riven Splicer）")
     if unconfirmed:
         lines.append("※ 带 ? 的是物理伤害词条：占比低于 25% 但家族证据未表态，按「未确认」照列")
-    # 图例（一行，替代原来的「切换组合」长句）：四种组合都在表里，不必再点名
+    # 图例（一行，替代原来的「切换组合」长句）：四种组合都在表里，不必再点名；
+    # 每个组合名染各自组合色（与表头/数据格同一套字母）。
     lines.append(
         "※ 列："
-        + " / ".join(_RIVEN_COMBO_ZH[c] for c in cols)
+        + " / ".join(
+            f"⟦{_RIVEN_COMBO_SPAN[c]}⟧{_RIVEN_COMBO_ZH[c]}⟦/{_RIVEN_COMBO_SPAN[c]}⟧" for c in cols
+        )
         + f"（满级卡面，统一倾向 {disp}，随机系数 ±10%）"
     )
     return (f"{weapon} 紫卡词条范围（{_RIVEN_COMBO_ZH.get(combo, '')}）", lines)
@@ -4455,6 +4484,8 @@ def fmt_riven_analysis(
     verdict: str = "",
     warns: Optional[list] = None,
     infos: Optional[list] = None,
+    counts: Optional[tuple] = None,
+    hidden: int = 0,
 ) -> tuple[str, list[str]]:
     """紫卡分析：逐词条给出 DE 机制下的取值区间与卷度。
 
@@ -4466,6 +4497,8 @@ def fmt_riven_analysis(
     「词条｜区间｜距中｜区间位」表（▲ 正词条青绿 / ▼ 负词条红）→ 注脚 ≤3 行。
     ``verdict`` 是短结论（空 = 数值与本体倾向无冲突，不写「判定」行）；``warns`` 进 ⚠ 警示；
     ``infos`` 合并成一条注脚。
+    ``counts`` = (正, 负) 词条数（决定系数；None = 按 stats 条数）；``hidden`` = 融合未选定的
+    「？？？」词条数（2026-10-24）：只计入词条数、单列一行不给区间。
     """
     from . import riven_analysis as RA
     from .parser import RIVEN_STAT_ZH
@@ -4482,15 +4515,15 @@ def fmt_riven_analysis(
         lines.append(f"◆ 判定：{verdict}")
     for w in warns or []:
         lines.append("※ ⚠ " + str(w).lstrip("⚠\ufe0f "))
+    n_pos, n_neg = counts or (len(stats_pos), len(stats_neg))
     lines.append(
-        f"◆ 词条（{len(stats_pos)} 正 {len(stats_neg)} 负）"
-        if stats_neg
-        else f"◆ 词条（{len(stats_pos)} 正）"
+        (f"◆ 词条（{n_pos} 正 {n_neg} 负" if n_neg else f"◆ 词条（{n_pos} 正")
+        + (f"，{hidden} 条未揭示）" if hidden else "）")
     )
     lines.append("　词条　区间　距中　区间位")
     for sid0, v in stats_pos:
         sid = _sid(sid0)
-        lo, hi = RA.stat_range(sid, cls, disposition, len(stats_pos), len(stats_neg))
+        lo, hi = RA.stat_range(sid, cls, disposition, n_pos, n_neg)
         # ★ 2026-10-02：反转词条（后坐力）**保留卡面符号**显示 —— 卡面
         #   「-20% 后坐力」是正面效果，就写「-20% 后坐（卡面-号·正面）」；
         #   其余正词条照旧 +（用户口径：显示符号必须与卡面一致，极性用标注传达）。
@@ -4510,7 +4543,7 @@ def fmt_riven_analysis(
         )
     for sid0, v in stats_neg:
         sid = _sid(sid0)
-        lo, hi = RA.stat_range(sid, cls, disposition, len(stats_pos), len(stats_neg), negative=True)
+        lo, hi = RA.stat_range(sid, cls, disposition, n_pos, n_neg, negative=True)
         # ★ 2026-10-02：反转词条在负词组里同样**保留卡面符号** —— 卡面
         #   「+95.4% 武器后坐力」是负面（增加后坐力），写「+95.4% 后坐
         #   （卡面+号·负面）」；区间仍按**负面档**系数计算（分组不变）。
@@ -4531,6 +4564,8 @@ def fmt_riven_analysis(
         lines.append(
             "· " + "　".join([_head, _range_txt(RA, sid, lo, hi), "幅度位", f"{pos_pct}%"])
         )
+    for _ in range(hidden):
+        lines.append("· ？？？　未揭示（融合选定后再分析）　—　—")
     if infos:
         lines.append(
             "※ "
@@ -4539,12 +4574,68 @@ def fmt_riven_analysis(
                 for x in infos
             )
         )
+    if hidden:
+        lines.append(
+            "※ 「？？？」词条正负未知，只计入词条数：词条数决定系数，已知词条的区间照常给出"
+        )
     lines.append("※ 距中为正 = 高卷；负词条看幅度位：幅度越大越友好（负得越满，通常越好卖）")
     lines.append(
         "※ 区间 = DE 属性基值 × 倾向 × 词条数系数 × 随机 0.9~1.1（相对中值 ±10%；上限=最满，"
         "下限=最弱）；「±11%」是把基准取成低值端（110÷90=+22.2% 再折半）的误传，官方 wiki 为 90%~110%"
     )
     return ("紫卡分析", lines)
+
+
+_SPLICE_CLASS_ZH = {
+    "rifle": "步枪",
+    "shotgun": "霰弹枪",
+    "pistol": "手枪",
+    "archgun": "空战",
+    "melee": "近战",
+}
+
+
+def fmt_riven_splice(recipes: list, *, scope: str = "", stat_zh: str = "") -> tuple[str, list[str]]:
+    """「紫卡融合 / 紫卡拼接」：Riven Splicer 每个融合词条由哪两条原词条拼成（2026-10-24）。
+
+    三段：通用（所有武器）/ 枪械 / 近战；表三列「融合词条　原词条一　原词条二」。融合词条名
+    染紫 ``⟦v⟧``（与「词条范围」融合段同色），原词条名包 ``⟦w⟧``（绕开元素语义词表单独染色）。
+    ``scope`` = 已按武器 / 武器类过滤时的说明；``stat_zh`` = 已按词条过滤时的词条名。
+    """
+    from .parser import RIVEN_STAT_ZH
+
+    zh = RIVEN_STAT_ZH
+    groups = (
+        ("通用 · 所有武器", lambda r: "melee" in r[3] and "rifle" in r[3]),
+        ("枪械 · 步枪 / 霰弹枪 / 手枪 / 空战", lambda r: "melee" not in r[3]),
+        ("近战", lambda r: r[3] == ("melee",)),
+    )
+    lines: list[str] = []
+    if scope:
+        lines.append(f"◆ 适用：{scope}")
+    for label, pick in groups:
+        rows = [r for r in recipes if pick(r)]
+        if not rows:
+            continue
+        lines.append(f"◆ {label}（{len({r[2] for r in rows})} 个）")
+        lines.append("　融合词条　原词条一　原词条二")
+        for a, b, out, _cls in rows:
+            lines.append(
+                f"· ⟦v⟧{zh.get(out, out)}⟦/v⟧　⟦w⟧{zh.get(a, a)}⟦/w⟧　⟦w⟧{zh.get(b, b)}⟦/w⟧"
+            )
+    if not lines or (scope and len(lines) == 1):
+        lines.append("◆ 原因：没有符合条件的融合配方" + (f"（{stat_zh}）" if stat_zh else ""))
+    if any(r[2] == "reload_holstered" for r in recipes):
+        lines.append("※ 收枪装填：空战武器不可融合")
+    lines.append(
+        "※ 两条原词条被消耗；融合词条总是正面，若消耗的原词条里有负面，补上的随机词条也是负面"
+    )
+    lines.append(
+        "※ 融合词条继承两条原词条中较高的随机值；一张卡只能有 1 条融合词条，锁定、不随洗卡变"
+    )
+    lines.append("※ 来源：英文 wiki「Riven Mods · Splicing」（融合器 Riven Splicer）")
+    title = "紫卡融合配方" + (f"：{stat_zh}" if stat_zh else "")
+    return (title, lines)
 
 
 def fmt_trend(name: str, stats: dict, summary: dict) -> tuple[str, list[str]]:

@@ -178,21 +178,41 @@ def parse_ranges(text: str) -> Optional[dict]:
         primary = int(obj.get("primary") or 0)
     except (TypeError, ValueError):
         primary = 0
+    # 组合色字母（每列一个，见 formatters._RIVEN_COMBO_SPAN）：缺/长度不符时留空
+    # ⇒ 展开退化成「无组合色」（旧机器行/手工行也不会炸）。
+    _spans = obj.get("spans")
+    spans = (
+        [str(s) for s in _spans] if isinstance(_spans, list) and len(_spans) == len(cols) else []
+    )
     return {
         "cols": [str(c) for c in cols],
+        "spans": spans,
+        "name_span": str(obj.get("name_span") or "w"),
         "primary": max(0, min(primary, len(cols) - 1)),
         "rows": out_rows,
         "text_hint": str(obj.get("text_hint") or ""),
     }
 
 
+def _ranges_band_col(primary: int) -> int:
+    """§RANGES 的 ``primary``（**数值列**下标，不含「词条」名）→ ``cells`` 列下标。
+
+    ``cells[0]`` 是词条名（见 `_split_cells`），故指定列在 cells 里的位置要 +1 ——
+    竖底带按这个下标取列坐标（2026-10-24 实测踩过 off-by-one：底带画到了词条名列）。
+    """
+    return int(primary) + 1
+
+
 def _expand_ranges_line(line: str, *, for_text: bool = False) -> list[str]:
     """§RANGES 机器行 → 可绘制的普通行。
 
-    · 图片模式：表头行（无「·」，走既有 thead 小灰粗字）+ 每词条一行五格；
-      高亮列的数据格包金色染段标记 ``⟦g⟧…⟦/g⟧``（表头是纯 ``d.text`` 绘制、不吃标记，
-      所以**只给数据格上色**）；
-    · 文字模式：只出高亮那一列（``· 词条　值``）+ 一行「其余组合」提示。
+    · 图片模式：表头行（无「·」，走既有 thead 小灰粗字）+ 每词条一行五格。
+      **上色规则（2026-10-24 配色重做）**：颜色跟**组合**走、不跟列位置走 ——
+      表头每格用该列组合色；数据格指定列用组合色全饱和、其余三列用「组合色 ×
+      INK_DIM 各半」的次列变体；词条名列普通词条 ``INK``、融合词条 ``VIOLET``
+      （**显式染段**，绕开语义词表 —— 切割 / 冲击不再单独变青绿）。
+    · 文字模式：只出高亮那一列（``· 词条　值``）+ 一行「其余组合」提示；
+      染段标记由 ``text_card`` 统一剥掉，故**文字输出与改版前一致**。
     """
     obj = parse_ranges(line)
     if obj is None:
@@ -206,14 +226,27 @@ def _expand_ranges_line(line: str, *, for_text: bool = False) -> list[str]:
         if obj["text_hint"]:
             out.append(obj["text_hint"])
         return out
-    out = ["　词条　" + "　".join(obj["cols"])]
+    _spans = obj["spans"] or [""] * len(obj["cols"])
+    _nsp = obj["name_span"] or "w"
+
+    def _cell_mark(i: int, v: str) -> str:
+        s = _spans[i] if i < len(_spans) else ""
+        if not s:
+            return f"⟦w⟧{v}⟦/w⟧"
+        if i == obj["primary"]:
+            return f"⟦{s}⟧{v}⟦/{s}⟧"
+        d = _SPAN_DIM.get(s, s)
+        return f"⟦{d}⟧{v}⟦/{d}⟧"
+
+    out = [
+        "　词条　"
+        + "　".join(
+            (f"⟦{s}⟧{c}⟦/{s}⟧" if s else c) for s, c in zip(_spans, obj["cols"], strict=False)
+        )
+    ]
     for r in obj["rows"]:
-        # ★ 2026-10-24 Claude 审：非高亮列也要显式包白色段 ⟦w⟧ —— 不包就落到默认的
-        #   「百分数染金」规则，出图里其它列的上限数字也成了金色，高亮列反而不显眼。
-        cells = [
-            f"⟦g⟧{v}⟦/g⟧" if i == obj["primary"] else f"⟦w⟧{v}⟦/w⟧" for i, v in enumerate(r[1:])
-        ]
-        out.append(f"· {r[0]}　" + "　".join(cells))
+        cells = [_cell_mark(i, v) for i, v in enumerate(r[1:])]
+        out.append(f"· ⟦{_nsp}⟧{r[0]}⟦/{_nsp}⟧　" + "　".join(cells))
     return out
 
 
@@ -611,7 +644,11 @@ def _bg_column() -> "Image.Image":
 
 # 栏目英文名补表（TITLE_THEME 没覆盖或误命中的卡；先于 TITLE_THEME 匹配）
 _SLUG_OVERRIDE = [
-    (("词条范围",), "RIVEN RANGES"),  # 2026-10-24：原先按「紫卡」子串命中 RIVEN AUCTIONS
+    (("词条范围",), "RIVEN RANGES"),
+    (
+        ("紫卡融合",),
+        "RIVEN SPLICING",
+    ),  # 2026-10-24：别被「紫卡」子串带去 RIVEN AUCTIONS  # 2026-10-24：原先按「紫卡」子串命中 RIVEN AUCTIONS
     (("紫卡分析",), "RIVEN ANALYSIS"),
     (("紫卡倾向",), "RIVEN DISPOSITION"),
     (("伤害计算",), "DAMAGE CALCULATOR"),
@@ -709,6 +746,11 @@ _BOUNTY_PLAIN_FACTION = frozenset({"Grineer", "Corpus"})
 # ---------------------------------------------------------------------------
 _SEG_MARK_RE = re.compile(r"(⟦/?[a-z]⟧)")
 # g / s / b = 部件杜卡德价值金 / 银 / 铜（formatters.ducat_span 生成，2026-10-16）
+# a / m / y / t = 「词条范围」四种组合色（3正1负 / 2正1负 / 3正 / 2正；字母由
+#   formatters._RIVEN_COMBO_SPAN 决定）—— **颜色跟组合走、不跟列位置走**；
+# n = 次要文字（未确认词条名后的「?」）。
+# d / e / f / h = 上述四色的**非指定列**变体（与 INK_DIM 各半混合）。★ 值写成 lambda：
+#   派生色必须**绘制时现算**才跟后台改色走；写成常量或另建模块级 dict 会在换肤后不变。
 _SPAN_COLORS = {
     "c": BLUE,
     "v": VIOLET,
@@ -716,7 +758,26 @@ _SPAN_COLORS = {
     "g": RARITY_GOLD,
     "s": RARITY_SILVER,
     "b": RARITY_BRONZE,
+    "a": AMBER,
+    "m": MAGENTA,
+    "y": CYAN,
+    "t": STEEL,
+    "n": INK_DIM,
+    "d": lambda: _mix(AMBER, INK_DIM, 0.5),
+    "e": lambda: _mix(MAGENTA, INK_DIM, 0.5),
+    "f": lambda: _mix(CYAN, INK_DIM, 0.5),
+    "h": lambda: _mix(STEEL, INK_DIM, 0.5),
 }
+# 组合色 → 其「非指定列」变体字母（§RANGES 展开用）
+_SPAN_DIM = {"a": "d", "m": "e", "y": "f", "t": "h"}
+
+
+def _span_color(letter: str, default=None):
+    """染段字母 → 颜色；值为 callable 的（组合色次列）**现算**，跟主题走。"""
+    c = _SPAN_COLORS.get(letter)
+    if c is None:
+        return default
+    return c() if callable(c) else c
 
 
 def _parse_color_segs(t: str) -> tuple[str, list[tuple[str, tuple[int, int, int]]]]:
@@ -737,7 +798,7 @@ def _parse_color_segs(t: str) -> tuple[str, list[tuple[str, tuple[int, int, int]
         if part.startswith("⟦"):
             seen = True
             mm = re.fullmatch(r"⟦([a-z])⟧", part)
-            color = _SPAN_COLORS.get(mm.group(1), INK) if mm else INK
+            color = _span_color(mm.group(1), INK) if mm else INK
             continue
         if not seen:
             main_parts.append(part)
@@ -1393,6 +1454,7 @@ _TABLE_TITLE_PATTERNS = (
     "仲裁排期",  # 2026-09-27：时间/节点（星球）/类型/派系/[评级] 分列
     "结合仪式目标",  # 2026-09-27：名称/节点/类型（派系）三列
     "词条范围",  # 2026-10-23：紫卡词条范围卡「词条　区间」两列对齐
+    "紫卡融合",  # 2026-10-24：融合词条 / 原词条一 / 原词条二 三列
 )
 
 
@@ -1789,7 +1851,17 @@ class ImageRenderer:
         grid_rows: list[tuple[list[str], float]] = []
         # §RANGES 机器行在**宽度扫描之前**展开成普通表格行 —— 否则五列宽度不进
         # `needed`，卡宽会按没展开的机器行算（本卡就会窄到放不下四列）。
-        lines = [seg for x in (lines or [""]) for seg in _expand_ranges_line(x)]
+        # 展开时顺带记下「表头行下标 → 载荷」，供后面把组合色竖底带挂在行上。
+        _rng_lines: list[str] = []
+        _rng_meta: dict[int, dict] = {}
+        for _x in lines or [""]:
+            _segs = _expand_ranges_line(_x)
+            _pay = parse_ranges(_x) if str(_x).startswith("§RANGES") else None
+            for _k, _sg in enumerate(_segs):
+                if _pay is not None and _k == 0:
+                    _rng_meta[len(_rng_lines)] = _pay
+                _rng_lines.append(_sg)
+        lines = _rng_lines
         src = lines[:MAX_BODY_LINES]
         cleaned: list[tuple[str, str, bool]] = []
         for _li, raw in enumerate(src):
@@ -2007,10 +2079,16 @@ class ImageRenderer:
             return "normal"
 
         rows: list[dict] = []
+        _cur_rng: Optional[dict] = None  # 当前「词条范围」表格的载荷（表头行起、注释行止）
         for _li, (raw, clean, had_icon) in enumerate(cleaned):
             # 行首全角空格 = 缩进层级。**≥4 个**才额外缩进一级（赏金卡里
             # 「主目标 / 副目标」的分级就靠它）；2 个空格的行（奖励串、
             # 「任务：」标签）保持原样，不然整张卡会整体位移。
+            _is_rng_head = _li in _rng_meta
+            if _is_rng_head:
+                _cur_rng = _rng_meta[_li]
+            elif _cur_rng is not None and not clean.lstrip().startswith("·"):
+                _cur_rng = None
             _n_sp = len(raw) - len(raw.lstrip("　"))
             indent_lv = (_n_sp - 2) // 2 if _n_sp >= 4 else 0
             timer_txt = ""
@@ -2147,6 +2225,9 @@ class ImageRenderer:
                         "subcont": bool(
                             j > 0 and _n_sp and not clean.lstrip().startswith(("·", "▸", "◆", "※"))
                         ),
+                        # 「词条范围」表格：载荷挂在表头行与随后的数据行上（画组合色竖底带用）
+                        "ranges": _cur_rng,
+                        "ranges_head": _is_rng_head and j == 0,
                     }
                 )
 
@@ -2487,6 +2568,7 @@ class ImageRenderer:
 
         # 列对齐（同旧版口径）
         arb_cols = None
+        arb_w: list[float] = []  # 各列像素宽（组合色竖底带要按列宽铺）
         if getattr(self, "_table_mode", False):
             split_rows = [
                 r["cells"] for r in rows if r.get("cells") and r["kind"] in ("normal", "numbered")
@@ -2508,6 +2590,7 @@ class ImageRenderer:
                     default=0,
                 )
                 arb_cols.append(acc)
+                arb_w.append(wpx)
                 acc += wpx + 24 * SS
             if not split_rows:
                 arb_cols = None
@@ -2528,6 +2611,45 @@ class ImageRenderer:
                     outline=TIER_FRAME_LINE,
                     width=SS,
                 )
+
+        # —— 「词条范围」指定列的组合色竖底带 ——
+        # 在**文字之前**铺（后面逐行绘制会盖在上面），只在表模式下有列坐标。
+        # 色值走 _tint(组合色, 14)（≈14% 不透明度，预混到当前面板底色）⇒ 跟主题走。
+        if arb_cols:
+            for _hi, _lay in enumerate(layout):
+                _r0 = _lay[0]
+                _pay = _r0.get("ranges")
+                if not _pay or not _r0.get("ranges_head"):
+                    continue
+                _p = int(_pay.get("primary") or 0)
+                _spans = _pay.get("spans") or []
+                # ★ primary 是**数值列**下标（不含名字列）⇒ cells 下标要 +1
+                #   （表头/数据行的 cells[0] 都是「词条」名，见 _split_cells）
+                _pc = _ranges_band_col(_p)
+                if _pc >= len(arb_cols) or _pc >= len(arb_w) or _p >= len(_spans):
+                    continue
+                # 末行 = 本块内紧随其后的「·」数据行（表头之后的连续数据行）
+                _last = _hi
+                for _j in range(_hi + 1, len(layout)):
+                    _r1 = layout[_j][0]
+                    if layout[_j][4] != _lay[4] or not (
+                        _r1.get("cells") and _r1["text"].lstrip().startswith("·")
+                    ):
+                        break
+                    _last = _j
+                _band = _tint(_span_color(_spans[_p], INK) or INK, 14)
+                _x0 = x_text + arb_cols[_pc] - 8 * SS
+                _x1 = x_text + arb_cols[_pc] + arb_w[_pc] + 8 * SS
+                _zr = [
+                    _x0,
+                    by + _lay[1] * SS,
+                    _x1,
+                    by + (layout[_last][1] + layout[_last][2]) * SS,
+                ]
+                if _panel_translucent():
+                    _translucent_fill(img, _zr, _band, _THEME["panel_alpha"], 0)
+                else:
+                    d.rectangle(_zr, fill=_band)
 
         last_block = None
         for r_, ry, bh, tot, bi in layout:
@@ -2637,7 +2759,16 @@ class ImageRenderer:
                 _cols = arb_cols if arb_cols is not None else auto_cols[bi]
                 for ci, cell in enumerate(r_["cells"]):
                     if ci < len(_cols):
-                        d.text((xt + _cols[ci], _ty(hf, yc)), cell, font=hf, fill=INK_FAINT)
+                        # ★ 2026-10-24：单元格带染段标记时走 _draw_tokens 逐格上色
+                        #   （「词条范围」表头按组合色）；其余表格表头不带标记 ⇒
+                        #   仍走 d.text(INK_FAINT)，**零行为变化**（语义 token 不会
+                        #   误染别的卡的表头）。
+                        if "⟦" in cell:
+                            self._draw_tokens(
+                                d, cell, xt + _cols[ci], _ty(hf, yc), hf, INK_FAINT, x_right
+                            )
+                        else:
+                            d.text((xt + _cols[ci], _ty(hf, yc)), cell, font=hf, fill=INK_FAINT)
                 d.line([(PX0 + 12 * SS, y + h), (PX1 - 12 * SS, y + h)], fill=HAIR, width=SS)
             else:
                 xt = x_text + r_.get("indent", 0) * _INDENT_PX * SS
@@ -3366,7 +3497,7 @@ class ImageRenderer:
                     continue
                 mm = re.fullmatch(r"⟦(/?)([a-z])⟧", part)
                 if mm:
-                    color = None if mm.group(1) else _SPAN_COLORS.get(mm.group(2))
+                    color = None if mm.group(1) else _span_color(mm.group(2))
                     continue
                 if color is None:
                     x = self._draw_tokens(d, part, x, y, font, base_color, max_w)

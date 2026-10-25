@@ -145,6 +145,48 @@ _BASE: dict[str, tuple] = {
     "melee_slam_damage": (None, None, None, None, 119.7),
 }
 
+# Riven Splicer 融合配方（2026-10-24 用户要「紫卡融合 / 紫卡拼接」视图）：
+# (原词条一, 原词条二, 融合词条, 适用武器类)。来源：英文 wiki「Riven Mods」页
+# 「Riven Splicer Splicing Recipes」表（wikitext 原表逐行转录，22 条配方 / 18 个融合词条；
+# 弹效 / 收枪装填 / 弱点暴击 / 弱点伤害 各有两条配方）。「基伤」= 枪械 Damage 与近战 Melee
+# Damage 同一个词条 id（melee_damage），wiki 状态伤害那行写的正是「Damage / Melee Damage」。
+_GUNS = ("rifle", "shotgun", "pistol", "archgun")
+_ALL = _GUNS + ("melee",)
+SPLICE_RECIPES: tuple = (
+    ("toxin_damage", "heat_damage", "gas_damage", _ALL),
+    ("toxin_damage", "electric_damage", "corrosive_damage", _ALL),
+    ("toxin_damage", "cold_damage", "viral_damage", _ALL),
+    ("heat_damage", "electric_damage", "radiation_damage", _ALL),
+    ("heat_damage", "cold_damage", "blast_damage", _ALL),
+    ("electric_damage", "cold_damage", "magnetic_damage", _ALL),
+    ("damage_vs_grineer", "damage_vs_corpus", "damage_vs_orokin", _ALL),
+    ("damage_vs_infested", "damage_vs_grineer", "damage_vs_scaldra", _ALL),
+    ("damage_vs_corpus", "damage_vs_infested", "damage_vs_techrot", _ALL),
+    ("melee_damage", "status_chance", "status_damage", _ALL),
+    ("magazine_capacity", "reload_speed", "ammo_efficiency", _GUNS),
+    ("recoil", "ammo_max", "ammo_efficiency", _GUNS),
+    ("ammo_max", "reload_speed", "reload_holstered", ("rifle", "shotgun", "pistol")),
+    ("ammo_max", "magazine_capacity", "reload_holstered", ("rifle", "shotgun", "pistol")),
+    ("crit_chance", "zoom", "weakpoint_crit_chance", _GUNS),
+    ("crit_chance", "multishot", "weakpoint_crit_chance", _GUNS),
+    ("melee_damage", "zoom", "weakpoint_damage", _GUNS),
+    ("melee_damage", "multishot", "weakpoint_damage", _GUNS),
+    ("heavy_attack_efficiency", "extra_combo_count", "melee_heavy_attack_damage", ("melee",)),
+    ("heavy_attack_efficiency", "combo_duration", "melee_heavy_attack_charge", ("melee",)),
+    ("attack_speed", "range", "melee_parry_angle", ("melee",)),
+    ("melee_damage", "attack_speed", "melee_slam_damage", ("melee",)),
+)
+
+
+def splice_recipes(cls: Optional[str] = None, stat: Optional[str] = None) -> list:
+    """按武器类（rifle/shotgun/pistol/archgun/melee）与词条过滤融合配方；词条匹配原词条或融合词条。"""
+    return [
+        r
+        for r in SPLICE_RECIPES
+        if (cls is None or cls in r[3]) and (stat is None or stat in r[:3])
+    ]
+
+
 # 百分比词条（显示时补 %）；其余按原单位（米/秒/纯值）
 _PCT_IDS = set(_BASE) - {"punch_through", "range", "combo_duration", "initial_combo"}
 
@@ -226,6 +268,24 @@ def kitgun_mode_class(name: str, base_cls: str, base_riven_type: str) -> str:
     if (base_riven_type or "").lower() != "kitgun":
         return base_cls
     return "pistol"
+
+
+def count_candidates(n_pos: int, n_neg: int, hidden: int = 0) -> list:
+    """已知 n_pos 正 / n_neg 负 + ``hidden`` 条未揭示（卡面「？？？」）⇒ 可能的 (正, 负) 词条数组合。
+
+    2026-10-24 用户：融合时还没选定的词条卡面只显示「？？？」，正负未知；按总行数
+    判断是 3+1 还是 2+x —— 4 行必是 3+1，3 行且已有负词条必是 2+1，3 行无负词条则
+    3+0 / 2+1 两可（交给调用方用数值可行性挑）。返回顺序：未揭示的先当正词条。
+    """
+    out = []
+    # 问号行多于 1 行时也可能是**一条**长词条的占位折成了两行（同一词条占两行，
+    # 2026-10-24 用户）⇒ 再按少算几条列候选，由调用方用数值可行性挑
+    for h in range(hidden, 0, -1) if hidden else (0,):
+        for h_neg in range(min(h, 1) + 1):
+            c = (n_pos + h - h_neg, n_neg + h_neg)
+            if c in FACTOR and c not in out:
+                out.append(c)
+    return out
 
 
 def factor_for(n_pos: int, n_neg: int) -> tuple[float, Optional[float]]:
@@ -366,20 +426,21 @@ def _fit_dev(
     return worst if used else None
 
 
-def disposition_interval(stats_pos, stats_neg, cls, *, tol_fn=None) -> tuple:
+def disposition_interval(stats_pos, stats_neg, cls, *, tol_fn=None, counts=None) -> tuple:
     """由卡面数值反解倾向的可行区间。
 
     Args:
         stats_pos / stats_neg: [(stat_id, value)]，负词条存 magnitude。
         cls: 武器基值列名（weapon_class 的产物）。
         tol_fn: 可选的显示不确定度函数（测试用）。
+        counts: (正, 负) 词条数；None = 按 stats 条数（卡面有未揭示词条时由调用方给）。
 
     Returns:
         (lo, hi) 可行区间；词条全都无可用基值、或各词条互相矛盾
         （交集为空）时返回 (None, None)。
     """
     tol_fn = tol_fn or display_tol
-    pos_f, neg_f = factor_for(len(stats_pos or []), len(stats_neg or []))
+    pos_f, neg_f = factor_for(*(counts or (len(stats_pos or []), len(stats_neg or []))))
     lo, hi, used = 0.0, 1e9, 0
     for sid, v, neg in _stat_entries(stats_pos, stats_neg):
         b = _base_value(sid, cls)
@@ -395,10 +456,13 @@ def disposition_interval(stats_pos, stats_neg, cls, *, tol_fn=None) -> tuple:
     return (round(lo, 4), round(hi, 4))
 
 
-def disp_feasible(stats_pos, stats_neg, cls, disp: float, *, tol_fn=None) -> bool:
-    """给定倾向 disp，判断卡面数值是否落在其 ±10% 区间内（全词条都要过）。"""
+def disp_feasible(stats_pos, stats_neg, cls, disp: float, *, tol_fn=None, counts=None) -> bool:
+    """给定倾向 disp，判断卡面数值是否落在其 ±10% 区间内（全词条都要过）。
+
+    ``counts`` 同 `disposition_interval`：(正, 负) 词条数，None = 按 stats 条数。
+    """
     tol_fn = tol_fn or display_tol
-    pos_f, neg_f = factor_for(len(stats_pos or []), len(stats_neg or []))
+    pos_f, neg_f = factor_for(*(counts or (len(stats_pos or []), len(stats_neg or []))))
     return (
         _fit_dev(_stat_entries(stats_pos, stats_neg), cls, pos_f, neg_f, float(disp), tol_fn)
         is not None
@@ -582,6 +646,18 @@ def merge_polarity_lines(lines) -> list:
     return out
 
 
+# 融合未选定的词条：卡面整行只有「？？？」（可带 ◆ 等图标、空格）
+_HIDDEN_RE = re.compile(r"^[^\w?？]*[?？](?:[\s\u3000]*[?？])+[^\w?？]*$")
+
+
+def hidden_line_count(lines) -> int:
+    """卡面原文行里「？？？」未揭示词条的行数（2026-10-24，融合时还没选定的词条）。
+
+    只认**整行**都是问号的行；「视使之触？？？」这种名字行（自命名未揭示）不算。
+    """
+    return sum(1 for t in (lines or []) if _HIDDEN_RE.match(str(t or "").strip()))
+
+
 def _strip_name(body: str) -> str:
     """词条行去掉数值/乘数/单位后剩下的词条名（去空格便于对表）。"""
     name = _MULT_RE.sub(" ", body)
@@ -613,12 +689,14 @@ def _dedup_pairs(pairs: list) -> list:
     return out
 
 
-def parse_riven_lines(lines, resolve) -> tuple:
+def parse_riven_lines(lines, resolve, exact=None) -> tuple:
     """卡面原文行 → (正词条, 负词条, 备注)。
 
     Args:
         lines: 卡面词条行的原文（vision 模型逐字照抄的结果）。
         resolve: 词条名 → 标准词条 id 的回调（认不出返回 None）。
+        exact: 可选，词条名**整名精确命中**才返回 id 的回调；给了才拼接「数值在前、名字折行」
+            的下一行（子串匹配太宽：「触发时间」+ 图例「点击查看详情」会被认成触发几率）。
 
     Returns:
         (pos, neg, notes)；pos/neg 是 [(stat_id, float), ...]，语义与
@@ -634,7 +712,12 @@ def parse_riven_lines(lines, resolve) -> tuple:
     pos: list = []
     neg: list = []
     notes: list = []
-    for raw in merge_polarity_lines(lines):
+    merged = merge_polarity_lines(lines)
+    skip_next = False
+    for i, raw in enumerate(merged):
+        if skip_next:
+            skip_next = False
+            continue
         m = _POL_RE.match(raw)
         if not m or not m.group(2).strip():
             # ★ 2026-10-02 派系行兼容：行首无极性符号时先试整行乘数 ——
@@ -665,6 +748,22 @@ def parse_riven_lines(lines, resolve) -> tuple:
         body = m.group(2).strip()
         name = _strip_name(body)
         sid = resolve(name) if name else None
+        # ★ 2026-10-24（用户：有些词条占两行）：数值在前、名字折到下一行
+        #   （「+112.9% 收起武器时弹匣每秒」/「自动装填」）—— 下一行是不带极性、不带数字、
+        #   不是问号的纯名字尾巴，且拼上后**整名精确命中**词条 ⇒ 按拼好的名字算（否则半截名
+        #   会被子串「弹匣」认成弹匣容量）。
+        nxt = merged[i + 1] if i + 1 < len(merged) else ""
+        if (
+            exact
+            and name
+            and nxt
+            and not _POL_RE.match(nxt)
+            and not _NUM_RE.search(nxt)
+            and not _HIDDEN_RE.match(nxt)
+        ):
+            sid2 = exact(_strip_name(body + nxt))
+            if sid2:
+                sid, skip_next = sid2, True
         if not sid:
             notes.append(f"词条名认不出：{raw}")
             continue

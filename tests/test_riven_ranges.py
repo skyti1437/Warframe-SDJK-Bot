@@ -30,6 +30,11 @@ from core import riven_analysis as RA  # noqa: E402
 from core import riven_pools as RP  # noqa: E402
 from core.parser import RIVEN_STAT_ZH  # noqa: E402
 
+# 染段标记（⟦a⟧…⟦/a⟧）：断言前先剥掉，才能比对「看得见」的文本
+import re as _re  # noqa: E402
+
+_MARK = _re.compile(r"⟦/?[a-z]⟧")
+
 try:  # 渲染器可能缺 Pillow（精简 CI 容器）—— 缺了后面按 [SKIP] 处理
     from core import render as R  # noqa: E402
 except Exception:  # noqa: BLE001
@@ -191,11 +196,13 @@ check("负面带 − 号（U+2212），两头都带符号、绝对值大的在�
 check("融合词条单列一段", "融合词条·正面" in body, body)
 check("注明融合词条最多 1 项", "最多 1 项" in body, body)
 check("注明满级卡面与统一倾向", "满级卡面" in body and "统一倾向 1.2" in body, body)
-# ★ 2026-10-24：四种组合并排后，「切换组合」长句删掉，改成一行图例（四列标签全列）
+# ★ 2026-10-24：四种组合并排后，「切换组合」长句删掉，改成一行图例（四列标签全列）；
+#   同日配色重做后图例**逐个组合名染各自组合色** ⇒ 断言前先剥染段标记
+_body_nm = _MARK.sub("", body)
 check(
     "图例一行列出四种组合（不再有「切换组合」长句）",
-    "列：3正1负 / 3正 / 2正1负 / 2正" in body and "切换组合" not in body,
-    body,
+    "列：3正1负 / 3正 / 2正1负 / 2正" in _body_nm and "切换组合" not in body,
+    _body_nm,
 )
 # 四列并排：同一词条一行里应能取到 4 个不同组合的值（数值逐格与 RA.stat_range 对拍）
 _rng = [x for x in lines if x.startswith("§RANGES")]
@@ -235,10 +242,15 @@ check(
     str(_op["cols"]),
 )
 _exp = [seg for x in _lp for seg in R._expand_ranges_line(x)]
-check("★ 高亮列的数据格带金色染段标记", any("⟦g⟧" in x for x in _exp), str(_exp[:3]))
+check(
+    "★ 高亮列（2正）的数据格带**该组合色**染段标记（t = STEEL）",
+    any("⟦t⟧" in x for x in _exp),
+    str(_exp[:3]),
+)
+_exp_nm = [_MARK.sub("", x) for x in _exp]
 check(
     "展开后是五列表格行（表头 + 数据）",
-    any(x.startswith("　词条　") for x in _exp) and any(x.startswith("· 暴伤　") for x in _exp),
+    any(x.startswith("　词条　") for x in _exp) and any(x.startswith("· 暴伤　") for x in _exp_nm),
     str(_exp[:3]),
 )
 
@@ -474,6 +486,138 @@ else:
 
 print()
 
+# ---------------------------------------------------------------------------
+# ⑦ 组合写法补变体 + 配色重做（2026-10-24 用户提，Claude 定规格）
+# ---------------------------------------------------------------------------
+from core.commands import riven as RC  # noqa: E402
+
+# 组合写法：2+1 / 3+1 / 全角 / 带「负」都要认（先 NFKC 归一全角再查表）
+for _raw, _want in (
+    ("2+1", (2, 1)),
+    ("2+1-", (2, 1)),
+    ("2+1负", (2, 1)),
+    ("3+1", (3, 1)),
+    ("3+1-", (3, 1)),
+    ("3+1负", (3, 1)),
+    ("２＋１", (2, 1)),  # 全角数字 + 全角加号
+    ("2＋1-", (2, 1)),
+    ("3＋1", (3, 1)),
+):
+    _got = RC.RivenCommands._RANGE_COMBOS.get(RC._fold_combo(_raw))
+    check(f"组合写法「{_raw}」→ {_want}", _got == _want, str(_got))
+check(
+    "「看着像组合但不认识」被抓出（4+ / 5+1-）",
+    bool(RC._COMBO_LIKE_RE.match(RC._fold_combo("4+")))
+    and bool(RC._COMBO_LIKE_RE.match(RC._fold_combo("5+1-"))),
+)
+check(
+    "普通词条名 / 武器名不会被误判成组合",
+    not RC._COMBO_LIKE_RE.match(RC._fold_combo("暴伤"))
+    and not RC._COMBO_LIKE_RE.match(RC._fold_combo("绝路Prime")),
+)
+
+# 「4+」走 handler 入口 ⇒ 给提示，**不静默落进武器名**（bad_combo 分支在取武器前返回）
+import asyncio  # noqa: E402
+
+
+class _FakeParsed:
+    content = ["4+"]
+
+
+_rep = asyncio.run(
+    RC.RivenCommands._h_riven_ranges(
+        RC.RivenCommands.__new__(RC.RivenCommands), _FakeParsed(), None, None
+    )
+)
+_rt = "\n".join(_rep.lines)
+check(
+    "★「词条范围 4+」给出「组合只有 …」提示",
+    "组合只有 3+1- / 3+ / 2+1- / 2+" in _rt,
+    _rt,
+)
+
+if R is None:
+    print("[SKIP] 未安装 Pillow，跳过配色检查")
+else:
+    # 四色按组合固定：指定组合提到首列后颜色不变（字母跟组合走、不跟列位置走）
+    for _combo, _span in (((3, 1), "a"), ((2, 1), "m"), ((3, 0), "y"), ((2, 0), "t")):
+        _t7, _l7 = F.fmt_riven_ranges("测试枪", "shotgun", _combo, ["crit_damage"], [], [], set())
+        _o7 = json.loads([x for x in _l7 if x.startswith("§RANGES")][0][len("§RANGES") :])
+        _i7 = _o7["cols"].index(F._RIVEN_COMBO_ZH[_combo])
+        check(
+            f"★ 组合 {_combo} 的列用组合色 {_span} 且提到首列",
+            _o7["spans"][_i7] == _span and _o7["primary"] == _i7,
+            f"spans={_o7['spans']} primary={_o7['primary']}",
+        )
+        _e7 = [seg for x in _l7 if x.startswith("§RANGES") for seg in R._expand_ranges_line(x)]
+        check(
+            f"★ 组合 {_combo} 指定列数据格 = 全饱和 ⟦{_span}⟧",
+            any(f"⟦{_span}⟧" in x for x in _e7),
+            str(_e7[:2]),
+        )
+
+    # 表头逐格上色（四种组合各自的字母都在表头行里；词条列表头不带标记）
+    _t8, _l8 = F.fmt_riven_ranges("测试枪", "shotgun", (3, 1), ["crit_damage"], [], [], set())
+    _h8 = [seg for x in _l8 if x.startswith("§RANGES") for seg in R._expand_ranges_line(x)][0]
+    check(
+        "★ 表头逐格用该列组合色（a / y / t 都在表头行）",
+        all(f"⟦{s}⟧" in _h8 for s in ("a", "y", "t")) and _h8.startswith("　词条　"),
+        _h8,
+    )
+
+    # 竖底带的列换算：primary 是数值列下标 ⇒ cells 下标 +1（名字列占 cells[0]）
+    check(
+        "★ 竖底带列换算 _ranges_band_col（primary=0 → cells 第 1 列）",
+        [R._ranges_band_col(i) for i in (0, 1, 2, 3)] == [1, 2, 3, 4],
+        str([R._ranges_band_col(i) for i in (0, 1, 2, 3)]),
+    )
+
+    # 名字列：普通词条 ⟦w⟧、融合词条 ⟦v⟧（显式染段 ⇒ 绕开语义词表）
+    _t9, _l9 = F.fmt_riven_ranges(
+        "测试枪",
+        "shotgun",
+        (3, 1),
+        ["slash_damage", "impact_damage"],
+        ["ammo_efficiency"],
+        [],
+        set(),
+    )
+    _e9 = [seg for x in _l9 if x.startswith("§RANGES") for seg in R._expand_ranges_line(x)]
+    _nc = [x.split("　")[0] for x in _e9 if x.startswith("· ")]
+    check(
+        "★ 普通词条名包 ⟦w⟧（切割 / 冲击不再被语义词表单独染青绿）",
+        "· ⟦w⟧切割⟦/w⟧" in _nc and "· ⟦w⟧冲击⟦/w⟧" in _nc,
+        str(_nc[:4]),
+    )
+    check("★ 融合词条名包 ⟦v⟧（VIOLET）", "· ⟦v⟧弹效⟦/v⟧" in _nc, str(_nc))
+
+    # 新染段标记在文字模式被剥掉（文字输出与改版前一致：只出高亮那一列）
+    _t10, _l10 = F.fmt_riven_ranges("测试枪", "shotgun", (3, 1), ["crit_damage"], [], [], set())
+    _c10 = R.text_card("测试枪 紫卡词条范围（3正1负）", _l10, "紫卡词条池")
+    check("★ 文字模式剥掉全部新染段标记", "⟦" not in _c10 and "⟧" not in _c10, _c10[:400])
+
+    # 主题跟随：改「琥珀」后 3正1负 列用新色；次列变体（现算）也跟着变
+    _a0, _d0 = R._span_color("a"), R._span_color("d")
+    R.apply_theme({"amber": "#ff00ff"})
+    try:
+        _a1, _d1 = R._span_color("a"), R._span_color("d")
+        check(
+            "★ apply_theme 后组合色 a（3正1负）用新色",
+            _a1 == (255, 0, 255) and _a1 != _a0,
+            f"{_a0} -> {_a1}",
+        )
+        check("★ apply_theme 后次列变体 d（现算）也跟着变", _d1 != _d0, f"{_d0} -> {_d1}")
+        _t11, _l11 = F.fmt_riven_ranges("测试枪", "shotgun", (3, 1), ["crit_damage"], [], [], set())
+        _e11 = [seg for x in _l11 if x.startswith("§RANGES") for seg in R._expand_ranges_line(x)]
+        check(
+            "★ 换肤后 3正1负 列仍走 a 字母（色由 _span_color 现算）", any("⟦a⟧" in x for x in _e11)
+        )
+    finally:
+        R.apply_theme()  # 还原默认主题
+    check("★ apply_theme() 还原后组合色回默认", R._span_color("a") == _a0, str(R._span_color("a")))
+
+print()
+
 # ★ 2026-10-24 Claude 审：染段标记不得被折行切开（四列表实测露出「⟦/w⟧」）——
 #   两条折行路径（基本布局增量 / 整形引擎逐次测量）都要零宽、标记内不断行
 from PIL import ImageFont  # noqa: E402
@@ -500,4 +644,44 @@ else:
 if FAILED:
     print(f"FAILED {len(FAILED)}: " + ", ".join(FAILED))
     sys.exit(1)
+
+# ---------------------------------------------------------------------------
+# 紫卡融合 / 紫卡拼接（2026-10-24 用户）：Riven Splicer 配方表（英文 wiki 原表转录）
+# ---------------------------------------------------------------------------
+from core.parser import parse as _parse_sp  # noqa: E402
+
+_SR = RA.SPLICE_RECIPES
+check("融合配方：22 条 / 18 个融合词条", len(_SR) == 22 and len({r[2] for r in _SR}) == 18)
+check(
+    "融合配方：抽查 毒+火=毒气、G+C=O伤、基伤+触发=异常伤、弹药+装填=收枪装填",
+    ("toxin_damage", "heat_damage", "gas_damage") in [r[:3] for r in _SR]
+    and ("damage_vs_grineer", "damage_vs_corpus", "damage_vs_orokin") in [r[:3] for r in _SR]
+    and ("melee_damage", "status_chance", "status_damage") in [r[:3] for r in _SR]
+    and ("ammo_max", "reload_speed", "reload_holstered") in [r[:3] for r in _SR],
+)
+check(
+    "融合配方：近战只列通用 10 + 近战 4；空战没有收枪装填",
+    len(RA.splice_recipes("melee")) == 14
+    and not any(r[2] == "reload_holstered" for r in RA.splice_recipes("archgun"))
+    and any(r[2] == "ammo_efficiency" for r in RA.splice_recipes("archgun")),
+)
+check(
+    "融合配方：按词条过滤认原词条与融合结果（毒伤 3 条、病毒 1 条）",
+    len(RA.splice_recipes(stat="toxin_damage")) == 3
+    and len(RA.splice_recipes(stat="viral_damage")) == 1,
+)
+check(
+    "融合指令：紫卡融合 / 紫卡拼接 / 融合词条 同一指令；裸「融合」仍是武器融合",
+    {_parse_sp(m).command for m in ("紫卡融合", "紫卡拼接", "融合词条", "拼接配方")} == {"splice"}
+    and _parse_sp("融合").command == "valence",
+)
+_t_sp, _l_sp = F.fmt_riven_splice(RA.splice_recipes(), stat_zh="")
+check(
+    "融合卡：三段齐、融合词条名染紫、原词条名显式白（绕开元素语义色）",
+    any(x.startswith("◆ 通用") for x in _l_sp)
+    and any(x.startswith("◆ 近战") for x in _l_sp)
+    and "· ⟦v⟧毒气⟦/v⟧　⟦w⟧毒伤⟦/w⟧　⟦w⟧火伤⟦/w⟧" in _l_sp,
+    str(_l_sp[:4]),
+)
+
 print("ALL PASS")

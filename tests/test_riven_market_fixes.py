@@ -1394,7 +1394,7 @@ class _FakeFetch2:
         self._stat_error = stat_error
         self.calls: list[dict] = []
 
-    async def __call__(self, url, ttl=0, params=None, wm_rate_limit=False):
+    async def __call__(self, url, ttl=0, params=None, wm_rate_limit=False, retries=2):
         from core.api_client import WarframeAPIError as _Err
 
         self.calls.append(dict(params or {}))
@@ -1461,7 +1461,7 @@ check(
 
 
 class _FakeFetch3(_FakeFetch2):
-    async def __call__(self, url, ttl=0, params=None, wm_rate_limit=False):
+    async def __call__(self, url, ttl=0, params=None, wm_rate_limit=False, retries=2):
         from core.api_client import WarframeAPIError as _Err
 
         self.calls.append(dict(params or {}))
@@ -1624,7 +1624,7 @@ class _ParamCapture(_FakeFetch2):
         super().__init__(asc_auctions=[], desc_auctions=[])
         self.pos_stats_forms: list = []
 
-    async def __call__(self, url, ttl=0, params=None, wm_rate_limit=False):
+    async def __call__(self, url, ttl=0, params=None, wm_rate_limit=False, retries=2):
         self.calls.append(dict(params or {}))
         ps = (params or {}).get("positive_stats")
         if ps is not None:
@@ -1688,7 +1688,7 @@ class _NegCapture(_FakeFetch2):
         super().__init__(asc_auctions=[], desc_auctions=[])
         self.neg_forms: list = []
 
-    async def __call__(self, url, ttl=0, params=None, wm_rate_limit=False):
+    async def __call__(self, url, ttl=0, params=None, wm_rate_limit=False, retries=2):
         self.calls.append(dict(params or {}))
         ns = (params or {}).get("negative_stats")
         if ns is not None:
@@ -2656,3 +2656,119 @@ if FAILED:
     print(f"✗ 追加段失败 {len(FAILED)} 项：" + "、".join(FAILED))
     sys.exit(1)
 print("✓ 追加段（⑫-㉔）全部通过")
+
+# ---------------------------------------------------------------------------
+# ㉕ 融合未选定的「？？？」词条（2026-10-24 用户：视使之触 +109.8% 病毒 / ？？？ / +130.2% 冲击 /
+#    -87.7% 投射物速度 被按 2正1负 算成「不吻合」）：问号行计入词条数（4 行 ⇒ 3+1），
+#    只给已知词条区间；识别漏读问号行时，多一条正词条能吻合就按多一条算并明说
+# ---------------------------------------------------------------------------
+from core import riven_analysis as _RA25  # noqa: E402
+
+check(
+    "㉕ 问号行计数：整行问号算、名字行「视使之触？？？」不算",
+    _RA25.hidden_line_count(["◆ ? ? ?", "◆？？？", "视使之触？？？", "+109.8% 病毒伤害"]) == 2,
+)
+check(
+    "㉕ 词条数推断：2正1负+1 ⇒ 3+1；2正0负+1 ⇒ 3+0/2+1 两可；3正1负+1 ⇒ 不合法",
+    _RA25.count_candidates(2, 1, 1) == [(3, 1)]
+    and _RA25.count_candidates(2, 0, 1) == [(3, 0), (2, 1)]
+    and _RA25.count_candidates(3, 1, 1) == [],
+)
+_OC25 = {
+    "url_name": "ocucor",
+    "en": "Ocucor",
+    "zh": "视使之触",
+    "disposition": 1.2,
+    "riven_type": "pistol",
+    "group": "secondary",
+    "tags": [],
+}
+
+
+async def _ws25():
+    return [dict(w) for w in _FAM] + [_OC25]
+
+
+_obj6.client.wm_riven_weapons = _ws25
+
+
+def _run25(lines):
+    async def _ext(_u):
+        return {"weapon": "视使之触？？？", "positive": [], "negative": [], "lines": lines}
+
+    _obj6._extract_riven_from_image = _ext
+    return "\n".join(asyncio.run(_obj6._h_riven_analysis(_P6(), _Ev6(), "pc")).lines)
+
+
+_b25 = _run25(["◆ +109.8% 病毒伤害", "◆ ? ? ?", "+130.2% 冲击伤害", "-87.7% 投射物速度"])
+check(
+    "★ ㉕ 带问号行：按 3正1负 算、吻合、单列未揭示行（名字里的？？？不影响认武器）",
+    "3 正 1 负，1 条未揭示" in _b25
+    and "不吻合" not in _b25
+    and "91.12~111.38%" in _b25
+    and "？？？　未揭示" in _b25,
+    _b25[:400],
+)
+_b25b = _run25(["+109.8% 病毒伤害", "+130.2% 冲击伤害", "-87.7% 投射物速度"])
+check(
+    "★ ㉕ 漏读问号行：多一条正词条吻合 ⇒ 按 3正1负 算并提示，不冒充问号行",
+    "已按 3正1负 的系数计算" in _b25b and "不吻合" not in _b25b and "未揭示（" not in _b25b,
+    _b25b[:400],
+)
+_b25c = _run25(["+147.0% 病毒伤害", "+170.0% 冲击伤害", "-55.0% 投射物速度"])
+check(
+    "㉕ 真 2正1负 卡不受影响",
+    "2 正 1 负" in _b25c and "3正1负" not in _b25c and "不吻合" not in _b25c,
+    _b25c[:400],
+)
+
+
+class _P25t(_P6):
+    content = ["视使之触", "病毒109.8", "???", "冲击130.2", "负弹速87.7"]
+    content_str = " ".join(content)
+
+
+_b25d = "\n".join(asyncio.run(_obj6._h_riven_analysis(_P25t(), _Ev6(), "pc")).lines)
+check(
+    "㉕ 文字输入也认「???」占位",
+    "3 正 1 负，1 条未揭示" in _b25d and "不吻合" not in _b25d,
+    _b25d[:400],
+)
+# 同一词条占两行（2026-10-24 用户）：问号占位折成两行 ⇒ 仍按一条算；数值在前、名字折行也要拼回
+check(
+    "㉕ 问号占位折两行：2正1负 + 2 行问号 ⇒ 仍是 3+1（不是非法）",
+    _RA25.count_candidates(2, 1, 2) == [(3, 1)],
+)
+_b25e = _run25(
+    ["◆ +109.8% 病毒伤害", "◆ ? ? ?", "◆ ? ? ?", "+130.2% 冲击伤害", "-87.7% 投射物速度"]
+)
+check(
+    "★ ㉕ 问号占位折两行：端到端按 3正1负、显示 1 条未揭示",
+    "3 正 1 负，1 条未揭示" in _b25e and "不吻合" not in _b25e,
+    _b25e[:400],
+)
+_rev25 = {v: k for k, v in RIVEN_STAT_ZH.items()}
+_p25, _n25, _ = _RA25.parse_riven_lines(
+    ["+112.9% 收起武器时弹匣每秒", "自动装填", "◆？？？", "-59.3% 射速"],
+    lambda nm: plugin.WarframeSDJK._stat_id_from_name(nm, _rev25),
+    lambda nm: plugin.WarframeSDJK._stat_id_exact(nm, _rev25),
+)
+_p25b, _n25b, _ = _RA25.parse_riven_lines(
+    ["-97.2% 触发时间", "点击 ⓘ 查看详情"],
+    lambda nm: plugin.WarframeSDJK._stat_id_from_name(nm, _rev25),
+    lambda nm: plugin.WarframeSDJK._stat_id_exact(nm, _rev25),
+)
+check(
+    "㉕ 折行拼接只认整名：「触发时间」+ 图例行不拼成触发几率",
+    _n25b == [("status_duration", 97.2)],
+    f"{_p25b} / {_n25b}",
+)
+check(
+    "★ ㉕ 数值在前、名字折行：拼回收枪装填（不认成弹匣容量），问号行不被拼进去",
+    _p25 == [("reload_holstered", 112.9)] and _n25 == [("fire_rate", 59.3)],
+    f"{_p25} / {_n25}",
+)
+if FAILED:
+    print(f"✗ {len(FAILED)} 项失败：" + "、".join(FAILED))
+    sys.exit(1)
+print("✓ ㉕ 未揭示词条全部通过")

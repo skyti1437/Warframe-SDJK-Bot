@@ -54,6 +54,14 @@ class _Prov:
 
 
 class _Client:
+    def start_riven_rt_crawl(self, *, force=False):
+        self.calls.append(("riven_rt", force))
+        return "started", 5, 101
+
+    def start_rank_crawl(self):
+        self.calls.append(("wm_ranks",))
+        return False, 100, 3200
+
     def __init__(self, flare=True, reach=True):
         self.flare_enabled = flare
         self._reach = reach
@@ -135,6 +143,7 @@ check(
         "overview": ["GET"],
         "refresh": ["POST"],
         "pull": ["POST"],
+        "crawl": ["POST"],
         "conntest": ["POST"],
         "resources": ["GET"],
         "deps_install": ["POST"],
@@ -222,23 +231,26 @@ try:
     check("★ 言录使货单过期 ⇒ stale（读运行期覆盖）", rows["言录使本周货单"]["status"] == W.STALE)
     check("WM 排行超过 48h ⇒ warn", rows["WM 价格排行"]["status"] == W.WARN)
     check("紫卡周报没查过 ⇒ info 不报错", rows["紫卡周报（DE 官方）"]["status"] == W.INFO)
-    # ★ 2026-10-23 紫卡实时排行（指令 §A.5）：快照的新鲜度行
-    check("★ 紫卡实时排行：超 12h ⇒ warn", rows["紫卡实时排行（WM 拍卖）"]["status"] == W.WARN)
+    # ★ 2026-10-23 紫卡实时排行（指令 §A.5）：快照的新鲜度行；10-25 起只手动拉 ⇒ 陈旧也只 INFO
     check(
-        "★ 紫卡实时排行：写明已收录数 / 覆盖率",
-        "已收录 3/101 把" in rows["紫卡实时排行（WM 拍卖）"]["detail"]
-        and "100%" in rows["紫卡实时排行（WM 拍卖）"]["detail"],
-        rows["紫卡实时排行（WM 拍卖）"]["detail"],
+        "★ 紫卡 WM 现价：只手动拉，陈旧不告警（info）",
+        rows["紫卡 WM 现价（手动拉取）"]["status"] == W.INFO,
     )
     check(
         "★ 紫卡实时排行：写明已收录数 / 覆盖率",
-        "已收录 3/101 把" in rows["紫卡实时排行（WM 拍卖）"]["detail"]
-        and "100%" in rows["紫卡实时排行（WM 拍卖）"]["detail"],
-        rows["紫卡实时排行（WM 拍卖）"]["detail"],
+        "已收录 3/101 把" in rows["紫卡 WM 现价（手动拉取）"]["detail"]
+        and "100%" in rows["紫卡 WM 现价（手动拉取）"]["detail"],
+        rows["紫卡 WM 现价（手动拉取）"]["detail"],
+    )
+    check(
+        "★ 紫卡实时排行：写明已收录数 / 覆盖率",
+        "已收录 3/101 把" in rows["紫卡 WM 现价（手动拉取）"]["detail"]
+        and "100%" in rows["紫卡 WM 现价（手动拉取）"]["detail"],
+        rows["紫卡 WM 现价（手动拉取）"]["detail"],
     )
     # 快照还没生成（后台首轮未跑完）⇒ info，不报错、不当成过期
     (tmp / "riven_rt.json").unlink()
-    _miss = {r["item"]: r for r in W.freshness(now)}["紫卡实时排行（WM 拍卖）"]
+    _miss = {r["item"]: r for r in W.freshness(now)}["紫卡 WM 现价（手动拉取）"]
     check("紫卡实时排行：快照缺失 ⇒ info 不报错", _miss["status"] == W.INFO, str(_miss))
     check(
         "仲裁评级 / 掉落表 读到包内种子日期",
@@ -356,6 +368,30 @@ check(
     r6["results"]["valence"] == "fresh" and r6["results"]["acrithis"].startswith("失败"),
 )
 check("刷新后带回新鲜度", isinstance(r6.get("freshness"), list) and r6["freshness"])
+
+
+# ---- 6¼. 立即抓排行（2026-10-24）：紫卡实时 force 跳过群指令冷却；价格排行在抓时报 running ----
+async def _crawl(panel, target):
+    async def body():
+        return {"target": target}
+
+    panel._body = body
+    return await panel.crawl()
+
+
+p6c = _panel()
+r6c = asyncio.run(_crawl(p6c, "riven_rt"))
+check(
+    "★ 抓紫卡实时排行：force=True、带回状态与新鲜度",
+    p6c.p.client.calls == [("riven_rt", True)]
+    and r6c["state"] == "started"
+    and (r6c["done"], r6c["total"]) == (5, 101)
+    and isinstance(r6c.get("freshness"), list),
+    str(r6c)[:200],
+)
+r6d = asyncio.run(_crawl(_panel(), "wm_ranks"))
+check("抓价格排行：已在抓 ⇒ running", r6d["state"] == "running", str(r6d)[:200])
+check("未知排行被拒", asyncio.run(_crawl(_panel(), "x")).get("status") == "error")
 
 # ---- 6½. 从源头重抓（2026-10-18）：两项都 force、不限社区快照，单项失败不连累其他项 ----
 #   （紫卡倾向 2026-10 随 DE 取消倾向退出重抓）

@@ -173,9 +173,9 @@ def freshness(now: Optional[datetime] = None) -> list[dict]:
         )
     )
 
-    # 紫卡实时排行快照（WM 拍卖；2026-10-23 加）——「紫卡排行」默认视图读它。
-    # 判据与 WM 价格排行同口径：跑满一轮且覆盖率 ≥80% 才刷新 ts，所以 ts 陈旧
-    # 只说明「还没跑完一整轮 / 上轮成功率不足」，不是采集失败（旧行照常展示）。
+    # 紫卡 WM 现价快照（WM 拍卖；2026-10-23 加，10-25 改为**只手动拉**）——「紫卡排行」周报卡
+    # 的「WM挂单 / 变化」两列读它。跑满一轮且覆盖率 ≥80% 才刷新 ts；不自动抓，所以陈旧只是
+    # 「最近没人拉」，一律 INFO 不告警。
     rt = _load(RIVEN_RT_NAME)
     rt_at = _parse_iso(rt.get("ts"))
     try:
@@ -186,17 +186,17 @@ def freshness(now: Optional[datetime] = None) -> list[dict]:
     rt_n = len(rt.get("rows") or {})
     rows.append(
         _row(
-            "紫卡实时排行（WM 拍卖）",
-            (WARN if now - rt_at > timedelta(hours=12) else OK) if rt_at else INFO,
+            "紫卡 WM 现价（手动拉取）",
+            INFO,
             str(rt.get("ts") or ""),
             (
                 f"{_age_text(rt_at, now)}；已收录 {rt_n}/{rt.get('total', '?')} 把；"
                 if rt_at
-                else f"还没跑完过一整轮（已收录 {rt_n} 把）；"
+                else f"还没拉完过一整轮（已收录 {rt_n} 把）；"
             )
             + (f"上轮覆盖率 {rt_cov}（< 80% 不刷新时间戳）；" if rt_cov else "")
             + (f"待补 {rt_retry} 项（下次先补）；" if rt_retry else "")
-            + "每 6 小时在凌晨 2–7 点空闲时段重建",
+            + "不自动抓：大更后由管理员「紫卡排行 刷新」或点上方按钮手动拉（约 30 分钟）",
         )
     )
 
@@ -213,7 +213,7 @@ def freshness(now: Optional[datetime] = None) -> list[dict]:
             "WM 价格排行",
             WARN
             if wm_low
-            else ((WARN if now - wm_at > timedelta(hours=48) else OK) if wm_at else INFO),
+            else ((WARN if now - wm_at > timedelta(hours=60) else OK) if wm_at else INFO),
             str(wm.get("ts") or ""),
             (
                 f"上轮覆盖率不足（{wm_cov} < 80%），时间未刷新，旧行照常展示；"
@@ -226,7 +226,7 @@ def freshness(now: Optional[datetime] = None) -> list[dict]:
                 if wm_at
                 else "还没跑完过一整轮；"
             )
-            + "每 48 小时在凌晨 2–7 点空闲时段重爬",
+            + "约每两天在凌晨 2–7 点空闲时段重爬（也可点上方按钮立即抓）",
         )
     )
 
@@ -735,6 +735,7 @@ class WebPanel:
             (f"/{n}/overview", self.overview, ["GET"], "SDJKBOT 面板：新鲜度 / 订阅 / 推送"),
             (f"/{n}/refresh", self.refresh, ["POST"], "SDJKBOT 面板：刷新社区快照"),
             (f"/{n}/pull", self.pull, ["POST"], "SDJKBOT 面板：从源头重抓"),
+            (f"/{n}/crawl", self.crawl, ["POST"], "SDJKBOT 面板：立即抓排行"),
             (f"/{n}/conntest", self.conntest, ["POST"], "SDJKBOT 面板：连通性测试"),
             (f"/{n}/resources", self.resources, ["GET"], "SDJKBOT 面板：依赖与字库状态"),
             (f"/{n}/deps_install", self.deps_install, ["POST"], "SDJKBOT 面板：安装依赖"),
@@ -890,6 +891,30 @@ class WebPanel:
                     out[key] = f"失败：{type(exc).__name__}: {exc}"[:200]
         logger.info("[sdjk] 面板从源头重抓：%s", out)
         return {"results": out, "freshness": freshness()}
+
+    async def crawl(self):
+        """立即抓排行（2026-10-24 用户要面板按钮）：``target`` = ``riven_rt``（紫卡实时排行）/
+        ``wm_ranks``（WM 价格排行）。只负责在后台启动，不等抓完；进度看新鲜度表。
+        与群里的「紫卡排行 刷新」/「排行 刷新」同一入口，已在抓时不会重复启动；面板跳过群指令的冷却。"""
+        if (g := self._gone()) is not None:
+            return g
+        target = str((await self._body()).get("target") or "")
+        c = self.p.client
+        if target == "riven_rt":
+            state, done, total = c.start_riven_rt_crawl(force=True)
+        elif target == "wm_ranks":
+            started, done, total = c.start_rank_crawl()
+            state = "started" if started else "running"
+        else:
+            return {"status": "error", "message": f"未知排行：{target}"}
+        logger.info("[sdjk] 面板立即抓排行 %s：%s（%s/%s）", target, state, done, total)
+        return {
+            "target": target,
+            "state": state,
+            "done": done,
+            "total": total,
+            "freshness": freshness(),
+        }
 
     async def conntest(self):
         if (g := self._gone()) is not None:

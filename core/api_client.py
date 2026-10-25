@@ -50,6 +50,7 @@ DATA_DIR = Path(__file__).resolve().parent / "data"  # 包内静态数据（只�
 RANKS_NAME = "wm_ranks.json"  # 价格排行全量落盘（后台爬取）
 RIVEN_RT_NAME = "riven_rt.json"  # 紫卡实时排行快照（WM 拍卖；2026-10-23 加）
 RIVEN_RT_TOP_PRICES = 20  # 算「前 N 条中位价」的 N
+RIVEN_RT_MANUAL_COOLDOWN = 600  # 手动「紫卡排行 刷新」两次启动的最短间隔（秒）
 RANK_MIN_COVERAGE = 0.8  # 价格排行整轮成功率 ≥ 此值才刷新 ts（维护者 2026-10-17 定）
 WIKI_DISP_NAME = "de/wiki_disp.json"  # wiki 变体倾向快照（2026-10 倾向取消后冻结，只作旧截图判据）
 ACRITHIS_WEEK_NAME = "de/acrichis_week.json"  # 言录使本周货单（运行期覆盖包内种子）
@@ -1027,14 +1028,21 @@ def riven_realtime_targets(
     **不抓全部 670 把**，只抓这批目标。
     """
     fam_groups = (families or {}).get("families") or {}
-    fam_by_name = (families or {}).get("by_name") or {}
+    # ★ 2026-10-25：家族表按名字查**不分大小写**（家族表写「MK1-Paris」、倾向表写「Mk1-Paris」，
+    #   原来查不到 ⇒ mk1-paris 没折回 paris，WM 400 item_not_exist）
+    fam_by_name = {str(k).lower(): v for k, v in ((families or {}).get("by_name") or {}).items()}
 
     by_name: dict[str, str] = {}
     name_of_url: dict[str, str] = {}
+    # WM 原始紫卡表里**真实存在**的 url（合并表里带 game_ref 的行；倾向表静态补全的变体行
+    # game_ref 为空）—— WM 拍卖只认这些，别的一律 400 item_not_exist（ZCode 10-25 实测）
+    wm_real: set[str] = set()
     for w in wm_weapons or []:
         url = str(w.get("url_name") or "")
         if not url:
             continue
+        if w.get("game_ref"):
+            wm_real.add(url)
         for key in (w.get("en"), w.get("zh")):
             k = str(key or "").strip()
             if k:
@@ -1062,12 +1070,22 @@ def riven_realtime_targets(
     url_of_name = {v: k for k, v in name_of_url.items()}
 
     def main_of(url: str) -> str:
-        """变体 → 母武器 url_name（家族表按**显示名**索引，故先 url→名→家族→首成员）。"""
+        """变体 → 母武器 url_name（家族表按**显示名**索引：url→名→家族→母武器）。
+
+        ★ 2026-10-25（ZCode 线上实测 7 个 400：kuva_sobek / kuva_zarr / mk1-paris …）：原写法取
+        家族**首成员**，而成员按字母排序 ⇒「Kuva Sobek」排在「Sobek」前被当成母武器。现在
+        取成员里 **WM 原始表真实存在**的那个（多个时取英文名最短的，即无变体前缀的本体）；
+        拿不到 WM 原始表信息时退回旧规则。
+        """
         name = name_of_url.get(url)
-        key = fam_by_name.get(name) if name else None
+        key = fam_by_name.get(name.lower()) if name else None
         members = fam_groups.get(key) if key else None
         if not members:
             return url
+        urls = [by_name.get(str(m).lower()) for m in members]
+        real = [u for u in urls if u and u in wm_real]
+        if real:
+            return min(real, key=lambda u: (len(name_of_url.get(u, u)), u))
         main_name = str(members[0])
         return by_name.get(main_name.lower(), url_of_name.get(main_name, url))
 
@@ -1095,6 +1113,8 @@ def riven_realtime_targets(
         if float(disp) <= max_disp:
             picked.setdefault(main_of(url), 0)
 
+    if wm_real:  # 兜底：WM 原始表里没有的 url 一律不抓（折不回母武器的孤儿变体）
+        return sorted(u for u in picked if u in wm_real)
     return sorted(picked)
 
 
@@ -1109,6 +1129,14 @@ def load_aliases() -> dict:
 
 
 class WarframeClient:
+    # 紫卡实时排行爬取的节奏。ZCode 2026-10-25 容器内实测 WM `/auctions/search`：**不是 3 请求/秒**，
+    # 而是「约 90 s 窗口内约 8 次」—— 2 s 间隔下第 9 次起持续 429，+0/+30/+60 s 仍 429、+90 s 恢复。
+    # ⇒ 每项间隔 15 s（每窗口约 6 次，给群里 wr 查询留余量）、429 后退避 100 s（长于恢复窗口）、
+    #   连续 4 次失败才收工。一轮 ~101 把约 30 分钟，凌晨闲时窗口内跑得完。
+    RIVEN_RT_GAP_S = 15.0
+    RIVEN_RT_FAIL_BACKOFF_S = 100.0
+    RIVEN_RT_MAX_FAIL_STREAK = 4
+
     def __init__(
         self,
         *,
@@ -1223,7 +1251,7 @@ class WarframeClient:
                     if resp.status_code == 404:
                         raise WarframeAPIError(f"接口不存在或暂未开放：{url}")
                     if resp.status_code == 429:  # 限速：退避后重试
-                        last_exc = WarframeAPIError("warframe.market 限速（3 请求/秒）")
+                        last_exc = WarframeAPIError("warframe.market 限速（HTTP 429）")
                         if attempt < retries:
                             await asyncio.sleep(1.2 * (attempt + 1))
                             continue
@@ -2327,6 +2355,24 @@ class WarframeClient:
         }
 
     async def crawl_wm_ranks(self, limit: Optional[int] = None) -> int:
+        """单飞包装：自动循环与手动「排行 刷新」/ 面板按钮同时触发时只跑一份（2026-10-24）。
+
+        两路并发会各自读旧游标、各自落盘互相覆盖，还会双倍占用 WM 限速；后到的直接返回当前已入榜数。
+        """
+        lock = self._crawl_lock("_rank_crawl_lock")
+        if lock.locked():
+            return len((self._load_json_file(paths.read_path(RANKS_NAME)) or {}).get("rows") or {})
+        async with lock:
+            return await self._crawl_wm_ranks(limit)
+
+    def _crawl_lock(self, name: str) -> asyncio.Lock:
+        lock = getattr(self, name, None)
+        if lock is None:
+            lock = asyncio.Lock()
+            setattr(self, name, lock)
+        return lock
+
+    async def _crawl_wm_ranks(self, limit: Optional[int] = None) -> int:
         """抓取 WM 成交统计并落盘（约 3200 项，实测 1 项/4 秒）。
 
         2026-09-14 重做续跑逻辑：全量一轮要好几个小时，占用 WM 全局限速会
@@ -2472,6 +2518,14 @@ class WarframeClient:
     # 紫卡实时排行（WM 拍卖快照）
     # ------------------------------------------------------------------
     async def crawl_riven_realtime(self, limit: Optional[int] = None) -> int:
+        """单飞包装：凌晨自动重建与手动「紫卡排行 刷新」/ 面板按钮只跑一份（2026-10-24），理由同 `crawl_wm_ranks`。"""
+        lock = self._crawl_lock("_riven_rt_lock")
+        if lock.locked():
+            return len(self.riven_realtime_rows().get("rows") or {})
+        async with lock:
+            return await self._crawl_riven_realtime(limit)
+
+    async def _crawl_riven_realtime(self, limit: Optional[int] = None) -> int:
         """抓紫卡实时排行快照（WM 拍卖）并落盘；返回已入表武器数。
 
         2026-10-23（玩家报「紫卡排行用的 DE 周报时效差，1.2 热修后暴涨看不出」）：
@@ -2482,7 +2536,7 @@ class WarframeClient:
         - 目标集 = `riven_realtime_targets()`（周报热度前 N + 原倾向 ≤0.7，去重、折母武器）；
         - 落盘记 ``cursor`` / ``rows``，每轮最多 ``limit`` 项，**每 20 项落一次盘**，中断可续；
         - 跑满一轮**且成功率 ≥ RANK_MIN_COVERAGE** 才更新 ``ts``；失败项进 ``retry`` 下次先补；
-        - 速率靠 `wm_riven_auctions` 的 `wm_rate_limit=True`（≤3 req/s）自己排队。
+        - 每把只查价格升序一次；节奏见 `RIVEN_RT_GAP_S` 等类常量（拍卖搜索限得严，2026-10-24）。
         """
         weekly = await self.de_weekly_rivens()
         weapons = await self.wm_riven_weapons()
@@ -2506,11 +2560,13 @@ class WarframeClient:
         cursor = int(old.get("cursor") or 0)
         total = len(targets)
         if total == 0:
-            logger.warning("[sdjk] 紫卡实时排行：目标集为空（周报/武器表取不到？），本轮跳过")
+            logger.warning("[sdjk] 紫卡 WM 现价：目标集为空（周报/武器表取不到？），本轮跳过")
             return len(rows)
         if cursor >= total:
             cursor = 0
-        failed: set = set(old.get("round_failed") or [])
+        # ★ 2026-10-25（ZCode A）：旧轮失败项只保留仍在目标集里的 —— 目标集变过（折母武器修正）后，
+        #   残留的旧 slug 还计入覆盖率分母，133/133 全成功也只算出 0.887
+        failed: set = set(old.get("round_failed") or []) & set(targets)
         retry: list = list(dict.fromkeys(old.get("retry") or []))
         ts = old.get("ts") or ""
         coverage = old.get("coverage")
@@ -2519,11 +2575,33 @@ class WarframeClient:
         def _now_iso() -> str:
             return time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime())
 
-        async def _one(slug: str) -> bool:
-            """取一把武器的挂单并算指标；返回请求是否成功。"""
+        last_err = ""
+        # WM 回 400（item_not_exist）的 url：**永久无效**，移出目标集、不计连续失败、不进覆盖率分母
+        #   （2026-10-25 ZCode 实测：目标集混进 7 个 WM 没有的变体 slug，连续 400 触发提前收工）
+        invalid: set = set(old.get("invalid") or []) & set(targets)
+        targets = [t for t in targets if t not in invalid]
+        total = len(targets)
+        if total == 0:
+            logger.warning("[sdjk] 紫卡 WM 现价：目标集全被标为无效，本轮跳过")
+            return len(rows)
+        if cursor >= total:
+            cursor = 0
+        # ★ 2026-10-25（ZCode：卡面「已收录 98/97」）：目标集每周随周报热度变，退出目标集的旧行
+        #   （如 dex_nikana）原先一直留在 rows 里 ⇒ 分子大于分母，旧价也会混进周报卡。按目标集裁掉。
+        stale = [k for k in rows if k not in set(targets)]
+        for k in stale:
+            rows.pop(k, None)
+
+        async def _one(slug: str):
+            """取一把武器的挂单并算指标；返回 True（成功）/ False（失败，待补）/ None（WM 无此条目）。"""
+            nonlocal last_err
             try:
-                auctions = await self.wm_riven_auctions(slug, "pc")
-            except Exception:  # noqa: BLE001 - 单项失败不阻断整轮
+                auctions = await self.wm_riven_auctions(slug, "pc", sorts=("price_asc",), retries=0)
+            except Exception as exc:  # noqa: BLE001 - 单项失败不阻断整轮
+                msg = str(exc) or type(exc).__name__
+                if "400 Bad Request" in msg or "item_not_exist" in msg:
+                    return None
+                last_err = f"{slug}: {msg}"[:160]
                 return False
             prices: list[int] = []
             online_low: Optional[int] = None
@@ -2557,73 +2635,139 @@ class WarframeClient:
             }
             return True
 
-        todo = [s for s in (retry + targets[cursor:]) if s]
-        seen: set = set()
-        todo = [s for s in todo if not (s in seen or seen.add(s))]
+        def _save(cur: int) -> bool:
+            return (
+                self._save_json_file(
+                    paths.read_path(RIVEN_RT_NAME),
+                    {
+                        "ts": ts,
+                        "cursor": cur,
+                        "rows": rows,
+                        "round_failed": sorted(failed),
+                        "retry": sorted(failed),
+                        "invalid": sorted(invalid),
+                        "coverage": coverage,
+                        "total": total,
+                    },
+                )
+                is not False
+            )
+
+        # ★ 2026-10-24 两处修正（ZCode 线上实测：7 分钟只收 8 把、72 项失败、ts 一直空）：
+        #   ① **补抓与游标分开**（同 `crawl_wm_ranks`）：原写法把 retry 混进待抓表，又按「已抓条数」
+        #      推进游标 ⇒ 补抓的条目也算进进度，游标被推到错位、整轮永远跑不满；
+        #   ② **爬取层限速**：每项间隔 RIVEN_RT_GAP_S、失败后退避 RIVEN_RT_FAIL_BACKOFF_S，
+        #      连续失败 RIVEN_RT_MAX_FAIL_STREAK 次就收工（落盘、下次续跑），别顶着 429 硬打。
         n_done = 0
-        for slug in todo:
-            if limit is not None and n_done >= limit:
-                break
+        streak = 0
+        aborted = False
+
+        async def _step(slug: str) -> None:
+            nonlocal n_done, streak, aborted
             ok = await _one(slug)
             n_done += 1
+            if ok is None:
+                invalid.add(slug)
+                failed.discard(slug)
+                rows.pop(slug, None)
+                logger.info("[sdjk] 紫卡 WM 现价：%s 在 WM 不存在（400），移出目标集", slug)
+                await asyncio.sleep(self.RIVEN_RT_GAP_S)
+                return
             if ok:
                 failed.discard(slug)
+                streak = 0
+                await asyncio.sleep(self.RIVEN_RT_GAP_S)
             else:
                 failed.add(slug)
+                streak += 1
+                if streak >= self.RIVEN_RT_MAX_FAIL_STREAK:
+                    aborted = True
+                else:
+                    await asyncio.sleep(self.RIVEN_RT_FAIL_BACKOFF_S)
+
+        if stale:  # 裁剪结果立刻落盘，别让「已收录」在下一次存盘前继续溢出
+            save_failed = (not _save(cursor)) or save_failed
+        target_set = set(targets)
+        retry_todo = [s for s in retry if s in target_set]
+        # 两个阶段各打一条进度（ZCode 10-25：补抓阶段 18 分钟零日志，被误判成没跑起来）
+        logger.info(
+            "[sdjk] 紫卡 WM 现价：先补 %d 项，再从第 %d/%d 项续跑（每项约 %.0f 秒）",
+            len(retry_todo),
+            cursor,
+            total,
+            self.RIVEN_RT_GAP_S,
+        )
+        for slug in retry_todo:
+            if aborted or (limit is not None and n_done >= limit):
+                break
+            await _step(slug)
             if n_done % 20 == 0:
-                cursor = (cursor + n_done) % total
-                save_failed = (
-                    self._save_json_file(
-                        paths.read_path(RIVEN_RT_NAME),
-                        {
-                            "ts": ts,
-                            "cursor": cursor,
-                            "rows": rows,
-                            "round_failed": sorted(failed),
-                            "retry": sorted(failed),
-                            "coverage": coverage,
-                            "total": total,
-                        },
-                    )
-                    is False
-                ) or save_failed
-        cursor = (cursor + n_done) % total
-        if cursor == 0:  # 跑满一轮
-            cov = (total - len(failed)) / total if total else 0.0
+                save_failed = (not _save(cursor)) or save_failed
+        idx = cursor
+        while not aborted and idx < total and (limit is None or n_done < limit):
+            await _step(targets[idx])
+            idx += 1
+            if n_done % 20 == 0:
+                save_failed = (not _save(idx)) or save_failed
+                logger.info("[sdjk] 紫卡 WM 现价：进度 %d/%d，已收录 %d 把", idx, total, len(rows))
+        round_done = idx >= total
+        cursor = 0 if round_done else idx
+        if round_done:  # 跑满一轮（本次新发现的无效项不进覆盖率分母）
+            valid_n = total - len(invalid & set(targets))
+            cov = (valid_n - len(failed)) / valid_n if valid_n else 0.0
             coverage = round(cov, 3)
             if cov >= RANK_MIN_COVERAGE:
                 ts = _now_iso()
-                failed.clear()
             else:
                 logger.warning(
-                    "[sdjk] 紫卡实时排行本轮成功率 %.0f%% < %.0f%%，不刷新时间戳",
+                    "[sdjk] 紫卡 WM 现价本轮成功率 %.0f%% < %.0f%%，不刷新时间戳",
                     cov * 100,
                     RANK_MIN_COVERAGE * 100,
                 )
-        if not save_failed:
-            self._save_json_file(
-                paths.read_path(RIVEN_RT_NAME),
-                {
-                    "ts": ts,
-                    "cursor": cursor,
-                    "rows": rows,
-                    "round_failed": sorted(failed),
-                    "retry": sorted(failed),
-                    "coverage": coverage,
-                    "total": total,
-                },
+        if failed:
+            logger.warning(
+                "[sdjk] 紫卡 WM 现价：本次抓 %d 项，%d 项待补%s（最近一次失败：%s）",
+                n_done,
+                len(failed),
+                "，连续失败已提前收工" if aborted else "",
+                last_err or "未知",
             )
+        if not save_failed:
+            _save(cursor)
         return len(rows)
 
     def riven_realtime_rows(self) -> dict:
         """落盘的紫卡实时排行快照（``{"ts":…, "rows":{slug: {…}}}``）。"""
         return self._load_json_file(paths.read_path(RIVEN_RT_NAME)) or {}
 
+    def start_riven_rt_crawl(self, *, force: bool = False) -> tuple[str, int, int]:
+        """手动重抓紫卡实时排行（不受凌晨闲时闸门；2026-10-24 用户要「和价格排行一样能手动拉」）。
+
+        返回 ``(状态, 已收录把数, 目标总数)``，状态 = ``started`` / ``running`` / ``cooldown``。
+        群里人人能发，所以距上次手动启动不足 ``RIVEN_RT_MANUAL_COOLDOWN`` 秒时不再开抓
+        （白天抓会和 wm/wr 查询抢 WM 限速）；面板按钮传 ``force=True`` 跳过冷却。
+        """
+        data = self.riven_realtime_rows()
+        n, total = len(data.get("rows") or {}), int(data.get("total") or 0)
+        if total:  # 旧快照可能还留着退出目标集的行（抓取开始时才裁），展示别溢出
+            n = min(n, total)
+        task = getattr(self, "_riven_rt_crawl_task", None)
+        if (task and not task.done()) or self._crawl_lock("_riven_rt_lock").locked():
+            return "running", n, total
+        now = time.time()
+        if not force and now - getattr(self, "_riven_rt_manual_at", 0.0) < RIVEN_RT_MANUAL_COOLDOWN:
+            return "cooldown", n, total
+        self._riven_rt_manual_at = now
+        self._riven_rt_crawl_task = asyncio.get_running_loop().create_task(
+            self.crawl_riven_realtime()
+        )
+        return "started", n, total
+
     def start_rank_crawl(self) -> tuple[bool, int, int]:
         """启动后台全量抓取；返回 (是否新启动, 已完成项, 总项数)。"""
         data = self._load_json_file(paths.read_path(RANKS_NAME))
         task = getattr(self, "_rank_crawl_task", None)
-        if task and not task.done():
+        if (task and not task.done()) or self._crawl_lock("_rank_crawl_lock").locked():
             return False, int(data.get("done") or 0), int(data.get("total") or 0)
         self._rank_crawl_task = asyncio.get_running_loop().create_task(self.crawl_wm_ranks())
         return True, int(data.get("done") or 0), int(data.get("total") or 0)
@@ -2680,8 +2824,14 @@ class WarframeClient:
         min_rerolls: Optional[int] = None,
         rank_range: Optional[tuple[int, int]] = None,
         require_negative: bool = False,
+        sorts: tuple = ("price_asc", "price_desc"),
+        retries: int = 2,
     ) -> list[dict]:
         """WM v1 紫卡拍卖搜索（2026-10-01 双向排序合并 + 逗号 AND + require_negative）。
+
+        ``sorts`` / ``retries``（2026-10-24）：紫卡实时排行爬取只要最低价一侧（``("price_asc",)``）、
+        且自己在爬取层退避（``retries=0``）—— 拍卖搜索比别的 WM 接口限得严（实测约 90 s 窗口 8 次，
+        见 `RIVEN_RT_GAP_S` 注释），双向 + 1.2 s 快速重试只会更快撞 429。
 
         ⚠ 服务端行为**三坑**（2026-10-01 实测，weapon_url_name=ocucor/burston）：
           1. **词条参数必须拼逗号**：`positive_stats=a,b,c` = **AND**（服务端就筛好）；
@@ -2735,7 +2885,7 @@ class WarframeClient:
             base_params["mastery_rank_min"], base_params["mastery_rank_max"] = rank_range
 
         merged: dict[str, dict] = {}
-        for sort in ("price_asc", "price_desc"):
+        for sort in sorts:
             params = dict(base_params)
             params["sort_by"] = sort
             data = None
@@ -2745,6 +2895,7 @@ class WarframeClient:
                     ttl=TTL_WM_AUCTIONS,
                     params=params,
                     wm_rate_limit=True,
+                    retries=retries,
                 )
             except WarframeAPIError:
                 if not (pos or neg):
@@ -2817,7 +2968,9 @@ class WarframeClient:
                 )
                 return []
             if "429" in msg:
-                raise WarframeAPIError("warframe.market 限速了（3 请求/秒），请过几秒再试") from exc
+                raise WarframeAPIError(
+                    "warframe.market 限速了（HTTP 429），请稍等一两分钟再试"
+                ) from exc
             raise
         return (data or {}).get("payload", {}).get("auctions", [])
 

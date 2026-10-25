@@ -386,7 +386,7 @@ class VisionCommands:
     def _riven_lines_legal(cls, lines) -> tuple:
         """卡面原文行 → (pos, neg, 是否合法卡面, 备注)。
 
-        合法 = 2~3 条正面 + ≤1 条负面 **且没有「像是词条行却没解析成功」的行**。
+        合法 = 2~3 条正面 + ≤1 条负面（「？？？」未揭示行计入条数）**且没有「像是词条行却没解析成功」的行**。
         判据放在这里共用：窄读竞速的采信判据（读丢一行就不合法）与主流程的
         兜底判据必须是同一套。
         ★ 2026-10-02：线上实证（16:17 海波单剑）——窄读把「触发几率」OCR 成
@@ -405,9 +405,15 @@ class VisionCommands:
             from core import riven_analysis as RA
             from core.parser import RIVEN_STAT_ZH
         rev = {v: k for k, v in RIVEN_STAT_ZH.items()}
-        pos, neg, notes = RA.parse_riven_lines(lines, lambda nm: cls._stat_id_from_name(nm, rev))
+        pos, neg, notes = RA.parse_riven_lines(
+            lines,
+            lambda nm: cls._stat_id_from_name(nm, rev),
+            lambda nm: cls._stat_id_exact(nm, rev),
+        )
         fatal = [n for n in notes if not n.startswith("无极性符号")]
-        return pos, neg, (2 <= len(pos) <= 3 and len(neg) <= 1 and not fatal), notes
+        # 「？？？」未揭示词条（融合未选定，2026-10-24）计入条数：2 正 1 负 + 1 行问号 = 3+1 合法
+        counts_ok = bool(RA.count_candidates(len(pos), len(neg), RA.hidden_line_count(lines)))
+        return pos, neg, (counts_ok and bool(pos or neg) and not fatal), notes
 
     @classmethod
     def _parse_riven_lines_text(cls, text: str) -> dict:
@@ -606,6 +612,13 @@ class VisionCommands:
                     full.setdefault(n, sid)
             cls._STAT_ALIAS_FULL = full
         return cls._STAT_ALIAS_FULL
+
+    @classmethod
+    def _stat_id_exact(cls, name: str, rev: dict) -> "str | None":
+        """只认**整名精确命中**（别名 / 全称 / 短名表），不做包含匹配与形近 ——
+        给折行拼接当闸门用（2026-10-24），宽匹配会把「词条 + 图例行」拼出假词条。"""
+        name = cls._STAT_ALIAS.get(name, name)
+        return cls._full_stat_alias().get(name) or rev.get(name)
 
     @classmethod
     def _stat_id_from_name(cls, name: str, rev: dict) -> "str | None":

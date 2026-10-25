@@ -694,7 +694,7 @@ REGISTRY: dict[str, dict] = {
     "riven_rt.json": _e(
         "runtime_cache",
         "runtime",
-        "紫卡实时排行快照（WM 拍卖；2026-10-23 加）",
+        "紫卡 WM 现价快照（WM 拍卖；2026-10-23 加，10-25 起只手动拉）",
         policy="runtime_cache",
         readers=["core/api_client.py"],
         override="runtime_only",

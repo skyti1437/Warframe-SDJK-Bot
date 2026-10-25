@@ -249,8 +249,8 @@
 <section data-view="data">
   <div class="pagehead"><h2>数据</h2><span class="desc">各数据快照是否新鲜；过期的卡片会提示或不再展示</span></div>
   <section class="panel"><i class="c1"></i><i class="c2"></i>
-    <div class="ptitle"><h3>数据新鲜度</h3><span class="ext"></span><button id="pull">从源头重抓</button><button class="primary" id="refresh">刷新社区快照</button></div>
-    <div class="hint">「刷新社区快照」从社区快照（默认本项目公开仓 bot-data，可在「设置 → 社区数据地址」换成自己的）拉元素加成、言录使货单、仲裁评级、奸商到访历史；只有比本地新的才会替换。<br>「从源头重抓」不等定时、也不管本地是否还新鲜，立即从 wiki 重抓元素加成、言录使货单（需要 FlareSolverr，抓不到会回落社区快照）；wiki 还没人更新时不会覆盖，结果里会写明。</div>
+    <div class="ptitle"><h3>数据新鲜度</h3><span class="ext"></span><button id="crawlRiven">拉紫卡 WM 现价</button><button id="crawlWm">抓价格排行</button><button id="pull">从源头重抓</button><button class="primary" id="refresh">刷新社区快照</button></div>
+    <div class="hint">「刷新社区快照」从社区快照（默认本项目公开仓 bot-data，可在「设置 → 社区数据地址」换成自己的）拉元素加成、言录使货单、仲裁评级、奸商到访历史；只有比本地新的才会替换。<br>「从源头重抓」不等定时、也不管本地是否还新鲜，立即从 wiki 重抓元素加成、言录使货单（需要 FlareSolverr，抓不到会回落社区快照）；wiki 还没人更新时不会覆盖，结果里会写明。<br>「拉紫卡 WM 现价」（不自动抓，大更后手动拉一次，「紫卡排行」周报卡会多出现价对比两列）与「抓价格排行」立即在后台从 warframe.market 抓（紫卡约 30 分钟，价格全量约 20 分钟以上）；抓取期间会和群里的 wm/wr 查询抢 WM 限速，进度看下表对应行。</div>
     <div id="refreshResult" class="result"></div>
     <div class="scroll"><table id="freshTable">
       <thead><tr><th>数据</th><th>状态</th><th>快照时间</th><th>说明</th></tr></thead>
@@ -962,6 +962,15 @@
     $("refreshResult").textContent = `元素加成：${say(r.valence)}；言录使货单：${say(r.acrithis)}`;
     state.ov.freshness = d.freshness; renderFresh(d.freshness); renderOverview();
   });
+  const crawlBtn = (id, target, label) => $(id).onclick = (e) => busy(e.currentTarget, async () => {
+    $("refreshResult").className = "result dim";
+    const d = await bridge.apiPost("crawl", { target });
+    const ST = { started: "已在后台启动", running: "已经在抓了，不重复启动" };
+    $("refreshResult").textContent = `${label}：${ST[d.state] || d.state}（已收录 ${d.done}/${d.total || "?"}）；进度看下表，或回概览页点「重新加载」`;
+    state.ov.freshness = d.freshness; renderFresh(d.freshness); renderOverview();
+  });
+  crawlBtn("crawlRiven", "riven_rt", "紫卡 WM 现价");
+  crawlBtn("crawlWm", "wm_ranks", "价格排行");
   $("save").onclick = (e) => busy(e.currentTarget, async () => {
     const out = $("saveResult");
     try {

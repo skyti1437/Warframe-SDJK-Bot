@@ -312,7 +312,7 @@ def t_public_error_text():
         ),
         ("WM v2 接口错误：{'detail': 'x'}", "warframe.market 暂时不可用，请稍后再试"),
         # 插件自己写的降级提示：原样保留（不该被糊成通用句）
-        ("warframe.market 限速（3 请求/秒）", "warframe.market 限速（3 请求/秒）"),
+        ("warframe.market 限速（HTTP 429）", "warframe.market 限速（HTTP 429）"),
         (
             "FlareSolverr 已在配置里关闭（「启用 CF 绕过代理」= 否）",
             "FlareSolverr 已在配置里关闭（「启用 CF 绕过代理」= 否）",

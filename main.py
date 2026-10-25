@@ -344,7 +344,7 @@ def _migrate_legacy_user_data(data_dir: Path) -> None:
 # ★ 两条硬规则（2026-09-17 改版，玩家反馈「主指令乱排 / 缺指令 / 看不懂」）：
 #   1. 左列必须是**真实主指令名**（可照发）＋常用别名，不再是「平台切换」这类
 #      描述性标签 —— 用户是照着这行去发指令的。
-#   2. **全部主指令（当前 56 个）必须出现**，由 tests/test_help_coverage.py 锁住，
+#   2. **全部主指令（当前 57 个）必须出现**，由 tests/test_help_coverage.py 锁住，
 #      以后新增主指令而忘了写进帮助会直接测试失败（条数按 COMMAND_ALIASES 现算，
 #      不写死在测试里）。
 #   分组依据是「玩家在什么场景下会想用它」，同类指令聚在一组。
@@ -358,7 +358,8 @@ HELP_TOPIC: dict[str, list[tuple[str, str]]] = {
         ("wm 物品名", "市场在售/收购（加 蓝图/机体 查部件）"),
         ("伤害 武器 对 敌人 100级", "面板 / 单发 / DPS / 分段"),
         ("紫卡分析 武器名 词条数值", "词条区间与距中（负词条加「负」）"),
-        ("词条范围 武器名 [3+1-]", "该武器能刷出的词条区间（可点名词条 / 切组合）"),
+        ("词条范围 武器名 [3+1-]", "该武器能刷出的词条区间（2+1 = 2+1-；可点名词条 / 切组合）"),
+        ("紫卡融合 [武器/词条]", "融合词条由哪两条原词条拼成（也认 紫卡拼接 / 融合词条）"),
     ],
     "周期与日常": [
         ("夜灵 / 平原时间", "各开放世界昼夜 / 派系周期"),
@@ -384,7 +385,10 @@ HELP_TOPIC: dict[str, list[tuple[str, str]]] = {
         ("趋势 物品名", "48h / 90d 价格走势"),
         ("wr / 紫卡 / rm 武器名", "紫卡拍卖｜源紫卡报价"),
         ("wr 未开 [类别]", "未开紫卡挂单，如「wr 手枪未开」；不加类别看 8 类行情"),
-        ("倾向 / 紫卡排行", "倾向已统一 1.2（看原倾向与缩放）｜热度榜（加 刷新 强更）"),
+        (
+            "倾向 / 紫卡排行",
+            "倾向已统一 1.2（看原倾向与缩放）｜DE 周报热度榜（管理员加 刷新 拉 WM 现价）",
+        ),
     ],
     "遗物与资源": [
         ("遗物 / 核桃 名称", "奖励与出处；出库 / 入库 / 列表"),
@@ -441,7 +445,7 @@ HELP_NOTES: dict[str, list[str]] = {
 
 
 @register(
-    "astrbot_plugin_warframe_sdjkbot", "SDJK", f"{BRAND}：世界状态 / 市场查价 / 蹲点推送", "1.2.5"
+    "astrbot_plugin_warframe_sdjkbot", "SDJK", f"{BRAND}：世界状态 / 市场查价 / 蹲点推送", "1.2.6"
 )
 class WarframeSDJK(
     DailyCommands,
@@ -574,6 +578,7 @@ class WarframeSDJK(
             "disposition": self._h_disposition,
             "analysis": self._h_riven_analysis,
             "ranges": self._h_riven_ranges,
+            "splice": self._h_riven_splice,
             "relic": self._h_relic,
             "parts": self._h_parts,
             "ducats": self._h_ducats,
@@ -642,9 +647,7 @@ class WarframeSDJK(
             self.push.task.add_done_callback(self._log_task_death("push_daemon"))
         self._auto_task = asyncio.create_task(self._rank_autoloop())
         self._auto_task.add_done_callback(self._log_task_death("_rank_autoloop"))
-        # 紫卡实时排行快照（2026-10-23）：6h 一次、只在凌晨闲时
-        self._riven_rt_task = asyncio.create_task(self._riven_rt_autoloop())
-        self._riven_rt_task.add_done_callback(self._log_task_death("_riven_rt_autoloop"))
+        # 紫卡 WM 现价快照不再自动抓（2026-10-25 用户：只由管理员「紫卡排行 刷新」/ 面板按钮手动拉）
         self._valence_task = asyncio.create_task(self._valence_autoloop())
         self._valence_task.add_done_callback(self._log_task_death("_valence_autoloop"))
         # 社区快照轻轮询：只对「没装/连不上 FS」的用户生效（见 _community_autoloop）
@@ -748,6 +751,7 @@ class WarframeSDJK(
     RANK_CRAWL_IDLE_HOURS = (2, 3, 4, 5, 6)
     # 每晚最多抓多少项（约 4 秒/项 → 900 项 ≈ 1 小时，凌晨窗口内可完成）
     RANK_CRAWL_MAX_PER_RUN = 900
+    RANK_TTL_HOURS = 44  # 名义「约两天一刷」，见 _rank_autoloop 里的到期点说明
 
     async def _rank_autoloop(self):
         """插件内置定时：价格榜单每 48 小时自动重建（且只在凌晨闲时）。
@@ -775,7 +779,9 @@ class WarframeSDJK(
                     age = _t.time() - datetime.fromisoformat(ts).timestamp()
                 except ValueError:
                     age = float("inf")
-                if age > 48 * 3600:
+                # ★ 2026-10-25（ZCode 实测）：48h 的到期点总落在白天 ⇒ 要等到再下一个凌晨，
+                #   实际约 64h 才刷一次；44h ⇒ 到期点落在前一晚，下个凌晨窗口即抓（实际约 47h）
+                if age > self.RANK_TTL_HOURS * 3600:
                     # 闲时闸门：白天不爬（会拖慢用户的 wm/wr 查询）
                     if datetime.now().hour not in self.RANK_CRAWL_IDLE_HOURS:
                         logger.info(
@@ -786,7 +792,9 @@ class WarframeSDJK(
                         )
                         await asyncio.sleep(1800)
                         continue
-                    logger.info("[sdjk] 价格榜单缺失或超 48 小时，开始自动重建")
+                    logger.info(
+                        "[sdjk] 价格榜单缺失或超 %d 小时，开始自动重建", self.RANK_TTL_HOURS
+                    )
                     n = await self.client.crawl_wm_ranks(limit=self.RANK_CRAWL_MAX_PER_RUN)
                     logger.info("[sdjk] 价格榜单本轮抓取结束（累计 %d 项）", n)
                 await asyncio.sleep(1800)
@@ -794,50 +802,6 @@ class WarframeSDJK(
                 raise
             except Exception as e:  # noqa: BLE001
                 logger.warning("[sdjk] 价格榜单自动刷新失败，10 分钟后重试：%s", e)
-                await asyncio.sleep(600)
-
-    # ★ 2026-10-23：紫卡实时排行快照（WM 拍卖）—— 频率 6h，且只在凌晨闲时抓
-    RIVEN_RT_TTL_HOURS = 6
-    RIVEN_RT_MAX_PER_RUN = 200  # 目标集实测 ~101 把，留余量
-
-    async def _riven_rt_autoloop(self):
-        """插件内置定时：紫卡实时排行快照每 6 小时重建（且只在凌晨闲时）。
-
-        与 `_rank_autoloop` 同套口径：每 30 分钟检查落盘时间戳；超 6h **且**处于闲时
-        （02:00-06:59）才开抓 —— 白天**大批量打 WM** 会拖慢用户的 wm/wr 查询。
-        目标集实测 ~101 把、速率 ≤3 req/s，一轮约 1 分钟；失败退避 10 分钟。
-        """
-        while True:
-            try:
-                snap = self.client.riven_realtime_rows()
-                ts = snap.get("ts") or ""
-                import time as _t
-                from datetime import datetime
-
-                try:
-                    age = _t.time() - datetime.fromisoformat(ts).timestamp()
-                except ValueError:
-                    age = float("inf")
-                if age > self.RIVEN_RT_TTL_HOURS * 3600:
-                    if datetime.now().hour not in self.RANK_CRAWL_IDLE_HOURS:
-                        logger.info(
-                            "[sdjk] 紫卡实时排行已过期，但非闲时（%02d 点），凌晨 %d-%d 点再抓",
-                            datetime.now().hour,
-                            self.RANK_CRAWL_IDLE_HOURS[0],
-                            self.RANK_CRAWL_IDLE_HOURS[-1],
-                        )
-                        await asyncio.sleep(1800)
-                        continue
-                    logger.info(
-                        "[sdjk] 紫卡实时排行缺失或超 %dh，开始重建", self.RIVEN_RT_TTL_HOURS
-                    )
-                    n = await self.client.crawl_riven_realtime(limit=self.RIVEN_RT_MAX_PER_RUN)
-                    logger.info("[sdjk] 紫卡实时排行本轮结束（累计 %d 把）", n)
-                await asyncio.sleep(1800)
-            except asyncio.CancelledError:
-                raise
-            except Exception as e:  # noqa: BLE001
-                logger.warning("[sdjk] 紫卡实时排行自动刷新失败，10 分钟后重试：%s", e)
                 await asyncio.sleep(600)
 
     async def _flare_phase(self) -> str:
@@ -1079,7 +1043,6 @@ class WarframeSDJK(
             "_auto_task",
             "_valence_task",
             "_community_task",
-            "_riven_rt_task",
             "_boot_task",
             "_warm_task",
         ):
@@ -1087,12 +1050,12 @@ class WarframeSDJK(
             if task and not task.done():
                 task.cancel()
                 pending.append(task)
-        crawl = getattr(
-            self.client, "_rank_crawl_task", None
-        )  # 「价格榜单 刷新」手动触发的全量爬取
-        if crawl and not crawl.done():
-            crawl.cancel()
-            pending.append(crawl)
+        # 手动触发的爬取：「排行 刷新」全量价格榜、「紫卡排行 刷新」紫卡 WM 现价（含面板按钮）
+        for name in ("_rank_crawl_task", "_riven_rt_crawl_task"):
+            crawl = getattr(self.client, name, None)
+            if crawl and not crawl.done():
+                crawl.cancel()
+                pending.append(crawl)
         if pending:
             # 等它们真正退出再关 client（只 cancel 不等，在飞的请求会撞上已关闭的连接）；最多等 5 秒，不卡卸载
             await asyncio.wait(pending, timeout=5)

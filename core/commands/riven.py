@@ -10,6 +10,8 @@ try 分支 from .core.* → from ..*（模块自插件根迁入 core 包，相�
 
 from __future__ import annotations
 
+import re
+import unicodedata
 from typing import Optional
 
 from .. import formatters as fmt
@@ -18,6 +20,16 @@ from .. import riven_analysis as RA
 from ..api_client import WarframeAPIError, fuzzy_hits, public_error_text
 from ..logging_compat import logger
 from .base import Reply, err_card
+
+# 「词条范围」组合写法的归一：全角数字 / 加号走 NFKC，U+2212 减号另补一刀
+_COMBO_TRANS = str.maketrans({"−": "-", "－": "-"})
+# 「看着像组合」但不认识（如 4+ / 5+1-）：**不静默落进武器名**，给一句提示
+_COMBO_LIKE_RE = re.compile(r"^\d+\+(?:\d+)?(?:-|负)?$")
+
+
+def _fold_combo(t: str) -> str:
+    """组合写法归一：全角 → 半角（NFKC），减号统一成 ASCII ``-``。"""
+    return unicodedata.normalize("NFKC", t or "").translate(_COMBO_TRANS)
 
 
 def _xh_element(toks: list[str]) -> tuple[Optional[str], Optional[str]]:
@@ -102,7 +114,7 @@ class RivenCommands:
             logger.warning("[sdjk] 玄骸拍卖查询失败（%s）：%s", slug, exc)
             return err_card(
                 f"warframe.market 查询失败：{public_error_text(exc)}",
-                "多为市场限速（3 请求/秒）或网络抖动，过几秒重试即可",
+                "多为市场限速（429）或网络抖动，稍等一两分钟重试即可",
                 title="玄骸拍卖",
             )
         pool = auctions
@@ -293,22 +305,98 @@ class RivenCommands:
         return Reply(f"紫卡倾向：{query}", lines, footer=fmt.fmt_platform_footer(platform))
 
     # 「词条范围」的组合写法（用户口径：不写组合默认 3正1负）
+    # 键 = **_fold_combo 归一后**的写法：`2+1` / `2+1-` / `2+1负` 三者同义（3+1 同）。
     _RANGE_COMBOS = {
         "2+": (2, 0),
+        "2+1": (2, 1),
         "2+1-": (2, 1),
+        "2+1负": (2, 1),
         "2正": (2, 0),
         "2正1负": (2, 1),
         "3+": (3, 0),
-        "3正": (3, 0),
+        "3+1": (3, 1),
         "3+1-": (3, 1),
+        "3+1负": (3, 1),
+        "3正": (3, 0),
         "3正1负": (3, 1),
     }
+
+    # 「紫卡融合」的武器类写法 → weapon_class 列名
+    _SPLICE_CLASSES = {
+        "步枪": "rifle",
+        "霰弹": "shotgun",
+        "霰弹枪": "shotgun",
+        "手枪": "pistol",
+        "副武": "pistol",
+        "空战": "archgun",
+        "曲翼": "archgun",
+        "近战": "melee",
+    }
+
+    async def _h_riven_splice(self, parsed, event, platform) -> Reply:
+        """紫卡融合 / 紫卡拼接：Riven Splicer 每个融合词条由哪两条原词条拼成（2026-10-24 用户）。
+
+        用法：紫卡融合 [武器名 | 步枪/霰弹枪/手枪/空战/近战] [词条名]
+        不带参数 = 全部 22 条配方；带武器（或武器类）只列该类能融合的；带词条只列含该词条的
+        （作为原词条或融合结果都算）。
+        """
+        try:  # 服务器以包成员加载，相对导入才可靠（同 _h_riven_analysis）
+            from .. import riven_analysis as RA
+            from ..parser import RIVEN_STAT_ZH, _STAT_LOOKUP
+        except ImportError:  # pragma: no cover - 本地直跑
+            from core import riven_analysis as RA
+            from core.parser import RIVEN_STAT_ZH, _STAT_LOOKUP
+
+        cls = None
+        scope = ""
+        stat = None
+        weapon_toks: list[str] = []
+        for tok in parsed.content or []:
+            t = (tok or "").strip()
+            if not t:
+                continue
+            if t in self._SPLICE_CLASSES:
+                cls = self._SPLICE_CLASSES[t]
+                scope = t
+                continue
+            sid = _STAT_LOOKUP.get(t) or _STAT_LOOKUP.get(t.casefold())
+            if sid and stat is None:
+                stat = sid
+                continue
+            weapon_toks.append(t)
+        query = " ".join(weapon_toks).strip()
+        if query:
+            try:
+                weapon = await self.client.resolve_riven_weapon(query)
+            except Exception:  # noqa: BLE001 - 认不出走下面的提示
+                weapon = None
+            if not weapon:
+                tips = await self.client.suggest_riven_weapons(query)
+                return err_card(
+                    f"未找到紫卡武器或词条「{query}」",
+                    "照候选改名重发"
+                    if tips
+                    else "换官方中文名、武器类（步枪/霰弹枪/手枪/空战/近战）或词条名重发",
+                    ("你是不是想找", "、".join(tips)) if tips else "",
+                    title="紫卡融合",
+                )
+            cls = RA.weapon_class(weapon.get("riven_type", ""), weapon.get("group", ""))
+            cls = RA.kitgun_mode_class(
+                weapon.get("en") or weapon.get("zh") or "", cls, weapon.get("riven_type") or ""
+            )
+            name = weapon.get("zh") or weapon.get("en") or query
+            scope = f"{name}（{fmt._SPLICE_CLASS_ZH.get(cls, cls)}）"
+        recipes = RA.splice_recipes(cls, stat)
+        title, lines = fmt.fmt_riven_splice(
+            recipes, scope=scope, stat_zh=RIVEN_STAT_ZH.get(stat, "") if stat else ""
+        )
+        return Reply(title, lines, footer=fmt.fmt_platform_footer(platform, "Riven Splicer 配方"))
 
     async def _h_riven_ranges(self, parsed, event, platform) -> Reply:
         """词条范围：按武器列出紫卡每条词条的卡面取值区间（只显示统一倾向 1.2）。
 
-        用法：词条范围 武器名 [2+ | 2+1- | 3+ | 3+1-] [词条名…]
-        不写组合默认 3正1负；带上词条名就只列那几条。
+        用法：词条范围 武器名 [2+ | 2+1 | 2+1- | 3+ | 3+1 | 3+1-] [词条名…]
+        不写组合默认 3正1负（`2+1` = `2+1-`，`3+1` = `3+1-`）；带上词条名就只列那几条。
         **按武器过滤**：该武器刷不出的词条不列（逐家族证据 > 武器自身推导 > 职业池）。
         """
         try:  # 服务器以包成员加载，相对导入才可靠（同 _h_riven_analysis）
@@ -323,25 +411,39 @@ class RivenCommands:
         combo = (3, 1)
         stats: list[str] = []
         weapon_toks: list[str] = []
+        bad_combo = ""
         for tok in parsed.content or []:
             t = (tok or "").strip()
             if not t:
                 continue
-            if t in self._RANGE_COMBOS:
-                combo = self._RANGE_COMBOS[t]
+            nt = _fold_combo(t)
+            if nt in self._RANGE_COMBOS:
+                combo = self._RANGE_COMBOS[nt]
+                continue
+            if _COMBO_LIKE_RE.match(nt):
+                # 认识不出但**长得像组合**：别再当武器名的一部分（维护者 2026-10-24）
+                bad_combo = bad_combo or t
                 continue
             sid = _STAT_LOOKUP.get(t) or _STAT_LOOKUP.get(t.casefold())
             if sid:
                 stats.append(sid)
                 continue
             weapon_toks.append(t)
+        if bad_combo:
+            return err_card(
+                f"组合「{bad_combo}」不认识",
+                "组合只有 3+1- / 3+ / 2+1- / 2+（也认 2+1 / 3+1 / 2+1负 / 3+1负）。"
+                "例如「词条范围 冰凇 2+1」",
+                ("用法", "词条范围 武器名 [2+ / 2+1 / 2+1- / 3+ / 3+1 / 3+1-] [词条名…]"),
+                title="紫卡词条范围",
+            )
         query = " ".join(weapon_toks).strip()
         if not query:
             return err_card(
                 "没有写武器名",
                 "按 词条范围 武器名 [组合] [词条名…] 的格式重发，例如「词条范围 绝路Prime」"
                 "「词条范围 冰凇 3+」「词条范围 绝路 基伤 多重 毒气 3+1-」",
-                ("用法", "词条范围 武器名 [2+ / 2+1- / 3+ / 3+1-] [词条名…]"),
+                ("用法", "词条范围 武器名 [2+ / 2+1 / 2+1- / 3+ / 3+1 / 3+1-] [词条名…]"),
                 title="紫卡词条范围",
             )
         item = await self.client.resolve_riven_weapon(query)
@@ -396,9 +498,14 @@ class RivenCommands:
         stats_pos: list[tuple[str, float]] = []
         stats_neg: list[tuple[str, float]] = []
         weapon_name = ""
+        # 融合时还没选定的词条（卡面「？？？」）：正负未知，只计入词条数（2026-10-24）
+        hidden = 0
         for tok in parsed.content or []:
             t = tok.strip()
             if not t:
+                continue
+            if _re.fullmatch(r"[?？]{2,}", t):
+                hidden += 1
                 continue
             neg = t.startswith(("负", "-"))
             body = t[1:] if neg else t
@@ -484,6 +591,8 @@ class RivenCommands:
             # 尾巴只留简中母名（WM 紫卡表按母武器挂）
             _ai_raw = (data.get("weapon") or "").strip()
             _ai_name = _re.sub(r"[A-Za-z\-].*$", "", _ai_raw).strip(" ··") or _ai_raw
+            # 融合未选定时自命名显示成「？？？」（视使之触？？？）：问号不是武器名
+            _ai_name = _re.sub(r"[?？\s]+$", "", _ai_name) or _ai_name
             weapon_name = _user_name or _ai_name
             source_note = "（图片识别）"
             # ★ 2026-09-27：优先采信「卡面文字行」，而不是模型给的语义词条表。
@@ -497,17 +606,19 @@ class RivenCommands:
                 _lines = _lines.splitlines()
             if isinstance(_lines, (list, tuple)) and _lines:
                 _lp, _ln, _legal, _notes = self._riven_lines_legal(_lines)
+                hidden = RA.hidden_line_count(_lines)
                 # ★ 2026-10-02 两路交叉校验（问题1）：行读**条数少于语义表**时也
                 #   不许覆盖 —— 行读没报错也可能整行没抄（模型直接漏一行，不会产生
                 #   notes）。但语义表自身必须**合法**才让位，否则会把 2026-09-27
                 #   修掉的「语义表拆条/多条」老 bug 放回来（那次语义表 4 正 2 负）。
                 _n_line = len(_lp) + len(_ln)
                 _n_sem = len(stats_pos) + len(stats_neg)
-                _sem_legal = 2 <= len(stats_pos) <= 3 and len(stats_neg) <= 1
+                _sem_legal = bool(RA.count_candidates(len(stats_pos), len(stats_neg), hidden))
                 logger.info(
-                    "[sdjk] 紫卡行解析：%d 正 %d 负（模型语义表 %d 正 %d 负）%s",
+                    "[sdjk] 紫卡行解析：%d 正 %d 负 %d 未揭示（模型语义表 %d 正 %d 负）%s",
                     len(_lp),
                     len(_ln),
+                    hidden,
                     len(stats_pos),
                     len(stats_neg),
                     ("；跳过 " + " / ".join(_notes)) if _notes else "",
@@ -521,7 +632,7 @@ class RivenCommands:
                         _n_line,
                         _n_sem,
                     )
-            if not stats_pos:
+            if not (stats_pos or stats_neg):
                 return err_card(
                     "图片识别到了武器但没读出词条",
                     "请按文字格式重发：紫卡分析 武器名 暴伤82.8 范围1.6 负滑暴81.3",
@@ -537,10 +648,12 @@ class RivenCommands:
                     title="紫卡分析",
                 )
 
-        if not 2 <= len(stats_pos) <= 3 or len(stats_neg) > 1:
+        count_cands = RA.count_candidates(len(stats_pos), len(stats_neg), hidden)
+        if not count_cands or not (stats_pos or stats_neg):
             return err_card(
                 "紫卡词条应为 2~3 条正面 + 0~1 条负面，"
-                f"当前解析到 {len(stats_pos)} 正 {len(stats_neg)} 负",
+                f"当前解析到 {len(stats_pos)} 正 {len(stats_neg)} 负"
+                + (f" + {hidden} 条未揭示" if hidden else ""),
                 "核对词条条数后重发（负词条加「负」前缀）；截图发错也请重发",
                 title="紫卡分析",
             )
@@ -614,7 +727,10 @@ class RivenCommands:
                     _c.get("en") or _c.get("zh") or "", _ccls, _c.get("riven_type") or ""
                 )
                 _cd = RA.UNIFIED_DISPOSITION
-                if _cd > 0 and RA.disp_feasible(stats_pos, stats_neg, _ccls, _cd):
+                if _cd > 0 and any(
+                    RA.disp_feasible(stats_pos, stats_neg, _ccls, _cd, counts=_c)
+                    for _c in count_cands
+                ):
                     _feas.append((_c, _cd))
             if len(_feas) == 1:
                 weapon, _near_disp = _feas[0]
@@ -693,13 +809,27 @@ class RivenCommands:
         # vision 偶发把小数点读丢，整卡数值随之「都不吻合」。用**当前倾向的合法
         # 区间**做判据：原值明显超出区间、除以 10 落回区间内 → 修正并在卡面注明。
         decimal_fix: list[str] = []
+        # 词条数（决定系数）：有「？？？」未揭示词条时按总行数定；3 行无负词条两可
+        # （3+0 / 2+1）⇒ 用卡面数值挑能吻合的那个，都不吻合按先列的（未揭示当正）算
+        counts = count_cands[0]
+        if len(count_cands) > 1:
+            counts = next(
+                (
+                    c
+                    for c in count_cands
+                    if RA.disp_feasible(stats_pos, stats_neg, cls, disp, counts=c)
+                ),
+                counts,
+            )
+        # 问号行折行时候选按少算（见 count_candidates）⇒ 未揭示条数以选定的词条数为准
+        if hidden:
+            hidden = max(0, counts[0] + counts[1] - len(stats_pos) - len(stats_neg))
+        hidden_fix_note = ""
 
         def _fix_decimal(pairs, negative: bool):
             out = []
             for sid, v in pairs:
-                lo, hi = RA.stat_range(
-                    sid, cls, disp, len(stats_pos), len(stats_neg), negative=negative
-                )
+                lo, hi = RA.stat_range(sid, cls, disp, *counts, negative=negative)
                 if not lo or not hi:
                     out.append((sid, v))
                     continue
@@ -718,12 +848,13 @@ class RivenCommands:
         # 错成 (n正,0)=0.75，区间整体偏小 20%，表现为「卡面数值与倾向都不吻合」。
         # 判据：0 负解释不了、1 负能解释 → 按 1 负算（区间只依赖正词条系数）。
         neg_fix_note = ""
-        if not stats_neg and stats_pos and len(stats_pos) == 3:
+        if not stats_neg and stats_pos and len(stats_pos) == 3 and not hidden:
             try:
                 if not RA.disp_feasible(stats_pos, [], cls, disp) and RA.disp_feasible(
                     stats_pos, [("damage_vs_corpus", 45.0)], cls, disp
                 ):
                     stats_neg = [("damage_vs_corpus", 45.0)]
+                    counts = (3, 1)
                     neg_fix_note = (
                         "⚠ 卡面疑似有未被识别的负词条（常见写法"
                         "「x0.55 对 Corpus 的伤害」这类乘数形式），"
@@ -740,8 +871,8 @@ class RivenCommands:
         #   最后一种用取消前的旧倾向（本地静态表，不再更新）对一下，命中就明说。
         infer_note = ""
         verdict = ""  # 卡首「判定」一行（短结论；完整说明仍在下面的提示行里）
-        if not RA.disp_feasible(stats_pos, stats_neg, cls, disp):
-            iv = RA.disposition_interval(stats_pos, stats_neg, cls)
+        if not RA.disp_feasible(stats_pos, stats_neg, cls, disp, counts=counts):
+            iv = RA.disposition_interval(stats_pos, stats_neg, cls, counts=counts)
             verdict = f"卡面数值与倾向 {disp:g} 不吻合"
             infer_note = f"⚠️ 卡面数值与倾向 {disp:g} 不吻合，请核对武器与词条"
             if iv[0] and not disp_override:
@@ -754,6 +885,21 @@ class RivenCommands:
                         f"⚠️ 卡面数值与取消前的旧倾向吻合（{'、'.join(_hit[:3])}）"
                         f"—— 疑似倾向取消前的截图，游戏内数值已按 {disp:g} 缩放，请重新截图后再发"
                     )
+            # 识别模型可能干脆不念「？？？」那行（2026-10-24）⇒ 条数少一条、区间整体偏移。
+            # 不是旧截图、**多一条正词条**就吻合 ⇒ 按多一条算并明说（同上方负词条兜底的闸门思路）
+            _more = (counts[0] + 1, counts[1])
+            if (
+                not verdict.startswith("疑似倾向取消前")
+                and not hidden
+                and _more in RA.FACTOR
+                and RA.disp_feasible(stats_pos, stats_neg, cls, disp, counts=_more)
+            ):
+                counts = _more
+                verdict = infer_note = ""
+                hidden_fix_note = (
+                    "⚠ 卡面疑似还有一条没读出的词条（融合时未选定的「？？？」或漏识别），"
+                    f"已按 {counts[0]}正{counts[1]}负 的系数计算"
+                )
         disp_note = (
             f"（已按手输倾向 {disp:g} 计算；DE 已统一为 {RA.UNIFIED_DISPOSITION:g}）"
             if disp_override
@@ -765,7 +911,7 @@ class RivenCommands:
         def _needs_action(t: str) -> bool:
             return "⚠" in t or "请带变体" in t or "请核对" in t or "请重发" in t
 
-        _cands_n = [infer_note, neg_fix_note, dup_note, class_est_note]
+        _cands_n = [infer_note, neg_fix_note, hidden_fix_note, dup_note, class_est_note]
         warns = [t for t in _cands_n if t and _needs_action(t)]
         infos = [
             t
@@ -781,7 +927,16 @@ class RivenCommands:
             if t
         ]
         title, lines = fmt.fmt_riven_analysis(
-            name, disp, cls, stats_pos, stats_neg, verdict=verdict, warns=warns, infos=infos
+            name,
+            disp,
+            cls,
+            stats_pos,
+            stats_neg,
+            verdict=verdict,
+            warns=warns,
+            infos=infos,
+            counts=counts,
+            hidden=hidden,
         )
         logger.info(
             "[sdjk] 紫卡分析耗时 %.0f ms（含识别/查询/计算）",
