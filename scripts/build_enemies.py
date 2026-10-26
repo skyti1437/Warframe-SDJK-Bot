@@ -18,7 +18,7 @@
 
 用法::
 
-    python scripts/build_enemies.py --wiki <构建输入目录>/wiki-modules-20261026/enemies --pep <构建输入目录>/pep-513105d [--check]
+    python scripts/build_enemies.py --wiki <wiki-modules 快照>/enemies --pep <PEP 目录> [--check]
 """
 
 from __future__ import annotations

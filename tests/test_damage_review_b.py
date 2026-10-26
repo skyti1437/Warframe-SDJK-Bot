@@ -622,7 +622,12 @@ check(
     )
     and "PEP" in _en["Lancer"]["src"]["base_shield"],
 )
-_snap_w, _snap_p = Path("<构建输入目录>/wiki-modules-20261026/enemies"), Path("<构建输入目录>/pep-513105d")
+# ★ 2026-10-27：构建输入目录改由环境变量提供（公开仓 gitleaks 的 local-user-path 规则
+#   不允许出现本机绝对路径）；未设置时指向不存在的相对路径 ⇒ 下面的 isdir 闸门自动跳过。
+_BI = os.environ.get("WF_BUILD_INPUTS", "")
+_ABSENT = Path("__no_build_inputs__")
+_snap_w = Path(_BI, "wiki-modules-20261026/enemies") if _BI else _ABSENT
+_snap_p = Path(_BI, "pep-513105d") if _BI else _ABSENT
 if os.path.isdir(_snap_w) and os.path.isdir(_snap_p):  # CI 非 root：/root 不可读 ⇒ False，不抛
     _rebuilt = _be.build(_snap_w, _snap_p, allow_conflict=False)
     check(
@@ -1592,9 +1597,9 @@ check(
         for n in ("enrich_mods_from_wfsim.py", "sync_mods_from_wfsim.py")
     ),
 )
-_p4official = Path("<构建输入目录>/de-export-20261025")
-_p4pep = Path("<构建输入目录>/pep-513105d")
-_p4wiki = Path("<构建输入目录>/wiki-modules-20261026/mods")
+_p4official = Path(_BI, "de-export-20261025") if _BI else _ABSENT
+_p4pep = Path(_BI, "pep-513105d") if _BI else _ABSENT
+_p4wiki = Path(_BI, "wiki-modules-20261026/mods") if _BI else _ABSENT
 if all(os.path.isdir(p) for p in (_p4official, _p4pep, _p4wiki)):  # 同上
     for _p4script, _p4file in (
         ("build_mod_rules", "mods_wfsim_extra.json"),
