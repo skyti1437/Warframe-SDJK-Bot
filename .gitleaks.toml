@@ -16,3 +16,19 @@ useDefault = true
 id = "local-user-path"
 description = "开发机绝对路径泄露（C:/Users/...、/home/...、/root/...）"
 regex = '''(?i)[a-z]:[/\\]{1,2}(users|home)[/\\][a-z0-9._-]+|/(home|root)/[a-z0-9._-]+'''
+
+# ★ 2026-10-27：v1.2.7 首次同步时，`scripts/build_enemies.py`（用法示例）与
+#   `tests/test_damage_review_b.py`（构建输入目录默认值）带过本机绝对路径；
+#   **当前树已改掉**（示例改占位符、测试改读 WF_BUILD_INPUTS），但这两处仍在
+#   历史提交里，而本仓库的 CI 是 `--all --full-history` 全历史扫描。
+#   这里做**最窄豁免**：仅这两个文件的路径型命中（condition=AND），
+#   不按提交豁免、不按文件整体豁免 ⇒ 同文件里的密钥类规则仍然生效。
+[[allowlists]]
+description = "历史提交里两个构建/测试文件曾用本机绝对路径（当前树已清除）"
+condition = "AND"
+paths = [
+  '''(^|/)scripts/build_enemies\.py$''',
+  '''(^|/)tests/test_damage_review_b\.py$''',
+]
+regexTarget = "match"
+regexes = ['''/root/''', '''/home/''']
