@@ -36,4 +36,21 @@ except ImportError:  # pragma: no cover - 仅在无 astrbot 环境（离线测�
 
     logger = _SilentLogger()
 
-__all__ = ["logger"]
+
+def mask_id(s: str) -> str:
+    """号码打码：保留前 2 位与后 2 位（``123456789`` → ``12*****89``）。"""
+    s = str(s or "")
+    if len(s) <= 4:
+        return "*" * len(s)
+    return s[:2] + "*" * (len(s) - 4) + s[-2:]
+
+
+def mask_umo(umo: str) -> str:
+    """``平台:消息类型:会话号`` 只给会话号打码（日志 / 面板共用；2026-10-25 Astra 评估 S3）。"""
+    parts = str(umo or "").split(":")
+    if len(parts) >= 3:
+        return ":".join(parts[:-1] + [mask_id(parts[-1])])
+    return mask_id(umo)
+
+
+__all__ = ["logger", "mask_id", "mask_umo"]

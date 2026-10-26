@@ -388,7 +388,7 @@ class RivenCommands:
             scope = f"{name}（{fmt._SPLICE_CLASS_ZH.get(cls, cls)}）"
         recipes = RA.splice_recipes(cls, stat)
         title, lines = fmt.fmt_riven_splice(
-            recipes, scope=scope, stat_zh=RIVEN_STAT_ZH.get(stat, "") if stat else ""
+            recipes, scope=scope, stat_zh=RIVEN_STAT_ZH.get(stat, "") if stat else "", cls=cls
         )
         return Reply(title, lines, footer=fmt.fmt_platform_footer(platform, "Riven Splicer 配方"))
 
@@ -467,8 +467,18 @@ class RivenCommands:
             pos = [s for s in pos if s in keep]
             spliced = [s for s in spliced if s in keep]
             neg = [s for s in neg if s in keep]
+        _unseen, _sv = RP.survey_unseen(root)
         title, lines = fmt.fmt_riven_ranges(
-            display, cls, combo, pos, spliced, neg, unc, only=only, dropped=dropped
+            display,
+            cls,
+            combo,
+            pos,
+            spliced,
+            neg,
+            unc,
+            only=only,
+            dropped=dropped,
+            survey={"unseen": _unseen, **_sv},
         )
         if RA.class_estimated(item.get("riven_type") or "", item.get("group") or ""):
             lines.insert(0, "※ ⚠ 武器类别未知，按步枪基值列估算（区间可能有偏差）")

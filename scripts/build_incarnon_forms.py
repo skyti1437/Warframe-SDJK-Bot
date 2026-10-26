@@ -1,192 +1,155 @@
 # -*- coding: utf-8 -*-
-"""从 wfsim（github.com/magenie33/wfsim）数据抽取枪械灵化形态基础数值。
+"""从英文 wiki 武器数据模块生成枪械灵化形态的基础面板 → core/data/incarnon_forms.json。
 
-数据源：data/weapons/{primary,secondary,sentinel,archgun}/*.yaml 中 form: incarnon
-的条目（attack 块 = 该形态的基础面板，未含灵化进化 perk 的加成，进化加成
-各玩家选择不同，识卡侧仍从面板反推吸收）。
+数据源（2026-10-26 wfsim 迁移 P2 起；之前取自 wfsim，已弃用）：
+- wiki ``Module:Weapons/data/*``（CC BY-NC-SA 3.0）：原型武器条目里名字带「Incarnon」的根攻击
+  = 灵化形态（优先名为「Incarnon Form」的那条；Paris 系只有「Incarnon Form Charged Shot」等
+  则取第一条）。伤害 / 暴击 / 触发 / 射速 / 多重 / 蓄力 / 点射 / 强制异常取该攻击；范围段与
+  weapon_attacks 同一拆法（``build_weapon_attacks.split_attacks`` / ``segments_of``），吃 CO /
+  不吃多重按 CO 页 Attack Catalog（``apply_catalog``）。
+- 灵化弹池 ``pseudo_reload``：magazine = 该攻击的 ``IncarnonCharges``（wiki；模块缺的取 Incarnon Genesis
+  页原文，见 ``CHARGES_FROM_PAGE``）；reload_seconds =
+  原型装填时间 + ``SWITCH_SECONDS``。后者是**我方建模约定**（持续 DPS 把「打空弹池 → 切回原型
+  装填 → 再切灵化」当一次循环，变形动画按 1 s 估；wiki 无此数据），沿用 2026-10-09 C 批口径。
+- ricochet：只有 Dual Toxocyst（wiki「Dual Toxocyst Incarnon Genesis」：「shots now ricochet to
+  1 nearby enemy per shot」）。
+- 中文名：weapons_stats.json 的 zh（DE 官方简中），形态名 = 「<原型> (灵化形态)」。
 
-join 方式：incarnon 文件没有 internal_name，通过 transforms_from → 基础形态
-文件 → internal_name（DE uniqueName）→ 我们 weapons_stats.json 的 key
-（小写 uniqueName）。
+属性是灵化形态的基础面板，不含灵化进化 perk（各人选择不同，识卡侧从面板反推吸收）。
+key = 原型的小写 uniqueName（= weapons_stats.json 的键）。只收枪械（近战灵化计算器尚未建模）。
 
-许可说明：只取事实数值（伤害向量/暴击/触发/射速），按我们自己的 schema
-重录；zh 名取自 wfsim i18n/zh（其注明来源为 DE 官方客户端字符串，与我们
-「DE 官方简中」的译名约定一致）。不搬运其 YAML 表达。
+用法：python scripts/build_incarnon_forms.py --wiki <wiki 页面目录> [--out 路径]
 """
 
+from __future__ import annotations
+
+import argparse
 import json
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-# 范围段口径与 weapon_attacks 同源：暴击/触发缺省继承直击段、只信有出处的「不吃多重」
-from build_weapon_attacks import part_stat, sourced_no_multishot, wfsim_commit  # noqa: E402
-
-try:
-    import yaml
-except ImportError:  # noqa: BLE001 —— 插件运行本身不需要 yaml，只有这几个
-    raise SystemExit(  # 数据构建脚本要；给可操作的提示而不是裸 ImportError
-        "本脚本需要 PyYAML：pip install pyyaml（插件运行时并不依赖它，仅构建数据用）"
-    )
-
-WFSIM = Path.home() / "tmp" / "wfsim" / "data"
-OUT = ROOT / "core" / "data" / "incarnon_forms.json"
-# 用法：python scripts/build_incarnon_forms.py [wfsim 仓库根或其 data 目录] [输出路径]
-if len(sys.argv) > 1:
-    _w = Path(sys.argv[1])
-    WFSIM = _w if (_w / "weapons").is_dir() else _w / "data"
-if len(sys.argv) > 2:
-    OUT = Path(sys.argv[2])
-
-DAMAGE_KEYS = (
-    "impact",
-    "puncture",
-    "slash",
-    "heat",
-    "cold",
-    "electricity",
-    "toxin",
-    "blast",
-    "radiation",
-    "gas",
-    "magnetic",
-    "viral",
-    "corrosive",
-    "void",
-    "true",
+from _wiki_weapons import catalog_by_weapon, catalog_rows, damage, load_weapons  # noqa: E402
+from build_weapon_attacks import (  # noqa: E402
+    GUN_SLOTS,
+    apply_catalog,
+    base_name,
+    entry_key,
+    pick_incarnon,
+    procs,
+    segments_of,
+    split_attacks,
 )
 
+ROOT = Path(__file__).resolve().parent.parent
+OUT = ROOT / "core" / "data" / "incarnon_forms.json"
+WS = ROOT / "core" / "data" / "weapons_stats.json"
+SWITCH_SECONDS = 1.0
+RICOCHET = {"Dual Toxocyst": {"bounces": 1}}
+# 数据模块没写 IncarnonCharges 的：取该武器 Incarnon Genesis 页原文
+CHARGES_FROM_PAGE = {
+    "Miter": 20,  # 「Miter Incarnon Genesis」：each charge producing 5 rounds to a maximum of 20
+    "Stug": 120,  # 「Stug Incarnon Genesis」：each charge producing 4 rounds to a maximum of 120
+}
 
-def load_yaml(p: Path):
-    with p.open(encoding="utf-8") as f:
-        return yaml.safe_load(f)
+
+def build(wiki_dir: Path, ws_all: dict) -> tuple[dict, list[str]]:
+    W = load_weapons(wiki_dir)
+    catalog = catalog_by_weapon(catalog_rows(wiki_dir))
+    out: dict = {}
+    report: list[str] = []
+    for wname, e in sorted(W.items()):
+        if e.get("Slot") not in GUN_SLOTS:
+            continue
+        if e.get("Slot") == "Archgun" and f"{wname} (Atmosphere)" in W:
+            continue
+        roots = split_attacks(e)
+        a = pick_incarnon(roots)
+        if a is None:
+            continue
+        key = entry_key(wname, e)
+        ws = ws_all.get(key) or {}
+        if not ws:
+            report.append(f"{wname}：计算器（weapons_stats）无此武器，跳过")
+            continue
+        segs_of = {id(r): segments_of(r, wname, report) for r in roots}
+        apply_catalog(wname, roots, roots[0], segs_of, catalog.get(base_name(wname), []), report)
+        dmg = damage(a)
+        if not dmg.get("total"):
+            report.append(f"{wname}：灵化攻击「{a.get('AttackName')}」无伤害，跳过")
+            continue
+        bname = base_name(wname)
+        zh = str(ws.get("zh") or "")
+        rec: dict = {
+            "form_name": f"{bname} (Incarnon Form)",
+            "form_zh": f"{zh} (灵化形态)" if zh else "",
+            "base_name": bname,
+            "base_zh": zh,
+            "attack": a.get("AttackName"),
+            "damage": dmg,
+            "criticalChance": float(a.get("CritChance") or 0.0),
+            "criticalMultiplier": float(a.get("CritMultiplier") or 1.0),
+            "procChance": float(a.get("StatusChance") or 0.0),
+            "fireRate": float(a.get("FireRate") or 0.0),
+            "multishot": float(a.get("Multishot") or 1.0),
+        }
+        rad = next((s for s in segs_of[id(a)] if s["id"] == "radial"), None)
+        if rad:
+            rec["radial"] = {
+                k: v for k, v in rad.items() if k not in ("id", "name", "falloff_start_m")
+            }
+        if procs(a):
+            rec["forced_procs"] = procs(a)
+        if int(a.get("BurstCount") or 0) > 1:
+            rec["burst"] = {
+                "count": int(a["BurstCount"]),
+                "delay_seconds": float(a.get("BurstDelay") or 0.0),
+            }
+        if a.get("ChargeTime"):
+            rec["charge_seconds"] = float(a["ChargeTime"])
+        charges = a.get("IncarnonCharges") or CHARGES_FROM_PAGE.get(bname)
+        reload_s = e.get("Reload")
+        if charges and reload_s:
+            rec["pseudo_reload"] = {
+                "magazine": float(charges),
+                "reload_seconds": round(float(reload_s) + SWITCH_SECONDS, 4),
+            }
+        else:
+            report.append(
+                f"{wname}：wiki 无 IncarnonCharges / Reload，灵化弹池不写（沿用原型弹匣）"
+            )
+        if bname in RICOCHET:
+            rec["ricochet"] = dict(RICOCHET[bname])
+        out[key] = rec
+    return out, report
 
 
-def main():
-    names = load_yaml(WFSIM / "i18n" / "zh" / "names.yaml").get("weapons") or {}
+def main(argv: list[str]) -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--wiki", required=True, type=Path)
+    ap.add_argument("--out", type=Path, default=OUT)
+    ap.add_argument("--report", type=Path)
+    args = ap.parse_args(argv[1:])
+    recs, report = build(args.wiki, json.loads(WS.read_text(encoding="utf-8")))
     out = {
         "_meta": {
-            "source": "github.com/magenie33/wfsim data/weapons/*（form: incarnon），"
-            "数值为其按 wiki/实测整理的事实数据；zh 名为 DE 官方简中",
-            "wfsim_commit": wfsim_commit(WFSIM),
+            "source": "英文 wiki Module:Weapons/data（原型条目里的 Incarnon 攻击）+ Condition Overload (Mechanic) "
+            "Attack Catalog，CC BY-NC-SA 3.0；中文名为 DE 官方简中（weapons_stats.json）",
+            "wiki_snapshot": args.wiki.name,
             "generator": "scripts/build_incarnon_forms.py",
-            "scope": "枪械灵化（近战灵化 wfsim 尚未导入）；attack 块不含灵化进化 perk",
-            "radial": "暴击/触发缺省继承直击段（wfsim panel.rs:268-271）；takes_multishot 只写"
-            "有出处的 false（缺省 = 吃多重，attack.rs:713-731）；takes_condition_overload 只写 true",
+            "scope": "枪械灵化（近战灵化计算器尚未建模）；不含灵化进化 perk",
+            "pseudo_reload": f"magazine = wiki IncarnonCharges；reload_seconds = 原型装填 + {SWITCH_SECONDS:g} s"
+            "（我方建模约定：打空弹池后切回原型装填再切灵化算一次循环，变形按 1 s 估）",
+            "radial": "暴击/触发取 wiki 该范围子攻击；takes_multishot 只写有出处的 false；takes_condition_overload 按 CO 页",
         }
     }
-    n_ok = 0
-    for cat in ("primary", "secondary", "sentinel", "archgun"):
-        for p in sorted((WFSIM / "weapons" / cat).glob("*.yaml")):
-            y = load_yaml(p)
-            if not isinstance(y, dict) or y.get("form") != "incarnon":
-                continue
-            atk = y.get("attack") or {}
-            dmg = {k: float(atk.get("damage", {}).get(k) or 0.0) for k in DAMAGE_KEYS}
-            dmg = {k: v for k, v in dmg.items() if v}
-            total = sum(dmg.values())
-            if total <= 0:
-                continue
-            dmg["total"] = round(total, 4)
-
-            # join 基础形态 → internal_name → 我们 weapons_stats 的 key
-            base_id = y.get("transforms_from") or ((y.get("transform_group") or "").split(".")[0])
-            base_path = WFSIM / "weapons" / cat / f"{base_id}.yaml"
-            internal = ""
-            base_name = base_zh = ""
-            if base_path.exists():
-                b = load_yaml(base_path)
-                internal = str(b.get("internal_name") or "").lower()
-                base_name = str(b.get("name") or "")
-                base_zh = str(names.get(base_id) or "")
-            if not internal:
-                print(f"  !! 无 internal_name，跳过: {p.name}")
-                continue
-
-            out[internal] = {
-                "form_id": y.get("id"),
-                "form_name": y.get("name"),
-                "form_zh": names.get(y.get("id")) or "",
-                "base_name": base_name,
-                "base_zh": base_zh,
-                "slot": y.get("slot"),
-                "class": y.get("class"),
-                "damage": dmg,
-                "criticalChance": float(atk.get("crit_chance") or 0.0),
-                "criticalMultiplier": float(atk.get("crit_multiplier") or 1.0),
-                "procChance": float(atk.get("status_chance") or 0.0),
-                "fireRate": float(atk.get("fire_rate") or 0.0),
-                "multishot": float(atk.get("multishot") or 1.0),
-            }
-            # 范围（AoE）段：灵化形态的第二段伤害（与直击并列结算）
-            rad = atk.get("radial")
-            if isinstance(rad, dict) and rad.get("damage"):
-                r_dmg = {k: float(rad["damage"].get(k) or 0.0) for k in DAMAGE_KEYS}
-                r_dmg = {k: v for k, v in r_dmg.items() if v}
-                if r_dmg:
-                    r_out = {
-                        "damage": {**r_dmg, "total": round(sum(r_dmg.values()), 4)},
-                        "criticalChance": part_stat(rad, atk, "crit_chance", 0.0),
-                        "criticalMultiplier": part_stat(rad, atk, "crit_multiplier", 1.0),
-                        "procChance": part_stat(rad, atk, "status_chance", 0.0),
-                        "radius_m": float(rad.get("radius_m") or 0.0),
-                        "falloff_reduction": float(rad.get("falloff_reduction") or 0.0),
-                    }
-                    if sourced_no_multishot(rad, str(y.get("id") or "")):
-                        r_out["takes_multishot"] = False
-                    if rad.get("takes_condition_overload") is True:
-                        r_out["takes_condition_overload"] = True
-                    out[internal]["radial"] = r_out
-            if atk.get("forced_procs"):
-                out[internal]["forced_procs"] = [str(x) for x in atk["forced_procs"]]
-            # 射击节奏（b6 批）：点射灵化（Sicarus / Sybaris / Vasto 系）的 fire_rate 是每秒点射次数；
-            # 蓄力灵化（Paris / Dread 弓系、Ballistica 系、Zylok 系）付蓄力时间。计算器按 wiki
-            # Fire Rate 换算有效射速（wfsim model/weapon.rs:490-500、fight/melee.rs:530-540）
-            if isinstance(atk.get("burst"), dict):
-                out[internal]["burst"] = {
-                    "count": int(atk["burst"]["count"]),
-                    "delay_seconds": float(atk["burst"].get("delay_seconds") or 0.0),
-                }
-            if atk.get("charge_seconds"):
-                out[internal]["charge_seconds"] = float(atk["charge_seconds"])
-            # 灵化弹池（能量槽供能，非弹匣）：wfsim engine/src/data/weapons/panel.rs:197-200
-            # 「the locked-gauge pseudo-reload supplies the sim's magazine/reload」——
-            # 持续 DPS 的弹匣 / 装填循环要用它，而不是原型的 magazineSize / reloadTime
-            pr = y.get("pseudo_reload")
-            if isinstance(pr, dict) and pr.get("magazine") and pr.get("reload_seconds"):
-                out[internal]["pseudo_reload"] = {
-                    "magazine": float(pr["magazine"]),
-                    "reload_seconds": float(pr["reload_seconds"]),
-                }
-            rc = atk.get("ricochet")
-            if isinstance(rc, dict) and rc.get("bounces"):
-                out[internal]["ricochet"] = {
-                    "bounces": int(rc.get("bounces") or 0),
-                    "headshot_chance": float(rc.get("headshot_chance") or 0.0),
-                }
-            n_ok += 1
-
-    OUT.write_text(json.dumps(out, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
-    print(f"✓ 写入 {OUT.name}: {n_ok} 个灵化形态")
-    # 抽查
-    for k in ("/lotus/weapons/tenno/rifle/rifle",):
-        if k in out:
-            e = out[k]
-            print(
-                "  抽查",
-                k,
-                "→",
-                e["base_zh"],
-                e["damage"],
-                "cc",
-                e["criticalChance"],
-                "cm",
-                e["criticalMultiplier"],
-            )
-    missing_zh = sum(1 for k, v in out.items() if k != "_meta" and not v["base_zh"])
-    print(f"  缺 zh 名: {missing_zh}")
+    out.update(dict(sorted(recs.items())))
+    args.out.write_text(json.dumps(out, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    if args.report:
+        args.report.write_text("\n".join(report) + "\n", encoding="utf-8")
+    print(f"✓ {args.out.name}: {len(recs)} 个灵化形态；提示 {len(report)} 条")
+    return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(sys.argv))

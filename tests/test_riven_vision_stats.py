@@ -1465,6 +1465,26 @@ check(
     RA._strip_name("12.5秒 连击持续时间"),
 )
 
+# ★ 2026-10-25（Astra 评估 S5）：多图消息第一张合格就停，不再把每张都下载转换
+_conv = {"n": 0}
+
+
+class Image:  # 名字必须是 Image（_image_data_urls 按类型名认图片组件）
+    async def convert_to_base64(self):
+        _conv["n"] += 1
+        return "QUFB"
+
+
+_obj_img = plugin.WarframeSDJK.__new__(plugin.WarframeSDJK)
+_obj_img._image_pixels_ok = lambda _b64: True
+_ev_img = type(
+    "E", (), {"message_obj": type("M", (), {"message": [Image() for _ in range(5)]})()}
+)()
+_urls = asyncio.run(_obj_img._image_data_urls(_ev_img))
+check(
+    "★ 5 张图只转换 1 次、只返回 1 张", _conv["n"] == 1 and len(_urls) == 1, f"{_conv} {len(_urls)}"
+)
+
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")
     sys.exit(1)

@@ -430,19 +430,25 @@ for _name, _rep, _n in (("信条", _reply_t, 5), ("终幕", _reply_c, 7)):
 #   Ferrox Cold→Electricity(电击)、Grigori Heat→Impact(冲击)、
 #   Exec Magnetic→Toxin(毒素)、Agendus Magnetic→Radiation(辐射)；Livia Impact 未变。
 #   故本段元素按**游戏内实拍**为准（wiki 修好后可回归 wiki 源）。
-# ★ 2026-10-22 换轮（wiki Tenet_Weapons revid 2820686，2026-10-22T00:40:26Z，经用户实拍核对）：
-#   五把全重掷 —— Ferrox Electricity 30.8、Exec Magnetic 28.8；种子由 fetch_valence 写回并同步
-#   valence_values_since = 该次修订时刻（不再出现「数值新、时刻旧」）。
+# ★ 2026-10-26 换轮（wiki Tenet_Weapons revid 2821771，2026-10-26T00:57:45Z，
+#   经用户实拍核对）：五把全重掷 —— Ferrox Radiation 38.4、Exec Radiation 43.9；
+#   种子由 fetch_valence 写回并同步 valence_values_since = 该次修订时刻。
+#   （上一轮 10-22 的值是 Ferrox Electricity 30.8、Exec Magnetic 28.8，已随换轮作废。）
 _tmap = {i["en"]: (i.get("element"), i.get("bonus")) for i in _tenet_items}
 check(
-    "信条·铁晶磁轨炮 = 电击 30.8%（10-22 轮）",
-    _tmap.get("Tenet Ferrox") == ("Electricity", 30.8),
+    "信条·铁晶磁轨炮 = 辐射 38.4%（10-26 轮）",
+    _tmap.get("Tenet Ferrox") == ("Radiation", 38.4),
     str(_tmap.get("Tenet Ferrox")),
 )
 check(
-    "信条·枢密 = 磁力 28.8%（10-22 轮）",
-    _tmap.get("Tenet Exec") == ("Magnetic", 28.8),
+    "信条·枢密 = 辐射 43.9%（10-26 轮）",
+    _tmap.get("Tenet Exec") == ("Radiation", 43.9),
     str(_tmap.get("Tenet Exec")),
+)
+check(
+    "信条·莉薇娅 = 辐射 25.0%（10-26 轮，恰好 25 的边界）",
+    _tmap.get("Tenet Livia") == ("Radiation", 25.0),
+    str(_tmap.get("Tenet Livia")),
 )
 _cmap = {i["en"]: (i.get("element"), i.get("bonus")) for i in _cur_batch}
 # 终幕按批次抽查：★ 每次终幕换批后，本表的当前批抽查值必须同步（A/B 两批的值都随

@@ -122,27 +122,37 @@ check("★ 近战不含弹匣 / 变焦 / 穿透", not ({"magazine_capacity", "zo
 check("近战正面含攻速（近战专属）", "attack_speed" in mpos)
 check("近战不含射速（那是枪的词条）", "fire_rate" not in mpos)
 
-# 逐家族证据压过推导：Ocucor 是即时命中但证据说能出弹道速度
+# 2026-10-25 起按 DE 规则（不再用 wfsim 逐家族证据）：
+#   弹道速度看 PROJECTILE 兼容标签；物理三项按占比 ≤25% 删，我方抽样见过的照列。
 opos, oneg, _ = avail("pistol", "CrpSentExperimentPistol", ["Ocucor"])
-check("★ Ocucor 能出弹道速度（证据 rolls 压过推导）", "projectile_speed" in opos)
+check("★ Ocucor 能出弹道速度（DE 兼容标签含 PROJECTILE）", "projectile_speed" in opos)
+# 已知反例（wiki：Ocucor 0% 切割也能出）：规则会删；2026-10-26 物理抽样（ZCode，n=100，三项都见过）
+# 纠正 ⇒ 实证压过规则，三项照列
 check(
-    "★ Ocucor 能出三物理（占比 0% 也照出）",
+    "Ocucor 物理三项占比 0%，规则会删，但我方抽样见过 ⇒ 照列（实证压过规则）",
     {"impact_damage", "puncture_damage", "slash_damage"} <= opos,
 )
 
-# 证据说刷不出：Boar 有伤害衰减（推导放行）但抽样 500 条里没有 ⇒ 排除
-bpos, bneg, _ = avail("shotgun", "FullAutoShotgun", ["Boar", "Boar Prime"])
-check("★ Boar 刷不出弹道速度（证据 never 压过推导）", "projectile_speed" not in bpos)
-check("★ Boar 刷不出变焦（证据 never，且霰弹池有变焦）", "zoom" not in bpos)
+bpos, bneg, bunc = avail("shotgun", "FullAutoShotgun", ["Boar", "Boar Prime"])
+check("★ Boar 不出弹道速度（DE 兼容标签无 PROJECTILE）", "projectile_speed" not in bpos)
+check("★ Boar 能出变焦（44.0.3 起霰弹枪可出，DE 官方模板已含）", "zoom" in bpos and "zoom" in bneg)
 
-# Phenmor：物理证据 never 冲击/穿刺
 ppos, _, _ = avail("rifle", "ZarimanSemiAutoRifle", ["Phenmor"])
-check("★ Phenmor 刷不出冲击 / 穿刺", not ({"impact_damage", "puncture_damage"} & ppos))
+check("★ Phenmor 不出冲击（占比 ≤25%）", "impact_damage" not in ppos)
 check("Phenmor 能出切割（占比 80.9%）", "slash_damage" in ppos)
 
-# 物理未确认：规则会拒绝、证据没表态 ⇒ 列出并标「?」
-_q = RP.unconfirmed_for("shotgun", "FullAutoShotgun", ["Boar", "Boar Prime"])
-check("未确认集合是物理三词条的子集", _q <= set(RP.PHYSICAL_STATS), str(_q))
+# 守护武器按 DE NotSentinel：守护近战不出连击类 / 滑行暴击 / 处决伤害
+_spos, _, _ = avail("melee", "SentGlaiveWeapon", ["Deconstructor", "Deconstructor Prime"])
+if _spos:
+    check(
+        "★ 守护近战（Deconstructor）不出连击时间 / 滑暴 / 处决伤（DE NotSentinel）",
+        not ({"combo_duration", "slide_crit", "finisher_damage"} & set(_spos)),
+        str(sorted(_spos)),
+    )
+check(
+    "未确认集合只剩抽样项（物理按规则直接删）",
+    RP.unconfirmed_for("shotgun", "FullAutoShotgun", []) == set(),
+)
 
 # ---------------------------------------------------------------------------
 # ③ 正负限制：以 DE 的 Public Export（wfsim 池文件即由它生成）为准
@@ -381,11 +391,11 @@ if _sv_path.exists():
     _local = [k for k, v in _pf.items() if (v.get("survey") or {}).get("source") == "local"]
     check("证据表里本地抽样已合并（source=local）", len(_local) >= 20, str(len(_local)))
     # 每个合并进来的家族都要能在覆盖层里找到同名抽样（防串家族）
-    _bywf = {v.get("wf"): k for k, v in _pf.items()}
     _miss = [
-        v["wf"]
+        (v.get("survey") or {}).get("family")
         for v in _pf.values()
-        if (v.get("survey") or {}).get("source") == "local" and v.get("wf") not in _fams
+        if (v.get("survey") or {}).get("source") == "local"
+        and (v.get("survey") or {}).get("family") not in _fams
     ]
     check("本地抽样的家族名与覆盖层一一对应", not _miss, str(_miss))
 
@@ -401,7 +411,15 @@ if _sv_path.exists():
         _dpos, _ = RP.available(
             "melee", "TnGuandaoPolearmWeapon", ["Guandao", "Guandao Prime"], positive=True
         )
-        check("★ 抽样说 Guandao 穿刺刷不出 ⇒ 正面表里没有它", "puncture_damage" not in _dpos)
+        # 2026-10-25 改口径（Astra 评估）：挂单抽样「没见过」≠ 刷不出 ⇒ 列出并标「?」
+        _dpos2, _dunc = RP.available(
+            "melee", "TnGuandaoPolearmWeapon", ["Guandao", "Guandao Prime"], positive=True
+        )
+        # 2026-10-25 物理按规则删：Guandao 穿刺占比 ≤25%，抽样也没见过 ⇒ 规则与实证一致，不列
+        check(
+            "Guandao 穿刺：规则（≤25%）与抽样（没见过）一致 ⇒ 不列",
+            "puncture_damage" not in _dpos2,
+        )
 
 # ---------------------------------------------------------------------------
 # ⑥ 数据表完整性 + 出图不溢出
@@ -417,7 +435,8 @@ check(
     str(len(pools.get("families") or {})),
 )
 check(
-    "词条池表：冰凇有证据（物理 never）", "SentinelFreezeRayRifle" in (pools.get("families") or {})
+    "词条池表：冰凇有家族属性（守护武器）",
+    (pools.get("families") or {}).get("SentinelFreezeRayRifle", {}).get("sentinel") is True,
 )
 check(
     "词条池表：融合词条标记存在",
@@ -680,8 +699,101 @@ check(
     "融合卡：三段齐、融合词条名染紫、原词条名显式白（绕开元素语义色）",
     any(x.startswith("◆ 通用") for x in _l_sp)
     and any(x.startswith("◆ 近战") for x in _l_sp)
-    and "· ⟦v⟧毒气⟦/v⟧　⟦w⟧毒伤⟦/w⟧　⟦w⟧火伤⟦/w⟧" in _l_sp,
+    and "· ⟦v⟧毒气伤害⟦/v⟧　⟦w⟧毒素伤害⟦/w⟧　⟦w⟧火焰伤害⟦/w⟧" in _l_sp,
     str(_l_sp[:4]),
+)
+
+
+# ---------------------------------------------------------------------------
+# 2026-10-25 对照游戏数据包（riven-roll 导出）：近战融合池补 9 个、派系乘数显示舍入容差
+# ---------------------------------------------------------------------------
+_mp = RP.class_pool("melee")
+check(
+    "★ 近战职业池含 9 个融合词条（毒气/腐蚀/病毒/辐射/爆炸/磁力/O/S/T），且只出正面",
+    all(
+        (_mp.get(s) or {}).get("spliced") and (_mp.get(s) or {}).get("malus") is False
+        for s in (
+            "gas_damage",
+            "viral_damage",
+            "magnetic_damage",
+            "damage_vs_orokin",
+            "damage_vs_techrot",
+        )
+    ),
+)
+_pos_m, _ = RP.available("melee", "", [], positive=True)
+_neg_m, _ = RP.available("melee", "", [], positive=False)
+check(
+    "近战可列正面含毒气 / O伤；负面不含",
+    "gas_damage" in _pos_m and "damage_vs_orokin" in _pos_m and "gas_damage" not in _neg_m,
+)
+check(
+    "★ 派系乘数卡面 x1.56（3正1负 上限 55.69%）不再误判不吻合；x1.58 仍不吻合",
+    RA.disp_feasible([("damage_vs_grineer", 56.0)], [], "rifle", 1.2, counts=(3, 1))
+    and not RA.disp_feasible([("damage_vs_grineer", 58.0)], [], "rifle", 1.2, counts=(3, 1)),
+)
+
+check(
+    "★ 近战「近战伤害」不出负面、枪械「基伤」仍可负（数据包 + WM 抽样 10-25）",
+    "melee_damage" not in RP.available("melee", "", [], positive=False)[0]
+    and "melee_damage" in RP.available("rifle", "", [], positive=False)[0],
+)
+
+# 2026-10-25 用户：「基础伤害有个『近战伤害』」「最好按卡面全称」—— 同一词条 id 按段写卡面全称
+check(
+    "★ 融合卡「伤害」分写：通用段「伤害 / 近战伤害」、枪械段「伤害」、近战段「近战伤害」",
+    "· ⟦v⟧异常状态伤害⟦/v⟧　⟦w⟧伤害 / 近战伤害⟦/w⟧　⟦w⟧触发几率⟦/w⟧" in _l_sp
+    and "· ⟦v⟧弱点伤害⟦/v⟧　⟦w⟧伤害⟦/w⟧　⟦w⟧变焦⟦/w⟧" in _l_sp
+    and "· ⟦v⟧震地攻击伤害⟦/v⟧　⟦w⟧近战伤害⟦/w⟧　⟦w⟧攻击速度⟦/w⟧" in _l_sp,
+    str(_l_sp),
+)
+_t_m, _l_m = F.fmt_riven_splice(RA.splice_recipes("melee"), scope="近战", cls="melee")
+check(
+    "按近战筛选：通用段的异常状态伤害也写「近战伤害」",
+    "· ⟦v⟧异常状态伤害⟦/v⟧　⟦w⟧近战伤害⟦/w⟧　⟦w⟧触发几率⟦/w⟧" in _l_m,
+    str(_l_m),
+)
+
+# 2026-10-25 招架角度定案 81（wiki 现行 Spliced Values 81% + 游戏数据包），卡面不带 %
+_pa = RA.stat_range("melee_parry_angle", "melee", 1.2, 3, 1)
+check(
+    "★ 招架角度基值 81：3正1负 区间 82.01~100.24，显示不带 %",
+    _pa == (82.01, 100.24) and RA.fmt_value("melee_parry_angle", 91.1) == "91.1",
+    f"{_pa} {RA.fmt_value('melee_parry_angle', 91.1)}",
+)
+
+# 2026-10-25（Astra 评估）：抽样没见过的词条 ⇒ 卡面注脚写明抽样时间与样本量
+_t_b, _l_b = F.fmt_riven_ranges(
+    "测试",
+    "shotgun",
+    (3, 1),
+    ["zoom", "multishot"],
+    [],
+    [],
+    {"zoom"},
+    survey={"unseen": {"zoom"}, "surveyed": "2026-10-23", "n": 100},
+)
+check(
+    "★ 抽样没见过 ⇒ 注脚写明抽样日期与条数",
+    any("变焦" in x and "2026-10-23" in x and "100 条" in x for x in _l_b),
+    str([x for x in _l_b if x.startswith("※")]),
+)
+
+# 2026-10-26（P1 部署实测）：**家族表里还没有的新武器**也必须查得到抽样证据 ——
+#   `matching.family_key` 对未知武器名返回**小写**（`aksondol`），而生成器按
+#   `name:<原大小写>` 存键（`name:Aksondol`）⇒ 精确查键落空、抽样注脚静默消失。
+#   这条钉住「大小写无关」的兜底（否则 Aksondol / Nunchasa 的实证纠偏整层失效）。
+_entry = RP.family_entry("aksondol")
+check(
+    "★ 新武器抽样证据可查（小写根 → name:Aksondol）",
+    bool(_entry.get("survey")),
+    str(_entry)[:140],
+)
+_unseen_new, _sv_new = RP.survey_unseen("aksondol")
+check(
+    "★ 新武器抽样「没见过」集合非空（实证层真的接上了）",
+    bool(_unseen_new) and bool(_sv_new.get("surveyed")),
+    f"unseen={sorted(_unseen_new)} sv={_sv_new}",
 )
 
 print("ALL PASS")

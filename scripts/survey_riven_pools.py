@@ -7,7 +7,8 @@
     python scripts/survey_riven_pools.py --hot --limit 3  # 先小样试跑
     python scripts/survey_riven_pools.py --hot --write    # 写 core/data/de/riven_pools_survey.json
 
-★ 方法学照搬 wfsim `scripts/survey_riven_pools.py`（它踩过的坑写在那里，别重犯）：
+★ 方法学参考 wfsim `scripts/survey_riven_pools.py` 记下的经验（独立实现、未拷代码：2026-10-26
+  逐行比对，重合只有标准库导入、WM 公开端点、WM 词条 slug 和下面两个判据阈值）：
   ① **逐词条带过滤查**，不要「拉一页家族挂单再数」—— 端点有返回条数上限且**按排序截断**
      （实测单次上限 100 条），拉一页拿到的是「最便宜的 100 张」，不是抽样。带
      `positive_stats=` / `negative_stats=` 的过滤在**服务端对全量挂单**执行，才是计数。
@@ -125,7 +126,10 @@ NEVER_BELOW = 0.05
 PHYSICAL_STATS = ("impact_damage", "puncture_damage", "slash_damage")
 PAGE_CAP = 100  # 端点单页返回上限（实测）：取满这一页说明家族挂单更多，页内不能当抽样
 MIN_SAMPLE = 50  # 判「刷不出」的最低在售样本数（指令 2026-10-23 口径）
-SLEEP = 6.0  # 秒/请求（≈0.17 req/s）—— 实测 2.5s 仍频繁 429，WM 的窗口比标称的严
+# 秒/请求。2026-10-25 ZCode 服务器实测 /auctions/search：约 90 s 窗口只给 8 次，+90 s 才恢复
+#   ⇒ 15 s 一次（每窗口约 6 次）；原 6 s 会在第 9 次起持续 429。429 后退避见 _BACKOFF。
+SLEEP = 15.0
+_BACKOFF = (100, 120, 150)  # 第 1/2/3 次重试前等待（秒），长于实测恢复窗口
 TRIES = 5
 
 
@@ -144,7 +148,7 @@ def _count(slug: str, extra: str = "", tries: int | None = None) -> tuple[int | 
                 return None, err
         except Exception as e:  # noqa: BLE001 - 429/超时是常态
             err = str(e)[:60]
-        time.sleep(12 + 10 * attempt)  # 429 是常态，退避要够长（最长 ~52s）
+        time.sleep(_BACKOFF[min(attempt, len(_BACKOFF) - 1)])  # 429 退避要长于恢复窗口
     return None, err
 
 
@@ -230,7 +234,7 @@ def _page(slug: str) -> tuple[list | None, str]:
                 return None, err
         except Exception as e:  # noqa: BLE001
             err = str(e)[:60]
-        time.sleep(12 + 10 * attempt)
+        time.sleep(_BACKOFF[min(attempt, len(_BACKOFF) - 1)])
     return None, err
 
 

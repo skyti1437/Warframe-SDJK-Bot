@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""wfsim 对照 A 批回归（python3 tests/test_wfsim_a_batch.py）
+"""伤害计算对照复核 A 批回归（python3 tests/test_damage_review_a.py；2026-10-26 前名 test_wfsim_a_batch.py）
 
 出处：研究仓 docs/wfsim-伤害计算对照-20261009.md §5.3 / §4.2-3 / §5.2 / §7.3
 （wfsim github.com/magenie33/wfsim @8f3e6a5，只读核对）。三项都是**确定的高估**：
@@ -88,16 +88,20 @@ check(
 )
 
 _w, _r = calc("Kuva Ayanga")
+# 2026-10-26：Kuva Ayanga 条目改由 build_weapons_supplement 按 wiki 生成，attacks 首条为主段真名
+# 「Grenade Impact」（与主段同签名 ⇒ 只展示、不计入），故按「计入合计的段只有一个」断言
+_in = [m for m in _r["modes"] if m.get("in_total")]
 check(
-    "Kuva Ayanga：attacks 段带 total 键也能与 wfsim 段同签名去重（82.8 只算一次）",
-    len(_r["modes"]) == 1 and _r["segments_total"]["n_segments"] == 1,
-    str([(m["name"], round(m["health"], 1)) for m in _r["modes"]]),
+    "Kuva Ayanga：attacks 段带 total 键也能与结构化段同签名去重（爆炸 82.8 只算一次）",
+    len(_in) == 1
+    and _r["segments_total"]["n_segments"] == 1
+    and all(m.get("same_as_main") for m in _r["modes"] if not m.get("in_total")),
+    str([(m["name"], round(m["health"], 1), m.get("in_total")) for m in _r["modes"]]),
 )
 check(
-    "Kuva Ayanga：去重后保留段补上 wfsim 的衰减与半径",
-    (_r["modes"][0].get("falloff") or {}).get("reduction") == 0.5
-    and _r["modes"][0].get("radius_m"),
-    str(_r["modes"][0].get("falloff")),
+    "Kuva Ayanga：去重后保留段带上衰减与半径",
+    (_in[0].get("falloff") or {}).get("reduction") == 0.5 and _in[0].get("radius_m"),
+    str(_in[0].get("falloff")),
 )
 check(
     "签名函数剔除 total 与非伤害类型",

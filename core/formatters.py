@@ -3921,9 +3921,20 @@ def _rank_sort_key(r: dict) -> float:
     return r.get("median48") or 0
 
 
+# 价格排行入榜的最低 48h 成交笔数（2026-10-25 用户：MOD 榜首「均衡点 (Steam Pinnacle Pack)」1600p
+# 只有零星成交，疑似 RMT 过账价）—— 冷门物品一两笔离谱成交不代表行情，不进榜
+RANK_MIN_VOL48 = 3
+RANK_MIN_VOL_NOTE = (
+    f"※ 48 小时成交不足 {RANK_MIN_VOL48} 笔的物品不进榜（防冷门物品的刷单 / RMT 过账价把榜单带偏）"
+)
+
+
 def _rank_has_price(r: dict) -> bool:
-    """无当前价（48h）的行不进榜（落盘层已滤，这里兜底）。"""
-    return bool(r.get("median48"))
+    """无当前价（48h）的行不进榜（落盘层已滤，这里兜底）；成交笔数不足的也不进榜。"""
+    if not r.get("median48"):
+        return False
+    vol = r.get("vol48")
+    return vol is None or vol >= RANK_MIN_VOL48
 
 
 def fmt_rank_overview(rows: list[dict]) -> tuple[str, list[str]]:
@@ -3977,6 +3988,7 @@ def fmt_rank_overview(rows: list[dict]) -> tuple[str, list[str]]:
     )
     lines.append("※ 按当前价降序；最低/最高=48h 成交区间；上期中位=前一 48 小时成交中位")
     lines.append("※ 完整 20 名榜单：「排行 甲/武器/卡/赋能/部件/主武/副武/近战/遗物」")
+    lines.append(RANK_MIN_VOL_NOTE)
     return ("价格排行榜", lines)
 
 
@@ -4017,6 +4029,7 @@ def fmt_rank_table(category: str, rows: list[dict]) -> tuple[str, list[str]]:
     lines.append(
         "※ 当前价=48h 成交中位（真实成交·非挂单价）　上期中位=前一 48 小时；MOD 卡按 0 级成交计"
     )
+    lines.append(RANK_MIN_VOL_NOTE)
     return (f"{category}价格排行", lines)
 
 
@@ -4377,6 +4390,7 @@ def fmt_riven_ranges(
     *,
     only: Optional[list[str]] = None,
     dropped: Optional[list[str]] = None,
+    survey: Optional[dict] = None,
 ) -> tuple[str, list[str]]:
     """「词条范围」卡：按武器列出紫卡每条词条在**四种组合**下的卡面取值区间。
 
@@ -4460,8 +4474,18 @@ def fmt_riven_ranges(
         lines.append(f"※ ⚠ 这些词条该武器刷不出，已略去：{'、'.join(dropped)}")
     if spliced:
         lines.append("※ 融合词条同一张卡最多 1 项（Update 44 Riven Splicer）")
-    if unconfirmed:
-        lines.append("※ 带 ? 的是物理伤害词条：占比低于 25% 但家族证据未表态，按「未确认」照列")
+    _shown = set(pos) | set(spliced) | set(neg)
+    _unseen = set((survey or {}).get("unseen") or ()) & _shown
+    if (unconfirmed - _unseen) & _shown:
+        lines.append("※ 带 ? 的物理伤害词条：占比低于 25% 但家族证据未表态，按「未确认」照列")
+    if _unseen:
+        # ★ 2026-10-25（Astra 评估）：抽样没见过 ≠ 刷不出 —— 标 ? 照列并写明样本时间
+        lines.append(
+            "※ 带 ? 的 "
+            + " / ".join(RIVEN_STAT_ZH.get(x, x) for x in sorted(_unseen))
+            + f"：warframe.market 挂单抽样（{survey.get('surveyed') or '时间未知'}，"
+            f"{survey.get('n') or '?'} 条）里没见过，可能只是样本里没有或样本早于热修，按「未确认」照列"
+        )
     # 图例（一行，替代原来的「切换组合」长句）：四种组合都在表里，不必再点名；
     # 每个组合名染各自组合色（与表头/数据格同一套字母）。
     lines.append(
@@ -4595,38 +4619,91 @@ _SPLICE_CLASS_ZH = {
 }
 
 
-def fmt_riven_splice(recipes: list, *, scope: str = "", stat_zh: str = "") -> tuple[str, list[str]]:
+# 「紫卡融合」卡用**卡面全称**（官方国际服简中模板，取自游戏数据包 Upgrade 模板；2026-10-25
+# 用户：短名「基伤」把枪的「伤害」与近战的「近战伤害」混成一个，看着像漏了「近战伤害」）。
+_SPLICE_FULL_ZH = {
+    "status_chance": "触发几率",
+    "crit_chance": "暴击几率",
+    "zoom": "变焦",
+    "multishot": "多重射击",
+    "magazine_capacity": "弹匣容量",
+    "reload_speed": "装填速度",
+    "recoil": "武器后坐力",
+    "ammo_max": "弹药最大值",
+    "toxin_damage": "毒素伤害",
+    "heat_damage": "火焰伤害",
+    "cold_damage": "冰冻伤害",
+    "electric_damage": "电击伤害",
+    "damage_vs_grineer": "对 Grineer 的伤害",
+    "damage_vs_corpus": "对 Corpus 的伤害",
+    "damage_vs_infested": "对 Infested 的伤害",
+    "heavy_attack_efficiency": "重击效率",
+    "extra_combo_count": "额外连击数几率",
+    "combo_duration": "连击持续时间",
+    "attack_speed": "攻击速度",
+    "range": "攻击范围",
+    "gas_damage": "毒气伤害",
+    "corrosive_damage": "腐蚀伤害",
+    "viral_damage": "病毒伤害",
+    "radiation_damage": "辐射伤害",
+    "blast_damage": "爆炸伤害",
+    "magnetic_damage": "磁力伤害",
+    "damage_vs_orokin": "对奥罗金的伤害",
+    "damage_vs_scaldra": "对炽蛇军的伤害",
+    "damage_vs_techrot": "对科腐者的伤害",
+    "status_damage": "异常状态伤害",
+    "ammo_efficiency": "弹药效率",
+    "reload_holstered": "收起武器时弹匣每秒自动装填",
+    "weakpoint_crit_chance": "弱点暴击几率",
+    "weakpoint_damage": "弱点伤害",
+    "melee_heavy_attack_damage": "在重击时的近战伤害",
+    "melee_heavy_attack_charge": "重击准备速度",
+    "melee_parry_angle": "招架角度",
+    "melee_slam_damage": "震地攻击伤害",
+}
+# 「伤害」是同一个词条 id：枪械卡面写「伤害」、近战写「近战伤害」
+_SPLICE_DAMAGE_ZH = {"gun": "伤害", "melee": "近战伤害", "any": "伤害 / 近战伤害"}
+
+
+def fmt_riven_splice(
+    recipes: list, *, scope: str = "", stat_zh: str = "", cls: Optional[str] = None
+) -> tuple[str, list[str]]:
     """「紫卡融合 / 紫卡拼接」：Riven Splicer 每个融合词条由哪两条原词条拼成（2026-10-24）。
 
     三段：通用（所有武器）/ 枪械 / 近战；表三列「融合词条　原词条一　原词条二」。融合词条名
     染紫 ``⟦v⟧``（与「词条范围」融合段同色），原词条名包 ``⟦w⟧``（绕开元素语义词表单独染色）。
-    ``scope`` = 已按武器 / 武器类过滤时的说明；``stat_zh`` = 已按词条过滤时的词条名。
+    ``scope`` = 已按武器 / 武器类过滤时的说明；``stat_zh`` = 已按词条过滤时的词条名；
+    ``cls`` = 已按武器类过滤时的类别（决定通用段「伤害」写成「伤害」还是「近战伤害」）。
     """
     from .parser import RIVEN_STAT_ZH
 
-    zh = RIVEN_STAT_ZH
+    def zh(sid: str, kind: str) -> str:
+        if sid == "melee_damage":
+            if cls:
+                kind = "melee" if cls == "melee" else "gun"
+            return _SPLICE_DAMAGE_ZH[kind]
+        return _SPLICE_FULL_ZH.get(sid) or RIVEN_STAT_ZH.get(sid, sid)
+
     groups = (
-        ("通用 · 所有武器", lambda r: "melee" in r[3] and "rifle" in r[3]),
-        ("枪械 · 步枪 / 霰弹枪 / 手枪 / 空战", lambda r: "melee" not in r[3]),
-        ("近战", lambda r: r[3] == ("melee",)),
+        ("通用 · 所有武器", "any", lambda r: "melee" in r[3] and "rifle" in r[3]),
+        ("枪械 · 步枪 / 霰弹枪 / 手枪 / 空战", "gun", lambda r: "melee" not in r[3]),
+        ("近战", "melee", lambda r: r[3] == ("melee",)),
     )
     lines: list[str] = []
     if scope:
         lines.append(f"◆ 适用：{scope}")
-    for label, pick in groups:
+    for label, kind, pick in groups:
         rows = [r for r in recipes if pick(r)]
         if not rows:
             continue
         lines.append(f"◆ {label}（{len({r[2] for r in rows})} 个）")
         lines.append("　融合词条　原词条一　原词条二")
         for a, b, out, _cls in rows:
-            lines.append(
-                f"· ⟦v⟧{zh.get(out, out)}⟦/v⟧　⟦w⟧{zh.get(a, a)}⟦/w⟧　⟦w⟧{zh.get(b, b)}⟦/w⟧"
-            )
+            lines.append(f"· ⟦v⟧{zh(out, kind)}⟦/v⟧　⟦w⟧{zh(a, kind)}⟦/w⟧　⟦w⟧{zh(b, kind)}⟦/w⟧")
     if not lines or (scope and len(lines) == 1):
         lines.append("◆ 原因：没有符合条件的融合配方" + (f"（{stat_zh}）" if stat_zh else ""))
     if any(r[2] == "reload_holstered" for r in recipes):
-        lines.append("※ 收枪装填：空战武器不可融合")
+        lines.append("※ 收起武器时弹匣每秒自动装填：空战武器不可融合")
     lines.append(
         "※ 两条原词条被消耗；融合词条总是正面，若消耗的原词条里有负面，补上的随机词条也是负面"
     )
@@ -4659,7 +4736,12 @@ def fmt_trend(name: str, stats: dict, summary: dict) -> tuple[str, list[str]]:
     if s.get("change"):
         arrow = "▲" if s["change"] > 0 else "▼"
         lines.append(
-            f"◆ 走势：{arrow}{abs(s['change'])}%（最新 {s['last']}p vs 区间初 {s['first']}p）"
+            f"◆ 走势：{arrow}{abs(s['change'])}%（最新 {s['last']}p vs "
+            + (
+                f"{s.get('base_span') or '区间'}前段均价 {s['base']}p）"
+                if s.get("base")
+                else f"区间初 {s['first']}p）"
+            )
         )
     # 走势图：交给渲染层画真实折线图（§CHART 机器行）；文本模式自动回退方块字 +
     # 「最高/最低/最新」一行。有效点 < 2 的序列不出图 —— 出一个点的「图」没有意义，

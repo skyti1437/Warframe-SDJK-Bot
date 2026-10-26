@@ -1,10 +1,58 @@
 {
  "_counts": {
-  "families": 71
+  "families": 310
  },
- "_method": "warframe.market /v1/auctions/search；家族 slug = **母武器**（如 nikana 而非 nikana_prime，EFV-0 Somnus 的 slug 是 efv-0_somnus）。两条路：① **普查** —— 家族在售 <100 张时一页就是全部，直接数每个词条出现在多少张卡上（精确、1 次请求）；② **逐词条带过滤查** —— 挂单 ≥100 时一页会被排序截断（拿到的是最便宜的一百张），改查 positive_stats= / negative_stats=，服务端对全量过滤。速率 6.0s/请求 + 指数退避（实测 1.2s 仍会被 429）。判据（2026-10-23 指令口径）：样本 ≥50 才判；`never` = 计数 0（或计数 1 且规则也排除它）；`rollable` = 计数 ≥2；其余 `unclear`。样本 <50 的家族只记 insufficient_sample（词条照列、卡上标「?」）。**融合词条（Update 44）不判 never** —— 在售是存量，它们上线才半个月，缺席是「太新」而非「刷不出」。★ 早期一批（无 method 字段）用「家族自身中位数的 0.25/0.05 两档」判，同 wfsim scripts/survey_riven_pools.py；两套判据的家族不重叠。",
- "_surveyed": "2026-10-23",
+ "_method": "warframe.market /v1/auctions/search；家族 slug = **母武器**（如 nikana 而非 nikana_prime，EFV-0 Somnus 的 slug 是 efv-0_somnus）。两条路：① **普查** —— 家族在售 <100 张时一页就是全部，直接数每个词条出现在多少张卡上（精确、1 次请求）；② **逐词条带过滤查** —— 挂单 ≥100 时一页会被排序截断（拿到的是最便宜的一百张），改查 positive_stats= / negative_stats=，服务端对全量过滤。速率 15.0s/请求 + 指数退避（实测 1.2s 仍会被 429）。判据（2026-10-23 指令口径）：样本 ≥50 才判；`never` = 计数 0（或计数 1 且规则也排除它）；`rollable` = 计数 ≥2；其余 `unclear`。样本 <50 的家族只记 insufficient_sample（词条照列、卡上标「?」）。**融合词条（Update 44）不判 never** —— 在售是存量，它们上线才半个月，缺席是「太新」而非「刷不出」。★ 早期一批（无 method 字段）用「家族自身中位数的 0.25/0.05 两档」判，同 wfsim scripts/survey_riven_pools.py；两套判据的家族不重叠。",
+ "_surveyed": "2026-10-26",
  "families": {
+  "Acceltra": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 94,
+    "puncture_damage": 1,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "slash_damage"
+   ],
+   "rollable": [
+    "impact_damage"
+   ],
+   "unclear": [
+    "puncture_damage"
+   ],
+   "surveyed": "2026-10-26"
+  },
+  "Ack & Brunt": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 1,
+    "puncture_damage": 0,
+    "slash_damage": 13
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [
+    "impact_damage"
+   ],
+   "surveyed": "2026-10-26"
+  },
   "Acrid": {
    "absence_checked": [
     "ammo_max",
@@ -91,7 +139,260 @@
     "status_duration",
     "toxin_damage",
     "zoom"
-   ]
+   ],
+   "surveyed": "2026-10-23"
+  },
+  "Aegrit": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 8,
+    "puncture_damage": 0,
+    "slash_damage": 11
+   },
+   "method": "census",
+   "n": 84,
+   "never": [
+    "puncture_damage"
+   ],
+   "rollable": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Aeolak": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 23,
+    "puncture_damage": 23,
+    "slash_damage": 11
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Afentis": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 1,
+    "puncture_damage": 33,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "slash_damage"
+   ],
+   "rollable": [
+    "puncture_damage"
+   ],
+   "unclear": [
+    "impact_damage"
+   ],
+   "surveyed": "2026-10-26"
+  },
+  "Afuris": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 15,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Akbolto": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 1,
+    "puncture_damage": 12,
+    "slash_damage": 0
+   },
+   "method": "census",
+   "n": 89,
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Akbronco": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 9,
+    "puncture_damage": 0,
+    "slash_damage": 0
+   },
+   "method": "census",
+   "n": 88,
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "impact_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Akjagara": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 19
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Aklato": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 16
+   },
+   "method": "census",
+   "n": 98,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Aklex": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 10,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Akmagnus": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 11,
+    "puncture_damage": 18,
+    "slash_damage": 17
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Aksomati": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 12,
+    "slash_damage": 15
+   },
+   "method": "census",
+   "n": 99,
+   "never": [
+    "impact_damage"
+   ],
+   "rollable": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Aksondol": {
    "counts": {
@@ -107,7 +408,168 @@
    "rollable": [
     "puncture_damage"
    ],
-   "unclear": []
+   "unclear": [],
+   "surveyed": "2026-10-23"
+  },
+  "Akstiletto": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 20,
+    "puncture_damage": 1,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "impact_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Akvasto": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 19
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Akzani": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 15,
+    "slash_damage": 0
+   },
+   "method": "census",
+   "n": 84,
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Alternox": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "rollable": [],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Amanata": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 1,
+    "puncture_damage": 0,
+    "slash_damage": 75
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Amphis": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 22,
+    "puncture_damage": 0,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "impact_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Anku": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 24,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Ankyros": {
    "absence_checked": [
@@ -208,7 +670,304 @@
     "melee_parry_angle",
     "melee_slam_damage",
     "status_damage"
-   ]
+   ],
+   "surveyed": "2026-10-23"
+  },
+  "Arca Scisco": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 16,
+    "slash_damage": 20
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage"
+   ],
+   "rollable": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Arca Titron": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 68,
+    "puncture_damage": 0,
+    "slash_damage": 39
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "puncture_damage"
+   ],
+   "rollable": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Argonak": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 14,
+    "puncture_damage": 0,
+    "slash_damage": 12
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "puncture_damage"
+   ],
+   "rollable": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Arum Spinosa": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 11
+   },
+   "method": "census",
+   "n": 95,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Astilla": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 43,
+    "puncture_damage": 0,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "impact_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Athodai": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "rollable": [],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Atterax": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 1,
+    "puncture_damage": 0,
+    "slash_damage": 10
+   },
+   "method": "census",
+   "n": 75,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Attica": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 18,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Azima": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 9
+   },
+   "method": "census",
+   "n": 99,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Azothane": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 21,
+    "puncture_damage": 0,
+    "slash_damage": 27
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "puncture_damage"
+   ],
+   "rollable": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Ballistica": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 2,
+    "puncture_damage": 73,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "slash_damage"
+   ],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Battacor": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 27,
+    "puncture_damage": 23,
+    "slash_damage": 16
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Baza": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 22,
+    "puncture_damage": 22,
+    "slash_damage": 15
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Bo": {
    "absence_checked": [
@@ -283,7 +1042,31 @@
     "melee_parry_angle",
     "melee_slam_damage",
     "status_duration"
-   ]
+   ],
+   "surveyed": "2026-10-23"
+  },
+  "Boar": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 133,
+    "puncture_damage": 1,
+    "slash_damage": 132
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "puncture_damage"
+   ],
+   "rollable": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Boltace": {
    "absence_checked": [
@@ -384,7 +1167,303 @@
     "melee_parry_angle",
     "melee_slam_damage",
     "status_damage"
-   ]
+   ],
+   "surveyed": "2026-10-23"
+  },
+  "Bolto": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 18,
+    "slash_damage": 0
+   },
+   "method": "census",
+   "n": 82,
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Boltor": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 2,
+    "puncture_damage": 70,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "slash_damage"
+   ],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Brakk": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 15,
+    "puncture_damage": 22,
+    "slash_damage": 18
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Braton": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 67,
+    "puncture_damage": 62,
+    "slash_damage": 58
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Broken Scepter": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 11,
+    "puncture_damage": 0,
+    "slash_damage": 0
+   },
+   "method": "census",
+   "n": 71,
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "impact_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Broken War": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 29
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Bronco": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 21,
+    "puncture_damage": 0,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "impact_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Bubonico": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 75,
+    "puncture_damage": 76,
+    "slash_damage": 51
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Burst Laser": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 24,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Burston": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 122,
+    "puncture_damage": 126,
+    "slash_damage": 123
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Buzlok": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 12,
+    "puncture_damage": 14,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "slash_damage"
+   ],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Cantare": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 9
+   },
+   "method": "census",
+   "n": 77,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Cassowar": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 9,
+    "slash_damage": 19
+   },
+   "method": "census",
+   "n": 86,
+   "never": [
+    "impact_damage"
+   ],
+   "rollable": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Caustacyst": {
    "absence_checked": [
@@ -459,7 +1538,99 @@
     "melee_heavy_attack_damage",
     "melee_parry_angle",
     "melee_slam_damage"
-   ]
+   ],
+   "surveyed": "2026-10-23"
+  },
+  "Cerata": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 1,
+    "puncture_damage": 0,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "rollable": [],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Cernos": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 25,
+    "puncture_damage": 0,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "impact_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Cestra": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 27,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Cinta": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 31,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Cobra & Crane": {
    "absence_checked": [
@@ -559,7 +1730,75 @@
     "status_damage",
     "status_duration",
     "toxin_damage"
-   ]
+   ],
+   "surveyed": "2026-10-23"
+  },
+  "Coda Motovore": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 53,
+    "puncture_damage": 29,
+    "slash_damage": 34
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Convectrix": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 38
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Corinth": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 43,
+    "puncture_damage": 30,
+    "slash_damage": 36
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Corufell": {
    "counts": {
@@ -575,7 +1814,143 @@
     "impact_damage",
     "puncture_damage"
    ],
-   "unclear": []
+   "unclear": [],
+   "surveyed": "2026-10-23"
+  },
+  "Corvas": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 37,
+    "puncture_damage": 0,
+    "slash_damage": 1
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "impact_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Cronus": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 12,
+    "puncture_damage": 0,
+    "slash_damage": 10
+   },
+   "method": "census",
+   "n": 70,
+   "never": [
+    "puncture_damage"
+   ],
+   "rollable": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Cycron": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 42,
+    "puncture_damage": 40,
+    "slash_damage": 33
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Cyngas": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 16,
+    "puncture_damage": 14,
+    "slash_damage": 14
+   },
+   "method": "census",
+   "n": 82,
+   "never": [],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Daikyu": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 31,
+    "puncture_damage": 26,
+    "slash_damage": 30
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Dakra Prime": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 10
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Dark Dagger": {
    "absence_checked": [
@@ -676,7 +2051,121 @@
     "melee_parry_angle",
     "melee_slam_damage",
     "status_damage"
-   ]
+   ],
+   "surveyed": "2026-10-23"
+  },
+  "Dark Split-Sword": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 10,
+    "puncture_damage": 17,
+    "slash_damage": 15
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Dark Sword": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "rollable": [],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Deconstructor": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 11,
+    "puncture_damage": 0,
+    "slash_damage": 0
+   },
+   "method": "census",
+   "n": 63,
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "impact_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Dera": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 1,
+    "puncture_damage": 40,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Despair": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 27,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Destreza": {
    "absence_checked": [
@@ -751,7 +2240,146 @@
     "melee_parry_angle",
     "melee_slam_damage",
     "status_damage"
-   ]
+   ],
+   "surveyed": "2026-10-23"
+  },
+  "Deth Machine Rifle": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 19
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Dex Dakra": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 18
+   },
+   "method": "census",
+   "n": 88,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Dragon Nikana": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 1,
+    "slash_damage": 14
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Drakgoon": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 27
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Dread": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 1,
+    "puncture_damage": 0,
+    "slash_damage": 60
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Dual Cestra": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 9,
+    "slash_damage": 0
+   },
+   "method": "census",
+   "n": 92,
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Dual Cleavers": {
    "absence_checked": [
@@ -851,7 +2479,121 @@
     "status_damage",
     "status_duration",
     "toxin_damage"
-   ]
+   ],
+   "surveyed": "2026-10-23"
+  },
+  "Dual Coda Torxica": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 1,
+    "puncture_damage": 38,
+    "slash_damage": 23
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage"
+   ],
+   "rollable": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Dual Decurion": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 26,
+    "puncture_damage": 19,
+    "slash_damage": 26
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Dual Ether": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 1,
+    "puncture_damage": 0,
+    "slash_damage": 19
+   },
+   "method": "census",
+   "n": 91,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Dual Heat Swords": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 10
+   },
+   "method": "census",
+   "n": 66,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Dual Ichor": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "rollable": [],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Dual Kamas": {
    "absence_checked": [
@@ -952,7 +2694,8 @@
     "melee_parry_angle",
     "melee_slam_damage",
     "status_damage"
-   ]
+   ],
+   "surveyed": "2026-10-23"
   },
   "Dual Keres": {
    "absence_checked": [
@@ -1053,7 +2796,77 @@
     "melee_parry_angle",
     "melee_slam_damage",
     "status_damage"
-   ]
+   ],
+   "surveyed": "2026-10-23"
+  },
+  "Dual Raza": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 13
+   },
+   "method": "census",
+   "n": 74,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Dual Skana": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 6
+   },
+   "method": "census",
+   "n": 87,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Dual Toxocyst": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 132,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Dual Zoren": {
    "absence_checked": [
@@ -1154,7 +2967,235 @@
     "melee_parry_angle",
     "melee_slam_damage",
     "status_damage"
-   ]
+   ],
+   "surveyed": "2026-10-23"
+  },
+  "Edun": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 1,
+    "puncture_damage": 13,
+    "slash_damage": 14
+   },
+   "method": "census",
+   "n": 99,
+   "never": [
+    "impact_damage"
+   ],
+   "rollable": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Endura": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 1,
+    "puncture_damage": 19,
+    "slash_damage": 0
+   },
+   "method": "census",
+   "n": 92,
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Epitaph": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 59,
+    "puncture_damage": 41,
+    "slash_damage": 43
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Ether Daggers": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 12
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Ether Reaper": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 10
+   },
+   "method": "census",
+   "n": 83,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Ether Sword": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 16
+   },
+   "method": "census",
+   "n": 76,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Euphona Prime": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 18,
+    "puncture_damage": 0,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "impact_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Evensong": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 2,
+    "puncture_damage": 0,
+    "slash_damage": 17
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "puncture_damage"
+   ],
+   "rollable": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Exergis": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 35,
+    "puncture_damage": 39,
+    "slash_damage": 22
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Falcor": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 39,
+    "puncture_damage": 27,
+    "slash_damage": 27
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Fang": {
    "absence_checked": [
@@ -1255,7 +3296,100 @@
     "melee_parry_angle",
     "melee_slam_damage",
     "status_damage"
-   ]
+   ],
+   "surveyed": "2026-10-23"
+  },
+  "Felarx": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 61,
+    "slash_damage": 72
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage"
+   ],
+   "rollable": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Ferrox": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 18,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Fluctus": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 16
+   },
+   "method": "census",
+   "n": 89,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Flux Rifle": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 24
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Fragor": {
    "absence_checked": [
@@ -1356,7 +3490,31 @@
     "melee_parry_angle",
     "melee_slam_damage",
     "status_damage"
-   ]
+   ],
+   "surveyed": "2026-10-23"
+  },
+  "Fulmin": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 53,
+    "puncture_damage": 0,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "impact_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Furax": {
    "absence_checked": [
@@ -1431,7 +3589,54 @@
     "melee_heavy_attack_damage",
     "melee_parry_angle",
     "status_damage"
-   ]
+   ],
+   "surveyed": "2026-10-23"
+  },
+  "Furis": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 124,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Fusilai": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 3,
+    "slash_damage": 7
+   },
+   "method": "census",
+   "n": 57,
+   "never": [
+    "impact_damage"
+   ],
+   "rollable": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Galatine": {
    "absence_checked": [
@@ -1532,7 +3737,53 @@
     "melee_parry_angle",
     "melee_slam_damage",
     "status_damage"
-   ]
+   ],
+   "surveyed": "2026-10-23"
+  },
+  "Galvacord": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 0
+   },
+   "method": "census",
+   "n": 61,
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "rollable": [],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Gazal Machete": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 11
+   },
+   "method": "census",
+   "n": 70,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Ghoulsaw": {
    "absence_checked": [
@@ -1633,7 +3884,8 @@
     "melee_parry_angle",
     "melee_slam_damage",
     "status_damage"
-   ]
+   ],
+   "surveyed": "2026-10-23"
   },
   "Glaive": {
    "counts": {
@@ -1649,7 +3901,53 @@
     "impact_damage",
     "slash_damage"
    ],
-   "unclear": []
+   "unclear": [],
+   "surveyed": "2026-10-23"
+  },
+  "Gorgon": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 29,
+    "puncture_damage": 0,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "impact_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Grakata": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 16,
+    "puncture_damage": 18,
+    "slash_damage": 9
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Gram": {
    "absence_checked": [
@@ -1750,7 +4048,54 @@
     "melee_parry_angle",
     "melee_slam_damage",
     "status_damage"
-   ]
+   ],
+   "surveyed": "2026-10-23"
+  },
+  "Grattler": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 1,
+    "puncture_damage": 34,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Grinlok": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 10,
+    "puncture_damage": 0,
+    "slash_damage": 17
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "puncture_damage"
+   ],
+   "rollable": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Guandao": {
    "counts": {
@@ -1766,7 +4111,8 @@
    "rollable": [
     "slash_damage"
    ],
-   "unclear": []
+   "unclear": [],
+   "surveyed": "2026-10-23"
   },
   "Gunsen": {
    "absence_checked": [
@@ -1867,7 +4213,8 @@
     "melee_parry_angle",
     "melee_slam_damage",
     "status_damage"
-   ]
+   ],
+   "surveyed": "2026-10-23"
   },
   "Halikar": {
    "absence_checked": [
@@ -1967,7 +4314,8 @@
     "status_damage",
     "status_duration",
     "toxin_damage"
-   ]
+   ],
+   "surveyed": "2026-10-23"
   },
   "Harmony": {
    "counts": {
@@ -1983,7 +4331,122 @@
    "rollable": [
     "puncture_damage"
    ],
-   "unclear": []
+   "unclear": [],
+   "surveyed": "2026-10-23"
+  },
+  "Harpak": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 17,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Hate": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 60
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Heat Dagger": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 5,
+    "puncture_damage": 11,
+    "slash_damage": 8
+   },
+   "method": "census",
+   "n": 64,
+   "never": [],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Heat Sword": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 13
+   },
+   "method": "census",
+   "n": 73,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Hek": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 53,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Heliocor": {
    "absence_checked": [
@@ -2084,7 +4547,100 @@
     "melee_heavy_attack_damage",
     "melee_parry_angle",
     "status_damage"
-   ]
+   ],
+   "surveyed": "2026-10-23"
+  },
+  "Helstrum": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 21,
+    "puncture_damage": 0,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "impact_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Hespar": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 22,
+    "puncture_damage": 0,
+    "slash_damage": 22
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "puncture_damage"
+   ],
+   "rollable": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Hikou": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 16,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Hind": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 10
+   },
+   "method": "census",
+   "n": 99,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Hirudo": {
    "absence_checked": [
@@ -2185,7 +4741,53 @@
     "melee_parry_angle",
     "melee_slam_damage",
     "status_damage"
-   ]
+   ],
+   "surveyed": "2026-10-23"
+  },
+  "Hystrix": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 17,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Imperator": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 22,
+    "puncture_damage": 17,
+    "slash_damage": 13
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Innodem": {
    "counts": {
@@ -2201,7 +4803,144 @@
     "puncture_damage",
     "slash_damage"
    ],
-   "unclear": []
+   "unclear": [],
+   "surveyed": "2026-10-23"
+  },
+  "Jat Kittag": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 23,
+    "puncture_damage": 1,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "impact_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Jat Kusar": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 0
+   },
+   "method": "census",
+   "n": 80,
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "rollable": [],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Javlok": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 1,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "rollable": [],
+   "unclear": [
+    "puncture_damage"
+   ],
+   "surveyed": "2026-10-26"
+  },
+  "Jaw Sword": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 8
+   },
+   "method": "census",
+   "n": 71,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Kama": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 9
+   },
+   "method": "census",
+   "n": 67,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Karak": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 31,
+    "puncture_damage": 21,
+    "slash_damage": 18
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Karyst": {
    "absence_checked": [
@@ -2302,7 +5041,53 @@
     "melee_parry_angle",
     "melee_slam_damage",
     "status_damage"
-   ]
+   ],
+   "surveyed": "2026-10-23"
+  },
+  "Keratinos": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 11,
+    "puncture_damage": 10,
+    "slash_damage": 9
+   },
+   "method": "census",
+   "n": 98,
+   "never": [],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Kesheg": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 18,
+    "puncture_damage": 0,
+    "slash_damage": 7
+   },
+   "method": "census",
+   "n": 80,
+   "never": [
+    "puncture_damage"
+   ],
+   "rollable": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Kestrel": {
    "absence_checked": [
@@ -2403,7 +5188,31 @@
     "melee_parry_angle",
     "melee_slam_damage",
     "status_damage"
-   ]
+   ],
+   "surveyed": "2026-10-23"
+  },
+  "Knell": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 23,
+    "puncture_damage": 41,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "slash_damage"
+   ],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Kogake": {
    "absence_checked": [
@@ -2504,7 +5313,191 @@
     "melee_parry_angle",
     "melee_slam_damage",
     "status_damage"
-   ]
+   ],
+   "surveyed": "2026-10-23"
+  },
+  "Kohm": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 83
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Kohmak": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 15
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Komorex": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 1,
+    "puncture_damage": 22,
+    "slash_damage": 10
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage"
+   ],
+   "rollable": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Korrudo": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 7,
+    "puncture_damage": 0,
+    "slash_damage": 11
+   },
+   "method": "census",
+   "n": 68,
+   "never": [
+    "puncture_damage"
+   ],
+   "rollable": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Korumm": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 15,
+    "slash_damage": 10
+   },
+   "method": "census",
+   "n": 83,
+   "never": [
+    "impact_damage"
+   ],
+   "rollable": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Kraken": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 20,
+    "puncture_damage": 0,
+    "slash_damage": 0
+   },
+   "method": "census",
+   "n": 86,
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "impact_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Kreska": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 8,
+    "puncture_damage": 3,
+    "slash_damage": 6
+   },
+   "method": "census",
+   "n": 51,
+   "never": [],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Krohkur": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 5
+   },
+   "method": "census",
+   "n": 67,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Kronen": {
    "counts": {
@@ -2520,7 +5513,101 @@
     "impact_damage",
     "slash_damage"
    ],
-   "unclear": []
+   "unclear": [],
+   "surveyed": "2026-10-23"
+  },
+  "Kunai": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 29,
+    "slash_damage": 1
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage"
+   ],
+   "rollable": [
+    "puncture_damage"
+   ],
+   "unclear": [
+    "slash_damage"
+   ],
+   "surveyed": "2026-10-26"
+  },
+  "Kuva Chakkhurr": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 45,
+    "puncture_damage": 0,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "impact_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Kuva Shildeg": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 20,
+    "puncture_damage": 15,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "slash_damage"
+   ],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Kuva Twin Stubbas": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 12,
+    "puncture_damage": 0,
+    "slash_damage": 17
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "puncture_damage"
+   ],
+   "rollable": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Lacera": {
    "absence_checked": [
@@ -2621,7 +5708,99 @@
     "melee_parry_angle",
     "melee_slam_damage",
     "status_damage"
-   ]
+   ],
+   "surveyed": "2026-10-23"
+  },
+  "Larkspur": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 57,
+    "puncture_damage": 41,
+    "slash_damage": 37
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Laser Rifle": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 18,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Lato": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 38
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Latron": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 2,
+    "puncture_damage": 154,
+    "slash_damage": 1
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "slash_damage"
+   ],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Lecta": {
    "absence_checked": [
@@ -2722,7 +5901,55 @@
     "melee_parry_angle",
     "melee_slam_damage",
     "status_damage"
-   ]
+   ],
+   "surveyed": "2026-10-23"
+  },
+  "Lesion": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 8
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Lex": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 1,
+    "puncture_damage": 56,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "slash_damage"
+   ],
+   "rollable": [
+    "puncture_damage"
+   ],
+   "unclear": [
+    "impact_damage"
+   ],
+   "surveyed": "2026-10-26"
   },
   "Machete": {
    "absence_checked": [
@@ -2822,7 +6049,98 @@
     "status_damage",
     "status_duration",
     "toxin_damage"
-   ]
+   ],
+   "surveyed": "2026-10-23"
+  },
+  "Magistar": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 126,
+    "puncture_damage": 1,
+    "slash_damage": 2
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "puncture_damage"
+   ],
+   "rollable": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Magnus": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 12,
+    "puncture_damage": 14,
+    "slash_damage": 15
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Mandonel": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 0
+   },
+   "method": "census",
+   "n": 76,
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "rollable": [],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Marelok": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 10,
+    "puncture_damage": 0,
+    "slash_damage": 4
+   },
+   "method": "census",
+   "n": 63,
+   "never": [
+    "puncture_damage"
+   ],
+   "rollable": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Masseter": {
    "absence_checked": [
@@ -2922,7 +6240,52 @@
     "status_damage",
     "status_duration",
     "toxin_damage"
-   ]
+   ],
+   "surveyed": "2026-10-23"
+  },
+  "Mausolon": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 23,
+    "puncture_damage": 25,
+    "slash_damage": 33
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Mios": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 7,
+    "puncture_damage": 10,
+    "slash_damage": 10
+   },
+   "method": "census",
+   "n": 71,
+   "never": [],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Mire": {
    "absence_checked": [
@@ -3022,7 +6385,100 @@
     "melee_parry_angle",
     "melee_slam_damage",
     "status_damage"
-   ]
+   ],
+   "surveyed": "2026-10-23"
+  },
+  "Miter": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 27
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Mutalist Cernos": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 18,
+    "puncture_damage": 1,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "impact_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Mutalist Quanta": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 1,
+    "puncture_damage": 19,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Nagantaka": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 20
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Nami Skyla": {
    "absence_checked": [],
@@ -3092,7 +6548,76 @@
     "melee_slam_damage",
     "puncture_damage",
     "status_damage"
-   ]
+   ],
+   "surveyed": "2026-10-23"
+  },
+  "Nami Solo": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 3,
+    "puncture_damage": 0,
+    "slash_damage": 122
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "puncture_damage"
+   ],
+   "rollable": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Nataruk": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 54,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Nepheri": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 12,
+    "puncture_damage": 18,
+    "slash_damage": 6
+   },
+   "method": "census",
+   "n": 97,
+   "never": [],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Nikana": {
    "counts": {
@@ -3108,7 +6633,8 @@
    "rollable": [
     "slash_damage"
    ],
-   "unclear": []
+   "unclear": [],
+   "surveyed": "2026-10-23"
   },
   "Ninkondi": {
    "absence_checked": [
@@ -3209,7 +6735,8 @@
     "melee_parry_angle",
     "melee_slam_damage",
     "status_damage"
-   ]
+   ],
+   "surveyed": "2026-10-23"
   },
   "Nunchasa": {
    "counts": {
@@ -3224,7 +6751,8 @@
     "puncture_damage",
     "slash_damage"
    ],
-   "unclear": []
+   "unclear": [],
+   "surveyed": "2026-10-23"
   },
   "Obex": {
    "absence_checked": [
@@ -3299,7 +6827,53 @@
     "melee_parry_angle",
     "melee_slam_damage",
     "status_damage"
-   ]
+   ],
+   "surveyed": "2026-10-23"
+  },
+  "Ocucor": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 119,
+    "puncture_damage": 117,
+    "slash_damage": 116
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Ogris": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 2,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Ohma": {
    "absence_checked": [
@@ -3374,7 +6948,8 @@
     "melee_heavy_attack_damage",
     "melee_parry_angle",
     "melee_slam_damage"
-   ]
+   ],
+   "surveyed": "2026-10-23"
   },
   "Okina": {
    "counts": {
@@ -3390,7 +6965,31 @@
     "puncture_damage",
     "slash_damage"
    ],
-   "unclear": []
+   "unclear": [],
+   "surveyed": "2026-10-23"
+  },
+  "Opticor": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 27,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Orthos": {
    "counts": {
@@ -3406,7 +7005,54 @@
     "impact_damage",
     "slash_damage"
    ],
-   "unclear": []
+   "unclear": [],
+   "surveyed": "2026-10-23"
+  },
+  "Orvius": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 18
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Pandero": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 16
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Pangolin Sword": {
    "absence_checked": [
@@ -3507,7 +7153,31 @@
     "melee_parry_angle",
     "melee_slam_damage",
     "status_damage"
-   ]
+   ],
+   "surveyed": "2026-10-23"
+  },
+  "Panthera": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 23
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Paracesis": {
    "counts": {
@@ -3523,7 +7193,31 @@
    "rollable": [
     "slash_damage"
    ],
-   "unclear": []
+   "unclear": [],
+   "surveyed": "2026-10-23"
+  },
+  "Paris": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 60,
+    "slash_damage": 1
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Pathocyst": {
    "counts": {
@@ -3538,7 +7232,100 @@
     "puncture_damage",
     "slash_damage"
    ],
-   "unclear": []
+   "unclear": [],
+   "surveyed": "2026-10-23"
+  },
+  "Pennant": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 18,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Perigale": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 35,
+    "slash_damage": 35
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage"
+   ],
+   "rollable": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Phaedra": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 6,
+    "slash_damage": 0
+   },
+   "method": "census",
+   "n": 78,
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Phenmor": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 1,
+    "puncture_damage": 0,
+    "slash_damage": 62
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Plague Kripath": {
    "counts": {
@@ -3553,7 +7340,30 @@
     "puncture_damage",
     "slash_damage"
    ],
-   "unclear": []
+   "unclear": [],
+   "surveyed": "2026-10-23"
+  },
+  "Plasma Sword": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 0
+   },
+   "method": "census",
+   "n": 68,
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "rollable": [],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Praedos": {
    "counts": {
@@ -3569,7 +7379,8 @@
    "rollable": [
     "slash_damage"
    ],
-   "unclear": []
+   "unclear": [],
+   "surveyed": "2026-10-23"
   },
   "Pride": {
    "counts": {
@@ -3585,7 +7396,31 @@
     "puncture_damage",
     "slash_damage"
    ],
-   "unclear": []
+   "unclear": [],
+   "surveyed": "2026-10-23"
+  },
+  "Proboscis Cernos": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 10,
+    "puncture_damage": 0,
+    "slash_damage": 18
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "puncture_damage"
+   ],
+   "rollable": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Prova": {
    "absence_checked": [
@@ -3685,7 +7520,53 @@
     "status_damage",
     "status_duration",
     "toxin_damage"
-   ]
+   ],
+   "surveyed": "2026-10-23"
+  },
+  "Pyrana": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 2,
+    "puncture_damage": 1,
+    "slash_damage": 35
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "puncture_damage"
+   ],
+   "rollable": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Quartakk": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 23,
+    "puncture_damage": 21,
+    "slash_damage": 19
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Quassus": {
    "absence_checked": [
@@ -3760,7 +7641,121 @@
     "melee_parry_angle",
     "melee_slam_damage",
     "status_damage"
-   ]
+   ],
+   "surveyed": "2026-10-23"
+  },
+  "Quatz": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 4,
+    "puncture_damage": 10,
+    "slash_damage": 8
+   },
+   "method": "census",
+   "n": 73,
+   "never": [],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Quellor": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 10,
+    "puncture_damage": 10,
+    "slash_damage": 14
+   },
+   "method": "census",
+   "n": 99,
+   "never": [],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Rauta": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 26
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Reaper Prime": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 1,
+    "puncture_damage": 0,
+    "slash_damage": 29
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Reconifex": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 17,
+    "puncture_damage": 13,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "slash_damage"
+   ],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Redeemer": {
    "counts": {
@@ -3776,7 +7771,99 @@
    "rollable": [
     "slash_damage"
    ],
-   "unclear": []
+   "unclear": [],
+   "surveyed": "2026-10-23"
+  },
+  "Ripkas": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 2,
+    "puncture_damage": 1,
+    "slash_damage": 22
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "puncture_damage"
+   ],
+   "rollable": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Rubico": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 45,
+    "puncture_damage": 1,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "impact_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Rumblejack": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 13,
+    "puncture_damage": 10,
+    "slash_damage": 12
+   },
+   "method": "census",
+   "n": 74,
+   "never": [],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Sampotes": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 37,
+    "puncture_damage": 0,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "impact_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Sarofang": {
    "absence_checked": [
@@ -3877,7 +7964,31 @@
     "melee_parry_angle",
     "melee_slam_damage",
     "status_damage"
-   ]
+   ],
+   "surveyed": "2026-10-23"
+  },
+  "Sarpa": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 12
+   },
+   "method": "census",
+   "n": 80,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Scindo": {
    "absence_checked": [
@@ -3978,7 +8089,75 @@
     "melee_parry_angle",
     "melee_slam_damage",
     "status_damage"
-   ]
+   ],
+   "surveyed": "2026-10-23"
+  },
+  "Scoliac": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 6
+   },
+   "method": "census",
+   "n": 86,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Scourge": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "rollable": [],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Seer": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 15,
+    "puncture_damage": 12,
+    "slash_damage": 13
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Sepfahn": {
    "counts": {
@@ -3993,7 +8172,122 @@
     "puncture_damage",
     "slash_damage"
    ],
-   "unclear": []
+   "unclear": [],
+   "surveyed": "2026-10-23"
+  },
+  "Sepulcrum": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 20,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Sheev": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 7
+   },
+   "method": "census",
+   "n": 59,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Sibear": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "rollable": [],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Sicarus": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 64,
+    "puncture_damage": 2,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "slash_damage"
+   ],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Sigma & Octantis": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 11
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Silva & Aegis": {
    "absence_checked": [
@@ -4094,7 +8388,8 @@
     "melee_parry_angle",
     "melee_slam_damage",
     "status_damage"
-   ]
+   ],
+   "surveyed": "2026-10-23"
   },
   "Skana": {
    "absence_checked": [
@@ -4169,7 +8464,190 @@
     "melee_parry_angle",
     "melee_slam_damage",
     "puncture_damage"
-   ]
+   ],
+   "surveyed": "2026-10-23"
+  },
+  "Skiajati": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 15
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Snipetron": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 25,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Sobek": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 121,
+    "puncture_damage": 0,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "impact_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Soma": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 53,
+    "slash_damage": 53
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage"
+   ],
+   "rollable": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Spira": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 13,
+    "slash_damage": 0
+   },
+   "method": "census",
+   "n": 90,
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Sporothrix": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 51,
+    "puncture_damage": 33,
+    "slash_damage": 35
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Stahlta": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 21,
+    "slash_damage": 29
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage"
+   ],
+   "rollable": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Stradavar": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 17,
+    "puncture_damage": 16,
+    "slash_damage": 16
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Stropha": {
    "counts": {
@@ -4184,7 +8662,167 @@
     "puncture_damage",
     "slash_damage"
    ],
-   "unclear": []
+   "unclear": [],
+   "surveyed": "2026-10-23"
+  },
+  "Strun": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 141,
+    "puncture_damage": 3,
+    "slash_damage": 125
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Stubba": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 14,
+    "puncture_damage": 0,
+    "slash_damage": 8
+   },
+   "method": "census",
+   "n": 76,
+   "never": [
+    "puncture_damage"
+   ],
+   "rollable": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Sun & Moon": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 23
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Supra": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 17,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Sweeper": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 16,
+    "puncture_damage": 0,
+    "slash_damage": 0
+   },
+   "method": "census",
+   "n": 91,
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "impact_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Syam": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 1,
+    "puncture_damage": 37,
+    "slash_damage": 27
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage"
+   ],
+   "rollable": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Sybaris": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 48,
+    "puncture_damage": 47,
+    "slash_damage": 32
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Sydon": {
    "absence_checked": [
@@ -4285,7 +8923,8 @@
     "melee_parry_angle",
     "melee_slam_damage",
     "status_damage"
-   ]
+   ],
+   "surveyed": "2026-10-23"
   },
   "Tatsu": {
    "absence_checked": [
@@ -4385,7 +9024,8 @@
     "melee_parry_angle",
     "melee_slam_damage",
     "status_damage"
-   ]
+   ],
+   "surveyed": "2026-10-23"
   },
   "Tekko": {
    "absence_checked": [
@@ -4486,7 +9126,143 @@
     "melee_parry_angle",
     "melee_slam_damage",
     "status_damage"
-   ]
+   ],
+   "surveyed": "2026-10-23"
+  },
+  "Tenet Diplos": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 32,
+    "puncture_damage": 21,
+    "slash_damage": 25
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Tenet Grigori": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 21,
+    "slash_damage": 25
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage"
+   ],
+   "rollable": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Tenet Livia": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 1,
+    "puncture_damage": 0,
+    "slash_damage": 15
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Tenet Spirex": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 20,
+    "puncture_damage": 16,
+    "slash_damage": 12
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Tenora": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 25,
+    "puncture_damage": 11,
+    "slash_damage": 14
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Tetra": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 34,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Thalys": {
    "counts": {
@@ -4502,7 +9278,54 @@
     "impact_damage",
     "slash_damage"
    ],
-   "unclear": []
+   "unclear": [],
+   "surveyed": "2026-10-23"
+  },
+  "Tiberon": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 26,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Tigris": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 1,
+    "puncture_damage": 0,
+    "slash_damage": 29
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Tipedo": {
    "absence_checked": [
@@ -4603,7 +9426,370 @@
     "melee_parry_angle",
     "melee_slam_damage",
     "status_damage"
-   ]
+   ],
+   "surveyed": "2026-10-23"
+  },
+  "Tonbo": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 11
+   },
+   "method": "census",
+   "n": 68,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Tonkor": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 1,
+    "puncture_damage": 50,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Twin Basolk": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 1,
+    "puncture_damage": 0,
+    "slash_damage": 0
+   },
+   "method": "census",
+   "n": 72,
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "rollable": [],
+   "unclear": [
+    "impact_damage"
+   ],
+   "surveyed": "2026-10-26"
+  },
+  "Twin Grakatas": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 11,
+    "puncture_damage": 14,
+    "slash_damage": 14
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Twin Gremlins": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 8,
+    "puncture_damage": 18,
+    "slash_damage": 6
+   },
+   "method": "census",
+   "n": 93,
+   "never": [],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Twin Kohmak": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 8
+   },
+   "method": "census",
+   "n": 99,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Twin Krohkur": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 11
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Twin Rogga": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 16,
+    "puncture_damage": 17,
+    "slash_damage": 0
+   },
+   "method": "census",
+   "n": 96,
+   "never": [
+    "slash_damage"
+   ],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Twin Vipers": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 17,
+    "puncture_damage": 0,
+    "slash_damage": 0
+   },
+   "method": "census",
+   "n": 89,
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "impact_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Tysis": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 15,
+    "puncture_damage": 18,
+    "slash_damage": 16
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Vastilok": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 16
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Vasto": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 17
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Vectis": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 89,
+    "puncture_damage": 90,
+    "slash_damage": 57
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Veldt": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 14,
+    "puncture_damage": 15,
+    "slash_damage": 14
+   },
+   "method": "census",
+   "n": 97,
+   "never": [],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Velocitus": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "rollable": [],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Velox": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 15,
+    "slash_damage": 17
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage"
+   ],
+   "rollable": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Venato": {
    "counts": {
@@ -4619,7 +9805,8 @@
    ],
    "unclear": [
     "impact_damage"
-   ]
+   ],
+   "surveyed": "2026-10-23"
   },
   "Venka": {
    "absence_checked": [
@@ -4720,7 +9907,122 @@
     "melee_parry_angle",
     "melee_slam_damage",
     "status_damage"
-   ]
+   ],
+   "surveyed": "2026-10-23"
+  },
+  "Verdilac": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 11,
+    "slash_damage": 12
+   },
+   "method": "census",
+   "n": 73,
+   "never": [
+    "impact_damage"
+   ],
+   "rollable": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Vericres": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 7
+   },
+   "method": "census",
+   "n": 70,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Vesper 77": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 23,
+    "puncture_damage": 26,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "slash_damage"
+   ],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Viper": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 7,
+    "puncture_damage": 0,
+    "slash_damage": 0
+   },
+   "method": "census",
+   "n": 69,
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "impact_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Vitrica": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 19,
+    "puncture_damage": 16,
+    "slash_damage": 15
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Volnus": {
    "absence_checked": [
@@ -4821,7 +10123,31 @@
     "melee_parry_angle",
     "melee_slam_damage",
     "status_damage"
-   ]
+   ],
+   "surveyed": "2026-10-23"
+  },
+  "Vulkar": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 19,
+    "puncture_damage": 0,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "impact_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "War": {
    "counts": {
@@ -4837,7 +10163,31 @@
     "impact_damage",
     "slash_damage"
    ],
-   "unclear": []
+   "unclear": [],
+   "surveyed": "2026-10-23"
+  },
+  "Wolf Sledge": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 26,
+    "puncture_damage": 0,
+    "slash_damage": 25
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "puncture_damage"
+   ],
+   "rollable": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   },
   "Wrath": {
    "counts": {
@@ -4853,7 +10203,8 @@
    "rollable": [
     "slash_damage"
    ],
-   "unclear": []
+   "unclear": [],
+   "surveyed": "2026-10-23"
   },
   "Xoris": {
    "counts": {
@@ -4869,7 +10220,168 @@
     "puncture_damage",
     "slash_damage"
    ],
-   "unclear": []
+   "unclear": [],
+   "surveyed": "2026-10-23"
+  },
+  "Zakti": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 16,
+    "puncture_damage": 19,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "slash_damage"
+   ],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Zarr": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 62,
+    "puncture_damage": 0,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "impact_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Zenistar": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 0,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "rollable": [],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Zenith": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 1,
+    "puncture_damage": 0,
+    "slash_damage": 31
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "rollable": [
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Zhuge": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 0,
+    "puncture_damage": 22,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "rollable": [
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Zylok": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 28,
+    "puncture_damage": 0,
+    "slash_damage": 23
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "puncture_damage"
+   ],
+   "rollable": [
+    "impact_damage",
+    "slash_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
+  },
+  "Zymos": {
+   "absence_checked": [
+    "impact_damage",
+    "puncture_damage",
+    "slash_damage"
+   ],
+   "counts": {
+    "impact_damage": 11,
+    "puncture_damage": 17,
+    "slash_damage": 0
+   },
+   "method": "census+sweep",
+   "n": 100,
+   "never": [
+    "slash_damage"
+   ],
+   "rollable": [
+    "impact_damage",
+    "puncture_damage"
+   ],
+   "unclear": [],
+   "surveyed": "2026-10-26"
   }
  }
 }

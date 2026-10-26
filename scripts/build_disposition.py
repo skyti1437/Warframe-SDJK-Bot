@@ -348,7 +348,8 @@ def main() -> int:
     print(f"  名称 {len(name2uniq)}，DE zh 表 {len(name_zh)}")
 
     print("[5/5] 合并 …")
-    values: dict[str, float] = dict(mirror)
+    # ★ 2026-10-26：非武器行在 mirror 兜底里同样要剔（修前 wiki 侧剔了、mirror 又补回 3 条）
+    values: dict[str, float] = dict(_drop_non_weapons(mirror))
     values.update(wiki)  # wiki 覆盖 mirror
     out: dict[str, dict] = {}
     wm_url_set = {r["url_name"] for r in wm_list}

@@ -536,8 +536,20 @@ check(
 #   别人 clone 后跑测试会直接 OSError: cannot open resource。
 from PIL import ImageFont, ImageDraw, Image  # noqa: E402
 
-_TTC = ROOT / "core" / "data" / "fonts" / "NotoSansCJK-Regular.ttc"
-if not _TTC.exists():
+# ★ 2026-10-25（Astra 评估）：原先只认完整 TTC，开源包有随包子集字体时也整段跳过宽度断言 ——
+#   改为「完整字库 → 随包子集」依次找（子集即为卡面语料生成，度量与完整字库一致）
+_TTC = next(
+    (
+        _p
+        for _p in (
+            ROOT / "core" / "data" / "fonts" / "NotoSansCJK-Regular.ttc",
+            ROOT / "core" / "data" / "fonts" / "NotoSansCJKsc-Subset-Regular.otf",
+        )
+        if _p.exists()
+    ),
+    None,
+)
+if _TTC is None:
     print(
         "[SKIP] 未找到渲染字体（开源包默认不带）："
         "跑 `python scripts/fetch_font.py` 可下载；"

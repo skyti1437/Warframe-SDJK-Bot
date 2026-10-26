@@ -1,97 +1,115 @@
 # -*- coding: utf-8 -*-
-"""从 wfsim 抽取 Archgun 的「双部署」面板（空战 / 地面·大气）。
+"""从英文 wiki 武器数据模块生成 Archgun 的「双部署」面板 → core/data/weapon_deployments.json。
 
-wfsim 的 weapons yaml 顶层 attack 是**默认部署**（deployment: atmosphere，
-即装了 Gravimag 在普通任务里用）；deployments.archwing 是空战模式下的
-覆盖值（伤害/范围伤害/装填，个别武器还覆盖暴击/弹药）。
+数据源（2026-10-26 wfsim 迁移 P2 起；之前取自 wfsim，已弃用）：wiki ``Module:Weapons/data/archwing``
+（CC BY-NC-SA 3.0）里同一把 archgun 有两条：``<名> (Atmosphere)`` = 地面 / 大气部署（装 Gravimag
+在普通任务里用，= 我方 weapons_stats 主面板，计算器默认）；``<名>`` = 空战（Archwing）部署。
+两条按**名字**配对（wiki「Corvas Prime」空战条目的 InternalName 抄成了 Corvas 的，不能按键配）。
 
-输出 core/data/weapon_deployments.json（key = 小写 uniqueName）。
+默认主段 = 大气条目里与 weapons_stats 主段一致的攻击（build_weapon_attacks.pick_main），空战取同名攻击；
+``archwing`` 只写与大气不同的项：damage / radial_damage（主段范围子段）/ criticalChance /
+criticalMultiplier / reload_seconds / magazine。
+
+key = 小写 uniqueName（取大气条目的）。用法：python scripts/build_weapon_deployments.py --wiki <目录> [--out 路径]
 """
 
-import glob
+from __future__ import annotations
+
+import argparse
 import json
 import sys
 from pathlib import Path
 
-try:
-    import yaml
-except ImportError:  # noqa: BLE001 —— 插件运行本身不需要 yaml，只有这几个
-    raise SystemExit(  # 数据构建脚本要；给可操作的提示而不是裸 ImportError
-        "本脚本需要 PyYAML：pip install pyyaml（插件运行时并不依赖它，仅构建数据用）"
-    )
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _wiki_weapons import damage, load_weapons  # noqa: E402
+from build_weapon_attacks import _close, base_name, entry_key, is_cloud, pick_main, split_attacks  # noqa: E402
 
-WFSIM = Path.home() / "tmp" / "wfsim" / "data"
-OUT = Path(__file__).resolve().parent.parent / "core" / "data" / "weapon_deployments.json"
-DAMAGE_KEYS = (
-    "impact",
-    "puncture",
-    "slash",
-    "heat",
-    "cold",
-    "electricity",
-    "toxin",
-    "blast",
-    "radiation",
-    "gas",
-    "magnetic",
-    "viral",
-    "corrosive",
-    "void",
-    "true",
-)
+ROOT = Path(__file__).resolve().parent.parent
+OUT = ROOT / "core" / "data" / "weapon_deployments.json"
+WS = ROOT / "core" / "data" / "weapons_stats.json"
 
 
-def cd(d) -> dict:
-    out = {k: float(d.get(k) or 0.0) for k in DAMAGE_KEYS if d.get(k)}
-    if out:
-        out["total"] = round(sum(out.values()), 4)
-    return out
+def _radial(root: dict) -> dict:
+    aoe = [a for a in root["_aoe"] if not is_cloud(a)]
+    aoe.sort(key=lambda a: -(damage(a).get("total") or 0.0))
+    return damage(aoe[0]) if aoe else {}
 
 
-def main() -> None:
-    out: dict = {
+def _same_dmg(a: dict, b: dict) -> bool:
+    a = {k: v for k, v in a.items() if k != "total"}
+    b = {k: v for k, v in b.items() if k != "total"}
+    return set(a) == set(b) and all(_close(a[k], b[k], 0.001) for k in a)
+
+
+def build(wiki_dir: Path, ws_all: dict) -> tuple[dict, list[str]]:
+    W = load_weapons(wiki_dir)
+    out: dict = {}
+    report: list[str] = []
+    for aname, atm in sorted(W.items()):
+        if not aname.endswith(" (Atmosphere)"):
+            continue
+        name = base_name(aname)
+        space = W.get(name)
+        if space is None:
+            report.append(f"{aname}：没有对应的空战条目")
+            continue
+        key = entry_key(aname, atm)
+        ws = ws_all.get(key) or {}
+        if not ws:
+            report.append(f"{aname}：计算器（weapons_stats）无此武器，跳过")
+            continue
+        ar, sr = split_attacks(atm), split_attacks(space)
+        main, ok = pick_main(ar, ws, atm.get("_TooltipAttackDisplay"))
+        if not ok:
+            report.append(
+                f"{aname}：大气条目没有与 weapons_stats 主段一致的攻击，取第一个「{main.get('AttackName')}」"
+            )
+        sm = next((r for r in sr if r.get("AttackName") == main.get("AttackName")), None)
+        if sm is None:
+            report.append(f"{name}：空战条目没有「{main.get('AttackName')}」，跳过")
+            continue
+        aw: dict = {}
+        if not _same_dmg(damage(sm), damage(main)):
+            aw["damage"] = damage(sm)
+        if _radial(sm) and not _same_dmg(_radial(sm), _radial(main)):
+            aw["radial_damage"] = _radial(sm)
+        for f, dst in (("CritChance", "criticalChance"), ("CritMultiplier", "criticalMultiplier")):
+            if sm.get(f) is not None and not _close(sm.get(f), main.get(f), 0.001):
+                aw[dst] = float(sm[f])
+        if space.get("Reload") is not None and not _close(
+            space.get("Reload"), atm.get("Reload"), 0.001
+        ):
+            aw["reload_seconds"] = float(space["Reload"])
+        if space.get("Magazine") and not _close(space.get("Magazine"), atm.get("Magazine"), 0.001):
+            aw["magazine"] = float(space["Magazine"])
+        if not aw:
+            continue
+        out[key] = {"name": name, "default": "atmosphere", "archwing": aw}
+    return out, report
+
+
+def main(argv: list[str]) -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--wiki", required=True, type=Path)
+    ap.add_argument("--out", type=Path, default=OUT)
+    ap.add_argument("--report", type=Path)
+    args = ap.parse_args(argv[1:])
+    recs, report = build(args.wiki, json.loads(WS.read_text(encoding="utf-8")))
+    out = {
         "_meta": {
-            "source": "github.com/magenie33/wfsim data/weapons/*（deployments 字段）",
-            "updated": "2026-09-17",
-            "note": "Archgun 两种部署：顶层 attack = 地面/大气（Gravimag）默认面板；"
-            "archwing = 空战覆盖值。个别武器覆盖暴击/弹药",
+            "source": "英文 wiki Module:Weapons/data/archwing（<名> (Atmosphere) = 大气部署 / <名> = 空战部署），CC BY-NC-SA 3.0",
+            "wiki_snapshot": args.wiki.name,
+            "generator": "scripts/build_weapon_deployments.py",
+            "note": "顶层面板 = 大气（Gravimag）默认部署；archwing = 空战覆盖值，只写与大气不同的项",
         }
     }
-    n = 0
-    for f in glob.glob(str(WFSIM / "weapons" / "**" / "*.yaml"), recursive=True):
-        y = yaml.safe_load(open(f, encoding="utf-8"))
-        if not isinstance(y, dict) or not isinstance(y.get("deployments"), dict):
-            continue
-        key = str(y.get("internal_name") or "").lower()
-        if not key:
-            continue
-        rec: dict = {"name": y.get("name"), "default": y.get("deployment") or "atmosphere"}
-        aw = (y["deployments"] or {}).get("archwing") or {}
-        a: dict = {}
-        if aw.get("damage"):
-            a["damage"] = cd(aw["damage"])
-        if aw.get("radial_damage"):
-            a["radial_damage"] = cd(aw["radial_damage"])
-        if aw.get("reload_seconds"):
-            a["reload_seconds"] = float(aw["reload_seconds"])
-        for k, dst in (
-            ("crit_chance", "criticalChance"),
-            ("crit_multiplier", "criticalMultiplier"),
-            ("ammo_max", "ammo_max"),
-        ):
-            if aw.get(k) is not None:
-                a[dst] = float(aw[k])
-        if aw.get("no_resupply"):
-            a["no_resupply"] = True
-        if a:
-            rec["archwing"] = a
-            out[key] = rec
-            n += 1
-    OUT.write_text(json.dumps(out, ensure_ascii=False, indent=1), encoding="utf-8")
-    print(f"✓ {OUT.name}: {n} 把双部署武器")
-    for k, v in list(out.items())[1:3]:
-        print("  ", v["name"], "|", json.dumps(v.get("archwing"), ensure_ascii=False)[:200])
+    out.update(dict(sorted(recs.items())))
+    args.out.write_text(json.dumps(out, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    if args.report:
+        args.report.write_text("\n".join(report) + "\n", encoding="utf-8")
+    print(f"✓ {args.out.name}: {len(recs)} 把 archgun；提示 {len(report)} 条")
+    return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(sys.argv))

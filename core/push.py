@@ -21,6 +21,7 @@ from typing import Awaitable, Callable, Optional
 
 from . import paths
 from .api_client import WarframeClient
+from .logging_compat import mask_umo
 from .formatters import (
     ORACLE_REGIONS,
     countdown,
@@ -676,13 +677,13 @@ class PushDaemon:
             except asyncio.CancelledError:
                 raise
             except Exception as exc:  # noqa: BLE001 - 提醒发不出去不重试（订阅本就结束了）
-                self.log.warning("[warframe] 到期提醒发送失败（%s）：%s", umo, exc)
+                self.log.warning("[warframe] 到期提醒发送失败（%s）：%s", mask_umo(umo), exc)
             else:
                 # ★ 2026-10-16（ZCode 部署验证）：成功路径此前完全静默，只能靠用户截图确认送达；
                 #   与普通推送的「已推送」日志对称，补一行可检索的成功记录。
                 self.log.info(
                     "[warframe] 到期提醒已发出（%s）：%d 条 %s",
-                    umo,
+                    mask_umo(umo),
                     len(items),
                     " ".join(f"#{s.sid}" for s in items),
                 )
@@ -727,7 +728,7 @@ class PushDaemon:
         try:
             await self.groups.set_pause(umo, info)
         except Exception as exc:  # noqa: BLE001 - 写盘失败不影响内存语义（照 _purge_umo）
-            self.log.warning("[warframe] 暂停状态写盘失败（%s）：%s", umo, exc)
+            self.log.warning("[warframe] 暂停状态写盘失败（%s）：%s", mask_umo(umo), exc)
 
     async def _pause_or_purge(self, umo: str, err: BaseException, n_fail: int, now: float) -> None:
         """连续失败达阈值：未暂停 ⇒ 改为暂停推送；已暂停（本次是试发）⇒ 满 7 天才清理订阅。"""
@@ -747,7 +748,7 @@ class PushDaemon:
             self.log.warning(
                 "[warframe] %s：连续 %d 轮发送失败 → 已暂停该会话推送"
                 "（%d 小时后重试；满 %d 天仍失败才清理，面板可手动恢复）",
-                umo,
+                mask_umo(umo),
                 n_fail,
                 PAUSE_RETRY_SECS // 3600,
                 PAUSE_PURGE_SECS // 86400,
@@ -769,7 +770,7 @@ class PushDaemon:
         )
         self.log.warning(
             "[warframe] %s：暂停期间试发仍失败（暂停已 %d 天）→ %d 小时后再试",
-            umo,
+            mask_umo(umo),
             int((now - since) // 86400),
             PAUSE_RETRY_SECS // 3600,
         )
@@ -841,12 +842,14 @@ class PushDaemon:
         self._fail_count.pop(umo, None)
         if self._pause_of(umo) is not None:  # 试发成功 ⇒ 解除暂停
             await self._write_pause(umo, None)
-            self.log.info("[warframe] %s：推送已恢复（试发成功，解除暂停）", umo)
+            self.log.info("[warframe] %s：推送已恢复（试发成功，解除暂停）", mask_umo(umo))
         await self._commit(elig, key, now)
         # ★ 成功派发也留痕（2026-09-26）：此前只有失败才记日志，无法从日志判断
         #   「同一事件被推了几条」。带上实例 id —— 若出现跨实例的重复推送，
         #   同一事件键会打印出**两个不同的实例 id**，一眼可见。
-        self.log.info("[warframe] 已推送 事件=%s 键=%s → %s（实例 %s）", kind, key, umo, id(self))
+        self.log.info(
+            "[warframe] 已推送 事件=%s 键=%s → %s（实例 %s）", kind, key, mask_umo(umo), id(self)
+        )
         return "ok"
 
     async def _send_guarded(
@@ -870,10 +873,10 @@ class PushDaemon:
             if cancelling is None or cancelling():
                 raise
             err = RuntimeError("发送被取消（非守护停止）")
-            self.log.warning("[warframe] 推送失败（%s）：%s", umo, err)
+            self.log.warning("[warframe] 推送失败（%s）：%s", mask_umo(umo), err)
         except Exception as exc:  # noqa: BLE001
             err = exc
-            self.log.warning("[warframe] 推送失败（%s）：%s", umo, err)
+            self.log.warning("[warframe] 推送失败（%s）：%s", mask_umo(umo), err)
         # —— 失败累计（每会话每 tick 最多记一次）——
         if self._fail_tick.get(umo) != self._tick_no:
             self._fail_tick[umo] = self._tick_no
@@ -893,12 +896,12 @@ class PushDaemon:
             n = await self.store.remove(lambda s: s.umo == umo)
         except Exception as exc:  # noqa: BLE001
             n = len(sids)
-            self.log.warning("[warframe] 清理 %s 的订阅时写盘失败：%s", umo, exc)
+            self.log.warning("[warframe] 清理 %s 的订阅时写盘失败：%s", mask_umo(umo), exc)
         self._dead |= sids
         self._purged_umos.add(umo)
         self._pending[:] = [p for p in self._pending if p["umo"] != umo]
         self._fail_count.pop(umo, None)
-        self.log.warning("[warframe] %s：%s → 已清理该会话 %d 条订阅", umo, reason, n)
+        self.log.warning("[warframe] %s：%s → 已清理该会话 %d 条订阅", mask_umo(umo), reason, n)
 
     async def _commit(self, elig: list[Subscription], key: str, now: float) -> None:
         """送达后：记 notified、消费时长语义、落盘。落盘失败只记日志，内存状态照常更新。"""

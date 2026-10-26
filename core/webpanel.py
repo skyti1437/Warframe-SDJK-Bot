@@ -37,8 +37,9 @@ from .api_client import (
     RIVEN_RT_NAME,
     RIVEN_WEEKLY_NAME,
     WarframeClient,
+    private_url_reason,
 )
-from .logging_compat import logger
+from .logging_compat import logger, mask_id, mask_umo  # noqa: F401 - 面板与测试沿用 W.mask_*
 
 # 状态四档：ok 新鲜 / warn 该刷了但不影响功能 / stale 已过期（卡面会受影响）/ info 静态快照仅供参考
 OK, WARN, STALE, INFO = "ok", "warn", "stale", "info"
@@ -280,6 +281,116 @@ def registry_rows() -> list[dict]:
         return []
 
 
+_LOADED_AT = time.time()  # 插件（本模块）加载时刻：「关于」页的运行时长
+
+PUBLIC_REPO = "https://github.com/skyti1437/Warframe-SDJK-Bot"
+# 「关于」页的数据来源与许可（与 README「数据来源」一节同口径；只列主要来源）
+ABOUT_SOURCES = [
+    ("世界状态", "DE 官方 api.warframe.com", ""),
+    ("中文译名 / 紫卡词条模板 / 武器面板", "DE 官方 Public Export", ""),
+    ("紫卡词条正负与限制、武器兼容标签", "warframe-public-export-plus", "MIT"),
+    (
+        "武器攻击形态 / 灵化形态与进化 / CO 分类 / Archgun 面板 / 回响加成 / 紫卡倾向",
+        "英文 wiki（wiki.warframe.com）",
+        "CC BY-NC-SA 3.0",
+    ),
+    ("掉落表、武器基础面板", "WFCD warframe-drop-data / warframe-items", "MIT"),
+    ("MOD 等级与逐级数值", "DE 官方 Public Export", ""),
+    (
+        "WFCD 未收录的武器（新武器 / 空战枪 / 守护武器）",
+        "英文 wiki + DE 官方 Public Export",
+        "CC BY-NC-SA 3.0",
+    ),
+    ("市场价 / 玄骸拍卖 / 紫卡词条抽样", "warframe.market", ""),
+    (
+        "MOD 互斥 / 条件叠层 / 不兼容武器",
+        "英文 wiki + DE 官方 Public Export + warframe-public-export-plus",
+        "CC BY-NC-SA 3.0 / MIT",
+    ),
+    (
+        "常用敌人",
+        "英文 wiki + warframe-public-export-plus",
+        "CC BY-NC-SA 3.0 / MIT",
+    ),
+    ("随包字体", "Noto Sans CJK SC 子集", "SIL OFL 1.1"),
+    ("插件图标", "Warframe 官方 Fan Kit", ""),
+]
+
+
+def _meta_of(name: str, *keys: str) -> str:
+    """随包数据文件 ``_meta`` / 顶层里的某个字段（取不到返回空串）。"""
+    try:
+        doc = _load(name)
+    except Exception:  # noqa: BLE001
+        return ""
+    for k in keys:
+        cur: Any = doc
+        for part in k.split("."):
+            cur = cur.get(part) if isinstance(cur, dict) else None
+        if cur:
+            return str(cur)
+    return ""
+
+
+def _astrbot_version() -> str:
+    try:
+        from astrbot.core.config.default import VERSION  # type: ignore
+
+        return str(VERSION)
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def about_info(now: Optional[float] = None) -> dict:
+    """「关于」页：插件 / 运行环境 / 数据版本 / 数据来源与许可。只读、不含路径与主机名。"""
+    import platform
+
+    now = time.time() if now is None else now
+    try:
+        from . import __version__ as ver
+    except Exception:  # noqa: BLE001
+        ver = ""
+    try:
+        from .parser import COMMAND_ALIASES
+
+        n_cmd = len(COMMAND_ALIASES)
+    except Exception:  # noqa: BLE001
+        n_cmd = 0
+    reg = registry_rows()
+    counts: dict[str, int] = {}
+    for r in reg:
+        st = str(r.get("status") or "")
+        counts[st] = counts.get(st, 0) + 1
+    up = max(0, int(now - _LOADED_AT))
+    return {
+        "plugin": {
+            "name": "Warframe SDJKBOT",
+            "version": ver,
+            "author": "SDJK",
+            "license": "GPL-3.0",
+            "repo": PUBLIC_REPO,
+            "commands": n_cmd,
+        },
+        "runtime": {
+            "python": platform.python_version(),
+            "astrbot": _astrbot_version(),
+            "uptime_s": up,
+        },
+        # ★ 2026-10-27（线上实测）：**顶层不能叫 `data`** —— AstrBot 的插件页桥在拿到
+        #   响应后执行 `r.data.data ?? r.data`，本键会把整包（plugin / runtime / sources）
+        #   挤掉，页面只剩这 5 个字段 ⇒ 关于页全显示「未知 / 空表」。
+        #   （P3 首版就踩了，只是当时用桩渲染页面、没走真实桥，没暴露。）
+        "data_versions": {
+            "damage_wiki_snapshot": _meta_of("weapon_attacks.json", "_meta.wiki_snapshot"),
+            "riven_pools_generated": _meta_of("de/riven_pools.json", "_generated_at"),
+            "riven_survey_date": _meta_of("de/riven_pools_survey.json", "_surveyed"),
+            "registry_total": len(reg),
+            "registry_status": counts,
+        },
+        "sources": [{"item": a, "source": b, "license": c} for a, b, c in ABOUT_SOURCES],
+    }
+
+
 def ledger_rows() -> list[dict]:
     """有效数据账本（``core/data_registry.ledger``；出错不拖垮整页）。
 
@@ -289,22 +400,6 @@ def ledger_rows() -> list[dict]:
         return data_registry.ledger()
     except Exception:  # noqa: BLE001
         return []
-
-
-def mask_id(s: str) -> str:
-    """号码打码：保留前 2 位与后 2 位（``123456789`` → ``12*****89``）。"""
-    s = str(s or "")
-    if len(s) <= 4:
-        return "*" * len(s)
-    return s[:2] + "*" * (len(s) - 4) + s[-2:]
-
-
-def mask_umo(umo: str) -> str:
-    """``平台:消息类型:会话号`` 只给会话号打码。"""
-    parts = str(umo or "").split(":")
-    if len(parts) >= 3:
-        return ":".join(parts[:-1] + [mask_id(parts[-1])])
-    return mask_id(umo)
 
 
 def session_key(umo: str) -> str:
@@ -766,6 +861,7 @@ class WebPanel:
             (f"/{n}/sub_remove", self.sub_remove, ["POST"], "SDJKBOT 面板：删除订阅"),
             (f"/{n}/group_push", self.group_push, ["POST"], "SDJKBOT 面板：群推送开关"),
             (f"/{n}/push_resume", self.push_resume, ["POST"], "SDJKBOT 面板：恢复被暂停的群推送"),
+            (f"/{n}/about", self.about, ["GET"], "SDJKBOT 面板：关于（版本 / 环境 / 数据来源）"),
         ]
 
     def register(self, context) -> bool:
@@ -817,6 +913,11 @@ class WebPanel:
         return None
 
     # ---- 路由 ----
+    async def about(self):
+        if (g := self._gone()) is not None:
+            return g
+        return about_info()
+
     async def overview(self):
         if (g := self._gone()) is not None:
             return g
@@ -1183,6 +1284,11 @@ class WebPanel:
         url = str((await self._body()).get("url") or "").strip()
         if not re.match(r"^https?://[^\s/]+/\S+$", url):
             return {"status": "error", "message": "请填 http(s) 开头的字体文件直链"}
+        # ★ 2026-10-25（Astra 评估 S4）：字体直链不许指向内网 / 本机（可在配置里显式放行）
+        if not bool((getattr(self.p, "cfg", {}) or {}).get("allow_private_urls", False)):
+            why = await private_url_reason(url)
+            if why:
+                return {"status": "error", "message": f"字体地址不可用：{why}"}
         name = safe_font_name(url)
         if not name:
             return {"status": "error", "message": "链接要以 .ttf / .otf / .ttc 结尾"}
@@ -1209,8 +1315,22 @@ class WebPanel:
             renderer.user_font_dir.mkdir(parents=True, exist_ok=True)
             proxy = str((getattr(self.p, "cfg", {}) or {}).get("proxy") or "") or None
             factory = self._http_factory or httpx.AsyncClient
+            allow_private = bool(
+                (getattr(self.p, "cfg", {}) or {}).get("allow_private_urls", False)
+            )
+
+            async def _guard(request) -> None:
+                # 每一跳（含重定向后的地址）都重新校验，防止公网地址 302 到内网
+                if not allow_private:
+                    why = await private_url_reason(str(request.url))
+                    if why:
+                        raise httpx.RequestError(f"重定向目标不可用：{why}", request=request)
+
             async with factory(
-                timeout=httpx.Timeout(30.0, read=90.0), follow_redirects=True, proxy=proxy
+                timeout=httpx.Timeout(30.0, read=90.0),
+                follow_redirects=True,
+                proxy=proxy,
+                event_hooks={"request": [_guard]},
             ) as http:
                 ok = await self._fetch_font(
                     http,

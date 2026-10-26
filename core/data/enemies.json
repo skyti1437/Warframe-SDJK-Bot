@@ -1,36 +1,13 @@
 {
  "_meta": {
-  "source": "riven-mirror src/warframe/codex/enemy.ts",
-  "retrieved": "2026-09-16",
-  "note": "2026-09-17 从 wfsim data/enemies（wiki Module:Enemies/data 来源）补充 Acolyte/凶魂百夫长等条目，带 zh 与 head_mul",
-  "head_note": "2026-10-10 爆头口径：head_mul 为 null = 未分类（按人形 ×3 计）；head_src 为出处；head_none 为无头部（爆头不成立）；head_crit 为与派系默认不同的暴击爆头资格",
-  "keep_note": "2026-10-10 维护者定：只保留常用敌人 19 个（scripts/merge_wfsim_enemies.py::KEEP_ENEMIES）；zh 为官方简中（ZH_PATCH），aliases 为额外叫法"
+  "source": "英文 wiki Module:Enemies/data（CC BY-NC-SA 3.0）+ PEP ExportEnemies（MIT，calamity-inc/warframe-public-export-plus）",
+  "wiki_snapshot": "wiki-modules-20261026/enemies",
+  "pep_commit": "513105d5c4e56d2a3238b7c7914e8ef4e87e829a",
+  "generator": "scripts/build_enemies.py",
+  "head_note": "head_mul 为 null = 未分类（按人形 ×3 计）；head_src 为出处；head_none 为无头部（爆头不成立）；head_crit 为与派系默认不同的暴击爆头资格",
+  "keep_note": "只保留常用敌人 19 个（2026-10-10 维护者定，KEEP_ENEMIES）；zh 为官方简中，aliases 为额外叫法"
  },
  "enemies": {
-  "Eidolon Teralyst": {
-   "name": "Eidolon Teralyst",
-   "zh": "夜灵兆力使",
-   "faction": "Sentient",
-   "base_level": 1,
-   "base_health": 15000.0,
-   "base_shield": 0.0,
-   "base_armor": 200.0,
-   "head_mul": 1.0,
-   "head_src": "保持「无头部、不吃爆头」待拍板：wiki Enemy_Body_Parts「Eidolon：Body (1x) / Head (1x) / Synovia (1x)」与各夜灵页「body part multiplier of 2x … head possesses a 3x headshot multiplier」矛盾，Module:Enemies/data/sentient 该条 Multis 为「?」；夜灵本体无敌，伤害只落在 Synovia（Eidolon Teralyst 页）",
-   "head_none": true
-  },
-  "Profit-Taker Orb": {
-   "name": "Profit-Taker Orb",
-   "zh": "利润收割者圆蛛",
-   "faction": "Corpus",
-   "base_level": 50,
-   "base_health": 7000.0,
-   "base_shield": 30000.0,
-   "base_armor": 150.0,
-   "head_mul": 1.0,
-   "head_src": "无来源：Module:Enemies/data/corpus 该条 Multis 为「?」、Enemy_Body_Parts 无此条、本页无部位倍率；沿用旧值（无头部、不吃爆头）待核",
-   "head_none": true
-  },
   "Lancer": {
    "name": "Lancer",
    "zh": "枪兵",
@@ -40,18 +17,15 @@
    "base_shield": 0.0,
    "base_armor": 100.0,
    "head_mul": 3.0,
-   "head_src": "wiki Module:Enemies/data（Head: 3.0x）"
-  },
-  "Bombard": {
-   "name": "Bombard",
-   "zh": "轰击者",
-   "faction": "Grineer",
-   "base_level": 1,
-   "base_health": 300.0,
-   "base_shield": 0.0,
-   "base_armor": 500.0,
-   "head_mul": 3.0,
-   "head_src": "wiki Module:Enemies/data（Head: 3.0x）"
+   "head_src": "wiki Module:Enemies/data/grineer（Head: 3.0x）",
+   "src": {
+    "zh": "PEP dict.zh /Lotus/Language/Game/GrineerLancerRifle",
+    "faction": "wiki Module:Enemies/data/grineer（oldid 2800568）「Lancer」 Faction",
+    "base_level": "wiki Module:Enemies/data/grineer（oldid 2800568）「Lancer」 Stats.BaseLevel",
+    "base_health": "wiki Module:Enemies/data/grineer（oldid 2800568）「Lancer」 Stats.Health",
+    "base_shield": "PEP ExportEnemies RifleLancerAvatar / LancerDamageController shield（wiki 模块只写非零项，未写）",
+    "base_armor": "wiki Module:Enemies/data/grineer（oldid 2800568）「Lancer」 Stats.Armor"
+   }
   },
   "Heavy Gunner": {
    "name": "Heavy Gunner",
@@ -62,77 +36,34 @@
    "base_shield": 0.0,
    "base_armor": 500.0,
    "head_mul": 3.0,
-   "head_src": "wiki Module:Enemies/data（Head: 3.0x）"
-  },
-  "Nox": {
-   "name": "Nox",
-   "zh": "毒化者",
-   "faction": "Grineer",
-   "base_level": 1,
-   "base_health": 250.0,
-   "base_shield": 0.0,
-   "base_armor": 350.0,
-   "head_mul": 3.0,
-   "head_src": "wiki Module:Enemies/data（Head: 3.0x）",
-   "aliases": [
-    "诺克斯"
-   ]
-  },
-  "Grineer Warden": {
-   "name": "Grineer Warden",
-   "zh": "Grineer 典狱长",
-   "faction": "Grineer",
-   "base_level": 1,
-   "base_health": 600.0,
-   "base_shield": 0.0,
-   "base_armor": 500.0,
-   "head_mul": 3.0,
-   "head_src": "wiki Module:Enemies/data（Head: 3.0x）"
+   "head_src": "wiki Module:Enemies/data/grineer（Head: 3.0x）",
+   "src": {
+    "zh": "PEP dict.zh /Lotus/Language/Game/GrineerBombardMinigun",
+    "faction": "wiki Module:Enemies/data/grineer（oldid 2800568）「Heavy Gunner」 Faction",
+    "base_level": "wiki Module:Enemies/data/grineer（oldid 2800568）「Heavy Gunner」 Stats.BaseLevel",
+    "base_health": "wiki Module:Enemies/data/grineer（oldid 2800568）「Heavy Gunner」 Stats.Health",
+    "base_shield": "PEP ExportEnemies HeavyFemaleGrineerAvatar / BombardDamageController shield（wiki 模块只写非零项，未写）",
+    "base_armor": "wiki Module:Enemies/data/grineer（oldid 2800568）「Heavy Gunner」 Stats.Armor"
+   }
   },
   "Crewman": {
    "name": "Crewman",
    "zh": "船员",
    "faction": "Corpus",
    "base_level": 1,
-   "base_health": 60.0,
-   "base_shield": 150.0,
+   "base_health": 90.0,
+   "base_shield": 120.0,
    "base_armor": 0.0,
    "head_mul": 3.0,
-   "head_src": "wiki Module:Enemies/data（Head: 3.0x）"
-  },
-  "Isolator Bursa": {
-   "name": "Isolator Bursa",
-   "zh": "隔离金流恐鸟",
-   "faction": "Corpus",
-   "base_level": 1,
-   "base_health": 1200.0,
-   "base_shield": 700.0,
-   "base_armor": 200.0,
-   "head_mul": 1.0,
-   "head_src": "wiki Enemy_Body_Parts（Bursa：Head 1x*，背部控制台 3x*）"
-  },
-  "MOA": {
-   "name": "MOA",
-   "zh": "恐鸟",
-   "faction": "Corpus",
-   "base_level": 1,
-   "base_health": 60.0,
-   "base_shield": 150.0,
-   "base_armor": 0.0,
-   "head_mul": 1.0,
-   "head_src": "wiki Module:Enemies/data（Head: 1.0x）；Body_Parts 屁股 3x（非爆头弱点）"
-  },
-  "Leech Osprey": {
-   "name": "Leech Osprey",
-   "zh": "吸血鱼鹰",
-   "faction": "Corpus",
-   "base_level": 1,
-   "base_health": 100.0,
-   "base_shield": 50.0,
-   "base_armor": 0.0,
-   "head_mul": 3.0,
-   "head_src": "wiki Module:Enemies/data（Head: 3.0x）",
-   "head_crit": true
+   "head_src": "wiki Module:Enemies/data/corpus（Head: 3.0x）",
+   "src": {
+    "zh": "PEP dict.zh /Lotus/Language/Game/RifleSpaceMan",
+    "faction": "wiki Module:Enemies/data/corpus（oldid 2794561）「Crewman」 Faction",
+    "base_level": "wiki Module:Enemies/data/corpus（oldid 2794561）「Crewman」 Stats.BaseLevel",
+    "base_health": "wiki Module:Enemies/data/corpus（oldid 2794561）「Crewman」 Stats.Health",
+    "base_shield": "wiki Module:Enemies/data/corpus（oldid 2794561）「Crewman」 Stats.Shield",
+    "base_armor": "PEP ExportEnemies RifleSpacemanAvatar / RifleSpacemanDamageController armor（wiki 模块只写非零项，未写）"
+   }
   },
   "Charger": {
    "name": "Charger",
@@ -143,7 +74,15 @@
    "base_shield": 0.0,
    "base_armor": 0.0,
    "head_mul": 1.0,
-   "head_src": "wiki Module:Enemies/data（Head: 1.0x）"
+   "head_src": "wiki Module:Enemies/data/infestation（Head: 1.0x）",
+   "src": {
+    "zh": "PEP dict.zh /Lotus/Language/Game/InfestedMeleeRunner",
+    "faction": "wiki Module:Enemies/data/infestation（oldid 2807729）「Charger」 Faction",
+    "base_level": "wiki Module:Enemies/data/infestation（oldid 2807729）「Charger」 Stats.BaseLevel",
+    "base_health": "wiki Module:Enemies/data/infestation（oldid 2807729）「Charger」 Stats.Health",
+    "base_shield": "PEP ExportEnemies QuadrupedAvatar / QuadrupedDamageController shield（wiki 模块只写非零项，未写）",
+    "base_armor": "PEP ExportEnemies QuadrupedAvatar / QuadrupedDamageController armor（wiki 模块只写非零项，未写）"
+   }
   },
   "Runner": {
    "name": "Runner",
@@ -154,18 +93,15 @@
    "base_shield": 0.0,
    "base_armor": 0.0,
    "head_mul": 3.0,
-   "head_src": "wiki Module:Enemies/data（Head: 3.0x）"
-  },
-  "Ancient Healer": {
-   "name": "Ancient Healer",
-   "zh": "远古治愈者",
-   "faction": "Infested",
-   "base_level": 1,
-   "base_health": 400.0,
-   "base_shield": 0.0,
-   "base_armor": 0.0,
-   "head_mul": 3.0,
-   "head_src": "wiki Module:Enemies/data（Head: 3.0x）"
+   "head_src": "wiki Module:Enemies/data/infestation（Head: 3.0x）",
+   "src": {
+    "zh": "PEP dict.zh /Lotus/Language/Game/InfestedRunner",
+    "faction": "wiki Module:Enemies/data/infestation（oldid 2807729）「Runner」 Faction",
+    "base_level": "wiki Module:Enemies/data/infestation（oldid 2807729）「Runner」 Stats.BaseLevel",
+    "base_health": "wiki Module:Enemies/data/infestation（oldid 2807729）「Runner」 Stats.Health",
+    "base_shield": "PEP ExportEnemies RunnerAvatar / RunnerDamageController shield（wiki 模块只写非零项，未写）",
+    "base_armor": "PEP ExportEnemies RunnerAvatar / RunnerDamageController armor（wiki 模块只写非零项，未写）"
+   }
   },
   "Corrupted Heavy Gunner": {
    "name": "Corrupted Heavy Gunner",
@@ -176,7 +112,154 @@
    "base_shield": 0.0,
    "base_armor": 500.0,
    "head_mul": 3.0,
-   "head_src": "wiki Module:Enemies/data（Head: 3.0x）"
+   "head_src": "wiki Module:Enemies/data/orokin（Head: 3.0x）",
+   "src": {
+    "zh": "PEP dict.zh /Lotus/Language/Game/CorruptedHeavyGunner",
+    "faction": "wiki Module:Enemies/data/orokin（oldid 2816758）「Corrupted Heavy Gunner」 Faction",
+    "base_level": "wiki Module:Enemies/data/orokin（oldid 2816758）「Corrupted Heavy Gunner」 Stats.BaseLevel",
+    "base_health": "wiki Module:Enemies/data/orokin（oldid 2816758）「Corrupted Heavy Gunner」 Stats.Health",
+    "base_shield": "PEP ExportEnemies OrokinHeavyFemaleAvatar / BombardDamageController shield（wiki 模块只写非零项，未写）",
+    "base_armor": "wiki Module:Enemies/data/orokin（oldid 2816758）「Corrupted Heavy Gunner」 Stats.Armor"
+   }
+  },
+  "MOA": {
+   "name": "MOA",
+   "zh": "恐鸟",
+   "faction": "Corpus",
+   "base_level": 1,
+   "base_health": 90.0,
+   "base_shield": 120.0,
+   "base_armor": 0.0,
+   "head_mul": 1.0,
+   "head_src": "wiki Module:Enemies/data/corpus（Head: 1.0x）；Body_Parts 屁股 3x（非爆头弱点）",
+   "src": {
+    "zh": "PEP dict.zh /Lotus/Language/Game/LaserCannonBiped",
+    "faction": "wiki Module:Enemies/data/corpus（oldid 2794561）「MOA」 Faction",
+    "base_level": "wiki Module:Enemies/data/corpus（oldid 2794561）「MOA」 Stats.BaseLevel",
+    "base_health": "wiki Module:Enemies/data/corpus（oldid 2794561）「MOA」 Stats.Health",
+    "base_shield": "wiki Module:Enemies/data/corpus（oldid 2794561）「MOA」 Stats.Shield",
+    "base_armor": "PEP ExportEnemies LaserCannonBipedAvatar / BipedDamageController armor（wiki 模块只写非零项，未写）"
+   }
+  },
+  "Leech Osprey": {
+   "name": "Leech Osprey",
+   "zh": "吸血鱼鹰",
+   "faction": "Corpus",
+   "base_level": 1,
+   "base_health": 50.0,
+   "base_shield": 25.0,
+   "base_armor": 0.0,
+   "head_mul": 3.0,
+   "head_src": "wiki Module:Enemies/data/corpus（Head: 3.0x）",
+   "head_crit": true,
+   "src": {
+    "zh": "ZH_PATCH",
+    "faction": "wiki Module:Enemies/data/corpus（oldid 2794561）「Leech Osprey」 Faction",
+    "base_level": "wiki Module:Enemies/data/corpus（oldid 2794561）「Leech Osprey」 Stats.BaseLevel",
+    "base_health": "wiki Module:Enemies/data/corpus（oldid 2794561）「Leech Osprey」 Stats.Health",
+    "base_shield": "wiki Module:Enemies/data/corpus（oldid 2794561）「Leech Osprey」 Stats.Shield",
+    "base_armor": "PEP ExportEnemies LeechDroneAvatar / DroneDamageController armor（wiki 模块只写非零项，未写）"
+   }
+  },
+  "Isolator Bursa": {
+   "name": "Isolator Bursa",
+   "zh": "隔离金流恐鸟",
+   "faction": "Corpus",
+   "base_level": 1,
+   "base_health": 1200.0,
+   "base_shield": 700.0,
+   "base_armor": 200.0,
+   "head_mul": 1.0,
+   "head_src": "wiki Enemy_Body_Parts（Bursa：Head 1x*，背部控制台 3x*）",
+   "src": {
+    "zh": "ZH_PATCH",
+    "faction": "wiki Module:Enemies/data/corpus（oldid 2794561）「Isolator Bursa」 Faction",
+    "base_level": "wiki Module:Enemies/data/corpus（oldid 2794561）「Isolator Bursa」 Stats.BaseLevel",
+    "base_health": "wiki Module:Enemies/data/corpus（oldid 2794561）「Isolator Bursa」 Stats.Health",
+    "base_shield": "wiki Module:Enemies/data/corpus（oldid 2794561）「Isolator Bursa」 Stats.Shield",
+    "base_armor": "wiki Module:Enemies/data/corpus（oldid 2794561）「Isolator Bursa」 Stats.Armor"
+   }
+  },
+  "Nox": {
+   "name": "Nox",
+   "zh": "毒化者",
+   "faction": "Grineer",
+   "base_level": 1,
+   "base_health": 350.0,
+   "base_shield": 0.0,
+   "base_armor": 500.0,
+   "base_overguard": 5.0,
+   "head_mul": 3.0,
+   "head_src": "wiki Module:Enemies/data/grineer（Head: 3.0x）",
+   "aliases": [
+    "诺克斯"
+   ],
+   "src": {
+    "zh": "ZH_PATCH",
+    "faction": "wiki Module:Enemies/data/grineer（oldid 2800568）「Nox」 Faction",
+    "base_level": "wiki Module:Enemies/data/grineer（oldid 2800568）「Nox」 Stats.BaseLevel",
+    "base_health": "wiki Module:Enemies/data/grineer（oldid 2800568）「Nox」 Stats.Health",
+    "base_shield": "PEP ExportEnemies ChemStrikeNoxAvatar / NoxScaledDamageController shield（wiki 模块只写非零项，未写）",
+    "base_armor": "wiki Module:Enemies/data/grineer（oldid 2800568）「Nox」 Stats.Armor",
+    "base_overguard": "wiki Module:Enemies/data/grineer（oldid 2800568）「Nox」 Stats.Overguard"
+   }
+  },
+  "Bombard": {
+   "name": "Bombard",
+   "zh": "轰击者",
+   "faction": "Grineer",
+   "base_level": 4,
+   "base_health": 300.0,
+   "base_shield": 0.0,
+   "base_armor": 500.0,
+   "head_mul": 3.0,
+   "head_src": "wiki Module:Enemies/data/grineer（Head: 3.0x）",
+   "src": {
+    "zh": "PEP dict.zh /Lotus/Language/Game/GrineerBombardRocket",
+    "faction": "wiki Module:Enemies/data/grineer（oldid 2800568）「Bombard」 Faction",
+    "base_level": "wiki Module:Enemies/data/grineer（oldid 2800568）「Bombard」 Stats.BaseLevel",
+    "base_health": "wiki Module:Enemies/data/grineer（oldid 2800568）「Bombard」 Stats.Health",
+    "base_shield": "PEP ExportEnemies RocketBombardAvatar / RocketBombardDamageController shield（wiki 模块只写非零项，未写）",
+    "base_armor": "wiki Module:Enemies/data/grineer（oldid 2800568）「Bombard」 Stats.Armor"
+   }
+  },
+  "Grineer Warden": {
+   "name": "Grineer Warden",
+   "zh": "Grineer 典狱长",
+   "faction": "Grineer",
+   "base_level": 1,
+   "base_health": 600.0,
+   "base_shield": 0.0,
+   "base_armor": 500.0,
+   "head_mul": 3.0,
+   "head_src": "wiki Module:Enemies/data/grineer（Head: 3.0x）",
+   "src": {
+    "zh": "PEP dict.zh /Lotus/Language/Game/WardenGrineer",
+    "faction": "wiki Module:Enemies/data/grineer（oldid 2800568）「Grineer Warden」 Faction",
+    "base_level": "wiki Module:Enemies/data/grineer（oldid 2800568）「Grineer Warden」 Stats.BaseLevel",
+    "base_health": "wiki Module:Enemies/data/grineer（oldid 2800568）「Grineer Warden」 Stats.Health",
+    "base_shield": "PEP ExportEnemies WardenGrineerHeavyAvatar / WardenBombardDamageController shield（wiki 模块只写非零项，未写）",
+    "base_armor": "wiki Module:Enemies/data/grineer（oldid 2800568）「Grineer Warden」 Stats.Armor"
+   }
+  },
+  "Ancient Healer": {
+   "name": "Ancient Healer",
+   "zh": "远古治愈者",
+   "faction": "Infested",
+   "base_level": 1,
+   "base_health": 400.0,
+   "base_shield": 0.0,
+   "base_armor": 0.0,
+   "head_mul": 3.0,
+   "head_src": "wiki Module:Enemies/data/infestation（Head: 3.0x）",
+   "src": {
+    "zh": "PEP dict.zh /Lotus/Language/Game/InfestedAncientHealer",
+    "faction": "wiki Module:Enemies/data/infestation（oldid 2807729）「Ancient Healer」 Faction",
+    "base_level": "wiki Module:Enemies/data/infestation（oldid 2807729）「Ancient Healer」 Stats.BaseLevel",
+    "base_health": "wiki Module:Enemies/data/infestation（oldid 2807729）「Ancient Healer」 Stats.Health",
+    "base_shield": "PEP ExportEnemies HealingAncientAvatar / HealingAncientDamageController shield（wiki 模块只写非零项，未写）",
+    "base_armor": "PEP ExportEnemies HealingAncientAvatar / HealingAncientDamageController armor（wiki 模块只写非零项，未写）"
+   }
   },
   "Demolisher Devourer": {
    "name": "Demolisher Devourer",
@@ -185,10 +268,79 @@
    "base_level": 1,
    "base_health": 2500.0,
    "base_shield": 0.0,
-   "base_armor": 50.0,
+   "base_armor": 250.0,
    "head_mul": 3.0,
-   "source": "wfsim data/enemies（wiki Module:Enemies/data）",
-   "head_src": "wfsim data/enemies body_parts（wiki Module:Enemies/data）"
+   "head_src": "wiki Module:Enemies/data/grineer（Head: 3.0x）",
+   "src": {
+    "zh": "PEP dict.zh /Lotus/Language/Enemies/DemoDevourerName",
+    "faction": "wiki Module:Enemies/data/grineer（oldid 2800568）「Demolisher Devourer」 Faction",
+    "base_level": "wiki Module:Enemies/data/grineer（oldid 2800568）「Demolisher Devourer」 Stats.BaseLevel",
+    "base_health": "wiki Module:Enemies/data/grineer（oldid 2800568）「Demolisher Devourer」 Stats.Health",
+    "base_shield": "PEP ExportEnemies DemoDevourerAvatar / DemoDevourerScaledDamageController shield（wiki 模块只写非零项，未写）",
+    "base_armor": "wiki Module:Enemies/data/grineer（oldid 2800568）「Demolisher Devourer」 Stats.Armor"
+   }
+  },
+  "Thrax Centurion": {
+   "name": "Thrax Centurion",
+   "zh": "凶魂百夫长",
+   "faction": "Zariman",
+   "base_level": 1,
+   "base_health": 3600.0,
+   "base_shield": 0.0,
+   "base_armor": 200.0,
+   "base_overguard": 15.0,
+   "head_mul": 3.0,
+   "head_src": "wiki Module:Enemies/data/unaffiliated（Head: 3.0x）",
+   "head_crit": true,
+   "src": {
+    "zh": "PEP dict.zh /Lotus/Language/Zariman/DuviriMeleeAgent",
+    "faction": "wiki Module:Enemies/data/unaffiliated（oldid 2800569）「Thrax Centurion」 FactionDamageOverride",
+    "base_level": "wiki Module:Enemies/data/unaffiliated（oldid 2800569）「Thrax Centurion」 Stats.BaseLevel",
+    "base_health": "wiki Module:Enemies/data/unaffiliated（oldid 2800569）「Thrax Centurion」 Stats.Health",
+    "base_shield": "PEP ExportEnemies DuviriMeleeAvatar / DuviriMeleeTestDamageController shield（wiki 模块只写非零项，未写）",
+    "base_armor": "wiki Module:Enemies/data/unaffiliated（oldid 2800569）「Thrax Centurion」 Stats.Armor",
+    "base_overguard": "wiki Module:Enemies/data/unaffiliated（oldid 2800569）「Thrax Centurion」 Stats.Overguard"
+   }
+  },
+  "Eidolon Teralyst": {
+   "name": "Eidolon Teralyst",
+   "zh": "夜灵兆力使",
+   "faction": "Sentient",
+   "base_level": 1,
+   "base_health": 50000.0,
+   "base_shield": 50000.0,
+   "base_armor": 125.0,
+   "head_mul": 1.0,
+   "head_src": "不吃爆头：Eidolon Teralyst 页「Explosives … will hit the invulnerable body and deal no damage」、伤害落在 Synovia，而「Synovia do not count as weak points for most effects」；同页「head possesses a 3x headshot multiplier」与 Enemy_Body_Parts「Eidolon：Head (1x)」矛盾且本体无敌，不采用（2026-10-26 联网核对，Fandom / 论坛同）",
+   "head_none": true,
+   "src": {
+    "zh": "PEP dict.zh /Lotus/Language/Enemies/TeralystName",
+    "faction": "wiki Module:Enemies/data/sentient（oldid 2808235）「Eidolon Teralyst」 Faction",
+    "base_level": "wiki Module:Enemies/data/sentient（oldid 2808235）「Eidolon Teralyst」 Stats.BaseLevel",
+    "base_health": "wiki Module:Enemies/data/sentient（oldid 2808235）「Eidolon Teralyst」 Stats.Health",
+    "base_shield": "wiki Module:Enemies/data/sentient（oldid 2808235）「Eidolon Teralyst」 Stats.Shield",
+    "base_armor": "wiki Module:Enemies/data/sentient（oldid 2808235）「Eidolon Teralyst」 Stats.Armor"
+   }
+  },
+  "Profit-Taker Orb": {
+   "name": "Profit-Taker Orb",
+   "zh": "利润收割者圆蛛",
+   "faction": "Corpus",
+   "base_level": 1,
+   "base_health": 7000.0,
+   "base_shield": 30000.0,
+   "base_armor": 150.0,
+   "head_mul": 1.0,
+   "head_src": "不吃爆头：Module:Enemies/data/corpus 该条 Multis 为「?」、Enemy_Body_Parts 无此条；本页头部只用于范围伤害判定（「immune to the AoE damage … unless the head … is within the AoE」）与病毒伤害，输出部位是腿；社区攻略 / 论坛亦无头部倍率（2026-10-26 联网核对）",
+   "head_none": true,
+   "src": {
+    "zh": "PEP dict.zh /Lotus/Language/SolarisVenus/CamperSpiderName",
+    "faction": "wiki Module:Enemies/data/corpus（oldid 2794561）「Profit-Taker Orb」 Faction",
+    "base_level": "wiki Module:Enemies/data/corpus（oldid 2794561）「Profit-Taker Orb」 Stats.BaseLevel",
+    "base_health": "wiki Module:Enemies/data/corpus（oldid 2794561）「Profit-Taker Orb」 Stats.Health",
+    "base_shield": "wiki Module:Enemies/data/corpus（oldid 2794561）「Profit-Taker Orb」 Stats.Shield",
+    "base_armor": "wiki Module:Enemies/data/corpus（oldid 2794561）「Profit-Taker Orb」 Stats.Armor"
+   }
   },
   "Legacyte": {
    "name": "Legacyte",
@@ -199,9 +351,16 @@
    "base_shield": 0.0,
    "base_armor": 0.0,
    "head_mul": 3.0,
-   "source": "wfsim data/enemies（wiki Module:Enemies/data）",
-   "head_src": "wiki Enemy_Body_Parts（Legacyte：Head 3x*，* = 无暴击爆头）+ Legacyte 页「Head (3x, but no headcrit bonus)」；Module:Enemies/data/techrot 的 Multis 被注释（「Head: 4.5x … -- confirm」）未采用；wfsim legacyte.yaml「NO WEAK POINT IS PUBLISHED」与现行 wiki 不符",
-   "head_crit": false
+   "head_src": "wiki Enemy_Body_Parts（Legacyte：Head 3x*，* = 无暴击爆头）+ Legacyte 页「Head (3x, but no headcrit bonus)」；Module:Enemies/data/techrot 的 Multis 被注释（「Head: 4.5x … -- confirm」）未采用",
+   "head_crit": false,
+   "src": {
+    "zh": "ZH_PATCH",
+    "faction": "wiki Module:Enemies/data/techrot（oldid 2802587）「Legacyte」 Faction",
+    "base_level": "wiki Module:Enemies/data/techrot（oldid 2802587）「Legacyte」 Stats.BaseLevel",
+    "base_health": "wiki Module:Enemies/data/techrot（oldid 2802587）「Legacyte」 Stats.Health",
+    "base_shield": "PEP ExportEnemies InfestedCaptureMutalistAvatar / CaptureInfestedTargetScaledDamageController shield（wiki 模块只写非零项，未写）",
+    "base_armor": "PEP ExportEnemies InfestedCaptureMutalistAvatar / CaptureInfestedTargetScaledDamageController armor（wiki 模块只写非零项，未写）"
+   }
   },
   "Techrot Babau": {
    "name": "Techrot Babau",
@@ -212,22 +371,17 @@
    "base_shield": 500.0,
    "base_armor": 0.0,
    "head_mul": 1.5,
-   "source": "wfsim data/enemies（wiki Module:Enemies/data）",
-   "head_src": "wiki Module:Enemies/data/techrot（Head: 1.5x；wfsim techrot_babau.yaml 同）；⚠ Enemy_Body_Parts 写 Phone Head¹ (1x)（¹ = 命中升一档暴击），Babau 页 Notes 写头部与触须球「2x Critical Damage multiplier, +100% Critical Chance」—— 三处不一致；升档 / 2x 暴伤本计算器未建模，保持 Module 值待拍板"
-  },
-  "Thrax Centurion": {
-   "name": "Thrax Centurion",
-   "zh": "凶魂百夫长",
-   "faction": "Zariman",
-   "base_level": 1,
-   "base_health": 3600.0,
-   "base_shield": 0.0,
-   "base_armor": 200.0,
-   "head_mul": 3.0,
-   "source": "wfsim data/enemies（wiki Module:Enemies/data）",
-   "base_overguard": 15.0,
-   "head_src": "wfsim data/enemies body_parts（wiki Module:Enemies/data）",
-   "head_crit": true
+   "head_src": "wiki Module:Enemies/data/techrot（Head: 1.5x）；Babau 页「Head: 1.5x / Tendril Bulbs: 1.5x」同；Enemy_Body_Parts 行「Phone Head¹ (1x)」的 1x 与同页总述「Techrot … closer to 1.5x」不符，按模块；¹「Promotes hits to next crit tier」= Babau 页「flat +100% Critical Chance」（head_cc_bonus），「2x Critical Damage multiplier」= 暴击爆头（head_crit）（2026-10-26 联网核对后定）",
+   "head_crit": true,
+   "head_cc_bonus": 1.0,
+   "src": {
+    "zh": "ZH_PATCH",
+    "faction": "wiki Module:Enemies/data/techrot（oldid 2802587）「Techrot Babau」 Faction",
+    "base_level": "wiki Module:Enemies/data/techrot（oldid 2802587）「Techrot Babau」 Stats.BaseLevel",
+    "base_health": "wiki Module:Enemies/data/techrot（oldid 2802587）「Techrot Babau」 Stats.Health",
+    "base_shield": "wiki Module:Enemies/data/techrot（oldid 2802587）「Techrot Babau」 Stats.Shield",
+    "base_armor": "PEP ExportEnemies InfestedBabau1999Avatar / InfestedBabau1999ScaledDamageController armor（wiki 模块只写非零项，未写）"
+   }
   }
  }
 }

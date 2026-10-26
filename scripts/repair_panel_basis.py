@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 """核对并修复「顶层 damage 含额外段」的武器（dry-run 优先）。
 
+⚠ 历史一次性工具（修复已并入 weapons_stats.json）：写入的值取 WFCD 自己的 attacks[0]，wfsim 只作
+「对得上才改」的交叉核对门槛，不是数值来源。依赖本机 wfsim 导出，2026-10-26 wfsim 迁移后不再维护。
+
 背景：warframe-items 顶层 damage 有时把「主段 + 范围/爆炸段」合并
 （沙皇 impact 25 + blast 175 = 200），而 wfsim 的 attack.damage 是
 **主段**、attack.radial 是范围段 —— 用 wfsim 的成分做逐类型核对：

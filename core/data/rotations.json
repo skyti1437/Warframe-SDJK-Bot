@@ -261,38 +261,38 @@
    {
     "en": "Tenet Agendus",
     "cn": "信条·集议",
-    "element": "Toxin",
-    "bonus": 57.6
+    "element": "Magnetic",
+    "bonus": 40.9
    },
    {
     "en": "Tenet Exec",
     "cn": "信条·枢密",
-    "element": "Magnetic",
-    "bonus": 28.8
+    "element": "Radiation",
+    "bonus": 43.9
    },
    {
     "en": "Tenet Ferrox",
     "cn": "信条·铁晶磁轨炮",
-    "element": "Electricity",
-    "bonus": 30.8
+    "element": "Radiation",
+    "bonus": 38.4
    },
    {
     "en": "Tenet Grigori",
     "cn": "信条·格里高利",
-    "element": "Toxin",
-    "bonus": 27.8
+    "element": "Magnetic",
+    "bonus": 42.8
    },
    {
     "en": "Tenet Livia",
     "cn": "信条·莉薇娅",
-    "element": "Heat",
-    "bonus": 27.1
+    "element": "Radiation",
+    "bonus": 25.0
    }
   ],
   "_note": "Ergo Glast 在任意中继站出售，不消耗声望",
-  "valence_snapshot": "2026-10-23T05:14:17+00:00",
+  "valence_snapshot": "2026-10-26T01:20:55+00:00",
   "valence_source": "wiki 源页 wikitext（Coda_Weapons / Tenet_Weapons，经 FlareSolverr）",
-  "valence_values_since": "2026-10-22T00:40:26+00:00"
+  "valence_values_since": "2026-10-26T00:57:45+00:00"
  },
  "coda": {
   "mode": "batch_cycle",
@@ -394,7 +394,7 @@
    ]
   ],
   "_note": "Eleanor Nightingale 的 Coda 武器按 A/B 两批轮换（每批 7 把），每 4 天 00:00 UTC 换批；2026-09-14 实测为 A 批，换批边界 09-17 00:00 UTC（比 Ergo Glast 的元素加成重生成晚 24 小时，两者不是同一锚点）；批次表与加成取自 wiki Coda_Weapons 源页（2026-10-15 起，原 Reset 页已弃用）",
-  "valence_snapshot": "2026-10-23T05:14:17+00:00",
+  "valence_snapshot": "2026-10-26T01:20:55+00:00",
   "valence_source": "用户提供的游戏内终幕货单实拍（2026-10-19 08:17 北京时间，当期 B 批）",
   "batch_values_since": [
    "2026-10-23T00:56:34+00:00",

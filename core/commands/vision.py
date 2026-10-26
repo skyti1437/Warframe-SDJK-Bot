@@ -175,14 +175,21 @@ class VisionCommands:
         out: list = []
         _try_get = self._try_get_provider
 
-        # ① 面板里显式指定的（可指向任意多模态模型）
+        # ① 面板里显式指定的（可指向任意多模态模型）—— ★ 2026-10-25（Astra 评估 S1）：**独占**。
+        #   原写法只把它排在首位，后面照样追加内置候选与带视觉关键词的渠道，识卡又并发取前四个
+        #   ⇒ 指定了本地 / 自建模型，截图仍会同时发到其它已配置的云端渠道（离线调用链实测）。
+        #   指定了就只用它；取不到也**不回落**（回落等于把截图发给用户没选的渠道），报错让人修配置。
         want = self._cfg_str("vision_provider_id")
         if want:
             prov = _try_get(want)
             if prov:
-                out.append(prov)
-            else:
-                logger.warning("[sdjk] 配置的 vision_provider_id「%s」取不到，回落到内置候选", want)
+                return [prov]
+            logger.warning(
+                "[sdjk] 配置的 vision_provider_id「%s」取不到；为免截图外发到未指定的渠道，"
+                "本次不回落其它渠道 —— 请在面板改成可用的渠道 ID，或清空该项改用内置候选",
+                want,
+            )
+            return []
         # ② 内置优先级候选
         for pid in self._VISION_PROVIDER_IDS:
             prov = _try_get(pid)
@@ -240,6 +247,9 @@ class VisionCommands:
                 if not await asyncio.to_thread(self._image_pixels_ok, b64):
                     continue
                 out.append("data:image/png;base64," + b64)
+                # ★ 2026-10-25（Astra 评估 S5）：一次只认一张 ⇒ 第一张合格就停，别把后面的图
+                #   也下载、转 base64、解像素（5 张输入原先 5 次转换只用 1 张，小内存宿主白白放大开销）
+                break
         except Exception:  # noqa: BLE001 - 图片取不到就当没有
             pass
         return out[:1]  # 一次只认一张（紫卡截图）

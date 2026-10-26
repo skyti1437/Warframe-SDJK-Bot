@@ -326,4 +326,48 @@ print()
 if FAILED:
     print(f"FAILED {len(FAILED)}: " + ", ".join(FAILED))
     sys.exit(1)
+
+# ★ 2026-10-25（Astra 真实宿主补测）：走势百分比的基线 = 前段均价，括号必须写同一个基线
+import core.formatters as _F25  # noqa: E402
+
+_t25, _l25 = _F25.fmt_trend(
+    "膛线",
+    {"h48": H48, "d90": D90},
+    {
+        "vol48": 2,
+        "median48": 35,
+        "avg90": 0,
+        "change": -25.0,
+        "last": 30,
+        "first": 40,
+        "base": 40.0,
+        "base_span": "48 小时",
+    },
+)
+_w25 = next((x for x in _l25 if x.startswith("◆ 走势")), "")
+check(
+    "★ 走势括号写真实基线（前段均价），与百分比一致",
+    "▼25.0%" in _w25 and "前段均价 40.0p" in _w25,
+    _w25,
+)
+
+
+# ZCode 10-25：百分比要能由卡面括号里的两个数复算出来（基线用显示的 1 位小数）
+from core.api_client import WarframeClient as _WC25  # noqa: E402
+
+_s25 = _WC25.summarize_stats(
+    {
+        "h48": [{"median": 35.0, "volume": 1, "avg": 35}],
+        "d90": [
+            {"median": m, "volume": 1, "avg": m}
+            for m in (22.4, 22.6, 22.62, 30, 30, 30, 30, 30, 30)
+        ],
+    }
+)
+check(
+    "★ 走势百分比 = 卡面两个数复算（最新 / 前段均价 − 1）",
+    abs(_s25["change"] - round((_s25["last"] / _s25["base"] - 1) * 100, 1)) < 1e-9,
+    str(_s25),
+)
+
 print("ALL PASS")

@@ -42,7 +42,7 @@ try:  # 允许脱离 AstrBot 直接跑单元测试
     from .core import formatters as fmt
     from .core import paths as core_paths
     from .core import wiki_intro
-    from .core.parser import Parsed, normalize_platform, parse, PLATFORM_DISPLAY
+    from .core.parser import BEIJING_TZ, Parsed, normalize_platform, parse, PLATFORM_DISPLAY
     from .core.push import PushDaemon, at_targets
     from .core.render import ImageRenderer, WATERMARK_VERSION, migrate_legacy_user_fonts, text_card
     from .core.commands import DailyCommands, Reply
@@ -78,7 +78,7 @@ except ImportError as _imp_err:  # pragma: no cover
     from core import formatters as fmt
     from core import paths as core_paths
     from core import wiki_intro
-    from core.parser import Parsed, normalize_platform, parse, PLATFORM_DISPLAY
+    from core.parser import BEIJING_TZ, Parsed, normalize_platform, parse, PLATFORM_DISPLAY
     from core.push import PushDaemon, at_targets
     from core.render import ImageRenderer, WATERMARK_VERSION, migrate_legacy_user_fonts, text_card
     from core.commands import DailyCommands, Reply
@@ -445,7 +445,7 @@ HELP_NOTES: dict[str, list[str]] = {
 
 
 @register(
-    "astrbot_plugin_warframe_sdjkbot", "SDJK", f"{BRAND}：世界状态 / 市场查价 / 蹲点推送", "1.2.6"
+    "astrbot_plugin_warframe_sdjkbot", "SDJK", f"{BRAND}：世界状态 / 市场查价 / 蹲点推送", "1.2.7"
 )
 class WarframeSDJK(
     DailyCommands,
@@ -483,6 +483,7 @@ class WarframeSDJK(
             flare_enabled=bool(self.cfg.get("flaresolverr_enabled", True)),
             flare_urls=_flare_urls or None,
             community_base=str(self.cfg.get("community_data_url") or ""),
+            allow_private_urls=bool(self.cfg.get("allow_private_urls", False)),
             wfhelper_valence=bool(self.cfg.get("wfhelper_valence", False)),
         )
         self.groups = GroupStore(
@@ -783,10 +784,13 @@ class WarframeSDJK(
                 #   实际约 64h 才刷一次；44h ⇒ 到期点落在前一晚，下个凌晨窗口即抓（实际约 47h）
                 if age > self.RANK_TTL_HOURS * 3600:
                     # 闲时闸门：白天不爬（会拖慢用户的 wm/wr 查询）
-                    if datetime.now().hour not in self.RANK_CRAWL_IDLE_HOURS:
+                    # ★ 2026-10-25（Astra 时区专项）：闲时按**北京时间**判断 —— 原用服务器本地
+                    #   `datetime.now().hour`，UTC 宿主上「02–06 点」实为北京时间 10–14 点。
+                    bj_hour = datetime.now(BEIJING_TZ).hour
+                    if bj_hour not in self.RANK_CRAWL_IDLE_HOURS:
                         logger.info(
-                            "[sdjk] 价格榜单已过期，但非闲时（%02d 点），凌晨 %d-%d 点再爬",
-                            datetime.now().hour,
+                            "[sdjk] 价格榜单已过期，但非闲时（北京时间 %02d 点），凌晨 %d-%d 点再爬",
+                            bj_hour,
                             self.RANK_CRAWL_IDLE_HOURS[0],
                             self.RANK_CRAWL_IDLE_HOURS[-1],
                         )
@@ -1099,7 +1103,13 @@ class WarframeSDJK(
         if text.startswith("."):
             reply = await self._handle_admin(event, text)
             if reply:
-                yield event.plain_result(reply.raw_text or "")
+                if reply.raw_text is not None:
+                    yield event.plain_result(reply.raw_text)
+                else:
+                    # ★ 2026-10-25（Astra 真实宿主补测）：`.状态` 返回的是图卡（lines），
+                    #   原写法只发 raw_text ⇒ 空串、群里静默。非纯文字的回复走正常出图。
+                    async for result in self._build_results(event, reply, parse(text)):
+                        yield result
                 event.stop_event()
             return
 

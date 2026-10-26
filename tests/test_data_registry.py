@@ -363,15 +363,15 @@ check(
     not [x for x in DR.evaluate(d4, NOW, tracked_files=()) if x["status"] == "unregistered"],
 )
 
-# 字段缓存：内容变了（size/mtime 变）必须重新取值
-_write(d4, "mods_stats.json", {"_meta": {"retrieved": "2026-01-01"}})
+# 字段缓存：内容变了（size/mtime 变）必须重新取值；P4-AB 改以 wiki_snapshot 记录来源修订
+_write(d4, "mods_stats.json", {"_meta": {"wiki_snapshot": "oldid 1"}})
 r1 = _row(DR.evaluate(d4, NOW, tracked_files=()), "mods_stats.json")
-_write(d4, "mods_stats.json", {"_meta": {"retrieved": "2026-01-20T00:00:00"}})
+_write(d4, "mods_stats.json", {"_meta": {"wiki_snapshot": "oldid 22"}})
 r2 = _row(DR.evaluate(d4, NOW, tracked_files=()), "mods_stats.json")
 check(
     "字段缓存随文件变化失效",
-    r1["observed"] == "2026-01-01" and r2["observed"] == "2026-01-20T00:00:00",
-    f"{r1['observed']} / {r2['observed']}",
+    r1["source_rev"] == "oldid 1" and r2["source_rev"] == "oldid 22",
+    f"{r1['source_rev']} / {r2['source_rev']}",
 )
 
 # ------------------------------------------------------------------ ⑧ 有效数据账本（ledger，只读）

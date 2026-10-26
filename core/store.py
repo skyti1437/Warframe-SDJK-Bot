@@ -215,7 +215,14 @@ class SubscriptionStore(JsonStore):
             tag = json.dumps(d, ensure_ascii=False, sort_keys=True, default=str)[:200]
             if tag not in self._bad_warned:
                 self._bad_warned.add(tag)
-                logger.warning("[warframe] 订阅存档含坏条目，已跳过（%s）：%s", exc, tag)
+                # ★ 2026-10-25（Astra 评估 S3）：日志只写条目里有哪些字段，不写内容（含发起者 QQ、
+                #   会话号、筛选规则）；去重仍按完整内容
+                keys = sorted(d) if isinstance(d, dict) else [type(d).__name__]
+                logger.warning(
+                    "[warframe] 订阅存档含坏条目，已跳过（%s）：字段 %s",
+                    exc,
+                    ",".join(map(str, keys)),
+                )
             return None
 
     def all(self) -> list[Subscription]:

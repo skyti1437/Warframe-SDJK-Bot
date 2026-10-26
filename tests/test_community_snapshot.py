@@ -660,15 +660,37 @@ try:
     _aio.run(_c.refresh_community_static(("baro_history.json",)))
     check("★ 奸商历史刷新后 baro.load 读到新快照", _baro.snapshot_date() == _now_iso)
 
-    # 用户自填地址：只用它
+    # 用户自填地址：只用它（离线测试里 mirror.example.com 解析不了 ⇒ 这段只测路由，内网校验单测在下面）
+    _orig_reason = _AC.private_url_reason
+
+    async def _public(_u):
+        return ""
+
+    _AC.private_url_reason = _public
+    try:
+        _urls_seen.clear()
+        _c.community_base = _AC.normalize_community_base("https://mirror.example.com/wf/")
+        _aio.run(_c.refresh_community_static(("arb_ratings.json",)))
+        check(
+            "★ 自填社区地址：只请求该地址下的同名文件",
+            _urls_seen == ["https://mirror.example.com/wf/arb_ratings.json"],
+            str(_urls_seen),
+        )
+    finally:
+        _AC.private_url_reason = _orig_reason
+    # ★ 2026-10-25（Astra 评估 S4）：自填地址指向内网 ⇒ 不发请求；显式放行后照常请求
     _urls_seen.clear()
-    _c.community_base = _AC.normalize_community_base("https://mirror.example.com/wf/")
+    _c.community_base = _AC.normalize_community_base("http://127.0.0.1:18765/private")
+    _aio.run(_c.refresh_community_static(("arb_ratings.json",)))
+    check("★ 自填社区地址指向本机 ⇒ 拒绝、不发请求", _urls_seen == [], str(_urls_seen))
+    _c.allow_private_urls = True
     _aio.run(_c.refresh_community_static(("arb_ratings.json",)))
     check(
-        "★ 自填社区地址：只请求该地址下的同名文件",
-        _urls_seen == ["https://mirror.example.com/wf/arb_ratings.json"],
+        "allow_private_urls 开启 ⇒ 内网地址照常请求",
+        _urls_seen == ["http://127.0.0.1:18765/private/arb_ratings.json"],
         str(_urls_seen),
     )
+    _c.allow_private_urls = False
     _aio.run(_c.close())
 finally:
     _paths.set_run_dir(None)
@@ -2237,6 +2259,26 @@ def _mem_alert_checks():
 _mem_alert_checks()
 
 print()
+
+# ★ 2026-10-25（Astra 评估 S4）：内网地址判定（纯函数，IP 直写不联网）
+_why = {
+    u: _aio.run(_AC.private_url_reason(u))
+    for u in (
+        "http://127.0.0.1/x",
+        "http://10.0.0.5/x",
+        "http://169.254.169.254/latest",
+        "http://[::1]/x",
+        "http://user:pw@8.8.8.8/x",
+        "file:///etc/passwd",
+        "https://8.8.8.8/x.ttf",
+    )
+}
+check(
+    "★ 内网 / 本机 / 元数据地址 / 账号密码 / 非 http 一律拒，公网 IP 放行",
+    all(_why[u] for u in list(_why)[:6]) and _why["https://8.8.8.8/x.ttf"] == "",
+    str(_why),
+)
+
 if FAILED:
     print(f"✗ {len(FAILED)} 项失败：" + "、".join(FAILED))
     sys.exit(1)

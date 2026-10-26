@@ -36703,45 +36703,100 @@
   "category": "Melee",
   "masteryReq": 13,
   "damage": {
-   "total": 260,
-   "impact": 26,
-   "puncture": 182,
-   "slash": 52,
-   "heat": 0,
-   "cold": 0,
-   "electricity": 0,
-   "toxin": 0,
-   "blast": 0,
-   "radiation": 0,
-   "gas": 0,
-   "magnetic": 0,
-   "viral": 0,
-   "corrosive": 0,
-   "void": 0,
-   "tau": 0,
-   "cinematic": 0,
-   "shieldDrain": 0,
-   "healthDrain": 0,
-   "energyDrain": 0,
-   "true": 0
+   "impact": 26.0,
+   "puncture": 52.0,
+   "slash": 182.0,
+   "total": 260.0
   },
-  "criticalChance": 0.34999999,
+  "criticalChance": 0.35,
   "criticalMultiplier": 2.5,
-  "fireRate": 0.83333337,
-  "type": "Melee",
-  "slamAttack": 520,
-  "procChance": 0.18000001,
-  "heavyAttackDamage": 1040,
-  "heavySlamAttack": 260,
-  "comboDuration": 5,
-  "slamRadialDamage": 520,
-  "heavySlamRadialDamage": 780,
-  "slamRadius": 5,
-  "slideAttack": 260,
+  "procChance": 0.18,
+  "fireRate": 0.833,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Warfan",
+  "zh": "威震武扇 Prime",
+  "attacks": [
+   {
+    "name": "Normal Attack",
+    "damage": {
+     "impact": 26.0,
+     "puncture": 52.0,
+     "slash": 182.0
+    },
+    "total": 260.0,
+    "crit_chance": 35.0,
+    "crit_mult": 2.5,
+    "status_chance": 18.0,
+    "speed": 0.833
+   },
+   {
+    "name": "First Heavy Attack - Ethereal Daggers",
+    "damage": {
+     "puncture": 76.0,
+     "slash": 114.0
+    },
+    "total": 190.0,
+    "crit_chance": 35.0,
+    "crit_mult": 2.5,
+    "status_chance": 1.0,
+    "speed": 2.0,
+    "shot_type": "Projectile"
+   },
+   {
+    "name": "Second Heavy Attack - Ethereal Daggers",
+    "damage": {
+     "puncture": 152.0,
+     "slash": 228.0
+    },
+    "total": 380.0,
+    "crit_chance": 35.0,
+    "crit_mult": 2.5,
+    "status_chance": 2.0,
+    "speed": 2.0,
+    "shot_type": "Projectile"
+   },
+   {
+    "name": "Slam Attack",
+    "damage": {
+     "impact": 520.0
+    },
+    "total": 520.0,
+    "crit_chance": 35.0,
+    "crit_mult": 2.5,
+    "status_chance": 10.0,
+    "speed": 0.833,
+    "shot_type": "AoE",
+    "falloff": {
+     "start": 0.0,
+     "end": 5.0,
+     "reduction": 0.5
+    }
+   },
+   {
+    "name": "Heavy Slam Attack",
+    "damage": {
+     "blast": 780.0
+    },
+    "total": 780.0,
+    "crit_chance": 35.0,
+    "crit_mult": 2.5,
+    "status_chance": 34.0,
+    "speed": 0.833,
+    "shot_type": "AoE",
+    "falloff": {
+     "start": 0.0,
+     "end": 6.0,
+     "reduction": 0.3
+    }
+   }
+  ],
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "heavyAttackDamage": 1040.0,
+  "slideAttack": 260.0,
   "windUp": 0.5,
-  "followThrough": 0.69999999,
-  "omegaAttenuation": 0.64999998,
-  "zh": "威震武扇 Prime"
+  "followThrough": 0.7,
+  "comboDuration": 5.0
  },
  "/lotus/weapons/syndicates/redveil/melee/rvdarkdagger": {
   "name": "Rakta Dark Dagger",
@@ -41250,817 +41305,1206 @@
  },
  "/lotus/weapons/tenno/archwing/primary/nokkoarchgun/nokkoarchgun": {
   "name": "Arbucep",
-  "zh": "蕈菇",
   "uniqueName": "/Lotus/Weapons/Tenno/Archwing/Primary/NokkoArchGun/NokkoArchGun",
-  "slot": "archgun",
   "category": "Archgun",
   "masteryReq": 0,
-  "criticalChance": 0.1,
-  "criticalMultiplier": 2.9,
-  "procChance": 0.349,
-  "fireRate": 1.5,
-  "magazineSize": 36.0,
-  "reloadTime": 2.0,
-  "multishot": 6.0,
   "damage": {
    "blast": 32.0,
    "total": 32.0
   },
+  "criticalChance": 0.1,
+  "criticalMultiplier": 2.9,
+  "procChance": 0.349,
+  "fireRate": 1.5,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Launcher",
+  "zh": "蕈菇",
   "attacks": [
    {
-    "name": "Normal Attack",
+    "name": "1st Attack",
     "damage": {
-     "blast": 32.0,
-     "total": 32.0
+     "blast": 32.0
     },
     "total": 32.0,
     "crit_chance": 10.0,
     "crit_mult": 2.9,
     "status_chance": 34.9,
     "speed": 1.5,
-    "shot_type": "projectile"
+    "shot_type": "Projectile"
    },
    {
-    "name": "Area Attack",
+    "name": "1st Attack Radial Attack",
     "damage": {
-     "blast": 228.0,
-     "total": 228.0
+     "blast": 228.0
     },
     "total": 228.0,
     "crit_chance": 10.0,
     "crit_mult": 2.9,
     "status_chance": 34.9,
+    "speed": 1.5,
+    "shot_type": "AoE"
+   },
+   {
+    "name": "2nd Attack",
+    "damage": {
+     "corrosive": 32.0
+    },
+    "total": 32.0,
+    "crit_chance": 10.0,
+    "crit_mult": 2.9,
+    "status_chance": 34.9,
+    "speed": 1.5,
+    "shot_type": "Projectile"
+   },
+   {
+    "name": "2nd Attack Radial Attack",
+    "damage": {
+     "corrosive": 228.0
+    },
+    "total": 228.0,
+    "crit_chance": 10.0,
+    "crit_mult": 2.9,
+    "status_chance": 34.9,
+    "speed": 1.5,
+    "shot_type": "AoE"
+   },
+   {
+    "name": "3rd Attack",
+    "damage": {
+     "gas": 32.0
+    },
+    "total": 32.0,
+    "crit_chance": 10.0,
+    "crit_mult": 2.9,
+    "status_chance": 34.9,
+    "speed": 1.5,
+    "shot_type": "Projectile"
+   },
+   {
+    "name": "3rd Attack Radial Attack",
+    "damage": {
+     "gas": 228.0
+    },
+    "total": 228.0,
+    "crit_chance": 10.0,
+    "crit_mult": 2.9,
+    "status_chance": 34.9,
+    "speed": 1.5,
+    "shot_type": "AoE"
+   },
+   {
+    "name": "4th Attack",
+    "damage": {
+     "magnetic": 32.0
+    },
+    "total": 32.0,
+    "crit_chance": 10.0,
+    "crit_mult": 2.9,
+    "status_chance": 34.9,
+    "speed": 1.5,
+    "shot_type": "Projectile"
+   },
+   {
+    "name": "4th Attack Radial Attack",
+    "damage": {
+     "magnetic": 228.0
+    },
+    "total": 228.0,
+    "crit_chance": 10.0,
+    "crit_mult": 2.9,
+    "status_chance": 34.9,
+    "speed": 1.5,
+    "shot_type": "AoE"
+   },
+   {
+    "name": "5th Attack",
+    "damage": {
+     "radiation": 32.0
+    },
+    "total": 32.0,
+    "crit_chance": 10.0,
+    "crit_mult": 2.9,
+    "status_chance": 34.9,
+    "speed": 1.5,
+    "shot_type": "Projectile"
+   },
+   {
+    "name": "5th Attack Radial Attack",
+    "damage": {
+     "radiation": 228.0
+    },
+    "total": 228.0,
+    "crit_chance": 10.0,
+    "crit_mult": 2.9,
+    "status_chance": 34.9,
+    "speed": 1.5,
+    "shot_type": "AoE"
+   },
+   {
+    "name": "6th Attack",
+    "damage": {
+     "viral": 32.0
+    },
+    "total": 32.0,
+    "crit_chance": 10.0,
+    "crit_mult": 2.9,
+    "status_chance": 34.9,
+    "speed": 1.5,
+    "shot_type": "Projectile"
+   },
+   {
+    "name": "6th Attack Radial Attack",
+    "damage": {
+     "viral": 228.0
+    },
+    "total": 228.0,
+    "crit_chance": 10.0,
+    "crit_mult": 2.9,
+    "status_chance": 34.9,
+    "speed": 1.5,
     "shot_type": "AoE"
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）",
-  "ammoCost": 6.0
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 6.0,
+  "trigger": "Auto",
+  "magazineSize": 36.0,
+  "reloadTime": 2.0,
+  "ammoCost": 6.0,
+  "slot": "archgun"
  },
  "/lotus/weapons/tenno/archwing/primary/thanotecharchgun/thanotecharchgun": {
   "name": "Cortege",
-  "zh": "送葬者",
   "uniqueName": "/Lotus/Weapons/Tenno/Archwing/Primary/ThanoTechArchGun/ThanoTechArchGun",
-  "slot": "archgun",
   "category": "Archgun",
   "masteryReq": 14,
-  "criticalChance": 0.2,
-  "criticalMultiplier": 1.9,
-  "procChance": 0.4,
-  "fireRate": 12.0,
-  "magazineSize": 100.0,
-  "reloadTime": 2.5,
-  "multishot": 1.0,
   "damage": {
    "heat": 180.0,
    "total": 180.0
   },
+  "criticalChance": 0.2,
+  "criticalMultiplier": 1.9,
+  "procChance": 0.4,
+  "fireRate": 12.0,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Rifle",
+  "zh": "送葬者",
   "attacks": [
    {
-    "name": "Normal Attack",
+    "name": "Held",
     "damage": {
-     "heat": 180.0,
-     "total": 180.0
+     "heat": 180.0
     },
     "total": 180.0,
     "crit_chance": 20.0,
     "crit_mult": 1.9,
     "status_chance": 40.0,
     "speed": 12.0,
-    "shot_type": "hit_scan"
+    "shot_type": "Hit-Scan"
+   },
+   {
+    "name": "Grenade Impact",
+    "damage": {
+     "impact": 20.0
+    },
+    "total": 20.0,
+    "crit_chance": 30.0,
+    "crit_mult": 2.4,
+    "status_chance": 16.7,
+    "speed": 0.25
+   },
+   {
+    "name": "Radial Attack",
+    "damage": {
+     "blast": 2000.0
+    },
+    "total": 2000.0,
+    "crit_chance": 30.0,
+    "crit_mult": 2.4,
+    "status_chance": 16.7,
+    "speed": 0.25,
+    "shot_type": "AoE",
+    "falloff": {
+     "start": 0.0,
+     "end": 4.0,
+     "reduction": 0.3
+    }
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）",
-  "ammoCost": 0.5
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Held",
+  "magazineSize": 100.0,
+  "reloadTime": 2.5,
+  "ammoCost": 0.5,
+  "slot": "archgun"
  },
  "/lotus/weapons/tenno/archwing/primary/launchgrenade/archcannon": {
   "name": "Corvas",
-  "zh": "黑鸦",
   "uniqueName": "/Lotus/Weapons/Tenno/Archwing/Primary/LaunchGrenade/ArchCannon",
-  "slot": "archgun",
   "category": "Archgun",
   "masteryReq": 1,
-  "criticalChance": 0.4,
-  "criticalMultiplier": 3.0,
-  "procChance": 0.013,
-  "fireRate": 2.0,
-  "magazineSize": 25.0,
-  "reloadTime": 2.0,
-  "multishot": 11.0,
   "damage": {
    "impact": 128.0,
    "puncture": 16.0,
    "slash": 16.0,
    "total": 160.0
   },
+  "criticalChance": 0.4,
+  "criticalMultiplier": 3.0,
+  "procChance": 0.013,
+  "fireRate": 2.0,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Shotgun",
+  "zh": "黑鸦",
   "attacks": [
    {
-    "name": "Normal Attack",
+    "name": "Charged Shot",
     "damage": {
      "impact": 128.0,
      "puncture": 16.0,
-     "slash": 16.0,
-     "total": 160.0
+     "slash": 16.0
     },
     "total": 160.0,
     "crit_chance": 40.0,
     "crit_mult": 3.0,
     "status_chance": 1.3,
     "speed": 2.0,
-    "shot_type": "hit_scan"
+    "shot_type": "Hit-Scan"
+   },
+   {
+    "name": "Uncharged Shot",
+    "damage": {
+     "impact": 64.0,
+     "puncture": 8.0,
+     "slash": 8.0
+    },
+    "total": 80.0,
+    "crit_chance": 40.0,
+    "crit_mult": 3.0,
+    "status_chance": 1.3,
+    "speed": 2.0,
+    "shot_type": "Hit-Scan"
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）"
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 11.0,
+  "trigger": "Charge",
+  "magazineSize": 25.0,
+  "reloadTime": 2.0,
+  "slot": "archgun"
  },
  "/lotus/weapons/tenno/archwing/primary/primecorvas/primecorvasweapon": {
   "name": "Corvas Prime",
-  "zh": "黑鸦 Prime",
   "uniqueName": "/Lotus/Weapons/Tenno/Archwing/Primary/PrimeCorvas/PrimeCorvasWeapon",
-  "slot": "archgun",
   "category": "Archgun",
   "masteryReq": 14,
-  "criticalChance": 0.56,
-  "criticalMultiplier": 3.0,
-  "procChance": 0.2,
-  "fireRate": 2.0,
-  "magazineSize": 20.0,
-  "reloadTime": 2.0,
-  "multishot": 1.0,
   "damage": {
    "impact": 430.0,
    "heat": 530.0,
    "total": 960.0
   },
+  "criticalChance": 0.56,
+  "criticalMultiplier": 3.0,
+  "procChance": 0.2,
+  "fireRate": 2.0,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Shotgun",
+  "zh": "黑鸦 Prime",
   "attacks": [
    {
-    "name": "Normal Attack",
+    "name": "Charged Shot",
     "damage": {
      "impact": 430.0,
-     "heat": 530.0,
-     "total": 960.0
+     "heat": 530.0
     },
     "total": 960.0,
-    "crit_chance": 56.00000000000001,
+    "crit_chance": 56.0,
     "crit_mult": 3.0,
     "status_chance": 20.0,
     "speed": 2.0,
-    "shot_type": "projectile"
+    "shot_type": "Projectile"
+   },
+   {
+    "name": "Uncharged Shot",
+    "damage": {
+     "impact": 230.0,
+     "heat": 330.0
+    },
+    "total": 560.0,
+    "crit_chance": 44.0,
+    "crit_mult": 3.0,
+    "status_chance": 20.0,
+    "speed": 2.0,
+    "shot_type": "Projectile"
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）"
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Charge",
+  "magazineSize": 20.0,
+  "reloadTime": 2.0,
+  "slot": "archgun"
  },
  "/lotus/weapons/tenno/archwing/primary/archburstgun/archburstgun": {
   "name": "Cyngas",
-  "zh": "合成燃气炮",
   "uniqueName": "/Lotus/Weapons/Tenno/Archwing/Primary/ArchBurstGun/ArchBurstGun",
-  "slot": "archgun",
   "category": "Archgun",
   "masteryReq": 4,
-  "criticalChance": 0.2,
-  "criticalMultiplier": 2.2,
-  "procChance": 0.3,
-  "fireRate": 6.67,
-  "magazineSize": 30.0,
-  "reloadTime": 1.2,
-  "multishot": 1.0,
   "damage": {
    "impact": 80.0,
    "puncture": 80.0,
    "slash": 80.0,
    "total": 240.0
   },
+  "criticalChance": 0.2,
+  "criticalMultiplier": 2.2,
+  "procChance": 0.3,
+  "fireRate": 6.67,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Rifle",
+  "zh": "合成燃气炮",
   "attacks": [
    {
     "name": "Normal Attack",
     "damage": {
      "impact": 80.0,
      "puncture": 80.0,
-     "slash": 80.0,
-     "total": 240.0
+     "slash": 80.0
     },
     "total": 240.0,
     "crit_chance": 20.0,
     "crit_mult": 2.2,
     "status_chance": 30.0,
     "speed": 6.67,
-    "shot_type": "hit_scan"
+    "shot_type": "Hit-Scan"
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）",
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Burst",
+  "magazineSize": 30.0,
+  "reloadTime": 1.2,
   "burstCount": 3,
-  "burstDelay": 0.06
+  "burstDelay": 0.06,
+  "slot": "archgun"
  },
  "/lotus/weapons/tenno/archwing/primary/archwingheavypistols/archheavypistols": {
   "name": "Dual Decurion",
-  "zh": "什长双枪",
   "uniqueName": "/Lotus/Weapons/Tenno/Archwing/Primary/ArchwingHeavyPistols/ArchHeavyPistols",
-  "slot": "archgun",
   "category": "Archgun",
   "masteryReq": 1,
-  "criticalChance": 0.28,
-  "criticalMultiplier": 2.2,
-  "procChance": 0.14,
-  "fireRate": 10.42,
-  "magazineSize": 64.0,
-  "reloadTime": 1.4,
-  "multishot": 1.0,
   "damage": {
    "impact": 85.5,
    "puncture": 52.25,
    "slash": 52.25,
    "total": 190.0
   },
+  "criticalChance": 0.28,
+  "criticalMultiplier": 2.2,
+  "procChance": 0.14,
+  "fireRate": 10.42,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Dual Pistols",
+  "zh": "什长双枪",
   "attacks": [
    {
     "name": "Normal Attack",
     "damage": {
      "impact": 85.5,
      "puncture": 52.25,
-     "slash": 52.25,
-     "total": 190.0
+     "slash": 52.25
     },
     "total": 190.0,
-    "crit_chance": 28.000000000000004,
+    "crit_chance": 28.0,
     "crit_mult": 2.2,
-    "status_chance": 14.000000000000002,
+    "status_chance": 14.0,
     "speed": 10.42,
-    "shot_type": "hit_scan"
+    "shot_type": "Hit-Scan"
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）"
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Auto",
+  "magazineSize": 64.0,
+  "reloadTime": 1.4,
+  "slot": "archgun"
  },
  "/lotus/weapons/tenno/archwing/primary/rocketartillery/archrocketcrossbow": {
   "name": "Fluctus",
-  "zh": "巨浪",
   "uniqueName": "/Lotus/Weapons/Tenno/Archwing/Primary/RocketArtillery/ArchRocketCrossbow",
-  "slot": "archgun",
   "category": "Archgun",
   "masteryReq": 2,
-  "criticalChance": 0.22,
-  "criticalMultiplier": 2.0,
-  "procChance": 0.16,
-  "fireRate": 5.0,
-  "magazineSize": 40.0,
-  "reloadTime": 3.0,
-  "multishot": 1.0,
   "damage": {
    "impact": 100.0,
    "puncture": 50.0,
    "slash": 350.0,
    "total": 500.0
   },
+  "criticalChance": 0.22,
+  "criticalMultiplier": 2.0,
+  "procChance": 0.16,
+  "fireRate": 5.0,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Rifle",
+  "zh": "巨浪",
   "attacks": [
    {
     "name": "Normal Attack",
     "damage": {
      "impact": 100.0,
      "puncture": 50.0,
-     "slash": 350.0,
-     "total": 500.0
+     "slash": 350.0
     },
     "total": 500.0,
     "crit_chance": 22.0,
     "crit_mult": 2.0,
     "status_chance": 16.0,
     "speed": 5.0,
-    "shot_type": "projectile"
+    "shot_type": "Projectile"
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）"
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Semi-Auto",
+  "magazineSize": 40.0,
+  "reloadTime": 3.0,
+  "slot": "archgun"
  },
  "/lotus/weapons/tenno/archwing/primary/repurposedgrineerantiaircraftgun/archgrnaagun": {
   "name": "Grattler",
-  "zh": "葛拉特勒",
   "uniqueName": "/Lotus/Weapons/Tenno/Archwing/Primary/RepurposedGrineerAntiAircraftGun/ArchGRNAAGun",
-  "slot": "archgun",
   "category": "Archgun",
   "masteryReq": 4,
-  "criticalChance": 0.25,
-  "criticalMultiplier": 2.0,
-  "procChance": 0.25,
-  "fireRate": 6.25,
-  "magazineSize": 30.0,
-  "reloadTime": 2.0,
-  "multishot": 1.0,
   "damage": {
    "impact": 22.5,
    "puncture": 180.0,
    "slash": 22.5,
    "total": 225.0
   },
+  "criticalChance": 0.25,
+  "criticalMultiplier": 2.0,
+  "procChance": 0.25,
+  "fireRate": 6.25,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Launcher",
+  "zh": "葛拉特勒",
   "attacks": [
    {
-    "name": "Normal Attack",
+    "name": "Projectile Impact",
     "damage": {
      "impact": 22.5,
      "puncture": 180.0,
-     "slash": 22.5,
-     "total": 225.0
+     "slash": 22.5
     },
     "total": 225.0,
     "crit_chance": 25.0,
     "crit_mult": 2.0,
     "status_chance": 25.0,
     "speed": 6.25,
-    "shot_type": "projectile"
+    "shot_type": "Projectile"
    },
    {
-    "name": "Area Attack",
+    "name": "Explosion",
     "damage": {
-     "blast": 310.0,
-     "total": 310.0
+     "blast": 310.0
     },
     "total": 310.0,
     "crit_chance": 25.0,
     "crit_mult": 2.0,
     "status_chance": 25.0,
-    "shot_type": "AoE"
+    "speed": 6.25,
+    "shot_type": "AoE",
+    "falloff": {
+     "start": 0.0,
+     "end": 9.0,
+     "reduction": 0.7
+    }
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）"
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Auto-Spool",
+  "magazineSize": 30.0,
+  "reloadTime": 2.0,
+  "slot": "archgun"
  },
  "/lotus/weapons/tenno/archwing/primary/foldingmachinegun/archmachinegun": {
   "name": "Imperator",
-  "zh": "凯旋将军",
   "uniqueName": "/Lotus/Weapons/Tenno/Archwing/Primary/FoldingMachineGun/ArchMachineGun",
-  "slot": "archgun",
   "category": "Archgun",
   "masteryReq": 0,
-  "criticalChance": 0.24,
-  "criticalMultiplier": 2.0,
-  "procChance": 0.12,
-  "fireRate": 16.7,
-  "magazineSize": 200.0,
-  "reloadTime": 2.0,
-  "multishot": 1.0,
   "damage": {
    "impact": 40.0,
    "puncture": 35.0,
    "slash": 25.0,
    "total": 100.0
   },
+  "criticalChance": 0.24,
+  "criticalMultiplier": 2.0,
+  "procChance": 0.12,
+  "fireRate": 16.7,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Rifle",
+  "zh": "凯旋将军",
   "attacks": [
    {
     "name": "Normal Attack",
     "damage": {
      "impact": 40.0,
      "puncture": 35.0,
-     "slash": 25.0,
-     "total": 100.0
+     "slash": 25.0
     },
     "total": 100.0,
     "crit_chance": 24.0,
     "crit_mult": 2.0,
     "status_chance": 12.0,
     "speed": 16.7,
-    "shot_type": "hit_scan"
+    "shot_type": "Hit-Scan"
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）"
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Auto",
+  "magazineSize": 200.0,
+  "reloadTime": 2.0,
+  "slot": "archgun"
  },
  "/lotus/weapons/tenno/archwing/primary/foldingmachinegun/archmachinegunvandal": {
   "name": "Imperator Vandal",
-  "zh": "凯旋将军·破坏者",
   "uniqueName": "/Lotus/Weapons/Tenno/Archwing/Primary/FoldingMachineGun/ArchMachineGunVandal",
-  "slot": "archgun",
   "category": "Archgun",
   "masteryReq": 5,
-  "criticalChance": 0.28,
-  "criticalMultiplier": 2.4,
-  "procChance": 0.12,
-  "fireRate": 25.0,
-  "magazineSize": 300.0,
-  "reloadTime": 2.0,
-  "multishot": 1.0,
   "damage": {
    "impact": 40.0,
    "puncture": 35.0,
    "slash": 25.0,
    "total": 100.0
   },
+  "criticalChance": 0.28,
+  "criticalMultiplier": 2.4,
+  "procChance": 0.12,
+  "fireRate": 25.0,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Rifle",
+  "zh": "凯旋将军·破坏者",
   "attacks": [
    {
     "name": "Normal Attack",
     "damage": {
      "impact": 40.0,
      "puncture": 35.0,
-     "slash": 25.0,
-     "total": 100.0
+     "slash": 25.0
     },
     "total": 100.0,
-    "crit_chance": 28.000000000000004,
+    "crit_chance": 28.0,
     "crit_mult": 2.4,
     "status_chance": 12.0,
     "speed": 25.0,
-    "shot_type": "hit_scan"
+    "shot_type": "Hit-Scan"
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）"
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Auto-Spool",
+  "magazineSize": 300.0,
+  "reloadTime": 2.0,
+  "slot": "archgun"
  },
  "/lotus/weapons/grineer/heavyweapons/grnheavygrenadelauncher": {
   "name": "Kuva Ayanga",
-  "zh": "赤毒·怒雷",
   "uniqueName": "/Lotus/Weapons/Grineer/HeavyWeapons/GrnHeavyGrenadeLauncher",
-  "slot": "archgun",
   "category": "Archgun",
   "masteryReq": 13,
-  "criticalChance": 0.35,
-  "criticalMultiplier": 2.0,
-  "procChance": 0.2,
-  "fireRate": 4.58,
-  "magazineSize": 33.0,
-  "reloadTime": 3.0,
-  "multishot": 1.0,
   "damage": {
    "impact": 130.0,
    "total": 130.0
   },
+  "criticalChance": 0.35,
+  "criticalMultiplier": 2.0,
+  "procChance": 0.2,
+  "fireRate": 4.58,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Launcher",
+  "zh": "赤毒·怒雷",
   "attacks": [
    {
-    "name": "Normal Attack",
+    "name": "Grenade Impact",
     "damage": {
-     "impact": 130.0,
-     "total": 130.0
+     "impact": 130.0
     },
     "total": 130.0,
     "crit_chance": 35.0,
     "crit_mult": 2.0,
     "status_chance": 20.0,
     "speed": 4.58,
-    "shot_type": "projectile"
+    "shot_type": "Projectile"
    },
    {
-    "name": "Area Attack",
+    "name": "Explosion",
     "damage": {
-     "blast": 280.0,
-     "total": 280.0
+     "blast": 280.0
     },
     "total": 280.0,
     "crit_chance": 35.0,
     "crit_mult": 2.0,
     "status_chance": 20.0,
-    "shot_type": "AoE"
+    "speed": 4.58,
+    "shot_type": "AoE",
+    "falloff": {
+     "start": 0.0,
+     "end": 6.0,
+     "reduction": 0.5
+    }
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）"
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Auto",
+  "magazineSize": 33.0,
+  "reloadTime": 3.0,
+  "slot": "archgun"
  },
  "/lotus/weapons/grineer/kuvalich/heavyweapons/grattler/kuvagrattler": {
   "name": "Kuva Grattler",
-  "zh": "赤毒·葛拉特勒",
   "uniqueName": "/Lotus/Weapons/Grineer/KuvaLich/HeavyWeapons/Grattler/KuvaGrattler",
-  "slot": "archgun",
   "category": "Archgun",
   "masteryReq": 15,
-  "criticalChance": 0.27,
-  "criticalMultiplier": 2.0,
-  "procChance": 0.27,
-  "fireRate": 5.55,
-  "magazineSize": 60.0,
-  "reloadTime": 2.5,
-  "multishot": 1.0,
   "damage": {
    "impact": 14.0,
    "puncture": 112.0,
    "slash": 14.0,
    "total": 140.0
   },
+  "criticalChance": 0.27,
+  "criticalMultiplier": 2.0,
+  "procChance": 0.27,
+  "fireRate": 5.55,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Launcher",
+  "zh": "赤毒·葛拉特勒",
   "attacks": [
    {
-    "name": "Normal Attack",
+    "name": "Projectile Impact",
     "damage": {
      "impact": 14.0,
      "puncture": 112.0,
-     "slash": 14.0,
-     "total": 140.0
+     "slash": 14.0
     },
     "total": 140.0,
     "crit_chance": 27.0,
     "crit_mult": 2.0,
     "status_chance": 27.0,
     "speed": 5.55,
-    "shot_type": "projectile"
+    "shot_type": "Projectile"
    },
    {
-    "name": "Area Attack",
+    "name": "Explosion",
     "damage": {
-     "blast": 235.0,
-     "total": 235.0
+     "blast": 235.0
     },
     "total": 235.0,
     "crit_chance": 27.0,
     "crit_mult": 2.0,
     "status_chance": 27.0,
-    "shot_type": "AoE"
+    "speed": 5.55,
+    "shot_type": "AoE",
+    "falloff": {
+     "start": 0.0,
+     "end": 9.0,
+     "reduction": 0.7
+    }
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）"
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Auto",
+  "magazineSize": 60.0,
+  "reloadTime": 2.5,
+  "slot": "archgun"
  },
  "/lotus/weapons/tenno/archwing/primary/tnshieldframearchgun/tnshieldframearchgun": {
   "name": "Larkspur",
-  "zh": "翠雀",
   "uniqueName": "/Lotus/Weapons/Tenno/Archwing/Primary/TnShieldframeArchGun/TnShieldFrameArchGun",
-  "slot": "archgun",
   "category": "Archgun",
   "masteryReq": 8,
-  "criticalChance": 0.1,
-  "criticalMultiplier": 1.4,
-  "procChance": 0.5,
-  "fireRate": 12.0,
-  "magazineSize": 100.0,
-  "reloadTime": 2.5,
-  "multishot": 1.0,
   "damage": {
    "impact": 20.0,
    "radiation": 160.0,
    "total": 180.0
   },
+  "criticalChance": 0.1,
+  "criticalMultiplier": 1.4,
+  "procChance": 0.5,
+  "fireRate": 12.0,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Rifle",
+  "zh": "翠雀",
   "attacks": [
    {
     "name": "Normal Attack",
     "damage": {
      "impact": 20.0,
-     "radiation": 160.0,
-     "total": 180.0
+     "radiation": 160.0
     },
     "total": 180.0,
     "crit_chance": 10.0,
     "crit_mult": 1.4,
     "status_chance": 50.0,
     "speed": 12.0,
-    "shot_type": "hit_scan"
+    "shot_type": "Hit-Scan"
+   },
+   {
+    "name": "Alt-Fire Projectile Impact",
+    "damage": {
+     "impact": 280.0,
+     "blast": 360.0,
+     "radiation": 200.0
+    },
+    "total": 840.0,
+    "crit_chance": 26.0,
+    "crit_mult": 2.2,
+    "status_chance": 34.0,
+    "speed": 1.0,
+    "shot_type": "Projectile"
+   },
+   {
+    "name": "Explosion",
+    "damage": {
+     "blast": 800.0,
+     "radiation": 800.0
+    },
+    "total": 1600.0,
+    "crit_chance": 26.0,
+    "crit_mult": 2.2,
+    "status_chance": 34.0,
+    "speed": 1.0,
+    "shot_type": "AoE",
+    "falloff": {
+     "start": 0.0,
+     "end": 9.6,
+     "reduction": 0.6
+    }
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）",
-  "ammoCost": 0.5
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Held",
+  "magazineSize": 100.0,
+  "reloadTime": 2.5,
+  "ammoCost": 0.5,
+  "slot": "archgun"
  },
  "/lotus/weapons/tenno/archwing/primary/primelarkspur/primelarkspurweapon": {
   "name": "Larkspur Prime",
-  "zh": "翠雀 Prime",
   "uniqueName": "/Lotus/Weapons/Tenno/Archwing/Primary/PrimeLarkspur/PrimeLarkspurWeapon",
-  "slot": "archgun",
   "category": "Archgun",
   "masteryReq": 8,
-  "criticalChance": 0.14,
-  "criticalMultiplier": 1.6,
-  "procChance": 0.5,
-  "fireRate": 12.0,
-  "magazineSize": 100.0,
-  "reloadTime": 2.5,
-  "multishot": 1.0,
   "damage": {
    "impact": 20.0,
    "radiation": 160.0,
    "total": 180.0
   },
+  "criticalChance": 0.14,
+  "criticalMultiplier": 1.6,
+  "procChance": 0.5,
+  "fireRate": 12.0,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Rifle",
+  "zh": "翠雀 Prime",
   "attacks": [
    {
     "name": "Normal Attack",
     "damage": {
      "impact": 20.0,
-     "radiation": 160.0,
-     "total": 180.0
+     "radiation": 160.0
     },
     "total": 180.0,
-    "crit_chance": 14.000000000000002,
+    "crit_chance": 14.0,
     "crit_mult": 1.6,
     "status_chance": 50.0,
     "speed": 12.0,
-    "shot_type": "hit_scan"
+    "shot_type": "Hit-Scan"
+   },
+   {
+    "name": "Alt-Fire Projectile Impact",
+    "damage": {
+     "impact": 280.0,
+     "blast": 360.0,
+     "radiation": 200.0
+    },
+    "total": 840.0,
+    "crit_chance": 28.0,
+    "crit_mult": 2.2,
+    "status_chance": 38.0,
+    "speed": 2.0,
+    "shot_type": "Projectile"
+   },
+   {
+    "name": "Explosion",
+    "damage": {
+     "blast": 800.0,
+     "radiation": 800.0
+    },
+    "total": 1600.0,
+    "crit_chance": 28.0,
+    "crit_mult": 2.2,
+    "status_chance": 38.0,
+    "speed": 2.0,
+    "shot_type": "AoE",
+    "falloff": {
+     "start": 0.0,
+     "end": 9.6,
+     "reduction": 0.6
+    }
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）",
-  "ammoCost": 0.5
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Held",
+  "magazineSize": 100.0,
+  "reloadTime": 2.5,
+  "ammoCost": 0.5,
+  "slot": "archgun"
  },
  "/lotus/weapons/tenno/archwing/primary/tnconcretearchgun/tnconcretearchgunweapon": {
   "name": "Mandonel",
-  "zh": "辐光弩炮",
   "uniqueName": "/Lotus/Weapons/Tenno/Archwing/Primary/TnConcreteArchgun/TnConcreteArchgunWeapon",
-  "slot": "archgun",
   "category": "Archgun",
   "masteryReq": 10,
-  "criticalChance": 0.3,
-  "criticalMultiplier": 2.5,
-  "procChance": 0.2,
-  "fireRate": 3.0,
-  "magazineSize": 30.0,
-  "reloadTime": 2.0,
-  "multishot": 1.0,
   "damage": {
    "puncture": 400.0,
    "heat": 600.0,
    "radiation": 800.0,
    "total": 1800.0
   },
+  "criticalChance": 0.3,
+  "criticalMultiplier": 2.5,
+  "procChance": 0.2,
+  "fireRate": 3.0,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Shotgun",
+  "zh": "辐光弩炮",
   "attacks": [
    {
-    "name": "Normal Attack",
+    "name": "Charge",
     "damage": {
      "puncture": 400.0,
      "heat": 600.0,
-     "radiation": 800.0,
-     "total": 1800.0
+     "radiation": 800.0
     },
     "total": 1800.0,
     "crit_chance": 30.0,
     "crit_mult": 2.5,
     "status_chance": 20.0,
     "speed": 3.0,
-    "shot_type": "hit_scan"
+    "shot_type": "Hit-Scan"
+   },
+   {
+    "name": "Horizontal Spread",
+    "damage": {
+     "impact": 50.0,
+     "puncture": 30.0,
+     "slash": 20.0,
+     "radiation": 80.0
+    },
+    "total": 180.0,
+    "crit_chance": 25.0,
+    "crit_mult": 2.0,
+    "status_chance": 15.0,
+    "speed": 3.0,
+    "shot_type": "Projectile"
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）"
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Charge",
+  "magazineSize": 30.0,
+  "reloadTime": 2.0,
+  "slot": "archgun"
  },
  "/lotus/weapons/tenno/archwing/primary/thanotecharchlonggun/thanotechlonggun": {
   "name": "Mausolon",
-  "zh": "惩戒者",
   "uniqueName": "/Lotus/Weapons/Tenno/Archwing/Primary/ThanoTechArchLongGun/ThanoTechLongGun",
-  "slot": "archgun",
   "category": "Archgun",
   "masteryReq": 14,
-  "criticalChance": 0.3,
-  "criticalMultiplier": 2.2,
-  "procChance": 0.26,
-  "fireRate": 8.33,
-  "magazineSize": 300.0,
-  "reloadTime": 2.0,
-  "multishot": 1.0,
   "damage": {
    "impact": 35.0,
    "puncture": 70.0,
    "heat": 75.0,
    "total": 180.0
   },
+  "criticalChance": 0.3,
+  "criticalMultiplier": 2.2,
+  "procChance": 0.26,
+  "fireRate": 8.33,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Rifle",
+  "zh": "惩戒者",
   "attacks": [
    {
-    "name": "Normal Attack",
+    "name": "Auto",
     "damage": {
      "impact": 35.0,
      "puncture": 70.0,
-     "heat": 75.0,
-     "total": 180.0
+     "heat": 75.0
     },
     "total": 180.0,
     "crit_chance": 30.0,
     "crit_mult": 2.2,
     "status_chance": 26.0,
     "speed": 8.33,
-    "shot_type": "hit_scan"
+    "shot_type": "Hit-Scan"
    },
    {
-    "name": "Area Attack",
+    "name": "Auto Radial Attack",
     "damage": {
-     "heat": 72.0,
-     "total": 72.0
+     "heat": 72.0
     },
     "total": 72.0,
     "crit_chance": 30.0,
     "crit_mult": 2.2,
     "status_chance": 26.0,
-    "shot_type": "AoE"
+    "speed": 8.33,
+    "shot_type": "AoE",
+    "falloff": {
+     "start": 0.0,
+     "end": 1.8,
+     "reduction": 0.2
+    }
+   },
+   {
+    "name": "Charged Shot Laser",
+    "damage": {
+     "impact": 150.0,
+     "puncture": 600.0,
+     "heat": 750.0
+    },
+    "total": 1500.0,
+    "crit_chance": 50.0,
+    "crit_mult": 3.5,
+    "status_chance": 50.0,
+    "speed": 0.5,
+    "shot_type": "Hit-Scan"
+   },
+   {
+    "name": "Charged Shot Explosion",
+    "damage": {
+     "heat": 4500.0
+    },
+    "total": 4500.0,
+    "crit_chance": 50.0,
+    "crit_mult": 3.5,
+    "status_chance": 50.0,
+    "speed": 0.5,
+    "shot_type": "AoE",
+    "falloff": {
+     "start": 0.0,
+     "end": 8.0,
+     "reduction": 0.4
+    }
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）"
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Auto",
+  "magazineSize": 300.0,
+  "reloadTime": 2.0,
+  "slot": "archgun"
  },
  "/lotus/weapons/tenno/archwing/primary/thanotechgrenadelaunch/thanotechgrenadelauncher": {
   "name": "Morgha",
-  "zh": "置灵者",
   "uniqueName": "/Lotus/Weapons/Tenno/Archwing/Primary/ThanoTechGrenadeLaunch/ThanoTechGrenadeLauncher",
-  "slot": "archgun",
   "category": "Archgun",
   "masteryReq": 15,
-  "criticalChance": 0.3,
-  "criticalMultiplier": 2.2,
-  "procChance": 0.28,
-  "fireRate": 3.0,
-  "magazineSize": 100.0,
-  "reloadTime": 3.0,
-  "multishot": 1.0,
   "damage": {
    "impact": 64.0,
    "total": 64.0
   },
+  "criticalChance": 0.3,
+  "criticalMultiplier": 2.2,
+  "procChance": 0.28,
+  "fireRate": 3.0,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Launcher",
+  "zh": "置灵者",
   "attacks": [
    {
-    "name": "Normal Attack",
+    "name": "Auto-Burst",
     "damage": {
-     "impact": 64.0,
-     "total": 64.0
+     "impact": 64.0
     },
     "total": 64.0,
     "crit_chance": 30.0,
     "crit_mult": 2.2,
-    "status_chance": 28.000000000000004,
+    "status_chance": 28.0,
     "speed": 3.0,
-    "shot_type": "projectile"
+    "shot_type": "Projectile"
    },
    {
-    "name": "Area Attack",
+    "name": "Radial Attack",
     "damage": {
-     "blast": 328.0,
-     "total": 328.0
+     "blast": 328.0
     },
     "total": 328.0,
     "crit_chance": 30.0,
     "crit_mult": 2.2,
-    "status_chance": 28.000000000000004,
-    "shot_type": "AoE"
+    "status_chance": 28.0,
+    "speed": 3.0,
+    "shot_type": "AoE",
+    "falloff": {
+     "start": 0.0,
+     "end": 3.0,
+     "reduction": 0.3
+    }
+   },
+   {
+    "name": "Charged Shot",
+    "damage": {
+     "impact": 200.0
+    },
+    "total": 200.0,
+    "crit_chance": 40.0,
+    "crit_mult": 3.0,
+    "status_chance": 50.0,
+    "speed": 0.833
+   },
+   {
+    "name": "Charged Shot Explosion",
+    "damage": {
+     "impact": 1200.0,
+     "puncture": 1600.0,
+     "slash": 2000.0,
+     "blast": 2400.0
+    },
+    "total": 7200.0,
+    "crit_chance": 40.0,
+    "crit_mult": 3.0,
+    "status_chance": 50.0,
+    "speed": 0.833,
+    "shot_type": "AoE",
+    "falloff": {
+     "start": 0.0,
+     "end": 12.0,
+     "reduction": 0.6
+    }
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）",
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Auto-Burst",
+  "magazineSize": 100.0,
+  "reloadTime": 3.0,
   "burstCount": 2,
-  "burstDelay": 0.0
+  "burstDelay": 0.0,
+  "slot": "archgun"
  },
  "/lotus/weapons/tenno/archwing/primary/archlongrifle/archlongrifle": {
   "name": "Phaedra",
-  "zh": "菲德菈",
   "uniqueName": "/Lotus/Weapons/Tenno/Archwing/Primary/ArchLongRifle/ArchLongRifle",
-  "slot": "archgun",
   "category": "Archgun",
   "masteryReq": 3,
-  "criticalChance": 0.14,
-  "criticalMultiplier": 2.0,
-  "procChance": 0.3,
-  "fireRate": 18.75,
-  "magazineSize": 240.0,
-  "reloadTime": 2.0,
-  "multishot": 1.0,
   "damage": {
    "impact": 29.0,
    "puncture": 75.4,
    "slash": 11.6,
    "total": 116.0
   },
+  "criticalChance": 0.14,
+  "criticalMultiplier": 2.0,
+  "procChance": 0.3,
+  "fireRate": 18.75,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Rifle",
+  "zh": "菲德菈",
   "attacks": [
    {
     "name": "Normal Attack",
     "damage": {
      "impact": 29.0,
      "puncture": 75.4,
-     "slash": 11.6,
-     "total": 116.0
+     "slash": 11.6
     },
     "total": 116.0,
-    "crit_chance": 14.000000000000002,
+    "crit_chance": 14.0,
     "crit_mult": 2.0,
     "status_chance": 30.0,
     "speed": 18.75,
-    "shot_type": "hit_scan"
+    "shot_type": "Hit-Scan"
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）"
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Auto-Spool",
+  "magazineSize": 240.0,
+  "reloadTime": 2.0,
+  "slot": "archgun"
  },
  "/lotus/weapons/tenno/archwing/primary/archwingheavypistols/prisma/prismaarchheavypistols": {
   "name": "Prisma Dual Decurions",
-  "zh": "棱晶·什长双枪",
   "uniqueName": "/Lotus/Weapons/Tenno/Archwing/Primary/ArchwingHeavyPistols/Prisma/PrismaArchHeavyPistols",
-  "slot": "archgun",
   "category": "Archgun",
   "masteryReq": 1,
-  "criticalChance": 0.3,
-  "criticalMultiplier": 2.2,
-  "procChance": 0.24,
-  "fireRate": 12.5,
-  "magazineSize": 64.0,
-  "reloadTime": 1.4,
-  "multishot": 1.0,
   "damage": {
    "impact": 99.0,
    "puncture": 60.5,
    "slash": 60.5,
    "total": 220.0
   },
+  "criticalChance": 0.3,
+  "criticalMultiplier": 2.2,
+  "procChance": 0.24,
+  "fireRate": 12.5,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Dual Pistols",
+  "zh": "棱晶·什长双枪",
   "attacks": [
    {
     "name": "Normal Attack",
     "damage": {
      "impact": 99.0,
      "puncture": 60.5,
-     "slash": 60.5,
-     "total": 220.0
+     "slash": 60.5
     },
     "total": 220.0,
     "crit_chance": 30.0,
     "crit_mult": 2.2,
     "status_chance": 24.0,
     "speed": 12.5,
-    "shot_type": "hit_scan"
+    "shot_type": "Hit-Scan"
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）"
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Auto",
+  "magazineSize": 64.0,
+  "reloadTime": 1.4,
+  "slot": "archgun"
  },
  "/lotus/weapons/tenno/archwing/primary/railgun/archrailgun": {
   "name": "Velocitus",
-  "zh": "极速电磁步枪",
   "uniqueName": "/Lotus/Weapons/Tenno/Archwing/Primary/Railgun/ArchRailgun",
-  "slot": "archgun",
   "category": "Archgun",
   "masteryReq": 0,
-  "criticalChance": 0.6,
-  "criticalMultiplier": 3.6,
-  "procChance": 0.25,
-  "fireRate": 5.0,
-  "magazineSize": 10.0,
-  "reloadTime": 2.0,
-  "multishot": 1.0,
   "damage": {
    "impact": 800.0,
    "puncture": 800.0,
@@ -42068,869 +42512,1043 @@
    "magnetic": 800.0,
    "total": 3200.0
   },
+  "criticalChance": 0.6,
+  "criticalMultiplier": 3.6,
+  "procChance": 0.25,
+  "fireRate": 5.0,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Rifle",
+  "zh": "极速电磁步枪",
   "attacks": [
    {
-    "name": "Normal Attack",
+    "name": "Charged Shot",
     "damage": {
      "impact": 800.0,
      "puncture": 800.0,
      "slash": 800.0,
-     "magnetic": 800.0,
-     "total": 3200.0
+     "magnetic": 800.0
     },
     "total": 3200.0,
     "crit_chance": 60.0,
     "crit_mult": 3.6,
     "status_chance": 25.0,
     "speed": 5.0,
-    "shot_type": "projectile"
+    "shot_type": "Projectile"
+   },
+   {
+    "name": "Uncharged Shot",
+    "damage": {
+     "impact": 300.0,
+     "puncture": 300.0,
+     "slash": 300.0,
+     "magnetic": 300.0
+    },
+    "total": 1200.0,
+    "crit_chance": 30.0,
+    "crit_mult": 2.0,
+    "status_chance": 25.0,
+    "speed": 5.0,
+    "shot_type": "Projectile"
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）"
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Charge",
+  "magazineSize": 10.0,
+  "reloadTime": 2.0,
+  "slot": "archgun"
  },
  "/lotus/types/sentinels/sentinelweapons/gremlin": {
   "name": "Artax",
-  "zh": "阿塔克斯",
   "uniqueName": "/Lotus/Types/Sentinels/SentinelWeapons/Gremlin",
-  "slot": "sentinel",
   "category": "Sentinel",
   "masteryReq": 0,
-  "criticalChance": 0.02,
-  "criticalMultiplier": 1.5,
-  "procChance": 0.35,
-  "fireRate": 16.67,
-  "magazineSize": 100.0,
-  "reloadTime": 1.5,
-  "multishot": 1.0,
   "damage": {
    "cold": 5.0,
    "total": 5.0
   },
+  "criticalChance": 0.02,
+  "criticalMultiplier": 1.5,
+  "procChance": 0.35,
+  "fireRate": 16.67,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Rifle",
+  "zh": "阿塔克斯",
   "attacks": [
    {
     "name": "Normal Attack",
     "damage": {
-     "cold": 5.0,
-     "total": 5.0
+     "cold": 5.0
     },
     "total": 5.0,
     "crit_chance": 2.0,
     "crit_mult": 1.5,
     "status_chance": 35.0,
     "speed": 16.67,
-    "shot_type": "hit_scan"
+    "shot_type": "Hit-Scan"
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）",
-  "ammoCost": 0.5
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Held",
+  "magazineSize": 100.0,
+  "reloadTime": 1.5,
+  "ammoCost": 0.5,
+  "slot": "sentinel"
  },
  "/lotus/types/sentinels/sentinelweapons/burstlaserpistol": {
   "name": "Burst Laser",
-  "zh": "激光点发",
   "uniqueName": "/Lotus/Types/Sentinels/SentinelWeapons/BurstLaserPistol",
-  "slot": "sentinel",
   "category": "Sentinel",
   "masteryReq": 0,
-  "criticalChance": 0.15,
-  "criticalMultiplier": 2.0,
-  "procChance": 0.1,
-  "fireRate": 1.5,
-  "magazineSize": 15.0,
-  "reloadTime": 0.01,
-  "multishot": 1.0,
   "damage": {
    "impact": 2.0,
    "puncture": 17.0,
    "slash": 1.0,
    "total": 20.0
   },
+  "criticalChance": 0.15,
+  "criticalMultiplier": 2.0,
+  "procChance": 0.1,
+  "fireRate": 1.5,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Pistol",
+  "zh": "激光点发",
   "attacks": [
    {
     "name": "Normal Attack",
     "damage": {
      "impact": 2.0,
      "puncture": 17.0,
-     "slash": 1.0,
-     "total": 20.0
+     "slash": 1.0
     },
     "total": 20.0,
     "crit_chance": 15.0,
     "crit_mult": 2.0,
     "status_chance": 10.0,
     "speed": 1.5,
-    "shot_type": "projectile"
+    "shot_type": "Projectile"
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）"
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Burst",
+  "magazineSize": 15.0,
+  "reloadTime": 0.01,
+  "burstCount": 3,
+  "burstDelay": 0.4,
+  "slot": "sentinel"
  },
  "/lotus/types/sentinels/sentinelweapons/primeburstlaserpistol": {
   "name": "Burst Laser Prime",
-  "zh": "激光点发 Prime",
   "uniqueName": "/Lotus/Types/Sentinels/SentinelWeapons/PrimeBurstLaserPistol",
-  "slot": "sentinel",
   "category": "Sentinel",
   "masteryReq": 0,
-  "criticalChance": 0.2,
-  "criticalMultiplier": 2.3,
-  "procChance": 0.15,
-  "fireRate": 1.5,
-  "magazineSize": 15.0,
-  "reloadTime": 0.01,
-  "multishot": 1.0,
   "damage": {
    "impact": 2.5,
    "puncture": 21.25,
    "slash": 1.25,
    "total": 25.0
   },
+  "criticalChance": 0.2,
+  "criticalMultiplier": 2.3,
+  "procChance": 0.15,
+  "fireRate": 1.5,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Pistol",
+  "zh": "激光点发 Prime",
   "attacks": [
    {
     "name": "Normal Attack",
     "damage": {
      "impact": 2.5,
      "puncture": 21.25,
-     "slash": 1.25,
-     "total": 25.0
+     "slash": 1.25
     },
     "total": 25.0,
     "crit_chance": 20.0,
     "crit_mult": 2.3,
     "status_chance": 15.0,
     "speed": 1.5,
-    "shot_type": "projectile"
+    "shot_type": "Projectile"
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）"
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Burst",
+  "magazineSize": 15.0,
+  "reloadTime": 0.01,
+  "burstCount": 5,
+  "burstDelay": 0.2,
+  "slot": "sentinel"
  },
  "/lotus/types/friendly/pets/moapets/moapetcomponents/cryoxionweapon": {
   "name": "Cryotra",
-  "zh": "急冻喷枪",
   "uniqueName": "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetComponents/CryoxionWeapon",
-  "slot": "sentinel",
   "category": "Sentinel",
   "masteryReq": 0,
-  "criticalChance": 0.1,
-  "criticalMultiplier": 1.75,
-  "procChance": 0.1,
-  "fireRate": 0.667,
-  "magazineSize": 3.0,
-  "reloadTime": 5.0,
-  "multishot": 1.0,
   "damage": {
    "impact": 10.0,
    "total": 10.0
   },
+  "criticalChance": 0.1,
+  "criticalMultiplier": 1.75,
+  "procChance": 0.1,
+  "fireRate": 0.667,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Rifle",
+  "zh": "急冻喷枪",
   "attacks": [
    {
-    "name": "Normal Attack",
+    "name": "Direct Hit",
     "damage": {
-     "impact": 10.0,
-     "total": 10.0
+     "impact": 10.0
     },
     "total": 10.0,
     "crit_chance": 10.0,
     "crit_mult": 1.75,
     "status_chance": 10.0,
     "speed": 0.667,
-    "shot_type": "projectile"
+    "shot_type": "Projectile"
+   },
+   {
+    "name": "Cold Field",
+    "damage": {
+     "cold": 20.0
+    },
+    "total": 20.0,
+    "crit_chance": 10.0,
+    "crit_mult": 1.75,
+    "status_chance": 30.0,
+    "speed": 1.0,
+    "shot_type": "DoT",
+    "falloff": {
+     "start": 0.0,
+     "end": 1.5,
+     "reduction": 0.7
+    }
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）"
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Semi",
+  "magazineSize": 3.0,
+  "reloadTime": 5.0,
+  "slot": "sentinel"
  },
  "/lotus/types/sentinels/sentinelweapons/sentglaiveweapon": {
   "name": "Deconstructor",
-  "zh": "分离",
   "uniqueName": "/Lotus/Types/Sentinels/SentinelWeapons/SentGlaiveWeapon",
-  "slot": "sentinel",
   "category": "Sentinel",
   "masteryReq": 0,
+  "damage": {
+   "impact": 130.0,
+   "total": 130.0
+  },
   "criticalChance": 0.0,
   "criticalMultiplier": 1.0,
   "procChance": 0.25,
   "fireRate": 1.33,
-  "magazineSize": 6.0,
-  "reloadTime": 3.0,
-  "multishot": 1.0,
-  "damage": {
-   "impact": 43.333333,
-   "puncture": 43.333333,
-   "slash": 43.333333,
-   "total": 130.0
-  },
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Glaive",
+  "zh": "分离",
   "attacks": [
    {
-    "name": "Normal Attack",
+    "name": "First Attack",
     "damage": {
-     "impact": 43.333333,
-     "puncture": 43.333333,
-     "slash": 43.333333,
-     "total": 130.0
+     "impact": 130.0
     },
     "total": 130.0,
     "crit_chance": 0.0,
     "crit_mult": 1.0,
     "status_chance": 25.0,
     "speed": 1.33,
-    "shot_type": "projectile"
+    "shot_type": "Projectile"
+   },
+   {
+    "name": "Second Attack",
+    "damage": {
+     "puncture": 130.0
+    },
+    "total": 130.0,
+    "crit_chance": 0.0,
+    "crit_mult": 1.0,
+    "status_chance": 25.0,
+    "speed": 1.33,
+    "shot_type": "Projectile"
+   },
+   {
+    "name": "Third Attack",
+    "damage": {
+     "slash": 130.0
+    },
+    "total": 130.0,
+    "crit_chance": 0.0,
+    "crit_mult": 1.0,
+    "status_chance": 25.0,
+    "speed": 1.33,
+    "shot_type": "Projectile"
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）"
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Auto",
+  "magazineSize": 6.0,
+  "reloadTime": 3.0,
+  "slot": "sentinel"
  },
  "/lotus/types/sentinels/sentinelweapons/deconstructorprime/primeheliosglaiveweapon": {
   "name": "Deconstructor Prime",
-  "zh": "分离 Prime",
   "uniqueName": "/Lotus/Types/Sentinels/SentinelWeapons/DeconstructorPrime/PrimeHeliosGlaiveWeapon",
-  "slot": "sentinel",
   "category": "Sentinel",
   "masteryReq": 0,
+  "damage": {
+   "impact": 160.0,
+   "total": 160.0
+  },
   "criticalChance": 0.0,
   "criticalMultiplier": 1.0,
   "procChance": 0.25,
   "fireRate": 1.33,
-  "magazineSize": 6.0,
-  "reloadTime": 3.0,
-  "multishot": 1.0,
-  "damage": {
-   "impact": 53.333333,
-   "puncture": 53.333333,
-   "slash": 53.333333,
-   "total": 160.0
-  },
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Glaive",
+  "zh": "分离 Prime",
   "attacks": [
    {
-    "name": "Normal Attack",
+    "name": "First Attack",
     "damage": {
-     "impact": 53.333333,
-     "puncture": 53.333333,
-     "slash": 53.333333,
-     "total": 160.0
+     "impact": 160.0
     },
     "total": 160.0,
     "crit_chance": 0.0,
     "crit_mult": 1.0,
     "status_chance": 25.0,
     "speed": 1.33,
-    "shot_type": "projectile"
+    "shot_type": "Projectile"
+   },
+   {
+    "name": "Second Attack",
+    "damage": {
+     "puncture": 160.0
+    },
+    "total": 160.0,
+    "crit_chance": 0.0,
+    "crit_mult": 1.0,
+    "status_chance": 25.0,
+    "speed": 1.33,
+    "shot_type": "Projectile"
+   },
+   {
+    "name": "Third Attack",
+    "damage": {
+     "slash": 160.0
+    },
+    "total": 160.0,
+    "crit_chance": 0.0,
+    "crit_mult": 1.0,
+    "status_chance": 25.0,
+    "speed": 1.33,
+    "shot_type": "Projectile"
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）"
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Auto",
+  "magazineSize": 6.0,
+  "reloadTime": 3.0,
+  "slot": "sentinel"
  },
  "/lotus/types/sentinels/sentinelweapons/dethmachinerifle": {
   "name": "Deth Machine Rifle",
-  "zh": "死亡机枪",
   "uniqueName": "/Lotus/Types/Sentinels/SentinelWeapons/DethMachineRifle",
-  "slot": "sentinel",
   "category": "Sentinel",
   "masteryReq": 0,
-  "criticalChance": 0.05,
-  "criticalMultiplier": 2.0,
-  "procChance": 0.01,
-  "fireRate": 8.33,
-  "magazineSize": 100.0,
-  "reloadTime": 2.0,
-  "multishot": 1.0,
   "damage": {
    "impact": 1.5,
    "puncture": 0.75,
    "slash": 12.75,
    "total": 15.0
   },
+  "criticalChance": 0.05,
+  "criticalMultiplier": 2.0,
+  "procChance": 0.01,
+  "fireRate": 8.33,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Rifle",
+  "zh": "死亡机枪",
   "attacks": [
    {
     "name": "Normal Attack",
     "damage": {
      "impact": 1.5,
      "puncture": 0.75,
-     "slash": 12.75,
-     "total": 15.0
+     "slash": 12.75
     },
     "total": 15.0,
     "crit_chance": 5.0,
     "crit_mult": 2.0,
     "status_chance": 1.0,
     "speed": 8.33,
-    "shot_type": "hit_scan"
+    "shot_type": "Hit-Scan"
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）"
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Auto-Spool",
+  "magazineSize": 100.0,
+  "reloadTime": 2.0,
+  "slot": "sentinel"
  },
  "/lotus/types/sentinels/sentinelweapons/primedethmachinerifle": {
   "name": "Deth Machine Rifle Prime",
-  "zh": "死亡机枪 Prime",
   "uniqueName": "/Lotus/Types/Sentinels/SentinelWeapons/PrimeDethMachineRifle",
-  "slot": "sentinel",
   "category": "Sentinel",
   "masteryReq": 0,
-  "criticalChance": 0.1,
-  "criticalMultiplier": 2.0,
-  "procChance": 0.04,
-  "fireRate": 10.0,
-  "magazineSize": 100.0,
-  "reloadTime": 2.0,
-  "multishot": 1.0,
   "damage": {
    "impact": 2.0,
    "puncture": 1.0,
    "slash": 17.0,
    "total": 20.0
   },
+  "criticalChance": 0.1,
+  "criticalMultiplier": 2.0,
+  "procChance": 0.04,
+  "fireRate": 10.0,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Rifle",
+  "zh": "死亡机枪 Prime",
   "attacks": [
    {
     "name": "Normal Attack",
     "damage": {
      "impact": 2.0,
      "puncture": 1.0,
-     "slash": 17.0,
-     "total": 20.0
+     "slash": 17.0
     },
     "total": 20.0,
     "crit_chance": 10.0,
     "crit_mult": 2.0,
     "status_chance": 4.0,
     "speed": 10.0,
-    "shot_type": "hit_scan"
+    "shot_type": "Hit-Scan"
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）"
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Auto-Spool",
+  "magazineSize": 100.0,
+  "reloadTime": 2.0,
+  "slot": "sentinel"
  },
  "/lotus/types/friendly/pets/moapets/moapetcomponents/swarmerweapon": {
   "name": "Helstrum",
-  "zh": "赫尔斯壮",
   "uniqueName": "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetComponents/SwarmerWeapon",
-  "slot": "sentinel",
   "category": "Sentinel",
   "masteryReq": 0,
-  "criticalChance": 0.05,
-  "criticalMultiplier": 1.5,
-  "procChance": 0.3,
-  "fireRate": 0.25,
-  "magazineSize": 80.0,
-  "reloadTime": 2.0,
-  "multishot": 1.0,
   "damage": {
    "impact": 4.95,
    "puncture": 4.05,
    "total": 9.0
   },
+  "criticalChance": 0.05,
+  "criticalMultiplier": 1.5,
+  "procChance": 0.3,
+  "fireRate": 0.25,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Rifle",
+  "zh": "赫尔斯壮",
   "attacks": [
    {
     "name": "Normal Attack",
     "damage": {
      "impact": 4.95,
-     "puncture": 4.05,
-     "total": 9.0
+     "puncture": 4.05
     },
     "total": 9.0,
     "crit_chance": 5.0,
     "crit_mult": 1.5,
     "status_chance": 30.0,
     "speed": 0.25,
-    "shot_type": "projectile"
+    "shot_type": "Projectile"
    },
    {
-    "name": "Area Attack",
+    "name": "Explosion",
     "damage": {
      "impact": 6.0,
-     "heat": 24.0,
-     "total": 30.0
+     "heat": 24.0
     },
     "total": 30.0,
     "crit_chance": 5.0,
     "crit_mult": 1.5,
     "status_chance": 30.0,
+    "speed": 0.25,
     "shot_type": "AoE"
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）",
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Burst",
+  "magazineSize": 80.0,
+  "reloadTime": 2.0,
   "burstCount": 4,
-  "burstDelay": 0.1
+  "burstDelay": 0.1,
+  "slot": "sentinel"
  },
  "/lotus/types/sentinels/sentinelweapons/laserrifle": {
   "name": "Laser Rifle",
-  "zh": "激光步枪",
   "uniqueName": "/Lotus/Types/Sentinels/SentinelWeapons/LaserRifle",
-  "slot": "sentinel",
   "category": "Sentinel",
   "masteryReq": 0,
-  "criticalChance": 0.17,
-  "criticalMultiplier": 1.75,
-  "procChance": 0.075,
-  "fireRate": 5.0,
-  "magazineSize": 20.0,
-  "reloadTime": 1.2,
-  "multishot": 1.0,
   "damage": {
    "impact": 4.5,
    "puncture": 36.0,
    "slash": 4.5,
    "total": 45.0
   },
+  "criticalChance": 0.17,
+  "criticalMultiplier": 1.75,
+  "procChance": 0.075,
+  "fireRate": 5.0,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Rifle",
+  "zh": "激光步枪",
   "attacks": [
    {
     "name": "Normal Attack",
     "damage": {
      "impact": 4.5,
      "puncture": 36.0,
-     "slash": 4.5,
-     "total": 45.0
+     "slash": 4.5
     },
     "total": 45.0,
     "crit_chance": 17.0,
     "crit_mult": 1.75,
     "status_chance": 7.5,
     "speed": 5.0,
-    "shot_type": "projectile"
+    "shot_type": "Projectile"
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）"
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Auto",
+  "magazineSize": 20.0,
+  "reloadTime": 1.2,
+  "slot": "sentinel"
  },
  "/lotus/types/friendly/pets/moapets/moapetcomponents/hextraweapon": {
   "name": "Multron",
-  "zh": "多连穿甲枪",
   "uniqueName": "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetComponents/HextraWeapon",
-  "slot": "sentinel",
   "category": "Sentinel",
   "masteryReq": 3,
-  "criticalChance": 0.15,
-  "criticalMultiplier": 2.0,
-  "procChance": 0.22,
-  "fireRate": 2.5,
-  "magazineSize": 3.0,
-  "reloadTime": 3.0,
-  "multishot": 1.0,
   "damage": {
    "puncture": 10.0,
    "total": 10.0
   },
+  "criticalChance": 0.15,
+  "criticalMultiplier": 2.0,
+  "procChance": 0.22,
+  "fireRate": 2.5,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Rifle",
+  "zh": "多连穿甲枪",
   "attacks": [
    {
-    "name": "Normal Attack",
+    "name": "Projectile Impact",
     "damage": {
-     "puncture": 10.0,
-     "total": 10.0
+     "puncture": 10.0
     },
     "total": 10.0,
     "crit_chance": 15.0,
     "crit_mult": 2.0,
     "status_chance": 22.0,
     "speed": 2.5,
-    "shot_type": "projectile"
+    "shot_type": "Projectile"
    },
    {
-    "name": "Area Attack",
+    "name": "Radial Attack",
     "damage": {
-     "blast": 100.0,
-     "total": 100.0
+     "blast": 100.0
     },
     "total": 100.0,
     "crit_chance": 15.0,
     "crit_mult": 2.0,
     "status_chance": 22.0,
-    "shot_type": "AoE"
+    "speed": 2.5,
+    "shot_type": "AoE",
+    "falloff": {
+     "start": 0.0,
+     "end": 3.5,
+     "reduction": 0.5
+    }
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）",
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Burst",
+  "magazineSize": 3.0,
+  "reloadTime": 3.0,
   "burstCount": 3,
-  "burstDelay": 0.4
+  "burstDelay": 0.4,
+  "slot": "sentinel"
  },
  "/lotus/types/sentinels/sentinelweapons/primelaserrifle": {
   "name": "Prime Laser Rifle",
-  "zh": "激光步枪 Prime",
   "uniqueName": "/Lotus/Types/Sentinels/SentinelWeapons/PrimeLaserRifle",
-  "slot": "sentinel",
   "category": "Sentinel",
   "masteryReq": 0,
-  "criticalChance": 0.2,
-  "criticalMultiplier": 2.0,
-  "procChance": 0.1,
-  "fireRate": 5.0,
-  "magazineSize": 20.0,
-  "reloadTime": 1.2,
-  "multishot": 1.0,
   "damage": {
    "impact": 5.5,
    "puncture": 38.5,
    "slash": 11.0,
    "total": 55.0
   },
+  "criticalChance": 0.2,
+  "criticalMultiplier": 2.0,
+  "procChance": 0.1,
+  "fireRate": 5.0,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Rifle",
+  "zh": "激光步枪 Prime",
   "attacks": [
    {
     "name": "Normal Attack",
     "damage": {
      "impact": 5.5,
      "puncture": 38.5,
-     "slash": 11.0,
-     "total": 55.0
+     "slash": 11.0
     },
     "total": 55.0,
     "crit_chance": 20.0,
     "crit_mult": 2.0,
     "status_chance": 10.0,
     "speed": 5.0,
-    "shot_type": "projectile"
+    "shot_type": "Projectile"
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）"
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Auto",
+  "magazineSize": 20.0,
+  "reloadTime": 1.2,
+  "slot": "sentinel"
  },
  "/lotus/types/sentinels/sentinelweapons/prismaburstlaserpistol": {
   "name": "Prisma Burst Laser",
-  "zh": "棱晶 激光点发",
   "uniqueName": "/Lotus/Types/Sentinels/SentinelWeapons/PrismaBurstLaserPistol",
-  "slot": "sentinel",
   "category": "Sentinel",
   "masteryReq": 0,
-  "criticalChance": 0.18,
-  "criticalMultiplier": 2.15,
-  "procChance": 0.1,
-  "fireRate": 1.5,
-  "magazineSize": 15.0,
-  "reloadTime": 0.01,
-  "multishot": 1.0,
   "damage": {
    "impact": 2.2,
    "puncture": 18.7,
    "slash": 1.1,
    "total": 22.0
   },
+  "criticalChance": 0.18,
+  "criticalMultiplier": 2.15,
+  "procChance": 0.1,
+  "fireRate": 1.5,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Pistol",
+  "zh": "棱晶 激光点发",
   "attacks": [
    {
     "name": "Normal Attack",
     "damage": {
      "impact": 2.2,
      "puncture": 18.7,
-     "slash": 1.1,
-     "total": 22.0
+     "slash": 1.1
     },
     "total": 22.0,
     "crit_chance": 18.0,
     "crit_mult": 2.15,
     "status_chance": 10.0,
     "speed": 1.5,
-    "shot_type": "projectile"
+    "shot_type": "Projectile"
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）"
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Burst",
+  "magazineSize": 15.0,
+  "reloadTime": 0.01,
+  "burstCount": 4,
+  "burstDelay": 0.3,
+  "slot": "sentinel"
  },
  "/lotus/types/sentinels/sentinelweapons/sentbioweapon": {
   "name": "Stinger",
-  "zh": "毒刺",
   "uniqueName": "/Lotus/Types/Sentinels/SentinelWeapons/SentBioWeapon",
-  "slot": "sentinel",
   "category": "Sentinel",
   "masteryReq": 0,
-  "criticalChance": 0.025,
-  "criticalMultiplier": 1.5,
-  "procChance": 0.2,
-  "fireRate": 3.33,
-  "magazineSize": 4.0,
-  "reloadTime": 1.2,
-  "multishot": 1.0,
   "damage": {
    "toxin": 15.0,
    "total": 15.0
   },
+  "criticalChance": 0.025,
+  "criticalMultiplier": 1.5,
+  "procChance": 0.2,
+  "fireRate": 3.33,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Rifle",
+  "zh": "毒刺",
   "attacks": [
    {
     "name": "Normal Attack",
     "damage": {
-     "toxin": 15.0,
-     "total": 15.0
+     "toxin": 15.0
     },
     "total": 15.0,
     "crit_chance": 2.5,
     "crit_mult": 1.5,
     "status_chance": 20.0,
     "speed": 3.33,
-    "shot_type": "projectile"
+    "shot_type": "Projectile"
+   },
+   {
+    "name": "Toxin Embed",
+    "damage": {
+     "toxin": 15.0
+    },
+    "total": 15.0,
+    "crit_chance": 2.5,
+    "crit_mult": 1.5,
+    "status_chance": 20.0,
+    "speed": 1.0,
+    "shot_type": "DoT"
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）"
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Semi-Auto",
+  "magazineSize": 4.0,
+  "reloadTime": 1.2,
+  "slot": "sentinel"
  },
  "/lotus/types/sentinels/sentinelweapons/sentshotgun": {
   "name": "Sweeper",
-  "zh": "扫除者",
   "uniqueName": "/Lotus/Types/Sentinels/SentinelWeapons/SentShotgun",
-  "slot": "sentinel",
   "category": "Sentinel",
   "masteryReq": 0,
-  "criticalChance": 0.1,
-  "criticalMultiplier": 1.75,
-  "procChance": 0.045,
-  "fireRate": 1.0,
-  "magazineSize": 10.0,
-  "reloadTime": 2.3,
-  "multishot": 6.0,
   "damage": {
    "impact": 29.75,
    "puncture": 1.75,
    "slash": 3.5,
    "total": 35.0
   },
+  "criticalChance": 0.1,
+  "criticalMultiplier": 1.75,
+  "procChance": 0.045,
+  "fireRate": 1.0,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Shotgun",
+  "zh": "扫除者",
   "attacks": [
    {
     "name": "Normal Attack",
     "damage": {
      "impact": 29.75,
      "puncture": 1.75,
-     "slash": 3.5,
-     "total": 35.0
+     "slash": 3.5
     },
     "total": 35.0,
     "crit_chance": 10.0,
     "crit_mult": 1.75,
     "status_chance": 4.5,
     "speed": 1.0,
-    "shot_type": "hit_scan"
+    "shot_type": "Hit-Scan"
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）"
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 6.0,
+  "trigger": "Auto",
+  "magazineSize": 10.0,
+  "reloadTime": 2.3,
+  "slot": "sentinel"
  },
  "/lotus/types/sentinels/sentinelweapons/primesentshotgun": {
   "name": "Sweeper Prime",
-  "zh": "扫除者 Prime",
   "uniqueName": "/Lotus/Types/Sentinels/SentinelWeapons/PrimeSentShotgun",
-  "slot": "sentinel",
   "category": "Sentinel",
   "masteryReq": 0,
-  "criticalChance": 0.1,
-  "criticalMultiplier": 2.25,
-  "procChance": 0.05,
-  "fireRate": 1.0,
-  "magazineSize": 20.0,
-  "reloadTime": 2.0,
-  "multishot": 6.0,
   "damage": {
    "impact": 38.25,
    "puncture": 2.25,
    "slash": 4.5,
    "total": 45.0
   },
+  "criticalChance": 0.1,
+  "criticalMultiplier": 2.25,
+  "procChance": 0.05,
+  "fireRate": 1.0,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Shotgun",
+  "zh": "扫除者 Prime",
   "attacks": [
    {
     "name": "Normal Attack",
     "damage": {
      "impact": 38.25,
      "puncture": 2.25,
-     "slash": 4.5,
-     "total": 45.0
+     "slash": 4.5
     },
     "total": 45.0,
     "crit_chance": 10.0,
     "crit_mult": 2.25,
     "status_chance": 5.0,
     "speed": 1.0,
-    "shot_type": "hit_scan"
+    "shot_type": "Hit-Scan"
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）"
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 6.0,
+  "trigger": "Auto",
+  "magazineSize": 20.0,
+  "reloadTime": 2.0,
+  "slot": "sentinel"
  },
  "/lotus/types/friendly/pets/moapets/moapetcomponents/tazronweapon": {
   "name": "Tazicor",
-  "zh": "泰瑟步枪",
   "uniqueName": "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetComponents/TazronWeapon",
-  "slot": "sentinel",
   "category": "Sentinel",
   "masteryReq": 3,
-  "criticalChance": 0.05,
-  "criticalMultiplier": 1.5,
-  "procChance": 0.25,
-  "fireRate": 12.0,
-  "magazineSize": 40.0,
-  "reloadTime": 2.0,
-  "multishot": 1.0,
   "damage": {
    "electricity": 5.0,
    "total": 5.0
   },
+  "criticalChance": 0.05,
+  "criticalMultiplier": 1.5,
+  "procChance": 0.25,
+  "fireRate": 12.0,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Rifle",
+  "zh": "泰瑟步枪",
   "attacks": [
    {
     "name": "Normal Attack",
     "damage": {
-     "electricity": 5.0,
-     "total": 5.0
+     "electricity": 5.0
     },
     "total": 5.0,
     "crit_chance": 5.0,
     "crit_mult": 1.5,
     "status_chance": 25.0,
     "speed": 12.0,
-    "shot_type": "hit_scan"
+    "shot_type": "Hit-Scan"
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）",
-  "ammoCost": 0.5
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Held",
+  "magazineSize": 40.0,
+  "reloadTime": 2.0,
+  "ammoCost": 0.5,
+  "slot": "sentinel"
  },
  "/lotus/types/sentinels/sentinelweapons/sentinelfreezerayrifle": {
   "name": "Verglas",
-  "zh": "冰凇",
   "uniqueName": "/Lotus/Types/Sentinels/SentinelWeapons/SentinelFreezeRayRifle",
-  "slot": "sentinel",
   "category": "Sentinel",
   "masteryReq": 0,
-  "criticalChance": 0.08,
-  "criticalMultiplier": 2.0,
-  "procChance": 0.34,
-  "fireRate": 12.0,
-  "magazineSize": 80.0,
-  "reloadTime": 2.2,
-  "multishot": 1.0,
   "damage": {
    "cold": 26.0,
    "total": 26.0
   },
+  "criticalChance": 0.08,
+  "criticalMultiplier": 2.0,
+  "procChance": 0.34,
+  "fireRate": 12.0,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Rifle",
+  "zh": "冰凇",
   "attacks": [
    {
     "name": "Normal Attack",
     "damage": {
-     "cold": 26.0,
-     "total": 26.0
+     "cold": 26.0
     },
     "total": 26.0,
     "crit_chance": 8.0,
     "crit_mult": 2.0,
     "status_chance": 34.0,
     "speed": 12.0,
-    "shot_type": "hit_scan"
+    "shot_type": "Hit-Scan"
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）"
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Held",
+  "magazineSize": 80.0,
+  "reloadTime": 2.2,
+  "slot": "sentinel"
  },
  "/lotus/types/sentinels/sentinelweapons/sentinelfreezerayprimerifle": {
   "name": "Verglas Prime",
-  "zh": "冰凇 Prime",
   "uniqueName": "/Lotus/Types/Sentinels/SentinelWeapons/SentinelFreezeRayPrimeRifle",
-  "slot": "sentinel",
   "category": "Sentinel",
   "masteryReq": 0,
-  "criticalChance": 0.14,
-  "criticalMultiplier": 2.2,
-  "procChance": 0.36,
-  "fireRate": 12.0,
-  "magazineSize": 80.0,
-  "reloadTime": 1.6,
-  "multishot": 1.0,
   "damage": {
    "cold": 32.0,
    "total": 32.0
   },
+  "criticalChance": 0.14,
+  "criticalMultiplier": 2.2,
+  "procChance": 0.36,
+  "fireRate": 12.0,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Rifle",
+  "zh": "冰凇 Prime",
   "attacks": [
    {
     "name": "Normal Attack",
     "damage": {
-     "cold": 32.0,
-     "total": 32.0
+     "cold": 32.0
     },
     "total": 32.0,
-    "crit_chance": 14.000000000000002,
+    "crit_chance": 14.0,
     "crit_mult": 2.2,
     "status_chance": 36.0,
     "speed": 12.0,
-    "shot_type": "hit_scan"
+    "shot_type": "Hit-Scan"
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）"
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Held",
+  "magazineSize": 80.0,
+  "reloadTime": 1.6,
+  "slot": "sentinel"
  },
  "/lotus/types/friendly/pets/moapets/moapetcomponents/thermocormoaweapon": {
   "name": "Vulcax",
-  "zh": "金工火舌",
   "uniqueName": "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetComponents/ThermocorMoaWeapon",
-  "slot": "sentinel",
   "category": "Sentinel",
   "masteryReq": 14,
-  "criticalChance": 0.2,
-  "criticalMultiplier": 2.5,
-  "procChance": 0.1,
-  "fireRate": 1.0,
-  "magazineSize": 1.0,
-  "reloadTime": 3.0,
-  "multishot": 1.0,
   "damage": {
    "heat": 500.0,
    "total": 500.0
   },
+  "criticalChance": 0.2,
+  "criticalMultiplier": 2.5,
+  "procChance": 0.1,
+  "fireRate": 1.0,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Rifle",
+  "zh": "金工火舌",
   "attacks": [
    {
-    "name": "Normal Attack",
+    "name": "Impact",
     "damage": {
-     "heat": 500.0,
-     "total": 500.0
+     "heat": 500.0
     },
     "total": 500.0,
     "crit_chance": 20.0,
     "crit_mult": 2.5,
     "status_chance": 10.0,
     "speed": 1.0,
-    "shot_type": "hit_scan"
+    "shot_type": "Hit-Scan"
    },
    {
-    "name": "Area Attack",
+    "name": "Radial Attack",
     "damage": {
-     "blast": 100.0,
-     "total": 100.0
+     "blast": 100.0
     },
     "total": 100.0,
     "crit_chance": 20.0,
     "crit_mult": 2.5,
     "status_chance": 20.0,
-    "shot_type": "AoE"
+    "speed": 1.0,
+    "shot_type": "AoE",
+    "falloff": {
+     "start": 0.0,
+     "end": 5.0,
+     "reduction": 0.5
+    }
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）"
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Charge",
+  "magazineSize": 1.0,
+  "reloadTime": 3.0,
+  "slot": "sentinel"
  },
  "/lotus/types/sentinels/sentinelweapons/sentelecrailgun": {
   "name": "Vulklok",
-  "zh": "金工火枪",
   "uniqueName": "/Lotus/Types/Sentinels/SentinelWeapons/SentElecRailgun",
-  "slot": "sentinel",
   "category": "Sentinel",
   "masteryReq": 0,
-  "criticalChance": 0.35,
-  "criticalMultiplier": 2.5,
-  "procChance": 0.25,
-  "fireRate": 0.15,
-  "magazineSize": 10.0,
-  "reloadTime": 2.0,
-  "multishot": 1.0,
   "damage": {
    "electricity": 175.0,
    "total": 175.0
   },
+  "criticalChance": 0.35,
+  "criticalMultiplier": 2.5,
+  "procChance": 0.25,
+  "fireRate": 0.15,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Sniper Rifle",
+  "zh": "金工火枪",
   "attacks": [
    {
     "name": "Normal Attack",
     "damage": {
-     "electricity": 175.0,
-     "total": 175.0
+     "electricity": 175.0
     },
     "total": 175.0,
     "crit_chance": 35.0,
     "crit_mult": 2.5,
     "status_chance": 25.0,
     "speed": 0.15,
-    "shot_type": "projectile"
+    "shot_type": "Projectile"
    }
   ],
-  "source": "wfsim data/weapons（wiki/实测整理）"
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Auto",
+  "magazineSize": 10.0,
+  "reloadTime": 2.0,
+  "slot": "sentinel"
  },
  "/lotus/powersuits/berserker/berserkermelee": {
   "name": "Valkyr Talons",
-  "zh": "Valkyr 的利爪",
   "uniqueName": "/Lotus/Powersuits/Berserker/BerserkerMelee",
-  "slot": "melee",
   "category": "Melee",
   "masteryReq": 0,
-  "criticalChance": 0.5,
-  "criticalMultiplier": 2.0,
-  "procChance": 0.1,
-  "fireRate": 1.5,
-  "magazineSize": 0,
-  "reloadTime": 0,
-  "multishot": 1.0,
   "damage": {
    "puncture": 62.5,
    "slash": 187.5,
    "total": 250.0
   },
+  "criticalChance": 0.5,
+  "criticalMultiplier": 2.0,
+  "procChance": 0.1,
+  "fireRate": 1.5,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Exalted Weapon",
+  "zh": "Valkyr 的利爪",
   "attacks": [
    {
     "name": "Normal Attack",
@@ -42942,22 +43560,1476 @@
     "crit_chance": 50.0,
     "crit_mult": 2.0,
     "status_chance": 10.0,
-    "speed": 1.5,
-    "shot_type": "Melee"
+    "speed": 1.5
    },
    {
-    "name": "Heavy Attack",
+    "name": "Slam Attack",
     "damage": {
-     "puncture": 62.5,
-     "slash": 187.5
+     "puncture": 125.0,
+     "slash": 375.0
     },
-    "total": 250.0,
+    "total": 500.0,
     "crit_chance": 50.0,
     "crit_mult": 2.0,
-    "status_chance": 10.0
+    "status_chance": 10.0,
+    "speed": 1.5,
+    "shot_type": "AoE",
+    "falloff": {
+     "start": 0.0,
+     "end": 6.0,
+     "reduction": 0.5
+    }
+   },
+   {
+    "name": "Heavy Slam Attack",
+    "damage": {
+     "blast": 750.0
+    },
+    "total": 750.0,
+    "crit_chance": 50.0,
+    "crit_mult": 2.0,
+    "status_chance": 10.0,
+    "speed": 1.5,
+    "shot_type": "AoE",
+    "falloff": {
+     "start": 0.0,
+     "end": 7.0,
+     "reduction": 0.3
+    }
    }
   ],
-  "exalted": true,
-  "source": "wfsim data/weapons/melee/valkyr_talons.yaml（wiki/实测整理）"
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "heavyAttackDamage": 1250.0,
+  "slideAttack": 750.0,
+  "windUp": 0.5,
+  "followThrough": 1.0,
+  "comboDuration": 5.0,
+  "slamAttack": 500.0,
+  "slamRadius": 6.0,
+  "heavySlamAttack": 750.0
+ },
+ "/lotus/weapons/tenno/longguns/primeafentis/primeafentisweapon": {
+  "name": "Afentis Prime",
+  "uniqueName": "/Lotus/Weapons/Tenno/LongGuns/PrimeAfentis/PrimeAfentisWeapon",
+  "category": "Primary",
+  "masteryReq": 13,
+  "damage": {
+   "impact": 40.0,
+   "puncture": 120.0,
+   "slash": 40.0,
+   "total": 200.0
+  },
+  "criticalChance": 0.26,
+  "criticalMultiplier": 2.6,
+  "procChance": 0.3,
+  "fireRate": 0.833,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Speargun",
+  "zh": "圣英 Prime",
+  "attacks": [
+   {
+    "name": "Semi",
+    "damage": {
+     "impact": 40.0,
+     "puncture": 120.0,
+     "slash": 40.0
+    },
+    "total": 200.0,
+    "crit_chance": 26.0,
+    "crit_mult": 2.6,
+    "status_chance": 30.0,
+    "speed": 0.833,
+    "shot_type": "Projectile"
+   },
+   {
+    "name": "Radial Attack",
+    "damage": {
+     "heat": 250.0,
+     "blast": 800.0
+    },
+    "total": 1050.0,
+    "crit_chance": 26.0,
+    "crit_mult": 2.6,
+    "status_chance": 10.0,
+    "speed": 0.833,
+    "shot_type": "AoE",
+    "falloff": {
+     "start": 0.0,
+     "end": 5.5,
+     "reduction": 0.5
+    }
+   },
+   {
+    "name": "Spear Throw",
+    "damage": {
+     "impact": 330.0,
+     "puncture": 165.0,
+     "slash": 55.0
+    },
+    "total": 550.0,
+    "crit_chance": 40.0,
+    "crit_mult": 3.0,
+    "status_chance": 30.0,
+    "speed": 1.0,
+    "shot_type": "Projectile"
+   }
+  ],
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Semi-Auto",
+  "magazineSize": 4.0,
+  "reloadTime": 1.8
+ },
+ "/lotus/weapons/tenno/longguns/primealternox/primealternoxweapon": {
+  "name": "Alternox Prime",
+  "uniqueName": "/Lotus/Weapons/Tenno/LongGuns/PrimeAlternox/PrimeAlternoxWeapon",
+  "category": "Primary",
+  "masteryReq": 13,
+  "damage": {
+   "electricity": 75.0,
+   "total": 75.0
+  },
+  "criticalChance": 0.2,
+  "criticalMultiplier": 2.2,
+  "procChance": 0.4,
+  "fireRate": 5.33,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Rifle",
+  "zh": "电幻步枪 Prime",
+  "attacks": [
+   {
+    "name": "Normal Attack",
+    "damage": {
+     "electricity": 75.0
+    },
+    "total": 75.0,
+    "crit_chance": 20.0,
+    "crit_mult": 2.2,
+    "status_chance": 40.0,
+    "speed": 5.33,
+    "shot_type": "Projectile"
+   },
+   {
+    "name": "Alt-Fire Contact",
+    "damage": {
+     "impact": 7.0,
+     "puncture": 52.5,
+     "slash": 10.5
+    },
+    "total": 70.0,
+    "crit_chance": 2.0,
+    "crit_mult": 2.0,
+    "status_chance": 50.0,
+    "speed": 1.5,
+    "shot_type": "Projectile"
+   },
+   {
+    "name": "Alt-Fire Damage over Time",
+    "damage": {
+     "electricity": 70.0
+    },
+    "total": 70.0,
+    "crit_chance": 2.0,
+    "crit_mult": 2.0,
+    "status_chance": 50.0,
+    "speed": 1.0,
+    "falloff": {
+     "start": 0.0,
+     "end": 6.0,
+     "reduction": 0.6
+    }
+   },
+   {
+    "name": "Alt-Fire Explosion",
+    "damage": {
+     "electricity": 140.0
+    },
+    "total": 140.0,
+    "crit_chance": 2.0,
+    "crit_mult": 2.0,
+    "status_chance": 50.0,
+    "speed": 1.0,
+    "shot_type": "AoE",
+    "falloff": {
+     "start": 0.0,
+     "end": 6.0,
+     "reduction": 0.6
+    }
+   }
+  ],
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Auto",
+  "magazineSize": 42.0,
+  "reloadTime": 1.8
+ },
+ "/lotus/weapons/tenno/bows/primedaikyu/primedaikyubow": {
+  "name": "Daikyu Prime",
+  "uniqueName": "/Lotus/Weapons/Tenno/Bows/PrimeDaikyu/PrimeDaikyuBow",
+  "category": "Primary",
+  "masteryReq": 15,
+  "damage": {
+   "impact": 225.0,
+   "puncture": 300.0,
+   "slash": 225.0,
+   "total": 750.0
+  },
+  "criticalChance": 0.4,
+  "criticalMultiplier": 2.4,
+  "procChance": 0.5,
+  "fireRate": 1.0,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Bow",
+  "zh": "大久和弓 Prime",
+  "attacks": [
+   {
+    "name": "Charged Shot",
+    "damage": {
+     "impact": 225.0,
+     "puncture": 300.0,
+     "slash": 225.0
+    },
+    "total": 750.0,
+    "crit_chance": 40.0,
+    "crit_mult": 2.4,
+    "status_chance": 50.0,
+    "speed": 1.0,
+    "shot_type": "Projectile"
+   },
+   {
+    "name": "Quick Shot",
+    "damage": {
+     "impact": 112.5,
+     "puncture": 150.0,
+     "slash": 112.5
+    },
+    "total": 375.0,
+    "crit_chance": 40.0,
+    "crit_mult": 2.4,
+    "status_chance": 50.0,
+    "speed": 1.0,
+    "shot_type": "Projectile"
+   }
+  ],
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Charge",
+  "magazineSize": 1.0,
+  "reloadTime": 0.6
+ },
+ "/lotus/weapons/tenno/longguns/primeperigale/primeperigalesniper": {
+  "name": "Perigale Prime",
+  "uniqueName": "/Lotus/Weapons/Tenno/LongGuns/PrimePerigale/PrimePerigaleSniper",
+  "category": "Primary",
+  "masteryReq": 14,
+  "damage": {
+   "impact": 22.08,
+   "puncture": 103.04,
+   "slash": 58.88,
+   "total": 184.0
+  },
+  "criticalChance": 0.32,
+  "criticalMultiplier": 2.6,
+  "procChance": 0.2,
+  "fireRate": 2.0,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Sniper Rifle",
+  "zh": "月面狂风 Prime",
+  "attacks": [
+   {
+    "name": "Normal Attack",
+    "damage": {
+     "impact": 22.08,
+     "puncture": 103.04,
+     "slash": 58.88
+    },
+    "total": 184.0,
+    "crit_chance": 32.0,
+    "crit_mult": 2.6,
+    "status_chance": 20.0,
+    "speed": 2.0,
+    "shot_type": "Hit-Scan"
+   }
+  ],
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Burst",
+  "magazineSize": 16.0,
+  "reloadTime": 3.0,
+  "burstCount": 4,
+  "burstDelay": 0.04
+ },
+ "/lotus/weapons/tenno/longguns/primesteflos/primesteflosshotgun": {
+  "name": "Steflos Prime",
+  "uniqueName": "/Lotus/Weapons/Tenno/LongGuns/PrimeSteflos/PrimeSteflosShotgun",
+  "category": "Primary",
+  "masteryReq": 15,
+  "damage": {
+   "impact": 195.0,
+   "heat": 285.0,
+   "total": 480.0
+  },
+  "criticalChance": 0.18,
+  "criticalMultiplier": 2.2,
+  "procChance": 0.28,
+  "fireRate": 3.0,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Shotgun",
+  "zh": "石晶之花 Prime",
+  "attacks": [
+   {
+    "name": "Normal Attack",
+    "damage": {
+     "impact": 195.0,
+     "heat": 285.0
+    },
+    "total": 480.0,
+    "crit_chance": 18.0,
+    "crit_mult": 2.2,
+    "status_chance": 28.0,
+    "speed": 3.0,
+    "shot_type": "Projectile",
+    "falloff": {
+     "start": 8.0,
+     "end": 24.0,
+     "reduction": 0.625
+    }
+   }
+  ],
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Semi-Auto",
+  "magazineSize": 12.0,
+  "reloadTime": 2.4
+ },
+ "/lotus/weapons/tenno/longguns/primelightninggun/primelightninggun": {
+  "name": "Vadarya Prime",
+  "uniqueName": "/Lotus/Weapons/Tenno/LongGuns/PrimeLightningGun/PrimeLightningGun",
+  "category": "Primary",
+  "masteryReq": 15,
+  "damage": {
+   "electricity": 400.0,
+   "total": 400.0
+  },
+  "criticalChance": 0.4,
+  "criticalMultiplier": 2.8,
+  "procChance": 0.18,
+  "fireRate": 2.8,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Sniper Rifle",
+  "zh": "瓦德雅 Prime",
+  "attacks": [
+   {
+    "name": "Normal Attack",
+    "damage": {
+     "electricity": 400.0
+    },
+    "total": 400.0,
+    "crit_chance": 40.0,
+    "crit_mult": 2.8,
+    "status_chance": 18.0,
+    "speed": 2.8,
+    "shot_type": "Hit-Scan"
+   }
+  ],
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Auto-Charge",
+  "magazineSize": 16.0,
+  "reloadTime": 2.6
+ },
+ "/lotus/weapons/infested/infestedlich/longguns/codabubonico/codabubonicocannon": {
+  "name": "Coda Bubonico",
+  "uniqueName": "/Lotus/Weapons/Infested/InfestedLich/LongGuns/CodaBubonico/CodaBubonicoCannon",
+  "category": "Primary",
+  "masteryReq": 17,
+  "damage": {
+   "impact": 2.0,
+   "puncture": 13.0,
+   "slash": 19.0,
+   "toxin": 7.0,
+   "total": 41.0
+  },
+  "criticalChance": 0.27,
+  "criticalMultiplier": 2.3,
+  "procChance": 0.101429,
+  "fireRate": 5.33,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Shotgun",
+  "zh": "终幕·横痃重炮",
+  "attacks": [
+   {
+    "name": "Auto",
+    "damage": {
+     "impact": 2.0,
+     "puncture": 13.0,
+     "slash": 19.0,
+     "toxin": 7.0
+    },
+    "total": 41.0,
+    "crit_chance": 27.0,
+    "crit_mult": 2.3,
+    "status_chance": 10.1429,
+    "speed": 5.33,
+    "shot_type": "Projectile",
+    "falloff": {
+     "start": 19.0,
+     "end": 41.0,
+     "reduction": 0.5
+    }
+   },
+   {
+    "name": "Burst",
+    "damage": {
+     "impact": 9.0
+    },
+    "total": 9.0,
+    "crit_chance": 5.0,
+    "crit_mult": 3.5,
+    "status_chance": 61.0,
+    "speed": 7.0,
+    "shot_type": "Projectile"
+   },
+   {
+    "name": "Radial Attack",
+    "damage": {
+     "viral": 143.0
+    },
+    "total": 143.0,
+    "crit_chance": 5.0,
+    "crit_mult": 3.5,
+    "status_chance": 57.0,
+    "speed": 3.37,
+    "shot_type": "AoE",
+    "falloff": {
+     "start": 0.0,
+     "end": 7.0,
+     "reduction": 0.5
+    }
+   }
+  ],
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 7.0,
+  "trigger": "Auto",
+  "magazineSize": 36.0,
+  "reloadTime": 5.5
+ },
+ "/lotus/weapons/corpus/boardexec/primary/crpbequanta/crpbequanta": {
+  "name": "Tenet Quanta",
+  "uniqueName": "/Lotus/Weapons/Corpus/BoardExec/Primary/CrpBEQuanta/CrpBEQuanta",
+  "category": "Primary",
+  "masteryReq": 16,
+  "damage": {
+   "electricity": 18.0,
+   "total": 18.0
+  },
+  "criticalChance": 0.31,
+  "criticalMultiplier": 2.5,
+  "procChance": 0.26,
+  "fireRate": 10.0,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Rifle",
+  "zh": "信条·量子切割器",
+  "attacks": [
+   {
+    "name": "Beam",
+    "damage": {
+     "electricity": 18.0
+    },
+    "total": 18.0,
+    "crit_chance": 31.0,
+    "crit_mult": 2.5,
+    "status_chance": 26.0,
+    "speed": 10.0,
+    "shot_type": "Hit-Scan"
+   },
+   {
+    "name": "Cube (direct hit)",
+    "damage": {
+     "electricity": 180.0
+    },
+    "total": 180.0,
+    "crit_chance": 5.0,
+    "crit_mult": 1.5,
+    "status_chance": 100.0,
+    "speed": 4.0,
+    "shot_type": "Projectile"
+   },
+   {
+    "name": "Cube Explosion",
+    "damage": {
+     "blast": 150.0
+    },
+    "total": 150.0,
+    "crit_chance": 5.0,
+    "crit_mult": 1.5,
+    "status_chance": 26.0,
+    "speed": 4.0,
+    "shot_type": "AoE",
+    "falloff": {
+     "start": 0.0,
+     "end": 0.5,
+     "reduction": 0.0
+    }
+   },
+   {
+    "name": "Cube (shot by player)",
+    "damage": {
+     "blast": 600.0
+    },
+    "total": 600.0,
+    "crit_chance": 5.0,
+    "crit_mult": 1.5,
+    "status_chance": 26.0,
+    "speed": 4.0,
+    "falloff": {
+     "start": 0.0,
+     "end": 6.0,
+     "reduction": 0.0
+    }
+   }
+  ],
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 2.0,
+  "trigger": "Held",
+  "magazineSize": 100.0,
+  "reloadTime": 2.0,
+  "ammoCost": 0.5
+ },
+ "/lotus/weapons/sentients/sentoctaminigun/sentoctaminigun": {
+  "name": "Haalvu",
+  "uniqueName": "/Lotus/Weapons/Sentients/SentOctaMiniGun/SentOctaMiniGun",
+  "category": "Primary",
+  "masteryReq": 14,
+  "damage": {
+   "tau": 33.0,
+   "total": 33.0
+  },
+  "criticalChance": 0.25,
+  "criticalMultiplier": 2.5,
+  "procChance": 0.19,
+  "fireRate": 13.0,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Rifle",
+  "zh": "哈尔武",
+  "attacks": [
+   {
+    "name": "Normal Attack",
+    "damage": {
+     "tau": 33.0
+    },
+    "total": 33.0,
+    "crit_chance": 25.0,
+    "crit_mult": 2.5,
+    "status_chance": 19.0,
+    "speed": 13.0,
+    "shot_type": "Hit-Scan"
+   },
+   {
+    "name": "Alt-Fire",
+    "damage": {
+     "tau": 34.0
+    },
+    "total": 34.0,
+    "crit_chance": 20.0,
+    "crit_mult": 1.8,
+    "status_chance": 26.0,
+    "speed": 12.0,
+    "shot_type": "Hit-Scan"
+   }
+  ],
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Auto",
+  "magazineSize": 150.0,
+  "reloadTime": 1.0
+ },
+ "/lotus/weapons/tenno/longguns/tnmodquestrifle/tnmodquestrifleweapon": {
+  "name": "Thornbak",
+  "uniqueName": "/Lotus/Weapons/Tenno/LongGuns/TnModQuestRifle/TnModQuestRifleWeapon",
+  "category": "Primary",
+  "masteryReq": 0,
+  "damage": {
+   "impact": 9.3324,
+   "puncture": 9.3324,
+   "slash": 9.3352,
+   "total": 28.0
+  },
+  "criticalChance": 0.06,
+  "criticalMultiplier": 1.4,
+  "procChance": 0.36,
+  "fireRate": 6.0,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Rifle",
+  "zh": "棘背",
+  "attacks": [
+   {
+    "name": "Normal Attack",
+    "damage": {
+     "impact": 9.3324,
+     "puncture": 9.3324,
+     "slash": 9.3352
+    },
+    "total": 28.0,
+    "crit_chance": 6.0,
+    "crit_mult": 1.4,
+    "status_chance": 36.0,
+    "speed": 6.0,
+    "shot_type": "Hit-Scan"
+   }
+  ],
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Burst",
+  "magazineSize": 52.0,
+  "reloadTime": 1.8,
+  "burstCount": 4,
+  "burstDelay": 0.066
+ },
+ "/lotus/weapons/tenno/bows/duelistbow/duelistbow": {
+  "name": "Nunchasa",
+  "uniqueName": "/Lotus/Weapons/Tenno/Bows/DuelistBow/DuelistBow",
+  "category": "Primary",
+  "masteryReq": 14,
+  "damage": {
+   "puncture": 250.0,
+   "slash": 250.0,
+   "cold": 500.0,
+   "total": 1000.0
+  },
+  "criticalChance": 0.36,
+  "criticalMultiplier": 3.0,
+  "procChance": 0.36,
+  "fireRate": 1.0,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Bow",
+  "zh": "霜冥差",
+  "attacks": [
+   {
+    "name": "Alt-Fire",
+    "damage": {
+     "puncture": 250.0,
+     "slash": 250.0,
+     "cold": 500.0
+    },
+    "total": 1000.0,
+    "crit_chance": 36.0,
+    "crit_mult": 3.0,
+    "status_chance": 36.0,
+    "speed": 1.0,
+    "shot_type": "Projectile"
+   },
+   {
+    "name": "Charged Shot",
+    "damage": {
+     "puncture": 200.0,
+     "cold": 200.0
+    },
+    "total": 400.0,
+    "crit_chance": 32.0,
+    "crit_mult": 2.4,
+    "status_chance": 32.0,
+    "speed": 1.0,
+    "shot_type": "Projectile"
+   }
+  ],
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Charge",
+  "magazineSize": 1.0,
+  "reloadTime": 0.6
+ },
+ "/lotus/weapons/tenno/bayonet/tnbayonetrifleweapon": {
+  "name": "Vinquibus",
+  "uniqueName": "/Lotus/Weapons/Tenno/Bayonet/TnBayonetRifleWeapon",
+  "category": "Primary",
+  "masteryReq": 14,
+  "damage": {
+   "puncture": 280.0,
+   "slash": 120.0,
+   "total": 400.0
+  },
+  "criticalChance": 0.4,
+  "criticalMultiplier": 3.2,
+  "procChance": 0.2,
+  "fireRate": 1.5,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Rifle",
+  "zh": "制胜者",
+  "attacks": [
+   {
+    "name": "Normal Attack",
+    "damage": {
+     "puncture": 280.0,
+     "slash": 120.0
+    },
+    "total": 400.0,
+    "crit_chance": 40.0,
+    "crit_mult": 3.2,
+    "status_chance": 20.0,
+    "speed": 1.5,
+    "shot_type": "Hit-Scan"
+   }
+  ],
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Semi-Auto",
+  "magazineSize": 8.0,
+  "reloadTime": 3.0
+ },
+ "/lotus/weapons/tenno/pistols/primeathodai/primeathodaipistolweapon": {
+  "name": "Athodai Prime",
+  "uniqueName": "/Lotus/Weapons/Tenno/Pistols/PrimeAthodai/PrimeAthodaiPistolWeapon",
+  "category": "Secondary",
+  "masteryReq": 14,
+  "damage": {
+   "puncture": 24.0,
+   "heat": 56.0,
+   "total": 80.0
+  },
+  "criticalChance": 0.4,
+  "criticalMultiplier": 2.0,
+  "procChance": 0.1,
+  "fireRate": 5.0,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Pistol",
+  "zh": "阿索代 Prime",
+  "attacks": [
+   {
+    "name": "Normal Attack",
+    "damage": {
+     "puncture": 24.0,
+     "heat": 56.0
+    },
+    "total": 80.0,
+    "crit_chance": 40.0,
+    "crit_mult": 2.0,
+    "status_chance": 10.0,
+    "speed": 5.0,
+    "shot_type": "Hit-Scan"
+   },
+   {
+    "name": "Alt-Fire",
+    "damage": {
+     "heat": 100.0
+    },
+    "total": 100.0,
+    "crit_chance": 20.0,
+    "crit_mult": 2.5,
+    "status_chance": 35.0,
+    "speed": 12.0,
+    "shot_type": "Hit-Scan"
+   }
+  ],
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Auto",
+  "magazineSize": 24.0,
+  "reloadTime": 2.0
+ },
+ "/lotus/weapons/tenno/pistols/primekompressa/primekompressa": {
+  "name": "Kompressa Prime",
+  "uniqueName": "/Lotus/Weapons/Tenno/Pistols/PrimeKompressa/PrimeKompressa",
+  "category": "Secondary",
+  "masteryReq": 13,
+  "damage": {
+   "viral": 2.0,
+   "total": 2.0
+  },
+  "criticalChance": 0.16,
+  "criticalMultiplier": 1.8,
+  "procChance": 0.36,
+  "fireRate": 3.33,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Pistol",
+  "zh": "卡帕压力枪 Prime",
+  "attacks": [
+   {
+    "name": "Normal Attack",
+    "damage": {
+     "viral": 2.0
+    },
+    "total": 2.0,
+    "crit_chance": 16.0,
+    "crit_mult": 1.8,
+    "status_chance": 36.0,
+    "speed": 3.33,
+    "shot_type": "Projectile"
+   },
+   {
+    "name": "Explosion",
+    "damage": {
+     "viral": 46.0
+    },
+    "total": 46.0,
+    "crit_chance": 16.0,
+    "crit_mult": 1.8,
+    "status_chance": 36.0,
+    "speed": 3.33,
+    "shot_type": "AoE",
+    "falloff": {
+     "start": 0.0,
+     "end": 2.8,
+     "reduction": 0.2
+    }
+   }
+  ],
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 4.0,
+  "trigger": "Auto",
+  "magazineSize": 12.0,
+  "reloadTime": 1.8
+ },
+ "/lotus/weapons/grineer/pistols/grnorokinpistol/grnorokinpistol": {
+  "name": "Sagek Prime",
+  "uniqueName": "/Lotus/Weapons/Grineer/Pistols/GrnOrokinPistol/GrnOrokinPistol",
+  "category": "Secondary",
+  "masteryReq": 14,
+  "damage": {
+   "impact": 6.112,
+   "puncture": 8.246,
+   "slash": 11.642,
+   "total": 26.0
+  },
+  "criticalChance": 0.3,
+  "criticalMultiplier": 2.2,
+  "procChance": 0.01,
+  "fireRate": 12.33,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Pistol",
+  "zh": "杀格 Prime",
+  "attacks": [
+   {
+    "name": "Normal Attack",
+    "damage": {
+     "impact": 6.112,
+     "puncture": 8.246,
+     "slash": 11.642
+    },
+    "total": 26.0,
+    "crit_chance": 30.0,
+    "crit_mult": 2.2,
+    "status_chance": 1.0,
+    "speed": 12.33,
+    "shot_type": "Hit-Scan"
+   }
+  ],
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Auto",
+  "magazineSize": 75.0,
+  "reloadTime": 1.6
+ },
+ "/lotus/weapons/tenno/pistols/duelistpistols/duelistpistols": {
+  "name": "Aksondol",
+  "uniqueName": "/Lotus/Weapons/Tenno/Pistols/DuelistPistols/DuelistPistols",
+  "category": "Secondary",
+  "masteryReq": 14,
+  "damage": {
+   "puncture": 70.0,
+   "cold": 70.0,
+   "total": 140.0
+  },
+  "criticalChance": 0.24,
+  "criticalMultiplier": 2.6,
+  "procChance": 0.22,
+  "fireRate": 4.0,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Dual Pistols",
+  "zh": "寒怨刺",
+  "attacks": [
+   {
+    "name": "Normal Attack",
+    "damage": {
+     "puncture": 70.0,
+     "cold": 70.0
+    },
+    "total": 140.0,
+    "crit_chance": 24.0,
+    "crit_mult": 2.6,
+    "status_chance": 22.0,
+    "speed": 4.0,
+    "shot_type": "Projectile"
+   }
+  ],
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 1.0,
+  "trigger": "Semi-Auto",
+  "magazineSize": 8.0,
+  "reloadTime": 2.6
+ },
+ "/lotus/weapons/tenno/throwingweapons/tnoraxiaflechette/tnoraxiaflechette": {
+  "name": "Scyotid",
+  "uniqueName": "/Lotus/Weapons/Tenno/ThrowingWeapons/TnOraxiaFlechette/TnOraxiaFlechette",
+  "category": "Secondary",
+  "masteryReq": 12,
+  "damage": {
+   "puncture": 8.0,
+   "toxin": 32.0,
+   "total": 40.0
+  },
+  "criticalChance": 0.24,
+  "criticalMultiplier": 2.4,
+  "procChance": 0.18,
+  "fireRate": 2.4,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Thrown",
+  "zh": "镰刃刺",
+  "attacks": [
+   {
+    "name": "Auto",
+    "damage": {
+     "puncture": 8.0,
+     "toxin": 32.0
+    },
+    "total": 40.0,
+    "crit_chance": 24.0,
+    "crit_mult": 2.4,
+    "status_chance": 18.0,
+    "speed": 2.4,
+    "shot_type": "Projectile"
+   },
+   {
+    "name": "Semi",
+    "damage": {
+     "toxin": 40.0
+    },
+    "total": 40.0,
+    "crit_chance": 8.0,
+    "crit_mult": 2.4,
+    "status_chance": 32.0,
+    "speed": 1.6,
+    "shot_type": "AoE"
+   }
+  ],
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "multishot": 4.0,
+  "trigger": "Auto",
+  "magazineSize": 40.0,
+  "reloadTime": 1.6
+ },
+ "/lotus/weapons/tenno/archwing/melee/primecorufell/primecorufellscytheweapon": {
+  "name": "Corufell Prime",
+  "uniqueName": "/Lotus/Weapons/Tenno/Archwing/Melee/PrimeCorufell/PrimeCorufellScytheWeapon",
+  "category": "Melee",
+  "masteryReq": 16,
+  "damage": {
+   "impact": 108.0,
+   "puncture": 76.5,
+   "slash": 40.5,
+   "total": 225.0
+  },
+  "criticalChance": 0.3,
+  "criticalMultiplier": 2.5,
+  "procChance": 0.2,
+  "fireRate": 1.0833334,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Heavy Scythe",
+  "zh": "闪劫 Prime",
+  "attacks": [
+   {
+    "name": "Normal Attack",
+    "damage": {
+     "impact": 108.0,
+     "puncture": 76.5,
+     "slash": 40.5
+    },
+    "total": 225.0,
+    "crit_chance": 30.0,
+    "crit_mult": 2.5,
+    "status_chance": 20.0,
+    "speed": 1.0833334
+   },
+   {
+    "name": "Charged Projectile",
+    "damage": {
+     "heat": 650.0
+    },
+    "total": 650.0,
+    "crit_chance": 30.0,
+    "crit_mult": 2.5,
+    "status_chance": 14.0,
+    "speed": 0.833,
+    "shot_type": "Projectile",
+    "falloff": {
+     "start": 15.0,
+     "end": 30.0,
+     "reduction": 0.5
+    }
+   },
+   {
+    "name": "Slam Attack",
+    "damage": {
+     "blast": 450.0
+    },
+    "total": 450.0,
+    "crit_chance": 30.0,
+    "crit_mult": 2.5,
+    "status_chance": 10.0,
+    "speed": 1.0833334,
+    "shot_type": "AoE",
+    "falloff": {
+     "start": 0.0,
+     "end": 8.0,
+     "reduction": 0.5
+    }
+   },
+   {
+    "name": "Heavy Slam Attack",
+    "damage": {
+     "blast": 675.0
+    },
+    "total": 675.0,
+    "crit_chance": 30.0,
+    "crit_mult": 2.5,
+    "status_chance": 10.0,
+    "speed": 1.0833334,
+    "shot_type": "AoE",
+    "falloff": {
+     "start": 0.0,
+     "end": 9.0,
+     "reduction": 0.3
+    }
+   }
+  ],
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "heavyAttackDamage": 225.0,
+  "slideAttack": 450.0,
+  "windUp": 1.3,
+  "followThrough": 0.4,
+  "comboDuration": 5.0
+ },
+ "/lotus/weapons/grineer/melee/scythe/grndrillscythe/grndrillscythe": {
+  "name": "Galariak Prime",
+  "uniqueName": "/Lotus/Weapons/Grineer/Melee/Scythe/GrnDrillScythe/GrnDrillScythe",
+  "category": "Melee",
+  "masteryReq": 14,
+  "damage": {
+   "impact": 30.3,
+   "puncture": 190.5,
+   "slash": 13.2,
+   "total": 234.0
+  },
+  "criticalChance": 0.19,
+  "criticalMultiplier": 2.5,
+  "procChance": 0.32,
+  "fireRate": 1.083,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Scythe",
+  "zh": "加拉亚 Prime",
+  "attacks": [
+   {
+    "name": "Normal Attack",
+    "damage": {
+     "impact": 30.3,
+     "puncture": 190.5,
+     "slash": 13.2
+    },
+    "total": 234.0,
+    "crit_chance": 19.0,
+    "crit_mult": 2.5,
+    "status_chance": 32.0,
+    "speed": 1.083
+   },
+   {
+    "name": "Slam Attack",
+    "damage": {
+     "impact": 702.0
+    },
+    "total": 702.0,
+    "crit_chance": 19.0,
+    "crit_mult": 2.5,
+    "status_chance": 10.0,
+    "speed": 1.083,
+    "shot_type": "AoE",
+    "falloff": {
+     "start": 0.0,
+     "end": 8.0,
+     "reduction": 0.5
+    }
+   },
+   {
+    "name": "Heavy Slam Attack",
+    "damage": {
+     "blast": 1170.0
+    },
+    "total": 1170.0,
+    "crit_chance": 19.0,
+    "crit_mult": 2.5,
+    "status_chance": 10.0,
+    "speed": 1.083,
+    "shot_type": "AoE",
+    "falloff": {
+     "start": 0.0,
+     "end": 9.0,
+     "reduction": 0.3
+    }
+   }
+  ],
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "heavyAttackDamage": 1404.0,
+  "slideAttack": 468.0,
+  "windUp": 1.0,
+  "followThrough": 0.6,
+  "comboDuration": 5.0,
+  "slamAttack": 702.0,
+  "slamRadius": 8.0,
+  "heavySlamAttack": 1170.0
+ },
+ "/lotus/weapons/tenno/melee/axe/primevorunaaxeweapon": {
+  "name": "Sarofang Prime",
+  "uniqueName": "/Lotus/Weapons/Tenno/Melee/Axe/PrimeVorunaAxeWeapon",
+  "category": "Melee",
+  "masteryReq": 16,
+  "damage": {
+   "impact": 66.0,
+   "puncture": 8.8,
+   "slash": 145.2,
+   "total": 220.0
+  },
+  "criticalChance": 0.3,
+  "criticalMultiplier": 3.0,
+  "procChance": 0.3,
+  "fireRate": 1.17,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Heavy Blade",
+  "zh": "沙罗之牙 Prime",
+  "attacks": [
+   {
+    "name": "Normal Attack",
+    "damage": {
+     "impact": 66.0,
+     "puncture": 8.8,
+     "slash": 145.2
+    },
+    "total": 220.0,
+    "crit_chance": 30.0,
+    "crit_mult": 3.0,
+    "status_chance": 30.0,
+    "speed": 1.17
+   },
+   {
+    "name": "Slam Attack",
+    "damage": {
+     "impact": 440.0
+    },
+    "total": 440.0,
+    "crit_chance": 30.0,
+    "crit_mult": 3.0,
+    "status_chance": 10.0,
+    "speed": 1.17,
+    "shot_type": "AoE",
+    "falloff": {
+     "start": 0.0,
+     "end": 8.0,
+     "reduction": 0.5
+    }
+   },
+   {
+    "name": "Heavy Slam Attack",
+    "damage": {
+     "blast": 660.0
+    },
+    "total": 660.0,
+    "crit_chance": 30.0,
+    "crit_mult": 3.0,
+    "status_chance": 10.0,
+    "speed": 1.17,
+    "shot_type": "AoE",
+    "falloff": {
+     "start": 0.0,
+     "end": 9.0,
+     "reduction": 0.3
+    }
+   }
+  ],
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "heavyAttackDamage": 1320.0,
+  "slideAttack": 440.0,
+  "windUp": 1.1,
+  "followThrough": 0.6,
+  "comboDuration": 5.0,
+  "slamAttack": 440.0,
+  "slamRadius": 8.0,
+  "heavySlamAttack": 660.0
+ },
+ "/lotus/weapons/tenno/melee/scythe/primevento/primeventoscythe": {
+  "name": "Venato Prime",
+  "uniqueName": "/Lotus/Weapons/Tenno/Melee/Scythe/PrimeVento/PrimeVentoScythe",
+  "category": "Melee",
+  "masteryReq": 14,
+  "damage": {
+   "impact": 36.75,
+   "puncture": 122.5,
+   "slash": 85.75,
+   "total": 245.0
+  },
+  "criticalChance": 0.34,
+  "criticalMultiplier": 2.3,
+  "procChance": 0.32,
+  "fireRate": 1.166,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Scythe",
+  "zh": "脉纹 Prime",
+  "attacks": [
+   {
+    "name": "Normal Attack",
+    "damage": {
+     "impact": 36.75,
+     "puncture": 122.5,
+     "slash": 85.75
+    },
+    "total": 245.0,
+    "crit_chance": 34.0,
+    "crit_mult": 2.3,
+    "status_chance": 32.0,
+    "speed": 1.166
+   },
+   {
+    "name": "Slam Attack",
+    "damage": {
+     "impact": 490.0
+    },
+    "total": 490.0,
+    "crit_chance": 34.0,
+    "crit_mult": 2.3,
+    "status_chance": 10.0,
+    "speed": 1.166,
+    "shot_type": "AoE",
+    "falloff": {
+     "start": 0.0,
+     "end": 8.0,
+     "reduction": 0.5
+    }
+   },
+   {
+    "name": "Heavy Slam Attack",
+    "damage": {
+     "blast": 735.0
+    },
+    "total": 735.0,
+    "crit_chance": 34.0,
+    "crit_mult": 2.3,
+    "status_chance": 10.0,
+    "speed": 1.166,
+    "shot_type": "AoE",
+    "falloff": {
+     "start": 0.0,
+     "end": 9.0,
+     "reduction": 0.3
+    }
+   }
+  ],
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "heavyAttackDamage": 1470.0,
+  "slideAttack": 490.0,
+  "windUp": 1.0,
+  "followThrough": 0.6,
+  "comboDuration": 5.0,
+  "slamAttack": 490.0,
+  "slamRadius": 8.0,
+  "heavySlamAttack": 735.0
+ },
+ "/lotus/weapons/tenno/bayonet/tnbayonetrifleweapon#melee": {
+  "name": "Vinquibus (Melee)",
+  "uniqueName": "/Lotus/Weapons/Tenno/Bayonet/TnBayonetRifleWeapon",
+  "category": "Melee",
+  "masteryReq": 14,
+  "damage": {
+   "puncture": 182.0,
+   "slash": 78.0,
+   "total": 260.0
+  },
+  "criticalChance": 0.4,
+  "criticalMultiplier": 3.2,
+  "procChance": 0.2,
+  "fireRate": 1.0,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Bayonet",
+  "zh": "制胜者（近战）",
+  "attacks": [
+   {
+    "name": "Normal Attack",
+    "damage": {
+     "puncture": 182.0,
+     "slash": 78.0
+    },
+    "total": 260.0,
+    "crit_chance": 40.0,
+    "crit_mult": 3.2,
+    "status_chance": 20.0,
+    "speed": 1.0
+   },
+   {
+    "name": "Gunshot",
+    "damage": {
+     "puncture": 182.0,
+     "slash": 78.0
+    },
+    "total": 260.0,
+    "crit_chance": 40.0,
+    "crit_mult": 3.2,
+    "status_chance": 20.0,
+    "speed": 1.0,
+    "shot_type": "Projectile"
+   },
+   {
+    "name": "Gunshot Explosion",
+    "damage": {
+     "blast": 400.0
+    },
+    "total": 400.0,
+    "crit_chance": 40.0,
+    "crit_mult": 3.2,
+    "status_chance": 20.0,
+    "speed": 1.0,
+    "shot_type": "AoE",
+    "falloff": {
+     "start": 0.0,
+     "end": 4.0,
+     "reduction": 0.3
+    }
+   },
+   {
+    "name": "Slam Attack",
+    "damage": {
+     "impact": 440.0
+    },
+    "total": 440.0,
+    "crit_chance": 40.0,
+    "crit_mult": 3.2,
+    "status_chance": 10.0,
+    "speed": 1.0,
+    "shot_type": "AoE",
+    "falloff": {
+     "start": 0.0,
+     "end": 7.0,
+     "reduction": 0.5
+    }
+   },
+   {
+    "name": "Heavy Slam Attack",
+    "damage": {
+     "blast": 660.0
+    },
+    "total": 660.0,
+    "crit_chance": 34.0,
+    "crit_mult": 2.6,
+    "status_chance": 10.0,
+    "speed": 1.0,
+    "shot_type": "AoE",
+    "falloff": {
+     "start": 0.0,
+     "end": 8.0,
+     "reduction": 0.3
+    }
+   }
+  ],
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "heavyAttackDamage": 2600.0,
+  "slideAttack": 520.0,
+  "windUp": 1.0,
+  "followThrough": 0.4,
+  "comboDuration": 5.0
+ },
+ "/lotus/weapons/grineer/kuvalich/melee/ghoulsaw/kuvaghoulsaw": {
+  "name": "Kuva Ghoulsaw",
+  "uniqueName": "/Lotus/Weapons/Grineer/KuvaLich/Melee/Ghoulsaw/KuvaGhoulSaw",
+  "category": "Melee",
+  "masteryReq": 13,
+  "damage": {
+   "impact": 40.09,
+   "puncture": 48.53,
+   "slash": 122.38,
+   "total": 211.0
+  },
+  "criticalChance": 0.25,
+  "criticalMultiplier": 2.1,
+  "procChance": 0.32,
+  "fireRate": 1.2,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Assault Saw",
+  "zh": "赤毒·尸鬼电锯",
+  "attacks": [
+   {
+    "name": "Normal Attack",
+    "damage": {
+     "impact": 40.09,
+     "puncture": 48.53,
+     "slash": 122.38
+    },
+    "total": 211.0,
+    "crit_chance": 25.0,
+    "crit_mult": 2.1,
+    "status_chance": 32.0,
+    "speed": 1.2
+   },
+   {
+    "name": "Slam Attack",
+    "damage": {
+     "impact": 422.0
+    },
+    "total": 422.0,
+    "crit_chance": 25.0,
+    "crit_mult": 2.1,
+    "status_chance": 10.0,
+    "speed": 1.2,
+    "shot_type": "AoE",
+    "falloff": {
+     "start": 0.0,
+     "end": 7.0,
+     "reduction": 0.5
+    }
+   },
+   {
+    "name": "Heavy Slam Attack",
+    "damage": {
+     "blast": 633.0
+    },
+    "total": 633.0,
+    "crit_chance": 25.0,
+    "crit_mult": 2.1,
+    "status_chance": 10.0,
+    "speed": 1.2,
+    "shot_type": "AoE",
+    "falloff": {
+     "start": 0.0,
+     "end": 9.0,
+     "reduction": 0.3
+    }
+   }
+  ],
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "heavyAttackDamage": 1266.0,
+  "slideAttack": 422.0,
+  "windUp": 1.0,
+  "followThrough": 1.0,
+  "comboDuration": 5.0,
+  "slamAttack": 422.0,
+  "slamRadius": 7.0,
+  "heavySlamAttack": 633.0
  }
 }

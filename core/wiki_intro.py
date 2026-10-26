@@ -368,6 +368,35 @@ def _sanitize(lines: list[str]) -> list[str]:
     return out
 
 
+_MAX_RANK_RE = re.compile(r"满级\s*(\d+)")
+
+
+def _prefer_full_rank(rows: list) -> dict:
+    """同名多候选时挑「满级」最高的那条（2026-10-25，Astra 真实宿主补测）。
+
+    「膛线（Serration）」有满级 3 / 5 / 10 三条同名条目（旧版 / 不同来源的数据），原先取第一条
+    ⇒ 卡面写满级 3、+40%，与正常版满级 10、+165% 冲突。只在**标题相同、版本相同**（都不是 PvP，
+    或都是 PvP）时按满级挑；首条之外有标题不同的候选就保持原顺序，不跨物品换条目。
+    """
+    first = rows[0]
+    peers = [
+        r
+        for r in rows
+        if r.get("title") == first.get("title") and r.get("variant") == first.get("variant")
+    ]
+    if len(peers) < 2:
+        return first
+
+    def rank(r: dict) -> int:
+        for x in r.get("lines") or []:
+            m = _MAX_RANK_RE.search(str(x))
+            if m:
+                return int(m.group(1))
+        return -1
+
+    return max(peers, key=rank)
+
+
 def intro(*names: str) -> Optional[tuple[str, list[str]]]:
     """按候选名字（页面名 / 检索名 / 英文名）查简介条目。
 
@@ -380,7 +409,7 @@ def intro(*names: str) -> Optional[tuple[str, list[str]]]:
         rows = candidates(name)
         if not rows:
             continue
-        chosen = rows[0]
+        chosen = _prefer_full_rank(rows)
         lines = [
             _kvify(_localize(_localize_effect(x)))
             for x in _sanitize([str(x) for x in chosen["lines"]])

@@ -325,14 +325,20 @@ class ScanCommands:
                     st.get("rows"),
                 )
                 if not st.get("used"):
+                    # ★ 2026-10-25（Astra 评估 S2）：留存用户截图要**显式开启**（默认关）——
+                    #   截图可能带玩家昵称、聊天背景；原先无开关、无告知地留最近 3 张。
+                    keep = bool(self.cfg.get("scan_debug_save", False))
                     logger.warning(
-                        "[sdjk] ★ 豆子检测到了但**对齐无解**，本次退回容量反推"
+                        "[sdjk] ★ 豆子检测到了但**对齐无解**，本次退回容量反推%s",
                         "（截图存到 scan_debug/ 便于排查）"
+                        if keep
+                        else "（未留存截图；排查时可在配置里开启 scan_debug_save）",
                     )
-                    # 解码 + 存 JPEG 放线程池（_score 是同步内层函数，不等它完成）
-                    asyncio.get_running_loop().run_in_executor(
-                        None, self._dump_scan_debug, image_url
-                    )
+                    if keep:
+                        # 解码 + 存 JPEG 放线程池（_score 是同步内层函数，不等它完成）
+                        asyncio.get_running_loop().run_in_executor(
+                            None, self._dump_scan_debug, image_url
+                        )
             bad = 6 if not an.get("weapon") else 0
             checks = an.get("checks") or []
             bad += sum(1 for c in checks if not c["ok"])
@@ -416,10 +422,27 @@ class ScanCommands:
                 t.cancel()
         if best is None:
             return None
+        bad, ocr = best
+        # —— 武器名单读：主读没认出武器时，用一句话只问标题栏，换上后同一把尺重新打分 ——
+        # ★ 2026-10-27（ZCode 消融）：qwen-vl-ocr 在长 JSON 提示词下 3/3 把首张姿态卡名当武器名，
+        #   单问「左上角标题栏斜杠后面的文字」2/2 读对 ⇒ 问题是提示词过载，拆成独立最小调用。
+        if not lo.analyze(ocr, pips_rows).get("weapon"):
+            title = await self._read_weapon_title(image_url)
+            if title:
+                ocr_w = {**ocr, "weapon": title}
+                bad_w, _an_w = _score(ocr_w)
+                if bad_w < bad:
+                    logger.warning(
+                        "[sdjk] 武器名单读修正：%r → %r，校验失败 %d → %d",
+                        ocr.get("weapon"),
+                        title,
+                        bad,
+                        bad_w,
+                    )
+                    bad, ocr = bad_w, ocr_w
         # —— 聚焦二读：只读伤害栏，拼接后重新校验 ——
         # ★ 与主路径同一把尺（_score，2026-09-23）：否则「拼接后 0 张卡/
         #   checks 全空」的退化结果可能因碰巧 0 分被误选。
-        bad, ocr = best
         rows = await self._read_damage_rows(image_url)
         if rows:
             ocr2 = lo.splice_damage_rows(ocr, rows)
@@ -444,6 +467,35 @@ class ScanCommands:
         "行名与数值严格对齐；数字保留小数、去掉千分位逗号；"
         "看不清的行填 null。除了这个 JSON 什么都不要输出。"
     )
+
+    # 武器名单读（2026-10-27）：一句话、不带任何示例 —— 长提示词里夹着武器名时 OCR 模型抓不住重点
+    _TITLE_PROMPT = "读这张图左上角标题栏里斜杠后面的文字，只回答那几个字。"
+
+    async def _read_weapon_title(self, image_url: str) -> Optional[str]:
+        """单读标题栏的武器名（原文，交给 clean_weapon_name 清洗）。失败返回 None。前 2 个渠道、单次 45s。"""
+        import uuid as _uuid
+
+        for prov in self._vision_providers()[:2]:
+            pid = getattr(getattr(prov, "meta", lambda: None)(), "id", "")
+            try:
+                resp = await asyncio.wait_for(
+                    prov.text_chat(
+                        prompt=self._TITLE_PROMPT,
+                        session_id=f"sdjk-title-{_uuid.uuid4().hex[:8]}",
+                        image_urls=[image_url],
+                    ),
+                    timeout=45,
+                )
+                text = (getattr(resp, "completion_text", "") or "").strip()
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("[sdjk] 武器名单读 %s 失败：%s", pid, exc)
+                continue
+            # 只要第一行、去掉引号；过长的多半是把整屏读出来了，换下一个渠道
+            line = text.splitlines()[0].strip().strip("「」\"'`") if text else ""
+            if line and len(line) <= 40:
+                return line
+            logger.warning("[sdjk] 武器名单读 %s 返回不像标题：%r", pid, text[:60])
+        return None
 
     async def _read_damage_rows(self, image_url: str) -> Optional[list]:
         """聚焦识别：只读伤害栏的「行名+数值」。失败返回 None。

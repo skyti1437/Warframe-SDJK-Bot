@@ -164,6 +164,7 @@ check(
         "theme_upload_bg": ["POST"],
         "theme_upload_logo": ["POST"],
         "theme_image_delete": ["POST"],
+        "about": ["GET"],
     },
 )
 
@@ -1033,6 +1034,8 @@ if _sub2 is not None:
         _payload = _sub2.read_bytes()
 
         def _h(req):
+            if req.url.path.endswith("hop.ttf"):  # 公网地址 302 到内网（S4 重定向用例）
+                return _hx.Response(302, headers={"Location": "http://127.0.0.1:18702/x.ttf"})
             if req.url.path.endswith("western.ttf") and _dejavu is not None:
                 return _hx.Response(200, content=_dejavu.read_bytes())
             return _hx.Response(
@@ -1056,7 +1059,26 @@ if _sub2 is not None:
 
             return asyncio.run(_run())
 
+        # 离线也稳定：x.com 视为公网，其余地址走真实内网判定（IP 直写不联网）
+        _real_reason = W.private_url_reason
+
+        async def _reason(u):
+            return "" if "://x.com/" in u else await _real_reason(u)
+
+        W.private_url_reason = _reason
         check("URL 非 http(s) 被拒", _imp("file:///etc/passwd").get("status") == "error")
+        _r_lo = _imp("http://127.0.0.1:18702/fonts/a.ttf")
+        check(
+            "★ 字体直链指向本机被拒（Astra S4）",
+            _r_lo.get("status") == "error" and "内网" in _r_lo.get("message", ""),
+            str(_r_lo),
+        )
+        _imp("https://x.com/fonts/hop.ttf")
+        check(
+            "★ 公网地址 302 到内网：下载被拦、不落盘",
+            pf2.font_job["state"] == "failed" and not (_fd2 / "fonts" / "hop.ttf").exists(),
+            str(pf2.font_job),
+        )
         check("URL 不是字体后缀被拒", _imp("https://x.com/a.zip").get("status") == "error")
         r = _imp("https://x.com/fonts/Wenkai.ttf")
         check(
@@ -1072,6 +1094,8 @@ if _sub2 is not None:
                 str(pf2.font_job),
             )
     finally:
+        if "_real_reason" in dir():
+            W.private_url_reason = _real_reason
         _sh.rmtree(_fd2, ignore_errors=True)
 check(
     "页面调用的字体端点都已注册",
@@ -1393,6 +1417,43 @@ _sch = W.load_schema()
 check(
     "设置：community_data_url 允许清空（恢复默认地址按钮依赖）",
     "community_data_url" in _sch and W.coerce_setting(_sch["community_data_url"], "") == "",
+)
+
+# ---- 关于页（2026-10-26）----
+_ab = W.about_info(now=W._LOADED_AT + 3700)
+check(
+    "关于：版本 / 许可 / 公开仓 / 主指令数 / 运行时长",
+    _ab["plugin"]["version"]
+    and _ab["plugin"]["license"] == "GPL-3.0"
+    and _ab["plugin"]["repo"].startswith("https://github.com/")
+    and _ab["plugin"]["commands"] > 0
+    and _ab["runtime"]["uptime_s"] == 3700
+    and _ab["runtime"]["python"],
+    str(_ab["plugin"]),
+)
+check(
+    "关于：数据版本读得到伤害数据 wiki 快照、紫卡抽样日期，登记表计数与登记表一致",
+    _ab["data_versions"]["damage_wiki_snapshot"].startswith("wiki-modules-")
+    and _ab["data_versions"]["riven_survey_date"]
+    and sum(_ab["data_versions"]["registry_status"].values())
+    == _ab["data_versions"]["registry_total"],
+    str(_ab["data_versions"]),
+)
+check(
+    "★ 关于：顶层不得出现 `data` 键（AstrBot 桥会 r.data.data ?? r.data，把整包挤掉）",
+    "data" not in _ab and "data_versions" in _ab,
+    str(list(_ab.keys())),
+)
+check(
+    "关于：数据来源表含 wiki（CC BY-NC-SA）与字体 OFL，且不含本机路径",
+    any("CC BY-NC-SA" in x["license"] for x in _ab["sources"])
+    and any("OFL" in x["license"] for x in _ab["sources"])
+    and "/root" not in str(_ab)
+    and "/home" not in str(_ab),
+)
+check(
+    "页面：导航与视图都有「关于」，进入时才加载",
+    'data-go="about"' in html and 'data-view="about"' in html and "loadAbout()" in html,
 )
 
 print()

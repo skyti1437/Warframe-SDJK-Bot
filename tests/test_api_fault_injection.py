@@ -287,6 +287,68 @@ def t_parse_url_list():
     check("超长输入不崩", parse_url_list("http://a/" + "x" * 100000)[0].endswith("/v1"))
 
 
+# ------------------------------------------- WM 上游抖动重试节奏（2026-10-26）
+async def t_wm_retry_pacing():
+    """WM 与别的数据源**不能**共用一套重试节奏（线上实测 2026-10-26）：
+
+    * WM 的 429 是「约 90 s 窗口约 8 次」的**整窗**封禁 ⇒ 1.2 s 级重试必然再吃一次 429，
+      只会把窗口拖长。⇒ WM 侧 429 **不重试**，直接抛可执行提示。
+    * WM 超时/5xx 实测会持续 45–120 s ⇒ 退避必须逐次拉长（否则三次尝试全落在同一个坏窗口）。
+    """
+    # ① WM 429：一次就抛，且给的是可执行提示（不是「HTTP 429」这种术语）
+    calls = {"n": 0}
+
+    async def always_429(*a, **k):
+        calls["n"] += 1
+        return FakeResponse(429)
+
+    c = make_client()
+    c._http.get = always_429
+    try:
+        await c._fetch_json("https://x.test/wm429", ttl=30, retries=2, wm_rate_limit=True)
+        check("WM 429 抛出", False, "未抛出")
+    except WarframeAPIError as e:
+        check("WM 429 抛出", True)
+        check("WM 429 用可执行提示", str(e) == WarframeClient.WM_RATE_LIMIT_HINT, str(e))
+        check("WM 429 不重试（只打 1 次）", calls["n"] == 1, f"实际 {calls['n']}")
+    await c.close()
+
+    # ② 非 WM 源（如社区快照镜像）的 429 仍保留原重试：它们恢复比 WM 快
+    calls2 = {"n": 0}
+
+    async def raw_429(*a, **k):
+        calls2["n"] += 1
+        return FakeResponse(429)
+
+    c2 = make_client()
+    c2._http.get = raw_429
+    try:
+        await c2._fetch_json("https://x.test/raw429", ttl=30, retries=2)
+        check("非 WM 429 抛出", False, "未抛出")
+    except WarframeAPIError:
+        check("非 WM 429 仍重试（共 3 次）", calls2["n"] == 3, f"实际 {calls2['n']}")
+    await c2.close()
+
+    # ③ WM 超时：退避逐次拉长（测试里把常量压到 0.01 s，只验次数与口径）
+    calls3 = {"n": 0}
+
+    async def boom(*a, **k):
+        calls3["n"] += 1
+        raise httpx.ReadTimeout("read timed out")
+
+    c3 = make_client()
+    c3.WM_RETRY_BACKOFF_S = 0.01
+    c3._http.get = boom
+    try:
+        await c3._fetch_json("https://x.test/wmto", ttl=30, retries=2, wm_rate_limit=True)
+        check("WM 超时抛出", False, "未抛出")
+    except WarframeAPIError as e:
+        check("WM 超时抛出", True)
+        check("WM 超时重试 3 次", calls3["n"] == 3, f"实际 {calls3['n']}")
+        check("WM 超时提示可执行", "重发一次" in public_error_text(e), public_error_text(e))
+    await c3.close()
+
+
 # ---------------------------------------------------------------- 报错脱敏（2026-10-10 L2）
 def t_public_error_text():
     """发到群里的报错不得带上游 URL / 内网地址 / httpx 原文，但要说清是哪个数据源。"""
@@ -294,7 +356,7 @@ def t_public_error_text():
         (
             "请求失败（https://api.warframe.market/v2/orders/item/x?a=1）："
             "All connection attempts failed",
-            "warframe.market 暂时不可用，请稍后再试",
+            "warframe.market 暂时不可用（上游超时或无响应），请稍后重发一次",
         ),
         (
             "接口不存在或暂未开放：https://api.warframestat.us/pc/kuva",
@@ -303,14 +365,17 @@ def t_public_error_text():
         (
             "FlareSolverr 不可用/求解失败（[Errno 111] Connect call failed "
             "('172.17.0.1', 8191)；http://172.17.0.1:8191/v1）",
-            "FlareSolverr（CF 绕过代理） 暂时不可用，请稍后再试",
+            "FlareSolverr（CF 绕过代理） 暂时不可用（上游超时或无响应），请稍后重发一次",
         ),
         (
             "DE 紫卡周报拉取失败：Client error '403 Forbidden' for url "
             "'https://www-static.warframe.com/repos/weeklyRivensPC.json'",
-            "DE 官方紫卡周报 暂时不可用，请稍后再试",
+            "DE 官方紫卡周报 暂时不可用（上游超时或无响应），请稍后重发一次",
         ),
-        ("WM v2 接口错误：{'detail': 'x'}", "warframe.market 暂时不可用，请稍后再试"),
+        (
+            "WM v2 接口错误：{'detail': 'x'}",
+            "warframe.market 暂时不可用（上游超时或无响应），请稍后重发一次",
+        ),
         # 插件自己写的降级提示：原样保留（不该被糊成通用句）
         ("warframe.market 限速（HTTP 429）", "warframe.market 限速（HTTP 429）"),
         (
@@ -342,13 +407,44 @@ async def main():
     await t_close()
     await t_future_exception_consumed()
     t_parse_url_list()
+    await t_wm_retry_pacing()
     t_public_error_text()
+    await t_wm_schema_drift()
 
     print()
     if FAILED:
         print(f"共 {len(FAILED)} 项失败：{FAILED}")
         sys.exit(1)
     print("api_client 故障注入：全部断言通过")
+
+
+async def t_wm_schema_drift():
+    """★ 2026-10-25（Astra 故障注入）：WM 结构缺字段不能被说成「没有在售单」。"""
+    from core.api_client import WarframeClient as _WC
+
+    async def _run(payload):
+        c = _WC.__new__(_WC)
+        c.wm_v2_base, c.language = "", "zh-hans"
+
+        async def _fake(url, **kw):
+            return payload
+
+        c._fetch_json = _fake
+        try:
+            return await c.wm_orders("serration", "pc")
+        except WarframeAPIError as exc:
+            return str(exc)
+
+    r1 = await _run({"apiVersion": "x"})
+    check(
+        "★ WM 缺 data 字段 ⇒ 报结构异常（不是零挂单）", isinstance(r1, str) and "结构异常" in r1, r1
+    )
+    r2 = await _run({"data": [{"id": 1, "user": {}}]})
+    check("★ 订单全缺价格字段 ⇒ 报结构异常", isinstance(r2, str) and "结构异常" in r2, r2)
+    r3 = await _run({"data": []})
+    check("真实零挂单 ⇒ 空列表（不误报）", r3 == ([], {}), str(r3))
+    r4 = await _run({"data": [{"platinum": 10, "type": "sell", "user": {}}]})
+    check("正常订单照常解析", isinstance(r4, tuple) and r4[0][0]["platinum"] == 10, str(r4))
 
 
 if __name__ == "__main__":

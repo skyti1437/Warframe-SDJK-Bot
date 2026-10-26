@@ -472,9 +472,8 @@ _incarnon_forms_cache: Optional[dict] = None
 def _incarnon_forms() -> dict:
     """灵化形态基础数值表（key=基础武器小写 uniqueName）。
 
-    数据源：wfsim（github.com/magenie33/wfsim）data/weapons/*_incarnon.yaml，
-    只取事实数值重录（生成脚本 scripts/build_incarnon_forms.py）。
-    近战灵化 wfsim 尚未导入 → 近战仍走面板反推。
+    数据源：英文 wiki Module:Weapons/data 原型条目里的 Incarnon 攻击（生成脚本
+    scripts/build_incarnon_forms.py，2026-10-26 wfsim 迁移 P2）。表里只有主 / 副武器 → 近战仍走面板反推。
     """
     global _incarnon_forms_cache
     if _incarnon_forms_cache is None:
@@ -588,7 +587,7 @@ def _panel_base_weapon(weapon: dict, panel: dict, totals: dict) -> tuple[Optiona
     lib_total = float(lib_dmg.get("total") or 0.0) or sum(
         float(lib_dmg.get(k) or 0.0) for k in ("impact", "puncture", "slash")
     )
-    # 灵化形态库提前加载（wfsim 数据源）：元素反解的幻影防线也要看它有没有该元素
+    # 灵化形态库提前加载（incarnon_forms.json）：元素反解的幻影防线也要看它有没有该元素
     inc = _incarnon_forms().get(str(weapon.get("uniqueName") or "").lower())
     inc_dmg = (inc or {}).get("damage") or {}
     inc_total = float(inc_dmg.get("total") or 0.0)
@@ -712,7 +711,7 @@ def _panel_base_weapon(weapon: dict, panel: dict, totals: dict) -> tuple[Optiona
                 continue
             if e0 > 0:
                 base_dmg[key] = e0
-    # wfsim 灵化形态数值（有就是权威判定 + 更准的兜底向量）—— 已提前加载（见上）
+    # 灵化形态数值（有就是权威判定 + 更准的兜底向量）—— 已提前加载（见上）
 
     if not base_dmg:
         # 兜底：类型行没读到（模型偶发 damage_rows 为空）但总计有值
@@ -810,7 +809,7 @@ def _panel_base_weapon(weapon: dict, panel: dict, totals: dict) -> tuple[Optiona
                 w2["fireRate"] = float(inc["fireRate"])
             dc.set_form_cadence(w2, inc)  # 点射 / 蓄力随灵化形态（b6 批）
             return w2, (
-                "灵化形态：基础数值取自灵化库（wfsim 数据源），MOD 正常叠算，面板校验保持开启"
+                "灵化形态：基础数值取自灵化库（英文 wiki），MOD 正常叠算，面板校验保持开启"
                 + ("；" + _extra if _extra else "")
             )
 
@@ -1234,7 +1233,7 @@ def analyze(ocr: dict, pips_rows: Optional[list] = None) -> dict:
                 out["unknown"].append(name)
         out["mods"].append(item)
 
-    # ---- 家族互斥（wfsim family）：同族两张游戏里只能装一张 ----
+    # ---- 家族互斥（mods_wfsim_extra.json family，wiki Incompatible）：同族两张游戏里只能装一张 ----
     fam_seen: dict[str, list] = {}
     for item in out["mods"]:
         if not item.get("found"):
@@ -1272,7 +1271,9 @@ def analyze(ocr: dict, pips_rows: Optional[list] = None) -> dict:
             hints.append(
                 f"{item.get('zh') or item.get('raw')}"
                 f"（{_COND_ZH.get(c.get('grants'), c.get('grants'))}"
-                f"+{float(c.get('value') or 0):g}%×{c.get('max_stacks')}层）"
+                f"+{float(c.get('value') or 0):g}%"
+                # 层数 null = 来源原文没写（计算按 1 层）
+                + (f"×{c['max_stacks']}层）" if c.get("max_stacks") is not None else "，层数未写）")
             )
     if hints:
         out["notes"].append(

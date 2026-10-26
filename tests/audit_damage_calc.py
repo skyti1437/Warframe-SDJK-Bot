@@ -418,7 +418,7 @@ if not close(_r["head_mult"], 1.0, 1e-9):
 _sp2, _ = dc.parse_args(["绝路p", "对", "重型机枪手", "100级", "爆头"])
 _r2 = dc.calculate(_sp2, base_w)
 # 2026-10-09 B2：人形头部 ×3（wiki Enemy_Body_Parts / wfsim MECHANICS.md:1001-1003）；
-# 重型机枪手 head_mul 3.0（wiki Module:Enemies/data，scripts/merge_wfsim_enemies.py 补丁）
+# 重型机枪手 head_mul 3.0（wiki Module:Enemies/data，scripts/build_enemies.py）
 if not close(_r2["head_mult"], 3.0, 1e-9):
     hi(f"🔴 普通单位爆头倍率应为 3.0，得到 {_r2['head_mult']}")
 print("  [OK] 爆头倍率按敌人（Eidolon ×1 / 普通人形 ×3）")

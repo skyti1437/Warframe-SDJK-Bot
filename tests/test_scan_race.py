@@ -161,7 +161,7 @@ def _install_fake_analyze():
     lo.analyze = fake
 
 
-def make_inst(pips_rows=None, damage_rows=None):
+def make_inst(pips_rows=None, damage_rows=None, title=None):
     """构造只含识卡竞速所需成员的实例 + 桩。"""
     inst = plugin.WarframeSDJK.__new__(plugin.WarframeSDJK)
     inst.RACE_WINDOW_S = 0.8
@@ -181,6 +181,13 @@ def make_inst(pips_rows=None, damage_rows=None):
         return damage_rows
 
     inst._read_damage_rows = _rows
+    inst._title_calls = 0
+
+    async def _title(url):
+        inst._title_calls += 1
+        return title
+
+    inst._read_weapon_title = _title
 
     inst._vision_providers = lambda: [_Prov("fakeA"), _Prov("fakeB"), _Prov("fakeC")]
     return inst
@@ -315,6 +322,40 @@ try:
     script_extract(inst, {"fakeA": ("now", mk("mid", ok=2, bad=1, nmods=3)), "fakeB": ("hang",)})
     r = run(inst)
     check("窗口超时：挂死渠道被放弃，返回窗口内最优（MID）", r and r.get("_marker") == "mid")
+
+    # 6b. ★（2026-10-27）武器名单读：主读把姿态卡名当武器名（认不出）→ 单读标题栏读到武器 → 采纳
+    def _analyze_title(ocr, pips_rows=None):
+        ok = "暮斩" in str((ocr or {}).get("weapon") or "")
+        return {
+            "weapon": "暮斩" if ok else "",
+            "mods": (ocr or {}).get("mods") or [],
+            "checks": [{"ok": True, "label": "c"}],
+            "pips": {},
+        }
+
+    lo.analyze = _analyze_title
+    inst = make_inst(title="升级/暮斩 [30] 3")
+    script_extract(inst, {"fakeA": ("now", mk("stance", weapon="狂风压境"))})
+    r = run(inst)
+    check(
+        "★ 武器名单读：主读读成姿态卡名 → 单读标题栏「升级/暮斩」被采纳",
+        r and r.get("weapon") == "升级/暮斩 [30] 3" and inst._title_calls == 1,
+        f"got={r and r.get('weapon')} calls={inst._title_calls}",
+    )
+    inst = make_inst(title="升级/暮斩 [30] 3")
+    script_extract(inst, {"fakeA": ("now", mk("ok", weapon="暮斩 [30]", ok=1, bad=1))})
+    r = run(inst)
+    check(
+        "主读已认出武器（即使有别的校验不过）→ 不触发武器名单读",
+        r and r.get("weapon") == "暮斩 [30]" and inst._title_calls == 0,
+        f"calls={inst._title_calls}",
+    )
+    lo.analyze = lambda ocr, pips_rows=None: {
+        "weapon": (ocr or {}).get("weapon") or "",
+        "mods": (ocr or {}).get("mods") or [],
+        "checks": (ocr or {}).get("_checks") or [],
+        "pips": {},
+    }
 
     # 7. 全渠道挂 → None（上层出「识别失败」提示）
     inst = make_inst()

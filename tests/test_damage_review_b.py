@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""wfsim 对照 B 批回归（python3 tests/test_wfsim_b_batch.py）
+"""伤害计算对照复核 B 批回归（python3 tests/test_damage_review_b.py；2026-10-26 前名 test_wfsim_b_batch.py）
 
 出处：研究仓 docs/wfsim-伤害计算对照-20261009.md §4.3 / §3.2 / §4.2 / §3.3
 （wfsim github.com/magenie33/wfsim @8f3e6a5，只读核对）。口径由维护者 2026-10-09 拍板：
@@ -17,8 +17,12 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
+import os
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -177,7 +181,7 @@ check(
     str([ln for ln in _lines if "爆头" in ln]),
 )
 
-# 敌人头部真实值（scripts/merge_wfsim_enemies.py --head-only）
+# 敌人头部真实值（scripts/build_enemies.py 的 HEAD_* 表；2026-10-26 前为 merge_wfsim_enemies.py）
 # 2026-10-10 第四批（敌人表精简到 19 个常用敌人）改断言：原用的 Wolf of Saturn Six /
 # Anti MOA / Fusion MOA / Corrupted MOA / Manic 均已删除 —— 未分类（null）改用合成敌人记录
 # 表达同一语义；头部 1x 留 MOA / Charger / Isolator Bursa；Manic（Body_Parts 3.0）改 Bombard
@@ -189,9 +193,25 @@ check(
     and all("head_src" in v for v in _en.values()),
 )
 check("旧哨兵常量已删除", not hasattr(dc, "_HEAD_MUL_UNCLASSIFIED"))
-for _nm in ("MOA", "Charger", "Isolator Bursa"):
+for _nm in ("MOA", "Isolator Bursa"):
     _, _r = calc("Braton Prime", ["对", _nm, "爆头"])
-    check(f"{_nm} 头部 1.0（无暴击爆头）", close(_r["head_mult"], 1.0) and not _r["head_crit"])
+    check(
+        f"{_nm} 头部 1.0（Corpus / 部位表 * ⇒ 无暴击爆头）",
+        close(_r["head_mult"], 1.0) and not _r["head_crit"],
+    )
+# 2026-10-26 维护者定：敌人头部 ×1 仍算爆头部位，暴击爆头按派系 / 逐敌标注（Charger：Infested，Mouth 1x 无 *）
+_, _r = calc("Braton Prime", ["对", "Charger", "爆头"])
+check(
+    "Charger 头部 1.0 仍可暴击爆头（Infested 默认）",
+    close(_r["head_mult"], 1.0) and _r["head_crit"],
+)
+# Babau：头部 1.5x、暴击爆头、头部另加 +100% 暴击率（Braton Prime 12% → 112%：0.88×4 + 0.12×7 = 4.36）
+_, _r = calc("Braton Prime", ["对", "Techrot Babau", "爆头"])
+check(
+    "Techrot Babau 头部 1.5x、可暴击爆头、头部暴击率 +100%",
+    close(_r["head_mult"], 1.5) and _r["head_crit"] and close(_r["head_crit_exp"], 4.36),
+    f"{_r['head_mult']} {_r['head_crit']} {_r['head_crit_exp']}",
+)
 _, _r = calc("Braton Prime", ["对", "MOA", "爆头", "爆头加成60"])
 check("MOA 头部 1x 仍是爆头部位：1 × 1.6 = 1.6", close(_r["head_mult"], 1.6), str(_r["head_mult"]))
 _, _r = calc("Braton Prime", ["对", "Eidolon Teralyst", "爆头", "爆头加成60"])
@@ -288,22 +308,47 @@ check(
 check("算法未改：火+冰 仍合成爆炸", "blast" in _r["pools"], str(_r["pools"]))
 
 # ---------------------------------------------------------------------------
-print("生成器批（2026-10-10，wfsim @8267f09）：范围段继承 / 子炸弹 count / 多重 / 范围段 CO")
+print("生成器批（2026-10-10；2026-10-26 改由 wiki 生成）：范围段 / 子炸弹 count / 多重 / 范围段 CO")
 _wa = json.loads((ROOT / "core" / "data" / "weapon_attacks.json").read_text(encoding="utf-8"))
 _if = json.loads((ROOT / "core" / "data" / "incarnon_forms.json").read_text(encoding="utf-8"))
-_segs = [s for k, v in _wa.items() if k != "_meta" for s in v.get("segments") or []]
+_segs = [
+    (v.get("wiki"), s) for k, v in _wa.items() if k != "_meta" for s in v.get("segments") or []
+]
+# wiki「Condition Overload (Mechanic)」Attack Catalog 里注明「AoE does not scale off multishot」/
+# 「Not affected by multishot」的武器（默认主段）；其余范围段一律吃多重
+_NO_MS_SOURCED = {
+    "Ferrox",
+    "Tenet Ferrox",
+    "Opticor",
+    "Opticor Vandal",
+    "Trumna",
+    "Trumna Prime",  # 维护者核查 2026-10-26：同构 Trumna（_wiki_weapons.USER_VERIFIED_CO_ROWS）
+    "Mausolon (Atmosphere)",
+}
 check(
-    "weapon_attacks：默认形态里没有未经出处的 takes_multishot: false（白名单全是灵化形态）",
-    not any(s.get("takes_multishot") is False for s in _segs),
+    "weapon_attacks：默认主段的 takes_multishot: false 都有出处（CO 页 / 维护者核查行）",
+    {w for w, s in _segs if s.get("takes_multishot") is False} == _NO_MS_SOURCED,
+    str(sorted({w for w, s in _segs if s.get("takes_multishot") is False})),
 )
+_snaps = {
+    json.loads((ROOT / "core" / "data" / f).read_text(encoding="utf-8"))["_meta"].get(
+        "wiki_snapshot"
+    )
+    for f in (
+        "weapon_attacks.json",
+        "incarnon_forms.json",
+        "co_behavior.json",
+        "weapon_deployments.json",
+    )
+}
+check("P2 四表 _meta 记录同一个 wiki 快照、不再记 wfsim", len(_snaps) == 1 and None not in _snaps)
 check(
-    "weapon_attacks：_meta 记录 wfsim 来源 commit",
-    len(str(_wa["_meta"].get("wfsim_commit") or "")) == 40
-    and _wa["_meta"]["wfsim_commit"] == _if["_meta"].get("wfsim_commit"),
-)
-check(
-    "Sporelacer / Tombfinger 键冲突拆成 #primary / #secondary（不再后写覆盖）",
-    sum(1 for k in _wa if k.endswith(("#primary", "#secondary"))) == 4,
+    "weapon_attacks 只收计算器认识的武器（键都在 weapons_stats，无 #类别 冲突键）",
+    all(
+        k in json.loads((ROOT / "core" / "data" / "weapons_stats.json").read_text(encoding="utf-8"))
+        for k in _wa
+        if k != "_meta"
+    ),
 )
 _kb = _wa["/lotus/weapons/grineer/bows/grnbow/grnbowweapon"]["segments"]
 check(
@@ -312,16 +357,16 @@ check(
     str(_kb),
 )
 _inc_flags = {
-    v["form_id"]: (v["radial"].get("takes_multishot"), v["radial"].get("takes_condition_overload"))
-    for v in _if.values()
-    if isinstance(v, dict) and v.get("radial") and v.get("form_id")
+    v["base_name"]: (
+        v["radial"].get("takes_multishot"),
+        v["radial"].get("takes_condition_overload"),
+    )
+    for k, v in _if.items()
+    if k != "_meta" and v.get("radial")
 }
 check(
-    "incarnon_forms：Burston / Zylok / Braton 灵化范围段 = 不吃多重 + 吃 CO（有出处）",
-    all(
-        _inc_flags.get(f) == (False, True)
-        for f in ("burston_incarnon", "zylok_prime_incarnon", "braton_prime_incarnon")
-    ),
+    "incarnon_forms：Burston / Zylok / Braton 灵化范围段 = 不吃多重 + 吃 CO（CO 页出处）",
+    all(_inc_flags.get(f) == (False, True) for f in ("Burston", "Zylok Prime", "Braton Prime")),
     str(_inc_flags),
 )
 
@@ -342,9 +387,39 @@ check(
     str(_st("Zarr")),
 )
 check(
-    "Trumna Prime 多重100：范围段吃多重 73.74 → 88.33（含伤害量化）",
-    close(_st("Trumna Prime", ["多重100"]), 88.3304, 1e-5),
+    "Trumna Prime 多重100：范围段不吃多重（维护者核查：同构 Trumna），含段合计 73.70",
+    close(_st("Trumna Prime", ["多重100"]), 73.7001, 1e-5),
     str(_st("Trumna Prime", ["多重100"])),
+)
+_cb = json.loads((ROOT / "core" / "data" / "co_behavior.json").read_text(encoding="utf-8"))[
+    "weapons"
+]
+
+
+def _cbw(nm):
+    return _cb.get(str(dc.find_weapon(nm)[0]["uniqueName"]).lower())
+
+
+check(
+    "CO 同族口径只认逐把核实的行（维护者核查 2026-10-26）：Epitaph Prime / Kuva Grattler / Akarius 直击 = "
+    "independent，Latron Wraith / Mk1-Paris / Ballistica 灵化 = independent；未核实的仍缺省（Glaxion）",
+    _cbw("Epitaph Prime") == {"base": "independent"}
+    and _cbw("Kuva Grattler") == {"base": "independent"}
+    and _cbw("Akarius") == {"base": "independent"}
+    and all(
+        (_cbw(n) or {}).get("incarnon") == "independent"
+        for n in ("Latron Wraith", "Mk1-Paris", "Ballistica")
+    )
+    and _cbw("Glaxion") is None,
+)
+_, _rv0 = calc("Vectis Prime", ["灵化"])
+_, _rv1 = calc("Vectis Prime", ["灵化", "爆头"])
+check(
+    "爆头才触发的爆炸段：不写爆头不计（卡面提示），写「爆头」计入（Vectis Prime 灵化 65.16 → 121.01）",
+    close(_rv0["segments_total"]["total"], 65.1573, 1e-4)
+    and any("爆头时另有爆炸段" in n for n in _rv0["notes"])
+    and close(_rv1["segments_total"]["total"], 121.0118, 1e-4),
+    f"{_rv0['segments_total']['total']} {_rv1['segments_total']['total']}",
 )
 check(
     "Opticor CO80×3：范围段吃 CO 1130.34 → 1400.65（含伤害量化）",
@@ -373,13 +448,14 @@ check(
 )
 _, _ro = calc("Onos", ["灵化"])
 check(
-    "Onos 灵化蓄力模式的 Radial Attack 不计入（wfsim 灵化无此 radial）", not _ro["segments_total"]
+    "Onos 灵化（持续光束）不带蓄力攻击的 Radial Attack（wiki 母攻击写错，已按名字改挂）",
+    not _ro["segments_total"],
 )
 # 2026-10-10 第四批改断言（维护者定「Nataruk 口径错位」）：我方主段 = 快速射击（wfsim
 # nataruk.yaml，co 缺省 additive），完美射击（wfsim default_form nataruk_perfect，independent）
 # 改走「蓄力」形态 ⇒ 默认桶别 additive；independent 见文末第四批段的「蓄力」断言。
 check(
-    "Nataruk 默认 = 快速射击（wfsim nataruk.yaml）CO 桶别 = additive_with_base_damage",
+    "Nataruk 默认 = 快速射击，CO 桶别 = additive_with_base_damage",
     dc.co_behavior_of(dc.find_weapon("Nataruk")[0]) == "additive_with_base_damage",
 )
 _w, _r = calc("Kuva Bramma")
@@ -430,7 +506,7 @@ check("不在表里的武器照旧按敌人头部（MOA ×1）", _r["head_mult"]
 _, _r = calc("Arca Plasmor", ["爆头"], enemy=dc.find_enemy_exact("Eidolon Teralyst"))
 check("头部覆盖不凭空造头：无头部的敌人仍按身体计", "没有头部" in _r["head_src"])
 
-# ② 敌人头部（merge_wfsim_enemies.py 补丁表，--head-only 可重复执行）
+# ② 敌人头部（build_enemies.py 的 HEAD_* 表）
 _leg = dc.find_enemy_exact("Legacyte")
 check(
     "Legacyte：head_none → 头部 ×3、无暴击爆头（Body_Parts「Head (3x)*」+ 本页）",
@@ -439,8 +515,10 @@ check(
 )
 _bab = dc.find_enemy_exact("Techrot Babau")
 check(
-    "Techrot Babau：保持 Module 1.5x，head_src 写明三处不一致",
-    _bab["head_mul"] == 1.5 and "Phone Head" in _bab["head_src"],
+    "Techrot Babau：Module 1.5x，head_src 写明部位表 1x 的取舍与暴击来源",
+    _bab["head_mul"] == 1.5
+    and "Phone Head" in _bab["head_src"]
+    and _bab.get("head_cc_bonus") == 1.0,
 )
 check(
     # 2026-10-10 第四批：Teralyst Synovia 已随敌人表精简删除，留夜灵兆力使与圆蛛
@@ -462,22 +540,17 @@ _n_seg_forms = sum(
     for f in (v.get("forms") or {}).values()
     if f.get("segments")
 )
-# 2026-10-10 b5 批改断言：132/67 → 133/69。MAIN_FORM_OVERRIDE 扩到弓 / Drakgoon / Zenith /
-# Kuva Quartakk / Miter：Miter 的满蓄力（wfsim 只有这一条）降级进 forms（+1 形态）；Evensong
-# 满蓄力（带 Charged Radial 范围段）与 Mutalist Cernos 满蓄力（带毒云段）由顶层降级进 forms
-# （+2 带额外段）。其余组是「默认 ↔ 形态」对调，总数不变。
+# 2026-10-26 wfsim 迁移 P2 改断言：133/69 → 137/68（改由 wiki Attacks 生成：Nataruk / Cinta 普通满蓄力与
+# 完美射击并存、Ballistica 系补「未蓄力」点射、Kohm 系补单发等；灵化只收与 incarnon_forms 同一攻击的那条）；
+# 同日新武器入库（build_weapons_supplement：Daikyu Prime / Afentis Prime / Coda Bubonico …）→ 145/71
 check(
-    "forms：133 个非默认形态，其中带额外段 69（灵化 26 + 副开火/蓄力/未蓄力 43）",
-    _n_forms == 133 and _n_seg_forms == 69,
+    "forms：145 个非默认形态，其中带额外段 71",
+    _n_forms == 145 and _n_seg_forms == 71,
     f"{_n_forms} / {_n_seg_forms}",
 )
 check(
-    "只有非默认形态的母武器记录不带顶层 segments / main（默认口径读不到 forms）",
-    all(
-        "segments" not in v and "main" not in v
-        for k, v in _wa.items()
-        if k != "_meta" and v.get("forms") and not v.get("yaml_id")
-    ),
+    "顶层 main 与 segments 成对出现（默认主段没有额外段时不写 main，默认口径读不到 forms）",
+    all(("segments" in v) == ("main" in v) for k, v in _wa.items() if k != "_meta"),
 )
 _, _rd = calc("Tenet Tetra")
 _, _ra = calc("Tenet Tetra", ["副开火"])
@@ -523,13 +596,13 @@ for _kw, _fk in (
 # ---------------------------------------------------------------------------
 print("第四批（2026-10-10 维护者定）：常用敌人表 / Mutalist MOA 头部 / Nataruk 口径 / 电毒气落点")
 sys.path.insert(0, str(ROOT / "scripts"))
-import merge_wfsim_enemies as _me  # noqa: E402
+import build_enemies as _be  # noqa: E402
 
 # ① 敌人表 = 保留名单 19 个，官方中文名补齐
 check(
     "enemies.json = KEEP_ENEMIES（19 个，顺序无关）",
-    set(_en) == set(_me.KEEP_ENEMIES) and len(_en) == 19,
-    str(sorted(set(_en) ^ set(_me.KEEP_ENEMIES))),
+    set(_en) == set(_be.KEEP_ENEMIES) and len(_en) == 19,
+    str(sorted(set(_en) ^ set(_be.KEEP_ENEMIES))),
 )
 check("19 个敌人都有中文名", all(v.get("zh") for v in _en.values()))
 check(
@@ -537,22 +610,27 @@ check(
     [_en[n]["zh"] for n in ("Leech Osprey", "Isolator Bursa", "Legacyte", "Techrot Babau", "Nox")]
     == ["吸血鱼鹰", "隔离金流恐鸟", "传承种", "科腐者疫胞", "毒化者"],
 )
-# 删除护栏双向（AGENTS 硬纪律 9）：该删的删、该留的留；名单缺条目直接报错
-_tbl = {n: {"name": n} for n in (*_me.KEEP_ENEMIES, "Butcher", "Wolf of Saturn Six")}
-_drop = _me.apply_keep(_tbl)
+# 2026-10-26 P4-C：敌人表改由 build_enemies.py 从 wiki 模块 + PEP 整表重建（不再从全表删减）
 check(
-    "apply_keep：删非名单（Butcher / Wolf of Saturn Six），留名单 19 个，再跑不删",
-    _drop == ["Butcher", "Wolf of Saturn Six"]
-    and set(_tbl) == set(_me.KEEP_ENEMIES)
-    and _me.apply_keep(_tbl) == [],
-    str(_drop),
+    "每个敌人每个数值字段都带出处（src），护盾 / 护甲 wiki 未写的注明取自 PEP",
+    all(
+        all(
+            k in v.get("src", {})
+            for k in ("faction", "base_level", "base_health", "base_shield", "base_armor")
+        )
+        for v in _en.values()
+    )
+    and "PEP" in _en["Lancer"]["src"]["base_shield"],
 )
-try:
-    _me.apply_keep({"Lancer": {"name": "Lancer"}})
-    _raised = False
-except SystemExit:
-    _raised = True
-check("apply_keep：名单里的敌人缺失时报错（不静默少一条）", _raised)
+_snap_w, _snap_p = Path("<构建输入目录>/wiki-modules-20261026/enemies"), Path("<构建输入目录>/pep-513105d")
+if os.path.isdir(_snap_w) and os.path.isdir(_snap_p):  # CI 非 root：/root 不可读 ⇒ False，不抛
+    _rebuilt = _be.build(_snap_w, _snap_p, allow_conflict=False)
+    check(
+        "build_enemies 按固定快照可复现 enemies.json（wiki 与 PEP 无冲突）",
+        _rebuilt["enemies"] == _en,
+    )
+else:
+    print("[SKIP] 本机无敌人 wiki / PEP 快照：跳过 build_enemies 复现断言")
 
 # ② 常用叫法命中（parse_args 真实入口）
 for _q, _want in (
@@ -595,9 +673,9 @@ check("「对 G系 绝路p」：武器名不被吞成敌人", not _sp["enemy_mis
 # ④ Swarm / Tar Mutalist MOA 头部 4.5（补丁表，数据不保留）
 check(
     "补丁表：Swarm / Tar Mutalist MOA 头部 4.5（Enemy_Body_Parts），Tar 无暴击爆头",
-    _me.HEAD_PATCH["Swarm Mutalist MOA"][0] == 4.5
-    and _me.HEAD_PATCH["Tar-Mutalist MOA"][0] == 4.5
-    and _me.HEAD_CRIT_OVERRIDE.get("Tar-Mutalist MOA") is False
+    _be.HEAD_TABLE["Swarm Mutalist MOA"][0] == 4.5
+    and _be.HEAD_TABLE["Tar-Mutalist MOA"][0] == 4.5
+    and _be.HEAD_CRIT_OVERRIDE.get("Tar-Mutalist MOA") is False
     and "Swarm Mutalist MOA" not in _en,
 )
 
@@ -625,11 +703,18 @@ check(
 )
 _nat = _wa["/lotus/weapons/tenno/bows/omicrus/omicrusplayerwep"]
 check(
-    "weapon_attacks：Nataruk main_form=base，forms 只有 charged:nataruk_perfect（independent）",
+    "weapon_attacks：Nataruk main_form=base，forms = 满蓄力 + 完美射击（都 independent，wiki CO 页）",
     _nat.get("main_form") == "base"
-    and list(_nat["forms"]) == ["charged:nataruk_perfect"]
-    and _nat["forms"]["charged:nataruk_perfect"].get("co_behavior") == "independent"
+    and sorted(_nat["forms"]) == ["charged:charged_shot", "charged:perfect_shot"]
+    and all(f.get("co_behavior") == "independent" for f in _nat["forms"].values())
     and "charge_seconds" not in _nat,
+)
+_, _rcs = calc("Nataruk", ["满蓄力"])
+_, _rpf = calc("Nataruk", ["完美射击"])
+check(
+    "Nataruk「满蓄力」= 普通满蓄力（1.0 s / 50% / 2.2×），「完美射击」= 完美射击（0.7 s / 60% / 2.4×）",
+    close(_rcs["crit_cc"], 0.5) and close(_rpf["crit_cc"], 0.6),
+    f"{_rcs['crit_cc']} {_rpf['crit_cc']}",
 )
 
 # ⑥ 电 / 毒气 DoT 落点层（wfsim M100）：有爆头加成时多乘 (1+Σ)，无加成不变，毒素不变
@@ -650,10 +735,9 @@ check(
 )
 
 # ---------------------------------------------------------------------------
-print("b5 批（2026-10-10）：主段按攻击段取值 / 物理对调残留 / 默认形态 ≠ wfsim default_form")
+print("b5 批（2026-10-10）：主段按攻击段取值 / 物理对调残留 / 默认形态 ≠ wiki 首个攻击")
 sys.path.insert(0, str(ROOT))
 import build_damage_data as _bd  # noqa: E402
-import build_weapon_attacks as _bwa  # noqa: E402
 
 _ws = json.loads((ROOT / "core" / "data" / "weapons_stats.json").read_text(encoding="utf-8"))
 _NAT = "/lotus/weapons/tenno/bows/omicrus/omicrusplayerwep"
@@ -729,7 +813,7 @@ for _nm, _f, _v in (
     _w, _ = dc.find_weapon(_nm)
     check(f"{_nm} {_f} = {_v:g}（与主段伤害同一攻击段）", close(float(_w[_f]), _v))
 
-# ⑤ 默认形态 ≠ wfsim default_form 的组：关键词落到正确的 forms 条目
+# ⑤ 默认主段 ≠ wiki 首个攻击 / 有多种开火方式的组：关键词落到正确的 forms 条目
 _kw_cases = (
     ("Paris", "蓄力", "形态：蓄力（Paris 基础 320"),
     ("Paris", "未蓄力", "「未蓄力」即该武器的默认主段"),
@@ -752,24 +836,15 @@ check(
     "Paris「蓄力」单发 36.138 → 74.466（修前报没有数据、按未蓄力算）",
     close(_rp["health"], 74.466, 1e-4),
 )
-# wfsim default_form 的 yaml id 一般 = 组名；Nataruk 的是 nataruk_perfect（第四批）
-_DEMOTED = {"nataruk": "nataruk_perfect"}
+# 2026-10-26：默认主段改按 weapons_stats 认 wiki 攻击（build_weapon_attacks.pick_main），不再有
+# MAIN_FORM_OVERRIDE；弓 / 蓄力霰弹的满蓄力都在 forms，记录带 main_form、顶层不带蓄力秒数
 _bow_ok = []
-for _g in _bwa.MAIN_FORM_OVERRIDE:
-    _did = _DEMOTED.get(_g, _g)
-    _rec = next(
-        (
-            v
-            for k, v in _wa.items()
-            if k != "_meta" and any(f.split(":", 1)[1] == _did for f in (v.get("forms") or {}))
-        ),
-        None,
-    )
-    _bow_ok.append(bool(_rec) and bool(_rec.get("main_form")) and "charge_seconds" not in _rec)
+for _nm in ("Paris", "Cernos", "Dread", "Evensong", "Drakgoon", "Miter", "Zenith", "Kuva Quartakk"):
+    _rec = _wa[str(dc.find_weapon(_nm)[0]["uniqueName"]).lower()]
+    _bow_ok.append((_nm, bool(_rec.get("main_form")) and "charge_seconds" not in _rec))
 check(
-    f"MAIN_FORM_OVERRIDE {len(_bwa.MAIN_FORM_OVERRIDE)} 组：wfsim default_form 都降级进 forms，"
-    "记录带 main_form、顶层不再带默认形态的 charge_seconds",
-    all(_bow_ok),
+    "弓 / Drakgoon / Zenith / Kuva Quartakk / Miter：满蓄力等进 forms，记录带 main_form、顶层无 charge_seconds",
+    all(ok for _, ok in _bow_ok),
     str(_bow_ok),
 )
 check(
@@ -1007,12 +1082,13 @@ check(
     ),
 )
 
-# ④ 维护者定：布里斯提卡 Prime 蓄力保留 152（wfsim M66 实测），每发耗 4 弹（wiki secondary:1949）
+# ④ 布里斯提卡 Prime 蓄力：10-10 维护者定保留 152（wfsim M66 实测）；2026-10-26 维护者核查改为 wiki 76 / 弹片 ×4
+#   （模块 Multishot 4 + 游戏数据 fireIterations 4 + 正文「4 bolts」三源一致，152 无法复现）。每发耗 4 弹
 _, _rbc = calc("Ballistica Prime", ["蓄力"])
 _mt = 32 / 4 / _rbc["fire_rate_eff"]  # b8 批：弹匣按 wiki 弹药口径 32（修前 WFCD 8 ⇒ 8/4 = 2 发）
 check(
-    "Ballistica Prime 蓄力基伤 152 不变；每发耗 4 弹 ⇒ 持续弹匣 32/4 = 8 发（wiki「8-shot magazine」）",
-    close(_rbc["weapon_eff"]["damage"]["total"], 152.0)
+    "Ballistica Prime 蓄力基伤 76 / 弹片（×4 弹片）；每发耗 4 弹 ⇒ 持续弹匣 32/4 = 8 发（wiki「8-shot magazine」）",
+    close(_rbc["weapon_eff"]["damage"]["total"], 76.0)
     and _rbc["ammo_cost"] == 4.0
     and close(_rbc["dps_sustained"], _rbc["dps"] * _mt / (_mt + 1.2), 1e-6),
     f"{_rbc['dps_sustained']}",
@@ -1054,13 +1130,13 @@ check(
     _rc["no_cycle"] and close(_rc["dps_sustained"], _rc["dps"]),
 )
 check(
-    "weapon_attacks forms：Zenith 半自动 ammo_cost 3、Cortege 副开火 0（wiki，覆盖 wfsim 1）",
-    _wa["/lotus/weapons/tenno/longguns/loginprimary/sundialrifle"]["forms"]["semi_auto:zenith"][
-        "ammo_cost"
-    ]
+    "weapon_attacks forms：Zenith 半自动 ammo_cost 3、Cortege 副开火 0（wiki AmmoCost）",
+    _wa["/lotus/weapons/tenno/longguns/loginprimary/sundialrifle"]["forms"][
+        "semi_auto:semi_auto_mode"
+    ]["ammo_cost"]
     == 3.0
     and _wa["/lotus/weapons/tenno/archwing/primary/thanotecharchgun/thanotecharchgun"]["forms"][
-        "alt_fire:cortege_alt"
+        "alt_fire:grenade_impact"
     ]["ammo_cost"]
     == 0.0,
 )
@@ -1249,6 +1325,491 @@ check(
     "Kuva Bramma 赤毒冲击25：冲击 187 + 46.75 = 233.75，无火焰",
     close(_d["impact"], 233.75) and not _d.get("heat"),
     str({k: v for k, v in _d.items() if v}),
+)
+
+
+# ★ 2026-10-25（Astra 评估）：Nataruk「满蓄力」（50% / 2.2×）与「完美射击」（60% / 2.4×）是两种形态。
+#   2026-10-26 起两者都从 wiki 收录 ⇒ 满蓄力按普通满蓄力算、标「蓄力」；完美射击标「完美射击」
+def _nat(word):
+    spec, rest = dc.parse_args(["Nataruk", word])
+    w, _ = dc.find_weapon(" ".join(rest))
+    r = dc.calculate(spec, w)
+    return r, dc.card_lines(w, spec, r)
+
+
+_r_full, _l_full = _nat("满蓄力")
+_r_perf, _l_perf = _nat("完美射击")
+check(
+    "★ Nataruk 满蓄力：按普通满蓄力（50% / 2.2×）算、标「蓄力」，不再注明「未收录」",
+    any("形态：蓄力" in x for x in _l_full)
+    and not any("普通满蓄力未收录" in x for x in _l_full)
+    and (_r_full.get("crit_cc"), _r_full.get("crit_cm")) == (0.5, 2.2),
+    str([x for x in _l_full if "形态" in x or "完美" in x]),
+)
+check(
+    "Nataruk 完美射击：形态标「完美射击」、不加未收录注明，数值 60% / 2.4×",
+    any("形态：完美射击" in x for x in _l_perf)
+    and not any("普通满蓄力未收录" in x for x in _l_perf)
+    and (_r_perf.get("crit_cc"), _r_perf.get("crit_cm")) == (0.6, 2.4),
+    str((_r_perf.get("crit_cc"), _r_perf.get("crit_cm"))),
+)
+
+
+# ★ 2026-10-25（Astra 评估）：射速曲线武器的持续 DPS 注明（凤殁灵化降速 / 起转类）
+def _card(words):
+    spec, rest = dc.parse_args(words)
+    w, _ = dc.find_weapon(" ".join(rest))
+    return dc.card_lines(w, spec, dc.calculate(spec, w))
+
+
+check(
+    "★ 凤殁灵化：注明 51 发内由 100% 线性降到 60%、停火重置；基础形态不注",
+    any("线性降到 60%" in x and "停火重置" in x for x in _card(["Phenmor", "灵化"]))
+    and not any("降到 60%" in x for x in _card(["Phenmor"])),
+)
+# ★ 2026-10-26 补 wiki §Notes 1x 爆头名单：Ignis / Ignis Wraith / Cyanex 主开火；Cyanex 副开火不受影响
+check(
+    "Ignis / Ignis Wraith / Cyanex 主开火爆头 ×1；Cyanex 副开火仍 ×3",
+    all(close(calc(n, ["爆头"])[1]["head_mult"], 1.0) for n in ("Ignis", "Ignis Wraith", "Cyanex"))
+    and close(calc("Cyanex", ["爆头", "副开火"])[1]["head_mult"], 3.0),
+)
+# ★ 2026-10-26 凤殁灵化降速建模：持续 DPS 按住扳机打空弹池（逐发降速累加），爆发仍按起始射速
+_t_sd = dc.spooldown_hold_seconds(408, 13.33, 51, 0.6)
+check(
+    "凤殁降速：408 发用时介于满速 30.6s 与全程 60% 51.0s 之间（前 51 发线性、其后 60%）",
+    close(_t_sd, sum(1 / (13.33 * (1 - 0.4 * n / 51)) for n in range(51)) + 357 / (13.33 * 0.6)),
+    f"{_t_sd:.4f}",
+)
+_, _r_ph = calc("Phenmor", ["灵化"])
+_ratio_ph = (408 / 13.33) / (_t_sd + 3.8)
+check(
+    "凤殁灵化：持续 = 爆发 × 名义弹匣时间 / (降速后用时 + 装填)；原型不受影响",
+    close(_r_ph["dps_sustained"], _r_ph["dps"] * _ratio_ph)
+    and close(calc("Phenmor")[1]["dps_sustained"], calc("Phenmor")[1]["dps"] * 10 / (10 + 2.8)),
+    f"{_r_ph['dps_sustained']:.3f} vs {_r_ph['dps'] * _ratio_ph:.3f}",
+)
+check(
+    "凤殁灵化：实战 DPS 按打空一匣的平均射速（= 短点射一行 × 名义时间 / 降速后用时）；短点射单列，原型无此行",
+    close(
+        _r_ph["steady"]["dps_total"],
+        _r_ph["steady_burst"]["dps_total"] * (408 / 13.33) / _t_sd,
+        1e-6 * _r_ph["steady_burst"]["dps_total"],
+    )
+    and any("短点射重置降速" in x for x in _card(["Phenmor", "灵化"]))
+    and not any("短点射" in x for x in _card(["Phenmor"]))
+    and calc("Phenmor")[1].get("steady_burst") is None,
+    f"{_r_ph['steady']['dps_total']:.3f}",
+)
+check(
+    "月神 Prime：注明起转（wiki 起始 25%、每发 +30%、第 4 发满速）；普通武器（Braton）不注",
+    any("起转" in x and "第 1 发 25%" in x and "第 4 发满速" in x for x in _card(["Soma", "Prime"]))
+    and not any("起转" in x for x in _card(["Braton"])),
+)
+# ★ 2026-10-26 起转建模（wiki 各武器页起始比例 + 每发增量；Astra 查证、Claude 抽 3 把复核）
+_rt = dc.spoolup_rate_at(20, 10.667)
+check(
+    "起转曲线：Gorgon 第 1 发 20%、第 8 发 94.67%、第 9 发封顶 100%",
+    close(_rt(0), 0.20) and close(_rt(7), 0.94669) and _rt(8) == 1.0,
+)
+check(
+    "起转表到满速发数与 wiki Spool 一致（Secura Dual Cestra 原文自相矛盾，按式 6 发）",
+    all(
+        next(k for k in range(1, 200) if st + inc * (k - 1) >= 100 - 0.05)
+        == dc._FIRE_RATE_SPOOL_SHOTS[n]
+        for n, (st, inc, _) in dc._FIRE_RATE_SPOOLUP.items()
+        if n != "Secura Dual Cestra"
+    ),
+)
+_, _rg = calc("Gorgon")
+_g = dc.find_weapon("Gorgon")[0]
+_gm = float(_g["magazineSize"]) / float(_g.get("ammoCost") or 1)
+_g_nom = _gm / _rg["fire_rate_eff"]
+_g_hold = dc.ramp_hold_seconds(_gm, _rg["fire_rate_eff"], _rt)
+check(
+    "Gorgon：持续 = 爆发 × 名义弹匣时间 / (起转后用时 + 装填)；爆发仍按满速",
+    close(
+        _rg["dps_sustained"],
+        _rg["dps"] * _g_nom / (_g_hold + float(_g["reloadTime"])),
+        1e-6 * _rg["dps"],
+    )
+    and _rg["fire_rate_curve"] == "spoolup"
+    and _rg.get("steady_burst") is None,
+)
+check(
+    "起转只建在默认形态：Tenora 副开火 / Gorgon 灵化不注明、不计入；Kohm（弹片也随起转变）仍只注明",
+    calc("Tenora", ["副开火"])[1]["fire_rate_curve"] == ""
+    and not any("起转" in x for x in _card(["Tenora", "副开火"]))
+    and calc("Gorgon", ["灵化"])[1]["fire_rate_curve"] == ""
+    and all(calc(_k)[1]["fire_rate_curve"] == "" for _k in ("Kohm", "Kohmak", "Twin Kohmak"))
+    and any("约 5 发后到满速" in x for x in _card(["Kohm"])),
+)
+check(
+    "Zylok 双发扳机注明第二发在松开扳机时打出",
+    any("松开时打出第二发" in x for x in _card(["Zylok"])),
+)
+check(
+    "灵化形态注明持续 DPS 为上限（枪械灵化无时限、打空后需重新充能）",
+    any("为上限" in x for x in _card(["Braton", "Prime", "灵化"])),
+)
+
+# ★ 2026-10-26 新武器入库（scripts/build_weapons_supplement.py：英文 wiki + DE 官方导出）
+_wsx = json.loads((ROOT / "core" / "data" / "weapons_stats.json").read_text(encoding="utf-8"))
+check(
+    "武器表不再有 wfsim 来源条目（Archgun / 守护武器 / Valkyr Talons 改由 wiki + DE 生成）",
+    not any("wfsim" in str(v.get("source") or "") for v in _wsx.values()),
+)
+_found = {
+    n: dc.find_weapon(n)[0] for n in ("Daikyu Prime", "Quassus Prime", "Kuva Ghoulsaw", "霜冥差")
+}
+check(
+    "新武器可查（含 wiki 内部名过时、键按 DE 官方的 Quassus Prime / Kuva Ghoulsaw，及中文名回落 DE 导出的霜冥差）",
+    all(_found.values())
+    and _found["Quassus Prime"]["uniqueName"].endswith("PrimeQuassusWeapon")
+    and _found["霜冥差"]["name"] == "Nunchasa",
+    str({k: (v or {}).get("uniqueName") for k, v in _found.items()}),
+)
+check(
+    "蓄力 Archgun 默认主段 = 满蓄力（wiki 展示攻击，与原表一致）；Arbucep 一次齐射 6 枚",
+    close(dc.find_weapon("Velocitus")[0]["damage"]["total"], 3200.0)
+    and dc.find_weapon("Arbucep")[0]["multishot"] == 6.0,
+)
+
+
+# ★ 2026-10-26 灵化进化按形态取值（wiki Boar Incarnon Genesis：普通形态每颗弹丸 +12%、灵化形态 +96%；
+#   Stug「灵化形态效果翻倍」）与 Sicarus「Increase Base Status Chance to 12% / 9%」按 by 处理（维护者定）
+def _evo_note(words):
+    spec, rest = dc.parse_args(words)
+    w, _ = dc.find_weapon(" ".join(rest))
+    return next((n for n in dc.calculate(spec, w)["notes"] if n.startswith("EVO")), "")
+
+
+check(
+    "Boar 进化触发：普通形态 +12%（注明仅灵化形态的部分未计入）、灵化形态 +96%",
+    "触发+12%" in _evo_note(["Boar", "进化", "触发"])
+    and "仅灵化形态生效" in _evo_note(["Boar", "进化", "触发"])
+    and "触发+96%" in _evo_note(["Boar", "灵化", "进化", "触发"])
+    and "未计入" not in _evo_note(["Boar", "灵化", "进化", "触发"]),
+)
+check(
+    "Sicarus / Sicarus Prime Survivor's Edge：触发 +12% / +9%（wiki 写 to，按 by）",
+    "触发+12%" in _evo_note(["Sicarus", "进化", "触发"])
+    and "触发+9%" in _evo_note(["Sicarus", "Prime", "进化", "触发"]),
+)
+_evx = json.loads((ROOT / "core" / "data" / "evolutions.json").read_text(encoding="utf-8"))
+_stug = next(o for o in _evx["stug"]["tiers"]["4"] if o["name"] == "Elemental Dominance")
+check(
+    "Stug Elemental Dominance：普通 +20%、灵化形态翻倍 +40%（incarnon_value）",
+    any(e.get("value") == 0.2 and e.get("incarnon_value") == 0.4 for e in _stug["effects"]),
+)
+
+# ---------------------------------------------------------------------------
+print("P4-AB（2026-10-26）：DE / PEP / wiki 生成，缺证标注，专精移出")
+_p4a = json.loads((ROOT / "core/data/mods_wfsim_extra.json").read_text(encoding="utf-8"))
+_p4b = json.loads((ROOT / "core/data/mods_stats.json").read_text(encoding="utf-8"))
+check("A 每条规则带逐字段 src", all(v.get("src") for k, v in _p4a.items() if k != "_meta"))
+check("B 每张计算 MOD 带逐字段 src", all(v.get("src") for v in _p4b["mods"].values()))
+_p4focus = {"guardian break", "squad regen", "lethal levitation"}
+check(
+    "三个专精节点已移出 mods 与 names（按键和 name 两面检查）",
+    all(
+        k.lower() not in _p4focus and str(v.get("name", "")).lower() not in _p4focus
+        for section in ("mods", "names")
+        for k, v in _p4b[section].items()
+    ),
+)
+check(
+    "MOD 计算表 442 → 439，识别名表仍 727", len(_p4b["mods"]) == 439 and len(_p4b["names"]) == 727
+)
+check(
+    "A 规则 199 → 204，直接互斥关系保持 116 对",
+    len(_p4a) - 1 == 204 and _p4a["_meta"]["family_direct_pairs"] == 116,
+)
+_p4conds = [c for k, v in _p4a.items() if k != "_meta" for c in v.get("conditionals", [])]
+check(
+    "未知层数与时长保留 null，不填工程默认值",
+    any(c.get("max_stacks_status") == "unknown_not_declared" for c in _p4conds)
+    and all(
+        c.get("max_stacks") is None
+        for c in _p4conds
+        if c.get("max_stacks_status") == "unknown_not_declared"
+    )
+    and all(
+        c.get("duration") is None
+        for c in _p4conds
+        if c.get("duration_status") == "unknown_not_declared"
+    ),
+)
+_p4scope = _p4a["galvanized scope"]["conditionals"]
+check(
+    "镀层氩晶主效果层数未知、子效果5层，时长各12秒",
+    [c["max_stacks"] for c in _p4scope] == [None, 5]
+    and [c["duration"] for c in _p4scope] == [12, 12],
+)
+_p4ff = _p4b["mods"]["fortifying fire"]
+check(
+    "Fortifying Fire 仅合法6级，逐级回盾0.5%至3%，额外3档忽略",
+    _p4ff["max_rank"] == 5
+    and _p4ff["base_drain"] == 6
+    and _p4ff.get("_ignored_level_stats") == 3
+    and len(_p4ff["levels"]) == 6
+    and [level["conditionals"][0]["value"] for level in _p4ff["levels"]] == [0.5, 1, 1.5, 2, 2.5, 3]
+    and not _p4ff["effects"],
+)
+check(
+    "Fortifying Fire A/B 条件协议一致",
+    all(
+        _p4ff["conditionals"][0][k] == _p4a["fortifying fire"]["conditionals"][0][k]
+        for k in ("trigger", "grants", "field", "value", "max_stacks", "duration")
+    ),
+)
+check(
+    "DE采纳：并合弹头扩散满级多重109.5 → 110",
+    _p4b["mods"]["amalgam barrel diffusion"]["effects"]["multishot"] == 110,
+)
+check("DE采纳：压迫点满级容量14 → 9", _p4b["mods"]["pressure point"]["drain_at_max"] == 9)
+check(
+    "DE采纳：惩戒最高等级5 → 3、满级容量11 → 9",
+    _p4b["mods"]["retribution"]["max_rank"] == 3
+    and _p4b["mods"]["retribution"]["drain_at_max"] == 9,
+)
+check(
+    "DE采纳：埋伏射击/上升打击射速从常驻移为条件",
+    all(
+        "fire_rate" not in _p4b["mods"][k]["effects"] and _p4b["mods"][k].get("conditionals")
+        for k in ("lie in wait", "soaring strike")
+    ),
+)
+check(
+    "未重建旧字段明确标注：步枪元素师旧base_dmg保留",
+    "effects.base_dmg" in _p4b["mods"]["rifle elementalist"]["_legacy_fields"]
+    and _p4b["mods"]["rifle elementalist"]["effects"]["base_dmg"] == 90,
+)
+check(
+    "新生成器已替换旧脚本",
+    all((ROOT / "scripts" / n).is_file() for n in ("build_mod_rules.py", "build_mod_levels.py"))
+    and not any(
+        (ROOT / "scripts" / n).exists()
+        for n in ("enrich_mods_from_wfsim.py", "sync_mods_from_wfsim.py")
+    ),
+)
+_p4official = Path("<构建输入目录>/de-export-20261025")
+_p4pep = Path("<构建输入目录>/pep-513105d")
+_p4wiki = Path("<构建输入目录>/wiki-modules-20261026/mods")
+if all(os.path.isdir(p) for p in (_p4official, _p4pep, _p4wiki)):  # 同上
+    for _p4script, _p4file in (
+        ("build_mod_rules", "mods_wfsim_extra.json"),
+        ("build_mod_levels", "mods_stats.json"),
+    ):
+        _p4target = ROOT / "core/data" / _p4file
+        _p4before = hashlib.sha256(_p4target.read_bytes()).hexdigest()
+        _p4args = [
+            "--official",
+            str(_p4official),
+            "--pep",
+            str(_p4pep),
+            "--wiki",
+            str(_p4wiki),
+            "--check",
+        ]
+        _p4proc = subprocess.run(
+            [sys.executable, str(ROOT / "scripts" / (_p4script + ".py")), *_p4args],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        check(
+            f"{_p4script} --check 可复现且不写盘",
+            _p4proc.returncode == 0
+            and hashlib.sha256(_p4target.read_bytes()).hexdigest() == _p4before,
+            _p4proc.stdout + _p4proc.stderr,
+        )
+        # 反向护栏：改动临时产物，--check 应返回1且不能偷偷修复文件。
+        with tempfile.TemporaryDirectory() as _p4tmp:
+            _p4copy = Path(_p4tmp) / _p4file
+            _p4changed = json.loads(_p4target.read_text(encoding="utf-8"))
+            _p4changed["_meta"]["p4_check_negative_probe"] = True
+            _p4copy.write_text(
+                json.dumps(_p4changed, ensure_ascii=False, indent=1) + "\n", encoding="utf-8"
+            )
+            _p4badsha = hashlib.sha256(_p4copy.read_bytes()).hexdigest()
+            _p4code = "import sys; from pathlib import Path; sys.path.insert(0,sys.argv[1]); name=sys.argv[2]; target=sys.argv[3]; rest=sys.argv[4:]; m=__import__(name); m.OUT=Path(target); sys.argv=[name]+rest; r=m.main(); raise SystemExit(r)"
+            _p4bad = subprocess.run(
+                [
+                    sys.executable,
+                    "-c",
+                    _p4code,
+                    str(ROOT / "scripts"),
+                    _p4script,
+                    str(_p4copy),
+                    *_p4args,
+                ],
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            check(
+                f"{_p4script} --check 检出差异且不改临时产物",
+                _p4bad.returncode == 1
+                and hashlib.sha256(_p4copy.read_bytes()).hexdigest() == _p4badsha,
+                _p4bad.stdout + _p4bad.stderr,
+            )
+else:
+    print("[SKIP] 本机无 DE / PEP / MOD wiki 固定快照：跳过 P4-AB --check 正反向复现断言")
+
+# ★ 2026-10-26 P4-AB 接入（Claude）：镀层显示 / 换行 / 派系百分数换算
+_cl = _card(["Soma", "Prime", "镀层氩晶瞄具", "满镀层", "爆头"])
+check(
+    "满镀层：已按层数计入的镀层卡不再列为「条件触发未计入」，层数原文未写的注明按 1 层",
+    any("镀层已计入" in x for x in _cl)
+    and not any(x.startswith("· 条件触发") and "氩晶瞄具" in x for x in _cl)
+    and any("层数原文未写，按 1 层" in x for x in _cl),
+    str([x for x in _cl if "镀层" in x or "条件" in x]),
+)
+check(
+    "不写镀层层数时仍列为「条件触发未计入」",
+    any(
+        x.startswith("· 条件触发") and "分裂膛室" in x for x in _card(["Acceltra", "镀层分裂膛室"])
+    ),
+)
+_ms = json.loads((ROOT / "core" / "data" / "mods_stats.json").read_text(encoding="utf-8"))["mods"]
+check(
+    "mods_stats 条件原文不含回车（DE 原文 \\r\\n 已统一为 \\n）",
+    not any(
+        "\r" in str(c)
+        for v in _ms.values()
+        for c in (v.get("effects") or {}).get("conditional") or []
+    ),
+)
+check(
+    "派系卡 faction_dmg 由 DE 乘数换算（x1.3 → 30），不再标历史保留",
+    _ms["bane of grineer"]["effects"]["faction_dmg"] == 30.0
+    and not _ms["bane of grineer"].get("_legacy_fields")
+    and _ms["primed bane of grineer"]["effects"]["faction_dmg"] == 55.0,
+    str(_ms["primed bane of grineer"]["effects"]),
+)
+
+# ★ 2026-10-26：只剩变体词时不做子串模糊匹配（「布拉顿 Prime」此前被配成翁 Prime 照算）
+check(
+    "is_variant_only：只有变体词（Prime / 赤毒 / Vandal / p）拦截；正常名与变体前缀写法不受影响",
+    all(dc.is_variant_only(q) for q in ("Prime", "赤毒", "Vandal", "p"))
+    and not any(dc.is_variant_only(q) for q in ("布莱顿 Prime", "绝路p", "赤毒沙皇", "Soma")),
+)
+
+
+def _wname(cmd):
+    _s, _nt = dc.parse_args(cmd.split())
+    _q = " ".join(_nt).strip()
+    _w = None if dc.is_variant_only(_q) else dc.find_weapon(_q)[0]
+    return _w and _w["name"]
+
+
+check(
+    "伤害指令入口：「布拉顿 Prime」不再配成翁 Prime；Tenet / 棱晶 前缀写法仍认对变体",
+    _wname("布拉顿 Prime 膛线") is None
+    and _wname("Tenet Arca Plasmor") == "Tenet Arca Plasmor"
+    and _wname("棱晶 Gorgon") == "Prisma Gorgon"
+    and _wname("赤毒 布拉玛 分裂膛室") == "Kuva Bramma",
+)
+
+
+# ★ 2026-10-26 条件扫描扩展：源文案正反护栏，禁止跨武器效果降格。
+sys.path.insert(0, str(ROOT / "scripts"))
+_opt_rules = __import__("build_mod_rules")
+
+
+def _opt_parse(text):
+    return _opt_rules.parse_scanned_conditionals(
+        {"fusionLimit": 0, "levelStats": [{"stats": [text]}]}, "DE fixture"
+    )
+
+
+_opt_new = {
+    "double tap": ("base_dmg", 20, 2),
+    "final tap": ("base_dmg", 100, 0.2),
+    "gorgon frenzy": ("fire_rate", 30, 3),
+    "sudden justice": ("fire_rate", 30, 2),
+    "triple tap": ("base_dmg", 40, 0.2),
+    "vigorous swap": ("base_dmg", 165, 3),
+}
+check("条件扫描范围来自439张计算卡", _p4a["_meta"]["conditional_scan_cards"] == len(_ms) == 439)
+check(
+    "新增6卡字段数值时长来自DE且保留条件原文",
+    all(
+        [(c["field"], c["value"], c["duration"]) for c in _p4a[n]["conditionals"]] == [want]
+        and all(c["condition_text"] and c["mappable"] for c in _p4a[n]["conditionals"])
+        for n, want in _opt_new.items()
+    ),
+)
+_opt_biotic_text = "On Weak Point Kill:\n+150% Viral and Magnetic Damage and Status Chance for 15s"
+_opt_biotic, _opt_biotic_audit = _opt_parse(_opt_biotic_text)
+check(
+    "复合元素与异常效果不能完整映射时整句跳过、原文审计保留",
+    not _opt_biotic
+    and any(
+        row["raw"] == _opt_biotic_text and row["status"] == "skipped" for row in _opt_biotic_audit
+    )
+    and "conditionals" not in _p4a.get("biotic rounds", {})
+    and any(
+        row["name"] == "biotic rounds"
+        and row["raw"] == _opt_biotic_text
+        and row["status"] == "skipped"
+        for row in _p4a["_meta"]["conditional_scan_audit"]
+    ),
+)
+_opt_status, _opt_status_audit = _opt_parse("On Kill:\n+150% Status Chance for 15s")
+check(
+    "完整简单异常几率效果仍可映射",
+    len(_opt_status) == 1
+    and not _opt_status_audit
+    and _opt_status[0]["field"] == "status_chance"
+    and _opt_status[0]["value"] == 150
+    and _opt_status[0]["duration"] == 15,
+)
+_opt_unknown, _ = _opt_parse("On Kill:\n+30% Fire Rate")
+check(
+    "未声明层数和时长均null并标unknown，不补1",
+    len(_opt_unknown) == 1
+    and _opt_unknown[0]["max_stacks"] is None
+    and _opt_unknown[0]["duration"] is None
+    and _opt_unknown[0]["max_stacks_status"] == "unknown_not_declared"
+    and _opt_unknown[0]["duration_status"] == "unknown_not_declared",
+)
+_opt_window, _ = _opt_parse("On 2 Hits within 0.2s:\n+30% Fire Rate for 2s")
+check(
+    "连击计数窗口保留完整条件原文",
+    len(_opt_window) == 1 and "2 Hits within 0.2s" in _opt_window[0]["condition_text"],
+)
+for _opt_text in (
+    "On Hit:\n+20% Secondary Weapon Fire Rate for 3s",
+    "On Melee Kill:\n+100% Reload Speed\n+100% Magazine Capacity for 12s on Secondary Weapon",
+    "On 6 Melee Kills within 6s:\n+120% Status and Critical Chance for Secondary Weapon for 24s",
+    "On Consecutive throw (Max stacks 3):\n+100% Throw Damage",
+    "On Equip:\nSquad gains 60% Weapon Damage for 3s",
+    "On Unknown Trigger:\n+30% Fire Rate for 2s",
+    "On Hit:\n+30% Fire Rate for 2s only with unsupported target",
+):
+    _opt_effects, _opt_audit = _opt_parse(_opt_text)
+    check(
+        "未支持作用域明确跳过并留审计：" + _opt_text.split("\n")[0],
+        not _opt_effects and bool(_opt_audit),
+    )
+check(
+    "跨武器Plan B、兽王标记、连击狂怒不新增自增条件",
+    all(
+        "conditionals" not in _p4a.get(n, {}) for n in ("plan b", "mark of the beast", "combo fury")
+    ),
+)
+
+# ★ 2026-10-26：武器名写错时提示按原文显示（「没找到『布拉顿 Prime』」，此前显示「没找到『Prime』」）
+from core.commands.wiki_misc import WikiMiscCommands  # noqa: E402
+from core.parser import Parsed  # noqa: E402
+
+_dr = WikiMiscCommands.__new__(WikiMiscCommands)._damage_reply
+check(
+    "伤害指令：武器名写错时回复「没找到『布拉顿 Prime』」并列出没认出的词，不配到别的武器",
+    _dr(Parsed(content="布拉顿 Prime 膛线".split())).lines[:2]
+    == ["◆ 原因：武器库里没找到「布拉顿 Prime」", "◆ 没认出来的词：布拉顿"],
+    str(_dr(Parsed(content="布拉顿 Prime 膛线".split())).lines[:2]),
 )
 
 print()

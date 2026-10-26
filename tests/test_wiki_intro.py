@@ -243,7 +243,11 @@ if WI.available():
     # MOD 效果行的真实数值不能被误伤
     _ser = WI.intro("膛线")
     _stext = "\n".join(_ser[1]) if _ser else ""
-    check("★ MOD 效果数值完好（膛线 伤害 +40%）", "伤害 +40%" in _stext, _stext[:150])
+    check(
+        "★ MOD 效果数值完好（膛线 满级 伤害 +165%；同名取满级最高，10-25）",
+        "伤害 +165%" in _stext,
+        _stext[:150],
+    )
     # 效果行汉化（自建翻译表；DE 导出没有这些整句的中文）
     _ww = WI.intro("创口溃烂")
     _wt = "\n".join(_ww[1]) if _ww else ""
@@ -808,4 +812,13 @@ check(
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")
     sys.exit(1)
+
+# ★ 2026-10-25（Astra 真实宿主补测）：同名多条（膛线 满级 3 / 5 / 10）取满级最高的那条
+_t_ser, _l_ser = WI.intro("膛线")
+check(
+    "★ wiki 膛线：取满级 10（+165%），不取满级 3 的旧条目",
+    any("满级 10" in x for x in _l_ser) and not any("满级 3" in x for x in _l_ser),
+    str(_l_ser[:3]),
+)
+
 print("\n全部通过 ✔")

@@ -1,6 +1,6 @@
 {
  "_wiki_url": "https://wiki.warframe.com/w/Riven_Mods/Weapon_Dispos",
- "_生成条数": 670,
+ "_生成条数": 667,
  "_说明": "倾向补全/覆盖表（细粒度值）。主源 wiki.warframe.com/w/Riven_Mods/Weapon_Dispos（维护者确认唯一权威），riven-mirror 兜底；zh=WM i18n 或 DE 官方简中表；riven_type/group 继承 WM 基类。运行期 api_client.wm_riven_weapons() 用本表覆盖同名条目 disposition 并追加缺失（WM 手工值滞后于平衡补丁）。由 scripts/build_disposition.py 生成。",
  "entries": {
   "AX-52": {
@@ -1319,13 +1319,6 @@
    "url_name": "dual_zoren_prime",
    "zh": "佐伦双斧 Prime"
   },
-  "EFV-0 Somnus": {
-   "disposition": 0.5,
-   "group": "",
-   "riven_type": "",
-   "url_name": "efv-0_somnus",
-   "zh": ""
-  },
   "EFV-5 Jupiter": {
    "disposition": 1.05,
    "group": "primary",
@@ -1984,13 +1977,6 @@
    "url_name": "karyst_prime",
    "zh": "凯洛斯特 Prime"
   },
-  "Keles": {
-   "disposition": 1.2,
-   "group": "",
-   "riven_type": "",
-   "url_name": "keles",
-   "zh": ""
-  },
   "Keratinos": {
    "disposition": 1.05,
    "group": "melee",
@@ -2235,13 +2221,6 @@
    "riven_type": "rifle",
    "url_name": "kuva_karak",
    "zh": "赤毒·卡拉克"
-  },
-  "Kuva Keles": {
-   "disposition": 0.7,
-   "group": "",
-   "riven_type": "",
-   "url_name": "kuva_keles",
-   "zh": ""
   },
   "Kuva Kohm": {
    "disposition": 0.9,

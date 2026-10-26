@@ -1091,14 +1091,13 @@ BURST_FIX: dict[str, tuple] = {
 #   弓 1 / (蓄力时间 + 装填时间)（弹匣 1，每发后装填）；Lanka 1 / 蓄力时间（「does not have a delay
 #   between charged shots」）。下表 = 不付「1/射速」那一项的（chargeCadence = "draw"）：wiki 模块
 #   Class = "Bow" 的全部 + Lanka。Epitaph / Epitaph Prime（b7 批移出）：wiki 只说它是一般式的例外、
-#   没给公式 ⇒ 按 wfsim：非弓类一律 DrawThenRate = 蓄力 + 1/射速（engine/src/data/weapons/panel.rs:
-#   510-515、fight/melee.rs:530-540；Epitaph 无实测）；b6 批按弓式处理属推断。
+#   没给公式 ⇒ b7 批曾按第三方模拟器口径（非弓类 = 蓄力 + 1/射速）处理；b6 批按弓式处理属推断。
 #   ★ b10 批（视频逐帧实测）定案：满蓄力 = 一般式 蓄力 + 1/射速，且不装填（见下方 NO_RELOAD_FIX；
 #   b8 批的 max(蓄力, 1/射速) 推断已被实测否定）。
-#   弓的「未蓄力」默认主段（蓄力 0）：wiki 未单列 ⇒ 按 wfsim「只付上弦」（*_uncharged.yaml
-#   charge_seconds 0.0 + DrawOnly，M16 只有方案、未出结果），计算器 cadence_fire_rate 实现。
+#   弓的「未蓄力」默认主段（蓄力 0）：wiki 未单列 ⇒ 暂按「只付上弦」口径（未经实测，待视频核），
+#   计算器 cadence_fire_rate 实现。
 #   蓄力时间本身取 weapon_attacks.json 的
-#   charge_seconds（wfsim；逐把与 wiki ChargeTime 一致，唯一差异 Prisma Lenz 0.8：wiki 模块抄了
+#   charge_seconds（wiki ChargeTime，2026-10-26 起由 scripts/build_weapon_attacks.py 生成；Prisma Lenz 0.8：wiki 模块抄了
 #   Lenz 的 1.2，wiki Fire Rate 列表与 Prisma Lenz 页「faster Charge Time」均为 0.8）。
 #   值 = (名字, 出处 wiki Module:Weapons/data/<模块>:<武器块起始行>)。
 CHARGE_DRAW_ONLY: dict[str, tuple] = {
@@ -1144,12 +1143,12 @@ CHARGE_DRAW_ONLY: dict[str, tuple] = {
 # wfsim attack.ammo_cost 一致，唯一分歧 Kuva Nukor（wfsim 0.5、wiki secondary:5055 为 1 ⇒ 按 wiki 不填）。
 AMMO_COST_FIX: dict[str, tuple] = {
     # 2026-10-16：wiki《Arbucep》Codex「simultaneously fires six homing rockets」（每枚独立攻击、弹匣 36）
-    #   ⇒ 一次扣扳机耗 6 发；wfsim d73ecfc 将 arbucep.yaml ammo_cost 1→6（实测 M112）。
+    #   ⇒ 一次扣扳机耗 6 发（第三方模拟器的实测 M112 与之一致，仅作交叉核对）。
     #   原先按 1 发算：弹匣时间 24 s（实为 4 s），持续 DPS 高估约 38%。
     "/lotus/weapons/tenno/archwing/primary/nokkoarchgun/nokkoarchgun": (
         "Arbucep",
         6,
-        "archgun: Codex six rockets + wfsim M112",
+        "archgun: Codex six rockets",
     ),
     "/lotus/weapons/corpus/longguns/chainlightninggun/chainlightningrifle": (
         "Amprex",
@@ -1642,140 +1641,8 @@ def build_weapons() -> dict:
 
 
 # ---------------------------------------------------------------------------
-# 3) 敌人基础数值（来源：极镜 riven-mirror 的 codex/enemy.ts）
-#    [name, faction, baseLevel, baseHealth, baseShield, baseArmor, …, headMul]
-#    只有「基准值 + 基准等级」是这里独有的——现行 U36 抗性规则仍走 damage_faction.json
-# ---------------------------------------------------------------------------
-# 极镜的 EnemyFaction 枚举序（0 Tenno / 1 Grineer / 2 Corpus / 3 Infested /
-# 4 Orokin(堕落) / 5 Sentient / 6 Wild）
-_FACTIONS = ["Tenno", "Grineer", "Corpus", "Infested", "Orokin", "Sentient", "Wild"]
-
-# 英文名 -> 官方简中（沿用插件里那张人工核过的表，只收有把握的；其余留英文）
-_ENEMY_ZH = {
-    "Ancient Disruptor": "远古干扰者",
-    "Ancient Healer": "远古治愈者",
-    "Boiler": "痈裂者",
-    "Brood Mother": "病变虫母",
-    "Charger": "疾冲者",
-    "Crawler": "爬行者",
-    "Leaper": "奔跳者",
-    "Runner": "狂奔者",
-    "Anti MOA": "逆进恐鸟",
-    "MOA": "恐鸟",
-    "Fusion MOA": "熔岩恐鸟",
-    "Crewman": "船员",
-    "Elite Crewman": "精英船员",
-    "Nullifier Crewman": "虚能船员",
-    "Corrupted Nullifier": "堕落虚能者",
-    "Butcher": "屠夫",
-    "Flameblade": "焰刃",
-    "Powerfist": "强拳",
-    "Scorpion": "天蝎",
-    "Shield Lancer": "盾枪兵",
-    "Ballista": "弩炮",
-    "Eviscerator": "开膛者",
-    "Hellion": "行刑者",
-    "Lancer": "枪兵",
-    "Elite Lancer": "精英枪兵",
-    "Scorch": "怒焚者",
-    "Seeker": "追踪者",
-    "Trooper": "骑兵",
-    "Bombard": "轰击者",
-    "Commander": "指挥官",
-    "Drahk Master": "爪喀驯兽师",
-    "Heavy Gunner": "重型机枪手",
-    "Hyekka Master": "鬣猫驯兽师",
-    "Manic": "狂躁者",
-    "Napalm": "火焰轰击者",
-    "Nox": "诺克斯",
-    "Ghoul Auger": "尸鬼钻地者",
-    "Ghoul Devourer": "尸鬼吞噬者",
-    "Ghoul Expired": "尸鬼腐化者",
-    "Ghoul Rictus": "尸鬼狞笑者",
-    "Grineer Warden": "Grineer 典狱长",
-    "Sensor Regulator": "传感器调节器",
-    "Corrupted Ancient": "远古堕落者",
-    "Corrupted Bombard": "堕落轰击者",
-    "Corrupted Butcher": "堕落屠夫",
-    "Corrupted Crewman": "堕落船员",
-    "Corrupted Heavy Gunner": "堕落重型机枪手",
-    "Corrupted Lancer": "堕落枪兵",
-    "Corrupted MOA": "堕落恐鸟",
-    "Bailiff": "法警",
-    "Wolf of Saturn Six": "土星六号之狼",
-    "Eidolon Teralyst": "夜灵兆力使",
-    "Eidolon Gantulyst": "夜灵巨力使",
-    "Eidolon Hydrolyst": "夜灵水力使",
-    "Profit-Taker Orb": "利润收割者圆蛛",
-    "Tusk Butcher": "巨牙屠夫",
-    "Tusk Lancer": "巨牙枪兵",
-    "Tusk Bombard": "巨牙轰击者",
-    "Tusk Predator": "巨牙掠食者",
-    "Kuva Lich": "赤毒玄骸",
-    "Kuva Guardian": "赤毒守卫者",
-    "Narmer Lancer": "合一众枪兵",
-    "Deimos Carnis": "魔胎之境的肉类",
-    "Juno Crewman": "朱诺船员",
-    "Terra Crewman": "泰拉船员",
-    "Terra MOA": "泰拉恐鸟",
-    "Terra Provisor": "泰拉供给者",
-    "Vapos Crewman": "瓦波斯船员",
-    "Murex": "骨螺",
-    "Thrax Centurion": "凶魂百夫长",
-    "Thrax Legatus": "凶魂使节",
-    "Corrupted Vor": "堕落的 Vor",
-}
-
-
-def build_enemies() -> dict:
-    # ⚠ 这里写出的是 riven-mirror **全表**（约 92 条）；必须再跑 scripts/merge_wfsim_enemies.py，
-    #   它合并 wfsim、打爆头补丁，并按 KEEP_ENEMIES（2026-10-10 维护者定的 19 个常用敌人）
-    #   删掉其余条目、补官方中文名 —— 不跑它，删掉的敌人会被加回来。
-    src = CACHE / "codex_enemy.ts"
-    if not src.exists():
-        print("⚠️ 跳过敌人表：缺 " + str(src))
-        return {}
-    txt = src.read_text(encoding="utf-8", errors="ignore")
-    body = txt[txt.index("const _enemyList = [") : txt.index("] as [string")]
-    rows = re.findall(r'\["([^"]+)"((?:\s*,\s*[^,\]]*)*)\]', body)
-    out: dict[str, dict] = {}
-    for name, tail in rows:
-        parts = [p.strip() for p in tail.split(",")][1:]  # 第一段是空串
-        vals = [None if p == "" else float(p) for p in parts]
-
-        def g(i, default=0.0):
-            return vals[i] if i < len(vals) and vals[i] is not None else default
-
-        rec = {
-            "name": name,
-            "zh": _ENEMY_ZH.get(name, ""),
-            "faction": _FACTIONS[int(g(0))] if vals and vals[0] is not None else "",
-            "base_level": int(g(1, 1)),
-            "base_health": g(2),
-            "base_shield": g(3),
-            "base_armor": g(4),
-            # 2 是 riven-mirror 的通用约定、非逐敌值；重建后须再跑
-            # scripts/merge_wfsim_enemies.py（含 --head-only 爆头补丁）改成真实值或 null
-            "head_mul": g(10, 2),
-        }
-        out[name] = rec
-    (DATA / "enemies.json").write_text(
-        json.dumps(
-            {
-                "_meta": {
-                    "source": "riven-mirror src/warframe/codex/enemy.ts",
-                    "retrieved": "2026-09-16",
-                    "note": "仅取基准数值与基准等级；抗性规则以 damage_faction.json 为准",
-                },
-                "enemies": out,
-            },
-            ensure_ascii=False,
-            indent=1,
-        ),
-        encoding="utf-8",
-    )
-    print(f"enemies.json：{len(out)} 条（有中文名 {sum(1 for v in out.values() if v['zh'])}）")
-    return out
+# 3) 敌人基础数值：2026-10-26 起改由 scripts/build_enemies.py 生成（wiki Module:Enemies/data + PEP
+#    ExportEnemies，wfsim 迁移 P4-C）；本脚本不再写 enemies.json（原 riven-mirror codex/enemy.ts 全表）。
 
 
 # ---------------------------------------------------------------------------
@@ -2170,5 +2037,4 @@ if __name__ == "__main__":
     build_faction_table()
     build_weapons()
     build_arcanes()
-    build_enemies()
     build_mods()

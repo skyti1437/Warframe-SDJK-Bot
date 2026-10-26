@@ -346,9 +346,50 @@ async def terminate_checks() -> None:
     check("client 关闭后请求直接报「插件已卸载」，不发出", "已关闭" in why, why)
 
 
+async def dot_status_dispatch_checks() -> None:
+    """★ 2026-10-25（Astra 真实宿主补测）：群管理员发 `.状态` 静默 —— 点号分支只发 raw_text，
+    而 `.状态` 返回图卡（lines）。走完整 on_message 分发，断言**确有输出**且走出图流程。"""
+    tmp = Path(tempfile.mkdtemp())
+    obj = _make_plugin(tmp)
+    obj.subs = types.SimpleNamespace(for_umo=lambda _u: [])
+    obj.client = types.SimpleNamespace(
+        cache=types.SimpleNamespace(stats=lambda: {"size": 0, "hit_rate": 0.0})
+    )
+    built: list = []
+
+    async def _fake_build(event, reply, parsed):
+        built.append(reply)
+        yield "IMG"
+
+    obj._build_results = _fake_build
+
+    class _Ev(_AdminEvent):
+        message_str = ".状态"
+
+        def plain_result(self, text):
+            return ("TEXT", text)
+
+        def stop_event(self):
+            pass
+
+    out = [r async for r in obj.on_message(_Ev())]
+    check(
+        "★ 管理员 .状态 有输出（图卡走出图流程，不再发空串）",
+        out == ["IMG"] and built and built[0].lines and built[0].raw_text is None,
+        str(out),
+    )
+    out2 = [r async for r in obj.on_message(type("E", (_Ev,), {"message_str": ".默认平台"})())]
+    check(
+        "纯文字管理回复照旧直接发文字",
+        len(out2) == 1 and out2[0][0] == "TEXT" and out2[0][1],
+        str(out2),
+    )
+
+
 if __name__ == "__main__":
     asyncio.run(main())
     asyncio.run(terminate_checks())
+    asyncio.run(dot_status_dispatch_checks())
     print()
     if FAILED:
         print(f"共 {len(FAILED)} 项失败：{FAILED}")

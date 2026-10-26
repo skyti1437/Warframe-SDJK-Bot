@@ -1,24 +1,19 @@
 # -*- coding: utf-8 -*-
 """紫卡**词条池**：按武器判断哪些词条刷得出（「词条范围」指令的过滤层）。
 
-口径照搬 wfsim（`engine/src/build/rivens/pools.rs`），三层证据，**优先级从高到低**：
+★ 2026-10-25 起**不再使用 wfsim 数据**（维护者定：wfsim 派生数据改为从游戏数据自己生成；
+Astra 评估许可 L1）。数据表 `core/data/de/riven_pools.json` 由 `scripts/build_riven_pools.py`
+从 DE 官方 Public Export + warframe-public-export-plus（MIT）+ 我方 WM 抽样生成。判据：
 
-1. **逐家族证据**（`core/data/de/riven_pools.json` 的 `never` / `rolls` / `survey`）——
-   来自 WM 在售紫卡抽样与人工实卡（wfsim 的 `exceptions.yaml` / `physical.yaml` /
-   `pools.yaml`）。`never` = 该家族刷不出；`rolls` = 规则说刷不出但**实际能出**。
-2. **按武器自身推导**（本模块 `derived_for`）：守护武器无变焦 / 后坐力；无弹药池
-   无弹药上限；无飞行弹道且无伤害衰减无弹道速度；物理三项按 25% 份额**只标未确认**。
-3. **职业池**（`core/riven_analysis._BASE` 的 None 列 + 本文件的 `class_pools`
-   正负限制）—— 该职业根本没有这个词条就列不出来。
-
-★ 与 wfsim 的一处**有意差异**：wfsim 的计算路径刻意不读 `pools.yaml`（怕一次坏抓取
-把池全改掉），本插件按维护者 2026-10-23 指令把它的 `never` / `rollable` 也并进逐家族
-证据。理由：那份抽样已**冻结进仓库**（不是运行期抓取），且它只**移除**「500 条挂单
-里一条都没出现」的词条 —— 方向与「宁可少列不可错列」一致。
-
-★ 物理三项（冲击 / 穿刺 / 切割）**不由规则删除**：wiki 那条「占比 ≤25% 刷不出」
-两个方向都有反例（Ocucor 0% 切割能出、Phenmor 30% 穿刺不出），所以规则命中的物理
-词条进 `unconfirmed` —— 卡上照列但标「?」，等家族证据表态。
+1. **职业池**（`class_pools`）：DE 官方现行紫卡模板的词条清单；每个词条能否正 / 负、限制条件
+   （DamageTypes / NotSentinel / NotGrimoire）；`_BASE` 该列为 None 的不列（拿不到基值画不出区间）。
+2. **DE 规则排除**（`derived_for`）：守护武器 / 魔典按限制条件排除；没有 PROJECTILE 标签的
+   不出弹道速度。
+3. **物理三项**（冲击 / 穿刺 / 切割）按 DE 的 ``DamageTypes`` 限制：武器该伤害占比 ≤25% 不列
+   （wiki 与 riven-roll 同一口径）。2026-10-25 维护者定：wfsim 物理证据去掉后按规则删、再用我方抽样纠偏
+   —— 规则与旧证据 84% 一致，两向各约 50 条分歧（Ocucor 0% 切割能出、Phenmor 30% 穿刺不出这类），
+   待服务器上对物理词条补一轮 WM 抽样后由 `survey` 纠正。
+4. **我方抽样**（`survey`）：见过 ⇒ 照列（实证压过规则，含物理三项）；没见过 ⇒ 标「?」照列，注明样本时间。
 """
 
 from __future__ import annotations
@@ -84,29 +79,44 @@ def _norm(name: str) -> str:
     return re.sub(r"[^a-z0-9]", "", (name or "").lower())
 
 
-# 职业池的**例外**：DE 的导出池文件（`class_pools`）滞后于热修时按这里放行。
-# 2026-10-07 实测依据：Update 44 Hotfix 44.0.3 补丁说明原文
-# 「Shotgun Rivens can now roll Zoom stats」（为 Riven Splicer 铺路）；
-# 我方 `_BASE["zoom"]` 的霰弹枪列（41.994）即按此补录，而 wfsim 的
-# `data/rivens/shotgun.yaml` 尚未含 `WeaponZoomFovMod` ⇒ 上游镜像落后。
-_POOL_EXTRA = {"shotgun": {"zoom"}}
-
-
 def class_pool(cls: str) -> dict:
-    """该职业池的词条正负限制：``{词条 id: {"bonus": bool, "malus": bool}}``。"""
-    return (_load_pools().get("class_pools") or {}).get(cls) or {}
+    """该职业池：``{词条 id: {"bonus", "malus", "spliced", "buff_restr"?, "curse_restr"?}}``（副本）。
+
+    2026-10-25 起由 `scripts/build_riven_pools.py` 从 DE 官方导出（现行词条清单）+ PEP（正负与限制）
+    生成，已含 44.0.3 霰弹枪变焦、近战 9 个融合词条、近战「近战伤害」不出负面 —— 原先手工打的三处
+    补丁（_POOL_EXTRA / _POOL_PATCH / _POOL_OVERRIDE）与新数据逐项一致，已删除。
+    """
+    return {
+        k: dict(v) for k, v in ((_load_pools().get("class_pools") or {}).get(cls) or {}).items()
+    }
 
 
 def _pool_ids(cls: str) -> set:
-    """该职业**有**哪些词条：以 DE 导出的职业池为真源（+ `_POOL_EXTRA` 热修例外）。
+    """该职业**有**哪些词条（DE 官方现行紫卡模板）。
 
     为什么不用 `_BASE` 的非 None 列当唯一判据：`_BASE` 是 wiki 表的手工转录，
     `attack_speed` / `fire_rate` 两行数值相同且**列列都有值** ⇒ 单用它会让霰弹枪
     同时列出「射速」与「攻速」（只有近战才有攻速）。DE 的导出池是按职业列的真源。
     """
-    ids = set(class_pool(cls))
-    ids |= _POOL_EXTRA.get(cls) or set()
-    return ids
+    return set(class_pool(cls))
+
+
+_KEY_INDEX: Optional[dict] = None
+
+
+def _family_key_index() -> dict:
+    """``families`` 键的**小写索引**（小写键 → 真实键）。
+
+    为什么需要：生成器给「家族表里还没有的新武器」按 ``name:<英文名>`` 存键并**保留原大小写**
+    （如 ``name:Aksondol``），而 `matching.family_key` 对查不到的武器名返回**小写**形式
+    （``aksondol``）⇒ 精确查键必然落空，整条抽样证据被静默丢掉。
+    2026-10-26 部署实测：Aksondol（P1 新增武器）的「抽样注脚」从来不出现。
+    """
+    global _KEY_INDEX
+    if _KEY_INDEX is None:
+        fams = _load_pools().get("families") or {}
+        _KEY_INDEX = {str(k).lower(): k for k in fams}
+    return _KEY_INDEX
 
 
 def family_entry(family_root: str) -> dict:
@@ -114,7 +124,15 @@ def family_entry(family_root: str) -> dict:
     if not family_root:
         return {}
     fams = _load_pools().get("families") or {}
-    return fams.get(family_root) or fams.get(f"wf:{family_root}") or {}
+    # 家族表里还没有的新武器，生成器按 `name:<英文名>` 存（family_members 对它们返回原名作根）
+    for key in (family_root, f"name:{family_root}"):
+        if key in fams:
+            return fams[key]
+    # 兜底：大小写无关（`family_key` 对新武器返回小写、生成器保留原大小写）
+    low = str(family_root).lower()
+    idx = _family_key_index()
+    real = idx.get(low) or idx.get(f"name:{low}")
+    return (fams.get(real) or {}) if real else {}
 
 
 _FAM_TABLE: Optional[dict] = None
@@ -195,60 +213,79 @@ def _flies(recs: list[dict]) -> bool:
     return False
 
 
-def derived_for(cls: str, family_root: str, members: list[str]) -> set[str]:
-    """**规则推导**出的排除项（不含物理三项，物理只进 `unconfirmed_for`）。
+def derived_for(
+    cls: str, family_root: str, members: list[str], *, positive: bool = True
+) -> set[str]:
+    """**按 DE 规则**排除的词条（不含物理三项，物理只进 `unconfirmed_for`）。
 
-    Args:
-        cls: 武器基值列名（rifle / shotgun / pistol / archgun / melee）。
-        family_root: 我方家族根（查「无弹药池」用）。
-        members: 家族成员英文名（判守护 / 飞行 / 物理占比用；一张紫卡全家族通用）。
+    2026-10-25 起按 DE 自己的限制条件判（`class_pools` 的 buff_restr / curse_restr）：
+      · 守护武器（家族全员 SentinelWeapons）⇒ 排除带 ``NotSentinel`` 的词条（弹药上限 / 后坐力 / 变焦，
+        近战的连击类、滑行暴击、处决伤害等）；
+      · 魔典 ⇒ 排除带 ``NotGrimoire`` 的词条；
+      · 没有 ``PROJECTILE`` 兼容标签 ⇒ 排除弹道速度（DE 的弹道速度词条要求该标签）。
+    家族表里没有这些属性（武器数据缺失）时退回按 weapons_stats 推断。原「无弹药池不出弹药上限」
+    是 wfsim 的推断，DE 规则里没有这条限制，已删除。
     """
-    recs = _family_weapons(members)
+    fam = family_entry(family_root)
+    has_data = "projectile" in fam
+    recs = [] if has_data else _family_weapons(members)
+    sentinel = (
+        bool(fam.get("sentinel"))
+        if has_data
+        else bool(recs) and all(_SENTINEL_CAT in (v.get("category") or "").lower() for v in recs)
+    )
+    grimoire = bool(fam.get("grimoire"))
+    key = "buff_restr" if positive else "curse_restr"
     out: set[str] = set()
-    # 守护武器：没人给守护武器瞄准 ⇒ 无变焦、无后坐力（家族**每个**成员都是守护才算）
-    if recs and all(_SENTINEL_CAT in (v.get("category") or "").lower() for v in recs):
-        out |= {"zoom", "recoil"}
-    # 无弹药池：无穷大的百分比不是词条（证据表里的 no_ammo_pool 由 wfsim 武器数据算出）
-    if (family_entry(family_root) or {}).get("no_ammo_pool"):
-        out.add("ammo_max")
-    # 没有东西可作用：既不是弹道、也没有伤害衰减 ⇒ 弹道速度无意义
-    if recs and not _flies(recs):
+    for sid, lim in class_pool(cls).items():
+        restr = set(lim.get(key) or [])
+        if (sentinel and "NotSentinel" in restr) or (grimoire and "NotGrimoire" in restr):
+            out.add(sid)
+    projectile = fam.get("projectile") if has_data else (bool(recs) and _flies(recs))
+    if not projectile and (has_data or recs):
         out.add("projectile_speed")
     return out
 
 
-def unconfirmed_for(cls: str, family_root: str, members: list[str]) -> set[str]:
-    """**未确认**的物理词条：25% 份额规则会拒绝、但家族证据没表态的那些。"""
-    ev = family_entry(family_root)
-    spoken = set(ev.get("never") or []) | set(ev.get("rolls") or [])
-    survey = ev.get("survey") or {}
-    spoken |= set(survey.get("never") or []) | set(survey.get("rollable") or [])
+def physical_excluded(members: list[str]) -> set[str]:
+    """物理三项里**占比 ≤25%** 的（DE DamageTypes 限制；份额取家族内任一形态的最大值）。"""
     recs = _family_weapons(members)
     if not recs:
         return set()
     shares = _physical_shares(recs)
-    out = set()
-    for sid in PHYSICAL_STATS:
-        slug = sid.split("_")[0]  # impact_damage → impact
-        if shares.get(slug, 0.0) <= 0.25 and sid not in spoken:
-            out.add(sid)
-    return out
+    return {sid for sid in PHYSICAL_STATS if shares.get(sid.split("_")[0], 0.0) <= 0.25}
 
 
-def excluded_for(cls: str, family_root: str, members: list[str]) -> set[str]:
-    """该武器刷不出的词条（规则 + 逐家族证据合并；物理三项只由证据拒绝）。"""
-    out = {s for s in derived_for(cls, family_root, members) if s not in PHYSICAL_STATS}
-    ev = family_entry(family_root)
-    for sid in ev.get("rolls") or []:  # 证据说能出 ⇒ 从排除里去掉（压过规则）
-        out.discard(sid)
-    for sid in ev.get("never") or []:
-        out.add(sid)
-    survey = ev.get("survey") or {}
+def unconfirmed_for(cls: str, family_root: str, members: list[str]) -> set[str]:
+    """**未确认**的词条（卡上标「?」）。2026-10-25 起物理三项按规则直接删，这里不再有规则项；
+    「?」只剩 `survey_unseen`（我方抽样没见过的）。保留函数供调用方合并。"""
+    return set()
+
+
+def excluded_for(
+    cls: str, family_root: str, members: list[str], *, positive: bool = True
+) -> set[str]:
+    """该武器刷不出的词条：DE 规则排除；我方抽样**见过**的词条照列（实证压过规则）。
+
+    抽样「没见过」不排除（`survey_unseen` 标「?」照列，2026-10-25 Astra 评估）。
+    """
+    out = {
+        s
+        for s in derived_for(cls, family_root, members, positive=positive)
+        if s not in PHYSICAL_STATS
+    }
+    out |= physical_excluded(members)
+    survey = family_entry(family_root).get("survey") or {}
     for sid in survey.get("rollable") or []:
         out.discard(sid)
-    for sid in survey.get("never") or []:
-        out.add(sid)
     return out
+
+
+def survey_unseen(family_root: str) -> tuple[set, dict]:
+    """我方 WM 挂单抽样里没见过的词条 ``(id 集合, {"surveyed": 日期, "n": 样本量})``。"""
+    survey = family_entry(family_root).get("survey") or {}
+    ids = set(survey.get("never") or []) - set(survey.get("rollable") or [])
+    return ids, {"surveyed": survey.get("surveyed") or "", "n": survey.get("n") or 0}
 
 
 def available(
@@ -270,8 +307,8 @@ def available(
     idx = _CLASS_IDX.get(cls)
     if idx is None:
         return [], set()
-    excl = excluded_for(cls, family_root, members)
-    unc = unconfirmed_for(cls, family_root, members)
+    excl = excluded_for(cls, family_root, members, positive=positive)
+    unc = unconfirmed_for(cls, family_root, members) | survey_unseen(family_root)[0]
     pool = class_pool(cls)
     in_pool = _pool_ids(cls)
     out = []

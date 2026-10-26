@@ -1,15 +1,36 @@
 {
  "_meta": {
-  "source": "github.com/magenie33/wfsim data/weapons/**（顶层 co_behavior；只收默认形态（default_form，或 build_weapon_attacks.MAIN_FORM_OVERRIDE 指定的我方主段）与 form: incarnon 两种形态）",
+  "source": "英文 wiki Condition Overload (Mechanic) Attack Catalog（CC BY-NC-SA 3.0）：Multiplying = independent，N/A / Does not apply = inert；只收默认主段（base）与灵化形态（incarnon）两槽；另加用户逐把核实的补充行（_wiki_weapons.USER_VERIFIED_CO_ROWS）",
   "values": "additive_with_base_damage（缺省，不写）/ independent / inert",
-  "generator": "scripts/build_co_behavior.py",
-  "wfsim_commit": "f1d988b592d683f8e639864707609300cb3107bb"
+  "wiki_snapshot": "wiki-modules-20261026",
+  "generator": "scripts/build_co_behavior.py"
  },
  "weapons": {
+  "/lotus/types/friendly/pets/moapets/moapetcomponents/cryoxionweapon": {
+   "base": "independent"
+  },
+  "/lotus/types/friendly/pets/moapets/moapetcomponents/hextraweapon": {
+   "base": "independent"
+  },
+  "/lotus/types/friendly/pets/moapets/moapetcomponents/swarmerweapon": {
+   "base": "independent"
+  },
+  "/lotus/types/sentinels/sentinelweapons/burstlaserpistol": {
+   "base": "independent"
+  },
   "/lotus/types/sentinels/sentinelweapons/laserrifle": {
    "base": "independent"
   },
+  "/lotus/types/sentinels/sentinelweapons/primeburstlaserpistol": {
+   "base": "independent"
+  },
   "/lotus/types/sentinels/sentinelweapons/primelaserrifle": {
+   "base": "independent"
+  },
+  "/lotus/types/sentinels/sentinelweapons/prismaburstlaserpistol": {
+   "base": "independent"
+  },
+  "/lotus/types/sentinels/sentinelweapons/sentelecrailgun": {
    "base": "independent"
   },
   "/lotus/weapons/clantech/bio/bioweapon": {
@@ -51,6 +72,9 @@
   "/lotus/weapons/grineer/grineerpistol/grnscopedpistolplayer": {
    "base": "independent"
   },
+  "/lotus/weapons/grineer/heavyweapons/grnheavygrenadelauncher": {
+   "base": "independent"
+  },
   "/lotus/weapons/grineer/kuvalich/heavyweapons/grattler/kuvagrattler": {
    "base": "independent"
   },
@@ -67,7 +91,8 @@
    "base": "independent"
   },
   "/lotus/weapons/grineer/pistols/grineercrossbow/grineergoogun": {
-   "base": "inert"
+   "base": "inert",
+   "incarnon": "inert"
   },
   "/lotus/weapons/grineer/throwingweapons/grnvorstickybomb/grnvorstickybomb": {
    "base": "independent"
@@ -78,9 +103,6 @@
   "/lotus/weapons/infested/infestedlich/longguns/1999infshotgun/1999infshotgunweapon": {
    "base": "independent"
   },
-  "/lotus/weapons/infested/infestedlich/longguns/codabubonico/codabubonicocannon": {
-   "base": "independent"
-  },
   "/lotus/weapons/infested/infestedlich/longguns/codahema": {
    "base": "independent"
   },
@@ -88,9 +110,6 @@
    "base": "independent"
   },
   "/lotus/weapons/infested/longguns/infwfaccompanyingpri/infestedburstrifle": {
-   "base": "independent"
-  },
-  "/lotus/weapons/infested/pistols/infkitgun/barrels/infbarrelegg/infmodularbarreleggpart": {
    "base": "independent"
   },
   "/lotus/weapons/mk1series/mk1kunai": {
@@ -105,20 +124,11 @@
   "/lotus/weapons/sentients/shedu/sheduheavyweapon": {
    "base": "independent"
   },
-  "/lotus/weapons/solarisunited/secondary/sumodularsecondaryset1/barrel/sumodularsecondarybarrelapart": {
-   "base": "independent"
-  },
-  "/lotus/weapons/solarisunited/secondary/sumodularsecondaryset1/barrel/sumodularsecondarybarrelbpart": {
-   "base": "independent"
-  },
   "/lotus/weapons/syndicates/newloka/pistols/nlcastanas": {
    "base": "inert"
   },
   "/lotus/weapons/syndicates/redveil/pistols/rvballistica": {
    "incarnon": "independent"
-  },
-  "/lotus/weapons/tenno/archwing/primary/launchgrenade/archcannon": {
-   "base": "independent"
   },
   "/lotus/weapons/tenno/archwing/primary/nokkoarchgun/nokkoarchgun": {
    "base": "independent"
@@ -126,13 +136,13 @@
   "/lotus/weapons/tenno/archwing/primary/primecorvas/primecorvasweapon": {
    "base": "independent"
   },
-  "/lotus/weapons/tenno/archwing/primary/railgun/archrailgun": {
-   "base": "independent"
-  },
   "/lotus/weapons/tenno/archwing/primary/repurposedgrineerantiaircraftgun/archgrnaagun": {
    "base": "independent"
   },
   "/lotus/weapons/tenno/bows/daxduviriasymetricalbow/daxduviriasymmetricallongbowplayerweapon": {
+   "base": "independent"
+  },
+  "/lotus/weapons/tenno/bows/duelistbow/duelistbow": {
    "base": "independent"
   },
   "/lotus/weapons/tenno/bows/huntingbow": {
@@ -171,7 +181,13 @@
   "/lotus/weapons/tenno/pistols/primeepitaph/primeepitaphsidearmweapon": {
    "base": "independent"
   },
+  "/lotus/weapons/tenno/pistols/primezakti/primezaktipistol": {
+   "base": "independent"
+  },
   "/lotus/weapons/tenno/pistols/sapientpistol/sapientpistol": {
+   "base": "independent"
+  },
+  "/lotus/weapons/tenno/pistols/tnguandopistol/tnguandopistolgun": {
    "base": "independent"
   },
   "/lotus/weapons/tenno/pistols/tnwraithesidearm/tnwraithesidearmweapon": {

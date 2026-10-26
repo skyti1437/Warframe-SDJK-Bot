@@ -70,7 +70,7 @@
     "type": "string",
     "default": "",
     "_special": "select_provider",
-    "hint": "面板会列出 AstrBot 里已添加的模型渠道供选择（官方 select_provider 选择器，AstrBot ≥ v4.0.0）。留空时按实测基准排序逐个尝试（2026-09 实测 siliconflow/Qwen 系伤害行最稳，需该源超时 ≥240s）。"
+    "hint": "面板会列出 AstrBot 里已添加的模型渠道供选择（官方 select_provider 选择器，AstrBot ≥ v4.0.0）。**指定后截图只发给这一个渠道**（不再并发 / 回落到其它渠道；取不到会直接提示）。留空时按实测基准排序在已添加的视觉渠道里自动挑选、并发尝试（2026-09 实测 siliconflow/Qwen 系伤害行最稳，需该源超时 ≥240s）。"
   },
   "vision_provider_id_line": {
     "description": "紫卡「窄读路」专用多模态模型 id（留空=与上面同一个渠道）",
@@ -78,6 +78,18 @@
     "default": "",
     "_special": "select_provider",
     "hint": "紫卡识别并行两路：语义 JSON 路（要武器名）与窄读路（逐行读词条，是词条与极性的唯一权威）。两者对模型的要求不同，可分开配。窄读路要给「逐行念出来」这类指令，OCR 专用模型（qwen-vl-ocr 等）在此会退回带坐标的原生输出、整卡判不合法；通用指令跟随模型（如 qwen3.5-omni-flash）实测 20/20 全对。留空则两路共用 vision_provider_id。"
+  },
+  "allow_private_urls": {
+    "description": "允许自填地址指向内网 / 本机（默认关）",
+    "type": "bool",
+    "default": false,
+    "hint": "「社区数据地址」与面板「从 URL 导入字体」默认只接受公网地址（会做 DNS 解析检查，字体下载的每一跳重定向都检查；自填社区地址不跟随重定向）。只有在你确实把社区快照 / 字体放在内网镜像上时才开启。"
+  },
+  "scan_debug_save": {
+    "description": "识卡对齐失败时留存截图（排查用，默认关）",
+    "type": "bool",
+    "default": false,
+    "hint": "开启后，识卡遇到「豆子检测到了但对齐无解」时，把这张截图存到插件数据目录的 scan_debug/（只保留最近 3 张），便于开发者排查。截图可能含玩家昵称或聊天背景，不排查时请保持关闭；需要清理时直接删除该目录下的 jpg。"
   },
   "flaresolverr_enabled": {
     "description": "启用 CF 绕过代理（FlareSolverr）",

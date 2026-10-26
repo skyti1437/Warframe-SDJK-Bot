@@ -122,9 +122,12 @@ _BASE: dict[str, tuple] = {
     # ★ 2026-10-07 Riven Splicer 的 18 个新词条基值（官方 Public Export
     #   `ExportUpgrades_en.json` upgradeValues ×9000；与 wiki「Spliced Values」表 8 处吻合）。
     #   弹药效率官方存 -0.005 ⇒ 取绝对值 45（方向由卡面极性表达）【待验证：实卡定档】。
-    #   格挡角度：**实拉导出 upgradeValue = 0.0089999996 ⇒ 满级 0.81**，wiki 写 8.1（差 10 倍）；
-    #   wfsim 也撞到同一冲突并选择 wiki（gen_rivens.py:213 WIKI_BASES）⇒ 我方同样取 8.1，
-    #   单位=纯数字（无 %）。⚠ 原注释「官方 810」是错的（×9000 误算），已订正。
+    #   格挡角度：★ 2026-10-25 定案 **81**（原 8.1 跟的是 wfsim 引用的旧版 wiki）。四源一致：
+    #   ① 英文 wiki「Spliced Values」表 Melee 列 81%，并注明「按基础值的百分比加成，
+    #   尽管文字与 Focused Defense 相同」；② 游戏数据包 rawValue 0.009、STACKING_MULTIPLY、
+    #   displayAsPercent=1（riven-roll 与 warframe-weapon-loadout-build 两份独立抽取）；
+    #   ③ Astra 评估取到的 wiki 搜索索引 81%。卡面文字模板是 ParryAngleNoPercentModDesc
+    #   「|val| 招架角度」—— 数值按百分比放大、但**不印 %** ⇒ 显示不带 %（见 _PCT_IDS）。
     "gas_damage": (90, 90, 90, 90, 90),
     "corrosive_damage": (90, 90, 90, 90, 90),
     "viral_damage": (90, 90, 90, 90, 90),
@@ -141,7 +144,7 @@ _BASE: dict[str, tuple] = {
     "reload_holstered": (90, 90, 90, None, None),
     "melee_heavy_attack_damage": (None, None, None, None, 119.7),
     "melee_heavy_attack_charge": (None, None, None, None, 119.7),
-    "melee_parry_angle": (None, None, None, None, 8.1),
+    "melee_parry_angle": (None, None, None, None, 81),
     "melee_slam_damage": (None, None, None, None, 119.7),
 }
 
@@ -188,7 +191,13 @@ def splice_recipes(cls: Optional[str] = None, stat: Optional[str] = None) -> lis
 
 
 # 百分比词条（显示时补 %）；其余按原单位（米/秒/纯值）
-_PCT_IDS = set(_BASE) - {"punch_through", "range", "combo_duration", "initial_combo"}
+_PCT_IDS = set(_BASE) - {
+    "punch_through",
+    "range",
+    "combo_duration",
+    "initial_combo",
+    "melee_parry_angle",  # 卡面「+91.1 招架角度」不带 %（模板 ParryAngleNoPercentModDesc）
+}
 
 # 不在基值表（wiki 尚未给基值）、但单位同样按百分比显示的词条：
 # 不补进这个集合的话，「无官方基值」那行会漏掉 %，读起来像绝对值。
@@ -381,9 +390,14 @@ def display_tol(stat_id: str, value: float) -> float:
         value: 卡面显示值（magnitude）。
 
     Returns:
-        该数值的不确定度绝对值（1 位小数 → 0.05；initial_combo → 0.5）。
+        该数值的不确定度绝对值（1 位小数 → 0.05；initial_combo、派系乘数 → 0.5）。
     """
     if stat_id == "initial_combo":
+        return 0.5
+    # ★ 2026-10-25（对照游戏数据包 RoundTo：派系词条显示为乘数、精确到 0.01）：卡面 x1.56 换算成
+    #   百分数 56 时，真实值可在 55.5~56.5 之间 ⇒ 不确定度 0.5（原按 0.05 算，区间边缘的派系卡
+    #   会被误判「不吻合」：3正1负 上限 55.69% 显示 x1.56）。
+    if stat_id.startswith("damage_vs_"):
         return 0.5
     return _DISPLAY_TOL
 

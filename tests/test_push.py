@@ -1466,7 +1466,8 @@ async def z_send_failure_scenarios():
     )
     check(
         "P2-3 暂停留 WARNING",
-        any("已暂停该会话推送" in x and "g1" in x for x in lg.warn_lines),
+        # 2026-10-25（Astra S3）：会话号打码 ⇒ 断言打码后的 mask_umo("g1") = "**"
+        any("已暂停该会话推送" in x and "**" in x for x in lg.warn_lines),
         str(lg.warn_lines[-3:]),
     )
     check("P2-3 护栏：别的会话订阅不受影响且照常收到", len(st.for_umo("g2")) == 1 and len(box) >= 1)
@@ -2062,7 +2063,7 @@ async def z_storm_and_misc_scenarios():
     check(
         "P3-5e 发送成功留 INFO 日志（含会话与订阅号，2026-10-16 补：此前成功路径完全静默）",
         sum(1 for x in lg.info_lines if "到期提醒已发出" in x) == 2
-        and any("g1" in x and "2 条" in x for x in lg.info_lines if "到期提醒已发出" in x),
+        and any("**" in x and "2 条" in x for x in lg.info_lines if "到期提醒已发出" in x),
         str([x for x in lg.info_lines if "到期" in x]),
     )
     check(
@@ -2291,6 +2292,33 @@ check(
 )
 
 print()
+
+
+def t_log_masks_session_id():
+    """★ 2026-10-25（Astra 评估 S3）：推送日志里的会话号打码（群号只留首尾两位）。"""
+    from core.logging_compat import mask_umo
+
+    check(
+        "★ 日志会话号打码：aiocqhttp:GroupMessage:987654321 → 98*****21",
+        mask_umo("aiocqhttp:GroupMessage:987654321") == "aiocqhttp:GroupMessage:98*****21",
+    )
+    import ast as _ast
+
+    _src = (Path(__file__).resolve().parent.parent / "core" / "push.py").read_text(encoding="utf-8")
+    raw = [
+        n.lineno
+        for n in _ast.walk(_ast.parse(_src))
+        if isinstance(n, _ast.Call)
+        and isinstance(n.func, _ast.Attribute)
+        and n.func.attr in ("info", "warning", "error", "exception", "debug")
+        for a in n.args[1:]
+        if isinstance(a, _ast.Name) and a.id == "umo"
+    ]
+    check("★ push.py 日志调用不直接传原始 umo", raw == [], str(raw))
+
+
+t_log_masks_session_id()
+
 if FAILED:
     print(f"共 {len(FAILED)} 项失败：{FAILED}")
     sys.exit(1)

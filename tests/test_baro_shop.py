@@ -140,9 +140,32 @@ check(
     and any(ln.startswith("◆ 离开：") and "剩余" in ln for ln in lines),
     str(lines[:3]),
 )
+# ★ 2026-10-25（Astra 评估：原断言恒为 True，删掉引导也不会报红）—— 真正驱动 handler
+import asyncio as _aio_b  # noqa: E402
+import types as _ty_b  # noqa: E402
+
+from core.commands.daily import DailyCommands as _DC  # noqa: E402
+
+_trader_b = {
+    "active": True,
+    "character": "Baro Ki'Teer",
+    "location": "Larunda 中继站（水星）",
+    "expiry": "2026-09-20T13:00:00Z",
+    "inventory": inv,
+}
+
+
+async def _vt(_platform):
+    return _trader_b
+
+
+_obj_b = _ty_b.SimpleNamespace(client=_ty_b.SimpleNamespace(void_trader=_vt))
+_rep_b = _aio_b.run(_DC._h_voidtrader(_obj_b, _ty_b.SimpleNamespace(content=[]), None, "pc"))
 check(
-    "保留「奸商 预测」引导（renderer 分页注脚之外还有提示）", True
-)  # 引导行在 handler 里追加，这里只确认不丢前 3 行
+    "保留「奸商 预测」引导（handler 在货单卡末尾追加）",
+    any("奸商 预测" in ln for ln in _rep_b.lines),
+    str(_rep_b.lines[-2:]),
+)
 check("现金 ≥1 万折叠成「N万现金」", any("10万现金" in ln for ln in lines), str(lines[1:3]))
 check("小额现金原样显示", any("1000现金" in ln or "5.5万现金" in ln for ln in lines))
 
@@ -296,8 +319,20 @@ print("\n=== 四、表宽安全阀（两列布局的生命线）===")
 # 渲染层安全阀：Σ列宽 + 24×(列数-1) ≤ W-178（W 上限 1500 → 1322）
 # 开源包不带 40MB 字库（同 test_relic_list）：无字体环境跳过宽度断言，
 # 其余（字段映射 / 排版 / 配色）不依赖字体，照常跑。
-_TTC = ROOT / "core" / "data" / "fonts" / "NotoSansCJK-Regular.ttc"
-if not _TTC.exists():
+# ★ 2026-10-25（Astra 评估）：原先只认完整 TTC，开源包有随包子集字体时也整段跳过宽度断言 ——
+#   改为「完整字库 → 随包子集」依次找（子集即为卡面语料生成，度量与完整字库一致）
+_TTC = next(
+    (
+        _p
+        for _p in (
+            ROOT / "core" / "data" / "fonts" / "NotoSansCJK-Regular.ttc",
+            ROOT / "core" / "data" / "fonts" / "NotoSansCJKsc-Subset-Regular.otf",
+        )
+        if _p.exists()
+    ),
+    None,
+)
+if _TTC is None:
     print("[SKIP] 未找到渲染字体（开源包默认不带）：跳过表宽安全阀断言")
     _fails[:] = [f for f in _fails if "表宽" not in f]
     print()

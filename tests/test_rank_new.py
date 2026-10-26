@@ -566,6 +566,29 @@ check(
     str(_c3.crawls) + " | " + str(_r3.records),
 )
 
+# ★ 2026-10-25（Astra 时区专项）：闲时按北京时间判断。伪造「UTC 宿主」：now() 无 tz 时给 UTC 本地小时，
+#   带 tz 时按真实时区换算 ⇒ UTC 19 点 = 北京 3 点应开爬；UTC 3 点 = 北京 11 点不应开爬。
+_orig_now = _FakeDT.now
+
+
+def _utc_host_now(cls, tz=None):
+    base = _real_dt_cls(2026, 10, 3, cls.hour, 30, 0, tzinfo=_dt.timezone.utc)
+    return base.astimezone(tz) if tz else base.replace(tzinfo=None)
+
+
+_FakeDT.now = classmethod(_utc_host_now)
+try:
+    _c4, _r4 = _aio.run(_run_loop_once(_STALE, 19))
+    _c5, _r5 = _aio.run(_run_loop_once(_STALE, 3))
+finally:
+    _FakeDT.now = _orig_now
+check("★ UTC 宿主 19 点（北京 3 点）⇒ 开爬", _c4.crawls == [900], str(_c4.crawls))
+check(
+    "★ UTC 宿主 3 点（北京 11 点）⇒ 不开爬（原先按服务器本地时间会在北京上午开爬）",
+    _c5.crawls == [] and _r5.has("info", "北京时间 11 点"),
+    str(_c5.crawls) + " | " + str(_r5.records)[:200],
+)
+
 _src_loop = _ins.getsource(plugin.WarframeSDJK._rank_autoloop)
 # 只看**代码行**（注释里为说明事故会引用旧写法 api_client.RANKS_FILE）
 _code_lines = [
@@ -632,6 +655,23 @@ check(
 )
 
 print()
+
+# ★ 2026-10-25（用户：均衡点 Steam Pinnacle Pack 1600p 疑似 RMT）：48h 成交不足 3 笔不进榜
+import core.formatters as _Fv  # noqa: E402
+
+_rows_v = [
+    {"zh": "均衡点 (Steam Pinnacle Pack)", "tags": ["mod"], "median48": 1600, "vol48": 1},
+    {"zh": "膛室 Prime", "tags": ["mod"], "median48": 244.8, "vol48": 20},
+]
+_tv, _lv = _Fv.fmt_rank_table("卡", _rows_v)
+check(
+    "★ 成交不足 3 笔的天价单不进榜、注脚写明",
+    not any("Steam Pinnacle" in x for x in _lv)
+    and any("膛室 Prime" in x for x in _lv)
+    and any("不足 3 笔" in x for x in _lv),
+    str(_lv),
+)
+
 if FAILED:
     print(f"✗ {len(FAILED)} 项失败：" + "、".join(FAILED))
     sys.exit(1)

@@ -19,7 +19,7 @@
   目标派系弱点倍率。
 * 暴击期望（等级内插值）：CC ≤ 100% 时 = 1 + CC×(CM-1)；
   CC > 100% 时 = CM × (floor(CC) + 小数部分)（红暴按层数线性叠加）。
-* 爆头：人形头部 ×3（2026-10-09 B2，wiki Enemy_Body_Parts / wfsim MECHANICS.md:1001-1003）；
+* 爆头：人形头部 ×3（2026-10-09 B2，wiki Enemy_Body_Parts / Critical_Hit「usually a 3.0x multiplier」）；
   指定敌人且其 head_mul 有来源时按该敌人的头部倍率（null = 未分类，按人形计）。
   2026-10-10 爆头口径批：爆头倍率 = 基数 × (1 + Σ爆头倍率加成)（加成放大整个部位倍率，
   灵化进化爆头并入 Σ，Cernos Prime 自带 +50% 独立乘算）；可暴击爆头的目标头部暴伤 ×2
@@ -90,8 +90,8 @@ def _load() -> dict:
         except Exception:  # noqa: BLE001
             _cache["mods"] = {}
         try:
-            # wfsim 补充元数据：家族互斥 + 结构化条件堆叠（scripts/
-            # enrich_mods_from_wfsim.py 生成；key=mods_stats 的 key 小写）
+            # MOD 补充元数据：家族互斥 + 结构化条件堆叠 + 武器排除（scripts/build_mod_rules.py 由
+            # wiki Module:Mods/data + DE + PEP 生成；key=mods_stats 的 key 小写）
             _cache["mods_extra"] = json.loads(
                 (_DATA / "mods_wfsim_extra.json").read_text(encoding="utf-8")
             )
@@ -101,7 +101,7 @@ def _load() -> dict:
 
 
 def mod_extra(mod: dict) -> dict:
-    """按 MOD 记录（name 字段）取 wfsim 补充元数据（family/conditionals）。"""
+    """按 MOD 记录（name 字段）取补充元数据（family / conditionals / excludes_weapons）。"""
     if not isinstance(mod, dict):
         return {}
     nm = str(mod.get("name") or "").lower()
@@ -443,17 +443,15 @@ DOT_BYPASS_SHIELD = {"toxin"}  # 毒素无视护盾
 DOT_SECONDS = 6  # 表中均为「每秒 × 6 秒」
 # 电 / 毒气 DoT 的「落点」层（2026-10-10 第四批）：wiki Enemy_Body_Parts §Notes 把「Electricity
 # and Gas status procs」列进「always defaulting to the 1x multiplier, unaffected by acuity-like
-# bonuses but affected by deadhead-like bonuses」。wfsim 的实现与实测（fight/debuffs.rs:198-205
-# lands_on_a_part；fight/pellet.rs:562-564 head_landing = (1+爆头加成)×(1+武器自带独立乘区)；
-# fight/procs.rs:650-665 种子照乘命中部位 part_factor、另乘 landing；docs/measurements/M100：
-# 电 身体 24 / 爆头 234，毒素爆头 130）：**种子仍吃命中部位的整条头部倍率（与其它 DoT 同）**，
+# bonuses but affected by deadhead-like bonuses」；wiki Status_Effect §DoT Damage Scaling：
+# 初始命中的「Body part multipliers」「Critical Hits」会带进其 DoT ⇒ **种子仍吃命中部位的整条头部
+# 倍率（与其它 DoT 同）**，
 # 电/毒气的 tick 另外落在头上时再乘「1x 基数 × 爆头加成括号」。⇒ 无爆头加成时与其它 DoT 一样，
 # 有加成时电/毒气多乘一次 (1+Σ加成)。暴击爆头只在种子里（与其它 DoT 同），落点层不含暴击。
 DOT_HEAD_LANDING = frozenset(("electricity", "gas"))
-# 火焰（Heat）单例累加（2026-10-10 第三批，#12）：wfsim data/debuffs/ignite.yaml:14-22,26-32
-# 「Each proc does not create a new instance - it (a) ADDS its damage contribution into the
-# single entity's tick value and (b) REFRESHES the entity's one shared clock」、max_stacks: null
-# 「indefinite ramp while kept refreshed」。持续开火 T 秒、火触发率 r（次/秒）、相邻两次触发
+# 火焰（Heat）单例累加（2026-10-10 第三批，#12）：wiki Damage/Heat_Damage「adds a stack and
+# refreshes the duration of all currently active heat stacks」「consolidated into one tick of
+# damage per second」、无层数上限，保持刷新时「indefinitely (scaling up linearly)」。持续开火 T 秒、火触发率 r（次/秒）、相邻两次触发
 # 间隔 ≤ 6s（r×6 ≥ 1，单例不过期）时，层数从 0 线性涨到 r×T，**开火窗口内平均 r×T/2 层**；
 # 间隔 > 6s 时每层独立过期，平均 r×6 层（与其它 DoT 同）。默认 T = 12s ⇒ r×12/2 = r×6，
 # 与修前「rate × 6」逐位相同（乘 6.0 同一个浮点数），默认数值零变化。
@@ -468,9 +466,9 @@ _EFFECT_TO_SPEC = {"fire_rate": "fire_rate_pct"}
 # 依据：射速 MOD 卡面「(x2 for Bows)」、wiki Speed_Trigger 的「Fire rate (Bows)」列恰为步枪列 2 倍；
 # 弩：wiki Zhuge / Zhuge_Prime / Attica / Nagantaka / Nagantaka_Prime 均写
 # 「Counts as a bow in regards to fire rate mods, doubling the fire rate bonus」。
-# 名单取 wfsim data/weapons/primary/*.yaml 的 `class: bow|crossbow`（panel.rs:545-548，
-# 2026-10-10 HEAD 8267f09，23 个带 internal_name 的条目；Nunchasa、Daikyu Prime
-# 我方库暂无，留着无害）。我方 weapons_stats 里弓/弩的
+# 名单 = wiki Module:Weapons/data/primary 里 Class 为 Bow / Crossbow 的 23 个条目的
+# InternalName（2026-10-26 快照逐条核对一致；副武器 Ballistica 系 Class 也是 Crossbow，
+# 但手枪射速 MOD 没有弓的翻倍条款，不收；Nunchasa、Daikyu Prime 我方库暂无，留着无害）。我方 weapons_stats 里弓/弩的
 # type 都是 "Rifle"、无类别字段，uniqueName 路径也不可靠（Ballistica/Bolto/Stug 含 Crossbow
 # 却是手枪类，MK1-Paris 不含 Bow）⇒ 用显式名单。
 BOW_CLASS_UNIQUE = frozenset(
@@ -503,17 +501,19 @@ BOW_CLASS_UNIQUE = frozenset(
         "/Lotus/Weapons/Tenno/LongGuns/TnoPrmryXbow/TnoPrmryXbowWeapon",  # Attica
     )
 )
-# 人形头部倍率（wiki Enemy_Body_Parts「humanoid head 3.0x」，wfsim docs/MECHANICS.md:1001-1003、
-# data/enemies/crewman.yaml 等 head 3.0）。2026-10-09 B2 由 2.0 改 3.0。
+# 人形头部倍率（wiki Enemy_Body_Parts 各派系头部「3.0x」、Critical_Hit「The Headshot Multiplier
+# is 3.0x in almost all cases」）。2026-10-09 B2 由 2.0 改 3.0。
 HEADSHOT_BASE = 3.0
 # 2026-10-10：「未分类」不再用数值 2 当哨兵 —— enemies.json 的 head_mul 为 null 才是未分类
 # （按人形计）；head_none=true = 没有头部（爆头不成立）；出处见各条 head_src，
-# 生成/补丁脚本 scripts/merge_wfsim_enemies.py --head-only。
-HEADSHOT_SOURCE = "人形头部 ×3（wiki Enemy_Body_Parts，经 wfsim 核对）"
+# 生成脚本 scripts/build_enemies.py（HEAD_* 表）。
+HEADSHOT_SOURCE = "人形头部 ×3（wiki Enemy_Body_Parts / Critical_Hit）"
 # 暴击爆头（wiki Critical_Hit §Critical Headshots / Enemy_Body_Parts §Critical Headshots）：
-# 头部暴击时暴伤 ×2 进分级公式 —— wfsim fight/pellet.rs:569-575
-#   cd = 2.0 × cd_total（含 MOD 后的总暴伤），crit_multiplier = 1 + tier × (cd − 1)
-# 只在「部位倍率 > 1」且该部位带 headcrit 标记时成立。派系默认（逐敌例外写在 head_crit）：
+# 头部暴击时暴伤 ×2 进分级公式 —— wiki Critical_Hit 原式
+#   Headshot Multi × (1 + Critical Tier × (2 × Total Critical Damage Multiplier − 1))
+# 敌人头部 ×1 / ×1.5 仍算爆头、可暴击爆头（按逐敌 * 标记 / 派系默认，2026-10-26 维护者定）；只有
+# **武器**默认 1x 头部倍率的形态不吃（wiki：「If a weapon defaults to a 1x headshot multiplier it will
+# not benefit from the critical bonus」）。派系默认（逐敌例外写在 head_crit）：
 #   可触发：Grineer（含 Corrupted/Narmer/Anarchs 变体）、Scaldra、多数 Infested 与 Sentient
 #   不可：Corpus 人形与地面单位（飞行单位 Osprey 类可，见 head_crit）、多数 Murmur、多数 Techrot
 HEADCRIT_FACTIONS = frozenset(
@@ -530,11 +530,10 @@ HEADCRIT_FACTIONS = frozenset(
     )
 )
 NO_HEADCRIT_FACTIONS = frozenset(("Corpus", "Corpus Amalgam", "The Murmur", "Techrot"))
-# 武器自带爆头加成（wiki Enemy_Body_Parts §Headshot Multiplier Bonuses / wfsim data/weapons
-# headshot_damage_bonus）：uniqueName → (加成小数, 是否独立乘算)。
+# 武器自带爆头加成（wiki Enemy_Body_Parts §Headshot Multiplier Bonuses）：uniqueName → (加成小数, 是否独立乘算)。
 # 只有 Cernos Prime 是独立乘区（wiki「Unique +50% Damage Multiplier bonus on headshots,
-# multiplicative with other Headshot Multiplier bonuses」；wfsim spec.rs:228-235、
-# cernos_prime.yaml headshot_bonus_multiplicative: true），其余并进同一加法括号。
+# multiplicative with other Headshot Multiplier bonuses」），其余并进同一加法括号（同页
+# 「stack their effects additively」）。
 WEAPON_INNATE_HEADSHOT = {
     "/Lotus/Weapons/Tenno/Bows/PrimeCernos/PrimeCernos": (0.5, True),
     "/Lotus/Weapons/Grineer/LongGuns/GrnKuvaLichRifle/GrnKuvaLichRifleWeapon": (0.5, False),
@@ -542,15 +541,15 @@ WEAPON_INNATE_HEADSHOT = {
     "/Lotus/Weapons/Infested/InfestedLich/LongGuns/CodaSynapse": (0.2, False),
 }
 # 武器自带「头部倍率覆盖」（2026-10-10 第三批）：小写 uniqueName → {形态: (倍率, 出处)}。
-# 语义（wfsim data/weapons/spec.rs:460-480 `headshot_multiplier`、fight/params.rs:808-817
-# `head_value`、fight/pellet.rs:547/569）：该形态打到头部时**用武器的倍率替换敌人头部倍率**；
+# 语义：该形态打到头部时**用武器的倍率替换敌人头部倍率**；
 # 仍算爆头 ⇒ Deadhead 类「爆头倍率加成」照乘；弱点伤害（Acuity）不吃；头部倍率 ≤ 1 ⇒ 无暴击爆头。
 # wiki Enemy_Body_Parts §Notes 原文：「Certain weapons do not have bonus damage on headshots,
 # always defaulting to the 1x multiplier, unaffected by acuity-like bonuses but affected by
 # deadhead-like bonuses」。形态键：default=默认形态（不写形态关键词）/ incarnon=灵化 /
-# alt_fire=副开火 / semi_auto=半自动 —— **只在对应形态生效**（wfsim 该字段不随 inherits 继承，
-# catalog.rs:61-73 INHERITED 不含它；每个形态条目各自声明）。
-# 只收 wfsim 与 wiki 一致的条目；wiki 列了而 wfsim 没收、或两边矛盾的见第三批报告（未收）。
+# alt_fire=副开火 / semi_auto=半自动 —— **只在对应形态生效**（wiki 原文按形态写，不跨形态推断）。
+# 现收条目都在 wiki §Notes 名单或武器页原文里。名单里未收的：Catchmoon、Lizzie（我方库无）；
+# Corufell 射弹、Nepheri 火球、Stropha 射击、Tenet Agendus 能量盘、Argo & Vel 重击飞盾 —— 1x 只在
+# 近战武器的某一段攻击上，这张表按形态整体替换、没有段级头部倍率，收进来会错改整把武器。
 _HS1_LIST = "wiki Enemy_Body_Parts §Notes「always defaulting to the 1x multiplier」"
 _HS1_PARIS = "wiki Paris Incarnon Genesis「has a headshot multiplier of 1x」"
 _HS1_LEX = "wiki Lex Incarnon Genesis「has a headshot multiplier of 1x」"
@@ -559,78 +558,84 @@ WEAPON_HEADSHOT_OVERRIDE: dict = {
     "/lotus/weapons/corpus/longguns/crpshotgun/crpshotgun": {  # Arca Plasmor
         "default": (
             1.0,
-            "wiki Arca Plasmor「Has a headshot multiplier of 1x」；wfsim arca_plasmor.yaml:41",
+            "wiki Arca Plasmor「Has a headshot multiplier of 1x」",
         ),
     },
     "/lotus/weapons/corpus/boardexec/primary/crpbearcaplasmor/crpbearcaplasmor": {
         "default": (  # Tenet Arca Plasmor
             1.0,
-            "wiki Tenet Arca Plasmor「Has a headshot multiplier of 1x」；"
-            "wfsim tenet_arca_plasmor.yaml:47",
+            "wiki Tenet Arca Plasmor「Has a headshot multiplier of 1x」",
         ),
     },
     "/lotus/weapons/tenno/longguns/tnolotuspodshotgun/tnolotuspodshotgun": {  # Steflos
-        "default": (1.0, _HS1_LIST + "（Steflos）；wfsim steflos.yaml:41"),
+        "default": (1.0, _HS1_LIST + "（Steflos）"),
     },
     "/lotus/weapons/tenno/longguns/gyrerifle/gyrerifleweapon": {  # Alternox 主开火
         "default": (
             1.0,
             "wiki Alternox「All firing modes have a headshot multiplier of 1x」/ "
             + _HS1_LIST
-            + "（primary fire）；wfsim alternox.yaml:39",
+            + "（primary fire）",
         ),
     },
     "/lotus/weapons/tenno/longguns/primealternox/primealternoxweapon": {  # Alternox Prime
         "default": (
             1.0,
-            "wiki Alternox Prime「All firing modes have a headshot multiplier of 1x」；"
-            "wfsim alternox_prime.yaml:39",
+            "wiki Alternox Prime「All firing modes have a headshot multiplier of 1x」",
         ),
+    },
+    # 2026-10-26 补（wiki §Notes 名单逐项，维护者确认补入）
+    "/lotus/weapons/clantech/chemical/flamethrower": {  # Ignis
+        "default": (1.0, _HS1_LIST + "（Ignis）"),
+    },
+    "/lotus/weapons/clantech/chemical/flamethrowerwraith": {  # Ignis Wraith
+        "default": (1.0, _HS1_LIST + "（Ignis Wraith）"),
+    },
+    "/lotus/weapons/corpus/pistols/crpsentamalgpistol/crpsentamalgpistol": {  # Cyanex 主开火
+        "default": (1.0, _HS1_LIST + "（Cyanex, Primary Fire）"),
     },
     # 灵化形态（Genesis 页原文）
     "/lotus/weapons/tenno/bows/huntingbow": {  # Paris
-        "incarnon": (1.0, _HS1_PARIS + "；wfsim paris_incarnon.yaml:40"),
+        "incarnon": (1.0, _HS1_PARIS),
     },
     "/lotus/weapons/tenno/bows/primehuntingbow": {  # Paris Prime
-        "incarnon": (1.0, _HS1_PARIS + "；wfsim paris_prime_incarnon.yaml:42"),
+        "incarnon": (1.0, _HS1_PARIS),
     },
     "/lotus/weapons/mk1series/mk1paris": {  # MK1-Paris
-        "incarnon": (1.0, _HS1_PARIS + "；wfsim mk1_paris_incarnon.yaml:44"),
+        "incarnon": (1.0, _HS1_PARIS),
     },
     "/lotus/weapons/tenno/bows/stalkerbow": {  # Dread
         "incarnon": (
             1.0,
-            "wiki Dread Incarnon Genesis「has a headshot multiplier of 1x」；"
-            "wfsim dread_incarnon.yaml:40",
+            "wiki Dread Incarnon Genesis「has a headshot multiplier of 1x」",
         ),
     },
     "/lotus/weapons/tenno/pistol/heavypistol": {  # Lex
-        "incarnon": (1.0, _HS1_LEX + "；wfsim lex_incarnon.yaml:37"),
+        "incarnon": (1.0, _HS1_LEX),
     },
     "/lotus/weapons/tenno/pistols/primelex/primelex": {  # Lex Prime
-        "incarnon": (1.0, _HS1_LEX + "；wfsim lex_prime_incarnon.yaml:38"),
+        "incarnon": (1.0, _HS1_LEX),
     },
     # 副开火 / 半自动
     "/lotus/weapons/tenno/pistols/tnjetturbine/tnjetturbinepistolweapon": {  # Athodai
-        "alt_fire": (1.0, _HS1_LIST + "（Athodai's Alternate Fire）；wfsim athodai_alt.yaml:17"),
+        "alt_fire": (1.0, _HS1_LIST + "（Athodai's Alternate Fire）"),
     },
     "/lotus/weapons/tenno/pistols/primeathodai/primeathodaipistolweapon": {  # Athodai Prime
         "alt_fire": (
             1.0,
-            _HS1_LIST + "（Athodai Prime's Alternate Fire）；wfsim athodai_prime_alt.yaml:17",
+            _HS1_LIST + "（Athodai Prime's Alternate Fire）",
         ),
     },
     "/lotus/weapons/tenno/longguns/tnwisprifle/tnwisprifle": {  # Fulmin
         "semi_auto": (
             1.0,
-            "wiki Fulmin 半自动「Has a headshot multiplier of 1x」；wfsim fulmin_semi.yaml:26",
+            "wiki Fulmin 半自动「Has a headshot multiplier of 1x」",
         ),
     },
     "/lotus/weapons/tenno/longguns/primefulmin/primefulmin": {  # Fulmin Prime
         "semi_auto": (
             1.0,
-            "wiki Fulmin Prime 半自动「Has a headshot multiplier of 1x」；"
-            "wfsim fulmin_prime_semi.yaml:21",
+            "wiki Fulmin Prime 半自动「Has a headshot multiplier of 1x」",
         ),
     },
     # 蓄力（2026-10-10 第四批：Nataruk 默认 = 快速射击，完美射击改走「蓄力」形态）
@@ -639,7 +644,7 @@ WEAPON_HEADSHOT_OVERRIDE: dict = {
             1.0,
             "wiki Nataruk「Charged and Perfect Shots have a headshot multiplier of 1x」/ "
             + _HS1_LIST
-            + "（Nataruk's charged and perfect shots）；wfsim nataruk_perfect.yaml:21",
+            + "（Nataruk's charged and perfect shots）",
         ),
     },
 }
@@ -699,6 +704,21 @@ def _norm_cached(s: str) -> str:
 
 
 _NORM_RE = re.compile(r"[\s·・•\-_'’]+")
+
+
+_VARIANT_ONLY = frozenset(
+    {matching.normalize(t) for t in (*matching.VARIANT_TOKENS, *matching._EN_TOKENS, "p", "p版")}
+)
+
+
+def is_variant_only(query: str) -> bool:
+    """查询词只剩变体词（「Prime」「赤毒」「Vandal」…）。
+
+    伤害指令入口用它拦截：武器名写错（「布拉顿 Prime」）被当未识别词丢掉后，剩下的「Prime」
+    若交给 find_weapon 的子串匹配会随手配到某把 Prime 照算（2026-10-26 修，此前配成翁 Prime）。
+    find_weapon 本身不拦 —— parse_args 拿单个词问它来判断「Tenet / 棱晶」是不是武器名的一部分。
+    """
+    return _norm(query) in _VARIANT_ONLY
 
 
 def find_weapon(query: str) -> tuple[dict | None, list[dict]]:
@@ -802,18 +822,18 @@ def headshot_profile(
 
     * 爆头倍率 = 头部基数 × (1 + Σ爆头倍率加成)。加成放大**整个**部位倍率：
       wiki Enemy_Body_Parts 例 (3 + 1.5×(3.5+0.75)) × (1 + 0.3 + 0.4) = 15.9375x；
-      wfsim fight/pellet.rs:561 part_factor = wp_mult × (1+head_bonus) × (1+head_innate)。
       Σ = 「爆头加成」手写/MOD（百分数）+ 灵化进化爆头（小数，evolutions.json kind=headshot_damage，
-      wfsim data/evolutions/apply.rs:504 并入 headshot_damage_bonus，与 MOD 同括号
-      build/loadout/resolve.rs:1745-1746）+ 武器自带（WEAPON_INNATE_HEADSHOT，非乘算者）。
+      与 MOD 同括号：wiki「stack their effects additively」）+ 武器自带（WEAPON_INNATE_HEADSHOT，非乘算者）。
     * Cernos Prime 自带 +50% 独立乘算：× 1.5 乘在整个括号外（wiki 原文「multiplicative with
       other Headshot Multiplier bonuses」）。
     * 基数：敌人 head_mul 为数值 → 用它；null / 不指定敌人 → 人形 ×3；head_none → 无头，恒 1.0。
     * 暴击爆头：敌人 head_crit 显式标注优先，否则按派系（HEADCRIT_FACTIONS /
-      NO_HEADCRIT_FACTIONS）；头部基数 ≤ 1 时不成立（wfsim pellet.rs:569 part.multiplier > 1）。
+      NO_HEADCRIT_FACTIONS）。敌人头部 ×1 / ×1.5 仍算爆头部位、可暴击爆头（2026-10-26 维护者定；
+      wiki Enemy_Body_Parts 弱点默认算爆头并吃暴击爆头，* 标记除外 —— 写进 head_crit）。
+      敌人 head_cc_bonus：头部额外暴击率（Babau +100%，Babau 页「flat +100% Critical Chance」）。
     * 武器自带头部倍率覆盖（WEAPON_HEADSHOT_OVERRIDE，2026-10-10 第三批）：当前形态
       ``form_kind`` 在表里 ⇒ 基数换成武器的倍率（替换敌人的头部倍率，仍算爆头、加成照乘），
-      暴击爆头按 wfsim pellet.rs:569 `head_mult > 1 && part.multiplier > 1` 判定（×1 ⇒ 无）。
+      武器倍率 ×1 ⇒ 无暴击爆头（wiki Critical_Hit「even if the headshot multiplier is raised」）。
       无头部的敌人（head_none）仍按身体计（覆盖的是头部倍率，不凭空造头）。
     """
     innate, innate_mul = WEAPON_INNATE_HEADSHOT.get(unique_name, (0.0, False))
@@ -835,7 +855,7 @@ def headshot_profile(
     else:
         base = HEADSHOT_BASE
         src = HEADSHOT_SOURCE + ("；该敌人未分类，按人形计" if enemy else "")
-    part_base = base  # 敌人头部部位本身的倍率（暴击爆头的部位条件看它）
+    part_base = base  # 敌人头部部位本身的倍率（武器覆盖时写进出处）
     ov = WEAPON_HEADSHOT_OVERRIDE.get(str(unique_name or "").lower(), {}).get(form_kind)
     if ov:
         base = float(ov[0])
@@ -862,11 +882,15 @@ def headshot_profile(
         crit, why = False, f"{faction or '该派系'} 能否暴击爆头未核实"
     if crit and ov and base <= 1.0:
         crit, why = False, f"武器自带头部 ×{base:g}，不触发"
-    elif crit and min(base, part_base) <= 1.0:
-        crit, why = False, "头部 ×1 部位不触发"
+    # 敌人头部 ×1 / ×1.5 仍是爆头部位：爆头效果照触发、暴击爆头按逐敌标注 / 派系默认（2026-10-26 维护者定；
+    #   wiki Enemy_Body_Parts「Weak Point … should be assumed to count as headshots and apply the critical
+    #   headshot bonus, unless marked otherwise」，* 标记的写进敌人 head_crit）
+    hcc = float(enemy.get("head_cc_bonus") or 0.0) if enemy else 0.0
     if crit:
         note = f"含暴击爆头（头部暴击时暴伤 ×2；{why}"
         note += "）" if enemy else "，对 Corpus 人形无暴击爆头）"
+        if hcc:
+            note = note[:-1] + f"；该敌人头部另加暴击率 +{hcc * 100:g}%）"
     else:
         note = f"未计暴击爆头（{why}"
         if not enemy and faction in ("Corpus", "Corpus Amalgam"):
@@ -878,6 +902,7 @@ def headshot_profile(
         "mult": mult,
         "landing": landing,
         "crit": crit,
+        "cc_bonus": hcc,
         "src": src,
         "crit_note": note,
         "formula": formula,
@@ -1014,9 +1039,10 @@ def parse_args(tokens: list[str]) -> tuple[dict, list[str]]:
         # calculate 按最终派系取匹配项并入 faction_dmg（2026-10-06 修：
         # 旧版把「灭亡 Corpus」折进通用桶，打 Grineer 也生效）
         "faction_dmg_of": [],
-        # 镀层堆叠（wfsim 结构化条件）：None=未指定，-1=满层，N=N 层
+        # 镀层堆叠（mods_wfsim_extra 结构化条件）：None=未指定，-1=满层，N=N 层
         "galv_stacks": None,
         "galv_applied": [],
+        "galv_mods": [],  # 镀层条件已按层数计入的 MOD（卡面不再列为「条件触发未计入」）
         "combo_hits": 0,
         "heavy": False,
         "overguard": None,
@@ -1103,6 +1129,7 @@ def parse_args(tokens: list[str]) -> tuple[dict, list[str]]:
         elif low in _ALT_FORM_WORDS:
             # 非默认形态（2026-10-10 第三批）：用 weapon_attacks.json forms 整套替换主段与额外段
             spec["form"] = _ALT_FORM_WORDS[low]
+            spec["form_word"] = low  # 原词（区分「满蓄力」与「完美射击」，见 _apply_alt_form）
         elif re.fullmatch(r"开火" + _NUM + r"(秒|s)?", low):
             # 火焰单例累加的开火时长（2026-10-10 第三批，见 steady_state_dps）
             _fs = float(re.search(_NUM, low).group(1))
@@ -1345,7 +1372,7 @@ def parse_args(tokens: list[str]) -> tuple[dict, list[str]]:
             continue
         _excl = mod_extra(m).get("excludes_weapons") or []
         if weapon_rec and str(weapon_rec.get("name") or "").lower() in _excl:
-            # 卡面写明不兼容这类武器（wfsim excludes_weapon，如分裂飞行「(Non-AOE Bows)」）：整卡不折算
+            # 卡面写明不兼容这类武器（PEP incompatibilityTags × 武器 compatibilityTags，如分裂飞行）：整卡不折算
             spec["notes"].append(
                 f"{m.get('zh') or m.get('name')}：卡面写明不适用于 {weapon_rec.get('name')}，效果未计入"
             )
@@ -1380,7 +1407,8 @@ def parse_args(tokens: list[str]) -> tuple[dict, list[str]]:
         # 条件触发：只记录，绝不折进数值
         for c in eff.get("conditional") or []:
             spec["conditional"].append(
-                f"{m.get('zh') or m.get('name')}：" + str(c).replace("\\n", " ").replace("\n", " ")
+                f"{m.get('zh') or m.get('name')}："
+                + str(c).replace("\\n", " ").replace("\r", "").replace("\n", " ")
             )
         # 架势：单独存，不参与上面的数值折算
         if (m.get("compat") or "") == "Stance":
@@ -1417,7 +1445,7 @@ def parse_args(tokens: list[str]) -> tuple[dict, list[str]]:
             if "fire rate cannot be modified" in note.lower():
                 spec["no_fire_rate_mod"] = True
 
-    # 镀层堆叠（wfsim 结构化条件，「镀层N / 满镀层」显式带入）：
+    # 镀层堆叠（mods_wfsim_extra.json 结构化条件，「镀层N / 满镀层」显式带入）：
     # 条件堆叠默认不计入（同赋能原则），用户指定层数才折算；
     # 每层值取满级 rankMax（伤害指令的 MOD 一律按满级口径）
     if spec.get("galv_stacks") is not None:
@@ -1426,6 +1454,8 @@ def parse_args(tokens: list[str]) -> tuple[dict, list[str]]:
             for cond in extra.get("conditionals") or []:
                 if not cond.get("mappable") or not cond.get("field"):
                     continue
+                # 层数 null = 来源原文没写（P4-A：不当作已证的 1 层），按 1 层计并在卡面注明
+                _cap_known = cond.get("max_stacks") is not None
                 cap = int(cond.get("max_stacks") or 1)
                 n = cap if spec["galv_stacks"] == -1 else max(0, min(int(spec["galv_stacks"]), cap))
                 if n <= 0:
@@ -1433,10 +1463,13 @@ def parse_args(tokens: list[str]) -> tuple[dict, list[str]]:
                 add = float(cond.get("value") or 0.0) * n
                 _fk = _EFFECT_TO_SPEC.get(cond["field"], cond["field"])
                 spec[_fk] = spec.get(_fk, 0.0) + add
+                _mn = m.get("zh") or m.get("name")
                 spec["galv_applied"].append(
-                    f"{m.get('zh') or m.get('name')} "
-                    f"{cond.get('grants')} +{add:.1f}%（{n}/{cap} 层）"
+                    f"{_mn} {cond.get('grants')} +{add:.1f}%"
+                    + (f"（{n}/{cap} 层）" if _cap_known else "（层数原文未写，按 1 层）")
                 )
+                if _mn not in spec["galv_mods"]:
+                    spec["galv_mods"].append(_mn)
 
     # 赋能：**只有能被解析成无条件数值的部分才计入**。武器赋能绝大多数是
     # 「On X: Y% chance for +Z」这种条件触发（如 Arcane Fury），把它们当常驻加成
@@ -1477,17 +1510,17 @@ def parse_args(tokens: list[str]) -> tuple[dict, list[str]]:
 # ---------------------------------------------------------------------------
 # 主计算
 # ---------------------------------------------------------------------------
-# 吃「本元素 MOD 括号」的 DoT（wfsim fight/procs.rs：Toxin / Electricity / Heat 取
-# elem_bracket；Bleed 固定 1.0「elemental mods never scale the ticks」:731；Gas 固定 1.0
-# 「a Heat or Toxin mod adds nothing to a Gas tick」:785-792）
+# 吃「本元素 MOD 括号」的 DoT（wiki Status_Effect §DoT Damage Scaling：元素 MOD「only applies to
+# elemental status effects」⇒ Toxin / Electricity / Heat 吃本元素括号；切割不吃元素 MOD；
+# Gas / Blast 不吃组分元素 MOD，只吃字面元素伤害）
 _DOT_ELEM_BRACKET_TYPES = ("heat", "toxin", "electricity")
 
 
 def _dot_elem_bracket(el: str, spec: dict) -> float:
     """DoT 每跳的本元素括号 = 1 + Σ**该元素自身**的 MOD 加成（2026-10-09 B1）。
 
-    wfsim build/loadout/resolve.rs:569-574：elem_bonus 按 MOD 自身的元素类型累加，
-    与它后来是否被合成成复合元素无关（setup.rs:1689 elem_bracket 读的就是它）。
+    按 MOD 自身的元素类型累加，与它后来是否被合成成复合元素无关（wiki 同节：
+    「Relevant elemental damage mods」随初始命中带进 DoT）。
     修前 DoT 没有这一项：+90% 火时火 DoT 少 ×1.9。
     """
     if el not in _DOT_ELEM_BRACKET_TYPES:
@@ -1499,7 +1532,7 @@ def _dmg_sig(d: Optional[dict]) -> tuple:
     """伤害向量签名（段去重 / 判「与主段相同」共用）：只看正值伤害类型。
 
     ★ 必须剔除 `total` 与非伤害类型（2026-10-09 修）：warframe-items 有 41 把武器的
-    attacks 段伤害带 `total` 键，wfsim 段与主段都不带 ⇒ 签名永远对不上，
+    attacks 段伤害带 `total` 键，结构化段与主段都不带 ⇒ 签名永远对不上，
     同一段被算两次（Kuva Ayanga「Area Attack」与「范围伤害」各 82.8）、
     「与主段相同」也判不出来。
     """
@@ -1524,8 +1557,8 @@ def quantize_damage(per_type: dict[str, float], modded_base: float) -> dict[str,
     依据：wiki Damage/Calculation §Quantization —— ``Scale = Modded Base Damage / 32``，
     ``Quantized(x) = sign(x)·floor(|x|·32 + 0.5)/32``，量化后才乘其它倍率（派系等）。
     ★ 分母是 ModdedBase = 基础 ×(1 + 基伤 MOD [+ 加法型 CO])，**不含元素、不含物理单项 MOD**
-    （wfsim engine/src/rules/damage.rs:280 quantized_against；实测 docs/measurements/M57
-    Braton Prime 四档、M80 Ballistica Prime 1783/2341 —— 均为游戏内读数）。
+    （wiki Quantization：scale = Modded Base Damage / 32，「Elemental and Physical bonuses do not
+    affect the scale」；物理单项 MOD 乘在该类型基值上再取整，元素单独量化后相加）。
     纯物理也会动：各类型占比不是 1/32 整数倍时同样取整（wiki 例 30/30/40 ⇒ 100 面板实打
     103.125）；混元素 / 物理单项 MOD 时偏差更明显（± 几个百分点）。
     量化到 0 的类型直接去掉（否则护甲后「每类型至少 1 点」会凭空造出伤害）。
@@ -1565,15 +1598,16 @@ def _hit_from_damage(
     返回 ``(MOD 后各类型, 对血各类型, 对盾各类型, MOD 后基础总伤)``。
 
     ``with_co=False``：不计异况超量类加成（CO 只作用于**直击**，2026-10-09 修，
-    对齐 wfsim：DoT 种子取 CO 之前的 ``mb_live``（fight/pellet.rs:394-404），范围段
-    默认不吃 CO（data/weapons/attack.rs:704-708「the mods say direct hits only」）。
+    DoT 种子取 CO 之前的 ``mb_live``（wiki 未写明 CO 是否带进 DoT，按此口径），范围段
+    默认不吃 CO（wiki Condition_Overload_(Mechanic)「Direct Damage」专指不含范围爆炸伤害）。
     修前 CO 0→80 时 Braton Prime 切割 DoT 84.7→282.2、Kuva Ogris 爆炸段 150.5→511.6。
 
     ``quantize=False``：不做伤害量化 —— 只给「军械库面板」复算用（面板显示的是量化前的值，
     识卡截图实测 Xoris「总计 156>264」= 未量化和；量化后实打 262.5）。
 
-    ``co_mode``（wfsim co_behavior，B3）：``additive_with_base_damage`` = 与基伤同一加法
-    括号；``independent`` = 独立乘区 ×(1+CO)；``inert`` = CO 无效（wfsim scale.rs:147-183）。
+    ``co_mode``（co_behavior.json，由 wiki Condition_Overload_(Mechanic) §Attack Catalog 生成）：
+    ``additive_with_base_damage`` = 与基伤同一加法括号（Adding）；``independent`` = 独立乘区
+    ×(1+CO)（Multiplying）；``inert`` = CO 无效（Does not apply）。
     """
     # 异况超量 / 镀层战术：目标身上每种异常 +N%，**进基伤组**
     # （wiki Condition Overload 原式：Total = 基础 ×[1+伤害MOD+(CO×n)]×(1+元素MOD)）
@@ -1617,7 +1651,7 @@ def _hit_from_damage(
         per_type = quantize_damage(per_type, base_total_after)
 
     # CO 独立乘区（co_mode == independent）：整段直击 ×(1+CO)，不被基伤 MOD 稀释
-    #   —— 在量化**之后**乘（wfsim docs/measurements/M81：四档实测全按「先量化再乘」）
+    #   —— 在量化**之后**乘（wiki Quantization：其它乘区「only multiply final quantized values」）
     if _co_indep != 1.0:
         per_type = {k: v * _co_indep for k, v in per_type.items()}
 
@@ -1651,7 +1685,7 @@ _WEAPON_ATTACKS: Optional[dict] = None
 
 
 def _load_weapon_attacks() -> dict:
-    """武器的结构化额外段（wfsim radial/cluster 等，key = 小写 uniqueName）。"""
+    """武器的结构化额外段（radial/cluster 等，wiki 武器模块生成，key = 小写 uniqueName）。"""
     global _WEAPON_ATTACKS
     if _WEAPON_ATTACKS is None:
         try:
@@ -1664,7 +1698,7 @@ def _load_weapon_attacks() -> dict:
 
 
 def _load_incarnon_forms() -> dict:
-    """灵化形态基础面板（wfsim 抽取，key = 小写 uniqueName）。"""
+    """灵化形态基础面板（wiki 武器模块生成，key = 小写 uniqueName）。"""
     global _INC_FORMS
     if _INC_FORMS is None:
         try:
@@ -1680,9 +1714,8 @@ def _apply_incarnon_form(spec: dict, w: dict) -> dict:
     spec["form"]：None=默认（原型）/ "incarnon"=灵化 / "base"=原型（显式）/
     "keep"=不动（识卡用：面板已反推过）。
     ★ 2026-10-09 改（维护者定，推翻 2026-09-17「默认开灵化」）：灵化是临时形态（弱点命中
-    充能、备用开火切入、打空切回），军械库常态是原型 —— wfsim 74 个可转灵化的原型条目
-    全部标 `default_form: true`，69 个灵化条目无一标默认（latron_prime.yaml 射速 4.17 /
-    latron_prime_incarnon.yaml 3.33）。旧默认让「拉特昂 Prime + 关键延迟」得 2.66 而非
+    充能、备用开火切入、打空切回），军械库常态是原型（如 Latron Prime 原型射速 4.17、
+    灵化 3.33）。旧默认让「拉特昂 Prime + 关键延迟」得 2.66 而非
     游戏面板的 3.33。
     灵化形态是另一套基础面板（伤害向量/暴击/触发/射速），MOD 照常叠算；
     带范围（radial）段的形态在卡面标注 AoE 值（不并入主段数值）。
@@ -1716,14 +1749,18 @@ def _apply_incarnon_form(spec: dict, w: dict) -> dict:
             w2[dst] = inc[src]
     set_form_cadence(w2, inc)  # 点射 / 蓄力随灵化形态（b6 批）
     # 灵化弹池（2026-10-09 C 批）：灵化形态的子弹由能量槽供给，不是弹匣 ——
-    # 持续 DPS 的「弹匣 + 装填」循环按 wfsim pseudo_reload（弹池上限 / 切出 + 切入时长），
-    # wfsim engine/src/data/weapons/panel.rs:197-200。修前沿用原型弹匣 / 装填
+    # 持续 DPS 的「弹匣 + 装填」循环按 pseudo_reload（弹池 = wiki IncarnonCharges；循环停顿 =
+    # 原型装填 + 1 s 变形，我方建模约定，见 build_incarnon_forms.py）。修前沿用原型弹匣 / 装填
     # （拉特昂 Prime 灵化按 15 发 / 2.4s 算，应为 40 发 / 3.4s）
     pr = inc.get("pseudo_reload") or {}
     if pr.get("magazine") and pr.get("reload_seconds"):
         w2["magazineSize"] = float(pr["magazine"])
         w2["reloadTime"] = float(pr["reload_seconds"])
     txt = f"形态：灵化形态（基础 {dmg.get('total', 0):g}）"
+    if pr.get("magazine"):
+        # 枪械灵化没有时限，打空灵化弹药或手动切回才结束；再次灵化要靠命中重新充能（wiki 各 Incarnon
+        # Genesis 页）—— 持续 DPS 按「打空即切回再切灵化」算，是上限
+        txt += f"；灵化弹药 {pr['magazine']:g} 发，持续 DPS 按打空后立即再灵化估算（实际需重新充能，为上限）"
     rad = inc.get("radial") or {}
     if rad.get("damage"):
         txt += (
@@ -1734,7 +1771,7 @@ def _apply_incarnon_form(spec: dict, w: dict) -> dict:
         txt += "；强制异常：" + "、".join(TYPE_ZH.get(x, x) for x in inc["forced_procs"])
     rc = inc.get("ricochet") or {}
     if rc.get("bounces"):
-        txt += f"；弹跳 ×{rc['bounces']}（弱点率假设 {rc.get('headshot_chance', 0) * 100:g}%）"
+        txt += f"；弹跳 ×{rc['bounces']}（未计入伤害）"
     spec["notes"].append(txt)
     return w2
 
@@ -1747,13 +1784,20 @@ _ALT_FORM_WORDS = {
     "蓄力": "charged",
     "蓄力射击": "charged",
     "满蓄力": "charged",
+    # ★ 2026-10-25（Astra 评估）：太始弓类「完美射击」与「满蓄力」是两种形态（Nataruk：
+    #   满蓄力 1.0 s 50% / 2.2×，完美 0.7 s 60% / 2.4×）。2026-10-26 起两者都从 wiki 收录
+    #   （形态键 charged:charged_shot / charged:perfect_shot），selected_form 按原词挑；
+    #   只收了其一的武器仍由 _apply_alt_form 按键名改标签并注明。
+    "完美": "charged",
+    "完美射击": "charged",
+    "完美蓄力": "charged",
     "未蓄力": "uncharged",
     "不蓄力": "uncharged",
     "半自动": "semi_auto",
     "全自动": "auto",
 }
-# 非默认形态（2026-10-10 第三批）：spec["form"] → wfsim form 种类（weapon_attacks.json 的
-# forms 键前缀 <kind>:<yaml_id>）。只在用户显式写了关键词时生效；默认口径不读 forms。
+# 非默认形态（2026-10-10 第三批）：spec["form"] → 形态种类（weapon_attacks.json 的
+# forms 键前缀 <kind>:<wiki 攻击名>）。只在用户显式写了关键词时生效；默认口径不读 forms。
 ALT_FORM_KINDS = {
     "alt_fire": "副开火",
     "charged": "蓄力",
@@ -1761,7 +1805,8 @@ ALT_FORM_KINDS = {
     "semi_auto": "半自动",
     "auto": "全自动",
 }
-_ALT_FORM_WFSIM = {"uncharged": "base"}  # 我方关键词 → wfsim form 名（其余同名）
+_ALT_FORM_WFSIM = {"uncharged": "base"}  # 我方关键词 → 形态种类名（其余同名）
+_PERFECT_WORDS = ("完美", "完美射击", "完美蓄力")
 
 
 def _weapon_attacks_rec(weapon: dict) -> dict:
@@ -1781,6 +1826,20 @@ def selected_form(spec: dict, weapon: dict) -> tuple[str, dict]:
     if form in ALT_FORM_KINDS:
         kind = _ALT_FORM_WFSIM.get(form, form)
         hit = sorted(k for k in forms if k.startswith(kind + ":"))
+        if kind == "charged" and len(hit) > 1:
+            # 完美射击与普通满蓄力并存（Nataruk / Cinta）：按用户原词挑
+            want = spec.get("form_word") in _PERFECT_WORDS
+            hit = sorted(hit, key=lambda k: ("perfect" in k) != want)
+        if not hit and kind in ("alt_fire", "charged"):
+            # 「副开火」与「蓄力」互为回落：同一攻击 wiki 有的叫 Alt-Fire（Stahlta / Larkspur 的
+            # 蓄力副开火），有的只写蓄力（EFV-5 Jupiter Buckshot）；副开火要求带蓄力时间才算蓄力
+            other = "charged" if kind == "alt_fire" else "alt_fire"
+            hit = sorted(
+                k
+                for k in forms
+                if k.startswith(other + ":")
+                and (kind == "alt_fire" or forms[k].get("charge_seconds"))
+            )
         if hit:
             return form, forms[hit[0]]
     return "default", {}
@@ -1801,7 +1860,7 @@ def set_form_cadence(w: dict, rec: dict) -> None:
     """形态整套替换主段时，节奏字段随形态走：形态带 burst / charge_seconds 就写，没有就去掉
     母武器的（Burston 灵化是全自动，不能沿用原型的 3 连发）。每发耗弹取形态自己的 ammo_cost
     （b7 批：Zenith 半自动 3、Staticor 未蓄力 1、Cedo 副开火 0…），不带则回到 1（灵化形态对
-    能量槽每发 1，wfsim *_incarnon.yaml ammo_cost 1）。"""
+    能量槽每发 1）。"""
     for k in _CADENCE_KEYS:
         w.pop(k, None)
     b = rec.get("burst") or {}
@@ -1838,7 +1897,7 @@ def nock_only(w: dict) -> bool:
 def cadence_fire_rate(w: dict, fr_mult: float = 1.0) -> tuple[float, str]:
     """(每秒有效射弹数, 说明)。fr_mult = 射速加成后的倍率（1 + 射速%，弓的 MOD 部分已 ×2）。
 
-    wiki「Fire Rate」原式（wfsim 同，fight/melee.rs:530-547）：
+    wiki「Fire Rate」原式：
     · 点射：N / (1/(FR·m) + (N−1)·D / max(1, m))——面板 FR = 每秒点射次数（发间延迟为 0 时），
       射速加成同时缩短发间延迟，但「Burst Delay is not affected by net negative Fire Rate bonuses」；
     · 一般蓄力武器：1 / (蓄力/m + 1/(FR·m))；
@@ -1847,8 +1906,7 @@ def cadence_fire_rate(w: dict, fr_mult: float = 1.0) -> tuple[float, str]:
     · Lanka（draw、弹匣 10）：1 / (蓄力/m)（「does not have a delay between charged shots」）；
     · Epitaph 系（b10 批，视频实测）：满蓄力按一般式 1/(蓄力/m + 1/(FR·m))，不装填（noReload）
     · 弓的「未蓄力」（draw 且蓄力 0、弹匣 1）：只付上弦 ⇒ 1 / 装填，射速加成不加快（wiki 未单列；
-      wfsim *_uncharged.yaml charge_seconds 0.0 + DrawOnly 的实现口径，docs/measurements/M16 只有
-      实测方案、未出结果）——这一循环已含上弦，持续 DPS = 爆发 DPS（见 nock_only）；
+      暂按「未蓄力 = 蓄力 0、只付上弦」口径，未经实测）——这一循环已含上弦，持续 DPS = 爆发 DPS（见 nock_only）；
     · 「charge time cannot go above 10 times the base charge time」⇒ m 下限 0.1。
     其余武器 = FR·m，说明为空。"""
     fr = float(w.get("fireRate") or 0.0)
@@ -1858,7 +1916,7 @@ def cadence_fire_rate(w: dict, fr_mult: float = 1.0) -> tuple[float, str]:
         rl = float(w.get("reloadTime") or 0.0)
         return 1.0 / rl, (
             f"未蓄力点按：只付上弦 {rl:.3g}s ⇒ 有效射速 = 1/上弦 = {1.0 / rl:.3g} 发/s，射速加成不加快"
-            "（wiki 未单列；按 wfsim 弓未蓄力实现口径，M16 未出实测）；持续 DPS = 爆发"
+            "（wiki 未单列，暂按此口径，未经实测）；持续 DPS = 爆发"
         )
     if ct > 0:
         ct_mod = ct / max(m, 0.1)
@@ -1898,8 +1956,8 @@ def cadence_fire_rate(w: dict, fr_mult: float = 1.0) -> tuple[float, str]:
 def _apply_alt_form(spec: dict, w: dict) -> dict:
     """非默认形态（副开火 / 蓄力 / 未蓄力 / 半自动 / 全自动）：用 weapon_attacks.json
     forms 里该形态的整套面板替换主段（伤害向量 / 暴击 / 触发 / 射速 / 多重），额外段在
-    calculate 里同样整套换成该形态的（原型的范围段不参与）。弹匣 / 装填沿用母武器（wfsim
-    形态继承顶层键，catalog.rs:61-78）。没有该形态数据 ⇒ 按默认形态算并注明。"""
+    calculate 里同样整套换成该形态的（原型的范围段不参与）。弹匣 / 装填沿用母武器（wiki 灵化
+    形态通常不单列弹匣 / 装填）。没有该形态数据 ⇒ 按默认形态算并注明。"""
     form = spec.get("form")
     if form not in ALT_FORM_KINDS:
         return w
@@ -1910,9 +1968,18 @@ def _apply_alt_form(spec: dict, w: dict) -> dict:
             # 默认主段本身就是这一形态（如 Nataruk 默认 = 快速射击 = 未蓄力）
             spec["notes"].append(f"「{label}」即该武器的默认主段，按默认形态计算")
         else:
-            spec["notes"].append(f"该武器没有「{label}」形态数据（wfsim 未收录），仍按默认形态计算")
+            spec["notes"].append(f"该武器没有「{label}」形态数据（wiki 未收录），仍按默认形态计算")
         return w
     main = rec.get("main") or {}
+    _key = next((k for k, v in (_weapon_attacks_rec(w).get("forms") or {}).items() if v is rec), "")
+    if form == "charged" and "perfect" in _key:
+        # 数据是「完美射击」：标签照实写；用户写的是满蓄力 / 蓄力 ⇒ 明说没有普通满蓄力数据
+        label = "完美射击"
+        if spec.get("form_word") not in _PERFECT_WORDS:
+            spec["notes"].append(
+                "该武器的蓄力数据只收录了「完美射击」（掐准时机松手），普通满蓄力未收录，"
+                "以下按完美射击计算"
+            )
     w2 = dict(w)
     if main.get("damage"):
         w2["damage"] = dict(main["damage"])
@@ -1969,7 +2036,7 @@ _EVO_KEY_KINDS = [
 
 
 def _weapon_family_key(weapon: dict) -> str:
-    """武器 → wfsim 进化/valence 数据的 key（Latron Prime → latron_prime）。"""
+    """武器 → 进化 / 回响数据（evolutions / lich_valence）的 key（Latron Prime → latron_prime）。"""
     for src in (weapon.get("name"), weapon.get("zh")):
         if src:
             return re.sub(r"[\s'’]+", "_", str(src).strip().lower())
@@ -1980,7 +2047,7 @@ _CO_BEHAVIOR: Optional[dict] = None
 
 
 def _load_co_behavior() -> dict:
-    """CO 桶别表（wfsim co_behavior，scripts/build_co_behavior.py 生成；key = 小写 uniqueName）。"""
+    """CO 桶别表（wiki CO 页 Attack Catalog，scripts/build_co_behavior.py 生成；key = 小写 uniqueName）。"""
     global _CO_BEHAVIOR
     if _CO_BEHAVIOR is None:
         try:
@@ -2002,7 +2069,7 @@ _DEPLOYMENTS: Optional[dict] = None
 
 
 def _load_deployments() -> dict:
-    """Archgun 双部署面板（wfsim deployments，key = 小写 uniqueName）。"""
+    """Archgun 双部署面板（wiki 大气 / 空战两条，key = 小写 uniqueName）。"""
     global _DEPLOYMENTS
     if _DEPLOYMENTS is None:
         try:
@@ -2038,8 +2105,8 @@ def _apply_deployment(spec: dict, w: dict) -> dict:
                 w2[dst] = a[src]
         if a.get("reload_seconds"):
             w2["reloadTime"] = a["reload_seconds"]
-        if a.get("ammo_max"):
-            w2["magazineSize"] = a["ammo_max"]
+        if a.get("magazine"):
+            w2["magazineSize"] = a["magazine"]
         if a.get("radial_damage"):
             atks = list(w2.get("attacks") or [])
             atks.append(
@@ -2054,7 +2121,7 @@ def _apply_deployment(spec: dict, w: dict) -> dict:
         spec["notes"].append(
             "部署：空战（Archwing）面板"
             + ("；另有空战范围伤害段" if a.get("radial_damage") else "")
-            + ("；弹匣按空战值" if a.get("ammo_max") else "")
+            + ("；弹匣按空战值" if a.get("magazine") else "")
         )
         return w2
     if mode == "atmosphere":
@@ -2065,7 +2132,7 @@ def _apply_deployment(spec: dict, w: dict) -> dict:
 def _apply_panel_overrides(spec: dict, weapon: dict) -> dict:
     """灵化进化选项 + 赤毒/信条/终幕 valence bonus → 改武器基础面板。
 
-    进化（wfsim evolutions 数据）：flat_base_damage/crit/multishot 等
+    进化（evolutions.json，wiki 各武器灵化页生成）：flat_base_damage/crit/multishot 等
     平坦效果直接改基础面板（MOD 乘区随后作用其上 —— wiki 语义：进化
     改的是武器自身面板）。条件类效果只展示不计入。
     lich bonus：valence 元素额外伤害 = 原总基伤 × pct，计入该元素
@@ -2139,8 +2206,17 @@ def _apply_panel_overrides(spec: dict, weapon: dict) -> dict:
         tier, opt = picked
         used_ids.add(opt.get("id"))
         applied, shown = [], []
+        _inc_on = spec.get("form") == "incarnon"
         for e in opt.get("effects") or []:
             kind2, v = e.get("kind"), float(e.get("value") or 0.0)
+            if kind2 == "form_scoped" and _inc_on:
+                continue  # 灵化形态的那句已按 incarnon_value 计入，不再列「未计入」
+            if _inc_on and e.get("incarnon_value") is not None:
+                # 只对灵化形态另给的值（wiki Boar 系「+96% for Incarnon Form」、Stug「灵化形态翻倍」）
+                v = float(e["incarnon_value"])
+            elif e.get("incarnon_value") is not None and v == 0:
+                shown.append(e)  # 只在灵化形态生效、当前不是灵化
+                continue
             if kind2 == "flat_base_damage":
                 scale_damage(v)
                 applied.append(f"基伤+{v:g}")
@@ -2175,8 +2251,25 @@ def _apply_panel_overrides(spec: dict, weapon: dict) -> dict:
             if applied
             else f"EVO{tier} {opt.get('name')}：未计入"
         )
+        # 未计入的效果按类别计数显示（evolutions.json 由 build_evolutions 从 wiki 生成：conditional = 带条件，
+        # form_scoped = 只对灵化形态生效，other = 计算器不建模的其余效果）
+        _EVO_SKIP_ZH = {
+            "conditional": "条件效果",
+            "form_scoped": "仅灵化形态生效",
+            "other": "其他效果",
+        }
+        _cnt: dict = {}
+        for e in shown:
+            _lbl = _EVO_SKIP_ZH.get(str(e.get("kind")), str(e.get("kind")))
+            _cnt[_lbl] = _cnt.get(_lbl, 0) + 1
         spec["notes"].append(
-            line + ("｜未计入：" + "；".join(f"{e.get('kind')}" for e in shown) if shown else "")
+            line
+            + (
+                "｜未计入："
+                + "；".join(f"{k}" + (f" ×{v}" if v > 1 else "") for k, v in _cnt.items())
+                if shown
+                else ""
+            )
         )
         spec.setdefault("conditional", []).append(
             f"EVO{tier} {opt.get('name')}（条件部分未计入）"
@@ -2311,7 +2404,7 @@ def calculate(spec: dict, weapon: dict) -> dict:
         if k.lower() in STATUS_TABLE and isinstance(dmg.get(k), (int, float)) and dmg.get(k) > 0
     }
     # ★ MOD 加成的元素（合成后）与物理转换目标也会触发 ⇒ 计入种类数（2026-10-09 B3；
-    #   wfsim fight/debuffs.rs distinct_statuses 数的是目标身上实际挂着的异常）。
+    #   wiki Condition_Overload_(Mechanic) 数的是目标身上实际挂着的各类异常）。
     #   修前只数武器原生类型：Braton Prime 加火90 后仍是 3 种（应 4 种）。
     _types |= {k for k in compose_elements(spec["singles"]) if k in STATUS_TABLE}
     _types |= {k for k in (spec.get("physical_convert") or {}) if k in STATUS_TABLE}
@@ -2320,7 +2413,7 @@ def calculate(spec: dict, weapon: dict) -> dict:
         _load_incarnon_forms().get(str(_weapon_lib.get("uniqueName") or "").lower())
     )
     _co_mode = co_behavior_of(_weapon_lib, incarnon=_inc_form_on)
-    # 非默认形态（副开火 / 蓄力 …）：CO 桶别是按攻击给的（wfsim catalog.rs:54-56），取该形态
+    # 非默认形态（副开火 / 蓄力 …）：CO 桶别是按攻击给的（wiki §Attack Catalog 逐攻击列），取该形态
     # 自己的（forms 记录只写非 additive 的）
     _form_kind, _form_rec = selected_form(spec, _weapon_lib)
     if _form_kind in ALT_FORM_KINDS:
@@ -2345,7 +2438,7 @@ def calculate(spec: dict, weapon: dict) -> dict:
         spec["notes"].append(
             "异况超量类口径：该武器"
             + ("为独立乘区（不与基伤 MOD 相加）" if _co_mode == "independent" else "不吃此类加成")
-            + "（wfsim co_behavior）"
+            + "（wiki「Condition Overload (Mechanic)」攻击目录）"
         )
 
     # 1)+2)+3)+4) 见 _hit_from_damage：基础各类型×基伤、物理 MOD 只加同类型、
@@ -2385,8 +2478,7 @@ def calculate(spec: dict, weapon: dict) -> dict:
     # 连击层数（近战）：狂怒/创口溃烂都按「连击倍率那一列」算
     _is_venka = "venka prime" in (weapon.get("name") or "").lower()
     # ★ 初始连击是**下限**，不与连击数相加（2026-10-10 修）：wiki Melee「Initial Combo grants
-    #   a minimum value of combo points when idle or after a combo reset」；wfsim
-    #   fight/melee.rs:50-61 `held.max(initial.min(held + regen))`（每秒回 40，稳态取满）。
+    #   a minimum value of combo points when idle or after a combo reset」（稳态取满）。
     #   修前相加：连击40 + 邪恶蓄力30 = 70（×4）；应为 max(40, 30) = 40（×3）。
     #   狂怒 / 创口溃烂 / 重击三处统一读这一个数。
     _combo_eff = max(int(spec["combo_hits"]), int(spec["initial_combo"]))
@@ -2428,8 +2520,12 @@ def calculate(spec: dict, weapon: dict) -> dict:
     head_landing = _hp.get("landing", 1.0)
     head_src = _hp["src"]
     head_crit = _hp["crit"]
-    e_head_crit = crit_expectation(cc, 2.0 * cm) if head_crit else e_body
-    e_heavy_head = crit_expectation(cc_heavy, 2.0 * cm) if head_crit else e_heavy
+    head_cc = float(_hp.get("cc_bonus") or 0.0)  # 敌人头部额外暴击率（Babau +100%）
+    _hcm = 2.0 if head_crit else 1.0
+    e_head_crit = crit_expectation(cc + head_cc, _hcm * cm) if (head_crit or head_cc) else e_body
+    e_heavy_head = (
+        crit_expectation(cc_heavy + head_cc, _hcm * cm) if (head_crit or head_cc) else e_heavy
+    )
     # 头部相对身体的暴击期望比（DoT 继承初始命中的暴击，爆头时同样继承暴击爆头）
     head_crit_ratio = e_head_crit / e_body if e_body else 1.0
     e_head = head_mult * e_head_crit
@@ -2446,7 +2542,7 @@ def calculate(spec: dict, weapon: dict) -> dict:
         if per_type.get(el, 0.0) <= 0:
             continue
         vm = fac_table.get(el, {}).get(faction, 1.0)
-        # DoT 累加器起点为 1（wfsim 实测 M58：(ΣSᵢ+1)×C×M）——
+        # DoT 累加器起点为 1（(ΣSᵢ+1)×C×M；wiki 未写明，沿用旧口径）——
         # 单次 proc 即 (基础+1)×系数，基础大时可忽略但结构上应有
         tick = (
             (base_total_dot + 1.0)
@@ -2472,7 +2568,7 @@ def calculate(spec: dict, weapon: dict) -> dict:
     if spec["headshot"] and head_landing != 1.0 and any(e in dots for e in DOT_HEAD_LANDING):
         spec["notes"].append(
             f"电/毒气 DoT 爆头另乘落点层 ×{head_landing:g}（1x 基数 × 爆头加成；"
-            "wiki Enemy_Body_Parts §Notes / wfsim M100）"
+            "wiki Enemy_Body_Parts §Notes）"
         )
 
     ms = (weapon.get("multishot") or 1) * (1 + spec["multishot"] / 100.0)
@@ -2509,7 +2605,7 @@ def calculate(spec: dict, weapon: dict) -> dict:
         _is_bow = str(_weapon_lib.get("uniqueName") or "").lower() in BOW_CLASS_UNIQUE
         if _is_bow and _fr_mod:
             # 弓/弩：射速 MOD 卡面「(x2 for Bows)」⇒ MOD 部分翻倍（负射速卡同样翻倍）；
-            # 赋能/镀层叠层/进化等非 MOD 卡来源不翻倍（wfsim build/loadout/resolve.rs:175、534）
+            # 赋能/镀层叠层/进化等非 MOD 卡来源不翻倍（翻倍条款只写在射速 MOD 卡面上）
             _fr_pct += _fr_mod
             fr_note = f"含射速 {_fr_pct:+g}%（弓/弩：射速 MOD {_fr_mod:+g}% ×2）"
         else:
@@ -2532,16 +2628,28 @@ def calculate(spec: dict, weapon: dict) -> dict:
     # noReload：葬铭系不装填（wiki Epitaph §Notes「does not "reload" between shots」，b8 批）
     _no_cycle = _ammo_cost <= 0 or bow_cycle(weapon) or bool(weapon.get("noReload"))
     dps_sustained = None
+    _cycle_ratio = None  # 持续 / 爆发（主段与含段合计共用）
+    # 逐发射速曲线（凤殁灵化降速 / 起转类）：打空一匣的实际用时按逐发射速累加；爆发按面板射速，
+    # 实战 DPS 按打空一匣的平均射速 _fr_hold；降速类另出一条「短点射重置降速」按起始射速
+    _rate_at, _curve_kind = fire_rate_curve(_weapon_lib, spec, _form_kind)
+    _fr_hold = fire_rate_eff
     if magazine > 0 and fire_rate_eff > 0 and reload_t > 0:
         if _no_cycle:
-            dps_sustained = health * ms * fire_rate_eff
+            _cycle_ratio = 1.0
         else:
             mag_time = magazine / (fire_rate_eff * _ammo_cost)
-            dps_sustained = (health * ms * fire_rate_eff) * mag_time / (mag_time + reload_t)
+            hold_time = (
+                ramp_hold_seconds(magazine / _ammo_cost, fire_rate_eff, _rate_at)
+                if _rate_at
+                else mag_time
+            )
+            if _rate_at:
+                _fr_hold = fire_rate_eff * mag_time / hold_time
+            _cycle_ratio = mag_time / (hold_time + reload_t)
+        dps_sustained = health * ms * fire_rate_eff * _cycle_ratio
 
     # 敌人血量/护盾（指定敌人时）：按派系公式缩放；钢路 ×2.5（血量与护盾）
-    # ★ 2026-10-16：原为 ×2（注释写 +100%），wiki《The Steel Path》写 Enemy Health / Shield 250%，
-    #   wfsim rules/scaling.rs STEEL_PATH_HEALTH_MULT = 2.5 同口径（wfsim 引擎对照审查发现的旧差异）
+    # ★ 2026-10-16：原为 ×2（注释写 +100%），wiki《The Steel Path》写 Enemy Health / Shield 250%。
     hp = shield_hp = None
     shots = None
     if enemy:
@@ -2574,34 +2682,45 @@ def calculate(spec: dict, weapon: dict) -> dict:
     # v1.6：异常稳态 / 近战重击 / 超宏 / Sentient 适应
     # ------------------------------------------------------------------
     spec["_armor"] = armor  # 稳态模型要用「未剥甲」的原始护甲
-    # wiki Weeping Wounds 原式（2026-10-09 订正，wfsim fight/resolve.rs:248-253 引用）：
+    # wiki Weeping Wounds 原式（2026-10-09 订正）：
     #   SC = 基础 ×[1 + MOD + 创口溃烂 ×(连击倍率 − 1)] —— 与狂怒（暴击侧）同构、同一括号。
     # 修前写成 基础 ×(1+MOD) ×(1 + 创口 × 连击倍率)：独立乘区且少了 −1，
     # MOD +90%、创口 +40%、12 层时 11.02× 对 6.3×（高估约 75%）。
     status_chance_total = (weapon.get("procChance") or 0.0) * (
         1 + (spec["status_chance"] + spec["status_per_combo"] * (_combo_tier - 1.0)) / 100.0
     )
+
     # 拟成枪系：一次扳机一次爆炸 ⇒ 触发判定次数不乘多重（b8 批）
-    procs = status_procs_per_sec(fire_rate_eff, 1.0 if _orb_cap > 0 else ms, status_chance_total)
-    ss = steady_state_dps(
-        per_type,
-        base_total_dot,  # 稳态里它只用于 DoT 种子 ⇒ 同样不含 CO
-        fac_mod,
-        fac_table,
-        faction,
-        procs,
-        1 + spec["status_dmg"] / 100.0,
-        cc,
-        cm,
-        head_mult,
-        ms,
-        fire_rate_eff,
-        spec,
-        strip,
-        head_crit=head_crit,
-        head_landing=head_landing,
+    def _steady(fr: float) -> dict:
+        _p = status_procs_per_sec(fr, 1.0 if _orb_cap > 0 else ms, status_chance_total)
+        _ss = steady_state_dps(
+            per_type,
+            base_total_dot,  # 稳态里它只用于 DoT 种子 ⇒ 同样不含 CO
+            fac_mod,
+            fac_table,
+            faction,
+            _p,
+            1 + spec["status_dmg"] / 100.0,
+            cc,
+            cm,
+            head_mult,
+            ms,
+            fr,
+            spec,
+            strip,
+            head_crit=head_crit,
+            head_landing=head_landing,
+            head_cc=head_cc,
+        )
+        _ss["status_chance"] = status_chance_total
+        return _ss, _p
+
+    ss, procs = _steady(_fr_hold)
+    ss_burst = (
+        _steady(fire_rate_eff)[0]
+        if _curve_kind == "spooldown" and _fr_hold != fire_rate_eff
+        else None
     )
-    ss["status_chance"] = status_chance_total
 
     # 近战重击：wiki《Melee Combo》——重击吃满连击倍率、并消耗连击数
     heavy_info = None
@@ -2614,15 +2733,13 @@ def calculate(spec: dict, weapon: dict) -> dict:
             hits = _combo_eff
             mul_h, _mul_n = combo_multiplier(hits, venka=is_venka)
             # ★ 一击必杀类「重击伤害」**进基伤加法组**（2026-10-10 修）：wiki Killing Blow
-            #   「Damage bonus is additive to mods such as Pressure Point」；wfsim
-            #   fight/pellet.rs:368 把 heavy_attack_base_damage（melee.rs:64-78）加进
-            #   arcane_base_damage，再按 co_behavior 进 CO 括号（scale.rs gunco_bucket：
+            #   「Damage bonus is additive to mods such as Pressure Point」，再按 co_behavior 进 CO 括号（
             #   additive ⇒ 1+基伤+重击+CO；independent ⇒ (1+基伤+重击)×(1+CO)）。
             #   修前 ×(1+重击) 独立乘区，压迫点 +165%、一击必杀 +120% 时高估 ≈ 1.6 倍。
             # ★ 重击按**自己的伤害构成整段重算**（不再拿普通攻击的「对血」等比缩放）：
             #   护甲后的「每类型至少 1 点」是非线性的，缩放会把被抬到 1 的小分量一起放大
             #   （Dual Zoren 冲击/穿刺 3.5 即踩中）。架势倍率不进重击：重击用的是武器类别的
-            #   重击倍率（heavyAttackDamage 已含），不是架势那一段（wfsim MELEE.md §5b）。
+            #   重击倍率（heavyAttackDamage 已含），不是架势那一段。
             #   连击倍率是攻击本身的倍率（护甲之前），一并乘进伤害构成再过护甲。
             _hk = hv / total_base * mul_h
             _hdmg = {
@@ -2664,11 +2781,10 @@ def calculate(spec: dict, weapon: dict) -> dict:
     # 多段判定：一把武器常有多段独立伤害（投掷命中 / 投掷爆炸 / 充能投掷 /
     # 震地 / 重击震地 / 灵化形态 / 次级开火…），**各段单独走一遍完整公式**。
     # 卡面只挑「与普通攻击构成不同」的段展示，避免同值噪音。
-    # ★ 含段合计只算**默认开火方式在一次扳机里的各阶段**（2026-10-09 修，对齐 wfsim：
-    #   每发 = 直击 → 范围 → 集束各一次，MECHANICS.md「stage」；其它开火方式是另一个
-    #   play mode，不相加）。段的 `in_total` 标记决定是否计入：
+    # ★ 含段合计只算**默认开火方式在一次扳机里的各阶段**（2026-10-09 修：
+    #   每发 = 直击 → 范围 → 集束各一次；其它开火方式是另一种打法，不相加）。段的 `in_total` 标记决定是否计入：
     #   · 与主段相同的段 —— 就是主段本身，不计（修前 134 把武器重复加一次）；
-    #   · wfsim 结构化段（weapon_attacks.json，生成器只收带 internal_name 的条目 =
+    #   · 结构化段（weapon_attacks.json，wiki 生成，只收带 InternalName 的条目 =
     #     默认形态）—— 计；与某个 attacks 段同签名时只算一次（标在该 attacks 段上）；
     #   · 开「灵化」时灵化形态自己的 AoE 段 —— 计；
     #   · 其余 attacks 段（副开火 / 蓄力 / 投掷 / 开镜档位 / 震地…）—— 只展示不计
@@ -2686,7 +2802,7 @@ def calculate(spec: dict, weapon: dict) -> dict:
         if not _nm or not _md or _nm == "Normal Attack":
             continue
         _inc_aoe = False
-        _inc_rad: dict = {}  # 与 incarnon_forms.radial 同签名 ⇒ 带上 wfsim 的段标记
+        _inc_rad: dict = {}  # 与 incarnon_forms.radial 同签名 ⇒ 带上结构化段的标记
         # 灵化武器的 attacks 里带「Incarnon Form / Incarnon Form AoE / … Radial Attack」：
         # 形态替换后主段已等于 Incarnon 主段（重复计一次会翻倍）；
         # 原型（默认或「基础形态」）下不算任何灵化段 —— 灵化段只在「灵化」时成立。
@@ -2694,8 +2810,8 @@ def calculate(spec: dict, weapon: dict) -> dict:
             if spec.get("form") != "incarnon":
                 continue
             # 2026-10-10：名字叫「… Radial Attack」的（Zylok / Burston / Gammacor 等灵化）
-            # 修前被漏掉；签名对上 wfsim 灵化 radial（incarnon_forms.radial）才认作该形态的
-            # 范围阶段（Onos「Incarnon Mode Charge Radial Attack」是蓄力模式，wfsim 无此
+            # 修前被漏掉；签名对上灵化 radial（incarnon_forms.radial）才认作该形态的
+            # 范围阶段（Onos「Incarnon Mode Charge Radial Attack」是蓄力模式，incarnon_forms 无此
             # radial ⇒ 不收），并用它的 takes_multishot / takes_condition_overload。
             # Burston 灵化范围段与直击同为 heat 3 —— 是两个阶段，不能按「同主段」去掉。
             _r = _inc_this.get("radial") or {}
@@ -2734,8 +2850,8 @@ def calculate(spec: dict, weapon: dict) -> dict:
             n_types=_n_types,
             stance_mult=_st_mult,
             co_mode=_co_mode,
-            # 范围段不吃 CO（attack.rs:704-708）；直击类段（副开火/投掷…）照常；
-            # wfsim 声明 takes_condition_overload 的范围段例外（灵化 Braton / Burston / Zylok）
+            # 范围段不吃 CO（wiki Condition_Overload_(Mechanic)）；直击类段（副开火/投掷…）照常；
+            # wiki 标 CO Adding 的范围段例外（takes_condition_overload：灵化 Braton / Burston / Zylok）
             with_co=str(_atk.get("shot_type") or "") != "AoE"
             or bool(_inc_rad.get("takes_condition_overload")),
         )
@@ -2748,7 +2864,7 @@ def calculate(spec: dict, weapon: dict) -> dict:
         _mcm = _cm_raw * (1 + spec["crit_dmg"] / 100.0)
         _me = crit_expectation(_mcc, _mcm)
         _sig = _dmg_sig(_md)
-        # 有出处的「不吃多重」（一次扳机一次爆炸）只来自 wfsim 灵化 radial 白名单
+        # 有出处的「不吃多重」（一次扳机一次爆炸）只来自灵化 radial 白名单（wiki「AoE does not scale off multishot」）
         _ms_row = ms if _inc_rad.get("takes_multishot", True) else 1.0
         if _orb_cap > 0:
             _ms_row = 1.0  # 拟成枪系：合并伤害 / 奇点 DoT 不吃多重；爆炸段在下面按 min(多重, 4)
@@ -2824,8 +2940,8 @@ def calculate(spec: dict, weapon: dict) -> dict:
                 }
             )
 
-    # ---- wfsim 结构化额外段（范围/集束）：与 attacks 段同规则并入 ----
-    # warframe-items 的 attacks 对爆炸武器常缺 radial 明细，wfsim 的 radial
+    # ---- 结构化额外段（范围/集束，wiki 生成）：与 attacks 段同规则并入 ----
+    # warframe-items 的 attacks 对爆炸武器常缺 radial 明细，weapon_attacks 的 radial
     # 块（伤害向量/自带宽高暴击/R 半径/衰减/是否吃多重）更完整。按伤害
     # 签名去重，避免与上面 attacks 的段重复。
     _wa = _weapon_attacks_rec(weapon)
@@ -2838,7 +2954,7 @@ def calculate(spec: dict, weapon: dict) -> dict:
     _seen_sig = set(_by_sig) | {_main_sig}
     # 段暴击 = 段自带值 + 进化 / 回响带来的基础暴击增量。增量的参照是**当前形态**未改造的
     # 面板（默认 = 库值；灵化 = incarnon_forms；副开火等 = forms 主段）—— 段的值本身已是
-    # 该形态的（wfsim panel.rs:268-271 缺省继承该形态直击段），不能再加一次形态差。
+    # 该形态的（缺省继承该形态直击段），不能再加一次形态差。
     _ref = _weapon_lib
     if _form_kind == "incarnon":
         _ref = _inc_this or _weapon_lib
@@ -2850,7 +2966,12 @@ def calculate(spec: dict, weapon: dict) -> dict:
     _cm_delta = float(weapon.get("criticalMultiplier") or 1.0) - float(
         _ref.get("criticalMultiplier") or 1.0
     )
+    _head_skipped = []
     for _seg in _wa.get("segments") or []:
+        if _seg.get("headshot_only") and not spec["headshot"]:
+            # 只在爆头时触发的爆炸（Vectis 灵化 / Zymos 等，wiki「Headshot …」子攻击）：写「爆头」才计入
+            _head_skipped.append(str(_seg.get("attack") or _seg.get("name") or ""))
+            continue
         _sd = {
             k: float(v)
             for k, v in (_seg.get("damage") or {}).items()
@@ -2861,21 +2982,22 @@ def calculate(spec: dict, weapon: dict) -> dict:
         # 段的「每次扳机」口径（2026-10-10 生成器批）：
         #   · takes_multishot 缺省吃多重，只有白名单（有出处）的 false 才会出现在数据里；
         #   · count = 集束子炸弹颗数（attacks 的 Cluster Bomb Contact/Explosion 是单颗值）；
-        #   · takes_condition_overload = wfsim 声明吃 CO 的范围段 / 云团（attack.rs:704-708
-        #     的例外；桶别随武器 co_behavior，fight/pellet.rs:420-428）；
+        #   · takes_condition_overload = wiki 标吃 CO 的范围段 / 云团（「范围不吃 CO」的
+        #     例外；桶别随武器 co_behavior）；
         #   · merge_only = 云团（lingering）：只给同签名 attacks 段带 CO，不建段、不进合计。
         _takes_ms = bool(_seg.get("takes_multishot", True))
         _count = float(_seg.get("count") or 1.0)
         _seg_co = bool(_seg.get("takes_condition_overload"))
         _merge_only = bool(_seg.get("merge_only"))
         _sig = _dmg_sig(_sd)
-        if _sig in _seen_sig:
+        # 爆头爆炸是直击之后另起的一个阶段（Vectis Prime 灵化：爆头爆炸与直击同为冰 150），不按签名去重
+        if _sig in _seen_sig and not _seg.get("headshot_only"):
             # 已有同签名段：不重复建段，但它是默认开火的一个阶段 ⇒ 让那一段计入合计
             # （与主段同签名则就是主段本身，不另计）
             _dup = _by_sig.get(_sig)
             if _dup is not None and not _dup.get("same_as_main"):
                 # 会改数值的字段合并到该 attacks 段上（修前只补衰减 / 半径展示元数据，
-                # Trumna 等 wfsim 声明吃 CO 的范围段被 attacks 的「AoE 不吃 CO」吃掉）。
+                # Trumna 等 wiki 标吃 CO 的范围段被 attacks 的「AoE 不吃 CO」吃掉）。
                 # 段暴击仍取 attacks 段自己的。
                 if _seg_co and str(_dup.get("shot_type") or "") == "AoE":
                     _pt, _pth, _pts, _ = _hit_from_damage(
@@ -2937,7 +3059,7 @@ def calculate(spec: dict, weapon: dict) -> dict:
             n_types=_n_types,
             stance_mult=_st_mult,
             co_mode=_co_mode,
-            with_co=_seg_co,  # 范围 / 集束默认不吃 CO，wfsim 声明的例外才吃
+            with_co=_seg_co,  # 范围 / 集束默认不吃 CO，wiki 标明的例外才吃
         )
         # 段自带宽高暴击（与主段常不同）；进化/形态引入的基础暴击增量一并计入
         _cc_raw = float(_seg.get("criticalChance") or 0.0) + _cc_delta
@@ -2956,9 +3078,9 @@ def calculate(spec: dict, weapon: dict) -> dict:
                 "per_type": _pth,
                 "crit_cc": _mcc,
                 "crit_exp": _me,
-                # 子炸弹的接触命中不是范围伤害（wfsim 把它建成一个身位半径的球，panel.rs:313-331）
+                # 子炸弹的接触命中不是范围伤害（按单体直击计）
                 "shot_type": "Projectile" if _seg.get("id") == "cluster" else "AoE",
-                # ★ 与 attacks 段同构（{start, end, reduction}）：wfsim 给的是裸数字
+                # ★ 与 attacks 段同构（{start, end, reduction}）：结构化段给的是裸数字
                 #   falloff_reduction（0–1，与 warframe-items 的 reduction 同义），
                 #   原样塞进来会让 card_lines 的 .get 崩（Kuva Ayanga 等 9 把默认即崩）
                 "falloff": (
@@ -2982,6 +3104,10 @@ def calculate(spec: dict, weapon: dict) -> dict:
             }
         )
 
+    if _head_skipped:
+        spec["notes"].append(
+            "爆头时另有爆炸段（" + "、".join(_head_skipped) + "），写「爆头」计入含段合计"
+        )
     # 含段合计：主段每次扳机 + 同一扳机的其它阶段（in_total，见上方口径）
     _in_total = [m for m in mode_segments if m.get("in_total") and m.get("per_trigger_health")]
     _seg_sum = sum(float(m["per_trigger_health"]) for m in _in_total)
@@ -3010,13 +3136,7 @@ def calculate(spec: dict, weapon: dict) -> dict:
             float(m["per_trigger_health"]) / (float(m.get("crit_exp") or 1.0) or 1.0)
             for m in _in_total
         )
-        _sus_ratio = None  # 持续 / 爆发：与主段同一弹匣循环
-        if dps_sustained is not None:
-            if _no_cycle:
-                _sus_ratio = 1.0
-            else:
-                _mt = magazine / (fire_rate_eff * _ammo_cost)
-                _sus_ratio = _mt / (_mt + reload_t)
+        _sus_ratio = _cycle_ratio  # 持续 / 爆发：与主段同一弹匣循环
         dps_seg = {
             "crit": segments_total["total"] * fire_rate_eff,
             "nocrit": _nocrit * fire_rate_eff,
@@ -3111,6 +3231,7 @@ def calculate(spec: dict, weapon: dict) -> dict:
         "dps_sustained": dps_sustained,
         "dps_seg": dps_seg,
         "galv_applied": spec.get("galv_applied") or [],
+        "galv_mods": spec.get("galv_mods") or [],
         "magazine": magazine,
         "ammo_cost": _ammo_cost,
         "no_cycle": _no_cycle,
@@ -3136,6 +3257,9 @@ def calculate(spec: dict, weapon: dict) -> dict:
         "notes": spec.get("notes") or [],
         "unknown": spec.get("unknown") or [],
         "steady": ss,
+        "steady_burst": ss_burst,  # 降速武器：短点射重置降速（起始射速）的实战 DPS
+        "fire_rate_curve": _curve_kind,  # "spooldown" / "spoolup" / ""（卡面注明与计算同一判断）
+        "form_kind": _form_kind,
         "heavy": heavy_info,
         "overguard": og_info,
         "stance": (
@@ -3166,7 +3290,7 @@ def calculate(spec: dict, weapon: dict) -> dict:
     }
 
 
-# 段名中文（warframe-items 段名是英文；wfsim 段名已中文）
+# 段名中文（warframe-items 段名是英文；结构化段段名已中文）
 SEG_ZH = {
     "Rocket Impact": "火箭直击",
     "Rocket Explosion": "火箭爆炸",
@@ -3256,7 +3380,7 @@ def _note_zh(note: str) -> str:
 # ---------------------------------------------------------------------------
 STATUS_TABLE: dict[str, dict] = {
     #  dur：单层持续时间(s)；max：层数上限（None = 不限）；ratio：DoT 每秒系数
-    # 冲击 6s（wiki Damage/Impact_Damage；wfsim data/debuffs/stagger.yaml:19 duration_seconds 6）。
+    # 冲击 6s（wiki Damage/Impact_Damage）。
     # 2026-10-10 由 1.0 订正；冲击层数在稳态模型里不参与任何数值（只影响处决阈值），改动不动数。
     "impact": {"dur": 6.0, "max": 5},
     "puncture": {"dur": 10.0, "max": 5},
@@ -3278,7 +3402,7 @@ STATUS_TABLE: dict[str, dict] = {
 ADAPT_RESIST = (0.90, 0.80, 0.75, 0.70)
 OVERGUARD_VOID_BONUS = 0.50  # 超宏：虚空 +50%，其余类型不吃派系倍率
 COMBO_STEP = 20  # 近战连击：每 20 连击一层
-# 冰冻（wiki Damage/Cold_Damage；wfsim data/debuffs/frozen.yaml）
+# 冰冻（wiki Damage/Cold_Damage）
 FROZEN_STACKS = 10  # 第 10 层冰 ⇒ 冻结
 FROZEN_SECONDS = 3.0  # 冻结持续
 FROZEN_THAW_STACKS = 3  # 解冻后剩 3 层
@@ -3331,6 +3455,7 @@ def steady_state_dps(
     strip_explicit: float = 0.0,
     head_crit: bool = False,
     head_landing: float = 1.0,
+    head_cc: float = 0.0,
 ) -> dict:
     """异常稳态模型：把「持续打同一目标」的实战 DPS 拆成 直伤 + DoT 两部分。
 
@@ -3384,8 +3509,8 @@ def steady_state_dps(
         # ★ 满 10 层 = 冻结（2026-10-10 修）：wiki Damage/Cold_Damage「On the 10th stack,
         #   enemies become Frozen for 3 seconds … increasing the Critical Damage Multiplier
         #   bonus to +1.0x. After the Frozen effects wears off, 3 Cold stacks will remain」+
-        #   「Frozen enemies cannot receive additional Cold stacks」；wfsim
-        #   data/debuffs/frozen.yaml:20-24（+1.00 **替换**阶梯的 +0.50、只作用武器直击）。
+        #   「Frozen enemies cannot receive additional Cold stacks」；同页暴伤 +1.0x **替换**
+        #   9 层的 +0.50x、不作用于范围伤害。
         #   稳态 = 循环「冻结 3s（+1.0）→ 解冻剩 3 层 → 再挨 7 次冰触发爬回 10 层」：
         #   爬升段每层停留 1/r 秒、值 = 阶梯 3..9 层（0.20..0.50，和 2.45）。冻结期间命中照常
         #   （伤害与时间成正比，暴击期望对暴伤线性）⇒ 按时间加权平均：
@@ -3404,10 +3529,13 @@ def steady_state_dps(
     pun_stacks = stacks_of("puncture")
     cc_bonus = min(0.25, 0.05 * pun_stacks) if pun_stacks >= 1 else 0.0
     e_crit_ss = crit_expectation(crit_cc + cc_bonus, crit_cm + cm_bonus)
-    # 爆头时 DoT 继承暴击爆头（暴伤 ×2，wfsim pellet.rs:569-575 的 crit_multiplier 传入 proc）
+    # 爆头时 DoT 继承暴击爆头（暴伤 ×2；wiki Status_Effect：暴击与部位倍率都带进 DoT）
     _head_crit_ratio = (
-        crit_expectation(crit_cc + cc_bonus, 2.0 * (crit_cm + cm_bonus)) / e_crit_ss
-        if head_crit and e_crit_ss
+        crit_expectation(
+            crit_cc + cc_bonus + head_cc, (2.0 if head_crit else 1.0) * (crit_cm + cm_bonus)
+        )
+        / e_crit_ss
+        if (head_crit or head_cc) and e_crit_ss
         else 1.0
     )
 
@@ -3518,9 +3646,135 @@ def adapt_damage(per_type: dict[str, float], levels: int) -> tuple[float, dict]:
 
 
 DAMAGE_DISCLAIMER = (
-    "※ ⚠ 理论推算，未经大规模实战检验：按 wiki 公式与 wfsim 对照算出，"
+    "※ ⚠ 理论推算，未经大规模实战检验：按 wiki 公式算出，"
     "可能与游戏面板 / 实战有出入，以游戏内为准；发现对不上欢迎反馈"
 )
+
+
+# ★ 2026-10-25（Astra 评估）：射速随持续开火变化的武器。我方 DPS 一律按恒定射速（军械库面板 =
+#   起转完的满速）算 ⇒ 起转类只有开火头几发偏高；凤殁灵化相反，持续开火后降速。先在卡上写明；
+#   2026-10-26 凤殁降速已建模进持续 DPS（_FIRE_RATE_SPOOLDOWN）；同日起转类按 wiki 各武器页的「起始比例 +
+#   每发增量」建模（_FIRE_RATE_SPOOLUP，Astra 查证、Claude 抽 3 把复核）。
+# 2026-10-26（wfsim 迁移，维护者核查）：到满速的发数改取英文 wiki 武器数据的 ``Spool``（22 把逐把复核一致）；
+#   起始射速百分比 wiki / 官方导出都没有（原表来自第三方模拟器），不再写。Zylok 双发扳机（Duplex）：第二发在
+#   松开扳机时打出，间隔取决于按住时长，没有固定值。
+_FIRE_RATE_SPOOL_SHOTS = {
+    "Gorgon": 9,
+    "Gorgon Wraith": 6,
+    "Prisma Gorgon": 7,
+    "Soma": 6,
+    "Soma Prime": 4,
+    "Supra": 5,
+    "Supra Vandal": 4,
+    "Kohm": 5,
+    "Kuva Kohm": 5,
+    "Kohmak": 4,
+    "Twin Kohmak": 11,
+    "Aksomati": 6,
+    "Aksomati Prime": 11,
+    "Secura Dual Cestra": 5,
+    "Tenora": 9,
+    "Tenora Prime": 9,
+    "Grattler": 4,
+    "Phaedra": 11,
+    "Imperator Vandal": 16,
+}
+# 起转（只在默认形态）：武器名 → (第 1 发射速 %, 每发增加百分点, wiki oldid)。英文 wiki 各武器页
+# Characteristics「Fire rate starts at X% of the listed value, and increases by Y% per shot」；第 k 发射速 =
+# min(100%, X + Y×(k−1))，按此式到满速的发数与上表 wiki Spool 一致（数值按原文 13.33 / 3.11 抄写，满速那发
+# 差 0.02% 以内）。例外：Secura Dual Cestra 原文同句写 5 发满速，按式要第 6 发 —— 按式算。
+# 不建模：Aksomati Prime（wiki 正文未写比例）；Kohm / Kuva Kohm / Kohmak / Twin Kohmak（起转同时改弹片数与每发
+#   耗弹 —— Kohmak / Twin Kohmak 页「each consecutive shot adds an additional pellet」「1.67 ammo per shot at full
+#   spool-up」，只建射速会错）。
+_FIRE_RATE_SPOOLUP = {
+    "Gorgon": (20, 10.667, 2816881),
+    "Gorgon Wraith": (20, 16, 2816882),
+    "Prisma Gorgon": (20, 13.33, 2816883),
+    "Soma": (25, 15, 2816891),
+    "Soma Prime": (25, 30, 2819758),
+    "Supra": (10, 22.5, 2814719),
+    "Supra Vandal": (40, 20, 2785484),
+    "Aksomati": (25, 15, 2789988),
+    "Secura Dual Cestra": (60, 8, 2784073),
+    "Tenora": (40, 7.5, 2791908),
+    "Tenora Prime": (40, 7.5, 2791909),
+    "Grattler": (40, 20, 2817556),
+    "Phaedra": (50, 5, 2817554),
+    "Imperator Vandal": (53.33, 3.11, 2817555),
+}
+_DUPLEX = {"Zylok", "Zylok Prime"}
+# 持续开火降速（只在灵化形态）：武器名 → (降到底所需发数, 最终射速比例)。
+# wiki Phenmor「Fire rate decreases from 100% to 60% over 51 shots as the trigger is held」
+# 「Spool resets once the player stops firing」。建模：已打出 n 发后射速 = 满速 ×
+# (1 − (1 − 比例) × min(n, 发数) / 发数)，持续 DPS 按住扳机打空整个弹池；爆发 DPS 按起始射速。
+_FIRE_RATE_SPOOLDOWN = {"Phenmor": (51, 0.60)}
+
+
+def ramp_hold_seconds(shots: float, fire_rate: float, rate_at) -> float:
+    """按住扳机连射 ``shots`` 发的用时；``rate_at(n)`` = 已打出 n 发后的射速比例（第 n+1 发用它）。"""
+    n_full = int(shots)
+    t = sum(1.0 / (fire_rate * rate_at(n)) for n in range(n_full))
+    rest = shots - n_full  # 弹池非整数发（每发耗弹非整数）时的零头
+    if rest > 0:
+        t += rest / (fire_rate * rate_at(n_full))
+    return t
+
+
+def spooldown_hold_seconds(shots: float, fire_rate: float, ramp_shots: int, floor: float) -> float:
+    """按住扳机连射 ``shots`` 发的用时（逐发降速，见 _FIRE_RATE_SPOOLDOWN）。"""
+    return ramp_hold_seconds(
+        shots, fire_rate, lambda n: 1.0 - (1.0 - floor) * min(n, ramp_shots) / ramp_shots
+    )
+
+
+def spoolup_rate_at(start_pct: float, inc_pct: float):
+    """起转曲线：已打出 n 发后的射速比例 = min(1, (起始 + 增量 × n) / 100)。"""
+    return lambda n: min(1.0, (start_pct + inc_pct * n) / 100.0)
+
+
+def fire_rate_curve(weapon_lib: dict, spec: dict, form_kind: str):
+    """该武器当前形态的逐发射速曲线 → (rate_at, "spooldown" / "spoolup")；没有曲线返回 (None, "")。"""
+    name = str((weapon_lib or {}).get("name") or "")
+    if spec.get("form") == "incarnon":
+        if name in _FIRE_RATE_SPOOLDOWN:
+            _n, _floor = _FIRE_RATE_SPOOLDOWN[name]
+            return (lambda n: 1.0 - (1.0 - _floor) * min(n, _n) / _n), "spooldown"
+        return None, ""
+    if form_kind == "default" and name in _FIRE_RATE_SPOOLUP:
+        _st, _inc, _ = _FIRE_RATE_SPOOLUP[name]
+        return spoolup_rate_at(_st, _inc), "spoolup"
+    return None, ""
+
+
+def _fire_rate_ramp_note(weapon: dict, spec: dict, res: Optional[dict] = None) -> str:
+    """射速曲线武器的持续 DPS 注明（没有曲线返回空串）。起转类只在默认形态注明（曲线只建在默认形态）。"""
+    name = str((weapon or {}).get("name") or "")
+    _default = (res or {}).get("form_kind", "default") == "default" and spec.get(
+        "form"
+    ) != "incarnon"
+    if spec.get("form") == "incarnon" and name in _FIRE_RATE_SPOOLDOWN:
+        _n, _floor = _FIRE_RATE_SPOOLDOWN[name]
+        return (
+            f"※ 灵化形态按住扳机时射速在 {_n} 发内由 100% 线性降到 {_floor:.0%}（停火重置）："
+            "爆发 DPS 按起始射速；实战 / 持续 DPS 按按住扳机打空弹池计入降速"
+        )
+    if name in _FIRE_RATE_SPOOLUP and _default:
+        _st, _inc, _ = _FIRE_RATE_SPOOLUP[name]
+        _k = 1
+        while _k < 200 and _st + _inc * (_k - 1) < 100 - 0.05:
+            _k += 1
+        return (
+            f"※ 开火需起转：第 1 发 {_st:g}% 射速、每发 +{_inc:g}%，第 {_k} 发满速（wiki）；"
+            "爆发 DPS 按满速，实战 / 持续 DPS 计入每个弹匣开头的起转（换弹后按重新起转计）"
+        )
+    if name in _FIRE_RATE_SPOOL_SHOTS and _default:
+        return (
+            f"※ 该武器开火时需起转，约 {_FIRE_RATE_SPOOL_SHOTS[name]} 发后到满速（起始射速无公开数据），"
+            "以上按满速估算，短点射时实际更低"
+        )
+    if name in _DUPLEX and spec.get("form") != "incarnon":
+        return "※ 双发扳机：按下打出第一发、松开时打出第二发，以上按面板射速估算"
+    return ""
 
 
 def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None) -> list[str]:
@@ -3600,6 +3854,12 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
             f"◆ 实战 DPS：≈ {ssr['dps_total']:.0f}"
             f"｜直伤 {ssr['dps_direct']:.0f} + DoT {ssr['dps_dot']:.0f}"
         )
+    _ssb = res.get("steady_burst") or {}
+    if _ssb.get("dps_total"):
+        kv.append(
+            f"◆ 实战 DPS（短点射重置降速）：≈ {_ssb['dps_total']:.0f}"
+            f"｜直伤 {_ssb['dps_direct']:.0f} + DoT {_ssb['dps_dot']:.0f}（按起始射速，未计停火间隙）"
+        )
     if _dseg:
         # 直击 0（Simulor 系，b7 批）：DPS 按含段合计（各段自带暴击期望）
         kv.append(
@@ -3647,6 +3907,9 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
                 )
                 + f" + 装填 {res['reload']:.1f}s 循环）"
             )
+    _ramp = _fire_rate_ramp_note(weapon, spec, res)
+    if _ramp and _sus:
+        kv.append(_ramp)
     if res.get("hp") is not None:
         _pool = f"血量 {res['hp']:.0f}"
         if res.get("shield_hp"):
@@ -3911,7 +4174,11 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
             if eff.get("physical_convert"):
                 where.append("物理转换·总量不变")
             if eff.get("conditional"):
-                where.append("含条件触发(未计入)")
+                where.append(
+                    "含条件触发(镀层已计入)"
+                    if name in (res.get("galv_mods") or [])
+                    else "含条件触发(未计入)"
+                )
             tag.append(f"{name}（{'、'.join(where) or '未计入'}）")
         inp.append("· MOD　" + "｜".join(tag))
     _stc = res.get("stance")
@@ -3923,7 +4190,8 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
         )
     if res.get("status_types"):
         inp.append(f"· 异况超量类　按目标身上 {res['status_types']} 种异常计（用「异常N」改）")
-    _cond = res.get("conditional") or []
+    _gm = tuple(f"{g}：" for g in res.get("galv_mods") or [])
+    _cond = [c for c in res.get("conditional") or [] if not (_gm and c.startswith(_gm))]
     for _c in _cond[:3]:
         inp.append(f"· 条件触发　未计入：{_c}".replace("\\n", " "))
     if len(_cond) > 3:
@@ -3947,7 +4215,7 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
     if st_bits:
         inp.append(f"· 状态加伤　{'、'.join(st_bits)}")
     # 面板口径：顶层伤害取自 attacks 里哪一段（弓箭=蓄力、爆炸=含范围段…）
-    # —— 不同计算器对「基础伤害」的口径常不同（wfsim 面板对弓显示未蓄力、
+    # —— 不同计算器对「基础伤害」的口径常不同（有的面板对弓显示未蓄力、
     # 对 lich 默认套 +60% 回响、爆炸只显示直击段），显式标注免得被当算错。
     _ats = pw.get("attacks") or []
     _basis_name = None  # 找到「本表主段」时并进「分段」区块标题
@@ -4075,11 +4343,11 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
         )
     lines.append(
         "※ 实战 DPS 为稳态近似：异常层已建立、持续挨打；未计爬升/掉层/击杀截断与 Boss 衰减；"
-        "火焰按单例累加、每次触发刷新计时（wfsim ignite.yaml），取「开火 T 秒」窗口平均"
+        "火焰按单例累加、每次触发刷新计时（wiki Heat_Damage），取「开火 T 秒」窗口平均"
         f"（默认 {FIRE_SECONDS_DEFAULT:g}s，可写「开火N秒」）"
     )
-    # #6 口径（2026-10-09，不改算法）：游戏与 wfsim 按 MOD 槽位顺序配对、武器自带元素排
-    # 最后参与合成（wfsim rules/elements.rs:119-153）；本计算器固定顺序且自带元素不合成
+    # #6 口径（2026-10-09，不改算法）：游戏按 MOD 槽位顺序配对、武器自带元素排
+    # 最后参与合成（wiki Damage「Innate weapon elemental damages are considered the very last」）；本计算器固定顺序且自带元素不合成
     lines.append(
         "※ 护甲减伤 = 90%×√(护甲/2700)；元素合成口径：按 火>冰>电>毒 两两配对（游戏内按 MOD 槽位顺序配对、"
         "自带元素也参与合成，多元素配卡以游戏面板为准）；U36 起元素差异只有派系弱点 ±50% 与异常状态"

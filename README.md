@@ -1,4 +1,4 @@
-# AstrBot 插件 · Warframe SDJKBOT v1.2.6（`astrbot_plugin_warframe_sdjkbot`）
+# AstrBot 插件 · Warframe SDJKBOT v1.2.7（`astrbot_plugin_warframe_sdjkbot`）
 
 在 QQ 群里查 Warframe 的一切：**世界状态、市场价、遗物与部件、伤害计算、配卡截图识别、紫卡分析、玄骸拍卖、奸商预测、蹲点推送**——
 回复渲染成 Orokin 风格的图片卡片，后台还带一个可视化的运维面板。
@@ -41,7 +41,7 @@
 - **玄骸拍卖**：中文名支持 `赤毒怒雷` / `赤毒·布拉玛` / `布拉玛` 等写法。warframe.market 没有挂单类目的武器（近战信条、全部终幕）会明确说明「只能游戏内交易」，不会报错。
 - **紫卡拍卖（`wr`）**：词条可以写全称、简称或连写，`wr 冰凇 基础 多重 异常伤害 负i伤`、`wr 冰凇 基多异 负i` 查到的是同一组；英文写法不分大小写、全称不用加引号（`wr glaxion Critical Chance`、`CC` / `CD` / `MS`）。卡片顶部回显实际用了哪些词条。指定 `3+1`（或三正一负）时只给完全匹配的挂单，没有就直说；其他查询在没有完全匹配时给最接近的选项。
 - **奸商预测**：基于 wiki 记录的 300 多次到访、460 多件商品做统计推测——按「已缺席次数 ÷ 它自己的平均上架间隔」排序。**这不是官方预测**（DE 从不公布下期库存），卡片上写明了口径和样本量。
-- **伤害计算 / 识卡伤害**：按 wiki 公式计算，并以开源模拟器 [wfsim](https://github.com/magenie33/wfsim) 对照核对。**这是理论推算，没有经过大规模实战检验**，可能和游戏面板或实战有出入，请以游戏内为准；卡片上也有同样的提醒。发现对不上的欢迎提 issue。
+- **伤害计算 / 识卡伤害**：按 wiki 公式计算，数据取自 DE 官方导出、warframe-public-export-plus 与英文 wiki，并以开源模拟器 [wfsim](https://github.com/magenie33/wfsim) 交叉核对。**这是理论推算，没有经过大规模实战检验**，可能和游戏面板或实战有出入，请以游戏内为准；卡片上也有同样的提醒。发现对不上的欢迎提 issue。
 - **仲裁评级**：官方 tierlist 优先，没评级的节点用社区实测生息中位数补；样本少于 5 条的标 `*`。实测值来自高水平队伍，普通队伍未必打得到，卡片上也写了。
 
 ## 运维面板
@@ -89,7 +89,7 @@
 ### 数据怎么保持新鲜
 
 - **实时数据**直接查官方或社区接口：世界状态、市场价、仲裁排期等。
-- **wiki 上的数据**（元素加成、言录使货单、紫卡倾向、奸商到访历史）在 Cloudflare 后面，普通请求拿不到。插件有两条路：
+- **wiki 上的数据**（元素加成、言录使货单、奸商到访历史）在 Cloudflare 后面，普通请求拿不到。插件有两条路：
   - **社区快照（默认，零配置）**：本项目在一台装了 FlareSolverr 的服务器上定时抓取，发布到本仓库的 [`bot-data` 分支](https://github.com/skyti1437/Warframe-SDJK-Bot/tree/bot-data)。插件每 30 分钟到 3 小时检查一次，**内容校验通过而且比本地新**才采用。仲裁评级也从这里更新。
   - **自建 FlareSolverr（可选）**：自己直连 wiki。
     ```bash
@@ -108,7 +108,7 @@
 | 识卡 / 紫卡截图识别 | 把配卡截图读成结构化数据（MOD、等级、面板数值） | 你在 AstrBot 里配置的多模态模型 |
 | 推荐 / 攻略类问答 | 走 AstrBot 平台的 LLM + 知识库 | AstrBot 平台，插件不参与 |
 
-识卡必须自己配一个多模态渠道；没配会直接提示，不会静默失败。插件内部会核对识别结果和游戏面板，对不上时自动换下一个渠道重试。
+识卡必须自己配一个多模态渠道；没配会直接提示，不会静默失败。插件内部会核对识别结果和游戏面板。在配置里**指定了** `vision_provider_id` 时，截图只发给这一个渠道；留空时才在你已添加的视觉渠道里自动挑选，并会同时交给其中几个渠道比对结果。
 
 **开发过程**：这个项目的绝大部分代码是在 AI 辅助下完成的。由作者（Sky）提需求、提供截图和实测反馈，AI 负责写代码、核对数据、写测试和文档。所以代码里有大量「为什么这么写」的注释和防回归测试，用来弥补 AI 改动容易引入静默回归的问题。
 
@@ -116,7 +116,8 @@
 
 - 插件只在你自己的机器人上运行，不向任何第三方上报数据，所有查询都直接发给下表的公开数据源。
 - 运行数据（群配置、订阅、外观设置、渲染缓存）写在 `data/plugin_data/astrbot_plugin_warframe_sdjkbot/`，不会进仓库。
-- 识卡会把**你发的截图**交给你自己配置的模型服务商。介意的话不用这个功能，或改用本地 / 自建的视觉模型。
+- 识卡会把**你发的截图**交给你自己配置的模型服务商。介意的话不用这个功能，或在 `vision_provider_id` 里**指定**本地 / 自建的视觉模型（指定后只发给它一个；留空自动挑选时可能同时发给多个已添加的视觉渠道）。
+- 识卡对齐失败时**默认不留存截图**；只有在配置里开启 `scan_debug_save` 才会把截图存到运行目录的 `scan_debug/`（最多 3 张，可直接删除）。
 - 运维面板只有登录 AstrBot 后台的管理员能打开；订阅里的群号、QQ 号默认打码。
 
 ## 数据来源与许可
@@ -125,17 +126,22 @@
 | --- | --- | --- |
 | 世界状态 | DE 官方 `api.warframe.com` | 实时接口 |
 | 掉落表 | [WFCD/warframe-drop-data](https://github.com/WFCD/warframe-drop-data) + DE 官方掉落页 | MIT |
-| 物品 / 武器 / MOD 数值 | [WFCD/warframe-items](https://github.com/WFCD/warframe-items) + DE 官方导出 + [magenie33/wfsim](https://github.com/magenie33/wfsim) 校准 | 数据源头为 DE |
+| 物品 / 武器基础面板 | [WFCD/warframe-items](https://github.com/WFCD/warframe-items)（MIT）+ DE 官方 Public Export | 数据源头为 DE |
+| MOD 等级与逐级数值 | DE 官方 Public Export（`ExportUpgrades`） | 数据源头为 DE |
+| 武器攻击形态、灵化形态与进化、CO 分类、回响加成、Archgun 面板 | [wiki.warframe.com](https://wiki.warframe.com) 的武器数据模块、各武器灵化页与「Condition Overload (Mechanic)」攻击目录 | CC BY-NC-SA 3.0；各文件 `_meta` 写明 wiki 快照 |
+| MOD 互斥 / 条件叠层 / 不兼容武器 | 英文 wiki `Module:Mods/data` + DE 官方 Public Export + [warframe-public-export-plus](https://github.com/calamity-inc/warframe-public-export-plus) | CC BY-NC-SA 3.0 / MIT |
+| 常用敌人数值 | 英文 wiki `Module:Enemies/data` + [warframe-public-export-plus](https://github.com/calamity-inc/warframe-public-export-plus)（wiki 未写的护盾 / 护甲） | CC BY-NC-SA 3.0 / MIT |
 | 中文译名 | DE 官方 Public Export（经 [warframe-public-export-plus](https://github.com/calamity-inc/warframe-public-export-plus) 整理） | 数据源头为 DE |
-| 市场价 / 拍卖 | warframe.market | 遵守其 3 次/秒限速 |
+| 紫卡词条池（「词条范围」可出词条） | DE 官方 Public Export + [warframe-public-export-plus](https://github.com/calamity-inc/warframe-public-export-plus)（词条正负与限制）+ 自有 warframe.market 挂单抽样 | MIT / 数据源头为 DE |
+| 市场价 / 拍卖 | warframe.market | 按接口分别限速：普通查询约 3 次/秒；拍卖搜索更严，只在管理员手动拉取时按约 15 秒一次进行，遇 429 退避 |
 | 赏金轮换 / 钢铁侵袭 | [browse.wf](https://browse.wf) | calamity-inc 开源项目 |
 | 仲裁排期与社区实测 | [arbi.wf.wiki](https://arbi.wf.wiki) | 社区站点，非官方 |
-| 元素加成、紫卡倾向、奸商历史 | wiki.warframe.com | CC BY-NC-SA 3.0 |
-| 字体 | Noto Sans CJK | SIL OFL |
+| 元素加成、奸商历史、资料卡文本（简介 / 效果 / 获取，经摘录、翻译与重排）、紫卡取消前的旧倾向（只用于识别旧截图） | [wiki.warframe.com](https://wiki.warframe.com) | [CC BY-NC-SA 3.0](https://creativecommons.org/licenses/by-nc-sa/3.0/)；仅这些数据适用，代码另按 GPL-3.0 |
+| 字体 | Noto Sans CJK SC 子集（© Adobe） | SIL OFL 1.1，全文与子集化说明见 `core/data/fonts/OFL.txt` |
 
-- **算法参考**：赏金「小帐篷」推算参考了 [calamity-inc/wf.browse.oracle](https://github.com/calamity-inc/wf.browse.oracle) 公开的算法描述。该仓库没有附带许可证，因此本插件用 Python 独立重写，未复制其源代码。
-- **伤害计算**：以 [magenie33/wfsim](https://github.com/magenie33/wfsim)（AGPL-3.0-or-later）为对照基准核对公式，只取其公开的公式与数据事实，未复制源代码。派生数据表在文件内标注了来源。
-- **插件图标**：取自 Warframe 官方 Fan Kit（`LotusEmblemIcon`），依粉丝内容政策用于本非商业作品。
+- **算法参考**：赏金「小帐篷」推算参考了 [calamity-inc/wf.browse.oracle](https://github.com/calamity-inc/wf.browse.oracle) 公开的算法（种子与洗牌步骤与其一致）。该仓库没有附带许可证；本插件用 Python 另行实现，没有拷贝其源代码文件。
+- **伤害计算**：以 [magenie33/wfsim](https://github.com/magenie33/wfsim)（AGPL-3.0-or-later）为对照基准交叉核对公式，未复制其源代码。早期版本的部分派生数据表取自其整理的数据，**v1.2.7 起已全部改为从上表所列来源重新生成**（生成器见 `scripts/build_*.py`），wfsim 只作交叉核对。
+- **插件图标**：按作者记录取自 Warframe 官方 Fan Kit 素材（`LotusEmblemIcon`），版权归 Digital Extremes，用于本非商业粉丝作品，不表示与 DE 有关联或经其认可。
 - **代码许可**：GPL-3.0（见 `LICENSE`）。
 - **非官方声明**：Warframe 与相关商标、游戏图标、名称与译文归 Digital Extremes 所有。本插件是粉丝作品，与 Digital Extremes 无关。
 
@@ -155,7 +161,7 @@ python scripts/run_checks.py health   # 随包时效数据是否过期（只读�
 - regression 红 = 代码回归；health 红 = 随包时效数据过期，需要刷新数据，不代表算法出错。CI 在 push / PR 上跑 regression（Python 3.10 与 3.12），health 在 Actions 页手动触发。
 - 测试按 `tests/test_*.py` 自动发现、每个脚本独立运行；缺能力（例如不带完整字库、没有作者私有的运维脚本）时会明确打印跳过原因，不会静默。
 - `scripts/` 下是数据构建、排障和版式开发工具，插件运行不需要它们：
-  - 数据构建：`scripts/build_*.py`（从 WFCD / DE 导出 / wfsim 重新生成 `core/data/`，需要额外装 PyYAML）；
+  - 数据构建：`scripts/build_*.py`（从 WFCD / DE 导出 / warframe-public-export-plus / 英文 wiki 快照重新生成 `core/data/`，只用标准库；输入快照路径作参数传入，多数带 `--check` 可复现校验）；
   - 排障：`scripts/diag_command_output.py "遗物 出库"`（在 AstrBot 容器里直接打印指令的真实返回）、`scripts/smoke_all.py`；
   - 版式：`scripts/dev_relic_preview.py`、`scripts/dev_help_preview.py` 等，本地预览卡面。
 - 版本历史见 [`CHANGELOG.md`](CHANGELOG.md)（也是插件面板与市场「更新日志」页的数据源）。

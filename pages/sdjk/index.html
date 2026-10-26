@@ -227,6 +227,7 @@
   <a href="#/appearance" data-go="appearance">外观<span class="badge" id="b-appearance" hidden></span></a>
   <a href="#/resources" data-go="resources">依赖与资源<span class="badge" id="b-resources" hidden></span></a>
   <a href="#/conn" data-go="conn">连通性</a>
+  <a href="#/about" data-go="about">关于</a>
   <div class="navfoot" id="updated"></div>
 </nav>
 
@@ -404,6 +405,26 @@
       <span class="hint">按优先级逐个发一张 32×32 小图，成功即停；会消耗少量 token</span><span class="result" id="r-vision_live"></span></div>
   </section>
 </section>
+
+<!-- ============ 关于 ============ -->
+<section data-view="about">
+  <div class="pagehead"><h2>关于</h2><span class="desc">版本、运行环境、数据版本与来源</span></div>
+  <section class="panel"><i class="c1"></i><i class="c2"></i>
+    <div class="ptitle"><h3>插件与运行环境</h3><span class="ext"></span></div>
+    <div class="scroll"><table><tbody id="aboutInfo"></tbody></table></div>
+  </section>
+  <section class="panel"><i class="c1"></i><i class="c2"></i>
+    <div class="ptitle"><h3>数据版本</h3><span class="ext"></span></div>
+    <div class="scroll"><table><tbody id="aboutData"></tbody></table></div>
+  </section>
+  <section class="panel"><i class="c1"></i><i class="c2"></i>
+    <div class="ptitle"><h3>数据来源与许可</h3><span class="ext"></span></div>
+    <div class="scroll"><table>
+      <thead><tr><th>数据</th><th>来源</th><th>许可</th></tr></thead>
+      <tbody id="aboutSources"></tbody>
+    </table></div>
+  </section>
+</section>
 </div>
 </div>
 
@@ -412,7 +433,7 @@
   const bridge = window.AstrBotPluginPage || window.AstrBotPluginView;
   const $ = (id) => document.getElementById(id);
   const STATUS = { ok: "正常", warn: "该刷新了", stale: "已过期", info: "静态快照" };
-  const VIEWS = ["overview", "data", "push", "settings", "appearance", "resources", "conn"];
+  const VIEWS = ["overview", "data", "push", "settings", "appearance", "resources", "conn", "about"];
   const state = { ov: null, res: null, settings: null, orig: {}, edits: {} };
 
   // 一律 textContent：订阅条件是群友输入的文本，绝不拼 HTML
@@ -455,6 +476,41 @@
     document.querySelectorAll("nav a").forEach((a) => a.classList.toggle("on", a.dataset.go === view));
     if (view === "settings" && !state.settings) loadSettings();
     if (view === "appearance" && !TH.meta) loadTheme();
+    if (view === "about") loadAbout();
+  }
+
+  // —— 关于 ——
+  function kvRows(pairs) {
+    return pairs.filter(([, v]) => v !== undefined && v !== null && v !== "")
+      .map(([k, v]) => el("tr", {}, el("th", {}, k), el("td", {}, String(v))));
+  }
+  function fmtUptime(s) {
+    const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
+    return d ? `${d} 天 ${h} 小时` : h ? `${h} 小时 ${m} 分钟` : `${m} 分钟`;
+  }
+  const REG_ST = { ok: "正常", warn: "该刷新了", stale: "已过期", no_ttl: "静态数据（无过期判定）", missing: "缺失" };
+  async function loadAbout() {
+    try {
+      const a = await bridge.apiGet("about", {});
+      const p = a.plugin || {}, r = a.runtime || {}, d = a.data_versions || {};
+      const repo = p.repo ? el("a", { href: p.repo, target: "_blank", rel: "noopener" }, p.repo) : "";
+      const rows = kvRows([
+        ["插件", p.name], ["版本", p.version ? `v${p.version}` : "未知"], ["作者", p.author],
+        ["许可证", p.license], ["主指令", p.commands ? `${p.commands} 个` : ""],
+        ["Python", r.python], ["AstrBot", r.astrbot || "未知"], ["本次运行", fmtUptime(r.uptime_s || 0)],
+      ]);
+      if (repo) rows.splice(4, 0, el("tr", {}, el("th", {}, "公开仓"), el("td", {}, repo)));
+      $("aboutInfo").replaceChildren(...rows);
+      const st = Object.entries(d.registry_status || {}).map(([k, v]) => `${REG_ST[k] || k} ${v}`).join("，");
+      $("aboutData").replaceChildren(...kvRows([
+        ["伤害数据（wiki 快照）", d.damage_wiki_snapshot],
+        ["紫卡词条池生成时间", d.riven_pools_generated ? fmtTime(Date.parse(d.riven_pools_generated) / 1000) : ""],
+        ["紫卡市场抽样日期", d.riven_survey_date],
+        ["数据登记表", d.registry_total ? `${d.registry_total} 份（${st}）` : ""],
+      ]));
+      $("aboutSources").replaceChildren(...(a.sources || []).map((x) =>
+        el("tr", {}, el("td", {}, x.item), el("td", {}, x.source), el("td", {}, x.license || "—"))));
+    } catch (e) { showErr(e); }
   }
   window.addEventListener("hashchange", route);
 

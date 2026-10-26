@@ -434,7 +434,7 @@ _ocr_g1 = {
 }
 _an_g1 = lo.analyze(_ocr_g1)
 check(
-    "灵化库直采：note 标 wfsim 数据源",
+    "灵化库直采：note 标灵化库数据源",
     "灵化库" in (_an_g1.get("panel_base") or ""),
     str(_an_g1.get("panel_base")),
 )

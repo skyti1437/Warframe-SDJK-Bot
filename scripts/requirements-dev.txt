@@ -5,4 +5,4 @@ ruff==0.17.0       # 静态检查 + 格式检查；钉版本，换版本可能�
 # fonttools 4.66 起要求 Python ≥ 3.11（2026-10-15 在 3.10.22 上实测解析失败）⇒ 按版本分钉。
 fonttools==4.67.0 ; python_version >= "3.11"
 fonttools==4.65.0 ; python_version < "3.11"
-pyyaml==6.0.3      # tests/test_wfsim_b_batch.py 等加载构建脚本（读 wfsim YAML）；插件运行不需要
+pyyaml==6.0.3      # 仅历史工具 scripts/repair_panel_basis.py 用；插件运行与回归测试都不需要

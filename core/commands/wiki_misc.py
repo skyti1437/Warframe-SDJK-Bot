@@ -453,13 +453,19 @@ class WikiMiscCommands:
             )
 
         try:
-            weapon, alts = dc.find_weapon(query)
+            weapon, alts = (None, []) if dc.is_variant_only(query) else dc.find_weapon(query)
             if weapon is None:
                 miss = "、".join(spec.get("unknown") or []) or "—"
+                shown = query
+                if dc.is_variant_only(query):
+                    # 只剩「Prime」这类变体词：武器名本体被当未识别词丢了 ⇒ 按原文词序拼回来显示
+                    #   （「布拉顿 Prime」此前显示成「没找到『Prime』」）
+                    _keep = set(spec.get("unknown") or []) | set(name_tokens)
+                    shown = " ".join(t for t in (parsed.content or []) if t in _keep) or query
                 return Reply(
                     "伤害计算",
                     [
-                        f"◆ 原因：武器库（warframe-items）里没找到「{query}」",
+                        f"◆ 原因：武器库里没找到「{shown}」",
                         f"◆ 没认出来的词：{miss}",
                         "※ ⚠ 怎么改：换英文名或完整中文名再试，例如「Kuva Bramma / 赤毒布拉玛」",
                     ],

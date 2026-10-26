@@ -23,9 +23,9 @@ RAW_ESCAPED = (
     "Exilus Weapon Adapter\nPrimary Arcane Adapter\nSecondary Arcane Adapter\n"
     "Forma\nMelee Riven Mod\nPistol Riven Mod\nRifle Riven Mod\n"
     "Kitgun Riven Mod\nZaw Riven Mod\nShotgun Riven Mod\n"
-    "Companion Weapon Riven Mod\n5000 Kuva\n"
+    "Companion Weapon Riven Mod\n10,000 Kuva\n"
     "--&gt;{{#vardefine:AcrithisObserved|September 21, 2026}}&lt;!--\n"
-    "--&gt;{{#vardefine:AcrithisItem1|5000 Kuva}}&lt;!--\n"
+    "--&gt;{{#vardefine:AcrithisItem1|10,000 Kuva}}&lt;!--\n"
     "--&gt;{{#vardefine:AcrithisItem2|Primary Arcane Adapter}}&lt;!--\n"
     "--&gt;{{#vardefine:AcrithisItem3|Orokin Catalyst}}&lt;!--\n"
     "--&gt;{{#vardefine:AcrithisItem4|Forma}}&lt;!--\n"
@@ -41,9 +41,9 @@ RAW_PLAIN = (
     "Exilus Weapon Adapter\nPrimary Arcane Adapter\nSecondary Arcane Adapter\n"
     "Forma\nMelee Riven Mod\nPistol Riven Mod\nRifle Riven Mod\n"
     "Kitgun Riven Mod\nZaw Riven Mod\nShotgun Riven Mod\n"
-    "Companion Weapon Riven Mod\n5000 Kuva\n"
+    "Companion Weapon Riven Mod\n10,000 Kuva\n"
     "-->{{#vardefine:AcrithisObserved|September 21, 2026}}<!--\n"
-    "-->{{#vardefine:AcrithisItem1|5000 Kuva}}<!--\n"
+    "-->{{#vardefine:AcrithisItem1|10,000 Kuva}}<!--\n"
     "-->{{#vardefine:AcrithisItem2|Primary Arcane Adapter}}<!--\n"
     "-->{{#vardefine:AcrithisItem3|Orokin Catalyst}}<!--\n"
     "-->{{#vardefine:AcrithisItem4|Forma}}<!--\n"
@@ -62,10 +62,10 @@ RAW_MW_TEMPLATE = (
     "Exilus Weapon Adapter\nPrimary Arcane Adapter\nSecondary Arcane Adapter\n"
     "Forma\nMelee Riven Mod\nPistol Riven Mod\nRifle Riven Mod\n"
     "Kitgun Riven Mod\nZaw Riven Mod\nShotgun Riven Mod\n"
-    "Companion Weapon Riven Mod\n5000 Kuva\n"
+    "Companion Weapon Riven Mod\n10,000 Kuva\n"
     "-->{{#vardefine:AcrithisObserved|{{CURRENTMONTHNAME}} {{CURRENTDAY}}, "
     "{{CURRENTYEAR}}}}<!--\n"
-    "-->{{#vardefine:AcrithisItem1|5000 Kuva}}<!--\n"
+    "-->{{#vardefine:AcrithisItem1|10,000 Kuva}}<!--\n"
     "-->{{#vardefine:AcrithisItem2|Exilus Weapon Adapter}}<!--\n"
     "-->{{#vardefine:AcrithisItem3|Primary Arcane Adapter}}<!--\n"
     "-->{{#vardefine:AcrithisItem4|Orokin Reactor}}<!--\n"
@@ -82,7 +82,7 @@ def test_parse_mw_current_template_observed():
     now = datetime.now(timezone.utc)
     assert d["observed"] == f"{now.strftime('%B')} {now.day}, {now.year}", d["observed"]
     assert d["items"] == [
-        "5000 Kuva",
+        "10,000 Kuva",
         "Exilus Weapon Adapter",
         "Primary Arcane Adapter",
         "Orokin Reactor",
@@ -101,7 +101,7 @@ def test_parse_escaped_html():
     d = WarframeClient.parse_acrichis_current(RAW_ESCAPED)
     assert d["observed"] == "September 21, 2026"
     assert d["items"] == [
-        "5000 Kuva",
+        "10,000 Kuva",
         "Primary Arcane Adapter",
         "Orokin Catalyst",
         "Forma",
@@ -115,7 +115,7 @@ def test_parse_plain_wikitext():
     """纯 wikitext（无 HTML 包裹）也要能解析。"""
     d = WarframeClient.parse_acrichis_current(RAW_PLAIN)
     assert d["items"] == [
-        "5000 Kuva",
+        "10,000 Kuva",
         "Primary Arcane Adapter",
         "Orokin Catalyst",
         "Forma",

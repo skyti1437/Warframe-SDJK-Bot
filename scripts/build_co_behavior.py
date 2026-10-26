@@ -1,98 +1,115 @@
 # -*- coding: utf-8 -*-
-"""从 wfsim 抽取武器的「异况超量（CO）桶别」→ core/data/co_behavior.json。
+"""从英文 wiki「Condition Overload (Mechanic)」Attack Catalog 生成武器的 CO 桶别 → core/data/co_behavior.json。
 
-数据源：github.com/magenie33/wfsim data/weapons/**/*.yaml 的顶层 ``co_behavior``：
-- ``additive_with_base_damage``（默认，未写即此）：CO 与基伤 MOD 同一加法括号；
-- ``independent``：CO 自成独立乘区（不被膛线类稀释）；
-- ``inert``：CO 对该攻击完全无效。
-（wfsim engine/src/data/weapons/panel.rs:192-195「a weapon it does not list is
-additive_with_base_damage, never independent」；co 只作用于直击，见 attack.rs:704-708。）
+数据源（2026-10-26 wfsim 迁移 P2 起；之前取自 wfsim，已弃用）：wiki 该页「Attack Catalog」各表
+（CC BY-NC-SA 3.0；表里只列与「Additive / +100%」不一致的攻击），按 Math/Behavior Type：
+- ``Multiplying`` ⇒ ``independent``：CO 自成独立乘区（不被膛线类稀释）；
+- ``N/A`` / ``Does not apply`` ⇒ ``inert``：CO 对该攻击无效；
+- ``Adding``（及未列出的攻击）⇒ ``additive_with_base_damage``（缺省，不写）。
+AoE 行不在这里（范围段吃不吃 CO 写在 weapon_attacks / incarnon_forms 的段上）。
 
-**只收默认形态与灵化形态**：co_behavior 是按**攻击**给的（catalog.rs:54-56：
-Mandonel 未蓄力与蓄力两行不同）。计算器的主段 = 默认形态（「灵化」时 = 灵化形态），
-副开火 / 蓄力 / 点射等形态的值若按武器名混进来，会覆盖主形态 —— 研究仓旧表
-（2026-10-06）即有 16 把因此错配（如 Grimoire 主开火 additive 被记成 inert）。
+CO 桶别按**攻击**给：计算器的主段 = 默认形态（「灵化」时 = 灵化形态），所以这里只收两槽 ——
+``base``（与 weapons_stats 主段一致的 wiki 攻击，见 build_weapon_attacks.pick_main）与
+``incarnon``；副开火 / 蓄力等非默认形态的桶别写在 weapon_attacks.json 该形态的 ``co_behavior``。
+CO 页与数据模块的攻击名写法不同，按类别对（``_wiki_weapons.resolve_catalog_row``），对不上的行报出。
+CO 页只列了同族某一把的，不自动推给同族其它武器（2026-10-26 维护者定：Prime / 变体是否同机制不能假定）；
+逐把核实过的写在 ``_wiki_weapons.USER_VERIFIED_CO_ROWS``（每行带依据），其余按 wiki 原样（未列 = 缺省）。
 
-key = 默认形态的 internal_name 小写（= weapons_stats.json 的 uniqueName 小写）；默认形态
-自身没写 internal_name 的沿 inherits 取；灵化形态没有 internal_name，经 transforms_from 回到
-其原型的 internal_name。
+key = 小写 uniqueName（= weapons_stats.json 的键）。只写非缺省：``{"base": "independent"}`` 等。
 
-「默认形态」按 build_weapon_attacks.is_main_form：一般 = wfsim default_form；
-MAIN_FORM_OVERRIDE 的组以我方 weapons_stats 主段对应的条目为准（2026-10-10 第四批：Nataruk
-主段是快速射击 nataruk.yaml，CO additive；wfsim 默认的完美射击 nataruk_perfect independent
-改走 weapon_attacks.json forms「蓄力」，带它自己的 co_behavior）。
-只写非 additive 的条目：``{"base": "independent"}`` / ``{"incarnon": "inert"}``。
-
-用法：python scripts/build_co_behavior.py [wfsim 仓库根或其 data 目录]
+用法：python scripts/build_co_behavior.py --wiki <wiki 页面目录> [--out 路径] [--report 路径]
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from pathlib import Path
 
-try:
-    import yaml
-except ImportError:  # noqa: BLE001 —— 插件运行本身不需要 yaml，只有数据构建脚本要
-    raise SystemExit("本脚本需要 PyYAML：pip install pyyaml（插件运行时并不依赖它，仅构建数据用）")
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _wiki_weapons import catalog_by_weapon, catalog_rows, load_weapons  # noqa: E402
+from build_weapon_attacks import (
+    CO_DEFAULT,
+    co_modes,
+    entry_key,
+    is_incarnon,
+    pick_incarnon,
+    pick_main,
+    split_attacks,
+)  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-# 默认形态 → uniqueName 与 weapon_attacks 同源（自身无 internal_name 的沿 inherits 取）
-from build_weapon_attacks import default_form_key, is_main_form, wfsim_commit  # noqa: E402
-
 OUT = ROOT / "core" / "data" / "co_behavior.json"
-DEFAULT = "additive_with_base_damage"
-VALID = {DEFAULT, "independent", "inert"}
+WS = ROOT / "core" / "data" / "weapons_stats.json"
+# 计算器不建模的武器类别（近战 CO 另有口径；架势 / 增幅器不是武器面板）
+SKIP_SECTIONS = ("Melees", "Stances", "Amps")
 
 
-def _data_dir(arg: str | None) -> Path:
-    p = Path(arg) if arg else Path.home() / "tmp" / "wfsim"
-    return p if (p / "weapons").is_dir() else p / "data"
+def build(wiki_dir: Path, ws_all: dict) -> tuple[dict, list[str]]:
+    W = load_weapons(wiki_dir)
+    report: list[str] = []
+    weapons: dict[str, dict] = {}
+    rows_all = [r for r in catalog_rows(wiki_dir) if r["section"] not in SKIP_SECTIONS]
+    for wname, rows in sorted(catalog_by_weapon(rows_all).items()):
+        e = W.get(f"{wname} (Atmosphere)") or W.get(wname)
+        if e is None:
+            report.append(f"{wname}：数据模块里没有这把武器，跳过")
+            continue
+        key = entry_key(wname if wname in W else f"{wname} (Atmosphere)", e)
+        ws = ws_all.get(key) or {}
+        if not ws:
+            report.append(f"{wname}：计算器（weapons_stats）无此武器，跳过")
+            continue
+        roots = split_attacks(e)
+        if not roots:
+            continue
+        main, _ok = pick_main(roots, ws, e.get("_TooltipAttackDisplay"))
+        inc = pick_incarnon(roots)
+        modes = co_modes(wname, roots, main, rows, report)
+        rec = {}
+        if modes.get(id(main), CO_DEFAULT) != CO_DEFAULT:
+            rec["base"] = modes[id(main)]
+        if inc is not None and modes.get(id(inc), CO_DEFAULT) != CO_DEFAULT:
+            rec["incarnon"] = modes[id(inc)]
+        # 灵化行写的是「Incarnon Mode」等泛称：pick_incarnon 之外的灵化攻击对上了也算灵化槽
+        for r in roots:
+            if (
+                r is not inc
+                and r is not main
+                and is_incarnon(r)
+                and modes.get(id(r), CO_DEFAULT) != CO_DEFAULT
+            ):
+                rec.setdefault("incarnon", modes[id(r)])
+        if rec:
+            weapons[key] = rec
+    return weapons, report
 
 
 def main(argv: list[str]) -> int:
-    data = _data_dir(argv[1] if len(argv) > 1 else None)
-    ents: dict[str, dict] = {}
-    for p in sorted((data / "weapons").rglob("*.yaml")):
-        d = yaml.safe_load(p.read_text(encoding="utf-8"))
-        if isinstance(d, dict) and d.get("id"):
-            ents[str(d["id"])] = d
-    if not ents:
-        raise SystemExit(f"没找到 wfsim 武器数据：{data / 'weapons'}")
-
-    weapons: dict[str, dict] = {}
-    for d in ents.values():
-        if is_main_form(d):
-            key, slot = default_form_key(d, ents), "base"
-        elif d.get("form") == "incarnon":
-            base = ents.get(str(d.get("transforms_from") or "")) or {}
-            key, slot = str(base.get("internal_name") or "").lower(), "incarnon"
-        else:
-            continue  # 副开火 / 蓄力 / 点射等：不是计算器主段
-        cb = str(d.get("co_behavior") or DEFAULT)
-        if cb not in VALID:
-            raise SystemExit(f"{d['id']}: 未知 co_behavior {cb!r}")
-        if not key or cb == DEFAULT:
-            continue
-        weapons.setdefault(key, {})[slot] = cb
-
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--wiki", required=True, type=Path)
+    ap.add_argument("--out", type=Path, default=OUT)
+    ap.add_argument("--report", type=Path)
+    args = ap.parse_args(argv[1:])
+    weapons, report = build(args.wiki, json.loads(WS.read_text(encoding="utf-8")))
     out = {
         "_meta": {
-            "source": "github.com/magenie33/wfsim data/weapons/**（顶层 co_behavior；"
-            "只收默认形态（default_form，或 build_weapon_attacks.MAIN_FORM_OVERRIDE 指定的"
-            "我方主段）与 form: incarnon 两种形态）",
+            "source": "英文 wiki Condition Overload (Mechanic) Attack Catalog（CC BY-NC-SA 3.0）：Multiplying = "
+            "independent，N/A / Does not apply = inert；只收默认主段（base）与灵化形态（incarnon）两槽；"
+            "另加用户逐把核实的补充行（_wiki_weapons.USER_VERIFIED_CO_ROWS）",
             "values": "additive_with_base_damage（缺省，不写）/ independent / inert",
+            "wiki_snapshot": args.wiki.name,
             "generator": "scripts/build_co_behavior.py",
-            "wfsim_commit": wfsim_commit(data),
         },
         "weapons": dict(sorted(weapons.items())),
     }
-    OUT.write_text(json.dumps(out, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    args.out.write_text(json.dumps(out, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    if args.report:
+        args.report.write_text("\n".join(report) + "\n", encoding="utf-8")
     n_b = sum(1 for v in weapons.values() if "base" in v)
     n_i = sum(1 for v in weapons.values() if "incarnon" in v)
-    print(f"✓ {OUT.relative_to(ROOT)}：{len(weapons)} 把（原型 {n_b} / 灵化 {n_i}）")
+    print(f"✓ {args.out.name}：{len(weapons)} 把（原型 {n_b} / 灵化 {n_i}）；提示 {len(report)} 条")
     return 0
 
 

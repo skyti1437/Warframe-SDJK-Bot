@@ -150,6 +150,57 @@ def community_static_urls(name: str) -> tuple[str, ...]:
     )
 
 
+async def private_url_reason(url: str) -> str:
+    """自填地址是否指向内网（2026-10-25，Astra 评估 S4）：是则返回原因，否则返回空串。
+
+    只收 http(s)；拒绝带账号密码的地址；IP 直写或 DNS 解析结果落在私网 / 回环 / 链路本地 /
+    保留 / 组播段的一律拒绝（**任一**解析结果命中即拒）。DNS 解析在请求前做一次 —— 重绑定
+    窗口无法完全消除，调用方另行限制重定向。仅管理员能填这些地址，这里是加固而非鉴权。
+    """
+    import ipaddress
+    import socket
+    from urllib.parse import urlsplit
+
+    try:
+        u = urlsplit(str(url or ""))
+    except ValueError:
+        return "地址格式不对"
+    if u.scheme not in ("http", "https") or not u.hostname:
+        return "只支持 http(s) 地址"
+    if u.username or u.password:
+        return "地址里不能带账号密码"
+
+    def _bad(ip: str) -> bool:
+        try:
+            a = ipaddress.ip_address(ip.split("%", 1)[0])
+        except ValueError:
+            return True
+        return (
+            a.is_private
+            or a.is_loopback
+            or a.is_link_local
+            or a.is_reserved
+            or a.is_multicast
+            or a.is_unspecified
+        )
+
+    host = u.hostname
+    try:
+        ipaddress.ip_address(host)
+        ips = [host]
+    except ValueError:
+        try:
+            infos = await asyncio.get_running_loop().getaddrinfo(
+                host, u.port or (443 if u.scheme == "https" else 80), type=socket.SOCK_STREAM
+            )
+        except OSError:
+            return "域名解析失败"
+        ips = [i[4][0] for i in infos]
+    if not ips or any(_bad(ip) for ip in ips):
+        return "地址指向内网 / 本机（如确需使用内网镜像，在配置里开启 allow_private_urls）"
+    return ""
+
+
 def normalize_community_base(raw: str) -> str:
     """用户自填的社区数据地址：只收 http(s)，去掉末尾斜杠；不合法返回空串（= 用默认 bot-data）。"""
     v = str(raw or "").strip().rstrip("/")
@@ -967,7 +1018,10 @@ def public_error_text(exc: BaseException | str) -> str:
         src = error_source(msg) or "上游接口"
         if msg.startswith("接口不存在或暂未开放"):
             return f"{src} 接口不存在或暂未开放，请稍后再试"
-        return f"{src} 暂时不可用，请稍后再试"
+        # ★ 2026-10-26：上游偶发整段超时/5xx（实测 45–120 s，期间 ReadTimeout 与 504 交替）。
+        #   原文只说「暂时不可用」，用户不知道该干什么 ⇒ 明说这是上游抖动、重发一次即可
+        #   （插件侧已按跨窗口抖动退避重试过，能救的已经救回来了）。
+        return f"{src} 暂时不可用（上游超时或无响应），请稍后重发一次"
     return redact_error_text(msg) or "上游接口暂时不可用，请稍后再试"
 
 
@@ -1137,6 +1191,18 @@ class WarframeClient:
     RIVEN_RT_FAIL_BACKOFF_S = 100.0
     RIVEN_RT_MAX_FAIL_STREAK = 4
 
+    # WM 上游抖动时的重试节奏（2026-10-26 立，源于线上日志实测）：
+    #   ① **429 不做重试** —— WM 的限速是「约 90 s 窗口内约 8 次」的**整窗**封禁
+    #      （2026-10-25 实测：+0/+30/+60 s 仍 429、+90 s 才恢复）。原先 1.2 s / 2.4 s
+    #      的退避重试必然再吃一次 429 —— 既救不回这次请求，又把封禁窗口拖得更长、
+    #      给已经吃紧的上游再加压。⇒ 直接把可执行的提示抛给用户。
+    #   ② 超时 / 5xx 的退避**逐次拉长**（5 s、10 s，带抖动）—— 上游偶发整段故障实测
+    #      持续 45–120 s（期间 ReadTimeout 与 504 交替），0.6 s 级退避会让三次尝试
+    #      全落在**同一个**坏窗口里，等于没重试。
+    WM_RETRY_BACKOFF_S = 5.0
+    # 提示不写具体次数：「90 s 约 8 次」只在 /auctions/search 上实测过，其它 WM 接口标称约 3 次/秒
+    WM_RATE_LIMIT_HINT = "warframe.market 限速，请过 1-2 分钟再试"
+
     def __init__(
         self,
         *,
@@ -1153,6 +1219,7 @@ class WarframeClient:
         flare_enabled: bool = True,
         flare_urls: Optional[list[str]] = None,
         community_base: str = "",
+        allow_private_urls: bool = False,
         wfhelper_valence: bool = False,
     ):
         if httpx is None:
@@ -1172,6 +1239,7 @@ class WarframeClient:
         # 社区快照地址：留空 = 本项目 bot-data（raw + 两个 jsDelivr 镜像）；填了就只用它
         #   （用户不想用我们的数据时自建，目录下放同名文件：valence.json / arb_ratings.json …）
         self.community_base = normalize_community_base(community_base)
+        self.allow_private_urls = bool(allow_private_urls)
         # 元素加成可选第三方通道 WFHelper（后台开关，默认关）：开了就排在社区快照前面
         self.wfhelper_valence = bool(wfhelper_valence)
         # 社区通道记忆（2026-10-16 GPT 评估 P04）：国内服务器到 raw 必超时，每次都等它超时再换镜像
@@ -1221,6 +1289,7 @@ class WarframeClient:
         cache_key: Optional[str] = None,
         wm_rate_limit: bool = False,
         timeout: Optional[float] = None,
+        follow_redirects: Optional[bool] = None,
     ) -> Any:
         key = cache_key or (
             url
@@ -1247,10 +1316,16 @@ class WarframeClient:
                     #   httpx 被取消时连接清理是受保护的，可能拖到客户端默认超时才返回（ZCode 10-17：
                     #   raw 卡住吃满 30 s 预算，镜像没轮到）。
                     kw = {"timeout": timeout} if timeout is not None else {}
+                    if follow_redirects is not None:
+                        kw["follow_redirects"] = follow_redirects
                     resp = await self._http.get(url, params=params, headers=headers, **kw)
                     if resp.status_code == 404:
                         raise WarframeAPIError(f"接口不存在或暂未开放：{url}")
-                    if resp.status_code == 429:  # 限速：退避后重试
+                    # 限速：WM 是整窗封禁，短退避重试无益（见 WM_RETRY_BACKOFF_S 注释）；
+                    # 非 WM 源（社区镜像等）恢复快，保留原有重试。
+                    if resp.status_code == 429:
+                        if wm_rate_limit:
+                            raise WarframeAPIError(self.WM_RATE_LIMIT_HINT)
                         last_exc = WarframeAPIError("warframe.market 限速（HTTP 429）")
                         if attempt < retries:
                             await asyncio.sleep(1.2 * (attempt + 1))
@@ -1263,7 +1338,13 @@ class WarframeClient:
                 except (httpx.HTTPError, json.JSONDecodeError) as exc:
                     last_exc = exc
                     if attempt < retries:
-                        await asyncio.sleep(0.6 * (attempt + 1) + random.random() * 0.3)
+                        if wm_rate_limit:
+                            # WM：退避逐次拉长（5 s、10 s…），让后续尝试有机会落到坏窗口之后
+                            await asyncio.sleep(
+                                self.WM_RETRY_BACKOFF_S * (attempt + 1) + random.random() * 2.0
+                            )
+                        else:
+                            await asyncio.sleep(0.6 * (attempt + 1) + random.random() * 0.3)
             # 超时类异常 str() 为空（ZCode 10-17：日志 / 面板「请求失败（…）：」冒号后啥都没有）⇒ 退回类型名
             why = (str(last_exc) or type(last_exc).__name__) if last_exc else "未知错误"
             raise WarframeAPIError(f"请求失败（{url}）：{why}")
@@ -1908,6 +1989,10 @@ class WarframeClient:
         if isinstance(data, dict):
             if data.get("error"):
                 raise WarframeAPIError(f"WM v2 接口错误：{data['error']}")
+            # ★ 2026-10-25（Astra 故障注入）：结构缺字段时原样返回 None ⇒ 上层当成「零条挂单」，
+            #   卡面写「没有符合条件的在售单」把接口异常说成真实零结果。缺 data 一律按结构异常报。
+            if "data" not in data:
+                raise WarframeAPIError("warframe.market 返回结构异常（缺 data 字段），请稍后再试")
             return data.get("data")
         return data
 
@@ -2020,8 +2105,15 @@ class WarframeClient:
         raw = await self._wm_v2(path, ttl=TTL_WM_ORDERS, platform=platform, headers=params or None)
         if isinstance(raw, dict):  # /top 返回 {sell: [...], buy: [...]}
             raw = (raw.get("sell") or []) + (raw.get("buy") or [])
+        if raw is not None and not isinstance(raw, list):
+            raise WarframeAPIError("warframe.market 返回结构异常（订单不是列表），请稍后再试")
+        # 有订单、却**全都**缺价格 / 类型 ⇒ 结构变了，不能当「没有挂单」（2026-10-25，同上）
+        if raw and not any(isinstance(o, dict) and "platinum" in o and "type" in o for o in raw):
+            raise WarframeAPIError("warframe.market 返回结构异常（订单缺价格字段），请稍后再试")
         orders = []
         for o in raw or []:
+            if not isinstance(o, dict) or "platinum" not in o:
+                continue
             user = o.get("user") or {}
             orders.append(
                 {
@@ -2285,7 +2377,15 @@ class WarframeClient:
             "avg90": round(sum(avg90) / len(avg90), 1) if avg90 else 0,
             "last": recent,
             "first": early,
-            "change": round((recent - base) / base * 100, 1) if base else 0.0,
+            # ★ 2026-10-25（Astra 真实宿主补测）：卡面原写「vs 区间初 {first}」，而 change 的基线是
+            #   这段的「前三分之一均价」⇒「▲27.3%（最新 30p vs 区间初 40p）」自相矛盾。把真实基线带出去。
+            "base": round(base, 1) if base else 0,
+            "base_span": "90 天" if d90 and any(r["median"] for r in d90) else "48 小时",
+            # 百分比按**显示出来的**基线算（ZCode 10-25：未舍入基线算出 +55.3%，括号 35.0 vs 22.5
+            # 复算是 +55.6%，差 0.3pp）⇒ 拿卡面两个数就能复算出同一个百分比
+            "change": round((recent - round(base, 1)) / round(base, 1) * 100, 1)
+            if base and round(base, 1)
+            else 0.0,
         }
 
     # 排行分类 -> (必须包含的标签, 必须排除的标签)
@@ -2967,10 +3067,10 @@ class WarframeClient:
                     "[sdjk] WM 无该玄骸武器的挂单类目：%s（type=%s）", weapon_url_name, lich_type
                 )
                 return []
-            if "429" in msg:
-                raise WarframeAPIError(
-                    "warframe.market 限速了（HTTP 429），请稍等一两分钟再试"
-                ) from exc
+            if "429" in msg or "限速" in msg:
+                # WM 侧 `_fetch_json` 已直接抛可执行提示（见 WM_RATE_LIMIT_HINT）；这里统一口径，
+                # 免得玄骸这条路再吐「HTTP 429」这种用户看不懂的措辞。
+                raise WarframeAPIError(self.WM_RATE_LIMIT_HINT) from exc
             raise
         return (data or {}).get("payload", {}).get("auctions", [])
 
@@ -3901,8 +4001,15 @@ class WarframeClient:
           · 每条通道只试一次（多通道本身就是重试），整次取数受 COMMUNITY_BUDGET 秒总预算约束。
         """
         name = urls[0].rsplit("/", 1)[-1]
-        if self.community_base:  # 用户自填地址：只走它，不再回落到本项目 bot-data
+        custom = bool(self.community_base)
+        if custom:  # 用户自填地址：只走它，不再回落到本项目 bot-data
             urls = (f"{self.community_base}/{name}",)
+            # ★ 2026-10-25（Astra 评估 S4）：自填地址不许指向内网（可显式放行），且不跟随重定向
+            if not getattr(self, "allow_private_urls", False):
+                why = await private_url_reason(urls[0])
+                if why:
+                    logger.warning("[sdjk] 社区数据地址被拒绝（%s）：%s", name, why)
+                    return None
         now = time.monotonic()
 
         def host(u: str) -> str:
@@ -3928,6 +4035,8 @@ class WarframeClient:
                         cache_key=f"community:{name}",
                         retries=0,
                         timeout=cap,  # httpx 自己按时中止（主保险）
+                        # 自填地址不跟随重定向（重定向可绕过上面的内网校验）
+                        follow_redirects=False if custom else None,
                     ),
                     timeout=cap + 2.0,  # 外层取消只作兜底
                 )
