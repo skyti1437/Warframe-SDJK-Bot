@@ -1,10 +1,10 @@
 {
  "schema": 1,
- "published_at": "2026-10-27T00:14:00+00:00",
- "source": "wiki《Reset》页，经插件在有 FlareSolverr 的机器上抓取后发布；快照时间 2026-10-27T00:14:00+00:00",
+ "published_at": "2026-10-27T00:55:16+00:00",
+ "source": "wiki《Reset》页，经插件在有 FlareSolverr 的机器上抓取后发布；快照时间 2026-10-27T00:55:16+00:00",
  "license_note": "数据来自 wiki.warframe.com（CC BY-NC-SA 3.0）；Warframe 相关内容版权归 Digital Extremes 所有，本仓库仅供查询。",
  "tenet": {
-  "snapshot": "2026-10-27T00:14:00+00:00",
+  "snapshot": "2026-10-27T00:55:16+00:00",
   "items": [
    {
     "en": "Tenet Agendus",
@@ -39,26 +39,26 @@
   ]
  },
  "coda": {
-  "snapshot": "2026-10-27T00:14:00+00:00",
+  "snapshot": "2026-10-27T00:55:16+00:00",
   "batch": "B",
   "items": [
    {
     "en": "Coda Bassocyst",
     "cn": "终幕·低音爆囊",
-    "element": "Toxin",
-    "bonus": 40.4
+    "element": "Impact",
+    "bonus": 46.7
    },
    {
     "en": "Coda Bubonico",
     "cn": "终幕·横痃重炮",
-    "element": "Radiation",
-    "bonus": 42.3
+    "element": "Heat",
+    "bonus": 25.1
    },
    {
     "en": "Coda Synapse",
     "cn": "终幕·突触生化枪",
-    "element": "Toxin",
-    "bonus": 39.4
+    "element": "Radiation",
+    "bonus": 30.8
    },
    {
     "en": "Coda Tysis",
@@ -69,20 +69,20 @@
    {
     "en": "Coda Caustacyst",
     "cn": "终幕·灼蚀变体镰",
-    "element": "Toxin",
-    "bonus": 28.6
+    "element": "Impact",
+    "bonus": 25.8
    },
    {
     "en": "Coda Hirudo",
     "cn": "终幕·蚂蟥",
-    "element": "Magnetic",
-    "bonus": 48.9
+    "element": "Toxin",
+    "bonus": 31.3
    },
    {
     "en": "Coda Pathocyst",
     "cn": "终幕·病囊飞刃",
-    "element": "Heat",
-    "bonus": 50.9
+    "element": "Magnetic",
+    "bonus": 39.5
    }
   ]
  }
