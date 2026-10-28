@@ -2178,6 +2178,9 @@ def _apply_panel_overrides(spec: dict, weapon: dict) -> dict:
 
     # ---- ① 灵化进化选项 ----
     used_ids: set = set()
+    # 已占用的层（2026-10-27 Astra 复测 P2）：同层 choose_one 只能选一个 —— 此前只按选项 id 去重，
+    #   「进化基伤 进化基伤」会把 Soma EVO2 的 +12 与 +10 同时选上
+    used_tiers: set = set()
     spec["evo_headshot"] = 0.0
     for key in spec.get("evo_keys") or []:
         kind = next((k for kw, k in _EVO_KEY_KINDS if kw in key), None)
@@ -2195,16 +2198,22 @@ def _apply_panel_overrides(spec: dict, weapon: dict) -> dict:
             for opt in tiers[tier]:
                 if opt.get("id") in used_ids:
                     continue
+                if tier in used_tiers and opt.get("selection") == "choose_one":
+                    continue
                 if any(e.get("kind") == kind for e in opt.get("effects") or []):
                     picked = (tier, opt)
                     break
             if picked:
                 break
         if not picked:
-            spec["notes"].append(f"进化「{key}」：该武器没有匹配的选项（或已用）")
+            spec["notes"].append(
+                f"进化「{key}」：该武器没有匹配的选项（或所在层已选过 —— 同层只能选一个）"
+            )
             continue
         tier, opt = picked
         used_ids.add(opt.get("id"))
+        if opt.get("selection") == "choose_one":
+            used_tiers.add(tier)
         applied, shown = [], []
         _inc_on = spec.get("form") == "incarnon"
         for e in opt.get("effects") or []:
@@ -4173,6 +4182,10 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
                 where.append("初始连击·下限")
             if eff.get("physical_convert"):
                 where.append("物理转换·总量不变")
+            if eff.get("status_dmg"):
+                where.append("状态伤害·不增加直伤")
+            if eff.get("punch_through"):
+                where.append(f"穿透 +{eff['punch_through']:g} 米（未折算 DPS）")
             if eff.get("conditional"):
                 where.append(
                     "含条件触发(镀层已计入)"

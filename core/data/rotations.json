@@ -352,20 +352,20 @@
     {
      "en": "Coda Bassocyst",
      "cn": "终幕·低音爆囊",
-     "element": "Toxin",
-     "bonus": 40.4
+     "element": "Impact",
+     "bonus": 46.7
     },
     {
      "en": "Coda Bubonico",
      "cn": "终幕·横痃重炮",
-     "element": "Radiation",
-     "bonus": 42.3
+     "element": "Heat",
+     "bonus": 25.1
     },
     {
      "en": "Coda Synapse",
      "cn": "终幕·突触生化枪",
-     "element": "Toxin",
-     "bonus": 39.4
+     "element": "Radiation",
+     "bonus": 30.8
     },
     {
      "en": "Coda Tysis",
@@ -376,29 +376,29 @@
     {
      "en": "Coda Caustacyst",
      "cn": "终幕·灼蚀变体镰",
-     "element": "Toxin",
-     "bonus": 28.6
+     "element": "Impact",
+     "bonus": 25.8
     },
     {
      "en": "Coda Hirudo",
      "cn": "终幕·蚂蟥",
-     "element": "Magnetic",
-     "bonus": 48.9
+     "element": "Toxin",
+     "bonus": 31.3
     },
     {
      "en": "Coda Pathocyst",
      "cn": "终幕·病囊飞刃",
-     "element": "Heat",
-     "bonus": 50.9
+     "element": "Magnetic",
+     "bonus": 39.5
     }
    ]
   ],
   "_note": "Eleanor Nightingale 的 Coda 武器按 A/B 两批轮换（每批 7 把），每 4 天 00:00 UTC 换批；2026-09-14 实测为 A 批，换批边界 09-17 00:00 UTC（比 Ergo Glast 的元素加成重生成晚 24 小时，两者不是同一锚点）；批次表与加成取自 wiki Coda_Weapons 源页（2026-10-15 起，原 Reset 页已弃用）",
-  "valence_snapshot": "2026-10-26T01:20:55+00:00",
-  "valence_source": "用户提供的游戏内终幕货单实拍（2026-10-19 08:17 北京时间，当期 B 批）",
+  "valence_snapshot": "2026-10-27T12:50:54+00:00",
+  "valence_source": "wiki 源页 wikitext（Coda_Weapons / Tenet_Weapons，经 FlareSolverr）",
   "batch_values_since": [
    "2026-10-23T00:56:34+00:00",
-   "2026-10-19T00:17:00+00:00"
+   "2026-10-27T00:49:37+00:00"
   ]
  },
  "acrichis": {

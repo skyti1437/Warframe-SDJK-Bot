@@ -16,12 +16,12 @@
    "compat_retained": 1,
    "conditional_lines": 629,
    "matched": 439,
-   "parsed_lines": 2742,
+   "parsed_lines": 2764,
    "pep_identity_absent": 1,
    "pep_identity_present": 438,
    "polarity_official": 439,
    "rarity_official": 439,
-   "unparsed_lines": 409,
+   "unparsed_lines": 387,
    "zh_retained": 439
   }
  },
@@ -643,28 +643,14 @@
    "base_drain": 6,
    "drain_at_max": 11,
    "max_rank": 5,
-   "effects": {
-    "fire_rate": 45.0
-   },
+   "effects": {},
    "levels": [
-    {
-     "fire_rate": 8.0
-    },
-    {
-     "fire_rate": 15.0
-    },
-    {
-     "fire_rate": 23.0
-    },
-    {
-     "fire_rate": 30.0
-    },
-    {
-     "fire_rate": 38.0
-    },
-    {
-     "fire_rate": 45.0
-    }
+    {},
+    {},
+    {},
+    {},
+    {},
+    {}
    ],
    "_variant": 0,
    "_unparsed_stats": [
@@ -730,15 +716,7 @@
     }
    ],
    "_source_unique_name": "/Lotus/Upgrades/Mods/DualSource/Melee/FuraxLauncherMod",
-   "_legacy_fields": [
-    "effects.fire_rate",
-    "levels[0].fire_rate",
-    "levels[1].fire_rate",
-    "levels[2].fire_rate",
-    "levels[3].fire_rate",
-    "levels[4].fire_rate",
-    "levels[5].fire_rate"
-   ],
+   "_legacy_fields": [],
    "src": {
     "name": "ExportUpgrades_en.json ExportUpgrades[854] (/Lotus/Upgrades/Mods/DualSource/Melee/FuraxLauncherMod).name",
     "zh": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
@@ -749,14 +727,7 @@
     "drain_at_max": "ExportUpgrades_en.json ExportUpgrades[854] (/Lotus/Upgrades/Mods/DualSource/Melee/FuraxLauncherMod).baseDrain + fusionLimit",
     "polarity": "ExportUpgrades_en.json ExportUpgrades[854] (/Lotus/Upgrades/Mods/DualSource/Melee/FuraxLauncherMod).polarity",
     "rarity": "ExportUpgrades_en.json ExportUpgrades[854] (/Lotus/Upgrades/Mods/DualSource/Melee/FuraxLauncherMod).rarity",
-    "compat": "ExportUpgrades_en.json ExportUpgrades[854] (/Lotus/Upgrades/Mods/DualSource/Melee/FuraxLauncherMod).compatName",
-    "levels[0].fire_rate": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
-    "levels[1].fire_rate": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
-    "levels[2].fire_rate": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
-    "levels[3].fire_rate": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
-    "levels[4].fire_rate": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
-    "levels[5].fire_rate": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
-    "effects.fire_rate": "历史兼容值（本轮 DE 原文未能重建；未重新核验）"
+    "compat": "ExportUpgrades_en.json ExportUpgrades[854] (/Lotus/Upgrades/Mods/DualSource/Melee/FuraxLauncherMod).compatName"
    }
   },
   "amalgam javlok magazine warp": {
@@ -25849,53 +25820,38 @@
    "max_rank": 5,
    "effects": {
     "status_dmg": 90.0,
-    "punch_through": 0.6,
-    "base_dmg": 90.0
+    "punch_through": 0.6
    },
    "levels": [
     {
      "status_dmg": 15.0,
-     "punch_through": 0.1,
-     "base_dmg": 15.0
+     "punch_through": 0.1
     },
     {
      "status_dmg": 30.0,
-     "punch_through": 0.2,
-     "base_dmg": 30.0
+     "punch_through": 0.2
     },
     {
      "status_dmg": 45.0,
-     "punch_through": 0.3,
-     "base_dmg": 45.0
+     "punch_through": 0.3
     },
     {
      "status_dmg": 60.0,
-     "punch_through": 0.4,
-     "base_dmg": 60.0
+     "punch_through": 0.4
     },
     {
      "status_dmg": 75.0,
-     "punch_through": 0.5,
-     "base_dmg": 75.0
+     "punch_through": 0.5
     },
     {
      "status_dmg": 90.0,
-     "punch_through": 0.6,
-     "base_dmg": 90.0
+     "punch_through": 0.6
     }
    ],
    "_variant": 0,
    "_unparsed_stats": [],
    "_source_unique_name": "/Lotus/Upgrades/Mods/Rifle/RifleStatusDamageDuoMod",
-   "_legacy_fields": [
-    "effects.base_dmg",
-    "levels[0].base_dmg",
-    "levels[1].base_dmg",
-    "levels[2].base_dmg",
-    "levels[3].base_dmg",
-    "levels[4].base_dmg",
-    "levels[5].base_dmg"
-   ],
+   "_legacy_fields": [],
    "src": {
     "name": "ExportUpgrades_en.json ExportUpgrades[394] (/Lotus/Upgrades/Mods/Rifle/RifleStatusDamageDuoMod).name",
     "zh": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
@@ -25909,25 +25865,18 @@
     "compat": "ExportUpgrades_en.json ExportUpgrades[394] (/Lotus/Upgrades/Mods/Rifle/RifleStatusDamageDuoMod).compatName",
     "levels[0].status_dmg": "ExportUpgrades_en.json ExportUpgrades[394] (/Lotus/Upgrades/Mods/Rifle/RifleStatusDamageDuoMod).levelStats[0].stats[0]",
     "levels[0].punch_through": "ExportUpgrades_en.json ExportUpgrades[394] (/Lotus/Upgrades/Mods/Rifle/RifleStatusDamageDuoMod).levelStats[0].stats[1]",
-    "levels[0].base_dmg": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
     "levels[1].status_dmg": "ExportUpgrades_en.json ExportUpgrades[394] (/Lotus/Upgrades/Mods/Rifle/RifleStatusDamageDuoMod).levelStats[1].stats[0]",
     "levels[1].punch_through": "ExportUpgrades_en.json ExportUpgrades[394] (/Lotus/Upgrades/Mods/Rifle/RifleStatusDamageDuoMod).levelStats[1].stats[1]",
-    "levels[1].base_dmg": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
     "levels[2].status_dmg": "ExportUpgrades_en.json ExportUpgrades[394] (/Lotus/Upgrades/Mods/Rifle/RifleStatusDamageDuoMod).levelStats[2].stats[0]",
     "levels[2].punch_through": "ExportUpgrades_en.json ExportUpgrades[394] (/Lotus/Upgrades/Mods/Rifle/RifleStatusDamageDuoMod).levelStats[2].stats[1]",
-    "levels[2].base_dmg": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
     "levels[3].status_dmg": "ExportUpgrades_en.json ExportUpgrades[394] (/Lotus/Upgrades/Mods/Rifle/RifleStatusDamageDuoMod).levelStats[3].stats[0]",
     "levels[3].punch_through": "ExportUpgrades_en.json ExportUpgrades[394] (/Lotus/Upgrades/Mods/Rifle/RifleStatusDamageDuoMod).levelStats[3].stats[1]",
-    "levels[3].base_dmg": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
     "levels[4].status_dmg": "ExportUpgrades_en.json ExportUpgrades[394] (/Lotus/Upgrades/Mods/Rifle/RifleStatusDamageDuoMod).levelStats[4].stats[0]",
     "levels[4].punch_through": "ExportUpgrades_en.json ExportUpgrades[394] (/Lotus/Upgrades/Mods/Rifle/RifleStatusDamageDuoMod).levelStats[4].stats[1]",
-    "levels[4].base_dmg": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
     "levels[5].status_dmg": "ExportUpgrades_en.json ExportUpgrades[394] (/Lotus/Upgrades/Mods/Rifle/RifleStatusDamageDuoMod).levelStats[5].stats[0]",
     "levels[5].punch_through": "ExportUpgrades_en.json ExportUpgrades[394] (/Lotus/Upgrades/Mods/Rifle/RifleStatusDamageDuoMod).levelStats[5].stats[1]",
-    "levels[5].base_dmg": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
     "effects.status_dmg": "ExportUpgrades_en.json ExportUpgrades[394] (/Lotus/Upgrades/Mods/Rifle/RifleStatusDamageDuoMod).levelStats[5].stats[0]",
-    "effects.punch_through": "ExportUpgrades_en.json ExportUpgrades[394] (/Lotus/Upgrades/Mods/Rifle/RifleStatusDamageDuoMod).levelStats[5].stats[1]",
-    "effects.base_dmg": "历史兼容值（本轮 DE 原文未能重建；未重新核验）"
+    "effects.punch_through": "ExportUpgrades_en.json ExportUpgrades[394] (/Lotus/Upgrades/Mods/Rifle/RifleStatusDamageDuoMod).levelStats[5].stats[1]"
    }
   },
   "rime rounds": {
@@ -26436,127 +26385,82 @@
    "max_rank": 10,
    "effects": {
     "base_dmg": 110.0,
-    "faction_dmg": 33.0
+    "faction_dmg": 33.0,
+    "faction_mul": 1.33,
+    "faction_of": "Sentient"
    },
    "levels": [
     {
      "base_dmg": 10.0,
-     "faction_dmg": 3.0
+     "faction_dmg": 3.0,
+     "faction_mul": 1.03,
+     "faction_of": "Sentient"
     },
     {
      "base_dmg": 20.0,
-     "faction_dmg": 6.0
+     "faction_dmg": 6.0,
+     "faction_mul": 1.06,
+     "faction_of": "Sentient"
     },
     {
      "base_dmg": 30.0,
-     "faction_dmg": 9.0
+     "faction_dmg": 9.0,
+     "faction_mul": 1.09,
+     "faction_of": "Sentient"
     },
     {
      "base_dmg": 40.0,
-     "faction_dmg": 12.0
+     "faction_dmg": 12.0,
+     "faction_mul": 1.12,
+     "faction_of": "Sentient"
     },
     {
      "base_dmg": 50.0,
-     "faction_dmg": 15.0
+     "faction_dmg": 15.0,
+     "faction_mul": 1.15,
+     "faction_of": "Sentient"
     },
     {
      "base_dmg": 60.0,
-     "faction_dmg": 18.0
+     "faction_dmg": 18.0,
+     "faction_mul": 1.18,
+     "faction_of": "Sentient"
     },
     {
      "base_dmg": 70.0,
-     "faction_dmg": 21.0
+     "faction_dmg": 21.0,
+     "faction_mul": 1.21,
+     "faction_of": "Sentient"
     },
     {
      "base_dmg": 80.0,
-     "faction_dmg": 24.0
+     "faction_dmg": 24.0,
+     "faction_mul": 1.24,
+     "faction_of": "Sentient"
     },
     {
      "base_dmg": 90.0,
-     "faction_dmg": 27.0
+     "faction_dmg": 27.0,
+     "faction_mul": 1.27,
+     "faction_of": "Sentient"
     },
     {
      "base_dmg": 100.0,
-     "faction_dmg": 30.0
+     "faction_dmg": 30.0,
+     "faction_mul": 1.3,
+     "faction_of": "Sentient"
     },
     {
      "base_dmg": 110.0,
-     "faction_dmg": 33.0
+     "faction_dmg": 33.0,
+     "faction_mul": 1.33,
+     "faction_of": "Sentient"
     }
    ],
    "_variant": 0,
-   "_unparsed_stats": [
-    {
-     "rank": 0,
-     "text": "x1.03 Damage to Sentients",
-     "src": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[0].stats[1]"
-    },
-    {
-     "rank": 1,
-     "text": "x1.06 Damage to Sentients",
-     "src": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[1].stats[1]"
-    },
-    {
-     "rank": 2,
-     "text": "x1.09 Damage to Sentients",
-     "src": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[2].stats[1]"
-    },
-    {
-     "rank": 3,
-     "text": "x1.12 Damage to Sentients",
-     "src": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[3].stats[1]"
-    },
-    {
-     "rank": 4,
-     "text": "x1.15 Damage to Sentients",
-     "src": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[4].stats[1]"
-    },
-    {
-     "rank": 5,
-     "text": "x1.18 Damage to Sentients",
-     "src": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[5].stats[1]"
-    },
-    {
-     "rank": 6,
-     "text": "x1.21 Damage to Sentients",
-     "src": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[6].stats[1]"
-    },
-    {
-     "rank": 7,
-     "text": "x1.24 Damage to Sentients",
-     "src": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[7].stats[1]"
-    },
-    {
-     "rank": 8,
-     "text": "x1.27 Damage to Sentients",
-     "src": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[8].stats[1]"
-    },
-    {
-     "rank": 9,
-     "text": "x1.3 Damage to Sentients",
-     "src": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[9].stats[1]"
-    },
-    {
-     "rank": 10,
-     "text": "x1.33 Damage to Sentients",
-     "src": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[10].stats[1]"
-    }
-   ],
+   "_unparsed_stats": [],
    "_source_unique_name": "/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA",
-   "_legacy_fields": [
-    "effects.faction_dmg",
-    "levels[0].faction_dmg",
-    "levels[10].faction_dmg",
-    "levels[1].faction_dmg",
-    "levels[2].faction_dmg",
-    "levels[3].faction_dmg",
-    "levels[4].faction_dmg",
-    "levels[5].faction_dmg",
-    "levels[6].faction_dmg",
-    "levels[7].faction_dmg",
-    "levels[8].faction_dmg",
-    "levels[9].faction_dmg"
-   ],
+   "_legacy_fields": [],
    "src": {
     "name": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).name",
     "zh": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
@@ -26569,29 +26473,53 @@
     "rarity": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).rarity",
     "compat": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).compatName",
     "levels[0].base_dmg": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[0].stats[0]",
-    "levels[0].faction_dmg": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
+    "levels[0].faction_dmg": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[0].stats[1]",
+    "levels[0].faction_mul": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[0].stats[1]",
+    "levels[0].faction_of": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[0].stats[1]",
     "levels[1].base_dmg": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[1].stats[0]",
-    "levels[1].faction_dmg": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
+    "levels[1].faction_dmg": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[1].stats[1]",
+    "levels[1].faction_mul": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[1].stats[1]",
+    "levels[1].faction_of": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[1].stats[1]",
     "levels[2].base_dmg": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[2].stats[0]",
-    "levels[2].faction_dmg": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
+    "levels[2].faction_dmg": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[2].stats[1]",
+    "levels[2].faction_mul": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[2].stats[1]",
+    "levels[2].faction_of": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[2].stats[1]",
     "levels[3].base_dmg": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[3].stats[0]",
-    "levels[3].faction_dmg": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
+    "levels[3].faction_dmg": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[3].stats[1]",
+    "levels[3].faction_mul": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[3].stats[1]",
+    "levels[3].faction_of": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[3].stats[1]",
     "levels[4].base_dmg": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[4].stats[0]",
-    "levels[4].faction_dmg": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
+    "levels[4].faction_dmg": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[4].stats[1]",
+    "levels[4].faction_mul": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[4].stats[1]",
+    "levels[4].faction_of": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[4].stats[1]",
     "levels[5].base_dmg": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[5].stats[0]",
-    "levels[5].faction_dmg": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
+    "levels[5].faction_dmg": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[5].stats[1]",
+    "levels[5].faction_mul": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[5].stats[1]",
+    "levels[5].faction_of": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[5].stats[1]",
     "levels[6].base_dmg": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[6].stats[0]",
-    "levels[6].faction_dmg": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
+    "levels[6].faction_dmg": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[6].stats[1]",
+    "levels[6].faction_mul": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[6].stats[1]",
+    "levels[6].faction_of": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[6].stats[1]",
     "levels[7].base_dmg": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[7].stats[0]",
-    "levels[7].faction_dmg": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
+    "levels[7].faction_dmg": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[7].stats[1]",
+    "levels[7].faction_mul": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[7].stats[1]",
+    "levels[7].faction_of": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[7].stats[1]",
     "levels[8].base_dmg": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[8].stats[0]",
-    "levels[8].faction_dmg": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
+    "levels[8].faction_dmg": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[8].stats[1]",
+    "levels[8].faction_mul": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[8].stats[1]",
+    "levels[8].faction_of": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[8].stats[1]",
     "levels[9].base_dmg": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[9].stats[0]",
-    "levels[9].faction_dmg": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
+    "levels[9].faction_dmg": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[9].stats[1]",
+    "levels[9].faction_mul": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[9].stats[1]",
+    "levels[9].faction_of": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[9].stats[1]",
     "levels[10].base_dmg": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[10].stats[0]",
-    "levels[10].faction_dmg": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
+    "levels[10].faction_dmg": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[10].stats[1]",
+    "levels[10].faction_mul": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[10].stats[1]",
+    "levels[10].faction_of": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[10].stats[1]",
     "effects.base_dmg": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[10].stats[0]",
-    "effects.faction_dmg": "历史兼容值（本轮 DE 原文未能重建；未重新核验）"
+    "effects.faction_dmg": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[10].stats[1]",
+    "effects.faction_mul": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[10].stats[1]",
+    "effects.faction_of": "ExportUpgrades_en.json ExportUpgrades[260] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModA).levelStats[10].stats[1]"
    }
   },
   "sacrificial steel": {
@@ -26607,138 +26535,93 @@
    "effects": {
     "crit_chance": 220.0,
     "heavy_crit_mult": 2.0,
-    "faction_dmg": 33.0
+    "faction_dmg": 33.0,
+    "faction_mul": 1.33,
+    "faction_of": "Sentient"
    },
    "levels": [
     {
      "crit_chance": 20.0,
      "heavy_crit_mult": 2.0,
-     "faction_dmg": 3.0
+     "faction_dmg": 3.0,
+     "faction_mul": 1.03,
+     "faction_of": "Sentient"
     },
     {
      "crit_chance": 40.0,
      "heavy_crit_mult": 2.0,
-     "faction_dmg": 6.0
+     "faction_dmg": 6.0,
+     "faction_mul": 1.06,
+     "faction_of": "Sentient"
     },
     {
      "crit_chance": 60.0,
      "heavy_crit_mult": 2.0,
-     "faction_dmg": 9.0
+     "faction_dmg": 9.0,
+     "faction_mul": 1.09,
+     "faction_of": "Sentient"
     },
     {
      "crit_chance": 80.0,
      "heavy_crit_mult": 2.0,
-     "faction_dmg": 12.0
+     "faction_dmg": 12.0,
+     "faction_mul": 1.12,
+     "faction_of": "Sentient"
     },
     {
      "crit_chance": 100.0,
      "heavy_crit_mult": 2.0,
-     "faction_dmg": 15.0
+     "faction_dmg": 15.0,
+     "faction_mul": 1.15,
+     "faction_of": "Sentient"
     },
     {
      "crit_chance": 120.0,
      "heavy_crit_mult": 2.0,
-     "faction_dmg": 18.0
+     "faction_dmg": 18.0,
+     "faction_mul": 1.18,
+     "faction_of": "Sentient"
     },
     {
      "crit_chance": 140.0,
      "heavy_crit_mult": 2.0,
-     "faction_dmg": 21.0
+     "faction_dmg": 21.0,
+     "faction_mul": 1.21,
+     "faction_of": "Sentient"
     },
     {
      "crit_chance": 160.0,
      "heavy_crit_mult": 2.0,
-     "faction_dmg": 24.0
+     "faction_dmg": 24.0,
+     "faction_mul": 1.24,
+     "faction_of": "Sentient"
     },
     {
      "crit_chance": 180.0,
      "heavy_crit_mult": 2.0,
-     "faction_dmg": 27.0
+     "faction_dmg": 27.0,
+     "faction_mul": 1.27,
+     "faction_of": "Sentient"
     },
     {
      "crit_chance": 200.0,
      "heavy_crit_mult": 2.0,
-     "faction_dmg": 30.0
+     "faction_dmg": 30.0,
+     "faction_mul": 1.3,
+     "faction_of": "Sentient"
     },
     {
      "crit_chance": 220.0,
      "heavy_crit_mult": 2.0,
-     "faction_dmg": 33.0
+     "faction_dmg": 33.0,
+     "faction_mul": 1.33,
+     "faction_of": "Sentient"
     }
    ],
    "_variant": 0,
-   "_unparsed_stats": [
-    {
-     "rank": 0,
-     "text": "x1.03 Damage to Sentients",
-     "src": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[0].stats[1]"
-    },
-    {
-     "rank": 1,
-     "text": "x1.06 Damage to Sentients",
-     "src": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[1].stats[1]"
-    },
-    {
-     "rank": 2,
-     "text": "x1.09 Damage to Sentients",
-     "src": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[2].stats[1]"
-    },
-    {
-     "rank": 3,
-     "text": "x1.12 Damage to Sentients",
-     "src": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[3].stats[1]"
-    },
-    {
-     "rank": 4,
-     "text": "x1.15 Damage to Sentients",
-     "src": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[4].stats[1]"
-    },
-    {
-     "rank": 5,
-     "text": "x1.18 Damage to Sentients",
-     "src": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[5].stats[1]"
-    },
-    {
-     "rank": 6,
-     "text": "x1.21 Damage to Sentients",
-     "src": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[6].stats[1]"
-    },
-    {
-     "rank": 7,
-     "text": "x1.24 Damage to Sentients",
-     "src": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[7].stats[1]"
-    },
-    {
-     "rank": 8,
-     "text": "x1.27 Damage to Sentients",
-     "src": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[8].stats[1]"
-    },
-    {
-     "rank": 9,
-     "text": "x1.3 Damage to Sentients",
-     "src": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[9].stats[1]"
-    },
-    {
-     "rank": 10,
-     "text": "x1.33 Damage to Sentients",
-     "src": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[10].stats[1]"
-    }
-   ],
+   "_unparsed_stats": [],
    "_source_unique_name": "/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB",
-   "_legacy_fields": [
-    "effects.faction_dmg",
-    "levels[0].faction_dmg",
-    "levels[10].faction_dmg",
-    "levels[1].faction_dmg",
-    "levels[2].faction_dmg",
-    "levels[3].faction_dmg",
-    "levels[4].faction_dmg",
-    "levels[5].faction_dmg",
-    "levels[6].faction_dmg",
-    "levels[7].faction_dmg",
-    "levels[8].faction_dmg",
-    "levels[9].faction_dmg"
-   ],
+   "_legacy_fields": [],
    "src": {
     "name": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).name",
     "zh": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
@@ -26752,40 +26635,64 @@
     "compat": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).compatName",
     "levels[0].crit_chance": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[0].stats[0]",
     "levels[0].heavy_crit_mult": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[0].stats[0]",
-    "levels[0].faction_dmg": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
+    "levels[0].faction_dmg": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[0].stats[1]",
+    "levels[0].faction_mul": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[0].stats[1]",
+    "levels[0].faction_of": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[0].stats[1]",
     "levels[1].crit_chance": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[1].stats[0]",
     "levels[1].heavy_crit_mult": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[1].stats[0]",
-    "levels[1].faction_dmg": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
+    "levels[1].faction_dmg": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[1].stats[1]",
+    "levels[1].faction_mul": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[1].stats[1]",
+    "levels[1].faction_of": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[1].stats[1]",
     "levels[2].crit_chance": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[2].stats[0]",
     "levels[2].heavy_crit_mult": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[2].stats[0]",
-    "levels[2].faction_dmg": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
+    "levels[2].faction_dmg": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[2].stats[1]",
+    "levels[2].faction_mul": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[2].stats[1]",
+    "levels[2].faction_of": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[2].stats[1]",
     "levels[3].crit_chance": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[3].stats[0]",
     "levels[3].heavy_crit_mult": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[3].stats[0]",
-    "levels[3].faction_dmg": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
+    "levels[3].faction_dmg": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[3].stats[1]",
+    "levels[3].faction_mul": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[3].stats[1]",
+    "levels[3].faction_of": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[3].stats[1]",
     "levels[4].crit_chance": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[4].stats[0]",
     "levels[4].heavy_crit_mult": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[4].stats[0]",
-    "levels[4].faction_dmg": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
+    "levels[4].faction_dmg": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[4].stats[1]",
+    "levels[4].faction_mul": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[4].stats[1]",
+    "levels[4].faction_of": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[4].stats[1]",
     "levels[5].crit_chance": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[5].stats[0]",
     "levels[5].heavy_crit_mult": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[5].stats[0]",
-    "levels[5].faction_dmg": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
+    "levels[5].faction_dmg": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[5].stats[1]",
+    "levels[5].faction_mul": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[5].stats[1]",
+    "levels[5].faction_of": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[5].stats[1]",
     "levels[6].crit_chance": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[6].stats[0]",
     "levels[6].heavy_crit_mult": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[6].stats[0]",
-    "levels[6].faction_dmg": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
+    "levels[6].faction_dmg": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[6].stats[1]",
+    "levels[6].faction_mul": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[6].stats[1]",
+    "levels[6].faction_of": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[6].stats[1]",
     "levels[7].crit_chance": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[7].stats[0]",
     "levels[7].heavy_crit_mult": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[7].stats[0]",
-    "levels[7].faction_dmg": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
+    "levels[7].faction_dmg": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[7].stats[1]",
+    "levels[7].faction_mul": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[7].stats[1]",
+    "levels[7].faction_of": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[7].stats[1]",
     "levels[8].crit_chance": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[8].stats[0]",
     "levels[8].heavy_crit_mult": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[8].stats[0]",
-    "levels[8].faction_dmg": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
+    "levels[8].faction_dmg": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[8].stats[1]",
+    "levels[8].faction_mul": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[8].stats[1]",
+    "levels[8].faction_of": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[8].stats[1]",
     "levels[9].crit_chance": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[9].stats[0]",
     "levels[9].heavy_crit_mult": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[9].stats[0]",
-    "levels[9].faction_dmg": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
+    "levels[9].faction_dmg": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[9].stats[1]",
+    "levels[9].faction_mul": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[9].stats[1]",
+    "levels[9].faction_of": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[9].stats[1]",
     "levels[10].crit_chance": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[10].stats[0]",
     "levels[10].heavy_crit_mult": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[10].stats[0]",
-    "levels[10].faction_dmg": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
+    "levels[10].faction_dmg": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[10].stats[1]",
+    "levels[10].faction_mul": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[10].stats[1]",
+    "levels[10].faction_of": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[10].stats[1]",
     "effects.crit_chance": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[10].stats[0]",
     "effects.heavy_crit_mult": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[10].stats[0]",
-    "effects.faction_dmg": "历史兼容值（本轮 DE 原文未能重建；未重新核验）"
+    "effects.faction_dmg": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[10].stats[1]",
+    "effects.faction_mul": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[10].stats[1]",
+    "effects.faction_of": "ExportUpgrades_en.json ExportUpgrades[259] (/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB).levelStats[10].stats[1]"
    }
   },
   "sawtooth clip": {
@@ -29060,53 +28967,38 @@
    "max_rank": 5,
    "effects": {
     "status_dmg": 90.0,
-    "magazine_pct": 60.0,
-    "base_dmg": 90.0
+    "magazine_pct": 60.0
    },
    "levels": [
     {
      "status_dmg": 15.0,
-     "magazine_pct": 10.0,
-     "base_dmg": 15.0
+     "magazine_pct": 10.0
     },
     {
      "status_dmg": 30.0,
-     "magazine_pct": 20.0,
-     "base_dmg": 30.0
+     "magazine_pct": 20.0
     },
     {
      "status_dmg": 45.0,
-     "magazine_pct": 30.0,
-     "base_dmg": 45.0
+     "magazine_pct": 30.0
     },
     {
      "status_dmg": 60.0,
-     "magazine_pct": 40.0,
-     "base_dmg": 60.0
+     "magazine_pct": 40.0
     },
     {
      "status_dmg": 75.0,
-     "magazine_pct": 50.0,
-     "base_dmg": 75.0
+     "magazine_pct": 50.0
     },
     {
      "status_dmg": 90.0,
-     "magazine_pct": 60.0,
-     "base_dmg": 90.0
+     "magazine_pct": 60.0
     }
    ],
    "_variant": 0,
    "_unparsed_stats": [],
    "_source_unique_name": "/Lotus/Upgrades/Mods/Shotgun/ShotgunStatusDamageDuoMod",
-   "_legacy_fields": [
-    "effects.base_dmg",
-    "levels[0].base_dmg",
-    "levels[1].base_dmg",
-    "levels[2].base_dmg",
-    "levels[3].base_dmg",
-    "levels[4].base_dmg",
-    "levels[5].base_dmg"
-   ],
+   "_legacy_fields": [],
    "src": {
     "name": "ExportUpgrades_en.json ExportUpgrades[196] (/Lotus/Upgrades/Mods/Shotgun/ShotgunStatusDamageDuoMod).name",
     "zh": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
@@ -29120,25 +29012,18 @@
     "compat": "ExportUpgrades_en.json ExportUpgrades[196] (/Lotus/Upgrades/Mods/Shotgun/ShotgunStatusDamageDuoMod).compatName",
     "levels[0].status_dmg": "ExportUpgrades_en.json ExportUpgrades[196] (/Lotus/Upgrades/Mods/Shotgun/ShotgunStatusDamageDuoMod).levelStats[0].stats[0]",
     "levels[0].magazine_pct": "ExportUpgrades_en.json ExportUpgrades[196] (/Lotus/Upgrades/Mods/Shotgun/ShotgunStatusDamageDuoMod).levelStats[0].stats[1]",
-    "levels[0].base_dmg": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
     "levels[1].status_dmg": "ExportUpgrades_en.json ExportUpgrades[196] (/Lotus/Upgrades/Mods/Shotgun/ShotgunStatusDamageDuoMod).levelStats[1].stats[0]",
     "levels[1].magazine_pct": "ExportUpgrades_en.json ExportUpgrades[196] (/Lotus/Upgrades/Mods/Shotgun/ShotgunStatusDamageDuoMod).levelStats[1].stats[1]",
-    "levels[1].base_dmg": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
     "levels[2].status_dmg": "ExportUpgrades_en.json ExportUpgrades[196] (/Lotus/Upgrades/Mods/Shotgun/ShotgunStatusDamageDuoMod).levelStats[2].stats[0]",
     "levels[2].magazine_pct": "ExportUpgrades_en.json ExportUpgrades[196] (/Lotus/Upgrades/Mods/Shotgun/ShotgunStatusDamageDuoMod).levelStats[2].stats[1]",
-    "levels[2].base_dmg": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
     "levels[3].status_dmg": "ExportUpgrades_en.json ExportUpgrades[196] (/Lotus/Upgrades/Mods/Shotgun/ShotgunStatusDamageDuoMod).levelStats[3].stats[0]",
     "levels[3].magazine_pct": "ExportUpgrades_en.json ExportUpgrades[196] (/Lotus/Upgrades/Mods/Shotgun/ShotgunStatusDamageDuoMod).levelStats[3].stats[1]",
-    "levels[3].base_dmg": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
     "levels[4].status_dmg": "ExportUpgrades_en.json ExportUpgrades[196] (/Lotus/Upgrades/Mods/Shotgun/ShotgunStatusDamageDuoMod).levelStats[4].stats[0]",
     "levels[4].magazine_pct": "ExportUpgrades_en.json ExportUpgrades[196] (/Lotus/Upgrades/Mods/Shotgun/ShotgunStatusDamageDuoMod).levelStats[4].stats[1]",
-    "levels[4].base_dmg": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
     "levels[5].status_dmg": "ExportUpgrades_en.json ExportUpgrades[196] (/Lotus/Upgrades/Mods/Shotgun/ShotgunStatusDamageDuoMod).levelStats[5].stats[0]",
     "levels[5].magazine_pct": "ExportUpgrades_en.json ExportUpgrades[196] (/Lotus/Upgrades/Mods/Shotgun/ShotgunStatusDamageDuoMod).levelStats[5].stats[1]",
-    "levels[5].base_dmg": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
     "effects.status_dmg": "ExportUpgrades_en.json ExportUpgrades[196] (/Lotus/Upgrades/Mods/Shotgun/ShotgunStatusDamageDuoMod).levelStats[5].stats[0]",
-    "effects.magazine_pct": "ExportUpgrades_en.json ExportUpgrades[196] (/Lotus/Upgrades/Mods/Shotgun/ShotgunStatusDamageDuoMod).levelStats[5].stats[1]",
-    "effects.base_dmg": "历史兼容值（本轮 DE 原文未能重建；未重新核验）"
+    "effects.magazine_pct": "ExportUpgrades_en.json ExportUpgrades[196] (/Lotus/Upgrades/Mods/Shotgun/ShotgunStatusDamageDuoMod).levelStats[5].stats[1]"
    }
   },
   "shotgun savvy": {
@@ -30840,22 +30725,12 @@
    "base_drain": 4,
    "drain_at_max": 7,
    "max_rank": 3,
-   "effects": {
-    "magazine_pct": 40.0
-   },
+   "effects": {},
    "levels": [
-    {
-     "magazine_pct": 10.0
-    },
-    {
-     "magazine_pct": 20.0
-    },
-    {
-     "magazine_pct": 30.0
-    },
-    {
-     "magazine_pct": 40.0
-    }
+    {},
+    {},
+    {},
+    {}
    ],
    "_variant": 0,
    "_unparsed_stats": [
@@ -30901,13 +30776,7 @@
     }
    ],
    "_source_unique_name": "/Lotus/Upgrades/Mods/Syndicate/ViperMod",
-   "_legacy_fields": [
-    "effects.magazine_pct",
-    "levels[0].magazine_pct",
-    "levels[1].magazine_pct",
-    "levels[2].magazine_pct",
-    "levels[3].magazine_pct"
-   ],
+   "_legacy_fields": [],
    "src": {
     "name": "ExportUpgrades_en.json ExportUpgrades[139] (/Lotus/Upgrades/Mods/Syndicate/ViperMod).name",
     "zh": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
@@ -30918,12 +30787,7 @@
     "drain_at_max": "ExportUpgrades_en.json ExportUpgrades[139] (/Lotus/Upgrades/Mods/Syndicate/ViperMod).baseDrain + fusionLimit",
     "polarity": "ExportUpgrades_en.json ExportUpgrades[139] (/Lotus/Upgrades/Mods/Syndicate/ViperMod).polarity",
     "rarity": "ExportUpgrades_en.json ExportUpgrades[139] (/Lotus/Upgrades/Mods/Syndicate/ViperMod).rarity",
-    "compat": "ExportUpgrades_en.json ExportUpgrades[139] (/Lotus/Upgrades/Mods/Syndicate/ViperMod).compatName",
-    "levels[0].magazine_pct": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
-    "levels[1].magazine_pct": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
-    "levels[2].magazine_pct": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
-    "levels[3].magazine_pct": "历史兼容值（本轮 DE 原文未能重建；未重新核验）",
-    "effects.magazine_pct": "历史兼容值（本轮 DE 原文未能重建；未重新核验）"
+    "compat": "ExportUpgrades_en.json ExportUpgrades[139] (/Lotus/Upgrades/Mods/Syndicate/ViperMod).compatName"
    }
   },
   "stockpiled blight": {

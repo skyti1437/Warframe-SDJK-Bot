@@ -25,7 +25,7 @@
   },
   "family_direct_pairs": 116,
   "conditional_scan_cards": 439,
-  "conditional_scan_scope_sha256": "ed5e5e3157762c9a05f5ccdaac634fb9e981f7e02dad734b0eeccd58e3feb8cf",
+  "conditional_scan_scope_sha256": "0e5e4b6e0471a5c6c3909f390388344756ef77637a3f552369310881e16f9adf",
   "conditional_scan_audit": [
    {
     "name": "adaptation",

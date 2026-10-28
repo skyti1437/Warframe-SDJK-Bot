@@ -1584,10 +1584,73 @@ check(
         for k in ("lie in wait", "soaring strike")
     ),
 )
+# ★ 2026-10-27（Astra v1.2.7 复测 P1）：与 DE 原文矛盾的旧字段不再保留（build_mod_levels.LEGACY_DROP）
 check(
-    "未重建旧字段明确标注：步枪元素师旧base_dmg保留",
-    "effects.base_dmg" in _p4b["mods"]["rifle elementalist"]["_legacy_fields"]
-    and _p4b["mods"]["rifle elementalist"]["effects"]["base_dmg"] == 90,
+    "步枪 / 霰弹枪元素师不再带虚构的 +90% 基伤（DE 只有异常伤害与穿透 / 弹匣）",
+    all(
+        "base_dmg" not in _p4b["mods"][k]["effects"]
+        and not any("base_dmg" in f for f in _p4b["mods"][k].get("_legacy_fields") or [])
+        for k in ("rifle elementalist", "shotgun elementalist")
+    ),
+)
+check(
+    "其余矛盾旧值同样剔除：弗拉克斯杀伤计数射速（DE 是副武器射速）、过激真相弹匣（DE 是 +40 发）",
+    "fire_rate" not in _p4b["mods"]["amalgam furax body count"]["effects"]
+    and "magazine_pct" not in _p4b["mods"]["stinging truth"]["effects"],
+)
+check(
+    "保留旧值只剩与 DE 一致的 4 张（晕眩弹药触发率、三张半自动炮轰说明）；牺牲系改由 DE「x1.33 对 Sentient」生成",
+    sorted(k for k, v in _p4b["mods"].items() if v.get("_legacy_fields"))
+    == [
+        "dizzying rounds",
+        "semi-pistol cannonade",
+        "semi-rifle cannonade",
+        "semi-shotgun cannonade",
+    ]
+    and _p4b["mods"]["sacrificial pressure"]["effects"].get("faction_of") == "Sentient",
+)
+_, _r_el0 = calc("Braton", [], enemy=dc.find_enemy_exact("船员"), level=1)
+_, _r_el1 = calc("Braton", ["步枪元素师"], enemy=dc.find_enemy_exact("船员"), level=1)
+check(
+    "真实计算：Braton 装步枪元素师对 1 级船员单发不变（此前 ×1.9）",
+    close(_r_el1["health"], _r_el0["health"]),
+    f"{_r_el0['health']} vs {_r_el1['health']}",
+)
+_s_el, _ = dc.parse_args(["步枪元素师"])
+_s_el.update(enemy=dc.find_enemy_exact("船员"), level=1)
+_w_el, _ = dc.find_weapon("Braton")
+_r_el_line = dc.calculate(_s_el, _w_el)
+_el_card = "\n".join(dc.card_lines(_w_el, _s_el, _r_el_line))
+check(
+    "显示：步枪元素师标「状态伤害·不增加直伤」+「穿透 +0.6 米（未折算 DPS）」，不再笼统「未计入」",
+    "步枪元素师（状态伤害·不增加直伤、穿透 +0.6 米（未折算 DPS））" in _el_card
+    and "步枪元素师（未计入）" not in _el_card,
+    [ln for ln in _el_card.splitlines() if "步枪元素师" in ln],
+)
+_s_sh, _ = dc.parse_args(["霰弹枪元素师"])
+_s_sh.update(enemy=dc.find_enemy_exact("船员"), level=1)
+_w_sh, _ = dc.find_weapon("Hek")
+_r_sh_line = dc.calculate(_s_sh, _w_sh)
+_sh_card = "\n".join(dc.card_lines(_w_sh, _s_sh, _r_sh_line))
+check(
+    "显示：霰弹枪元素师（无穿透）标「状态伤害·不增加直伤」，不再「未计入」",
+    "霰弹枪元素师（状态伤害·不增加直伤）" in _sh_card and "霰弹枪元素师（未计入）" not in _sh_card,
+    [ln for ln in _sh_card.splitlines() if "霰弹枪元素师" in ln],
+)
+_, _r_sp1 = calc("Nikana Prime", ["牺牲压迫点"], enemy=dc.find_enemy_exact("船员"))
+_, _r_sp0 = calc("Nikana Prime", ["压迫点"], enemy=dc.find_enemy_exact("船员"))
+check(
+    "牺牲压迫点的 +33% 只对 Sentient：打船员（Corpus）不再多 ×1.33",
+    _r_sp1["dps"] / _r_sp0["dps"] < 1.2,
+    f"{_r_sp1['dps']:.1f} / {_r_sp0['dps']:.1f}",
+)
+# ★ 2026-10-27（Astra v1.2.7 复测 P2）：同层灵化进化只能选一个
+_, _r_ev1 = calc("Soma Prime", ["灵化", "进化基伤"])
+_, _r_ev2 = calc("Soma Prime", ["灵化", "进化基伤", "进化基伤"])
+check(
+    "Soma Prime「进化基伤 进化基伤」不再把 EVO2 两个选项同时叠上",
+    close(_r_ev1["dps"], _r_ev2["dps"]),
+    f"{_r_ev1['dps']} vs {_r_ev2['dps']}",
 )
 check(
     "新生成器已替换旧脚本",

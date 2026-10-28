@@ -21,7 +21,7 @@ from typing import Awaitable, Callable, Optional
 
 from . import paths
 from .api_client import WarframeClient
-from .logging_compat import mask_umo
+from .logging_compat import mask_in_text, mask_umo
 from .formatters import (
     ORACLE_REGIONS,
     countdown,
@@ -62,12 +62,13 @@ _FATAL_SEND_RE = re.compile(
 )
 
 
-def _brief_reason(err: BaseException, limit: int = 120) -> str:
+def _brief_reason(err: BaseException, umo: str = "", limit: int = 120) -> str:
     """发送异常的简短文本（落盘进暂停记录用）。
 
-    ★ 只取异常文本、绝不拼 umo —— 暂停原因会显示在运维面板上，不能把会话号带出去。
+    ★ 只取异常文本、绝不拼 umo —— 暂停原因会显示在运维面板上，不能把会话号带出去；
+      异常文本自己带的会话号也打码（2026-10-27 Astra 复测 S3）。
     """
-    text = str(err).strip().replace("\n", " ").replace("\r", " ")
+    text = mask_in_text(err, umo).strip().replace("\n", " ").replace("\r", " ")
     return (text or err.__class__.__name__)[:limit]
 
 
@@ -677,7 +678,9 @@ class PushDaemon:
             except asyncio.CancelledError:
                 raise
             except Exception as exc:  # noqa: BLE001 - 提醒发不出去不重试（订阅本就结束了）
-                self.log.warning("[warframe] 到期提醒发送失败（%s）：%s", mask_umo(umo), exc)
+                self.log.warning(
+                    "[warframe] 到期提醒发送失败（%s）：%s", mask_umo(umo), mask_in_text(exc, umo)
+                )
             else:
                 # ★ 2026-10-16（ZCode 部署验证）：成功路径此前完全静默，只能靠用户截图确认送达；
                 #   与普通推送的「已推送」日志对称，补一行可检索的成功记录。
@@ -728,7 +731,9 @@ class PushDaemon:
         try:
             await self.groups.set_pause(umo, info)
         except Exception as exc:  # noqa: BLE001 - 写盘失败不影响内存语义（照 _purge_umo）
-            self.log.warning("[warframe] 暂停状态写盘失败（%s）：%s", mask_umo(umo), exc)
+            self.log.warning(
+                "[warframe] 暂停状态写盘失败（%s）：%s", mask_umo(umo), mask_in_text(exc, umo)
+            )
 
     async def _pause_or_purge(self, umo: str, err: BaseException, n_fail: int, now: float) -> None:
         """连续失败达阈值：未暂停 ⇒ 改为暂停推送；已暂停（本次是试发）⇒ 满 7 天才清理订阅。"""
@@ -739,7 +744,7 @@ class PushDaemon:
                 {
                     "since": now,
                     "next_try": now + PAUSE_RETRY_SECS,
-                    "reason": _brief_reason(err),
+                    "reason": _brief_reason(err, umo),
                     "fails": n_fail,
                 },
             )
@@ -764,7 +769,7 @@ class PushDaemon:
             {
                 "since": since,
                 "next_try": now + PAUSE_RETRY_SECS,
-                "reason": _brief_reason(err),
+                "reason": _brief_reason(err, umo),
                 "fails": int(prev.get("fails") or 0) + 1,
             },
         )
@@ -873,10 +878,10 @@ class PushDaemon:
             if cancelling is None or cancelling():
                 raise
             err = RuntimeError("发送被取消（非守护停止）")
-            self.log.warning("[warframe] 推送失败（%s）：%s", mask_umo(umo), err)
+            self.log.warning("[warframe] 推送失败（%s）：%s", mask_umo(umo), mask_in_text(err, umo))
         except Exception as exc:  # noqa: BLE001
             err = exc
-            self.log.warning("[warframe] 推送失败（%s）：%s", mask_umo(umo), err)
+            self.log.warning("[warframe] 推送失败（%s）：%s", mask_umo(umo), mask_in_text(err, umo))
         # —— 失败累计（每会话每 tick 最多记一次）——
         if self._fail_tick.get(umo) != self._tick_no:
             self._fail_tick[umo] = self._tick_no
@@ -896,7 +901,9 @@ class PushDaemon:
             n = await self.store.remove(lambda s: s.umo == umo)
         except Exception as exc:  # noqa: BLE001
             n = len(sids)
-            self.log.warning("[warframe] 清理 %s 的订阅时写盘失败：%s", mask_umo(umo), exc)
+            self.log.warning(
+                "[warframe] 清理 %s 的订阅时写盘失败：%s", mask_umo(umo), mask_in_text(exc, umo)
+            )
         self._dead |= sids
         self._purged_umos.add(umo)
         self._pending[:] = [p for p in self._pending if p["umo"] != umo]

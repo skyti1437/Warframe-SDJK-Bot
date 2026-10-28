@@ -14,19 +14,10 @@ useDefault = true
 
 [[rules]]
 id = "local-user-path"
-description = "开发机绝对路径泄露（C:/Users/...、/home/...、/root/...）"
-regex = '''(?i)[a-z]:[/\\]{1,2}(users|home)[/\\][a-z0-9._-]+|/(home|root)/[a-z0-9._-]+'''
+description = "开发机绝对路径泄露（C:/Users/...、/home/...、/root/...、macOS /Users/...）"
+# 2026-10-27（Astra v1.2.7 复测 P3）：补 macOS `/Users/<用户名>`；只按大写 `/Users/` 匹配（(?-i:…)），
+#   免得误伤 `github.com/users/<名字>` 这类网址。
+regex = '''(?i)[a-z]:[/\\]{1,2}(users|home)[/\\][a-z0-9._-]+|/(home|root)/[a-z0-9._-]+|(?-i:/Users/)[a-z0-9._-]+'''
 
-# ★ 2026-10-27：v1.2.7 首次同步时，`scripts/build_enemies.py`（用法示例）与
-#   `tests/test_damage_review_b.py`（构建输入目录默认值）带过本机绝对路径；**当前树已改掉**
-#   （示例改占位符、测试改读 WF_BUILD_INPUTS），但仍在历史提交 `da925f8` 里，而本仓库 CI 是
-#   `--all --full-history` 全历史扫描。
-#   豁免挂在**本条规则下**（规则级 allowlist）：只放过这两个文件的「本机路径」命中，
-#   同文件里的密钥 / Token 等默认规则**照常检测**。顶层 `[allowlist]` 的 paths 对所有规则生效，
-#   会连密钥检测一起关掉，不用它。不按提交豁免：该提交含整个 v1.2.7 发布内容。
-[rules.allowlist]
-description = "历史提交里两个构建 / 测试文件曾用本机绝对路径（当前树已清除）"
-paths = [
-  '''scripts/build_enemies\.py''',
-  '''tests/test_damage_review_b\.py''',
-]
+# 2026-10-27：v1.2.7 首次同步时两个文件带过本机路径，已随公开仓历史改写一并清除，路径豁免撤掉
+#   （豁免对以后新增的路径同样生效，留着是检测缺口）。

@@ -53,4 +53,21 @@ def mask_umo(umo: str) -> str:
     return mask_id(umo)
 
 
-__all__ = ["logger", "mask_id", "mask_umo"]
+def mask_in_text(text: object, umo: str) -> str:
+    """把一段文本（通常是异常原文）里出现的该会话完整标识与会话号替换成打码形式。
+
+    ★ 2026-10-27（Astra v1.2.7 复测 S3）：适配器的发送异常可能把目标会话号写进异常文本，
+    光给日志格式位里的 umo 打码挡不住 —— 日志 / 面板落盘前都过一遍这里。
+    """
+    s = str(text)
+    umo = str(umo or "")
+    if not umo:
+        return s
+    s = s.replace(umo, mask_umo(umo))
+    sid = umo.split(":")[-1]
+    if len(sid) >= 5:  # 太短的号（测试桩 / 非 QQ）替换易误伤正文，不动
+        s = s.replace(sid, mask_id(sid))
+    return s
+
+
+__all__ = ["logger", "mask_id", "mask_umo", "mask_in_text"]

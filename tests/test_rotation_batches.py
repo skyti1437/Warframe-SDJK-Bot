@@ -461,9 +461,11 @@ _cmap = {i["en"]: (i.get("element"), i.get("bonus")) for i in _cur_batch}
 #   A 批本轮未取到新值（保持 10-15 的 Catabolyst Toxin 33.2 / Motovore Magnetic 25.7）。
 # ★ 2026-10-23 刷新（wiki Coda_Weapons revid 2821059，2026-10-23T00:56:34Z）：A 批 7 条全重掷 ——
 #   Catabolyst Toxin 29.7、Motovore Electricity 49.8；batch_values_since[A] 同步为该修订时刻。
+# ★ 2026-10-27 刷新（wiki Coda_Weapons revid 2821945，2026-10-27T00:49:37Z）：B 批 6 条重掷 ——
+#   Bassocyst Impact 46.7、Synapse Radiation 30.8；batch_values_since[B] 同步为该修订时刻。
 _SPOT = {
     "A": {"Coda Catabolyst": ("Toxin", 29.7), "Coda Motovore": ("Electricity", 49.8)},
-    "B": {"Coda Bassocyst": ("Toxin", 40.4), "Coda Synapse": ("Toxin", 39.4)},
+    "B": {"Coda Bassocyst": ("Impact", 46.7), "Coda Synapse": ("Radiation", 30.8)},
 }
 _cur_label = (coda.get("batch_label") or ["A", "B"])[_idx]
 for _en, _exp in _SPOT.get(_cur_label, {}).items():

@@ -81,8 +81,25 @@ FACTIONS = {
     "Infested": "Infested",
     "Orokin": "Orokin",
     "Murmur": "The Murmur",
+    "Sentients": "Sentient",  # 牺牲 系（DE「x1.33 Damage to Sentients」）
 }
 LEGACY_SRC = "历史兼容值（本轮 DE 原文未能重建；未重新核验）"
+# 与 DE 原文矛盾的历史字段：不保留（2026-10-27 Astra v1.2.7 复测 P1 + Claude 逐张对 DE）。键 = 卡名小写，
+# 值 = {字段: DE 依据}。字段在逐级与满级 effects 里一并剔除。
+LEGACY_DROP: dict[str, dict[str, str]] = {
+    "rifle elementalist": {
+        "base_dmg": "DE 满级只有「+90% Status Damage」「+0.6 Punch Through」，无基伤"
+    },
+    "shotgun elementalist": {
+        "base_dmg": "DE 满级只有「+90% Status Damage」「+60% Magazine Capacity」，无基伤"
+    },
+    "amalgam furax body count": {
+        "fire_rate": "DE「+45% Fire Rate for Secondary Weapons」—— 近战卡加的是副武器射速，不是本武器"
+    },
+    "stinging truth": {
+        "magazine_pct": "DE「+40 Magazine Capacity」是绝对 40 发，不是 +40%（计算器无绝对弹匣键）"
+    },
+}
 
 
 def norm(s: str) -> str:
@@ -135,7 +152,9 @@ def parse(text: str) -> dict | None:
             return {"physical" if label in PHYSICAL else "elements": {label: value}}
         if label.startswith("damage to ") and m[2][10:] in FACTIONS:
             return {"faction_dmg": value, "faction_of": FACTIONS[m[2][10:]]}
-    if m := re.fullmatch(r"x([\d.]+) Damage to (Corpus|Grineer|Infested|Orokin|Murmur)", s):
+    if m := re.fullmatch(
+        r"x([\d.]+) Damage to (Corpus|Grineer|Infested|Orokin|Murmur|Sentients)", s
+    ):
         # faction_dmg = 同一乘数的百分数写法（计算器两键都读），由 DE 乘数换算，不是另一个来源
         mul = float(m[1])
         return {
@@ -363,6 +382,8 @@ def build(official: Path, pep_dir: Path, wiki_dir: Path, old: dict) -> dict:
                 old_levels = prior.get("levels") or []
                 before = old_levels[rank] if rank < len(old_levels) else {}
                 level = copy.deepcopy(before)
+                for _f in LEGACY_DROP.get(key, {}):
+                    level.pop(_f, None)
                 # 两张已有常驻误分类的卡：DE 明确限定 when，不能继续保留常驻射速。
                 if any(c["field"] == "fire_rate" for c in conds):
                     level.pop("fire_rate", None)
@@ -401,6 +422,8 @@ def build(official: Path, pep_dir: Path, wiki_dir: Path, old: dict) -> dict:
             rec["levels"] = levels
             # 满级 effects 与最后一个等级一致；保留仅 effects 有的旧字段并标历史。
             effects = copy.deepcopy(prior.get("effects") or {})
+            for _f in LEGACY_DROP.get(key, {}):
+                effects.pop(_f, None)
             if any(c.get("field") == "fire_rate" for c in levels[-1].get("conditionals", [])):
                 effects.pop("fire_rate", None)
             if key == "retribution":

@@ -2319,6 +2319,41 @@ def t_log_masks_session_id():
 
 t_log_masks_session_id()
 
+
+def t_exception_text_masked():
+    """★ 2026-10-27（Astra v1.2.7 复测 S3）：异常原文里带的会话号也要打码（日志与面板暂停原因）。"""
+    from core.logging_compat import mask_in_text
+    from core.push import _brief_reason
+
+    umo = "test:GroupMessage:987654321"
+    err = RuntimeError(f"send failed target={umo}; group 987654321 gone")
+    out = mask_in_text(err, umo)
+    check(
+        "异常原文里的完整会话标识与会话号都打码", "987654321" not in out and "98*****21" in out, out
+    )
+    check(
+        "面板暂停原因同样打码", "987654321" not in _brief_reason(err, umo), _brief_reason(err, umo)
+    )
+    import ast as _ast
+
+    src = (Path(__file__).resolve().parent.parent / "core" / "push.py").read_text(encoding="utf-8")
+    bare = [
+        n.lineno
+        for n in _ast.walk(_ast.parse(src))
+        if isinstance(n, _ast.Call)
+        and getattr(n.func, "attr", "") in ("warning", "error", "info")
+        and any(isinstance(a, _ast.Name) and a.id in ("err", "exc") for a in n.args[1:])
+        and "mask_umo" in _ast.unparse(n)
+    ]
+    check(
+        "★ 带会话号的推送日志里，异常原文都经过 mask_in_text（不直接传 err / exc）",
+        bare == [],
+        str(bare),
+    )
+
+
+t_exception_text_masked()
+
 if FAILED:
     print(f"共 {len(FAILED)} 项失败：{FAILED}")
     sys.exit(1)

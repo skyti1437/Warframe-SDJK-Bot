@@ -1,4 +1,4 @@
-# AstrBot 插件 · Warframe SDJKBOT v1.2.7（`astrbot_plugin_warframe_sdjkbot`）
+# AstrBot 插件 · Warframe SDJKBOT v1.2.8（`astrbot_plugin_warframe_sdjkbot`）
 
 在 QQ 群里查 Warframe 的一切：**世界状态、市场价、遗物与部件、伤害计算、配卡截图识别、紫卡分析、玄骸拍卖、奸商预测、蹲点推送**——
 回复渲染成 Orokin 风格的图片卡片，后台还带一个可视化的运维面板。
@@ -136,14 +136,46 @@
 | 市场价 / 拍卖 | warframe.market | 按接口分别限速：普通查询约 3 次/秒；拍卖搜索更严，只在管理员手动拉取时按约 15 秒一次进行，遇 429 退避 |
 | 赏金轮换 / 钢铁侵袭 | [browse.wf](https://browse.wf) | calamity-inc 开源项目 |
 | 仲裁排期与社区实测 | [arbi.wf.wiki](https://arbi.wf.wiki) | 社区站点，非官方 |
-| 元素加成、奸商历史、资料卡文本（简介 / 效果 / 获取，经摘录、翻译与重排）、紫卡取消前的旧倾向（只用于识别旧截图） | [wiki.warframe.com](https://wiki.warframe.com) | [CC BY-NC-SA 3.0](https://creativecommons.org/licenses/by-nc-sa/3.0/)；仅这些数据适用，代码另按 GPL-3.0 |
+| 元素加成、奸商历史、资料卡文本（简介 / 效果 / 获取，经摘录、翻译与重排）、紫卡取消前的旧倾向（只用于识别旧截图；游戏内倾向自 2026-10 起统一为 1.2，插件按 1.2 计算） | [wiki.warframe.com](https://wiki.warframe.com) | [CC BY-NC-SA 3.0](https://creativecommons.org/licenses/by-nc-sa/3.0/)；仅这些数据适用，代码另按 GPL-3.0 |
 | 字体 | Noto Sans CJK SC 子集（© Adobe） | SIL OFL 1.1，全文与子集化说明见 `core/data/fonts/OFL.txt` |
 
 - **算法参考**：赏金「小帐篷」推算参考了 [calamity-inc/wf.browse.oracle](https://github.com/calamity-inc/wf.browse.oracle) 公开的算法（种子与洗牌步骤与其一致）。该仓库没有附带许可证；本插件用 Python 另行实现，没有拷贝其源代码文件。
-- **伤害计算**：以 [magenie33/wfsim](https://github.com/magenie33/wfsim)（AGPL-3.0-or-later）为对照基准交叉核对公式，未复制其源代码。早期版本的部分派生数据表取自其整理的数据，**v1.2.7 起已全部改为从上表所列来源重新生成**（生成器见 `scripts/build_*.py`），wfsim 只作交叉核对。
+- **伤害计算**：以 [magenie33/wfsim](https://github.com/magenie33/wfsim)（AGPL-3.0-or-later）为对照基准交叉核对公式，未复制其源代码。早期版本的部分派生数据表取自其整理的数据，**v1.2.7 起改为从上表所列来源重新生成**（生成器见 `scripts/build_*.py`），wfsim 只作交叉核对。例外：MOD 等级表里 4 张卡的少量字段（晕眩弹药的触发几率、三张半自动炮轰的卡面说明）DE 原文没能解析成计算字段，沿用旧表并在数据里标 `_legacy_fields`（数值与 DE 原文一致）；Primed Deadly Efficiency 的持续时间 wiki 写 16.5 s、DE 写 17 s，暂未裁定，标 `pending`。
 - **插件图标**：按作者记录取自 Warframe 官方 Fan Kit 素材（`LotusEmblemIcon`），版权归 Digital Extremes，用于本非商业粉丝作品，不表示与 DE 有关联或经其认可。
 - **代码许可**：GPL-3.0（见 `LICENSE`）。
 - **非官方声明**：Warframe 与相关商标、游戏图标、名称与译文归 Digital Extremes 所有。本插件是粉丝作品，与 Digital Extremes 无关。
+
+### 第三方许可声明（MIT）
+
+随包数据有一部分由以下 MIT 许可项目的导出整理而来，按其许可附上版权与许可声明：
+
+- [WFCD/warframe-items](https://github.com/WFCD/warframe-items)：Copyright (c) 2017 Kaptard
+- [calamity-inc/warframe-public-export-plus](https://github.com/calamity-inc/warframe-public-export-plus)（固定提交 `513105d`）：Copyright (c) 2024-2026 Calamity, Inc.；Copyright (c) 2026 AMelonInsideLemon
+
+```text
+MIT License
+
+Copyright (c) 2024-2026 Calamity, Inc.
+Copyright (c) 2026 AMelonInsideLemon
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
 
 ---
 
