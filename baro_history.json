@@ -1,6 +1,6 @@
 {
  "source": "wiki.warframe.com · Module:Baro/data",
- "fetched": "2026-10-23",
+ "fetched": "2026-10-30",
  "period_days": 14,
  "visits": [
   "2015-02-20",
@@ -320,7 +320,8 @@
   "2026-09-18",
   "2026-10-02",
   "2026-10-16",
-  "2026-10-23"
+  "2026-10-23",
+  "2026-10-30"
  ],
  "items": {
   "10 x Ki'Teer Fireworks": {
@@ -857,7 +858,8 @@
    "v": [
     260,
     286,
-    295
+    295,
+    318
    ]
   },
   "Bekran Zaft's Equipment": {
@@ -1635,7 +1637,16 @@
     289,
     290,
     316,
-    317
+    317,
+    318
+   ]
+  },
+  "Eskhatos Infinitas Ephemera": {
+   "t": "Cosmetic (Ephemera)",
+   "d": 88,
+   "c": 98002,
+   "v": [
+    318
    ]
   },
   "Eskhatos Ki'Teer Chest Guard": {
@@ -1647,7 +1658,8 @@
     289,
     290,
     316,
-    317
+    317,
+    318
    ]
   },
   "Eskhatos Ki'Teer Ephemera": {
@@ -1660,7 +1672,8 @@
     289,
     290,
     316,
-    317
+    317,
+    318
    ]
   },
   "Eskhatos Ki'Teer Floof": {
@@ -1669,7 +1682,8 @@
    "c": 111111,
    "v": [
     316,
-    317
+    317,
+    318
    ]
   },
   "Eskhatos Ki'Teer Glyph": {
@@ -1678,7 +1692,8 @@
    "c": 67,
    "v": [
     316,
-    317
+    317,
+    318
    ]
   },
   "Eskhatos Ki'Teer Knee Guards": {
@@ -1689,7 +1704,8 @@
     289,
     290,
     316,
-    317
+    317,
+    318
    ]
   },
   "Eskhatos Ki'Teer Shoulder Guards": {
@@ -1702,7 +1718,16 @@
     289,
     290,
     316,
-    317
+    317,
+    318
+   ]
+  },
+  "Eskhatos Mausolon Skin": {
+   "t": "Cosmetic (Weapon Skin)",
+   "d": 134,
+   "c": 341876,
+   "v": [
+    318
    ]
   },
   "Eskhatos Necraloid Sigil": {
@@ -1712,7 +1737,8 @@
    "v": [
     290,
     316,
-    317
+    317,
+    318
    ]
   },
   "Eskhatos Necramech Skin": {
@@ -1721,7 +1747,8 @@
    "c": 448114,
    "v": [
     316,
-    317
+    317,
+    318
    ]
   },
   "Eskhatos Pauldrons": {
@@ -1729,7 +1756,8 @@
    "d": 303,
    "c": 303303,
    "v": [
-    317
+    317,
+    318
    ]
   },
   "Eskhatos Sekhara": {
@@ -1737,7 +1765,8 @@
    "d": 172,
    "c": 336801,
    "v": [
-    317
+    317,
+    318
    ]
   },
   "Eskhatos Sugatra": {
@@ -1746,7 +1775,8 @@
    "c": 209066,
    "v": [
     316,
-    317
+    317,
+    318
    ]
   },
   "Excalibur Proto-Armor in Action Glyph": {
@@ -2196,7 +2226,8 @@
    "d": 750,
    "c": 650000,
    "v": [
-    297
+    297,
+    318
    ]
   },
   "High Voltage": {
@@ -4021,7 +4052,8 @@
    "v": [
     290,
     316,
-    317
+    317,
+    318
    ]
   },
   "Necraloid Floof": {
@@ -4250,7 +4282,8 @@
     250,
     277,
     296,
-    303
+    303,
+    318
    ]
   },
   "Noggle Statue - Zealoid Prelate": {
@@ -4468,7 +4501,8 @@
    "v": [
     290,
     316,
-    317
+    317,
+    318
    ]
   },
   "Pedestal Prime": {
@@ -4720,7 +4754,8 @@
    "d": 390,
    "c": 210000,
    "v": [
-    305
+    305,
+    318
    ]
   },
   "Primed Continuity": {
@@ -5433,7 +5468,8 @@
     289,
     301,
     302,
-    311
+    311,
+    318
    ]
   },
   "Primed Steady Hands": {
@@ -5488,7 +5524,8 @@
    "v": [
     294,
     299,
-    309
+    309,
+    318
    ]
   },
   "Prisma Angstrum": {
@@ -6096,7 +6133,8 @@
     283,
     294,
     298,
-    307
+    307,
+    318
    ]
   },
   "Prisma Rostam Kubrow Armor": {
@@ -6548,7 +6586,8 @@
     269,
     284,
     296,
-    300
+    300,
+    318
    ]
   },
   "Reshantur Child's Tablet": {
@@ -6919,7 +6958,8 @@
     289,
     290,
     316,
-    317
+    317,
+    318
    ]
   },
   "Sima Luxxum Ornament": {
