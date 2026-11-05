@@ -21,3 +21,15 @@ regex = '''(?i)[a-z]:[/\\]{1,2}(users|home)[/\\][a-z0-9._-]+|/(home|root)/[a-z0-
 
 # 2026-10-27：v1.2.7 首次同步时两个文件带过本机路径，已随公开仓历史改写一并清除，路径豁免撤掉
 #   （豁免对以后新增的路径同样生效，留着是检测缺口）。
+
+# v1.2.9 发布历史中的脱敏测试使用保留域名，只豁免该提交里的这一条模拟值。
+[[rules]]
+id = "generic-api-key"
+
+[[rules.allowlists]]
+description = "v1.2.9 异常详情脱敏测试的保留域名夹具"
+condition = "AND"
+commits = ["b8855f154c2332b5e04549e86cbfa14f4d7442bb"]
+paths = ['''^tests/test_vision_compare\.py$''']
+regexTarget = "secret"
+regexes = ['''^api_key=SECRET$''']

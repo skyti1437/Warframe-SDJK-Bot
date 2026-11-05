@@ -110,9 +110,9 @@ class ComparisonTests(unittest.IsolatedAsyncioTestCase):
                 self.assertTrue(side["accepted"], side)
 
     async def test_failures_do_not_leak_exception_details(self):
-        secret = "api_key=SECRET https://private.example/path"
-        _, _, result = await self.compare(answers=[RuntimeError(secret), "绝路"])
-        self.assertNotIn(secret, json.dumps(result, ensure_ascii=False))
+        detail = "上游测试异常详情"
+        _, _, result = await self.compare(answers=[RuntimeError(detail), "绝路"])
+        self.assertNotIn(detail, json.dumps(result, ensure_ascii=False))
         self.assertFalse(result["sides"]["original"]["accepted"])
         self.assertTrue(result["sides"]["candidate"]["accepted"])
 
