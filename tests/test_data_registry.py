@@ -21,6 +21,7 @@ import sys
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
+from unittest.mock import patch as _patch
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -177,6 +178,13 @@ for key, meta in DR.REGISTRY.items():
         if path is None:
             continue
         val = DR._dig(obj, path)
+        if (
+            key in ("rotations.json", "de/acrichis_week.json")
+            and field == "observed"
+            and val is None
+        ):
+            # 包内按设计不含动态快照；运行期仍保留此观察字段。
+            continue
         if val is None or val == "":
             bad_dig.append(f"{key}.{field}={path}")
 check("damage/drops_relics/names_zh 三组 source 与 producer 均非空", not no_src, str(no_src))
@@ -288,7 +296,11 @@ check("坏 JSON 的 rotating ⇒ stale（不抛）", ok, str(r))
 _write(d3, "de/acrichis_week.json", {"expiry": "2026-01-01T00:00:00+00:00"})
 r = _row(DR.evaluate(d3, NOW, tracked_files=["de/acrichis_week.json"]), "de/acrichis_week.json")
 check("rotating expiry 已过 ⇒ stale", r is not None and r["status"] == "stale", str(r))
-_write(d3, "de/acrichis_week.json", {"expiry": "2026-03-01T00:00:00+00:00"})
+_write(
+    d3,
+    "de/acrichis_week.json",
+    {"expiry": "2026-03-01T00:00:00+00:00", "items": [{"name": "商品", "price": 10}]},
+)
 r = _row(DR.evaluate(d3, NOW, tracked_files=["de/acrichis_week.json"]), "de/acrichis_week.json")
 check("rotating expiry 未到 ⇒ ok", r is not None and r["status"] == "ok", str(r))
 
@@ -304,6 +316,53 @@ _rot = {
         "valence_snapshot": "2026-01-31T00:00:00+00:00",
     },
 }
+# 仅名称骨架取自静态名单；元素/加成使用合成值，不依赖随包动态快照。
+_runtime_names = {
+    "tenet": [
+        {"en": "Tenet Agendus", "cn": "信条·集议"},
+        {"en": "Tenet Exec", "cn": "信条·枢密"},
+        {"en": "Tenet Ferrox", "cn": "信条·铁晶磁轨炮"},
+        {"en": "Tenet Grigori", "cn": "信条·格里高利"},
+        {"en": "Tenet Livia", "cn": "信条·莉薇娅"},
+    ],
+    "coda": [
+        [
+            {"en": "Coda Hema", "cn": "终幕·血肢"},
+            {"en": "Coda Sporothrix", "cn": "终幕·孢丝感染枪"},
+            {"en": "Coda Catabolyst", "cn": "终幕·异化者"},
+            {"en": "Coda Pox", "cn": "终幕·脓痘"},
+            {"en": "Dual Coda Torxica", "cn": "终幕·孢蚀双枪"},
+            {"en": "Coda Mire", "cn": "终幕·米尔"},
+            {"en": "Coda Motovore", "cn": "终幕·噬轮"},
+        ],
+        [
+            {"en": "Coda Bassocyst", "cn": "终幕·低音爆囊"},
+            {"en": "Coda Bubonico", "cn": "终幕·横痃重炮"},
+            {"en": "Coda Synapse", "cn": "终幕·突触生化枪"},
+            {"en": "Coda Tysis", "cn": "终幕·啐沫者"},
+            {"en": "Coda Caustacyst", "cn": "终幕·灼蚀变体镰"},
+            {"en": "Coda Hirudo", "cn": "终幕·蚂蟥"},
+            {"en": "Coda Pathocyst", "cn": "终幕·病囊飞刃"},
+        ],
+    ],
+}
+_rot["tenet"].update(
+    {
+        "mode": "refresh_only",
+        "items": [{**row, "element": "Heat", "bonus": 40} for row in _runtime_names["tenet"]],
+    }
+)
+_rot["coda"].update(
+    {
+        "mode": "batch_cycle",
+        "anchor_idx": 0,
+        "batch_label": ["A", "B"],
+        "batches": [
+            [{**row, "element": "Heat", "bonus": 40} for row in group]
+            for group in _runtime_names["coda"]
+        ],
+    }
+)
 _write(d3, "rotations.json", _rot)
 r = _row(DR.evaluate(d3, NOW, tracked_files=["rotations.json"]), "rotations.json")
 check("rotating valence 在本轮窗口 ⇒ ok", r is not None and r["status"] == "ok", str(r))
@@ -311,6 +370,13 @@ _rot["tenet"]["valence_snapshot"] = "2026-01-02T00:00:00+00:00"
 _write(d3, "rotations.json", _rot)
 r = _row(DR.evaluate(d3, NOW, tracked_files=["rotations.json"]), "rotations.json")
 check("rotating valence 早于窗口起点 ⇒ stale", r is not None and r["status"] == "stale", str(r))
+
+_rot["tenet"]["valence_snapshot"] = "2026-01-31T00:00:00+00:00"
+del _rot["tenet"]["items"][0]["bonus"]
+_write(d3, "rotations.json", _rot)
+r = _row(DR.evaluate(d3, NOW, tracked_files=["rotations.json"]), "rotations.json")
+check("运行期新快照但缺单个值仍报警", r["status"] == "stale", str(r))
+_rot["tenet"]["items"][0]["bonus"] = 40
 
 # ------------------------------------------------------------------ ⑥ 反向验证
 _orig_ws = DR.REGISTRY["weapons_stats.json"]["source"]
@@ -593,6 +659,175 @@ check(
     _lr and _lr[0]["verdict"] == "not_yet" and not DR.ledger_problems(_lr),
     str(_lr),
 )
+
+# 包内骨架与运行期缺值分开；真实面板入口传 resolve=paths.read_path。
+_seed = {
+    "tenet": {
+        "mode": "refresh_only",
+        "epoch": "2026-09-12T00:00:00+00:00",
+        "period_hours": 96,
+        "items": [{"en": f"Tenet {i}", "cn": f"信条{i}"} for i in range(5)],
+    },
+    "coda": {
+        "mode": "batch_cycle",
+        "epoch": "2026-09-13T00:00:00+00:00",
+        "period_hours": 96,
+        "anchor_idx": 0,
+        "batch_label": ["A", "B"],
+        "batches": [
+            [{"en": f"Coda {i}-{j}", "cn": f"终幕{i}-{j}"} for j in range(7)] for i in range(2)
+        ],
+    },
+}
+_dseed = _tmpdir()
+_tmp.append(_dseed)
+_write(_dseed, "rotations.json", _seed)
+_rseed = _row(DR.evaluate(_dseed, NOW, tracked_files=[], context="seed"), "rotations.json")
+check("无值种子显式seed合法", _rseed["status"] == "ok", str(_rseed))
+_rrun = _row(DR.evaluate(_dseed, NOW, tracked_files=[], context="runtime"), "rotations.json")
+check("无值运行期仍报警", _rrun["status"] == "stale", str(_rrun))
+_rrun = _row(
+    DR.evaluate(_dseed, NOW, tracked_files=[], resolve=lambda k: _dseed / k), "rotations.json"
+)
+check("面板resolve回落无值种子仍报警", _rrun["status"] == "stale", str(_rrun))
+with (
+    _patch.object(DR.paths, "PKG_DATA", _dseed),
+    _patch.object(DR.paths, "run_dir", return_value=_dseed / "runtime"),
+):
+    _auto = _row(DR.evaluate(_dseed, NOW, tracked_files=[]), "rotations.json")
+check("运行目录启用时auto回落包内种子仍报警", _auto["status"] == "stale", str(_auto))
+for _field in (
+    "bonus",
+    "element",
+    "valence_snapshot",
+    "valence_source",
+    "valence_values_since",
+    "batch_values_since",
+):
+    _bad = json.loads(json.dumps(_seed))
+    _bad["tenet"][_field] = None
+    check(f"种子残留{_field}拒绝", bool(DR.valence_seed_problems(_bad)))
+_bad = json.loads(json.dumps(_seed))
+_bad["coda"]["batches"][1].pop()
+check("种子名称骨架缺项拒绝", bool(DR.valence_seed_problems(_bad)))
+check("种子坏JSON对象拒绝", bool(DR.valence_seed_problems(None)))
+
+# 言录使静态种子与运行期真实货单双向隔离。
+_acr_seed = json.loads((DATA / "de/acrichis_week.json").read_text(encoding="utf-8"))
+check("言录使真实包内静态目录合法", not DR.acrithis_seed_problems(_acr_seed))
+_write(_dseed, "de/acrichis_week.json", _acr_seed)
+for _context, _want in (("seed", "ok"), ("runtime", "stale"), ("auto", "stale")):
+    _r = _row(DR.evaluate(_dseed, NOW, tracked_files=[], context=_context), "de/acrichis_week.json")
+    check(f"言录使静态目录context={_context}", _r["status"] == _want, str(_r))
+for _field in ("items", "expiry", "observed", "source"):
+    _bad = {**_acr_seed, _field: None}
+    check(f"言录使种子动态字段{_field}即使空仍拒绝", bool(DR.acrithis_seed_problems(_bad)))
+for _case in ("catalog", "price", "name", "rule", "notes"):
+    _bad = json.loads(json.dumps(_acr_seed))
+    _first = next(iter(_bad["_en_catalog"]))
+    if _case == "catalog":
+        del _bad["_en_catalog"][_first]
+    elif _case == "price":
+        _bad["_en_catalog"][_first]["price"] = True
+    elif _case == "name":
+        _bad["_en_catalog"][_first]["name"] = ""
+    elif _case == "rule":
+        _bad["_reset_rule"] = "每天"
+    else:
+        _bad["_zh_official_notes"] = {}
+    check(f"言录使静态{_case}损坏拒绝", bool(DR.acrithis_seed_problems(_bad)))
+for _items in ([], [{"name": "商品"}], [{"name": "商品", "price": 0}]):
+    _write(
+        _dseed, "de/acrichis_week.json", {"expiry": "2099-01-01T00:00:00+00:00", "items": _items}
+    )
+    _r = _row(
+        DR.evaluate(_dseed, NOW, tracked_files=[], context="runtime"), "de/acrichis_week.json"
+    )
+    check(f"言录使未来expiry不掩盖残缺货单{_items}", _r["status"] == "stale", str(_r))
+
+from core.api_client import community_acrithis_ok as _acr_ok  # noqa: E402
+
+_acr_runtime = {"expiry": "2099-01-01T00:00:00+00:00", "items": [{"name": "商品", "price": 10}]}
+for _case in ("qty", "timezone", "old_observed"):
+    _bad = json.loads(json.dumps(_acr_runtime))
+    if _case == "qty":
+        _bad["items"][0]["qty"] = -1
+    elif _case == "timezone":
+        _bad["expiry"] = "2099-01-01T00:00:00"
+    else:
+        _bad["observed"] = "January 1, 2026"
+    _write(_dseed, "de/acrichis_week.json", _bad)
+    _r = _row(
+        DR.evaluate(_dseed, NOW, tracked_files=[], context="runtime"), "de/acrichis_week.json"
+    )
+    _ok, _why = _acr_ok(_bad, NOW)
+    check(
+        f"言录使registry与api同源拒绝{_case}",
+        not _ok and _r["status"] == "stale" and _r["detail"] == _why,
+        str(_r),
+    )
+
+# 工具真实CLI main，所有抓取与修订读取用桩；预览零写与显式运行缓存写双向。
+import importlib.util as _ilu  # noqa: E402
+
+_spec = _ilu.spec_from_file_location("_fetch_valence_test", ROOT / "scripts/fetch_valence.py")
+_fv = _ilu.module_from_spec(_spec)
+_spec.loader.exec_module(_fv)
+_source = _dseed / "source.json"
+_source.write_text(json.dumps(_seed), encoding="utf-8")
+_raw = _dseed / "raw.txt"
+_raw.write_text("offline fixture", encoding="utf-8")
+_parsed = {"coda": {}, "tenet": [{"en": "Tenet 0", "element": "Heat", "bonus": 40}]}
+_args = [
+    "fetch_valence.py",
+    "--wikitext",
+    str(_raw),
+    str(_raw),
+    "--since",
+    "2026-09-20T00:00:00+00:00",
+    "-",
+]
+_before = _source.read_bytes()
+with (
+    _patch.object(_fv, "ROTATION_FILE", _source),
+    _patch.object(_fv, "parse_wikitext", return_value=_parsed),
+    _patch.object(sys, "argv", _args),
+):
+    _fv.main()
+check(
+    "fetch默认预览零写", _source.read_bytes() == _before and not (_dseed / "runtime.json").exists()
+)
+_preview_target = _dseed / "预览目录" / "rotations.json"
+with (
+    _patch.object(_fv, "ROTATION_FILE", _source),
+    _patch.object(_fv, "parse_wikitext", return_value=_parsed),
+    _patch.object(sys, "argv", _args + ["--output", str(_preview_target), "--dry-run"]),
+):
+    _fv.main()
+check("fetch显式dry-run不创建输出目录", not _preview_target.parent.exists())
+_target = _dseed / "新目录" / "runtime.json"
+with (
+    _patch.object(_fv, "ROTATION_FILE", _source),
+    _patch.object(_fv, "parse_wikitext", return_value=_parsed),
+    _patch.object(sys, "argv", _args + ["--output", str(_target)]),
+):
+    _fv.main()
+check(
+    "fetch显式运行期新目录缓存可写",
+    json.loads(_target.read_text())["tenet"]["items"][0]["bonus"] == 40
+    and _source.read_bytes() == _before,
+)
+for _target_bad in (_source, _dseed / "core/data/rotations.json"):
+    with (
+        _patch.object(_fv, "ROTATION_FILE", _source),
+        _patch.object(sys, "argv", _args + ["--output", str(_target_bad)]),
+    ):
+        try:
+            _fv.main()
+        except SystemExit as _exc:
+            check("fetch拒绝源码种子写回", _exc.code == 2)
+        else:
+            check("fetch拒绝源码种子写回", False)
 
 for _p in _tmp:
     shutil.rmtree(_p, ignore_errors=True)

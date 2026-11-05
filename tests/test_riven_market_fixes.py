@@ -1327,6 +1327,8 @@ async def _ext6(_u):
         "weapon": "盗贼 Visi-toxican",
         "positive": [["毒素伤害", 120.5], ["伤害", 299.9], ["多重射击", 148]],
         "negative": [["触发时间", 97.2]],
+        # 本组仅验证武器名优先级；截图采信另外提供完整逐行观察。
+        "lines": ["+120.5% 毒素伤害", "+299.9% 伤害", "+148% 多重射击", "-97.2% 触发时间"],
     }
 
 
@@ -1394,7 +1396,9 @@ class _FakeFetch2:
         self._stat_error = stat_error
         self.calls: list[dict] = []
 
-    async def __call__(self, url, ttl=0, params=None, wm_rate_limit=False, retries=2):
+    async def __call__(
+        self, url, ttl=0, params=None, wm_rate_limit=False, retries=2, validator=None, timeout=None
+    ):
         from core.api_client import WarframeAPIError as _Err
 
         self.calls.append(dict(params or {}))
@@ -1404,8 +1408,12 @@ class _FakeFetch2:
         if sort == "price_desc":
             if self._desc_error:
                 raise _Err("timeout on desc")
-            return {"payload": {"auctions": self._desc}}
-        return {"payload": {"auctions": self._asc}}
+            data = {"payload": {"auctions": self._desc}}
+        else:
+            data = {"payload": {"auctions": self._asc}}
+        if validator is not None:
+            validator(data)
+        return data
 
 
 async def _run_merge(fake):
@@ -1444,11 +1452,10 @@ check(
     f"{len(_degraded)} 条",
 )
 check(
-    "★ desc 失败后走词条降级路径再试 1 次（asc 1 + desc 2 = 3 次请求）",
-    len(_fake2.calls) == 3
+    "★ desc 失败保留升序结果，不再发去条件重查（共2次）",
+    len(_fake2.calls) == 2
     and _fake2.calls[1].get("sort_by") == "price_desc"
-    and _fake2.calls[1].get("positive_stats") is not None
-    and _fake2.calls[2].get("positive_stats") is None,
+    and _fake2.calls[1].get("positive_stats") is not None,
     str(
         [
             (c.get("sort_by"), "stats" if c.get("positive_stats") else "no-stats")
@@ -1461,7 +1468,9 @@ check(
 
 
 class _FakeFetch3(_FakeFetch2):
-    async def __call__(self, url, ttl=0, params=None, wm_rate_limit=False, retries=2):
+    async def __call__(
+        self, url, ttl=0, params=None, wm_rate_limit=False, retries=2, validator=None, timeout=None
+    ):
         from core.api_client import WarframeAPIError as _Err
 
         self.calls.append(dict(params or {}))
@@ -1624,12 +1633,17 @@ class _ParamCapture(_FakeFetch2):
         super().__init__(asc_auctions=[], desc_auctions=[])
         self.pos_stats_forms: list = []
 
-    async def __call__(self, url, ttl=0, params=None, wm_rate_limit=False, retries=2):
+    async def __call__(
+        self, url, ttl=0, params=None, wm_rate_limit=False, retries=2, validator=None, timeout=None
+    ):
         self.calls.append(dict(params or {}))
         ps = (params or {}).get("positive_stats")
         if ps is not None:
             self.pos_stats_forms.append(ps)
-        return {"payload": {"auctions": []}}
+        data = {"payload": {"auctions": []}}
+        if validator is not None:
+            validator(data)
+        return data
 
 
 _capture = _ParamCapture()
@@ -1688,12 +1702,17 @@ class _NegCapture(_FakeFetch2):
         super().__init__(asc_auctions=[], desc_auctions=[])
         self.neg_forms: list = []
 
-    async def __call__(self, url, ttl=0, params=None, wm_rate_limit=False, retries=2):
+    async def __call__(
+        self, url, ttl=0, params=None, wm_rate_limit=False, retries=2, validator=None, timeout=None
+    ):
         self.calls.append(dict(params or {}))
         ns = (params or {}).get("negative_stats")
         if ns is not None:
             self.neg_forms.append(ns)
-        return {"payload": {"auctions": []}}
+        data = {"payload": {"auctions": []}}
+        if validator is not None:
+            validator(data)
+        return data
 
 
 async def _run_with_require_neg(fake):
@@ -2658,7 +2677,7 @@ if FAILED:
 print("✓ 追加段（⑫-㉔）全部通过")
 
 # ---------------------------------------------------------------------------
-# ㉕ 融合未选定的「？？？」词条（2026-10-24 用户：视使之触 +109.8% 病毒 / ？？？ / +130.2% 冲击 /
+# ㉕ 融合未选定的「？？？」词条（2026-10-24 维护者定：视使之触 +109.8% 病毒 / ？？？ / +130.2% 冲击 /
 #    -87.7% 投射物速度 被按 2正1负 算成「不吻合」）：问号行计入词条数（4 行 ⇒ 3+1），
 #    只给已知词条区间；识别漏读问号行时，多一条正词条能吻合就按多一条算并明说
 # ---------------------------------------------------------------------------
@@ -2697,7 +2716,8 @@ def _run25(lines):
         return {"weapon": "视使之触？？？", "positive": [], "negative": [], "lines": lines}
 
     _obj6._extract_riven_from_image = _ext
-    return "\n".join(asyncio.run(_obj6._h_riven_analysis(_P6(), _Ev6(), "pc")).lines)
+    reply = asyncio.run(_obj6._h_riven_analysis(_P6(), _Ev6(), "pc"))
+    return reply.raw_text or "\n".join(reply.lines)
 
 
 _b25 = _run25(["◆ +109.8% 病毒伤害", "◆ ? ? ?", "+130.2% 冲击伤害", "-87.7% 投射物速度"])
@@ -2711,8 +2731,8 @@ check(
 )
 _b25b = _run25(["+109.8% 病毒伤害", "+130.2% 冲击伤害", "-87.7% 投射物速度"])
 check(
-    "★ ㉕ 漏读问号行：多一条正词条吻合 ⇒ 按 3正1负 算并提示，不冒充问号行",
-    "已按 3正1负 的系数计算" in _b25b and "不吻合" not in _b25b and "未揭示（" not in _b25b,
+    "★ ㉕ 图片疑似漏读问号行：数值推断不能补证条数，保留原文待核对",
+    "待核对" in _b25b and "不能据此确认条数" in _b25b and "+109.8% 病毒伤害" in _b25b,
     _b25b[:400],
 )
 _b25c = _run25(["+147.0% 病毒伤害", "+170.0% 冲击伤害", "-55.0% 投射物速度"])

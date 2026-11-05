@@ -38,7 +38,7 @@ except ImportError:  # pragma: no cover - 仅在无 astrbot 环境（离线测�
 
 
 def mask_id(s: str) -> str:
-    """号码打码：保留前 2 位与后 2 位（``123456789`` → ``12*****89``）。"""
+    """会话 / 用户标识打码：保留前 2 位与后 2 位（``123456789`` → ``12*****89``）。"""
     s = str(s or "")
     if len(s) <= 4:
         return "*" * len(s)

@@ -660,9 +660,234 @@ if _fonts:
 else:
     print("[SKIP] 折行标记守卫：本树无字体（开源包）")
 
-if FAILED:
-    print(f"FAILED {len(FAILED)}: " + ", ".join(FAILED))
-    sys.exit(1)
+
+# ---------------------------------------------------------------------------
+# 融合预览计算：仅消费输入两条的归一化随机数，保留卡面舍入不确定性。
+# ---------------------------------------------------------------------------
+def _sp_value(sid, roll=1.0, *, cls="rifle", counts=(3, 1), negative=False):
+    pf, nf = RA.FACTOR[counts]
+    return RA._base_value(sid, cls) * 1.2 * (nf if negative else pf) * roll
+
+
+def _sp_preview(pos, neg=(), *, cls="rifle", counts=None, **kwargs):
+    counts = counts or (len(pos), len(neg))
+    return RA.splice_preview(
+        [(sid, _sp_value(sid, roll, cls=cls, counts=counts)) for sid, roll in pos],
+        [(sid, _sp_value(sid, roll, cls=cls, counts=counts, negative=True)) for sid, roll in neg],
+        cls,
+        counts=counts,
+        pool=RP.class_pool(cls),
+        **kwargs,
+    )
+
+
+def _sp_recipe(report, output, *, missing=False, inputs=None):
+    return next(
+        r
+        for r in report["missing_one" if missing else "direct"]
+        if r["output"] == output and (inputs is None or r["inputs"] == inputs)
+    )
+
+
+_sp = _sp_preview(
+    [("melee_damage", 0.92), ("status_chance", 1.04), ("crit_damage", 1.1)],
+    [("reload_speed", 1.1)],
+)
+_sp_p = _sp_recipe(_sp, "status_damage")["prediction"]
+check(
+    "融合预览：不同基值先归一化，只取消耗两条（无关高卷不参与）",
+    _sp["status"] == "ready"
+    and abs(_sp_p["value"] - 105.3) < 1e-9
+    and abs(_sp_p["position_pct"] - 70.0) < 1e-9
+    and _sp_p["value_min"] < _sp_p["value"] < _sp_p["value_max"],
+    str(_sp_p),
+)
+_sp = _sp_preview(
+    [("ammo_max", 0.92), ("crit_damage", 1.0), ("crit_chance", 1.0)],
+    [("recoil", 1.08)],
+)
+_sp_r = _sp_recipe(_sp, "ammo_efficiency")
+check(
+    "融合预览：负面后坐力按负槽magnitude反推，不做1-U反转",
+    abs(_sp_r["prediction"]["value"] - 54.675) < 1e-9
+    and _sp_r["present"][0]["negative"]
+    and abs(_sp_r["present"][0]["roll"] - 1.08) < 1e-9,
+    str(_sp_r),
+)
+_sp_f = _sp_preview([("damage_vs_grineer", 0.96), ("damage_vs_corpus", 1.04), ("crit_damage", 1.0)])
+check(
+    "融合预览：派系保持内部百分数magnitude，容差复用派系0.5",
+    abs(_sp_recipe(_sp_f, "damage_vs_orokin")["prediction"]["value"] - 42.12) < 1e-9
+    and _sp_recipe(_sp_f, "damage_vs_orokin")["prediction"]["value_max"]
+    - _sp_recipe(_sp_f, "damage_vs_orokin")["prediction"]["value_min"]
+    > 0.9,
+)
+for _sp_counts in ((2, 0), (3, 0), (2, 1), (3, 1)):
+    _sp_pos = [("toxin_damage", 0.98), ("heat_damage", 1.02)]
+    if _sp_counts[0] == 3:
+        _sp_pos.append(("crit_damage", 1.1))
+    _sp_neg = [("reload_speed", 1.0)] if _sp_counts[1] else []
+    _sp_card = _sp_preview(_sp_pos, _sp_neg)
+    check(
+        f"融合预览：原布局{_sp_counts}使用原正槽系数",
+        _sp_card["counts"] == list(_sp_counts)
+        and abs(
+            _sp_recipe(_sp_card, "gas_damage")["prediction"]["value"]
+            - _sp_value("gas_damage", 1.02, counts=_sp_counts)
+        )
+        < 1e-9,
+    )
+_sp_multi = _sp_preview([("crit_chance", 1.0), ("zoom", 1.0), ("multishot", 1.0)])
+check(
+    "融合预览：同结果不同输入配方不去重",
+    sum(r["output"] == "weakpoint_crit_chance" for r in _sp_multi["direct"]) == 2,
+)
+_sp_cond = _sp_preview(
+    [("melee_damage", 0.92), ("crit_damage", 1.1), ("crit_chance", 1.1)],
+    [("reload_speed", 1.1)],
+    allowed_missing={"status_chance": {"positive", "negative"}},
+)
+_sp_cr = _sp_recipe(_sp_cond, "status_damage", missing=True)
+_sp_cp = _sp_cr["prediction"]
+check(
+    "融合预览：缺一项仅给条件区间，下界取保留输入而非整卡最高卷",
+    _sp_cp["value"] is None
+    and _sp_cp["position_pct"] is None
+    and abs(_sp_cp["value_min"] - (101.25 * 0.92 - 0.05 * 90 / 165)) < 1e-9
+    and abs(_sp_cp["value_max"] - 111.375) < 1e-9
+    and _sp_cr["missing_polarities"] == ["positive", "negative"],
+    str(_sp_cr),
+)
+_sp_negknown = _sp_preview(
+    [("crit_chance", 1.0), ("crit_damage", 1.0), ("reload_speed", 1.0)],
+    [("ammo_max", 1.08)],
+)
+check(
+    "融合预览：保留输入本身占负槽时，缺项只能正面",
+    _sp_recipe(_sp_negknown, "ammo_efficiency", missing=True, inputs=["recoil", "ammo_max"])[
+        "missing_polarities"
+    ]
+    == ["positive"],
+)
+_sp_noneg = _sp_preview([("melee_damage", 1.0), ("crit_damage", 1.0)])
+check(
+    "融合预览：原布局无负槽时缺项不可为负；两缺项不列",
+    _sp_recipe(_sp_noneg, "status_damage", missing=True)["missing_polarities"] == ["positive"]
+    and all(len(r["missing"]) == 1 for r in _sp_noneg["missing_one"]),
+)
+_sp_melee = RA.splice_preview(
+    [
+        ("fire_rate", _sp_value("attack_speed", 0.98, cls="melee", counts=(2, 0))),
+        ("range", _sp_value("range", 1.02, cls="melee", counts=(2, 0))),
+    ],
+    [],
+    "melee",
+    pool=RP.class_pool("melee"),
+)
+check(
+    "融合预览：近战射速别名归一攻速，招架使用81基值",
+    abs(_sp_recipe(_sp_melee, "melee_parry_angle")["prediction"]["value"] - 98.15256) < 1e-9,
+)
+_sp_valid = [("toxin_damage", 106.92), ("heat_damage", 106.92)]
+for _sp_kwargs, _sp_reason in (
+    ({"hidden": 1}, "hidden_stats"),
+    ({"incomplete": True}, "incomplete_stats"),
+    ({"blocked_reason": "legacy_values"}, "legacy_values"),
+):
+    _sp_block = RA.splice_preview(_sp_valid, [], "rifle", pool=RP.class_pool("rifle"), **_sp_kwargs)
+    check(
+        f"融合预览：阻断{_sp_reason}仍保留元数据",
+        _sp_reason in _sp_block["reasons"]
+        and not _sp_block["direct"]
+        and not _sp_block["missing_one"]
+        and _sp_block["counts"] == [2, 0]
+        and _sp_block["disposition"] == 1.2,
+    )
+_sp_existing = RA.splice_preview([("ammo_efficiency", 1)], [], "melee", hidden=1)
+check(
+    "融合预览：全局融合结果扫描先于职业/隐藏验证",
+    _sp_existing["status"] == "already_spliced"
+    and _sp_existing["existing_spliced"] == ["ammo_efficiency"],
+)
+for _sp_rows, _sp_kwargs, _sp_reason in (
+    ([("toxin_damage", 106.92)] * 2, {}, "duplicate_stat"),
+    ([("unknown_stat", 1), ("heat_damage", 106.92)], {}, "unknown_stat"),
+    (_sp_valid, {"counts": (3, 0)}, "counts_mismatch"),
+    (_sp_valid, {"counts": (1, 0)}, "invalid_counts"),
+    (_sp_valid, {"disposition": float("nan")}, "invalid_disposition"),
+    ([("toxin_damage", 200), ("heat_damage", 106.92)], {}, "out_of_range"),
+):
+    _sp_bad = RA.splice_preview(_sp_rows, [], "rifle", pool=RP.class_pool("rifle"), **_sp_kwargs)
+    check(f"融合预览：拦截{_sp_reason}", _sp_bad["reasons"] == [_sp_reason])
+    json.dumps(_sp_bad, allow_nan=False)
+for _sp_badvalue in (float("nan"), float("inf"), -float("inf"), 0, -1):
+    _sp_bad = RA.splice_preview(
+        [("toxin_damage", _sp_badvalue), ("heat_damage", 106.92)],
+        [],
+        "rifle",
+        pool=RP.class_pool("rifle"),
+    )
+    check(f"融合预览：拦截非法magnitude {_sp_badvalue}", _sp_bad["reasons"] == ["invalid_value"])
+    json.dumps(_sp_bad, allow_nan=False)
+_sp_pool = RP.class_pool("rifle")
+_sp_pool["toxin_damage"]["bonus"] = False
+check(
+    "融合预览：职业池正负许可闸门，缺少池不猜",
+    RA.splice_preview(_sp_valid, [], "rifle", pool=_sp_pool)["reasons"] == ["stat_not_allowed"]
+    and RA.splice_preview(_sp_valid, [], "rifle")["reasons"] == ["pool_unavailable"],
+)
+_sp_edge = RA.splice_preview(
+    [("toxin_damage", 106.92 * 1.1 + 0.049), ("heat_damage", 106.92)],
+    [],
+    "rifle",
+    pool=RP.class_pool("rifle"),
+)
+check(
+    "融合预览：舍入带边界内接受并截断估计U，边界外拒绝",
+    _sp_edge["status"] == "ready"
+    and _sp_recipe(_sp_edge, "gas_damage")["prediction"]["value"] == 106.92 * 1.1
+    and RA.splice_preview(
+        [("toxin_damage", 106.92 * 1.1 + 0.051), ("heat_damage", 106.92)],
+        [],
+        "rifle",
+        pool=RP.class_pool("rifle"),
+    )["reasons"]
+    == ["out_of_range"],
+)
+check(
+    "融合预览：missing许可交集为空时不列候选，JSON可序列化",
+    not _sp_preview([("melee_damage", 1.0), ("crit_damage", 1.0)], allowed_missing={})[
+        "missing_one"
+    ]
+    and bool(json.dumps(_sp_cond, allow_nan=False)),
+)
+
+check(
+    "融合预览：缺失职业基值和未知职业不预测",
+    RA.splice_preview(
+        [("range", 1), ("heat_damage", 106.92)], [], "rifle", pool=RP.class_pool("rifle")
+    )["reasons"]
+    == ["missing_base"]
+    and RA.splice_preview(_sp_valid, [], "unknown", pool={})["reasons"] == ["unsupported_class"],
+)
+_sp_denied_negative = RA.splice_preview(
+    [("crit_damage", 135), ("crit_chance", 168.73875), ("reload_speed", 56.25)],
+    [("heat_damage", 81)],
+    "rifle",
+    pool=RP.class_pool("rifle"),
+)
+check(
+    "融合预览：职业负面许可拒绝元素负槽",
+    _sp_denied_negative["reasons"] == ["stat_not_allowed"],
+)
+_sp_input = list(_sp_valid)
+_sp_pool_copy = RP.class_pool("rifle")
+_sp_pool_before = json.dumps(_sp_pool_copy, sort_keys=True)
+RA.splice_preview(_sp_input, [], "rifle", pool=_sp_pool_copy)
+check(
+    "融合预览：不修改输入词条与职业池快照",
+    _sp_input == _sp_valid and json.dumps(_sp_pool_copy, sort_keys=True) == _sp_pool_before,
+)
 
 # ---------------------------------------------------------------------------
 # 紫卡融合 / 紫卡拼接（2026-10-24 用户）：Riven Splicer 配方表（英文 wiki 原表转录）
@@ -739,7 +964,7 @@ check(
     and "melee_damage" in RP.available("rifle", "", [], positive=False)[0],
 )
 
-# 2026-10-25 用户：「基础伤害有个『近战伤害』」「最好按卡面全称」—— 同一词条 id 按段写卡面全称
+# 2026-10-25 维护者定：「基础伤害有个『近战伤害』」「最好按卡面全称」—— 同一词条 id 按段写卡面全称
 check(
     "★ 融合卡「伤害」分写：通用段「伤害 / 近战伤害」、枪械段「伤害」、近战段「近战伤害」",
     "· ⟦v⟧异常状态伤害⟦/v⟧　⟦w⟧伤害 / 近战伤害⟦/w⟧　⟦w⟧触发几率⟦/w⟧" in _l_sp
@@ -795,5 +1020,465 @@ check(
     bool(_unseen_new) and bool(_sv_new.get("surveyed")),
     f"unseen={sorted(_unseen_new)} sv={_sv_new}",
 )
+
+# 2026-10-31：紫卡分析「融合建议」只排版后端 RA.splice_preview 的结果（数值不重算）
+_sp_rows = [("melee_damage", 185.6), ("status_chance", 96.2), ("crit_damage", 148.5)]
+
+
+def _sp_pred(**kw):
+    base = dict(
+        value=101.2,
+        value_min=101.2,
+        value_max=101.3,
+        range_min=91.125,
+        range_max=111.375,
+        position_pct=74.9,
+        position_min_pct=74.8,
+        position_max_pct=75.1,
+        deviation_pct=5.0,
+        deviation_min_pct=4.96,
+        deviation_max_pct=5.02,
+        approximate=True,
+    )
+    base.update(kw)
+    return base
+
+
+_sp_ready = {
+    "status": "ready",
+    "direct": [
+        {
+            "inputs": ["melee_damage", "status_chance"],
+            "output": "status_damage",
+            "present": [
+                {"stat_id": "melee_damage", "negative": False},
+                {"stat_id": "status_chance", "negative": False},
+            ],
+            "missing": [],
+            "prediction": _sp_pred(),
+        }
+    ],
+    "missing_one": [
+        {
+            "inputs": ["melee_damage", "multishot"],
+            "output": "weakpoint_damage",
+            "present": [{"stat_id": "zoom", "negative": True}],
+            "missing": ["multishot"],
+            "missing_polarities": ["positive", "negative"],
+            "prediction": _sp_pred(
+                value=None,
+                value_min=253.1,
+                range_min=227.8,
+                range_max=278.4,
+                position_pct=None,
+                position_min_pct=50.0,
+                position_max_pct=100.0,
+                deviation_pct=None,
+                deviation_min_pct=0.0,
+                deviation_max_pct=10.0,
+            ),
+        },
+        {
+            "inputs": ["crit_damage", "damage_vs_grineer"],
+            "output": "damage_vs_orokin",
+            "present": [{"stat_id": "crit_damage", "negative": False}],
+            "missing": ["damage_vs_grineer"],
+            "missing_polarities": ["negative"],
+            "prediction": _sp_pred(
+                value=None,
+                value_min=50.0,
+                range_min=40.5,
+                range_max=49.5 * 1.1,
+                position_pct=None,
+                position_min_pct=80.0,
+                position_max_pct=100.0,
+                deviation_pct=None,
+                deviation_min_pct=-0.6,
+                deviation_max_pct=10.0,
+            ),
+        },
+    ],
+}
+_t_s, _l_s = F.fmt_riven_analysis("绝路", 1.2, "rifle", _sp_rows, [("zoom", 54)], splice=_sp_ready)
+check(
+    "★ 融合建议：直接融合写「约」，距中读 deviation_pct（5 ⇒ +5%）、区间位读 position_pct，各自保留",
+    "· ⟦v⟧异常状态伤害⟦/v⟧ 约+101.2%　+91.1~111.4%　+5%　75%" in _l_s
+    and "　消耗 ▲基伤、▲触发" in _l_s,
+    str(_l_s),
+)
+check(
+    "★ 融合建议：差一条写「起」、距中与区间位给条件范围，缺项单独一行",
+    "· ⟦v⟧弱点伤害⟦/v⟧ +253.1%起　+227.8~278.4%　+0~10%　50~100%" in _l_s
+    and "　消耗 ▼变焦、缺多重（正负皆可）" in _l_s
+    and not any("约+0" in x for x in _l_s),
+    str(_l_s),
+)
+check(
+    "★ 融合建议：派系结果按净倍率显示；距中下界为负时两头都带符号",
+    "· ⟦v⟧对奥罗金的伤害⟦/v⟧ ×1.50起　×1.41~1.54　-0.6~+10%　80~100%" in _l_s,
+    str(_l_s),
+)
+check(
+    "★ 融合建议：表头四列与上方词条表同构（消耗进续行，手机不挤第五列）",
+    "　融合词条　理论区间　距中　区间位" in _l_s,
+)
+check(
+    "★ 融合建议：段落在注脚之前，公式说明进注脚",
+    _l_s.index("◆ 融合建议（预计）") < min(i for i, x in enumerate(_l_s) if x.startswith("※"))
+    and any(x.startswith("※ 融合建议按英文 wiki") for x in _l_s),
+)
+_null = {
+    "status": "ready",
+    "direct": [
+        {
+            "output": "status_damage",
+            "present": [{"stat_id": "melee_damage", "negative": False}],
+            "missing": [],
+            "prediction": _sp_pred(deviation_pct=None, position_pct=None),
+        }
+    ],
+    "missing_one": [
+        {
+            "output": "weakpoint_damage",
+            "present": [{"stat_id": "zoom", "negative": True}],
+            "missing": ["multishot"],
+            "missing_polarities": ["positive"],
+            "prediction": _sp_pred(
+                value=None, deviation_min_pct=None, position_min_pct=None, position_pct=None
+            ),
+        }
+    ],
+}
+_, _l_null = F.fmt_riven_analysis("绝路", 1.2, "rifle", _sp_rows, [], splice=_null)
+check(
+    "★ 融合建议：null 字段写「—」，不当成 0",
+    "· ⟦v⟧异常状态伤害⟦/v⟧ 约+101.2%　+91.1~111.4%　—　—" in _l_null
+    and "· ⟦v⟧弱点伤害⟦/v⟧ +101.2%起　+91.1~111.4%　—　—" in _l_null,
+    str(_l_null),
+)
+_, _l_as = F.fmt_riven_analysis(
+    "绝路",
+    1.2,
+    "rifle",
+    _sp_rows,
+    [],
+    splice={"status": "already_spliced", "existing_spliced": ["gas_damage"]},
+)
+check(
+    "★ 已有融合词条只提示一句，也不出续页",
+    "◆ 融合建议：已有融合词条（毒气），不能再融合" in _l_as
+    and F.fmt_riven_splice_more(
+        "绝路", "rifle", {"status": "already_spliced", "existing_spliced": ["gas_damage"]}
+    )
+    is None,
+)
+_, _l_inc = F.fmt_riven_analysis(
+    "绝路", 1.2, "rifle", _sp_rows, [], splice={"status": "incomplete", "reasons": ["hidden_stats"]}
+)
+check(
+    "★ 阻断状态只给原因，不列配方",
+    "◆ 融合建议：暂不判断（有未揭示的「？？？」词条）" in _l_inc
+    and "◆ 融合建议（预计）" not in _l_inc,
+)
+# 9 种不同融合结果：首屏 6 条 + 续页 3 条（当前卡的数值与缺项，不是通用配方表）
+_outs = [
+    "status_damage",
+    "weakpoint_damage",
+    "damage_vs_orokin",
+    "gas_damage",
+    "corrosive_damage",
+    "viral_damage",
+    "radiation_damage",
+    "blast_damage",
+    "ammo_efficiency",
+]
+_many = dict(
+    _sp_ready,
+    missing_one=[
+        dict(
+            _sp_ready["missing_one"][0],
+            output=o,
+            prediction=_sp_pred(
+                value=None, value_min=200.0 - k, position_pct=None, deviation_pct=None
+            ),
+        )
+        for k, o in enumerate(_outs[1:])
+    ],
+)
+_, _l_many = F.fmt_riven_analysis(
+    "绝路", 1.2, "rifle", _sp_rows, [], splice=_many, splice_limit=F.SPLICE_FIRST_ROWS
+)
+_more = F.fmt_riven_splice_more("绝路", "rifle", _many)
+_, _l_full = F.fmt_riven_analysis("绝路", 1.2, "rifle", _sp_rows, [], splice=_many)
+_rows = lambda ls: [x for x in ls if x.startswith("· ⟦v⟧")]  # noqa: E731
+check(
+    "★ 融合建议首屏 6 条，注脚指向续页",
+    len(_rows(_l_many)) == 6
+    and "◆ 融合建议（预计，共 9 条）" in _l_many
+    and any("其余 3 条见续页" in x for x in _l_many)
+    and not any("紫卡融合 武器名" in x for x in _l_many),
+    str(_l_many),
+)
+check(
+    "★ 续页列出当前卡剩余预测（含数值、条件范围与缺项），首屏 + 续页 = 全部",
+    _more is not None
+    and _more[0] == "紫卡分析 · 融合建议续"
+    and "◆ 融合建议（预计，第 7–9 条，共 9 条）" in _more[1]
+    and _rows(_l_many) + _rows(_more[1]) == _rows(_l_full)
+    and sum(1 for x in _more[1] if x.startswith("　消耗 ")) == 3
+    and not any("页" in x for x in _l_many + _more[1] if "第" in x),
+    str(_more),
+)
+check(
+    "★ 不超过 6 条时不出续页",
+    F.fmt_riven_splice_more("绝路", "rifle", _sp_ready) is None,
+)
+
+
+# 去重：同一 output 只留最高（直接融合比 value、差一条比「起」的 value_min，不比 value_max）
+def _cand(out, value=None, vmin=None, vmax=300.0, missing=(), present="melee_damage", dev=None):
+    return {
+        "output": out,
+        "present": [{"stat_id": present, "negative": False}],
+        "missing": list(missing),
+        "missing_polarities": ["positive"] if missing else [],
+        "prediction": _sp_pred(
+            value=value,
+            value_min=vmin if vmin is not None else value,
+            value_max=vmax,
+            range_min=227.8,
+            range_max=278.4,
+            deviation_pct=None if value is None else 5.0,
+            position_pct=None if value is None else 75.0,
+            deviation_min_pct=0.0 if dev is None else dev,
+            deviation_max_pct=10.0,
+            position_min_pct=50.0,
+            position_max_pct=100.0,
+        ),
+    }
+
+
+def _dedup(direct, missing):
+    rows = F._splice_rows(
+        RA, {"status": "ready", "direct": direct, "missing_one": missing}, "rifle"
+    )
+    return [(r.split("　")[0][2:], u.strip()) for r, u in rows]
+
+
+check(
+    "★ 去重：差一条「起」低于直接融合 ⇒ 留直接融合",
+    _dedup(
+        [_cand("weakpoint_damage", 250.0)],
+        [_cand("weakpoint_damage", vmin=240.0, missing=["multishot"])],
+    )
+    == [("⟦v⟧弱点伤害⟦/v⟧ 约+250%", "消耗 ▲基伤")],
+)
+check(
+    "★ 去重：差一条「起」高于直接融合 ⇒ 留差一条，四列与缺项都取自它",
+    _dedup(
+        [_cand("weakpoint_damage", 250.0)],
+        [_cand("weakpoint_damage", vmin=260.0, missing=["multishot"])],
+    )
+    == [("⟦v⟧弱点伤害⟦/v⟧ +260%起", "消耗 ▲基伤、缺多重（需正面）")],
+)
+check(
+    "★ 去重：比「起」的 value_min，不拿理论上限 value_max",
+    _dedup(
+        [],
+        [
+            _cand("weakpoint_damage", vmin=255.0, vmax=278.4, missing=["multishot"]),
+            _cand("weakpoint_damage", vmin=256.0, vmax=260.0, missing=["zoom"]),
+        ],
+    )
+    == [("⟦v⟧弱点伤害⟦/v⟧ +256%起", "消耗 ▲基伤、缺变焦（需正面）")],
+)
+check(
+    "★ 去重：同值时优先可直接融合",
+    _dedup(
+        [_cand("weakpoint_damage", 250.0)],
+        [_cand("weakpoint_damage", vmin=250.0, missing=["multishot"])],
+    )
+    == [("⟦v⟧弱点伤害⟦/v⟧ 约+250%", "消耗 ▲基伤")],
+)
+check(
+    "★ 去重：同值同显示的差一条方案合并为「缺 A 或 B」",
+    _dedup(
+        [],
+        [
+            _cand("weakpoint_damage", vmin=250.0, missing=["multishot"]),
+            _cand("weakpoint_damage", vmin=250.0, missing=["zoom"]),
+        ],
+    )
+    == [("⟦v⟧弱点伤害⟦/v⟧ +250%起", "消耗 ▲基伤、缺多重或变焦（需正面）")],
+)
+check(
+    "★ 去重：同值同显示的直接融合方案合并为「A 或 B」",
+    _dedup(
+        [_cand("weakpoint_damage", 250.0), _cand("weakpoint_damage", 250.0, present="crit_damage")],
+        [],
+    )
+    == [("⟦v⟧弱点伤害⟦/v⟧ 约+250%", "消耗 ▲基伤 或 ▲暴伤")],
+)
+check(
+    "★ 去重：同值但距中等显示不同 ⇒ 只留一条，不拼出对不上的行",
+    _dedup(
+        [],
+        [
+            _cand("weakpoint_damage", vmin=250.0, missing=["multishot"], dev=0.0),
+            _cand("weakpoint_damage", vmin=250.0, missing=["zoom"], dev=-1.0),
+        ],
+    )
+    == [("⟦v⟧弱点伤害⟦/v⟧ +250%起", "消耗 ▲基伤、缺多重（需正面）")],
+)
+check(
+    "★ 去重：不同 output 互不影响；直接融合在前，差一条按「起」降序",
+    [
+        h
+        for h, _ in _dedup(
+            [_cand("gas_damage", 100.0)],
+            [
+                _cand("status_damage", vmin=90.0, missing=["zoom"]),
+                _cand("weakpoint_damage", vmin=260.0, missing=["zoom"]),
+            ],
+        )
+    ]
+    == ["⟦v⟧毒气伤害⟦/v⟧ 约+100%", "⟦v⟧弱点伤害⟦/v⟧ +260%起", "⟦v⟧异常状态伤害⟦/v⟧ +90%起"],
+)
+_, _l_np = F.fmt_riven_analysis(
+    "绝路",
+    1.2,
+    "rifle",
+    _sp_rows,
+    [],
+    splice=_sp_ready,
+    price={"pos": ["melee_damage"], "neg": [], "sample_count": 3, "low": 1, "median": 2},
+)
+check(
+    "★ 注脚精简：融合 + 挂单齐全时只 3 行（各一行），挂单口径仍写明全同 / 一口价 / 中位样本",
+    sum(1 for x in _l_np if x.startswith("※")) == 3
+    and any("全同" in x and "一口价" in x and "20 条" in x for x in _l_np),
+    str([x for x in _l_np if x.startswith("※")]),
+)
+_, _l_none = F.fmt_riven_analysis("绝路", 1.2, "rifle", _sp_rows, [])
+check(
+    "★ 没有融合/价格数据时原卡不变",
+    not any("融合建议" in x or "同词条挂单" in x for x in _l_none),
+)
+_R = __import__("core.render", fromlist=["x"])
+_md = _R.text_card(_t_s, _l_s)
+check(
+    "★ 纯文字降级：融合词条去掉染色标记，消耗续行保留",
+    "异常状态伤害 约+101.2%" in _md and "⟦" not in _md and "　消耗 ▲基伤、▲触发" in _md,
+    _md[:400],
+)
+_qmd = _R.card_markdown(_t_s, [x.replace("~", "～") for x in _l_full])
+check(
+    "★ QQ Markdown：区间换全角～后可转，去重后全部 9 种结果与消耗子项都在一条消息里",
+    _qmd is not None
+    and _qmd.count("    - 消耗 ") == 9
+    and all(f"- **{F._SPLICE_FULL_ZH[o]} " in _qmd for o in _outs)
+    and "*融合词条 · 理论区间 · 距中 · 区间位*" in _qmd,
+    str(_qmd)[:600],
+)
+check(
+    "★ QQ Markdown：原样「~」仍按保护规则退回纯文字（换字只在紫卡分析 handler 里做）",
+    _R.card_markdown(_t_s, _l_full) is None,
+)
+
+
+# 距中百分比与区间位置是不同量：+5% 对应区间位 75%。
+_sp_dev = _sp_recipe(
+    _sp_preview([("melee_damage", 1.0), ("status_chance", 1.05), ("crit_damage", 1.1)]),
+    "status_damage",
+)["prediction"]
+check(
+    "融合距中：直接融合+5%与区间位75%区分",
+    abs(_sp_dev["deviation_pct"] - 5.0) < 1e-9
+    and abs(_sp_dev["position_pct"] - 75.0) < 1e-9
+    and _sp_dev["deviation_min_pct"] < 5 < _sp_dev["deviation_max_pct"],
+    str(_sp_dev),
+)
+check(
+    "融合距中：负面继承+8%",
+    abs(_sp_r["prediction"]["deviation_pct"] - 8.0) < 1e-9,
+    str(_sp_r),
+)
+check(
+    "融合距中：缺一条不伪造点估计，保留上下界",
+    _sp_cp["deviation_pct"] is None
+    and _sp_cp["deviation_min_pct"] < -8
+    and abs(_sp_cp["deviation_max_pct"] - 10) < 1e-9,
+    str(_sp_cp),
+)
+check(
+    "融合距中：已有融合词条仍停止预测",
+    _sp_existing["status"] == "already_spliced"
+    and not _sp_existing["direct"]
+    and not _sp_existing["missing_one"],
+)
+check(
+    "紫卡分析不再输出旧±11%误传纠错说明",
+    not any("±11%" in line and "误传" in line for line in _l_none),
+    str(_l_none),
+)
+
+
+# 失败/零样本也必须保留完整正负匹配条件。
+for _price_state in ({"sample_count": 0}, {"error": "TimeoutError"}):
+    _, _price_lines = F.fmt_riven_analysis(
+        "绝路",
+        1.2,
+        "rifle",
+        _sp_rows,
+        [("zoom", 54)],
+        price={"pos": ["melee_damage", "crit_damage"], "neg": ["zoom"], **_price_state},
+    )
+    check(
+        "严格行情无样本或出错仍显示负面条件：" + str(_price_state),
+        any("▲基伤" in line and "▲暴伤" in line and "▼变焦" in line for line in _price_lines)
+        and not any("只按正面" in line for line in _price_lines),
+        str(_price_lines),
+    )
+
+
+# 终幕·噬轮的武器机制只放大三项物理，不改OCR原读数、不扩展到同系列。
+_mechanism = RA.weapon_stat_multipliers({"en": "Coda Motovore", "url_name": "coda_motovore"})
+check(
+    "机制仅三项物理×6",
+    _mechanism == {"impact_damage": 6.0, "puncture_damage": 6.0, "slash_damage": 6.0},
+)
+for _weapon in ("Motovore", "Coda Pathocyst", "Coda Mire", "Coda Motovore Prime", "Unknown"):
+    check("其它武器不继承倍率：" + _weapon, not RA.weapon_stat_multipliers(_weapon))
+for _sid in ("impact_damage", "puncture_damage", "slash_damage", "crit_damage", "combo_duration"):
+    for _neg in (False, True):
+        _base = RA.stat_range(_sid, "melee", 1.2, 3, 1, negative=_neg)
+        _scaled = RA.stat_range(
+            _sid, "melee", 1.2, 3, 1, negative=_neg, stat_multipliers=_mechanism
+        )
+        _factor = _mechanism.get(_sid, 1)
+        check(
+            f"机制区间正负一致：{_sid}/{_neg}",
+            all(abs(a * _factor - b) < 0.04 for a, b in zip(_base, _scaled)),
+        )
+_mpos = [("impact_damage", 830.9), ("puncture_damage", 749.5), ("heavy_attack_efficiency", 82.8)]
+_mneg = [("combo_duration", 7.4)]
+check(
+    "武器机制数据可解释原卡物理数值",
+    RA.disp_feasible(_mpos, _mneg, "melee", 1.2, stat_multipliers=_mechanism),
+)
+check("同一超大物理数值不能套到其他武器", not RA.disp_feasible(_mpos, _mneg, "melee", 1.2))
+_iv = RA.disposition_interval(_mpos, _mneg, "melee", stat_multipliers=_mechanism)
+check("反解倾向同步使用机制", _iv[0] <= 1.2 <= _iv[1])
+_, _mlines = F.fmt_riven_analysis(
+    "终幕·噬轮", 1.2, "melee", _mpos, _mneg, stat_multipliers=_mechanism
+)
+check(
+    "展示保留830.9和机制说明",
+    any("830.9" in line for line in _mlines) and any("×6" in line for line in _mlines),
+)
+
+if FAILED:
+    print(f"FAILED {len(FAILED)}: " + ", ".join(FAILED))
+    sys.exit(1)
 
 print("ALL PASS")

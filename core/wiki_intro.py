@@ -397,6 +397,84 @@ def _prefer_full_rank(rows: list) -> dict:
     return max(peers, key=rank)
 
 
+_ACQ_TAIL_RE = re.compile(r"…?（共\s*(\d+)\s*处）\s*$")
+_ACQ_PCT_RE = re.compile(r"\s*(\d+(?:\.\d+)?%)\s*$")
+
+
+def _split_top(text: str) -> list[str]:
+    """按括号外的「；」拆分（括号里的分号属于同一处来源）。"""
+    parts, depth, cur = [], 0, ""
+    for ch in text:
+        if ch in "（(":
+            depth += 1
+        elif ch in "）)":
+            depth = max(0, depth - 1)
+        if ch in "；;" and depth == 0:
+            parts.append(cur)
+            cur = ""
+            continue
+        cur += ch
+    parts.append(cur)
+    return [x.strip() for x in parts if x.strip()]
+
+
+def _acquire_rows(line: str) -> list[str]:
+    """「◆ 获取：A 14%；B 13%…（共 30 处）」→ 小节 + 来源表，一处来源一行。
+
+    简介数据把多处掉落串成一行并截断，卡上挤成一团、看不出共几处。规则：
+    · 只在括号外的分号处拆；行尾被截断（以「…」结束）时，没有几率的半截末项丢掉；
+    · 「虚空遗物（枪管：…；蓝图：…）」拆成「部件｜所在遗物」；
+    · 只有一处来源（如「商店 225 铂金」）保持原 KV 行。
+    """
+    if not line.startswith("◆ 获取："):
+        return [line]
+    body = line[len("◆ 获取：") :].strip()
+    m = _ACQ_TAIL_RE.search(body)
+    total = int(m.group(1)) if m else 0
+    if m:
+        body = body[: m.start()]
+    cut = body.rstrip().endswith("…")
+    body = body.rstrip().rstrip("…").rstrip()
+
+    rm = re.match(r"^(虚空遗物)（(.*?)）?$", body)
+    if rm and "；" in rm.group(2):
+        inner = _split_top(rm.group(2))
+        if cut and len(inner) > 1:
+            inner = inner[:-1]  # 截断的最后一个部件只剩半截
+        # 小节标题不能带「：」，否则会被当成「标签：值」行、下面的表头接不上
+        rows = [
+            f"◆ 获取 · {rm.group(1)}" + ("（部分部件，完整见 wiki）" if cut else ""),
+            "　部件　所在遗物",
+        ]
+        for x in inner:
+            part, sep, relics = x.partition("：")
+            rows.append(f"· {part}　{relics}" if sep else f"· {x}")
+        return rows
+
+    parts = _split_top(body)
+    pcts = [_ACQ_PCT_RE.search(x) for x in parts]
+    if cut and len(parts) > 1 and pcts[-1] is None and any(pcts):
+        parts, pcts = parts[:-1], pcts[:-1]  # 半截末项（地点被截断、没有几率）
+    if len(parts) < 2 and not total:
+        if cut and parts:  # 截断后只剩一处完整来源：去掉半截，注明还有其他来源
+            return [f"◆ 获取：{parts[0]}（还有其他来源）"]
+        return [line]
+    shown = len(parts)
+    if total > shown:
+        head = f"◆ 获取（共 {total} 处，列前 {shown} 处）"
+    elif cut:
+        head = f"◆ 获取（列前 {shown} 处）"
+    else:
+        head = f"◆ 获取（{shown} 处）"
+    if not any(pcts):  # 都没有几率（商店 / 任务奖励这类）：只列来源
+        return [head, *(f"· {x.replace('　', ' ')}" for x in parts)]
+    rows = [head, "　来源　几率"]
+    for x, pm in zip(parts, pcts):
+        place = x[: pm.start()].rstrip(" ,，") if pm else x
+        rows.append(f"· {place.replace('　', ' ')}　{pm.group(1) if pm else '—'}")
+    return rows
+
+
 def intro(*names: str) -> Optional[tuple[str, list[str]]]:
     """按候选名字（页面名 / 检索名 / 英文名）查简介条目。
 
@@ -411,8 +489,9 @@ def intro(*names: str) -> Optional[tuple[str, list[str]]]:
             continue
         chosen = _prefer_full_rank(rows)
         lines = [
-            _kvify(_localize(_localize_effect(x)))
+            row
             for x in _sanitize([str(x) for x in chosen["lines"]])
+            for row in _acquire_rows(_kvify(_localize(_localize_effect(x))))
         ]
         if chosen.get("variant") == "pvp":
             lines.append("◆ 版本：PvP 变体")

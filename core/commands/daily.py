@@ -23,6 +23,12 @@ from .base import Reply
 class DailyCommands:
     """Mixin：日常世界状态 handler（挂载于 main.WarframeSDJK）。"""
 
+    @staticmethod
+    def _worldstate_source(data) -> str:
+        if isinstance(data, dict):
+            return data.get("_source", "")
+        return getattr(data, "source", "")
+
     async def _h_cetus(self, parsed, event, platform) -> Reply:
         res = await self._gather(
             [
@@ -125,7 +131,10 @@ class DailyCommands:
                 timers.append((name, {"expiry": exp}))
         timers.append(("周常重置", {"expiry": self._weekly_reset()}))
         title, lines = fmt.fmt_timers(timers)
-        return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
+        sources = list(
+            dict.fromkeys(self._worldstate_source(r) for r in res if self._worldstate_source(r))
+        )
+        return Reply(title, lines, footer=fmt.fmt_platform_footer(platform, "；".join(sources)))
 
     @staticmethod
     async def _arb_timer() -> dict:
@@ -158,15 +167,27 @@ class DailyCommands:
             # ★ 2026-10-11：裂隙是整表一张卡（all_rows），-N 翻页无效 —— 明说，不静默
             lines.append("※ 裂隙已全部列在本卡，无需翻页")
         extra = f"筛选：{flt.describe()}" if flt else ""
-        return Reply(title, lines, footer=fmt.fmt_platform_footer(platform, extra))
+        return Reply(
+            title,
+            lines,
+            footer=fmt.fmt_platform_footer(
+                platform, "｜".join(filter(None, (extra, self._worldstate_source(data))))
+            ),
+        )
 
     async def _h_sortie(self, parsed, event, platform) -> Reply:
-        title, lines = fmt.fmt_sortie(await self.client.sortie(platform))
-        return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
+        data = await self.client.sortie(platform)
+        title, lines = fmt.fmt_sortie(data)
+        return Reply(
+            title, lines, footer=fmt.fmt_platform_footer(platform, self._worldstate_source(data))
+        )
 
     async def _h_archon(self, parsed, event, platform) -> Reply:
-        title, lines = fmt.fmt_archon(await self.client.archon_hunt(platform))
-        return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
+        data = await self.client.archon_hunt(platform)
+        title, lines = fmt.fmt_archon(data)
+        return Reply(
+            title, lines, footer=fmt.fmt_platform_footer(platform, self._worldstate_source(data))
+        )
 
     async def _h_voidtrader(self, parsed, event, platform) -> Reply:
         """虚空商人（Baro Ki'Teer）：当前库存 / 下期预测。
@@ -194,13 +215,16 @@ class DailyCommands:
                 missed=missed,
             )
             return Reply(title, lines, footer=fmt.fmt_platform_footer(platform, "wiki 历史统计"))
-        title, lines = fmt.fmt_void_trader(await self.client.void_trader(platform))
+        data = await self.client.void_trader(platform)
+        title, lines = fmt.fmt_void_trader(data)
         if baro.visits():
             lines.append(
                 f"※ 想看下期可能卖什么：发「奸商 预测」"
                 f"（基于 wiki 的 {len(baro.visits())} 次到访统计）"
             )
-        return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
+        return Reply(
+            title, lines, footer=fmt.fmt_platform_footer(platform, self._worldstate_source(data))
+        )
 
     async def _h_dailydeals(self, parsed, event, platform) -> Reply:
         title, lines = fmt.fmt_daily_deals(await self.client.daily_deals(platform))
@@ -216,8 +240,11 @@ class DailyCommands:
         return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
 
     async def _h_nightwave(self, parsed, event, platform) -> Reply:
-        title, lines = fmt.fmt_nightwave(await self.client.nightwave(platform))
-        return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
+        data = await self.client.nightwave(platform)
+        title, lines = fmt.fmt_nightwave(data)
+        return Reply(
+            title, lines, footer=fmt.fmt_platform_footer(platform, self._worldstate_source(data))
+        )
 
     async def _h_news(self, parsed, event, platform) -> Reply:
         title, lines = fmt.fmt_news(await self.client.news(platform))
@@ -238,15 +265,21 @@ class DailyCommands:
         return Reply(
             title,
             lines,
-            footer=fmt.fmt_platform_footer(platform, "数据源：DE worldState（ProjectPct / Goals）"),
+            footer=fmt.fmt_platform_footer(
+                platform,
+                self._worldstate_source(data) or "数据源：DE worldState（ProjectPct / Goals）",
+            ),
         )
 
     # ------------------------------------------------------------------
     # 新增世界状态：九重天 / 活动 / 武形秘仪 / 阿耶兑换 / 氏族奖励 / 商城折扣
     # ------------------------------------------------------------------
     async def _h_voidstorms(self, parsed, event, platform) -> Reply:
-        title, lines = fmt.fmt_void_storms(await self.client.void_storms(platform))
-        return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
+        data = await self.client.void_storms(platform)
+        title, lines = fmt.fmt_void_storms(data)
+        return Reply(
+            title, lines, footer=fmt.fmt_platform_footer(platform, self._worldstate_source(data))
+        )
 
     async def _h_events(self, parsed, event, platform) -> Reply:
         title, lines = fmt.fmt_events(await self.client.events(platform))

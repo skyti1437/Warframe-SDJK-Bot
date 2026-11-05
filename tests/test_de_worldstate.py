@@ -1400,7 +1400,11 @@ async def _bundle09():
     return _bb
 
 
-_c09._de_bundle = _bundle09
+async def _resilient_bundle09(platform):
+    return await _bundle09()
+
+
+_c09._resilient_de_bundle = _resilient_bundle09
 try:
     _aio09.run(_c09.worldstate("pc", "invasions"))
     raise AssertionError("失败段必须报错，不能回空列表冒充「当前没有入侵」")
@@ -1755,3 +1759,75 @@ assert "Corpus / Grineer" in _trow["扎里曼号"] and "先锋" not in _trow["�
 assert "情绪轮换" in _trow["双衍王境"] and "Sorrow" not in _trow["双衍王境"], _trow
 assert all(len(v[1]) <= 10 for v in fmt._TIMER_DESC.values())
 print("§B11 卡面（执刑官/入侵/特惠/九重天/活动/出库/裂隙/时效）—— 断言通过")
+
+
+# 社区后备：真实抓包同形字段，走现有赏金卡格式化入口。
+import copy  # noqa: E402
+
+_community_bounties = [
+    {
+        "syndicate": "Ostrons",
+        "jobs": [
+            {
+                "id": "ReclamationBountyTheft1793378461440",
+                "uniqueName": "/Lotus/Types/Game/MissionDecks/EidolonJobMissionRewards/TierATableARewards",
+                "type": "Reclaim the Stolen Artifact",
+                "enemyLevels": [5, 15],
+            }
+        ],
+    },
+    {
+        "syndicate": "Solaris United",
+        "jobs": [
+            {
+                "id": "VenusHelpingJobCaches1793378461440",
+                "uniqueName": "/Lotus/Types/Game/MissionDecks/VenusJobMissionRewards/VenusTierATableARewards",
+                "type": "Seems Legit",
+                "enemyLevels": [5, 15],
+            }
+        ],
+    },
+    {
+        "syndicate": "Entrati",
+        "jobs": [
+            {
+                "id": "DeimosCrpSurvivorBounty1793378461440",
+                "uniqueName": "/Lotus/Types/Game/MissionDecks/DeimosMissionRewards/TierATableARewards",
+                "type": "For Science!",
+                "enemyLevels": [5, 15],
+            }
+        ],
+    },
+]
+_community_before = copy.deepcopy(_community_bounties)
+_adapted_bounties = dw.adapt_community_syndicate_missions(_community_bounties)
+assert _community_bounties == _community_before
+for _kw, _expected in [("地球", "取回被偷的器物"), ("金星", "鹰嘴板"), ("火卫二", "为了科学！")]:
+    _ct, _cl = fmt.fmt_bounties(_adapted_bounties, _kw)
+    assert any(_expected in _ln for _ln in _cl), (_kw, _cl)
+    assert any(_ln.startswith("　　") for _ln in _cl), (_kw, _cl)
+_unknown_bounties = copy.deepcopy(_community_bounties[:1])
+_unknown_bounties[0]["jobs"][0].update(id="UnknownTask1793378461440", type="Readable unknown task")
+_unknown_adapted = dw.adapt_community_syndicate_missions(_unknown_bounties)
+assert _unknown_adapted[0]["jobs"][0]["_jobFinal"] == []
+assert any("Readable unknown task" in _ln for _ln in fmt.fmt_bounties(_unknown_adapted, "地球")[1])
+# 标识前缀相似、地区错误、同名合一众分支均不得误用普通任务名。
+for _bad_id, _bad_synd, _table in [
+    ("ReclamationBountyTheftExtra1793378461440", "Ostrons", "TierATableARewards"),
+    ("ReclamationBountyTheft1793378461440", "Entrati", "TierATableARewards"),
+    ("ReclamationBountyTheft1793378461440", "Ostrons", "NarmerTableARewards"),
+]:
+    _probe = [
+        {
+            "syndicate": _bad_synd,
+            "jobs": [{"id": _bad_id, "uniqueName": _table, "type": "Original"}],
+        }
+    ]
+    _got = dw.adapt_community_syndicate_missions(_probe)[0]["jobs"][0]
+    if "Narmer" in _table:
+        assert _got["_jobName"] == "夺取资源", _got
+    else:
+        assert _got["_jobName"] == "Original" and _got["_jobFinal"] == [], _got
+_adapted_bounties[0]["jobs"][0]["enemyLevels"].append(999)
+assert _community_bounties == _community_before
+print("社区赏金后备：三地区名称/奖励、未知任务、分支匹配与输入不可变——断言通过")

@@ -197,6 +197,180 @@ check(
     str(lb[:1]),
 )
 
+
+# 冷构建并发：在真实 search 入口中确定性安排第二次调用等待首个构建。
+def _index_singleflight():
+    from collections import Counter
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event, Lock
+    from unittest.mock import patch
+
+    class ObservedLock:
+        def __init__(self):
+            self.lock = Lock()
+            self.waiting = Event()
+
+        def __enter__(self):
+            if self.lock.locked():
+                self.waiting.set()
+            self.lock.acquire()
+
+        def __exit__(self, *args):
+            self.lock.release()
+
+    reads = Counter()
+    lock = ObservedLock()
+    started = Event()
+
+    def fixture_load(path):
+        reads[path.name] += 1
+        if path == S._DE_ITEMS_FILE:
+            started.set()
+            if not lock.waiting.wait(3):
+                raise RuntimeError("没有观察到第二个入口等待")
+            return {"items": [{"zh": "测试", "en": "fixture"}]}
+        return {"wm_items": {"别名": "fixture"}, "riven_items": {"紫卡": "fixture"}}
+
+    S._index.cache_clear()
+    try:
+        with (
+            patch.object(S, "_INDEX_LOCK", lock),
+            patch.object(S, "_jload", fixture_load),
+            patch.object(S._paths, "load_json", return_value={}),
+        ):
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                first = pool.submit(S.search, "测试", 1)
+                assert started.wait(3), "首个入口没有开始构建"
+                second = pool.submit(S.search, "测试", 1)
+                a, b = first.result(timeout=5), second.result(timeout=5)
+            check(
+                "并发首查只构建一份索引且检索结果一致",
+                a == b and bool(a) and S._index.cache_info().misses == 1,
+            )
+            check("单次索引构建只解析一遍别名表", reads[S._ALIAS_FILE.name] == 1)
+            S._index.cache_clear()
+            check("显式清理仍重置索引缓存", S._index.cache_info().currsize == 0)
+            S._index()
+            check("清缓存后下次调用重新构建", reads[S._DE_ITEMS_FILE.name] == 2)
+
+        S._alias_slug_index.cache_clear()
+        with patch.object(
+            S,
+            "_jload",
+            return_value={"wm_items": {"同名": "wm"}, "riven_items": {"同名": "riven"}},
+        ) as load:
+            check(
+                "slug 别名索引只读一遍且保持 wm 覆盖顺序",
+                S._alias_slug_index().get("同名") == "wm" and load.call_count == 1,
+            )
+
+        # 抛异常的构建不能遗留锁或缓存失败；随后另一个线程可重新成功构建。
+        S._index.cache_clear()
+        with patch.object(S, "_jload", side_effect=RuntimeError("fixture load failure")):
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                try:
+                    pool.submit(S._index).result(timeout=5)
+                except RuntimeError:
+                    check("索引构建异常不缓存失败结果", S._index.cache_info().currsize == 0)
+                else:
+                    check("索引构建异常不缓存失败结果", False)
+        with (
+            patch.object(S, "_jload", return_value={"items": [{"zh": "恢复", "en": "recovered"}]}),
+            patch.object(S._paths, "load_json", return_value={}),
+        ):
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                check(
+                    "索引构建失败后可跨线程重试且不死锁",
+                    bool(pool.submit(S.search, "恢复", 1).result(timeout=5)),
+                )
+
+        # clear 与构建交错时，clear 应等待旧构建完成后再清空。
+        S._index.cache_clear()
+        lock = ObservedLock()
+        started.clear()
+        with (
+            patch.object(S, "_INDEX_LOCK", lock),
+            patch.object(S, "_jload", fixture_load),
+            patch.object(S._paths, "load_json", return_value={}),
+        ):
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                building = pool.submit(S._index)
+                assert started.wait(3), "首个入口没有开始构建"
+                clearing = pool.submit(S._index.cache_clear)
+                building.result(timeout=5)
+                clearing.result(timeout=5)
+            check("在途构建后清理不被旧结果重新填充", S._index.cache_info().currsize == 0)
+    finally:
+        S._index.cache_clear()
+        S._alias_slug_index.cache_clear()
+
+
+_index_singleflight()
+
+
+async def _wiki_cold_lookup_keeps_loop_running():
+    import asyncio
+    import threading
+    from types import SimpleNamespace
+    from unittest.mock import patch
+
+    from core.commands.wiki_misc import WikiMiscCommands
+    from core.parser import parse
+
+    owner = WikiMiscCommands()
+    owner.client = SimpleNamespace(wiki_clarify=lambda query: "", wiki_lookup=lambda query: None)
+    owner._wiki_reply = lambda title, *args, **kwargs: title
+    main_thread = threading.get_ident()
+    real_search = S.search
+    for text in ("wiki 测试", "wiki 测试p"):
+        entered, released = threading.Event(), threading.Event()
+        loop_progress, threads = [], []
+
+        def load(path):
+            if path == S._DE_ITEMS_FILE:
+                entered.set()
+                loop_progress.append(released.wait(1))
+                return {"items": [{"zh": "测试", "en": "fixture"}]}
+            return {}
+
+        def search(query, limit):
+            threads.append(threading.get_ident())
+            return real_search(query, limit)
+
+        async def heartbeat():
+            while not entered.is_set():
+                await asyncio.sleep(0)
+            released.set()
+
+        S._index.cache_clear()
+        tick = asyncio.create_task(heartbeat())
+        try:
+            with (
+                patch.object(S, "_jload", load),
+                patch.object(S, "search", search),
+                patch.object(S._paths, "load_json", return_value={}),
+            ):
+                result = await owner._h_wiki(parse(text), None, "pc")
+            await asyncio.wait_for(tick, 2)
+            check(
+                f"{text} 冷查与变体回退不阻塞事件循环",
+                bool(result)
+                and loop_progress == [True]
+                and len(threads) == (2 if text.endswith("p") else 1)
+                and all(ident != main_thread for ident in threads),
+            )
+        finally:
+            released.set()
+            tick.cancel()
+            await asyncio.gather(tick, return_exceptions=True)
+            S._index.cache_clear()
+            S._alias_slug_index.cache_clear()
+
+
+import asyncio  # noqa: E402
+
+asyncio.run(_wiki_cold_lookup_keeps_loop_running())
+
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")
     sys.exit(1)

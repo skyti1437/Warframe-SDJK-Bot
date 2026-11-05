@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
+import math
 import os
 import time
 import uuid
@@ -65,15 +67,46 @@ class JsonStore:
 
     async def save(self) -> None:
         async with self._lock:
-            tmp = self.path.with_suffix(".tmp")
+            # 仅在事件循环内复制：后台序列化期间，调用方仍可修改内存中的嵌套记录。
+            snapshot = copy.deepcopy(self._data)
+            writer = asyncio.create_task(asyncio.to_thread(self._write_atomic, snapshot))
+            cancelled = False
+            while not writer.done():
+                try:
+                    await asyncio.shield(writer)
+                except asyncio.CancelledError:
+                    # to_thread 取消不了已运行的线程；包括重复取消在内，都等写盘收口再放锁。
+                    cancelled = True
+                except Exception:
+                    break  # 下方统一提取线程异常，避免后台异常无人读取。
+            if cancelled:
+                # 取消优先向调用方传播；线程即使写失败，也已完成临时文件清理。
+                try:
+                    writer.result()
+                except Exception:
+                    pass
+                raise asyncio.CancelledError
+            writer.result()
+
+    def _write_atomic(self, snapshot: Any) -> None:
+        """在线程内完成序列化和原子写；同一实例由 save 的锁串行保护。"""
+        tmp = self.path.with_suffix(".tmp")
+        try:
             self.path.parent.mkdir(parents=True, exist_ok=True)
-            payload = json.dumps(self._data, ensure_ascii=False, indent=1)
-            # 先写盘并 fsync，再原子替换：断电 / 崩溃时不会留下「已 replace 但内容未落盘」的空文件
+            payload = json.dumps(snapshot, ensure_ascii=False, indent=1)
+            # 先写盘并 fsync，再原子替换：失败时旧存档仍可读取。
             with open(tmp, "w", encoding="utf-8") as fh:
                 fh.write(payload)
                 fh.flush()
                 os.fsync(fh.fileno())
             tmp.replace(self.path)
+        except BaseException:
+            # 写入、fsync 或替换失败时保留旧存档，清理本次未提交的临时件。
+            try:
+                tmp.unlink()
+            except OSError:
+                pass
+            raise
 
 
 class GroupStore(JsonStore):
@@ -99,22 +132,35 @@ class GroupStore(JsonStore):
         rec = dict(self.DEFAULTS)
         rec["platform"] = self._default_platform
         # 归一化历史脏键（「推送」-> push），否则老存档开了也读不到
-        for k, v in (self._data.get(umo) or {}).items():
-            rec[self.SWITCH_KEYS.get(k, k)] = v
+        stored = self._data.get(umo)
+        for k, v in (stored if isinstance(stored, dict) else {}).items():
+            key = self.SWITCH_KEYS.get(k, k)
+            if k in self.SWITCH_KEYS and key in stored:
+                continue  # 规范键优先，与历史 JSON 的键顺序无关；只读不改用户存档。
+            rec[key] = v
         return rec
 
     def platform(self, umo: str) -> str:
         return self.get(umo)["platform"]
 
     async def set_platform(self, umo: str, platform: str) -> None:
-        self._data.setdefault(umo, {})["platform"] = platform
+        self._record_for_write(umo)["platform"] = platform
         await self.save()
+
+    def _record_for_write(self, umo: str) -> dict:
+        """显式设置时只修复当前会话的坏记录，保留其它会话原值。"""
+        if not isinstance(self._data.get(umo), dict):
+            self._data[umo] = {}
+        return self._data[umo]
 
     async def set_switch(self, umo: str, key: str, value: bool) -> None:
         """写开关。key 必须是存储键（push/quiet），传入显示名会自动归一化。"""
         key = self.SWITCH_KEYS.get(key, key)
-        rec = self._data.setdefault(umo, {})
+        rec = self._record_for_write(umo)
         rec[key] = value
+        for legacy, canonical in self.SWITCH_KEYS.items():
+            if canonical == key:
+                rec.pop(legacy, None)  # 只清理本次显式设置的开关，避免旧中文键回头覆盖。
         if key == "push" and value:
             # ★ 2026-10-17：手动重新打开推送 = 手动恢复 —— 顺带解除「连续失败暂停」记录
             #   （同一次 save；`.开启 推送` 与面板开关都走这里）。
@@ -127,7 +173,7 @@ class GroupStore(JsonStore):
     # 与 push/quiet 同存一个 umo 记录里：`get()` 会把它一并带出来（调用方只读已知键，不受影响）。
     async def set_pause(self, umo: str, info: Optional[dict]) -> None:
         """写入 / 解除暂停记录（info=None 表示解除并 pop 掉该键）。"""
-        rec = self._data.setdefault(umo, {})
+        rec = self._record_for_write(umo)
         if info is None:
             rec.pop("push_pause", None)
         else:
@@ -167,7 +213,48 @@ class Subscription:
     @classmethod
     def from_dict(cls, d: dict) -> "Subscription":
         flds = {f for f in cls.__dataclass_fields__}  # noqa: C416
-        return cls(**{k: v for k, v in d.items() if k in flds})
+        sub = cls(**{k: v for k, v in d.items() if k in flds})
+        # dataclass 不校验类型；在进入推送循环前隔离会导致比较、集合或窗口运算崩溃的记录。
+        # 仅归一化旧可选字段的空值；不修改调用方原始存档对象。
+        for name in ("umo", "platform", "event", "sid"):
+            if not isinstance(getattr(sub, name), str) or not getattr(sub, name):
+                raise ValueError(f"{name} 应为非空字符串")
+        for name in ("rule", "created_by"):
+            if getattr(sub, name) is None:
+                setattr(sub, name, "")
+            if not isinstance(getattr(sub, name), str):
+                raise ValueError(f"{name} 应为字符串")
+
+        def number(value):
+            return type(value) in (int, float) and math.isfinite(value)
+
+        if not number(sub.until) or not number(sub.created_at):
+            raise ValueError("until / created_at 应为有限数值")
+        if not isinstance(sub.once, bool):
+            raise ValueError("once 应为布尔值")
+        if sub.hits_left is not None and type(sub.hits_left) is not int:
+            raise ValueError("hits_left 应为整数或空值")
+        if sub.windows is None:
+            sub.windows = {}
+        if not isinstance(sub.windows, dict):
+            raise ValueError("windows 应为对象")
+        for name in ("start", "end", "at_hour"):
+            value = sub.windows.get(name)
+            if value is not None and (
+                type(value) is not int or not 0 <= value <= (24 if name == "end" else 23)
+            ):
+                raise ValueError("windows 小时字段不合法")
+        days = sub.windows.get("days")
+        if days is not None and (
+            not isinstance(days, list)
+            or any(type(day) is not int or not 1 <= day <= 7 for day in days)
+        ):
+            raise ValueError("windows days 应为星期列表")
+        if not isinstance(sub.notified, dict) or any(
+            not isinstance(key, str) or not number(value) for key, value in sub.notified.items()
+        ):
+            raise ValueError("notified 应为事件到有限时间数值的对象")
+        return sub
 
     def time_window(self) -> TimeWindow:
         w = self.windows or {}

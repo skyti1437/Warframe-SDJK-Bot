@@ -5,9 +5,9 @@
   1. 指令格式为【主指令 内容 附加指令】，三者位置可任意调换，中间以空格分隔；
   2. 通用修饰符（可叠加）：
        -pc/-ps/-xb/-sw  平台覆盖（优先于群默认平台）
-       -1/-w                强制纯文字输出
+       -w                   强制纯文字输出
        -t                   强制图片输出
-       -数字                翻页
+       -数字                翻页（-1 为第一页，保留默认输出模式）
        -r                   快捷回复（交易密语）
   3. 管理类指令以英文点 "." 为前缀（.默认平台/.开启/.关闭）；
   4. 紫卡词条支持无空格连写，例如 `wr 基多暴负变焦 绝路 -2`。
@@ -239,10 +239,10 @@ class Parsed:
     content: list[str] = field(default_factory=list)  # 查询内容 token
     modifiers: list[str] = field(default_factory=list)  # 已识别修饰符原文
     platform: Optional[str] = None  # -pc/-ps/...
-    text_mode: bool = False  # -w / -1
+    text_mode: bool = False  # -w
     image_mode: bool = False  # -t
     whisper: bool = False  # -r
-    page: int = 1  # -2 / -3 ...
+    page: int = 1  # -1 / -2 / -3 ...
     unknown_modifiers: list[str] = field(default_factory=list)
 
     @property
@@ -282,7 +282,7 @@ def parse(message: str, *, extra_commands: Optional[dict[str, str]] = None) -> P
             if body in ("pc", "ps", "xb", "sw"):
                 res.platform = body
                 res.modifiers.append(tok)
-            elif body == "w" or body == "1":
+            elif body == "w":
                 res.text_mode = True
                 res.modifiers.append(tok)
             elif body == "t":
@@ -291,7 +291,7 @@ def parse(message: str, *, extra_commands: Optional[dict[str, str]] = None) -> P
             elif body == "r":
                 res.whisper = True
                 res.modifiers.append(tok)
-            elif body.isdigit() and int(body) >= 2:
+            elif body.isdigit() and int(body) >= 1:
                 res.page = int(body)
                 res.modifiers.append(tok)
             else:

@@ -179,11 +179,15 @@ def _count_in_cell(thick, cx, card_w, W):
     #   1920 下豆厚 7~8px、线厚 1~2px；1280 下豆厚 4px、线厚 1~2px —— 用
     #   「实测豆厚 × 0.7」才能在任何尺度下把线排除掉。用绝对下限（如 2）会在
     #   低分辨率失效（线正好 2px）→ 一路回填到上限（实测 1280 跑成 11 颗）。
-    seed_t = _median([max(thick[a : b + 1]) for a, b in grp]) or t_bean
+    # 光晕会把多颗豆连成宽簇，簇内最高点可能来自中部徽饰。
+    # 用豆像素厚度的中位数估计亮度，避免单个高点抬高整列回填门槛。
+    seed_t = _median([thick[x] for x in xs]) or t_bean
     t_walk = max(2, round(seed_t * 0.7))
     if len(seeds) >= 2:
         gaps = [seeds[i + 1] - seeds[i] for i in range(len(seeds) - 1)]
-        good = [g for g in gaps if card_w * 0.03 <= g <= card_w * 0.2]
+        # 弱豆缺失会让相邻种子跨过一颗豆；只用接近单颗间距的观测校准，
+        # 不把两颗/三颗间距当作新步长，否则满级十颗会被数成五颗或七颗。
+        good = [g for g in gaps if bean_pitch * 0.75 <= g <= bean_pitch * 1.3]
         pitch = _median(good) if good else bean_pitch
     else:
         pitch = bean_pitch
@@ -332,6 +336,7 @@ def detect_pips(img: Image.Image) -> list[dict]:
     `counts[i]` 是该行第 i+1 列的亮豆数（= 该卡等级；0 = 0 级）。
     空列表 = 未能检测（图太小 / 不是配卡界面）。
     """
+    source_image_size = list(img.size)
     if img.width < MIN_WIDTH_FOR_PIPS:
         return []
     img = img.convert("RGB")
@@ -441,7 +446,17 @@ def detect_pips(img: Image.Image) -> list[dict]:
 
     out = []
     for idx, r in enumerate(rows, 1):
-        cells = [_count_in_cell(r["thick"], cx, cw_ref, W) for cx in grid]
+        # 辅助槽可独占一行且位于普通四列网格右侧。保留它实际观测到的
+        # 卡底中心，不用普通第四列的豆数替代。没有蓝色卡底就不补槽。
+        extra = [
+            round(cx)
+            for cx, span in zip(r["known"], r["widths"])
+            if r["is_eq"]
+            and cx > grid[-1] + cw_ref * 0.65
+            and cw_ref * 0.65 <= span <= cw_ref * 1.35
+        ]
+        row_grid = list(grid) + sorted(set(extra))
+        cells = [_count_in_cell(r["thick"], cx, cw_ref, W) for cx in row_grid]
         # ★ 这里**刻意不做**「逐格暖色兜底」（2026-09-20 用户給的 wiki 素材推翻了这个设计）：
         #   曾经的假设是「执刑官那类边框的豆子是琥珀色」（据一张卡片样板的底部采样），
         #   于是蓝掩码为 0 的格子会用暖色掩码重数一遍 —— 结果它把**金框卡的卡面美术
@@ -455,17 +470,19 @@ def detect_pips(img: Image.Image) -> list[dict]:
         #   ⇒ 只在**整图蓝掩码都扫不出装备区**时，才整图换暖色重扫（见上方 detect_pips
         #     开头的回退），绝不在单格上凭空造豆。若将来真出现琥珀豆的实机截图，
         #     表现会是「该卡豆数 0 → 与容量候选不符 → 卡面标 ?」，据此再开这条路。
-        inks = [_cell_ink(r["thick"], cx, cw_ref, W) for cx in grid]
+        inks = [_cell_ink(r["thick"], cx, cw_ref, W) for cx in row_grid]
         out.append(
             {
                 "row": idx,
+                "source_image_size": source_image_size,
+                "image_size": [W, H],
                 "band": r["band"],
                 "counts": [c[0] for c in cells],
                 "pos": [c[1] for c in cells],  # 每列豆的 x 坐标（调试/可视化用）
                 # ★ 满级线（第三信号）：该格是否有一条横贯全卡的亮线
                 "maxed": [k[2] for k in inks],
                 "is_inventory": not r["is_eq"],
-                "grid": list(grid),  # 列中心（上层做裁剪/交叉校验用）
+                "grid": row_grid,  # 普通列及独立观测到的右侧辅助槽中心
                 "card_w": round(cw_ref),
                 "pitch_col": round(pitch_col),
             }
@@ -645,3 +662,565 @@ def pick_rank(
         if len(nonzero) == 1:
             return nonzero[0][1], "行内唯一豆数"
     return None, "ambiguous"
+
+
+def _merge_slot_evidence(slots: list[dict]) -> list[dict]:
+    """仅归并相互唯一的同槽框线证据，保留原观察及估计外延强度。"""
+    import copy
+    from collections import Counter
+
+    frames = [
+        s
+        for s in slots
+        if "closed_rectangle_edges" in s.get("evidence", [])
+        and s.get("kind") in {"regular_candidate", "special_candidate"}
+        and s.get("zone") == "equipment_candidate"
+    ]
+    lines = [
+        s
+        for s in slots
+        if s.get("extent") == "estimated_from_rank_line"
+        and s.get("kind") in {"regular_candidate", "special_candidate"}
+        and s.get("zone") == "equipment_candidate"
+    ]
+    pairs = []
+    for frame in frames:
+        left, top, right, bottom = frame["box"]
+        fw, fh = right - left, bottom - top
+        if min(left, top, 1 - right, 1 - bottom) < 0.015:
+            continue
+        for line in lines:
+            anchor = line.get("line_box")
+            if not anchor or line["kind"] != frame["kind"]:
+                continue
+            a, b, c, d = anchor
+            center = (a + c) / 2
+            # 等级线应横跨卡内下部；不是任意框重叠，也不外推跨边线段。
+            if (
+                left - fw * 0.035 <= a < c <= right + fw * 0.035
+                and 0.60 <= (c - a) / fw <= 1.07
+                and abs(center - (left + right) / 2) <= fw * 0.08
+                and top + fh * 0.65 <= b <= d <= top + fh * 0.95
+                and d - b <= fh * 0.08
+            ):
+                pairs.append((frame, line))
+    frame_counts = Counter(id(f) for f, _ in pairs)
+    line_counts = Counter(id(l) for _, l in pairs)
+    unique = [(f, l) for f, l in pairs if frame_counts[id(f)] == 1 and line_counts[id(l)] == 1]
+    replacements = {}
+    removed = set()
+    for frame, line in unique:
+        combined = copy.deepcopy(frame)
+        combined["source_slots"] = copy.deepcopy([frame, line])
+        combined["line_box"] = list(line["line_box"])
+        combined["anchor_box"] = list(line["anchor_box"])
+        combined["extent"] = "estimated_from_rank_line"
+        combined["content_state"] = "rank_marks_observed"
+        combined["evidence"] = list(
+            dict.fromkeys(
+                frame["evidence"] + line["evidence"] + ["mutually_unique_frame_rank_line"]
+            )
+        )
+        replacements[id(frame)] = combined
+        removed.add(id(line))
+    return [replacements.get(id(s), s) for s in slots if id(s) not in removed]
+
+
+def detect_layout(img: Image.Image, pips_rows: Optional[list] = None) -> dict:
+    """观测配卡图像中的封闭框及等级标记，**不证明配卡布局完整**。
+
+    坐标为原图的 0..1 相对坐标。空框只是候选：没有亮豆也可能是零级卡。
+    不使用模型 row/col；既有 pips_rows 的坐标可能属于内部缩放图，因此不拿它
+    生成几何框。库存/装备/特殊槽都是几何候选，不能成为计算许可。
+    """
+    from PIL import ImageFilter
+
+    original_w, original_h = img.size
+    result = {
+        "schema_version": 1,
+        "source": "pixel_geometry",
+        "image_size": [original_w, original_h],
+        "coordinate_space": "relative_0_1",
+        "coverage": {
+            "status": "unknown",
+            "equipment": "unknown",
+            "inventory": "unknown",
+            "special_slots": "unknown",
+            "reasons": ["screen_boundary_unverified", "special_slot_coverage_unverified"],
+        },
+        "regions": {"equipment_candidate": None, "inventory_candidate": None},
+        "slots": [],
+        "layout_complete": False,
+        "pips_rows_supplied": pips_rows is not None,
+        "rank_lines": [],
+    }
+    if min(original_w, original_h) < 80:
+        result["coverage"]["reasons"].append("image_too_small")
+        return result
+    # 限制计算量；缩放只用于几何扫描，最终坐标仍归一到原图。
+    scale = min(1.0, 1280 / original_w, 1280 / original_h)
+    im = img.convert("RGB").resize(
+        (max(1, round(original_w * scale)), max(1, round(original_h * scale))),
+        Image.Resampling.LANCZOS,
+    )
+    width, height = im.size
+    edge = im.convert("L").filter(ImageFilter.FIND_EDGES)
+    pixels = edge.load()
+    min_width, max_width = max(18, round(width * 0.045)), round(width * 0.25)
+    horizontal = []
+    # 边缘连续性只说明矩形，不读取文字、颜色类别或任何具体卡片答案。
+    for y in range(2, height - 2):
+        active = [x for x in range(2, width - 2) if pixels[x, y] >= 38]
+        for left, right in _contig(active, gap=2, min_w=min_width):
+            span = right - left + 1
+            if span <= max_width:
+                density = sum(pixels[x, y] >= 38 for x in range(left, right + 1)) / span
+                if density >= 0.78:
+                    horizontal.append((left, y, right))
+                    # 纹理/条纹可产生大量边缘，不能让配对变成无界二次工作。
+                    if len(horizontal) > 1024:
+                        result["coverage"]["reasons"].append("horizontal_edge_budget_exceeded")
+                        return result
+    frames = []
+    for left, top, right in horizontal:
+        span = right - left + 1
+        tolerance = max(2, round(span * 0.035))
+        for lower_left, bottom, lower_right in horizontal:
+            if not span * 0.25 <= bottom - top <= span * 1.35:
+                continue
+            if abs(lower_left - left) > tolerance or abs(lower_right - right) > tolerance:
+                continue
+            support = []
+            for x in (left, right):
+                support.append(
+                    sum(
+                        any(
+                            pixels[xx, y] >= 38
+                            for xx in range(max(1, x - 2), min(width - 1, x + 3))
+                        )
+                        for y in range(top, bottom + 1)
+                    )
+                    / (bottom - top + 1)
+                )
+            if min(support) < 0.65:
+                continue
+            box = (left, top, right, bottom)
+            if any(
+                abs(left - a) <= tolerance
+                and abs(right - c) <= tolerance
+                and abs(top - b) <= tolerance
+                and abs(bottom - d) <= tolerance
+                for a, b, c, d in frames
+            ):
+                continue
+            frames.append(box)
+            if len(frames) > 256:
+                result["coverage"]["reasons"].append("frame_candidate_budget_exceeded")
+                return result
+    # 重复装饰边框只保留包围面积较大的一个；互不重叠的槽框保留。
+    frames.sort(key=lambda b: (b[2] - b[0]) * (b[3] - b[1]), reverse=True)
+    kept = []
+    for box in frames:
+        if any(
+            a <= box[0] + 3 and b <= box[1] + 3 and c >= box[2] - 3 and d >= box[3] - 3
+            for a, b, c, d in kept
+        ):
+            continue
+        kept.append(box)
+    # 直接扫描当前工作图的可见等级线，绝不把细线外推成整张卡框。
+    # 无细线的零级/非满级卡仍可能存在，因此这些观测只是下界。
+    for row_index, row in enumerate(_scan(im)):
+        broad = [
+            (x, w)
+            for x, w in zip(row["known"], row["widths"])
+            if width * 0.035 <= w <= width * 0.20
+        ]
+        inventory = len(broad) >= INV_MIN_COLS and row["band"][0] / height > 0.55
+        equipment = (
+            2 <= len(broad) <= CARD_COLS and min((x for x, _ in broad), default=0) > width * 0.25
+        )
+        zone = (
+            "inventory_candidate"
+            if inventory
+            else "equipment_candidate"
+            if equipment
+            else "unknown"
+        )
+        for column_index, (center, span) in enumerate(broad):
+            result["rank_lines"].append(
+                {
+                    "id": f"rank-line-{row_index}-{column_index}",
+                    "box": [
+                        max(0, center - span / 2) / width,
+                        row["band"][0] / height,
+                        min(width, center + span / 2) / width,
+                        row["band"][1] / height,
+                    ],
+                    "zone": zone,
+                    "evidence": ["horizontal_blue_rank_line_candidate"],
+                }
+            )
+    mask = lit_mask(im)
+    for index, (left, top, right, bottom) in enumerate(sorted(kept, key=lambda b: (b[1], b[0]))):
+        peers = [b for b in kept if abs(b[1] - top) <= max(3, (bottom - top) * 0.12)]
+        inventory = len(peers) >= INV_MIN_COLS and top / height > 0.55
+        regular = 2 <= len(peers) <= CARD_COLS and not inventory
+        area = mask.crop((left, round(top + (bottom - top) * 0.65), right + 1, bottom + 1))
+        marks = area.tobytes().count(255) >= max(5, (right - left) * 0.08)
+        result["slots"].append(
+            {
+                "id": f"frame-{index}",
+                "box": [left / width, top / height, right / width, bottom / height],
+                "zone": "inventory_candidate"
+                if inventory
+                else "equipment_candidate"
+                if regular
+                else "unknown",
+                "kind": "regular_candidate" if regular else "unknown",
+                "content_state": "rank_marks_observed" if marks else "empty_frame_candidate",
+                "evidence": [
+                    "closed_rectangle_edges",
+                    "lower_blue_pixels" if marks else "no_lower_blue_pixels",
+                ],
+            }
+        )
+    # 等级线只锚定卡底局部：候选框按可见线跨度估计，明确区别于四边实测。
+    for line in result["rank_lines"]:
+        left, top, right, bottom = line["box"]
+        span = right - left
+        card_width = span * 1.5
+        center = (left + right) / 2
+        result["slots"].append(
+            {
+                "id": line["id"].replace("rank-line", "rank-slot"),
+                "box": [
+                    max(0, center - card_width / 2),
+                    max(0, top - span * width / height * 0.8),
+                    min(1, center + card_width / 2),
+                    min(1, bottom + span * width / height * 0.12),
+                ],
+                "anchor_box": list(line["box"]),
+                "line_box": list(line["box"]),
+                "extent": "estimated_from_rank_line",
+                "zone": line["zone"],
+                "kind": "regular_candidate" if line["zone"] == "equipment_candidate" else "unknown",
+                "content_state": "rank_marks_observed",
+                "evidence": list(line["evidence"]),
+            }
+        )
+    equipment_lines = [
+        line for line in result["rank_lines"] if line["zone"] == "equipment_candidate"
+    ]
+    if equipment_lines:
+        span = _median([(b["box"][2] - b["box"][0]) * width for b in equipment_lines])
+        right_grid = max(b["box"][2] * width for b in equipment_lines)
+        top_grid = min(b["box"][1] * height for b in equipment_lines)
+        bottom_grid = max(b["box"][3] * height for b in equipment_lines)
+        left_grid = min(b["box"][0] * width for b in equipment_lines)
+        for slot in result["slots"]:
+            if slot.get("extent") != "estimated_from_rank_line" or slot["zone"] != "unknown":
+                continue
+            anchor = slot["anchor_box"]
+            center = (anchor[0] + anchor[2]) * width / 2
+            if left_grid <= center <= right_grid and 0 < top_grid - anchor[3] * height < span * 1.5:
+                slot["zone"] = "equipment_candidate"
+                slot["kind"] = "special_candidate"
+                slot["evidence"].append("rank_line_above_regular_grid")
+        # 普通网格上方的稀疏特殊槽线可能被全图库存峰值压成单行。
+        # 只在既有网格锚定的局部ROI重算峰值，不降低全图阈值或补造空槽。
+        # 以下比例仅限定候选搜索窗口，不是已普遍验证的精确UI槽位尺度。
+        upper = max(0, round(top_grid - span * 1.8))
+        lower = min(height, round(top_grid - span * 0.55))
+        roi_left = max(0, round(left_grid - span * 0.3))
+        roi_right = min(width, round(right_grid + span * 0.3))
+        blue_data = mask.tobytes()
+        local_density = [
+            blue_data[y * width + roi_left : y * width + roi_right].count(255)
+            for y in range(upper, lower)
+        ]
+        for local_top, local_bottom in _find_bands(local_density):
+            top, bottom = upper + local_top, upper + local_bottom
+            if bottom - top > span * 0.15:
+                continue
+            thickness = _col_thickness(mask, max(0, top - 2), min(height, bottom + 3))
+            segments = _contig(
+                [x for x in range(roi_left, roi_right) if thickness[x]],
+                gap=3,
+                min_w=max(8, span * 0.6),
+            )
+            for left, right in segments:
+                observed_span = right - left + 1
+                if not span * 0.6 <= observed_span <= span * 1.4:
+                    continue
+                center = (left + right) / 2
+                box = [
+                    (center - observed_span * 0.75) / width,
+                    (top - observed_span * 0.8) / height,
+                    (center + observed_span * 0.75) / width,
+                    (bottom + observed_span * 0.12) / height,
+                ]
+                # 截到图边的候选不可凭剩余细线补成完整卡片范围。
+                if min(box) <= 0 or max(box) >= 1:
+                    continue
+                if any(
+                    s["kind"] == "special_candidate"
+                    and s["box"][0] <= center / width <= s["box"][2]
+                    and s["box"][1] <= (top + bottom) / 2 / height <= s["box"][3]
+                    for s in result["slots"]
+                ):
+                    continue
+                anchor = [left / width, top / height, right / width, bottom / height]
+                result["slots"].append(
+                    {
+                        "id": f"upper-rank-slot-{top}-{left}",
+                        "box": box,
+                        "anchor_box": anchor,
+                        "line_box": list(anchor),
+                        "extent": "estimated_from_rank_line",
+                        "zone": "equipment_candidate",
+                        "kind": "special_candidate",
+                        "content_state": "rank_marks_observed",
+                        "evidence": ["upper_roi_local_blue_band"],
+                    }
+                )
+        warm = warm_mask(im)
+        data = warm.tobytes()
+        densities = [data[y * width : (y + 1) * width].count(255) for y in range(height)]
+        for y0, y1 in _find_bands(densities):
+            if not top_grid - span <= y0 <= bottom_grid:
+                continue
+            thickness = _col_thickness(warm, max(0, y0 - 2), min(height, y1 + 3))
+            segments = _contig(
+                [x for x, n in enumerate(thickness) if n and x > right_grid], 3, max(8, span * 0.2)
+            )
+            for (a, b), (c, d) in zip(segments, segments[1:]):
+                if not span * 0.9 <= d - a <= span * 1.8 or c - b < span * 0.2:
+                    continue
+                result["slots"].append(
+                    {
+                        "id": f"side-frame-{y0}-{a}",
+                        "box": [
+                            a / width,
+                            max(0, y0 - span * 0.7) / height,
+                            d / width,
+                            min(height, y1 + span * 0.15) / height,
+                        ],
+                        "anchor_box": [a / width, y0 / height, d / width, y1 / height],
+                        "extent": "estimated_from_warm_edge_pair",
+                        "zone": "equipment_candidate",
+                        "kind": "special_candidate",
+                        "content_state": "unknown",
+                        "evidence": ["paired_warm_edges_right_of_regular_grid"],
+                    }
+                )
+    result["slots"] = _merge_slot_evidence(result["slots"])
+    for zone in ("equipment_candidate", "inventory_candidate"):
+        boxes = [s["box"] for s in result["slots"] + result["rank_lines"] if s["zone"] == zone]
+        if boxes:
+            result["regions"][zone] = [
+                min(b[0] for b in boxes),
+                min(b[1] for b in boxes),
+                max(b[2] for b in boxes),
+                max(b[3] for b in boxes),
+            ]
+    if not result["slots"]:
+        result["coverage"]["reasons"].append("no_closed_frames_observed")
+    if any(
+        min(s["box"][0], s["box"][1], 1 - s["box"][2], 1 - s["box"][3]) < 0.015
+        for s in result["slots"]
+    ):
+        result["coverage"]["reasons"].append("frame_near_image_edge")
+    return result
+
+
+def count_arcane_rank(image: Image.Image, name_box: dict) -> dict:
+    """在实际赋能名称框下读取五个菱形的中心，轮廓不算点亮。"""
+    from PIL import ImageFilter
+
+    result = {"source": "arcane_diamond_pixels", "rank": None, "reason": "unresolved"}
+    try:
+        x, y, h, w = [float(name_box[k]) / 1000 for k in ("x", "y", "h", "w")]
+        if not (0 < x < 1 and 0 < y < 1 and 0 < h < 0.2 and 0 < w < 0.3):
+            return result
+    except (KeyError, TypeError, ValueError):
+        return result
+    width, height = image.size
+    bounds = (
+        max(0, int((x - w * 0.85) * width)),
+        max(0, int((y + h * 0.6) * height)),
+        min(width, int((x + w * 0.85) * width)),
+        min(height, int((y + h * 2.5) * height)),
+    )
+    if bounds[2] <= bounds[0] or bounds[3] <= bounds[1]:
+        return result
+    crop = image.convert("RGB").crop(bounds)
+    cw, ch = crop.size
+
+    def warm(pixel):
+        r, g, b = pixel
+        return r > 70 and g > 60 and r > b * 1.08 and g > b * 1.02 and r > g * 0.9
+
+    mask = Image.new("L", crop.size)
+    mask.putdata([255 if warm(pixel) else 0 for pixel in crop.getdata()])
+    # 只有字高足够时做一像素闭合，避免小图的相邻菱形被粘成一块。
+    if h * height >= 24:
+        mask = mask.filter(ImageFilter.MaxFilter(3)).filter(ImageFilter.MinFilter(3))
+    todo = {(xx, yy) for yy in range(ch) for xx in range(cw) if mask.getpixel((xx, yy))}
+    boxes = []
+    while todo:
+        seed = todo.pop()
+        stack, component = [seed], [seed]
+        while stack:
+            xx, yy = stack.pop()
+            for dx in (-1, 0, 1):
+                for dy in (-1, 0, 1):
+                    point = (xx + dx, yy + dy)
+                    if point in todo:
+                        todo.remove(point)
+                        component.append(point)
+                        stack.append(point)
+        xs, ys = zip(*component)
+        left, top, right, bottom = min(xs), min(ys), max(xs), max(ys)
+        bw, bh = right - left + 1, bottom - top + 1
+        if (
+            min(bw, bh) < max(5, h * height * 0.35)
+            or not (0.6 <= bw / bh <= 1.4)
+            or bh > h * height * 1.1
+        ):
+            continue
+        center = [
+            crop.getpixel((xx, yy))
+            for yy in range(top + round(bh * 0.35), top + round(bh * 0.65) + 1)
+            for xx in range(left + round(bw * 0.35), left + round(bw * 0.65) + 1)
+        ]
+        ratio = sum(warm(pixel) for pixel in center) / len(center)
+        boxes.append({"box": [left, top, bw, bh], "center_fill": ratio})
+    # 中心亮块可能与轮廓断开；同一菱形内的子块不是另一颗刻度。
+    boxes = [
+        item
+        for item in boxes
+        if not any(
+            outer is not item
+            and outer["box"][0] <= item["box"][0]
+            and outer["box"][1] <= item["box"][1]
+            and outer["box"][0] + outer["box"][2] >= item["box"][0] + item["box"][2]
+            and outer["box"][1] + outer["box"][3] >= item["box"][1] + item["box"][3]
+            and outer["box"][2] * outer["box"][3] > item["box"][2] * item["box"][3]
+            for outer in boxes
+        )
+    ]
+    boxes.sort(key=lambda item: item["box"][0])
+    result.update(bounds=list(bounds), diamonds=boxes)
+    if len(boxes) != 5:
+        result["reason"] = "five_diamonds_not_resolved"
+        return result
+    centers = [(b["box"][0] + b["box"][2] / 2, b["box"][1] + b["box"][3] / 2) for b in boxes]
+    heights = [b["box"][3] for b in boxes]
+    pitch = _median([b[0] - a[0] for a, b in zip(centers, centers[1:])])
+    if (
+        max(c[1] for c in centers) - min(c[1] for c in centers) > _median(heights) * 0.3
+        or not _median(heights) * 0.9 < pitch < _median(heights) * 1.8
+        or any(abs(b[0] - a[0] - pitch) > pitch * 0.2 for a, b in zip(centers, centers[1:]))
+    ):
+        result["reason"] = "nonuniform_diamond_row"
+        return result
+    fills = [b["center_fill"] for b in boxes]
+    if any(0.2 < value < 0.65 for value in fills):
+        result["reason"] = "diamond_center_ambiguous"
+        return result
+    result.update(rank=sum(value >= 0.65 for value in fills), reason="resolved")
+    return result
+
+
+def equipment_tiles(image: Image.Image, rows: list, layout: dict) -> tuple:
+    """由实际等级网格/侧槽生成独立裁图；不读取卡名、容量或测试答案。"""
+    from PIL import ImageDraw, ImageFont
+
+    candidates = []
+    for ri, row in enumerate(r for r in rows if not r.get("is_inventory")):
+        size, band, grid = row.get("image_size"), row.get("band"), row.get("grid")
+        if not size or not band or not grid or not row.get("card_w"):
+            continue
+        width, height = size
+        span = row["card_w"]
+        counts = row.get("counts") or []
+        active = sum(n > 0 for n in counts)
+        for ci, cx in enumerate(grid):
+            if ci >= len(counts) or (active < 3 and counts[ci] == 0):
+                continue
+            box = [
+                max(0, (cx - span * 0.78) / width),
+                max(0, (band[0] - span * 0.84) / height),
+                min(1, (cx + span * 0.78) / width),
+                min(1, (band[1] + span * 0.14) / height),
+            ]
+            candidates.append(
+                {
+                    "box": box,
+                    "pips_position": [ri, ci],
+                    "extent": "estimated_from_pixel_grid",
+                    "kind": "regular_candidate",
+                }
+            )
+    for slot in layout.get("slots", []):
+        if slot.get("zone") != "equipment_candidate" or slot.get("kind") != "special_candidate":
+            continue
+        box = slot["box"]
+        cx, cy = (box[0] + box[2]) / 2, (box[1] + box[3]) / 2
+        if any(
+            b["box"][0] <= cx <= b["box"][2] and b["box"][1] <= cy <= b["box"][3]
+            for b in candidates
+        ):
+            continue
+        candidates.append(
+            {
+                "box": list(box),
+                "extent": slot.get("extent", "observed_edges"),
+                "kind": "special_candidate",
+            }
+        )
+    if not candidates or len(candidates) > 16:
+        return None, []
+    candidates.sort(key=lambda c: (round(c["box"][1], 2), c["box"][0]))
+    tile_w, tile_h, header, gap, columns = 440, 250, 28, 10, 4
+    sheet = Image.new(
+        "RGB",
+        (
+            columns * (tile_w + gap),
+            ((len(candidates) + columns - 1) // columns) * (tile_h + header + gap),
+        ),
+        (15, 15, 15),
+    )
+    draw = ImageDraw.Draw(sheet)
+    try:
+        font = ImageFont.load_default(size=22)
+    except TypeError:  # Pillow < 10.1
+        font = ImageFont.load_default()
+    width, height = image.size
+    for index, tile in enumerate(candidates):
+        tile.update(
+            id=f"tile-{index + 1}",
+            label=f"T{index + 1}",
+            zone="equipment_candidate",
+            content_state="crop_observation",
+            evidence=["isolated_pixel_grid_crop"],
+        )
+        left, top, right, bottom = tile["box"]
+        bounds = [
+            round(left * width),
+            round(top * height),
+            round(right * width),
+            round(bottom * height),
+        ]
+        crop = image.convert("RGB").crop(bounds)
+        crop.thumbnail((tile_w, tile_h), Image.Resampling.LANCZOS)
+        # 放大小图只提升可读性，不生成新文字。统一缩放，每个模型收到同一张拼图。
+        scale = min(tile_w / crop.width, tile_h / crop.height)
+        crop = crop.resize(
+            (round(crop.width * scale), round(crop.height * scale)), Image.Resampling.LANCZOS
+        )
+        x, y = (index % columns) * (tile_w + gap), (index // columns) * (tile_h + header + gap)
+        draw.text((x + 4, y + 1), tile["label"], font=font, fill="white")
+        sheet.paste(crop, (x, y + header))
+        tile["source_bounds"] = bounds
+    return sheet, candidates

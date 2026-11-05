@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import asyncio
+import gc
 import sys
 import types
 from pathlib import Path
@@ -147,23 +148,28 @@ def mk(
     }
 
 
+def _fake_analysis(ocr, pips_rows=None, *, weapon=None, checks=None, mods=None, reasons=None):
+    """可编程 analyze：保留竞速评分，并补齐分区补读依赖的分析结构。"""
+    ocr = ocr or {}
+    reasons = list(reasons or [])
+    return {
+        "weapon": weapon if weapon is not None else ocr.get("weapon") or "",
+        "mods": mods if mods is not None else ocr.get("mods") or [],
+        "checks": checks if checks is not None else ocr.get("_checks") or [],
+        "panel": dict(ocr.get("panel") or {}),
+        "quality": {"snapshot_safe": not reasons, "panel_safe": True, "reasons": reasons},
+        "pips": {},
+    }
+
+
 def _install_fake_analyze():
-    """可编程 analyze：结果完全由罐头 OCR 决定（weapon/_checks/mods）。"""
-
-    def fake(ocr, pips_rows=None):
-        return {
-            "weapon": (ocr or {}).get("weapon") or "",
-            "mods": (ocr or {}).get("mods") or [],
-            "checks": (ocr or {}).get("_checks") or [],
-            "pips": {},
-        }
-
-    lo.analyze = fake
+    lo.analyze = _fake_analysis
 
 
 def make_inst(pips_rows=None, damage_rows=None, title=None):
     """构造只含识卡竞速所需成员的实例 + 桩。"""
     inst = plugin.WarframeSDJK.__new__(plugin.WarframeSDJK)
+    inst.cfg = {}
     inst.RACE_WINDOW_S = 0.8
 
     async def _no_pips(url):
@@ -177,10 +183,18 @@ def make_inst(pips_rows=None, damage_rows=None, title=None):
 
     inst._dump_scan_debug = _dump
 
-    async def _rows(url):
-        return damage_rows
+    inst._focus_ocr = None
 
-    inst._read_damage_rows = _rows
+    async def _focus(url, part):
+        if part == "mods":
+            # 脚本渠道按原卡清单确认；真实 Provider 清理用例沿用其单卡分析桩。
+            ocr = inst._focus_ocr or {}
+            return {"mods": ocr.get("mods") or [{"name": "test"}]}
+        if part == "panel" and damage_rows:
+            return lo.splice_damage_rows({}, damage_rows)
+        return None
+
+    inst._read_scan_focus = _focus
     inst._title_calls = 0
 
     async def _title(url):
@@ -209,6 +223,7 @@ def script_extract(inst, plan: dict):
             return None
         if act[0] == "delay":
             await asyncio.sleep(act[1])
+        inst._focus_ocr = act[-1]
         return act[-1]
 
     inst._extract_loadout_from_image = _extract
@@ -266,18 +281,12 @@ try:
     def _analyze_focus_good(ocr, pips_rows=None):
         dr = (ocr.get("panel") or {}).get("damage_rows")
         if dr == [list(r) for r in ROWS]:
-            return {
-                "weapon": "绝路 Prime",
-                "mods": ocr.get("mods") or [],
-                "checks": [{"ok": True, "label": "fixed"}],
-                "pips": {},
-            }
-        return {
-            "weapon": "绝路 Prime",
-            "mods": ocr.get("mods") or [],
-            "checks": [{"ok": False, "label": "b1"}, {"ok": False, "label": "b2"}],
-            "pips": {},
-        }
+            return _fake_analysis(ocr, weapon="绝路 Prime", checks=[{"ok": True, "label": "fixed"}])
+        return _fake_analysis(
+            ocr,
+            weapon="绝路 Prime",
+            checks=[{"ok": False, "label": "b1"}, {"ok": False, "label": "b2"}],
+        )
 
     lo.analyze = _analyze_focus_good
     inst = make_inst(damage_rows=ROWS)
@@ -294,12 +303,11 @@ try:
     def _analyze_focus_worse(ocr, pips_rows=None):
         dr = (ocr.get("panel") or {}).get("damage_rows")
         n_bad = 3 if dr == [list(r) for r in ROWS] else 1
-        return {
-            "weapon": "绝路 Prime",
-            "mods": ocr.get("mods") or [],
-            "checks": [{"ok": False, "label": f"b{i}"} for i in range(n_bad)],
-            "pips": {},
-        }
+        return _fake_analysis(
+            ocr,
+            weapon="绝路 Prime",
+            checks=[{"ok": False, "label": f"b{i}"} for i in range(n_bad)],
+        )
 
     lo.analyze = _analyze_focus_worse
     inst = make_inst(damage_rows=ROWS)
@@ -310,13 +318,36 @@ try:
         r and r.get("_marker") == "mid" and not (r.get("panel") or {}).get("damage_rows"),
     )
 
+    # 5b. 整图过读不能阻止更短的正确补读：11 张修正到 9 张，质量分下降。
+    corrected_mods = mk("corrected", nmods=9)["mods"]
+
+    def _analyze_overread(ocr, pips_rows=None):
+        reasons = (
+            [{"code": "mods_overread", "message": "读到的卡数超过已装备槽位上限"}]
+            if len(ocr.get("mods") or []) > 10
+            else []
+        )
+        return _fake_analysis(ocr, pips_rows, reasons=reasons)
+
+    async def _correct_overread(url, part):
+        return {"mods": corrected_mods} if part == "mods" else None
+
+    lo.analyze = _analyze_overread
+    inst = make_inst()
+    inst._read_scan_focus = _correct_overread
+    script_extract(inst, {"fakeA": ("now", mk("overread", nmods=11))})
+    r = run(inst)
+    check(
+        "★ 过读修正：11 张缩为正确 9 张且质量改善 → 采纳并确认装备",
+        r
+        and r.get("_marker") == "overread"
+        and r.get("mods") == corrected_mods
+        and not r.get("_equipment_unconfirmed"),
+        f"mods={len((r or {}).get('mods') or [])} unconfirmed={(r or {}).get('_equipment_unconfirmed')}",
+    )
+
     # 6. 窗口超时：挂死渠道不拖垮，返回窗口内最优
-    lo.analyze = lambda ocr, pips_rows=None: {
-        "weapon": (ocr or {}).get("weapon") or "",
-        "mods": (ocr or {}).get("mods") or [],
-        "checks": (ocr or {}).get("_checks") or [],
-        "pips": {},
-    }
+    lo.analyze = _fake_analysis
     inst = make_inst()
     inst.RACE_WINDOW_S = 0.6
     script_extract(inst, {"fakeA": ("now", mk("mid", ok=2, bad=1, nmods=3)), "fakeB": ("hang",)})
@@ -326,12 +357,7 @@ try:
     # 6b. ★（2026-10-27）武器名单读：主读把姿态卡名当武器名（认不出）→ 单读标题栏读到武器 → 采纳
     def _analyze_title(ocr, pips_rows=None):
         ok = "暮斩" in str((ocr or {}).get("weapon") or "")
-        return {
-            "weapon": "暮斩" if ok else "",
-            "mods": (ocr or {}).get("mods") or [],
-            "checks": [{"ok": True, "label": "c"}],
-            "pips": {},
-        }
+        return _fake_analysis(ocr, weapon="暮斩" if ok else "", checks=[{"ok": True, "label": "c"}])
 
     lo.analyze = _analyze_title
     inst = make_inst(title="升级/暮斩 [30] 3")
@@ -350,18 +376,281 @@ try:
         r and r.get("weapon") == "暮斩 [30]" and inst._title_calls == 0,
         f"calls={inst._title_calls}",
     )
-    lo.analyze = lambda ocr, pips_rows=None: {
-        "weapon": (ocr or {}).get("weapon") or "",
-        "mods": (ocr or {}).get("mods") or [],
-        "checks": (ocr or {}).get("_checks") or [],
-        "pips": {},
-    }
+    lo.analyze = _fake_analysis
 
     # 7. 全渠道挂 → None（上层出「识别失败」提示）
     inst = make_inst()
     script_extract(inst, {"fakeA": ("hang",), "fakeB": ("hang",)})
     r = run(inst)
     check("全渠道挂 → None", r is None)
+
+    # 8. 走真实 handler 和两层提取入口：取消时必须先等渠道 finally，再归还并发名额。
+    async def cancel_from_handler():
+        started = asyncio.Event()
+        cleaning = asyncio.Event()
+        release = asyncio.Event()
+        cleaned = asyncio.Event()
+        interrupted = []
+
+        class Provider(_Prov):
+            async def text_chat(self, **kwargs):
+                started.set()
+                try:
+                    await asyncio.Event().wait()
+                finally:
+                    cleaning.set()
+                    try:
+                        await release.wait()
+                    except asyncio.CancelledError:
+                        interrupted.append(True)
+                        raise
+                    cleaned.set()
+
+        inst = make_inst()
+        inst.cfg = {"scan_cooldown": 0, "scan_max_concurrent": 1}
+        inst._ocr_busy, inst._ocr_last = set(), {}
+        inst._safe_sender = lambda event: event.sender
+        inst._event_has_image = lambda event: True
+
+        async def images(event):
+            return ["data:image/png;base64,stub"]
+
+        inst._image_data_urls = images
+        inst._vision_providers = lambda: [Provider("local-probe")]
+        event = types.SimpleNamespace(unified_msg_origin="group://first", sender="u1")
+        task = asyncio.create_task(inst._h_scan(None, event, None))
+        await asyncio.wait_for(started.wait(), 2)
+        task.cancel()
+        await asyncio.wait_for(cleaning.wait(), 2)
+        for _ in range(5):
+            await asyncio.sleep(0)
+        check(
+            "★ 真实识卡入口取消：渠道清理未完时保留并发名额",
+            not task.done() and event.unified_msg_origin in inst._ocr_busy,
+        )
+        retry = await inst._h_scan(
+            None, types.SimpleNamespace(unified_msg_origin="group://second", sender="u2"), None
+        )
+        check("★ 渠道仍清理时新请求受并发上限约束", "并发上限 1" in (retry.raw_text or ""))
+        task.cancel()
+        for _ in range(5):
+            await asyncio.sleep(0)
+        check(
+            "★ 重复取消不打断渠道 finally",
+            not interrupted and not task.done() and bool(inst._ocr_busy),
+        )
+        release.set()
+        try:
+            await asyncio.wait_for(task, 2)
+        except asyncio.CancelledError:
+            pass
+        check(
+            "★ 清理完成后传播取消并归还名额",
+            task.cancelled() and cleaned.is_set() and not inst._ocr_busy,
+        )
+
+    asyncio.run(cancel_from_handler())
+
+    # 9. 两种竞速都必须回收败者，并消费败者清理中抛出的异常，不改变胜者。
+    async def winner_cleanup(kind):
+        ready = asyncio.Event()
+        cleaned = asyncio.Event()
+        loop_errors = []
+        loop = asyncio.get_running_loop()
+        loop.set_exception_handler(lambda loop, context: loop_errors.append(context))
+
+        class Fast(_Prov):
+            async def text_chat(self, **kwargs):
+                await ready.wait()
+                return types.SimpleNamespace(completion_text='{"weapon":"winner"}')
+
+        class Slow(_Prov):
+            async def text_chat(self, **kwargs):
+                ready.set()
+                try:
+                    await asyncio.Event().wait()
+                finally:
+                    await asyncio.sleep(0)
+                    cleaned.set()
+                    raise RuntimeError("败者清理异常")
+
+        provs = [Fast("fast"), Slow("slow")]
+        inst = make_inst()
+        inst._vision_providers = lambda: provs
+        if kind == "识卡":
+            out = await inst._extract_loadout_validated("data:image/png;base64,stub")
+        else:
+            out = await inst._vision_race_json("prompt", "image", provs, window=1)
+        gc.collect()
+        await asyncio.sleep(0)
+        check(
+            f"★ {kind}竞速：回收败者异常并保留胜者",
+            out.get("weapon") == "winner" and cleaned.is_set() and not loop_errors,
+        )
+
+    lo.analyze = lambda ocr, pips_rows=None: _fake_analysis(
+        ocr, mods=[{"name": "test"}], checks=[{"ok": True}]
+    )
+    asyncio.run(winner_cleanup("识卡"))
+    asyncio.run(winner_cleanup("紫卡"))
+
+    # 渠道自身退出不是用户取消：失败渠道不能取消另一份仍可用的结果。
+    async def self_cancelled_channel(kind, mode):
+        gate = asyncio.Event()
+        child_tasks = []
+        cleaned = []
+
+        class Channel(_Prov):
+            async def text_chat(self, **kwargs):
+                child_tasks.append(asyncio.current_task())
+                try:
+                    await gate.wait()
+                    if self._pid == "cancel" or mode == "all-cancel":
+                        raise asyncio.CancelledError("渠道自行停止")
+                    if mode == "cancel-first":
+                        await asyncio.sleep(0.01)
+                    return types.SimpleNamespace(completion_text='{"weapon":"winner"}')
+                finally:
+                    cleaned.append(self._pid)
+
+        inst = make_inst()
+        provs = [Channel("cancel"), Channel("good")]
+        inst._vision_providers = lambda: provs
+
+        async def race():
+            if kind == "识卡":
+                return await inst._extract_loadout_validated("data:image/png;base64,stub")
+            return await inst._vision_race_json("prompt", "image", provs, window=1)
+
+        task = asyncio.create_task(race())
+        await asyncio.sleep(0)
+        gate.set()
+        out = await asyncio.wait_for(task, timeout=1)
+        check(
+            f"★ {kind}竞速 {mode}：渠道自行取消不冒充调用方取消",
+            not task.cancelled()
+            and (out is None if mode == "all-cancel" else out.get("weapon") == "winner"),
+        )
+        check(
+            f"★ {kind}竞速 {mode}：所有渠道任务完成且执行各自清理",
+            len(child_tasks) == 2
+            and all(t.done() for t in child_tasks)
+            and sorted(cleaned) == ["cancel", "good"],
+        )
+
+    for _kind in ("识卡", "紫卡"):
+        for _mode in ("cancel-first", "same-tick", "all-cancel"):
+            asyncio.run(self_cancelled_channel(_kind, _mode))
+
+    # 10. 走真实识卡与紫卡路由，渠道只用本地 text_chat 桩，核对实际收图方。
+    async def scan_provider_isolation(scan_config, *, unavailable=False):
+        seen = []
+
+        class Provider(_Prov):
+            async def text_chat(self, *, prompt, session_id, image_urls):
+                kind = session_id.rsplit("-", 1)[0]
+                seen.append((self._pid, kind, list(image_urls)))
+                if kind == "sdjk-紫卡行读":
+                    response = "+100% 暴击几率\n+80% 暴击伤害\n-30% 变焦"
+                elif kind == "sdjk-紫卡识别":
+                    response = '{"weapon":"伯斯顿","positive":[["暴击",100],["暴伤",80]],"negative":[["变焦",30]]}'
+                elif kind == "sdjk-title":
+                    response = "路由测试"
+                elif kind == "sdjk-rows":
+                    response = '{"rows":[["冲击",1],["穿刺",2],["总计",3]]}'
+                elif kind == "sdjk-focus":
+                    if prompt == plugin.WarframeSDJK._FOCUS_PROMPTS["mods"]:
+                        response = '{"mods":[{"name":"test","drain":5}]}'
+                    elif prompt == plugin.WarframeSDJK._FOCUS_PROMPTS["arcanes"]:
+                        response = "主要·无情"
+                    else:
+                        response = '{"panel":{"crit_chance":50,"crit_damage":2,"status_chance":20}}'
+                else:
+                    response = '{"weapon":"路由测试","mods":[{"name":"test","drain":5}],"_checks":[{"ok":true}],"arcanes":["测试赋能"]}'
+                return types.SimpleNamespace(completion_text=response)
+
+        main, line, scan = Provider("main/only"), Provider("line/only"), Provider("scan/only")
+
+        class Context:
+            def get_provider_by_id(self, pid):
+                if unavailable and pid == "scan/only":
+                    raise RuntimeError("渠道暂不可用")
+                return {p.meta().id: p for p in (main, line, scan)}.get(pid)
+
+            def get_all_providers(self):
+                return [main, line, scan]
+
+        inst = plugin.WarframeSDJK.__new__(plugin.WarframeSDJK)
+        inst.cfg = {"vision_provider_id": main.meta().id, "vision_provider_id_line": line.meta().id}
+        inst.cfg.update(scan_config)
+        inst.context = Context()
+        inst.RACE_WINDOW_S = 0.8
+        inst._fit_scan_image = lambda image: image
+        inst._scan_focus_image = lambda image, part: image
+
+        async def no_pips(image):
+            return []
+
+        inst._detect_pips = no_pips
+        image = "data:image/png;base64,local-routing-probe"
+        expected = (
+            []
+            if unavailable or scan_config.get("vision_provider_id_scan") == "missing/only"
+            else [scan if str(scan_config.get("vision_provider_id_scan") or "").strip() else main]
+        )
+        case = str(scan_config.get("vision_provider_id_scan", "未配置")).strip() or "空配置"
+        if unavailable:
+            case += "（取渠道抛错）"
+        check(f"★ 识卡独立渠道 {case}：候选符合配置", inst._scan_vision_providers() == expected)
+
+        # 不替换 _vision_providers / _vision_race_json / 任一视觉读图方法。
+        outputs = [
+            await inst._extract_loadout_validated(image),
+            await inst._extract_loadout_from_image(image),
+            await inst._read_weapon_title(image),
+            await inst._read_scan_focus(image, "mods"),
+            await inst._read_scan_focus(image, "panel"),
+            await inst._read_scan_focus(image, "arcanes"),
+            await inst._read_damage_rows(image),
+        ]
+        check(
+            f"★ 识卡独立渠道 {case}：主读、标题、三区补读与旧伤害行返回",
+            all(outputs) if expected else all(value is None for value in outputs),
+            repr(outputs),
+        )
+        scan_seen = list(seen)
+        check(
+            f"★ 识卡独立渠道 {case}：实际收图方独占且无意外回落",
+            bool(scan_seen)
+            and {pid for pid, _, _ in scan_seen} == {expected[0].meta().id}
+            and {kind for _, kind, _ in scan_seen}
+            == {"sdjk-loadout", "sdjk-title", "sdjk-focus", "sdjk-rows"}
+            if expected
+            else not scan_seen,
+            repr(scan_seen),
+        )
+        out = await inst._extract_riven_from_image(image)
+        riven_seen = seen[len(scan_seen) :]
+        check(
+            f"★ 识卡独立渠道 {case}：紫卡主读与窄读实际收图方保持不变",
+            {(pid, kind) for pid, kind, _ in riven_seen}
+            == {(main.meta().id, "sdjk-紫卡识别"), (line.meta().id, "sdjk-紫卡行读")}
+            and len(riven_seen) == 2
+            and out
+            and out.get("weapon") == "伯斯顿"
+            and len(out.get("lines", [])) == 3,
+            repr(riven_seen),
+        )
+
+    lo.analyze = _fake_analysis
+    for _scan_config in (
+        {},
+        {"vision_provider_id_scan": "  "},
+        {"vision_provider_id_scan": "scan/only"},
+        {"vision_provider_id_scan": "missing/only"},
+    ):
+        asyncio.run(scan_provider_isolation(_scan_config))
+    asyncio.run(scan_provider_isolation({"vision_provider_id_scan": "scan/only"}, unavailable=True))
 finally:
     lo.analyze = _orig_analyze
 

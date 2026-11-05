@@ -113,8 +113,13 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true", help="只校验不写盘")
     args = ap.parse_args()
-    if not (CACHE / "dict.en.json").exists():
-        print(f"缺少离线缓存 {CACHE / 'dict.en.json'}（构建机需先有 dict 对）")
+    missing = [
+        str(CACHE / name)
+        for name in ("dict.en.json", "dict.zh.json")
+        if not (CACHE / name).is_file()
+    ]
+    if missing:
+        print(f"缺少离线缓存 {', '.join(missing)}（构建机需先有 dict 对）")
         sys.exit(1)
     data = build()
     n = len(data["pairs"])
@@ -134,7 +139,15 @@ def main() -> None:
         print("✗ 体积超 1.5MB 目标，需收紧筛选口径")
         sys.exit(1)
     if args.check:
-        print("✓ --check 通过（未写盘）")
+        try:
+            existing = json.loads(OUT.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            print(f"✗ 名称表缺失或不可读：{type(exc).__name__}（未写盘）")
+            sys.exit(1)
+        if existing != data:
+            print("✗ 名称表与离线输入生成结果不一致（未写盘），请审阅后重新生成")
+            sys.exit(1)
+        print("✓ --check 通过：名称表与离线输入一致（未写盘）")
         return
     OUT.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"✓ 已写 {OUT.relative_to(ROOT)}")

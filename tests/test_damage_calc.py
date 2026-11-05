@@ -8,9 +8,13 @@
 
 from __future__ import annotations
 
+import copy
+import hashlib
+import json
 import math
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -856,7 +860,11 @@ check(
     close(_r_inc["dps_sustained"], _r_inc["dps"] * _mt_inc / (_mt_inc + 3.4), 1e-9),
     f"{_r_inc['dps_sustained']}",
 )
-_inc_all = {k for k in dc._load_incarnon_forms() if k != "_meta"}
+_inc_all = {
+    k
+    for k, v in dc._load_incarnon_forms().items()
+    if k != "_meta" and v.get("kind") not in {"melee_buff", "melee_native"}
+}
 check(
     "incarnon_forms.json：69 条全部带 pseudo_reload（弹池上限 / 装填 > 0）",
     len(_inc_all) == 69
@@ -904,18 +912,18 @@ check(
 _hdr_inc = _panel_row(dc.card_lines(_w_lat, _s_cd_inc, _r_cd_inc, []))
 _hdr_base = _panel_row(dc.card_lines(_w_lat, _s_cd_base, _r_cd_base, []))
 check(
-    "卡面头部（灵化）按实际计算面板：基伤 50 / 暴击 44% ×3.4 / 射速 3.33 ▸ 2.66",
-    "基伤 50" in _hdr_inc and "暴击 44% ×3.4" in _hdr_inc and "射速 3.33 ▸ 2.66" in _hdr_inc,
+    "卡面头部（灵化）按实际计算面板：基伤 50 / 暴击 44% ×3.4 / 射速 3.33 → 2.66",
+    "基伤 50" in _hdr_inc and "暴击 44% ×3.4" in _hdr_inc and "射速 3.33 → 2.66" in _hdr_inc,
     _hdr_inc,
 )
 check(
-    "卡面头部（基础形态）与游戏面板同口径：基伤 90 / 射速 4.17 ▸ 3.33",
-    "基伤 90" in _hdr_base and "射速 4.17 ▸ 3.33" in _hdr_base,
+    "卡面头部（基础形态）与游戏面板同口径：基伤 90 / 射速 4.17 → 3.33",
+    "基伤 90" in _hdr_base and "射速 4.17 → 3.33" in _hdr_base,
     _hdr_base,
 )
 check(
     "无射速 MOD 时头部不出现箭头",
-    "▸" not in _panel_row(dc.card_lines(_w_lat, _s_def, _r_def, [])),
+    "→" not in _panel_row(dc.card_lines(_w_lat, _s_def, _r_def, [])),
 )
 
 # 灵化形态 + 进化暴击（EVO IV 临界平行 +24% cc / +0.2x cd）
@@ -1159,6 +1167,468 @@ check(
     "开火0秒 夹到 1 秒并注明",
     _s_clamp["fire_seconds"] == 1.0 and any("开火时长" in n for n in _s_clamp["notes"]),
 )
+
+# 名称索引保留原匹配语义，并随整表替换/缓存重置重建。
+_m1 = {"name": "Alpha One", "zh": "Alpha-One"}
+_m2 = {"name": "Alpha Two", "zh": "Alpha_Two"}
+_m3 = {"name": "Alpha_One", "zh": "重复名"}
+_e1 = {"name": "Decoy", "aliases": ["Real Enemy", "Shared Alias"]}
+_e2 = {"name": "Real Enemy", "aliases": ["Shared Alias", "Only Alias"]}
+_fixture = {"mods": {"a": _m1, "b": _m2, "c": _m3}, "enemies": {"a": _e1, "b": _e2}}
+with patch.object(dc, "_cache", _fixture):
+    check("索引：归一撞名仍取首记录", dc.find_mod_exact("ALPHA ONE") is _m1)
+    check("索引：不同记录的子串仍不唯一", dc.find_mod_sub_unique("Alpha") is None)
+    check("索引：一条记录双语命中只算一次", dc.find_mod_sub_unique("Two") is _m2)
+    check("索引：重复名字不被去重成唯一记录", dc.find_mod_sub_unique("One") is None)
+    check(
+        "索引：短子串与空词仍不命中",
+        dc.find_mod_sub_unique("A") is None and dc.find_mod_exact(" _ ") is None,
+    )
+    check("索引：敌人全表主名优先于别名", dc.find_enemy_exact("Real_Enemy") is _e2)
+    check(
+        "索引：别名首命中及独有别名",
+        dc.find_enemy_exact("Shared Alias") is _e1 and dc.find_enemy_exact("Only Alias") is _e2,
+    )
+    with patch.object(dc, "_norm", wraps=dc._norm) as _norm_probe:
+        dc.find_mod_exact("Alpha One")
+        dc.find_mod_sub_unique("Two")
+        dc.find_enemy_exact("Only Alias")
+        check(
+            "索引：热查询只归一输入词，不重复归一全表",
+            _norm_probe.call_count == 3,
+            str(_norm_probe.call_count),
+        )
+    _replacement = {"name": "Replacement", "zh": "替换"}
+    _fixture["mods"] = {"a": _replacement, "b": _m2, "c": _m3}
+    check("索引：同长度整表替换重建", dc.find_mod_exact("Replacement") is _replacement)
+    _fixture["enemies"] = {"a": _e2}
+    check("索引：敌人整表替换后旧名不残留", dc.find_enemy_exact("Decoy") is None)
+    _fixture.clear()
+    _fixture.update(mods={"new": _replacement}, enemies={"new": _e1})
+    check(
+        "索引：清缓存后不沿用旧 MOD",
+        dc.find_mod_exact("Alpha Two") is None and dc.find_mod_exact("替换") is _replacement,
+    )
+    check("索引：清缓存后不沿用旧敌人", dc.find_enemy_exact("Only Alias") is None)
+with patch.object(dc, "_cache", {"mods": {"new": _m2}, "enemies": {"new": _e2}}):
+    check(
+        "索引：替换整个缓存后重新建表",
+        dc.find_mod_exact("Alpha Two") is _m2 and dc.find_enemy_exact("Decoy") is None,
+    )
+
+# 用真实 MOD 经过 parse_args，覆盖当前七种条件效果的卡面名称。
+for _mod, _label in (
+    ("Archgun Ace", "射速"),
+    ("Argon Scope", "暴击几率"),
+    ("Bladed Rounds", "暴击伤害"),
+    ("Catalyzer Link", "触发几率"),
+    ("Clip Delegation", "多重射击"),
+    ("Deadly Efficiency", "基础伤害"),
+    ("Galvanized Aptitude", "每种异常状态伤害"),
+):
+    _spec, _ = dc.parse_args([_mod, "满镀层"])
+    check(
+        f"镀层效果名：{_mod} → {_label}",
+        any(f" {_label} +" in line for line in _spec["galv_applied"]),
+        str(_spec["galv_applied"]),
+    )
+_pm_card = dc.card_lines(_w_lex, _s_pm1, dc.calculate(_s_pm1, _w_lex), [])
+check(
+    "镀层真实卡面显示射速且不漏内部字段",
+    any("射速 +90.0%" in line for line in _pm_card)
+    and not any("fire_rate" in line for line in _pm_card),
+)
+with patch.object(
+    dc,
+    "mod_extra",
+    return_value={
+        "conditionals": [
+            {
+                "mappable": True,
+                "field": "base_dmg",
+                "grants": "future_effect",
+                "value": 3,
+                "max_stacks": 1,
+            }
+        ]
+    },
+):
+    _unknown_grant, _ = dc.parse_args(["Serration", "满镀层"])
+    check(
+        "未知镀层效果名原文回落，不丢数值",
+        any("future_effect +3.0%" in line for line in _unknown_grant["galv_applied"])
+        and close(_unknown_grant["base_dmg"], 168),
+    )
+
+
+# 近战 Genesis EVO I 是基伤 MOD 桶 +100%，不替换普通攻击面板。
+# 必须经过用户参数解析与真实武器查询，不能只直接调用内部形态函数。
+def _melee_calc(*words):
+    spec, name = dc.parse_args(list(words))
+    weapon, _ = dc.find_weapon(" ".join(name))
+    return spec, weapon, dc.calculate(spec, weapon)
+
+
+_guns = {k: dc._load_incarnon_forms()[k] for k in _inc_all}
+check(
+    "原 69 条枪械灵化逐值不变（稳定 JSON SHA256）",
+    hashlib.sha256(
+        json.dumps(_guns, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode()
+    ).hexdigest()
+    == "22d22651ebe31bb46bc619d3d48a6dea0df11ed7d03aecae055d05efd280a4c3",
+)
+_melee_forms = {
+    k: v
+    for k, v in dc._load_incarnon_forms().items()
+    if k != "_meta" and v.get("kind") == "melee_buff"
+}
+check(
+    "24 条近战分型：仅能力加成与来源，不伪造完整面板或枪械弹池",
+    len(_melee_forms) == 24
+    and all(
+        rec.get("damage_mod_pct") == 100
+        and rec.get("evo1_description")
+        and {"wiki_page", "sha256", "snapshot"} <= set(rec.get("source") or {})
+        and not {
+            "damage",
+            "criticalChance",
+            "criticalMultiplier",
+            "procChance",
+            "fireRate",
+            "pseudo_reload",
+        }.intersection(rec)
+        for rec in _melee_forms.values()
+    ),
+)
+_ms0, _mw0, _mr0 = _melee_calc("Skana")
+_ms1, _mw1, _mr1 = _melee_calc("Skana", "灵化")
+check("Skana 裸装灵化普通命中为基础的 2 倍", close(_mr1["health"], _mr0["health"] * 2))
+check(
+    "近战灵化保留原始伤害与暴击/触发/攻速面板",
+    all(
+        _mr1["weapon_eff"].get(k) == _mw1.get(k)
+        for k in ("damage", "criticalChance", "criticalMultiplier", "procChance", "fireRate")
+    ),
+)
+_msp, _mwp, _mrp = _melee_calc("Skana", "压迫点")
+_mspi, _mwpi, _mrpi = _melee_calc("Skana", "压迫点", "灵化")
+check(
+    "压迫点 +120 与灵化 +100 同桶：倍率 3.2/2.2",
+    close(_msp["base_dmg"], 120) and close(_mrpi["health"] / _mrp["health"], 3.2 / 2.2),
+)
+_mse, _mwe, _mre = _melee_calc("Skana", "压迫点", "进化基伤", "灵化")
+check(
+    "EVO2 平坦基伤 +100 先改面板，再乘 EVO1 与压迫点合成的 3.2",
+    close(_mre["weapon_eff"]["damage"].get("total", 0), 220)
+    and close(_mre["health"] / _mr0["health"], 220 / 120 * 3.2),
+)
+
+# 同为“灵化”参数，近战能力不能套用枪械替换形态的 CO 桶。
+with patch.object(
+    dc,
+    "_load_co_behavior",
+    return_value={str(_mw0["uniqueName"]).lower(): {"incarnon": "independent"}},
+):
+    _, _, _mco0 = _melee_calc("Skana", "异况超量", "异常2")
+    _, _, _mco1 = _melee_calc("Skana", "异况超量", "异常2", "灵化")
+    check(
+        "近战灵化 CO 保持普通攻击加算桶：+160%异常与+100%灵化合成3.6",
+        close(_mco1["health"] / _mco0["health"], 3.6 / 2.6),
+    )
+
+_saved_spec, _saved_weapon = copy.deepcopy(_mse), copy.deepcopy(_mwe)
+_repeat1, _repeat2 = dc.calculate(_mse, _mwe), dc.calculate(_mse, _mwe)
+check(
+    "同一份近战进化 spec 重算不累计且原武器/spec 均不变",
+    _repeat1 == _repeat2 and _mse == _saved_spec and _mwe == _saved_weapon,
+)
+for _form_words in ([], ["基础形态"]):
+    _, _, _mrb = _melee_calc("Skana", *_form_words)
+    check(
+        f"Skana {_form_words or '默认'} 不自动获得灵化增伤", close(_mrb["health"], _mr0["health"])
+    )
+_keep = copy.deepcopy(_ms0)
+_keep["form"] = "keep"
+check("识卡 keep 不再追加灵化增伤", close(dc.calculate(_keep, _mw0)["health"], _mr0["health"]))
+_expected_melee = {
+    "Ack & Brunt",
+    "Anku",
+    "Bo",
+    "Bo Prime",
+    "Ceramic Dagger",
+    "Destreza",
+    "Destreza Prime",
+    "Dual Ichor",
+    "Furax",
+    "Furax Wraith",
+    "Hate",
+    "Magistar",
+    "Mk1-Bo",
+    "Mk1-Furax",
+    "Nami Solo",
+    "Obex",
+    "Okina",
+    "Okina Prime",
+    "Prisma Obex",
+    "Prisma Skana",
+    "Sancti Magistar",
+    "Sibear",
+    "Skana",
+    "Skana Prime",
+}
+check(
+    "Genesis 24 变体精确覆盖，不用家族名推挂其他变体",
+    {dc._load()["weapons"][k]["name"] for k in _melee_forms} == _expected_melee,
+)
+_melee_bad = []
+for _key in _melee_forms:
+    # 显式 uniqueName 必须对应独立变体，再走真实名称解析入口计算。
+    _weapon = dc._load()["weapons"].get(_key)
+    if not _weapon:
+        _melee_bad.append((_key, "未落入武器表"))
+        continue
+    _, _actual, _ri = _melee_calc(_weapon["name"], "灵化")
+    _, _, _rb = _melee_calc(_weapon["name"])
+    if str(_actual.get("uniqueName") or "").lower() != _key or not close(
+        _ri["health"], _rb["health"] * 2
+    ):
+        _melee_bad.append((_key, "命中或倍率错误"))
+check("24 条近战各自查询到正确变体并获得普通命中 +100%", not _melee_bad, str(_melee_bad))
+for _missing in ("Innodem", "Praedos", "Kronen Prime"):
+    _, _missw, _missi = _melee_calc(_missing, "灵化")
+    _, _, _missb = _melee_calc(_missing)
+    check(
+        f"{_missing} 未收录时保留基础伤害与未收录提示",
+        close(_missi["health"], _missb["health"])
+        and any("未收录" in n or "没有已收录" in n or "没有灵化" in n for n in _missi["notes"]),
+    )
+_, _, _mh0 = _melee_calc("Skana", "重击")
+_, _, _mh1 = _melee_calc("Skana", "重击", "灵化")
+check(
+    "近战能力形态保留普通重击和震地附带段，均吃同桶加成",
+    dc.selected_form(_ms1, _mw1)[0] == "default"
+    and close(_mh1["heavy"]["health"], _mh0["heavy"]["health"] * 2)
+    and bool(_mh0["modes"])
+    and {m["name"] for m in _mh0["modes"]} == {m["name"] for m in _mh1["modes"]}
+    and all(close(i["health"], b["health"] * 2) for i, b in zip(_mh1["modes"], _mh0["modes"])),
+)
+
+# 边界夹具只补实际库中暂缺的结构化默认段，武器与入口仍用真实 Skana。
+# selected_form 若把 buff 当成替换形态，此段会静默丢失。
+_melee_segment = {
+    "name": "常规附带段边界夹具",
+    "damage": {"heat": 37.0},
+    "takes_condition_overload": True,
+}
+with patch.object(dc, "_weapon_attacks_rec", return_value={"segments": [_melee_segment]}):
+    _, _, _msb = _melee_calc("Skana")
+    _, _, _msi = _melee_calc("Skana", "灵化")
+    _segb = [m for m in _msb["modes"] if m["name"] == _melee_segment["name"]]
+    _segi = [m for m in _msi["modes"] if m["name"] == _melee_segment["name"]]
+    check(
+        "近战 buff 保留结构化默认附带段并应用 +100% 基伤",
+        len(_segb) == len(_segi) == 1 and close(_segi[0]["health"], _segb[0]["health"] * 2),
+    )
+# 名称明确为 Incarnon 的特殊攻击只属未建模能力，不得借普通基伤增幅进入卡面。
+_special_weapon = copy.deepcopy(_mw1)
+_special_weapon["attacks"].append(
+    {"name": "Incarnon Special Projectile", "damage": {"heat": 51}, "shot_type": "Projectile"}
+)
+_special_result = dc.calculate(_ms1, _special_weapon)
+check(
+    "近战灵化命名特殊攻击不混入常规伤害分段",
+    not any("Incarnon Special" in m["name"] for m in _special_result["modes"]),
+)
+
+
+# Hate 的上游攻击名不含 Incarnon，必须验证真实名称，避免只通过字符串夹具。
+_, _hatew, _hater = _melee_calc("Hate", "灵化")
+check(
+    "Hate 真实灵化飞刃与爆炸未建模，不继承普通命中增伤出现在分段",
+    {a["name"] for a in _hatew["attacks"]} >= {"Spectral Blade", "Spectral Blade Explosion"}
+    and not any("Spectral Blade" in m["name"] for m in _hater["modes"]),
+    str([m["name"] for m in _hater["modes"]]),
+)
+
+_mcard = "\n".join(dc.card_lines(_mw1, _ms1, _mr1, []))
+check(
+    "近战灵化卡面明确已激活基伤加成与未计入能力边界",
+    all(
+        word in _mcard
+        for word in ("已激活", "仅计基伤", "额外攻击", "触发", "范围", "移动", "持续时间", "未计入")
+    ),
+    _mcard,
+)
+
+# 原生 Ruvox 仅支持普通主攻击；不向未验证的 IPS MOD、重击或震地外推。
+_rns, _rnw, _rnb = _melee_calc("Ruvox")
+_rnis, _, _rni = _melee_calc("Ruvox", "灵化")
+_rnkey = str(_rnw["uniqueName"]).lower()
+_rnrec = dc._load_incarnon_forms().get(_rnkey) or {}
+check(
+    "Ruvox 原生灵化独立分型：仅普通攻击、冲击转穿刺100%、独立攻速×0.65",
+    _rnrec.get("kind") == "melee_native"
+    and _rnrec.get("damage_conversion") == {"from": "impact", "to": "puncture", "ratio": 1.0}
+    and _rnrec.get("attack_speed_multiplier") == 0.65
+    and _rnrec.get("range_bonus_m") == 3.0
+    and _rnrec.get("supported_attacks") == ["Normal Attack"]
+    and "damage_mod_pct" not in _rnrec,
+)
+check(
+    "真实 parse→find→calculate：Ruvox 仅170冲击改170穿刺，基伤总量与暴击触发不变",
+    _rni["ok"]
+    and close(_rni["weapon_eff"]["damage"].get("impact", 0), 0)
+    and close(_rni["weapon_eff"]["damage"].get("puncture", 0), 170)
+    and close(_rni["weapon_eff"]["damage"]["total"], 170)
+    and all(
+        _rni["weapon_eff"].get(k) == _rnw.get(k)
+        for k in ("criticalChance", "criticalMultiplier", "procChance")
+    )
+    and close(_rni["fire_rate"], _rnb["fire_rate"] * 0.65)
+    and not _rni["modes"]
+    and dc.selected_form(_rnis, _rnw) == ("incarnon", {}),
+)
+for _rnwords in ([], ["基础形态"]):
+    _, _, _rnplain = _melee_calc("Ruvox", *_rnwords)
+    check(
+        f"Ruvox {_rnwords or '默认'} 不启用原生灵化转换和降速",
+        _rnplain["weapon_eff"]["damage"] == _rnw["damage"]
+        and close(_rnplain["fire_rate"], _rnb["fire_rate"]),
+    )
+_rnkeep = copy.deepcopy(_rnis)
+_rnkeep["form"] = "keep"
+_rnk = dc.calculate(_rnkeep, _rnw)
+check(
+    "Ruvox 识卡 keep 不重新转换面板或附加攻速×0.65",
+    _rnk["weapon_eff"]["damage"] == _rnw["damage"] and close(_rnk["fire_rate"], _rnb["fire_rate"]),
+)
+_rnms, _, _rnm = _melee_calc("Ruvox", "灵化", "压迫点", "狂暴", "熔岩冲击")
+check(
+    "Ruvox 基伤/元素/攻速原MOD各自保留：2.2倍基伤、90%火、1.3×0.65攻速",
+    _rnms["base_dmg"] == 120
+    and _rnms["fire_rate_pct"] == 30
+    and _rnms["singles"] == {"heat": 90}
+    and close(_rnm["fire_rate"], _rnb["fire_rate"] * 1.3 * 0.65)
+    and close(sum(_rnm["per_type_health"].values()), _rnm["health"])
+    and close(_rnm["weapon_eff"]["damage"]["total"], 170),
+)
+_rnmodbase = copy.deepcopy(_rnms)
+_rnmodbase["form"] = "base"
+_rnconverted = copy.deepcopy(_rnw)
+_rnconverted["damage"]["impact"] = 0.0
+_rnconverted["damage"]["puncture"] = 170.0
+_rncontrol = dc.calculate(_rnmodbase, _rnconverted)
+check(
+    "Ruvox 基伤与元素MOD数值等于同分布普通面板，灵化不额外增加伤害桶",
+    _rnm["per_type_health"] == _rncontrol["per_type_health"]
+    and _rnm["crit_cc"] == _rncontrol["crit_cc"]
+    and _rnm["crit_cm"] == _rncontrol["crit_cm"],
+)
+with patch.object(dc, "_load_co_behavior", return_value={_rnkey: {"incarnon": "independent"}}):
+    _, _, _rnco = _melee_calc("Ruvox", "灵化", "压迫点", "异况超量", "异常2")
+    _, _, _rnnomod = _melee_calc("Ruvox", "灵化")
+    check(
+        "Ruvox 灵化CO仍用普通攻击base桶：压迫点120+CO160合成3.8",
+        close(_rnco["health"], _rnnomod["health"] * 3.8),
+    )
+_rnsaved, _rnwsaved = copy.deepcopy(_rnms), copy.deepcopy(_rnw)
+check(
+    "Ruvox 灵化同份spec重复复算不累计，入参spec和原武器逐值不变",
+    dc.calculate(_rnms, _rnw) == dc.calculate(_rnms, _rnw)
+    and _rnms == _rnsaved
+    and _rnw == _rnwsaved,
+)
+with patch.object(dc, "_weapon_attacks_rec", return_value={"segments": [_melee_segment]}):
+    _, _, _rnseg = _melee_calc("Ruvox", "灵化")
+    check("Ruvox 灵化不混入结构化附带段、震地或重击震地", not _rnseg["modes"])
+
+
+def _native_rejected(result):
+    return (
+        result.get("ok") is False
+        and bool(result.get("error"))
+        and any("\u4e00" <= c <= "\u9fff" for c in result["error"])
+        and not {"health", "shield", "dps", "fire_rate", "weapon_eff", "modes"}.intersection(result)
+    )
+
+
+for _rnarg in ("冲击90", "穿刺90", "切割90", "重创", "螺钻打击", "败兴虐杀"):
+    _rnps, _, _rnpr = _melee_calc("Ruvox", "灵化", _rnarg)
+    check(
+        f"Ruvox 灵化真实解析物理输入 {_rnarg} 明确拒绝且不输出伤害数字",
+        any(_rnps["physical"].values()) and _native_rejected(_rnpr),
+        str(_rnpr),
+    )
+for _rnarg, _rnfield in (
+    ("平衡配重", "physical_convert"),
+    ("重击", "heavy"),
+    ("进化射速", "evo_keys"),
+):
+    _rnxspec, _, _rnx = _melee_calc("Ruvox", "灵化", _rnarg)
+    check(
+        f"Ruvox 灵化不支持 {_rnarg} 时友好拒绝，不退回基础输出",
+        bool(_rnxspec[_rnfield]) and _native_rejected(_rnx),
+        str(_rnx),
+    )
+for _rnphys in ({"impact": -30.0}, {"puncture": -30.0}, {"slash": -30.0}):
+    _rnriven = copy.deepcopy(_rnis)
+    _rnriven["physical"] = _rnphys
+    check(
+        f"Ruvox 紫卡等价负物理spec {_rnphys} 同样拒绝",
+        _native_rejected(dc.calculate(_rnriven, _rnw)),
+    )
+_rnzero = copy.deepcopy(_rnis)
+_rnzero["physical"] = {"impact": 0, "puncture": 0, "slash": 0}
+check("Ruvox 零物理词条不误拒绝", dc.calculate(_rnzero, _rnw)["ok"])
+_rncard = "\n".join(dc.card_lines(_rnw, _rnis, _rni, []))
+check(
+    "Ruvox 灵化卡注明已激活与普通攻击/物理词条/重击/震地/尖刺/进化攻速/时长边界",
+    all(
+        word in _rncard
+        for word in (
+            "已激活",
+            "普通攻击",
+            "物理",
+            "重击",
+            "震地",
+            "尖刺",
+            "进化",
+            "攻速",
+            "持续时间",
+        )
+    ),
+    _rncard,
+)
+check(
+    "Ruvox 灵化卡面主段明确普通攻击，不误报含多段合并",
+    "灵化普通攻击" in _rncard and "含多段合并" not in _rncard,
+    _rncard,
+)
+_arrow_spec, _arrow_w, _arrow_r = _melee_calc("Ruvox", "灵化", "狂暴")
+_arrow_card = "\n".join(dc.card_lines(_arrow_w, _arrow_spec, _arrow_r, []))
+check(
+    "射速比较采用随包字体已有箭头，避免缺字方框",
+    "0.65 → 0.85" in _arrow_card and "▸" not in _arrow_card,
+    _arrow_card,
+)
+
+# 2026-10-31 前端收尾：卡面不漏游戏富文本标记；来源写 wiki 页面标题（无下划线）⇒ 可走 QQ Markdown
+from core.render import card_markdown  # noqa: E402
+
+for _q in ("伊格尼斯 幻纹 毒气", "绝路 对 重机枪手 150级 爆头", "Lex Prime 爆头 病毒10 剥甲"):
+    _sp, _tk = dc.parse_args(_q.split())
+    _w, _a = dc.find_weapon(" ".join(_tk))
+    _res = dc.calculate(_sp, _w)
+    _ls = dc.card_lines(_w, _sp, _res, _a)
+    check(
+        f"卡面无 <DT_…> 标记与下划线页名：{_q}",
+        not any("<DT_" in x or "_" in x for x in _ls),
+        str(_ls),
+    )
+    check(
+        f"伤害卡可转 QQ Markdown：{_q}",
+        card_markdown("伤害", _ls, dc.card_footer(_w, _res)) is not None,
+    )
 
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")

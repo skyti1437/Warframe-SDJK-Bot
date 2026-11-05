@@ -42,16 +42,22 @@ class TTLCache:
 
     async def set(self, key: str, value: Any, ttl: float) -> None:
         async with self._lock:
-            self._store[key] = (time.monotonic() + max(0.0, ttl), value)
-            self._store.move_to_end(key)
-            while len(self._store) > self._maxsize:
-                self._store.popitem(last=False)
+            self._set_locked(key, value, ttl)
+
+    def _set_locked(self, key: str, value: Any, ttl: float) -> None:
+        self._store[key] = (time.monotonic() + max(0.0, ttl), value)
+        self._store.move_to_end(key)
+        while len(self._store) > self._maxsize:
+            self._store.popitem(last=False)
 
     def drop_prefix(self, prefix: str) -> int:
         """丢掉某个前缀下的全部条目（同步：只在事件循环线程里调，dict 操作本身原子）。返回丢掉的条数。"""
         keys = [k for k in self._store if str(k).startswith(prefix)]
         for k in keys:
             self._store.pop(k, None)
+        # 已开始的调用仍可完成，但新调用不能加入旧请求，旧结果也不能重新填充缓存。
+        for k in [k for k in self._inflight if str(k).startswith(prefix)]:
+            self._inflight.pop(k, None)
         return len(keys)
 
     async def get_or_fetch(
@@ -76,7 +82,9 @@ class TTLCache:
             return await asyncio.shield(fut)
         try:
             value = await fetch()
-            await self.set(key, value, ttl)
+            async with self._lock:
+                if self._inflight.get(key) is fut:
+                    self._set_locked(key, value, ttl)
             if not fut.done():
                 fut.set_result(value)
             return value
@@ -91,7 +99,8 @@ class TTLCache:
             raise
         finally:
             async with self._lock:
-                self._inflight.pop(key, None)
+                if self._inflight.get(key) is fut:
+                    self._inflight.pop(key, None)
 
     def stats(self) -> dict:
         total = self._hits + self._misses

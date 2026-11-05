@@ -26,6 +26,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -133,6 +134,46 @@ def strip_cn_tables(text: str) -> str:
     return "".join(out)
 
 
+def strip_official_drop_units(rel: str, text: str) -> str:
+    """只豁免 places 整字段中的官方完整单位名，不豁免裸派系或其它字段。"""
+    if rel != "core/data/drops.json":
+        return text
+    # DE 同键：/Lotus/Language/Game/CorruptedAncient。
+    # 英文 Corrupted Ancient，简中“远古堕落者”；不是裸派系 Corrupted 的译法。
+    official_units = {"远古堕落者"}
+    data = json.loads(text)
+    data["places"] = {
+        pid: "" if label in official_units else label
+        for pid, label in data.get("places", {}).items()
+    }
+    return json.dumps(data, ensure_ascii=False)
+
+
+_drop_fixture = json.dumps({"places": {"0": "远古堕落者"}}, ensure_ascii=False)
+check(
+    "官方完整掉落单位名可展示",
+    "堕落者" not in strip_official_drop_units("core/data/drops.json", _drop_fixture),
+)
+for _label in ("堕落者", "伪远古堕落者", "远古堕落者 Extra"):
+    _raw = json.dumps({"places": {"0": _label}}, ensure_ascii=False)
+    check(
+        "掉落裸派系与未知扩展不豁免：" + _label,
+        "堕落者" in strip_official_drop_units("core/data/drops.json", _raw),
+    )
+check(
+    "官方单位豁免不扩到其它数据字段",
+    "堕落者"
+    in strip_official_drop_units(
+        "core/data/drops.json",
+        json.dumps({"places": {"0": "远古堕落者"}, "note": "堕落者"}, ensure_ascii=False),
+    ),
+)
+check(
+    "官方掉落单位豁免不扩到其它文件",
+    strip_official_drop_units("core/data/other.json", _drop_fixture) == _drop_fixture,
+)
+
+
 scanned = 0
 for p in targets:
     rel = p.relative_to(ROOT).as_posix()
@@ -144,7 +185,7 @@ for p in targets:
         continue
     scanned += 1
     try:
-        body = strip_cn_tables(text)
+        body = strip_official_drop_units(rel, strip_cn_tables(text))
     except ValueError as e:
         check(f"国服译名表标记完整：{rel}", False, str(e))
         continue

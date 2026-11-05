@@ -5,11 +5,11 @@
 
     python scripts/run_checks.py               # = regression（默认）
     python scripts/run_checks.py regression    # 代码回归：ruff + tests/test_*.py + 伤害审计
-    python scripts/run_checks.py health        # 数据新鲜度：随包效价快照 / 言录使货单（只读）
+    python scripts/run_checks.py health        # 数据健康：静态种子结构与登记表（只读）
     python scripts/run_checks.py all           # 两类都跑，分别汇总，任一失败即非零
 
-两类结果分开报告：regression 失败 = 代码逻辑回归；health 失败 = 随包时效数据已过期
-（需按 AGENTS / 发版流程回写种子），**不是**算法回归。health 只读本地
+两类结果分开报告：regression 失败 = 代码逻辑回归；health 失败 = 静态种子损坏、动态值残留或登记表缺项。
+不得回填运行期效价或言录使周货单；时效数据由运行期获取。health 只读本地
 ``core/data``，不联网、不写运行目录、不刷新数据。
 
 regression 每个脚本用 ``sys.executable`` 独立子进程、固定工作目录（仓库根）运行，
@@ -155,13 +155,11 @@ def regression(root: Path, log_dir: Path, timeout: float, lint: bool = True) -> 
 
 # --------------------------------------------------------------------- health
 def freshness_items(root: Path, now=None) -> list[dict]:
-    """随包时效种子逐项判定（判据同运行期：``WarframeClient.valence_is_stale`` 的窗口算法、
-    言录使 ``expiry <= now`` 即过期）。只读 ``root/core/data``。"""
-    from datetime import datetime, timedelta, timezone
+    """只读包内投影：效价检查无值骨架，言录使检查静态候选目录。"""
+    from datetime import datetime, timezone
 
     sys.dont_write_bytecode = True  # 进程内导入 core，不往被测树写 __pycache__
     sys.path.insert(0, str(root))
-    from core.api_client import WarframeClient
 
     now = now or datetime.now(timezone.utc)
     items: list[dict] = []
@@ -171,37 +169,27 @@ def freshness_items(root: Path, now=None) -> list[dict]:
     except (OSError, ValueError) as exc:
         rot = {}
         items.append({"item": "rotations.json", "ok": False, "reason": f"不可读/损坏：{exc}"})
-    for sec in ("tenet", "coda"):
-        d = rot.get(sec) or {}
-        row = {
-            "item": f"rotations.json::{sec}.valence_snapshot",
-            "snapshot": d.get("valence_snapshot"),
+    from core.data_registry import acrithis_seed_problems, valence_seed_problems
+
+    problems = valence_seed_problems(rot)
+    items.append(
+        {
+            "item": "rotations.json::seed_structure",
+            "ok": not problems,
+            "reason": "；".join(problems) if problems else "包内不附效价，运行期自动获取",
         }
-        try:
-            epoch = datetime.fromisoformat(d["epoch"])
-            period = timedelta(hours=int(d.get("period_hours", 96)))
-            win = epoch + (now - epoch) // period * period
-            row["window"] = f"{win.isoformat()} ~ {(win + period).isoformat()}"
-            row["ok"] = not WarframeClient.valence_is_stale(d, now)
-            if not row["ok"]:
-                row["reason"] = (
-                    "快照缺失"
-                    if not d.get("valence_snapshot")
-                    else "快照早于当前窗口起点（上一轮数据）"
-                )
-        except (KeyError, TypeError, ValueError) as exc:
-            row["ok"], row["reason"] = False, f"epoch/周期字段畸形：{exc!r}"
-        items.append(row)
+    )
     acr_path = root / "core" / "data" / "de" / "acrichis_week.json"
-    row = {"item": "de/acrichis_week.json::expiry"}
+    row = {"item": "de/acrichis_week.json::seed_structure"}
     try:
         acr = json.loads(acr_path.read_text(encoding="utf-8"))
-        row["snapshot"] = acr.get("expiry")
-        row["ok"] = datetime.fromisoformat(acr.get("expiry") or "") > now
-        if not row["ok"]:
-            row["reason"] = "货单已到期（expiry <= 检查时刻）"
+        problems = acrithis_seed_problems(acr)
+        row["ok"] = not problems
+        row["reason"] = (
+            "；".join(problems) if problems else "包内仅静态目录，周货单由运行期自动获取"
+        )
     except (OSError, ValueError) as exc:
-        row["ok"], row["reason"] = False, f"不可读或 expiry 畸形：{exc}"
+        row["ok"], row["reason"] = False, f"静态目录不可读/损坏：{exc}"
     items.append(row)
     for r in items:
         r["checked_at"] = now.isoformat()
@@ -224,7 +212,7 @@ def registry_items(root: Path, now=None) -> list[dict]:
 
     now = now or datetime.now(timezone.utc)
     try:
-        rows = data_registry.evaluate(root / "core" / "data", now)
+        rows = data_registry.evaluate(root / "core" / "data", now, context="seed")
     except Exception as exc:  # noqa: BLE001
         return [{"item": "data_registry", "ok": False, "reason": f"登记表判据起不来：{exc!r}"}]
     items: list[dict] = []
@@ -342,7 +330,7 @@ def main(argv: list[str] | None = None) -> int:
         ok &= good
     if args.mode in ("health", "all"):
         hs = health(root, log_dir, args.now)
-        good = report("health（随包数据新鲜度，非代码回归）", hs)
+        good = report("health（静态种子与数据登记，非代码回归）", hs)
         summary["health"] = {"ok": good, "results": [asdict(r) for r in hs]}
         ok &= good
     (log_dir / "summary.json").write_text(

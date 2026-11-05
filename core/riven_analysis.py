@@ -21,6 +21,8 @@ Attribute Value Formula / Base Values 两节）：
 
 from __future__ import annotations
 
+import math
+from decimal import Decimal
 import re
 from typing import Optional
 
@@ -148,7 +150,7 @@ _BASE: dict[str, tuple] = {
     "melee_slam_damage": (None, None, None, None, 119.7),
 }
 
-# Riven Splicer 融合配方（2026-10-24 用户要「紫卡融合 / 紫卡拼接」视图）：
+# Riven Splicer 融合配方（2026-10-24 维护者定：提供「紫卡融合 / 紫卡拼接」视图）：
 # (原词条一, 原词条二, 融合词条, 适用武器类)。来源：英文 wiki「Riven Mods」页
 # 「Riven Splicer Splicing Recipes」表（wikitext 原表逐行转录，22 条配方 / 18 个融合词条；
 # 弹效 / 收枪装填 / 弱点暴击 / 弱点伤害 各有两条配方）。「基伤」= 枪械 Damage 与近战 Melee
@@ -282,7 +284,7 @@ def kitgun_mode_class(name: str, base_cls: str, base_riven_type: str) -> str:
 def count_candidates(n_pos: int, n_neg: int, hidden: int = 0) -> list:
     """已知 n_pos 正 / n_neg 负 + ``hidden`` 条未揭示（卡面「？？？」）⇒ 可能的 (正, 负) 词条数组合。
 
-    2026-10-24 用户：融合时还没选定的词条卡面只显示「？？？」，正负未知；按总行数
+    2026-10-24 维护者定：融合时还没选定的词条卡面只显示「？？？」，正负未知；按总行数
     判断是 3+1 还是 2+x —— 4 行必是 3+1，3 行且已有负词条必是 2+1，3 行无负词条则
     3+0 / 2+1 两可（交给调用方用数值可行性挑）。返回顺序：未揭示的先当正词条。
     """
@@ -302,8 +304,39 @@ def factor_for(n_pos: int, n_neg: int) -> tuple[float, Optional[float]]:
     return FACTOR.get((n_pos, n_neg), (0.9375, 0.75))
 
 
+# 武器机制数据；与 OCR 名称修正和提示词无关。仅终幕·噬轮的物理三项 ×6。
+# 来源：社区 Wiki Coda Motovore / Notes；适用范围见下方机制定义。
+# https://wiki.warframe.com/w/Coda_Motovore
+_WEAPON_STAT_MULTIPLIERS = {
+    "codamotovore": {"impact_damage": 6.0, "puncture_damage": 6.0, "slash_damage": 6.0},
+}
+
+
+def weapon_stat_multipliers(weapon) -> dict:
+    """从已解析武器的英文名/slug 查机制；未知武器、母系列及其它变体不继承。"""
+    names = (
+        [weapon.get(k) or "" for k in ("en", "url_name")] if isinstance(weapon, dict) else [weapon]
+    )
+    for name in names:
+        key = re.sub(r"[\s_-]", "", str(name or "")).casefold()
+        if key in _WEAPON_STAT_MULTIPLIERS:
+            return dict(_WEAPON_STAT_MULTIPLIERS[key])
+    return {}
+
+
+def _stat_multiplier(stat_id: str, stat_multipliers=None) -> float:
+    return (stat_multipliers or {}).get(stat_id, 1.0)
+
+
 def stat_range(
-    stat_id: str, cls: str, disposition: float, n_pos: int, n_neg: int, *, negative: bool = False
+    stat_id: str,
+    cls: str,
+    disposition: float,
+    n_pos: int,
+    n_neg: int,
+    *,
+    negative: bool = False,
+    stat_multipliers=None,
 ) -> tuple:
     """单词条的取值区间 (min, max)。
 
@@ -327,7 +360,7 @@ def stat_range(
         return (None, None)
     pos_f, neg_f = factor_for(n_pos, n_neg)
     f = neg_f if negative else pos_f
-    mid = b * disposition * f
+    mid = b * disposition * f * _stat_multiplier(stat_id, stat_multipliers)
     return (round(mid * 0.9, 2), round(mid * 1.1, 2))
 
 
@@ -402,6 +435,231 @@ def display_tol(stat_id: str, value: float) -> float:
     return _DISPLAY_TOL
 
 
+def splice_preview(
+    stats_pos,
+    stats_neg,
+    cls,
+    disposition=UNIFIED_DISPOSITION,
+    *,
+    counts=None,
+    hidden=0,
+    incomplete=False,
+    pool=None,
+    allowed_missing=None,
+    blocked_reason="",
+    stat_multipliers=None,
+) -> dict:
+    """预览融合；数值均为内部 magnitude，不把派系百分数转成乘数。
+
+    社区 Wiki Riven Splicer 算法：仅对被消耗的两条按实际正负槽反推 U，
+    取较高 U 生成正面结果。DE 44.1 只证实布局保持，并非此算法的精度背书。
+    卡面舍入使 U 只能估计；区间传播保留 display_tol 的不确定性。
+    ``pool`` 接受 class_pool 的快照；缺少快照时拒绝预测，避免维护第二套许可表。
+    ``allowed_missing`` 为 {stat_id: iterable["positive" | "negative"]}，
+    与 pool 许可及原卡可替换槽取交集。函数不读取文件、不改写输入。
+    """
+    result = {
+        "schema_version": 1,
+        "status": "invalid",
+        "reasons": [],
+        "cls": cls if isinstance(cls, str) else None,
+        "disposition": None,
+        "counts": [],
+        "existing_spliced": [],
+        "direct": [],
+        "missing_one": [],
+        "assumptions": [
+            "preserve_polarity_layout",
+            "retain_existing_inputs",
+            "community_wiki_formula",
+            "display_rounding_uncertainty",
+        ],
+    }
+
+    def stop(status, *reasons):
+        result["status"] = status
+        result["reasons"] = list(reasons)
+        result["direct"] = []
+        result["missing_one"] = []
+        return result
+
+    def normalize(sid):
+        return "attack_speed" if cls == "melee" and sid == "fire_rate" else sid
+
+    try:
+        entries = [
+            (normalize(sid), value, negative)
+            for rows, negative in ((stats_pos or [], False), (stats_neg or [], True))
+            for sid, value in rows
+        ]
+    except (TypeError, ValueError):
+        return stop("invalid", "invalid_stats")
+    actual_counts = (sum(not neg for _, _, neg in entries), sum(neg for _, _, neg in entries))
+    try:
+        metadata_counts = tuple(actual_counts if counts is None else counts)
+        if len(metadata_counts) == 2 and all(type(n) is int for n in metadata_counts):
+            result["counts"] = list(metadata_counts)
+    except TypeError:
+        pass
+    try:
+        metadata_disp = float(disposition)
+        if math.isfinite(metadata_disp):
+            result["disposition"] = metadata_disp
+    except (TypeError, ValueError, OverflowError):
+        pass
+    outputs = {recipe[2] for recipe in SPLICE_RECIPES}
+    result["existing_spliced"] = list(
+        dict.fromkeys(sid for sid, _, _ in entries if isinstance(sid, str) and sid in outputs)
+    )
+    if result["existing_spliced"]:
+        return stop("already_spliced", "existing_spliced")
+    if hidden or incomplete or blocked_reason:
+        reasons = []
+        if hidden:
+            reasons.append("hidden_stats")
+        if incomplete:
+            reasons.append("incomplete_stats")
+        if blocked_reason:
+            reasons.append(str(blocked_reason))
+        return stop("incomplete", *reasons)
+    if not isinstance(cls, str) or cls not in _CLASS_IDX:
+        return stop("unsupported", "unsupported_class")
+    if pool is None:
+        return stop("unsupported", "pool_unavailable")
+    try:
+        layout = tuple(actual_counts if counts is None else counts)
+        if len(layout) != 2 or any(type(n) is not int for n in layout) or layout not in FACTOR:
+            return stop("invalid", "invalid_counts")
+    except TypeError:
+        return stop("invalid", "invalid_counts")
+    result["counts"] = list(layout)
+    if layout != actual_counts:
+        return stop("invalid", "counts_mismatch")
+    try:
+        disp = float(disposition)
+    except (TypeError, ValueError, OverflowError):
+        return stop("invalid", "invalid_disposition")
+    if not math.isfinite(disp) or disp <= 0:
+        return stop("invalid", "invalid_disposition")
+    result["disposition"] = disp
+    pos_factor, neg_factor = FACTOR[layout]
+
+    def permitted(sid, negative):
+        if _base_value(sid, cls) is None:
+            return False
+        limit = pool.get(sid)
+        return bool(limit and limit.get("malus" if negative else "bonus") is True)
+
+    present = {}
+    for sid, raw_value, negative in entries:
+        if not isinstance(sid, str) or sid not in _BASE:
+            return stop("invalid", "unknown_stat")
+        if sid in present:
+            return stop("invalid", "duplicate_stat")
+        if _base_value(sid, cls) is None:
+            return stop("unsupported", "missing_base")
+        if not permitted(sid, negative):
+            return stop("invalid", "stat_not_allowed")
+        if isinstance(raw_value, bool):
+            return stop("invalid", "invalid_value")
+        try:
+            value = float(raw_value)
+        except (TypeError, ValueError, OverflowError):
+            return stop("invalid", "invalid_value")
+        if not math.isfinite(value) or value <= 0:
+            return stop("invalid", "invalid_value")
+        center = (
+            _base_value(sid, cls)
+            * disp
+            * (neg_factor if negative else pos_factor)
+            * _stat_multiplier(sid, stat_multipliers)
+        )
+        if not math.isfinite(center) or center <= 0:
+            return stop("invalid", "invalid_disposition")
+        tol = display_tol(sid, value)
+        lower = max(0.9, (value - tol) / center)
+        upper = min(1.1, (value + tol) / center)
+        if lower > upper + 1e-12:
+            return stop("invalid", "out_of_range")
+        # 浮点边界容差只消除算术尾差，不扩大卡面舍入带。
+        lower = max(0.9, min(1.1, min(lower, upper)))
+        upper = max(0.9, upper)
+        present[sid] = {
+            "stat_id": sid,
+            "negative": negative,
+            "value": value,
+            "roll": max(0.9, min(1.1, value / center)),
+            "roll_min": lower,
+            "roll_max": upper,
+        }
+
+    def position(roll):
+        return max(0.0, min(100.0, (roll - 0.9) * 500))
+
+    def prediction(output, known, conditional):
+        center = (
+            _base_value(output, cls)
+            * disp
+            * pos_factor
+            * _stat_multiplier(output, stat_multipliers)
+        )
+        roll_min = max(item["roll_min"] for item in known)
+        roll_max = 1.1 if conditional else max(item["roll_max"] for item in known)
+        roll = None if conditional else max(item["roll"] for item in known)
+        return {
+            "value": None if roll is None else center * roll,
+            "value_min": center * roll_min,
+            "value_max": center * roll_max,
+            "range_min": center * 0.9,
+            "range_max": center * 1.1,
+            "deviation_pct": None if roll is None else (roll - 1.0) * 100,
+            "deviation_min_pct": (roll_min - 1.0) * 100,
+            "deviation_max_pct": (roll_max - 1.0) * 100,
+            "position_pct": None if roll is None else position(roll),
+            "position_min_pct": position(roll_min),
+            "position_max_pct": position(roll_max),
+            "approximate": True,
+        }
+
+    for first, second, output, _classes in splice_recipes(cls):
+        if not permitted(output, False):
+            continue
+        if not math.isfinite(_base_value(output, cls) * disp * pos_factor * 1.1):
+            return stop("invalid", "invalid_disposition")
+        inputs = [first, second]
+        known = [present[sid] for sid in inputs if sid in present]
+        missing = [sid for sid in inputs if sid not in present]
+        if not known:
+            continue
+        polarities = []
+        if missing:
+            sid = missing[0]
+            retained = known[0]
+            for polarity, negative in (("positive", False), ("negative", True)):
+                # 重洗可替换无关负面；保留的输入已占负槽时不能再添负面。
+                slots = layout[1 if negative else 0] - int(retained["negative"] == negative)
+                if slots <= 0 or not permitted(sid, negative):
+                    continue
+                if allowed_missing is not None and polarity not in allowed_missing.get(sid, ()):
+                    continue
+                polarities.append(polarity)
+            if not polarities:
+                continue
+        recipe = {
+            "inputs": inputs,
+            "output": output,
+            "present": known,
+            "missing": missing,
+            "missing_polarities": polarities,
+            "prediction": prediction(output, known, bool(missing)),
+        }
+        result["missing_one" if missing else "direct"].append(recipe)
+    if not result["direct"] and not result["missing_one"]:
+        return stop("no_match", "no_matching_recipe")
+    result["status"] = "ready"
+    return result
+
+
 def _stat_entries(stats_pos, stats_neg) -> list:
     """词条扁平化 → [(stat_id, value, is_negative)]（值一律为 magnitude）。"""
     return [(sid, float(v), False) for sid, v in (stats_pos or [])] + [
@@ -410,7 +668,13 @@ def _stat_entries(stats_pos, stats_neg) -> list:
 
 
 def _fit_dev(
-    entries, cls: str, pos_f: float, neg_f: Optional[float], disp: float, tol_fn
+    entries,
+    cls: str,
+    pos_f: float,
+    neg_f: Optional[float],
+    disp: float,
+    tol_fn,
+    stat_multipliers=None,
 ) -> Optional[float]:
     """候选倾向能否解释全部词条：能则返回最大 |U-1|（越小越居中），否则 None。
 
@@ -431,7 +695,7 @@ def _fit_dev(
         if not b or not f or v <= 0 or disp <= 0:
             continue
         t = tol_fn(sid, v)
-        denom = b * f * disp
+        denom = b * f * disp * _stat_multiplier(sid, stat_multipliers)
         # 该词条反推的 U 区间必须与 [0.9, 1.1] 有交集
         if (v + t) / denom < 0.9 or (v - t) / denom > 1.1:
             return None
@@ -440,7 +704,9 @@ def _fit_dev(
     return worst if used else None
 
 
-def disposition_interval(stats_pos, stats_neg, cls, *, tol_fn=None, counts=None) -> tuple:
+def disposition_interval(
+    stats_pos, stats_neg, cls, *, tol_fn=None, counts=None, stat_multipliers=None
+) -> tuple:
     """由卡面数值反解倾向的可行区间。
 
     Args:
@@ -458,6 +724,8 @@ def disposition_interval(stats_pos, stats_neg, cls, *, tol_fn=None, counts=None)
     lo, hi, used = 0.0, 1e9, 0
     for sid, v, neg in _stat_entries(stats_pos, stats_neg):
         b = _base_value(sid, cls)
+        if b is not None:
+            b *= _stat_multiplier(sid, stat_multipliers)
         f = neg_f if neg else pos_f
         if not b or not f or v <= 0:
             continue
@@ -470,7 +738,9 @@ def disposition_interval(stats_pos, stats_neg, cls, *, tol_fn=None, counts=None)
     return (round(lo, 4), round(hi, 4))
 
 
-def disp_feasible(stats_pos, stats_neg, cls, disp: float, *, tol_fn=None, counts=None) -> bool:
+def disp_feasible(
+    stats_pos, stats_neg, cls, disp: float, *, tol_fn=None, counts=None, stat_multipliers=None
+) -> bool:
     """给定倾向 disp，判断卡面数值是否落在其 ±10% 区间内（全词条都要过）。
 
     ``counts`` 同 `disposition_interval`：(正, 负) 词条数，None = 按 stats 条数。
@@ -478,7 +748,15 @@ def disp_feasible(stats_pos, stats_neg, cls, disp: float, *, tol_fn=None, counts
     tol_fn = tol_fn or display_tol
     pos_f, neg_f = factor_for(*(counts or (len(stats_pos or []), len(stats_neg or []))))
     return (
-        _fit_dev(_stat_entries(stats_pos, stats_neg), cls, pos_f, neg_f, float(disp), tol_fn)
+        _fit_dev(
+            _stat_entries(stats_pos, stats_neg),
+            cls,
+            pos_f,
+            neg_f,
+            float(disp),
+            tol_fn,
+            stat_multipliers,
+        )
         is not None
     )
 
@@ -544,6 +822,10 @@ def is_negative_only(sid: str) -> bool:
 #   -115.7%处决 只认了三行，区间系数从 0.9375 错成 1.2375，整卡数值全不吻合）。
 _POL_RE = re.compile(r"^[^\w]*([+＋\-−–—－]|负|[x×])\s*(.*)$", re.I)
 _NUM_RE = re.compile(r"\d+(?:[.,]\d+)?")
+RIVEN_CATEGORY_LABELS = frozenset(
+    {"步枪", "霰弹枪", "手枪", "近战", "空战枪械", "空战近战", "组合枪", "自制近战"}
+)
+_RIVEN_TITLE_RE = re.compile(r"[\u4e00-\u9fff][\u4e00-\u9fff\s·]*\s*[A-Za-z]+(?:[\s-]+[A-Za-z]+)*")
 # 全角 % 用 \uff05 转义写：它只在**输入匹配**里用到（永远不渲染到卡面），
 # 写成字面量会让「仓库语料」多出一个子集字体没有的字形（test_render_overflow
 # 的字库覆盖用例），逼着去重建字体子集。
@@ -555,7 +837,10 @@ _MULT_RE = re.compile(r"[x×]\s*(\d+(?:[.,]\d+)?)|(\d+(?:[.,]\d+)?)\s*[x×]", re
 #   「+211.4% 暴击几率（重击时 x2）」里那个 x2 命中 _MULT_RE，k=2.0 落在
 #   is_faction_mult 域内 ⇒ 被当派系乘数换算成 100.0，**211.4 静默丢失**
 #   （条数判据仍合法，整卡区间/评级全错）。同类：`+150.0% 连击持续时间 x2`。
-_PARA_RE = re.compile(r"[（(][^）)]*[）)]")
+_STAT_CATEGORY_ANNOTATIONS = {
+    "重击时x2": "crit_chance",
+    "弓类武器效果加倍": "fire_rate",
+}
 # 乘数写法还原成 magnitude 的下限：对派系伤害基值 45 × 最小倾向 0.5 ×
 # 2正1负的 0.495 ≈ 11 ⇒ 小于 10 的数字一定不是 magnitude，而是「乘数漏写了
 # x / 只写了 1.51 或 0.55」，按乘数还原。
@@ -672,24 +957,56 @@ def hidden_line_count(lines) -> int:
     return sum(1 for t in (lines or []) if _HIDDEN_RE.match(str(t or "").strip()))
 
 
+def split_stat_annotation(text: str) -> tuple[str, Optional[str], bool]:
+    """只拆完整、单层、同型的已知领域尾注，返回主体、限定 SID 与合法性。
+
+    已知尾注允许一个汉字 OCR 替换，数字、倍率、括号结构必须完整一致。
+    其它未知或损坏的括号保留原文并拒绝；主体整名仍须 exact 校验限定 SID。
+    """
+    # 全/半角括号属于同一个排版字符；仍只允许完整的已知类别尾注。
+    text = text.translate(str.maketrans({"（": "(", "）": ")"}))
+    if not any(char in text for char in "()"):
+        return text, None, True
+    match = re.fullmatch(
+        r"(?P<base>[^()（）]+?)(?:\((?P<ascii>[^()（）]*)\)|（(?P<cjk>[^()（）]*)）)\s*", text
+    )
+    if not match:
+        return text, None, False
+    annotation = re.sub(r"\s+", "", match["ascii"] or match["cjk"] or "").casefold()
+    annotation = annotation.replace("×", "x")
+    sid = _STAT_CATEGORY_ANNOTATIONS.get(annotation)
+    if sid is None:
+        candidates = set()
+        for known, target in _STAT_CATEGORY_ANNOTATIONS.items():
+            if len(annotation) != len(known):
+                continue
+            differences = [(a, b) for a, b in zip(annotation, known) if a != b]
+            if len(differences) == 1 and all(
+                "\u4e00" <= char <= "\u9fff" for char in differences[0]
+            ):
+                candidates.add(target)
+        if len(candidates) == 1:
+            sid = candidates.pop()
+    base = match["base"].rstrip()
+    return (base, sid, True) if sid and base else (text, None, False)
+
+
 def _strip_name(body: str) -> str:
-    """词条行去掉数值/乘数/单位后剩下的词条名（去空格便于对表）。"""
-    name = _MULT_RE.sub(" ", body)
+    """去掉主体数值/单位；完整已知尾注保留给 SID 绑定，未知括号不裁。"""
+    base, annotation_sid, valid = split_stat_annotation(body)
+    annotation = body[len(base) :] if valid and annotation_sid else ""
+    name = _MULT_RE.sub(" ", base if annotation else body)
     name = _NUM_RE.sub(" ", name)
     name = re.sub(r"[%\uff05x×\s　·、:：]", "", name, flags=re.I)
-    # 「米/秒」只在两端剥（紧挨数值的单位）：词条名中间的「每秒」是名字的一部分
-    #   （「收起武器时弹匣每秒自动装填」剥成「…每自动装填」会被短名「弹匣」抢走）
-    return re.sub(r"^[米秒]+|[米秒]+$", "", name)
+    # 单位只剥两端；词条「收起武器时弹匣每秒自动装填」的「秒」属于名称。
+    name = re.sub(r"^[米秒]+|[米秒]+$", "", name)
+    return name + annotation
 
 
 def _strip_parens(text: str) -> str:
-    """剥掉括号后缀（连同括号内容），只留主文案。
-
-    ★ 只用于**搜乘数**，不参与词条名解析：`_strip_name` 对
-    「211.4% 暴击几率（重击时 x2）」产出「暴击几率（重击时）」且照旧能 resolve 成
-    crit_chance（`_stat_id_from_name` 走子串包含），保持原样以免动到认名链路。
-    """
-    return _PARA_RE.sub(" ", text or "")
+    """仅从数值扫描排除完整已知领域尾注；名称匹配另须绑定正确 SID。"""
+    base, required_sid, valid = split_stat_annotation(text or "")
+    return base if valid and required_sid else text or ""
 
 
 def _dedup_pairs(pairs: list) -> list:
@@ -703,7 +1020,315 @@ def _dedup_pairs(pairs: list) -> list:
     return out
 
 
-def parse_riven_lines(lines, resolve, exact=None) -> tuple:
+def _is_riven_title(text: str, resolve=None) -> bool:
+    if not _RIVEN_TITLE_RE.fullmatch(text):
+        return False
+    first_latin = re.search(r"[A-Za-z]", text).start()
+    name, suffix = text[:first_latin].strip(), text[first_latin:].casefold()
+    # 协议空值/未知状态不是拉丁自命名；类别字段和损坏词条也不能获得标题角色。
+    if suffix in {"null", "none", "unknown", "unreadable", "unclear", "nan"}:
+        return False
+    if re.search(r"未知|未确认|未读清|看不清", name):
+        return False
+    return name in RIVEN_CATEGORY_LABELS or not (resolve and resolve(name))
+
+
+def _riven_row_roles(rows: list, resolve=None) -> dict:
+    """用单卡字段框架解释结构行；不读取答案，不把未知词条当成UI。"""
+    active = [r for r in rows if not r.get("structural")]
+    titles = [i for i, r in enumerate(active) if _is_riven_title(r["text"], resolve)]
+    data = [
+        i
+        for i, r in enumerate(active)
+        if _POL_RE.match(r["text"]) or _MULT_RE.search(_strip_parens(r["text"]))
+    ]
+    footers = [
+        i
+        for i, r in enumerate(active)
+        if re.fullmatch(r"(?:段位|精通段位|等级需求)\s*[:：]?\s*\d+(?:\s+\d+)*", r["text"])
+    ]
+    context = {"title_count": len(titles), "title_lines": [], "data_lines": [], "footer_lines": []}
+    if len(titles) != 1 or len(data) < 2 or not footers:
+        return context
+    title, first, last = titles[0], min(data), max(data)
+    footer = next((i for i in footers if i > last), None)
+    if not title < first or footer is None:
+        return context
+    context.update(
+        title_lines=active[title]["source_lines"],
+        data_lines=[n for i in data for n in active[i]["source_lines"]],
+        footer_lines=active[footer]["source_lines"],
+    )
+    if title == 1 and first == title + 1 and re.fullmatch(r"\d+\s*[一－—-]?", active[0]["text"]):
+        # 数值只获得“单卡标题前元数据”角色，具体是容量还是其它字段仍不推断。
+        active[0].update(
+            structural="card_header_integer",
+            role="untyped_header_metadata",
+            role_evidence=context.copy(),
+            semantic_field=None,
+        )
+    anchors = [active[title], *[active[i] for i in data]]
+    if not all(r.get("position") for r in anchors):
+        return context
+    left = min(r["position"][0] - r["position"][3] / 2 for r in anchors)
+    right = max(r["position"][0] + r["position"][3] / 2 for r in anchors)
+    bottom = max(active[i]["position"][1] + active[i]["position"][2] / 2 for i in data)
+    for row in active:
+        position = row.get("position")
+        if row["text"] not in {"所有", "等级", "确认", "取消"} or not position:
+            continue
+        x, y, h, w, _angle = position
+        if y - h / 2 > bottom and (x + w / 2 < left or x - w / 2 > right):
+            row.update(
+                structural="outside_card_ui",
+                role="ui_label",
+                role_evidence={**context, "content_column": [left, right], "data_bottom": bottom},
+            )
+    return context
+
+
+def _mark_spatial_riven_region(rows: list, resolve=None) -> None:
+    """只在唯一标题—词条—段位坐标框成立时，标记框外观察；不删原文。"""
+    frames = []
+    for title in rows:
+        if not title.get("position") or not _is_riven_title(title["text"], resolve):
+            continue
+        tx, ty, th, tw, _ = title["position"]
+        for footer in rows:
+            if not footer.get("position") or not re.fullmatch(
+                r"(?:段位|精通段位|等级需求)\s*[:：]?\s*\d+(?:\s+\d+)*", footer["text"]
+            ):
+                continue
+            fx, fy, fh, fw, _ = footer["position"]
+            if fy <= ty or abs(fx - tx) > max(tw, 150):
+                continue
+            stats = [
+                row
+                for row in rows
+                if row.get("position")
+                and ty < row["position"][1] < fy
+                and abs(row["position"][0] - tx) <= max(tw / 2, th * 2)
+                and (_POL_RE.match(row["text"]) or _MULT_RE.search(_strip_parens(row["text"])))
+            ]
+            if not 2 <= len(stats) <= 4:
+                continue
+            first_y = min(row["position"][1] for row in stats)
+            center_x = sum(row["position"][0] for row in stats) / len(stats)
+            # 同一词条列上方的远处标题/配置栏不能跨过更近的卡名抢占这组词条。
+            # 两张各有词条的完整卡仍会得到两个框，保持多区域待确认。
+            if any(
+                other is not title
+                and other.get("position")
+                and ty < other["position"][1] < first_y
+                and _is_riven_title(other["text"], resolve)
+                and abs(other["position"][0] - center_x)
+                <= max(other["position"][3] / 2, other["position"][2] * 2)
+                for other in rows
+            ):
+                continue
+            anchors = [title, footer, *stats]
+            # 折行标题合并后的总高度不是单字高度；不能据此把左右界
+            # 扩大到卡外图标。边距使用标题与段位单行高度的较小者。
+            side_padding = min(th, fh)
+            left = min(r["position"][0] - r["position"][3] / 2 for r in anchors) - side_padding
+            right = max(r["position"][0] + r["position"][3] / 2 for r in anchors) + side_padding
+            frames.append(
+                {
+                    "left": left,
+                    "right": right,
+                    "top": ty - th,
+                    "bottom": fy + fh * 2,
+                    "title_lines": title["source_lines"],
+                    "footer_lines": footer["source_lines"],
+                }
+            )
+    if len(frames) != 1:
+        return
+    frame = frames[0]
+    footer = next(r for r in rows if r["source_lines"] == frame["footer_lines"])
+    fx, fy, fh, _fw, _ = footer["position"]
+    for row in rows:
+        position = row.get("position")
+        if not position or row.get("structural"):
+            continue
+        x, y, h, _w, _angle = position
+        if (
+            re.fullmatch(r"\d+", row["text"])
+            and fx < x <= frame["right"]
+            and abs(y - fy) <= max(h, fh) / 2
+        ):
+            # OCR的输出顺序不一定按阅读顺序。段位右侧同基线纯整数是
+            # 已观测底栏元数据，不把它猜成词条值，也不猜它具体是什么字段。
+            row.update(
+                structural="card_footer_integer",
+                role="untyped_footer_metadata",
+                role_evidence=dict(frame),
+                semantic_field=None,
+            )
+            continue
+        # 明确段位框之外的下方工具栏也不属于卡面正文。带符号/倍率/问号
+        # 或已知属性名的行仍保留，防止漏读的词条被错误底栏吞掉。
+        below_footer = y - h / 2 > frame["bottom"] and not (
+            _POL_RE.match(row["text"])
+            or _MULT_RE.search(_strip_parens(row["text"]))
+            or _HIDDEN_RE.match(row["text"])
+            or (resolve and resolve(row["text"]))
+        )
+        if not frame["left"] <= x <= frame["right"] or y < frame["top"] or below_footer:
+            row.update(
+                structural="outside_card_region",
+                role="outside_observed_card",
+                role_evidence=dict(frame),
+            )
+
+
+def decode_riven_lines(lines, exact=None, *, resolve=None) -> dict:
+    """机械解包坐标、列表及明确折行；保留原行、位置与操作，不接收答案。"""
+    if isinstance(lines, str):
+        lines = lines.splitlines()
+    rows = []
+    for index, raw in enumerate(lines or [], 1):
+        text = str(raw or "").strip()
+        if not text:
+            continue
+        row = {"source_lines": [index], "raw_lines": [str(raw)], "text": text, "operations": []}
+        parts = text.split(",", 5)
+        if len(parts) == 6:
+            from .loadout_ocr import coordinate_aabb
+
+            position = coordinate_aabb(parts[:5])
+            if position:
+                row["position"] = position
+                row["observed_rotated_box"] = list(map(float, parts[:5]))
+                text = parts[5].strip()
+                row["operations"].append("unwrap_coordinate_payload")
+        cleaned = re.sub(
+            r"^(?:[*•]\s+|\d{1,2}[.)、]\s+|第[一二三四五六七八九十\d]+行[：:]\s*)", "", text
+        )
+        if cleaned != text:
+            row["operations"].append("unwrap_explicit_list_prefix")
+        row["text"] = cleaned
+        if re.fullmatch(r"```(?:text|json)?", cleaned, re.I):
+            row["structural"] = "markdown_fence"
+        rows.append(row)
+    _mark_spatial_riven_region(rows, resolve)
+    # 只连接已有字符。括号闭合且完整名称精确命中才允许尾注跨行。
+    joined = []
+    i = 0
+    data_seen = False
+    while i < len(rows):
+        row = rows[i]
+        text, end, operation = row["text"], i, None
+        if (
+            not data_seen
+            and text.endswith("-")
+            and _is_riven_title(text[:-1], resolve)
+            and i + 1 < len(rows)
+            and re.fullmatch(r"[A-Za-z]+(?:-[A-Za-z]+)*", rows[i + 1]["text"])
+            and _is_riven_title(text + rows[i + 1]["text"], resolve)
+        ):
+            # 标题后缀在已有连字符处断行：只接回已有字符，不补任何名称。
+            text += rows[i + 1]["text"]
+            end, operation = i + 1, "join_existing_hyphenated_title"
+        if (
+            operation is None
+            and not data_seen
+            and i + 1 < len(rows)
+            and re.fullmatch(r"[\u4e00-\u9fff][\u4e00-\u9fff\s·]*", text)
+            and not ((resolve or exact) and (resolve or exact)(text.replace(" ", "")))
+            and re.fullmatch(r"[A-Za-z]+(?:-[A-Za-z]+)*", rows[i + 1]["text"])
+            and _is_riven_title(text + " " + rows[i + 1]["text"], resolve)
+            and any(
+                re.fullmatch(r"(?:段位|精通段位|等级需求)\s*[:：]?\s*\d+(?:\s+\d+)*", r["text"])
+                for r in rows
+            )
+            and any(_POL_RE.match(r["text"]) for r in rows[i + 2 :])
+        ):
+            # 中/拉丁两部分属于标题的语法候选；只加分隔空白，不补字母/词条。
+            text += " " + rows[i + 1]["text"]
+            end, operation = i + 1, "join_title_script_boundary"
+        if (
+            operation is None
+            and not data_seen
+            and not row.get("structural")
+            and _is_riven_title(text, resolve)
+            and i + 1 < len(rows)
+            and re.fullmatch(r"[A-Za-z]+(?:-[A-Za-z]+)*", rows[i + 1]["text"])
+            and row.get("position")
+            and rows[i + 1].get("position")
+            and abs(row["position"][0] - rows[i + 1]["position"][0]) <= row["position"][3] / 2
+            and 0
+            < rows[i + 1]["position"][1] - row["position"][1]
+            < max(row["position"][2], rows[i + 1]["position"][2]) * 2
+        ):
+            text += " " + rows[i + 1]["text"]
+            end, operation = i + 1, "join_spatial_title_continuation"
+        if exact and not row.get("structural") and operation is None:
+            pure_value = re.fullmatch(r"[+＋\-−\ufe63×xX]\s*\d+(?:[.,]\d+)?\s*[%％米秒ms]?", text)
+            opened = text.count("(") + text.count("（") - text.count(")") - text.count("）")
+            if (
+                pure_value
+                and i + 1 < len(rows)
+                and not _NUM_RE.search(rows[i + 1]["text"])
+                and exact(_strip_name(rows[i + 1]["text"]))
+            ):
+                text += " " + rows[i + 1]["text"]
+                end, operation = i + 1, "join_signed_value_and_exact_name"
+            elif opened == 1 and _POL_RE.match(text):
+                candidate = text
+                for stop in range(i + 1, min(i + 4, len(rows))):
+                    nxt = rows[stop]["text"]
+                    if rows[stop].get("structural") or re.match(r"^[+＋\-−\ufe63]\s*\d", nxt):
+                        break
+                    candidate += nxt
+                    base, annotation, valid = split_stat_annotation(candidate)
+                    if (
+                        valid
+                        and annotation
+                        and exact(_strip_name(_POL_RE.sub(r"\2", base))) == annotation
+                    ):
+                        text, end, operation = candidate, stop, "join_existing_known_annotation"
+                        break
+                    if any(c in nxt for c in ")）"):
+                        break
+        merged = {**row, "text": text}
+        if operation:
+            merged["source_lines"] = [n for part in rows[i : end + 1] for n in part["source_lines"]]
+            merged["raw_lines"] = [n for part in rows[i : end + 1] for n in part["raw_lines"]]
+            merged["operations"] = [
+                op for part in rows[i : end + 1] for op in part["operations"]
+            ] + [operation]
+            positions = [part.get("position") for part in rows[i : end + 1]]
+            if all(positions):
+                left = min(v[0] - v[3] / 2 for v in positions)
+                right = max(v[0] + v[3] / 2 for v in positions)
+                top = min(v[1] - v[2] / 2 for v in positions)
+                bottom = max(v[1] + v[2] / 2 for v in positions)
+                merged["position"] = [
+                    (left + right) / 2,
+                    (top + bottom) / 2,
+                    bottom - top,
+                    right - left,
+                    0,
+                ]
+        joined.append(merged)
+        data_seen |= bool(not row.get("structural") and _POL_RE.match(text))
+        i = end + 1
+    # 先沿原文合并折行，再排序，避免跨列文字夹进同一卡的标题续行。
+    positioned = [r for r in joined if not r.get("structural")]
+    if positioned and all(r.get("position") for r in positioned):
+        joined.sort(key=lambda r: (r.get("position", [0, -1])[1], r.get("position", [0])[0]))
+    # 标题的拉丁后缀常会折行；拼接后才能建立标题—词条—段位区域。
+    _mark_spatial_riven_region(joined, resolve)
+    context = _riven_row_roles(joined, resolve)
+    return {
+        "rows": joined,
+        "lines": [r["text"] for r in joined if not r.get("structural")],
+        "frame": context,
+    }
+
+
+def parse_riven_lines(lines, resolve, exact=None, *, role_resolve=None) -> tuple:
     """卡面原文行 → (正词条, 负词条, 备注)。
 
     Args:
@@ -726,11 +1351,21 @@ def parse_riven_lines(lines, resolve, exact=None) -> tuple:
     pos: list = []
     neg: list = []
     notes: list = []
-    merged = merge_polarity_lines(lines)
+    decoded = decode_riven_lines(lines, exact, resolve=role_resolve or resolve)
+    if decoded.get("frame", {}).get("title_count", 0) > 1:
+        notes.append("多区域标题：无法确认词条属于同一张卡")
+    merged = merge_polarity_lines(decoded["lines"])
     skip_next = False
+    seen_footer = False
     for i, raw in enumerate(merged):
         if skip_next:
             skip_next = False
+            continue
+        if any(
+            Decimal(m.group().replace(",", ".")) != Decimal(str(float(m.group().replace(",", "."))))
+            for m in _NUM_RE.finditer(raw)
+        ):
+            notes.append(f"数值精度无法保留：{raw}")
             continue
         m = _POL_RE.match(raw)
         if not m or not m.group(2).strip():
@@ -753,16 +1388,63 @@ def parse_riven_lines(lines, resolve, exact=None) -> tuple:
                     if is_inverted(sid2):
                         neg2 = not neg2
                     (neg if neg2 else pos).append((sid2, value2))
+                    seen_footer = False
                     continue
                 # 出界的 x/×（如「多重射击 ×59」）：不猜数值，保留「无极性符号」
                 # 跳过（与旧行为一致）；上面主路径的同类出界按普通数值读。
-            notes.append(f"无极性符号：{raw}")
+            # 无符号也可能是整行损坏的数据。仅明确的结构格式可作杂行；
+            # 不能由“未知名称且没有数字”反推出这行无需核对。
+            metadata = bool(
+                re.fullmatch(
+                    r"(?:段位|精通段位|等级需求|内融值|循环次数)\s*[:：]?\s*"
+                    r"\d+(?:,\d{3})*(?:\s+\d+)*",
+                    raw,
+                )
+            )
+            heading = bool(
+                re.fullmatch(r"(?:以下是)?(?:卡面)?(?:正面|负面)?(?:词条|属性)(?:行)?[:：]?", raw)
+            )
+            legend = bool(re.fullmatch(r"(?:点击|按下)\s*[ⓘℹiI]\s*查看详情", raw))
+            # 卡名 + 拉丁自命名仅在首条数据前视为标题；无具体武器/词条白名单。
+            title = bool(
+                not (pos or neg or seen_footer) and _is_riven_title(raw, role_resolve or resolve)
+            )
+            # 页脚数值只借已经出现的明确元数据锚点，不能借位置猜容量/词条值。
+            footer_integer = (
+                seen_footer
+                and bool(pos or neg)
+                and bool(re.fullmatch(r"\d+", raw))
+                and not any(
+                    _POL_RE.match(line)
+                    or _HIDDEN_RE.match(line)
+                    or _MULT_RE.search(_strip_parens(line))
+                    for line in merged[i + 1 :]
+                )
+            )
+            if metadata:
+                seen_footer = True
+            if _HIDDEN_RE.match(raw):
+                continue
+            # 明确段位底栏之后的循环按钮、费用和余额属于界面，不是词条。
+            footer_ui = bool(
+                seen_footer
+                and (pos or neg)
+                and re.fullmatch(
+                    r"(?:确认|取消|用\s*\d+(?:,\d{3})*\s*来循环|"
+                    r"剩余赤毒\s*[:：]\s*\d+(?:,\d{3})*)",
+                    raw,
+                )
+            )
+            structural = metadata or footer_integer or heading or legend or title or footer_ui
+            notes.append(f"{'无极性符号' if structural else '疑似词条未解析'}：{raw}")
             continue
+        # 页脚后又出现数据，后续无标签数字重新保持未知。
+        seen_footer = False
         neg_flag = _POLARITY.get(m.group(1), False)
         body = m.group(2).strip()
         name = _strip_name(body)
         sid = resolve(name) if name else None
-        # ★ 2026-10-24（用户：有些词条占两行）：数值在前、名字折到下一行
+        # ★ 2026-10-24（维护者定：有些词条占两行）：数值在前、名字折到下一行
         #   （「+112.9% 收起武器时弹匣每秒」/「自动装填」）—— 下一行是不带极性、不带数字、
         #   不是问号的纯名字尾巴，且拼上后**整名精确命中**词条 ⇒ 按拼好的名字算（否则半截名
         #   会被子串「弹匣」认成弹匣容量）。
@@ -802,7 +1484,7 @@ def parse_riven_lines(lines, resolve, exact=None) -> tuple:
             # 普通数值分支。也覆盖「x/× 出界」：窄读把词条图标抄成 × 的行
             # （线上实证「×59% 多重射击」）——出界的 x 不是派系乘数，数字按
             # 普通数值读（旧实现按乘数换算成 |1−59|×100 = 5800%）。
-            mn = _NUM_RE.search(body)
+            mn = _NUM_RE.search(_strip_parens(body))
             if not mn:
                 notes.append(f"无数值：{raw}")
                 continue
@@ -823,6 +1505,9 @@ def parse_riven_lines(lines, resolve, exact=None) -> tuple:
         elif is_inverted(sid):
             neg_flag = not neg_flag
         (neg if neg_flag else pos).append((sid, value))
-    # 同一条词条不可能既正又负（卡面每行只出现一次）：两侧都在时以负为准
+    ids = [sid for sid, _ in pos + neg]
+    if len(ids) != len(set(ids)):
+        notes.append("重复或冲突词条：原文中同一词条出现多次")
+    # 保留既有返回形状；重复/冲突备注使业务侧拒绝自动采信。
     neg_ids = {sid for sid, _ in neg}
     return (_dedup_pairs([p for p in pos if p[0] not in neg_ids]), _dedup_pairs(neg), notes)

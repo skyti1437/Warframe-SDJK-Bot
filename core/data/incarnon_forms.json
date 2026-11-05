@@ -1,9 +1,9 @@
 {
  "_meta": {
-  "source": "英文 wiki Module:Weapons/data（原型条目里的 Incarnon 攻击）+ Condition Overload (Mechanic) Attack Catalog，CC BY-NC-SA 3.0；中文名为 DE 官方简中（weapons_stats.json）",
+  "source": "英文 wiki Module:Weapons/data（原型条目里的 Incarnon 攻击）+ Condition Overload (Mechanic) Attack Catalog；近战加成取指定 Incarnon Genesis 页 EVO1；Ruvox 取原生灵化页 EVO1及 melee.lua（逐条附源码 SHA256），CC BY-NC-SA 3.0；中文名为 DE 官方简中（weapons_stats.json）",
   "wiki_snapshot": "wiki-modules-20261026",
   "generator": "scripts/build_incarnon_forms.py",
-  "scope": "枪械灵化（近战灵化计算器尚未建模）；不含灵化进化 perk",
+  "scope": "枪械灵化基础面板（不含可选进化 perk）+ 首批 Genesis 近战（允许 14 页，本次收录 24 个明确变体；仅 EVO1 +100% Melee Damage，基伤 MOD 桶）；不自动扩展同族，原生 Ruvox 1 个（仅普通命中转换、独立攻速与范围；IPS MOD/重击/震地/虚空尖刺/进化攻速未覆盖）；本次共 94 个形态；不含 Innodem/Praedos/Thalys/其它特殊攻击/激活时间/持续时间",
   "pseudo_reload": "magazine = wiki IncarnonCharges；reload_seconds = 原型装填 + 1 s（我方建模约定：打空弹池后切回原型装填再切灵化算一次循环，变形按 1 s 估）",
   "radial": "暴击/触发取 wiki 该范围子攻击；takes_multishot 只写有出处的 false；takes_condition_overload 按 CO 页"
  },
@@ -72,6 +72,34 @@
    "magazine": 50.0,
    "reload_seconds": 2.8
   }
+ },
+ "/lotus/weapons/corpus/melee/kickandpunch/kickpunchweapon": {
+  "kind": "melee_buff",
+  "damage_mod_pct": 100.0,
+  "base_name": "Obex",
+  "base_zh": "奥比克斯",
+  "form_name": "Obex (Incarnon Form)",
+  "form_zh": "奥比克斯 (灵化形态)",
+  "source": {
+   "wiki_page": "Obex Incarnon Genesis",
+   "sha256": "2439f45081de2be9cf1fa762ee401cc06bc7459b42eecd3e4b27e204a910b960",
+   "snapshot": "wiki-modules-20261026"
+  },
+  "evo1_description": "Reach 6x Combo and then Heavy Attack to activate Incarnon Form. Perform a large radial attack for each Finisher strike. +100% Melee Damage +20% Sprint Speed +20% Parkour Velocity"
+ },
+ "/lotus/weapons/corpus/melee/kickandpunch/prismaobex": {
+  "kind": "melee_buff",
+  "damage_mod_pct": 100.0,
+  "base_name": "Prisma Obex",
+  "base_zh": "棱晶·奥比克斯",
+  "form_name": "Prisma Obex (Incarnon Form)",
+  "form_zh": "棱晶·奥比克斯 (灵化形态)",
+  "source": {
+   "wiki_page": "Obex Incarnon Genesis",
+   "sha256": "2439f45081de2be9cf1fa762ee401cc06bc7459b42eecd3e4b27e204a910b960",
+   "snapshot": "wiki-modules-20261026"
+  },
+  "evo1_description": "Reach 6x Combo and then Heavy Attack to activate Incarnon Form. Perform a large radial attack for each Finisher strike. +100% Melee Damage +20% Sprint Speed +20% Parkour Velocity"
  },
  "/lotus/weapons/corpus/pistols/corpusminigun/corpusminigun": {
   "form_name": "Cestra (Incarnon Form)",
@@ -236,6 +264,20 @@
    "reload_seconds": 4.0
   }
  },
+ "/lotus/weapons/grineer/melee/grineertylaxeandboar/regoraxeshield": {
+  "kind": "melee_buff",
+  "damage_mod_pct": 100.0,
+  "base_name": "Ack & Brunt",
+  "base_zh": "认知 & 冲击",
+  "form_name": "Ack & Brunt (Incarnon Form)",
+  "form_zh": "认知 & 冲击 (灵化形态)",
+  "source": {
+   "wiki_page": "Ack & Brunt Incarnon Genesis",
+   "sha256": "1b0a0bdb19ba706615e62abb16ea6b496ee995cda416c97d10ccc786514d5caf",
+   "snapshot": "wiki-modules-20261026"
+  },
+  "evo1_description": "Reach 6x Combo and then Heavy Attack to activate Incarnon Form. Send forth a spectral axe during aerial and slide attacks. +100% Melee Damage +20% Sprint Speed +20% to Parkour Velocity"
+ },
  "/lotus/weapons/grineer/pistols/grineercrossbow/grineergoogun": {
   "form_name": "Stug (Incarnon Form)",
   "form_zh": "史特克 (灵化形态)",
@@ -324,6 +366,34 @@
   "ricochet": {
    "bounces": 1
   }
+ },
+ "/lotus/weapons/mk1series/mk1bo": {
+  "kind": "melee_buff",
+  "damage_mod_pct": 100.0,
+  "base_name": "Mk1-Bo",
+  "base_zh": "MK1-玻之武杖",
+  "form_name": "Mk1-Bo (Incarnon Form)",
+  "form_zh": "MK1-玻之武杖 (灵化形态)",
+  "source": {
+   "wiki_page": "Bo Incarnon Genesis",
+   "sha256": "9a10370cba9d0abf44800682e57df5b2cad3ebf4c3409a80ebac339d36ae9016",
+   "snapshot": "wiki-modules-20261026"
+  },
+  "evo1_description": "Reach 6x Combo and then Heavy Attack to activate Incarnon Form. Incarnon form increases Range and Heavy Attack Efficiency. +100% Melee Damage +4 Range +50% Heavy Attack Efficiency +20% Sprint Speed +20% to Bullet Jump"
+ },
+ "/lotus/weapons/mk1series/mk1furax": {
+  "kind": "melee_buff",
+  "damage_mod_pct": 100.0,
+  "base_name": "Mk1-Furax",
+  "base_zh": "MK1-弗拉克斯",
+  "form_name": "Mk1-Furax (Incarnon Form)",
+  "form_zh": "MK1-弗拉克斯 (灵化形态)",
+  "source": {
+   "wiki_page": "Furax Incarnon Genesis",
+   "sha256": "4d143898c025797eb2f9813ad05647fd396a6fc1fff45bf93adc3bfc79e8ba68",
+   "snapshot": "wiki-modules-20261026"
+  },
+  "evo1_description": "Reach 6x Combo and then Heavy Attack to activate Incarnon Form. Incarnon Form gains 90% Heavy Slam Efficiency and leaves behind Heat Damage fields after Heavy Slams. +100% Melee Damage +25% Sprint Speed +25% to Bullet Jump"
  },
  "/lotus/weapons/mk1series/mk1furis": {
   "form_name": "Mk1-Furis (Incarnon Form)",
@@ -517,6 +587,20 @@
    "magazine": 15.0,
    "reload_seconds": 2.8
   }
+ },
+ "/lotus/weapons/syndicates/newloka/melee/nlmagistar": {
+  "kind": "melee_buff",
+  "damage_mod_pct": 100.0,
+  "base_name": "Sancti Magistar",
+  "base_zh": "圣洁·执法者",
+  "form_name": "Sancti Magistar (Incarnon Form)",
+  "form_zh": "圣洁·执法者 (灵化形态)",
+  "source": {
+   "wiki_page": "Magistar Incarnon Genesis",
+   "sha256": "5f44b750357a6d770165367cf7a4bea0d7db53593ce50fca34b09f94dd6b8d55",
+   "snapshot": "wiki-modules-20261026"
+  },
+  "evo1_description": "Reach 6x Combo and then Heavy Attack to activate Incarnon Form. Incarnon Form increases Initial Combo and Wind Up Speed +100% Melee Damage +30 Initial Combo +50% Heavy Attack Wind Up Speed +10% Sprint Speed +10% to Bullet Jump."
  },
  "/lotus/weapons/syndicates/redveil/pistols/rvballistica": {
   "form_name": "Rakta Ballistica (Incarnon Form)",
@@ -878,6 +962,244 @@
    "magazine": 40.0,
    "reload_seconds": 3.4
   }
+ },
+ "/lotus/weapons/tenno/melee/axe/dualinfestedaxesweapon": {
+  "kind": "melee_buff",
+  "damage_mod_pct": 100.0,
+  "base_name": "Dual Ichor",
+  "base_zh": "恶脓双斧",
+  "form_name": "Dual Ichor (Incarnon Form)",
+  "form_zh": "恶脓双斧 (灵化形态)",
+  "source": {
+   "wiki_page": "Dual Ichor Incarnon Genesis",
+   "sha256": "56c83e6a1306f667f2f708f94433fa4c70b3584cdec2970414783db75a2d664c",
+   "snapshot": "wiki-modules-20261026"
+  },
+  "evo1_description": "Reach 6x Combo and then Heavy Attack to activate Incarnon Form. Kills create a Toxin Damage field +100% Melee Damage +20% Sprint Speed +20% to Bullet Jump"
+ },
+ "/lotus/weapons/tenno/melee/dagger/ceramicdagger": {
+  "kind": "melee_buff",
+  "damage_mod_pct": 100.0,
+  "base_name": "Ceramic Dagger",
+  "base_zh": "陶瓷匕首",
+  "form_name": "Ceramic Dagger (Incarnon Form)",
+  "form_zh": "陶瓷匕首 (灵化形态)",
+  "source": {
+   "wiki_page": "Ceramic Dagger Incarnon Genesis",
+   "sha256": "dc8e69f9abb034a73d8d1b11853d540daacf087f5248b9fca2316f55bc64eb5f",
+   "snapshot": "wiki-modules-20261026"
+  },
+  "evo1_description": "Reach 6x Combo and then Heavy Attack to activate Incarnon Form. Heavy Attacks sends forth spectral daggers. +100% Melee Damage +25% Sprint Speed +25% to Parkour Velocity"
+ },
+ "/lotus/weapons/tenno/melee/fist/fist": {
+  "kind": "melee_buff",
+  "damage_mod_pct": 100.0,
+  "base_name": "Furax",
+  "base_zh": "弗拉克斯",
+  "form_name": "Furax (Incarnon Form)",
+  "form_zh": "弗拉克斯 (灵化形态)",
+  "source": {
+   "wiki_page": "Furax Incarnon Genesis",
+   "sha256": "4d143898c025797eb2f9813ad05647fd396a6fc1fff45bf93adc3bfc79e8ba68",
+   "snapshot": "wiki-modules-20261026"
+  },
+  "evo1_description": "Reach 6x Combo and then Heavy Attack to activate Incarnon Form. Incarnon Form gains 90% Heavy Slam Efficiency and leaves behind Heat Damage fields after Heavy Slams. +100% Melee Damage +25% Sprint Speed +25% to Bullet Jump"
+ },
+ "/lotus/weapons/tenno/melee/fist/furaxwraith": {
+  "kind": "melee_buff",
+  "damage_mod_pct": 100.0,
+  "base_name": "Furax Wraith",
+  "base_zh": "弗拉克斯·亡魂",
+  "form_name": "Furax Wraith (Incarnon Form)",
+  "form_zh": "弗拉克斯·亡魂 (灵化形态)",
+  "source": {
+   "wiki_page": "Furax Incarnon Genesis",
+   "sha256": "4d143898c025797eb2f9813ad05647fd396a6fc1fff45bf93adc3bfc79e8ba68",
+   "snapshot": "wiki-modules-20261026"
+  },
+  "evo1_description": "Reach 6x Combo and then Heavy Attack to activate Incarnon Form. Incarnon Form gains 90% Heavy Slam Efficiency and leaves behind Heat Damage fields after Heavy Slams. +100% Melee Damage +25% Sprint Speed +25% to Bullet Jump"
+ },
+ "/lotus/weapons/tenno/melee/hammer/icehammer/icehammer": {
+  "kind": "melee_buff",
+  "damage_mod_pct": 100.0,
+  "base_name": "Sibear",
+  "base_zh": "西伯利亚冰锤",
+  "form_name": "Sibear (Incarnon Form)",
+  "form_zh": "西伯利亚冰锤 (灵化形态)",
+  "source": {
+   "wiki_page": "Sibear Incarnon Genesis",
+   "sha256": "09f9ccbbae570af39abbe015d1dc0474bb8c48a56282d6d27dc616896a07dc4e",
+   "snapshot": "wiki-modules-20261026"
+  },
+  "evo1_description": "Reach 6x Combo and then Heavy Attack to activate Incarnon Form. Create a Cold Blast Radius with Heavy Slams. +100% Melee Damage +50% Heavy Attack Wind Up Speed +10% Sprint Speed +10% to Parkour Velocity"
+ },
+ "/lotus/weapons/tenno/melee/longsword/longsword": {
+  "kind": "melee_buff",
+  "damage_mod_pct": 100.0,
+  "base_name": "Skana",
+  "base_zh": "空刃",
+  "form_name": "Skana (Incarnon Form)",
+  "form_zh": "空刃 (灵化形态)",
+  "source": {
+   "wiki_page": "Skana Incarnon Genesis",
+   "sha256": "e85f6b3fb6249d6574445ce78e3f7bbb4c190da31134b76c9ab181eded4f6f84",
+   "snapshot": "wiki-modules-20261026"
+  },
+  "evo1_description": "Reach 6x Combo and then Heavy Attack to activate Incarnon Form. Incarnon Form stuns nearby enemies when it enters Incarnon Form and after Finisher attacks. +100% Melee Damage +20% Sprint Speed +20% Parkour Velocity"
+ },
+ "/lotus/weapons/tenno/melee/longsword/skanaprime": {
+  "kind": "melee_buff",
+  "damage_mod_pct": 100.0,
+  "base_name": "Skana Prime",
+  "base_zh": "空刃 Prime",
+  "form_name": "Skana Prime (Incarnon Form)",
+  "form_zh": "空刃 Prime (灵化形态)",
+  "source": {
+   "wiki_page": "Skana Incarnon Genesis",
+   "sha256": "e85f6b3fb6249d6574445ce78e3f7bbb4c190da31134b76c9ab181eded4f6f84",
+   "snapshot": "wiki-modules-20261026"
+  },
+  "evo1_description": "Reach 6x Combo and then Heavy Attack to activate Incarnon Form. Incarnon Form stuns nearby enemies when it enters Incarnon Form and after Finisher attacks. +100% Melee Damage +20% Sprint Speed +20% Parkour Velocity"
+ },
+ "/lotus/weapons/tenno/melee/maces/paladinmace/paladinmaceweapon": {
+  "kind": "melee_buff",
+  "damage_mod_pct": 100.0,
+  "base_name": "Magistar",
+  "base_zh": "执法者",
+  "form_name": "Magistar (Incarnon Form)",
+  "form_zh": "执法者 (灵化形态)",
+  "source": {
+   "wiki_page": "Magistar Incarnon Genesis",
+   "sha256": "5f44b750357a6d770165367cf7a4bea0d7db53593ce50fca34b09f94dd6b8d55",
+   "snapshot": "wiki-modules-20261026"
+  },
+  "evo1_description": "Reach 6x Combo and then Heavy Attack to activate Incarnon Form. Incarnon Form increases Initial Combo and Wind Up Speed +100% Melee Damage +30 Initial Combo +50% Heavy Attack Wind Up Speed +10% Sprint Speed +10% to Bullet Jump."
+ },
+ "/lotus/weapons/tenno/melee/scythe/parisscythe/parisscythe": {
+  "kind": "melee_buff",
+  "damage_mod_pct": 100.0,
+  "base_name": "Anku",
+  "base_zh": "夺魂死神",
+  "form_name": "Anku (Incarnon Form)",
+  "form_zh": "夺魂死神 (灵化形态)",
+  "source": {
+   "wiki_page": "Anku Incarnon Genesis",
+   "sha256": "12e8c273c3264dbf7562e4d370a776a918a15119493841b90e6d6306582f98c0",
+   "snapshot": "wiki-modules-20261026"
+  },
+  "evo1_description": "Reach 6x Combo and then Heavy Attack to activate Incarnon Form. Incarnon form temporarily increases Range and inflicts guaranteed Slash Status for all attacks after a successful slide attack. +100% Melee Damage +20% Sprint Speed +20% Bullet Jump"
+ },
+ "/lotus/weapons/tenno/melee/scythe/stalkerscytheweapon": {
+  "kind": "melee_buff",
+  "damage_mod_pct": 100.0,
+  "base_name": "Hate",
+  "base_zh": "憎恨",
+  "form_name": "Hate (Incarnon Form)",
+  "form_zh": "憎恨 (灵化形态)",
+  "source": {
+   "wiki_page": "Hate Incarnon Genesis",
+   "sha256": "29d8ca88cdf2be563e90c856744ae1bb74f1428e56422cde4edf4fb5c87127f4",
+   "snapshot": "wiki-modules-20261026"
+  },
+  "evo1_description": "Reach 6x Combo and then Heavy Attack to activate Incarnon Form. Forward and Neutral Combos embed explosive blades. +100% Melee Damage +20% Sprint Speed +20% to Parkour Velocity"
+ },
+ "/lotus/weapons/tenno/melee/staff/primebo/primeboweapon": {
+  "kind": "melee_buff",
+  "damage_mod_pct": 100.0,
+  "base_name": "Bo Prime",
+  "base_zh": "玻之武杖 Prime",
+  "form_name": "Bo Prime (Incarnon Form)",
+  "form_zh": "玻之武杖 Prime (灵化形态)",
+  "source": {
+   "wiki_page": "Bo Incarnon Genesis",
+   "sha256": "9a10370cba9d0abf44800682e57df5b2cad3ebf4c3409a80ebac339d36ae9016",
+   "snapshot": "wiki-modules-20261026"
+  },
+  "evo1_description": "Reach 6x Combo and then Heavy Attack to activate Incarnon Form. Incarnon form increases Range and Heavy Attack Efficiency. +100% Melee Damage +4 Range +50% Heavy Attack Efficiency +20% Sprint Speed +20% to Bullet Jump"
+ },
+ "/lotus/weapons/tenno/melee/staff/staff": {
+  "kind": "melee_buff",
+  "damage_mod_pct": 100.0,
+  "base_name": "Bo",
+  "base_zh": "玻之武杖",
+  "form_name": "Bo (Incarnon Form)",
+  "form_zh": "玻之武杖 (灵化形态)",
+  "source": {
+   "wiki_page": "Bo Incarnon Genesis",
+   "sha256": "9a10370cba9d0abf44800682e57df5b2cad3ebf4c3409a80ebac339d36ae9016",
+   "snapshot": "wiki-modules-20261026"
+  },
+  "evo1_description": "Reach 6x Combo and then Heavy Attack to activate Incarnon Form. Incarnon form increases Range and Heavy Attack Efficiency. +100% Melee Damage +4 Range +50% Heavy Attack Efficiency +20% Sprint Speed +20% to Bullet Jump"
+ },
+ "/lotus/weapons/tenno/melee/swords/cutlassandpoignard/tennocutlass": {
+  "kind": "melee_buff",
+  "damage_mod_pct": 100.0,
+  "base_name": "Nami Solo",
+  "base_zh": "海波单剑",
+  "form_name": "Nami Solo (Incarnon Form)",
+  "form_zh": "海波单剑 (灵化形态)",
+  "source": {
+   "wiki_page": "Nami Solo Incarnon Genesis",
+   "sha256": "a12d63efa9195927e1820298a87c8c65e950b13cd3ea0500caa251b371b6d07d",
+   "snapshot": "wiki-modules-20261026"
+  },
+  "evo1_description": "Reach 6x Combo and then Heavy Attack to activate Incarnon Form. Greatly increase Range +3 Range +100% Melee Damage +20% Sprint Speed +20% to Parkour Velocity"
+ },
+ "/lotus/weapons/tenno/melee/swords/prapier/destrezaprime": {
+  "kind": "melee_buff",
+  "damage_mod_pct": 100.0,
+  "base_name": "Destreza Prime",
+  "base_zh": "技巧之剑 Prime",
+  "form_name": "Destreza Prime (Incarnon Form)",
+  "form_zh": "技巧之剑 Prime (灵化形态)",
+  "source": {
+   "wiki_page": "Destreza Incarnon Genesis",
+   "sha256": "02bee3b0e56946e8389cf75c4ac58e6354b2c7617a11e16abfeac8b2f91294cb",
+   "snapshot": "wiki-modules-20261026"
+  },
+  "evo1_description": "Reach 6x Combo and then Heavy Attack to activate Incarnon Form. Heavy Attacks summon 5 spectral rapiers with that fly forward for 2 seconds. +100% Melee Damage +20% Sprint Speed +20% Parkour Velocity +10% Puncture Damage per Heavy Attack kill, up to 300% while transformed"
+ },
+ "/lotus/weapons/tenno/melee/swords/primeokina/primeokina": {
+  "kind": "melee_buff",
+  "damage_mod_pct": 100.0,
+  "base_name": "Okina Prime",
+  "base_zh": "翁 Prime",
+  "form_name": "Okina Prime (Incarnon Form)",
+  "form_zh": "翁 Prime (灵化形态)",
+  "source": {
+   "wiki_page": "Okina Incarnon Genesis",
+   "sha256": "e3ead791c0a0368bc08432faf242401b8910a29442afd9ce0264bdfb1b00a7e9",
+   "snapshot": "wiki-modules-20261026"
+  },
+  "evo1_description": "Reach 6x Combo and then Heavy Attack to activate Incarnon Form. Kills generate spectral daggers that target enemies, applying max Cold Status stacks. +100% Melee Damage +20% Sprint Speed +20% to Parkour Velocity"
+ },
+ "/lotus/weapons/tenno/melee/swords/tennosai/tennosais": {
+  "kind": "melee_buff",
+  "damage_mod_pct": 100.0,
+  "base_name": "Okina",
+  "base_zh": "翁",
+  "form_name": "Okina (Incarnon Form)",
+  "form_zh": "翁 (灵化形态)",
+  "source": {
+   "wiki_page": "Okina Incarnon Genesis",
+   "sha256": "e3ead791c0a0368bc08432faf242401b8910a29442afd9ce0264bdfb1b00a7e9",
+   "snapshot": "wiki-modules-20261026"
+  },
+  "evo1_description": "Reach 6x Combo and then Heavy Attack to activate Incarnon Form. Kills generate spectral daggers that target enemies, applying max Cold Status stacks. +100% Melee Damage +20% Sprint Speed +20% to Parkour Velocity"
+ },
+ "/lotus/weapons/tenno/melee/swords/tnorapier/tnorapier": {
+  "kind": "melee_buff",
+  "damage_mod_pct": 100.0,
+  "base_name": "Destreza",
+  "base_zh": "技巧之剑",
+  "form_name": "Destreza (Incarnon Form)",
+  "form_zh": "技巧之剑 (灵化形态)",
+  "source": {
+   "wiki_page": "Destreza Incarnon Genesis",
+   "sha256": "02bee3b0e56946e8389cf75c4ac58e6354b2c7617a11e16abfeac8b2f91294cb",
+   "snapshot": "wiki-modules-20261026"
+  },
+  "evo1_description": "Reach 6x Combo and then Heavy Attack to activate Incarnon Form. Heavy Attacks summon 5 spectral rapiers with that fly forward for 2 seconds. +100% Melee Damage +20% Sprint Speed +20% Parkour Velocity +10% Puncture Damage per Heavy Attack kill, up to 300% while transformed"
  },
  "/lotus/weapons/tenno/pistol/autopistol": {
   "form_name": "Furis (Incarnon Form)",
@@ -1882,6 +2204,30 @@
    "reload_seconds": 3.0
   }
  },
+ "/lotus/weapons/thanotech/entfistincarnon/entfistincarnon": {
+  "kind": "melee_native",
+  "damage_conversion": {
+   "from": "impact",
+   "to": "puncture",
+   "ratio": 1.0
+  },
+  "attack_speed_multiplier": 0.65,
+  "range_bonus_m": 3.0,
+  "supported_attacks": [
+   "Normal Attack"
+  ],
+  "base_name": "Ruvox",
+  "base_zh": "古声",
+  "form_name": "Ruvox (Incarnon Form)",
+  "form_zh": "古声 (灵化形态)",
+  "source": {
+   "wiki_page": "Ruvox",
+   "sha256": "599c88517a226870afe8d372c6a2664a4d0494e5e897ff3266efdd5a3ddb4ebe",
+   "weapon_module_sha256": "633f674dc86fb9d511b5760bd9f20721ac8ed97d478aa7f9b9c9ca52326e0edf",
+   "snapshot": "wiki-modules-20261026"
+  },
+  "evo1_description": "Reach 6x Combo and then Heavy Attack to activate Incarnon Form. Heavy Slam attacks impale nearby enemies on Void Spikes. +3 Range -35% Max Melee Attack Speed +100% of Impact Damage converted to Puncture Damage"
+ },
  "/lotus/weapons/thanotech/entratiwristgun/entratiwristgunweapon": {
   "form_name": "Onos (Incarnon Form)",
   "form_zh": "赘骨 (灵化形态)",
@@ -1901,5 +2247,19 @@
    "magazine": 350.0,
    "reload_seconds": 3.0
   }
+ },
+ "/lotus/weapons/voidtrader/prismaskana": {
+  "kind": "melee_buff",
+  "damage_mod_pct": 100.0,
+  "base_name": "Prisma Skana",
+  "base_zh": "棱晶·空刃",
+  "form_name": "Prisma Skana (Incarnon Form)",
+  "form_zh": "棱晶·空刃 (灵化形态)",
+  "source": {
+   "wiki_page": "Skana Incarnon Genesis",
+   "sha256": "e85f6b3fb6249d6574445ce78e3f7bbb4c190da31134b76c9ab181eded4f6f84",
+   "snapshot": "wiki-modules-20261026"
+  },
+  "evo1_description": "Reach 6x Combo and then Heavy Attack to activate Incarnon Form. Incarnon Form stuns nearby enemies when it enters Incarnon Form and after Finisher attacks. +100% Melee Damage +20% Sprint Speed +20% Parkour Velocity"
  }
 }

@@ -91,7 +91,8 @@ _fx_cache = Path(tempfile.mkdtemp())
 (_fx_cache / "dict.zh.json").write_text(json.dumps(_fx_zh, ensure_ascii=False), encoding="utf-8")
 _real_cache, _bnb.CACHE = _bnb.CACHE, _fx_cache
 try:
-    _fx_pairs = _bnb.build()["pairs"]
+    _fx_data = _bnb.build()
+    _fx_pairs = _fx_data["pairs"]
 finally:
     _bnb.CACHE = _real_cache
     shutil.rmtree(_fx_cache, ignore_errors=True)
@@ -100,6 +101,50 @@ check(
     _fx_pairs == [["Athodai", "阿索代"], ["Mutagen Mass", "突变原聚合物"], ["Vitality", "生命力"]],
     str(_fx_pairs),
 )
+
+
+def check_bilingual_cli(generator: Path) -> None:
+    """真实 CLI 检查产物一致性；失败不得自动覆盖或创建文件。"""
+    code = (
+        "import importlib.util,sys; from pathlib import Path; "
+        "s=importlib.util.spec_from_file_location('builder',sys.argv[1]); "
+        "m=importlib.util.module_from_spec(s); s.loader.exec_module(m); "
+        "m.CACHE=Path(sys.argv[2]); m.OUT=Path(sys.argv[3]); "
+        "m.MOD_ZH=Path(sys.argv[2])/'absent_mods.json'; "
+        "sys.argv=['builder','--check']; m.main()"
+    )
+    for mode in ("same", "stale", "invalid", "absent", "missing-en", "missing-zh"):
+        with tempfile.TemporaryDirectory() as directory:
+            tmp = Path(directory)
+            for name, data in (("en", _fx_en), ("zh", _fx_zh)):
+                if mode != "missing-" + name:
+                    (tmp / f"dict.{name}.json").write_text(json.dumps(data), encoding="utf-8")
+            target = tmp / "names.json"
+            if mode != "absent":
+                data = json.loads(json.dumps(_fx_data))
+                if mode == "stale":
+                    data["pairs"].pop()
+                target.write_text(
+                    "broken" if mode == "invalid" else json.dumps(data), encoding="utf-8"
+                )
+            before = target.read_bytes() if target.exists() else None
+            result = subprocess.run(
+                [sys.executable, "-c", code, str(generator), str(tmp), str(target)],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            after = target.read_bytes() if target.exists() else None
+            check(
+                f"名称表 --check {mode}：正确判定且不写盘",
+                result.returncode == (0 if mode == "same" else 1)
+                and before == after
+                and (not mode.startswith("missing-") or "缺少离线缓存" in result.stdout),
+                result.stdout + result.stderr,
+            )
+
+
+check_bilingual_cli(ROOT / "scripts" / "build_name_bilingual.py")
 
 # 全量重建：依赖构建机上的 DE language 表离线缓存（.gitignore 排除，不随包）⇒ 按能力执行
 if (_bnb.CACHE / "dict.en.json").is_file():
@@ -142,6 +187,13 @@ _cases = [
     ("阿索代prime", "阿索代 Prime"),
     ("Corrosive Projection", "腐蚀投射"),
     ("Athodai Prime", "阿索代 Prime"),
+    ("Overpressured Rounds", "超压弹药"),
+    ("Primed Polar Magazine", "极地弹仓 Prime"),
+    ("Prototype Shock Coils", "原型电击线圈"),
+    ("Nightwave Avionics", "午夜电波飞航系统"),
+    ("Nightwave Engines", "午夜电波引擎"),
+    ("Nightwave Fuselage", "午夜电波机身"),
+    ("Ambulas Black", "智踱恐鸟黑"),
 ]
 for q, want in _cases:
     r = M.bilingual_lookup(q)

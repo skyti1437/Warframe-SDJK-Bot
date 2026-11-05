@@ -18,7 +18,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -199,6 +199,16 @@ ok, why = community_acrithis_ok({"expiry": "bogus", "items": [{"name": "x"}]}, N
 check("★ 消费侧：expiry 畸形 → 拒绝", ok is False, why)
 ok, why = community_acrithis_ok({**GOOD_ACR, "observed": ""}, NOW)
 check("消费侧：observed 缺失不算问题（expiry 才是硬判据）", ok is True, why)
+
+_static_acr = json.loads((ROOT / "core/data/de/acrichis_week.json").read_text(encoding="utf-8"))
+ok, why = community_acrithis_ok(_static_acr, NOW)
+check("静态候选目录不能成为社区周货单", ok is False, why)
+if P is not None:
+    try:
+        P.build_acrithis(_static_acr, STAMP, NOW)
+        check("发布器拒绝静态候选目录", False)
+    except ValueError as exc:
+        check("发布器拒绝静态候选目录", "items" in str(exc), str(exc))
 
 check(
     "消费侧 URL 指向 bot-data 分支",
@@ -383,16 +393,9 @@ if P is not None:
 # ---------------------------------------------------------------------------
 MAIN_SRC = (ROOT / "main.py").read_text(encoding="utf-8")
 API_SRC = (ROOT / "core" / "api_client.py").read_text(encoding="utf-8")
-_i_phase = MAIN_SRC.index('if phase != "ready":')
-_i_call = MAIN_SRC.index("await self._refresh_from_community()", _i_phase)
-_i_sleep = MAIN_SRC.index("await asyncio.sleep(self._secs_to_aligned_tick())", _i_phase)
+# 实际后台调度由 test_valence_autorefresh 的循环入口用例覆盖。
 check(
-    "★ 接线：非 ready 分支里先走社区快照、再 sleep（否则整段跳过）",
-    _i_phase < _i_call < _i_sleep,
-    f"phase={_i_phase} call={_i_call} sleep={_i_sleep}",
-)
-check(
-    "★ 接线：两个刷新都支持 community_only（跳过 FS 的直通路径）",
+    "★ 接线：两个刷新都支持 community_only（跳过 HTTP/FS 的社区专用路径）",
     # 2026-10-18 起两者另带 force（面板「从源头重抓」），只核对 community_only 仍是第一个参数
     "async def refresh_valence(self, community_only: bool = False" in API_SRC
     and "async def refresh_acrichis_week(self, community_only: bool = False" in API_SRC,
@@ -406,12 +409,12 @@ check(
     'if isinstance(st, str) and st.startswith("refreshed")' in MAIN_SRC,
 )
 check(
-    "文案：FS 缺失提示已改为「社区快照或随包快照」（不再说「不再自动刷新」）",
-    "社区快照或随包快照" in MAIN_SRC and "将沿用随包快照、不再自动刷新" not in MAIN_SRC,
+    "文案：FS 缺失提示使用社区快照或已有运行缓存",
+    "社区快照或已有运行缓存" in MAIN_SRC and "将沿用随包快照、不再自动刷新" not in MAIN_SRC,
 )
 
 # ---------------------------------------------------------------------------
-# 8. 可达性：社区快照走**三条通道**（国内实测读不到 raw）
+# 8. 可达性：效价增加 Contents API 独立候选，其它快照保留三条通道
 # ---------------------------------------------------------------------------
 from core.api_client import (  # noqa: E402
     COMMUNITY_ACRITHIS_URLS,
@@ -419,32 +422,27 @@ from core.api_client import (  # noqa: E402
 )
 
 check(
-    "★ 消费侧：两条数据各有 3 条通道（raw → jsDelivr → statically）",
-    len(COMMUNITY_VALENCE_URLS) == 3 and len(COMMUNITY_ACRITHIS_URLS) == 3,
+    "★ 消费侧：效价有 4 条通道，货单保留 3 条",
+    len(COMMUNITY_VALENCE_URLS) == 4 and len(COMMUNITY_ACRITHIS_URLS) == 3,
     f"{len(COMMUNITY_VALENCE_URLS)} / {len(COMMUNITY_ACRITHIS_URLS)}",
 )
 check(
-    "  主通道是 raw，三条都指向同一 bot-data 分支",
+    "  主通道是 raw，候选都指向同一 bot-data 分支",
     COMMUNITY_VALENCE_URLS[0].startswith("https://raw.githubusercontent.com/")
     and all("bot-data" in u or "@bot-data" in u for u in COMMUNITY_VALENCE_URLS),
     str(COMMUNITY_VALENCE_URLS),
 )
 check(
-    "  两条备用通道都是 jsDelivr（cdn + gcore，互为冗余）",
-    "cdn.jsdelivr.net" in COMMUNITY_VALENCE_URLS[1]
-    and "gcore.jsdelivr.net" in COMMUNITY_VALENCE_URLS[2],
+    "  独立 Contents API 在两条 jsDelivr 镜像之前",
+    "api.github.com" in COMMUNITY_VALENCE_URLS[1]
+    and "cdn.jsdelivr.net" in COMMUNITY_VALENCE_URLS[2]
+    and "gcore.jsdelivr.net" in COMMUNITY_VALENCE_URLS[3],
 )
 check(
     "★ statically 已弃用（服务器侧实测 12s 超时不可达，不再出现在通道列表）",
     all("statically" not in u for u in COMMUNITY_VALENCE_URLS + COMMUNITY_ACRITHIS_URLS),
 )
-check(
-    "★ 接线：_community_json 按序试通道（成功主机优先 + 失败冷却，行为见文末用例）",
-    "for i, url in enumerate(live)" in API_SRC
-    and "COMMUNITY_COOLDOWN" in API_SRC
-    and "_community_json(COMMUNITY_VALENCE_URLS)" in API_SRC
-    and "_community_json(COMMUNITY_ACRITHIS_URLS)" in API_SRC,
-)
+# 通道顺序、成功主机优先与冷却由下方真实入口用例覆盖，不断言源码换行。
 if P is not None:
     check(
         "发布侧：支持 --direct（在服务器上直读本机绝对路径，不走 ssh）",
@@ -951,7 +949,7 @@ def _payload(ts):
 
 
 async def _serve(ts):
-    async def _f(urls):
+    async def _f(urls, **kwargs):
         return _payload(ts)
 
     _cv._community_json = _f
@@ -988,7 +986,7 @@ def _payload2(pub, t_snap=None, c_snap=None):
 
 
 async def _serve2(payload, rot):
-    async def _f(urls):
+    async def _f(urls, **kwargs):
         return payload
 
     _cv._community_json = _f
@@ -2278,6 +2276,697 @@ check(
     all(_why[u] for u in list(_why)[:6]) and _why["https://8.8.8.8/x.ttf"] == "",
     str(_why),
 )
+
+
+def _runtime_valence_fixture(epoch, stamp, element="Toxin", bonus=25):
+    """从随包静态en/cn骨架构造完整运行缓存，效价值由离线夹具合成。"""
+    import copy
+
+    seed = json.loads((_PKG / "rotations.json").read_text())
+    result = {key: copy.deepcopy(seed[key]) for key in ("tenet", "coda")}
+    for key, section in result.items():
+        section.update(epoch=epoch.isoformat(), period_hours=96, valence_snapshot=stamp)
+        groups = [section["items"]] if key == "tenet" else section["batches"]
+        for group in groups:
+            for item in group:
+                item.update(element=element, bonus=bonus)
+    result["tenet"]["valence_values_since"] = stamp
+    result["coda"].update(anchor_idx=0, batch_label=["A", "B"], batch_values_since=[stamp, stamp])
+    return result
+
+
+def _community_valence_fixture(rot, stamp, element="Heat", bonus=30):
+    """与当前A批情境一致的完整社区来源映射；不替换生产恢复或验证函数。"""
+
+    def rows(items):
+        return [
+            {"en": item["en"], "cn": item.get("cn", ""), "element": element, "bonus": bonus}
+            for item in items
+        ]
+
+    return {
+        "published_at": stamp,
+        "tenet": {"snapshot": stamp, "items": rows(rot["tenet"]["items"])},
+        "coda": {"snapshot": stamp, "batch": "A", "items": rows(rot["coda"]["batches"][0])},
+    }
+
+
+async def _valence_refresh_serialization():
+    """真实刷新入口：社区慢请求与源页重抓串行，失败/取消均释放专用锁。"""
+    import httpx
+
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    epoch = now - timedelta(days=1)
+    baseline = (epoch - timedelta(hours=1)).isoformat()
+    older = (now - timedelta(minutes=2)).isoformat()
+
+    rot = _runtime_valence_fixture(epoch, baseline)
+    payload = _community_valence_fixture(rot, older)
+    entered, release, cancelled_entered = _aio.Event(), _aio.Event(), _aio.Event()
+    mode, fs_calls = "success", []
+    arb = json.loads((_PKG / "arb_ratings.json").read_text())
+    arb["_updated"] = now.isoformat()
+
+    async def respond(request):
+        if mode == "fail":
+            raise RuntimeError("fixture source unavailable")
+        if request.url.path.endswith("arb_ratings.json"):
+            return httpx.Response(200, json=arb)
+        entered.set()
+        await release.wait()
+        return httpx.Response(200, json=payload)
+
+    def table(title, names):
+        rows = "".join(
+            f"<tr><td>{name}</td><td>{{{{D|Electricity}}}}</td>"
+            "<td>{{ValenceBonusPercentageColor|50}}</td></tr>"
+            for name in names
+        )
+        return f"<table><tr><th>{title}</th></tr>{rows}</table>"
+
+    async def fs(url, ttl=0, **kwargs):
+        fs_calls.append(url)
+        if mode == "fail":
+            raise RuntimeError("fixture source unavailable")
+        if mode == "cancel":
+            cancelled_entered.set()
+            await _aio.Event().wait()
+        return (
+            table("Weapon", [item["en"] for item in rot["tenet"]["items"]])
+            + table("Weapon (Batch A)", [item["en"] for item in rot["coda"]["batches"][0]])
+            + table("Weapon (Batch B)", [item["en"] for item in rot["coda"]["batches"][1]])
+        )
+
+    async def revisions(*args):
+        return {}
+
+    client = _AC.WarframeClient()
+    await client._http.aclose()
+    client._http = httpx.AsyncClient(transport=httpx.MockTransport(respond))
+    client.fetch_wiki_source = fs
+    client._wiki_revisions = revisions
+    previous = _paths._RUN
+    tasks = []
+    try:
+        with _tmp.TemporaryDirectory(prefix="wf_valence_serial_") as temp:
+            _paths.set_run_dir(temp)
+            target = Path(temp) / "rotations.json"
+            target.write_text(json.dumps(rot))
+            slow = _aio.create_task(client.refresh_valence(community_only=True))
+            tasks.append(slow)
+            await _aio.wait_for(entered.wait(), 2)
+            forced = _aio.create_task(client.refresh_valence(force=True))
+            tasks.append(forced)
+            await _aio.sleep(0)
+            check(
+                "效价并发：源页重抓等待慢社区完成，未提前请求源页",
+                not forced.done() and not fs_calls,
+            )
+            static = await _aio.wait_for(client.refresh_community_static(("arb_ratings.json",)), 2)
+            check("效价锁不阻塞不同资源的静态刷新", "arb_ratings.json" in static)
+            release.set()
+            results = await _aio.wait_for(_aio.gather(slow, forced), 2)
+            final = json.loads(target.read_text())
+            check(
+                "效价并发：社区完成后源页最终新值保留，不被旧快照覆盖",
+                all(x.startswith("refreshed") for x in results)
+                and final["tenet"]["valence_snapshot"] > older
+                and final["tenet"]["items"][0]["element"] == "Electricity"
+                and final["tenet"]["items"][0]["bonus"] == 50,
+                str(results),
+            )
+            mode = "fail"
+            client.cache.drop_prefix("community:")
+            try:
+                await _aio.wait_for(client.refresh_valence(force=True), 2)
+                check("效价异常向调用方传播", False)
+            except RuntimeError as exc:
+                check("效价异常向调用方传播", str(exc) == "fixture source unavailable")
+            mode = "success"
+            after_failure = await _aio.wait_for(client.refresh_valence(force=True), 2)
+            check("效价异常释放锁，下一次可重抓", after_failure.startswith("refreshed"))
+            mode = "cancel"
+            cancelled = _aio.create_task(client.refresh_valence(force=True))
+            tasks.append(cancelled)
+            await _aio.wait_for(cancelled_entered.wait(), 2)
+            cancelled.cancel()
+            try:
+                await cancelled
+                check("效价取消保持CancelledError", False)
+            except _aio.CancelledError:
+                check("效价取消保持CancelledError", True)
+            mode = "success"
+            after_cancel = await _aio.wait_for(client.refresh_valence(force=True), 2)
+            check("效价取消释放锁，下一次可重抓", after_cancel.startswith("refreshed"))
+    finally:
+        release.set()
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        await _aio.gather(*tasks, return_exceptions=True)
+        _paths.set_run_dir(previous)
+        _arbi.reset_measured()
+        await client.close()
+
+
+_aio.run(_valence_refresh_serialization())
+
+
+async def _community_content_cache_recovery():
+    """真实消费入口→镜像→HTTP缓存，注入合法JSON坏内容；不替换缓存层。"""
+    import httpx
+
+    now = datetime.now(timezone.utc).isoformat()
+    arb = {"_updated": now, "nodes": {f"probe-{i}": {"n": 10, "tier": "A"} for i in range(50)}}
+    valence = {
+        "published_at": now,
+        "tenet": {"items": [{"en": "probe-tenet", "element": "Heat", "bonus": 30}]},
+        "coda": {"batch": "A", "items": [{"en": "probe-coda", "element": "Heat", "bonus": 30}]},
+    }
+    rot = {key: {"valence_snapshot": "2000-01-01T00:00:00+00:00"} for key in ("tenet", "coda")}
+    previous = _paths._RUN
+
+    async def exercise(name, good, bad, mode="mirror"):
+        calls = []
+        entered = _aio.Event()
+        phase = "bad"
+        urls = (
+            _AC.community_static_urls(name)
+            if name == "arb_ratings.json"
+            else _AC.COMMUNITY_VALENCE_URLS
+        )
+        primary = httpx.URL(urls[0]).host
+
+        async def respond(request):
+            calls.append(request.url.host)
+            if mode == "cancel" and phase == "bad":
+                entered.set()
+                await _aio.Event().wait()
+            failed = phase == "bad" and (mode in ("all", "custom") or request.url.host == primary)
+            return httpx.Response(200, json=bad if failed else good)
+
+        client = _AC.WarframeClient(
+            community_base="https://private-probe.invalid/data" if mode == "custom" else "",
+            allow_private_urls=mode == "custom",
+            flare_enabled=False,
+        )
+        await client._http.aclose()
+        client._http = httpx.AsyncClient(transport=httpx.MockTransport(respond))
+        task = None
+        try:
+            with _tmp.TemporaryDirectory(prefix="wf-community-content-") as directory:
+                _paths.set_run_dir(directory)
+                path = Path(directory) / name
+                if name == "arb_ratings.json":
+                    path.write_text(_json.dumps({**good, "_updated": "2000-01-01T00:00:00+00:00"}))
+                before = path.read_bytes() if path.exists() else None
+
+                async def invoke():
+                    if name == "arb_ratings.json":
+                        return await client.refresh_community_static((name,))
+                    return await client._community_valence_parsed(rot)
+
+                def accepted(result):
+                    return (
+                        result[name].startswith(("refreshed", "fresh"))
+                        if name == "arb_ratings.json"
+                        else result is not None
+                    )
+
+                neighbor = {"unrelated": "keep"}
+                await client.cache.set("community:unrelated.json", neighbor, 600)
+                key = "community:" + name
+                if mode == "legacy":
+                    await client.cache.set(key, bad, 600)
+                if mode == "cancel":
+                    task = _aio.create_task(invoke())
+                    await _aio.wait_for(entered.wait(), 2)
+                    task.cancel()
+                    try:
+                        await task
+                        check(f"社区内容{name}取消仍传播", False)
+                    except _aio.CancelledError:
+                        check(f"社区内容{name}取消仍传播", True)
+                    phase = "recovered"
+                    result = await invoke()
+                    check(
+                        f"社区内容{name}取消后立即恢复且单飞释放",
+                        accepted(result) and not client.cache._inflight and len(calls) == 2,
+                    )
+                else:
+                    result = await invoke()
+                    if mode in ("all", "custom"):
+                        expected_calls = 1 if mode == "custom" else len(urls)
+                        check(
+                            f"社区内容{name}/{mode}全坏不缓存且不写旧文件",
+                            not accepted(result)
+                            and len(calls) == expected_calls
+                            and await client.cache.get(key) is None
+                            and (path.read_bytes() if path.exists() else None) == before,
+                        )
+                        check(
+                            f"社区内容{name}/{mode}内容失败不冷却整台主机",
+                            not client._comm_cool
+                            and client.community_log[name]["result"] == "invalid",
+                        )
+                        phase = "recovered"
+                        result = await invoke()
+                        check(
+                            f"社区内容{name}/{mode}首源恢复下次立即采用",
+                            accepted(result) and len(calls) == expected_calls + 1,
+                        )
+                        if mode == "custom":
+                            check(
+                                f"社区内容{name}自填地址不回退默认镜像",
+                                set(calls) == {"private-probe.invalid"},
+                            )
+                    else:
+                        check(
+                            f"社区内容{name}/{mode}/{type(bad).__name__}同次换镜像并采用",
+                            accepted(result)
+                            and calls == [primary, httpx.URL(urls[1]).host]
+                            and await client.cache.get(key) == good,
+                        )
+                        check(f"社区内容{name}/{mode}坏内容不触发主机冷却", not client._comm_cool)
+                    before_calls = len(calls)
+                    repeated = await invoke()
+                    check(
+                        f"社区内容{name}/{mode}合法缓存复用且邻居不失效",
+                        accepted(repeated)
+                        and len(calls) == before_calls
+                        and await client.cache.get("community:unrelated.json") == neighbor,
+                    )
+                    if name == "arb_ratings.json":
+                        check(
+                            f"社区内容{name}/{mode}实际落盘有效快照",
+                            _json.loads(path.read_text()) == good,
+                        )
+        finally:
+            if task is not None:
+                if not task.done():
+                    task.cancel()
+                await _aio.gather(task, return_exceptions=True)
+            _paths.set_run_dir(previous)
+            _arbi.reset_measured()
+            await client.close()
+
+    try:
+        for name, good in (("arb_ratings.json", arb), ("valence.json", valence)):
+            for bad in ({"error": "synthetic"}, ["synthetic"]):
+                await exercise(name, good, bad)
+            for mode in ("legacy", "all", "custom", "cancel"):
+                await exercise(name, good, {"error": "synthetic"}, mode)
+    finally:
+        _paths.set_run_dir(previous)
+
+
+_aio.run(_community_content_cache_recovery())
+
+
+async def _community_other_file_shapes():
+    """其它已知文件按各自形状校验；未知文件仍兼容普通字典。"""
+    import httpx
+
+    now = datetime.now(timezone.utc)
+    cases = (
+        (
+            "baro_history.json",
+            {
+                "fetched": now.isoformat(),
+                "visits": [{}] * 10,
+                "items": {str(i): {} for i in range(50)},
+            },
+        ),
+        (
+            "acrithis_week.json",
+            {
+                "expiry": (now + timedelta(days=7)).isoformat(),
+                "items": [{"name": "probe-item", "price": 10}],
+            },
+        ),
+        ("probe-unknown.json", {"source": "generic"}),
+    )
+    for name, payload in cases:
+        calls = []
+
+        async def respond(request):
+            calls.append(request.url.host)
+            return httpx.Response(200, json=[] if len(calls) == 1 else payload)
+
+        client = _AC.WarframeClient(flare_enabled=False)
+        await client._http.aclose()
+        client._http = httpx.AsyncClient(transport=httpx.MockTransport(respond))
+        try:
+            urls = (f"https://first.invalid/{name}", f"https://second.invalid/{name}")
+            result = await client._community_json(urls)
+            check(
+                f"社区文件形状{name}坏数组后同次采用合法镜像",
+                result == payload
+                and calls == ["first.invalid", "second.invalid"]
+                and not client._comm_cool,
+            )
+            await client._community_json(urls)
+            check(
+                f"社区文件形状{name}合法结果正常缓存",
+                len(calls) == 2 and await client.cache.get("community:" + name) == payload,
+            )
+        finally:
+            await client.close()
+    # 合法但过期货单仍交给外层业务门禁；不是内容结构或网络错误。
+    expired = {"expiry": "2000-01-01T00:00:00+00:00", "items": [{"name": "probe-item"}]}
+    client = _AC.WarframeClient(flare_enabled=False)
+    await client._http.aclose()
+    client._http = httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda request: httpx.Response(200, json=expired))
+    )
+    previous = _paths.run_dir()
+    runtime = _tmp.TemporaryDirectory()
+    _paths.set_run_dir(Path(runtime.name))
+    try:
+        result = await client._community_acrithis_week({})
+        check(
+            "社区合法过期货单仍由外层拒绝且不冷却网络主机",
+            result == "failed"
+            and await client.cache.get("community:acrithis_week.json") == expired
+            and not client._comm_cool,
+        )
+    finally:
+        _paths.set_run_dir(previous)
+        runtime.cleanup()
+        await client.close()
+
+
+_aio.run(_community_other_file_shapes())
+
+
+async def _community_valence_fresh_candidates():
+    """真实刷新入口：时效校验先于缓存，旧镜像继续尝试独立候选。"""
+    import copy
+    import httpx
+
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    epoch = now - timedelta(days=1)
+    old_stamp = (epoch - timedelta(hours=1)).isoformat()
+    current = now.isoformat()
+    baseline = _runtime_valence_fixture(epoch, old_stamp)
+    fresh = _community_valence_fixture(baseline, current)
+    stale = copy.deepcopy(fresh)
+    stale["published_at"] = old_stamp
+    for tag in ("tenet", "coda"):
+        stale[tag]["snapshot"] = old_stamp
+    raw_host, api_host, cdn_host, gcore_host = [
+        httpx.URL(u).host for u in _AC.COMMUNITY_VALENCE_URLS
+    ]
+    previous = _paths._RUN
+
+    async def exercise(mode):
+        calls, api_requests = [], []
+        local = copy.deepcopy(baseline)
+        good, bad = copy.deepcopy(fresh), copy.deepcopy(stale)
+        if mode == "partial":
+            # 本地终幕较新；首源试图回退终幕，第二源只推进信条。
+            coda_stamp = (now - timedelta(minutes=10)).isoformat()
+            local["coda"]["valence_snapshot"] = coda_stamp
+            local["coda"]["batch_values_since"][0] = coda_stamp
+            good["coda"]["snapshot"] = coda_stamp
+            good["coda"]["items"] = copy.deepcopy(local["coda"]["batches"][0])
+            bad = copy.deepcopy(good)
+            bad["coda"]["snapshot"] = (now - timedelta(hours=1)).isoformat()
+
+        async def respond(request):
+            host = request.url.host
+            calls.append(host)
+            if host == api_host:
+                api_requests.append(request)
+            if mode in ("api", "api_denied", "api_redirect") and host == raw_host:
+                raise httpx.ConnectError("fixture raw unavailable", request=request)
+            if mode == "api_denied" and host == api_host:
+                return httpx.Response(403, json={"message": "fixture API rate limit"})
+            if mode == "api_redirect" and host == api_host:
+                return httpx.Response(302, headers={"Location": _AC.COMMUNITY_VALENCE_URL})
+            old = (
+                mode in ("all_old", "custom_old")
+                or (mode in ("preferred_old", "old_cache") and host == cdn_host)
+                or (mode in ("first_old", "partial") and host == raw_host)
+            )
+            return httpx.Response(200, json=bad if old else good)
+
+        client = _AC.WarframeClient(
+            flare_enabled=False,
+            community_base="https://custom.example/data" if mode == "custom_old" else "",
+            allow_private_urls=mode == "custom_old",
+        )
+        await client._http.aclose()
+        client._http = httpx.AsyncClient(
+            transport=httpx.MockTransport(respond), follow_redirects=True
+        )
+        if mode in ("preferred_old", "old_cache"):
+            client._comm_good_host = cdn_host
+        key = "community:valence.json"
+        neighbor = {"preserve": True}
+        await client.cache.set("community:unrelated.json", neighbor, 600)
+        if mode == "old_cache":
+            await client.cache.set(key, bad, 600)
+        try:
+            with _tmp.TemporaryDirectory(prefix="wf-community-fresh-") as directory:
+                _paths.set_run_dir(directory)
+                path = Path(directory) / "rotations.json"
+                path.write_text(json.dumps(local))
+                before = path.read_bytes()
+                result = await client.refresh_valence(community_only=True)
+                if mode in ("all_old", "custom_old"):
+                    check(
+                        f"社区时效/{mode}拒绝旧源且不缓存、不写半成品",
+                        result == "no-community"
+                        and path.read_bytes() == before
+                        and await client.cache.get(key) is None
+                        and not client._comm_cool
+                        and client.community_log["valence.json"]["result"] == "stale",
+                    )
+                    check(
+                        f"社区时效/{mode}候选边界正确",
+                        calls
+                        == (
+                            ["custom.example"]
+                            if mode == "custom_old"
+                            else [raw_host, api_host, cdn_host, gcore_host]
+                        ),
+                        str(calls),
+                    )
+                else:
+                    expected = (
+                        [cdn_host, raw_host]
+                        if mode in ("preferred_old", "old_cache")
+                        else [raw_host, api_host, cdn_host]
+                        if mode in ("api_denied", "api_redirect")
+                        else [raw_host, api_host]
+                    )
+                    output = json.loads(path.read_text())
+                    check(
+                        f"社区时效/{mode}同轮换源并实际采用新快照",
+                        result.startswith("refreshed")
+                        and calls == expected
+                        and output["tenet"]["valence_snapshot"] == current
+                        and output["tenet"]["items"][0]["element"] == "Heat"
+                        and await client.cache.get(key) == good,
+                        f"{result} / {calls}",
+                    )
+                    check(
+                        f"社区时效/{mode}旧内容不冷却主机",
+                        cdn_host not in client._comm_cool
+                        and (
+                            mode not in ("first_old", "partial")
+                            or raw_host not in client._comm_cool
+                        ),
+                    )
+                    if mode == "partial":
+                        check(
+                            "社区时效/partial保留本地较新终幕，仅信条推进",
+                            output["coda"]["valence_snapshot"] == local["coda"]["valence_snapshot"]
+                            and output["coda"]["batches"] == local["coda"]["batches"],
+                        )
+                    count = len(calls)
+                    again = await client.refresh_valence(community_only=True)
+                    check(
+                        f"社区时效/{mode}采用后本地有效不重复联网",
+                        again == "fresh" and len(calls) == count,
+                    )
+                if api_requests:
+                    check(
+                        f"Contents API/{mode}直接raw媒体类型、固定分支、无凭据",
+                        all(
+                            req.url.params.get("ref") == "bot-data"
+                            and req.url.params.get("cb")
+                            and req.headers.get("Accept") == "application/vnd.github.raw+json"
+                            and req.headers.get("X-GitHub-Api-Version") == "2026-03-10"
+                            and "Authorization" not in req.headers
+                            for req in api_requests
+                        ),
+                    )
+                check(
+                    f"社区时效/{mode}不清其它资源缓存",
+                    await client.cache.get("community:unrelated.json") == neighbor,
+                )
+        finally:
+            _paths.set_run_dir(previous)
+            await client.close()
+
+    for mode in (
+        "preferred_old",
+        "first_old",
+        "old_cache",
+        "api",
+        "api_denied",
+        "api_redirect",
+        "all_old",
+        "custom_old",
+        "partial",
+    ):
+        await exercise(mode)
+
+
+_aio.run(_community_valence_fresh_candidates())
+
+# 运行期哨兵：临时文件 + 禁网/禁真实告警桩，执行真实 CLI 入口。
+_sentinel_path = (
+    ROOT / ".zcode/skills/astrbot-server-triage/scripts/automations/valence_sentinel.py"
+)
+if _sentinel_path.is_file():
+    import contextlib
+    import copy
+    import io
+    import tempfile
+    from unittest.mock import patch
+
+    _sentinel_spec = importlib.util.spec_from_file_location("valence_sentinel", _sentinel_path)
+    S = importlib.util.module_from_spec(_sentinel_spec)
+    _sentinel_spec.loader.exec_module(S)
+    _runtime = {
+        "tenet": {
+            "epoch": "2026-09-13T00:00:00+00:00",
+            "period_hours": 96,
+            "valence_snapshot": STAMP,
+            "items": [{"en": f"Tenet Test {i}", "element": "Heat", "bonus": 30} for i in range(5)],
+        },
+        "coda": {
+            "epoch": "2026-09-13T00:00:00+00:00",
+            "period_hours": 96,
+            "anchor_idx": 0,
+            "valence_snapshot": STAMP,
+            "batches": [
+                [{"en": f"Coda A {i}"} for i in range(7)],
+                [{"en": f"Coda B {i}", "element": "Cold", "bonus": 30} for i in range(7)],
+            ],
+        },
+    }
+    with tempfile.TemporaryDirectory() as _td:
+        _base = Path(_td)
+        _seed = _base / "core/data/rotations.json"
+        _seed.parent.mkdir(parents=True)
+        _seed.write_text(json.dumps(_runtime), encoding="utf-8")
+        _runtime_path = _base / "runtime/rotations.json"
+        _runtime_path.parent.mkdir()
+        _cases = [("缺文件不回退新鲜种子", None, 1), ("新鲜完整", _runtime, 0)]
+        for _field in ("element", "bonus"):
+            _bad = copy.deepcopy(_runtime)
+            _bad["coda"]["batches"][1][0].pop(_field)
+            _cases.append((f"当前批缺{_field}", _bad, 1))
+        _bad = copy.deepcopy(_runtime)
+        _bad["tenet"]["valence_snapshot"] = "2026-09-20T00:00:00+00:00"
+        _cases.append(("快照过期", _bad, 1))
+        _bad = copy.deepcopy(_runtime)
+        _bad["coda"]["batches"][1] = []
+        _cases.append(("当前批为空", _bad, 1))
+        _bad = copy.deepcopy(_runtime)
+        _bad["tenet"]["items"][0]["bonus"] = float("nan")
+        _cases.append(("非有限加成", _bad, 1))
+        _bad = copy.deepcopy(_runtime)
+        for _key in ("tenet", "coda"):
+            _bad[_key].pop("valence_snapshot")
+        _cases.append(("空种子不能充当runtime", _bad, 1))
+        for _key in ("tenet", "coda"):
+            _bad = copy.deepcopy(_runtime)
+            _items = _bad["tenet"]["items"] if _key == "tenet" else _bad["coda"]["batches"][1]
+            _items.pop()
+            _cases.append((f"{_key}删除单行", _bad, 1))
+            _bad = copy.deepcopy(_runtime)
+            _items = _bad["tenet"]["items"] if _key == "tenet" else _bad["coda"]["batches"][1]
+            _items[1]["en"] = _items[0]["en"]
+            _cases.append((f"{_key}重复名称", _bad, 1))
+            for _hours in (-96, 0, 96.5, True):
+                _bad = copy.deepcopy(_runtime)
+                _bad[_key]["period_hours"] = _hours
+                _cases.append((f"{_key}非法周期{_hours}", _bad, 1))
+        for _element in ("Unknown", "", None):
+            _bad = copy.deepcopy(_runtime)
+            _bad["tenet"]["items"][0]["element"] = _element
+            _cases.append((f"非法元素{_element}", _bad, 1))
+        for _bonus in (24.9, 60.1, True):
+            _bad = copy.deepcopy(_runtime)
+            _bad["coda"]["batches"][1][0]["bonus"] = _bonus
+            _cases.append((f"加成越界{_bonus}", _bad, 1))
+        for _anchor in (-1, 2, True, "0"):
+            _bad = copy.deepcopy(_runtime)
+            _bad["coda"]["anchor_idx"] = _anchor
+            _cases.append((f"非法锚点{_anchor}", _bad, 1))
+        _bad = copy.deepcopy(_runtime)
+        _bad["coda"]["batches"][0].pop()
+        _cases.append(("非当前批骨架缺一行", _bad, 1))
+        _bad = copy.deepcopy(_runtime)
+        _bad["coda"]["batches"][0][0]["en"] = _bad["coda"]["batches"][1][0]["en"]
+        _cases.append(("跨批重复名称", _bad, 1))
+        for _name_value in ("", " ", None, 123):
+            _bad = copy.deepcopy(_runtime)
+            _bad["tenet"]["items"][0]["en"] = _name_value
+            _cases.append((f"非法名称{_name_value}", _bad, 1))
+        _boundary = copy.deepcopy(_runtime)
+        _boundary["tenet"]["items"][0]["bonus"] = 25
+        _boundary["coda"]["batches"][1][0]["bonus"] = 60
+        _cases.append(("合法边界25到60且非当前批无值", _boundary, 0))
+        _cases.append(("坏JSON", "{", 1))
+        for _name, _data, _expected in _cases:
+            if _data is not None:
+                _runtime_path.write_text(
+                    _data if isinstance(_data, str) else json.dumps(_data), encoding="utf-8"
+                )
+            _args = [
+                "sentinel",
+                "--repo",
+                str(_base),
+                "--runtime-json",
+                str(_runtime_path),
+                "--log-dir",
+                str(_base / "logs"),
+                "--now",
+                NOW.isoformat(),
+            ]
+            with (
+                patch.object(sys, "argv", _args),
+                patch.object(S.urllib.request, "urlopen", side_effect=AssertionError("禁止网络")),
+                patch.object(S.subprocess, "run") as _alert,
+                contextlib.redirect_stdout(io.StringIO()),
+            ):
+                _code = S.main()
+            check(f"哨兵：{_name}", _code == _expected)
+            check(f"哨兵：{_name} 仅异常调用告警桩", _alert.call_count == _expected)
+            if _alert.called:
+                check(
+                    "哨兵：只允许alert_push桩",
+                    _alert.call_args.args[0][1].endswith("alert_push.py"),
+                )
+        # 新鲜运行期与空种子共存：种子无值不引发抓取或告警。
+        _seed.write_text("{}", encoding="utf-8")
+        _runtime_path.write_text(json.dumps(_runtime), encoding="utf-8")
+        with (
+            patch.object(sys, "argv", _args),
+            patch.object(S.urllib.request, "urlopen", side_effect=AssertionError("禁止网络")),
+            patch.object(S.subprocess, "run", side_effect=AssertionError("禁止外发")),
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            _fresh_code = S.main()
+        check("哨兵：空种子与新鲜runtime共存健康", _fresh_code == 0)
+else:
+    print("[SKIP] 运行期哨兵：私有运维脚本不在本树")
 
 if FAILED:
     print(f"✗ {len(FAILED)} 项失败：" + "、".join(FAILED))

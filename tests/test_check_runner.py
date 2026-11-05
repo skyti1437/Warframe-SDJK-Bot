@@ -158,53 +158,77 @@ shutil.rmtree(_r, ignore_errors=True)
 # ⑥ health：固定时刻判新鲜 / 过期 / 缺失（临时根只放数据文件，判据同运行期）
 _h = Path(tempfile.mkdtemp(prefix="wf_health_"))
 (_h / "core" / "data" / "de").mkdir(parents=True)
-(_h / "core" / "data" / "rotations.json").write_text(
+_seed = {
+    "tenet": {
+        "mode": "refresh_only",
+        "epoch": "2026-09-12T00:00:00+00:00",
+        "period_hours": 96,
+        "items": [{"en": f"Tenet {i}", "cn": f"信条{i}"} for i in range(5)],
+    },
+    "coda": {
+        "mode": "batch_cycle",
+        "epoch": "2026-09-13T00:00:00+00:00",
+        "period_hours": 96,
+        "anchor_idx": 0,
+        "batch_label": ["A", "B"],
+        "batches": [
+            [{"en": f"Coda {i}-{j}", "cn": f"终幕{i}-{j}"} for j in range(7)] for i in range(2)
+        ],
+    },
+}
+(_h / "core" / "data" / "rotations.json").write_text(json.dumps(_seed), encoding="utf-8")
+(_h / "core" / "data" / "de" / "acrichis_week.json").write_text(
     json.dumps(
         {
-            "tenet": {
-                "epoch": "2026-09-12T00:00:00+00:00",
-                "period_hours": 96,
-                "valence_snapshot": "2026-09-20T06:00:00+00:00",
+            "_en_catalog": {
+                "Orokin Reactor": {"name": "奥罗金反应堆蓝图", "price": 20},
+                "Orokin Catalyst": {"name": "奥罗金催化剂蓝图", "price": 20},
+                "Exilus Warframe Adapter": {"name": "战甲特殊功能槽连接器", "price": 20},
+                "Exilus Weapon Adapter": {"name": "武器特殊功能槽连接器", "price": 20},
+                "Primary Arcane Adapter": {"name": "主要武器赋能槽连接器", "price": 25},
+                "Secondary Arcane Adapter": {"name": "次要武器赋能槽连接器", "price": 25},
+                "Forma": {"name": "Forma 蓝图", "price": 10},
+                "Melee Riven Mod": {"name": "近战裂罅 MOD", "price": 15},
+                "Pistol Riven Mod": {"name": "手枪裂罅 MOD", "price": 15},
+                "Rifle Riven Mod": {"name": "步枪裂罅 MOD", "price": 15},
+                "Kitgun Riven Mod": {"name": "射枪裂罅 MOD", "price": 15},
+                "Zaw Riven Mod": {"name": "佐作裂罅 MOD", "price": 15},
+                "Shotgun Riven Mod": {"name": "霰弹枪裂罅 MOD", "price": 15},
+                "Companion Weapon Riven Mod": {"name": "同伴裂罅 MOD", "price": 20},
+                "10,000 Kuva": {"name": "赤毒", "qty": 10000, "price": 10},
             },
-            "coda": {"epoch": "2026-09-13T00:00:00+00:00", "period_hours": 96},
+            "_catalog_price_source": "wiki《Acrithis》页 offeringsBox 标价（2026-09-21 抓取），苦栓",
+            "_reset_rule": "每周一 00:00 UTC 轮换（wiki《Acrithis》页实时口径）",
+            "_过期口径": "expiry 为 UTC；卡面展示换算北京时间",
+            "_zh_official_notes": {
+                "Amp Arcane Adapter": "增幅器赋能槽连接器",
+                "Primary Arcane Adapter": "主要武器赋能槽连接器",
+                "Secondary Arcane Adapter": "次要武器赋能槽连接器",
+                "Melee Arcane Adapter": "近战武器赋能槽连接器",
+                "Archgun Arcane Adapter": "曲翼枪械赋能槽连接器",
+            },
         }
     ),
     encoding="utf-8",
 )
-(_h / "core" / "data" / "de" / "acrichis_week.json").write_text(
-    json.dumps({"expiry": "2026-09-28T00:00:00+00:00"}), encoding="utf-8"
-)
-_at = datetime(2026, 9, 21, 0, 0, tzinfo=timezone.utc)
+_at = datetime(2026, 9, 21, tzinfo=timezone.utc)
 _items = {i["item"]: i for i in RC.freshness_items(_h, _at)}
+check("health：无值种子结构合法", _items["rotations.json::seed_structure"]["ok"], str(_items))
+check("health：言录使静态目录通过", _items["de/acrichis_week.json::seed_structure"]["ok"])
 check(
-    "health：信条快照在本窗口 ⇒ 新鲜",
-    _items["rotations.json::tenet.valence_snapshot"]["ok"] is True,
-    str(_items),
-)
-check(
-    "health：终幕缺快照 ⇒ 不新鲜且说明原因",
-    _items["rotations.json::coda.valence_snapshot"]["ok"] is False
-    and "缺失" in _items["rotations.json::coda.valence_snapshot"]["reason"],
-    str(_items["rotations.json::coda.valence_snapshot"]),
-)
-check("health：货单未到期 ⇒ 新鲜", _items["de/acrichis_week.json::expiry"]["ok"] is True)
-check(
-    "health：输出含检查时刻与当前窗口",
-    _items["rotations.json::tenet.valence_snapshot"]["checked_at"] == _at.isoformat()
-    and _items["rotations.json::tenet.valence_snapshot"]["window"].startswith(
-        "2026-09-20T00:00:00"
-    ),
-    str(_items["rotations.json::tenet.valence_snapshot"]),
+    "health：输出含检查时刻",
+    _items["rotations.json::seed_structure"]["checked_at"] == _at.isoformat(),
 )
 _late = {
     i["item"]: i["ok"] for i in RC.freshness_items(_h, datetime(2026, 9, 28, tzinfo=timezone.utc))
 }
 check(
-    "health：换轮后 / 到期时刻 ⇒ 信条过期、货单过期",
-    _late["rotations.json::tenet.valence_snapshot"] is False
-    and _late["de/acrichis_week.json::expiry"] is False,
-    str(_late),
+    "health：言录使静态目录不依赖时刻", _late["de/acrichis_week.json::seed_structure"], str(_late)
 )
+_seed["tenet"]["items"][0]["bonus"] = 40
+(_h / "core" / "data" / "rotations.json").write_text(json.dumps(_seed), encoding="utf-8")
+_bad = {i["item"]: i for i in RC.freshness_items(_h, _at)}
+check("health：单个动态值残留拒绝", not _bad["rotations.json::seed_structure"]["ok"], str(_bad))
 rc, out, sm = _run(_h, "health", "--now", "2026-09-21T00:00:00+00:00")
 check("health CLI：有不新鲜项 ⇒ 退出非零", rc != 0, out[-300:])
 check("health CLI：结果不混进 regression", "regression" not in sm and "health" in sm, str(list(sm)))
@@ -273,6 +297,68 @@ check(
 _DR7.REGISTRY["arb_ratings.json"]["risk"] = _arb_risk7
 shutil.rmtree(_hlogs, ignore_errors=True)
 shutil.rmtree(_h2, ignore_errors=True)
+
+# 只读巡检真实CLI：静态种子双向校验，不联网且不写被检树。
+with tempfile.TemporaryDirectory(prefix="wf_patrol_") as _patrol_td:
+    _pt = Path(_patrol_td)
+    (_pt / "scripts").mkdir()
+    shutil.copy2(ROOT / "scripts/readonly_patrol.py", _pt / "scripts/readonly_patrol.py")
+    shutil.copytree(
+        ROOT / "core", _pt / "core", ignore=shutil.ignore_patterns("data", "__pycache__", "*.pyc")
+    )
+    (_pt / "core/data/de").mkdir(parents=True)
+    _rot_seed = json.loads((ROOT / "core/data/rotations.json").read_text(encoding="utf-8"))
+    _acr_seed = json.loads((ROOT / "core/data/de/acrichis_week.json").read_text(encoding="utf-8"))
+    (_pt / "sitecustomize.py").write_text(
+        "import socket\n"
+        "def denied(*args, **kwargs): raise AssertionError('NETWORK_FORBIDDEN')\n"
+        "socket.socket = denied\nsocket.create_connection = denied\n",
+        encoding="utf-8",
+    )
+    for _case in ("clean", "valence_dynamic", "acr_dynamic", "missing_static", "bad_rule"):
+        _rot = json.loads(json.dumps(_rot_seed))
+        _acr = json.loads(json.dumps(_acr_seed))
+        if _case == "valence_dynamic":
+            _rot["tenet"]["valence_snapshot"] = None
+        elif _case == "acr_dynamic":
+            _acr["items"] = []
+        elif _case == "missing_static":
+            del _acr["_en_catalog"][next(iter(_acr["_en_catalog"]))]
+        elif _case == "bad_rule":
+            _rot["acrichis"]["reset_weekday"] = 6
+        (_pt / "core/data/rotations.json").write_text(json.dumps(_rot), encoding="utf-8")
+        (_pt / "core/data/de/acrichis_week.json").write_text(json.dumps(_acr), encoding="utf-8")
+
+        def _patrol_files():
+            return {
+                f.relative_to(_pt).as_posix(): (f.read_bytes(), f.stat().st_mtime_ns)
+                for f in _pt.rglob("*")
+                if f.is_file()
+            }
+
+        _before = _patrol_files()
+        _env = {**os.environ, "PYTHONPATH": str(_pt), "PYTHONDONTWRITEBYTECODE": "1"}
+        _proc = subprocess.run(
+            [sys.executable, "-B", str(_pt / "scripts/readonly_patrol.py")],
+            cwd=_pt,
+            env=_env,
+            capture_output=True,
+            text=True,
+            timeout=20,
+        )
+        check(
+            f"只读巡检CLI {_case}双向判定",
+            _proc.returncode == (0 if _case == "clean" else 1),
+            _proc.stdout + _proc.stderr,
+        )
+        check(
+            f"只读巡检CLI {_case}禁网且零写入",
+            "NETWORK_FORBIDDEN" not in _proc.stdout + _proc.stderr and _before == _patrol_files(),
+        )
+        check(
+            f"只读巡检CLI {_case}不宣称运行期健康",
+            "运行期健康" in _proc.stdout and "WarframeClient" not in _proc.stderr,
+        )
 
 print()
 if FAILED:

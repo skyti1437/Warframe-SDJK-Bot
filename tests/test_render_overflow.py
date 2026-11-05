@@ -36,6 +36,37 @@ def check(name: str, cond: bool, detail: str = ""):
         FAILED.append(name)
 
 
+# ------------------------------------------------------------------ 子集字符历史
+
+
+def _check_font_subset_history(builder):
+    from unittest.mock import patch
+
+    with tempfile.TemporaryDirectory(prefix="wf-font-charset-") as folder:
+        charset = Path(folder) / "charset.txt"
+        corpus = Path(folder) / "corpus.py"
+        corpus.write_text("源", encoding="utf-8")
+        with (
+            patch.object(builder, "CHARSET", charset),
+            patch.object(builder, "_iter_sources", return_value=[corpus]),
+        ):
+            initial = builder.collect_chars(extra_cjk=False)
+            check("无历史字符表仍可收集当前语料", "源" in initial and not charset.exists())
+            independent = chr(0x20000)
+            builder.write_charset(initial | {independent})
+            corpus.write_text("新", encoding="utf-8")
+            shrunk = builder.collect_chars(extra_cjk=False)
+            check(
+                "语料缩小仍保留已分发字符表及独立字符",
+                initial | {independent, "新"} <= shrunk,
+            )
+
+
+from scripts import build_font_subset as _font_subset  # noqa: E402
+
+_check_font_subset_history(_font_subset)
+
+
 # ------------------------------------------------------------------ 页码正则
 # 量词各 handler 不统一：条 / 场 / 个 / 件 / 项
 PAGE_CASES = [
@@ -797,6 +828,318 @@ else:
             _ratios[_k] <= _PERF_CEIL[_k],
             f"比值={_ratios[_k]:.3f}",
         )
+
+
+async def _render_cancel_checks():
+    import ast
+    import asyncio
+    import threading
+    from types import SimpleNamespace
+
+    from core.commands.base import Reply
+    from core.parser import Parsed
+
+    source = Path(__file__).resolve().parent.parent / "main.py"
+    tree = ast.parse(source.read_text())
+    names = {"_build_content_results", "_render_card", "_schedule_card_cleanup"}
+    methods = [
+        f
+        for c in tree.body
+        if isinstance(c, ast.ClassDef)
+        for f in c.body
+        if isinstance(f, (ast.FunctionDef, ast.AsyncFunctionDef)) and f.name in names
+    ]
+    cls = ast.ClassDef(name="WarframeSDJK", bases=[], keywords=[], body=methods, decorator_list=[])
+    warnings = []
+    scope = {
+        "asyncio": asyncio,
+        "Path": Path,
+        "Optional": object,
+        "Reply": Reply,
+        "Parsed": Parsed,
+        "AstrMessageEvent": object,
+        "logger": SimpleNamespace(warning=lambda *args: warnings.append(args)),
+        "Image": SimpleNamespace(fromFileSystem=lambda path: path),
+        "Plain": lambda text: text,
+    }
+    module = ast.Module(
+        body=[
+            ast.ImportFrom(module="__future__", names=[ast.alias(name="annotations")], level=0),
+            cls,
+        ],
+        type_ignores=[],
+    )
+    exec(compile(ast.fix_missing_locations(module), str(source), "exec"), scope)
+    Host = scope["WarframeSDJK"]
+
+    for mode in ("normal", "cancel", "late_error"):
+        with tempfile.TemporaryDirectory(prefix="wf-render-stop-") as directory:
+            root = Path(directory)
+            first_started, second_started, release = (
+                threading.Event(),
+                threading.Event(),
+                threading.Event(),
+            )
+            Host._render_lock = None
+            obj, cleanups = Host(), []
+            obj.render_mode = "image"
+
+            class Renderer:
+                available = True
+
+                def render(self, title, lines, footer):
+                    if title == "first":
+                        first_started.set()
+                        if not release.wait(3):
+                            raise TimeoutError("test release was not signalled")
+                        if mode == "late_error":
+                            raise RuntimeError("late render error")
+                    else:
+                        second_started.set()
+                    path = root / (title.replace("/", "_") + ".png")
+                    path.write_bytes(b"rendered image")
+                    return str(path)
+
+            obj.renderer = Renderer()
+
+            def cleanup(path, delay=120.0):
+                cleanups.append((Path(path).name, delay))
+                if delay == 0:
+                    Host._schedule_card_cleanup(obj, path, delay=0)
+
+            obj._schedule_card_cleanup = cleanup
+            event = SimpleNamespace(chain_result=lambda parts: parts)
+            parsed = SimpleNamespace(force_image=True, force_text=False)
+            first_gen = obj._build_content_results(
+                event, Reply(title="first", lines=["line"]), parsed
+            )
+            first = asyncio.create_task(anext(first_gen))
+            second_gen = second = None
+            try:
+                for _ in range(1000):
+                    if first_started.is_set():
+                        break
+                    await asyncio.sleep(0.001)
+                check("取消探针已进入实际渲染线程", first_started.is_set())
+                if mode == "normal":
+                    release.set()
+                    await first
+                    check(
+                        "正常发送保留120秒上传缓冲",
+                        cleanups == [("first.png", 120.0)] and (root / "first.png").exists(),
+                    )
+                    # 多页路径同样经过共用渲染方法，保持原有逐页清理。
+                    pages = obj._build_content_results(
+                        event, Reply(pages=[("page1", ["one"]), ("page2", ["two"])]), parsed
+                    )
+                    await anext(pages)
+                    await pages.aclose()
+                    check(
+                        "正常多页分别保留120秒缓冲", [delay for _, delay in cleanups] == [120.0] * 3
+                    )
+                else:
+                    first.cancel()
+                    await asyncio.wait_for(asyncio.gather(first, return_exceptions=True), 1)
+                    check(
+                        "调用方取消立即结束且线程仍持锁",
+                        first.cancelled() and Host._render_lock.locked() and not release.is_set(),
+                    )
+                    second_gen = obj._build_content_results(
+                        event, Reply(title="second", lines=["line"]), parsed
+                    )
+                    second = asyncio.create_task(anext(second_gen))
+                    await asyncio.sleep(0.02)
+                    check("旧线程完成前后继渲染不得启动", not second_started.is_set())
+                    release.set()
+                    await asyncio.wait_for(second, 1)
+                    for _ in range(10):
+                        await asyncio.sleep(0)
+                    check(
+                        "旧线程结束后后继渲染完成",
+                        second_started.is_set() and (root / "second.png").exists(),
+                    )
+                    if mode == "cancel":
+                        check(
+                            "取消后生成的PNG立即安排清理",
+                            ("first.png", 0) in cleanups and not (root / "first.png").exists(),
+                        )
+                    else:
+                        check(
+                            "取消后迟到异常被取回并记录",
+                            any("late render error" in repr(args) for args in warnings),
+                        )
+                    check("正常后继图片仍保留上传缓冲", ("second.png", 120.0) in cleanups)
+                await asyncio.sleep(0)
+                check("已完成的渲染任务解除保活引用", not obj._card_render_tasks)
+            finally:
+                release.set()
+                await asyncio.gather(
+                    first, *([second] if second is not None else []), return_exceptions=True
+                )
+                await asyncio.gather(
+                    *list(getattr(obj, "_card_render_tasks", ())), return_exceptions=True
+                )
+                await first_gen.aclose()
+                if second_gen is not None:
+                    await second_gen.aclose()
+
+
+import asyncio as _asyncio  # noqa: E402
+
+_asyncio.run(_render_cancel_checks())
+
+
+async def _multipage_delivery_checks():
+    import ast
+    from types import SimpleNamespace
+
+    from core.commands.base import Reply
+
+    source = Path(__file__).resolve().parent.parent / "main.py"
+    tree = ast.parse(source.read_text())
+    method = next(
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.AsyncFunctionDef) and node.name == "_build_content_results"
+    )
+    scope = {
+        "text_card": R.text_card,
+        "Image": SimpleNamespace(fromFileSystem=lambda path: {"image": path}),
+        "Plain": lambda text: {"text": text},
+        "logger": SimpleNamespace(warning=lambda *args: None),
+    }
+    module = ast.Module(
+        body=[
+            ast.ImportFrom(module="__future__", names=[ast.alias(name="annotations")], level=0),
+            method,
+        ],
+        type_ignores=[],
+    )
+    exec(compile(ast.fix_missing_locations(module), str(source), "exec"), scope)
+    build = scope["_build_content_results"]
+    pages = [(f"PAGE_{i}", [f"BODY_{i}"]) for i in range(1, 4)]
+    reply = Reply(pages=pages, footer="FOOTER", whisper=["WHISPER"], extra_text="EXTRA")
+    event = SimpleNamespace(chain_result=lambda x: x, plain_result=lambda x: [{"text": x}])
+    for failed in ((), (1,), (2,), (3,), (1, 2, 3)):
+        calls, cleanups = [], []
+
+        async def render(title, lines, footer):
+            calls.append(title)
+            index = next((i for i in range(1, 4) if f"PAGE_{i}" in title), 0)
+            return None if index in failed else "|".join([title, *lines, footer])
+
+        host = SimpleNamespace(
+            render_mode="image",
+            renderer=SimpleNamespace(available=True),
+            _render_card=render,
+            _schedule_card_cleanup=cleanups.append,
+        )
+        parsed = SimpleNamespace(force_image=True, force_text=False)
+        results = [row async for row in build(host, event, reply, parsed)]
+        text = str(results)
+        label = f"多页失败{failed}"
+        check(f"{label}：三页正文齐全", all(f"BODY_{i}" in text for i in range(1, 4)))
+        check(
+            f"{label}：原页顺序保留",
+            text.find("BODY_1") < text.find("BODY_2") < text.find("BODY_3"),
+        )
+        check(f"{label}：只渲染三页不补空封面", len(calls) == 3)
+        check(f"{label}：只清理成功图片", len(cleanups) == 3 - len(failed))
+        check(f"{label}：密语和链接各一次", text.count("WHISPER") == text.count("EXTRA") == 1)
+
+    for mode in ("normal", "cancel", "error"):
+        started, release = _asyncio.Event(), _asyncio.Event()
+        cleanup_requests = []
+
+        async def delayed_render(title, lines, footer):
+            if title.startswith("SECOND"):
+                started.set()
+                await release.wait()
+                if mode == "error":
+                    raise RuntimeError("synthetic second page failure")
+                return "second.png"
+            return "first.png"
+
+        host_ = SimpleNamespace(
+            render_mode="image",
+            renderer=SimpleNamespace(available=True),
+            _render_card=delayed_render,
+            _schedule_card_cleanup=lambda path, delay=120.0: cleanup_requests.append((path, delay)),
+        )
+        gen = build(
+            host_,
+            event,
+            Reply(pages=[("FIRST", ["one"]), ("SECOND", ["two"])]),
+            SimpleNamespace(force_image=True, force_text=False),
+        )
+        task = _asyncio.create_task(anext(gen))
+        await _asyncio.wait_for(started.wait(), 1)
+        check(f"多页清理{mode}：后页未完成时不启动前页清理", not cleanup_requests)
+        if mode == "cancel":
+            task.cancel()
+        else:
+            release.set()
+        results_ = await _asyncio.gather(task, return_exceptions=True)
+        if mode == "normal":
+            check(
+                "多页交付时两图各获得120秒缓冲",
+                cleanup_requests == [("first.png", 120.0), ("second.png", 120.0)],
+            )
+            check("多页缓冲登记后正常交付整链", len(results_[0]) == 2)
+        else:
+            check(f"多页清理{mode}：前页未交付立即清理", cleanup_requests == [("first.png", 0)])
+            check(
+                f"多页清理{mode}：保留调用方异常",
+                task.cancelled() if mode == "cancel" else isinstance(results_[0], RuntimeError),
+            )
+        await gen.aclose()
+
+    for text_only in (False, True):
+        calls.clear()
+        reply.text_only = text_only
+        parsed = SimpleNamespace(force_image=text_only, force_text=not text_only)
+        results = [row async for row in build(host, event, reply, parsed)]
+        check(f"多页文字模式{text_only}：不调用渲染", not calls)
+        check(
+            f"多页文字模式{text_only}：三页与补充内容保留",
+            all(
+                token in str(results)
+                for token in ["BODY_1", "BODY_2", "BODY_3", "WHISPER", "EXTRA"]
+            ),
+        )
+
+
+_asyncio.run(_multipage_delivery_checks())
+
+
+with tempfile.TemporaryDirectory(prefix="wf-render-png-lifetime-") as _folder:
+    _r = R.ImageRenderer(Path(_folder))
+    _pngs = [_r.render(f"保留图片{i}", [f"第{i}张待交付正文"]) for i in range(3)]
+    check("三张真实图片均成功渲染", all(_pngs))
+    check("第三张渲染不能抢删尚未交付的首张", all(p and Path(p).exists() for p in _pngs))
+    _unrelated = Path(_folder) / "user-image.png"
+    _unrelated.write_bytes(b"unrelated image")
+    _r._cleanup(keep=1)
+    check("离线显式清理仍保留指定数量", len(list(Path(_folder).glob("card_*.png"))) == 1)
+    check("离线显式清理不碰非卡片文件", _unrelated.read_bytes() == b"unrelated image")
+
+# 启动兜底：重载 / 重启丢失延迟清理任务后，旧卡片图在下次构造渲染器时按修改时间清掉
+with tempfile.TemporaryDirectory() as _folder:
+    import os as _os
+    import time as _time
+
+    _old = Path(_folder) / "card_00000000aa.png"
+    _new = Path(_folder) / "card_00000000bb.png"
+    _other = Path(_folder) / "user-image.png"
+    for _p in (_old, _new, _other):
+        _p.write_bytes(b"x")
+    _past = _time.time() - 3600
+    _os.utime(_old, (_past, _past))
+    _os.utime(_other, (_past, _past))
+    R.ImageRenderer(Path(_folder))
+    check("启动清理删除超过 10 分钟的旧卡片图", not _old.exists())
+    check("启动清理保留缓冲期内的新卡片图", _new.exists())
+    check("启动清理不碰非卡片文件", _other.exists())
 
 print()
 if FAILED:

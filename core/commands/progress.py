@@ -43,7 +43,7 @@ class ProgressCommands:
             title,
             lines,
             footer=fmt.fmt_platform_footer(
-                platform, "来源 wiki.warframe.com/w/Steel_Essence（每周轮换 8 件循环）"
+                platform, "来源 wiki Steel Essence 页（每周轮换 8 件循环）"
             ),
         )
 
@@ -71,11 +71,11 @@ class ProgressCommands:
 
         raw = data.get("valence_snapshot") or ""
         if not raw:
-            return ""
+            return "※ 元素与加成尚未取得，后台自动获取，以游戏内为准"
         try:
             snap = datetime.fromisoformat(raw)
         except (TypeError, ValueError):
-            return ""
+            return "※ 元素与加成尚未取得，后台自动获取，以游戏内为准"
         if snap.tzinfo is None:
             snap = snap.replace(tzinfo=timezone.utc)
         stale = snap < window_start
@@ -91,8 +91,8 @@ class ProgressCommands:
             # 快照时刻在本轮、数值却与上一轮相同 ⇒ wiki 还没人更新（见 valence_values_stale）
             flag = "（数值疑似仍是上一轮：wiki 尚未完整更新，可能已变）"
         return (
-            f"※ 元素与加成为 {when} UTC 快照{flag}：wiki「Reset」页玩家上报值"
-            f"（无官方 API，换轮后需人工刷新），以游戏内商店为准"
+            f"※ 元素与加成为 {when} UTC 快照{flag}：wiki 武器页玩家上报值"
+            f"（无官方 API，后台自动获取），以游戏内商店为准"
         )
 
     async def _h_descendia(self, parsed, event, platform) -> Reply:

@@ -2113,7 +2113,9 @@ def _oracle_region_block(
 
 # 各地区点位块的来源注脚（口径随地区不同，别用同一句）
 _TENT_NOTE = {
-    "Ostrons": "※ 小帐篷 = 平野三处营地的当前赏金（按 DE 世界种子推算，与游戏内一致）",
+    # 「蓝字」对应 render._TENT_BLUE_TASKS（攻略推荐的四个快速任务）；文字输出由 render 换成「（快速）」标注。
+    "Ostrons": "※ 小帐篷 = 平野三处营地的当前赏金（按 DE 世界种子推算，与游戏内一致）；"
+    "蓝字 = 快速任务",
     "Solaris United": "※ 以上为金星七处赏金点位的当前赏金（按 DE 世界种子推算，与游戏内一致）；"
     "「未定名」= 官方简中尚未翻译该点位",
 }
@@ -2425,6 +2427,8 @@ def fmt_construction(data: Optional[dict]) -> tuple[str, list[str]]:
                 f"※ ⚠ 袭击进行中：{a['name']} → {a['victim'] or '一座中继站'}"
                 + ("｜" + "｜".join(extra) if extra else "")
             )
+    elif data.get("assaults_unknown"):
+        lines.append("◆ 袭击状态：社区源未提供详情，当前状态未知")
     else:
         lines.append("◆ 袭击状态：当前无进行中的袭击事件")
 
@@ -2513,11 +2517,15 @@ def fmt_acrichis_week(data: dict) -> tuple[str, list[str]]:
     lines = [head]
     if rows:
         lines += ["◆ 货单", f"{S}商品{S}价格", *rows]
+    if data.get("_price_note"):
+        lines.append("※ " + data["_price_note"])
     lines.append("※ 每周一 00:00 UTC 轮换（与其它周常同点）；本周货单为社区维护快照，DE 不下发")
     return ("言录使（Acrithis）本周货单", lines)
 
 
-def fmt_acrichis(data: Optional[dict], stale: bool = False) -> tuple[str, list[str]]:
+def fmt_acrichis(
+    data: Optional[dict], stale: bool = False, pending: bool = False
+) -> tuple[str, list[str]]:
     """言录使（Acrithis）商品**池**。
 
     ⚠️ DE 不下发每周实际卖哪 5 件（``AcrithisVendorManifest`` 只有池子 + 权重，
@@ -2528,6 +2536,9 @@ def fmt_acrichis(data: Optional[dict], stale: bool = False) -> tuple[str, list[s
     ``stale=True`` 表示本周货单快照已过期（此时展示的是候选池），
     必须**明确说出来**，不能让人误以为这就是本周实际在卖的 5 件。
     """
+    if pending:
+        title, lines = fmt_acrichis(data, stale=False)
+        return title + "（货单待获取）", ["◆ 本周货单待获取，下表仅为候选池", *lines]
     bins = (data or {}).get("bins") or {}
     weekly = bins.get("2") or []
     if not weekly:
@@ -3292,6 +3303,23 @@ def _riven_rolls(a: dict) -> int:
         return 0
 
 
+def wr_sorted_auctions(
+    auctions: list[dict], *, presorted: bool = False, exact_ids: Optional[set] = None
+) -> list[dict]:
+    """拍卖卡与卖家按钮共用排序：一口价、在线档、恰好命中、价格。"""
+    if presorted:
+        return list(auctions)
+    return sorted(
+        auctions,
+        key=lambda a: (
+            0 if a.get("buyout_price") else 1,
+            _ONLINE_RANK.get((a.get("owner") or {}).get("status") or "offline", 3),
+            0 if (exact_ids and a.get("id") in exact_ids) else 1,
+            a.get("buyout_price") or a.get("starting_price") or 0,
+        ),
+    )
+
+
 def fmt_wr_auctions(
     weapon: str,
     auctions: list[dict],
@@ -3319,9 +3347,6 @@ def fmt_wr_auctions(
     （超集仍在结果里可翻页）；`None`（未指定词条）退化为现行为。
     """
 
-    def price_of(a: dict) -> float:
-        return a.get("buyout_price") or a.get("starting_price") or 0
-
     def status_of(a: dict) -> str:
         return (a.get("owner") or {}).get("status") or "offline"
 
@@ -3343,21 +3368,7 @@ def fmt_wr_auctions(
         hours = secs / 3600
         return f">{int(hours // 100) * 100}h" if hours >= 100 else f"{int(hours)}h"
 
-    pool = (
-        list(auctions)
-        if presorted
-        else sorted(
-            auctions,
-            key=lambda a: (
-                # ★ 2026-10-08（用户口径）：「拍卖（竞价型）的权重拉低一点，只比离线高」
-                #   ⇒ 先按挂单类型分档（一口价 0 < 竞价型 1），档内再按在线状态/价格。
-                0 if a.get("buyout_price") else 1,
-                _ONLINE_RANK.get(status_of(a), 3),
-                0 if (exact_ids and a.get("id") in exact_ids) else 1,
-                price_of(a),
-            ),
-        )
-    )
+    pool = wr_sorted_auctions(auctions, presorted=presorted, exact_ids=exact_ids)
     rank_max = 8  # 紫卡满级 8 级
     total = len(pool)
     pages = max(1, (total + page_size - 1) // page_size)
@@ -3921,7 +3932,7 @@ def _rank_sort_key(r: dict) -> float:
     return r.get("median48") or 0
 
 
-# 价格排行入榜的最低 48h 成交笔数（2026-10-25 用户：MOD 榜首「均衡点 (Steam Pinnacle Pack)」1600p
+# 价格排行入榜的最低 48h 成交笔数（2026-10-25 维护者定：MOD 榜首「均衡点 (Steam Pinnacle Pack)」1600p
 # 只有零星成交，疑似 RMT 过账价）—— 冷门物品一两笔离谱成交不代表行情，不进榜
 RANK_MIN_VOL48 = 3
 RANK_MIN_VOL_NOTE = (
@@ -3979,7 +3990,7 @@ def fmt_rank_overview(rows: list[dict]) -> tuple[str, list[str]]:
                 )
             )
     if empty:
-        return ("价格排行", ["暂无落盘数据，请先发「排行 刷新」建立全量榜单"])
+        return ("价格排行", ["暂无落盘数据，需管理员发「排行 刷新」建立全量榜单"])
     # ★ 2026-10-03 口径注脚（选 A）：数据源 = statistics_closed 真实成交，
     #   不是 statistics_live 挂单价（第三方「加权平均价」实为后者，实测高 13~15%）。
     lines.insert(0, "◆ 各榜榜首：" + "｜".join(tops))
@@ -4165,7 +4176,7 @@ _RIVEN_HEAD = "　武器　0洗中位　0洗热度　已洗中位　已洗热度
 def _riven_now_note(now_ts: str) -> str:
     """WM 现价两列的注脚；没拉过现价时提示管理员可拉。"""
     if not now_ts:
-        return "※ 大更后价格波动大时，管理员可发「紫卡排行 刷新」拉一次 WM 现价对比（约 30 分钟）"
+        return "※ 大更后价格波动大时，管理员可发「紫卡排行 刷新」拉一次 WM 现价对比（重抓保护 10 分钟，耗时看进度）"
     when = now_ts[:16].replace("T", " ")
     return (
         f"※ WM挂单 = 管理员 {when} UTC 手动拉取的挂单最低 20 条中位；变化 = 对比周报参考价"
@@ -4391,6 +4402,7 @@ def fmt_riven_ranges(
     only: Optional[list[str]] = None,
     dropped: Optional[list[str]] = None,
     survey: Optional[dict] = None,
+    stat_multipliers: Optional[dict] = None,
 ) -> tuple[str, list[str]]:
     """「词条范围」卡：按武器列出紫卡每条词条在**四种组合**下的卡面取值区间。
 
@@ -4424,7 +4436,9 @@ def fmt_riven_ranges(
         cols.insert(0, combo)
 
     def _cell(sid: str, c: tuple[int, int], *, negative: bool) -> str:
-        lo, hi = RA.stat_range(sid, cls, disp, c[0], c[1], negative=negative)
+        lo, hi = RA.stat_range(
+            sid, cls, disp, c[0], c[1], negative=negative, stat_multipliers=stat_multipliers
+        )
         if lo is None:
             return "—"
         return _riven_range_text(RA, sid, lo, hi, negative=negative)
@@ -4441,7 +4455,15 @@ def fmt_riven_ranges(
             continue
         rows = []
         for sid in sids:
-            lo, _hi = RA.stat_range(sid, cls, disp, sec[0][0], sec[0][1], negative=is_neg)
+            lo, _hi = RA.stat_range(
+                sid,
+                cls,
+                disp,
+                sec[0][0],
+                sec[0][1],
+                negative=is_neg,
+                stat_multipliers=stat_multipliers,
+            )
             if lo is None:
                 continue
             # 未确认的物理词条：名字照普通色，只把「?」压暗（⟦n⟧ = INK_DIM）
@@ -4510,6 +4532,10 @@ def fmt_riven_analysis(
     infos: Optional[list] = None,
     counts: Optional[tuple] = None,
     hidden: int = 0,
+    splice: Optional[dict] = None,
+    price: Optional[dict] = None,
+    splice_limit: Optional[int] = None,
+    stat_multipliers: Optional[dict] = None,
 ) -> tuple[str, list[str]]:
     """紫卡分析：逐词条给出 DE 机制下的取值区间与卷度。
 
@@ -4523,11 +4549,23 @@ def fmt_riven_analysis(
     ``infos`` 合并成一条注脚。
     ``counts`` = (正, 负) 词条数（决定系数；None = 按 stats 条数）；``hidden`` = 融合未选定的
     「？？？」词条数（2026-10-24）：只计入词条数、单列一行不给区间。
+    ``splice`` = 后端 ``Reply.riven_splice``（融合建议，前端只排版不重算）；``price`` = 同词条
+    一口价参考（``None`` = 未查询，整段不出）。两段都排在词条表之后、注脚之前。
+    ``splice_limit`` = 融合建议本页最多列几条（``None`` = 全列）；超出部分由
+    ``fmt_riven_splice_more`` 出续页，本页注脚写明「其余 N 条见续页」。
     """
     from . import riven_analysis as RA
     from .parser import RIVEN_STAT_ZH
 
     zh = RIVEN_STAT_ZH
+    if stat_multipliers:
+        infos = list(infos or []) + [
+            "武器机制："
+            + "、".join(
+                f"{zh.get(sid, sid)} ×{factor:g}" for sid, factor in stat_multipliers.items()
+            )
+            + "；区间按卡面倍率计算，原读数保留"
+        ]
     # 近战没有「射速」：合并词条 fire_rate 在近战上就是攻速（与拍卖卡同一套口径）
     _melee = cls == "melee"
 
@@ -4547,7 +4585,9 @@ def fmt_riven_analysis(
     lines.append("　词条　区间　距中　区间位")
     for sid0, v in stats_pos:
         sid = _sid(sid0)
-        lo, hi = RA.stat_range(sid, cls, disposition, n_pos, n_neg)
+        lo, hi = RA.stat_range(
+            sid, cls, disposition, n_pos, n_neg, stat_multipliers=stat_multipliers
+        )
         # ★ 2026-10-02：反转词条（后坐力）**保留卡面符号**显示 —— 卡面
         #   「-20% 后坐力」是正面效果，就写「-20% 后坐（卡面-号·正面）」；
         #   其余正词条照旧 +（用户口径：显示符号必须与卡面一致，极性用标注传达）。
@@ -4567,7 +4607,9 @@ def fmt_riven_analysis(
         )
     for sid0, v in stats_neg:
         sid = _sid(sid0)
-        lo, hi = RA.stat_range(sid, cls, disposition, n_pos, n_neg, negative=True)
+        lo, hi = RA.stat_range(
+            sid, cls, disposition, n_pos, n_neg, negative=True, stat_multipliers=stat_multipliers
+        )
         # ★ 2026-10-02：反转词条在负词组里同样**保留卡面符号** —— 卡面
         #   「+95.4% 武器后坐力」是负面（增加后坐力），写「+95.4% 后坐
         #   （卡面+号·负面）」；区间仍按**负面档**系数计算（分组不变）。
@@ -4590,6 +4632,11 @@ def fmt_riven_analysis(
         )
     for _ in range(hidden):
         lines.append("· ？？？　未揭示（融合选定后再分析）　—　—")
+    notes = []
+    if splice:
+        lines += _riven_splice_lines(RA, splice, cls, notes, limit=splice_limit)
+    if price is not None:
+        lines += _riven_price_lines(price, cls, notes)
     if infos:
         lines.append(
             "※ "
@@ -4602,12 +4649,280 @@ def fmt_riven_analysis(
         lines.append(
             "※ 「？？？」词条正负未知，只计入词条数：词条数决定系数，已知词条的区间照常给出"
         )
-    lines.append("※ 距中为正 = 高卷；负词条看幅度位：幅度越大越友好（负得越满，通常越好卖）")
+    # 注脚压到每类一行（手机上整段注释曾占 5–6 行）；详细机制在「紫卡融合」卡与帮助里
     lines.append(
-        "※ 区间 = DE 属性基值 × 倾向 × 词条数系数 × 随机 0.9~1.1（相对中值 ±10%；上限=最满，"
-        "下限=最弱）；「±11%」是把基准取成低值端（110÷90=+22.2% 再折半）的误传，官方 wiki 为 90%~110%"
+        "※ 距中为正 = 高卷；负词条看幅度位，幅度越大越友好；"
+        "区间 = DE 基值 × 倾向 × 词条数系数 × 0.9~1.1"
     )
+    lines += notes
     return ("紫卡分析", lines)
+
+
+# 融合建议阻断原因 → 卡面短句（键与 RA.splice_preview 的 reasons 一致）
+_SPLICE_REASON_ZH = {
+    "hidden_stats": "有未揭示的「？？？」词条",
+    "incomplete_stats": "词条没读全或两路识别不一致",
+    "legacy_values": "疑似倾向调整前的旧截图",
+    "non_current_disposition": "手输倾向不是当前倾向",
+    "unknown_weapon_class": "武器类别未确定",
+    "unverified_values": "数值与当前区间对不上",
+    "unverified_weapon_traits": "这把武器的词条可用性未确认",
+    "duplicate_stat": "有重复词条",
+    "unknown_stat": "有认不出的词条",
+    "out_of_range": "数值超出区间",
+    "invalid_value": "数值不合法",
+    "stat_not_allowed": "词条与武器类别或正负不符",
+    "counts_mismatch": "词条数与正负布局不符",
+    "invalid_counts": "正负条数不合法",
+    "pool_unavailable": "缺少词条池数据",
+    "missing_base": "缺少词条基值",
+    "unsupported_class": "该武器类别暂不支持",
+    "no_matching_recipe": "现有词条凑不成任何配方",
+    "invalid_stats": "词条结构不合法",
+    "invalid_disposition": "倾向参数不合法",
+}
+# 融合建议首屏最多列几条（直接可融合在前）；其余进续页，不用通用配方表代替当前卡的预测
+SPLICE_FIRST_ROWS = 6
+
+
+def _riven_short(sid: str, cls: str) -> str:
+    from .parser import RIVEN_STAT_ZH
+
+    if cls == "melee" and sid == "fire_rate":
+        sid = "attack_speed"
+    return RIVEN_STAT_ZH.get(sid, sid)
+
+
+def _splice_value(RA, sid: str, v: float) -> str:
+    """融合结果数值：派系是增伤百分数，按净倍率显示（与词条区间同一口径）。"""
+    if sid.startswith("damage_vs_"):
+        return f"×{1 + v / 100:.2f}"
+    return "+" + RA.fmt_value(sid, round(v + 1e-9, 1))
+
+
+def _splice_num(v: float) -> str:
+    """距中数字：1 位小数，整数不写「.0」（后端 5 ⇒「+5%」），−0 归 0。"""
+    v = round(v, 1) + 0.0
+    return f"{v:.1f}".rstrip("0").rstrip(".") if v % 1 else f"{v:.0f}"
+
+
+def _splice_dev(v: float) -> str:
+    return ("+" if round(v, 1) >= 0 else "") + _splice_num(v)
+
+
+def _splice_rows(RA, splice: dict, cls: str) -> list[tuple[str, str]]:
+    """当前卡融合预测 → [(表格行, 消耗续行)]；**每种融合结果只留数值最高的方案**。
+
+    四列与上方词条表同构：融合词条 + 数值｜理论区间｜距中｜区间位。
+    · 直接融合：「约 +101.2%」，距中 / 区间位读后端点估计 ``deviation_pct`` / ``position_pct``；
+    · 差一条：「+253.1%起」，距中 / 区间位写后端给的条件上下界（点估计是 null，不当 0）；
+    · 续行「消耗 ▲基伤、缺多重（正负皆可）」——单独一行，手机上不挤成第五列。
+    距中 +5% 与区间位 75% 是两个量（同上方词条表），都只读后端字段，前端不重算。
+
+    去重（同一 ``output``）：比后端原始数值——直接融合用 ``value``，差一条用「起」对应的
+    ``value_min``（不用理论上限 ``value_max``）。最高值并列时优先直接融合；同类并列且四列显示
+    完全相同则把消耗用「或」合并，否则只留第一条。所选行的数值 / 距中 / 区间位 / 缺项都取自
+    同一个方案。顺序：直接融合在前，再按「起」值降序。
+    """
+    cands = []
+    for i, r in enumerate(list(splice.get("direct") or []) + list(splice.get("missing_one") or [])):
+        pred = r.get("prediction") or {}
+        out = r.get("output", "")
+        conditional = bool(r.get("missing")) or pred.get("value") is None
+        score = pred.get("value_min") if conditional else pred.get("value")
+        cands.append(
+            dict(
+                out=out,
+                conditional=conditional,
+                score=float("-inf") if score is None else score,
+                cells=_splice_cells(RA, r, pred, out, cls, conditional),
+                present="、".join(
+                    ("▼" if p.get("negative") else "▲") + _riven_short(p.get("stat_id", ""), cls)
+                    for p in r.get("present") or []
+                ),
+                lack="、".join(_riven_short(x, cls) for x in r.get("missing") or []),
+                pol=_splice_pol(r.get("missing_polarities")) if r.get("missing") else "",
+                order=i,
+            )
+        )
+    best: dict[str, list[dict]] = {}
+    for c in cands:
+        group = best.setdefault(c["out"], [])
+        if not group:
+            group.append(c)
+            continue
+        top = group[0]
+        rank = (c["score"], not c["conditional"])
+        top_rank = (top["score"], not top["conditional"])
+        if abs(c["score"] - top["score"]) < 1e-9:
+            rank, top_rank = (0, rank[1]), (0, top_rank[1])
+        if rank > top_rank:
+            best[c["out"]] = [c]
+        elif rank == top_rank and c["cells"] == top["cells"]:
+            group.append(c)  # 同值同显示：消耗合并成「或」
+    picked = sorted(
+        best.values(), key=lambda g: (g[0]["conditional"], -g[0]["score"], g[0]["order"])
+    )
+    rows = []
+    for group in picked:
+        rows.append(("· " + "　".join(group[0]["cells"]), "　消耗 " + _splice_used(group)))
+    return rows
+
+
+def _splice_pol(pols) -> str:
+    pols = set(pols or [])
+    if pols >= {"positive", "negative"}:
+        return "正负皆可"
+    return "需负面" if "negative" in pols else "需正面"
+
+
+def _splice_used(group: list[dict]) -> str:
+    """消耗续行；并列方案用「或」：保留同一条、缺项正负说明相同时只合并缺项（缺变焦或多重）。"""
+
+    def one(c: dict, lack: str) -> str:
+        if not lack:
+            return c["present"]
+        return (c["present"] + "、" if c["present"] else "") + f"缺{lack}（{c['pol']}）"
+
+    head = group[0]
+    if len(group) > 1 and all(
+        c["lack"] and c["present"] == head["present"] and c["pol"] == head["pol"] for c in group
+    ):
+        return one(head, "或".join(dict.fromkeys(c["lack"] for c in group)))
+    return " 或 ".join(dict.fromkeys(one(c, c["lack"]) for c in group))
+
+
+def _splice_cells(RA, r: dict, pred: dict, out: str, cls: str, conditional: bool) -> list[str]:
+    """一条方案的四列显示（融合词条 + 数值｜理论区间｜距中｜区间位）。"""
+    rng = _riven_range_text(
+        RA, out, pred.get("range_min", 0), pred.get("range_max", 0), negative=False
+    )
+    # 融合词条用卡面全称（短名「异常伤」「弱点暴」不好认；消耗沿用上方词条表的短名）
+    out_zh = (
+        _SPLICE_DAMAGE_ZH["melee" if cls == "melee" else "gun"]
+        if out == "melee_damage"
+        else _SPLICE_FULL_ZH.get(out) or _riven_short(out, cls)
+    )
+    head = f"⟦v⟧{out_zh}⟦/v⟧ "
+    # 点估计（value / deviation_pct / position_pct）只有直接融合才有；缺字段写「—」，不当 0
+    if conditional:
+        v_lo = pred.get("value_min")
+        head += "—" if v_lo is None else _splice_value(RA, out, v_lo) + "起"
+        d_lo, d_hi = pred.get("deviation_min_pct"), pred.get("deviation_max_pct")
+        p_lo, p_hi = pred.get("position_min_pct"), pred.get("position_max_pct")
+        if d_lo is None or d_hi is None:
+            dev = "—"
+        elif round(d_lo, 1) >= 0:
+            # 同号只在前面写一次（同理论区间「+91.1~111.4%」）；下界为负时两头都带号
+            dev = f"+{_splice_num(d_lo)}~{_splice_num(d_hi)}%"
+        else:
+            dev = f"{_splice_dev(d_lo)}~{_splice_dev(d_hi)}%"
+        pos = "—" if p_lo is None or p_hi is None else f"{round(p_lo)}~{round(p_hi)}%"
+    else:
+        head += "约" + _splice_value(RA, out, pred["value"])
+        d, pp = pred.get("deviation_pct"), pred.get("position_pct")
+        dev = "—" if d is None else _splice_dev(d) + "%"
+        pos = "—" if pp is None else f"{round(pp)}%"  # 与上方词条表同为整数
+    return [head, rng, dev, pos]
+
+
+_SPLICE_HEADER = "　融合词条　理论区间　距中　区间位"
+_SPLICE_NOTE = (
+    "※ 融合建议按英文 wiki 公式预计：继承被消耗两条中较高的随机值；"
+    "「起」= 保留现有词条、洗出缺项后再融合"
+)
+
+
+def _riven_splice_lines(
+    RA, splice: dict, cls: str, notes: list, *, limit: Optional[int] = None
+) -> list[str]:
+    """「◆ 融合建议」段：消费 ``RA.splice_preview`` 的结果，不重算任何数值。
+
+    ``limit`` = 本页最多列几条，其余由 ``fmt_riven_splice_more`` 出续页。
+    阻断状态只给一句原因，不列配方。
+    """
+    status = splice.get("status")
+    if status == "already_spliced":
+        names = "、".join(_riven_short(s, cls) for s in splice.get("existing_spliced") or [])
+        return [f"◆ 融合建议：已有融合词条{f'（{names}）' if names else ''}，不能再融合"]
+    if status != "ready":
+        why = [_SPLICE_REASON_ZH.get(r, "") for r in splice.get("reasons") or []]
+        why = "、".join(w for w in why if w) or "条件不足"
+        return [f"◆ 融合建议：暂不判断（{why}）"]
+    rows = _splice_rows(RA, splice, cls)
+    if not rows:
+        return ["◆ 融合建议：现有词条凑不成任何配方"]
+    shown = rows if limit is None else rows[:limit]
+    title = (
+        "◆ 融合建议（预计）"
+        if len(shown) == len(rows)
+        else f"◆ 融合建议（预计，共 {len(rows)} 条）"
+    )
+    out_lines = [title, _SPLICE_HEADER]
+    for row, used in shown:
+        out_lines += [row, used]
+    if len(shown) < len(rows):
+        notes.append(f"※ 融合建议其余 {len(rows) - len(shown)} 条见续页")
+    notes.append(_SPLICE_NOTE)
+    return out_lines
+
+
+def fmt_riven_splice_more(
+    name: str, cls: str, splice: Optional[dict], *, skip: int = SPLICE_FIRST_ROWS
+) -> Optional[tuple[str, list[str]]]:
+    """融合建议续页：首屏之后的**当前卡**剩余预测（同一组数值、缺项与条件上下界）。
+
+    没有剩余（或不是 ready）时返回 ``None``。续页单独带武器行，转发 / 单看时也知道是哪张卡。
+    """
+    from . import riven_analysis as RA
+
+    if not splice or splice.get("status") != "ready":
+        return None
+    rows = _splice_rows(RA, splice, cls)
+    if len(rows) <= skip:
+        return None
+    lines = [
+        f"◆ 武器：{name}",
+        f"◆ 融合建议（预计，第 {skip + 1}–{len(rows)} 条，共 {len(rows)} 条）",
+        _SPLICE_HEADER,
+    ]
+    for row, used in rows[skip:]:
+        lines += [row, used]
+    lines.append(_SPLICE_NOTE)
+    return ("紫卡分析 · 融合建议续", lines)
+
+
+def _riven_price_lines(price: dict, cls: str, notes: list) -> list[str]:
+    """「◆ 同词条挂单」段：warframe.market 当前一口价（非成交价）。
+
+    ``price`` 键：low / online_low / median / sample_count（同 ``riven_buyout_summary``）、
+    pos / neg（完整匹配词条 id）、match_mode（正负名称与条数全同）、error（查询失败）。
+    """
+    cond = " ".join(
+        [f"▲{_riven_short(s, cls)}" for s in price.get("pos") or []]
+        + [f"▼{_riven_short(s, cls)}" for s in price.get("neg") or []]
+    )
+
+    if price.get("error"):
+        return ["◆ 同词条挂单：warframe.market 暂时查不到，稍后重试", f"· 匹配词条：{cond}"]
+
+    def _p(v):
+        return f"{v:g}p" if v is not None else "—"
+
+    out = ["◆ 同词条挂单（一口价）", "　匹配词条　最低　在线最低　中位"]
+    n = price.get("sample_count") or 0
+    if n:
+        out.append(
+            f"· {cond}　{_p(price.get('low'))}　{_p(price.get('online_low'))}"
+            f"　{_p(price.get('median'))}（{n} 条）"
+        )
+    else:
+        out.append(f"· {cond}　本次未找到完全同词条样本　—　—")
+    notes.append(
+        "※ 同词条挂单：正负词条名称与条数全同（不比数值、洗数）；"
+        "warframe.market 一口价，非成交价；中位取低价样本（最多 20 条）"
+    )
+    return out
 
 
 _SPLICE_CLASS_ZH = {

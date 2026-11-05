@@ -13,8 +13,13 @@ WarframeSDJK→VisionCommands ×1），导入目标/被调函数不变。
 from __future__ import annotations
 
 import asyncio
-import json
+import copy
+import math
+import re
 import time
+import unicodedata
+from hashlib import sha256
+from decimal import Decimal, InvalidOperation, localcontext
 from typing import Optional
 
 from .. import loadout_ocr as lo
@@ -22,6 +27,25 @@ from .. import paths as core_paths
 from .. import pips as pips_engine
 from ..logging_compat import logger
 from .base import Reply, _num
+
+
+async def _cancel_vision_tasks(tasks: list) -> None:
+    """回收本层拥有的渠道任务；调用方取消不能中断渠道的异步清理。"""
+    for task in tasks:
+        cancelling = getattr(task, "cancelling", None)
+        if not task.done() and not (cancelling and cancelling()):
+            task.cancel()
+    # shield 防止调用方再次 cancel 时，gather 把第二次取消传给正在 finally 中清理的渠道。
+    # 3.10 没有 Task.cancelling；本层只主动取消一次，后续取消均在此等清理结束。
+    waiter = asyncio.gather(*tasks, return_exceptions=True)
+    cancelled = False
+    while not waiter.done():
+        try:
+            await asyncio.shield(waiter)
+        except asyncio.CancelledError:
+            cancelled = True
+    if cancelled:
+        raise asyncio.CancelledError
 
 
 def _prov_id(prov) -> str:
@@ -32,27 +56,93 @@ def _prov_id(prov) -> str:
     任何一次错读都能直接归因到具体模型（8B / 30B / glm-4v-flash）。
     """
     try:
-        return getattr(getattr(prov, "meta", lambda: None)(), "id", "") or "?"
+        raw_id = prov.meta().id
+        pid = str(raw_id) if raw_id is not None else ""
+        return pid if pid.strip() else "?"
     except Exception:  # noqa: BLE001 —— 取不到 id 绝不能影响识图
         return "?"
+
+
+def original_vision_prompt(task: str) -> str:
+    """生产可达任务的原版提示词；页面与运行入口共用同一真源。"""
+    if task == "riven_json":
+        return VisionCommands._RIVEN_JSON_PROMPT
+    if task == "riven_lines":
+        return VisionCommands._RIVEN_LINE_PROMPT
+    from .scan import ScanCommands, lo
+
+    if task == "scan_main":
+        return lo.VISION_PROMPT
+    if task == "scan_title":
+        return ScanCommands._TITLE_PROMPT
+    if task == "scan_tiles":
+        return ScanCommands._TILES_PROMPT
+    if task in ("scan_panel", "scan_mods", "scan_arcanes"):
+        return ScanCommands._FOCUS_PROMPTS[task.removeprefix("scan_")]
+    raise ValueError(f"未知视觉任务：{task}")
+
+
+def effective_vision_prompt(host, provider, task: str, original: str) -> str:
+    """仅按本次真正收图的渠道取覆盖；旧宿主与无稳定 id 的渠道沿用原文。"""
+    store = getattr(host, "vision_prompts", None)
+    if store is None:
+        return original
+    pid = _prov_id(provider)
+    if pid == "?":
+        return original
+    return store.effective(pid, task, original)
 
 
 class VisionCommands:
     """Mixin：识别链设施（挂载于 main.WarframeSDJK；消费者为 riven 域与 scan 段）。"""
 
-    def _vision_gate(self, event, what: str) -> tuple[Optional[Reply], str]:
-        """付费识图（识卡 / 紫卡截图）共用的两道防刷闸，返回 (拦截回复或 None, 发送者)。
+    def _vision_routes_isolated(self) -> bool:
+        """缺省保留旧路由；隔离标记损坏或拒读时禁止退回自动选云渠道。"""
+        try:
+            value = self.cfg.get("vision_routes_isolated", False)
+        except Exception:  # noqa: BLE001 - 读取失败按严格隔离处理
+            return True
+        return value if type(value) is bool else True
+
+    def _vision_route_value(self, key: str) -> Optional[str]:
+        """严格路由字段只接受字符串；None 表示拒读/损坏，不等同于主动留空。"""
+        try:
+            value = self.cfg.get(key, "")
+        except Exception:  # noqa: BLE001
+            return None
+        return value.strip() if isinstance(value, str) else None
+
+    def _vision_last(self, task: str) -> dict:
+        """隔离模式分别记紫卡/识卡冷却；旧模式仍使用原来的共享表。"""
+        if not self._vision_routes_isolated():
+            return self._ocr_last
+        if task not in {"riven", "scan"}:
+            raise ValueError("未知识图任务")
+        states = getattr(self, "_vision_last_by_task", None)
+        if not isinstance(states, dict):
+            states = self._vision_last_by_task = {}
+        return states.setdefault(task, {})
+
+    @staticmethod
+    def _vision_refund(last: dict, sender: str, stamp) -> None:
+        """只退还本请求写入的冷却，不删除另一任务或后来请求的记录。"""
+        if sender and stamp is not None and last.get(sender) == stamp:
+            last.pop(sender, None)
+
+    def _vision_gate(self, event, what: str, *, task: str = "scan") -> tuple[Optional[Reply], str]:
+        """任务冷却与机器共享资源预算，返回 (拦截回复或 None, 发送者)。
 
         ① 同一发送者冷却 scan_cooldown 秒（默认 15，设 0 关闭）—— 识卡与紫卡识图
-           共用一份冷却（同一个人两种识图轮着刷，账单一样涨）；
-        ② 全局并发上限 scan_max_concurrent（默认 3，设 0 关闭），按 _ocr_busy 计数。
+           旧模式共用，隔离模式按任务分别记录；
+        ② 机器共享并发上限 scan_max_concurrent（默认 3，设 0 关闭），按 _ocr_busy 计数。
         放行时即记下本次时刻；调用方在识别失败时可 pop 掉以返还冷却。
         """
         _cfg = getattr(self, "cfg", None) or {}  # 绕过 __init__ 构造的实例（单测桩）也能用
         _cd = _num(_cfg, "scan_cooldown", 15)
         _sender = self._safe_sender(event)
+        last = self._vision_last(task)
         if _cd > 0 and _sender:
-            _last = self._ocr_last.get(_sender, 0.0)
+            _last = last.get(_sender, 0.0)
             _left = _cd - (time.time() - _last)
             if _last and _left > 0:
                 return (
@@ -63,15 +153,17 @@ class VisionCommands:
                     _sender,
                 )
             # 顺手清掉过期记录，避免长期运行把字典撑大
-            if len(self._ocr_last) > 512:
+            if len(last) > 512:
                 _now = time.time()
-                for _k in [k for k, v in self._ocr_last.items() if _now - v > max(_cd * 4, 120)]:
-                    self._ocr_last.pop(_k, None)
-            self._ocr_last[_sender] = time.time()
+                for _k in [k for k, v in last.items() if _now - v > max(_cd * 4, 120)]:
+                    last.pop(_k, None)
+            last[_sender] = time.time()
         _cap = int(_num(_cfg, "scan_max_concurrent", 3))
         if _cap > 0 and len(self._ocr_busy) >= _cap:
             return (
-                Reply(raw_text=f"⏳ 机器人正在处理其它识图请求（并发上限 {_cap}），请稍后再试"),
+                Reply(
+                    raw_text=f"⏳ 机器人正在处理其它识图请求（机器共享资源预算，并发上限 {_cap}），请稍后再试"
+                ),
                 _sender,
             )
         return None, _sender
@@ -143,27 +235,62 @@ class VisionCommands:
         try:
             return self.context.get_provider_by_id(pid)
         except Exception as exc:  # noqa: BLE001
-            logger.warning("[sdjk] 取渠道 %s 失败：%s", pid, exc)
+            logger.warning("[sdjk] 取渠道 %s 失败：%s", pid, type(exc).__name__)
             return None
 
-    def _line_vision_providers(self) -> list:
-        """紫卡「窄读路」的渠道。
-
-        ★ 2026-10-15（三路基准 20 图实测）：窄读路要给「逐行念出来」这类指令，
-        OCR 专用模型（qwen-vl-ocr）在此会退回带 bbox 坐标的原生输出 ⇒ 整卡判
-        不合法（qwen-vl-ocr 窄读 15/20，5 张被坐标打穿；同批卡不发提示词时 19/20）；
-        通用指令跟随模型（qwen3.5-omni-flash）窄读 20/20。两路对模型的要求不同，
-        故支持分开配置 —— 配了 ``vision_provider_id_line`` 就用它，否则与主渠道同源。
-        报告：output/报告-视觉模型三路基准-20261015.md
-        """
-        want = self._cfg_str("vision_provider_id_line")
+    def _riven_vision_providers(self) -> list:
+        """隔离模式仅用紫卡专用项；旧模式保留空值继承兼容配置。"""
+        isolated = self._vision_routes_isolated()
+        want = (
+            self._vision_route_value("vision_provider_id_riven")
+            if isolated
+            else self._cfg_str("vision_provider_id_riven")
+        )
+        if want is None:
+            return []
         if not want:
-            return self._vision_providers()
+            return [] if isolated else self._vision_providers()
         prov = self._try_get_provider(want)
         if prov:
             return [prov]
-        logger.warning("[sdjk] 配置的 vision_provider_id_line「%s」取不到，窄读路回落主渠道", want)
-        return self._vision_providers()
+        if isolated:
+            logger.warning("[sdjk] 隔离模式的紫卡主读渠道「%s」不可用，请配置有效专用渠道", want)
+            return []
+        logger.warning(
+            "[sdjk] 配置的 vision_provider_id_riven「%s」取不到；为免紫卡截图外发到未指定的渠道，"
+            "本次紫卡主读不回落其它渠道 —— 请在面板选择可用渠道，或清空该项沿用兼容主渠道",
+            want,
+        )
+        return []
+
+    def _line_recheck_vision_providers(self) -> list:
+        """分歧复读显式选择；留空关闭，取不到不借用其它渠道。"""
+        want = self._vision_route_value("vision_provider_id_line_recheck")
+        provider = self._try_get_provider(want) if want else None
+        return [provider] if provider is not None else []
+
+    def _line_vision_providers(self) -> list:
+        """隔离模式空值只继承紫卡专用主读，显式配置失效不回落。"""
+        isolated = self._vision_routes_isolated()
+        want = (
+            self._vision_route_value("vision_provider_id_line")
+            if isolated
+            else self._cfg_str("vision_provider_id_line")
+        )
+        if want is None:
+            return []
+        if not want:
+            return self._riven_vision_providers()
+        prov = self._try_get_provider(want)
+        if prov:
+            return [prov]
+        if isolated:
+            logger.warning("[sdjk] 隔离模式的紫卡窄读渠道「%s」不可用，本次窄读不回落", want)
+            return []
+        logger.warning(
+            "[sdjk] 配置的 vision_provider_id_line「%s」取不到，窄读路回落紫卡主读渠道", want
+        )
+        return self._riven_vision_providers()
 
     def _vision_providers(self) -> list:
         """按优先级返回可用 vision provider 列表（逐个尝试用）。
@@ -199,7 +326,7 @@ class VisionCommands:
         try:
             allp = self.context.get_all_providers() or []
         except Exception as exc:  # noqa: BLE001
-            logger.warning("[sdjk] 枚举渠道失败：%s", exc)
+            logger.warning("[sdjk] 枚举渠道失败：%s", type(exc).__name__)
             allp = []
         for prov in allp:
             try:
@@ -225,13 +352,129 @@ class VisionCommands:
             )
         return out
 
-    async def _image_data_urls(self, event) -> list[str]:
-        """消息链里所有图片的 data URL。
+    # 保留旧的 base64 <14MiB 口径；读取原始字节时提前拦截。
+    MAX_SCAN_IMAGE_BYTES = (14 * 1024 * 1024 // 4 - 1) * 3
+    SCAN_IMAGE_TIMEOUT = 20.0
 
-        用 AstrBot 自带的 ``Image.convert_to_base64()``：统一处理 QQ 图床
-        下载（gtimg 需要特定 UA/Referer，手写 httpx 会被 403）、本地路径、
-        base64:// 三种来源。
-        """
+    @staticmethod
+    def _scan_image_headers(url: str) -> dict[str, str]:
+        from urllib.parse import urlsplit
+
+        headers = {"Accept-Encoding": "identity"}
+        host = (urlsplit(url).hostname or "").lower()
+        if any(
+            host == suffix or host.endswith("." + suffix)
+            for suffix in ("gtimg.cn", "qpic.cn", "qq.com")
+        ):
+            headers.update(
+                {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+                    "Referer": "https://im.qq.com/",
+                }
+            )
+        return headers
+
+    async def _read_scan_image(self, ref: str) -> str:
+        """自行限量取图；不调用会先完整下载/落盘的宿主 resolver。"""
+        import base64
+        import os
+        import stat
+        from urllib.parse import urlsplit
+        from urllib.request import url2pathname
+
+        import httpx
+
+        limit = self.MAX_SCAN_IMAGE_BYTES
+        if not isinstance(ref, str) or not ref:
+            raise ValueError("图片来源为空")
+        if ref.startswith(("http://", "https://")):
+            # 总时限同时覆盖连接、重定向和持续滴流；每次读取另有 httpx 超时。
+            async def download():
+                data = bytearray()
+                cfg = getattr(self, "cfg", None) or {}
+                proxy = cfg.get("proxy") or None
+                async with httpx.AsyncClient(
+                    timeout=10.0, follow_redirects=False, proxy=proxy
+                ) as client:
+                    url = ref
+                    for hop in range(6):
+                        async with client.stream(
+                            "GET", url, headers=self._scan_image_headers(url)
+                        ) as resp:
+                            if resp.is_redirect:
+                                if hop == 5 or not resp.next_request:
+                                    raise ValueError("图片重定向过多")
+                                url = str(resp.next_request.url)
+                                if urlsplit(url).scheme not in {"http", "https"}:
+                                    raise ValueError("图片重定向协议不支持")
+                                continue
+                            resp.raise_for_status()
+                            if (
+                                resp.headers.get("content-encoding", "identity").lower()
+                                != "identity"
+                            ):
+                                raise ValueError("图片压缩传输不支持")
+                            declared = resp.headers.get("content-length")
+                            if declared is not None and int(declared) > limit:
+                                raise ValueError("图片声明体积超限")
+                            async for chunk in resp.aiter_raw(chunk_size=64 * 1024):
+                                if len(data) + len(chunk) > limit:
+                                    raise ValueError("图片实际体积超限")
+                                data.extend(chunk)
+                            return base64.b64encode(data).decode("ascii")
+                raise ValueError("图片重定向失败")
+
+            return await asyncio.wait_for(download(), timeout=self.SCAN_IMAGE_TIMEOUT)
+        if ref.startswith("base64://"):
+            payload = ref[9:]
+        elif ref.startswith("data:"):
+            header, payload = ref.split(",", 1)
+            if not header.lower().endswith(";base64"):
+                raise ValueError("图片 data URI 不是 base64")
+        else:
+            path = ref
+            if ref.startswith("file:"):
+                parts = urlsplit(ref)
+                netloc = parts.netloc
+                if re.fullmatch(r"[A-Za-z]:", netloc):
+                    path = url2pathname(netloc + parts.path)
+                elif not netloc or netloc.lower() == "localhost":
+                    path = url2pathname(parts.path)
+                    if re.match(r"^[/\\][A-Za-z]:", path):
+                        path = path[1:]
+                    elif os.name != "nt" and path.startswith("//"):
+                        path = "/" + path.lstrip("/")
+                else:
+                    raise ValueError("不支持远程 file URI")
+            if ref.startswith("file:") or os.path.exists(path):
+
+                def read_local():
+                    # O_NONBLOCK 避免伪装成本地文件的 FIFO 卡住工作线程。
+                    fd = os.open(path, os.O_RDONLY | getattr(os, "O_NONBLOCK", 0))
+                    try:
+                        if not stat.S_ISREG(os.fstat(fd).st_mode):
+                            raise ValueError("图片不是普通文件")
+                        with os.fdopen(fd, "rb", closefd=False) as source:
+                            data = source.read(limit + 1)
+                    finally:
+                        os.close(fd)
+                    if len(data) > limit:
+                        raise ValueError("本地图片体积超限")
+                    return base64.b64encode(data).decode("ascii")
+
+                return await asyncio.to_thread(read_local)
+            payload = ref  # MediaRefStr 的旧版裸 base64
+        if len(payload) >= 14 * 1024 * 1024:
+            raise ValueError("图片 base64 体积超限")
+        payload = "".join(payload.split())
+        raw = base64.b64decode(payload + "=" * (-len(payload) % 4), validate=True)
+        if len(raw) > limit:
+            raise ValueError("图片实际体积超限")
+        return base64.b64encode(raw).decode("ascii")
+
+    async def _image_data_urls(self, event) -> list[str]:
+        """从消息取第一张合格图片；坏图跳过，后续合格图片不再读取。"""
         out: list[str] = []
         try:
             chain = getattr(getattr(event, "message_obj", None), "message", None) or []
@@ -239,20 +482,17 @@ class VisionCommands:
                 if type(c).__name__ != "Image":
                     continue
                 try:
-                    b64 = await c.convert_to_base64()
+                    ref = getattr(c, "url", None) or getattr(c, "file", None)
+                    b64 = await self._read_scan_image(ref)
+                    if not b64 or not await asyncio.to_thread(self._image_pixels_ok, b64):
+                        continue
                 except Exception:  # noqa: BLE001 - 单张失败继续下一张
                     continue
-                if not b64 or len(b64) >= 14 * 1024 * 1024:
-                    continue
-                if not await asyncio.to_thread(self._image_pixels_ok, b64):
-                    continue
                 out.append("data:image/png;base64," + b64)
-                # ★ 2026-10-25（Astra 评估 S5）：一次只认一张 ⇒ 第一张合格就停，别把后面的图
-                #   也下载、转 base64、解像素（5 张输入原先 5 次转换只用 1 张，小内存宿主白白放大开销）
                 break
         except Exception:  # noqa: BLE001 - 图片取不到就当没有
             pass
-        return out[:1]  # 一次只认一张（紫卡截图）
+        return out[:1]
 
     # 识图截图像素上限：8K 截图约 3300 万像素，留余量取 3600 万。
     # Pillow 默认只在 ~8900 万像素才告警、~1.79 亿才报错，压缩率高的 PNG
@@ -287,6 +527,7 @@ class VisionCommands:
         tag: str = "识别",
         window: Optional[float] = None,
         parse=None,
+        task: Optional[str] = None,
     ) -> Optional[dict]:
         """向最多 k 个 vision 渠道**并行**请求，取第一个能解析出 JSON 的结果。
 
@@ -308,18 +549,21 @@ class VisionCommands:
             _t0 = _t.perf_counter()
             import uuid as _uuid
 
+            sent_prompt = effective_vision_prompt(self, prov, task, prompt) if task else prompt
             resp = await prov.text_chat(
-                prompt=prompt,
+                prompt=sent_prompt,
                 session_id=f"sdjk-{tag}-{_uuid.uuid4().hex[:8]}",
                 image_urls=[image_url],
             )
-            text = (getattr(resp, "completion_text", "") or "").strip()
-            return prov, text, (_t.perf_counter() - _t0) * 1000
+            raw_text = getattr(resp, "completion_text", "") or ""
+            text = raw_text.strip()
+            return prov, text, (_t.perf_counter() - _t0) * 1000, sent_prompt, raw_text
 
         tasks = [asyncio.create_task(_one(p)) for p in provs]
         loop = asyncio.get_event_loop()
         deadline = (loop.time() + window) if window else None
         winner = None
+        partial = None
         pending = set(tasks)
         try:
             while pending:
@@ -330,10 +574,13 @@ class VisionCommands:
                     pending, timeout=timeout, return_when=asyncio.FIRST_COMPLETED
                 )
                 for t in done:
+                    if t.cancelled():
+                        logger.warning("[sdjk] %s渠道任务已取消，继续等待其它渠道", tag)
+                        continue
                     try:
-                        prov, text, ms = t.result()
+                        prov, text, ms, sent_prompt, raw_text = t.result()
                     except Exception as exc:  # noqa: BLE001
-                        logger.warning("[sdjk] %s渠道异常：%s", tag, exc)
+                        logger.warning("[sdjk] %s渠道异常：%s", tag, type(exc).__name__)
                         continue
                     if not text:
                         logger.warning(
@@ -341,6 +588,34 @@ class VisionCommands:
                         )
                         continue
                     data = (parse or lo.parse_vision_json)(text)
+                    raw_parsed = copy.deepcopy(data)
+                    if task == "riven_json" and data:
+                        data = self._adapt_riven_transcription(data)
+                        lexical = self._adapt_riven_transcription(
+                            lo.parse_vision_json(text, preserve_numbers=True)
+                        )
+                        data["_numeric_lexemes"] = {
+                            key: lexical.get(key) for key in ("positive", "negative")
+                        }
+                        unsafe = False
+                        lexical_invalid = False
+                        from ..parser import RIVEN_STAT_ZH
+
+                        rev = {v: k for k, v in RIVEN_STAT_ZH.items()}
+                        for key in ("positive", "negative"):
+                            for name, value in self._iter_stat_pairs(lexical.get(key), key):
+                                try:
+                                    sid = (
+                                        self._stat_id_from_name(str(name), rev)
+                                        if name is not None
+                                        else None
+                                    )
+                                    decimal, _multiplier = self._stat_decimal(value, sid)
+                                    unsafe |= decimal != Decimal(str(float(decimal)))
+                                except (ValueError, InvalidOperation, OverflowError):
+                                    lexical_invalid = True
+                        data["_numeric_precision_unsafe"] = unsafe
+                        data["_numeric_lexical_invalid"] = lexical_invalid
                     # ★ 采信判据（2026-10-05 收紧）：dict 里**至少一个有效字段**。
                     #   「解析成功但字段全 None/空」的快渠道不许赢 —— 否则会抢在
                     #   「慢但完整」的渠道前面被采信，weapon/词条全部落空
@@ -350,50 +625,69 @@ class VisionCommands:
                         for k in ("weapon", "mods", "panel", "positive", "negative", "lines")
                     ):
                         logger.info(
-                            "[sdjk] %s命中渠道（%.0f ms，渠道 %s）：%s",
+                            "[sdjk] %s命中渠道（%.0f ms，渠道 %s）：解析有效",
                             tag,
                             ms,
                             _prov_id(prov),
-                            json.dumps(data, ensure_ascii=False)[:200],
                         )
+                        if task in {"riven_json", "riven_lines"}:
+                            data = dict(data)
+                            data["_recognition"] = {
+                                "source": "model",
+                                "provider_id": _prov_id(prov),
+                                "prompt_hash": sha256(sent_prompt.encode("utf-8")).hexdigest(),
+                                "raw_text": raw_text,
+                                "parsed": raw_parsed,
+                                "numeric_lexemes": copy.deepcopy(data.get("_numeric_lexemes")),
+                            }
+                        if data.get("_line_legal") is False:
+                            partial = data
+                            continue
                         winner = data
                         break
                     logger.warning(
-                        "[sdjk] %s JSON 解析失败（%.0f ms，渠道 %s）：%s",
+                        "[sdjk] %s JSON 解析失败（%.0f ms，渠道 %s）",
                         tag,
                         ms,
                         _prov_id(prov),
-                        text[:160],
                     )
                 if winner:
                     break
         finally:
-            for t in tasks:
-                t.cancel()
-        return winner
+            await _cancel_vision_tasks(tasks)
+        return winner or partial
 
-    # ★ 窄读提示词（2026-09-27）：只要卡面词条行原文，不要 JSON/解释/武器名。
-    #   实测（用户那张 321×450 的卡 ×3 次）：同一条渠道用完整 JSON 提示词稳定
-    #   只照抄 2/4 行（**放大图片也救不了**），换这条窄提示词后三个渠道 6/6 全对。
-    #   ⇒ 词条/极性一律以窄读为准，JSON 那路只负责武器名与兜底。
-    # ★★ 2026-10-05 二次精简（213→60 字，S 系列探针 + S4/S5/S6 全量对照）：
-    #   · **提问式 + 极简**胜过一切长约束：8B 在 213 字版下 11 个版次全漏
-    #     `🔒+59% 多重射击`（05 卡），换本版后 47/48 读到；
-    #   · 中性探针「这张卡面上有几行词条？逐行念出来」→ 8B 5/5 完整念出锁行
-    #     ⇒ **不是看不见、不是分辨率**，是长提示词的约束框把它筛掉了；
-    #   · ★ **「卡面上没有的行绝对不要编造」是副作用源**：S5 只是把这句话加回
-    #     S4，8B 立刻复现 05 漏锁行（23/24）、30B 输出「第一行：」前缀 3/8 被拒。
-    #     ⇒ 该句**不得**再加回来（它防的幻觉来自「x1.51」字面示例，示例已删）。
-    #   · ★ 纯格式约束（不要编号/列表符号）收掉 markdown 噪声：S4 3 次被拒 → S6 0 次。
-    #   · 实测（16 卡 × 2 模型 × 3 轮 = 96）：全对 94、**危险 0**、被拒 0（2 次 API 失败）；
-    #     对照 F 版 60/64、**危险 3**。每请求省 128 input tokens（218 vs 346）。
-    _RIVEN_LINE_PROMPT = (
-        "这张卡面上有几行词条？逐行念出来，只念词条行（卡名、段位不用念）。"
-        "直接逐行输出，不要编号、不要列表符号、不要任何说明文字。"
-    )
+    # 双路都只读取观察：主读保留文字与数值原文，窄读附文字坐标。
+    # 卡片区域、单位、数值换算与一致性由代码判断；无模型名或具体卡片示例。
+    _RIVEN_JSON_PROMPT = '读取这张 Warframe 紫卡，只转录卡面原文，输出一行合法 JSON：{"weapon":"卡面武器名或部件名，看不清用null","stat_lines":["一条完整词条原文"]}。\nweapon 保留卡面印出的变体和 Prime，不含后面的拉丁词缀，不加主要/次要后缀。stat_lines 从上到下逐条记录当前卡面的词条，保留每条数值的正负号、小数、百分号、米/秒单位、x或×倍率及名称限定语；换行续文合在同一条。\n锁定图标只是图标，图标旁的词条仍要完整转录；不把图标抄成数字或字母。未揭示词条用问号保留位置。看不清的字符写问号，不猜数。卡片之外的预览、配装面板、聊天、按钮不属于本卡词条。段位、容量、洗练次数不属于词条。\n每条词条只出现一次，不拆成名称和值两个字段，不做正负面判断、数值换算、武器分析或配装建议。'
+
+    _RIVEN_LINE_PROMPT = "Read all the text in the image. Return each text line as cx,cy,width,height,angle,text. The first five values describe a rotated rectangle: center x, center y, side width, side height, and rotation angle in degrees. Normalize the center and side lengths to 0-1000; angle is in [-90,90]. Preserve the recognized text after the coordinates. Include visible words and Arabic numerals, even faint text. Do not transcribe icons, borders, rank pips or decorative marks as characters. Keep text from each separate region on separate lines. Do not calculate or infer missing text."
 
     @classmethod
-    def _riven_lines_legal(cls, lines) -> tuple:
+    def _adapt_riven_transcription(cls, observed: dict) -> dict:
+        """逐行转录只解码一次；旧二元协议继续兼容，混合协议不静默覆盖。"""
+        if "stat_lines" not in observed:
+            return observed
+        out = copy.deepcopy(observed)
+        raw = out["stat_lines"]
+        if not isinstance(raw, list):
+            raw = [raw]
+        pairs = []
+        for line in raw:
+            pair = cls._signed_stat_line(line)
+            pairs.append(
+                {"name": pair[0], "value": pair[1]}
+                if pair
+                else {"name": line if isinstance(line, str) else None, "value": None}
+            )
+        if out.get("positive") or out.get("negative"):
+            pairs.append({"name": None, "value": None})
+            out["_transcription_schema_conflict"] = True
+        out["positive"], out["negative"] = pairs, []
+        return out
+
+    @classmethod
+    def _riven_lines_legal(cls, lines, *, normalization: Optional[list] = None) -> tuple:
         """卡面原文行 → (pos, neg, 是否合法卡面, 备注)。
 
         合法 = 2~3 条正面 + ≤1 条负面（「？？？」未揭示行计入条数）**且没有「像是词条行却没解析成功」的行**。
@@ -415,10 +709,19 @@ class VisionCommands:
             from core import riven_analysis as RA
             from core.parser import RIVEN_STAT_ZH
         rev = {v: k for k, v in RIVEN_STAT_ZH.items()}
+
+        def resolve(name):
+            evidence = {}
+            sid = cls._stat_id_from_name(name, rev, evidence=evidence)
+            if normalization is not None:
+                normalization.append(evidence)
+            return sid
+
         pos, neg, notes = RA.parse_riven_lines(
             lines,
-            lambda nm: cls._stat_id_from_name(nm, rev),
+            resolve,
             lambda nm: cls._stat_id_exact(nm, rev),
+            role_resolve=lambda nm: cls._stat_id_from_name(nm, rev),
         )
         fatal = [n for n in notes if not n.startswith("无极性符号")]
         # 「？？？」未揭示词条（融合未选定，2026-10-24）计入条数：2 正 1 负 + 1 行问号 = 3+1 合法
@@ -427,34 +730,54 @@ class VisionCommands:
 
     @classmethod
     def _parse_riven_lines_text(cls, text: str) -> dict:
-        """窄读回答（纯文本）→ {"lines": [...]}；卡面不合法则返回 {} 让位下一个渠道。
+        """解包窄读原文并保留合法性；不合法的观察仍交给业务入口核对。"""
+        from .. import riven_analysis as RA
+        from ..parser import RIVEN_STAT_ZH
 
-        「能解析」不等于「读全了」：模型漏一行时整卡就落在非法区间，所以这里
-        用 `_riven_lines_legal` 当判据，宁可多等一个渠道也不采信残缺结果。
-        """
-        lines = [ln.strip() for ln in str(text or "").splitlines() if ln.strip()]
-        pos, neg, legal, notes = cls._riven_lines_legal(lines)
-        logger.info(
-            "[sdjk] 紫卡行读候选：%d 正 %d 负（%s）%s",
-            len(pos),
-            len(neg),
-            "采信" if legal else "不合法，继续等",
-            ("；跳过 " + " / ".join(notes[:4])) if notes else "",
+        rev = {v: k for k, v in RIVEN_STAT_ZH.items()}
+        raw_lines = lo.coordinate_text_lines(text)
+        decoded = RA.decode_riven_lines(
+            raw_lines,
+            lambda name: cls._stat_id_exact(name, rev),
+            resolve=lambda name: cls._stat_id_from_name(name, rev),
         )
-        return {"lines": lines} if legal else {}
+        lines = decoded["lines"]
+        pos, neg, legal, notes = cls._riven_lines_legal(lines)
+        # 不合法也是观察证据；不能让竞速入口吞掉疑似漏行或冲突原文。
+        return (
+            {"lines": lines, "_line_decode": decoded, "_line_legal": legal, "_line_notes": notes}
+            if raw_lines
+            else {}
+        )
 
     async def _extract_riven_from_image(self, image_url: str) -> Optional[dict]:
         """调 vision 渠道从紫卡截图提取词条，返回解析后的 dict 或 None。
 
         ★ 两路并行（2026-09-27）：
-          · 窄读词条行 → 词条与极性的**唯一权威来源**；
-          · 语义 JSON → 武器名（含变体前缀），并在窄读失败时兜底词条。
+          · 窄读词条行与语义 JSON 分别保留原文、解码和来源；
+          · 业务入口按字段对齐，冲突或疑似漏行转待核对。
         两路都失败才返回 None（调用方给「重发一次」的提示）。
         """
+        local = getattr(self, "local_ocr", None)
+        if local is not None:
+            local_status = local.status()
+            # 本地已选中或配置损坏时只走本地结果；失败不能落进下面两条模型渠道。
+            if local_status.get("enabled") or local_status.get("ok") is not True:
+                from ..local_ocr import decode_image_data_url
+
+                try:
+                    observed = await local.recognize(decode_image_data_url(image_url))
+                except (ValueError, OSError) as exc:
+                    observed = {"ok": False, "state": "invalid_image", "message": str(exc)}
+                structured = observed.get("structured")
+                return {
+                    **(structured if isinstance(structured, dict) else {}),
+                    "_local_ocr": observed,
+                }
         # ★★ 2026-10-05 去掉全部字面示例值（实测 30B 真泄漏 10/32：把例子里的
         #   数值照抄到不含该值的卡上）。旧例子 50.2/65.1/44.9/95.4/63.4/115.7/110.8
         #   全部来自用户真实卡 ⇒ 本提示词不得再出现任何具体数值，一律用公式/描述表达。
-        prompt = '你是 Warframe 紫卡识别器。从这张紫卡截图中提取信息，只输出一行 JSON（不要 markdown 围栏、不要解释）：\n{"weapon": "武器名（卡面简中，逐字照抄第一行的中文部分）", "positive": [["词条缩写", 数值], ...], "negative": [["词条缩写", 数值], ...]}\n词条名**照卡面原样照抄**：不要替换成其它词条名，也不要把认不准的词猜成熟悉的词条（实测教训：把「弹匣容量」猜成「暴伤」、把「变焦」猜成「集束」，整卡判据全错）。\n常见词条：基伤/暴伤/暴击/攻速/范围/多重/触发/持续/效率/装填/弹速/滑暴/冲击/穿刺/切割/电击/火焰/冰冻/毒素/磁力/辐射/**弹匣容量**/**变焦**/后坐力/**病毒伤害**/**腐蚀伤害**/**毒气伤害**/**爆炸伤害**/**磁力伤害**/**辐射伤害**/弱点伤害/弱点暴击/状态伤害/弹药效率/收枪装填/重击伤害/重击蓄力/格挡角度/震地伤害/对Orokin·Scaldra·Techrot伤害等（含 Update 44「Riven Splicer」拼接词条，卡面写什么就照抄什么）——「+x% 弹匣容量」就写 弹匣容量、「-x% 变焦」就写 变焦（两者都是真实存在的词条）。\n⚠ **负词条绝不能丢**：卡面通常 3~4 条，少一条整卡判据就废；负词条也放 negative。数值只写数字（去掉 % 和 m 单位）。\n⚠ 「对 Grineer/Corpus/Infested 的伤害」在卡面上写的是**乘数**（净伤害倍率），必须先换算成百分数再填：\n    倍率 > 1 ⇒ 加伤，填 positive，数值 = (倍率 − 1) × 100\n    倍率 < 1 ⇒ 减伤，填 negative，数值 = (1 − 倍率) × 100\n  词条名用「对Infested伤害」（或 Grineer/Corpus）。**不要**把倍率直接乘 100 当百分数（那是错的），也不要漏掉这一条。卡面右下角的数字是内融值，与倾向无关，不要输出倾向。⚠ weapon 必须**逐字照抄卡面第一行**，变体前缀一个不漏：赤毒/信条/终幕/棱晶/Prime/亡魂/破坏者（或 Kuva/Tenet/Coda/Prisma/Wraith/Vandal）。卡面写了前缀就**必须**带上（前缀决定是哪把武器）。（紫卡卡面通常只写母武器名，没有前缀才照原样输出）。\n⚠ **不要改字**：带元素符号的那行（⚡/☠/❄ 等）必须写对应的元素名（电击/火焰/冰冻/毒素/磁力/辐射），不得写成「暴击伤害」（元素伤害与暴击伤害是不同词条）；同一条词条在卡上**不会出现两次**。\n⚠ 词条数值**带负号**的（卡面行首是「-」），必须放进 negative，数值写**正数**（去掉负号）—— 放进 positive 会让整张卡被判成「词条数不对」而失败。\n⚠ 例外：**武器后坐力**的符号与好坏相反 —— 卡面带「+」是**负面**（后坐力越大越差）、带「-」是**正面**。这一行请**按卡面原样保留正负号**（别把负号丢掉），放在 positive 或 negative 数组都不影响（机器人以符号为准自行换算）。\n⚠ weapon 只填**中文武器名**（卡面第一行的中文部分）。名字后面那串拉丁文是紫卡自命名（形如 Xxx-xxxxxx），不要输出它、也不要把它音译成中文，更不要把词条名混进 weapon。\n⚠ 组合枪/魔典（Kitgun/Zaw/Amp 类模块化武器）的紫卡卡面第一行写的是**腔体/部件中文名**+ 空格 + 拉丁自命名 —— weapon 只填腔体中文名，自命名照旧不要输出。腔体名后**没有**主要/次要模式标注，不要自行加「（主要）/（次要）」后缀，机器人会按卡面数值判定模式。若第一行确实没有任何中文武器名，weapon 才输出空字符串 ""。\n⚠ 数值要连**小数点**一起读：卡面写的小数点不能丢（丢掉会让数值差 10 倍）。点号看不清时宁可按最接近的两位有效数字估，也不要直接丢掉点号。'
+        prompt = VisionCommands._RIVEN_JSON_PROMPT
         # ★ 2026-10-07（维护者裁定）：紫卡这一路**不竞速**（单渠道，`k=2` 退化为单发）。
         #   起因：`zhipu/glm-4v-flash` 把「冰凇」**稳定**读成「冰松」（5/5 全错）且它最快
         #   （~3.1 s）⇒ k=2 竞速里它必赢，武器名又是整卡的承重件 ⇒ 宁慢不赌，只走一个渠道。
@@ -462,26 +785,27 @@ class VisionCommands:
         #   且要速度（见 `_VISION_PROVIDER_IDS` 上方的 2026-09-20 记录）。
         #
         # ★ 2026-10-12 改选渠道口径（维护者裁定"别再有定死"）：**完全按
-        #   `_vision_providers()` 的顺序取第一个**——它已把面板配置的 `vision_provider_id`
-        #   排在首位、其余按内置候选优先级排。原实现有两处名字级硬编码（无条件优先 8B），
+        #   `_riven_vision_providers()` 的顺序取第一个**；专用配置留空时沿用兼容主渠道。
+        #   原实现有两处名字级硬编码（无条件优先 8B），
         #   使面板配置对紫卡一路**静默无效**（用户实测：配置改 30B、插件重载两次仍走 8B）。
         #   此次连"候选为空时按名字回落 8B"的分支也一并删除：没有候选就交给调用方
         #   按"无可用视觉渠道"正常报错，不再靠名字猜。
         #   换 30B 的依据（bench3，2026-10-12，同一批 16+2 卡）：30B 数值 65/70 优于
         #   8B 的 62/70、16 卡 perfect 15 vs 12；耗时 9.1 s vs 18.3 s。
-        _all_provs = self._vision_providers()
+        _all_provs = self._riven_vision_providers()
         provs = _all_provs[:1]
         if not provs:
             logger.warning("[sdjk] 紫卡识别：没有可用视觉渠道（配置/渠道状态见上一条）")
         if provs:
             logger.info("[sdjk] 紫卡识别渠道（不竞速）：%s", _prov_id(provs[0]))
         # ★ 2026-10-15：窄读路可用**独立渠道**（`vision_provider_id_line`）。
-        #   两路对模型的要求不同 —— 窄读是「逐行念出来」的指令跟随任务，OCR 专用模型
-        #   在此退回带坐标的原生输出 ⇒ 整卡判不合法（三路基准 20 图：qwen-vl-ocr 窄读
-        #   15/20、5 张被坐标打穿；同批卡不发提示词时 19/20）。未配置时与主渠道同源。
+        #   窄读按现有提示逐行返回词条，并保留正负号、小数与百分号。
+        #   未配置时与紫卡主读同源；独立配置取不到时也沿用紫卡主读渠道。
         # 未配置独立渠道时直接复用主渠道结果（别再枚举一遍、重复打「取不到」告警）
         line_provs = (
-            self._line_vision_providers()[:1] if self._cfg_str("vision_provider_id_line") else provs
+            self._line_vision_providers()[:1]
+            if self._vision_routes_isolated() or self._cfg_str("vision_provider_id_line")
+            else provs
         )
         if line_provs and (not provs or line_provs[0] is not provs[0]):
             logger.info("[sdjk] 紫卡窄读渠道（独立配置）：%s", _prov_id(line_provs[0]))
@@ -490,7 +814,13 @@ class VisionCommands:
             # 渠道级超时可达 240s，不能让用户干等）
             data, lines = await asyncio.gather(
                 self._vision_race_json(
-                    prompt, image_url, provs, k=2, tag="紫卡识别", window=self.RACE_WINDOW_S
+                    prompt,
+                    image_url,
+                    provs,
+                    k=2,
+                    tag="紫卡识别",
+                    window=self.RACE_WINDOW_S,
+                    task="riven_json",
                 ),
                 self._vision_race_json(
                     self._RIVEN_LINE_PROMPT,
@@ -500,23 +830,101 @@ class VisionCommands:
                     tag="紫卡行读",
                     window=self.RACE_WINDOW_S,
                     parse=self._parse_riven_lines_text,
+                    task="riven_lines",
                 ),
                 return_exceptions=True,
             )
         except Exception as exc:  # noqa: BLE001
-            logger.warning("[sdjk] 紫卡识别失败：%s", exc)
+            logger.warning("[sdjk] 紫卡识别失败：%s", type(exc).__name__)
             return None
         for name, val in (("识别", data), ("行读", lines)):
             if isinstance(val, BaseException):
-                logger.warning("[sdjk] 紫卡%s异常：%s", name, val)
+                logger.warning("[sdjk] 紫卡%s异常：%s", name, type(val).__name__)
         data = None if isinstance(data, BaseException) else data
         lines = None if isinstance(lines, BaseException) else lines
         if not data and not lines:
             logger.warning("[sdjk] 紫卡识别：两路都没给出可用结果")
             return None
+        recheck_evidence = None
+        recheck_id = self._cfg_str("vision_provider_id_line_recheck")
+        if data and recheck_id:
+            from .. import riven_analysis as RA
+            from ..parser import RIVEN_STAT_ZH
+
+            rev = {value: key for key, value in RIVEN_STAT_ZH.items()}
+            semantic_pos, semantic_neg = self._normalize_llm_stats(copy.deepcopy(data), rev)
+
+            def signature(positive, negative):
+                return sorted(
+                    (sid, bucket, str(Decimal(str(value)).normalize()))
+                    for rows, bucket in ((positive, "positive"), (negative, "negative"))
+                    for sid, value in rows
+                )
+
+            main_signature = signature(semantic_pos, semantic_neg)
+            lp, ln, legal, _ = self._riven_lines_legal((lines or {}).get("lines", []))
+            # 主读残缺时不以复读替它补答案；只裁决两个完整转录间的分歧。
+            raw_count = sum(
+                len(self._iter_stat_pairs(data.get(k), k)) for k in ("positive", "negative")
+            )
+            main_complete = bool(
+                RA.count_candidates(len(semantic_pos), len(semantic_neg), 0)
+            ) and raw_count == len(main_signature)
+            needs_recheck = not legal or signature(lp, ln) != main_signature
+            provider = (
+                self._try_get_provider(recheck_id) if main_complete and needs_recheck else None
+            )
+            if provider and all(_prov_id(provider) != _prov_id(p) for p in line_provs):
+                checked = await self._vision_race_json(
+                    self._RIVEN_LINE_PROMPT,
+                    image_url,
+                    [provider],
+                    k=1,
+                    tag="紫卡分歧复读",
+                    window=self.RACE_WINDOW_S,
+                    parse=self._parse_riven_lines_text,
+                    task="riven_lines",
+                )
+                cp, cn, check_legal, _ = self._riven_lines_legal((checked or {}).get("lines", []))
+                observed_count = sum(
+                    bool(RA._POL_RE.match(row) or RA._HIDDEN_RE.match(row))
+                    for row in (lines or {}).get("lines", [])
+                )
+                adopt = (
+                    check_legal
+                    and signature(cp, cn) == main_signature
+                    and observed_count <= len(main_signature)
+                    and not data.get("_numeric_precision_unsafe")
+                    and not data.get("_numeric_lexical_invalid")
+                )
+                recheck_evidence = {
+                    "original_line_read": copy.deepcopy(lines),
+                    "recheck": copy.deepcopy(checked),
+                    "adopted": adopt,
+                    "reason": "main_and_complete_recheck_agree" if adopt else "unresolved_recheck",
+                    "original_observed_stat_rows": observed_count,
+                }
+                if adopt:
+                    lines = checked
         out = dict(data or {})
+        if recheck_evidence is not None:
+            out.setdefault("_recognition", {})["line_recheck"] = recheck_evidence
+        # 主读 JSON 的附加键不是独立逐行观察。原响应仍在 recognition.parsed
+        # 留档；只有下方真实窄读响应可提供业务消费的 lines 及解包元数据。
+        # 本地 OCR 在上方提前返回，其 lines 来自 worker，不经过此云端合并。
+        for key in ("lines", "_line_decode", "_line_legal", "_line_notes"):
+            out.pop(key, None)
         if lines:
             out["lines"] = list(lines.get("lines") or [])
+            for key in ("_line_decode", "_line_legal", "_line_notes"):
+                if key in lines:
+                    out[key] = copy.deepcopy(lines[key])
+            line_recognition = lines.get("_recognition")
+            if isinstance(line_recognition, dict):
+                recognition = out.setdefault("_recognition", {})
+                if not isinstance(recognition, dict):
+                    recognition = out["_recognition"] = {}
+                recognition["line_read"] = copy.deepcopy(line_recognition)
         return out
 
     @staticmethod
@@ -548,7 +956,7 @@ class VisionCommands:
         try:
             rows = await asyncio.to_thread(_run)
         except Exception as exc:  # noqa: BLE001
-            logger.warning("[sdjk] 豆子检测失败（不影响识卡）：%s", exc)
+            logger.warning("[sdjk] 豆子检测失败（不影响识卡）：%s", type(exc).__name__)
             return []
         if rows:
             eq = [r for r in rows if not r.get("is_inventory")]
@@ -586,7 +994,7 @@ class VisionCommands:
                     pass
             logger.info("[sdjk] 已存排查用原图：%s", d)
         except Exception as exc:  # noqa: BLE001 —— 排查辅助，绝不能影响识卡
-            logger.debug("[sdjk] 存排查图失败：%s", exc)
+            logger.debug("[sdjk] 存排查图失败：%s", type(exc).__name__)
 
     # LLM 可能输出词条全称，先归一到缩写
     # ★ 2026-10-03：只做「全称 → 缩写」归一，**不得做语义相反的跨词条改写**。
@@ -627,50 +1035,94 @@ class VisionCommands:
     def _stat_id_exact(cls, name: str, rev: dict) -> "str | None":
         """只认**整名精确命中**（别名 / 全称 / 短名表），不做包含匹配与形近 ——
         给折行拼接当闸门用（2026-10-24），宽匹配会把「词条 + 图例行」拼出假词条。"""
+        name = re.sub(r"\s+", "", str(name or ""))
         name = cls._STAT_ALIAS.get(name, name)
         return cls._full_stat_alias().get(name) or rev.get(name)
 
     @classmethod
-    def _stat_id_from_name(cls, name: str, rev: dict) -> "str | None":
-        """词条名（缩写 / 全称 / 卡面原文）→ 标准词条 id；认不出返回 None。
+    def _stat_id_from_name(
+        cls, name: str, rev: dict, *, evidence: Optional[dict] = None
+    ) -> "str | None":
+        """整名精确 → 唯一的一字近名 → 唯一最长完整别名；跨 SID 歧义拒绝。
 
-        两条路径共用（截图识别 `_normalize_llm_stats` 与文字输入）：
-        全称整表命中 → 展示名 → 别名归一 → 包含匹配（长名优先）→ 形近。
-        ★ 2026-09-24：卡面原文「滑行攻击暴击几率」不含短名「滑暴」子串，
-        包含匹配会落到「暴击」，必须靠别名整表（见 parser.RIVEN_STAT_ALIASES）。
+        括注仅接受已知类别说明，且主体须整名精确命中对应 SID；未知、错配、
+        未闭合括号不能通过裁头或近名匹配变成已知词条。evidence 可选记录来源。
         """
-        if not name:
-            return None
-        import difflib
+        from ..riven_analysis import split_stat_annotation
 
-        name = cls._STAT_ALIAS.get(name, name)
+        raw_name = name
+        name = re.sub(r"\s+", "", str(name or ""))
+
+        def finish(sid, method, alias=None, candidates=None):
+            if evidence is not None:
+                evidence.update(
+                    raw_name=raw_name,
+                    lookup_name=name,
+                    sid=sid,
+                    method=method,
+                    matched_name=alias,
+                )
+                if candidates:
+                    evidence["candidates"] = sorted(candidates)
+            return sid
+
+        if not name:
+            return finish(None, "unknown")
         full = cls._full_stat_alias()
-        if name in full:  # 全称整表命中（暴击伤害 → crit_damage）
-            return full[name]
-        if name in rev:
-            return rev[name]
-        # 包含匹配：长名优先，避免短名抢走全称（「暴击」vs「暴击伤害」）
-        for abbr in sorted(rev, key=len, reverse=True):
-            if name in abbr or abbr in name:
-                return rev[abbr]
-        # ★ 2026-10-02 形近容错（线上实证：OCR 把「触发几率」读成「脆发几率」
-        #   被整行跳过，卡面缺一条正词条）。旧实现只在**短名表**（rev）上找、
-        #   且 cutoff 0.5 —— 「触发几率」是**全称表**的键，永远命中不了。
-        #   现在：[全称 + 短名] 并集上找，且必须**高置信**（相似度 ≥0.7 且与
-        #   次名差距 ≥0.1）才采纳；采纳时写日志（红线：禁静默改判）。
-        pool: dict = {}
-        for tbl in (full, rev):
-            for k, v in tbl.items():
-                pool.setdefault(k, v)
-        close = difflib.get_close_matches(name, list(pool), n=2, cutoff=0.7)
-        if close:
-            best = close[0]
-            r1 = difflib.SequenceMatcher(None, name, best).ratio()
-            r2 = difflib.SequenceMatcher(None, name, close[1]).ratio() if len(close) > 1 else 0.0
-            if r1 >= 0.7 and r1 - r2 >= 0.1:
-                logger.info("[sdjk] 紫卡词条名容错：%s → %s（相似度 %.2f）", name, best, r1)
-                return pool[best]
-        return None
+        normalized = cls._STAT_ALIAS.get(name, name)
+        sid = full.get(normalized) or rev.get(normalized)
+        if sid:
+            return finish(sid, "exact", name)
+        base, required_sid, valid = split_stat_annotation(name)
+        if not valid:
+            return finish(None, "rejected_annotation")
+        if required_sid:
+            sid = cls._stat_id_exact(base.strip(), rev)
+            if sid == required_sid:
+                return finish(sid, "category_annotation", base.strip())
+            return finish(None, "rejected_annotation")
+        pool = dict(full)
+        for alias, sid in rev.items():
+            pool.setdefault(alias, sid)
+        if len(name) >= 3:
+            near: dict[str, str] = {}
+            for alias in sorted(pool):
+                if len(alias) >= 3 and cls._one_edit_apart(name, alias):
+                    near.setdefault(pool[alias], alias)
+            if len(near) == 1:
+                sid, alias = next(iter(near.items()))
+                logger.info("[sdjk] 紫卡词条名容错：状态=已归一，类别=单字差异")
+                return finish(sid, "one_edit", alias)
+            if near:
+                return finish(None, "ambiguous_one_edit", candidates=near)
+        # 仅整段包含至少三字的完整别名。不同 SID 同为最长时拒绝；两字短名
+        # 不能把完整错字词条抢成「暴击」或把陌生「武器伤害」吞成「伤害」。
+        contained: dict[str, str] = {}
+        for alias, sid in pool.items():
+            if len(alias) >= 3 and alias in name:
+                if len(alias) > len(contained.get(sid, "")):
+                    contained[sid] = alias
+        if contained:
+            longest = max(map(len, contained.values()))
+            winners = {sid: alias for sid, alias in contained.items() if len(alias) == longest}
+            if len(winners) == 1:
+                sid, alias = next(iter(winners.items()))
+                return finish(sid, "contained_alias", alias)
+            return finish(None, "ambiguous_contained", candidates=winners)
+        return finish(None, "unknown")
+
+    @staticmethod
+    def _one_edit_apart(left: str, right: str) -> bool:
+        """恰好一次插入、删除或替换；不把换位当一次编辑。"""
+        if abs(len(left) - len(right)) > 1:
+            return False
+        if len(left) == len(right):
+            return sum(a != b for a, b in zip(left, right)) == 1
+        short, long = sorted((left, right), key=len)
+        for i, (a, b) in enumerate(zip(short, long)):
+            if a != b:
+                return short[i:] == long[i + 1 :]
+        return True
 
     @staticmethod
     def _faction_val_fix(sid: str, num: float) -> float:
@@ -703,11 +1155,149 @@ class VisionCommands:
     #   实测四种形态（同一张卡两次跑就换一种）：
     #     [["名", 值], ...]（正常）/ ["名", 值]（整条扁平）/ [{"name":..,"value":..}]
     #     / [{"词条缩写":..,"数值":..}]。
-    _STAT_NAME_KEYS = ("name", "词条缩写", "词条", "词条名", "stat")
+    _STAT_NAME_KEYS = ("词条名原文", "name", "词条缩写", "词条", "词条名", "stat")
     _STAT_VAL_KEYS = ("value", "数值", "val", "值")
 
+    @staticmethod
+    def _signed_stat_line(raw):
+        """只识别完整签名行；不从混杂名称中剥数字。"""
+        if not isinstance(raw, str):
+            return None
+        # 可见图标可被模型转写为 Unicode 符号。只剥行首图标与空白；
+        # 数字、字母、问号、正负号均不能被当装饰删除。
+        raw = raw.lstrip()
+        while raw and unicodedata.category(raw[0]) in {"So", "Cf", "Mn"}:
+            raw = raw[1:].lstrip()
+        from ..riven_analysis import _trailing_to_leading
+
+        raw = _trailing_to_leading(raw) or raw
+        match = re.fullmatch(
+            r"\s*((?:[+−-]\s*\d+(?:\.\d+)?(?:\s*(?:%|m|米|秒))?|[x×]\s*\d+(?:\.\d+)?))\s*(\S.*?)\s*",
+            raw,
+        )
+        if not match:
+            return None
+        # 无单位的数字与名称之间必须有空白，防止kg等未知单位吞入名称。
+        token = match[1]
+        if not token.endswith(("%", "m", "米", "秒")) and not token.startswith(("x", "×")):
+            boundary = match.end(1)
+            if boundary < len(raw) and not raw[boundary].isspace():
+                return None
+        return match[2], re.sub(r"\s+", "", match[1]).replace("−", "-")
+
+    @staticmethod
+    def _stat_decimal(raw, sid=None):
+        """数值词法和精度独立；x只允许派系SID，未知单位拒绝。"""
+        if raw is None or isinstance(raw, bool):
+            raise ValueError("missing numeric observation")
+        match = re.fullmatch(r"\s*([x×]?)\s*([+−-]?\s*\d+(?:\.\d+)?)\s*(%|m|米|秒)?\s*", str(raw))
+        if not match:
+            raise ValueError("unsupported numeric lexeme")
+        value = Decimal(re.sub(r"\s+", "", match[2]).replace("−", "-"))
+        if sid and (
+            (match[3] in ("m", "米") and sid != "range")
+            or (match[3] == "秒" and sid != "combo_duration")
+        ):
+            raise ValueError("unit does not belong to stat")
+        if match[1]:
+            if match[3] or not sid or not sid.startswith("damage_vs_"):
+                raise ValueError("multiplier requires faction stat")
+            from .. import riven_analysis as RA
+
+            if not RA.is_faction_mult(float(value)):
+                raise ValueError("invalid faction multiplier")
+        return value, bool(match[1])
+
     @classmethod
-    def _iter_stat_pairs(cls, raw) -> list:
+    def _structured_stat_pair(cls, name, value, bucket=None):
+        """适配现存观察，不生成额外行；嵌入数值与独立字段必须一致。"""
+        from ..parser import RIVEN_STAT_ZH
+
+        rev = {v: k for k, v in RIVEN_STAT_ZH.items()}
+        # 倒置二元对只有数字侧/名称侧角色唯一时才能反转。
+        # x词法须先由另一侧唯一名称确认派系SID，不能拿无SID的数值探针判非法。
+        if isinstance(name, str) and re.match(r"\s*[x×]", name):
+            reverse_sid = (
+                cls._stat_id_from_name(str(value), rev) if isinstance(value, str) else None
+            )
+            if reverse_sid and reverse_sid.startswith("damage_vs_"):
+                try:
+                    _number, explicit_multiplier = cls._stat_decimal(name, reverse_sid)
+                except (ValueError, InvalidOperation, OverflowError):
+                    explicit_multiplier = False
+                if explicit_multiplier:
+                    return value, name
+        try:
+            cls._stat_decimal(name)
+            first_numeric = True
+        except (ValueError, InvalidOperation):
+            first_numeric = False
+        try:
+            cls._stat_decimal(value)
+            second_numeric = True
+        except (ValueError, InvalidOperation):
+            second_numeric = False
+        if first_numeric and not second_numeric and isinstance(value, str):
+            name, value = value, name
+        embedded = cls._signed_stat_line(name)
+        if not embedded:
+            if isinstance(name, str) and re.match(r"\s*(?:[+−-]\d|[x×]\d)", name):
+                return name, {"invalid_observation": value}
+            return name, value
+        clean_name, observed = embedded
+        # 同一完整原文被重复放进名称和值两个字段时，只解码一次。
+        # 不按某个词条/模型宽松放行：整行须完全一致，且名称、单位仍走共同校验。
+        if isinstance(value, str) and value.strip() == name.strip():
+            value = observed
+        name_evidence = {}
+        sid = cls._stat_id_from_name(clean_name, rev, evidence=name_evidence)
+        if not sid or name_evidence.get("method") == "contained_alias" or value is None:
+            # 数值已剥出后，剩余名称不能靠裁掉未知单位/前缀得到一个局部命中。
+            return name, {"invalid_observation": value}
+        try:
+            left, lm = cls._stat_decimal(observed, sid)
+            right, rm = cls._stat_decimal(value, sid)
+
+            # 无单位沿用既有幅度兼容；双方显式单位必须相同（米/m等价）。
+            def explicit_unit(token):
+                match = re.search(r"(%|m|米|秒)\s*$", str(token))
+                return "m" if match and match[1] in ("m", "米") else match[1] if match else None
+
+            left_unit, right_unit = explicit_unit(observed), explicit_unit(value)
+            if left_unit and right_unit and left_unit != right_unit:
+                return name, {"invalid_observation": value}
+
+            # 明确倍率或派系历史裸倍率均用已有业务定义比较。
+            def comparable(number, multiplier):
+                # 比较保留原词法有效位；默认28位会把不同倍率舍入成相等。
+                with localcontext() as ctx:
+                    digits = number.as_tuple()
+                    ctx.prec = max(ctx.prec, len(digits.digits) + abs(digits.exponent) + 8)
+                    if multiplier:
+                        return (number - 1) * 100
+                    if sid.startswith("damage_vs_"):
+                        from .. import riven_analysis as RA
+
+                        if number >= 100 or number < Decimal(str(RA._FACTION_MIN_MAG)):
+                            factor = number / 100 if number >= 100 else number
+                            if RA.is_faction_mult(float(factor)):
+                                return (factor - 1) * 100
+                    return number
+
+            unsigned_magnitude = (
+                bucket == "negative"
+                and re.fullmatch(r"\d+(?:\.\d+)?\s*(?:%|m|米|秒)?", str(value).strip())
+                and comparable(left, lm).copy_abs() == comparable(right, rm)
+            )
+            if comparable(left, lm) != comparable(right, rm) and not unsigned_magnitude:
+                # 显式符号冲突不能转成null后被另一条观察唯一补足。
+                return name, {"invalid_observation": value}
+        except (ValueError, InvalidOperation, OverflowError):
+            return name, {"invalid_observation": value}
+        return clean_name, observed
+
+    @classmethod
+    def _iter_stat_pairs(cls, raw, bucket=None) -> list:
         """模型输出的 positive/negative → [(词条名, 数值)]，兼容形状漂移。
 
         ★ 2026-10-14 线上事故（`紫卡分析` + 截图连续报「内部错误」）：
@@ -716,49 +1306,98 @@ class VisionCommands:
             **按字符拆成位置参数**（"60.8"→4 个）⇒ TypeError ⇒ 整条指令崩掉；
           · 元素是**字典**时，`*item` 解包的是**键**（"name"/"value"）⇒ to_stat 恒
             返回 None ⇒ 词条**静默全丢**（日志实证：语义表 0 正 0 负）。
-        这里统一归一成二元对；认不出的条目**跳过**，绝不 `*item` 解包。
+        这里统一成二元对；坏行保留 (None, None) 占位，不补字段、不缩短整卡分母。
         """
-        if not raw:
+        if raw is None:
             return []
         if isinstance(raw, dict):
             raw = [raw]
         if not isinstance(raw, (list, tuple)):
-            return []
-        # 扁平形态：整条就是 ["名", 值, "名", 值, ...]（元素全是裸字符串/数字）
+            return [(None, None)]
+        # 整行列表和扁平键值必须分开；坏行保持原分母。
         if all(not isinstance(x, (list, tuple, dict)) for x in raw):
-            return [(raw[i], raw[i + 1]) for i in range(0, len(raw) - 1, 2)]
+            if raw and all(cls._signed_stat_line(x) for x in raw):
+                return [cls._signed_stat_line(x) for x in raw]
+            if (
+                len(raw) > 1
+                and any(cls._signed_stat_line(x) for x in raw)
+                and not (
+                    len(raw) == 2
+                    and re.fullmatch(r"[+−-]?\d+(?:\.\d+)?(?:%|m|米|秒)?", str(raw[1]).strip())
+                )
+            ):
+                return [cls._signed_stat_line(x) or (None, None) for x in raw]
+            pairs = [
+                cls._structured_stat_pair(raw[i], raw[i + 1], bucket)
+                for i in range(0, len(raw) - 1, 2)
+            ]
+            if len(raw) % 2:
+                pairs.append((None, None))
+            return pairs
         out: list = []
         for item in raw:
             if isinstance(item, dict):
-                name = next(
-                    (item[k] for k in cls._STAT_NAME_KEYS if item.get(k) not in (None, "")), None
-                )
-                val = next(
-                    (item[k] for k in cls._STAT_VAL_KEYS if item.get(k) not in (None, "")), None
-                )
-                if name is not None and val is not None:
-                    out.append((name, val))
+                name_key = next((k for k in cls._STAT_NAME_KEYS if k in item), None)
+                value_key = next((k for k in cls._STAT_VAL_KEYS if k in item), None)
+                if name_key is not None and value_key is not None:
+                    out.append(cls._structured_stat_pair(item[name_key], item[value_key], bucket))
+                elif isinstance(item.get("text"), str) and isinstance(item.get("modifier"), dict):
+                    modifier = item["modifier"]
+                    key = next((k for k in cls._STAT_VAL_KEYS if k in modifier), None)
+                    pair = cls._structured_stat_pair(item["text"], modifier.get(key), bucket)
+                    modifier_name = next(
+                        (modifier[k] for k in cls._STAT_NAME_KEYS if k in modifier), None
+                    )
+                    if modifier_name is not None and modifier_name != pair[0]:
+                        pair = (item["text"], {"invalid_observation": modifier})
+                    out.append(pair)
+                else:
+                    out.append((None, None))
             elif isinstance(item, (list, tuple)) and len(item) == 2:
-                out.append((item[0], item[1]))
-            # 其余形状（裸字符串 / 长度≠2 的序列）：跳过
+                out.append(cls._structured_stat_pair(item[0], item[1], bucket))
+            elif isinstance(item, str):
+                out.append(cls._signed_stat_line(item) or (None, None))
+            else:
+                out.append((None, None))
         return out
 
     @staticmethod
     def _normalize_llm_stats(data: dict, rev: dict) -> tuple[list, list]:
-        """LLM 提取结果 → ([(stat_id, float)...], [...])；词条名宽松匹配。"""
+        """LLM 提取结果 → 两组词条；未知值不补数，归一记录不改原始数组。"""
+        recognition = data.setdefault("_recognition", {})
+        if not isinstance(recognition, dict):
+            recognition = data["_recognition"] = {}
+        trace = recognition["stat_normalization"] = []
 
-        def to_stat(name: str, val):
+        def to_stat(name: str, val, bucket: str):
+            record = {"raw_name": name, "raw_value": val, "input_bucket": bucket}
+            trace.append(record)
             if name is None or val is None:
+                record["decision"] = "unknown_name_or_value"
                 return None
             name = str(name).strip().replace("%", "").replace("+", "").replace("-", "")
-            try:
-                num = float(str(val).strip().rstrip("%m米"))
-            except (TypeError, ValueError):
-                return None
-            sid = VisionCommands._stat_id_from_name(name, rev)
+            evidence = {}
+            sid = VisionCommands._stat_id_from_name(name, rev, evidence=evidence)
+            record["name_match"] = evidence
             if not sid:
+                record["decision"] = "unknown_or_ambiguous_name"
                 return None
-            return (sid, VisionCommands._faction_val_fix(sid, num))
+            try:
+                decimal, multiplier = VisionCommands._stat_decimal(val, sid)
+                num = float(decimal)
+            except (TypeError, ValueError, InvalidOperation, OverflowError):
+                record["decision"] = "invalid_value"
+                return None
+            if not math.isfinite(num):
+                record["decision"] = "non_finite_value"
+                return None
+            value = (
+                float((decimal - 1) * 100)
+                if multiplier
+                else VisionCommands._faction_val_fix(sid, num)
+            )
+            record.update(decision="accepted", sid=sid, numeric_value=num, converted_value=value)
+            return (sid, value)
 
         pos: list[tuple[str, float]] = []
         neg: list[tuple[str, float]] = []
@@ -786,13 +1425,14 @@ class VisionCommands:
             else:
                 neg_flag = (bucket == "neg") or (num < 0)
             (neg if neg_flag else pos).append((sid, abs(num)))
+            trace[-1].update(output_bucket="negative" if neg_flag else "positive", value=abs(num))
 
-        for _name, _val in VisionCommands._iter_stat_pairs(data.get("positive")):
-            r = to_stat(_name, _val)
+        for _name, _val in VisionCommands._iter_stat_pairs(data.get("positive"), "positive"):
+            r = to_stat(_name, _val, "positive")
             if r:
                 _route(r, "pos")
-        for _name, _val in VisionCommands._iter_stat_pairs(data.get("negative")):
-            r = to_stat(_name, _val)
+        for _name, _val in VisionCommands._iter_stat_pairs(data.get("negative"), "negative"):
+            r = to_stat(_name, _val, "negative")
             if r:
                 _route(r, "neg")
         return pos, neg

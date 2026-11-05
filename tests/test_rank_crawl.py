@@ -8,12 +8,16 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import sys
+import tempfile
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core import api_client as AC  # noqa: E402
+from core import paths  # noqa: E402
 from core.api_client import WarframeClient  # noqa: E402
 
 FAILED = []
@@ -66,6 +70,7 @@ def _rank_record_stub(it, stats):
 
 # ★ 2026-10-03：真实现句柄（下面 main2 要还原 —— stub 会掩盖 rec=None 的语义）
 _REAL_RANK_RECORD = WarframeClient.__dict__.get("_rank_record")
+_REAL_RANK_CANDIDATE = AC._rank_candidate
 
 
 async def main():
@@ -268,12 +273,18 @@ async def main3():
 
     # ⑥ 物品表为空（取不到）⇒ 不刷新 ts、不写盘
     st6: dict = {"ts": "2026-10-01T00:00:00+00:00", "rows": {"x": {}}}
-    n6 = await FlakyClient(st6, set(), n=0).crawl_wm_ranks()
+    c6 = FlakyClient(st6, set(), n=0)
+    c6._rank_save_failed = True
+    n6 = await c6.crawl_wm_ranks()
     check(
         "物品表为空 ⇒ 跳过、不刷新 ts、行数照旧",
         st6.get("ts") == "2026-10-01T00:00:00+00:00" and n6 == 1,
         str(st6),
     )
+    check("空表向面板留痕，旧落盘失败不沿用", c6._rank_source_empty and not c6._rank_save_failed)
+    c6.n = 10
+    await c6.crawl_wm_ranks()
+    check("恢复可用物品表后清除空表状态", not c6._rank_source_empty)
 
 
 asyncio.run(main3())
@@ -297,6 +308,371 @@ async def main4():
 
 
 asyncio.run(main4())
+
+
+async def main5():
+    """真实入口及落盘：目标序列迁移/变化、补抓去重、失败或取消后安全续跑。"""
+
+    class DiskClient(WarframeClient):
+        def __init__(self):
+            super().__init__(flare_enabled=False)
+            self.order, self.calls, self.fail = list("abcd"), [], set()
+            self.block = None
+            self.entered = asyncio.Event()
+
+        async def wm_items(self):
+            return [{"url_name": s, "en": s, "tags": ["mod"]} for s in self.order]
+
+        async def wm_statistics(self, slug, platform="pc"):
+            self.calls.append(slug)
+            if slug == self.block:
+                self.entered.set()
+                await asyncio.Event().wait()
+            if slug in self.fail:
+                raise RuntimeError("fixture network failure")
+            return {"h48": [{"median": 100, "volume": 1}]}
+
+    previous = paths._RUN
+    with (
+        tempfile.TemporaryDirectory(prefix="wf_rank_sequence_") as temp,
+        patch.object(AC, "_rank_candidate", _REAL_RANK_CANDIDATE),
+        patch.object(WarframeClient, "_rank_record", _REAL_RANK_RECORD),
+    ):
+        paths.set_run_dir(temp)
+        target = Path(temp) / AC.RANKS_NAME
+        c = DiskClient()
+        try:
+            await c.crawl_wm_ranks(limit=2)
+            data = c._load_json_file(target)
+            check(
+                "普通榜保存目标序列及部分游标",
+                data["cursor_targets"] == list("abcd") and data["cursor"] == 2,
+            )
+            c.calls.clear()
+            await c.crawl_wm_ranks(limit=1)
+            check("目标序列不变：从c续跑，不无故回0", c.calls == ["c"])
+            c.order.reverse()
+            c.calls.clear()
+            await c.crawl_wm_ranks()
+            data = c._load_json_file(target)
+            check(
+                "目标重排：按新序列重扫，不漏d且整轮后才标100%",
+                c.calls == list("dcba")
+                and set(data["rows"]) == set("abcd")
+                and data["coverage"] == 1.0,
+            )
+
+            legacy = {"cursor": 2, "rows": {"a": {}}, "coverage": 1.0, "low_coverage": True}
+            target.write_text(json.dumps(legacy))
+            c.order, c.calls = list("abcd"), []
+            await c.crawl_wm_ranks(limit=1)
+            data = c._load_json_file(target)
+            check(
+                "旧数字断点首次保守迁移，不沿用覆盖率认证",
+                c.calls == ["a"]
+                and data["cursor"] == 1
+                and data["coverage"] is None
+                and not data["ts"],
+            )
+            c.calls.clear()
+            await c.crawl_wm_ranks(limit=1)
+            check("旧断点迁移后按新序列续跑", c.calls == ["b"])
+
+            data = c._load_json_file(target)
+            data.update(
+                round_failed=["gone"],
+                retry=["gone", "gone"],
+                rows={**data["rows"], "gone": {}},
+                low_coverage=True,
+            )
+            target.write_text(json.dumps(data))
+            c.order, c.calls = list("abce"), []
+            await c.crawl_wm_ranks(limit=1)
+            data = c._load_json_file(target)
+            check(
+                "目标增删：清理退出行/failed/retry，重扫且不提前认证",
+                c.calls == ["a"]
+                and "gone" not in data["rows"]
+                and "gone" not in data["round_failed"]
+                and "gone" not in data["retry"]
+                and data["cursor_targets"] == list("abce")
+                and data["coverage"] is None,
+            )
+
+            target.write_text(
+                json.dumps({"cursor_targets": list("abcd"), "cursor": 0, "retry": ["b", "b"]})
+            )
+            c.order, c.calls, c.fail = list("abcd"), [], {"b"}
+            await c.crawl_wm_ranks()
+            data = c._load_json_file(target)
+            check(
+                "补抓重叠：同项只请求一次，失败不因二次尝试误计成功",
+                c.calls == list("bacd")
+                and data["coverage"] == 0.75
+                and data["retry"] == ["b"]
+                and not data["ts"],
+            )
+
+            # 落盘失败必须保留旧检查点，下一次按原断点恢复，不跳过未保存的新行。
+            c.fail.clear()
+            c.calls.clear()
+            before = target.read_bytes()
+            with patch.object(c, "_save_json_file", return_value=False):
+                await c.crawl_wm_ranks(limit=1)
+            check(
+                "落盘失败保留磁盘检查点并向健康面板留痕",
+                target.read_bytes() == before and c._rank_save_failed,
+            )
+            await c.crawl_wm_ranks()
+            check(
+                "落盘失败后重试可完整恢复",
+                set(c._load_json_file(target)["rows"]) == set("abcd") and not c._rank_save_failed,
+            )
+
+            target.write_text(
+                json.dumps({"cursor_targets": list("abcd"), "cursor": 1, "rows": {"a": {}}})
+            )
+            c.calls, c.block = [], "c"
+            task = asyncio.create_task(c.crawl_wm_ranks())
+            await asyncio.wait_for(c.entered.wait(), 2)
+            task.cancel()
+            try:
+                await task
+                check("取消保留CancelledError", False)
+            except asyncio.CancelledError:
+                check("取消保留CancelledError", True)
+            check(
+                "取消不超前写游标，专用锁释放",
+                c._load_json_file(target)["cursor"] == 1
+                and not c._crawl_lock("_rank_crawl_lock").locked(),
+            )
+            c.calls, c.block = [], None
+            await c.crawl_wm_ranks()
+            check(
+                "取消后按最后落盘断点恢复，允许补抓但不漏项",
+                c.calls == list("bcd") and set(c._load_json_file(target)["rows"]) == set("abcd"),
+            )
+        finally:
+            paths.set_run_dir(previous)
+            await c.close()
+
+
+asyncio.run(main5())
+
+
+async def handler_protection():
+    """真实 parser → handler：权限拒绝发生在启动调用之前，读取不启动后台。"""
+    from core.commands.market import MarketCommands
+    from core.parser import parse
+
+    class Client(FakeClient):
+        def __init__(self):
+            super().__init__({"done": 3, "total": 20})
+            self.starts = 0
+            self.result = (True, 3, 20)
+            self.error = None
+            self.riven_state = "cooldown"
+            self.weekly_forces = []
+
+        def start_rank_crawl(self):
+            self.starts += 1
+            if self.error:
+                raise self.error
+            return self.result
+
+        def rank_rows(self):
+            return []
+
+        async def de_weekly_rivens(self, platform, force=False):
+            self.weekly_forces.append(force)
+            return {"platform": "PC", "rows": []}
+
+        async def wm_riven_weapons(self):
+            return []
+
+        def riven_realtime_rows(self):
+            return {}
+
+        def start_riven_rt_crawl(self, *, force=False):
+            check("紫卡群入口不绕过冷却", not force)
+            self.starts += 1
+            return self.riven_state, 3, 20
+
+    class Host(MarketCommands):
+        def _is_admin(self, event):
+            return event == "admin"
+
+    client = Client()
+    host = Host()
+    host.client = client
+    reply = await host._h_rank(parse("排行 刷新"), "member", "pc")
+    check("普通用户刷新在启动前拒绝", client.starts == 0 and "只有管理员" in "".join(reply.lines))
+    reply = await host._h_rank(parse("排行"), "member", "pc")
+    check(
+        "普通用户可查看排行且引导由管理员启动",
+        client.starts == 0 and "管理员" in "".join(reply.lines),
+    )
+    reply = await host._h_rank(parse("排行 进度"), "member", "pc")
+    check("普通用户可只读进度", client.starts == 0 and "3/20" in "".join(reply.lines))
+    reply = await host._h_rank(parse("排行 刷新"), "admin", "pc")
+    check(
+        "管理员刷新启动并展示进度",
+        client.starts == 1 and "已启动" in "".join(reply.lines) and "3/20" in "".join(reply.lines),
+    )
+    client.result = (False, 3, 20)
+    reply = await host._h_rank(parse("排行 刷新"), "admin", "pc")
+    check(
+        "管理员已有任务显示进行中进度",
+        "已在进行中" in "".join(reply.lines) and "3/20" in "".join(reply.lines),
+    )
+    client.error = AC.WarframeAPIError("排行冷却中，请在 30 分钟后再试")
+    reply = await host._h_rank(parse("排行 刷新"), "admin", "pc")
+    text = "".join(reply.lines)
+    check(
+        "排行冷却明确反馈不伪称运行", "未启动" in text and "冷却" in text and "进行中" not in text
+    )
+    client.starts = 0
+    reply = await host._h_rank(parse("紫卡排行 刷新"), "member", "pc")
+    check("紫卡普通用户保留周报刷新不启动WM", client.starts == 0 and client.weekly_forces[-1])
+    reply = await host._h_rank(parse("紫卡排行 刷新"), "admin", "pc")
+    text = "".join(reply.lines)
+    check(
+        "紫卡管理员冷却中文提示",
+        client.starts == 1 and "冷却" in text and "10 分钟" in text and "cooldown" not in text,
+    )
+
+
+asyncio.run(handler_protection())
+
+
+async def rank_cooldown_lifecycle():
+    """真实启动器与后台任务：虚拟时钟覆盖开始/结束窗口和异常取消。"""
+
+    class Controlled(FakeClient):
+        def __init__(self):
+            super().__init__({"done": 2, "total": 20})
+            self.entered = asyncio.Event()
+            self.release = asyncio.Event()
+            self.runs = 0
+            self.fail = False
+
+        async def crawl_wm_ranks(self):
+            self.runs += 1
+            self.entered.set()
+            await self.release.wait()
+            if self.fail:
+                raise RuntimeError("offline failure")
+            return 1
+
+    async def blocked(c, name):
+        try:
+            c.start_rank_crawl()
+        except AC.WarframeAPIError as exc:
+            check(name, "30 分钟" in str(exc))
+        else:
+            check(name, False)
+
+    now = [10000.0]
+    with patch.object(AC.time, "time", side_effect=lambda: now[0]):
+        for outcome in ("成功", "失败", "取消", "调度前取消"):
+            c = Controlled()
+            check(f"{outcome}首次可启动", c.start_rank_crawl() == (True, 2, 20))
+            task = c._rank_crawl_task
+            check(f"{outcome}并发启动复用进度", c.start_rank_crawl() == (False, 2, 20))
+            if outcome == "调度前取消":
+                task.cancel()
+            else:
+                await c.entered.wait()
+                # 持续超过启动窗口，结束后仍应重新保护完整30分钟。
+                now[0] += 2000
+                c.fail = outcome == "失败"
+                if outcome == "取消":
+                    task.cancel()
+                else:
+                    c.release.set()
+            try:
+                await task
+            except (RuntimeError, asyncio.CancelledError):
+                pass
+            await asyncio.sleep(0)
+            finished = now[0]
+            await blocked(c, f"{outcome}结束立即冷却")
+            now[0] = finished + 1799
+            await blocked(c, f"{outcome}结束未满30分钟拒绝")
+            now[0] = finished + 1800
+            check(f"{outcome}结束满30分钟可重试", c.start_rank_crawl()[0])
+            c._rank_crawl_task.cancel()
+            try:
+                await c._rank_crawl_task
+            except asyncio.CancelledError:
+                pass
+            await asyncio.sleep(0)
+            check(f"{outcome}无重叠后台轮次", c.runs == (0 if outcome == "调度前取消" else 1))
+
+
+asyncio.run(rank_cooldown_lifecycle())
+
+
+async def automatic_batch_manual_guard():
+    """真实自动crawl退出后保护手动入口，但不阻塞下个游标续批。"""
+
+    class BatchClient(FakeClient):
+        def __init__(self):
+            super().__init__({})
+            self.block = False
+            self.entered = asyncio.Event()
+
+        async def wm_statistics(self, slug, platform="pc"):
+            if self.block:
+                self.entered.set()
+                await asyncio.Event().wait()
+            return await super().wm_statistics(slug, platform)
+
+    now = [20000.0]
+    with (
+        patch.object(AC.time, "time", side_effect=lambda: now[0]),
+        patch.object(AC, "_rank_candidate", lambda item: True),
+        patch.object(WarframeClient, "_rank_record", staticmethod(_rank_record_stub)),
+    ):
+        for outcome in ("成功", "取消"):
+            c = BatchClient()
+            await c.crawl_wm_ranks(limit=2)
+            if outcome == "取消":
+                now[0] += 2000  # 先让前一成功批的保护过期，避免掩盖取消未记结束时间。
+                c.block = True
+                task = asyncio.create_task(c.crawl_wm_ranks(limit=2))
+                await c.entered.wait()
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+                c.block = False
+            for delta in (0, 1799):
+                now[0] += delta
+                try:
+                    c.start_rank_crawl()
+                except AC.WarframeAPIError as exc:
+                    check(f"自动批次{outcome}退出后{delta}秒拒绝手动", "30 分钟" in str(exc))
+                else:
+                    check(f"自动批次{outcome}退出后{delta}秒拒绝手动", False)
+            before = c.calls
+            await c.crawl_wm_ranks(limit=2)
+            check(
+                f"自动批次{outcome}退出不阻塞直接续批且游标续进",
+                c.calls == before + 2 and c.store["cursor"] == 4,
+            )
+            now[0] += 1800
+            check(f"自动续批{outcome}退出满30分钟允许手动", c.start_rank_crawl()[0])
+            c._rank_crawl_task.cancel()
+            try:
+                await c._rank_crawl_task
+            except asyncio.CancelledError:
+                pass
+            await asyncio.sleep(0)
+
+
+asyncio.run(automatic_batch_manual_guard())
 
 print()
 if FAILED:

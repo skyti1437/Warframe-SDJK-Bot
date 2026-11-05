@@ -83,7 +83,7 @@ for idx, (label, toks) in enumerate(CASES, 1):
         res = dc.calculate(spec, weapon)
         lines = card_lines(weapon, spec, res, alts)
     path = renderer.render("伤害计算", lines)
-    # renderer 的 cache 只保留最近 2 张（_cleanup(keep=2)），探针自己留一份稳定命名的
+    # 卡片原图由插件交付后删除、启动时再兜底清旧图；探针自己留一份稳定命名的
     if path:
         stable = OUT / f"damage_{idx:02d}.png"
         stable.write_bytes(Path(path).read_bytes())

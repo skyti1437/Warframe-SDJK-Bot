@@ -106,10 +106,10 @@ def tier_source(key: str, tier_of: dict) -> str:
 
 
 # ★ 2026-10-16 用户口径：出档门槛仍是 n≥3（scripts/build_arb_ratings.py::MIN_N），
-#   但 n<5 的**实测档**在卡片上标「*」、推送标「（样本少）」—— 档位照常参与筛选与订阅匹配。
+#   但 n<5 的**实测档**在卡片上标「＊」（全角，见 LOW_MARK）、推送标「（样本少）」—— 档位照常参与筛选与订阅匹配。
 #   只标实测补的档；arbi 官方 tierlist 的档不看样本数。
 LOW_N = 5
-LOW_MARK = "*"
+LOW_MARK = "＊"  # 全角：QQ Markdown 正文里半角 * 会被当成强调，整卡退回纯文字
 LOW_NOTE = f"※ 评级带「{LOW_MARK}」= 样本少：该节点社区实测不足 {LOW_N} 条记录，档位仅供参考"
 
 
@@ -187,7 +187,8 @@ TYPES = (
 TYPE_ALIAS = {"回收": "资源回收"}
 # ★ 2026-10-16（维护者要求）：仲裁卡上凡出现评级，下方都标评分范围 —— 三张卡共用这一句，阈值改了只改这里。
 #   范围与 scripts/build_arb_ratings.py::TIERS 一致（F 放宽到 <450 为维护者 10-16 口径）。
-TIER_RANGE = "S≥800 / A+≥700 / A≥600 / A-≥450 / F<450（每小时生息）"
+#   「＜」用全角：半角 < 会被 QQ Markdown 正文的 HTML 保护拦下，整卡退回纯文字。
+TIER_RANGE = "S≥800 / A+≥700 / A≥600 / A-≥450 / F＜450（每小时生息）"
 TIER_NOTE = (
     "※ 评级：arbi.wf.wiki 官方 tierlist 优先，官方未评级的节点用「社区实测中位数」补；"
     f"评分范围 {TIER_RANGE}"

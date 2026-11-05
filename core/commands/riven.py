@@ -10,8 +10,14 @@ try 分支 from .core.* → from ..*（模块自插件根迁入 core 包，相�
 
 from __future__ import annotations
 
+import asyncio
+import json
+import math
 import re
 import unicodedata
+import time
+from dataclasses import dataclass
+from decimal import Decimal
 from typing import Optional
 
 from .. import formatters as fmt
@@ -19,12 +25,16 @@ from .. import matching
 from .. import riven_analysis as RA
 from ..api_client import WarframeAPIError, fuzzy_hits, public_error_text
 from ..logging_compat import logger
-from .base import Reply, err_card
+from .base import Action, Reply, err_card
 
 # 「词条范围」组合写法的归一：全角数字 / 加号走 NFKC，U+2212 减号另补一刀
 _COMBO_TRANS = str.maketrans({"−": "-", "－": "-"})
 # 「看着像组合」但不认识（如 4+ / 5+1-）：**不静默落进武器名**，给一句提示
 _COMBO_LIKE_RE = re.compile(r"^\d+\+(?:\d+)?(?:-|负)?$")
+
+# 行情是附加信息；家族解析与单次完整词条查询共用一个前台预算。
+RIVEN_ANALYSIS_PRICE_BUDGET_S = 3.0
+RIVEN_ANALYSIS_PRICE_REQUEST_TIMEOUT_S = 1.5
 
 
 def _fold_combo(t: str) -> str:
@@ -47,6 +57,30 @@ def _xh_element(toks: list[str]) -> tuple[Optional[str], Optional[str]]:
             cn = fmt.LICH_ELEM_ALT[s]
             return cn, fmt.LICH_ELEM_EN[cn]
     return None, None
+
+
+@dataclass
+class _RivenInput:
+    weapon: str
+    positive: list
+    negative: list
+    hidden: int
+    disposition: float
+    unmatched: list
+
+
+_LOCAL_STATUS_ABSENT = object()
+
+
+def riven_read_selection(single_ocr, local_status=_LOCAL_STATUS_ABSENT) -> str:
+    """给定同一次配置与本地状态，复用真实入口的逐值选路规则；不读取任何服务。"""
+    if local_status is _LOCAL_STATUS_ABSENT:
+        return "single" if single_ocr is True else "dual"
+    if local_status.get("enabled") or local_status.get("ok") is not True:
+        return "local"
+    if single_ocr is True and local_status.get("enabled") is False:
+        return "single"
+    return "dual"
 
 
 class RivenCommands:
@@ -74,7 +108,7 @@ class RivenCommands:
                 (
                     "已收录",
                     f"{len(self.client._aliases.get('lich_items', {}))} 个中文写法"
-                    "（赤毒/信条/科达三类）",
+                    "（赤毒/信条/终幕三类）",
                 ),
                 title="玄骸拍卖",
             )
@@ -84,7 +118,7 @@ class RivenCommands:
             near = fuzzy_hits(first, list(self.client._aliases.get("lich_items", {})), n=3) or []
             return err_card(
                 f"未找到玄骸武器「{first}」",
-                "支持赤毒/信条/科达三类，可只写后半段（如「怒雷」）；或照候选改名重发",
+                "支持赤毒/信条/终幕三类，可只写后半段（如「怒雷」）；或照候选改名重发",
                 ("你是不是想找", "、".join(near)) if near else "",
                 title="玄骸拍卖",
             )
@@ -479,30 +513,16 @@ class RivenCommands:
             only=only,
             dropped=dropped,
             survey={"unseen": _unseen, **_sv},
+            stat_multipliers=RA.weapon_stat_multipliers(item),
         )
         if RA.class_estimated(item.get("riven_type") or "", item.get("group") or ""):
             lines.insert(0, "※ ⚠ 武器类别未知，按步枪基值列估算（区间可能有偏差）")
         return Reply(title, lines, footer=fmt.fmt_platform_footer(platform, "紫卡词条池"))
 
-    async def _h_riven_analysis(self, parsed, event, platform) -> Reply:
-        import time as _tt
+    def _riven_text_input(self, parsed) -> _RivenInput:
+        """解析手输字段，使文字与图片共用后续的分析规则。"""
+        from ..parser import RIVEN_STAT_ZH
 
-        _t_start = _tt.perf_counter()
-        """紫卡分析：按 DE 属性基值 × 倾向 × 词条数系数算每条词条的取值区间，
-        标出实际数值是高卷还是低卷。
-
-        用法：紫卡分析 武器名 暴伤82.8 范围1.6 攻速45.8 负滑暴81.3
-        也可直接发「紫卡分析 + 紫卡截图」（vision 渠道识别，如 glm-4v-flash）。
-        负词条用「负」或「-」前缀标记；数值不写正负号。
-        """
-        import re as _re
-
-        try:  # 服务器以包成员加载，相对导入才可靠（绝对导入会被 sys.path 清理坑掉）
-            from ..parser import RIVEN_STAT_ZH
-            from .. import riven_analysis as RA
-        except ImportError:  # pragma: no cover - 本地直跑
-            from core.parser import RIVEN_STAT_ZH
-            from core import riven_analysis as RA
         rev = {v: k for k, v in RIVEN_STAT_ZH.items()}
         disp_override = 0.0  # 手输倾向（倾向0.95 / @0.95 / d0.95）
         stats_pos: list[tuple[str, float]] = []
@@ -510,11 +530,12 @@ class RivenCommands:
         weapon_name = ""
         # 融合时还没选定的词条（卡面「？？？」）：正负未知，只计入词条数（2026-10-24）
         hidden = 0
+        splice_unmatched_numeric: list[str] = []
         for tok in parsed.content or []:
             t = tok.strip()
             if not t:
                 continue
-            if _re.fullmatch(r"[?？]{2,}", t):
+            if re.fullmatch(r"[?？]{2,}", t):
                 hidden += 1
                 continue
             neg = t.startswith(("负", "-"))
@@ -525,15 +546,16 @@ class RivenCommands:
             #   旧限会让整条落进 weapon_name（静默丢词条 + 污染武器名）。
             # ★ 2026-10-23（ZCode 部署回执）：派系词条卡面原文夹英文「对Infested伤害」，
             #   只收汉字会整条落进武器名 ⇒ 放宽到汉字 + 英文字母（认不出的照旧归武器名）。
-            m = _re.fullmatch(r"([\u4e00-\u9fa5A-Za-z]{1,24}?)(\d+(?:\.\d+)?)", body)
+            m = re.fullmatch(r"([\u4e00-\u9fa5A-Za-z]{1,24}?)(\d+(?:\.\d+)?)", body)
             if m:
                 sid = self._stat_id_from_name(m.group(1), rev)
                 if sid:
                     (stats_neg if neg else stats_pos).append((sid, float(m.group(2))))
                     continue
-            if _re.fullmatch(r"\d\+(?:\d)?", t):
+                splice_unmatched_numeric.append(t)
+            if re.fullmatch(r"\d\+(?:\d)?", t):
                 continue  # 3+1 之类的词条数标注，P/N 直接按实际词条算
-            m_d = _re.fullmatch(r"(?:倾向|d|@)(\d+(?:\.\d+)?)", t, _re.I)
+            m_d = re.fullmatch(r"(?:倾向|d|@)(\d+(?:\.\d+)?)", t, re.I)
             if m_d:
                 disp_override = float(m_d.group(1))
                 continue  # 手输倾向覆盖（棱晶等变体 WM 没有数据）
@@ -543,7 +565,6 @@ class RivenCommands:
         #   4 正 0 负且其中**恰有 1 条**反转词条 ⇒ 该条实为负面（卡面 `+` 号但
         #   收益为负）。旧流程被下面的词条数闸门拒收，用户拿到「词条数不对」。
         #   （卡面注脚统一在下方的「反转词条注脚」块生成，两条路径同文案。）
-        inverted_note = ""
         if len(stats_pos) > 3 and not stats_neg:
             _inv = [(i, s) for i, s in enumerate(stats_pos) if RA.is_inverted(s[0])]
             if len(_inv) == 1:
@@ -551,45 +572,180 @@ class RivenCommands:
                 stats_pos.pop(_i)
                 stats_neg.append(_s)
 
-        has_image = self._event_has_image(event)
+        return _RivenInput(
+            weapon_name, stats_pos, stats_neg, hidden, disp_override, splice_unmatched_numeric
+        )
+
+    def _use_single_riven_ocr(self) -> bool:
+        if (getattr(self, "cfg", None) or {}).get("riven_single_ocr") is not True:
+            return False
+        local = getattr(self, "local_ocr", None)
+        if local is None:
+            return True
+        status = local.status()
+        return riven_read_selection(True, status) == "single"
+
+    async def _h_riven_analysis(self, parsed, event, platform) -> Reply:
+        """紫卡文字或截图的常规指令入口。"""
+        started = time.perf_counter()
+        capability = getattr(self, "_can_send_actions", None)
+        can_actions = callable(capability) and capability(event)
+        typed = self._riven_text_input(parsed)
+        if typed.weapon and (typed.positive or typed.negative):
+            return await self._finish_riven_analysis(typed, None, platform, can_actions, started)
+        # —— 图片识别路径 ——
+        if not self._event_has_image(event):
+            reply = err_card(
+                "没有给出武器名和词条数值，也没有附紫卡截图",
+                "按用法补全重发；也可直接发「紫卡分析 + 紫卡截图」",
+                ("用法", "紫卡分析 武器名 词条数值…（负词条加「负」前缀）"),
+                "· 示例　紫卡分析 欧玛 暴伤82.8 范围1.6 攻速45.8 负滑暴81.3",
+                title="紫卡分析",
+            )
+            if can_actions:
+                reply.actions.append(
+                    Action(
+                        "照示例发",
+                        "紫卡分析 欧玛 暴伤82.8 范围1.6 攻速45.8 负滑暴81.3",
+                        mode="fill",
+                    )
+                )
+            return reply
+        # 隔离模式按任务冷却；机器总并发预算仍共享，本地 OCR 另有单 worker 硬上限。
+        _last = self._vision_last("riven")
+        _gate, _sender = self._vision_gate(event, "紫卡识图", task="riven")
+        if _gate is not None:
+            return _gate
+        _stamp = _last.get(_sender)
+        # 每请求独立占位；同人同会话在冷却关闭时也不能折叠计数或提前释放别人席位。
+        _busy_key = object()
+        self._ocr_busy.add(_busy_key)
+        try:
+            imgs = await self._image_data_urls(event)
+            if not imgs:
+                return Reply(raw_text="⚠️ 图片下载失败，请重发一次截图")
+            if self._use_single_riven_ocr():
+                from .. import riven_ocr_reader as reader
+
+                async def validate(observation):
+                    return await self._finish_riven_analysis(
+                        typed, observation, platform, can_actions, started, check_only=True
+                    )
+
+                # 单模型模式须显式配置紫卡主读，绝不自动枚举或借用其它任务渠道。
+                provider_id = self._vision_route_value("vision_provider_id_riven")
+                provider = self._try_get_provider(provider_id) if provider_id else None
+                data, reason = await reader.read(
+                    provider, imgs[0], validate, self._RIVEN_LINE_PROMPT
+                )
+                if reason:
+                    self._vision_refund(_last, _sender, _stamp)
+                    return Reply(raw_text=reason)
+            else:
+                data = await self._extract_riven_from_image(imgs[0])
+        finally:
+            self._ocr_busy.discard(_busy_key)
+        if not data:
+            if _sender:  # 识别失败返还冷却（同识卡口径）
+                self._vision_refund(_last, _sender, _stamp)
+            return err_card(
+                "图片识别失败（vision 渠道不可用或未配）",
+                "请按文字格式发送：紫卡分析 武器名 暴伤82.8 范围1.6 负滑暴81.3",
+                title="紫卡分析",
+            )
+        local_result = data.get("_local_ocr")
+        if isinstance(local_result, dict):
+            state = local_result.get("state", local_result.get("recognition_state"))
+            if state != "accepted":
+                if _sender:
+                    self._vision_refund(_last, _sender, _stamp)
+                local_lines = data.get("lines") or []
+                local_weapon = data.get("weapon") or "未确认"
+                if state == "partial" and local_lines:
+                    return Reply(
+                        raw_text="\n".join(
+                            [
+                                "本地紫卡 OCR：请核对以下识别结果，尚未用于估价。",
+                                f"武器：{local_weapon}",
+                                *[str(line) for line in local_lines[:8]],
+                                "核对后可按文字格式发送「紫卡分析 武器名 词条数值…」。",
+                            ]
+                        )
+                    )
+                return err_card(
+                    "本地紫卡 OCR 未能完成识别",
+                    str(local_result.get("message") or "请检查本地环境、模型与资源后重试"),
+                    title="紫卡分析",
+                )
+        return await self._finish_riven_analysis(typed, data, platform, can_actions, started)
+
+    async def _finish_riven_analysis(
+        self, typed, data, platform, can_actions, started, *, check_only=False
+    ):
+        """校验和正式分析走同一入口。校验到完整性闸门为止，仅最终结果查询行情。"""
+        from ..parser import RIVEN_STAT_ZH
+
+        rev = {v: k for k, v in RIVEN_STAT_ZH.items()}
+        weapon_name, disp_override, hidden = typed.weapon, typed.disposition, typed.hidden
+        stats_pos, stats_neg = list(typed.positive), list(typed.negative)
+        splice_unmatched_numeric = typed.unmatched
+        splice_input_incomplete = False
+        inverted_note = ""
         source_note = ""
+        image_data = data
+        stat_name_matches: list[dict] = []
+
+        def pending_image(reason: str, candidates=()) -> Reply:
+            original = {key: image_data.get(key) for key in ("weapon", "positive", "negative")}
+            rows = [
+                "紫卡识别结果待核对，尚未用于分析或估价。",
+                reason,
+                "原始识别结构：" + json.dumps(original, ensure_ascii=False),
+            ]
+            original_lines = image_data.get("lines")
+            if isinstance(original_lines, str) and original_lines:
+                rows.extend(["逐行原文：", *original_lines.splitlines()])
+            elif isinstance(original_lines, (list, tuple)) and original_lines:
+                rows.extend(["逐行原文：", *map(str, original_lines)])
+            if candidates:
+                rows.append("代码推断候选（需确认）：")
+                rows.extend(candidates)
+            rows.append("请核对原图后按文字格式发送「紫卡分析 武器名 词条数值…」。")
+            return Reply(raw_text="\n".join(rows))
+
         # ★ 2026-10-07：图片路径里 OCR 读到的武器名（清洗后）单独留一份 —— 手输名
         #   认不出时用它兜底（见下面的解析链），纯文字路径保持空串。
         _ai_name = ""
         # 近形字兜底的卡面注记（解析链最后一跳命中时填，见下）
         nearmiss_note = ""
-        if not weapon_name or not (stats_pos or stats_neg):
-            # —— 图片识别路径 ——
-            if not has_image:
-                return err_card(
-                    "没有给出武器名和词条数值，也没有附紫卡截图",
-                    "按用法补全重发；也可直接发「紫卡分析 + 紫卡截图」",
-                    ("用法", "紫卡分析 武器名 词条数值…（负词条加「负」前缀）"),
-                    "· 示例　紫卡分析 欧玛 暴伤82.8 范围1.6 攻速45.8 负滑暴81.3",
-                    title="紫卡分析",
+        if data is not None:
+            if (data.get("_local_ocr") or {}).get("name_normalized"):
+                raw_name = data.get("weapon_raw") or ""
+                canonical_name = data.get("weapon") or ""
+                nearmiss_note = (
+                    f"本地识别名「{raw_name}」→ 已按「{canonical_name}」计算（唯一数值可行候选）"
                 )
-            # 紫卡识图同样调用付费多模态模型（每次 2 路并行）⇒ 与识卡共用防刷闸
-            _gate, _sender = self._vision_gate(event, "紫卡识图")
-            if _gate is not None:
-                return _gate
-            _busy_key = f"riven:{getattr(event, 'unified_msg_origin', '') or ''}:{_sender}"
-            self._ocr_busy.add(_busy_key)
-            try:
-                imgs = await self._image_data_urls(event)
-                if not imgs:
-                    return Reply(raw_text="图片下载失败，请重发一次截图")
-                data = await self._extract_riven_from_image(imgs[0])
-            finally:
-                self._ocr_busy.discard(_busy_key)
-            if not data:
-                if _sender:  # 识别失败返还冷却（同识卡口径）
-                    self._ocr_last.pop(_sender, None)
-                return err_card(
-                    "图片识别失败（vision 渠道不可用或未配）",
-                    "请按文字格式发送：紫卡分析 武器名 暴伤82.8 范围1.6 负滑暴81.3",
-                    title="紫卡分析",
-                )
+                logger.info("[sdjk] 紫卡原名归一：状态=已采信，类别=唯一数值可行候选")
             stats_pos, stats_neg = self._normalize_llm_stats(data, rev)
+            # 语义表未识别项不能静默当作不存在。
+            _splice_sem_count = sum(
+                len(self._iter_stat_pairs(data.get(k))) for k in ("positive", "negative")
+            )
+            splice_input_incomplete = (
+                bool(data.get("_numeric_precision_unsafe"))
+                or _splice_sem_count > len(stats_pos) + len(stats_neg)
+                or any(
+                    key in data and not isinstance(data[key], (list, tuple, dict))
+                    for key in ("positive", "negative")
+                )
+            )
+            recognition = data.get("_recognition") or {}
+            stat_name_matches = [
+                row["name_match"]
+                for row in recognition.get("stat_normalization", [])
+                if row.get("decision") == "accepted" and row.get("name_match")
+            ]
+            recognition["selected_stat_source"] = "semantic_json"
             # ★ 2026-10-07（玩家报障「紫卡分析 冰凇 + 截图 ⇒ 未找到紫卡武器「冰松」」）：
             #   旧写法 `weapon_name = data.get("weapon") or weapon_name` = **OCR 名无条件
             #   覆盖手输名** —— OCR 吐一个近形字（冰凇→冰松）就把用户写对的名字丢掉，
@@ -600,10 +756,69 @@ class RivenCommands:
             # 紫卡卡面是「武器名 + 自命名」（欧玛 Acri-loctida）：去掉拉丁
             # 尾巴只留简中母名（WM 紫卡表按母武器挂）
             _ai_raw = (data.get("weapon") or "").strip()
-            _ai_name = _re.sub(r"[A-Za-z\-].*$", "", _ai_raw).strip(" ··") or _ai_raw
+            _ai_name = re.sub(r"[A-Za-z\-].*$", "", _ai_raw).strip(" ··") or _ai_raw
             # 融合未选定时自命名显示成「？？？」（视使之触？？？）：问号不是武器名
-            _ai_name = _re.sub(r"[?？\s]+$", "", _ai_name) or _ai_name
+            _ai_name = re.sub(r"[?？\s]+$", "", _ai_name) or _ai_name
             weapon_name = _user_name or _ai_name
+            # 独立窄读常保留了标题。用官方词表的精确/变体等价匹配恢复身份；
+            # 拉丁自命名不能进入宽松子串搜索后误命中另一把武器。
+            if not _user_name:
+                from .. import matching as _identity_matching
+
+                get_catalog = getattr(self.client, "wm_riven_weapons", None)
+                if callable(get_catalog):
+                    catalog = await get_catalog()
+
+                    def exact_observed_name(query):
+                        forms = set(_identity_matching.expand_variants(query))
+                        forms.add(_identity_matching.normalize(query))
+
+                        def catalog_forms(value):
+                            # 模块部件卡面不印主要/次要后缀，词表可分两个模式；
+                            # 保留模式候选交给后续代码，不替模型补武器后缀。
+                            base = re.sub(
+                                r"[_\s]*[（(](?:主要|次要|primary|secondary)[）)]\s*$",
+                                "",
+                                str(value or ""),
+                                flags=re.I,
+                            )
+                            return {
+                                _identity_matching.normalize(value or ""),
+                                _identity_matching.normalize(base),
+                            }
+
+                        return [
+                            w
+                            for w in catalog
+                            if any(
+                                forms & catalog_forms(w.get(k)) for k in ("zh", "en", "url_name")
+                            )
+                        ]
+
+                    main_hits = exact_observed_name(_ai_name) if _ai_name else []
+                    title_names = []
+                    for row in data.get("_line_decode", {}).get("rows", []):
+                        title = row.get("text", "")
+                        if not row.get("structural") and RA._is_riven_title(title):
+                            name = re.split(r"[A-Za-z]", title, maxsplit=1)[0].strip()
+                            if name not in title_names and exact_observed_name(name):
+                                title_names.append(name)
+                    recognition["weapon_identity"] = {
+                        "json_name": _ai_name,
+                        "line_titles": title_names,
+                        "selected": weapon_name,
+                    }
+                    if len(title_names) == 1:
+                        title_name = title_names[0]
+                        title_hits = exact_observed_name(title_name)
+                        if main_hits and not any(w in title_hits for w in main_hits):
+                            return pending_image("两路读到了不同的官方武器名，请核对卡片标题。")
+                        weapon_name = title_name
+                        recognition["weapon_identity"].update(
+                            selected=weapon_name, source="line_title_exact"
+                        )
+                    elif not main_hits and re.fullmatch(r"[A-Za-z\s-]+", _ai_name):
+                        return pending_image("只读到了拉丁词缀，尚未确认卡片武器名。")
             source_note = "（图片识别）"
             # ★ 2026-09-27：优先采信「卡面文字行」，而不是模型给的语义词条表。
             #   故障实证（服务器日志 01:11:52）：4 行卡面被吐成 7 条 —— 负词条
@@ -615,39 +830,203 @@ class RivenCommands:
             if isinstance(_lines, str):
                 _lines = _lines.splitlines()
             if isinstance(_lines, (list, tuple)) and _lines:
-                _lp, _ln, _legal, _notes = self._riven_lines_legal(_lines)
+                line_name_matches = []
+                _lp, _ln, _legal, _notes = self._riven_lines_legal(
+                    _lines, normalization=line_name_matches
+                )
                 hidden = RA.hidden_line_count(_lines)
                 # ★ 2026-10-02 两路交叉校验（问题1）：行读**条数少于语义表**时也
                 #   不许覆盖 —— 行读没报错也可能整行没抄（模型直接漏一行，不会产生
                 #   notes）。但语义表自身必须**合法**才让位，否则会把 2026-09-27
                 #   修掉的「语义表拆条/多条」老 bug 放回来（那次语义表 4 正 2 负）。
                 _n_line = len(_lp) + len(_ln)
-                _n_sem = len(stats_pos) + len(stats_neg)
-                _sem_legal = bool(RA.count_candidates(len(stats_pos), len(stats_neg), hidden))
+                # null 名称或值仍是原卡的一行，完整行读须覆盖原始分母。
+                _n_sem = _splice_sem_count
+                _raw_count_legal = bool(
+                    RA.count_candidates(
+                        len(self._iter_stat_pairs(data.get("positive"))),
+                        len(self._iter_stat_pairs(data.get("negative"))),
+                        hidden,
+                    )
+                )
+                _normalized_count_legal = bool(
+                    RA.count_candidates(len(stats_pos), len(stats_neg), hidden)
+                )
+                _sem_legal = (
+                    _raw_count_legal and _normalized_count_legal and not splice_input_incomplete
+                )
                 logger.info(
-                    "[sdjk] 紫卡行解析：%d 正 %d 负 %d 未揭示（模型语义表 %d 正 %d 负）%s",
+                    "[sdjk] 紫卡行解析：%d 正 %d 负 %d 未揭示（模型语义表 %d 正 %d 负），跳过 %d 条",
                     len(_lp),
                     len(_ln),
                     hidden,
                     len(stats_pos),
                     len(stats_neg),
-                    ("；跳过 " + " / ".join(_notes)) if _notes else "",
+                    len(_notes),
                 )
-                if _legal and (_n_line >= _n_sem or not _sem_legal):
+
+                # 对齐两路已有词条，只选某一路完整集合；不把两路拼成新卡。
+                def evidence_rows(pos, neg):
+                    return {
+                        (sid, bucket, format(Decimal(str(value)).normalize(), "f"))
+                        for pairs, bucket in ((pos, "positive"), (neg, "negative"))
+                        for sid, value in pairs
+                    }
+
+                semantic = evidence_rows(stats_pos, stats_neg)
+                literal = evidence_rows(_lp, _ln)
+                shared_ids = {r[0] for r in semantic} & {r[0] for r in literal}
+                conflicts = sorted(
+                    sid
+                    for sid in shared_ids
+                    if {r[1:] for r in semantic if r[0] == sid}
+                    != {r[1:] for r in literal if r[0] == sid}
+                )
+                selection = {
+                    "semantic": sorted(semantic),
+                    "line": sorted(literal),
+                    "conflicts": conflicts,
+                    "line_notes": list(_notes),
+                    "semantic_raw_count": _n_sem,
+                    "line_count": _n_line,
+                    "selected": None,
+                    "reason": "unresolved_evidence",
+                }
+                recognition["stat_selection"] = selection
+                selection["unknown_semantic_rows_retained"] = [
+                    row
+                    for row in recognition.get("stat_normalization", [])
+                    if row.get("decision") != "accepted"
+                ]
+                unknown_rows = selection["unknown_semantic_rows_retained"]
+                remaining = literal - semantic
+                # null 只能由另一条实际观察唯一补足；未知名称、非法值不得借完整行洗白。
+                reconciled, unknown_unresolved = [], False
+                for row in unknown_rows:
+                    matches = []
+                    title_attached_value = (
+                        row.get("decision") == "unknown_or_ambiguous_name"
+                        and row.get("raw_name") == weapon_name
+                        and row.get("raw_value") is not None
+                    )
+                    if row.get("decision") == "unknown_name_or_value" or title_attached_value:
+                        for candidate in remaining:
+                            sid, bucket, value = candidate
+                            raw_name, raw_value = row.get("raw_name"), row.get("raw_value")
+                            if (
+                                raw_name is not None
+                                and not title_attached_value
+                                and self._stat_id_from_name(str(raw_name), rev) != sid
+                            ):
+                                continue
+                            if raw_value is None:
+                                if raw_name is None and bucket != row.get("input_bucket"):
+                                    continue
+                            else:
+                                probe = {
+                                    row["input_bucket"]: [[RIVEN_STAT_ZH.get(sid, sid), raw_value]]
+                                }
+                                pp, pn = self._normalize_llm_stats(probe, rev)
+                                if candidate not in evidence_rows(pp, pn):
+                                    continue
+                            matches.append(candidate)
+                    if len(matches) != 1:
+                        unknown_unresolved = True
+                        break
+                    remaining.remove(matches[0])
+                    reconciled.append({"observation": row, "line_candidate": matches[0]})
+                selection["null_reconciliation"] = reconciled
+                # 主JSON把标题/尾注错装进词条，或把四行都放到正面桶时，
+                # 已失去合法卡面结构。它不能否决独立、完整且无重复的逐行观察。
+                # 两路各自合法时仍保留数值冲突与短读检查。
+                line_ids = [sid for sid, _value in _lp + _ln]
+                # 未知词条仍保留；只有可证明的包装破损/桶极性非法，才走布局恢复。
+                # null 或陌生名称本身不是丢弃整路证据的理由。
+                malformed_pairs = any(
+                    isinstance(row, (list, tuple)) and len(row) != 2
+                    for key in ("positive", "negative")
+                    for row in (data.get(key) if isinstance(data.get(key), list) else [])
+                )
+                embedded_conflicts = any(
+                    isinstance(row.get("raw_value"), dict)
+                    and "invalid_observation" in row["raw_value"]
+                    for row in unknown_rows
+                )
+                metadata_rows = [
+                    row
+                    for row in unknown_rows
+                    if any(
+                        re.fullmatch(
+                            r"(?:段位|精通段位|等级需求|循环次数|内融值)\s*[:：]?\s*\d+",
+                            str(row.get(key) or ""),
+                        )
+                        for key in ("raw_name", "raw_value")
+                    )
+                ]
+                layout_broken = (
+                    not _raw_count_legal
+                    or (not _normalized_count_legal and not unknown_rows)
+                    or malformed_pairs
+                    or bool(metadata_rows)
+                )
+                required_count = min(_n_sem - len(metadata_rows), 4)
+                selection.update(
+                    conflicting_embedded_values=embedded_conflicts,
+                    semantic_count_legal=_normalized_count_legal,
+                    semantic_layout_broken=layout_broken,
+                    semantic_metadata_rows=metadata_rows,
+                    required_line_count=required_count,
+                )
+                if (
+                    _legal
+                    and not _sem_legal
+                    and layout_broken
+                    and not data.get("_numeric_precision_unsafe")
+                    and len(set(line_ids)) == len(line_ids)
+                    and _n_line + hidden >= required_count
+                ):
                     stats_pos, stats_neg = _lp, _ln
                     source_note = "（图片识别·卡面逐行）"
-                elif _legal:
-                    logger.warning(
-                        "[sdjk] 紫卡行读条数少于语义表（%d < %d），退回语义表防漏行",
-                        _n_line,
-                        _n_sem,
+                    stat_name_matches = line_name_matches
+                    recognition["selected_stat_source"] = "line_read"
+                    recognition["line_stat_normalization"] = line_name_matches
+                    splice_input_incomplete = False
+                    selection.update(selected="line_read", reason="recover_invalid_semantic_layout")
+                elif conflicts or data.get("_numeric_precision_unsafe") or unknown_unresolved:
+                    splice_input_incomplete = True
+                    selection["reason"] = (
+                        "numeric_precision_unknown"
+                        if data.get("_numeric_precision_unsafe")
+                        else "unknown_semantic_unresolved"
+                        if unknown_unresolved
+                        else "cross_route_conflict"
                     )
+                elif _legal and semantic <= literal and _n_line >= _n_sem:
+                    stats_pos, stats_neg = _lp, _ln
+                    source_note = "（图片识别·卡面逐行）"
+                    stat_name_matches = line_name_matches
+                    recognition["selected_stat_source"] = "line_read"
+                    recognition["line_stat_normalization"] = line_name_matches
+                    splice_input_incomplete = False
+                    selection.update(selected="line_read", reason="complete_existing_superset")
+                elif _legal and not _sem_legal and not splice_input_incomplete:
+                    stats_pos, stats_neg = _lp, _ln
+                    source_note = "（图片识别·卡面逐行）"
+                    stat_name_matches = line_name_matches
+                    recognition["selected_stat_source"] = "line_read"
+                    splice_input_incomplete = False
+                    selection.update(selected="line_read", reason="recover_invalid_semantic_layout")
+                elif _legal and literal <= semantic and _sem_legal and not splice_input_incomplete:
+                    selection.update(selected="semantic_json", reason="complete_existing_superset")
+                else:
+                    splice_input_incomplete = True
+                if any(not n.startswith("无极性符号") for n in _notes):
+                    splice_input_incomplete = True
+                    selection.update(selected=None, reason="unparsed_suspected_line")
+            if splice_input_incomplete:
+                return pending_image("有词条名称、数值或原文行未确认，请核对后重发。")
             if not (stats_pos or stats_neg):
-                return err_card(
-                    "图片识别到了武器但没读出词条",
-                    "请按文字格式重发：紫卡分析 武器名 暴伤82.8 范围1.6 负滑暴81.3",
-                    title="紫卡分析",
-                )
+                return pending_image("没有读出可确认的词条，请核对后重发。")
             if not weapon_name:
                 # ★ 2026-09-25 ruff F821 修复：原写成未定义的 `abbr`，这条路一走
                 #   就 NameError（用户拿到内部错误而不是下面这条提示）。
@@ -683,7 +1062,7 @@ class RivenCommands:
                 + "）—— 紫卡不会有重复词条，其中一条很可能是识别错误"
                 "（常见：元素伤害被读成暴击伤害），请重发一次截图核对"
             )
-            logger.warning("[sdjk] 紫卡识别到重复词条：%s（stats=%s）", _dup_ids, _all_stats)
+            logger.warning("[sdjk] 紫卡识别到重复词条：%s（共 %d 条）", _dup_ids, len(_all_stats))
         # ★ 2026-10-02 反转词条注脚（两条路径都要解释）：图片路径由 vision 按
         #   符号自动归负、人工输入由上面的自洽改判处理。行内**保留卡面符号**并
         #   带「卡面+号·负面」标签（见 fmt_riven_analysis），这里再解释机理，
@@ -702,6 +1081,30 @@ class RivenCommands:
                     "正面，区间按正面档系数计算"
                     "（+ 号 = 增加后坐力 = 负面）"
                 )
+        # 具体武器缺失的类别标题：保留已核对转录，不猜具体武器、不输出评级/行情。
+        # 沿用类别字典，任何类别均适用；不按截图或拉丁词缀识别测试样本。
+        if image_data is not None and weapon_name.strip() in RA.RIVEN_CATEGORY_LABELS:
+            recognition["weapon_status"] = "category_only"
+            if check_only:
+                from ..riven_ocr_reader import Fields
+
+                return Fields(stats_pos, stats_neg, hidden)
+            transcription = {
+                "category": weapon_name.strip(),
+                "positive": list(stats_pos),
+                "negative": list(stats_neg),
+                "hidden": hidden,
+            }
+            reply = Reply(
+                "紫卡识别",
+                [
+                    f"◆ 卡面类别：{weapon_name.strip()}",
+                    "◆ 具体武器未确认；已保留词条，不进行武器评级、融合或行情查询。",
+                    *[f"· {row}" for row in image_data.get("lines", [])],
+                ],
+            )
+            reply.riven_transcription = transcription
+            return reply
         try:
             weapon = await self.client.resolve_riven_weapon(weapon_name.strip())
         except Exception:  # noqa: BLE001 - 解析失败走下面的兜底链
@@ -738,18 +1141,23 @@ class RivenCommands:
                 )
                 _cd = RA.UNIFIED_DISPOSITION
                 if _cd > 0 and any(
-                    RA.disp_feasible(stats_pos, stats_neg, _ccls, _cd, counts=_c)
-                    for _c in count_cands
+                    RA.disp_feasible(
+                        stats_pos,
+                        stats_neg,
+                        _ccls,
+                        _cd,
+                        counts=_counts,
+                        stat_multipliers=RA.weapon_stat_multipliers(_c),
+                    )
+                    for _counts in count_cands
                 ):
                     _feas.append((_c, _cd))
             if len(_feas) == 1:
                 weapon, _near_disp = _feas[0]
                 # 纪律（2026-09-02 形近容错立的规矩）：**禁静默改判** —— 采纳时
-                # 既写卡面注记，也留一条日志（事后可回溯是哪个名字被换掉了）。
+                # 既写卡面注记，也留状态日志；原始识别名不进入日志。
                 logger.info(
-                    "[sdjk] 近形字兜底：卡面名「%s」→ 按「%s」计算（倾向 %g，数值可行）",
-                    weapon_name.strip(),
-                    weapon.get("zh") or weapon.get("en"),
+                    "[sdjk] 近形字兜底：状态=已采信，类别=唯一数值可行候选，倾向 %g",
                     _near_disp,
                 )
                 nearmiss_note = (
@@ -786,7 +1194,7 @@ class RivenCommands:
         # riven_type/group 为空 ⇒ weapon_class 回落「rifle」会拿错基值。
         # 基名行在表里 ⇒ 继承基名行的类别。
         if not (weapon.get("riven_type") or weapon.get("group")):
-            _mb = _re.match(r"^(.+?)\s*\([^)]+\)\s*$", (weapon.get("en") or "").strip())
+            _mb = re.match(r"^(.+?)\s*\([^)]+\)\s*$", (weapon.get("en") or "").strip())
             if _mb:
                 _base_w = await self.client.resolve_riven_weapon(_mb.group(1))
                 if _base_w and (_base_w.get("riven_type") or _base_w.get("group")):
@@ -815,9 +1223,10 @@ class RivenCommands:
         disp = disp_override or RA.UNIFIED_DISPOSITION
         name = weapon.get("zh") or weapon.get("en") or weapon["url_name"]
         mother_name = name
+        stat_multipliers = RA.weapon_stat_multipliers(weapon)
         # ── 小数点修正（2026-09-24 玩家报障：115.7% 读成 1157%）────────────
-        # vision 偶发把小数点读丢，整卡数值随之「都不吻合」。用**当前倾向的合法
-        # 区间**做判据：原值明显超出区间、除以 10 落回区间内 → 修正并在卡面注明。
+        # 区间仅能给出代码推断候选，不能确认图片中的小数点；图片候选须先交用户核对。
+        # 纯文字输入保留既有修正行为。
         decimal_fix: list[str] = []
         # 词条数（决定系数）：有「？？？」未揭示词条时按总行数定；3 行无负词条两可
         # （3+0 / 2+1）⇒ 用卡面数值挑能吻合的那个，都不吻合按先列的（未揭示当正）算
@@ -827,7 +1236,9 @@ class RivenCommands:
                 (
                     c
                     for c in count_cands
-                    if RA.disp_feasible(stats_pos, stats_neg, cls, disp, counts=c)
+                    if RA.disp_feasible(
+                        stats_pos, stats_neg, cls, disp, counts=c, stat_multipliers=stat_multipliers
+                    )
                 ),
                 counts,
             )
@@ -839,20 +1250,54 @@ class RivenCommands:
         def _fix_decimal(pairs, negative: bool):
             out = []
             for sid, v in pairs:
-                lo, hi = RA.stat_range(sid, cls, disp, *counts, negative=negative)
+                lo, hi = RA.stat_range(
+                    sid, cls, disp, *counts, negative=negative, stat_multipliers=stat_multipliers
+                )
                 if not lo or not hi:
                     out.append((sid, v))
                     continue
                 if not (lo * 0.7 <= v <= hi * 1.4):
                     v10 = v / 10.0
                     if lo * 0.85 <= v10 <= hi * 1.15:
-                        decimal_fix.append(f"{RA.fmt_value(sid, v)} → {RA.fmt_value(sid, v10)}")
-                        v = v10
+                        if image_data is None:
+                            decimal_fix.append(f"{RA.fmt_value(sid, v)} → {RA.fmt_value(sid, v10)}")
+                            v = v10
+                        else:
+                            decimal_fix.append(
+                                f"{RIVEN_STAT_ZH.get(sid, sid)}：原值 {RA.fmt_value(sid, v)}"
+                                f" → 推断候选 {RA.fmt_value(sid, v10)}"
+                            )
                 out.append((sid, v))
             return out
 
         stats_pos = _fix_decimal(stats_pos, False)
         stats_neg = _fix_decimal(stats_neg, True)
+        if image_data is not None and decimal_fix:
+            recognition = image_data.setdefault("_recognition", {})
+            if isinstance(recognition, dict):
+                recognition["numeric_candidates"] = list(decimal_fix)
+            return pending_image("区间提示小数点可能有误，尚无法从图片确认。", decimal_fix)
+        if image_data is not None:
+            # 语义JSON可合法地遗漏整行；本身没有截图覆盖的观测分母。
+            # 不按武器/数值/卡ID猜漏项，也不因达到2~3正的合法计数而自证完整。
+            observed_lines = image_data.get("lines")
+            has_observed_lines = isinstance(observed_lines, (list, tuple, str)) and bool(
+                observed_lines
+            )
+            recognition["image_integrity"] = {
+                "status": "line_observation_available" if has_observed_lines else "unconfirmed",
+                "semantic_rows": _splice_sem_count,
+                "evidence": "recorded_line_observation" if has_observed_lines else None,
+                "reason": "line_observation_retained"
+                if has_observed_lines
+                else "semantic_json_has_no_observation_denominator",
+                "image_accuracy_verified": False,
+            }
+            if not has_observed_lines:
+                return pending_image("仅有语义词条表，缺少完整逐行原文，尚无法排除整行漏读。")
+        # 下方用于判断条数的虚拟负面不能参与融合。
+        splice_stats_pos = list(stats_pos)
+        splice_stats_neg = list(stats_neg)
         # 负词条可能被漏识别：卡面负词条常写成「x0.55 对 Corpus 的伤害」这类
         # 乘数形式，vision 容易整行丢掉 —— 词条数系数会从 (n正,1)=0.9375
         # 错成 (n正,0)=0.75，区间整体偏小 20%，表现为「卡面数值与倾向都不吻合」。
@@ -860,8 +1305,14 @@ class RivenCommands:
         neg_fix_note = ""
         if not stats_neg and stats_pos and len(stats_pos) == 3 and not hidden:
             try:
-                if not RA.disp_feasible(stats_pos, [], cls, disp) and RA.disp_feasible(
-                    stats_pos, [("damage_vs_corpus", 45.0)], cls, disp
+                if not RA.disp_feasible(
+                    stats_pos, [], cls, disp, stat_multipliers=stat_multipliers
+                ) and RA.disp_feasible(
+                    stats_pos,
+                    [("damage_vs_corpus", 45.0)],
+                    cls,
+                    disp,
+                    stat_multipliers=stat_multipliers,
                 ):
                     stats_neg = [("damage_vs_corpus", 45.0)]
                     counts = (3, 1)
@@ -881,8 +1332,12 @@ class RivenCommands:
         #   最后一种用取消前的旧倾向（本地静态表，不再更新）对一下，命中就明说。
         infer_note = ""
         verdict = ""  # 卡首「判定」一行（短结论；完整说明仍在下面的提示行里）
-        if not RA.disp_feasible(stats_pos, stats_neg, cls, disp, counts=counts):
-            iv = RA.disposition_interval(stats_pos, stats_neg, cls, counts=counts)
+        if not RA.disp_feasible(
+            stats_pos, stats_neg, cls, disp, counts=counts, stat_multipliers=stat_multipliers
+        ):
+            iv = RA.disposition_interval(
+                stats_pos, stats_neg, cls, counts=counts, stat_multipliers=stat_multipliers
+            )
             verdict = f"卡面数值与倾向 {disp:g} 不吻合"
             infer_note = f"⚠️ 卡面数值与倾向 {disp:g} 不吻合，请核对武器与词条"
             if iv[0] and not disp_override:
@@ -902,7 +1357,9 @@ class RivenCommands:
                 not verdict.startswith("疑似倾向取消前")
                 and not hidden
                 and _more in RA.FACTOR
-                and RA.disp_feasible(stats_pos, stats_neg, cls, disp, counts=_more)
+                and RA.disp_feasible(
+                    stats_pos, stats_neg, cls, disp, counts=_more, stat_multipliers=stat_multipliers
+                )
             ):
                 counts = _more
                 verdict = infer_note = ""
@@ -916,6 +1373,70 @@ class RivenCommands:
             else ""
         )
 
+        if image_data is not None and (neg_fix_note or hidden_fix_note):
+            recognition["completeness_candidates"] = {
+                "source": "numeric_feasibility_inference",
+                "counts_candidate": list(counts),
+                "adopted": False,
+                "notes": [n for n in (neg_fix_note, hidden_fix_note) if n],
+            }
+            return pending_image("数值关系提示可能还有漏读词条，不能据此确认条数，请核对原图。")
+
+        if check_only:
+            from ..riven_ocr_reader import Fields
+
+            return Fields(stats_pos, stats_neg, hidden)
+
+        # 融合预测只消费实际读到的最终词条；接口与展示样式独立。
+        from .. import matching as _splice_matching
+        from .. import riven_pools as RP
+
+        _weapon_forms = {
+            _splice_matching.normalize(weapon.get(k) or "") for k in ("zh", "en", "url_name")
+        }
+        if any(
+            _splice_matching.normalize(t) not in _weapon_forms for t in splice_unmatched_numeric
+        ):
+            splice_input_incomplete = True
+        _splice_pool = RP.class_pool(cls)
+        _splice_root, _splice_members = RP.family_members(weapon.get("en") or "")
+        _splice_allowed: dict[str, set[str]] = {}
+        for positive, polarity in ((True, "positive"), (False, "negative")):
+            available, _ = RP.available(cls, _splice_root, _splice_members, positive=positive)
+            for sid in available:
+                _splice_allowed.setdefault(sid, set()).add(polarity)
+        # 当前词条池之外也可能有古董卡或例外；不能直接宣称可融合。
+        # 物理占比属于有例外的推导，本功能不把它升级为已有词条的硬闸门。
+        _splice_unverified = any(
+            sid not in RP.PHYSICAL_STATS and polarity not in _splice_allowed.get(sid, ())
+            for rows, polarity in ((splice_stats_pos, "positive"), (splice_stats_neg, "negative"))
+            for sid, _ in rows
+        )
+        _splice_block = ""
+        if class_est_note:
+            _splice_block = "unknown_weapon_class"
+        elif _splice_unverified:
+            _splice_block = "unverified_weapon_traits"
+        elif disp != RA.UNIFIED_DISPOSITION:
+            _splice_block = "non_current_disposition"
+        elif verdict:
+            _splice_block = (
+                "legacy_values" if verdict.startswith("疑似倾向取消前") else "unverified_values"
+            )
+        splice_preview = RA.splice_preview(
+            splice_stats_pos,
+            splice_stats_neg,
+            cls,
+            disp,
+            counts=counts,
+            hidden=hidden,
+            incomplete=bool(splice_input_incomplete or neg_fix_note or hidden_fix_note),
+            pool=_splice_pool,
+            allowed_missing=_splice_allowed,
+            blocked_reason=_splice_block,
+            stat_multipliers=stat_multipliers,
+        )
+
         # 提示分流（2026-10-11 卡片改版）：需要用户行动的（重发 / 核对）进 ⚠ 警示；
         #   其余说明合并成一条注脚；来源（图片识别）进页脚。
         def _needs_action(t: str) -> bool:
@@ -923,9 +1444,24 @@ class RivenCommands:
 
         _cands_n = [infer_note, neg_fix_note, hidden_fix_note, dup_note, class_est_note]
         warns = [t for t in _cands_n if t and _needs_action(t)]
+        normalized_names = []
+        selected_ids = {sid for sid, _ in stats_pos + stats_neg}
+        for match in stat_name_matches:
+            if match.get("sid") in selected_ids and match.get("method") in {
+                "one_edit",
+                "contained_alias",
+            }:
+                label = "单字近名" if match["method"] == "one_edit" else "原文含完整词名"
+                note = (
+                    f"{match['raw_name']} → {RIVEN_STAT_ZH.get(match['sid'], match['sid'])}"
+                    f"（{label}）"
+                )
+                if note not in normalized_names:
+                    normalized_names.append(note)
         infos = [
             t
             for t in (
+                "词名按代码归一：" + "；".join(normalized_names) if normalized_names else "",
                 nearmiss_note,
                 infer_note if infer_note and not _needs_action(infer_note) else "",
                 disp_note,
@@ -936,23 +1472,44 @@ class RivenCommands:
             )
             if t
         ]
+        price_ref = None
+        # 只用实际读到且完整可信的输入，不把条数推断的占位值当作用户词条。
+        _price_complete = (
+            not hidden
+            and not splice_input_incomplete
+            and not (neg_fix_note or hidden_fix_note or dup_note or _splice_block)
+            and counts == (len(splice_stats_pos), len(splice_stats_neg))
+            and splice_preview.get("status") in {"ready", "already_spliced", "no_match"}
+            and all(math.isfinite(v) and v > 0 for _, v in splice_stats_pos + splice_stats_neg)
+        )
+        if _price_complete:
+            price_ref = await self._riven_analysis_price(
+                weapon, splice_stats_pos, splice_stats_neg, platform
+            )
+        analysis_kw = dict(
+            verdict=verdict,
+            warns=warns,
+            infos=infos,
+            counts=counts,
+            hidden=hidden,
+            splice=splice_preview,
+            price=price_ref,
+            stat_multipliers=stat_multipliers,
+        )
         title, lines = fmt.fmt_riven_analysis(
             name,
             disp,
             cls,
             stats_pos,
             stats_neg,
-            verdict=verdict,
-            warns=warns,
-            infos=infos,
-            counts=counts,
-            hidden=hidden,
+            splice_limit=fmt.SPLICE_FIRST_ROWS,
+            **analysis_kw,
         )
         logger.info(
             "[sdjk] 紫卡分析耗时 %.0f ms（含识别/查询/计算）",
-            (_tt.perf_counter() - _t_start) * 1000,
+            (time.perf_counter() - started) * 1000,
         )
-        return Reply(
+        reply = Reply(
             title,
             lines,
             footer=fmt.fmt_platform_footer(
@@ -961,3 +1518,106 @@ class RivenCommands:
                 + f"DE 属性基值公式 · 倾向统一 {RA.UNIFIED_DISPOSITION:g}",
             ),
         )
+        reply.riven_splice = splice_preview
+        # 融合建议超过首屏条数：图片 / 纯文字出第 2 页「续页」（当前卡的剩余预测）；
+        # QQ Markdown 一条消息列全部（文字可滚动，不必拆页）。区间「~」在 Markdown 里会被当删除线，
+        # Markdown 正文换成全角「～」，图片与纯文字不变。
+        more = fmt.fmt_riven_splice_more(name, cls, splice_preview)
+        if more:
+            reply.pages = [(title, lines), more]
+        try:  # 服务器以包成员加载，相对导入才可靠（同上）
+            from ..render import card_markdown
+        except ImportError:  # pragma: no cover - 本地直跑
+            from core.render import card_markdown
+        _, full = (
+            fmt.fmt_riven_analysis(name, disp, cls, stats_pos, stats_neg, **analysis_kw)
+            if more
+            else (title, lines)
+        )
+        if getattr(self, "cfg", {}).get("qq_markdown_cards", True):
+            reply.markdown = card_markdown(
+                title, [x.replace("~", "～") for x in full], reply.footer.replace("~", "～")
+            )
+        query_name = weapon.get("zh") or weapon.get("en") or weapon.get("url_name")
+        if can_actions and query_name:
+            reply.actions.extend(
+                [
+                    Action("词条范围", f"词条范围 {query_name}"),
+                    Action("倾向", f"倾向 {query_name}"),
+                ]
+            )
+            if price_ref is not None:
+                # 与卡上「匹配条件」同一组词条；wr 认短名与「负」前缀
+                words = [RIVEN_STAT_ZH.get(s, s) for s in price_ref["pos"]] + [
+                    "负" + RIVEN_STAT_ZH.get(s, s) for s in price_ref["neg"]
+                ]
+                reply.actions.append(Action("同词条拍卖", f"wr {query_name} {' '.join(words)}"))
+        return reply
+
+    async def _riven_analysis_price(
+        self, weapon: dict, stats_pos: list, stats_neg: list, platform: str
+    ) -> Optional[dict]:
+        """完整观测词条的一口价参考；正负名称与条数须完全对齐。
+
+        只做一次完整条件查询，禁止去条件回退和自动重试；家族解析和查询
+        共用独立时间预算。数值、洗卡次数不作为同词条匹配条件。
+        """
+        pos_ids = [s for s, _ in stats_pos]
+        neg_ids = [s for s, _ in stats_neg]
+        if not pos_ids:
+            return None
+        match = {"pos": pos_ids, "neg": neg_ids, "relaxed": False, "match_mode": "exact_stat_set"}
+
+        async def query() -> dict:
+            from .market import riven_market_weapon
+
+            name = weapon.get("zh") or weapon.get("en") or weapon.get("url_name") or ""
+            mw = await riven_market_weapon(self.client, name, weapon)
+            rtype = mw.get("riven_type", "")
+            # AND条件与顺序无关，规范化顺序使同组词条复用缓存。
+            pos = sorted(set(self.client.normalize_riven_stats(pos_ids, rtype)))
+            neg = sorted(set(self.client.normalize_riven_stats(neg_ids, rtype)))
+            if len(pos) != len(pos_ids) or len(neg) != len(neg_ids):
+                raise WarframeAPIError("词条无法完整转换为市场查询条件")
+            auctions = await self.client.wm_riven_auctions(
+                mw["url_name"],
+                platform,
+                positives=pos,
+                negatives=neg,
+                sorts=("price_asc",),
+                retries=0,
+                allow_attribute_fallback=False,
+                timeout=RIVEN_ANALYSIS_PRICE_REQUEST_TIMEOUT_S,
+            )
+            pool = []
+            pos_set, neg_set = set(pos), set(neg)
+            for auction in auctions:
+                if not isinstance(auction, dict) or not isinstance(auction.get("item"), dict):
+                    continue
+                attrs = auction["item"].get("attributes")
+                if not isinstance(attrs, list) or len(attrs) != len(pos) + len(neg):
+                    continue
+                if any(
+                    not isinstance(at, dict)
+                    or not isinstance(at.get("url_name"), str)
+                    or type(at.get("positive")) is not bool
+                    for at in attrs
+                ):
+                    continue
+                has_p = {at["url_name"] for at in attrs if at["positive"] is True}
+                has_n = {at["url_name"] for at in attrs if at["positive"] is False}
+                # 集合相等并核对总条数，排除多词条、重复词条和错误极性。
+                if has_p == pos_set and has_n == neg_set:
+                    pool.append(auction)
+            summary = self.client.riven_buyout_summary(pool)
+            summary.update(match)
+            return summary
+
+        try:
+            return await asyncio.wait_for(query(), timeout=RIVEN_ANALYSIS_PRICE_BUDGET_S)
+        except (WarframeAPIError, TimeoutError) as exc:
+            logger.warning("[sdjk] 紫卡分析同词条挂单暂不可用：%s", type(exc).__name__)
+            return {"error": type(exc).__name__, **match}
+        except Exception as exc:  # 附加信息异常不打挂分析；日志只保留错误类别。
+            logger.error("[sdjk] 紫卡分析同词条挂单内部异常：%s", type(exc).__name__)
+            return {"error": type(exc).__name__, **match}

@@ -35,6 +35,7 @@ import random
 import re
 import sys
 import unicodedata
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -82,7 +83,8 @@ def _expand_tents_line(line: str) -> list[str]:
     for seg in _TENT_SPLIT_RE.split(line):
         parts = [p.strip() for p in seg.split("｜") if p.strip()]
         if parts:
-            out.append(f"　{parts[0]}：{'｜'.join(parts[1:])}")
+            tasks = [f"{t}（快速）" if _tent_norm(t) in _TENT_BLUE_TASKS else t for t in parts[1:]]
+            out.append(f"　{parts[0]}：{'｜'.join(tasks)}")
     return out or [line]
 
 
@@ -337,8 +339,26 @@ def _expand_chart_line(line: str) -> list[str]:
     return chart_text_lines(chart)
 
 
-def text_card(title: str, lines: list[str], footer: str = "", max_width: int = 44) -> str:
-    """构造排版整齐的字符界面卡片。"""
+# 图片卡的颜色图例（「※ 金色＝杜卡德 · 青色＝现金…」）：文字输出没有颜色，留着反而误导。
+_COLOR_LEGEND_RE = re.compile(r"^※.*[金青红绿灰白紫橙蓝]色＝")
+
+
+# 页脚里数据源给的 ISO 快照时间（2026-10-30T13:17:53.000Z）在手机上又长又难读 ⇒ 展示时缩成
+# 「2026-10-30 13:17 UTC」：只改写法、不换时区、不丢日期；图片 / 纯文字 / Markdown 同一口径。
+_ISO_UTC_RE = re.compile(r"(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})(?::\d{2}(?:\.\d+)?)?(?:Z|\+00:00)")
+
+
+def display_footer(footer: str) -> str:
+    return _ISO_UTC_RE.sub(r"\1 \2 UTC", footer or "")
+
+
+# 纯文字表格行里的空单元格（如裂隙没有标记、电波没有精英标签）会留下连续全角空格，
+# 手机上像排版断了 ⇒ 只在文字输出里并成一个（列表行本就不对齐，图片仍按列画）。
+_EMPTY_CELLS_RE = re.compile("　{2,}")
+
+
+def _plain_parts(title: str, lines: list[str], footer: str) -> tuple[str, list[str], str]:
+    """文字输出共用的预处理：展开机器行、剥掉画图专用的染色与极性标记。"""
     title = _POL_MARK_RE.sub("", title or "")
     lines = [seg for x in lines for seg in _expand_tents_line(_POL_MARK_RE.sub("", x or ""))]
     lines = [seg for x in lines for seg in _expand_chart_line(x)]
@@ -361,30 +381,136 @@ def text_card(title: str, lines: list[str], footer: str = "", max_width: int = 4
         _hints.add(_h)
     lines = _rng
     # ⟦c⟧/⟦v⟧/⟦w⟧ 及其闭合 = 染段标记（画图模式分段上色），文本模式剥掉
-    lines = [_SEG_MARK_RE.sub("", x) for x in lines]
-    footer = _POL_MARK_RE.sub("", footer or "")
-    inner = [title] + list(lines)
+    lines = [_SEG_MARK_RE.sub("", x) for x in lines if not _COLOR_LEGEND_RE.match(x)]
+    # 小帐篷的「蓝字」说明在文字里没有颜色可对，任务已逐个标「（快速）」
+    lines = [x.replace("；蓝字 = 快速任务", "") for x in lines]
+    lines = [
+        x[:2] + _EMPTY_CELLS_RE.sub("　", x[2:]).rstrip("　") if x.startswith("· ") else x
+        for x in lines
+    ]
+    footer = display_footer(_POL_MARK_RE.sub("", footer or ""))
+    return title, lines, footer
+
+
+def text_card(title: str, lines: list[str], footer: str = "", max_width: int = 44) -> str:
+    """纯文字卡片：无框线、不硬折行，交给聊天客户端按屏宽自动换行。
+
+    旧版用 ╔═╗ 框线按「CJK 记 2 格」补齐右边框：聊天客户端是比例字体，右框从来对不齐，
+    长行在 44 格处硬折后手机上又被二次折行。现在只保留结构：
+    【标题】→ 小节（◆ 无冒号）前空一行 → 列表 / 注释原样 → 空一行后接页脚。
+    max_width 仅为兼容旧调用保留。
+    """
+    title, lines, footer = _plain_parts(title, lines, footer)
+    out = [f"【{title}】"] if title else []
+    span = 0  # 双栏表（表头左右重复，如货单）在手机上挤成两件一行，拆成一件一行
+    for i, line in enumerate(lines):
+        is_section = line.startswith("◆ ") and "：" not in line
+        if line.startswith("◆ "):
+            span = 0
+        if is_section and out and out[-1] != "":
+            out.append("")
+        nxt = lines[i + 1] if i + 1 < len(lines) else ""
+        if line.startswith("　") and nxt.startswith("·"):
+            head = _md_cells(line)
+            half = len(head) // 2
+            span = half if half and len(head) % 2 == 0 and head[:half] == head[half:] else 0
+            if span:
+                line = "　" + "　".join(head[:span])
+        elif span and line.startswith("· "):
+            cells = _md_cells(line[2:])
+            out += ["· " + "　".join(cells[k : k + span]) for k in range(0, len(cells), span)]
+            continue
+        out.append(line)
     if footer:
-        inner.append(footer)
-    width = min(max_width, max((display_width(x) for x in inner), default=20))
-    width = max(width, 20)
-    bar = "═" * (width + 2)
-    sep = "─" * (width + 2)
-    out = [f"╔{bar}╗"]
-    for i, line in enumerate(inner):
-        for j, seg in enumerate(_wrap_cjk(line, width)):
-            mark = "" if (i == 0 or (footer and i == len(inner) - 1)) else " "
-            prefix = "" if j else mark
-            if i == 0 or (footer and i == len(inner) - 1):
-                out.append(f"║ {pad(seg, width)} ║")
-            else:
-                out.append(f"│ {pad(prefix + seg, width)} │")
-        if i == 0 and len(inner) > 1:
-            out.append(f"╟{sep}╢")
-        if footer and i == len(inner) - 2:
-            out.append(f"╟{sep}╢")
-    out.append(f"╚{bar}╝")
+        out += ["", f"—— {footer}"]
     return "\n".join(out)
+
+
+# QQ 官方 Markdown 会解释这些字符；正文里出现时整张卡退回纯文字，不做转义猜测。
+_MD_UNSAFE_RE = re.compile(r"[*_`~\\<]|\]\(|^\s*(?:[#>+\-]|\d+[.)])\s", re.MULTILINE)
+
+
+def _md_cells(text: str) -> list[str]:
+    return [c.strip() for c in text.split("　") if c.strip()]
+
+
+def card_markdown(title: str, lines: list[str], footer: str = "") -> Optional[str]:
+    """把卡片行转成 QQ 官方 Markdown 正文；含会被误解释的字符时返回 None。
+
+    行类型沿用卡片约定：「◆ 标签：值」/「◆ 小节」、「· 单元格」列表行、
+    紧跟小节的「　表头」行、列表行后的「　续行」、「※ 注释」。
+    """
+    title, lines, footer = _plain_parts(title, lines, footer)
+    # 「§CHART / §RANGES」机器行都在行首（_plain_parts 已展开；剩下的是未知机器行 ⇒ 不转）；
+    # 正文里的 wiki 章节号「§Notes」不是机器行，不再让整卡退回纯文字
+    if any(x.lstrip().startswith("§") or _MD_UNSAFE_RE.search(x) for x in [title, *lines, footer]):
+        return None
+    blocks: list[list[str]] = []
+
+    def block(kind: str) -> list[str]:
+        if not blocks or blocks[-1][0] != kind:
+            blocks.append([kind])
+        return blocks[-1]
+
+    prev = ""
+    span = 0  # 双栏表（表头左右重复）每行拆成两条，一条一件
+    group = ""
+    for i, raw in enumerate(lines):
+        line = raw.rstrip()
+        nxt = lines[i + 1] if i + 1 < len(lines) else ""
+        if not line.strip():
+            prev = ""
+            continue
+        if line.startswith("◆"):
+            span, group = 0, ""
+            body = line[1:].strip()
+            label, sep, value = body.partition("：")
+            if sep and value.strip():
+                block("kv").append(f"**{label}**：{value.strip()}")
+            else:
+                blocks.append(["head", f"**{body}**"])
+        elif line.startswith("·"):
+            cells = _md_cells(line[1:])
+            if len(cells) == 1 and re.fullmatch(r"\[[^\]]+\]", cells[0]):
+                blocks.append(["head", f"**{cells[0][1:-1]}**"])
+            elif cells:
+                for k in range(0, len(cells), span or len(cells)):
+                    row = cells[k : k + (span or len(cells))]
+                    tag = re.fullmatch(r"\[([^\]]+)\]", row[0])
+                    if tag and len(row) > 1:
+                        # 「[古纪]　捕获…」这类分组首格：同组只出一次小标题
+                        if group != tag.group(1):
+                            group = tag.group(1)
+                            blocks.append(["head", f"**{group}**"])
+                        row = row[1:]
+                    rest = " · ".join(row[1:])
+                    block("list").append(f"- **{row[0]}**" + (f" · {rest}" if rest else ""))
+        elif line.startswith("※"):
+            blocks.append(["note", "> " + line[1:].strip()])
+        elif (
+            line.startswith("　")
+            and prev.startswith(("·", "　"))
+            and blocks[-1:]
+            and blocks[-1][0] == "list"
+        ):
+            # 列表行的说明续行：挂成子项，避免与下一条混在一起
+            blocks[-1].append("    - " + " ".join(_md_cells(line)))
+        elif line.startswith("　") and nxt.startswith("·"):
+            head = _md_cells(line)
+            half = len(head) // 2
+            span = half if half and len(head) % 2 == 0 and head[:half] == head[half:] else 0
+            blocks.append(["legend", "*" + " · ".join(head[: span or len(head)]) + "*"])
+        else:
+            block("text").append(line.strip())
+        prev = line
+    out = [f"## {title}"] if title else []
+    for kind, *rows in blocks:
+        # 段内换行用行尾两个空格；列表与引用各自成块
+        out.append(("  \n" if kind in ("kv", "text") else "\n").join(rows))
+    if footer:
+        out.append("***")
+        out.append(footer)
+    return "\n\n".join(out)
 
 
 def _wrap_cjk(line: str, width: int) -> list[str]:
@@ -560,7 +686,8 @@ GOLD_BRIGHT = (240, 215, 154)
 # ★ 2026-10-16 遗物部件按**杜卡德价值**金 / 银 / 铜三色（维护者要求，参考 warframe.market 重生页）：
 #   100 = 金、45 / 65 = 银、15 / 25 = 铜。⚠ 按部件自身价值，不按遗物槽位稀有度 ——
 #   100 金币的部件也会出现在罕见 / 常见槽位（维护者 10-16 指出）。
-RARITY_GOLD = GOLD_BRIGHT
+# 与 GOLD_BRIGHT 差 1：换肤按「原值 → 新值」重建表，同值就分不开「高亮色」和「金档」两个槽位。
+RARITY_GOLD = (240, 215, 153)
 RARITY_SILVER = (178, 202, 236)  # 冷蓝银：须与正文暖白（INK）和次列暗灰（INK_DIM）都拉开
 RARITY_BRONZE = (214, 146, 92)
 GOLD_DIM = (122, 100, 62)
@@ -568,6 +695,7 @@ GOLD_FAINT = (96, 82, 54)
 INK = (236, 232, 222)  # 主文字：暖白
 INK_DIM = (168, 176, 190)  # 次文字
 INK_FAINT = (132, 140, 154)  # 注释
+TIME_DIM = (170, 148, 106)  # 计时括注，随强调色变化
 AMBER = (232, 178, 106)
 CYAN = (111, 211, 232)
 VIOLET = (180, 143, 232)
@@ -594,7 +722,7 @@ CARD_W_MIN, CARD_W_MAX = 960, 1260  # 卡宽范围
 # 列对齐卡（遗物出库/入库等 9 列网格）的列宽合计本身就超过 1260 时，允许放宽到
 # 旧版上限 1500：宁可卡宽，也不能触发下面的「安全阀」放弃列对齐（对齐是这类卡的存在意义）。
 CARD_W_TABLE_MAX = 1500
-# 奸商卡专用上限（2026-10-16 用户：「宽度不够你可以拉长」）：货单两件一行共 6 列，长商品名
+# 奸商卡专用上限（2026-10-16 维护者定：「宽度不够你可以拉长」）：货单两件一行共 6 列，长商品名
 # （如「蒙面者的经纬仪号」船员套服袖件）会让 Σ列宽超过 1500 → 安全阀关掉列对齐、左右挤成一团。
 # 只对这张卡放宽，宁可卡宽也保住列对齐；其他卡不受影响。
 CARD_W_BARO_MAX = 2000
@@ -786,7 +914,8 @@ def _parse_color_segs(t: str) -> tuple[str, list[tuple[str, tuple[int, int, int]
     主文本 = 首标记前的部分（可能为空）；其后每段未标记文本沿用当前段色
     （段外默认白），开标记切换段色、闭标记回到白。无标记时返回 (原文, [])。
     """
-    if "⟦" not in t:
+    # 只有真正的染段标记才拆；极性图标 ⟦pol:…⟧ 等其他行内标记留给 _draw_tokens 就地绘制
+    if "⟦" not in t or not _SEG_MARK_RE.search(t):
         return t, []
     main_parts: list[str] = []
     segs: list[tuple[str, tuple[int, int, int]]] = []
@@ -795,7 +924,7 @@ def _parse_color_segs(t: str) -> tuple[str, list[tuple[str, tuple[int, int, int]
     for part in _SEG_MARK_RE.split(t):
         if not part:
             continue
-        if part.startswith("⟦"):
+        if _SEG_MARK_RE.fullmatch(part):  # 以 ⟦pol:…⟧ 开头的普通文本不是标记（曾整段被吞）
             seen = True
             mm = re.fullmatch(r"⟦([a-z])⟧", part)
             color = _span_color(mm.group(1), INK) if mm else INK
@@ -840,7 +969,8 @@ _TENT_PAD_TOP = 10  # 块内顶部内边距（标题行之上）
 _TENT_HEAD_H = 44  # 标题行高
 _TENT_LINE_H = 40  # 任务行高
 _TENT_PAD_BOT = 14  # 末行之下余量
-# 蓝色高亮的点位任务（官方简中链名；比对前去空白——「捕获 Grineer 特工」带空格）。
+# 蓝色高亮的点位任务 = 攻略视频推荐的四个快速任务（卡面注脚「蓝字 = 快速任务」）。
+# 官方简中链名；比对前去空白——「捕获 Grineer 特工」带空格。
 # ⚠️ 拼写以 tents 实际用的 bounty_jobs_zh.json 为准：「搜索并救援」（另一张
 #    官方表 bounty_job_names.json 写「搜索与救援」，两种拼写都收防串表）。
 _TENT_BLUE_TASKS = frozenset(
@@ -1131,7 +1261,7 @@ _TIMER_PAREN_RE = re.compile(r"（[0-9hms ]+）$")  # 计时段尾的括号补�
 # ---------------------------------------------------------------------------
 _TOKEN_RULES: tuple[tuple["re.Pattern[str]", tuple[int, int, int]], ...] = (
     (re.compile(r"^(剩|已结束)"), AMBER),
-    (re.compile(r"^（[0-9hms ]+）$"), (170, 148, 106)),
+    (re.compile(r"^（[0-9hms ]+）$"), TIME_DIM),
     (re.compile(r"^(夜晚|夜间)$"), VIOLET),
     (re.compile(r"^(白天|白昼|温暖)$"), (232, 150, 96)),
     (re.compile(r"^寒冷$"), CYAN),
@@ -1682,6 +1812,36 @@ class ImageRenderer:
         self.fonts = None
         self.reload_fonts()
         self.reload_theme()
+        self.sweep_stale_cards()
+
+    def _wrap_kv_value(self, text: str, font, budget: float, measure) -> list[str]:
+        """值列内折行：优先在「｜」分隔处断开（断处的分隔符省略），单段仍超宽再按字折。"""
+        parts = text.split("｜")
+        if len(parts) < 2:
+            return self._wrap_cached(text, font, budget)
+
+        def width(t: str) -> float:
+            # 与 _wrap 同口径：染段标记零宽；极性标记按图标宽度计（不按「⟦pol:…⟧」这串字符算）
+            t = _SEG_MARK_RE.sub("", t)
+            n = t.count("⟦pol:")
+            if n:
+                t = _POL_MARK_RE.sub("", t)
+            return (_tlen(measure, font, t) + n * _pol_mark_px(font)) / SS
+
+        out: list[str] = []
+        cur = ""
+        for part in parts:
+            cand = f"{cur}｜{part}" if cur else part
+            if not cur or width(cand) <= budget:
+                cur = cand
+                continue
+            out.append(cur)
+            cur = part
+        out.append(cur)
+        segs: list[str] = []
+        for seg in out:
+            segs += self._wrap_cached(seg, font, budget) if width(seg) > budget else [seg]
+        return segs
 
     @property
     def theme_dir(self) -> Path:
@@ -1712,6 +1872,9 @@ class ImageRenderer:
                 bg_dim=float(t.get("bg_dim", 0.55)),
                 panel_alpha=float(t.get("panel_alpha", 1.0)),
                 logo=self.theme_image("logo") if t.get("logo") else None,
+                bg_fit=str(t.get("bg_fit") or "cover"),
+                bg_pos=str(t.get("bg_pos") or "c"),
+                bg_scale=t.get("bg_scale", 60),
             )
         except Exception:  # noqa: BLE001 - 主题坏了退回默认，别让出图挂掉
             apply_theme({})
@@ -1826,7 +1989,7 @@ class ImageRenderer:
         # （维护者 2026-09-17：「排版有点干燥，也没对齐」）。
         # 部件反查卡（2026-09-18）是「遗物 / 槽位 / 状态」三列，同理。
         self._table_mode = is_table_title(title)
-        plat_chip, foot_notes = self._parse_footer(footer)
+        plat_chip, foot_notes = self._parse_footer(display_footer(footer))
 
         # —— 宽度优先：逐行实测需求（文本+芯片外扩+时间列），卡宽 960～1260 ——
         # ★ 2026-09-27 优化：旧版对 (lines) 有 4 遍独立扫描 —— 宽度需求、
@@ -1847,6 +2010,8 @@ class ImageRenderer:
         # 只在排版后补算就来不及调卡宽了（会压出面板边框）。
         pair_cells: list[list[str]] = []
         two_cells: list[tuple[int, str, str]] = []  # 说明列规划用的双列行
+        # 非表格卡「· 标签　值」双格行的标签实测最大宽（值列内折行的预算用）
+        kv_label_w, kv_val_w, kv_rows = 0.0, 0.0, 0
         descent_cells: list[list[str]] = []
         grid_rows: list[tuple[list[str], float]] = []
         # §RANGES 机器行在**宽度扫描之前**展开成普通表格行 —— 否则五列宽度不进
@@ -1910,6 +2075,22 @@ class ImageRenderer:
                         descent_cells.append(_cells)
                     if self._table_mode and self._plain_body and len(_cells) == 2:
                         two_cells.append((_li, _cells[0], _cells[1]))
+                    if (
+                        not self._table_mode
+                        and not self._plain_body
+                        and len(_cells) == 2
+                        and clean.lstrip().startswith("·")
+                    ):
+                        kv_rows += 1
+                        if len(_cells[0]) <= 8:
+                            kv_label_w = max(
+                                kv_label_w,
+                                _tlen(measure, body_font, _SEG_MARK_RE.sub("", _cells[0])) / SS,
+                            )
+                            kv_val_w = max(
+                                kv_val_w,
+                                _tlen(measure, body_font, _SEG_MARK_RE.sub("", _cells[1])) / SS,
+                            )
             # PIL 的 textlength 拒绝测多行串；而 handler 拼出来的行可能自带 \n
             # （例如 wiki 的「标题\n链接」）。这里取最长的一行作为该行的宽度需求。
             # ★ 注脚（※）行画的是 note_font（25px），量宽度也必须用它：
@@ -1979,6 +2160,10 @@ class ImageRenderer:
         # 「指令和介绍颜色太接近」「一行三个指令要三个颜色」的根因就在
         # 这：帮助卡从未真正走过列对齐路径）。现在把超宽说明折成多段、
         # 画在说明列内，保住列对齐与整套配色。
+        # 「· 标签　值」块内列对齐后的宽度也计入卡宽（不超过卡宽上限）：值列起点
+        # 被最长标签推后，只按整行原文定宽会让对齐后的行放不下而被迫折行。
+        if kv_rows >= 3 and not self._table_mode and not self._plain_body:
+            needed = max(needed, kv_label_w + 30 + kv_val_w)
         desc_wrap: dict[int, list[str]] = {}
         if self._table_mode and self._plain_body and len(col_max) > 1:
             desc_wrap, _w1 = _plan_desc_col_wrap(
@@ -2201,8 +2386,60 @@ class ImageRenderer:
                 # 不能再按「整行原文」折行 —— 原文的全角空格分隔比列间隙宽，两件长名
                 # 同行时原文超宽被折、退回普通排版，整行脱离列对齐（2026-10-16 实测）。
                 wrapped = [clean]
+            elif "｜" in clean:
+                # 「A｜B｜C」分组正文：优先在「｜」处折行（遗物出库「推荐刷取」把「水星 · Lares」劈开过）
+                wrapped = self._wrap_kv_value(clean, _wrap_font, max(300, wrap_w), measure)
             else:
                 wrapped = self._wrap_cached(clean, _wrap_font, max(300, wrap_w))
+            # 非表格卡的「· 标签　值」超宽：只在值列内折行，续行（cells=["", 段]）
+            # 画在值列下方，标签列与整块列对齐保持不变。以前整行退回普通段落，
+            # 续行顶到行首，值里的「形态：」还会被当成「标签：值」染色。
+            # 至少 3 行双格才会触发块内列对齐（见 auto_cols），少于此不折列。
+            # 判据按「对齐后」的宽度：整行单看放得下、但值列起点被同块更长的标签推后时
+            # 也会超宽，那样整块会放弃列对齐，所以同样要在值列内折行。
+            _kc = (
+                _split_cells(clean)
+                if (
+                    kv_rows >= 3
+                    and base_kind == "normal"
+                    and not self._table_mode
+                    and not self._plain_body
+                    and clean.lstrip().startswith("·")
+                )
+                else None
+            )
+            _budget = max(300, wrap_w) - kv_label_w - 30
+            if (
+                _kc
+                and len(_kc) == 2
+                and len(_kc[0]) <= 8
+                and _budget >= 240
+                and (
+                    len(wrapped) > 1
+                    or _tlen(measure, body_font, _SEG_MARK_RE.sub("", _kc[1])) / SS > _budget
+                )
+            ):
+                _segs = self._wrap_kv_value(_kc[1], body_font, _budget, measure)
+                for _j, _seg in enumerate(_segs):
+                    rows.append(
+                        {
+                            "text": _kc[0] if _j == 0 else _seg,
+                            "icon": had_icon and _j == 0,
+                            "timer": timer_txt if _j == 0 else "",
+                            "level": level_txt if _j == 0 else "",
+                            "kind": "normal",
+                            "indent": indent_lv,
+                            "cells": [_kc[0], _seg] if _j == 0 else ["", _seg],
+                            "cont": _j > 0,
+                            "warn": "⚠" in raw,
+                            "li": _li,
+                            "lead": _n_sp if _j == 0 else 0,
+                            "subcont": False,
+                            "ranges": _cur_rng,
+                            "ranges_head": False,
+                        }
+                    )
+                continue
             # 分列单元格（见 _split_cells 的说明）。
             # 折过行的文本不能再按原串切列：否则第 0 个折行会重画整行、
             # 后续折行又各画一次。折行行退回普通排版更安全。
@@ -2314,7 +2551,8 @@ class ImageRenderer:
                     "[" in val and "]" in val
                 ):  # 芯片底框外扩（同普通行的 -64 口径），防「]」被折到下一行
                     budget -= 64
-                segs = self._wrap_cached(val, body_font, max(200, budget))
+                # 「a｜b｜c」值优先在「｜」处折行，免得「稀有度稀有」「回收金属」被劈开
+                segs = self._wrap_kv_value(val, body_font, max(200, budget), measure)
                 r["kv"] = (lab, segs[0] if segs else "")
                 _new.append(r)
                 for sg in segs[1:]:
@@ -2402,7 +2640,14 @@ class ImageRenderer:
         Wp, Hp = W * SS, H * SS
         img = _bg_column().resize((Wp, Hp), Image.BILINEAR)
         if _THEME["bg_image"] is not None:
-            img = _with_bg_image(img, _THEME["bg_image"], _THEME["bg_dim"])
+            img = _with_bg_image(
+                img,
+                _THEME["bg_image"],
+                _THEME["bg_dim"],
+                _THEME["bg_fit"],
+                _THEME["bg_pos"],
+                _THEME["bg_scale"],
+            )
         d = ImageDraw.Draw(img)
 
         X0 = (outer + PADX) * SS
@@ -2802,7 +3047,13 @@ class ImageRenderer:
                     t = t[:-1]
                 head, sep, rest = t.partition("：")
                 _x_end = None
-                if _is_label_row(head, bool(sep), bool(arb_cols is not None and r_.get("cells"))):
+                # 已按列对齐的分格行（表格列 / 非表格卡块内列）一律走列绘制：
+                # 值里出现「形态：…」时不能把「标签　形态」当成「标签：值」截走。
+                _aligned = bool(
+                    r_.get("cells")
+                    and (arb_cols is not None or (bi in auto_cols and len(r_["cells"]) >= 2))
+                )
+                if _is_label_row(head, bool(sep), _aligned):
                     if not rest.strip():
                         # 值被抽成右侧计时列：整句当标题，去掉悬空的冒号
                         _x_end = self._draw_tokens(d, head, xt, ty, body_font, INK, x_right)
@@ -2925,7 +3176,7 @@ class ImageRenderer:
                         (tx0 + tw_main + 8 * SS, _ty(note_font, yc)),
                         paren,
                         font=note_font,
-                        fill=(170, 148, 106),
+                        fill=TIME_DIM,
                     )
 
         # —— 底部：平台 + 来源（左）· 水印（右）——
@@ -2948,7 +3199,8 @@ class ImageRenderer:
         out = self.cache_dir / f"card_{random.randrange(1 << 40):010x}.png"
         final.save(out, "PNG", optimize=False, compress_level=1)
         final = None
-        self._cleanup(keep=2)
+        # 正式回复由 main 的交付/取消路径清理，预览由面板读取后删除。
+        # 不能按数量抢删：图片组件只持有路径，前一回复可能还没完成上传。
         _malloc_trim()
         return str(out)
 
@@ -3642,6 +3894,24 @@ class ImageRenderer:
         except OSError:
             pass
 
+    def sweep_stale_cards(self, max_age: float = 600.0) -> int:
+        """删除超过 max_age 秒的旧卡片图（启动时调用），返回删除数。
+
+        正常交付由 main 的延迟清理负责；清理任务在重载 / 重启时随实例消失，
+        缓冲期内产生的图会留在缓存目录。按修改时间兜底：10 分钟远长于 120 秒
+        上传缓冲，新旧实例重叠时也不会删到对方正在上传的图。
+        """
+        now = time.time()
+        n = 0
+        for card in self.cache_dir.glob("card_*.png"):
+            try:
+                if now - card.stat().st_mtime > max_age:
+                    card.unlink()
+                    n += 1
+            except OSError:
+                pass
+        return n
+
 
 # ===========================================================================
 # 主题（运维面板「外观」，2026-10-16 维护者要求：可调颜色 / 背景图 / 角标，附实时预览）
@@ -3674,7 +3944,7 @@ THEME_SLOTS: list[tuple[str, str, str, str, str]] = [
     (
         "ink_dim",
         "次要文字",
-        "副行、多列的非首列、页脚；注释文字与分隔细线按它自动推算",
+        "副行、派系、多列的非首列、页脚；注释文字与分隔细线按它自动推算",
         "INK_DIM",
         "base",
     ),
@@ -3683,14 +3953,27 @@ THEME_SLOTS: list[tuple[str, str, str, str, str]] = [
     ("warn", "警示", "含 ⚠ 的警示面板左侧竖条（面板底色自动推算）", "WARN_BAR", "base"),
     ("cyan", "青", "任务类型、裂隙 / 仲裁栏目、寒冷", "CYAN", "adv"),
     ("violet", "紫", "赏金挑战、MOD、夜晚、安魂", "VIOLET", "adv"),
-    ("red", "红", "钢铁、S 级、下跌 ▼、警报 / 赤毒栏目", "RED", "adv"),
+    ("red", "红", "后纪、钢铁、S 级、下跌 ▼、警报 / 赤毒栏目", "RED", "adv"),
     ("green", "绿", "上涨 ▲、在线、A 级、已抵达", "GREEN", "adv"),
-    ("amber", "琥珀", "倒计时、平原 / 赏金栏目、「剩 / 已结束」", "AMBER", "adv"),
+    (
+        "amber",
+        "琥珀",
+        "倒计时、白天、平原 / 赏金 / 突击 / 入侵栏目、「剩 / 已结束」",
+        "AMBER",
+        "adv",
+    ),
     ("blue", "蓝", "染色段、点位、新闻栏目", "BLUE", "adv"),
     ("magenta", "品红", "电波 / 对话栏目、外观 / 精英标签", "MAGENTA", "adv"),
     ("teal", "青绿", "伤害元素类型、先锋纪元、特惠栏目", "TEAL", "adv"),
     ("steel", "钢蓝", "前纪、罕见 / 常驻标签、页码", "STEEL", "adv"),
     ("blueprint", "橙金", "蓝图 ▣", "BLUEPRINT", "adv"),
+    (
+        "rarity_gold",
+        "金",
+        "杜卡德 100 档部件、换肤后的古纪 / 全能芯片（与高亮色互相独立）",
+        "RARITY_GOLD",
+        "adv",
+    ),
     ("rarity_silver", "银", "杜卡德 45 / 65 档部件", "RARITY_SILVER", "adv"),
     ("rarity_bronze", "铜", "杜卡德 15 / 25 档部件", "RARITY_BRONZE", "adv"),
 ]
@@ -3700,7 +3983,6 @@ _DERIVED = (
     "GOLD_FAINT",
     "NOTE_BAR",
     "TIER_FRAME_LINE",
-    "RARITY_GOLD",
     "BONUS_COLOR",
     "INK_FAINT",
     "HAIR",
@@ -3729,9 +4011,21 @@ _CONTAINER_CONSTS = (
     "INK",
     "INK_DIM",
     "INK_FAINT",
+    "FACTION_COLOR",
+    "TIME_DIM",
+    "RARITY_GOLD",
     "RARITY_SILVER",
     "RARITY_BRONZE",
 )
+# 旧固定色也要跟随对应槽位；槽位未改时保留原像素，默认主题不换色。
+_THEME_COLOR_ALIASES = {
+    (232, 154, 138): "RED",  # 后纪
+    (224, 130, 74): "AMBER",  # 突击 / 入侵栏目
+    (232, 150, 96): "AMBER",  # 白天 / 法斯
+    (168, 148, 112): "GOLD",  # 信用点
+    (140, 190, 240): "BLUE",  # 天/小时短时长
+    (150, 200, 150): "GREEN",  # B 级
+}
 _CONTAINERS = (
     "TIER_COLOR",
     "GROUP_CHIP_COLOR",
@@ -3745,7 +4039,22 @@ _THEME_DEFAULTS: dict[str, tuple[int, int, int]] = {
     for n in {c for *_, c, _g in THEME_SLOTS} | set(_DERIVED) | set(_CONTAINER_CONSTS)
 }
 _THEME_SNAPSHOT: dict = {}
-_THEME: dict = {"bg_image": None, "bg_dim": 0.55, "panel_alpha": 1.0, "logo": None, "colors": {}}
+_THEME: dict = {
+    "bg_image": None,
+    "bg_dim": 0.55,
+    "panel_alpha": 1.0,
+    "logo": None,
+    "colors": {},
+    "bg_fit": "cover",
+    "bg_pos": "c",
+    "bg_scale": 60,
+}
+# 背景图显示方式：铺满裁切（默认）/ 适应宽度（顶部对齐，不够长纵向重复）/ 完整显示（留边）/
+# 平铺 / 自定义（按卡片宽度的百分比缩放，放在所选位置）
+BG_FITS = ("cover", "width", "contain", "tile", "custom")
+# 九宫格位置：铺满时决定保留图的哪一块，完整显示 / 自定义时决定图放在哪
+BG_POSITIONS = ("tl", "t", "tr", "l", "c", "r", "bl", "b", "br")
+BG_SCALE_RANGE = (10, 200)  # 自定义缩放：图宽 = 卡片宽 × 百分比
 
 
 def theme_defaults() -> dict[str, str]:
@@ -3780,6 +4089,9 @@ def apply_theme(
     bg_dim: float = 0.55,
     panel_alpha: float = 1.0,
     logo=None,
+    bg_fit: str = "cover",
+    bg_pos: str = "c",
+    bg_scale: float = 60,
 ) -> None:
     """套用主题（colors：槽位键 → RGB 或 #hex；不给的用默认）。幂等，可反复调用 / 还原。
 
@@ -3799,34 +4111,59 @@ def apply_theme(
             vals[const] = tuple(rgb)
             changed.add(key)
     v = vals
+    # 浅底主题（背景亮度过半）：底部只轻压一档，注释/警示面板贴着面板色推算，
+    # 不能沿用暗色主题「往更深的底色混」的口径，否则下半张卡与警示面板发灰发脏。
+    light = "bg" in changed and sum(v["BG_TOP"]) / 3 > 140
     if "bg" in changed:
-        v["BG_BOT"] = _mix(v["BG_TOP"], (0, 0, 0), 0.24)
+        v["BG_BOT"] = _mix(v["BG_TOP"], (0, 0, 0), 0.07 if light else 0.24)
     if changed & {"accent", "bg", "panel"}:
         v["GOLD_DIM"] = _mix(v["GOLD"], v["BG_BOT"], 0.46)
         v["GOLD_FAINT"] = _mix(v["GOLD"], v["BG_BOT"], 0.575)
         v["NOTE_BAR"] = _mix(v["GOLD"], v["PANEL_BG"], 0.62)
         v["TIER_FRAME_LINE"] = _mix(v["GOLD"], v["PANEL_BG"], 0.72)
+    # 金档部件不跟随高亮色：面板只保存与默认不同的值，「跟随」会让面板显示的金色与出图不一致，
+    # 也没法把金档固定回默认金。浅色等需要深金的主题在预设里显式给 rarity_gold。
     if "highlight" in changed:
-        v["RARITY_GOLD"] = v["BONUS_COLOR"] = v["GOLD_BRIGHT"]
+        v["BONUS_COLOR"] = v["GOLD_BRIGHT"]
     if changed & {"ink_dim", "panel"}:
         v["INK_FAINT"] = _mix(v["INK_DIM"], v["PANEL_BG"], 0.24)
         v["HAIR"] = _mix(v["PANEL_BG"], v["INK_DIM"], 0.14)
     if changed & {"panel", "ink", "bg"}:
         v["PANEL_ALT"] = _mix(v["PANEL_BG"], v["INK"], 0.025)
-        v["NOTE_BG"] = _mix(v["PANEL_BG"], v["BG_BOT"], 0.4)
+        v["NOTE_BG"] = (
+            _mix(v["PANEL_BG"], v["BG_TOP"], 0.6)
+            if light
+            else _mix(v["PANEL_BG"], v["BG_BOT"], 0.4)
+        )
         v["TIER_FRAME_FILL"] = _mix(v["PANEL_BG"], v["INK"], 0.018)
     if changed & {"warn", "bg"}:
-        v["WARN_BG"] = _mix(v["WARN_BAR"], v["BG_BOT"], 0.87)
+        v["WARN_BG"] = (
+            _mix(v["WARN_BAR"], v["PANEL_BG"], 0.88)
+            if light
+            else _mix(v["WARN_BAR"], v["BG_BOT"], 0.87)
+        )
     v["MISSION_TYPE_COLOR"], v["CHALLENGE_COLOR"], v["ELEMENT_COLOR"] = (
         v["CYAN"],
         v["VIOLET"],
         v["TEAL"],
     )
+    if "accent" in changed:
+        v["TIME_DIM"] = v["GOLD"]
+    if "ink_dim" in changed:
+        v["FACTION_COLOR"] = v["INK_DIM"]
     for name, rgb in v.items():
         g[name] = rgb
     cmap = {_THEME_DEFAULTS[c]: v[c] for c in _CONTAINER_CONSTS if v[c] != _THEME_DEFAULTS[c]}
+    cmap.update(
+        {old: v[c] for old, c in _THEME_COLOR_ALIASES.items() if v[c] != _THEME_DEFAULTS[c]}
+    )
     for name in _CONTAINERS:
         g[name] = _sub_colors(_THEME_SNAPSHOT[name], cmap)
+    # 古纪 / 全能芯片默认借强调色 / 高亮色；换肤后这两槽常被改成主题色（赤毒的红、虚空的青），
+    # 会和后纪 / 前纪撞色 ⇒ 改用金档色，保持「金色系纪元」可辨。
+    if changed & {"accent", "highlight", "rarity_gold"}:
+        for k in ("古纪", "Lith", "万灵", "Omnia", "全能"):
+            g["TIER_COLOR"][k] = v["RARITY_GOLD"]
     ImageRenderer._HELP_CMD_COLORS = _sub_colors(_THEME_SNAPSHOT["_HELP_CMD_COLORS"], cmap)
     g["_BG_COL"] = None
     _TOKEN_STYLE.clear()
@@ -3836,6 +4173,9 @@ def apply_theme(
         panel_alpha=max(0.3, min(1.0, float(panel_alpha))),
         logo=logo,
         colors={k: "#%02x%02x%02x" % v[c] for k, _l, _w, c, _g in THEME_SLOTS if k in changed},
+        bg_fit=bg_fit if bg_fit in BG_FITS else "cover",
+        bg_pos=bg_pos if bg_pos in BG_POSITIONS else "c",
+        bg_scale=_clamp_scale(bg_scale),
     )
 
 
@@ -3847,6 +4187,9 @@ def theme_state() -> dict:
         "bg_dim": _THEME["bg_dim"],
         "panel_alpha": _THEME["panel_alpha"],
         "logo": _THEME["logo"],
+        "bg_fit": _THEME["bg_fit"],
+        "bg_pos": _THEME["bg_pos"],
+        "bg_scale": _THEME["bg_scale"],
     }
 
 
@@ -3854,17 +4197,69 @@ def _panel_translucent() -> bool:
     return _THEME["bg_image"] is not None and _THEME["panel_alpha"] < 0.999
 
 
-def _with_bg_image(canvas: "Image.Image", src: "Image.Image", dim: float) -> "Image.Image":
-    """背景图按 cover 缩放铺满画布，再压一层底色渐变（dim = 底色的不透明度），保证文字对比度。"""
+def _clamp_scale(v) -> int:
+    try:
+        v = int(round(float(v)))
+    except (TypeError, ValueError):
+        return 60
+    return max(BG_SCALE_RANGE[0], min(BG_SCALE_RANGE[1], v))
+
+
+def _anchor(pos: str) -> tuple[float, float]:
+    """九宫格位置 → (横向, 纵向) 比例：左/上 = 0，中 = 0.5，右/下 = 1。"""
+    pos = pos if pos in BG_POSITIONS else "c"
+    fx = 0.0 if "l" in pos else 1.0 if "r" in pos else 0.5
+    fy = 0.0 if pos.startswith("t") else 1.0 if pos.startswith("b") else 0.5
+    return fx, fy
+
+
+def _with_bg_image(
+    canvas: "Image.Image",
+    src: "Image.Image",
+    dim: float,
+    fit: str = "cover",
+    pos: str = "c",
+    scale: float = 60,
+) -> "Image.Image":
+    """背景图按显示方式铺到画布上，再压一层底色渐变（dim = 底色的不透明度），保证文字对比度。
+
+    fit：cover = 等比放大铺满，按位置裁切（默认居中）；width = 宽度对齐画布、从顶部开始，
+    图不够长时纵向重复（长卡不会把图放得很大）；contain = 整张图完整显示在所选位置、其余露底色；
+    tile = 按原尺寸（设计像素）重复铺满；custom = 图宽为画布宽 × scale%，放在所选位置。
+    """
     W_, H_ = canvas.size
     sw, sh = src.size
-    k = max(W_ / sw, H_ / sh)
-    im = src.convert("RGB").resize(
-        (max(1, int(sw * k + 0.5)), max(1, int(sh * k + 0.5))), Image.BILINEAR
-    )
-    l_, t_ = (im.width - W_) // 2, (im.height - H_) // 2
-    im = im.crop((l_, t_, l_ + W_, t_ + H_))
-    return Image.blend(im, canvas, max(0.0, min(1.0, dim)))
+    rgb = src.convert("RGB")
+    fx, fy = _anchor(pos)
+
+    def scaled(k: float) -> "Image.Image":
+        return rgb.resize((max(1, int(sw * k + 0.5)), max(1, int(sh * k + 0.5))), Image.BILINEAR)
+
+    def placed(im: "Image.Image") -> "Image.Image":
+        layer = canvas.copy()
+        layer.paste(im, (int((W_ - im.width) * fx), int((H_ - im.height) * fy)))
+        return layer
+
+    if fit == "width":
+        im = scaled(W_ / sw)
+        layer = Image.new("RGB", (W_, H_))
+        for y in range(0, H_, im.height):
+            layer.paste(im, (0, y))
+    elif fit == "contain":
+        layer = placed(scaled(min(W_ / sw, H_ / sh)))
+    elif fit == "custom":
+        layer = placed(scaled(W_ * _clamp_scale(scale) / 100 / sw))
+    elif fit == "tile":
+        im = scaled(SS) if SS != 1 else rgb
+        layer = Image.new("RGB", (W_, H_))
+        for y in range(0, H_, im.height):
+            for x in range(0, W_, im.width):
+                layer.paste(im, (x, y))
+    else:
+        im = scaled(max(W_ / sw, H_ / sh))
+        l_, t_ = int((im.width - W_) * fx), int((im.height - H_) * fy)
+        layer = im.crop((l_, t_, l_ + W_, t_ + H_))
+    return Image.blend(layer, canvas, max(0.0, min(1.0, dim)))
 
 
 def _translucent_fill(img: "Image.Image", rect, color, alpha: float, radius: int) -> None:

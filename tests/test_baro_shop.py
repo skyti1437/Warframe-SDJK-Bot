@@ -159,7 +159,8 @@ async def _vt(_platform):
     return _trader_b
 
 
-_obj_b = _ty_b.SimpleNamespace(client=_ty_b.SimpleNamespace(void_trader=_vt))
+_obj_b = _DC()
+_obj_b.client = _ty_b.SimpleNamespace(void_trader=_vt)
 _rep_b = _aio_b.run(_DC._h_voidtrader(_obj_b, _ty_b.SimpleNamespace(content=[]), None, "pc"))
 check(
     "保留「奸商 预测」引导（handler 在货单卡末尾追加）",

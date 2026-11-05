@@ -77,8 +77,8 @@ if PROBE.get("压迫点"):
     )
     an3 = lo.analyze(ocr, pips_row([3, 0, 0, 0]))
     check(
-        "★ 容量 9 + 豆数 3 → 3 级（3 级·红解，旧的『取最高』会判成 5）",
-        rank_of(an3, "压迫点") == 3,
+        "白色容量9与独立豆3冲突→unknown",
+        rank_of(an3, "压迫点") is None,
         str(rank_of(an3, "压迫点")),
     )
 
@@ -92,14 +92,14 @@ if PROBE.get("私法补给"):
         str(rank_of(an0, "私法补给")),
     )
     check(
-        "  并记录为「与容量反推冲突」",
-        (an0.get("pips") or {}).get("conflict") == 1,
+        "  红色唯一0级与容量无冲突",
+        (an0.get("pips") or {}).get("conflict") == 0,
         str(an0.get("pips")),
     )
     an1 = lo.analyze(ocr, pips_row([1, 0, 0, 0]))
     check(
-        "  容量 5 + 豆数 1 → 1 级（1 级·白解）",
-        rank_of(an1, "私法补给") == 1,
+        "  红色容量5与独立豆1冲突→unknown",
+        rank_of(an1, "私法补给") is None,
         str(rank_of(an1, "私法补给")),
     )
 
@@ -144,8 +144,8 @@ if PROBE.get("压迫点"):
     ocr = ocr_of([{"name": "压迫点", "drain": 9, "color": "白"}])
     an_nopos = lo.analyze(ocr, pips_row([3, 0, 0, 0]))
     check(
-        "模型没报 row/col 时仍能用豆子定级（不依赖模型位置）",
-        rank_of(an_nopos, "压迫点") == 3,
+        "无模型坐标仍发现颜色/独立像素冲突",
+        rank_of(an_nopos, "压迫点") is None,
         str(rank_of(an_nopos, "压迫点")),
     )
 
@@ -270,7 +270,59 @@ check(
     underread_penalty([], 3) == 0 and underread_penalty(_rows, 5) == 0,
 )
 
+# 新增：容量颜色约束及真实零级正反例。
+_rec = {"base_drain": 4, "max_rank": 5}
+check("红5唯一0级", lo.rank_candidates(_rec, 5, "红") == [0])
+check("白5唯一1级", lo.rank_candidates(_rec, 5, "白") == [1])
+check("绿5唯一5级", lo.rank_candidates(_rec, 5, "绿") == [5])
+check("无色多解不默认满级", lo.infer_rank(_rec, 5)[0] is None)
+check(
+    "绿半耗相邻等级仍unknown", lo.infer_rank({"base_drain": 6, "max_rank": 10}, 8, "绿")[0] is None
+)
+check("不兼容颜色无候选", lo.rank_candidates(_rec, 20, "绿") == [])
+_zero = [
+    {
+        "counts": [0] * 4,
+        "is_inventory": False,
+        "image_size": [1000, 1000],
+        "grid": [300, 450, 600, 750],
+        "band": [500, 502],
+        "card_w": 100,
+    }
+]
+check("无独立几何的全0行不作等级证据", not lo._zero_row_anchored((0, 0), _zero, {}))
+_pixel = {"slots": [{"zone": "equipment_candidate", "box": [0.25, 0.3, 0.35, 0.501]}]}
+check("有闭合卡框的真0级保留", lo._zero_row_anchored((0, 0), _zero, _pixel))
+check("全0行另一列不能借邻框", not lo._zero_row_anchored((0, 1), _zero, _pixel))
+check("不删除真实整排0行", _zero[0]["counts"] == [0] * 4)
+_bad = lo.analyze(
+    ocr_of([{"name": "私法补给", "drain": 20, "color": "绿"}]), pips_row([5, 0, 0, 0])
+)
+check("容量颜色不可能时不以空候选接受像素", rank_of(_bad, "私法补给") is None)
+_true = lo.analyze(ocr_of([{"name": "私法补给", "drain": 5, "color": "红"}] * 4), _zero)
+check("真实整排0级仍由红色容量保留", all(x["rank"] == 0 for x in _true["mods"]))
+check("错误白色不压掉独立豆3", (an3.get("pips") or {}).get("conflict") == 1)
+check("错误红色不压掉独立豆1", (an1.get("pips") or {}).get("conflict") == 1)
+check("冲突保留两路原始证据", an3["mods"][0].get("rank_conflict", {}).get("pixel_count") == 3)
+_anchored_ocr = ocr_of([{"name": "私法补给", "drain": 5, "color": "绿"}])
+_anchored_ocr["_pixel_layout"] = _pixel
+_anchored = lo.analyze(_anchored_ocr, _zero)
+check(
+    "独立锚定零与错误绿色5冲突→unknown",
+    _anchored["mods"][0]["rank"] is None and _anchored["pips"]["conflict"] == 1,
+)
 print()
+# 满级线独立于光晕干扰后的计数；无满级线时不得接受超过上限的豆数。
+_full_row = [{"counts": [11], "maxed": [True], "is_inventory": False}]
+check("独立满级线恢复超数的十级卡", lo._pips_rank((0, 0), _full_row, [9, 10], 10)[0] == 10)
+_full_row[0]["maxed"] = [False]
+check("无满级线时十一颗不能成为十级卡的等级", lo._pips_rank((0, 0), _full_row, [], 10)[0] is None)
+check(
+    "容量颜色与满级线矛盾不强填满级",
+    lo._pips_rank((0, 0), [{"counts": [7], "maxed": [True]}], [7], 10)[0] == 7,
+)
+
+
 if FAILED:
     print(f"[FAIL] {len(FAILED)} 项失败: {FAILED}")
     sys.exit(1)

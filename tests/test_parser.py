@@ -50,7 +50,54 @@ p = parse("金垃圾")
 check("预设指令 金垃圾->ducats", p.command == "ducats" and p.preset == "金")
 
 p = parse("钢铁裂隙 -1")
-check("钢铁裂隙预设 + 文字模式", p.command == "fissures" and p.preset == "钢铁" and p.force_text)
+check(
+    "钢铁裂隙预设 + 默认模式第一页",
+    p.command == "fissures"
+    and p.preset == "钢铁"
+    and p.page == 1
+    and not p.force_text
+    and not p.force_image,
+)
+
+# -1 是第一页，与默认输出模式正交；强制文字只用 -w。
+for command in ("仲裁", "裂隙", "wm 绝路", "帮助", "巴罗", "夜波"):
+    default = parse(command)
+    for text in (f"{command} -1", f"-1 {command}"):
+        p = parse(text)
+        check(
+            f"第一页保留默认模式：{text}",
+            p.command == default.command
+            and p.content == default.content
+            and p.preset == default.preset
+            and p.page == 1
+            and p.text_mode == default.text_mode
+            and p.image_mode == default.image_mode
+            and p.modifiers == ["-1"]
+            and not p.unknown_modifiers,
+            str(p),
+        )
+    for modifiers, page in (("-2 -1", 1), ("-1 -2", 2), ("-3 -1 -2", 2)):
+        p = parse(f"{command} {modifiers}")
+        check(
+            f"页码按末次指定生效：{command} {modifiers}",
+            p.page == page and not p.force_text and not p.force_image,
+            str(p),
+        )
+    for mode, force_text, force_image in (("-w", True, False), ("-t", False, True)):
+        for modifiers in (f"-1 {mode}", f"{mode} -1", f"-2 {mode} -1"):
+            p = parse(f"{command} {modifiers}")
+            check(
+                f"第一页保留显式模式：{command} {modifiers}",
+                p.page == 1 and p.force_text == force_text and p.force_image == force_image,
+                str(p),
+            )
+    for modifiers in ("-w -1 -t", "-t -1 -w"):
+        p = parse(f"{command} {modifiers}")
+        check(
+            f"第一页不改变既有模式冲突处理：{command} {modifiers}",
+            p.page == 1 and p.text_mode and p.image_mode and not p.force_text and not p.force_image,
+            str(p),
+        )
 
 # 声望=赏金（黑话映射，2026-10-02）；地区词裸发/连写三式等价
 p = parse("声望")

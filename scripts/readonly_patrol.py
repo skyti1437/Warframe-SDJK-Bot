@@ -1,22 +1,9 @@
 # -*- coding: utf-8 -*-
-"""只读巡检：快照新鲜度 + 周期口径（python3 scripts/readonly_patrol.py）
+"""只读仓库巡检：静态种子结构与周期基线。
 
-★ 本脚本**只读**：不写任何文件、不 commit、不 push、不部署。
-   它只负责"发现问题"，修复一律由人工确认后手工执行。
-
-为什么需要它（与插件内置自动刷新的分工）：
-  · 内置刷新（main.py::_valence_autoloop，每 6h）只写**运行期**数据
-    （服务器 /AstrBot/data/plugin_data/...），仓库 / 开源包 / 市场包里那份快照
-    是另一份，会随发版逐渐过期 —— 没装 FlareSolverr 的用户拿到的就是这份。
-  · FlareSolverr 挂掉时内置刷新只记一条 warning，没人盯就会一直静默。
-
-检查项：
-  1. 信条 / 终幕效价快照是否落在当前换轮窗口内
-  2. 言录使（Acrithis）本周货单是否过期（DE 不下发，只能人工更新）
-  3. 各段周期口径是否与 PROJECTED 基准一致（wiki 改过口径而没人察觉的事发生过：
-     2026-09-20 Acrithis 由「周日」变「周一」）
-
-退出码：0 = 全部正常；1 = 有需要人工处理项。
+仅检查随包效价轮换骨架、言录使静态候选目录以及 EXPECTED 周期口径。
+不联网、不刷新、不写文件；不据此宣称运行期数据健康。
+退出码：0 = 静态检查通过；1 = 静态结构或周期口径异常。
 """
 
 from __future__ import annotations
@@ -27,6 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.dont_write_bytecode = True
 sys.path.insert(0, str(ROOT))
 
 
@@ -44,7 +32,7 @@ EXPECTED = {
 
 
 def main() -> int:
-    from core.api_client import WarframeClient
+    from core.data_registry import acrithis_seed_problems, valence_seed_problems
 
     now = datetime.now(timezone.utc)
     lines: list[str] = []
@@ -56,44 +44,25 @@ def main() -> int:
     )
     lines.append("")
 
-    rot_path = ROOT / "core" / "data" / "rotations.json"
-    rot = json.loads(rot_path.read_text(encoding="utf-8"))
-
-    # ---- 1. 效价快照新鲜度 ----
-    lines.append("【1】效价快照（仓库那份，会随包发出去）")
-    for key in ("tenet", "coda"):
-        sec = rot.get(key) or {}
-        snap = sec.get("valence_snapshot")
-        stale = WarframeClient.valence_is_stale(sec, now)
-        flag = "⚠ 已过期" if stale else "✓ 新鲜"
-        lines.append(f"    {key:8s} 快照={snap}  {flag}")
-        if stale:
-            todo.append(
-                f"{key} 效价快照已过期 → 抓 wiki 更新 rotations.json（旧值→新值 需人工核对）"
-            )
-    lines.append("")
-
-    # ---- 2. 言录使本周货单 ----
-    lines.append("【2】言录使（Acrithis）本周货单")
-    wk_path = ROOT / "core" / "data" / "de" / "acrichis_week.json"
-    try:
-        wk = json.loads(wk_path.read_text(encoding="utf-8"))
-        exp = datetime.fromisoformat(wk["expiry"])
-        left_h = (exp - now).total_seconds() / 3600
-        if left_h <= 0:
-            lines.append(f"    ⚠ 已过期（expiry={wk['expiry']}，已过 {-left_h:.1f} 小时）")
-            lines.append(
-                f"      当前记录 {len(wk.get('items') or [])} 件；DE 不下发本周 5 件，"
-                f"需人工到游戏内/wiki 核对后更新"
-            )
-            todo.append("言录使本周货单已过期 → 人工更新 core/data/de/acrichis_week.json")
+    rot = {}
+    for label, path, validate in (
+        ("效价静态轮换骨架", ROOT / "core/data/rotations.json", valence_seed_problems),
+        ("言录使静态候选目录", ROOT / "core/data/de/acrichis_week.json", acrithis_seed_problems),
+    ):
+        lines.append(f"【静态种子】{label}")
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            problems = validate(data)
+            if label == "效价静态轮换骨架" and isinstance(data, dict):
+                rot = data
+        except (OSError, ValueError) as exc:
+            problems = [f"{label}不可读/损坏：{exc}"]
+        if problems:
+            lines.extend(f"    ⚠ {problem}" for problem in problems)
+            todo.extend(problems)
         else:
-            lines.append(f"    ✓ 未过期（expiry={wk['expiry']}，剩 {left_h:.1f} 小时）")
-            lines.append(f"      下次轮换按规则算：{WarframeClient().acrithis_next_reset()}")
-    except Exception as e:  # noqa: BLE001
-        lines.append(f"    ⚠ 读取失败：{type(e).__name__}: {e}")
-        todo.append("言录使货单文件读取异常 → 人工检查 core/data/de/acrichis_week.json")
-    lines.append("")
+            lines.append("    ✓ 静态结构合法；动态值由运行期获取，本检查不判断运行期健康")
+        lines.append("")
 
     # ---- 3. 周期口径 ----
     lines.append("【3】周期口径（wiki 变过口径，这里只核对数据文件是否与基准一致）")
@@ -121,7 +90,7 @@ def main() -> int:
         for i, t in enumerate(todo, 1):
             lines.append(f"    {i}. {t}")
     else:
-        lines.append("    全部正常，无需人工处理")
+        lines.append("    仓库静态种子与周期基线通过；运行期健康需另查")
 
     print("\n".join(lines))
     return 1 if todo else 0

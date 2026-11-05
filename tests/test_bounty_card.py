@@ -839,6 +839,30 @@ if _tent_rows:
         "⟦tents⟧" not in _tc and _tc.count("小帐篷") == 3,
         _tc,
     )
+    _quick = R.text_card(
+        "t",
+        [
+            R._TENT_SPLIT_RE.pattern + "小帐篷 A｜捕获 Grineer 特工｜破坏原型机",
+            "※ 小帐篷 = 测试；蓝字 = 快速任务",
+        ],
+    )
+    check(
+        "★ 文字模式：快速任务逐个标「（快速）」，不留无颜色可对的「蓝字」说明",
+        "捕获 Grineer 特工（快速）" in _quick
+        and "破坏原型机（快速）" not in _quick
+        and "蓝字" not in _quick,
+        _quick,
+    )
+_ost_notes = [
+    ln
+    for ln in fmt.fmt_bounties(bundle["syndicateMissions"], "地球", ORACLE)[1]
+    if ln.startswith("※ 小帐篷")
+]
+check(
+    "★ 地球卡小帐篷注脚说明蓝字 = 快速任务",
+    any("蓝字 = 快速任务" in n for n in _ost_notes),
+    str(_ost_notes),
+)
 # 蓝色高亮像素：地球卡上 4 条指定任务（捕获 Grineer 特工 等）染蓝（BLUE）
 _sep3 = _sep_lines(*fmt.fmt_bounties(bundle["syndicateMissions"], "地球", ORACLE))
 if _sep3[0] is not None:

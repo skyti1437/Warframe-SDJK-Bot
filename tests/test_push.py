@@ -788,11 +788,26 @@ asyncio.run(c5_scenario())
 from core.push import at_targets  # noqa: E402
 
 check(
-    "at_targets：仅 aiocqhttp 支持，去重保序、剔除 all",
-    at_targets("aiocqhttp", ["1", "2", "1", "all", ""]) == ["1", "2"]
-    and at_targets("telegram", ["1"]) == []
-    and at_targets(None, ["1"]) == []
+    "at_targets：NapCat 去重保序、剔除 all 与空目标",
+    at_targets("aiocqhttp", ["1", "2", "1", "all", "", " ALL ", " "]) == ["1", "2"]
     and at_targets("aiocqhttp", []) == [],
+)
+check(
+    "at_targets：QQ 官方保留 OpenID，去重保序、剔除大小写 all 与空目标",
+    at_targets(
+        "qq_official",
+        [" member_openid_A ", "member_openid_B", "member_openid_A", "all", "ALL", "AlL", "", " "],
+    )
+    == ["member_openid_A", "member_openid_B"]
+    and at_targets("QQ_OFFICIAL", ["member_openid_A"]) == ["member_openid_A"]
+    and at_targets("qq_official", []) == [],
+)
+check(
+    "at_targets：其他平台与未知平台回落纯文本",
+    at_targets("telegram", ["1"]) == []
+    and at_targets("unknown", ["member_openid_A"]) == []
+    and at_targets("", ["1"]) == []
+    and at_targets(None, ["1"]) == [],
 )
 
 
@@ -1369,6 +1384,53 @@ def z_time_window_cases():
 
 
 async def z_send_failure_scenarios():
+    # 明确False是未发送；必须走真实派发事务，不能消费一次性订阅或提交通知键。
+    with tempfile.TemporaryDirectory(prefix="wf-push-false-") as folder:
+        target = Path(folder) / "subscriptions.json"
+        store = SubscriptionStore(target)
+        subscription = _zsub("synthetic-umo", "入侵", once=True)
+        await store.add(subscription)
+        before = target.read_bytes()
+        returned, calls = [False], []
+
+        async def explicit_result(umo, text, at=None):
+            calls.append((umo, text))
+            return returned[0]
+
+        daemon = PushDaemon(ScriptClient(), store, explicit_result, LvLogger())
+        result = await daemon._deliver(
+            subscription.umo, "入侵", "synthetic-event", "正文", [subscription], time.time()
+        )
+        persisted = SubscriptionStore(target).all()
+        check(
+            "明确False：真实_deliver不消费一次订阅、不记notified、原文件不变并排队重投",
+            result == "fail"
+            and len(calls) == 1
+            and store.has(subscription.sid)
+            and not subscription.notified
+            and len(persisted) == 1
+            and not persisted[0].notified
+            and target.read_bytes() == before
+            and len(daemon._pending) == 1,
+            str((result, calls, subscription.notified)),
+        )
+        returned[0] = None  # 旧宿主回调无返回值仍代表没有报告失败。
+        result = await daemon._deliver(
+            subscription.umo,
+            "入侵",
+            "synthetic-event",
+            "正文",
+            [subscription],
+            time.time(),
+            retry=daemon._pending[0],
+        )
+        check(
+            "None旧兼容：同一派发入口成功后才消费一次订阅",
+            result == "ok"
+            and len(calls) == 2
+            and not store.has(subscription.sid)
+            and SubscriptionStore(target).all() == [],
+        )
     # —— P2-3：瞬时失败 → 下一轮重投 ——
     d, st, cl, box, lg, _ = _zmk()
     cl.data["invasions"] = [_zinv("a")]
@@ -1765,6 +1827,102 @@ async def z_state_persist_scenarios():
     check("P2-4 护栏：不配 state_path 则不落盘、不推", box5 == [])
 
 
+async def z_pending_restart_scenarios():
+    async def failed_event():
+        tmp = Path(tempfile.mkdtemp())
+        sp = tmp / "baseline.json"
+        d, st, cl, box, lg, store_dir = _zmk(state_path=sp)
+        await st.add(_zsub("g1", "入侵", once=False))
+        cl.data["invasions"] = [_zinv("old")]
+        await d.tick()
+
+        async def fail(*a, **kw):
+            raise RuntimeError("临时网络故障")
+
+        d.send = fail
+        cl.data["invasions"].append(_zinv("new"))
+        await d.tick()
+        check("重载前失败事件与基线同快照保存", len(json.loads(sp.read_text())["pending"]) == 1)
+        return d, st, cl, sp, store_dir
+
+    def restart(cl, sp, store_dir):
+        box = []
+
+        async def send(umo, text, at=None):
+            box.append(text)
+
+        st = SubscriptionStore(store_dir / "subscriptions.json")
+        return PushDaemon(cl, st, send, LvLogger(), state_path=sp), box
+
+    d, st, cl, sp, sd = await failed_event()
+    d2, box = restart(cl, sp, sd)
+    await d2.tick()
+    check("失败后重建守护补推一次", len(box) == 1 and "new" in d2.store.all()[0].notified)
+    d3, box3 = restart(cl, sp, sd)
+    await d3.tick()
+    check("成功后再重建不重复", box3 == [] and d3._pending == [])
+
+    for case in ("expired", "exhausted", "bad_queue", "bad_item", "cancelled", "wrong_umo"):
+        d, st, cl, sp, sd = await failed_event()
+        data = json.loads(sp.read_text())
+        if case == "expired":
+            data["pending"][0]["created"] = time.time() - push_mod.PENDING_TTL - 1
+        elif case == "exhausted":
+            data["pending"][0]["tries"] = push_mod.PENDING_MAX_TRIES
+        elif case == "bad_queue":
+            data["pending"] = {"invalid": True}
+        elif case == "bad_item":
+            original = data["pending"][0]
+            data["pending"] = [
+                None,
+                {**original, "created": "yesterday"},
+                {**original, "tries": True},
+                {**original, "sids": [None]},
+                {**original, "created": float("nan")},
+                {**original, "created": 10**400},
+                {**original, "created": float("inf")},
+            ]
+        elif case == "cancelled":
+            await st.remove(lambda sub: True)
+        elif case == "wrong_umo":
+            data["pending"][0]["umo"] = "other"
+        sp.write_text(json.dumps(data))
+        restored, sent = restart(cl, sp, sd)
+        check(
+            f"{case} 队列不恢复且保留基线",
+            restored._pending == [] and restored._last == data["last"],
+        )
+        await restored.tick()
+        check(f"{case} 队列不重放", sent == [])
+
+    d, st, cl, sp, sd = await failed_event()
+    restored, sent = restart(cl, sp, sd)
+    restored.send = d.send
+    cl.data["invasions"] = RuntimeError("数据源暂不可用")
+    original_ts = json.loads(sp.read_text())["ts"]
+    real_time = push_mod.time.time
+    push_mod.time.time = lambda: original_ts + 60
+    try:
+        await restored.tick()
+    finally:
+        push_mod.time.time = real_time
+    saved = json.loads(sp.read_text())
+    check("源失败时仍持久化重试次数", saved["pending"][0]["tries"] == 1)
+    check("仅保存重投队列不延长旧基线有效期", saved["ts"] == original_ts, str(saved["ts"]))
+    push_mod.time.time = lambda: original_ts + push_mod.BASELINE_MAX_AGE + 1
+    try:
+        stale, _ = restart(cl, sp, sd)
+    finally:
+        push_mod.time.time = real_time
+    check("源失败后旧基线仍按原时间过期", stale._last == {})
+    restored2, sent2 = restart(cl, sp, sd)
+    check("重载保留剩余重试额度", restored2._pending[0]["tries"] == 1)
+    cl.data["invasions"] = [_zinv("old"), _zinv("new")]
+    await restored2.tick()
+    check("保留重试额度的事件恢复后可补推", len(sent2) == 1)
+    check("数据源恢复后基线时间正常更新", json.loads(sp.read_text())["ts"] > original_ts)
+
+
 async def z_store_failure_scenarios():
     # —— P2-5 ——
     d, st, cl, box, lg, _ = _zmk()
@@ -2140,6 +2298,7 @@ try:
     asyncio.run(z_send_failure_scenarios())
     asyncio.run(z_pause_scenarios())
     asyncio.run(z_state_persist_scenarios())
+    asyncio.run(z_pending_restart_scenarios())
     asyncio.run(z_store_failure_scenarios())
     asyncio.run(z_cancel_scenarios())
     asyncio.run(z_storm_and_misc_scenarios())
@@ -2253,10 +2412,10 @@ def z_arbi_low_sample_label():
     try:
         tier_of = a.merge_measured_tiers({"OFF": "B"})
         nodes = {"N3": {"nameZh": "Piscinas", "systemNameZh": "土星", "missionNameZh": "生存"}}
-        check("样本少（n=3）的实测档带 *", a.tier_label("N3", tier_of) == "A+*")
-        check("n=5 的实测档不带 *", a.tier_label("N5", tier_of) == "A")
+        check("样本少（n=3）的实测档带标记", a.tier_label("N3", tier_of) == "A+" + a.LOW_MARK)
+        check("n=5 的实测档不带标记", a.tier_label("N5", tier_of) == "A")
         check("官方 tierlist 档不看样本数", a.tier_label("OFF", tier_of) == "B")
-        check("排期卡单元格带 *", a.node_cells(nodes, "N3", tier_of)[-1] == "[A+*]")
+        check("排期卡单元格带标记", a.node_cells(nodes, "N3", tier_of)[-1] == f"[A+{a.LOW_MARK}]")
         check(
             "★ 样本少只改显示、不改筛选口径（tier_of 仍是 A+）",
             tier_of["N3"] == "A+" and "A+" in a.RATING["高效"],
@@ -2353,6 +2512,1159 @@ def t_exception_text_masked():
 
 
 t_exception_text_masked()
+
+
+async def t_terminate_cancellation():
+    """真实卸载方法与实际 client/push：卸载请求取消后仍须完成收尾。"""
+    import ast
+    from core.api_client import WarframeClient
+
+    source = Path(__file__).resolve().parent.parent / "main.py"
+    tree = ast.parse(source.read_text(encoding="utf-8"))
+    method = next(
+        node
+        for cls in tree.body
+        if isinstance(cls, ast.ClassDef)
+        for node in cls.body
+        if isinstance(node, ast.AsyncFunctionDef) and node.name == "terminate"
+    )
+    cls = ast.ClassDef(name="Host", bases=[], keywords=[], body=[method], decorator_list=[])
+    module = ast.fix_missing_locations(ast.Module(body=[cls], type_ignores=[]))
+    log = RecordingLogger()
+    scope = {"asyncio": asyncio, "logger": log}
+    exec(compile(module, str(source), "exec"), scope)
+    Host = scope["Host"]
+    loop = asyncio.get_running_loop()
+    unhandled = []
+    previous = loop.get_exception_handler()
+    loop.set_exception_handler(lambda _, context: unhandled.append(context))
+    try:
+        for mode in (
+            "normal",
+            "cancel",
+            "repeat_cancel",
+            "stop_error",
+            "concurrent",
+            "close_error",
+        ):
+            with tempfile.TemporaryDirectory(prefix="wf-terminate-") as directory:
+                obj = Host()
+                obj.client = WarframeClient(flare_enabled=False)
+
+                async def no_send(*args, **kwargs):
+                    raise AssertionError("卸载探针不应发送消息")
+
+                obj.push = PushDaemon(
+                    obj.client,
+                    SubscriptionStore(Path(directory) / "subs.json"),
+                    no_send,
+                    log,
+                )
+                obj.push.start()
+                daemon = obj.push.task
+                calls = {"stop": 0, "close": 0}
+                real_stop, real_close = obj.push.stop, obj.client.close
+
+                async def stop():
+                    calls["stop"] += 1
+                    await real_stop()
+                    if mode == "stop_error":
+                        raise RuntimeError("stop probe")
+
+                async def close():
+                    calls["close"] += 1
+                    await real_close()
+                    if mode == "close_error":
+                        raise RuntimeError("close probe")
+
+                obj.push.stop, obj.client.close = stop, close
+                cleaning, release = asyncio.Event(), asyncio.Event()
+
+                async def background():
+                    try:
+                        await asyncio.Event().wait()
+                    finally:
+                        cleaning.set()
+                        await release.wait()
+
+                obj._boot_task = asyncio.create_task(background())
+                obj._revision_task = asyncio.create_task(background())
+                unrelated = asyncio.create_task(asyncio.Event().wait())
+                await asyncio.sleep(0)
+                first = asyncio.create_task(obj.terminate())
+                second = None
+                try:
+                    await asyncio.wait_for(cleaning.wait(), 1)
+                    if mode in ("cancel", "repeat_cancel"):
+                        first.cancel()
+                        await asyncio.sleep(0)
+                        if mode == "repeat_cancel":
+                            first.cancel()
+                            await asyncio.sleep(0)
+                        check(f"卸载{mode}：取消请求仍等待资源收尾", not first.done())
+                    if mode == "concurrent":
+                        second = asyncio.create_task(obj.terminate())
+                        await asyncio.sleep(0)
+                    release.set()
+                    results = await asyncio.wait_for(
+                        asyncio.gather(
+                            first, *([second] if second else []), return_exceptions=True
+                        ),
+                        2,
+                    )
+                    check(
+                        f"卸载{mode}：修订轮询与其它后台任务一并取消并等清理结束",
+                        obj._revision_task.cancelled() and obj._boot_task.cancelled(),
+                    )
+                    if mode in ("cancel", "repeat_cancel"):
+                        check(
+                            f"卸载{mode}：收尾后传播取消",
+                            isinstance(results[0], asyncio.CancelledError),
+                        )
+                    elif mode == "close_error":
+                        check("卸载：连接池关闭异常被取回", isinstance(results[0], RuntimeError))
+                    else:
+                        check(f"卸载{mode}：全部调用正常结束", all(x is None for x in results))
+                    check(
+                        f"卸载{mode}：连接池关闭且守护已退出",
+                        obj.client.http.is_closed and daemon.done(),
+                    )
+                    check(f"卸载{mode}：stop与close各执行一次", calls == {"stop": 1, "close": 1})
+                    check(f"卸载{mode}：无关任务不被取消", not unrelated.done())
+                    await asyncio.sleep(0)
+                    check(f"卸载{mode}：已结束的收尾子任务解除引用", not obj._terminate_pending)
+                    if mode == "concurrent":
+                        await obj.terminate()
+                        check(
+                            "卸载：完成后重入仍复用同一收尾结果", calls == {"stop": 1, "close": 1}
+                        )
+                finally:
+                    release.set()
+                    unrelated.cancel()
+                    await asyncio.gather(unrelated, obj._boot_task, return_exceptions=True)
+                    await real_stop()
+                    await real_close()
+        # 用等待边界缩短时钟，超时只停止等待，不能取消资源释放本身。
+        from types import SimpleNamespace
+
+        timeouts = []
+
+        async def short_wait(tasks, *, timeout):
+            timeouts.append(timeout)
+            return await asyncio.wait(tasks, timeout=0.01)
+
+        scope["asyncio"] = SimpleNamespace(
+            create_task=asyncio.create_task,
+            wait=short_wait,
+            shield=asyncio.shield,
+            CancelledError=asyncio.CancelledError,
+        )
+        with tempfile.TemporaryDirectory(prefix="wf-terminate-timeout-") as directory:
+            obj = Host()
+            obj.client = WarframeClient(flare_enabled=False)
+            release = asyncio.Event()
+            cancelled_stop = asyncio.Event()
+
+            async def stubborn_stop():
+                try:
+                    await release.wait()
+                except asyncio.CancelledError:
+                    cancelled_stop.set()
+                    await release.wait()
+                raise RuntimeError("late stop probe")
+
+            obj.push = SimpleNamespace(stop=stubborn_stop)
+            await asyncio.wait_for(obj.terminate(), 1)
+            check("卸载超时：停止守护超时后仍关闭连接池", obj.client.http.is_closed)
+            check("卸载超时：停止与关闭分别设置5秒上限", timeouts == [5, 5], str(timeouts))
+            await asyncio.sleep(0)
+            check(
+                "卸载超时：迟到任务继续清理且保留引用",
+                not cancelled_stop.is_set() and len(obj._terminate_pending) == 1,
+            )
+            release.set()
+            await asyncio.gather(*obj._terminate_pending, return_exceptions=True)
+            await asyncio.sleep(0)
+            check(
+                "卸载超时：迟到异常被记录并解除引用",
+                not obj._terminate_pending and any("late stop probe" in line for line in log.lines),
+            )
+        obj = Host()
+        obj.client = WarframeClient(flare_enabled=False)
+        release_close = asyncio.Event()
+        cancelled_close = asyncio.Event()
+        close_finished = asyncio.Event()
+        real_close = obj.client.close
+
+        async def slow_close():
+            try:
+                await release_close.wait()
+                await real_close()
+                close_finished.set()
+            except asyncio.CancelledError:
+                cancelled_close.set()
+                raise
+
+        async def immediate_stop():
+            return
+
+        obj.push = SimpleNamespace(stop=immediate_stop)
+        obj.client.close = slow_close
+        try:
+            await asyncio.wait_for(obj.terminate(), 1)
+            check(
+                "卸载关闭超时：未取消仍在释放的连接池",
+                not cancelled_close.is_set() and not obj.client.http.is_closed,
+            )
+            check(
+                "卸载关闭超时：任务保活且没有虚报释放完成",
+                len(obj._terminate_pending) == 1
+                and any("资源仍在后台收尾" in line for line in log.lines),
+            )
+            release_close.set()
+            await asyncio.gather(*obj._terminate_pending, return_exceptions=True)
+            await asyncio.sleep(0)
+            check(
+                "卸载关闭超时：后续放行后真正完成释放",
+                close_finished.is_set()
+                and obj.client.http.is_closed
+                and not obj._terminate_pending,
+            )
+        finally:
+            release_close.set()
+            await asyncio.gather(*obj._terminate_pending, return_exceptions=True)
+            await real_close()
+        obj = Host()
+        obj.client = WarframeClient(flare_enabled=False)
+        obj.push = SimpleNamespace(stop=immediate_stop)
+        background_release = asyncio.Event()
+        background_cleaning = asyncio.Event()
+
+        async def slow_background():
+            try:
+                await asyncio.Event().wait()
+            finally:
+                background_cleaning.set()
+                await background_release.wait()
+
+        obj._boot_task = asyncio.create_task(slow_background())
+        await asyncio.sleep(0)
+        log_start = len(log.lines)
+        try:
+            await asyncio.wait_for(obj.terminate(), 1)
+            check(
+                "卸载后台超时：后台尚未退出时明确记录继续收尾",
+                background_cleaning.is_set()
+                and not obj._boot_task.done()
+                and not obj._terminate_pending
+                and any("资源仍在后台收尾" in line for line in log.lines[log_start:])
+                and not any(line == "[sdjk] 插件已卸载" for line in log.lines[log_start:]),
+            )
+        finally:
+            background_release.set()
+            await asyncio.gather(obj._boot_task, return_exceptions=True)
+            await obj.client.close()
+        check("卸载：没有未消费的任务异常", not unhandled, str(unhandled))
+    finally:
+        loop.set_exception_handler(previous)
+
+
+asyncio.run(t_terminate_cancellation())
+
+
+async def t_store_field_and_expiry_recovery():
+    """真实存储→tick/到期扫描：字段坏值隔离与失败落盘补写，零网络。"""
+    from unittest.mock import patch
+
+    from core import store as store_mod
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        store = SubscriptionStore(root / "subscriptions.json")
+        groups = GroupStore(root / "groups.json")
+        client, box, log = ScriptClient(), [], LvLogger()
+
+        async def send(umo, text, at=None):
+            box.append((umo, text, at))
+
+        daemon = PushDaemon(client, store, send, log, groups=groups)
+        await groups.set_switch("g1", "push", True)
+        good = _zsub(ev="夜灵", until=time.time() + 3600, once=False).to_dict()
+        bad_fields = [
+            ("until", "synthetic-private-bad-value"),
+            ("until", float("nan")),
+            ("created_at", []),
+            ("umo", []),
+            ("platform", {}),
+            ("event", 1),
+            ("sid", []),
+            ("rule", {}),
+            ("created_by", []),
+            ("once", []),
+            ("hits_left", "2"),
+            ("windows", "bad"),
+            ("windows", {"start": "22", "end": 8}),
+            ("windows", {"days": [[1]]}),
+            ("windows", {"at_hour": 24}),
+            ("notified", []),
+            ("notified", {"private-key": "bad"}),
+        ]
+        bad = [{**good, name: value} for name, value in bad_fields]
+        bad.append({"event": "夜灵"})
+        raw = [good, *bad]
+        store.path.write_text(json.dumps(raw), encoding="utf-8")
+        store.load()
+        with patch.object(store_mod, "logger", log):
+            client.data["cycle_cetus"] = {"state": "day", "expiry": _zfut()}
+            await daemon.tick()
+            client.data["cycle_cetus"] = {"state": "night", "expiry": _zfut()}
+            await daemon.tick()
+            check("存储字段隔离：真实tick继续健康订阅", len(box) == 1 and len(store.all()) == 1)
+        check(
+            "存储字段隔离：坏原始条目保存后保留",
+            len(json.loads(store.path.read_text())) == len(raw),
+        )
+        check(
+            "存储字段隔离：日志不带坏值或会话标识",
+            bool(log.warn_lines)
+            and not any(
+                "synthetic-private-bad-value" in line or "private-key" in line or "g1" in line
+                for line in log.warn_lines
+            ),
+        )
+        removed = await store.remove(lambda s: s.sid == good["sid"])
+        check(
+            "存储字段隔离：显式删除健康项不删除坏项", removed == 1 and len(store._data) == len(bad)
+        )
+
+        legacy = _zsub(until=-10, once=False, windows={"start": 0, "end": 0}).to_dict()
+        legacy.update(rule=None, created_by=None)
+        store.path.write_text(json.dumps([legacy]), encoding="utf-8")
+        store.load()
+        restored = store.all()
+        check(
+            "存储兼容：负until与旧全天窗口和可选空值",
+            len(restored) == 1
+            and not restored[0].expired()
+            and restored[0].time_window().is_always
+            and restored[0].rule == ""
+            and restored[0].created_by == "",
+        )
+
+        # 真gc先改内存；只在首次replace失败，恢复后下一轮自动补写。
+        expired = _zsub(until=time.time() - 60).to_dict()
+        live = _zsub(until=-1, once=False).to_dict()
+        store.path.write_text(json.dumps([expired, live]), encoding="utf-8")
+        store.load()
+        box.clear()
+        attempts = []
+        real_replace = Path.replace
+
+        def first_failure(path, target):
+            if Path(target) == store.path:
+                attempts.append(1)
+                if len(attempts) == 1:
+                    raise OSError("synthetic first replace failure")
+            return real_replace(path, target)
+
+        with patch.object(Path, "replace", first_failure):
+            await daemon._expire_sweep(time.time())
+            check(
+                "过期故障：保存失败仍先移除内存且提醒一次",
+                len(store.all()) == 1
+                and len(box) == 1
+                and len(json.loads(store.path.read_text())) == 2,
+            )
+            await daemon._expire_sweep(time.time())
+            await daemon._expire_sweep(time.time())
+        check(
+            "过期故障：恢复后补写一次、无变化不再写",
+            len(attempts) == 2 and len(box) == 1 and len(json.loads(store.path.read_text())) == 1,
+        )
+        reloaded = SubscriptionStore(store.path)
+        after_reload = PushDaemon(client, reloaded, send, log, groups=groups)
+        await after_reload._expire_sweep(time.time())
+        check("过期故障：补写后重载不重复提醒", len(box) == 1)
+
+        store.path.write_text(json.dumps([expired, live]), encoding="utf-8")
+        store.load()
+        box.clear()
+        with patch.object(Path, "replace", real_replace):
+            await daemon._expire_sweep(time.time())
+            disk = store.path.read_bytes()
+            await daemon._expire_sweep(time.time())
+        check(
+            "过期正常：只提醒一次且无变化保持磁盘",
+            len(box) == 1 and len(store.all()) == 1 and store.path.read_bytes() == disk,
+        )
+
+        original = {
+            "g1": "bad",
+            "other-bad": [1],
+            "untouched-bad": [2],
+            "closed": {"push": False},
+            "legacy": {"推送": True},
+        }
+        groups.path.write_text(json.dumps(original), encoding="utf-8")
+        groups.load()
+        check(
+            "群内层坏值：真实读取和派发开关默认关闭",
+            groups.get("g1")["push"] is False
+            and not daemon._group_on("g1")
+            and not daemon._group_on("missing"),
+        )
+        check(
+            "群内层坏值：只读不改存档，正常关闭与中文键保留",
+            json.loads(groups.path.read_text()) == original
+            and not daemon._group_on("closed")
+            and daemon._group_on("legacy"),
+        )
+        await groups.set_switch("g1", "push", True)
+        await groups.set_platform("other-bad", "ps")
+        groups._data["pause-bad"] = "bad"
+        await groups.set_pause("pause-bad", {"since": 1})
+        reread = GroupStore(groups.path)
+        check(
+            "群内层坏值：显式设置仅修复目标并可重载",
+            reread.get("g1")["push"] is True
+            and reread.platform("other-bad") == "ps"
+            and reread.pause_of("pause-bad") == {"since": 1}
+            and reread.all()["untouched-bad"] == [2]
+            and reread.get("legacy")["push"] is True
+            and reread.get("closed")["push"] is False,
+        )
+
+
+asyncio.run(t_store_field_and_expiry_recovery())
+
+
+async def t_cycle_payload_before_dispatch():
+    """真实 HTTP 入口→周期→tick：坏响应不能误推、污染基线或消费一次性订阅。"""
+    import httpx
+
+    from core.api_client import WarframeClient
+
+    # 状态来自 de_worldstate 的周期契约；双衍同时保留外部源小写状态兼容。
+    cases = (
+        ("cetus", "夜灵", "day", "night", "cetus_state"),
+        ("vallis", "山谷", "warm", "cold", "vallis_state"),
+        ("cambion", "魔胎", "fass", "vome", "cambion_state"),
+        ("earth", "地球", "day", "night", "earth_state"),
+        ("duviri", "双衍", "Joy", "Anger", "duviri_state"),
+        ("duviri", "双衍小写兼容", "joy", "anger", "duviri_state"),
+    )
+    with tempfile.TemporaryDirectory() as tmp:
+        for index, (name, label, before, after, baseline) in enumerate(cases):
+            payload = {"state": before, "expiry": _zfut()}
+            requests = []
+
+            async def transport(request):
+                requests.append(str(request.url))
+                return httpx.Response(200, json=payload)
+
+            client = WarframeClient(
+                worldsource="warframestat",
+                worldstate_base="https://synthetic.invalid/push-cycle",
+                flare_enabled=False,
+            )
+            await client.http.aclose()
+            client._http = httpx.AsyncClient(transport=httpx.MockTransport(transport))
+            try:
+                store = SubscriptionStore(Path(tmp) / f"cycle-{index}.json")
+                sub = Subscription("synthetic-umo", "pc", "双衍" if name == "duviri" else label)
+                await store.add(sub)
+                sent = []
+
+                async def send(umo, text, at=None):
+                    sent.append(text)
+
+                daemon = PushDaemon(client, store, send, LvLogger())
+                await daemon.tick()
+                check(f"周期坏值 {label}：正常首轮只建基线", not sent and store.has(sub.sid))
+                for bad_name, bad_payload in (
+                    ("空对象", {}),
+                    ("未知状态", {"state": "synthetic-invalid-state"}),
+                    ("状态类型错", {"state": []}),
+                    ("顶层类型错", []),
+                ):
+                    payload = bad_payload
+                    client.cache.drop_prefix("https://synthetic.invalid/push-cycle")
+                    await daemon.tick()
+                    check(
+                        f"周期坏值 {label}/{bad_name}：不派发且不消费",
+                        not sent and store.has(sub.sid) and not store.all()[0].notified,
+                    )
+                    check(
+                        f"周期坏值 {label}/{bad_name}：保留旧基线并记源失败",
+                        daemon._last["pc"][baseline] == before and daemon._tick_fail == 1,
+                    )
+                payload = {"state": after, "expiry": _zfut()}
+                client.cache.drop_prefix("https://synthetic.invalid/push-cycle")
+                await daemon.tick()
+                check(
+                    f"周期坏值 {label}：恢复正常换相只推一次并消费",
+                    len(sent) == 1
+                    and not store.has(sub.sid)
+                    and daemon._last["pc"][baseline] == after
+                    and daemon._tick_fail == 0,
+                )
+                check(f"周期坏值 {label}：每轮都经过模拟HTTP入口", len(requests) == 6)
+            finally:
+                await client.close()
+
+
+async def t_dispatch_expiry_after_await():
+    """取数与前面的重投发生 await 后，逐次派发按当前时间检查截止点。"""
+    import httpx
+    from unittest.mock import patch
+
+    from core import push as push_mod
+    from core.api_client import WarframeClient
+
+    start = 1793310000.0
+    until = start + 3600
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        for label, finish, should_send in (
+            ("截止前", until - 0.5, True),
+            ("恰好截止", until, False),
+            ("截止后", until + 1, False),
+        ):
+            clock, stage = [start], [0]
+
+            async def transport(request):
+                if stage[0]:
+                    clock[0] = finish
+                fissure = {
+                    "id": "new" if stage[0] else "old",
+                    "node": "Synthetic Node",
+                    "tier": "Lith",
+                    "missionType": "Capture",
+                    "expiry": "2030-01-01T00:00:00+00:00",
+                }
+                return httpx.Response(200, json=[fissure])
+
+            client = WarframeClient(
+                worldsource="warframestat",
+                worldstate_base="https://synthetic.invalid/push-expiry",
+                flare_enabled=False,
+            )
+            await client.http.aclose()
+            client._http = httpx.AsyncClient(transport=httpx.MockTransport(transport))
+            try:
+                store = SubscriptionStore(root / f"expiry-{label}.json")
+                sub = Subscription(
+                    "synthetic-umo",
+                    "pc",
+                    "裂隙",
+                    until=until,
+                    created_at=start,
+                    once=False,
+                    hits_left=2,
+                )
+                await store.add(sub)
+                sent = []
+
+                async def send(umo, text, at=None):
+                    sent.append(text)
+
+                daemon = PushDaemon(client, store, send, LvLogger())
+                with patch.object(push_mod.time, "time", lambda: clock[0]):
+                    await daemon.tick()
+                    stage[0], clock[0] = 1, until - 1
+                    client.cache.drop_prefix("https://synthetic.invalid/push-expiry")
+                    await daemon.tick()
+                    current = store.all()[0]
+                    check(
+                        f"派发截止 {label}：取数后按当前时间决定是否发送",
+                        len(sent) == int(should_send),
+                    )
+                    check(
+                        f"派发截止 {label}：仅送达才记通知并减次数",
+                        current.hits_left == (1 if should_send else 2)
+                        and bool(current.notified) is should_send,
+                    )
+                    clock[0] = until + 5
+                    await daemon.tick()
+                    check(
+                        f"派发截止 {label}：下一轮仍正常清理并只提醒一次",
+                        not store.has(sub.sid)
+                        and len(sent) == int(should_send) + 1
+                        and "已到期" in sent[-1],
+                    )
+                    await daemon.tick()
+                    check(
+                        f"派发截止 {label}：后续不重复到期提醒",
+                        len(sent) == int(should_send) + 1,
+                    )
+            finally:
+                await client.close()
+
+        # 待重投两会话：第一条发送完成后第二条才到期，不能沿用 tick 开头的时间。
+        clock = [start]
+        store = SubscriptionStore(root / "retry-expiry.json")
+        first = Subscription("first", "pc", "夜灵", once=False)
+        second = Subscription(
+            "second", "pc", "夜灵", until=until, created_at=start, once=False, hits_left=2
+        )
+        await store.add(first)
+        await store.add(second)
+        client, sent, phase = ScriptClient(), [], ["fail"]
+        client.data["cycle_cetus"] = {"state": "day", "expiry": _zfut()}
+
+        async def retry_send(umo, text, at=None):
+            if phase[0] == "fail":
+                raise RuntimeError("synthetic send failure")
+            sent.append(umo)
+            if umo == "first":
+                clock[0] = until + 1
+
+        daemon = PushDaemon(client, store, retry_send, LvLogger())
+        with patch.object(push_mod.time, "time", lambda: clock[0]):
+            await daemon.tick()
+            client.data["cycle_cetus"] = {"state": "night", "expiry": _zfut()}
+            clock[0] = until - 10  # 重投项本身仍在15分钟有效期内，只让订阅在前一发送中到期。
+            await daemon.tick()
+            check("重投截止：两个会话首发失败进入真队列", len(daemon._pending) == 2)
+            phase[0], clock[0] = "success", until - 1
+            await daemon.tick()
+            current = next(s for s in store.all() if s.sid == second.sid)
+            check("重投截止：前一发送跨点后不再发送过期会话", sent == ["first"], str(sent))
+            check(
+                "重投截止：过期会话未消费未记通知且不再回队",
+                current.hits_left == 2 and not current.notified and not daemon._pending,
+            )
+
+
+asyncio.run(t_cycle_payload_before_dispatch())
+asyncio.run(t_dispatch_expiry_after_await())
+
+
+async def t_pause_field_isolation8():
+    """坏暂停内层字段不应中断其它会话，也不能误清理坏记录所属订阅。"""
+    invalid = (
+        ("next_try", "invalid"),
+        ("next_try", True),
+        ("next_try", -1),
+        ("next_try", float("nan")),
+        ("next_try", float("inf")),
+        ("next_try", []),
+        ("since", "invalid"),
+        ("since", True),
+        ("since", -1),
+        ("since", float("nan")),
+        ("since", float("inf")),
+        ("since", {}),
+        ("fails", "invalid"),
+        ("fails", True),
+        ("fails", -1),
+        ("fails", float("nan")),
+        ("fails", float("inf")),
+        ("fails", []),
+        ("fails", 1.5),
+    )
+    with tempfile.TemporaryDirectory() as tmp:
+        for index, (field, bad) in enumerate(invalid):
+            root = Path(tmp) / str(index)
+            root.mkdir()
+            store = SubscriptionStore(root / "subs.json")
+            groups = GroupStore(root / "groups.json")
+            for umo in ("bad", "healthy"):
+                await groups.set_switch(umo, "push", True)
+                await store.add(Subscription(umo, "pc", "夜灵", once=False))
+            pause = {"since": time.time() - 60, "next_try": 0, "fails": 5, field: bad}
+            await groups.set_pause("bad", pause)
+            raw = groups.path.read_bytes()
+            client, sent, recovered = ScriptClient(), [], [False]
+            client.data["cycle_cetus"] = {"state": "day", "expiry": _zfut()}
+
+            async def send(umo, text, at=None):
+                if umo == "bad" and not recovered[0]:
+                    raise RuntimeError("synthetic send failure")
+                sent.append(umo)
+
+            daemon = PushDaemon(client, store, send, LvLogger(), groups=groups)
+            daemon._fail_count["bad"] = push_mod.FAIL_PURGE_THRESHOLD - 1
+            await daemon.tick()
+            client.data["cycle_cetus"] = {"state": "night", "expiry": _zfut()}
+            try:
+                await daemon.tick()
+                error = None
+            except Exception as exc:
+                error = type(exc).__name__
+            label = f"暂停字段 {index}/{field}"
+            check(
+                f"{label}：异常不逃出tick且健康目标照常送达", error is None and sent == ["healthy"]
+            )
+            check(f"{label}：坏记录目标订阅不被误清理", len(store.for_umo("bad")) == 1)
+            check(f"{label}：原暂停存档不被静默改写", groups.path.read_bytes() == raw)
+            await groups.set_switch("bad", "push", True)
+            recovered[0] = True
+            client.data["cycle_cetus"] = {"state": "day", "expiry": _zfut()}
+            await daemon.tick()
+            check(f"{label}：显式恢复后下一事件可正常发送", "bad" in sent)
+
+        for label, pause, expected in (
+            (
+                "未到重试点",
+                {"since": time.time() - 60, "next_try": time.time() + 3600, "fails": 5},
+                "paused",
+            ),
+            ("七天内试发失败", {"since": time.time() - 3600, "next_try": 0, "fails": 5}, "kept"),
+            (
+                "七天后试发失败",
+                {"since": time.time() - 8 * 86400, "next_try": 0, "fails": 5},
+                "purged",
+            ),
+            (
+                "历史数值字符串",
+                {"since": str(time.time() - 3600), "next_try": "0", "fails": "5"},
+                "kept",
+            ),
+        ):
+            d, st, cl, box, _lg, directory = _zmk()
+            gs = GroupStore(directory / "groups.json")
+            await gs.set_switch("g1", "push", True)
+            await gs.set_pause("g1", pause)
+            d.groups = gs
+            await st.add(_zsub("g1", "夜灵", once=False))
+            d._fail_count["g1"] = push_mod.FAIL_PURGE_THRESHOLD - 1
+            attempts = []
+
+            async def fail(*args, **kwargs):
+                attempts.append(1)
+                raise RuntimeError("synthetic send failure")
+
+            d.send = fail
+            cl.data["cycle_cetus"] = {"state": "day", "expiry": _zfut()}
+            await d.tick()
+            cl.data["cycle_cetus"] = {"state": "night", "expiry": _zfut()}
+            await d.tick()
+            check(
+                f"正常暂停 {label}：保留原重试与七天清理语义",
+                (not attempts and len(st.all()) == 1)
+                if expected == "paused"
+                else (len(attempts) == 1 and not st.all())
+                if expected == "purged"
+                else (
+                    len(attempts) == 1 and len(st.all()) == 1 and gs.pause_of("g1")["fails"] == 6
+                ),
+            )
+
+
+async def t_bounty_retry_recipients8():
+    """真实取消入口→重建守护：新队列按剩余订阅重组，旧不透明正文保守兼容。"""
+    from types import SimpleNamespace
+    from core.commands.dun import DunCommands
+    from core.parser import parse
+
+    with tempfile.TemporaryDirectory() as tmp:
+        for legacy in (False, True):
+            for cancel in (False, True):
+                root = Path(tmp) / f"{legacy}-{cancel}"
+                root.mkdir()
+                store = SubscriptionStore(root / "subs.json")
+                groups = GroupStore(root / "groups.json")
+                await groups.set_switch("g1", "push", True)
+                for rule, who in (("扎里曼", "A"), ("实验室", "B")):
+                    await store.add(
+                        Subscription("g1", "pc", "赏金", rule=rule, once=False, created_by=who)
+                    )
+                client, phase, sent = ScriptClient(), ["fail"], []
+                client.data["bounty"] = {
+                    "expiry": "100",
+                    "bounties": {
+                        "ZarimanSyndicate": [
+                            {"node": "Synthetic-Zariman", "challenge": "/Synthetic/Exterminate"}
+                        ],
+                        "EntratiLabSyndicate": [
+                            {"node": "Synthetic-Laboratory", "challenge": "/Synthetic/Survival"}
+                        ],
+                    },
+                }
+
+                async def send(umo, text, at=None):
+                    if phase[0] == "fail":
+                        raise RuntimeError("synthetic send failure")
+                    sent.append((text, at))
+
+                state = root / "baseline.json"
+                daemon = PushDaemon(
+                    client, store, send, LvLogger(), groups=groups, state_path=state
+                )
+                await daemon.tick()
+                client.data["bounty"]["expiry"] = "200"
+                await daemon.tick()
+                if legacy:
+                    data = json.loads(state.read_text())
+                    data["pending"][0].pop("parts", None)
+                    state.write_text(json.dumps(data))
+                if cancel:
+                    owner = SimpleNamespace(subs=store, groups=groups, _is_admin=lambda e: False)
+                    event = SimpleNamespace(unified_msg_origin="g1", get_sender_id=lambda: "B")
+                    await DunCommands._h_dun(owner, parse("蹲 取消 赏金 实验室"), event, "pc")
+                phase[0] = "success"
+                restored = SubscriptionStore(store.path)
+                daemon2 = PushDaemon(
+                    client, restored, send, LvLogger(), groups=groups, state_path=state
+                )
+                if not legacy and cancel:
+                    phase[0] = "fail"
+                    await daemon2.tick()
+                    kept = json.loads(state.read_text())["pending"][0]
+                    check(
+                        "赏金部分取消后再次失败：只保留剩余订阅分行与sid",
+                        len(kept["sids"]) == 1
+                        and len(kept.get("parts", [])) == 1
+                        and "实验室" not in kept["text"],
+                    )
+                    phase[0] = "success"
+                    daemon2 = PushDaemon(
+                        client, restored, send, LvLogger(), groups=groups, state_path=state
+                    )
+                await daemon2.tick()
+                label = f"赏金重投 legacy={legacy}/cancel={cancel}"
+                expected_sent = not (legacy and cancel)
+                check(f"{label}：明确兼容策略决定是否发送", len(sent) == int(expected_sent))
+                check(
+                    f"{label}：只含仍存活订阅的正文与At",
+                    not sent
+                    if not expected_sent
+                    else (
+                        sent[0][1] == (["A"] if cancel else ["A", "B"])
+                        and ("实验室" not in sent[0][0] if cancel else "实验室" in sent[0][0])
+                    ),
+                )
+                check(f"{label}：取消范围外订阅保留", len(restored.all()) == (1 if cancel else 2))
+
+
+async def t_fissure_retry_deadline8():
+    """带源到期时间的新队列与旧队列有限补查，覆盖过期、消失、不确定与恢复。"""
+    from unittest.mock import patch
+    from core import push as push_module
+
+    base = time.time()
+    with tempfile.TemporaryDirectory() as tmp:
+        for legacy, condition in (
+            (False, "live"),
+            (False, "expired"),
+            (True, "live"),
+            (True, "expired"),
+            (True, "missing"),
+            (True, "unavailable"),
+        ):
+            root = Path(tmp) / f"{legacy}-{condition}"
+            root.mkdir()
+            clock = [base]
+            store = SubscriptionStore(root / "subs.json")
+            target = Subscription("g1", "pc", "裂隙", once=True)
+            await store.add(target)
+            await store.add(Subscription("healthy", "pc", "夜灵", once=False))
+            client, sent, phase = ScriptClient(), [], ["fail"]
+            client.data["cycle_cetus"] = {"state": "day", "expiry": _zfut()}
+            old = {
+                "id": "old",
+                "node": "Synthetic Old",
+                "tier": "Lith",
+                "missionType": "Capture",
+                "expiry": _iso(datetime.fromtimestamp(base + 3600, timezone.utc)),
+            }
+            new = {
+                **old,
+                "id": "new",
+                "node": "Synthetic New",
+                "expiry": _iso(datetime.fromtimestamp(base + 15, timezone.utc)),
+            }
+            client.data["fissures"] = [old]
+
+            async def send(umo, text, at=None):
+                if umo == "g1" and phase[0] == "fail":
+                    raise RuntimeError("synthetic send failure")
+                sent.append((umo, text))
+
+            state = root / "baseline.json"
+            with patch.object(push_module.time, "time", lambda: clock[0]):
+                daemon = PushDaemon(client, store, send, LvLogger(), state_path=state)
+                await daemon.tick()
+                clock[0] = base + 10
+                client.data["fissures"] = [old, new]
+                await daemon.tick()
+                data = json.loads(state.read_text())
+                if legacy:
+                    data["pending"][0].pop("expires", None)
+                    state.write_text(json.dumps(data))
+                phase[0] = "success"
+                clock[0] = base + (12 if condition == "live" else 60)
+                client.data["cycle_cetus"] = {"state": "night", "expiry": _zfut()}
+                if condition == "missing":
+                    client.data["fissures"] = [old]
+                elif condition == "unavailable":
+                    client.data["fissures"] = WarframeAPIError("synthetic source failure")
+                restored = SubscriptionStore(store.path)
+                daemon2 = PushDaemon(client, restored, send, LvLogger(), state_path=state)
+                await daemon2.tick()
+                target_sends = [text for umo, text in sent if umo == "g1"]
+                label = f"裂隙重投 legacy={legacy}/{condition}"
+                check(f"{label}：仅仍有效事件可重投", len(target_sends) == int(condition == "live"))
+                check(
+                    f"{label}：不发送就不消费一次性订阅",
+                    restored.has(target.sid) is (condition != "live"),
+                )
+                check(f"{label}：其它事件目标不中断", any(umo == "healthy" for umo, _ in sent))
+                check(
+                    f"{label}：源失败仅延期且不延长原TTL",
+                    (
+                        len(daemon2._pending) == 1
+                        and daemon2._pending[0]["created"] == base + 10
+                        and daemon2._pending[0]["tries"] == 0
+                    )
+                    if condition == "unavailable"
+                    else not daemon2._pending,
+                )
+                if condition == "unavailable":
+                    client.data["fissures"] = [old, {**new, "expiry": old["expiry"]}]
+                    await daemon2.tick()
+                    check(
+                        "旧裂隙源恢复：延期项可继续送达并消费一次",
+                        len([x for x in sent if x[0] == "g1"]) == 1
+                        and not restored.has(target.sid),
+                    )
+
+
+async def t_pending_metadata_validation8():
+    """新增可选元数据损坏时只隔离该待发项，旁边的合法旧条目照常恢复。"""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        store = SubscriptionStore(root / "subs.json")
+        bounty = Subscription("g1", "pc", "赏金", once=False)
+        news = Subscription("g1", "pc", "新闻", once=False)
+        await store.add(bounty)
+        await store.add(news)
+        now = time.time()
+        basic = {
+            "umo": "g1",
+            "kind": "赏金",
+            "key": "bounty-fixture",
+            "text": "old text",
+            "created": now,
+            "tries": 0,
+            "sids": [bounty.sid],
+        }
+        neighbor = {**basic, "kind": "新闻", "key": "news-fixture", "sids": [news.sid]}
+        invalid = (
+            ("expires", True),
+            ("expires", "tomorrow"),
+            ("expires", float("nan")),
+            ("expires", float("inf")),
+            ("expires", 10**400),
+            ("parts", None),
+            ("parts", []),
+            ("parts", [None]),
+            ("parts", [{"text": [], "sids": [bounty.sid]}]),
+            ("parts", [{"text": "row", "sids": ["foreign-sid"]}]),
+        )
+        state = root / "baseline.json"
+        for index, (field, value) in enumerate(invalid):
+            state.write_text(
+                json.dumps(
+                    {
+                        "ts": now,
+                        "last": {"pc": {"bounty_exp": "fixture"}},
+                        "pending": [{**basic, field: value}, neighbor],
+                    }
+                )
+            )
+            daemon = PushDaemon(ScriptClient(), store, None, LvLogger(), state_path=state)
+            check(
+                f"待发元数据 {index}/{field}：仅隔离坏条目且保留旧基线",
+                [it["key"] for it in daemon._pending] == ["news-fixture"]
+                and daemon._last == {"pc": {"bounty_exp": "fixture"}},
+            )
+            check(f"待发元数据 {index}/{field}：不消费任何订阅", len(store.all()) == 2)
+
+
+async def t_bounty_partial_metadata8():
+    """真实失败落盘→破坏分行覆盖→重建→tick，不误消费缺正文的once。"""
+    with tempfile.TemporaryDirectory() as tmp:
+        for incomplete in (True, False):
+            root = Path(tmp) / str(incomplete)
+            root.mkdir()
+            store = SubscriptionStore(root / "subs.json")
+            subs = []
+            for rule, who in (("扎里曼", "A"), ("实验室", "B")):
+                sub = Subscription("g1", "pc", "赏金", rule=rule, once=True, created_by=who)
+                await store.add(sub)
+                subs.append(sub)
+            client, phase, sent = ScriptClient(), [False], []
+            client.data["bounty"] = {
+                "expiry": "100",
+                "bounties": {
+                    "ZarimanSyndicate": [{"node": "Synthetic-Zariman", "challenge": "Exterminate"}],
+                    "EntratiLabSyndicate": [{"node": "Synthetic-Lab", "challenge": "Survival"}],
+                },
+            }
+
+            async def send(umo, text, at=None):
+                if not phase[0]:
+                    raise RuntimeError("synthetic send failure")
+                sent.append((text, at))
+
+            state = root / "state.json"
+            daemon = PushDaemon(client, store, send, LvLogger(), state_path=state)
+            await daemon.tick()
+            client.data["bounty"]["expiry"] = "200"
+            await daemon.tick()
+            data = json.loads(state.read_text())
+            check(f"分行覆盖 {incomplete}：真实失败已持久化一项", len(data["pending"]) == 1)
+            if incomplete:
+                data["pending"][0]["parts"] = data["pending"][0]["parts"][:1]
+            state.write_text(json.dumps(data))
+            phase[0] = True
+            restored = SubscriptionStore(store.path)
+            daemon = PushDaemon(client, restored, send, LvLogger(), state_path=state)
+            await daemon.tick()
+            check(
+                f"分行覆盖 {incomplete}：损坏记录不发，完整记录正常发",
+                len(sent) == (0 if incomplete else 1),
+                str(sent),
+            )
+            check(
+                f"分行覆盖 {incomplete}：损坏不消费once，完整正常消费",
+                len(restored.all()) == (2 if incomplete else 0),
+                str(restored.all()),
+            )
+
+
+asyncio.run(t_pause_field_isolation8())
+asyncio.run(t_bounty_retry_recipients8())
+asyncio.run(t_fissure_retry_deadline8())
+asyncio.run(t_pending_metadata_validation8())
+asyncio.run(t_bounty_partial_metadata8())
+
+
+async def t_json_store_async_write():
+    """真实 save 的慢盘、快照、取消与故障回归；只替换外部序列化/磁盘边界。"""
+    import threading
+    from unittest.mock import patch
+
+    import core.store as store_mod
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "store.json"
+        store = store_mod.JsonStore(path)
+        store._data = {"记录": {"value": 1}}
+        await store.save()
+        check("异步存档：正常保存可重载", store_mod.JsonStore(path)._data == store._data)
+        check("异步存档：成功后无临时件", not path.with_suffix(".tmp").exists())
+
+        # 卡在序列化边界，既验证 JSON 不占事件循环，也验证后台读的是独立嵌套快照。
+        entered, release = threading.Event(), threading.Event()
+        real_dumps = store_mod.json.dumps
+        serialized = threading.Event()
+        heartbeat = []
+
+        def slow_dumps(*args, **kwargs):
+            entered.set()
+            release.wait(0.5)  # 有界等待：旧同步实现也能退出并报红，避免测试挂死。
+            try:
+                return real_dumps(*args, **kwargs)
+            finally:
+                serialized.set()
+
+        async def pulse():
+            await asyncio.sleep(0.01)
+            heartbeat.append(entered.is_set() and not serialized.is_set())
+            store._data["记录"]["value"] = 2
+            release.set()
+
+        with patch.object(store_mod.json, "dumps", slow_dumps):
+            await asyncio.gather(store.save(), pulse())
+        check("异步存档：慢序列化时心跳继续", heartbeat == [True])
+        check(
+            "异步存档：嵌套快照不受后续修改影响", json.loads(path.read_text())["记录"]["value"] == 1
+        )
+
+        # 慢 fsync 时重复取消首写，再排队第二写：首线程结束前锁不可释放。
+        for fail_first in (False, True):
+            entered, release = threading.Event(), threading.Event()
+            calls, active, peak = [], [0], [0]
+            real_fsync = store_mod.os.fsync
+
+            def slow_fsync(fd):
+                active[0] += 1
+                peak[0] = max(peak[0], active[0])
+                calls.append(fd)
+                try:
+                    if len(calls) == 1:
+                        entered.set()
+                        if not release.wait(1):
+                            raise OSError("测试等待超时")
+                        if fail_first:
+                            raise OSError("注入首写失败")
+                    return real_fsync(fd)
+                finally:
+                    active[0] -= 1
+
+            with patch.object(store_mod.os, "fsync", slow_fsync):
+                first = asyncio.create_task(store.save())
+                for _ in range(200):
+                    if entered.is_set():
+                        break
+                    await asyncio.sleep(0.005)
+                check(f"异步存档 {fail_first}：首写进入慢盘", entered.is_set())
+                first.cancel()
+                await asyncio.sleep(0)
+                first.cancel()
+                store._data["记录"]["value"] = 3
+                second = asyncio.create_task(store.save())
+                try:
+                    await asyncio.sleep(0.02)
+                    check(
+                        f"异步存档 {fail_first}：取消仍持锁且第二写等待",
+                        not first.done() and len(calls) == 1,
+                    )
+                    check(
+                        f"异步存档 {fail_first}：提交前旧存档可读",
+                        json.loads(path.read_text())["记录"]["value"] == 1,
+                    )
+                finally:
+                    release.set()
+                results = await asyncio.gather(first, second, return_exceptions=True)
+            check(
+                f"异步存档 {fail_first}：取消传播且后写成功",
+                isinstance(results[0], asyncio.CancelledError) and results[1] is None,
+            )
+            check(f"异步存档 {fail_first}：写入无重叠", peak[0] == 1 and len(calls) == 2)
+            check(
+                f"异步存档 {fail_first}：最终为后写完整数据",
+                json.loads(path.read_text())["记录"]["value"] == 3,
+            )
+            check(f"异步存档 {fail_first}：无遗留临时件", not path.with_suffix(".tmp").exists())
+            # 下一轮仍以原存档作为对照。
+            store._data["记录"]["value"] = 1
+            await store.save()
+
+        # 非取消的故障须把原始异常交还调用方，且 fsync/replace 两处失败均保旧。
+        for boundary in ("fsync", "replace"):
+            target = store_mod.os if boundary == "fsync" else Path
+            store._data["记录"]["value"] = 4
+            with patch.object(target, boundary, side_effect=OSError("注入写盘失败")):
+                try:
+                    await store.save()
+                except OSError as exc:
+                    check(f"异步存档 {boundary}：异常原样传播", str(exc) == "注入写盘失败")
+                else:
+                    check(f"异步存档 {boundary}：异常原样传播", False)
+            check(
+                f"异步存档 {boundary}：失败保留旧数据",
+                json.loads(path.read_text())["记录"]["value"] == 1,
+            )
+            check(f"异步存档 {boundary}：失败清理临时件", not path.with_suffix(".tmp").exists())
+        await store.save()
+        check("异步存档：失败后仍可继续保存", store_mod.JsonStore(path)._data == store._data)
+
+
+asyncio.run(t_json_store_async_write())
 
 if FAILED:
     print(f"共 {len(FAILED)} 项失败：{FAILED}")

@@ -153,19 +153,12 @@ check(
 # 4. 本周货单：expiry 落在周一、未过期
 # ---------------------------------------------------------------------------
 wk = json.loads((ROOT / "core" / "data" / "de" / "acrichis_week.json").read_text(encoding="utf-8"))
-exp = iso(wk["expiry"])
-check(
-    "★ 货单 expiry 落在周一 00:00 UTC",
-    exp.weekday() == 0 and (exp.hour, exp.minute) == (0, 0),
-    exp.isoformat(),
-)
-check("expiry 标注了 UTC", str(wk["expiry"]).endswith("+00:00"), wk["expiry"])
-check("货单有 5 件", len(wk.get("items") or []) == 5, str(len(wk.get("items") or [])))
+check("随包无当周动态字段", not set(wk) & {"items", "expiry", "observed", "source"})
 
 # ---------------------------------------------------------------------------
 # 5. 卡面
 # ---------------------------------------------------------------------------
-wk2 = dict(wk)
+wk2 = {"items": list(wk["_en_catalog"].values())[:5]}
 wk2["next_reset"] = NR(datetime.now(timezone.utc), weekday=0, hour_utc=0)
 title, lines = fmt_acrichis_week(wk2)
 check("本周货单卡面带下次刷新倒计时", any("距下次刷新" in ln for ln in lines), str(lines))

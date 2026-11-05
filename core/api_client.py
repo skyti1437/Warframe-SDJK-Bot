@@ -14,15 +14,20 @@
 from __future__ import annotations
 
 import asyncio
+from copy import deepcopy
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
+import math
 import difflib
+import hashlib
 import json
 import os
 import re
 import random
 import time
 from pathlib import Path
-from typing import Any, Iterable, Optional
-from urllib.parse import quote
+from typing import Any, Callable, Iterable, Optional
+from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
 
 try:
     from . import matching  # core 包内正常导入
@@ -53,6 +58,7 @@ RIVEN_RT_TOP_PRICES = 20  # 算「前 N 条中位价」的 N
 RIVEN_RT_MANUAL_COOLDOWN = 600  # 手动「紫卡排行 刷新」两次启动的最短间隔（秒）
 RANK_MIN_COVERAGE = 0.8  # 价格排行整轮成功率 ≥ 此值才刷新 ts（维护者 2026-10-17 定）
 WIKI_DISP_NAME = "de/wiki_disp.json"  # wiki 变体倾向快照（2026-10 倾向取消后冻结，只作旧截图判据）
+ROTATION_REVISIONS_NAME = "rotation_revisions.json"  # 仅运行目录：已处理的源页修订与业务指纹
 ACRITHIS_WEEK_NAME = "de/acrichis_week.json"  # 言录使本周货单（运行期覆盖包内种子）
 STOREITEMS_ZH_NAME = "de/storeitems_zh.json"  # StoreItems 路径 → 官方简中名（警报换名）
 ACRITHIS_CURRENT_URL = (
@@ -62,17 +68,27 @@ ACRITHIS_CURRENT_URL = (
 # 恒等于「今天」，原「observed ≥ 本周一」判据失效，改用修订时间戳）
 ACRITHIS_REVISION_API = (
     "https://wiki.warframe.com/api.php?action=query&prop=revisions"
-    "&titles=Acrithis/Current_Offerings&rvprop=timestamp&rvlimit=1&format=json"
+    "&titles=Acrithis/Current_Offerings&rvprop=timestamp&rvlimit=1&format=json&maxlag=5"
 )
 # 信条/终幕源页的最近修订时间（2026-10-18 立）：wiki 是玩家人工上报，换轮后常拖几小时才有人改
 # （10-02 拖 12h、10-03 终幕拖 18h、10-18 信条）；页面最后修订早于本轮起点 ⇒ 页面上还是上一轮
 VALENCE_REVISION_API = (
     "https://wiki.warframe.com/api.php?action=query&prop=revisions"
-    "&titles=Tenet_Weapons|Coda_Weapons&rvprop=timestamp&format=json"
+    "&titles=Tenet_Weapons|Coda_Weapons&rvprop=timestamp&format=json&maxlag=5"
 )
 # 效价加成（信条/终幕）的**真源页**：Reset 页那两段是 {{#lst:}} 跨页嵌入、走 MediaWiki
 # 解析缓存 —— 换批当天会吐**旧表**（2026-10-15 事故：00:05 对齐刷新抓到上一批，整轮数据
 # 钉死）。源页 wikitext 无解析缓存，且 A/B 两批**同页全量**（一次抓取两批齐全）。
+ROTATION_PAGES = {
+    "tenet": "Tenet Weapons",
+    "coda": "Coda Weapons",
+    "acrithis": "Acrithis/Current Offerings",
+}
+ROTATION_REVISION_API = (
+    "https://wiki.warframe.com/api.php?action=query&prop=revisions"
+    "&titles=Tenet_Weapons|Coda_Weapons|Acrithis/Current_Offerings"
+    "&rvprop=ids|timestamp&format=json&maxlag=5"
+)
 WIKI_RAW_CODA = "https://wiki.warframe.com/w/Coda_Weapons?action=raw"
 WIKI_RAW_TENET = "https://wiki.warframe.com/w/Tenet_Weapons?action=raw"
 # 社区快照（2026-09-25 方案④）：wiki 这两项数据都在 Cloudflare 盾后，没部署
@@ -82,7 +98,7 @@ WIKI_RAW_TENET = "https://wiki.warframe.com/w/Tenet_Weapons?action=raw"
 #   · 只读、无凭据、无第三方 SDK，就是一次普通 GET
 #   · 校验不过（缺武器/过期/比本地旧）一律**不采用**，仍退回包内种子
 #   · 数据来源仍是 wiki（CC BY-NC-SA），文件里带 source/署名
-# ★ 三条通道按序试：**raw 主 + jsDelivr 两个镜像** —— 实测（2026-09-26，两个 vantage）：
+# ★ 常规快照按序试：**raw 主 + jsDelivr 两个镜像** —— 实测（2026-09-26，两个 vantage）：
 #   服务器（CN 云）只有 cdn.jsdelivr / gcore.jsdelivr 可达（raw / fastly / statically /
 #   raw.githack 全部 12s 超时 HTTP 000）；住宅网络虽然六个都通，但按**最差 vantage**取交集，
 #   只保留这两条镜像 + raw。原先的 statically 通道在服务器侧**根本不可用**（名义三通道、实际两通道），
@@ -93,8 +109,14 @@ COMMUNITY_SNAPSHOT_BASE = "https://raw.githubusercontent.com/skyti1437/Warframe-
 COMMUNITY_VALENCE_URL = f"{COMMUNITY_SNAPSHOT_BASE}/valence.json"  # 主通道
 COMMUNITY_ACRITHIS_URL = f"{COMMUNITY_SNAPSHOT_BASE}/acrithis_week.json"
 _REPO_SLUG = "skyti1437/Warframe-SDJK-Bot"
+# Contents API 的 raw 媒体类型直接返回文件，不跳回 raw 域名；公开仓读取无需凭据。
+# https://docs.github.com/en/rest/repos/contents#get-repository-content
+COMMUNITY_VALENCE_API_URL = (
+    f"https://api.github.com/repos/{_REPO_SLUG}/contents/valence.json?ref=bot-data"
+)
 COMMUNITY_VALENCE_URLS = (
     COMMUNITY_VALENCE_URL,
+    COMMUNITY_VALENCE_API_URL,
     f"https://cdn.jsdelivr.net/gh/{_REPO_SLUG}@bot-data/valence.json",
     f"https://gcore.jsdelivr.net/gh/{_REPO_SLUG}@bot-data/valence.json",
 )
@@ -103,7 +125,7 @@ COMMUNITY_ACRITHIS_URLS = (
     f"https://cdn.jsdelivr.net/gh/{_REPO_SLUG}@bot-data/acrithis_week.json",
     f"https://gcore.jsdelivr.net/gh/{_REPO_SLUG}@bot-data/acrithis_week.json",
 )
-# ★ 2026-10-16 用户：原本只随版本更新的静态快照也进 bot-data，让用户能拉新的
+# ★ 2026-10-16 维护者定：原本只随版本更新的静态快照也进 bot-data，让用户能拉新的
 #   （掉落表 + 遗物表这一组先不做）。文件内容与包内种子**同结构**，校验通过且比本地新才落盘。
 #   键 = bot-data 上的文件名；local = 运行目录 / 包内种子的相对路径；stamp = 时间戳字段。
 # ★ 2026-10-22（V06 后半）：静态快照的结构版本号（与发布端同值、同判据）。
@@ -150,12 +172,12 @@ def community_static_urls(name: str) -> tuple[str, ...]:
     )
 
 
-async def private_url_reason(url: str) -> str:
-    """自填地址是否指向内网（2026-10-25，Astra 评估 S4）：是则返回原因，否则返回空串。
+async def resolve_public_url(url: str) -> tuple[str, tuple[str, ...]]:
+    """校验自填地址；返回拒绝原因及同一次解析得到的公网 IP 元组。
 
     只收 http(s)；拒绝带账号密码的地址；IP 直写或 DNS 解析结果落在私网 / 回环 / 链路本地 /
-    保留 / 组播段的一律拒绝（**任一**解析结果命中即拒）。DNS 解析在请求前做一次 —— 重绑定
-    窗口无法完全消除，调用方另行限制重定向。仅管理员能填这些地址，这里是加固而非鉴权。
+    保留 / 组播段的一律拒绝（任一解析结果命中即拒）。下载方必须连接返回的 IP，
+    不得再次按域名连接。
     """
     import ipaddress
     import socket
@@ -163,20 +185,26 @@ async def private_url_reason(url: str) -> str:
 
     try:
         u = urlsplit(str(url or ""))
+        port = u.port
     except ValueError:
-        return "地址格式不对"
+        return "地址格式不对", ()
     if u.scheme not in ("http", "https") or not u.hostname:
-        return "只支持 http(s) 地址"
-    if u.username or u.password:
-        return "地址里不能带账号密码"
+        return "只支持 http(s) 地址", ()
+    if u.username is not None or u.password is not None:
+        return "地址里不能带账号密码", ()
 
     def _bad(ip: str) -> bool:
         try:
-            a = ipaddress.ip_address(ip.split("%", 1)[0])
+            if "%" in ip:
+                return True
+            a = ipaddress.ip_address(ip)
         except ValueError:
             return True
+        # mapped IPv6 先按其 IPv4 地址分类，避免各 Python 版本对 CGNAT 的属性差异。
+        a = getattr(a, "ipv4_mapped", None) or a
         return (
-            a.is_private
+            not a.is_global
+            or a.is_private
             or a.is_loopback
             or a.is_link_local
             or a.is_reserved
@@ -191,14 +219,187 @@ async def private_url_reason(url: str) -> str:
     except ValueError:
         try:
             infos = await asyncio.get_running_loop().getaddrinfo(
-                host, u.port or (443 if u.scheme == "https" else 80), type=socket.SOCK_STREAM
+                host, port or (443 if u.scheme == "https" else 80), type=socket.SOCK_STREAM
             )
-        except OSError:
-            return "域名解析失败"
+        except (OSError, UnicodeError, ValueError):
+            return "域名解析失败", ()
         ips = [i[4][0] for i in infos]
     if not ips or any(_bad(ip) for ip in ips):
-        return "地址指向内网 / 本机（如确需使用内网镜像，在配置里开启 allow_private_urls）"
-    return ""
+        return "地址指向内网 / 本机（如确需使用内网镜像，在配置里开启 allow_private_urls）", ()
+    return "", tuple(dict.fromkeys(ips))
+
+
+async def private_url_reason(url: str) -> str:
+    """旧入口仅作地址预检；字体下载通过 resolve_public_url 和 font_url_transport 固定目标。"""
+    reason, _ = await resolve_public_url(url)
+    return reason
+
+
+def font_url_transport(proxy: str | None = None, *, network_backend=None, ssl_context=None):
+    """字体直链专用传输：HTTPX 保留域名语义，HTTPcore 仅连接已校验 IP。
+
+    只用公开 transport/pool/backend 接口；后端注入供离线协议测试，不参与面板配置。
+    池按原域名隔离，代理的 CONNECT / SOCKS 目标也固定，TLS 始终校验原域名。
+    """
+    import httpcore
+    from urllib.request import getproxies, proxy_bypass
+
+    # 不能让 AsyncClient 的环境代理 mount 绕过此传输；在这里选择环境代理。
+    environment = getproxies() if proxy is None else {}
+    context = ssl_context or httpx.create_ssl_context()
+    core_errors = (
+        httpcore.TimeoutException,
+        httpcore.NetworkError,
+        httpcore.ProtocolError,
+        httpcore.ProxyError,
+        httpcore.UnsupportedProtocol,
+    )
+
+    def mapped(exc, request):
+        kind = getattr(httpx, type(exc).__name__, httpx.TransportError)
+        return kind(str(exc), request=request)
+
+    class Stream(httpcore.AsyncNetworkStream):
+        def __init__(self, stream, tls_names):
+            self.stream, self.tls_names = stream, list(tls_names)
+
+        async def read(self, max_bytes, timeout=None):
+            return await self.stream.read(max_bytes, timeout)
+
+        async def write(self, buffer, timeout=None):
+            await self.stream.write(buffer, timeout)
+
+        async def aclose(self):
+            await self.stream.aclose()
+
+        def get_extra_info(self, info):
+            return self.stream.get_extra_info(info)
+
+        async def start_tls(self, ssl_context, server_hostname=None, timeout=None):
+            if not self.tls_names:
+                raise httpcore.ConnectError("字体连接出现额外 TLS 层")
+            hostname = self.tls_names.pop(0)
+            stream = await self.stream.start_tls(ssl_context, hostname, timeout)
+            return Stream(stream, self.tls_names)
+
+    class Backend(httpcore.AsyncNetworkBackend):
+        def __init__(self, tls_names):
+            self.base = network_backend or httpcore.AnyIOBackend()
+            self.tls_names = tls_names
+
+        async def connect_tcp(
+            self, host, port, timeout=None, local_address=None, socket_options=None
+        ):
+            stream = await self.base.connect_tcp(
+                host,
+                port,
+                timeout=timeout,
+                local_address=local_address,
+                socket_options=socket_options,
+            )
+            return Stream(stream, self.tls_names)
+
+        async def sleep(self, seconds):
+            await self.base.sleep(seconds)
+
+    class Body(httpx.AsyncByteStream):
+        def __init__(self, stream, request):
+            self.stream, self.request = stream, request
+
+        async def __aiter__(self):
+            try:
+                async for chunk in self.stream:
+                    yield chunk
+            except core_errors as exc:
+                raise mapped(exc, self.request) from exc
+
+        async def aclose(self):
+            await self.stream.aclose()
+
+    class Transport(httpx.AsyncBaseTransport):
+        def __init__(self):
+            self.pools = {}
+
+        async def handle_async_request(self, request):
+            reason, ips = await resolve_public_url(str(request.url))
+            if reason:
+                raise httpx.RequestError(f"字体地址不可用：{reason}", request=request)
+            ip = ips[0]  # 失败关闭；不回退域名重解析或未经校验的地址。
+            selected = proxy
+            if selected is None and not proxy_bypass(request.url.netloc.decode("ascii")):
+                selected = environment.get(request.url.scheme) or environment.get("all")
+            parsed_proxy = httpx.Proxy(selected) if selected else None
+            key = (request.url.scheme, request.url.host, request.url.port, ip, selected)
+            pool = self.pools.get(key)
+            if pool is None:
+                names = []
+                if parsed_proxy and parsed_proxy.url.scheme == "https":
+                    names.append(parsed_proxy.url.host)
+                if request.url.scheme == "https":
+                    names.append(request.url.host)
+                opts = dict(
+                    ssl_context=context,
+                    network_backend=Backend(names),
+                    http2=False,
+                    max_keepalive_connections=0,
+                )
+                if parsed_proxy:
+                    pu = parsed_proxy.url
+                    opts.update(
+                        proxy_url=httpcore.URL(
+                            scheme=pu.raw_scheme, host=pu.raw_host, port=pu.port, target=pu.raw_path
+                        ),
+                        proxy_auth=parsed_proxy.raw_auth,
+                    )
+                    if pu.scheme in ("http", "https"):
+                        pool = httpcore.AsyncHTTPProxy(
+                            **opts,
+                            proxy_headers=parsed_proxy.headers.raw,
+                            proxy_ssl_context=parsed_proxy.ssl_context,
+                        )
+                    elif pu.scheme in ("socks5", "socks5h"):
+                        pool = httpcore.AsyncSOCKSProxy(**opts)
+                    else:
+                        raise ValueError("不支持的字体下载代理类型")
+                else:
+                    pool = httpcore.AsyncConnectionPool(**opts)
+                self.pools[key] = pool
+            # HTTPcore 1.x 的代理 authority 不自动括 IPv6；仅代理的远端目标需括号。
+            host = ip
+            if parsed_proxy and parsed_proxy.url.scheme in ("http", "https") and ":" in ip:
+                host = f"[{ip}]"
+            headers = [(k, v) for k, v in request.headers.raw if k.lower() != b"host"]
+            headers.append((b"Host", request.headers["Host"].encode("ascii")))
+            extensions = dict(request.extensions)
+            extensions.pop("sni_hostname", None)  # 两层代理 TLS 由 Stream 分别处理。
+            req = httpcore.Request(
+                method=request.method,
+                url=httpcore.URL(
+                    scheme=request.url.raw_scheme,
+                    host=host.encode("ascii"),
+                    port=request.url.port,
+                    target=request.url.raw_path,
+                ),
+                headers=headers,
+                content=request.stream,
+                extensions=extensions,
+            )
+            try:
+                response = await pool.handle_async_request(req)
+            except core_errors as exc:
+                raise mapped(exc, request) from exc
+            return httpx.Response(
+                response.status,
+                headers=response.headers,
+                stream=Body(response.stream, request),
+                extensions=response.extensions,
+            )
+
+        async def aclose(self):
+            for pool in self.pools.values():
+                await pool.aclose()
+
+    return Transport()
 
 
 def normalize_community_base(raw: str) -> str:
@@ -459,6 +660,36 @@ def community_valence_newer(snapshot: str, *locals_: str) -> bool:
     return True
 
 
+_ENGLISH_MONTHS = (
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+)
+
+
+def _parse_acrithis_observed(value: str):
+    """社区货单日期固定用英文月份或 ISO 日期，不受宿主 LC_TIME 影响。"""
+    from datetime import datetime, timezone
+
+    match = re.fullmatch(r"([A-Za-z]+)\s+(\d{1,2}),\s*(\d{4})", value.strip())
+    try:
+        if match:
+            month = tuple(name.lower() for name in _ENGLISH_MONTHS).index(match[1].lower()) + 1
+            return datetime(int(match[3]), month, int(match[2]), tzinfo=timezone.utc)
+        return datetime.strptime(value, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+
+
 def community_acrithis_ok(payload: dict, now=None) -> tuple[bool, str]:
     """发布的言录使货单是否可用：未过期 + 有物品 + observed 不早于本周一。"""
     from datetime import datetime, timedelta, timezone
@@ -470,21 +701,28 @@ def community_acrithis_ok(payload: dict, now=None) -> tuple[bool, str]:
         exp = datetime.fromisoformat(str(payload.get("expiry") or ""))
     except ValueError:
         return False, "expiry 缺失/畸形"
+    if exp.tzinfo is None:
+        return False, "expiry 缺时区"
     if exp <= now:
         return False, f"已过期（{payload.get('expiry')}）"
     items = payload.get("items")
     if not isinstance(items, list) or not items:
         return False, "无物品"
-    if any(not (it or {}).get("name") for it in items):
+    if any(
+        not isinstance(it, dict) or not isinstance(it.get("name"), str) or not it["name"].strip()
+        for it in items
+    ):
         return False, "有条目缺 name"
+    for it in items:
+        for field in ("price", "qty"):
+            value = it.get(field)
+            if field == "qty" and value is None:
+                continue
+            if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+                return False, f"{field} 非法"
     obs_raw = str(payload.get("observed") or "")
     if obs_raw:
-        for fmt in ("%B %d, %Y", "%Y-%m-%d"):
-            try:
-                obs = datetime.strptime(obs_raw, fmt).replace(tzinfo=timezone.utc)
-                break
-            except ValueError:
-                obs = None
+        obs = _parse_acrithis_observed(obs_raw)
         # 解析不了的 observed 不算问题（expiry 才是硬判据）
         if obs is not None:
             monday = (now - timedelta(days=now.weekday())).replace(
@@ -495,8 +733,22 @@ def community_acrithis_ok(payload: dict, now=None) -> tuple[bool, str]:
     return True, "ok"
 
 
-_DE_RIVEN_PLATFORM = {"pc": "PC", "ps4": "PS4", "xb1": "XB1", "sw": "SWITCH"}
+_DE_RIVEN_PLATFORM = {
+    "pc": "PC",
+    "ps": "PS4",
+    "ps4": "PS4",
+    "xb": "XB1",
+    "xb1": "XB1",
+    "sw": "SWITCH",
+    "switch": "SWITCH",
+}
 TTL_RIVEN_WEEKLY = 6 * 3600
+
+
+def _de_riven_platform(platform: str) -> str:
+    """统一解析器平台码、旧接口别名和官方文件平台名。"""
+    return _DE_RIVEN_PLATFORM.get(str(platform or "pc").strip().lower(), "PC")
+
 
 DEFAULT_DE_WORLDSTATE = "https://api.warframe.com/cdn/worldState.php"
 DEFAULT_WORLDSTATE_BASE = "https://api.warframestat.us"
@@ -556,7 +808,10 @@ TTL_WM_STATS = 1800  # v1 价格统计（48h/90d）
 TTL_WM_DUCATS = 30 * 60  # v1 tools/ducats 榜单（整点更新一次）
 TTL_WIKI = 6 * 3600
 
-USER_AGENT = f"warframe-sdjk/{_CORE_VERSION} (AstrBot plugin)"
+USER_AGENT = (
+    f"warframe-sdjk/{_CORE_VERSION} "
+    "(AstrBot plugin; +https://github.com/skyti1437/Warframe-SDJK-Bot)"
+)
 
 # 内部平台码 -> WM v2 Platform 头
 _WM_PLATFORM = {
@@ -952,6 +1207,46 @@ class WarframeAPIError(Exception):
     """统一的接口错误（含降级提示语）。"""
 
 
+def wm_retry_after_seconds(value, *, now=None, fallback=90.0) -> float:
+    """解析 WM 的 Retry-After；长等待不截短，超出浮点范围按无限等待处理。"""
+    text = str("" if value is None else value).strip()
+    if re.fullmatch(r"[0-9]+", text):
+        digits = text.lstrip("0") or "0"
+        return float(digits) if len(digits) < 309 else math.inf
+    try:
+        stamp = parsedate_to_datetime(text)
+        if stamp.tzinfo is None:
+            stamp = stamp.replace(tzinfo=timezone.utc)
+        return max(0.0, stamp.timestamp() - (time.time() if now is None else now))
+    except (ValueError, TypeError, OverflowError):
+        return float(fallback)
+
+
+class _WikiRetryLater(WarframeAPIError):
+    """上游要求退避；本轮不能换传输再次请求同一 wiki。"""
+
+
+class _WikiRequestRejected(WarframeAPIError):
+    """源站明确拒绝或返回重定向；本轮不再换传输请求。"""
+
+
+class _CommunitySnapshotRejected(WarframeAPIError):
+    """结构合法但当前不可采用；逐源继续，不当作网络故障。"""
+
+    def __init__(self, result: str, reason: str, stamp: str):
+        super().__init__(reason)
+        self.result = result
+        self.stamp = stamp
+
+
+class _CommunityContentError(WarframeAPIError):
+    """社区通道可达但快照结构不可用；不作为整台主机的网络故障冷却。"""
+
+
+class _WMV1ContentError(WarframeAPIError):
+    """WM v1 信封不符合消费契约；不能当空结果，也不靠去筛选条件重试。"""
+
+
 # ---------------------------------------------------------------------------
 # 报错脱敏：异常原文（上游 URL / httpx 异常 / FlareSolverr 内网地址）只进日志，
 # 发到群里的只保留「哪个数据源 + 怎么办」。调用方：main.py 指令总入口、各 commands。
@@ -1018,10 +1313,20 @@ def public_error_text(exc: BaseException | str) -> str:
         src = error_source(msg) or "上游接口"
         if msg.startswith("接口不存在或暂未开放"):
             return f"{src} 接口不存在或暂未开放，请稍后再试"
-        # ★ 2026-10-26：上游偶发整段超时/5xx（实测 45–120 s，期间 ReadTimeout 与 504 交替）。
-        #   原文只说「暂时不可用」，用户不知道该干什么 ⇒ 明说这是上游抖动、重发一次即可
-        #   （插件侧已按跨窗口抖动退避重试过，能救的已经救回来了）。
-        return f"{src} 暂时不可用（上游超时或无响应），请稍后重发一次"
+        # HTTP 拒绝、服务错误和超时是不同故障；只展示状态码，保留 URL/凭据脱敏。
+        status_match = re.search(r"(?:\bHTTP\s+|\berror\s+['\"])([45]\d{2})\b", msg, re.I)
+        if status_match:
+            status = int(status_match[1])
+            if status == 403:
+                return f"{src} 拒绝访问（HTTP 403），请联系管理员检查数据源连接"
+            if status == 429:
+                return f"{src} 请求受限（HTTP 429），请稍后再试"
+            if status >= 500:
+                return f"{src} 服务异常（HTTP {status}），请稍后重发一次"
+            return f"{src} 请求失败（HTTP {status}），请联系管理员检查数据源配置"
+        if re.search(r"timeout|timed out|超时", msg, re.I):
+            return f"{src} 请求超时，请稍后重发一次"
+        return f"{src} 暂时不可用（连接或响应异常），请稍后重发一次"
     return redact_error_text(msg) or "上游接口暂时不可用，请稍后再试"
 
 
@@ -1182,6 +1487,12 @@ def load_aliases() -> dict:
     return {}
 
 
+class WorldstateRows(list):
+    """保留整包来源身份的列表，不影响既有 formatter 的列表协议。"""
+
+    source = ""
+
+
 class WarframeClient:
     # 紫卡实时排行爬取的节奏。ZCode 2026-10-25 容器内实测 WM `/auctions/search`：**不是 3 请求/秒**，
     # 而是「约 90 s 窗口内约 8 次」—— 2 s 间隔下第 9 次起持续 429，+0/+30/+60 s 仍 429、+90 s 恢复。
@@ -1201,7 +1512,15 @@ class WarframeClient:
     #      全落在**同一个**坏窗口里，等于没重试。
     WM_RETRY_BACKOFF_S = 5.0
     # 提示不写具体次数：「90 s 约 8 次」只在 /auctions/search 上实测过，其它 WM 接口标称约 3 次/秒
-    WM_RATE_LIMIT_HINT = "warframe.market 限速，请过 1-2 分钟再试"
+    WM_RATE_LIMIT_HINT = "warframe.market 限速，请稍后再试"
+    WM_AUCTION_COOLDOWN_S = 90
+    # 所有前后台WM请求共享：普通0.35秒/次；拍卖最多短时2次，持续15秒补1次。
+    # 拍卖等待不占HTTP槽，最多3个在途；有效Retry-After绝不截短。
+    WM_MIN_INTERVAL_S = 0.35
+    WM_AUCTION_CAPACITY = 2.0
+    WM_AUCTION_REFILL_S = 15.0
+    # 本插件自行保守设置，并非 Wiki 官方公布的配额；HTTP 与 FS 求解共用。
+    WIKI_MIN_INTERVAL_S = 1.0
 
     def __init__(
         self,
@@ -1257,17 +1576,98 @@ class WarframeClient:
             proxy=proxy or None,
         )
         self._flare_url = ""  # FlareSolverr 可用地址（首次连通后记忆）
+        self._flare_cache: dict[str, tuple[float, str]] = {}
         # 已确认「WM 无该玄骸武器挂单类目」的 slug（返回 400），避免重复请求
         self._lich_unsupported: set = set()
         self._aliases = load_aliases()
         self._wm_lock = asyncio.Lock()
-        self._wm_last = 0.0
+        self._wm_last = -math.inf
+        self._wm_slots = asyncio.Semaphore(3)
+        self._wm_gate_timeout = min(15.0, max(0.0, timeout))
+        self._wm_auction_tokens = self.WM_AUCTION_CAPACITY
+        self._wm_auction_updated = time.monotonic()
+        self._wm_auction_cool_until = 0.0
+        self._valence_refresh_lock = asyncio.Lock()
         self._de_parsed_cache: tuple[str, dict] = ("", {})
+        self._ws_lock = asyncio.Lock()
+        self._de_retry_at = 0.0
+        self._ws_failure_until: dict[str, float] = {}
+        self._ws_failure: dict[str, Exception] = {}
+        self._ws_last_good: dict[str, dict] = {}
+
+    def begin_close(self) -> None:
+        """同步封住新请求和新抓取；宿主在扫描旧任务之前调用。"""
+        self._closing = True
+
+    def _ensure_open(self) -> None:
+        if getattr(self, "_closing", False) or getattr(self, "_closed", False):
+            raise WarframeAPIError("客户端已关闭或正在关闭（插件已卸载或正在重载），本次请求未发出")
+
+    async def _wm_acquire(self, auction: bool, timeout: Optional[float] = None) -> None:
+        """在出口同时预留全局间隔、拍卖额度和在途槽；等待时不占锁或槽。"""
+        budget = (
+            self._wm_gate_timeout
+            if timeout is None
+            else min(self._wm_gate_timeout, max(0.0, timeout))
+        )
+        deadline = time.monotonic() + budget
+        busy = "warframe.market 请求额度繁忙，请稍后再试"
+        while True:
+            self._ensure_open()
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise WarframeAPIError(busy)
+            async with self._wm_lock:
+                now = time.monotonic()
+                if now < self._wm_auction_cool_until:
+                    raise WarframeAPIError(self.WM_RATE_LIMIT_HINT)
+                self._wm_auction_tokens = min(
+                    self.WM_AUCTION_CAPACITY,
+                    self._wm_auction_tokens
+                    + max(0.0, now - self._wm_auction_updated) / self.WM_AUCTION_REFILL_S,
+                )
+                self._wm_auction_updated = now
+                # 单调时钟浮点舍入可能留下不足一个时钟精度的尾差，避免零进度忙转。
+                if math.isclose(self._wm_auction_tokens, 1.0, rel_tol=0.0, abs_tol=1e-10):
+                    self._wm_auction_tokens = 1.0
+                delay = max(0.0, self._wm_last + self.WM_MIN_INTERVAL_S - now)
+                if auction:
+                    delay = max(delay, (1.0 - self._wm_auction_tokens) * self.WM_AUCTION_REFILL_S)
+            if delay > 0:
+                await asyncio.sleep(min(delay, remaining))
+                continue
+            # 仅等待Semaphore本身，不把已经预留额度/槽的整段逻辑放进子任务。
+            # asyncio.Semaphore取消获取会归还已唤醒但尚未认领的槽。
+            try:
+                await asyncio.wait_for(self._wm_slots.acquire(), timeout=remaining)
+            except asyncio.TimeoutError as exc:
+                self._ensure_open()
+                raise WarframeAPIError(busy) from exc
+            reserved = False
+            try:
+                self._ensure_open()
+                async with self._wm_lock:
+                    now = time.monotonic()
+                    if now >= deadline:
+                        raise WarframeAPIError(busy)
+                    if now < self._wm_auction_cool_until:
+                        raise WarframeAPIError(self.WM_RATE_LIMIT_HINT)
+                    if now < self._wm_last + self.WM_MIN_INTERVAL_S:
+                        continue
+                    if auction and self._wm_auction_tokens < 1.0:
+                        continue
+                    self._wm_last = now
+                    if auction:
+                        self._wm_auction_tokens -= 1.0
+                    reserved = True
+                    return
+            finally:
+                if not reserved:
+                    self._wm_slots.release()
 
     async def close(self) -> None:
-        self._closed = (
-            True  # 之后的请求直接报「插件已卸载」，不再撞 httpx「client has been closed」
-        )
+        self.begin_close()
+        self._closed = True
         await self._http.aclose()
 
     @property
@@ -1290,6 +1690,7 @@ class WarframeClient:
         wm_rate_limit: bool = False,
         timeout: Optional[float] = None,
         follow_redirects: Optional[bool] = None,
+        validator: Optional[Callable[[Any], None]] = None,
     ) -> Any:
         key = cache_key or (
             url
@@ -1299,40 +1700,100 @@ class WarframeClient:
             + json.dumps(headers or {}, sort_keys=True)
         )
 
-        if getattr(self, "_closed", False):
-            raise WarframeAPIError("客户端已关闭（插件已卸载或正在重载），本次请求未发出")
+        ensure_open = self._ensure_open
+        ensure_open()
+
+        # 按URL归属兜底，避免新增入口遗漏标志；比较origin及路径边界，拒绝伪前缀。
+        def normalized_origin(parts):
+            scheme = parts.scheme.lower()
+            port = parts.port or {"https": 443, "http": 80}.get(scheme)
+            return scheme, (parts.hostname or "").lower(), port
+
+        target = urlsplit(url)
+        for base in (self.wm_base, self.wm_v2_base):
+            origin = urlsplit(base)
+            prefix = origin.path.rstrip("/")
+            if normalized_origin(target) == normalized_origin(origin) and (
+                target.path == prefix or target.path.startswith(prefix + "/")
+            ):
+                wm_rate_limit = True
+                break
+        auction_search = (
+            wm_rate_limit and target.path == urlsplit(f"{self.wm_base}/auctions/search").path
+        )
 
         async def _do() -> Any:
             last_exc: Exception | None = None
             for attempt in range(retries + 1):
+                # 退避或 WM 限速等待期间可能发生卸载，不能再使用已关闭的连接池。
+                ensure_open()
                 try:
-                    if wm_rate_limit:  # WM 全局限速 3 req/s（v1/v2 共享）
-                        async with self._wm_lock:
-                            gap = 0.33 - (time.monotonic() - self._wm_last)
-                            if gap > 0:
-                                await asyncio.sleep(gap)
-                            self._wm_last = time.monotonic()
                     # timeout：单次请求自己的上限（社区通道用）。只靠外层 wait_for 取消不够 ——
                     #   httpx 被取消时连接清理是受保护的，可能拖到客户端默认超时才返回（ZCode 10-17：
                     #   raw 卡住吃满 30 s 预算，镜像没轮到）。
                     kw = {"timeout": timeout} if timeout is not None else {}
-                    if follow_redirects is not None:
+                    if wm_rate_limit:
+                        kw["follow_redirects"] = False
+                    elif follow_redirects is not None:
                         kw["follow_redirects"] = follow_redirects
-                    resp = await self._http.get(url, params=params, headers=headers, **kw)
+                    ensure_open()
+                    if wm_rate_limit:
+                        await self._wm_acquire(auction_search, timeout)
+                    try:
+                        ensure_open()
+                        resp = await self._http.get(url, params=params, headers=headers, **kw)
+                    finally:
+                        if wm_rate_limit:
+                            self._wm_slots.release()
+                    if wm_rate_limit and 300 <= resp.status_code < 400:
+                        raise WarframeAPIError("WM 重定向已拒绝，请检查接口地址")
+                    retry_after = getattr(resp, "headers", {}).get("Retry-After", "")
+                    if wm_rate_limit and (
+                        resp.status_code == 429 or (resp.status_code >= 500 and retry_after)
+                    ):
+                        seconds = wm_retry_after_seconds(retry_after)
+                        self._wm_auction_cool_until = max(
+                            self._wm_auction_cool_until, time.monotonic() + seconds
+                        )
+                        try:
+                            resp.raise_for_status()
+                        except httpx.HTTPStatusError as exc:
+                            raise WarframeAPIError(self.WM_RATE_LIMIT_HINT) from exc
+                    if wm_rate_limit and 400 <= resp.status_code < 500:
+                        try:
+                            resp.raise_for_status()
+                        except httpx.HTTPStatusError as exc:
+                            raise WarframeAPIError(
+                                f"WM 请求被拒绝（HTTP {resp.status_code}）"
+                            ) from exc
                     if resp.status_code == 404:
-                        raise WarframeAPIError(f"接口不存在或暂未开放：{url}")
+                        try:
+                            resp.raise_for_status()
+                        except httpx.HTTPStatusError as exc:
+                            raise WarframeAPIError(f"接口不存在或暂未开放：{url}") from exc
                     # 限速：WM 是整窗封禁，短退避重试无益（见 WM_RETRY_BACKOFF_S 注释）；
                     # 非 WM 源（社区镜像等）恢复快，保留原有重试。
                     if resp.status_code == 429:
-                        if wm_rate_limit:
-                            raise WarframeAPIError(self.WM_RATE_LIMIT_HINT)
+                        if wm_rate_limit or auction_search:
+                            try:
+                                resp.raise_for_status()
+                            except httpx.HTTPStatusError as exc:
+                                raise WarframeAPIError(self.WM_RATE_LIMIT_HINT) from exc
                         last_exc = WarframeAPIError("warframe.market 限速（HTTP 429）")
                         if attempt < retries:
                             await asyncio.sleep(1.2 * (attempt + 1))
                             continue
                         raise last_exc
+                    if resp.status_code == 403 and url == DEFAULT_DE_WORLDSTATE:
+                        try:
+                            resp.raise_for_status()
+                        except httpx.HTTPStatusError as exc:
+                            raise WarframeAPIError("DE 世界状态访问被拒绝（HTTP 403）") from exc
                     resp.raise_for_status()
-                    return resp.json()
+                    data = resp.json()
+                    if validator is not None:
+                        validator(data)
+                    return data
                 except WarframeAPIError:
                     raise
                 except (httpx.HTTPError, json.JSONDecodeError) as exc:
@@ -1347,9 +1808,17 @@ class WarframeClient:
                             await asyncio.sleep(0.6 * (attempt + 1) + random.random() * 0.3)
             # 超时类异常 str() 为空（ZCode 10-17：日志 / 面板「请求失败（…）：」冒号后啥都没有）⇒ 退回类型名
             why = (str(last_exc) or type(last_exc).__name__) if last_exc else "未知错误"
-            raise WarframeAPIError(f"请求失败（{url}）：{why}")
+            raise WarframeAPIError(f"请求失败（{url}）：{why}") from last_exc
 
-        return await self.cache.get_or_fetch(key, ttl, _do)
+        data = await self.cache.get_or_fetch(key, ttl, _do)
+        if validator is not None:
+            try:
+                validator(data)
+            except WarframeAPIError:
+                # 兼容升级前留下的坏响应：只淘汰本次完整缓存身份，再正常单飞回源。
+                await self.cache.set(key, None, ttl=0)
+                return await self.cache.get_or_fetch(key, ttl, _do)
+        return data
 
     def _ws_base(self, platform: str) -> str:
         return self.worldstate_base
@@ -1358,7 +1827,242 @@ class WarframeClient:
     # 世界状态：DE 直连模式（默认）
     # ------------------------------------------------------------------
     async def _de_raw(self) -> dict:
+        if self.de_worldstate_url == DEFAULT_DE_WORLDSTATE:
+            # 默认源故障交给有界后备；单次最多 8 秒，不在按钮请求内反复碰壁。
+            return await self._fetch_json(
+                self.de_worldstate_url, ttl=TTL_DE_RAW, retries=0, timeout=8
+            )
         return await self._fetch_json(self.de_worldstate_url, ttl=TTL_DE_RAW)
+
+    @staticmethod
+    def _temporary_de_error(exc: Exception) -> bool:
+        cause = exc.__cause__
+        if isinstance(cause, httpx.HTTPStatusError):
+            response = cause.response
+            return response is not None and (
+                response.status_code in (403, 429) or response.status_code >= 500
+            )
+        return isinstance(cause, (httpx.TimeoutException, httpx.NetworkError))
+
+    @staticmethod
+    def _validate_community_ws(data: Any) -> None:
+        try:
+            if not isinstance(data, dict):
+                raise ValueError("整包不是对象")
+            stamp = datetime.fromisoformat(data["timestamp"].replace("Z", "+00:00"))
+            if stamp.tzinfo is None or not -120 <= time.time() - stamp.timestamp() <= 600:
+                raise ValueError("时间戳过期或超前")
+            for key, typ in (
+                ("fissures", list),
+                ("sortie", dict),
+                ("nightwave", dict),
+                ("voidTrader", dict),
+                ("constructionProgress", dict),
+            ):
+                if not isinstance(data.get(key), typ):
+                    raise ValueError(f"{key} 缺失或结构错误")
+        except (KeyError, TypeError, ValueError, AttributeError) as exc:
+            raise WarframeAPIError(f"社区世界状态不可用：{exc}") from exc
+
+    @staticmethod
+    def _community_node_name(value: str) -> str:
+        """社区显示名精确反查本地节点；未知节点保留原文。"""
+        if not value:
+            return value
+        if value in de_worldstate.nodes_zh():
+            return de_worldstate._node_name(value)
+        for key, info in (de_worldstate._load("solNodes.json") or {}).items():
+            if isinstance(info, dict) and info.get("value") == value:
+                return de_worldstate._node_name(key)
+        return value
+
+    async def _community_ws_bundle(self, platform: str) -> dict:
+        # 整包缓存身份同时包含源地址、平台、语言；校验失败不进入缓存。
+        language = "zh" if self.language in ("zh-hans", "zh-CN") else self.language
+        url = f"{self.worldstate_base}/{platform}"
+        key = f"ws-fallback|{url}|{language}"
+        data = None
+        if time.monotonic() < self._ws_failure_until.get(key, 0):
+            cached = self._ws_last_good.get(key)
+            if cached is not None:
+                try:
+                    self._validate_community_ws(cached)
+                    data = deepcopy(cached)
+                except WarframeAPIError:
+                    pass
+            if data is None:
+                raise WarframeAPIError("社区世界状态暂不可用，请稍后重试") from self._ws_failure[
+                    key
+                ]
+        try:
+            if data is None:
+                try:
+                    data = await self._fetch_json(
+                        url,
+                        ttl=30,
+                        params={"language": language},
+                        retries=1,
+                        timeout=10,
+                        cache_key=key,
+                        headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"},
+                        validator=self._validate_community_ws,
+                    )
+                except WarframeAPIError as exc:
+                    # 网络抖动时沿用仍通过原始时间戳校验的最近成功包；不延长其新鲜期。
+                    cached = self._ws_last_good.get(key)
+                    if cached is None:
+                        raise
+                    self._validate_community_ws(cached)
+                    self._ws_failure_until[key] = time.monotonic() + 30
+                    self._ws_failure[key] = exc
+                    data = deepcopy(cached)
+            bundle = dict(data)
+            bundle["fissures"] = [
+                dict(row, node=self._community_node_name(row.get("node", "")))
+                for row in data["fissures"]
+            ]
+            storms = []
+            storms_failed = False
+            now = time.time()
+            for row in bundle["fissures"]:
+                if row.get("isStorm") is not True:
+                    continue
+                try:
+                    expiry = datetime.fromisoformat(row["expiry"].replace("Z", "+00:00"))
+                    if expiry.tzinfo is None:
+                        raise ValueError("虚空风暴到期时间缺少时区")
+                    if expiry.timestamp() > now:
+                        storms.append(dict(row, nodeCn=row.get("node", "")))
+                except (KeyError, ValueError, TypeError, AttributeError, OverflowError):
+                    storms_failed = True
+            bundle["voidStorms"] = storms
+            if storms_failed:
+                bundle["_failed"] = list(bundle.get("_failed") or []) + ["voidStorms"]
+            sortie = dict(data["sortie"])
+            sortie["variants"] = [
+                dict(row, node=self._community_node_name(row.get("node", "")))
+                for row in sortie.get("variants") or []
+            ]
+            bundle["sortie"] = sortie
+            construction = data["constructionProgress"]
+            projects = []
+            for field, name, en, faction, event in (
+                ("fomorianProgress", "巴罗尔巨人战舰", "Fomorian", "Grineer", "巨人战舰破坏"),
+                ("razorbackProgress", "利刃豺狼舰队", "Razorback", "Corpus", "利刃豺狼舰队"),
+            ):
+                pct = float(str(construction[field]).rstrip("%"))
+                if not math.isfinite(pct) or not 0 <= pct <= 100:
+                    raise ValueError("舰队进度越界")
+                projects.append(dict(name=name, en=en, faction=faction, event=event, pct=pct))
+            bundle["constructionProgress"] = {
+                "projects": projects,
+                "assaults": [],
+                "assaults_unknown": True,
+                "_source": "社区 warframestat（DE 后备）",
+            }
+            trader = dict(data["voidTrader"])
+            activation = datetime.fromisoformat(trader["activation"].replace("Z", "+00:00"))
+            expiry = datetime.fromisoformat(trader["expiry"].replace("Z", "+00:00"))
+            if activation.tzinfo is None or expiry.tzinfo is None or activation >= expiry:
+                raise ValueError("奸商时间窗口错误")
+            trader["active"] = activation.timestamp() <= time.time() < expiry.timestamp()
+            character = trader.get("character") or ""
+            if "Baro" in character or "Teel" in character:
+                trader["character"] = "Baro Ki'Teer"
+            trader["location"] = self._community_node_name(trader.get("location", ""))
+            inventory = []
+            for row in trader.get("inventory") or []:
+                item = dict(row)
+                store = item.get("uniqueName") or item.get("store") or ""
+                item["store"] = store
+                if store:
+                    item["item"] = (
+                        store_item_zh(store)
+                        or de_worldstate.item_name_opt(store)
+                        or item.get("item", "")
+                    )
+                inventory.append(item)
+            trader["inventory"] = inventory
+            bundle["voidTrader"] = trader
+            nightwave = data.get("nightwave")
+            if isinstance(nightwave, dict):
+                nightwave = dict(nightwave)
+                challenge_meta = {}
+                for path, meta in (
+                    (de_worldstate._load("nightwave_zh.json") or {}).get("challenges") or {}
+                ).items():
+                    tail = path.rsplit("/", 1)[-1].lower()
+                    challenge_meta.setdefault(tail, []).append(meta)
+                challenges = []
+                for original in nightwave.get("activeChallenges") or []:
+                    challenge = dict(original)
+                    challenge["standing"] = challenge.get(
+                        "standing", challenge.get("reputation", 0)
+                    )
+                    tail = re.sub(r"^\d+", "", str(challenge.get("id") or "")).lower()
+                    matches = challenge_meta.get(tail) or []
+                    if len(matches) == 1:
+                        meta = matches[0]
+                        challenge["title"] = meta.get("name") or challenge.get("title", "")
+                        challenge["desc"] = meta.get("desc") or challenge.get("desc", "")
+                        if meta.get("required") is not None:
+                            challenge["required"] = meta["required"]
+                    challenges.append(challenge)
+                nightwave["activeChallenges"] = challenges
+                bundle["nightwave"] = nightwave
+            hunt = data.get("archonHunt")
+            if isinstance(hunt, dict):
+                hunt = dict(hunt)
+                variants = hunt.get("variants") or hunt.get("missions") or []
+                hunt["variants"] = [
+                    dict(
+                        mission,
+                        node=self._community_node_name(mission.get("node", "")),
+                        missionType=mission.get("missionType") or mission.get("type", ""),
+                        level=(
+                            de_worldstate.ARCHON_STAGE_LEVELS[index]
+                            if index < len(de_worldstate.ARCHON_STAGE_LEVELS)
+                            else ""
+                        ),
+                    )
+                    for index, mission in enumerate(variants)
+                ]
+                boss = hunt.get("boss") or ""
+                hunt["bossCode"] = de_worldstate.archon_code(boss)
+                hunt["boss"] = de_worldstate.archon_name(boss)
+                bundle["archonHunt"] = hunt
+            if isinstance(data.get("syndicateMissions"), list):
+                bundle["syndicateMissions"] = de_worldstate.adapt_community_syndicate_missions(
+                    data["syndicateMissions"]
+                )
+            # events 的字段语义与 DE Goals 不同，未核实前不冒充 goals。
+            bundle.pop("goals", None)
+            label = (
+                "社区 warframestat（DE 后备）"
+                if self.worldstate_base == DEFAULT_WORLDSTATE_BASE
+                else "自定义社区世界状态（DE 后备）"
+            )
+            bundle["_source"] = f"数据源：{label}｜快照 {data['timestamp']}"
+            self._ws_last_good[key] = deepcopy(data)
+            return bundle
+        except (WarframeAPIError, KeyError, ValueError, TypeError, AttributeError) as exc:
+            self._ws_failure_until[key] = time.monotonic() + 30
+            self._ws_failure[key] = exc
+            raise WarframeAPIError(f"社区世界状态暂不可用：{exc}") from exc
+
+    async def _resilient_de_bundle(self, platform: str) -> dict:
+        if self.de_worldstate_url != DEFAULT_DE_WORLDSTATE.rstrip("/"):
+            return await self._de_bundle()
+        async with self._ws_lock:
+            if time.monotonic() >= self._de_retry_at:
+                try:
+                    bundle = await self._de_bundle()
+                    return bundle
+                except WarframeAPIError as exc:
+                    if not self._temporary_de_error(exc):
+                        raise
+                    self._de_retry_at = time.monotonic() + 120
+            return await self._community_ws_bundle(platform)
 
     async def _de_bundle(self) -> dict:
         raw = await self._de_raw()
@@ -1379,16 +2083,28 @@ class WarframeClient:
         self, platform: str, endpoint: str, ttl: float = TTL_WORLDSTATE_FAST
     ) -> Any:
         if self.worldsource == "de":
-            bundle = await self._de_bundle()
+            bundle = await self._resilient_de_bundle(platform)
             if endpoint in ("kuva", "arbitration", "steelPath") and not bundle.get(endpoint):
                 raise WarframeAPIError(_EXTERNAL_ONLY[endpoint])
             if endpoint in (bundle.get("_failed") or ()):
                 # P09：这段解析失败 ≠ 当前没有事件 —— 明说，别回空值让卡片显示「暂无」
+                source_name = "社区世界状态" if "_source" in bundle else "DE 世界状态"
                 raise WarframeAPIError(
-                    f"DE 世界状态的「{endpoint}」这一段解析失败（DE 数据格式可能有变），"
+                    f"{source_name}的「{endpoint}」这一段解析失败（数据格式可能有变），"
                     "其余功能不受影响，请稍后重试"
                 )
-            return bundle.get(endpoint)
+            if endpoint not in bundle:
+                raise WarframeAPIError(f"当前世界状态源未提供「{endpoint}」，暂不可用")
+            value = bundle.get(endpoint)
+            if "_source" not in bundle:
+                return value
+            source = bundle["_source"]
+            if isinstance(value, dict):
+                value = dict(value, _source=source)
+            elif isinstance(value, list):
+                value = WorldstateRows(value)
+                value.source = source
+            return value
         url = f"{self._ws_base(platform)}/{platform}/{endpoint}"
         return await self._fetch_json(url, ttl=ttl, params={"language": self.language})
 
@@ -1401,7 +2117,8 @@ class WarframeClient:
         return data
 
     async def fissures(self, platform: str) -> list[dict]:
-        return await self.worldstate(platform, "fissures", ttl=45) or []
+        data = await self.worldstate(platform, "fissures", ttl=45)
+        return data if data is not None else []
 
     async def sortie(self, platform: str) -> dict:
         return await self.worldstate(platform, "sortie", ttl=TTL_WORLDSTATE_MID) or {}
@@ -1554,31 +2271,34 @@ class WarframeClient:
             weekday=int(sec.get("reset_weekday", 0)), hour_utc=int(sec.get("reset_hour_utc", 0))
         )
 
-    def acrithis_week_expired(self) -> bool:
-        """言录使本周货单快照是否已过期（用于内置定时自检，过期只告警不抓取）。"""
-        from datetime import datetime, timezone
+    @staticmethod
+    def _acrichis_runtime_ready() -> bool:
+        """同效价刷新：离线未注入运行目录时禁止把动态数据写回种子。"""
+        if paths.run_dir().resolve() == paths.PKG_DATA.resolve():
+            logger.warning("[sdjk] 言录使刷新未注入运行目录，已跳过以保护包内静态数据")
+            return False
+        return True
 
-        data = self._load_json_file(paths.read_path(ACRITHIS_WEEK_NAME)) or {}
-        exp = data.get("expiry") or ""
-        try:
-            return datetime.fromisoformat(exp) <= datetime.now(timezone.utc)
-        except ValueError:
-            return True
+    def _acrichis_snapshot(self) -> dict:
+        """仅运行副本提供动态货单；缺少的静态字段独立回退包内目录。"""
+        seed = self._load_json_file(paths.PKG_DATA / ACRITHIS_WEEK_NAME) or {}
+        cached = self._load_json_file(paths.run_dir() / ACRITHIS_WEEK_NAME) or {}
+        if not isinstance(cached, dict):
+            cached = {}
+        data = dict(cached) if paths.run_dir() != paths.PKG_DATA else {}
+        for key, value in seed.items():
+            if key.startswith("_") and not data.get(key):
+                data[key] = value
+        return data
+
+    def acrithis_week_expired(self) -> bool:
+        """缺失、非法或过期的运行货单都需要自动获取。"""
+        return not community_acrithis_ok(self._acrichis_snapshot())[0]
 
     async def acrithis_week(self) -> dict:
-        """言录使**本周货单**快照（运行期覆盖优先，回退包内种子）；过期返回空 dict。
-
-        未过期时附带 ``next_reset``（按规则算出的下次轮换 UTC 时刻），
-        卡面据此展示倒计时 + 北京时间，不依赖文件里写死的 expiry。
-        """
-        from datetime import datetime, timezone
-
-        data = self._load_json_file(paths.read_path(ACRITHIS_WEEK_NAME)) or {}
-        exp = data.get("expiry") or ""
-        try:
-            if datetime.fromisoformat(exp) <= datetime.now(timezone.utc):
-                return {}
-        except ValueError:
+        """仅返回合法且未过期的运行货单；种子只提供静态目录。"""
+        data = self._acrichis_snapshot()
+        if not community_acrithis_ok(data)[0]:
             return {}
         data["next_reset"] = self.acrithis_next_reset()
         return data
@@ -1599,7 +2319,7 @@ class WarframeClient:
         from datetime import datetime, timezone
 
         now = datetime.now(timezone.utc)
-        out = re.sub(r"\{\{\s*CURRENTMONTHNAME\s*\}\}", now.strftime("%B"), value)
+        out = re.sub(r"\{\{\s*CURRENTMONTHNAME\s*\}\}", _ENGLISH_MONTHS[now.month - 1], value)
         out = re.sub(r"\{\{\s*CURRENTDAY2?\s*\}\}", str(now.day), out)
         out = re.sub(r"\{\{\s*CURRENTYEAR\s*\}\}", str(now.year), out)
         return out.strip()
@@ -1646,7 +2366,7 @@ class WarframeClient:
         from datetime import datetime
 
         try:
-            raw = await self.fetch_via_flaresolver(api_url, ttl=0)
+            raw = await self.fetch_wiki_source(api_url, ttl=0)
         except Exception as exc:  # noqa: BLE001 - 查询失败降级，不阻断刷新
             logger.warning("[sdjk] %s页面修订查询失败（降级不按修订时间判定）：%s", what, exc)
             return {}
@@ -1672,7 +2392,21 @@ class WarframeClient:
         revs = await self._wiki_revisions(ACRITHIS_REVISION_API, "言录使")
         return next(iter(revs.values()), None)
 
+    def _rotation_lock(self):
+        lock = getattr(self, "_valence_refresh_lock", None)
+        if lock is None:
+            lock = self._valence_refresh_lock = asyncio.Lock()
+        return lock
+
     async def refresh_acrichis_week(self, community_only: bool = False, force: bool = False) -> str:
+        self._ensure_open()
+        async with self._rotation_lock():
+            self._ensure_open()
+            return await self._refresh_acrichis_week_locked(community_only, force)
+
+    async def _refresh_acrichis_week_locked(
+        self, community_only: bool = False, force: bool = False
+    ) -> str:
         """言录使本周货单：过期后自动抓 wiki 当期上报子页刷新（2026-09-21 起）。
 
         DE 不下发每周实际 5 件；wiki《Acrithis/Current Offerings》是社区人工
@@ -1685,34 +2419,63 @@ class WarframeClient:
 
         返回 "fresh"（未过期）/ "refreshed" / "not-updated" / "failed"。
         """
-        from datetime import datetime, timedelta, timezone
-
+        if not self._acrichis_runtime_ready():
+            return "failed"
         expired = self.acrithis_week_expired()
         if not expired and not force:  # force：面板「从源头重抓」跳过这道门，其余闸门照旧
             self._note_comm("acrithis_week.json", "local_ok", "本周货单未到期")
             return "fresh"
-        snap = self._load_json_file(paths.read_path(ACRITHIS_WEEK_NAME)) or {}
+        snap = self._acrichis_snapshot()
         catalog = snap.get("_en_catalog") or {}
         if not catalog:
             logger.warning("[sdjk] 言录使快照缺 _en_catalog，无法自动刷新")
             return "failed"
         if community_only:
-            # FS 关闭/不可达：不碰 FlareSolverr，只读公开仓社区快照
+            # 显式社区模式：不请求 wiki HTTP 或 FlareSolverr
             return await self._community_acrithis_week(snap, expired)
+        if self._rotation_observations().get("pages"):
+            result = await self._check_rotation_revisions_locked()
+            status = result["acrithis"]
+            if status in {"fresh", "unchanged", "refreshed"}:
+                return "fresh" if status == "unchanged" else status
+            snap = self._acrichis_snapshot()
+            fallback = await self._community_acrithis_week(snap, self.acrithis_week_expired())
+            return "not-updated" if fallback == "failed" else fallback
         try:
-            raw = await self.fetch_via_flaresolver(ACRITHIS_CURRENT_URL, ttl=0)
+            raw = await self.fetch_wiki_source(
+                ACRITHIS_CURRENT_URL,
+                ttl=0,
+                validator=lambda source: self._validate_rotation_source("acrithis", source),
+            )
         except Exception as e:  # noqa: BLE001 - 抓取失败走告警，不阻断
             logger.warning("[sdjk] 言录使当期子页抓取失败：%s，尝试社区快照", e)
             return await self._community_acrithis_week(snap, expired)
+        rev = await self._acrichis_page_revision()
+        self._ensure_open()
+        return self._adopt_acrichis_source(snap, raw, rev, expired)
+
+    @staticmethod
+    def _offering_values(items) -> list:
+        """货单业务指纹：顺序、说明与动态 observed 日期不参与比较。"""
+        return sorted(
+            (str(it.get("name")), str(it.get("qty")), str(it.get("price")))
+            for it in (items if isinstance(items, list) else [])
+            if isinstance(it, dict) and isinstance(it.get("name"), str)
+        )
+
+    def _adopt_acrichis_source(self, snap, raw, rev, expired) -> str:
+        from datetime import datetime, timedelta, timezone
+
+        self._ensure_open()
+        if not self._acrichis_runtime_ready():
+            return "failed"
+        catalog = snap.get("_en_catalog") or {}
         parsed = self.parse_acrichis_current(raw)
         if not parsed:
             logger.warning("[sdjk] 言录使当期子页解析失败（模板结构变了？）")
             return "failed"
-        try:
-            observed = datetime.strptime(parsed["observed"], "%B %d, %Y").replace(
-                tzinfo=timezone.utc
-            )
-        except (KeyError, ValueError):
+        observed = _parse_acrithis_observed(parsed.get("observed", ""))
+        if observed is None:
             logger.warning("[sdjk] 言录使当期上报日期无法解析：%r", parsed.get("observed"))
             return "failed"
         now = datetime.now(timezone.utc)
@@ -1729,13 +2492,16 @@ class WarframeClient:
         #   observed 闸门对新格式失效。补**页面修订时间戳**闸门（社区每周一编辑
         #   该页，实测 09-21 / 09-28 / 10-05 各有 "rotation updated"）；
         #   查询失败时降级为只按 observed 判定（记 WARN，不阻断刷新）。
-        rev = await self._acrichis_page_revision()
-        if rev and rev < monday:
+        if not self._rotation_source_not_older("acrithis", rev):
+            return "not-updated"
+        if rev and (rev < monday or rev > now):
             logger.info(
                 "[sdjk] 言录使页面本周尚未修订（last rev %s < 本周一），本轮不落盘",
                 rev.isoformat(),
             )
             return "not-updated"
+        if len(set(parsed["items"])) != 5:
+            return "failed"
         items: list[dict] = []
         for en in parsed["items"]:
             ent = catalog.get(en)
@@ -1754,8 +2520,16 @@ class WarframeClient:
             items.append(it)
         # ★ 2026-10-18：observed / 页面修订两道闸门都可能被「本周有人编辑过页面、
         #   但货单还没改」骗过；每周 5 件不会与上周完全相同 ⇒ 与上周一致就当未更新。
-        prev = sorted(str(it.get("name")) for it in snap.get("items") or [])
-        if prev and sorted(it["name"] for it in items) == prev:
+        prev = self._offering_values(snap.get("items"))
+        fingerprint = json.dumps(
+            self._offering_values(items), ensure_ascii=False, separators=(",", ":")
+        )
+        if (
+            self._processed_source_unchanged("acrithis", fingerprint)
+            and self._offering_values(items) != prev
+        ):
+            return "not-updated" if expired else "unchanged"
+        if prev and self._offering_values(items) == prev:
             if not expired:  # 强制重抓、本地货单还没到期：一样就是本地已是最新
                 return "fresh"
             logger.info("[sdjk] 言录使当期上报与上周货单完全相同（wiki 尚未更新），本轮不落盘")
@@ -1768,11 +2542,13 @@ class WarframeClient:
                 f"{parsed['observed']}）；插件自动抓取"
             ),
             "items": items,
+            "_price_note": "价格来自静态候选目录，非本周实时核验；以游戏内为准",
             "_en_catalog": catalog,
             "_catalog_price_source": snap.get("_catalog_price_source", ""),
             "_reset_rule": snap.get("_reset_rule", ""),
             "_过期口径": snap.get("_过期口径", ""),
         }
+        self._ensure_open()
         paths.atomic_write_text(
             paths.write_path(ACRITHIS_WEEK_NAME),
             json.dumps(out, ensure_ascii=False, indent=1) + "\n",
@@ -1787,6 +2563,8 @@ class WarframeClient:
 
         只替换动态字段（expiry/observed/items），本地 ``_en_catalog`` 等归档信息保留。
         """
+        if not self._acrichis_runtime_ready():
+            return "failed"
         payload = await self._community_json(COMMUNITY_ACRITHIS_URLS)
         if payload is None:
             return "failed"
@@ -1803,8 +2581,8 @@ class WarframeClient:
             if it.get("price") is not None:
                 ent["price"] = it["price"]
             items.append(ent)
-        prev = sorted(str(it.get("name")) for it in snap.get("items") or [])
-        if prev and sorted(it["name"] for it in items) == prev:
+        prev = self._offering_values(snap.get("items"))
+        if prev and self._offering_values(items) == prev:
             if not expired:  # 强制重抓、本地货单还没到期：一样就是本地已是最新
                 return "fresh"
             # 发布端也可能抓到「还没改的上周货单」⇒ 与上周一致不采用（同 refresh_acrichis_week）
@@ -1820,6 +2598,7 @@ class WarframeClient:
                 or "社区快照（wiki《Acrithis/Current Offerings》经有 FS 的机器发布）"
             ),
         }
+        self._ensure_open()
         paths.atomic_write_text(
             paths.write_path(ACRITHIS_WEEK_NAME),
             json.dumps(out, ensure_ascii=False, indent=1) + "\n",
@@ -1973,19 +2752,37 @@ class WarframeClient:
         *,
         ttl: float,
         headers: Optional[dict] = None,
+        params: Optional[dict] = None,
         platform: Optional[str] = None,
     ) -> Any:
-        hdr = {"Language": self.language, "Crossplay": "true"}
+        hdr = {"language": self.language, "crossplay": "true"}
         if platform:
-            hdr["Platform"] = _WM_PLATFORM.get(platform, platform)
-        hdr.update(headers or {})
+            hdr["platform"] = _WM_PLATFORM.get(platform, platform)
+        # HTTP 字段名不区分大小写；按实际发送值建立缓存身份，避免不同等级串单。
+        hdr.update({k.lower(): str(v) for k, v in (headers or {}).items()})
+        query = {k: str(v) for k, v in (params or {}).items()}
+        url = f"{self.wm_v2_base}{path}"
+        identity = json.dumps(
+            {"url": url, "params": query, "headers": hdr}, sort_keys=True
+        ).encode()
+        # 自定义请求头可能含凭据，只保存摘要，不把原值写进缓存键或日志。
+        digest = hashlib.sha256(identity).hexdigest()
         data = await self._fetch_json(
-            f"{self.wm_v2_base}{path}",
+            url,
             ttl=ttl,
             headers=hdr,
-            cache_key=f"wmv2:{path}|{platform}|{self.language}",
+            params=query or None,
+            cache_key=f"wmv2:{path}|{digest}",
             wm_rate_limit=True,
+            validator=self._validate_wm_v2,
         )
+        # 保留调用边界校验，兼容替换 _fetch_json 的离线适配器。
+        self._validate_wm_v2(data)
+        return data.get("data") if isinstance(data, dict) else data
+
+    @staticmethod
+    def _validate_wm_v2(data: Any) -> None:
+        """WM 错误信封必须在写入共享请求缓存之前拒绝。"""
         if isinstance(data, dict):
             if data.get("error"):
                 raise WarframeAPIError(f"WM v2 接口错误：{data['error']}")
@@ -1993,8 +2790,6 @@ class WarframeClient:
             #   卡面写「没有符合条件的在售单」把接口异常说成真实零结果。缺 data 一律按结构异常报。
             if "data" not in data:
                 raise WarframeAPIError("warframe.market 返回结构异常（缺 data 字段），请稍后再试")
-            return data.get("data")
-        return data
 
     async def wm_items(self) -> list[dict]:
         """全量物品（含 zh-hans 名称、杜卡德与**满级**），归一化字段。"""
@@ -2101,8 +2896,9 @@ class WarframeClient:
         params = {}
         if rank is not None:
             path += "/top"
-            params["rank"] = rank
-        raw = await self._wm_v2(path, ttl=TTL_WM_ORDERS, platform=platform, headers=params or None)
+            params["rank"] = str(rank)
+        # WM v2 官方 Orders 文档：rank 是 /top 的 query 参数，不是请求头。
+        raw = await self._wm_v2(path, ttl=TTL_WM_ORDERS, platform=platform, params=params or None)
         if isinstance(raw, dict):  # /top 返回 {sell: [...], buy: [...]}
             raw = (raw.get("sell") or []) + (raw.get("buy") or [])
         if raw is not None and not isinstance(raw, list):
@@ -2316,6 +3112,28 @@ class WarframeClient:
     # ------------------------------------------------------------------
     # Warframe.Market v1：价格统计（趋势 / 排行）
     # ------------------------------------------------------------------
+    @staticmethod
+    def _validate_wm_statistics(data: Any) -> None:
+        """拒绝错误/缺字段信封，保留合法的空统计与可缺省的周期。"""
+        payload = data.get("payload") if isinstance(data, dict) and not data.get("error") else None
+        closed = payload.get("statistics_closed") if isinstance(payload, dict) else None
+        if not isinstance(closed, dict):
+            raise _WMV1ContentError("warframe.market 返回结构异常（成交统计信封），请稍后再试")
+        for period in ("48hours", "90days"):
+            rows = closed.get(period)
+            if rows is not None and (
+                not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows)
+            ):
+                raise _WMV1ContentError("warframe.market 返回结构异常（成交统计列表），请稍后再试")
+
+    @staticmethod
+    def _validate_wm_auctions(data: Any) -> None:
+        """两类拍卖共用信封；空数组代表真实零挂单，缺字段代表接口异常。"""
+        payload = data.get("payload") if isinstance(data, dict) and not data.get("error") else None
+        rows = payload.get("auctions") if isinstance(payload, dict) else None
+        if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+            raise _WMV1ContentError("warframe.market 返回结构异常（拍卖挂单列表），请稍后再试")
+
     async def wm_statistics(self, slug: str, platform: str = "pc") -> dict:
         """v1 价格统计：近 48 小时逐小时 + 近 90 天逐日。
 
@@ -2332,7 +3150,9 @@ class WarframeClient:
             headers=hdr,
             cache_key=f"wmstats:{slug}|{platform}",
             wm_rate_limit=True,
+            validator=self._validate_wm_statistics,
         )
+        self._validate_wm_statistics(data)
         payload = (data or {}).get("payload") or {}
         closed = payload.get("statistics_closed") or {}
 
@@ -2459,11 +3279,16 @@ class WarframeClient:
 
         两路并发会各自读旧游标、各自落盘互相覆盖，还会双倍占用 WM 限速；后到的直接返回当前已入榜数。
         """
+        self._ensure_open()
         lock = self._crawl_lock("_rank_crawl_lock")
         if lock.locked():
+            self._note_manual_crawl("degraded", "已有价格榜抓取在进行，本轮未重复执行")
             return len((self._load_json_file(paths.read_path(RANKS_NAME)) or {}).get("rows") or {})
         async with lock:
-            return await self._crawl_wm_ranks(limit)
+            try:
+                return await self._crawl_wm_ranks(limit)
+            finally:
+                self._rank_crawl_finished_at = time.time()
 
     def _crawl_lock(self, name: str) -> asyncio.Lock:
         lock = getattr(self, name, None)
@@ -2490,14 +3315,21 @@ class WarframeClient:
         Returns:
             当前已入榜的物品数。
         """
+        self._ensure_open()
+        self._rank_save_failed = False
+        self._rank_source_empty = False
         items = [it for it in await self.wm_items() if _rank_candidate(it)]
         total = len(items)
+        self._rank_source_empty = total == 0
         old = self._load_json_file(paths.read_path(RANKS_NAME)) or {}
         if total == 0:
             # 物品表取不到时 total=0，旧实现会「瞬间跑满一轮」并刷新 ts（一项没抓却标成新的）
             logger.warning("[sdjk] 价格榜单抓取：WM 物品表为空（可能取不到），本轮跳过、不刷新时间")
+            self._note_manual_crawl("degraded", "物品表为空，本轮未刷新榜单")
             return len(old.get("rows") or {})
-        rows: dict = old.get("rows") or {}
+        targets = [it.get("url_name") or "" for it in items]
+        target_set = set(targets)
+        rows: dict = {k: v for k, v in (old.get("rows") or {}).items() if k in target_set}
         cursor = int(old.get("cursor") or 0)
         if cursor >= total:  # 上一轮已跑满，从头开始新一轮
             cursor = 0
@@ -2505,27 +3337,36 @@ class WarframeClient:
         #   failed = 本轮（进行中）请求失败的物品；retry = 上一轮失败、本次先补的物品。
         #   整轮成功率 ≥ RANK_MIN_COVERAGE 才刷新 ts；不足则 ts 不动（48h 闸门仍判过期 ⇒
         #   下个闲时继续先补失败项），low_coverage 供面板提示，旧行照常展示。
-        failed: set = set(old.get("round_failed") or [])
-        retry: list = list(dict.fromkeys(old.get("retry") or []))
+        failed: set = set(old.get("round_failed") or []) & target_set
+        retry: list = [s for s in dict.fromkeys(old.get("retry") or []) if s in target_set]
         low = bool(old.get("low_coverage"))
         ts = old.get("ts") or ""
         coverage = old.get("coverage")
+        if old.get("cursor_targets") != targets:
+            # 旧断点或目标序列变化：旧下标不能套在新列表上，完整重扫后才认证覆盖率。
+            cursor, low, coverage = 0, False, None
         by_slug = {it.get("url_name"): it for it in items if it.get("url_name")}
         save_failed = False
+        attempted: dict[str, bool] = {}
 
         def _now_iso() -> str:
             return time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime())
 
         async def _fetch(it: dict) -> bool:
             """抓一项；返回请求是否成功（成功但无 48h 成交 = 成功 + 出榜）。"""
+            self._ensure_open()
             slug = it.get("url_name") or ""
+            if slug in attempted:
+                return attempted[slug]  # 补抓与主游标重叠时复用本次结果，不重复请求或重判成功。
             # ★ 2026-10-03 僵尸行修复（价格排行交办）：`rec is None` 必须与「请求失败」严格区分 ——
             #   请求失败（网络抖动）⇒ 保留旧行；_rank_record 返回 None = 确实无 48h 成交 ⇒ 出榜。
             try:
                 stats = await self.wm_statistics(slug, "pc")
             except Exception:  # noqa: BLE001 - 单项请求失败不阻断整轮
                 stats = None
+            self._ensure_open()
             if stats is None:
+                attempted[slug] = False
                 return False
             rec = self._rank_record(it, stats)
             if rec:
@@ -2533,6 +3374,7 @@ class WarframeClient:
                 rows[slug] = rec
             else:
                 rows.pop(slug, None)
+            attempted[slug] = True
             return True
 
         def _save(cur: int) -> None:
@@ -2542,6 +3384,7 @@ class WarframeClient:
                 {
                     "ts": ts,
                     "cursor": cur,
+                    "cursor_targets": targets,
                     "total": total,
                     "done": cur,
                     "rows": rows,
@@ -2552,7 +3395,7 @@ class WarframeClient:
                 },
             )
             if ok is False:
-                save_failed = True
+                save_failed = self._rank_save_failed = True
 
         done = 0
         # ① 先补上一轮失败的物品
@@ -2567,6 +3410,9 @@ class WarframeClient:
             done += 1
             if not await _fetch(it):
                 still.append(slug)
+                failed.add(slug)
+            else:
+                failed.discard(slug)
         retry = still
         if low and (total - len(retry)) / total >= RANK_MIN_COVERAGE:
             ts, low = _now_iso(), False  # 上一轮靠补抓达标
@@ -2574,10 +3420,11 @@ class WarframeClient:
         # ② 主游标续跑
         idx = cursor
         while idx < total:
-            if limit is not None and done >= limit:
-                break
             it = items[idx]
             slug = it.get("url_name") or ""
+            already = slug in attempted
+            if not already and limit is not None and done >= limit:
+                break
             if slug:
                 if await _fetch(it):
                     failed.discard(slug)
@@ -2586,8 +3433,9 @@ class WarframeClient:
                 else:
                     failed.add(slug)
             idx += 1
-            done += 1
-            if done % 50 == 0:
+            if not already:
+                done += 1
+            if not already and done % 50 == 0:
                 _save(idx)
         finished = idx >= total
         if finished:
@@ -2612,6 +3460,12 @@ class WarframeClient:
             else "",
             len(retry),
         )
+        if save_failed:
+            self._note_manual_crawl("error", "本轮榜单保存失败")
+        elif not finished or low or failed or retry:
+            self._note_manual_crawl("degraded", "本轮存在未完成或失败项目，榜单尚待补抓")
+        else:
+            self._note_manual_crawl("ok", "本轮抓取完成")
         return len(rows)
 
     # ------------------------------------------------------------------
@@ -2619,11 +3473,16 @@ class WarframeClient:
     # ------------------------------------------------------------------
     async def crawl_riven_realtime(self, limit: Optional[int] = None) -> int:
         """单飞包装：凌晨自动重建与手动「紫卡排行 刷新」/ 面板按钮只跑一份（2026-10-24），理由同 `crawl_wm_ranks`。"""
+        self._ensure_open()
         lock = self._crawl_lock("_riven_rt_lock")
         if lock.locked():
+            self._note_manual_crawl("degraded", "已有紫卡现价抓取在进行，本轮未重复执行")
             return len(self.riven_realtime_rows().get("rows") or {})
         async with lock:
-            return await self._crawl_riven_realtime(limit)
+            try:
+                return await self._crawl_riven_realtime(limit)
+            finally:
+                self._riven_rt_finished_at = time.time()
 
     async def _crawl_riven_realtime(self, limit: Optional[int] = None) -> int:
         """抓紫卡实时排行快照（WM 拍卖）并落盘；返回已入表武器数。
@@ -2638,6 +3497,7 @@ class WarframeClient:
         - 跑满一轮**且成功率 ≥ RANK_MIN_COVERAGE** 才更新 ``ts``；失败项进 ``retry`` 下次先补；
         - 每把只查价格升序一次；节奏见 `RIVEN_RT_GAP_S` 等类常量（拍卖搜索限得严，2026-10-24）。
         """
+        self._ensure_open()
         weekly = await self.de_weekly_rivens()
         weapons = await self.wm_riven_weapons()
         try:
@@ -2661,6 +3521,7 @@ class WarframeClient:
         total = len(targets)
         if total == 0:
             logger.warning("[sdjk] 紫卡 WM 现价：目标集为空（周报/武器表取不到？），本轮跳过")
+            self._note_manual_crawl("degraded", "目标集为空，本轮未刷新现价")
             return len(rows)
         if cursor >= total:
             cursor = 0
@@ -2683,9 +3544,15 @@ class WarframeClient:
         total = len(targets)
         if total == 0:
             logger.warning("[sdjk] 紫卡 WM 现价：目标集全被标为无效，本轮跳过")
+            self._note_manual_crawl("degraded", "目标集均无效，本轮未刷新现价")
             return len(rows)
         if cursor >= total:
             cursor = 0
+        # 游标只对保存时的有效目标序列成立。旧快照没有序列，或目标顺序/成员变化，
+        # 保守从头重抓，不能把旧下标套在压缩后的列表上而漏掉尚未请求的武器。
+        if old.get("cursor_targets") != targets:
+            cursor = 0
+            retry = []  # 主游标将覆盖整个有效序列，不再先补同一批条目。
         # ★ 2026-10-25（ZCode：卡面「已收录 98/97」）：目标集每周随周报热度变，退出目标集的旧行
         #   （如 dex_nikana）原先一直留在 rows 里 ⇒ 分子大于分母，旧价也会混进周报卡。按目标集裁掉。
         stale = [k for k in rows if k not in set(targets)]
@@ -2736,18 +3603,22 @@ class WarframeClient:
             return True
 
         def _save(cur: int) -> bool:
+            active = [t for t in targets if t not in invalid]
+            # 本轮才发现的 400 也会在下次被过滤，保存时同步压缩已扫描前缀的游标。
+            resume = sum(t not in invalid for t in targets[:cur])
             return (
                 self._save_json_file(
                     paths.read_path(RIVEN_RT_NAME),
                     {
                         "ts": ts,
-                        "cursor": cur,
+                        "cursor": resume,
+                        "cursor_targets": active,
                         "rows": rows,
                         "round_failed": sorted(failed),
                         "retry": sorted(failed),
                         "invalid": sorted(invalid),
                         "coverage": coverage,
-                        "total": total,
+                        "total": len(active),
                     },
                 )
                 is not False
@@ -2764,7 +3635,9 @@ class WarframeClient:
 
         async def _step(slug: str) -> None:
             nonlocal n_done, streak, aborted
+            self._ensure_open()
             ok = await _one(slug)
+            self._ensure_open()
             n_done += 1
             if ok is None:
                 invalid.add(slug)
@@ -2788,7 +3661,8 @@ class WarframeClient:
         if stale:  # 裁剪结果立刻落盘，别让「已收录」在下一次存盘前继续溢出
             save_failed = (not _save(cursor)) or save_failed
         target_set = set(targets)
-        retry_todo = [s for s in retry if s in target_set]
+        remaining = set(targets[cursor:])
+        retry_todo = [s for s in retry if s in target_set and s not in remaining]
         # 两个阶段各打一条进度（ZCode 10-25：补抓阶段 18 分钟零日志，被误判成没跑起来）
         logger.info(
             "[sdjk] 紫卡 WM 现价：先补 %d 项，再从第 %d/%d 项续跑（每项约 %.0f 秒）",
@@ -2833,20 +3707,90 @@ class WarframeClient:
                 last_err or "未知",
             )
         if not save_failed:
-            _save(cursor)
+            save_failed = not _save(cursor)
+        if save_failed:
+            self._note_manual_crawl("error", "本轮紫卡现价保存失败")
+        elif (
+            aborted or failed or not round_done or coverage is None or coverage < RANK_MIN_COVERAGE
+        ):
+            self._note_manual_crawl("degraded", "本轮存在未完成或失败项目，现价尚待补抓")
+        else:
+            self._note_manual_crawl("ok", "本轮抓取完成")
         return len(rows)
 
     def riven_realtime_rows(self) -> dict:
         """落盘的紫卡实时排行快照（``{"ts":…, "rows":{slug: {…}}}``）。"""
         return self._load_json_file(paths.read_path(RIVEN_RT_NAME)) or {}
 
+    @staticmethod
+    def _note_manual_crawl(result: str, detail: str) -> None:
+        """只更新正在执行的手动Task；自动循环不共享这一轮结果。"""
+        task = asyncio.current_task()
+        meta = getattr(task, "_wf_crawl_status", None)
+        if isinstance(meta, dict):
+            meta.update(result=result, detail=detail)
+
+    def _start_manual_crawl(self, kind: str) -> asyncio.Task:
+        meta = {"state": "running", "result": None, "last_attempt": time.time()}
+
+        async def run():
+            try:
+                # 不改变公共crawl签名，兼容适配器与无参数测试替身。
+                count = await (
+                    self.crawl_wm_ranks() if kind == "rank" else self.crawl_riven_realtime()
+                )
+                if meta.get("result") is None:
+                    meta.update(result="ok", detail="本轮抓取完成")
+                meta["state"] = "failed" if meta["result"] == "error" else "completed"
+                if meta["result"] == "ok":
+                    meta["last_success"] = time.time()
+                return count
+            except asyncio.CancelledError:
+                meta.update(state="cancelled", result=None, detail="已取消")
+                raise
+            except Exception as exc:
+                meta.update(
+                    state="failed",
+                    result="error",
+                    last_error=type(exc).__name__,
+                    last_error_at=time.time(),
+                    detail="本轮抓取异常退出",
+                )
+                raise
+            finally:
+                meta["last_finished"] = time.time()
+
+        loop = asyncio.get_running_loop()
+        coro = run()
+        try:
+            task = loop.create_task(coro)
+        except BaseException:
+            coro.close()
+            raise
+        # create_task尚未让出当前事件循环，协程开工前就绑定本轮结果。
+        task._wf_crawl_status = meta
+
+        def finished(done):
+            if done.cancelled():
+                # 尚未调度就取消时run的finally不会执行；仍补齐本任务结束状态。
+                meta.update(state="cancelled", result=None, detail="已取消")
+                meta.setdefault("last_finished", time.time())
+                return
+            exc = done.exception()
+            if exc is not None:
+                logger.warning("[sdjk] 手动%s抓取异常退出：%s", kind, type(exc).__name__)
+
+        task.add_done_callback(finished)
+        return task
+
     def start_riven_rt_crawl(self, *, force: bool = False) -> tuple[str, int, int]:
-        """手动重抓紫卡实时排行（不受凌晨闲时闸门；2026-10-24 用户要「和价格排行一样能手动拉」）。
+        """手动重抓紫卡实时排行（不受凌晨闲时闸门；2026-10-24 维护者定：和价格排行一样能手动拉）。
 
         返回 ``(状态, 已收录把数, 目标总数)``，状态 = ``started`` / ``running`` / ``cooldown``。
         群里人人能发，所以距上次手动启动不足 ``RIVEN_RT_MANUAL_COOLDOWN`` 秒时不再开抓
-        （白天抓会和 wm/wr 查询抢 WM 限速）；面板按钮传 ``force=True`` 跳过冷却。
+        （从启动和结束分别计算）；``force`` 不跳过安全冷却。
         """
+        self._ensure_open()
         data = self.riven_realtime_rows()
         n, total = len(data.get("rows") or {}), int(data.get("total") or 0)
         if total:  # 旧快照可能还留着退出目标集的行（抓取开始时才裁），展示别溢出
@@ -2855,21 +3799,37 @@ class WarframeClient:
         if (task and not task.done()) or self._crawl_lock("_riven_rt_lock").locked():
             return "running", n, total
         now = time.time()
-        if not force and now - getattr(self, "_riven_rt_manual_at", 0.0) < RIVEN_RT_MANUAL_COOLDOWN:
-            return "cooldown", n, total
-        self._riven_rt_manual_at = now
-        self._riven_rt_crawl_task = asyncio.get_running_loop().create_task(
-            self.crawl_riven_realtime()
+        meta = getattr(task, "_wf_crawl_status", {})
+        finished = meta.get("last_finished", now if task and task.cancelled() else 0.0)
+        anchor = max(
+            getattr(self, "_riven_rt_manual_at", 0.0),
+            finished,
+            getattr(self, "_riven_rt_finished_at", 0.0),
         )
+        if anchor and now - anchor < RIVEN_RT_MANUAL_COOLDOWN:
+            return "cooldown", n, total
+        self._riven_rt_crawl_task = self._start_manual_crawl("riven")
+        self._riven_rt_manual_at = now
         return "started", n, total
 
     def start_rank_crawl(self) -> tuple[bool, int, int]:
         """启动后台全量抓取；返回 (是否新启动, 已完成项, 总项数)。"""
+        self._ensure_open()
         data = self._load_json_file(paths.read_path(RANKS_NAME))
         task = getattr(self, "_rank_crawl_task", None)
         if (task and not task.done()) or self._crawl_lock("_rank_crawl_lock").locked():
             return False, int(data.get("done") or 0), int(data.get("total") or 0)
-        self._rank_crawl_task = asyncio.get_running_loop().create_task(self.crawl_wm_ranks())
+        meta = getattr(task, "_wf_crawl_status", {})
+        anchor = max(
+            meta.get("last_attempt", 0.0),
+            meta.get("last_finished", 0.0),
+            getattr(self, "_rank_crawl_finished_at", 0.0),
+        )
+        if task and task.cancelled() and not meta.get("last_finished"):
+            anchor = time.time()
+        if anchor and time.time() - anchor < TTL_WM_STATS:
+            raise WarframeAPIError("价格排行刷新保护中，请在本轮结束 30 分钟后再试")
+        self._rank_crawl_task = self._start_manual_crawl("rank")
         return True, int(data.get("done") or 0), int(data.get("total") or 0)
 
     def rank_rows(self) -> list[dict]:
@@ -2881,23 +3841,47 @@ class WarframeClient:
         """DE 官方每周紫卡交易数据（周销量/热度榜的权威来源）。
 
         官方文件为 JS 字面量，解析后落盘缓存 6 小时；``force=True``
-        跳过缓存强制拉取（「紫卡排行 刷新」）。主机平台文件缺失回落 PC。
+        跳过缓存强制拉取（「紫卡排行 刷新」）。主机平台文件缺失回落 PC，
+        返回副本带 fallback_from；不会把兜底结果记成主机平台缓存。
         """
+        plat = _de_riven_platform(platform)
+        name = RIVEN_WEEKLY_NAME if plat == "PC" else f"_cache/riven_weekly_{plat.lower()}.json"
+
+        def cache_ok(snap):
+            if not isinstance(snap, dict) or snap.get("platform") != plat:
+                return False
+            fetched, entries = snap.get("fetched"), snap.get("entries")
+            return (
+                isinstance(fetched, (int, float))
+                and not isinstance(fetched, bool)
+                and 0 <= time.time() - fetched < TTL_RIVEN_WEEKLY
+                and isinstance(entries, list)
+                and bool(entries)
+            )
+
         if not force:
-            snap = self._load_json_file(paths.read_path(RIVEN_WEEKLY_NAME))
-            if snap.get("entries") and time.time() - snap.get("fetched", 0) < TTL_RIVEN_WEEKLY:
+            snap = self._load_json_file(paths.read_path(name))
+            if cache_ok(snap):
                 return snap
-        plat = _DE_RIVEN_PLATFORM.get(platform, "PC")
+            if plat != "PC":
+                # 兼容旧版本写在共用文件中的主机快照；只复制匹配的平台，不动PC文件。
+                legacy = self._load_json_file(paths.read_path(RIVEN_WEEKLY_NAME))
+                if cache_ok(legacy):
+                    self._ensure_open()
+                    self._save_json_file(paths.write_path(name), legacy)
+                    return legacy
         try:
             resp = await self._http.get(DE_RIVEN_WEEKLY.format(plat=plat))
             resp.raise_for_status()
             entries = parse_de_riven_weekly(resp.text)
         except Exception as exc:
-            if platform != "pc":
-                return await self.de_weekly_rivens("pc", force=force)
+            if plat != "PC":
+                fallback = await self.de_weekly_rivens("pc", force=force)
+                return {**fallback, "fallback_from": plat}
             raise WarframeAPIError(f"DE 紫卡周报拉取失败：{exc}") from exc
         snap = {"fetched": time.time(), "platform": plat, "entries": entries}
-        self._save_json_file(paths.write_path(RIVEN_WEEKLY_NAME), snap)
+        self._ensure_open()
+        self._save_json_file(paths.write_path(name), snap)
         return snap
 
     # ------------------------------------------------------------------
@@ -2909,6 +3893,75 @@ class WarframeClient:
         from .parser import RIVEN_URL_COMPAT
 
         return list(dict.fromkeys(RIVEN_URL_COMPAT.get(s, s) for s in stats))
+
+    @staticmethod
+    def riven_buyout_summary(auctions: list[dict]) -> dict:
+        """仅统计已返回挂单，不读历史榜；未知可见/关闭状态和无有效买断的条目不计。"""
+        import math
+
+        prices, online = [], []
+        for auction in auctions:
+            if (
+                not isinstance(auction, dict)
+                or auction.get("visible") is not True
+                or auction.get("closed") is not False
+            ):
+                continue
+            value = auction.get("buyout_price")
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
+                continue
+            try:
+                if not math.isfinite(value):
+                    continue
+            except OverflowError:
+                continue
+            prices.append(value)
+            owner = auction.get("owner")
+            if isinstance(owner, dict) and owner.get("status") in ("online", "ingame"):
+                online.append(value)
+        prices.sort()
+        sample = prices[:RIVEN_RT_TOP_PRICES]
+        count = len(sample)
+        median = None
+        if count:
+            median = sample[count // 2]
+            if count % 2 == 0:
+                lower, upper = sample[count // 2 - 1], sample[count // 2]
+                median = lower + (upper - lower) / 2
+        return {
+            "low": prices[0] if prices else None,
+            "online_low": min(online) if online else None,
+            "median": median,
+            "sample_count": count,
+            "sample_limit": RIVEN_RT_TOP_PRICES,
+            "returned_count": len(auctions),
+            "valid_count": len(prices),
+        }
+
+    async def riven_price_reference(self, weapon_url_name: str, platform: str = "pc") -> dict:
+        """单武器低价参考：一次 price_asc 查询，不触发历史榜或后台全量爬取。
+
+        slug/platform 沿用已规范化的 WM 拍卖入参。low/online_low 取本次返回的
+        有效一口价；median 只取最低20条。returned_count 是拍卖入口按id去重后的
+        返回条数，均不是全市场数量。无有效样本时价格为None；请求错误原样上抛。
+        fetched 是本次查询完成的Unix秒，可命中现有90秒缓存，不能作为原始挂单
+        更新时间；前端宜标「查询于」，并保留一口价样本非成交价的说明。
+        """
+        auctions = await self.wm_riven_auctions(
+            weapon_url_name, platform, sorts=("price_asc",), retries=0
+        )
+        return {
+            **self.riven_buyout_summary(auctions),
+            "weapon_url_name": weapon_url_name,
+            "platform": platform,
+            "fetched": time.time(),
+            "cache_ttl_seconds": TTL_WM_AUCTIONS,
+            "source": "warframe.market v1 拍卖查询（price_asc）",
+            "scope": (
+                "查询返回样本中的可见、未关闭一口价；非成交价，不代表全市场；"
+                f"中位数取最低{RIVEN_RT_TOP_PRICES}条有效样本。"
+            ),
+        }
 
     async def wm_riven_auctions(
         self,
@@ -2926,12 +3979,17 @@ class WarframeClient:
         require_negative: bool = False,
         sorts: tuple = ("price_asc", "price_desc"),
         retries: int = 2,
+        allow_attribute_fallback: bool = True,
+        timeout: Optional[float] = None,
     ) -> list[dict]:
         """WM v1 紫卡拍卖搜索（2026-10-01 双向排序合并 + 逗号 AND + require_negative）。
 
         ``sorts`` / ``retries``（2026-10-24）：紫卡实时排行爬取只要最低价一侧（``("price_asc",)``）、
         且自己在爬取层退避（``retries=0``）—— 拍卖搜索比别的 WM 接口限得严（实测约 90 s 窗口 8 次，
         见 `RIVEN_RT_GAP_S` 注释），双向 + 1.2 s 快速重试只会更快撞 429。
+
+        去词条兼容回退仅适用于首方向带词条过滤时的明确 HTTP 400；调用方可设
+        ``allow_attribute_fallback=False`` 禁用。原请求与回退均沿用 ``retries`` / ``timeout``。
 
         ⚠ 服务端行为**三坑**（2026-10-01 实测，weapon_url_name=ocucor/burston）：
           1. **词条参数必须拼逗号**：`positive_stats=a,b,c` = **AND**（服务端就筛好）；
@@ -2996,14 +4054,29 @@ class WarframeClient:
                     params=params,
                     wm_rate_limit=True,
                     retries=retries,
+                    timeout=timeout,
+                    validator=self._validate_wm_auctions,
                 )
-            except WarframeAPIError:
-                if not (pos or neg):
-                    if sort == "price_asc":
-                        raise  # 第一次就失败且无降级路径：原样抛
-                    # 第二次失败（超时/400）：降级为单方向结果，不让指令打挂
+                self._validate_wm_auctions(data)
+            except _WMV1ContentError:
+                if sort == "price_asc":
+                    raise
+                # 第二方向结构异常仍可使用第一方向；去词条不能修复坏信封。
+                continue
+            except WarframeAPIError as exc:
+                if sort != "price_asc":
+                    # 次方向失败保留升序结果，不额外发起去词条查询。
                     continue
-                # 个别词条不被服务端接受时：去掉词条过滤重查，交给本地二次筛
+                cause = exc.__cause__
+                if not (
+                    allow_attribute_fallback
+                    and ("positive_stats" in params or "negative_stats" in params)
+                    and isinstance(cause, httpx.HTTPStatusError)
+                    and cause.response is not None
+                    and cause.response.status_code == 400
+                ):
+                    raise
+                # 明确400且有词条过滤：兼容服务端词条拒绝，交给本地二次筛。
                 params.pop("positive_stats", None)
                 params.pop("negative_stats", None)
                 try:
@@ -3012,7 +4085,11 @@ class WarframeClient:
                         ttl=TTL_WM_AUCTIONS,
                         params=params,
                         wm_rate_limit=True,
+                        retries=retries,
+                        timeout=timeout,
+                        validator=self._validate_wm_auctions,
                     )
+                    self._validate_wm_auctions(data)
                 except WarframeAPIError:
                     if sort == "price_asc":
                         raise
@@ -3058,7 +4135,9 @@ class WarframeClient:
                 ttl=TTL_WM_AUCTIONS,
                 params=params,
                 wm_rate_limit=True,
+                validator=self._validate_wm_auctions,
             )
+            self._validate_wm_auctions(data)
         except WarframeAPIError as exc:
             msg = str(exc)
             if "400" in msg:
@@ -3213,13 +4292,15 @@ class WarframeClient:
         seen = getattr(self, "_prime_seen", None)
         if seen is None:
             seen = self._prime_seen = set()
-        if query in seen:
+        # 每个 asyncio 任务有独立调用栈；并发请求（含子任务）不能互相占位。
+        key = (asyncio.current_task(), query)
+        if key in seen:
             return None
-        seen.add(query)
+        seen.add(key)
         try:
             return await self._resolve_wm_item_once(query)
         finally:
-            seen.discard(query)
+            seen.discard(key)
 
     async def _resolve_wm_item_once(self, query: str) -> Optional[dict]:
         """单次解析（不含重入守卫）；递归防护由 resolve_wm_item 负责。"""
@@ -3594,13 +4675,199 @@ class WarframeClient:
             }
         return out
 
-    _flare_cache: dict[str, tuple[float, str]] = {}
-
     # ★ FlareSolverr 调参（2026-09-25 事故：60s 偏紧 + 坏会话不自愈）
     _FLARE_SESSION = "sdjk"
     _FLARE_MAX_TIMEOUT = 120000  # CF 解页实测 ~61s，60000 会整轮卡在边缘
-    # 命中即销毁重建会话：会话不存在/坏掉、求解失败、标签页崩（tab crashed）
-    _FLARE_REBUILD_HINTS = ("session", "solving", "tab crashed", "chrome")
+    # 仅会话/浏览器故障才恢复；CF 求解超时本身不是坏会话，不靠重建反复撞源。
+    _FLARE_REBUILD_HINTS = ("session", "tab crashed", "chrome")
+
+    @staticmethod
+    def _wiki_source_text(raw: str) -> str:
+        import html
+
+        if not isinstance(raw, str) or not raw.strip() or len(raw.encode("utf-8")) > 2_000_000:
+            raise WarframeAPIError("wiki 源正文为空或超过大小上限")
+        # JSON/普通 wikitext 中也可能有 <pre>；只解包浏览器返回的外层 HTML。
+        wrapper = re.match(r"\s*(?:<!doctype\s+html|<html(?:\s|>)|<pre(?:\s|>))", raw, re.I)
+        match = re.search(r"<pre[^>]*>(.*?)</pre>", raw, flags=re.S | re.I) if wrapper else None
+        text = html.unescape(match.group(1)) if match else raw
+        if not text.strip() or re.match(r"\s*(?:<!doctype\s+html|<html(?:\s|>))", text, re.I):
+            raise WarframeAPIError("wiki 返回 HTML/挑战页，未取得源正文")
+        return text
+
+    @staticmethod
+    def _wiki_request_url(url: str) -> str:
+        """MediaWiki API 主动声明 maxlag；raw 页面不附加无关参数。"""
+        target = urlsplit(url)
+        if not target.path.endswith("/api.php"):
+            return url
+        params = parse_qsl(target.query, keep_blank_values=True)
+        maxlag = [(key, value) for key, value in params if key == "maxlag"]
+        if maxlag == [("maxlag", "5")]:
+            return url
+        params = [(key, value) for key, value in params if key != "maxlag"]
+        # 原 URL 没有 maxlag 时只追加，保留上游已有参数的编码和次序。
+        query = (
+            target.query + ("&" if target.query else "") + "maxlag=5"
+            if not maxlag
+            else urlencode(params + [("maxlag", "5")])
+        )
+        return urlunsplit(target._replace(query=query))
+
+    @staticmethod
+    def _wiki_host(url: str) -> str:
+        return (urlsplit(url).hostname or "").lower().rstrip(".")
+
+    def _wiki_defer(self, url: str, retry_after="") -> None:
+        """共享单调时钟退避；短响应不能覆盖更长的等待。"""
+        delay = wm_retry_after_seconds(retry_after, fallback=60.0)
+        cooldown = self.__dict__.setdefault("_wiki_retry_until", {})
+        host = self._wiki_host(url)
+        cooldown[host] = max(cooldown.get(host, 0.0), time.monotonic() + max(1.0, delay))
+
+    async def _wiki_wait(self, url: str) -> None:
+        """按主机间隔启动 HTTP/FS 请求；缓存、会话管理不消耗源站名额。"""
+        host = self._wiki_host(url)
+        locks = self.__dict__.setdefault("_wiki_host_locks", {})
+        lock = locks.setdefault(host, asyncio.Lock())
+        last = self.__dict__.setdefault("_wiki_last_request", {})
+        cooldown = self.__dict__.setdefault("_wiki_retry_until", {})
+        async with lock:
+            while True:
+                self._ensure_open()
+                now = time.monotonic()
+                if cooldown.get(host, 0.0) > now:
+                    raise _WikiRetryLater("wiki 上游处于 Retry-After 退避窗口")
+                wait = last.get(host, -math.inf) + self.WIKI_MIN_INTERVAL_S - now
+                if wait <= 0:
+                    last[host] = now
+                    return
+                await asyncio.sleep(wait)
+
+    def _wiki_check_response(
+        self, url: str, status, headers=None, body: str = "", *, allow_challenge: bool = False
+    ) -> None:
+        """直连及 FS 源站响应使用相同的 HTTP/API 退避规则。"""
+        try:
+            code = int(status)
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise _WikiRequestRejected("wiki 未提供有效的源站 HTTP 状态") from exc
+        if isinstance(status, bool) or not 100 <= code <= 599:
+            raise _WikiRequestRejected("wiki 未提供有效的源站 HTTP 状态")
+        try:
+            headers = httpx.Headers(headers or {})
+        except (TypeError, ValueError, AttributeError) as exc:
+            raise _WikiRequestRejected("wiki 源站响应头格式无效") from exc
+        retry_after = headers.get("Retry-After", "")
+        if code == 429 or code >= 500 or (code >= 400 and retry_after):
+            self._wiki_defer(url, retry_after)
+            raise _WikiRetryLater(f"wiki HTTP {code}：本轮停止获取，稍后重试")
+        if not 200 <= code < 300 and not (allow_challenge and code == 403):
+            raise _WikiRequestRejected(f"wiki HTTP {code}：本轮停止获取")
+        if headers.get("cf-mitigated", "").lower() == "challenge":
+            if allow_challenge:
+                raise WarframeAPIError("wiki HTTP 返回 Cloudflare challenge")
+            raise _WikiRequestRejected("wiki FS 返回 Cloudflare challenge，未取得源正文")
+        if urlsplit(url).path.endswith("/api.php") and body:
+            try:
+                payload = json.loads(self._wiki_source_text(body))
+            except (ValueError, WarframeAPIError):
+                return  # 正文/业务校验由调用方执行，保留原接力行为。
+            error = payload.get("error") if isinstance(payload, dict) else None
+            if isinstance(error, dict) and error.get("code") in {"maxlag", "ratelimited"}:
+                self._wiki_defer(url, retry_after)
+                raise _WikiRetryLater(f"wiki API {error['code']}：上游要求稍后重试")
+
+    async def fetch_wiki_source(
+        self, url: str, ttl: int = TTL_FLARE, *, validator: Optional[Callable[[str], None]] = None
+    ) -> str:
+        """普通 HTTP 优先，失败且开关允许时才用 FS；两路都通过正文校验才缓存。"""
+        self._ensure_open()
+        url = self._wiki_request_url(url)
+        cache = self.__dict__.setdefault("_wiki_source_cache", {})
+
+        def validate(raw):
+            text = self._wiki_source_text(raw)
+            if "/api.php?" in url:
+                payload = self._wiki_json(text)
+                error = payload.get("error") if isinstance(payload, dict) else None
+                if isinstance(error, dict) and error.get("code") in {"maxlag", "ratelimited"}:
+                    raise _WikiRetryLater(f"wiki API {error['code']}：上游要求稍后重试")
+                self._wiki_revision_pages(text)
+            if validator:
+                validator(text)
+            return text
+
+        hit = cache.get(url)
+        if hit and time.time() - hit[0] < ttl:
+            try:
+                return validate(hit[1])
+            except Exception:  # noqa: BLE001 - 本地缓存也必须服从当前业务校验
+                cache.pop(url, None)
+        await self._wiki_wait(url)
+        retry_after = ""
+        try:
+            response = await self._http.get(
+                url,
+                timeout=10.0,
+                headers={"Accept": "application/json, text/plain;q=0.9"},
+                follow_redirects=False,
+            )
+            self._ensure_open()
+            retry_after = response.headers.get("Retry-After", "")
+            self._wiki_check_response(
+                url, response.status_code, response.headers, response.text, allow_challenge=True
+            )
+            response.raise_for_status()
+            text = validate(response.text)
+        except _WikiRetryLater:
+            self._wiki_defer(url, retry_after)
+            raise
+        except _WikiRequestRejected:
+            raise
+        except Exception as exc:  # noqa: BLE001 - 连接/正文失败才允许 FS 接力
+            self._ensure_open()
+            if not self.flare_enabled:
+                raise WarframeAPIError(f"wiki HTTP 不可用且 FlareSolverr 已关闭：{exc}") from exc
+            logger.debug("[sdjk] wiki HTTP 未取得有效源正文，尝试 FlareSolverr：%s", exc)
+            try:
+                text = validate(await self.fetch_via_flaresolver(url, ttl=0))
+            except _WikiRetryLater:
+                self._flare_cache.pop(url, None)
+                self._wiki_defer(url)
+                raise
+            except Exception:
+                # FS 自身有历史缓存；非法正文不能让后续请求反复命中。
+                self._flare_cache.pop(url, None)
+                raise
+        self._ensure_open()
+        cache[url] = (time.time(), text)
+        return text
+
+    def _validate_rotation_source(self, key: str, source: str) -> None:
+        """传输层接力前先拒绝残缺正文；时效/数值变化仍由采用层判断。"""
+        if key == "acrithis":
+            parsed = self.parse_acrichis_current(source)
+            snap = self._acrichis_snapshot()
+            catalog = snap.get("_en_catalog") or {}
+            items = parsed.get("items", [])
+            if (
+                len(set(items)) != 5
+                or not set(items) <= set(catalog)
+                or _parse_acrithis_observed(parsed.get("observed", "")) is None
+            ):
+                raise WarframeAPIError("言录使源正文货单/日期不完整或物品未知")
+            return
+        # 源正文名单以静态骨架为准，损坏/缺行的运行缓存不能缩小校验集合。
+        rot = paths.load_json(paths.PKG_DATA / "rotations.json")
+        data = rot.get(key) or {}
+        groups = [data.get("items", [])] if key == "tenet" else data.get("batches", [])
+        if not groups or any(not items for items in groups):
+            raise WarframeAPIError("缺少本地效价武器名单，不能校验源页")
+        parsed = self.parse_wikitext(source)
+        for index, items in enumerate(groups):
+            rows = parsed["tenet"] if key == "tenet" else parsed["coda"].get(index + 1, [])
+            self._valence_table(rows, {item["en"] for item in items})
 
     async def fetch_via_flaresolver(self, url: str, ttl: int = TTL_FLARE) -> str:
         """经 FlareSolverr 抓取被 Cloudflare 拦的页面，返回渲染后的 HTML。
@@ -3610,12 +4877,15 @@ class WarframeClient:
         """
         import time as _t
 
+        url = self._wiki_request_url(url)
         hit = self._flare_cache.get(url)
         if hit and _t.time() - hit[0] < ttl:
             return hit[1]
 
         async def _post(base: str, payload: dict) -> dict:
-            r = await self._http.post(base, json=payload, timeout=120.0)
+            r = await self._http.post(base, json=payload, timeout=120.0, follow_redirects=False)
+            if payload.get("cmd") == "request.get":
+                self._wiki_check_response(url, r.status_code, getattr(r, "headers", {}))
             r.raise_for_status()
             return r.json()
 
@@ -3637,21 +4907,43 @@ class WarframeClient:
                 "session": self._FLARE_SESSION,
                 "maxTimeout": self._FLARE_MAX_TIMEOUT,
             }
-            try:
-                data = await _post(base, payload)
-            except Exception:  # noqa: BLE001 - 连接级失败/非 JSON：重建后重试一次
+            for attempt in range(2):
+                await self._wiki_wait(url)
+                try:
+                    data = await _post(base, payload)
+                except (_WikiRetryLater, _WikiRequestRejected):
+                    raise
+                except Exception:  # noqa: BLE001 - 连接/非 JSON 失败至多恢复一次
+                    if attempt:
+                        raise
+                    await _recreate_session(base)
+                    continue
+                # 顶层失败也可能携带源站响应，先服从限流，不能先重建再撞源站。
+                if not isinstance(data, dict):
+                    raise _WikiRequestRejected("FlareSolverr 响应结构无效")
+                solution = data.get("solution")
+                if solution is not None and not isinstance(solution, dict):
+                    raise _WikiRequestRejected("FlareSolverr 源站响应结构无效")
+                if solution is not None:
+                    self._wiki_check_response(
+                        url,
+                        solution.get("status"),
+                        solution.get("headers"),
+                        solution.get("response") or "",
+                    )
+                    if (
+                        not isinstance(solution.get("response"), str)
+                        or not solution["response"].strip()
+                    ):
+                        raise _WikiRequestRejected("FlareSolverr 源正文为空或格式无效")
+                if data.get("status") == "ok":
+                    if solution is None:
+                        raise _WikiRequestRejected("FlareSolverr 缺少源站响应")
+                    return data
+                msg = str(data.get("message") or "")
+                if attempt or not any(h in msg.lower() for h in self._FLARE_REBUILD_HINTS):
+                    break
                 await _recreate_session(base)
-                data = await _post(base, payload)
-            if data.get("status") == "ok":
-                return data
-            msg = str(data.get("message") or "")
-            # 会话不存在/求解失败/标签页崩 → destroy→create 再试
-            # （冷启动首次求解常超时，带 cookie 的第二次实测 22s 通过）
-            if any(h in msg.lower() for h in self._FLARE_REBUILD_HINTS):
-                await _recreate_session(base)
-                data = await _post(base, payload)
-            if data.get("status") != "ok":
-                data = await _post(base, payload)
             return data
 
         last_err: Exception | None = None
@@ -3667,6 +4959,8 @@ class WarframeClient:
         for base in candidates:
             try:
                 data = await _solve(base)
+            except (_WikiRetryLater, _WikiRequestRejected):
+                raise
             except Exception as e:  # noqa: BLE001 - 换下一个候选地址
                 last_err = e
                 data = {}
@@ -3690,7 +4984,7 @@ class WarframeClient:
 
     @property
     def flare_enabled(self) -> bool:
-        """面板开关状态（调用方据此决定是否做 wiki 类刷新与告警）。"""
+        """面板开关状态（仅控制 HTTP 失败后的 FlareSolverr 接力）。"""
         return self._flare_enabled
 
     async def flare_reachable(self, timeout: float = 6.0) -> bool:
@@ -3716,6 +5010,12 @@ class WarframeClient:
         return False
 
     async def recycle_flare_session(self) -> bool:
+        self._ensure_open()
+        async with self._rotation_lock():
+            self._ensure_open()
+            return await self._recycle_flare_session_locked()
+
+    async def _recycle_flare_session_locked(self) -> bool:
         """主动回收持久会话（destroy→create），防 Chromium 标签页长跑崩。
 
         2026-09-25 事故：02:18 那轮刷新用的标签页在 08:18 崩掉，插件随后每小时
@@ -3815,10 +5115,9 @@ class WarframeClient:
             m = re.search(r"\{\{\s*D\s*\|\s*([^}|]+?)\s*\}\}", cells[1])
             out["element"] = m.group(1) if m else cls._wt_plain(cells[1])
         if len(cells) > 2:
-            m = re.search(r"ValenceBonusPercentageColor\s*\|\s*([\d.]+)", cells[2]) or re.search(
-                r"([\d.]+)", cls._wt_plain(cells[2])
-            )
-            out["bonus"] = float(m.group(1)) if m else None
+            m = re.search(r"ValenceBonusPercentageColor\s*\|([^}|]*)", cells[2])
+            number = m.group(1).strip() if m else cls._wt_plain(cells[2]).removesuffix("%").strip()
+            out["bonus"] = float(number) if re.fullmatch(r"\d+(?:\.\d+)?", number) else None
         return out
 
     @classmethod
@@ -3859,6 +5158,417 @@ class WarframeClient:
         return res
 
     @staticmethod
+    def _valence_since(
+        old_vals, items, recorded, legacy, revision, fallback, data, now, half, page
+    ):
+        """共用数值采用口径；无关修订保留最早时刻，跨轮百分比半更不续鲜。"""
+        from datetime import datetime, timedelta
+
+        values = WarframeClient.valence_values(items)
+        same = values == old_vals
+        epoch = datetime.fromisoformat(data["epoch"])
+        period = timedelta(hours=int(data.get("period_hours", 96)))
+        window = epoch + (now - epoch) // period * period
+        previous = _stamp_dt(recorded or legacy)
+        if (
+            not same
+            and old_vals
+            and len(values) == len(old_vals)
+            and previous is not None
+            and previous < window
+            and all(e not in ("None", "") for _, e, _ in old_vals)
+            and [v[:2] for v in values] == [v[:2] for v in old_vals]
+        ):
+            same = True
+            half.append(page)
+        if same and recorded:
+            return recorded
+        stamp = revision.replace(microsecond=0).isoformat() if revision else None
+        if not same:
+            return stamp or fallback
+        candidates = [t for t in (stamp, legacy) if _stamp_dt(t) is not None]
+        return min(candidates, key=_stamp_dt) if candidates else fallback
+
+    @staticmethod
+    def _wiki_json(raw):
+        import html
+
+        text = str(raw)
+        if text.lstrip().startswith(("{", "[")):
+            return json.loads(text)
+        match = re.search(r"<pre[^>]*>(.*?)</pre>", text, flags=re.S | re.I)
+        return json.loads(html.unescape(match.group(1)) if match else text)
+
+    @classmethod
+    def _wiki_revision_pages(cls, raw) -> dict:
+        """区分 MediaWiki API 错误与正常页面，防 HTTP 200 错误对象静默变成空表。"""
+        payload = cls._wiki_json(raw)
+        if not isinstance(payload, dict):
+            raise WarframeAPIError("wiki API invalid-response：响应不是对象")
+        if "error" in payload:
+            error = payload["error"]
+            code = (
+                str(error.get("code", "unknown-error"))
+                if isinstance(error, dict)
+                else "unknown-error"
+            )
+            info = str(error.get("info", ""))[:160] if isinstance(error, dict) else str(error)[:160]
+            raise WarframeAPIError(f"wiki API {code}：{info}")
+        query = payload.get("query")
+        pages = query.get("pages") if isinstance(query, dict) else None
+        if (
+            not isinstance(pages, dict)
+            or not pages
+            or any(not isinstance(page, dict) for page in pages.values())
+        ):
+            raise WarframeAPIError("wiki API invalid-response：缺少有效 query.pages 对象")
+        return pages
+
+    def _rotation_observations(self) -> dict:
+        # 不走种子回落；此文件只能存在于 plugin_data，开发树离线调用不创建包文件。
+        target = paths.run_dir() / ROTATION_REVISIONS_NAME
+        value = self._load_json_file(target)
+        if not isinstance(value, dict) or not isinstance(value.get("pages", {}), dict):
+            return {}
+        valid = {}
+        for key, record in value.get("pages", {}).items():
+            if (
+                key in ROTATION_PAGES
+                and isinstance(record, dict)
+                and type(record.get("revid")) is int
+                and record["revid"] > 0
+                and _stamp_dt(record.get("timestamp")) is not None
+            ):
+                valid[key] = record
+        return {"pages": valid}
+
+    def _rotation_source_not_older(self, key, revision, fingerprint=None) -> bool:
+        record = (self._rotation_observations().get("pages") or {}).get(key) or {}
+        previous = _stamp_dt(record.get("timestamp"))
+        if previous is None:
+            return True
+        if revision is None or revision < previous:
+            return False
+        if revision == previous and fingerprint is not None:
+            return fingerprint == record.get("source_fingerprint", record.get("fingerprint"))
+        return True
+
+    def _source_fingerprint(self, key, source):
+        if key == "acrithis":
+            parsed = self.parse_acrichis_current(source)
+            snap = self._acrichis_snapshot()
+            catalog = snap.get("_en_catalog") or {}
+            values = self._offering_values([catalog[name] for name in parsed.get("items", [])])
+        else:
+            parsed = self.parse_wikitext(source)
+            values = (
+                self.valence_values(parsed["tenet"])
+                if key == "tenet"
+                else [self.valence_values(rows) for _, rows in sorted(parsed["coda"].items())]
+            )
+        return json.dumps(values, ensure_ascii=False, separators=(",", ":"))
+
+    def _processed_source_unchanged(self, key, fingerprint) -> bool:
+        record = (self._rotation_observations().get("pages") or {}).get(key) or {}
+        return fingerprint == record.get("source_fingerprint", record.get("fingerprint"))
+
+    @staticmethod
+    def _valence_table(rows, expected):
+        """固定修订正文必须给出恰好一组合法数值，禁止重复/残缺/非有限加成。"""
+        import math
+
+        names = [row.get("en") for row in rows]
+        if len(names) != len(set(names)) or set(names) != set(expected):
+            raise WarframeAPIError("修订正文武器名单不完整或重复")
+        for row in rows:
+            value = row.get("bonus")
+            if (
+                row.get("element")
+                not in {"Heat", "Cold", "Electricity", "Toxin", "Impact", "Magnetic", "Radiation"}
+                or isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not math.isfinite(value)
+                or not 25 <= value <= 60
+            ):
+                raise WarframeAPIError("修订正文元素或加成无效")
+        return {row["en"]: (row["element"], row["bonus"]) for row in rows}
+
+    def _adopt_valence_revision(self, key, source, revision) -> str:
+        from datetime import datetime, timezone
+
+        rot = self._restore_valence_skeleton(
+            json.loads(paths.read_path("rotations.json").read_text(encoding="utf-8"))
+        )
+        data = rot[key]
+        parsed = self.parse_wikitext(source)
+        now = datetime.now(timezone.utc)
+        stamp = revision.isoformat()
+        if self.valence_is_stale({**data, "valence_snapshot": stamp}, now):
+            return "not-updated"
+        groups = [data["items"]] if key == "tenet" else data["batches"]
+        tables = []
+        for idx, items in enumerate(groups):
+            rows = parsed["tenet"] if key == "tenet" else parsed["coda"].get(idx + 1, [])
+            tables.append(self._valence_table(rows, [it["en"] for it in items]))
+        if not self._rotation_source_not_older(key, revision):
+            return "not-updated"
+        fingerprint = self._source_fingerprint(key, source)
+        if self._processed_source_unchanged(
+            key, fingerprint
+        ) and fingerprint != self._rotation_fingerprint(key, data):
+            return "unchanged" if self._rotation_fresh(key) else "not-updated"
+        old_snapshot = data.get("valence_snapshot")
+        sinces = (
+            [data.get("valence_values_since")]
+            if key == "tenet"
+            else list(data.get("batch_values_since") or [])
+        )
+        sinces += [None] * (len(groups) - len(sinces))
+        record = (self._rotation_observations().get("pages") or {}).get(key) or {}
+        try:
+            previous_source = json.loads(
+                record.get("source_fingerprint", record.get("fingerprint", "null"))
+            )
+        except (TypeError, ValueError):
+            previous_source = None
+        previous_groups = previous_source if key == "coda" else [previous_source]
+        half = []
+        changed = False
+        pending = False
+        for idx, items in enumerate(groups):
+            candidate_values = self.valence_values(
+                [
+                    {"en": name, "element": values[0], "bonus": values[1]}
+                    for name, values in tables[idx].items()
+                ]
+            )
+            if (
+                isinstance(previous_groups, list)
+                and idx < len(previous_groups)
+                and json.loads(json.dumps(candidate_values)) == previous_groups[idx]
+            ):
+                # 只另一批被编辑时，本批正文仍是已处理旧值，不能覆回社区/管理员的更正。
+                continue
+            old = self.valence_values(items)
+            if not self._rotation_source_not_older(key, revision) or (
+                _stamp_dt(sinces[idx]) and revision < _stamp_dt(sinces[idx])
+            ):
+                # 此组已由更晚来源更正；保留它，不能算整页已处理。
+                pending = pending or self.valence_values(items) != self.valence_values(
+                    [
+                        {"en": name, "element": values[0], "bonus": values[1]}
+                        for name, values in tables[idx].items()
+                    ]
+                )
+                continue
+            replacements = [
+                {**it, "element": tables[idx][it["en"]][0], "bonus": tables[idx][it["en"]][1]}
+                for it in items
+            ]
+            if self.valence_values(replacements) == old:
+                # 页面其它字段或另一批改变不能给本组更新时间；首次同值也不写业务文件。
+                continue
+            since = self._valence_since(
+                old,
+                replacements,
+                sinces[idx],
+                data.get("valence_snapshot"),
+                revision,
+                stamp,
+                data,
+                now,
+                half,
+                ROTATION_PAGES[key],
+            )
+            if half:
+                # 跨轮只改百分比：标记本页未完整更新，本轮暂不采用。
+                half.clear()
+                pending = True
+                continue
+            items[:] = replacements
+            sinces[idx] = since
+            changed = True
+        if not changed:
+            return (
+                "not-updated"
+                if (
+                    pending
+                    or self.valence_is_stale(data, now)
+                    or self.valence_values_stale(data, now)
+                )
+                else "fresh"
+            )
+        if key == "tenet":
+            data["valence_values_since"] = sinces[0]
+        else:
+            data["batch_values_since"] = sinces
+        previous_snapshot = _stamp_dt(old_snapshot)
+        data["valence_snapshot"] = (
+            old_snapshot
+            if previous_snapshot is not None and previous_snapshot > revision
+            else stamp
+        )
+        data["valence_source"] = "wiki 固定修订源页 wikitext"
+        # 未变批 since 保留；若升级前缺 since，以旧快照填充，不能借另一批变化续鲜。
+        if key == "coda":
+            data["batch_values_since"] = [value or old_snapshot for value in sinces]
+        if pending or self.valence_is_stale(data, now) or self.valence_values_stale(data, now):
+            # 不写未完整采用的部分页：否则无processed游标时旧兜底可能覆回这部分值。
+            return "not-updated"
+        self._ensure_open()
+        paths.atomic_write_text(
+            paths.write_path("rotations.json"), json.dumps(rot, ensure_ascii=False, indent=1)
+        )
+        return "refreshed"
+
+    def _rotation_fingerprint(self, key, data=None) -> str:
+        if data is None:
+            name = ACRITHIS_WEEK_NAME if key == "acrithis" else "rotations.json"
+            data = self._load_json_file(paths.read_path(name)) or {}
+            if key != "acrithis":
+                data = data.get(key) or {}
+        if key == "acrithis":
+            value = self._offering_values(data.get("items"))
+        elif key == "tenet":
+            value = self.valence_values(data.get("items"))
+        else:
+            value = [self.valence_values(items) for items in data.get("batches") or []]
+        return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+
+    def _rotation_fresh(self, key) -> bool:
+        if key == "acrithis":
+            return not self.acrithis_week_expired()
+        rot = self._load_json_file(paths.read_path("rotations.json")) or {}
+        data = rot.get(key) or {}
+        return (
+            bool(data.get("epoch"))
+            and self.valence_data_complete(data)
+            and not (self.valence_is_stale(data) or self.valence_values_stale(data))
+        )
+
+    async def check_rotation_revisions(self) -> dict[str, str]:
+        """批量观察三页修订；候选只取固定 revid 正文，失败/未更新不推进处理游标。
+
+        fresh=正文业务值相同且本地有效；unchanged=已处理同版且本地仍有效；
+        refreshed=采用有效更新；not-updated=旧版本/旧业务值/未完整换轮；failed=本页失败。
+        """
+        self._ensure_open()
+        async with self._rotation_lock():
+            return await self._check_rotation_revisions_locked()
+
+    async def _check_rotation_revisions_locked(self) -> dict[str, str]:
+        from datetime import datetime, timezone
+
+        self._ensure_open()
+        results = dict.fromkeys(ROTATION_PAGES, "failed")
+        if paths.run_dir() == paths.PKG_DATA:
+            return results
+        try:
+            raw = await self.fetch_wiki_source(ROTATION_REVISION_API, ttl=0)
+            self._ensure_open()
+            pages = self._wiki_revision_pages(raw)
+            metadata = {}
+            for page in pages.values():
+                title = page.get("title", "").replace("_", " ")
+                if title not in ROTATION_PAGES.values() or page.get("missing") is not None:
+                    continue
+                revisions = page.get("revisions") or []
+                if len(revisions) != 1:
+                    continue
+                rev = revisions[0]
+                number, stamp = rev.get("revid"), _stamp_dt(rev.get("timestamp"))
+                if (
+                    isinstance(number, bool)
+                    or not isinstance(number, int)
+                    or number <= 0
+                    or stamp is None
+                    or stamp > datetime.now(timezone.utc)
+                    or not str(rev.get("timestamp", "")).endswith(("Z", "+00:00"))
+                ):
+                    continue
+                metadata[title] = (number, stamp)
+            missing = sorted(set(ROTATION_PAGES.values()) - set(metadata))
+            if missing:
+                logger.warning("[sdjk] 轮换修订元数据缺少有效页面：%s", "、".join(missing))
+        except Exception as exc:  # noqa: BLE001 - 每轮元数据失败留给定时兜底
+            self._ensure_open()
+            logger.warning("[sdjk] 轮换源页修订查询失败：%s", exc)
+            return results
+        state = self._rotation_observations()
+        records = state.setdefault("pages", {})
+        for key, title in ROTATION_PAGES.items():
+            if title not in metadata:
+                continue
+            number, stamp = metadata[title]
+            previous = records.get(key) or {}
+            if number < previous.get("revid", 0):
+                results[key] = "not-updated"
+                continue
+            if number == previous.get("revid") and _stamp_dt(previous.get("timestamp")) != stamp:
+                continue
+            if number == previous.get("revid"):
+                # 已成功处理的固定正文不会变化；社区/管理员后续更正不能被旧版本回滚。
+                results[key] = "unchanged" if self._rotation_fresh(key) else "not-updated"
+                continue
+            try:
+                # API 按 revid 精确取正文，随后核对回包 id/时间/标题，拒绝缓存串版。
+                url = (
+                    "https://wiki.warframe.com/api.php?action=query&prop=revisions"
+                    f"&revids={number}&rvprop=ids|timestamp|content&rvslots=main&format=json"
+                )
+
+                def fixed_source(response):
+                    body_pages = self._wiki_revision_pages(response)
+                    if len(body_pages) != 1:
+                        raise WarframeAPIError("固定修订正文缺页")
+                    page = next(iter(body_pages.values()))
+                    rev = (page.get("revisions") or [{}])[0]
+                    if (
+                        page.get("title", "").replace("_", " ") != title
+                        or rev.get("revid") != number
+                        or _stamp_dt(rev.get("timestamp")) != stamp
+                    ):
+                        raise WarframeAPIError("固定修订正文与元数据不一致")
+                    source = (rev.get("slots") or {}).get("main", {}).get("*")
+                    if not isinstance(source, str) or not source:
+                        raise WarframeAPIError("固定修订正文为空")
+                    self._validate_rotation_source(key, source)
+                    return source
+
+                raw = await self.fetch_wiki_source(url, ttl=0, validator=fixed_source)
+                self._ensure_open()
+                source = fixed_source(raw)
+                if key == "acrithis":
+                    snap = self._acrichis_snapshot()
+                    status = self._adopt_acrichis_source(
+                        snap, source, stamp, self.acrithis_week_expired()
+                    )
+                else:
+                    status = self._adopt_valence_revision(key, source, stamp)
+                results[key] = status
+                if status in ("fresh", "refreshed", "unchanged"):
+                    self._ensure_open()
+                    if paths.run_dir() == paths.PKG_DATA:
+                        raise WarframeAPIError("未设置 plugin_data，不能写修订观测件")
+                    record = {
+                        "revid": number,
+                        "timestamp": stamp.isoformat(),
+                        "fingerprint": self._rotation_fingerprint(key),
+                        "source_fingerprint": self._source_fingerprint(key, source),
+                    }
+                    updated = {**records, key: record}
+                    paths.atomic_write_text(
+                        paths.write_path(ROTATION_REVISIONS_NAME),
+                        json.dumps({"pages": updated}, ensure_ascii=False, indent=1),
+                    )
+                    records[key] = record
+            except Exception as exc:  # noqa: BLE001 - 单页失败不挡其它页；取消传播
+                self._ensure_open()
+                logger.warning("[sdjk] %s修订 %s 未采用：%s", title, number, exc)
+                results[key] = "failed"
+        return results
+
+    @staticmethod
     def valence_is_stale(data: dict, now=None) -> bool:
         """该段的效价快照是否已过期（不在当前轮次窗口内）。
 
@@ -3881,11 +5591,117 @@ class WarframeClient:
         # GPT 评估 V01：未来时间（> now + 1 天）的快照会永远「在窗口内」⇒ 一样算过期
         return dt < win or dt > now + timedelta(days=1)
 
+    @classmethod
+    def valence_data_complete(cls, data: dict, now=None) -> bool:
+        """静态商品骨架完整，且当前在售组具有合法值；非当前终幕批允许无值。"""
+        import math
+        from datetime import datetime, timedelta, timezone
+
+        try:
+            if not isinstance(data, dict):
+                return False
+            period_hours = data.get("period_hours", 96)
+            if (
+                isinstance(period_hours, bool)
+                or not isinstance(period_hours, (int, float))
+                or not math.isfinite(period_hours)
+                or period_hours <= 0
+            ):
+                return False
+            batches = data.get("batches")
+            if "batches" in data:
+                if not isinstance(batches, list) or len(batches) != 2:
+                    return False
+                groups, size = batches, 7
+            else:
+                groups, size = [data.get("items")], 5
+            names = []
+            for group in groups:
+                if not isinstance(group, list) or len(group) != size:
+                    return False
+                for row in group:
+                    if (
+                        not isinstance(row, dict)
+                        or not isinstance(row.get("en"), str)
+                        or not row["en"].strip()
+                    ):
+                        return False
+                    names.append(row["en"])
+            if len(names) != len(set(names)):
+                return False
+            seed = paths.load_json(paths.PKG_DATA / "rotations.json")
+            expected_groups = seed["coda"]["batches"] if batches else [seed["tenet"]["items"]]
+            if any(
+                {row["en"] for row in group} != {row["en"] for row in expected}
+                for group, expected in zip(groups, expected_groups)
+            ):
+                return False
+            if batches:
+                now = now or datetime.now(timezone.utc)
+                epoch = datetime.fromisoformat(data["epoch"])
+                period = timedelta(hours=period_hours)
+                passed = int((now - epoch) // period)
+                rows = batches[(int(data.get("anchor_idx", 0)) + passed) % len(batches)]
+            else:
+                rows = groups[0]
+            cls._valence_table(rows, [row["en"] for row in rows])
+            return True
+        except (
+            KeyError,
+            TypeError,
+            ValueError,
+            OverflowError,
+            ZeroDivisionError,
+            WarframeAPIError,
+        ):
+            return False
+
+    @staticmethod
+    def _restore_valence_skeleton(rot: dict) -> dict:
+        """缺行缓存按包内静态商品表补回；保留同名已有值，采用源验证成功后才落盘。"""
+        import copy
+
+        seed = paths.load_json(paths.PKG_DATA / "rotations.json")
+        for key in ("tenet", "coda"):
+            data = rot.get(key)
+            if not isinstance(data, dict):
+                data = rot[key] = copy.deepcopy(seed[key])
+            field = "items" if key == "tenet" else "batches"
+            old_groups = [data.get(field)] if key == "tenet" else data.get(field)
+            old_groups = old_groups if isinstance(old_groups, list) else []
+            known = {
+                row["en"]: row
+                for group in old_groups
+                if isinstance(group, list)
+                for row in group
+                if isinstance(row, dict) and isinstance(row.get("en"), str)
+            }
+            source_groups = [seed[key][field]] if key == "tenet" else seed[key][field]
+            groups = copy.deepcopy(source_groups)
+            for group in groups:
+                for row in group:
+                    cached = known.get(row["en"], {})
+                    try:
+                        WarframeClient._valence_table([cached], [row["en"]])
+                    except WarframeAPIError:
+                        continue
+                    row["element"], row["bonus"] = cached["element"], cached["bonus"]
+            data[field] = groups[0] if key == "tenet" else groups
+        return rot
+
     @staticmethod
     def valence_values(items) -> list:
         """一组武器的数值指纹（武器名 + 元素 + 加成），用来判断「换轮后数值到底变没变」。"""
         return sorted(
-            (str(it.get("en")), str(it.get("element")), str(it.get("bonus"))) for it in items or []
+            (
+                str(it.get("en")),
+                str(it.get("element")),
+                format(it["bonus"], ".12g")
+                if isinstance(it.get("bonus"), (int, float))
+                and not isinstance(it.get("bonus"), bool)
+                else str(it.get("bonus")),
+            )
+            for it in items or []
         )
 
     @staticmethod
@@ -3990,17 +5806,53 @@ class WarframeClient:
             out.append({"name": name, "label": label, **ent})
         return out
 
-    async def _community_json(self, urls: tuple[str, ...]) -> Optional[dict]:
+    async def _community_json(
+        self, urls: tuple[str, ...], *, validator: Optional[Callable[[dict], None]] = None
+    ) -> Optional[dict]:
         """读公开仓 bot-data 的社区快照（普通 GET、免盾）。取不到返回 None。
 
-        ★ 按 URL 顺序试（raw → cdn.jsdelivr → gcore.jsdelivr）：国内网络实测读不到 raw，
-        有备用通道才不至于让这批用户卡在第一条。命中即返回，全部失败才 None。
+        按候选顺序试；效价另有 Contents API 独立回退。结构和调用方的时效校验
+        都通过才缓存并返回，旧镜像继续下一源；全部不可采用才返回 None。
         ★ 2026-10-16（GPT 评估 P04）：
           · 上次成功的主机排最前；网络失败的主机冷却 COMMUNITY_COOLDOWN 秒（404 只说明该镜像没这个文件，不冷却）；
           · 全部在冷却时仍试排第一的那个（低频重探，网络恢复能自己回来）；
           · 每条通道只试一次（多通道本身就是重试），整次取数受 COMMUNITY_BUDGET 秒总预算约束。
         """
         name = urls[0].rsplit("/", 1)[-1]
+
+        def validate(payload) -> None:
+            # 验证放在真实HTTP缓存之前，也会检查升级前遗留的同key坏缓存。
+            # 此处只判断文件是否可解析；当前轮次/expiry/本地更新关系仍由消费入口决定。
+            try:
+                if not isinstance(payload, dict):
+                    raise ValueError("不是 JSON 对象")
+                if name in COMMUNITY_STATIC:
+                    ok, why = community_static_ok(name, payload)
+                    if not ok:
+                        raise ValueError(why)
+                elif name == "valence.json":
+                    parsed = parse_community_valence(payload)
+                    if any(_stamp_dt(stamp) is None for stamp in parsed["snapshots"].values()):
+                        raise ValueError("缺少有效的分段快照时间戳")
+                elif name == "acrithis_week.json":
+                    # 不在这里判断是否过期，避免把正常旧货单误判为网络故障。
+                    from datetime import datetime
+
+                    expiry = datetime.fromisoformat(str(payload.get("expiry") or ""))
+                    if expiry.tzinfo is None:
+                        raise ValueError("expiry 缺少时区")
+                    items = payload.get("items")
+                    if (
+                        not isinstance(items, list)
+                        or not items
+                        or any(not isinstance(item, dict) or not item.get("name") for item in items)
+                    ):
+                        raise ValueError("物品列表缺失或条目缺 name")
+            except (ValueError, TypeError, OverflowError) as exc:
+                raise _CommunityContentError(f"社区快照结构不合法（{name}）：{exc}") from exc
+            if validator is not None:
+                validator(payload)
+
         custom = bool(self.community_base)
         if custom:  # 用户自填地址：只走它，不再回落到本项目 bot-data
             urls = (f"{self.community_base}/{name}",)
@@ -4019,27 +5871,54 @@ class WarframeClient:
         live = [u for u in order if self._comm_cool.get(host(u), 0.0) <= now] or order[:1]
         deadline = now + COMMUNITY_BUDGET
         errors: list[str] = []
+        content_failed = False
+        rejected: list[_CommunitySnapshotRejected] = []
         for i, url in enumerate(live):
             left = deadline - time.monotonic()
             if left <= 1.0:
                 logger.info("[sdjk] 社区快照（%s）超出本次时间预算，余下通道下次再试", name)
                 errors.append("超出本次时间预算")
                 break
-            cap = min(left - 0.5, COMMUNITY_PER_CHANNEL)
+            # 为尚未尝试的通道留出预算，新增候选不能让末尾镜像永远轮不到。
+            cap = min((left - 0.5) / (len(live) - i), COMMUNITY_PER_CHANNEL)
+            github_api = not custom and url == COMMUNITY_VALENCE_API_URL
+            request_url = url + f"&cb={int(time.time() // 60)}" if github_api else url
+            headers = (
+                {
+                    **_ORACLE_HEADERS,
+                    "Accept": "application/vnd.github.raw+json",
+                    "X-GitHub-Api-Version": "2026-03-10",
+                }
+                if github_api
+                else _ORACLE_HEADERS
+            )
             try:
                 data = await asyncio.wait_for(
                     self._fetch_json(
-                        url,
+                        request_url,
                         ttl=600,
-                        headers=_ORACLE_HEADERS,
+                        headers=headers,
                         cache_key=f"community:{name}",
                         retries=0,
                         timeout=cap,  # httpx 自己按时中止（主保险）
                         # 自填地址不跟随重定向（重定向可绕过上面的内网校验）
-                        follow_redirects=False if custom else None,
+                        follow_redirects=False if custom or github_api else None,
+                        validator=validate,
                     ),
                     timeout=cap + 2.0,  # 外层取消只作兜底
                 )
+            except _CommunitySnapshotRejected as exc:
+                # 旧快照不是网络故障；不冷却整台主机，也不把它记成成功通道。
+                rejected.append(exc)
+                errors.append(f"{host(url)}：{exc}"[:160])
+                logger.info("[sdjk] 社区快照通道 %s 暂不可采用（%s）：%s", host(url), name, exc)
+                continue
+            except _CommunityContentError as exc:
+                content_failed = True
+                # 坏内容是该文件的问题，不让同主机的其它快照一起进入网络冷却。
+                logger.info("[sdjk] 社区快照通道 %s 内容不可用（%s）：%s", host(url), name, exc)
+                errors.append(f"{host(url)}：{exc}"[:160])
+                continue
             except Exception as exc:  # noqa: BLE001
                 missing = isinstance(exc, WarframeAPIError) and str(exc).startswith("接口不存在")
                 if not missing:
@@ -4067,62 +5946,68 @@ class WarframeClient:
                 self.community_log.setdefault(name, {})["channel"] = host(url)
                 return data
         self.community_log.setdefault(name, {})["channel"] = ""
-        self._note_comm(
-            name,
-            "unavailable",
-            "；".join(errors) or ("所有通道都在冷却中" if not live else "取不到"),
-        )
+        if rejected:
+            # 至少一份可解析快照可解释本轮未采用的原因，不误报成断网。
+            outcome = next((r for r in rejected if r.result == "fresh"), rejected[-1])
+            self._note_comm(name, outcome.result, "；".join(errors), outcome.stamp)
+        else:
+            self._note_comm(
+                name,
+                "invalid" if content_failed else "unavailable",
+                "；".join(errors) or ("所有通道都在冷却中" if not live else "取不到"),
+            )
         return None
 
+    def _validate_community_valence(self, payload: dict, rot: dict) -> None:
+        """逐通道采用闸门；拒绝旧段、禁止任一段回退，并保留源时间戳。"""
+        from datetime import datetime, timezone
+
+        parsed = parse_community_valence(payload)
+        snaps = parsed["snapshots"]
+        now = datetime.now(timezone.utc)
+        for sect in ("tenet", "coda"):
+            data = rot.get(sect) or {}
+            if data.get("epoch") and self.valence_is_stale(
+                {**data, "valence_snapshot": snaps[sect]}, now
+            ):
+                raise _CommunitySnapshotRejected("stale", f"{sect} 段属于上一轮", snaps[sect])
+        older = [
+            sect
+            for sect in ("tenet", "coda")
+            if not community_valence_newer(
+                snaps[sect], (rot.get(sect) or {}).get("valence_snapshot", "")
+            )
+            and snaps[sect] != str((rot.get(sect) or {}).get("valence_snapshot", ""))
+        ]
+        newer = [
+            sect
+            for sect in ("tenet", "coda")
+            if community_valence_newer(
+                snaps[sect], (rot.get(sect) or {}).get("valence_snapshot", "")
+            )
+        ]
+        if older or not newer:
+            reason = "远端分段快照不比本地新" + ("：" + "、".join(older) if older else "")
+            raise _CommunitySnapshotRejected("fresh", reason, parsed["snapshot"])
+
     async def _community_valence_parsed(self, rot: dict) -> Optional[dict]:
-        """把社区快照变成 ``parse_wiki_valence`` 同形结果；校验不过返回 None。"""
-        payload = await self._community_json(COMMUNITY_VALENCE_URLS)
+        """读取首个可采用的社区快照；旧镜像或旧缓存不能挡住后续新源。"""
+        payload = await self._community_json(
+            COMMUNITY_VALENCE_URLS,
+            validator=lambda data: self._validate_community_valence(data, rot),
+        )
         if payload is None:
             return None
         try:
-            parsed = parse_community_valence(payload)
+            # 保留入口末端复验，防止获取过程中跨轮次或旧调用方绕过逐源校验。
+            self._validate_community_valence(payload, rot)
+            return parse_community_valence(payload)
+        except _CommunitySnapshotRejected as exc:
+            self._note_comm("valence.json", exc.result, str(exc), exc.stamp)
         except ValueError as exc:
             logger.warning("[sdjk] 社区元素加成快照校验不过：%s", exc)
             self._note_comm("valence.json", "invalid", exc, payload.get("published_at"))
-            return None
-        snaps = parsed["snapshots"]
-        # ★ 2026-10-16（GPT 评估 V01）：只比「比本地新」不够 —— 上一轮（或 8 天前同批）的快照也可能比本地新，
-        #   采用后再把快照时刻写成 now，旧数据就伪装成本轮。快照时刻必须落在**当前轮次窗口内**。
-        # ★ 2026-10-19：两道闸门都**按段**比（各段用自己的快照时刻、对照自己的窗口与本地同段）。原先共用
-        #   一个 published_at（发布器取的是信条时刻），终幕换轮后整份快照被误判「上一轮」而拒用。
-        from datetime import datetime, timezone
-
-        now = datetime.now(timezone.utc)
-        for sect in ("tenet", "coda"):
-            d = rot.get(sect) or {}
-            if d.get("epoch") and self.valence_is_stale(
-                {**d, "valence_snapshot": snaps[sect]}, now
-            ):
-                logger.info(
-                    "[sdjk] 社区元素加成快照属于上一轮（%s，%s 段），不采用", snaps[sect], sect
-                )
-                self._note_comm("valence.json", "stale", f"{sect} 段属于上一轮", snaps[sect])
-                return None
-        # 各段都不能比本地同段旧（防拿旧的覆盖新的），且至少一段严格更新（否则没必要采用）
-        older = [
-            s
-            for s in ("tenet", "coda")
-            if not community_valence_newer(snaps[s], (rot.get(s) or {}).get("valence_snapshot", ""))
-            and snaps[s] != str((rot.get(s) or {}).get("valence_snapshot", ""))
-        ]
-        newer = [
-            s
-            for s in ("tenet", "coda")
-            if community_valence_newer(snaps[s], (rot.get(s) or {}).get("valence_snapshot", ""))
-        ]
-        if older or not newer:
-            logger.info(
-                "[sdjk] 社区元素加成快照不比本地新（%s），不采用",
-                "、".join(f"{s} {snaps[s] or '无时间戳'}" for s in ("tenet", "coda")),
-            )
-            self._note_comm("valence.json", "fresh", "", parsed["snapshot"])
-            return None
-        return parsed
+        return None
 
     async def _wfhelper_valence_parsed(self) -> Optional[dict]:
         """WFHelper 元素加成（开关打开时才调用）；取不到 / 校验不过返回 None。"""
@@ -4156,15 +6041,29 @@ class WarframeClient:
         当前批**由 epoch+anchor 计算**（``(anchor_idx + 换轮次数) % 批数``），不再
         从页面反解 —— 页面那份不可靠；anchor_idx 是**相位基准**，只在首次标定时改。
 
-        ``community_only=True``（FS 关闭/不可达时由后台循环调用）：**不碰
+        ``community_only=True``（后台的独立社区轮询模式）：**不碰
         FlareSolverr**，直接用公开仓社区快照；取不到就返回 "no-community" 静默跳过。
 
         幂等：快照仍在当前 96h 轮次内则直接返回「fresh」不动文件；``force=True``（面板「从源头
         重抓」）跳过这道门，其余校验（解析完整、数值未更新判定）照旧。
         校验失败（解析残缺）抛异常，绝不写半成品。
         """
+        # 后台社区刷新与面板源页重抓共用同一把资源锁，避免先读的旧快照后写覆盖新值。
+        # async with 同时保证异常或取消后释放；其它资源的刷新不占此锁。
+        self._ensure_open()
+        async with self._rotation_lock():
+            self._ensure_open()
+            return await self._refresh_valence_locked(community_only=community_only, force=force)
+
+    async def _refresh_valence_locked(
+        self, community_only: bool = False, force: bool = False
+    ) -> str:
         from datetime import datetime, timedelta, timezone
 
+        # 效价刷新只能写插件运行目录；离线客户端未注入目录时不得改包内种子。
+        if paths.run_dir().resolve() == paths.PKG_DATA.resolve():
+            logger.warning("[sdjk] 效价刷新未注入运行目录，已跳过以保护包内静态数据")
+            return "failed"
         rot_path = paths.read_path("rotations.json")
         rot = json.loads(rot_path.read_text(encoding="utf-8"))
         now = datetime.now(timezone.utc)
@@ -4182,7 +6081,9 @@ class WarframeClient:
             not force
             and not _unrecorded
             and not any(
-                self.valence_is_stale(s, now) or self.valence_values_stale(s, now)
+                not self.valence_data_complete(s, now)
+                or self.valence_is_stale(s, now)
+                or self.valence_values_stale(s, now)
                 for s in _sections
                 if s
             )
@@ -4190,6 +6091,18 @@ class WarframeClient:
             self._note_comm("valence.json", "local_ok", "本地快照在本轮窗口内")
             return "fresh"
 
+        rot = self._restore_valence_skeleton(rot)
+        pinned_fallback = False
+        if not community_only and self._rotation_observations().get("pages"):
+            result = await self._check_rotation_revisions_locked()
+            states = [result[key] for key in ("tenet", "coda")]
+            if all(state in {"fresh", "unchanged", "refreshed"} for state in states):
+                return "refreshed (revision)" if "refreshed" in states else "fresh"
+            # 某页已成功落盘，兜底必须重新读最新副本，不能用本轮最早读取的旧rot覆盖。
+            rot = self._restore_valence_skeleton(
+                json.loads(paths.read_path("rotations.json").read_text(encoding="utf-8"))
+            )
+            pinned_fallback = True
         tenet_data = rot.get("tenet") or {}
         coda_data = rot.get("coda") or {}
         labels = coda_data.get("batch_label") or ["A", "B"]
@@ -4200,20 +6113,31 @@ class WarframeClient:
         used_community = used_wfhelper = False
         revs: dict = {}  # 源页最近修订时间（只在直抓源页时查；兜底通道没有）
         # 归一形：tenet {en: (elem, pct)}、coda {批次号(1-based): {en: (elem, pct)}}
-        if community_only:
-            kind, raw = await self._valence_fallback(rot)
+        if community_only or pinned_fallback:
+            if pinned_fallback:
+                kind, raw = "community", await self._community_valence_parsed(rot)
+            else:
+                kind, raw = await self._valence_fallback(rot)
             if raw is None:
+                if pinned_fallback:
+                    return "not-updated unverified-source"
                 return "no-community"
             used_community, used_wfhelper = kind == "community", kind == "wfhelper"
         else:
             try:
-                ttl = 0 if force else 600  # 强制重抓不吃 10 分钟页面缓存
-                p_coda = self.parse_wikitext(
-                    await self.fetch_via_flaresolver(WIKI_RAW_CODA, ttl=ttl)
+                ttl = 0 if force else 600
+                p_coda_source = await self.fetch_wiki_source(
+                    WIKI_RAW_CODA,
+                    ttl=ttl,
+                    validator=lambda source: self._validate_rotation_source("coda", source),
                 )
-                p_tenet = self.parse_wikitext(
-                    await self.fetch_via_flaresolver(WIKI_RAW_TENET, ttl=ttl)
+                p_tenet_source = await self.fetch_wiki_source(
+                    WIKI_RAW_TENET,
+                    ttl=ttl,
+                    validator=lambda source: self._validate_rotation_source("tenet", source),
                 )
+                p_coda = self.parse_wikitext(p_coda_source)
+                p_tenet = self.parse_wikitext(p_tenet_source)
                 raw = None
                 revs = await self._wiki_revisions(VALENCE_REVISION_API, "元素加成")
             except Exception as exc:  # noqa: BLE001
@@ -4282,31 +6206,18 @@ class WarframeClient:
         }
 
         def _since(old_vals, new_items, recorded, legacy, page, fb=None):
-            fb = fb or snap
-            # 「这组数值最早出现的时刻」：数值没变且已有记录 ⇒ 沿用；否则取 wiki 页面最近修订时刻
-            # （数值真正发布的时间；早于本轮起点即「页面上还是上一轮」）；查不到修订时间时，
-            # 没变沿用旧快照时刻（升级前的数据没有记录）、变了从本次快照算起
-            new_vals = self.valence_values(new_items)
-            same = new_vals == old_vals
-            if not same and old_vals and len(new_vals) == len(old_vals):
-                # ★ 2026-10-18 半更新：wiki 编辑者只改了百分比、元素列原样留着上一轮（游戏内实拍
-                #   5 把里 4 把元素不同）。元素每轮重新随机，整组元素与上一轮逐把相同 ⇒ 按未更新处理
-                old_el = [v[:2] for v in old_vals]
-                if (
-                    all(e not in ("None", "") for _, e in old_el)
-                    and [v[:2] for v in new_vals] == old_el
-                ):
-                    same = True
-                    half.append(page)
-            if same and recorded:
-                return recorded
-            rev = revs.get(page)
-            rev = rev.replace(microsecond=0).isoformat() if rev else None
-            if not same:
-                return rev or fb
-            # 数值没变、升级前又没记录：页面修订可能是无关编辑 ⇒ 取修订时刻与旧快照时刻中较早者
-            cands = [t for t in (rev, legacy) if t]
-            return min(cands, key=datetime.fromisoformat) if cands else fb
+            return self._valence_since(
+                old_vals,
+                new_items,
+                recorded,
+                legacy,
+                revs.get(page),
+                fb or snap,
+                tenet_data if page == "Tenet Weapons" else coda_data,
+                now,
+                half,
+                page,
+            )
 
         old_t = self.valence_values(tenet_data.get("items"))
         old_t_since = tenet_data.get("valence_values_since")
@@ -4348,9 +6259,10 @@ class WarframeClient:
         elif used_community:
             src = "community-snapshot（wiki《Reset》数据，由有 FS 的机器发布）"
         else:
-            src = "wiki 源页 wikitext（Coda_Weapons / Tenet_Weapons，经 FlareSolverr）"
+            src = "wiki 源页 wikitext（Coda_Weapons / Tenet_Weapons）"
         tenet_data["valence_source"] = src
         coda_data["valence_source"] = src
+        self._ensure_open()
         paths.atomic_write_text(
             paths.write_path("rotations.json"), json.dumps(rot, ensure_ascii=False, indent=1)
         )

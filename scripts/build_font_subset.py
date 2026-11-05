@@ -73,6 +73,9 @@ def collect_chars(extra_cjk: bool) -> set[str]:
     chars.update(EXTRA_SYMBOLS)
     if extra_cjk:
         chars.update(_gb2312())
+    # 已分发字形随历史字符表保留，避免语料缩小后重建意外删字。
+    if CHARSET.is_file():
+        chars.update(CHARSET.read_text(encoding="utf-8"))
     # 去重 + 排序（可复现）
     return chars
 

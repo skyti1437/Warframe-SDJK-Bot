@@ -21,7 +21,7 @@ from ..logging_compat import logger
 from .. import formatters as fmt
 from .. import matching
 from ..parser import GROUP_BUY_MAX, RIVEN_STAT_ZH, parse_wm, parse_wr
-from .base import PLUGIN_DIR, Reply, err_card
+from .base import PLUGIN_DIR, Action, Reply, err_card
 
 JUNK_FILE = PLUGIN_DIR / "core" / "data" / "junk.json"
 
@@ -203,6 +203,36 @@ def _riven_now_by_name(rt: dict, weapons: list) -> dict:
     return out
 
 
+def _market_page(pool: list[dict], page: int, page_size: int) -> list[dict]:
+    """按卡片相同的页码钳制取当前展示行，不把别页卖家挂到本页按钮。"""
+    pages = max(1, (len(pool) + page_size - 1) // page_size)
+    current = max(1, min(page, pages))
+    return pool[(current - 1) * page_size : current * page_size]
+
+
+def _prime_relic_query(host, item: dict) -> str:
+    """只提供本地遗物反查表确有的 Prime 部件名，不猜名称或额外抓取。"""
+    lookup = getattr(host, "_relic_db", None)
+    if not callable(lookup):
+        return ""
+    names = {matching.normalize_name(item.get(key) or "") for key in ("zh", "en")}
+    names = {name for name in names if "prime" in name}
+    if not names:
+        return ""
+    try:
+        _index, inverse = lookup()
+        return next(
+            (
+                key
+                for key, origins in inverse.items()
+                if origins and matching.normalize_name(key) in names
+            ),
+            "",
+        )
+    except Exception:  # noqa: BLE001 —— 可选遗物按钮不影响市场查询
+        return ""
+
+
 class MarketCommands:
     """Mixin：warframe.market / 排行 / 趋势 handler（挂载于 main.WarframeSDJK）。"""
 
@@ -234,13 +264,14 @@ class MarketCommands:
         return None
 
     async def _h_wm(self, parsed, event, platform) -> Reply:
-        pass
+        capability = getattr(self, "_can_send_actions", None)
+        can_actions = callable(capability) and capability(event)
 
         q = parse_wm(parsed.content, parsed.preset)
         if q.group_buy:
             return await self._wm_group_buy(q, platform)
         if not q.item:
-            return err_card(
+            reply = err_card(
                 "没有写物品名",
                 "按 wm 物品名 [部件] … 的格式重发，例如「wm 母牛 蓝图」",
                 (
@@ -260,6 +291,9 @@ class MarketCommands:
                 ),
                 title="wm 查价",
             )
+            if can_actions:
+                reply.actions.append(Action("照示例发", "wm 母牛 蓝图", mode="fill"))
+            return reply
         # 「头」部件黑话：消歧在整名解析之前（教训见 _head_part_resolve 注释）
         _head = await _head_part_resolve(self.client, q.item)
         if _head:
@@ -370,6 +404,25 @@ class MarketCommands:
             whisper_item = item.get("en") or item["url_name"]
             for o in pool[:5]:
                 reply.whisper.append(fmt.build_whisper(o, whisper_item, sell=q.buy))
+        if can_actions:
+            whisper_item = item.get("en") or item["url_name"]
+            shown = _market_page(pool, parsed.page, self.page_size)
+            for number, order in enumerate(shown[:4], 1):
+                seller = (order.get("user") or {}).get("ingame_name")
+                if seller and seller != "?":
+                    reply.actions.append(
+                        Action(
+                            f"{number}号",
+                            fmt.build_whisper(order, whisper_item, sell=q.buy),
+                            mode="copy",
+                        )
+                    )
+            query_name = item.get("zh") or item.get("en") or item.get("url_name")
+            if query_name:
+                reply.actions.append(Action("价格趋势", f"趋势 {query_name}", row=1))
+            relic_query = _prime_relic_query(self, item)
+            if relic_query:
+                reply.actions.append(Action("所属遗物", f"遗物 {relic_query}", row=1))
         return reply
 
     @staticmethod
@@ -604,7 +657,8 @@ class MarketCommands:
         return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
 
     async def _h_wr(self, parsed, event, platform) -> Reply:
-        pass
+        capability = getattr(self, "_can_send_actions", None)
+        can_actions = callable(capability) and capability(event)
 
         _vc = self._wr_veiled_query(parsed.content)
         if _vc is not None:
@@ -618,7 +672,7 @@ class MarketCommands:
                 title="紫卡拍卖",
             )
         if not q.weapon:
-            return err_card(
+            reply = err_card(
                 "没有写武器名",
                 "按 wr 武器名 [筛选词] 的格式重发，例如「wr 绝路 暴击」",
                 (
@@ -628,6 +682,9 @@ class MarketCommands:
                 ),
                 title="紫卡拍卖",
             )
+            if can_actions:
+                reply.actions.append(Action("照示例发", "wr 绝路 暴击", mode="fill"))
+            return reply
         weapon = await self.client.resolve_riven_weapon(q.weapon)
         if not weapon:
             tips = await self.client.suggest_riven_weapons(q.weapon)
@@ -738,16 +795,17 @@ class MarketCommands:
             if (q.stats or q.negatives or q.require_negative)
             else None
         )
+        ordered = fmt.wr_sorted_auctions(pool, presorted=bool(relaxed), exact_ids=exact_ids)
         title, lines, best = fmt.fmt_wr_auctions(
             wname,
-            pool,
+            ordered,
             page=parsed.page,
             page_size=max(4, self.page_size - 4),
             riven_type=rtype,
             group=weapon.get("group", ""),
             # 放宽档的排序是「词条命中率优先」，必须原样保留 —— 渲染层默认
             # 按 在线+价格 重排会把命中的挂单冲散
-            presorted=bool(relaxed),
+            presorted=True,  # 卡片与按钮使用上面的同一个排序结果
             exact_ids=exact_ids,
         )
         filters = [f"▲{RIVEN_STAT_ZH.get(s, s)}" for s in dict.fromkeys(q.stats)]
@@ -778,13 +836,40 @@ class MarketCommands:
             fmt.limit_notes(lines),
             footer=fmt.fmt_platform_footer(platform, "warframe.market 紫卡" + _hint),
         )
-        if parsed.whisper and best:
-            item = best.get("item", {}) or {}
-            price = best.get("buyout_price") or best.get("starting_price")
-            reply.whisper.append(
-                f"/w {best.get('owner', {}).get('ingame_name', '?')} Hi! I want to buy: "
+
+        def auction_whisper(auction):
+            item = auction.get("item", {}) or {}
+            price = auction.get("buyout_price") or auction.get("starting_price")
+            return (
+                f"/w {auction.get('owner', {}).get('ingame_name', '?')} Hi! I want to buy: "
                 f'"{item.get("name", weapon.get("url_name"))}" for {price} platinum. (warframe.market)'
             )
+
+        if parsed.whisper and best:
+            reply.whisper.append(auction_whisper(best))
+        if can_actions:
+            shown = _market_page(ordered, parsed.page, max(4, self.page_size - 4))
+            for number, auction in enumerate(shown, 1):
+                owner = auction.get("owner") or {}
+                seller = owner.get("ingame_name")
+                if not seller or seller == "?":
+                    continue
+                reply.actions.append(
+                    Action(
+                        f"{number}号",
+                        auction_whisper(auction),
+                        mode="copy",
+                        row=(number - 1) // 5,
+                    )
+                )
+            row = (len(shown) + 4) // 5
+            if _asked:
+                reply.actions.extend(
+                    [
+                        Action("倾向", f"倾向 {_asked}", row=row),
+                        Action("词条范围", f"词条范围 {_asked}", row=row),
+                    ]
+                )
         return reply
 
     # ------------------------------------------------------------------
@@ -799,7 +884,7 @@ class MarketCommands:
             "价格排行",
             [
                 "◆ 状态：全量价格榜单还未建立",
-                "※ ⚠ 怎么改：发「排行 刷新」启动后台抓取（WM 全量约 3800 项、限速约 20 分钟，"
+                "※ 请管理员发「排行 刷新」启动后台抓取（耗时随候选数量和行情额度变化，"
                 "期间排行照常可查）",
                 "※ 完成后：「排行」看 甲/武器/卡 三榜，「排行 分类」看 20 名完整榜",
             ],
@@ -810,16 +895,43 @@ class MarketCommands:
         """价格排行：落盘全量榜，按当前成交中位价降序。"""
         content = parsed.content_str or ""
         if "刷新" in content and (parsed.preset or "") != "紫卡":
-            started, done, total = self.client.start_rank_crawl()
+            if not self._is_admin(event):
+                return Reply(
+                    "排行刷新",
+                    ["只有管理员才能重抓 WM 全量排行；可发送「排行」查阅或「排行 进度」查看进度。"],
+                    text_only=True,
+                )
+            try:
+                started, done, total = self.client.start_rank_crawl()
+            except api_client.WarframeAPIError as exc:
+                return Reply(
+                    "排行刷新",
+                    [f"未启动抓取：{api_client.public_error_text(exc)}"],
+                    text_only=True,
+                )
             state = "已启动新一轮全量抓取" if started else "抓取已在进行中"
             return Reply(
                 "排行刷新",
                 [
-                    f"◆ 状态：{state}（WM 全量 {total or '约 3800'} 项，限速约 20 分钟）",
+                    f"◆ 状态：{state}（候选 {total or '待统计'} 项，候选数不等于联网次数；耗时看进度）",
                     f"◆ 当前进度：{done}/{total or '?'}",
                     "※ 抓取期间排行照常可查（显示已完成部分）；可稍后重发本指令看进度",
                 ],
                 footer=fmt.fmt_platform_footer(platform, "warframe.market"),
+            )
+        if content.strip() == "进度":
+            data = self.client._load_json_file(api_client.paths.read_path(api_client.RANKS_NAME))
+            task = getattr(self.client, "_rank_crawl_task", None)
+            running = (
+                bool(task and not task.done())
+                or self.client._crawl_lock("_rank_crawl_lock").locked()
+            )
+            return Reply(
+                "排行进度",
+                [
+                    f"◆ 状态：{'抓取进行中' if running else '当前没有抓取任务'}",
+                    f"◆ 当前进度：{int(data.get('done') or 0)}/{int(data.get('total') or 0) or '?'}",
+                ],
             )
         cat = parsed.preset or ""
         if not cat:
@@ -856,7 +968,7 @@ class MarketCommands:
     async def _h_riven_rank(self, parsed, event, platform) -> Reply:
         """紫卡排行：DE 官方周报为主体；管理员手动拉过 WM 现价后，附「WM挂单 / 变化」两列。
 
-        ★ 2026-10-25 用户改口径：上一版「实时排行」（凌晨自动抓 WM 拍卖、按挂单数排序）用处不大
+        ★ 2026-10-25 维护者改口径：上一版「实时排行」（凌晨自动抓 WM 拍卖、按挂单数排序）用处不大
         —— WM 拍卖搜索单次最多回 100 条，挂单数一律 100，排序没意义；整轮约 30 分钟还容易触发限流。
         改为：周报热度榜照旧（不打 WM），**大更后由管理员手动拉一次现价**（「紫卡排行 刷新」或
         面板按钮，约 30 分钟），对比周报参考价看哪些武器涨跌明显。不再自动抓。
@@ -872,6 +984,27 @@ class MarketCommands:
                 "稍后重发「紫卡排行」",
                 title="紫卡排行",
             )
+        requested_platform = api_client._de_riven_platform(platform)
+        actual_platform = api_client._de_riven_platform(snap.get("platform") or platform)
+        source = "DE 官方周报"
+        if requested_platform != "PC" or actual_platform != "PC":
+            source += f"（{actual_platform}）"
+
+        def weekly_reply(reply):
+            if requested_platform != "PC":
+                # 格式器的通用提示默认能启动PC现价；主机请求须给出明确的平台命令。
+                reply.lines = [
+                    "※ WM 现价目前仅维护 PC，可用「紫卡排行 -pc」查看。"
+                    if line == fmt._riven_now_note("")
+                    else line
+                    for line in reply.lines
+                ]
+            if snap.get("fallback_from"):
+                reply.lines.append(
+                    f"※ {snap['fallback_from']} 周报暂不可用，本次回落 PC 官方周报。"
+                )
+            return reply
+
         weapons = await self.client.wm_riven_weapons()
         zhm = {w.get("en", "").lower(): (w.get("zh") or "") for w in weapons}
         cat = ""
@@ -880,8 +1013,20 @@ class MarketCommands:
             if k in fmt._RIVEN_ITEM_TYPE or k in ("主武", "副武", "未开"):
                 cat = k
                 break
-        rt = self.client.riven_realtime_rows()
+        # 现价抓取只维护PC；主机官方周报不能拼进PC挂单价计算涨跌。
+        rt = self.client.riven_realtime_rows() if actual_platform == "PC" else {}
         if "刷新" in content:
+            if requested_platform != "PC":
+                return weekly_reply(
+                    Reply(
+                        "紫卡排行刷新",
+                        [
+                            "◆ 状态：已强制更新 DE 官方周报",
+                            "◆ WM 现价：目前仅维护 PC，未启动抓取；需要时使用「紫卡排行 刷新 -pc」",
+                        ],
+                        footer=fmt.fmt_platform_footer(platform, source),
+                    )
+                )
             if not self._is_admin(event):
                 when = (rt.get("ts") or "")[:16].replace("T", " ")
                 return Reply(
@@ -891,15 +1036,19 @@ class MarketCommands:
                         "◆ WM 现价：由管理员手动拉取（「紫卡排行 刷新」或面板按钮），避免频繁触发市场限流",
                         f"◆ 最近一次现价：{when + ' UTC' if when else '还没拉过'}",
                     ],
-                    footer=fmt.fmt_platform_footer(platform, "DE 官方周报"),
+                    footer=fmt.fmt_platform_footer(platform, source),
                 )
-            state, n, total = self.client.start_riven_rt_crawl(force=True)
-            say = {"started": "已启动拉取", "running": "拉取已在进行中"}.get(state, state)
+            state, n, total = self.client.start_riven_rt_crawl()
+            say = {
+                "started": "已启动拉取",
+                "running": "拉取已在进行中",
+                "cooldown": "冷却中，未启动抓取；距上次开始及结束均需满 10 分钟后再试",
+            }.get(state, state)
             return Reply(
                 "紫卡排行刷新",
                 [
                     "◆ 周报：已强制更新 DE 官方周报",
-                    f"◆ WM 现价：{say}（目标 {total or '约 100'} 把，WM 限流下约 30 分钟）",
+                    f"◆ WM 现价：{say}（目标 {total or '待统计'} 把，与其它行情查询共用额度；耗时看进度）",
                     f"◆ 当前已收录：{n}/{total or '?'} 把",
                     "※ 拉完后「紫卡排行」各行末尾会多出「WM挂单 / 变化」两列",
                 ],
@@ -909,7 +1058,9 @@ class MarketCommands:
         now_ts = rt.get("ts") or ""
         if not cat:
             title, lines = fmt.fmt_riven_weekly(snap, zhm, now=now, now_ts=now_ts)
-            return Reply(title, lines, footer=fmt.fmt_platform_footer(platform, "DE 官方周报"))
+            return weekly_reply(
+                Reply(title, lines, footer=fmt.fmt_platform_footer(platform, source))
+            )
         veiled = await self.client.wm_veiled_stats(platform) if cat == "未开" else None
         title, lines = fmt.fmt_riven_type(
             cat,
@@ -921,7 +1072,15 @@ class MarketCommands:
             now=now,
             now_ts=now_ts,
         )
-        return Reply(title, lines, footer=fmt.fmt_platform_footer(platform, "DE 官方周报"))
+        if cat == "未开" and veiled:
+            return Reply(
+                title,
+                lines,
+                footer=fmt.fmt_platform_footer(
+                    platform, f"warframe.market 成交（{requested_platform}）"
+                ),
+            )
+        return weekly_reply(Reply(title, lines, footer=fmt.fmt_platform_footer(platform, source)))
 
     async def _h_trend(self, parsed, event, platform) -> Reply:
         """物品价格趋势（48h 逐小时 + 90d 逐日）。"""

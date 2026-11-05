@@ -192,12 +192,53 @@ if WI.available():
         )
     card = WI.intro("托里德")
     text = "\n".join(card[1]) if card else ""
-    check("武器卡片含段位与基础属性", "精通等级需求" in text and "总伤害" in text, text[:80])
+    check(
+        "武器卡片按攻击段保留基础属性",
+        "精通等级需求" in text
+        and "Grenade Impact：该段伤害 100" in text
+        and "Poison Cloud：该段伤害 40" in text
+        and "总伤害" not in text,
+        text[:160],
+    )
     card = WI.intro("Nekros")
     text = "\n".join(card[1]) if card else ""
     check("战甲卡片含属性与技能", "属性：" in text and "技能：" in text, text[:80])
+    # 来源完整后，既有获取表可能多显示一行；正文预算与来源表各自受限。
     check(
-        "卡片行数受控（≤8 行）", all(len(WI.intro(p)[1]) <= 8 for p in ("托里德", "Nekros", "膛线"))
+        "普通卡片正文行数受控（不计获取表）",
+        all(
+            len([x for x in WI.intro(p)[1] if not x.startswith(("◆ 获取", "　来源　几率", "· "))])
+            <= 8
+            for p in ("布莱顿", "Nekros", "膛线")
+        ),
+    )
+    # 三个既有抽查样本的来源数来自种子，不把样本≤3外推成runtime硬上限。
+    for _query in ("布莱顿", "Nekros", "膛线"):
+        _seed_row = WI._prefer_full_rank(WI.candidates(_query))
+        _seed_source = next((x for x in _seed_row["lines"] if x.startswith("获取：")), "")
+        _expected_places = sum(
+            bool(re.search(r"\d+(?:\.\d+)?%", part)) for part in re.split(r"[；;]", _seed_source)
+        )
+        _runtime_lines = WI.intro(_query)[1]
+        _actual_places = sum(x.startswith("· ") for x in _runtime_lines)
+        _table_head_rows = sum(
+            x.startswith("◆ 获取（") or x == "　来源　几率" for x in _runtime_lines
+        )
+        check(
+            "普通样本来源项与seed完整项一致：" + _query,
+            _actual_places == _expected_places <= 3,
+            str((_actual_places, _expected_places)),
+        )
+        check(
+            "普通样本来源标题表头与展开预算：" + _query,
+            _table_head_rows == (2 if _expected_places >= 2 else 0)
+            and len(_runtime_lines) <= 8 + _expected_places + _table_head_rows,
+            str((_table_head_rows, len(_runtime_lines))),
+        )
+    check(
+        "多攻击卡片保留各段，普通信息仍受行数限制",
+        sum(line.startswith("攻击·") for line in WI.intro("托里德")[1]) == 6
+        and sum(not line.startswith("攻击·") for line in WI.intro("托里德")[1]) <= 8,
     )
     check("未收录条目回落 None（Forma 不在知识库）", WI.intro("Forma") is None)
     # 变体清单：不列自身，列同前缀条目
@@ -687,7 +728,7 @@ _all = [e[0] for e in (_wi_raw["entries"] if isinstance(_wi_raw, dict) else _wi_
 _chg = [t for t in _all if WI.display_title(t) != t]
 check("★ 全量标题：只动代码名（≤ 20 条，现 16）", len(_chg) <= 20, str(len(_chg)))
 
-# ★ 2026-10-22（返工版）：「获取」行**只翻结构性词**，专名整段保持英文。
+# 未传官方词表时仅翻结构词；专名整名/歧义/节点/真实卡片链见 test_kb_quality.py。
 for _raw, _want in (
     ("获取：Jupiter/Ganymede (Disruption), Rotation C 10%", "获取：木星/Ganymede（中断）, C轮 10%"),
     (
@@ -711,7 +752,7 @@ for _raw, _want in (
         _BIZ.translate_source(_raw),
     )
 
-# ★ 返工口径的**全量断言**（Claude 要求，仿标题兜底那条）：
+# 当前种子再次执行结构性转换应保持专名；完整词表由构建入口显式提供。
 _GET = [str(x) for _t, _ls in _ENTRIES for x in _ls if str(x).startswith("获取")]
 _GET_NEW = [_BIZ.translate_source(x) for x in _GET]
 check(
@@ -808,6 +849,476 @@ check(
     len(_twin_titles) == 19 and all(_cnt[t] == 1 for t in _twin_titles),
     str([t for t in _twin_titles if _cnt[t] != 1][:3]) + f" 孪生数={len(_twin_titles)}",
 )
+
+# 来源字段迁移：同键官方语言表的固定字段语义，不把普通节点当物品翻译。
+_field_values = {
+    "Cetus": "希图斯",
+    "Cambion Drift": "魔胎之境",
+    "Orb Vallis": "奥布山谷",
+    "Veil Proxima": "面纱比邻星域",
+    "Duviri": "双衍王境",
+    "Zariman": "扎里曼号",
+    "Höllvania": "霍瓦尼亚",
+    "Kuva Fortress": "赤毒要塞",
+    "Conclave": "武形秘仪",
+    "Cephalon Capture": "中枢争夺",
+    "Annihilation": "歼夺",
+    "The Descendia": "沉沦之地",
+    "Arena": "竞技场",
+    "The Circuit": "无尽回廊",
+    "The Perita Rebellion": "佩里塔叛乱",
+    "Void Armageddon": "虚空决战",
+    "Infested Salvage": "INFESTED 资源回收",
+    "Defense": "防御",
+    "Exterminate": "歼灭",
+    "Mistral": "西北风",
+    "Whirlwind": "旋风",
+    "Tempest": "暴风",
+    "Hurricane": "飓风",
+    "Typhoon": "台风",
+    "Operational Supply": "行动补给",
+    "Champion": "英雄",
+}
+_field_en, _field_zh = {}, {}
+for _kind, _fields in _BIZ._SOURCE_FIELD_KEYS.items():
+    for _name, _suffix in _fields.items():
+        _key = "/Lotus/Language/" + _suffix
+        _field_en[_key] = _name.upper() if _kind == "mission" else _name
+        _field_zh[_key] = _field_values[_name]
+_field_names = _BIZ.build_source_names(_field_en, _field_zh)
+check("来源字段：固定官方键接受大小写差异", sum(map(len, _field_names.fields.values())) == 26)
+for _raw, _want in (
+    (
+        "获取：地球/Cetus（等级 50 - 70 Cetus 赏金） 20%",
+        "获取：地球/希图斯（等级 50 - 70 希图斯 赏金） 20%",
+    ),
+    ("获取：Veil Proxima · Arc Silver · Defense 8%", "获取：面纱比邻星域 · Arc Silver · 防御 8%"),
+    ("获取：海王星/Cephalon Capture（Conclave） 2%", "获取：海王星/中枢争夺（武形秘仪） 2%"),
+    ("获取：Conclave, Typhoon 100%", "获取：武形秘仪, 台风 100%"),
+    ("获取：Operational Supply, Champion 100%", "获取：行动补给, 英雄 100%"),
+    (
+        "获取：The Descendia: Uncommon Rewards (Steel Path) 7%",
+        "获取：沉沦之地: Uncommon Rewards (Steel Path) 7%",
+    ),
+    ("获取：谷神星/Lex（Defense） 10%", "获取：谷神星/Lex（防御） 10%"),
+    ("获取：Cambion Drif…；金星/Orb Val…", "获取：Cambion Drif…；金星/Orb Val…"),
+    (
+        "获取：土星 · Variant Team Annihilation · 武形秘仪 3%",
+        "获取：土星 · Variant Team Annihilation · 武形秘仪 3%",
+    ),
+    (
+        "获取：Whirlwind 10%；Carrier 1%；稀有 Corpus 存储容器 1%；Grineer 2%",
+        "获取：Whirlwind 10%；Carrier 1%；稀有 Corpus 存储容器 1%；Grineer 2%",
+    ),
+):
+    _translated = _BIZ.translate_source_fields(_raw, _field_names)
+    check("来源字段迁移：" + _raw, _translated == _want, _translated)
+    check(
+        "来源字段幂等：" + _raw,
+        _BIZ.translate_source_fields(_translated, _field_names) == _translated,
+    )
+check(
+    "来源结构翻译：魔胎之境采用同批官方译名且保留节点",
+    _BIZ.translate_source("获取：Cambion Drift/Test Node") == "获取：魔胎之境/Test Node",
+)
+
+# 在真实 Markdown 解析入口验证：先翻来源字段，再执行卡片长度截断。
+import tempfile as _tempfile  # noqa: E402
+
+with _tempfile.TemporaryDirectory() as _td:
+    _fixture = Path(_td) / "source.md"
+    _fixture.write_text(
+        "### 来源测试\n- 获取：Earth/Cetus (Level 50 - 70 Cetus Bounty) " + "长" * 200 + "\n"
+    )
+    _parsed, _mats = _BIZ.parse_kb(_fixture, 6, source_names=_field_names)
+    _source_line = _parsed[0][1][0]
+    check(
+        "真实解析入口：截断前翻译来源字段",
+        "希图斯" in _source_line and "Cetus" not in _source_line and _source_line.endswith("…"),
+        _source_line,
+    )
+
+# 显式迁移入口的保全、dry-run、check 和幂等护栏（独立临时文件，不写真实种子）。
+import contextlib as _contextlib  # noqa: E402
+import io as _io  # noqa: E402
+
+with _tempfile.TemporaryDirectory() as _td:
+    _dir = Path(_td)
+    for _lang, _values in (("en", _field_en), ("zh", _field_zh)):
+        (_dir / f"dict.{_lang}.json").write_text(json.dumps(_values))
+    _, _source_meta = _BIZ.load_source_names(_dir)
+    _migration_file = _dir / "cards.json"
+    _migration_data = {
+        "_meta": {"source_names": _source_meta, "generated": "fixed"},
+        "entries": [["原题", ["获取：Conclave, Typhoon 100%", "说明：Conclave"]]],
+        "keys": {"原题": 0},
+        "views": {"x": [0]},
+        "pvp": [0],
+        "uses": {"材料": 1},
+    }
+    _migration_file.write_text(json.dumps(_migration_data, ensure_ascii=False))
+    _old_out, _old_argv = _BIZ.OUT, sys.argv
+    try:
+        _BIZ.OUT = _migration_file
+
+        def _migration_run(*flags):
+            sys.argv = ["build_wiki_intro.py", "--source-dict-dir", str(_dir), *flags]
+            with _contextlib.redirect_stdout(_io.StringIO()):
+                return _BIZ.main()
+
+        _before = _migration_file.read_bytes()
+        check(
+            "字段迁移 dry-run 零写入",
+            _migration_run("--dry-run") == 0 and _migration_file.read_bytes() == _before,
+        )
+        check(
+            "字段迁移 check 报待迁移且零写入",
+            _migration_run("--check") == 1 and _migration_file.read_bytes() == _before,
+        )
+        check("字段迁移显式执行", _migration_run("--repair-source-lines") == 0)
+        _after_data = json.loads(_migration_file.read_text())
+        check(
+            "字段迁移其他顶层字段保全",
+            all(v == _after_data[k] for k, v in _migration_data.items() if k != "entries"),
+        )
+        check(
+            "字段迁移标题及非获取行保全",
+            _after_data["entries"][0] == ["原题", ["获取：武形秘仪, 台风 100%", "说明：Conclave"]],
+        )
+        _after = _migration_file.read_bytes()
+        check("字段迁移 check 通过", _migration_run("--check") == 0)
+        check(
+            "字段迁移第二次执行逐字节幂等",
+            _migration_run("--repair-source-lines") == 0 and _migration_file.read_bytes() == _after,
+        )
+        (_dir / "dict.en.json").write_text(json.dumps({**_field_en, "unexpected": "different"}))
+        _rejected = False
+        try:
+            _migration_run("--repair-source-lines")
+        except ValueError:
+            _rejected = True
+        check(
+            "字段迁移拒绝不同批词表且零写入", _rejected and _migration_file.read_bytes() == _after
+        )
+    finally:
+        _BIZ.OUT, sys.argv = _old_out, _old_argv
+
+# 掉落来源标签迁移只动 places；离线词表用夹具提供，不依赖开发机 _cache。
+from copy import deepcopy as _deepcopy  # noqa: E402
+from scripts import build_drops as _BD  # noqa: E402
+
+_drop_en = {
+    **_field_en,
+    "enemy": "Test Enemy",
+    "source_a": "Test Source A",
+    "source_b": "Test Source B",
+    "ambiguous_a": "Ambiguous Enemy",
+    "ambiguous_b": "Ambiguous Enemy",
+    "weapon": "Lex",
+}
+_drop_zh = {
+    **_field_zh,
+    "enemy": "测试敌人",
+    "source_a": "同名来源",
+    "source_b": "同名来源",
+    "ambiguous_a": "歧义甲",
+    "ambiguous_b": "歧义乙",
+    "weapon": "列克斯",
+}
+_drop_names = _BIZ.build_source_names(_drop_en, _drop_zh)
+for _raw, _want in (
+    ("Test Enemy", "测试敌人"),
+    ("地球 · Cetus · 防御 · A轮", "地球 · 希图斯 · 防御 · A轮"),
+    ("Conclave, Typhoon 100%", "武形秘仪, 台风 100%"),
+    ("地球 · Lex · 防御 · A轮", "地球 · Lex · 防御 · A轮"),
+    ("Test Enemy Extra", "Test Enemy Extra"),
+    ("Test Ene…", "Test Ene…"),
+    ("Ambiguous Enemy", "Ambiguous Enemy"),
+    ("Unknown Enemy", "Unknown Enemy"),
+):
+    check("掉落标签来源边界：" + _raw, _BD.translate_label(_raw, _drop_names) == _want)
+_drop_old = {
+    "source": "fixed-source",
+    "official_source": "fixed-official",
+    "updated": "fixed-date",
+    # 故意把数值编号排成与来源名相反，防只按排序回接造成串号。
+    "places": {"91": "Test Source A", "7": "Test Source B", "23": "地球 · Cetus · 防御 · A轮"},
+    "items": {
+        "drop a": [[91, "Rare", 1.25]],
+        "drop b": [[7, "Common", 98.75]],
+        "node drop": [[23, "Rare", 3]],
+    },
+    "zh2en": {"奖励甲": "drop a"},
+    "relic_drops": {"lith test relic": [[91, "Rare", 1.25]]},
+    "relic_special_sources": {"lith test relic": ["固定说明"]},
+    "future_field": {"nested": [1, 2]},
+}
+_drop_snapshot = _deepcopy(_drop_old)
+_drop_migrated = _BD.migrate_labels(_drop_old, _drop_names)
+check("掉落迁移不突变入参", _drop_old == _drop_snapshot)
+check(
+    "掉落迁移编号集合与业务字段逐值不变",
+    set(_drop_migrated["places"]) == set(_drop_old["places"])
+    and all(_drop_migrated[k] == v for k, v in _drop_old.items() if k != "places"),
+)
+check(
+    "掉落迁移只改既有标签",
+    _drop_migrated["places"]
+    == {"91": "同名来源", "7": "同名来源", "23": "地球 · 希图斯 · 防御 · A轮"},
+)
+check("掉落迁移重复执行幂等", _BD.migrate_labels(_drop_migrated, _drop_names) == _drop_migrated)
+_drop_migrated["future_field"]["nested"].append(3)
+check("掉落迁移结果深层修改不影响原对象", _drop_old == _drop_snapshot)
+_drop_migrated = _BD.migrate_labels(_drop_old, _drop_names)
+_drop_rows = [
+    {"place": "Test Source A", "item": "Drop A", "rarity": "Rare", "chance": 1.25},
+    {"place": "Test Source B", "item": "Drop B", "rarity": "Common", "chance": 98.75},
+    {
+        "place": "Earth/Cetus (Defense), Rotation A",
+        "item": "Node Drop",
+        "rarity": "Rare",
+        "chance": 3,
+    },
+]
+with _patch.object(_BD, "apply_patches", side_effect=lambda rows, html: rows):
+    _drop_html = "<b>Last Update:</b> fixed-date"
+    _from_english = _BD.build(_drop_rows, _drop_html, _drop_old, _drop_names)
+    _from_chinese = _BD.build(_drop_rows, _drop_html, _drop_migrated, _drop_names)
+    _repeat_build = _BD.build(_drop_rows, _drop_html, _from_chinese, _drop_names)
+    check(
+        "完整重建兼容旧英文/已译标签且同名来源不串号",
+        _from_english == _from_chinese
+        and _from_chinese["places"] == _drop_migrated["places"]
+        and _from_chinese["items"] == _drop_old["items"],
+    )
+    check("完整重建重复执行保留译文和编号", _repeat_build == _from_chinese)
+    _unmatched = _deepcopy(_drop_migrated)
+    _unmatched["items"]["drop a"][0][2] = 50
+    _rejected = False
+    try:
+        _BD.build(_drop_rows, _drop_html, _unmatched, _drop_names)
+    except ValueError:
+        _rejected = True
+    check("同名来源奖励无法精确接回时拒绝猜配", _rejected)
+    _last_unmatched = _deepcopy(_drop_migrated)
+    _last_unmatched["items"]["drop b"][0][2] = 50
+    _last_rejected = False
+    try:
+        _BD.build(_drop_rows, _drop_html, _last_unmatched, _drop_names)
+    except ValueError:
+        _last_rejected = True
+    check("同名最后一个来源奖励变化仍拒绝猜配", _last_rejected)
+
+with _tempfile.TemporaryDirectory() as _td:
+    _dir = Path(_td)
+    for _lang, _values in (("en", _drop_en), ("zh", _drop_zh)):
+        (_dir / f"dict.{_lang}.json").write_text(json.dumps(_values))
+    _drop_file = _dir / "drops.json"
+    _drop_file.write_text(json.dumps(_drop_old, ensure_ascii=False))
+
+    def _drop_run(*flags):
+        _args = [
+            "build_drops.py",
+            "--migrate-labels",
+            "--source-dict-dir",
+            str(_dir),
+            "--out",
+            str(_drop_file),
+            *flags,
+        ]
+        with (
+            _patch.object(sys, "argv", _args),
+            _patch.object(_BD, "read_source", side_effect=AssertionError("离线迁移不得读取掉落源")),
+            _contextlib.redirect_stdout(_io.StringIO()),
+        ):
+            return _BD.main()
+
+    _before = _drop_file.read_bytes()
+    check(
+        "掉落迁移 dry-run 零写入",
+        _drop_run("--dry-run") == 0 and _drop_file.read_bytes() == _before,
+    )
+    check(
+        "掉落迁移 check 报待迁移且零写入",
+        _drop_run("--check") == 1 and _drop_file.read_bytes() == _before,
+    )
+    check("掉落迁移显式执行", _drop_run() == 0)
+    check("掉落迁移真实入口只改 labels", json.loads(_drop_file.read_text()) == _drop_migrated)
+    _after = _drop_file.read_bytes()
+    check("掉落迁移 check 已完成", _drop_run("--check") == 0)
+    check("掉落迁移二次执行逐字节不变", _drop_run() == 0 and _drop_file.read_bytes() == _after)
+    (_dir / "dict.en.json").unlink()
+    _missing_rejected = False
+    try:
+        _drop_run()
+    except FileNotFoundError:
+        _missing_rejected = True
+    check("掉落迁移缺本地词表报错且零写入", _missing_rejected and _drop_file.read_bytes() == _after)
+
+# 获取行完整重建：结构与官方字段先组合翻译，最后才截断。
+_source_fixture_cases = (
+    (
+        "获取：Earth/Cetus (Level 20 - 40 Cetus Bounty), Rotation A 5.41%",
+        "获取：地球/希图斯（等级 20 - 40 希图斯 赏金）, A轮 5.41%",
+    ),
+    (
+        "获取：地球/Cetus (等级 20 - 40 希图斯 Bounty), Rotation A 5.41%",
+        "获取：地球/希图斯（等级 20 - 40 希图斯 赏金）, A轮 5.41%",
+    ),
+    (
+        "获取：Neptune/Cephalon Capture (Conclave), Rotation A 2.48%；Saturn/Annihilation (Conclave), Rotation B 2.48%",
+        "获取：海王星/中枢争夺（武形秘仪）, A轮 2.48%；土星/歼夺（武形秘仪）, B轮 2.48%",
+    ),
+    ("获取：Duviri/Endless: Tier 4 (Normal) 1.49%", "获取：双衍王境/无尽: 层级 4（普通） 1.49%"),
+    (
+        "获取：Named Region, Deimos/Unknown Node (Survival), Rotation A 2.5%",
+        "获取：Named Region, 火卫二/Unknown Node（生存）, A轮 2.5%",
+    ),
+    ("获取：Earth/Deimos (Survival) 2.5%", "获取：地球/Deimos（生存） 2.5%"),
+    ("获取：地球/Unknown Node（间谍） 2.5%", "获取：地球/Unknown Node（间谍） 2.5%"),
+    (
+        "获取：Unknown Planet/Unknown Node (Unlisted Mode) 2.5%",
+        "获取：Unknown Planet/Unknown Node (Unlisted Mode) 2.5%",
+    ),
+)
+for _raw, _want in _source_fixture_cases:
+    _translated = _BIZ.translate_source(_raw, _field_names)
+    check("完整来源结构：" + _raw, _translated == _want, _translated)
+    check("完整来源幂等：" + _raw, _BIZ.translate_source(_translated, _field_names) == _translated)
+    check(
+        "完整来源数字流：" + _raw,
+        re.findall(r"\d+(?:\.\d+)?%?", _translated) == re.findall(r"\d+(?:\.\d+)?%?", _raw),
+    )
+
+with _tempfile.TemporaryDirectory() as _td:
+    _dir = Path(_td)
+    _source_path = _dir / "kb/01_战甲.md"
+    _source_path.parent.mkdir()
+    _long_source = (
+        "获取：Earth/Cetus (Level 20 - 40 Cetus Bounty), Rotation A 5.41%；"
+        "Venus/Orb Vallis (Level 30 - 50 Orb Vallis Bounty), Rotation C 7.25%；"
+        "Unknown Planet/UnlistedLongNode (Unlisted Mode) 2.5%…（共 3 处）"
+    )
+    _source_path.write_text("### 通用来源测试\n- 类型：测试\n- " + _long_source + "\n")
+    _source_bytes = _source_path.read_bytes()
+    _parsed, _ = _BIZ.parse_kb(_source_path, 6, source_names=_field_names)
+    _line = _parsed[0][1][1]
+    check(
+        "完整解析：长来源在截断前结构及专名全译",
+        "Earth" not in _line and "Cetus" not in _line and "Bount" not in _line,
+        _line,
+    )
+    check(
+        "完整解析：截断不露出下一来源半词",
+        "Venus/" not in _line and "UnlistedLong" not in _line and _line.endswith("…（共 3 处）"),
+        _line,
+    )
+    check("完整解析：截断长度受限", len(_line) <= _BIZ.MAX_LEN, _line)
+    check("完整解析：原稿逐字节不变", _source_path.read_bytes() == _source_bytes)
+    check(
+        "单来源截断不切开英文token",
+        _BIZ.truncate_source("获取：" + "长" * 90 + " UnlistedLongNode 1.25%", 100).endswith("长…"),
+    )
+
+    _dict_dir = _dir / "dict"
+    _dict_dir.mkdir()
+    for _lang, _values in (("en", _field_en), ("zh", _field_zh)):
+        (_dict_dir / f"dict.{_lang}.json").write_text(json.dumps(_values))
+    # CLI跑独立完整main，ROOT定位沙箱，不把OUT重定向成真实种子。
+    _cli_root = _dir / "cli"
+    (_cli_root / "scripts").mkdir(parents=True)
+    (_cli_root / "core/data").mkdir(parents=True)
+    (_cli_root / "scripts/build_wiki_intro.py").write_bytes(
+        (_ROOT / "scripts/build_wiki_intro.py").read_bytes()
+    )
+    import subprocess as _source_subprocess  # noqa: E402
+
+    _argv = [
+        sys.executable,
+        str(_cli_root / "scripts/build_wiki_intro.py"),
+        "--kb-dir",
+        str(_source_path.parent),
+        "--source-dict-dir",
+        str(_dict_dir),
+        "--identity-out",
+        str(_cli_root / "identity.json"),
+    ]
+    _cli_one = _source_subprocess.run(_argv, capture_output=True, text=True)
+    check("完整来源CLI真实main成功", _cli_one.returncode == 0, _cli_one.stderr)
+    if _cli_one.returncode == 0:
+        _cli_bytes = (_cli_root / "core/data/wiki_intro.json").read_bytes()
+        _cli_data = json.loads(_cli_bytes)
+        check(
+            "完整来源CLI真实main使用同一翻译截断链",
+            _cli_data["entries"][0][1][1] == _line,
+            str(_cli_data["entries"]),
+        )
+        _cli_two = _source_subprocess.run(_argv, capture_output=True, text=True)
+        check(
+            "完整来源CLI二次构建逐字节一致",
+            _cli_two.returncode == 0
+            and (_cli_root / "core/data/wiki_intro.json").read_bytes() == _cli_bytes,
+            _cli_two.stderr,
+        )
+        check("完整来源CLI原稿不变", _source_path.read_bytes() == _source_bytes)
+
+# 生成器真实parse_kb→runtime获取表：只允许括号外分号作为完整来源边界。
+with _tempfile.TemporaryDirectory() as _td:
+    _nested_path = Path(_td) / "nested.md"
+    _nested_source = (
+        "获取：虚空遗物（甲部件：古纪 X1 遗物 / 前纪 X2 遗物；"
+        "乙部件：古纪 X3 遗物 / 前纪 X4 遗物；"
+        "丙部件：古纪 X5 遗物 / 前纪 X6 遗物）"
+    )
+    _nested_body = _nested_source[len("获取：虚空遗物（") : -1]
+    _full_parts = _nested_body.split("；")
+    _saved_cap = _BIZ.MAX_LEN
+    try:
+        for _cap in (56, 64, 100):
+            _BIZ.MAX_LEN = _cap
+            _nested_path.write_text("### 通用嵌套来源测试\n- " + _nested_source + "\n")
+            _nested_rows, _ = _BIZ.parse_kb(_nested_path, 6, source_names=_field_names)
+            _nested_short = _nested_rows[0][1][0]
+            _rendered_parts = [
+                x for x in WI._acquire_rows("◆ " + _nested_short) if x.startswith("· ")
+            ]
+            if len(_nested_source) <= _cap:
+                check(
+                    "嵌套来源完整时部件不丢：" + str(_cap),
+                    len(_rendered_parts) == 3,
+                    str(_rendered_parts),
+                )
+            else:
+                _short_parts = _nested_short[len("获取：虚空遗物（") :].rstrip("…").split("；")
+                check(
+                    "嵌套来源fallback末项确为原文半项：" + str(_cap),
+                    bool(_short_parts[-1])
+                    and _full_parts[len(_short_parts) - 1].startswith(_short_parts[-1])
+                    and _short_parts[-1] != _full_parts[len(_short_parts) - 1],
+                    _nested_short,
+                )
+                check(
+                    "嵌套来源runtime只丢实际半项：" + str(_cap),
+                    len(_rendered_parts) == max(1, len(_short_parts) - 1)
+                    and all(
+                        part.split("：", 1)[0] in row
+                        for part, row in zip(_full_parts, _rendered_parts)
+                    ),
+                    str(_rendered_parts),
+                )
+        _BIZ.MAX_LEN = 48
+        _outside = "获取：来源甲 1%；" + _nested_source[3:]
+        _nested_path.write_text("### 通用嵌套来源测试\n- " + _outside + "\n")
+        _nested_rows, _ = _BIZ.parse_kb(_nested_path, 6, source_names=_field_names)
+        check(
+            "嵌套来源优先括号外分号：真实parse到runtime",
+            _nested_rows[0][1][0] == "获取：来源甲 1%…"
+            and WI._acquire_rows("◆ " + _nested_rows[0][1][0])
+            == ["◆ 获取：来源甲 1%（还有其他来源）"],
+            str(_nested_rows),
+        )
+    finally:
+        _BIZ.MAX_LEN = _saved_cap
 
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")

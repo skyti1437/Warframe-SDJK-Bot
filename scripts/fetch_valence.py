@@ -15,9 +15,9 @@ Bonuses* 玩家上报表。而插件侧直连 wiki.warframe.com 会被 Cloudflar
 用法
 ----
     # 在装有 FlareSolverr 的机器上（172.17.0.1:8191，走 docker0 网桥地址；本地开发需 SSH 隧道且目标同样写 172.17.0.1）
-    python3 scripts/fetch_valence.py                 # ★ 默认：抓源页 wikitext（推荐，见下）
+    python3 scripts/fetch_valence.py                 # 抓源页并预览，默认不写文件
     python3 scripts/fetch_valence.py --reset         # 旧路径：抓渲染后的 Reset 页
-    python3 scripts/fetch_valence.py --dry-run       # 只打印解析结果，不写文件
+    python3 scripts/fetch_valence.py --output /tmp/runtime/rotations.json  # 显式写运行期缓存
     python3 scripts/fetch_valence.py --html /tmp/reset.json   # 离线：已存渲染页响应
     python3 scripts/fetch_valence.py --wikitext coda.txt tenet.txt   # 离线：已存源页 wikitext
 
@@ -286,7 +286,8 @@ def main():
         metavar=("CODA_RAW", "TENET_RAW"),
         help="离线：从已保存的源页 wikitext 解析（Coda Weapons / Tenet Weapons）",
     )
-    ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--dry-run", action="store_true", help="仅预览（默认行为）")
+    ap.add_argument("--output", type=Path, help="显式写入运行期 rotations.json（禁止包内种子）")
     ap.add_argument(
         "--since",
         nargs=2,
@@ -294,6 +295,16 @@ def main():
         help="手动指定两张源页那次改数值的修订时刻（不填则从 wiki api.php 现取；填 - 表示该段不改）",
     )
     args = ap.parse_args()
+
+    if args.output:
+        target = args.output.resolve()
+        same_seed = target == ROTATION_FILE.resolve() or (
+            target.exists() and ROTATION_FILE.exists() and target.samefile(ROTATION_FILE)
+        )
+        if same_seed or target.parts[-3:] == ("core", "data", "rotations.json"):
+            ap.error("禁止写入包内 core/data/rotations.json；请指定运行期缓存路径")
+    else:
+        target = ROTATION_FILE
 
     if args.wikitext:
         p_coda = parse_wikitext(Path(args.wikitext[0]).read_text(encoding="utf-8"))
@@ -328,23 +339,23 @@ def main():
     if not parsed["coda"] and not parsed["tenet"]:
         raise SystemExit("没解析到任何效价表 —— 页面结构可能变了，请人工核对")
 
-    original = ROTATION_FILE.read_text(encoding="utf-8")
+    original = (target if target.exists() else ROTATION_FILE).read_text(encoding="utf-8")
     data = json.loads(original)
     if args.since:
         revs = {k: v for k, v in zip(("tenet", "coda"), args.since) if v and v != "-"}
     else:
         revs = fetch_revisions()
-    changes = apply(data, parsed, dry=args.dry_run, revs=revs)
+    preview = args.dry_run or args.output is None
+    changes = apply(data, parsed, dry=preview, revs=revs)
     print("\n".join(changes))
 
-    if args.dry_run:
+    if preview:
         print("\n[dry-run] 未写入文件")
         return
     indent = detect_indent(original)
-    ROTATION_FILE.write_text(
-        json.dumps(data, ensure_ascii=False, indent=indent) + "\n", encoding="utf-8"
-    )
-    print(f"\n已写入 {ROTATION_FILE}（缩进 {indent} 空格，与原文件一致）")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps(data, ensure_ascii=False, indent=indent) + "\n", encoding="utf-8")
+    print(f"\n已写入 {target}（缩进 {indent} 空格，与原文件一致）")
 
 
 if __name__ == "__main__":

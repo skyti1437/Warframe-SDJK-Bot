@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import threading
 import re
+from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 from pathlib import Path
@@ -1761,6 +1762,40 @@ SOLARIS_SUPPLEMENT_JOBS: tuple[dict, ...] = (
         "source": "community",
     },
 )
+
+
+def adapt_community_syndicate_missions(rows: list[dict]) -> list[dict]:
+    """把社区赏金字段转换为卡面契约；只凭精确任务标识关联官方元数据。
+
+    社区 id 是资产末段加时间戳。普通/合一众可能同名，必须同时核对
+    地区和奖励表分支；未知任务保留社区名称，不猜任务类型或奖励轮次。
+    """
+    regions = {
+        "Ostrons": "/eidolon/jobs/",
+        "Solaris United": "/venus/jobs/",
+        "Entrati": "/infestedmicroplanet/jobs/",
+    }
+    result = deepcopy(rows)
+    for syndicate in result:
+        region = regions.get(syndicate.get("syndicate"))
+        for job in syndicate.get("jobs") or []:
+            table = job.get("uniqueName") or job.get("rewardTable") or ""
+            job["rewardTable"] = table
+            identity = str(job.get("id") or "").lower()
+            matches = []
+            if region:
+                narmer = "narmer" in table.lower()
+                for path, meta in _JOB_META.items():
+                    tail = path.rsplit("/", 1)[-1]
+                    suffix = identity[len(tail) :] if identity.startswith(tail) else ""
+                    if region in path and ("/narmer/" in path) == narmer and suffix.isdecimal():
+                        matches.append(meta)
+            meta = matches[0] if len(matches) == 1 else {}
+            job["_jobName"] = meta.get("name") or job.get("_jobName") or job.get("type") or ""
+            job["_jobDesc"] = meta.get("desc") or job.get("_jobDesc") or ""
+            # final 来自已匹配官方任务的遭遇战代码，不能从英文名称猜类型。
+            job["_jobFinal"] = list(meta.get("final") or job.get("_jobFinal") or [])
+    return result
 
 
 def _parse_syndicate_missions(raw: dict) -> list[dict]:

@@ -1,6 +1,6 @@
 {
   "worldsource": {
-    "description": "世界状态数据源：de=DE 官方直连（默认，无 Cloudflare 风险；不含赤毒/仲裁/钢铁轮换）；warframestat=api.warframestat.us（全端点，但部分网络环境会被 Cloudflare 拦截）",
+    "description": "世界状态数据源：de=DE 官方直连（默认；部分出口也可能被拒绝；不含赤毒/仲裁/钢铁轮换）；warframestat=api.warframestat.us（全端点，但部分网络环境会被 Cloudflare 拦截）",
     "type": "string",
     "default": "de",
     "options": [
@@ -65,19 +65,71 @@
     "default": true,
     "hint": "QQ（NapCat）不渲染 Markdown，裸星号会直接显示在群里。开启后，回复中的 **加粗**、- 列表、# 标题、> 引用、反引号会在发送前被去掉。只处理纯文本，不影响图片卡片。"
   },
+  "qq_markdown_cards": {
+    "description": "QQ 官方机器人：文字卡片用 Markdown 排版",
+    "type": "bool",
+    "default": true,
+    "hint": "只对 QQ 官方机器人的文字回复生效（图片卡片不受影响）。开启后，标题、小节、列表和注释用 Markdown 显示；卡片里含星号、下划线等会被误解释的字符时自动改发纯文字。显示异常时可关闭，恢复纯文字卡片。不支持 Markdown 的旧版 QQ 客户端可能无法显示这类消息，遇到此情况可关闭。"
+  },
+  "qq_merge_image_actions": {
+    "description": "QQ 官方机器人：图片和按钮合并发送",
+    "type": "bool",
+    "default": true,
+    "hint": "图片卡和按钮合成一条消息，多页仅最后一页带按钮。同图素材短时缓存，过期后后台回收。上传失败或平台明确拒绝时回退原图片与按钮；发送结果不确定时不自动重发。关闭后恢复分开发送，保存即时生效。合并消息属于 Markdown 消息，不支持 Markdown 的旧版 QQ 客户端可能连图片一起看不到；遇到此情况可关闭，图片改为普通图片单独发送（按钮可能需要较新版客户端才能正常显示，可手动输入指令）。"
+  },
+  "text_chunk_limit": {
+    "description": "长文字分段字数（Telegram / Discord / Slack / KOOK）",
+    "type": "int",
+    "default": 0,
+    "hint": "0 = 按平台自动：Telegram 4000、Discord 1900、Slack 2900、KOOK 1800（均略低于平台上限）。手动填写时按换行分段，最大不超过上述平台上限、最小 200；想在手机上每条短一些可填 1000 左右。QQ 官方机器人不受影响。保存即时生效。"
+  },
   "vision_provider_id": {
-    "description": "截图识别用的多模态模型 id（配卡识别「识卡」/ 紫卡截图共用），留空自动挑选",
+    "description": "兼容截图识别主渠道（迁移前专用渠道留空时沿用），留空自动挑选",
     "type": "string",
     "default": "",
     "_special": "select_provider",
-    "hint": "面板会列出 AstrBot 里已添加的模型渠道供选择（官方 select_provider 选择器，AstrBot ≥ v4.0.0）。**指定后截图只发给这一个渠道**（不再并发 / 回落到其它渠道；取不到会直接提示）。留空时按实测基准排序在已添加的视觉渠道里自动挑选、并发尝试（2026-09 实测 siliconflow/Qwen 系伤害行最稳，需该源超时 ≥240s）。"
+    "hint": "用于兼容旧配置：紫卡主读或识卡未单独设置渠道时沿用本项。指定后兼容路径只使用该渠道，取不到不回落；留空则自动挑选：先按内置候选（zhipu/glm-4v-flash、siliconflow 的 Qwen3-VL-8B / 30B）取已添加的，再加上渠道 id 含 vl / vision / 4v / 4o 的渠道。需要紫卡与配卡截图分别选模型时，请设置各自的专用渠道。迁移前（兼容模式）留空的专用项仍按本项继承；在后台「识图 → 渠道隔离」预览并主动确认迁移后，紫卡与识卡不再使用本项，旧值保留以便回滚。"
+  },
+  "riven_single_ocr": {
+    "description": "紫卡使用单个 OCR 渠道，按需复读",
+    "type": "bool",
+    "default": false,
+    "hint": "启用后，紫卡首读只向指定的紫卡主读渠道提交原图。业务校验需要时，同渠道再读增强图，仍有疑问时按位置复读。建议选择千问视觉 OCR 等兼容图像对话接口的渠道。本地紫卡 OCR 已启用时优先使用本地。"
+  },
+  "vision_provider_id_riven": {
+    "description": "紫卡主读专用多模态模型 id（留空：迁移前沿用兼容主渠道，迁移确认后停止）",
+    "type": "string",
+    "default": "",
+    "_special": "select_provider",
+    "hint": "建议使用千问（Qwen）小型视觉模型，词条窄读可搭配千问 OCR；模型负责识图，校验与分析由插件完成。只影响紫卡识别，不影响配卡「识卡」。模型需要读清中文小字、卡面首行的官方武器名或模块部件名（含变体前缀；后面的拉丁部分是紫卡词缀，不属于武器名）、词条名称、正负号、小数与百分号，并按现有提示输出可解析的结构；可选通过模型 API 调用的 OCR 类模型或通用多模态模型，按实际输出能力选择，不按参数量设门槛。这里选的是模型渠道，与本地 OCR 引擎无关（本地紫卡 OCR 在后台「识图 → 紫卡识别」单独配置，默认关闭）。主读每次只用一个渠道，不竞速。指定后主读只用该渠道，取不到不回落（主读没有可用渠道；独立配置的窄读仍可执行）；留空：迁移前沿用兼容主渠道；迁移确认后紫卡识别停止，不借用其它渠道。词条窄读可在下一项另选渠道。"
   },
   "vision_provider_id_line": {
-    "description": "紫卡「窄读路」专用多模态模型 id（留空=与上面同一个渠道）",
+    "description": "紫卡词条窄读可选渠道（留空=与紫卡主读相同）",
     "type": "string",
     "default": "",
     "_special": "select_provider",
-    "hint": "紫卡识别并行两路：语义 JSON 路（要武器名）与窄读路（逐行读词条，是词条与极性的唯一权威）。两者对模型的要求不同，可分开配。窄读路要给「逐行念出来」这类指令，OCR 专用模型（qwen-vl-ocr 等）在此会退回带坐标的原生输出、整卡判不合法；通用指令跟随模型（如 qwen3.5-omni-flash）实测 20/20 全对。留空则两路共用 vision_provider_id。"
+    "hint": "按现有提示逐行照抄词条，保留正负号、小数、百分号与词条极性，避免漏行或改字。需能返回可解析的逐行词条文本。留空时沿用紫卡主读渠道（迁移前紫卡主读专用项也为空时再沿用兼容主渠道）。迁移前指定后取不到时回落紫卡主读；迁移确认后指定的窄读取不到不回落。"
+  },
+  "vision_provider_id_line_recheck": {
+    "description": "紫卡分歧复读可选渠道（留空关闭）",
+    "type": "string",
+    "default": "",
+    "_special": "select_provider",
+    "hint": "主读完整但与窄读不一致时，最多增加一次同图同提示词复读。仅完整复读与主读逐项一致且未缩短原观察条数时采用；保留原窄读及冲突证据。不按模型名称自动选择渠道，指定渠道不可用时保留待核对结果。"
+  },
+  "vision_provider_id_scan": {
+    "description": "配卡识别「识卡」专用多模态模型 id（留空：迁移前沿用兼容主渠道，迁移确认后停止）",
+    "type": "string",
+    "default": "",
+    "_special": "select_provider",
+    "hint": "建议使用千问 OCR 读取文字与位置，并搭配千问（Qwen）小型视觉模型读取装备名称。只影响配卡截图的主读、标题与分区补读，不影响紫卡。模型需要读清标题栏武器名（可能是玩家自定义名，按原文读取，不根据 MOD 或紫卡名称推测官方武器）、已装备 MOD 名称和容量数字、面板行名、箭头两边数值及单位，并按现有短字段和分区提示返回可解析内容。配卡识卡不提供本地 OCR。指定后只用该渠道，取不到不回落（本次识卡失败）；留空：迁移前沿用兼容主渠道的结果（兼容主渠道也是自动挑选时，主读最多同时请求前 4 个渠道、先通过校验的为准，标题补读最多依次尝试前 2 个，面板、MOD 与赋能的分区补读只用第 1 个）；迁移确认后留空即停止识卡。 装备名称读取可通过“配卡装备文字渠道”另选模型；本项继续负责主读文字位置、标题及其它补读。"
+  },
+  "vision_provider_id_scan_equipment": {
+    "description": "配卡装备文字可选渠道（留空=沿用配卡主读）",
+    "type": "string",
+    "default": "",
+    "_special": "select_provider",
+    "hint": "建议使用千问（Qwen）小型视觉模型，与配卡主读的 OCR 渠道配合。只负责配卡装备区的名称、容量数字和面板文字，使用统一装备读取提示词；文字定位由配卡主读负责，MOD和赋能等级由代码读取像素并核对容量关系。可将配卡主读选为专用OCR，本项选为小型视觉模型。留空沿用配卡主读的首个渠道；显式渠道不可用或配置格式异常时不回落其它渠道，也不改变紫卡两路。"
   },
   "allow_private_urls": {
     "description": "允许自填地址指向内网 / 本机（默认关）",
@@ -92,10 +144,10 @@
     "hint": "开启后，识卡遇到「豆子检测到了但对齐无解」时，把这张截图存到插件数据目录的 scan_debug/（只保留最近 3 张），便于开发者排查。截图可能含玩家昵称或聊天背景，不排查时请保持关闭；需要清理时直接删除该目录下的 jpg。"
   },
   "flaresolverr_enabled": {
-    "description": "启用 CF 绕过代理（FlareSolverr）",
+    "description": "启用 CF 浏览器代理兜底（FlareSolverr）",
     "type": "bool",
     "default": true,
-    "hint": "部分数据源（wiki.warframe.com 等）对非浏览器请求直接 403，需要 FlareSolverr 代抓。关掉后这类数据不再抓取（相关指令会给出降级提示，不会卡住）。"
+    "hint": "Wiki 数据先尝试普通 HTTP 直连；遇到 Cloudflare 拦截或直连失败时，开启此项才使用 FlareSolverr。关闭只禁用浏览器代理，不会停止直连和社区数据更新；各来源仍须通过完整性与新鲜度校验。"
   },
   "flaresolverr_urls": {
     "description": "FlareSolverr 地址（多个用逗号或换行分隔，按顺序试）",
@@ -107,7 +159,7 @@
     "description": "社区数据地址（留空 = 本项目公开仓 bot-data）",
     "type": "string",
     "default": "",
-    "hint": "没装 FlareSolverr 的用户靠它拿到较新的元素加成、言录使货单、仲裁评级、奸商到访历史、紫卡倾向。不想用本项目的数据可以填自己的地址：该地址下放同名文件（valence.json、acrithis_week.json、arb_ratings.json、baro_history.json、wiki_disp.json），格式与公开仓 bot-data 分支一致；填了就只用它，不再回落本项目。"
+    "hint": "Wiki 直连或浏览器代理不可用时，从社区快照获取较新的元素加成、言录使货单、仲裁评级和奸商到访历史。默认依次尝试 GitHub raw、GitHub API 与 CDN，过期副本会继续换源。可填写自建地址，目录下放同名 JSON，格式与公开仓 bot-data 分支一致；填写后只使用自建地址，不回落本项目。"
   },
   "wfhelper_valence": {
     "description": "元素加成备用来源：WFHelper（第三方，可选）",
@@ -121,16 +173,39 @@
     "default": true,
     "hint": "开启后 wiki 查询附一张简短介绍卡（定位 / 段位 / 基础属性 / 获取），链接仍以可点击文本另发。简介数据（core/data/wiki_intro.json）由本机知识库构建产出、不进开源与市场包——文件不在时自动只给链接。"
   },
+  "scan_detail_mode": {
+    "description": "识卡伤害详情什么时候算",
+    "type": "string",
+    "default": "auto",
+    "options": [
+      "auto",
+      "lazy",
+      "eager"
+    ],
+    "hint": "auto＝当前平台能使用按钮时先出识别结果，再按需查看详情；无按钮时照旧两页。lazy＝总是按需查看，无按钮时提供手动指令。eager＝总是直接出两页。延迟省的是详情页再次计算、第二张图渲染和上传，第一页参考伤害及视觉识别照常计算。"
+  },
   "scan_cooldown": {
-    "description": "识卡冷却秒数（同一人两次识卡的最小间隔，0=不限制）",
+    "description": "识图冷却秒数（同一人两次识图的最小间隔，配卡「识卡」与紫卡截图共用此设置；迁移确认后两类分别计时，0=不限制）",
     "type": "int",
     "default": 15,
     "hint": "识卡每次都会调用你配置的多模态模型（通常按量计费）。冷却用于防止被群友连点刷爆额度与 CPU；设 0 关闭限制。"
   },
   "scan_max_concurrent": {
-    "description": "识卡全局并发上限（同时最多识别几张，0=不限）",
+    "description": "识图全局并发上限（配卡「识卡」与紫卡截图合计同时最多识别几张，0=不限）",
     "type": "int",
     "default": 3,
     "hint": "识卡是「多次视觉调用 + 图片渲染」的重活，多群同时开会把 CPU 打满（实测 2 核上并发几路时单张渲染从 0.7s 涨到 39s）。小机器建议 2~3。"
+  },
+  "panel_platforms": {
+    "description": "控制台：显示哪些聊天平台的设置",
+    "type": "list",
+    "default": [],
+    "hint": "留空 = 按 AstrBot 里已启用的聊天平台自动判断；只影响本插件控制台设置页显示哪些平台相关的设置，不影响机器人本身。可在控制台设置页顶部切换自动 / 手动。"
+  },
+  "vision_routes_isolated": {
+    "description": "视觉任务使用独立渠道（由主动迁移确认流程开启）",
+    "type": "bool",
+    "default": false,
+    "hint": "默认保留旧兼容行为，后台主动预览并确认后才复制留空专用项并开启隔离。开启后紫卡与识卡不再继承兼容主渠道，未配置则停止；显式窄读失效不回落。旧兼容值保留可回滚。机器总并发预算仍共享。"
   }
 }

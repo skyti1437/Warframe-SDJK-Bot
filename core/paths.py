@@ -90,7 +90,8 @@ def write_path(name: str) -> Path:
 
 
 _JSON_CACHE: dict[str, tuple[int, int, Any]] = {}
-_JSON_LOCK = threading.Lock()
+# 固定条带避免按历史文件名积累锁；同 key 冷读单飞，不全局串行耗时解析。
+_JSON_LOCKS = tuple(threading.Lock() for _ in range(32))
 
 
 def load_json(path) -> Any:
@@ -101,23 +102,23 @@ def load_json(path) -> Any:
     （当前：``drops.json`` —— core/drops.py、core/search.py、core/wiki_intro.py）。
     缺文件 / 坏文件返回 ``{}``（与原各处读法的降级口径一致；不缓存失败结果）。
     """
-    p = Path(path)
+    p = Path(os.path.abspath(path))
     key = str(p)
-    try:
-        st = p.stat()
-    except OSError:
-        return {}
-    with _JSON_LOCK:
+    with _JSON_LOCKS[hash(key) % len(_JSON_LOCKS)]:
+        # 等待同 key 的加载后重新 stat，保留 mtime/size 失效判据。
+        try:
+            st = p.stat()
+        except OSError:
+            return {}
         hit = _JSON_CACHE.get(key)
         if hit is not None and hit[0] == st.st_mtime_ns and hit[1] == st.st_size:
             return hit[2]
-    try:
-        data = json.loads(p.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
-    with _JSON_LOCK:
+        try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
         _JSON_CACHE[key] = (st.st_mtime_ns, st.st_size, data)
-    return data
+        return data
 
 
 def atomic_write_text(path, text: str, encoding: str = "utf-8") -> None:

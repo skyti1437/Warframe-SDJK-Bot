@@ -145,7 +145,7 @@ check(
 )
 check(
     "import 本模块不再读凭据（离线可单测）",
-    S._TOKEN is None and not re.search(r"^TOKEN = token\(\)", src, re.M),
+    S._AUTH._cached is None and not re.search(r"^TOKEN = token\(\)", src, re.M),
 )
 check("模块级可见 --allow-mass-delete 开关", S.ALLOW_MASS_DELETE is False)
 
@@ -588,36 +588,66 @@ _PR = _ilu.module_from_spec(_SPEC) if _SPEC and _SPEC.loader else None
 if _PR is not None:
     _SPEC.loader.exec_module(_PR)  # 只加载模块，不跑 main()
     _NOW = _dt(2026, 9, 29, 12, 0, tzinfo=_tz.utc)
-    _FRESH_ROT = _json.dumps(
-        {
-            "tenet": {
-                "epoch": "2026-09-12T00:00:00+00:00",
-                "period_hours": 96,
-                "valence_snapshot": "2026-09-29T00:06:05+00:00",
-            },
-            "coda": {
-                "epoch": "2026-09-13T00:00:00+00:00",
-                "period_hours": 96,
-                "valence_snapshot": "2026-09-29T00:06:05+00:00",
-            },
-        }
-    )
+    _SEED = {
+        "tenet": {
+            "mode": "refresh_only",
+            "epoch": "2026-09-12T00:00:00+00:00",
+            "period_hours": 96,
+            "items": [{"en": f"Tenet {i}", "cn": f"信条{i}"} for i in range(5)],
+        },
+        "coda": {
+            "mode": "batch_cycle",
+            "epoch": "2026-09-13T00:00:00+00:00",
+            "period_hours": 96,
+            "anchor_idx": 0,
+            "batch_label": ["A", "B"],
+            "batches": [
+                [{"en": f"Coda {i}-{j}", "cn": f"终幕{i}-{j}"} for j in range(7)] for i in range(2)
+            ],
+        },
+    }
+    _FRESH_ROT = _json.dumps(_SEED)
     _STALE_ROT = _json.dumps(
         {
+            **_SEED,
             "tenet": {
-                "epoch": "2026-09-12T00:00:00+00:00",
-                "period_hours": 96,
+                **_SEED["tenet"],
                 "valence_snapshot": "2026-09-20T01:00:00+00:00",
-            },
-            "coda": {
-                "epoch": "2026-09-13T00:00:00+00:00",
-                "period_hours": 96,
-                "valence_snapshot": "2026-09-20T01:00:00+00:00",
+                "valence_source": "fixture",
             },
         }
     )
-    _FRESH_ACR = _json.dumps({"expiry": "2026-10-05T00:00:00+00:00"})
-    _STALE_ACR = _json.dumps({"expiry": "2026-09-28T00:00:00+00:00"})
+    _ACR_SEED = {
+        "_en_catalog": {
+            "Orokin Reactor": {"name": "奥罗金反应堆蓝图", "price": 20},
+            "Orokin Catalyst": {"name": "奥罗金催化剂蓝图", "price": 20},
+            "Exilus Warframe Adapter": {"name": "战甲特殊功能槽连接器", "price": 20},
+            "Exilus Weapon Adapter": {"name": "武器特殊功能槽连接器", "price": 20},
+            "Primary Arcane Adapter": {"name": "主要武器赋能槽连接器", "price": 25},
+            "Secondary Arcane Adapter": {"name": "次要武器赋能槽连接器", "price": 25},
+            "Forma": {"name": "Forma 蓝图", "price": 10},
+            "Melee Riven Mod": {"name": "近战裂罅 MOD", "price": 15},
+            "Pistol Riven Mod": {"name": "手枪裂罅 MOD", "price": 15},
+            "Rifle Riven Mod": {"name": "步枪裂罅 MOD", "price": 15},
+            "Kitgun Riven Mod": {"name": "射枪裂罅 MOD", "price": 15},
+            "Zaw Riven Mod": {"name": "佐作裂罅 MOD", "price": 15},
+            "Shotgun Riven Mod": {"name": "霰弹枪裂罅 MOD", "price": 15},
+            "Companion Weapon Riven Mod": {"name": "同伴裂罅 MOD", "price": 20},
+            "10,000 Kuva": {"name": "赤毒", "qty": 10000, "price": 10},
+        },
+        "_catalog_price_source": "wiki《Acrithis》页 offeringsBox 标价（2026-09-21 抓取），苦栓",
+        "_reset_rule": "每周一 00:00 UTC 轮换（wiki《Acrithis》页实时口径）",
+        "_过期口径": "expiry 为 UTC；卡面展示换算北京时间",
+        "_zh_official_notes": {
+            "Amp Arcane Adapter": "增幅器赋能槽连接器",
+            "Primary Arcane Adapter": "主要武器赋能槽连接器",
+            "Secondary Arcane Adapter": "次要武器赋能槽连接器",
+            "Melee Arcane Adapter": "近战武器赋能槽连接器",
+            "Archgun Arcane Adapter": "曲翼枪械赋能槽连接器",
+        },
+    }
+    _FRESH_ACR = _json.dumps(_ACR_SEED)
+    _STALE_ACR = _json.dumps({**_ACR_SEED, "expiry": None})
 
     with tempfile.TemporaryDirectory() as _td:
         _T = Path(_td)
@@ -639,7 +669,7 @@ if _PR is not None:
         )
         check("★ 种子闸门：新鲜放行（零问题）", _ok == [], str(_ok))
         check(
-            "★ 种子闸门：过期拦截（效价+言录使双判）",
+            "★ 种子闸门：动态残留与言录使过期均拦截",
             len(_bad) >= 3 and any("效价" in b for b in _bad) and any("言录使" in b for b in _bad),
             str(_bad),
         )
@@ -652,7 +682,7 @@ if _PR is not None:
             ),
             acr_path=_w("a_fresh2.json", _FRESH_ACR),
         )
-        check("★ 种子闸门：快照恰在窗口起放行（边界）", _edge == [], str(_edge))
+        check("★ 种子闸门：骨架不依赖快照时刻", _edge == [], str(_edge))
 
     # 镜像判据（scripts/make_market_zip 的回退实现）与实际一致
     _SPEC2 = _ilu.spec_from_file_location(
@@ -678,6 +708,70 @@ if _PR is not None:
                 _mf == _ok and len(_mb) == len(_bad),
                 f"{_mf!r} / {_mb!r}",
             )
+        # 每个拒绝原因分别走包装与独立市场入口，避免只测组合故障。
+        for _case in (
+            "bonus",
+            "snapshot",
+            "missing_items",
+            "bad_epoch",
+            "bad_json",
+            "acrichis_expired",
+        ):
+            _value = _json.loads(_FRESH_ROT)
+            if _case == "bonus":
+                _value["tenet"]["items"][0]["bonus"] = 40
+            elif _case == "snapshot":
+                _value["coda"]["valence_snapshot"] = "2026-09-29T00:00:00+00:00"
+            elif _case == "missing_items":
+                del _value["tenet"]["items"]
+            elif _case == "bad_epoch":
+                _value["coda"]["epoch"] = "broken"
+            with tempfile.TemporaryDirectory() as _case_dir:
+                _cr = Path(_case_dir) / "rot.json"
+                _ca = Path(_case_dir) / "acr.json"
+                _cr.write_text(
+                    "{bad" if _case == "bad_json" else _json.dumps(_value), encoding="utf-8"
+                )
+                _ca.write_text(
+                    _STALE_ACR if _case == "acrichis_expired" else _FRESH_ACR, encoding="utf-8"
+                )
+                _pp = _PR.seed_freshness_problems(_NOW, _cr, _ca)
+                _mp = _MMZ._seed_problems_fallback(_NOW, _cr, _ca)
+                check(f"包装与独立市场拒绝{_case}", bool(_pp) and bool(_mp), f"{_pp} / {_mp}")
+        for _acr_case in (
+            "items",
+            "expiry",
+            "observed",
+            "source",
+            "catalog",
+            "price",
+            "name",
+            "rule",
+            "notes",
+        ):
+            _acr_bad = _json.loads(_FRESH_ACR)
+            _first = next(iter(_acr_bad["_en_catalog"]))
+            if _acr_case in ("items", "expiry", "observed", "source"):
+                _acr_bad[_acr_case] = None
+            elif _acr_case == "catalog":
+                del _acr_bad["_en_catalog"][_first]
+            elif _acr_case == "price":
+                _acr_bad["_en_catalog"][_first]["price"] = 0
+            elif _acr_case == "name":
+                _acr_bad["_en_catalog"][_first]["name"] = ""
+            elif _acr_case == "rule":
+                _acr_bad["_reset_rule"] = "每天"
+            else:
+                _acr_bad["_zh_official_notes"] = {}
+            with tempfile.TemporaryDirectory() as _td:
+                _rp, _ap = Path(_td) / "rot.json", Path(_td) / "acr.json"
+                _rp.write_text(_FRESH_ROT, encoding="utf-8")
+                _ap.write_text(_json.dumps(_acr_bad), encoding="utf-8")
+                _pp = _PR.seed_freshness_problems(_NOW, _rp, _ap)
+                _mp = _MMZ._seed_problems_fallback(_NOW, _rp, _ap)
+                check(
+                    f"言录使静态{_acr_case}两打包入口同源拒绝", bool(_pp) and _pp == _mp, str(_pp)
+                )
 else:
     check("种子闸门：dist/ 不在场时跳过（开源包环境）", True)
 
@@ -701,9 +795,480 @@ if _PR is not None:
     _got = _PR._drop_block(_one, "import_private", "import_private", "t")
     check("剥离接缝（单行块）：同样合并", _got == "class A:\n    x = 1\n\n    z = 3\n", repr(_got))
 
+
+# 限仓App认证真实入口：假helper子进程 + 内存HTTPS协议处理器，不调用真实凭据/网络。
+def _app_auth_checks():
+    import contextlib
+    import importlib.util
+    import io
+    import json
+    import os
+    import subprocess
+    from email.message import Message
+    from unittest.mock import patch
+    from urllib.response import addinfourl
+
+    import github_app_auth as A
+
+    public = "skyti1437/Warframe-SDJK-Bot"
+    private = "skyti1437/bot"
+    secret = "ghs_TEST_ONLY_" + "opaque-JWT_" * 65 + ".segment.signature"
+    now = [2_000_000_000]
+    check(
+        "认证固定两仓与专用helper映射",
+        A.HELPERS
+        == {
+            private: "~/.local/bin/git-credential-wf-github-app",
+            public: "~/.local/bin/git-credential-wf-release-app",
+        },
+    )
+    real_builder = A.urllib.request.build_opener
+
+    with tempfile.TemporaryDirectory(prefix="wf-api-auth-") as folder:
+        base = Path(folder)
+        log = base / "helper-calls.jsonl"
+        output = base / "helper-output.txt"
+        error_output = base / "helper-stderr.txt"
+        exit_code = base / "helper-exit.txt"
+        output.write_text(
+            f"username=x-access-token\npassword={secret}\npassword_expiry_utc={now[0] + 3600}\n\n"
+        )
+        error_output.write_text("")
+        exit_code.write_text("0")
+        helper = base / "fixture-helper"
+        helper.write_text(
+            "#!"
+            + sys.executable
+            + "\nimport sys,json\nfrom pathlib import Path\n"
+            + "context=sys.stdin.read(20000)\n"
+            + "with Path("
+            + repr(str(log))
+            + ").open('a') as file: file.write(json.dumps({'argv':sys.argv[1:],'context':context})+'\\n')\n"
+            + "sys.stdout.write(Path("
+            + repr(str(output))
+            + ").read_text())\n"
+            + "sys.stderr.write(Path("
+            + repr(str(error_output))
+            + ").read_text())\n"
+            + "raise SystemExit(int(Path("
+            + repr(str(exit_code))
+            + ").read_text()))\n"
+        )
+        helper.chmod(0o700)
+        http_calls = []
+        response_mode = ["ok"]
+
+        class FixtureHTTPS(A.urllib.request.HTTPSHandler):
+            def https_open(self, req):
+                http_calls.append(
+                    (
+                        req.get_method(),
+                        req.full_url,
+                        req.get_header("Authorization") == "Bearer " + secret,
+                    )
+                )
+                if response_mode[0] == "exception":
+                    raise RuntimeError(secret)
+                headers = Message()
+                code, body = 200, {"ok": True}
+                if response_mode[0] == "redirect":
+                    headers["Location"] = "https://elsewhere.invalid/" + secret
+                    code = 302
+                elif response_mode[0] == "error":
+                    code, body = 403, {"message": secret, "authorization": secret}
+                elif response_mode[0] == "echo":
+                    body = {"echo": secret, secret: {"token": secret}}
+                response = addinfourl(
+                    io.BytesIO(json.dumps(body).encode()), headers, req.full_url, code
+                )
+                response.msg = "fixture"
+                return response
+
+        def build(*handlers):
+            return real_builder(
+                *[
+                    FixtureHTTPS()
+                    if isinstance(handler, A.urllib.request.HTTPSHandler)
+                    else handler
+                    for handler in handlers
+                ]
+            )
+
+        def helper_calls():
+            return (
+                [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
+            )
+
+        with (
+            patch.dict(A.HELPERS, {public: str(helper), private: str(helper)}, clear=True),
+            patch.object(A.time, "time", side_effect=lambda: now[0]),
+            patch.object(A.urllib.request, "build_opener", side_effect=build),
+            patch.object(S, "_AUTH", A.RepositoryAPI(public)),
+        ):
+            result = S.api("GET", f"/repos/{public}/git/ref/heads/main", tries=1)
+            check(
+                "公开同步真实API入口使用专用helper且成功",
+                result == (200, {"ok": True})
+                and helper_calls()[-1]
+                == {
+                    "argv": ["get"],
+                    "context": f"protocol=https\nhost=github.com\npath={public}.git\n\n",
+                }
+                and http_calls[-1][2],
+            )
+            S.api("GET", f"/repos/{public}/git/refs/heads/bot-data", tries=1)
+            check(
+                "公开仓bot-data分支兼容且未过期令牌复用",
+                len(helper_calls()) == 1 and http_calls[-1][1].endswith("/heads/bot-data"),
+            )
+            now[0] += 3550
+            output.write_text(
+                f"username=x-access-token\npassword={secret}\npassword_expiry_utc={now[0] + 3600}\n\n"
+            )
+            S.api("GET", f"/repos/{public}/git/ref/heads/main", tries=1)
+            check("带expiry的令牌提前60秒重新签发", len(helper_calls()) == 2)
+
+            count = len(helper_calls())
+            for bad in (
+                f"/repos/{private}/git/ref/heads/main",
+                f"/repos/{public}-other",
+                "https://api.github.com/repos/skyti1437/Warframe-SDJK-Bot",
+                "https://elsewhere.invalid/x",
+                f"/repos/{public}/../bot",
+                f"/repos/{public}/%2e%2e/bot",
+                f"/repos/{public}/\\..\\bot",
+                f"/repos/{public}#x",
+            ):
+                result = S.api("GET", bad, tries=1)
+                check(
+                    "跨仓/绝对URL/路径穿越在取凭据前拒绝",
+                    result[0] == 0 and len(helper_calls()) == count,
+                )
+            try:
+                A.RepositoryAPI("skyti1437/other")
+                check("未知仓库拒绝", False)
+            except A.AppAuthError:
+                check("未知仓库拒绝", True)
+
+            # 私有API备用通道导入无副作用；实际API调用才取bot helper。
+            spec = importlib.util.spec_from_file_location(
+                "isolated_private_api", ROOT / "dist/api_push_private.py"
+            )
+            module = importlib.util.module_from_spec(spec)
+            with (
+                patch.object(A.subprocess, "run", side_effect=AssertionError("导入不得调用helper")),
+                patch.object(sys, "argv", ["isolated-private"]),
+            ):
+                spec.loader.exec_module(module)
+            check(
+                "私有API导入离线无副作用且ROOT按文件定位",
+                module.ROOT == ROOT and module.DRY is True and module._AUTH._cached is None,
+            )
+            output.write_text(f"username=x-access-token\npassword={secret}\n\n")
+            count = len(helper_calls())
+            first = module.api("GET", f"/repos/{private}/git/ref/heads/main")
+            second = module.api("GET", f"/repos/{private}/git/ref/heads/main")
+            check(
+                "旧bot helper没有expiry时每次API均获取新令牌",
+                first == second == {"ok": True}
+                and len(helper_calls()) == count + 2
+                and all(f"path={private}.git\n" in row["context"] for row in helper_calls()[-2:]),
+            )
+            try:
+                module.api("GET", f"/repos/{public}/git/ref/heads/main")
+                check("私有API备用入口拒绝公开仓作用域", False)
+            except SystemExit as exc:
+                check("私有API备用入口拒绝公开仓作用域且不泄密", secret not in str(exc))
+
+            bad_outputs = [
+                "quit=true\n\n",
+                f"username=x-access-token\npassword={secret}\npassword=duplicate\n\n",
+                "username=x-access-token\npassword=\n\n",
+                "username=x-access-token\npassword=with space\n\n",
+                "username=x-access-token\npassword=with\x00control\n\n",
+                "username=x-access-token\npassword=with\rcontrol\n\n",
+                f"username=other\npassword={secret}\n\n",
+                f"username=x-access-token\npassword={secret}\npassword_expiry_utc=0\n\n",
+                f"username=x-access-token\npassword={secret}\npassword_expiry_utc={now[0] + 30}\n\n",
+                f"username=x-access-token\npassword={secret}\n\nextra=value\n",
+                "username=x-access-token\npassword=" + "x" * (A.TOKEN_LIMIT + 1) + "\n\n",
+                "x" * (A.HELPER_OUTPUT_LIMIT + 1),
+            ]
+            for raw in bad_outputs:
+                output.write_text(raw)
+                capture_out, capture_err = io.StringIO(), io.StringIO()
+                with (
+                    contextlib.redirect_stdout(capture_out),
+                    contextlib.redirect_stderr(capture_err),
+                ):
+                    result = A.RepositoryAPI(public).api("GET", f"/repos/{public}", tries=1)
+                check(
+                    "坏helper协议失败关闭且不泄露原文",
+                    result[0] == 0
+                    and secret not in repr(result)
+                    and not capture_out.getvalue()
+                    and not capture_err.getvalue(),
+                )
+            output.write_text(f"username=x-access-token\npassword={secret}\n\n")
+            error_output.write_text(secret)
+            exit_code.write_text("1")
+            result = A.RepositoryAPI(public).api("GET", f"/repos/{public}", tries=1)
+            check("helper异常stdout/stderr不得泄露", result[0] == 0 and secret not in repr(result))
+            error_output.write_text("")
+            exit_code.write_text("0")
+            with patch.dict(A.HELPERS, {public: str(base / "absent-helper")}):
+                result = A.RepositoryAPI(public).api("GET", f"/repos/{public}", tries=1)
+                check("缺helper不借用其它认证", result[0] == 0 and secret not in repr(result))
+            for mode in ("redirect", "exception", "error", "echo"):
+                response_mode[0] = mode
+                http_calls.clear()
+                result = A.RepositoryAPI(public).api("GET", f"/repos/{public}", tries=1)
+                check(
+                    "HTTP重定向/异常/回显均不泄露认证",
+                    secret not in repr(result)
+                    and all(url.startswith("https://api.github.com/") for _, url, _ in http_calls)
+                    and len(http_calls) == 1
+                    and (result[0] == 200 if mode == "echo" else result[0] in {0, 403}),
+                )
+
+    # 旧askpass无论提示内容均不能提供认证。
+    for prompt in ("Username", "Password", "arbitrary"):
+        result = subprocess.run(
+            ["/bin/sh", str(ROOT / "dist/git_askpass.sh"), prompt],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        check(
+            "旧askpass恒失败且stdout为空",
+            result.returncode != 0 and result.stdout == "" and "helper" in result.stderr,
+        )
+
+    # wrapper只在临时树跑假构建/同步脚本，不执行真实发布器。
+    with tempfile.TemporaryDirectory(prefix="wf-publish-wrapper-") as folder:
+        base = Path(folder)
+        (base / "dist").mkdir()
+        wrapper = base / "dist/publish_opensource.sh"
+        wrapper.write_text((ROOT / "dist/publish_opensource.sh").read_text())
+        log = base / "calls.jsonl"
+        fake = (
+            "import json,sys,os\nfrom pathlib import Path\n"
+            + "with Path("
+            + repr(str(log))
+            + ").open('a') as file: file.write(json.dumps({'script':Path(__file__).name,'args':sys.argv[1:],'py':sys.executable})+'\\n')\n"
+            + "raise SystemExit(int(os.environ.get('FIXTURE_BUILD_EXIT','0')) if Path(__file__).name=='package_release.py' else 0)\n"
+        )
+        for name in ("package_release.py", "sync_opensource.py"):
+            (base / "dist" / name).write_text(fake)
+        bin_dir = base / "bin"
+        bin_dir.mkdir()
+        (bin_dir / "python3.12").symlink_to(sys.executable)
+        invalid = base / "invalid-python"
+        invalid.write_text("#!/bin/sh\nexit 1\n")
+        invalid.chmod(0o700)
+        env = {
+            "HOME": str(base),
+            "PATH": str(bin_dir) + ":/usr/bin:/bin",
+            "PYTHONDONTWRITEBYTECODE": "1",
+        }
+
+        def wrapper_run(args=(), override=None, build_exit=0):
+            if log.exists():
+                log.unlink()
+            current = {**env, "FIXTURE_BUILD_EXIT": str(build_exit)}
+            if override is not None:
+                current["WARFRAME_TEST_PY"] = override
+            result = subprocess.run(
+                ["/bin/sh", str(wrapper), *args],
+                env=current,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            calls = (
+                [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
+            )
+            return result, calls
+
+        result, calls = wrapper_run(override=sys.executable)
+        check(
+            "发行wrapper显式合格解释器且默认仅构建不发布",
+            result.returncode == 0 and [row["script"] for row in calls] == ["package_release.py"],
+        )
+        result, calls = wrapper_run(("--dry-run", "说明"), override=sys.executable)
+        check(
+            "发行wrapper --dry-run不添加发布授权",
+            result.returncode == 0
+            and [row["script"] for row in calls] == ["package_release.py", "sync_opensource.py"]
+            and all("--yes" not in row["args"] for row in calls),
+        )
+        result, calls = wrapper_run(("--push", "说明"), override=sys.executable)
+        check(
+            "发行wrapper只有显式--push传--yes",
+            result.returncode == 0 and "--yes" in calls[-1]["args"],
+        )
+        result, calls = wrapper_run(("--push",), override=str(invalid))
+        check(
+            "发行wrapper拒绝显式错误解释器且不回落",
+            result.returncode != 0 and not calls and "3.10" in result.stderr,
+        )
+        result, calls = wrapper_run(("--push",), override=sys.executable, build_exit=2)
+        check(
+            "构建失败不被管道掩盖且不运行同步",
+            result.returncode == 2 and [row["script"] for row in calls] == ["package_release.py"],
+        )
+        result, calls = wrapper_run()
+        check(
+            "无显式解释器且无venv时选择合格PATH解释器", result.returncode == 0 and len(calls) == 1
+        )
+        (base / ".venv/bin").mkdir(parents=True)
+        (base / ".venv/bin/python").symlink_to(sys.executable)
+        result, calls = wrapper_run()
+        check(
+            "无显式解释器优先项目venv",
+            result.returncode == 0 and "/.venv/bin/python" in calls[0]["py"],
+        )
+        result, calls = wrapper_run(override=str(invalid))
+        check("即使有venv也不绕过错误的显式解释器", result.returncode != 0 and not calls)
+
+    baseline = ROOT / ".zcode/skills/astrbot-warframe-plugin-dev/scripts/refresh_baseline.py"
+    if baseline.is_file():
+        spec = importlib.util.spec_from_file_location("isolated_baseline", baseline)
+        module = importlib.util.module_from_spec(spec)
+        with patch.dict(os.environ, {}, clear=True):
+            spec.loader.exec_module(module)
+        import socket
+        import urllib.request
+
+        original = {
+            name: (ROOT / "core/data" / name).read_bytes()
+            for name in ("rotations.json", "de/acrichis_week.json")
+        }
+        source_before = {
+            name: (
+                (ROOT / "core/data" / name).read_bytes(),
+                (ROOT / "core/data" / name).stat().st_mtime_ns,
+            )
+            for name in original
+        }
+        with tempfile.TemporaryDirectory() as folder:
+            base = Path(folder)
+            (base / "core/data/de").mkdir(parents=True)
+            cases = (
+                ("合法无值种子", None, 0),
+                ("效价动态残留", ("rotations.json", lambda d: d["tenet"].update(bonus=1)), 1),
+                ("效价缺骨架", ("rotations.json", lambda d: d.pop("tenet")), 1),
+                ("言录使动态残留", ("de/acrichis_week.json", lambda d: d.update(items=[])), 1),
+                ("言录使缺目录", ("de/acrichis_week.json", lambda d: d.pop("_en_catalog")), 1),
+                ("损坏JSON", "broken", 1),
+                ("缺失文件", "missing", 1),
+            )
+            for label, mutation, expected in cases:
+                for name, content in original.items():
+                    (base / "core/data" / name).write_bytes(content)
+                if isinstance(mutation, tuple):
+                    name, mutate = mutation
+                    path = base / "core/data" / name
+                    value = json.loads(path.read_text())
+                    mutate(value)
+                    path.write_text(json.dumps(value), encoding="utf-8")
+                elif mutation == "broken":
+                    (base / "core/data/rotations.json").write_bytes(b"{")
+                elif mutation == "missing":
+                    (base / "core/data/rotations.json").unlink()
+                before = {p: (p.read_bytes(), p.stat().st_mtime_ns) for p in base.rglob("*.json")}
+                with (
+                    patch.object(module, "REPO", base),
+                    patch("subprocess.run", side_effect=AssertionError("禁止子进程")) as child,
+                    patch.object(
+                        urllib.request, "urlopen", side_effect=AssertionError("禁止网络")
+                    ) as net,
+                    patch.object(
+                        socket, "socket", side_effect=AssertionError("禁止socket")
+                    ) as sock,
+                ):
+                    result = module.main()
+                check("静态种子入口：" + label, result == expected)
+                check(
+                    "静态种子入口不联网或启动子进程：" + label,
+                    child.call_count == net.call_count == sock.call_count == 0,
+                )
+                check(
+                    "静态种子入口字节和mtime不变：" + label,
+                    before
+                    == {p: (p.read_bytes(), p.stat().st_mtime_ns) for p in base.rglob("*.json")},
+                )
+            check(
+                "静态种子入口不改真实种子",
+                source_before
+                == {
+                    name: (
+                        (ROOT / "core/data" / name).read_bytes(),
+                        (ROOT / "core/data" / name).stat().st_mtime_ns,
+                    )
+                    for name in original
+                },
+            )
+    else:
+        print("[SKIP] 私有基线刷新脚本不在当前分发副本")
+
+
+_app_auth_checks()
+
+# 开发口吻漏网：日期在前/后带冒号，以及定向需求短语；正常玩家说明不误伤。
+if _PR is not None:
+    for text in (
+        "2026-10-25 \u7528\u6237：内部约定",
+        "2026-10-25\u7528\u6237: 内部约定",
+        "26-10  \u7528\u6237：内部约定",
+        "\u7528\u6237要「内部视图」",
+    ):
+        with tempfile.TemporaryDirectory() as folder:
+            fixture = Path(folder) / "sample.py"
+            fixture.write_text("# " + text, encoding="utf-8")
+            check("开发口吻扫描拦截：" + text, bool(_PR.scan_sensitive(Path(folder))))
+    for text in (
+        "2026-10-25 维护者定：内部约定",
+        "\u7528\u6237可以上传字体并选择正文",
+        "该\u7528\u6237要先打开推送开关",
+        "2026-10-25\n\u7528\u6237：玩家可见对话",
+    ):
+        with tempfile.TemporaryDirectory() as folder:
+            fixture = Path(folder) / "sample.py"
+            fixture.write_text("# " + text, encoding="utf-8")
+            check("开发口吻扫描保留：" + text, not _PR.scan_sensitive(Path(folder)))
+
 # 追加段自己的收尾（本文件原汇总在上面，须为追加检查再守一次退出码）
 print()
 if FAILED:
     print(f"✗ 种子闸门段 {len(FAILED)} 项失败：" + "、".join(FAILED))
     sys.exit(1)
 print("✓ 种子新鲜度闸门守卫段全部通过")
+
+# Official media references do not exempt a private host alias elsewhere in the same file.
+if _PR is not None:
+    for relative in (
+        "core/messaging.py",
+        "core/qq_media.py",
+        "tests/test_messaging.py",
+        "tests/test_qq_media.py",
+    ):
+        with tempfile.TemporaryDirectory() as folder:
+            fixture = Path(folder) / relative
+            fixture.parent.mkdir(parents=True, exist_ok=True)
+            fixture.write_text("ref = 'qq" + "bot-media://image/v1/safe'", encoding="utf-8")
+            check(
+                "official media protocol allowed: " + relative, not _PR.scan_sensitive(Path(folder))
+            )
+            with fixture.open("a", encoding="utf-8") as out:
+                out.write("\nhost = 'qq" + "bot'")
+            check(
+                "private host still rejected: " + relative, bool(_PR.scan_sensitive(Path(folder)))
+            )
+    with tempfile.TemporaryDirectory() as folder:
+        (Path(folder) / "sample.py").write_text(
+            "ref = 'qq" + "bot-media://image/v1/safe'", encoding="utf-8"
+        )
+        check("media exemption is file-scoped", bool(_PR.scan_sensitive(Path(folder))))
+    if FAILED:
+        sys.exit(1)

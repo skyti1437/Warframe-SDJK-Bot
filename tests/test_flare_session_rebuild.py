@@ -21,6 +21,7 @@ import asyncio
 import json
 import pathlib
 import sys
+import time
 
 import httpx
 
@@ -63,9 +64,12 @@ class ScriptedFlare:
         self.steps = list(steps)
         self.base = base
         self.calls: list[dict] = []
+        self.starts: list[float] = []
 
-    async def post(self, base, json=None, timeout=None):
+    async def post(self, base, json=None, timeout=None, follow_redirects=False):
         payload = dict(json or {})
+        if payload.get("cmd") == "request.get":
+            self.starts.append(time.monotonic())
         self.calls.append({"base": base, **payload})
         if not self.steps:
             raise AssertionError(f"替身脚本用尽，多余调用：{payload}")
@@ -83,7 +87,7 @@ class RoutingFlare:
         self.good = list(good_steps)
         self.calls: list[dict] = []
 
-    async def post(self, base, json=None, timeout=None):
+    async def post(self, base, json=None, timeout=None, follow_redirects=False):
         payload = dict(json or {})
         self.calls.append({"base": base, **payload})
         if "bad" in base:
@@ -97,6 +101,8 @@ class RoutingFlare:
 def make_client(flare, urls=("http://fs.test/v1",)) -> WarframeClient:
     """真 client + 替身 post（保留 _http 的其他方法，close() 仍可用）。"""
     c = WarframeClient(flare_enabled=True, flare_urls=list(urls))
+    # 会话业务夹具压缩等待；真实一秒间隔由 t_retry_request_gate 独立验证。
+    c.WIKI_MIN_INTERVAL_S = 0
     c._http.post = flare.post
     return c
 
@@ -168,7 +174,7 @@ async def t_bad_json_rebuilds():
 # ---------------------------------------------------------------- 4. 错误归因不被掩盖
 async def t_real_error_not_masked():
     exc = httpx.ConnectError("All connection attempts failed")
-    f = RoutingFlare(exc, [TAB_CRASHED, DESTROY_OK, CREATE_OK, TAB_CRASHED, TAB_CRASHED])
+    f = RoutingFlare(exc, [TAB_CRASHED, DESTROY_OK, CREATE_OK, TAB_CRASHED])
     c = make_client(f, urls=("http://bad.test/v1", "http://good.test/v1"))
     try:
         await c.fetch_via_flaresolver("https://wiki.test/w")
@@ -177,7 +183,64 @@ async def t_real_error_not_masked():
         msg = str(e)
         check("失败信息含 FS 的真实原因 tab crashed", "tab crashed" in msg, msg)
         check("失败信息不再被连接错误顶包", "attempts failed" not in msg, msg)
+    check(
+        "每个候选最多求解两次且没有无条件尾重试",
+        all(
+            sum(x["base"] == base and x["cmd"] == "request.get" for x in f.calls) == 2
+            for base in ("http://bad.test/v1", "http://good.test/v1")
+        )
+        and not f.good,
+        str(f.calls),
+    )
     await c.close()
+
+
+async def t_retry_request_gate():
+    f = ScriptedFlare([TAB_CRASHED, DESTROY_OK, CREATE_OK, PAGE_OK])
+    c = make_client(f)
+    c.WIKI_MIN_INTERVAL_S = 1.0
+    try:
+        await c.fetch_via_flaresolver("https://wiki.test/retry-gate")
+        print("[EVIDENCE] FS恢复重试起始间隔（秒）:", f.starts[1] - f.starts[0])
+        check(
+            "真实会话重建后的request.get仍遵守一秒请求起始间隔",
+            len(f.starts) == 2 and f.starts[1] - f.starts[0] >= 0.98,
+            str(f.starts),
+        )
+    finally:
+        await c.close()
+
+
+async def t_recovery_is_bounded():
+    f = ScriptedFlare(
+        [httpx.ConnectError("fixture connection failure"), DESTROY_OK, CREATE_OK, TAB_CRASHED]
+    )
+    c = make_client(f)
+    try:
+        try:
+            await c.fetch_via_flaresolver("https://wiki.test/bounded")
+            check("连接恢复后仍坏的会话有界失败", False)
+        except WarframeAPIError:
+            check(
+                "连接恢复后第二次失败不再次重建或第三次求解",
+                [x["cmd"] for x in f.calls]
+                == ["request.get", "sessions.destroy", "sessions.create", "request.get"],
+                str(f.calls),
+            )
+    finally:
+        await c.close()
+    f = ScriptedFlare(
+        [{"status": "error", "message": "Error solving the challenge: fixture timeout"}]
+    )
+    c = make_client(f)
+    try:
+        try:
+            await c.fetch_via_flaresolver("https://wiki.test/no-blind-retry")
+            check("普通FS错误不盲重试", False)
+        except WarframeAPIError:
+            check("普通FS错误只求解一次", len(f.calls) == 1, str(f.calls))
+    finally:
+        await c.close()
 
 
 # ---------------------------------------------------------------- 5. 会话回收接口
@@ -202,6 +265,8 @@ async def main():
     await t_bad_json_rebuilds()
     await t_real_error_not_masked()
     await t_recycle_session()
+    await t_retry_request_gate()
+    await t_recovery_is_bounded()
     print()
     if FAILED:
         print(f"FAILED: {len(FAILED)} -> {FAILED}")

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import time
 
 from .. import calculators as calc
@@ -28,6 +29,14 @@ _PULL_WORDS = frozenset({"刷新", "重抓", "更新"})
 _PULL_COOLDOWN = 300.0
 _PULL_WINDOW = 3600.0
 _PULL_MAX_PER_WINDOW = 6
+
+
+def _note_line(note: str) -> str:
+    """数据说明行：wiki 页名写成空格形式（Coda_Weapons → Coda Weapons，同一页面）。
+
+    半角下划线会让 QQ Markdown 文字卡整卡退回纯文字；说明来自社区快照数据，只在显示时转换。
+    """
+    return "※ " + re.sub(r"(?<=[A-Za-z])_(?=[A-Za-z])", " ", str(note))
 
 
 def _pull_say(status: str) -> str:
@@ -54,15 +63,15 @@ def _pull_say(status: str) -> str:
 
 
 def _elem_txt(it: dict) -> str:
-    """条目行尾的「磁力 25.7%」；没有快照数据时返回空串。"""
+    """条目行尾的「磁力 25.7%」；没有快照数据时明确标记待获取。"""
     elem = calc.ELEM_ZH.get((it.get("element") or "").lower())
     pct = it.get("bonus")
     if not elem or pct in (None, ""):
-        return ""
+        return "待获取"
     try:
         num = float(pct)
     except (TypeError, ValueError):
-        return ""
+        return "待获取"
     return f"{elem} {num:g}%"
 
 
@@ -98,7 +107,9 @@ class RotationCommands:
         if (parsed.page or 1) > 1:
             # ★ 2026-10-11：赏金卡不分页，-N 无效 —— 明说，不静默
             lines.append("※ 赏金不分页：一览已列全部地区，发「赏金 <地区>」看该地区详情")
-        return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
+        return Reply(
+            title, lines, footer=fmt.fmt_platform_footer(platform, getattr(data, "source", ""))
+        )
 
     # ------------------------------------------------------------------
     # 确定性轮换（灵化/信条/终幕/言录使）：数据驱动，见 core/data/rotations.json
@@ -185,7 +196,7 @@ class RotationCommands:
             if _vn:
                 lines.append(_vn)
             if data.get("_note"):
-                lines.append(f"※ {data['_note']}")
+                lines.append(_note_line(data["_note"]))
             return Reply(title, lines)
 
         # —— 模式：常驻 + 定期刷新（Tenet 信条：武器常驻，元素加成每 4 天重生成）——
@@ -207,7 +218,7 @@ class RotationCommands:
             if _vn:
                 lines.append(_vn)
             if data.get("_note"):
-                lines.append(f"※ {data['_note']}")
+                lines.append(_note_line(data["_note"]))
             return Reply(title, lines)
 
         # —— 模式二：滑动窗口 ——
@@ -290,5 +301,14 @@ class RotationCommands:
             title, lines = fmt.fmt_acrichis_week(week)
         else:
             # 过期时必须明说「这只是候选池」，否则会被当成本周实际在卖的 5 件
-            title, lines = fmt.fmt_acrichis(await self.client.acrithis_pool(), stale=True)
+            snapshot = (
+                self.client._acrichis_snapshot()
+                if hasattr(self.client, "_acrichis_snapshot")
+                else {}
+            )
+            title, lines = fmt.fmt_acrichis(
+                await self.client.acrithis_pool(),
+                stale=bool(snapshot.get("items")),
+                pending=not bool(snapshot.get("items")),
+            )
         return self._with_note(Reply(title, lines, footer=fmt.fmt_platform_footer(platform)), note)

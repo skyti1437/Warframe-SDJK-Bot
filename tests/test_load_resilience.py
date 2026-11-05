@@ -17,11 +17,14 @@
 from __future__ import annotations
 
 import importlib
+import ast
+import asyncio
 import re
 import sys
 import tempfile
 import textwrap
 from pathlib import Path
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parent.parent
 MAIN = (ROOT / "main.py").read_text(encoding="utf-8")
@@ -99,49 +102,143 @@ check(
 # ---------------------------------------------------------------------------
 # 2. 检查点对齐 XX:05 UTC（换轮 00:00 UTC → 最坏 6h 变 ~5min）
 # ---------------------------------------------------------------------------
-check(
-    "★ 主循环用对齐助手而不是裸 sleep(6*3600)",
-    "_secs_to_aligned_tick" in MAIN
-    and "await asyncio.sleep(self._secs_to_aligned_tick())" in MAIN
-    and "asyncio.sleep(6 * 3600)" not in MAIN,
-    f"仍有 {MAIN.count('asyncio.sleep(6 * 3600)')} 处裸 sleep",
-)
+_functions = {
+    n.name: n
+    for n in ast.walk(ast.parse(MAIN))
+    if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+}
+_valence = _functions["_valence_autoloop"]
+_aligned_call = ast.parse(
+    'self._background_sleep("valence", self._secs_to_aligned_tick())', mode="eval"
+).body
+_aligned = [
+    n
+    for n in ast.walk(_valence)
+    if isinstance(n, ast.Await) and ast.dump(n.value) == ast.dump(_aligned_call)
+]
+_raw_sleeps = [
+    n
+    for n in ast.walk(_valence)
+    if isinstance(n, ast.Call)
+    and ast.dump(n.func) == ast.dump(ast.parse("asyncio.sleep", mode="eval").body)
+]
+check("★ 主循环用带对齐间隔的状态包装，不裸等6小时", bool(_aligned) and not _raw_sleeps)
 check(
     "对齐助手有步长/分钟/抖动三个参数（抖动防扎堆）",
-    bool(
-        re.search(
-            r"def _secs_to_aligned_tick\((?:self, )?step_hours: int = 6, minute: int = 5,"
-            r"\s*\n?\s*jitter_min: int = 15\)",
-            MAIN,
-        )
-    ),
+    [a.arg for a in _functions["_secs_to_aligned_tick"].args.args]
+    == ["step_hours", "minute", "jitter_min"]
+    and [ast.literal_eval(v) for v in _functions["_secs_to_aligned_tick"].args.defaults]
+    == [6, 5, 15],
 )
 check(
-    "主循环有**两处**用它（非 ready 分支与 ready 分支各一）",
-    MAIN.count("await asyncio.sleep(self._secs_to_aligned_tick())") == 2,
-    str(MAIN.count("await asyncio.sleep(self._secs_to_aligned_tick())")),
+    "源刷新主循环统一使用对齐间隔，不以前置FS探活分流",
+    len(_aligned) == 1
+    and not any(
+        isinstance(n, ast.Call)
+        and isinstance(n.func, ast.Attribute)
+        and n.func.attr == "_flare_phase"
+        for n in ast.walk(_valence)
+    ),
+    str(len(_aligned)),
 )
 
 # ---------------------------------------------------------------------------
-# 3. 社区快照轻轮询（没装 FS 的用户才走）
+# 3. 社区快照独立轻轮询（所有传输配置均可更新）
 # ---------------------------------------------------------------------------
-check(
-    "★ 有独立的 _community_autoloop（30 分钟一轮）",
-    "async def _community_autoloop" in MAIN and "await asyncio.sleep(30 * 60)" in MAIN,
-)
+_community = _functions["_community_autoloop"]
 check(
     "★ 它是被 create_task 起的（否则永不运行）",
     "asyncio.create_task(self._community_autoloop())" in MAIN,
 )
-check(
-    "★ 仅在 FS 不是 ready 时才读社区快照（有 FS 的不必读）",
-    'if await self._flare_phase() == "ready":' in MAIN
-    and MAIN.index("_community_autoloop") < MAIN.index('if await self._flare_phase() == "ready":'),
-)
-check(
-    "轻轮询失败只静默重试（不打扰不用该功能的用户）",
-    "except Exception:  # noqa: BLE001 - 轻轮询失败不打扰" in MAIN,
-)
+
+
+async def _poll_behavior():
+    logs = []
+    ns = {
+        "asyncio": asyncio,
+        "logger": SimpleNamespace(warning=lambda *a: logs.append(a), info=lambda *a: None),
+    }
+    exec(compile(ast.Module(body=[_community], type_ignores=[]), str(ROOT / "main.py"), "exec"), ns)
+
+    class Harness:
+        def __init__(self, phase, rounds=1, fail=False):
+            self.phase, self.rounds, self.fail = phase, rounds, fail
+            self.delays, self.refreshes, self.static, self.records = [], 0, 0, []
+
+        async def _background_sleep(self, name, seconds):
+            self.delays.append((name, seconds))
+            if len(self.delays) > self.rounds:
+                raise asyncio.CancelledError
+
+        def _note_background(self, *args):
+            self.records.append(args)
+
+        async def _flare_phase(self):
+            return self.phase
+
+        async def _refresh_from_community(self):
+            self.refreshes += 1
+            if self.fail:
+                raise RuntimeError("fixture error")
+            return {"rotation": "fresh"}
+
+        async def _refresh_static_community(self):
+            self.static += 1
+            return {"static": "fresh"}
+
+        def _refresh_outcome(self, results):
+            return "ok", "fixture"
+
+    async def run(phase, rounds=1, fail=False):
+        obj = Harness(phase, rounds, fail)
+        try:
+            await ns["_community_autoloop"](obj)
+        except asyncio.CancelledError:
+            pass
+        return obj
+
+    off, absent, ready = await run("off"), await run("absent"), await run("ready", 6)
+    check(
+        "★ 有独立的社区轻轮询，正常间隔保持30分钟",
+        all(delay == ("community", 1800) for obj in (off, absent, ready) for delay in obj.delays),
+    )
+    check(
+        "★ FS关闭/不可达/ready均读社区轮换，fresh由业务入口短路",
+        off.refreshes == absent.refreshes == 1 and ready.refreshes == 6,
+    )
+    check("FS ready时仍每6轮检查静态社区数据", ready.static == 1)
+    failed = await run("off", fail=True)
+    check(
+        "轻轮询失败记状态并静默60秒重试，不向群告警",
+        failed.delays == [("community", 1800), ("community", 60)]
+        and any(row[:2] == ("community", "error") for row in failed.records)
+        and not logs,
+    )
+
+    # 实际状态包装必须把传入间隔原样交给sleep，不能仅改记录而破坏调度。
+    delegated, states = [], []
+
+    async def sleep(seconds):
+        delegated.append(seconds)
+
+    wrapper_ns = {"asyncio": SimpleNamespace(sleep=sleep)}
+    exec(
+        compile(
+            ast.Module(body=[_functions["_background_sleep"]], type_ignores=[]),
+            str(ROOT / "main.py"),
+            "exec",
+        ),
+        wrapper_ns,
+    )
+    obj = SimpleNamespace(_note_background=lambda *a, **kw: states.append((a, kw)))
+    await wrapper_ns["_background_sleep"](obj, "valence", 731.5)
+    check(
+        "状态包装保留对齐助手传入的真实间隔",
+        delegated == [731.5] and states == [(("valence", "waiting"), {"delay": 731.5})],
+    )
+
+
+asyncio.run(_poll_behavior())
 
 # ---------------------------------------------------------------------------
 # 4. 一致性：三个 refresh 出口名对得上（消费侧/发布侧共用词表）
@@ -250,6 +347,225 @@ check(
     str(_src_main.count("用法：遗物")),
 )
 check("用法串不含非子集符号（alpha 类）", "α" not in _src_main.split("RELIC_USAGE = ")[1][:200])
+
+
+# 原子写故障注入只碰 tempdir；两种失败均须保留旧件、清理半成品，随后可恢复。
+def _atomic_write_recovery():
+    from unittest.mock import patch
+
+    sys.path.insert(0, str(ROOT))
+    from core.paths import atomic_write_text
+
+    with tempfile.TemporaryDirectory() as tmp:
+        target = Path(tmp) / "nested" / "state.json"
+        atomic_write_text(target, '{"revision":1}')
+        original_write = Path.write_text
+
+        def partial_write(path, text, **kwargs):
+            original_write(path, text[:5], **kwargs)
+            raise OSError("fixture disk full")
+
+        for mode in ("partial-write", "replace"):
+            hook = (
+                patch.object(Path, "write_text", partial_write)
+                if mode == "partial-write"
+                else patch("core.paths.os.replace", side_effect=OSError("fixture replace denied"))
+            )
+            try:
+                with hook:
+                    atomic_write_text(target, '{"revision":2}')
+                check(f"原子写 {mode} 故障原样抛出", False)
+            except OSError as exc:
+                check(f"原子写 {mode} 故障原样抛出", "fixture" in str(exc))
+            check(
+                f"原子写 {mode} 失败保留旧文件且清空临时件",
+                target.read_text() == '{"revision":1}'
+                and list(target.parent.iterdir()) == [target],
+            )
+        atomic_write_text(target, '{"revision":3}')
+        check(
+            "原子写两种失败后仍可完整提交新文件",
+            target.read_text() == '{"revision":3}' and list(target.parent.iterdir()) == [target],
+        )
+
+
+_atomic_write_recovery()
+
+
+async def _json_store_failure_recovery():
+    from unittest.mock import patch
+
+    from core.store import JsonStore
+
+    with tempfile.TemporaryDirectory() as tmp:
+        target = Path(tmp) / "store.json"
+        target.write_text('{"revision":1}')
+        store = JsonStore(target)
+        opened = []
+        original_open = open
+
+        class PartialFile:
+            def __enter__(self):
+                self.fh = original_open(target.with_suffix(".tmp"), "w", encoding="utf-8")
+                opened.append(self.fh)
+                return self
+
+            def write(self, text):
+                self.fh.write(text[:5])
+                raise OSError("fixture disk full")
+
+            def __exit__(self, *args):
+                self.fh.close()
+
+        for mode in ("partial-write", "fsync", "replace"):
+            store._data = {"revision": 2}
+            hooks = {
+                "partial-write": patch("core.store.open", return_value=PartialFile(), create=True),
+                "fsync": patch("core.store.os.fsync", side_effect=OSError("fixture fsync")),
+                "replace": patch.object(Path, "replace", side_effect=OSError("fixture replace")),
+            }
+            try:
+                with hooks[mode]:
+                    await store.save()
+                check(f"JsonStore {mode} 故障原样抛出", False)
+            except OSError as exc:
+                check(f"JsonStore {mode} 故障原样抛出", "fixture" in str(exc))
+            check(
+                f"JsonStore {mode} 失败保留旧文件、释放锁与文件并清理临时件",
+                target.read_text() == '{"revision":1}'
+                and not store._lock.locked()
+                and all(fh.closed for fh in opened)
+                and list(target.parent.iterdir()) == [target],
+            )
+            await asyncio.wait_for(store.save(), 2)
+            check(
+                f"JsonStore {mode} 失败后下次保存可恢复",
+                JsonStore(target)._data == {"revision": 2}
+                and list(target.parent.iterdir()) == [target],
+            )
+            target.write_text('{"revision":1}')
+
+
+asyncio.run(_json_store_failure_recovery())
+
+
+def _shared_json_singleflight():
+    import os
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier, Event, Lock
+    from unittest.mock import patch
+
+    from core import paths
+
+    class ObservedLock:
+        def __init__(self):
+            self.lock = Lock()
+            self.waiting = Event()
+
+        def __enter__(self):
+            if self.lock.locked():
+                self.waiting.set()
+            self.lock.acquire()
+
+        def __exit__(self, *args):
+            self.lock.release()
+
+    with tempfile.TemporaryDirectory() as tmp:
+        target = Path(tmp) / "shared.json"
+        target.write_text('{"revision":1}')
+        key = str(target)
+        original_read = Path.read_text
+        lock = ObservedLock()
+        locks = list(paths._JSON_LOCKS)
+        locks[hash(key) % len(locks)] = lock
+        started = Event()
+        reads = []
+
+        def gated_read(path, *args, **kwargs):
+            if path == target:
+                reads.append(path)
+                started.set()
+                if not lock.waiting.wait(3):
+                    raise AssertionError("没有观察到同文件冷读等待")
+            return original_read(path, *args, **kwargs)
+
+        try:
+            with (
+                patch.object(paths, "_JSON_LOCKS", tuple(locks)),
+                patch.object(Path, "read_text", gated_read),
+            ):
+                with ThreadPoolExecutor(max_workers=2) as pool:
+                    first = pool.submit(paths.load_json, target)
+                    assert started.wait(3), "首个 JSON 冷读未开始"
+                    second = pool.submit(paths.load_json, target)
+                    a, b = first.result(timeout=5), second.result(timeout=5)
+            check("共享 JSON 并发冷读只解析一次且返回同一对象", len(reads) == 1 and a is b)
+            check("共享 JSON 热读保留对象身份", paths.load_json(target) is a)
+
+            # 分别独立触发 mtime 与 size 变化，避免其中一条失效判据被遗漏。
+            st = target.stat()
+            target.write_text('{"revision":2}')
+            os.utime(target, ns=(st.st_atime_ns, st.st_mtime_ns + 1_000_000_000))
+            updated = paths.load_json(target)
+            check(
+                "共享 JSON 同 size 改 mtime 后失效", updated == {"revision": 2} and updated is not a
+            )
+            st = target.stat()
+            target.write_text('{"revision":300}')
+            os.utime(target, ns=(st.st_atime_ns, st.st_mtime_ns))
+            check("共享 JSON 同 mtime 改 size 后失效", paths.load_json(target) == {"revision": 300})
+
+            # 先过期旧缓存，再注入读失败和解析失败；失败后必须跨线程可重试。
+            for mode in ("read", "parse"):
+                target.write_text('{"revision":4000}' if mode == "read" else '{"revision":bad!}')
+                hook = (
+                    patch.object(Path, "read_text", side_effect=OSError("fixture read failure"))
+                    if mode == "read"
+                    else patch.object(Path, "read_text", original_read)
+                )
+                with hook, ThreadPoolExecutor(max_workers=1) as pool:
+                    check(
+                        f"共享 JSON {mode} 失败返回空而非过期缓存",
+                        pool.submit(paths.load_json, target).result(timeout=5) == {},
+                    )
+                st = target.stat()
+                target.write_text('{"revision":5000}')
+                os.utime(target, ns=(st.st_atime_ns, st.st_mtime_ns))
+                with ThreadPoolExecutor(max_workers=1) as pool:
+                    check(
+                        f"共享 JSON {mode} 失败后释放锁且同元数据可恢复",
+                        pool.submit(paths.load_json, target).result(timeout=5)
+                        == {"revision": 5000},
+                    )
+
+            # 两个不同条带的文件必须能同时进入实际读取，不受全局耗时锁阻塞。
+            other = next(
+                Path(tmp) / f"other-{i}.json"
+                for i in range(1000)
+                if hash(str(Path(tmp) / f"other-{i}.json")) % len(paths._JSON_LOCKS)
+                != hash(key) % len(paths._JSON_LOCKS)
+            )
+            other.write_text('{"other":1}')
+            paths._JSON_CACHE.pop(key, None)
+            rendezvous = Barrier(2)
+
+            def parallel_read(path, *args, **kwargs):
+                if path in (target, other):
+                    rendezvous.wait(timeout=3)
+                return original_read(path, *args, **kwargs)
+
+            with (
+                patch.object(Path, "read_text", parallel_read),
+                ThreadPoolExecutor(max_workers=2) as pool,
+            ):
+                futures = [pool.submit(paths.load_json, p) for p in (target, other)]
+                check("不同条带 JSON 可以并行读取", all(f.result(timeout=5) for f in futures))
+            paths._JSON_CACHE.pop(str(other), None)
+        finally:
+            paths._JSON_CACHE.pop(key, None)
+
+
+_shared_json_singleflight()
 
 if FAILED:
     print(f"✗ {len(FAILED)} 项失败：" + "、".join(FAILED))

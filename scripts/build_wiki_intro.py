@@ -14,8 +14,12 @@ Markdown 也只在本机（warframe知识库/知识库/，技能 warframe-kb-bui
 
 用法
 ----
-    python3 scripts/build_wiki_intro.py                 # 用默认知识库路径
     python3 scripts/build_wiki_intro.py --kb-dir <路径>  # 或环境变量 WF_KB_OUT
+    python3 scripts/build_wiki_intro.py --dry-run  # 只预览现有获取字段的迁移
+    python3 scripts/build_wiki_intro.py --repair-source-lines  # 仅迁移获取字段
+    python3 scripts/build_wiki_intro.py --check  # 检查字段迁移是否完成
+    # 专名译表来自 --source-dict-dir 指定目录里的 dict.en.json / dict.zh.json；
+    # 未指定目录时取 WF_KB_DATA/pep，再回落 core/data/_cache。缺词表时拒绝构建。
 """
 
 from __future__ import annotations
@@ -99,17 +103,178 @@ def materials_of(lines: list[str]) -> list[tuple[str, int]]:
     return []
 
 
-# ★ 2026-10-22（返工版，Claude 审 7d14b93 的两条）：「获取」行的结构性词汉化。
-#   ① **不设任何「译成空串」的规则** —— 上一版 `"The": ""` 把 `The Severed Warden` 削成
-#      ` Severed Warden`（名字残缺 + 行首多空格，全量 80 处）；
-#   ② **不逐词拆译专名** —— `Operation: Orphix Venom` → `Operation: 奥菲斯 Venom` 之类
-#      中英夹杂比原文更难读。
-#   现行口径：**只翻结构性词，且只在识别到的结构位置**；其余整段原样。实测结构形态：
-#     `Planet/Node (Mission), Rotation X 20%` / `Planet/Node (Mission) 20%`
-#     `Earth/Cetus (Level 50 - 70 Cetus Bounty), Rotation A 20%`
-#     `Duviri/Endless: Tier 6 (Hard) 11.9%`
-#   明确**不翻**（不落在任何结构里）：`Fomorian Sabotage`（专名+任务类型）、
-#   `Elite Orm Weaver`（敌名）、`Nightmare Mode Rewards`（模式名）。
+# 获取行分两步处理：官方同键词表整名匹配，然后按结构位置翻译任务/轮次等。
+# 不拆译未知专名，不删冠词；星球/节点与“星球 · 节点 · 任务”保留节点英文。
+# 专名翻译在卡片截断前执行，避免把残缺的名称当作完整名称。
+# 字段语义绑定官方语言键；普通任务节点不从物品名词表反推。
+_SOURCE_FIELD_KEYS = {
+    "region": {
+        "Cetus": "Locations/CetusHub",
+        "Cambion Drift": "InfestedMicroplanet/SolarMapDeimosLandscapeName",
+        "Orb Vallis": "Locations/VenusLandscape",
+        "Veil Proxima": "Locations/DeepSpace_SPACE",
+        "Duviri": "Duviri/Duviri",
+        "Zariman": "Zariman/ZarimanRegionName",
+        "Höllvania": "1999/1999MapName",
+        "Kuva Fortress": "Locations/Fortress",
+    },
+    "mission": {
+        "Conclave": "Missions/MissionName_PVP",
+        "Cephalon Capture": "Locations/ConclaveCTF",
+        "Annihilation": "Locations/ConclaveDM",
+        "The Descendia": "Missions/MissionName_Descent",
+        "Arena": "Missions/MissionName_Arena",
+        "The Circuit": "Missions/MissionName_EndlessDuviri",
+        "The Perita Rebellion": "Missions/MissionName_TauWar",
+        "Void Armageddon": "Missions/MissionName_Armageddon",
+        "Infested Salvage": "Missions/MissionName_Purify",
+        "Defense": "Missions/MissionName_Defense",
+        "Exterminate": "Missions/MissionName_Exterminate",
+    },
+    "rank": {
+        "Mistral": "Syndicates/ConclaveTitle1",
+        "Whirlwind": "Syndicates/ConclaveTitle2",
+        "Tempest": "Syndicates/ConclaveTitle3",
+        "Hurricane": "Syndicates/ConclaveTitle4",
+        "Typhoon": "Syndicates/ConclaveTitle5",
+        "Operational Supply": "Syndicates/EventSyndicateName",
+        "Champion": "Syndicates/EventSyndicateTitle3",
+    },
+}
+
+
+class SourceNames(dict):
+    """整名表旁挂有官方同键依据的字段表；不向普通节点扩展名称匹配。"""
+
+    fields: dict
+
+
+def translate_source_fields(line: str, names: dict[str, str]) -> str:
+    """仅翻完整字段和已识别上下文；截断词、未知组合及普通节点保留。"""
+    fields = getattr(names, "fields", {})
+    if not line.startswith("获取：") or not fields:
+        return line
+
+    def part(source: str) -> str:
+        # 声望名称只接受完整阵营、等级组合，避免把同名 MOD 当等级。
+        for group, ranks in (
+            ("Conclave", ("Mistral", "Whirlwind", "Tempest", "Hurricane", "Typhoon")),
+            ("Operational Supply", ("Champion",)),
+        ):
+            for rank in ranks:
+                value = fields["mission"].get(group) or fields["rank"].get(group)
+                zh = fields["rank"].get(rank)
+                if value and zh:
+                    source = re.sub(
+                        rf"^(\s*){re.escape(group)},\s*{rank}(?=\s+\d)",
+                        lambda m: m[1] + value + ", " + zh,
+                        source,
+                    )
+        for name, zh in fields["region"].items():
+            escaped = re.escape(name)
+            # 段首区域、星球后的命名区域、赏金等级后的命名区域。
+            source = re.sub(
+                rf"(^\s*|/| · ){escaped}(?=/| · |[（(:]|\s*[（(])",
+                lambda m: m[1] + zh,
+                source,
+            )
+            source = re.sub(
+                rf"((?:Level|等级)\s+\d+\s*-\s*\d+\s+){escaped}(?=\s+(?:Bounty|赏金)(?![A-Za-z]))",
+                lambda m: m[1] + zh,
+                source,
+            )
+        for name, zh in fields["mission"].items():
+            source = re.sub(
+                rf"(^\s*|/| · |[（(]){re.escape(name)}(?=\s*[（）()]| · |:|,|\s+\d|$)",
+                lambda m: m[1] + zh,
+                source,
+            )
+        return source
+
+    return "获取：" + "".join(part(p) for p in re.split(r"([；;])", line[3:]))
+
+
+def build_source_names(en: dict, zh: dict) -> dict[str, str]:
+    """同一英文对应多个译文时整名排除，空值与富文本也不进入名称表。"""
+    candidates: dict[str, set[str]] = {}
+    for key, name in en.items():
+        value = zh.get(key)
+        if isinstance(name, str) and isinstance(value, str):
+            candidates.setdefault(name.strip(), set()).add(value.strip())
+    result = SourceNames()
+    result.fields = {kind: {} for kind in _SOURCE_FIELD_KEYS}
+    for kind, table in _SOURCE_FIELD_KEYS.items():
+        for name, suffix in table.items():
+            key = "/Lotus/Language/" + suffix
+            value = zh.get(key)
+            if (
+                str(en.get(key, "")).casefold() == name.casefold()
+                and isinstance(value, str)
+                and _CJK_RE.search(value)
+            ):
+                result.fields[kind][name] = value
+    for name, values in candidates.items():
+        if len(values) != 1:
+            continue
+        value = next(iter(values))
+        if (
+            name
+            and value
+            and name != value
+            and len(name) <= 120
+            and len(value) <= 120
+            and _CJK_RE.search(value)
+            and not any(c in name + value for c in "\n\r<>|{}")
+        ):
+            result[name] = value
+    return result
+
+
+def load_source_names(directory: Path) -> tuple[dict[str, str], dict]:
+    tables, hashes = {}, {}
+    for lang in ("en", "zh"):
+        raw = (directory / f"dict.{lang}.json").read_bytes()
+        table = json.loads(raw)
+        if not isinstance(table, dict) or not table:
+            raise ValueError(f"dict.{lang}.json 必须是非空语言键字典")
+        tables[lang] = table
+        hashes[lang + "_sha256"] = hashlib.sha256(raw).hexdigest()
+    names = build_source_names(tables["en"], tables["zh"])
+    if not names:
+        raise ValueError("语言键没有可用的唯一中文译名，请检查两份词表是否配套")
+    return names, {"source": "DE 官方 language 表同键对，整名唯一译文", **hashes}
+
+
+_SOURCE_TAILS = (
+    re.compile(r"(?<=%)…(?:（共 \d+ 处）)?$"),
+    re.compile(r"\s+\d+(?:\.\d+)?%$"),
+    re.compile(r"[,，]\s*(?:Rotation\s+[A-C]|[A-C]轮)$"),
+    re.compile(r"\s*[（(](?:Level|等级)\s+\d+\s*-\s*\d+[）)]$"),
+)
+
+
+def translate_source_names(line: str, names: dict[str, str]) -> str:
+    """只翻完整来源名；限定后缀原样保留，节点字段与不完整名称不拆译。"""
+    if not line.startswith("获取：") or not names:
+        return line
+
+    line = translate_source_fields(line, names)
+
+    def source(part: str) -> str:
+        if "/" in part or " · " in part:
+            return part
+        start, end = len(part) - len(part.lstrip()), len(part.rstrip())
+        for pattern in _SOURCE_TAILS:
+            match = pattern.search(part[start:end])
+            if match:
+                end = start + match.start()
+        name = part[start:end].rstrip()
+        value = names.get(name)
+        return part[:start] + value + part[start + len(name) :] if value else part
+
+    return "获取：" + "".join(source(p) for p in re.split(r"([；;])", line[3:]))
+
+
 _PLANET_ZH = {
     "Mercury": "水星",
     "Venus": "金星",
@@ -129,7 +294,7 @@ _PLANET_ZH = {
     "Lua": "月球",
     "Void": "虚空",
     "Kuva Fortress": "赤毒要塞",
-    "Cambion Drift": "恶魔漂移",
+    "Cambion Drift": "魔胎之境",
 }
 _MISSION_ZH = {
     "Spy": "间谍",
@@ -168,48 +333,94 @@ _LEVEL_RE = re.compile(r"\bLevel\s+(\d+)\s*-\s*(\d+)\b")
 _TIER_RE = re.compile(r"\bTier\s+(\d+)\b")
 _DIFF_RE = re.compile(r"\((Normal|Hard|Elite)\)")
 _BOUNTY_RE = re.compile(r"\bBount(?:y|ies)\b")
-# `星球/节点 …`：行星**只在段首这个位置**翻（别处一律不动，免得动到专名）
-_LEAD_PLANET_RE = re.compile(r"(?<![A-Za-z])((?:[A-Z][A-Za-z'\-]*\s?){1,3})/(?=[A-Z])")
-_PAREN_RE = re.compile(r"\(([A-Za-z][A-Za-z0-9 /\-]*)\)")
+# 星球字段只在来源段首或逗号分隔区域后翻译，斜杠后的普通节点保留。
+_LEAD_PLANET_RE = re.compile(
+    r"(^获取：|[；;,，]\s*)(" + "|".join(re.escape(n) for n in _PLANET_ZH) + r")/"
+)
+_PAREN_RE = re.compile(r"[（(]([^()（）]*)[）)]")
 
 
-def translate_source(line: str) -> str:
-    """「获取」行里的**结构性词** → 中文；**专名整段保持英文**。
+def translate_source(line: str, names: dict[str, str] | None = None) -> str:
+    """「获取」行整名匹配官方词表后，翻译结构性词；无词表时只做结构转换。
 
     ★ **绝不删词**（没有译成空串的规则）⇒ 不会出现行首 / 冒号后多余空格。
     ★ 只做四类替换，且都限定在可识别的结构位置：
       ① `Rotation X` → `X轮`（与数据里已有的「C轮」同写法）；
       ② `Level a - b` / `Tier n` / `(Normal|Hard|Elite)` / `Duviri/Endless` / `Bounty`；
-      ③ **段首**的 `行星/` → 中文行星；
+      ③ 来源段首或逗号分隔区域后的 `行星/` → 中文行星；
       ④ `(任务类型)` → 括号内任务类型（只翻表内的）。
     """
     if not line.startswith("获取"):
         return line
+    line = translate_source_names(line, names or {})
 
     def _paren(m: re.Match) -> str:
         inner = m.group(1).strip()
         if inner in _MISSION_ZH:
             return f"（{_MISSION_ZH[inner]}）"
+        if inner in _MISSION_ZH.values():
+            return f"（{inner}）"
         out = _LEVEL_RE.sub(lambda x: f"等级 {x.group(1)} - {x.group(2)}", inner)
         out = _BOUNTY_RE.sub("赏金", out)
         return f"（{out}）" if out != inner else m.group(0)
 
-    # ★ 顺序要紧：**先处理括号**（此时括号内还是纯 ASCII，`_PAREN_RE` 才认得出），
-    #   再跑全局结构词 —— 否则 `Level` 会先把括号内容译成中文、括号正则就再也匹配不上。
+    # 官方区域/任务名可能已经变成中文；括号内容同时接受英文与混合译文。
     out = _PAREN_RE.sub(_paren, line)
     out = _ROTATION_RE.sub(lambda m: f"{m.group(1).upper()}轮", out)
     out = _LEVEL_RE.sub(lambda m: f"等级 {m.group(1)} - {m.group(2)}", out)
     out = _TIER_RE.sub(lambda m: f"层级 {m.group(1)}", out)
     out = _DIFF_RE.sub(lambda m: f"（{_DIFF_ZH[m.group(1)]}）", out)
     out = out.replace("Duviri/Endless", "双衍王境/无尽")
+    out = out.replace("双衍王境/Endless", "双衍王境/无尽")
 
     def _planet(m: re.Match) -> str:
-        zh = _PLANET_ZH.get(m.group(1).strip())
-        return f"{zh}/" if zh else m.group(0)
+        return f"{m.group(1)}{_PLANET_ZH[m.group(2)]}/"
 
     out = _LEAD_PLANET_RE.sub(_planet, out)
     # 中文全角括号前不留半角空格（`Ganymede （中断）` → `Ganymede（中断）`）
     return re.sub(r"\s+（", "（", out)
+
+
+def truncate_source(line: str, cap: int = MAX_LEN) -> str:
+    """翻译完成后再截断；优先保留完整来源项，不制造英文/数值半词。"""
+    if len(line) <= cap:
+        return line
+    tail_match = re.search(r"…（共 \d+ 处）$", line)
+    tail = tail_match.group(0) if tail_match else "…"
+    body = line[: tail_match.start()] if tail_match else line
+    limit = max(0, cap - len(tail))
+    # 只在括号外拆来源；括号内分号属于同一来源的部件/子项。
+    depth = 0
+    boundaries = []
+    for i, char in enumerate(body):
+        if char in "（(":
+            depth += 1
+        elif char in "）)":
+            depth = max(0, depth - 1)
+        elif char in "；;" and depth == 0 and i <= limit:
+            boundaries.append(i)
+
+    def token_boundary(pos: int) -> int:
+        for token in re.finditer(r"[A-Za-z][A-Za-z0-9'’.-]*|\d+(?:\.\d+)?%?", body):
+            if token.start() < pos < token.end():
+                return token.start()
+        return pos
+
+    cut = boundaries[-1] if boundaries else token_boundary(limit)
+    if not boundaries:
+        # 首项本身过长时，末端必须真的是未完片段。否则runtime会把
+        # “完整内嵌项＋省略号”误当半项再丢一次；退到原文的安全边界。
+        while cut > 0:
+            prefix = body[:cut].rstrip()
+            following = body[len(prefix) :].lstrip()
+            if prefix.endswith(("；", ";", "）", ")")) or following.startswith(
+                ("；", ";", "）", ")")
+            ):
+                cut = token_boundary(len(prefix) - 1)
+            else:
+                break
+
+    return body[:cut].rstrip() + tail
 
 
 def untranslated_source_tokens(lines: list[str]) -> list[str]:
@@ -243,7 +454,10 @@ def dedup_effect_lines(lines: list[str]) -> list[str]:
 
 
 def parse_kb(
-    path: Path, max_lines: int, identities: list[dict] | None = None
+    path: Path,
+    max_lines: int,
+    identities: list[dict] | None = None,
+    source_names: dict[str, str] | None = None,
 ) -> tuple[list[tuple[str, list[str]]], list[tuple[str, str, int]]]:
     """解析一个知识库文档 → (卡片条目, 材料三元组)。
 
@@ -284,16 +498,29 @@ def parse_kb(
             continue
         if title and raw.startswith("- "):
             line = raw[2:].strip()
-            cap = MAX_LEN_EFFECT if line.startswith("效果") else MAX_LEN
-            if len(line) > cap:
-                line = line[: cap - 1] + "…"
+            cap = MAX_LEN_EFFECT if line.startswith(("效果", "攻击·")) else MAX_LEN
             if line.startswith("获取"):
-                line = translate_source(line)
+                line = truncate_source(translate_source(line, source_names), cap)
+            elif len(line) > cap:
+                line = line[: cap - 1] + "…"
             # ★ 效果行**不在这里动** —— 数据里的效果行是 `wiki_effect_zh.json` 的**翻译键**，
             #   在这里改会打坏键（卫生放在 core/wiki_intro.py 的查表之后）。
             lines.append(line)
     flush()
-    return ([(t, ls[:max_lines]) for t, ls in out], mats)
+
+    def card_lines(rows):
+        # 攻击面板不可截断成混形态摘要；普通信息仍沿用原有行预算。
+        remaining = max_lines
+        selected = []
+        for row in rows:
+            if row.startswith("攻击·"):
+                selected.append(row)
+            elif remaining > 0:
+                selected.append(row)
+                remaining -= 1
+        return selected
+
+    return ([(t, card_lines(ls)) for t, ls in out], mats)
 
 
 def parse_line_items(
@@ -424,7 +651,46 @@ def main() -> int:
         default=ROOT / "output/kb-build/wiki_intro.identity.json",
         help="完整资产身份构建旁挂件（不随插件分发）",
     )
+    ap.add_argument(
+        "--source-dict-dir",
+        type=Path,
+        help="官方 dict.en/zh.json 目录；默认 WF_KB_DATA/pep 或 core/data/_cache",
+    )
+    ap.add_argument(
+        "--repair-source-lines", action="store_true", help="仅迁移现有 JSON 获取字段，不重建 KB"
+    )
+    ap.add_argument("--dry-run", action="store_true", help="仅列出待迁移的获取字段")
+    ap.add_argument("--check", action="store_true", help="检查现有获取字段是否已迁移")
     args = ap.parse_args()
+    if args.dry_run or args.check or args.repair_source_lines:
+        directory = args.source_dict_dir or ROOT / "core/data/_cache"
+        names, meta = load_source_names(directory)
+        data = json.loads(OUT.read_text(encoding="utf-8"))
+        expected = data.get("_meta", {}).get("source_names", {})
+        if any(expected.get(key) != meta[key] for key in ("en_sha256", "zh_sha256")):
+            raise ValueError("迁移词表与现有 JSON 的官方语言表摘要不一致，拒绝写入")
+        if sum(map(len, names.fields.values())) != sum(map(len, _SOURCE_FIELD_KEYS.values())):
+            raise ValueError("来源字段官方键不完整或英文名不匹配，拒绝迁移")
+        changes = []
+        for i, (_, lines) in enumerate(data["entries"]):
+            for j, line in enumerate(lines):
+                changed = translate_source_fields(line, names)
+                if changed != line:
+                    changes.append((i, j, line, changed))
+                    lines[j] = changed
+        for i, j, old, new in changes:
+            print(f"entries[{i}][1][{j}]: {old}\n  → {new}")
+        print(
+            f"获取字段待迁移 {len(changes)} 行；条目 {len(data['entries'])}；仅字段迁移，非 KB 重建"
+        )
+        if args.check:
+            return 1 if changes else 0
+        if args.repair_source_lines and not args.dry_run and changes:
+            OUT.write_text(
+                json.dumps(data, ensure_ascii=False, separators=(",", ": ")) + "\n",
+                encoding="utf-8",
+            )
+        return 0
     if not args.kb_dir:
         print(
             "未指定知识库目录：用 --kb-dir <路径> 或环境变量 WF_KB_OUT 指定"
@@ -435,6 +701,17 @@ def main() -> int:
     if not kb.is_dir():
         print(f"知识库目录不存在：{kb}")
         return 1
+
+    data_dir = os.environ.get("WF_KB_DATA")
+    source_dir = args.source_dict_dir or (
+        Path(data_dir) / "pep" if data_dir else ROOT / "core/data/_cache"
+    )
+    try:
+        source_names, source_meta = load_source_names(source_dir)
+    except (OSError, ValueError) as exc:
+        print(f"获取行官方词表不可用：{exc}；请指定 --source-dict-dir")
+        return 1
+    print(f"获取行官方词表：{len(source_names)} 个唯一整名译文")
 
     entries: list[list] = []  # [[标题, [行…]], …]
     index: dict[str, list[str]] = {}
@@ -454,7 +731,7 @@ def main() -> int:
             # 不是物品简介（全收会把数据顶到 4 MB+）
             card_entries, mats = parse_line_items(f, identities), []
         else:
-            card_entries, mats = parse_kb(f, budget, identities)
+            card_entries, mats = parse_kb(f, budget, identities, source_names)
         for (title, lines), identity in zip(card_entries, identities):
             t = _TITLE_TAIL.sub("", title).strip()
             i = len(entries)
@@ -508,6 +785,7 @@ def main() -> int:
             "generated": time.strftime("%Y-%m-%d"),
             "count": len(entries),
             "uses": len(uses),
+            "source_names": source_meta,
         },
         "entries": entries,
         "keys": dict(sorted(index.items())),

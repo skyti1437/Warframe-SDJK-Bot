@@ -891,6 +891,88 @@ def build_warframes():
     return write_file("01_战甲.md", intro, "\n".join(body))
 
 
+# 攻击名是形态标签；未知标签保留源名，不按武器名推断机制。
+ATTACK_NAME_ZH = {
+    "Normal Attack": "普通射击",
+    "Quick Shot": "快速射击",
+    "Charged Shot": "满蓄力射击",
+    "Perfect Shot": "完美射击",
+    "Radial Attack": "范围攻击",
+    "Secondary Fire": "副开火",
+    "Primary Fire": "主开火",
+    "Fully Spooled": "完全起转",
+}
+
+
+def weapon_attack_lines(rec):
+    """逐攻击取面板，不拿顶层暴击/触发补进某个攻击形态。
+
+    仅唯一普通命中段且与顶层伤害相符时，使用顶层多重说明弹丸数。
+    每发全弹丸合计不含连续点射、双发扳机、爆炸或持续伤害。
+    """
+    attacks = [
+        a
+        for a in rec.get("attacks") or []
+        if isinstance(a, dict) and "incarnon" not in str(a.get("name", "")).lower()
+    ]
+    if not attacks or (len(attacks) == 1 and (rec.get("multishot") or 1) <= 1):
+        return []
+    lines = []
+    for a in attacks:
+        name = str(a.get("name") or "未命名攻击")
+        label = "攻击·" + ATTACK_NAME_ZH.get(name, name)
+        parts = {k: v for k, v in (a.get("damage") or {}).items() if k != "total"}
+        valid = bool(parts) and all(
+            isinstance(v, (int, float)) and valid_damage(v) for v in parts.values()
+        )
+        total = sum(parts.values()) if valid else None
+        pellets = None
+        if (
+            valid
+            and len(attacks) == 1
+            and a.get("shot_type") in ("Hit-Scan", "Projectile")
+            and isinstance(rec.get("totalDamage"), (int, float))
+            and abs(total - rec["totalDamage"]) < 0.01
+        ):
+            pellets = rec.get("multishot")
+        if pellets and pellets > 1:
+            summary = "单弹丸伤害 %s｜弹丸数 %s｜每发合计 %s（全弹丸命中）" % (
+                trim_num(total, 2),
+                trim_num(pellets, 2),
+                trim_num(total * pellets, 2),
+            )
+        elif valid:
+            summary = "该段伤害 %s" % trim_num(total, 2)
+        else:
+            summary = "伤害数据未收录"
+        lines.append("- %s：%s" % (label, summary))
+        if valid:
+            lines.append(
+                "- %s·构成：%s"
+                % (
+                    label,
+                    "｜".join(
+                        "%s %s" % (DT_ZH.get(k.lower(), k), trim_num(v, 2))
+                        for k, v in parts.items()
+                        if v
+                    ),
+                )
+            )
+        fields = []
+        for key, fmt in (
+            ("crit_chance", lambda v: "暴击几率 %s%%" % trim_num(v, 2)),
+            ("crit_mult", lambda v: "暴击倍率 %s×" % trim_num(v, 2)),
+            ("status_chance", lambda v: "触发几率 %s%%" % trim_num(v, 2)),
+            ("speed", lambda v: "射速 %s" % trim_num(v, 3)),
+            ("charge_time", lambda v: "蓄力 %s 秒" % trim_num(v, 2)),
+        ):
+            if a.get(key) is not None:
+                fields.append(fmt(a[key]))
+        if fields:
+            lines.append("- %s·数据：%s" % (label, "｜".join(fields)))
+    return lines
+
+
 # ================================================================== 02 武器（主/副/近战 合一）
 def weapon_part(title, key):
     recs = sorted(I[key], key=lambda r: (r.get("name") or "").lower())
@@ -905,11 +987,13 @@ def weapon_part(title, key):
                 {"asset_id": "de:" + r["uniqueName"], "rule": "unassembled_component_panel"}
             )
         else:
+            attack_lines = weapon_attack_lines(r) if key in ("Primary", "Secondary") else []
+            L.extend(attack_lines)
             td = r.get("totalDamage")
             dmg = fmt_damage(r.get("damagePerShot"), S.cfg_dt)
-            if td is not None and valid_damage(td):
+            if not attack_lines and td is not None and valid_damage(td):
                 L.append("- 总伤害：%s%s" % (trim_num(td, 1), ("（%s）" % dmg) if dmg else ""))
-            elif dmg:
+            elif not attack_lines and dmg:
                 L.append("- 伤害构成：%s" % dmg)
             st = []
             for f, fmt in (
@@ -922,6 +1006,14 @@ def weapon_part(title, key):
                 ("multishot", lambda v: "多重射击 %s" % trim_num(v, 1)),
                 ("accuracy", lambda v: "精准度 %s" % trim_num(v, 1)),
             ):
+                if attack_lines and f in (
+                    "criticalChance",
+                    "criticalMultiplier",
+                    "procChance",
+                    "fireRate",
+                    "multishot",
+                ):
+                    continue
                 if r.get(f) is not None:
                     st.append(fmt(r[f]))
             if st:

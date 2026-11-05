@@ -3,10 +3,14 @@
 """从公开 WFCD 固定快照重建掉落表，任务表以 DE 官方页覆盖校准。
 
 命令：python scripts/build_drops.py [--src all.slim.json] [--official droptables.html]
+      [--out core/data/drops.json] [--source-dict-dir core/data/_cache] [--dry-run | --check]
+      python scripts/build_drops.py --migrate-labels [--source-dict-dir core/data/_cache]
       [--out core/data/drops.json] [--dry-run | --check]
 地点/遗物/items 同趟编号；旧 items 键可保留供搜索，但值绝不续传。
 任务译名直接复用 core.parser.MISSION_CN；活动与商人来源单独标注，不视作常驻掉落。
 所有源打印 SHA256；--src/--official 可用保存的源文件离线复跑。
+两种模式均只读本地 dict.en.json / dict.zh.json，缺表报错，不下载语言表。
+--migrate-labels 只改既有 places 文案，保留编号及其余字段，不读取掉落源。
 """
 
 from __future__ import annotations
@@ -16,6 +20,7 @@ import json
 import re
 import sys
 from collections import defaultdict
+from copy import deepcopy
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,7 +29,9 @@ WFCD_REF = "3263b2dff8bc1b434a191f0364395b156bd26561"
 SRC_URL = f"https://raw.githubusercontent.com/WFCD/warframe-drop-data/{WFCD_REF}/data/all.slim.json"
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts/kb"))
+sys.path.insert(0, str(ROOT / "scripts"))
 from core.parser import MISSION_CN  # noqa: E402
+from build_wiki_intro import load_source_names, translate_source_names  # noqa: E402
 from build_relic_index import CHANCE_RE, OFFICIAL_URL, official_sections, read_source  # noqa: E402
 
 # 英文 wiki 的 Baro Exclusive Relics 清单（轮换出售，不表示本期在售）：
@@ -205,20 +212,52 @@ def place_label(key: tuple) -> str:
     return prefix + label + (f" · {rot}轮" if rot else "")
 
 
-def build(slim: list, html: str, old: dict) -> dict:
+def translate_label(label: str, names: dict[str, str]) -> str:
+    """复用获取行的完整来源/字段边界，只去掉本函数添加的前缀。"""
+    return translate_source_names("获取：" + label, names)[3:]
+
+
+def migrate_labels(old: dict, names: dict[str, str]) -> dict:
+    """离线迁移展示文字；不改入参、编号、奖励记录或来源元数据。"""
+    payload = deepcopy(old)
+    payload["places"] = {pid: translate_label(label, names) for pid, label in old["places"].items()}
+    return payload
+
+
+def build(slim: list, html: str, old: dict, source_names: dict[str, str] | None = None) -> dict:
     slim = apply_patches(slim, html)
+    names = source_names or {}
     keys = sorted({parse_any(r["place"]) for r in slim})
-    # 只复用相同新标签的编号，不复用旧译名；先占旧编号再分配空号，避免碰撞。
-    old_ids = {}
+    labels = {key: translate_label(place_label(key), names) for key in keys}
+    # 新旧展示名都接回原编号。译后同名时用完整奖励集合区分，不能仅凭排序猜配。
+    old_ids, translated_ids = defaultdict(list), defaultdict(list)
     for pid, label in old.get("places", {}).items():
-        old_ids.setdefault(label, []).append(int(pid))
+        old_ids[label].append(int(pid))
+        translated_ids[translate_label(label, names)].append(int(pid))
+    old_rewards, new_rewards = defaultdict(set), defaultdict(set)
+    for item, records in old.get("items", {}).items():
+        for pid, rarity, chance in records:
+            old_rewards[int(pid)].add((item, rarity, chance))
+    for row in slim:
+        item = row["item"].strip().lower()
+        if item:
+            new_rewards[parse_any(row["place"])].add((item, row["rarity"], row["chance"]))
     key_pid, used = {}, set()
-    for key in keys:
-        ids = old_ids.get(place_label(key), [])
-        pid = ids.pop(0) if ids else None
-        if pid is not None and pid not in used:
-            key_pid[key] = pid
-            used.add(pid)
+    for index, label_of in ((old_ids, place_label), (translated_ids, labels.__getitem__)):
+        for key in keys:
+            if key in key_pid:
+                continue
+            group = index.get(label_of(key), [])
+            ids = sorted(pid for pid in group if pid not in used)
+            if ids and len(group) > 1:
+                matches = [pid for pid in ids if old_rewards[pid] == new_rewards[key]]
+                if not matches:
+                    raise ValueError(f"同名来源无法按奖励唯一接回旧编号：{label_of(key)}")
+                # 完整奖励相同的候选互换不改变产物；仍按原编号排序保证幂等。
+                ids = matches
+            if ids:
+                key_pid[key] = ids[0]
+                used.add(ids[0])
     next_pid = 0
     for key in keys:
         if key in key_pid:
@@ -229,7 +268,7 @@ def build(slim: list, html: str, old: dict) -> dict:
         used.add(next_pid)
     places = dict(
         sorted(
-            ((str(pid), place_label(key)) for key, pid in key_pid.items()),
+            ((str(pid), labels[key]) for key, pid in key_pid.items()),
             key=lambda kv: int(kv[0]),
         )
     )
@@ -269,16 +308,34 @@ def main() -> int:
     ap.add_argument("--src", type=Path, help="固定快照 all.slim.json")
     ap.add_argument("--official", type=Path, help="DE 官方掉落页 HTML")
     ap.add_argument("--out", type=Path, default=OUT)
+    ap.add_argument("--migrate-labels", action="store_true", help="只离线迁移既有 places 展示标签")
+    ap.add_argument(
+        "--source-dict-dir",
+        type=Path,
+        default=ROOT / "core/data/_cache",
+        help="本地 dict.en.json / dict.zh.json 目录（默认 core/data/_cache；不下载）",
+    )
     mode = ap.add_mutually_exclusive_group()
     mode.add_argument("--dry-run", action="store_true")
     mode.add_argument("--check", action="store_true")
     args = ap.parse_args()
-    raw = read_source(args.src, SRC_URL)
-    html = read_source(args.official, OFFICIAL_URL).decode("utf-8")
+    if args.migrate_labels and (args.src or args.official):
+        ap.error("--migrate-labels 不接受 --src/--official：此模式不重建奖励")
+    names, source_meta = load_source_names(args.source_dict_dir)
+    print("来源标签词表：" + json.dumps(source_meta, ensure_ascii=False, sort_keys=True))
     old = json.loads(args.out.read_text(encoding="utf-8")) if args.out.exists() else {}
-    slim = json.loads(raw)
-    print(f"WFCD 源条目 {len(slim)}")
-    payload = build(slim, html, old)
+    if args.migrate_labels:
+        payload = migrate_labels(old, names)
+        changed = sum(label != payload["places"][pid] for pid, label in old["places"].items())
+        print(f"places 标签待迁移 {changed} / {len(old['places'])}")
+        if args.check:
+            return 1 if changed else 0
+    else:
+        raw = read_source(args.src, SRC_URL)
+        html = read_source(args.official, OFFICIAL_URL).decode("utf-8")
+        slim = json.loads(raw)
+        print(f"WFCD 源条目 {len(slim)}")
+        payload = build(slim, html, old, names)
     for name in ("places", "items", "relic_drops"):
         print(f"{name} {len(old.get(name, {}))} → {len(payload[name])}")
     for name in ("items", "relic_drops"):
@@ -291,7 +348,7 @@ def main() -> int:
         same = args.out.is_file() and args.out.read_text(encoding="utf-8") == text
         print("✓ --check drops.json" if same else "✗ --check drops.json 不一致")
         return 0 if same else 1
-    if not args.dry_run:
+    if not args.dry_run and (not args.migrate_labels or changed):
         args.out.parent.mkdir(parents=True, exist_ok=True)
         args.out.write_text(text, encoding="utf-8")
     return 0

@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import json
 import re
+import threading
 from functools import lru_cache
 from pathlib import Path
 from typing import Optional
@@ -88,8 +89,11 @@ def _norm(s: str) -> str:
     return " ".join(_NON_WORD.split((s or "").lower())).strip()
 
 
+_INDEX_LOCK = threading.Lock()
+
+
 @lru_cache(maxsize=1)
-def _index() -> tuple[tuple[str, str, str, str], ...]:
+def _build_index() -> tuple[tuple[str, str, str, str], ...]:
     """构建检索索引。
 
     Returns:
@@ -123,14 +127,32 @@ def _index() -> tuple[tuple[str, str, str, str], ...]:
     for it in _jload(_DE_ITEMS_FILE).get("items") or []:
         if isinstance(it, dict):
             add(it.get("zh", ""), it.get("en", ""), source="官方")
-    for zh, slug in (_jload(_ALIAS_FILE).get("wm_items") or {}).items():
+    aliases = _jload(_ALIAS_FILE)
+    for zh, slug in (aliases.get("wm_items") or {}).items():
         add(zh, (slug or "").replace("_", " "), source="别名")
-    for zh, slug in (_jload(_ALIAS_FILE).get("riven_items") or {}).items():
+    for zh, slug in (aliases.get("riven_items") or {}).items():
         add(zh, (slug or "").replace("_", " "), source="别名")
     _drops = _paths.load_json(_DROPS_FILE)  # 与 drops / wiki_intro 共享（只读）
     for en in (_drops.get("items") if isinstance(_drops, dict) else None) or {}:
         add(en, source="掉落表")
     return tuple((k, v[0], v[1], v[2]) for k, v in rows.items())
+
+
+def _index() -> tuple[tuple[str, str, str, str], ...]:
+    """同进程冷构建单飞；lru_cache 本身不合并在途调用。"""
+    with _INDEX_LOCK:
+        return _build_index()
+
+
+def _clear_index() -> None:
+    # 等在途构建结束后清理，保证 clear 返回后不会被旧构建重新填入。
+    with _INDEX_LOCK:
+        _build_index.cache_clear()
+
+
+_index.cache_clear = _clear_index
+_index.cache_info = _build_index.cache_info
+_index.cache_parameters = _build_index.cache_parameters
 
 
 def _score(query: str, key: str) -> int:
@@ -223,8 +245,9 @@ def _alias_slug_index() -> dict[str, str]:
     拿不到 slug，只能回别名词典按归一化键反查（2026-09-24 实测）。
     """
     out: dict[str, str] = {}
+    aliases = _jload(_ALIAS_FILE)
     for sec in ("riven_items", "wm_items"):  # wm 后写 → wm 覆盖
-        for key, slug in (_jload(_ALIAS_FILE).get(sec) or {}).items():
+        for key, slug in (aliases.get(sec) or {}).items():
             if key and slug:
                 out[_norm(key)] = slug
     return out

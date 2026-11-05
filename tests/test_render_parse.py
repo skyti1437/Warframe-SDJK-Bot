@@ -408,6 +408,11 @@ check(
     str(_arb_reply.lines[-3:]),
 )
 check(
+    "仲裁时间表：评分范围不含半角 <，QQ Markdown 正文不退回纯文字",
+    R.card_markdown(_arb_reply.title, _arb_reply.lines, _arb_reply.footer) is not None,
+    str(_arb_reply.lines[-3:]),
+)
+check(
     "筛选排期 / 当前仲裁 / 时间表三张卡都引用共用评分范围说明",
     (ROOT / "core" / "commands" / "arbitration.py")
     .read_text(encoding="utf-8")
@@ -852,6 +857,114 @@ check(
     all(k in _ect for k in ("wm 查价", "没有找到「xx」", "甲、乙", "wm 母牛 蓝图", "换英文名重发")),
     _ect,
 )
+
+
+# ---- 2026-11-01：极性图标开头的值、「｜」分组折行、wiki「获取」拆表、背景图显示方式 ----
+check(
+    "★ 值以 ⟦pol:…⟧ 开头不被当成染段标记吞掉（自带极性整格空白过）",
+    R._parse_color_segs("⟦pol:vazarin⟧Vazarin（防御）×2") == ("⟦pol:vazarin⟧Vazarin（防御）×2", []),
+)
+_pc_main, _pc_segs = R._parse_color_segs("A ⟦c⟧蓝⟦/c⟧ B")
+check("染段标记照常拆分", _pc_main == "A " and [t for t, _c in _pc_segs] == ["蓝", " B"])
+_wr = R.ImageRenderer(Path(_tempfile_rp.mkdtemp()) / "cards")
+if _wr.fonts is not None:
+    _wr._wrap_cache = {}
+    _wf = _wr.fonts.get("regular", 30)
+    _wm = R._measure_draw()
+    _val = "战甲 MOD｜适配 WARFRAME｜极性 ⟦pol:madurai⟧Madurai（攻击）｜稀有度稀有｜基础容量 6｜满级 10"
+    _segs = _wr._wrap_kv_value(_val, _wf, 560, _wm)
+    check(
+        "★ 「｜」分组折行：断在分隔处，不劈开「稀有度稀有」",
+        len(_segs) >= 2
+        and all(not s.startswith("有") for s in _segs)
+        and "稀有度稀有" in "".join(_segs),
+        str(_segs),
+    )
+    _one = "极性 ⟦pol:madurai⟧Madurai｜满级 10"
+    check(
+        "分组折行量宽时极性标记按图标宽度计（不按标记字符串）",
+        _wr._wrap_kv_value(_one, _wf, 420, _wm) == [_one],
+        str(_wr._wrap_kv_value(_one, _wf, 420, _wm)),
+    )
+
+from core import wiki_intro as _WI  # noqa: E402
+
+_acq = _WI._acquire_rows("◆ 获取：甲地, C轮 14.29%；乙地 13.76%；丙地（捕获） 12.74%…（共 30 处）")
+check(
+    "★ wiki「获取」多处来源拆成小节 + 来源｜几率表",
+    _acq[0] == "◆ 获取（共 30 处，列前 3 处）"
+    and _acq[1] == "　来源　几率"
+    and _acq[2:] == ["· 甲地, C轮　14.29%", "· 乙地　13.76%", "· 丙地（捕获）　12.74%"],
+    str(_acq),
+)
+check(
+    "单处来源保持原 KV 行", _WI._acquire_rows("◆ 获取：商店 225 铂金") == ["◆ 获取：商店 225 铂金"]
+)
+_acq2 = _WI._acquire_rows("◆ 获取：甲（中断）, A轮 2.48%；乙（武形秘仪）, A轮…")
+check(
+    "截断后只剩一处：去掉半截末项并注明",
+    _acq2 == ["◆ 获取：甲（中断）, A轮 2.48%（还有其他来源）"],
+    str(_acq2),
+)
+_acq3 = _WI._acquire_rows(
+    "◆ 获取：虚空遗物（枪管：古纪 A1 遗物 / 前纪 B2 遗物；蓝图：后纪 C3 遗物；枪机：后纪 …"
+)
+check(
+    "虚空遗物来源拆成「部件｜所在遗物」，括号内分号不乱拆、半截部件丢掉、标题不带「：」",
+    _acq3
+    == [
+        "◆ 获取 · 虚空遗物（部分部件，完整见 wiki）",
+        "　部件　所在遗物",
+        "· 枪管　古纪 A1 遗物 / 前纪 B2 遗物",
+        "· 蓝图　后纪 C3 遗物",
+    ],
+    str(_acq3),
+)
+check(
+    "都没有几率时只列来源",
+    _WI._acquire_rows("◆ 获取：商店；任务奖励")[1:] == ["· 商店", "· 任务奖励"],
+)
+
+if R.Image is not None:
+    _canvas = R.Image.new("RGB", (400, 900), (0, 0, 0))
+    _src = R.Image.new("RGB", (200, 100), (200, 100, 50))
+    _sizes = {f: R._with_bg_image(_canvas, _src, 0.0, f).size for f in R.BG_FITS}
+    check("背景图四种显示方式都输出画布尺寸", set(_sizes.values()) == {(400, 900)}, str(_sizes))
+    _cont = R._with_bg_image(_canvas, _src, 0.0, "contain")
+    check(
+        "完整显示：图居中、上下露出底色",
+        _cont.getpixel((200, 450)) == (200, 100, 50) and _cont.getpixel((200, 5)) == (0, 0, 0),
+    )
+    _tall = R.Image.new("RGB", (100, 300), (0, 0, 0))
+    _tall.paste((255, 0, 0), (0, 0, 100, 100))
+    _tall.paste((0, 0, 255), (0, 200, 100, 300))
+    _cv = R.Image.new("RGB", (400, 400), (0, 0, 0))
+    check(
+        "铺满 + 位置：上 = 保留顶部，下 = 保留底部",
+        R._with_bg_image(_cv, _tall, 0.0, "cover", "t").getpixel((200, 20)) == (255, 0, 0)
+        and R._with_bg_image(_cv, _tall, 0.0, "cover", "b").getpixel((200, 380)) == (0, 0, 255),
+    )
+    _cu = R._with_bg_image(_canvas, _src, 0.0, "custom", "br", 50)
+    check(
+        "自定义：图宽 = 画布宽 × 50%，放在右下角，左上露底色",
+        _cu.getpixel((399, 899)) == (200, 100, 50)
+        and _cu.getpixel((190, 899)) == (0, 0, 0)
+        and _cu.getpixel((5, 5)) == (0, 0, 0),
+    )
+    check(
+        "缩放夹在 10–200、非法值回 60",
+        (R._clamp_scale(5), R._clamp_scale(999), R._clamp_scale("x")) == (10, 200, 60),
+    )
+    R.apply_theme({}, bg_pos="zz", bg_scale=-3)
+    check(
+        "非法位置回退居中、缩放夹到下限",
+        (R.theme_state()["bg_pos"], R.theme_state()["bg_scale"]) == ("c", 10),
+    )
+    R.apply_theme({}, bg_fit="不存在")
+    check("非法显示方式回退为铺满", R.theme_state()["bg_fit"] == "cover")
+    R.apply_theme({}, bg_fit="width")
+    check("theme_state 带回显示方式（预览后还原用）", R.theme_state()["bg_fit"] == "width")
+    R.apply_theme({})
 
 
 if FAILED:

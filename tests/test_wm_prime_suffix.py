@@ -31,7 +31,7 @@ from core.commands.market import (  # noqa: E402
     _riven_family_listed,
     riven_market_weapon,
 )
-from core.parser import parse_wm, parse_wr  # noqa: E402
+from core.parser import parse, parse_wm, parse_wr  # noqa: E402
 
 FAILED: list[str] = []
 
@@ -761,6 +761,125 @@ for _q, _want in (
     ("终极螺钉", None),  # 同时命中拐刃 / 步枪 ⇒ 不猜
 ):
     check(f"紫卡武器名解析：{_q} → {_want}", _riven(_q) == _want, repr(_riven(_q)))
+
+
+# 同一客户端的重入防护只约束当前任务，不能吞掉另一条独立市场查询。
+async def _concurrency_regressions():
+    class Handler(MarketCommands):
+        page_size = 5
+
+        def __init__(self, client):
+            self.client = client
+
+    async def reply(handler, name):
+        return await handler._h_wm(parse("wm " + name), None, "pc")
+
+    def found(result):
+        return not any("没有找到" in line for line in result.lines)
+
+    async def empty_orders(*args):
+        return [], {}
+
+    async def no_parts(*args):
+        return []
+
+    for other in ("膛线", "压迫点"):
+        client = _client()
+        entered, release = asyncio.Event(), asyncio.Event()
+
+        async def blocked_items():
+            entered.set()
+            await release.wait()
+            return ITEMS
+
+        client.wm_items = blocked_items
+        client.wm_orders = empty_orders
+        client.wm_set_parts = no_parts
+        handler = Handler(client)
+        first = asyncio.create_task(reply(handler, "膛线"))
+        await entered.wait()
+        second = asyncio.create_task(reply(handler, other))
+        for _ in range(5):
+            await asyncio.sleep(0)
+        release.set()
+        results = await asyncio.wait_for(asyncio.gather(first, second), 3)
+        check(f"真实 handler 并发：膛线 / {other} 均找到物品", all(map(found, results)))
+        check("并发完成后守卫清空", not client._prime_seen)
+        results = [await reply(handler, "膛线"), await reply(handler, "膛线")]
+        check("真实 handler 同名串行均成功", all(map(found, results)))
+
+    # 使用真实 Prime 回退：别名有普通条目，但该条目没有 Prime 兄弟。
+    client = _client()
+    client._aliases = {"wm_items": {"玄妙名": "serration"}}
+    original = client._resolve_wm_item_once
+    entries = []
+
+    async def traced_once(query):
+        entries.append(query)
+        return await original(query)
+
+    client._resolve_wm_item_once = traced_once
+    result = await asyncio.wait_for(client.resolve_wm_item("玄妙名 prime"), 3)
+    check("真实 Prime 循环被拦后仍返回普通条目", result["url_name"] == "serration")
+    check("真正同任务递归只执行一次外层查询", entries.count("玄妙名 prime") == 1)
+    check("真正递归结束后守卫清空", not client._prime_seen)
+
+    # 子任务继承父任务上下文，但它有独立调用栈，不应被父任务的查询占位拒绝。
+    client = _client()
+    original = client._resolve_wm_item_once
+    spawned = False
+    child_results = []
+
+    async def spawn_child_once(query):
+        nonlocal spawned
+        if not spawned:
+            spawned = True
+            child_results.append(await asyncio.create_task(client.resolve_wm_item(query)))
+        return await original(query)
+
+    client._resolve_wm_item_once = spawn_child_once
+    result = await asyncio.wait_for(client.resolve_wm_item("膛线"), 3)
+    check("继承上下文的子任务同名查询成功", bool(child_results[0]))
+    check("父任务同名查询仍成功", result["url_name"] == "serration")
+    check("父子任务结束后守卫清空", not client._prime_seen)
+
+    # 异常/取消均必须撤销本任务占位，允许同一任务再次正常查询。
+    for mode in ("异常", "取消"):
+        client = _client()
+        entered = asyncio.Event()
+        normal_items = client.wm_items
+
+        async def failing_items():
+            entered.set()
+            if mode == "异常":
+                raise RuntimeError("离线注入异常")
+            await asyncio.Event().wait()
+
+        client.wm_items = failing_items
+        if mode == "异常":
+            try:
+                await client.resolve_wm_item("膛线")
+            except RuntimeError:
+                pass
+            else:
+                check("注入异常必须传播", False)
+        else:
+            task = asyncio.create_task(client.resolve_wm_item("膛线"))
+            await entered.wait()
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+            else:
+                check("取消必须传播", False)
+        check(f"{mode}后守卫清空", not client._prime_seen)
+        client.wm_items = normal_items
+        result = await client.resolve_wm_item("膛线")
+        check(f"{mode}后可再次查询同名物品", result["url_name"] == "serration")
+
+
+asyncio.run(_concurrency_regressions())
 
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")

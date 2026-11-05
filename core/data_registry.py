@@ -417,7 +417,7 @@ REGISTRY: dict[str, dict] = {
     "rotations.json": _e(
         "rotation",
         "runtime",
-        "手工校准 + 运行期刷新（效价快照）",
+        "静态轮换骨架 + 运行期自动获取",
         observed="tenet.valence_snapshot",
         policy="rotating",
         check="valence",
@@ -431,7 +431,7 @@ REGISTRY: dict[str, dict] = {
         ],
         override="runtime_refresh",
         risk="high",
-        note="判据复用 WarframeClient.valence_is_stale（tenet / coda 两段窗口）。",
+        note="包内只校验无值轮换骨架；运行期校验当前批效价完整性，再判快照窗口与数值新鲜度。",
     ),
     "de/acrichis_week.json": _e(
         "rotation",
@@ -443,7 +443,7 @@ REGISTRY: dict[str, dict] = {
         readers=["core/api_client.py", "main.py"],
         override="runtime_refresh",
         risk="high",
-        note="每周一 00:00 UTC 轮换；expiry <= now 即过期。",
+        note="包内仅静态候选目录；运行期校验商品/价格与每周一 00:00 UTC 到期时间。",
     ),
     "de/acrichis_pool.json": _e(
         "rotation",
@@ -652,6 +652,16 @@ REGISTRY: dict[str, dict] = {
         note="随开源 / 市场包分发（2026-09-25 维护者定）。",
     ),
     # ================================================== asset（字体 / 图标）
+    "local_ocr_assets.json": _e(
+        "asset",
+        "manual",
+        "PyPI 官方版本 JSON + RapidOCR 3.10.0 default_models.yaml",
+        policy="static_asset",
+        readers=["core/local_ocr_install.py"],
+        risk="medium",
+        note="Linux x86_64 / CPython 3.12 冻结 wheel 与模型的官方地址、版本和 SHA256；"
+        "仅管理员主动确认安装时读取，不参与社区快照刷新。",
+    ),
     "fonts/*": _e(
         "asset",
         "scripts/build_font_subset.py",
@@ -786,6 +796,142 @@ def _iter_candidates(data_dir: Path, tracked_files):
     return out
 
 
+def acrithis_seed_problems(data) -> list[str]:
+    """包内仅含静态候选价目与周规则，不得携带当前周货单。"""
+    if not isinstance(data, dict):
+        return ["言录使种子不是对象"]
+    problems = []
+    for key in ("items", "expiry", "observed", "source"):
+        if key in data:
+            problems.append(f"言录使种子残留动态字段：{key}")
+    catalog = data.get("_en_catalog")
+    expected = {
+        "Melee Riven Mod",
+        "Companion Weapon Riven Mod",
+        "Orokin Reactor",
+        "Secondary Arcane Adapter",
+        "Pistol Riven Mod",
+        "Shotgun Riven Mod",
+        "Orokin Catalyst",
+        "Zaw Riven Mod",
+        "Primary Arcane Adapter",
+        "Forma",
+        "Kitgun Riven Mod",
+        "Exilus Warframe Adapter",
+        "Exilus Weapon Adapter",
+        "Rifle Riven Mod",
+        "10,000 Kuva",
+    }
+    if not isinstance(catalog, dict) or set(catalog) != expected:
+        problems.append("言录使候选目录缺项或含未知条目")
+    if isinstance(catalog, dict):
+        for key, item in catalog.items():
+            if (
+                not isinstance(item, dict)
+                or not isinstance(item.get("name"), str)
+                or not item["name"].strip()
+                or type(item.get("price")) is not int
+                or item["price"] <= 0
+                or ("qty" in item and (type(item["qty"]) is not int or item["qty"] <= 0))
+            ):
+                problems.append(f"言录使候选价目/译名畸形：{key}")
+    notes = data.get("_zh_official_notes")
+    if (
+        not isinstance(notes, dict)
+        or set(notes)
+        != {
+            "Secondary Arcane Adapter",
+            "Archgun Arcane Adapter",
+            "Primary Arcane Adapter",
+            "Melee Arcane Adapter",
+            "Amp Arcane Adapter",
+        }
+        or any(not isinstance(v, str) or not v.strip() for v in notes.values())
+    ):
+        problems.append("言录使静态官方译名缺项或畸形")
+    if data.get("_reset_rule") != "每周一 00:00 UTC 轮换（wiki《Acrithis》页实时口径）":
+        problems.append("言录使周轮换规则缺失或畸形")
+    if (
+        not isinstance(data.get("_catalog_price_source"), str)
+        or not data["_catalog_price_source"].strip()
+    ):
+        problems.append("言录使静态价目来源缺失")
+    return problems
+
+
+def valence_seed_problems(data) -> list[str]:
+    """包内效价仅保留名称与轮换骨架；动态字段即使为空也拒绝。"""
+    problems = []
+    forbidden = {
+        "element",
+        "bonus",
+        "valence_snapshot",
+        "valence_source",
+        "valence_values_since",
+        "batch_values_since",
+    }
+
+    def scan(value, trail):
+        if isinstance(value, dict):
+            for key, child in value.items():
+                if key in forbidden:
+                    problems.append(f"效价种子残留动态字段：{trail}.{key}")
+                scan(child, f"{trail}.{key}")
+        elif isinstance(value, list):
+            for i, child in enumerate(value):
+                scan(child, f"{trail}[{i}]")
+
+    if not isinstance(data, dict):
+        return ["效价种子不是对象"]
+    for sec, mode, count in (("tenet", "refresh_only", 5), ("coda", "batch_cycle", 7)):
+        d = data.get(sec)
+        if not isinstance(d, dict):
+            problems.append(f"效价种子缺少 {sec} 骨架")
+            continue
+        scan(d, sec)
+        epoch = _parse_time(d.get("epoch"))
+        try:
+            raw_epoch = datetime.fromisoformat(d.get("epoch", ""))
+            good_epoch = epoch is not None and raw_epoch.tzinfo is not None
+        except (TypeError, ValueError):
+            good_epoch = False
+        if (
+            d.get("mode") != mode
+            or not good_epoch
+            or type(d.get("period_hours")) is not int
+            or d["period_hours"] <= 0
+        ):
+            problems.append(f"效价种子 {sec} 轮换规则畸形")
+        if sec == "coda":
+            batches = d.get("batches")
+            if (
+                not isinstance(batches, list)
+                or len(batches) != 2
+                or d.get("batch_label") != ["A", "B"]
+                or type(d.get("anchor_idx")) is not int
+                or d["anchor_idx"] not in (0, 1)
+            ):
+                problems.append("效价种子 coda 批次骨架畸形")
+                continue
+        else:
+            batches = [d.get("items")]
+        names = []
+        for batch in batches:
+            if not isinstance(batch, list) or len(batch) != count:
+                problems.append(f"效价种子 {sec} 名称数量不完整")
+                continue
+            for item in batch:
+                if not isinstance(item, dict) or any(
+                    not isinstance(item.get(k), str) or not item[k].strip() for k in ("en", "cn")
+                ):
+                    problems.append(f"效价种子 {sec} 缺少名称")
+                else:
+                    names.append(item["en"])
+        if len(names) != len(set(names)):
+            problems.append(f"效价种子 {sec} 名称重复")
+    return problems
+
+
 # ------------------------------------------------------------------ 判定
 def _judge_timed(meta: dict, data, now: datetime, row: dict) -> tuple[str, str]:
     """``rotating`` / ``max_age`` 的判定；返回 ``(status, detail)``。"""
@@ -801,7 +947,9 @@ def _judge_timed(meta: dict, data, now: datetime, row: dict) -> tuple[str, str]:
         for sec in ("tenet", "coda"):
             d = data.get(sec) or {}
             try:
-                if WarframeClient.valence_is_stale(d, now):
+                if not WarframeClient.valence_data_complete(d, now):
+                    bad.append(f"{sec}（当前批效价尚未完整取得）")
+                elif WarframeClient.valence_is_stale(d, now):
                     bad.append(sec)
                 elif WarframeClient.valence_values_stale(d, now):
                     bad.append(f"{sec}（数值疑似仍是上一轮，wiki 未完整更新）")
@@ -811,11 +959,11 @@ def _judge_timed(meta: dict, data, now: datetime, row: dict) -> tuple[str, str]:
             return "stale", "效价快照不在本轮窗口（" + "、".join(bad) + " 段）"
         return "ok", "效价快照在本轮窗口内"
     if check == "expiry":
-        exp = _parse_time(data.get("expiry"))
-        if exp is None:
-            return "stale", "expiry 缺失或畸形"
-        if exp <= now:
-            return "stale", f"已到期（expiry={data.get('expiry')!r}）"
+        from .api_client import community_acrithis_ok
+
+        ok, reason = community_acrithis_ok(data, now)
+        if not ok:
+            return "stale", reason
         return "ok", f"未到期（expiry={data.get('expiry')!r}）"
     if check == "baro_missed":
         try:
@@ -873,7 +1021,9 @@ def _fields(path: Path, meta: dict) -> dict:
     return out
 
 
-def _eval_one(key: str, meta: dict, data_dir: Path, now: datetime, resolve=None) -> dict:
+def _eval_one(
+    key: str, meta: dict, data_dir: Path, now: datetime, resolve=None, context="auto"
+) -> dict:
     row = {
         "file": key,
         "group": meta["group"],
@@ -927,7 +1077,24 @@ def _eval_one(key: str, meta: dict, data_dir: Path, now: datetime, resolve=None)
             row["observed"] = got.get("observed")
             row["source_rev"] = got.get("source_rev")
     if meta["policy"] in TIMED_POLICIES:
-        status, detail = _judge_timed(meta, data, now, row)
+        seed = context == "seed" or (
+            context == "auto"
+            and resolve is None
+            and paths.run_dir().resolve() == paths.PKG_DATA.resolve()
+            and fpath.resolve() == (paths.PKG_DATA / key).resolve()
+        )
+        if key == "de/acrichis_week.json" and seed:
+            problems = acrithis_seed_problems(data)
+            status = "stale" if problems else "ok"
+            detail = (
+                "；".join(problems) if problems else "包内仅含静态候选目录，周货单由运行期自动获取"
+            )
+        elif meta.get("check") == "valence" and seed:
+            problems = valence_seed_problems(data)
+            status = "stale" if problems else "ok"
+            detail = "；".join(problems) if problems else "包内仅含轮换骨架，效价由运行期自动获取"
+        else:
+            status, detail = _judge_timed(meta, data, now, row)
         if status == "ok" and not known:
             status, detail = "unknown", "来源未确认：producer/source 缺一"
         row["status"], row["detail"] = status, detail
@@ -947,9 +1114,12 @@ def evaluate(
     *,
     tracked_files: list[str] | None = None,
     resolve=None,
+    context: str = "auto",
 ) -> list[dict]:
     """逐条判定登记项；返回行 ``{file, group, policy, risk, status, detail, observed, source_rev}``。
 
+    * ``context``：auto 仅真实包内路径按无值种子校验；seed 显式检查包内投影；
+      runtime 保持运行期新鲜度判据，不把缺值当正常。
     * ``data_dir`` 默认 ``paths.PKG_DATA``（只读包内种子）；
     * ``tracked_files`` 给出「应有」的相对路径清单（测试用）；缺省先试 ``git ls-files``，
       不可用则 ``rglob`` 扫 ``*.json``（排除 ``_cache/`` 与 tracked=False 项）；
@@ -960,7 +1130,9 @@ def evaluate(
     """
     data_dir = Path(data_dir) if data_dir is not None else paths.PKG_DATA
     now = now or datetime.now(timezone.utc)
-    rows = [_eval_one(key, meta, data_dir, now, resolve) for key, meta in REGISTRY.items()]
+    if context not in ("auto", "seed", "runtime"):
+        raise ValueError("context 必须是 auto / seed / runtime")
+    rows = [_eval_one(key, meta, data_dir, now, resolve, context) for key, meta in REGISTRY.items()]
     for name in _iter_candidates(data_dir, tracked_files):
         if _registered(name):
             continue

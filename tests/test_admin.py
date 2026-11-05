@@ -359,7 +359,7 @@ async def dot_status_dispatch_checks() -> None:
 
     async def _fake_build(event, reply, parsed):
         built.append(reply)
-        yield "IMG"
+        yield event.plain_result(reply.raw_text) if reply.raw_text is not None else "IMG"
 
     obj._build_results = _fake_build
 
@@ -380,16 +380,286 @@ async def dot_status_dispatch_checks() -> None:
     )
     out2 = [r async for r in obj.on_message(type("E", (_Ev,), {"message_str": ".默认平台"})())]
     check(
-        "纯文字管理回复照旧直接发文字",
-        len(out2) == 1 and out2[0][0] == "TEXT" and out2[0][1],
+        "纯文字管理回复经统一出口仍发文字",
+        len(out2) == 1
+        and out2[0][0] == "TEXT"
+        and out2[0][1]
+        and len(built) == 2
+        and built[-1].raw_text is not None,
         str(out2),
     )
+
+
+async def legacy_switch_precedence_checks() -> None:
+    """真实管理入口：规范键优先且显式设置只迁移当前开关，不受旧键顺序影响。"""
+    import copy
+    import json
+
+    from core.push import PushDaemon
+    from core.store import SubscriptionStore
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        event = _AdminEvent()
+        umo = event.unified_msg_origin
+        for legacy, canonical in (("推送", "push"), ("聊天", "quiet")):
+            for canonical_first in (False, True):
+                for wanted in (False, True):
+                    ordered = [(canonical, not wanted), (legacy, wanted)]
+                    if not canonical_first:
+                        ordered.reverse()
+                    other_keys = (
+                        {"quiet": False, "聊天": True}
+                        if canonical == "push"
+                        else {"push": False, "推送": True}
+                    )
+                    target = {
+                        **dict(ordered),
+                        **other_keys,
+                        "platform": "ps",
+                        "extra": {"kept": [1, 2]},
+                        "push_pause": {"since": 1, "next_try": 2, "fails": 5},
+                    }
+                    original = {
+                        umo: target,
+                        "other": {"push": True, "推送": False, "extra": [3]},
+                        "bad-record": ["preserve"],
+                    }
+                    path = tmp / "groups.json"
+                    path.write_text(json.dumps(original), encoding="utf-8")
+                    before_bytes = path.read_bytes()
+                    obj = _make_plugin(tmp)
+                    obj.subs = SubscriptionStore(tmp / "subs.json")
+                    label = f"旧开关{legacy}/{'规范先' if canonical_first else '中文先'}/{wanted}"
+                    check(
+                        f"{label}：只读始终优先规范键",
+                        obj.groups.get(umo)[canonical] is not wanted,
+                    )
+                    check(f"{label}：只读不改原存档", path.read_bytes() == before_bytes)
+                    command = f".{'开启' if wanted else '关闭'} {legacy}"
+                    reply = await obj._handle_admin(event, command)
+                    check(
+                        f"{label}：真实管理回复与读值一致",
+                        ("已开启" if wanted else "已关闭") in reply.raw_text
+                        and obj.groups.get(umo)[canonical] is wanted,
+                    )
+                    expected = copy.deepcopy(original)
+                    expected[umo][canonical] = wanted
+                    expected[umo].pop(legacy)
+                    if canonical == "push" and wanted:
+                        expected[umo].pop("push_pause")
+                    check(
+                        f"{label}：只迁移目标键且保留其它字段与会话",
+                        json.loads(path.read_text()) == expected,
+                    )
+                    reread = GroupStore(path)
+                    daemon = PushDaemon(None, obj.subs, None, None, groups=reread)
+                    check(
+                        f"{label}：重载后读值与守护开关保持一致",
+                        reread.get(umo)[canonical] is wanted
+                        and daemon._group_on(umo) is (wanted if canonical == "push" else False),
+                    )
+
+        for legacy, canonical in (("推送", "push"), ("聊天", "quiet")):
+            for value in (False, True):
+                path = tmp / "groups.json"
+                path.write_text(json.dumps({umo: {legacy: value}}), encoding="utf-8")
+                before_bytes = path.read_bytes()
+                store = GroupStore(path)
+                check(
+                    f"纯中文旧开关 {legacy}/{value}：继续读取且不静默迁移",
+                    store.get(umo)[canonical] is value and path.read_bytes() == before_bytes,
+                )
+
+
+class _QQOfficialGroupEvent(_MemberEvent):
+    """QQ 官方群事件形状；只在 raw_data 保留平台原始 author.member_role。"""
+
+    def __init__(
+        self,
+        *,
+        platform="qq_official",
+        group_id="test_group_a",
+        sender_id="test_member_a",
+        raw_data=...,
+    ):
+        super().__init__()
+        self._platform = platform
+        self._group_id = group_id
+        self._sender_id = sender_id
+        self._astrbot_admin = False
+        self.unified_msg_origin = f"{platform}:GroupMessage:{group_id}"
+        if raw_data is ...:
+            raw_data = {
+                "group_openid": group_id,
+                "author": {"member_openid": sender_id, "member_role": "admin"},
+            }
+        self.message_obj = types.SimpleNamespace(
+            raw_message=types.SimpleNamespace(raw_data=raw_data)
+        )
+
+    def get_platform_name(self):
+        return self._platform
+
+    def get_group_id(self):
+        return self._group_id
+
+    def get_sender_id(self):
+        return self._sender_id
+
+    def is_admin(self):
+        return self._astrbot_admin
+
+
+async def qq_official_group_admin_checks() -> None:
+    """真实管理入口验证 QQ 原始角色的群、发送者绑定与撤权，不修改事件全局角色。"""
+    import copy
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        case_index = 0
+
+        async def run_case(label, event, allowed, *, config=None):
+            nonlocal case_index
+            case_index += 1
+            case_dir = tmp / str(case_index)
+            case_dir.mkdir()
+            obj = _make_plugin(case_dir)
+            obj.cfg = config or {}
+            obj.subs = types.SimpleNamespace(for_umo=lambda _u: [])
+            await obj.groups.set_switch(event.unified_msg_origin, "推送", False)
+            before_bytes = (case_dir / "groups.json").read_bytes()
+            before_raw = copy.deepcopy(event.message_obj.raw_message.raw_data)
+            before_role = event.role
+            reply = await obj._handle_admin(event, ".开启 推送")
+            opened = reply is not None and "推送功能已开启" in (reply.raw_text or "")
+            push = obj.groups.get(event.unified_msg_origin)["push"]
+            unchanged = (case_dir / "groups.json").read_bytes() == before_bytes
+            check(
+                f"QQ 官方权限：{label}",
+                (opened and push is True)
+                if allowed
+                else (reply is not None and not opened and push is False and unchanged),
+                repr(reply),
+            )
+            check(
+                f"QQ 官方权限：{label}不提升事件全局角色或改原始事件",
+                event.role == before_role and event.message_obj.raw_message.raw_data == before_raw,
+            )
+            return obj
+
+        for role in ("admin", "owner"):
+            event = _QQOfficialGroupEvent()
+            event.message_obj.raw_message.raw_data["author"]["member_role"] = role
+            await run_case(f"当前群当前发送者 {role} 可开启推送", event, True)
+
+        for role in ("member", None, "", "administrator", "ADMIN", " owner ", 1, True, ["owner"]):
+            event = _QQOfficialGroupEvent()
+            event.message_obj.raw_message.raw_data["author"]["member_role"] = role
+            await run_case(f"角色 {role!r} 不授权", event, False)
+
+        event = _QQOfficialGroupEvent()
+        del event.message_obj.raw_message.raw_data["author"]["member_role"]
+        await run_case("缺少角色不授权", event, False)
+
+        for field in ("group_openid", "member_openid"):
+            event = _QQOfficialGroupEvent()
+            data = event.message_obj.raw_message.raw_data
+            del (data if field == "group_openid" else data["author"])[field]
+            await run_case(f"缺少 {field} 不授权", event, False)
+
+        for field in ("group_openid", "member_openid"):
+            event = _QQOfficialGroupEvent()
+            data = event.message_obj.raw_message.raw_data
+            (data if field == "group_openid" else data["author"])[field] = "other_scope"
+            await run_case(f"{field} 不匹配当前事件不授权", event, False)
+
+        for raw_data in (None, [], "invalid", {"group_openid": "test_group_a", "author": []}):
+            await run_case(
+                f"原始载荷 {raw_data!r} 非法不授权",
+                _QQOfficialGroupEvent(raw_data=raw_data),
+                False,
+            )
+
+        for platform in ("aiocqhttp", "discord", ""):
+            await run_case(
+                f"平台 {platform!r} 不借用 QQ 原始角色授权",
+                _QQOfficialGroupEvent(platform=platform),
+                False,
+            )
+
+        for kwargs in ({"group_id": ""}, {"sender_id": ""}):
+            await run_case(
+                f"事件身份 {kwargs!r} 为空不授权", _QQOfficialGroupEvent(**kwargs), False
+            )
+
+        original = _QQOfficialGroupEvent().message_obj.raw_message.raw_data
+        for kwargs in ({"group_id": "test_group_b"}, {"sender_id": "test_member_b"}):
+            await run_case(
+                f"原事件跨群或跨用户重放 {kwargs!r} 不授权",
+                _QQOfficialGroupEvent(raw_data=copy.deepcopy(original), **kwargs),
+                False,
+            )
+
+        event = _QQOfficialGroupEvent()
+        data = event.message_obj.raw_message.raw_data
+        data["author"]["member_role"] = "member"
+        data["message_reference"] = {"message": copy.deepcopy(original)}
+        data["message_reference"]["message"]["author"]["member_role"] = "owner"
+        await run_case("引用消息中的 owner 不能授权当前普通成员", event, False)
+
+        event = _QQOfficialGroupEvent()
+        obj = await run_case("撤权前 admin 可操作", event, True)
+        event = _QQOfficialGroupEvent()
+        event.message_obj.raw_message.raw_data["author"]["member_role"] = "member"
+        reply = await obj._handle_admin(event, ".关闭 推送")
+        check(
+            "QQ 官方权限：角色撤销后的下一条管理指令立即拒绝，不缓存旧权限",
+            reply is not None
+            and "推送功能已关闭" not in (reply.raw_text or "")
+            and obj.groups.get(event.unified_msg_origin)["push"] is True
+            and event.role == "member",
+            repr(reply),
+        )
+
+        for kwargs in ({"sender_id": "test_member_b"}, {"group_id": "test_group_b"}):
+            event = _QQOfficialGroupEvent(**kwargs)
+            event.message_obj.raw_message.raw_data["author"]["member_role"] = "member"
+            before = copy.deepcopy(obj.groups.get(event.unified_msg_origin))
+            reply = await obj._handle_admin(event, ".开启 推送")
+            check(
+                f"QQ 官方权限：同一插件实例不将旧管理员权限借给 {kwargs!r}",
+                reply is not None
+                and "推送功能已开启" not in (reply.raw_text or "")
+                and obj.groups.get(event.unified_msg_origin) == before
+                and event.role == "member",
+                repr(reply),
+            )
+
+        event = _QQOfficialGroupEvent(raw_data=None)
+        event._astrbot_admin = True
+        await run_case("既有 AstrBot 超管在无群角色时仍可操作", event, True)
+        event = _QQOfficialGroupEvent(raw_data=None)
+        await run_case(
+            "既有插件 super_admins 仍精确匹配 sender_id",
+            event,
+            True,
+            config={"super_admins": [event.get_sender_id()]},
+        )
+        await run_case(
+            "插件 super_admins 不匹配 sender_id 时仍拒绝",
+            _QQOfficialGroupEvent(raw_data=None),
+            False,
+            config={"super_admins": ["test_other_member"]},
+        )
 
 
 if __name__ == "__main__":
     asyncio.run(main())
     asyncio.run(terminate_checks())
     asyncio.run(dot_status_dispatch_checks())
+    asyncio.run(legacy_switch_precedence_checks())
+    asyncio.run(qq_official_group_admin_checks())
     print()
     if FAILED:
         print(f"共 {len(FAILED)} 项失败：{FAILED}")

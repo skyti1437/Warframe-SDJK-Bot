@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
 import os
 import re
 import time
@@ -21,6 +22,7 @@ from typing import Awaitable, Callable, Optional
 
 from . import paths
 from .api_client import WarframeClient
+from .de_worldstate import DUVIRI_STATES
 from .logging_compat import mask_in_text, mask_umo
 from .formatters import (
     ORACLE_REGIONS,
@@ -54,6 +56,38 @@ FAIL_PURGE_THRESHOLD = 5
 #   自暂停起满 PAUSE_PURGE_SECS 仍失败才清理订阅。
 PAUSE_RETRY_SECS = 6 * 3600
 PAUSE_PURGE_SECS = 7 * 86400
+
+
+class _InvalidPause(dict):
+    """只在读取副本中标记坏暂停；不写回存档，也不当成未暂停而试发。"""
+
+
+def _pause_number(value) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float, str)):
+        raise ValueError("暂停数值类型不合法")
+    number = float(value)
+    if not math.isfinite(number) or number < 0:
+        raise ValueError("暂停数值应为非负有限数")
+    return number
+
+
+def _bounty_parts_for(parts: list[dict], sids: set[str]) -> list[dict]:
+    return [
+        {"text": part["text"], "sids": [sid for sid in part["sids"] if sid in sids]}
+        for part in parts
+        if sids.intersection(part["sids"])
+    ]
+
+
+def _bounty_parts_text(parts: list[dict], sids: set[str]) -> str:
+    mine = [part["text"] for part in parts if sids.intersection(part["sids"])]
+    if not mine:
+        return ""
+    if len(mine) == 1:
+        return f"⚡ 新赏金：{mine[0]}"
+    return f"⚡ 新赏金（{len(mine)} 条）：\n" + "\n".join(f"· {text}" for text in mine)
+
+
 # 能识别为「目标会话已不存在」的发送异常 ⇒ 立即清理该会话订阅
 _FATAL_SEND_RE = re.compile(
     r"群.{0,6}(不存在|已解散|解散)|被踢|踢出|不在群|已退群|退出了群|"
@@ -199,11 +233,11 @@ def bounty_rule_hit(rule: str, tag: str, challenge_name: str, challenge_path: st
 def at_targets(platform_name: Optional[str], ids) -> list[str]:
     """推送 @ 目标过滤（A1，2026-10-03 用户批准的特例）。
 
-    仅 **aiocqhttp（QQ）** 支持 At；其余平台/解析不到平台名一律返回空表
+    **aiocqhttp / qq_official（QQ）** 支持 At；其余平台/解析不到平台名返回空表
     ⇒ 调用方回落纯文本（不得因 @ 不支持而丢推送）。**绝不含 @全体**
     （`all` 一律剔除）；去重保序。
     """
-    if not ids or (platform_name or "").lower() != "aiocqhttp":
+    if not ids or (platform_name or "").lower() not in {"aiocqhttp", "qq_official"}:
         return []
     return list(dict.fromkeys(s for s in (str(x).strip() for x in ids) if s and s.lower() != "all"))
 
@@ -400,9 +434,12 @@ class PushDaemon:
         self._filters: dict[str, FissureFilter] = {}  # sub.sid -> 裂隙筛选缓存
         self._matched: dict[str, set[str]] = {}  # 事件key -> 本轮筛选命中的 sub.sid
         self._text_for: dict = {}  # 事件key -> 按会话命中订阅现算文本的回调（赏金合并）
+        self._event_meta: dict = {}  # (事件类型, key) -> 重投所需的源到期时间/赏金分行
         self.groups = groups
         self.state_path = Path(state_path) if state_path else None
         self._state_warned = False
+        self._expiry_save_pending = False
+        self._baseline_ts = 0.0  # 仅保存重投队列时沿用，避免延长旧基线的有效期
         self._tick_no = 0
         # 最近一次 tick 的时刻与「本轮有没有订阅」（运维面板展示用；零订阅时不落盘基线，
         # 基线文件的 ts 会停在旧时刻，不能拿它当「守护还活着」的证据 —— 2026-10-16 ZCode 线上发现）
@@ -418,6 +455,7 @@ class PushDaemon:
         self._fail_tick: dict[str, int] = {}  # umo -> 最近一次记失败的 tick 序号
         # ★ 2026-10-17：umo -> 暂停记录。只在拿不到 GroupStore 时使用；有 GroupStore 时它就是真源
         self._pause: dict[str, dict] = {}
+        self._bad_pause_warned: set[str] = set()
         self._load_state()
 
     # ------------------------------------------------------------------
@@ -558,6 +596,7 @@ class PushDaemon:
         platforms = sorted({s.platform for s in subs})
         for gone in [p for p in self._last if p not in platforms]:
             self._last.pop(gone, None)  # 该平台已无订阅：基线作废
+        had_pending = bool(self._pending)
         await self._flush_pending(now, subs)
         for platform in platforms:
             events = await self._snapshot_diff(platform, subs)
@@ -584,8 +623,8 @@ class PushDaemon:
             self._fail_streak = 0
         elif self._tick_fail:
             self._fail_streak += 1
-        if self._tick_ok:
-            self._save_state(now)
+        if self._tick_ok or had_pending or self._pending:
+            self._save_state(now if self._tick_ok else self._baseline_ts)
 
     def next_delay(self) -> float:
         """下一次 tick 前的等待秒数：数据源持续失败时指数退避（上限 10 分钟），恢复即复位。"""
@@ -616,6 +655,8 @@ class PushDaemon:
         age = time.time() - ts
         if 0 <= age <= BASELINE_MAX_AGE:
             self._last = last
+            self._baseline_ts = ts
+            self._restore_pending(data.get("pending", []), time.time())
             self.log.info(
                 "[warframe] 已载入推送基线快照（%d 秒前），停机期间的新事件将补推", int(age)
             )
@@ -624,13 +665,81 @@ class PushDaemon:
                 "[warframe] 推送基线快照已过期（%d 秒前，>30 分钟），只重建基线不补推", int(age)
             )
 
+    def _restore_pending(self, items, now: float) -> None:
+        """队列损坏不影响旧基线；仅恢复未过期、未耗尽且仍有对应订阅的待发项。"""
+        if not isinstance(items, list):
+            self.log.warning("[warframe] 待重投队列结构不对，已忽略（保留基线）")
+            return
+        live = {s.sid: s for s in self.store.all() if not s.expired(now)}
+        for it in items:
+            if not isinstance(it, dict):
+                continue
+            if not all(
+                isinstance(it.get(k), str) and it[k] for k in ("umo", "kind", "key", "text")
+            ):
+                continue
+            created, tries, sids = it.get("created"), it.get("tries"), it.get("sids")
+            if type(created) not in (int, float) or not now - PENDING_TTL <= created <= now:
+                continue
+            if type(tries) is not int or not 0 <= tries < PENDING_MAX_TRIES:
+                continue
+            if not isinstance(sids, list) or not sids or not all(isinstance(s, str) for s in sids):
+                continue
+            eligible_sids = [
+                sid
+                for sid in sids
+                if sid in live
+                and live[sid].umo == it["umo"]
+                and live[sid].event == it["kind"]
+                and it["key"] not in live[sid].notified
+            ]
+            if eligible_sids:
+                record = {
+                    **{k: it[k] for k in ("umo", "kind", "key", "text", "created", "tries")},
+                    "sids": eligible_sids,
+                }
+                if "expires" in it:
+                    try:
+                        if type(it["expires"]) not in (int, float):
+                            continue
+                        record["expires"] = _pause_number(it["expires"])
+                    except (ValueError, OverflowError):
+                        continue
+                    if record["expires"] <= now:
+                        continue
+                if "parts" in it:
+                    parts = it["parts"]
+                    if it["kind"] != "赏金" or not isinstance(parts, list) or not parts:
+                        continue
+                    if any(
+                        not isinstance(part, dict)
+                        or not isinstance(part.get("text"), str)
+                        or not part["text"]
+                        or not isinstance(part.get("sids"), list)
+                        or not part["sids"]
+                        or any(not isinstance(sid, str) or sid not in sids for sid in part["sids"])
+                        for part in parts
+                    ):
+                        continue
+                    record["parts"] = _bounty_parts_for(parts, set(eligible_sids))
+                    covered = {sid for part in record["parts"] for sid in part["sids"]}
+                    if covered != set(eligible_sids):
+                        # 分行缺失时不能把没有对应正文的订阅一起 @ 或消费。
+                        continue
+                elif it["kind"] == "赏金" and set(eligible_sids) != set(sids):
+                    # 老队列只有合并正文，收件集合改变后无法安全拆回各订阅，保留订阅而跳过旧条目。
+                    continue
+                self._pending.append(record)
+
     def _save_state(self, now: float, force: bool = False) -> None:
         """基线原子落盘（tmp + fsync + replace）；内容没变且不是强制时仍刷新时间戳。"""
         p = self.state_path
         if p is None:
             return
         try:
-            payload = json.dumps({"ts": now, "last": self._last}, ensure_ascii=False)
+            payload = json.dumps(
+                {"ts": now, "last": self._last, "pending": self._pending}, ensure_ascii=False
+            )
             p.parent.mkdir(parents=True, exist_ok=True)
             tmp = p.with_suffix(p.suffix + ".tmp")
             with open(tmp, "w", encoding="utf-8") as fh:
@@ -638,6 +747,7 @@ class PushDaemon:
                 fh.flush()
                 os.fsync(fh.fileno())
             tmp.replace(p)
+            self._baseline_ts = now
         except Exception as exc:  # noqa: BLE001 - 落盘失败不影响推送
             if not self._state_warned:
                 self._state_warned = True
@@ -655,7 +765,10 @@ class PushDaemon:
             gone = []
         try:
             if self.store.gc(now):
+                self._expiry_save_pending = True
+            if self._expiry_save_pending:
                 await self.store.save()
+                self._expiry_save_pending = False
         except Exception as exc:  # noqa: BLE001 - 写盘失败：内存已清，下次再落盘
             self.log.warning("[warframe] 过期订阅清理落盘失败：%s", exc)
         by_umo: dict[str, list[Subscription]] = {}
@@ -716,9 +829,34 @@ class PushDaemon:
                 info = self.groups.pause_of(umo)
             except Exception:  # noqa: BLE001 - 读不到按未暂停处理（宁可多推，不丢推送）
                 return None
-            return dict(info) if isinstance(info, dict) else None
-        info = self._pause.get(umo)
-        return dict(info) if info is not None else None
+        else:
+            info = self._pause.get(umo)
+        if not isinstance(info, dict):
+            self._bad_pause_warned.discard(umo)
+            return None
+        normalized = dict(info)
+        try:
+            for key in ("since", "next_try", "fails"):
+                value = info.get(key)
+                if value is None:
+                    continue  # 历史缺省字段保留原有 now/0 回退语义。
+                number = _pause_number(value)
+                if key == "fails":
+                    if not number.is_integer():
+                        raise ValueError("暂停次数应为整数")
+                    normalized[key] = int(number)
+                else:
+                    normalized[key] = number
+        except (ValueError, OverflowError):
+            if umo not in self._bad_pause_warned:
+                self._bad_pause_warned.add(umo)
+                self.log.warning(
+                    "[warframe] %s：暂停记录字段不合法，仅跳过该会话；管理员可重新开启推送恢复",
+                    mask_umo(umo),
+                )
+            return _InvalidPause()
+        self._bad_pause_warned.discard(umo)
+        return normalized
 
     async def _write_pause(self, umo: str, info: Optional[dict]) -> None:
         """写 / 解除暂停：有 GroupStore 写它（内存先变、语义立刻生效，落盘失败只记 WARNING），否则写守护内存表。"""
@@ -738,6 +876,8 @@ class PushDaemon:
     async def _pause_or_purge(self, umo: str, err: BaseException, n_fail: int, now: float) -> None:
         """连续失败达阈值：未暂停 ⇒ 改为暂停推送；已暂停（本次是试发）⇒ 满 7 天才清理订阅。"""
         prev = self._pause_of(umo)
+        if isinstance(prev, _InvalidPause):
+            return
         if prev is None:
             await self._write_pause(
                 umo,
@@ -783,9 +923,14 @@ class PushDaemon:
     def _eligible(self, subs_u: list[Subscription], key: str) -> list[Subscription]:
         """本事件对这批（同会话）订阅里：仍存活 / 当前时间窗允许 / 没就此事件通知过的那些。"""
         local = _local_now()
+        now = time.time()
         out = []
         for s in subs_u:
             if s.sid in self._dead or key in s.notified:
+                continue
+            if s.expired(now):
+                # 本轮取数或前面的发送可能跨过到期点；留给下一轮正常 gc 和到期提醒。
+                self._dead.add(s.sid)
                 continue
             if not self.store.has(s.sid):  # 并发取消 / 已被别处消费
                 self._dead.add(s.sid)
@@ -818,11 +963,24 @@ class PushDaemon:
         # ★ 2026-10-17：连续失败被暂停的会话 —— 未到重试时刻一律不发（不消费、不记 notified、
         #   不入待发队列）；到了 next_try 就正常走下面的发送，这一次即「试发」。
         pause = self._pause_of(umo)
+        if isinstance(pause, _InvalidPause):
+            return "skip"
         if pause is not None and now < float(pause.get("next_try") or 0):
+            return "skip"
+        meta = retry if retry is not None else self._event_meta.get((kind, key), {})
+        if meta.get("expires") is not None and time.time() >= meta["expires"]:
             return "skip"
         elig = self._eligible(subs_u, key)
         if not elig:
             return "skip"
+        elig_sids = {s.sid for s in elig}
+        if kind == "赏金" and retry is not None:
+            if "parts" in retry:
+
+                def text_for(sids):
+                    return _bounty_parts_text(retry["parts"], sids)
+            elif elig_sids != set(retry["sids"]):
+                return "skip"  # 旧的不透明合并正文不能在收件集合改变后原样转发。
         body = text_for({s.sid for s in elig}) if text_for else text
         if not body:
             return "skip"
@@ -830,19 +988,26 @@ class PushDaemon:
         if not await self._send_guarded(umo, body, at_ids, now):
             if retry is not None:
                 retry["tries"] += 1
+                retry["text"] = body
+                retry["sids"] = [s.sid for s in elig]
+                if "parts" in retry:
+                    retry["parts"] = _bounty_parts_for(retry["parts"], elig_sids)
             elif umo not in self._purged_umos and self._pause_of(umo) is None:
                 # 暂停中的会话不再入队（刚被暂停的这一步会命中上面的 _pause_of 判断）
-                self._pending.append(
-                    {
-                        "umo": umo,
-                        "kind": kind,
-                        "key": key,
-                        "text": body,
-                        "sids": [s.sid for s in elig],
-                        "created": now,
-                        "tries": 0,
-                    }
-                )
+                record = {
+                    "umo": umo,
+                    "kind": kind,
+                    "key": key,
+                    "text": body,
+                    "sids": [s.sid for s in elig],
+                    "created": now,
+                    "tries": 0,
+                }
+                if "expires" in meta:
+                    record["expires"] = meta["expires"]
+                if "parts" in meta:
+                    record["parts"] = _bounty_parts_for(meta["parts"], elig_sids)
+                self._pending.append(record)
             return "fail"
         self._fail_count.pop(umo, None)
         if self._pause_of(umo) is not None:  # 试发成功 ⇒ 解除暂停
@@ -867,7 +1032,8 @@ class PushDaemon:
         """
         now = time.time() if now is None else now
         try:
-            await self.send(umo, body, at=at_ids)
+            if await self.send(umo, body, at=at_ids) is False:
+                raise RuntimeError("发送回调明确返回未发送")
             return True
         except asyncio.CancelledError:
             err: BaseException
@@ -935,8 +1101,9 @@ class PushDaemon:
         if not self._pending:
             return
         items, self._pending = self._pending, []
+        legacy_fissures = {}  # 本轮每平台最多补查一次，客户端 HTTP 缓存仍可复用。
         for it in items:
-            if now - it["created"] > PENDING_TTL or it["tries"] >= PENDING_MAX_TRIES:
+            if time.time() - it["created"] > PENDING_TTL or it["tries"] >= PENDING_MAX_TRIES:
                 self.log.warning(
                     "[warframe] 待重投事件放弃（%s 键=%s，已试 %d 次）",
                     it["umo"],
@@ -948,6 +1115,40 @@ class PushDaemon:
             subs_u = [s for s in subs if s.sid in it["sids"]]
             if not subs_u:
                 continue
+            if it["kind"] == "裂隙" and "expires" not in it:
+                platforms = {s.platform for s in subs_u}
+                if len(platforms) != 1:
+                    self._pending.append(it)
+                    continue
+                platform = next(iter(platforms))
+                if platform not in legacy_fissures:
+                    try:
+                        snapshot = await self.client.fissures(platform)
+                        if not isinstance(snapshot, list) or any(
+                            not isinstance(f, dict)
+                            or not isinstance(f.get("id"), str)
+                            or not f["id"]
+                            for f in snapshot
+                        ):
+                            raise ValueError("裂隙列表结构不合法")
+                        legacy_fissures[platform] = snapshot
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception:
+                        legacy_fissures[platform] = None
+                snapshot = legacy_fissures[platform]
+                if snapshot is None:
+                    self._pending.append(it)  # 源失败不是事件消失；保留原 created/tries/TTL。
+                    continue
+                source = next((f for f in snapshot if f.get("id") == it["key"]), None)
+                if source is None:
+                    continue
+                expiry = source.get("expiry")
+                end = parse_iso(expiry) if isinstance(expiry, str) else None
+                if end is None:
+                    self._pending.append(it)
+                    continue
+                it["expires"] = end.timestamp()
             res = await self._deliver(
                 it["umo"], it["kind"], it["key"], it["text"], subs_u, now, None, retry=it
             )
@@ -972,11 +1173,19 @@ class PushDaemon:
         out: list[tuple[str, str, str]] = []
         matched = self._matched = {}  # 事件key -> 命中的 sub.sid（仅筛选类事件）
         self._text_for = {}  # 事件key -> 按「该会话命中的订阅」现算文本（赏金合并用）
+        self._event_meta = {}
         last = self._last.setdefault(platform, {})
         for _ev, _keys in BASELINE_KEYS.items():
             if _ev not in wanted:
                 for _k in _keys:
                     last.pop(_k, None)
+
+        def _cycle_state(data, allowed) -> str:
+            # 先校验再产出事件；空/未知状态不能落进二选一文案的 else 分支误推并消费订阅。
+            state = data.get("state") if isinstance(data, dict) else None
+            if not isinstance(state, str) or state not in allowed:
+                raise ValueError("周期状态缺失或无法识别")
+            return state
 
         async def _ev_fissure() -> None:
             fissures = await self.client.fissures(platform)
@@ -990,6 +1199,7 @@ class PushDaemon:
             for fid, f in live.items() if "fissure_ids" in last else []:
                 if fid in prev_ids:
                     continue
+                self._event_meta[("裂隙", fid)] = {"expires": parse_iso(f["expiry"]).timestamp()}
                 out.append(
                     (
                         "裂隙",
@@ -1018,7 +1228,7 @@ class PushDaemon:
 
         async def _ev_cetus() -> None:
             cetus = await self.client.cycle(platform, "cetus")
-            state = cetus.get("state")
+            state = _cycle_state(cetus, ("day", "night"))
             if last.get("cetus_state") and last["cetus_state"] != state:
                 if state == "night":
                     out.append(
@@ -1034,7 +1244,7 @@ class PushDaemon:
 
         async def _ev_vallis() -> None:
             vallis = await self.client.cycle(platform, "vallis")
-            st = vallis.get("state")
+            st = _cycle_state(vallis, ("warm", "cold"))
             if last.get("vallis_state") and last["vallis_state"] != st:
                 label = "温暖（可采矿）" if st == "warm" else "寒冷（热美亚）"
                 out.append(
@@ -1048,7 +1258,7 @@ class PushDaemon:
 
         async def _ev_cambion() -> None:
             cambion = await self.client.cycle(platform, "cambion")
-            st = cambion.get("state")
+            st = _cycle_state(cambion, ("fass", "vome"))
             if last.get("cambion_state") and last["cambion_state"] != st:
                 label = "Fass" if st == "fass" else "Vome"
                 out.append(
@@ -1062,7 +1272,7 @@ class PushDaemon:
 
         async def _ev_earth() -> None:
             earth = await self.client.cycle(platform, "earth")
-            st = earth.get("state")
+            st = _cycle_state(earth, ("day", "night"))
             if last.get("earth_state") and last["earth_state"] != st:
                 label = "白天" if st == "day" else "夜晚"
                 out.append(
@@ -1076,7 +1286,8 @@ class PushDaemon:
 
         async def _ev_duviri() -> None:
             duv = await self.client.cycle(platform, "duviri")
-            st = duv.get("state")
+            # DE 适配器使用首字母大写；外部世界状态源也兼容小写状态名。
+            st = _cycle_state(duv, (*DUVIRI_STATES, *(s.lower() for s in DUVIRI_STATES)))
             if last.get("duviri_state") and last["duviri_state"] != st:
                 cn = duv.get("stateCn") or st
                 out.append(
@@ -1298,20 +1509,10 @@ class PushDaemon:
                     key = f"bounty-{_exp}"
                     union = set().union(*(h for h, _t in _lines))
                     matched[key] = union
-
-                    def _bounty_text(sids: set, _lines=_lines) -> str:
-                        """同一会话同一轮的多条赏金合并成一条消息（只含该会话订阅命中的）。"""
-                        mine = [t for h, t in _lines if h & sids]
-                        if not mine:
-                            return ""
-                        if len(mine) == 1:
-                            return f"⚡ 新赏金：{mine[0]}"
-                        return f"⚡ 新赏金（{len(mine)} 条）：\n" + "\n".join(
-                            f"· {t}" for t in mine
-                        )
-
-                    self._text_for[key] = _bounty_text
-                    out.append(("赏金", key, _bounty_text(union)))
+                    parts = [{"sids": sorted(hit), "text": text} for hit, text in _lines]
+                    self._event_meta[("赏金", key)] = {"parts": parts}
+                    self._text_for[key] = lambda sids, parts=parts: _bounty_parts_text(parts, sids)
+                    out.append(("赏金", key, _bounty_parts_text(parts, union)))
             if _exp:
                 last["bounty_exp"] = _exp
 
@@ -1359,12 +1560,25 @@ class PushDaemon:
                         (it.get("cn") or it.get("en") or "")
                         + (
                             f"（{it.get('element')} {it.get('bonus')}%）"
-                            if it.get("element")
+                            if it.get("element") and it.get("bonus") is not None
+                            else "（效价待获取）"
+                            if _rk in ("tenet", "coda")
                             else ""
                         )
                         for it in _items[:8]
                     )
-                    out.append((_ev, _key, f"{_icon}（{_label}）：{_names}"))
+                    _note = ""
+                    if _rk in ("tenet", "coda"):
+                        from datetime import timedelta
+                        from .commands.progress import ProgressCommands
+
+                        _epoch = parse_iso(_rd.get("epoch"))
+                        if _epoch is not None:
+                            _start = _epoch + timedelta(
+                                hours=int(_rd.get("period_hours", 96)) * _passed
+                            )
+                            _note = "\n" + ProgressCommands._valence_note(_rd, _start)
+                    out.append((_ev, _key, f"{_icon}（{_label}）：{_names}{_note}"))
                 last[f"{_rk}_window"] = _key
 
         # ★ C5（2026-10-03）：阿耶兑换 / 1999 日历 / 电波。

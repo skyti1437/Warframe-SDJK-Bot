@@ -420,6 +420,7 @@ check(
 # 线上 watchdog 记录到 13 次 stall（最长 89s），其中 4 次栈顶是我们的
 # de_worldstate._load 读盘、1 次是 PIL 渲染。以下 4 条把修法钉住。
 import inspect as _inspect  # noqa: E402
+import ast as _ast  # noqa: E402
 
 from core import de_worldstate as _DW  # noqa: E402
 
@@ -442,15 +443,45 @@ check(
     _inspect.isasyncgenfunction(plugin.WarframeSDJK._build_results),
 )
 _main_src = (ROOT / "main.py").read_text(encoding="utf-8")
-# ⚠️ 别写死单行字符串：调用被格式化成多行后
-#   `await asyncio.to_thread(\n    self.renderer.render, ...)`
-# 会让 `'asyncio.to_thread(self.renderer.render' in src` 恒为假 → 假失败。
-# 先把连续空白归一成单空格再匹配，保住「走线程池 + 无裸调用」的原意。
-_src_norm = " ".join(_main_src.split())
+# 检查语法结构，不依赖空白或线程池调用是否位于共用包装方法。
+_main_tree = _ast.parse(_main_src)
+_parents = {child: node for node in _ast.walk(_main_tree) for child in _ast.iter_child_nodes(node)}
+_render_refs = [
+    node
+    for node in _ast.walk(_main_tree)
+    if isinstance(node, _ast.Attribute) and _ast.unparse(node) == "self.renderer.render"
+]
+
+
+def _render_in_thread(node):
+    call = _parents.get(node)
+    return (
+        isinstance(call, _ast.Call)
+        and _ast.unparse(call.func) == "asyncio.to_thread"
+        and bool(call.args)
+        and call.args[0] is node
+        and isinstance(_parents.get(call), _ast.Await)
+    )
+
+
+_build_tree = next(
+    node
+    for node in _ast.walk(_main_tree)
+    if isinstance(node, _ast.AsyncFunctionDef) and node.name == "_build_content_results"
+)
+_wrapped_calls = [
+    node
+    for node in _ast.walk(_build_tree)
+    if isinstance(node, _ast.Await)
+    and isinstance(node.value, _ast.Call)
+    and _ast.unparse(node.value.func) == "self._render_card"
+]
 check(
     "渲染无残留同步调用",
-    "asyncio.to_thread( self.renderer.render" in _src_norm
-    and "= self.renderer.render(" not in _main_src,
+    bool(_render_refs)
+    and all(_render_in_thread(node) for node in _render_refs)
+    and len(_wrapped_calls) == 2,
+    f"线程渲染引用={len(_render_refs)}，单页/多页包装入口={len(_wrapped_calls)}",
 )
 
 # ---------------------------------------------------------------------------
@@ -656,7 +687,7 @@ check(
 
 print()
 
-# ★ 2026-10-25（用户：均衡点 Steam Pinnacle Pack 1600p 疑似 RMT）：48h 成交不足 3 笔不进榜
+# ★ 2026-10-25（维护者定：均衡点 Steam Pinnacle Pack 1600p 疑似 RMT）：48h 成交不足 3 笔不进榜
 import core.formatters as _Fv  # noqa: E402
 
 _rows_v = [
@@ -671,6 +702,254 @@ check(
     and any("不足 3 笔" in x for x in _lv),
     str(_lv),
 )
+
+
+async def t_weekly_platform_isolation():
+    """真实解析/handler/HTTP/落盘：平台别名、暖缓存、旧缓存和PC回落。"""
+    import json
+    import tempfile
+    import time
+    from unittest.mock import Mock
+
+    import httpx
+
+    from core import paths
+    from core.api_client import WarframeClient
+    from core.commands.market import MarketCommands
+    from core.parser import parse
+
+    prices = {"PC": 11, "PS4": 22, "XB1": 33, "SWITCH": 44}
+    previous = paths._RUN
+    calls, failing, revision = [], set(), [0]
+
+    def respond(request):
+        url = str(request.url)
+        if "weeklyRivens" in url:
+            plat = next(p for p in prices if f"weeklyRivens{p}.json" in url)
+            calls.append(plat)
+            if plat in failing:
+                return httpx.Response(404)
+            return httpx.Response(
+                200,
+                json=[
+                    {
+                        "itemType": "Rifle Riven Mod",
+                        "compatibility": "Rubico",
+                        "rerolled": False,
+                        "pop": 10,
+                        "median": prices[plat] + revision[0],
+                    }
+                ],
+            )
+        if "/riven/weapons" in url:
+            return httpx.Response(
+                200,
+                json={
+                    "data": [
+                        {
+                            "slug": "rubico",
+                            "gameRef": "fixture",
+                            "i18n": {"en": {"name": "Rubico"}, "zh-hans": {"name": "绝路"}},
+                            "rivenType": "rifle",
+                        }
+                    ]
+                },
+            )
+        if "/statistics" in url:
+            return httpx.Response(
+                200,
+                json={
+                    "payload": {
+                        "statistics_closed": {
+                            "48hours": [{"median": 44, "min_price": 40, "max_price": 48}],
+                            "90days": [],
+                        }
+                    }
+                },
+            )
+        return httpx.Response(200, json={"data": []})
+
+    async def make():
+        c = WarframeClient(flare_enabled=False)
+        await c.http.aclose()
+        c._http = httpx.AsyncClient(transport=httpx.MockTransport(respond))
+        return c
+
+    def snapshot(plat):
+        return {
+            "platform": plat,
+            "fetched": time.time(),
+            "entries": [{"compatibility": "Rubico", "median": prices[plat]}],
+        }
+
+    def seed(name, data):
+        paths.write_path(name).write_text(json.dumps(data))
+
+    try:
+        with tempfile.TemporaryDirectory(prefix="wf-weekly-platform-") as directory:
+            root = Path(directory)
+            for code, plat in (("pc", "PC"), ("ps", "PS4"), ("xb", "XB1"), ("sw", "SWITCH")):
+                paths.set_run_dir(root / code)
+                calls.clear()
+                c = await make()
+                try:
+                    h = MarketCommands()
+                    h.client, h.page_size = c, 10
+                    q = parse("紫卡排行 -" + code)
+                    reply = await h._h_riven_rank(q, None, q.platform)
+                    check(
+                        f"周报平台 {code}：真实解析和handler请求对应官方文件",
+                        calls == [plat] and any(f"{prices[plat]}p" in x for x in reply.lines),
+                        str(calls),
+                    )
+                finally:
+                    await c.close()
+
+            paths.set_run_dir(root / "mixed")
+            calls.clear()
+            c = await make()
+            try:
+                order = ("pc", "ps4", "PS4", "ps", "xb1", "XB1", "xb", "sw", "SWITCH", "pc")
+                results = [await c.de_weekly_rivens(code) for code in order]
+                check(
+                    "周报平台：别名与大小写等价、不同平台暖缓存不串",
+                    [x["platform"] for x in results]
+                    == ["PC", "PS4", "PS4", "PS4", "XB1", "XB1", "XB1", "SWITCH", "SWITCH", "PC"],
+                    str([x["platform"] for x in results]),
+                )
+                check("周报平台：十次请求只为四个平台各回源一次", calls == list(prices), str(calls))
+                pc_before = paths.write_path("riven_weekly.json").read_bytes()
+                revision[0] = 5
+                refreshed = await c.de_weekly_rivens("ps", force=True)
+                check(
+                    "周报平台：主机强刷不覆盖PC兼容文件",
+                    refreshed["platform"] == "PS4"
+                    and refreshed["entries"][0]["median"] == 27
+                    and paths.write_path("riven_weekly.json").read_bytes() == pc_before,
+                )
+                revision[0] = 0
+            finally:
+                await c.close()
+
+            for old_plat in ("PC", "PS4"):
+                paths.set_run_dir(root / f"legacy-{old_plat}")
+                calls.clear()
+                seed("riven_weekly.json", snapshot(old_plat))
+                c = await make()
+                try:
+                    result = await c.de_weekly_rivens("pc" if old_plat == "PC" else "ps4")
+                    check(
+                        f"周报平台：旧{old_plat}快照仅在平台匹配时复用",
+                        result["platform"] == old_plat and not calls,
+                    )
+                    other = await c.de_weekly_rivens("ps" if old_plat == "PC" else "pc")
+                    check(
+                        f"周报平台：旧{old_plat}快照不冒充其它平台",
+                        other["platform"] == ("PS4" if old_plat == "PC" else "PC")
+                        and len(calls) == 1,
+                    )
+                finally:
+                    await c.close()
+
+            paths.set_run_dir(root / "wrong-platform")
+            calls.clear()
+            seed("_cache/riven_weekly_ps4.json", snapshot("PC"))
+            seed("riven_weekly.json", snapshot("PC"))
+            c = await make()
+            try:
+                result = await c.de_weekly_rivens("ps4")
+                check(
+                    "周报平台：缓存文件路径正确但payload平台错误也拒绝",
+                    result["platform"] == "PS4" and calls == ["PS4"],
+                )
+            finally:
+                await c.close()
+
+            paths.set_run_dir(root / "fallback")
+            calls.clear()
+            failing.add("SWITCH")
+            c = await make()
+            try:
+                result = await c.de_weekly_rivens("sw")
+                check(
+                    "周报平台：主机源失败显式回PC且不污染主机缓存",
+                    result["platform"] == "PC"
+                    and result.get("fallback_from") == "SWITCH"
+                    and calls == ["SWITCH", "PC"]
+                    and not paths.write_path("_cache/riven_weekly_switch.json").exists(),
+                )
+                pc = json.loads(paths.write_path("riven_weekly.json").read_text())
+                check("周报平台：PC原始缓存不被回落元数据污染", "fallback_from" not in pc)
+                failing.clear()
+                restored = await c.de_weekly_rivens("sw")
+                check(
+                    "周报平台：主机源恢复后立即返回主机数据",
+                    restored["platform"] == "SWITCH" and calls == ["SWITCH", "PC", "SWITCH"],
+                )
+            finally:
+                failing.clear()
+                await c.close()
+
+            for plat in ("pc", "sw"):
+                for fallback in (False, True) if plat == "sw" else (False,):
+                    paths.set_run_dir(root / f"overlay-{plat}-{fallback}")
+                    seed(
+                        "riven_rt.json",
+                        {"ts": "2026-10-30T00:00:00Z", "rows": {"rubico": {"median": 120}}},
+                    )
+                    failing.update(["SWITCH"] if fallback else [])
+                    c = await make()
+                    try:
+                        h = MarketCommands()
+                        h.client, h.page_size = c, 10
+                        h._is_admin = lambda event: True
+                        c.start_riven_rt_crawl = Mock(return_value=("started", 1, 2))
+                        q = parse("紫卡排行 -" + plat)
+                        reply = await h._h_riven_rank(q, None, q.platform)
+                        compared = any(
+                            "WM挂单" in x and "变化" in x
+                            for x in reply.lines
+                            if not x.startswith("※")
+                        )
+                        check(
+                            f"周报平台 {plat}/{fallback}：只有PC周报叠加PC现价",
+                            compared is (plat == "pc" or fallback),
+                        )
+                        if fallback:
+                            check(
+                                "周报平台：真实handler明示主机源回PC",
+                                any(
+                                    "回落" in x and "PC" in x for x in reply.lines + [reply.footer]
+                                ),
+                            )
+                        if plat == "sw" and not fallback:
+                            check(
+                                "周报平台：主机视图的现价引导明确转PC",
+                                any("紫卡排行 -pc" in x for x in reply.lines),
+                            )
+                        if fallback:
+                            q = parse("紫卡排行 未开 -sw")
+                            veiled_reply = await h._h_riven_rank(q, None, q.platform)
+                            check(
+                                "周报平台：未开实时成交仍用请求平台且不误标PC周报回落",
+                                "SWITCH" in veiled_reply.footer
+                                and "warframe.market" in veiled_reply.footer
+                                and not any("回落 PC" in x for x in veiled_reply.lines),
+                            )
+                        q = parse("紫卡排行 刷新 -" + plat)
+                        reply = await h._h_riven_rank(q, None, q.platform)
+                        check(
+                            f"周报平台 {plat}/{fallback}：管理员只在PC请求启动PC现价抓取",
+                            c.start_riven_rt_crawl.call_count == int(plat == "pc"),
+                        )
+                    finally:
+                        failing.clear()
+                        await c.close()
+    finally:
+        paths.set_run_dir(previous)
+
+
+_aio.run(t_weekly_platform_isolation())
 
 if FAILED:
     print(f"✗ {len(FAILED)} 项失败：" + "、".join(FAILED))

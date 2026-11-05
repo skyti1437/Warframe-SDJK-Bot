@@ -1,30 +1,4 @@
 {
- "expiry": "2026-11-02T00:00:00+00:00",
- "observed": "October 26, 2026",
- "source": "wiki《Acrithis/Current Offerings》当期上报（observed October 26, 2026）；插件自动抓取",
- "items": [
-  {
-   "name": "霰弹枪裂罅 MOD",
-   "price": 15
-  },
-  {
-   "name": "Forma 蓝图",
-   "price": 10
-  },
-  {
-   "name": "步枪裂罅 MOD",
-   "price": 15
-  },
-  {
-   "name": "同伴裂罅 MOD",
-   "price": 20
-  },
-  {
-   "name": "赤毒",
-   "qty": 10000,
-   "price": 10
-  }
- ],
  "_en_catalog": {
   "Orokin Reactor": {
    "name": "奥罗金反应堆蓝图",

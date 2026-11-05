@@ -17,7 +17,9 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import sys
+from hashlib import sha256
 import types
 from pathlib import Path
 
@@ -558,47 +560,13 @@ _obj._extract_riven_from_image = _fake_extract
 _reply = asyncio.run(_obj._h_riven_analysis(_FatParsed("紫卡分析"), _FakeImageEvent(), "pc"))
 _body = "\n".join(_reply.lines)
 check(
-    "端到端确实走到了分析卡（不是用法/错误提示 —— 防空过守卫）",
-    bool(_reply.lines) and not _reply.raw_text,
-    repr(_reply)[:200],
+    "七条非法语义结构由独立完整窄读恢复，不让乱序JSON否决卡面原文",
+    "待核对" not in _txt(_reply)
+    and "120.5" in _txt(_reply)
+    and "299.9" in _txt(_reply)
+    and bool(_reply.lines),
+    _txt(_reply),
 )
-check(
-    "★ 报障那张卡不再被计数校验挡掉（没有「4 正 2 负」）",
-    "4 正 2 负" not in _body and "词条应为" not in _body,
-    _body[:220],
-)
-check(
-    "★ 四条词条按卡面行原文配对：120.5 毒伤 / 299.9 基伤 / 148 多重",
-    all(k in _body for k in ("▲毒伤 +120.5%", "▲基伤 +299.9%", "▲多重 +148%")),
-    _body[:300],
-)
-check(
-    "★ 反向守卫：不再按语义表交叉配错（120.5 基伤 / 299.9 毒伤）",
-    "▲基伤 +120.5%" not in _body and "▲毒伤 +299.9%" not in _body,
-    _body[:300],
-)
-check(
-    "★ 负词条 = 触时 97.2（不再冒出「滑暴」）",
-    "▼触时 -97.2%" in _body and "滑暴" not in _body,
-    _body[:300],
-)
-# 2026-10-11 改版：来源说明进页脚（不再占卡面注脚行）
-check("页脚注明来源为「卡面逐行」而不是语义表", "卡面逐行" in _reply.footer, _reply.footer)
-
-
-# 拿不到 lines（渠道/模型没给这个字段）⇒ 安全退回语义 JSON，不崩
-async def _fake_extract_nolines(url):
-    return {k: v for k, v in _incident_vision.items() if k != "lines"}
-
-
-_obj._extract_riven_from_image = _fake_extract_nolines
-_r2 = asyncio.run(_obj._h_riven_analysis(_FatParsed("紫卡分析"), _FakeImageEvent(), "pc"))
-check(
-    "没给 lines 时退回语义 JSON（不崩，仍按原判据提示词条数）",
-    "词条应为" in _txt(_r2) and "怎么改" in _txt(_r2),
-    repr(_r2)[:200],
-)
-
 
 # ---------------------------------------------------------------------------
 # ⑦ 窄读一路：读不全就不采信（2026-09-27 实测结论）
@@ -615,8 +583,8 @@ check(
     str(_S._parse_riven_lines_text(_FULL)),
 )
 check(
-    "窄读答案只给 2 行（漏读）→ 不采信，让位下一个渠道",
-    _S._parse_riven_lines_text(_PART) == {},
+    "窄读残缺保留观察，但不标合法",
+    _S._parse_riven_lines_text(_PART).get("_line_legal") is False,
     str(_S._parse_riven_lines_text(_PART)),
 )
 _prose = _S._parse_riven_lines_text("以下是词条行：\n" + _FULL)
@@ -653,7 +621,9 @@ _race = asyncio.run(
     )
 )
 check(
-    "★ 竞速不采信先到的残缺结果，等读全的那一路", _race == {"lines": _FULL.splitlines()}, str(_race)
+    "★ 竞速不采信先到的残缺结果，等读全的那一路",
+    _race.get("lines") == _FULL.splitlines() and _race.get("_line_legal"),
+    str(_race),
 )
 _race2 = asyncio.run(
     _S.__new__(_S)._vision_race_json(
@@ -666,7 +636,11 @@ _race2 = asyncio.run(
         parse=_S._parse_riven_lines_text,
     )
 )
-check("只有残缺结果时竞速返回 None（不硬用残缺卡面）", _race2 is None, str(_race2))
+check(
+    "只有残缺结果时保留原文但不标合法",
+    _race2.get("_line_legal") is False and _race2.get("lines") == _PART.splitlines(),
+    str(_race2),
+)
 
 
 # ---------------------------------------------------------------------------
@@ -1003,65 +977,33 @@ check(
 #        它当年防的幻觉源自「x1.51」**字面示例**，示例删掉后该句只剩副作用。
 #      · 隔壁方案「明说无视 emoji」实测无效（8B 仍漏 05）。
 # ---------------------------------------------------------------------------
-import inspect as _inspect  # noqa: E402
+from core.commands.vision import original_vision_prompt  # noqa: E402
 
 _line_prompt = plugin.WarframeSDJK._RIVEN_LINE_PROMPT
 check(
-    "窄读 prompt：提问式 + 只念词条行（S6 的两处承重件）",
-    "有几行词条" in _line_prompt and "只念词条行" in _line_prompt,
-    _line_prompt,
+    "窄读只输出文字和归一坐标，不包含某张卡的数值示例",
+    "cx,cy,width,height,angle,text" in _line_prompt
+    and "to 0-1000" in _line_prompt
+    and "x1.51" not in _line_prompt
+    and "x0.55" not in _line_prompt,
 )
 check(
-    "窄读 prompt：纯格式约束在（不要编号/列表符号/说明文字 —— 收 markdown 噪声）",
-    "不要编号" in _line_prompt
-    and "不要列表符号" in _line_prompt
-    and "不要任何说明文字" in _line_prompt,
-    _line_prompt,
+    "窄读保留完整名称并排除图形转文字的要求",
+    "each separate region on separate lines" in _line_prompt
+    and "Do not transcribe icons" in _line_prompt,
+)
+_sem_prompt = original_vision_prompt("riven_json")
+check(
+    "语义提示词仅转录完整名称，未知行保留且不丢负号",
+    '"stat_lines"' in _sem_prompt
+    and "完整词条原文" in _sem_prompt
+    and "未揭示词条用问号保留位置" in _sem_prompt
+    and "正负号" in _sem_prompt,
 )
 check(
-    "窄读 prompt：不含任何示例数值（x1.51/x0.55 是 30B 照抄泄漏源）",
-    "x1.51" not in _line_prompt and "x0.55" not in _line_prompt and "1.51" not in _line_prompt,
-    _line_prompt,
+    "语义提示词只识图，游戏规则与倍率换算交给代码",
+    "不做正负面判断、数值换算、武器分析或配装建议" in _sem_prompt and "x或×倍率" in _sem_prompt,
 )
-check(
-    "★ 窄读 prompt：**不得**出现「不要编造」类反声明（实测副作用源）",
-    "不要编造" not in _line_prompt and "别编" not in _line_prompt and "不能编" not in _line_prompt,
-    _line_prompt,
-)
-check(
-    "★ 窄读 prompt：**不得**出现锁行/图标交代（实测 11 版次全无效）",
-    "带锁形图标的行" not in _line_prompt and "无视" not in _line_prompt,
-    _line_prompt,
-)
-check(
-    "窄读 prompt：已精简到 60 字（517 → 213 → 60）",
-    len(_line_prompt) <= 100,
-    f"len={len(_line_prompt)}",
-)
-_sem_prompt = _inspect.getsource(plugin.WarframeSDJK._extract_riven_from_image)
-check(
-    "语义 prompt：含元素伤害负例与「同一条词条不会出现两次」",
-    "不得写成「暴击伤害」" in _sem_prompt and "不会出现两次" in _sem_prompt,
-)
-
-# ⑪ prompt 词条枚举（2026-10-03 线上实证：枚举缺「弹匣容量/变焦」，
-#    语义渠道猜成 暴伤/集束、窄读 OCR 成 坦克容星/集中，负词条被整条丢弃）
-#    窄读侧：2026-10-05 精简版**删掉了这两条正字样**（八版对照实测：8B 侧
-#    14/16→14/16、30B 侧 3/16→14/16，无回退；负例改由「逐字照抄、不要改写」
-#    通用规则承接）。此处只守语义（JSON）渠道仍带枚举。
-check(
-    "⑪ 语义 prompt：枚举含 弹匣容量/变焦 + 「照卡面原样照抄」+ 负词条警示",
-    "弹匣容量" in _sem_prompt
-    and "变焦" in _sem_prompt
-    and "照卡面原样照抄" in _sem_prompt
-    and "负词条绝不能丢" in _sem_prompt,
-)
-check(
-    "⑪ 窄读 prompt：改守「先数行数」的计数框架（S6 下负词条/图标行都不丢）",
-    "有几行词条" in _line_prompt,
-    _line_prompt,
-)
-
 # ---------------------------------------------------------------------------
 # ⑫ 武器名解析优先级：手输名优先 + OCR 名兜底（2026-10-07 线上报障回归）
 # ---------------------------------------------------------------------------
@@ -1129,6 +1071,7 @@ _incident_vision_12 = {
     "negative": [["滑暴", 83.3], ["触发时间", 83.3]],
 }
 # 识别结果里的 weapon 就是线上那条「冰松 Visi-critapha」
+_incident_vision_12.update(positive=[], negative=[])
 _iceq_vision = dict(_incident_vision_12, weapon="冰松 Visi-critapha")
 # 对照：同一张卡但 OCR 读对（纯图路径用）
 _iceq_vision_ok = dict(_incident_vision_12, weapon="冰凇 Visi-critapha")
@@ -1203,6 +1146,144 @@ check(
     "已按「冰凇」计算" in _bodyD,
     _bodyD[:300],
 )
+
+# 日志最小化：再次走真实分析入口，玩家说明保留，归一日志不含原名。
+from unittest.mock import patch as _log_patch  # noqa: E402
+from core.commands import riven as _riven_module  # noqa: E402
+
+
+class _MinimalLog:
+    def __init__(self):
+        self.rows = []
+
+    def info(self, fmt, *args, **kwargs):
+        self.rows.append(fmt % args if args else fmt)
+
+    warning = error = exception = info
+
+
+_minlog = _MinimalLog()
+with _log_patch.object(_riven_module, "logger", _minlog):
+    _result_minlog = asyncio.run(
+        _rec_obj(
+            dict(
+                _iceq_vision_ok,
+                weapon_raw="RAW_NAME_PRIVATE",
+                _local_ocr={"state": "accepted", "name_normalized": True},
+            )
+        )._h_riven_analysis(_FatParsed("紫卡分析"), _FakeImageEvent(), "pc")
+    )
+check(
+    "日志最小化：归一说明仍在玩家卡面",
+    "RAW_NAME_PRIVATE" in "\n".join(_result_minlog.lines)
+    and "唯一数值可行候选" in "\n".join(_result_minlog.lines),
+)
+check("日志最小化：原始识别名不入日志", "RAW_NAME_PRIVATE" not in "\n".join(_minlog.rows))
+check("日志最小化：归一状态已记录", any("类别=唯一数值可行候选" in row for row in _minlog.rows))
+
+
+# 旧近形字分支同样保留玩家注记，日志只记录采纳状态。
+_oldnearlog = _MinimalLog()
+with _log_patch.object(_riven_module, "logger", _oldnearlog):
+    _oldnearreply = asyncio.run(
+        _rec_obj(_iceq_vision)._h_riven_analysis(_FatParsed("紫卡分析"), _FakeImageEvent(), "pc")
+    )
+check("日志最小化：旧近形分支保留注记", "冰松" in "\n".join(_oldnearreply.lines))
+check("日志最小化：旧近形分支不记录原名", "冰松" not in "\n".join(_oldnearlog.rows))
+check(
+    "日志最小化：旧近形分支状态可排查",
+    any("近形字兜底：状态=已采信" in row for row in _oldnearlog.rows),
+)
+
+
+# 行解析未知行仅计数，原行仍留在识别证据中。
+_noteslog = _MinimalLog()
+_notesvision = dict(_iceq_vision_ok, lines=[*_iceq_vision_ok["lines"], "PRIVATE_UNRECOGNIZED_LINE"])
+with _log_patch.object(_riven_module, "logger", _noteslog):
+    asyncio.run(
+        _rec_obj(_notesvision)._h_riven_analysis(_FatParsed("紫卡分析"), _FakeImageEvent(), "pc")
+    )
+check("日志最小化：未知行不回显日志", "PRIVATE_UNRECOGNIZED_LINE" not in "\n".join(_noteslog.rows))
+check("日志最小化：行解析保留跳过计数", any("跳过 " in row for row in _noteslog.rows))
+
+
+async def _command_log_case():
+    secret = "Authorization: Bearer PRIVATE_TOKEN https://fake.invalid/?signature=SECRET"
+    for error in (plugin.WarframeAPIError("请求失败（" + secret + "）"), RuntimeError(secret)):
+        obj = plugin.WarframeSDJK.__new__(plugin.WarframeSDJK)
+        obj.groups = types.SimpleNamespace(platform=lambda origin: "pc")
+
+        async def fail(*args):
+            raise error
+
+        fail.__code__ = fail.__code__.replace(
+            co_filename="/private/credential-path/secret-handler.py"
+        )
+
+        async def results(event, reply, parsed):
+            yield reply
+
+        obj._routes = {"analysis": fail}
+        obj._build_results = results
+        event = types.SimpleNamespace(
+            message_str="紫卡分析", unified_msg_origin="test", stop_event=lambda: None
+        )
+        log = _MinimalLog()
+        with _log_patch.object(plugin, "logger", log):
+            replies = [reply async for reply in obj.on_message(event)]
+        text = "\n".join(log.rows)
+        check(f"日志最小化：命令边界保留{type(error).__name__}", type(error).__name__ in text, text)
+        check(
+            "日志最小化：命令日志无凭据",
+            all(
+                x not in text
+                for x in ("Authorization", "PRIVATE_TOKEN", "signature=", "SECRET", "fake.invalid")
+            ),
+            text,
+        )
+        check("日志最小化：命令仍回复错误", bool(replies and replies[0].raw_text))
+        if isinstance(error, RuntimeError):
+            check(
+                "日志最小化：排障栈只含文件基名",
+                "secret-handler.py:" in text and "/private/credential-path" not in text,
+                text,
+            )
+
+
+async def _price_log_case():
+    from core.commands import market as market_module
+
+    for error in (
+        plugin.WarframeAPIError("Authorization: Bearer SECRET"),
+        RuntimeError("https://fake.invalid/?signature=SECRET"),
+    ):
+
+        async def fail_market(*args):
+            raise error
+
+        log = _MinimalLog()
+        with (
+            _log_patch.object(_riven_module, "logger", log),
+            _log_patch.object(market_module, "riven_market_weapon", fail_market),
+        ):
+            result = await _rec_obj(_iceq_vision_ok)._riven_analysis_price(
+                {}, [("damage", 1)], [], "pc"
+            )
+        text = "\n".join(log.rows)
+        check("日志最小化：挂单失败保留UI类别", result["error"] == type(error).__name__)
+        check(
+            "日志最小化：挂单日志仅错误类型",
+            type(error).__name__ in text
+            and all(
+                x not in text for x in ("Authorization", "SECRET", "signature=", "fake.invalid")
+            ),
+            text,
+        )
+
+
+asyncio.run(_price_log_case())
+
+asyncio.run(_command_log_case())
 
 # ---------------------------------------------------------------------------
 # ⑭ 「多个近形候选都可行」⇒ 不猜：列进候选提示、不出卡
@@ -1283,6 +1364,7 @@ class _OrderStub:
 def _raced_with(prov_ids):
     _seen.clear()
     obj = plugin.WarframeSDJK.__new__(plugin.WarframeSDJK)
+    obj.cfg = {}
     stub = _OrderStub([_Prov(i) for i in prov_ids])
     obj._vision_providers = stub._vision_providers
     obj._vision_race_json = stub._vision_race_json
@@ -1329,7 +1411,7 @@ check(
 #      · 元素是字典 `{"name":..,"value":..}`（或中文键 `词条缩写/数值`）：
 #        `*item` 解包的是**键** ⇒ to_stat 恒 None ⇒ 词条静默全丢
 #        （日志实证：`模型语义表 0 正 0 负`，仅靠卡面逐行那路兜住才没翻车）。
-#    修法：新增 `_iter_stat_pairs()` 先把容器归一成 [(名, 值)]，认不出的条目跳过。
+#    修法：容器统一成 [(名, 值)]；未知形状保留占位，避免缩短整卡分母。
 #    本组把线上四种形状各冻一条，并守住「正常嵌套不回归」。
 # ---------------------------------------------------------------------------
 check(
@@ -1360,17 +1442,17 @@ check(
     str(_S._iter_stat_pairs([{"词条缩写": "病毒伤害", "数值": "104.3%"}])),
 )
 check(
-    "⑯⑤ 形状归一化：裸字符串 / 长度≠2 / 空 → 跳过，绝不 *item 解包",
-    _S._iter_stat_pairs(["火"]) == []
-    and _S._iter_stat_pairs(["a", "b", "c"]) == [("a", "b")]
+    "⑯⑤ 形状归一化：坏行与奇数扁平项保留未知占位，绝不 *item 解包",
+    _S._iter_stat_pairs(["火"]) == [(None, None)]
+    and _S._iter_stat_pairs(["a", "b", "c"]) == [("a", "b"), (None, None)]
     and _S._iter_stat_pairs(None) == []
-    and _S._iter_stat_pairs([["a", "b", "c"]]) == [],
+    and _S._iter_stat_pairs([["a", "b", "c"]]) == [(None, None)],
     f"{_S._iter_stat_pairs(['火'])} / {_S._iter_stat_pairs(['a', 'b', 'c'])}",
 )
 check(
     "⑯⑥ 形状归一化：混入裸字符串不崩、其余条目照收",
     _S._iter_stat_pairs([["多重射击", "148"], "火", ["伤害", "196.5"]])
-    == [("多重射击", "148"), ("伤害", "196.5")],
+    == [("多重射击", "148"), (None, None), ("伤害", "196.5")],
     str(_S._iter_stat_pairs([["多重射击", "148"], "火", ["伤害", "196.5"]])),
 )
 
@@ -1466,13 +1548,19 @@ check(
 )
 
 # ★ 2026-10-25（Astra 评估 S5）：多图消息第一张合格就停，不再把每张都下载转换
-_conv = {"n": 0}
+_image_reads = {"n": 0}
 
 
 class Image:  # 名字必须是 Image（_image_data_urls 按类型名认图片组件）
+    url = ""
+
+    @property
+    def file(self):
+        _image_reads["n"] += 1
+        return "base64://QUFB"
+
     async def convert_to_base64(self):
-        _conv["n"] += 1
-        return "QUFB"
+        raise AssertionError("禁止回退宿主无界转换")
 
 
 _obj_img = plugin.WarframeSDJK.__new__(plugin.WarframeSDJK)
@@ -1482,7 +1570,1182 @@ _ev_img = type(
 )()
 _urls = asyncio.run(_obj_img._image_data_urls(_ev_img))
 check(
-    "★ 5 张图只转换 1 次、只返回 1 张", _conv["n"] == 1 and len(_urls) == 1, f"{_conv} {len(_urls)}"
+    "★ 5 张图只读取第一张来源、只返回 1 张",
+    _image_reads["n"] == 1 and _urls == ["data:image/png;base64,QUFB"],
+    f"{_image_reads} {len(_urls)}",
+)
+
+
+# 完整近名优先于短词包含；近距歧义按 SID 合并后再判，未知括号不裁头。
+_lookup = plugin.WarframeSDJK._stat_id_from_name
+for _name, _sid in (
+    ("暴击", "crit_chance"),
+    ("暴击伤害", "crit_damage"),
+    ("滑行暴击几率", "slide_crit"),
+    ("暴击伤售", "crit_damage"),
+    ("触发几", "status_chance"),
+    ("滑行暴击几", "slide_crit"),
+    ("超长前缀暴击伤害说明后缀", "crit_damage"),
+    ("暴击几率（重击时x2）", "crit_chance"),
+    ("射速(弓类武器效果加倍)", "fire_rate"),
+    ("暴击几率（重吉时x2）", "crit_chance"),
+    ("射速(弓类武器效果加陪)", "fire_rate"),
+):
+    check(f"完整词名安全归一：{_name}", _lookup(_name, _rev) == _sid)
+for _name in (
+    "暴击伤率",
+    "滑行暴击伤害",
+    "武器伤害",
+    "天地玄黄宇宙",
+    "暴击伤害和多重射击",
+    "暴击几率（未知说明）",
+    "暴击几率（重击时x2",
+    "暴击几率（重击时(x2)）",
+    "暴击伤害（重击时x2）",
+    "暴击伤售（重击时x2）",
+    "暴击几率（重击时x3）",
+    "暴击几率（重击时y2）",
+    "暴击几率（重击时x）",
+    "暴击几率（未知时x2）",
+):
+    check(f"歧义或未知结构不归成短词：{_name}", _lookup(_name, _rev) is None)
+
+_saved_alias_full = plugin.WarframeSDJK._STAT_ALIAS_FULL
+try:
+    plugin.WarframeSDJK._STAT_ALIAS_FULL = {
+        "甲乙丙丁": "sid_a",
+        "甲乙丙戊": "sid_a",
+        "甲乙丙庚": "sid_b",
+    }
+    check("同SID多个近名不能掩盖跨SID同距", _lookup("甲乙丙己", {}) is None)
+    plugin.WarframeSDJK._STAT_ALIAS_FULL.pop("甲乙丙庚")
+    check("多个近名仅同SID时可归一", _lookup("甲乙丙己", {}) == "sid_a")
+finally:
+    plugin.WarframeSDJK._STAT_ALIAS_FULL = _saved_alias_full
+
+for _line in (
+    "+88% 暴击几率（未知说明）",
+    "+88% 暴击几率（重击时x2",
+    "+88% 暴击伤害（重击时x2）",
+    "+88% 暴击伤售（重击时x2）",
+    "+暴击几率（重击时x2）",
+):
+    _bp, _bn, _bnotes = RA.parse_riven_lines([_line], _resolve)
+    check(f"真实行解析拒绝未知括号或括号数字补值：{_line}", not _bp and not _bn and bool(_bnotes))
+
+
+class _RecordedCardProvider:
+    """只返回本地固定原文；走真实提取/解析/handler，不发任何模型请求。"""
+
+    def __init__(self, payload, line_text=""):
+        self.raw_json = "  \n" + json.dumps(payload, ensure_ascii=False) + "\n  "
+        self.line_text = line_text
+
+    def meta(self):
+        return types.SimpleNamespace(id="offline/recorded-card")
+
+    async def text_chat(self, prompt, **kwargs):
+        text = self.line_text if prompt == plugin.WarframeSDJK._RIVEN_LINE_PROMPT else self.raw_json
+        return types.SimpleNamespace(completion_text=text)
+
+
+async def _cloud_handler(payload, line_text="", *, client=None, recheck_text=None):
+    provider = _RecordedCardProvider(payload, line_text)
+    obj = plugin.WarframeSDJK.__new__(plugin.WarframeSDJK)
+    obj.cfg = {"vision_routes_isolated": True, "scan_cooldown": 0}
+    obj.client = client or _FakeRivenClient()
+    obj.page_size = 12
+    obj._image_data_urls = _fake_imgs
+    obj._riven_vision_providers = lambda: [provider]
+    obj._line_vision_providers = lambda: [provider]
+    if recheck_text is not None:
+        recheck = _RecordedCardProvider({}, recheck_text)
+        recheck.meta = lambda: types.SimpleNamespace(id="offline/recheck")
+        obj.cfg["vision_provider_id_line_recheck"] = "offline/recheck"
+        obj._try_get_provider = lambda pid: recheck if pid == "offline/recheck" else None
+    captured = {"price_calls": 0}
+
+    async def capture_image(url):
+        result = await plugin.WarframeSDJK._extract_riven_from_image(obj, url)
+        captured["parsed"] = result
+        return result
+
+    async def no_price(*args, **kwargs):
+        captured["price_calls"] += 1
+        return None
+
+    obj._extract_riven_from_image = capture_image
+    obj._riven_analysis_price = no_price
+    reply = await obj._h_riven_analysis(_FatParsed("紫卡分析"), _FakeImageEvent(), "pc")
+    return reply, captured, provider
+
+
+_cloud_complete = {
+    "weapon": "盗贼",
+    "positive": [["暴击伤售", 108.2], ["多重射击", 141.7], ["毒素伤害", 98.2]],
+    "negative": [["切割伤害", 99.9]],
+}
+_cloud_reply, _cloud_saved, _cloud_provider = asyncio.run(
+    _cloud_handler(
+        _cloud_complete, "+108.2% 暴击伤售\n+141.7% 多重射击\n+98.2% 毒素伤害\n-99.9% 切割伤害"
+    )
+)
+check(
+    "真实JSON整卡handler：暴伤近名不被短暴击抢走且原数值不变",
+    bool(_cloud_reply.lines)
+    and not _cloud_reply.raw_text
+    and "▲暴伤 +108.2%" in "\n".join(_cloud_reply.lines)
+    and "▲暴击 +108.2%" not in "\n".join(_cloud_reply.lines),
+    _txt(_cloud_reply),
+)
+check(
+    "成功分析披露代码近名归一的原词与使用词条",
+    "词名按代码归一" in _txt(_cloud_reply) and "暴击伤售 → 暴伤" in _txt(_cloud_reply),
+    _txt(_cloud_reply),
+)
+_recognition = _cloud_saved["parsed"]["_recognition"]
+check(
+    "主读追溯：完整原文、原解析结构、实际提示词hash与渠道保留",
+    _recognition["raw_text"] == _cloud_provider.raw_json
+    and _recognition["parsed"] == _cloud_complete
+    and _recognition["provider_id"] == "offline/recorded-card"
+    and _recognition["prompt_hash"] == sha256(_sem_prompt.encode()).hexdigest(),
+)
+check(
+    "归一追溯：近名决策和数值原文可区分",
+    _recognition["stat_normalization"][0]["raw_name"] == "暴击伤售"
+    and _recognition["stat_normalization"][0]["raw_value"] == 108.2
+    and _recognition["stat_normalization"][0]["name_match"]["method"] == "one_edit"
+    and _recognition["stat_normalization"][0]["sid"] == "crit_damage",
+)
+
+for _label, _unknown in (
+    ("裸null条目", None),
+    ("单字段行", ["暴击伤害"]),
+    ("多字段行", ["暴击伤害", 108.2, "extra"]),
+    ("二元行null值", ["暴击伤害", None]),
+    ("二元行null名", [None, 108.2]),
+    ("字典行null值", {"name": "暴击伤害", "value": None}),
+    ("字典行null名", {"name": None, "value": 108.2}),
+    ("bool真值", ["暴击伤害", True]),
+    ("bool假值", ["暴击伤害", False]),
+    ("NaN", ["暴击伤害", float("nan")]),
+    ("正无穷", ["暴击伤害", float("inf")]),
+    ("负无穷", ["暴击伤害", float("-inf")]),
+    ("跨SID歧义", ["暴击伤率", 108.2]),
+    ("未知括号", ["暴击伤害（未知说明）", 108.2]),
+):
+    _payload = json.loads(json.dumps(_cloud_complete))
+    _payload["positive"][0] = _unknown
+    _pending, _saved, _ = asyncio.run(_cloud_handler(_payload))
+    check(
+        f"真实JSON整卡handler {_label}：保留原值待核对，不按剩余2+1分析/估价",
+        bool(_pending.raw_text)
+        and "待核对" in _pending.raw_text
+        and "原始识别结构" in _pending.raw_text
+        and _pending.riven_splice is None
+        and _saved["price_calls"] == 0,
+        _txt(_pending),
+    )
+    check(
+        f"真实JSON整卡handler {_label}：原始分母仍为4行",
+        sum(
+            len(plugin.WarframeSDJK._iter_stat_pairs(_saved["parsed"].get(k)))
+            for k in ("positive", "negative")
+        )
+        == 4,
+    )
+
+for _bucket in ("positive", "negative"):
+    for _value in (None, False, "未确认的整桶原文"):
+        _bucket_payload = json.loads(json.dumps(_cloud_complete))
+        _bucket_payload[_bucket] = _value
+        _bucket_reply, _bucket_saved, _ = asyncio.run(_cloud_handler(_bucket_payload))
+        check(
+            f"显式整桶{_bucket}={_value!r}：真实handler待核对，不按剩余合法条目分析",
+            "待核对" in (_bucket_reply.raw_text or "")
+            and json.dumps({_bucket: _value}, ensure_ascii=False)[1:-1] in _bucket_reply.raw_text
+            and not _bucket_reply.lines
+            and _bucket_reply.riven_splice is None
+            and _bucket_saved["price_calls"] == 0,
+            _txt(_bucket_reply),
+        )
+
+_empty_reply, _empty_saved, _ = asyncio.run(
+    _cloud_handler({"weapon": "盗贼", "positive": [], "negative": []})
+)
+check(
+    "空词条整卡明确待核对且不估价",
+    "待核对" in (_empty_reply.raw_text or "") and _empty_saved["price_calls"] == 0,
+)
+
+_with_null = json.loads(json.dumps(_cloud_complete))
+_with_null["positive"][0] = ["暴击伤害", None]
+_full_line_text = "+108.2% 暴击伤害\n+141.7% 多重射击\n+98.2% 毒素伤害\n-99.9% 切割伤害"
+_recovered, _recovered_saved, _ = asyncio.run(_cloud_handler(_with_null, _full_line_text))
+check(
+    "独立合法4行能补齐null语义行并正常分析",
+    not _recovered.raw_text
+    and "▲暴伤 +108.2%" in "\n".join(_recovered.lines)
+    and "卡面逐行" in _recovered.footer,
+    _txt(_recovered),
+)
+check(
+    "窄读追溯：原始逐行响应与主读null结构同时保留",
+    _recovered_saved["parsed"]["_recognition"]["line_read"]["raw_text"] == _full_line_text
+    and _recovered_saved["parsed"]["_recognition"]["parsed"]["positive"][0][1] is None,
+)
+_near_line_reply, _near_line_saved, _ = asyncio.run(
+    _cloud_handler(_with_null, _full_line_text.replace("暴击伤害", "暴击伤售"))
+)
+check(
+    "云行读采用近名时也披露代码归一且保留逐行决策",
+    not _near_line_reply.raw_text
+    and "暴击伤售 → 暴伤" in _txt(_near_line_reply)
+    and _near_line_saved["parsed"]["_recognition"]["selected_stat_source"] == "line_read"
+    and _near_line_saved["parsed"]["_recognition"]["line_stat_normalization"][0]["method"]
+    == "one_edit",
+    _txt(_near_line_reply),
+)
+_short_lines = "+141.7% 多重射击\n+98.2% 毒素伤害\n-99.9% 切割伤害"
+_short_reply, _short_saved, _ = asyncio.run(_cloud_handler(_with_null, _short_lines))
+check(
+    "独立合法3行不能覆盖原语义4行分母",
+    "待核对" in (_short_reply.raw_text or "") and _short_saved["price_calls"] == 0,
+    _txt(_short_reply),
+)
+
+_decimal_payload = json.loads(json.dumps(_cloud_complete))
+_decimal_payload["positive"][0] = ["暴击伤害", 1082]
+_decimal_reply, _decimal_saved, _ = asyncio.run(_cloud_handler(_decimal_payload))
+check(
+    "图片小数点推断仅给原值→候选待确认，不写回分析/估价",
+    "待核对" in (_decimal_reply.raw_text or "")
+    and "1082" in _decimal_reply.raw_text
+    and "108.2" in _decimal_reply.raw_text
+    and "代码推断候选" in _decimal_reply.raw_text
+    and _decimal_saved["parsed"]["positive"][0][1] == 1082
+    and _decimal_saved["price_calls"] == 0
+    and _decimal_reply.riven_splice is None,
+    _txt(_decimal_reply),
+)
+
+_text_obj = plugin.WarframeSDJK.__new__(plugin.WarframeSDJK)
+_text_obj.client = _FakeRivenClient()
+_text_obj.page_size = 12
+_text_reply = asyncio.run(
+    _text_obj._h_riven_analysis(
+        _FatParsed("紫卡分析 盗贼 暴伤1082 多重141.7 毒伤98.2 负切割99.9"),
+        _FakeImageEvent(),
+        "pc",
+    )
+)
+check(
+    "纯文字小数点既有路径保留",
+    not _text_reply.raw_text and "▲暴伤 +108.2%" in "\n".join(_text_reply.lines),
+    _txt(_text_reply),
+)
+
+
+# 通用协议回归：格式变换不补字、不补数位；冲突与漏行经真实handler验证。
+for _prefix in ("", "100,200,20,200,0,", "1. ", "第一行："):
+    _wrapped = "\n".join(_prefix + ln for ln in _full_line_text.splitlines())
+    _r, _c, _p = asyncio.run(_cloud_handler(_with_null, _wrapped))
+    check(
+        f"完整词条包装可恢复，原数值不变：{_prefix!r}", bool(_r.lines) and not _r.raw_text, _txt(_r)
+    )
+    check(
+        f"包装回执原文独立留存：{_prefix!r}",
+        _c["parsed"]["_recognition"]["line_read"]["raw_text"] == _wrapped,
+    )
+
+_annotation = plugin.WarframeSDJK._parse_riven_lines_text(
+    "+88.4% 暴击几率（重击时\nx2）\n+44.2% 暴击伤害"
+)
+_ap, _an, _al, _notes = plugin.WarframeSDJK._riven_lines_legal(_annotation["lines"])
+check("已知尾注明确折行可绑定，括注数字不替代主体", _al and ("crit_chance", 88.4) in _ap)
+for _badline in (";53% 未确认伤害", "44.2% 暴击伤害", "暴击伤害", "+44.2% 暴击伤害（未知尾注）"):
+    _r, _c, _ = asyncio.run(_cloud_handler(_cloud_complete, _full_line_text + "\n" + _badline))
+    check(
+        f"疑似漏行原文保留并阻分析：{_badline}",
+        "待核对" in _txt(_r) and _badline in _txt(_r) and not _r.lines and _c["price_calls"] == 0,
+        _txt(_r),
+    )
+
+_r, _c, _ = asyncio.run(_cloud_handler(_cloud_complete, _full_line_text.replace("108.2", "109.2")))
+check("同SID异值不任意择路", "待核对" in _txt(_r) and not _r.lines and _c["price_calls"] == 0)
+_r, _c, _ = asyncio.run(
+    _cloud_handler(_cloud_complete, _full_line_text.replace("-99.9%", "+99.9%"))
+)
+check("同SID极性冲突不任意择路", "待核对" in _txt(_r) and not _r.lines)
+# 各路单独都合法且只有一方多读一条，采用现成超集，不用子集清除完整性。
+_r, _c, _ = asyncio.run(_cloud_handler(_cloud_complete, _short_lines))
+check(
+    "合法完整语义超集保留，短窄读不抹词条",
+    bool(_r.lines) and "▲暴伤 +108.2%" in "\n".join(_r.lines),
+    _txt(_r),
+)
+_other = dict(
+    _cloud_complete, positive=[["火焰伤害", 108.2], ["多重射击", 141.7], ["毒素伤害", 98.2]]
+)
+_r, _c, _ = asyncio.run(_cloud_handler(_other, _full_line_text))
+check("两路不相容词条不拼并集", "待核对" in _txt(_r) and not _r.lines)
+_duplicate = _full_line_text + "\n+108.2% 暴击伤害"
+_r, _c, _ = asyncio.run(_cloud_handler(_cloud_complete, _duplicate))
+check("重复行不因去重而伪装完整", "待核对" in _txt(_r) and not _r.lines)
+
+_precise, _captured, _ = asyncio.run(
+    _cloud_handler(_cloud_complete, _full_line_text.replace("108.2", "108.2000001"))
+)
+check("不同十进制读数不被浮点舍入抹平冲突", "待核对" in _txt(_precise) and not _precise.lines)
+_spurious = plugin.WarframeSDJK._parse_riven_lines_text("+12%\n34% 暴击伤害\n+44% 多重射击")
+check("纯数值不借下一条有数字的词条名称", not _spurious["_line_legal"])
+_bare, _captured, _ = asyncio.run(_cloud_handler(_cloud_complete, _full_line_text + "\n77.1"))
+check("词条区内孤立数字不是结构底栏", "待核对" in _txt(_bare) and not _bare.lines)
+
+_forensic, _c, _ = asyncio.run(
+    _cloud_handler(_cloud_complete, _full_line_text + "\n```+77.1% 未确认词条")
+)
+check("带载荷的围栏不静默当结构行", "待核对" in _txt(_forensic) and "```+77.1%" in _txt(_forensic))
+_longline, _c, _ = asyncio.run(
+    _cloud_handler(_cloud_complete, _full_line_text.replace("108.2", "108.2000000000000000000001"))
+)
+check("浮点不能表示的原文末位保留未知", "待核对" in _txt(_longline) and not _longline.lines)
+_longjson = dict(
+    _cloud_complete,
+    positive=[["暴击伤害", "108.2000000000000000000001"], ["多重射击", 141.7], ["毒素伤害", 98.2]],
+)
+_longreply, _c, _ = asyncio.run(_cloud_handler(_longjson, _full_line_text))
+check(
+    "JSON原数字串先检查保真再归一，不被完整行清除未知",
+    "待核对" in _txt(_longreply) and not _longreply.lines,
+)
+from core import loadout_ocr as _lo_lexical  # noqa: E402
+
+_lexical = _lo_lexical.parse_vision_json(
+    '{"positive":[["伤害",108.2000000000000000000001]]}', preserve_numbers=True
+)
+check("JSON数值字面末位独立留存", _lexical["positive"][0][1] == "108.2000000000000000000001")
+
+_unresolved_payload = dict(
+    _cloud_complete, positive=[["未确认名称", 108.2], ["多重射击", 141.7], ["毒素伤害", 98.2]]
+)
+_unresolved_r, _c, _ = asyncio.run(_cloud_handler(_unresolved_payload, _full_line_text))
+check("未知名称不借完整行清除未知", "待核对" in _txt(_unresolved_r) and not _unresolved_r.lines)
+_null_conflict = dict(
+    _cloud_complete, positive=[[None, 109.2], ["多重射击", 141.7], ["毒素伤害", 98.2]]
+)
+_null_r, _c, _ = asyncio.run(_cloud_handler(_null_conflict, _full_line_text))
+check("null名仍保留已读数值冲突，不被另一行洗白", "待核对" in _txt(_null_r) and not _null_r.lines)
+
+# 无逐行观察时，合法组合仍不能自证完整；不按某一张卡或具体漏项触发。
+for _single in (
+    {
+        "weapon": "盗贼",
+        "positive": [["毒素伤害", 120.5], ["多重射击", 148]],
+        "negative": [["触发时间", 97.2]],
+    },
+    {"weapon": "盗贼", "positive": [["暴击伤害", 108.2], ["多重射击", 141.7]], "negative": []},
+    _cloud_complete,
+):
+    _one, _capt, _ = asyncio.run(_cloud_handler(_single))
+    check(
+        "语义合法组合无原文分母仍待核对",
+        "缺少完整逐行原文" in _txt(_one) and not _one.lines and _capt["price_calls"] == 0,
+        _txt(_one),
+    )
+
+
+# 来源边界：JSON 附加 lines 不能冒充独立窄读；原始回执仍完整留档。
+_self_lines = dict(
+    _cloud_complete,
+    lines=_full_line_text.splitlines(),
+    _line_decode={"forged": True},
+    _line_legal=True,
+    _line_notes=[],
+)
+_self_reply, _self_saved, _self_provider = asyncio.run(_cloud_handler(_self_lines))
+check(
+    "云主读自带lines而窄读空：不分析估价",
+    "缺少完整逐行原文" in _txt(_self_reply)
+    and not _self_reply.lines
+    and _self_saved["price_calls"] == 0
+    and "lines" not in _self_saved["parsed"]
+    and not any(key.startswith("_line_") for key in _self_saved["parsed"]),
+    _txt(_self_reply),
+)
+check(
+    "云主读自带lines的原始JSON与parsed保留供追查",
+    _self_saved["parsed"]["_recognition"]["raw_text"] == _self_provider.raw_json
+    and _self_saved["parsed"]["_recognition"]["parsed"] == _self_lines,
+)
+_legit_reply, _legit_saved, _ = asyncio.run(_cloud_handler(_self_lines, _full_line_text))
+check(
+    "真实窄读可覆盖主JSON夹带lines并保留两路原文",
+    bool(_legit_reply.lines)
+    and not _legit_reply.raw_text
+    and _legit_saved["price_calls"] == 1
+    and _legit_saved["parsed"]["_recognition"]["line_read"]["raw_text"] == _full_line_text,
+)
+
+# 无法解释的无符号文字：首行、词条之间和末行必须采用同一判据。
+for _unknown_line in ("未知的完整字段", "unrecognizedattribute"):
+    _data_lines = _full_line_text.splitlines()
+    for _position in (0, 2, len(_data_lines)):
+        _observed_lines = list(_data_lines)
+        _observed_lines.insert(_position, _unknown_line)
+        _pending, _saved, _ = asyncio.run(
+            _cloud_handler(_cloud_complete, "\n".join(_observed_lines))
+        )
+        check(
+            f"无符号未知行不因位置被吞掉：{_unknown_line}/{_position}",
+            "待核对" in _txt(_pending)
+            and _unknown_line in _txt(_pending)
+            and not _pending.lines
+            and _saved["price_calls"] == 0,
+            _txt(_pending),
+        )
+
+for _structural_line in (
+    "词条：",
+    "正面属性",
+    "段位 12",
+    "内融值 1,234",
+    "循环次数：5",
+    "点击 ⓘ 查看详情",
+):
+    _structure_reply, _structure_saved, _ = asyncio.run(
+        _cloud_handler(_cloud_complete, _full_line_text + "\n" + _structural_line)
+    )
+    check(
+        f"明确栏目或数值元数据不误杀：{_structural_line}",
+        bool(_structure_reply.lines)
+        and not _structure_reply.raw_text
+        and _structure_saved["price_calls"] == 1,
+        _txt(_structure_reply),
+    )
+for _damaged_structure in ("段位 未读清", "内融值 未知字段", "循环次数：未确认"):
+    _structure_reply, _structure_saved, _ = asyncio.run(
+        _cloud_handler(_cloud_complete, _full_line_text + "\n" + _damaged_structure)
+    )
+    check(
+        f"结构标签后的未知值仍待核对：{_damaged_structure}",
+        "待核对" in _txt(_structure_reply) and _structure_saved["price_calls"] == 0,
+        _txt(_structure_reply),
+    )
+for _title_position, _allow in ((0, True), (4, False)):
+    _title_lines = _full_line_text.splitlines()
+    _title_lines.insert(_title_position, "样例武器 Rava-testa")
+    _title_reply, _title_saved, _ = asyncio.run(
+        _cloud_handler(_cloud_complete, "\n".join(_title_lines))
+    )
+    check(
+        f"标题需符合语法且处于数据前：{_title_position}",
+        bool(_title_reply.lines) == _allow and _title_saved["price_calls"] == int(_allow),
+        _txt(_title_reply),
+    )
+
+
+class _OfflineAcceptedWorker:
+    """只提供既有 worker 协议结果；不启动进程、OCR 或模型。"""
+
+    @staticmethod
+    def status():
+        return {"enabled": True, "ok": True}
+
+    @staticmethod
+    async def recognize(image_bytes):
+        assert image_bytes == b"AAA"
+        return {
+            "state": "accepted",
+            "structured": dict(_cloud_complete, lines=_full_line_text.splitlines()),
+        }
+
+
+async def _local_worker_handler():
+    obj = plugin.WarframeSDJK.__new__(plugin.WarframeSDJK)
+    obj.cfg = {"vision_routes_isolated": True, "scan_cooldown": 0}
+    obj.client = _FakeRivenClient()
+    obj.page_size = 12
+    obj.local_ocr = _OfflineAcceptedWorker()
+    captured = {"price_calls": 0}
+
+    async def image_urls(event):
+        return ["data:image/png;base64,QUFB"]
+
+    async def no_price(*args, **kwargs):
+        captured["price_calls"] += 1
+        return None
+
+    obj._image_data_urls = image_urls
+    obj._riven_analysis_price = no_price
+    reply = await obj._h_riven_analysis(_FatParsed("紫卡分析"), _FakeImageEvent(), "pc")
+    return reply, captured
+
+
+_local_reply, _local_saved = asyncio.run(_local_worker_handler())
+check(
+    "本地已接受worker的真实structured.lines保留分析路径",
+    bool(_local_reply.lines) and not _local_reply.raw_text and _local_saved["price_calls"] == 1,
+    _txt(_local_reply),
+)
+
+
+# 结构修订：页脚只借明确数值元数据锚点；不凭数值或截图位置猜字段。
+for _anchor in ("段位 12", "内融值 1,234", "循环次数：5"):
+    _footer_reply, _footer_saved, _ = asyncio.run(
+        _cloud_handler(_cloud_complete, _full_line_text + "\n" + _anchor + "\n37\n8")
+    )
+    check(
+        f"已有词条和明确元数据锚点后的纯整数页脚保留：{_anchor}",
+        bool(_footer_reply.lines)
+        and not _footer_reply.raw_text
+        and _footer_saved["price_calls"] == 1,
+        _txt(_footer_reply),
+    )
+for _unanchored in (
+    "37\n" + _full_line_text,
+    _full_line_text + "\n37",
+    _full_line_text.replace("\n", "\n37\n", 1),
+    _full_line_text.replace("\n", "\n段位 12\n37\n", 1),
+    "段位 12\n37\n" + _full_line_text,
+    _full_line_text + "\n段位 12\n37.5",
+    _full_line_text + "\n段位 12\n37%",
+    _full_line_text + "\n段位 12\n+37",
+):
+    _footer_reply, _footer_saved, _ = asyncio.run(_cloud_handler(_cloud_complete, _unanchored))
+    check(
+        "无锚/数据区/未读词条前/带量纲数值不能冒充整数页脚",
+        "待核对" in _txt(_footer_reply)
+        and not _footer_reply.lines
+        and _footer_saved["price_calls"] == 0,
+        _txt(_footer_reply),
+    )
+_reset_rows = _full_line_text.splitlines()
+_reset_rows.insert(-1, "段位 12")
+_reset_rows.append("37")
+_reset_reply, _reset_saved, _ = asyncio.run(_cloud_handler(_cloud_complete, "\n".join(_reset_rows)))
+check(
+    "元数据后重新出现词条会清除页脚锚点",
+    "待核对" in _txt(_reset_reply) and _reset_saved["price_calls"] == 0,
+    _txt(_reset_reply),
+)
+
+# 标题只做语法解包与已有字符拼接，不加入任何武器/词条答案。
+for _title in ("样例武器Rava-testa", "样例武器Rava-\ntesta", "样例武器 Rava-\ntesta"):
+    _title_reply, _title_saved, _ = asyncio.run(
+        _cloud_handler(_cloud_complete, _title + "\n" + _full_line_text)
+    )
+    check(
+        f"数据前的粘连或显式连字符折行标题可机械恢复：{_title!r}",
+        bool(_title_reply.lines) and not _title_reply.raw_text and _title_saved["price_calls"] == 1,
+        _txt(_title_reply),
+    )
+_title_raw = ["样例武器Rava-", "testa", *_full_line_text.splitlines()]
+_title_decoded = RA.decode_riven_lines(_title_raw)
+check(
+    "机械连接标题保留两条原文、行号和操作，不插入缺失字符",
+    _title_decoded["rows"][0]["text"] == "样例武器Rava-testa"
+    and _title_decoded["rows"][0]["source_lines"] == [1, 2]
+    and _title_decoded["rows"][0]["raw_lines"] == _title_raw[:2]
+    and "join_existing_hyphenated_title" in _title_decoded["rows"][0]["operations"],
+    str(_title_decoded),
+)
+for _unknown_structure in (
+    "未知首行",
+    "unrecognizedattribute",
+    "未知首行\nunrecognizedattribute",
+    "样例武器Rava-",
+    "100,200,20,200,0",
+    "所有",
+    "等级",
+    "9R",
+):
+    for _before_data in (True, False):
+        _observed = (
+            _unknown_structure + "\n" + _full_line_text
+            if _before_data
+            else _full_line_text + "\n" + _unknown_structure
+        )
+        _struct_reply, _struct_saved, _ = asyncio.run(_cloud_handler(_cloud_complete, _observed))
+        check(
+            f"未知首尾/残缺封装不因结构修订放行：{_unknown_structure!r}/{_before_data}",
+            "待核对" in _txt(_struct_reply)
+            and not _struct_reply.lines
+            and _struct_saved["price_calls"] == 0,
+            _txt(_struct_reply),
+        )
+_late_title = _full_line_text + "\n样例武器Rava-\ntesta"
+_late_reply, _late_saved, _ = asyncio.run(_cloud_handler(_cloud_complete, _late_title))
+check(
+    "数据后的连字符折行不能冒充标题",
+    "待核对" in _txt(_late_reply) and _late_saved["price_calls"] == 0,
+    _txt(_late_reply),
+)
+
+
+# 行末乘数能进入既有无行首符号的派系解析分支，也必须中断页脚状态。
+for _faction_position in ("before_integer", "after_integer"):
+    _rows = ["+88.4% 暴击几率", "段位 12"]
+    _rows += (
+        ["对 Corpus 的伤害 x1.51", "37"]
+        if _faction_position == "before_integer"
+        else ["37", "对 Corpus 的伤害 x1.51"]
+    )
+    _fp, _fn, _fnotes = RA.parse_riven_lines(_rows, _resolve)
+    check(
+        f"已有行末乘数词条不让整数落在伪页脚：{_faction_position}",
+        any(sid == "damage_vs_corpus" for sid, value in _fp) and "疑似词条未解析：37" in _fnotes,
+        f"{_fp} / {_fn} / {_fnotes}",
+    )
+_fp, _fn, _fnotes = RA.parse_riven_lines(
+    ["+88.4% 暴击几率", "对 Corpus 的伤害 x1.51", "段位 12", "37"], _resolve
+)
+check(
+    "行末乘数词条结束后新元数据锚点仍可确认整数页脚",
+    any(sid == "damage_vs_corpus" for sid, value in _fp)
+    and "无极性符号：37" in _fnotes
+    and not any(note.startswith("疑似词条未解析") for note in _fnotes),
+    f"{_fp} / {_fn} / {_fnotes}",
+)
+
+# 单卡字段角色只使用观察框架，不按某个容量/卡名/答案豁免。
+for _header_value in ("7", "29", "62"):
+    _framed = _header_value + "\n样例武器 Rava-testa\n" + _full_line_text + "\n段位 6\n103"
+    _role_reply, _role_saved, _ = asyncio.run(_cloud_handler(_cloud_complete, _framed))
+    check(
+        "单卡标题+词条+明确底栏可解释头部整数：" + _header_value,
+        bool(_role_reply.lines) and _role_saved["price_calls"] == 1,
+        _txt(_role_reply),
+    )
+    _roles = _role_saved["parsed"]["_line_decode"]["rows"]
+    check(
+        "头部数值角色保留源行且不猜具体字段：" + _header_value,
+        _roles[0].get("structural") == "card_header_integer"
+        and _roles[0]["raw_lines"] == [_header_value]
+        and _roles[0]["semantic_field"] is None,
+    )
+for _bad_prefix in ("7%", "+7", "7.5", "7\n29", "7\n未知字段"):
+    _bad_frame = _bad_prefix + "\n样例武器 Rava-testa\n" + _full_line_text + "\n段位 6"
+    _r, _c, _ = asyncio.run(_cloud_handler(_cloud_complete, _bad_frame))
+    check(
+        "损坏数据/多个数值/未知头部不借框架吞行：" + repr(_bad_prefix),
+        "待核对" in _txt(_r) and _c["price_calls"] == 0,
+        _txt(_r),
+    )
+for _broken_frame in (
+    "7\n样例武器 Rava-testa\n" + _full_line_text,
+    "样例武器 Rava-testa\n7\n" + _full_line_text + "\n段位 6",
+    "7\n样例武器 Rava-testa\n另一武器 Tera-sida\n" + _full_line_text + "\n段位 6",
+):
+    _r, _c, _ = asyncio.run(_cloud_handler(_cloud_complete, _broken_frame))
+    check(
+        "无底栏/标题后数字/多卡框架不当头部元数据",
+        "待核对" in _txt(_r) and _c["price_calls"] == 0,
+        _txt(_r),
+    )
+_split_frame = "7\n样例武器\nRava-testa\n" + _full_line_text + "\n段位 6"
+_r, _c, _ = asyncio.run(_cloud_handler(_cloud_complete, _split_frame))
+check("有完整框架的中拉丁标题分行恢复", bool(_r.lines) and _c["price_calls"] == 1, _txt(_r))
+# UI只按有坐标的卡外空间角色排除，卡内/无坐标未知字样继续拒绝。
+_column_title = "600,300,24,180,90,样例武器 Rava-testa"
+_column_stat = [
+    f"600,{400 + i * 50},24,180,90,{line}" for i, line in enumerate(_full_line_text.splitlines())
+]
+_column_base = "\n".join([_column_title, *_column_stat, "550,650,24,80,90,段位 6"])
+for _label in ("所有", "等级"):
+    _r, _c, _ = asyncio.run(
+        _cloud_handler(_cloud_complete, _column_base + f"\n250,700,24,50,90,{_label}")
+    )
+    check("卡外有坐标栏目不误杀：" + _label, bool(_r.lines) and _c["price_calls"] == 1, _txt(_r))
+    for _row in (_label, f"600,700,24,50,90,{_label}", "600,500,24,50,90,未知字段"):
+        _r, _c, _ = asyncio.run(_cloud_handler(_cloud_complete, _column_base + "\n" + _row))
+        check(
+            "卡内/无坐标/未知栏目不豁免：" + _row,
+            "待核对" in _txt(_r) and _c["price_calls"] == 0,
+            _txt(_r),
+        )
+
+for _state in ("null", "None", "unknown", "unreadable", "unclear", "NaN"):
+    for _field in ("暴击机率", "未知词条"):
+        _unsafe = _field + "\n" + _state + "\n" + _full_line_text + "\n段位 6"
+        _r, _c, _ = asyncio.run(_cloud_handler(_cloud_complete, _unsafe))
+        check(
+            "未知值/近名词条不能伪装分行标题：" + _field + "/" + _state,
+            "待核对" in _txt(_r) and _c["price_calls"] == 0,
+            _txt(_r),
+        )
+_r, _c, _ = asyncio.run(
+    _cloud_handler(_cloud_complete, "暴击机率\nRava-testa\n" + _full_line_text + "\n段位 6")
+)
+check(
+    "有近名归一的词条不因拉丁尾巴变标题", "待核对" in _txt(_r) and _c["price_calls"] == 0, _txt(_r)
+)
+
+# 通用结构适配：仅修改保存观察的形状，不生成窄读来源。
+for label, raw, want_pos, want_neg in [
+    (
+        "签名name与独立value一致",
+        [{"name": "+53.2% 暴击伤害", "value": "53.2"}],
+        [("crit_damage", 53.2)],
+        [],
+    ),
+    ("倒置二元对", [["53.2%", "暴击伤害"]], [("crit_damage", 53.2)], []),
+    (
+        "明确text/modifier",
+        [{"text": "+53.2% 暴击伤害", "modifier": {"name": "暴击伤害", "value": "53.2"}}],
+        [("crit_damage", 53.2)],
+        [],
+    ),
+    (
+        "每项完整签名行",
+        ["+53.2% 暴击伤害", "-26.4% 切割伤害"],
+        [("crit_damage", 53.2)],
+        [("slash_damage", 26.4)],
+    ),
+    ("显式派系倍率", [["对Corpus的伤害", "x0.73"]], [], [("damage_vs_corpus", 27.0)]),
+    (
+        "嵌入倍率和独立百分比等价",
+        [{"name": "x1.42 对Corpus的伤害", "value": "42%"}],
+        [("damage_vs_corpus", 42.0)],
+        [],
+    ),
+    ("反转词条按符号", [{"name": "+53.2% 武器后坐力", "value": "+53.2%"}], [], [("recoil", 53.2)]),
+]:
+    sample = {"positive": raw}
+    got = _norm(sample, _rev)
+    check("结构适配正向：" + label, got == (want_pos, want_neg), str(got))
+    check(
+        "结构适配保持一项一分母：" + label,
+        len(plugin.WarframeSDJK._iter_stat_pairs(raw)) == len(raw),
+    )
+    check("text不伪装窄读来源：" + label, "lines" not in sample)
+
+for label, raw in [
+    ("名称值不一致", [{"name": "+53.2% 暴击伤害", "value": "53.3"}]),
+    ("极性不一致", [{"name": "-53.2% 暴击伤害", "value": "+53.2"}]),
+    ("嵌入name的独立null", [{"name": "+53.2% 暴击伤害", "value": None}]),
+    (
+        "嵌套modifier名称冲突",
+        [{"text": "+53.2% 暴击伤害", "modifier": {"name": "多重射击", "value": "53.2"}}],
+    ),
+    ("嵌套modifier缺值", [{"text": "+53.2% 暴击伤害", "modifier": {"name": "暴击伤害"}}]),
+    ("假x非派系", [["暴击伤害", "x1.42"]]),
+    ("假x百分比", [["对Corpus的伤害", "x1.42%"]]),
+    ("假x非法倍率", [["对Corpus的伤害", "x99"]]),
+    ("未知数值单位", [["暴击伤害", "53.2kg"]]),
+    ("name内未知单位", [{"name": "+53.2kg 暴击伤害", "value": "53.2"}]),
+    ("typed metadata不忽略", [["段位", "12"]]),
+]:
+    sample = {"positive": raw}
+    got = _norm(sample, _rev)
+    check("结构适配反向拒绝：" + label, not got[0] and not got[1], str(got))
+    check("反向拒绝保留分母：" + label, len(plugin.WarframeSDJK._iter_stat_pairs(raw)) == len(raw))
+
+_mixed = ["+53.2% 暴击伤害", "未读清楚"]
+check("两项行列表坏行不缩分母", len(plugin.WarframeSDJK._iter_stat_pairs(_mixed)) == 2)
+check(
+    "原负桶不被正显式数值转为正桶",
+    _norm({"negative": [["暴击伤害", "+53.2%"]]}, _rev) == ([], [("crit_damage", 53.2)]),
+)
+
+for label, value, precision, lexical in [
+    ("精度损失", "53.200000000000000001", True, False),
+    ("正常十进制", "53.2%", False, False),
+    ("词法失败不是精度损失", "53.2kg", False, True),
+]:
+    payload = {
+        "weapon": "盗贼",
+        "positive": [["暴击伤害", value], ["多重射击", "63.4%"]],
+        "negative": [],
+    }
+    _reply, captured, _provider = asyncio.run(
+        _cloud_handler(payload, "+53.2% 暴击伤害\n+63.4% 多重射击")
+    )
+    parsed = captured["parsed"]
+    check(
+        "提取精度分型：" + label,
+        parsed.get("_numeric_precision_unsafe") is precision
+        and parsed.get("_numeric_lexical_invalid") is lexical,
+        str(parsed),
+    )
+    if precision or lexical:
+        check(
+            "坏值真实入口fail closed：" + label,
+            "待核对" in _txt(_reply) and captured["price_calls"] == 0,
+            _txt(_reply),
+        )
+
+check(
+    "负桶无符号幅度与嵌入负号一致",
+    _norm({"negative": [{"name": "-53.2% 暴击伤害", "value": "53.2"}]}, _rev)
+    == ([], [("crit_damage", 53.2)]),
+)
+check(
+    "负桶显式正号仍与嵌入负号冲突",
+    _norm({"negative": [{"name": "-53.2% 暴击伤害", "value": "+53.2"}]}, _rev) == ([], []),
+)
+check("已知单位不能移给错误SID", _norm({"positive": [["暴击伤害", "53.2m"]]}, _rev) == ([], []))
+check(
+    "嵌入值比较不经float掩盖微小矛盾",
+    _norm({"positive": [{"name": "+53.2% 暴击伤害", "value": "53.200000000000000001"}]}, _rev)
+    == ([], []),
+)
+# >28位倍率：真实提取到handler不能把不一致词法经context舍入洗白。
+_long_faction_payload = {
+    "weapon": "盗贼",
+    "positive": [
+        {"name": "x1.42 对Corpus的伤害", "value": "x1.420000000000000000000000000001"},
+        ["暴击伤害", "53.2%"],
+    ],
+    "negative": [],
+}
+_long_reply, _long_saved, _ = asyncio.run(
+    _cloud_handler(_long_faction_payload, "x1.42 对Corpus的伤害\n+53.2% 暴击伤害")
+)
+check(
+    "超过Decimal默认精度的派系冲突真实入口拒绝",
+    "待核对" in _txt(_long_reply) and _long_saved["price_calls"] == 0,
+    _txt(_long_reply),
+)
+check(
+    "超过Decimal默认精度的派系冲突保留失败分母",
+    len(_long_saved["parsed"]["_recognition"]["stat_normalization"]) == 2
+    and _long_saved["parsed"]["_recognition"]["stat_normalization"][0]["decision"] != "accepted",
+    str(_long_saved["parsed"]["_recognition"].get("stat_normalization")),
+)
+# 嵌入签名与独立值的显式单位必须一致；单位不随数值适配被抹掉。
+for _unit_name, _unit_value, _line in [
+    ("+1.6m 近战范围", "1.6%", "+1.6m 近战范围"),
+    ("+1.6% 近战范围", "1.6m", "+1.6m 近战范围"),
+    ("+5.4秒 连击持续时间", "5.4%", "+5.4秒 连击持续时间"),
+]:
+    _payload = {
+        "weapon": "盗贼",
+        "positive": [{"name": _unit_name, "value": _unit_value}, ["暴击伤害", "53.2%"]],
+        "negative": [],
+    }
+    _reply, _saved, _ = asyncio.run(_cloud_handler(_payload, _line + "\n+53.2% 暴击伤害"))
+    check(
+        "显式单位矛盾真实入口拒绝：" + _unit_name + "/" + _unit_value,
+        "待核对" in _txt(_reply) and _saved["price_calls"] == 0,
+        _txt(_reply),
+    )
+    check(
+        "单位矛盾保留失败分母：" + _unit_name,
+        len(_saved["parsed"]["_recognition"]["stat_normalization"]) == 2
+        and _saved["parsed"]["_recognition"]["stat_normalization"][0]["decision"] != "accepted",
+    )
+check(
+    "范围米/m等价",
+    _norm({"positive": [{"name": "+1.6米 近战范围", "value": "1.6m"}]}, _rev)
+    == ([("range", 1.6)], []),
+)
+check(
+    "范围独立值无单位沿用幅度",
+    _norm({"positive": [{"name": "+1.6m 近战范围", "value": "1.6"}]}, _rev)
+    == ([("range", 1.6)], []),
+)
+check(
+    "秒单位一致",
+    _norm({"positive": [{"name": "+5.4秒 连击持续时间", "value": "5.4秒"}]}, _rev)
+    == ([("combo_duration", 5.4)], []),
+)
+# 倒置显式倍率只由另一侧派系名称授权，不扩展非派系x或未知名称。
+for _raw, _want in [
+    (["x1.43", "对Grineer的伤害"], ([("damage_vs_grineer", 43.0)], [])),
+    (["x0.72", "对Corpus的伤害"], ([], [("damage_vs_corpus", 28.0)])),
+    (["×0.69", "对Infested的伤害"], ([], [("damage_vs_infested", 31.0)])),
+]:
+    check("倒置派系倍率：" + str(_raw), _norm({"positive": [_raw]}, _rev) == _want)
+    check(
+        "倒置派系倍率保留单行分母：" + str(_raw),
+        len(plugin.WarframeSDJK._iter_stat_pairs([_raw])) == 1,
+    )
+for _raw in [
+    ["x1.43", "未知词条"],
+    ["x1.43", "暴击伤害"],
+    ["x1.43", "1.43"],
+    ["x1.43", "x0.72"],
+    ["对Grineer的伤害", "对Corpus的伤害"],
+    ["x99", "对Grineer的伤害"],
+]:
+    check("倒置倍率不扩权：" + str(_raw), _norm({"positive": [_raw]}, _rev) == ([], []))
+    check(
+        "倒置倍率拒绝保留分母：" + str(_raw), len(plugin.WarframeSDJK._iter_stat_pairs([_raw])) == 1
+    )
+# 字段别名、卡面元数据和页脚的通用恢复；不跳过卡内未知行。
+check(
+    "原文名字段保持可解析",
+    plugin.WarframeSDJK._iter_stat_pairs([{"词条名原文": "暴击伤害", "数值": 108.2}])
+    == [("暴击伤害", 108.2)],
+)
+_framed = (
+    "18一\n盗贼 Visi toxican\n"
+    + _full_line_text
+    + "\n段位 12\n确认\n用 3,500 来循环\n剩余赤毒：99,999"
+)
+_frame_reply, _frame_saved, _ = asyncio.run(_cloud_handler(_cloud_complete, _framed))
+check(
+    "标题极性与页脚按钮不否决完整词条",
+    not _frame_reply.raw_text and bool(_frame_reply.lines),
+    _txt(_frame_reply),
+)
+_inside_reply, _inside_saved, _ = asyncio.run(
+    _cloud_handler(_cloud_complete, _full_line_text + "\n剩余赤毒：99,999")
+)
+check(
+    "未观测段位底栏不把未知正文当页脚",
+    "待核对" in _txt(_inside_reply) and _inside_saved["price_calls"] == 0,
+)
+
+
+# 字符宽度归一只修排版；未知/嵌套/错类别尾注仍由上面的反例拒绝。
+for _text in ("+73.6% 暴击几率（重击时x2)", "+73.6% 暴击几率(重击时x2）"):
+    _np, _nn, _nt = RA.parse_riven_lines([_text], _resolve)
+    check("混用全半角闭合括号保持主体数值", _np == [("crit_chance", 73.6)] and not _nn)
+check("派系名中排版空白可归一", _lookup("对 Grineer 的伤害", _rev) == "damage_vs_grineer")
+
+
+_outside = _column_base + "\n180,470,24,70,90,未知面板文字"
+_outside_read = plugin.WarframeSDJK._parse_riven_lines_text(_outside)
+check("唯一坐标卡框可排除横向外部文字", _outside_read["_line_legal"])
+check(
+    "框外未知文字保留原始证据",
+    any(
+        r.get("structural") == "outside_card_region" and r["text"] == "未知面板文字"
+        for r in _outside_read["_line_decode"]["rows"]
+    ),
+)
+
+# 两字段重复同一完整原文时只解析一次；不拿相似名称/数值放宽冲突。
+for _line, _expected in [
+    ("+73.6% 暴击几率（重击时x2）", ([("crit_chance", 73.6)], [])),
+    ("+1.6m 近战范围", ([("range", 1.6)], [])),
+    ("x0.72 对Corpus的伤害", ([], [("damage_vs_corpus", 28.0)])),
+]:
+    check(
+        "重复整行观察只解码一次：" + _line, _norm({"positive": [[_line, _line]]}, _rev) == _expected
+    )
+for _pair in [
+    ["+73.6% 暴击几率", "+73.6% 暴击伤害"],
+    ["+73.6% 暴击几率", "+73.7% 暴击几率"],
+    ["+1.6m 近战范围", "+1.6% 近战范围"],
+    ["+73.6% 未知词条", "+73.6% 未知词条"],
+]:
+    check("非完全相同原文仍拒绝：" + str(_pair), _norm({"positive": [_pair]}, _rev) == ([], []))
+    check("重复字段拒绝也保留词条分母", len(plugin.WarframeSDJK._iter_stat_pairs([_pair])) == 1)
+
+# 数字与已知量纲间的空白属于排版，不得拼接被空格分开的数位或放过量纲冲突。
+for _pair, _expected in [
+    (["+6.3 秒连击持续时间", "+6.3 秒"], ([("combo_duration", 6.3)], [])),
+    (["+1.6 m 近战范围", "+1.6m"], ([("range", 1.6)], [])),
+    (["+73.6 % 暴击几率", "+73.6 %"], ([("crit_chance", 73.6)], [])),
+    (["x 0.72 对Corpus的伤害", "x0.72"], ([], [("damage_vs_corpus", 28.0)])),
+]:
+    check("已知单位空白保持原数值：" + str(_pair), _norm({"positive": [_pair]}, _rev) == _expected)
+for _pair in [
+    ["连击持续时间", "+6 .3 秒"],
+    ["连击持续时间", "+6 3秒"],
+    ["+6.3 秒连击持续时间", "+6.4 秒"],
+    ["+1.6 m 近战范围", "+1.6 秒"],
+    ["+1.6 kg 近战范围", "+1.6"],
+]:
+    check(
+        "空白兼容不掩盖数字或单位错误：" + str(_pair),
+        _norm({"positive": [_pair]}, _rev) == ([], []),
+    )
+
+# 坐标标题折行后重建唯一卡面区域；保留原行，不将底栏后的疑似词条静默丢弃。
+_spatial_split = _column_base.replace(
+    _column_title, "600,280,24,180,90,样例武器 Rava-\n600,310,24,100,90,testa"
+)
+_spatial_out = _spatial_split + "\n100,450,24,70,90,卡外文字\n600,850,24,90,90,操作工具栏"
+_sr = plugin.WarframeSDJK._parse_riven_lines_text(_spatial_out)
+check("分行标题重建区域后排除框外文字", _sr["_line_legal"])
+check(
+    "被过滤的坐标观察仍保留原文",
+    sum(r.get("structural") == "outside_card_region" for r in _sr["_line_decode"]["rows"]) == 2,
+)
+for _suspicious in ("+13% 未知词条", "？？？", "暴击伤害"):
+    _sr = plugin.WarframeSDJK._parse_riven_lines_text(
+        _spatial_split + "\n600,850,24,90,90," + _suspicious
+    )
+    check("底栏外疑似属性行不被删去：" + _suspicious, _suspicious in _sr["lines"])
+
+
+class _ModeCatalogClient(_FakeRivenClient):
+    def __init__(self):
+        self.queries = []
+
+    async def wm_riven_weapons(self):
+        return [
+            dict(
+                self._weapon,
+                zh="合成腔体（主要）",
+                en="Synthetic (Primary)",
+                url_name="synthetic_(primary)",
+            ),
+            dict(
+                self._weapon,
+                zh="合成腔体（次要）",
+                en="Synthetic (Secondary)",
+                url_name="synthetic_(secondary)",
+            ),
+            dict(self._weapon),
+        ]
+
+    async def resolve_riven_weapon(self, query):
+        self.queries.append(query)
+        return dict(self._weapon, zh="合成腔体")
+
+
+_mode_client = _ModeCatalogClient()
+_mr, _mc, _ = asyncio.run(
+    _cloud_handler(
+        dict(_cloud_complete, weapon=None),
+        "合成腔体 Rava-testa\n" + _full_line_text + "\n段位 6",
+        client=_mode_client,
+    )
+)
+check(
+    "模式后缀词表允许卡面仅写腔体名",
+    _mc["parsed"]["_recognition"]["weapon_identity"]["selected"] == "合成腔体"
+    and _mode_client.queries == ["合成腔体"],
+)
+_mr, _mc, _ = asyncio.run(
+    _cloud_handler(
+        _cloud_complete,
+        "合成腔体 Rava-testa\n" + _full_line_text + "\n段位 6",
+        client=_ModeCatalogClient(),
+    )
+)
+check(
+    "模块模式归一不掩盖两路不同武器名",
+    "两路读到了不同的官方武器名" in _txt(_mr) and _mc["price_calls"] == 0,
+)
+
+_near_title = "600,100,24,200,90,预览武器 Tera-veta\n" + _column_base
+_near_read = plugin.WarframeSDJK._parse_riven_lines_text(_near_title)
+check("远处预览标题不能跨过最近卡名抢占词条", _near_read["_line_legal"])
+_second_column = _column_base.replace("600,", "200,").replace("550,", "150,")
+_two_cards = plugin.WarframeSDJK._parse_riven_lines_text(_column_base + "\n" + _second_column)
+check("两张完整坐标卡仍拒绝拼接", not _two_cards["_line_legal"])
+
+_wrapped_column = _column_base.replace(
+    _column_title, "600,280,24,180,90,样例武器 Rava-\n600,310,24,100,90,testa"
+)
+for _x, _should_pass in ((470, True), (600, False)):
+    _wrapped_read = plugin.WarframeSDJK._parse_riven_lines_text(
+        _wrapped_column + f"\n{_x},295,24,20,90,陌"
+    )
+    check(
+        "折行标题边距不吸入卡外字符且保留卡内未知观察：" + str(_x),
+        _wrapped_read["_line_legal"] == _should_pass,
+    )
+
+_footer_unordered = _column_base.replace(
+    "550,650,24,80,90,段位 6", "650,650,24,50,90,113\n550,650,24,80,90,段位 6"
+)
+_fu = plugin.WarframeSDJK._parse_riven_lines_text(_footer_unordered)
+check(
+    "底栏整数按坐标定位，不依赖OCR输出顺序",
+    _fu["_line_legal"]
+    and any(r.get("structural") == "card_footer_integer" for r in _fu["_line_decode"]["rows"]),
+)
+for _invalid_footer in ("113%", "+113", "113.5", "未知词条"):
+    _fu = plugin.WarframeSDJK._parse_riven_lines_text(
+        _footer_unordered.replace(",113\n", "," + _invalid_footer + "\n")
+    )
+    check("同基线非整数观察仍保留：" + _invalid_footer, _invalid_footer in _fu["lines"])
+
+
+# 转录协议只转换已有行；不吞未知，不用模型分类正负面。
+_transcript = {
+    "weapon": "测试名",
+    "stat_lines": ["+88.1%暴击伤害", "-7.4 秒连击持续时间", "？？？"],
+}
+_adapted = plugin.WarframeSDJK._adapt_riven_transcription(_transcript)
+check(
+    "原文协议保留未知行与负号",
+    len(_adapted["positive"]) == 3 and _adapted["positive"][1]["value"].startswith("-"),
+)
+check("原文适配不改写输入", "positive" not in _transcript)
+for _prefix in ("\U0001f512", "\u2694\ufe0f", "\u25c6"):
+    check(
+        "词条行首图标可剥而原文不变：" + repr(_prefix),
+        plugin.WarframeSDJK._signed_stat_line(_prefix + " +88.1%暴击伤害")
+        == ("暴击伤害", "+88.1%"),
+    )
+for _prefix in ("?", "9", "x", "未知"):
+    check(
+        "词条行首未知内容不能当图标剥掉：" + _prefix,
+        plugin.WarframeSDJK._signed_stat_line(_prefix + " +88.1%暴击伤害") is None,
+    )
+check(
+    "数字后置词条仅调换已有观察",
+    plugin.WarframeSDJK._signed_stat_line("收起武器时弹匣每秒自动装填+88.1%")
+    == ("收起武器时弹匣每秒自动装填", "+88.1%"),
+)
+_conflicting_schema = plugin.WarframeSDJK._adapt_riven_transcription(
+    {**_transcript, "positive": [["基伤", 99]]}
+)
+check(
+    "旧新字段冲突不静默覆盖",
+    _conflicting_schema.get("_transcription_schema_conflict")
+    and len(_conflicting_schema["positive"]) == 4,
+)
+for _category in ("霰弹枪", "步枪", "近战"):
+    _category_payload = {
+        "weapon": _category,
+        "stat_lines": ["+93.5%多重射击", "+39.6%弹匣容量", "-13.4%变焦"],
+    }
+    _category_text = f"{_category} Armacan\n+93.5%多重射击\n+39.6%弹匣容量\n-13.4%变焦"
+    _category_reply, _category_saved, _ = asyncio.run(
+        _cloud_handler(_category_payload, _category_text)
+    )
+    check(
+        "类别标题不猜武器或询价：" + _category,
+        getattr(_category_reply, "riven_transcription", {}).get("category") == _category
+        and _category_saved["price_calls"] == 0,
+    )
+
+
+# 可选复读仅裁决已有完整转录，保留第一条冲突证据；不得缩短观察分母。
+_conflict_text = _full_line_text.replace("108.2", "108.3")
+if _conflict_text == _full_line_text:
+    _conflict_text = _full_line_text.replace("+", "-", 1)
+_retry_reply, _retry_saved, _ = asyncio.run(
+    _cloud_handler(_cloud_complete, _conflict_text, recheck_text=_full_line_text)
+)
+check(
+    "完整主读与独立复读一致才裁决",
+    bool(_retry_reply.lines) and _retry_saved["parsed"]["_recognition"]["line_recheck"]["adopted"],
+)
+check(
+    "复读不抹掉最初冲突原文",
+    _retry_saved["parsed"]["_recognition"]["line_recheck"]["original_line_read"]["_recognition"][
+        "raw_text"
+    ]
+    == _conflict_text,
+)
+_retry_bad, _retry_bad_saved, _ = asyncio.run(
+    _cloud_handler(
+        _cloud_complete, _full_line_text + "\n+12.3%未知属性", recheck_text=_full_line_text
+    )
+)
+check(
+    "复读少一条不能压过原观察分母",
+    not _retry_bad.lines
+    and not _retry_bad_saved["parsed"]["_recognition"]["line_recheck"]["adopted"],
+)
+_retry_conflict, _retry_conflict_saved, _ = asyncio.run(
+    _cloud_handler(_cloud_complete, _conflict_text, recheck_text=_conflict_text)
+)
+check(
+    "复读仍分歧不选较顺眼的值",
+    not _retry_conflict.lines
+    and not _retry_conflict_saved["parsed"]["_recognition"]["line_recheck"]["adopted"],
 )
 
 if FAILED:

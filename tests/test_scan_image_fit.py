@@ -230,6 +230,199 @@ check(
 )
 check("非图片 base64 拒收且不抛", not OK(base64.b64encode(b"not an image").decode()))
 
+
+# 7. 真实图片入口的有界读取（全离线，禁止宿主转换）
+async def _bounded_image_checks():
+    import asyncio
+    import tempfile
+    from unittest.mock import patch
+
+    import httpx
+
+    host = object.__new__(plugin.WarframeSDJK)
+    png = base64.b64decode(data_url(4, 4).split(",", 1)[1])
+    host.MAX_SCAN_IMAGE_BYTES = 128
+    requests = []
+    streams = []
+
+    class Stream(httpx.AsyncByteStream):
+        def __init__(self, chunks, slow=False):
+            self.chunks = chunks
+            self.slow = slow
+            self.reads = 0
+            self.closed = False
+            streams.append(self)
+
+        async def __aiter__(self):
+            for chunk in self.chunks:
+                if self.slow:
+                    await asyncio.sleep(1)
+                self.reads += 1
+                yield chunk
+
+        async def aclose(self):
+            self.closed = True
+
+    def handle(request):
+        requests.append(request)
+        path = request.url.path
+        if path == "/redirect":
+            return httpx.Response(
+                302, headers={"location": "https://gchat.qpic.cn/normal"}, stream=Stream([])
+            )
+        if path == "/declared":
+            return httpx.Response(200, headers={"content-length": "10000"}, stream=Stream([png]))
+        if path in {"/lie", "/large"}:
+            headers = {"content-length": "1"} if path == "/lie" else {}
+            return httpx.Response(200, headers=headers, stream=Stream([b"x" * 65536] * 3))
+        if path == "/slow":
+            return httpx.Response(200, stream=Stream([png], slow=True))
+        if path == "/compressed":
+            return httpx.Response(200, headers={"content-encoding": "gzip"}, stream=Stream([png]))
+        return httpx.Response(200, stream=Stream([png]))
+
+    real_client = httpx.AsyncClient
+
+    def client(**kwargs):
+        return real_client(transport=httpx.MockTransport(handle), **kwargs)
+
+    with patch("httpx.AsyncClient", client):
+        result = await host._read_scan_image("https://example.test/normal")
+        check("远程正常图保持原始字节", base64.b64decode(result) == png)
+        for path in ("declared", "lie", "large", "compressed"):
+            rejected = False
+            try:
+                await host._read_scan_image("https://example.test/" + path)
+            except ValueError:
+                rejected = True
+            check("有界读取拒收 " + path, rejected and streams[-1].closed)
+            check("超限即停止后续读取 " + path, streams[-1].reads <= 1)
+        host.MAX_SCAN_IMAGE_BYTES = 65536 + 100
+        rejected = False
+        try:
+            await host._read_scan_image("https://example.test/large")
+        except ValueError:
+            rejected = True
+        check(
+            "累计第二块越界即停止第三块", rejected and streams[-1].reads == 2 and streams[-1].closed
+        )
+        host.MAX_SCAN_IMAGE_BYTES = 128
+        result = await host._read_scan_image("https://example.test/redirect")
+        check("重定向后仍通过限量路径", base64.b64decode(result) == png)
+        headers = requests[-1].headers
+        check(
+            "QQ图床重定向保留UA与Referer",
+            "Mozilla/5.0" in headers["user-agent"] and headers["referer"] == "https://im.qq.com/",
+        )
+        check("非图床不携带QQ Referer", "referer" not in requests[0].headers)
+        host.SCAN_IMAGE_TIMEOUT = 0.01
+        rejected = False
+        try:
+            await host._read_scan_image("https://example.test/slow")
+        except asyncio.TimeoutError:
+            rejected = True
+        check("滴流总超时且关闭响应", rejected and streams[-1].closed)
+
+    check(
+        "严格14MiB编码边界对应原始字节",
+        plugin.WarframeSDJK.MAX_SCAN_IMAGE_BYTES == (14 * 1024 * 1024 // 4 - 1) * 3,
+    )
+    check(
+        "假图床域名不带Referer",
+        "Referer" not in host._scan_image_headers("https://qpic.cn.evil.test/a"),
+    )
+    payload = base64.b64encode(png).decode()
+    for ref in (
+        payload,
+        "base64://" + payload,
+        "data:image/png;base64," + payload,
+        payload[:20] + "\n" + payload[20:],
+        "base64://" + payload[:20] + "\n" + payload[20:],
+    ):
+        check("本地base64来源兼容 " + ref[:12], await host._read_scan_image(ref) == payload)
+    for ref, expected in (
+        ("file://C:/test%20image.png", "C:/test image.png"),
+        ("file:///C:/test%20image.png", "C:/test image.png"),
+        ("file://localhost/C:/test%20image.png", "C:/test image.png"),
+    ):
+        opened = []
+
+        def record_open(path, _flags):
+            opened.append(path)
+            raise OSError("只验证解析，不读取Windows磁盘")
+
+        with patch("os.open", record_open):
+            try:
+                await host._read_scan_image(ref)
+            except OSError:
+                pass
+        check("Windows本地drive URI兼容 " + ref, opened == [expected])
+    with patch("os.open", side_effect=AssertionError("UNC不能读取")):
+        rejected = False
+        try:
+            await host._read_scan_image("file://remote-host/share/image.png")
+        except ValueError:
+            rejected = True
+        check("远程UNC file URI仍拒收", rejected)
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "test%20 image.png"
+        path.write_bytes(png)
+        for ref in (str(path), path.as_uri()):
+            check("本地文件限量兼容 " + ref[:8], await host._read_scan_image(ref) == payload)
+        path.write_bytes(b"x" * 129)
+        rejected = False
+        try:
+            await host._read_scan_image(str(path))
+        except ValueError:
+            rejected = True
+        check("本地超限拒收", rejected)
+        rejected = False
+        try:
+            await host._read_scan_image(tmp)
+        except ValueError:
+            rejected = True
+        check("本地目录拒收", rejected)
+        import os
+
+        if hasattr(os, "mkfifo"):
+            fifo = Path(tmp) / "pipe"
+            os.mkfifo(fifo)
+            rejected = False
+            try:
+                await host._read_scan_image(str(fifo))
+            except ValueError:
+                rejected = True
+            check("FIFO拒收且不等待写入方", rejected)
+            fifo.unlink()
+
+        check("读取未生成持久化缓存", list(Path(tmp).iterdir()) == [path])
+
+    class Image:
+        def __init__(self, ref):
+            self.file = ref
+            self.url = ""
+
+        async def convert_to_base64(self):
+            raise AssertionError("不允许调用宿主无界转换")
+
+    event = types.SimpleNamespace(
+        message_obj=types.SimpleNamespace(
+            message=[
+                Image("base64://" + base64.b64encode(b"bad image").decode()),
+                Image("base64://" + payload),
+                Image("https://must-not-fetch.test/"),
+            ]
+        )
+    )
+    with patch("httpx.AsyncClient", side_effect=AssertionError("不应读取第三张")):
+        result = await host._image_data_urls(event)
+    check("真实入口坏图后取第一张合格图并停止", result == ["data:image/png;base64," + payload])
+
+
+import asyncio  # noqa: E402
+
+asyncio.run(_bounded_image_checks())
+
 print()
 if FAILED:
     print(f"✗ {len(FAILED)} 项失败：" + "、".join(FAILED))

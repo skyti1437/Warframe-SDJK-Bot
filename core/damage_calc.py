@@ -108,6 +108,36 @@ def mod_extra(mod: dict) -> dict:
     return (_load().get("mods_extra") or {}).get(nm) or {}
 
 
+def _lookup_index(kind: str) -> tuple[dict, list]:
+    """预计算只读名称表；缓存随 _cache 清空、整表替换或记录数变化重建。
+
+    同一记录原位改名时需先清 _cache；运行期加载后的名称表不原位改写。
+    精确匹配保留原表首命中；子串行保留重复记录，避免误判为唯一命中。
+    """
+    data = _load()
+    source = data[kind]
+    indexes = data.setdefault("_lookup_indexes", {})
+    saved = indexes.get(kind)
+    if saved is None or saved[0] is not source or saved[1] != len(source):
+        exact, rows = {}, []
+        for rec in source.values():
+            zh, en = _norm(rec.get("zh")), _norm(rec.get("name"))
+            rows.append((rec, zh, en))
+            for name in (zh, en):
+                if name:
+                    exact.setdefault(name, rec)
+        # 敌人的全部主名优先于全部别名，不能逐记录交织填入。
+        if kind == "enemies":
+            for rec in source.values():
+                for alias in rec.get("aliases") or ():
+                    name = _norm(alias)
+                    if name:
+                        exact.setdefault(name, rec)
+        saved = (source, len(source), exact, rows)
+        indexes[kind] = saved
+    return saved[2], saved[3]
+
+
 # ---------------------------------------------------------------------------
 # 敌人血量/护盾缩放（wiki「Enemy Level Scaling」；护甲见下面 armor_multiplier）
 # 结构同护甲：f1（等级差<70）/ f2（>80），70-80 之间 smoothstep
@@ -183,13 +213,7 @@ def find_enemy_exact(query: str) -> Optional[dict]:
     q = _norm(query)
     if not q:
         return None
-    for e in _load()["enemies"].values():
-        if _norm(e.get("zh")) == q or _norm(e.get("name")) == q:
-            return e
-    for e in _load()["enemies"].values():
-        if any(_norm(a) == q for a in e.get("aliases") or ()):
-            return e
-    return None
+    return _lookup_index("enemies")[0].get(q)
 
 
 def enemy_miss_line(name: str, faction: Optional[str], enemy: Optional[dict] = None) -> str:
@@ -278,10 +302,7 @@ def find_mod_exact(query: str) -> Optional[dict]:
     q = _norm(query)
     if not q:
         return None
-    for m in _load()["mods"].values():
-        if _norm(m.get("zh")) == q or _norm(m.get("name")) == q:
-            return m
-    return None
+    return _lookup_index("mods")[0].get(q)
 
 
 def find_mod_sub_unique(query: str) -> Optional[dict]:
@@ -294,10 +315,13 @@ def find_mod_sub_unique(query: str) -> Optional[dict]:
     q = _norm(query)
     if len(q) < 2:
         return None
-    hits = [
-        m for m in _load()["mods"].values() if q in _norm(m.get("zh")) or q in _norm(m.get("name"))
-    ]
-    return hits[0] if len(hits) == 1 else None
+    hit = None
+    for rec, zh, en in _lookup_index("mods")[1]:
+        if q in zh or q in en:
+            if hit is not None:
+                return None
+            hit = rec
+    return hit
 
 
 def resolve_mod(query: str) -> Optional[dict]:
@@ -462,6 +486,15 @@ _PHYS_TYPES = ("impact", "puncture", "slash")  # 物理三系（转换类 MOD �
 # conditionals[].field）与赋能折算都按效果键写，必须经此映射：2026-10-09 修前
 # field="fire_rate" 写进了无人读取的 spec["fire_rate"]，「满镀层」射速加成从未生效。
 _EFFECT_TO_SPEC = {"fire_rate": "fire_rate_pct"}
+_CONDITIONAL_GRANT_ZH = {
+    "fire_rate": "射速",
+    "crit_chance": "暴击几率",
+    "status_chance": "触发几率",
+    "base_damage": "基础伤害",
+    "multishot": "多重射击",
+    "crit_damage": "暴击伤害",
+    "condition_overload": "每种异常状态伤害",
+}
 # 弓 / 弩（射速 MOD 翻倍的武器类别，key = 小写 uniqueName）。
 # 依据：射速 MOD 卡面「(x2 for Bows)」、wiki Speed_Trigger 的「Fire rate (Bows)」列恰为步枪列 2 倍；
 # 弩：wiki Zhuge / Zhuge_Prime / Attica / Nagantaka / Nagantaka_Prime 均写
@@ -507,7 +540,8 @@ HEADSHOT_BASE = 3.0
 # 2026-10-10：「未分类」不再用数值 2 当哨兵 —— enemies.json 的 head_mul 为 null 才是未分类
 # （按人形计）；head_none=true = 没有头部（爆头不成立）；出处见各条 head_src，
 # 生成脚本 scripts/build_enemies.py（HEAD_* 表）。
-HEADSHOT_SOURCE = "人形头部 ×3（wiki Enemy_Body_Parts / Critical_Hit）"
+# 卡面来源写 wiki 页面标题（空格写法，与下划线 URL 同一页）：下划线会让 QQ Markdown 整卡退回纯文字
+HEADSHOT_SOURCE = "人形头部 ×3（wiki Enemy Body Parts / Critical Hit）"
 # 暴击爆头（wiki Critical_Hit §Critical Headshots / Enemy_Body_Parts §Critical Headshots）：
 # 头部暴击时暴伤 ×2 进分级公式 —— wiki Critical_Hit 原式
 #   Headshot Multi × (1 + Critical Tier × (2 × Total Critical Damage Multiplier − 1))
@@ -550,7 +584,7 @@ WEAPON_INNATE_HEADSHOT = {
 # 现收条目都在 wiki §Notes 名单或武器页原文里。名单里未收的：Catchmoon、Lizzie（我方库无）；
 # Corufell 射弹、Nepheri 火球、Stropha 射击、Tenet Agendus 能量盘、Argo & Vel 重击飞盾 —— 1x 只在
 # 近战武器的某一段攻击上，这张表按形态整体替换、没有段级头部倍率，收进来会错改整把武器。
-_HS1_LIST = "wiki Enemy_Body_Parts §Notes「always defaulting to the 1x multiplier」"
+_HS1_LIST = "wiki Enemy Body Parts §Notes「always defaulting to the 1x multiplier」"
 _HS1_PARIS = "wiki Paris Incarnon Genesis「has a headshot multiplier of 1x」"
 _HS1_LEX = "wiki Lex Incarnon Genesis「has a headshot multiplier of 1x」"
 WEAPON_HEADSHOT_OVERRIDE: dict = {
@@ -1464,8 +1498,10 @@ def parse_args(tokens: list[str]) -> tuple[dict, list[str]]:
                 _fk = _EFFECT_TO_SPEC.get(cond["field"], cond["field"])
                 spec[_fk] = spec.get(_fk, 0.0) + add
                 _mn = m.get("zh") or m.get("name")
+                _grant = cond.get("grants")
+                _grant_label = _CONDITIONAL_GRANT_ZH.get(_grant, _grant)
                 spec["galv_applied"].append(
-                    f"{_mn} {cond.get('grants')} +{add:.1f}%"
+                    f"{_mn} {_grant_label} +{add:.1f}%"
                     + (f"（{n}/{cap} 层）" if _cap_known else "（层数原文未写，按 1 层）")
                 )
                 if _mn not in spec["galv_mods"]:
@@ -1698,7 +1734,7 @@ def _load_weapon_attacks() -> dict:
 
 
 def _load_incarnon_forms() -> dict:
-    """灵化形态基础面板（wiki 武器模块生成，key = 小写 uniqueName）。"""
+    """灵化面板或近战形态加成（wiki 生成，key = 小写 uniqueName）。"""
     global _INC_FORMS
     if _INC_FORMS is None:
         try:
@@ -1727,13 +1763,47 @@ def _apply_incarnon_form(spec: dict, w: dict) -> dict:
     inc = _load_incarnon_forms().get(key)
     if not inc:
         if form == "incarnon":
-            spec["notes"].append("该武器没有灵化形态数据（近战灵化尚未收录），仍按基础形态计算")
+            spec["notes"].append("该武器没有已收录的灵化形态数据，仍按基础形态计算")
         return w
     if form == "base":
         spec["notes"].append("形态：基础形态（可用「灵化」切到灵化形态）")
         return w
     if form != "incarnon":  # None = 默认原型
         spec["notes"].append("形态：基础形态（默认；该武器有灵化形态，可加「灵化」切换）")
+        return w
+    if inc.get("kind") == "melee_native":
+        # 原生近战只接入来源明确的普通攻击。物理 MOD 转换先后未定，calculate
+        # 在进入这里前拒绝相关组合，不能把物理转换套在一份已含 IPS 加成的面板上。
+        w2 = dict(w)
+        dmg = dict(w.get("damage") or {})
+        conv = inc["damage_conversion"]
+        source, target = conv["from"], conv["to"]
+        amount = float(dmg.get(source) or 0.0) * float(conv["ratio"])
+        dmg[source] = float(dmg.get(source) or 0.0) - amount
+        dmg[target] = float(dmg.get(target) or 0.0) + amount
+        w2["damage"] = dmg
+        speed_mult = float(inc["attack_speed_multiplier"])
+        w2["fireRate"] = float(w.get("fireRate") or 0.0) * speed_mult
+        spec["notes"].append(
+            f"形态：原生近战灵化（已激活，仅普通攻击）；冲击转穿刺，攻速独立 ×{speed_mult:g}"
+        )
+        spec["notes"].append(
+            f"攻击范围 +{float(inc.get('range_bonus_m') or 0.0):g} 米仅作说明，不模拟命中数量"
+        )
+        spec["notes"].append(
+            "本次未计重击、震地、重击震地、虚空尖刺及启用/持续时间；"
+            "物理伤害词条组合、可选进化攻速暂不支持"
+        )
+        return w2
+    if inc.get("kind") == "melee_buff":
+        # Genesis EVO I 的近战伤害与压迫点同桶，不是另一套基础伤害面板。
+        # calculate 已深拷贝 spec，重复复算或识卡 keep 不会累积这项临时加成。
+        bonus = float(inc.get("damage_mod_pct") or 0.0)
+        spec["base_dmg"] += bonus
+        spec["notes"].append(f"形态：近战灵化（已激活）；EVO I 基伤 +{bonus:g}%（与基伤 MOD 加算）")
+        spec["notes"].append(
+            "本次仅计基伤加成；灵化额外攻击、触发与范围/移动等能力、启用及持续时间未计入"
+        )
         return w
     w2 = dict(w)
     dmg = dict(inc.get("damage") or {})
@@ -1819,7 +1889,12 @@ def selected_form(spec: dict, weapon: dict) -> tuple[str, dict]:
     form = spec.get("form")
     forms = _weapon_attacks_rec(weapon).get("forms") or {}
     if form == "incarnon":
-        if not _load_incarnon_forms().get(str(weapon.get("uniqueName") or "").lower()):
+        inc = _load_incarnon_forms().get(str(weapon.get("uniqueName") or "").lower())
+        if inc and inc.get("kind") == "melee_native":
+            # 普通攻击局部模型不得带入旧底库或结构化表中的其它形态攻击段。
+            return "incarnon", {}
+        if not inc or inc.get("kind") == "melee_buff":
+            # 近战 EVO I 叠加基伤，不替换原攻击；仍保留基础重击/震地等段和参照面板。
             return "default", {}
         hit = sorted(k for k in forms if k.startswith("incarnon:"))
         return "incarnon", (forms[hit[0]] if hit else {})
@@ -2337,6 +2412,29 @@ def calculate(spec: dict, weapon: dict) -> dict:
             "unknown": spec.get("unknown") or [],
             "error": "没拿到这把武器的基础数据（武器名为空或数据缺失）",
         }
+    inc = _load_incarnon_forms().get(str(weapon.get("uniqueName") or "").lower()) or {}
+    native_normal_only = spec.get("form") == "incarnon" and inc.get("kind") == "melee_native"
+    if native_normal_only:
+        error = help_text = ""
+        if any(float(v) != 0 for v in (spec.get("physical") or {}).values()) or spec.get(
+            "physical_convert"
+        ):
+            error = "古声灵化与物理伤害词条的转换顺序尚未确认，本次不计算该组合"
+            help_text = "移除冲击/穿刺/切割增伤或物理转换词条，或加「基础形态」计算。"
+        elif spec.get("heavy"):
+            error = "古声灵化目前仅支持普通攻击，重击与震地形态尚未收录"
+            help_text = "移除「重击」查看普通攻击，或加「基础形态」计算重击。"
+        elif any("射速" in key or "攻速" in key for key in spec.get("evo_keys") or []):
+            error = "古声可选进化攻速的叠加方式尚未确认，本次不计算该组合"
+            help_text = "移除进化射速参数，或加「基础形态」查看现有基础形态计算。"
+        if error:
+            return {
+                "ok": False,
+                "mods": spec.get("mods") or [],
+                "unknown": spec.get("unknown") or [],
+                "error": error,
+                "help": help_text,
+            }
     _weapon_lib = weapon  # 形态/进化改造前的库值（段计算要算基础暴击增量）
     weapon = _apply_panel_overrides(spec, weapon)
     dmg: dict = weapon["damage"]
@@ -2418,8 +2516,11 @@ def calculate(spec: dict, weapon: dict) -> dict:
     _types |= {k for k in compose_elements(spec["singles"]) if k in STATUS_TABLE}
     _types |= {k for k in (spec.get("physical_convert") or {}) if k in STATUS_TABLE}
     # CO 桶别按**当前实际计算的形态**取：开了「灵化」且确有灵化数据才查灵化那一行
-    _inc_form_on = spec.get("form") == "incarnon" and bool(
-        _load_incarnon_forms().get(str(_weapon_lib.get("uniqueName") or "").lower())
+    _inc_entry = _load_incarnon_forms().get(str(_weapon_lib.get("uniqueName") or "").lower())
+    _inc_form_on = (
+        spec.get("form") == "incarnon"
+        and bool(_inc_entry)
+        and _inc_entry.get("kind") not in {"melee_buff", "melee_native"}
     )
     _co_mode = co_behavior_of(_weapon_lib, incarnon=_inc_form_on)
     # 非默认形态（副开火 / 蓄力 …）：CO 桶别是按攻击给的（wiki §Attack Catalog 逐攻击列），取该形态
@@ -2577,7 +2678,7 @@ def calculate(spec: dict, weapon: dict) -> dict:
     if spec["headshot"] and head_landing != 1.0 and any(e in dots for e in DOT_HEAD_LANDING):
         spec["notes"].append(
             f"电/毒气 DoT 爆头另乘落点层 ×{head_landing:g}（1x 基数 × 爆头加成；"
-            "wiki Enemy_Body_Parts §Notes）"
+            "wiki Enemy Body Parts §Notes）"
         )
 
     ms = (weapon.get("multishot") or 1) * (1 + spec["multishot"] / 100.0)
@@ -2802,6 +2903,8 @@ def calculate(spec: dict, weapon: dict) -> dict:
     _main_sig = _dmg_sig(dmg)
     _inc_this = _load_incarnon_forms().get(str(weapon.get("uniqueName") or "").lower())
     for _atk in weapon.get("attacks") or []:
+        if native_normal_only:
+            continue
         _nm = (_atk.get("name") or "").strip()
         _md = {
             k: float(v)
@@ -2809,6 +2912,17 @@ def calculate(spec: dict, weapon: dict) -> dict:
             if isinstance(v, (int, float)) and v > 0 and k != "total"
         }
         if not _nm or not _md or _nm == "Normal Attack":
+            continue
+        if (_inc_this or {}).get("kind") == "melee_buff" and _nm not in {
+            "Heavy Attack",
+            "Slam Attack",
+            "Heavy Slam Attack",
+            "Slide Attack",
+            "Wall Attack",
+            "Aerial Attack",
+        }:
+            # 本批只保留常规近战动作。Spectral Blade/Axe/Dagger 等特殊段未建模，
+            # 不能仅靠名称是否含 Incarnon 判断，更不能直接继承主武器倍率。
             continue
         _inc_aoe = False
         _inc_rad: dict = {}  # 与 incarnon_forms.radial 同签名 ⇒ 带上结构化段的标记
@@ -2909,7 +3023,12 @@ def calculate(spec: dict, weapon: dict) -> dict:
     # 约 66 把与典型不同（wiki 模块逐把列出），未逐把建表 ⇒ 仍标「估算」。
     _has_slam = any("slam" in (m.get("name") or "").lower() for m in mode_segments)
     _wtot = float(dmg.get("total") or 0.0)
-    if not _has_slam and _wtot > 0 and (weapon.get("slamAttack") or weapon.get("heavySlamAttack")):
+    if (
+        not native_normal_only
+        and not _has_slam
+        and _wtot > 0
+        and (weapon.get("slamAttack") or weapon.get("heavySlamAttack"))
+    ):
         _slam_type = "electricity" if weapon.get("throwDamage") else "impact"
         _hslam_type = "electricity" if weapon.get("throwDamage") else "blast"
         _hspec_slam = {**spec, "base_dmg": spec["base_dmg"] + spec["heavy_dmg"]}
@@ -3797,7 +3916,10 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
         out = [f"◆ 原因：{res.get('error') or '数据缺失，无法计算'}"]
         if res.get("unknown"):
             out.append("◆ 未识别（已忽略）：" + "、".join(res["unknown"]))
-        out.append("※ ⚠ 怎么改：换英文名或完整中文名再试；「伤害」不带参数可看用法。")
+        out.append(
+            "※ ⚠ 怎么改："
+            + (res.get("help") or "换英文名或完整中文名再试；「伤害」不带参数可看用法。")
+        )
         return out
     # 头部与「面板口径」都按**实际参与计算**的面板（形态/进化已套用），库值只取名字与 MR
     pw = res.get("weapon_eff") or weapon or {}
@@ -3835,11 +3957,11 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
     cc = pw.get("criticalChance") or 0.0
     cm = pw.get("criticalMultiplier") or 1.0
     ms = pw.get("multishot") or 1
-    # 射速按游戏升级界面「基础 ▸ 终值」两列写：只有射速 MOD 生效时才出现箭头
+    # 基础与终值之间用随包字体具备的箭头；U+25B8 在四款 Noto CJK 字体均缺字。
     _fr_base = float(pw.get("fireRate") or 0.0)
     _fr_txt = f"{res['fire_rate']:.2f}".rstrip("0").rstrip(".")
     if _fr_base and abs(_fr_base - res["fire_rate"]) > 1e-6:
-        _fr_txt = f"{_fr_base:.2f}".rstrip("0").rstrip(".") + " ▸ " + _fr_txt
+        _fr_txt = f"{_fr_base:.2f}".rstrip("0").rstrip(".") + " → " + _fr_txt
     if not _fr_base and not res["fire_rate"]:
         _fr_txt = "—"  # Lanka：wiki 面板射速 math.huge（不限），节奏全由蓄力决定
     _fr_eff = res.get("fire_rate_eff")
@@ -4141,7 +4263,7 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
                 inp.append(f"　{_a.get('zh') or _a['name']}：{_a['text'][:110]}")
     if res.get("mods"):
         # 注释乘区：直接回答「这张卡属于哪个乘区、和谁相加」；
-        # 认得出但算不动的卡（射速/装填/弹匣…）标明「未计入」，不装作算过
+        # 认得出但算不动的效果标明「未计入」，不装作算过。
         tag = []
         for m in res["mods"]:
             eff = m.get("effects") or {}
@@ -4158,6 +4280,10 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
                 where.append("基伤·加算")
             if eff.get("multishot"):
                 where.append("多重·加算")
+            if eff.get("fire_rate"):
+                where.append(
+                    "射速·不可修改，已忽略" if spec.get("no_fire_rate_mod") else "射速·加算"
+                )
             if eff.get("crit_chance"):
                 where.append("暴率·加算")
             if eff.get("crit_dmg"):
@@ -4206,6 +4332,8 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
     _gm = tuple(f"{g}：" for g in res.get("galv_mods") or [])
     _cond = [c for c in res.get("conditional") or [] if not (_gm and c.startswith(_gm))]
     for _c in _cond[:3]:
+        # MOD 英文原文夹着 <DT_GAS_COLOR> 这类游戏富文本标记：只在展示时剥掉，不改记录
+        _c = re.sub(r"<[A-Z][A-Z0-9_]*>", "", _c)
         inp.append(f"· 条件触发　未计入：{_c}".replace("\\n", " "))
     if len(_cond) > 3:
         inp.append(f"· 条件触发　…另有 {len(_cond) - 3} 条条件触发未计入")
@@ -4235,6 +4363,10 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
     _basis_row = ""
     # 识卡从面板反推的基础（loadout_ocr 打 _panel_derived）就是面板那一种攻击，
     # 与库内 attacks 的多段口径无关 —— 不标，免得把 96 说成「含多段合并」
+    _card_inc = _load_incarnon_forms().get(str(pw.get("uniqueName") or "").lower()) or {}
+    if res.get("form_kind") == "incarnon" and _card_inc.get("kind") == "melee_native":
+        _ats = []
+        _basis_row = "· 面板口径　本表主段 = 灵化普通攻击"
     if len(_ats) > 1 and not pw.get("_panel_derived"):
         _main_d = {
             k: float(v)
@@ -4291,7 +4423,13 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
     if alts:
         inp.append("· 同类候选　" + "、".join(v.get("zh") or v.get("name", "") for v in alts))
     for n in res.get("notes") or []:
-        inp.append(f"· MOD 说明　{_note_zh(n)}")
+        # 说明里混有形态切换、未计入范围与 MOD 限制等多类内容，不全是 MOD 说明；
+        # 形态单独成行，标签与面板/配卡等行一样走块内列对齐。
+        _nz = _note_zh(n)
+        if _nz.startswith("形态："):
+            inp.append(f"· 形态　{_nz[3:]}")
+        else:
+            inp.append(f"· 说明　{_nz}")
     if res["steel_path"]:
         inp.append("· 钢路　敌人血量/护盾 ×2.5（护甲已不加成）；只计入击杀发数，伤害数值不受影响")
     lines.append("◆ 输入")
@@ -4356,7 +4494,7 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
         )
     lines.append(
         "※ 实战 DPS 为稳态近似：异常层已建立、持续挨打；未计爬升/掉层/击杀截断与 Boss 衰减；"
-        "火焰按单例累加、每次触发刷新计时（wiki Heat_Damage），取「开火 T 秒」窗口平均"
+        "火焰按单例累加、每次触发刷新计时（wiki Heat Damage），取「开火 T 秒」窗口平均"
         f"（默认 {FIRE_SECONDS_DEFAULT:g}s，可写「开火N秒」）"
     )
     # #6 口径（2026-10-09，不改算法）：游戏按 MOD 槽位顺序配对、武器自带元素排

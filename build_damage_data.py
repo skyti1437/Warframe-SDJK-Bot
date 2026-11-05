@@ -10,7 +10,7 @@
 
 用法：python build_damage_data.py   （需可访问 github/jsdelivr；或经 -x 代理）
       python build_damage_data.py --repair-weapons   （只对现有 weapons_stats.json 重放
-      源头修正：物理对调残留 + MAIN_ATTACK_FIX 主段按攻击段取值；不联网、幂等）
+      源头修正：物理对调残留 + MAIN_ATTACK_FIX 主段按攻击段取值 + 武器类型；不联网、幂等）
 """
 
 from __future__ import annotations
@@ -1534,16 +1534,40 @@ def _apply_main_attack_fix(key: str, rec: dict, log: list[str]) -> None:
         log.append(f"{fix['name']}.{f} → {new}")
 
 
+# WFCD Melee.json 的这十条 category=Melee、type=Rifle，KEEP 原样保留会生成错误分类。
+# 固定输入 wiki Module:Weapons/data/melee（2026-10-26）均为 Slot=Melee：
+# Mk1-Bo（Class=Staff）、Mk1-Furax（Class=Fist）、Prisma Skana（Class=Sword）。
+# Dual Viciss（Dual Swords）、Ekhein（Hammer）、Paracesis（Heavy Blade）、Prova / Prova Vandal
+# （Machete）、Ruvox（Fist）、Venato（Scythe）；InternalName 均与 WFCD uniqueName 对应。
+# type 沿用主体 WFCD 的大类口径 Melee；不以 wiki Class 的近战子类替换。
+TYPE_FIX = {
+    "/lotus/weapons/lasria/lasgoosickle/lasgoosickleplayerweapon": "Melee",
+    "/lotus/weapons/mk1series/mk1bo": "Melee",
+    "/lotus/weapons/mk1series/mk1furax": "Melee",
+    "/lotus/weapons/orokin/ballassword/ballasswordweapon": "Melee",
+    "/lotus/weapons/clantech/energy/electroprod": "Melee",
+    "/lotus/weapons/clantech/energy/vandalelectroprod": "Melee",
+    "/lotus/weapons/sentients/sentjointedscythe/sentjointedscytheweapon": "Melee",
+    "/lotus/weapons/thanotech/entfistincarnon/entfistincarnon": "Melee",
+    "/lotus/weapons/thanotech/entspherehammer/entspherehammer": "Melee",
+    "/lotus/weapons/voidtrader/prismaskana": "Melee",
+}
+
+
 def repair_weapons(out: dict) -> list[str]:
     """武器表的源头修正（build_weapons 与 ``--repair-weapons`` 共用，幂等）：
     ① 物理对调残留清零（``_fix_physical_from``，按记录自带的 attacks）；
     ② ``MAIN_ATTACK_FIX``：主段的暴击 / 暴伤 / 触发 / 射速（及少数伤害构成）按同一攻击段取值；
     ③ ``BURST_FIX`` / ``CHARGE_DRAW_ONLY``：点射面板射速 + 发数 / 发间延迟、蓄力节奏（b6 批）；
        ``AMMO_COST_FIX``：每发耗弹（b7 批）；``MAGAZINE_FIX``：弹匣按 wiki 弹药口径；
-       ``NO_RELOAD_FIX``：葬铭系不装填；``ORB_PREMERGE_FIX``：拟成枪系多重预合并（b8 批）。
+       ``NO_RELOAD_FIX``：葬铭系不装填；``ORB_PREMERGE_FIX``：拟成枪系多重预合并（b8 批）；
+    ④ ``TYPE_FIX``：修正 WFCD 的十条近战武器误标步枪。
     返回改动清单（重跑一次应为空）。"""
     log: list[str] = []
     for key, rec in out.items():
+        if key in TYPE_FIX and rec.get("type") != TYPE_FIX[key]:
+            log.append(f"{rec.get('name')}.type: {rec.get('type')} → {TYPE_FIX[key]}")
+            rec["type"] = TYPE_FIX[key]
         if key not in MAIN_ATTACK_FIX and rec.get("attacks") and rec.get("damage"):
             before = rec["damage"].get("total")
             changed = _fix_physical_from(rec["damage"], rec["attacks"])
@@ -1563,13 +1587,14 @@ def repair_weapons(out: dict) -> list[str]:
             | set(MAGAZINE_FIX)
             | set(NO_RELOAD_FIX)
             | set(ORB_PREMERGE_FIX)
+            | set(TYPE_FIX)
         )
         - set(out)
     )
     if missing:
         raise SystemExit(
             "MAIN_ATTACK_FIX / BURST_FIX / CHARGE_DRAW_ONLY / AMMO_COST_FIX / MAGAZINE_FIX / "
-            "NO_RELOAD_FIX / ORB_PREMERGE_FIX "
+            "NO_RELOAD_FIX / ORB_PREMERGE_FIX / TYPE_FIX "
             f"键不在武器表里：{missing}"
         )
     return log

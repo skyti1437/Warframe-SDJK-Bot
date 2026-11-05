@@ -133,23 +133,49 @@ _BACKOFF = (100, 120, 150)  # 第 1/2/3 次重试前等待（秒），长于实�
 TRIES = 5
 
 
-def _count(slug: str, extra: str = "", tries: int | None = None) -> tuple[int | None, str]:
-    """带过滤条件的挂单计数。``(None, 原因)`` = 服务端始终没答。"""
+_NEXT_REQUEST_AT = 0.0  # 仅本进程预算；独立 CLI 进程之间不共享。
+
+
+def _request_auctions(slug: str, extra: str = "", tries: int | None = None):
+    """拍卖请求统一走 15 秒预算；限流冷却跨本进程后续调用保留。"""
+    global _NEXT_REQUEST_AT
+    # 延迟导入：--help 和离线参数解析无需加载运行期模块。
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
+    from core.api_client import USER_AGENT, wm_retry_after_seconds
+
     err = "?"
     for attempt in range(tries or TRIES):
+        delay = _NEXT_REQUEST_AT - time.monotonic()
+        if delay > 0:
+            time.sleep(delay)
+        _NEXT_REQUEST_AT = time.monotonic() + SLEEP
+        backoff = _BACKOFF[min(attempt, len(_BACKOFF) - 1)]
         try:
-            url = (API % slug) + extra
-            req = urllib.request.Request(url, headers=HEADERS)
+            req = urllib.request.Request(
+                (API % slug) + extra, headers={**HEADERS, "User-Agent": USER_AGENT}
+            )
             with urllib.request.urlopen(req, timeout=30) as r:
-                return len(json.load(r)["payload"]["auctions"]), ""
+                return json.load(r)["payload"]["auctions"], ""
         except urllib.error.HTTPError as e:
             err = f"HTTP {e.code}"
-            if e.code == 400:  # 参数不被接受（slug 写错 / 该家族无此词条）⇒ 重试无意义
+            if 400 <= e.code < 500 and e.code != 429:
                 return None, err
-        except Exception as e:  # noqa: BLE001 - 429/超时是常态
+            if e.code in (429, 503):
+                backoff = max(
+                    backoff,
+                    wm_retry_after_seconds(e.headers.get("Retry-After") if e.headers else None),
+                )
+        except Exception as e:  # noqa: BLE001 - 超时或响应异常按本进程预算退避
             err = str(e)[:60]
-        time.sleep(_BACKOFF[min(attempt, len(_BACKOFF) - 1)])  # 429 退避要长于恢复窗口
+        _NEXT_REQUEST_AT = max(_NEXT_REQUEST_AT, time.monotonic() + backoff)
     return None, err
+
+
+def _count(slug: str, extra: str = "", tries: int | None = None) -> tuple[int | None, str]:
+    """带过滤条件的挂单计数。``(None, 原因)`` = 服务端始终没答。"""
+    rows, err = _request_auctions(slug, extra, tries)
+    return (len(rows), "") if rows is not None else (None, err)
 
 
 def _families_without_evidence() -> list[str]:
@@ -222,20 +248,7 @@ def _slug_of(wf: str) -> str:
 
 def _page(slug: str) -> tuple[list | None, str]:
     """取**不带过滤**的一页挂单（最多 ``PAGE_CAP`` 条）。``(None, 原因)`` = 服务端没答。"""
-    err = "?"
-    for attempt in range(TRIES):
-        try:
-            req = urllib.request.Request(API % slug, headers=HEADERS)
-            with urllib.request.urlopen(req, timeout=30) as r:
-                return json.load(r)["payload"]["auctions"], ""
-        except urllib.error.HTTPError as e:
-            err = f"HTTP {e.code}"
-            if e.code == 400:
-                return None, err
-        except Exception as e:  # noqa: BLE001
-            err = str(e)[:60]
-        time.sleep(_BACKOFF[min(attempt, len(_BACKOFF) - 1)])
-    return None, err
+    return _request_auctions(slug)
 
 
 def _inv_slug(stats: list[str]) -> dict[str, str]:

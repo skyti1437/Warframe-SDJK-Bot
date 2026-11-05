@@ -130,6 +130,50 @@ from core import formatters as fmt  # noqa: E402
 from core import paths as core_paths  # noqa: E402
 
 ROT = json.loads((ROOT / "core" / "data" / "rotations.json").read_text(encoding="utf-8"))
+# 固定历史离线夹具；业务种子不携带效价值，数值回归独立于发布数据。
+_FIXTURE_META = {
+    "tenet": {
+        "valence_snapshot": "2026-11-03T00:07:03+00:00",
+        "valence_source": "wiki 固定修订源页 wikitext",
+        "valence_values_since": "2026-11-03T00:07:03+00:00",
+    },
+    "coda": {
+        "valence_snapshot": "2026-10-31T00:13:26+00:00",
+        "valence_source": "wiki 源页 wikitext（Coda_Weapons / Tenet_Weapons，经 FlareSolverr）",
+        "batch_values_since": ["2026-10-31T00:13:15+00:00", "2026-10-27T00:49:37+00:00"],
+    },
+}
+_FIXTURE_VALUES = {
+    "Tenet Agendus": ("Toxin", 41.9),
+    "Tenet Exec": ("Impact", 42.4),
+    "Tenet Ferrox": ("Heat", 26.3),
+    "Tenet Grigori": ("Heat", 26.3),
+    "Tenet Livia": ("Magnetic", 34.0),
+    "Coda Hema": ("Toxin", 50.0),
+    "Coda Sporothrix": ("Impact", 48.7),
+    "Coda Catabolyst": ("Electricity", 25.0),
+    "Coda Pox": ("Impact", 30.9),
+    "Dual Coda Torxica": ("Heat", 28.8),
+    "Coda Mire": ("Toxin", 41.4),
+    "Coda Motovore": ("Toxin", 35.4),
+    "Coda Bassocyst": ("Impact", 46.7),
+    "Coda Bubonico": ("Heat", 25.1),
+    "Coda Synapse": ("Radiation", 30.8),
+    "Coda Tysis": ("Heat", 25.9),
+    "Coda Caustacyst": ("Impact", 25.8),
+    "Coda Hirudo": ("Toxin", 31.3),
+    "Coda Pathocyst": ("Magnetic", 39.5),
+}
+for _key in ("tenet", "coda"):
+    ROT[_key].update(_FIXTURE_META[_key])
+    for _group in [ROT[_key]["items"]] if _key == "tenet" else ROT[_key]["batches"]:
+        for _row in _group:
+            _row["element"], _row["bonus"] = _FIXTURE_VALUES[_row["en"]]
+
+
+_FIXTURE_DIR = tempfile.TemporaryDirectory()
+core_paths.set_run_dir(_FIXTURE_DIR.name)
+(Path(_FIXTURE_DIR.name) / "rotations.json").write_text(json.dumps(ROT), encoding="utf-8")
 
 # —— 固定时钟（2026-10-15 加）——
 # 运行期在函数内 ``from datetime import datetime`` 后取 ``datetime.now``，倒计时走
@@ -430,24 +474,28 @@ for _name, _rep, _n in (("信条", _reply_t, 5), ("终幕", _reply_c, 7)):
 #   Ferrox Cold→Electricity(电击)、Grigori Heat→Impact(冲击)、
 #   Exec Magnetic→Toxin(毒素)、Agendus Magnetic→Radiation(辐射)；Livia Impact 未变。
 #   故本段元素按**游戏内实拍**为准（wiki 修好后可回归 wiki 源）。
-# ★ 2026-10-26 换轮（wiki Tenet_Weapons revid 2821771，2026-10-26T00:57:45Z，
-#   经用户实拍核对）：五把全重掷 —— Ferrox Radiation 38.4、Exec Radiation 43.9；
-#   种子由 fetch_valence 写回并同步 valence_values_since = 该次修订时刻。
-#   （上一轮 10-22 的值是 Ferrox Electricity 30.8、Exec Magnetic 28.8，已随换轮作废。）
+# ★ 2026-10-30 换轮（wiki Tenet_Weapons revid 2822325，2026-10-30T00:36:33Z，
+#   用户实拍核对后由 bot 回写 wiki）：五把全重掷 —— Ferrox Magnetic 51.0、
+#   Exec Magnetic 49.2、Grigori Toxin 43.7、Agendus Impact 26.7、Livia Radiation 39.8；
+#   种子同步 valence_values_since = 该次修订时刻。
+#   （上一轮 10-26 的值是 Ferrox Radiation 38.4、Exec Radiation 43.9，已随换轮作废。）
+# ★ 2026-11-03 换轮：wiki Tenet_Weapons 固定修订 revid 2822886，2026-11-03T00:07:03Z。
+#   抽查值独立取自该修订正文（经首尔 FlareSolverr 只读采集），不是从种子回读生成期望值：
+#   Ferrox Heat 26.3、Exec Impact 42.4、Livia Magnetic 34.0。
 _tmap = {i["en"]: (i.get("element"), i.get("bonus")) for i in _tenet_items}
 check(
-    "信条·铁晶磁轨炮 = 辐射 38.4%（10-26 轮）",
-    _tmap.get("Tenet Ferrox") == ("Radiation", 38.4),
+    "信条·铁晶磁轨炮 = 火焰 26.3%（11-03 轮）",
+    _tmap.get("Tenet Ferrox") == ("Heat", 26.3),
     str(_tmap.get("Tenet Ferrox")),
 )
 check(
-    "信条·枢密 = 辐射 43.9%（10-26 轮）",
-    _tmap.get("Tenet Exec") == ("Radiation", 43.9),
+    "信条·枢密 = 冲击 42.4%（11-03 轮）",
+    _tmap.get("Tenet Exec") == ("Impact", 42.4),
     str(_tmap.get("Tenet Exec")),
 )
 check(
-    "信条·莉薇娅 = 辐射 25.0%（10-26 轮，恰好 25 的边界）",
-    _tmap.get("Tenet Livia") == ("Radiation", 25.0),
+    "信条·莉薇娅 = 磁力 34.0%（11-03 轮）",
+    _tmap.get("Tenet Livia") == ("Magnetic", 34.0),
     str(_tmap.get("Tenet Livia")),
 )
 _cmap = {i["en"]: (i.get("element"), i.get("bonus")) for i in _cur_batch}
@@ -463,8 +511,10 @@ _cmap = {i["en"]: (i.get("element"), i.get("bonus")) for i in _cur_batch}
 #   Catabolyst Toxin 29.7、Motovore Electricity 49.8；batch_values_since[A] 同步为该修订时刻。
 # ★ 2026-10-27 刷新（wiki Coda_Weapons revid 2821945，2026-10-27T00:49:37Z）：B 批 6 条重掷 ——
 #   Bassocyst Impact 46.7、Synapse Radiation 30.8；batch_values_since[B] 同步为该修订时刻。
+# ★ 2026-10-31 刷新（wiki Coda_Weapons revid 2822500，2026-10-31T00:13:15Z）：A 批 7 条全重掷 ——
+#   Catabolyst Electricity 25.0、Motovore Toxin 35.4；batch_values_since[A] 同步为该修订时刻。
 _SPOT = {
-    "A": {"Coda Catabolyst": ("Toxin", 29.7), "Coda Motovore": ("Electricity", 49.8)},
+    "A": {"Coda Catabolyst": ("Electricity", 25.0), "Coda Motovore": ("Toxin", 35.4)},
     "B": {"Coda Bassocyst": ("Impact", 46.7), "Coda Synapse": ("Radiation", 30.8)},
 }
 _cur_label = (coda.get("batch_label") or ["A", "B"])[_idx]

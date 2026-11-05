@@ -111,14 +111,9 @@ except Exception:  # noqa: BLE001
 # ---------------------------------------------------------------------------
 # 种子新鲜度闸门（2026-09-29 v1.1.2 追加批；与 dist/package_release.py 同判据）
 # ---------------------------------------------------------------------------
-# 优先调用 package_release 的实现（单一真源）；`dist/` 不在场（他人拿到开源包
-# 自行打包）时退回本文件的**镜像判据**——算法逐字同源：效价按
-# 「epoch + floor((now-epoch)/period)*period」窗口、言录使按 expiry <= now。
-# 过期 ⇒ 拒绝打包（退出码 1）；不提供 bypass。
+# 优先调用 package_release；独立市场打包时复用随包 core.data_registry 的骨架校验。
+# 效价动态字段残留 / 静态骨架损坏 / 言录使动态货单残留均拒绝，不提供 bypass。
 def _seed_problems_fallback(now=None, rot_path=None, acr_path=None) -> list[str]:
-    from datetime import datetime, timedelta, timezone
-
-    now = now or datetime.now(timezone.utc)
     problems: list[str] = []
     rot_p = rot_path or (ROOT / "core" / "data" / "rotations.json")
     acr_p = acr_path or (ROOT / "core" / "data" / "de" / "acrichis_week.json")
@@ -126,29 +121,17 @@ def _seed_problems_fallback(now=None, rot_path=None, acr_path=None) -> list[str]
         rot = json.loads(Path(rot_p).read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:  # noqa: BLE001
         rot, problems = {}, [f"rotations.json 不可读/损坏：{exc}"]
-    for sec in ("tenet", "coda"):
-        data = (rot or {}).get(sec) or {}
-        stale, win = True, None
-        try:
-            epoch = datetime.fromisoformat(data["epoch"])
-            period = timedelta(hours=int(data.get("period_hours", 96)))
-            win = epoch + (now - epoch) // period * period
-            snap = data.get("valence_snapshot")
-            stale = (not snap) or datetime.fromisoformat(snap) < win
-        except (KeyError, TypeError, ValueError):
-            stale = True
-        if stale:
-            problems.append(
-                f"效价快照过期：{sec} 段 valence_snapshot="
-                f"{data.get('valence_snapshot')!r}（应为本轮新快照）"
-            )
+    import sys
+
+    sys.path.insert(0, str(ROOT))
+    from core.data_registry import acrithis_seed_problems, valence_seed_problems
+
+    problems.extend(valence_seed_problems(rot))
     try:
         acr = json.loads(Path(acr_p).read_text(encoding="utf-8"))
-        exp = datetime.fromisoformat(acr.get("expiry") or "")
-        if exp <= now:
-            problems.append(f"言录使货单过期：expiry={acr.get('expiry')!r}")
+        problems.extend(acrithis_seed_problems(acr))
     except (OSError, ValueError) as exc:  # noqa: BLE001
-        problems.append(f"言录使货单不可读/expiry 畸形：{exc}")
+        problems.append(f"言录使静态目录不可读/损坏：{exc}")
     return problems
 
 
@@ -206,7 +189,7 @@ MARKET_SKIP_FILES = {
 # 2026-10-17 数据登记表批 +1：core/data_registry.py（随包数据登记表与统一健康判据，
 # 面板 / health / 打包闸门读同一份；tests/ 不进市场件）
 # 2026-10-17 清理批 −2：core/data/de/fissureModifiers.json、core/data/de/syndicatesData.json（插件零读取）
-EXPECTED_MARKET_ENTRIES = 120
+EXPECTED_MARKET_ENTRIES = 142
 # 2026-10-23 紫卡词条池补抽样批：118 → 119（+core/data/de/riven_pools_survey.json；
 #   scripts/ 不进市场件）
 # 2026-10-23 紫卡词条范围批：116 → 118（+core/riven_pools.py、+core/data/de/riven_pools.json；
@@ -241,7 +224,7 @@ def _zip_datetime() -> tuple:
 # 2026-10-08 审核实证：本脚本原先只查「stage 存在」+「种子新鲜」，**不查 stage 是否追平 HEAD**
 # ⇒ 若绕开重建直接打包，会把旧 stage（当时 239 文件、不含本批任何修复）打出去。这里加数量闸门兜住；
 # 数量相同但内容不同的情形，仍靠流程约束（打包前必重跑 dist/package_release.py --opensource）。
-EXPECTED_STAGE_FILES = 284  # 与 dist/package_release.py::EXPECTED_OSS_STAGE_FILES 同步
+EXPECTED_STAGE_FILES = 320  # 与 dist/package_release.py::EXPECTED_OSS_STAGE_FILES 同步
 # 2026-10-23 紫卡词条池补抽样批：278 → 280（+scripts/survey_riven_pools.py、+core/data/de/riven_pools_survey.json）
 # 2026-10-23 紫卡词条范围批：274 → 278（+core/riven_pools.py、+core/data/de/riven_pools.json、
 #   +scripts/build_riven_pools.py、+tests/test_riven_ranges.py）
@@ -259,14 +242,14 @@ def main() -> int:
         print(f"✗ 找不到开源目录 {OSS_DIR}\n  先跑：python dist/package_release.py --opensource")
         return 2
 
-    # 种子新鲜度硬闸门（2026-09-29 v1.1.2 追加批）：过期即拒绝打包，无 bypass。
+    # 种子新鲜度硬闸门（2026-09-29 v1.1.2 追加批）：静态结构损坏或动态值残留即拒绝打包，无 bypass。
     problems = _seed_problems()
     if problems:
         print("✗ [种子新鲜度闸门] 拒绝打包 ——")
         for p in problems:
             print("  - " + p)
         print(
-            "  以容器运行期为权威回写 core/data/rotations.json 与 "
+            "  效价种子只保留轮换骨架；言录使只保留静态候选目录，修复 "
             "core/data/de/acrichis_week.json 后重跑（见 dist/package_release.py::_SEED_FIX_GUIDE）"
         )
         return 1

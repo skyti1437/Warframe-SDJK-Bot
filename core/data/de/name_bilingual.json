@@ -755,7 +755,7 @@
   ],
   [
    "Ambulas Black",
-   "Ambulas 黑"
+   "智踱恐鸟黑"
   ],
   [
    "Ambush",
@@ -11122,6 +11122,18 @@
    "午夜电波"
   ],
   [
+   "Nightwave Avionics",
+   "午夜电波飞航系统"
+  ],
+  [
+   "Nightwave Engines",
+   "午夜电波引擎"
+  ],
+  [
+   "Nightwave Fuselage",
+   "午夜电波机身"
+  ],
+  [
    "Nikana",
    "侍刃"
   ],
@@ -11952,6 +11964,10 @@
   [
    "Overextended",
    "过度延展"
+  ],
+  [
+   "Overpressured Rounds",
+   "超压弹药"
   ],
   [
    "Override",
@@ -12818,6 +12834,10 @@
    "抵近射击 Prime"
   ],
   [
+   "Primed Polar Magazine",
+   "极地弹仓 Prime"
+  ],
+  [
    "Primed Pressure Point",
    "压迫点 Prime"
   ],
@@ -13096,6 +13116,10 @@
   [
    "Proton Snap",
    "质子 猛扑"
+  ],
+  [
+   "Prototype Shock Coils",
+   "原型电击线圈"
   ],
   [
    "Prova",

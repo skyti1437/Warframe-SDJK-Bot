@@ -17,13 +17,17 @@
 
 from __future__ import annotations
 
+import contextlib
+import copy
 import hashlib
+import io
 import json
 import os
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -1346,14 +1350,14 @@ _r_full, _l_full = _nat("满蓄力")
 _r_perf, _l_perf = _nat("完美射击")
 check(
     "★ Nataruk 满蓄力：按普通满蓄力（50% / 2.2×）算、标「蓄力」，不再注明「未收录」",
-    any("形态：蓄力" in x for x in _l_full)
+    any("· 形态　蓄力" in x for x in _l_full)
     and not any("普通满蓄力未收录" in x for x in _l_full)
     and (_r_full.get("crit_cc"), _r_full.get("crit_cm")) == (0.5, 2.2),
     str([x for x in _l_full if "形态" in x or "完美" in x]),
 )
 check(
     "Nataruk 完美射击：形态标「完美射击」、不加未收录注明，数值 60% / 2.4×",
-    any("形态：完美射击" in x for x in _l_perf)
+    any("· 形态　完美射击" in x for x in _l_perf)
     and not any("普通满蓄力未收录" in x for x in _l_perf)
     and (_r_perf.get("crit_cc"), _r_perf.get("crit_cm")) == (0.6, 2.4),
     str((_r_perf.get("crit_cc"), _r_perf.get("crit_cm"))),
@@ -1878,6 +1882,313 @@ check(
     _dr(Parsed(content="布拉顿 Prime 膛线".split())).lines[:2]
     == ["◆ 原因：武器库里没找到「布拉顿 Prime」", "◆ 没认出来的词：布拉顿"],
     str(_dr(Parsed(content="布拉顿 Prime 膛线".split())).lines[:2]),
+)
+
+
+_melee_reply = _dr(Parsed(content="空刃 灵化 压迫点 进化基伤".split()))
+_melee_lines = "\n".join(_melee_reply.lines)
+check(
+    "伤害 handler 近战灵化真实链：面板平坦进化220，EVO I与压迫点加算并显示边界",
+    "基伤 220" in _melee_lines
+    and "已激活" in _melee_lines
+    and "MOD 加算" in _melee_lines
+    and "仅计基伤" in _melee_lines
+    and "额外攻击" in _melee_lines
+    and "未计入" in _melee_lines
+    and "计算出错" not in _melee_lines,
+    _melee_lines,
+)
+
+_native_reply = _dr(Parsed(content="Ruvox 灵化 压迫点 狂暴 熔岩冲击".split()))
+_native_lines = "\n".join(_native_reply.lines)
+check(
+    "Ruvox 灵化handler真实链成功出卡且说明普通攻击边界",
+    "已激活" in _native_lines
+    and "普通攻击" in _native_lines
+    and "0.65" in _native_lines
+    and "基伤 170" in _native_lines
+    and "灵化普通攻击" in _native_lines
+    and "含多段合并" not in _native_lines
+    and not any("狂暴" in line and "未计入" in line for line in _native_reply.lines)
+    and "计算出错" not in _native_lines,
+    _native_lines,
+)
+for _native_badarg in (
+    "冲击90",
+    "穿刺90",
+    "切割90",
+    "重创",
+    "螺钻打击",
+    "败兴虐杀",
+    "平衡配重",
+    "重击",
+    "进化射速",
+):
+    _native_badlines = "\n".join(_dr(Parsed(content=["Ruvox", "灵化", _native_badarg])).lines)
+    check(
+        f"Ruvox handler拒绝 {_native_badarg}：中文解释、操作指导且无内部错误或伤害数字",
+        "原因" in _native_badlines
+        and "怎么改" in _native_badlines
+        and "基础形态" in _native_badlines
+        and not any(
+            word in _native_badlines for word in ("内部错误", "计算出错", "· 面板", "DPS", "对血")
+        ),
+        _native_badlines,
+    )
+
+# 生成器防止“只要出现35/100便接入”：完整 EVO1 与武器身份必须同时匹配。
+import build_incarnon_forms as _native_builder  # noqa: E402
+
+_native_page_fixture = """=== Evolutions ===
+{| class="wikitable"
+|-
+! colspan="3" | Evolution
+! Notes
+|-
+! colspan="3" | Evolution I Challenge !! Kill '''100''' enemies with the Ruvox.
+|-
+! EVO1
+| '''Incarnon Form'''
+|
+* Reach '''6x''' Combo and then [[Melee#Heavy Attack|Heavy Attack]] to activate Incarnon Form.
+* Heavy Slam attacks impale nearby enemies on Void Spikes.
+** '''+3''' [[Melee#Range|Range]]
+** '''-35%''' Max Melee [[Attack Speed]]
+** '''+100%''' of {{D|Impact}} Damage converted to {{D|Puncture}} Damage
+|
+* Melee Attack Speed curse is multiplicative to all other attack speed buffs.
+|-
+|}
+"""
+_native_snapshot = Path(_BI, "wiki-modules-20261026") if _BI else _ABSENT
+_native_full_page = _native_snapshot / "evo" / "Ruvox.wiki"
+if _native_full_page.is_file():
+    _native_page_fixture = _native_full_page.read_text(encoding="utf-8")
+_native_asset_key = "/lotus/weapons/thanotech/entfistincarnon/entfistincarnon"
+_native_assets = {
+    "Ruvox": {
+        "Slot": "Melee",
+        "InternalName": "/Lotus/Weapons/Thanotech/EntFistIncarnon/EntFistIncarnon",
+    }
+}
+with tempfile.TemporaryDirectory(prefix="wf-native-forms-") as _native_tmp:
+    _native_root = Path(_native_tmp)
+    (_native_root / "evo").mkdir()
+    _native_page = _native_root / "evo" / "Ruvox.wiki"
+    _native_module = _native_root / "melee.lua"
+    _native_module.write_text("-- 原生灵化生成器来源散列夹具\n", encoding="utf-8")
+    _native_page.write_text(_native_page_fixture, encoding="utf-8")
+    _native_report = []
+    _native_built = _native_builder.build_native_melee_forms(
+        _native_root, _native_assets, _ws, _native_report
+    )
+    _native_record = _native_built.get(_native_asset_key) or {}
+    check(
+        "原生生成器正例：Ruvox身份与完整EVO1匹配才生成普通攻击能力及两份源码散列",
+        set(_native_built) == {_native_asset_key}
+        and _native_record.get("kind") == "melee_native"
+        and _native_record.get("range_bonus_m") == 3
+        and _native_record.get("attack_speed_multiplier") == 0.65
+        and _native_record.get("damage_conversion")
+        == {"from": "impact", "to": "puncture", "ratio": 1.0}
+        and _native_record.get("supported_attacks") == ["Normal Attack"]
+        and _native_record.get("source", {}).get("sha256")
+        == hashlib.sha256(_native_page.read_bytes()).hexdigest()
+        and _native_record.get("source", {}).get("weapon_module_sha256")
+        == hashlib.sha256(_native_module.read_bytes()).hexdigest(),
+        str(_native_report),
+    )
+    for _native_label, _native_old, _native_new in (
+        (
+            "转换方向反转",
+            "{{D|Impact}} Damage converted to {{D|Puncture}}",
+            "{{D|Puncture}} Damage converted to {{D|Impact}}",
+        ),
+        ("转换比例漂移", "+100%''' of {{D|Impact}}", "+50%''' of {{D|Impact}}"),
+        ("攻速数值漂移", "-35%''' Max", "-25%''' Max"),
+        ("范围数值漂移", "+3''' [[Melee#Range|Range]]", "+4''' [[Melee#Range|Range]]"),
+        ("转换新增触发条件", "+100%''' of {{D|Impact}}", "On Kill: '''+100%''' of {{D|Impact}}"),
+        (
+            "独立乘算备注删除",
+            "Melee Attack Speed curse is multiplicative to all other attack speed buffs.",
+            "Attack Speed is reduced.",
+        ),
+        (
+            "EVO1多余伤害语句",
+            "* Heavy Slam attacks impale nearby enemies on Void Spikes.",
+            "* Heavy Slam attacks impale nearby enemies on Void Spikes.\n* +100% Melee Damage",
+        ),
+    ):
+        assert _native_old in _native_page_fixture, _native_label
+        _native_page.write_text(
+            _native_page_fixture.replace(_native_old, _native_new), encoding="utf-8"
+        )
+        _native_bad_report = []
+        check(
+            f"原生生成器 {_native_label} 必须跳过且报告原因",
+            not _native_builder.build_native_melee_forms(
+                _native_root, _native_assets, _ws, _native_bad_report
+            )
+            and bool(_native_bad_report),
+            str(_native_bad_report),
+        )
+    _native_page.write_text(_native_page_fixture, encoding="utf-8")
+    for _native_label, _native_asset_bad, _native_ws_bad in (
+        ("武器模块缺资产", {}, _ws),
+        ("武器库缺资产", _native_assets, {}),
+        ("Slot错为Rifle", {"Ruvox": {**_native_assets["Ruvox"], "Slot": "Rifle"}}, _ws),
+        (
+            "内部路径指向别的武器",
+            {"Ruvox": {**_native_assets["Ruvox"], "InternalName": "/Lotus/Weapons/Other"}},
+            _ws,
+        ),
+        ("中文名缺失", _native_assets, {_native_asset_key: {**_ws[_native_asset_key], "zh": ""}}),
+        (
+            "武器库同键错名",
+            _native_assets,
+            {_native_asset_key: {**_ws[_native_asset_key], "name": "Praedos"}},
+        ),
+    ):
+        _native_bad_report = []
+        check(
+            f"原生生成器 {_native_label} 必须跳过，不能猜测资产",
+            not _native_builder.build_native_melee_forms(
+                _native_root, _native_asset_bad, _native_ws_bad, _native_bad_report
+            )
+            and bool(_native_bad_report),
+        )
+    for _native_missing_file in (_native_page, _native_module):
+        _native_original = _native_missing_file.read_bytes()
+        _native_missing_file.unlink()
+        _native_bad_report = []
+        check(
+            f"原生生成器缺 {_native_missing_file.name} 不接入且留下报告",
+            not _native_builder.build_native_melee_forms(
+                _native_root, _native_assets, _ws, _native_bad_report
+            )
+            and bool(_native_bad_report),
+        )
+        _native_missing_file.write_bytes(_native_original)
+    _native_assets_saved, _native_ws_saved = copy.deepcopy(_native_assets), copy.deepcopy(_ws)
+    check(
+        "原生生成器恢复合法源码后重放一致且不改武器模块/武器库入参",
+        _native_builder.build_native_melee_forms(_native_root, _native_assets, _ws, [])
+        == _native_built
+        and _native_assets == _native_assets_saved
+        and _ws == _native_ws_saved,
+    )
+
+
+# 2026-10-28：WFCD 十条近战误标 Rifle。Slot/Class/InternalName 固定输入核对后，
+# 仅修大类 type=Melee；不把 wiki Class 的 Staff/Fist 等子类塞进 type。
+_type_names = {
+    "Dual Viciss",
+    "Mk1-Bo",
+    "Mk1-Furax",
+    "Paracesis",
+    "Prova",
+    "Prova Vandal",
+    "Venato",
+    "Ruvox",
+    "Ekhein",
+    "Prisma Skana",
+}
+_type_expected = {k: "Melee" for k, v in _ws.items() if v["name"] in _type_names}
+check(
+    "TYPE_FIX 精确覆盖十条已核对近战，不外推其他 Rifle",
+    len(_type_expected) == 10 and _bd.TYPE_FIX == _type_expected,
+)
+_type_before = json.loads(json.dumps(_ws))
+for _tk in _type_expected:
+    _type_before[_tk]["type"] = "Rifle"
+_type_fixed = json.loads(json.dumps(_type_before))
+_type_log = _bd.repair_weapons(_type_fixed)
+check(
+    "真实 repair 从十条 Rifle 修回 Melee，仅改 type，其他武器及嵌套字段逐值不变",
+    len(_type_log) == 10
+    and set(_type_log) == {f"{_ws[k]['name']}.type: Rifle → Melee" for k in _type_expected}
+    and _type_fixed == _ws,
+    str(_type_log),
+)
+check(
+    "十条类型修正后真实 repair 再跑零改动且数据不变",
+    _bd.repair_weapons(_type_fixed) == [] and _type_fixed == _ws,
+)
+_type_missing = json.loads(json.dumps(_ws))
+_type_other_fixes = set().union(
+    *(
+        set(getattr(_bd, name))
+        for name in (
+            "MAIN_ATTACK_FIX",
+            "BURST_FIX",
+            "CHARGE_DRAW_ONLY",
+            "AMMO_COST_FIX",
+            "MAGAZINE_FIX",
+            "NO_RELOAD_FIX",
+            "ORB_PREMERGE_FIX",
+        )
+    )
+)
+_type_missing.pop(next(k for k in _type_expected if k not in _type_other_fixes))
+try:
+    _bd.repair_weapons(_type_missing)
+except SystemExit as _type_exc:
+    _type_rejected = "TYPE_FIX" in str(_type_exc) and "键不在武器表里" in str(_type_exc)
+else:
+    _type_rejected = False
+check("类型修复键缺失时防漏闸门报错，不能静默跳过", _type_rejected)
+
+# 真正执行两个生成入口；只替换下载输入与输出目录，不替换修复逻辑。
+# 完整武器表作为固定离线原料，保证原有其他修正表的键存在；本批十项恢复上游错误值。
+with tempfile.TemporaryDirectory(prefix="wf-type-fix-") as _type_tmp:
+    _type_dir = Path(_type_tmp)
+    (_type_dir / "de").mkdir()
+    (_type_dir / "de" / "name_zh.json").write_text("{}", encoding="utf-8")
+    with (
+        patch.object(_bd, "DATA", _type_dir),
+        patch.object(
+            _bd, "_fetch_cached", side_effect=[json.dumps(list(_type_before.values())), "[]", "[]"]
+        ),
+        patch.object(_bd, "repair_weapons", wraps=_bd.repair_weapons) as _type_repair_build,
+        contextlib.redirect_stdout(io.StringIO()),
+    ):
+        _type_built = _bd.build_weapons()
+    _type_written = json.loads((_type_dir / "weapons_stats.json").read_text(encoding="utf-8"))
+    check(
+        "build_weapons 真入口共用真实修复，十条错误类型不会再次生成",
+        _type_repair_build.call_count == 1
+        and all(_type_built[k]["type"] == "Melee" for k in _type_expected)
+        and _type_written == _type_built,
+    )
+    (_type_dir / "weapons_stats.json").write_text(json.dumps(_type_before), encoding="utf-8")
+    with (
+        patch.object(_bd, "DATA", _type_dir),
+        patch.object(_bd, "repair_weapons", wraps=_bd.repair_weapons) as _type_repair_file,
+    ):
+        _type_file_log = _bd.repair_weapons_file()
+        _type_file_again = _bd.repair_weapons_file()
+    check(
+        "repair_weapons_file 真入口首次修十条，重放零改动且其他字段不变",
+        _type_repair_file.call_count == 2
+        and _type_file_log == _type_log
+        and _type_file_again == []
+        and json.loads((_type_dir / "weapons_stats.json").read_text(encoding="utf-8")) == _ws,
+    )
+
+# 当前运行期计算器不按 type 判断近战：parse_args→find_weapon→calculate 的
+# 分类依据另有近战字段/显式表。本批只改数据准确性，不声称改变伤害公式。
+_type_spec, _type_tokens = dc.parse_args("Prisma Skana 压迫点 重击".split())
+_type_weapon, _ = dc.find_weapon(" ".join(_type_tokens))
+_type_wrong = json.loads(json.dumps(_type_weapon))
+_type_wrong["type"] = "Rifle"
+_type_correct_result = json.loads(json.dumps(dc.calculate(_type_spec, _type_weapon)))
+_type_wrong_result = json.loads(json.dumps(dc.calculate(_type_spec, _type_wrong)))
+# weapon_eff 原样携带 type 元数据；移除这一个字段后应无计算差异。
+_type_correct_result["weapon_eff"].pop("type", None)
+_type_wrong_result["weapon_eff"].pop("type", None)
+check(
+    "真实消费者：Prisma Skana 近战重击计算不因 type 字段改动而变更公式",
+    _type_correct_result["heavy"] is not None and _type_correct_result == _type_wrong_result,
 )
 
 print()

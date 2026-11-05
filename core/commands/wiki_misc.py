@@ -20,7 +20,7 @@ from .. import search as search_engine
 from .. import wiki_intro
 from ..api_client import WarframeAPIError
 from ..logging_compat import logger
-from .base import Reply, err_card
+from .base import Action, Reply, err_card
 
 
 # 玩法 / 任务类型词（wiki 指令里优先于前缀模糊命中，见 _h_wiki）。任务类型取官方简中任务类型表；
@@ -190,7 +190,8 @@ class WikiMiscCommands:
         from urllib.parse import quote as _q
 
         want_variant = matching.variant_intent_any(query)
-        found = search_engine.search(query, limit=3)
+        # 冷索引可能正由后台预热构建；查找与等待都留在线程里，避免阻塞消息循环。
+        found = await asyncio.to_thread(search_engine.search, query, limit=3)
         exact = bool(found) and found[0].get("score") == 0
         if not exact and not want_variant:
             # ★ 2026-10-17（知识库审计：「wiki Balla」→ Ballas 的合一众权杖、「wiki 仲裁」→ 仲裁雕像）：
@@ -228,7 +229,7 @@ class WikiMiscCommands:
             # → 剥掉 p/prime 再查，命中后按变体解析（want_variant 已为 True）
             stripped = matching.strip_variant_query(query)
             if stripped and stripped != query:
-                found = search_engine.search(stripped, limit=3)
+                found = await asyncio.to_thread(search_engine.search, stripped, limit=3)
         if found:
             # 黑话命中（别名）时页面名取国际服官方名——别名键/国服旧译都不是
             # wiki 页面（「wiki 音妈」「wiki 摸尸」实测死链，2026-09-24）。
@@ -407,9 +408,11 @@ class WikiMiscCommands:
         """
         # 解析 + 计算是纯 CPU 活（整条配卡粘贴要逐词跑模糊匹配），放线程里跑，
         # 避免长串参数在事件循环上卡住所有群
-        return await asyncio.to_thread(self._damage_reply, parsed)
+        capability = getattr(self, "_can_send_actions", None)
+        can_actions = callable(capability) and capability(event)
+        return await asyncio.to_thread(self._damage_reply, parsed, can_actions=can_actions)
 
-    def _damage_reply(self, parsed) -> Reply:
+    def _damage_reply(self, parsed, *, can_actions: bool = False) -> Reply:
         """「伤害」指令的同步主体（由 _h_damage 放进线程执行）。"""
         spec, name_tokens = dc.parse_args(parsed.content)
         query = " ".join(name_tokens).strip()
@@ -450,6 +453,15 @@ class WikiMiscCommands:
                     "· 单发　对血/对盾（无暴击）→ 暴击与爆头期望（含暴击）",
                     "· 每次扳机 / DPS　爆发/持续（均给含暴击与无暴击）",
                 ],
+                actions=[
+                    Action(
+                        "照示例发",
+                        "伤害 布拉玛 对 重机枪手 100级 膛线 分裂膛室 地狱火 电90",
+                        mode="fill",
+                    )
+                ]
+                if can_actions
+                else [],
             )
 
         try:
@@ -471,10 +483,14 @@ class WikiMiscCommands:
                     ],
                 )
             res = dc.calculate(spec, weapon)
+            query_name = weapon.get("zh") or weapon.get("name")
             return Reply(
                 "伤害计算",
                 dc.card_lines(weapon, spec, res, alts),
                 footer=dc.card_footer(weapon, res),
+                actions=[Action("换敌人复算", f"伤害 {query_name} 对 ", mode="fill")]
+                if can_actions and query_name and res.get("ok")
+                else [],
             )
         except Exception as exc:  # noqa: BLE001 - 绝不静默：群聊里没输出最难查
             logger.exception(f"[sdjk] 伤害计算失败：{exc!r}")

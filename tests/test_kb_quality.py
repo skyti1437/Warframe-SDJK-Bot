@@ -90,6 +90,224 @@ class QualityTest(unittest.TestCase):
         finally:
             b.I["Melee"] = original
 
+    def test_attack_modes_through_builder_and_runtime_card(self):
+        from unittest.mock import patch
+        from core import wiki_intro
+
+        b = self.builder
+        rec = {
+            "uniqueName": "/fixture/modes",
+            "name": "Mode Bow",
+            "type": "Bow",
+            "totalDamage": 900,
+            "damagePerShot": [0, 900],
+            "criticalChance": 0.2,
+            "procChance": 0.5,
+            "multishot": 1,
+            "magazineSize": 1,
+            "attacks": [
+                {
+                    "name": "Quick Shot",
+                    "damage": {"puncture": 405, "slash": 45},
+                    "crit_chance": 20,
+                    "crit_mult": 1.8,
+                    "status_chance": 30,
+                },
+                {
+                    "name": "Charged Shot",
+                    "damage": {"puncture": 648, "slash": 252},
+                    "crit_chance": 50,
+                    "crit_mult": 2.2,
+                    "status_chance": 50,
+                },
+                {
+                    "name": "Perfect Shot",
+                    "damage": {"puncture": 648, "slash": 252},
+                    "crit_chance": 60,
+                    "crit_mult": 2.4,
+                    "status_chance": 50,
+                },
+            ],
+        }
+        with patch.dict(b.I, {"Primary": [rec]}):
+            _, blocks = b.weapon_part("主武器", "Primary")
+        raw = blocks[0]
+        self.assertNotIn("- 总伤害：", raw)
+        self.assertIn("快速射击：该段伤害 450", raw)
+        self.assertIn("快速射击·数据：暴击几率 20%｜暴击倍率 1.8×｜触发几率 30%", raw)
+        self.assertIn("满蓄力射击·数据：暴击几率 50%", raw)
+        self.assertIn("完美射击·数据：暴击几率 60%", raw)
+        path = self.base / "modes.md"
+        path.write_text(raw + "- 获取：测试来源\n", encoding="utf-8")
+        entries, _ = self.cards.parse_kb(path, 7)
+        payload = {"entries": entries, "keys": {"mode bow": 0}, "uses": {}}
+        data = self.base / "modes.json"
+        data.write_text(json.dumps(payload), encoding="utf-8")
+        with patch.object(wiki_intro, "_FILE", data):
+            wiki_intro._table.cache_clear()
+            try:
+                title, lines = wiki_intro.card_for("Mode Bow")
+                self.assertEqual(title, "Mode Bow")
+                self.assertTrue(any("完美射击·数据" in x for x in lines))
+                self.assertTrue(any(x.endswith("获取：测试来源") for x in lines))
+                self.assertEqual(sum(x.startswith("攻击·") for x in lines), 9)
+            finally:
+                wiki_intro._table.cache_clear()
+
+    def test_attack_pellets_and_segments_do_not_share_global_values(self):
+        b = self.builder
+        for per_pellet, pellets, expected in ((195, 8, 1560), (210, 5, 1050)):
+            rec = {
+                "totalDamage": per_pellet,
+                "multishot": pellets,
+                "trigger": "Duplex",
+                "attacks": [
+                    {
+                        "name": "Normal Attack",
+                        "shot_type": "Hit-Scan",
+                        "damage": {"slash": per_pellet},
+                    }
+                ],
+            }
+            lines = "\n".join(b.weapon_attack_lines(rec))
+            self.assertIn(f"单弹丸伤害 {per_pellet}", lines)
+            self.assertIn(f"每发合计 {expected}（全弹丸命中）", lines)
+            self.assertNotIn("一次扳机", lines)
+            # 增加范围子段后不能把顶层多重自动乘到各段。
+            rec["attacks"].append({"name": "Radial Attack", "damage": {"blast": 90}})
+            lines = "\n".join(b.weapon_attack_lines(rec))
+            self.assertNotIn("每发合计", lines)
+            self.assertIn("范围攻击：该段伤害 90", lines)
+            # 子段缺暴击/触发不借顶层，也不误加damage.total两次。
+            rec.update(criticalChance=0.9, procChance=0.8)
+            rec["attacks"][1]["damage"]["total"] = 90
+            lines = "\n".join(b.weapon_attack_lines(rec))
+            self.assertIn("范围攻击：该段伤害 90", lines)
+            self.assertNotIn("暴击几率", lines)
+            self.assertNotIn("触发几率", lines)
+
+    def test_attack_invalid_and_plain_card_budgets(self):
+        lines = self.builder.weapon_attack_lines(
+            {
+                "multishot": 8,
+                "totalDamage": 999,
+                "attacks": [{"name": "Normal Attack", "damage": {"slash": float("nan")}}],
+            }
+        )
+        self.assertEqual(lines, ["- 攻击·普通射击：伤害数据未收录"])
+        path = self.base / "plain.md"
+        path.write_text("### 普通条目\n" + "\n".join(f"- 说明{i}：原文" for i in range(10)))
+        entries, _ = self.cards.parse_kb(path, 7)
+        self.assertEqual(len(entries[0][1]), 7)
+
+    def test_source_names_exact_and_boundaries(self):
+        pairs = [
+            ("Elite Orm Weaver", "精英奥穆旋织战机"),
+            ("The Severed Warden", "断肢看守"),
+            ("Operation: Orphix Venom", "行动代号：奥影之毒"),
+            ("Void Angel", "虚空天使"),
+            ("Ravenous", "贪婪"),
+            ("Angel", "天使"),
+            ("Cyath", "西亚什"),
+            ("The Kuva Wytch", "赤毒女巫号"),
+            ("Councilor Vay Hek", "韦·海克议员"),
+            ("Councilor Vay Hek", "韦·海克"),
+            ("Empty Name", ""),
+            ("Same Name", "Same Name"),
+            ("Rich Name", "<B>富文本</B>"),
+        ]
+        en = {str(i): e for i, (e, z) in enumerate(pairs)}
+        zh = {str(i): z for i, (e, z) in enumerate(pairs)}
+        names = self.cards.build_source_names(en, zh)
+        for excluded in ("Councilor Vay Hek", "Empty Name", "Same Name", "Rich Name"):
+            self.assertNotIn(excluded, names)
+        for raw, want in (
+            ("获取：Elite Orm Weaver 0.54%", "获取：精英奥穆旋织战机 0.54%"),
+            (
+                "获取：The Severed Warden (Level 0 - 50) 2.5%；Void Angel 1.67%…（共 4 处）",
+                "获取：断肢看守（等级 0 - 50） 2.5%；虚空天使 1.67%…（共 4 处）",
+            ),
+            (
+                "获取：Operation: Orphix Venom, Rotation C 14.29%",
+                "获取：行动代号：奥影之毒, C轮 14.29%",
+            ),
+            ("获取：阋神星/Cyath（间谍）, A轮 14.29%", "获取：阋神星/Cyath（间谍）, A轮 14.29%"),
+            (
+                "获取：天王星 · The Kuva Wytch · 遭遇战 14.29%",
+                "获取：天王星 · The Kuva Wytch · 遭遇战 14.29%",
+            ),
+            ("获取：Ravenous Void Angel 0.67%", "获取：Ravenous Void Angel 0.67%"),
+            ("获取：Elite Orm Weaver…", "获取：Elite Orm Weaver…"),
+            ("获取：Councilor Vay Hek 1.25%", "获取：Councilor Vay Hek 1.25%"),
+            ("获取：Conclave, Mistral 100%", "获取：Conclave, Mistral 100%"),
+            ("简介：Void Angel", "简介：Void Angel"),
+        ):
+            with self.subTest(raw=raw):
+                got = self.cards.translate_source(raw, names)
+                self.assertEqual(got, want)
+                self.assertEqual(self.cards.translate_source(got, names), got)
+
+    def test_source_names_before_truncation_through_runtime_card(self):
+        from unittest.mock import patch
+        from core import wiki_intro
+
+        long_name = "Long Enemy " * 10
+        names = {long_name.strip(): "完整敌名"}
+        path = self.base / "source-names.md"
+        path.write_text("### 来源测试卡\n- 获取：" + long_name.strip() + " 12.5%\n")
+        entries, _ = self.cards.parse_kb(path, 7, source_names=names)
+        self.assertEqual(entries[0][1], ["获取：完整敌名 12.5%"])
+        data = self.base / "source-card.json"
+        data.write_text(json.dumps({"entries": entries, "keys": {"来源测试卡": 0}, "uses": {}}))
+        with patch.object(wiki_intro, "_FILE", data):
+            wiki_intro._table.cache_clear()
+            try:
+                title, lines = wiki_intro.card_for("来源测试卡")
+                self.assertEqual(title, "来源测试卡")
+                self.assertTrue(any(line.endswith("获取：完整敌名 12.5%") for line in lines))
+            finally:
+                wiki_intro._table.cache_clear()
+
+    def test_source_name_cli_requires_pair_and_records_source(self):
+        from contextlib import redirect_stdout
+        from io import StringIO
+        from unittest.mock import patch
+
+        base = self.base / "source-cli"
+        base.mkdir()
+        kb = base / "kb"
+        kb.mkdir()
+        (kb / "01_战甲.md").write_text("### 来源测试卡\n- 获取：Void Angel 1.67%\n")
+        target = base / "cards.json"
+        identity = base / "identity.json"
+        args = [
+            "build_wiki_intro.py",
+            "--kb-dir",
+            str(kb),
+            "--source-dict-dir",
+            str(base),
+            "--identity-out",
+            str(identity),
+        ]
+        target.write_text("保留旧产物")
+        with (
+            patch.object(self.cards, "OUT", target),
+            patch.object(self.cards, "ROOT", base),
+            patch.object(sys, "argv", args),
+            redirect_stdout(StringIO()),
+        ):
+            self.assertEqual(self.cards.main(), 1)
+            self.assertEqual(target.read_text(), "保留旧产物")
+            (base / "dict.en.json").write_text(json.dumps({"unit": "Void Angel"}))
+            (base / "dict.zh.json").write_text(json.dumps({"unit": "虚空天使"}))
+            self.assertEqual(self.cards.main(), 0)
+        data = json.loads(target.read_text())
+        self.assertEqual(data["entries"][0][1], ["获取：虚空天使 1.67%"])
+        self.assertEqual(len(data["_meta"]["source_names"]["en_sha256"]), 64)
+        (base / "dict.zh.json").write_text(json.dumps({"unit": ""}))
+        with self.assertRaisesRegex(ValueError, "没有可用"):
+            self.cards.load_source_names(base)
+
     def test_hotfix_exact_assets_and_real_builders(self):
         from unittest.mock import patch
 

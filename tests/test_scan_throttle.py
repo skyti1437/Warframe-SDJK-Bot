@@ -258,6 +258,31 @@ async def main() -> None:
         repr(getattr(g3, "raw_text", None)),
     )
 
+    # ⑨ 主动迁移后只拆任务冷却，不扩大机器的总并发预算。
+    isolated = _plugin({"vision_routes_isolated": True, "scan_cooldown": 60})
+    first_riven, _ = isolated._vision_gate(_Ev(sender="task-user"), "紫卡识图", task="riven")
+    first_scan, _ = isolated._vision_gate(_Ev(sender="task-user"), "识卡", task="scan")
+    again_riven, _ = isolated._vision_gate(_Ev(sender="task-user"), "紫卡识图", task="riven")
+    check(
+        "隔离模式紫卡和识卡各自冷却",
+        first_riven is None and first_scan is None and again_riven is not None,
+        "",
+    )
+    check(
+        "隔离冷却按实例惰性建立，不写旧共享表",
+        not isolated._ocr_last
+        and isolated._vision_last("scan") is not isolated._vision_last("riven"),
+        "",
+    )
+    isolated.cfg.update(scan_cooldown=0, scan_max_concurrent=1)
+    isolated._ocr_busy.add(object())
+    budget, _ = isolated._vision_gate(_Ev(sender="other"), "识卡", task="scan")
+    check(
+        "隔离模式仍受机器共享预算限制",
+        budget is not None and "机器共享资源预算" in budget.raw_text,
+        "",
+    )
+
     print()
     if FAILED:
         print(f"✗ {len(FAILED)} 项失败：" + "、".join(FAILED))
