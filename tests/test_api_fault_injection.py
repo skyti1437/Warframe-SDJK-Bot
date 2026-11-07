@@ -451,6 +451,7 @@ async def virtual_wm_test(test):
 
 
 async def main():
+    await t_data_source_probe()
     await t_wm_bounded_gate()
     await t_wm_origin_normalization()
     await t_wm_waiting_auction_and_http_policy()
@@ -2411,6 +2412,256 @@ async def t_wm_shared_governor():
                 pass
             check("普通429阻断其它WM出口", len(sends) == 7)
             check("出口释放所有在途槽", c._wm_slots._value == 3)
+    finally:
+        await c.close()
+
+
+async def t_data_source_probe():
+    """数据源探测：网络全部 MockTransport，不使用业务缓存或刷新入口。"""
+    import time
+    from unittest.mock import patch
+
+    from core.api_client import COMMUNITY_VALENCE_URLS
+
+    c = make_client()
+    await c._http.aclose()
+    calls = []
+
+    def success(request):
+        calls.append(request)
+        return httpx.Response(200, content=b"not-json")
+
+    async def transport(handler, *, redirects=True):
+        await c._http.aclose()
+        c._http = httpx.AsyncClient(
+            transport=httpx.MockTransport(handler), follow_redirects=redirects
+        )
+
+    try:
+        await transport(success)
+        result = await c.probe_data_source("community")
+        check(
+            "探测社区完整枚举四通道",
+            result["ok"] and len(calls) == len(COMMUNITY_VALENCE_URLS) == 4,
+        )
+        check(
+            "探测社区沿用真实候选顺序",
+            [str(r.url).split("&cb=")[0] for r in calls] == list(COMMUNITY_VALENCE_URLS),
+        )
+        check(
+            "探测GitHubAPI使用raw媒体头",
+            calls[1].headers["Accept"] == "application/vnd.github.raw+json",
+        )
+        check("社区首通道超时按总预算分摊", 0 < calls[0].extensions["timeout"]["read"] <= 7.5)
+        clock = [100.0]
+        calls.clear()
+
+        def exhaust_budget(request):
+            calls.append(request)
+            clock[0] += 31.0
+            return httpx.Response(200)
+
+        await transport(exhaust_budget)
+        with patch("core.api_client.time.monotonic", lambda: clock[0]):
+            result = await c.probe_data_source("community")
+        check(
+            "社区预算耗尽仍列出后续通道且不请求",
+            len(calls) == 1
+            and len(result["attempts"]) == 4
+            and all(
+                row.get("skipped_reason") == "budget_exhausted" for row in result["attempts"][1:]
+            ),
+        )
+        await transport(success)
+        result = await c.probe_data_source("worldstate")
+        check("世界状态探测不解析业务正文", result["ok"])
+        c.worldsource = "warframestat"
+        result = await c.probe_data_source("worldstate", "ps4")
+        check(
+            "世界状态探测使用指定平台", result["ok"] and calls[-1].url.path.endswith("/ps4/events")
+        )
+        c.community_base = "https://custom.example/secret"
+        c.allow_private_urls = True
+        calls.clear()
+        result = await c.probe_data_source("community")
+        check(
+            "自填社区探测不回退且地址脱敏",
+            len(calls) == 1 and result["attempts"][0]["url"] == "",
+        )
+
+        def redirect(request):
+            calls.append(request)
+            return httpx.Response(302, headers={"Location": "http://127.0.0.1/private"})
+
+        calls.clear()
+        await transport(redirect)
+        result = await c.probe_data_source("community")
+        check("自填社区拒绝私网重定向", not result["ok"] and len(calls) == 1)
+        calls.clear()
+        c.allow_private_urls = False
+        c.community_base = "http://127.0.0.1/private"
+        result = await c.probe_data_source("community")
+        check(
+            "自填社区私网请求前拦截",
+            not result["ok"] and not calls and not result["attempts"][0]["url"],
+        )
+
+        def public_redirect(request):
+            calls.append(request)
+            if request.url.path != "/probe-final":
+                return httpx.Response(302, headers={"Location": "/probe-final"})
+            return httpx.Response(200)
+
+        c.community_base = ""
+        calls.clear()
+        await transport(public_redirect)
+        result = await c.probe_data_source("community")
+        check(
+            "默认社区镜像继承合法重定向",
+            sum(row["ok"] for row in result["attempts"]) == 3 and len(calls) == 7,
+        )
+        calls.clear()
+        result = await c.probe_data_source("worldstate")
+        check("世界状态继承合法重定向", result["ok"] and len(calls) == 2)
+        calls.clear()
+        result = await c.probe_data_source("market")
+        check("WM保持真实链拒绝重定向", not result["ok"] and len(calls) == 1)
+        c._wm_last = time.monotonic()
+        before = len(calls)
+        result = await c.probe_data_source("market")
+        check(
+            "WM繁忙探测零请求", result["skipped_reason"] == "wm_quota_busy" and len(calls) == before
+        )
+        c._wm_last = -float("inf")
+        c._wm_auction_cool_until = time.monotonic() + 60
+        result = await c.probe_data_source("market")
+        check(
+            "WM冷却探测零请求统一原因",
+            result["skipped_reason"] == "wm_quota_busy" and len(calls) == before,
+        )
+        c._wm_auction_cool_until = 0
+        await transport(lambda request: httpx.Response(429, headers={"Retry-After": "25"}))
+        result = await c.probe_data_source("market")
+        check(
+            "WM探测429反馈共享冷却并归还槽",
+            not result["ok"]
+            and c._wm_auction_cool_until > time.monotonic() + 24
+            and c._wm_slots._value == 3,
+        )
+        started = asyncio.Event()
+
+        async def blocking(request):
+            started.set()
+            await asyncio.Event().wait()
+
+        await transport(blocking)
+        c._wm_auction_cool_until = 0
+        c._wm_last = -float("inf")
+        task = asyncio.create_task(c.probe_data_source("market"))
+        await asyncio.wait_for(started.wait(), 1)
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+        check("WM探测取消归还槽", c._wm_slots._value == 3)
+
+        def wiki_response(request):
+            calls.append(request)
+            if request.method == "POST":
+                return httpx.Response(
+                    200,
+                    json={
+                        "status": "ok",
+                        "solution": {"status": 201, "headers": {}, "response": "source"},
+                    },
+                )
+            return httpx.Response(403)
+
+        calls.clear()
+        await transport(wiki_response)
+        c._flare_enabled = False
+        result = await c.probe_data_source("wiki")
+        check("wiki关闭FS不发请求", result["skipped_reason"] == "disabled" and not calls)
+        c._flare_enabled = True
+        with patch.object(c, "WIKI_MIN_INTERVAL_S", 0):
+            result = await c.probe_data_source("wiki")
+        check(
+            "wiki探测复用FS且不伪造源站状态",
+            result["ok"]
+            and result["attempts"][0]["via"] == "flaresolverr"
+            and result["attempts"][0]["status"] is None,
+        )
+        check(
+            "探测不写FS或业务源缓存",
+            not c._flare_cache and not c.__dict__.get("_wiki_source_cache") and not c.community_log,
+        )
+        await transport(lambda request: httpx.Response(503))
+        result = await c.probe_data_source("worldstate")
+        check("探测HTTP错误返回失败", not result["ok"] and result["attempts"][0]["status"] == 503)
+
+        def timeout(request):
+            raise httpx.ReadTimeout("secret", request=request)
+
+        await transport(timeout)
+        result = await c.probe_data_source("worldstate")
+        check("探测超时脱敏失败", not result["ok"] and "secret" not in str(result))
+        commands = []
+
+        def broken_fs(request):
+            if request.method == "POST":
+                commands.append(json.loads(request.content)["cmd"])
+                return httpx.Response(200, json={"status": "error", "message": "session not found"})
+            return httpx.Response(403)
+
+        await transport(broken_fs)
+        c._flare_url = ""
+        with patch.object(c, "WIKI_MIN_INTERVAL_S", 0):
+            result = await c.probe_data_source("wiki")
+        check("wiki探测FS失败不恢复会话不切候选", not result["ok"] and commands == ["request.get"])
+        calls.clear()
+
+        def close_on_response(request):
+            calls.append(request)
+            c.begin_close()
+            return httpx.Response(403)
+
+        await transport(close_on_response)
+        closed = False
+        try:
+            with patch.object(c, "WIKI_MIN_INTERVAL_S", 0):
+                await c.probe_data_source("wiki")
+        except WarframeAPIError:
+            closed = True
+        check("wiki探测关闭后不转FS", closed and len(calls) == 1)
+        c._closing = False
+        calls.clear()
+        await transport(close_on_response)
+        closed = False
+        try:
+            await c.probe_data_source("community")
+        except WarframeAPIError:
+            closed = True
+        check("社区探测关闭后不打下一通道", closed and len(calls) == 1)
+        c._closing = False
+        calls.clear()
+        await transport(success)
+
+        async def close_before_post(url):
+            c.begin_close()
+
+        closed = False
+        with patch.object(c, "_wiki_wait", close_before_post):
+            try:
+                await c.fetch_via_flaresolver(
+                    "https://wiki.warframe.com/w/Coda_Weapons?action=raw",
+                    ttl=0,
+                    cache_result=False,
+                    probe_only=True,
+                )
+            except WarframeAPIError:
+                closed = True
+        check("FS探测post前检查关闭闸门", closed and not calls)
     finally:
         await c.close()
 

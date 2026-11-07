@@ -1665,6 +1665,189 @@ class WarframeClient:
                 if not reserved:
                     self._wm_slots.release()
 
+    async def _wm_try_acquire(self) -> str:
+        """探测专用：在同一锁下立即预留普通 WM 请求，绝不排队。"""
+        self._ensure_open()
+        if self._wm_lock.locked():
+            return "wm_quota_busy"
+        async with self._wm_lock:
+            now = time.monotonic()
+            if now < self._wm_auction_cool_until:
+                return "cooldown"
+            if now < self._wm_last + self.WM_MIN_INTERVAL_S or self._wm_slots.locked():
+                return "wm_quota_busy"
+            # 锁定期间、已确认槽可用；Semaphore.acquire 的立即路径不让出执行权。
+            await self._wm_slots.acquire()
+            self._wm_last = now
+            return ""
+
+    async def probe_data_source(self, target: str, platform: str = "pc") -> dict:
+        """只探测传输，不采用、解析或缓存业务数据；WM 探测计入普通查询额度。"""
+        self._ensure_open()
+        if target not in {"worldstate", "community", "wiki", "market"}:
+            raise ValueError("未知数据源测试项")
+        if target == "worldstate":
+            url = (
+                self.de_worldstate_url
+                if self.worldsource == "de"
+                else f"{self._ws_base(platform)}/{platform}/events"
+            )
+            urls = (("世界状态", url),)
+        elif target == "community":
+            urls = (
+                (("自填地址", f"{self.community_base}/valence.json"),)
+                if self.community_base
+                else tuple((urlsplit(u).hostname or "社区通道", u) for u in COMMUNITY_VALENCE_URLS)
+            )
+        elif target == "wiki":
+            if not self.flare_enabled:
+                return {
+                    "ok": False,
+                    "detail": "FlareSolverr 已关闭，未测试源页重抓",
+                    "attempts": [],
+                    "skipped_reason": "disabled",
+                }
+            urls = (("wiki 源页", self._wiki_request_url(WIKI_RAW_CODA)),)
+        else:
+            reason = await self._wm_try_acquire()
+            if reason:
+                return {
+                    "ok": False,
+                    "detail": "WM 冷却中，未测试"
+                    if reason == "cooldown"
+                    else "WM 额度繁忙，未测试",
+                    "attempts": [],
+                    "skipped_reason": "wm_quota_busy",
+                }
+            urls = (("warframe.market", f"{self.wm_v2_base}/items"),)
+        attempts = []
+        deadline = time.monotonic() + COMMUNITY_BUDGET if target == "community" else None
+        try:
+            for index, (label, url) in enumerate(urls):
+                self._ensure_open()
+                started = time.perf_counter()
+                row = {"label": label, "ok": False, "status": None, "error": ""}
+                # 不暴露账号、查询参数、片段或自填路径（路径也可能携带令牌）。
+                parts = urlsplit(url)
+                row["url"] = f"{parts.scheme}://{parts.hostname or ''}" + (
+                    f":{parts.port}" if parts.port else ""
+                )
+                if target == "community" and self.community_base and self.allow_private_urls:
+                    row["url"] = ""  # 显式允许内网时也不把自填内部地址回传页面。
+                try:
+                    if (
+                        target == "community"
+                        and self.community_base
+                        and not self.allow_private_urls
+                    ):
+                        if await private_url_reason(url):
+                            row["url"] = ""
+                            raise WarframeAPIError("自填地址指向受限网络，未发送请求")
+                    timeout = (
+                        8.0
+                        if target == "worldstate" and url == DEFAULT_DE_WORLDSTATE
+                        else self._http.timeout
+                    )
+                    headers = _ORACLE_HEADERS if target == "community" else None
+                    if target == "community":
+                        left = deadline - time.monotonic()
+                        if left <= 1.0:
+                            row.update(
+                                error="本次社区探测预算已耗尽，未测试",
+                                skipped_reason="budget_exhausted",
+                                ms=0,
+                            )
+                            attempts.append(row)
+                            continue
+                        timeout = min((left - 0.5) / (len(urls) - index), COMMUNITY_PER_CHANNEL)
+                        if url == COMMUNITY_VALENCE_API_URL and not self.community_base:
+                            headers = {
+                                **_ORACLE_HEADERS,
+                                "Accept": "application/vnd.github.raw+json",
+                                "X-GitHub-Api-Version": "2026-03-10",
+                            }
+                            url += f"&cb={int(time.time() // 60)}"
+                    if target == "wiki":
+                        await self._wiki_wait(url)
+                        timeout = 10.0
+                        headers = {"Accept": "application/json, text/plain;q=0.9"}
+                    request_options = {}
+                    if target in {"wiki", "market"} or (
+                        target == "community"
+                        and (self.community_base or "api.github.com" == urlsplit(url).hostname)
+                    ):
+                        request_options["follow_redirects"] = False
+                    try:
+                        self._ensure_open()
+                        async with self._http.stream(
+                            "GET", url, headers=headers, timeout=timeout, **request_options
+                        ) as response:
+                            self._ensure_open()
+                            row["status"] = response.status_code
+                            if target == "market" and (
+                                response.status_code == 429
+                                or (
+                                    response.status_code >= 500
+                                    and response.headers.get("Retry-After")
+                                )
+                            ):
+                                seconds = wm_retry_after_seconds(
+                                    response.headers.get("Retry-After", "")
+                                )
+                                async with self._wm_lock:
+                                    self._wm_auction_cool_until = max(
+                                        self._wm_auction_cool_until, time.monotonic() + seconds
+                                    )
+                            if target == "wiki":
+                                self._wiki_check_response(
+                                    url,
+                                    response.status_code,
+                                    response.headers,
+                                    allow_challenge=True,
+                                )
+                            response.raise_for_status()
+                            row["ok"] = 200 <= response.status_code < 300
+                    except (_WikiRetryLater, _WikiRequestRejected):
+                        raise
+                    except Exception:
+                        self._ensure_open()
+                        if target != "wiki" or not self.flare_enabled:
+                            raise
+                        await self.fetch_via_flaresolver(
+                            url, ttl=0, cache_result=False, probe_only=True
+                        )
+                        row["ok"] = True
+                        row["status"] = None
+                        row["via"] = "flaresolverr"
+                        row["label"] = "wiki 源页（FlareSolverr）"
+                except Exception as exc:  # noqa: BLE001 - 对外只给脱敏摘要
+                    self._ensure_open()
+                    row["error"] = public_error_text(
+                        "请求超时"
+                        if isinstance(exc, httpx.TimeoutException)
+                        else f"HTTP {row['status']}"
+                        if row["status"]
+                        else "连接或响应异常"
+                    )
+                row["ms"] = int((time.perf_counter() - started) * 1000)
+                attempts.append(row)
+        finally:
+            if target == "market":
+                self._wm_slots.release()
+        ok = any(row["ok"] for row in attempts)
+        return {
+            "ok": ok,
+            "detail": (
+                "经 FlareSolverr 连通（求解器内部可能产生多条请求；不验证数据有效性或新鲜度）"
+                if ok and any(row.get("via") == "flaresolverr" for row in attempts)
+                else "HTTP 连通（不验证数据有效性或新鲜度）"
+                if ok
+                else "所测通道未连通"
+            ),
+            "attempts": attempts,
+            "skipped_reason": "",
+        }
+
     async def close(self) -> None:
         self.begin_close()
         self._closed = True
@@ -4869,7 +5052,9 @@ class WarframeClient:
             rows = parsed["tenet"] if key == "tenet" else parsed["coda"].get(index + 1, [])
             self._valence_table(rows, {item["en"] for item in items})
 
-    async def fetch_via_flaresolver(self, url: str, ttl: int = TTL_FLARE) -> str:
+    async def fetch_via_flaresolver(
+        self, url: str, ttl: int = TTL_FLARE, *, cache_result: bool = True, probe_only: bool = False
+    ) -> str:
         """经 FlareSolverr 抓取被 Cloudflare 拦的页面，返回渲染后的 HTML。
 
         未配置 FlareSolverr（连接失败）时抛 WarframeAPIError，由调用方降级。
@@ -4879,10 +5064,12 @@ class WarframeClient:
 
         url = self._wiki_request_url(url)
         hit = self._flare_cache.get(url)
-        if hit and _t.time() - hit[0] < ttl:
+        if cache_result and hit and _t.time() - hit[0] < ttl:
             return hit[1]
 
         async def _post(base: str, payload: dict) -> dict:
+            if probe_only:
+                self._ensure_open()
             r = await self._http.post(base, json=payload, timeout=120.0, follow_redirects=False)
             if payload.get("cmd") == "request.get":
                 self._wiki_check_response(url, r.status_code, getattr(r, "headers", {}))
@@ -4907,14 +5094,14 @@ class WarframeClient:
                 "session": self._FLARE_SESSION,
                 "maxTimeout": self._FLARE_MAX_TIMEOUT,
             }
-            for attempt in range(2):
+            for attempt in range(1 if probe_only else 2):
                 await self._wiki_wait(url)
                 try:
                     data = await _post(base, payload)
                 except (_WikiRetryLater, _WikiRequestRejected):
                     raise
                 except Exception:  # noqa: BLE001 - 连接/非 JSON 失败至多恢复一次
-                    if attempt:
+                    if probe_only or attempt:
                         raise
                     await _recreate_session(base)
                     continue
@@ -4941,7 +5128,11 @@ class WarframeClient:
                         raise _WikiRequestRejected("FlareSolverr 缺少源站响应")
                     return data
                 msg = str(data.get("message") or "")
-                if attempt or not any(h in msg.lower() for h in self._FLARE_REBUILD_HINTS):
+                if (
+                    probe_only
+                    or attempt
+                    or not any(h in msg.lower() for h in self._FLARE_REBUILD_HINTS)
+                ):
                     break
                 await _recreate_session(base)
             return data
@@ -4956,6 +5147,8 @@ class WarframeClient:
         candidates = ([self._flare_url] if self._flare_url else []) + [
             u for u in self._flare_urls if u != self._flare_url
         ]
+        if probe_only:
+            candidates = candidates[:1]
         for base in candidates:
             try:
                 data = await _solve(base)
@@ -4979,7 +5172,8 @@ class WarframeClient:
                 f"FlareSolverr 不可用/求解失败（{err_msg or last_err or data.get('message')}）"
             )
         html = data["solution"]["response"]
-        self._flare_cache[url] = (_t.time(), html)
+        if cache_result:
+            self._flare_cache[url] = (_t.time(), html)
         return html
 
     @property

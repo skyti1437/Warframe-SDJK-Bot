@@ -14,6 +14,7 @@ import re
 import struct as _st
 import sys
 import tempfile
+import threading
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -3396,6 +3397,84 @@ check(
 )
 
 
+async def _overview_ledger_thread_checks():
+    """真实面板入口的账本线程不阻塞，取消、关闭和目录切换保持隔离。"""
+    panel = _panel()
+    panel._query = lambda *args: "0"
+    loop = asyncio.get_running_loop()
+    main_tid = threading.get_ident()
+    started = asyncio.Event()
+    release = threading.Event()
+    calls = []
+    old_run = paths.run_dir()
+
+    def ledger(run_dir):
+        calls.append((run_dir, threading.get_ident()))
+        loop.call_soon_threadsafe(started.set)
+        if not release.wait(3):
+            raise AssertionError("账本线程测试未解除等待")
+        return [{"file": "fixture"}]
+
+    with tempfile.TemporaryDirectory() as tmp:
+        first_root, second_root = Path(tmp) / "first", Path(tmp) / "second"
+        paths.set_run_dir(first_root)
+        try:
+            with (
+                _patch.object(W, "freshness", return_value=[]),
+                _patch.object(W, "registry_rows", return_value=[]),
+                _patch.object(W, "ledger_rows", side_effect=ledger),
+            ):
+                first = asyncio.create_task(panel.overview())
+                try:
+                    await asyncio.wait_for(started.wait(), 2)
+                    check(
+                        "账本扫描在线程执行，使用请求时的目录",
+                        len(calls) == 1 and calls[0][0] == first_root and calls[0][1] != main_tid,
+                    )
+                    first.cancel()
+                    cancelled = await asyncio.gather(first, return_exceptions=True)
+                    next_request = asyncio.create_task(panel.overview())
+                    await asyncio.sleep(0)
+                    check(
+                        "取消只停止当前请求，后续扫描等待原线程",
+                        isinstance(cancelled[0], asyncio.CancelledError)
+                        and panel._overview_lock.locked()
+                        and not next_request.done()
+                        and len(calls) == 1,
+                    )
+                    paths.set_run_dir(second_root)
+                    panel.close()
+                    release.set()
+                    reply = await asyncio.wait_for(next_request, 2)
+                    check(
+                        "关闭后排队请求返回停用，未触发另一份账本扫描",
+                        reply == panel._gone() and len(calls) == 1,
+                    )
+                    fresh_panel = _panel()
+                    fresh_panel._query = lambda *args: "0"
+                    reply = await fresh_panel.overview()
+                    check(
+                        "新面板读取新目录，响应保留账本字段",
+                        reply["ledger"] == [{"file": "fixture"}] and calls[-1][0] == second_root,
+                    )
+
+                    started.clear()
+                    release.clear()
+                    active = asyncio.create_task(fresh_panel.overview())
+                    await asyncio.wait_for(started.wait(), 2)
+                    fresh_panel.close()
+                    release.set()
+                    reply = await asyncio.wait_for(active, 2)
+                    check("面板关闭丢弃已开工请求的账本结果", reply == fresh_panel._gone())
+                finally:
+                    release.set()
+        finally:
+            paths.set_run_dir(None if old_run == paths.PKG_DATA else old_run)
+
+
+asyncio.run(_overview_ledger_thread_checks())
+
+
 async def _background_overview_checks():
     """实际 Task 与检查记录交叉校正，查询接口不启动/推进后台任务。"""
     from unittest.mock import patch
@@ -5338,10 +5417,11 @@ check(
     and "innerHTML" not in _vp,
 )
 check(
-    "自动刷新区分操作忙碌与不可选的提示词、模式按钮",
-    '"data-vp": ""' in _vp
-    and '"data-rm-switch": true' in _js
-    and "button:disabled:not([data-vp], [data-rm-switch])" in _js,
+    "自动刷新按按钮操作计数判断忙碌（不扫描禁用按钮：禁用也可能只表示此刻不可用）；字体任务进行中、设置有未保存改动时暂停",
+    _js.count("opCount += 1") == 2
+    and _js.count("opCount -= 1") == 2
+    and "!opCount && !fontRunning && !Object.keys(state.edits).length" in _js
+    and "button:disabled" not in _js,
 )
 
 
@@ -6616,6 +6696,97 @@ check(
     and "约 30 分钟" not in _js
     and "约 20 分钟以上" not in _js,
 )
+
+
+async def _data_source_test_checks():
+    """通过面板真实路由验证结果缓存、配置失效、互斥与关闭。"""
+    panel = _panel()
+    panel.p.cfg = {"default_platform": "pc"}
+    target = "worldstate"
+    calls = []
+    gate = asyncio.Event()
+    blocked = False
+
+    async def body():
+        return {"target": target}
+
+    async def probe(name, platform="pc"):
+        calls.append((name, platform))
+        if blocked:
+            await gate.wait()
+        return {
+            "ok": True,
+            "detail": "HTTP 连通",
+            "attempts": [
+                {
+                    "label": "源",
+                    "url": "https://source.invalid",
+                    "ok": True,
+                    "status": 200,
+                    "ms": 1,
+                    "error": "",
+                }
+            ],
+            "skipped_reason": "",
+        }
+
+    panel._body = body
+    panel.p.client.probe_data_source = probe
+    first = await panel.conntest()
+    first["attempts"][0]["label"] = "调用者改写"
+    second = await panel.conntest()
+    check(
+        "数据源测试30秒内复用独立结果，保留观测时间",
+        len(calls) == 1
+        and second["cached"]
+        and second["checked_at"] == first["checked_at"]
+        and second["attempts"][0]["label"] == "源",
+    )
+    panel.p.client.community_base = "https://changed.invalid"
+    changed = await panel.conntest()
+    check("数据源相关配置变化使缓存失效", len(calls) == 2 and not changed["cached"])
+    deadline, key, result = panel._data_test_cache[target]
+    panel._data_test_cache[target] = (0, key, result)
+    await panel.conntest()
+    check("数据源测试缓存到期后重新探测", len(calls) == 3)
+
+    async def skipped(*args, **kwargs):
+        calls.append(("skip", ""))
+        return {
+            "ok": False,
+            "detail": "额度繁忙",
+            "attempts": [],
+            "skipped_reason": "wm_quota_busy",
+        }
+
+    panel.p.client.probe_data_source = skipped
+    target = "market"
+    await panel.conntest()
+    await panel.conntest()
+    check("额度繁忙未执行的结果不占测试缓存", calls[-2:] == [("skip", ""), ("skip", "")])
+
+    panel.p.client.probe_data_source = probe
+    target = "community"
+    blocked = True
+    request = asyncio.create_task(panel.conntest())
+    await asyncio.sleep(0)
+    target = "flare"
+    busy = await panel.conntest()
+    check("数据源测试和既有测试共用锁", busy.get("message") == "上一项测试还没结束")
+    request.cancel()
+    await asyncio.gather(request, return_exceptions=True)
+    check("取消数据源请求归还测试锁", not panel._test_lock.locked())
+    target = "wiki"
+    request = asyncio.create_task(panel.conntest())
+    await asyncio.sleep(0)
+    panel.close()
+    gate.set()
+    reply = await request
+    check("关闭面板丢弃探测结果并清空缓存", reply == panel._gone() and not panel._data_test_cache)
+
+
+asyncio.run(_data_source_test_checks())
+
 
 if fails:
     print(f"✗ {fails} 项失败")

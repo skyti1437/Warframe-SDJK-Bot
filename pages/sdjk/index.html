@@ -137,6 +137,9 @@
   .row > button.sm { min-width: 0; }
   .result { font-size: 13px; flex-basis: 100%; padding-left: 2px; }
   .result:empty { display: none; }
+  .connList { display: grid; gap: 2px; margin-top: 4px; }
+  .connAtt { display: grid; grid-template-columns: 1.2em minmax(5em, max-content) minmax(0, 1fr) auto; gap: 8px; align-items: baseline; font-size: 12px; }
+  .connAtt .connUrl { word-break: break-all; }
   .sub { margin: 14px 0 6px; font-size: 13px; color: var(--ink-dim); letter-spacing: .1em; }
   .bar { height: 4px; background: var(--hair); margin: 8px 0 4px; overflow: hidden; }
   .bar > i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--gold-dim), var(--gold-bright)); transition: width .4s; }
@@ -152,6 +155,7 @@
   .field .key { font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--ink-faint); margin-left: 6px; }
   .field .fh { color: var(--ink-faint); font-size: 12px; margin-top: 2px; }
   .field .eff { font-size: 11px; margin-left: 6px; }
+  .ptitle input.subsFilter { width: 220px; max-width: 100%; }
   input[type="text"], input[type="number"], select, textarea {
     width: 100%; font: inherit; font-size: 13px; color: var(--ink); background: var(--field);
     border: 1px solid var(--hair); border-radius: 0; padding: 6px 9px; outline: none; }
@@ -388,6 +392,10 @@
 
   /* —— 窄屏：子菜单改顶部横向标签；表单单列；新鲜度表逐行卡片 —— */
   @media (max-width: 760px) {
+    .ptitle input.subsFilter { width: 100%; order: 5; }
+    .connAtt { grid-template-columns: 1.2em minmax(0, 1fr); row-gap: 0; }
+    .connAtt + .connAtt { margin-top: 6px; }
+    .connAtt .connUrl, .connAtt .connMeta { grid-column: 2; }  /* 窄屏：筛选框单独占一行，不被装饰线挤到右侧 */
     .shell { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
     nav { position: sticky; top: 0; z-index: 3; height: auto; display: flex; overflow-x: auto; padding: 0;
           border-right: 0; border-bottom: 1px solid var(--line); background: var(--panel); }
@@ -467,7 +475,7 @@
 
 <!-- ============ 数据 ============ -->
 <section data-view="data">
-  <div class="pagehead"><h2>数据</h2><span class="desc">各数据快照是否新鲜；过期的卡片会提示或不再展示</span></div>
+  <div class="pagehead"><h2>数据</h2><span class="desc">各数据快照是否新鲜；过期的卡片会提示或不再展示</span><span class="grow"></span><button id="dataReload">重新加载</button></div>
   <section class="panel"><i class="c1"></i><i class="c2"></i>
     <div class="ptitle"><h3>数据新鲜度</h3><span class="ext"></span><button id="crawlRiven">拉紫卡 WM 现价</button><button id="crawlWm">抓价格排行</button><button id="pull">从源头重抓</button><button class="primary" id="refresh">刷新社区快照</button></div>
     <details class="adv tip"><summary>四个按钮分别做什么</summary><div class="hint">「刷新社区快照」从社区快照（默认本项目公开仓 bot-data，可在「设置 → 社区数据地址」换成自己的）拉元素加成、言录使货单、仲裁评级、奸商到访历史；只有比本地新的才会替换。<br>「从源头重抓」不等定时、也不管本地是否还新鲜，立即从 wiki 重抓元素加成、言录使货单（需要 FlareSolverr，抓不到会回落社区快照）；wiki 还没人更新时不会覆盖，结果里会写明。<br>「拉紫卡 WM 现价」（不自动抓，大更后手动拉一次，「紫卡排行」周报卡会多出现价对比两列）与「抓价格排行」在后台从 warframe.market 抓，进度看下表对应行；耗时随候选数量、网络和共用额度变化，不保证固定时间。<br>抓取与群里的 wm / wr / xh、紫卡分析的价格参考共用同一份 warframe.market 额度（拍卖搜索更严格），抓取期间这些查询可能变慢或提示额度繁忙。两次重抓之间有保护时间：价格排行 30 分钟、紫卡现价 10 分钟，从上次开始和结束分别计算，自动批次刚结束、上次失败或取消也计入；按钮与群里的「排行 刷新」「紫卡排行 刷新」同样受限，保护期内会显示「未启动」及原因，页面不会自动重试。</div></details>
@@ -513,6 +521,7 @@
   </section>
   <section class="panel"><i class="c1"></i><i class="c2"></i>
     <div class="ptitle"><h3>蹲订阅</h3><span class="hint" id="subsSummary"></span><span class="ext"></span>
+      <input type="text" id="subsFilter" class="subsFilter" placeholder="筛选：群 / 事件 / 条件 / 订阅人" aria-label="筛选订阅" hidden />
       <label class="hint" title="默认打码；勾选后显示平台给的原始会话 / 用户标识"><input type="checkbox" id="reveal" /> 显示完整标识</label></div>
     <div class="hint" style="margin-bottom:8px">会话与订阅人显示的是聊天平台给的标识（默认打码）：QQ 官方机器人是群 / 成员 OpenID，不是真实群号或 QQ 号。群推送关闭时，该群的订阅暂停推送但不会被删除；连续发送失败的群会被暂停推送（可点「恢复推送」，或到点自动重试）。删除订阅要点两次确认。</div>
     <div id="subs"></div>
@@ -621,7 +630,7 @@
       <span class="switch"><input type="checkbox" id="visionAdv" /><span></span></span></label></div>
   <div class="crossNote" id="visionCross" hidden></div>
   <section class="panel" id="vSummary"><i class="c1"></i><i class="c2"></i>
-    <div class="ptitle"><h3>状态与提醒</h3><span class="ext"></span><button class="sm" id="vSumRefresh" data-vp="">重新读取</button></div>
+    <div class="ptitle"><h3>状态与提醒</h3><span class="ext"></span><button class="sm" id="vSumRefresh">重新读取</button></div>
     <div class="hint vnote">模型建议：优先使用千问（Qwen）小型视觉模型；紫卡窄读和配卡文字定位可搭配千问 OCR。模型只负责识图，词条校验、等级核对和分析由插件完成。</div>
     <div id="vSumBody"><div class="hint">读取中…</div></div>
   </section>
@@ -707,8 +716,17 @@
   </section>
   <section class="panel" id="maint-conn"><i class="c1"></i><i class="c2"></i>
     <div class="ptitle"><h3>连通性</h3><span class="ext"></span></div>
+    <div class="hint">只检查插件所在机器能否连上各个数据源：不解析内容、不写入数据、不触发刷新或抓取；数据是否有效仍看「数据」页。同一项 30 秒内再测会直接给出上次结果。</div>
+    <div class="row"><button data-test="worldstate">世界状态</button>
+      <span class="hint">按「设置 → 世界状态来源」测 DE 官方或 warframestat.us</span><div class="result" id="r-worldstate"></div></div>
+    <div class="row"><button data-test="community">社区数据</button>
+      <span class="hint">填了自定义社区数据地址时只测该地址；否则逐条测默认通道</span><div class="result" id="r-community"></div></div>
+    <div class="row"><button data-test="wiki">wiki 源页</button>
+      <span class="hint">「从源头重抓」用的 wiki 源页，经 FlareSolverr 访问；测试时可能短时占用它的浏览器</span><div class="result" id="r-wiki"></div></div>
+    <div class="row"><button data-test="market">warframe.market</button>
+      <span class="hint">走插件现有的 WM 限流，计入 WM 请求额度；额度繁忙时不测试</span><div class="result" id="r-market"></div></div>
     <div class="row"><button data-test="flare">FlareSolverr</button>
-      <span class="hint">只探活，不做真实求解</span><span class="result" id="r-flare"></span></div>
+      <span class="hint">只探活，不做真实求解</span><div class="result" id="r-flare"></div></div>
   </section>
 </section>
 <!-- ============ 关于 ============ -->
@@ -742,6 +760,8 @@
   // 旧入口：「依赖与资源」「连通性」并入「维护」，原 hash 仍可打开并滚到对应区块
   const ALIAS = { resources: ["maint", "maint-deps"], conn: ["maint", "maint-conn"] };
   const state = { ov: null, res: null, settings: null, orig: {}, edits: {} };
+  // 进行中的按钮操作数（busy / armed 执行期间）：30 秒自动刷新据此暂停
+  let opCount = 0;
 
   // 一律 textContent：订阅条件是群友输入的文本，绝不拼 HTML
   function el(tag, attrs = {}, ...kids) {
@@ -798,6 +818,36 @@
   }
   new MutationObserver(labelize).observe(document.querySelector(".content"), { childList: true, subtree: true });
 
+  // 相对时间（「x 秒前」）：agoEl 生成的节点每秒走字，不靠整表重建。
+  // 只遍历登记过的节点（不扫整个文档），已离开页面的顺手移出；只改文字节点内容（characterData），
+  // 不触发上面 labelize 的 childList 观察。
+  const agoNodes = new Set();
+  const agoEl = (ts) => {
+    if (!ts) return "—";
+    const n = el("span", { "data-ago": ts }, ago(ts));
+    agoNodes.add(n);
+    return n;
+  };
+  setInterval(() => {
+    if (!agoNodes.size || document.visibilityState !== "visible") return;
+    for (const n of agoNodes) {
+      if (!n.isConnected) { agoNodes.delete(n); continue; }
+      const t = ago(Number(n.dataset.ago));
+      if (n.firstChild.nodeValue !== t) n.firstChild.nodeValue = t;
+    }
+  }, 1000);
+
+  // 同一份数据不重复渲染：按输入记签名，相同就跳过（30 秒自动刷新多数时候数据没变）。
+  // 加载或按钮操作出错时清空全部签名（memoReset），下次照常重建。
+  const memoSig = {};
+  const unchanged = (key, data) => {
+    const sig = JSON.stringify(data);
+    if (memoSig[key] === sig) return true;
+    memoSig[key] = sig;
+    return false;
+  };
+  const memoReset = () => { for (const k of Object.keys(memoSig)) delete memoSig[k]; };
+
   // 窄屏横向导航：切页时把当前标签滚到中间；右边还有标签时渐隐提示
   const nav = $("nav");
   const navMore = () => {
@@ -822,7 +872,8 @@
       nav.scrollTo({ left: cur.offsetLeft - (nav.clientWidth - cur.offsetWidth) / 2, behavior: "smooth" });
     navMore();
     if (prev === "vision" && view !== "vision") visionLeave();
-    if ((view === "settings" || view === "vision") && !state.settings) loadSettings();
+    // 识图页在就绪后由 visionEnter 读取设置；这里只补设置页（以及就绪前的识图页），避免同时发两次 settings
+    if ((view === "settings" || (view === "vision" && !state.ready)) && !state.settings) loadSettings();
     if (view === "vision") visionEnter();
     if (view === "appearance" && !TH.meta) loadTheme();
     if (view === "about") loadAbout();
@@ -907,6 +958,7 @@
   const BACKGROUND_STATE = { running: "执行中", waiting: "等待下次", completed: "已完成", cancelled: "已取消", failed: "已停止", idle: "空闲", unknown: "未记录" };
   const BACKGROUND_RESULT = { ok: "最近检查正常", degraded: "最近检查有降级", error: "最近检查异常", skipped: "最近一次跳过" };
   function renderBackground(rows) {
+    if (unchanged("background", rows)) return;
     $("background").replaceChildren(...(rows || []).map((r) => el("tr", {},
       el("td", { class: "nw" }, r.label),
       el("td", {}, el("span", { class: "tag s-" + ({ ok: "ok", warn: "warn", stale: "stale", info: "info" }[r.status] || "info") }, BACKGROUND_STATE[r.state] || "未记录"),
@@ -933,6 +985,9 @@
   function renderOverview() {
     const ov = state.ov, res = state.res;
     if (!ov) return;
+    state.ovResSig = resOverviewSig(res);  // 字体轮询据此判断概览是否需要重建
+    const { now: _now, ...ovData } = ov;  // now 每次都变，不算数据变化
+    if (unchanged("overview", [ovData, state.ovResSig])) return;
     renderBackground(ov.background);
     const fr = ov.freshness || [];
     const nStale = fr.filter((r) => r.status === "stale").length;
@@ -946,7 +1001,7 @@
       ["数据", nStale ? `${nStale} 项已过期` : (nWarn ? `${nWarn} 项该刷新` : "全部正常"), nStale ? "s-stale" : (nWarn ? "s-warn" : "s-ok"), "data"],
       ["依赖", res ? (depsBad ? `缺 ${depsBad} 个` : "全部满足") : "—", depsBad ? "s-stale" : "s-ok", "maint"],
       ["字体", { full: "完整字库", subset: "随包子集", user: "自选字体", system: "系统字体", none: "无" }[fk] || "—", fk === "full" || fk === "user" ? "s-ok" : (fk === "none" ? "s-stale" : "s-warn"), "appearance"],
-      ["上次轮询", ago(p.last_tick), "", "push"],
+      ["上次轮询", agoEl(p.last_tick), "", "push"],
     ];
     $("ovTiles").replaceChildren(...tiles.map(([k, v, c, go]) =>
       el("a", { class: "stat", href: "#/" + go }, el("span", { class: "k" }, k), el("b", { class: "v " + (c || "") }, v))));
@@ -993,6 +1048,7 @@
     unchecked: ["还没检查", "s-info"],
   };
   function renderComm(rows, base) {
+    if (unchanged("comm", [rows, base])) return;
     $("commSrc").textContent = base ? `地址：${base}（自填）` : "地址：本项目公开仓 bot-data";
     // 自填地址不可用提示（2026-10-17，自维护性评估 V02）：自填后只读该地址、不会回落默认，要让人一眼看出根因
     const bad = base ? (rows || []).filter((r) => r.result === "unavailable") : [];
@@ -1001,6 +1057,7 @@
       const reset = el("button", { class: "sm primary", title: "清空「社区数据地址」设置并立即重新拉取" }, "恢复默认地址");
       reset.onclick = () => busy(reset, async () => {
         await bridge.apiPost("settings_save", { changes: { community_data_url: "" } });
+        if (state.settings) await loadSettings();  // 设置页已读过：同步新值（未保存的改动照旧保留）
         await bridge.apiPost("refresh", {});
         await load();
       });
@@ -1019,7 +1076,7 @@
         el("td", {}, el("span", { class: "tag " + cls }, lab)),
         el("td", { class: "nw dim" }, r.channel || "—"),
         el("td", { class: "nw dim" }, r.stamp ? fmtTime(r.stamp) : "—"),
-        el("td", { class: "nw dim" }, r.checked_at ? ago(r.checked_at) : "—"),
+        el("td", { class: "nw dim" }, agoEl(r.checked_at)),
         el("td", { class: "dim" }, r.reason || ""));
     }));
   }
@@ -1040,6 +1097,7 @@
     not_bundled: ["未随包", "s-info"],
   };
   function renderReg(rows) {
+    if (unchanged("reg", rows)) return;
     $("reg").replaceChildren(...(rows || []).map((r) => {
       const [lab, cls] = RSTATUS[r.status] || [r.status, "s-info"];
       return el("tr", {},
@@ -1066,6 +1124,7 @@
     return s.mtime ? fmtTime(s.mtime) : "—";
   };
   function renderLedger(rows) {
+    if (unchanged("ledger", rows)) return;
     rows = rows || [];
     const shown = rows.filter((r) => r.active === "run" || isLedgerProblem(r));
     const nSeed = rows.filter((r) => r.active === "seed").length;
@@ -1084,6 +1143,7 @@
   }
 
   function renderFresh(rows) {
+    if (unchanged("fresh", rows)) return;
     $("fresh").replaceChildren(...rows.map((r) => el("tr", {},
       el("td", { class: "nw" }, r.item),
       el("td", {}, el("span", { class: "tag s-" + r.status }, STATUS[r.status] || r.status)),
@@ -1094,9 +1154,10 @@
 
   // —— 推送与订阅 ——
   function renderPush(p) {
+    if (unchanged("push", p)) return;
     const items = [
       ["守护进程", p.alive ? "运行中" : "未运行", p.alive ? "s-ok" : "s-stale"],
-      ["上次轮询", ago(p.last_tick)],
+      ["上次轮询", agoEl(p.last_tick)],
       ["轮询间隔", p.interval ? p.interval + " 秒" : "—"],
       ["启动以来轮询", p.ticks + " 次"],
       ["最近一轮数据源", p.idle ? "无订阅，未拉取" : `成功 ${p.last_round_ok} / 失败 ${p.last_round_fail}`, p.last_round_fail ? "s-warn" : ""],
@@ -1118,19 +1179,33 @@
         setTimeout(() => { btn.classList.remove("arm"); btn.textContent = label; }, 3000);
         return;
       }
-      btn.disabled = true;
-      try { await fn(); } catch (e) { showErr(e); btn.disabled = false; btn.classList.remove("arm"); btn.textContent = label; }
+      btn.disabled = true; opCount += 1;
+      try { await fn(); } catch (e) { memoReset(); showErr(e); btn.disabled = false; btn.classList.remove("arm"); btn.textContent = label; }
+      finally { opCount -= 1; }
     });
     return btn;
   }
 
   const subsOpen = new Set(), subsClosed = new Set();
+  // 筛选：空格分隔的词须同时出现在「群标识 事件 条件 订阅人」里（不分大小写）；超过 3 个群才显示筛选框
+  const subsQuery = () => ($("subsFilter").value || "").trim().toLowerCase();
+  $("subsFilter").oninput = () => { if (state.ov) renderSubs(state.ov.subs); };
   function renderSubs(s) {
+    if (unchanged("subs", [s, subsQuery()])) return;
+    const filt = $("subsFilter");
+    filt.hidden = !(s.sessions && s.sessions.length > 3);
     if (s.error) { $("subs").replaceChildren(el("div", { class: "s-stale" }, s.error)); return; }
     const ev = Object.entries(s.events || {}).map(([k, v]) => `${k} ${v}`).join("、");
     $("subsSummary").textContent = `共 ${s.total} 条` + (ev ? `（${ev}）` : "");
     if (!s.sessions.length) { $("subs").replaceChildren(el("div", { class: "hint" }, "暂无订阅（群里发「蹲 …」添加）")); return; }
-    $("subs").replaceChildren(...s.sessions.map((g) => {
+    const toks = filt.hidden ? [] : subsQuery().split(/\s+/).filter(Boolean);
+    const hit = (g, x) => toks.every((t) => [g.umo, x.event, x.rule || "（全部）", x.created_by || ""].join(" ").toLowerCase().includes(t));
+    const shown = toks.length ? s.sessions.map((g) => ({ ...g, subs: g.subs.filter((x) => hit(g, x)) })).filter((g) => g.subs.length) : s.sessions;
+    if (toks.length) {
+      $("subsSummary").textContent += `；筛出 ${shown.reduce((n, g) => n + g.subs.length, 0)} 条 / ${shown.length} 个群`;
+      if (!shown.length) { $("subs").replaceChildren(el("div", { class: "hint" }, "没有匹配的订阅，换个词或清空筛选")); return; }
+    }
+    $("subs").replaceChildren(...shown.map((g) => {
       const tog = g.push === null ? null : el("button", { class: "sm" + (g.push ? "" : " primary") }, g.push ? "关闭本群推送" : "开启本群推送");
       if (tog) tog.onclick = () => busy(tog, async () => {
         await bridge.apiPost("group_push", { key: g.key, push: !g.push });
@@ -1141,8 +1216,8 @@
         await bridge.apiPost("push_resume", { key: g.key });
         await load();
       });
-      // 群多时默认收起；展开 / 收起状态跨 30 秒自动刷新保留
-      const open = subsOpen.has(g.key) ? true : subsClosed.has(g.key) ? false : s.sessions.length <= 3;
+      // 群多时默认收起；展开 / 收起状态跨 30 秒自动刷新保留。筛选时匹配的群一律展开，且不记入展开状态
+      const open = toks.length ? true : subsOpen.has(g.key) ? true : subsClosed.has(g.key) ? false : s.sessions.length <= 3;
       const box = el("details", { class: "session", open },
         el("summary", {}, el("b", {}, g.umo), el("span", { class: "hint" }, `${g.subs.length} 条`),
           g.push === null ? null : el("span", { class: "tag " + (g.push ? "s-ok" : "s-warn") }, g.push ? "推送开启" : "推送已关闭（订阅暂停）"),
@@ -1162,6 +1237,7 @@
               await load();
             }))))))));
       box.addEventListener("toggle", () => {
+        if (toks.length) return;
         if (box.open) { subsOpen.add(g.key); subsClosed.delete(g.key); } else { subsOpen.delete(g.key); subsClosed.add(g.key); }
       });
       return box;
@@ -1560,19 +1636,24 @@
     mgObserveEdits();
   }
   // 重新读取设置时保留尚未保存的改动（另一页的、或本页其它字段的）；与新读到的值相同的改动自然消失
-  async function loadSettings({ preserveEdits = false } = {}) {
+  async function loadSettings({ preserveEdits = false, forceRender = false } = {}) {
     if (RM_SWITCH.busy && !preserveEdits) return;
     const seq = state.settingsSeq = (state.settingsSeq || 0) + 1;
     try {
       const settings = await bridge.apiGet("settings", {});
       if (seq !== state.settingsSeq) return;
-      state.settings = settings;
+      // 读回的设置与当前完全相同（例如再次进入识图页）：表单已与状态一致，不重建两页表单
+      // （保留焦点、光标、滚动与展开状态），只刷新未保存标记、徽标与识图小结。有任何差异照常整页重建。
+      const unchanged = !!state.settings && JSON.stringify(settings) === JSON.stringify(state.settings);
+      if (!unchanged) state.settings = settings;
       state.orig = {};
       for (const g of state.settings.groups) for (const f of g.fields) state.orig[f.key] = f.value;
+      let pruned = false;
       for (const k of Object.keys(state.edits)) {
         if (preserveEdits) continue;
-        if (!(k in state.orig) || same(state.edits[k], state.orig[k])) delete state.edits[k];
+        if (!(k in state.orig) || same(state.edits[k], state.orig[k])) { delete state.edits[k]; pruned = true; }
       }
+      if (unchanged && !pruned && !forceRender) { markDirty(); renderVisionSummary(); return; }
       renderSettings();
       renderVision();
     } catch (e) { showErr(e); }
@@ -1603,7 +1684,7 @@
       out.className = "result s-ok";
       out.textContent = `✓ 已保存 ${d.saved.length} 项` +
         (d.need_reload.length ? `；以下需在 AstrBot 后台重载插件后生效：${d.need_reload.map(lab).join("、")}` : "，已即时生效");
-      await loadSettings();
+      await loadSettings({ forceRender: true });
       if (scope === "vision") await loadVisionSaved();
     } catch (err) { out.className = "result s-stale"; out.textContent = "✗ " + (err.message || err); }
     finally { state.settingsSaving -= 1; }
@@ -1635,12 +1716,14 @@
   const ADV_KEY = "sdjk.vision.advanced";
   let visionAdv = false;
   try { visionAdv = window.localStorage.getItem(ADV_KEY) === "1"; } catch { visionAdv = false; }
+  // 作废识图页上视觉真调与本地 OCR 的「再点一次确认」并重绘 OCR 区；迁移预览由调用处 mgRevoke 写明原因
+  function revokeVisionArms() {
+    vlRevoke(); ocrRevoke(); renderOcrBar(); renderOcrInst(); renderOcrTry();
+  }
   function setAdv(on) {
     visionAdv = !!on;
     try { window.localStorage.setItem(ADV_KEY, visionAdv ? "1" : "0"); } catch { /* 存不了就只在本次页面生效 */ }
-    vlRevoke();
-    ocrRevoke(); renderOcrBar(); renderOcrInst(); renderOcrTry();
-    mgRevoke("切换了详细自定义");
+    revokeVisionArms(); mgRevoke("切换了详细自定义");
     applyAdv();
     if (!visionAdv) vcHide("关闭详细自定义");
     markDirty();
@@ -1683,9 +1766,7 @@
   }
   function visionLeave() {
     rmCancelSwitch();
-    vlRevoke();
-    mgRevoke("离开了识图页");
-    ocrRevoke(); renderOcrBar(); renderOcrTry();
+    revokeVisionArms(); mgRevoke("离开了识图页");
     clearTimeout(OI.pollT); OI.pollT = 0;  // 离页停止部署状态轮询，回来时重新读取
     vcHide("离开识图页");
   }
@@ -1739,9 +1820,7 @@
     if (pending !== RM_SWITCH.pending || !rmCanSwitch(mode, revision) || rmOtherOperation()) return;
     RM_SWITCH.pending = null;
     RM_SWITCH.busy = true;
-    vlRevoke();
-    ocrRevoke(); renderOcrBar(); renderOcrInst(); renderOcrTry();
-    mgRevoke("切换紫卡读取方式");
+    revokeVisionArms(); mgRevoke("切换紫卡读取方式");
     if (VC.arm) { clearTimeout(VC.armT); VC.arm = ""; vcRender(); }
     // 使切换前发出的设置读取作废；完成后再统一刷新。
     state.settingsSeq = (state.settingsSeq || 0) + 1;
@@ -1836,7 +1915,7 @@
       el("div", { class: "hint" }, T[0]),
       key === "local" ? el("a", { href: "#vOcr", class: "rmGo", onclick: (e) => { e.preventDefault(); $("vOcr")?.scrollIntoView({ block: "start" }); } }, "前往本地紫卡 OCR 设置 ›") : null,
       det,
-      el("button", { type: "button", "data-rm-switch": true, disabled: on || !rmCanSwitch(key, m.revision),
+      el("button", { type: "button", disabled: on || !rmCanSwitch(key, m.revision),
         onclick: () => rmPrepareSwitch(key, m.revision) }, on ? "当前方式" : `切换到${RM_NAME[key]}`));
   }
   // 当前方式下实际用到的渠道与设置（全部来自后端回读；不参与的项注明，已保存值保留）
@@ -2242,9 +2321,9 @@
       v.d.requires_selection.length ? el("div", { class: "s-warn" }, `需先手动选择：${v.d.requires_selection.map((k) => MG_NAME[k] || k).join("、")}（页面不会替你挑模型）。`) : null,
       el("ul", {}, ...mgRules(v.op).map((x) => el("li", {}, x))),
       el("div", { class: "vpBar" },
-        pv ? el("button", { class: "sm primary", "data-vp": "", id: "vMigApply", disabled: !!why, title: why || undefined, onclick: mgApply },
+        pv ? el("button", { class: "sm primary", id: "vMigApply", disabled: !!why, title: why || undefined, onclick: mgApply },
           `确认${MG_OP[v.op]}（只发送一次）`) : null,
-        el("button", { class: "sm", "data-vp": "", id: "vMigCancel", disabled: !!MG.busy, onclick: () => { mgRevoke(""); MG.msg = { cls: "s-info", text: "已取消预览，未做任何改动。" }; mgRender(); } }, "取消"),
+        el("button", { class: "sm", id: "vMigCancel", disabled: !!MG.busy, onclick: () => { mgRevoke(""); MG.msg = { cls: "s-info", text: "已取消预览，未做任何改动。" }; mgRender(); } }, "取消"),
         why ? el("span", { class: "hint why" }, `不可确认：${why}。`) : null))
       : null;
     vpPut(box,
@@ -2255,9 +2334,9 @@
         : "当前是迁移前的兼容模式：紫卡主读 / 配卡识卡留空时继承兼容主渠道，改动兼容主渠道会同时影响两类留空项。") : null,
       kv, need,
       el("div", { class: "vpBar" },
-        st ? el("button", { class: "sm", "data-vp": "", id: "vMigPrep", disabled: !!prepWhy, title: prepWhy || undefined, onclick: () => mgPrepare(op) },
+        st ? el("button", { class: "sm", id: "vMigPrep", disabled: !!prepWhy, title: prepWhy || undefined, onclick: () => mgPrepare(op) },
           op === "migrate" ? "预览迁移" : "预览回滚") : null,
-        el("button", { class: "sm", "data-vp": "", id: "vMigReload", disabled: !!MG.busy, onclick: () => mgLoad() }, "重新读取迁移状态"),
+        el("button", { class: "sm", id: "vMigReload", disabled: !!MG.busy, onclick: () => mgLoad() }, "重新读取迁移状态"),
         iso === null && MG.loaded ? el("span", { class: "hint" }, "（隔离状态未确认，其它说明按迁移前口径显示）") : null),
       pvBox,
       el("div", { class: "result", id: "vMigMsg", "aria-live": "polite" }, MG.msg ? el("div", { class: MG.msg.cls }, MG.msg.text) : null));
@@ -2531,13 +2610,13 @@
       done ? el("div", { class: "ocrKv", id: "ocrInstRec" }, ...kv("推荐解释器", s.recommended_python || "（未返回）", "ocrPath"), ...kv("模型目录", s.model_dir || "（未返回）", "ocrPath")) : null,
       OI.stopped ? el("div", { class: "hint" }, OI.stopped) : null,
       el("div", { class: "vpBar" },
-        el("button", { class: "sm" + (OI.busy ? " busy" : "") + (armed ? " danger arm" : ""), "data-vp": "", id: "ocrBtn-install",
+        el("button", { class: "sm" + (OI.busy ? " busy" : "") + (armed ? " danger arm" : ""), id: "ocrBtn-install",
           disabled: !!why, title: why || undefined,
           onclick: () => ocrArm("install", ocrInstall, ocrInstContext, () => !!OI.st && !OI.busy && !OI.st.running && !OI.err, 6000) },
           armed ? "再点一次：确认在插件所在机器下载并部署（不保存路径、不启用）" : "下载并部署本地 OCR"),
-        done ? el("button", { class: "sm", "data-vp": "", id: "ocrBtn-fill", disabled: !!fillWhy, title: fillWhy || undefined, onclick: ocrFillRecommended },
+        done ? el("button", { class: "sm", id: "ocrBtn-fill", disabled: !!fillWhy, title: fillWhy || undefined, onclick: ocrFillRecommended },
           "填入推荐路径（不保存）") : null,
-        el("button", { class: "sm", "data-vp": "", id: "ocrBtn-instRefresh", disabled: OI.busy, onclick: () => ocrInstLoad() }, "刷新部署状态"),
+        el("button", { class: "sm", id: "ocrBtn-instRefresh", disabled: OI.busy, onclick: () => ocrInstLoad() }, "刷新部署状态"),
         why && OI.loaded ? el("span", { class: "hint why" }, `下载部署不可执行：${why}。`) : null),
       el("div", { class: "result", id: "ocrInstMsg", "aria-live": "polite" }, OI.msg ? el("div", { class: OI.msg.cls }, OI.msg.text) : null));
   }
@@ -2722,11 +2801,11 @@
       : !f ? "先选择一张紫卡截图" : "";
     const armed = OCR.arm === "try";
     vpPut($("ocrTryBar"),
-      el("button", { class: "sm primary" + (OT.busy ? " busy" : "") + (armed ? " danger arm" : ""), "data-vp": "", id: "ocrBtn-try",
+      el("button", { class: "sm primary" + (OT.busy ? " busy" : "") + (armed ? " danger arm" : ""), id: "ocrBtn-try",
         disabled: !!why, title: why || undefined,
         onclick: () => ocrArm("try", ocrTry, ocrTryContext, () => !!OCR.st?.enabled && !OCR.busy && !OT.busy && !!OT.file, 6000) },
         armed ? "再点一次：在插件所在机器执行一次本地识别（不调用模型 API，不用于估价）" : "试识别"),
-      el("button", { class: "sm", "data-vp": "", id: "ocrBtn-clear", disabled: OT.busy || (!f && !OT.res),
+      el("button", { class: "sm", id: "ocrBtn-clear", disabled: OT.busy || (!f && !OT.res),
         onclick: () => { $("ocrFile").value = ""; ocrPick(null); } }, "移除图片"),
       why ? el("span", { class: "hint why" }, `不可试识别：${why}。`) : null);
     vpPut($("ocrTryMsg"), OT.msg ? el("div", { class: OT.msg.cls }, OT.msg.text) : null);
@@ -2788,7 +2867,7 @@
     const enWhy = base || (st?.enabled ? "已经启用" : !savedOk ? "先保存引擎与路径（有未保存改动时不能启用）" : st.check_ok !== true ? "先检查并通过" : "");
     const offWhy = base || (!st?.enabled ? "当前没有启用" : "");
     const btn = (key, label, why, fn, cls = "sm") => el("button", { class: cls + (OCR.busy === key ? " busy" : "") + (OCR.arm === key ? " danger arm" : ""),
-      "data-vp": "", id: `ocrBtn-${key}`, disabled: !!why || !!OCR.busy, title: why || undefined, onclick: fn }, label);
+      id: `ocrBtn-${key}`, disabled: !!why || !!OCR.busy, title: why || undefined, onclick: fn }, label);
     const doSave = async () => {
       const d = await ocrPost("save", { engine: f.engine, python: f.python, model_dir: f.model_dir, revision: st.revision }, "保存");
       if (d) { OCR.dirty = false; ocrAdopt(d); OCR.msg = { cls: "s-ok", text: "✓ 已保存引擎与路径，本地 OCR 已关闭、旧检查已清除；请检查已保存配置后再确认启用。" }; }
@@ -2843,9 +2922,8 @@
     badge("b-vision", Object.keys(scopeEdits("vision")).length || vpDirty() ? "改" : "", "s-edit");
     renderCross();
   };
-  // 页面元素统一标 data-vp：disabled 表示「此刻不可用」，自动刷新不把它当作操作进行中
   function vpBtn(label, { cls = "sm", off = false, title, busyKey } = {}, onclick) {
-    const b = el("button", { class: cls + (busyKey && VP.busy === busyKey ? " busy" : ""), "data-vp": "", title, disabled: off || !!VP.busy || VP.loading, onclick }, label);
+    const b = el("button", { class: cls + (busyKey && VP.busy === busyKey ? " busy" : ""), title, disabled: off || !!VP.busy || VP.loading, onclick }, label);
     return b;
   }
   // 启用 / 恢复 / 覆盖或放弃编辑：沙箱 iframe 里 confirm 无效，第一次点变成「再点一次确认」，4 秒内再点才执行
@@ -2871,7 +2949,7 @@
       oninput: (e) => { VP.text = e.target.value; VP.arm = ""; vpRenderState(); } });
     vpNode = el("section", { class: "panel", id: "vpPanel" }, el("i", { class: "c1" }), el("i", { class: "c2" }),
       el("div", { class: "ptitle" }, el("h3", {}, "提示词方案"), el("span", { class: "tag s-info", id: "vpGroupTag" }), el("span", { class: "ext" }),
-        el("button", { class: "sm", id: "vpCatBtn", "data-vp": "", onclick: (e) => busy(e.currentTarget, () => Promise.all([vpLoadCatalog(), psLoadCatalog()])) }, "刷新渠道列表")),
+        el("button", { class: "sm", id: "vpCatBtn", onclick: (e) => busy(e.currentTarget, () => Promise.all([vpLoadCatalog(), psLoadCatalog()])) }, "刷新渠道列表")),
       el("ol", { class: "guide" },
         el("li", {}, "先选", el("b", {}, "宿主渠道"), "，再选「紫卡分析 / 识卡」里的识别步骤。渠道列表是宿主已加载的全部渠道，列在这里不代表支持识图。"),
         el("li", {}, el("b", {}, "复制原版到编辑框"), "后可改写整段，点", el("b", {}, "保存草稿"), "。草稿只是存档，线上照旧。"),
@@ -3318,7 +3396,7 @@
     VC.arm = ""; fn();
   }
   function vcBtn(label, { cls = "sm", off = false, title, busy: b = false } = {}, onclick) {
-    return el("button", { class: cls + (b ? " busy" : ""), "data-vp": "", title, disabled: off || b, onclick }, label);
+    return el("button", { class: cls + (b ? " busy" : ""), title, disabled: off || b, onclick }, label);
   }
   let vcNode = null;
   function vcPanel() {
@@ -3710,7 +3788,8 @@
     system: ["系统字体", "s-info", "用的是系统自带中文字体，字形可能与作者出图不同"],
     none: ["没有可用字体", "s-stale", "图片卡片会降级为文字；先安装依赖（Pillow）"],
   };
-  let fontTimer = null;
+  let fontSnapshot = null;
+  let fontTimer = null, fontRunning = false;  // fontRunning：后台字体任务进行中（页面隐藏时轮询暂停，但任务仍算进行中）
   function renderDeps(rows) {
     $("deps").replaceChildren(...rows.map((r) => el("tr", {},
       el("td", { class: "nw" }, r.name),
@@ -3720,6 +3799,7 @@
     $("depsInstall").className = rows.some((r) => !r.ok) ? "primary" : "";
   }
   function renderFonts(f) {
+    fontSnapshot = f;
     const [label, cls, desc] = FONT_KIND[f.kind] || FONT_KIND.none;
     $("fontState").replaceChildren(el("span", { class: "tag " + cls }, label),
       el("span", { class: "hint" }, ` ${desc}；正文 ${f.regular || "—"} · 粗体 ${f.bold || "—"}`));
@@ -3740,11 +3820,19 @@
       $("fontProg").className = running ? "hint" : (job.state === "done" ? "s-ok" : "s-stale");
       $("fontLog").textContent = (job.log || []).join("\n");
     }
-    if (running && !fontTimer) fontTimer = setInterval(pollRes, 1000);
+    // 轮询节奏保持每秒一次（响应慢于 1 秒时允许重叠，以免拉长终态发现延迟）；乱序的旧响应由 fetchRes 按发出顺序丢弃。
+    // 页面隐藏时不轮询，回到页面由 visibilitychange 立即补查
+    fontRunning = running;
+    if (running && !fontTimer && document.visibilityState === "visible") fontTimer = setInterval(pollRes, 1000);
     if (!running && fontTimer) { clearInterval(fontTimer); fontTimer = null; }
   }
   const ORIGIN = { bundled: "随包", user: "导入", system: "系统" };
-  function renderFontLib(f) {
+  // 字体库与选择框只在库或当前选择变化时重建（轮询期间不打断正在打开的下拉框）；force 用于选择失败后按服务器状态复原
+  let fontLibSig = "";
+  function renderFontLib(f, force = false) {
+    const sig = JSON.stringify([f.library, f.auto, f.regular, f.bold]);
+    if (!force && sig === fontLibSig) return;
+    fontLibSig = sig;
     const lib = f.library || [];
     for (const [id, slot] of [["selRegular", "regular"], ["selBold", "bold"]]) {
       const sel = $(id);
@@ -3766,12 +3854,18 @@
         el("button", { class: "sm", onclick: () => showSample(x) }, "样张"), " ",
         x.ok ? el("button", { class: "sm", onclick: () => selectFont("both", x.id) }, "设为当前字体") : null, " ",
         x.origin === "user" ? armed(el("button", { class: "sm danger" }, "删除"), "删除", async () => {
-          const d = await bridge.apiPost("font_delete", { id: x.id }); renderFonts(d.fonts); renderOverview();
+          const d = await bridge.apiPost("font_delete", { id: x.id }); acceptFonts(d.fonts); renderOverview();
         }) : null))));
   }
+  function acceptFonts(f) {
+    // 写操作完成后，先前发出的 resources 快照已经过期。
+    resApplied = ++resTicket;
+    if (state.res) state.res.fonts = f;
+    renderFonts(f);
+  }
   async function selectFont(slot, id) {
-    try { const d = await bridge.apiPost("font_select", { slot, id }); state.res.fonts = d.fonts; renderFonts(d.fonts); renderOverview(); }
-    catch (e) { showErr(e); }
+    try { const d = await bridge.apiPost("font_select", { slot, id }); acceptFonts(d.fonts); renderOverview(); }
+    catch (e) { showErr(e); if (fontSnapshot) renderFontLib(fontSnapshot, true); }
   }
   async function showSample(x) {
     $("fontSample").replaceChildren(el("span", { class: "hint" }, "生成样张…"));
@@ -3809,8 +3903,10 @@
       $("pvImg").src = d.png;
       $("pvInfo").textContent = label ? `定位：「${label}」已临时染成品红（再改任意一项或点「取消定位」恢复）` : `预览（${d.ms} ms，未保存的改动也会显示在这里）`;
       $("pvInfo").className = label ? "hint s-warn" : "hint";
-    } catch (e) { $("pvInfo").textContent = "✗ " + (e.message || e); $("pvInfo").className = "hint s-stale"; }
-    finally { if (my === TH.seq) $("pvImg").classList.remove("busy"); }
+    } catch (e) {
+      if (my !== TH.seq) return;  // 已有更新的预览请求：迟到的旧失败不覆盖它的结果
+      $("pvInfo").textContent = "✗ " + (e.message || e); $("pvInfo").className = "hint s-stale";
+    } finally { if (my === TH.seq) $("pvImg").classList.remove("busy"); }
   }
   function slotRow(sl) {
     const val = () => TH.cur.colors[sl.key] || sl.default;
@@ -3890,33 +3986,64 @@
   }
   async function loadThemeMetaOnly() { TH.meta = await bridge.apiGet("theme", {}); }
 
+  // resources 有两个来源（load 与字体任务轮询），可能同时在途：按发出顺序编号，只采用比已采用的更新的响应，
+  // 迟到的旧快照（例如任务已结束后才回来的「下载中」）直接丢弃，不回写页面。
+  let resTicket = 0, resApplied = 0, depsSig = "";
+  async function fetchRes(isCurrent = () => true) {
+    const t = ++resTicket;
+    try {
+      const r = await bridge.apiGet("resources", {});
+      if (!isCurrent() || t < resApplied) return "stale";
+      resApplied = t;
+      state.res = r;
+      // 依赖表只在依赖变化时重建；字体区每次都更新（进度条与日志）
+      const ds = JSON.stringify(r.deps);
+      if (ds !== depsSig) { depsSig = ds; renderDeps(r.deps); }
+      renderFonts(r.fonts);
+      return "ok";
+    } catch (e) { if (!isCurrent() || t < resApplied) return "stale"; showErr(e, "load"); return "fail"; }  // 与原先一样，请求与渲染出错都提示
+  }
+  // 概览只用到 resources 的依赖与字体种类：字体任务进度变化时不重建概览
+  function resOverviewSig(r) { return r ? JSON.stringify([r.deps, r.fonts.kind]) : ""; }
   async function pollRes() {
     try {
-      state.res = await bridge.apiGet("resources", {});
-      renderDeps(state.res.deps); renderFonts(state.res.fonts); renderOverview();
+      if (await fetchRes() === "ok" && resOverviewSig(state.res) !== state.ovResSig) renderOverview();
     } catch (e) { showErr(e, "load"); }
   }
 
   // —— 加载 ——
+  // overview 与 resources 互不依赖：并行请求，各自出错各自提示（overview 失败不影响 resources）；
+  // 两路都结束后只渲染一次概览。代次：较早一次 load 晚到的 overview 不覆盖较新的结果（例如快速切换「显示原始标识」）。
+  let loadGen = 0;
   async function load() {
+    const gen = ++loadGen;
     showErr("", "load");
-    try {
-      state.ov = await bridge.apiGet("overview", { reveal: $("reveal").checked ? "1" : "0" });
-      $("ver").textContent = `v${state.ov.version}`;
-      $("updated").textContent = `更新于 ${fmtTime(state.ov.now)}`;
-      renderFresh(state.ov.freshness); renderPush(state.ov.push); renderSubs(state.ov.subs);
-      renderComm(state.ov.community, state.ov.community_base);
-      renderReg(state.ov.registry);
-      renderLedger(state.ov.ledger);
-    } catch (e) { showErr(e, "load"); }
-    await pollRes();
+    let resFailed = false;
+    const ovP = (async () => {
+      try {
+        const ov = await bridge.apiGet("overview", { reveal: $("reveal").checked ? "1" : "0" });
+        if (gen !== loadGen) return;
+        state.ov = ov;
+        $("ver").textContent = `v${state.ov.version}`;
+        $("updated").textContent = `更新于 ${fmtTime(state.ov.now)}`;
+        renderFresh(state.ov.freshness); renderPush(state.ov.push); renderSubs(state.ov.subs);
+        renderComm(state.ov.community, state.ov.community_base);
+        renderReg(state.ov.registry);
+        renderLedger(state.ov.ledger);
+      } catch (e) { memoReset(); if (gen === loadGen && !resFailed) showErr(e, "load"); }  // 两路都失败时与原先串行一样，最终显示 resources 的错误
+    })();
+    const resP = fetchRes(() => gen === loadGen).then((r) => { resFailed = r === "fail"; });
+    await Promise.all([ovP, resP]);
+    if (gen !== loadGen) return;
+    try { renderOverview(); } catch (e) { memoReset(); showErr(e, "load"); }
   }
   async function busy(btn, fn, remainsDisabled = () => false) {
-    btn.disabled = true;
-    try { await fn(); } catch (e) { showErr(e); } finally { btn.disabled = remainsDisabled(); }
+    btn.disabled = true; opCount += 1;
+    try { await fn(); } catch (e) { memoReset(); showErr(e); } finally { opCount -= 1; btn.disabled = remainsDisabled(); }
   }
 
   $("reload").onclick = (e) => busy(e.currentTarget, load);
+  $("dataReload").onclick = (e) => busy(e.currentTarget, load);
   $("reveal").onchange = load;
   $("refresh").onclick = (e) => busy(e.currentTarget, async () => {
     $("refreshResult").className = "result dim";
@@ -3928,6 +4055,7 @@
     const st = Object.entries(r.static || {}).map(([k, v]) => `${NAME[k] || k}：${ST[v] || v}`);
     $("refreshResult").textContent = [`元素加成：${ST[r.valence] || r.valence}`, `言录使货单：${ST[r.acrithis] || r.acrithis}`, ...st].join("；");
     state.ov.freshness = d.freshness; renderFresh(d.freshness); renderOverview();
+    await load();  // 社区快照通道、账本与待办也随之更新
   });
   $("pull").onclick = (e) => busy(e.currentTarget, async () => {
     $("refreshResult").className = "result dim";
@@ -3945,6 +4073,7 @@
     };
     $("refreshResult").textContent = `元素加成：${say(r.valence)}；言录使货单：${say(r.acrithis)}`;
     state.ov.freshness = d.freshness; renderFresh(d.freshness); renderOverview();
+    await load();
   });
   // 只认后台明确回的 started / running；重抓保护、额度繁忙等拒绝（status=error）和其它状态都按「未启动」显示，不自动重试
   const CRAWL_ST = { started: "已在后台启动", running: "已经在抓了，不另起一份" };
@@ -3961,7 +4090,7 @@
       return;
     }
     if (CRAWL_ST[d.state]) {
-      out.textContent = `${label}：${CRAWL_ST[d.state]}（已收录 ${d.done}/${d.total || "?"}）；进度看下表，或回概览页点「重新加载」`;
+      out.textContent = `${label}：${CRAWL_ST[d.state]}（已收录 ${d.done}/${d.total || "?"}）；进度看下表（每 30 秒自动刷新，也可点本页右上「重新加载」）`;
     } else {
       out.className = "result s-stale";
       out.textContent = `${label}：后台没有确认启动（返回「${d.state ?? "空"}」），按未启动处理，页面不会自动重试。`;
@@ -3985,8 +4114,8 @@
     } catch (err) { out.className = "result s-stale"; out.textContent = "✗ " + (err.message || err); }
   });
   $("fontDl").onclick = (e) => busy(e.currentTarget, async () => {
-    const d = await bridge.apiPost("font_download", {}); renderFonts(d.fonts);
-  }, () => !!fontTimer); // 请求已结束时，后台字体任务仍可能运行；由后续轮询恢复按钮。
+    const d = await bridge.apiPost("font_download", {}); acceptFonts(d.fonts);
+  }, () => fontRunning); // 请求已结束时，后台字体任务仍可能运行；由后续轮询恢复按钮。
   $("bgUp").onclick = (e) => busy(e.currentTarget, () => uploadImg("bg"));
   $("logoUp").onclick = (e) => busy(e.currentTarget, () => uploadImg("logo"));
   for (const kind of ["bg", "logo"]) {
@@ -4016,9 +4145,9 @@
     const out = $("r-import"), url = $("fontUrl").value.trim();
     if (!/^https?:\/\//i.test(url)) { out.className = "result s-stale"; out.textContent = "先填 http(s) 开头的字体文件直链"; return; }
     out.textContent = "";
-    try { const d = await bridge.apiPost("font_import_url", { url }); renderFonts(d.fonts); }
+    try { const d = await bridge.apiPost("font_import_url", { url }); acceptFonts(d.fonts); }
     catch (err) { out.className = "result s-stale"; out.textContent = "✗ " + (err.message || err); }
-  }, () => !!fontTimer);
+  }, () => fontRunning);
   $("fontUpload").onclick = (e) => busy(e.currentTarget, async () => {
     const out = $("r-upload"), file = $("fontFile").files[0];
     if (!file) { out.className = "result s-stale"; out.textContent = "先选择一个字体文件"; return; }
@@ -4026,7 +4155,7 @@
     try {
       const d = await bridge.upload("font_upload", file);
       out.className = "result s-ok"; out.textContent = `✓ ${d.saved} 已导入，在上面的字体库里设为当前字体`;
-      $("fontFile").value = ""; renderFonts(d.fonts);
+      $("fontFile").value = ""; acceptFonts(d.fonts);
     } catch (err) { out.className = "result s-stale"; out.textContent = "✗ " + (err.message || err); }
   });
   $("vrBtn").onclick = (e) => busy(e.currentTarget, async () => {
@@ -4048,10 +4177,14 @@
     if (document.visibilityState !== "visible") rmCancelSwitch();
     else if (curView === "vision") renderRivenMode();
     if (document.visibilityState !== "visible") {
-      vlRevoke(); ocrRevoke(); renderOcrBar(); renderOcrInst(); renderOcrTry();
-      mgRevoke("页面被隐藏");
+      revokeVisionArms(); mgRevoke("页面被隐藏");
       clearTimeout(OI.pollT); OI.pollT = 0;  // 隐藏时停止部署状态轮询
-    } else if (curView === "vision" && state.ready && OI.loaded) ocrInstLoad();  // 回来后重新读取一次
+      if (fontTimer) { clearInterval(fontTimer); fontTimer = null; }  // 隐藏时暂停字体任务轮询
+    } else {
+      if (curView === "vision" && state.ready && OI.loaded) ocrInstLoad();  // 回来后重新读取一次
+      // 字体任务还在跑：回来立即查一次，并恢复每秒轮询
+      if (fontRunning && !fontTimer) { pollRes(); fontTimer = setInterval(pollRes, 1000); }
+    }
   });
   // 诊断按任务分开：每个任务记住自己的路线选择和结果，切换任务不带走另一任务的确认或结果
   const DG = { sel: { riven: "riven", scan: "scan" }, res: {}, shown: "" };
@@ -4102,27 +4235,67 @@
         el("div", { class: "hint" }, "本次调用没有返回可展示的统计，无法确认调用次数。"));
     }
   });
-  document.querySelectorAll("button[data-test]").forEach((b) => {
-    b.onclick = () => busy(b, async () => {
-      const out = $("r-" + b.dataset.test);
-      out.className = "result dim"; out.textContent = "测试中…";
-      try {
-        const d = await bridge.apiPost("conntest", { target: b.dataset.test });
-        out.className = "result " + (d.ok ? "s-ok" : "s-stale");
-        out.textContent = `${d.ok ? "✓" : "✗"} ${d.detail}（${d.ms} ms）`;
-      } catch (e) { out.className = "result s-stale"; out.textContent = "✗ " + (e.message || e); }
-    });
+  // —— 连通性（维护页）——
+  // 结果按后端契约显示：ok 给 ✓ / ✗；skipped_reason 非空 = 没有执行，显示「未测试」而不是失败；
+  // cached = 30 秒内复用的上次结果，注明测试时间；attempts 逐条列出每个通道。全部 textContent。
+  const CONN_SKIP = { disabled: "未启用", wm_quota_busy: "WM 请求额度繁忙，这次没有发请求" };
+  const connMs = (ms) => Number.isFinite(ms) ? `${ms} ms` : "";
+  function connAttempts(list) {
+    const rows = (Array.isArray(list) ? list : []).filter((a) => a && typeof a === "object");
+    if (!rows.length) return null;
+    return el("div", { class: "connList" }, ...rows.map((a) => el("div", { class: "connAtt" },
+      el("span", { class: a.ok === true ? "s-ok" : "s-stale" }, a.ok === true ? "✓" : "✗"),
+      el("b", {}, typeof a.label === "string" && a.label ? a.label : "通道"),
+      el("span", { class: "dim connUrl" }, typeof a.url === "string" ? a.url : ""),
+      el("span", { class: "dim connMeta" }, ((http) => [http, connMs(a.ms),
+        typeof a.error === "string" && a.error !== http ? a.error : ""])(Number.isInteger(a.status) ? `HTTP ${a.status}` : "")
+        .filter(Boolean).join(" · ")))));
+  }
+  function renderConn(out, d) {
+    if (!d || typeof d !== "object" || typeof d.ok !== "boolean") {
+      out.className = "result s-stale"; out.replaceChildren("✗ 后端返回的结果不完整"); return;
+    }
+    const detail = typeof d.detail === "string" ? d.detail : "";
+    const skip = typeof d.skipped_reason === "string" ? d.skipped_reason : "";
+    const head = skip
+      ? el("div", { class: "s-info" }, `未测试：${detail || CONN_SKIP[skip] || skip}`)
+      : el("div", { class: d.ok ? "s-ok" : "s-stale" }, `${d.ok ? "✓" : "✗"} ${detail}` + (connMs(d.ms) ? `（${connMs(d.ms)}）` : ""));
+    const when = d.cached === true
+      ? el("div", { class: "hint" }, "上次测试结果（30 秒内不重复探测）", Number.isFinite(d.checked_at) ? "，测于 " : "",
+          Number.isFinite(d.checked_at) ? agoEl(d.checked_at) : null)
+      : null;
+    out.className = "result";
+    out.replaceChildren(head, when || "", connAttempts(d.attempts) || "");
+  }
+  function renderConnError(out, e) {
+    const msg = String(e?.message || e || "");
+    if (msg.startsWith("未知测试项")) { out.className = "result s-info"; out.replaceChildren("未测试：当前插件后端还不支持这一项（需要更新插件后端）"); }
+    else if (msg.includes("上一项测试还没结束")) { out.className = "result s-warn"; out.replaceChildren("未测试：上一项测试还没结束，稍后再点"); }
+    else { out.className = "result s-stale"; out.replaceChildren("✗ " + msg); }
+  }
+  // 同一时间只跑一项：后端各测试项共用一把锁，进行中把其它测试按钮一起禁用，免得点了只换来「还没结束」
+  const connBtns = [...document.querySelectorAll("button[data-test]")];
+  connBtns.forEach((b) => {
+    b.onclick = () => {
+      for (const x of connBtns) if (x !== b) x.disabled = true;
+      busy(b, async () => {
+        const out = $("r-" + b.dataset.test);
+        out.className = "result dim"; out.replaceChildren("测试中…");
+        try { renderConn(out, await bridge.apiPost("conntest", { target: b.dataset.test })); }
+        catch (e) { renderConnError(out, e); }
+      }).finally(() => { for (const x of connBtns) if (x !== b) x.disabled = false; });
+    };
   });
-  // 自动刷新：页面可见、没有操作进行中、设置页没有未保存改动时，每 30 秒重拉一次
+  // 自动刷新：页面可见、没有按钮操作进行中、没有字体任务在跑、设置页没有未保存改动时，每 30 秒重拉一次。
+  // 「进行中」按 busy / armed 的计数判断，不看页面上有没有禁用按钮（禁用也可能只表示「此刻不可用」）
   setInterval(() => {
-    // 提示词方案的按钮（data-vp）以 disabled 表示「此刻不可用」，不算操作进行中
-    if (document.visibilityState === "visible" && !document.querySelector("button:disabled:not([data-vp], [data-rm-switch])") && !Object.keys(state.edits).length) load();
+    if (document.visibilityState === "visible" && !opCount && !fontRunning && !Object.keys(state.edits).length) load();
   }, 30000);
 
   route();
   if (!bridge) showErr("没有拿到 AstrBot 页面接口（请从 AstrBot 后台的插件详情页打开本页）");
   else {
-    await bridge.ready(); await load(); renderOverview();
+    await bridge.ready(); await load();  // load 结束时已渲染概览
     state.ready = true;
     applyAdv();
     if (curView === "vision") visionEnter();

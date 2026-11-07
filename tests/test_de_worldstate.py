@@ -5,6 +5,7 @@ import json
 import re
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -13,6 +14,30 @@ from core import de_worldstate as dw  # noqa: E402
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "de_worldstate.json"
 raw = json.loads(FIXTURE.read_text(encoding="utf-8"))
 b = dw.parse_worldstate(raw, now_ms=1788964350000)
+
+# 节点反查保留同名首条及星球精确命中，源表换新后不沿用旧索引。
+with patch.object(dw, "_load") as _nodes_load:
+    _nodes_load.return_value = {
+        "first": {"value": "Shared Node (Earth)"},
+        "second": {"value": "Shared Node (Mars)"},
+        "third": {"value": "Shared Node (Earth)"},
+    }
+    assert dw.node_key_of("Shared-Node (Unconfirmed)", "Earth") == "first"
+    assert dw.node_key_of("Shared Node", "Mars") == "second"
+    assert dw.node_key_of("Shared Node", "unknown") == "first"
+    _nodes_load.return_value = {"replacement": {"value": "Shared Node (Earth)"}}
+    assert dw.node_key_of("Shared Node", "Earth") == "replacement"
+    _nodes_load.return_value = {
+        "valid": {"value": "Shared Node (Earth)"},
+        "bad": {"value": 1},
+    }
+    assert dw.node_key_of("Shared Node", "Earth") == "valid"
+    try:
+        dw.node_key_of("Shared Node", "Mars")
+    except AttributeError:
+        pass  # 原扫描在尚未精确命中时仍报告坏项。
+    else:
+        raise AssertionError("节点坏项应保留原扫描行为")
 
 # 周期
 assert b["cetusCycle"]["state"] in ("day", "night")

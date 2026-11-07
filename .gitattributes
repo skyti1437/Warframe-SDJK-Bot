@@ -9,3 +9,16 @@
 *.png binary
 *.zip binary
 *.jpg binary
+
+# GitHub / 市场安装归档只收运行文件，Git 仓库保留开发材料。
+/tests export-ignore
+/scripts export-ignore
+/assets export-ignore
+/.github export-ignore
+/.gitleaks.toml export-ignore
+/.gitignore export-ignore
+/.gitattributes export-ignore
+/pyproject.toml export-ignore
+/build_damage_data.py export-ignore
+/build_de_data.py export-ignore
+/build_stances.py export-ignore

@@ -602,21 +602,23 @@ class PushDaemon:
             events = await self._snapshot_diff(platform, subs)
             if not events:
                 continue
+            by_event: dict[str, list[Subscription]] = {}
+            for sub in subs:
+                if sub.platform == platform:
+                    by_event.setdefault(sub.event, []).append(sub)
             for kind, key, text in events:
-                cands = [s for s in subs if s.platform == platform and s.event == kind]
-                # 同群常把同义筛选叠好几条（「蹲 裂隙 捕获」+「蹲 裂隙 虚空捕获」…）；
-                # 派发必须选「自身筛选命中」的那条，否则会把没命中的订阅
-                # （一次性）消费掉、或错套它的免打扰时间窗。
-                prefer = [s for s in cands if s.sid in self._matched.get(key, set())] or cands
-                for umo in dict.fromkeys(s.umo for s in prefer):
+                cands = by_event.get(kind, [])
+                # 同群多条筛选只派发给自身规则命中的订阅，保留原有回退与存储顺序。
+                matched = self._matched.get(key)
+                prefer = cands
+                if matched:
+                    prefer = [s for s in cands if s.sid in matched] or cands
+                by_umo: dict[str, list[Subscription]] = {}
+                for sub in prefer:
+                    by_umo.setdefault(sub.umo, []).append(sub)
+                for umo, recipients in by_umo.items():
                     await self._deliver(
-                        umo,
-                        kind,
-                        key,
-                        text,
-                        [s for s in prefer if s.umo == umo],
-                        now,
-                        self._text_for.get(key),
+                        umo, kind, key, text, recipients, now, self._text_for.get(key)
                     )
         # 数据源整体失败 ⇒ tick 级指数退避；有任何一类成功即复位
         if self._tick_ok:

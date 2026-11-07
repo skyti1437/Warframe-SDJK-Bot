@@ -1009,7 +1009,10 @@ def _fields(path: Path, meta: dict) -> dict:
     if hit is not None and hit[0] == st.st_mtime_ns and hit[1] == st.st_size:
         return hit[2]
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
+        # 与面板时效栏及掉落查询共享随包掉落表。空值仍走原读取以保留诊断。
+        data = paths.load_json(path) if path == paths.PKG_DATA / "drops.json" else None
+        if not data:
+            data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
         return {"error": repr(exc)}
     out = {"type": type(data).__name__}

@@ -55,6 +55,33 @@ def nodes_zh() -> dict:
     return _load("nodes_zh.json") or {}
 
 
+# 缓存与源表同寿命。_load 清缓存后换表，下一次查询重建索引。
+_SOL_NODE_INDEX: tuple[dict, dict[str, str], dict[tuple[str, str], str]] | None = None
+
+
+def _sol_node_index(table: dict) -> tuple[dict, dict[str, str], dict[tuple[str, str], str]] | None:
+    global _SOL_NODE_INDEX
+    cached = _SOL_NODE_INDEX
+    if cached is not None and cached[0] is table:
+        return cached
+    first_by_name: dict[str, str] = {}
+    first_by_planet: dict[tuple[str, str], str] = {}
+    for key, info in table.items():
+        if not isinstance(info, dict):
+            continue
+        value = info.get("value") or ""
+        if not isinstance(value, str):
+            # 坏表保留旧扫描行为，包括在遇到坏项之前已经精确命中的查询。
+            return None
+        head, _, tail = value.strip().lower().partition("(")
+        name = head.strip()
+        first_by_name.setdefault(name, key)
+        first_by_planet.setdefault((name, tail.rstrip(")").strip()), key)
+    cached = (table, first_by_name, first_by_planet)
+    _SOL_NODE_INDEX = cached
+    return cached
+
+
 def node_key_of(mission: str, planet: str) -> str:
     """按「任务名 + 星球」反查节点 key，用于接外部静态表（如结合目标）。
 
@@ -74,6 +101,10 @@ def node_key_of(mission: str, planet: str) -> str:
     want_node = want_node.replace("-", " ")  # E-Prime == E Prime
     want_planet = (planet or "").strip().lower()
     table = _load("solNodes.json") or {}
+    indexed = _sol_node_index(table)
+    if indexed is not None:
+        _, first_by_name, first_by_planet = indexed
+        return first_by_planet.get((want_node, want_planet), first_by_name.get(want_node, ""))
     hits: list[str] = []
     for key, info in table.items():
         if not isinstance(info, dict):

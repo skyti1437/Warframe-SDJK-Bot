@@ -31,7 +31,9 @@ import re
 import sys
 import tempfile
 import time
+from zipfile import ZipFile
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parent.parent
 SYNC = ROOT / "dist" / "sync_opensource.py"
@@ -530,6 +532,187 @@ if MK.is_file():
         "zipfile.ZipInfo(" in msrc and "date_time=dt" in msrc and "z.write(f" not in msrc,
     )
     check("  权限位固定（不受 umask 影响）", "external_attr" in msrc)
+
+    import package_release as P  # noqa: E402
+
+    archive_keep = {
+        "main.py": b"print(1)\n",
+        "metadata.yaml": b"version: v1.2.9\n",
+        "_conf_schema.json": b"{}",
+        "requirements.txt": b"pillow\n",
+        "README.md": b"# Warframe\n",
+        "CHANGELOG.md": b"# v1.2.9\n",
+        "LICENSE": b"GPL-3.0\n",
+        "logo.png": b"\x00\xff",
+        "core/data/tables.json": b'{"test":true}',
+        "core/data/fonts/NotoSansCJKsc-Subset-Regular.otf": b"\x00\xff",
+        "core/data/fonts/OFL.txt": b"OFL-1.1\n",
+        "pages/sdjk/index.html": b"<p>Warframe</p>\n",
+        ".astrbot-plugin/i18n/zh-CN.json": b"{}",
+    }
+    archive_drop = {
+        ".gitattributes": P.OSS_GITATTRIBUTES.encode(),
+        ".gitignore": b"__pycache__/\n",
+        ".gitleaks.toml": b"",
+        ".github/workflows/ci.yml": b"",
+        "tests/test_dummy.py": b"",
+        "scripts/nested/dev.py": b"",
+        "assets/readme/help.png": b"\x00",
+        "pyproject.toml": b"",
+        "build_damage_data.py": b"",
+        "build_de_data.py": b"",
+        "build_stances.py": b"",
+    }
+    archive_input = {**archive_keep, **archive_drop}
+    with tempfile.TemporaryDirectory() as temp:
+        archive_path = Path(temp) / "first.zip"
+        M.make_github_archive(archive_input, archive_path)
+        with ZipFile(archive_path) as archive:
+            file_entries = [entry for entry in archive.infolist() if not entry.is_dir()]
+            roots = {entry.filename.split("/", 1)[0] for entry in file_entries}
+            archive_payload = {
+                entry.filename.partition("/")[2]: archive.read(entry) for entry in file_entries
+            }
+        check(
+            "★ GitHub 归档：开发文件全部排除，运行文件逐字节保留",
+            archive_payload == archive_keep
+            and len(file_entries) == len(archive_keep)
+            and len(roots) == 1,
+            str(sorted(archive_payload.keys() ^ archive_keep.keys())),
+        )
+        check(
+            "  GitHub 归档过滤不修改完整开源投影",
+            archive_input == {**archive_keep, **archive_drop},
+        )
+        another_dir = Path(temp) / "another"
+        another_dir.mkdir()
+        os.utime(another_dir, (1_700_000_000, 1_700_000_000))
+        another_zip = another_dir / "second.zip"
+        M.make_github_archive(dict(reversed(list(archive_input.items()))), another_zip)
+        check(
+            "  GitHub 归档字节不随输入顺序和输出目录变化",
+            archive_path.read_bytes() == another_zip.read_bytes(),
+        )
+
+        attrs = P.OSS_GITATTRIBUTES.splitlines(keepends=True)
+        without_test_rule = "".join(
+            line
+            for line in attrs
+            if not (
+                line.split()
+                and line.split()[0].lstrip("/").split("/", 1)[0] == "tests"
+                and "export-ignore" in line.split()[1:]
+            )
+        )
+        check("  缺失排除规则的探针实际删除了 tests 规则", without_test_rule != P.OSS_GITATTRIBUTES)
+        existing_zip = Path(temp) / "existing.zip"
+        sentinel = b"existing output"
+        existing_zip.write_bytes(sentinel)
+        for label, broken_attrs in (
+            ("缺失 tests 排除规则", without_test_rule),
+            ("错误排除 core 目录", P.OSS_GITATTRIBUTES + "\n/core export-ignore\n"),
+        ):
+            broken = {**archive_input, ".gitattributes": broken_attrs.encode()}
+            try:
+                M.make_github_archive(broken, existing_zip)
+            except (ValueError, RuntimeError):
+                check("  拒绝" + label + "且保留已有输出", existing_zip.read_bytes() == sentinel)
+            else:
+                check("  拒绝" + label, False)
+
+        with patch.object(M, "MAX_MARKET_BYTES", 1):
+            try:
+                M.make_github_archive(archive_input, existing_zip)
+            except ValueError as exc:
+                check(
+                    "  拒绝超过体积上限的归档且保留已有输出",
+                    "超过 1 字节上限" in str(exc) and existing_zip.read_bytes() == sentinel,
+                    str(exc),
+                )
+            else:
+                check("  拒绝超过体积上限的归档且保留已有输出", False)
+
+        stage_dir = Path(temp) / "stage"
+        stage_dir.mkdir()
+        refused_zip = Path(temp) / "refused.zip"
+        with (
+            patch.object(M, "OSS_DIR", stage_dir),
+            patch.object(sys, "argv", [str(MK), "--github-archive", str(refused_zip)]),
+            patch.object(
+                S, "local_gates", return_value=(False, ["stage 与 HEAD 字节不符"])
+            ) as gate,
+        ):
+            result = M.main()
+        check(
+            "  GitHub 归档命令复用同步闸门，拒绝未通过对拍的 stage",
+            gate.call_args is not None
+            and gate.call_args.args == (stage_dir, ROOT)
+            and result != 0
+            and not refused_zip.exists(),
+        )
+
+        for name, content in {**archive_input, ".git/config": b"metadata"}.items():
+            file = stage_dir / name
+            file.parent.mkdir(parents=True, exist_ok=True)
+            file.write_bytes(content)
+        cli_zip = Path(temp) / "cli.zip"
+        stage_main = stage_dir / "main.py"
+        original_main = archive_input["main.py"]
+        replacement_main = original_main.replace(b"1", b"2")
+
+        def mutate_stage(_stage, _root):
+            stage_main.write_bytes(replacement_main)
+            return True, []
+
+        with (
+            patch.object(M, "OSS_DIR", stage_dir),
+            patch.object(S, "local_gates", return_value=(True, [])),
+            patch.object(S, "expected_stage", return_value=archive_input),
+            patch.object(M, "_seed_problems", return_value=[]),
+            patch.object(M, "EXPECTED_STAGE_FILES", len(archive_input)),
+            patch.object(M, "EXPECTED_MARKET_ENTRIES", len(archive_keep)),
+        ):
+            with patch.object(sys, "argv", [str(MK), "--github-archive", str(cli_zip)]):
+                result = M.main()
+            check(
+                "  GitHub 归档命令跳过 stage 的 .git 元数据",
+                result == 0
+                and cli_zip.is_file()
+                and cli_zip.read_bytes() == archive_path.read_bytes(),
+                f"退出码 {result}",
+            )
+
+            raced_zip = Path(temp) / "raced.zip"
+            with (
+                patch.object(sys, "argv", [str(MK), "--github-archive", str(raced_zip)]),
+                patch.object(S, "local_gates", side_effect=mutate_stage),
+            ):
+                result = M.main()
+            check(
+                "  GitHub 归档命令拒绝闸门期间等长篡改的 stage",
+                result != 0
+                and not raced_zip.exists()
+                and stage_main.read_bytes() == replacement_main,
+                f"退出码 {result}",
+            )
+            stage_main.write_bytes(original_main)
+
+            output_link = Path(temp) / "linked.zip"
+            output_link.symlink_to(stage_main)
+            for label, unsafe_output in (
+                ("直接路径", stage_main),
+                ("软链接", output_link),
+            ):
+                with patch.object(sys, "argv", [str(MK), "--github-archive", str(unsafe_output)]):
+                    result = M.main()
+                check(
+                    f"  GitHub 归档命令拒绝通过{label}覆盖 stage",
+                    result != 0
+                    and stage_main.read_bytes() == original_main
+                    and output_link.is_symlink(),
+                    f"退出码 {result}",
+                )
+
 else:
     print("[SKIP] 没有 scripts/make_market_zip.py")
 

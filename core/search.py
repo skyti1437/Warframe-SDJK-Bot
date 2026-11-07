@@ -92,12 +92,16 @@ def _norm(s: str) -> str:
 _INDEX_LOCK = threading.Lock()
 
 
+_IndexRow = tuple[str, str, str, str]
+_SearchIndex = tuple[tuple[_IndexRow, ...], tuple[str, ...], tuple[str, ...]]
+
+
 @lru_cache(maxsize=1)
-def _build_index() -> tuple[tuple[str, str, str, str], ...]:
+def _build_index() -> _SearchIndex:
     """构建检索索引。
 
     Returns:
-        每项为 ``(norm_key, 展示名, 次级名, 来源)`` 的元组（不可变，便于缓存）。
+        评分使用的有序行，以及按行对齐的归一化展示名、次级名。
     """
     rows: dict[str, list[str]] = {}  # norm_key -> [展示名, 次级名, 来源]
 
@@ -135,13 +139,28 @@ def _build_index() -> tuple[tuple[str, str, str, str], ...]:
     _drops = _paths.load_json(_DROPS_FILE)  # 与 drops / wiki_intro 共享（只读）
     for en in (_drops.get("items") if isinstance(_drops, dict) else None) or {}:
         add(en, source="掉落表")
-    return tuple((k, v[0], v[1], v[2]) for k, v in rows.items())
+    indexed_rows = tuple((k, v[0], v[1], v[2]) for k, v in rows.items())
+    normalized: dict[str, str] = {}
+
+    def normalize(name: str) -> str:
+        if name not in normalized:
+            value = matching.normalize_name(name)
+            normalized[name] = name if value == name else value
+        return normalized[name]
+
+    shown_names = tuple(normalize(row[1]) for row in indexed_rows)
+    second_names = tuple(normalize(row[2]) for row in indexed_rows)
+    return indexed_rows, shown_names, second_names
 
 
-def _index() -> tuple[tuple[str, str, str, str], ...]:
+def _get_index() -> _SearchIndex:
     """同进程冷构建单飞；lru_cache 本身不合并在途调用。"""
     with _INDEX_LOCK:
         return _build_index()
+
+
+def _index() -> tuple[_IndexRow, ...]:
+    return _get_index()[0]
 
 
 def _clear_index() -> None:
@@ -155,30 +174,27 @@ _index.cache_info = _build_index.cache_info
 _index.cache_parameters = _build_index.cache_parameters
 
 
-def _score(query: str, key: str) -> int:
-    """匹配分档，越小越相关。``-1`` 表示不匹配。
+def _score_patterns(query: str) -> tuple[re.Pattern, Optional[re.Pattern]]:
+    whole = re.compile(rf"(?<![0-9a-z]){re.escape(query)}(?![0-9a-z])")
+    # 单词查询已被 whole 覆盖。多词查询的任意部分词仍需满足词边界。
+    parts = "|".join(re.escape(part) for part in query.split() if len(part) >= 2 and part != query)
+    partial = re.compile(rf"(?<![0-9a-z])(?:{parts})(?![0-9a-z])") if parts else None
+    return whole, partial
 
-    Args:
-        query: 归一化后的查询串。
-        key: 归一化后的索引键。
 
-    Returns:
-        ``0`` 精确 / ``1`` 前缀 / ``2`` 词边界包含 / ``3`` 部分词命中；
-        不匹配返回 ``-1``。
-    """
+def _score(
+    query: str, key: str, patterns: Optional[tuple[re.Pattern, Optional[re.Pattern]]] = None
+) -> int:
+    """匹配分档。0 精确 / 1 前缀 / 2 词边界包含 / 3 部分词命中 / -1 不匹配。"""
     if key == query:
         return 0
     if key.startswith(query):
         return 1
-    # 词边界包含：避免 forma 命中 valence_formation
-    if re.search(rf"(?<![0-9a-z]){re.escape(query)}(?![0-9a-z])", key):
+    whole, partial = patterns if patterns is not None else _score_patterns(query)
+    if whole.search(key):
         return 2
-    # 多词查询里任意一个词命中即可（"primed flow" 能搜到 "primed flow"）
-    # 注意这里**不能**退化成「任意子串」——那正是 forma -> valence_formation
-    # 的成因。词边界检查必须始终成立。
-    for part in query.split():
-        if len(part) >= 2 and re.search(rf"(?<![0-9a-z]){re.escape(part)}(?![0-9a-z])", key):
-            return 3
+    if partial is not None and partial.search(key):
+        return 3
     return -1
 
 
@@ -199,18 +215,21 @@ def search(query: str, limit: int = 8) -> list[dict]:
     #   大小写/空格/中点/全半角无关）——「阿索代prime」≡「阿索代 Prime」。
     #   命中直接返回，不动下方原有打分链（零回归）。
     nq = matching.normalize_name(query)
+    rows, shown_names, second_names = _get_index()
     if nq:
         exact: list[dict] = []
-        for _key, _shown, _second, _source in _index():
-            if nq in (matching.normalize_name(_shown), matching.normalize_name(_second or "")):
-                exact.append({"name": _shown, "en": _second, "source": _source, "score": 0})
+        for index, (shown_name, second_name) in enumerate(zip(shown_names, second_names)):
+            if nq == shown_name or nq == second_name:
+                _, shown, second, source = rows[index]
+                exact.append({"name": shown, "en": second, "source": source, "score": 0})
                 if len(exact) >= limit:
                     break
         if exact:
             return exact
+    patterns = _score_patterns(q)
     scored: list[tuple[int, str, str, str, str]] = []
-    for key, shown, second, source in _index():
-        s = _score(q, key)
+    for key, shown, second, source in rows:
+        s = _score(q, key, patterns)
         if s < 0:
             continue
         scored.append((s, shown, second, source, key))

@@ -282,6 +282,9 @@ SOFTWARE.
 <details>
 <summary><b>开发与维护</b></summary>
 
+开发与维护请先通过 `git clone https://github.com/skyti1437/Warframe-SDJK-Bot.git` 获取完整仓库，
+其中包含测试、构建脚本和展示图片。市场安装包及 GitHub 的 Download ZIP 按运行文件范围归档。
+
 改任何公式或版式之前，先跑统一检查入口（本地和 CI 是同一条命令）：
 
 ```bash

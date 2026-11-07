@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
-"""产出**插件市场专用**的 flat zip（无顶层目录）。
+"""预检 GitHub / 市场自动导入归档，或生成兜底 flat ZIP。
 
 ★ **2026-10-04 起用途变更**：市场已与仓库绑定，**公开仓版号一变即自动推送** ——
 本脚本产出的 zip **不再是发版的必经上传件**，保留用途改为：
-（a）本地**体量（16MB 上限）/ 条目数基线**自检；（b）市场绑定故障时的兜底上传件。
+使用 --github-archive 按 GitHub 的 git archive 路径预检自动导入包。
+默认位置参数用法继续生成 flat ZIP，供市场绑定故障时兜底上传。
 发版链见 `.zcode/commands/wf/pack.md` 与 `09-open-market.md §18.0`。
 
 为什么要单独一个脚本：市场与「本地安装」要的 zip 结构**不一样**。
@@ -13,27 +14,37 @@
 * 市场（cloud.astrbot.app 上传压缩包通道）要的是 **flat**：`main.py` / `README.md`
   直接在最外层。2026-09-19 下载线上 v1.0.2 产物核实：159 条目、2.41MB、
   顶层元素就是 `.gitattributes / .github / README.md / _conf_schema.json …`，
-  **没有** 插件名目录。GitHub 的 "Download ZIP" 因为会多套一层 repo-branch/ 而解析失败。
+  **没有** 插件名目录。该历史上传通道与当前仓库自动导入的归档结构不同。
+* 仓库自动导入使用带 repo-commit/ 前缀的 GitHub ZIP，遵循 .gitattributes
+  的 export-ignore。预检从完整开源 stage 建隔离 Git 提交，按独立运行文件清单
+  对拍归档路径与内容。公开仓仍同步完整 stage，CI 与 README 图片保留在 Git 树中。
 
 用法（先跑 `python dist/package_release.py --opensource` 准备好开源目录）：
 
     python scripts/make_market_zip.py [输出路径]
+    python scripts/make_market_zip.py --github-archive [输出路径]
 
-默认输出 `dist/astrbot_plugin_warframe_sdjkbot-<版本>-market.zip`。
+对应默认后缀为 -market.zip / -github.zip。正式发版使用 --github-archive。
 """
 
 from __future__ import annotations
 
+import argparse
+import hashlib
 import json
 import re
 import os
 import sys
+import subprocess
+import tempfile
 import time
 import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 OSS_DIR = ROOT / "dist" / "opensource" / "astrbot_plugin_warframe_sdjkbot"
+# 官方文档写 16MB，按十进制保守检查；旧 flat 通道保留原来的 16 MiB 判据。
+MAX_MARKET_BYTES = 16_000_000
 
 # 排除清单优先复用打包脚本的（避免两处走散）；但 `dist/` 不进分发包，
 # 所以别人拿到的是开源包时这个 import 会失败 —— 那时退回下面这份等价清单。
@@ -237,10 +248,111 @@ EXPECTED_STAGE_FILES = 320  # 与 dist/package_release.py::EXPECTED_OSS_STAGE_FI
 # 两者都不进市场件）
 
 
+def market_files(files: dict[str, bytes]) -> dict[str, bytes]:
+    """运行文件清单，与 Git 属性规则独立对拍，防止误排或漏排。"""
+    out = {}
+    for name, content in files.items():
+        rel = Path(name)
+        if set(rel.parts) & (SKIP_DIRS | MARKET_SKIP_DIRS):
+            continue
+        if rel.name in SKIP_FILES | MARKET_SKIP_FILES or rel.suffix in SKIP_SUFFIX:
+            continue
+        if any(rel.match(g) for g in SKIP_GLOBS):
+            continue
+        out[name] = content
+    return out
+
+
+def make_github_archive(files: dict[str, bytes], out: Path) -> None:
+    """由完整开源投影构建 Git 归档，对拍通过后原子写出，不访问远端。"""
+    expected = market_files(files)
+    out = out.resolve()
+    out.parent.mkdir(parents=True, exist_ok=True)
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    env.update(
+        GIT_CONFIG_NOSYSTEM="1",
+        GIT_CONFIG_GLOBAL=os.devnull,
+        GIT_AUTHOR_NAME="archive-preview",
+        GIT_AUTHOR_EMAIL="archive@example.invalid",
+        GIT_COMMITTER_NAME="archive-preview",
+        GIT_COMMITTER_EMAIL="archive@example.invalid",
+        GIT_AUTHOR_DATE="2026-01-01T00:00:00Z",
+        GIT_COMMITTER_DATE="2026-01-01T00:00:00Z",
+    )
+    with tempfile.TemporaryDirectory(prefix=".archive-", dir=out.parent) as tmp:
+        repo = Path(tmp) / "repo"
+        repo.mkdir()
+
+        def git(*args: str) -> bytes:
+            return subprocess.run(
+                ["git", *args], cwd=repo, env=env, check=True, capture_output=True
+            ).stdout
+
+        git("init", "--quiet", "--template=", "--object-format=sha1", "-b", "archive-preview")
+        for name, content in files.items():
+            rel = Path(name)
+            if rel.is_absolute() or ".." in rel.parts or ".git" in rel.parts:
+                raise ValueError(f"非法归档路径：{name}")
+            target = repo / rel
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(content)
+            target.chmod(0o644)
+        git("add", "--force", "--all")
+        staged = {}
+        for entry in git("ls-files", "--stage", "-z").split(b"\0"):
+            if entry:
+                meta, name = entry.split(b"\t", 1)
+                staged[name.decode()] = meta.split()[1].decode()
+        original = {
+            name: hashlib.sha1(b"blob " + str(len(data)).encode() + b"\0" + data).hexdigest()
+            for name, data in files.items()
+        }
+        if staged != original:
+            raise ValueError("临时 Git 提交与开源投影字节不一致（检查换行或过滤器）")
+        git("commit", "--quiet", "-m", "归档预检")
+        commit = git("rev-parse", "HEAD").decode().strip()
+        prefix = f"Warframe-SDJK-Bot-{commit}/"
+        archive = Path(tmp) / "archive.zip"
+        git("archive", "--format=zip", f"--prefix={prefix}", f"--output={archive}", "HEAD")
+        with zipfile.ZipFile(archive) as z:
+            entries = [i for i in z.infolist() if not i.is_dir()]
+            actual = {i.filename.removeprefix(prefix): z.read(i) for i in entries}
+        if len(entries) != len(actual) or actual != expected:
+            missing = sorted(expected.keys() - actual.keys())
+            extra = sorted(actual.keys() - expected.keys())
+            changed = sorted(k for k in actual.keys() & expected.keys() if actual[k] != expected[k])
+            raise ValueError(
+                f"Git 归档与运行文件清单不一致：缺失={missing}，多出={extra}，内容变化={changed}"
+            )
+        if archive.stat().st_size > MAX_MARKET_BYTES:
+            raise ValueError(f"Git 归档超过 {MAX_MARKET_BYTES} 字节上限")
+        archive.replace(out)
+
+
 def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("output", nargs="?", type=Path)
+    parser.add_argument("--github-archive", action="store_true", help="预检市场自动导入归档")
+    args = parser.parse_args()
     if not OSS_DIR.is_dir():
         print(f"✗ 找不到开源目录 {OSS_DIR}\n  先跑：python dist/package_release.py --opensource")
         return 2
+
+    if args.github_archive:
+        if pr is None:
+            print("✗ GitHub 归档预检需要私有构建树的 dist/ 同步闸门")
+            return 2
+        from sync_opensource import expected_stage, local_gates, stage_files
+
+        ok, evidence = local_gates(OSS_DIR, ROOT)
+        print("\n".join(evidence))
+        if not ok:
+            return 1
+        # 后续版本解析与归档共用这一份字节快照，并重新对拍 HEAD，拒绝闸门期间的改写。
+        files = stage_files(OSS_DIR)
+        if files != expected_stage(ROOT):
+            print("✗ stage 在闸门后发生变化，与 HEAD 开源投影不一致")
+            return 1
 
     # 种子新鲜度硬闸门（2026-09-29 v1.1.2 追加批）：静态结构损坏或动态值残留即拒绝打包，无 bypass。
     problems = _seed_problems()
@@ -257,23 +369,45 @@ def main() -> int:
     _stage_files = [
         p
         for p in OSS_DIR.rglob("*")
-        if p.is_file() and "__pycache__" not in p.parts and p.suffix != ".pyc"
+        if p.is_file()
+        and not {".git", "__pycache__"}.intersection(p.relative_to(OSS_DIR).parts)
+        and p.suffix != ".pyc"
     ]
-    if len(_stage_files) != EXPECTED_STAGE_FILES:
+    stage_count = len(files) if args.github_archive else len(_stage_files)
+    if stage_count != EXPECTED_STAGE_FILES:
         print(
-            f"✗ [stage 新鲜度闸门] stage 文件数 {len(_stage_files)} != 基线 {EXPECTED_STAGE_FILES}"
+            f"✗ [stage 新鲜度闸门] stage 文件数 {stage_count} != 基线 {EXPECTED_STAGE_FILES}"
             " —— stage 未追平 HEAD，先重跑：python dist/package_release.py --opensource"
         )
         return 1
 
-    meta = (OSS_DIR / "metadata.yaml").read_text(encoding="utf-8")
+    meta = (
+        files["metadata.yaml"].decode("utf-8")
+        if args.github_archive
+        else (OSS_DIR / "metadata.yaml").read_text(encoding="utf-8")
+    )
     ver = re.search(r"^version:\s*v?([\d.]+)\s*$", meta, re.M)
     ver = ver.group(1) if ver else "0.0.0"
-    out = (
-        Path(sys.argv[1])
-        if len(sys.argv) > 1
-        else (ROOT / "dist" / f"astrbot_plugin_warframe_sdjkbot-{ver}-market.zip")
-    )
+    suffix = "github" if args.github_archive else "market"
+    out = args.output or ROOT / "dist" / f"astrbot_plugin_warframe_sdjkbot-{ver}-{suffix}.zip"
+    if args.github_archive:
+        if out.resolve().is_relative_to(OSS_DIR.resolve()):
+            print("✗ 归档输出须位于开源 stage 之外")
+            return 1
+        if len(market_files(files)) != EXPECTED_MARKET_ENTRIES:
+            print(f"✗ 运行文件数与基线 {EXPECTED_MARKET_ENTRIES} 不符")
+            return 1
+        try:
+            make_github_archive(files, out)
+        except (OSError, ValueError, subprocess.CalledProcessError) as exc:
+            print(f"✗ GitHub 归档预检失败：{exc}")
+            return 1
+        with zipfile.ZipFile(out) as z:
+            n = sum(not i.is_dir() for i in z.infolist())
+        size = out.stat().st_size
+        print(f"[GitHub archive] {out}（{n} 文件，{size} 字节，{size / 1e6:.2f} MB）")
+        print("  ✓ 完整 stage 保留；归档文件集合与内容逐字节通过，export-ignore 生效")
+        return 0
 
     n = 0
     dt = _zip_datetime()  # ★ 固定时间戳（同内容 ⇒ 同 sha）

@@ -518,13 +518,13 @@ def about_info(now: Optional[float] = None) -> dict:
     }
 
 
-def ledger_rows() -> list[dict]:
+def ledger_rows(run_dir: Path | None = None) -> list[dict]:
     """有效数据账本（``core/data_registry.ledger``；出错不拖垮整页）。
 
     逐份对照「运行目录副本 / 随包种子」，说明插件实际读到哪一份；**只读**（不改名 /
     不删除 / 不写任何数据文件）。运行目录未注入（== 包内目录）时 ``ledger()`` 返回 ``[]``。"""
     try:
-        return data_registry.ledger()
+        return data_registry.ledger(run_dir=run_dir)
     except Exception:  # noqa: BLE001
         return []
 
@@ -992,8 +992,11 @@ class WebPanel:
         self.p = plugin
         self.name = plugin_name
         self.closed = False
+        self._overview_lock = asyncio.Lock()
+        self._overview_task: Optional[asyncio.Task] = None
         self._refresh_lock = asyncio.Lock()
         self._test_lock = asyncio.Lock()
+        self._data_test_cache: dict[str, tuple[float, tuple, dict]] = {}
         self._compare_jobs: dict[str, dict] = {}
         self._compare_results: dict[str, dict] = {}
         self._compare_task: Optional[asyncio.Task] = None
@@ -1134,6 +1137,7 @@ class WebPanel:
         """立即停用路由并取消下载；返回任务供宿主有界等待清理，重复调用不打断清理。"""
         if not self.closed:
             self.closed = True
+            self._data_test_cache.clear()
             self._migration_previews.clear()
             self._compare_results.clear()
             for token, job in list(self._compare_jobs.items()):
@@ -1509,11 +1513,28 @@ class WebPanel:
         if (g := self._gone()) is not None:
             return g
         reveal = self._query("reveal", "0") == "1"
+        await self._overview_lock.acquire()
+        task = self._overview_task = asyncio.create_task(self._overview_snapshot(reveal))
+
+        def finished(done):
+            self._overview_task = None
+            self._overview_lock.release()
+            if not done.cancelled():
+                done.exception()
+
+        # 请求取消只停止等待；扫描结束前由独立任务保有锁。
+        task.add_done_callback(finished)
+        return await asyncio.shield(task)
+
+    async def _overview_snapshot(self, reveal: bool):
+        if (g := self._gone()) is not None:
+            return g
+        run_dir = paths.run_dir()
         try:
             from . import __version__ as ver
         except Exception:  # noqa: BLE001
             ver = ""
-        return {
+        payload = {
             "version": ver,
             "now": time.time(),
             "background": self.background_rows(),
@@ -1521,7 +1542,7 @@ class WebPanel:
             # 数据登记表（来源/生产器/判定方式/新鲜度结论）；与 health / 打包闸门读同一份判据
             "registry": registry_rows(),
             # 有效数据账本：逐份对照「运行目录副本 / 随包种子」（只读）
-            "ledger": ledger_rows(),
+            "ledger": None,
             "push": push_state(self.p.push),
             "subs": subscriptions(self.p.subs, getattr(self.p, "groups", None), reveal=reveal),
             "flare_enabled": bool(getattr(self.p.client, "flare_enabled", False)),
@@ -1533,6 +1554,11 @@ class WebPanel:
             ),
             "community_base": str(getattr(self.p.client, "community_base", "") or ""),
         }
+        # 账本只读固定目录，实例与订阅状态仍在事件循环读取。
+        payload["ledger"] = await asyncio.to_thread(ledger_rows, run_dir)
+        if (g := self._gone()) is not None:
+            return g
+        return payload
 
     async def refresh(self):
         """从公开仓 bot-data 拉社区快照（效价 + 言录使货单）。只在本地已过期时才会写盘。"""
@@ -1624,7 +1650,16 @@ class WebPanel:
         if (g := self._gone()) is not None:
             return g
         target = str(body.get("target") or "")
-        if target not in ("flare", "vision", "vision_routes", "vision_live"):
+        if target not in (
+            "flare",
+            "vision",
+            "vision_routes",
+            "vision_live",
+            "worldstate",
+            "community",
+            "wiki",
+            "market",
+        ):
             return {"status": "error", "message": f"未知测试项：{target}"}
         route = body.get("route")
         if route is None or route == "":
@@ -1659,6 +1694,10 @@ class WebPanel:
                 )
             return result
         async with self._test_lock:
+            if (g := self._gone()) is not None:
+                return g
+            if target in ("worldstate", "community", "wiki", "market"):
+                return await self._test_data_source(target)
             t0 = time.perf_counter()
             if target == "flare":
                 res = await self._test_flare()
@@ -1667,6 +1706,61 @@ class WebPanel:
             res["ms"] = int((time.perf_counter() - t0) * 1000)
             res["target"] = target
             return res
+
+    def _data_test_key(self) -> tuple:
+        client = self.p.client
+        http = getattr(client, "http", None)
+        cfg = getattr(self.p, "cfg", {})
+        return (
+            id(client),
+            id(http),
+            str(getattr(http, "timeout", "")),
+            tuple(getattr(http, "headers", {}).items()),
+            cfg.get("default_platform", "pc"),
+            getattr(client, "worldsource", "de"),
+            getattr(client, "de_worldstate_url", ""),
+            getattr(client, "worldstate_base", ""),
+            getattr(client, "community_base", ""),
+            getattr(client, "allow_private_urls", False),
+            getattr(client, "wm_v2_base", ""),
+            getattr(client, "flare_enabled", False),
+            tuple(getattr(client, "_flare_urls", ())),
+        )
+
+    async def _test_data_source(self, target: str) -> dict:
+        key = self._data_test_key()
+        hit = self._data_test_cache.get(target)
+        if hit is not None and time.monotonic() < hit[0] and key == hit[1]:
+            return {**copy.deepcopy(hit[2]), "cached": True}
+        started = time.perf_counter()
+        try:
+            result = await self.p.client.probe_data_source(
+                target, platform=getattr(self.p, "cfg", {}).get("default_platform", "pc")
+            )
+        except Exception as exc:  # noqa: BLE001 - 原异常可能包含凭据与主机路径
+            result = {
+                "ok": False,
+                "detail": f"探测失败（{type(exc).__name__}），请稍后重试",
+                "attempts": [],
+                "skipped_reason": "",
+            }
+        if (g := self._gone()) is not None:
+            return g
+        result = {
+            **result,
+            "target": target,
+            "checked_at": time.time() if result.get("attempts") else None,
+            "ms": int((time.perf_counter() - started) * 1000),
+            "cached": False,
+        }
+        # 未执行的额度检查不占30秒缓存，额度恢复后可立即重测。
+        if not result.get("skipped_reason") and key == self._data_test_key():
+            self._data_test_cache[target] = (
+                time.monotonic() + 30,
+                key,
+                copy.deepcopy(result),
+            )
+        return result
 
     async def _test_flare(self) -> dict:
         c = self.p.client

@@ -927,6 +927,12 @@ _cv = _AC.WarframeClient()
 _now = _dt.now(_tz.utc)
 
 
+class _V01Clock(_dt):
+    @classmethod
+    def now(cls, tz=None):
+        return _now.astimezone(tz) if tz is not None else _now.replace(tzinfo=None)
+
+
 def _win(sect):
     ep = _dt.fromisoformat(sect["epoch"])
     per = _td(hours=int(sect.get("period_hours", 96)))
@@ -953,12 +959,16 @@ async def _serve(ts):
         return _payload(ts)
 
     _cv._community_json = _f
-    return await _cv._community_valence_parsed(_rot)
+    # 校验器在函数内导入 datetime；仅冻结本段入口调用，避免执行中跨轮。
+    from unittest.mock import patch
+
+    with patch("datetime.datetime", _V01Clock):
+        return await _cv._community_valence_parsed(_rot)
 
 
 _prev = (max(st for st, _ in _starts) - _td(hours=1)).isoformat()
 check("★ V01：上一轮的快照（比本地新但早于本轮开始）不采用", _aio.run(_serve(_prev)) is None, _prev)
-_cur = (_now - _td(minutes=1)).isoformat()
+_cur = max(_now - _td(minutes=1), max(st for st, _ in _starts)).isoformat()
 _res = _aio.run(_serve(_cur))
 check(
     "V01：本轮内的快照照常采用（对照组，证明上一条不是被别的校验拦下）",
@@ -990,7 +1000,10 @@ async def _serve2(payload, rot):
         return payload
 
     _cv._community_json = _f
-    return await _cv._community_valence_parsed(rot)
+    from unittest.mock import patch
+
+    with patch("datetime.datetime", _V01Clock):
+        return await _cv._community_valence_parsed(rot)
 
 
 # 较早换轮的那段在它自己的本轮内、但早于较晚那段的窗口起点；较晚那段在自己的本轮内
