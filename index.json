@@ -7,10 +7,6 @@
    "published_at": "2026-11-08T00:04:43+00:00",
    "snapshot": "wiki《Reset》页，经插件在有 FlareSolverr 的机器上抓取后发布；快照时间 2026-11-07T00:12:27+00:00"
   },
-  "acrithis_week.json": {
-   "published_at": "2026-11-02T00:00:00+00:00",
-   "snapshot": "wiki《Acrithis/Current Offerings》当期上报（observed November 2, 2026）；插件自动抓取"
-  },
   "arb_ratings.json": {
    "published_at": "2026-11-04",
    "snapshot": "https://arbi.wf.wiki/api/leaderboard?board=browse&nodeId=<key>"
