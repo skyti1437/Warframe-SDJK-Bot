@@ -1,4 +1,4 @@
-# AstrBot 插件 · Warframe SDJKBOT v1.3.0（`astrbot_plugin_warframe_sdjkbot`）
+# AstrBot 插件 · Warframe SDJKBOT v1.3.1（`astrbot_plugin_warframe_sdjkbot`）
 
 **简体中文** | [English](https://github.com/skyti1437/Warframe-SDJK-Bot/blob/main/README.en.md)
 
