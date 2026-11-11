@@ -6,11 +6,6 @@
 回复渲染成 Orokin 风格的图片卡片，后台还带一个可视化的运维面板。
 回复可选**简体中文或英文**（国际服），英文模式下节点、任务、物品、武器、派系等优先使用 DE 官方英文名，详见下文「显示语言」。
 
-<p align="center">
-  <img src="https://cdn.jsdelivr.net/gh/skyti1437/Warframe-SDJK-Bot@main/assets/readme/arbitration.png" width="49%" alt="当前仲裁卡片" />
-  <img src="https://cdn.jsdelivr.net/gh/skyti1437/Warframe-SDJK-Bot@main/assets/readme/relic.png" width="49%" alt="遗物卡片" />
-</p>
-
 指令是**自由参数式**的：`主指令 + 内容 + 附加项`，顺序随意、空格分隔。比如 `伤害 绝路 镀层3`、`遗物 出库`、`仲裁 生存 高效` 都行。
 发送 `帮助` 查看完整指令表——共 **57 个主指令**，分 9 组。
 
@@ -18,20 +13,15 @@
 
 ## 卡片一览
 
-| 虚空裂隙（按纪元排序、钢铁 / 九重天标记） | 伤害计算（实战 / 爆发 / 持续 DPS、分段明细） |
+| 当前仲裁（`仲裁`） | 遗物奖励（`遗物 中纪A1`） |
 | :---: | :---: |
-| <img src="https://cdn.jsdelivr.net/gh/skyti1437/Warframe-SDJK-Bot@main/assets/readme/fissures.png" alt="虚空裂隙卡片" /> | <img src="https://cdn.jsdelivr.net/gh/skyti1437/Warframe-SDJK-Bot@main/assets/readme/damage.png" alt="伤害计算卡片" /> |
-| **Prime 出库清单（出库遗物按杜卡德金 / 银 / 铜着色）** | **指令一览（`帮助`）** |
-| <img src="https://cdn.jsdelivr.net/gh/skyti1437/Warframe-SDJK-Bot@main/assets/readme/prime-vault.png" alt="Prime 出库卡片" /> | <img src="https://cdn.jsdelivr.net/gh/skyti1437/Warframe-SDJK-Bot@main/assets/readme/help.png" alt="指令一览卡片" /> |
+| ![当前和下一场仲裁](https://raw.githubusercontent.com/skyti1437/Warframe-SDJK-Bot/refs/heads/main/assets/readme/arbitration.png) | ![中纪 A1 遗物的奖励与获取状态](https://raw.githubusercontent.com/skyti1437/Warframe-SDJK-Bot/refs/heads/main/assets/readme/relic.png) |
+| **钢铁之路裂隙（`裂隙 钢铁`）** | **伤害计算（`伤害 绝路 镀层3`）** |
+| ![按纪元列出的钢铁之路虚空裂隙](https://raw.githubusercontent.com/skyti1437/Warframe-SDJK-Bot/refs/heads/main/assets/readme/fissures.png) | ![绝路的单发伤害、DPS 与分段明细](https://raw.githubusercontent.com/skyti1437/Warframe-SDJK-Bot/refs/heads/main/assets/readme/damage.png) |
+| **Prime 出库（`出库`）** | **指令一览（`帮助`）** |
+| ![当期出库的 Prime 装备、遗物与部件](https://raw.githubusercontent.com/skyti1437/Warframe-SDJK-Bot/refs/heads/main/assets/readme/prime-vault.png) | ![中文主指令与用法一览](https://raw.githubusercontent.com/skyti1437/Warframe-SDJK-Bot/refs/heads/main/assets/readme/help.png) |
 
-> 上方六张卡面为 v1.2.0 的中文历史截图，供版式参考；当前指令请在聊天中发送 `帮助` 查看。下方后台截图为合成演示数据。默认配色为「Orokin」，可在运维面板调整。
-
-英文显示效果（v1.3.1 候选在英文模式下用实时数据渲染，卡面版本号当时尚未升级）：
-
-<p align="center">
-  <img src="https://cdn.jsdelivr.net/gh/skyti1437/Warframe-SDJK-Bot@main/assets/readme/en-arbitration.png" width="49%" alt="英文仲裁卡片（v1.3.1 候选）" />
-  <img src="https://cdn.jsdelivr.net/gh/skyti1437/Warframe-SDJK-Bot@main/assets/readme/en-help.png" width="49%" alt="英文指令一览卡片（v1.3.1 候选）" />
-</p>
+> 示例用游戏快照和随包资料渲染，采用默认 Orokin 配色。卡片上的时间以 UTC+08:00 为例，安装后可在「设置 → 显示时区」调整。
 
 ## 功能
 
@@ -92,14 +82,14 @@
 
 | 概览 | 外观（配色、字体、实时预览） |
 | :---: | :---: |
-| <img src="https://cdn.jsdelivr.net/gh/skyti1437/Warframe-SDJK-Bot@main/assets/readme/panel-overview.png" alt="运维面板概览" /> | <img src="https://cdn.jsdelivr.net/gh/skyti1437/Warframe-SDJK-Bot@main/assets/readme/panel-appearance.png" alt="运维面板外观页" /> |
+| ![运维面板概览](https://raw.githubusercontent.com/skyti1437/Warframe-SDJK-Bot/refs/heads/main/assets/readme/panel-overview.png) | ![运维面板外观设置与卡片预览](https://raw.githubusercontent.com/skyti1437/Warframe-SDJK-Bot/refs/heads/main/assets/readme/panel-appearance.png) |
 
-<p align="center">
-  <img src="https://cdn.jsdelivr.net/gh/skyti1437/Warframe-SDJK-Bot@main/assets/readme/panel-vision.png" width="80%" alt="运维面板识图页：状态与提醒、紫卡读取方式（本地 OCR / 单模型 / 双路模型，显示当前实际生效）与紫卡渠道（合成演示数据）" />
-</p>
+![运维面板识图页，展示紫卡读取方式、生效状态与渠道设置](https://raw.githubusercontent.com/skyti1437/Warframe-SDJK-Bot/refs/heads/main/assets/readme/panel-vision.png)
+
+> 面板截图使用合成演示数据。
 
 - **概览**：推送守护、订阅、数据、依赖、字体一眼看完，「需要处理」列出过期数据和该做的事，点一下就跳过去。
-- **数据**：每份数据快照的时间和状态；一键从社区快照拉新数据；抓价格排行和紫卡 WM 现价（受上面的重抓保护，保护期内显示「未启动」及原因，不自动重试）。
+- **数据**页显示快照时间、状态和抓取进度。「重新加载」重读页面数据，「刷新社区快照」拉取较新的社区数据，「从源头重抓」立即从 wiki 重抓元素加成和言录使货单。价格排行和紫卡 WM 现价仍受上文所述的重抓保护。
 - **推送与订阅**：按群查看「蹲」订阅（会话与订阅人标识默认打码），可删订阅、开关某个群的推送。
 - **设置**：日常的输出、推送、平台与权限设置，每项标注「即时生效」还是「需要重载」；低频分组默认收起。
 - **识图**：紫卡分析与配卡识卡分区显示，各自的模型渠道、生效状态与固定方案；「渠道隔离」显示迁移前兼容 / 已严格独立，并提供预览后主动确认的迁移与回滚；「详细自定义」开关展开旧配置兼容、完整路由、按任务的提示词编辑、同图对比和视觉诊断。本地紫卡 OCR 默认关闭、独立配置：可在紫卡区主动下载部署或手动填写路径，按「保存→检查→确认启用」选用，并上传一张截图做单次本地试识别。
@@ -109,7 +99,7 @@
   - 支持背景图（可调压暗程度和面板透明度）和角标；
   - 字体可以从链接导入或上传，正文和粗体分别选；
   - 预览用的是真实出图程序，保存后新卡片立即生效。
-- **维护**（原「依赖与资源 / 连通性」）：一键安装插件依赖（按 requirements.txt，走 AstrBot 自己的 pip 设置；不包含本地 OCR 组件）；测试 FlareSolverr 是否可用。识图渠道诊断在「识图 → 详细自定义」。
+- 在**维护**页可通过 AstrBot 的 pip 设置安装或修复 Python 依赖。本地紫卡 OCR 在「识图 → 紫卡识别」单独配置。「连通性」可测试当前世界状态源、社区数据、wiki 源页、warframe.market 和 FlareSolverr。数据新鲜度在「数据」页查看，识图渠道诊断在「识图 → 详细自定义」。
 
 ## 安装
 

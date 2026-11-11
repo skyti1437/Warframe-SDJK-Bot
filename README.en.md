@@ -6,18 +6,23 @@ Look up Warframe from your group chat on QQ, Telegram, Discord, Slack, KOOK and 
 
 Replies can be in **Simplified Chinese or English** (international servers only). English mode uses DE's official English names for nodes, missions, items, weapons and factions wherever the plugin has them.
 
-<p align="center">
-  <img src="https://cdn.jsdelivr.net/gh/skyti1437/Warframe-SDJK-Bot@main/assets/readme/en-arbitration.png" width="49%" alt="Current Arbitration card in English" />
-  <img src="https://cdn.jsdelivr.net/gh/skyti1437/Warframe-SDJK-Bot@main/assets/readme/en-help.png" width="49%" alt="English command list card" />
-</p>
-
-> The English cards above show live data from a v1.3.1 release candidate. The Arbitration example used Beijing time. See [Configuration](#configuration) to choose your display time zone.
-
 Commands take **free-form arguments**: `command + content + modifiers`, in any order, separated by spaces. There are **57 main commands**; send `wfhelp` for the full list.
 
 Version history: [CHANGELOG.md](https://github.com/skyti1437/Warframe-SDJK-Bot/blob/main/CHANGELOG.md) (written in Chinese).
 
 ---
+
+## Card gallery
+
+| Current Arbitration | Relic rewards |
+| :---: | :---: |
+| ![Current and upcoming Arbitration](assets/readme/en-arbitration.png) | ![Meso A1 relic rewards and availability](assets/readme/en-relic.png) |
+| **Steel Path Void Fissures** | **Riven stat ranges** |
+| ![Steel Path Void Fissures grouped by era](assets/readme/en-fissures.png) | ![Rubico Prime Riven stat ranges](assets/readme/en-riven-ranges.png) |
+| **Damage calculation** | **Command list** |
+| ![Soma damage and DPS breakdown](assets/readme/en-damage.png) | ![English command list](assets/readme/en-help.png) |
+
+> The examples use saved game data. The Arbitration card uses UTC+08:00. See [Configuration](#configuration) to choose your display time zone.
 
 ## Install
 
