@@ -14,6 +14,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterable, Optional
 
+from . import i18n
 from . import tents as _tents
 from .de_worldstate import (
     DESCENT_GOAL_CAVEAT as _DESCENT_GOAL_CAVEAT,
@@ -23,6 +24,8 @@ from .de_worldstate import (
     faction_name,
     mission_type_zh_by_name,
 )
+from .display_time import format_time
+from .i18n import L
 from .parser import MISSION_CN, PLATFORM_DISPLAY, TIER_CN
 
 # ---------------------------------------------------------------------------
@@ -47,15 +50,46 @@ def parse_iso(value: str) -> Optional[datetime]:
         return None
 
 
+def _dur_en(mins: int) -> str:
+    """英文时长：``3h 12m`` / ``2d 5h`` / ``12m`` / ``<1m``（只用 d/h/m，数字紧贴单位）。"""
+    if mins < 60:
+        return f"{mins}m" if mins > 0 else "<1m"
+    hours = mins // 60
+    if hours < 24:
+        return f"{hours}h {mins % 60}m"
+    return f"{hours // 24}d {hours % 24}h"
+
+
+def _ended() -> str:
+    return L("已结束", "Ended")
+
+
+def _left_en(cd: str) -> str:
+    """英文「剩余」：``3h 12m left``；已结束写 ``Ended``。"""
+    return cd if cd == "Ended" else f"{cd} left"
+
+
+def _left(cd: str, zh_prefix: str = "剩余 ") -> str:
+    """倒计时串 → 行文：中文 ``<前缀><时长>``，英文 ``3h 12m left`` / ``Ended``。"""
+    return L(f"{zh_prefix}{cd}", _left_en(cd))
+
+
+def _in_en(cd: str) -> str:
+    """英文「N 后开始」：``in 5m``；已结束写 ``Ended``。"""
+    return cd if cd == "Ended" else f"in {cd}"
+
+
 def countdown(expiry: str) -> str:
-    """剩余时间：X天X小时 / X小时X分 / X分钟。"""
+    """剩余时间：X天X小时 / X小时X分 / X分钟（英文：3h 12m / 2d 5h / 12m / <1m）。"""
     end = parse_iso(expiry)
     if end is None:
         return "?"
     secs = (end - _now()).total_seconds()
     if secs <= 0:
-        return "已结束"
+        return _ended()
     mins = int(secs // 60)
+    if i18n.is_en():
+        return _dur_en(mins)
     if mins < 60:
         return f"{mins}分钟" if mins > 0 else "不到1分钟"
     hours = mins // 60
@@ -65,11 +99,17 @@ def countdown(expiry: str) -> str:
 
 
 def mission_cn(mission_type: str) -> str:
+    if i18n.is_en():
+        # 英文模式：世界状态里已是 DE 官方英文名，原样返回（全小写的才规整成 Title Case）
+        mt = mission_type or ""
+        return mt.title() if mt and mt.islower() else mt
     key = (mission_type or "").lower()
     return MISSION_CN.get(key, MISSION_CN.get(key.replace(" ", ""), mission_type))
 
 
 def tier_cn(tier: str) -> str:
+    if i18n.is_en():
+        return tier
     return TIER_CN.get(tier, tier)
 
 
@@ -95,6 +135,23 @@ RIVEN_GROUP_CN = {
 }
 
 
+_RIVEN_TYPE_EN = {
+    "rifle": "Rifle",
+    "shotgun": "Shotgun",
+    "pistol": "Pistol",
+    "melee": "Melee",
+    "archgun": "Archgun",
+    "archmelee": "Arch-Melee",
+}
+_RIVEN_GROUP_EN = {
+    "archgun": "Archgun",
+    "archmelee": "Arch-Melee",
+    "sentinel": "Companion Weapon",
+    "kitgun": "Kitgun",
+    "zaw": "Zaw",
+}
+
+
 def riven_type_cn(riven_type: str, group: str = "") -> str:
     """riven_type/group → 中文类别；未知值原样返回。
 
@@ -103,6 +160,13 @@ def riven_type_cn(riven_type: str, group: str = "") -> str:
     类别时优先（archgun→曲翼枪械、sentinel→守护武器），否则回落 rivenType。
     """
     g = (group or "").strip().lower()
+    if i18n.is_en():
+        if g in _RIVEN_GROUP_EN:
+            return _RIVEN_GROUP_EN[g]
+        key = (riven_type or "").strip().lower()
+        if not key:
+            return ""
+        return _RIVEN_TYPE_EN.get(key, riven_type)
     if g in RIVEN_GROUP_CN:
         return RIVEN_GROUP_CN[g]
     key = (riven_type or "").strip().lower()
@@ -118,6 +182,15 @@ def _state_cn(state: str) -> str:
     Anger / Envy 这些**派系与情绪状态词 DE 官方简中一律不翻译**，
     直接沿用英文原文，与游戏内客户端一致（「法斯 / 沃姆」是国服叫法，已弃用）。
     """
+    if i18n.is_en():
+        return {
+            "day": "Day",
+            "night": "Night",
+            "warm": "Warm",
+            "cold": "Cold",
+            "fass": "Fass (Day)",
+            "vome": "Vome (Night)",
+        }.get(state, (state or "").capitalize())
     return {
         "day": "白天",
         "night": "夜晚",
@@ -148,8 +221,11 @@ def _left_pair(expiry: str) -> tuple[str, str]:
         return "?", ""
     secs = int((end - _now()).total_seconds())
     if secs <= 0:
-        return "已结束", ""
+        return _ended(), ""
     mins = secs // 60
+    if i18n.is_en():
+        # 英文只有一种写法（3h 12m），不再并列「紧凑」那份
+        return _dur_en(mins), ""
     if mins < 60:
         cn = f"{mins}分钟" if mins > 0 else "不到1分钟"
     elif mins < 1440:
@@ -168,20 +244,30 @@ EARTH_PLANTS = {
     "day": ("日光龙百合", "日光去壳毬果", "日光玉叶"),
     "night": ("月光龙百合", "月光去壳毬果", "月光玉叶"),
 }
+# 英文名取自 DE languages_en（Day/Night{Common,UnCommon,Rare}Plant）
+_EARTH_PLANTS_EN = {
+    "day": ("Sunlight Dragonlily", "Sunlight Threshcone", "Sunlight Jadeleaf"),
+    "night": ("Moonlight Dragonlily", "Moonlight Threshcone", "Moonlight Jadeleaf"),
+}
 
 # 扎里曼号派系：官方简中**不翻译**派系名，与游戏内客户端一致。
 ZARIMAN_CN = {"grineer": "Grineer", "corpus": "Corpus", "unknown": "未知（DE 未下发周期种子）"}
+_ZARIMAN_EN = {
+    "grineer": "Grineer",
+    "corpus": "Corpus",
+    "unknown": "Unknown (no cycle seed from DE)",
+}
 
 
 def fmt_cetus(*cycles: Optional[dict]) -> tuple[str, list[str]]:
     """夜灵/平原时间：地球平原、金星山谷、魔胎之境、地球、双衍王境、扎里曼号全部周期。"""
     names = {
-        "cetus": "夜灵平野",
-        "vallis": "奥布山谷",
-        "cambion": "魔胎之境",
-        "earth": "地球",
-        "duviri": "双衍王境",
-        "zariman": "扎里曼号",
+        "cetus": L("夜灵平野", "Plains of Eidolon"),
+        "vallis": L("奥布山谷", "Orb Vallis"),
+        "cambion": L("魔胎之境", "Cambion Drift"),
+        "earth": L("地球", "Earth"),
+        "duviri": L("双衍王境", "Duviri"),
+        "zariman": L("扎里曼号", "Zariman"),
     }
     S = "　"
     rows: list[str] = []
@@ -190,38 +276,54 @@ def fmt_cetus(*cycles: Optional[dict]) -> tuple[str, list[str]]:
         if not c:
             continue
         key = c.get("_name", "")
-        name = names.get(key, key or "周期")
+        name = names.get(key, key or L("周期", "Cycle"))
         if key == "duviri":
             # 双衍王境：状态即「螺旋」（情绪），官方简中译名 + 英文原名。
             # ⚠️ 不要再单列「当前螺旋 / 后续螺旋」——那两行和本行是同一个螺旋，
             #    信息完全重复，还各带一个倒计时（旧版三行并列时尤其容易被当 bug）。
             state_cn = c.get("stateCn") or _state_cn(c.get("state", ""))
             state_en = c.get("state", "")
-            state = f"{state_cn}（{state_en}）" if state_cn and state_en else state_cn
+            if i18n.is_en():
+                state = state_en or state_cn
+            else:
+                state = f"{state_cn}（{state_en}）" if state_cn and state_en else state_cn
         elif key == "zariman":
-            state = ZARIMAN_CN.get(c.get("state", ""), c.get("state", ""))
+            state = (_ZARIMAN_EN if i18n.is_en() else ZARIMAN_CN).get(
+                c.get("state", ""), c.get("state", "")
+            )
         else:
             state = _state_cn(c.get("state", ""))
         # 倒计时统一走 _left_pair：中文 + 紧凑两份同源同刻，行格式各周期完全一致
         # （双衍曾因只写中文秒级、缺「（Xh Ym）」而与其它行格式不一）。
         left, extra = _left_pair(c.get("expiry", ""))
         end = parse_iso(c.get("expiry", ""))
-        if end is not None and left != "已结束" and (soon is None or end < soon[0]):
-            soon = (end, f"{name}（{state}）{S}剩余 {left}")
-        rows.append(f"· {name}{S}{state}{S}剩余 {left}" + (f"（{extra}）" if extra else ""))
+        if end is not None and left != _ended() and (soon is None or end < soon[0]):
+            soon = (
+                end,
+                L(f"{name}（{state}）{S}剩余 {left}", f"{name} ({state}){S}{_left_en(left)}"),
+            )
+        rows.append(
+            L(
+                f"· {name}{S}{state}{S}剩余 {left}" + (f"（{extra}）" if extra else ""),
+                f"· {name}{S}{state}{S}{_left_en(left)}",
+            )
+        )
         if key == "earth":
-            plants = EARTH_PLANTS.get("day" if c.get("isDay") else "night", ())
+            plants = (EARTH_PLANTS if not i18n.is_en() else _EARTH_PLANTS_EN).get(
+                "day" if c.get("isDay") else "night", ()
+            )
             if plants:
                 # 从属行（缩进续行）：材料随地球昼夜更替
-                rows.append("　当前材料：" + " · ".join(plants))
+                rows.append(L("　当前材料：", "　Current materials: ") + " · ".join(plants))
+    title = L("平原时间", "Open World Cycles")
     if not rows:
-        return ("平原时间", ["暂无周期数据"])
+        return (title, [L("暂无周期数据", "No cycle data")])
     lines = []
     if soon is not None:
-        lines.append(f"◆ 最先换轮：{soon[1]}")
-    lines.append("◆ 各周期")
+        lines.append(L("◆ 最先换轮：", "◆ Next change: ") + soon[1])
+    lines.append(L("◆ 各周期", "◆ Cycles"))
     lines += rows
-    return ("平原时间", lines)
+    return (title, lines)
 
 
 # 时效总览：每一项是什么（避免只给倒计时看不懂）
@@ -260,6 +362,47 @@ _TIMER_SECTIONS = (
     ("周", "◆ 每周（周一 00:00 UTC 统一重置）"),
     ("其它", "◆ 其它周期"),
 )
+# 英文版：键与 _TIMER_DESC 一致，值同为 (分段, 显示名, 轮换内容, 周常短名)
+_TIMER_DESC_EN = {
+    "夜灵平野": ("世界", "Plains of Eidolon", "Day / Night", ""),
+    "奥布山谷": ("世界", "Orb Vallis", "Warm / Cold", ""),
+    "魔胎之境": ("世界", "Cambion Drift", "Fass / Vome", ""),
+    "双衍王境": ("世界", "Duviri", "Mood rotation", ""),
+    "扎里曼派系": ("世界", "Zariman", "Corpus / Grineer", ""),
+    "每日突击": ("每日", "Sortie", "Reset", ""),
+    "钢铁侵蚀": ("每日", "Steel Path", "Incursions · daily reset", ""),
+    "仲裁": ("每日", "Arbitration", "Hourly rotation", ""),
+    "执刑官猎杀": ("周", "Archon Hunt", "Weekly reset", "Archon Hunt"),
+    "深层科研": ("周", "Deep Archimedea", "Weekly reset", "Deep Archimedea"),
+    "时光科研": ("周", "Temporal Archimedea", "Weekly reset", "Temporal Archimedea"),
+    "沉沦之地": ("周", "Descendia", "21 floors weekly", "Descendia"),
+    "钢铁回廊灵化": ("周", "Circuit Incarnon", "Weekly rotation", "Circuit Incarnon"),
+    "1999日历": ("周", "1999 Calendar", "Season-end reset", "1999 Calendar"),
+    "周常重置": ("周", "Weekly Reset", "Mon 00:00 UTC", ""),
+    "信条元素加成": ("其它", "Tenet Weapons", "Every 4 days", ""),
+    "终幕换批": ("其它", "Coda Weapons", "Every 4 days", ""),
+    "虚空奸商": ("其它", "Void Trader", "Arrival", ""),
+    "午夜电波": ("其它", "Nightwave", "Season ends", ""),
+}
+_TIMER_SECTIONS_EN = (
+    ("世界", "◆ Open World"),
+    ("每日", "◆ Daily"),
+    ("周", "◆ Weekly (all reset Mon 00:00 UTC)"),
+    ("其它", "◆ Other Cycles"),
+)
+
+
+def _timer_desc() -> dict:
+    return _TIMER_DESC_EN if i18n.is_en() else _TIMER_DESC
+
+
+def _timer_missing() -> str:
+    return L(_TIMER_MISSING, "No data")
+
+
+def _timer_when(name: str, cd: str) -> str:
+    """「X 后抵达/开始」：中文沿用旧写法，英文 ``in 5m``。"""
+    return L(f"{cd} 后{_TIMER_START_WORD.get(name, '开始')}", _in_en(cd))
 
 
 def _timer_text(name: str, data: Optional[dict]) -> tuple[str, str]:
@@ -272,14 +415,14 @@ def _timer_text(name: str, data: Optional[dict]) -> tuple[str, str]:
     act = parse_iso((data or {}).get("activation", "")) if data else None
     if act is not None and act > now:
         cd = countdown(data["activation"])
-        return f"{cd} 后{_TIMER_START_WORD.get(name, '开始')}", cd
+        return _timer_when(name, cd), cd
     if data and "expiry" in data:
         cd = countdown(data["expiry"])
-        return f"剩余 {cd}", cd
+        return _left(cd), cd
     if data and "activation" in data:
         cd = countdown(data["activation"])
-        return f"{cd} 后{_TIMER_START_WORD.get(name, '开始')}", cd
-    return _TIMER_MISSING, ""
+        return _timer_when(name, cd), cd
+    return _timer_missing(), ""
 
 
 def fmt_timers(timers: list[tuple[str, dict]]) -> tuple[str, list[str]]:
@@ -292,14 +435,16 @@ def fmt_timers(timers: list[tuple[str, dict]]) -> tuple[str, list[str]]:
     的周常成员之间，且成员名仍逐个列在从属行里，不丢项。
     """
     S = "　"
-    rows: dict[str, list[tuple[str, str, str, str, str]]] = {k: [] for k, _ in _TIMER_SECTIONS}
+    desc_tbl = _timer_desc()
+    sections = _TIMER_SECTIONS_EN if i18n.is_en() else _TIMER_SECTIONS
+    rows: dict[str, list[tuple[str, str, str, str, str]]] = {k: [] for k, _ in sections}
     for name, data in timers:
-        sec, head, desc, short = _TIMER_DESC.get(name, ("其它", name, "", ""))
+        sec, head, desc, short = desc_tbl.get(name, ("其它", name, "", ""))
         txt, cd = _timer_text(name, data)
         rows[sec].append((name, head, desc, txt, cd))
-    missing = any(r[3] == _TIMER_MISSING for items in rows.values() for r in items)
+    missing = any(r[3] == _timer_missing() for items in rows.values() for r in items)
     lines: list[str] = []
-    for sec, title in _TIMER_SECTIONS:
+    for sec, title in sections:
         items = rows[sec]
         if not items:
             continue
@@ -310,15 +455,16 @@ def fmt_timers(timers: list[tuple[str, dict]]) -> tuple[str, list[str]]:
             base = next((cd for n, _h, _d, _t, cd in items if n == "周常重置" and cd), "")
             if base:
                 members = [
-                    _TIMER_DESC[n][3]
+                    desc_tbl[n][3]
                     for n, _h, _d, _t, cd in items
-                    if n != "周常重置" and cd == base and _TIMER_DESC.get(n, ("",) * 4)[3]
+                    if n != "周常重置" and cd == base and desc_tbl.get(n, ("",) * 4)[3]
                 ]
                 skip = {n for n, _h, _d, _t, cd in items if n != "周常重置" and cd == base}
-                if "深层科研" in members and "时光科研" in members:
-                    members[members.index("深层科研")] = "深层/时光科研"
-                    members.remove("时光科研")
-                lines.append(f"· 本周重置{S}剩余 {base}")
+                deep, temporal = desc_tbl["深层科研"][3], desc_tbl["时光科研"][3]
+                if deep in members and temporal in members:
+                    members[members.index(deep)] = L("深层/时光科研", "Deep/Temporal Archimedea")
+                    members.remove(temporal)
+                lines.append(L(f"· 本周重置{S}剩余 {base}", f"· Weekly Reset{S}{_left_en(base)}"))
                 if members:
                     lines.append(f"{S}" + " · ".join(members))
                 skip.add("周常重置")
@@ -326,14 +472,24 @@ def fmt_timers(timers: list[tuple[str, dict]]) -> tuple[str, list[str]]:
             if n in skip:
                 continue
             lines.append(f"· {head}{S}{desc}{S}{txt}" if desc else f"· {head}{S}{txt}")
+    title = L("时效总览", "Timers Overview")
     if not lines:
-        return ("时效总览", ["暂无数据"])
-    lines.append(
-        "※ 「暂无数据」= 数据源未下发该项计时；到点自动轮换/重置"
-        if missing
-        else "※ 以上为各周期内容的当前剩余时间，到点自动轮换/重置"
-    )
-    return ("时效总览", lines)
+        return (title, [L("暂无数据", "No data")])
+    if missing:
+        lines.append(
+            L(
+                "※ 「暂无数据」= 数据源未下发该项计时；到点自动轮换/重置",
+                '※ "No data" = the data source did not provide this timer; cycles rotate/reset automatically',
+            )
+        )
+    else:
+        lines.append(
+            L(
+                "※ 以上为各周期内容的当前剩余时间，到点自动轮换/重置",
+                "※ Time left on each cycle above; cycles rotate/reset automatically",
+            )
+        )
+    return (title, lines)
 
 
 # ---------------------------------------------------------------------------
@@ -371,6 +527,8 @@ def _fissure_faction(f: dict) -> str:
     raw = (f.get("enemy") or "").strip()
     if raw in _FACTION_HIDE:
         return ""
+    if i18n.is_en():
+        return "Infested" if raw == "Infestation" else raw
     return _FACTION_ZH.get(raw, raw)
 
 
@@ -401,7 +559,10 @@ def fmt_fissures(
         pages, page = 1, 1
         chunk = act[:_ALL_ROWS_CAP]
         if total > _ALL_ROWS_CAP:
-            extra = f"※ 共 {total} 条，本卡只列前 {_ALL_ROWS_CAP} 条（按上面口径排序）"
+            extra = L(
+                f"※ 共 {total} 条，本卡只列前 {_ALL_ROWS_CAP} 条（按上面口径排序）",
+                f"※ {total} total; this card lists the first {_ALL_ROWS_CAP} (sorted as above)",
+            )
     else:
         pages = max(1, (total + page_size - 1) // page_size)
         page = max(1, min(page, pages))
@@ -418,59 +579,80 @@ def fmt_fissures(
         mt_raw = f.get("missionType", "")
         # 九重天风暴的类型来自节点表英文名（Skirmish / Volatile …），与「九重天」卡同一张译表
         mtype = (
-            _RAILJACK_TYPE_CN.get((mt_raw or "").lower(), "") if f.get("isStorm") else ""
+            _RAILJACK_TYPE_CN.get((mt_raw or "").lower(), "")
+            if f.get("isStorm") and not i18n.is_en()
+            else ""
         ) or mission_cn(mt_raw)
         if mtype == "?":
             mtype = ""
         tags = " ".join(
             t
-            for t in ("钢铁" if f.get("isHard") else "", "九重天" if f.get("isStorm") else "")
+            for t in (
+                L("钢铁", "Steel Path") if f.get("isHard") else "",
+                L("九重天", "Void Storms") if f.get("isStorm") else "",
+            )
             if t
         )
         rows.append(
             f"· {chip}{S}{mtype}{S}{f.get('node') or ''}{S}{_fissure_faction(f)}{S}{tags}{S}"
-            f"剩{countdown(f['expiry'])}"
+            + _left(countdown(f["expiry"]), "剩")
         )
-    head = (
-        f"虚空裂隙（共{total}条）" if all_rows else f"虚空裂隙（第{page}/{pages}页，共{total}条）"
-    )
+    if all_rows:
+        head = L(f"虚空裂隙（共{total}条）", f"Void Fissures ({total} total)")
+    else:
+        head = L(
+            f"虚空裂隙（第{page}/{pages}页，共{total}条）",
+            f"Void Fissures (Page {page}/{pages}, {total} total)",
+        )
     if not total:
         # ★ 2026-10-11：0 结果时旧实现只剩一行「※ 按纪元…排序」（`lines or […]` 永远非空），
         #   「没有匹配」的提示从不出现。
-        return (head, ["◆ 结果：当前筛选条件下没有进行中的裂隙"])
+        return (
+            head,
+            [
+                L(
+                    "◆ 结果：当前筛选条件下没有进行中的裂隙",
+                    "◆ Result: No active fissures match the current filters",
+                )
+            ],
+        )
     n_hard = sum(1 for f in act if f.get("isHard"))
     n_storm = sum(1 for f in act if f.get("isStorm"))
-    summ = f"{total} 条"
+    summ = L(f"{total} 条", f"{total}")
     if n_hard or n_storm:
-        summ += (
-            "（"
-            + " · ".join(
-                x
-                for x in (
-                    f"钢铁 {n_hard}" if n_hard else "",
-                    f"九重天 {n_storm}" if n_storm else "",
-                )
-                if x
+        _parts = " · ".join(
+            x
+            for x in (
+                L(f"钢铁 {n_hard}", f"Steel Path {n_hard}") if n_hard else "",
+                L(f"九重天 {n_storm}", f"Void Storms {n_storm}") if n_storm else "",
             )
-            + "）"
+            if x
         )
+        summ += L("（" + _parts + "）", " (" + _parts + ")")
     nxt = act[0]
     for f in act:
         if f.get("expiry", "") < nxt.get("expiry", ""):
             nxt = f
     nxt_mt = (
         _RAILJACK_TYPE_CN.get((nxt.get("missionType") or "").lower(), "")
-        if nxt.get("isStorm")
+        if nxt.get("isStorm") and not i18n.is_en()
         else ""
     ) or mission_cn(nxt.get("missionType", ""))
     lines = [
-        f"◆ 进行中：{summ}",
-        f"◆ 最近到期：{nxt.get('node') or '?'} {'' if nxt_mt == '?' else nxt_mt}　"
-        f"剩{countdown(nxt['expiry'])}",
-        "◆ 裂隙列表（按纪元排序）",
-        f"{S}纪元{S}类型{S}节点{S}派系{S}标记",
+        L(f"◆ 进行中：{summ}", f"◆ Active: {summ}"),
+        L("◆ 最近到期：", "◆ Next to expire: ")
+        + f"{nxt.get('node') or '?'} {'' if nxt_mt == '?' else nxt_mt}　"
+        + _left(countdown(nxt["expiry"]), "剩"),
+        L("◆ 裂隙列表（按纪元排序）", "◆ Fissure List (by tier)"),
+        L(
+            f"{S}纪元{S}类型{S}节点{S}派系{S}标记",
+            f"{S}Tier{S}Type{S}Node{S}Faction{S}Tags",
+        ),
         *rows,
-        "※ 按纪元（古纪→前纪→中纪→后纪→安魂→全能）排序，同纪元内剩余时间少的在前",
+        L(
+            "※ 按纪元（古纪→前纪→中纪→后纪→安魂→全能）排序，同纪元内剩余时间少的在前",
+            "※ Sorted by tier (Lith→Meso→Neo→Axi→Requiem→Omnia); within a tier, least time left first",
+        ),
     ]
     if extra:
         lines.append(extra)
@@ -481,7 +663,12 @@ _MODIFIER_CN: dict[str, str] = {}
 
 
 def _sortie_modifier_cn(name: str) -> str:
-    """突击/执刑官限制条件中文名（覆盖 DE sortieData 全部 30 种 modifierTypes）。"""
+    """突击/执刑官限制条件中文名（覆盖 DE sortieData 全部 30 种 modifierTypes）。
+
+    英文模式原样返回 DE 官方英文名。
+    """
+    if i18n.is_en():
+        return name
     if not _MODIFIER_CN:
         _MODIFIER_CN.update(
             {
@@ -588,13 +775,28 @@ _ARCHON_SHARD = {
     "Nira": ("黄", "琥珀执刑官源力石"),
     "Boreal": ("蓝", "蔚蓝执刑官源力石"),
 }
+_ARCHON_SHARD_EN = {
+    "Amar": ("Red", "Crimson Archon Shard"),
+    "Nira": ("Yellow", "Amber Archon Shard"),
+    "Boreal": ("Blue", "Azure Archon Shard"),
+}
+
+
+# 英文模式：Store Item 术语 -> 游戏内英文名
+_REWARD_NAME_EN = {
+    "Resource Drop Chance Booster Store Item": "3 Day Resource Drop Chance Booster",
+    "Mod Drop Chance Booster Store Item": "3 Day Mod Drop Chance Booster",
+    "Resource Booster Store Item": "3 Day Resource Booster",
+    "Affinity Booster Store Item": "3 Day Affinity Booster",
+    "Credit Booster Store Item": "3 Day Credit Booster",
+}
 
 
 def _reward_cn(name: str) -> str:
-    """把奖励名里的英文 Store Item 术语替换成中文。"""
+    """把奖励名里的英文 Store Item 术语替换成中文（英文模式换成游戏内英文名）。"""
     if not name:
         return name
-    for en, cn in _REWARD_NAME_CN.items():
+    for en, cn in (_REWARD_NAME_EN if i18n.is_en() else _REWARD_NAME_CN).items():
         if en in name:
             return name.replace(en, cn)
     # 「2000 x Kuva」这类 WM 风格的写法也归一化一下
@@ -608,7 +810,32 @@ def _reward_cn(name: str) -> str:
 _RES_ALIAS = {"Kuva": "赤毒", "Endo": "内融核心", "Credits": "现金"}
 
 
+# 突击奖励池（core/data/de/sortie_rewards.json 只有简中名）的英文名，键为该表的中文名
+_SORTIE_REWARD_EN = {
+    "阿耶檀识 Anasa 塑像": "Ayatan Anasa Sculpture",
+    "内融核心捆包": "Endo",
+    "赤毒": "Kuva",
+    "近战裂罅 Mod": "Melee Riven Mod",
+    "步枪裂罅 Mod": "Rifle Riven Mod",
+    "手枪裂罅 Mod": "Pistol Riven Mod",
+    "3 天经验值加成": "3 Day Affinity Booster",
+    "3 天资源掉落几率加成": "3 Day Resource Drop Chance Booster",
+    "3 天 Mod 掉落几率加成": "3 Day Mod Drop Chance Booster",
+    "Forma": "Forma",
+    "战甲特殊功能槽连接器": "Exilus Warframe Adapter",
+    "奥罗金反应堆蓝图": "Orokin Reactor Blueprint",
+    "奥罗金催化剂蓝图": "Orokin Catalyst Blueprint",
+    "霰弹枪裂罅 Mod": "Shotgun Riven Mod",
+    "Zaw 裂罅 Mod": "Zaw Riven Mod",
+    "组合枪裂罅 Mod": "Kitgun Riven Mod",
+    "传说核心": "Legendary Core",
+}
+_SORTIE_RARITY_EN = {"普通": "Common", "罕见": "Uncommon", "稀有": "Rare", "传说": "Legendary"}
+
+
 def _res_name_cn(s: str) -> str:
+    if i18n.is_en():
+        return _reward_cn(_SORTIE_REWARD_EN.get(s, s))
     out = _reward_cn(s)
     for en, cn in _RES_ALIAS.items():
         out = out.replace(en, cn)
@@ -623,35 +850,64 @@ def _sortie_reward_lines(limit: int = 8) -> tuple[list[str], list[str]]:
     if not rows:
         return [], []
     S = "　"
-    out = ["◆ 完成后奖励（从下列随机 1 件）", f"{S}奖励{S}稀有度{S}几率"]
+    out = [
+        L("◆ 完成后奖励（从下列随机 1 件）", "◆ Completion Reward (1 random item from the list)"),
+        L(f"{S}奖励{S}稀有度{S}几率", f"{S}Reward{S}Rarity{S}Chance"),
+    ]
     for r in rows[:limit]:
         cnt = r.get("count") or 1
         name = _res_name_cn(r["name"]) + (f" ×{cnt}" if cnt and cnt > 1 else "")
-        out.append(f"· {name}{S}{r.get('rarity', '')}{S}{r.get('chance', '')}%")
+        if i18n.is_en() and r["name"] == "内融核心捆包":
+            # 官方英文无此捆包名；wiki Sortie 奖励表写总量「4,000 Endo」（50 包 × 每包 80）
+            name = f"{cnt * 80:,} Endo"
+        rarity = r.get("rarity", "")
+        if i18n.is_en():
+            rarity = _SORTIE_RARITY_EN.get(rarity, rarity)
+        out.append(f"· {name}{S}{rarity}{S}{r.get('chance', '')}%")
     notes = []
     if len(rows) > limit:
-        notes.append(f"※ 另有 {len(rows) - limit} 项未列出（其余为加成类与塑像）")
+        notes.append(
+            L(
+                f"※ 另有 {len(rows) - limit} 项未列出（其余为加成类与塑像）",
+                f"※ {len(rows) - limit} more not listed (the rest are boosters and statues)",
+            )
+        )
     return out, notes
 
 
 def fmt_sortie(sortie: Optional[dict]) -> tuple[str, list[str]]:
     """每日突击：首领 / 三阶段任务表 / 奖励池（2026-10-11 第二步改版：答案先行 + 对齐表）。"""
+    title = L("每日突击", "Sortie")
     if not sortie:
-        return ("每日突击", ["数据暂不可用"])
+        return (title, [L("数据暂不可用", "Data unavailable")])
     S = "　"
-    lines = [f"◆ 首领：{sortie.get('boss', '?')}{S}剩余 {countdown(sortie.get('expiry', ''))}"]
+    lines = [
+        L("◆ 首领：", "◆ Boss: ")
+        + f"{sortie.get('boss', '?')}{S}"
+        + _left(countdown(sortie.get("expiry", "")))
+    ]
     rows = []
     for i, v in enumerate(sortie.get("variants", []) or [], 1):
         lim = _sortie_modifier_cn(v.get("modifier", ""))
         # 「武器限制：仅限霰弹枪」本身已带类别前缀，避免再套一层「限制：限制：」
-        lim = re.sub(r"^(?:武器限制|敌人(?:物理|元素)?强化)：", "", lim)
+        if i18n.is_en():
+            lim = re.sub(
+                r"^(?:Weapon Restriction|Enemy (?:Physical |Elemental )?Enhancement): ", "", lim
+            )
+        else:
+            lim = re.sub(r"^(?:武器限制|敌人(?:物理|元素)?强化)：", "", lim)
         rows.append(
-            f"· {i}{S}{v.get('node', '?')}{S}{mission_cn(v.get('missionType', ''))}{S}{lim or '无'}"
+            f"· {i}{S}{v.get('node', '?')}{S}{mission_cn(v.get('missionType', ''))}{S}"
+            f"{lim or L('无', 'None')}"
         )
     if rows:
-        lines += ["◆ 三阶段任务", f"{S}阶段{S}节点{S}类型{S}限制", *rows]
+        lines += [
+            L("◆ 三阶段任务", "◆ Three Stages"),
+            L(f"{S}阶段{S}节点{S}类型{S}限制", f"{S}Stage{S}Node{S}Type{S}Modifier"),
+            *rows,
+        ]
     rw, notes = _sortie_reward_lines()
-    return ("每日突击", lines + rw + notes)
+    return (title, lines + rw + notes)
 
 
 def fmt_archon(archon: Optional[dict]) -> tuple[str, list[str]]:
@@ -661,15 +917,24 @@ def fmt_archon(archon: Optional[dict]) -> tuple[str, list[str]]:
     见 de_worldstate.ARCHON_STAGE_LEVELS），不再套用节点自身的星图等级。
     第二步改版：本周首领与奖励先行，三阶段做成「阶段 / 节点 / 类型 / 等级」表。
     """
+    title = L("执刑官猎杀", "Archon Hunt")
     if not archon:
-        return ("执刑官猎杀", ["数据暂不可用"])
+        return (title, [L("数据暂不可用", "Data unavailable")])
     S = "　"
     boss = archon.get("boss", "?")
     code = archon.get("bossCode") or ""
-    color, shard = _ARCHON_SHARD.get(code, ("?", "执刑官源力石"))
+    if i18n.is_en():
+        color, shard = _ARCHON_SHARD_EN.get(code, ("?", "Archon Shard"))
+    else:
+        color, shard = _ARCHON_SHARD.get(code, ("?", "执刑官源力石"))
     lines = [
-        f"◆ 本周执刑官：{boss}{S}剩余 {countdown(archon.get('expiry', ''))}",
-        f"◆ 第 3 阶段奖励：{shard}（{color}）",
+        L("◆ 本周执刑官：", "◆ This Week's Archon: ")
+        + f"{boss}{S}"
+        + _left(countdown(archon.get("expiry", ""))),
+        L(
+            f"◆ 第 3 阶段奖励：{shard}（{color}）",
+            f"◆ Stage 3 Reward: {shard} ({color})",
+        ),
     ]
     rows = []
     has_lv = any(v.get("level") for v in archon.get("variants") or [])
@@ -681,16 +946,34 @@ def fmt_archon(archon: Optional[dict]) -> tuple[str, list[str]]:
         if has_lv:
             cells.append(v.get("level") or "—")
         if lim:
-            cells.append(f"限制：{lim}")
+            cells.append(L(f"限制：{lim}", f"Modifier: {lim}"))
         rows.append("· " + S.join(cells))
     if rows:
-        head = ["阶段", "节点", "类型"] + (["等级"] if has_lv else [])
-        lines += ["◆ 三阶段任务", S + S.join(head), *rows]
-    lines.append("※ 无突击式负面限制，3 个阶段按顺序推进；每周首次完成固定给 1 个对应颜色的源力石")
+        head = L(
+            ["阶段", "节点", "类型"] + (["等级"] if has_lv else []),
+            ["Stage", "Node", "Type"] + (["Level"] if has_lv else []),
+        )
+        lines += [L("◆ 三阶段任务", "◆ Three Stages"), S + S.join(head), *rows]
+    lines.append(
+        L(
+            "※ 无突击式负面限制，3 个阶段按顺序推进；每周首次完成固定给 1 个对应颜色的源力石",
+            "※ No Sortie-style modifiers; the 3 stages run in order; the first clear each week always gives 1 shard of the matching color",
+        )
+    )
     if has_lv:
-        lines.append("※ 敌人等级取自 wiki（普通难度）；钢铁之路档 wiki 未列，不作推算")
-    lines.append("※ 源力石有几率升级为 Tau 强化版，用于兑换执刑官 MOD 与赋能")
-    return ("执刑官猎杀", lines)
+        lines.append(
+            L(
+                "※ 敌人等级取自 wiki（普通难度）；钢铁之路档 wiki 未列，不作推算",
+                "※ Enemy levels are from the wiki (normal difficulty); the wiki lists no Steel Path tier, so none is estimated",
+            )
+        )
+    lines.append(
+        L(
+            "※ 源力石有几率升级为 Tau 强化版，用于兑换执刑官 MOD 与赋能",
+            "※ Shards can be upgraded to Tau versions, used to buy Archon mods and Arcanes",
+        )
+    )
+    return (title, lines)
 
 
 # ---------------------------------------------------------------------------
@@ -703,11 +986,32 @@ def _baro_cash(credits) -> str:
     try:
         c = int(credits)
     except (TypeError, ValueError):
-        return "?现金"
+        return L("?现金", "? Credits")
+    if i18n.is_en():
+        if c >= 1000:
+            return f"{f'{c / 1000:.1f}'.rstrip('0').rstrip('.')}k Credits"
+        return f"{c} Credits"
     if c >= 10000:
         s = f"{c / 10000:.1f}".rstrip("0").rstrip(".")
         return f"{s}万现金"
     return f"{c}现金"
+
+
+_BARO_GROUP_EN = {
+    "武器": "Weapons",
+    "MOD": "Mods",
+    "外观": "Cosmetics",
+    "装饰": "Decor",
+    "遗物": "Relics",
+    "消耗品": "Consumables",
+    "礼包": "Bundles",
+    "其他": "Other",
+}
+
+
+def _baro_group(g: str) -> str:
+    """商品类别显示名（baro.py 的类别键是中文；英文模式换成英文）。"""
+    return _BARO_GROUP_EN.get(g, g) if i18n.is_en() else g
 
 
 def fmt_void_trader(trader: Optional[dict]) -> tuple[str, list[str]]:
@@ -723,8 +1027,9 @@ def fmt_void_trader(trader: Optional[dict]) -> tuple[str, list[str]]:
     ★ 2026-10-16 第三版：按商品类别分组（武器 / MOD / 外观 / 装饰 / 遗物 / 消耗品 / 礼包 / 其他），
     每行两件同组商品、行首彩色类别芯片；类别由 DE 商品路径判定（core/baro.py::group_of_store）。
     """
+    title = L("虚空商人", "Void Trader")
     if not trader:
-        return ("虚空商人", ["数据暂不可用"])
+        return (title, [L("数据暂不可用", "Data unavailable")])
     S = "　"
     active = trader.get("active", False)
     loc = trader.get("location", "?")
@@ -732,13 +1037,18 @@ def fmt_void_trader(trader: Optional[dict]) -> tuple[str, list[str]]:
     if active:
         trader_name = trader.get("character", "Baro Ki'Teer")
         lines += [
-            f"◆ 状态：{trader_name} 已抵达 {loc}",
-            f"◆ 离开：剩余 {countdown(trader.get('expiry', ''))}",
+            L(
+                f"◆ 状态：{trader_name} 已抵达 {loc}",
+                f"◆ Status: {trader_name} has arrived at {loc}",
+            ),
+            L("◆ 离开：", "◆ Departs: ") + _left(countdown(trader.get("expiry", ""))),
         ]
         inv = trader.get("inventory") or []
         if not inv:
-            lines.append("◆ 货单：同步中，请稍后再查")
-            return ("虚空商人", lines)
+            lines.append(
+                L("◆ 货单：同步中，请稍后再查", "◆ Inventory: syncing, please check again later")
+            )
+            return (title, lines)
         # ★ 2026-10-16 维护者要求「同种类的商品放一块，用异色标记，像赏金那样」：
         #   按 DE 商品路径分组（baro.group_of_store），固定组序；每组先一行彩色类别芯片
         #   （render 的 GROUP_CHIP_COLOR），下面每行两件**同组**商品，奇数组末行单件，绝不跨组拼行。
@@ -749,33 +1059,45 @@ def fmt_void_trader(trader: Optional[dict]) -> tuple[str, list[str]]:
         groups: dict[str, list] = {g: [] for g in STORE_GROUP_ORDER}
         for it in inv:
             groups.setdefault(group_of_store(it.get("store") or ""), []).append(it)
-        counts = " · ".join(f"{g} {len(v)}" for g, v in groups.items() if v)
-        lines.append(f"◆ 货单：共 {len(inv)} 件（{counts}）")
+        counts = " · ".join(f"{_baro_group(g)} {len(v)}" for g, v in groups.items() if v)
+        lines.append(
+            L(f"◆ 货单：共 {len(inv)} 件（{counts}）", f"◆ Inventory: {len(inv)} items ({counts})")
+        )
 
         def cell(it: dict) -> str:
             name = it.get("item") or "?"
+            if i18n.is_en():
+                return f"{name}{S}{it.get('ducats', '?')} Ducats{S}{_baro_cash(it.get('credits'))}"
             return f"{name}{S}{it.get('ducats', '?')}杜{S}{_baro_cash(it.get('credits'))}"
 
-        lines.append("◆ 在售货单")
-        lines.append(
-            f"{S}商品{S}杜卡德{S}现金" + (f"{S}商品{S}杜卡德{S}现金" if len(inv) > 1 else "")
-        )
+        lines.append(L("◆ 在售货单", "◆ Items for Sale"))
+        _h = L(f"{S}商品{S}杜卡德{S}现金", f"{S}Item{S}Ducats{S}Credits")
+        lines.append(_h + (_h if len(inv) > 1 else ""))
         for g, items in groups.items():
             if items:
-                lines.append(f"· [{g}]")
+                lines.append(f"· [{_baro_group(g)}]")
             for i in range(0, len(items), 2):
                 row = cell(items[i])
                 if i + 1 < len(items):
                     row += S + cell(items[i + 1])
                 lines.append("· " + row)
-        lines.append("※ 金色＝杜卡德 · 青色＝现金 · 彩色标签＝商品类别")
+        lines.append(
+            L(
+                "※ 金色＝杜卡德 · 青色＝现金 · 彩色标签＝商品类别",
+                "※ Gold = Ducats · Cyan = Credits · Colored tag = item category",
+            )
+        )
     else:
         lines += [
-            "◆ 状态：尚未抵达",
-            f"◆ 抵达地点：{loc}",
-            f"◆ 距抵达：剩余 {countdown(trader.get('activation', ''))}",
+            L("◆ 状态：尚未抵达", "◆ Status: Not arrived yet"),
+            L(f"◆ 抵达地点：{loc}", f"◆ Arrival location: {loc}"),
+            L("◆ 距抵达：", "◆ Arrives: ")
+            + L(
+                f"剩余 {countdown(trader.get('activation', ''))}",
+                _in_en(countdown(trader.get("activation", ""))),
+            ),
         ]
-    return ("虚空商人", lines)
+    return (title, lines)
 
 
 def fmt_baro_predict(
@@ -801,45 +1123,71 @@ def fmt_baro_predict(
     """
     if not rows:
         return (
-            "奸商下期预测",
+            L("奸商下期预测", "Void Trader Next Visit Forecast"),
             [
-                "预测数据不可用（缺 core/data/baro_history.json）",
-                "刷新方式：scripts/build_baro_history.py（需经 FlareSolverr 抓 wiki）",
+                L(
+                    "预测数据不可用（缺 core/data/baro_history.json）",
+                    "Forecast data unavailable (core/data/baro_history.json is missing)",
+                ),
+                L(
+                    "刷新方式：scripts/build_baro_history.py（需经 FlareSolverr 抓 wiki）",
+                    "Refresh with scripts/build_baro_history.py (scrapes the wiki via FlareSolverr)",
+                ),
             ],
         )
     zh = names_zh or {}
     S = "　"
 
     def nm(r: dict) -> str:
+        if i18n.is_en():
+            return r["name"]
         return zh.get(r["name"]) or r.get("name_cn") or r["name"]
 
     lines: list[str] = []
     if next_est:
-        lines.append(f"◆ 下次预计到访：{next_est}")
+        lines.append(L(f"◆ 下次预计到访：{next_est}", f"◆ Next expected visit: {next_est}"))
     head = []
     if last:
-        head.append(f"上次 {last}")
+        head.append(L(f"上次 {last}", f"Last {last}"))
     if visits:
-        head.append(f"样本 {visits} 次到访")
+        head.append(L(f"样本 {visits} 次到访", f"Sample: {visits} visits"))
     if head:
-        lines.append("◆ 历史：" + " ｜ ".join(head))
-    lines.append("◆ 候选库存（按回归度排序，推测）")
+        lines.append(L("◆ 历史：", "◆ History: ") + " ｜ ".join(head))
+    lines.append(
+        L("◆ 候选库存（按回归度排序，推测）", "◆ Candidate Inventory (by return score, estimate)")
+    )
     for r in rows:
-        grp = r.get("group") or "其他"
-        cost = f"{r['ducats']} 杜卡德" if r.get("ducats") else "—"
+        grp = _baro_group(r.get("group") or "其他")
+        cost = L(f"{r['ducats']} 杜卡德", f"{r['ducats']} Ducats") if r.get("ducats") else "—"
         lines.append(f"· [{grp}]{S}{nm(r)}{S}{cost}")
         lines.append(
-            f"{S}上次 {r['last']} ｜ 已静默 {r['silent']} 次"
-            f"（均隔 {r['gap']}）｜ 回归度 {r['score']}"
+            L(
+                f"{S}上次 {r['last']} ｜ 已静默 {r['silent']} 次"
+                f"（均隔 {r['gap']}）｜ 回归度 {r['score']}",
+                f"{S}Last {r['last']} ｜ Silent for {r['silent']} visits"
+                f" (avg gap {r['gap']}) ｜ Return score {r['score']}",
+            )
         )
     lines.append(
-        "※ 统计推测，不是官方预测（DE 从不公布下期库存）；"
-        "口径：已静默次数 ÷ 该物品历史平均上架间隔，越接近 1 越可能回归"
+        L(
+            "※ 统计推测，不是官方预测（DE 从不公布下期库存）；"
+            "口径：已静默次数 ÷ 该物品历史平均上架间隔，越接近 1 越可能回归",
+            "※ Statistical estimate, not an official forecast (DE never announces the next inventory); "
+            "score = visits silent ÷ the item's average gap between listings; the closer to 1, the more likely it returns",
+        )
     )
     if snapshot:
-        tail = f"；其后 {missed} 次到访未入库，已按「未上架」计入静默次数" if missed else ""
-        lines.append(f"※ 历史记录快照：{snapshot}（wiki Module:Baro/data）{tail}")
-    return ("奸商下期预测（推测）", lines)
+        tail = L(
+            f"；其后 {missed} 次到访未入库，已按「未上架」计入静默次数" if missed else "",
+            f"; {missed} later visits are not recorded and count as silent" if missed else "",
+        )
+        lines.append(
+            L(
+                f"※ 历史记录快照：{snapshot}（wiki Module:Baro/data）{tail}",
+                f"※ History snapshot: {snapshot} (wiki Module:Baro/data){tail}",
+            )
+        )
+    return (L("奸商下期预测（推测）", "Void Trader Next Visit Forecast (Estimate)"), lines)
 
 
 def _deal_stock(d: dict) -> str:
@@ -849,43 +1197,72 @@ def _deal_stock(d: dict) -> str:
     """
     total, sold = d.get("total"), d.get("sold")
     try:
-        return f"余量{max(0, int(total) - int(sold or 0))}/{int(total)}"
+        return L(
+            f"余量{max(0, int(total) - int(sold or 0))}/{int(total)}",
+            f"Stock {max(0, int(total) - int(sold or 0))}/{int(total)}",
+        )
     except (TypeError, ValueError):
-        return f"库存{total if total is not None else '?'}"
+        return L(
+            f"库存{total if total is not None else '?'}",
+            f"Total {total if total is not None else '?'}",
+        )
 
 
 def fmt_daily_deals(deals: Iterable[dict]) -> tuple[str, list[str]]:
     """每日特惠：答案先行（件数）+ 「商品 / 折后 / 原价 / 余量」表，倒计时右对齐。"""
     S = "　"
     ds = list(deals or [])
+    title = L("每日特惠", "Darvo's Daily Deal")
     if not ds:
-        return ("每日特惠", ["◆ 今日特惠：暂无"])
-    lines = [f"◆ 今日特惠：{len(ds)} 件", "◆ 特惠商品", f"{S}商品{S}折后{S}原价{S}余量"]
+        return (title, [L("◆ 今日特惠：暂无", "◆ Today's deals: None")])
+    lines = [
+        L(f"◆ 今日特惠：{len(ds)} 件", f"◆ Today's deals: {len(ds)}"),
+        L("◆ 特惠商品", "◆ Deal Items"),
+        L(f"{S}商品{S}折后{S}原价{S}余量", f"{S}Item{S}Sale{S}Original{S}Stock"),
+    ]
     for d in ds:
         lines.append(
-            f"· {d.get('item', '?')}{S}{d.get('salePrice', '?')}白金{S}"
-            f"原价{d.get('originalPrice', '?')}{S}{_deal_stock(d)}{S}"
-            f"剩{countdown(d.get('expiry', ''))}"
+            L(
+                f"· {d.get('item', '?')}{S}{d.get('salePrice', '?')}白金{S}"
+                f"原价{d.get('originalPrice', '?')}{S}{_deal_stock(d)}{S}",
+                f"· {d.get('item', '?')}{S}{d.get('salePrice', '?')} Platinum{S}"
+                f"Was {d.get('originalPrice', '?')}{S}{_deal_stock(d)}{S}",
+            )
+            + _left(countdown(d.get("expiry", "")), "剩")
         )
-    return ("每日特惠", lines)
+    return (title, lines)
 
 
 def fmt_steel_path(sp: Optional[dict]) -> tuple[str, list[str]]:
     if not sp:
         return (
-            "钢铁之路",
+            L("钢铁之路", "Steel Path"),
             [
-                "钢铁之路轮换为外部数据源，当前数据模式下不可用。",
-                "可用「裂隙 钢铁」查看钢铁之路裂隙。",
+                L(
+                    "钢铁之路轮换为外部数据源，当前数据模式下不可用。",
+                    "Steel Path rotation comes from an external data source and is unavailable in the current data mode.",
+                ),
+                L(
+                    "可用「裂隙 钢铁」查看钢铁之路裂隙。",
+                    'Use "fissure steel" to view Steel Path fissures.',
+                ),
             ],
         )
     lines = []
     if sp.get("currentReward"):
-        lines.append(f"当前侵袭奖励：{sp['currentReward']}　剩余 {sp.get('remaining', '?')}")
+        lines.append(
+            L(
+                f"当前侵袭奖励：{sp['currentReward']}　剩余 {sp.get('remaining', '?')}",
+                f"Current incursion reward: {sp['currentReward']}　{sp.get('remaining', '?')} left",
+            )
+        )
     inc = sp.get("incursions") or []
     for i, it in enumerate(inc[:8], 1):
         lines.append(f"{i}. {it.get('node', '?')} · {mission_cn(it.get('missionType', ''))}")
-    return ("钢铁之路轮换", lines or ["暂无侵袭数据"])
+    return (
+        L("钢铁之路轮换", "Steel Path Rotation"),
+        lines or [L("暂无侵袭数据", "No incursion data")],
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -984,6 +1361,85 @@ def steel_rotation_index(data: dict) -> tuple[int, Optional[str]]:
     return idx, nxt_reset
 
 
+# 钢精 / 碎银兑换表（core/data/de/*.json）只有简中名；英文模式按中文原名查此表，
+# 查不到就原样显示（不猜）。英文名取自 DE languages_en 与 wiki。
+_SHOP_NAME_EN = {
+    "裂罅破解器（Veiled Riven Cipher，每周限购 1）": "Veiled Riven Cipher (1 per week)",
+    "主武器赋能适配器": "Primary Arcane Adapter",
+    "副武器赋能适配器": "Secondary Arcane Adapter",
+    "架式 Forma 蓝图": "Stance Forma Blueprint",
+    "10,000 赤毒（每周限购 25）": "10,000 Kuva (25 per week)",
+    "遗物组合包 · 3 个随机遗物（每周限购 25）": "Relic Pack (3x Void Relics) (25 per week)",
+    "比沙莫护肩套装（Bishamo Pauldrons）": "Bishamo Pauldrons Blueprint Set",
+    "比沙莫胸甲套装（Bishamo Cuirass）": "Bishamo Cuirass Blueprint Set",
+    "比沙莫头盔套装（Bishamo Helmet）": "Bishamo Helmet Blueprint Set",
+    "比沙莫护胫套装（Bishamo Greaves）": "Bishamo Greaves Blueprint Set",
+    "三轨幻纹": "Trio Orbit Ephemera",
+    "颅骨幻纹（Crania Ephemera）": "Crania Ephemera",
+    "制衡（Counterbalance，霰弹枪减后坐）": "Counterbalance (Shotgun Recoil)",
+    "Teshin 摇头娃娃": "Noggle Statue - Teshin",
+    "奥罗金茶具": "Orokin Tea Set",
+    "Gauss 战斗姿态浮印": "Gauss in Action Glyph",
+    "Grendel 战斗姿态浮印": "Grendel in Action Glyph",
+    "Protea 战斗姿态浮印": "Protea In Action Glyph",
+    "Xaku 战斗姿态浮印": "Xaku in Action Glyph",
+    "《老师》地球场景": "The Teacher Earth Scene",
+    "《老师》道场场景": "The Teacher Dojo Scene",
+    "《老师》反应堆场景": "The Teacher Reactor Scene",
+    "《老师》飞船场景": "The Teacher Ship Scene",
+    "《老师》曲目": "The Teacher",  # /Lotus/Language/OldPeace/TheTeacherSongName
+    "Umbra Forma 蓝图": "Umbra Forma Blueprint",
+    "50,000 赤毒": "50,000 Kuva",
+    "组合枪裂罅 Mod": "Kitgun Riven Mod",
+    "3 × Forma": "3 × Forma",
+    "Zaw 裂罅 Mod": "Zaw Riven Mod",
+    "30,000 内融核心": "30,000 Endo",
+    "步枪裂罅 Mod": "Rifle Riven Mod",
+    "霰弹枪裂罅 Mod": "Shotgun Riven Mod",
+    "150,000 现金": "150,000 Credits",
+    "6,000 内融核心": "6,000 Endo",
+    "35,000 赤毒": "35,000 Kuva",
+    "安魂遗物 I": "Requiem I Relic",
+    "安魂遗物 II": "Requiem II Relic",
+    "安魂遗物 III": "Requiem III Relic",
+    "安魂遗物 IV": "Requiem IV Relic",
+    "安魂通牒": "Requiem Ultimatum",
+    "裂罅 Mod": "Riven Mod",
+    "裂罅转化器": "Riven Transmuter",
+    "裂罅破解器": "Veiled Riven Cipher",
+    "钢铁守望场景": "Iron Wake Scene",
+    "Rell 的 Donda": "Rell's Donda",
+    "Rell 的愤怒表情卡牌": "Rell's Anger Emotile",
+    "Rell 的焦虑表情卡牌": "Rell's Anxiety Emotile",
+    "Rell 的无聊表情卡牌": "Rell's Boredom Emotile",
+    "Rell 的困惑表情卡牌": "Rell's Confusion Emotile",
+    "Rell 的厌恶表情卡牌": "Rell's Disgust Emotile",
+    "Rell 的尴尬表情卡牌": "Rell's Embarrassment Emotile",
+    "Rell 的兴奋表情卡牌": "Rell's Excitement Emotile",
+    "Rell 的疲惫表情卡牌": "Rell's Fatigue Emotile",
+    "Rell 的恐惧表情卡牌": "Rell's Fear Emotile",
+    "Rell 的快乐表情卡牌": "Rell's Happiness Emotile",
+    "Rell 的饥饿表情卡牌": "Rell's Hunger Emotile",
+    "Rell 的任性表情卡牌": "Rell's Petulance Emotile",
+    "Rell 的自豪表情卡牌": "Rell's Pride Emotile",
+    "Rell 的悲伤表情卡牌": "Rell's Sadness Emotile",
+    "Rell 的害羞表情卡牌": "Rell's Shyness Emotile",
+    "Rell 的惊讶表情卡牌": "Rell's Surprise Emotile",
+}
+
+_STEEL_GROUP_EN = {
+    "强化与资源": "Upgrades & Resources",
+    "护甲与幻纹": "Armor & Ephemera",
+    "模组与装饰": "Mods & Decor",
+    "战甲战斗姿态浮印": "Warframe Action Glyphs",
+    "《老师》摄影棚系列": "The Teacher Photobooth Series",
+}
+
+
+def _shop_name(name: str) -> str:
+    return _SHOP_NAME_EN.get(name, name) if i18n.is_en() else name
+
+
 def _steel_rotation(data: dict) -> tuple[list[str], Optional[str], int]:
     """推算本周/下周轮换商品。
 
@@ -1004,14 +1460,27 @@ def _steel_rotation(data: dict) -> tuple[list[str], Optional[str], int]:
     cur = weekly[idx]
     nxt = weekly[(idx + 1) % len(weekly)]
     lines = [
-        f"◆ 本周轮换：{cur['name']}（{cur['cost']} 精华）｜第 {idx + 1}/{len(weekly)} 周 · 每周限购 1 次",
+        L(
+            f"◆ 本周轮换：{cur['name']}（{cur['cost']} 精华）｜第 {idx + 1}/{len(weekly)} 周 · 每周限购 1 次",
+            f"◆ This week's rotation: {_shop_name(cur['name'])} ({cur['cost']} Essence)"
+            f" ｜ Week {idx + 1}/{len(weekly)} · limit 1 per week",
+        ),
     ]
     if nxt_reset:
         lines.append(
-            f"◆ 下周轮换：{nxt['name']}（{nxt['cost']} 精华）｜距轮换 剩余 {countdown(nxt_reset)}"
+            L(
+                f"◆ 下周轮换：{nxt['name']}（{nxt['cost']} 精华）｜距轮换 剩余 {countdown(nxt_reset)}",
+                f"◆ Next week's rotation: {_shop_name(nxt['name'])} ({nxt['cost']} Essence)"
+                f" ｜ Rotation {_in_en(countdown(nxt_reset))}",
+            )
         )
     else:
-        lines.append(f"◆ 下周轮换：{nxt['name']}（{nxt['cost']} 精华）")
+        lines.append(
+            L(
+                f"◆ 下周轮换：{nxt['name']}（{nxt['cost']} 精华）",
+                f"◆ Next week's rotation: {_shop_name(nxt['name'])} ({nxt['cost']} Essence)",
+            )
+        )
     return lines, nxt_reset, idx + 1
 
 
@@ -1026,7 +1495,15 @@ def fmt_steel_essence_shop() -> tuple[str, list[str]]:
     """
     data = steel_shop()
     if not data:
-        return ("钢铁精华兑换", ["兑换表缺失：core/data/de/steel_shop.json"])
+        return (
+            L("钢铁精华兑换", "Steel Essence Shop"),
+            [
+                L(
+                    "兑换表缺失：core/data/de/steel_shop.json",
+                    "Shop table missing: core/data/de/steel_shop.json",
+                )
+            ],
+        )
     weekly = data.get("weekly") or []
     evergreen = data.get("evergreen") or []
 
@@ -1034,28 +1511,47 @@ def fmt_steel_essence_shop() -> tuple[str, list[str]]:
     rot_lines, _, _ = _steel_rotation(data)
     lines.extend(rot_lines)
 
-    lines.append(f"◆ 常驻商品：共 {len(evergreen)} 件，可随时购买")
+    lines.append(
+        L(
+            f"◆ 常驻商品：共 {len(evergreen)} 件，可随时购买",
+            f"◆ Permanent stock: {len(evergreen)} items, always available",
+        )
+    )
     last_group = None
     for it in evergreen:
         grp = it.get("group")
         # 分组标题只在切换分组时输出，避免同一分类反复出现
         if grp and grp != last_group:
-            lines.append(f"◆ {grp}")
+            lines.append(f"◆ {_STEEL_GROUP_EN.get(grp, grp) if i18n.is_en() else grp}")
             last_group = grp
         elif last_group is None and not any(ln.startswith("· ") for ln in lines[-1:]):
-            lines.append("◆ 商品")
+            lines.append(L("◆ 商品", "◆ Items"))
             last_group = ""
-        lines.append(f"· {it['name']}　{it['cost']} 精华")
+        lines.append(
+            L(
+                f"· {it['name']}　{it['cost']} 精华",
+                f"· {_shop_name(it['name'])}　{it['cost']} Essence",
+            )
+        )
 
     total_all = sum(int(i.get("cost", 0)) for i in evergreen) + sum(
         int(w.get("cost", 0)) for w in weekly
     )
     lines.append(
-        "※ 精华获取：钢铁之路侵袭 5/个 · Acolyte 2/个 · "
-        "夜灵 1/个 · 钢铁裂隙开核桃 1/个 · 清完星球 25"
+        L(
+            "※ 精华获取：钢铁之路侵袭 5/个 · Acolyte 2/个 · 夜灵 1/个 · 钢铁裂隙开核桃 1/个 · 清完星球 25",
+            "※ Essence sources: Steel Path Incursions 5 each · Acolyte 2 each · "
+            "Eidolon 1 each · Steel Path fissure Crack Relics 1 each · clearing a planet 25",
+        )
     )
-    lines.append(f"※ 轮换按官方锚点推算；各商品精华总价 {total_all}（常驻全买 + 轮换各一次）")
-    return ("钢铁精华兑换（Teshin 荣誉商店）", lines)
+    lines.append(
+        L(
+            f"※ 轮换按官方锚点推算；各商品精华总价 {total_all}（常驻全买 + 轮换各一次）",
+            f"※ Rotation is estimated from the official anchor; total Essence cost {total_all}"
+            " (all permanent items + each rotation item once)",
+        )
+    )
+    return (L("钢铁精华兑换（Teshin 荣誉商店）", "Steel Essence Shop (Teshin's Honors)"), lines)
 
 
 def fmt_sliver_shop() -> tuple[str, list[str]]:
@@ -1067,23 +1563,56 @@ def fmt_sliver_shop() -> tuple[str, list[str]]:
     """
     data = palladino_shop()
     if not data:
-        return ("裂罅碎块兑换", ["兑换表缺失：core/data/de/palladino_shop.json"])
+        return (
+            L("裂罅碎块兑换", "Riven Sliver Shop"),
+            [
+                L(
+                    "兑换表缺失：core/data/de/palladino_shop.json",
+                    "Shop table missing: core/data/de/palladino_shop.json",
+                )
+            ],
+        )
     items = data.get("evergreen") or []
     _n, nxt = weekly_reset_info(data)
     S = "　"
     lines: list[str] = []
     if nxt:
-        lines.append(f"◆ 限购重置：周一 00:00 UTC｜距重置 剩余 {countdown(nxt)}")
-    lines.append(f"◆ 常驻商品：共 {len(items)} 件（限购 = 每周可购次数）")
-    lines += ["◆ 兑换列表", f"{S}商品{S}价格{S}每周限购"]
+        lines.append(
+            L(
+                f"◆ 限购重置：周一 00:00 UTC｜距重置 剩余 {countdown(nxt)}",
+                f"◆ Limits reset: Mon 00:00 UTC ｜ Reset {_in_en(countdown(nxt))}",
+            )
+        )
+    lines.append(
+        L(
+            f"◆ 常驻商品：共 {len(items)} 件（限购 = 每周可购次数）",
+            f"◆ Permanent stock: {len(items)} items (limit = purchases per week)",
+        )
+    )
+    lines += [
+        L("◆ 兑换列表", "◆ Exchange List"),
+        L(f"{S}商品{S}价格{S}每周限购", f"{S}Item{S}Price{S}Weekly limit"),
+    ]
     for it in items:
         lim = it.get("limit")
-        lines.append(f"· {it['name']}{S}{it['cost']} 碎块{S}{lim if lim else '—'}")
+        lines.append(
+            L(
+                f"· {it['name']}{S}{it['cost']} 碎块{S}{lim if lim else '—'}",
+                f"· {_shop_name(it['name'])}{S}{it['cost']} Slivers{S}{lim if lim else '—'}",
+            )
+        )
     lines.append(
-        "※ 碎块获取：开安魂遗物、航道星舰任务、钢铁之路卓越者；"
-        "每周限购按 wiki 原文（未明示者按一次性解锁）"
+        L(
+            "※ 碎块获取：开安魂遗物、航道星舰任务、钢铁之路卓越者；"
+            "每周限购按 wiki 原文（未明示者按一次性解锁）",
+            "※ Slivers come from cracking Requiem relics, Railjack missions and Steel Path Eximus; "
+            "weekly limits follow the wiki (items without a stated limit count as one-time unlocks)",
+        )
     )
-    return ("裂罅碎块兑换（Palladino · 钢铁守望）", lines)
+    return (
+        L("裂罅碎块兑换（Palladino · 钢铁守望）", "Riven Sliver Shop (Palladino · Iron Wake)"),
+        lines,
+    )
 
 
 def fmt_alerts(alerts: Iterable[dict]) -> tuple[str, list[str]]:
@@ -1101,11 +1630,21 @@ def fmt_alerts(alerts: Iterable[dict]) -> tuple[str, list[str]]:
         mission = a.get("mission", {}) or {}
         rewards = mission.get("reward", {}) or {}
         names = rewards.get("item_names") or ([rewards["item"]] if rewards.get("item") else [])
-        items = "、".join(
-            [*names, *([f"{rewards['credits']}现金"] if rewards.get("credits") else [])]
+        items = L("、", ", ").join(
+            [
+                *names,
+                *(
+                    [L(f"{rewards['credits']}现金", f"{rewards['credits']} Credits")]
+                    if rewards.get("credits")
+                    else []
+                ),
+            ]
         )
         lv = (
-            f"{mission['min_level']}-{mission['max_level']}级"
+            L(
+                f"{mission['min_level']}-{mission['max_level']}级",
+                f"Lv {mission['min_level']}-{mission['max_level']}",
+            )
             if mission.get("min_level") and mission.get("max_level")
             else ""
         )
@@ -1119,21 +1658,31 @@ def fmt_alerts(alerts: Iterable[dict]) -> tuple[str, list[str]]:
                 a.get("expiry", ""),
             )
         )
+    title = L("警报", "Alerts")
     if not recs:
-        return ("警报", ["◆ 进行中：当前没有进行中的警报"])
+        return (
+            title,
+            [L("◆ 进行中：当前没有进行中的警报", "◆ Active: no alerts at the moment")],
+        )
     descs = {r[0] for r in recs}
     same_desc = len(descs) == 1 and next(iter(descs)) != ""
-    summ = f"{len(recs)} 条" + (f"（{next(iter(descs))}）" if same_desc else "")
+    summ = L(f"{len(recs)} 条", f"{len(recs)}") + (
+        L(f"（{next(iter(descs))}）", f" ({next(iter(descs))})") if same_desc else ""
+    )
     soon = min(recs, key=lambda r: r[5] or "9999")
-    lines = [f"◆ 进行中：{summ}", f"◆ 最近到期：{soon[1]}{S}剩{countdown(soon[5])}", "◆ 警报列表"]
-    head = ["节点", "类型", "等级", "奖励"]
+    lines = [
+        L(f"◆ 进行中：{summ}", f"◆ Active: {summ}"),
+        L("◆ 最近到期：", "◆ Next to expire: ") + f"{soon[1]}{S}" + _left(countdown(soon[5]), "剩"),
+        L("◆ 警报列表", "◆ Alert List"),
+    ]
+    head = L(["节点", "类型", "等级", "奖励"], ["Node", "Type", "Level", "Reward"])
     if not same_desc:
-        head.insert(0, "警报")
+        head.insert(0, L("警报", "Alert"))
     lines.append(S + S.join(head))
     for desc, node, mt, lv, items, exp in recs:
         cells = ([desc] if not same_desc else []) + [node, mt, lv, items]
-        lines.append("· " + S.join(cells) + f"{S}剩{countdown(exp)}")
-    return ("警报", lines)
+        lines.append("· " + S.join(cells) + S + _left(countdown(exp), "剩"))
+    return (title, lines)
 
 
 def _fac(side: dict) -> str:
@@ -1165,15 +1714,23 @@ def fmt_invasions(
     """
     live = [i for i in (invasions or []) if not i.get("completed")]
     total = len(live)
+    title = L("入侵", "Invasions")
     if not total:
-        return ("入侵", ["当前没有进行中的入侵"])
+        return (title, [L("当前没有进行中的入侵", "No invasions in progress")])
     pages = max(1, (total + page_size - 1) // page_size)
     page = max(1, min(page, pages))
     chunk = live[(page - 1) * page_size : page * page_size]
     S = "　"
     lines = [
-        f"◆ 进行中：{total} 场"
-        + (f"（第 {page}/{pages} 页，本卡 {len(chunk)} 场；加 -2 / -3 翻页）" if pages > 1 else "")
+        L(f"◆ 进行中：{total} 场", f"◆ Active: {total}")
+        + (
+            L(
+                f"（第 {page}/{pages} 页，本卡 {len(chunk)} 场；加 -2 / -3 翻页）",
+                f" (Page {page}/{pages}, {len(chunk)} on this card; add -2 / -3 to turn pages)",
+            )
+            if pages > 1
+            else ""
+        )
     ]
     for inv in chunk:
         at = inv.get("attacker", {}) or {}
@@ -1182,29 +1739,67 @@ def fmt_invasions(
         vs_fac = _fac(vs)
         at_pct = inv.get("attacker_pct", inv.get("completion", 0)) or 0
         vs_pct = inv.get("defender_pct", 100 - at_pct) or 0
-        lines.append(f"◆ {inv.get('node', '?')}{S}{at_fac}（攻） vs {vs_fac}（守）")
+        lines.append(
+            L(
+                f"◆ {inv.get('node', '?')}{S}{at_fac}（攻） vs {vs_fac}（守）",
+                f"◆ {inv.get('node', '?')}{S}{at_fac} (Att) vs {vs_fac} (Def)",
+            )
+        )
         lead = at_fac if at_pct >= vs_pct else vs_fac
-        lines.append(f"· 进度{S}{at_fac} {at_pct:.0f}% vs {vs_pct:.0f}% {vs_fac}{S}{lead} 领先")
+        lines.append(
+            L(
+                f"· 进度{S}{at_fac} {at_pct:.0f}% vs {vs_pct:.0f}% {vs_fac}{S}{lead} 领先",
+                f"· Progress{S}{at_fac} {at_pct:.0f}% vs {vs_pct:.0f}% {vs_fac}{S}{lead} leads",
+            )
+        )
         at_items = at.get("items") or []
         vs_items = vs.get("items") or []
+        _sep = L("、", ", ")
         if at_items:
-            lines.append(f"· 协助 {at_fac}{S}{'、'.join(at_items)}")
+            lines.append(
+                L(
+                    f"· 协助 {at_fac}{S}{'、'.join(at_items)}",
+                    f"· Assist {at_fac}{S}{_sep.join(at_items)}",
+                )
+            )
         if vs_items:
-            lines.append(f"· 协助 {vs_fac}{S}{'、'.join(vs_items)}")
+            lines.append(
+                L(
+                    f"· 协助 {vs_fac}{S}{'、'.join(vs_items)}",
+                    f"· Assist {vs_fac}{S}{_sep.join(vs_items)}",
+                )
+            )
         if not at_items and not vs_items:
-            lines.append(f"· 奖励{S}双方均无奖励物品")
+            lines.append(
+                L(f"· 奖励{S}双方均无奖励物品", f"· Rewards{S}No reward items on either side")
+            )
     lines.append(
-        "※ 占比为双方推进度（合计 100%），按争夺最激烈的排前面；"
-        "选边前请核对两侧奖励，选错在结算前仍可更换"
+        L(
+            "※ 占比为双方推进度（合计 100%），按争夺最激烈的排前面；"
+            "选边前请核对两侧奖励，选错在结算前仍可更换",
+            "※ Percentages are each side's progress (100% in total), the most contested first; "
+            "check both sides' rewards before choosing; you can switch sides before the invasion resolves",
+        )
     )
     if any(i.get("vsInfestation") for i in chunk):
-        lines.append("※ Infested 入侵只能协助防御方：Infested 从 100% 起被逐步压回 0%")
+        lines.append(
+            L(
+                "※ Infested 入侵只能协助防御方：Infested 从 100% 起被逐步压回 0%",
+                "※ Infested invasions can only be assisted on the defending side: Infested start at 100% and are pushed back toward 0%",
+            )
+        )
     synth = sorted({n for inv in chunk for n in (inv.get("synthetic") or [])})
     if synth:
         # 「官方没有的写法 ≠ 不存在的东西」：DE 只给基名（没有「…Blueprint」词条）时
         # 按官方基名 + 「蓝图」合成，但必须自曝，不能冒充游戏内原文。
-        lines.append("※ 合成译名（官方无对应文案，按官方基名合成）：" + "、".join(synth))
-    return ("入侵", lines)
+        lines.append(
+            L(
+                "※ 合成译名（官方无对应文案，按官方基名合成）：" + "、".join(synth),
+                "※ Synthesized names (no official text; built from the official base name): "
+                + ", ".join(synth),
+            )
+        )
+    return (title, lines)
 
 
 _DT_TAG = re.compile(r"<DT_[A-Z]+>")
@@ -1230,8 +1825,9 @@ def fmt_nightwave(nw: Optional[dict]) -> tuple[str, list[str]]:
     ★ 2026-10-11 第二步改版：不再每行重复「[每日]」标签（分区标题已写明）；
     精英挑战用「精英」芯片；声望、倒计时分列。
     """
+    title = L("午夜电波", "Nightwave")
     if not nw:
-        return ("午夜电波", ["数据暂不可用"])
+        return (title, [L("数据暂不可用", "Data unavailable")])
     S = "　"
     season = nw.get("season")
     lines: list[str] = []
@@ -1239,30 +1835,42 @@ def fmt_nightwave(nw: Optional[dict]) -> tuple[str, list[str]]:
     weekly = [c for c in (nw.get("activeChallenges") or []) if not c.get("isDaily")]
     if season:
         lines.append(
-            f"◆ 本季：第 {season} 季"
-            + (f"{S}剩余 {countdown(nw.get('expiry', ''))}" if nw.get("expiry") else "")
+            L(f"◆ 本季：第 {season} 季", f"◆ Season: {season}")
+            + (S + _left(countdown(nw.get("expiry", ""))) if nw.get("expiry") else "")
         )
     notes = []
-    for group, tag in ((daily, "每日"), (weekly, "每周")):
+    for group, tag in ((daily, L("每日", "Daily")), (weekly, L("每周", "Weekly"))):
         if not group:
             continue
-        lines.append(f"◆ {tag}挑战（{len(group)} 项）")
+        lines.append(L(f"◆ {tag}挑战（{len(group)} 项）", f"◆ {tag} Challenges ({len(group)})"))
         for ch in group[:8]:
-            title = ch.get("title", "") or f"{tag}挑战"
+            ch_title = ch.get("title", "") or L(f"{tag}挑战", f"{tag} Challenge")
             standing = ch.get("standing")
-            st = f"{standing} 声望" if standing else ""
-            elite = "[精英]" if ch.get("isElite") else ""
-            lines.append(f"· {title}{S}{st}{S}{elite}{S}剩 {countdown(ch.get('expiry', ''))}")
+            st = L(f"{standing} 声望", f"{standing} Standing") if standing else ""
+            elite = L("[精英]", "[Elite]") if ch.get("isElite") else ""
+            lines.append(
+                f"· {ch_title}{S}{st}{S}{elite}{S}" + _left(countdown(ch.get("expiry", "")), "剩 ")
+            )
             desc = _nw_desc(ch.get("desc") or "", ch.get("required"))
             if desc:
                 lines.append(f"{S}{desc}")
         if len(group) > 8:
-            notes.append(f"※ {tag}挑战另有 {len(group) - 8} 项未列出")
+            notes.append(
+                L(
+                    f"※ {tag}挑战另有 {len(group) - 8} 项未列出",
+                    f"※ {len(group) - 8} more {tag} challenges not listed",
+                )
+            )
     if not daily and not weekly:
-        lines.append("◆ 挑战：当前没有激活的挑战")
+        lines.append(L("◆ 挑战：当前没有激活的挑战", "◆ Challenges: none active at the moment"))
     lines += notes
-    lines.append("※ 完成挑战得电波声望；奖励在电波等级轨道上解锁（满级约 30 级）")
-    return ("午夜电波", lines)
+    lines.append(
+        L(
+            "※ 完成挑战得电波声望；奖励在电波等级轨道上解锁（满级约 30 级）",
+            "※ Completing challenges earns Nightwave Standing; rewards unlock along the rank track (about 30 ranks at max)",
+        )
+    )
+    return (title, lines)
 
 
 def fmt_kuva(missions: Iterable[dict]) -> tuple[str, list[str]]:
@@ -1270,7 +1878,10 @@ def fmt_kuva(missions: Iterable[dict]) -> tuple[str, list[str]]:
         f"{m.get('node', '?')} · {mission_cn(m.get('type', ''))} · {m.get('enemy', '?')}"
         for m in missions or []
     ]
-    return ("赤毒/血紊虹吸", lines or ["当前没有赤毒任务"])
+    return (
+        L("赤毒/血紊虹吸", "Kuva Siphons / Kuva Flood"),
+        lines or [L("当前没有赤毒任务", "No Kuva missions at the moment")],
+    )
 
 
 def _clean_url(url: str) -> str:
@@ -1289,17 +1900,21 @@ def fmt_news(news: Iterable[dict], limit: int = 6) -> tuple[str, list[str]]:
     official = [n for n in items if not n.get("community")]
     community = [n for n in items if n.get("community")]
     picked = (official + community)[:limit]
+    title = L("最近新闻", "Latest News")
     if not picked:
-        return ("最近新闻", ["暂无新闻"])
-    lines = [f"◆ 最近新闻：{len(picked)} 条", "◆ 新闻列表"]
+        return (title, [L("暂无新闻", "No news")])
+    lines = [
+        L(f"◆ 最近新闻：{len(picked)} 条", f"◆ Latest news: {len(picked)}"),
+        L("◆ 新闻列表", "◆ News List"),
+    ]
     for n in picked:
         msg = (n.get("message") or "").strip()
         link = _clean_url(n.get("link", ""))
-        tag = "" if not n.get("community") else "［社区］"
+        tag = "" if not n.get("community") else L("［社区］", "(Community) ")
         lines.append(f"· {tag}{msg}")
         if link:
             lines.append(f"　{re.sub(r'^https?://', '', link)}")
-    return ("最近新闻", lines)
+    return (title, lines)
 
 
 # ---------------------------------------------------------------------------
@@ -1315,6 +1930,149 @@ SYNDICATE_BOUNTY = {
     "HexCity": "霍瓦尼亚（1999）",
     "Holdfasts": "羽化之穹（扎里曼）",
 }
+
+_SYNDICATE_BOUNTY_EN = {
+    "Ostrons": "Cetus (Earth)",
+    "Solaris United": "Fortuna (Venus)",
+    "Entrati": "Necralisk (Cambion Drift)",
+    "The Hex": "The Hex (1999)",
+    "EntratiLab": "Sanctum Anatomica (Lab)",
+    "HexCity": "Höllvania (1999)",
+    "Holdfasts": "Chrysalith (Zariman)",
+}
+
+
+def _synd_title(key: str) -> str:
+    """赏金地区显示名（SYNDICATE_BOUNTY 的双语取值）。"""
+    return (_SYNDICATE_BOUNTY_EN if i18n.is_en() else SYNDICATE_BOUNTY).get(key, key)
+
+
+# 赏金里写死的中文标签 / 池键 → 英文（只在英文模式用；池键见 core/data/bounty_pools.json）
+_BOUNTY_LABEL_EN = {
+    "合一众": "Narmer",
+    "钢铁之路": "Steel Path",
+    "社区观测": "Community-observed",
+    "隔离库1阶": "Isolation Vault Tier 1",
+    "隔离库2阶": "Isolation Vault Tier 2",
+    "隔离库3阶": "Isolation Vault Tier 3",
+}
+
+
+def _bl(text: str) -> str:
+    """赏金标签双语：英文模式按 `` · `` 分段逐段换成英文，查不到的原样保留。"""
+    if not i18n.is_en() or not text:
+        return text
+    return " · ".join(_BOUNTY_LABEL_EN.get(t, t) for t in text.split(" · "))
+
+
+_POOL_EN_REV: Optional[dict] = None
+# DE 英文掉落表原文（https://www.warframe.com/droptables）。旧奖励池使用的别名、
+# 省略的蓝图部件字段不能仅凭语言键精确命中；这里保留官方掉落行的名称。
+_POOL_FIXED_EN = {
+    "内融核心": "Endo",
+    "现金匣": "Credits Cache",
+    "Orokin定向矩阵装置": "Orokin Orientation Matrix",
+    "Orokin弹道矩阵装置": "Orokin Ballistics Matrix",
+    "Orokin战意矩阵装置": "Orokin Animus Matrix",
+    "侦察者蓝图": "Reconifex Blueprint",
+    "加密的日记碎片": "Encrypted Journal Fragment",
+    "史度巴蓝图": "Stubba Blueprint",
+    "告达环形装置": "Calda Toroid",
+    "夜灵晶体蓝图": "Eidolon Lens Blueprint",
+    "夜语者77蓝图": "Vesper 77 Blueprint",
+    "夸塔克蓝图": "Quartakk Blueprint",
+    "威震武扇蓝图": "Quassus Blueprint",
+    "孢丝感染枪蓝图": "Sporothrix Blueprint",
+    "弗拉克斯亡魂蓝图": "Furax Wraith Blueprint",
+    "提帕瘤": "Tepa Nodule",
+    "暮斩蓝图": "Hespar Blueprint",
+    "电幻步枪蓝图": "Alternox Blueprint",
+    "疆南星刺蓝图": "Arum Spinosa Blueprint",
+    "索拉环形装置": "Sola Toroid",
+    "维加环形装置": "Vega Toroid",
+    "蕈菇枪托蓝图": "Arbucep Stock Blueprint",
+    "蕈菇枪机蓝图": "Arbucep Receiver Blueprint",
+    "蕈菇枪管蓝图": "Arbucep Barrel Blueprint",
+    "蕈菇蓝图": "Arbucep Blueprint",
+    "蝰首骨妖蓝图": "Verdilac Blueprint",
+    "赤炎流星蓝图": "Nepheri Blueprint",
+    "辐光弩炮蓝图": "Mandonel Blueprint",
+    "雷霆暴君蓝图": "Korumm Blueprint",
+    "风鸣蓝图": "Aeolak Blueprint",
+}
+_POOL_RELIC_TIER_EN = {"古纪": "Lith", "前纪": "Meso", "中纪": "Neo", "后纪": "Axi"}
+_POOL_PART_EN = {"机体": "Chassis", "系统": "Systems", "头部神经光元": "Neuroptics"}
+
+
+def _pool_name_key(name: str) -> str:
+    return re.sub(r"[\s·・]", "", name).casefold()
+
+
+def _pool_en_rev() -> dict:
+    """按同一官方键取英文名；兼容奖励池省略空格和间隔号的写法。"""
+    global _POOL_EN_REV
+    if _POOL_EN_REV is None:
+        candidates: dict[str, set[str]] = {}
+        for zh_file, en_file in (
+            ("name_zh.json", "name_en.json"),
+            ("languages_zh.json", "languages_en.json"),
+        ):
+            en_table = _de_zh(en_file)
+            for key, zh_name in _de_zh(zh_file).items():
+                en_name = en_table.get(key)
+                if isinstance(zh_name, str) and isinstance(en_name, str) and en_name:
+                    candidates.setdefault(_pool_name_key(zh_name), set()).add(en_name)
+        _POOL_EN_REV = {
+            key: next(iter(names)) for key, names in candidates.items() if len(names) == 1
+        }
+    return _POOL_EN_REV
+
+
+def _pool_name_en(name: str) -> str:
+    """赏金奖励池的单个中文名 → 英文；表里查不到的原样保留（不猜）。"""
+    name = name.strip()
+    if name in _POOL_FIXED_EN:
+        return _POOL_FIXED_EN[name]
+    m = re.match(r"^(古纪|前纪|中纪|后纪)\s+(\S+)\s+遗物(（光辉）)?$", name)
+    if m:
+        return f"{_POOL_RELIC_TIER_EN[m.group(1)]} {m.group(2)} Relic" + (
+            " (Radiant)" if m.group(3) else ""
+        )
+    m = re.match(r"^([A-Za-z][A-Za-z0-9\- ]*?)(机体|系统|头部神经光元)?蓝图$", name)
+    if m:
+        part = _POOL_PART_EN.get(m.group(2) or "", "")
+        return f"{m.group(1)} {part} Blueprint".replace("  ", " ")
+    return _pool_en_rev().get(_pool_name_key(name), name)
+
+
+def _pool_token_en(tok: str) -> str:
+    mark = tok[0] if tok[:1] in ("★", "▣") else ""
+    body = tok[len(mark) :].strip()
+    m = re.match(r"^([\d,]+)\s*[×x]\s*(.+)$", body)
+    if m:
+        return f"{mark}{m.group(1)} × {_pool_name_en(m.group(2))}"
+    m = re.match(r"^([\d,]+)\s+(\S+?)(\s*×\d+)?$", body)
+    if m:
+        return f"{mark}{m.group(1)} {_pool_name_en(m.group(2))}{m.group(3) or ''}"
+    return mark + _pool_name_en(body)
+
+
+def _disp_items(joined: str) -> str:
+    """奖励串（内部用「、」连接，供后续按它切分）→ 显示：英文模式逐项换英文名并用 ``, `` 连接。"""
+    if not i18n.is_en():
+        return joined
+    return ", ".join(_pool_token_en(t) for t in joined.split("、") if t)
+
+
+def _pool_key_en(key: str) -> str:
+    """奖励池档位键 → 英文显示（等级50-55 → Lv 50-55；阶段N → Tier N）。"""
+    if key.startswith("等级"):
+        return "Lv " + key.replace("等级", "")
+    m = re.match(r"^阶段(\d+)$", key)
+    if m:
+        return f"Tier {m.group(1)}"
+    return _BOUNTY_LABEL_EN.get(key, key)
+
 
 _MOD_NAMES: Optional[set] = None
 _RECIPE_NAMES: Optional[set] = None
@@ -1491,6 +2249,27 @@ _SPECIAL_TAG = {
 }
 
 _CONTINENT_TARGET = {
+    # —— 英文写法（按小写子串匹配）——
+    "earth": "Ostrons",
+    "cetus": "Ostrons",
+    "plains": "Ostrons",
+    "venus": "Solaris United",
+    "vallis": "Solaris United",
+    "fortuna": "Solaris United",
+    "nokko": "Solaris United",
+    "deep mine": "Solaris United",
+    "heist": "Solaris United",
+    "deimos": "Entrati",
+    "cambion": "Entrati",
+    "necralisk": "Entrati",
+    "vault": "Entrati",
+    "zariman": "Holdfasts",
+    "chrysalith": "Holdfasts",
+    "sanctum": "EntratiLab",
+    "anatomica": "EntratiLab",
+    "hex": "HexCity",
+    "hollvania": "HexCity",
+    "höllvania": "HexCity",
     "地球": "Ostrons",
     "夜灵": "Ostrons",
     "希图斯": "Ostrons",
@@ -1667,6 +2446,11 @@ _VAULT_TIER_NAME = {
     "隔离库3阶": "3 级隔离库赏金",
 }
 
+
+def _vault_tier_name(tag: str) -> str:
+    return _BOUNTY_LABEL_EN.get(tag, tag) if i18n.is_en() else _VAULT_TIER_NAME.get(tag, tag)
+
+
 # 赏金末阶段遭遇战（ExportBounties.stages[-1]）-> 显示用任务类型。
 #
 # 为什么拿「末阶段」当任务类型：DE 下发的 job 只有 ``jobType`` 资产路径与
@@ -1675,6 +2459,35 @@ _VAULT_TIER_NAME = {
 # 一一吻合（核心样本→挖掘、粉碎邪教→歼灭、猎人杀手→歼灭、尘土部队→资源回收）。
 # 名字尽量取官方 MT 译名（歼灭/刺杀/捕获/挖掘/防御/破坏/救援/间谍/劫持），
 # 官方没有对应 MT 的（伏击 / 资源回收 / 物资回收 / 净化）沿用赏金里的叫法。
+_BOUNTY_ENC_EN = {
+    "DynamicExterminate": "Exterminate",
+    "DynamicCaveExterminate": "Exterminate",
+    "DynamicExterminateDrones": "Exterminate",
+    "DynamicExterminateMoas": "Exterminate",
+    "DynamicAssassinate": "Assassinate",
+    "DynamicCapture": "Capture",
+    "DynamicExcavation": "Excavation",
+    "DynamicExcavationEndless": "Excavation",
+    "DynamicDefend": "Defense",
+    "DynamicAreaDefense": "Defense",
+    "DynamicDroneDefense": "Defense",
+    "DynamicSabotage": "Sabotage",
+    "DynamicRescue": "Rescue",
+    "DynamicBaseSpy": "Spy",
+    "DynamicCaches": "Sabotage",
+    "DynamicCachesAirDrop": "Sabotage",
+    "HiddenResourceCaches": "Sabotage",
+    "HiddenResourceCachesCave": "Sabotage",
+    "DynamicCorpusSurvivors": "Survival",
+    "DynamicGrineerSurvivors": "Survival",
+    "DynamicHijack": "Hijack",
+    "DynamicRecovery": "Recovery",
+    "DynamicResourceCapture": "Resource Recovery",
+    "DynamicResourceTheft": "Resource Recovery",
+    "DynamicKeyPieces": "Supply Recovery",
+    "DynamicPurify": "Purify",
+    "DynamicAmbush": "Ambush",
+}
 _BOUNTY_ENC_ZH = {
     "DynamicExterminate": "歼灭",
     "DynamicCaveExterminate": "歼灭",
@@ -1717,7 +2530,9 @@ def _bounty_type(job: dict) -> str:
         codes = [codes]
     for code in codes:
         key = code[len("Narmer") :] if code.startswith("Narmer") else code
-        zh = _BOUNTY_ENC_ZH.get(key) or _BOUNTY_ENC_ZH.get(code)
+        zh = (_BOUNTY_ENC_EN if i18n.is_en() else _BOUNTY_ENC_ZH).get(key) or (
+            _BOUNTY_ENC_EN if i18n.is_en() else _BOUNTY_ENC_ZH
+        ).get(code)
         if zh:
             return zh
     return ""
@@ -1745,8 +2560,13 @@ def _top_tiers(jobs: list[dict], n: int) -> list[dict]:
     return sorted(picked, key=_tier_of)
 
 
+_DE_EN_FILE = {"nodes_zh.json": "nodes_en.json", "challenges_zh.json": "challenges_en.json"}
+
+
 def _de_zh(filename: str) -> dict:
-    """惰性读取 core/data/de 下的官方简中表（nodes_zh / challenges_zh …）。"""
+    """惰性读取 core/data/de 下的官方简中表（nodes_zh / challenges_zh …）；英文模式换成同名 _en 表。"""
+    if i18n.is_en() and filename in _DE_EN_FILE:
+        filename = _DE_EN_FILE[filename]
     if filename not in _DE_ZH_CACHE:
         try:
             _DE_ZH_CACHE[filename] = json.loads(
@@ -1793,7 +2613,7 @@ def _bounty_rows(jobs: list[dict], syndicate: str) -> list[str]:
         name = j.get("_jobName") or ""
         if not name and tag:
             # 无任务名（如隔离库）时用池标签充当名称，避免等级顶到名称位
-            name, tag = _VAULT_TIER_NAME.get(tag, tag), ""
+            name, tag = _vault_tier_name(tag), ""
         # 只列 DE 当前生效的那一轮；池里没有该轮次（或本就只有一轮）时合并去重
         filled = [r for r in ("A", "B", "C") if pool.get(r)]
         if j.get("source") == "community":
@@ -1812,9 +2632,9 @@ def _bounty_rows(jobs: list[dict], syndicate: str) -> list[str]:
             items = []
             for r in ("A", "B", "C"):
                 items.extend(pool.get(r) or [])
-        out.append(_bounty_head(name, _bounty_type(j), lv_txt, tag))
+        out.append(_bounty_head(name, _bounty_type(j), lv_txt, _bl(tag)))
         if items:
-            out.append("　　" + _fmt_pool_items(items))
+            out.append("　　" + _disp_items(_fmt_pool_items(items)))
     return out
 
 
@@ -1822,6 +2642,8 @@ def _bounty_lv_txt(lv: list) -> str:
     """赏金等级文案：上下限相同写单值「100级」（渲染层 _LV_RE 认两种形态），否则「40-60级」。"""
     if len(lv) < 2:
         return "?"
+    if i18n.is_en():
+        return f"Lv {lv[0]}" if lv[0] == lv[1] else f"Lv {lv[0]}-{lv[1]}"
     return f"{lv[0]}级" if lv[0] == lv[1] else f"{lv[0]}-{lv[1]}级"
 
 
@@ -1851,7 +2673,7 @@ def _bounty_head(name: str, mtype: str, lv_txt: str, tag: str) -> str:
 
 def _region_block(syndicate: str, title: str, jobs: list[dict], expiry: str) -> list[str]:
     """DE 下发 jobs 的地区（详情）：地区横幅 + 各档任务名与完整奖励。"""
-    lines = [f"◆ {title}　剩{countdown(expiry)}"]
+    lines = [f"◆ {title}　" + _left(countdown(expiry), "剩")]
     lines.extend(_bounty_rows(jobs, syndicate))
     return lines
 
@@ -1909,22 +2731,30 @@ def _rot_lines(region_pool: dict, rot, limit: int = 6) -> list[str]:
             items.extend(_pool_at_rot(region_pool.get(key) or {}, rot))
     if per_key is not None:
         rots = sorted(set(per_key.values()))
-        rot = rots[0] if len(rots) == 1 else ("各档轮次 " + "/".join(rots) if rots else "")
+        rot = (
+            rots[0]
+            if len(rots) == 1
+            else (L("各档轮次 ", "Rounds ") + "/".join(rots) if rots else "")
+        )
     merged = [t for t in _fmt_pool_items(list(items)).split("、") if t and _is_high_value(t)]
     if not merged:
         return []
     bonds = [t for t in merged if "债券" in t]
     mods = [t for t in merged if t.startswith("★")]
     parts = [t for t in merged if t.startswith("▣") and t not in bonds]
-    name, lst = "本轮轮换", merged
+    name, lst = L("本轮轮换", "Current Rotation"), merged
     if bonds:
-        name, lst = "债券轮换", bonds
+        name, lst = L("债券轮换", "Bond Rotation"), bonds
     elif mods:
-        name, lst = "MOD 轮换", mods
+        name, lst = L("MOD 轮换", "Mod Rotation"), mods
     elif parts:
-        name, lst = "部件轮换", parts
-    head = "、".join(lst[:limit])
-    return [f"　{name}（{rot}）：{head}" if rot else f"　{name}：{head}"]
+        name, lst = L("部件轮换", "Parts Rotation"), parts
+    head = _disp_items("、".join(lst[:limit]))
+    return [
+        L(f"　{name}（{rot}）：{head}", f"　{name} ({rot}): {head}")
+        if rot
+        else L(f"　{name}：{head}", f"　{name}: {head}")
+    ]
 
 
 def _bounty_entry_line(syndicate: str, job: dict) -> str:
@@ -1938,14 +2768,14 @@ def _bounty_entry_line(syndicate: str, job: dict) -> str:
     _pool, tag, _rot = _resolve_bounty_pool(syndicate, job)
     name = job.get("_jobName") or ""
     if not name and tag:
-        name, tag = _VAULT_TIER_NAME.get(tag, tag), ""
-    return _bounty_head(name, _bounty_type(job), lv_txt, tag)
+        name, tag = _vault_tier_name(tag), ""
+    return _bounty_head(name, _bounty_type(job), lv_txt, _bl(tag))
 
 
 def _region_summary(syndicate: str, title: str, jobs: list[dict], expiry: str) -> list[str]:
     """一览（DE 地区）：地区横幅 + 轮换行 + 等级最高的若干档。"""
     region_pool = _BOUNTY_POOLS.get(syndicate) or {}
-    lines = [f"◆ {title}　剩{countdown(expiry)}"]
+    lines = [f"◆ {title}　" + _left(countdown(expiry), "剩")]
     lines.extend(_rot_lines(region_pool, _region_rot_map(syndicate, jobs)))
     for j in _top_tiers(jobs or [], _OVERVIEW_N):
         lines.append(_bounty_entry_line(syndicate, j))
@@ -1991,7 +2821,7 @@ def _oracle_task_lines(node_key: str, ch_path: str) -> list[str]:
     head = " ".join(x for x in (mtype, cname) if x)
     if not head:
         return []
-    return [f"　　任务：{head}"]
+    return [L(f"　　任务：{head}", f"　　Task: {head}")]
 
 
 def _oracle_summary(
@@ -2009,9 +2839,11 @@ def _oracle_summary(
     tiers = _ordered_tier_keys(region_pool)
 
     def _lv_txt(key: str) -> str:
+        if i18n.is_en():
+            return _pool_key_en(key)
         return key.replace("等级", "") + "级" if key.startswith("等级") else key
 
-    lines = [f"◆ {title}" + (f"　剩{countdown(expiry)}" if expiry else "")]
+    lines = [f"◆ {title}" + ("　" + _left(countdown(expiry), "剩") if expiry else "")]
     lines.extend(_rot_lines(region_pool, rot))
     node_tbl = _de_zh("nodes_zh.json")
     if not bounties:
@@ -2056,9 +2888,11 @@ def _oracle_region_block(
     tiers = _ordered_tier_keys(region_pool)
 
     def _lv_txt(key: str) -> str:
+        if i18n.is_en():
+            return _pool_key_en(key)
         return key.replace("等级", "") + "级" if key.startswith("等级") else key
 
-    _head = f"◆ {title}" + (f"　剩{countdown(expiry)}" if expiry else "")
+    _head = f"◆ {title}" + ("　" + _left(countdown(expiry), "剩") if expiry else "")
     if not bounties:
         # oracle 拿不到 → 按等级档列全部奖励（rot="" 时 _pool_at_rot 合并 A/B/C）
         lines = [_head]
@@ -2066,7 +2900,7 @@ def _oracle_region_block(
             items = _pool_at_rot(region_pool.get(lv) or {}, "")
             if items:
                 lines.append(f"{_BOUNTY_HEAD_PREFIX}{_lv_txt(lv)}")
-                lines.append("　　" + _fmt_pool_items(items))
+                lines.append("　　" + _disp_items(_fmt_pool_items(items)))
         return lines if len(lines) > 1 else []
 
     node_tbl = _de_zh("nodes_zh.json")
@@ -2107,11 +2941,15 @@ def _oracle_region_block(
             lines.append(f"{_BOUNTY_HEAD_PREFIX}{lv_txt}")
         items = _pool_at_rot(region_pool.get(lv) or {}, rot)
         if items:
-            lines.append("　　" + _fmt_pool_items(items))
+            lines.append("　　" + _disp_items(_fmt_pool_items(items)))
     return lines
 
 
 # 各地区点位块的来源注脚（口径随地区不同，别用同一句）
+_TENT_NOTE_EN = {
+    "Ostrons": "※ Small tents = the current bounties at the three Plains camps (derived from the DE world seed, matches the game); blue text = fast tasks",
+    "Solaris United": "※ Current bounties at the seven Orb Vallis locations (derived from the DE world seed, matches the game)",
+}
 _TENT_NOTE = {
     # 「蓝字」对应 render._TENT_BLUE_TASKS（攻略推荐的四个快速任务）；文字输出由 render 换成「（快速）」标注。
     "Ostrons": "※ 小帐篷 = 平野三处营地的当前赏金（按 DE 世界种子推算，与游戏内一致）；"
@@ -2140,7 +2978,13 @@ def _tent_lines(syndicates, region: str = "Ostrons") -> list[str]:
     # 蓝色高亮指定任务；文本模式由 render.text_card 展开回纵列。
     # ⚠️ 机器行内不要再出现全角空格 —— 渲染层 _split_cells 按它切列。
     out = ["⟦tents⟧" + "⟦tents⟧".join(f"{label}｜{'｜'.join(names)}" for label, names in rows)]
-    out.append(_TENT_NOTE.get(region) or "※ 以上为当前赏金点位（按 DE 世界种子推算，与游戏内一致）")
+    out.append(
+        (_TENT_NOTE_EN if i18n.is_en() else _TENT_NOTE).get(region)
+        or L(
+            "※ 以上为当前赏金点位（按 DE 世界种子推算，与游戏内一致）",
+            "※ The above are the current bounty locations (derived from the DE world seed, matches the game)",
+        )
+    )
     return out
 
 
@@ -2149,7 +2993,10 @@ def _heist_block(title: str) -> list[str]:
     pool = (_BOUNTY_POOLS.get("Solaris United") or {}).get("抢劫") or {}
     rots = [r for r in ("A", "B", "C") if pool.get(r)]
     if not rots:
-        return [f"◆ {title} · 抢劫", "　　暂无抢劫奖励池数据"]
+        return [
+            L(f"◆ {title} · 抢劫", f"◆ {title} · Heists"),
+            L("　　暂无抢劫奖励池数据", "　　No heist reward pool data"),
+        ]
     same = all(pool[r] == pool[rots[0]] for r in rots)
     items: list = []
     for r in rots[:1] if same else rots:
@@ -2157,10 +3004,14 @@ def _heist_block(title: str) -> list[str]:
             if t not in items:
                 items.append(t)
     return [
-        f"◆ {title} · 抢劫",
-        "　　" + _fmt_pool_items(items),
-        "※ 抢劫不在 DE 赏金轮换下发里，上列为官方导出的抢劫奖励池"
-        + ("（A/B/C 三轮相同）" if same else "（A/B/C 合并）"),
+        L(f"◆ {title} · 抢劫", f"◆ {title} · Heists"),
+        "　　" + _disp_items(_fmt_pool_items(items)),
+        L(
+            "※ 抢劫不在 DE 赏金轮换下发里，上列为官方导出的抢劫奖励池"
+            + ("（A/B/C 三轮相同）" if same else "（A/B/C 合并）"),
+            "※ Heists are not part of DE's bounty rotation; the list above is the official exported heist reward pool"
+            + (" (rounds A/B/C are identical)" if same else " (A/B/C combined)"),
+        ),
     ]
 
 
@@ -2189,18 +3040,27 @@ def fmt_bounties(
     oracle = cycle.get("bounties") or {}
 
     target = None
+    btitle = L("赏金任务", "Syndicate Bounties")
+    _kl = (keyword or "").lower()
     if keyword:
         for k, v in _CONTINENT_TARGET.items():
-            if k in keyword:
+            if k in keyword or (k.isascii() and k in _kl):
                 target = v
                 break
         if target is None:
             return (
-                "赏金任务",
+                btitle,
                 [
-                    f"未识别地区「{keyword}」。可用关键词："
-                    "地球 / 金星 / 火卫二（隔离库）/ 扎里曼 / 圣所（实验室）/ 1999",
-                    "例：赏金 地球｜赏金 隔离库｜赏金 扎里曼｜赏金 圣所｜赏金 1999",
+                    L(
+                        f"未识别地区「{keyword}」。可用关键词："
+                        "地球 / 金星 / 火卫二（隔离库）/ 扎里曼 / 圣所（实验室）/ 1999",
+                        f'Unrecognized region "{keyword}". Available keywords: '
+                        "earth / venus / deimos (vault) / zariman / sanctum (lab) / 1999",
+                    ),
+                    L(
+                        "例：赏金 地球｜赏金 隔离库｜赏金 扎里曼｜赏金 圣所｜赏金 1999",
+                        "e.g. bounty earth | bounty vault | bounty zariman | bounty sanctum | bounty 1999",
+                    ),
                 ],
             )
 
@@ -2210,6 +3070,8 @@ def fmt_bounties(
     # ★ 2026-10-11：「深矿」「抢劫」聚焦到对应档位（旧行为：等同「赏金 金星」整板）
     focus = (
         next((w for w in ("深矿", "抢劫") if w in keyword), "")
+        or ("深矿" if ("nokko" in _kl or "deep mine" in _kl) else "")
+        or ("抢劫" if "heist" in _kl else "")
         if target == "Solaris United"
         else ""
     )
@@ -2236,7 +3098,7 @@ def fmt_bounties(
         boards.add(pool_key)
         if target and pool_key != target:
             continue
-        title = SYNDICATE_BOUNTY.get(pool_key, pool_key)
+        title = _synd_title(pool_key)
         tag = _ORACLE_TAGS.get(pool_key)
         if tag is not None:
             # ② DE 不下发 Jobs、只能靠 oracle 拿节点与挑战的地区
@@ -2259,7 +3121,9 @@ def fmt_bounties(
         if detailed and focus == "深矿":
             jobs = [j for j in jobs if "NokkoColony" in (j.get("rewardTable") or "")]
             if not jobs:
-                lines.append(f"◆ {title}　当前没有深矿档")
+                lines.append(
+                    L(f"◆ {title}　当前没有深矿档", f"◆ {title}　No Deep Mines tier right now")
+                )
                 continue
         if detailed:
             lines.extend(_region_block(pool_key, title, jobs, (s or {}).get("expiry", "")))
@@ -2277,16 +3141,27 @@ def fmt_bounties(
             lines.extend(_region_summary(pool_key, title, jobs, (s or {}).get("expiry", "")))
 
     if not lines:
-        have = [SYNDICATE_BOUNTY.get(x, x) for x in sorted(boards)]
+        have = [_synd_title(x) for x in sorted(boards)]
         return (
-            "赏金任务",
+            btitle,
             [
-                f"未找到对应地区赏金。当前有赏金的板：{'、'.join(have) or '无'}",
-                "（扎里曼 / 实验室 / 1999 赏金为轮换开放，DE 不实时下发）",
+                L(
+                    f"未找到对应地区赏金。当前有赏金的板：{'、'.join(have) or '无'}",
+                    f"No bounties found for that region. Boards with bounties: {', '.join(have) or 'None'}",
+                ),
+                L(
+                    "（扎里曼 / 实验室 / 1999 赏金为轮换开放，DE 不实时下发）",
+                    "(Zariman / Lab / 1999 bounties open on rotation; DE does not push them live)",
+                ),
             ],
         )
     if detailed:
-        lines.append("※ ▣ 部件/蓝图　★ MOD　列每档全部奖励；轮次随刷新而变")
+        lines.append(
+            L(
+                "※ ▣ 部件/蓝图　★ MOD　列每档全部奖励；轮次随刷新而变",
+                "※ ▣ Parts/Blueprints　★ Mods　all rewards of each tier are listed; the round changes on refresh",
+            )
+        )
         if community_shown:
             # 社区观测档的轮次无从得知（DE 不下发该档）→ 卡面直接说明列的是全轮次；
             # 深矿档另有两件必须说清的事（都是 2026-09-26 实测/官方导出对拍结论）：
@@ -2295,14 +3170,30 @@ def fmt_bounties(
             #   ② 社区版（沃沃）该档另含金星资源 ×20，而**官方钢铁表不含资源项**
             #      （实测：普通 A/B/C 各带一种资源，Steel/SteelB/SteelC 一个都没有）。
             lines.append(
-                "※ 「社区观测」档 DE 不下发、轮次无从得知，上列为 A/B/C 全部轮次；"
-                "深矿任务在 解放小动物／企业重组／花园除草 间轮换（DE 不下发"
-                "当前是哪一档），社区版另含金星资源 ×20，官方钢铁表不含资源项"
+                L(
+                    "※ 「社区观测」档 DE 不下发、轮次无从得知，上列为 A/B/C 全部轮次；"
+                    "深矿任务在 解放小动物／企业重组／花园除草 间轮换（DE 不下发"
+                    "当前是哪一档），社区版另含金星资源 ×20，官方钢铁表不含资源项",
+                    '※ "Community-observed" tiers are not sent by DE and their round is unknown, so all A/B/C rounds are listed; '
+                    "Deep Mines missions rotate between Free the Critters / Corporate Restructuring / Weeding the Garden "
+                    "(DE does not say which one is current); the community version also includes Venus resources x20, "
+                    "while the official Steel Path table has no resource entries",
+                )
             )
     else:
-        lines.append("※ ▣ 部件/蓝图　★ MOD　轮换行只列高价值奖励")
-        lines.append("※ 发「赏金 地球」「赏金 扎里曼」等看该地区各档完整奖励")
-    return ("赏金任务", lines)
+        lines.append(
+            L(
+                "※ ▣ 部件/蓝图　★ MOD　轮换行只列高价值奖励",
+                "※ ▣ Parts/Blueprints　★ Mods　the rotation line lists high-value rewards only",
+            )
+        )
+        lines.append(
+            L(
+                "※ 发「赏金 地球」「赏金 扎里曼」等看该地区各档完整奖励",
+                '※ Send "bounty earth", "bounty zariman" etc. for the full rewards of each tier',
+            )
+        )
+    return (btitle, lines)
 
 
 # 结合仪式目标的官方简中名（静态表，**39/39 全覆盖**）。
@@ -2369,8 +3260,8 @@ def fmt_synth_targets(targets: Iterable[dict]) -> tuple[str, list[str]]:
         mtype = mission_cn(t.get("type") or t.get("mission", ""))
         fac = t.get("faction", "")
         name = (t.get("name") or "?").strip()
-        zh = _SYNTH_ZH.get(name)
-        if not zh:
+        zh = None if i18n.is_en() else _SYNTH_ZH.get(name)
+        if not zh and not i18n.is_en():
             # 「XXX [Research]」是 Simaris 结合扫描器里的**研究变体**标记，
             # 静态库里存的是基底名（Anti MOA / Lancer / Crewman …），
             # 所以剥掉后缀再查一次、并把标记译作「研究版」。
@@ -2382,21 +3273,22 @@ def fmt_synth_targets(targets: Iterable[dict]) -> tuple[str, list[str]]:
                 if _base_zh:
                     zh = f"{_base_zh}·研究版"
         # 中文优先，英文名留着便于对照（结合扫描器里看到的标记还是英文）
-        shown = f"{zh}（{name}）" if zh else name
+        shown = f"{zh}（{name}）" if zh else name  # 英文模式 zh 恒为空，直接显示官方英文名
         # ★ 2026-09-27 列对齐：第二格原来把「节点·类型（派系）」整块当一列 ⇒
         #   节点列左边界随名称长短抖动（用户截图实证）。拆成
         #   「名称 / 节点 / 类型（派系）」三列，进渲染层的列对齐。
-        tail = f"{mtype}（{fac}）" if fac else mtype
+        tail = L(f"{mtype}（{fac}）" if fac else mtype, f"{mtype} ({fac})" if fac else mtype)
         lines.append(f"· {shown}　{place}　{tail}")
+    title = L("结合仪式目标（39 种，静态库）", "Synthesis Targets (39, static)")
     if not lines:
-        return ("结合仪式目标（39 种，静态库）", ["结合目标表为空"])
+        return (title, [L("结合目标表为空", "The synthesis target table is empty")])
     lines = [
-        f"◆ 共收录：{len(lines)} 种（静态库）",
-        "◆ 目标一览",
-        "　名称　节点　类型（派系）",
+        L(f"◆ 共收录：{len(lines)} 种（静态库）", f"◆ Total: {len(lines)} (static library)"),
+        L("◆ 目标一览", "◆ Target List"),
+        L("　名称　节点　类型（派系）", "　Name　Node　Type (Faction)"),
         *lines,
     ]
-    return ("结合仪式目标（39 种，静态库）", lines)
+    return (title, lines)
 
 
 def fmt_construction(data: Optional[dict]) -> tuple[str, list[str]]:
@@ -2407,8 +3299,9 @@ def fmt_construction(data: Optional[dict]) -> tuple[str, list[str]]:
     Args:
         data: ``_parse_construction`` 的产物。
     """
+    title = L("舰队建造进度", "Fleet Construction")
     if not data:
-        return ("舰队建造进度", ["数据暂不可用"])
+        return (title, [L("数据暂不可用", "Data unavailable")])
     projects = data.get("projects") or []
     assaults = data.get("assaults") or []
     S = "　"
@@ -2416,43 +3309,101 @@ def fmt_construction(data: Optional[dict]) -> tuple[str, list[str]]:
     notes: list[str] = []
 
     if assaults:
-        lines.append(f"◆ 袭击状态：进行中 {len(assaults)} 场")
+        lines.append(
+            L(
+                f"◆ 袭击状态：进行中 {len(assaults)} 场",
+                f"◆ Assault status: {len(assaults)} in progress",
+            )
+        )
         for a in assaults:
             extra = []
             if a.get("health") is not None:
-                extra.append(f"舰体完整度 {a['health'] * 100:.0f}%")
+                extra.append(
+                    L(
+                        f"舰体完整度 {a['health'] * 100:.0f}%",
+                        f"Hull integrity {a['health'] * 100:.0f}%",
+                    )
+                )
             if a.get("expiry"):
-                extra.append(f"剩余 {countdown(a['expiry'])}")
+                extra.append(_left(countdown(a["expiry"])))
             notes.append(
-                f"※ ⚠ 袭击进行中：{a['name']} → {a['victim'] or '一座中继站'}"
+                L(
+                    f"※ ⚠ 袭击进行中：{a['name']} → {a['victim'] or '一座中继站'}",
+                    f"※ ⚠ Assault in progress: {a['name']} → {a['victim'] or 'a relay'}",
+                )
                 + ("｜" + "｜".join(extra) if extra else "")
             )
     elif data.get("assaults_unknown"):
-        lines.append("◆ 袭击状态：社区源未提供详情，当前状态未知")
+        lines.append(
+            L(
+                "◆ 袭击状态：社区源未提供详情，当前状态未知",
+                "◆ Assault status: the community source gave no details; current status unknown",
+            )
+        )
     else:
-        lines.append("◆ 袭击状态：当前无进行中的袭击事件")
+        lines.append(
+            L(
+                "◆ 袭击状态：当前无进行中的袭击事件",
+                "◆ Assault status: no assault events in progress",
+            )
+        )
 
     if projects:
-        lines += ["◆ 建造项目", f"{S}项目{S}阵营{S}进度{S}满 100% 后开启（3 天）"]
+        lines += [
+            L("◆ 建造项目", "◆ Construction Projects"),
+            L(
+                f"{S}项目{S}阵营{S}进度{S}满 100% 后开启（3 天）",
+                f"{S}Project{S}Faction{S}Progress{S}Opens at 100% (3 days)",
+            ),
+        ]
     for p in projects:
         fac = faction_name(
             {"Grineer": "FC_GRINEER", "Corpus": "FC_CORPUS"}.get(p["faction"], p["faction"])
         )
         lines.append(
-            f"· {p['name']}（{p['en']}）{S}{fac}{S}{p['pct']:.0f}%{S}「{p['event']}」战术警报"
+            L(
+                f"· {p['name']}（{p['en']}）{S}{fac}{S}{p['pct']:.0f}%{S}「{p['event']}」战术警报",
+                f'· {p["en"] or p["name"]}{S}{fac}{S}{p["pct"]:.0f}%{S}"{p["event"]}" Tactical Alert',
+            )
         )
 
     if not projects and not assaults:
-        lines.append("◆ 建造进度：两个阵营均为 0（刚结束一轮事件）")
+        lines.append(
+            L(
+                "◆ 建造进度：两个阵营均为 0（刚结束一轮事件）",
+                "◆ Construction progress: both factions at 0 (a round of events just ended)",
+            )
+        )
 
     lines += notes
     lines.append(
-        "※ 建造进度为全服累计：入侵任务中支持 Grineer 计入巴罗尔巨人战舰、"
-        "支持 Corpus 计入利刃豺狼舰队；战术警报期间该阵营攻击一座中继站，把舰体完整度打到 0% "
-        "即结束，进度归零重新累积"
+        L(
+            "※ 建造进度为全服累计：入侵任务中支持 Grineer 计入巴罗尔巨人战舰、"
+            "支持 Corpus 计入利刃豺狼舰队；战术警报期间该阵营攻击一座中继站，把舰体完整度打到 0% "
+            "即结束，进度归零重新累积",
+            "※ Progress is server-wide: supporting Grineer in invasions builds the Balor Fomorian, "
+            "supporting Corpus builds the Razorback Armada; during the Tactical Alert that faction "
+            "attacks a relay and it ends when hull integrity reaches 0%, then progress resets and accumulates again",
+        )
     )
-    return ("舰队建造进度", lines)
+    return (title, lines)
 
+
+_ACRITHIS_EN = {
+    "Kuva": "Kuva",
+    "FormaBlueprint": "Forma Blueprint",
+    "RawMeleeRandomMod": "Melee Riven Mod",
+    "RawPistolRandomMod": "Pistol Riven Mod",
+    "RawRifleRandomMod": "Rifle Riven Mod",
+    "RawShotgunRandomMod": "Shotgun Riven Mod",
+    "RawSentinelWeaponRandomMod": "Companion Weapon Riven Mod",
+    "WeaponPrimaryArcaneUnlocker": "Primary Arcane Adapter",
+    "WeaponSecondaryArcaneUnlocker": "Secondary Arcane Adapter",
+    "UtilityUnlocker": "Exilus Warframe Adapter",
+    "WeaponUtilityUnlocker": "Exilus Weapon Adapter",
+    "OrokinCatalystBlueprint": "Orokin Catalyst Blueprint",
+    "OrokinReactorBlueprint": "Orokin Reactor Blueprint",
+}
 
 # 言录使周常池的官方简中名（bin 2，13 件；与参考卡一致：
 # 主要武器赋能槽连接器 / Forma 蓝图 / 赤毒 / 手枪裂罅 MOD…）
@@ -2473,29 +3424,12 @@ _ACRITHIS_ZH = {
 }
 
 
-def _to_bj(iso: str) -> str:
-    """UTC ISO 串 → 北京时间「09-27 08:00」。
-
-    ★ 轮换**判定**一律用 UTC（DE 的服务器时间），但**展示**给国内玩家要换算成
-    北京时间并标注 —— 否则「周日 00:00」会被当成北京时间，实际差 8 小时。
-    """
-    from datetime import datetime, timedelta, timezone
-
-    try:
-        dt = datetime.fromisoformat(iso)
-    except (TypeError, ValueError):
-        return ""
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone(timedelta(hours=8))).strftime("%m-%d %H:%M")
-
-
 def fmt_acrichis_week(data: dict) -> tuple[str, list[str]]:
     """言录使**本周货单**（社区维护快照，含价格）。
 
     重置规则见 ``core/data/rotations.json`` 的 ``acrichis.reset_*``：
     wiki《Acrithis》**实时**页面写的是「Resets every **Monday** 0:00 UTC」，
-    与其它周常同点（Update 32.3 起统一到周一）。判定用 UTC，卡面换算北京时间。
+    与其它周常同点（Update 32.3 起统一到周一）。实际刷新时刻按显示时区格式化。
     """
     S = "　"
     items = data.get("items") or []
@@ -2506,21 +3440,38 @@ def fmt_acrichis_week(data: dict) -> tuple[str, list[str]]:
         # 结算货币是 Pathos Clamp，官方简中为**「苦栓」**
         # （/Lotus/Language/Duviri/DuviriDragonDropItemName），
         # 2026-09-17 维护者指正；此前误写成「精华」。
-        rows.append(f"· {nm}{qty}{S}{it.get('price', '?')} 苦栓")
+        rows.append(
+            L(
+                f"· {nm}{qty}{S}{it.get('price', '?')} 苦栓",
+                f"· {nm}{qty}{S}{it.get('price', '?')} Pathos Clamps",
+            )
+        )
     nxt = data.get("next_reset") or data.get("expiry")
-    head = f"◆ 本周货单：{len(items)} 件"
+    head = L(f"◆ 本周货单：{len(items)} 件", f"◆ This week's inventory: {len(items)} items")
     if nxt:
-        head += f"｜距下次刷新 剩余 {countdown(nxt)}"
-        bj = _to_bj(nxt)
-        if bj:
-            head += f"（{bj} 北京时间）"
+        head += L(
+            f"｜距下次刷新 剩余 {countdown(nxt)}",
+            f" ｜ Refresh: {_left_en(countdown(nxt))}",
+        )
+        when = format_time(nxt)
+        if when:
+            head += L(f"（{when}）", f" ({when})")
     lines = [head]
     if rows:
-        lines += ["◆ 货单", f"{S}商品{S}价格", *rows]
+        lines += [
+            L("◆ 货单", "◆ Inventory"),
+            L(f"{S}商品{S}价格", f"{S}Item{S}Price"),
+            *rows,
+        ]
     if data.get("_price_note"):
         lines.append("※ " + data["_price_note"])
-    lines.append("※ 每周一 00:00 UTC 轮换（与其它周常同点）；本周货单为社区维护快照，DE 不下发")
-    return ("言录使（Acrithis）本周货单", lines)
+    lines.append(
+        L(
+            "※ 每周一 00:00 UTC 轮换（与其它周常同点）；本周货单为社区维护快照，DE 不下发",
+            "※ Rotates every Monday 00:00 UTC (same as other weekly resets); this week's inventory is a community-maintained snapshot, not sent by DE",
+        )
+    )
+    return (L("言录使（Acrithis）本周货单", "Acrithis Weekly Inventory"), lines)
 
 
 def fmt_acrichis(
@@ -2538,44 +3489,84 @@ def fmt_acrichis(
     """
     if pending:
         title, lines = fmt_acrichis(data, stale=False)
-        return title + "（货单待获取）", ["◆ 本周货单待获取，下表仅为候选池", *lines]
+        return title + L("（货单待获取）", " (Inventory Pending)"), [
+            L(
+                "◆ 本周货单待获取，下表仅为候选池",
+                "◆ This week's inventory is pending; the table below is only the candidate pool",
+            ),
+            *lines,
+        ]
     bins = (data or {}).get("bins") or {}
     weekly = bins.get("2") or []
+    _stale_sfx = L("（货单待更新）", " (Inventory Outdated)")
     if not weekly:
-        lines = ["◆ 商品池：暂无数据（ExportVendors 取不到）"]
+        lines = [
+            L(
+                "◆ 商品池：暂无数据（ExportVendors 取不到）",
+                "◆ Item pool: no data (ExportVendors unavailable)",
+            )
+        ]
         # ★ 过期提示不能因为「池子也没数据」就被吞掉 —— 那正是最容易让人
         #   以为「查到了」的场景
         if stale:
-            lines.append("※ ⚠ 本周 5 件货单已过期未更新，请以游戏内 Acrithis 为准")
-        return ("言录使（Acrithis）" + ("（货单待更新）" if stale else ""), lines)
+            lines.append(
+                L(
+                    "※ ⚠ 本周 5 件货单已过期未更新，请以游戏内 Acrithis 为准",
+                    "※ ⚠ This week's 5-item inventory is outdated; check Acrithis in game",
+                )
+            )
+        return (L("言录使（Acrithis）", "Acrithis") + (_stale_sfx if stale else ""), lines)
     S = "　"
     n_daily = sum(len(bins.get(b) or []) for b in ("0", "1", "3"))
     lines = [
-        "◆ 状态："
+        L("◆ 状态：", "◆ Status: ")
         + (
-            "本周货单已过期未更新，下表仅为候选池"
+            L(
+                "本周货单已过期未更新，下表仅为候选池",
+                "This week's inventory is outdated; the table below is only the candidate pool",
+            )
             if stale
-            else "候选池与权重（DE 不下发本周实际货单）"
+            else L(
+                "候选池与权重（DE 不下发本周实际货单）",
+                "Candidate pool and weights (DE does not send this week's actual inventory)",
+            )
         ),
-        f"◆ 每日槽：另有 {n_daily} 件（船装装饰 / 拍照场景 / 小队增益，每日轮换）",
-        "◆ 周常池（每个槽位每周期出 1 件）",
-        f"{S}商品{S}权重",
+        L(
+            f"◆ 每日槽：另有 {n_daily} 件（船装装饰 / 拍照场景 / 小队增益，每日轮换）",
+            f"◆ Daily slots: {n_daily} more (ship decor / photo scenes / squad boosts, rotating daily)",
+        ),
+        L("◆ 周常池（每个槽位每周期出 1 件）", "◆ Weekly pool (1 item per slot each cycle)"),
+        L(f"{S}商品{S}权重", f"{S}Item{S}Weight"),
     ]
     for it in weekly:
-        nm = _ACRITHIS_ZH.get(it.get("en") or "", it.get("name") or it.get("en") or "?")
+        if i18n.is_en():
+            nm = _ACRITHIS_EN.get(it.get("en") or "", it.get("en") or it.get("name") or "?")
+        else:
+            nm = _ACRITHIS_ZH.get(it.get("en") or "", it.get("name") or it.get("en") or "?")
         qty = f" ×{it['qty']}" if int(it.get("qty", 1) or 1) != 1 else ""
         lines.append(f"· {nm}{qty}{S}{it.get('pct', 0)}%")
     if stale:
         lines.append(
-            "※ ⚠ 本周 5 件货单已过期未更新，上面只是候选池 —— "
-            "本周实际在卖什么请以游戏内 Acrithis 为准"
+            L(
+                "※ ⚠ 本周 5 件货单已过期未更新，上面只是候选池 —— "
+                "本周实际在卖什么请以游戏内 Acrithis 为准",
+                "※ ⚠ This week's 5-item inventory is outdated; the list above is only the candidate pool — "
+                "check Acrithis in game for what is actually on sale",
+            )
         )
     else:
         lines.append(
-            "※ 价格每周期随机 roll，DE 不下发本周实际货单；"
-            "上表是池子与权重，本周实际 5 件以游戏内 Acrithis 为准"
+            L(
+                "※ 价格每周期随机 roll，DE 不下发本周实际货单；"
+                "上表是池子与权重，本周实际 5 件以游戏内 Acrithis 为准",
+                "※ Prices are rolled randomly each cycle and DE does not send the actual inventory; "
+                "the table is the pool and weights; check Acrithis in game for this week's 5 items",
+            )
         )
-    return ("言录使（Acrithis）商品池" + ("（货单待更新）" if stale else ""), lines)
+    return (
+        L("言录使（Acrithis）商品池", "Acrithis Item Pool") + (_stale_sfx if stale else ""),
+        lines,
+    )
 
 
 def fmt_incursions(data: Optional[dict]) -> tuple[str, list[str]]:
@@ -2586,8 +3577,17 @@ def fmt_incursions(data: Optional[dict]) -> tuple[str, list[str]]:
     四格用全角空格分开，渲染层开列对齐（_table_mode）。
     """
     nodes = (data or {}).get("nodes") or []
+    title = L("钢铁之路侵袭", "Steel Path Incursions")
     if not nodes:
-        return ("钢铁之路侵袭", ["◆ 今日侵袭：暂无排期（browse.wf 排期表取不到）"])
+        return (
+            title,
+            [
+                L(
+                    "◆ 今日侵袭：暂无排期（browse.wf 排期表取不到）",
+                    "◆ Today's incursions: no schedule (browse.wf schedule unavailable)",
+                )
+            ],
+        )
     nz = _de_zh("nodes_zh.json")
     sol = _de_zh("solNodes.json")
     lines = []
@@ -2599,14 +3599,21 @@ def fmt_incursions(data: Optional[dict]) -> tuple[str, list[str]]:
         lv = _steel_level(str(info.get("level") or ""))
         place = f"{info.get('system', '?')}-{info.get('name', key)}"
         lines.append(f"· {mtype}　{fac}　{lv}　{place}")
+    _cd = countdown(data.get("expiry") or "")
     lines = [
-        f"◆ 今日侵袭：{len(nodes)} 个节点｜每日重置 剩余 {countdown(data.get('expiry') or '')}",
-        "◆ 侵袭节点",
-        "　类型　派系　等级　地点",
+        L(
+            f"◆ 今日侵袭：{len(nodes)} 个节点｜每日重置 剩余 {_cd}",
+            f"◆ Today's incursions: {len(nodes)} nodes ｜ Daily reset: {_left_en(_cd)}",
+        ),
+        L("◆ 侵袭节点", "◆ Incursion Nodes"),
+        L("　类型　派系　等级　地点", "　Type　Faction　Level　Location"),
         *lines,
-        "※ 钢路节点等级 = 原节点 +100，完成任一侵袭可得钢铁精华",
+        L(
+            "※ 钢路节点等级 = 原节点 +100，完成任一侵袭可得钢铁精华",
+            "※ Steel Path node level = original level +100; completing any incursion gives Steel Essence",
+        ),
     ]
-    return ("钢铁之路侵袭", lines)
+    return (title, lines)
 
 
 def _steel_level(level: str) -> str:
@@ -2618,6 +3625,8 @@ def _steel_level(level: str) -> str:
         return level
     if not nums:
         return level
+    if i18n.is_en():
+        return "Lv " + "-".join(str(n + 100) for n in nums)
     return "-".join(str(n + 100) for n in nums) + "级"
 
 
@@ -2626,6 +3635,8 @@ def _enemy_display(enemy: str) -> str:
     e = (enemy or "").strip()
     if not e or e in ("Crossfire", "Tenno", "Duviri"):
         return ""
+    if i18n.is_en():
+        return e
     return {"The Murmur": "低语者", "Orokin": "奥罗金"}.get(e, e)
 
 
@@ -2674,6 +3685,11 @@ _PROTOFRAME_FLOOR = {
     "Wisp": "祝福二选一",
     "Harrow": "祝福二选一·附代价",
     "Devil": "击败罗瑟",
+}
+_PROTOFRAME_FLOOR_EN = {
+    "Wisp": "Blessing: pick 1 of 2",
+    "Harrow": "Blessing: pick 1 of 2 · with a cost",
+    "Devil": "Defeat the final boss",
 }
 
 
@@ -2754,7 +3770,10 @@ def descent_type_label(code: str, eng: str = "") -> tuple[str, bool]:
     if code in _DT_NO_KEY:
         return (eng or code), False
     return (
-        _DESCENT_ZH.get(code) or mission_type_zh_by_name(eng) or mission_cn(eng or code) or code
+        (None if i18n.is_en() else _DESCENT_ZH.get(code))
+        or mission_type_zh_by_name(eng)
+        or mission_cn(eng or code)
+        or code
     ), True
 
 
@@ -2767,7 +3786,7 @@ def descent_goal_label(code: str) -> tuple[str, bool]:
     zh = descent_goal_zh(code)
     if zh:
         return zh, True
-    fallback = _DESCENT_GOAL_ZH.get(code)
+    fallback = None if i18n.is_en() else _DESCENT_GOAL_ZH.get(code)
     if fallback:
         return fallback, True
     shown = code[3:] if code.upper().startswith("NC_") else code
@@ -2788,11 +3807,12 @@ def fmt_descendia(data: Optional[dict]) -> tuple[str, list[str]]:
     * 行用全角空格分格，渲染层按列对齐并给类型上色。
     """
     chs = (data or {}).get("challenges") or []
+    title = L("沉沦之地 · 炼狱塔", "Descendia")
     if not chs:
-        return ("沉沦之地 · 炼狱塔", ["暂无数据（DE Descents 取不到）"])
+        return (title, [L("暂无数据（DE Descents 取不到）", "No data (DE Descents unavailable)")])
     lines = [
-        f"◆ 本周：剩余 {countdown(data.get('expiry') or '')}",
-        f"◆ 本周 {len(chs)} 层",
+        L("◆ 本周：", "◆ This week: ") + _left(countdown(data.get("expiry") or "")),
+        L(f"◆ 本周 {len(chs)} 层", f"◆ This week: {len(chs)} floors"),
     ]
     no_key: list[str] = []
     caveat: list[str] = []
@@ -2801,10 +3821,10 @@ def fmt_descendia(data: Optional[dict]) -> tuple[str, list[str]]:
         _goal_code = c.get("code") or ""
         label, type_ok = descent_type_label(code, c.get("type") or "")
         goal, goal_ok = descent_goal_label(_goal_code)
-        mech = _PROTOFRAME_FLOOR.get(_goal_code)
+        mech = (_PROTOFRAME_FLOOR_EN if i18n.is_en() else _PROTOFRAME_FLOOR).get(_goal_code)
         if code == "DT_PROTOFRAME" and mech and goal_ok and goal:
             # 检查点层：主标 = 官方圣所名，右侧 = 机制（不再出类型列）
-            lines.append(f"· 炼狱 [{c.get('index')}]　{goal}　{mech}")
+            lines.append(L("· 炼狱", "· Floor") + f" [{c.get('index')}]　{goal}　{mech}")
             continue
         if not type_ok:
             no_key.append(code)
@@ -2813,21 +3833,30 @@ def fmt_descendia(data: Optional[dict]) -> tuple[str, list[str]]:
         if _goal_code in _DESCENT_GOAL_CAVEAT:
             caveat.append(f"{_goal_code}={goal}")
         idx = c.get("index")
-        lines.append(f"· 炼狱 [{idx}]　{label}　{goal}".rstrip())
+        lines.append((L("· 炼狱", "· Floor") + f" [{idx}]　{label}　{goal}").rstrip())
     lines.append(
-        "※ 每周轮换 21 层（7/14/21 层为检查点）；中文名取自游戏内官方文案，进本前以实机为准"
+        L(
+            "※ 每周轮换 21 层（7/14/21 层为检查点）；中文名取自游戏内官方文案，进本前以实机为准",
+            "※ 21 floors rotate weekly (floors 7/14/21 are checkpoints); names come from the in-game official text, verify in game before entering",
+        )
     )
-    if no_key:
+    if no_key and not i18n.is_en():
         # 「看不到的不描述成事实」：官方确实没有文案的层，明说保留内部代码
+        # （英文模式下无官方键的层已把内部代码拆成可读英文，不再逐个列出）
         lines.append("※ 官方无简中、保留内部代码：" + "、".join(no_key))
     if caveat:
         # 「来源存疑就标明来源」：这些目标的官方键**不在沉沦之地命名空间**，
         # 是跨族借用的（见 de_worldstate._DESCENT_GOAL_EXTERNAL 的说明）。
         lines.append(
-            "※ 以下译名取自官方「科研风险」键（非沉沦之地命名空间），"
-            "与 wiki 该层挑战名对应，待实机确认：" + "、".join(caveat)
+            L(
+                "※ 以下译名取自官方「科研风险」键（非沉沦之地命名空间），"
+                "与 wiki 该层挑战名对应，待实机确认：" + "、".join(caveat),
+                "※ The names below come from official Archimedea risk keys (not the Descendia namespace); "
+                "they match the wiki's floor challenge names, pending in-game confirmation: "
+                + ", ".join(caveat),
+            )
         )
-    return ("沉沦之地 · 炼狱塔", lines)
+    return (title, lines)
 
 
 def fmt_archimedea(data: Optional[dict], title: str) -> tuple[str, list[str]]:
@@ -2838,41 +3867,57 @@ def fmt_archimedea(data: Optional[dict], title: str) -> tuple[str, list[str]]:
     另有 4 个**可选个人减益**（Variables）。
     """
     if not data:
-        return (title, ["该数据源暂未开放（endpoint 未接入或返回为空）"])
+        return (
+            title,
+            [
+                L(
+                    "该数据源暂未开放（endpoint 未接入或返回为空）",
+                    "This data source is not available yet (endpoint not connected or returned empty)",
+                )
+            ],
+        )
     S = "　"
     lines = []
+    _hard_tags = ("硬化", "Elite")
+    _sep = L("、", ", ")
     if data.get("expiry"):
-        lines.append(f"◆ 本周：剩余 {countdown(data['expiry'])}")
+        lines.append(L("◆ 本周：", "◆ This week: ") + _left(countdown(data["expiry"])))
     missions = data.get("missions") or []
     if not missions:
-        return (title, lines + ["◆ 本周任务：暂无数据"])
+        return (title, lines + [L("◆ 本周任务：暂无数据", "◆ This week's missions: no data")])
     # 三个任务 × 普通/硬化：一行一个任务，「偏差 / 风险 / 硬化额外风险」分列
     # （2026-10-11 第二步改版；旧版每条风险占一行、共 10 余行缩进文字）
-    lines += ["◆ 本周任务", f"{S}任务{S}派系{S}偏差{S}风险{S}硬化额外风险"]
+    lines += [
+        L("◆ 本周任务", "◆ This Week's Missions"),
+        L(
+            f"{S}任务{S}派系{S}偏差{S}风险{S}硬化额外风险",
+            f"{S}Mission{S}Faction{S}Deviation{S}Risks{S}Elite extra risks",
+        ),
+    ]
     for m in missions:
         mt = mission_cn(m.get("missionType", ""))
         diffs = m.get("difficulties") or []
         if not diffs:
             # 旧 Descents 结构：只有一串风险名
-            dev, risks, extra = "—", "、".join(m.get("risks") or []) or "—", "—"
+            dev, risks, extra = "—", _sep.join(m.get("risks") or []) or "—", "—"
         else:
-            shown_hard = any(d.get("tag") == "硬化" for d in diffs)
+            shown_hard = any(d.get("tag") in _hard_tags for d in diffs)
             dev = next((d["deviation"] for d in diffs if d.get("deviation")), "—")
             # 普通/硬化的偏差与普通风险相同，只列硬化的额外风险即可，避免整段重复
-            risks = "、".join(diffs[0].get("risks") or []) or "—"
-            hard = next((d for d in diffs if d.get("tag") == "硬化"), None)
+            risks = _sep.join(diffs[0].get("risks") or []) or "—"
+            hard = next((d for d in diffs if d.get("tag") in _hard_tags), None)
             base = set(diffs[0].get("risks") or [])
             extra_l = (
                 [r for r in (hard.get("risks") or []) if r not in base]
                 if hard and shown_hard
                 else []
             )
-            extra = "、".join(extra_l) or "—"
+            extra = _sep.join(extra_l) or "—"
         lines.append(f"· {mt}{S}{m.get('faction') or '—'}{S}{dev}{S}{risks}{S}{extra}")
     if data.get("variables"):
         # 可选个人减益**带说明**：玩家要据此决定这周选哪几个减益换奖励
         # （玩家反馈「可选减益没有详细说明」—— 之前只列了名字）。名称一行、说明缩进成从属行。
-        lines.append("◆ 可选个人减益")
+        lines.append(L("◆ 可选个人减益", "◆ Optional Personal Debuffs"))
         for v in data["variables"]:
             nm = (v.get("name") or "").strip()
             if not nm:
@@ -2883,18 +3928,30 @@ def fmt_archimedea(data: Optional[dict], title: str) -> tuple[str, list[str]]:
             if desc:
                 lines.append(f"{S}{desc[:64]}")
     if data.get("risks"):
-        lines.append("◆ 风险说明")
+        lines.append(L("◆ 风险说明", "◆ Risk Descriptions"))
         for r in data["risks"][:12]:
             desc = (r.get("description") or "").strip().replace("\n", " ")
             desc = re.sub(r"<[^<>]{0,40}>", "", desc)
             lines.append(f"· {r.get('name')}")
             if desc:
                 lines.append(f"{S}{desc[:60]}")
-    lines.append("※ 任务与偏差来自 DE 官方下发；实际进入时以游戏内为准")
+    lines.append(
+        L(
+            "※ 任务与偏差来自 DE 官方下发；实际进入时以游戏内为准",
+            "※ Missions and deviations are sent by DE; verify in game when you enter",
+        )
+    )
     return (title, lines)
 
 
 SEASON_CN = {"CST_SPRING": "春", "CST_SUMMER": "夏", "CST_FALL": "秋", "CST_WINTER": "冬"}
+_SEASON_EN = {
+    "CST_SPRING": "Spring",
+    "CST_SUMMER": "Summer",
+    "CST_FALL": "Fall",
+    "CST_WINTER": "Winter",
+}
+_MONTH_EN = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
 
 # 1999 日历奖励名：DE 语言表未收录的英文条目
@@ -2942,6 +3999,12 @@ def _cal_name(name: str) -> str:
     s = name.strip()
     if _HAS_CJK.search(s):
         return s
+    if i18n.is_en():
+        # 英文模式：名称本来就是官方英文；只把「2000 x Kuva」「6,000 Endo」规整成「Kuva ×2000」
+        m = re.match(r"^([\d,]+)\s*x\s+(.+)$", s) or re.match(
+            r"^(\d{1,3}(?:,\d{3})+|\d{4,})\s+(.+)$", s
+        )
+        return f"{m.group(2).strip()} ×{m.group(1)}" if m else s
     for en, cn in _CAL_REWARD_CN.items():
         s = s.replace(en, cn)
     # 「2000 x Kuva」/「6000 x Kuva」/「6,000 Endo」统一成「赤毒 ×N」
@@ -2974,19 +4037,38 @@ def fmt_calendar(data: Optional[dict]) -> tuple[str, list[str]]:
     奖励走 4 个命名空间 × 尾段变形，覆写走 `/Lotus/Language/1999/<尾段>Name/Desc`。
     只有官方确实无键的条目才留英文（并在卡面加注脚说明）。
     """
+    title = L("1999 日历", "1999 Calendar")
     if not data or not data.get("days"):
-        return ("1999 日历", ["日历数据暂不可用"])
-    season = SEASON_CN.get(data.get("season", ""), str(data.get("season", "")))
+        return (title, [L("日历数据暂不可用", "Calendar data unavailable")])
+    if i18n.is_en():
+        season = _SEASON_EN.get(data.get("season", ""), str(data.get("season", "")))
+    else:
+        season = SEASON_CN.get(data.get("season", ""), str(data.get("season", "")))
     year = data.get("yearIteration")
     lines = [
-        f"◆ 本季：第 {year} 年 · {season}季"
-        + (f"｜季末重置 剩余 {countdown(data['expiry'])}" if data.get("expiry") else "")
+        L(f"◆ 本季：第 {year} 年 · {season}季", f"◆ Season: Year {year} · {season}")
+        + (
+            L(
+                f"｜季末重置 剩余 {countdown(data['expiry'])}",
+                f" ｜ Season ends: {_left_en(countdown(data['expiry']))}",
+            )
+            if data.get("expiry")
+            else ""
+        )
     ]
-    section_cn = {"CHALLENGE": "待办清单", "REWARD": "选择奖励", "UPGRADE": "增益覆写"}
+    section_cn = L(
+        {"CHALLENGE": "待办清单", "REWARD": "选择奖励", "UPGRADE": "增益覆写"},
+        {"CHALLENGE": "To-Do List", "REWARD": "Reward Choice", "UPGRADE": "Buff Override"},
+    )
     _cnt = Counter((d["events"][0].get("type") or "") for d in data["days"] if d.get("events"))
     _sum = " · ".join(f"{section_cn[k]} {_cnt[k]}" for k in section_cn if _cnt.get(k))
     if _sum:
-        lines.append(f"◆ 排期：共 {sum(_cnt.values())} 天有事件（{_sum}）")
+        lines.append(
+            L(
+                f"◆ 排期：共 {sum(_cnt.values())} 天有事件（{_sum}）",
+                f"◆ Schedule: {sum(_cnt.values())} days with events ({_sum})",
+            )
+        )
     shown = 0
     for day in data["days"]:
         events = day.get("events") or []
@@ -2995,7 +4077,14 @@ def fmt_calendar(data: Optional[dict]) -> tuple[str, list[str]]:
         shown += 1
         date = day.get("date", "?")  # "1999-mm-dd"
         label = section_cn.get(events[0].get("type"), "")
-        lines.append(f"◆ {shown}　{date[5:7]}月{date[8:10]}日　{label}")
+        if i18n.is_en():
+            try:
+                _d = f"{_MONTH_EN[int(date[5:7]) - 1]} {date[8:10]}"
+            except (ValueError, IndexError):
+                _d = date[5:]
+            lines.append(f"◆ {shown}　{_d}　{label}")
+        else:
+            lines.append(f"◆ {shown}　{date[5:7]}月{date[8:10]}日　{label}")
         for e in events:
             name = _cal_name(e.get("name", "?"))
             kind = e.get("type")
@@ -3008,20 +4097,34 @@ def fmt_calendar(data: Optional[dict]) -> tuple[str, list[str]]:
             else:
                 lines.append(f"· {name}")
     if shown == 0:
-        lines.append("本季暂无排定事件")
+        lines.append(L("本季暂无排定事件", "No events scheduled this season"))
     synth = data.get("synthesized") or []
     nokey = data.get("noKey") or []
     if synth:
         # 「官方没有的写法 ≠ 不存在的东西」：官方只给基名/英文数量时按同族格式合成，
         # 但必须自曝 —— 否则用户会以为是游戏内原文。
-        lines.append("※ 合成译名（官方无对应文案，按同族官方格式产出）：" + "、".join(synth))
+        lines.append(
+            L(
+                "※ 合成译名（官方无对应文案，按同族官方格式产出）：" + "、".join(synth),
+                "※ Synthesized names (no official text; built in the same official format): "
+                + ", ".join(synth),
+            )
+        )
     if nokey:
-        lines.append("※ 官方无简中、保留原文：" + "、".join(nokey))
-    return ("1999 日历", lines)
+        lines.append(
+            L(
+                "※ 官方无简中、保留原文：" + "、".join(nokey),
+                "※ No official text, original kept: " + ", ".join(nokey),
+            )
+        )
+    return (title, lines)
 
 
 def fmt_platform_footer(platform: str, extra: str = "") -> str:
-    txt = f"平台：{PLATFORM_DISPLAY.get(platform, platform.upper())}"
+    txt = L(
+        f"平台：{PLATFORM_DISPLAY.get(platform, platform.upper())}",
+        f"Platform: {'International' if platform in PLATFORM_DISPLAY else platform.upper()}",
+    )
     if extra:
         txt += f" · {extra}"
     return txt
@@ -3040,7 +4143,7 @@ _REP_RANK = {"ingame": 0, "online": 0, "offline": 1}
 def _rep_txt(rep) -> str:
     """WM 信誉值展示：``信46``。"""
     try:
-        return f"信{int(rep or 0)}"
+        return L(f"信{int(rep or 0)}", f"Rep {int(rep or 0)}")
     except (TypeError, ValueError):
         return ""
 
@@ -3115,21 +4218,39 @@ def fmt_wm_set_parts(rows: list[dict]) -> list[str]:
     if not rows:
         return []
     names = _strip_common_prefix([r.get("name") or "?" for r in rows])
-    lines = ["◆ 部件参考价", "　部件　在售　收购"]
+    lines = [L("◆ 部件参考价", "◆ Part Prices"), L("　部件　在售　收购", "　Part　Selling　Buying")]
     for r, name in zip(rows, names):
         if r.get("sell") is None and r.get("buy") is None:
-            lines.append(f"· {name}　暂无挂单")
+            lines.append(L(f"· {name}　暂无挂单", f"· {name}　No orders"))
             continue
         sell = f"{r['sell']}p" if r.get("sell") is not None else "—"
         buy = f"{r['buy']}p" if r.get("buy") is not None else "—"
         lines.append(f"· {name}　{sell}　{buy}")
-    lines.append("※ 单查某个部件：wm 部件名（如 wm 席瓦蓝图）")
+    lines.append(
+        L(
+            "※ 单查某个部件：wm 部件名（如 wm 席瓦蓝图）",
+            "※ Single part: wm <part name> (e.g. wm Ash Prime Chassis Blueprint)",
+        )
+    )
     return lines
 
 
 # 遗物精炼档（WM 订单的 subtype）与墨染标签——2026-09-25
 _RELIC_SUBTYPE_CN = {"intact": "完整", "exceptional": "优良", "flawless": "无瑕", "radiant": "光辉"}
+_RELIC_SUBTYPE_EN = {
+    "intact": "Intact",
+    "exceptional": "Exceptional",
+    "flawless": "Flawless",
+    "radiant": "Radiant",
+}
 _MORAN_SUBTYPE = "atragraph"  # 墨染 Mod（Foil/Atragraph）
+
+
+def _status_names() -> dict:
+    """WM 卖家 / 挂单状态 → 展示词（ingame 游戏内 / online 网页 / offline）。"""
+    if i18n.is_en():
+        return {"ingame": "In Game", "online": "Web Online", "offline": "Offline"}
+    return {"ingame": "在线", "online": "网页在线", "offline": "离线"}
 
 
 def fmt_wm_orders(
@@ -3178,41 +4299,69 @@ def fmt_wm_orders(
             -o["platinum"] if buy else o["platinum"],
         )
     )
-    status_cn = {"ingame": "在线", "online": "网页在线", "offline": "离线"}
+    status_cn = _status_names()
     total = len(pool)
     pages = max(1, (total + page_size - 1) // page_size)
     page = max(1, min(page, pages))
     chunk = pool[(page - 1) * page_size : page * page_size]
-    title = f"{item_name} {'收购' if buy else '在售'}单（第{page}/{pages}页，共{total}条）"
-    sort_note = "※ 排序：在线优先，同档按价格" + ("降序" if buy else "升序")
-    side = "买家" if buy else "卖家"
+    title = L(
+        f"{item_name} {'收购' if buy else '在售'}单（第{page}/{pages}页，共{total}条）",
+        f"{item_name} {'Buy' if buy else 'Sell'} Orders (Page {page}/{pages}, {total} total)",
+    )
+    sort_note = L(
+        "※ 排序：在线优先，同档按价格" + ("降序" if buy else "升序"),
+        "※ Sorted: online first, then by price " + ("descending" if buy else "ascending"),
+    )
+    side = L("买家", "Buyer") if buy else L("卖家", "Seller")
     if not pool:
         # 空结果：原因 + 怎么改（卡片化的「查不到」，见 AGENTS 行文法）
-        lines = [f"◆ 原因：没有符合条件的{'收购' if buy else '在售'}单"]
+        lines = [
+            L(
+                f"◆ 原因：没有符合条件的{'收购' if buy else '在售'}单",
+                f"◆ Reason: No matching {'buy' if buy else 'sell'} orders",
+            )
+        ]
         lines += [f"※ {n}" for n in (notes or [])]
-        lines.append("※ ⚠ 怎么改：去掉品级 / 数量 / 精炼等筛选词重发；或换一个名称写法")
+        lines.append(
+            L(
+                "※ ⚠ 怎么改：去掉品级 / 数量 / 精炼等筛选词重发；或换一个名称写法",
+                "※ ⚠ Fix: drop the rank / quantity / refinement filters and resend, "
+                "or try another spelling of the name",
+            )
+        )
         return (title, lines, None, pool)
 
     # —— 卡首答案：最低（收购为最高）价 ｜ 在线中位 ｜ 在线单数 ——
     online = [o for o in pool if (o.get("user") or {}).get("status") in ("ingame", "online")]
-    val = f"{pool[0]['platinum']}p" + ("" if online else "（离线）")
+    val = f"{pool[0]['platinum']}p" + ("" if online else L("（离线）", " (Offline)"))
     if online:
         ps = sorted(o["platinum"] for o in online)
         mid = ps[len(ps) // 2] if len(ps) % 2 else (ps[len(ps) // 2 - 1] + ps[len(ps) // 2]) / 2
-        val += f"｜在线中位 {mid:g}p"
-    val += f"｜在线 {len(online)} 单（共 {total} 单）"
-    lines = [f"◆ {'最高价' if buy else '最低价'}：{val}"]
+        val += L(f"｜在线中位 {mid:g}p", f"｜Online median {mid:g}p")
+    val += L(f"｜在线 {len(online)} 单（共 {total} 单）", f"｜{len(online)} online ({total} total)")
+    lines = [
+        L(
+            f"◆ {'最高价' if buy else '最低价'}：{val}",
+            f"◆ {'Highest price' if buy else 'Lowest price'}: {val}",
+        )
+    ]
 
     # —— 明细表：整页全相同的列不写（相同的值并进区块标题）——
     def _tags(o: dict) -> tuple:
         sub = str(o.get("subtype") or "")
-        tag = _RELIC_SUBTYPE_CN.get(sub) or ("墨染" if sub == _MORAN_SUBTYPE else "")
-        rk = f"{o['mod_rank']}级" if o.get("mod_rank") is not None else ""
+        tag = (_RELIC_SUBTYPE_EN if i18n.is_en() else _RELIC_SUBTYPE_CN).get(sub) or (
+            L("墨染", "Atragraph") if sub == _MORAN_SUBTYPE else ""
+        )
+        rk = (
+            L(f"{o['mod_rank']}级", f"Rank {o['mod_rank']}")
+            if o.get("mod_rank") is not None
+            else ""
+        )
         return (
             f"×{o['quantity']}" if int(o.get("quantity") or 1) > 1 else "",
             rk,
             tag,
-            status_cn.get((o.get("user") or {}).get("status", ""), "离线"),
+            status_cn.get((o.get("user") or {}).get("status", ""), L("离线", "Offline")),
         )
 
     rows_t = [_tags(o) for o in chunk]
@@ -3228,15 +4377,30 @@ def fmt_wm_orders(
         elif ci != 3 and next(iter(vals)):
             shared.append(next(iter(vals)))
     state = "" if 3 in cols else rows_t[0][3]  # 整页同一状态：写进标题（「在线卖单」）
-    sec = f"◆ {state}{'收购单' if buy else '卖单'}" + "".join(f" · {x}" for x in shared)
-    sec += (
-        f"（{'价格降序' if buy else '价格升序'}）"
-        if state
-        else (f"（在线优先，价格{'降序' if buy else '升序'}）")
-    )
+    if i18n.is_en():
+        sec = f"◆ {state + ' ' if state else ''}{'Buy Orders' if buy else 'Sell Orders'}"
+        sec += "".join(f" · {x}" for x in shared)
+        _dir = "descending" if buy else "ascending"
+        sec += f" (price {_dir})" if state else f" (online first, price {_dir})"
+    else:
+        sec = f"◆ {state}{'收购单' if buy else '卖单'}" + "".join(f" · {x}" for x in shared)
+        sec += (
+            f"（{'价格降序' if buy else '价格升序'}）"
+            if state
+            else (f"（在线优先，价格{'降序' if buy else '升序'}）")
+        )
     lines.append(sec)
-    names = {0: "数量", 1: "等级", 2: "档位", 3: "状态"}
-    lines.append("　价格" + "".join(f"　{names[c]}" for c in cols) + f"　{side}　信誉")
+    names = {
+        0: L("数量", "Qty"),
+        1: L("等级", "Rank"),
+        2: L("档位", "Refine"),
+        3: L("状态", "Status"),
+    }
+    lines.append(
+        L("　价格", "　Price")
+        + "".join(f"　{names[c]}" for c in cols)
+        + L(f"　{side}　信誉", f"　{side}　Rep")
+    )
     for o, r in zip(chunk, rows_t):
         user = o.get("user", {}) or {}
         cells = [f"{o['platinum']}p", *[r[c] for c in cols], str(user.get("ingame_name", "?"))]
@@ -3274,6 +4438,90 @@ def _is_melee_weapon(riven_type: str = "", group: str = "") -> bool:
     return RA.weapon_class(riven_type, group) == "melee"
 
 
+# 紫卡词条标准 id → 游戏内英文名（英文模式用；与 parser.RIVEN_STAT_ZH 同一套 id）。
+# 写法取 DE 英文客户端卡面与 WM attributes 的英文名；4 个已在
+# parser.RIVEN_STAT_EN_DISPLAY 登记的以那边为准。个别新词条的英文卡面写法待实卡复核。
+_RIVEN_STAT_EN = {
+    "gas_damage": "Gas",
+    "corrosive_damage": "Corrosive",
+    "viral_damage": "Viral",
+    "radiation_damage": "Radiation",
+    "blast_damage": "Blast",
+    "magnetic_damage": "Magnetic",
+    "damage_vs_orokin": "Damage to Orokin",
+    "damage_vs_scaldra": "Damage to Scaldra",
+    "damage_vs_techrot": "Damage to Techrot",
+    "weakpoint_damage": "Weak Point Damage",
+    "weakpoint_crit_chance": "Weak Point Critical Chance",
+    "status_damage": "Status Damage",
+    "ammo_efficiency": "Ammo Efficiency",
+    "reload_holstered": "Magazine Reloaded/s when Holstered",
+    "melee_heavy_attack_damage": "Melee Damage on Heavy Attack",
+    "melee_heavy_attack_charge": "Heavy Attack Wind Up Speed",
+    "melee_parry_angle": "Parry Angle",
+    "melee_slam_damage": "Slam Attack Damage",
+    "melee_damage": "Melee Damage",
+    "damage": "Damage",
+    "crit_chance": "Critical Chance",
+    "crit_damage": "Critical Damage",
+    "multishot": "Multishot",
+    "attack_speed": "Attack Speed",
+    "fire_rate": "Fire Rate",
+    "status_chance": "Status Chance",
+    "status_duration": "Status Duration",
+    "range": "Range",
+    "initial_combo": "Initial Combo",
+    "combo_duration": "Combo Duration",
+    "heavy_attack_efficiency": "Heavy Attack Efficiency",
+    "finisher_damage": "Finisher Damage",
+    "slide_crit": "Critical Chance for Slide Attack",
+    "slash_damage": "Slash",
+    "impact_damage": "Impact",
+    "puncture_damage": "Puncture",
+    "heat_damage": "Heat",
+    "cold_damage": "Cold",
+    "toxin_damage": "Toxin",
+    "electric_damage": "Electricity",
+    "damage_vs_grineer": "Damage to Grineer",
+    "damage_vs_corpus": "Damage to Corpus",
+    "damage_vs_infested": "Damage to Infested",
+    "magazine_capacity": "Magazine Capacity",
+    "ammo_max": "Ammo Maximum",
+    "projectile_speed": "Projectile Speed",
+    "punch_through": "Punch Through",
+    "reload_speed": "Reload Speed",
+    "recoil": "Weapon Recoil",
+    "zoom": "Zoom",
+    "extra_combo_count": "Additional Combo Count Chance",
+    "combo_gain_chance": "Chance to Gain Combo Count",
+}
+
+
+def _riven_stat_sid(url_name: str, riven_type: str = "", group: str = "") -> str:
+    """拍卖词条 url_name → 标准词条 id（合并名按武器类别消歧射速 / 攻速）。"""
+    from .parser import RIVEN_URL_COMPAT
+
+    to_canon = {v: k for k, v in RIVEN_URL_COMPAT.items()}
+    canon = to_canon.get(url_name, url_name)
+    if canon == "fire_rate" and _is_melee_weapon(riven_type, group):
+        canon = "attack_speed"
+    return canon
+
+
+def _riven_stat_en(sid: str, fallback: str = "", riven_type: str = "", group: str = "") -> str:
+    """标准词条 id → 游戏内英文名；查不到用 slug 的 Title Case。"""
+    from .parser import RIVEN_STAT_EN_DISPLAY
+
+    if sid == "melee_damage" and fallback == "base_damage_/_melee_damage":
+        # WM 合并 slug：枪械是 Damage，近战是 Melee Damage
+        return "Melee Damage" if _is_melee_weapon(riven_type, group) else "Damage"
+    if sid in RIVEN_STAT_EN_DISPLAY:
+        return RIVEN_STAT_EN_DISPLAY[sid][0]
+    if sid in _RIVEN_STAT_EN:
+        return _RIVEN_STAT_EN[sid]
+    return (fallback or sid).replace("_", " ").title()
+
+
 def _riven_stat_cn(url_name: str, riven_type: str = "", group: str = "") -> str:
     """拍卖词条 url_name -> 中文名（合并名/标准名都处理）。
 
@@ -3282,12 +4530,11 @@ def _riven_stat_cn(url_name: str, riven_type: str = "", group: str = "") -> str:
     必须用武器类别消歧：近战 → 攻速，其余 → 射速。
     2026-09-14 玩家报障：「翁（Okina，匕首）紫卡里怎么会有射速」。
     """
-    from .parser import RIVEN_STAT_ZH, RIVEN_URL_COMPAT
+    from .parser import RIVEN_STAT_ZH
 
-    to_canon = {v: k for k, v in RIVEN_URL_COMPAT.items()}
-    canon = to_canon.get(url_name, url_name)
-    if canon == "fire_rate" and _is_melee_weapon(riven_type, group):
-        canon = "attack_speed"
+    canon = _riven_stat_sid(url_name, riven_type, group)
+    if i18n.is_en():
+        return _riven_stat_en(canon, url_name, riven_type, group)
     return RIVEN_STAT_ZH.get(canon, url_name.replace("_", " "))
 
 
@@ -3374,28 +4621,38 @@ def fmt_wr_auctions(
     pages = max(1, (total + page_size - 1) // page_size)
     page = max(1, min(page, pages))
     chunk = pool[(page - 1) * page_size : page * page_size]
-    title = f"{weapon} 紫卡拍卖（第{page}/{pages}页，共{total}条）"
+    title = L(
+        f"{weapon} 紫卡拍卖（第{page}/{pages}页，共{total}条）",
+        f"{weapon} Riven Auctions (Page {page}/{pages}, {total} total)",
+    )
     # ★ 2026-10-08：空池必须明说「没有挂单」；2026-10-11 卡片化为「原因 + 怎么改」。
     if not pool:
         return (
             title,
             [
-                "◆ 原因：没有符合条件的紫卡挂单",
-                "※ ⚠ 怎么改：放宽词条 / 洗数 / 价格上限等筛选词重发；或去掉筛选只发「wr 武器名」",
+                L("◆ 原因：没有符合条件的紫卡挂单", "◆ Reason: No matching riven listings"),
+                L(
+                    "※ ⚠ 怎么改：放宽词条 / 洗数 / 价格上限等筛选词重发；或去掉筛选只发「wr 武器名」",
+                    "※ ⚠ Fix: loosen the stat / reroll / price-cap filters and resend, "
+                    'or drop the filters and send just "wr <weapon>"',
+                ),
             ],
             None,
         )
-    status_name = {"ingame": "在线", "online": "网页在线", "offline": "离线"}
+    status_name = _status_names()
     online_n = sum(1 for a in pool if status_of(a) in ("ingame", "online"))
     _bos = [a for a in pool if a.get("buyout_price") and status_of(a) in ("ingame", "online")]
-    _lab = "在线最低一口价"
+    _lab = L("在线最低一口价", "Lowest online buyout")
     if not _bos:
-        _bos, _lab = [a for a in pool if a.get("buyout_price")], "最低一口价（均离线）"
+        _bos = [a for a in pool if a.get("buyout_price")]
+        _lab = L("最低一口价（均离线）", "Lowest buyout (all offline)")
     _kv = []
     if _bos:
         _kv.append(f"{int(min(a['buyout_price'] for a in _bos))}p")
-    _kv.append(f"在线 {online_n} 条（共 {total} 条）")
-    lines = [f"◆ {_lab if _bos else '在线挂单'}：" + "｜".join(_kv)]
+    _kv.append(L(f"在线 {online_n} 条（共 {total} 条）", f"{online_n} online ({total} total)"))
+    lines = [
+        f"◆ {_lab if _bos else L('在线挂单', 'Online listings')}" + L("：", ": ") + "｜".join(_kv)
+    ]
 
     # —— 明细行：整页全相同的列不写（相同的值并进区块标题）——
     recs = []
@@ -3405,6 +4662,20 @@ def fmt_wr_auctions(
         attrs = []
         for at in item.get("attributes") or []:
             mark = "▲" if at.get("positive") else "▼"
+            if i18n.is_en():
+                # 英文卡面写法：▲Critical Chance +120.5%（带符号与单位）
+                from . import riven_analysis as _RA
+
+                _sid = _riven_stat_sid(at.get("url_name", ""), riven_type, group)
+                _val = at.get("value", 0) or 0
+                # 符号按正负面标记定，不看 WM 数值本身的正负（负面词条的数值可能存成正数）；
+                # 反转词条（如后坐力）正面是减少，所以写 "-"
+                _plus = bool(at.get("positive")) != bool(_RA.is_inverted(_sid))
+                attrs.append(
+                    f"{mark}{_riven_stat_cn(at.get('url_name', ''), riven_type, group)} "
+                    f"{'+' if _plus else '-'}{_RA.fmt_value(_sid, abs(_val))}"
+                )
+                continue
             attrs.append(
                 f"{mark}"
                 f"{_riven_stat_cn(at.get('url_name', ''), riven_type, group)}"
@@ -3418,11 +4689,18 @@ def fmt_wr_auctions(
         _bo, _st = a.get("buyout_price"), a.get("starting_price") or 0
         recs.append(
             {
-                "price": f"{int(_bo)}p" if _bo else (f"∞（起拍价 {int(_st)}p）" if _st else "∞"),
-                "state": status_name.get(owner.get("status"), "离线"),
+                "price": f"{int(_bo)}p"
+                if _bo
+                else (L(f"∞（起拍价 {int(_st)}p）", f"∞ (starting {int(_st)}p)") if _st else "∞"),
+                "state": status_name.get(owner.get("status"), L("离线", "Offline")),
                 "who": str(owner.get("ingame_name", "?")),
-                "roll": f"洗{_riven_rolls(a)}次",
-                "lv": f"{rank}/{rank_max}级" if rank is not None else "",
+                "roll": L(
+                    f"洗{_riven_rolls(a)}次",
+                    f"{_riven_rolls(a)} Reroll" + ("" if _riven_rolls(a) == 1 else "s"),
+                ),
+                "lv": L(f"{rank}/{rank_max}级", f"Rank {rank}/{rank_max}")
+                if rank is not None
+                else "",
                 "rep": _rep_txt(owner.get("reputation")),
                 "age": age_of(a),
                 "attrs": attrs,
@@ -3430,32 +4708,54 @@ def fmt_wr_auctions(
         )
     shared: list[str] = []
     cols: list[str] = []
-    for key, name in (("state", "状态"), ("roll", "洗数"), ("lv", "等级")):
+    for key in ("state", "roll", "lv"):
         vals = {r[key] for r in recs}
         if len(vals) > 1:
             cols.append(key)
         elif key in ("roll", "lv") and next(iter(vals)):
             shared.append(next(iter(vals)))
     state = "" if "state" in cols else recs[0]["state"]
-    sec = f"◆ {state}挂单" + "".join(f" · {x}" for x in shared)
-    _exact = " → 完全命中词条优先" if exact_ids else ""
-    sec += (
-        f"（一口价在前{_exact}，价格升序）"
-        if state
-        else f"（一口价在前，在线优先{_exact}，价格升序）"
-    )
+    if i18n.is_en():
+        sec = f"◆ {state + ' ' if state else ''}Listings" + "".join(f" · {x}" for x in shared)
+        _exact = " → exact stat matches first" if exact_ids else ""
+        sec += (
+            f" (buyout first{_exact}, price ascending)"
+            if state
+            else f" (buyout first, online first{_exact}, price ascending)"
+        )
+    else:
+        sec = f"◆ {state}挂单" + "".join(f" · {x}" for x in shared)
+        _exact = " → 完全命中词条优先" if exact_ids else ""
+        sec += (
+            f"（一口价在前{_exact}，价格升序）"
+            if state
+            else f"（一口价在前，在线优先{_exact}，价格升序）"
+        )
     lines.append(sec)
-    hdr = {"state": "状态", "roll": "洗数", "lv": "等级"}
-    lines.append("　一口价" + "".join(f"　{hdr[c]}" for c in cols) + "　卖家　信誉")
+    hdr = {
+        "state": L("状态", "Status"),
+        "roll": L("洗数", "Rerolls"),
+        "lv": L("等级", "Rank"),
+    }
+    lines.append(
+        L("　一口价", "　Buyout")
+        + "".join(f"　{hdr[c]}" for c in cols)
+        + L("　卖家　信誉", "　Seller　Rep")
+    )
     for r in recs:
         cells = [r["price"], *[r[c] for c in cols], r["who"], r["rep"]]
         row = "· " + "　".join(cells).rstrip("　")
         if r["age"]:  # 行尾「上架 Nh」由渲染层抽成右对齐时间列
-            row += f"　上架{r['age']}"
+            row += L(f"　上架{r['age']}", f"　Listed {r['age']}")
         lines.append(row)
         if r["attrs"]:
             lines.append("　" + "　".join(r["attrs"][:6]))
-    lines.append("※ ▲正面词条（同色）· ▼负面词条（红色）")
+    lines.append(
+        L(
+            "※ ▲正面词条（同色）· ▼负面词条（红色）",
+            "※ ▲Positive stats (same color) · ▼Negative stats (red)",
+        )
+    )
     best = pool[0] if pool else None
     return (title, lines, best)
 
@@ -3464,6 +4764,13 @@ _DUCAT_TIER = {
     "金": {"name": "金垃圾（稀有部件 100 杜卡德）", "values": (100,)},
     "银": {"name": "银垃圾（非稀有部件 45-65 杜卡德）", "values": (45, 65)},
     "铜": {"name": "铜垃圾（常见部件 15-25 杜卡德）", "values": (15, 25)},
+}
+
+
+_DUCAT_TIER_NAME_EN = {
+    "金": "Gold Parts (Rare parts, 100 Ducats)",
+    "银": "Silver Parts (non-Rare parts, 45-65 Ducats)",
+    "铜": "Bronze Parts (Common parts, 15-25 Ducats)",
 }
 
 
@@ -3486,21 +4793,50 @@ def fmt_ducat_junk(
         ``(标题, 行列表)``。
     """
     S = "　"
-    name = _DUCAT_TIER.get(tier, {}).get("name", f"{tier}垃圾")
+    if i18n.is_en():
+        name = _DUCAT_TIER_NAME_EN.get(tier, f"{tier} Parts (Ducats)")
+    else:
+        name = _DUCAT_TIER.get(tier, {}).get("name", f"{tier}垃圾")
     if not rows:
-        return (name, ["◆ 榜单：当前取不到杜卡德榜单（WM tools/ducats 不可用）"])
-    head = f"◆ 榜单：共 {total or len(rows)} 件"
+        return (
+            name,
+            [
+                L(
+                    "◆ 榜单：当前取不到杜卡德榜单（WM tools/ducats 不可用）",
+                    "◆ Rankings: Ducat rankings unavailable right now (WM tools/ducats unreachable)",
+                )
+            ],
+        )
+    head = L(f"◆ 榜单：共 {total or len(rows)} 件", f"◆ Rankings: {total or len(rows)} parts")
     if pages > 1:
-        head += f"（第 {page}/{pages} 页，加 -2 / -3 翻页）"
-    lines = [head, "◆ 杜/p 排行", f"{S}序{S}部件{S}杜卡德{S}白金{S}杜/p"]
+        head += L(
+            f"（第 {page}/{pages} 页，加 -2 / -3 翻页）",
+            f" (Page {page}/{pages}, add -2 / -3 to flip pages)",
+        )
+    lines = [
+        head,
+        L("◆ 杜/p 排行", "◆ Ducats per Platinum"),
+        L(f"{S}序{S}部件{S}杜卡德{S}白金{S}杜/p", f"{S}#{S}Part{S}Ducats{S}Plat{S}D/p"),
+    ]
     for i, r in enumerate(rows, (page - 1) * len(rows) + 1 if pages else 1):
         lines.append(
-            f"· {i}{S}{r['name']}{S}{r['ducats']}杜{S}{r['plat']:.0f}p{S}{r['dpp']:.1f}"
-            + (f"（加权 {r['dpp_wa']:.1f}）" if r.get("dpp_wa") else "")
+            L(
+                f"· {i}{S}{r['name']}{S}{r['ducats']}杜{S}{r['plat']:.0f}p{S}{r['dpp']:.1f}",
+                f"· {i}{S}{r['name']}{S}{r['ducats']} Ducats{S}{r['plat']:.0f}p{S}{r['dpp']:.1f}",
+            )
+            + (
+                L(f"（加权 {r['dpp_wa']:.1f}）", f" (weighted {r['dpp_wa']:.1f})")
+                if r.get("dpp_wa")
+                else ""
+            )
         )
     lines.append(
-        "※ 杜/p = 每 1 白金能换到多少杜卡德，越高越值得买来换；"
-        "数据源 warframe.market/tools/ducats（与官网杜卡德计算器同源）"
+        L(
+            "※ 杜/p = 每 1 白金能换到多少杜卡德，越高越值得买来换；"
+            "数据源 warframe.market/tools/ducats（与官网杜卡德计算器同源）",
+            "※ D/p = Ducats you get per 1 Platinum; higher means a better buy-to-convert deal. "
+            "Source: warframe.market/tools/ducats (same as the official Ducat calculator)",
+        )
     )
     return (name, lines)
 
@@ -3523,7 +4859,27 @@ _RAILJACK_TYPE_CN = {
 }
 
 
+_RAILJACK_TYPE_EN = {
+    "skirmish": "Skirmish",
+    "volatile": "Volatile",
+    "spy": "Spy",
+    "survival": "Survival",
+    "extermination": "Exterminate",  # 与 DE 官方任务类型表一致
+    "defense": "Defense",
+    "sabotage": "Sabotage",
+    "assassinate": "Assassination",
+    "orphix": "Orphix",
+    "hijack": "Hijack",
+}
+
+
 _SPACE_SUFFIX = re.compile(r"比邻星域$")
+_SPACE_SUFFIX_EN = re.compile(r"\s*\([A-Za-z ]*Proxima\)$")
+
+
+def _space_node(name: str) -> str:
+    """虚空风暴节点名去掉「比邻星域」括注（英文为「(Earth Proxima)」）。"""
+    return (_SPACE_SUFFIX_EN if i18n.is_en() else _SPACE_SUFFIX).sub("", name)
 
 
 def fmt_void_storms(storms: Iterable[dict]) -> tuple[str, list[str]]:
@@ -3533,8 +4889,9 @@ def fmt_void_storms(storms: Iterable[dict]) -> tuple[str, list[str]]:
     更好扫读（旧版每行只有 ``节点｜类型｜T1｜剩0s``，12 行完全一样看不出重点）。
     """
     storms = list(storms or [])
+    title = L("九重天虚空风暴", "Void Storms")
     if not storms:
-        return ("九重天虚空风暴", ["当前没有可用的虚空风暴"])
+        return (title, [L("当前没有可用的虚空风暴", "No Void Storms available right now")])
     groups: dict[str, list] = {}
     for s in storms:
         groups.setdefault(s.get("tier") or "?", []).append(s)
@@ -3551,28 +4908,43 @@ def fmt_void_storms(storms: Iterable[dict]) -> tuple[str, list[str]]:
     ):
         cn = tier_cn({"T1": "Lith", "T2": "Meso", "T3": "Neo", "T4": "Axi"}.get(tier, tier))
         for s in groups[tier]:
-            node = _SPACE_SUFFIX.sub("", s.get("nodeCn") or "?")
-            mt = _RAILJACK_TYPE_CN.get(
-                (s.get("missionType") or "").lower(), s.get("missionType") or "?"
-            )
+            node = _space_node(s.get("nodeCn") or "?")
+            if i18n.is_en():
+                mt = _RAILJACK_TYPE_EN.get(
+                    (s.get("missionType") or "").lower(),
+                    (s.get("missionType") or "?").title(),
+                )
+            else:
+                mt = _RAILJACK_TYPE_CN.get(
+                    (s.get("missionType") or "").lower(), s.get("missionType") or "?"
+                )
             # ★ 2026-10-11：渲染时按 expiry **现算**（旧写法用解析时算好的 timeLeft 字符串，
             #   缓存 N 分钟后卡面仍是解析那一刻的剩余；格式也与全卡「X小时X分」不统一）
             left = (
                 countdown(s.get("expiry") or "") if s.get("expiry") else (s.get("timeLeft") or "?")
             )
             # 第二步改版：纪元走芯片列，不再按 T1..T4 分四个小区块（每块 2～4 行、各自一套列宽）
-            rows.append((s.get("expiry") or "", f"· [{cn}]{S}{node}{S}{mt}{S}剩{left}"))
+            rows.append((s.get("expiry") or "", f"· [{cn}]{S}{node}{S}{mt}{S}{_left(left, '剩')}"))
     soonest = min((r for r in storms if r.get("expiry")), key=lambda r: r["expiry"], default=None)
-    lines = [f"◆ 进行中：{len(storms)} 处"]
+    lines = [L(f"◆ 进行中：{len(storms)} 处", f"◆ Active: {len(storms)}")]
     if soonest is not None:
         lines.append(
-            f"◆ 最近到期：{_SPACE_SUFFIX.sub('', soonest.get('nodeCn') or '?')}{S}"
-            f"剩{countdown(soonest['expiry'])}"
+            L("◆ 最近到期：", "◆ Ends soonest: ")
+            + f"{_space_node(soonest.get('nodeCn') or '?')}{S}"
+            + _left(countdown(soonest["expiry"]), "剩")
         )
-    lines += ["◆ 风暴列表", f"{S}纪元{S}节点{S}类型"]
+    lines += [
+        L("◆ 风暴列表", "◆ Storm List"),
+        L(f"{S}纪元{S}节点{S}类型", f"{S}Era{S}Node{S}Type"),
+    ]
     lines += [ln for _k, ln in rows]
-    lines.append("※ 航道星舰虚空风暴裂缝，可刷对应纪元遗物")
-    return ("九重天虚空风暴", lines)
+    lines.append(
+        L(
+            "※ 航道星舰虚空风暴裂缝，可刷对应纪元遗物",
+            "※ Railjack Void Storm fissures drop relics of the matching era",
+        )
+    )
+    return (title, lines)
 
 
 def fmt_events(events: Iterable[dict]) -> tuple[str, list[str]]:
@@ -3583,32 +4955,44 @@ def fmt_events(events: Iterable[dict]) -> tuple[str, list[str]]:
     """
     events = list(events or [])
     if not events:
-        return ("活动", ["当前没有进行中的限时活动"])
+        return (
+            L("活动", "Active Events"),
+            [L("当前没有进行中的限时活动", "No limited-time events running right now")],
+        )
     S = "　"
-    lines = [f"◆ 进行中：{len(events)} 项"]
+    lines = [L(f"◆ 进行中：{len(events)} 项", f"◆ Active: {len(events)}")]
     for e in events:
         lines.append(f"◆ {e.get('name')}")
         if e.get("node"):
-            lines.append(f"· 地点{S}{e['node']}")
+            lines.append(L(f"· 地点{S}{e['node']}", f"· Location{S}{e['node']}"))
         if e.get("ended"):
-            lines.append(f"· 时限{S}已结束（结算宽限期）")
+            lines.append(
+                L(f"· 时限{S}已结束（结算宽限期）", f"· Time Limit{S}Ended (grace period)")
+            )
         else:
             # ★ 2026-10-11：按 expiry 现算（旧：解析时的 timeLeft「254h 56m」）
             left = countdown(e.get("expiry") or "") if e.get("expiry") else e.get("timeLeft")
-            lines.append(f"· 时限{S}剩{left}")
+            lines.append(L(f"· 时限{S}", f"· Time Limit{S}") + _left(str(left), "剩"))
         if e.get("count") is not None and e.get("goal"):
             try:
                 pct = int(e["count"]) / max(1, int(e["goal"])) * 100
-                lines.append(f"· 进度{S}{e['count']}/{e['goal']}（{pct:.0f}%）")
+                lines.append(
+                    L(
+                        f"· 进度{S}{e['count']}/{e['goal']}（{pct:.0f}%）",
+                        f"· Progress{S}{e['count']}/{e['goal']} ({pct:.0f}%)",
+                    )
+                )
             except (TypeError, ValueError, ZeroDivisionError):
-                lines.append(f"· 进度{S}{e.get('count')}/{e.get('goal')}")
-        if e.get("desc") and _HAS_CJK.search(e["desc"]):
+                lines.append(
+                    L(f"· 进度{S}", f"· Progress{S}") + f"{e.get('count')}/{e.get('goal')}"
+                )
+        if e.get("desc") and (i18n.is_en() or _HAS_CJK.search(e["desc"])):
             # 官方简中缺失时 desc 会是英文长句（如 "Seal fractures across…"），
-            # 中文卡片里塞英文只会更乱 —— 只在拿到中文说明时才展示。
-            lines.append(f"· 说明{S}{e['desc']}")
+            # 中文卡片里塞英文只会更乱 —— 只在拿到中文说明时才展示。英文模式照常展示。
+            lines.append(L(f"· 说明{S}", f"· Info{S}") + f"{e['desc']}")
         if e.get("rewards"):
-            lines.append(f"· 奖励{S}" + "、".join(e["rewards"][:8]))
-    return ("进行中的活动", lines)
+            lines.append(L(f"· 奖励{S}", f"· Rewards{S}") + L("、", ", ").join(e["rewards"][:8]))
+    return (L("进行中的活动", "Active Events"), lines)
 
 
 # 武形秘仪（Conclave）声望来源（wiki.warframe.com/w/Conclave）：
@@ -3620,24 +5004,31 @@ PVP_STANDING_NOTE = (
     "※ 声望：每周三项全完成得 50,000（另附站内信奖励）；"
     "每日挑战 500/1,500/3,000 声望，高级(Focused) 6,000"
 )
+_PVP_STANDING_NOTE_EN = (
+    "※ Standing: completing all three weekly challenges gives 50,000 (plus inbox rewards); "
+    "daily challenges give 500/1,500/3,000, Focused challenges 6,000"
+)
 
 
 def fmt_conclave(challenges: Iterable[dict]) -> tuple[str, list[str]]:
     """武形秘仪（Conclave）每日/每周挑战 + 声望来源说明。"""
     challenges = list(challenges or [])
     if not challenges:
-        return ("武形秘仪", ["◆ 状态：当前没有可用的武形秘仪挑战"])
+        return (
+            L("武形秘仪", "Conclave"),
+            [L("◆ 状态：当前没有可用的武形秘仪挑战", "◆ Status: No Conclave challenges available")],
+        )
     lines = []
     cur = None
     for c in challenges:
         if c.get("cat") != cur:
             cur = c.get("cat")
-            lines.append(f"◆ {cur}挑战")
-            lines.append("　模式　挑战")
+            lines.append(L(f"◆ {cur}挑战", f"◆ {cur} Challenges"))
+            lines.append(L("　模式　挑战", "　Mode　Challenge"))
         val = f" ×{c['value']}" if c.get("value") else ""
         lines.append(f"· {str(c.get('mode')).replace('　', ' ')}　{c.get('text')}{val}")
-    lines.append(PVP_STANDING_NOTE)
-    return ("武形秘仪挑战（Conclave）", lines)
+    lines.append(L(PVP_STANDING_NOTE, _PVP_STANDING_NOTE_EN))
+    return (L("武形秘仪挑战（Conclave）", "Conclave Challenges"), lines)
 
 
 def _vault_left(data: dict) -> str:
@@ -3651,22 +5042,50 @@ def _vault_unnamed_note(data: dict) -> list[str]:
     n = len(data.get("unnamed") or [])
     if not n:
         return []
-    return [f"※ {n} 件官方简中词表未收录，按资产路径显示（标「未收录」）"]
+    return [
+        L(
+            f"※ {n} 件官方简中词表未收录，按资产路径显示（标「未收录」）",
+            f'※ {n} item(s) missing from the official name list, shown by asset path (marked "unlisted")',
+        )
+    ]
+
+
+def _vault_currency(it: dict) -> str:
+    """阿耶商店的兑换货币名：御品阿耶 / 阿耶精华（英文 Regal Aya / Aya）。"""
+    if it.get("prime_currency", True):
+        return L("御品阿耶", "Regal Aya")
+    return L("阿耶精华", "Aya")
 
 
 def _vault_head(data: dict, with_empty_hint: bool = False) -> list[str]:
     """出库 / 阿耶两张卡共用的卡首：本期剩余 + 下一期（均为「◆ 标签：值」答案行）。"""
-    lines = [f"◆ 本期剩余：剩余 {_vault_left(data)}"]
+    _left_v = _vault_left(data)
+    lines = [L(f"◆ 本期剩余：剩余 {_left_v}", f"◆ Current rotation: {_left_en(_left_v)}")]
     if data.get("next"):
-        lines.append(f"◆ 下一期：{data['next']}｜{countdown(data.get('next_expiry', ''))} 后开启")
+        _cd = countdown(data.get("next_expiry", ""))
+        lines.append(
+            L(
+                f"◆ 下一期：{data['next']}｜{_cd} 后开启",
+                f"◆ Next rotation: {data['next']}｜opens {_in_en(_cd)}",
+            )
+        )
     elif data.get("next_unannounced"):
         # DE 给了下一轮的时间点、但没公布内容（FeaturedItem 为空串）
+        _cd = countdown(data.get("next_open", ""))
         lines.append(
-            f"◆ 下一期：内容 DE 尚未公布｜下一轮 {countdown(data.get('next_open', ''))} 后开启"
+            L(
+                f"◆ 下一期：内容 DE 尚未公布｜下一轮 {_cd} 后开启",
+                f"◆ Next rotation: contents not yet announced by DE｜next round opens {_in_en(_cd)}",
+            )
         )
     elif with_empty_hint:
         # 排期表里没有更多数据时明说，别留空标题让用户以为插件坏了
-        lines.append("◆ 下一期：排期 DE 尚未下发（只公布到当前期）")
+        lines.append(
+            L(
+                "◆ 下一期：排期 DE 尚未下发（只公布到当前期）",
+                "◆ Next rotation: schedule not yet released by DE (only the current rotation is published)",
+            )
+        )
     return lines
 
 
@@ -3684,31 +5103,42 @@ def fmt_prime_vault(
         ``(标题含页码, 行列表)``。
     """
     if not data or not (data.get("items") or data.get("evergreen")):
-        return ("御品阿耶精华", ["数据暂不可用"])
+        return (
+            L("御品阿耶精华", "Prime Resurgence"),
+            [L("数据暂不可用", "Data temporarily unavailable")],
+        )
     lines = _vault_head(data, with_empty_hint=True)
 
     S = "　"
 
     def _line(tag: str, it: dict) -> str:
-        cur = "御品阿耶" if it.get("prime_currency", True) else "阿耶精华"
+        cur = _vault_currency(it)
         return f"· [{tag}]{S}{it['name']}{S}{it.get('prime', 1)} {cur}"
 
-    rows = [_line("本期", it) for it in (data.get("items") or [])] + [
-        _line("常驻", it) for it in (data.get("evergreen") or [])
+    rows = [_line(L("本期", "Current"), it) for it in (data.get("items") or [])] + [
+        _line(L("常驻", "Permanent"), it) for it in (data.get("evergreen") or [])
     ]
     if rows:
         total = len(rows)
         pages = max(1, (total + page_size - 1) // page_size)
         page = max(1, min(page, pages))
         lines.append(
-            f"◆ 可兑换：本期 {len(data.get('items') or [])} + "
-            f"常驻 {len(data.get('evergreen') or [])}，共 {total} 项"
-            + (f"（第 {page}/{pages} 页，加 -2 / -3 翻页）" if pages > 1 else "")
+            L(
+                f"◆ 可兑换：本期 {len(data.get('items') or [])} + "
+                f"常驻 {len(data.get('evergreen') or [])}，共 {total} 项"
+                + (f"（第 {page}/{pages} 页，加 -2 / -3 翻页）" if pages > 1 else ""),
+                f"◆ Redeemable: {len(data.get('items') or [])} current + "
+                f"{len(data.get('evergreen') or [])} permanent, {total} total"
+                + (f" (Page {page}/{pages}, add -2 / -3 to flip pages)" if pages > 1 else ""),
+            )
         )
-        lines += ["◆ 兑换列表", f"{S}类别{S}名称{S}价格"]
+        lines += [
+            L("◆ 兑换列表", "◆ Redemption List"),
+            L(f"{S}类别{S}名称{S}价格", f"{S}Type{S}Name{S}Price"),
+        ]
         lines += rows[(page - 1) * page_size : page * page_size]
     lines += _vault_unnamed_note(data)
-    return ("御品阿耶精华 / Prime 重生", lines)
+    return (L("御品阿耶精华 / Prime 重生", "Prime Resurgence (Varzia)"), lines)
 
 
 # ★ 2026-10-16 部件按**杜卡德价值**金 / 银 / 铜三色（渲染层 render._SPAN_COLORS 的 g / s / b）：
@@ -3736,6 +5166,8 @@ def _vault_relic_order(name: str) -> tuple:
     """出库遗物排序：古纪 → 前纪 → 中纪 → 后纪（→ 安魂 / 全能），同档按代号自然序。"""
     cn = relic_cn(name)
     tier = cn.split(" ")[0] if " " in cn else ""
+    if tier in _RELIC_TIER_EN2CN:  # 英文模式 relic_cn 给的是 Lith A1
+        tier = _RELIC_TIER_EN2CN[tier]
     rank = _RELIC_CN_TIERS.index(tier) if tier in _RELIC_CN_TIERS else 99
     return (rank, _relic_sort_key(cn.split(" ")[-1]) if " " in cn else (9, cn, 0))
 
@@ -3746,6 +5178,11 @@ _VAULT_GROUPS: tuple[tuple[str, str], ...] = (
     ("weapon", "Prime 武器"),
     ("sentinel", "Prime 守护与守护武器"),
 )
+_VAULT_GROUPS_EN = {
+    "frame": "Prime Warframes",
+    "weapon": "Prime Weapons",
+    "sentinel": "Prime Companions & Companion Weapons",
+}
 
 
 def fmt_prime_vault_list(
@@ -3760,7 +5197,10 @@ def fmt_prime_vault_list(
     此前两者输出完全一样，玩家反馈「出库指令和阿耶指令为什么是一样的」。
     """
     if not data:
-        return ("Prime 出库清单", ["数据暂不可用"])
+        return (
+            L("Prime 出库清单", "Prime Vault List"),
+            [L("数据暂不可用", "Data temporarily unavailable")],
+        )
     items = list(data.get("items") or [])
     lines = _vault_head(data)
 
@@ -3769,7 +5209,7 @@ def fmt_prime_vault_list(
         group = [it for it in items if it.get("kind") == kind]
         if not group:
             continue
-        lines.append(f"◆ {label}（{len(group)}）")
+        lines.append(L(f"◆ {label}（{len(group)}）", f"◆ {_VAULT_GROUPS_EN[kind]} ({len(group)})"))
         lines += [f"· {it['name']}" for it in group]
 
     # ★ 2026-10-16：本期出库遗物 + 每个遗物的全部部件（稀有 → 罕见 → 常见，对应金 / 银 / 铜）。
@@ -3779,54 +5219,109 @@ def fmt_prime_vault_list(
         key=lambda it: _vault_relic_order(it["name"]),
     )
     if relics:
-        lines.append(f"◆ 出库遗物（{len(relics)}，瓦奇娅处用阿耶精华兑换）")
+        lines.append(
+            L(
+                f"◆ 出库遗物（{len(relics)}，瓦奇娅处用阿耶精华兑换）",
+                f"◆ Vaulted Relics ({len(relics)}, buy with Aya from Varzia)",
+            )
+        )
         for it in relics:
-            cur = "御品阿耶" if it.get("prime_currency", True) else "阿耶精华"
+            cur = _vault_currency(it)
             lines.append(f"◆ {relic_cn(it['name'])}　{it.get('prime', 1)} {cur}")
             rw = (relic_parts or {}).get(it["name"]) or {}
-            rows = [(tag, rw.get(tag) or []) for tag in ("稀有", "罕见", "常见")]
-            rows = [(tag, parts) for tag, parts in rows if parts]
+            rows = [
+                (tag, tag_en, rw.get(tag) or [])
+                for tag, tag_en in (("稀有", "Rare"), ("罕见", "Uncommon"), ("常见", "Common"))
+            ]
+            rows = [(tag, tag_en, parts) for tag, tag_en, parts in rows if parts]
             if rows:
                 lines += [
-                    f"· {tag}　"
-                    + "、".join(ducat_span(ducats_of(prices, str(x)), str(x)) for x in parts)
-                    for tag, parts in rows
+                    f"· {L(tag, tag_en)}　"
+                    + L("、", ", ").join(
+                        ducat_span(ducats_of(prices, str(x)), str(x)) for x in parts
+                    )
+                    for tag, tag_en, parts in rows
                 ]
             else:
-                lines.append("· 部件　遗物表未收录（发「遗物 名称」查询）")
+                lines.append(
+                    L(
+                        "· 部件　遗物表未收录（发「遗物 名称」查询）",
+                        '· Parts　Not in the relic table (send "relic <name>" to look up)',
+                    )
+                )
     other = [it for it in items if it.get("kind") not in known and it.get("kind") != "relic"]
     if other:
-        names = "、".join(it["name"] for it in other[:3])
-        more = f" 等 {len(other)} 件" if len(other) > 3 else ""
+        names = L("、", ", ").join(it["name"] for it in other[:3])
+        more = (
+            L(f" 等 {len(other)} 件", f" and {len(other)} items in total") if len(other) > 3 else ""
+        )
         lines.append(
-            f"※ 另有装饰 / 组合包：{names}{more}（不能用遗物刷取；发「阿耶」看带价格的完整兑换表）"
+            L(
+                f"※ 另有装饰 / 组合包：{names}{more}（不能用遗物刷取；发「阿耶」看带价格的完整兑换表）",
+                f'※ Also decor / bundles: {names}{more} (not obtainable from relics; send "varzia" for the full priced list)',
+            )
         )
     if not items:
-        lines.append("◆ 出库：本期没有出库的 Prime 道具")
+        lines.append(
+            L(
+                "◆ 出库：本期没有出库的 Prime 道具",
+                "◆ Vault: no Prime items leaving the vault this rotation",
+            )
+        )
     lines.append(
-        "※ 战甲 / 武器 / 守护为整套名；遗物部件取自遗物掉落表快照，单件出处发「遗物 名称」查询"
+        L(
+            "※ 战甲 / 武器 / 守护为整套名；遗物部件取自遗物掉落表快照，单件出处发「遗物 名称」查询",
+            '※ Warframes / weapons / companions are full-set names; relic parts come from a drop-table snapshot, send "relic <name>" for a single part',
+        )
         if relics
-        else "※ 均为整套（不含部件）；部件与出处发「遗物 名称」查询"
+        else L(
+            "※ 均为整套（不含部件）；部件与出处发「遗物 名称」查询",
+            '※ Full sets only (no parts); send "relic <name>" for parts and sources',
+        )
     )
     lines += _vault_unnamed_note(
-        {"unnamed": [it["name"] for it in items if "（未收录）" in it["name"]]}
+        {
+            "unnamed": [
+                it["name"]
+                for it in items
+                if "（未收录）" in it["name"] or "(unlisted)" in it["name"]
+            ]
+        }
     )
-    return ("Prime 出库清单（本期）", lines)
+    return (L("Prime 出库清单（本期）", "Prime Vault List (Current)"), lines)
 
 
 def fmt_clan_rewards(rewards: Iterable[dict]) -> tuple[str, list[str]]:
     """每周氏族组队奖励。"""
     rewards = list(rewards or [])
     if not rewards:
-        return ("氏族组队奖励", ["◆ 状态：本周暂无可用的氏族组队奖励"])
+        return (
+            L("氏族组队奖励", "Clan Rewards"),
+            [
+                L(
+                    "◆ 状态：本周暂无可用的氏族组队奖励",
+                    "◆ Status: No clan team rewards available this week",
+                )
+            ],
+        )
     lines = []
     for w in rewards:
-        lines.append(f"◆ {w.get('region')}（第 {w.get('week')} 周）")
-        lines.append("　积分　奖励")
+        lines.append(
+            L(
+                f"◆ {w.get('region')}（第 {w.get('week')} 周）",
+                f"◆ {w.get('region')} (Week {w.get('week')})",
+            )
+        )
+        lines.append(L("　积分　奖励", "　Points　Reward"))
         for r in w.get("rewards") or []:
             cnt = f" ×{r['count']}" if r.get("count") else ""
-            lines.append(f"· {r.get('points')} 分　{str(r.get('name')).replace('　', ' ')}{cnt}")
-    return ("每周氏族组队奖励", lines)
+            lines.append(
+                L(
+                    f"· {r.get('points')} 分　{str(r.get('name')).replace('　', ' ')}{cnt}",
+                    f"· {r.get('points')} pts　{str(r.get('name')).replace('　', ' ')}{cnt}",
+                )
+            )
+    return (L("每周氏族组队奖励", "Weekly Clan Rewards"), lines)
 
 
 def fmt_flash_sales(
@@ -3844,31 +5339,67 @@ def fmt_flash_sales(
     """
     sales = list(sales or [])
     if not sales:
-        return ("商城在售礼包", ["◆ 状态：当前没有在售的限时礼包"])
+        return (
+            L("商城在售礼包", "Flash Sales"),
+            [L("◆ 状态：当前没有在售的限时礼包", "◆ Status: No limited-time bundles on sale")],
+        )
     total = len(sales)
     pages = max(1, (total + page_size - 1) // page_size)
     page = max(1, min(page, pages))
     chunk = sales[(page - 1) * page_size : page * page_size]
     n_long = sum(1 for s in sales if (s.get("end") or "")[:10] >= "2029")
     lines = [
-        f"◆ 在售礼包：共 {total} 项｜长期在售 {n_long} 项｜限时 {total - n_long} 项",
-        "◆ 礼包",
-        "　礼包　期限",
+        L(
+            f"◆ 在售礼包：共 {total} 项｜长期在售 {n_long} 项｜限时 {total - n_long} 项",
+            f"◆ On sale: {total} total｜{n_long} long-running｜{total - n_long} limited-time",
+        ),
+        L("◆ 礼包", "◆ Bundles"),
+        L("　礼包　期限", "　Bundle　Duration"),
     ]
     for s in chunk:
         end = (s.get("end") or "")[:10]
         long_run = end >= "2029"  # DE 用 2030 表示「长期在售」
-        tag = "长期在售" if long_run else (f"至 {end}" if end else "—")
+        tag = (
+            L("长期在售", "Long-running")
+            if long_run
+            else (L(f"至 {end}", f"Until {end}") if end else "—")
+        )
         lines.append(f"· {str(s.get('name')).replace('　', ' ')}　{tag}")
     if pages > 1:
-        lines.append(f"※ 第{page}/{pages}页，共{total}项；加 -2 / -3 翻页")
-    lines.append("※ DE 未提供礼包中文名时显示原名")
-    return ("游戏内商店在售礼包", lines)
+        lines.append(
+            L(
+                f"※ 第{page}/{pages}页，共{total}项；加 -2 / -3 翻页",
+                f"※ (Page {page}/{pages}, {total} total) add -2 / -3 to flip pages",
+            )
+        )
+    lines.append(L("※ DE 未提供礼包中文名时显示原名", "※ Bundle names are shown as provided by DE"))
+    return (L("游戏内商店在售礼包", "In-Game Store Flash Sales"), lines)
 
 
 # ---------------------------------------------------------------------------
 # 市场排行 / 趋势
 # ---------------------------------------------------------------------------
+
+
+def _item_name(r: dict) -> str:
+    """排行行的物品名：中文模式 zh 优先，英文模式 en 优先。"""
+    if i18n.is_en():
+        return r.get("en") or r.get("zh") or r.get("slug") or "?"
+    return r.get("zh") or r.get("en") or r["slug"]
+
+
+# 排行分类键（用户输入口径，别改）→ 英文分类名
+_RANK_CAT_EN = {
+    "甲": "Warframe",
+    "武器": "Weapon",
+    "卡": "MOD",
+    "部件": "Parts",
+    "赋能": "Arcane",
+    "主武": "Primary",
+    "副武": "Secondary",
+    "近战": "Melee",
+    "遗物": "Relic",
+}
 
 
 def _short_t(t: str, hourly: bool) -> str:
@@ -3881,7 +5412,7 @@ def _short_t(t: str, hourly: bool) -> str:
     if len(s) < 16:
         return s
     day = s[:10][5:]
-    return f"{day} {s[11:13]}时" if hourly else day
+    return L(f"{day} {s[11:13]}时", f"{day} {s[11:13]}h") if hourly else day
 
 
 # 图表行协议（见 core/render.py「图表行（§CHART）」一节）：格式层只产出**机器行**，
@@ -3938,6 +5469,10 @@ RANK_MIN_VOL48 = 3
 RANK_MIN_VOL_NOTE = (
     f"※ 48 小时成交不足 {RANK_MIN_VOL48} 笔的物品不进榜（防冷门物品的刷单 / RMT 过账价把榜单带偏）"
 )
+_RANK_MIN_VOL_NOTE_EN = (
+    f"※ Items with fewer than {RANK_MIN_VOL48} trades in 48h are left out "
+    "(keeps wash trades / RMT prices on obscure items from skewing the rankings)"
+)
 
 
 def _rank_has_price(r: dict) -> bool:
@@ -3953,7 +5488,11 @@ def fmt_rank_overview(rows: list[dict]) -> tuple[str, list[str]]:
 
     卡组在落盘时已只保留 0 级成交（维护者要求「全部可交易的 0 级卡片」）。
     """
-    groups = [("甲", "甲价格排行"), ("武器", "武器价格排行"), ("卡", "MOD卡价格排行")]
+    groups = [
+        ("甲", L("甲价格排行", "Warframe Price Ranking")),
+        ("武器", L("武器价格排行", "Weapon Price Ranking")),
+        ("卡", L("MOD卡价格排行", "MOD Price Ranking")),
+    ]
     lines: list[str] = []
     tops: list[str] = []  # 卡首答案：各榜榜首
     empty = True
@@ -3970,13 +5509,17 @@ def fmt_rank_overview(rows: list[dict]) -> tuple[str, list[str]]:
         # ◆ 行是 section（整行绘制、不参与列对齐），表头必须独立成行才能与
         # 数据列对齐
         lines.append(f"◆ {title}")
-        lines.append("　名称　当前价　最低　最高　上期中位")
-        tops.append(
-            f"{ {'甲': '甲', '武器': '武器', '卡': 'MOD卡'}[cat] } "
-            f"{sel[0].get('zh') or sel[0].get('en') or sel[0]['slug']} {_fmt_p(sel[0].get('median48'))}"
+        lines.append(
+            L("　名称　当前价　最低　最高　上期中位", "　Name　Current　Low　High　Prev Median")
         )
+        _tl = {
+            "甲": L("甲", "Warframes"),
+            "武器": L("武器", "Weapons"),
+            "卡": L("MOD卡", "MODs"),
+        }[cat]
+        tops.append(f"{_tl} {_item_name(sel[0])} {_fmt_p(sel[0].get('median48'))}")
         for r in sel:
-            name = r.get("zh") or r.get("en") or r["slug"]
+            name = _item_name(r)
             lines.append(
                 "· "
                 + "　".join(
@@ -3990,40 +5533,77 @@ def fmt_rank_overview(rows: list[dict]) -> tuple[str, list[str]]:
                 )
             )
     if empty:
-        return ("价格排行", ["暂无落盘数据，需管理员发「排行 刷新」建立全量榜单"])
+        return (
+            L("价格排行", "Price Rankings"),
+            [
+                L(
+                    "暂无落盘数据，需管理员发「排行 刷新」建立全量榜单",
+                    'No stored data yet; an admin must send "rank refresh" to build the full rankings',
+                )
+            ],
+        )
     # ★ 2026-10-03 口径注脚（选 A）：数据源 = statistics_closed 真实成交，
     #   不是 statistics_live 挂单价（第三方「加权平均价」实为后者，实测高 13~15%）。
-    lines.insert(0, "◆ 各榜榜首：" + "｜".join(tops))
+    lines.insert(0, L("◆ 各榜榜首：", "◆ Top of each list: ") + "｜".join(tops))
     lines.append(
-        "※ 主要物品的当前成交价；当前价=48h 成交中位（真实成交·非挂单价；挂单请看「wm 物品名」）"
+        L(
+            "※ 主要物品的当前成交价；当前价=48h 成交中位（真实成交·非挂单价；挂单请看「wm 物品名」）",
+            "※ Current trade prices of major items; Current = 48h median of completed trades "
+            '(real trades, not listing prices; see "wm <item>" for listings)',
+        )
     )
-    lines.append("※ 按当前价降序；最低/最高=48h 成交区间；上期中位=前一 48 小时成交中位")
-    lines.append("※ 完整 20 名榜单：「排行 甲/武器/卡/赋能/部件/主武/副武/近战/遗物」")
-    lines.append(RANK_MIN_VOL_NOTE)
-    return ("价格排行榜", lines)
+    lines.append(
+        L(
+            "※ 按当前价降序；最低/最高=48h 成交区间；上期中位=前一 48 小时成交中位",
+            "※ Sorted by current price, descending; Low/High = 48h trade range; "
+            "Prev Median = median of the previous 48 hours",
+        )
+    )
+    lines.append(
+        L(
+            "※ 完整 20 名榜单：「排行 甲/武器/卡/赋能/部件/主武/副武/近战/遗物」",
+            '※ Full top-20 lists: "rank warframe/weapon/mod/arcane/parts/primary/secondary/melee/relic"',
+        )
+    )
+    lines.append(L(RANK_MIN_VOL_NOTE, _RANK_MIN_VOL_NOTE_EN))
+    return (L("价格排行榜", "Price Rankings"), lines)
 
 
 def fmt_rank_table(category: str, rows: list[dict]) -> tuple[str, list[str]]:
     """分类价格榜：取 20 种按当前成交中位价降序。"""
     pred = _RANK_TAG_PRED.get(category)
+    cat_title = L(f"{category}价格排行", f"{_RANK_CAT_EN.get(category, category)} Price Rankings")
     if not pred:
-        return (f"{category}价格排行", [f"未知分类「{category}」"])
+        return (cat_title, [L(f"未知分类「{category}」", f'Unknown category "{category}"')])
     sel = sorted(
         [r for r in rows if pred(set(r.get("tags") or [])) and _rank_has_price(r)],
         key=_rank_sort_key,
         reverse=True,
     )[:20]
     if not sel:
-        return (f"{category}价格排行", ["该分类暂无成交数据（榜单未建立或物品无成交）"])
+        return (
+            cat_title,
+            [
+                L(
+                    "该分类暂无成交数据（榜单未建立或物品无成交）",
+                    "No trade data for this category (rankings not built yet, or no trades)",
+                )
+            ],
+        )
     _top = sel[0]
     lines = [
-        f"◆ 榜首：{_top.get('zh') or _top.get('en') or _top['slug']}｜当前价 {_fmt_p(_top.get('median48'))}"
-        f"｜共 {len(sel)} 名",
-        f"◆ 前 {len(sel)} 名 · 按当前成交中位价降序",
-        "　名称　当前价　最低　最高　上期中位",
+        L(
+            f"◆ 榜首：{_item_name(_top)}｜当前价 {_fmt_p(_top.get('median48'))}｜共 {len(sel)} 名",
+            f"◆ Top: {_item_name(_top)}｜Current {_fmt_p(_top.get('median48'))}｜{len(sel)} listed",
+        ),
+        L(
+            f"◆ 前 {len(sel)} 名 · 按当前成交中位价降序",
+            f"◆ Top {len(sel)} · by current median trade price, descending",
+        ),
+        L("　名称　当前价　最低　最高　上期中位", "　Name　Current　Low　High　Prev Median"),
     ]
     for r in sel:
-        name = r.get("zh") or r.get("en") or r["slug"]
+        name = _item_name(r)
         lines.append(
             "· "
             + "　".join(
@@ -4038,10 +5618,14 @@ def fmt_rank_table(category: str, rows: list[dict]) -> tuple[str, list[str]]:
         )
     # ★ 2026-10-03 口径注脚（同上）：真实成交↔挂单价 必须写明，防与挂单站对比误判。
     lines.append(
-        "※ 当前价=48h 成交中位（真实成交·非挂单价）　上期中位=前一 48 小时；MOD 卡按 0 级成交计"
+        L(
+            "※ 当前价=48h 成交中位（真实成交·非挂单价）　上期中位=前一 48 小时；MOD 卡按 0 级成交计",
+            "※ Current = 48h median of completed trades (real trades, not listing prices)　"
+            "Prev Median = previous 48 hours; MODs counted at rank 0",
+        )
     )
-    lines.append(RANK_MIN_VOL_NOTE)
-    return (f"{category}价格排行", lines)
+    lines.append(L(RANK_MIN_VOL_NOTE, _RANK_MIN_VOL_NOTE_EN))
+    return (cat_title, lines)
 
 
 # DE 周报 itemType → 中文分类（「主武」= 步枪+霰弹枪合并，「副武」= 手枪）
@@ -4088,6 +5672,39 @@ def _riven_pair(entries: list[dict], itypes: tuple, veiled: bool = False) -> dic
     return out
 
 
+# 官方物品名「<类别> Riven Mod」（DE 词表），未开状态按 WM 的写法加 (Veiled)
+_VEILED_TYPE_EN = {
+    "Melee": "Melee Riven Mod (Veiled)",
+    "Rifle": "Rifle Riven Mod (Veiled)",
+    "Shotgun": "Shotgun Riven Mod (Veiled)",
+    "Pistol": "Pistol Riven Mod (Veiled)",
+    "Archgun": "Archgun Riven Mod (Veiled)",
+    "Zaw": "Zaw Riven Mod (Veiled)",
+    "Kitgun": "Kitgun Riven Mod (Veiled)",
+    "Robotic": "Companion Weapon Riven Mod (Veiled)",
+    "Amalgam": "Amalgam Riven Mod (Veiled)",
+}
+_RIVEN_CAT_EN = {
+    "近战": "Melee",
+    "步枪": "Rifle",
+    "霰弹枪": "Shotgun",
+    "手枪": "Pistol",
+    "空战": "Archgun",
+    "Zaw": "Zaw",
+    "组合枪": "Kitgun",
+    "主武": "Primary",
+    "副武": "Secondary",
+    "未开": "Unrevealed",
+}
+
+
+def _veiled_name(key: str) -> str:
+    """未开紫卡类别名（键为 DE 的 Melee / Rifle / … 英文类别）。"""
+    if i18n.is_en():
+        return _VEILED_TYPE_EN.get(key, f"{key} Riven Mod (Veiled)")
+    return _VEILED_TYPE_ZH.get(key, key + "未开紫卡")
+
+
 _VEILED_TYPE_ZH = {
     "Melee": "近战未开紫卡",
     "Rifle": "步枪未开紫卡",
@@ -4110,8 +5727,22 @@ def fmt_wm_veiled_summary(stats: dict) -> tuple[str, list[str]]:
     ★ 2026-10-23 加：玩家报「wr 手枪未开 搜不到」，顺手给无类别时一个总览入口。
     """
     if not stats:
-        return ("未开紫卡 · warframe.market", ["※ 未取到未开紫卡的实时成交（稍后再试）"])
-    lines = ["◆ 未开紫卡 · warframe.market 实时成交（48h）", "　类别　当前中位　最低　最高"]
+        return (
+            L("未开紫卡 · warframe.market", "Unrevealed Rivens · warframe.market"),
+            [
+                L(
+                    "※ 未取到未开紫卡的实时成交（稍后再试）",
+                    "※ Could not fetch live trades for unrevealed rivens (try again later)",
+                )
+            ],
+        )
+    lines = [
+        L(
+            "◆ 未开紫卡 · warframe.market 实时成交（48h）",
+            "◆ Unrevealed Rivens · live warframe.market trades (48h)",
+        ),
+        L("　类别　当前中位　最低　最高", "　Type　Median　Low　High"),
+    ]
     for key in _VEILED_ORDER:
         d = stats.get(key)
         if not d:
@@ -4120,15 +5751,21 @@ def fmt_wm_veiled_summary(stats: dict) -> tuple[str, list[str]]:
             "· "
             + "　".join(
                 [
-                    _VEILED_TYPE_ZH.get(key, key + "未开紫卡"),
+                    _veiled_name(key),
                     _fmt_p(d.get("median")),
                     _fmt_p(d.get("min")),
                     _fmt_p(d.get("max")),
                 ]
             )
         )
-    lines.append("※ 加类别看具体卖家：wr 手枪未开（也认 近战/步枪/霰弹/曲翼/组合枪/Zaw/守护）")
-    return ("未开紫卡 · 各类别行情", lines)
+    lines.append(
+        L(
+            "※ 加类别看具体卖家：wr 手枪未开（也认 近战/步枪/霰弹/曲翼/组合枪/Zaw/守护）",
+            "※ Add a type to see sellers: wr pistol unrevealed "
+            "(also melee/rifle/shotgun/archgun/kitgun/zaw/companion)",
+        )
+    )
+    return (L("未开紫卡 · 各类别行情", "Unrevealed Rivens · Prices by Type"), lines)
 
 
 # 「WM挂单 vs 周报参考价」的变化：相对偏离不足此值记「≈」（挂单价≠成交价，只看大幅偏离）
@@ -4171,17 +5808,42 @@ def _riven_row(
 
 
 _RIVEN_HEAD = "　武器　0洗中位　0洗热度　已洗中位　已洗热度　参考价"
+_RIVEN_HEAD_EN = "　Weapon　Unrolled Median　Unrolled Pop　Rerolled Median　Rerolled Pop　Ref Price"
+
+
+def _riven_head(with_now: bool = False) -> str:
+    """紫卡热度榜表头；with_now 时追加「WM挂单 / 变化」两列。"""
+    return L(_RIVEN_HEAD, _RIVEN_HEAD_EN) + (
+        L("　WM挂单　变化", "　WM Listing　Change") if with_now else ""
+    )
 
 
 def _riven_now_note(now_ts: str) -> str:
     """WM 现价两列的注脚；没拉过现价时提示管理员可拉。"""
     if not now_ts:
-        return "※ 大更后价格波动大时，管理员可发「紫卡排行 刷新」拉一次 WM 现价对比（重抓保护 10 分钟，耗时看进度）"
-    when = now_ts[:16].replace("T", " ")
-    return (
-        f"※ WM挂单 = 管理员 {when} UTC 手动拉取的挂单最低 20 条中位；变化 = 对比周报参考价"
-        f"（挂单价≠成交价，±{_RIVEN_NOW_FLAT * 100:.0f}% 内记 ≈，看大幅偏离即可）"
+        return L(
+            "※ 大更后价格波动大时，管理员可发「紫卡排行 刷新」拉一次 WM 现价对比（重抓保护 10 分钟，耗时看进度）",
+            "※ When prices swing after a big update, an admin can send "
+            '"rank riven refresh" to pull live WM prices for comparison '
+            "(10-minute re-crawl guard; progress shown while running)",
+        )
+    when = format_time(now_ts, "%Y-%m-%d %H:%M")
+    pulled = L(f" {when}", f" at {when}") if when else ""
+    return L(
+        f"※ WM挂单 = 管理员{pulled} 手动拉取的挂单最低 20 条中位；变化 = 对比周报参考价"
+        f"（挂单价≠成交价，±{_RIVEN_NOW_FLAT * 100:.0f}% 内记 ≈，看大幅偏离即可）",
+        f"※ WM Listing = median of the 20 lowest listings, pulled manually by an admin{pulled}; "
+        f"Change = vs. the weekly-report reference price "
+        f"(listing price != trade price; within ±{_RIVEN_NOW_FLAT * 100:.0f}% counts as ≈, "
+        "only large deviations matter)",
     )
+
+
+def _riven_weapon_name(c, zhmap: dict) -> str:
+    """周报条目的武器名：中文模式取 zhmap 译名，英文模式直接用英文原名。"""
+    if i18n.is_en():
+        return c or "Unrevealed Riven"
+    return zhmap.get((c or "").lower()) or c or "未开紫卡"
 
 
 def fmt_riven_weekly(
@@ -4196,34 +5858,59 @@ def fmt_riven_weekly(
     with_now = bool(now)
     lines: list[str] = []
     for label, itype in (
-        ("近战", ("Melee Riven Mod",)),
-        ("手枪", ("Pistol Riven Mod",)),
-        ("步枪", ("Rifle Riven Mod",)),
-        ("霰弹枪", ("Shotgun Riven Mod",)),
-        ("空战", ("Archgun Riven Mod",)),
+        (L("近战", "Melee"), ("Melee Riven Mod",)),
+        (L("手枪", "Pistol"), ("Pistol Riven Mod",)),
+        (L("步枪", "Rifle"), ("Rifle Riven Mod",)),
+        (L("霰弹枪", "Shotgun"), ("Shotgun Riven Mod",)),
+        (L("空战", "Archgun"), ("Archgun Riven Mod",)),
     ):
         pool = _riven_pair(entries, itype)
         ranked = sorted(pool, key=lambda c: -(pool[c]["p0"] or 0))[:5]
         if not ranked:
             continue
         lines.append(f"◆ {label}")
-        lines.append(_RIVEN_HEAD + ("　WM挂单　变化" if with_now else ""))
+        lines.append(_riven_head(with_now))
         for c in ranked:
-            name = zhmap.get((c or "").lower()) or c or "未开紫卡"
+            name = _riven_weapon_name(c, zhmap)
             lines.append(
                 _riven_row(name, pool[c], now=(now or {}).get((c or "").lower()), with_now=with_now)
             )
-    import datetime as _dt
-
-    when = _dt.datetime.fromtimestamp(snap.get("fetched") or 0, tz=_dt.timezone.utc)
-    lines.append("※ 0洗与已洗并列展示，按本周成交热度（≈7 天销量）降序；参考价为两者较低的中位价")
+    when = format_time(snap.get("fetched"))
     lines.append(
-        "※ 完整榜：「紫卡排行 近战/步枪/霰弹枪/手枪/主武/副武/空战/组合枪/Zaw/未开」"
-        "｜未开紫卡实时价（warframe.market 成交）：「紫卡排行 未开」"
+        L(
+            "※ 0洗与已洗并列展示，按本周成交热度（≈7 天销量）降序；参考价为两者较低的中位价",
+            "※ Unrolled and rerolled are shown side by side, sorted by this week's trade popularity "
+            "(~7-day sales) descending; Ref Price is the lower of the two medians",
+        )
+    )
+    lines.append(
+        L(
+            "※ 完整榜：「紫卡排行 近战/步枪/霰弹枪/手枪/主武/副武/空战/组合枪/Zaw/未开」"
+            "｜未开紫卡实时价（warframe.market 成交）：「紫卡排行 未开」",
+            '※ Full lists: "rank riven melee/rifle/shotgun/pistol/primary/secondary/archgun/kitgun/zaw/unrevealed"'
+            '｜Live unrevealed riven prices (warframe.market trades): "rank riven unrevealed"',
+        )
     )
     lines.append(_riven_now_note(now_ts if with_now else ""))
-    lines.append(f"※ DE 官方周报（每周一更新），抓取于 {when:%m-%d %H:%M} UTC")
-    return ("紫卡热度排行榜", lines)
+    lines.append(
+        L(
+            f"※ DE 官方周报（每周一更新），抓取于 {when or '时间未知'}",
+            f"※ DE official weekly report (updated every Monday), fetched {when or 'at an unknown time'}",
+        )
+    )
+    return (L("紫卡热度排行榜", "Riven Trends"), lines)
+
+
+def _riven_page_note(cat: str, page: int, pages: int, veiled: bool = False) -> str:
+    """紫卡热度榜的翻页注脚（veiled=True 为「未开」视图，命令词固定为「未开」）。"""
+    zh_cat = "未开" if veiled else cat
+    en_cat = "unrevealed" if veiled else _RIVEN_CAT_EN.get(cat, cat).lower()
+    if page < pages:
+        return L(
+            f"※ 页码:{page}/{pages}　使用「紫卡排行 {zh_cat} -{page + 1}」查看下一页",
+            f'※ (Page {page}/{pages}) send "rank riven {en_cat} -{page + 1}" for the next page',
+        )
+    return L(f"※ 页码:{page}/{pages}　已是最后一页", f"※ (Page {page}/{pages}) last page")
 
 
 def fmt_riven_type(
@@ -4260,23 +5947,43 @@ def fmt_riven_type(
         itypes = _RIVEN_ITEM_TYPE.get(cat)
         if not itypes:
             return (
-                f"紫卡热度·{cat}",
-                [f"未知分类「{cat}」。可用：近战/步枪/霰弹枪/手枪/主武/副武/空战/组合枪/Zaw/未开"],
+                L(f"紫卡热度·{cat}", f"Riven Trends: {cat}"),
+                [
+                    L(
+                        f"未知分类「{cat}」。可用：近战/步枪/霰弹枪/手枪/主武/副武/空战/组合枪/Zaw/未开",
+                        f'Unknown category "{cat}". Available: '
+                        "melee/rifle/shotgun/pistol/primary/secondary/archgun/kitgun/zaw/unrevealed",
+                    )
+                ],
             )
         pool = _riven_pair(snap.get("entries") or [], itypes)
         # 首要排序：0洗热度；次要：已洗热度（均降序）
         rows = sorted(pool.items(), key=lambda kv: (-(kv[1]["p0"] or 0), -(kv[1]["p1"] or 0)))
+    cat_title = L(f"紫卡热度·{cat}", f"Riven Trends: {_RIVEN_CAT_EN.get(cat, cat)}")
     if not rows:
-        return (f"紫卡热度·{cat}", ["DE 本周数据里该分类暂无成交记录"])
+        return (
+            cat_title,
+            [
+                L(
+                    "DE 本周数据里该分类暂无成交记录",
+                    "No trade records for this category in this week's DE data",
+                )
+            ],
+        )
     total = len(rows)
     pages = max(1, (total + page_size - 1) // page_size)
     page = max(1, min(page, pages))
     chunk = rows[(page - 1) * page_size : page * page_size]
     if cat == "未开" and veiled_wm:
-        lines = ["◆ 未开紫卡 · warframe.market 实时成交（48h 中位）"]
-        lines.append("　类别　当前中位　最低　最高")
+        lines = [
+            L(
+                "◆ 未开紫卡 · warframe.market 实时成交（48h 中位）",
+                "◆ Unrevealed Rivens · live warframe.market trades (48h median)",
+            )
+        ]
+        lines.append(L("　类别　当前中位　最低　最高", "　Type　Median　Low　High"))
         for tkey, d in chunk:
-            name = _VEILED_TYPE_ZH.get(tkey, tkey + "未开紫卡")
+            name = _veiled_name(tkey)
             lines.append(
                 "· "
                 + "　".join(
@@ -4284,24 +5991,29 @@ def fmt_riven_type(
                 )
             )
         lines.append(
-            "※ 来源：warframe.market 未开紫卡条目的实时成交统计（DE 周报口径滞后且偏高，已弃用）"
+            L(
+                "※ 来源：warframe.market 未开紫卡条目的实时成交统计（DE 周报口径滞后且偏高，已弃用）",
+                "※ Source: live trade stats of unrevealed rivens on warframe.market "
+                "(the DE weekly figures lag and run high, so they are no longer used)",
+            )
         )
-        lines.append(
-            f"※ 页码:{page}/{pages}　使用「紫卡排行 未开 -{page + 1}」查看下一页"
-            if page < pages
-            else f"※ 页码:{page}/{pages}　已是最后一页"
+        lines.append(_riven_page_note(cat, page, pages, veiled=True))
+        return (cat_title, lines)
+    lines = [
+        L(
+            f"◆ 共 {total} 种 · 按首要 0洗热度降序（次要：已洗热度）",
+            f"◆ {total} total · sorted by unrolled popularity, descending (then rerolled popularity)",
         )
-        return ("紫卡热度·未开", lines)
-    lines = [f"◆ 共 {total} 种 · 按首要 0洗热度降序（次要：已洗热度）"]
+    ]
     with_now = bool(now) and cat != "未开"
     if cat == "未开":
-        lines.append("　类别　中位　热度　参考价")
+        lines.append(L("　类别　中位　热度　参考价", "　Type　Median　Pop　Ref Price"))
     else:
-        lines.append(_RIVEN_HEAD + ("　WM挂单　变化" if with_now else ""))
+        lines.append(_riven_head(with_now))
     for c, d in chunk:
         if cat == "未开":
             base_t = (c or "").replace("未开·", "").replace(" Riven Mod", "")
-            name = _VEILED_TYPE_ZH.get(base_t, base_t + "未开紫卡")
+            name = _veiled_name(base_t)
             ref = d.get("m0") or d.get("m1")
             lines.append(
                 "· "
@@ -4315,16 +6027,12 @@ def fmt_riven_type(
                 )
             )
             continue
-        name = zhmap.get((c or "").lower()) or c or "未开紫卡"
+        name = _riven_weapon_name(c, zhmap)
         lines.append(_riven_row(name, d, now=(now or {}).get((c or "").lower()), with_now=with_now))
     if cat != "未开":
         lines.append(_riven_now_note(now_ts if with_now else ""))
-    lines.append(
-        f"※ 页码:{page}/{pages}　使用「紫卡排行 {cat} -{page + 1}」查看下一页"
-        if page < pages
-        else f"※ 页码:{page}/{pages}　已是最后一页"
-    )
-    return (f"紫卡热度·{cat}", lines)
+    lines.append(_riven_page_note(cat, page, pages))
+    return (cat_title, lines)
 
 
 _DISP_DOTS = {5: "●●●●●", 4: "●●●●○", 3: "●●●○○", 2: "●●○○○", 1: "●○○○○"}
@@ -4377,6 +6085,33 @@ def _riven_range_text(RA, sid: str, lo: float, hi: float, *, negative: bool) -> 
 # 「词条范围」的组合写法 → 中文标签（卡面用）
 _RIVEN_COMBO_ZH = {(2, 0): "2正", (2, 1): "2正1负", (3, 0): "3正", (3, 1): "3正1负"}
 # 卡上给出的组合切换提示（列出当前组合以外的三种）
+_RIVEN_COMBO_EN = {
+    (2, 0): "2 Pos",
+    (2, 1): "2 Pos 1 Neg",
+    (3, 0): "3 Pos",
+    (3, 1): "3 Pos 1 Neg",
+}
+
+
+def _combo_label(c: tuple[int, int]) -> str:
+    """组合标签：中文「3正1负」/ 英文「3 Pos 1 Neg」。"""
+    return (_RIVEN_COMBO_EN if i18n.is_en() else _RIVEN_COMBO_ZH).get(c, "")
+
+
+def _stat_name(sid: str, cls: str = "") -> str:
+    """标准词条 id → 展示名（中文取 RIVEN_STAT_ZH，英文取游戏内英文名）。
+
+    cls 为基值列名（rifle / melee …）：英文卡面上基伤枪械写 Damage、近战写 Melee Damage。
+    """
+    from .parser import RIVEN_STAT_ZH
+
+    if i18n.is_en():
+        if sid == "melee_damage" and cls and cls != "melee":
+            return "Damage"
+        return _riven_stat_en(sid, sid)
+    return RIVEN_STAT_ZH.get(sid, sid)
+
+
 _RIVEN_COMBO_HINT = {(2, 0): "2+", (2, 1): "2+1-", (3, 0): "3+", (3, 1): "3+1-"}
 
 
@@ -4426,7 +6161,6 @@ def fmt_riven_ranges(
         dropped: 用户点名了、但该武器刷不出（或被过滤掉）的词条展示名。
     """
     from . import riven_analysis as RA
-    from .parser import RIVEN_STAT_ZH
 
     disp = RA.UNIFIED_DISPOSITION
     # 列顺序：指定组合提到首列（仍出全部四列）
@@ -4445,9 +6179,9 @@ def fmt_riven_ranges(
 
     lines: list[str] = []
     for label, sids, is_neg in (
-        ("正面", pos, False),
-        ("融合词条·正面", spliced, False),
-        ("负面", neg, True),
+        (L("正面", "Positive"), pos, False),
+        (L("融合词条·正面", "Spliced Stats · Positive"), spliced, False),
+        (L("负面", "Negative"), neg, True),
     ):
         # 负面段只出「带负词条槽」的组合（3+ / 2+ 整列都会是「—」，留着只是噪声）
         sec = [c for c in cols if c[1] > 0] if is_neg else list(cols)
@@ -4467,57 +6201,101 @@ def fmt_riven_ranges(
             if lo is None:
                 continue
             # 未确认的物理词条：名字照普通色，只把「?」压暗（⟦n⟧ = INK_DIM）
-            zh = RIVEN_STAT_ZH.get(sid, sid) + ("⟦n⟧?⟦/n⟧" if sid in unconfirmed else "")
+            zh = _stat_name(sid, cls) + ("⟦n⟧?⟦/n⟧" if sid in unconfirmed else "")
             rows.append([zh] + [_cell(sid, c, negative=is_neg) for c in sec])
         if not rows:
             continue
         # 名字列配色：普通词条 INK（w）、融合词条 VIOLET（v）—— 渲染层据此包显式染段
-        _name_span = "v" if label == "融合词条·正面" else "w"
+        _name_span = "v" if sids is spliced else "w"
         payload = {
-            "cols": [_RIVEN_COMBO_ZH.get(c, "") for c in sec],
+            "cols": [_combo_label(c) for c in sec],
             "spans": [_RIVEN_COMBO_SPAN.get(c, "") for c in sec],
             "name_span": _name_span,
             "primary": sec.index(combo) if combo in sec else 0,
             "rows": rows,
             "text_hint": (
-                f"※ 其余组合：词条范围 {weapon} "
+                L(f"※ 其余组合：词条范围 {weapon} ", f"※ Other combos: rivenranges {weapon} ")
                 + " / ".join(v for k, v in _RIVEN_COMBO_HINT.items() if k != combo)
             ),
         }
         _title_txt = f"⟦v⟧{label}⟦/v⟧" if _name_span == "v" else label
-        lines.append(f"◆ {_title_txt}（{len(rows)} 条）")
+        lines.append(
+            L(
+                f"◆ {_title_txt}（{len(rows)} 条）",
+                f"◆ {_title_txt} ({len(rows)} stat{'' if len(rows) == 1 else 's'})",
+            )
+        )
         lines.append("§RANGES" + json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
     if not lines:
-        lines.append("◆ 原因：该武器在这个组合下列不出词条（职业池为空？）")
+        lines.append(
+            L(
+                "◆ 原因：该武器在这个组合下列不出词条（职业池为空？）",
+                "◆ Reason: no stats can be listed for this weapon under this combo (empty class pool?)",
+            )
+        )
 
     if only:
-        lines.append(f"※ 已按你点名的 {len(only)} 条词条过滤")
+        lines.append(
+            L(
+                f"※ 已按你点名的 {len(only)} 条词条过滤",
+                f"※ Filtered to the {len(only)} stat(s) you named",
+            )
+        )
     if dropped:
-        lines.append(f"※ ⚠ 这些词条该武器刷不出，已略去：{'、'.join(dropped)}")
+        lines.append(
+            L(
+                f"※ ⚠ 这些词条该武器刷不出，已略去：{'、'.join(dropped)}",
+                f"※ ⚠ This weapon cannot roll these stats, omitted: {', '.join(dropped)}",
+            )
+        )
     if spliced:
-        lines.append("※ 融合词条同一张卡最多 1 项（Update 44 Riven Splicer）")
+        lines.append(
+            L(
+                "※ 融合词条同一张卡最多 1 项（Update 44 Riven Splicer）",
+                "※ A riven can have at most 1 spliced stat (Update 44 Riven Splicer)",
+            )
+        )
     _shown = set(pos) | set(spliced) | set(neg)
     _unseen = set((survey or {}).get("unseen") or ()) & _shown
     if (unconfirmed - _unseen) & _shown:
-        lines.append("※ 带 ? 的物理伤害词条：占比低于 25% 但家族证据未表态，按「未确认」照列")
+        lines.append(
+            L(
+                "※ 带 ? 的物理伤害词条：这把武器（Zaw / 组合枪等）不能按「占比 ≤25% 洗不出」判断，按「未确认」照列",
+                '※ Physical damage stats marked ?: the "25% share" rule does not apply to this weapon '
+                '(Zaw / Kitgun etc.); listed as "unconfirmed"',
+            )
+        )
     if _unseen:
         # ★ 2026-10-25（Astra 评估）：抽样没见过 ≠ 刷不出 —— 标 ? 照列并写明样本时间
+        _names = " / ".join(_stat_name(x, cls) for x in sorted(_unseen))
         lines.append(
-            "※ 带 ? 的 "
-            + " / ".join(RIVEN_STAT_ZH.get(x, x) for x in sorted(_unseen))
-            + f"：warframe.market 挂单抽样（{survey.get('surveyed') or '时间未知'}，"
-            f"{survey.get('n') or '?'} 条）里没见过，可能只是样本里没有或样本早于热修，按「未确认」照列"
+            L(
+                f"※ 带 ? 的 {_names}：warframe.market 挂单抽样（{survey.get('surveyed') or '时间未知'}，"
+                f"{survey.get('n') or '?'} 条）里没见过，可能只是样本里没有或样本早于热修，按「未确认」照列",
+                f"※ Stats marked ? ({_names}): not seen in the warframe.market listing sample "
+                f"({survey.get('surveyed') or 'time unknown'}, {survey.get('n') or '?'} listings); "
+                'the sample may simply lack them or predate a hotfix; listed as "unconfirmed"',
+            )
         )
     # 图例（一行，替代原来的「切换组合」长句）：四种组合都在表里，不必再点名；
     # 每个组合名染各自组合色（与表头/数据格同一套字母）。
     lines.append(
-        "※ 列："
+        L("※ 列：", "※ Columns: ")
         + " / ".join(
-            f"⟦{_RIVEN_COMBO_SPAN[c]}⟧{_RIVEN_COMBO_ZH[c]}⟦/{_RIVEN_COMBO_SPAN[c]}⟧" for c in cols
+            f"⟦{_RIVEN_COMBO_SPAN[c]}⟧{_combo_label(c)}⟦/{_RIVEN_COMBO_SPAN[c]}⟧" for c in cols
         )
-        + f"（满级卡面，统一倾向 {disp}，随机系数 ±10%）"
+        + L(
+            f"（满级卡面，统一倾向 {disp}，随机系数 ±10%）",
+            f" (max-rank card, unified disposition {disp}, random factor ±10%)",
+        )
     )
-    return (f"{weapon} 紫卡词条范围（{_RIVEN_COMBO_ZH.get(combo, '')}）", lines)
+    return (
+        L(
+            f"{weapon} 紫卡词条范围（{_RIVEN_COMBO_ZH.get(combo, '')}）",
+            f"{weapon} Riven Stat Ranges ({_combo_label(combo)})",
+        ),
+        lines,
+    )
 
 
 def fmt_riven_analysis(
@@ -4555,16 +6333,25 @@ def fmt_riven_analysis(
     ``fmt_riven_splice_more`` 出续页，本页注脚写明「其余 N 条见续页」。
     """
     from . import riven_analysis as RA
-    from .parser import RIVEN_STAT_ZH
 
-    zh = RIVEN_STAT_ZH
+    class _Zh:
+        """词条名查表（中文 RIVEN_STAT_ZH / 英文游戏内名），保持 zh.get(sid, sid) 的写法。"""
+
+        @staticmethod
+        def get(sid, _default=None):
+            return _stat_name(sid, cls)
+
+    zh = _Zh
     if stat_multipliers:
         infos = list(infos or []) + [
-            "武器机制："
-            + "、".join(
+            L("武器机制：", "Weapon mechanics: ")
+            + L("、", ", ").join(
                 f"{zh.get(sid, sid)} ×{factor:g}" for sid, factor in stat_multipliers.items()
             )
-            + "；区间按卡面倍率计算，原读数保留"
+            + L(
+                "；区间按卡面倍率计算，原读数保留",
+                "; ranges use the card multipliers, raw readings kept",
+            )
         ]
     # 近战没有「射速」：合并词条 fire_rate 在近战上就是攻速（与拍卖卡同一套口径）
     _melee = cls == "melee"
@@ -4572,17 +6359,28 @@ def fmt_riven_analysis(
     def _sid(s: str) -> str:
         return "attack_speed" if (_melee and s == "fire_rate") else s
 
-    lines = [f"◆ 武器：{name}｜倾向 {disposition:g}（{_disp_dots(disposition)}）"]
+    lines = [
+        L(
+            f"◆ 武器：{name}｜倾向 {disposition:g}（{_disp_dots(disposition)}）",
+            f"◆ Weapon: {name}｜Disposition {disposition:g} ({_disp_dots(disposition)})",
+        )
+    ]
     if verdict:
-        lines.append(f"◆ 判定：{verdict}")
+        lines.append(L(f"◆ 判定：{verdict}", f"◆ Verdict: {verdict}"))
     for w in warns or []:
         lines.append("※ ⚠ " + str(w).lstrip("⚠\ufe0f "))
     n_pos, n_neg = counts or (len(stats_pos), len(stats_neg))
-    lines.append(
-        (f"◆ 词条（{n_pos} 正 {n_neg} 负" if n_neg else f"◆ 词条（{n_pos} 正")
-        + (f"，{hidden} 条未揭示）" if hidden else "）")
-    )
-    lines.append("　词条　区间　距中　区间位")
+    if i18n.is_en():
+        lines.append(
+            (f"◆ Stats ({n_pos} pos {n_neg} neg" if n_neg else f"◆ Stats ({n_pos} pos")
+            + (f", {hidden} unrevealed)" if hidden else ")")
+        )
+    else:
+        lines.append(
+            (f"◆ 词条（{n_pos} 正 {n_neg} 负" if n_neg else f"◆ 词条（{n_pos} 正")
+            + (f"，{hidden} 条未揭示）" if hidden else "）")
+        )
+    lines.append(L("　词条　区间　距中　区间位", "　Stat　Range　Vs Mid　Position"))
     for sid0, v in stats_pos:
         sid = _sid(sid0)
         lo, hi = RA.stat_range(
@@ -4593,12 +6391,18 @@ def fmt_riven_analysis(
         #   其余正词条照旧 +（用户口径：显示符号必须与卡面一致，极性用标注传达）。
         _inv = RA.is_inverted(sid)
         _head = (
-            f"▲{zh.get(sid, sid)} -{RA.fmt_value(sid, v)}（卡面-号·正面）"
+            f"▲{zh.get(sid, sid)} -{RA.fmt_value(sid, v)}"
+            + L("（卡面-号·正面）", " (card shows -; positive)")
             if _inv
             else f"▲{zh.get(sid, sid)} +{RA.fmt_value(sid, v)}"
         )
         if lo is None:
-            lines.append(f"· {_head}　该词条无官方基值（wiki 未收录），无法算区间")
+            lines.append(
+                L(
+                    f"· {_head}　该词条无官方基值（wiki 未收录），无法算区间",
+                    f"· {_head}　No official base value (not on the wiki); range unavailable",
+                )
+            )
             continue
         dev = RA.deviation_pct(v, lo, hi)
         pos_pct = RA.range_position(v, lo, hi)
@@ -4615,12 +6419,18 @@ def fmt_riven_analysis(
         #   （卡面+号·负面）」；区间仍按**负面档**系数计算（分组不变）。
         _inv = RA.is_inverted(sid)
         _head = (
-            f"▼{zh.get(sid, sid)} +{RA.fmt_value(sid, v)}（卡面+号·负面）"
+            f"▼{zh.get(sid, sid)} +{RA.fmt_value(sid, v)}"
+            + L("（卡面+号·负面）", " (card shows +; negative)")
             if _inv
             else f"▼{zh.get(sid, sid)} -{RA.fmt_value(sid, v)}"
         )
         if lo is None:
-            lines.append(f"· {_head}　该词条无官方基值（wiki 未收录），无法算区间")
+            lines.append(
+                L(
+                    f"· {_head}　该词条无官方基值（wiki 未收录），无法算区间",
+                    f"· {_head}　No official base value (not on the wiki); range unavailable",
+                )
+            )
             continue
         pos_pct = RA.range_position(v, lo, hi)
         # ★ 2026-09-24 玩家报障（红框）：负词条这里原写 100-pos_pct，方向反了——
@@ -4628,10 +6438,18 @@ def fmt_riven_analysis(
         #   把浅负当深负卖。区间位本身就是「幅度接近上限的程度」，
         #   直接用 pos_pct：0%=最浅、100%=最满。
         lines.append(
-            "· " + "　".join([_head, _range_txt(RA, sid, lo, hi), "幅度位", f"{pos_pct}%"])
+            "· "
+            + "　".join(
+                [_head, _range_txt(RA, sid, lo, hi), L("幅度位", "Magnitude"), f"{pos_pct}%"]
+            )
         )
     for _ in range(hidden):
-        lines.append("· ？？？　未揭示（融合选定后再分析）　—　—")
+        lines.append(
+            L(
+                "· ？？？　未揭示（融合选定后再分析）　—　—",
+                "· ???　Unrevealed (analyzed after splicing)　—　—",
+            )
+        )
     notes = []
     if splice:
         lines += _riven_splice_lines(RA, splice, cls, notes, limit=splice_limit)
@@ -4640,22 +6458,30 @@ def fmt_riven_analysis(
     if infos:
         lines.append(
             "※ "
-            + "；".join(
+            + L("；", "; ").join(
                 str(x)[1:-1] if str(x).startswith("（") and str(x).endswith("）") else str(x)
                 for x in infos
             )
         )
     if hidden:
         lines.append(
-            "※ 「？？？」词条正负未知，只计入词条数：词条数决定系数，已知词条的区间照常给出"
+            L(
+                "※ 「？？？」词条正负未知，只计入词条数：词条数决定系数，已知词条的区间照常给出",
+                '※ "???" stats have unknown polarity and only count toward the stat total: '
+                "the count sets the multiplier; ranges for known stats are unchanged",
+            )
         )
     # 注脚压到每类一行（手机上整段注释曾占 5–6 行）；详细机制在「紫卡融合」卡与帮助里
     lines.append(
-        "※ 距中为正 = 高卷；负词条看幅度位，幅度越大越友好；"
-        "区间 = DE 基值 × 倾向 × 词条数系数 × 0.9~1.1"
+        L(
+            "※ 距中为正 = 高卷；负词条看幅度位，幅度越大越友好；"
+            "区间 = DE 基值 × 倾向 × 词条数系数 × 0.9~1.1",
+            "※ Positive Vs Mid = high roll; for negative stats look at Magnitude (bigger is friendlier); "
+            "Range = DE base × disposition × stat-count factor × 0.9~1.1",
+        )
     )
     lines += notes
-    return ("紫卡分析", lines)
+    return (L("紫卡分析", "Riven Analysis"), lines)
 
 
 # 融合建议阻断原因 → 卡面短句（键与 RA.splice_preview 的 reasons 一致）
@@ -4681,6 +6507,28 @@ _SPLICE_REASON_ZH = {
     "invalid_stats": "词条结构不合法",
     "invalid_disposition": "倾向参数不合法",
 }
+_SPLICE_REASON_EN = {
+    "hidden_stats": 'has unrevealed "???" stats',
+    "incomplete_stats": "stats not fully read or the two readers disagree",
+    "legacy_values": "looks like a screenshot from before the disposition change",
+    "non_current_disposition": "the typed disposition is not the current one",
+    "unknown_weapon_class": "weapon class not determined",
+    "unverified_values": "values do not match the current ranges",
+    "unverified_weapon_traits": "stat availability for this weapon is unconfirmed",
+    "duplicate_stat": "has duplicate stats",
+    "unknown_stat": "has unrecognized stats",
+    "out_of_range": "value out of range",
+    "invalid_value": "invalid value",
+    "stat_not_allowed": "stat does not fit the weapon class or polarity",
+    "counts_mismatch": "stat count does not fit the positive/negative layout",
+    "invalid_counts": "invalid positive/negative counts",
+    "pool_unavailable": "stat pool data missing",
+    "missing_base": "stat base value missing",
+    "unsupported_class": "this weapon class is not supported yet",
+    "no_matching_recipe": "current stats form no recipe",
+    "invalid_stats": "invalid stat structure",
+    "invalid_disposition": "invalid disposition parameter",
+}
 # 融合建议首屏最多列几条（直接可融合在前）；其余进续页，不用通用配方表代替当前卡的预测
 SPLICE_FIRST_ROWS = 6
 
@@ -4690,6 +6538,8 @@ def _riven_short(sid: str, cls: str) -> str:
 
     if cls == "melee" and sid == "fire_rate":
         sid = "attack_speed"
+    if i18n.is_en():
+        return _riven_stat_en(sid, sid)
     return RIVEN_STAT_ZH.get(sid, sid)
 
 
@@ -4697,7 +6547,7 @@ def _splice_value(RA, sid: str, v: float) -> str:
     """融合结果数值：派系是增伤百分数，按净倍率显示（与词条区间同一口径）。"""
     if sid.startswith("damage_vs_"):
         return f"×{1 + v / 100:.2f}"
-    return "+" + RA.fmt_value(sid, round(v + 1e-9, 1))
+    return "+" + RA.fmt_value(sid, round(v + 1e-9, 1))  # 单位 / 数字与语言无关
 
 
 def _splice_num(v: float) -> str:
@@ -4736,11 +6586,11 @@ def _splice_rows(RA, splice: dict, cls: str) -> list[tuple[str, str]]:
                 conditional=conditional,
                 score=float("-inf") if score is None else score,
                 cells=_splice_cells(RA, r, pred, out, cls, conditional),
-                present="、".join(
+                present=L("、", ", ").join(
                     ("▼" if p.get("negative") else "▲") + _riven_short(p.get("stat_id", ""), cls)
                     for p in r.get("present") or []
                 ),
-                lack="、".join(_riven_short(x, cls) for x in r.get("missing") or []),
+                lack=L("、", ", ").join(_riven_short(x, cls) for x in r.get("missing") or []),
                 pol=_splice_pol(r.get("missing_polarities")) if r.get("missing") else "",
                 order=i,
             )
@@ -4765,15 +6615,17 @@ def _splice_rows(RA, splice: dict, cls: str) -> list[tuple[str, str]]:
     )
     rows = []
     for group in picked:
-        rows.append(("· " + "　".join(group[0]["cells"]), "　消耗 " + _splice_used(group)))
+        rows.append(
+            ("· " + "　".join(group[0]["cells"]), L("　消耗 ", "　Uses ") + _splice_used(group))
+        )
     return rows
 
 
 def _splice_pol(pols) -> str:
     pols = set(pols or [])
     if pols >= {"positive", "negative"}:
-        return "正负皆可"
-    return "需负面" if "negative" in pols else "需正面"
+        return L("正负皆可", "either polarity")
+    return L("需负面", "needs negative") if "negative" in pols else L("需正面", "needs positive")
 
 
 def _splice_used(group: list[dict]) -> str:
@@ -4782,14 +6634,16 @@ def _splice_used(group: list[dict]) -> str:
     def one(c: dict, lack: str) -> str:
         if not lack:
             return c["present"]
-        return (c["present"] + "、" if c["present"] else "") + f"缺{lack}（{c['pol']}）"
+        return (c["present"] + L("、", ", ") if c["present"] else "") + L(
+            f"缺{lack}（{c['pol']}）", f"Missing {lack} ({c['pol']})"
+        )
 
     head = group[0]
     if len(group) > 1 and all(
         c["lack"] and c["present"] == head["present"] and c["pol"] == head["pol"] for c in group
     ):
-        return one(head, "或".join(dict.fromkeys(c["lack"] for c in group)))
-    return " 或 ".join(dict.fromkeys(one(c, c["lack"]) for c in group))
+        return one(head, L("或", " or ").join(dict.fromkeys(c["lack"] for c in group)))
+    return L(" 或 ", " or ").join(dict.fromkeys(one(c, c["lack"]) for c in group))
 
 
 def _splice_cells(RA, r: dict, pred: dict, out: str, cls: str, conditional: bool) -> list[str]:
@@ -4799,15 +6653,19 @@ def _splice_cells(RA, r: dict, pred: dict, out: str, cls: str, conditional: bool
     )
     # 融合词条用卡面全称（短名「异常伤」「弱点暴」不好认；消耗沿用上方词条表的短名）
     out_zh = (
-        _SPLICE_DAMAGE_ZH["melee" if cls == "melee" else "gun"]
+        _splice_damage_name("melee" if cls == "melee" else "gun")
         if out == "melee_damage"
-        else _SPLICE_FULL_ZH.get(out) or _riven_short(out, cls)
+        else _splice_full(out) or _riven_short(out, cls)
     )
     head = f"⟦v⟧{out_zh}⟦/v⟧ "
     # 点估计（value / deviation_pct / position_pct）只有直接融合才有；缺字段写「—」，不当 0
     if conditional:
         v_lo = pred.get("value_min")
-        head += "—" if v_lo is None else _splice_value(RA, out, v_lo) + "起"
+        head += (
+            "—"
+            if v_lo is None
+            else L(_splice_value(RA, out, v_lo) + "起", "from " + _splice_value(RA, out, v_lo))
+        )
         d_lo, d_hi = pred.get("deviation_min_pct"), pred.get("deviation_max_pct")
         p_lo, p_hi = pred.get("position_min_pct"), pred.get("position_max_pct")
         if d_lo is None or d_hi is None:
@@ -4819,7 +6677,7 @@ def _splice_cells(RA, r: dict, pred: dict, out: str, cls: str, conditional: bool
             dev = f"{_splice_dev(d_lo)}~{_splice_dev(d_hi)}%"
         pos = "—" if p_lo is None or p_hi is None else f"{round(p_lo)}~{round(p_hi)}%"
     else:
-        head += "约" + _splice_value(RA, out, pred["value"])
+        head += L("约", "~") + _splice_value(RA, out, pred["value"])
         d, pp = pred.get("deviation_pct"), pred.get("position_pct")
         dev = "—" if d is None else _splice_dev(d) + "%"
         pos = "—" if pp is None else f"{round(pp)}%"  # 与上方词条表同为整数
@@ -4827,9 +6685,15 @@ def _splice_cells(RA, r: dict, pred: dict, out: str, cls: str, conditional: bool
 
 
 _SPLICE_HEADER = "　融合词条　理论区间　距中　区间位"
+_SPLICE_HEADER_EN = "　Spliced Stat　Range　Vs Mid　Position"
 _SPLICE_NOTE = (
     "※ 融合建议按英文 wiki 公式预计：继承被消耗两条中较高的随机值；"
     "「起」= 保留现有词条、洗出缺项后再融合"
+)
+_SPLICE_NOTE_EN = (
+    "※ Splice suggestions are projected with the English wiki formula: the result inherits the "
+    'higher random value of the two consumed stats; "from" = keep the current stat, reroll the '
+    "missing one, then splice"
 )
 
 
@@ -4843,27 +6707,49 @@ def _riven_splice_lines(
     """
     status = splice.get("status")
     if status == "already_spliced":
-        names = "、".join(_riven_short(s, cls) for s in splice.get("existing_spliced") or [])
-        return [f"◆ 融合建议：已有融合词条{f'（{names}）' if names else ''}，不能再融合"]
+        names = L("、", ", ").join(
+            _riven_short(s, cls) for s in splice.get("existing_spliced") or []
+        )
+        return [
+            L(
+                f"◆ 融合建议：已有融合词条{f'（{names}）' if names else ''}，不能再融合",
+                f"◆ Splice Suggestions: already has a spliced stat"
+                f"{f' ({names})' if names else ''}; cannot splice again",
+            )
+        ]
     if status != "ready":
-        why = [_SPLICE_REASON_ZH.get(r, "") for r in splice.get("reasons") or []]
-        why = "、".join(w for w in why if w) or "条件不足"
-        return [f"◆ 融合建议：暂不判断（{why}）"]
+        _rmap = _SPLICE_REASON_EN if i18n.is_en() else _SPLICE_REASON_ZH
+        why = [_rmap.get(r, "") for r in splice.get("reasons") or []]
+        why = L("、", ", ").join(w for w in why if w) or L("条件不足", "insufficient conditions")
+        return [L(f"◆ 融合建议：暂不判断（{why}）", f"◆ Splice Suggestions: not assessed ({why})")]
     rows = _splice_rows(RA, splice, cls)
     if not rows:
-        return ["◆ 融合建议：现有词条凑不成任何配方"]
+        return [
+            L(
+                "◆ 融合建议：现有词条凑不成任何配方",
+                "◆ Splice Suggestions: current stats form no recipe",
+            )
+        ]
     shown = rows if limit is None else rows[:limit]
     title = (
-        "◆ 融合建议（预计）"
+        L("◆ 融合建议（预计）", "◆ Splice Suggestions (projected)")
         if len(shown) == len(rows)
-        else f"◆ 融合建议（预计，共 {len(rows)} 条）"
+        else L(
+            f"◆ 融合建议（预计，共 {len(rows)} 条）",
+            f"◆ Splice Suggestions (projected, {len(rows)} total)",
+        )
     )
-    out_lines = [title, _SPLICE_HEADER]
+    out_lines = [title, L(_SPLICE_HEADER, _SPLICE_HEADER_EN)]
     for row, used in shown:
         out_lines += [row, used]
     if len(shown) < len(rows):
-        notes.append(f"※ 融合建议其余 {len(rows) - len(shown)} 条见续页")
-    notes.append(_SPLICE_NOTE)
+        notes.append(
+            L(
+                f"※ 融合建议其余 {len(rows) - len(shown)} 条见续页",
+                f"※ {len(rows) - len(shown)} more splice suggestions on the next page",
+            )
+        )
+    notes.append(L(_SPLICE_NOTE, _SPLICE_NOTE_EN))
     return out_lines
 
 
@@ -4882,14 +6768,17 @@ def fmt_riven_splice_more(
     if len(rows) <= skip:
         return None
     lines = [
-        f"◆ 武器：{name}",
-        f"◆ 融合建议（预计，第 {skip + 1}–{len(rows)} 条，共 {len(rows)} 条）",
-        _SPLICE_HEADER,
+        L(f"◆ 武器：{name}", f"◆ Weapon: {name}"),
+        L(
+            f"◆ 融合建议（预计，第 {skip + 1}–{len(rows)} 条，共 {len(rows)} 条）",
+            f"◆ Splice Suggestions (projected, {skip + 1}–{len(rows)} of {len(rows)})",
+        ),
+        L(_SPLICE_HEADER, _SPLICE_HEADER_EN),
     ]
     for row, used in rows[skip:]:
         lines += [row, used]
-    lines.append(_SPLICE_NOTE)
-    return ("紫卡分析 · 融合建议续", lines)
+    lines.append(L(_SPLICE_NOTE, _SPLICE_NOTE_EN))
+    return (L("紫卡分析 · 融合建议续", "Riven Analysis · Splice Suggestions (cont.)"), lines)
 
 
 def _riven_price_lines(price: dict, cls: str, notes: list) -> list[str]:
@@ -4904,23 +6793,42 @@ def _riven_price_lines(price: dict, cls: str, notes: list) -> list[str]:
     )
 
     if price.get("error"):
-        return ["◆ 同词条挂单：warframe.market 暂时查不到，稍后重试", f"· 匹配词条：{cond}"]
+        return [
+            L(
+                "◆ 同词条挂单：warframe.market 暂时查不到，稍后重试",
+                "◆ Same-Stat Listings: warframe.market is unreachable right now, try again later",
+            ),
+            L(f"· 匹配词条：{cond}", f"· Matched stats: {cond}"),
+        ]
 
     def _p(v):
         return f"{v:g}p" if v is not None else "—"
 
-    out = ["◆ 同词条挂单（一口价）", "　匹配词条　最低　在线最低　中位"]
+    out = [
+        L("◆ 同词条挂单（一口价）", "◆ Same-Stat Listings (buyout)"),
+        L("　匹配词条　最低　在线最低　中位", "　Matched Stats　Lowest　Lowest Online　Median"),
+    ]
     n = price.get("sample_count") or 0
     if n:
         out.append(
             f"· {cond}　{_p(price.get('low'))}　{_p(price.get('online_low'))}"
-            f"　{_p(price.get('median'))}（{n} 条）"
+            f"　{_p(price.get('median'))}" + L(f"（{n} 条）", f" ({n} listings)")
         )
     else:
-        out.append(f"· {cond}　本次未找到完全同词条样本　—　—")
+        out.append(
+            L(
+                f"· {cond}　本次未找到完全同词条样本　—　—",
+                f"· {cond}　No exact same-stat samples found this time　—　—",
+            )
+        )
     notes.append(
-        "※ 同词条挂单：正负词条名称与条数全同（不比数值、洗数）；"
-        "warframe.market 一口价，非成交价；中位取低价样本（最多 20 条）"
+        L(
+            "※ 同词条挂单：正负词条名称与条数全同（不比数值、洗数）；"
+            "warframe.market 一口价，非成交价；中位取低价样本（最多 20 条）",
+            "※ Same-stat listings: positive/negative stat names and counts match exactly "
+            "(values and rerolls not compared); warframe.market buyout prices, not trade prices; "
+            "the median uses the low-price samples (up to 20)",
+        )
     )
     return out
 
@@ -4978,6 +6886,18 @@ _SPLICE_FULL_ZH = {
 }
 # 「伤害」是同一个词条 id：枪械卡面写「伤害」、近战写「近战伤害」
 _SPLICE_DAMAGE_ZH = {"gun": "伤害", "melee": "近战伤害", "any": "伤害 / 近战伤害"}
+_SPLICE_DAMAGE_EN = {"gun": "Damage", "melee": "Melee Damage", "any": "Damage / Melee Damage"}
+
+
+def _splice_damage_name(kind: str) -> str:
+    return (_SPLICE_DAMAGE_EN if i18n.is_en() else _SPLICE_DAMAGE_ZH)[kind]
+
+
+def _splice_full(sid: str) -> str:
+    """融合词条的卡面全称：中文取 _SPLICE_FULL_ZH（没有返回空串），英文取游戏内英文名。"""
+    if i18n.is_en():
+        return _riven_stat_en(sid, sid)
+    return _SPLICE_FULL_ZH.get(sid, "")
 
 
 def fmt_riven_splice(
@@ -4996,37 +6916,76 @@ def fmt_riven_splice(
         if sid == "melee_damage":
             if cls:
                 kind = "melee" if cls == "melee" else "gun"
-            return _SPLICE_DAMAGE_ZH[kind]
-        return _SPLICE_FULL_ZH.get(sid) or RIVEN_STAT_ZH.get(sid, sid)
+            return _splice_damage_name(kind)
+        return _splice_full(sid) or RIVEN_STAT_ZH.get(sid, sid)
 
     groups = (
-        ("通用 · 所有武器", "any", lambda r: "melee" in r[3] and "rifle" in r[3]),
-        ("枪械 · 步枪 / 霰弹枪 / 手枪 / 空战", "gun", lambda r: "melee" not in r[3]),
-        ("近战", "melee", lambda r: r[3] == ("melee",)),
+        (
+            L("通用 · 所有武器", "Universal · All Weapons"),
+            "any",
+            lambda r: "melee" in r[3] and "rifle" in r[3],
+        ),
+        (
+            L("枪械 · 步枪 / 霰弹枪 / 手枪 / 空战", "Guns · Rifle / Shotgun / Pistol / Archgun"),
+            "gun",
+            lambda r: "melee" not in r[3],
+        ),
+        (L("近战", "Melee"), "melee", lambda r: r[3] == ("melee",)),
     )
     lines: list[str] = []
     if scope:
-        lines.append(f"◆ 适用：{scope}")
+        lines.append(L(f"◆ 适用：{scope}", f"◆ Applies to: {scope}"))
     for label, kind, pick in groups:
         rows = [r for r in recipes if pick(r)]
         if not rows:
             continue
-        lines.append(f"◆ {label}（{len({r[2] for r in rows})} 个）")
-        lines.append("　融合词条　原词条一　原词条二")
+        lines.append(
+            L(
+                f"◆ {label}（{len({r[2] for r in rows})} 个）",
+                f"◆ {label} ({len({r[2] for r in rows})})",
+            )
+        )
+        lines.append(L("　融合词条　原词条一　原词条二", "　Spliced Stat　Stat 1　Stat 2"))
         for a, b, out, _cls in rows:
             lines.append(f"· ⟦v⟧{zh(out, kind)}⟦/v⟧　⟦w⟧{zh(a, kind)}⟦/w⟧　⟦w⟧{zh(b, kind)}⟦/w⟧")
     if not lines or (scope and len(lines) == 1):
-        lines.append("◆ 原因：没有符合条件的融合配方" + (f"（{stat_zh}）" if stat_zh else ""))
+        lines.append(
+            L(
+                "◆ 原因：没有符合条件的融合配方" + (f"（{stat_zh}）" if stat_zh else ""),
+                "◆ Reason: no matching splice recipes" + (f" ({stat_zh})" if stat_zh else ""),
+            )
+        )
     if any(r[2] == "reload_holstered" for r in recipes):
-        lines.append("※ 收起武器时弹匣每秒自动装填：空战武器不可融合")
+        lines.append(
+            L(
+                "※ 收起武器时弹匣每秒自动装填：空战武器不可融合",
+                "※ Magazine Reloaded/s when Holstered: Archgun weapons cannot splice it",
+            )
+        )
     lines.append(
-        "※ 两条原词条被消耗；融合词条总是正面，若消耗的原词条里有负面，补上的随机词条也是负面"
+        L(
+            "※ 两条原词条被消耗；融合词条总是正面，若消耗的原词条里有负面，补上的随机词条也是负面",
+            "※ Both source stats are consumed; the spliced stat is always positive, and if a consumed "
+            "stat was negative, the random stat added in its place is negative too",
+        )
     )
     lines.append(
-        "※ 融合词条继承两条原词条中较高的随机值；一张卡只能有 1 条融合词条，锁定、不随洗卡变"
+        L(
+            "※ 融合词条继承两条原词条中较高的随机值；一张卡只能有 1 条融合词条，锁定、不随洗卡变",
+            "※ The spliced stat inherits the higher random value of the two sources; a card can have "
+            "only 1 spliced stat, and it is locked and does not change on reroll",
+        )
     )
-    lines.append("※ 来源：英文 wiki「Riven Mods · Splicing」（融合器 Riven Splicer）")
-    title = "紫卡融合配方" + (f"：{stat_zh}" if stat_zh else "")
+    lines.append(
+        L(
+            "※ 来源：英文 wiki「Riven Mods · Splicing」（融合器 Riven Splicer）",
+            '※ Source: English wiki "Riven Mods · Splicing" (Riven Splicer)',
+        )
+    )
+    title = L(
+        "紫卡融合配方" + (f"：{stat_zh}" if stat_zh else ""),
+        "Riven Splicing Recipes" + (f": {stat_zh}" if stat_zh else ""),
+    )
     return (title, lines)
 
 
@@ -5034,56 +6993,139 @@ def fmt_trend(name: str, stats: dict, summary: dict) -> tuple[str, list[str]]:
     """单个物品的价格趋势（v1 统计 48h + 90d）。"""
     h48 = stats.get("h48") or []
     d90 = stats.get("d90") or []
+    title = L(f"{name} 价格趋势", f"{name} Price Trend")
     if not h48 and not d90:
         return (
-            f"{name} 价格趋势",
+            title,
             [
-                "◆ 原因：warframe.market 未返回该物品的成交统计",
-                "※ ⚠ 怎么改：该物品可能近期无成交；换个写法重发，或改查「wm 物品名」看挂单",
+                L(
+                    "◆ 原因：warframe.market 未返回该物品的成交统计",
+                    "◆ Reason: warframe.market returned no trade stats for this item",
+                ),
+                L(
+                    "※ ⚠ 怎么改：该物品可能近期无成交；换个写法重发，或改查「wm 物品名」看挂单",
+                    "※ ⚠ Fix: the item may have no recent trades; resend with another spelling, "
+                    'or try "wm <item>" to see listings',
+                ),
             ],
         )
     lines = []
     s = summary
     lines.append(
-        f"◆ 近 48 小时：{s['vol48']} 笔成交｜中位 {s['median48']}p"
-        + (f"｜90 天均价 {s['avg90']}p" if s.get("avg90") else "")
+        L(
+            f"◆ 近 48 小时：{s['vol48']} 笔成交｜中位 {s['median48']}p",
+            f"◆ Last 48h: {s['vol48']} trades｜Median {s['median48']}p",
+        )
+        + (
+            L(f"｜90 天均价 {s['avg90']}p", f"｜90d average {s['avg90']}p")
+            if s.get("avg90")
+            else ""
+        )
     )
     if s.get("change"):
         arrow = "▲" if s["change"] > 0 else "▼"
-        lines.append(
-            f"◆ 走势：{arrow}{abs(s['change'])}%（最新 {s['last']}p vs "
-            + (
-                f"{s.get('base_span') or '区间'}前段均价 {s['base']}p）"
-                if s.get("base")
-                else f"区间初 {s['first']}p）"
+        _span = s.get("base_span") or L("区间", "range")
+        if i18n.is_en():
+            _span = {"90 天": "90d", "48 小时": "48h", "区间": "range"}.get(_span, _span)
+            lines.append(
+                f"◆ Trend: {arrow}{abs(s['change'])}% (latest {s['last']}p vs "
+                + (
+                    f"early {_span} average {s['base']}p)"
+                    if s.get("base")
+                    else f"range start {s['first']}p)"
+                )
             )
-        )
+        else:
+            lines.append(
+                f"◆ 走势：{arrow}{abs(s['change'])}%（最新 {s['last']}p vs "
+                + (
+                    f"{_span}前段均价 {s['base']}p）"
+                    if s.get("base")
+                    else f"区间初 {s['first']}p）"
+                )
+            )
     # 走势图：交给渲染层画真实折线图（§CHART 机器行）；文本模式自动回退方块字 +
     # 「最高/最低/最新」一行。有效点 < 2 的序列不出图 —— 出一个点的「图」没有意义，
     # 而且会让「◆ 走势图」分区标题下面空着。
     charts = []
     if sum(1 for r in h48 if r["median"]) >= 2:
-        charts.append(_chart_line("48h 中位走势", h48, hourly=True))
+        charts.append(_chart_line(L("48h 中位走势", "48h Median Trend"), h48, hourly=True))
     if sum(1 for r in d90 if r["median"]) >= 2:
-        charts.append(_chart_line("90d 中位走势", d90, hourly=False))
+        charts.append(_chart_line(L("90d 中位走势", "90d Median Trend"), d90, hourly=False))
     if charts:
-        lines.append("◆ 走势图")
+        lines.append(L("◆ 走势图", "◆ Trend Chart"))
         lines += charts
     rows = []
     best = [r for r in (d90 or h48) if r["volume"]]
     if best:
         peak = max(best, key=lambda r: r["volume"])
         rows.append(
-            f"· 峰值成交　{_short_t(peak['t'], not d90)}｜{peak['volume']} 笔｜中位 {peak['median']}p"
+            L(
+                f"· 峰值成交　{_short_t(peak['t'], not d90)}｜{peak['volume']} 笔｜中位 {peak['median']}p",
+                f"· Peak Volume　{_short_t(peak['t'], not d90)}｜{peak['volume']} trades｜"
+                f"Median {peak['median']}p",
+            )
         )
     lo = min((r for r in h48 if r["min"]), key=lambda r: r["min"], default=None)
     if lo:
-        rows.append(f"· 48h 最低成交　{lo['min']}p（{_short_t(lo['t'], True)}）")
+        rows.append(
+            L(
+                f"· 48h 最低成交　{lo['min']}p（{_short_t(lo['t'], True)}）",
+                f"· 48h Lowest Trade　{lo['min']}p ({_short_t(lo['t'], True)})",
+            )
+        )
     if rows:
-        lines.append("◆ 成交要点")
+        lines.append(L("◆ 成交要点", "◆ Highlights"))
         lines += rows
-    lines.append("※ 数据源：warframe.market 官方成交统计（48 小时逐小时 / 90 天逐日）")
-    return (f"{name} 价格趋势", lines)
+    lines.append(
+        L(
+            "※ 数据源：warframe.market 官方成交统计（48 小时逐小时 / 90 天逐日）",
+            "※ Source: warframe.market official trade statistics (hourly for 48h / daily for 90 days)",
+        )
+    )
+    return (title, lines)
+
+
+_RELIC_TITLE_EN = {
+    "遗物列表": "Relic List",
+    "遗物入库": "Relics Entering the Vault",
+    "遗物出库": "Relics Leaving the Vault",
+}
+
+
+def _relic_title(title: str) -> str:
+    """遗物列表卡标题：英文模式把常用中文标题换成英文（「遗物列表：先锋（12 把）」带后缀的同理）。"""
+    if not i18n.is_en():
+        return title
+    for zh_t, en_t in _RELIC_TITLE_EN.items():
+        if title.startswith(zh_t):
+            rest = title[len(zh_t) :]
+            rest = re.sub(r"[：:]\s*", ": ", rest, count=1)
+            rest = re.sub(
+                r"\s*[（(](\d+) 把[)）]",
+                lambda m: f" ({m.group(1)} relic{'' if m.group(1) == '1' else 's'})",
+                rest,
+            )
+            return en_t + rest
+    return title
+
+
+# 遗物槽位稀有度 / 纪元的英文写法（数据层给的是中文键）
+_RARITY_EN = {"稀有": "Rare", "罕见": "Uncommon", "常见": "Common"}
+
+
+def _tier_key(t: str) -> str:
+    """纪元归一成中文键（分组 / 排序用）：Lith → 古纪，其余原样。"""
+    return _RELIC_TIER_EN2CN.get(t, t)
+
+
+def _tier_disp(t: str) -> str:
+    """纪元展示名：中文模式原样，英文模式 古纪 → Lith（「其他」→ Other）。"""
+    if not i18n.is_en():
+        return t
+    if t == "其他":
+        return "Other"
+    return _RELIC_TIER_CN2EN.get(t, t).title() if t in _RELIC_TIER_CN2EN else t
 
 
 def fmt_prime_relics(
@@ -5104,8 +7146,9 @@ def fmt_prime_relics(
     Returns:
         ``(标题含页码, 行列表)``。
     """
+    title = _relic_title(title)
     if not rows:
-        return (title, ["没有可展示的遗物"])
+        return (title, [L("没有可展示的遗物", "No relics to show")])
     total = len(rows)
     pages = max(1, (total + page_size - 1) // page_size)
     page = max(1, min(page, pages))
@@ -5114,18 +7157,43 @@ def fmt_prime_relics(
     lines: list[str] = []
     for i, r in enumerate(chunk, (page - 1) * page_size + 1):
         drop = bool(r.get("unvaulted"))
-        tag = "可掉落" if drop else "已入库"
+        tag = L("可掉落", "Droppable") if drop else L("已入库", "Vaulted")
         lines.append(f"{i}. [{tag}] {r.get('cn', '?')}　{r.get('tier', '')}".rstrip())
         src = r.get("sources") or []
         if src:
             more = r.get("source_total", len(src)) - len(src)
-            tail = f"（共 {r['source_total']} 处）" if more > 0 else ""
-            lines.append("　　掉落位置：" + "；".join(src) + tail)
+            tail = (
+                L(f"（共 {r['source_total']} 处）", f" ({r['source_total']} total)")
+                if more > 0
+                else ""
+            )
+            lines.append(L("　　掉落位置：", "　　Drops: ") + L("；", "; ").join(src) + tail)
         elif not drop:
-            lines.append("　　掉落位置：已入库，当前不在任何掉落池中")
-    lines.append(f"※ 第{page}/{pages}页，共{total}个；加 -2 / -3 翻页")
-    lines.append("※ 出库=可掉落，入库=不可刷取；判定依据是 DE 官方掉落池")
-    return (f"{title}（第{page}/{pages}页，共{total}个）", lines)
+            lines.append(
+                L(
+                    "　　掉落位置：已入库，当前不在任何掉落池中",
+                    "　　Drops: Vaulted, not in any drop pool right now",
+                )
+            )
+    lines.append(
+        L(
+            f"※ 第{page}/{pages}页，共{total}个；加 -2 / -3 翻页",
+            f"※ (Page {page}/{pages}, {total} total) add -2 / -3 to flip pages",
+        )
+    )
+    lines.append(
+        L(
+            "※ 出库=可掉落，入库=不可刷取；判定依据是 DE 官方掉落池",
+            "※ Unvaulted = droppable, Vaulted = not farmable; based on DE's official drop pools",
+        )
+    )
+    return (
+        L(
+            f"{title}（第{page}/{pages}页，共{total}个）",
+            f"{title} (Page {page}/{pages}, {total} total)",
+        ),
+        lines,
+    )
 
 
 # 遗物纪元的固定展示顺序（DE 的 5 个常规纪元 + 特殊）。
@@ -5179,7 +7247,7 @@ def relic_cn(name: str) -> str:
     s = _REL_SUFFIX_RE.sub("", raw).strip()
     m = _RELIC_TIGHT_RE.match(s)  # 「后纪A2」这种没有空格的
     if m:
-        return f"{m.group(1)} {m.group(2).upper()}"
+        return f"{_tier_disp(m.group(1))} {m.group(2).upper()}"
     toks = s.split()
     tier = ""
     if toks and toks[0] in _RELIC_CN_TIERS:
@@ -5189,7 +7257,7 @@ def relic_cn(name: str) -> str:
     if not tier:
         return raw
     code = " ".join(toks).strip().upper()
-    return f"{tier} {code}".strip()
+    return f"{_tier_disp(tier)} {code}".strip()
 
 
 def _relic_sort_key(name: str):
@@ -5291,13 +7359,16 @@ def fmt_relic_by_tier(
             纪元下单独起一行标出（维护者要求：「有一部分遗物只要指定位置能获取，
             那种单独去标记」）。
     """
+    title = _relic_title(title)
     if not rows:
-        return (title, ["没有可展示的遗物"])
+        return (title, [L("没有可展示的遗物", "No relics to show")])
 
     groups: dict[str, list[str]] = {}
     for r in rows:
         cn = relic_cn(r.get("cn") or "?")
-        tier = (r.get("tier_cn") or "").strip() or (cn.split()[0] if " " in cn else "其他")
+        tier = _tier_key((r.get("tier_cn") or "").strip()) or (
+            _tier_key(cn.split()[0]) if " " in cn else "其他"
+        )
         groups.setdefault(tier, []).append(cn)
 
     order = [t for t in _RELIC_TIER_ORDER if t in groups] + [
@@ -5339,12 +7410,15 @@ def fmt_relic_by_tier(
                 by_reason: dict[str, list[str]] = {}
                 for n, why in hits:
                     by_reason.setdefault(why, []).append(n)
-                shown = "；".join(f"{'、'.join(ns)}（{why}）" for why, ns in by_reason.items())
-                lines.append(f"　特殊渠道：{shown}")
-        if farm_hints and farm_hints.get(t):
-            lines.append(
-                "　推荐刷取：" + " ｜ ".join(_fit_hints(farm_hints[t], prefix="　推荐刷取："))
-            )
+                shown = L("；", "; ").join(
+                    L(f"{'、'.join(ns)}（{why}）", f"{', '.join(ns)} ({why})")
+                    for why, ns in by_reason.items()
+                )
+                lines.append(L("　特殊渠道：", "　Special channels: ") + shown)
+        _fh = (farm_hints or {}).get(t) or (farm_hints or {}).get(_tier_disp(t))
+        if _fh:
+            _pre = L("　推荐刷取：", "　Suggested farming: ")
+            lines.append(_pre + " ｜ ".join(_fit_hints(_fh, prefix=_pre)))
 
     # 每行放几个：整段都在本页时**按行数均分**，不要出现「9 个一行 + 1 个
     # 孤零零」（10 个条目排成 9+1 时右半边空一大片，玩家说「浪费空间」）。
@@ -5356,7 +7430,8 @@ def fmt_relic_by_tier(
 
     def _short(t: str, name: str) -> str:
         # 面板标题已写明纪元：格内只写代号（A1），不再每格重复「古纪」（全行相同的列不写）
-        return name[len(t) :].strip() if name.startswith(t + " ") else name
+        _td = _tier_disp(t)
+        return name[len(_td) :].strip() if name.startswith(_td + " ") else name
 
     chunk_counts = Counter(t for t, _ in chunk)
     per_line = _TIER_PER_LINE
@@ -5366,7 +7441,7 @@ def fmt_relic_by_tier(
                 _flush_buf()
                 _tier_notes(cur)
             cur = t
-            lines.append(f"◆ {t}（{len(groups[t])}）")
+            lines.append(L(f"◆ {t}（{len(groups[t])}）", f"◆ {_tier_disp(t)} ({len(groups[t])})"))
             per_line = _per_line(chunk_counts[t])
         buf.append(_short(t, short))
         if len(buf) >= per_line:
@@ -5375,10 +7450,25 @@ def fmt_relic_by_tier(
     if cur is not None:
         _tier_notes(cur)
 
-    summary = " · ".join(f"{t} {len(groups[t])}" for t in order)
-    lines.insert(0, f"◆ 共 {total} 个：{summary}")
-    lines.append(f"※ 第{page}/{pages}页，加 -2 / -3 翻页；查某个遗物的奖励与出处用「遗物 名称」")
-    return (f"{title}（第{page}/{pages}页，共{total}个）", lines)
+    summary = " · ".join(f"{_tier_disp(t)} {len(groups[t])}" for t in order)
+    lines.insert(
+        0,
+        L(f"◆ 共 {total} 个：{summary}", f"◆ {total} relic{'' if total == 1 else 's'}: {summary}"),
+    )
+    lines.append(
+        L(
+            f"※ 第{page}/{pages}页，加 -2 / -3 翻页；查某个遗物的奖励与出处用「遗物 名称」",
+            f'※ (Page {page}/{pages}) add -2 / -3 to flip pages; send "relic <name>" for a relic\'s '
+            "rewards and sources",
+        )
+    )
+    return (
+        L(
+            f"{title}（第{page}/{pages}页，共{total}个）",
+            f"{title} (Page {page}/{pages}, {total} total)",
+        ),
+        lines,
+    )
 
 
 # 部件反查卡最多列几把遗物（Forma 蓝图那种一张卡涉及 500+ 把，必须截断）
@@ -5386,6 +7476,7 @@ _PIECE_MAX_ROWS = 12
 # 状态 → 卡面用词。★ 用词要和「遗物 出库/入库」两张卡的语义一致：
 # 出库=现在能拿到，入库=收进金库、任务里刷不到。
 _PIECE_STATE_TEXT = {"drop": "可掉落", "varzia": "仅阿耶兑换", "vaulted": "已入库"}
+_PIECE_STATE_TEXT_EN = {"drop": "Droppable", "varzia": "Varzia only", "vaulted": "Vaulted"}
 # 排序优先级：能拿到的排最前（用户查部件最先想知道的就是「现在能不能刷」）
 _PIECE_STATE_ORDER = {"drop": 0, "varzia": 1, "vaulted": 2}
 
@@ -5425,6 +7516,9 @@ LICH_ELEM_ALT = {
     "mag": "磁力",
 }
 LICH_OWNER_STATUS_CN = {"ingame": "游戏内", "online": "在线"}
+_LICH_OWNER_STATUS_EN = {"ingame": "In Game", "online": "Online"}
+_LICH_ELEM_DISP_EN = {k: k.capitalize() for k in LICH_ELEM_CN}
+_LICH_ONLINE_WORDS = ("游戏内", "在线", "In Game", "Online")
 
 
 def fmt_lich_cells(auction: dict) -> list[str]:
@@ -5437,13 +7531,15 @@ def fmt_lich_cells(auction: dict) -> list[str]:
     ow = auction.get("owner") or {}
     price = auction.get("buyout_price") or auction.get("starting_price") or 0
     raw_elem = str(it.get("element") or "")
-    elem = LICH_ELEM_CN.get(raw_elem, raw_elem or "?")
+    elem = (_LICH_ELEM_DISP_EN if i18n.is_en() else LICH_ELEM_CN).get(raw_elem, raw_elem or "?")
     dmg = it.get("damage")
     dmg_s = f"{int(dmg)}%" if isinstance(dmg, (int, float)) else "?"
-    status = LICH_OWNER_STATUS_CN.get(str(ow.get("status") or ""), "离线")
+    status = (_LICH_OWNER_STATUS_EN if i18n.is_en() else LICH_OWNER_STATUS_CN).get(
+        str(ow.get("status") or ""), L("离线", "Offline")
+    )
     rep = ow.get("reputation")
-    rep_s = f"信用{int(rep)}" if isinstance(rep, (int, float)) else ""
-    eph = "幻纹★" if it.get("having_ephemera") else ""
+    rep_s = L(f"信用{int(rep)}", f"Rep {int(rep)}") if isinstance(rep, (int, float)) else ""
+    eph = L("幻纹★", "Ephemera★") if it.get("having_ephemera") else ""
     return [f"{price}p", elem, dmg_s, status, rep_s, eph]
 
 
@@ -5458,13 +7554,26 @@ def fmt_lich_table(pool: list[dict], *, total: Optional[int] = None) -> list[str
     列：价格｜元素｜伤害｜状态｜信用｜幻纹；状态整页同值时并进区块标题（「游戏内挂单」）。
     """
     rows = [fmt_lich_cells(a) for a in pool]
-    n_online = sum(1 for c in rows if c[3] in ("游戏内", "在线"))
-    prices = [int(c[0][:-1]) for c in rows if c[3] in ("游戏内", "在线") and c[0][:-1].isdigit()]
+    n_online = sum(1 for c in rows if c[3] in _LICH_ONLINE_WORDS)
+    prices = [int(c[0][:-1]) for c in rows if c[3] in _LICH_ONLINE_WORDS and c[0][:-1].isdigit()]
     if not prices:
         prices = [int(c[0][:-1]) for c in rows if c[0][:-1].isdigit()]
-    kv = [f"{min(prices)}p" if prices else "—", f"在线 {n_online} 条（共 {total or len(rows)} 条）"]
-    lines = ["◆ 最低价：" + "｜".join(kv)]
-    names = ["价格", "元素", "伤害", "状态", "信用", "幻纹"]
+    kv = [
+        f"{min(prices)}p" if prices else "—",
+        L(
+            f"在线 {n_online} 条（共 {total or len(rows)} 条）",
+            f"{n_online} online ({total or len(rows)} total)",
+        ),
+    ]
+    lines = [L("◆ 最低价：", "◆ Lowest price: ") + "｜".join(kv)]
+    names = [
+        L("价格", "Price"),
+        L("元素", "Element"),
+        L("伤害", "Damage"),
+        L("状态", "Status"),
+        L("信用", "Rep"),
+        L("幻纹", "Ephemera"),
+    ]
     keep = [0, 1, 2]  # 价格 / 元素 / 伤害 恒写
     state = ""
     vals3 = {c[3] for c in rows}
@@ -5476,11 +7585,21 @@ def fmt_lich_table(pool: list[dict], *, total: Optional[int] = None) -> list[str
         keep.append(4)
     if any(c[5] for c in rows):
         keep.append(5)
-    lines.append(f"◆ {state}挂单（在线优先 → 伤害降序 → 价格升序）")
+    lines.append(
+        L(
+            f"◆ {state}挂单（在线优先 → 伤害降序 → 价格升序）",
+            f"◆ {state + ' ' if state else ''}Listings (online first → damage descending → price ascending)",
+        )
+    )
     lines.append("　" + "　".join(names[k] for k in keep))
     for c in rows:
         lines.append("· " + "　".join(c[k] for k in keep).rstrip("　"))
-    lines.append("※ 信用 = 卖家交易信誉等级（0~5）；幻纹★ = 带幻纹；在线优先排序")
+    lines.append(
+        L(
+            "※ 信用 = 卖家交易信誉等级（0~5）；幻纹★ = 带幻纹；在线优先排序",
+            "※ Rep = seller trade reputation level (0-5); Ephemera★ = has an ephemera; online first",
+        )
+    )
     return lines
 
 
@@ -5517,11 +7636,12 @@ def fmt_relic_piece(
                 "cn": cn,
                 "rarity": (o.get("rarity") or "").strip(),
                 "state": state,
-                "tier": cn.split()[0] if " " in cn else "其他",
+                "tier": _tier_key(cn.split()[0]) if " " in cn else "其他",
             }
         )
+    ptitle = L(f"部件出处：{piece}", f"Part Sources: {piece}")
     if not rows:
-        return (f"部件出处：{piece}", ["未找到该部件的遗物出处"])
+        return (ptitle, [L("未找到该部件的遗物出处", "No relic sources found for this part")])
 
     rows.sort(
         key=lambda r: (
@@ -5535,13 +7655,23 @@ def fmt_relic_piece(
 
     n_ok = sum(1 for r in rows if r["state"] != "vaulted")
     S = "　"
+    _state_txt = _PIECE_STATE_TEXT_EN if i18n.is_en() else _PIECE_STATE_TEXT
     lines = [
-        f"◆ 可获取：{n_ok} 把｜已入库 {len(rows) - n_ok} 把",
-        "◆ 遗物出处",
-        f"{S}遗物{S}槽位{S}状态",
+        L(
+            f"◆ 可获取：{n_ok} 把｜已入库 {len(rows) - n_ok} 把",
+            f"◆ Obtainable: {n_ok}｜Vaulted {len(rows) - n_ok}",
+        ),
+        L("◆ 遗物出处", "◆ Relic Sources"),
+        L(f"{S}遗物{S}槽位{S}状态", f"{S}Relic{S}Slot{S}Status"),
     ]
     for r in rows[:_PIECE_MAX_ROWS]:
-        lines.append(f"· {r['cn']}{S}{r['rarity'] or '?'}槽{S}{_PIECE_STATE_TEXT[r['state']]}")
+        _rar = r["rarity"] or "?"
+        lines.append(
+            L(
+                f"· {r['cn']}{S}{_rar}槽{S}{_PIECE_STATE_TEXT[r['state']]}",
+                f"· {r['cn']}{S}{_RARITY_EN.get(_rar, _rar)} slot{S}{_state_txt[r['state']]}",
+            )
+        )
     if len(rows) > _PIECE_MAX_ROWS:
         # ★ 「另有 N 把已入库」是当初按「可掉落排最前」想当然写的：Forma 蓝图
         #   有 30 把可掉落、545 把总数，截到 12 行后**隐藏的 533 把里还有 18 把
@@ -5549,9 +7679,19 @@ def fmt_relic_piece(
         hidden = rows[_PIECE_MAX_ROWS:]
         hidden_ok = sum(1 for r in hidden if r["state"] != "vaulted")
         if hidden_ok:
-            lines.append(f"※ 还有 {len(hidden)} 把未列出（其中 {hidden_ok} 把现在就能掉落）")
+            lines.append(
+                L(
+                    f"※ 还有 {len(hidden)} 把未列出（其中 {hidden_ok} 把现在就能掉落）",
+                    f"※ {len(hidden)} more not shown ({hidden_ok} of them droppable right now)",
+                )
+            )
         else:
-            lines.append(f"※ 另有 {len(hidden)} 把已入库遗物未展开")
+            lines.append(
+                L(
+                    f"※ 另有 {len(hidden)} 把已入库遗物未展开",
+                    f"※ {len(hidden)} more vaulted relics not shown",
+                )
+            )
 
     # ------------------------------------------------------------------
     # 推荐刷取：**永远只给「当前出库（可掉落）」的那几把所属纪元**。
@@ -5568,12 +7708,12 @@ def fmt_relic_piece(
             tiers.append(r["tier"])
     hinted = 0
     for t in tiers:
-        hints = (farm_hints or {}).get(t) or []
+        hints = (farm_hints or {}).get(t) or (farm_hints or {}).get(_tier_disp(t)) or []
         if not hints:
             continue
         # 纪元名放在括号里：写成「古纪推荐刷取：」读着像机器话，
         # 且与出库卡那句「※ 推荐刷取：」保持同一个说法更好认。
-        prefix = f"※ 推荐刷取（{t}）："
+        prefix = L(f"※ 推荐刷取（{t}）：", f"※ Suggested farming ({_tier_disp(t)}): ")
         picked = _fit_hints(hints, prefix=prefix)
         if picked:
             lines.append(prefix + " ｜ ".join(picked))
@@ -5582,17 +7722,31 @@ def fmt_relic_piece(
     n_drop = sum(1 for r in rows if r["state"] == "drop")
     if not n_ok:
         lines.append(
-            "※ 这些遗物都已入库，当前任务里刷不到；可留意阿耶（Varzia）兑换或等 DE 重新出库"
+            L(
+                "※ 这些遗物都已入库，当前任务里刷不到；可留意阿耶（Varzia）兑换或等 DE 重新出库",
+                "※ All of these relics are vaulted and cannot be farmed right now; "
+                "watch for Varzia redemptions or wait for DE to unvault them",
+            )
         )
     elif n_drop and not hinted:
         # 有可掉落遗物却没算出推荐点（该纪元不在 farm_hints 里）—— 理论上
         # 不会发生（当前 34 把可掉落遗物都在古/前/中/后四纪元），但真发生了
         # 也必须说清是哪把，不能静默把「能刷」的信息吞掉。
-        names = "、".join(r["cn"] for r in rows if r["state"] == "drop")[:36]
-        lines.append(f"※ 能掉落的是 {names}，用「遗物 名称」可看具体出处")
+        names = L("、", ", ").join(r["cn"] for r in rows if r["state"] == "drop")[:36]
+        lines.append(
+            L(
+                f"※ 能掉落的是 {names}，用「遗物 名称」可看具体出处",
+                f'※ Droppable: {names}; use "relic <name>" for exact sources',
+            )
+        )
     elif not n_drop:
-        lines.append("※ 可获取的那几把只在阿耶（Varzia）商店出售，任务里刷不到")
-    return (f"部件出处：{piece}", lines)
+        lines.append(
+            L(
+                "※ 可获取的那几把只在阿耶（Varzia）商店出售，任务里刷不到",
+                "※ The obtainable ones are only sold in Varzia's shop and cannot be farmed in missions",
+            )
+        )
+    return (ptitle, lines)
 
 
 def fmt_relic_rewards(
@@ -5608,19 +7762,27 @@ def fmt_relic_rewards(
     Returns:
         ``(标题, 行列表)``。
     """
-    relic = relic_cn(relic)  # 「古纪 Lith A1」→「古纪 A1」（标题也走中文）
+    relic = relic_cn(relic)  # 「古纪 Lith A1」→「古纪 A1」（英文模式 Lith A1）
+    rtitle = L(f"遗物：{relic}", f"Relic: {relic}")
     if not slots:
-        return (f"遗物：{relic}", ["未找到该遗物的奖励数据"])
+        return (rtitle, [L("未找到该遗物的奖励数据", "No reward data found for this relic")])
     prices = prices or {}
     S = "　"
-    lines = ["◆ 三槽位奖励", f"{S}稀有度{S}奖励{S}杜卡德{S}白金{S}杜/p"]
+    lines = [
+        L("◆ 三槽位奖励", "◆ Three Reward Slots"),
+        L(f"{S}稀有度{S}奖励{S}杜卡德{S}白金{S}杜/p", f"{S}Rarity{S}Reward{S}Ducats{S}Plat{S}D/p"),
+    ]
     for s in slots:
         name = s.get("name") or "?"
         p = prices.get(name) or prices.get(re.sub(r"\s+", "", name)) or {}
-        cells = [f"[{s.get('rarity', '?')}]", ducat_span(ducats_of(prices, name), name)]
+        _rar = s.get("rarity", "?")
+        cells = [
+            f"[{L(_rar, _RARITY_EN.get(_rar, _rar))}]",
+            ducat_span(ducats_of(prices, name), name),
+        ]
         if p:
             cells += [
-                f"{int(p['ducats'])}杜" if p.get("ducats") else "",
+                L(f"{int(p['ducats'])}杜", f"{int(p['ducats'])} Ducats") if p.get("ducats") else "",
                 f"{p['plat']:.0f}p" if p.get("plat") else "",
                 f"{p['dpp']:.1f}" if p.get("dpp") else "",
             ]
@@ -5628,7 +7790,11 @@ def fmt_relic_rewards(
             cells.append(f"{s['chance']}%")
         lines.append("· " + S.join(cells))
     lines.append(
-        "※ 杜=杜卡德　p=白金　杜/p=每白金换到的杜卡德（越高越值）；"
-        "价格来自 warframe.market 杜卡德计算器同源数据（近 1 小时）"
+        L(
+            "※ 杜=杜卡德　p=白金　杜/p=每白金换到的杜卡德（越高越值）；"
+            "价格来自 warframe.market 杜卡德计算器同源数据（近 1 小时）",
+            "※ Ducats = Ducats　p = Platinum　D/p = Ducats per Platinum (higher is better); "
+            "prices come from the same data as the warframe.market Ducat calculator (last hour)",
+        )
     )
-    return (f"遗物：{relic}", lines)
+    return (rtitle, lines)

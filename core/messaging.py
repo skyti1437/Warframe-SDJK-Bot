@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from .i18n import L
 from .logging_compat import logger
 
 if TYPE_CHECKING:
@@ -366,7 +367,9 @@ class MessagingBridge:
                 return
             message, user = query.message, query.from_user
             if message is None or user is None:
-                await query.answer("这条按钮没有可识别的会话。")
+                await query.answer(
+                    L("这条按钮没有可识别的会话。", "This button has no recognizable chat.")
+                )
                 return
             thread = str(getattr(message, "message_thread_id", None) or "")
             if thread == "1":
@@ -379,7 +382,14 @@ class MessagingBridge:
                 user.id,
                 query.id,
             )
-            await query.answer(None if ticket else "按钮已过期、重复提交或不属于当前会话/用户。")
+            await query.answer(
+                None
+                if ticket
+                else L(
+                    "按钮已过期、重复提交或不属于当前会话/用户。",
+                    "This button has expired, was already used, or does not belong to this chat/user.",
+                )
+            )
             if ticket:
                 self._dispatch(adapter, ticket, user.id, user.full_name, query.id, update)
 
@@ -680,9 +690,15 @@ class MessagingBridge:
     @staticmethod
     def _qq_button_hint(event):
         return (
-            "指令按钮填入输入框后发送；密语填入后请复制到游戏聊天。"
+            L(
+                "指令按钮填入输入框后发送；密语填入后请复制到游戏聊天。",
+                "Command buttons fill the input box before sending; whispers are filled in, then copy them into the game chat.",
+            )
             if getattr(event.message_obj, "group_id", "")
-            else "执行按钮直接发送；密语填入后请复制到游戏聊天。"
+            else L(
+                "执行按钮直接发送；密语填入后请复制到游戏聊天。",
+                "Run buttons send directly; whispers are filled in, then copy them into the game chat.",
+            )
         )
 
     def _qq_keyboard(self, event, actions):
@@ -694,7 +710,11 @@ class MessagingBridge:
                 if action.owner_only
                 else {"type": 2}
             )
-            label = action.label.replace("复制", "填入") if action.mode == "copy" else action.label
+            label = (
+                action.label.replace("复制", "填入").replace("Copy", "Fill")
+                if action.mode == "copy"
+                else action.label
+            )
             button = {
                 "id": secrets.token_hex(8),
                 "render_data": {"label": label, "visited_label": label, "style": 1},
@@ -703,7 +723,7 @@ class MessagingBridge:
                     "permission": permission,
                     "data": action.send,
                     "enter": not group and action.mode == "run",
-                    "unsupport_tips": "请手动输入指令",
+                    "unsupport_tips": L("请手动输入指令", "Please type the command manually"),
                 },
             }
             rows.setdefault(action.row, []).append(button)
@@ -736,7 +756,7 @@ class MessagingBridge:
         self._attempted.set(True)
         await event.client.send_message(
             chat_id=route.target,
-            text="请选择操作：",
+            text=L("请选择操作：", "Choose an action:"),
             parse_mode=None,
             reply_markup=tg.InlineKeyboardMarkup([rows[row] for row in sorted(rows)]),
             **kwargs,
@@ -766,7 +786,11 @@ class MessagingBridge:
                 )
                 if ticket is None:
                     await interaction.response.send_message(
-                        "按钮已过期、重复提交或不属于当前会话/用户。", ephemeral=True
+                        L(
+                            "按钮已过期、重复提交或不属于当前会话/用户。",
+                            "This button has expired, was already used, or does not belong to this chat/user.",
+                        ),
+                        ephemeral=True,
                     )
                     return
                 await asyncio.wait_for(interaction.response.defer(), timeout=2.5)
@@ -787,13 +811,13 @@ class MessagingBridge:
         followup = getattr(event, "interaction_followup_webhook", None)
         if followup:
             self._attempted.set(True)
-            await followup.send(content="请选择操作：", view=view)
+            await followup.send(content=L("请选择操作：", "Choose an action:"), view=view)
         else:
             channel = event.client.get_channel(int(route.target))
             if channel is None:
                 channel = await event.client.fetch_channel(int(route.target))
             self._attempted.set(True)
-            await channel.send(content="请选择操作：", view=view)
+            await channel.send(content=L("请选择操作：", "Choose an action:"), view=view)
 
     async def _send_kook(self, event, actions):
         from astrbot.core.platform.sources.kook.kook_types import KookMessageType
@@ -847,7 +871,7 @@ class MessagingBridge:
         self._attempted.set(True)
         await event.web_client.chat_postMessage(
             channel=route.target,
-            text="请选择操作：",
+            text=L("请选择操作：", "Choose an action:"),
             mrkdwn=False,
             blocks=[{"type": "actions", "elements": rows[row]} for row in sorted(rows)],
             **kwargs,

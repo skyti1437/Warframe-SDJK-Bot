@@ -301,6 +301,24 @@ check(
     not _lp5 and _ln5 == [("damage_vs_corpus", 45.0)],
     f"{_lp5} / {_ln5}",
 )
+# 0 级（未强化）卡的派系词条是带 % 的小数值：带 % 的不是乘数，不能换算成 480 / +130
+for _rk0 in (
+    ["+5.8% 对Grineer伤害", "-2.3% 对Infested伤害"],
+    ["+5.8% Damage to Grineer", "-2.3% Damage to Infested"],
+):
+    _lp0k, _ln0k, _ = RA.parse_riven_lines(_rk0, _resolve)
+    check(
+        f"0 级卡派系带 % 按原值读：{_rk0[0]}",
+        _lp0k == [("damage_vs_grineer", 5.8)] and _ln0k == [("damage_vs_infested", 2.3)],
+        f"{_lp0k} / {_ln0k}",
+    )
+# 不带 % 且出了乘数取值域（5.8 不可能是派系乘数）也不按乘数换算
+_lp0m, _ln0m, _ = RA.parse_riven_lines(["+5.8 对Grineer伤害"], _resolve)
+check(
+    "派系裸数值出乘数域不换算",
+    _lp0m == [("damage_vs_grineer", 5.8)] and not _ln0m,
+    f"{_lp0m} / {_ln0m}",
+)
 
 # 重复行去重 + 同词条两侧都在时以负为准
 _lp6, _ln6, _ = RA.parse_riven_lines(["+148% 多重射击", "+148% 多重射击"], _resolve)

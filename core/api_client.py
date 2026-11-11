@@ -44,7 +44,7 @@ try:  # 缺依赖时保持模块可导入（离线工具/测试），实例化�
 except ImportError:  # pragma: no cover
     httpx = None  # type: ignore[assignment]
 
-from . import de_worldstate, paths
+from . import de_worldstate, i18n, paths
 from . import __version__ as _CORE_VERSION  # UA 版本段随插件版本派生（单一来源）
 from .cache import TTLCache
 from .logging_compat import logger
@@ -1302,13 +1302,110 @@ def redact_error_text(text: str) -> str:
     return _ERR_IP_RE.sub("内部地址", out)
 
 
+# 英文模式：数据源展示名
+_ERR_SOURCES_EN = {
+    "FlareSolverr（CF 绕过代理）": "FlareSolverr (CF bypass proxy)",
+    "DE 官方接口": "The DE official API",
+    "DE 官方紫卡周报": "The DE official Riven weekly report",
+    "灰机 wiki": "Huiji wiki",
+    "Warframe wiki（言录使数据）": "Warframe wiki (Acrithis data)",
+    "Warframe wiki（紫卡倾向表）": "Warframe wiki (Riven disposition table)",
+    "上游接口": "The upstream API",
+}
+
+# 英文模式：无替代指令的外部源停摆提示（与 _EXTERNAL_ONLY 的中文原文一一对应）
+_EXTERNAL_ONLY_EN = {
+    "kuva": "The Kuva siphon data source (10o.io) is down and the DE official data does not "
+    "include it, so live siphons are unavailable.\n"
+    "Alternatives:\n"
+    "- Kuva / Sister weapon prices: wm kuva bramma\n"
+    "- Kuva / Tenet weapon auctions: xh\n"
+    "- Weekly rotations: timers",
+    "arbitration": "The live Arbitration data source (10o.io) is down.\n"
+    "Alternatives:\n"
+    "- arbitration: current and next-hour missions (now from the arbi.wf.wiki fixed schedule)\n"
+    "- arbtable: the full weekly schedule\n"
+    "- arbitration survival: filter by mission type",
+    "steelPath": "Steel Path rotation needs an external data source, which is not available in "
+    "direct DE mode.\n"
+    "Alternatives:\n"
+    "- incursions: current Steel Path Incursions\n"
+    "- fissures steelpath: Steel Path fissures\n"
+    "- arbitration: Steel Path Arbitration missions",
+}
+
+# 英文模式：本插件自己写的中文降级提示 -> 英文（按顺序取第一个命中；其余含中文的原文一律不透传）
+_ERR_PLUGIN_EN: tuple[tuple[str, str], ...] = (
+    ("请求额度繁忙", "warframe.market request quota is busy, please try again later"),
+    ("限速", "warframe.market is rate-limiting requests, please try again later"),
+    ("WM 请求被拒绝", "warframe.market rejected the request, please contact an admin"),
+    ("WM 重定向已拒绝", "warframe.market redirected the request, please contact an admin"),
+    ("客户端已关闭", "The plugin is reloading or shutting down, please try again shortly"),
+    (
+        "自填地址指向受限网络",
+        "The configured address points to a restricted network, request not sent",
+    ),
+    ("返回结构异常", "The data source returned an unexpected response, please try again later"),
+    ("世界状态访问被拒绝", "DE world state access was denied (HTTP 403), please contact an admin"),
+    ("世界状态返回异常", "DE world state returned an unexpected response, please try again later"),
+    (
+        "这一段解析失败",
+        "That part of the world state failed to parse, other features are unaffected, please try again later",
+    ),
+    ("世界状态", "World state data is temporarily unavailable, please try again later"),
+    (
+        "价格排行刷新保护中",
+        "Price ranking refresh is protected, please try again 30 minutes after the current round ends",
+    ),
+    ("词条无法完整转换", "Some stats cannot be fully converted into a market query"),
+    ("FlareSolverr", "The CF bypass proxy is unavailable, please try again later"),
+    ("wiki", "The wiki data source is temporarily unavailable, please try again later"),
+)
+_CJK_RE = re.compile(r"[\u3400-\u9fff\uff00-\uffef\u3000-\u303f]")
+
+
+def _public_error_text_en(msg: str) -> str:
+    """``public_error_text`` 的英文出口：只改返回值，判断仍按中文原文前缀。"""
+    if msg.startswith(_ERR_RAW_PREFIXES):
+        zh_src = error_source(msg) or "上游接口"
+        src = _ERR_SOURCES_EN.get(zh_src, zh_src)
+        if msg.startswith("接口不存在或暂未开放"):
+            return f"{src} endpoint does not exist or is not open yet, please try again later"
+        status_match = re.search(r"(?:\bHTTP\s+|\berror\s+['\"])([45]\d{2})\b", msg, re.I)
+        if status_match:
+            status = int(status_match[1])
+            if status == 403:
+                return f"{src} denied access (HTTP 403), please ask an admin to check the data source connection"
+            if status == 429:
+                return f"{src} is rate-limiting requests (HTTP 429), please try again later"
+            if status >= 500:
+                return f"{src} service error (HTTP {status}), please resend in a moment"
+            return f"{src} request failed (HTTP {status}), please ask an admin to check the data source config"
+        if re.search(r"timeout|timed out|超时", msg, re.I):
+            return f"{src} request timed out, please resend in a moment"
+        return f"{src} is temporarily unavailable (connection or response error), please resend in a moment"
+    for key, text in _EXTERNAL_ONLY.items():
+        if msg == text.strip():
+            return _EXTERNAL_ONLY_EN[key]
+    for key, text in _ERR_PLUGIN_EN:
+        if key in msg:
+            return text
+    cleaned = redact_error_text(msg)
+    if not cleaned or _CJK_RE.search(cleaned):
+        return "The data source is temporarily unavailable, please try again later"
+    return cleaned
+
+
 def public_error_text(exc: BaseException | str) -> str:
     """把接口异常转成可以发到群里的提示（详情由调用方写日志）。
 
     * 本插件自己写的降级提示（限速 / 数据源停摆 / 开关关闭等）原样保留，仅兜底去 URL/IP；
     * 拼了上游原文的（见 ``_ERR_RAW_PREFIXES``）整句换成「<数据源> 暂时不可用，请稍后再试」。
+    英文模式只翻译返回值（判断依据仍是中文原文），无法归类的中文原文不透传。
     """
     msg = str(exc).strip()
+    if i18n.is_en():
+        return _public_error_text_en(msg)
     if msg.startswith(_ERR_RAW_PREFIXES):
         src = error_source(msg) or "上游接口"
         if msg.startswith("接口不存在或暂未开放"):
@@ -1588,12 +1685,17 @@ class WarframeClient:
         self._wm_auction_updated = time.monotonic()
         self._wm_auction_cool_until = 0.0
         self._valence_refresh_lock = asyncio.Lock()
-        self._de_parsed_cache: tuple[str, dict] = ("", {})
+        # (语言, Time+BuildLabel) -> 解析结果；解析期已按语言本地化，两种语言各存一份。
+        self._de_parsed_cache: dict[tuple[str, str], dict] = {}
         self._ws_lock = asyncio.Lock()
         self._de_retry_at = 0.0
         self._ws_failure_until: dict[str, float] = {}
         self._ws_failure: dict[str, Exception] = {}
         self._ws_last_good: dict[str, dict] = {}
+
+    def _lang_code(self) -> str:
+        """上游请求用的语言码：英文模式发 en，否则沿用构造时的语言（默认 zh-hans）。"""
+        return "en" if i18n.is_en() else self.language
 
     def begin_close(self) -> None:
         """同步封住新请求和新抓取；宿主在扫描旧任务之前调用。"""
@@ -1681,15 +1783,22 @@ class WarframeClient:
             self._wm_last = now
             return ""
 
-    async def probe_data_source(self, target: str, platform: str = "pc") -> dict:
-        """只探测传输，不采用、解析或缓存业务数据；WM 探测计入普通查询额度。"""
+    async def probe_data_source(
+        self, target: str, platform: str = "pc", worldsource: Optional[str] = None
+    ) -> dict:
+        """只探测传输，不采用、解析或缓存业务数据；WM 探测计入普通查询额度。
+
+        worldsource：面板按设置里保存的世界状态来源测（该项改了要重载才生效，
+        运行中的客户端可能还是旧值）；不传就按运行中的来源。
+        """
         self._ensure_open()
         if target not in {"worldstate", "community", "wiki", "market"}:
             raise ValueError("未知数据源测试项")
         if target == "worldstate":
+            source = worldsource if worldsource in ("de", "warframestat") else self.worldsource
             url = (
                 self.de_worldstate_url
-                if self.worldsource == "de"
+                if source == "de"
                 else f"{self._ws_base(platform)}/{platform}/events"
             )
             urls = (("世界状态", url),)
@@ -1741,8 +1850,14 @@ class WarframeClient:
                         and not self.allow_private_urls
                     ):
                         if await private_url_reason(url):
-                            row["url"] = ""
-                            raise WarframeAPIError("自填地址指向受限网络，未发送请求")
+                            row.update(
+                                url="",
+                                error="自填地址指向受限网络，未发送请求",
+                                skipped_reason="private_url",
+                                ms=0,
+                            )
+                            attempts.append(row)
+                            continue
                     timeout = (
                         8.0
                         if target == "worldstate" and url == DEFAULT_DE_WORLDSTATE
@@ -2059,9 +2174,10 @@ class WarframeClient:
                 return de_worldstate._node_name(key)
         return value
 
-    async def _community_ws_bundle(self, platform: str) -> dict:
+    async def _community_ws_bundle(self, platform: str, *, fallback: bool = True) -> dict:
         # 整包缓存身份同时包含源地址、平台、语言；校验失败不进入缓存。
-        language = "zh" if self.language in ("zh-hans", "zh-CN") else self.language
+        code = self._lang_code()
+        language = "zh" if code in ("zh-hans", "zh-CN") else code
         url = f"{self.worldstate_base}/{platform}"
         key = f"ws-fallback|{url}|{language}"
         data = None
@@ -2127,6 +2243,13 @@ class WarframeClient:
                 for row in sortie.get("variants") or []
             ]
             bundle["sortie"] = sortie
+            # 日历：warframestat 的事件类型、名字字段与 DE 解析结果不同，转成同一内部结构，
+            # 否则日历卡认不出事件，名字全显示成「?」。转换失败只标记这一段，不拖垮整包。
+            if isinstance(data.get("calendar"), dict):
+                try:
+                    bundle["calendar"] = de_worldstate.community_calendar(data["calendar"])
+                except (KeyError, TypeError, ValueError, AttributeError):
+                    bundle["_failed"] = list(bundle.get("_failed") or []) + ["calendar"]
             construction = data["constructionProgress"]
             projects = []
             for field, name, en, faction, event in (
@@ -2202,11 +2325,7 @@ class WarframeClient:
                         mission,
                         node=self._community_node_name(mission.get("node", "")),
                         missionType=mission.get("missionType") or mission.get("type", ""),
-                        level=(
-                            de_worldstate.ARCHON_STAGE_LEVELS[index]
-                            if index < len(de_worldstate.ARCHON_STAGE_LEVELS)
-                            else ""
-                        ),
+                        level=de_worldstate.archon_stage_level(index),
                     )
                     for index, mission in enumerate(variants)
                 ]
@@ -2218,13 +2337,40 @@ class WarframeClient:
                 bundle["syndicateMissions"] = de_worldstate.adapt_community_syndicate_missions(
                     data["syndicateMissions"]
                 )
+            # 警报 / 入侵 / 每日特惠 / 周期：社区字段与 DE 解析结构不同，逐项转换；
+            # 只标记失败的那一段，不拖垮整包。
+            for field, convert in (
+                ("alerts", lambda v: de_worldstate.community_alerts(v, self._community_node_name)),
+                (
+                    "invasions",
+                    lambda v: de_worldstate.community_invasions(v, self._community_node_name),
+                ),
+                ("dailyDeals", de_worldstate.community_daily_deals),
+                ("conclaveChallenges", de_worldstate.community_conclave),
+                ("flashSales", de_worldstate.community_flash_sales),
+                ("descendia", de_worldstate.community_descendia),
+                ("duviriCycle", lambda v: de_worldstate.community_cycle("duviri", v)),
+                ("zarimanCycle", lambda v: de_worldstate.community_cycle("zariman", v)),
+            ):
+                if not isinstance(data.get(field), (list, dict)):
+                    continue
+                try:
+                    bundle[field] = convert(data[field])
+                except (KeyError, TypeError, ValueError, AttributeError):
+                    bundle["_failed"] = list(bundle.get("_failed") or []) + [field]
+            # 科研：社区把深层 / 时光合在 archimedeas 一个列表里，按类型拆成两项
+            if isinstance(data.get("archimedeas"), list):
+                try:
+                    bundle.update(de_worldstate.community_archimedeas(data["archimedeas"]))
+                except (KeyError, TypeError, ValueError, AttributeError):
+                    bundle["_failed"] = list(bundle.get("_failed") or []) + ["archimedeas"]
             # events 的字段语义与 DE Goals 不同，未核实前不冒充 goals。
             bundle.pop("goals", None)
             label = (
-                "社区 warframestat（DE 后备）"
+                "社区 warframestat"
                 if self.worldstate_base == DEFAULT_WORLDSTATE_BASE
-                else "自定义社区世界状态（DE 后备）"
-            )
+                else "自定义社区世界状态"
+            ) + ("（DE 后备）" if fallback else "")
             bundle["_source"] = f"数据源：{label}｜快照 {data['timestamp']}"
             self._ws_last_good[key] = deepcopy(data)
             return bundle
@@ -2252,12 +2398,18 @@ class WarframeClient:
         if not isinstance(raw, dict) or not raw:
             raise WarframeAPIError("DE 世界状态返回异常，请稍后重试")
         raw_key = str(raw.get("Time", "")) + str(raw.get("BuildLabel", ""))
-        if self._de_parsed_cache[0] != raw_key:
+        key = (i18n.current_lang(), raw_key)
+        parsed = self._de_parsed_cache.get(key)
+        if parsed is None:
             # 解析必须走线程：内部要读多个 MB 级 DE 翻译表并建索引，
             # 同步跑会把 AstrBot 的单事件循环堵住（watchdog 实测 30s+）
             parsed = await asyncio.to_thread(de_worldstate.parse_worldstate, raw)
-            self._de_parsed_cache = (raw_key, parsed)
-        return self._de_parsed_cache[1]
+            # 只留当前这份原始数据的各语言结果，旧快照随新数据一起淘汰。
+            self._de_parsed_cache = {
+                k: v for k, v in self._de_parsed_cache.items() if k[1] == raw_key
+            }
+            self._de_parsed_cache[key] = parsed
+        return parsed
 
     # ------------------------------------------------------------------
     # 世界状态统一入口
@@ -2288,8 +2440,28 @@ class WarframeClient:
                 value = WorldstateRows(value)
                 value.source = source
             return value
+        # 直连社区源：与 DE 后备共用同一个整包和同一套格式转换（各栏目字段名、节点中文名等），
+        # 整包里没有的栏目才单独请求原地址。
+        try:
+            bundle = await self._community_ws_bundle(platform, fallback=False)
+        except WarframeAPIError:
+            bundle = None
+        if bundle is not None and endpoint in bundle:
+            if endpoint in (bundle.get("_failed") or ()):
+                raise WarframeAPIError(
+                    f"社区世界状态的「{endpoint}」这一段解析失败（数据格式可能有变），"
+                    "其余功能不受影响，请稍后重试"
+                )
+            value = bundle.get(endpoint)
+            source = bundle.get("_source")
+            if source and isinstance(value, dict):
+                value = dict(value, _source=source)
+            elif source and isinstance(value, list):
+                value = WorldstateRows(value)
+                value.source = source
+            return value
         url = f"{self._ws_base(platform)}/{platform}/{endpoint}"
-        return await self._fetch_json(url, ttl=ttl, params={"language": self.language})
+        return await self._fetch_json(url, ttl=ttl, params={"language": self._lang_code()})
 
     async def cycle(self, platform: str, name: str) -> dict:
         """name: cetus / vallis / cambion / earth / duviri / zariman"""
@@ -2422,7 +2594,7 @@ class WarframeClient:
 
         ⚠️ 别引用 DE《Update 33.0》那句「Acrithis rotating at Sundays at 00:00 UTC」——
         那是 2023 年初版，已被后续调整覆盖；wiki 现版是 **Monday**。
-        一律以 **UTC 判定**，要展示给用户就换算成北京时间（``formatters._to_bj``）。
+        一律以 UTC 判定，展示时按用户所选的显示时区换算。
         """
         from datetime import datetime, timedelta, timezone
 
@@ -2904,9 +3076,25 @@ class WarframeClient:
             data = await self.worldstate(platform, "calendar", ttl=600)
         except WarframeAPIError:
             return None
+        if isinstance(data, dict) and self._is_community_calendar(data):
+            # 直连社区源（worldsource=warframestat）时拿到的是 warframestat 原始格式，
+            # 转成与 DE 解析相同的内部结构；DE 后备整包里已经转过的不会再命中
+            try:
+                data = de_worldstate.community_calendar(data)
+            except (KeyError, TypeError, ValueError, AttributeError):
+                return None
         if isinstance(data, dict):
             data = await self._resolve_calendar_rewards(data)
         return data
+
+    @staticmethod
+    def _is_community_calendar(data: dict) -> bool:
+        """warframestat 日历：事件类型是 To Do / Big Prize! / Override（DE 解析结果是 CHALLENGE 等）。"""
+        for day in data.get("days") or []:
+            for ev in (day or {}).get("events") or []:
+                if isinstance(ev, dict) and ev.get("type") in ("To Do", "Big Prize!", "Override"):
+                    return True
+        return False
 
     async def _resolve_calendar_rewards(self, data: dict) -> dict:
         """用 WM v2 物品的 gameRef 索引把日历奖励路径解析成中文名（尽力而为）。"""
@@ -2938,7 +3126,7 @@ class WarframeClient:
         params: Optional[dict] = None,
         platform: Optional[str] = None,
     ) -> Any:
-        hdr = {"language": self.language, "crossplay": "true"}
+        hdr = {"language": self._lang_code(), "crossplay": "true"}
         if platform:
             hdr["platform"] = _WM_PLATFORM.get(platform, platform)
         # HTTP 字段名不区分大小写；按实际发送值建立缓存身份，避免不同等级串单。
@@ -3034,7 +3222,12 @@ class WarframeClient:
                 continue
             out.append(
                 {
-                    "name": it.get("zh") or it.get("en") or it.get("url_name", ""),
+                    "name": (
+                        (it.get("en") or it.get("zh"))
+                        if i18n.is_en()
+                        else (it.get("zh") or it.get("en"))
+                    )
+                    or it.get("url_name", ""),
                     "url_name": it.get("url_name", ""),
                     "ducats": r.get("ducats") or it.get("ducats") or 0,
                     "dpp": float(r.get("ducats_per_platinum") or 0),
@@ -3069,7 +3262,9 @@ class WarframeClient:
                 }
             return out
 
-        return await self.cache.get_or_fetch("wmv1:ducats_price_map", TTL_WM_DUCATS, _build) or {}
+        # 键里的物品名随显示语言变化，两种语言各存一份，避免英文会话读到中文键（反之亦然）。
+        key = f"wmv1:ducats_price_map|{i18n.current_lang()}"
+        return await self.cache.get_or_fetch(key, TTL_WM_DUCATS, _build) or {}
 
     async def wm_orders(
         self, url_name: str, platform: str, rank: Optional[int] = None
@@ -3323,7 +3518,7 @@ class WarframeClient:
         返回 {"h48": [{t, volume, median, avg, min, max}], "d90": [...]}
         """
         hdr = {
-            "Language": self.language,
+            "Language": self._lang_code(),
             "Platform": _WM_PLATFORM.get(platform, platform),
             "Crossplay": "true",
         }

@@ -28,7 +28,15 @@
     {"class_pools": {"<职业>": {"<词条 id>": {"bonus": bool, "malus": bool, "spliced": bool,
                                            "buff_restr": [...], "curse_restr": [...]}}},
      "families": {"<我方家族根>": {"sentinel": true?, "grimoire": true?, "projectile": bool?,
+                                  "phys": {"impact", "puncture", "slash"}?, "phys_src": "de"?,
                                   "survey": {"n", "surveyed", "rollable", "never", "unclear"}?}}}
+
+  ``phys``（物理伤害占比，DE ``DamageTypes`` 的 25% 规则用）只给**伤害计算器武器表（weapons_stats.json）
+  查不到**的家族补：运行期优先用武器表（含各攻击段），查不到才用这里。来源只取 DE 官方导出
+  ``damagePerShot``，且总伤害 > 0 才算（猎犬武器靠它）。
+  Zaw 打击部件、组合枪枪膛：紫卡绑定的部件在官方数据里只有占位伤害（总伤害 0），组装后的伤害比例
+  不能拿来套 25% 规则——我方抽样 Sepfahn（冲击 10% / 穿刺 25%）、Plague Kripath（冲击 14% / 切割 23%）
+  三种物理词条都出现过。所以不补 phys，运行期物理三项照列标「?」（抽样见过的不标）。
 
 规则：
   · 融合词条（`riven_analysis.SPLICE_RECIPES` 的结果，英文 wiki「Riven Splicer」表）：只出正面、无限制
@@ -138,6 +146,25 @@ def _sha(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()[:16]
 
 
+_PHYS = ("impact", "puncture", "slash")
+
+
+def _shares_from_official(recs: list[dict]) -> dict | None:
+    """DE 官方 ``damagePerShot``（下标 0/1/2 = 冲击/穿刺/切割）→ 各物理伤害占比，取各形态最大值。
+
+    总伤害为 0 的条目（Zaw 打击部件、组合枪枪膛的占位数据）不算。
+    """
+    best: dict[str, float] = {}
+    for w in recs:
+        dps = [x for x in (w.get("damagePerShot") or []) if isinstance(x, (int, float))]
+        tot = sum(dps)
+        if not dps or tot <= 0 or not (w.get("totalDamage") or 0) > 0:
+            continue
+        for i, k in enumerate(_PHYS):
+            best[k] = max(best.get(k, 0.0), (dps[i] if i < len(dps) else 0) / tot)
+    return {k: round(best.get(k, 0.0), 4) for k in _PHYS} if best else None
+
+
 def class_pools(official: dict, pep: dict) -> tuple[dict, list[str]]:
     from core.riven_analysis import SPLICE_RECIPES
 
@@ -188,6 +215,8 @@ def class_pools(official: dict, pep: dict) -> tuple[dict, list[str]]:
 
 
 def families(official_w: dict, pep_w: dict) -> tuple[dict, dict]:
+    from core import riven_pools as _rp  # 与运行期同一套武器表索引（判「武器表查不到」）
+
     fam_doc = json.loads(FAMILIES.read_text(encoding="utf-8"))
     by_name: dict[str, str] = fam_doc.get("by_name") or {}
     off_by_name: dict[str, list[dict]] = {}
@@ -199,7 +228,12 @@ def families(official_w: dict, pep_w: dict) -> tuple[dict, dict]:
     for name, root in by_name.items():
         roots.setdefault(root, []).append(name)
     out: dict[str, dict] = {}
-    stats = {"no_weapon_data": 0, "no_projectile_tag_data": 0}
+    stats = {
+        "no_weapon_data": 0,
+        "no_projectile_tag_data": 0,
+        "phys_de": 0,
+        "phys_none": 0,
+    }
     for root, names in sorted(roots.items()):
         recs = [w for n in names for w in off_by_name.get(n.strip().lower(), [])]
         if not recs:
@@ -215,6 +249,14 @@ def families(official_w: dict, pep_w: dict) -> tuple[dict, dict]:
             entry["projectile"] = any("PROJECTILE" in t for t in tagged)
         else:
             stats["no_projectile_tag_data"] += 1
+        # 物理占比：只给武器表查不到的家族补（运行期武器表优先）
+        if not _rp._family_weapons(names):
+            phys = _shares_from_official(recs)
+            if phys:
+                entry["phys"], entry["phys_src"] = phys, "de"
+                stats["phys_de"] += 1
+            else:
+                stats["phys_none"] += 1
         if entry:
             out[root] = entry
 
@@ -249,24 +291,26 @@ def build(official_dir: Path, pep_dir: Path) -> dict:
     w_pep = pep_dir / "ExportWeapons.json"
     pools, unknown = class_pools(_load(up_off), _load(up_pep))
     fams, fstats = families(_load(w_off), _load(w_pep))
+    inputs = {
+        "official_ExportUpgrades_en": _sha(up_off),
+        "official_ExportWeapons_en": _sha(w_off),
+        "pep_ExportUpgrades": _sha(up_pep),
+        "pep_ExportWeapons": _sha(w_pep),
+    }
     return {
         "_source": (
             "DE 官方 Public Export（ExportUpgrades_en / ExportWeapons_en，content.warframe.com）"
             " + calamity-inc/warframe-public-export-plus（MIT；词条正负与限制、武器兼容标签）"
             " + 我方 WM 挂单抽样（riven_pools_survey.json）；生成器 scripts/build_riven_pools.py"
         ),
-        "_inputs": {
-            "official_ExportUpgrades_en": _sha(up_off),
-            "official_ExportWeapons_en": _sha(w_off),
-            "pep_ExportUpgrades": _sha(up_pep),
-            "pep_ExportWeapons": _sha(w_pep),
-        },
+        "_inputs": inputs,
         "_generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "_rule": (
             "① 职业池 = 官方现行紫卡模板的词条清单；正负与限制（DamageTypes / NotSentinel / NotGrimoire）取 PEP，"
             "融合词条只出正面；② 家族属性：守护武器（全员 SentinelWeapons）、魔典（/Grimoire/）、"
             "有弹道（PEP 兼容标签含 PROJECTILE）；③ 物理三项按武器伤害占比 ≤25% 不列（DE DamageTypes 规则，"
-            "2026-10-25 维护者定「按规则删，再用自己抽样纠偏」）；④ 我方抽样：见过 ⇒ 照列（压过规则），"
+            "2026-10-25 维护者定「按规则删，再用自己抽样纠偏」；占比取伤害计算器武器表，查不到的家族用 phys："
+            "DE 导出 damagePerShot → wiki 组合武器模块；都没有则物理三项标「?」，2026-11-10 补）；④ 我方抽样：见过 ⇒ 照列（压过规则），"
             "规则保留但没见过 ⇒ 列出并标「?」；规则排除且没见过 ⇒ 不列。"
             "2026-10-25 起不再使用 wfsim 数据。"
         ),

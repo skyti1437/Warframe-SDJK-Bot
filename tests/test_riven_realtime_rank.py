@@ -109,7 +109,10 @@ check(
     str(_l0),
 )
 _now = {"glaxion": {"median": 140}, "rubico": {"median": 105}}
-_t1, _l1 = F.fmt_riven_weekly(_SNAP, _ZH, now=_now, now_ts="2026-10-25T06:00:00+00:00")
+from core.display_time import use_zone  # noqa: E402
+
+with use_zone("UTC-03:30"):
+    _t1, _l1 = F.fmt_riven_weekly(_SNAP, _ZH, now=_now, now_ts="2026-10-25T06:00:00+00:00")
 _row_g = next(x for x in _l1 if "冷冻光束步枪" in x)
 _row_r = next(x for x in _l1 if "绝路" in x)
 check(
@@ -121,7 +124,7 @@ check(
 )
 check(
     "拉过现价：注脚写明拉取时间与「挂单价≠成交价」",
-    any("2026-10-25 06:00" in x and "挂单价≠成交价" in x for x in _l1),
+    any("2026-10-25 02:30 UTC-03:30" in x and "挂单价≠成交价" in x for x in _l1),
     str(_l1[-3:]),
 )
 check(

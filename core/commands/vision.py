@@ -25,6 +25,7 @@ from typing import Optional
 from .. import loadout_ocr as lo
 from .. import paths as core_paths
 from .. import pips as pips_engine
+from ..i18n import L
 from ..logging_compat import logger
 from .base import Reply, _num
 
@@ -147,8 +148,12 @@ class VisionCommands:
             if _last and _left > 0:
                 return (
                     Reply(
-                        raw_text=f"⏳ {what}太频繁了，请 {_left:.0f} 秒后再试\n"
-                        "（面板「识卡冷却秒数」可调，设 0 关闭限制）"
+                        raw_text=L(
+                            f"⏳ {what}太频繁了，请 {_left:.0f} 秒后再试\n"
+                            "（面板「识卡冷却秒数」可调，设 0 关闭限制）",
+                            f"⏳ {what} is on cooldown, please retry in {_left:.0f} s\n"
+                            '(adjustable via "Scan cooldown seconds" in the panel; 0 disables the limit)',
+                        )
                     ),
                     _sender,
                 )
@@ -162,7 +167,11 @@ class VisionCommands:
         if _cap > 0 and len(self._ocr_busy) >= _cap:
             return (
                 Reply(
-                    raw_text=f"⏳ 机器人正在处理其它识图请求（机器共享资源预算，并发上限 {_cap}），请稍后再试"
+                    raw_text=L(
+                        f"⏳ 机器人正在处理其它识图请求（机器共享资源预算，并发上限 {_cap}），请稍后再试",
+                        f"⏳ The bot is handling other image requests (shared resource budget, "
+                        f"concurrency limit {_cap}), please try again shortly",
+                    )
                 ),
                 _sender,
             )
@@ -660,6 +669,33 @@ class VisionCommands:
     # 双路都只读取观察：主读保留文字与数值原文，窄读附文字坐标。
     # 卡片区域、单位、数值换算与一致性由代码判断；无模型名或具体卡片示例。
     _RIVEN_JSON_PROMPT = '读取这张 Warframe 紫卡，只转录卡面原文，输出一行合法 JSON：{"weapon":"卡面武器名或部件名，看不清用null","stat_lines":["一条完整词条原文"]}。\nweapon 保留卡面印出的变体和 Prime，不含后面的拉丁词缀，不加主要/次要后缀。stat_lines 从上到下逐条记录当前卡面的词条，保留每条数值的正负号、小数、百分号、米/秒单位、x或×倍率及名称限定语；换行续文合在同一条。\n锁定图标只是图标，图标旁的词条仍要完整转录；不把图标抄成数字或字母。未揭示词条用问号保留位置。看不清的字符写问号，不猜数。卡片之外的预览、配装面板、聊天、按钮不属于本卡词条。段位、容量、洗练次数不属于词条。\n每条词条只出现一次，不拆成名称和值两个字段，不做正负面判断、数值换算、武器分析或配装建议。'
+    # 英文客户端卡面单独一份（中文版不动）：字段、结构与中文版一致，同样不写具体卡名或数值。
+    # 视觉模型读卡前看不到文字，按会话显示语言选用；面板里的渠道自定义覆盖仍然优先。
+    _RIVEN_JSON_PROMPT_EN = (
+        "Read this Warframe Riven mod and transcribe only the text printed on the card. "
+        'Output one line of valid JSON: {"weapon":"weapon or part name printed on the card, '
+        'null if unreadable","stat_lines":["one complete stat line as printed"]}.\n'
+        "weapon keeps the variant words and Prime exactly as printed, without the Latin-like "
+        "riven name that follows, and without any primary/secondary mode suffix. stat_lines "
+        "lists the stats currently on the card from top to bottom, keeping each value's sign, "
+        "decimals, percent sign, m/s units, x multiplier and name qualifiers; a stat that wraps "
+        "onto the next line, including a bracketed note, stays one entry.\n"
+        "A lock icon is only an icon: still transcribe the stat next to it in full. Element "
+        "icons before a stat name are not text. Never copy icons as digits or letters. Keep "
+        "unrevealed stats as question marks in their position. Write a question mark for any "
+        "unreadable character and do not guess numbers. Previews, loadout panels, chat, "
+        "buttons and gain/lose lists outside the card are not stats of this card. Mastery "
+        "rank, capacity and reroll count are not stats.\n"
+        "Each stat appears once. Do not split name and value into separate fields, and do not "
+        "judge positive or negative, convert values, analyze the weapon or suggest builds."
+    )
+
+    @classmethod
+    def riven_json_prompt(cls) -> str:
+        """紫卡主读的内置提示词：英文会话用英文版，其余用中文版（面板「原版」仍显示中文版）。"""
+        from ..i18n import is_en
+
+        return cls._RIVEN_JSON_PROMPT_EN if is_en() else cls._RIVEN_JSON_PROMPT
 
     _RIVEN_LINE_PROMPT = "Read all the text in the image. Return each text line as cx,cy,width,height,angle,text. The first five values describe a rotated rectangle: center x, center y, side width, side height, and rotation angle in degrees. Normalize the center and side lengths to 0-1000; angle is in [-90,90]. Preserve the recognized text after the coordinates. Include visible words and Arabic numerals, even faint text. Do not transcribe icons, borders, rank pips or decorative marks as characters. Keep text from each separate region on separate lines. Do not calculate or infer missing text."
 
@@ -777,7 +813,7 @@ class VisionCommands:
         # ★★ 2026-10-05 去掉全部字面示例值（实测 30B 真泄漏 10/32：把例子里的
         #   数值照抄到不含该值的卡上）。旧例子 50.2/65.1/44.9/95.4/63.4/115.7/110.8
         #   全部来自用户真实卡 ⇒ 本提示词不得再出现任何具体数值，一律用公式/描述表达。
-        prompt = VisionCommands._RIVEN_JSON_PROMPT
+        prompt = VisionCommands.riven_json_prompt()
         # ★ 2026-10-07（维护者裁定）：紫卡这一路**不竞速**（单渠道，`k=2` 退化为单发）。
         #   起因：`zhipu/glm-4v-flash` 把「冰凇」**稳定**读成「冰松」（5/5 全错）且它最快
         #   （~3.1 s）⇒ k=2 竞速里它必赢，武器名又是整卡的承重件 ⇒ 宁慢不赌，只走一个渠道。
@@ -1021,11 +1057,15 @@ class VisionCommands:
     def _full_stat_alias(cls) -> dict:
         if cls._STAT_ALIAS_FULL is None:
             try:  # 服务器以包成员加载，相对导入才可靠
-                from ..parser import RIVEN_STAT_ALIASES
+                from ..parser import RIVEN_STAT_ALIASES, RIVEN_STAT_EN_DISPLAY
             except ImportError:  # pragma: no cover - 本地直跑
-                from core.parser import RIVEN_STAT_ALIASES
+                from core.parser import RIVEN_STAT_ALIASES, RIVEN_STAT_EN_DISPLAY
             full: dict[str, str] = {}
             for sid, names in RIVEN_STAT_ALIASES.items():
+                for n in names:
+                    full.setdefault(n, sid)
+            # 英文卡面显示写法只参与识图匹配（不影响查价等输入解析）
+            for sid, names in RIVEN_STAT_EN_DISPLAY.items():
                 for n in names:
                     full.setdefault(n, sid)
             cls._STAT_ALIAS_FULL = full
@@ -1035,9 +1075,11 @@ class VisionCommands:
     def _stat_id_exact(cls, name: str, rev: dict) -> "str | None":
         """只认**整名精确命中**（别名 / 全称 / 短名表），不做包含匹配与形近 ——
         给折行拼接当闸门用（2026-10-24），宽匹配会把「词条 + 图例行」拼出假词条。"""
-        name = re.sub(r"\s+", "", str(name or ""))
-        name = cls._STAT_ALIAS.get(name, name)
-        return cls._full_stat_alias().get(name) or rev.get(name)
+        name = cls._stat_key(name)
+        short = {cls._stat_key(k): v for k, v in cls._STAT_ALIAS.items()}
+        name = short.get(name, name)
+        full = {cls._stat_key(k): v for k, v in cls._full_stat_alias().items()}
+        return full.get(name) or {cls._stat_key(k): v for k, v in rev.items()}.get(name)
 
     @classmethod
     def _stat_id_from_name(
@@ -1051,7 +1093,9 @@ class VisionCommands:
         from ..riven_analysis import split_stat_annotation
 
         raw_name = name
-        name = re.sub(r"\s+", "", str(name or ""))
+        # 两侧统一去空白、转小写：英文别名带空格（Damage to Grineer），OCR 大小写也不稳定；
+        # 中文不受 lower() 影响。旧实现只剥了输入侧的空白，英文多词词条会被包含匹配吞成「Damage」。
+        name = cls._stat_key(name)
 
         def finish(sid, method, alias=None, candidates=None):
             if evidence is not None:
@@ -1068,8 +1112,10 @@ class VisionCommands:
 
         if not name:
             return finish(None, "unknown")
-        full = cls._full_stat_alias()
-        normalized = cls._STAT_ALIAS.get(name, name)
+        full = {cls._stat_key(k): v for k, v in cls._full_stat_alias().items()}
+        rev = {cls._stat_key(k): v for k, v in rev.items()}
+        short = {cls._stat_key(k): v for k, v in cls._STAT_ALIAS.items()}
+        normalized = short.get(name, name)
         sid = full.get(normalized) or rev.get(normalized)
         if sid:
             return finish(sid, "exact", name)
@@ -1110,6 +1156,11 @@ class VisionCommands:
                 return finish(sid, "contained_alias", alias)
             return finish(None, "ambiguous_contained", candidates=winners)
         return finish(None, "unknown")
+
+    @staticmethod
+    def _stat_key(name) -> str:
+        """词条名比对键：去掉全部空白并转小写（中文不受影响）。"""
+        return re.sub(r"\s+", "", str(name or "")).lower()
 
     @staticmethod
     def _one_edit_apart(left: str, right: str) -> bool:

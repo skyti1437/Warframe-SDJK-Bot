@@ -15,10 +15,11 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timedelta, timezone
+from .display_time import local_datetime
 from pathlib import Path
 from typing import Optional
 
-from . import paths
+from . import i18n, paths
 
 DATA_FILE = Path(__file__).resolve().parent / "data" / "baro_history.json"
 
@@ -90,7 +91,9 @@ GROUP_ORDER = ("MOD", "武器", "遗物", "装饰", "外观", "其他")
 
 
 def type_cn(t: str) -> str:
-    """类型英文 → 中文（查不到就原样返回，不猜）。"""
+    """类型英文 → 中文（查不到就原样返回，不猜）；英文模式直接给 wiki 的英文类型名。"""
+    if i18n.is_en():
+        return (t or "").strip()
     return TYPE_CN.get((t or "").strip(), (t or "").strip())
 
 
@@ -258,7 +261,7 @@ def next_visit_est(now: Optional[datetime] = None, activation: str = "") -> Opti
             if act.tzinfo is None:
                 act = act.replace(tzinfo=timezone.utc)
             if act + timedelta(hours=48) > now:
-                return act.strftime("%Y-%m-%d")
+                return local_datetime(act).strftime("%Y-%m-%d")
         except ValueError:
             pass
     d = _last_dt()

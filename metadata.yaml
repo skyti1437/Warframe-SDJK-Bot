@@ -15,6 +15,12 @@ repo: https://github.com/skyti1437/Warframe-SDJK-Bot
 astrbot_version: ">=4.0.0"
 support_platforms:
   - aiocqhttp
+  - qq_official
+  - qq_official_webhook
+  - telegram
+  - discord
+  - slack
+  - kook
 social_link: https://github.com/skyti1437/Warframe-SDJK-Bot
 tags:
   - warframe

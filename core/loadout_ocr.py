@@ -3416,43 +3416,281 @@ def _mapped_damage_spec(an: dict, level: int = 100, faction: str = "Grineer") ->
     return spec
 
 
+# —— 识卡卡面的英文取名与行文（中文表 PHYS_ZH / ELEM_ALL_ZH / CATEGORY_ZH 不动，出卡处按语言取）——
+_ELEM_EN = {
+    "impact": "Impact",
+    "puncture": "Puncture",
+    "slash": "Slash",
+    "heat": "Heat",
+    "cold": "Cold",
+    "electricity": "Electricity",
+    "toxin": "Toxin",
+    "blast": "Blast",
+    "corrosive": "Corrosive",
+    "viral": "Viral",
+    "magnetic": "Magnetic",
+    "radiation": "Radiation",
+    "gas": "Gas",
+}
+_CARD_STAT_LABELS = (
+    ("base_dmg", "基伤", "Base Damage"),
+    ("heavy_dmg", "重击伤害", "Heavy Attack Damage"),
+    ("multishot", "多重", "Multishot"),
+    ("crit_chance", "暴击率", "Critical Chance"),
+    ("crit_dmg", "暴伤", "Critical Damage"),
+    ("status_chance", "触发率", "Status Chance"),
+    ("status_dmg", "状态伤害", "Status Damage"),
+    ("fire_rate", "射速", "Fire Rate"),
+)
+_EFFECT_EXTRA_LABELS_EN = {
+    "faction_dmg": "Faction Damage",
+    "headshot_bonus": "Headshot Multiplier",
+    "punch_through": "Punch Through",
+    "initial_combo": "Initial Combo",
+    "crit_per_combo": "Crit Chance/Combo Multiplier",
+    "status_per_combo": "Status Chance/Combo Multiplier",
+    "dmg_per_status": "Base Damage/Status Type",
+}
+_CHECK_LABEL_EN = {
+    "暴击几率": "Critical Chance",
+    "暴击伤害": "Critical Damage",
+    "触发几率": "Status Chance",
+    "总伤害": "Total Damage",
+    "行和×多重": "Row Sum x Multishot",
+    "总伤害行": "Total Damage Row",
+}
+_CHECK_NOTE_EN = {
+    "伤害行未完整对应总计，可能漏行或串行；请核对原图": (
+        "Damage rows do not fully match the total (rows may be missed or merged); "
+        "please check the original image"
+    ),
+}
+_CHECK_UNIT_EN = {"倍": "x"}
+_REASON_EN = {
+    "武器未确认": "Weapon not confirmed",
+    "未读到已装备 MOD": "No equipped mods were read",
+    "卡片数量超过武器升级槽位上限，疑似混入仓库卡": (
+        "More cards than the weapon has upgrade slots; inventory cards may be mixed in"
+    ),
+    "装备区补读未能确认，姿态或特殊槽可能漏读": (
+        "Equipment area re-read not confirmed; the stance or special slots may be missed"
+    ),
+    "像素检测到已装备卡行尚未对应到识别清单": (
+        "Equipped card rows detected by pixels are not matched to the scan list"
+    ),
+    "有 MOD 名称未能识别": "Some mod names could not be recognized",
+    "有可计算 MOD 的等级未确定": "Some calculable mods have an undetermined rank",
+    "有 MOD 名称只读到片段，候选尚未确认": (
+        "Some mod names were only partly read; candidates are unconfirmed"
+    ),
+    "裂罅紫卡的随机词条数值未读取，无法完整折算配卡": (
+        "Riven random stat values were not read; the build cannot be fully converted"
+    ),
+    "识别卡数少于像素检测到的已装备卡数下界": (
+        "Fewer cards scanned than the lower bound detected by pixels"
+    ),
+    "识别清单有卡片定位到仓库候选区，未作为完整配卡采信": (
+        "Some scanned cards were located in the inventory area; not accepted as a full build"
+    ),
+    "部分卡片未能与原图槽位唯一对应": "Some cards could not be uniquely matched to image slots",
+    "像素观测到的装备候选槽仍有未对应卡片": (
+        "Equipment slots seen by pixels still have unmatched cards"
+    ),
+    "装备区、空槽及特殊槽完整边界尚未核实": (
+        "Full bounds of the equipment area, empty slots and special slots are unverified"
+    ),
+    "面板不是字段对象": "Panel is not a field object",
+}
+
+
+_NOTE_EN_FIXED = {
+    "姿态/光环等级由提供容量反推": "Stance/aura rank inferred from the capacity it provides",
+    "槽位极性匹配（容量减半）": "Slot polarity match (capacity halved)",
+    "没读到卡片容量数字": "Card capacity number was not read",
+    "库中缺少该卡容量元数据": "Capacity metadata for this card is missing from the database",
+    "容量与数字颜色没有兼容等级": "No rank is compatible with both the capacity and the number color",
+    "豆数超过该卡等级上限": "Pip count exceeds this card's max rank",
+    "辅助槽容量存在多个等级解，未取得独立豆子证据，等级未确定": (
+        "The auxiliary slot capacity has several rank solutions and no independent pip "
+        "evidence was found; rank undetermined"
+    ),
+    "没读到武器名": "Weapon name was not read",
+    "⚠ 面板总伤没读到，伤害行无法交叉验证 —— 数字可能有误，请自行核对": (
+        "⚠ The panel total damage was not read, so damage rows cannot be cross-checked; "
+        "numbers may be wrong, please verify yourself"
+    ),
+}
+_NOTE_EN_PATTERNS = (
+    (
+        r"容量仍有多个兼容等级 (.+)，等待独立像素证据",
+        lambda m: (
+            f"Capacity still has several compatible ranks {m[1]}; awaiting independent pixel evidence"
+        ),
+    ),
+    (
+        r"豆子 (\d+) 颗与容量候选 (.+) 不符（已忽略该格）",
+        lambda m: f"{m[1]} pips do not match the capacity candidates {m[2]} (slot ignored)",
+    ),
+    (
+        r"裂罅紫卡：词缀随机生成，数值无法自动核算(?:；豆子计数 (\d+) 级|；等级未读到)",
+        lambda m: (
+            "Riven Mod: stats are randomly generated, values cannot be calculated automatically"
+            + (f"; rank {m[1]} counted from pips" if m[1] else "; rank not read")
+        ),
+    ),
+    (
+        r"武器库里没找到「(.*)」",
+        lambda m: f'Weapon "{m[1]}" was not found in the weapon database',
+    ),
+)
+
+
+def _note_en(text: str) -> str:
+    """识卡结果里由分析阶段生成的中文说明的英文版；认不出的原样返回。"""
+    text = str(text)
+    if text in _NOTE_EN_FIXED:
+        return _NOTE_EN_FIXED[text]
+    for pat, fn in _NOTE_EN_PATTERNS:
+        m = re.fullmatch(pat, text)
+        if m:
+            return fn(m)
+    return text
+
+
+def _mod_en_names(an: dict) -> dict:
+    """卡片中文显示名 -> 英文名（用于 totals 里按中文名收集的清单）。"""
+    return {
+        str(m.get("zh")): str(m.get("name"))
+        for m in an.get("mods") or []
+        if m.get("zh") and m.get("name")
+    }
+
+
+def _en_ty(key: str) -> str:
+    return _ELEM_EN.get(key, key)
+
+
+def _rank_text_en(item: dict) -> str:
+    """_rank_text 的英文版：「容量 → 等级」。"""
+    drain = item.get("drain")
+    rank, max_rank = item.get("rank"), item.get("max_rank")
+    amb = "⚠歧义" in str(item.get("note") or "")
+    if drain == 0 and rank is None:
+        head = "Cap 0?"
+    else:
+        head = f"Cap {int(drain)}" if drain is not None else "Cap ?"
+    if rank is None:
+        return head
+    if max_rank:
+        full = "Max" if rank >= int(max_rank) else "★Not max"
+        text = f"{head}→{rank}/{int(max_rank)} {full}"
+    else:
+        text = f"{head}→Rank {rank}"
+    return f"{text}?" if amb else text
+
+
+def _effect_text_en(eff: dict) -> str:
+    """_effect_text 的英文版：某一等级的效果压成一行。"""
+    if not eff:
+        return ""
+    bits: list[str] = []
+    if eff.get("heavy_crit_mult"):
+        bits.append(f"Heavy Attack Critical Chance x{eff['heavy_crit_mult']:g}")
+    if eff.get("throw_dmg"):
+        _st = eff.get("throw_max_stacks")
+        bits.append(
+            f"Throw Damage per stack +{eff['throw_dmg']:g}%"
+            + (f" (max {_st} stacks)" if _st else "")
+        )
+    for key, _zh, en in _CARD_STAT_LABELS:
+        val = eff.get(key)
+        if val:
+            bits.append(f"{en} {val:+g}%")
+    for key, en in _EFFECT_EXTRA_LABELS_EN.items():
+        val = eff.get(key)
+        if val:
+            unit = "" if key in ("punch_through", "initial_combo") else "%"
+            bits.append(f"{en} {val:+g}{unit}")
+    for el, val in (eff.get("elements") or {}).items():
+        if el in ("impact", "puncture", "slash"):
+            continue
+        bits.append(f"{_en_ty(el)} {val:+g}%")
+    for el, val in (eff.get("physical") or {}).items():
+        bits.append(f"{_en_ty(el)} {val:+g}%")
+    if eff.get("faction_mul"):
+        bits.append(f"Faction x{eff['faction_mul']:g}")
+    return ", ".join(bits)
+
+
 def card_lines(an: dict) -> list[str]:
     """识别结果卡面。
 
     行文法（2026-10-11 卡片改版）：卡首 KV（武器 / 识别 / 折算加成 / 参考）→ 武器面板 →
     卡片表（名称｜容量与等级｜效果）→ 面板校验表 → ⚠ 警示与注脚（≤3 行）。
     """
+    from . import i18n
     from .formatters import limit_notes
 
+    L = i18n.L
+    en = i18n.is_en()
+    _names_en = _mod_en_names(an) if en else {}
     lines: list[str] = []
     w = an.get("weapon")
     panel_rows: list[str] = []
     if w:
         dmg = w.get("damage") or {}
-        parts = "、".join(
-            f"{PHYS_ZH[k]}{float(dmg.get(k) or 0):g}"
+        parts = L("、", ", ").join(
+            L(
+                f"{PHYS_ZH[k]}{float(dmg.get(k) or 0):g}",
+                f"{_en_ty(k)} {float(dmg.get(k) or 0):g}",
+            )
             for k in ("impact", "puncture", "slash")
             if float(dmg.get(k) or 0) > 0
         )
         cat = CATEGORY_ZH.get(w.get("category") or "", w.get("category") or "")
-        lines.append(
-            f"◆ 武器：{w.get('zh') or w['name']}（{w['name']}）｜{cat}｜MR{w.get('masteryReq', 0)}"
-        )
+        if en:
+            lines.append(
+                f"◆ Weapon: {w['name']}｜{w.get('category') or ''}｜MR{w.get('masteryReq', 0)}"
+            )
+        else:
+            lines.append(
+                f"◆ 武器：{w.get('zh') or w['name']}（{w['name']}）｜{cat}｜MR{w.get('masteryReq', 0)}"
+            )
+        _cc = float(w.get("criticalChance") or 0) * 100
+        _cm = float(w.get("criticalMultiplier") or 1)
+        _sc = float(w.get("procChance") or 0) * 100
         panel_rows.append(
-            f"· 基础　{parts}（计 {float(dmg.get('total') or 0):g}）"
-            f"｜暴击 {float(w.get('criticalChance') or 0) * 100:g}%"
-            f"×{float(w.get('criticalMultiplier') or 1):g}"
-            f"｜触发 {float(w.get('procChance') or 0) * 100:g}%"
+            L(
+                f"· 基础　{parts}（计 {float(dmg.get('total') or 0):g}）"
+                f"｜暴击 {_cc:g}%"
+                f"×{_cm:g}"
+                f"｜触发 {_sc:g}%",
+                f"· Base　{parts} (total {float(dmg.get('total') or 0):g})"
+                f"｜Crit {_cc:g}%"
+                f" x{_cm:g}"
+                f"｜Status {_sc:g}%",
+            )
         )
         if an.get("panel_base"):
-            panel_rows.append(f"· 面板　{an['panel_base']}")
+            panel_rows.append(L(f"· 面板　{an['panel_base']}", f"· Panel　{an['panel_base']}"))
     else:
-        lines.append(f"◆ 武器：未能识别（读到的是「{an.get('weapon_query') or '空'}」）")
+        lines.append(
+            L(
+                f"◆ 武器：未能识别（读到的是「{an.get('weapon_query') or '空'}」）",
+                f'◆ Weapon: not recognized (read as "{an.get("weapon_query") or "empty"}")',
+            )
+        )
 
     weapon_match = (an.get("provenance") or {}).get("weapon_match") or {}
     if weapon_match.get("method") == "substring":
+        _wz = (w or {}).get("zh") or (w or {}).get("name")
+        _wn = (w or {}).get("name") or (w or {}).get("zh")
         lines.append(
-            f"· 武器名称经代码子串匹配：「{an.get('weapon_query')}」→「{(w or {}).get('zh') or (w or {}).get('name')}」，请核对原图"
+            L(
+                f"· 武器名称经代码子串匹配：「{an.get('weapon_query')}」→「{_wz}」，请核对原图",
+                f'· Weapon name matched by substring: "{an.get("weapon_query")}" → "{_wn}", '
+                "please check the original image",
+            )
         )
 
     # —— 面板校验结论（先算好，卡首「识别」行引用）——
@@ -3464,62 +3702,109 @@ def card_lines(an: dict) -> list[str]:
     bad = [c for c in checks if not c["ok"]]
     verdict = ""
     panel_derived = bool((an.get("weapon") or {}).get("_panel_derived"))
-    check_label = "反推自洽" if panel_derived else "面板校验"
+    check_label = L(
+        "反推自洽" if panel_derived else "面板校验",
+        "Self-consistency check" if panel_derived else "Panel check",
+    )
     if checks:
-        verdict = f"｜{check_label} " + ("可比项目吻合" if not bad else f"{len(bad)} 项对不上")
+        verdict = f"｜{check_label} " + L(
+            "可比项目吻合" if not bad else f"{len(bad)} 项对不上",
+            "all comparable items match" if not bad else f"{len(bad)} mismatched",
+        )
 
-    cap = f"｜容量 {an['capacity']}" if an.get("capacity") else ""
-    lines.append(f"◆ 识别：{len(an.get('mods') or [])} 张卡{cap}{verdict}")
+    _n_mods = len(an.get("mods") or [])
+    cap = L(
+        f"｜容量 {an['capacity']}" if an.get("capacity") else "",
+        f"｜Capacity {an['capacity']}" if an.get("capacity") else "",
+    )
+    lines.append(
+        L(f"◆ 识别：{_n_mods} 张卡{cap}{verdict}", f"◆ Scan: {_n_mods} mods{cap}{verdict}")
+    )
     quality = an.get("quality") or {}
     if quality and not quality.get("calculation_allowed", quality["snapshot_safe"]):
-        lines.append("◆ 识卡状态：结果未确认，本次不生成识卡伤害记录")
-        lines.extend(
-            f"· 待核对：{reason['message']}"
-            for reason in quality["reasons"] + quality.get("layout_reasons", [])
+        lines.append(
+            L(
+                "◆ 识卡状态：结果未确认，本次不生成识卡伤害记录",
+                "◆ Scan Status: result unconfirmed; no scan damage record is generated this time",
+            )
         )
+        for reason in quality["reasons"] + quality.get("layout_reasons", []):
+            _msg = reason["message"]
+            if en:
+                _msg = _REASON_EN.get(_msg, _msg)
+            lines.append(L(f"· 待核对：{_msg}", f"· To verify: {_msg}"))
     if checks:
-        lines.append("· 面板校验仅比较可用数值，不代表图像识别完整无误")
+        lines.append(
+            L(
+                "· 面板校验仅比较可用数值，不代表图像识别完整无误",
+                "· The panel check only compares usable values; it does not prove the scan is complete and correct",
+            )
+        )
         if panel_derived:
-            lines.append("· 基础由同一截图面板反推，数值吻合仅证自洽，不是独立识别验证")
+            lines.append(
+                L(
+                    "· 基础由同一截图面板反推，数值吻合仅证自洽，不是独立识别验证",
+                    "· Base was derived from the same screenshot panel; a match only shows "
+                    "self-consistency, not independent verification",
+                )
+            )
 
     for arcane in an.get("arcanes") or []:
         name = str(arcane.get("name") or "").replace("\n", " ")[:60]
         evidence = arcane.get("_rank_evidence") or {}
         rank = evidence.get("rank") if evidence.get("source") == "arcane_diamond_pixels" else None
-        level = f"{rank}级" if isinstance(rank, int) and 0 <= rank <= 5 else "等级未确认"
-        lines.append(f"· 赋能：{name}（{level}，条件加成未计入）")
+        _ok_rank = isinstance(rank, int) and 0 <= rank <= 5
+        level = L(
+            f"{rank}级" if _ok_rank else "等级未确认",
+            f"Rank {rank}" if _ok_rank else "rank unconfirmed",
+        )
+        lines.append(
+            L(
+                f"· 赋能：{name}（{level}，条件加成未计入）",
+                f"· Arcane: {name} ({level}, conditional bonuses not counted)",
+            )
+        )
     totals = an.get("totals") or {}
     bits: list[str] = []
-    for key, label in (
-        ("base_dmg", "基伤"),
-        ("heavy_dmg", "重击伤害"),
-        ("multishot", "多重"),
-        ("crit_chance", "暴击率"),
-        ("crit_dmg", "暴伤"),
-        ("status_chance", "触发率"),
-        ("status_dmg", "状态伤害"),
-        ("fire_rate", "射速"),
-    ):
+    for key, label, label_en in _CARD_STAT_LABELS:
         if totals.get(key):
-            bits.append(f"{label}{totals[key]:+g}%")
+            bits.append(L(f"{label}{totals[key]:+g}%", f"{label_en} {totals[key]:+g}%"))
     if totals.get("crit_chance_heavy"):
-        bits.append(f"重击时暴击率再+{totals['crit_chance_heavy']:g}%")
+        bits.append(
+            L(
+                f"重击时暴击率再+{totals['crit_chance_heavy']:g}%",
+                f"+{totals['crit_chance_heavy']:g}% extra Critical Chance on heavy attacks",
+            )
+        )
     if totals.get("throw_dmg"):
         _st = totals.get("throw_max_stacks")
         bits.append(
-            f"投掷伤害+{totals['throw_dmg']:g}%/层" + (f"（最多{int(_st)}层）" if _st else "")
+            L(
+                f"投掷伤害+{totals['throw_dmg']:g}%/层" + (f"（最多{int(_st)}层）" if _st else ""),
+                f"Throw Damage +{totals['throw_dmg']:g}% per stack"
+                + (f" (max {int(_st)} stacks)" if _st else ""),
+            )
         )
     for el, val in (totals.get("elements") or {}).items():
-        bits.append(f"{ELEM_ALL_ZH.get(el, el)}{val:+g}%")
+        bits.append(L(f"{ELEM_ALL_ZH.get(el, el)}{val:+g}%", f"{_en_ty(el)} {val:+g}%"))
     for el, val in (totals.get("physical") or {}).items():
-        bits.append(f"{PHYS_ZH.get(el, el)}{val:+g}%")
+        bits.append(L(f"{PHYS_ZH.get(el, el)}{val:+g}%", f"{_en_ty(el)} {val:+g}%"))
     if bits:
-        lines.append("◆ 按实际等级折算的加成：" + "、".join(bits))
+        lines.append(
+            L(
+                "◆ 按实际等级折算的加成：" + "、".join(bits),
+                "◆ Bonuses at actual rank: " + ", ".join(bits),
+            )
+        )
     combined = totals.get("combined") or {}
     if combined:
         lines.append(
-            "◆ 合成后元素："
-            + "、".join(f"{ELEM_ALL_ZH.get(k, k)}{v:+g}%" for k, v in combined.items())
+            L(
+                "◆ 合成后元素："
+                + "、".join(f"{ELEM_ALL_ZH.get(k, k)}{v:+g}%" for k, v in combined.items()),
+                "◆ Combined Elements: "
+                + ", ".join(f"{_en_ty(k)} {v:+g}%" for k, v in combined.items()),
+            )
         )
 
     ref = an.get("ref") if quality.get("snapshot_safe", True) else None
@@ -3527,45 +3812,72 @@ def card_lines(an: dict) -> list[str]:
         # FACTION_ZH 的值形如「Grineer（G系）」，嵌进括号里会套娃，先去括号
         fac_zh = re.sub(r"（.*?）", "", dc.FACTION_ZH.get(ref["faction"], ref["faction"]))
         lines.append(
-            f"◆ 参考（{fac_zh}"
-            f" {ref['level']}级·身体，无剥甲/异常层数）：单发 {ref['health']:.0f}"
-            f"｜暴击期望 ×{ref['crit_exp']:.2f}"
-            f" → {ref['health'] * ref['crit_exp']:.0f}"
+            L(
+                f"◆ 参考（{fac_zh}"
+                f" {ref['level']}级·身体，无剥甲/异常层数）：单发 {ref['health']:.0f}"
+                f"｜暴击期望 ×{ref['crit_exp']:.2f}"
+                f" → {ref['health'] * ref['crit_exp']:.0f}",
+                f"◆ Reference ({ref['faction']}"
+                f" Lv {ref['level']}, body, no armor strip or status stacks): "
+                f"per shot {ref['health']:.0f}"
+                f"｜crit expectation x{ref['crit_exp']:.2f}"
+                f" → {ref['health'] * ref['crit_exp']:.0f}",
+            )
         )
         hv = ref.get("heavy")
         if hv:
             extra = ""
+            extra_en = ""
             if hv.get("crit_cc") is not None:
                 extra = f"，暴击 {hv['crit_cc'] * 100:.0f}%"
+                extra_en = f", crit {hv['crit_cc'] * 100:.0f}%"
             if hv.get("initial_combo"):
                 # 初始连击是下限，不与连击数相加（wiki Melee；damage_calc 同口径）
                 extra += f"，初始连击 {hv['initial_combo']} 为下限"
+                extra_en += f", initial combo {hv['initial_combo']} is a floor"
             lines.append(
-                f"　重击（{hv['combo_hits']} 连击{extra}）："
-                f"{hv['health']:.0f}｜含暴击 {hv['health_crit']:.0f}"
+                L(
+                    f"　重击（{hv['combo_hits']} 连击{extra}）："
+                    f"{hv['health']:.0f}｜含暴击 {hv['health_crit']:.0f}",
+                    f"　Heavy attack ({hv['combo_hits']}-hit combo{extra_en}): "
+                    f"{hv['health']:.0f}｜with crit {hv['health_crit']:.0f}",
+                )
             )
         tw = ref.get("throw")
         if tw:
             lines.append(
-                f"　投掷（连续 {tw['stacks']}/{tw['max_stacks']} 层"
-                f"，×{tw['mult']:.1f}）：{tw['health']:.0f}"
-                f"｜含暴击 {tw['health_crit']:.0f}"
+                L(
+                    f"　投掷（连续 {tw['stacks']}/{tw['max_stacks']} 层"
+                    f"，×{tw['mult']:.1f}）：{tw['health']:.0f}"
+                    f"｜含暴击 {tw['health_crit']:.0f}",
+                    f"　Throw ({tw['stacks']}/{tw['max_stacks']} consecutive stacks"
+                    f", x{tw['mult']:.1f}): {tw['health']:.0f}"
+                    f"｜with crit {tw['health_crit']:.0f}",
+                )
             )
         _modes = ref.get("modes") or []
         if _modes:
             # 识卡卡面只给摘要：完整各段走「伤害」指令，免得这一页太长
-            _top3 = "、".join(f"{m['name']}{m['total']:g}" for m in _modes[:3])
-            lines.append(f"　另有 {len(_modes)} 段独立判定：{_top3}…（用「伤害」指令可看每段明细）")
+            _top3 = L("、", ", ").join(
+                L(f"{m['name']}{m['total']:g}", f"{m['name']} {m['total']:g}") for m in _modes[:3]
+            )
+            lines.append(
+                L(
+                    f"　另有 {len(_modes)} 段独立判定：{_top3}…（用「伤害」指令可看每段明细）",
+                    f"　{len(_modes)} more separate segments: {_top3}… "
+                    '(use the "damage" command for per-segment details)',
+                )
+            )
 
     if panel_rows:
-        lines.append("◆ 武器面板")
+        lines.append(L("◆ 武器面板", "◆ Weapon Panel"))
         lines += panel_rows
 
     # —— 卡片表：名称｜容量与等级｜效果 ——
     en_pairs: list[str] = []
     if an.get("mods"):
-        lines.append(f"◆ 卡片（{len(an['mods'])} 张）")
-        lines.append("　卡片　容量与等级　效果")
+        lines.append(L(f"◆ 卡片（{len(an['mods'])} 张）", f"◆ Mods ({len(an['mods'])})"))
+        lines.append(L("　卡片　容量与等级　效果", "　Mod　Capacity & Rank　Effect"))
     for item in an.get("mods") or []:
         if not item.get("found"):
             if item.get("riven"):
@@ -3573,74 +3885,133 @@ def card_lines(an: dict) -> list[str]:
                 # 不要混进「库中未收录」里（那会让人以为是我们缺数据）。
                 r = item.get("rank")
                 lines.append(
-                    f"· {item.get('raw')}　　裂罅紫卡（词缀随机，数值无法核算）"
-                    + (f"，等级按豆子 {r} 级" if r is not None else "")
+                    L(
+                        f"· {item.get('raw')}　　裂罅紫卡（词缀随机，数值无法核算）"
+                        + (f"，等级按豆子 {r} 级" if r is not None else ""),
+                        f"· {item.get('raw')}　　Riven Mod (random stats, values cannot be calculated)"
+                        + (f", rank {r} from the pips" if r is not None else ""),
+                    )
                 )
             else:
-                lines.append(f"· {item.get('raw')}　　⚠ 库中未收录，已忽略")
+                lines.append(
+                    L(
+                        f"· {item.get('raw')}　　⚠ 库中未收录，已忽略",
+                        f"· {item.get('raw')}　　⚠ Not in database, ignored",
+                    )
+                )
             continue
         name = (
-            item.get("raw") if item.get("name_incomplete") else item.get("zh") or item.get("name")
+            item.get("raw")
+            if item.get("name_incomplete")
+            else dc._zh_or_name(item)
+            if en
+            else item.get("zh") or item.get("name")
         )
-        en = item.get("name") or ""
-        tail = _effect_text(item.get("effect") or {})
+        en_name = item.get("name") or ""
+        tail = (
+            _effect_text_en(item.get("effect") or {})
+            if en
+            else _effect_text(item.get("effect") or {})
+        )
         if tail:
             eff = tail
         elif not item.get("calculable"):
-            eff = "数值未折算"
+            eff = L("数值未折算", "values not converted")
         elif item.get("rank") is None:
-            eff = "⚠ 等级未定，按满级估"
+            eff = L("⚠ 等级未定，按满级估", "⚠ Rank undetermined, estimated at max rank")
         else:
             eff = ""
         # 英文名不进表格（名称列过宽会让整张表放弃列对齐）：统一进卡尾「英文名对照」注脚
-        if en and en != name:
-            en_pairs.append(f"{name} {en}")
-        lines.append(f"· {name}　{_rank_text(item)}　{eff}".rstrip("　"))
+        # （英文模式名称列本身就是英文名，不需要对照）
+        if not en and en_name and en_name != name:
+            en_pairs.append(f"{name} {en_name}")
+        lines.append(
+            f"· {name}　{_rank_text_en(item) if en else _rank_text(item)}　{eff}".rstrip("　")
+        )
         if item.get("note"):  # 备注（姿态卡 / 槽位极性匹配…）作为从属行缩进在该卡之下
-            lines.append(f"　{item['note']}")
+            lines.append(f"　{_note_en(item['note']) if en else item['note']}")
 
     # —— 面板校验表 ——
     if checks:
-        lines.append(f"◆ {check_label}（识别值 vs 本地推算）")
-        lines.append("　项目　识别值　本地推算　结果")
+        lines.append(
+            L(
+                f"◆ {check_label}（识别值 vs 本地推算）",
+                f"◆ {check_label} (scanned vs local calculation)",
+            )
+        )
+        lines.append(L("　项目　识别值　本地推算　结果", "　Item　Scanned　Calculated　Result"))
+        _match, _mismatch = L("吻合", "Match"), L("⚠ 对不上", "⚠ Mismatch")
         for c in checks:
             got, want = float(c["panel"]), float(c["calc"])
+            _lab = _CHECK_LABEL_EN.get(c["label"], c["label"]) if en else c["label"]
+            _unit = _CHECK_UNIT_EN.get(c["unit"], c["unit"]) if en else c["unit"]
             # 相对差 <0.1% 视为完全吻合（游戏显示舍入造成的小数残差，
             # 如 总伤 1488.3 vs 1488.24 —— 差 0.004%，如实显示相等）
             if c["ok"] and abs(got - want) <= abs(want) * 0.001:
-                lines.append(f"· {c['label']}　{got:g}{c['unit']}　{got:g}{c['unit']}　吻合")
+                lines.append(f"· {_lab}　{got:g}{_unit}　{got:g}{_unit}　{_match}")
             else:
                 lines.append(
-                    f"· {c['label']}　{got:g}{c['unit']}　{want:.2f}{c['unit']}"
-                    + ("　吻合" if c["ok"] else "　⚠ 对不上")
+                    f"· {_lab}　{got:g}{_unit}　{want:.2f}{_unit}"
+                    + (f"　{_match}" if c["ok"] else f"　{_mismatch}")
                 )
         for c in _tips:
-            lines.append(
-                f"· {c['label']}　{float(c['panel']):g}　{float(c['calc']):.0f}　{c['note']}"
-            )
+            _lab = _CHECK_LABEL_EN.get(c["label"], c["label"]) if en else c["label"]
+            _note = _CHECK_NOTE_EN.get(c["note"], c["note"]) if en else c["note"]
+            lines.append(f"· {_lab}　{float(c['panel']):g}　{float(c['calc']):.0f}　{_note}")
     if en_pairs:
         lines.append("※ 英文名对照：" + "、".join(en_pairs))
     if bad:
-        lines.append("※ ⚠ 可能漏读了卡片，或某张卡的等级推断有误")
+        lines.append(
+            L(
+                "※ ⚠ 可能漏读了卡片，或某张卡的等级推断有误",
+                "※ ⚠ A card may have been missed, or a card's rank may be inferred wrongly",
+            )
+        )
     if totals.get("no_rank"):
         lines.append(
-            "※ ⚠ 等级无法确定的卡：" + "、".join(totals["no_rank"]) + "（已按满级估算，仅供参考）"
+            L(
+                "※ ⚠ 等级无法确定的卡："
+                + "、".join(totals["no_rank"])
+                + "（已按满级估算，仅供参考）",
+                "※ ⚠ Cards with undetermined rank: "
+                + ", ".join(_names_en.get(x, x) for x in totals["no_rank"])
+                + " (estimated at max rank, for reference only)",
+            )
         )
     if totals.get("uncalc"):
-        lines.append("※ 以下卡无数值或暂不支持，未计入：" + "、".join(totals["uncalc"]))
+        lines.append(
+            L(
+                "※ 以下卡无数值或暂不支持，未计入：" + "、".join(totals["uncalc"]),
+                "※ These cards have no values or are unsupported, not counted: "
+                + ", ".join(_names_en.get(x, x) for x in totals["uncalc"]),
+            )
+        )
     if an.get("unknown"):
-        lines.append("※ 库中未收录的名称：" + "、".join(an["unknown"]))
+        lines.append(
+            L(
+                "※ 库中未收录的名称：" + "、".join(an["unknown"]),
+                "※ Names not in database: " + ", ".join(an["unknown"]),
+            )
+        )
     if an.get("alts"):
         lines.append(
-            "※ 近似武器：" + "、".join(v.get("zh") or v.get("name", "") for v in an["alts"])
+            L(
+                "※ 近似武器：" + "、".join(v.get("zh") or v.get("name", "") for v in an["alts"]),
+                "※ Similar weapons: " + ", ".join(dc._zh_or_name(v) or "" for v in an["alts"]),
+            )
         )
     for note in an.get("notes") or []:
-        lines.append(f"※ {note}")
+        lines.append(f"※ {_note_en(note) if en else note}")
     for err in an.get("errors") or []:
-        lines.append(f"※ ⚠ {err}")
+        lines.append(f"※ ⚠ {_note_en(err) if en else err}")
 
     lines.append(
-        "※ 加成一律按卡片实际等级折算（容量数字反推，再用面板数值校验）；"
-        "复合元素按 火>冰>电>毒 两两配对"
+        L(
+            "※ 加成一律按卡片实际等级折算（容量数字反推，再用面板数值校验）；"
+            "复合元素按 火>冰>电>毒 两两配对",
+            "※ Bonuses are always converted at the card's actual rank (inferred from the capacity "
+            "number, then checked against panel values); combined elements pair up in the order "
+            "Heat > Cold > Electricity > Toxin",
+        )
     )
     return limit_notes(lines)

@@ -8,7 +8,7 @@ raw_icons 固定为空仅表示未探测。
 from __future__ import annotations
 
 from .. import matching, riven_analysis
-from . import base_worker, weapon_identity
+from . import base_worker, english_layout, weapon_identity
 from .name_application import apply_name_normalization
 from .replay_logic import replay
 
@@ -20,7 +20,9 @@ def analyze_raw(raw: dict) -> dict:
     调用方负责将失败/partial 展示为需人工核对，不可转用云识别兜底。
     """
     catalog = weapon_identity.load_catalog()
-    result = replay(
+    # 按卡面内容分流：英文卡走独立的英文版面层，中文卡及判不出语言的仍走原有中文路径。
+    run = english_layout.replay if english_layout.is_english_card(raw) else replay
+    result = run(
         {"raw": raw, "raw_icons": [], "image_sha256": ""},
         exact=base_worker.stat_name_exact(),
         weapon_catalog=catalog,

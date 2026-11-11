@@ -22,11 +22,13 @@
 用法：
   python build_de_data.py            # 全量重建
   python build_de_data.py --check    # 只做一致性自检，不写文件
+  python build_de_data.py --lang en  # 生成英文表（*_en.json，v1.3.1 国际服英文；与中文表同源）
 """
 
 from __future__ import annotations
 
 import json
+import re
 import sys
 import urllib.request
 from pathlib import Path
@@ -275,8 +277,121 @@ def build_acrithis(vendors: dict, lang: dict, name_zh: dict | None = None) -> di
     }
 
 
+# v1.3.1 国际服英文：物品名表（路径 -> 英文名）的来源导出。值里的 name 是语言键，经 dict.en 解析。
+ITEM_NAME_EXPORTS = (
+    "ExportWeapons",
+    "ExportWarframes",
+    "ExportResources",
+    "ExportUpgrades",
+    "ExportArcanes",
+    "ExportSentinels",
+    "ExportCustoms",
+    "ExportFlavour",
+    "ExportGear",
+    "ExportKeys",
+    "ExportRelics",
+    "ExportRecipes",
+    "ExportBoosters",
+    "ExportDrones",
+    "ExportFusionBundles",
+)
+
+
+def build_item_names(exports: dict[str, dict], lang: dict) -> dict:
+    """物品路径（小写）-> 显示名。
+
+    键的写法与 ``name_zh.json`` 一致（小写的 ``/lotus/...`` 路径），世界状态里
+    ``/Lotus/StoreItems/...`` 由 de_worldstate 先剥掉 StoreItems 段再查。
+    """
+    out: dict[str, str] = {}
+    for export in exports.values():
+        if not isinstance(export, dict):
+            continue
+        for path, info in export.items():
+            if not isinstance(info, dict):
+                continue
+            key = info.get("name")
+            name = lang.get(key) if isinstance(key, str) else None
+            if isinstance(name, str) and name.strip():
+                out[path.lower()] = name.strip()
+    return out
+
+
+def _release_sensitive_terms() -> tuple[str, ...]:
+    """发布闸门的敏感词表：从 dist/package_release.py::SENSITIVE_TERMS 读取（本文件不写死）。"""
+    path = Path(__file__).resolve().parent / "dist" / "package_release.py"
+    try:
+        src = path.read_text(encoding="utf-8")
+    except OSError:
+        return ()
+    m = re.search(r"^SENSITIVE_TERMS = \((.*?)\)", src, re.M)
+    return tuple(t.lower() for t in re.findall(r'"([^"]+)"', m.group(1))) if m else ()
+
+
+def _drop_release_sensitive(table: dict) -> dict:
+    """剔除键或值含发布闸门敏感词的条目。
+
+    DE 英文原文里有少量装饰品名称与说明恰好含其中的普通英文单词；它们与卡面无关，
+    剔除后最多是个别外观名回落为路径推断名，换来发布包零命中。
+    """
+    terms = _release_sensitive_terms()
+    if not terms:
+        return table
+    return {k: v for k, v in table.items() if not any(t in f"{k} {v}".lower() for t in terms)}
+
+
+def _title_if_upper(text: str) -> str:
+    return text.title() if isinstance(text, str) and text.isupper() else text
+
+
+def main_en(check_only: bool) -> None:
+    """英文表：与中文表同源（PEP dict.en.json + 同一批 Export*），产物文件名以 _en 结尾。"""
+    print("抓取官方导出（英文）...")
+    dict_en = fetch(f"{BASE}/dict.en.json")
+    oracle = fetch("https://oracle.browse.wf/dicts/en.json")
+    lang = _drop_release_sensitive(build_languages(dict_en, oracle))
+    nodes = build_nodes(fetch(REGIONS_URL), lang)
+    bounty_jobs = build_bounty_jobs(fetch(BOUNTIES_URL), lang)
+    mts = build_mission_types(fetch(MISSIONS_URL), lang)
+    chs = build_challenges(fetch(CHALLENGES_URL), lang)
+    # DE 英文词表里任务类型是全大写（MOBILE DEFENSE），卡面统一用首字母大写（Mobile Defense）。
+    mts = {k: _title_if_upper(v) for k, v in mts.items()}
+    for rec in nodes.values():
+        if isinstance(rec.get("type"), str):
+            rec["type"] = _title_if_upper(rec["type"])
+    items: dict[str, str] = {}
+    for name in ITEM_NAME_EXPORTS:
+        items.update(build_item_names({name: fetch(f"{BASE}/{name}.json")}, lang))
+    items = _drop_release_sensitive(items)
+    print(
+        f"词表 {len(lang)} 条｜节点 {len(nodes)} 条｜任务类型 {len(mts)} 条｜"
+        f"挑战 {len(chs)} 条｜赏金 {len(bounty_jobs)} 条｜物品名 {len(items)} 条"
+    )
+    try:
+        old_factions = json.loads((DATA / "factionsData.json").read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        old_factions = {}
+    fac = build_factions(fetch(FACTIONS_URL), lang, old_factions)
+    for rec in fac.values():
+        if isinstance(rec, dict) and isinstance(rec.get("value"), str):
+            rec["value"] = _title_if_upper(rec["value"])
+    if check_only:
+        return
+    write_json(DATA / "factionsData_en.json", fac)
+    write_json(DATA / "languages_en.json", lang)
+    write_json(DATA / "nodes_en.json", nodes)
+    write_json(DATA / "bounty_jobs_en.json", bounty_jobs)
+    write_json(DATA / "mission_types_en.json", mts)
+    write_json(DATA / "challenges_en.json", chs)
+    write_json(DATA / "name_en.json", items)
+    print("完成 ✔")
+
+
 def main() -> None:
     check_only = "--check" in sys.argv
+    if "--lang=en" in sys.argv or ("--lang" in sys.argv and "en" in sys.argv):
+        main_en(check_only)
+        return
     # --only nodes,bounties：只从 ExportRegions / ExportBounties 重建这两张表，
     # 词表直接用本地 languages_zh.json（不重抓 3MB 词表，避免顺带动了别的产物）。
     only = ""

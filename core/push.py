@@ -20,12 +20,16 @@ import time
 from pathlib import Path
 from typing import Awaitable, Callable, Optional
 
-from . import paths
+from . import i18n, paths
 from .api_client import WarframeClient
 from .de_worldstate import DUVIRI_STATES
 from .logging_compat import mask_in_text, mask_umo
 from .formatters import (
     ORACLE_REGIONS,
+    _clean_challenge_desc,
+    _left_en,
+    _shop_name,
+    _synd_title,
     countdown,
     _RAILJACK_TYPE_CN,
     de_zh,
@@ -40,7 +44,7 @@ from .formatters import (
     weekly_reset_info,
 )
 from .parser import FissureFilter, beijing_now, parse_fissure_filter
-from . import arbi
+from . import arbi, display_time
 from .store import Subscription, SubscriptionStore
 
 SendFunc = Callable[[str, str, Optional[list]], Awaitable[None]]
@@ -83,10 +87,16 @@ def _bounty_parts_text(parts: list[dict], sids: set[str]) -> str:
     mine = [part["text"] for part in parts if sids.intersection(part["sids"])]
     if not mine:
         return ""
+    body = "\n".join(f"· {text}" for text in mine)
     if len(mine) == 1:
-        return f"⚡ 新赏金：{mine[0]}"
-    return f"⚡ 新赏金（{len(mine)} 条）：\n" + "\n".join(f"· {text}" for text in mine)
+        return i18n.L(f"⚡ 新赏金：{mine[0]}", f"⚡ New bounty: {mine[0]}")
+    return i18n.L(
+        f"⚡ 新赏金（{len(mine)} 条）：\n" + body,
+        f"⚡ New bounties ({len(mine)}):\n" + body,
+    )
 
+
+_ARBI_TIER_RANGE_EN = "S≥800 / A+≥700 / A≥600 / A-≥450 / F＜450 (per hour)"
 
 # 能识别为「目标会话已不存在」的发送异常 ⇒ 立即清理该会话订阅
 _FATAL_SEND_RE = re.compile(
@@ -140,7 +150,7 @@ def _fissure_type_cn(f: dict) -> str:
     """裂隙任务类型中文名：九重天风暴用与「九重天」卡同一张译表（前哨战 / 爆发 / 奥影母艇…），
     其余走 mission_cn。"""
     mt = f.get("missionType", "")
-    if f.get("isStorm"):
+    if f.get("isStorm") and not i18n.is_en():
         cn = _RAILJACK_TYPE_CN.get((mt or "").lower(), "")
         if cn:
             return cn
@@ -195,6 +205,24 @@ def bounty_type_of(challenge_path: str) -> str:
     for token, zh in _BOUNTY_TYPE_HINTS:
         if token in p:
             return zh
+    return ""
+
+
+_BOUNTY_TYPE_EN = {
+    "MobDef": "Mobile Defense",
+    "DefeatVoidAngel": "Void Angel",
+    "Defend": "Defense",
+}
+
+
+def _bounty_type_label(challenge_path: str) -> str:
+    """赏金任务类型的展示名（匹配规则仍用 bounty_type_of 的中文内部写法）。"""
+    if not i18n.is_en():
+        return bounty_type_of(challenge_path)
+    p = challenge_path or ""
+    for token, _zh in _BOUNTY_TYPE_HINTS:
+        if token in p:
+            return _BOUNTY_TYPE_EN.get(token, token)
     return ""
 
 
@@ -421,6 +449,8 @@ class PushDaemon:
         interval: int = 45,
         groups=None,
         state_path=None,
+        *,
+        display_timezone: str = display_time.DEFAULT,
     ):
         """groups：GroupStore（或任何有 ``get(umo)->dict`` 的对象），用来在派发前查群推送开关；
         state_path：基线快照落盘路径（运行目录；不传则不落盘）。"""
@@ -436,6 +466,7 @@ class PushDaemon:
         self._text_for: dict = {}  # 事件key -> 按会话命中订阅现算文本的回调（赏金合并）
         self._event_meta: dict = {}  # (事件类型, key) -> 重投所需的源到期时间/赏金分行
         self.groups = groups
+        self.display_timezone = display_timezone
         self.state_path = Path(state_path) if state_path else None
         self._state_warned = False
         self._expiry_save_pending = False
@@ -593,33 +624,19 @@ class PushDaemon:
         live_sids = {s.sid for s in subs}
         for sid in [k for k in self._filters if k not in live_sids]:
             self._filters.pop(sid, None)
-        platforms = sorted({s.platform for s in subs})
-        for gone in [p for p in self._last if p not in platforms]:
-            self._last.pop(gone, None)  # 该平台已无订阅：基线作废
+        # v1.3.1：基线按「平台 × 显示语言」分组。中文组沿用旧键（pc），英文组用 pc|en ——
+        #   推送文本在差量比对时生成，两种语言的群各比对、各渲染一份；
+        #   数据请求走客户端缓存，不会因为多一种语言而多打上游。
+        groups = sorted({self._baseline_key(s) for s in subs})
+        for gone in [p for p in self._last if p not in groups]:
+            self._last.pop(gone, None)  # 该平台 / 语言已无订阅：基线作废
         had_pending = bool(self._pending)
         await self._flush_pending(now, subs)
-        for platform in platforms:
-            events = await self._snapshot_diff(platform, subs)
-            if not events:
-                continue
-            by_event: dict[str, list[Subscription]] = {}
-            for sub in subs:
-                if sub.platform == platform:
-                    by_event.setdefault(sub.event, []).append(sub)
-            for kind, key, text in events:
-                cands = by_event.get(kind, [])
-                # 同群多条筛选只派发给自身规则命中的订阅，保留原有回退与存储顺序。
-                matched = self._matched.get(key)
-                prefer = cands
-                if matched:
-                    prefer = [s for s in cands if s.sid in matched] or cands
-                by_umo: dict[str, list[Subscription]] = {}
-                for sub in prefer:
-                    by_umo.setdefault(sub.umo, []).append(sub)
-                for umo, recipients in by_umo.items():
-                    await self._deliver(
-                        umo, kind, key, text, recipients, now, self._text_for.get(key)
-                    )
+        for group in groups:
+            group_subs = [s for s in subs if self._baseline_key(s) == group]
+            platform = group_subs[0].platform
+            with i18n.use_lang(group_subs[0].lang), display_time.use_zone(self.display_timezone):
+                await self._diff_and_deliver(platform, group, group_subs, now)
         # 数据源整体失败 ⇒ tick 级指数退避；有任何一类成功即复位
         if self._tick_ok:
             self._fail_streak = 0
@@ -627,6 +644,49 @@ class PushDaemon:
             self._fail_streak += 1
         if self._tick_ok or had_pending or self._pending:
             self._save_state(now if self._tick_ok else self._baseline_ts)
+
+    async def _arbi_line_en(self, sl: dict) -> str:
+        """仲裁推送的英文节点行：节点（星球） · 类型 · 派系 + 评级；取不到英文表时回落中文原行。"""
+        try:
+            from .commands.arbitration import _arb_en_node
+
+            _sched, nodes, tier_of = await arbi.fetch_tables(self.client)
+            name, system, mission, faction = _arb_en_node(nodes, sl["key"])
+        except Exception:  # noqa: BLE001 - 取不到就用 arbi 的原行，不阻断推送
+            return sl["line"]
+        head = " · ".join(
+            p for p in (f"{name} ({system})" if system else name, mission, faction) if p
+        )
+        tv = arbi.tier_label(sl["key"], tier_of)
+        return f"{head}　[{tv}]" if tv else head
+
+    @staticmethod
+    def _baseline_key(sub: Subscription) -> str:
+        lang = getattr(sub, "lang", "zh")
+        return sub.platform if lang == "zh" else f"{sub.platform}|{lang}"
+
+    async def _diff_and_deliver(
+        self, platform: str, group: str, subs: list[Subscription], now: float
+    ) -> None:
+        events = await self._snapshot_diff(platform, subs, baseline_key=group)
+        if not events:
+            return
+        by_event: dict[str, list[Subscription]] = {}
+        for sub in subs:
+            if sub.platform == platform:
+                by_event.setdefault(sub.event, []).append(sub)
+        for kind, key, text in events:
+            cands = by_event.get(kind, [])
+            # 同群多条筛选只派发给自身规则命中的订阅，保留原有回退与存储顺序。
+            matched = self._matched.get(key)
+            prefer = cands
+            if matched:
+                prefer = [s for s in cands if s.sid in matched] or cands
+            by_umo: dict[str, list[Subscription]] = {}
+            for sub in prefer:
+                by_umo.setdefault(sub.umo, []).append(sub)
+            for umo, recipients in by_umo.items():
+                await self._deliver(umo, kind, key, text, recipients, now, self._text_for.get(key))
 
     def next_delay(self) -> float:
         """下一次 tick 前的等待秒数：数据源持续失败时指数退避（上限 10 分钟），恢复即复位。"""
@@ -783,10 +843,8 @@ class PushDaemon:
             for s in items:
                 label = f"#{s.sid} {s.event}" + (f"（{s.rule}）" if s.rule else "")
                 parts.append(label)
-            text = (
-                f"⏰ 蹲订阅已到期并结束（{len(items)} 条）：{'、'.join(parts)}。"
-                "需要继续请重新发送「蹲 类型 筛选 时长」续订（如：蹲 裂隙 钢铁捕获 永久）。"
-            )
+            with i18n.use_lang(getattr(items[0], "lang", "zh")):
+                text = self._expire_text(items, parts)
             at_ids = list(dict.fromkeys(s.created_by for s in items if s.created_by))
             try:
                 await self.send(umo, text, at=at_ids)
@@ -805,6 +863,26 @@ class PushDaemon:
                     len(items),
                     " ".join(f"#{s.sid}" for s in items),
                 )
+
+    @staticmethod
+    def _expire_text(items: list[Subscription], parts: list[str]) -> str:
+        """到期提醒正文（当前语言由调用方用 use_lang 包住）。"""
+        if not i18n.is_en():
+            return (
+                f"⏰ 蹲订阅已到期并结束（{len(items)} 条）：{'、'.join(parts)}。"
+                "需要继续请重新发送「蹲 类型 筛选 时长」续订（如：蹲 裂隙 钢铁捕获 永久）。"
+            )
+        from .commands.dun import _ev_name, _rule_en  # 延迟导入：dun 反向依赖本模块
+
+        en_parts = [
+            f"#{s.sid} {_ev_name(s.event)}" + (f" ({_rule_en(s.rule, s.event)})" if s.rule else "")
+            for s in items
+        ]
+        return (
+            f"⏰ Watch subscriptions expired and ended ({len(items)}): {', '.join(en_parts)}. "
+            'To keep watching, send "watch <type> <filter> <duration>" again '
+            "(e.g. watch fissures steel capture forever)."
+        )
 
     # ------------------------------------------------------------------
     # 派发
@@ -1151,9 +1229,10 @@ class PushDaemon:
                     self._pending.append(it)
                     continue
                 it["expires"] = end.timestamp()
-            res = await self._deliver(
-                it["umo"], it["kind"], it["key"], it["text"], subs_u, now, None, retry=it
-            )
+            with i18n.use_lang(getattr(subs_u[0], "lang", "zh")):
+                res = await self._deliver(
+                    it["umo"], it["kind"], it["key"], it["text"], subs_u, now, None, retry=it
+                )
             if res == "fail" and it["umo"] not in self._purged_umos:
                 # 刚被「暂停」的会话不再回队（暂停期间不重投；`_deliver` 对暂停会话返回 skip）
                 if self._pause_of(it["umo"]) is None:
@@ -1161,7 +1240,7 @@ class PushDaemon:
 
     # ------------------------------------------------------------------
     async def _snapshot_diff(
-        self, platform: str, subs: list[Subscription]
+        self, platform: str, subs: list[Subscription], baseline_key: Optional[str] = None
     ) -> list[tuple[str, str, str]]:
         """拉取快照并产出 (事件类型, 去重键, 推送文本) 列表。
 
@@ -1176,7 +1255,7 @@ class PushDaemon:
         matched = self._matched = {}  # 事件key -> 命中的 sub.sid（仅筛选类事件）
         self._text_for = {}  # 事件key -> 按「该会话命中的订阅」现算文本（赏金合并用）
         self._event_meta = {}
-        last = self._last.setdefault(platform, {})
+        last = self._last.setdefault(baseline_key or platform, {})
         for _ev, _keys in BASELINE_KEYS.items():
             if _ev not in wanted:
                 for _k in _keys:
@@ -1206,11 +1285,18 @@ class PushDaemon:
                     (
                         "裂隙",
                         fid,
-                        f"⚡ 新裂隙：[{tier_cn(f.get('tier', ''))}] "
-                        f"{f.get('node', '?')} · {_fissure_type_cn(f)}"
-                        + (" · 钢铁" if f.get("isHard") else "")
-                        + (" · 九重天" if f.get("isStorm") else "")
-                        + f" · 剩{countdown(f['expiry'])}",
+                        i18n.L(
+                            f"⚡ 新裂隙：[{tier_cn(f.get('tier', ''))}] "
+                            f"{f.get('node', '?')} · {_fissure_type_cn(f)}"
+                            + (" · 钢铁" if f.get("isHard") else "")
+                            + (" · 九重天" if f.get("isStorm") else "")
+                            + f" · 剩{countdown(f['expiry'])}",
+                            f"⚡ New Fissure: [{tier_cn(f.get('tier', ''))}] "
+                            f"{f.get('node', '?')} · {_fissure_type_cn(f)}"
+                            + (" · Steel Path" if f.get("isHard") else "")
+                            + (" · Void Storm" if f.get("isStorm") else "")
+                            + f" · {_left_en(countdown(f['expiry']))}",
+                        ),
                     )
                 )
             # 只保留订阅规则命中的裂隙事件避免刷屏；命中的订阅 sid 一并
@@ -1237,23 +1323,41 @@ class PushDaemon:
                         (
                             "夜灵",
                             f"night-{cetus.get('expiry', '')}",
-                            f"🌙 夜灵平野已入夜，剩余 {countdown(cetus.get('expiry', ''))}，三傻走起",
+                            i18n.L(
+                                f"🌙 夜灵平野已入夜，剩余 {countdown(cetus.get('expiry', ''))}，三傻走起",
+                                "🌙 Night has fallen on the Plains of Eidolon, "
+                                f"{_left_en(countdown(cetus.get('expiry', '')))}. Time to hunt the Eidolons",
+                            ),
                         )
                     )
                 elif state == "day":
-                    out.append(("夜灵", f"day-{cetus.get('expiry', '')}", "☀️ 夜灵平野天亮了"))
+                    out.append(
+                        (
+                            "夜灵",
+                            f"day-{cetus.get('expiry', '')}",
+                            i18n.L("☀️ 夜灵平野天亮了", "☀️ Day has broken on the Plains of Eidolon"),
+                        )
+                    )
             self._set_baseline(last, "cetus_state", state)
 
         async def _ev_vallis() -> None:
             vallis = await self.client.cycle(platform, "vallis")
             st = _cycle_state(vallis, ("warm", "cold"))
             if last.get("vallis_state") and last["vallis_state"] != st:
-                label = "温暖（可采矿）" if st == "warm" else "寒冷（热美亚）"
+                label = (
+                    i18n.L("温暖（可采矿）", "Warm (good for mining)")
+                    if st == "warm"
+                    else i18n.L("寒冷（热美亚）", "Cold (Thermia Fractures)")
+                )
                 out.append(
                     (
                         "山谷",
                         f"vallis-{st}-{vallis.get('expiry', '')}",
-                        f"🌡️ 奥布山谷转为{label}，剩余 {countdown(vallis.get('expiry', ''))}",
+                        i18n.L(
+                            f"🌡️ 奥布山谷转为{label}，剩余 {countdown(vallis.get('expiry', ''))}",
+                            f"🌡️ Orb Vallis turned {label}, "
+                            f"{_left_en(countdown(vallis.get('expiry', '')))}",
+                        ),
                     )
                 )
             self._set_baseline(last, "vallis_state", st)
@@ -1267,7 +1371,11 @@ class PushDaemon:
                     (
                         "魔胎",
                         f"cambion-{st}-{cambion.get('expiry', '')}",
-                        f"🦠 魔胎之境已切换到 {label}，剩余 {countdown(cambion.get('expiry', ''))}",
+                        i18n.L(
+                            f"🦠 魔胎之境已切换到 {label}，剩余 {countdown(cambion.get('expiry', ''))}",
+                            f"🦠 Cambion Drift switched to {label}, "
+                            f"{_left_en(countdown(cambion.get('expiry', '')))}",
+                        ),
                     )
                 )
             self._set_baseline(last, "cambion_state", st)
@@ -1276,12 +1384,16 @@ class PushDaemon:
             earth = await self.client.cycle(platform, "earth")
             st = _cycle_state(earth, ("day", "night"))
             if last.get("earth_state") and last["earth_state"] != st:
-                label = "白天" if st == "day" else "夜晚"
+                label = i18n.L("白天", "day") if st == "day" else i18n.L("夜晚", "night")
                 out.append(
                     (
                         "地球",
                         f"earth-{st}-{earth.get('expiry', '')}",
-                        f"🌍 地球已进入{label}，剩余 {countdown(earth.get('expiry', ''))}",
+                        i18n.L(
+                            f"🌍 地球已进入{label}，剩余 {countdown(earth.get('expiry', ''))}",
+                            f"🌍 Earth is now {label}, "
+                            f"{_left_en(countdown(earth.get('expiry', '')))}",
+                        ),
                     )
                 )
             self._set_baseline(last, "earth_state", st)
@@ -1296,8 +1408,12 @@ class PushDaemon:
                     (
                         "双衍",
                         f"duviri-{st}-{duv.get('expiry', '')}",
-                        f"🌀 双衍王境螺旋切换为「{cn}」（{st}），"
-                        f"剩余 {countdown(duv.get('expiry', ''))}",
+                        i18n.L(
+                            f"🌀 双衍王境螺旋切换为「{cn}」（{st}），"
+                            f"剩余 {countdown(duv.get('expiry', ''))}",
+                            f"🌀 Duviri Spiral switched to {cn}, "
+                            f"{_left_en(countdown(duv.get('expiry', '')))}",
+                        ),
                     )
                 )
             self._set_baseline(last, "duviri_state", st)
@@ -1312,8 +1428,12 @@ class PushDaemon:
                     (
                         "活动",
                         f"goal-{gid}",
-                        f"🎯 新活动：{g.get('name', gid)}"
-                        + (f"｜剩{g.get('timeLeft')}" if g.get("timeLeft") else ""),
+                        i18n.L(
+                            f"🎯 新活动：{g.get('name', gid)}"
+                            + (f"｜剩{g.get('timeLeft')}" if g.get("timeLeft") else ""),
+                            f"🎯 New event: {g.get('name', gid)}"
+                            + (f" · {g.get('timeLeft')} left" if g.get("timeLeft") else ""),
+                        ),
                     )
                 )
             self._set_baseline(last, "goal_ids", list(live_ids), "ids")
@@ -1328,8 +1448,12 @@ class PushDaemon:
                         (
                             "奸商",
                             f"in-{trader.get('activation', '')[:10]}",
-                            f"🛒 奸商已抵达 {trader.get('location', '?')}，"
-                            f"{countdown(trader.get('expiry', ''))} 后离开",
+                            i18n.L(
+                                f"🛒 奸商已抵达 {trader.get('location', '?')}，"
+                                f"{countdown(trader.get('expiry', ''))} 后离开",
+                                f"🛒 Baro Ki'Teer has arrived at {trader.get('location', '?')}, "
+                                f"leaving in {countdown(trader.get('expiry', ''))}",
+                            ),
                         )
                     )
                 else:
@@ -1337,7 +1461,10 @@ class PushDaemon:
                         (
                             "奸商",
                             f"out-{trader.get('expiry', '')[:10]}",
-                            "🛒 奸商已离开，下次再见",
+                            i18n.L(
+                                "🛒 奸商已离开，下次再见",
+                                "🛒 Baro Ki'Teer has left, see you next time",
+                            ),
                         )
                     )
             if trader:  # 空响应（源失败）不写基线
@@ -1350,7 +1477,16 @@ class PushDaemon:
             sid = sortie.get("id")
             # 空响应（id 为空）不推、不写基线（_set_baseline 的有效性守卫）
             if sid and last.get("sortie_id") and last["sortie_id"] != sid:
-                out.append(("突击", f"sortie-{sid}", "⚔️ 每日突击已刷新，发送「突击」查看详情"))
+                out.append(
+                    (
+                        "突击",
+                        f"sortie-{sid}",
+                        i18n.L(
+                            "⚔️ 每日突击已刷新，发送「突击」查看详情",
+                            '⚔️ Daily Sortie has refreshed, send "sortie" for details',
+                        ),
+                    )
+                )
             self._set_baseline(last, "sortie_id", sid)
 
         async def _ev_archon() -> None:
@@ -1358,7 +1494,14 @@ class PushDaemon:
             aid = archon.get("id")
             if aid and last.get("archon_id") and last["archon_id"] != aid:
                 out.append(
-                    ("执刑官", f"archon-{aid}", "👑 本周执刑官猎杀已刷新，发送「执刑官」查看")
+                    (
+                        "执刑官",
+                        f"archon-{aid}",
+                        i18n.L(
+                            "👑 本周执刑官猎杀已刷新，发送「执刑官」查看",
+                            '👑 This week\'s Archon Hunt has refreshed, send "archon" to view',
+                        ),
+                    )
                 )
             self._set_baseline(last, "archon_id", aid)
 
@@ -1385,18 +1528,30 @@ class PushDaemon:
                     subs_a = [s for s in subs if s.platform == platform and s.event == "仲裁"]
                     hit = {s.sid for s in subs_a if arbi.match_rule(s.rule, sl)}
                     if not subs_a or hit:
-                        tier = f" · 评级 {sl['tier']}" if sl["tier"] else ""
+                        tier = i18n.L(
+                            f" · 评级 {sl['tier']}" if sl["tier"] else "",
+                            f" · Rating {sl['tier']}" if sl["tier"] else "",
+                        )
                         if sl["tier"] and sl.get("low_sample"):
-                            tier += "（样本少）"
+                            tier += i18n.L("（样本少）", " (low sample)")
                         left_min = max(0, int((sl["end"] - time.time()) // 60))
                         akey = f"arbi-{sl['key']}-{int(sl['start'])}"
+                        line_en = await self._arbi_line_en(sl) if i18n.is_en() else ""
                         out.append(
                             (
                                 "仲裁",
                                 akey,
-                                f"⚖️ 仲裁已轮换：{sl['line']}{tier} · 剩 {left_min} 分钟"
-                                # 有评级时附评分范围（2026-10-16 维护者要求：凡出现评分都标范围）
-                                + (f"\n※ 评分范围 {arbi.TIER_RANGE}" if sl["tier"] else ""),
+                                i18n.L(
+                                    f"⚖️ 仲裁已轮换：{sl['line']}{tier} · 剩 {left_min} 分钟"
+                                    # 有评级时附评分范围（2026-10-16 维护者要求：凡出现评分都标范围）
+                                    + (f"\n※ 评分范围 {arbi.TIER_RANGE}" if sl["tier"] else ""),
+                                    f"⚖️ Arbitration rotated: {line_en}{tier} · {left_min}m left"
+                                    + (
+                                        f"\n※ Score range {_ARBI_TIER_RANGE_EN}"
+                                        if sl["tier"]
+                                        else ""
+                                    ),
+                                ),
                             )
                         )
                         matched[akey] = hit
@@ -1414,12 +1569,15 @@ class PushDaemon:
             if nodes_today:
                 sig = ",".join(sorted(nodes_today))
                 if last.get("sp_incursions") and last["sp_incursions"] != sig:
-                    names = "、".join(nodes_today[:6])
+                    names = i18n.L("、", ", ").join(nodes_today[:6])
                     out.append(
                         (
                             "钢路侵袭",
                             f"sp-{sig[:60]}",
-                            f"🗡️ 钢铁之路侵袭已刷新（{len(nodes_today)} 个节点）：{names}",
+                            i18n.L(
+                                f"🗡️ 钢铁之路侵袭已刷新（{len(nodes_today)} 个节点）：{names}",
+                                f"🗡️ Steel Path Incursions refreshed ({len(nodes_today)} nodes): {names}",
+                            ),
                         )
                     )
                 last["sp_incursions"] = sig
@@ -1443,9 +1601,14 @@ class PushDaemon:
                         (
                             "钢精兑换",
                             key,
-                            f"🪙 钢精兑换已轮换：本周 {cur['name']}"
-                            f"（{cur['cost']} 精华）"
-                            f" · 下周 {nxt['name']}",
+                            i18n.L(
+                                f"🪙 钢精兑换已轮换：本周 {cur['name']}"
+                                f"（{cur['cost']} 精华）"
+                                f" · 下周 {nxt['name']}",
+                                f"🪙 Steel Essence shop rotated: this week {_shop_name(cur['name'])}"
+                                f" ({cur['cost']} Essence)"
+                                f" · next week {_shop_name(nxt['name'])}",
+                            ),
                         )
                     )
                 last["steel_rotation"] = key
@@ -1464,9 +1627,14 @@ class PushDaemon:
                     (
                         "碎银兑换",
                         key,
-                        "🪙 碎银兑换已重置（Palladino · 钢铁守望）："
-                        "本周限购恢复 —— 可再购安魂遗物 / 裂罅 Mod / "
-                        "安魂通牒等",
+                        i18n.L(
+                            "🪙 碎银兑换已重置（Palladino · 钢铁守望）："
+                            "本周限购恢复 —— 可再购安魂遗物 / 裂罅 Mod / "
+                            "安魂通牒等",
+                            "🪙 Riven Sliver shop reset (Palladino · Steel Meridian): "
+                            "weekly purchase limits restored - Requiem Relics / Riven Mods / "
+                            "Requiem Ultimatums and more are available again",
+                        ),
                     )
                 )
             last["sliver_reset"] = key
@@ -1497,16 +1665,40 @@ class PushDaemon:
                         _node = (_node_tbl.get(_nk) or {}).get("name") or _nk
                         _ch = _ch_tbl.get(_ck) or {}
                         _cname = _ch.get("name") or ""
-                        _ctype = bounty_type_of(_ck)
+                        _ctype = _bounty_type_label(_ck)
+                        # 规则词存的是中文内部写法：匹配始终用中文挑战名，展示才跟当前语言
+                        if i18n.is_en():
+                            with i18n.use_lang("zh"):
+                                _cname_m = (de_zh("challenges_zh.json").get(_ck) or {}).get(
+                                    "name"
+                                ) or ""
+                        else:
+                            _cname_m = _cname
                         hit = {
                             s.sid
                             for s in _bounty_subs
-                            if bounty_rule_hit(s.rule, _tag, _cname, _ck)
+                            if bounty_rule_hit(s.rule, _tag, _cname_m, _ck)
                         }
                         if hit:
                             _desc = (_ch.get("desc") or "").strip()
-                            _seg = " · ".join(x for x in (_title, _node, _ctype, _cname) if x)
-                            _lines.append((hit, _seg + (f"（{_desc}）" if _desc else "")))
+                            if i18n.is_en():  # 英文描述带 |COUNT| 之类模板记号，清掉
+                                _desc = _clean_challenge_desc(_desc, _ch.get("count"))
+                            _seg = " · ".join(
+                                x
+                                for x in (
+                                    _synd_title(_pool) if i18n.is_en() else _title,
+                                    _node,
+                                    _ctype,
+                                    _cname,
+                                )
+                                if x
+                            )
+                            _lines.append(
+                                (
+                                    hit,
+                                    _seg + (i18n.L(f"（{_desc}）", f" ({_desc})") if _desc else ""),
+                                )
+                            )
                 if _lines:
                     key = f"bounty-{_exp}"
                     union = set().union(*(h for h, _t in _lines))
@@ -1522,9 +1714,9 @@ class PushDaemon:
         #   同源 formatters.rotation_window（与卡面同一套锚点算法）；
         #   跨点才推，文案给出新一批内容。
         _rot_push = (
-            ("灵化武器", "incarnon", "🔮 灵化轮换"),
-            ("信条", "tenet", "⚔ 信条库存刷新"),
-            ("终幕", "coda", "🪲 终幕轮换"),
+            ("灵化武器", "incarnon", i18n.L("🔮 灵化轮换", "🔮 Incarnon Rotation")),
+            ("信条", "tenet", i18n.L("⚔ 信条库存刷新", "⚔ Tenet Stock Refresh")),
+            ("终幕", "coda", i18n.L("🪲 终幕轮换", "🪲 Coda Rotation")),
         )
 
         async def _ev_rotations() -> None:
@@ -1544,26 +1736,39 @@ class PushDaemon:
                 if _weeks:  # weekly_cycle（灵化）
                     _pos = (int(_rd.get("anchor_week", 1)) - 1 + _passed) % len(_weeks)
                     _items = _weeks[_pos]
-                    _label = f"第 {_pos + 1}/{len(_weeks)} 周"
+                    _label = i18n.L(
+                        f"第 {_pos + 1}/{len(_weeks)} 周", f"Week {_pos + 1}/{len(_weeks)}"
+                    )
                 elif _batches:  # batch_cycle（终幕）
                     _pos = (int(_rd.get("anchor_idx", 0)) + _passed) % len(_batches)
                     _items = _batches[_pos]
                     _labels = _rd.get("batch_label") or []
-                    _label = f"{_labels[_pos]} 批" if _pos < len(_labels) else f"第 {_pos + 1} 批"
+                    _label = (
+                        i18n.L(f"{_labels[_pos]} 批", f"Batch {_labels[_pos]}")
+                        if _pos < len(_labels)
+                        else i18n.L(f"第 {_pos + 1} 批", f"Batch {_pos + 1}")
+                    )
                 else:  # refresh_only（信条）
                     _items = _rd.get("items") or []
-                    _label = "库存"
+                    _label = i18n.L("库存", "Current")
                 if not _items:
                     continue
                 _key = f"rot-{_rk}-{_passed}"
                 _prev = last.get(f"{_rk}_window")
                 if _prev is not None and _prev != _key:
-                    _names = "、".join(
-                        (it.get("cn") or it.get("en") or "")
+                    _names = i18n.L("、", ", ").join(
+                        (
+                            (it.get("en") or it.get("cn") or "")
+                            if i18n.is_en()
+                            else (it.get("cn") or it.get("en") or "")
+                        )
                         + (
-                            f"（{it.get('element')} {it.get('bonus')}%）"
+                            i18n.L(
+                                f"（{it.get('element')} {it.get('bonus')}%）",
+                                f" ({str(it.get('element')).title()} {it.get('bonus')}%)",
+                            )
                             if it.get("element") and it.get("bonus") is not None
-                            else "（效价待获取）"
+                            else i18n.L("（效价待获取）", " (valence pending)")
                             if _rk in ("tenet", "coda")
                             else ""
                         )
@@ -1580,7 +1785,16 @@ class PushDaemon:
                                 hours=int(_rd.get("period_hours", 96)) * _passed
                             )
                             _note = "\n" + ProgressCommands._valence_note(_rd, _start)
-                    out.append((_ev, _key, f"{_icon}（{_label}）：{_names}{_note}"))
+                    out.append(
+                        (
+                            _ev,
+                            _key,
+                            i18n.L(
+                                f"{_icon}（{_label}）：{_names}{_note}",
+                                f"{_icon} ({_label}): {_names}{_note}",
+                            ),
+                        )
+                    )
                 last[f"{_rk}_window"] = _key
 
         # ★ C5（2026-10-03）：阿耶兑换 / 1999 日历 / 电波。
@@ -1592,10 +1806,19 @@ class PushDaemon:
             if isinstance(_pv, dict) and _pv.get("expiry"):
                 _pk = f"pv-{_pv.get('expiry')}"
                 if last.get("pv_key") is not None and last["pv_key"] != _pk:
-                    _names = "、".join(
+                    _names = i18n.L("、", ", ").join(
                         (it.get("name") or "") for it in (_pv.get("items") or [])[:6]
                     )
-                    out.append(("阿耶兑换", _pk, f"💠 Prime 宝库轮换：{_names}"))
+                    out.append(
+                        (
+                            "阿耶兑换",
+                            _pk,
+                            i18n.L(
+                                f"💠 Prime 宝库轮换：{_names}",
+                                f"💠 Prime Resurgence rotation: {_names}",
+                            ),
+                        )
+                    )
                 last["pv_key"] = _pk
 
         async def _ev_calendar() -> None:
@@ -1610,8 +1833,12 @@ class PushDaemon:
                         (
                             "1999日历",
                             _sk,
-                            f"🗓 1999 日历轮换：{_cal.get('season')} 季"
-                            f"（第 {_cal.get('yearIteration')} 年）",
+                            i18n.L(
+                                f"🗓 1999 日历轮换：{_cal.get('season')} 季"
+                                f"（第 {_cal.get('yearIteration')} 年）",
+                                f"🗓 1999 Calendar rotated: {_cal.get('season')} season"
+                                f" (Year {_cal.get('yearIteration')})",
+                            ),
                         )
                     )
                 last["cal_season"] = _sk
@@ -1629,8 +1856,12 @@ class PushDaemon:
                             (
                                 "1999日历",
                                 _dk,
-                                f"🗓 1999 今日日程（{_today}）："
-                                + ("、".join(_evs[:6]) or "无条目"),
+                                i18n.L(
+                                    f"🗓 1999 今日日程（{_today}）："
+                                    + ("、".join(_evs[:6]) or "无条目"),
+                                    f"🗓 1999 schedule for today ({_today}): "
+                                    + (", ".join(_evs[:6]) or "no entries"),
+                                ),
                             )
                         )
                     last["cal_day"] = _dk
@@ -1647,20 +1878,27 @@ class PushDaemon:
                 _fresh = _ids - _prev_ids
                 if last.get("nw_ids") is not None and _fresh:
                     _new = [c for c in _chs if c.get("id") in _fresh]
-                    _names = "、".join(
+                    _names = i18n.L("、", ", ").join(
                         (c.get("title") or "?")
                         + (
-                            "（每日）"
+                            i18n.L("（每日）", " (Daily)")
                             if c.get("isDaily")
-                            else "（精英周常）"
+                            else i18n.L("（精英周常）", " (Elite Weekly)")
                             if c.get("isElite")
-                            else "（周常）"
+                            else i18n.L("（周常）", " (Weekly)")
                         )
                         for c in _new[:5]
                     )
                     _sig = ",".join(sorted(_fresh))[:60]
                     out.append(
-                        ("电波", f"nw-{_sig}", f"📻 午夜电波新挑战（{len(_new)} 条）：{_names}")
+                        (
+                            "电波",
+                            f"nw-{_sig}",
+                            i18n.L(
+                                f"📻 午夜电波新挑战（{len(_new)} 条）：{_names}",
+                                f"📻 New Nightwave challenges ({len(_new)}): {_names}",
+                            ),
+                        )
                     )
                 last["nw_ids"] = list(_ids)
 
@@ -1675,21 +1913,40 @@ class PushDaemon:
                 # ★ C3：解析已补全（节点/类型/等级/奖励中文名），推送照实给
                 names = reward.get("item_names") or ([reward["item"]] if reward.get("item") else [])
                 lv = (
-                    f"{mission['min_level']}-{mission['max_level']}级 "
+                    i18n.L(
+                        f"{mission['min_level']}-{mission['max_level']}级 ",
+                        f"Lv {mission['min_level']}-{mission['max_level']} ",
+                    )
                     if mission.get("min_level")
                     else ""
                 )
-                rw = "、".join(
-                    [*names, *([f"{reward['credits']}现金"] if reward.get("credits") else [])]
+                rw = i18n.L("、", ", ").join(
+                    [
+                        *names,
+                        *(
+                            [i18n.L(f"{reward['credits']}现金", f"{reward['credits']} Credits")]
+                            if reward.get("credits")
+                            else []
+                        ),
+                    ]
                 )
-                head = f"{mission.get('desc')}｜" if mission.get("desc") else ""
+                head = (
+                    i18n.L(f"{mission.get('desc')}｜", f"{mission.get('desc')} | ")
+                    if mission.get("desc")
+                    else ""
+                )
                 out.append(
                     (
                         "警报",
                         aid,
-                        f"🔔 新警报：{head}{mission.get('node', '?')} · "
-                        f"{mission_cn(mission.get('type', ''))} {lv}"
-                        f"奖励：{rw or '?'}",
+                        i18n.L(
+                            f"🔔 新警报：{head}{mission.get('node', '?')} · "
+                            f"{mission_cn(mission.get('type', ''))} {lv}"
+                            f"奖励：{rw or '?'}",
+                            f"🔔 New Alert: {head}{mission.get('node', '?')} · "
+                            f"{mission_cn(mission.get('type', ''))} {lv}"
+                            f"Reward: {rw or '?'}",
+                        ),
                     )
                 )
             last["alert_ids"] = list(ids)
@@ -1704,9 +1961,14 @@ class PushDaemon:
                     (
                         "入侵",
                         iid,
-                        f"⚔️ 新入侵：{inv.get('node', '?')}（"
-                        f"{(inv.get('attacker', {}) or {}).get('faction', '?')} vs "
-                        f"{(inv.get('defender', {}) or {}).get('faction', '?')}）",
+                        i18n.L(
+                            f"⚔️ 新入侵：{inv.get('node', '?')}（"
+                            f"{(inv.get('attacker', {}) or {}).get('faction', '?')} vs "
+                            f"{(inv.get('defender', {}) or {}).get('faction', '?')}）",
+                            f"⚔️ New Invasion: {inv.get('node', '?')} ("
+                            f"{(inv.get('attacker', {}) or {}).get('faction', '?')} vs "
+                            f"{(inv.get('defender', {}) or {}).get('faction', '?')})",
+                        ),
                     )
                 )
             self._set_baseline(last, "invasion_ids", list(ids), "ids")
@@ -1738,10 +2000,19 @@ class PushDaemon:
             dkey = lead.get("id") or f"{lead.get('item', '')}"
             if dkey and last.get("deal_key") and last["deal_key"] != dkey:
                 lines = [
-                    f"{d.get('item', '?')}：{d.get('salePrice', '?')}p （库存{d.get('total', '?')}）"
+                    i18n.L(
+                        f"{d.get('item', '?')}：{d.get('salePrice', '?')}p （库存{d.get('total', '?')}）",
+                        f"{d.get('item', '?')}: {d.get('salePrice', '?')}p ({d.get('total', '?')} in stock)",
+                    )
                     for d in deals
                 ]
-                out.append(("每日特惠", f"deal-{dkey}", "🏷️ 达沃每日特惠：\n" + "\n".join(lines)))
+                out.append(
+                    (
+                        "每日特惠",
+                        f"deal-{dkey}",
+                        i18n.L("🏷️ 达沃每日特惠：\n", "🏷️ Darvo's Daily Deal:\n") + "\n".join(lines),
+                    )
+                )
             self._set_baseline(last, "deal_key", dkey)
 
         handlers = (

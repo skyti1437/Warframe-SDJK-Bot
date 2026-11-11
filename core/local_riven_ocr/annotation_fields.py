@@ -7,6 +7,9 @@ import unicodedata
 CATEGORY_ANNOTATIONS = {
     "重击时x2": "crit_chance",
     "弓类武器效果加倍": "fire_rate",
+    # 英文客户端卡面「(x2 for Heavy Attacks)」「(x2 for Bows)」，键为 NFKC+casefold+去空白
+    "x2forheavyattacks": "crit_chance",
+    "x2forbows": "fire_rate",
 }
 BRACKETS = "()（）"
 

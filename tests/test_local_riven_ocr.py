@@ -984,5 +984,170 @@ class FamilyNameAcceptanceTests(unittest.TestCase):
         self.assertEqual(result["structured"]["weapon"], "合成腔体")
 
 
+def en_raw(items, width=600, height=900):
+    """按卡面几何摆英文 OCR 行：(文字, 左, 上, 右)，行高固定 40。"""
+    rows = []
+    for text, x0, y, x1 in items:
+        rows.append({"text": text, "quad": [[x0, y], [x1, y], [x1, y + 40], [x0, y + 40]]})
+    return {"width": width, "height": height, "orientation": 1, "rows": rows}
+
+
+def en_card(title_rows, stat_rows, footer=("MR 9", "125"), top=400):
+    """居中卡面：标题若干行、词条若干行、页脚一带（MR 在左、循环次数在右）。"""
+    items, y = [("18", 460, 80, 520)], top
+    for text in title_rows:
+        items.append((text, 300 - 12 * len(text), y, 300 + 12 * len(text)))
+        y += 45
+    for text in stat_rows:
+        if isinstance(text, tuple):  # 同一带被图标切成几段：[(文字, 左, 右), ...]
+            items.extend((part, x0, y, x1) for part, x0, x1 in text)
+        else:
+            items.append((text, 300 - 11 * len(text), y, 300 + 11 * len(text)))
+        y += 45
+    if footer:
+        items.append((footer[0], 130, y + 20, 230))
+        if footer[1]:
+            items.append((footer[1], 400, y + 20, 470))
+    return en_raw(items)
+
+
+class EnglishLayoutTests(unittest.TestCase):
+    """英文卡面走独立版面层；输出与中文路径同样的内部词条 ID。"""
+
+    def read(self, raw):
+        from core.local_riven_ocr import english_layout
+
+        self.assertTrue(english_layout.is_english_card(raw))
+        return analyze_raw(raw)
+
+    @staticmethod
+    def pairs(result):
+        trace = result["trace"]
+        return trace["parser_positive"], trace["parser_negative"]
+
+    def test_plain_card_accepted_with_weapon_footer_excluded(self):
+        raw = en_card(
+            ["Strun Acri-saticron"],
+            [
+                "+106.4% Critical Chance",
+                "+116% Critical Damage",
+                "+147.3% Multishot",
+                "-121.1%Impact",
+            ],
+        )
+        result = self.read(raw)
+        self.assertEqual(result["structured"]["weapon"], "Strun")
+        self.assertEqual(result["trace"]["layout_language"], "en")
+        self.assertEqual(len(result["structured"]["lines"]), 4)
+        pos, neg = self.pairs(result)
+        self.assertEqual(
+            pos, [("crit_chance", 106.4), ("crit_damage", 116.0), ("multishot", 147.3)]
+        )
+        self.assertEqual(neg, [("impact_damage", 121.1)])
+        self.assertEqual(result["recognition_state"], "accepted", result["recognition_reasons"])
+
+    def test_wrapped_title_annotation_and_old_faction_percent(self):
+        raw = en_card(
+            ["Dokrahm Vexi-", "hexacron"],
+            [
+                "+65.3% Status Chance",
+                "+115.7% Critical Chance",
+                "(x2 for Heavy Attacks)",
+                "+66%Electricity",
+                "-24.5% Damage to",
+                "Corpus",
+            ],
+            footer=("MR 10", "014"),
+        )
+        result = self.read(raw)
+        self.assertEqual(result["structured"]["weapon"], "Dokrahm")
+        self.assertEqual(
+            result["structured"]["lines"][1], "+115.7% Critical Chance (x2 for Heavy Attacks)"
+        )
+        pos, neg = self.pairs(result)
+        self.assertIn(("crit_chance", 115.7), pos)
+        # 旧写法带 % 的派系词条按原值读，不当成漏写 x 的乘数
+        self.assertEqual(neg, [("damage_vs_corpus", 24.5)])
+        self.assertEqual(result["recognition_state"], "accepted", result["recognition_reasons"])
+
+    def test_multiword_weapon_and_lock_noise_is_derived_copy(self):
+        raw = en_card(
+            ["Dual Toxocyst Acri-", "enicron"],
+            [
+                "+122.7% Critical Damage",
+                "0 +273.4% Weak Point",
+                "Damage",
+                "+180.4% Critical Chance",
+                "-126.3% Puncture",
+            ],
+            footer=("MR 9", "0215"),
+        )
+        result = self.read(raw)
+        self.assertEqual(result["structured"]["weapon"], "Dual Toxocyst")
+        self.assertEqual(result["structured"]["lines"][1], "+273.4% Weak Point Damage")
+        source = result["trace"]["line_sources"][1]
+        self.assertEqual(source["raw_text"], "0 +273.4% Weak Point Damage")
+        self.assertEqual(source["text_kind"], "derived_parse_copy_not_OCR_raw")
+        pos, _ = self.pairs(result)
+        self.assertIn(("weakpoint_damage", 273.4), pos)
+        # 去掉杂字的解析副本须卡区复读一致才放行
+        self.assertEqual(result["recognition_state"], "partial")
+
+    def test_icon_split_band_and_multiplier(self):
+        raw = en_card(
+            ["Arca Plasmor", "Radi-cronior"],
+            [
+                (("0+92.7%", 136, 306), ("C", 303, 356), ("Corrosive", 346, 520)),
+                "+107.9% Radiation",
+                "x0.59 Damage to Grineer",
+            ],
+            footer=("MR 11", None),
+        )
+        result = self.read(raw)
+        self.assertEqual(result["structured"]["weapon"], "Arca Plasmor")
+        self.assertEqual(result["structured"]["lines"][0], "+92.7% Corrosive")
+        pos, neg = self.pairs(result)
+        self.assertEqual(pos[0], ("corrosive_damage", 92.7))
+        self.assertEqual(neg, [("damage_vs_grineer", 41.0)])
+
+    def test_splice_preview_is_partial_and_gain_column_ignored(self):
+        raw = en_card(
+            ["Exergis ???"],
+            ["+73%Electricity", "+36% Ammo Efficiency", "???"],
+            footer=("MR 16", None),
+        )
+        # 拼接界面下方的 GAIN 栏是另一列数值，不能并进卡区
+        raw["rows"] += en_raw(
+            [
+                ("GAIN", 160, 760, 240),
+                ("+36% Ammo Efficiency", 60, 805, 400),
+                ("+1 Random Trait", 100, 850, 360),
+            ]
+        )["rows"]
+        result = self.read(raw)
+        self.assertEqual(result["structured"]["weapon"], "Exergis")
+        self.assertEqual(result["structured"]["lines"][-1], "???")
+        self.assertEqual(len(result["structured"]["lines"]), 3)
+        self.assertEqual(result["recognition_state"], "partial")
+        self.assertTrue(any("拼接预览" in r for r in result["recognition_reasons"]))
+
+    def test_language_routing(self):
+        from core.local_riven_ocr import english_layout
+
+        en = en_card(["Hate Visi-acricron"], ["+141.9% Melee Damage", "+72.6% Critical Damage"])
+        en["rows"].append({"text": "本", "quad": [[420, 170], [440, 170], [440, 190], [420, 190]]})
+        self.assertTrue(english_layout.is_english_card(en), "图标杂字里零星的汉字不改变分流")
+        zh = en_raw(
+            [
+                ("绝路 Acri-ata", 150, 300, 450),
+                ("+120.5%暴击率", 150, 345, 450),
+                ("+88%多重射击", 150, 390, 450),
+                ("段位 9", 130, 440, 230),
+            ]
+        )
+        self.assertFalse(english_layout.is_english_card(zh))
+        self.assertFalse(english_layout.is_english_card(en_raw([("hello", 0, 0, 100)])))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

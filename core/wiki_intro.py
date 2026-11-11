@@ -24,6 +24,13 @@ try:
 except ImportError:  # 离线脚本把 core/ 当顶层路径导入时
     import paths as _paths
 
+try:
+    from . import i18n  # 显示语言（英文模式只换卡片框架文案，数据原样）
+except ImportError:  # 离线脚本把 core/ 当顶层路径导入时
+    import i18n
+
+L = i18n.L
+
 _FILE = Path(__file__).resolve().parent / "data" / "wiki_intro.json"
 _DROPS_FILE = Path(__file__).resolve().parent / "data" / "drops.json"
 _EFFECT_ZH_FILE = Path(__file__).resolve().parent / "data" / "wiki_effect_zh.json"
@@ -73,6 +80,10 @@ def _localize_effect(text: str) -> str:
     m = _EFFECT_LINE.match(text or "")
     if not m:
         return text
+    if (
+        i18n.is_en()
+    ):  # 英文模式：数据里的效果句本来就是 wiki 英文原文，不走中文译表、不做中文排版整理
+        return text
     zh = _effect_zh().get(_norm(m.group("val").strip()))
     if not zh:
         # ★ 2026-10-22（维护者 10-19 报）：**表里没有**这条效果 ⇒ 卡面直接显示英文原文，
@@ -105,6 +116,7 @@ _COLOR_RE = re.compile(r"〈(?:OPEN_COLOR|CLOSE_COLOR)〉", re.I)
 _HW_TAG = re.compile(r"<([A-Z_][A-Z0-9_]*)>")
 _HW_WORD_AFTER = {"ENERGY": "能量", "SHIELD": "护盾", "AFFINITY_SHARE": "经验共享"}
 _HW_MAP_ALWAYS = {"SECONDARY_FIRE": "次要射击"}
+_HW_WORD_AFTER_EN = {"ENERGY": "Energy", "SHIELD": "Shield", "AFFINITY_SHARE": "Affinity Share"}
 
 
 def _clean_hw_tags(text: str) -> str:
@@ -114,11 +126,12 @@ def _clean_hw_tags(text: str) -> str:
     def sub(m: "re.Match[str]") -> str:
         tag = m.group(1)
         if tag in _HW_MAP_ALWAYS:
-            return _HW_MAP_ALWAYS[tag]
+            return L(_HW_MAP_ALWAYS[tag], "Secondary Fire")
         word = _HW_WORD_AFTER.get(tag)
         if word:
+            word = L(word, _HW_WORD_AFTER_EN.get(tag, word))
             rest = (text or "")[m.end() :].lstrip()
-            return "" if rest.startswith(word) else word
+            return "" if rest.lower().startswith(word.lower()) else word
         return ""  # <DT_*_COLOR> / <LOWER_IS_BETTER> 等
 
     t = _HW_TAG.sub(sub, text or "")
@@ -307,6 +320,10 @@ _ZERO_PANEL_RE = re.compile(r"^数据[：:]\s*暴击几率 0%｜暴击倍率 0×
 MODULAR_NOTE = (
     "说明：Zaw 由打击 + 握柄 + 环扣组合而成，单个部件没有独立面板；实际数值看组合后的武器"
 )
+_MODULAR_NOTE_EN = (
+    "说明：A Zaw is assembled from a Strike + Grip + Link; a single part has no panel of its own,"
+    " see the assembled weapon for real stats"
+)
 
 
 def _round_float_tail(m: re.Match) -> str:
@@ -364,7 +381,7 @@ def _sanitize(lines: list[str]) -> list[str]:
         out.append(x)
     if modular and dropped and not any(x.startswith("说明") for x in out):
         at = next((i + 1 for i, x in enumerate(out) if x.startswith("定位")), 0)
-        out.insert(at, MODULAR_NOTE)
+        out.insert(at, L(MODULAR_NOTE, _MODULAR_NOTE_EN))
     return out
 
 
@@ -443,8 +460,13 @@ def _acquire_rows(line: str) -> list[str]:
             inner = inner[:-1]  # 截断的最后一个部件只剩半截
         # 小节标题不能带「：」，否则会被当成「标签：值」行、下面的表头接不上
         rows = [
-            f"◆ 获取 · {rm.group(1)}" + ("（部分部件，完整见 wiki）" if cut else ""),
-            "　部件　所在遗物",
+            L(f"◆ 获取 · {rm.group(1)}", "◆ Acquisition · Void Relic")
+            + (
+                L("（部分部件，完整见 wiki）", " (some parts, see the wiki for the full list)")
+                if cut
+                else ""
+            ),
+            L("　部件　所在遗物", "　Part　Relic"),
         ]
         for x in inner:
             part, sep, relics = x.partition("：")
@@ -457,18 +479,21 @@ def _acquire_rows(line: str) -> list[str]:
         parts, pcts = parts[:-1], pcts[:-1]  # 半截末项（地点被截断、没有几率）
     if len(parts) < 2 and not total:
         if cut and parts:  # 截断后只剩一处完整来源：去掉半截，注明还有其他来源
-            return [f"◆ 获取：{parts[0]}（还有其他来源）"]
+            return [f"◆ 获取：{parts[0]}" + L("（还有其他来源）", " (and other sources)")]
         return [line]
     shown = len(parts)
     if total > shown:
-        head = f"◆ 获取（共 {total} 处，列前 {shown} 处）"
+        head = L(
+            f"◆ 获取（共 {total} 处，列前 {shown} 处）",
+            f"◆ Acquisition ({total} sources, top {shown} shown)",
+        )
     elif cut:
-        head = f"◆ 获取（列前 {shown} 处）"
+        head = L(f"◆ 获取（列前 {shown} 处）", f"◆ Acquisition (top {shown} shown)")
     else:
-        head = f"◆ 获取（{shown} 处）"
+        head = L(f"◆ 获取（{shown} 处）", f"◆ Acquisition ({shown} sources)")
     if not any(pcts):  # 都没有几率（商店 / 任务奖励这类）：只列来源
         return [head, *(f"· {x.replace('　', ' ')}" for x in parts)]
-    rows = [head, "　来源　几率"]
+    rows = [head, L("　来源　几率", "　Source　Chance")]
     for x, pm in zip(parts, pcts):
         place = x[: pm.start()].rstrip(" ,，") if pm else x
         rows.append(f"· {place.replace('　', ' ')}　{pm.group(1) if pm else '—'}")
@@ -494,14 +519,21 @@ def intro(*names: str) -> Optional[tuple[str, list[str]]]:
             for row in _acquire_rows(_kvify(_localize(_localize_effect(x))))
         ]
         if chosen.get("variant") == "pvp":
-            lines.append("◆ 版本：PvP 变体")
+            lines.append("◆ 版本：" + L("PvP 变体", "PvP variant"))
         if len(rows) > 1:
             hint = (
-                "（含 PvP 变体，可加 PvP 查询）"
+                L(
+                    "（含 PvP 变体，可加 PvP 查询）",
+                    " (includes a PvP variant; add PvP to the query)",
+                )
                 if any(r.get("variant") == "pvp" for r in rows)
                 else ""
             )
-            lines.append(f"◆ 同名条目：共 {len(rows)} 条{hint}")
+            lines.append(
+                "◆ 同名条目：" + L(f"共 {len(rows)} 条{hint}", f"{len(rows)} entries{hint}")
+            )
+        if i18n.is_en():
+            lines = [_en_line(x) for x in lines]
         return chosen["title"], lines
     return None
 
@@ -566,11 +598,21 @@ def _drops_card(*names: str, limit: int = 5) -> Optional[tuple[str, list[str]]]:
 
     rows = sorted(srcs, key=_rank)[:limit]
     title = (names[0] or key).strip() or key
-    lines = [f"◆ 掉落来源（共 {len(srcs)} 处，按几率排序）", "　来源　几率"]
+    lines = [
+        L(
+            f"◆ 掉落来源（共 {len(srcs)} 处，按几率排序）",
+            f"◆ Drop Sources ({len(srcs)} total, by chance)",
+        ),
+        L("　来源　几率", "　Source　Chance"),
+    ]
     for row in rows:
         pid, _rarity, chance = row[0], row[1], row[2]
         place = str(places.get(str(pid)) or places.get(pid) or "?").replace("　", " ")
-        lines.append(f"· {place}　{chance}%" if chance is not None else f"· {place}　几率未知")
+        lines.append(
+            f"· {place}　{chance}%"
+            if chance is not None
+            else L(f"· {place}　几率未知", f"· {place}　chance unknown")
+        )
     return title, lines
 
 
@@ -595,7 +637,8 @@ def _uses_card(*names: str, limit: int = 5) -> Optional[tuple[str, list[str]]]:
     if not prods:
         return None
     title = (names[0] or prods[0]).strip() or prods[0]
-    lines = [f"◆ 用途 · 用于制造（共 {hit.get('n', len(prods))} 个配方）"]
+    _n = hit.get("n", len(prods))
+    lines = [L(f"◆ 用途 · 用于制造（共 {_n} 个配方）", f"◆ Uses · Crafting ({_n} recipes)")]
     lines += [f"· {str(p).replace('　', ' ')}" for p in prods]
     return title, lines
 
@@ -622,6 +665,11 @@ def _relic_key(name: str) -> str:
     """
     s = re.sub(r"\s+", "", (name or "").replace("遗物", ""))
     m = re.match(r"^([一-鿿]{2,4})([A-Za-z]\d{1,2})$", s)
+    if not m and i18n.is_en():  # 英文模式：「Meso V11 Relic」这类英文写法，换成中文档位再走原路径
+        em = re.match(r"(?i)^([A-Za-z]{3,8}?)([A-Za-z]\d{1,2})(?:relics?)?$", s)
+        cn_of = {en.lower(): cn for cn, en in _TIER_CN.items()}
+        if em and em.group(1).lower() in cn_of:
+            m = re.match(r"^(.+?)([A-Za-z]\d{1,2})$", cn_of[em.group(1).lower()] + em.group(2))
     if not m:
         return ""
     cn, code = m.group(1), m.group(2)
@@ -652,6 +700,9 @@ def relic_rewards(name: str) -> Optional[dict]:
     return idx.get(key) or None
 
 
+_RARITY_EN = {"常见": "Common", "罕见": "Uncommon", "稀有": "Rare"}
+
+
 def _relic_card(*names: str, limit: int = 3) -> Optional[tuple[str, list[str]]]:
     """遗物卡：三档奖励（前纪 V11 遗物这类 —— 知识库/掉落表都没有条目）。"""
     idx, _inv = _relics()
@@ -674,10 +725,15 @@ def _relic_card(*names: str, limit: int = 3) -> Optional[tuple[str, list[str]]]:
     for tag in ("常见", "罕见", "稀有"):
         items = [str(x) for x in (rar.get(tag) or [])]
         if items:
-            lines.append(f"· {tag}　{'、'.join(items[:limit])}")
+            lines.append(
+                L(
+                    f"· {tag}　{'、'.join(items[:limit])}",
+                    f"· {_RARITY_EN.get(tag, tag)}　{', '.join(items[:limit])}",
+                )
+            )
     if not lines:
         return None
-    lines.insert(0, "◆ 奖励（三档）")
+    lines.insert(0, L("◆ 奖励（三档）", "◆ Rewards (by rarity)"))
     title = next((n for n in names if (n or "").strip()), hit).strip() or hit
     return title, lines
 
@@ -700,8 +756,15 @@ def _relic_part_card(*names: str, limit: int = 8) -> Optional[tuple[str, list[st
     if not rows:
         return None
     title = next((n for n in names if (n or "").strip()), hit).strip() or hit
-    lines = [f"◆ 所在遗物（共 {len(rows)} 个）", "　遗物　稀有度"]
-    lines += [f"· {r.get('relic')}　{r.get('rarity')}" for r in rows[:limit]]
+    lines = [
+        L(f"◆ 所在遗物（共 {len(rows)} 个）", f"◆ Found In Relics ({len(rows)} total)"),
+        L("　遗物　稀有度", "　Relic　Rarity"),
+    ]
+    lines += [
+        f"· {r.get('relic')}　"
+        + L(str(r.get("rarity")), _RARITY_EN.get(str(r.get("rarity")), str(r.get("rarity"))))
+        for r in rows[:limit]
+    ]
     return title, lines
 
 
@@ -710,7 +773,10 @@ def _minimal_card(*names: str) -> Optional[tuple[str, list[str]]]:
     title = next((n.strip() for n in names if (n or "").strip()), "")
     if not title:
         return None
-    return title, ["◆ 状态：本地资料库暂无该条目的简介", "※ 详见下方 wiki 页面链接"]
+    return title, [
+        L("◆ 状态：本地资料库暂无该条目的简介", "◆ Status: no local summary for this entry yet"),
+        L("※ 详见下方 wiki 页面链接", "※ See the wiki link below"),
+    ]
 
 
 _PATH_SEG_RE = re.compile(r"^(?:de:)?.*?/([^/]+)$")
@@ -783,6 +849,145 @@ def display_title(title: str) -> str:
     return t2[:1].upper() + t2[1:] + sep + tail
 
 
+def _en_title(title: str) -> str:
+    """英文模式的卡片标题：「闪劫（Corufell）」取括号里的英文名；没有英文名就原样。"""
+    if not _CJK_RE.search(title or ""):
+        return title
+    for part in re.findall(r"[（(]([^）)]+)[）)]", title):
+        if re.search(r"[A-Za-z]", part) and not _CJK_RE.search(part):
+            return part.strip()
+    return title
+
+
+# ---- 英文模式：简介行的标签翻译（只换行首标签与固定术语段名；值是知识库数据，原样保留） ----
+_EN_LABEL = {
+    "类型": "Type",
+    "定位": "Role",
+    "获取": "Acquisition",
+    "效果": "Effect",
+    "效果（官方简中）": "Effect (official zh-CN)",
+    "建造材料": "Build Materials",
+    "说明": "Note",
+    "简介": "Description",
+    "数据": "Stats",
+    "特性": "Traits",
+    "属性": "Attributes",
+    "总伤害": "Total Damage",
+    "可交易": "Tradable",
+    "商店": "Shop",
+    "自带极性": "Polarity",
+    "用途": "Uses",
+    "技能": "Abilities",
+    "被动": "Passive",
+    "状态": "Status",
+    "版本": "Version",
+    "同名条目": "Same-Name Entries",
+}
+_EN_SEG = {
+    "精通等级需求": "Mastery Rank",
+    "精通需求": "Mastery Rank",
+    "暴击几率": "Critical Chance",
+    "暴击倍率": "Critical Multiplier",
+    "触发几率": "Status Chance",
+    "射速": "Fire Rate",
+    "装填": "Reload",
+    "精准度": "Accuracy",
+    "弹匣": "Magazine",
+    "多重射击": "Multishot",
+    "扳机": "Trigger",
+    "噪音": "Noise",
+    "攻击范围": "Range",
+    "连击持续": "Combo Duration",
+    "穿透": "Punch Through",
+    "生命": "Health",
+    "护盾": "Shield",
+    "护甲": "Armor",
+    "能量": "Energy",
+    "冲刺速度": "Sprint Speed",
+    "紫卡倾向": "Riven Disposition",
+    "切割": "Slash",
+    "穿刺": "Puncture",
+    "冲击": "Impact",
+    "电击": "Electricity",
+    "火焰": "Heat",
+    "冰冻": "Cold",
+    "辐射": "Radiation",
+    "毒素": "Toxin",
+    "病毒": "Viral",
+    "腐蚀": "Corrosive",
+    "毒气": "Gas",
+    "爆炸": "Blast",
+    "磁力": "Magnetic",
+}
+_EN_SEG_WHOLE = {
+    "近战武器（Melee）": "Melee",
+    "主武器（Primary）": "Primary",
+    "副武器（Secondary）": "Secondary",
+    "殁世机甲（Necramech）": "Necramech",
+    "近战": "Melee",
+    "手枪": "Pistol",
+    "步枪": "Rifle",
+    "霰弹枪": "Shotgun",
+    "战甲": "Warframe",
+    "弓": "Bow",
+    "狙击枪": "Sniper Rifle",
+    "双枪": "Dual Pistols",
+    "投掷武器": "Thrown Weapon",
+    "发射器": "Launcher",
+}
+_EN_SEG_LINES = ("数据", "属性", "特性", "总伤害", "定位")
+_EN_KV_RE = re.compile(r"^◆ (效果（[^）]{1,12}）|[一-鿿]{1,6})：(.*)$")
+_EN_RANK_RE = re.compile(r"^效果（满级\s*(\d+)）$")
+
+
+def _en_label(label: str) -> str:
+    m = _EN_RANK_RE.match(label)
+    if m:
+        return f"Effect (Max Rank {m.group(1)})"
+    if label in _EN_LABEL:
+        return _EN_LABEL[label]
+    if label.startswith("效果（") and label.endswith("）"):
+        return f"Effect ({label[3:-1]})"
+    return label
+
+
+def _en_seg(seg: str) -> str:
+    t = seg.strip()
+    if t in _EN_SEG_WHOLE:
+        return seg.replace(t, _EN_SEG_WHOLE[t])
+    for zh in sorted(_EN_SEG, key=len, reverse=True):
+        if t.startswith(zh):
+            rest = t[len(zh) :]
+            if rest[:1] in ("：", ":"):
+                rest = ": " + rest[1:].lstrip()
+            elif rest[:1].isdigit() or rest[:1] in ("-", "+", "×", " ", ""):
+                rest = (" " + rest.lstrip()) if rest.strip() else ""
+            else:
+                continue
+            return seg.replace(t, _EN_SEG[zh] + rest)
+    return seg
+
+
+def _en_line(line: str) -> str:
+    """简介行英文化：``◆ 标签：值`` → ``◆ Label: value``，固定术语段（暴击几率 …）一并换名。"""
+    m = _EN_KV_RE.match(line)
+    if not m:
+        return line
+    label, value = m.group(1), m.group(2)
+    if label in _EN_SEG_LINES:
+        if (
+            label == "总伤害" and "（" in value
+        ):  # 「200（冲击 96｜穿刺 68…）」：总量后括号里才是分量
+            head, _, rest = value.partition("（")
+            value = head + "（" + "｜".join(_en_seg(x) for x in rest.split("｜"))
+        else:
+            segs = [_en_seg(x) for x in value.split("｜")]
+            value = "｜".join(x for i, x in enumerate(segs) if i == 0 or x != segs[i - 1])
+        value = re.sub(r"(\d)\s*秒", r"\1 s", value)
+        value = re.sub(r"(\d)\s*米", r"\1 m", value)
+    return f"◆ {_en_label(label)}: {value}"
+
+
 def card_for(*names: str) -> Optional[tuple[str, list[str]]]:
     """卡片入口：知识库 → 掉落表 → 配方用途 → 遗物 → 兜底（**永远有卡**）。
 
@@ -801,6 +1006,8 @@ def card_for(*names: str) -> Optional[tuple[str, list[str]]]:
     if card:
         _t, _lines = card
         _t2 = display_title(_t)
+        if i18n.is_en():
+            _t2 = _en_title(_t2)
         if _t2 != _t:
             return _t2, _lines
     return card

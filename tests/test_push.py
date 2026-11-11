@@ -3008,7 +3008,9 @@ async def t_cycle_payload_before_dispatch():
                     and daemon._last["pc"][baseline] == after
                     and daemon._tick_fail == 0,
                 )
-                check(f"周期坏值 {label}：每轮都经过模拟HTTP入口", len(requests) == 6)
+                # 直连社区源先尝试整包（这里整包校验不过会冷却 30 秒），只统计单项地址的请求
+                endpoint_requests = [u for u in requests if not u.split("?")[0].endswith("/pc")]
+                check(f"周期坏值 {label}：每轮都经过模拟HTTP入口", len(endpoint_requests) == 6)
             finally:
                 await client.close()
 

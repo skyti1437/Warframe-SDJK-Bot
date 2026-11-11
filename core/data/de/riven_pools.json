@@ -6,8 +6,8 @@
   "pep_ExportUpgrades": "d2a917e7364c6ce0",
   "pep_ExportWeapons": "a0fe031227c3cf90"
  },
- "_generated_at": "2026-10-26T04:33:21+00:00",
- "_rule": "① 职业池 = 官方现行紫卡模板的词条清单；正负与限制（DamageTypes / NotSentinel / NotGrimoire）取 PEP，融合词条只出正面；② 家族属性：守护武器（全员 SentinelWeapons）、魔典（/Grimoire/）、有弹道（PEP 兼容标签含 PROJECTILE）；③ 物理三项按武器伤害占比 ≤25% 不列（DE DamageTypes 规则，2026-10-25 维护者定「按规则删，再用自己抽样纠偏」）；④ 我方抽样：见过 ⇒ 照列（压过规则），规则保留但没见过 ⇒ 列出并标「?」；规则排除且没见过 ⇒ 不列。2026-10-25 起不再使用 wfsim 数据。",
+ "_generated_at": "2026-11-10T03:11:07+00:00",
+ "_rule": "① 职业池 = 官方现行紫卡模板的词条清单；正负与限制（DamageTypes / NotSentinel / NotGrimoire）取 PEP，融合词条只出正面；② 家族属性：守护武器（全员 SentinelWeapons）、魔典（/Grimoire/）、有弹道（PEP 兼容标签含 PROJECTILE）；③ 物理三项按武器伤害占比 ≤25% 不列（DE DamageTypes 规则，2026-10-25 维护者定「按规则删，再用自己抽样纠偏」；占比取伤害计算器武器表，查不到的家族用 phys：DE 导出 damagePerShot → wiki 组合武器模块；都没有则物理三项标「?」，2026-11-10 补）；④ 我方抽样：见过 ⇒ 照列（压过规则），规则保留但没见过 ⇒ 列出并标「?」；规则排除且没见过 ⇒ 不列。2026-10-25 起不再使用 wfsim 数据。",
  "_counts": {
   "class_pools": {
    "rifle": 38,
@@ -23,6 +23,8 @@
   "no_projectile": 485,
   "no_weapon_data": 0,
   "no_projectile_tag_data": 0,
+  "phys_de": 34,
+  "phys_none": 174,
   "survey_without_root": 2,
   "unknown_tags": []
  },
@@ -1584,7 +1586,13 @@
    }
   },
   "AtlasPunchWeapon": {
-   "projectile": false
+   "projectile": false,
+   "phys": {
+    "impact": 1.0,
+    "puncture": 0.0,
+    "slash": 0.0
+   },
+   "phys_src": "de"
   },
   "AutoCrossBow": {
    "projectile": true,
@@ -2042,7 +2050,13 @@
    "projectile": false
   },
   "ChoirEruptWeapon": {
-   "projectile": false
+   "projectile": false,
+   "phys": {
+    "impact": 0.0,
+    "puncture": 0.0,
+    "slash": 0.0
+   },
+   "phys_src": "de"
   },
   "ConclaveLeverPistol": {
    "projectile": false,
@@ -2953,7 +2967,13 @@
    }
   },
   "DoomSword": {
-   "projectile": false
+   "projectile": false,
+   "phys": {
+    "impact": 0.15,
+    "puncture": 0.15,
+    "slash": 0.7
+   },
+   "phys_src": "de"
   },
   "DoubleBarrelShotgun": {
    "projectile": false,
@@ -3487,16 +3507,40 @@
    }
   },
   "ExaltedArtilleryWeapon": {
-   "projectile": true
+   "projectile": true,
+   "phys": {
+    "impact": 0.0008,
+    "puncture": 0.0,
+    "slash": 0.0
+   },
+   "phys_src": "de"
   },
   "ExaltedBook": {
-   "projectile": false
+   "projectile": false,
+   "phys": {
+    "impact": 0.0,
+    "puncture": 0.0,
+    "slash": 1.0
+   },
+   "phys_src": "de"
   },
   "ExaltedBow": {
-   "projectile": true
+   "projectile": true,
+   "phys": {
+    "impact": 0.14,
+    "puncture": 0.8,
+    "slash": 0.06
+   },
+   "phys_src": "de"
   },
   "ExaltedSniper": {
-   "projectile": false
+   "projectile": false,
+   "phys": {
+    "impact": 0.05,
+    "puncture": 0.85,
+    "slash": 0.1
+   },
+   "phys_src": "de"
   },
   "Fist": {
    "projectile": false,
@@ -3580,10 +3624,22 @@
    "projectile": false
   },
   "FlightPistols": {
-   "projectile": false
+   "projectile": false,
+   "phys": {
+    "impact": 0.1,
+    "puncture": 0.1,
+    "slash": 0.8
+   },
+   "phys_src": "de"
   },
   "FlightSword": {
-   "projectile": false
+   "projectile": false,
+   "phys": {
+    "impact": 0.15,
+    "puncture": 0.75,
+    "slash": 0.1
+   },
+   "phys_src": "de"
   },
   "FlowerPowerPolearmWep": {
    "projectile": false,
@@ -3654,10 +3710,22 @@
    }
   },
   "GaraShankWeapon": {
-   "projectile": false
+   "projectile": false,
+   "phys": {
+    "impact": 0.0,
+    "puncture": 1.0,
+    "slash": 0.0
+   },
+   "phys_src": "de"
   },
   "GarudaClaws": {
-   "projectile": false
+   "projectile": false,
+   "phys": {
+    "impact": 0.08,
+    "puncture": 0.22,
+    "slash": 0.7
+   },
+   "phys_src": "de"
   },
   "GarudaCrossbow": {
    "projectile": true,
@@ -3677,7 +3745,13 @@
    }
   },
   "GarudaPrimeClaws": {
-   "projectile": false
+   "projectile": false,
+   "phys": {
+    "impact": 0.05,
+    "puncture": 0.1,
+    "slash": 0.85
+   },
+   "phys_src": "de"
   },
   "Gauntlet": {
    "projectile": false,
@@ -4066,7 +4140,13 @@
    }
   },
   "GrnChainSawTonfaWeapon": {
-   "projectile": false
+   "projectile": false,
+   "phys": {
+    "impact": 0.0,
+    "puncture": 0.2,
+    "slash": 0.8
+   },
+   "phys_src": "de"
   },
   "GrnClaws": {
    "projectile": false,
@@ -5348,7 +5428,13 @@
    }
   },
   "KhoraWhipclawWeapon": {
-   "projectile": false
+   "projectile": false,
+   "phys": {
+    "impact": 0.333,
+    "puncture": 0.333,
+    "slash": 0.334
+   },
+   "phys_src": "de"
   },
   "KickPunchWeapon": {
    "projectile": false,
@@ -5813,7 +5899,13 @@
    "projectile": false
   },
   "MonkeyKingStaff": {
-   "projectile": false
+   "projectile": false,
+   "phys": {
+    "impact": 0.68,
+    "puncture": 0.0,
+    "slash": 0.32
+   },
+   "phys_src": "de"
   },
   "MoonWarfanWeapon": {
    "projectile": false,
@@ -5833,7 +5925,13 @@
    }
   },
   "MortiforShieldAndSword": {
-   "projectile": false
+   "projectile": false,
+   "phys": {
+    "impact": 0.2,
+    "puncture": 0.0,
+    "slash": 0.8
+   },
+   "phys_src": "de"
   },
   "NWOrokinSword": {
    "projectile": false,
@@ -5852,10 +5950,22 @@
    }
   },
   "NechroTechSwordWeapon": {
-   "projectile": false
+   "projectile": false,
+   "phys": {
+    "impact": 0.15,
+    "puncture": 0.15,
+    "slash": 0.7
+   },
+   "phys_src": "de"
   },
   "NinjaStormWeapon": {
-   "projectile": false
+   "projectile": false,
+   "phys": {
+    "impact": 0.0,
+    "puncture": 0.0,
+    "slash": 0.0
+   },
+   "phys_src": "de"
   },
   "NokkoArchGun": {
    "projectile": false
@@ -5922,7 +6032,13 @@
    }
   },
   "PacifistFist": {
-   "projectile": false
+   "projectile": false,
+   "phys": {
+    "impact": 0.3333,
+    "puncture": 0.3333,
+    "slash": 0.3334
+   },
+   "phys_src": "de"
   },
   "PacifistShieldSword": {
    "projectile": false,
@@ -6129,19 +6245,43 @@
    }
   },
   "PrimeExaltedBow": {
-   "projectile": true
+   "projectile": true,
+   "phys": {
+    "impact": 0.14,
+    "puncture": 0.8,
+    "slash": 0.06
+   },
+   "phys_src": "de"
   },
   "PrimeFlightPistols": {
-   "projectile": false
+   "projectile": false,
+   "phys": {
+    "impact": 0.1,
+    "puncture": 0.1,
+    "slash": 0.8
+   },
+   "phys_src": "de"
   },
   "PrimeFlightSword": {
-   "projectile": false
+   "projectile": false,
+   "phys": {
+    "impact": 0.15,
+    "puncture": 0.75,
+    "slash": 0.1
+   },
+   "phys_src": "de"
   },
   "PrimeLightningGun": {
    "projectile": false
   },
   "PrimeSlingerPistols": {
-   "projectile": false
+   "projectile": false,
+   "phys": {
+    "impact": 0.5,
+    "puncture": 0.25,
+    "slash": 0.25
+   },
+   "phys_src": "de"
   },
   "PunctureGlaiveWeapon": {
    "projectile": false,
@@ -6240,7 +6380,13 @@
    }
   },
   "ReaperMeleeWeapon": {
-   "projectile": false
+   "projectile": false,
+   "phys": {
+    "impact": 0.3,
+    "puncture": 0.2,
+    "slash": 0.5
+   },
+   "phys_src": "de"
   },
   "ReaperWeapon": {
    "projectile": false,
@@ -6662,7 +6808,13 @@
    "projectile": false
   },
   "SlingerPistols": {
-   "projectile": false
+   "projectile": false,
+   "phys": {
+    "impact": 0.5,
+    "puncture": 0.25,
+    "slash": 0.25
+   },
+   "phys_src": "de"
   },
   "SniperRifle": {
    "projectile": false,
@@ -6699,7 +6851,13 @@
    }
   },
   "SpiderWhipWeapon": {
-   "projectile": false
+   "projectile": false,
+   "phys": {
+    "impact": 0.0,
+    "puncture": 0.0,
+    "slash": 0.0
+   },
+   "phys_src": "de"
   },
   "Staff": {
    "projectile": false,
@@ -7708,7 +7866,13 @@
    }
   },
   "TnInkRifleWeapon": {
-   "projectile": false
+   "projectile": false,
+   "phys": {
+    "impact": 0.0,
+    "puncture": 0.2857,
+    "slash": 0.0
+   },
+   "phys_src": "de"
   },
   "TnJetTurbinePistolWeapon": {
    "projectile": false,
@@ -7751,6 +7915,12 @@
   },
   "TnOrionScytheWeapon": {
    "projectile": false,
+   "phys": {
+    "impact": 0.0,
+    "puncture": 0.2,
+    "slash": 0.8
+   },
+   "phys_src": "de",
    "survey": {
     "n": 47,
     "surveyed": "2026-10-23",
@@ -7899,6 +8069,12 @@
   },
   "TnSiriusScytheWeapon": {
    "projectile": false,
+   "phys": {
+    "impact": 0.0,
+    "puncture": 0.5,
+    "slash": 0.5
+   },
+   "phys_src": "de",
    "survey": {
     "n": 44,
     "surveyed": "2026-10-23",
@@ -8348,19 +8524,43 @@
    "projectile": false
   },
   "WukongPrimeStaff": {
-   "projectile": false
+   "projectile": false,
+   "phys": {
+    "impact": 0.68,
+    "puncture": 0.0,
+    "slash": 0.32
+   },
+   "phys_src": "de"
   },
   "ZanukaPetMeleeWeaponIP": {
    "sentinel": true,
-   "projectile": false
+   "projectile": false,
+   "phys": {
+    "impact": 0.5,
+    "puncture": 0.5,
+    "slash": 0.0
+   },
+   "phys_src": "de"
   },
   "ZanukaPetMeleeWeaponIS": {
    "sentinel": true,
-   "projectile": false
+   "projectile": false,
+   "phys": {
+    "impact": 0.5,
+    "puncture": 0.0,
+    "slash": 0.5
+   },
+   "phys_src": "de"
   },
   "ZanukaPetMeleeWeaponPS": {
    "sentinel": true,
-   "projectile": false
+   "projectile": false,
+   "phys": {
+    "impact": 0.0,
+    "puncture": 0.5,
+    "slash": 0.5
+   },
+   "phys_src": "de"
   },
   "ZanukaPetPartBodyA": {
    "projectile": false
@@ -8420,6 +8620,12 @@
   },
   "ZarimanHeavyScytheWeapon": {
    "projectile": false,
+   "phys": {
+    "impact": 0.0,
+    "puncture": 0.3,
+    "slash": 0.7
+   },
+   "phys_src": "de",
    "survey": {
     "n": 100,
     "surveyed": "2026-10-23",

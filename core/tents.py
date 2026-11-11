@@ -31,6 +31,8 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 
+from . import i18n
+
 DATA_DIR = Path(__file__).resolve().parent / "data" / "de"
 
 # 地区（SyndicateMissions 的显示名）-> 点位清单配置。
@@ -40,6 +42,7 @@ REGIONS: dict[str, dict] = {
         "prefix": "/Lotus/Types/Gameplay/Eidolon/Jobs/",
         "manifest": "eidolon_job_manifest.json",
         "labels": {"TentA": "小帐篷 A", "TentB": "小帐篷 B", "TentC": "小帐篷 C"},
+        "labels_en": {"TentA": "Small Tent A", "TentB": "Small Tent B", "TentC": "Small Tent C"},
     },
     # ★ 金星：推算能力与点位名**保留**（测试仍覆盖），2026-09-26 起**不上卡**
     #   （用户口径：金星卡改列深矿钢铁档奖励）。`on_card=False` 只挡卡面出块，
@@ -91,13 +94,17 @@ def _manifest(filename: str) -> dict:
         return {}
 
 
-@lru_cache(maxsize=1)
-def _job_names() -> dict:
-    """链资产路径（小写）-> 官方简中链名（与 de_worldstate 同一份表）。"""
+@lru_cache(maxsize=2)
+def _job_names_file(filename: str) -> dict:
     try:
-        return json.loads((DATA_DIR / "bounty_jobs_zh.json").read_text(encoding="utf-8"))
+        return json.loads((DATA_DIR / filename).read_text(encoding="utf-8"))
     except Exception:  # noqa: BLE001
         return {}
+
+
+def _job_names() -> dict:
+    """链资产路径（小写）-> 官方链名（与 de_worldstate 同一份表；英文模式读 bounty_jobs_en.json）。"""
+    return _job_names_file("bounty_jobs_en.json" if i18n.is_en() else "bounty_jobs_zh.json")
 
 
 def _chain_name(path: str) -> str:
@@ -150,6 +157,8 @@ def region_locations(region: str, seed: Optional[int]) -> list[tuple[str, list[s
         s, picked = _pick(s, loc.get("Jobs") or [], int(loc.get("NumJobsToShow") or 0))
         tag = loc.get("LocationTag") or ""
         label = (cfg.get("labels") or {}).get(tag, tag)
+        if i18n.is_en():
+            label = (cfg.get("labels_en") or {}).get(tag, label)
         out.append((label, [_chain_name(cfg["prefix"] + p) for p in picked]))
     return out
 

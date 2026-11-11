@@ -8,7 +8,7 @@
    统一到周一（Palladino / Chipper / Teshin 等）。
    ⚠️ **不要引用** DE《Update 33.0》那句「rotating at Sundays at 00:00 UTC」——
    那是 2023 年初版、已被后续调整覆盖（我一度按它写成周日，是错的）。
-2. 轮换判定用 **UTC**，展示给国内玩家要换算**北京时间**并标注。
+2. 轮换判定用 UTC，实际刷新时刻按显示时区转换并标注。
 3. 本周实际 5 件 DE 不下发（只有候选池），过期时**必须明说**。
 """
 
@@ -23,7 +23,8 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from core.api_client import WarframeClient  # noqa: E402
-from core.formatters import _to_bj, fmt_acrichis, fmt_acrichis_week  # noqa: E402
+from core.display_time import format_time, use_zone  # noqa: E402
+from core.formatters import fmt_acrichis, fmt_acrichis_week  # noqa: E402
 
 FAILED: list[str] = []
 
@@ -83,19 +84,18 @@ check(
 )
 
 # ---------------------------------------------------------------------------
-# 2. 展示口径：UTC 判定 → 北京时间展示
+# 2. 展示口径：UTC 判定 → 所选时区展示
 # ---------------------------------------------------------------------------
-check(
-    "★ UTC 周一 00:00 → 北京时间 周一 08:00",
-    _to_bj("2026-09-21T00:00:00+00:00") == "09-21 08:00",
-    _to_bj("2026-09-21T00:00:00+00:00"),
-)
-check(
-    "跨日换算正确（UTC 22:00 → 次日 06:00）",
-    _to_bj("2026-09-20T22:00:00+00:00") == "09-21 06:00",
-    _to_bj("2026-09-20T22:00:00+00:00"),
-)
-check("坏串返回空而不是抛异常", _to_bj("not-a-time") == "")
+with use_zone("UTC+08:00"):
+    check(
+        "UTC 周一 00:00 → 周一 08:00 UTC+08:00",
+        format_time("2026-09-21T00:00:00+00:00") == "09-21 08:00 UTC+08:00",
+    )
+    check(
+        "跨日换算正确（UTC 22:00 → 次日 06:00）",
+        format_time("2026-09-20T22:00:00Z") == "09-21 06:00 UTC+08:00",
+    )
+check("坏串返回空而不是抛异常", format_time("not-a-time") == "")
 
 # ---------------------------------------------------------------------------
 # 3. 数据：rotations.json 各段周期与 wiki 对照
@@ -160,9 +160,10 @@ check("随包无当周动态字段", not set(wk) & {"items", "expiry", "observed
 # ---------------------------------------------------------------------------
 wk2 = {"items": list(wk["_en_catalog"].values())[:5]}
 wk2["next_reset"] = NR(datetime.now(timezone.utc), weekday=0, hour_utc=0)
-title, lines = fmt_acrichis_week(wk2)
+with use_zone("UTC+05:30"):
+    title, lines = fmt_acrichis_week(wk2)
 check("本周货单卡面带下次刷新倒计时", any("距下次刷新" in ln for ln in lines), str(lines))
-check("★ 卡面标注了北京时间", any("北京时间" in ln for ln in lines), str(lines))
+check("卡面标注固定半小时时区", "05:30 UTC+05:30" in lines[0], str(lines))
 check(
     "★ 卡面说明轮换是周一 00:00 UTC", any("周一" in ln and "UTC" in ln for ln in lines), str(lines)
 )

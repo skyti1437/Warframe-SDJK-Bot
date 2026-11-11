@@ -21,9 +21,11 @@ from .. import damage_calc as dc
 from .. import formatters as fmt
 from .. import loadout_ocr as lo
 from .. import pips as pips_engine
+from ..i18n import L, is_en
 from ..logging_compat import logger
 from .base import Action, Reply, _num, err_card
 from .vision import _cancel_vision_tasks, _prov_id, effective_vision_prompt
+from .wiki_misc import _dmg_en_toks
 
 
 _SCAN_TTL = 1800
@@ -144,16 +146,29 @@ class ScanCommands:
         """
         if not self._event_has_image(event):
             return Reply(
-                "配卡识别",
-                [
-                    "◆ 用法：发一张武器「升级」界面截图，配上文字「识卡」",
-                    "◆ 说明",
-                    "· 读出　武器（含等级）＋每张 MOD 卡与其实际等级＋面板数值",
-                    "· 折算　加成按卡片容量数字反推实际等级（绿=匹配减半／红=不合+25%／白=原价）",
-                    "· 校验　再用面板数值交叉校验；伤害详情可用「识卡伤害」查看（同「伤害计算」公式）",
-                    "· 复算　想换敌人/等级/爆头：识卡伤害 对 重机枪手 150级 爆头",
-                    "· 前置　需要 AstrBot 里配好一个多模态模型（如 Qwen3-VL / glm-4.1v）",
-                ],
+                L("配卡识别", "Build Scan"),
+                L(
+                    [
+                        "◆ 用法：发一张武器「升级」界面截图，配上文字「识卡」",
+                        "◆ 说明",
+                        "· 读出　武器（含等级）＋每张 MOD 卡与其实际等级＋面板数值",
+                        "· 折算　加成按卡片容量数字反推实际等级（绿=匹配减半／红=不合+25%／白=原价）",
+                        "· 校验　再用面板数值交叉校验；伤害详情可用「识卡伤害」查看（同「伤害计算」公式）",
+                        "· 复算　想换敌人/等级/爆头：识卡伤害 对 重机枪手 150级 爆头",
+                        "· 前置　需要 AstrBot 里配好一个多模态模型（如 Qwen3-VL / glm-4.1v）",
+                    ],
+                    [
+                        '◆ Usage: send a screenshot of the weapon "Upgrade" screen with the text "scan"',
+                        "◆ Details",
+                        "· Reads　the weapon (with rank) + every MOD card with its actual rank + panel values",
+                        "· Conversion　bonuses are traced back to the actual rank from the card capacity number "
+                        "(green = matching, halved / red = mismatched, +25% / white = full price)",
+                        '· Verification　cross-checked against the panel values; details via "scandamage" '
+                        '(same formula as "damage")',
+                        "· Recalculate　change enemy / level / headshot: scandamage vs Heavy Gunner 150 headshot",
+                        "· Requirement　a multimodal model must be configured in AstrBot (e.g. Qwen3-VL / glm-4.1v)",
+                    ],
+                ),
             )
 
         # ★★ 安全审查（2026-09-18）：识卡每次会调用**付费**多模态模型。
@@ -164,7 +179,7 @@ class ScanCommands:
         #     ② 全局并发上限 scan_max_concurrent（默认 3，设 0 关闭）
         #   两道闸的实现在 vision._vision_gate（2026-10-10 起与紫卡识图共用）。
         _last = self._vision_last("scan")
-        _gate, _sender = self._vision_gate(event, "识卡", task="scan")
+        _gate, _sender = self._vision_gate(event, L("识卡", "Build scan"), task="scan")
         if _gate is not None:
             return _gate
         _stamp = _last.get(_sender)
@@ -176,13 +191,22 @@ class ScanCommands:
         _busy_key = str(getattr(event, "unified_msg_origin", "") or "") or object()
         if _busy_key in self._ocr_busy:
             return Reply(
-                raw_text="⏳ 上一张配卡还在识别中（约 15–30 秒），请稍等一下再发，避免任务叠加变慢"
+                raw_text=L(
+                    "⏳ 上一张配卡还在识别中（约 15–30 秒），请稍等一下再发，避免任务叠加变慢",
+                    "⏳ The previous build is still being scanned (about 15-30 s); "
+                    "please wait a moment before sending another so tasks do not pile up",
+                )
             )
         self._ocr_busy.add(_busy_key)
         try:
             imgs = await self._image_data_urls(event)
             if not imgs:
-                return Reply(raw_text="⚠️ 图片下载失败，请重发一次截图")
+                return Reply(
+                    raw_text=L(
+                        "⚠️ 图片下载失败，请重发一次截图",
+                        "⚠️ Image download failed, please resend the screenshot",
+                    )
+                )
             ocr = await self._extract_loadout_validated(imgs[0])
         finally:
             self._ocr_busy.discard(_busy_key)
@@ -192,17 +216,30 @@ class ScanCommands:
             if _cd > 0 and _sender:
                 self._vision_refund(_last, _sender, _stamp)
             return err_card(
-                "截图识别失败：视觉渠道没给出可解析结果",
-                "先重发一次；仍失败请联系机器人管理员查看日志里的「配卡识别」条目（会写明是哪个渠道、什么原因）",
-                ("可能原因", "① 渠道超时/返回空；② 未配视觉模型"),
-                title="识卡",
+                L(
+                    "截图识别失败：视觉渠道没给出可解析结果",
+                    "Scan failed: the vision channel returned nothing parseable",
+                ),
+                L(
+                    "先重发一次；仍失败请联系机器人管理员查看日志里的「配卡识别」条目（会写明是哪个渠道、什么原因）",
+                    'Resend once; if it still fails, ask the bot admin to check the "配卡识别" entries in the log '
+                    "(they name the channel and the reason)",
+                ),
+                (
+                    L("可能原因", "Possible causes"),
+                    L(
+                        "① 渠道超时/返回空；② 未配视觉模型",
+                        "(1) channel timed out / returned empty; (2) no vision model configured",
+                    ),
+                ),
+                title=L("识卡", "Build Scan"),
             )
 
         an = lo.analyze(ocr, ocr.get("_pips_rows"))
         lines = lo.card_lines(an)
         # 认不全时把原始识别结果附上：否则用户只看到「没认出来」，无法判断是图的问题还是库的问题
         if not an.get("ok"):
-            lines.append("　原始识别结果：" + self._ocr_echo(ocr))
+            lines.append(L("　原始识别结果：", "　Raw scan result: ") + self._ocr_echo(ocr))
 
         # 第一页 analyze 的参考伤害保持；仅把详情页的再次计算改为按需执行。
         cached_spec = None
@@ -240,28 +277,58 @@ class ScanCommands:
         if lazy and cached_spec is not None:
             actions = []
             if token:
-                command = f"识卡伤害 #{token}"
+                command = L(f"识卡伤害 #{token}", f"scandamage #{token}")
+                _vs = L(" 对 ", " vs ")
                 if can_actions:
                     # 有按钮时只留一行指令（旧客户端可能不显示按钮），复算示例交给按钮
                     lines.append(
-                        f"※ 伤害详情：点下方按钮，或发送「{command}」；30 分钟内仅本人可用"
+                        L(
+                            f"※ 伤害详情：点下方按钮，或发送「{command}」；30 分钟内仅本人可用",
+                            f'※ Damage details: tap the button below or send "{command}"; '
+                            "usable by you only, within 30 minutes",
+                        )
                     )
                     actions = [
-                        Action("伤害详情", command, owner_only=True),
-                        Action("换目标复算", command + " 对 ", mode="fill", owner_only=True),
+                        Action(L("伤害详情", "Damage details"), command, owner_only=True),
+                        Action(
+                            L("换目标复算", "Recalculate vs another target"),
+                            command + _vs,
+                            mode="fill",
+                            owner_only=True,
+                        ),
                     ]
                 else:
-                    lines.append(f"※ 伤害详情：发送「{command}」；30 分钟内仅本人在当前会话可用")
-                    lines.append(f"· 换目标复算：{command} 对 重机枪手 150级 爆头")
+                    lines.append(
+                        L(
+                            f"※ 伤害详情：发送「{command}」；30 分钟内仅本人在当前会话可用",
+                            f'※ Damage details: send "{command}"; usable by you only, '
+                            "in this chat, within 30 minutes",
+                        )
+                    )
+                    lines.append(
+                        L(
+                            f"· 换目标复算：{command} 对 重机枪手 150级 爆头",
+                            f"· Recalculate vs another target: {command} vs Heavy Gunner 150 headshot",
+                        )
+                    )
             else:
                 lines.append(
-                    "※ 未取得会话或用户标识，无法保存复算记录；可用「伤害 武器名」手动配卡计算"
+                    L(
+                        "※ 未取得会话或用户标识，无法保存复算记录；可用「伤害 武器名」手动配卡计算",
+                        "※ No chat or user id available, so the recalculation record cannot be saved; "
+                        'use "damage <weapon>" to calculate a build by hand',
+                    )
                 )
-            return Reply("配卡识别", lines, actions=actions)
+            return Reply(L("配卡识别", "Build Scan"), lines, actions=actions)
         detail = self._loadout_detail_lines(an) if cached_spec is not None else None
         if detail:
-            return Reply(pages=[("配卡识别", lines), ("配卡识别 · 伤害详情", detail)])
-        return Reply("配卡识别", lines)
+            return Reply(
+                pages=[
+                    (L("配卡识别", "Build Scan"), lines),
+                    (L("配卡识别 · 伤害详情", "Build Scan · Damage Details"), detail),
+                ]
+            )
+        return Reply(L("配卡识别", "Build Scan"), lines)
 
     @staticmethod
     def _ocr_echo(ocr: dict, limit: int = 300) -> str:
@@ -278,10 +345,10 @@ class ScanCommands:
 
         parts = []
         weapon = _clean(ocr.get("weapon"), 30)
-        parts.append(f"武器「{weapon or '未读出'}」")
+        parts.append(L(f"武器「{weapon or '未读出'}」", f'Weapon "{weapon or "not read"}"'))
         cap = str(ocr.get("capacity") or "")
         if re.fullmatch(r"\s*\d{1,3}\s*/\s*\d{1,3}\s*", cap):
-            parts.append(f"容量 {cap.strip()}")
+            parts.append(L(f"容量 {cap.strip()}", f"Capacity {cap.strip()}"))
         mods = ocr.get("mods") if isinstance(ocr.get("mods"), list) else []
         shown = []
         for m in mods[:12]:
@@ -292,8 +359,15 @@ class ScanCommands:
             drain_s = str(drain) if isinstance(drain, int) and 0 <= drain < 100 else "?"
             color = str(m.get("color") or "")
             color_s = color if color in ("绿", "红", "白") else "?"
+            if is_en():
+                color_s = {"绿": "G", "红": "R", "白": "W"}.get(color_s, color_s)
             shown.append(f"{name}({drain_s}{color_s})")
-        parts.append(f"MOD {len(mods)} 张：" + ("、".join(shown) or "无"))
+        parts.append(
+            L(
+                f"MOD {len(mods)} 张：" + ("、".join(shown) or "无"),
+                f"MODs ({len(mods)}): " + (", ".join(shown) or "none"),
+            )
+        )
         out = "｜".join(parts)
         return out[:limit] + ("…" if len(out) > limit else "")
 
@@ -313,8 +387,12 @@ class ScanCommands:
                 return None
             out = dc.card_lines(weapon, spec, res, [])
             out.append(
-                "※ 与「伤害计算」同一套公式（G系 100 级·身体，无 buff 基准）；"
-                "换敌人/等级/爆头请发「识卡伤害 对 重机枪手 150级 爆头」"
+                L(
+                    "※ 与「伤害计算」同一套公式（G系 100 级·身体，无 buff 基准）；"
+                    "换敌人/等级/爆头请发「识卡伤害 对 重机枪手 150级 爆头」",
+                    '※ Same formula as "damage" (Grineer level 100, body shot, no buff baseline); '
+                    'to change enemy / level / headshot send "scandamage vs Heavy Gunner 150 headshot"',
+                )
             )
             return fmt.limit_notes(out)
         except Exception:  # noqa: BLE001 —— 第二页是增强项，失败不挡第一页
@@ -331,6 +409,9 @@ class ScanCommands:
         scope = _scan_scope(self, event)
         latest, records = _scan_state(self, time.time())
         rest = [str(t).strip() for t in (parsed.content or []) if str(t).strip()]
+        if is_en():  # 英文伤害参数并入中文写法；「#记录」原样保留
+            _ref = rest[:1] if rest[:1] and rest[0].startswith("#") else []
+            rest = _ref + _dmg_en_toks(rest[len(_ref) :])
         token = rest.pop(0)[1:] if rest and rest[0].startswith("#") else None
         hit = None
         if all(part.strip() for part in scope):
@@ -343,19 +424,41 @@ class ScanCommands:
                 hit = latest.get(scope)
         if hit is None:
             if not all(part.strip() for part in scope):
-                reason = "无法确认当前会话或发送者，不能读取识卡记录"
+                reason = L(
+                    "无法确认当前会话或发送者，不能读取识卡记录",
+                    "Cannot confirm the chat or sender, so the scan record cannot be read",
+                )
             elif token is not None:
-                reason = "该识卡记录不存在、已过期，或不属于当前会话与发送者"
+                reason = L(
+                    "该识卡记录不存在、已过期，或不属于当前会话与发送者",
+                    "That scan record does not exist, has expired, or does not belong to this chat and sender",
+                )
             else:
-                reason = "当前会话中，你在 30 分钟内没有识卡记录"
+                reason = L(
+                    "当前会话中，你在 30 分钟内没有识卡记录",
+                    "You have no scan record in this chat within the last 30 minutes",
+                )
             return Reply(
-                "识卡伤害",
+                L("识卡伤害", "Build Scan Damage"),
                 [
-                    f"◆ 原因：{reason}",
-                    "◆ 用法：先发「识卡 + 武器升级界面截图」，再用本指令复算",
-                    "· 示例　识卡伤害 对 重机枪手 150级 爆头",
-                    "· 示例　识卡伤害 C系 120级｜识卡伤害 满镀层 异常4 连击120 重击",
-                    "※ ⚠ 怎么改：先发一次「识卡」；参数写法与「伤害」指令一致（识卡伤害 = 伤害 + 已识别配卡）",
+                    L(f"◆ 原因：{reason}", f"◆ Reason: {reason}"),
+                    L(
+                        "◆ 用法：先发「识卡 + 武器升级界面截图」，再用本指令复算",
+                        '◆ Usage: first send "scan" + a weapon Upgrade screenshot, then use this command to recalculate',
+                    ),
+                    L(
+                        "· 示例　识卡伤害 对 重机枪手 150级 爆头",
+                        "· Example　scandamage vs Heavy Gunner 150 headshot",
+                    ),
+                    L(
+                        "· 示例　识卡伤害 C系 120级｜识卡伤害 满镀层 异常4 连击120 重击",
+                        "· Example　scandamage corpus 120 | scandamage combo120",
+                    ),
+                    L(
+                        "※ ⚠ 怎么改：先发一次「识卡」；参数写法与「伤害」指令一致（识卡伤害 = 伤害 + 已识别配卡）",
+                        '※ ⚠ How to fix: send "scan" first; arguments are written like the "damage" command '
+                        "(scandamage = damage + the scanned build)",
+                    ),
                 ],
             )
         # 深拷贝后再交给计算/格式化；按钮快照和本人最近记录均不接受下游原地修改。
@@ -373,7 +476,9 @@ class ScanCommands:
                 spec = dict(cached)
             res = dc.calculate(spec, weapon)
             reply = Reply(
-                "识卡伤害", dc.card_lines(weapon, spec, res, []), footer=dc.card_footer(weapon, res)
+                L("识卡伤害", "Build Scan Damage"),
+                dc.card_lines(weapon, spec, res, []),
+                footer=dc.card_footer(weapon, res),
             )
             try:
                 can_actions = bool(getattr(self, "_can_send_actions", lambda _e: False)(event))
@@ -381,20 +486,34 @@ class ScanCommands:
                 can_actions = False
             if can_actions:
                 # 详情 / 复算结果后可继续换目标；绑定同一记录，仍由上方会话与发送者校验兜底
-                command = f"识卡伤害 #{token}" if token else "识卡伤害"
+                _cmd = L("识卡伤害", "scandamage")
+                command = f"{_cmd} #{token}" if token else _cmd
                 reply.actions.append(
-                    Action("换目标复算", command + " 对 ", mode="fill", owner_only=True)
+                    Action(
+                        L("换目标复算", "Recalculate vs another target"),
+                        command + L(" 对 ", " vs "),
+                        mode="fill",
+                        owner_only=True,
+                    )
                 )
                 if rest:
-                    reply.actions.append(Action("默认目标", command, owner_only=True))
+                    reply.actions.append(
+                        Action(L("默认目标", "Default target"), command, owner_only=True)
+                    )
             return reply
         except Exception as exc:  # noqa: BLE001 —— 绝不静默
             logger.exception("[sdjk] 识卡伤害复算失败：%r", exc)
             return Reply(
-                "识卡伤害",
+                L("识卡伤害", "Build Scan Damage"),
                 [
-                    "◆ 原因：复算出错（内部错误，详情已写入日志）",
-                    "※ ⚠ 怎么改：重新发一次「识卡」后再试；参数写法见「伤害」指令的用法页",
+                    L(
+                        "◆ 原因：复算出错（内部错误，详情已写入日志）",
+                        "◆ Reason: recalculation error (internal error, details are in the log)",
+                    ),
+                    L(
+                        "※ ⚠ 怎么改：重新发一次「识卡」后再试；参数写法见「伤害」指令的用法页",
+                        '※ ⚠ How to fix: send "scan" again and retry; for the argument syntax see the "damage" usage page',
+                    ),
                 ],
             )
 

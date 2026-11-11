@@ -840,6 +840,9 @@ _MULT_RE = re.compile(r"[x×]\s*(\d+(?:[.,]\d+)?)|(\d+(?:[.,]\d+)?)\s*[x×]", re
 _STAT_CATEGORY_ANNOTATIONS = {
     "重击时x2": "crit_chance",
     "弓类武器效果加倍": "fire_rate",
+    # 英文客户端卡面（比较前已去空白、casefold）：「(x2 for Heavy Attacks)」「(x2 for Bows)」
+    "x2forheavyattacks": "crit_chance",
+    "x2forbows": "fire_rate",
 }
 # 乘数写法还原成 magnitude 的下限：对派系伤害基值 45 × 最小倾向 0.5 ×
 # 2正1负的 0.495 ≈ 11 ⇒ 小于 10 的数字一定不是 magnitude，而是「乘数漏写了
@@ -1493,7 +1496,16 @@ def parse_riven_lines(lines, resolve, exact=None, *, role_resolve=None) -> tuple
             except ValueError:
                 notes.append(f"数值读不出：{raw}")
                 continue
-            if value < _FACTION_MIN_MAG and sid.startswith("damage_vs_"):
+            # ★ 0 级卡（未强化）的派系词条是「+5.8% / -2.3%」这种带 % 的小数值，
+            #   满级假设 magnitude ≥ 11 不成立：带 % 的一定不是乘数；不带 % 的
+            #   也只在派系乘数取值域内才按漏写 x 还原（与上面 x 分支同口径）。
+            percent_written = _strip_parens(body)[mn.end() :].lstrip().startswith(("%", "％"))
+            if (
+                value < _FACTION_MIN_MAG
+                and sid.startswith("damage_vs_")
+                and not percent_written
+                and is_faction_mult(value)
+            ):
                 # 乘数漏写 x（或只写了 1.51 / 0.55）：对派系真 magnitude ≥ 11，
                 # 按乘数还原并据乘数定极性（旧版一律当负词条 ⇒ 正词条会算错）。
                 value, neg_flag = faction_mult_to_mag(value)

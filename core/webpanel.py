@@ -39,7 +39,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional
 
-from . import baro, data_registry, paths
+from . import baro, data_registry, display_time, paths
 from .api_client import (
     ACRITHIS_WEEK_NAME,
     RANKS_NAME,
@@ -881,8 +881,18 @@ SETTINGS_GROUPS = [
             "wfhelper_valence",
         ],
     ),
-    ("输出", ["render_mode", "page_size", "default_platform", "wiki_intro"]),
-    ("QQ", ["strip_markdown", "qq_markdown_cards", "qq_merge_image_actions"]),
+    (
+        "输出",
+        [
+            "render_mode",
+            "page_size",
+            "default_language",
+            "display_timezone",
+            "default_platform",
+            "wiki_intro",
+        ],
+    ),
+    ("QQ", ["qq_markdown_cards", "qq_merge_image_actions"]),
     ("Telegram / Discord / Slack / KOOK", ["text_chunk_limit"]),
     ("推送", ["push_interval"]),
     # 视觉模型按读图角色分组；装备文字渠道留空时继承识卡主读。
@@ -910,7 +920,6 @@ PLATFORM_LABELS = {
     "kook": "KOOK",
 }
 FIELD_PLATFORMS = {
-    "strip_markdown": ["aiocqhttp", "qq_official"],
     "qq_markdown_cards": ["qq_official"],
     "qq_merge_image_actions": ["qq_official"],
     "text_chunk_limit": ["telegram", "discord", "slack", "kook"],
@@ -1537,6 +1546,9 @@ class WebPanel:
         payload = {
             "version": ver,
             "now": time.time(),
+            "display_timezone": display_time.panel_timezone(
+                (getattr(self.p, "cfg", None) or {}).get("display_timezone")
+            ),
             "background": self.background_rows(),
             "freshness": freshness(),
             # 数据登记表（来源/生产器/判定方式/新鲜度结论）；与 health / 打包闸门读同一份判据
@@ -1718,6 +1730,7 @@ class WebPanel:
             tuple(getattr(http, "headers", {}).items()),
             cfg.get("default_platform", "pc"),
             getattr(client, "worldsource", "de"),
+            cfg.get("worldsource", "de"),
             getattr(client, "de_worldstate_url", ""),
             getattr(client, "worldstate_base", ""),
             getattr(client, "community_base", ""),
@@ -1733,9 +1746,15 @@ class WebPanel:
         if hit is not None and time.monotonic() < hit[0] and key == hit[1]:
             return {**copy.deepcopy(hit[2]), "cached": True}
         started = time.perf_counter()
+        cfg = getattr(self.p, "cfg", {})
+        # 世界状态来源改了要重载才生效：按设置里保存的值测，和运行中不一致时在结果里说明
+        saved_ws = cfg.get("worldsource", "de")
+        running_ws = getattr(self.p.client, "worldsource", "de")
         try:
             result = await self.p.client.probe_data_source(
-                target, platform=getattr(self.p, "cfg", {}).get("default_platform", "pc")
+                target,
+                platform=cfg.get("default_platform", "pc"),
+                **({"worldsource": saved_ws} if target == "worldstate" else {}),
             )
         except Exception as exc:  # noqa: BLE001 - 原异常可能包含凭据与主机路径
             result = {
@@ -1746,6 +1765,15 @@ class WebPanel:
             }
         if (g := self._gone()) is not None:
             return g
+        if target == "worldstate" and saved_ws != running_ws:
+            names = {"de": "DE 官方", "warframestat": "warframestat.us"}
+            result = {
+                **result,
+                "detail": (
+                    f"{result.get('detail') or ''}（按设置测的是 {names.get(saved_ws, saved_ws)}；"
+                    f"该项需重载插件才生效，当前运行中仍是 {names.get(running_ws, running_ws)}）"
+                ),
+            }
         result = {
             **result,
             "target": target,
@@ -1765,7 +1793,11 @@ class WebPanel:
     async def _test_flare(self) -> dict:
         c = self.p.client
         if not getattr(c, "flare_enabled", False):
-            return {"ok": False, "detail": "配置里已关闭 FlareSolverr（flaresolverr_enabled）"}
+            return {
+                "ok": False,
+                "detail": "配置里已关闭 FlareSolverr（flaresolverr_enabled）",
+                "skipped_reason": "disabled",
+            }
         try:
             ok = await c.flare_reachable(timeout=6.0)
         except Exception as exc:  # noqa: BLE001
@@ -3291,6 +3323,8 @@ class WebPanel:
             p.page_size = clean["page_size"]
         if "push_interval" in clean and getattr(p, "push", None) is not None:
             p.push.interval = max(15, clean["push_interval"])
+        if "display_timezone" in clean and getattr(p, "push", None) is not None:
+            p.push.display_timezone = clean["display_timezone"]
         if "allow_private_urls" in clean and getattr(p, "client", None) is not None:
             p.client.allow_private_urls = bool(clean["allow_private_urls"])
         if "wfhelper_valence" in clean and getattr(p, "client", None) is not None:

@@ -34,7 +34,7 @@ from astrbot.api.star import Context, Star, register
 
 try:  # 允许脱离 AstrBot 直接跑单元测试
     from .core import __brand__ as BRAND
-    from .core import api_client
+    from .core import api_client, display_time
     from .core.api_client import (
         DEFAULT_DE_WORLDSTATE,
         WarframeAPIError,
@@ -44,11 +44,20 @@ try:  # 允许脱离 AstrBot 直接跑单元测试
     from .core import formatters as fmt
     from .core import paths as core_paths
     from .core import wiki_intro
-    from .core.parser import BEIJING_TZ, Parsed, normalize_platform, parse, PLATFORM_DISPLAY
+    from .core import i18n
+    from .core.parser import (
+        BEIJING_TZ,
+        MENU_COMMANDS,
+        Parsed,
+        normalize_platform,
+        parse,
+        PLATFORM_DISPLAY,
+    )
     from .core.push import PushDaemon, at_targets
     from .core.render import (
         ImageRenderer,
         WATERMARK_VERSION,
+        display_footer,
         migrate_legacy_user_fonts,
         text_card,
         card_markdown,
@@ -80,7 +89,7 @@ except ImportError as _imp_err:  # pragma: no cover
         raise
     from core import __brand__ as BRAND
 
-    from core import api_client
+    from core import api_client, display_time
     from core.api_client import (
         DEFAULT_DE_WORLDSTATE,
         WarframeAPIError,
@@ -90,11 +99,20 @@ except ImportError as _imp_err:  # pragma: no cover
     from core import formatters as fmt
     from core import paths as core_paths
     from core import wiki_intro
-    from core.parser import BEIJING_TZ, Parsed, normalize_platform, parse, PLATFORM_DISPLAY
+    from core import i18n
+    from core.parser import (
+        BEIJING_TZ,
+        MENU_COMMANDS,
+        Parsed,
+        normalize_platform,
+        parse,
+        PLATFORM_DISPLAY,
+    )
     from core.push import PushDaemon, at_targets
     from core.render import (
         ImageRenderer,
         WATERMARK_VERSION,
+        display_footer,
         migrate_legacy_user_fonts,
         text_card,
         card_markdown,
@@ -116,22 +134,6 @@ except ImportError as _imp_err:  # pragma: no cover
     from core.local_ocr import LocalRivenOCR
     from core.local_ocr_install import LocalOCRInstaller
     from core.webpanel import WebPanel
-
-
-def _result_hook():
-    """发送前结果钩子装饰器；旧版 AstrBot 没有该钩子时退化为空装饰器。
-
-    用途：LLM 回复在交给 QQ 适配器前，剥掉 QQ 无法渲染的 Markdown 标记。
-    这是「人格层禁令」之外的兜底 —— 人格可能被改坏或只是偶尔不听话，
-    这一层保证无论如何都不会有裸星号出现在群里。
-    """
-    deco = getattr(filter, "on_decorating_result", None)
-    if deco is None:
-        return lambda fn: fn
-    try:
-        return deco()
-    except Exception:  # noqa: BLE001
-        return lambda fn: fn
 
 
 # ---------------------------------------------------------------------------
@@ -229,6 +231,38 @@ def _occupied_command_words() -> frozenset:
     return _OCCUPIED_CACHE
 
 
+def _register_menu_shells() -> list[str]:
+    """为平台指令菜单注册英文指令壳（Telegram 菜单 / Discord 斜杠指令由 AstrBot 自动同步）。
+
+    AstrBot 只同步 `filter.command` 注册的指令，而本插件靠 on_message 统一分发。
+    这里给 MENU_COMMANDS 每条注册一个**空壳**：不声明参数（多余的词 AstrBot 直接忽略）、
+    不产出结果、不 stop_event，AstrBot 会接着执行 on_message，照旧只回复一次。
+    本插件的壳不计入 `_occupied_command_words`（按模块路径跳过自己），不会给自己让路。
+    取不到 filter.command（旧版或测试桩）时不注册，不影响其它功能。
+    """
+    command = getattr(filter, "command", None)
+    if not callable(command):
+        return []
+    names = []
+    for entry in MENU_COMMANDS:
+
+        async def _shell(self, event: AstrMessageEvent):  # noqa: ARG001 - 只为菜单注册
+            return None
+
+        _shell.__name__ = _shell.__qualname__ = f"menu_{entry.en}"
+        _shell.__doc__ = f"{entry.desc_en} · {entry.zh}"
+        try:
+            command(entry.en, desc=_shell.__doc__)(_shell)
+        except Exception as exc:  # noqa: BLE001 - 菜单注册失败不能拖垮插件加载
+            logger.warning("[sdjk] 平台菜单指令「%s」注册失败：%s", entry.en, exc)
+            continue
+        names.append(entry.en)
+    return names
+
+
+MENU_SHELLS = _register_menu_shells()
+
+
 def _raw_candidates(event: AstrMessageEvent) -> list[str]:
     """尽可能还原「未被 AstrBot 改写」的原始消息文本（多个来源，谁有用谁）。
 
@@ -273,45 +307,6 @@ def _wake_prefix_stripped(event: AstrMessageEvent) -> bool:
         if len(raw_s) > len(cur) and raw_s.endswith(cur):
             return True
     return False
-
-
-# ---------------------------------------------------------------------------
-# Markdown 兜底清理
-# ---------------------------------------------------------------------------
-# QQ（aiocqhttp / NapCat）协议不支持任何富文本，Markdown 标记会被原样显示成
-# 裸符号（**加粗**、- 列表、# 标题），是群聊里的明显事故。人格提示词已加禁令，
-# 这里是最后一道防线。只处理**文本组件**，绝不碰图片 / Pillow 渲染路径。
-_MD_BOLD = re.compile(r"\*\*(.+?)\*\*", re.S)
-_MD_ITALIC = re.compile(r"(?<!\*)\*(?!\s)([^*\n]+?)(?<!\s)\*(?!\*)")
-_MD_HEAD = re.compile(r"(?m)^\s{0,3}#{1,6}\s*")
-_MD_QUOTE = re.compile(r"(?m)^\s{0,3}>\s?")
-_MD_LIST = re.compile(r"(?m)^(\s*)[-*+]\s+")
-_MD_OLIST = re.compile(r"(?m)^(\s*)\d+[.)]\s+")
-_MD_CODE = re.compile(r"`{1,3}")
-_MD_HR = re.compile(r"(?m)^\s{0,3}([-*_])\s*\1\s*\1[\s\-*_]*$")
-
-
-def strip_md(text: str) -> str:
-    """剥掉 QQ 无法渲染的 Markdown 标记。
-
-    注意：括号动作（`（指尖轻点桌面）`）属于**语义问题**，正则无法安全区分
-    它与「（Rank 30）」这类正常术语补充，因此不在此处处理 —— 那一层由人格
-    提示词的禁令负责。
-    """
-    if not text or not isinstance(text, str):
-        return text
-    t = text
-    t = _MD_HR.sub("", t)  # 分隔线 --- / ***
-    t = _MD_BOLD.sub(r"\1", t)  # **加粗** → 加粗
-    t = _MD_ITALIC.sub(r"\1", t)  # *斜体* → 斜体
-    t = _MD_HEAD.sub("", t)  # ## 标题 → 标题
-    t = _MD_QUOTE.sub("", t)  # > 引用 → 引用
-    t = _MD_LIST.sub(r"\1· ", t)  # - 列表 → · 列表（保留视觉分段）
-    t = _MD_OLIST.sub(r"\1", t)  # 1. 列表 → 列表
-    t = _MD_CODE.sub("", t)  # 行内代码 / 围栏
-    # 清理因剥离产生的多余空行
-    t = re.sub(r"\n{3,}", "\n\n", t)
-    return t.strip() if t.strip() else text
 
 
 PLUGIN_DIR = Path(__file__).resolve().parent
@@ -457,6 +452,105 @@ HELP_NOTES: dict[str, list[str]] = {
 }
 
 
+# 英文版帮助（英文模式用；结构与 HELP_TOPIC / HELP_NOTES 一致，左列是可照发的英文写法）。
+# 中文模式只用上面两张表，帮助卡逐字节不变。
+HELP_TOPIC_EN: dict[str, list[tuple[str, str]]] = {
+    "Most Used": [
+        ("timers", "Time left on every cycle, at a glance"),
+        (
+            "fissures / openrelic",
+            "Void Fissures (filter by Steel Path / mission type / era) | relic-cracking tips",
+        ),
+        ("bounty", "Bounties and rewards by region"),
+        ("wm <item>", "Market sell/buy orders (add blueprint / part words to look up a part)"),
+        ("damage <weapon> vs <enemy> 100", "Panel / single hit / DPS / breakdown"),
+        (
+            "rivenanalysis <weapon> <stats>",
+            "Stat ranges, roll quality, splice tips and similar listings (or just send a riven screenshot)",
+        ),
+        (
+            "rivenranges <weapon> [3+1-]",
+            "Stat ranges a weapon can roll (pick stats or switch combos)",
+        ),
+        ("splice [weapon/stat]", "Which two stats a spliced stat comes from"),
+    ],
+    "Cycles and Daily": [
+        ("cetus / cycles", "Day/night and faction cycles of the open worlds"),
+        ("sortie / archon", "Daily Sortie | this week's Archon Hunt"),
+        ("arbitration / arbtable", "Current mission | the weekly schedule (filter by type)"),
+        ("alerts / invasions / events / conclave", "Limited-time content | PvP challenges"),
+        ("nightwave / calendar", "Nightwave challenges | 1999 Calendar"),
+    ],
+    "Weekly Rotations": [
+        ("deeparchimedea / temporalarchimedea", "This week's 3 missions x Normal / Hard"),
+        ("descendia", "This week's 21 floors and complications"),
+        ("incursions / voidstorms", "Steel Path Incursions | Void Storms"),
+        (
+            "incarnon / tenet / coda",
+            "Weekly rotation weapons and element bonuses (add refresh to re-fetch)",
+        ),
+        ("construction / clanrewards", "Fleet Construction | Clan research"),
+    ],
+    "Shops": [
+        ("baro / voidtrader", "Baro Ki'Teer's stock and arrival time"),
+        ("darvo / flashsales", "Daily deal | limited-time bundles"),
+        (
+            "acrithis / slivers / steelpath",
+            "Acrithis weekly offers (add refresh to re-fetch) | Riven Sliver shop | Teshin",
+        ),
+        ("primevault / varzia", "Prime Vault list | Varzia exchange"),
+    ],
+    "Market and Rivens": [
+        ("trend <item>", "48h / 90d price trend"),
+        ("wr / rm <weapon>", "Riven auctions | source riven prices"),
+        (
+            "wr <category> unrolled",
+            'Unrolled riven listings, e.g. "wr pistol unrolled"; without a category, shows 8 categories',
+        ),
+        (
+            "dispo / rank",
+            "Dispositions (all unified to 1.2: original and scaled) | weekly DE trend ranking (admins: add refresh to pull live WM prices)",
+        ),
+    ],
+    "Relics and Resources": [
+        ("relic <name>", "Rewards and sources; also vaulted / unvaulted / list"),
+        ("parts <item>", "Prime part and blueprint sources"),
+        ("ducats", "Gold / Silver / Bronze parts by ducat value"),
+    ],
+    "Damage and Builds": [
+        ("scan + screenshot", "Read a build screen and verify the panel"),
+        ("scandamage vs <enemy> <level>", "Recalculate from the last scan"),
+        ("valence / xh", "Valence Fusion | Kuva / Tenet weapon auctions"),
+    ],
+    "Info and Push": [
+        ("news / synthesis / kuva", "Official news | Synthesis Targets | Kuva history"),
+        ("wiki <term> / translate <term>", "Wiki link | Chinese-English lookup"),
+        (
+            "subscribe <type> <filter> <duration>",
+            "Subscribe to change alerts (admins must run .enable push first)",
+        ),
+        ("subscribe cancel / subscribe help", "Cancel subscriptions | watchable types and syntax"),
+    ],
+}
+
+HELP_NOTES_EN: dict[str, list[str]] = {
+    "": [
+        "Send commands as plain words, no / prefix (/help is a built-in system command). "
+        "Add -2 / -3 for more pages | -w plain text | -t force image | -1 first page | -r whisper text",
+        "Language: add -en or -cn to any command for a one-off switch; admins can set the chat default with .language en / .language cn / .language default",
+    ],
+    "Damage and Builds": [
+        "Damage modifiers: headshot, viral10, strip, full-armor, steelpath, fire Ns | incarnon / base form / alt fire / charged / uncharged / semi-auto / aerial / ground / evolve X / kuva-radiation60",
+    ],
+    "Info and Push": [
+        "help = this page; status = runtime status, version and subscription count (group admins only)",
+        "Group admin: .platform / .enable / .disable push / .status / .language (start with a dot, group admins only)",
+        "Platform suffixes -pc / -ps / -xb / -sw: all four platforms share data and show as International",
+        'Kuva siphon data is no longer available, so asking for it points you to alternatives; "subscribe cancel" with no word = all of your own (group admins = whole group)',
+    ],
+}
+
+
 # 仲裁的任务类型 / 派系 / 节点渲染：**唯一实现**在 core/arbi.py
 # （「仲裁」查询指令与「蹲 仲裁」推送共用；2026-09-19 收敛，避免两套口径漂移）。
 # 2026-09-28 D3：别名块随仲裁域迁 core/commands/arbitration.py（逐字）。
@@ -556,6 +650,7 @@ class WarframeSDJK(
             interval=int(_num(self.cfg, "push_interval", 45)),
             groups=self.groups,  # 派发前查群推送开关（.关闭 推送 = 订阅暂停）
             state_path=data_dir / "push_baseline.json",  # 基线落盘：30 分钟内重启补推
+            display_timezone=self.cfg.get("display_timezone", display_time.DEFAULT),
         )
         self._routes = self._build_routes()
         # 插件页面「运维面板」（pages/sdjk/）的接口；AstrBot 不支持时只记日志
@@ -635,44 +730,6 @@ class WarframeSDJK(
         except (AttributeError, TypeError):
             pass
         return self.render_mode
-
-    # ------------------------------------------------------------------
-    # 出站兜底：剥掉 QQ 渲染不了的 Markdown（2026-09-15 维护者要求）
-    # ------------------------------------------------------------------
-    @_result_hook()
-    async def _on_decorating_result(self, event: AstrMessageEvent):
-        """发送前把文本组件里的 Markdown 标记去掉。
-
-        只管 Plain 文本；图片 / 卡片渲染路径不经过这里，不受影响。
-        可用配置项 ``strip_markdown``（默认 true）关闭。
-        """
-        if not self.cfg.get("strip_markdown", True):
-            return
-        try:
-            result = event.get_result()
-        except Exception:  # noqa: BLE001
-            return
-        if result is None or getattr(result, "_wf_literal", False):
-            return
-        try:
-            platform = event.get_platform_name()
-        except (AttributeError, TypeError):
-            platform = ""
-        if platform and platform not in ("aiocqhttp", "qq_official"):
-            return
-        chain = getattr(result, "chain", None)
-        if not chain:
-            return
-        changed = False
-        for seg in chain:
-            if isinstance(seg, Plain):
-                raw = getattr(seg, "text", "") or ""
-                cleaned = strip_md(raw)
-                if cleaned != raw:
-                    seg.text = cleaned
-                    changed = True
-        if changed:
-            logger.debug("[sdjk] 已清理回复中的 Markdown 标记")
 
     # ------------------------------------------------------------------
     # 生命周期
@@ -1368,11 +1425,19 @@ class WarframeSDJK(
 
         # 管理指令命名空间：“.”
         if text.startswith("."):
-            reply = await self._handle_admin(event, text)
-            if reply:
-                async for result in self._build_results(event, reply, parse(text)):
-                    yield result
-                event.stop_event()
+            admin_parsed = parse(text)
+            lang_token = i18n.set_lang(self._resolve_lang(admin_parsed, event.unified_msg_origin))
+            try:
+                reply = await self._handle_admin(event, text)
+                if reply:
+                    async for result in self._build_results(event, reply, admin_parsed):
+                        yield result
+                    event.stop_event()
+            finally:
+                try:
+                    i18n.reset_lang(lang_token)
+                except ValueError:
+                    pass
             return
 
         parsed = parse(text)
@@ -1382,9 +1447,32 @@ class WarframeSDJK(
         if handler is None:
             return
         platform = parsed.platform or self.groups.platform(event.unified_msg_origin)
-
+        lang_token = i18n.set_lang(self._resolve_lang(parsed, event.unified_msg_origin))
         try:
-            reply = await handler(parsed, event, platform)
+            async for result in self._dispatch(handler, parsed, event, platform):
+                yield result
+        finally:
+            try:
+                i18n.reset_lang(lang_token)
+            except ValueError:  # 生成器在别的上下文里被收尾时 token 不可用，保持当前值即可
+                pass
+
+    def _resolve_lang(self, parsed: Parsed, umo: str) -> str:
+        """显示语言：消息后缀 -en/-zh > 会话 .语言 设置 > 全局 default_language。"""
+        groups = getattr(self, "groups", None)
+        cfg = getattr(self, "cfg", None) or {}
+        return (
+            getattr(parsed, "lang", None)
+            or (groups.lang(umo) if groups is not None and hasattr(groups, "lang") else None)
+            or i18n.coerce_lang(cfg.get("default_language", i18n.DEFAULT_LANG))
+        )
+
+    async def _dispatch(self, handler, parsed: Parsed, event: AstrMessageEvent, platform: str):
+        try:
+            with display_time.use_zone((getattr(self, "cfg", None) or {}).get("display_timezone")):
+                reply = await handler(parsed, event, platform)
+                if reply and reply.footer:
+                    reply = replace(reply, footer=display_footer(reply.footer))
         except WarframeAPIError as exc:
             # 日志仅记异常类别，避免上游异常中的凭据或签名地址泄漏。
             logger.warning("[sdjk] 指令 %s 接口错误：%s", parsed.command, type(exc).__name__)
@@ -1400,7 +1488,12 @@ class WarframeSDJK(
                 type(exc).__name__,
                 frames,
             )
-            reply = Reply(raw_text="⚠️ 内部错误，请稍后重试或联系管理员查看日志")
+            reply = Reply(
+                raw_text=i18n.L(
+                    "⚠️ 内部错误，请稍后重试或联系管理员查看日志",
+                    "⚠️ Internal error. Please try again later or ask an admin to check the logs",
+                )
+            )
 
         if reply is None:
             return
@@ -1426,12 +1519,27 @@ class WarframeSDJK(
                 continue
             seen.add(key)
             if action.mode == "copy":
-                lines.append(f"{action.label}（复制到游戏内）：\n{action.send}")
+                lines.append(
+                    i18n.L(
+                        f"{action.label}（复制到游戏内）：\n{action.send}",
+                        f"{action.label} (copy into the game):\n{action.send}",
+                    )
+                )
             elif action.mode == "fill":
                 # 填入类指令末尾留给玩家补参数（如「识卡伤害 #记录 对 」）：引号里不带悬空空格，用「…」示意
-                lines.append(f"{action.label}：复制「{action.send.rstrip()} …」补全后发送")
+                lines.append(
+                    i18n.L(
+                        f"{action.label}：复制「{action.send.rstrip()} …」补全后发送",
+                        f'{action.label}: copy "{action.send.rstrip()} ..." and complete it before sending',
+                    )
+                )
             else:
-                lines.append(f"{action.label}：发送「{action.send}」")
+                lines.append(
+                    i18n.L(
+                        f"{action.label}：发送「{action.send}」",
+                        f'{action.label}: send "{action.send}"',
+                    )
+                )
         return "\n".join(lines)
 
     @staticmethod
@@ -1455,7 +1563,10 @@ class WarframeSDJK(
         if not copies:
             # 指令没自带复制按钮时才把密语补成按钮；自带了（wm/wr 的「N号」）就不再出第二套编号，
             # 没对上按钮的密语留在正文里。编号沿用卡面序号。
-            copies = [Action(f"{i}号密语", w, "copy") for i, w in enumerate(reply.whisper, 1)]
+            copies = [
+                Action(i18n.L(f"{i}号密语", f"Whisper #{i}"), w, "copy")
+                for i, w in enumerate(reply.whisper, 1)
+            ]
         actions = [
             replace(a, row=k // per_row if k < per_row * 2 else -1) for k, a in enumerate(copies)
         ]
@@ -1469,20 +1580,45 @@ class WarframeSDJK(
             first += (len(items) + per_row - 1) // per_row
         shortcuts = []
         if parsed.command == "help":
-            shortcuts = ["突击", "执刑官", "电波", "奸商", "裂隙", "仲裁", "时效", "舰队进度"]
+            shortcuts = i18n.L(
+                ["突击", "执刑官", "电波", "奸商", "裂隙", "仲裁", "时效", "舰队进度"],
+                [
+                    "sortie",
+                    "archon",
+                    "nightwave",
+                    "baro",
+                    "fissures",
+                    "arbitration",
+                    "timers",
+                    "construction",
+                ],
+            )
         elif parsed.command == "timers":
-            shortcuts = ["突击", "执刑官", "电波", "奸商", "裂隙"]
+            shortcuts = i18n.L(
+                ["突击", "执刑官", "电波", "奸商", "裂隙"],
+                ["sortie", "archon", "nightwave", "baro", "fissures"],
+            )
         elif parsed.command == "fissures":
-            shortcuts = ["仲裁"]
-            actions.append(Action("蹲裂隙", "蹲 裂隙 ", "fill", row=first))
+            shortcuts = i18n.L(["仲裁"], ["arbitration"])
+            actions.append(
+                Action(
+                    i18n.L("蹲裂隙", "Watch Fissures"),
+                    i18n.L("蹲 裂隙 ", "subscribe fissures "),
+                    "fill",
+                    row=first,
+                )
+            )
         elif parsed.command == "arbitration":
-            shortcuts = ["仲裁表"]
+            shortcuts = i18n.L(["仲裁表"], ["arbtable"])
         taken = sum(1 for a in actions if a.row == first)
         actions.extend(
             Action(word, word, row=first + (taken + i) // per_row)
             for i, word in enumerate(shortcuts)
         )
-        paging = re.search(r"第\s*(\d+)\s*/\s*(\d+)\s*页", "\n".join([reply.title, *reply.lines]))
+        _page_text = "\n".join([reply.title, *reply.lines])
+        paging = re.search(r"第\s*(\d+)\s*/\s*(\d+)\s*页", _page_text) or re.search(
+            r"\(Page\s+(\d+)\s*/\s*(\d+)", _page_text
+        )
         # 超出布局容量的动作保留，负行号交给桥接降级文字；分页独占第五行。
         row_limit = 4 if paging and parsed.command and parsed.raw else 5
         actions = [replace(a, row=-1) if a.row >= row_limit else a for a in actions]
@@ -1490,11 +1626,19 @@ class WarframeSDJK(
             current, total = map(int, paging.groups())
             if current > 1:
                 actions.append(
-                    Action("上一页", WarframeSDJK._page_command(parsed.raw, current - 1), row=4)
+                    Action(
+                        i18n.L("上一页", "Prev"),
+                        WarframeSDJK._page_command(parsed.raw, current - 1),
+                        row=4,
+                    )
                 )
             if current < total:
                 actions.append(
-                    Action("下一页", WarframeSDJK._page_command(parsed.raw, current + 1), row=4)
+                    Action(
+                        i18n.L("下一页", "Next"),
+                        WarframeSDJK._page_command(parsed.raw, current + 1),
+                        row=4,
+                    )
                 )
         if parsed.platform:
             actions = [
@@ -1503,18 +1647,21 @@ class WarframeSDJK(
                 else action
                 for action in actions
             ]
+        if getattr(parsed, "lang", None):
+            actions = [
+                replace(action, send=f"-{i18n.lang_suffix(parsed.lang)} {action.send}")
+                if action.mode != "copy" and not parse(action.send).lang
+                else action
+                for action in actions
+            ]
         return actions
 
     @staticmethod
     def _literal_result(result):
-        """只标记本插件正文，保留玩家名、下划线与游戏密语的原始字符。"""
+        """关闭本插件纯文字正文的宿主 Markdown，保留玩家名与游戏密语的原始字符。"""
         markdown = getattr(result, "use_markdown", None)
         if callable(markdown):
             markdown(False)
-        try:
-            result._wf_literal = True
-        except (AttributeError, TypeError, ValueError):
-            pass
         return result
 
     async def _build_results(self, event: AstrMessageEvent, reply: Reply, parsed: Parsed):
@@ -1575,7 +1722,12 @@ class WarframeSDJK(
         if budget is not None and expected > budget:
             # 超出图页额度时提示切换到完整文字结果，避免只发部分页面。
             yield self._literal_result(
-                event.plain_result("本次结果超过 QQ 回复页数额度，请在原指令后加 -w 查看完整文字。")
+                event.plain_result(
+                    i18n.L(
+                        "本次结果超过 QQ 回复页数额度，请在原指令后加 -w 查看完整文字。",
+                        "This result exceeds the QQ reply page limit. Add -w to the command to see the full text.",
+                    )
+                )
             )
             return
         if merge_images and budget is not None and expected >= budget:
@@ -1677,7 +1829,10 @@ class WarframeSDJK(
 
         whisper_txt = ""
         if reply.whisper:
-            whisper_txt = "\n\n🔑 快捷回复（复制后游戏内粘贴）：\n" + "\n".join(reply.whisper)
+            whisper_txt = i18n.L(
+                "\n\n🔑 快捷回复（复制后游戏内粘贴）：\n",
+                "\n\n🔑 Quick replies (copy and paste in game):\n",
+            ) + "\n".join(reply.whisper)
         # 卡片之外的补充文本（wiki 链接这类必须可点击的内容）：
         # 与卡片同链发出，链尾的 Plain 段在 QQ 里是可点的文本。
         tail_txt = whisper_txt + (("\n" + reply.extra_text) if reply.extra_text else "")
@@ -1879,6 +2034,43 @@ class WarframeSDJK(
         except Exception:  # noqa: BLE001
             return ""
 
+    @staticmethod
+    def _menu_text() -> str:
+        """平台指令菜单清单：QQ 官方面板照此手动录入；Telegram/Discord 由 AstrBot 自动同步。"""
+        L = i18n.L
+        lines = [
+            L(
+                "📋 QQ 官方「指令面板」录入清单（开放平台管理端 → 高级设置，指令类型选「指令」）",
+                "📋 QQ official bot command panel (open platform console → Advanced settings, type: command)",
+            )
+        ]
+        for i, entry in enumerate(MENU_COMMANDS, 1):
+            lines.append(f"{i}. {entry.zh} — {entry.desc_zh}")
+        lines.append(
+            L(
+                "点选后指令会填进输入框，带参数的补上名称再发送；群聊需要 @机器人。",
+                "Tapping an entry fills it into the input box; add the name where needed, then send. "
+                "In groups, mention the bot.",
+            )
+        )
+        lines.append("")
+        if MENU_SHELLS:
+            lines.append(
+                L(
+                    "Telegram / Discord：已注册以下指令，AstrBot 会自动同步到平台菜单：",
+                    "Telegram / Discord: these commands are registered and AstrBot syncs them to the platform menu:",
+                )
+            )
+            lines.append(" ".join(f"/{name}" for name in MENU_SHELLS))
+        else:
+            lines.append(
+                L(
+                    "Telegram / Discord：当前 AstrBot 不支持指令注册，平台菜单不会同步。",
+                    "Telegram / Discord: this AstrBot version cannot register commands, so no menu is synced.",
+                )
+            )
+        return "\n".join(lines)
+
     async def _handle_admin(self, event: AstrMessageEvent, text: str) -> Optional[Reply]:
         tokens = text[1:].strip().split()
         if not tokens:
@@ -1886,28 +2078,104 @@ class WarframeSDJK(
         cmd, args = tokens[0], tokens[1:]
         umo = event.unified_msg_origin
 
+        if cmd.lower() in ("语言", "language", "lang"):
+            L = i18n.L
+            if not self._is_admin(event):
+                return Reply(
+                    raw_text=L("⛔ 该指令需要群管理员权限", "⛔ Group admin permission required")
+                )
+            usage = L(
+                "用法：.语言 cn / .语言 en / .语言 默认（跟随全局设置）",
+                "Usage: .language en / .language cn / .language default (follow the global setting)",
+            )
+            if args:
+                word = args[0].strip().lower()
+                if word in ("默认", "跟随", "default", "reset", "auto"):
+                    await self.groups.set_lang(umo, None)
+                    with i18n.use_lang(self._resolve_lang(parse(""), umo)):
+                        cur = i18n.lang_label(i18n.current_lang())
+                        return Reply(
+                            raw_text=i18n.L(
+                                f"✅ 本会话语言已恢复跟随全局设置（当前：{cur}）",
+                                f"✅ This chat now follows the global language setting (currently: {cur})",
+                            )
+                        )
+                new_lang = i18n.normalize_lang(word)
+                if not new_lang:
+                    return Reply(raw_text=usage)
+                await self.groups.set_lang(umo, new_lang)
+                with i18n.use_lang(new_lang):
+                    return Reply(
+                        raw_text=i18n.L(
+                            "✅ 本会话显示语言已设为中文，可用 -en 临时切换",
+                            "✅ Display language for this chat set to English. Use -cn for a one-off switch",
+                        )
+                    )
+            own = self.groups.lang(umo)
+            cur = i18n.lang_label(i18n.current_lang())
+            return Reply(
+                raw_text=(
+                    L(f"当前显示语言：{cur}", f"Current display language: {cur}")
+                    + ("" if own else L("（跟随全局设置）", " (following the global setting)"))
+                    + "\n"
+                    + usage
+                )
+            )
+
+        if cmd.lower() in ("菜单", "menu"):
+            return Reply(raw_text=self._menu_text())
+
+        # 管理指令的英文写法：归一成中文规范词再走原逻辑
+        _lc = cmd.lower()
+        if _lc in ("platform", "defaultplatform"):
+            cmd = "默认平台"
+        elif _lc in ("enable", "on"):
+            cmd = "开启"
+        elif _lc in ("disable", "off"):
+            cmd = "关闭"
+        elif _lc == "status":
+            cmd = "状态"
+        if cmd in ("开启", "关闭") and args:
+            _a0 = {"push": "推送", "chat": "聊天"}.get(args[0].lower())
+            if _a0:
+                args = [_a0, *args[1:]]
+        L = i18n.L
+
         if cmd in ("默认平台", "平台"):
             if not self._is_admin(event):
-                return Reply(raw_text="⛔ 该指令需要群管理员权限")
+                return Reply(
+                    raw_text=L("⛔ 该指令需要群管理员权限", "⛔ Group admin permission required")
+                )
             if args:
                 plat = normalize_platform(args[0])
                 if not plat:
-                    return Reply(raw_text="用法：.默认平台 pc/ps/xb/sw")
+                    return Reply(
+                        raw_text=L("用法：.默认平台 pc/ps/xb/sw", "Usage: .platform pc/ps/xb/sw")
+                    )
                 await self.groups.set_platform(umo, plat)
                 return Reply(
-                    raw_text=f"✅ 本群默认平台已设为 {PLATFORM_DISPLAY[plat]}"
-                    f"（{plat}），可用 -pc/-ps 等临时覆盖"
+                    raw_text=L(
+                        f"✅ 本群默认平台已设为 {PLATFORM_DISPLAY[plat]}"
+                        f"（{plat}），可用 -pc/-ps 等临时覆盖",
+                        f"✅ Default platform for this chat set to {PLATFORM_DISPLAY[plat]} "
+                        f"({plat}). Use -pc/-ps etc. for a one-off override",
+                    )
                 )
             cur = self.groups.get(umo)
-            return Reply(
-                raw_text=f"当前默认平台：{PLATFORM_DISPLAY.get(cur['platform'], cur['platform'])}"
-            )
+            _pd = PLATFORM_DISPLAY.get(cur["platform"], cur["platform"])
+            return Reply(raw_text=L(f"当前默认平台：{_pd}", f"Current default platform: {_pd}"))
 
         if cmd in ("开启", "关闭"):
             if not self._is_admin(event):
-                return Reply(raw_text="⛔ 该指令需要群管理员权限")
+                return Reply(
+                    raw_text=L("⛔ 该指令需要群管理员权限", "⛔ Group admin permission required")
+                )
             if not args or args[0] not in ("推送", "聊天"):
-                return Reply(raw_text="用法：.开启 推送 / .关闭 推送")
+                return Reply(
+                    raw_text=L(
+                        "用法：.开启 推送 / .关闭 推送", "Usage: .enable push / .disable push"
+                    )
+                )
             value = cmd == "开启"
             await self.groups.set_switch(umo, args[0], value)
             state = "已开启" if value else "已关闭"
@@ -1916,53 +2184,99 @@ class WarframeSDJK(
                 n_subs = len(self.subs.for_umo(umo))
                 if value:
                     tail = (
-                        f"，已有 {n_subs} 条订阅恢复推送"
+                        L(f"，已有 {n_subs} 条订阅恢复推送", f"; {n_subs} subscription(s) resumed")
                         if n_subs
-                        else "，可以用「蹲 类型」订阅推送了"
+                        else L(
+                            "，可以用「蹲 类型」订阅推送了",
+                            '; you can now subscribe with "subscribe <type>"',
+                        )
                     )
                 else:
                     tail = (
-                        f"，已有 {n_subs} 条订阅暂停（订阅保留，重新 .开启 推送 后恢复）"
+                        L(
+                            f"，已有 {n_subs} 条订阅暂停（订阅保留，重新 .开启 推送 后恢复）",
+                            f"; {n_subs} subscription(s) paused (kept; they resume after .enable push)",
+                        )
                         if n_subs
                         else ""
                     )
-            return Reply(raw_text=f"✅ {args[0]}功能{state}{tail}")
+            _feat = {"推送": "push", "聊天": "chat"}[args[0]]
+            _st_en = "enabled" if value else "disabled"
+            return Reply(
+                raw_text=L(
+                    f"✅ {args[0]}功能{state}{tail}",
+                    f"✅ {_feat.capitalize()} {_st_en}{tail}",
+                )
+            )
 
         if cmd == "状态":
             # ★ 安全审查（2026-09-18）：这条会列出**本群全部订阅明细**
             #   （谁订了什么、还剩多久）与缓存统计，却完全没有权限校验 ——
             #   群里任何人都能看。改为与其它管理指令一致。
             if not self._is_admin(event):
-                return Reply(raw_text="⛔ 该指令需要群管理员权限（会列出本群订阅明细）")
+                return Reply(
+                    raw_text=L(
+                        "⛔ 该指令需要群管理员权限（会列出本群订阅明细）",
+                        "⛔ Group admin permission required (lists this chat's subscription details)",
+                    )
+                )
             g = self.groups.get(umo)
             subs = self.subs.for_umo(umo)
             cache = self.client.cache.stats()
-            lines = ["◆ 本群"]
-            lines.append(f"· 默认平台　{PLATFORM_DISPLAY.get(g['platform'], g['platform'])}")
-            lines.append(f"· 推送　{'开' if g['push'] else '关'}")
-            lines.append(f"· 蹲订阅　{len(subs)} 条")
+            lines = [L("◆ 本群", "◆ This Chat")]
+            _pd = PLATFORM_DISPLAY.get(g["platform"], g["platform"])
+            lines.append(L(f"· 默认平台　{_pd}", f"· Default platform　{_pd}"))
+            own_lang = self.groups.lang(umo)
+            _ll = i18n.lang_label(i18n.current_lang())
+            lines.append(
+                L(f"· 显示语言　{_ll}", f"· Display language　{_ll}")
+                + ("" if own_lang else L("（跟随全局）", " (global setting)"))
+            )
+            lines.append(
+                L(
+                    f"· 推送　{'开' if g['push'] else '关'}",
+                    f"· Push　{'On' if g['push'] else 'Off'}",
+                )
+            )
+            lines.append(L(f"· 蹲订阅　{len(subs)} 条", f"· Subscriptions　{len(subs)}"))
             if subs:
-                lines.append("◆ 订阅明细")
+                lines.append(L("◆ 订阅明细", "◆ Subscription Details"))
                 for i, s in enumerate(subs, 1):
                     if s.until < 0:
-                        life = "不限时" if s.hits_left is not None else "永久"
+                        life = (
+                            L("不限时", "no time limit")
+                            if s.hits_left is not None
+                            else L("永久", "permanent")
+                        )
                     else:
                         left = s.until - time.time()
                         life = (
-                            f"剩{left // 86400:.0f}天{left % 86400 // 3600:.0f}小时"
+                            L(
+                                f"剩{left // 86400:.0f}天{left % 86400 // 3600:.0f}小时",
+                                f"{left // 86400:.0f}d {left % 86400 // 3600:.0f}h left",
+                            )
                             if left >= 3600
-                            else f"剩{max(left, 0) // 60:.0f}分钟"
+                            else L(
+                                f"剩{max(left, 0) // 60:.0f}分钟", f"{max(left, 0) // 60:.0f}m left"
+                            )
                         )
                     mode = (
-                        f"剩{s.hits_left}次"
+                        L(f"剩{s.hits_left}次", f"{s.hits_left} hit(s) left")
                         if s.hits_left is not None
-                        else ("一次" if s.once else "持续")
+                        else (L("一次", "once") if s.once else L("持续", "ongoing"))
                     )
                     lines.append(
-                        f"· {i}. {s.event}" + (f"：{s.rule}" if s.rule else "") + f"　{mode}·{life}"
+                        f"· {i}. {s.event}"
+                        + (L(f"：{s.rule}", f": {s.rule}") if s.rule else "")
+                        + f"　{mode}·{life}"
                     )
-            lines.append("◆ 系统")
-            lines.append(f"· 缓存　{cache['size']} 项 · 命中率 {cache['hit_rate'] * 100:.0f}%")
+            lines.append(L("◆ 系统", "◆ System"))
+            lines.append(
+                L(
+                    f"· 缓存　{cache['size']} 项 · 命中率 {cache['hit_rate'] * 100:.0f}%",
+                    f"· Cache　{cache['size']} items · hit rate {cache['hit_rate'] * 100:.0f}%",
+                )
+            )
             return Reply(
                 f"{BRAND} {WATERMARK_VERSION}",
                 lines,
@@ -1979,10 +2293,16 @@ class WarframeSDJK(
             #   按项目铁律「失效功能必须给出真实可用的替代指令」，这里保留指令名
             #   但**明确告知已废弃**，且不再写任何全局状态。
             return Reply(
-                raw_text="「.锚点」已废弃：仲裁表现在按 arbi.wf.wiki 的"
-                "确定性排期自动推算，不需要手动校准。\n"
-                "· 看当前与下一小时场次：发「仲裁」\n"
-                "· 看未来 14 天排期：发「仲裁表」（可筛类型，如「仲裁表 生存」）"
+                raw_text=i18n.L(
+                    "「.锚点」已废弃：仲裁表现在按 arbi.wf.wiki 的"
+                    "确定性排期自动推算，不需要手动校准。\n"
+                    "· 看当前与下一小时场次：发「仲裁」\n"
+                    "· 看未来 14 天排期：发「仲裁表」（可筛类型，如「仲裁表 生存」）",
+                    '".锚点" is deprecated: the Arbitration table is now computed from the '
+                    "arbi.wf.wiki fixed schedule and needs no manual calibration.\n"
+                    '- Current and next-hour missions: send "arbitration"\n'
+                    '- The next 14 days: send "arbtable" (filter by type, e.g. "arbtable survival")',
+                )
             )
         if cmd in ("帮助", "help"):
             return await self._h_help(None, event, self.groups.platform(umo))
@@ -2005,12 +2325,15 @@ class WarframeSDJK(
         剥掉，见文件头「指令空间避让」），而 "/help" 属于 AstrBot 内置指令，
         已被本插件主动让路 —— 说明一句，免得用户以为帮助坏了。
         """
-        lines = [f"※ {n}" for n in HELP_NOTES.get("", [])]
-        for t, items in HELP_TOPIC.items():
+        topics, notes = (HELP_TOPIC_EN, HELP_NOTES_EN) if i18n.is_en() else (HELP_TOPIC, HELP_NOTES)
+        lines = [f"※ {n}" for n in notes.get("", [])]
+        for t, items in topics.items():
             lines.append(f"◆ {t}")
             # 全角空格分隔：渲染层按此切成两列并做首字符垂直线对齐
             lines += [f"· {c}　{d}" for c, d in items]
-            lines += [f"※ {n}" for n in HELP_NOTES.get(t, [])]
+            lines += [f"※ {n}" for n in notes.get(t, [])]
+        if i18n.is_en():
+            return Reply(f"{BRAND} Command List", lines, footer=fmt.fmt_platform_footer(platform))
         return Reply(f"{BRAND} 指令一览", lines, footer=fmt.fmt_platform_footer(platform))
 
     # ------------------------------------------------------------------

@@ -224,6 +224,115 @@ _ASCII_CMD_ALIASES: tuple[str, ...] = tuple(
     sorted((a for a in ALIAS_TO_COMMAND if a.isascii() and a.isalpha()), key=len, reverse=True)
 )
 
+# ---------------------------------------------------------------------------
+# 英文指令别名（v1.3.1 国际服英文）
+#   · 只认消息的**第一个词**：英文句子按空格分词，放到任意位置会把闲聊
+#     「what is the news」误判成指令；
+#   · 不参与上面的无空格连写切分（「sorties」不能切成 sortie + s）；
+#   · 已被中文表占用的写法（help / wm / wr / rm / xh / wiki / wk）沿用原表，不重复登记；
+#   · 别名本身不改变输出语言，语言只看 -en/-zh 后缀、会话设置与全局默认。
+# ---------------------------------------------------------------------------
+COMMAND_ALIASES_EN: dict[str, set[str]] = {
+    # help 被 AstrBot 内置指令占用（带 / 时让路），平台菜单里用 wfhelp
+    "help": {"wfhelp"},
+    "cetus": {"cetus", "cycle", "cycles"},
+    "timers": {"timers"},
+    "bounty": {"bounty", "bounties"},
+    "fissures": {"fissure", "fissures"},
+    "sortie": {"sortie"},
+    "archon": {"archon", "archonhunt"},
+    "voidtrader": {"baro", "voidtrader"},
+    "dailydeals": {"darvo", "deals"},
+    "calendar": {"calendar"},
+    "deeparchimedea": {"deeparchimedea"},
+    "temporalarchimedea": {"temporalarchimedea"},
+    "steelpath": {"steelpath"},
+    "translate": {"translate"},
+    "slivershop": {"slivers", "palladino"},
+    "arbitration": {"arbi", "arbitration"},
+    "arbtable": {"arbtable"},
+    "alerts": {"alerts"},
+    "invasions": {"invasions"},
+    "nightwave": {"nightwave"},
+    "news": {"news"},
+    "kuva": {"kuva"},
+    "synthtargets": {"synthesis"},
+    "construction": {"construction"},
+    "voidstorms": {"voidstorms"},
+    "events": {"events"},
+    "conclave": {"conclave"},
+    "primevault": {"varzia", "primevault"},
+    "clanrewards": {"clanrewards"},
+    "flashsales": {"flashsales"},
+    "incarnon": {"incarnon"},
+    "tenet": {"tenet"},
+    "coda": {"coda"},
+    "acrichis": {"acrithis"},
+    "descendia": {"descendia"},
+    "incursions": {"incursions"},
+    "valence": {"valence"},
+    "damage": {"damage", "dmg"},
+    "scan": {"scan"},
+    "scandamage": {"scandamage"},
+    "rank": {"rank", "ranking"},
+    "analysis": {"rivenanalysis"},
+    "ranges": {"rivenranges"},
+    "splice": {"splice"},
+    "trend": {"trend"},
+    "openrelic": {"openrelic"},
+    "relic": {"relic", "relics"},
+    "parts": {"parts"},
+    "disposition": {"dispo", "disposition"},
+    "ducats": {"ducats"},
+    "dun": {"subscribe", "sub"},
+}
+EN_ALIAS_TO_COMMAND: dict[str, str] = {}
+for _cmd, _aliases in COMMAND_ALIASES_EN.items():
+    for _a in _aliases:
+        _a = _a.lower()
+        if _a not in ALIAS_TO_COMMAND:  # 中文表已有的写法（任意位置可触发）保持原语义
+            EN_ALIAS_TO_COMMAND[_a] = _cmd
+
+
+# ---------------------------------------------------------------------------
+# 平台指令菜单（QQ 官方指令面板 / Telegram 菜单 / Discord 斜杠指令）
+#   · en：Telegram/Discord 注册名，须是上面能解析的 ASCII 写法，小写、不撞 AstrBot
+#     内置词（help/start/new/reset/stop 等）；
+#   · zh：QQ 官方面板录入名，须是中文表里的写法（面板名 ≤14 字符）；
+#   · 描述：QQ 面板 ≤30 字符，Telegram 由 AstrBot 截到 30 字符，Discord ≤100；
+#   · 要发图的指令（紫卡分析、识卡）不进菜单：斜杠指令只能带一段文字参数。
+#   · 每个面板最多 20 条。
+# ---------------------------------------------------------------------------
+@dataclass(frozen=True)
+class MenuCommand:
+    en: str
+    zh: str
+    desc_en: str
+    desc_zh: str
+
+
+MENU_COMMANDS: tuple[MenuCommand, ...] = (
+    MenuCommand("fissure", "裂隙", "Void fissures", "查看当前虚空裂隙"),
+    MenuCommand("sortie", "突击", "Today's sortie", "查看今日突击"),
+    MenuCommand("archon", "执刑官", "Archon hunt", "查看本周执刑官猎杀"),
+    MenuCommand("baro", "虚空商人", "Baro Ki'Teer", "虚空商人位置与商品"),
+    MenuCommand("cycle", "平原", "Open world cycles", "各平原昼夜与周期"),
+    MenuCommand("arbi", "仲裁", "Arbitration", "当前与后续仲裁"),
+    MenuCommand("alerts", "警报", "Alerts", "查看当前警报"),
+    MenuCommand("invasions", "入侵", "Invasions", "查看当前入侵"),
+    MenuCommand("nightwave", "电波", "Nightwave", "午夜电波本周任务"),
+    MenuCommand("steelpath", "钢铁之路", "Steel Path rewards", "钢铁之路本周奖励"),
+    MenuCommand("darvo", "每日特惠", "Darvo's daily deal", "Darvo 每日特惠"),
+    MenuCommand("wm", "WM", "Market price + item", "WM 市场价，后接物品名"),
+    MenuCommand("wr", "紫卡", "Riven market + weapon", "紫卡市场，后接武器名"),
+    MenuCommand("relic", "遗物", "Relic drops + name", "遗物掉落，后接遗物名"),
+    MenuCommand("damage", "伤害", "Weapon damage + name", "武器伤害，后接武器名"),
+    MenuCommand("dispo", "倾向", "Riven disposition", "紫卡倾向，后接武器名"),
+    MenuCommand("subscribe", "蹲", "Subscribe to alerts", "订阅裂隙、商人等推送"),
+    MenuCommand("wiki", "维基", "Wiki lookup + name", "查维基，后接名称"),
+    MenuCommand("wfhelp", "帮助", "All commands", "查看全部指令"),
+)
+
 
 # ---------------------------------------------------------------------------
 # 解析结果
@@ -239,6 +348,7 @@ class Parsed:
     content: list[str] = field(default_factory=list)  # 查询内容 token
     modifiers: list[str] = field(default_factory=list)  # 已识别修饰符原文
     platform: Optional[str] = None  # -pc/-ps/...
+    lang: Optional[str] = None  # -cn/-en（显示语言覆盖；-zh 同 -cn），值归一为 zh / en
     text_mode: bool = False  # -w
     image_mode: bool = False  # -t
     whisper: bool = False  # -r
@@ -282,6 +392,9 @@ def parse(message: str, *, extra_commands: Optional[dict[str, str]] = None) -> P
             if body in ("pc", "ps", "xb", "sw"):
                 res.platform = body
                 res.modifiers.append(tok)
+            elif body in ("en", "cn", "zh"):
+                res.lang = "en" if body == "en" else "zh"  # -cn 与 -zh 同义
+                res.modifiers.append(tok)
             elif body == "w":
                 res.text_mode = True
                 res.modifiers.append(tok)
@@ -299,6 +412,11 @@ def parse(message: str, *, extra_commands: Optional[dict[str, str]] = None) -> P
             continue
 
         low = tok.lower()
+        first_word = not res.content and res.command is None
+        if first_word and low in EN_ALIAS_TO_COMMAND and low not in alias_table:
+            res.command_raw = tok
+            res.command = EN_ALIAS_TO_COMMAND[low]
+            continue
         if res.command is None and low in alias_table:
             res.command_raw = tok
             res.command = alias_table[low]
@@ -747,6 +865,16 @@ RIVEN_STAT_ALIASES: dict[str, set[str]] = {
         "Chance to Gain Combo Count",
     },
 }
+
+# 英文客户端卡面原文（v1.3.1 国际服英文）：DE 英文语言表的显示写法，与游戏内卡面一致。
+# **只给识图匹配用**（core/commands/vision.py::_full_stat_alias 合并），不进上面的输入别名表 ——
+# 短写法如 Heat 进了输入表会把武器名「Heat Sword」拆成「火焰伤害 + Sword」。
+RIVEN_STAT_EN_DISPLAY: dict[str, tuple[str, ...]] = {
+    "heat_damage": ("Heat",),
+    "slide_crit": ("Critical Chance for Slide Attack",),
+    "reload_holstered": ("Magazine Reloaded/s when Holstered",),
+    "extra_combo_count": ("Additional Combo Count Chance",),
+}
 # 组合词：一个别名展开为多个词条需求
 RIVEN_STAT_COMBOS: dict[str, list[str]] = {
     "双暴": ["crit_chance", "crit_damage"],
@@ -845,7 +973,7 @@ RIVEN_STAT_ZH: dict[str, str] = {
     "damage_vs_infested": "I伤",
     "magazine_capacity": "弹匣",
     "ammo_max": "弹药",
-    "projectile_speed": "弹道",
+    "projectile_speed": "投射",
     "punch_through": "穿透",
     "reload_speed": "装填",
     "recoil": "后坐",
@@ -855,6 +983,23 @@ RIVEN_STAT_ZH: dict[str, str] = {
     "extra_combo_count": "额外连击",
     "combo_gain_chance": "连击获取",
 }
+# 国服叫法的词条输入别名：只让按国服习惯输入的玩家查得到，展示名一律走国际服英文/官方简中。
+# >>> CN-LOCALE-TABLE
+_CN_STAT_INPUT_ALIASES: dict[str, tuple[str, ...]] = {
+    "damage_vs_grineer": ("对克隆尼伤害", "对克隆尼的伤害", "克隆尼伤害"),
+    "damage_vs_corpus": ("对科普斯伤害", "对科普斯的伤害", "科普斯伤害"),
+    "damage_vs_infested": ("对感染体伤害", "对感染体的伤害", "感染体伤害"),
+    "damage_vs_scaldra": ("对斯卡德拉伤害", "对斯卡德拉的伤害", "斯卡德拉伤害"),
+    "damage_vs_techrot": ("对技术腐化伤害", "对技术腐化的伤害", "技术腐化伤害"),
+}
+# <<< CN-LOCALE-TABLE
+for _sid, _cn in _CN_STAT_INPUT_ALIASES.items():
+    _cur = RIVEN_STAT_ALIASES[_sid]
+    if isinstance(_cur, set):
+        _cur.update(_cn)
+    else:
+        _cur.extend(x for x in _cn if x not in _cur)
+
 # 负面语义修饰词
 _ANY_MARK = {"任意", "有", "是"}
 _NONE_MARK = {"没有", "无", "不"}
@@ -960,6 +1105,81 @@ _POLARITY_MAP = {
 _STATUS_MAP = {"最新": "latest", "最近": "recent", "在线": "recent", "离线": "offline"}
 _REROLL_WORDS = {"零洗": (0, 0), "低洗": (1, 8), "废洗": (10, None)}
 _COUNT_RE = re.compile(r"^(\d)\+([01]?)$")
+
+# ── 英文筛选词（只在 parse_wr 入口把英文词换成中文词，下游解析与中文完全同一条路径）──
+# 全部是整词精确匹配；武器名里不会出现这些词，也不进通用输入别名表。
+_WR_EN_WORD = {
+    "newest": "最新",
+    "latest": "最新",
+    "recent": "最近",
+    "online": "在线",
+    "offline": "离线",
+    "unrolled": "零洗",
+    "lowroll": "低洗",
+    "lowrolled": "低洗",
+    "heavyroll": "废洗",
+    "heavyrolled": "废洗",
+    "madurai": "r槽",
+    "vazarin": "d槽",
+    "naramon": "-槽",
+    "zenurik": "角槽",
+    "noneg": "无",
+    "nonneg": "无",
+}
+_WR_EN_NEG = {"neg", "negative", "curse"}
+_WR_EN_ROLLS = ("roll", "rolls", "reroll", "rerolls")
+_WR_EN_ROLLS_RE = re.compile(r"^(\d+)(?:re)?rolls?$", re.I)
+
+
+def _wr_en_tokens(content: Iterable[str]) -> list[str]:
+    """英文筛选词 → 中文词（中文 token 原样放行）。
+
+    - newest/latest、recent/online、offline → 最新/最近·在线/离线
+    - unrolled / lowroll / heavyroll → 零洗 / 低洗 / 废洗；`5rolls`、`rolls 5` → `5洗`
+    - madurai / vazarin / naramon / zenurik → 极性槽
+    - neg / negative / curse 前缀 → 负（`neg critical damage`；单独写 = 任意负面）；
+      紧贴写法 `-critical-damage` 同；`no neg` / `noneg` → 无负；`with/has neg` 里的 with/has 忽略
+    """
+    toks = list(content)
+    out: list[str] = []
+    i = 0
+    n = len(toks)
+    while i < n:
+        tok = toks[i]
+        low = tok.lower()
+        nxt = toks[i + 1].lower() if i + 1 < n else ""
+        if low in _WR_EN_WORD:
+            out.append(_WR_EN_WORD[low])
+        elif low in _WR_EN_NEG:
+            out.append("负")
+        elif low == "no" and nxt in _WR_EN_NEG:
+            out.append("无")
+            i += 1
+        elif low in ("with", "has", "any") and nxt in _WR_EN_NEG:
+            pass  # 「with neg」「any neg」：neg 本身已表示任意负面
+        elif low == "polarity" and nxt in ("madurai", "vazarin", "naramon", "zenurik"):
+            pass  # 「polarity madurai」：极性词本身已表示筛选
+        elif re.fullmatch(r"\d+", low) and nxt in _WR_EN_ROLLS:
+            out.append(low + "洗")  # 「3 rolls」
+            i += 1
+        elif _WR_EN_ROLLS_RE.match(low):
+            out.append(_WR_EN_ROLLS_RE.match(low).group(1) + "洗")
+        elif low in _WR_EN_ROLLS and re.fullmatch(r"\d+", nxt):
+            out.append(nxt + "洗")
+            i += 1
+        elif (
+            len(tok) > 1
+            and tok[0] == "-"
+            and re.match(r"[A-Za-z]", tok[1:])
+            and (tok[1:].casefold() in _STAT_LOOKUP or segment_stats(tok[1:]))
+        ):
+            out.append("负" + tok[1:])
+        else:
+            out.append(tok)
+        i += 1
+    return out
+
+
 _PRICE_RE = re.compile(r"^(\d+(?:\.\d+)?)p$", re.I)
 _RANK_TOKEN_RE = re.compile(r"^(零|满|\d+)级$")
 
@@ -992,7 +1212,7 @@ def parse_wr(content: Iterable[str]) -> WRQuery:
     q = WRQuery()
     weapon_parts: list[str] = []
     neg_side = False  # 用于「负 任意」等独立负面修饰符的判断
-    for tok in _join_stat_tokens(content):
+    for tok in _join_stat_tokens(_wr_en_tokens(content)):
         low = tok.lower()
         if low in _POLARITY_MAP:
             q.polarity = _POLARITY_MAP[low]
@@ -1129,6 +1349,7 @@ class WMQuery:
     refinement_word: str = ""  # 原始精炼词（提示语回显用）
     moran: bool = False  # 墨染（Atragraph / Foil Mod，subtype=atragraph）
     part: str = ""  # 部件关键词（蓝图/机体/系统/头部/配件…）
+    part_en_raw: str = ""  # 英文写的部件词原文（如 "Mesa Prime Neuroptics" 里的 "Neuroptics Blueprint"），供回落重组
 
 
 # ★ 部件关键词（2026-09-19 玩家反馈「wm 母牛 蓝图」搜出来全是整套）：
@@ -1236,12 +1457,161 @@ _REFINEMENT_MAP = {
 }
 
 
+# ── 英文修饰词（wm）──
+# 英文部件词 → 中文部件键（与上面 _PART_SPECIFIC / _PART_GENERIC 同一套键）。
+# 英文名取 DE / WM 官方部件名（Prime 部件名尾词频次统计得出）。只在**末尾连续的修饰词段**里认，
+# 物品名中间出现的 blade / stock / link 等词不会被吃掉（Flame Blade、Primed Chamber 之类）。
+WM_PART_EN: dict[str, str] = {
+    "blueprint": "蓝图",
+    "chassis": "机体",
+    "neuroptics": "头部",
+    "cerebrum": "头部",
+    "systems": "系统",
+    "barrel": "枪管",
+    "receiver": "枪机",
+    "stock": "枪托",
+    "helmet": "头盔",
+    "handle": "握柄",
+    "hilt": "握柄",
+    "blade": "刀刃",
+    "link": "连接器",
+    "carapace": "外壳",
+    "string": "弓弦",
+    "grip": "握把",
+    "upper limb": "上弓臂",
+    "lower limb": "下弓臂",
+    "gauntlet": "拳套",
+    "guard": "护手",
+    "ornament": "饰物",
+    "wings": "机翼",
+}
+# 中文部件键 → 英文名里的匹配词（_pick_wm_set_part 的英文回落用；`grip` 同时覆盖 弓身/握把）
+WM_PART_EN_MATCH: dict[str, tuple[str, ...]] = {}
+for _w, _k in WM_PART_EN.items():
+    WM_PART_EN_MATCH.setdefault(_k, ())
+    WM_PART_EN_MATCH[_k] += (_w,)
+WM_PART_EN_MATCH["头部"] = ("neuroptics", "cerebrum")
+_WM_EN_REFINE = {
+    "intact": "完整",
+    "exceptional": "优良",
+    "flawless": "无瑕",
+    "radiant": "光辉",
+}
+_WM_EN_MODIFIER_WORDS = {
+    "buy",
+    "buying",
+    "wtb",
+    "max",
+    "maxed",
+    "unranked",
+    "rank",
+    "atragraph",
+}
+
+
+def _wm_en_tokens(tokens: list[str]) -> tuple[list[str], str, dict[str, str]]:
+    """英文修饰词 → 中文修饰词（中文 token 原样放行），返回 (新 token, 部件英文原文, 中文词→英文原词)。
+
+    - 任意位置：buy/buying/wtb → 收购；group/groupbuy（后面跟 a*2,b 才算合购，否则当名字）→ 合购；
+      `2x` / `x2` → 2个；max/maxed/`rank max` → 满级，unranked → 零级，`rank5` / `rank 5` → 5级；
+      atragraph → 墨染
+    - **只在末尾连续的修饰词段**里认：部件词（neuroptics/chassis/systems/blueprint/barrel/receiver/
+      stock/blade/handle/link/string/grip/upper limb/lower limb…）和精炼档（intact/exceptional/
+      flawless/radiant）。物品名里的同名词（Flame Blade、Radiant Zenith…）因此不会被误吃。
+    """
+    n = len(tokens)
+    low = [t.lower() for t in tokens]
+
+    def _is_mod(i: int) -> int:
+        """tokens[i:] 起头是修饰词则返回占用 token 数，否则 0。"""
+        w = low[i]
+        if i + 1 < n and f"{w} {low[i + 1]}" in WM_PART_EN:
+            return 2
+        if w in WM_PART_EN or w in _WM_EN_REFINE or w in _WM_EN_MODIFIER_WORDS:
+            return 1
+        if re.fullmatch(r"\d+x|x\d+|rank\d+|\d+", w):
+            return 1
+        return 0
+
+    # 末尾连续修饰词段的起点（纯数字只在段内才算，不单独当起点）
+    start = n
+    i = n - 1
+    while i >= 0:
+        two = i >= 1 and f"{low[i - 1]} {low[i]}" in WM_PART_EN
+        if two:
+            start = i - 1
+            i -= 2
+            continue
+        if _is_mod(i) and not (low[i].isdigit() and start == n):
+            start = i
+            i -= 1
+            continue
+        break
+    out: list[str] = []
+    raw_parts: list[str] = []
+    back: dict[str, str] = {}
+    i = 0
+    while i < n:
+        t, w = tokens[i], low[i]
+        nxt = low[i + 1] if i + 1 < n else ""
+        in_tail = i >= start
+        if w in ("buy", "buying", "wtb"):
+            out.append("收购")
+        elif (
+            w in ("group", "groupbuy")
+            and i + 1 < n
+            and ("," in tokens[i + 1] or "*" in tokens[i + 1])
+        ):
+            out.append("合购")
+        elif re.fullmatch(r"(\d+)x|x(\d+)", w):
+            out.append(re.sub(r"\D", "", w) + "个")
+        elif w == "rank" and nxt in ("max", "maxed"):
+            out.append("满级")
+            back["满级"] = "max rank"
+            i += 1
+        elif w in ("max", "maxed") and nxt == "rank":
+            out.append("满级")
+            back["满级"] = "max rank"
+            i += 1
+        elif w in ("max", "maxed"):
+            out.append("满级")
+            back["满级"] = w
+        elif w == "unranked":
+            out.append("零级")
+            back["零级"] = w
+        elif w == "rank" and re.fullmatch(r"\d+", nxt):
+            out.append(nxt + "级")
+            back[nxt + "级"] = f"rank {nxt}"
+            i += 1
+        elif re.fullmatch(r"rank(\d+)", w):
+            out.append(w[4:] + "级")
+            back[w[4:] + "级"] = w
+        elif w == "atragraph":
+            out.append("墨染")
+            back["墨染"] = w
+        elif in_tail and i + 1 < n and f"{w} {nxt}" in WM_PART_EN:
+            out.append(WM_PART_EN[f"{w} {nxt}"])
+            raw_parts.append(f"{t} {tokens[i + 1]}")
+            i += 1
+        elif in_tail and w in WM_PART_EN:
+            out.append(WM_PART_EN[w])
+            raw_parts.append(t)
+        elif in_tail and w in _WM_EN_REFINE:
+            out.append(_WM_EN_REFINE[w])
+            back[_WM_EN_REFINE[w]] = w
+        else:
+            out.append(t)
+        i += 1
+    return out, " ".join(raw_parts), back
+
+
 def parse_wm(content: Iterable[str], preset: Optional[str] = None) -> WMQuery:
     q = WMQuery()
     item_parts: list[str] = []
     tokens = list(content)
     if preset:
         tokens.insert(0, preset)
+    tokens, q.part_en_raw, _en_back = _wm_en_tokens(tokens)
     i = 0
     while i < len(tokens):
         tok = tokens[i]
@@ -1258,11 +1628,11 @@ def parse_wm(content: Iterable[str], preset: Optional[str] = None) -> WMQuery:
         elif re.fullmatch(r"(\d+)个", tok):
             q.quantity = int(tok[:-1])
         elif tok in ("零级", "满级") or _RANK_TOKEN_RE.match(tok):
-            q.rank_word = tok
+            q.rank_word = _en_back.get(tok, tok)
             q.rank = 0 if tok == "零级" else (-1 if tok == "满级" else int(tok[:-1]))
         elif tok in _REFINEMENT_MAP:
             q.refinement = _REFINEMENT_MAP[tok]
-            q.refinement_word = tok
+            q.refinement_word = _en_back.get(tok, tok)
         elif tok == "墨染":
             q.moran = True
         else:

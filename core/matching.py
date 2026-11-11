@@ -606,6 +606,62 @@ def load_bilingual() -> dict:
     return _BILINGUAL
 
 
+_LOOSE_DROP_RE = re.compile(r"['\u2019\u2018\u02bc`\-\u2010-\u2015_.]+")
+_BILINGUAL_LOOSE: Optional[dict] = None
+
+
+def _loose_key(s: str) -> str:
+    """在 normalize_name 之上再去掉撇号 / 连字符 / 点（Amar's → amars，Split-Chamber → splitchamber）。
+
+    只在精确（normalize_name）未命中时才用，不会改变原本能精确命中的结果。
+    """
+    return _LOOSE_DROP_RE.sub("", normalize_name(s))
+
+
+_EN_ZH_EXTRA: Optional[dict] = None
+
+
+def _en_zh_extra() -> dict:
+    """官方英简对照表（name_en_zh.json，键为小写英文）里双语名表没有的条目：{宽松键: [(英文名, 简中名)]}。
+
+    英文名只有小写原文，展示时逐词首字母大写（Soma Prime Barrel）。
+    """
+    global _EN_ZH_EXTRA
+    if _EN_ZH_EXTRA is None:
+        out: dict = {}
+        try:
+            from . import paths
+
+            raw = json.loads(paths.read_path("de/name_en_zh.json").read_text(encoding="utf-8"))
+            names = raw.get("names") or {}
+        except Exception:  # noqa: BLE001 - 表缺失只少一层兜底
+            names = {}
+        have = set(load_bilingual()["en"])
+        for en, zh in names.items():
+            if normalize_name(en) in have:
+                continue
+            title = " ".join(w[:1].upper() + w[1:] for w in en.split())
+            out.setdefault(_loose_key(en), []).append((title, zh))
+        _EN_ZH_EXTRA = out
+    return _EN_ZH_EXTRA
+
+
+def _bilingual_loose() -> dict:
+    global _BILINGUAL_LOOSE
+    if _BILINGUAL_LOOSE is None:
+        idx = load_bilingual()
+        out: dict = {"en": {}, "zh": {}}
+        for side in ("en", "zh"):
+            for pairs in idx[side].values():
+                for pair in pairs:
+                    key = _loose_key(pair[0] if side == "en" else pair[1])
+                    bucket = out[side].setdefault(key, [])
+                    if pair not in bucket:
+                        bucket.append(pair)
+        _BILINGUAL_LOOSE = out
+    return _BILINGUAL_LOOSE
+
+
 def _dedupe_pairs(pairs: list, limit: int) -> list:
     out, seen = [], set()
     for p in pairs:
@@ -636,6 +692,11 @@ def bilingual_lookup(query: str, limit: int = 5) -> dict:
     hits = table.get(nq) or []
     if hits:
         return {"direction": direction, "hits": _dedupe_pairs(hits, limit), "candidates": []}
+    loose = _bilingual_loose()["zh" if has_cjk else "en"].get(_loose_key(q)) or []
+    if not loose and not has_cjk:
+        loose = _en_zh_extra().get(_loose_key(q)) or []  # 部件名等（DE 官方英简对照，键为小写英文）
+    if loose:
+        return {"direction": direction, "hits": _dedupe_pairs(loose, limit), "candidates": []}
     cands: list = []
     for k, v in table.items():
         if nq in k:

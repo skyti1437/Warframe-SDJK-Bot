@@ -1,7 +1,10 @@
 # AstrBot 插件 · Warframe SDJKBOT v1.3.0（`astrbot_plugin_warframe_sdjkbot`）
 
+**简体中文** | [English](https://github.com/skyti1437/Warframe-SDJK-Bot/blob/main/README.en.md)
+
 在 QQ 群（以及 Telegram、Discord、Slack、KOOK 等聊天平台）里查 Warframe 的一切：**世界状态、市场价、遗物与部件、伤害计算、配卡截图识别、紫卡分析、玄骸拍卖、奸商预测、蹲点推送**——
 回复渲染成 Orokin 风格的图片卡片，后台还带一个可视化的运维面板。
+回复可选**简体中文或英文**（国际服），英文模式下节点、任务、物品、武器、派系等优先使用 DE 官方英文名，详见下文「显示语言」。
 
 <p align="center">
   <img src="https://cdn.jsdelivr.net/gh/skyti1437/Warframe-SDJK-Bot@main/assets/readme/arbitration.png" width="49%" alt="当前仲裁卡片" />
@@ -21,7 +24,14 @@
 | **Prime 出库清单（出库遗物按杜卡德金 / 银 / 铜着色）** | **指令一览（`帮助`）** |
 | <img src="https://cdn.jsdelivr.net/gh/skyti1437/Warframe-SDJK-Bot@main/assets/readme/prime-vault.png" alt="Prime 出库卡片" /> | <img src="https://cdn.jsdelivr.net/gh/skyti1437/Warframe-SDJK-Bot@main/assets/readme/help.png" alt="指令一览卡片" /> |
 
-> 上方六张卡面为 v1.2.0 历史截图，供版式参考；当前指令请在聊天中发送 `帮助` 查看。下方后台截图为合成演示数据。默认配色为「Orokin」，可在运维面板调整。
+> 上方六张卡面为 v1.2.0 的中文历史截图，供版式参考；当前指令请在聊天中发送 `帮助` 查看。下方后台截图为合成演示数据。默认配色为「Orokin」，可在运维面板调整。
+
+英文显示效果（v1.3.1 候选在英文模式下用实时数据渲染，卡面版本号当时尚未升级）：
+
+<p align="center">
+  <img src="https://cdn.jsdelivr.net/gh/skyti1437/Warframe-SDJK-Bot@main/assets/readme/en-arbitration.png" width="49%" alt="英文仲裁卡片（v1.3.1 候选）" />
+  <img src="https://cdn.jsdelivr.net/gh/skyti1437/Warframe-SDJK-Bot@main/assets/readme/en-help.png" width="49%" alt="英文指令一览卡片（v1.3.1 候选）" />
+</p>
 
 ## 功能
 
@@ -45,6 +55,36 @@
 - **奸商预测**：基于 wiki 记录的 300 多次到访、460 多件商品做统计推测——按「已缺席次数 ÷ 它自己的平均上架间隔」排序。**这不是官方预测**（DE 从不公布下期库存），卡片上写明了口径和样本量。
 - **伤害计算 / 识卡伤害**：按 wiki 公式计算，数据取自 DE 官方导出、warframe-public-export-plus 与英文 wiki，并以开源模拟器 [wfsim](https://github.com/magenie33/wfsim) 交叉核对。**这是理论推算，没有经过大规模实战检验**，可能和游戏面板或实战有出入，请以游戏内为准；卡片上也有同样的提醒。发现对不上的欢迎提 issue。
 - **仲裁评级**：官方 tierlist 优先，没评级的节点用社区实测生息中位数补；样本少于 5 条的标 `*`。实测值来自高水平队伍，普通队伍未必打得到，卡片上也写了。
+
+## 上手示例
+
+装好后在群里直接发（不需要「/」前缀）：
+
+| 发送 | 得到 |
+| --- | --- |
+| `帮助` | 全部指令一览 |
+| `裂隙` · `裂隙 钢铁 生存` | 虚空裂隙；可按钢铁 / 任务类型 / 纪元筛选 |
+| `仲裁` · `仲裁 生存 高效` | 当前与后续仲裁，带评级 |
+| `遗物 后纪A2` · `遗物 绝路 枪机` | 遗物奖励与出处 / 部件出自哪些遗物 |
+| `wm 水晶p` | warframe.market 在售单 |
+| `伤害 绝路 镀层3` | 面板 / 单发 / DPS 与分段明细 |
+| `.开启 推送`（群管理员）→ `蹲 钢铁t5歼灭` | 出现钢铁之路安魂歼灭裂隙时提醒一次 |
+| `裂隙 -en` · `fissures` | 同一指令用英文回复 / 英文指令 |
+
+## 显示语言（中文 / English）
+
+回复语言按以下顺序决定：
+
+1. **单条消息**：消息末尾加 `-en` 用英文回复，加 `-cn` 用中文回复，例如 `裂隙 -en`、`fissures -cn`。
+2. **本会话**：群管理员发 `.语言 en` / `.语言 cn` 设定，`.语言 默认` 恢复跟随全局设置，只发 `.语言` 查看当前语言；英文写法为 `.language en` / `.language cn` / `.language default`。
+3. **全局**：配置项 `default_language`（`cn` 默认 / `en`）。
+
+设定会话语言需要群管理员或群主、AstrBot 管理员，或配置项 `super_admins` 里的用户，私聊同样如此；`-en` / `-cn` 任何人都能用。
+
+- **英文指令**：`fissures`、`sortie`、`baro`、`arbitration`、`relic`、`damage`、`subscribe`、`wfhelp` 等（`帮助` 卡片的英文版列出全部写法），只在**消息开头**识别，避免把英文闲聊当成指令；中文指令照旧。`wm` / `wr` 还支持英文修饰词（如 `buy`、`max`、`radiant`、`offline`、`madurai`、`neg`）和英文物品名、部件名。
+- **输入语言与回复语言分开**：用英文指令不会把回复切成英文；会话设为英文后，中文指令也用英文回复。`裂隙` 的英文筛选词（`steel`、`survival`、`axi` 等）在英文回复时识别，中文会话里请加 `-en` 或用中文筛选词；`仲裁`、`wm` / `wr`、`蹲` 的英文写法不受回复语言限制。
+- **订阅**：每条订阅记住创建时的显示语言，之后按这个语言推送；v1.3.1 之前创建的订阅没有语言字段，按中文推送。
+- **英文模式仍为中文的内容（v1.3.1）**：部分维基资料（简介、特性、建造材料）、部分遗物来源说明、部件名与刷取建议。
 
 ## 运维面板
 
@@ -85,9 +125,12 @@
 
 | 配置项 | 说明 |
 | --- | --- |
+| `default_language` | 默认显示语言：`cn`（默认）/ `en`；群内 `.语言` 覆盖，单条消息 `-cn` / `-en` 覆盖 |
+| `display_timezone` | 回复、卡片与运维面板的显示时区。默认跟随 AstrBot 运行环境，可选固定 UTC 偏移（如 `UTC+08:00`、`UTC+05:30`）。订阅时间窗仍按北京时间填写 |
 | `worldsource` | 世界状态数据源：`de` = DE 官方直连（默认）/ `warframestat` = 社区镜像 |
 | `default_platform` | 默认平台 `pc` / `ps` / `xb` / `sw`（群里可用 `.默认平台` 覆盖） |
 | `render_mode` | `image`（默认图片卡片）/ `auto`（长内容才出图）/ `text` |
+| `super_admins` | 超级管理员的发送者 ID，不是群管理员也可以用管理指令 |
 | `vision_provider_id` | 旧配置兼容主渠道；留空从已添加的视觉渠道自动挑选 |
 | `vision_provider_id_riven` | 紫卡专用主读；迁移前留空沿用 `vision_provider_id`，主动迁移确认后留空即停止紫卡识别 |
 | `vision_provider_id_line` | 紫卡逐行词条窄读；留空沿用紫卡主读；迁移前指定的渠道不可用时回落紫卡主读，迁移确认后不回落 |
@@ -189,13 +232,15 @@
 
 QQ 官方群的按钮只填入输入框，用户再发送；官方私聊执行按钮可直接发送。游戏密语只用于复制到游戏。Telegram 可执行按钮、并在 SDK 支持时原生复制；Discord、KOOK、Slack Socket 可执行按钮，无法等价提供的操作显示文字入口。Slack Webhook 模式只有文字输出；飞书及其它未接通回调的平台使用文字/图片，NapCat 保持原有指令与 `-r` 密语。
 
+**指令菜单（v1.3.1）**：AstrBot 支持指令注册时，插件注册 19 条英文指令（`/fissure`、`/sortie`、`/baro`、`/arbi`、`/wm`、`/wr`、`/relic`、`/damage`、`/subscribe`、`/wiki`、`/wfhelp` 等），由 AstrBot 同步到 **Telegram** 指令菜单和 **Discord** 斜杠指令，每条只回复一次。**QQ 官方机器人**不能自动同步：发送 `.菜单`（`.menu`）取得录入清单，由管理员在 QQ 开放平台管理端「高级设置」里按清单录入（指令类型选「指令」）；点选后指令填进输入框，带参数的补上名称再发送，群聊需要 @机器人。
+
 识卡默认按平台按钮能力选择按需详情或原有两页；`scan_detail_mode` 可强制指定。第一页仍计算参考伤害，省去的是再次详情计算、绘图与上传。每份识卡记录绑定会话和原发送者，30 分钟后失效，旧按钮不会改用新卡。Telegram 话题、Slack 线程保留回复位置。非 QQ 平台需使用者在自己的账号下完成交互验收。
 
 部署注意：
 
 - **QQ 官方机器人**：按钮和「图片和按钮合并发送」都是 Markdown 消息，不支持 Markdown 的旧版 QQ 客户端可能无法正常显示，合并消息中的图片也可能受影响；遇到此情况可关闭 `qq_merge_image_actions`（图片改为普通图片单独发送）和 `qq_markdown_cards`（文字卡改发纯文字）。按钮与 Markdown 只在平台类型为 `qq_official`（WebSocket 接入）时启用；`qq_official_webhook` 接入仍是文字与图片输出。
-- **Telegram**：指令是中文，不会出现在 Telegram 的「/」命令菜单里。在群里直接发送中文指令时，在 BotFather 用 `/setprivacy` 关闭隐私模式，或把机器人设为群管理员。隐私模式开启时，普通群消息不会完整送达；可接收明确发给该机器人的命令、满足条件的普通命令、通过该机器人发送的消息及相关回复，详见 [Telegram 官方 FAQ](https://core.telegram.org/bots/faq#what-messages-will-my-bot-get)。
-- **Discord**：AstrBot 的 Discord 适配器会申请 Message Content 与 Server Members 两个特权 intent，需先在 Discord 开发者后台的 Bot 页面开启，否则网关会拒绝连接。插件指令不会注册为斜杠命令，在频道里按 AstrBot 的唤醒前缀直接发送即可。
+- **Telegram**：「/」指令菜单里是上述 19 条英文指令；其余指令（中文或英文）作为普通消息发送。在群里直接发送这类指令时，在 BotFather 用 `/setprivacy` 关闭隐私模式，或把机器人设为群管理员。隐私模式开启时，普通群消息不会完整送达；可接收明确发给该机器人的命令（如 `/fissure@机器人用户名`）、满足条件的普通命令、通过该机器人发送的消息及相关回复，详见 [Telegram 官方 FAQ](https://core.telegram.org/bots/faq#what-messages-will-my-bot-get)。
+- **Discord**：AstrBot 的 Discord 适配器会申请 Message Content 与 Server Members 两个特权 intent，需先在 Discord 开发者后台的 Bot 页面开启，否则网关会拒绝连接。上述 19 条菜单指令会出现在斜杠指令里；其余指令在频道里按 AstrBot 的唤醒前缀直接发送。
 - **Slack**：默认输出文字卡（AstrBot 的 Slack 适配器上传图片尚不稳定：上传失败时整条消息会丢失）；指令加 `-t` 可强制出图，此时应用需要 `files:write` 权限。按钮需要 Socket 模式（Webhook 模式只有文字）。应用至少需要 `chat:write` 权限，Socket 模式的应用级令牌需要 `connections:write`。Slack 客户端会把「/」开头的消息当作斜杠命令，频道里请用「@机器人 指令」，私聊可直接发指令。
 
 ## AI 相关说明

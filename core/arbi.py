@@ -27,6 +27,8 @@ import time
 from typing import Optional
 
 from . import paths
+from .display_time import format_time
+from .i18n import L
 
 BASE = "https://arbi.wf.wiki/data/"
 MEASURED_FILE = "arb_ratings.json"  # core/data 下的实测种子（构建期生成，不联网）
@@ -308,13 +310,12 @@ def schedule_end(sched: dict) -> float:
 
 
 def expired_hint(sched: dict) -> str:
-    """排期表到期时给用户看的提示（北京时间）。"""
-    from datetime import datetime, timedelta, timezone
-
-    end = datetime.fromtimestamp(schedule_end(sched), tz=timezone(timedelta(hours=8)))
-    return (
-        f"仲裁排期表已于 {end:%Y-%m-%d %H:%M}（北京时间）到期，数据源 arbi.wf.wiki 尚未更新；"
-        "为避免显示错误场次，暂停推算"
+    """排期表到期时给用户看的提示。"""
+    end = format_time(schedule_end(sched), "%Y-%m-%d %H:%M")
+    return L(
+        f"仲裁排期表已于 {end} 到期，数据源 arbi.wf.wiki 尚未更新；为避免显示错误场次，暂停推算",
+        f"The arbitration schedule expired on {end} and arbi.wf.wiki has not updated yet; "
+        "projection is paused to avoid showing wrong slots",
     )
 
 

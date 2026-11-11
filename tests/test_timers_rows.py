@@ -198,7 +198,10 @@ def t_b11_arbi_and_sources():
     except arbi.ScheduleExpired:
         expired = True
     check("arbi.key_at 排期表到期后抛 ScheduleExpired（不回绕到表头）", expired)
-    check("到期提示带北京时间", "北京时间" in arbi.expired_hint(sched))
+    from core.display_time import use_zone
+
+    with use_zone("UTC-03:30"):
+        check("到期提示带实际 UTC 偏移", "UTC-03:30" in arbi.expired_hint(sched))
 
     src_daily = (ROOT / "core" / "commands" / "daily.py").read_text(encoding="utf-8")
     _i = src_daily.index("async def _h_timers")

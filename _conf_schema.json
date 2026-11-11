@@ -13,6 +13,64 @@
     "type": "string",
     "default": "https://api.warframe.com/cdn/worldState.php"
   },
+  "default_language": {
+    "description": "默认显示语言：cn=中文（默认），en=英文（国际服英文名称与文案）。群内可用 .语言 覆盖，消息可用 -cn / -en 临时覆盖",
+    "type": "string",
+    "default": "cn",
+    "options": [
+      "cn",
+      "en"
+    ]
+  },
+  "display_timezone": {
+    "description": "显示时区",
+    "type": "string",
+    "default": "system",
+    "options": [
+      "system",
+      "UTC-12:00",
+      "UTC-11:00",
+      "UTC-10:00",
+      "UTC-09:00",
+      "UTC-09:30",
+      "UTC-08:00",
+      "UTC-07:00",
+      "UTC-06:00",
+      "UTC-05:00",
+      "UTC-04:00",
+      "UTC-03:00",
+      "UTC-03:30",
+      "UTC-02:30",
+      "UTC-02:00",
+      "UTC-01:00",
+      "UTC+00:00",
+      "UTC+01:00",
+      "UTC+02:00",
+      "UTC+03:00",
+      "UTC+03:30",
+      "UTC+04:00",
+      "UTC+04:30",
+      "UTC+05:00",
+      "UTC+05:30",
+      "UTC+05:45",
+      "UTC+06:00",
+      "UTC+06:30",
+      "UTC+07:00",
+      "UTC+08:00",
+      "UTC+08:45",
+      "UTC+09:00",
+      "UTC+09:30",
+      "UTC+10:00",
+      "UTC+10:30",
+      "UTC+11:00",
+      "UTC+12:00",
+      "UTC+12:45",
+      "UTC+13:00",
+      "UTC+13:45",
+      "UTC+14:00"
+    ],
+    "hint": "默认跟随 AstrBot 运行环境的系统时区，也可选固定 UTC 偏移。用于回复、卡片、推送与面板中的时刻；游戏周期和按北京时间填写的订阅时间窗照常执行。"
+  },
   "default_platform": {
     "description": "默认查询平台（群内可用 .默认平台 覆盖，消息可用 -pc/-ps/-xb/-sw 临时覆盖）",
     "type": "string",
@@ -58,12 +116,6 @@
     "description": "超级管理员 sender_id 列表（绕过群管理权限校验）",
     "type": "list",
     "default": []
-  },
-  "strip_markdown": {
-    "description": "出站兜底：剥掉 QQ 无法渲染的 Markdown 标记",
-    "type": "bool",
-    "default": true,
-    "hint": "QQ（NapCat）不渲染 Markdown，裸星号会直接显示在群里。开启后，回复中的 **加粗**、- 列表、# 标题、> 引用、反引号会在发送前被去掉。只处理纯文本，不影响图片卡片。"
   },
   "qq_markdown_cards": {
     "description": "QQ 官方机器人：文字卡片用 Markdown 排版",

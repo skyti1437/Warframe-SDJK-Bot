@@ -54,15 +54,17 @@ from pathlib import Path
 from typing import Optional
 
 try:
-    from . import matching  # core 包内正常导入
+    from . import i18n, matching  # core 包内正常导入
 except ImportError:
     # ★ 只在**非包上下文**（离线脚本把 core/ 当顶层路径）才回退绝对导入；
     #   包内失败 = 真错误，原样抛出（2026-09-25 事故：兜底把真错掩盖成
     #   "No module named 'core'"，见 main.py 同处注释）。
     if __package__:
         raise
+    import i18n
     import matching
 
+L = i18n.L  # 双语文案：L("中文", "English")，中文原文逐字不变
 _DATA = Path(__file__).resolve().parent / "data"
 _cache: dict = {}
 
@@ -218,12 +220,22 @@ def find_enemy_exact(query: str) -> Optional[dict]:
 
 def enemy_miss_line(name: str, faction: Optional[str], enemy: Optional[dict] = None) -> str:
     """「对 XXX」认不出敌人时的卡面提示：按默认派系计，并列出常用敌人表里可用的名字。"""
-    names = [e.get("zh") or e.get("name") for e in _load()["enemies"].values()]
+    names = [_zh_or_name(e) for e in _load()["enemies"].values()]
     if enemy:  # 后面的词另外认出了敌人（如「对 Elite Lancer」→ Lancer）
-        how = f"（已忽略），按「{enemy.get('zh') or enemy.get('name')}」计算"
+        how = L(
+            f"（已忽略），按「{_zh_or_name(enemy)}」计算",
+            f' (ignored), calculated using "{_zh_or_name(enemy)}"',
+        )
     else:
-        how = f"，已按未指定敌人（{FACTION_ZH.get(faction, faction) or '默认派系'}）计算"
-    return f"⚠ 「{name}」不在常用敌人表{how}；可用的有：{'、'.join(n for n in names if n)}"
+        how = L(
+            f"，已按未指定敌人（{FACTION_ZH.get(faction, faction) or '默认派系'}）计算",
+            f", calculated as an unspecified enemy ({faction or 'default faction'})",
+        )
+    return L(
+        f"⚠ 「{name}」不在常用敌人表{how}；可用的有：{'、'.join(n for n in names if n)}",
+        f'⚠ "{name}" is not in the common enemy list{how}; '
+        f"available: {', '.join(n for n in names if n)}",
+    )
 
 
 def find_enemy(query: str) -> Optional[dict]:
@@ -495,6 +507,15 @@ _CONDITIONAL_GRANT_ZH = {
     "crit_damage": "暴击伤害",
     "condition_overload": "每种异常状态伤害",
 }
+_CONDITIONAL_GRANT_EN = {
+    "fire_rate": "Fire Rate",
+    "crit_chance": "Critical Chance",
+    "status_chance": "Status Chance",
+    "base_damage": "Base Damage",
+    "multishot": "Multishot",
+    "crit_damage": "Critical Damage",
+    "condition_overload": "Damage per Status Type",
+}
 # 弓 / 弩（射速 MOD 翻倍的武器类别，key = 小写 uniqueName）。
 # 依据：射速 MOD 卡面「(x2 for Bows)」、wiki Speed_Trigger 的「Fire rate (Bows)」列恰为步枪列 2 倍；
 # 弩：wiki Zhuge / Zhuge_Prime / Attica / Nagantaka / Nagantaka_Prime 均写
@@ -542,6 +563,7 @@ HEADSHOT_BASE = 3.0
 # 生成脚本 scripts/build_enemies.py（HEAD_* 表）。
 # 卡面来源写 wiki 页面标题（空格写法，与下划线 URL 同一页）：下划线会让 QQ Markdown 整卡退回纯文字
 HEADSHOT_SOURCE = "人形头部 ×3（wiki Enemy Body Parts / Critical Hit）"
+HEADSHOT_SOURCE_EN = "Humanoid head ×3 (wiki Enemy Body Parts / Critical Hit)"
 # 暴击爆头（wiki Critical_Hit §Critical Headshots / Enemy_Body_Parts §Critical Headshots）：
 # 头部暴击时暴伤 ×2 进分级公式 —— wiki Critical_Hit 原式
 #   Headshot Multi × (1 + Critical Tier × (2 × Total Critical Damage Multiplier − 1))
@@ -844,6 +866,56 @@ def crit_expectation(cc: float, cm: float) -> float:
     return 1 + cc * (cm - 1.0)
 
 
+# 爆头依据的英文来源串：数据里的出处（head_src / 覆盖表）本身是中英混写，英文模式只做标点转写；
+# 个别整句中文的敌人条目另给英文全文（按敌人英文名）。
+_SRC_PUNCT_EN = str.maketrans(
+    {"「": ' "', "」": '"', "（": " (", "）": ")", "；": "; ", "，": ", "}
+)
+_HEAD_SRC_EN = {
+    "MOA": "wiki Module:Enemies/data/corpus (Head: 1.0x); Body_Parts rear 3x (not a headshot weak point)",
+    "Isolator Bursa": "wiki Enemy_Body_Parts (Bursa: Head 1x*, back console 3x*)",
+    "Eidolon Teralyst": (
+        'No headshot bonus: per the Eidolon Teralyst page, "Explosives … will hit the invulnerable '
+        'body and deal no damage" and the damage lands on Synovia, which "do not count as weak '
+        'points for most effects"; the same page\'s "head possesses a 3x headshot multiplier" '
+        'conflicts with Enemy_Body_Parts "Eidolon: Head (1x)" and the body is invulnerable, so it '
+        "is not adopted (cross-checked online 2026-10-26, Fandom / forums agree)"
+    ),
+    "Profit-Taker Orb": (
+        'No headshot bonus: Module:Enemies/data/corpus lists Multis as "?" and Enemy_Body_Parts has '
+        'no entry; the head is only used for the AoE immunity check ("immune to the AoE damage … '
+        'unless the head … is within the AoE") and Viral damage, and the damage output part is the '
+        "legs; community guides / forums give no head multiplier either (cross-checked online "
+        "2026-10-26)"
+    ),
+    "Legacyte": (
+        'wiki Enemy_Body_Parts (Legacyte: Head 3x*, * = no critical headshot) + Legacyte page "Head '
+        '(3x, but no headcrit bonus)"; Module:Enemies/data/techrot has Multis commented out '
+        '("Head: 4.5x … -- confirm"), not adopted'
+    ),
+    "Techrot Babau": (
+        'wiki Module:Enemies/data/techrot (Head: 1.5x); Babau page "Head: 1.5x / Tendril Bulbs: '
+        '1.5x" agrees; the 1x in the Enemy_Body_Parts row "Phone Head¹ (1x)" conflicts with the '
+        'page overview "Techrot … closer to 1.5x", so the module is followed; ¹ "Promotes hits to '
+        'next crit tier" = Babau page "flat +100% Critical Chance", "2x Critical Damage '
+        'multiplier" = critical headshot (cross-checked online 2026-10-26)'
+    ),
+}
+_SRC_EN_FIX = {
+    "wiki Fulmin 半自动「Has a headshot multiplier of 1x」": 'wiki Fulmin semi-auto "Has a headshot multiplier of 1x"',
+    "wiki Fulmin Prime 半自动「Has a headshot multiplier of 1x」": 'wiki Fulmin Prime semi-auto "Has a headshot multiplier of 1x"',
+}
+
+
+def _src_en(txt: str, enemy: Optional[dict] = None) -> str:
+    """head_src / 覆盖表出处的英文显示串（中文模式不走这里）。"""
+    if enemy and enemy.get("name") in _HEAD_SRC_EN and re.search(r"[一-鿿]", txt):
+        return _HEAD_SRC_EN[enemy["name"]]
+    if txt in _SRC_EN_FIX:
+        return _SRC_EN_FIX[txt]
+    return txt.translate(_SRC_PUNCT_EN).replace("  ", " ")
+
+
 def headshot_profile(
     enemy: Optional[dict],
     faction: str,
@@ -876,60 +948,102 @@ def headshot_profile(
             "mult": 1.0,
             "landing": 1.0,
             "crit": False,
-            "src": "该敌人没有头部弱点，爆头不成立，按身体计（"
-            + (enemy.get("head_src") or "")
-            + "）",
-            "crit_note": "无暴击爆头",
+            "src": L(
+                "该敌人没有头部弱点，爆头不成立，按身体计（" + (enemy.get("head_src") or "") + "）",
+                "This enemy has no head weak point, so headshots do not apply and body damage is "
+                "used (" + _src_en(enemy.get("head_src") or "", enemy) + ")",
+            ),
+            "crit_note": L("无暴击爆头", "no critical headshot"),
             "formula": "",
         }
     hm = enemy.get("head_mul") if enemy else None
     if hm is not None:
         base = float(hm)
-        src = f"该敌人头部 ×{base:g}（{enemy.get('head_src') or '敌人数据'}）"
+        src = L(
+            f"该敌人头部 ×{base:g}（{enemy.get('head_src') or '敌人数据'}）",
+            f"Enemy head ×{base:g} ({_src_en(enemy.get('head_src') or '', enemy) or 'enemy data'})",
+        )
     else:
         base = HEADSHOT_BASE
-        src = HEADSHOT_SOURCE + ("；该敌人未分类，按人形计" if enemy else "")
+        src = L(
+            HEADSHOT_SOURCE + ("；该敌人未分类，按人形计" if enemy else ""),
+            HEADSHOT_SOURCE_EN + ("; enemy unclassified, treated as humanoid" if enemy else ""),
+        )
     part_base = base  # 敌人头部部位本身的倍率（武器覆盖时写进出处）
     ov = WEAPON_HEADSHOT_OVERRIDE.get(str(unique_name or "").lower(), {}).get(form_kind)
     if ov:
         base = float(ov[0])
-        src = (
-            f"武器自带头部倍率 ×{base:g}，替换敌人头部倍率 ×{part_base:g}（爆头加成照乘；{ov[1]}）"
+        src = L(
+            f"武器自带头部倍率 ×{base:g}，替换敌人头部倍率 ×{part_base:g}（爆头加成照乘；{ov[1]}）",
+            f"Weapon's own head multiplier ×{base:g}, replacing the enemy head multiplier "
+            f"×{part_base:g} (headshot bonuses still apply; {_src_en(ov[1])})",
         )
     add = bonus_pct / 100.0 + evo_bonus + (0.0 if innate_mul else innate)
     mult = base * (1.0 + add) * (1.0 + (innate if innate_mul else 0.0))
-    formula = f"头部 ×{base:g}"
+    formula = L(f"头部 ×{base:g}", f"head ×{base:g}")
     if add:
-        formula += f" ×(1+{add * 100:g}% 爆头加成)"
+        formula += L(f" ×(1+{add * 100:g}% 爆头加成)", f" ×(1+{add * 100:g}% headshot bonus)")
     if innate_mul:
-        formula += f" ×{1 + innate:g}（武器自带，独立乘算）"
+        formula += L(
+            f" ×{1 + innate:g}（武器自带，独立乘算）",
+            f" ×{1 + innate:g} (weapon innate, separate multiplier)",
+        )
     elif innate:
-        formula += f"（含武器自带 +{innate * 100:g}%）"
+        formula += L(
+            f"（含武器自带 +{innate * 100:g}%）", f" (incl. weapon innate +{innate * 100:g}%)"
+        )
 
     if enemy and "head_crit" in enemy:
-        crit, why = bool(enemy["head_crit"]), "该敌人逐条标注"
+        crit, why = bool(enemy["head_crit"]), L("该敌人逐条标注", "marked per enemy")
     elif faction in HEADCRIT_FACTIONS:
-        crit, why = True, f"{faction} 可触发"
+        crit, why = True, L(f"{faction} 可触发", f"{faction} can trigger it")
     elif faction in NO_HEADCRIT_FACTIONS:
-        crit, why = False, f"{faction} 人形/地面单位不触发"
+        crit, why = (
+            False,
+            L(
+                f"{faction} 人形/地面单位不触发",
+                f"{faction} humanoid / ground units cannot trigger it",
+            ),
+        )
     else:
-        crit, why = False, f"{faction or '该派系'} 能否暴击爆头未核实"
+        crit, why = (
+            False,
+            L(
+                f"{faction or '该派系'} 能否暴击爆头未核实",
+                f"whether {faction or 'this faction'} can critical-headshot is unverified",
+            ),
+        )
     if crit and ov and base <= 1.0:
-        crit, why = False, f"武器自带头部 ×{base:g}，不触发"
+        crit, why = (
+            False,
+            L(f"武器自带头部 ×{base:g}，不触发", f"weapon's own head ×{base:g}, cannot trigger it"),
+        )
     # 敌人头部 ×1 / ×1.5 仍是爆头部位：爆头效果照触发、暴击爆头按逐敌标注 / 派系默认（2026-10-26 维护者定；
     #   wiki Enemy_Body_Parts「Weak Point … should be assumed to count as headshots and apply the critical
     #   headshot bonus, unless marked otherwise」，* 标记的写进敌人 head_crit）
     hcc = float(enemy.get("head_cc_bonus") or 0.0) if enemy else 0.0
     if crit:
-        note = f"含暴击爆头（头部暴击时暴伤 ×2；{why}"
-        note += "）" if enemy else "，对 Corpus 人形无暴击爆头）"
+        note = L(
+            f"含暴击爆头（头部暴击时暴伤 ×2；{why}",
+            f"includes critical headshots (head crits use ×2 crit damage; {why}",
+        )
+        note += L(
+            "）" if enemy else "，对 Corpus 人形无暴击爆头）",
+            ")" if enemy else ", no critical headshots against Corpus humanoids)",
+        )
         if hcc:
-            note = note[:-1] + f"；该敌人头部另加暴击率 +{hcc * 100:g}%）"
+            note = note[:-1] + L(
+                f"；该敌人头部另加暴击率 +{hcc * 100:g}%）",
+                f"; this enemy's head has extra crit chance +{hcc * 100:g}%)",
+            )
     else:
-        note = f"未计暴击爆头（{why}"
+        note = L(f"未计暴击爆头（{why}", f"critical headshots not counted ({why}")
         if not enemy and faction in ("Corpus", "Corpus Amalgam"):
-            note += "；Osprey 等飞行单位实际可触发"
-        note += "）"
+            note += L(
+                "；Osprey 等飞行单位实际可触发",
+                "; flying units such as Osprey can actually trigger it",
+            )
+        note += L("）", ")")
     # 电/毒气 DoT 落点层（DOT_HEAD_LANDING）：1x 基数 × 爆头加成括号，不含头部基数与武器覆盖
     landing = (1.0 + add) * (1.0 + (innate if innate_mul else 0.0))
     return {
@@ -1125,7 +1239,13 @@ def parse_args(tokens: list[str]) -> tuple[dict, list[str]]:
     enemy_hint_adjacent = False
     tks = [t for t in tokens if t.strip()]
     if len(tks) > MAX_ARG_TOKENS:
-        spec["notes"].append(f"参数过多：只解析前 {MAX_ARG_TOKENS} 个词，其余忽略")
+        spec["notes"].append(
+            L(
+                f"参数过多：只解析前 {MAX_ARG_TOKENS} 个词，其余忽略",
+                f"Too many arguments: only the first {MAX_ARG_TOKENS} words are parsed, "
+                "the rest are ignored",
+            )
+        )
         tks = tks[:MAX_ARG_TOKENS]
     _long = [t for t in tks if len(t) > MAX_TOKEN_LEN]
     if _long:
@@ -1170,8 +1290,12 @@ def parse_args(tokens: list[str]) -> tuple[dict, list[str]]:
             spec["fire_seconds"] = min(FIRE_SECONDS_MAX, max(FIRE_SECONDS_MIN, _fs))
             if spec["fire_seconds"] != _fs:
                 spec["notes"].append(
-                    f"开火时长按 {FIRE_SECONDS_MIN:g}–{FIRE_SECONDS_MAX:g} 秒取值："
-                    f"{_fs:g} → {spec['fire_seconds']:g}"
+                    L(
+                        f"开火时长按 {FIRE_SECONDS_MIN:g}–{FIRE_SECONDS_MAX:g} 秒取值："
+                        f"{_fs:g} → {spec['fire_seconds']:g}",
+                        f"Fire duration is clamped to {FIRE_SECONDS_MIN:g}–{FIRE_SECONDS_MAX:g} s: "
+                        f"{_fs:g} → {spec['fire_seconds']:g}",
+                    )
                 )
         elif low in ("空战", "空战模式"):
             spec["deployment"] = "archwing"
@@ -1250,7 +1374,7 @@ def parse_args(tokens: list[str]) -> tuple[dict, list[str]]:
                     spec["arcane_texts"].append(f"{rec.get('zh') or rec['name']}：{rec['text']}")
                 i += 2 if find_arcane(nxt) else 3
                 continue
-            spec["notes"].append(f"未找到赋能「{nxt}」")
+            spec["notes"].append(L(f"未找到赋能「{nxt}」", f'Arcane "{nxt}" not found'))
             i += 1
             continue
         elif re.fullmatch(r"(连投|投掷层数)" + _NUM, low):
@@ -1399,16 +1523,25 @@ def parse_args(tokens: list[str]) -> tuple[dict, list[str]]:
         _note_l = str(eff.get("note") or "").lower()
         if "only compatible" in _note_l and "semi" in _note_l and not _semi_ok:
             # 扳机限制卡装在非半自动武器上：整卡不折算，明示原因
+            _trg = weapon_rec.get("trigger") if weapon_rec else None
             spec["notes"].append(
-                f"{m.get('zh') or m.get('name')}：仅兼容半自动扳机"
-                f"（这把武器是 {weapon_rec.get('trigger') if weapon_rec else '未知'}），效果未计入"
+                L(
+                    f"{m.get('zh') or m.get('name')}：仅兼容半自动扳机"
+                    f"（这把武器是 {weapon_rec.get('trigger') if weapon_rec else '未知'}），效果未计入",
+                    f"{_zh_or_name(m)}: only compatible with Semi-Auto triggers "
+                    f"(this weapon is {_trg if weapon_rec else 'unknown'}), effect not counted",
+                )
             )
             continue
         _excl = mod_extra(m).get("excludes_weapons") or []
         if weapon_rec and str(weapon_rec.get("name") or "").lower() in _excl:
             # 卡面写明不兼容这类武器（PEP incompatibilityTags × 武器 compatibilityTags，如分裂飞行）：整卡不折算
             spec["notes"].append(
-                f"{m.get('zh') or m.get('name')}：卡面写明不适用于 {weapon_rec.get('name')}，效果未计入"
+                L(
+                    f"{m.get('zh') or m.get('name')}：卡面写明不适用于 {weapon_rec.get('name')}，效果未计入",
+                    f"{_zh_or_name(m)}: the card states it does not apply to "
+                    f"{weapon_rec.get('name')}, effect not counted",
+                )
             )
             continue
         spec["base_dmg"] += eff.get("base_dmg", 0.0)
@@ -1441,7 +1574,7 @@ def parse_args(tokens: list[str]) -> tuple[dict, list[str]]:
         # 条件触发：只记录，绝不折进数值
         for c in eff.get("conditional") or []:
             spec["conditional"].append(
-                f"{m.get('zh') or m.get('name')}："
+                f"{_zh_or_name(m)}{L('：', ': ')}"
                 + str(c).replace("\\n", " ").replace("\r", "").replace("\n", " ")
             )
         # 架势：单独存，不参与上面的数值折算
@@ -1475,7 +1608,7 @@ def parse_args(tokens: list[str]) -> tuple[dict, list[str]]:
             spec["physical"][el] = spec["physical"].get(el, 0.0) + pct
         note = eff.get("note") or ""
         if note:
-            spec["notes"].append(f"{m.get('zh') or m.get('name')}：{note}")
+            spec["notes"].append(f"{_zh_or_name(m)}{L('：', ': ')}{note}")
             if "fire rate cannot be modified" in note.lower():
                 spec["no_fire_rate_mod"] = True
 
@@ -1497,12 +1630,22 @@ def parse_args(tokens: list[str]) -> tuple[dict, list[str]]:
                 add = float(cond.get("value") or 0.0) * n
                 _fk = _EFFECT_TO_SPEC.get(cond["field"], cond["field"])
                 spec[_fk] = spec.get(_fk, 0.0) + add
-                _mn = m.get("zh") or m.get("name")
+                _mn = m.get("zh") or m.get("name")  # 比对键（galv_mods），不随语言变
                 _grant = cond.get("grants")
-                _grant_label = _CONDITIONAL_GRANT_ZH.get(_grant, _grant)
+                _grant_label = L(
+                    _CONDITIONAL_GRANT_ZH.get(_grant, _grant),
+                    _CONDITIONAL_GRANT_EN.get(_grant, _grant),
+                )
                 spec["galv_applied"].append(
-                    f"{_mn} {_grant_label} +{add:.1f}%"
-                    + (f"（{n}/{cap} 层）" if _cap_known else "（层数原文未写，按 1 层）")
+                    f"{_zh_or_name(m)} {_grant_label} +{add:.1f}%"
+                    + (
+                        L(f"（{n}/{cap} 层）", f" ({n}/{cap} stacks)")
+                        if _cap_known
+                        else L(
+                            "（层数原文未写，按 1 层）",
+                            " (stack count not stated in the source, counted as 1)",
+                        )
+                    )
                 )
                 if _mn not in spec["galv_mods"]:
                     spec["galv_mods"].append(_mn)
@@ -1763,13 +1906,29 @@ def _apply_incarnon_form(spec: dict, w: dict) -> dict:
     inc = _load_incarnon_forms().get(key)
     if not inc:
         if form == "incarnon":
-            spec["notes"].append("该武器没有已收录的灵化形态数据，仍按基础形态计算")
+            spec["notes"].append(
+                L(
+                    "该武器没有已收录的灵化形态数据，仍按基础形态计算",
+                    "No Incarnon form data on record for this weapon; calculated as the base form",
+                )
+            )
         return w
     if form == "base":
-        spec["notes"].append("形态：基础形态（可用「灵化」切到灵化形态）")
+        spec["notes"].append(
+            L(
+                "形态：基础形态（可用「灵化」切到灵化形态）",
+                'Form: base form (add "incarnon" to switch to the Incarnon form)',
+            )
+        )
         return w
     if form != "incarnon":  # None = 默认原型
-        spec["notes"].append("形态：基础形态（默认；该武器有灵化形态，可加「灵化」切换）")
+        spec["notes"].append(
+            L(
+                "形态：基础形态（默认；该武器有灵化形态，可加「灵化」切换）",
+                'Form: base form (default; this weapon has an Incarnon form, add "incarnon" to '
+                "switch)",
+            )
+        )
         return w
     if inc.get("kind") == "melee_native":
         # 原生近战只接入来源明确的普通攻击。物理 MOD 转换先后未定，calculate
@@ -1785,14 +1944,27 @@ def _apply_incarnon_form(spec: dict, w: dict) -> dict:
         speed_mult = float(inc["attack_speed_multiplier"])
         w2["fireRate"] = float(w.get("fireRate") or 0.0) * speed_mult
         spec["notes"].append(
-            f"形态：原生近战灵化（已激活，仅普通攻击）；冲击转穿刺，攻速独立 ×{speed_mult:g}"
+            L(
+                f"形态：原生近战灵化（已激活，仅普通攻击）；冲击转穿刺，攻速独立 ×{speed_mult:g}",
+                "Form: native melee Incarnon (active, normal attacks only); Impact converted to "
+                f"Puncture, attack speed separately ×{speed_mult:g}",
+            )
         )
         spec["notes"].append(
-            f"攻击范围 +{float(inc.get('range_bonus_m') or 0.0):g} 米仅作说明，不模拟命中数量"
+            L(
+                f"攻击范围 +{float(inc.get('range_bonus_m') or 0.0):g} 米仅作说明，不模拟命中数量",
+                f"Attack range +{float(inc.get('range_bonus_m') or 0.0):g} m is informational "
+                "only; hit counts are not simulated",
+            )
         )
         spec["notes"].append(
-            "本次未计重击、震地、重击震地、虚空尖刺及启用/持续时间；"
-            "物理伤害词条组合、可选进化攻速暂不支持"
+            L(
+                "本次未计重击、震地、重击震地、虚空尖刺及启用/持续时间；"
+                "物理伤害词条组合、可选进化攻速暂不支持",
+                "Not counted this time: heavy attack, slam, heavy slam, Void spikes, activation / "
+                "duration; physical damage mod combinations and optional evolution attack speed "
+                "are not supported yet",
+            )
         )
         return w2
     if inc.get("kind") == "melee_buff":
@@ -1800,9 +1972,19 @@ def _apply_incarnon_form(spec: dict, w: dict) -> dict:
         # calculate 已深拷贝 spec，重复复算或识卡 keep 不会累积这项临时加成。
         bonus = float(inc.get("damage_mod_pct") or 0.0)
         spec["base_dmg"] += bonus
-        spec["notes"].append(f"形态：近战灵化（已激活）；EVO I 基伤 +{bonus:g}%（与基伤 MOD 加算）")
         spec["notes"].append(
-            "本次仅计基伤加成；灵化额外攻击、触发与范围/移动等能力、启用及持续时间未计入"
+            L(
+                f"形态：近战灵化（已激活）；EVO I 基伤 +{bonus:g}%（与基伤 MOD 加算）",
+                f"Form: melee Incarnon (active); EVO I base damage +{bonus:g}% (additive with "
+                "base damage mods)",
+            )
+        )
+        spec["notes"].append(
+            L(
+                "本次仅计基伤加成；灵化额外攻击、触发与范围/移动等能力、启用及持续时间未计入",
+                "Only the base damage bonus is counted this time; extra Incarnon attacks, status, "
+                "range / mobility abilities, activation and duration are not counted",
+            )
         )
         return w
     w2 = dict(w)
@@ -1826,22 +2008,37 @@ def _apply_incarnon_form(spec: dict, w: dict) -> dict:
     if pr.get("magazine") and pr.get("reload_seconds"):
         w2["magazineSize"] = float(pr["magazine"])
         w2["reloadTime"] = float(pr["reload_seconds"])
-    txt = f"形态：灵化形态（基础 {dmg.get('total', 0):g}）"
+    txt = L(
+        f"形态：灵化形态（基础 {dmg.get('total', 0):g}）",
+        f"Form: Incarnon form (base {dmg.get('total', 0):g})",
+    )
     if pr.get("magazine"):
         # 枪械灵化没有时限，打空灵化弹药或手动切回才结束；再次灵化要靠命中重新充能（wiki 各 Incarnon
         # Genesis 页）—— 持续 DPS 按「打空即切回再切灵化」算，是上限
-        txt += f"；灵化弹药 {pr['magazine']:g} 发，持续 DPS 按打空后立即再灵化估算（实际需重新充能，为上限）"
+        txt += L(
+            f"；灵化弹药 {pr['magazine']:g} 发，持续 DPS 按打空后立即再灵化估算（实际需重新充能，为上限）",
+            f"; Incarnon ammo {pr['magazine']:g} shots, sustained DPS assumes re-entering Incarnon "
+            "right after emptying it (needs recharging in practice, so this is an upper bound)",
+        )
     rad = inc.get("radial") or {}
     if rad.get("damage"):
-        txt += (
+        txt += L(
             f" + 范围段 {rad['damage'].get('total', 0):g}"
-            f"（半径 {rad.get('radius_m', 0):g}m，单独结算）"
+            f"（半径 {rad.get('radius_m', 0):g}m，单独结算）",
+            f" + radial segment {rad['damage'].get('total', 0):g}"
+            f" (radius {rad.get('radius_m', 0):g}m, resolved separately)",
         )
     if inc.get("forced_procs"):
-        txt += "；强制异常：" + "、".join(TYPE_ZH.get(x, x) for x in inc["forced_procs"])
+        txt += L(
+            "；强制异常：" + "、".join(TYPE_ZH.get(x, x) for x in inc["forced_procs"]),
+            "; forced procs: " + ", ".join(_ty(x) for x in inc["forced_procs"]),
+        )
     rc = inc.get("ricochet") or {}
     if rc.get("bounces"):
-        txt += f"；弹跳 ×{rc['bounces']}（未计入伤害）"
+        txt += L(
+            f"；弹跳 ×{rc['bounces']}（未计入伤害）",
+            f"; ricochet ×{rc['bounces']} (damage not counted)",
+        )
     spec["notes"].append(txt)
     return w2
 
@@ -1877,6 +2074,13 @@ ALT_FORM_KINDS = {
 }
 _ALT_FORM_WFSIM = {"uncharged": "base"}  # 我方关键词 → 形态种类名（其余同名）
 _PERFECT_WORDS = ("完美", "完美射击", "完美蓄力")
+_ALT_FORM_EN = {
+    "alt_fire": "Alt Fire",
+    "charged": "Charged",
+    "uncharged": "Uncharged",
+    "semi_auto": "Semi-Auto",
+    "auto": "Full-Auto",
+}
 
 
 def _weapon_attacks_rec(weapon: dict) -> dict:
@@ -1989,9 +2193,13 @@ def cadence_fire_rate(w: dict, fr_mult: float = 1.0) -> tuple[float, str]:
     ct = float(w.get("chargeTime") or 0.0)
     if nock_only(w):
         rl = float(w.get("reloadTime") or 0.0)
-        return 1.0 / rl, (
+        return 1.0 / rl, L(
             f"未蓄力点按：只付上弦 {rl:.3g}s ⇒ 有效射速 = 1/上弦 = {1.0 / rl:.3g} 发/s，射速加成不加快"
-            "（wiki 未单列，暂按此口径，未经实测）；持续 DPS = 爆发"
+            "（wiki 未单列，暂按此口径，未经实测）；持续 DPS = 爆发",
+            f"Uncharged taps: only the nock {rl:.3g}s is paid ⇒ effective fire rate = 1/nock = "
+            f"{1.0 / rl:.3g} shots/s, fire rate bonuses do not speed it up "
+            "(not listed separately on the wiki, this basis is provisional and untested); "
+            "sustained DPS = burst",
         )
     if ct > 0:
         ct_mod = ct / max(m, 0.1)
@@ -2001,31 +2209,58 @@ def cadence_fire_rate(w: dict, fr_mult: float = 1.0) -> tuple[float, str]:
             # 弹匣 1 的弓打不出这个射速；上弦改计进有效射速，持续 = 爆发）
             rl = float(w.get("reloadTime") or 0.0)
             eff = 1.0 / (ct_mod + rl)
-            return eff, (
+            return eff, L(
                 f"蓄力 {ct_mod:.3g}s + 上弦 {rl:.3g}s：有效射速 = 1/(蓄力 + 装填) = {eff:.3g} 发/s"
-                "（wiki Fire Rate 弓式；弹匣 1，爆发 = 持续）"
+                "（wiki Fire Rate 弓式；弹匣 1，爆发 = 持续）",
+                f"Charge {ct_mod:.3g}s + nock {rl:.3g}s: effective fire rate = 1/(charge + reload) "
+                f"= {eff:.3g} shots/s (wiki Fire Rate bow formula; magazine 1, burst = sustained)",
             )
         if w.get("chargeCadence") == "draw" or fr <= 0:
             eff = 1.0 / ct_mod
-            return eff, (
+            return eff, L(
                 f"蓄力 {ct_mod:.3g}s：有效射速 = 1/蓄力 = {eff:.3g} 发/s"
-                "（wiki Fire Rate：弓 / Lanka 不另付射速间隔；弓的上弦计入持续 DPS）"
+                "（wiki Fire Rate：弓 / Lanka 不另付射速间隔；弓的上弦计入持续 DPS）",
+                f"Charge {ct_mod:.3g}s: effective fire rate = 1/charge = {eff:.3g} shots/s "
+                "(wiki Fire Rate: bows / Lanka pay no fire rate interval; the bow nock is counted "
+                "in sustained DPS)",
             )
         eff = 1.0 / (ct_mod + 1.0 / (fr * m))
-        return eff, (
+        return eff, L(
             f"蓄力 {ct_mod:.3g}s：有效射速 = 1/(蓄力 + 1/射速) = {eff:.3g} 发/s"
-            f"（面板射速 {fr * m:.3g}；wiki Fire Rate 蓄力武器式）"
+            f"（面板射速 {fr * m:.3g}；wiki Fire Rate 蓄力武器式）",
+            f"Charge {ct_mod:.3g}s: effective fire rate = 1/(charge + 1/fire rate) = "
+            f"{eff:.3g} shots/s (panel fire rate {fr * m:.3g}; wiki Fire Rate charge-weapon formula)",
         )
     n = int(w.get("burstCount") or 0)
     if n > 1 and fr > 0:
         d = float(w.get("burstDelay") or 0.0)
         eff = n / (1.0 / (fr * m) + (n - 1) * d / max(1.0, m))
-        return eff, (
+        return eff, L(
             f"点射 {n} 发/次、发间 {d:g}s：有效射速 = {n}/(1/{fr * m:.3g} + {n - 1}×{d:g}"
             + (f"/{m:.3g}" if m > 1 else "")
-            + f") = {eff:.3g} 发/s（面板射速 = 每秒点射次数；wiki Fire Rate §Burst）"
+            + f") = {eff:.3g} 发/s（面板射速 = 每秒点射次数；wiki Fire Rate §Burst）",
+            f"Burst of {n} shots, {d:g}s between shots: effective fire rate = "
+            f"{n}/(1/{fr * m:.3g} + {n - 1}×{d:g}"
+            + (f"/{m:.3g}" if m > 1 else "")
+            + f") = {eff:.3g} shots/s (panel fire rate = bursts per second; wiki Fire Rate §Burst)",
         )
     return fr * m, ""
+
+
+# 进化关键词的英文写法（与 commands 的 _DMG_EN_EVO 互为反查，仅用于提示里回显）
+_EVO_KEY_EN = {
+    "基伤": "damage",
+    "暴击": "crit",
+    "暴伤": "critdmg",
+    "触发": "status",
+    "多重": "multishot",
+    "爆头": "headshot",
+    "射速": "firerate",
+    "装填": "reload",
+    "连击": "combo",
+    "穿透": "punchthrough",
+    "弹匣": "magazine",
+}
 
 
 def _apply_alt_form(spec: dict, w: dict) -> dict:
@@ -2037,23 +2272,40 @@ def _apply_alt_form(spec: dict, w: dict) -> dict:
     if form not in ALT_FORM_KINDS:
         return w
     kind, rec = selected_form(spec, w)
-    label = ALT_FORM_KINDS[form]
+    label = L(ALT_FORM_KINDS[form], _ALT_FORM_EN.get(form, form))
     if kind == "default":
         if _weapon_attacks_rec(w).get("main_form") == _ALT_FORM_WFSIM.get(form, form):
             # 默认主段本身就是这一形态（如 Nataruk 默认 = 快速射击 = 未蓄力）
-            spec["notes"].append(f"「{label}」即该武器的默认主段，按默认形态计算")
+            spec["notes"].append(
+                L(
+                    f"「{label}」即该武器的默认主段，按默认形态计算",
+                    f'"{label}" is this weapon\'s default main segment, calculated as the default '
+                    "form",
+                )
+            )
         else:
-            spec["notes"].append(f"该武器没有「{label}」形态数据（wiki 未收录），仍按默认形态计算")
+            spec["notes"].append(
+                L(
+                    f"该武器没有「{label}」形态数据（wiki 未收录），仍按默认形态计算",
+                    f'No "{label}" form data for this weapon (not covered by the wiki); calculated '
+                    "as the default form",
+                )
+            )
         return w
     main = rec.get("main") or {}
     _key = next((k for k, v in (_weapon_attacks_rec(w).get("forms") or {}).items() if v is rec), "")
     if form == "charged" and "perfect" in _key:
         # 数据是「完美射击」：标签照实写；用户写的是满蓄力 / 蓄力 ⇒ 明说没有普通满蓄力数据
-        label = "完美射击"
+        label = L("完美射击", "Perfect Shot")
         if spec.get("form_word") not in _PERFECT_WORDS:
             spec["notes"].append(
-                "该武器的蓄力数据只收录了「完美射击」（掐准时机松手），普通满蓄力未收录，"
-                "以下按完美射击计算"
+                L(
+                    "该武器的蓄力数据只收录了「完美射击」（掐准时机松手），普通满蓄力未收录，"
+                    "以下按完美射击计算",
+                    'Only the "Perfect Shot" (release at the exact moment) is on record for this '
+                    "weapon's charge data, a normal full charge is not recorded; calculated as a "
+                    "Perfect Shot below",
+                )
             )
     w2 = dict(w)
     if main.get("damage"):
@@ -2062,17 +2314,27 @@ def _apply_alt_form(spec: dict, w: dict) -> dict:
         if main.get(src) is not None:
             w2[src] = main[src]
     set_form_cadence(w2, rec)
-    txt = f"形态：{label}（{rec.get('name') or ''} 基础 {(main.get('damage') or {}).get('total', 0):g}"
+    _ftot = (main.get("damage") or {}).get("total", 0)
+    txt = L(
+        f"形态：{label}（{rec.get('name') or ''} 基础 {_ftot:g}",
+        f"Form: {label} ({rec.get('name') or ''} base {_ftot:g}",
+    )
     if rec.get("charge_seconds"):
         # 蓄力节奏（b6 批起建模）：cadence_fire_rate 按 wiki Fire Rate 换算有效射速
-        txt += f"，蓄力 {rec['charge_seconds']:g}s，DPS 已计蓄力时间"
+        txt += L(
+            f"，蓄力 {rec['charge_seconds']:g}s，DPS 已计蓄力时间",
+            f", charge {rec['charge_seconds']:g}s, DPS includes charge time",
+        )
     if (rec.get("burst") or {}).get("count", 0) > 1:
-        txt += f"，点射 {rec['burst']['count']} 发/次"
-    txt += "）"
+        txt += L(f"，点射 {rec['burst']['count']} 发/次", f", {rec['burst']['count']}-shot burst")
+    txt += L("）", ")")
     if rec.get("segments"):
-        txt += "；范围/集束段换成该形态的"
+        txt += L("；范围/集束段换成该形态的", "; radial / cluster segments use this form's")
     if rec.get("forced_procs"):
-        txt += "；强制异常：" + "、".join(TYPE_ZH.get(x, x) for x in rec["forced_procs"])
+        txt += L(
+            "；强制异常：" + "、".join(TYPE_ZH.get(x, x) for x in rec["forced_procs"]),
+            "; forced procs: " + ", ".join(_ty(x) for x in rec["forced_procs"]),
+        )
     spec["notes"].append(txt)
     return w2
 
@@ -2186,7 +2448,7 @@ def _apply_deployment(spec: dict, w: dict) -> dict:
             atks = list(w2.get("attacks") or [])
             atks.append(
                 {
-                    "name": "空战范围伤害",
+                    "name": L("空战范围伤害", "Archwing Radial Damage"),
                     "damage": dict(a["radial_damage"]),
                     "total": a["radial_damage"].get("total"),
                     "shot_type": "AoE",
@@ -2194,13 +2456,27 @@ def _apply_deployment(spec: dict, w: dict) -> dict:
             )
             w2["attacks"] = atks
         spec["notes"].append(
-            "部署：空战（Archwing）面板"
-            + ("；另有空战范围伤害段" if a.get("radial_damage") else "")
-            + ("；弹匣按空战值" if a.get("magazine") else "")
+            L("部署：空战（Archwing）面板", "Deployment: Archwing panel")
+            + (
+                L("；另有空战范围伤害段", "; plus an Archwing radial damage segment")
+                if a.get("radial_damage")
+                else ""
+            )
+            + (
+                L("；弹匣按空战值", "; magazine uses the Archwing value")
+                if a.get("magazine")
+                else ""
+            )
         )
         return w2
     if mode == "atmosphere":
-        spec["notes"].append("部署：地面/大气（Gravimag 默认面板）（可用「空战」切到空战面板）")
+        spec["notes"].append(
+            L(
+                "部署：地面/大气（Gravimag 默认面板）（可用「空战」切到空战面板）",
+                'Deployment: ground / atmosphere (Gravimag default panel) (use "aerial" to switch '
+                "to the Archwing panel)",
+            )
+        )
     return w
 
 
@@ -2261,7 +2537,11 @@ def _apply_panel_overrides(spec: dict, weapon: dict) -> dict:
         kind = next((k for kw, k in _EVO_KEY_KINDS if kw in key), None)
         if not kind:
             spec["notes"].append(
-                f"未认识的进化关键词「{key}」（可用：基伤/暴击/暴伤/触发/多重/爆头/射速/装填/连击）"
+                L(
+                    f"未认识的进化关键词「{key}」（可用：基伤/暴击/暴伤/触发/多重/爆头/射速/装填/连击）",
+                    f'Unknown evolution keyword "{key}" (available: damage / crit / critdmg / '
+                    "status / multishot / headshot / firerate / reload / combo)",
+                )
             )
             continue
         fam = evo.get(_weapon_family_key(weapon)) or {}
@@ -2282,7 +2562,11 @@ def _apply_panel_overrides(spec: dict, weapon: dict) -> dict:
                 break
         if not picked:
             spec["notes"].append(
-                f"进化「{key}」：该武器没有匹配的选项（或所在层已选过 —— 同层只能选一个）"
+                L(
+                    f"进化「{key}」：该武器没有匹配的选项（或所在层已选过 —— 同层只能选一个）",
+                    f'Evolution "{_EVO_KEY_EN.get(key, key)}": no matching option for this weapon '
+                    "(or that tier already has a pick; only one per tier)",
+                )
             )
             continue
         tier, opt = picked
@@ -2303,37 +2587,42 @@ def _apply_panel_overrides(spec: dict, weapon: dict) -> dict:
                 continue
             if kind2 == "flat_base_damage":
                 scale_damage(v)
-                applied.append(f"基伤+{v:g}")
+                applied.append(L(f"基伤+{v:g}", f"Base Dmg +{v:g}"))
             elif kind2 == "flat_base_crit_chance":
                 w["criticalChance"] = float(w.get("criticalChance") or 0.0) + v
-                applied.append(f"暴击率+{v * 100:g}%")
+                applied.append(L(f"暴击率+{v * 100:g}%", f"Crit Chance +{v * 100:g}%"))
             elif kind2 == "flat_base_crit_multiplier":
                 w["criticalMultiplier"] = float(w.get("criticalMultiplier") or 1.0) + v
-                applied.append(f"暴伤+{v:g}x")
+                applied.append(L(f"暴伤+{v:g}x", f"Crit Dmg +{v:g}x"))
             elif kind2 == "flat_base_status_chance":
                 w["procChance"] = float(w.get("procChance") or 0.0) + v
-                applied.append(f"触发+{v * 100:g}%")
+                applied.append(L(f"触发+{v * 100:g}%", f"Status Chance +{v * 100:g}%"))
             elif kind2 == "flat_base_multishot":
                 w["multishot"] = float(w.get("multishot") or 1.0) + v
-                applied.append(f"多重+{v:g}")
+                applied.append(L(f"多重+{v:g}", f"Multishot +{v:g}"))
             elif kind2 == "fire_rate_bonus":
                 w["fireRate"] = float(w.get("fireRate") or 0.0) * (1 + v)
-                applied.append(f"射速+{v * 100:g}%")
+                applied.append(L(f"射速+{v * 100:g}%", f"Fire Rate +{v * 100:g}%"))
             elif kind2 == "headshot_damage":
                 spec["evo_headshot"] += v
-                applied.append(f"爆头伤害+{v * 100:g}%")
+                applied.append(L(f"爆头伤害+{v * 100:g}%", f"Headshot Dmg +{v * 100:g}%"))
             elif kind2 == "initial_combo":
                 spec["initial_combo"] = float(spec.get("initial_combo") or 0.0) + v
-                applied.append(f"初始连击+{v:g}")
+                applied.append(L(f"初始连击+{v:g}", f"Initial Combo +{v:g}"))
             elif kind2 == "flat_base_magazine":
                 w["magazineSize"] = float(w.get("magazineSize") or 0.0) + v
-                applied.append(f"弹匣+{v:g}")
+                applied.append(L(f"弹匣+{v:g}", f"Magazine +{v:g}"))
             else:
                 shown.append(e)
         line = (
-            f"EVO{tier} {opt.get('name')}：{'、'.join(applied)}"
+            L(
+                f"EVO{tier} {opt.get('name')}：{'、'.join(applied)}",
+                f"EVO{tier} {opt.get('name')}: {', '.join(applied)}",
+            )
             if applied
-            else f"EVO{tier} {opt.get('name')}：未计入"
+            else L(
+                f"EVO{tier} {opt.get('name')}：未计入", f"EVO{tier} {opt.get('name')}: not counted"
+            )
         )
         # 未计入的效果按类别计数显示（evolutions.json 由 build_evolutions 从 wiki 生成：conditional = 带条件，
         # form_scoped = 只对灵化形态生效，other = 计算器不建模的其余效果）
@@ -2342,21 +2631,32 @@ def _apply_panel_overrides(spec: dict, weapon: dict) -> dict:
             "form_scoped": "仅灵化形态生效",
             "other": "其他效果",
         }
+        _EVO_SKIP_EN = {
+            "conditional": "conditional effects",
+            "form_scoped": "Incarnon form only",
+            "other": "other effects",
+        }
         _cnt: dict = {}
         for e in shown:
-            _lbl = _EVO_SKIP_ZH.get(str(e.get("kind")), str(e.get("kind")))
+            _lbl = L(
+                _EVO_SKIP_ZH.get(str(e.get("kind")), str(e.get("kind"))),
+                _EVO_SKIP_EN.get(str(e.get("kind")), str(e.get("kind"))),
+            )
             _cnt[_lbl] = _cnt.get(_lbl, 0) + 1
         spec["notes"].append(
             line
             + (
-                "｜未计入："
-                + "；".join(f"{k}" + (f" ×{v}" if v > 1 else "") for k, v in _cnt.items())
+                L("｜未计入：", "｜Not counted: ")
+                + L("；", "; ").join(f"{k}" + (f" ×{v}" if v > 1 else "") for k, v in _cnt.items())
                 if shown
                 else ""
             )
         )
         spec.setdefault("conditional", []).append(
-            f"EVO{tier} {opt.get('name')}（条件部分未计入）"
+            L(
+                f"EVO{tier} {opt.get('name')}（条件部分未计入）",
+                f"EVO{tier} {opt.get('name')} (conditional part not counted)",
+            )
         ) if shown else None
 
     # ---- ② 赤毒/信条/终幕 valence bonus ----
@@ -2365,21 +2665,40 @@ def _apply_panel_overrides(spec: dict, weapon: dict) -> dict:
         wkey = _weapon_family_key(weapon)
         val = lich.get(wkey)
         if not val:
-            spec["notes"].append("该武器不是赤毒/信条/终幕系列，无回响加成")
+            spec["notes"].append(
+                L(
+                    "该武器不是赤毒/信条/终幕系列，无回响加成",
+                    "This weapon is not a Kuva / Tenet / Coda weapon, no Valence bonus",
+                )
+            )
         else:
             elem = lb.get("element")
             if not elem:
                 elem = next((e for e in val["elements"] if e != "impact"), val["elements"][0])
-                spec["notes"].append(f"回响加成元素未指定，按 {elem} 估算（可写 赤毒元素名N 指定）")
+                spec["notes"].append(
+                    L(
+                        f"回响加成元素未指定，按 {elem} 估算（可写 赤毒元素名N 指定）",
+                        f"Valence bonus element not specified, estimated as {_ty(elem)} "
+                        "(specify it with e.g. kuvaheat30)",
+                    )
+                )
             elif elem not in val["elements"]:
                 spec["notes"].append(
-                    f"回响加成元素 {elem} 不在可滚列表里（"
-                    + "、".join(val["elements"])
-                    + "），已按原值应用"
+                    L(
+                        f"回响加成元素 {elem} 不在可滚列表里（"
+                        + "、".join(val["elements"])
+                        + "），已按原值应用",
+                        f"Valence bonus element {_ty(elem)} is not in the rollable list ("
+                        + ", ".join(_ty(e) for e in val["elements"])
+                        + "), applied as given",
+                    )
                 )
             scale_damage(total0 * lb["pct"] / 100.0, elem=elem)
             spec["notes"].append(
-                f"回响加成：{elem} +{lb['pct']:g}%（{val['min']:g}-{val['max']:g}%）"
+                L(
+                    f"回响加成：{elem} +{lb['pct']:g}%（{val['min']:g}-{val['max']:g}%）",
+                    f"Valence bonus: {_ty(elem)} +{lb['pct']:g}% ({val['min']:g}-{val['max']:g}%)",
+                )
             )
 
     if dmg:
@@ -2410,23 +2729,49 @@ def calculate(spec: dict, weapon: dict) -> dict:
             "ok": False,
             "mods": spec.get("mods") or [],
             "unknown": spec.get("unknown") or [],
-            "error": "没拿到这把武器的基础数据（武器名为空或数据缺失）",
+            "error": L(
+                "没拿到这把武器的基础数据（武器名为空或数据缺失）",
+                "Could not get this weapon's base data (weapon name empty or data missing)",
+            ),
         }
     inc = _load_incarnon_forms().get(str(weapon.get("uniqueName") or "").lower()) or {}
     native_normal_only = spec.get("form") == "incarnon" and inc.get("kind") == "melee_native"
     if native_normal_only:
         error = help_text = ""
+        # 中文原文写的是这把武器的名字（古声 = Ruvox）；英文取数据里的英文名
+        _native = inc.get("base_name") or "Ruvox"
         if any(float(v) != 0 for v in (spec.get("physical") or {}).values()) or spec.get(
             "physical_convert"
         ):
-            error = "古声灵化与物理伤害词条的转换顺序尚未确认，本次不计算该组合"
-            help_text = "移除冲击/穿刺/切割增伤或物理转换词条，或加「基础形态」计算。"
+            error = L(
+                "古声灵化与物理伤害词条的转换顺序尚未确认，本次不计算该组合",
+                f"The conversion order between {_native}'s Incarnon form and physical damage mods "
+                "is unconfirmed, this combination is not calculated",
+            )
+            help_text = L(
+                "移除冲击/穿刺/切割增伤或物理转换词条，或加「基础形态」计算。",
+                'Remove Impact / Puncture / Slash damage bonuses or physical conversion mods, or add "base form" to calculate.',
+            )
         elif spec.get("heavy"):
-            error = "古声灵化目前仅支持普通攻击，重击与震地形态尚未收录"
-            help_text = "移除「重击」查看普通攻击，或加「基础形态」计算重击。"
+            error = L(
+                "古声灵化目前仅支持普通攻击，重击与震地形态尚未收录",
+                f"{_native}'s Incarnon form currently supports normal attacks only; heavy attack "
+                "and slam forms are not recorded yet",
+            )
+            help_text = L(
+                "移除「重击」查看普通攻击，或加「基础形态」计算重击。",
+                'Remove "heavy" to see the normal attack, or add "base form" to calculate the heavy attack.',
+            )
         elif any("射速" in key or "攻速" in key for key in spec.get("evo_keys") or []):
-            error = "古声可选进化攻速的叠加方式尚未确认，本次不计算该组合"
-            help_text = "移除进化射速参数，或加「基础形态」查看现有基础形态计算。"
+            error = L(
+                "古声可选进化攻速的叠加方式尚未确认，本次不计算该组合",
+                f"How {_native}'s optional evolution attack speed stacks is unconfirmed, "
+                "this combination is not calculated",
+            )
+            help_text = L(
+                "移除进化射速参数，或加「基础形态」查看现有基础形态计算。",
+                'Remove the evolution fire rate argument, or add "base form" to see the existing base-form calculation.',
+            )
         if error:
             return {
                 "ok": False,
@@ -2472,10 +2817,15 @@ def calculate(spec: dict, weapon: dict) -> dict:
         strip = min(CORROSIVE_BASE + CORROSIVE_STEP * (spec["corrosive"] - 1), CORROSIVE_MAX)
     strip_note = []
     if strip:
-        strip_note.append(f"腐蚀{spec['corrosive']}层 −{strip * 100:.0f}%")
+        strip_note.append(
+            L(
+                f"腐蚀{spec['corrosive']}层 −{strip * 100:.0f}%",
+                f"Corrosive {spec['corrosive']} stacks −{strip * 100:.0f}%",
+            )
+        )
     if spec["heat_strip"]:
         strip = 1 - (1 - strip) * (1 - HEAT_STRIP)
-        strip_note.append("火剥甲 −50%")
+        strip_note.append(L("火剥甲 −50%", "Heat armor strip −50%"))
     armor_eff = armor * (1 - strip)
     dr = damage_reduction(armor_eff) if armor_eff > 0 else 0.0
     dr_raw = damage_reduction(armor) if armor > 0 else 0.0
@@ -2546,9 +2896,22 @@ def calculate(spec: dict, weapon: dict) -> dict:
 
     if spec["dmg_per_status"] and _n_types and _co_mode != "additive_with_base_damage":
         spec["notes"].append(
-            "异况超量类口径：该武器"
-            + ("为独立乘区（不与基伤 MOD 相加）" if _co_mode == "independent" else "不吃此类加成")
-            + "（wiki「Condition Overload (Mechanic)」攻击目录）"
+            L(
+                "异况超量类口径：该武器"
+                + (
+                    "为独立乘区（不与基伤 MOD 相加）"
+                    if _co_mode == "independent"
+                    else "不吃此类加成"
+                )
+                + "（wiki「Condition Overload (Mechanic)」攻击目录）",
+                "Condition Overload basis: this weapon "
+                + (
+                    "has a separate multiplier (not added to base damage mods)"
+                    if _co_mode == "independent"
+                    else "does not benefit from this bonus"
+                )
+                + ' (wiki "Condition Overload (Mechanic)" attack list)',
+            )
         )
 
     # 1)+2)+3)+4) 见 _hit_from_damage：基础各类型×基伤、物理 MOD 只加同类型、
@@ -2595,9 +2958,14 @@ def calculate(spec: dict, weapon: dict) -> dict:
     _combo_tier = combo_multiplier(_combo_eff, venka=_is_venka)[0]
     if float(spec.get("initial_combo") or 0.0) > 0:
         spec["notes"].append(
-            f"初始连击 {int(spec['initial_combo'])} 是连击数下限：按 max(连击 "
-            f"{int(spec['combo_hits'])}, 初始 {int(spec['initial_combo'])}) = {_combo_eff} 计，"
-            "不与连击数相加（wiki Melee）"
+            L(
+                f"初始连击 {int(spec['initial_combo'])} 是连击数下限：按 max(连击 "
+                f"{int(spec['combo_hits'])}, 初始 {int(spec['initial_combo'])}) = {_combo_eff} 计，"
+                "不与连击数相加（wiki Melee）",
+                f"Initial combo {int(spec['initial_combo'])} is the combo floor: counted as "
+                f"max(combo {int(spec['combo_hits'])}, initial {int(spec['initial_combo'])}) = "
+                f"{_combo_eff}, not added to the combo count (wiki Melee)",
+            )
         )
 
     # ⚠️ 暴击率 MOD 是**相对基础值**的百分比加成，不是加绝对值：
@@ -2677,8 +3045,12 @@ def calculate(spec: dict, weapon: dict) -> dict:
         dots[el] = dmg_tick * DOT_SECONDS
     if spec["headshot"] and head_landing != 1.0 and any(e in dots for e in DOT_HEAD_LANDING):
         spec["notes"].append(
-            f"电/毒气 DoT 爆头另乘落点层 ×{head_landing:g}（1x 基数 × 爆头加成；"
-            "wiki Enemy Body Parts §Notes）"
+            L(
+                f"电/毒气 DoT 爆头另乘落点层 ×{head_landing:g}（1x 基数 × 爆头加成；"
+                "wiki Enemy Body Parts §Notes）",
+                f"Electricity / Gas DoT headshots take an extra landing multiplier "
+                f"×{head_landing:g} (1x base × headshot bonus; wiki Enemy Body Parts §Notes)",
+            )
         )
 
     ms = (weapon.get("multishot") or 1) * (1 + spec["multishot"] / 100.0)
@@ -2692,10 +3064,18 @@ def calculate(spec: dict, weapon: dict) -> dict:
     _seg_ms = min(ms, _orb_cap) if _orb_cap > 0 else ms
     if _orb_cap > 0:
         spec["notes"].append(
-            f"拟成枪系多重（当前 ×{ms:.3g}）= 出膛预合并：只一次爆炸，伤害 × min(多重, {_orb_cap:g}) = ×{_seg_ms:.3g}"
-            "（期望值），暴击 / 触发按一次判定；合并伤害、奇点 DoT 不吃多重、未计入 DPS"
-            "（wiki Synoid Simulor：240/480/720/960，上限 960；普通拟成枪按同机制 200/400/600/800"
-            " 属推论）"
+            L(
+                f"拟成枪系多重（当前 ×{ms:.3g}）= 出膛预合并：只一次爆炸，伤害 × min(多重, {_orb_cap:g}) = ×{_seg_ms:.3g}"
+                "（期望值），暴击 / 触发按一次判定；合并伤害、奇点 DoT 不吃多重、未计入 DPS"
+                "（wiki Synoid Simulor：240/480/720/960，上限 960；普通拟成枪按同机制 200/400/600/800"
+                " 属推论）",
+                f"Simulor-type orb multishot (currently ×{ms:.3g}) = pre-merged on launch: only "
+                f"one explosion, damage × min(multishot, {_orb_cap:g}) = ×{_seg_ms:.3g} "
+                "(expected value); crit / status are rolled once; merged damage and singularity "
+                "DoT do not scale with multishot and are not included in DPS "
+                "(wiki Synoid Simulor: 240/480/720/960, capped at 960; the regular Simulor is "
+                "inferred to follow the same mechanism at 200/400/600/800)",
+            )
         )
     fire_rate = weapon.get("fireRate") or 0.0
     # ★ 射速 MOD **先**乘进来，再算持续 DPS（2026-10-06 修）。
@@ -2707,7 +3087,7 @@ def calculate(spec: dict, weapon: dict) -> dict:
     fr_note = ""
     _fr_mult = 1.0
     if spec["no_fire_rate_mod"]:
-        fr_note = "射速不可修改，增减已忽略"
+        fr_note = L("射速不可修改，增减已忽略", "fire rate cannot be modified, changes ignored")
     elif spec["fire_rate_pct"]:
         # 只按基础射速乘算（不含其它射速 MOD 的叠加细节）
         _fr_pct = float(spec["fire_rate_pct"])
@@ -2717,9 +3097,12 @@ def calculate(spec: dict, weapon: dict) -> dict:
             # 弓/弩：射速 MOD 卡面「(x2 for Bows)」⇒ MOD 部分翻倍（负射速卡同样翻倍）；
             # 赋能/镀层叠层/进化等非 MOD 卡来源不翻倍（翻倍条款只写在射速 MOD 卡面上）
             _fr_pct += _fr_mod
-            fr_note = f"含射速 {_fr_pct:+g}%（弓/弩：射速 MOD {_fr_mod:+g}% ×2）"
+            fr_note = L(
+                f"含射速 {_fr_pct:+g}%（弓/弩：射速 MOD {_fr_mod:+g}% ×2）",
+                f"incl. fire rate {_fr_pct:+g}% (bow / crossbow: fire rate mod {_fr_mod:+g}% ×2)",
+            )
         else:
-            fr_note = f"含射速 {_fr_pct:+g}%"
+            fr_note = L(f"含射速 {_fr_pct:+g}%", f"incl. fire rate {_fr_pct:+g}%")
         _fr_mult = max(0.05, 1 + _fr_pct / 100.0)
         fire_rate *= _fr_mult
     # ★ 每秒有效射弹数（b6 批）：点射 / 蓄力按 wiki Fire Rate 换算；fire_rate 仍是面板射速（卡面
@@ -2886,7 +3269,12 @@ def calculate(spec: dict, weapon: dict) -> dict:
                 "head": _h_health * e_heavy_head * head_mult,
             }
         else:
-            spec["notes"].append("该武器没有重击数据（只有近战有）")
+            spec["notes"].append(
+                L(
+                    "该武器没有重击数据（只有近战有）",
+                    "No heavy attack data for this weapon (melee only)",
+                )
+            )
 
     # 多段判定：一把武器常有多段独立伤害（投掷命中 / 投掷爆炸 / 充能投掷 /
     # 震地 / 重击震地 / 灵化形态 / 次级开火…），**各段单独走一遍完整公式**。
@@ -3033,9 +3421,14 @@ def calculate(spec: dict, weapon: dict) -> dict:
         _hslam_type = "electricity" if weapon.get("throwDamage") else "blast"
         _hspec_slam = {**spec, "base_dmg": spec["base_dmg"] + spec["heavy_dmg"]}
         for _lbl, _sv, _ty, _sp in (
-            ("震地攻击（估算）", 2.0 * _wtot, _slam_type, spec),
+            (L("震地攻击（估算）", "Slam Attack (est.)"), 2.0 * _wtot, _slam_type, spec),
             # 重击震地 = 3× 武器伤害 × 重击连击倍率，吃「重击伤害」加成（同上 attacks 段口径）
-            ("重击震地（估算）", 3.0 * _wtot * _combo_tier, _hslam_type, _hspec_slam),
+            (
+                L("重击震地（估算）", "Heavy Slam (est.)"),
+                3.0 * _wtot * _combo_tier,
+                _hslam_type,
+                _hspec_slam,
+            ),
         ):
             _sd = {_ty: _sv}
             _pt, _pth, _pts, _ = _hit_from_damage(
@@ -3197,7 +3590,7 @@ def calculate(spec: dict, weapon: dict) -> dict:
         _me = crit_expectation(_mcc, _mcm)
         mode_segments.append(
             {
-                "name": _seg.get("name") or "范围伤害",
+                "name": _seg.get("name") or L("范围伤害", "Radial Damage"),
                 "damage": _sd,
                 "total": _sv,
                 "health": sum(_pth.values()),
@@ -3234,7 +3627,12 @@ def calculate(spec: dict, weapon: dict) -> dict:
 
     if _head_skipped:
         spec["notes"].append(
-            "爆头时另有爆炸段（" + "、".join(_head_skipped) + "），写「爆头」计入含段合计"
+            L(
+                "爆头时另有爆炸段（" + "、".join(_head_skipped) + "），写「爆头」计入含段合计",
+                "Headshots also trigger explosion segments ("
+                + ", ".join(_head_skipped)
+                + '); add "headshot" to include them in the segment total',
+            )
         )
     # 含段合计：主段每次扳机 + 同一扳机的其它阶段（in_total，见上方口径）
     _in_total = [m for m in mode_segments if m.get("in_total") and m.get("per_trigger_health")]
@@ -3777,6 +4175,16 @@ DAMAGE_DISCLAIMER = (
     "※ ⚠ 理论推算，未经大规模实战检验：按 wiki 公式算出，"
     "可能与游戏面板 / 实战有出入，以游戏内为准；发现对不上欢迎反馈"
 )
+DAMAGE_DISCLAIMER_EN = (
+    "※ ⚠ Theoretical estimate, not battle-tested at scale: calculated from wiki formulas, "
+    "may differ from the in-game panel / real combat, in-game values take precedence; "
+    "feedback is welcome if something does not match"
+)
+
+
+def damage_disclaimer() -> str:
+    """免责声明（按当前语言）。"""
+    return L(DAMAGE_DISCLAIMER, DAMAGE_DISCLAIMER_EN)
 
 
 # ★ 2026-10-25（Astra 评估）：射速随持续开火变化的武器。我方 DPS 一律按恒定射速（军械库面板 =
@@ -3874,34 +4282,90 @@ def fire_rate_curve(weapon_lib: dict, spec: dict, form_kind: str):
     return None, ""
 
 
+# 伤害计算卡的英文取名：元素 / 段名 / 派系 / 名称。中文表（TYPE_ZH / SEG_ZH / FACTION_ZH）不动，
+# 出卡处按语言取；段名与派系的数据键本身就是英文原名，英文模式直接用。
+_TYPE_EN = {
+    "impact": "Impact",
+    "puncture": "Puncture",
+    "slash": "Slash",
+    "cold": "Cold",
+    "electricity": "Electricity",
+    "heat": "Heat",
+    "toxin": "Toxin",
+    "blast": "Blast",
+    "corrosive": "Corrosive",
+    "gas": "Gas",
+    "magnetic": "Magnetic",
+    "radiation": "Radiation",
+    "viral": "Viral",
+    "void": "Void",
+    "tau": "Tau",
+    "true": "True",
+}
+
+
+def _ty(k: str) -> str:
+    """伤害类型显示名（按当前语言）。"""
+    if i18n.is_en():
+        return _TYPE_EN.get(k, k)
+    return TYPE_ZH.get(k, k)
+
+
+def _seg_name(n: str) -> str:
+    """分段显示名：英文模式直接用数据里的英文段名。"""
+    return n if i18n.is_en() else SEG_ZH.get(n, n)
+
+
+def _zh_or_name(d: dict) -> str:
+    """带 zh 字段的数据条目：中文模式优先 zh，英文模式只用英文名。"""
+    if i18n.is_en():
+        return d.get("name") or d.get("zh") or ""
+    return d.get("zh") or d.get("name")
+
+
 def _fire_rate_ramp_note(weapon: dict, spec: dict, res: Optional[dict] = None) -> str:
     """射速曲线武器的持续 DPS 注明（没有曲线返回空串）。起转类只在默认形态注明（曲线只建在默认形态）。"""
+    L = i18n.L
     name = str((weapon or {}).get("name") or "")
     _default = (res or {}).get("form_kind", "default") == "default" and spec.get(
         "form"
     ) != "incarnon"
     if spec.get("form") == "incarnon" and name in _FIRE_RATE_SPOOLDOWN:
         _n, _floor = _FIRE_RATE_SPOOLDOWN[name]
-        return (
+        return L(
             f"※ 灵化形态按住扳机时射速在 {_n} 发内由 100% 线性降到 {_floor:.0%}（停火重置）："
-            "爆发 DPS 按起始射速；实战 / 持续 DPS 按按住扳机打空弹池计入降速"
+            "爆发 DPS 按起始射速；实战 / 持续 DPS 按按住扳机打空弹池计入降速",
+            f"※ Incarnon form: while the trigger is held, fire rate drops linearly from 100% to "
+            f"{_floor:.0%} over {_n} shots (resets when you stop firing): burst DPS uses the "
+            "starting fire rate; practical / sustained DPS accounts for the drop while "
+            "emptying the magazine",
         )
     if name in _FIRE_RATE_SPOOLUP and _default:
         _st, _inc, _ = _FIRE_RATE_SPOOLUP[name]
         _k = 1
         while _k < 200 and _st + _inc * (_k - 1) < 100 - 0.05:
             _k += 1
-        return (
+        return L(
             f"※ 开火需起转：第 1 发 {_st:g}% 射速、每发 +{_inc:g}%，第 {_k} 发满速（wiki）；"
-            "爆发 DPS 按满速，实战 / 持续 DPS 计入每个弹匣开头的起转（换弹后按重新起转计）"
+            "爆发 DPS 按满速，实战 / 持续 DPS 计入每个弹匣开头的起转（换弹后按重新起转计）",
+            f"※ Spools up when firing: shot 1 at {_st:g}% fire rate, +{_inc:g}% per shot, "
+            f"full speed at shot {_k} (wiki); burst DPS uses full speed, practical / sustained "
+            "DPS includes the spool-up at the start of each magazine (re-spools after reload)",
         )
     if name in _FIRE_RATE_SPOOL_SHOTS and _default:
-        return (
+        return L(
             f"※ 该武器开火时需起转，约 {_FIRE_RATE_SPOOL_SHOTS[name]} 发后到满速（起始射速无公开数据），"
-            "以上按满速估算，短点射时实际更低"
+            "以上按满速估算，短点射时实际更低",
+            f"※ This weapon spools up when firing, reaching full speed after about "
+            f"{_FIRE_RATE_SPOOL_SHOTS[name]} shots (starting fire rate is not public); the above "
+            "assumes full speed, so short bursts are lower in practice",
         )
     if name in _DUPLEX and spec.get("form") != "incarnon":
-        return "※ 双发扳机：按下打出第一发、松开时打出第二发，以上按面板射速估算"
+        return L(
+            "※ 双发扳机：按下打出第一发、松开时打出第二发，以上按面板射速估算",
+            "※ Duplex trigger: the first shot fires on press and the second on release; "
+            "the above is estimated from the panel fire rate",
+        )
     return ""
 
 
@@ -3912,48 +4376,87 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
     （病毒/磁力加伤、腐蚀与火剥甲、DoT）。卡面把这两处显式写出来，
     免得用户以为「换了元素数值却一样」是算错了。
     """
+    L = i18n.L
+    _en = i18n.is_en()
+    _sep = ", " if _en else "、"  # 列表分隔
     if res and res.get("ok") is False:  # 绝不返回空：出错也要有卡面
-        out = [f"◆ 原因：{res.get('error') or '数据缺失，无法计算'}"]
+        out = [
+            L(
+                f"◆ 原因：{res.get('error') or '数据缺失，无法计算'}",
+                f"◆ Reason: {res.get('error') or 'Data missing, cannot calculate'}",
+            )
+        ]
         if res.get("unknown"):
-            out.append("◆ 未识别（已忽略）：" + "、".join(res["unknown"]))
+            out.append(
+                L(
+                    "◆ 未识别（已忽略）：" + "、".join(res["unknown"]),
+                    "◆ Unrecognized (ignored): " + ", ".join(res["unknown"]),
+                )
+            )
         out.append(
-            "※ ⚠ 怎么改："
-            + (res.get("help") or "换英文名或完整中文名再试；「伤害」不带参数可看用法。")
+            L(
+                "※ ⚠ 怎么改："
+                + (res.get("help") or "换英文名或完整中文名再试；「伤害」不带参数可看用法。"),
+                "※ ⚠ How to fix: "
+                + (
+                    res.get("help")
+                    or 'Try the exact English name and retry; send "damage" with no arguments for usage.'
+                ),
+            )
         )
         return out
     # 头部与「面板口径」都按**实际参与计算**的面板（形态/进化已套用），库值只取名字与 MR
     pw = res.get("weapon_eff") or weapon or {}
     dt = pw.get("damage") or {}
-    base_parts = "、".join(
-        f"{TYPE_ZH.get(k, k)}{round(v, 1):g}"
+    base_parts = _sep.join(
+        f"{_ty(k)}{round(v, 1):g}"
         for k, v in dt.items()
         if isinstance(v, (int, float))
         and v > 0
         and k not in ("total", "cinematic", "shieldDrain", "healthDrain", "energyDrain")
     )
+    if _en:
+        # 英文名称与数值之间要有空格（"Impact 5, Slash 10"）
+        base_parts = ", ".join(
+            f"{_ty(k)} {round(v, 1):g}"
+            for k, v in dt.items()
+            if isinstance(v, (int, float))
+            and v > 0
+            and k not in ("total", "cinematic", "shieldDrain", "healthDrain", "energyDrain")
+        )
     mod_bits = []
     if spec["base_dmg"]:
-        mod_bits.append(f"基伤+{spec['base_dmg']:g}%")
+        mod_bits.append(L(f"基伤+{spec['base_dmg']:g}%", f"Base Dmg +{spec['base_dmg']:g}%"))
     if spec["multishot"]:
-        mod_bits.append(f"多重+{spec['multishot']:g}%")
+        mod_bits.append(L(f"多重+{spec['multishot']:g}%", f"Multishot +{spec['multishot']:g}%"))
     if spec["crit_chance"]:
-        mod_bits.append(f"暴率+{spec['crit_chance']:g}%")
+        mod_bits.append(
+            L(f"暴率+{spec['crit_chance']:g}%", f"Crit Chance +{spec['crit_chance']:g}%")
+        )
     if spec["crit_dmg"]:
-        mod_bits.append(f"暴伤+{spec['crit_dmg']:g}%")
+        mod_bits.append(L(f"暴伤+{spec['crit_dmg']:g}%", f"Crit Dmg +{spec['crit_dmg']:g}%"))
     if spec["faction_dmg"]:
-        mod_bits.append(f"派系+{spec['faction_dmg']:g}%")
+        mod_bits.append(L(f"派系+{spec['faction_dmg']:g}%", f"Faction +{spec['faction_dmg']:g}%"))
     _singles = spec.get("singles") or {}
     for el, pct in _singles.items():
-        mod_bits.append(f"{TYPE_ZH.get(el, el)}+{pct:g}%")
+        mod_bits.append(L(f"{TYPE_ZH.get(el, el)}+{pct:g}%", f"{_ty(el)} +{pct:g}%"))
     if len(_singles) > 1 and res.get("pools"):
         # 顺带标出合成结果，免得用户以为「火90冰30」是两项独立伤害
         mod_bits.append(
-            "合成 " + "、".join(f"{TYPE_ZH.get(k, k)}+{v:g}%" for k, v in res["pools"].items())
+            L(
+                "合成 " + "、".join(f"{TYPE_ZH.get(k, k)}+{v:g}%" for k, v in res["pools"].items()),
+                "Combined " + ", ".join(f"{_ty(k)} +{v:g}%" for k, v in res["pools"].items()),
+            )
         )
     for el, pct in res["physical"].items():
-        mod_bits.append(f"{TYPE_ZH.get(el, el)}+{pct:g}%")
+        mod_bits.append(L(f"{TYPE_ZH.get(el, el)}+{pct:g}%", f"{_ty(el)} +{pct:g}%"))
     if spec.get("headshot_bonus"):
-        mod_bits.append(f"爆头倍率+{spec['headshot_bonus']:g}%")
+        mod_bits.append(
+            L(
+                f"爆头倍率+{spec['headshot_bonus']:g}%",
+                f"Headshot Mult +{spec['headshot_bonus']:g}%",
+            )
+        )
     cc = pw.get("criticalChance") or 0.0
     cm = pw.get("criticalMultiplier") or 1.0
     ms = pw.get("multishot") or 1
@@ -3967,7 +4470,7 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
     _fr_eff = res.get("fire_rate_eff")
     if _fr_eff is not None and abs(_fr_eff - res["fire_rate"]) > 1e-6:
         # 点射 / 蓄力：面板射速 ≠ 每秒有效射弹数（DPS 用后者，算式见备注）
-        _fr_txt += f"（有效 {_fr_eff:.3g} 发/s）"
+        _fr_txt += L(f"（有效 {_fr_eff:.3g} 发/s）", f" (effective {_fr_eff:.3g} shots/s)")
 
     ssr = res.get("steady") or {}
     crit_exp = res["crit_exp"]
@@ -3982,30 +4485,52 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
     kv: list[str] = []
     if ssr.get("dps_total"):
         kv.append(
-            f"◆ 实战 DPS：≈ {ssr['dps_total']:.0f}"
-            f"｜直伤 {ssr['dps_direct']:.0f} + DoT {ssr['dps_dot']:.0f}"
+            L(
+                f"◆ 实战 DPS：≈ {ssr['dps_total']:.0f}"
+                f"｜直伤 {ssr['dps_direct']:.0f} + DoT {ssr['dps_dot']:.0f}",
+                f"◆ Practical DPS: ≈ {ssr['dps_total']:.0f}"
+                f"｜Direct {ssr['dps_direct']:.0f} + DoT {ssr['dps_dot']:.0f}",
+            )
         )
     _ssb = res.get("steady_burst") or {}
     if _ssb.get("dps_total"):
         kv.append(
-            f"◆ 实战 DPS（短点射重置降速）：≈ {_ssb['dps_total']:.0f}"
-            f"｜直伤 {_ssb['dps_direct']:.0f} + DoT {_ssb['dps_dot']:.0f}（按起始射速，未计停火间隙）"
+            L(
+                f"◆ 实战 DPS（短点射重置降速）：≈ {_ssb['dps_total']:.0f}"
+                f"｜直伤 {_ssb['dps_direct']:.0f} + DoT {_ssb['dps_dot']:.0f}（按起始射速，未计停火间隙）",
+                f"◆ Practical DPS (short bursts reset the drop): ≈ {_ssb['dps_total']:.0f}"
+                f"｜Direct {_ssb['dps_direct']:.0f} + DoT {_ssb['dps_dot']:.0f}"
+                " (at starting fire rate, pauses not counted)",
+            )
         )
     if _dseg:
         # 直击 0（Simulor 系，b7 批）：DPS 按含段合计（各段自带暴击期望）
         kv.append(
-            f"◆ 爆发 DPS：{_dseg['crit']:.0f}（含暴击）"
-            + (
-                f"｜{_dseg['nocrit']:.0f}（无暴击）"
-                if abs(_dseg["crit"] - _dseg["nocrit"]) > 1e-9
-                else ""
+            L(
+                f"◆ 爆发 DPS：{_dseg['crit']:.0f}（含暴击）"
+                + (
+                    f"｜{_dseg['nocrit']:.0f}（无暴击）"
+                    if abs(_dseg["crit"] - _dseg["nocrit"]) > 1e-9
+                    else ""
+                )
+                + "｜直击 0，按含段合计",
+                f"◆ Burst DPS: {_dseg['crit']:.0f} (with crit)"
+                + (
+                    f"｜{_dseg['nocrit']:.0f} (no crit)"
+                    if abs(_dseg["crit"] - _dseg["nocrit"]) > 1e-9
+                    else ""
+                )
+                + "｜Direct hit 0, summed over segments",
             )
-            + "｜直击 0，按含段合计"
         )
     else:
         kv.append(
-            f"◆ 爆发 DPS：{dps * crit_exp:.0f}（含暴击）"
-            + (f"｜{dps:.0f}（无暴击）" if crit_exp != 1.0 else "")
+            L(
+                f"◆ 爆发 DPS：{dps * crit_exp:.0f}（含暴击）"
+                + (f"｜{dps:.0f}（无暴击）" if crit_exp != 1.0 else ""),
+                f"◆ Burst DPS: {dps * crit_exp:.0f} (with crit)"
+                + (f"｜{dps:.0f} (no crit)" if crit_exp != 1.0 else ""),
+            )
         )
     if _dseg:
         _sus = _dseg.get("sustained_crit")
@@ -4015,56 +4540,98 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
         _ac = float(1.0 if res.get("ammo_cost") is None else res["ammo_cost"])
         if res.get("no_cycle"):
             kv.append(
-                f"◆ 持续 DPS：≈ {_sus:.0f}"
-                + (
-                    "（该形态不耗弹，无装填循环）"
-                    if _ac <= 0
-                    else "（不装填：射击间隔只看射速，面板装填时间不起作用；wiki 葬铭 Notes）"
-                    if pw.get("noReload")
-                    else "（未蓄力点按：每发一次上弦，循环已含装填）"
-                    if nock_only(pw)
-                    else "（弓：有效射速已按 1/(蓄力 + 上弦) 含装填，爆发 = 持续）"
+                L(
+                    f"◆ 持续 DPS：≈ {_sus:.0f}"
+                    + (
+                        "（该形态不耗弹，无装填循环）"
+                        if _ac <= 0
+                        else "（不装填：射击间隔只看射速，面板装填时间不起作用；wiki 葬铭 Notes）"
+                        if pw.get("noReload")
+                        else "（未蓄力点按：每发一次上弦，循环已含装填）"
+                        if nock_only(pw)
+                        else "（弓：有效射速已按 1/(蓄力 + 上弦) 含装填，爆发 = 持续）"
+                    ),
+                    f"◆ Sustained DPS: ≈ {_sus:.0f}"
+                    + (
+                        " (this form uses no ammo, no reload cycle)"
+                        if _ac <= 0
+                        else " (no reload: shot interval depends on fire rate only, panel reload time "
+                        "has no effect; wiki Notes)"
+                        if pw.get("noReload")
+                        else " (uncharged taps: one nock per shot, cycle already includes reload)"
+                        if nock_only(pw)
+                        else " (bow: effective fire rate already uses 1/(charge + nock) incl. reload, "
+                        "burst = sustained)"
+                    ),
                 )
             )
         else:
             kv.append(
-                f"◆ 持续 DPS：≈ {_sus:.0f}"
-                # 弹匣 = wiki 弹药口径（b8 批 MAGAZINE_FIX）；每发耗弹 ≠ 1 时写出折算发数
-                + (
-                    f"（弹匣 {res['magazine']:g} ÷ 每发耗 {_ac:g} 弹 = "
-                    f"{res['magazine'] / _ac:.3g} 发"
-                    if _ac != 1.0
-                    else f"（{res['magazine']:.0f} 发弹匣"
+                L(
+                    f"◆ 持续 DPS：≈ {_sus:.0f}"
+                    # 弹匣 = wiki 弹药口径（b8 批 MAGAZINE_FIX）；每发耗弹 ≠ 1 时写出折算发数
+                    + (
+                        f"（弹匣 {res['magazine']:g} ÷ 每发耗 {_ac:g} 弹 = "
+                        f"{res['magazine'] / _ac:.3g} 发"
+                        if _ac != 1.0
+                        else f"（{res['magazine']:.0f} 发弹匣"
+                    )
+                    + f" + 装填 {res['reload']:.1f}s 循环）",
+                    f"◆ Sustained DPS: ≈ {_sus:.0f}"
+                    + (
+                        f" (magazine {res['magazine']:g} ÷ {_ac:g} ammo per shot = "
+                        f"{res['magazine'] / _ac:.3g} shots"
+                        if _ac != 1.0
+                        else f" ({res['magazine']:.0f}-shot magazine"
+                    )
+                    + f" + {res['reload']:.1f}s reload cycle)",
                 )
-                + f" + 装填 {res['reload']:.1f}s 循环）"
             )
     _ramp = _fire_rate_ramp_note(weapon, spec, res)
     if _ramp and _sus:
         kv.append(_ramp)
     if res.get("hp") is not None:
-        _pool = f"血量 {res['hp']:.0f}"
+        _pool = L(f"血量 {res['hp']:.0f}", f"HP {res['hp']:.0f}")
         if res.get("shield_hp"):
-            _pool = f"护盾 {res['shield_hp']:.0f} → " + _pool
-        kv.append(f"◆ 击杀：平均 {res['shots']} 发（身体、含暴击期望）｜目标{_pool}")
+            _pool = (
+                L(f"护盾 {res['shield_hp']:.0f} → ", f"Shield {res['shield_hp']:.0f} → ") + _pool
+            )
+        kv.append(
+            L(
+                f"◆ 击杀：平均 {res['shots']} 发（身体、含暴击期望）｜目标{_pool}",
+                f"◆ Kills: avg {res['shots']} shots (body, with crit expectation)｜Target {_pool}",
+            )
+        )
     lines: list[str] = kv[:]
 
     # —— 单发：对血 / 对盾 / 每次扳机 / 爆头 / 暴击期望 / 明细 / DoT / 触发 ——
     sing: list[str] = []
     _mult = res["multishot_total"]
     _merged = _mult <= 1 and abs(pt - res["health"]) < 0.5
-    _row = f"· 对血　{res['health']:.0f}（无暴击）"
+    _row = L(
+        f"· 对血　{res['health']:.0f}（无暴击）", f"· vs Health　{res['health']:.0f} (no crit)"
+    )
     if _merged and crit_exp != 1.0:
-        _row += f"｜{pt * crit_exp:.0f}（含暴击）"
+        _row += L(f"｜{pt * crit_exp:.0f}（含暴击）", f"｜{pt * crit_exp:.0f} (with crit)")
     sing.append(_row)
-    sing.append(f"· 对盾　{res['shield']:.0f}")
+    sing.append(L(f"· 对盾　{res['shield']:.0f}", f"· vs Shield　{res['shield']:.0f}"))
     if not _merged:
-        _crit_txt = f"｜{pt:.0f}（无暴击）" if crit_exp != 1.0 else ""
-        _lab = f"每次扳机（多重 ×{_mult:.2f}）" if _mult > 1 else "单发"
-        sing.append(f"· {_lab}　{pt * crit_exp:.0f}（含暴击）{_crit_txt}")
+        _crit_txt = L(f"｜{pt:.0f}（无暴击）", f"｜{pt:.0f} (no crit)") if crit_exp != 1.0 else ""
+        _lab = (
+            L(f"每次扳机（多重 ×{_mult:.2f}）", f"Per trigger (multishot ×{_mult:.2f})")
+            if _mult > 1
+            else L("单发", "Per shot")
+        )
+        sing.append(
+            L(
+                f"· {_lab}　{pt * crit_exp:.0f}（含暴击）{_crit_txt}",
+                f"· {_lab}　{pt * crit_exp:.0f} (with crit){_crit_txt}",
+            )
+        )
     # 多段合计：主段 + 各额外段（范围/AoE/集束…），段吃同样的 MOD 乘区
     _st = res.get("segments_total")
     if _st and _st.get("n_segments"):
-        _parts = [f"主段 {_st['main']:.0f}"]
+        _parts = [L(f"主段 {_st['main']:.0f}", f"Main {_st['main']:.0f}")]
         _detail = []
         for _m in res.get("modes") or []:
             _pv = float(_m.get("per_trigger_health") or 0.0)
@@ -4072,84 +4639,141 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
                 continue
             _extra = []
             if _m.get("radius_m"):
-                _extra.append(f"半径 {_m['radius_m']:g}m")
+                _extra.append(L(f"半径 {_m['radius_m']:g}m", f"radius {_m['radius_m']:g}m"))
             if float(_m.get("count") or 1.0) != 1.0:
-                _extra.append(f"×{float(_m['count']):g} 颗")
+                _extra.append(L(f"×{float(_m['count']):g} 颗", f"×{float(_m['count']):g} pcs"))
             if _m.get("takes_multishot") is False:
-                _extra.append("不吃多重")
+                _extra.append(L("不吃多重", "no multishot"))
             if _m.get("takes_condition_overload"):
-                _extra.append("吃异况超量")
+                _extra.append(L("吃异况超量", "affected by Condition Overload"))
             _detail.append(
-                f"{SEG_ZH.get(_m['name'], _m['name'])} {_pv:.0f}"
-                + (f"（{'、'.join(_extra)}）" if _extra else "")
+                f"{_seg_name(_m['name'])} {_pv:.0f}"
+                + (f"（{'、'.join(_extra)}）" if not _en and _extra else "")
+                + (f" ({', '.join(_extra)})" if _en and _extra else "")
             )
-        sing.append(f"· 含段合计　{_st['total']:.0f}（含暴击）＝" + " + ".join(_parts + _detail))
         sing.append(
-            "　段是独立命中实例，各吃同一套 MOD 乘区；范围段按命中中心（100%）计，边缘会衰减"
+            L(
+                f"· 含段合计　{_st['total']:.0f}（含暴击）＝" + " + ".join(_parts + _detail),
+                f"· Total with segments　{_st['total']:.0f} (with crit) = "
+                + " + ".join(_parts + _detail),
+            )
+        )
+        sing.append(
+            L(
+                "　段是独立命中实例，各吃同一套 MOD 乘区；范围段按命中中心（100%）计，边缘会衰减",
+                "　Segments are separate hit instances, each using the same MOD multipliers; "
+                "area segments count the hit center (100%), edges fall off",
+            )
         )
     _hce = res.get("head_crit_exp") or crit_exp
     sing.append(
-        f"· 爆头期望　{res['health'] * _hce * res['head_mult']:.0f}"
-        f"（含暴击{'与暴击爆头' if res.get('head_crit') else ''}；爆头倍率 ×{res['head_mult']:.2f}）"
+        L(
+            f"· 爆头期望　{res['health'] * _hce * res['head_mult']:.0f}"
+            f"（含暴击{'与暴击爆头' if res.get('head_crit') else ''}；爆头倍率 ×{res['head_mult']:.2f}）",
+            f"· Headshot expectation　{res['health'] * _hce * res['head_mult']:.0f}"
+            f" (with crit{' and head crit' if res.get('head_crit') else ''}; "
+            f"headshot mult ×{res['head_mult']:.2f})",
+        )
     )
     if res.get("head_src"):
-        _hl = f"　爆头口径：{res['head_src']}"
+        _hl = L(f"　爆头口径：{res['head_src']}", f"　Headshot basis: {res['head_src']}")
         if res.get("head_formula"):
-            _hl += f"；倍率 = {res['head_formula']}"
+            _hl += L(f"；倍率 = {res['head_formula']}", f"; mult = {res['head_formula']}")
         if res.get("head_crit_note"):
-            _hl += f"；{res['head_crit_note']}"
+            _hl += f"；{res['head_crit_note']}" if not _en else f"; {res['head_crit_note']}"
         sing.append(_hl)
     sing.append(
-        f"· 暴击期望　×{crit_exp:.2f}"
-        f"（暴率 {res['crit_cc'] * 100:.0f}% ×暴伤 {res['crit_cm']:.2f}）"
-        f"｜单发 {res['health'] * crit_exp:.0f}"
+        L(
+            f"· 暴击期望　×{crit_exp:.2f}"
+            f"（暴率 {res['crit_cc'] * 100:.0f}% ×暴伤 {res['crit_cm']:.2f}）"
+            f"｜单发 {res['health'] * crit_exp:.0f}",
+            f"· Crit expectation　×{crit_exp:.2f}"
+            f" (crit chance {res['crit_cc'] * 100:.0f}% × crit dmg {res['crit_cm']:.2f})"
+            f"｜Per shot {res['health'] * crit_exp:.0f}",
+        )
     )
     top = sorted(res["per_type_health"].items(), key=lambda kv_: -kv_[1])[:4]
     if len(top) > 1:
-        sing.append("· 明细　" + "、".join(f"{TYPE_ZH.get(k, k)} {v:.0f}" for k, v in top if v > 0))
+        sing.append(
+            L("· 明细　", "· Breakdown　") + _sep.join(f"{_ty(k)} {v:.0f}" for k, v in top if v > 0)
+        )
     if res["dots"]:
         sing.append(
-            "· 异常 DoT　"
-            + "、".join(
-                f"{TYPE_ZH.get(k, k)} {v:.0f}"
-                for k, v in sorted(res["dots"].items(), key=lambda kv_: -kv_[1])
+            L("· 异常 DoT　", "· Status DoT　")
+            + _sep.join(
+                f"{_ty(k)} {v:.0f}" for k, v in sorted(res["dots"].items(), key=lambda kv_: -kv_[1])
             )
-            + "（6s 总量，含暴击期望）"
+            + L("（6s 总量，含暴击期望）", " (6s total, with crit expectation)")
         )
     if ssr.get("dps_total"):
-        bits = [f"{ssr['status_chance'] * 100:.0f}%（{ssr['procs_per_sec']:.2f} 次/秒）"]
+        bits = [
+            L(
+                f"{ssr['status_chance'] * 100:.0f}%（{ssr['procs_per_sec']:.2f} 次/秒）",
+                f"{ssr['status_chance'] * 100:.0f}% ({ssr['procs_per_sec']:.2f} procs/s)",
+            )
+        ]
         if ssr.get("viral_stacks"):
-            bits.append(f"病毒 {ssr['viral_stacks']:.0f} 层 ×{ssr['viral_mult']:.2f}")
+            bits.append(
+                L(
+                    f"病毒 {ssr['viral_stacks']:.0f} 层 ×{ssr['viral_mult']:.2f}",
+                    f"Viral {ssr['viral_stacks']:.0f} stacks ×{ssr['viral_mult']:.2f}",
+                )
+            )
         if ssr.get("corrosive_stacks"):
-            bits.append(f"腐蚀剥甲 {ssr['strip'] * 100:.0f}%")
+            bits.append(
+                L(
+                    f"腐蚀剥甲 {ssr['strip'] * 100:.0f}%",
+                    f"Corrosive strips {ssr['strip'] * 100:.0f}% armor",
+                )
+            )
         if ssr.get("cm_bonus"):
             if ssr.get("frozen_share"):
                 bits.append(
-                    f"冰满层冻结 {ssr['frozen_share'] * 100:.0f}% 时间"
-                    f"（+1.0/阶梯均值 +{ssr['cm_bonus']:.2f}暴伤）"
+                    L(
+                        f"冰满层冻结 {ssr['frozen_share'] * 100:.0f}% 时间"
+                        f"（+1.0/阶梯均值 +{ssr['cm_bonus']:.2f}暴伤）",
+                        f"Cold at max stacks, frozen {ssr['frozen_share'] * 100:.0f}% of the time"
+                        f" (+1.0 / stepped avg +{ssr['cm_bonus']:.2f} crit dmg)",
+                    )
                 )
             else:
-                bits.append(f"冰 +{ssr['cm_bonus']:.2f}暴伤")
+                bits.append(
+                    L(f"冰 +{ssr['cm_bonus']:.2f}暴伤", f"Cold +{ssr['cm_bonus']:.2f} crit dmg")
+                )
         if ssr.get("cc_bonus"):
-            bits.append(f"穿刺 +{ssr['cc_bonus'] * 100:.0f}%暴率")
-        if ssr.get("heat_stacks"):
             bits.append(
-                f"火 {ssr['heat_stacks']:.1f} 层"
-                + (
-                    f"（单例累加：开火 {ssr['fire_seconds']:g}s 内平均 = 触发率×{ssr['fire_seconds']:g}/2）"
-                    if ssr.get("heat_refreshed")
-                    else "（触发间隔 > 6s，每层独立过期 = 触发率×6）"
+                L(
+                    f"穿刺 +{ssr['cc_bonus'] * 100:.0f}%暴率",
+                    f"Puncture +{ssr['cc_bonus'] * 100:.0f}% crit chance",
                 )
             )
-        det = "、".join(
-            f"{TYPE_ZH.get(k, k)} {v:.0f}"
+        if ssr.get("heat_stacks"):
+            bits.append(
+                L(
+                    f"火 {ssr['heat_stacks']:.1f} 层"
+                    + (
+                        f"（单例累加：开火 {ssr['fire_seconds']:g}s 内平均 = 触发率×{ssr['fire_seconds']:g}/2）"
+                        if ssr.get("heat_refreshed")
+                        else "（触发间隔 > 6s，每层独立过期 = 触发率×6）"
+                    ),
+                    f"Heat {ssr['heat_stacks']:.1f} stacks"
+                    + (
+                        f" (single instance accumulates: average over {ssr['fire_seconds']:g}s of "
+                        f"firing = proc rate × {ssr['fire_seconds']:g}/2)"
+                        if ssr.get("heat_refreshed")
+                        else " (proc interval > 6s, each stack expires on its own = proc rate × 6)"
+                    ),
+                )
+            )
+        det = _sep.join(
+            f"{_ty(k)} {v:.0f}"
             for k, v in sorted(ssr["dots_detail"].items(), key=lambda kv_: -kv_[1])[:3]
             if v > 0
         )
         if det:
-            bits.append(f"DoT：{det}")
-        sing.append("· 触发　" + "｜".join(bits))
-    lines.append("◆ 单发")
+            bits.append(L(f"DoT：{det}", f"DoT: {det}"))
+        sing.append(L("· 触发　", "· Procs　") + "｜".join(bits))
+    lines.append(L("◆ 单发", "◆ Per Shot"))
     lines += sing
 
     # —— 专项：重击 / 对超宏 / 适应 ——
@@ -4157,83 +4781,143 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
     hv = res.get("heavy")
     if hv:
         spec_rows.append(
-            f"· 重击　连击 {hv['combo_hits']} → ×{hv['multiplier']:.1f}"
-            f"｜单发 {hv['health']:.0f}｜含暴击 {hv['health_crit']:.0f}"
-            f"｜爆头 {hv['head']:.0f}" + "（重击会清空连击数）"
+            L(
+                f"· 重击　连击 {hv['combo_hits']} → ×{hv['multiplier']:.1f}"
+                f"｜单发 {hv['health']:.0f}｜含暴击 {hv['health_crit']:.0f}"
+                f"｜爆头 {hv['head']:.0f}" + "（重击会清空连击数）",
+                f"· Heavy Attack　Combo {hv['combo_hits']} → ×{hv['multiplier']:.1f}"
+                f"｜Per shot {hv['health']:.0f}｜With crit {hv['health_crit']:.0f}"
+                f"｜Headshot {hv['head']:.0f}" + " (heavy attacks reset the combo count)",
+            )
         )
         if hv.get("initial_combo"):
             spec_rows.append(
-                f"　初始连击 {hv['initial_combo']} 是下限（清空后按每秒 40 回到该值），"
-                "不与连击数相加"
+                L(
+                    f"　初始连击 {hv['initial_combo']} 是下限（清空后按每秒 40 回到该值），"
+                    "不与连击数相加",
+                    f"　Initial combo {hv['initial_combo']} is a floor (after a reset it returns "
+                    "to that value at 40 per second), not added to the combo count",
+                )
             )
     og = res.get("overguard")
     if og:
-        line = (
+        line = L(
             f"· 对超宏　{og['damage']:.0f}（含暴击 {og['crit']:.0f}）"
             f"｜磁力 ×{og['mag_mult']:.2f}"
-            "｜超宏不吃护甲与派系弱点、免疫异常（虚空 +50%）"
+            "｜超宏不吃护甲与派系弱点、免疫异常（虚空 +50%）",
+            f"· vs Overguard　{og['damage']:.0f} (with crit {og['crit']:.0f})"
+            f"｜Magnetic ×{og['mag_mult']:.2f}"
+            "｜Overguard ignores armor and faction weakness, is immune to status (Void +50%)",
         )
         if og.get("pool"):
-            line += (
+            line += L(
                 f"｜超宏池 {og['pool']:.0f} → "
-                f"{math.ceil(og['pool'] / og['crit']) if og['crit'] > 0 else '—'} 发打穿"
+                f"{math.ceil(og['pool'] / og['crit']) if og['crit'] > 0 else '—'} 发打穿",
+                f"｜Overguard pool {og['pool']:.0f} → "
+                f"{math.ceil(og['pool'] / og['crit']) if og['crit'] > 0 else '—'} shots to break",
             )
         spec_rows.append(line)
     ad = res.get("adapt")
     if ad:
-        who = "、".join(f"{TYPE_ZH.get(k, k)} −{v * 100:.0f}%" for k, v in ad["resisted"].items())
+        who = _sep.join(f"{_ty(k)} −{v * 100:.0f}%" for k, v in ad["resisted"].items())
         spec_rows.append(
-            f"· 适应　Sentient {ad['levels']} 层：{who}"
-            f" → 有效伤害 ×{ad['factor']:.2f}"
-            "（虚空伤害可重置适应）"
+            L(
+                f"· 适应　Sentient {ad['levels']} 层：{who}"
+                f" → 有效伤害 ×{ad['factor']:.2f}"
+                "（虚空伤害可重置适应）",
+                f"· Adaptation　Sentient {ad['levels']} stacks: {who}"
+                f" → effective damage ×{ad['factor']:.2f}"
+                " (Void damage can reset adaptation)",
+            )
         )
     if spec_rows:
-        lines.append("◆ 专项判定")
+        lines.append(L("◆ 专项判定", "◆ Special Checks"))
         lines += spec_rows
 
     # —— 输入回显：武器 / 面板 / 配卡 / 目标 / 弱点 / MOD / 赋能 / 架势 … ——
     inp: list[str] = []
     inp.append(
-        f"· 武器　{weapon.get('zh') or weapon['name']}（{weapon['name']}）"
-        f"｜MR{weapon.get('masteryReq', 0)}"
+        L(
+            f"· 武器　{weapon.get('zh') or weapon['name']}（{weapon['name']}）"
+            f"｜MR{weapon.get('masteryReq', 0)}",
+            f"· Weapon　{weapon['name']}｜MR{weapon.get('masteryReq', 0)}",
+        )
     )
     inp.append(
-        f"· 面板　基伤 {dt.get('total', 0):g}"
-        + (f"（{base_parts}）" if base_parts else "")
-        + f"｜暴击 {cc * 100:g}% ×{cm:g}"
-        + f"｜射速 {_fr_txt}"
-        + (f"（{res['fire_note']}）" if res.get("fire_note") else "")
-        + (f"｜多重 {ms:g}" if ms and ms > 1 else "")
+        L(
+            f"· 面板　基伤 {dt.get('total', 0):g}"
+            + (f"（{base_parts}）" if base_parts else "")
+            + f"｜暴击 {cc * 100:g}% ×{cm:g}"
+            + f"｜射速 {_fr_txt}"
+            + (f"（{res['fire_note']}）" if res.get("fire_note") else "")
+            + (f"｜多重 {ms:g}" if ms and ms > 1 else ""),
+            f"· Panel　Base dmg {dt.get('total', 0):g}"
+            + (f" ({base_parts})" if base_parts else "")
+            + f"｜Crit {cc * 100:g}% ×{cm:g}"
+            + f"｜Fire rate {_fr_txt}"
+            + (f" ({res['fire_note']})" if res.get("fire_note") else "")
+            + (f"｜Multishot {ms:g}" if ms and ms > 1 else ""),
+        )
     )
     if mod_bits:
-        inp.append(f"· 配卡　{'、'.join(mod_bits)}")
+        inp.append(L(f"· 配卡　{'、'.join(mod_bits)}", f"· Build　{', '.join(mod_bits)}"))
+    _fac_name = FACTION_ZH.get(res["faction"], res["faction"]) if not _en else res["faction"]
     inp.append(
-        f"· 目标　{FACTION_ZH.get(res['faction'], res['faction'])}"
-        f" {res['level']}级｜护甲 {res['armor']:.0f}"
-        + (
-            f"（减免 {res.get('dr_raw', res['dr']) * 100:.1f}%）"
-            + ("［已达 2700 上限］" if res["armor"] >= 2700 else "")
-            if res["armor"] > 0
-            else "（无护甲）"
+        L(
+            f"· 目标　{_fac_name}"
+            f" {res['level']}级｜护甲 {res['armor']:.0f}"
+            + (
+                f"（减免 {res.get('dr_raw', res['dr']) * 100:.1f}%）"
+                + ("［已达 2700 上限］" if res["armor"] >= 2700 else "")
+                if res["armor"] > 0
+                else "（无护甲）"
+            ),
+            f"· Target　{_fac_name}"
+            f" Lv {res['level']}｜Armor {res['armor']:.0f}"
+            + (
+                f" ({res.get('dr_raw', res['dr']) * 100:.1f}% reduction)"
+                + (" [2700 cap reached]" if res["armor"] >= 2700 else "")
+                if res["armor"] > 0
+                else " (no armor)"
+            ),
         )
     )
     en = res.get("enemy")
     if en:
-        nm = en.get("zh") or en.get("name")
+        nm = _zh_or_name(en)
         inp.append(
-            f"　敌人：{nm}（基准 {en.get('base_level')} 级 / "
-            f"血量 {en.get('base_health'):.0f}"
-            + (f" / 护盾 {en.get('base_shield'):.0f}" if en.get("base_shield") else "")
-            + (f" / 护甲 {en.get('base_armor'):.0f}" if en.get("base_armor") else "")
-            + "）"
+            L(
+                f"　敌人：{nm}（基准 {en.get('base_level')} 级 / "
+                f"血量 {en.get('base_health'):.0f}"
+                + (f" / 护盾 {en.get('base_shield'):.0f}" if en.get("base_shield") else "")
+                + (f" / 护甲 {en.get('base_armor'):.0f}" if en.get("base_armor") else "")
+                + "）",
+                f"　Enemy: {nm} (base Lv {en.get('base_level')} / "
+                f"HP {en.get('base_health'):.0f}"
+                + (f" / Shield {en.get('base_shield'):.0f}" if en.get("base_shield") else "")
+                + (f" / Armor {en.get('base_armor'):.0f}" if en.get("base_armor") else "")
+                + ")",
+            )
         )
     if res["fac_weak"] or res["fac_resist"]:
-        weak_txt = "、".join(TYPE_ZH.get(k, k) for k in res["fac_weak"]) or "无"
-        res_txt = "、".join(TYPE_ZH.get(k, k) for k in res["fac_resist"]) or "无"
-        inp.append(f"· 派系弱点　{weak_txt} ×1.5｜抗性：{res_txt} ×0.5")
+        weak_txt = _sep.join(_ty(k) for k in res["fac_weak"]) or L("无", "None")
+        res_txt = _sep.join(_ty(k) for k in res["fac_resist"]) or L("无", "None")
+        inp.append(
+            L(
+                f"· 派系弱点　{weak_txt} ×1.5｜抗性：{res_txt} ×0.5",
+                f"· Faction weakness　{weak_txt} ×1.5｜Resists: {res_txt} ×0.5",
+            )
+        )
         if res["fac_weak"]:
-            hit = [TYPE_ZH.get(k, k) for k in res["hit_weak"]] or ["（本配卡没用到）"]
-            inp.append(f"　本配卡吃到加成的：{'、'.join(hit)}")
+            hit = [_ty(k) for k in res["hit_weak"]] or [
+                L("（本配卡没用到）", "(not used by this build)")
+            ]
+            inp.append(
+                L(
+                    f"　本配卡吃到加成的：{'、'.join(hit)}",
+                    f"　Bonus applied in this build: {', '.join(hit)}",
+                )
+            )
     if res.get("arcanes"):
         _cond = [
             a
@@ -4254,107 +4938,177 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
         ]
         _plain = [a for a in res["arcanes"] if a not in _cond]
         inp.append(
-            "· 赋能　"
-            + "、".join((a.get("zh") or a["name"]) for a in res["arcanes"])
-            + ("（条件触发，未计入数值）" if _cond and not _plain else "")
+            L(
+                "· 赋能　"
+                + "、".join((a.get("zh") or a["name"]) for a in res["arcanes"])
+                + ("（条件触发，未计入数值）" if _cond and not _plain else ""),
+                "· Arcanes　"
+                + ", ".join(a["name"] for a in res["arcanes"])
+                + (" (conditional, not counted)" if _cond and not _plain else ""),
+            )
         )
         for _a in res["arcanes"][:2]:
             if _a.get("text"):
-                inp.append(f"　{_a.get('zh') or _a['name']}：{_a['text'][:110]}")
+                inp.append(
+                    L(
+                        f"　{_a.get('zh') or _a['name']}：{_a['text'][:110]}",
+                        f"　{_a['name']}: {_a['text'][:110]}",
+                    )
+                )
     if res.get("mods"):
         # 注释乘区：直接回答「这张卡属于哪个乘区、和谁相加」；
         # 认得出但算不动的效果标明「未计入」，不装作算过。
         tag = []
         for m in res["mods"]:
             eff = m.get("effects") or {}
-            name = f"{m.get('zh') or m.get('name')}"
+            name = f"{_zh_or_name(m)}"
+            _zname = f"{m.get('zh') or m.get('name')}"  # galv_mods 记的是中文优先名，比对用
             # 架势没有数值效果（数据在 wiki 侧），但有独立的「架势」行，先认出来
             if (m.get("compat") or "") == "Stance":
-                tag.append(f"{name}（架势）")
+                tag.append(L(f"{name}（架势）", f"{name} (Stance)"))
                 continue
             if not m.get("numeric") or not eff:
-                tag.append(f"{name}（未计入）")
+                tag.append(L(f"{name}（未计入）", f"{name} (not counted)"))
                 continue
             where = []
             if eff.get("base_dmg"):
-                where.append("基伤·加算")
+                where.append(L("基伤·加算", "Base Dmg · additive"))
             if eff.get("multishot"):
-                where.append("多重·加算")
+                where.append(L("多重·加算", "Multishot · additive"))
             if eff.get("fire_rate"):
                 where.append(
-                    "射速·不可修改，已忽略" if spec.get("no_fire_rate_mod") else "射速·加算"
+                    L("射速·不可修改，已忽略", "Fire Rate · cannot be modified, ignored")
+                    if spec.get("no_fire_rate_mod")
+                    else L("射速·加算", "Fire Rate · additive")
                 )
             if eff.get("crit_chance"):
-                where.append("暴率·加算")
+                where.append(L("暴率·加算", "Crit Chance · additive"))
             if eff.get("crit_dmg"):
-                where.append("暴伤·加算")
+                where.append(L("暴伤·加算", "Crit Dmg · additive"))
             if eff.get("elements"):
-                where.append("元素·先相加后合成")
+                where.append(L("元素·先相加后合成", "Elements · summed then combined"))
             if eff.get("physical"):
-                where.append("物理·仅同类型")
+                where.append(L("物理·仅同类型", "Physical · same type only"))
             if eff.get("headshot_bonus"):
-                where.append("爆头倍率")
+                where.append(L("爆头倍率", "Headshot Mult"))
             if eff.get("faction_mul") or eff.get("faction_dmg"):
-                where.append("派系·独立乘区")
+                where.append(L("派系·独立乘区", "Faction · separate multiplier"))
             if eff.get("dmg_per_status"):
-                where.append("基伤组·按异常种类数")
+                where.append(L("基伤组·按异常种类数", "Base Dmg group · per status type"))
             if eff.get("crit_per_combo"):
-                where.append("暴率·随连击倍率")
+                where.append(L("暴率·随连击倍率", "Crit Chance · scales with combo multiplier"))
             if eff.get("status_per_combo"):
-                where.append("触发率·随连击倍率")
+                where.append(L("触发率·随连击倍率", "Status Chance · scales with combo multiplier"))
             if eff.get("heavy_dmg"):
-                where.append("基伤组·仅重击")
+                where.append(L("基伤组·仅重击", "Base Dmg group · heavy attacks only"))
             if eff.get("initial_combo"):
-                where.append("初始连击·下限")
+                where.append(L("初始连击·下限", "Initial Combo · floor"))
             if eff.get("physical_convert"):
-                where.append("物理转换·总量不变")
+                where.append(L("物理转换·总量不变", "Physical conversion · total unchanged"))
             if eff.get("status_dmg"):
-                where.append("状态伤害·不增加直伤")
+                where.append(L("状态伤害·不增加直伤", "Status Damage · adds no direct damage"))
             if eff.get("punch_through"):
-                where.append(f"穿透 +{eff['punch_through']:g} 米（未折算 DPS）")
-            if eff.get("conditional"):
                 where.append(
-                    "含条件触发(镀层已计入)"
-                    if name in (res.get("galv_mods") or [])
-                    else "含条件触发(未计入)"
+                    L(
+                        f"穿透 +{eff['punch_through']:g} 米（未折算 DPS）",
+                        f"Punch Through +{eff['punch_through']:g} m (not converted to DPS)",
+                    )
                 )
-            tag.append(f"{name}（{'、'.join(where) or '未计入'}）")
-        inp.append("· MOD　" + "｜".join(tag))
+            if eff.get("conditional"):
+                _galv_in = _zname in (res.get("galv_mods") or [])
+                where.append(
+                    L(
+                        "含条件触发(镀层已计入)" if _galv_in else "含条件触发(未计入)",
+                        "Has conditional effects (Galvanized stacks counted)"
+                        if _galv_in
+                        else "Has conditional effects (not counted)",
+                    )
+                )
+            tag.append(
+                L(
+                    f"{name}（{'、'.join(where) or '未计入'}）",
+                    f"{name} ({', '.join(where) or 'not counted'})",
+                )
+            )
+        inp.append(L("· MOD　", "· Mods　") + "｜".join(tag))
     _stc = res.get("stance")
     if _stc:
-        _p = "、".join(TYPE_ZH.get(k, k) for k in _stc["procs"])
+        _p = _sep.join(_ty(k) for k in _stc["procs"])
         inp.append(
-            f"· 架势　{_stc['zh'] or _stc['name']}（{_stc['combo']}）"
-            f" 每段 ×{_stc['mult']:.2f}" + (f"｜强制异常 {_p}" if _p else "｜无强制异常")
+            L(
+                f"· 架势　{_stc['zh'] or _stc['name']}（{_stc['combo']}）"
+                f" 每段 ×{_stc['mult']:.2f}" + (f"｜强制异常 {_p}" if _p else "｜无强制异常"),
+                f"· Stance　{_stc['name'] or _stc['zh']} ({_stc['combo']})"
+                f" ×{_stc['mult']:.2f} per hit"
+                + (f"｜Forced procs: {_p}" if _p else "｜No forced procs"),
+            )
         )
     if res.get("status_types"):
-        inp.append(f"· 异况超量类　按目标身上 {res['status_types']} 种异常计（用「异常N」改）")
-    _gm = tuple(f"{g}：" for g in res.get("galv_mods") or [])
+        inp.append(
+            L(
+                f"· 异况超量类　按目标身上 {res['status_types']} 种异常计（用「异常N」改）",
+                f"· Condition Overload　Counted as {res['status_types']} status types on the "
+                'target (change with "status N")',
+            )
+        )
+    # galv_mods 记的是中文优先名（比对键）；conditional 前缀按当前语言的显示名
+    _gm = tuple(
+        f"{_zh_or_name(m)}{L('：', ': ')}"
+        for m in res.get("mods") or []
+        if f"{m.get('zh') or m.get('name')}" in (res.get("galv_mods") or [])
+    )
     _cond = [c for c in res.get("conditional") or [] if not (_gm and c.startswith(_gm))]
     for _c in _cond[:3]:
         # MOD 英文原文夹着 <DT_GAS_COLOR> 这类游戏富文本标记：只在展示时剥掉，不改记录
         _c = re.sub(r"<[A-Z][A-Z0-9_]*>", "", _c)
-        inp.append(f"· 条件触发　未计入：{_c}".replace("\\n", " "))
+        inp.append(
+            L(f"· 条件触发　未计入：{_c}", f"· Conditional　Not counted: {_c}").replace("\\n", " ")
+        )
     if len(_cond) > 3:
-        inp.append(f"· 条件触发　…另有 {len(_cond) - 3} 条条件触发未计入")
+        inp.append(
+            L(
+                f"· 条件触发　…另有 {len(_cond) - 3} 条条件触发未计入",
+                f"· Conditional　…and {len(_cond) - 3} more conditional effects not counted",
+            )
+        )
     _galv = res.get("galv_applied") or []
     if _galv:
         inp.append(
-            "· 镀层　堆叠已计入：" + "｜".join(_galv[:4]) + ("｜…" if len(_galv) > 4 else "")
+            L(
+                "· 镀层　堆叠已计入：" + "｜".join(_galv[:4]) + ("｜…" if len(_galv) > 4 else ""),
+                "· Galvanized　Stacks counted: "
+                + "｜".join(_galv[:4])
+                + ("｜…" if len(_galv) > 4 else ""),
+            )
         )
     if res["strip_note"]:
         inp.append(
-            f"· 剥甲　{'、'.join(res['strip_note'])}"
-            f" → 护甲 {res['armor']:.0f}→{res['armor_eff']:.0f}"
-            f"（减免 {res['dr_raw'] * 100:.1f}%→{res['dr'] * 100:.1f}%）"
+            L(
+                f"· 剥甲　{'、'.join(res['strip_note'])}"
+                f" → 护甲 {res['armor']:.0f}→{res['armor_eff']:.0f}"
+                f"（减免 {res['dr_raw'] * 100:.1f}%→{res['dr'] * 100:.1f}%）",
+                f"· Armor Strip　{', '.join(res['strip_note'])}"
+                f" → Armor {res['armor']:.0f}→{res['armor_eff']:.0f}"
+                f" (reduction {res['dr_raw'] * 100:.1f}%→{res['dr'] * 100:.1f}%)",
+            )
         )
     st_bits = []
     if res["viral"]:
-        st_bits.append(f"病毒{res['viral']}层（对血 ×{res['viral_mult']:.2f}）")
+        st_bits.append(
+            L(
+                f"病毒{res['viral']}层（对血 ×{res['viral_mult']:.2f}）",
+                f"Viral {res['viral']} stacks (vs health ×{res['viral_mult']:.2f})",
+            )
+        )
     if res["magnetic"]:
-        st_bits.append(f"磁力{res['magnetic']}层（对盾 ×{res['mag_mult']:.2f}）")
+        st_bits.append(
+            L(
+                f"磁力{res['magnetic']}层（对盾 ×{res['mag_mult']:.2f}）",
+                f"Magnetic {res['magnetic']} stacks (vs shield ×{res['mag_mult']:.2f})",
+            )
+        )
     if st_bits:
-        inp.append(f"· 状态加伤　{'、'.join(st_bits)}")
+        inp.append(L(f"· 状态加伤　{'、'.join(st_bits)}", f"· Status bonus　{', '.join(st_bits)}"))
     # 面板口径：顶层伤害取自 attacks 里哪一段（弓箭=蓄力、爆炸=含范围段…）
     # —— 不同计算器对「基础伤害」的口径常不同（有的面板对弓显示未蓄力、
     # 对 lich 默认套 +60% 回响、爆炸只显示直击段），显式标注免得被当算错。
@@ -4366,7 +5120,10 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
     _card_inc = _load_incarnon_forms().get(str(pw.get("uniqueName") or "").lower()) or {}
     if res.get("form_kind") == "incarnon" and _card_inc.get("kind") == "melee_native":
         _ats = []
-        _basis_row = "· 面板口径　本表主段 = 灵化普通攻击"
+        _basis_row = L(
+            "· 面板口径　本表主段 = 灵化普通攻击",
+            "· Panel basis　Main segment of this table = Incarnon normal attack",
+        )
     if len(_ats) > 1 and not pw.get("_panel_derived"):
         _main_d = {
             k: float(v)
@@ -4403,68 +5160,100 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
         )
         _all_names = [a.get("name") for a in _ats if a.get("name")][:4]
         if _basis:
-            _basis_name = SEG_ZH.get(_basis, _basis)
-            _basis_row = (
+            _basis_name = _seg_name(_basis)
+            _others = [_seg_name(n) for n in _all_names if n != _basis]
+            _basis_row = L(
                 f"· 面板口径　本表主段 = {_basis_name}"
-                f"（该武器另有段：{'、'.join(SEG_ZH.get(n, n) for n in _all_names if n != _basis)}）"
+                f"（该武器另有段：{'、'.join(SEG_ZH.get(n, n) for n in _all_names if n != _basis)}）",
+                f"· Panel basis　Main segment of this table = {_basis_name}"
+                f" (other segments on this weapon: {', '.join(_others)})",
             )
         else:
             # 顶层伤害不等于任何单段 → 它把多段合并了（爆炸/蓄力武器常见，
             # warframe-items 的顶层 damage 就是这么给的）。这是数据源口径，
             # 逐把核对 wiki 前先如实标注，避免被当成算错。
-            _basis_row = (
+            _basis_row = L(
                 "· 面板口径　本表基础伤害含多段合并（"
                 + "、".join(SEG_ZH.get(n, n) for n in _all_names)
-                + "）——下限请以「含段合计」行拆分为准"
+                + "）——下限请以「含段合计」行拆分为准",
+                "· Panel basis　Base damage in this table merges multiple segments ("
+                + ", ".join(_all_names)
+                + ') — for the floor, use the split in the "Total with segments" row',
             )
     modes = res.get("modes") or []
     if _basis_row and not (_basis_name and modes):
         inp.append(_basis_row)  # 有分段表且认出主段时，并进分段区块标题
     if alts:
-        inp.append("· 同类候选　" + "、".join(v.get("zh") or v.get("name", "") for v in alts))
+        inp.append(
+            L("· 同类候选　", "· Similar　")
+            + _sep.join(_zh_or_name(v) if _en else (v.get("zh") or v.get("name", "")) for v in alts)
+        )
     for n in res.get("notes") or []:
         # 说明里混有形态切换、未计入范围与 MOD 限制等多类内容，不全是 MOD 说明；
         # 形态单独成行，标签与面板/配卡等行一样走块内列对齐。
-        _nz = _note_zh(n)
-        if _nz.startswith("形态："):
-            inp.append(f"· 形态　{_nz[3:]}")
+        # 英文模式：notes 由计算阶段按当前语言生成，原样贴出；MOD 限制说明本来就是英文原文。
+        _nz = _note_zh(n) if not _en else n.replace(". ", "; ").rstrip(".").strip()
+        _fp = next((p for p in ("形态：", "Form: ") if _nz.startswith(p)), None)
+        if _fp:
+            inp.append(L(f"· 形态　{_nz[len(_fp) :]}", f"· Form　{_nz[len(_fp) :]}"))
         else:
-            inp.append(f"· 说明　{_nz}")
+            inp.append(L(f"· 说明　{_nz}", f"· Notes　{_nz}"))
     if res["steel_path"]:
-        inp.append("· 钢路　敌人血量/护盾 ×2.5（护甲已不加成）；只计入击杀发数，伤害数值不受影响")
-    lines.append("◆ 输入")
+        inp.append(
+            L(
+                "· 钢路　敌人血量/护盾 ×2.5（护甲已不加成）；只计入击杀发数，伤害数值不受影响",
+                "· Steel Path　Enemy health / shield ×2.5 (armor no longer scales); only the "
+                "shots-to-kill is affected, damage numbers are unchanged",
+            )
+        )
+    lines.append(L("◆ 输入", "◆ Input"))
     lines += inp
 
     # —— 分段表：多段判定（投掷 / 投掷爆炸 / 充能投掷 / 震地…各段类型构成常常完全不同）——
     if modes:
         lines.append(
-            f"◆ 分段（{len(modes)} 段"
-            + (f"，主段 {_basis_name}" if _basis_name else "")
-            + "，含元素/派系/护甲）"
+            L(
+                f"◆ 分段（{len(modes)} 段"
+                + (f"，主段 {_basis_name}" if _basis_name else "")
+                + "，含元素/派系/护甲）",
+                f"◆ Segments ({len(modes)}"
+                + (f", main {_basis_name}" if _basis_name else "")
+                + ", incl. element / faction / armor)",
+            )
         )
         recs = []
         for m in modes[:8]:
             _top = max((m["damage"] or {"?": 0}).items(), key=lambda kv_: kv_[1])
-            _tag = "同普通" if m.get("same_as_main") else TYPE_ZH.get(_top[0], _top[0])
+            _tag = L("同普通", "same as normal") if m.get("same_as_main") else _ty(_top[0])
             _fo = m.get("falloff")
             # 兜底：段结构来自多份数据源，裸数字也按衰减比例读（不许因形状不同崩卡）
             _rv = _fo.get("reduction") if isinstance(_fo, dict) else _fo
             _redu = float(_rv) if isinstance(_rv, (int, float)) else 0.0
             recs.append(
                 (
-                    f"{m['name']}（{_tag}{m['total']:g}）",
+                    L(
+                        f"{m['name']}（{_tag}{m['total']:g}）",
+                        f"{m['name']} ({_tag} {m['total']:g})",
+                    ),
                     f"{m['health']:.0f}",
                     f"{m['health_crit']:.0f}",
                     f"{_redu * 100:.0f}%" if _redu > 0 else "",
-                    "持续伤害单跳值，未计入 DPS" if m.get("shot_type") == "DoT" else "",
+                    L("持续伤害单跳值，未计入 DPS", "DoT tick value, not counted in DPS")
+                    if m.get("shot_type") == "DoT"
+                    else "",
                 )
             )
         _has_fo = any(r[3] for r in recs)
         _has_dot = any(r[4] for r in recs)
         lines.append(
-            "　段　单发　含暴击"
-            + ("　射程衰减" if _has_fo else "")
-            + ("　备注" if _has_dot else "")
+            L(
+                "　段　单发　含暴击"
+                + ("　射程衰减" if _has_fo else "")
+                + ("　备注" if _has_dot else ""),
+                "　Segment　Per Shot　With Crit"
+                + ("　Falloff" if _has_fo else "")
+                + ("　Notes" if _has_dot else ""),
+            )
         )
         for r in recs:
             cells = [r[0], r[1], r[2]]
@@ -4474,11 +5263,16 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
                 cells.append(r[4])
             lines.append("· " + "　".join(cells).rstrip("　"))
         if len(modes) > 8:
-            lines.append(f"· 另 {len(modes) - 8} 段　次级开火/灵化等未列出")
+            lines.append(
+                L(
+                    f"· 另 {len(modes) - 8} 段　次级开火/灵化等未列出",
+                    f"· {len(modes) - 8} more segments　secondary fire / Incarnon etc. not listed",
+                )
+            )
 
     # —— 警示 / 注脚 ——
     # ★ 2026-10-16 维护者要求：伤害分析没经过大规模实战检验，卡面要明说（「※ ⚠」走琥珀警示面板，伤害 / 识卡伤害共用）
-    lines.append(DAMAGE_DISCLAIMER)
+    lines.append(damage_disclaimer())
     if spec.get("enemy_miss"):
         lines.append(
             "※ "
@@ -4488,24 +5282,48 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
         )
     if res.get("unknown"):
         lines.append(
-            "※ ⚠ 未识别（已忽略）："
-            + "、".join(res["unknown"])
-            + "；该词条没进 MOD 名表，如有误请换官方名再试"
+            L(
+                "※ ⚠ 未识别（已忽略）："
+                + "、".join(res["unknown"])
+                + "；该词条没进 MOD 名表，如有误请换官方名再试",
+                "※ ⚠ Unrecognized (ignored): "
+                + ", ".join(res["unknown"])
+                + "; not in the MOD name table, if wrong please retry with the official name",
+            )
         )
     lines.append(
-        "※ 实战 DPS 为稳态近似：异常层已建立、持续挨打；未计爬升/掉层/击杀截断与 Boss 衰减；"
-        "火焰按单例累加、每次触发刷新计时（wiki Heat Damage），取「开火 T 秒」窗口平均"
-        f"（默认 {FIRE_SECONDS_DEFAULT:g}s，可写「开火N秒」）"
+        L(
+            "※ 实战 DPS 为稳态近似：异常层已建立、持续挨打；未计爬升/掉层/击杀截断与 Boss 衰减；"
+            "火焰按单例累加、每次触发刷新计时（wiki Heat Damage），取「开火 T 秒」窗口平均"
+            f"（默认 {FIRE_SECONDS_DEFAULT:g}s，可写「开火N秒」）",
+            "※ Practical DPS is a steady-state approximation: status stacks already built, "
+            "target keeps taking hits; ramp-up / stack decay / kill cutoff and Boss falloff are "
+            "not counted; Heat accumulates as a single instance and refreshes its timer on each "
+            'proc (wiki Heat Damage), averaged over a "fire T seconds" window '
+            f'(default {FIRE_SECONDS_DEFAULT:g}s, set with "fire N s")',
+        )
     )
     # #6 口径（2026-10-09，不改算法）：游戏按 MOD 槽位顺序配对、武器自带元素排
     # 最后参与合成（wiki Damage「Innate weapon elemental damages are considered the very last」）；本计算器固定顺序且自带元素不合成
     lines.append(
-        "※ 护甲减伤 = 90%×√(护甲/2700)；元素合成口径：按 火>冰>电>毒 两两配对（游戏内按 MOD 槽位顺序配对、"
-        "自带元素也参与合成，多元素配卡以游戏面板为准）；U36 起元素差异只有派系弱点 ±50% 与异常状态"
+        L(
+            "※ 护甲减伤 = 90%×√(护甲/2700)；元素合成口径：按 火>冰>电>毒 两两配对（游戏内按 MOD 槽位顺序配对、"
+            "自带元素也参与合成，多元素配卡以游戏面板为准）；U36 起元素差异只有派系弱点 ±50% 与异常状态",
+            "※ Armor reduction = 90% × √(armor / 2700); element combining pairs in the order "
+            "Heat > Cold > Electricity > Toxin (in game, pairing follows MOD slot order and "
+            "innate elements also combine; for multi-element builds the in-game panel is "
+            "authoritative); since U36 the only differences between elements are faction "
+            "weakness ±50% and status effects",
+        )
     )
     lines.append(
-        "※ 乘区：基伤/多重/暴率/暴伤组内相加，元素先相加后合成，派系独立乘区；"
-        "暴击按期望 1+暴率×(暴伤−1)；公式来源 wiki，2026-09-16 核对"
+        L(
+            "※ 乘区：基伤/多重/暴率/暴伤组内相加，元素先相加后合成，派系独立乘区；"
+            "暴击按期望 1+暴率×(暴伤−1)；公式来源 wiki，2026-09-16 核对",
+            "※ Multipliers: base dmg / multishot / crit chance / crit dmg add within their group, "
+            "elements are summed then combined, faction is a separate multiplier; crit uses the "
+            "expectation 1 + crit chance × (crit dmg − 1); formulas from the wiki, checked 2026-09-16",
+        )
     )
     return lines
 
@@ -4517,6 +5335,13 @@ def card_footer(weapon: Optional[dict], res: dict) -> str:
     """
     if not weapon or not res or res.get("ok") is False:
         return ""
+    if i18n.is_en():
+        _wn = weapon.get("name") or weapon.get("zh") or ""
+        _fac = str(res.get("faction") or "").strip()
+        _en_enemy = res.get("enemy")
+        _who = ((_en_enemy.get("name") or _en_enemy.get("zh")) if _en_enemy else "") or ""
+        _tgt = f"{_fac} Lv {res.get('level', '')}".strip()
+        return f"{_wn} vs {_who} · {_tgt}" if _who else f"{_wn} vs {_tgt}"
     zh, en_name = weapon.get("zh") or "", weapon.get("name") or ""
     wtxt = f"{zh}（{en_name}）" if zh and en_name else (zh or en_name)
     fac = re.sub(

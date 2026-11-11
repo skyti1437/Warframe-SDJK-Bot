@@ -112,7 +112,8 @@ class JsonStore:
 class GroupStore(JsonStore):
     """每个会话（群/私聊，键为 unified_msg_origin）的设置。"""
 
-    DEFAULTS = {"platform": "pc", "push": False, "quiet": False}
+    # lang=None 表示本会话没单独设置语言，跟随全局默认（运行时读配置，改默认不用重载）。
+    DEFAULTS = {"platform": "pc", "push": False, "quiet": False, "lang": None}
 
     # 用户可见的开关名 -> 存储键。
     # ⚠️ 早期版本把「推送」这个**中文显示名**直接当键写进了存档，
@@ -145,6 +146,20 @@ class GroupStore(JsonStore):
 
     async def set_platform(self, umo: str, platform: str) -> None:
         self._record_for_write(umo)["platform"] = platform
+        await self.save()
+
+    def lang(self, umo: str) -> Optional[str]:
+        """本会话显式设置的显示语言；没设置或存档值非法返回 None（跟随全局默认）。"""
+        value = self.get(umo).get("lang")
+        return value if value in ("zh", "en") else None
+
+    async def set_lang(self, umo: str, lang: Optional[str]) -> None:
+        """设置本会话语言；传 None 清除设置，恢复跟随全局默认。"""
+        rec = self._record_for_write(umo)
+        if lang is None:
+            rec.pop("lang", None)
+        else:
+            rec["lang"] = lang
         await self.save()
 
     def _record_for_write(self, umo: str) -> dict:
@@ -206,6 +221,10 @@ class Subscription:
     created_at: float = field(default_factory=time.time)
     sid: str = field(default_factory=lambda: uuid.uuid4().hex[:8])
     notified: dict = field(default_factory=dict)  # 去重：事件key -> ts
+    # v1.3.1：订阅创建时固化显示语言与区服。旧存档没有这两个字段，一律按 v1.3.0 的
+    # 「国际服 + 中文」解释 —— 这里写死常量，不读当前配置，避免改默认值后旧订阅换语言。
+    lang: str = "zh"
+    region: str = "intl"
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -219,6 +238,10 @@ class Subscription:
         for name in ("umo", "platform", "event", "sid"):
             if not isinstance(getattr(sub, name), str) or not getattr(sub, name):
                 raise ValueError(f"{name} 应为非空字符串")
+        if sub.lang not in ("zh", "en"):
+            sub.lang = "zh"
+        if sub.region != "intl":
+            sub.region = "intl"
         for name in ("rule", "created_by"):
             if getattr(sub, name) is None:
                 setattr(sub, name, "")

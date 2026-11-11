@@ -39,6 +39,9 @@ import time
 from pathlib import Path
 from typing import Optional
 
+from . import i18n
+from .display_time import format_time
+from .i18n import L
 from .logging_compat import logger as _LOGGER
 
 # ---------------------------------------------------------------------------
@@ -83,7 +86,10 @@ def _expand_tents_line(line: str) -> list[str]:
     for seg in _TENT_SPLIT_RE.split(line):
         parts = [p.strip() for p in seg.split("｜") if p.strip()]
         if parts:
-            tasks = [f"{t}（快速）" if _tent_norm(t) in _TENT_BLUE_TASKS else t for t in parts[1:]]
+            tasks = [
+                L(f"{t}（快速）", f"{t} (fast)") if _tent_norm(t) in _TENT_BLUE_TASKS else t
+                for t in parts[1:]
+            ]
             out.append(f"　{parts[0]}：{'｜'.join(tasks)}")
     return out or [line]
 
@@ -135,7 +141,7 @@ def parse_chart(text: str) -> Optional[dict]:
         labs = []
     labs = [str(x) for x in labs[: len(vals)]] + [""] * max(0, len(vals) - len(labs))
     return {
-        "title": str(obj.get("title") or "走势"),
+        "title": str(obj.get("title") or L("走势", "Trend")),
         "unit": str(obj.get("unit") or ""),
         "labels": labs,
         "values": vals,
@@ -241,7 +247,7 @@ def _expand_ranges_line(line: str, *, for_text: bool = False) -> list[str]:
         return f"⟦{d}⟧{v}⟦/{d}⟧"
 
     out = [
-        "　词条　"
+        L("　词条　", "　Stat　")
         + "　".join(
             (f"⟦{s}⟧{c}⟦/{s}⟧" if s else c) for s, c in zip(_spans, obj["cols"], strict=False)
         )
@@ -304,15 +310,15 @@ def chart_text_lines(chart: dict) -> list[str]:
     """
     vals = chart.get("values") or []
     labs = chart.get("labels") or []
-    title = chart.get("title") or "走势"
+    title = chart.get("title") or L("走势", "Trend")
     unit = chart.get("unit") or ""
     idx = [i for i, v in enumerate(vals) if v is not None]
     if not idx:
-        return [f"· {title}　（区间内无有效数据）"]
+        return [f"· {title}　" + L("（区间内无有效数据）", "(no valid data in range)")]
 
     def _lab(i: int) -> str:
         s = labs[i] if i < len(labs) else ""
-        return f"（{s}）" if s else ""
+        return L(f"（{s}）", f" ({s})") if s else ""
 
     out: list[str] = []
     spark = _spark([vals[i] for i in idx])
@@ -322,9 +328,9 @@ def chart_text_lines(chart: dict) -> list[str]:
     lo = min(idx, key=lambda i: vals[i])
     last = idx[-1]
     out.append(
-        f"· 最高 {_fmt_num(vals[hi])}{unit}{_lab(hi)}｜"
-        f"最低 {_fmt_num(vals[lo])}{unit}{_lab(lo)}｜"
-        f"最新 {_fmt_num(vals[last])}{unit}{_lab(last)}"
+        f"· {L('最高', 'High')} {_fmt_num(vals[hi])}{unit}{_lab(hi)}｜"
+        f"{L('最低', 'Low')} {_fmt_num(vals[lo])}{unit}{_lab(lo)}｜"
+        f"{L('最新', 'Latest')} {_fmt_num(vals[last])}{unit}{_lab(last)}"
     )
     return out
 
@@ -341,15 +347,20 @@ def _expand_chart_line(line: str) -> list[str]:
 
 # 图片卡的颜色图例（「※ 金色＝杜卡德 · 青色＝现金…」）：文字输出没有颜色，留着反而误导。
 _COLOR_LEGEND_RE = re.compile(r"^※.*[金青红绿灰白紫橙蓝]色＝")
+# 英文图例写法：「※ Gold = Ducats · Cyan = Credits」
+_COLOR_LEGEND_EN_RE = re.compile(
+    r"^※.*\b(?:Gold|Cyan|Red|Green|Gr[ae]y|White|Purple|Orange|Blue)\s*="
+)
 
 
-# 页脚里数据源给的 ISO 快照时间（2026-10-30T13:17:53.000Z）在手机上又长又难读 ⇒ 展示时缩成
-# 「2026-10-30 13:17 UTC」：只改写法、不换时区、不丢日期；图片 / 纯文字 / Markdown 同一口径。
-_ISO_UTC_RE = re.compile(r"(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})(?::\d{2}(?:\.\d+)?)?(?:Z|\+00:00)")
+# 卡片页脚的快照时间，图片、纯文字和 Markdown 使用相同的展示时区。
+_ISO_TIME_RE = re.compile(
+    r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})"
+)
 
 
 def display_footer(footer: str) -> str:
-    return _ISO_UTC_RE.sub(r"\1 \2 UTC", footer or "")
+    return _ISO_TIME_RE.sub(lambda m: format_time(m[0], "%Y-%m-%d %H:%M") or m[0], footer or "")
 
 
 # 纯文字表格行里的空单元格（如裂隙没有标记、电波没有精英标签）会留下连续全角空格，
@@ -381,15 +392,61 @@ def _plain_parts(title: str, lines: list[str], footer: str) -> tuple[str, list[s
         _hints.add(_h)
     lines = _rng
     # ⟦c⟧/⟦v⟧/⟦w⟧ 及其闭合 = 染段标记（画图模式分段上色），文本模式剥掉
-    lines = [_SEG_MARK_RE.sub("", x) for x in lines if not _COLOR_LEGEND_RE.match(x)]
+    lines = [
+        _SEG_MARK_RE.sub("", x)
+        for x in lines
+        if not _COLOR_LEGEND_RE.match(x) and not _COLOR_LEGEND_EN_RE.match(x)
+    ]
     # 小帐篷的「蓝字」说明在文字里没有颜色可对，任务已逐个标「（快速）」
-    lines = [x.replace("；蓝字 = 快速任务", "") for x in lines]
+    lines = [
+        x.replace("；蓝字 = 快速任务", "").replace("; blue text = fast tasks", "") for x in lines
+    ]
     lines = [
         x[:2] + _EMPTY_CELLS_RE.sub("　", x[2:]).rstrip("　") if x.startswith("· ") else x
         for x in lines
     ]
     footer = display_footer(_POL_MARK_RE.sub("", footer or ""))
     return title, lines, footer
+
+
+_EN_KV_RE = re.compile(r"^◆\s*([^:：]{1,30}): +\S")
+
+
+def _is_kv_line(line: str) -> bool:
+    """「◆ 标签：值」（英文模式也认 ``◆ Label: value``）。"""
+    return "：" in line or (i18n.is_en() and _EN_KV_RE.match(line) is not None)
+
+
+def _kv_partition(body: str) -> tuple[str, str, str]:
+    """``partition("：")`` 的英文兼容版：英文模式也按首个 ": " 切，分隔符原样带回。"""
+    label, sep, value = body.partition("：")
+    if sep or not i18n.is_en():
+        return label, sep, value
+    label, sep, value = body.partition(": ")
+    if sep and len(label) <= 30:
+        return label, ": ", value
+    return body, "", ""
+
+
+def _en_norm_lines(lines: list[str]) -> list[str]:
+    """英文模式出图前：``◆ Label: value`` 内部归一成 ``◆ Label：value``（KV 排版只认全角冒号）。
+
+    出图时 KV 标签列本来就不画冒号，所以画面上看不到全角冒号。
+    """
+    if not i18n.is_en():
+        return lines
+    out = []
+    for x in lines:
+        if x.startswith("◆") and "：" not in x:
+            m = _EN_KV_RE.match(x)
+            if m:
+                i = x.index(": ")
+                x = x[:i] + "：" + x[i + 2 :]
+        elif x.startswith("　　Task: "):
+            # 赏金档位下的「任务」行：与中文「　　任务：」同样走两段着色
+            x = "　　Task：" + x[len("　　Task: ") :]
+        out.append(x)
+    return out
 
 
 def text_card(title: str, lines: list[str], footer: str = "", max_width: int = 44) -> str:
@@ -401,10 +458,10 @@ def text_card(title: str, lines: list[str], footer: str = "", max_width: int = 4
     max_width 仅为兼容旧调用保留。
     """
     title, lines, footer = _plain_parts(title, lines, footer)
-    out = [f"【{title}】"] if title else []
+    out = [L(f"【{title}】", f"[{title}]")] if title else []
     span = 0  # 双栏表（表头左右重复，如货单）在手机上挤成两件一行，拆成一件一行
     for i, line in enumerate(lines):
-        is_section = line.startswith("◆ ") and "：" not in line
+        is_section = line.startswith("◆ ") and not _is_kv_line(line)
         if line.startswith("◆ "):
             span = 0
         if is_section and out and out[-1] != "":
@@ -464,9 +521,9 @@ def card_markdown(title: str, lines: list[str], footer: str = "") -> Optional[st
         if line.startswith("◆"):
             span, group = 0, ""
             body = line[1:].strip()
-            label, sep, value = body.partition("：")
+            label, sep, value = _kv_partition(body)
             if sep and value.strip():
-                block("kv").append(f"**{label}**：{value.strip()}")
+                block("kv").append(f"**{label}**{sep}{value.strip()}")
             else:
                 blocks.append(["head", f"**{body}**"])
         elif line.startswith("·"):
@@ -843,6 +900,21 @@ GROUP_CHIP_COLOR = {
     "稀有": GOLD_BRIGHT,
     "本期": GOLD_BRIGHT,
     "常驻": STEEL,
+    # 英文卡面的类别芯片（与上面的中文键一一对应）
+    "Mods": VIOLET,
+    "Weapons": CYAN,
+    "Relics": GOLD,
+    "Decor": AMBER,
+    "Cosmetics": MAGENTA,
+    "Other": INK_DIM,
+    "Consumables": GREEN,
+    "Bundles": TEAL,
+    "Elite": MAGENTA,
+    "Common": INK_DIM,
+    "Uncommon": STEEL,
+    "Rare": GOLD_BRIGHT,
+    "Current": GOLD_BRIGHT,
+    "Permanent": STEEL,
 }
 
 # ---------------------------------------------------------------------------
@@ -974,7 +1046,18 @@ _TENT_PAD_BOT = 14  # 末行之下余量
 # ⚠️ 拼写以 tents 实际用的 bounty_jobs_zh.json 为准：「搜索并救援」（另一张
 #    官方表 bounty_job_names.json 写「搜索与救援」，两种拼写都收防串表）。
 _TENT_BLUE_TASKS = frozenset(
-    {"捕获grineer特工", "找出遗失的器物", "取回被偷的器物", "搜索并救援", "搜索与救援"}
+    {
+        "捕获grineer特工",
+        "找出遗失的器物",
+        "取回被偷的器物",
+        "搜索并救援",
+        "搜索与救援",
+        # 英文模式的同一组任务（DE 英文赏金名，比对键同样去空白、小写）
+        "capturethegrineeragent",
+        "findthehiddenartifact",
+        "reclaimthestolenartifact",
+        "searchandrescue",
+    }
 )
 
 # ---------------------------------------------------------------------------
@@ -1122,6 +1205,16 @@ def _split_leading_type(text: str) -> tuple[str, str]:
     类型段；这里把开头的类型词本身染成类型色，保证每一档都有类型色。
     「刺杀：H-09 坦克」这种节点名顺带把「：」一起吃掉，剩下的就是纯节点名。
     """
+    if i18n.is_en():
+        m = _LEAD_TYPE_RE_EN.match(text or "")
+        if not m:
+            return "", text
+        word = m.group(0)
+        rest = text[len(word) :]
+        if rest.startswith((":", "：")):
+            word += "："
+            rest = rest[1:]
+        return word, rest.lstrip(" ")
     m = _LEAD_TYPE_RE.match(text or "")
     if not m:
         return "", text
@@ -1170,6 +1263,8 @@ TITLE_THEME: list[tuple[tuple[str, ...], tuple[tuple[int, int, int], str]]] = [
 _NO_LINE_START = frozenset("］）」』】》〕、。，；：！？,.;:!?)]}%")
 
 _PAGE_RE = re.compile(r"（第(\d+)/(\d+)页(?:[，,]\s*共(\d+)[^\d）]*)?）")
+# 英文分页规范写法："(Page N/M)" 或 "(Page N/M, K total)"（total 后可跟名词，如 "48 total items"）
+_PAGE_RE_EN = re.compile(r"\s*\(Page (\d+)/(\d+)(?:,\s*(\d+)[^\d)]*)?\)")
 # 「（第N/M页，共K<量词>）」的量词各 handler 不统一：条 / 场 / 个 / 件 / 项。
 # ⚠️ 不能只写「条」——遗物列表用的是「个」，漏匹配会让整段页码留在标题里，
 #    标题变长后压到右上角平台徽章上并被面板边框裁切。
@@ -1182,6 +1277,28 @@ _EMOJI_RE = re.compile(
 #    「剩余时间」被当成计时器匹配成「剩余时」，被抽走并右对齐成行尾琥珀字，
 #    原句还会被挖掉三个字变成「商城折扣商品与间」。
 _DUR = r"\d+\s*(?:天|小时|分钟|分|秒)(?:\s*\d+\s*(?:天|小时|分钟|分|秒))*"
+
+
+class _LRe:
+    """按当前显示语言选正则的薄包装：中文模式只用中文那条（行为不变），英文模式用英文那条。"""
+
+    __slots__ = ("zh", "en")
+
+    def __init__(self, zh: "re.Pattern[str]", en: "re.Pattern[str]"):
+        self.zh = zh
+        self.en = en
+
+    def _p(self) -> "re.Pattern[str]":
+        return self.en if i18n.is_en() else self.zh
+
+    def __getattr__(self, name: str):
+        # search / match / finditer / findall / sub / pattern ... 一律转给当前语言的那条正则
+        return getattr(self._p(), name)
+
+
+# 英文时长："3d 4h"、"12m 5s"、"45s"；倒计时写 "3h 12m left"，不足一分钟写 "<1m left"。
+_DUR_EN = r"\d+\s*[dhms](?![a-zA-Z])(?:\s*\d+\s*[dhms](?![a-zA-Z]))*"
+_TIMER_EN = r"(?:<\s*)?" + _DUR_EN + r"\s+left"
 # 计时标记必须显式出现：只有带「剩余/剩/不到」的才是计时文本。
 # ⚠️ 不要写成 `剩余?` —— `?` 只作用于「余」，等价于「必须有『剩』」，
 #    会漏掉「不到1分钟」；而若干脆放开标记，又会把「（第190天）」当成计时。
@@ -1225,18 +1342,137 @@ _TOKEN_RE = re.compile(
     r"|[0-9]{2,4}\s(?:S|A\+|A-|A|B\+|B|F)\b"
     r"|(?:^|(?<=[\s　]))(?:S|A\+|A-|A|B\+|B|C|未评级)(?=[\s　]|$))"
 )
+# ---- 英文版词表与 token 正则（只在英文模式启用；与中文表互不影响）----
+MISSION_TYPE_WORDS_EN: tuple[str, ...] = (
+    "Infested Salvage",
+    "Mobile Defense",
+    "Mirror Defense",
+    "Void Armageddon",
+    "Void Cascade",
+    "Void Flood",
+    "Legacyte Harvest",
+    "Free Roam",
+    "Exterminate",
+    "Excavation",
+    "Interception",
+    "Assassination",
+    "Disruption",
+    "Sabotage",
+    "Survival",
+    "Defection",
+    "Alchemy",
+    "Defense",
+    "Capture",
+    "Rescue",
+    "Hijack",
+    "Skirmish",
+    "Assault",
+    "Orphix",
+    "Pursuit",
+    "Rathuum",
+    "Volatile",
+    "Spy",
+    "Hive",
+    "Arena",
+    "Conclave",
+)
+ELEMENT_WORDS_EN: tuple[str, ...] = (
+    "Magnetic",
+    "Radiation",
+    "Corrosive",
+    "Electricity",
+    "Toxin",
+    "Viral",
+    "Blast",
+    "Gas",
+    "Heat",
+    "Impact",
+    "Puncture",
+    "Slash",
+)
+FACTION_WORDS_EN: tuple[str, ...] = (
+    "Grineer",
+    "Corpus",
+    "Infested",
+    "Sentient",
+    "Corrupted",
+    "Orokin",
+    "Murmur",
+    "Narmer",
+    "Scaldra",
+    "Technocyte",
+)
+_MISSION_TYPE_SET_EN = frozenset(MISSION_TYPE_WORDS_EN)
+_ELEMENT_SET_EN = frozenset(ELEMENT_WORDS_EN)
+_FACTION_SET_EN = frozenset(FACTION_WORDS_EN)
+_W_L_EN = r"(?:^|(?<=[\s　｜(,]))"
+_W_R_EN = r"(?=[\s　｜),.:;]|$)"
+
+
+def _word_alt_en(words: tuple[str, ...]) -> str:
+    return _W_L_EN + "(?:" + "|".join(re.escape(w) for w in words) + ")" + _W_R_EN
+
+
+_LEAD_TYPE_RE_EN = re.compile(
+    "^(?:" + "|".join(re.escape(w) for w in MISSION_TYPE_WORDS_EN) + ")(?![A-Za-z])"
+)
+
+
+_TOKEN_RE_EN = re.compile(
+    # ★/▣ 物品名：英文名中间有空格（Steel Fiber、Gara Systems Blueprint），延伸到逗号为止
+    r"(\[[^\]]*\]|★+[^、,\s　]*(?: [^、,\s　★▣]+)*|▣[^、,\s　]+(?: [^、,\s　★▣]+)*"
+    r"|(?<![\d.])\d+(?:\.\d+)?p(?![a-zA-Z])|" + _TIMER_EN + r"|\([0-9dhms ]+\)|Ended"
+    # 紫卡词条 "▲Critical Chance +120%"：词条名可含空格，到 "+120%" 之后收尾
+    r"|[▲▼][^\s　｜、▲▼]+(?: [A-Za-z0-9+\-][^\s　｜、▲▼]*)*"
+    r"|(?:^|(?<=[\s　｜(]))Rep \d+(?=[\s　｜),.:;]|$)"  # 卖家信誉，对应中文「信46」
+    r"|(?:^|(?<=[\s　｜(]))(?:Web Online|Online|In Game|Offline)(?=[\s　｜),.:;]|$)"
+    r"|(?:^|(?<=[\s　｜(]))(?:Steel Path|Archon|Void Storms)(?=[\s　｜),.:;]|$)"
+    r"|(?:^|(?<=[\s　｜(]))(?:Max Rank|Unranked)(?=[\s　｜),.:;]|$)"
+    r"|(?:^|(?<=[\s　｜(]))(?:Day|Night|Warm|Cold)(?!\s*\d)(?=[\s　｜),.:;]|$)"
+    r"|(?:^|(?<=[\s　｜(]))(?:Fass|Vome)(?: \((?:Day|Night)\))?(?=[\s　｜),.:;]|$)"
+    r"|(?:^|(?<=[\s　｜(]))Arrived(?=[\s　｜),.:;]|$)"
+    + r"|"
+    + _word_alt_en(MISSION_TYPE_WORDS_EN)
+    + r"|"
+    + _word_alt_en(FACTION_WORDS_EN)
+    + r"|"
+    + _word_alt_en(ELEMENT_WORDS_EN)
+    + r"|\d+(?:\.\d+)?%"
+    r"|\d+\s+[Dd]ucats?\b"
+    r"|\d+du(?![A-Za-z])"
+    r"|(?:\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)[kKM]?\s+Credits\b"
+    r"|(?:^|(?<=[\s　]))\d+\.(?=[\s　])"
+    r"|[0-9]{2,4}\s\[(?:S|A\+|A-|A|B\+|B|F)\]"
+    r"|[0-9]{2,4}\s(?:S|A\+|A-|A|B\+|B|F)\b"
+    # 孤立评级字母："A" 作冠词时后面跟小写单词，不染色
+    r"|(?:^|(?<=[\s　]))(?:S|A\+|A-|A|B\+|B|C|Unrated)(?=[\s　]*$|[\s　]+(?![a-z]))(?=[\s　]|$))"
+)
+_TOKEN_RE = _LRe(_TOKEN_RE, _TOKEN_RE_EN)
+
 # 行尾独立计时（右对齐时间列用），如 “剩余 58分钟（58m 36s）”
-_TIMER_RE = re.compile(_TIMER_MARK + _DUR + r"(?:（[0-9hms ]+）)?")
+_TIMER_RE = _LRe(
+    re.compile(_TIMER_MARK + _DUR + r"(?:（[0-9hms ]+）)?"),
+    re.compile(_TIMER_EN + r"(?:\s*\([0-9dhms ]+\))?"),
+)
 # 「N分钟 后」型（时效总览行尾）
-_TIMER_ALT_RE = re.compile(_DUR + r"\s*后(?:开始|抵达)?\s*$")
+_TIMER_ALT_RE = _LRe(
+    re.compile(_DUR + r"\s*后(?:开始|抵达)?\s*$"),
+    re.compile(r"\bin\s+" + _DUR_EN + r"\s*$"),  # 英文「N分钟后」写 "in 5m"
+)
 # 赏金行内的等级（“｜5-15级｜” / 行尾“｜5-15级”）—— 提取后右对齐成等级列，便于整列扫读。
 # ⚠️ 行尾必须也认：赏金行只有「任务名｜等级｜标签」三段的才有尾随「｜」，
 #    而「任务名｜等级」这种两段行（无钢铁之路/合一众标签）旧正则匹配不到，
 #    于是同一张卡上前面几行等级内联、后面几行等级右对齐，看起来像排版坏了。
-_LV_RE = re.compile(r"｜(\d+(?:-\d+)?级)(?:｜|$)")
+_LV_RE = _LRe(
+    re.compile(r"｜(\d+(?:-\d+)?级)(?:｜|$)"),
+    re.compile(r"｜(Lv\s?\d+(?:-\d+)?)(?:｜|$)"),  # 英文等级写 "Lv 5-15"
+)
 # 「上架 6h / 12m / 45s / >100h」—— wr 拍卖行的挂单时长（2026-10-08）：
 #   放行尾，交给同一套「行尾抽取 → 右对齐列」机制，与赏金行的等级/计时同列对齐。
-_AGE_RE = re.compile(r"(?:^|[\s　])(上架\d+[smh]|上架>\d+h)\s*$")
+_AGE_RE = _LRe(
+    re.compile(r"(?:^|[\s　])(上架\d+[smh]|上架>\d+h)\s*$"),
+    re.compile(r"(?:^|[\s　])(Listed \d+[smh]|Listed >\d+h)\s*$"),
+)
 
 # 「· 武器名　元素 25.7%」—— 第二格是「元素 + 百分比」时，整列按**实测像素宽**对齐
 # （只有渲染层知道真实字形宽度；formatter 端按 CJK=2 / ASCII=1 手算会差出一个字，
@@ -1246,8 +1482,14 @@ _PAIR_RE = re.compile(r"^[^\s　]+ [\d.]+%\Z")
 # 原内联在 _render 里的三个热路径正则提升为模块常量（每次渲染少过一遍
 # re 模块的缓存查找；语义逐字节不变）。
 _NUM_HEAD_RE = re.compile(r"^\d+\.(?!\d)")  # 行首序号（numbered 行）
-_DESC_HEAD_RE = re.compile(r"^炼狱 \[\d+\]$")  # 沉沦之地三列的首格
-_TIMER_PAREN_RE = re.compile(r"（[0-9hms ]+）$")  # 计时段尾的括号补充
+_DESC_HEAD_RE = _LRe(
+    re.compile(r"^炼狱 \[\d+\]$"),
+    re.compile(r"^Hell \[\d+\]$"),
+)  # 沉沦之地三列的首格
+_TIMER_PAREN_RE = _LRe(
+    re.compile(r"（[0-9hms ]+）$"),
+    re.compile(r"\s*\([0-9dhms ]+\)$"),
+)  # 计时段尾的括号补充
 
 # ---------------------------------------------------------------------------
 # token 上色：规则表 + 结果记忆化
@@ -1275,6 +1517,7 @@ _TOKEN_RULES: tuple[tuple["re.Pattern[str]", tuple[int, int, int]], ...] = (
     (re.compile(r"^▲"), GREEN),
     (re.compile(r"^▼"), RED),
     (re.compile(r"^信\d+$"), (168, 148, 112)),
+    (re.compile(r"^Rep \d+$"), (168, 148, 112)),
     (re.compile(r"^网页在线$"), BLUE),
     (re.compile(r"^在线$"), GREEN),
     (re.compile(r"^离线$"), INK_FAINT),
@@ -1305,10 +1548,36 @@ _TOKEN_RULES: tuple[tuple["re.Pattern[str]", tuple[int, int, int]], ...] = (
     (re.compile(r"^(?:15|25)杜$"), RARITY_BRONZE),
     (re.compile(r"^\d+杜$"), GOLD_BRIGHT),
     (re.compile(r"^\d+(?:\.\d+)?万?现金$"), CYAN),
+    # ---- 英文模式 token（只会被英文 token 正则切出来）----
+    (re.compile(r"^(?:<\s*)?\d.*\bleft$|^Ended$"), AMBER),
+    (re.compile(r"^\([0-9dhms ]+\)$"), TIME_DIM),
+    (re.compile(r"^(?:Night|Vome(?: \(Night\))?)$"), VIOLET),
+    (re.compile(r"^(?:Day|Warm|Fass(?: \(Day\))?)$"), (232, 150, 96)),
+    (re.compile(r"^Cold$"), CYAN),
+    (re.compile(r"^Arrived$"), GREEN),
+    (re.compile(r"^Web Online$"), BLUE),
+    (re.compile(r"^(?:Online|In Game)$"), GREEN),
+    (re.compile(r"^Offline$"), INK_FAINT),
+    (re.compile(r"^(?:Steel Path|Archon)$"), RED),
+    (re.compile(r"^Void Storms$"), CYAN),
+    (re.compile(r"^(?:Max Rank|Unranked)$"), GOLD_BRIGHT),
+    (re.compile(r"^Unrated$"), INK_FAINT),
+    (re.compile(r"^100 [Dd]ucats?$|^100du$"), RARITY_GOLD),
+    (re.compile(r"^(?:45|65) [Dd]ucats?$|^(?:45|65)du$"), RARITY_SILVER),
+    (re.compile(r"^(?:15|25) [Dd]ucats?$|^(?:15|25)du$"), RARITY_BRONZE),
+    (re.compile(r"^\d+ [Dd]ucats?$|^\d+du$"), GOLD_BRIGHT),
+    (re.compile(r"^(?:\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)[kKM]?\s+Credits$"), CYAN),
 )
 
 # 小号标记芯片：裂隙等列表里的「钢铁 / 九重天」标记（不是大红字）
-_MARK_CHIPS: dict[str, tuple[int, int, int]] = {"钢铁": RED, "九重天": CYAN, "速刷": GREEN}
+_MARK_CHIPS: dict[str, tuple[int, int, int]] = {
+    "钢铁": RED,
+    "九重天": CYAN,
+    "速刷": GREEN,
+    "Steel Path": RED,
+    "Void Storms": CYAN,
+    "Quick": GREEN,
+}
 
 # token 文本 -> (是否方括号词条, 能否做芯片, 芯片色, 语义配色或 None)
 _TOKEN_STYLE: dict[
@@ -1340,11 +1609,11 @@ def _token_style(
             st = (True, False, None, None)
     else:
         color = None
-        if text in _MISSION_TYPE_SET:
+        if text in _MISSION_TYPE_SET or text in _MISSION_TYPE_SET_EN:
             color = MISSION_TYPE_COLOR
-        elif text in _ELEMENT_SET:
+        elif text in _ELEMENT_SET or text in _ELEMENT_SET_EN:
             color = ELEMENT_COLOR
-        elif text in _FACTION_SET:
+        elif text in _FACTION_SET or text in _FACTION_SET_EN:
             color = FACTION_COLOR
         elif _PCT_RE.match(text):
             color = BONUS_COLOR
@@ -1588,9 +1857,34 @@ _TABLE_TITLE_PATTERNS = (
 )
 
 
+# 英文模式的对应子串（小写）。「void storms」同时也命中九重天风暴卡。
+_TABLE_TITLE_PATTERNS_EN = (
+    "arbitration schedule",
+    "command list",
+    "watch types",
+    "incursion",
+    "price ranking",
+    "riven trends",
+    "relics entering",
+    "relics leaving",
+    "relic list",
+    "part sources",
+    "void trader",
+    "void storms",
+    "synthesis targets",
+    "stat ranges",
+    "riven splic",
+)
+
+
 def is_table_title(title: str) -> bool:
     """标题是否走列对齐（表模式）。子串命中，语义与抽函数前一字不变。"""
-    return any(p in (title or "") for p in _TABLE_TITLE_PATTERNS)
+    if any(p in (title or "") for p in _TABLE_TITLE_PATTERNS):
+        return True
+    if i18n.is_en():
+        tl = (title or "").lower()
+        return any(p in tl for p in _TABLE_TITLE_PATTERNS_EN)
+    return False
 
 
 def _split_cells(text: str) -> Optional[list[str]]:
@@ -1710,8 +2004,99 @@ def migrate_legacy_user_fonts(
     return moved
 
 
+# 英文模式的栏目识别（键为小写英文，对小写化的标题做子串匹配；先于中文表匹配）。
+# 中文模式不走这两张表，中文行为不变。键与英文卡标题的约定见回执。
+_SLUG_OVERRIDE_EN: list[tuple[tuple[str, ...], str]] = [
+    (("stat range",), "RIVEN RANGES"),
+    (("riven splic",), "RIVEN SPLICING"),
+    (("riven analysis",), "RIVEN ANALYSIS"),
+    (("riven disposition",), "RIVEN DISPOSITION"),
+    (("damage calc",), "DAMAGE CALCULATOR"),
+    (("build scan", "loadout scan"), "LOADOUT SCAN"),
+    (("valence fusion",), "VALENCE FUSION"),
+    (("crack relic",), "RELIC CRACKING"),
+    (("part source",), "PART SOURCES"),
+    (("relic",), "VOID RELICS"),
+    (("price trend",), "PRICE TREND"),
+    (("riven trend",), "RIVEN TRENDS"),
+    (("incarnon",), "INCARNON ROTATION"),
+    (("tenet",), "TENET ROTATION"),
+    (("coda",), "CODA ROTATION"),
+    (("descendia",), "DESCENDIA"),
+    (("void storm",), "VOID STORMS"),
+    (("steel essence",), "STEEL ESSENCE SHOP"),
+    (("acrithis",), "ACRITHIS"),
+    (("sliver shop", "palladino"), "PALLADINO SHOP"),
+    (("prime resurgence", "prime vault", "varzia"), "PRIME VAULT"),
+    (("live event", "active event"), "LIVE EVENTS"),
+]
+
+# (小写键, 栏目 slug)；颜色按 slug 到 TITLE_THEME 里取（主题换肤随之生效）。
+_THEME_EN: list[tuple[tuple[str, ...], str]] = [
+    (("fissure",), "VOID FISSURES"),
+    (("cycle", "plains of eidolon", "orb vallis", "cambion"), "OPEN WORLD CYCLES"),
+    (("timer",), "TIMERS OVERVIEW"),
+    (("sortie",), "SORTIE"),
+    (("archon",), "ARCHON HUNT"),
+    (("void trader", "baro"), "VOID TRADER"),
+    (("daily deal", "flash sale"), "DAILY DEALS"),
+    (("calendar",), "1999 CALENDAR"),
+    (("deep archimedea",), "DEEP ARCHIMEDEA"),
+    (("temporal archimedea",), "TEMPORAL ARCHIMEDEA"),
+    (("steel path",), "STEEL PATH"),
+    (("arbitration schedule",), "ARBITRATION SCHEDULE"),
+    (("arbitration",), "ARBITRATION"),
+    (("alert",), "ALERTS"),
+    (("invasion",), "INVASIONS"),
+    (("news",), "NEWS FEED"),
+    (("nightwave",), "NIGHTWAVE"),
+    (("kuva siphon", "kuva flood"), "KUVA SIPHONS"),
+    (("bount",), "SYNDICATE BOUNTIES"),
+    (("synthesis",), "SIMARIS TARGETS"),
+    (("fleet", "construction"), "CONSTRUCTION"),
+    (("riven",), "RIVEN AUCTIONS"),
+    (("for sale", "buying", "sellers", "buyers", "orders"), "WARFRAME.MARKET"),
+    (("ducat",), "DUCAT DIRECTORY"),
+    (("item search", "search"), "ITEM SEARCH"),
+    (("requiem", "upgrade", "fusion"), "CALCULATOR"),
+    (("kim",), "KIM CONSOLE"),
+    (("command", "help"), "COMMAND CODEX"),
+    (("watch",), "SUBSCRIBE CODEX"),
+]
+
+
+def _theme_color_by_slug(slug: str):
+    for _keys, (color, sl) in TITLE_THEME:
+        if sl == slug:
+            return color
+    return None
+
+
+def _card_accent(title: str):
+    """栏目强调色；英文模式先按英文键找，找不到再走中文表。"""
+    if i18n.is_en():
+        tl = (title or "").lower()
+        for keys, slug in _THEME_EN:
+            if any(k in tl for k in keys):
+                color = _theme_color_by_slug(slug)
+                if color is not None:
+                    return color
+    for keys, (color, _slug) in TITLE_THEME:
+        if any(k in title for k in keys):
+            return color
+    return GOLD
+
+
 def _card_slug(title: str) -> str:
     """头部英文栏目名（kicker）：补表优先，其次 TITLE_THEME，都没有就用品牌名。"""
+    if i18n.is_en():
+        tl = (title or "").lower()
+        for keys, slug in _SLUG_OVERRIDE_EN:
+            if any(k in tl for k in keys):
+                return slug
+        for keys, slug in _THEME_EN:
+            if any(k in tl for k in keys):
+                return slug
     for keys, slug in _SLUG_OVERRIDE:
         if any(k in title for k in keys):
             return slug
@@ -1963,25 +2348,27 @@ class ImageRenderer:
             return None
 
         # —— 页码芯片 & 主题 ——
-        m = _PAGE_RE.search(title)
+        lines = _en_norm_lines(lines)
+        m = _PAGE_RE.search(title) or _PAGE_RE_EN.search(title)
         page_chip = f"{m.group(1)}/{m.group(2)}" if m else ""
-        title = _PAGE_RE.sub("", title).strip()
-        accent = GOLD
-        for keys, (color, _slug) in TITLE_THEME:
-            if any(k in title for k in keys):
-                accent = color
-                break
+        title = _PAGE_RE_EN.sub("", _PAGE_RE.sub("", title)).strip()
+        accent = _card_accent(title)
+        _tl = title.lower() if i18n.is_en() else ""
         self._plain_body = (
             "指令一览" in title
             or "可蹲" in title
             or title.startswith("蹲")
             or title.startswith("帮助")
+            or (
+                bool(_tl)
+                and ("command list" in _tl or "watch types" in _tl or _tl.startswith("help"))
+            )
         )  # 语法文档不做行内装饰
         # 赏金卡：地区行做横幅、等级右对齐成列、同组行之间不画分隔线
-        self._bounty_mode = "赏金任务" in title
+        self._bounty_mode = "赏金任务" in title or (bool(_tl) and "bounties" in _tl)
         # 奸商卡：正文全是商品名 ——「净化 Corpus Prime」的「净化」不是任务类型、
         # 「冲击」类 MOD 名也不是元素，词表染色在这张卡上只会误染（2026-10-16 用户截图）
-        self._baro_mode = "虚空商人" in title
+        self._baro_mode = "虚空商人" in title or (bool(_tl) and "void trader" in _tl)
         # 侵袭卡的 4 列（类型/派系/等级/地点）走既有列对齐机制；
         # 价格榜 / 紫卡热度榜的多列数字同样按全角空格切列对齐
         # 遗物三张列表卡（入库/出库/列表）同样是网格排版：不开这个模式的话
@@ -3057,7 +3444,7 @@ class ImageRenderer:
                     if not rest.strip():
                         # 值被抽成右侧计时列：整句当标题，去掉悬空的冒号
                         _x_end = self._draw_tokens(d, head, xt, ty, body_font, INK, x_right)
-                    elif rest.startswith("暂无"):
+                    elif rest.startswith("暂无") or re.match(r"None\b", rest):
                         d.text((xt, ty), head + "：", font=body_font, fill=INK)
                         d.text(
                             (xt + _tlen(d, body_font, head + "："), ty),
@@ -3068,7 +3455,7 @@ class ImageRenderer:
                     else:
                         d.text((xt, ty), head + "：", font=body_font, fill=INK_DIM)
                         adv = _tlen(d, body_font, head + "：")
-                        if self._bounty_mode and head == "任务":
+                        if self._bounty_mode and head in ("任务", "Task"):
                             self._draw_task_rest(d, rest, xt + adv, ty, body_font, x_right)
                         else:
                             _x_end = self._draw_tokens(
@@ -3213,7 +3600,7 @@ class ImageRenderer:
             seg = seg.strip()
             if not seg:
                 continue
-            if seg.startswith("平台：") or seg.startswith("平台:"):
+            if seg.startswith(("平台：", "平台:", "Platform:")):
                 plat = seg.split("：", 1)[-1].split(":", 1)[-1].strip().upper()
             else:
                 notes.append(seg)
@@ -3579,17 +3966,18 @@ class ImageRenderer:
         # 「最高」就是「最低」。合成一条标注 —— 拆成两条会抢同一位置，去重逻辑只留先放的
         # 那条，用户就看不到「最新」了（2026-10-23 实测）。
         roles: dict[int, list[str]] = {}
-        for _tag, _i in (("最高", hi_i), ("最低", lo_i), ("最新", last_i)):
+        for _tag, _i in (("hi", hi_i), ("lo", lo_i), ("last", last_i)):
             roles.setdefault(_i, []).append(_tag)
         marks = []
         for _i, _tags in roles.items():  # dict 保序 = 最高 → 最低 → 最新（先放的占好位置）
-            if "最低" in _tags and "最高" not in _tags:
+            if "lo" in _tags and "hi" not in _tags:
                 _col, _side = RED, ("down", "up")
-            elif "最高" in _tags:
+            elif "hi" in _tags:
                 _col, _side = GREEN, ("up", "down")
             else:
                 _col, _side = GOLD_BRIGHT, ("up", "down")
-            marks.append((_i, _col, "·".join(_tags), _side))
+            _names = {"hi": L("最高", "High"), "lo": L("最低", "Low"), "last": L("最新", "Latest")}
+            marks.append((_i, _col, "·".join(_names[_t] for _t in _tags), _side))
         placed: list[tuple[float, float, float, float]] = []
         for mi, mcol, mtag, sides in marks:
             mv = vals[mi]

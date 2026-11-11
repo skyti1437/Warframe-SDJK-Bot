@@ -506,10 +506,11 @@ _schema_opts = {
 }
 _opt_block = re.search(r"const OPT_LABEL = \{(.*?)\n  \};", _html, re.S)
 check(
-    "下拉选项中文名覆盖 schema 里全部选项",
+    "下拉中文名覆盖 schema，UTC 偏移直接使用标准标签",
     bool(_opt_block)
     and all(
-        re.search(rf"{k}: \{{[^}}]*\b{re.escape(o)}: ", _opt_block.group(1))
+        (k == "display_timezone" and re.fullmatch(r"UTC[+-]\d{2}:\d{2}", o))
+        or re.search(rf"{k}: \{{[^}}]*\b{re.escape(o)}: ", _opt_block.group(1))
         for k, opts in _schema_opts.items()
         for o in opts
     ),
@@ -2214,6 +2215,30 @@ check(
 )
 r = _save(ps10, {"no_such_key": 1})
 check("未知配置项被拒", r.get("status") == "error")
+st_zone = next(
+    f
+    for g in asyncio.run(ps10.settings())["groups"]
+    for f in g["fields"]
+    if f["key"] == "display_timezone"
+)
+check(
+    "显示时区默认跟随系统，下拉支持非整点偏移",
+    st_zone["value"] == "system" and "UTC+05:45" in st_zone["options"],
+)
+r = _save(ps10, {"display_timezone": "UTC-03:30"})
+ps10._query = lambda _key, default: default
+ov_zone = asyncio.run(ps10.overview())["display_timezone"]
+check(
+    "显示时区保存即时同步面板和推送",
+    r["need_reload"] == []
+    and ps10.p.cfg["display_timezone"] == ps10.p.push.display_timezone == "UTC-03:30"
+    and ov_zone == {"name": "", "offset_minutes": -210},
+)
+check(
+    "显示时区拒绝非法偏移，保留原值",
+    _save(ps10, {"display_timezone": "UTC+25:00"}).get("status") == "error"
+    and ps10.p.cfg["display_timezone"] == "UTC-03:30",
+)
 ps10.p._config = None
 check("拿不到配置对象时给说明", _save(ps10, {"page_size": 10}).get("status") == "error")
 
@@ -6698,6 +6723,30 @@ check(
 )
 
 
+async def _data_source_reload_pending_checks():
+    """世界状态来源改了未重载：按设置值测，结果里说明运行中仍是旧来源。"""
+    panel = _panel()
+    panel.p.cfg = {"default_platform": "pc", "worldsource": "warframestat"}
+    panel.p.client.worldsource = "de"
+    seen = []
+
+    async def body():
+        return {"target": "worldstate"}
+
+    async def probe(name, platform="pc", worldsource=None):
+        seen.append(worldsource)
+        return {"ok": True, "detail": "HTTP 连通", "attempts": [], "skipped_reason": ""}
+
+    panel._body = body
+    panel.p.client.probe_data_source = probe
+    res = await panel.conntest()
+    check(
+        "世界状态来源改了未重载：按设置值测并注明需重载",
+        seen == ["warframestat"] and "需重载" in (res.get("detail") or ""),
+        f"{seen} {res.get('detail')}",
+    )
+
+
 async def _data_source_test_checks():
     """通过面板真实路由验证结果缓存、配置失效、互斥与关闭。"""
     panel = _panel()
@@ -6710,7 +6759,7 @@ async def _data_source_test_checks():
     async def body():
         return {"target": target}
 
-    async def probe(name, platform="pc"):
+    async def probe(name, platform="pc", worldsource=None):
         calls.append((name, platform))
         if blocked:
             await gate.wait()
@@ -6786,6 +6835,7 @@ async def _data_source_test_checks():
 
 
 asyncio.run(_data_source_test_checks())
+asyncio.run(_data_source_reload_pending_checks())
 
 
 if fails:

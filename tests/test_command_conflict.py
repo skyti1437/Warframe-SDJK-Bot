@@ -258,6 +258,70 @@ def _install_fake_registry(handlers: list) -> "callable":
     return _restore
 
 
+async def _menu_checks() -> None:
+    """平台指令菜单：菜单名可解析、不撞词、长度合规；空壳注册后不产出结果。"""
+    import re
+    import unicodedata
+
+    from core.parser import MENU_COMMANDS, parse
+
+    def width(text: str) -> int:  # QQ 面板长度：一个汉字算 2
+        return sum(2 if unicodedata.east_asian_width(c) in "WF" else 1 for c in text)
+
+    check("菜单不超过 20 条（QQ 每个面板上限）", len(MENU_COMMANDS) <= 20, str(len(MENU_COMMANDS)))
+    reserved = plugin._OCCUPIED_FALLBACK | {"start"}
+    for entry in MENU_COMMANDS:
+        en_cmd, zh_cmd = parse(entry.en).command, parse(entry.zh).command
+        check(
+            f"菜单 {entry.en}/{entry.zh}：中英文名解析到同一指令",
+            bool(en_cmd) and en_cmd == zh_cmd,
+            f"{en_cmd} vs {zh_cmd}",
+        )
+        check(
+            f"菜单 {entry.en}：Telegram 合法名且不撞内置/占用词",
+            bool(re.fullmatch(r"[a-z0-9_]{1,32}", entry.en)) and entry.en not in reserved,
+        )
+        check(
+            f"菜单 {entry.zh}：QQ 面板名 ≤14、描述 ≤30",
+            width(entry.zh) <= 14 and width(entry.desc_zh) <= 30,
+            f"{width(entry.zh)}/{width(entry.desc_zh)}",
+        )
+        check(
+            f"菜单 {entry.en}：Telegram 描述不被截断（≤30）",
+            len(f"{entry.desc_en} · {entry.zh}") <= 30,
+        )
+    check("菜单英文名不重复", len({e.en for e in MENU_COMMANDS}) == len(MENU_COMMANDS))
+    check("wfhelp 解析为帮助", parse("wfhelp").command == "help")
+
+    # 测试桩没有 filter.command：不注册、不报错
+    check("取不到 filter.command 时不注册菜单壳", plugin.MENU_SHELLS == [], str(plugin.MENU_SHELLS))
+    registered = []
+
+    def fake_command(name, **kwargs):
+        def deco(fn):
+            registered.append((name, kwargs.get("desc"), fn))
+            return fn
+
+        return deco
+
+    real_filter = plugin.filter
+    try:
+        plugin.filter = type("F", (), {"command": staticmethod(fake_command)})()
+        names = plugin._register_menu_shells()
+    finally:
+        plugin.filter = real_filter
+    check("每条菜单都注册了指令壳", names == [e.en for e in MENU_COMMANDS], str(names))
+    check(
+        "壳函数名唯一（AstrBot 按模块+函数名登记）",
+        len({fn.__name__ for _, _, fn in registered}) == len(registered),
+    )
+    shell = registered[0][2]
+    check("空壳不产出结果（不截断后面的 on_message）", await shell(None, object()) is None)
+
+    text = plugin.WarframeSDJK._menu_text()
+    check("「.菜单」清单列出全部 QQ 面板名", all(f"{e.zh} — " in text for e in MENU_COMMANDS), text)
+
+
 async def main() -> None:
     tmp = Path(tempfile.mkdtemp())
     # 占用集合显式给定：模拟「内置 help + dailyhub 新闻」已被别人注册
@@ -495,6 +559,8 @@ async def main() -> None:
         plugin._occupied_command_words = real_occupied
         plugin._OCCUPIED_CACHE = None
         plugin._OCCUPIED_EPOCH = -1
+
+    await _menu_checks()
 
     print()
     if FAILED:

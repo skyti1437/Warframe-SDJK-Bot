@@ -247,19 +247,41 @@ def derived_for(
     return out
 
 
-def physical_excluded(members: list[str]) -> set[str]:
-    """物理三项里**占比 ≤25%** 的（DE DamageTypes 限制；份额取家族内任一形态的最大值）。"""
+def _phys_shares_for(members: list[str], family_root: str = "") -> Optional[dict[str, float]]:
+    """物理伤害占比：伤害计算器武器表优先（含各攻击段）；查不到用生成器补的 ``phys``
+    （DE 官方导出 damagePerShot，猎犬武器等）；都没有返回 None。
+
+    Zaw 打击部件 / 组合枪枪膛故意没有 phys：紫卡绑定的部件在官方数据里只有占位伤害，组装后的比例
+    不能套 25% 规则（我方抽样 Sepfahn、Plague Kripath 三种物理词条都出现过）⇒ 返回 None、标「?」。"""
     recs = _family_weapons(members)
-    if not recs:
+    if recs:
+        return _physical_shares(recs)
+    phys = family_entry(family_root).get("phys") if family_root else None
+    if isinstance(phys, dict):
+        return {k: float(phys.get(k) or 0.0) for k in ("impact", "puncture", "slash")}
+    return None
+
+
+def physical_excluded(members: list[str], family_root: str = "") -> set[str]:
+    """物理三项里**占比 ≤25%** 的（DE DamageTypes 限制；份额取家族内任一形态的最大值）。
+
+    ★ 2026-11-10：原先武器表查不到（猎犬武器 Akaten 等）就返回空集 ⇒ 物理三项全部照列、也不标「?」
+    （Akaten 是穿刺 150 + 切割 150，却列出了冲击）。现在先用生成器补的 ``phys``，仍没有才不排除，
+    并由 `unconfirmed_for` 标「?」。
+    """
+    shares = _phys_shares_for(members, family_root)
+    if shares is None:
         return set()
-    shares = _physical_shares(recs)
     return {sid for sid in PHYSICAL_STATS if shares.get(sid.split("_")[0], 0.0) <= 0.25}
 
 
 def unconfirmed_for(cls: str, family_root: str, members: list[str]) -> set[str]:
-    """**未确认**的词条（卡上标「?」）。2026-10-25 起物理三项按规则直接删，这里不再有规则项；
-    「?」只剩 `survey_unseen`（我方抽样没见过的）。保留函数供调用方合并。"""
-    return set()
+    """**未确认**的词条（卡上标「?」）：物理三项无法按 25% 规则判断的武器（Zaw 打击部件、组合枪枪膛、
+    没有伤害数据的）⇒ 照列并标「?」；我方抽样见过的照常确认。抽样没见过的另由 `survey_unseen` 合并。"""
+    if _phys_shares_for(members, family_root) is not None:
+        return set()
+    seen = set((family_entry(family_root).get("survey") or {}).get("rollable") or [])
+    return {sid for sid in PHYSICAL_STATS if sid not in seen}
 
 
 def excluded_for(
@@ -274,7 +296,7 @@ def excluded_for(
         for s in derived_for(cls, family_root, members, positive=positive)
         if s not in PHYSICAL_STATS
     }
-    out |= physical_excluded(members)
+    out |= physical_excluded(members, family_root)
     survey = family_entry(family_root).get("survey") or {}
     for sid in survey.get("rollable") or []:
         out.discard(sid)

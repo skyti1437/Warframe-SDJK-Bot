@@ -10,6 +10,7 @@ steelpath / descendia / incursions；另迁 _valence_note（效价快照说明�
 from __future__ import annotations
 
 from .. import formatters as fmt
+from ..i18n import L
 from .base import Reply
 
 
@@ -22,12 +23,14 @@ class ProgressCommands:
         return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
 
     async def _h_deep(self, parsed, event, platform) -> Reply:
-        title, lines = fmt.fmt_archimedea(await self.client.deep_archimedea(platform), "深层科研")
+        title, lines = fmt.fmt_archimedea(
+            await self.client.deep_archimedea(platform), L("深层科研", "Deep Archimedea")
+        )
         return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
 
     async def _h_temporal(self, parsed, event, platform) -> Reply:
         title, lines = fmt.fmt_archimedea(
-            await self.client.temporal_archimedea(platform), "时光科研"
+            await self.client.temporal_archimedea(platform), L("时光科研", "Temporal Archimedea")
         )
         return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
 
@@ -43,7 +46,11 @@ class ProgressCommands:
             title,
             lines,
             footer=fmt.fmt_platform_footer(
-                platform, "来源 wiki Steel Essence 页（每周轮换 8 件循环）"
+                platform,
+                L(
+                    "来源 wiki Steel Essence 页（每周轮换 8 件循环）",
+                    "Source: wiki Steel Essence page (weekly 8-item rotation)",
+                ),
             ),
         )
 
@@ -58,7 +65,11 @@ class ProgressCommands:
             title,
             lines,
             footer=fmt.fmt_platform_footer(
-                platform, "来源 wiki.warframe.com/w/Riven_Sliver · 中文名取 DE 官方 language 表"
+                platform,
+                L(
+                    "来源 wiki.warframe.com/w/Riven_Sliver · 中文名取 DE 官方 language 表",
+                    "Source: wiki.warframe.com/w/Riven_Sliver · names from the DE official language table",
+                ),
             ),
         )
 
@@ -70,17 +81,25 @@ class ProgressCommands:
         from datetime import datetime, timezone
 
         raw = data.get("valence_snapshot") or ""
+        _missing = L(
+            "※ 元素与加成尚未取得，后台自动获取，以游戏内为准",
+            "※ Elements and bonuses are not available yet; they are fetched automatically in the background, in-game values prevail",
+        )
         if not raw:
-            return "※ 元素与加成尚未取得，后台自动获取，以游戏内为准"
+            return _missing
         try:
             snap = datetime.fromisoformat(raw)
         except (TypeError, ValueError):
-            return "※ 元素与加成尚未取得，后台自动获取，以游戏内为准"
+            return _missing
         if snap.tzinfo is None:
             snap = snap.replace(tzinfo=timezone.utc)
         stale = snap < window_start
-        when = snap.astimezone(timezone.utc).strftime("%m-%d %H:%M")
-        flag = "（上一轮快照，数值可能已变）" if stale else "（本轮快照）"
+        when = fmt.format_time(snap)
+        flag = (
+            L("（上一轮快照，数值可能已变）", " (previous-round snapshot, values may have changed)")
+            if stale
+            else L("（本轮快照）", " (this round's snapshot)")
+        )
         from ..api_client import WarframeClient
 
         try:
@@ -89,10 +108,15 @@ class ProgressCommands:
             same = False
         if not stale and same:
             # 快照时刻在本轮、数值却与上一轮相同 ⇒ wiki 还没人更新（见 valence_values_stale）
-            flag = "（数值疑似仍是上一轮：wiki 尚未完整更新，可能已变）"
-        return (
-            f"※ 元素与加成为 {when} UTC 快照{flag}：wiki 武器页玩家上报值"
-            f"（无官方 API，后台自动获取），以游戏内商店为准"
+            flag = L(
+                "（数值疑似仍是上一轮：wiki 尚未完整更新，可能已变）",
+                " (values look like the previous round: the wiki is not fully updated yet, they may have changed)",
+            )
+        return L(
+            f"※ 元素与加成为 {when} 快照{flag}：wiki 武器页玩家上报值"
+            f"（无官方 API，后台自动获取），以游戏内商店为准",
+            f"※ Elements and bonuses are a {when} snapshot{flag}: player-reported values from "
+            f"wiki weapon pages (no official API, fetched automatically), the in-game shop prevails",
         )
 
     async def _h_descendia(self, parsed, event, platform) -> Reply:

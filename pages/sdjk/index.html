@@ -777,11 +777,43 @@
       n.append(k instanceof Node ? k : document.createTextNode(String(k)));
     return n;
   }
-  const fmtTime = (s) => {
+  let displayClock = null;
+  function setDisplayClock(spec) {
+    const key = JSON.stringify(spec || null);
+    if (displayClock?.key === key) return false;
+    const format = (timeZone, timeOnly, withOffset) => new Intl.DateTimeFormat("zh-CN", {
+      timeZone, hourCycle: "h23", hour: "2-digit", minute: "2-digit", second: "2-digit",
+      ...(timeOnly ? {} : { year: "numeric", month: "2-digit", day: "2-digit" }),
+      ...(withOffset ? { timeZoneName: "longOffset" } : {}),
+    });
+    if (spec?.name) {
+      try {
+        displayClock = { key, offset: 0, label: "", full: format(spec.name, false, true),
+          time: format(spec.name, true, true) };
+        return true;
+      } catch (e) {
+        if (!(e instanceof RangeError)) throw e;
+      }
+    }
+    const offset = Number.isInteger(spec?.offset_minutes) ? spec.offset_minutes : 0;
+    const pad = (n) => String(n).padStart(2, "0");
+    const abs = Math.abs(offset);
+    const label = offset ? `UTC${offset < 0 ? "-" : "+"}${pad(Math.floor(abs / 60))}:${pad(abs % 60)}` : "UTC";
+    displayClock = { key, offset, label, full: format("UTC", false, false), time: format("UTC", true, false) };
+    return true;
+  }
+  function fmtTime(s, timeOnly = false) {
     if (s === null || s === undefined || s === "") return "—";
     const d = typeof s === "number" ? new Date(s * 1000) : new Date(s);
-    return isNaN(d) ? String(s) : d.toLocaleString("zh-CN", { hour12: false });
-  };
+    if (isNaN(d)) return String(s);
+    if (!displayClock) setDisplayClock(null);
+    const { offset, label, full, time } = displayClock;
+    const clock = timeOnly ? time : full;
+    const p = Object.fromEntries(clock.formatToParts(d.getTime() + offset * 60000).map(({type, value}) => [type, value]));
+    const date = timeOnly ? "" : `${p.year}/${p.month}/${p.day} `;
+    const zone = label || p.timeZoneName.replace("GMT", "UTC");
+    return `${date}${p.hour}:${p.minute}:${p.second} ${zone}`;
+  }
   const ago = (ts) => {
     if (!ts) return "—";
     const s = Date.now() / 1000 - ts;
@@ -1249,6 +1281,8 @@
   // 下拉选项显示中文，括号里保留配置原值（与 AstrBot 配置页 / 配置文件对得上）
   const OPT_LABEL = {
     worldsource: { de: "DE 官方直连", warframestat: "warframestat.us" },
+    default_language: { cn: "中文", en: "英文（English）" },
+    display_timezone: { system: "跟随 AstrBot 系统时区" },
     default_platform: { pc: "PC", ps: "PlayStation", xb: "Xbox", sw: "Switch" },
     render_mode: { image: "图片卡片", auto: "长内容才转图片", text: "纯文字" },
     scan_detail_mode: { auto: "自动（有按钮时按需查看）", lazy: "总是按需查看", eager: "总是直接出两页" },
@@ -1439,7 +1473,7 @@
     if (!v) return [el("div", { class: "hint" }, "解析中…")];
     if (v.err) return [el("div", { class: "s-stale" }, `✗ 没拿到解析结果：${v.err}`)];
     return [...vrRoutes().map(vRouteRow),
-      el("div", { class: "hint" }, `各任务分别判断，某一路没有可用渠道只说明该任务这一步取不到渠道。解析于 ${v.at.toLocaleTimeString()}`)];
+      el("div", { class: "hint" }, `各任务分别判断，某一路没有可用渠道只说明该任务这一步取不到渠道。解析于 ${fmtTime(v.at, true)}`)];
   }
   function renderVisionSaved() {
     $("visionSaved").replaceChildren(...vSavedNodes());
@@ -1686,6 +1720,7 @@
         (d.need_reload.length ? `；以下需在 AstrBot 后台重载插件后生效：${d.need_reload.map(lab).join("、")}` : "，已即时生效");
       await loadSettings({ forceRender: true });
       if (scope === "vision") await loadVisionSaved();
+      if ("display_timezone" in changes) await load();
     } catch (err) { out.className = "result s-stale"; out.textContent = "✗ " + (err.message || err); }
     finally { state.settingsSaving -= 1; }
   }
@@ -1955,7 +1990,7 @@
       el("input", { type: "radio", name: "rmCloud", value: v ? "single" : "dual", checked: (draft ?? formSaved) === v,
         disabled: !has, onchange: () => rmSet(v) }), label);
     const eff = rmEffective(m);
-    const at = state.vr?.at ? `后端回读于 ${state.vr.at.toLocaleTimeString()}` : "";
+    const at = state.vr?.at ? `后端回读于 ${fmtTime(state.vr.at, true)}` : "";
     vpPut(box,
       el("div", { class: "rmTop" }, el("b", {}, "读取方式"),
         el("span", { class: "hint" }, "当前实际生效："),
@@ -2079,7 +2114,7 @@
       el("span", {}, `有 ${VC.orphans.length} 份未采用的对比快照释放失败，仍可能占用待执行名额（到期后由后端回收）。`),
       vcBtn("重试释放", { busy: VC.orphans.some((o) => o.busy) }, vcRetryOrphans)));
     vpPut(box, alerts.length ? el("div", { class: "vsumAlerts" }, ...alerts) : el("div", { class: "hint" }, "没有需要处理的提醒。"),
-      el("div", { class: "hint", style: "margin-top:8px" }, "渠道按已保存的设置解析，不调用模型；列出来的渠道不代表支持识图。" + (vr?.at ? `解析于 ${vr.at.toLocaleTimeString()}。` : "")));
+      el("div", { class: "hint", style: "margin-top:8px" }, "渠道按已保存的设置解析，不调用模型；列出来的渠道不代表支持识图。" + (vr?.at ? `解析于 ${fmtTime(vr.at, true)}。` : "")));
     // 各渠道表单下方：每一路的实际解析结果（未保存改动以保存后为准）
     document.querySelectorAll("[data-view=vision] .vEff").forEach((n) => {
       const off = ["riven", "line", "line_recheck"].includes(n.dataset.route) && rmUses(rmNow.mode, n.dataset.route) === false;
@@ -2310,7 +2345,7 @@
     const prepWhy = !MG.loaded ? "读取中" : !st ? "迁移状态未知，先重新读取" : MG.busy ? "上一项操作还没结束" : "";
     const v = MG.view, pv = MG.pv, why = pv ? mgBlock() : "";
     const pvBox = v ? el("div", { class: "mgPv" + (v.op === "rollback" ? " rollback" : ""), id: "vMigPv" },
-      el("b", {}, `${MG_OP[v.op]}预览`), pv ? el("span", { class: "hint" }, `（${v.d.expires_in} 秒内有效，到 ${new Date(pv.until).toLocaleTimeString()}；只能确认一次）`) : null,
+      el("b", {}, `${MG_OP[v.op]}预览`), pv ? el("span", { class: "hint" }, `（${v.d.expires_in} 秒内有效，到 ${fmtTime(new Date(pv.until), true)}；只能确认一次）`) : null,
       el("table", { class: "mgTbl" }, el("tr", {}, el("th", {}, "项目"), el("th", {}, "现在"), el("th", {}, "确认后")),
         ...MG_KEYS.map((k) => el("tr", { "data-k": k }, el("td", {}, MG_NAME[k]), el("td", {}, mgValue(v.d.current[k])),
           el("td", { class: k in v.d.changes ? "s-edit" : "" }, mgAfter(v.d, v.op, k),
@@ -4024,6 +4059,10 @@
         const ov = await bridge.apiGet("overview", { reveal: $("reveal").checked ? "1" : "0" });
         if (gen !== loadGen) return;
         state.ov = ov;
+        if (setDisplayClock(ov.display_timezone)) {
+          memoReset();
+          if (state.vr) renderVisionSummary();
+        }
         $("ver").textContent = `v${state.ov.version}`;
         $("updated").textContent = `更新于 ${fmtTime(state.ov.now)}`;
         renderFresh(state.ov.freshness); renderPush(state.ov.push); renderSubs(state.ov.subs);
@@ -4236,30 +4275,40 @@
     }
   });
   // —— 连通性（维护页）——
-  // 结果按后端契约显示：ok 给 ✓ / ✗；skipped_reason 非空 = 没有执行，显示「未测试」而不是失败；
+  // 结果按后端契约显示：ok 给 ✓ / ✗；skipped_reason 非空 = 没有执行，显示「未测试」而不是失败
+  // （整项与单个通道都一样：单个通道没发请求时标「–」，不写耗时）；
   // cached = 30 秒内复用的上次结果，注明测试时间；attempts 逐条列出每个通道。全部 textContent。
-  const CONN_SKIP = { disabled: "未启用", wm_quota_busy: "WM 请求额度繁忙，这次没有发请求" };
+  const CONN_SKIP = { disabled: "未启用", wm_quota_busy: "WM 请求额度繁忙，这次没有发请求", budget_exhausted: "本次探测时间预算已用完，没有发请求" };
   const connMs = (ms) => Number.isFinite(ms) ? `${ms} ms` : "";
+  const connSkip = (o) => typeof o.skipped_reason === "string" ? o.skipped_reason : "";
+  // 后端的未测试说明多数已带「未测试」字样（如「WM 冷却中，未测试」），这时不再加前缀
+  const connSkipText = (t) => t.includes("未测试") ? t : `未测试：${t}`;
+  const connRows = (list) => (Array.isArray(list) ? list : []).filter((a) => a && typeof a === "object");
   function connAttempts(list) {
-    const rows = (Array.isArray(list) ? list : []).filter((a) => a && typeof a === "object");
+    const rows = connRows(list);
     if (!rows.length) return null;
-    return el("div", { class: "connList" }, ...rows.map((a) => el("div", { class: "connAtt" },
-      el("span", { class: a.ok === true ? "s-ok" : "s-stale" }, a.ok === true ? "✓" : "✗"),
-      el("b", {}, typeof a.label === "string" && a.label ? a.label : "通道"),
-      el("span", { class: "dim connUrl" }, typeof a.url === "string" ? a.url : ""),
-      el("span", { class: "dim connMeta" }, ((http) => [http, connMs(a.ms),
-        typeof a.error === "string" && a.error !== http ? a.error : ""])(Number.isInteger(a.status) ? `HTTP ${a.status}` : "")
-        .filter(Boolean).join(" · ")))));
+    return el("div", { class: "connList" }, ...rows.map((a) => {
+      const skip = connSkip(a), http = Number.isInteger(a.status) ? `HTTP ${a.status}` : "";
+      const err = typeof a.error === "string" && a.error !== http ? a.error : "";
+      return el("div", { class: "connAtt" },
+        el("span", { class: skip ? "s-info" : a.ok === true ? "s-ok" : "s-stale" }, skip ? "–" : a.ok === true ? "✓" : "✗"),
+        el("b", {}, typeof a.label === "string" && a.label ? a.label : "通道"),
+        el("span", { class: "dim connUrl" }, typeof a.url === "string" ? a.url : ""),
+        el("span", { class: "dim connMeta" }, (skip ? [http, err || CONN_SKIP[skip] || "未测试"] : [http, connMs(a.ms), err])
+          .filter(Boolean).join(" · ")));
+    }));
   }
   function renderConn(out, d) {
     if (!d || typeof d !== "object" || typeof d.ok !== "boolean") {
       out.className = "result s-stale"; out.replaceChildren("✗ 后端返回的结果不完整"); return;
     }
     const detail = typeof d.detail === "string" ? d.detail : "";
-    const skip = typeof d.skipped_reason === "string" ? d.skipped_reason : "";
+    const skip = connSkip(d), rows = connRows(d.attempts);
     const head = skip
-      ? el("div", { class: "s-info" }, `未测试：${detail || CONN_SKIP[skip] || skip}`)
-      : el("div", { class: d.ok ? "s-ok" : "s-stale" }, `${d.ok ? "✓" : "✗"} ${detail}` + (connMs(d.ms) ? `（${connMs(d.ms)}）` : ""));
+      ? el("div", { class: "s-info" }, connSkipText(detail || CONN_SKIP[skip] || skip))
+      : !d.ok && rows.length && rows.every(connSkip)
+        ? el("div", { class: "s-info" }, "未测试：所列通道都没有发请求")
+        : el("div", { class: d.ok ? "s-ok" : "s-stale" }, `${d.ok ? "✓" : "✗"} ${detail}` + (connMs(d.ms) ? `（${connMs(d.ms)}）` : ""));
     const when = d.cached === true
       ? el("div", { class: "hint" }, "上次测试结果（30 秒内不重复探测）", Number.isFinite(d.checked_at) ? "，测于 " : "",
           Number.isFinite(d.checked_at) ? agoEl(d.checked_at) : null)

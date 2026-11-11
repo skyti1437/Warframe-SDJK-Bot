@@ -53,6 +53,9 @@ def check(name: str, cond: bool, detail: str = ""):
         FAILED.append(name)
 
 
+check("投射速度展示短名", RIVEN_STAT_ZH["projectile_speed"] == "投射")
+
+
 # ---------------------------------------------------------------------------
 # ① 组合系数四种 + 只按 1.2
 # ---------------------------------------------------------------------------
@@ -150,8 +153,52 @@ if _spos:
         str(sorted(_spos)),
     )
 check(
-    "未确认集合只剩抽样项（物理按规则直接删）",
-    RP.unconfirmed_for("shotgun", "FullAutoShotgun", []) == set(),
+    "有伤害数据的武器：未确认集合为空（物理按规则直接删）",
+    RP.unconfirmed_for("shotgun", "FullAutoShotgun", ["Boar", "Boar Prime"]) == set(),
+)
+
+# ★ 2026-11-10：伤害计算器武器表查不到的武器，物理占比改用生成器补的 phys（DE 导出 / wiki 组合武器模块）；
+#   都没有才标「?」照列（原先直接三项全列、也不标 ?：猎犬武器 Akaten 列出了它根本没有的冲击）
+_r, _m = RP.family_members("Akaten")
+kpos, kneg, kunc = avail("melee", _r, _m)
+check(
+    "★ Akaten（猎犬武器，穿刺 150 + 切割 150）不出冲击",
+    "impact_damage" not in kpos and "impact_damage" not in kneg,
+)
+check("Akaten 能出穿刺 / 切割", {"puncture_damage", "slash_damage"} <= kpos)
+check(
+    "★ Akaten 按守护武器排除连击 / 滑暴 / 处决 / 重击效率",
+    not (
+        {
+            "combo_duration",
+            "initial_combo",
+            "slide_crit",
+            "finisher_damage",
+            "heavy_attack_efficiency",
+        }
+        & kpos
+    ),
+)
+check("Akaten 有伤害数据 ⇒ 物理不标 ?", not (set(RP.PHYSICAL_STATS) & kunc))
+# Zaw：组装后的伤害比例不能套 25% 规则（抽样 Sepfahn 冲击 10% / 穿刺 25%、Plague Kripath 冲击 14% / 切割 23%，
+#   三种物理词条都见过）⇒ 没抽样的打击部件物理三项照列标 ?，抽样见过的不标 ?
+_r, _m = RP.family_members("Balla")
+zpos, _, zunc = avail("melee", _r, _m)
+check(
+    "★ Zaw 打击部件 Balla：物理三项照列并标 ?",
+    set(RP.PHYSICAL_STATS) <= zpos and set(RP.PHYSICAL_STATS) <= zunc,
+)
+_r, _m = RP.family_members("Sepfahn")
+spos, _, sunc = avail("melee", _r, _m)
+check(
+    "★ Zaw 打击部件 Sepfahn：抽样三种都见过 ⇒ 照列且不标 ?",
+    set(RP.PHYSICAL_STATS) <= spos and not (set(RP.PHYSICAL_STATS) & sunc),
+)
+_r, _m = RP.family_members("Catchmoon")
+cpos, _, cunc = avail("pistol", _r, _m)
+check(
+    "★ 组合枪枪膛 Catchmoon（伤害构成未知）物理三项照列并标 ?",
+    set(RP.PHYSICAL_STATS) <= cpos and set(RP.PHYSICAL_STATS) <= cunc,
 )
 
 # ---------------------------------------------------------------------------

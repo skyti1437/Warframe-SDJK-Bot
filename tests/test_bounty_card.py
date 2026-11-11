@@ -1059,6 +1059,26 @@ check(
     str(_ov),
 )
 
+# 英文奖励名必须按官方同键取原文，不能把英中表再次反转。
+from core import i18n as _i18n  # noqa: E402
+
+with _i18n.use_lang("en"):
+    _names = fmt._disp_items("★角斗士圣盾、▣弗拉克斯亡魂左拳套")
+    check(
+        "英文赏金奖励保留官方名称",
+        _names == "★Gladiator Aegis, ▣Furax Wraith Left Gauntlet",
+        _names,
+    )
+    _fallback_names = fmt._disp_items("2 × Orokin战意矩阵装置、▣蕈菇枪管蓝图")
+    check(
+        "旧别名及蓝图按官方掉落表原文显示",
+        _fallback_names == "2 × Orokin Animus Matrix, ▣Arbucep Barrel Blueprint",
+        _fallback_names,
+    )
+    check("未知奖励名原样保留", fmt._pool_name_en("未识别的奖励") == "未识别的奖励")
+with _i18n.use_lang("zh"):
+    check("中文奖励展示不改写", fmt._disp_items("★角斗士圣盾") == "★角斗士圣盾")
+
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")
     sys.exit(1)

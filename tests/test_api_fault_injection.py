@@ -2503,7 +2503,11 @@ async def t_data_source_probe():
         result = await c.probe_data_source("community")
         check(
             "自填社区私网请求前拦截",
-            not result["ok"] and not calls and not result["attempts"][0]["url"],
+            not result["ok"]
+            and not calls
+            and not result["attempts"][0]["url"]
+            and result["attempts"][0].get("skipped_reason") == "private_url"
+            and "受限网络" in result["attempts"][0]["error"],
         )
 
         def public_redirect(request):

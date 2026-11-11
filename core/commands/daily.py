@@ -15,9 +15,11 @@ from .. import arbi as _arbi
 from .. import baro
 from .. import formatters as fmt
 from .. import paths as core_paths
-from .. import wiki_intro
+from .. import i18n, wiki_intro
+from ..i18n import L
 from ..parser import FISSURE_FILTER_HELP, fissure_tier_hint, parse_fissure_filter
 from .base import Reply
+from .dun import _en_rule_toks
 
 
 class DailyCommands:
@@ -134,7 +136,9 @@ class DailyCommands:
         sources = list(
             dict.fromkeys(self._worldstate_source(r) for r in res if self._worldstate_source(r))
         )
-        return Reply(title, lines, footer=fmt.fmt_platform_footer(platform, "；".join(sources)))
+        return Reply(
+            title, lines, footer=fmt.fmt_platform_footer(platform, L("；", "; ").join(sources))
+        )
 
     @staticmethod
     async def _arb_timer() -> dict:
@@ -145,6 +149,9 @@ class DailyCommands:
 
     async def _h_fissures(self, parsed, event, platform) -> Reply:
         content = parsed.content_str
+        _shown = " ".join(x for x in (parsed.preset, content) if x)
+        if i18n.is_en():  # 英文筛选词并入中文内部键（只在本命令的参数解析处认）
+            content = " ".join(_en_rule_toks("裂隙", [str(t) for t in (parsed.content or [])]))
         if parsed.preset:
             content = (parsed.preset + " " + content).strip()
         flt = parse_fissure_filter(content) if content else None
@@ -160,13 +167,31 @@ class DailyCommands:
             all_rows=True,
         )
         if _t_hint:
-            lines.append(_t_hint)
-        if flt and lines and "没有进行中的裂隙" in lines[0]:
-            lines.append(FISSURE_FILTER_HELP)
+            lines.append(
+                L(
+                    _t_hint,
+                    "※ Fissure tiers only support T1-T6 "
+                    "(T1=Lith, T2=Meso, T3=Neo, T4=Axi, T5=Requiem, T6=Omnia)",
+                )
+            )
+        if flt and lines and ("没有进行中的裂隙" in lines[0] or "No active fissures" in lines[0]):
+            lines.append(
+                L(
+                    FISSURE_FILTER_HELP,
+                    "※ Available filter words: steel / storm / normal / void ｜ tier lith...omnia (T1-T6) ｜"
+                    " mission type (survival / defense / disruption ...) ｜ node or planet name;"
+                    " space = AND, comma = OR",
+                )
+            )
         if (parsed.page or 1) > 1:
             # ★ 2026-10-11：裂隙是整表一张卡（all_rows），-N 翻页无效 —— 明说，不静默
-            lines.append("※ 裂隙已全部列在本卡，无需翻页")
-        extra = f"筛选：{flt.describe()}" if flt else ""
+            lines.append(
+                L(
+                    "※ 裂隙已全部列在本卡，无需翻页",
+                    "※ All fissures are listed on this card; no paging needed",
+                )
+            )
+        extra = L(f"筛选：{flt.describe()}", f"Filter: {_shown}") if flt else ""
         return Reply(
             title,
             lines,
@@ -214,13 +239,23 @@ class DailyCommands:
                 snapshot=baro.snapshot_date(),
                 missed=missed,
             )
-            return Reply(title, lines, footer=fmt.fmt_platform_footer(platform, "wiki 历史统计"))
+            return Reply(
+                title,
+                lines,
+                footer=fmt.fmt_platform_footer(
+                    platform, L("wiki 历史统计", "wiki visit history stats")
+                ),
+            )
         data = await self.client.void_trader(platform)
         title, lines = fmt.fmt_void_trader(data)
         if baro.visits():
             lines.append(
-                f"※ 想看下期可能卖什么：发「奸商 预测」"
-                f"（基于 wiki 的 {len(baro.visits())} 次到访统计）"
+                L(
+                    f"※ 想看下期可能卖什么：发「奸商 预测」"
+                    f"（基于 wiki 的 {len(baro.visits())} 次到访统计）",
+                    f'※ Want to know what he may sell next time? Send "baro predict" '
+                    f"(based on {len(baro.visits())} visits recorded on the wiki)",
+                )
             )
         return Reply(
             title, lines, footer=fmt.fmt_platform_footer(platform, self._worldstate_source(data))
@@ -267,7 +302,11 @@ class DailyCommands:
             lines,
             footer=fmt.fmt_platform_footer(
                 platform,
-                self._worldstate_source(data) or "数据源：DE worldState（ProjectPct / Goals）",
+                self._worldstate_source(data)
+                or L(
+                    "数据源：DE worldState（ProjectPct / Goals）",
+                    "Source: DE worldState (ProjectPct / Goals)",
+                ),
             ),
         )
 
@@ -300,7 +339,7 @@ class DailyCommands:
         """
         vault = await self.client.prime_vault(platform)
         trigger = (parsed.command_raw or "").strip()
-        if trigger in ("出库", "御品"):
+        if trigger in ("出库", "御品") or (i18n.is_en() and trigger.lower() == "primevault"):
             # ★ 2026-10-16（维护者要求）：本期出库遗物连同全部部件一起列（参考 warframe.market 重生页）
             relics = {
                 it["name"]: wiki_intro.relic_rewards(it["name"])

@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
+from ..i18n import L
 from ..logging_compat import logger
 
 # 插件根目录（= main.py 所在目录）。commands 域方法体逐字迁自 main.py，其中
@@ -51,20 +52,22 @@ class Reply:
     riven_splice: Optional[dict] = None  # 紫卡融合预测契约；展示层按 schema_version 读取
 
 
-def err_card(reason: str, fix: str, *kv, title: str = "提示") -> Reply:
+def err_card(reason: str, fix: str, *kv, title: str | None = None) -> Reply:
     """统一报错 / 用法卡片：「◆ 原因」+ 可选 KV 行 +「※ ⚠ 怎么改」。
 
     kv 每项：``(标签, 内容)`` -> 「◆ 标签：内容」；或已成型的字符串（原样一行，
     如「· 示例 …」「　续行」）。文字降级（-w / render_mode=text）走 text_card，
     原因与怎么改都在。限流 / 并发 / 权限这类高频系统提示不要用它（保持纯文本）。
     """
-    lines = [f"◆ 原因：{reason}"]
+    if title is None:
+        title = L("提示", "Notice")
+    lines = [L(f"◆ 原因：{reason}", f"◆ Reason: {reason}")]
     for item in kv:
         if isinstance(item, (tuple, list)):
-            lines.append(f"◆ {item[0]}：{item[1]}")
+            lines.append(L(f"◆ {item[0]}：{item[1]}", f"◆ {item[0]}: {item[1]}"))
         elif item:
             lines.append(str(item))
-    lines.append(f"※ ⚠ 怎么改：{fix}")
+    lines.append(L(f"※ ⚠ 怎么改：{fix}", f"※ ⚠ How to fix: {fix}"))
     return Reply(title, lines)
 
 

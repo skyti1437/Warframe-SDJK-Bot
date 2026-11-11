@@ -24,6 +24,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from core import i18n as _i18n  # noqa: E402
 from core import render as R  # noqa: E402
 
 FAILED: list[str] = []
@@ -861,6 +862,7 @@ async def _render_cancel_checks():
         "logger": SimpleNamespace(warning=lambda *args: warnings.append(args)),
         "Image": SimpleNamespace(fromFileSystem=lambda path: path),
         "Plain": lambda text: text,
+        "i18n": _i18n,
     }
     module = ast.Module(
         body=[
@@ -1007,6 +1009,7 @@ async def _multipage_delivery_checks():
         "Image": SimpleNamespace(fromFileSystem=lambda path: {"image": path}),
         "Plain": lambda text: {"text": text},
         "logger": SimpleNamespace(warning=lambda *args: None),
+        "i18n": _i18n,
     }
     module = ast.Module(
         body=[

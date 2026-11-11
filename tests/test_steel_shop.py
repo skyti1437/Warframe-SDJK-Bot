@@ -115,6 +115,12 @@ check("正文含轮换倒计时", "距轮换" in text)
 check("正文含分组标题", all(f"◆ {g}" in text for g in {i["group"] for i in ever}))
 check("正文列出全部常驻商品", all(i["name"] in text for i in ever))
 
+from core import i18n as _i18n  # noqa: E402
+
+with _i18n.use_lang("en"):
+    _, _en_shop = F.fmt_steel_essence_shop()
+    check("钢精商店曲目使用官方英文原名", "· The Teacher　25 Essence" in _en_shop)
+
 # ---------------------------------------------------------------------------
 # A3 碎银兑换（Palladino 裂罅碎块商店，2026-10-03）
 #   取证：全表常驻、无轮换库存；每周限购周一 00:00 UTC 重置。

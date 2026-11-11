@@ -558,6 +558,7 @@ if MK.is_file():
         "tests/test_dummy.py": b"",
         "scripts/nested/dev.py": b"",
         "assets/readme/help.png": b"\x00",
+        "README.en.md": b"# English documentation\n",
         "pyproject.toml": b"",
         "build_damage_data.py": b"",
         "build_de_data.py": b"",

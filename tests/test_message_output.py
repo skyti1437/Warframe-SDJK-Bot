@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 import tempfile
+import time
 import types
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
@@ -148,7 +151,7 @@ class Event:
 
 def new_plugin():
     obj = object.__new__(plugin.WarframeSDJK)
-    obj.cfg = {"strip_markdown": True}
+    obj.cfg = {}
     obj.render_mode = "image"
     obj.renderer = types.SimpleNamespace(available=True)
     obj.context = types.SimpleNamespace(get_platform_inst=lambda _: None)
@@ -170,7 +173,6 @@ async def consume(obj, event, generator):
     results = []
     async for result in generator:
         event.result = result
-        await obj._on_decorating_result(event)
         event.deliveries.append(("body", result))
         results.append(result)
     return results
@@ -613,8 +615,12 @@ class OutputTests(unittest.IsolatedAsyncioTestCase):
                     self.assertIn("二", text)
 
     def test_small_screen_footer_time_and_empty_cells(self):
+        from core.display_time import use_zone
         from core.render import card_markdown, display_footer, text_card
 
+        zone = use_zone("UTC+00:00")
+        zone.__enter__()
+        self.addCleanup(zone.__exit__, None, None, None)
         footer = (
             "平台：国际服 · 数据源：社区 warframestat（DE 后备）｜快照 2026-10-30T13:17:53.000Z"
         )
@@ -640,6 +646,67 @@ class OutputTests(unittest.IsolatedAsyncioTestCase):
         md = card_markdown("午夜电波", lines, footer)
         self.assertIn("快照 2026-10-30 13:17 UTC", md)
         self.assertIn("- **熔毁** · 1000 声望 · 剩 10小时41分", md)
+
+    @unittest.skipUnless(hasattr(time, "tzset"), "需要支持 TZ 的系统")
+    def test_system_display_timezone_uses_each_timestamps_offset(self):
+        from core.display_time import format_time, panel_timezone, use_zone
+
+        try:
+            with patch.dict(os.environ, {"TZ": "America/New_York"}):
+                time.tzset()
+                self.assertEqual(panel_timezone("system")["name"], "America/New_York")
+                self.assertEqual(format_time("2026-01-01T01:00:00Z"), "12-31 20:00 UTC-05:00")
+                self.assertEqual(format_time("2026-07-01T01:00:00Z"), "06-30 21:00 UTC-04:00")
+                with use_zone("UTC+05:45"):
+                    self.assertEqual(format_time("2026-07-01T01:00:00Z"), "07-01 06:45 UTC+05:45")
+                with use_zone("invalid"):
+                    self.assertEqual(format_time("2026-07-01T01:00:00Z"), "06-30 21:00 UTC-04:00")
+        finally:
+            time.tzset()
+
+    async def test_dispatch_uses_saved_timezone_for_reply_and_footer(self):
+        from core.display_time import format_time
+
+        obj = new_plugin()
+        obj.cfg["display_timezone"] = "UTC+05:30"
+
+        async def handler(parsed, event, platform):
+            stamp = "2026-11-10T20:15:00Z"
+            return Reply("快照", [format_time(stamp)], footer=f"快照 {stamp}")
+
+        event = Event("aiocqhttp")
+        parsed = parse("仲裁 -w")
+        result = await consume(obj, event, obj._dispatch(handler, parsed, event, "pc"))
+        text = "\n".join(body_parts(result))
+        self.assertIn("11-11 01:45 UTC+05:30", text)
+        self.assertIn("快照 2026-11-11 01:45 UTC+05:30", text)
+
+    async def test_arbitration_uses_display_zone_for_table_and_today_filter(self):
+        from core.i18n import use_lang
+
+        obj = new_plugin()
+        obj.cfg["display_timezone"] = "UTC+05:30"
+        start = datetime(2026, 11, 9, 18, tzinfo=timezone.utc).timestamp()
+        sched = {"startTs": start, "stepSec": 3600, "nodes": ["A"], "seq": [0, 0, 0, 0]}
+        obj._arb_fetch = AsyncMock(return_value=(sched, {"A": {"nameZh": "测试节点"}}, {}))
+        obj.page_size = 12
+        with patch("time.time", return_value=start + 3000):
+            event = Event("aiocqhttp")
+            result = await consume(
+                obj, event, obj._dispatch(obj._h_arbitration, parse("仲裁 今天 -w"), event, "pc")
+            )
+            text = "\n".join(body_parts(result))
+            self.assertIn("共 3 场（UTC+05:30）", text)
+            self.assertIn("11月10日 00:30", text)
+            self.assertNotIn("11月9日 23:30", text)
+            with use_lang("en"):
+                event = Event("aiocqhttp")
+                result = await consume(
+                    obj, event, obj._dispatch(obj._h_arbtable, parse("arbtable -w"), event, "pc")
+                )
+            text = "\n".join(body_parts(result))
+            self.assertIn("Nov 9 23:30", text)
+            self.assertIn("Nov 10 00:30", text)
 
     def test_markdown_section_sign_only_blocks_machine_lines(self):
         from core.render import card_markdown
@@ -886,20 +953,15 @@ class OutputTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(results[0].markdown)
         obj._handle_admin.assert_awaited_once_with(event, ".开启 推送")
 
-    async def test_cleanup_only_strips_unmarked_qq_output(self):
-        obj, event = new_plugin(), Event()
+    async def test_literal_output_preserves_text_without_global_cleanup(self):
+        obj = new_plugin()
         original = "**粗体** 与 Player_Name"
-        event.result = Result([Plain(original)])
-        await obj._on_decorating_result(event)
-        self.assertNotEqual(event.result.chain[0].text, original)
-        marked = obj._literal_result(Result([Plain(original)]))
-        event.result = marked
-        await obj._on_decorating_result(event)
-        self.assertEqual(marked.chain[0].text, original)
-        event.platform = "telegram"
-        event.result = Result([Plain(original)])
-        await obj._on_decorating_result(event)
-        self.assertEqual(event.result.chain[0].text, original)
+        result = obj._literal_result(Result([Plain(original)]))
+        self.assertEqual(result.chain[0].text, original)
+        self.assertFalse(result.markdown)
+        self.assertFalse(hasattr(plugin.WarframeSDJK, "_on_decorating_result"))
+        schema = json.loads((ROOT / "_conf_schema.json").read_text())
+        self.assertNotIn("strip_markdown", schema)
 
     async def test_qq_limit_counts_page_tail_and_manual_hint(self):
         for private, count in ((False, 5), (True, 4)):

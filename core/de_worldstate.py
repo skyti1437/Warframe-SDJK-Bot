@@ -19,8 +19,10 @@ import re
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
+
+from . import i18n
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 DATA_DIR = Path(__file__).resolve().parent / "data" / "de"
 
@@ -29,8 +31,34 @@ DATA_DIR = Path(__file__).resolve().parent / "data" / "de"
 # ---------------------------------------------------------------------------
 
 
-@lru_cache(maxsize=None)
+# v1.3.1 国际服英文：同一张逻辑表的英文版文件。值为 None 表示英文模式下该表不用
+# （中文补充表 / 以英文为键的「英→中」对照表，查不到时代码会回落到英文原文）。
+_EN_TABLE = {
+    "languages_zh.json": "languages_en.json",
+    "nodes_zh.json": "nodes_en.json",
+    "mission_types_zh.json": "mission_types_en.json",
+    "challenges_zh.json": "challenges_en.json",
+    "bounty_jobs_zh.json": "bounty_jobs_en.json",
+    "name_zh.json": "name_en.json",
+    "factionsData.json": "factionsData_en.json",
+    "zh_ext.json": None,
+    "name_zh_wfcd.json": None,
+    "events_zh.json": None,
+    "conclave_zh.json": None,
+    "nightwave_zh.json": None,
+}
+
+
 def _load(name: str) -> Any:
+    """按当前显示语言取静态表：英文模式下换成同一逻辑表的英文版（见 ``_EN_TABLE``）。"""
+    if i18n.is_en() and name in _EN_TABLE:
+        en_name = _EN_TABLE[name]
+        return _load_file(en_name) if en_name else {}
+    return _load_file(name)
+
+
+@lru_cache(maxsize=None)
+def _load_file(name: str) -> Any:
     """按文件名缓存静态表。
 
     **必须 maxsize=None**：这里会被 14 个不同文件名轮流命中，
@@ -44,6 +72,11 @@ def _load(name: str) -> Any:
         return json.loads(path.read_text(encoding="utf-8"))
     except Exception:  # noqa: BLE001
         return {}
+
+
+# 旧调用方（测试、预热）通过 _load 访问缓存控制，转接到真正带缓存的 _load_file。
+_load.cache_clear = _load_file.cache_clear  # type: ignore[attr-defined]
+_load.cache_info = _load_file.cache_info  # type: ignore[attr-defined]
 
 
 def sol_node(key: str) -> dict:
@@ -134,8 +167,12 @@ def mission_type(key: str) -> str:
     return v or key
 
 
-@lru_cache(maxsize=1)
 def _mission_type_by_name() -> dict[str, str]:
+    return __mission_type_by_name_for(i18n.current_lang())
+
+
+@lru_cache(maxsize=2)
+def __mission_type_by_name_for(_lang: str) -> dict[str, str]:
     """英文任务类型名（小写）-> 官方简中。
 
     由两张官方表拼出：``missionTypes.json``（``MT_*`` -> 英文名）反查代码，
@@ -321,8 +358,12 @@ def text_cn(key: str, *, fallback: str = "") -> str:
     return language_text_zh(key) or language_text(key)[0] or fallback
 
 
-@lru_cache(maxsize=1)
 def _challenge_table() -> dict:
+    return __challenge_table_for(i18n.current_lang())
+
+
+@lru_cache(maxsize=2)
+def __challenge_table_for(_lang: str) -> dict:
     return _load("challenges_zh.json") or {}
 
 
@@ -366,6 +407,10 @@ MANUAL_ITEM_NAMES = {
     # （MummyQuestKeyBlueprint）不在任何导出表 → 奸商卡曾显示英文原名。
     "mummyquestkeyblueprint": "Inaros 之沙蓝图",
 }
+# 英文模式的同一批手工名（DE 英文导出同样没有该蓝图条目）
+MANUAL_ITEM_NAMES_EN = {
+    "mummyquestkeyblueprint": "Sands of Inaros Blueprint",
+}
 
 
 def item_name_opt(path: str) -> Optional[str]:
@@ -384,6 +429,11 @@ _ITEM_BLUEPRINT_SUFFIX = "蓝图"
 _CJK_RE = re.compile(r"[\u4e00-\u9fff]")
 
 
+def credits_text(amount: int) -> str:
+    """现金数额：``50,000 现金`` / ``50,000 Credits``。"""
+    return i18n.L(f"{amount:,} 现金", f"{amount:,} Credits")
+
+
 def _blueprint_synth(path: str) -> Optional[str]:
     """``…Blueprint`` 资产 -> 官方基名 + 「蓝图」；基名拿不到官方中文时返回 None。
 
@@ -398,13 +448,14 @@ def _blueprint_synth(path: str) -> Optional[str]:
     tail = base.rstrip("/").rsplit("/", 1)[-1]
     if not tail:
         return None
+    suffix = i18n.L(_ITEM_BLUEPRINT_SUFFIX, " Blueprint")
     _key, zh = _card_lang_by_tail(tail)
     if zh:
-        return zh + _ITEM_BLUEPRINT_SUFFIX
-    # 语言表没覆盖时再看本地物品词表（同样要求是中文）
+        return zh + suffix
+    # 语言表没覆盖时再看本地物品词表（中文模式要求是中文；英文模式下官方英文基名即可）
     name = _item_name_raw(base)
-    if name and _CJK_RE.search(name):
-        return name + _ITEM_BLUEPRINT_SUFFIX
+    if name and (i18n.is_en() or _CJK_RE.search(name)):
+        return name + suffix
     return None
 
 
@@ -460,19 +511,20 @@ def _item_name_raw(path: str) -> Optional[str]:
     if pack:
         return pack
     tail = path.rstrip("/").rsplit("/", 1)[-1]
-    if tail.lower() in MANUAL_ITEM_NAMES:
-        return MANUAL_ITEM_NAMES[tail.lower()]
+    manual = MANUAL_ITEM_NAMES_EN if i18n.is_en() else MANUAL_ITEM_NAMES
+    if tail.lower() in manual:
+        return manual[tail.lower()]
     m = _CREDIT_PATH.match(tail)
     if m:
-        return f"{int(m.group(1).replace(',', '')):,} 现金"
+        return credits_text(int(m.group(1).replace(",", "")))
     # 内融核心捆包（UncommonFusionBundle 等）变体很多但官方统称「内融核心」
     if tail.lower().endswith("fusionbundle"):
-        return language_text_zh("/Lotus/Language/Items/FusionBundle") or "内融核心"
+        return language_text_zh("/Lotus/Language/Items/FusionBundle") or i18n.L("内融核心", "Endo")
     en, _ = language_text(path)
     if en:
         m2 = _CREDIT_PATH.match(en)
         if m2:
-            return f"{int(m2.group(1).replace(',', '')):,} 现金"
+            return credits_text(int(m2.group(1).replace(",", "")))
         return en
     return None
 
@@ -611,6 +663,15 @@ PLANET_CN = {
     "Duviri": "双衍王境",
     "Ambulas": "安布拉斯",
 }
+
+
+def planet_name(planet_en: str) -> str:
+    """星球显示名：中文模式查 PLANET_CN，英文模式原样（官方英文）。"""
+    if i18n.is_en():
+        return planet_en
+    return PLANET_CN.get(planet_en, planet_en)
+
+
 _PLANET_RE = re.compile(r"\(([^)]+)\)\s*$")
 
 
@@ -631,12 +692,16 @@ def _node_name(node_key: str) -> str:
     zh = nodes_zh().get(node_key)
     if zh and zh.get("name"):
         sysname = zh.get("system") or ""
-        return f"{zh['name']}（{sysname}）" if sysname else zh["name"]
+        if not sysname:
+            return zh["name"]
+        return i18n.L(f"{zh['name']}（{sysname}）", f"{zh['name']} ({sysname})")
     info = sol_node(node_key)
     name = info.get("value") or node_key
     if node_key.endswith("HUB"):  # 中继站/中枢不带敌派后缀
         return name
     suffix = ""
+    if i18n.is_en():
+        return name + suffix  # 英文模式：solNodes 原文「Node (Planet)」即官方英文
     if name.strip() in PLANET_CN:
         # ★ 2026-10-11：活动节点（EventNode35 = "Earth"）的值是**无括号**的星球名，
         #   旧逻辑只汉化括号里的星球 ⇒ 卡面露英文「Earth」。
@@ -677,7 +742,7 @@ def _fmt_left(ms_left: int) -> str:
     由调用方决定过滤（`_parse_void_storms` 已过滤）或标注。
     """
     if ms_left <= 0:
-        return "已结束"
+        return i18n.L("已结束", "Ended")
     secs = ms_left // 1000
     h, rem = divmod(secs, 3600)
     m, s = divmod(rem, 60)
@@ -766,6 +831,8 @@ DUVIRI_STATES_CN = {
 
 def duviri_mood_cn(mood: str) -> str:
     """Sorrow -> 悲伤（未知值原样返回）。"""
+    if i18n.is_en():
+        return mood
     return DUVIRI_STATES_CN.get(mood, mood)
 
 
@@ -960,7 +1027,7 @@ def _parse_synth(raw: dict) -> list[dict]:
         out.append(
             {
                 "name": en,
-                "planet": PLANET_CN.get(planet_en, planet_en),
+                "planet": planet_name(planet_en),
                 "mission": mission_en,
                 "node": _node_name(key) if key else mission_en,
                 "type": first.get("type", ""),
@@ -1003,8 +1070,13 @@ def node_level(key: str) -> str:
     """节点敌人等级区间，如 ``33-35级``；无数据返回空串。"""
     lv = (nodes_zh().get(key) or {}).get("level")
     if lv:
-        return f"{lv}级"
+        return level_text(lv)
     return ""
+
+
+def level_text(lv: str) -> str:
+    """敌人等级区间：``33-35级`` / ``Lv 33-35``。"""
+    return i18n.L(f"{lv}级", f"Lv {lv}")
 
 
 # 执刑官猎杀三个阶段的敌人等级 —— **wiki `Archon Hunt` 原文**（Rules 节）：
@@ -1013,6 +1085,14 @@ def node_level(key: str) -> str:
 # 与节点本身的星图等级**无关**（旧实现套用普通节点等级，卡面成了「15-17级」）。
 # wiki 未给钢铁之路下的等级 ⇒ 不写（不推算、不编）。
 ARCHON_STAGE_LEVELS = ("130-135级", "135-140级", "145-150级")
+_ARCHON_STAGE_RANGES = ("130-135", "135-140", "145-150")
+
+
+def archon_stage_level(index: int) -> str:
+    """执刑官第 index 阶段（0 起）的敌人等级文本，按当前显示语言。"""
+    if 0 <= index < len(_ARCHON_STAGE_RANGES):
+        return level_text(_ARCHON_STAGE_RANGES[index])
+    return ""
 
 
 def archon_code(boss_code: str) -> str:
@@ -1043,11 +1123,7 @@ def _parse_sortie(entry: dict, *, archon: bool) -> dict:
         {
             "node": _node_name(v.get("node", "")),
             "nodeKey": v.get("node", ""),
-            "level": (
-                (ARCHON_STAGE_LEVELS[i] if i < len(ARCHON_STAGE_LEVELS) else "")
-                if archon
-                else node_level(v.get("node", ""))
-            ),
+            "level": (archon_stage_level(i) if archon else node_level(v.get("node", ""))),
             "missionType": mission_type(v.get("missionType", "")),
             "modifier": sortie_modifier(v.get("modifierType", "")),
         }
@@ -1312,7 +1388,9 @@ def _news_message(msgs: dict) -> str:
     全句（波兰语、法语、西语…），旧实现「取不到 en 就取任意一种」，
     于是界面上一半是看不懂的欧洲语言。宁可少一条，也不要乱码。
     """
-    for code in ("zh", "zh-hans", "en"):
+    # 英文模式只取英文：没有英文的公告（如只面向中文玩家的通知）宁可不显示，也不夹中文
+    order = ("en",) if i18n.is_en() else ("zh", "zh-hans", "en")
+    for code in order:
         raw = (msgs.get(code) or "").strip()
         if not raw:
             continue
@@ -1354,6 +1432,7 @@ def _parse_news(raw: dict) -> list[dict]:
 # 机制：入侵任务的胜方会累积全服「建造进度」，Grimeer 计入巴罗尔巨人战舰、Corpus 计入利刃豺狼舰队；
 #      满 100% 触发 3 天的战术警报，该阵营会攻击一座中继站；全服把舰体完整度打到 0% 即结束，
 #      建造进度随之归零。
+_PROJECT_EVENT_EN = {"战舰破坏": "Fomorian Sabotage", "利刃豺狼舰队": "Razorback Armada"}
 _PROJECT_KEYS = [
     ("巴罗尔巨人战舰", "Balor Fomorian", "Grineer", "战舰破坏"),
     ("利刃豺狼舰队", "Razorback Armada", "Corpus", "利刃豺狼舰队"),
@@ -1378,7 +1457,15 @@ def _parse_construction(raw: dict) -> dict:
         val = float(pct[i] or 0)
         if val <= 0:
             continue  # 进度为 0 的项没有展示价值
-        projects.append({"name": name, "en": en, "faction": faction, "event": event, "pct": val})
+        projects.append(
+            {
+                "name": i18n.L(name, en or name),
+                "en": en,
+                "faction": faction,
+                "event": i18n.L(event, _PROJECT_EVENT_EN.get(event, event)),
+                "pct": val,
+            }
+        )
 
     # 进行中的袭击：DE 在这些事件里下发带 HealthPct/VictimNode 的 Goal
     assaults = []
@@ -1424,6 +1511,25 @@ PVP_MODE_CN = {
     "PVPMODE_ALL": "全部模式",
     "PVPMODE_NONE": "不限",
 }
+
+PVP_MODE_EN = {
+    "PVPMODE_SPEEDBALL": "Lunaro",
+    "PVPMODE_LUNARO": "Lunaro",
+    "PVPMODE_CAPTURETHEFLAG": "Capture the Cephalon",
+    "PVPMODE_TEAMDEATHMATCH": "Team Annihilation",
+    "PVPMODE_DEATHMATCH": "Annihilation",
+    "PVPMODE_ANNIHILATION": "Annihilation",
+    "PVPMODE_TEAMANNIHILATION": "Team Annihilation",
+    "PVPMODE_FACEOFF": "Team Annihilation",
+    "PVPMODE_ALL": "All Modes",
+    "PVPMODE_NONE": "Any Mode",
+}
+
+
+def pvp_mode_name(code: str) -> str:
+    table = PVP_MODE_EN if i18n.is_en() else PVP_MODE_CN
+    return table.get(code, code)
+
 
 # 九重天虚空风暴等级（VoidT1..T4 = 面纱/冥王/海王/火卫二 等，按 DE 内部层数）
 VOIDSTORM_TIER_CN = {"VoidT1": "T1", "VoidT2": "T2", "VoidT3": "T3", "VoidT4": "T4"}
@@ -1535,10 +1641,10 @@ def _parse_conclave(raw: dict, now_ms: int) -> list[dict]:
         cat = (c.get("Category") or "").upper()
         out.append(
             {
-                "mode": PVP_MODE_CN.get(c.get("PVPMode", ""), c.get("PVPMode", "")),
+                "mode": pvp_mode_name(c.get("PVPMode", "")),
                 "text": conclave_text(en) if en else _prettify(ref),
                 "value": val,
-                "cat": "每周" if "WEEKLY" in cat else "每日",
+                "cat": i18n.L("每周", "Weekly") if "WEEKLY" in cat else i18n.L("每日", "Daily"),
                 "expiry": _iso_of(c, "endDate"),
             }
         )
@@ -1597,7 +1703,7 @@ def _parse_prime_vault(raw: dict, now_ms: int) -> dict:
                 #   词表与 browse.wf 镜像都还没有 PrimePacks/MPVProteaSinglePackName）**不再丢弃**：
                 #   用路径美化名 +「（未收录）」显示，并计数给卡面注脚（旧写法 continue
                 #   让 2026-10-11 实测 9 件（本期 2 + 常驻 7）静默消失，可兑换总数少算）。
-                nm = f"{_prettify(path)}（未收录）"
+                nm = i18n.L(f"{_prettify(path)}（未收录）", f"{_prettify(path)} (unlisted)")
                 unnamed.append(nm)
             price = it.get("PrimePrice")
             prime = True
@@ -1678,7 +1784,7 @@ def _parse_clan_rewards(raw: dict, now_ms: int) -> list[dict]:
         out.append(
             {
                 "week": w.get("WeekCount"),
-                "region": PLANET_CN.get(raw_region, raw_region) or "?",
+                "region": planet_name(raw_region) or "?",
                 "rewards": rws,
             }
         )
@@ -1751,7 +1857,18 @@ def _load_job_meta() -> dict:
 
 
 _JOB_NAMES = _load_job_names()
-_JOB_META = _load_job_meta()
+
+
+def _job_meta() -> dict:
+    """按当前显示语言取赏金元数据表（英文模式读 bounty_jobs_en.json）。"""
+    return _load_job_meta() or {}
+
+
+def _job_names() -> dict:
+    """旧的英→中赏金名兜底表；英文模式不用（DE 原名本身就是英文）。"""
+    return {} if i18n.is_en() else _JOB_NAMES
+
+
 # ---------------------------------------------------------------------------
 # 金星「深矿」钢铁之路档 —— **社区观测**登记（2026-09-26）
 # ---------------------------------------------------------------------------
@@ -1777,6 +1894,16 @@ _JOB_META = _load_job_meta()
 #   C = 花园除草  （VenusCoconut 葛嘉里菌孢子 + 头部神经光元/枪托）
 # DE 不下发「当前是哪一档」⇒ 卡面**不写死任务名**（改「深矿（钢铁之路）」），
 # 并在注脚说明轮换；奖励仍列钢铁版三表合并（对未知轮换是超集，见 build_nokko_sp_pool.py）。
+def _solaris_supplement_job(entry: dict) -> dict:
+    """社区观测补档：英文模式换成官方英文地名（NokkoColony/LocationName）。"""
+    job = dict(entry)
+    if i18n.is_en():
+        place = language_text_zh("/Lotus/Language/NokkoColony/LocationName") or "Deepmines"
+        job["jobType"] = f"{place} (Steel Path)"
+        job["_jobName"] = f"{place} (Steel Path)"
+    return job
+
+
 SOLARIS_SUPPLEMENT_JOBS: tuple[dict, ...] = (
     {
         "jobType": "深矿 企业重组（钢铁之路）",
@@ -1816,7 +1943,7 @@ def adapt_community_syndicate_missions(rows: list[dict]) -> list[dict]:
             matches = []
             if region:
                 narmer = "narmer" in table.lower()
-                for path, meta in _JOB_META.items():
+                for path, meta in _job_meta().items():
                     tail = path.rsplit("/", 1)[-1]
                     suffix = identity[len(tail) :] if identity.startswith(tail) else ""
                     if region in path and ("/narmer/" in path) == narmer and suffix.isdecimal():
@@ -1844,7 +1971,7 @@ def _parse_syndicate_missions(raw: dict) -> list[dict]:
             # 它才是“这一档该用哪个池”的权威依据：Entrati 的 job 顺序与 Tier 并不一致，
             # 100-100 档的 Tier 也与 40-60 档相同，靠位置索引推断必然错位。
             reward_table = (j.get("rewards", "") or "").rsplit("/", 1)[-1]
-            _meta = _JOB_META.get(raw_jt.lower()) or {}
+            _meta = _job_meta().get(raw_jt.lower()) or {}
             jobs.append(
                 {
                     "jobType": _prettify(raw_jt),
@@ -1861,8 +1988,8 @@ def _parse_syndicate_missions(raw: dict) -> list[dict]:
                     # 末阶段类型），旧表 bounty_job_names.json 只作兜底。
                     "_jobName": (
                         _meta.get("name")
-                        or _JOB_NAMES.get(raw_jt.lower())
-                        or _JOB_NAMES.get(jt_tail, "")
+                        or _job_names().get(raw_jt.lower())
+                        or _job_names().get(jt_tail, "")
                     ),
                     "_jobDesc": _meta.get("desc") or "",
                     "_jobFinal": _meta.get("final") or [],
@@ -1871,7 +1998,7 @@ def _parse_syndicate_missions(raw: dict) -> list[dict]:
             )
         # ★ 金星：补上 DE 不下发的「深矿·企业重组（钢铁之路）」档（社区观测，见上方常量注释）
         if s.get("Tag", "") == "SolarisSyndicate":
-            jobs.extend(dict(x) for x in SOLARIS_SUPPLEMENT_JOBS)
+            jobs.extend(_solaris_supplement_job(x) for x in SOLARIS_SUPPLEMENT_JOBS)
         out.append(
             {
                 "id": _oid(s.get("_id")),
@@ -1998,7 +2125,9 @@ def _parse_archimedea(entry: dict, kind: str) -> dict:
         fac_code = m.get("faction", "")
         diffs = []
         for d in m.get("difficulties") or []:
-            tag = "硬化" if d.get("type") == "CD_HARD" else "普通"
+            tag = (
+                i18n.L("硬化", "Elite") if d.get("type") == "CD_HARD" else i18n.L("普通", "Normal")
+            )
             dv_name, dv_desc = _conquest_text(d.get("deviation", ""), kind)
             rk = []
             for r in d.get("risks") or []:
@@ -2117,8 +2246,12 @@ def _coh_stem(tail: str) -> str:
     return n
 
 
-@lru_cache(maxsize=1)
 def _coh_index() -> dict:
+    return __coh_index_for(i18n.current_lang())
+
+
+@lru_cache(maxsize=2)
+def __coh_index_for(_lang: str) -> dict:
     """CircleOfHell 命名空间索引：``归一化键尾 -> (完整路径, 中文)``。
 
     只覆盖 ``/Lotus/Language/CircleOfHell/`` 一个命名空间（268 键，约 40KB），
@@ -2143,8 +2276,12 @@ def _coh_by_tail(tail: str) -> tuple[str, str]:
     return _coh_index().get(_norm_key(tail), ("", ""))
 
 
-@lru_cache(maxsize=512)
 def _coh_by_substring(code: str) -> tuple[str, str]:
+    return _coh_by_substring_for(code, i18n.current_lang())
+
+
+@lru_cache(maxsize=1024)
+def _coh_by_substring_for(code: str, _lang: str) -> tuple[str, str]:
     """⑦ 双向子串兜底：取**最长交集**且**取值唯一**的键，否则判不可靠返回空。
 
     例：``FieryTrailRollers`` -> 与 ``CoHChallengeFieryTrail`` 共享 10 个字符、
@@ -2402,8 +2539,12 @@ _CAL_BLUEPRINT_MARK = "Blueprint"
 _CAL_REWARD_SYNTH = {"CalendarRivenPack": "裂罅 Mod"}
 
 
-@lru_cache(maxsize=1)
 def _card_lang_index() -> dict[str, dict[str, tuple[str, str]]]:
+    return __card_lang_index_for(i18n.current_lang())
+
+
+@lru_cache(maxsize=2)
+def __card_lang_index_for(_lang: str) -> dict[str, dict[str, tuple[str, str]]]:
     """``{命名空间: {归一化键尾: (完整路径, 中文)}}``（只建 4 个卡面命名空间）。
 
     归一化 = 小写 + 去 ``-``/``_``/空格 —— DE 的键名大小写与资产名并不总是一致
@@ -2506,15 +2647,17 @@ def _calendar_reward_name(path: str) -> tuple[str, bool]:
         _key, zh = _card_lang_by_tail(cand)
         if zh:
             if is_bp:
-                return (zh + _CAL_BLUEPRINT_SUFFIX, True)
+                return (zh + i18n.L(_CAL_BLUEPRINT_SUFFIX, " Blueprint"), True)
             return (zh, False)
-        synth = _CAL_REWARD_SYNTH.get(cand)
+        synth = None if i18n.is_en() else _CAL_REWARD_SYNTH.get(cand)
         if synth:
             return (synth, True)
     # 内融核心捆包：官方只给英文 `6,000 Endo`，按同族官方格式合成
     en, _desc = language_text(path)
     m = re.match(r"^\s*([\d,]+)\s+Endo\s*$", en or "", re.I)
     if m and tail.lower().endswith("fusionbundle"):
+        if i18n.is_en():
+            return (en.strip(), False)  # 官方英文原文即可
         return (f"{int(m.group(1).replace(',', ''))} 内融核心", True)
     return (en or "", False)
 
@@ -2625,7 +2768,7 @@ def _parse_calendar(entry: dict, now_ms: int) -> dict:
                 ref = ev.get("upgrade", "") or ""
                 tail = ref.rstrip("/").rsplit("/", 1)[-1]
                 up_cn = _calendar_upgrade_zh(ref)
-                if not up_cn and ref not in CAL_UPGRADE_NO_KEY:
+                if not up_cn and ref not in CAL_UPGRADE_NO_KEY and not i18n.is_en():
                     up_cn = CAL_UPGRADE_CN.get(ref, "")
                 if not up_cn:
                     up_cn = _prettify(tail)
@@ -2644,6 +2787,394 @@ def _parse_calendar(entry: dict, now_ms: int) -> dict:
         "synthesized": sorted(set(synthesized)),
         "noKey": sorted(set(no_key)),
     }
+
+
+@lru_cache(maxsize=1)
+def _calendar_challenge_key_by_en() -> dict[str, str]:
+    """日历挑战英文标题（小写）→ ``/Lotus/Language/1999Challenges/*_Name`` 键。
+
+    只给 DE 后备（社区 warframestat）路径用：它的日历只有英文标题、没有资产路径。
+    只收 1999Challenges 命名空间的几百个键，不把整张英文表常驻内存。
+    """
+    try:
+        table = json.loads((DATA_DIR / "languages_en.json").read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001 - 缺表就不反查，卡面保留英文
+        return {}
+    out: dict[str, str] = {}
+    for key, rec in table.items():
+        if not (isinstance(key, str) and "/1999Challenges/" in key and key.endswith("_Name")):
+            continue
+        val = rec.get("value") if isinstance(rec, dict) else rec
+        if isinstance(val, str) and val.strip():
+            out.setdefault(val.strip().lower(), key)
+    return out
+
+
+_COMMUNITY_CAL_TYPE = {"To Do": "CHALLENGE", "Big Prize!": "REWARD", "Override": "UPGRADE"}
+
+
+def community_calendar(data: dict) -> dict:
+    """社区 warframestat 的日历 → 与 :func:`_parse_calendar` 相同的内部结构。
+
+    warframestat 的事件类型是 ``To Do`` / ``Big Prize!`` / ``Override``，名字在
+    ``challenge.title`` / ``reward`` / ``upgrade.title`` 里，且不论请求语言都给英文。
+    中文模式下：挑战按英文标题反查官方简中（名字与带数量的描述），奖励按资产路径查官方简中；
+    覆写没有资产路径、也无官方键可反查，保留英文名与英文描述。
+    """
+    zh_table = {} if i18n.is_en() else (_load_file("languages_zh.json") or {})
+
+    def zh_of(key: str) -> str:
+        rec = zh_table.get(key)
+        val = rec.get("value") if isinstance(rec, dict) else rec
+        return val if isinstance(val, str) else ""
+
+    days = []
+    for day in data.get("days") or []:
+        raw_date = str(day.get("date") or "")[:10]
+        try:
+            num = datetime.fromisoformat(raw_date).timetuple().tm_yday
+        except ValueError:
+            num = None
+        events = []
+        for ev in day.get("events") or []:
+            kind = _COMMUNITY_CAL_TYPE.get(ev.get("type", ""), "")
+            if kind == "REWARD":
+                name = str(ev.get("reward") or "")
+                if zh_table:
+                    zh_name, _synth = _calendar_reward_name(str(ev.get("uniqueName") or ""))
+                    name = zh_name or name
+                events.append({"type": "REWARD", "name": name or "?"})
+            elif kind == "CHALLENGE":
+                ch = ev.get("challenge") or {}
+                name = str(ch.get("title") or "")
+                desc = str(ch.get("description") or "")
+                count = None
+                if zh_table:
+                    key = _calendar_challenge_key_by_en().get(name.strip().lower(), "")
+                    zh_name = zh_of(key) if key else ""
+                    if zh_name:
+                        name = zh_name
+                        zh_desc = zh_of(key[: -len("_Name")] + "_Description")
+                        m = re.search(r"\d[\d,]*", desc)
+                        if zh_desc:
+                            desc = zh_desc
+                            count = int(m.group(0).replace(",", "")) if m else None
+                events.append(
+                    {"type": "CHALLENGE", "name": name or "?", "desc": desc, "count": count}
+                )
+            elif kind == "UPGRADE":
+                up = ev.get("upgrade") or {}
+                events.append(
+                    {
+                        "type": "UPGRADE",
+                        "name": str(up.get("title") or "?"),
+                        "desc": str(up.get("description") or ""),
+                    }
+                )
+        days.append({"day": num, "date": raw_date, "events": events})
+    season = str(data.get("season") or "")
+    if season and not season.startswith("CST_"):
+        season = "CST_" + season.upper()
+    return {
+        "season": season,
+        "yearIteration": data.get("yearIteration"),
+        "start": data.get("activation"),
+        "expiry": data.get("expiry"),
+        "days": days,
+        "synthesized": [],
+        "noKey": [],
+    }
+
+
+_COMMUNITY_FACTION_CODE = {
+    "grineer": "FC_GRINEER",
+    "corpus": "FC_CORPUS",
+    "infested": "FC_INFESTATION",
+    "infestation": "FC_INFESTATION",
+    "orokin": "FC_OROKIN",
+    "corrupted": "FC_CORRUPTED",
+}
+
+
+def _community_counted(reward: Any) -> list[dict]:
+    """社区奖励 countedItems（uniqueName/count）→ DE 形态（ItemType/ItemCount）。"""
+    if not isinstance(reward, dict):
+        return []
+    return [
+        {"ItemType": it["uniqueName"], "ItemCount": it.get("count") or 1}
+        for it in reward.get("countedItems") or []
+        if isinstance(it, dict) and it.get("uniqueName")
+    ]
+
+
+def community_alerts(rows: list, node_fn: Callable[[str], str]) -> list[dict]:
+    """社区警报 → :func:`_parse_alerts` 的输出结构（奖励保留路径，由客户端解析物品名）。"""
+    raw = []
+    for row in rows:
+        mission = row.get("mission") or {}
+        reward = mission.get("reward") or {}
+        raw.append(
+            {
+                "_id": row.get("id"),
+                "Activation": row.get("activation"),
+                "Expiry": row.get("expiry"),
+                "Tag": row.get("tag"),
+                "MissionInfo": {
+                    "location": "",
+                    "missionType": "",
+                    "faction": _COMMUNITY_FACTION_CODE.get(
+                        str(mission.get("faction") or "").lower(), mission.get("faction", "")
+                    ),
+                    "minEnemyLevel": mission.get("minEnemyLevel"),
+                    "maxEnemyLevel": mission.get("maxEnemyLevel"),
+                    "missionReward": {
+                        "credits": reward.get("credits"),
+                        "countedItems": _community_counted(reward)
+                        + [
+                            {"ItemType": p, "ItemCount": 1}
+                            for p in reward.get("items") or []
+                            if isinstance(p, str)
+                        ],
+                    },
+                },
+            }
+        )
+    out = _parse_alerts({"Alerts": raw})
+    for parsed, row in zip(out, rows):
+        mission = row.get("mission") or {}
+        parsed["mission"]["node"] = node_fn(mission.get("node", ""))
+        mtype = str(mission.get("type") or "")
+        parsed["mission"]["type"] = mission_type_zh_by_name(mtype) or mission_type(mtype)
+        if i18n.is_en():
+            parsed["mission"]["type"] = mtype
+            parsed["mission"]["desc"] = str(mission.get("description") or "")
+    return out
+
+
+def community_invasions(rows: list, node_fn: Callable[[str], str]) -> list[dict]:
+    """社区入侵 → :func:`_parse_invasions` 的输出结构（已完成的不显示，与 DE 路径一致）。"""
+    raw = []
+    kept = []
+    for row in rows:
+        if row.get("completed"):
+            continue
+        attacker = row.get("attacker") or {}
+        defender = row.get("defender") or {}
+
+        def code(side: dict) -> str:
+            name = str(side.get("factionKey") or side.get("faction") or "")
+            return _COMMUNITY_FACTION_CODE.get(name.lower(), name)
+
+        def reward(side: dict) -> dict:
+            rw = side.get("reward") or {}
+            return {"countedItems": _community_counted(rw), "credits": rw.get("credits")}
+
+        raw.append(
+            {
+                "_id": row.get("id"),
+                "Node": "",
+                "LocTag": "",
+                "Faction": code(attacker),
+                "DefenderFaction": code(defender),
+                "DefenderMissionInfo": {"faction": code(defender)},
+                "AttackerReward": reward(attacker),
+                "DefenderReward": reward(defender),
+                "Count": row.get("count", 0),
+                "Goal": row.get("requiredRuns") or 1,
+                "Activation": row.get("activation"),
+            }
+        )
+        kept.append(row)
+    out = _parse_invasions({"Invasions": raw})
+    by_id = {str(r.get("id")): r for r in kept}
+    for parsed in out:
+        row = by_id.get(parsed["id"]) or {}
+        parsed["node"] = node_fn(row.get("node", ""))
+        if i18n.is_en():
+            parsed["desc"] = str(row.get("desc") or "")
+    return out
+
+
+def community_daily_deals(rows: list) -> list[dict]:
+    """社区每日特惠 → 商品名按 uniqueName 取当前语言官方名（取不到保留社区原名）。"""
+    out = []
+    for row in rows:
+        item = dict(row)
+        path = row.get("uniqueName") or ""
+        if path:
+            item["item"] = item_name_opt(path) or row.get("item", "")
+        out.append(item)
+    return out
+
+
+def community_cycle(name: str, data: dict) -> dict:
+    """社区 duviri / zariman 周期 → 与 DE 路径同一套状态与派系标签。"""
+    out = dict(data)
+    state = str(out.get("state") or "")
+    if name == "duviri":
+        mood = next((m for m in DUVIRI_STATES if m.lower() == state.lower()), state)
+        out["state"] = out["spiral"] = mood
+        out["stateCn"] = duviri_mood_cn(mood)
+    elif name == "zariman":
+        low = state.lower()
+        if low in _ZARIMAN_STATES:
+            out["state"] = low
+            out["stateCn"] = "Grineer" if low == "grineer" else "Corpus"
+    return out
+
+
+def community_conclave(rows: list) -> list[dict]:
+    """社区武形秘仪挑战 → :func:`_parse_conclave` 的输出结构。
+
+    社区只给英文标题 / 描述（无任务资产路径），模式名按英文名反查 DE 模式代码取当前语言名；
+    挑战说明中文模式下：标题被拆成「P V P Timed…」时可还原资产路径查官方简中，
+    其余无键可查，保留社区英文描述（描述已含次数，不再追加 ×N）。
+    """
+    mode_code = {}
+    for code, name in PVP_MODE_EN.items():
+        mode_code.setdefault(name.lower(), code)
+    mode_code["any mode"] = "PVPMODE_ALL"  # 社区把 DE 的「全部模式」叫 Any Mode
+    mode_code["none"] = "PVPMODE_NONE"
+    out = []
+    for row in rows:
+        title = str(row.get("title") or "")
+        desc = str(row.get("description") or "")
+        text = desc or title
+        glued = title.replace(" ", "")
+        if "PVPTimedChallenge" in glued:  # 社区把资产名按字母拆开了
+            en, _ = language_text("/Lotus/PVPChallengeTypes/" + glued)
+            text = en or _prettify(glued)
+        text = conclave_text(text) if not i18n.is_en() else text
+        amount = row.get("amount")
+        cat = str(row.get("categoryKey") or row.get("category") or "")
+        mode = str(row.get("mode") or "")
+        code = mode_code.get(mode.lower(), "")
+        out.append(
+            {
+                "mode": pvp_mode_name(code) if code else mode,
+                "text": text,
+                "value": amount if amount and str(amount) not in desc else None,
+                "cat": i18n.L("每周", "Weekly")
+                if "week" in cat.lower()
+                else i18n.L("每日", "Daily"),
+                "expiry": str(row.get("expiry") or ""),
+            }
+        )
+    out.sort(key=lambda x: (x["cat"], x["mode"]))
+    return out
+
+
+def community_flash_sales(rows: list, now_ms: Optional[int] = None) -> list[dict]:
+    """社区商城礼包 → :func:`_parse_flash_sales`（同样只收游戏内商店展示的，名称取当前语言官方名）。"""
+    raw = [
+        {
+            "TypeName": row.get("uniqueName") or "",
+            "ShowInMarket": bool(row.get("isShownInMarket")),
+            "StartDate": row.get("activation"),
+            "EndDate": row.get("expiry"),
+        }
+        for row in rows
+    ]
+    now = now_ms or int(datetime.now(timezone.utc).timestamp() * 1000)
+    return _parse_flash_sales({"FlashSales": raw}, now)
+
+
+def community_descendia(data: dict, now_ms: Optional[int] = None) -> dict:
+    """社区沉沦之地 → 还原成 DE ``Descents`` 条目，复用 :func:`_parse_descendia`。"""
+    entry = {
+        "Activation": data.get("activation"),
+        "Expiry": data.get("expiry"),
+        "Challenges": [
+            {
+                "Index": c.get("index"),
+                "Type": str(c.get("typeKey") or "").replace(" ", ""),
+                "Challenge": c.get("challengeKey") or "",
+            }
+            for c in data.get("challenges") or []
+        ],
+    }
+    now = now_ms or int(datetime.now(timezone.utc).timestamp() * 1000)
+    return _parse_descendia([entry], now)
+
+
+_COMMUNITY_ARCH_FACTION = {
+    "man in the wall": "FC_MITW",
+    "the murmur": "FC_MITW",
+    "techrot": "FC_TECHROT",
+    "scaldra": "FC_SCALDRA",
+    "narmer": "FC_NARMER",
+    "orokin": "FC_OROKIN",
+    "sentient": "FC_SENTIENT",
+}
+
+
+@lru_cache(maxsize=1)
+def _mission_code_by_name() -> dict[str, str]:
+    en = _load("missionTypes.json") or {}
+    out: dict[str, str] = {}
+    for code, rec in en.items():
+        name = rec.get("value") if isinstance(rec, dict) else rec
+        if isinstance(name, str) and name:
+            out.setdefault(name.strip().lower(), code)
+    return out
+
+
+def community_archimedeas(rows: list) -> dict[str, dict]:
+    """社区 ``archimedeas``（CT_LAB / CT_HEX 列表）→ ``{"deepArchimedea", "temporalArchimedea"}``。
+
+    还原成 DE ``Conquests`` 条目后复用 :func:`_parse_archimedea`：偏差 / 风险 / 个人减益按
+    社区给的内部键取当前语言官方名（普通档 = 非硬化风险，硬化档 = 全部风险）。
+    """
+    kinds = {
+        "CT_LAB": "deepArchimedea",
+        "CT_HEX": "temporalArchimedea",
+        "CT_EXPEDITION": "temporalArchimedea",
+    }
+    out: dict[str, dict] = {}
+    for row in rows:
+        kind = str(row.get("typeKey") or row.get("type") or "").replace(" ", "")
+        field = kinds.get(kind)
+        if not field or field in out:
+            continue
+        kind = "CT_HEX" if field == "temporalArchimedea" else "CT_LAB"
+        missions = []
+        for m in row.get("missions") or []:
+            fac = str(m.get("factionKey") or m.get("faction") or "")
+            mt = str(m.get("missionTypeKey") or m.get("missionType") or "")
+            dev = (m.get("deviation") or {}).get("key", "")
+            risks = [r for r in m.get("risks") or [] if isinstance(r, dict)]
+            missions.append(
+                {
+                    "faction": _COMMUNITY_ARCH_FACTION.get(
+                        fac.lower(), _COMMUNITY_FACTION_CODE.get(fac.lower(), fac)
+                    ),
+                    "missionType": _mission_code_by_name().get(mt.strip().lower(), mt),
+                    "difficulties": [
+                        {
+                            "type": "CD_NORMAL",
+                            "deviation": dev,
+                            "risks": [r.get("key", "") for r in risks if not r.get("isHard")],
+                        },
+                        {
+                            "type": "CD_HARD",
+                            "deviation": dev,
+                            "risks": [r.get("key", "") for r in risks],
+                        },
+                    ],
+                }
+            )
+        entry = {
+            "_id": row.get("id"),
+            "Activation": row.get("activation"),
+            "Expiry": row.get("expiry"),
+            "Type": kind,
+            "Missions": missions,
+            "Variables": [
+                v.get("key", "") for v in row.get("personalModifiers") or [] if isinstance(v, dict)
+            ],
+        }
+        out[field] = _parse_archimedea(entry, kind)
+    return out
 
 
 # ---------------------------------------------------------------------------

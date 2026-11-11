@@ -128,6 +128,7 @@ import main as plugin  # noqa: E402
 from core import calculators as calc  # noqa: E402
 from core import formatters as fmt  # noqa: E402
 from core import paths as core_paths  # noqa: E402
+from core.display_time import use_zone  # noqa: E402
 
 ROT = json.loads((ROOT / "core" / "data" / "rotations.json").read_text(encoding="utf-8"))
 # 固定历史离线夹具；业务种子不携带效价值，数值回归独立于发布数据。
@@ -679,7 +680,8 @@ def _card_at(key: str, fixture: dict, when: str) -> list[str]:
     core_paths.set_run_dir(d)
     _CLOCK[0] = datetime.fromisoformat(when)
     try:
-        return OBJ._rotation_lines(key, "T").lines
+        with use_zone("UTC+05:30"):
+            return OBJ._rotation_lines(key, "T").lines
     finally:
         core_paths.set_run_dir(prev)
         _CLOCK[0] = _SEED_AT
@@ -688,14 +690,14 @@ def _card_at(key: str, fixture: dict, when: str) -> list[str]:
 
 # 终幕：(时刻, 当前批, 下一批, 换批倒计时行) —— epoch 09-13 起 A 批，每 4 天交替
 for _when, _cur, _nxt, _cd in (
-    ("2026-09-16T23:59:59+00:00", "A", "B", "◆ 距换批：剩余 不到1分钟（09-17 00:00 UTC）"),
-    ("2026-09-17T00:00:00+00:00", "B", "A", "◆ 距换批：剩余 4天0小时（09-21 00:00 UTC）"),
-    ("2026-09-17T00:00:01+00:00", "B", "A", "◆ 距换批：剩余 3天23小时（09-21 00:00 UTC）"),
+    ("2026-09-16T23:59:59+00:00", "A", "B", "◆ 距换批：剩余 不到1分钟（09-17 05:30 UTC+05:30）"),
+    ("2026-09-17T00:00:00+00:00", "B", "A", "◆ 距换批：剩余 4天0小时（09-21 05:30 UTC+05:30）"),
+    ("2026-09-17T00:00:01+00:00", "B", "A", "◆ 距换批：剩余 3天23小时（09-21 05:30 UTC+05:30）"),
     # epoch 之前：上一轮（09-09～09-13）是 B 批
-    ("2026-09-12T12:00:00+00:00", "B", "A", "◆ 距换批：剩余 12小时0分（09-13 00:00 UTC）"),
+    ("2026-09-12T12:00:00+00:00", "B", "A", "◆ 距换批：剩余 12小时0分（09-13 05:30 UTC+05:30）"),
     # 跨周期：09-13 → 2027-01-01 12:00 = 110.5 天 = 27 个整周期（奇数 ⇒ B），窗口 12-30 起
-    ("2027-01-01T12:00:00+00:00", "B", "A", "◆ 距换批：剩余 1天12小时（01-03 00:00 UTC）"),
-    ("2027-01-03T00:00:00+00:00", "A", "B", "◆ 距换批：剩余 4天0小时（01-07 00:00 UTC）"),
+    ("2027-01-01T12:00:00+00:00", "B", "A", "◆ 距换批：剩余 1天12小时（01-03 05:30 UTC+05:30）"),
+    ("2027-01-03T00:00:00+00:00", "A", "B", "◆ 距换批：剩余 4天0小时（01-07 05:30 UTC+05:30）"),
 ):
     _ls = _card_at("coda", _FX_CODA, _when)
     _cn = "终幕·甲" if _cur == "A" else "终幕·乙"
@@ -710,8 +712,8 @@ for _when, _cur, _nxt, _cd in (
 
 # 信条：元素加成每 4 天（epoch 09-12）重生成
 for _when, _cd in (
-    ("2026-09-15T23:00:00+00:00", "剩余 1小时0分（09-16 00:00 UTC，每 4 天一次）"),
-    ("2026-09-16T00:00:00+00:00", "剩余 4天0小时（09-20 00:00 UTC，每 4 天一次）"),
+    ("2026-09-15T23:00:00+00:00", "剩余 1小时0分（09-16 05:30 UTC+05:30，每 4 天一次）"),
+    ("2026-09-16T00:00:00+00:00", "剩余 4天0小时（09-20 05:30 UTC+05:30，每 4 天一次）"),
 ):
     _ls = _card_at("tenet", _FX_TENET, _when)
     check(
