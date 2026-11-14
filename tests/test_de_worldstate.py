@@ -478,12 +478,6 @@ for _tail in (
 ):
     _ref = _UPG_PFX + _tail
     assert _ref in dw.CAL_UPGRADE_CN and dw._calendar_upgrade_zh(_ref), _tail
-# 反向：官方确无键的覆写不得留在兜底表里，且查表返回空（不硬编）
-assert dw.CAL_UPGRADE_NO_KEY == frozenset({_UPG_PFX + "GuidingMissilesChance"})
-for _ref in dw.CAL_UPGRADE_NO_KEY:
-    assert dw._calendar_upgrade_zh(_ref) == "", _ref
-    assert _ref not in dw.CAL_UPGRADE_CN, _ref
-
 # 夹具整季：产出名一律无未清洗标记；官方中文不得再被 `_cal_name` 重排
 for _d in b["calendar"]["days"]:
     for _e in _d["events"]:
@@ -768,32 +762,27 @@ for _code, _want in _OVERRIDE_POOL38.items():
     if _got != _want:
         _unresolved.append((_code, _got, _want))
 assert not _unresolved, f"覆写池未解出/不符：{_unresolved}"
-print("§四 覆写池 38/38 与官方查表逐条相等（0 未解出）")
+print("§四 固定样本 38/38 与简中查表逐条相等")
 
 # 手编表一致性：存在即必须等于官方查表值（不一致即红）——上一批已有，这里补逆向覆盖
 assert len(dw.CAL_UPGRADE_CN) == 31, len(dw.CAL_UPGRADE_CN)
 _in_pool = [c for c in dw.CAL_UPGRADE_CN if c.replace(_UPG_PFX, "") in _OVERRIDE_POOL38]
-# 手编表 31 条里 31 条都属现行池（GuidingMissilesChance 已移出、4 条补漏也在池内）
+# 手编表 31 条里 31 条都在固定样本。
 assert len(_in_pool) == 31, len(_in_pool)
-print("§四 手编表 31 条全部落在现行 38 条池内，且与官方查表逐字一致")
+print("§四 手编表 31 条都在 38 条样本内，且与简中查表逐字一致")
 
 # ---------------------------------------------------------------------------
-# §五 `GuidingMissilesChance` 已废弃 / 非现行池
+# §五 2026-11-11 资产路径复核：简中保留可核实的英文旧标题。
 # ---------------------------------------------------------------------------
 _GMC = f"{_UPG_PFX}GuidingMissilesChance"
-assert _GMC not in _OVERRIDE_POOL38, "它不该在现行 38 条池里"
-assert dw._calendar_upgrade_zh(_GMC) == ""  # 官方包 0 键
-assert _GMC not in dw.CAL_UPGRADE_CN  # 不在手编表（不硬编）
-assert _GMC in dw.CAL_UPGRADE_NO_KEY
-# 卡面行为确认：若 worldstate 又下发它 ⇒ 英文可读名 + 计入 noKey 注脚
+assert dw._calendar_upgrade_zh(_GMC) == ""
+assert _GMC not in dw.CAL_UPGRADE_CN
 _ev = dw._parse_calendar(
     {"Days": [{"day": 1, "events": [{"type": "CET_UPGRADE", "upgrade": _GMC}]}]}, 0
 )
 _nm = _ev["days"][0]["events"][0]["name"]
-assert _RE_CJK.search(_nm) is None, _nm
-assert _nm == "Guiding Missiles Chance", _nm
-assert _GMC.replace(_UPG_PFX, "") in _ev["noKey"], _ev["noKey"]
-print(f"§五 GuidingMissilesChance：官方 0 键 / 不在现行池 ⇒ 卡面 {_nm!r} + 注脚（可接受）")
+assert _nm == "Tickshots" and _ev["noKey"] == ["Tickshots"], _ev
+print("§五 GuidingMissilesChance：简中卡保留 Tickshots 和回退注脚")
 
 # ---------------------------------------------------------------------------
 # §六 `MISSION_CN` 与官方任务类型表零冲突
@@ -1232,6 +1221,35 @@ assert (
 assert (_m.get("reward") or {}).get("credits") == 10000 and (_m.get("reward") or {}).get("items"), (
     str(_m.get("reward"))
 )
+with dw.i18n.use_lang("en"):
+    assert dw._parse_alerts(_ALERT_RAW)[0]["mission"]["desc"] == "Tenno United Alert"
+    assert dw._alert_title("/Lotus/Language/Alerts/LotusGiftDesc") == "Gift From The Lotus"
+    assert (
+        dw._alert_title("/Lotus/Language/TauPrologue/EventAlertTitle") == "Moonflesh Locus Detected"
+    )
+    assert not dw._alert_title("/Lotus/Language/Alerts/UnknownAlert")
+_alert_community = dw.community_alerts(
+    [{"id": "test-alert", "mission": {"description": "Tenno United Alert"}}], lambda n: n
+)
+assert _alert_community[0]["mission"]["desc"] == "Tenno 联合警报"
+assert dw._alert_title("/Lotus/Language/TauPrologue/EventAlertTitle") == "探测到月华脯位置"
+_news_community = [
+    {
+        "id": "news-both",
+        "message": "Latest update",
+        "translations": {"zh": "最新更新", "en": "Latest update"},
+    },
+    {"id": "news-en", "message": "Known Issues List", "translations": {"en": "Known Issues List"}},
+]
+assert [row["message"] for row in dw.community_news(_news_community)] == [
+    "最新更新",
+    "Known Issues List",
+]
+with dw.i18n.use_lang("en"):
+    assert [row["message"] for row in dw.community_news(_news_community)] == [
+        "Latest update",
+        "Known Issues List",
+    ]
 _t3, _l3 = fmt.fmt_alerts(_al)
 # ★ 2026-10-11 第二步改版：警报行改为「· 节点　类型　等级　奖励　剩…」表格行（卡首另有摘要行），
 #   断言对象由 _l3[0] 改为首条「· 」数据行；语义不变（奖励不再「?」、四项信息都在）。
@@ -1355,27 +1373,34 @@ _al_tau = dw._parse_alerts(_raw_tau)
 assert _al_tau[0]["mission"]["reward"]["counts"] == [50, 3], _al_tau[0]["mission"]["reward"]
 
 
-async def _tau_probe():
+async def _tau_probe(rows):
     c = WarframeClient()
 
     async def _wm():
         return []
 
     c.wm_items = _wm  # type: ignore[method-assign]
-    return await c._resolve_alert_items(_al_tau)
+    try:
+        return await c._resolve_alert_items(rows)
+    finally:
+        await c.close()
 
 
-_al_tau = asyncio.run(_tau_probe())
+_al_tau = asyncio.run(_tau_probe(_al_tau))
 _rw_tau = _al_tau[0]["mission"]["reward"]
 assert _rw_tau["item_names"] == ["月华脯 ×50"], _rw_tau
 _t_tau, _l_tau = fmt.fmt_alerts(_al_tau)
 assert any("月华脯 ×50" in ln and "17000现金" in ln for ln in _l_tau), _l_tau
 assert not any("RoadToTauEventResource" in ln for ln in _l_tau), _l_tau
+with dw.i18n.use_lang("en"):
+    _tau_en = asyncio.run(_tau_probe(dw._parse_alerts(_raw_tau)))
+    assert _tau_en[0]["mission"]["reward"]["item_names"] == ["Moonflesh ×50"]
+    _, _lines_tau_en = fmt.fmt_alerts(_tau_en)
+    assert any("Moonflesh Locus Detected" in ln for ln in _lines_tau_en), _lines_tau_en
+    assert any("Moonflesh ×50" in ln for ln in _lines_tau_en), _lines_tau_en
 # 全部未收录时：末段 + （未收录）+ 数量（不造名字）
 _rw_u = asyncio.run(
-    WarframeClient()._resolve_alert_items(
-        [{"mission": {"reward": {"items": ["/Lotus/Types/Nope/X"], "counts": [7]}}}]
-    )
+    _tau_probe([{"mission": {"reward": {"items": ["/Lotus/Types/Nope/X"], "counts": [7]}}}])
 )[0]["mission"]["reward"]
 assert _rw_u["item"] == "X（未收录） ×7" and _rw_u["item_names"] == [], _rw_u
 print("§四⑤ 警报 countedItems 数量保留 + WFCD i18n 补充表命中「月华脯 ×50」—— 断言通过")

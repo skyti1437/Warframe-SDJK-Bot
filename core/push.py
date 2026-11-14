@@ -30,6 +30,7 @@ from .formatters import (
     _left_en,
     _shop_name,
     _synd_title,
+    calendar_season_name,
     countdown,
     _RAILJACK_TYPE_CN,
     de_zh,
@@ -43,7 +44,7 @@ from .formatters import (
     utc_today,
     weekly_reset_info,
 )
-from .parser import FissureFilter, beijing_now, parse_fissure_filter
+from .parser import FissureFilter, parse_fissure_filter
 from . import arbi, display_time
 from .store import Subscription, SubscriptionStore
 
@@ -291,7 +292,7 @@ PUSH_EVENTS: dict[str, tuple[str, bool]] = {
     "新闻": ("官方新闻/热修发布", True),
     "每日特惠": ("达沃每日特惠刷新", True),
     "活动": ("限时活动开始 / 结束", True),
-    "1999日历": ("1999 日历：季轮换 / 当日日程刷新", True),
+    "1999日历": ("1999 日历换季时提醒", True),
     "灵化武器": ("本周灵化轮换（钢铁回廊 9 周循环，周一 00:00 UTC）", True),
     "信条": ("Ergo 信条武器库存与元素加成（每 96 小时）", True),
     "终幕": ("Coda 终幕武器批次轮换（A/B 两批每 96 小时）", True),
@@ -449,6 +450,7 @@ class PushDaemon:
         interval: int = 45,
         groups=None,
         state_path=None,
+        tick_hook: Optional[Callable[[float], Awaitable[None]]] = None,
         *,
         display_timezone: str = display_time.DEFAULT,
     ):
@@ -466,6 +468,7 @@ class PushDaemon:
         self._text_for: dict = {}  # 事件key -> 按会话命中订阅现算文本的回调（赏金合并）
         self._event_meta: dict = {}  # (事件类型, key) -> 重投所需的源到期时间/赏金分行
         self.groups = groups
+        self.tick_hook = tick_hook
         self.display_timezone = display_timezone
         self.state_path = Path(state_path) if state_path else None
         self._state_warned = False
@@ -610,6 +613,11 @@ class PushDaemon:
         self._tick_fail = 0
         self._dead = set()  # 本 tick 内已消费 / 已移除的订阅 sid（防同 tick 超额派发）
         self._purged_umos = set()
+        if self.tick_hook is not None:
+            try:
+                await self.tick_hook(now)
+            except Exception as exc:  # noqa: BLE001 - 早报/统计失败不阻塞订阅
+                self.log.warning("[warframe] 推送附加任务失败：%s", type(exc).__name__)
         await self._expire_sweep(now)
         subs = [s for s in self.store.all() if not s.expired(now)]
         self.last_tick_idle = not subs
@@ -1000,10 +1008,14 @@ class PushDaemon:
             PAUSE_RETRY_SECS // 3600,
         )
 
+    def _subscription_time(self, now: float):
+        with display_time.use_zone(self.display_timezone):
+            return display_time.local_datetime(now)
+
     def _eligible(self, subs_u: list[Subscription], key: str) -> list[Subscription]:
         """本事件对这批（同会话）订阅里：仍存活 / 当前时间窗允许 / 没就此事件通知过的那些。"""
-        local = _local_now()
         now = time.time()
+        local = self._subscription_time(now)
         out = []
         for s in subs_u:
             if s.sid in self._dead or key in s.notified:
@@ -1229,7 +1241,7 @@ class PushDaemon:
                     self._pending.append(it)
                     continue
                 it["expires"] = end.timestamp()
-            with i18n.use_lang(getattr(subs_u[0], "lang", "zh")):
+            with i18n.use_lang(subs_u[0].lang), display_time.use_zone(self.display_timezone):
                 res = await self._deliver(
                     it["umo"], it["kind"], it["key"], it["text"], subs_u, now, None, retry=it
                 )
@@ -1631,7 +1643,7 @@ class PushDaemon:
                             "🪙 碎银兑换已重置（Palladino · 钢铁守望）："
                             "本周限购恢复 —— 可再购安魂遗物 / 裂罅 Mod / "
                             "安魂通牒等",
-                            "🪙 Riven Sliver shop reset (Palladino · Steel Meridian): "
+                            "🪙 Riven Sliver shop reset (Palladino · Iron Wake): "
                             "weekly purchase limits restored - Requiem Relics / Riven Mods / "
                             "Requiem Ultimatums and more are available again",
                         ),
@@ -1829,19 +1841,20 @@ class PushDaemon:
             if isinstance(_cal, dict) and _cal.get("days"):
                 _sk = f"cal-season-{_cal.get('season')}-{_cal.get('yearIteration')}"
                 if last.get("cal_season") is not None and last["cal_season"] != _sk:
+                    season = calendar_season_name(str(_cal.get("season") or ""))
                     out.append(
                         (
                             "1999日历",
                             _sk,
                             i18n.L(
-                                f"🗓 1999 日历轮换：{_cal.get('season')} 季"
-                                f"（第 {_cal.get('yearIteration')} 年）",
-                                f"🗓 1999 Calendar rotated: {_cal.get('season')} season"
+                                f"🗓 1999 日历轮换：{season}季（第 {_cal.get('yearIteration')} 年）",
+                                f"🗓 1999 Calendar rotated: {season}"
                                 f" (Year {_cal.get('yearIteration')})",
                             ),
                         )
                     )
                 last["cal_season"] = _sk
+                # 兼容曾下发公历日期的自定义源。游戏内日程用 1999 日期，玩家按顺序完成。
                 _today = utc_today()
                 _day = next((d for d in _cal["days"] if d.get("date") == _today), None)
                 if _day:
@@ -2054,8 +2067,3 @@ class PushDaemon:
                 self._tick_fail += 1
                 self.log.warning("[warframe] %s %s 快照拉取失败：%s", platform, "/".join(_evs), exc)
         return out
-
-
-def _local_now():
-    """推送时间窗判定用的「现在」：一律北京时间，与服务器时区无关。"""
-    return beijing_now()

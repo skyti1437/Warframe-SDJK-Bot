@@ -1011,6 +1011,228 @@ check(
     == {"罕见": ["Fass", "Jahu", "Khra", "Lohk", "Netra", "Ris", "Vome", "Xata"]},
 )
 
+# ------------------------------------------------------- ⑪ 刷取规划（「刷」）
+print("\n=== ⑪ 刷取规划：解析 / 挑遗物 / 卡面 / 闲聊不误回 ===")
+from datetime import datetime as _dt, timedelta as _td, timezone as _tz  # noqa: E402
+
+from core import i18n as _i18n  # noqa: E402
+from core.commands import relic as _rc  # noqa: E402
+from core.parser import parse as _parse_farm  # noqa: E402
+
+check("「刷 水晶p」路由到 farm", _parse_farm("刷 水晶p").command == "farm")
+check("「刷取 Forma」路由到 farm", _parse_farm("刷取 Forma").command == "farm")
+check("英文「farm Wisp Prime」路由到 farm", _parse_farm("farm Wisp Prime").command == "farm")
+check("「刷新」不是 farm", _parse_farm("刷新").command != "farm")
+check("「farm」只认句首（「i farm wisp」不触发）", _parse_farm("i farm wisp").command != "farm")
+
+_INV = json.loads((ROOT / "core" / "data" / "relic_inverse.json").read_text(encoding="utf-8"))
+_ALIASES = load_aliases().get("wm_items") or {}
+
+
+def _res(q):
+    return _rc._farm_resolve(q, _INV, _ALIASES)
+
+
+_h = _res("水晶p")
+check(
+    "黑话「水晶p」→ Citrine Prime 整套 4 件",
+    _h and _h[0] == "Citrine Prime" and len(_h[1]) == 4,
+    _h,
+)
+_h = _res("圣英prime 枪管")
+check("「圣英prime 枪管」只取枪管", _h and _h[1] == ["圣英 Prime 枪管"], _h)
+_h = _res("afentis prime barrel")
+check("英文「afentis prime barrel」→ 圣英 Prime 枪管", _h and _h[1] == ["圣英 Prime 枪管"], _h)
+_h = _res("wisp p")
+check(
+    "「wisp p」补成 Wisp Prime，主蓝图排第一",
+    _h and _h[0] == "Wisp Prime" and _h[1][0] == "Wisp Prime 蓝图",
+    _h,
+)
+_h = _res("Wisp Prime 蓝图")
+check("单写「蓝图」只指主蓝图（不带上系统蓝图）", _h and _h[1] == ["Wisp Prime 蓝图"], _h)
+_h = _res("Wisp Prime 尾巴")
+check("认不出的部件词单独报出来", _h and _h[2] == "尾巴", _h)
+check("认不出的物品返回 None", _res("乱写zzq9") is None)
+check("物品名整名匹配，不做子串（「is」不命中任何物品）", _res("is") is None)
+
+# 挑遗物：合成数据，不依赖当期出库名单
+_inv_s = {
+    "甲 Prime 蓝图": [
+        {"relic": "古纪 Lith Z1", "rarity": "稀有"},
+        {"relic": "后纪 Axi Z9", "rarity": "常见"},
+    ],
+    "甲 Prime 机体蓝图": [
+        {"relic": "后纪 Axi Z9", "rarity": "罕见"},
+        {"relic": "前纪 Meso Z2", "rarity": "常见"},
+    ],
+    "甲 Prime 系统蓝图": [{"relic": "中纪 Neo Z3", "rarity": "常见"}],
+    "甲 Prime 头部神经光元蓝图": [{"relic": "古纪 Lith Z4", "rarity": "常见"}],
+}
+_keys_s = list(_inv_s)
+_plan = _rc._farm_plan(_keys_s, _inv_s, {"lith z1", "axi z9", "meso z2"}, {"neo z3"})
+_picks = [p["relic"] for p in _plan["picks"]]
+check("一把能覆盖两件的遗物优先（后纪 Z9 覆盖蓝图 + 机体）", _picks == ["后纪 Z9"], _picks)
+_st = {p["key"]: p["state"] for p in _plan["parts"]}
+check(
+    "三态：可掉落 / 仅阿耶 / 已入库",
+    _st
+    == {
+        "甲 Prime 蓝图": "drop",
+        "甲 Prime 机体蓝图": "drop",
+        "甲 Prime 系统蓝图": "varzia",
+        "甲 Prime 头部神经光元蓝图": "vaulted",
+    },
+    _st,
+)
+check(
+    "要开裂隙的纪元含阿耶遗物的纪元", _plan["crack_tiers"] == ["中纪", "后纪"], _plan["crack_tiers"]
+)
+_plan2 = _rc._farm_plan(["甲 Prime 机体蓝图"], _inv_s, {"axi z9", "meso z2"}, set())
+check(
+    "同样覆盖一件时，选部件在常见槽的（前纪 Z2 常见 > 后纪 Z9 罕见）",
+    [p["relic"] for p in _plan2["picks"]] == ["前纪 Z2"],
+    _plan2["picks"],
+)
+
+# 单把遗物刷取点：只给常规可刷任务，按「几率 × 轮次权重」降序
+for _k in list(drops_db.unvaulted_relics())[:10]:
+    _pl = drops_db.relic_best_places(_k, top=5)
+    _ok = all(h.split(" · ")[2] in drops_db._FAST_MISSIONS for h, _r, _p in _pl)
+    _sc = [p * drops_db._ROT_WEIGHT.get(r, 1.0) for _h2, r, p in _pl]
+    check(f"{_k} 刷取点只含常规任务且有序", _ok and _sc == sorted(_sc, reverse=True), _pl)
+check(
+    "地点英文：天王星 · Ur · 中断",
+    drops_db.place_en("天王星 · Ur · 中断") == "Uranus · Ur · Disruption",
+)
+check(
+    "地点英文：塞德娜（掉落表写法）",
+    drops_db.place_en("塞德娜 · Hydron · 防御").startswith("Sedna · "),
+)
+
+
+class _FarmClient(_FakeClient):
+    def __init__(self, fail=False):
+        super().__init__([])
+        self.fail = fail
+
+    async def fissures(self, platform):
+        if self.fail:
+            raise RuntimeError("boom")
+        exp = (_dt.now(_tz.utc) + _td(minutes=30)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        return [
+            {
+                "tier": t,
+                "node": f"N{i}",
+                "missionType": "Capture",
+                "isHard": False,
+                "isStorm": False,
+                "expiry": exp,
+            }
+            for i, t in enumerate(("Lith", "Meso", "Neo", "Axi", "Requiem"))
+        ]
+
+
+def _farm(msg, fail=False, lang="zh"):
+    obj = _make_obj([])
+    obj.client = _FarmClient(fail)
+    obj.client._aliases = load_aliases()
+    p = _parse_farm(msg)
+    with _i18n.use_lang(lang):
+        return asyncio.run(obj._h_farm(p, None, "pc"))
+
+
+_r = _farm("刷 水晶p")
+_t = _txt(_r)
+check("卡首是结论行", _r.lines[0].startswith("◆ 结论："), _r.lines[:1])
+check("标题带物品名", "Citrine Prime" in _r.title, _r.title)
+_ftiers = {ln.split("]")[0][3:] for ln in _r.lines if ln.startswith("· [")}
+_want = set(_rc._farm_plan(_res("水晶p")[1], _INV, drops_db.droppable_keys(), set())["crack_tiers"])
+check("裂隙只列建议遗物所属纪元", _ftiers <= _want and "安魂" not in _ftiers, (_ftiers, _want))
+check("注脚不含全角空格", all("　" not in x for x in _r.lines if x.startswith("※")))
+_t = _txt(_farm("刷 水晶p", fail=True))
+check("裂隙取不到时明说，不当成「当前没有」", ("暂时取不到" in _t) if _want else True, _t[-200:])
+check("闲聊「今天 刷 什么」静默不回", _farm("今天 刷 什么") is None)
+check("句首「刷 什么」给报错卡（含用法）", "用法" in _txt(_farm("刷 什么")))
+check("空参数给用法", "没有写要刷的物品" in _txt(_farm("刷")))
+_r = _farm("farm citrine prime", lang="en")
+_t = _txt(_r)
+check(
+    "英文模式：标题与表头为英文",
+    _r.title.startswith("Farming Plan") and "◆ Parts and Relics" in _t,
+    _t[:200],
+)
+check(
+    "英文模式：卡面不残留中文",
+    not re.search(r"[\u4e00-\u9fff]", _t),
+    re.findall(r".{0,8}[\u4e00-\u9fff].{0,8}", _t)[:3],
+)
+
+# 同纪元无尽裂隙排在速刷前（英文 wiki Void Fissure：无尽每轮可换遗物接着开）
+_exp = (_dt.now(_tz.utc) + _td(minutes=30)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+_rows = [
+    {
+        "tier": "古纪",
+        "type": t,
+        "node": n,
+        "hard": False,
+        "storm": False,
+        "quick": q,
+        "endless": e,
+        "expiry": _exp,
+    }
+    for t, n, q, e in (("捕获", "Q1", True, False), ("生存", "E1", False, True))
+]
+_fake = {"parts": [], "picks": [], "crack_tiers": ["古纪"]}
+_t2, _l2 = fmt.fmt_farm_plan("甲 Prime", _fake, _rows)
+_order = [x.split("　")[2] for x in _l2 if x.startswith("· [")]
+check("同纪元无尽裂隙排在速刷前", _order == ["E1", "Q1"], _order)
+check("无尽裂隙带「无尽」标记", any("无尽" in x for x in _l2 if "E1" in x), _l2)
+
+# 九重天单独一节：地面 无尽 → 速刷 → 其它（普通在钢铁前）；九重天按 地球/土星前哨战 → 其它格里尼尔 → Corpus 排
+_rows9 = [
+    {
+        "tier": "古纪",
+        "type": t,
+        "node": n,
+        "hard": h,
+        "storm": st,
+        "srank": sr,
+        "quick": q,
+        "endless": e,
+        "expiry": _exp,
+    }
+    for t, n, h, st, sr, q, e in (
+        ("生存", "C1", False, True, 2, False, True),
+        ("救援", "R1", False, False, 0, True, False),
+        ("前哨战", "E1", False, True, 0, True, False),
+        ("歼灭", "H1", True, False, 0, True, False),
+        ("前哨战", "V1", False, True, 1, False, False),
+        ("拦截", "S1", True, False, 0, False, True),
+    )
+]
+_t9, _l9 = fmt.fmt_farm_plan(
+    "甲 Prime", {"parts": [], "picks": [], "crack_tiers": ["古纪"]}, _rows9
+)
+_ord9 = [x.split("　")[2] for x in _l9 if x.startswith("· [")]
+check("地面在前、九重天单独一节在后", _ord9 == ["S1", "R1", "H1", "E1", "V1", "C1"], _ord9)
+check("九重天有自己的小节标题", any(x.startswith("◆ 九重天裂隙（") for x in _l9), _l9)
+check(
+    "九重天小节不再重复「九重天」标记",
+    not any("九重天" in x for x in _l9 if x.startswith("· [")),
+    _l9,
+)
+check("九重天注脚写明首选地球 / 土星前哨战", any("地球 / 土星前哨战" in x for x in _l9), _l9[-3:])
+
+# wiki 部件卡：成品部件名（不带「蓝图」）也能反查遗物
+from core import wiki_intro as _wi  # noqa: E402
+
+_c = _wi._relic_part_card("Wisp Prime 系统")
+check(
+    "wiki「Wisp Prime 系统」→ 系统蓝图的遗物出处", bool(_c) and any("遗物" in x for x in _c[1]), _c
+)
+check("wiki 部件卡提示「刷」", bool(_c) and any("刷 Wisp Prime" in x for x in _c[1]), _c)
+
 print()
 if FAILED:
     print(f"✗ {len(FAILED)} 项失败：" + "、".join(FAILED))

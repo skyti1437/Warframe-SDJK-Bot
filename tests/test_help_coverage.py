@@ -257,6 +257,25 @@ check(
     "；".join(_bad_send[:8]),
 )
 
+en_topic = load_main_literal("HELP_TOPIC_EN")
+en_notes = load_main_literal("HELP_NOTES_EN")
+en_commands = [
+    segment.strip()
+    for entries in en_topic.values()
+    for cell, _ in entries
+    for segment in cell.split(" / ")
+]
+en_routes = {P.parse(cmd).command for cmd in en_commands}
+en_note_words = set(_re.findall(r"\b[a-z]+\b", "\n".join(en_notes["Info and Push"])))
+en_routes.update(P.parse(word).command for word in en_note_words & {"wfhelp", "wfstatus"})
+check("英文帮助左列可用", None not in {P.parse(cmd).command for cmd in en_commands})
+check(f"英文帮助覆盖 {len(ROUTES)} 条真实路由", en_routes == ROUTES, str(ROUTES - en_routes))
+en_heads = {cmd.split()[0] for cmd in en_commands} | en_note_words
+check(
+    f"英文帮助列出 {len(P.SHORT_COMMAND_ALIASES_EN)} 个新入口",
+    set(P.SHORT_COMMAND_ALIASES_EN.values()) <= en_heads,
+)
+
 print()
 if FAILED:
     print(f"FAILED {len(FAILED)}: " + ", ".join(FAILED))

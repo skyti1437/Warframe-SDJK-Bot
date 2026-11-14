@@ -6,7 +6,7 @@ Look up Warframe from your group chat on QQ, Telegram, Discord, Slack, KOOK and 
 
 Replies can be in **Simplified Chinese or English** (international servers only). English mode uses DE's official English names for nodes, missions, items, weapons and factions wherever the plugin has them.
 
-Commands take **free-form arguments**: `command + content + modifiers`, in any order, separated by spaces. There are **57 main commands**; send `wfhelp` for the full list.
+Commands take **free-form arguments**: `command + content + modifiers`, in any order, separated by spaces. There are **58 main commands**; send `wfhelp` for the full list.
 
 Version history: [CHANGELOG.md](https://github.com/skyti1437/Warframe-SDJK-Bot/blob/main/CHANGELOG.md) (written in Chinese).
 
@@ -32,7 +32,7 @@ Version history: [CHANGELOG.md](https://github.com/skyti1437/Warframe-SDJK-Bot/b
 
 Image cards work out of the box: the plugin bundles a Chinese font subset (the 6,763 GB2312 characters plus common symbols). For rare characters, open the admin panel → **Appearance** and download the full font (about 40 MB), or import any font you like. Fonts are stored in the plugin data directory and survive plugin updates.
 
-The admin panel needs AstrBot ≥ 4.24.1 and is visible only to dashboard admins.
+The admin panel needs AstrBot ≥ 4.24.1 and is visible only to dashboard admins. Choose Simplified Chinese or English on first setup. You can later set the interface language separately from the default card language. Appearance previews use the saved card language. Open **Command statistics** for 7-day and 30-day counts, outcomes and approximate handler latency.
 
 ## Quick start
 
@@ -60,20 +60,23 @@ English command words are matched only as **the first word** of a message (so `w
 | Group | English commands | What it does |
 | --- | --- | --- |
 | Cycles and daily | `timers` `cetus` / `cycle` / `cycles` `bounty` / `bounties` `fissure` / `fissures` `sortie` `archon` / `archonhunt` | Open-world cycles, bounties and rewards, fissure list |
-| Missions and rotations | `arbitration` / `arbi` `arbtable` `deeparchimedea` `temporalarchimedea` `descendia` `incursions` `voidstorms` | Arbitration (current and next 14 days), weekly rotations |
-| Shops | `baro` / `voidtrader` `darvo` / `deals` `acrithis` `steelpath` `slivers` / `palladino` `varzia` / `primevault` `clanrewards` `flashsales` | Baro Ki'Teer's stock and arrival prediction, Prime Resurgence (Regal Aya / Aya), weekly offers |
-| Relics and parts | `relic` / `relics` `parts` `openrelic` `ducats` | Rewards, sources and availability; part lookup; Ducats per Platinum |
-| Market and rivens | `wm` `wr` `rm` `trend` `rank` / `ranking` `rivenanalysis` `rivenranges` `splice` `dispo` / `disposition` | warframe.market orders and auctions, price trends, riven stat ranges and grading |
-| Weapon auctions | `xh <weapon> [element] [value]` | Kuva / Tenet / Coda weapons (47), filtered by element and value, online sellers first |
-| Damage and builds | `damage` / `dmg` `scan` `scandamage` `valence` | Damage calculator; read a build screenshot and recalculate |
-| Info | `news` `alerts` `invasions` `events` `nightwave` `calendar` `synthesis` `kuva` `incarnon` `tenet` `coda` `conclave` `construction` `wiki <term>` `translate <term>` | News, limited-time content, weekly weapons, wiki link, Chinese ↔ English names |
+| Missions and rotations | `arbi` / `arbitration` `arbtable` `eda` / `deeparchimedea` `eta` / `temporalarchimedea` `descendia` `incursions` `vstorm` / `voidstorms` | Arbitration, Deep and Temporal Archimedea, weekly rotations |
+| Shops | `baro` / `voidtrader` `darvo` / `deals` `acrithis` `sp` / `steelpath` `slivers` / `palladino` `varzia` `primevault` `clanwk` / `clanrewards` `wfsales` / `flashsales` | Trader stock and arrival, Steel Essence shop, Prime Resurgence exchange and vaulted items, weekly offers |
+| Relics and parts | `relic` / `relics` `parts` `farm` `relicrun` / `openrelic` `ducats` | Rewards, sources and availability, full Prime set farming plans, Ducat rankings |
+| Market and rivens | `wm` `wr` `rm` `trend` `rank` / `ranking` `rgrade` / `rivenanalysis` `rrange` / `rivenranges` `splice` `dispo` / `disposition` | warframe.market orders and auctions, price trends, riven stat ranges and grading |
+| Weapon auctions | `xh <weapon> [element] [min %] [ephemera]` | Kuva, Tenet and Coda weapons. Try `xh Tenet Arca Plasmor radiation 50`. |
+| Damage and builds | `damage` / `dmg` `scan` `scandmg` / `scandamage` `valence` | Damage calculator, build screenshot reading and recalculation |
+| Info | `news` `alerts` `invasions` `events` `nw` / `nightwave` `calendar` `simaris` / `synthesis` `kuva` `incarnon` `tenet` `coda` `conclave` `wfleet` / `construction` `wiki <term>` `translate <term>` | News, limited-time content, weekly weapons, wiki links and bilingual names |
 | Subscriptions | `subscribe` / `sub` | Push alerts (see [Subscriptions](#subscriptions)) |
+| Help and status | `wfhelp` `wfstatus` | Full command list and chat status (status requires admin permission) |
 
 `wm` / `wr` accept English modifiers such as `buy`, `max`, `radiant`, `offline`, `madurai` and `neg` (negative riven stat), and English item and part names. Stats can be written in full, abbreviated or run together; `wr glaxion Critical Chance` and `wr glaxion CC` are the same query.
 
 Modifiers work with any command: `-2` / `-3` next page, `-w` plain text, `-t` force an image, `-r` copyable in-game whisper text (market listings), `-pc` / `-ps` / `-xb` / `-sw` platform (all four now share data and show as International).
 
-Group admin commands start with a dot: `.platform`, `.enable push` / `.disable push`, `.status`, `.language`, `.menu`. The Chinese forms (`.默认平台`, `.开启 推送`, `.语言`, `.菜单` …) also work.
+Send `eda`, `eta`, `sp`, `nw` and `simaris` as standalone commands. They also accept modifiers such as `-en` and `-w`. The existing menu names still work.
+
+Group admin commands start with a dot. Use `.platform`, `.enable push` / `.disable push`, `.status`, `.language`, `.menu`, `.disablecmd` / `.enablecmd`, `.disabled`, `.alias` or `.digest`. The Chinese forms (`.默认平台`, `.开启 推送`, `.语言`, `.菜单` …) also work. Once group push is enabled, send `.digest on 08:00` to schedule a daily digest or `.digest off` to stop it.
 
 ## Display language
 
@@ -87,9 +90,9 @@ Setting the chat language requires a group admin/owner, an AstrBot admin, or a u
 
 The language you type in and the reply language are independent: English command words do not switch the reply to English, and Chinese commands are answered in English when the chat is set to English.
 
-What stays in Chinese in English mode (v1.3.1):
+## Game data translations
 
-- Part of the wiki card text (descriptions, traits, build materials), some relic source notes, part names and farming hints. For example, a relic card can still show the source line for Baro Ki'Teer in Chinese.
+Wiki cards use verified English descriptions, abilities, mod effects, recipe ingredients and drop locations where available. Some wiki notes and older recipes can still appear in Chinese. News without a translated title uses the text supplied by the source.
 
 ## Subscriptions
 
@@ -98,6 +101,7 @@ What stays in Chinese in English mode (v1.3.1):
 ```text
 subscribe fissure steel axi survival     # Steel Path Axi Survival fissures, one alert
 subscribe baro forever                    # every Baro Ki'Teer visit
+subscribe fissures fri 22-8 forever      # Friday 22:00 to Saturday 08:00 in the display time zone
 subscribe help                            # events and filter syntax
 subscribe cancel                          # cancel your own subscriptions (admins: the whole group)
 ```
@@ -105,16 +109,17 @@ subscribe cancel                          # cancel your own subscriptions (admin
 - Events include `fissure`, `arbitration` / `arbi`, `baro`, `alert`, `invasion`, `incursion`, `darvo`, `nightwave`, `bounty`, `varzia`, `cetus`, `orbvallis`, `deimos` and more; `subscribe help` lists them.
 - Fissure filters: words separated by spaces must all match (`steel axi` = Steel Path Axi fissures), and commas mean "any of" (`steel,axi`). Era words (`lith` … `omnia`, or `T1`–`T6`) imply a fissure subscription.
 - Without a duration a subscription fires once; add `forever`, or a number of hits / a time window as described by `subscribe help`.
+- Enter subscription hours and weekdays in `display_timezone`. `0-24` means all day. The end hour is excluded. Existing subscriptions keep the weekdays and hours you entered. After upgrading, those values follow the display time zone, so their actual notification times shift if that zone differs from Beijing time. Changes to the display time zone take effect on the next push cycle. Game resets follow the source clock. Absolute deadlines are converted for display. Group digests are scheduled using `digest_timezone`.
 - **Each subscription remembers the display language it was created in**, and its alerts are sent in that language. Subscriptions created before v1.3.1 have no language field and are treated as Chinese.
 
 ## Platforms
 
 Buttons and menus depend on what each platform and AstrBot adapter supports.
 
-- **Command menus (v1.3.1)**: when AstrBot supports command registration, the plugin registers 19 English commands (`/fissure`, `/sortie`, `/baro`, `/arbi`, `/wm`, `/wr`, `/relic`, `/damage`, `/subscribe`, `/wiki`, `/wfhelp`, …) and AstrBot syncs them to the **Telegram** command menu and **Discord** slash commands. Each command is answered once. For the **QQ official bot**, send `.menu` (`.菜单`) to get a list to enter by hand in the QQ open platform console (Advanced settings, type "command"); tapping an entry fills it into the input box, and in groups the bot must be mentioned.
+- **Command menus**: when AstrBot supports command registration, the plugin registers 20 English commands (`/fissure`, `/sortie`, `/baro`, `/arbi`, `/wm`, `/wr`, `/relic`, `/damage`, `/subscribe`, `/wiki`, `/wfhelp`, …) and AstrBot syncs them to the **Telegram** command menu and **Discord** slash commands. Each command is answered once. For the **QQ official bot**, send `.menu` (`.菜单`) to get a list to enter by hand in the QQ open platform console (Advanced settings, type "command"); tapping an entry fills it into the input box, and in groups the bot must be mentioned.
 - **QQ official bot**: buttons and "image + buttons in one message" are Markdown messages; old QQ clients without Markdown support may not show them. Turn off `qq_merge_image_actions` (send images separately) and `qq_markdown_cards` (plain-text cards) if needed. Buttons and Markdown are enabled only for the `qq_official` (WebSocket) adapter; `qq_official_webhook` gets text and images. In groups, buttons fill the input box for the user to send; in private chats, action buttons send directly.
 - **Telegram**: to send plain-word commands (Chinese or English) in a group, turn off privacy mode with BotFather `/setprivacy`, or make the bot a group admin. With privacy mode on, the bot only receives some messages, such as commands explicitly addressed to it (`/fissure@your_bot`); see the [Telegram bot FAQ](https://core.telegram.org/bots/faq#what-messages-will-my-bot-get). Buttons can run actions, and copy natively when the SDK supports it.
-- **Discord**: the AstrBot Discord adapter requests the Message Content and Server Members privileged intents; enable both on the Bot page of the Discord developer portal, or the gateway refuses the connection. The 19 menu commands appear as slash commands; other commands are sent as messages with AstrBot's wake prefix.
+- **Discord**: the AstrBot Discord adapter requests the Message Content and Server Members privileged intents; enable both on the Bot page of the Discord developer portal, or the gateway refuses the connection. The 20 menu commands appear as slash commands; other commands are sent as messages with AstrBot's wake prefix.
 - **Slack**: text cards by default (image upload in the AstrBot Slack adapter is not yet reliable: a failed upload drops the whole message); add `-t` to force an image, which needs the `files:write` scope. Buttons need Socket mode (Webhook mode is text only). The app needs at least `chat:write`, and the Socket mode app-level token needs `connections:write`. Slack treats messages starting with `/` as slash commands, so in channels use "@bot command"; in private messages send the command directly.
 - **KOOK**: action buttons are supported.
 - **Lark / Feishu and other platforms without button callbacks**: text and image output. NapCat keeps plain commands and the `-r` whisper text.
@@ -135,8 +140,10 @@ Edit settings on the plugin config page in AstrBot, or on the admin panel **Sett
 | Key | Meaning |
 | --- | --- |
 | `default_language` | Display language when the chat has none: `cn` (default) / `en` |
-| `display_timezone` | Time zone for replies, cards and the admin panel. Defaults to the AstrBot runtime's system time zone. Fixed offsets such as `UTC+08:00` and `UTC+05:30` are available. Subscription time windows use Beijing time. |
+| `display_timezone` | Time zone for replies, cards, notifications, the admin panel and subscription windows. Defaults to the AstrBot runtime's system time zone. Fixed offsets such as `UTC+10:00` and `UTC+05:30` are available. |
 | `worldsource` | World state source: `de` = DE official (default) / `warframestat` = community mirror |
+| `wiki_link_source` | Wiki links use the official English Warframe Wiki by default. Chinese replies can use Huiji Wiki. Add `huiji` at the end of a Chinese-mode query to use it once. |
+| `digest_timezone` | Time zone for the daily group digest. Defaults to `Asia/Shanghai`. |
 | `default_platform` | `pc` / `ps` / `xb` / `sw` (groups can override with `.platform`) |
 | `render_mode` | `image` (default) / `auto` (images for long replies only) / `text` |
 | `super_admins` | Sender IDs allowed to use admin commands anywhere |

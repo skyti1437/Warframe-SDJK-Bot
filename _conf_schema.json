@@ -22,6 +22,18 @@
       "en"
     ]
   },
+  "panel_language": {
+    "description": "运维面板界面语种",
+    "type": "string",
+    "default": "",
+    "invisible": true
+  },
+  "panel_language_initialized": {
+    "description": "面板首次设置已完成",
+    "type": "bool",
+    "default": false,
+    "invisible": true
+  },
   "display_timezone": {
     "description": "显示时区",
     "type": "string",
@@ -69,7 +81,7 @@
       "UTC+13:45",
       "UTC+14:00"
     ],
-    "hint": "默认跟随 AstrBot 运行环境的系统时区，也可选固定 UTC 偏移。用于回复、卡片、推送与面板中的时刻；游戏周期和按北京时间填写的订阅时间窗照常执行。"
+    "hint": "默认跟随 AstrBot 运行环境的系统时区，也可选固定 UTC 偏移。回复、卡片、推送和面板按此时区显示时刻。已有订阅的小时和星期按当前时区执行，保存后下一轮推送生效。游戏刷新按数据源时刻计算。"
   },
   "default_platform": {
     "description": "默认查询平台（群内可用 .默认平台 覆盖，消息可用 -pc/-ps/-xb/-sw 临时覆盖）",
@@ -96,6 +108,12 @@
     "description": "文本分页每页条数",
     "type": "int",
     "default": 12
+  },
+  "digest_timezone": {
+    "description": "群早报时区（IANA 时区名）",
+    "type": "string",
+    "default": "Asia/Shanghai",
+    "hint": "群早报按此时区的当地时间发送。例如 Asia/Shanghai 或 Asia/Seoul。无效值回落北京时间。"
   },
   "push_interval": {
     "description": "蹲推送轮询间隔（秒，最小 15）",
@@ -223,7 +241,17 @@
     "description": "wiki 简介卡片（战甲 / 武器 / MOD / 资源 / 同伴）",
     "type": "bool",
     "default": true,
-    "hint": "开启后 wiki 查询附一张简短介绍卡（定位 / 段位 / 基础属性 / 获取），链接仍以可点击文本另发。简介数据（core/data/wiki_intro.json）由本机知识库构建产出、不进开源与市场包——文件不在时自动只给链接。"
+    "hint": "开启后 wiki 查询附一张简短介绍卡（定位 / 段位 / 基础属性 / 获取），链接仍以可点击文本另发。简介资料随包提供。英文卡优先使用已核对的英文资料，部分字段可能保留现有来源的语言。"
+  },
+  "wiki_link_source": {
+    "description": "wiki 链接来源",
+    "type": "string",
+    "default": "en",
+    "options": [
+      "en",
+      "huiji"
+    ],
+    "hint": "en＝英文 wiki（wiki.warframe.com，Warframe 官方 wiki，维护最及时，默认）；huiji＝灰机中文 wiki。中文显示时卡片内容不变，只换链接；对不上英文页面名时给英文 wiki 站内搜索（不会自动切到灰机）。单次查询末尾加「灰机」可临时用灰机链接（例：wiki 收割赋能 灰机）。英文显示模式始终用英文 wiki。"
   },
   "scan_detail_mode": {
     "description": "识卡伤害详情什么时候算",

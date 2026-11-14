@@ -16,7 +16,7 @@ from .. import formatters as fmt
 from .. import matching
 from ..i18n import L, is_en
 from ..logging_compat import logger
-from ..parser import TIER_CN, parse
+from ..parser import COMMAND_ALIASES, COMMAND_ALIASES_EN, TIER_CN, parse
 from .base import PLUGIN_DIR, Reply, err_card
 
 
@@ -84,6 +84,21 @@ def _en_part_to_inv_key(q: str, inv_keys) -> str:
     return ""
 
 
+# DE 官方英文掉落表原文；旧索引未保存资产键的蓝图/部件。
+_RELIC_REWARD_EN = {
+    "石晶之花 Prime 枪托": "Steflos Prime Stock",
+    "石晶之花 Prime 枪机": "Steflos Prime Receiver",
+    "石晶之花 Prime 枪管": "Steflos Prime Barrel",
+    "闪劫 Prime 握柄": "Corufell Prime Handle",
+    "闪劫 Prime 枪托": "Corufell Prime Stock",
+    "闪劫 Prime 枪机": "Corufell Prime Receiver",
+    "闪劫 Prime 蓝图": "Corufell Prime Blueprint",
+    "陨蜓 Prime 外甲蓝图": "Odonata Prime Harness Blueprint",
+    "陨蜓 Prime 机翼蓝图": "Odonata Prime Wings Blueprint",
+    "陨蜓 Prime 系统蓝图": "Odonata Prime Systems Blueprint",
+}
+
+
 def _item_en(zh: str) -> str:
     """英文模式下把遗物表里的中文物品名换成官方英文名（双语表精确命中才换，否则原样）。
 
@@ -92,6 +107,11 @@ def _item_en(zh: str) -> str:
     """
     if not is_en() or not zh:
         return zh
+    if zh in _RELIC_REWARD_EN:
+        return _RELIC_REWARD_EN[zh]
+    official = fmt._pool_name_en(zh)
+    if official != zh:
+        return official
     hits = matching.bilingual_lookup(zh, limit=1).get("hits")
     if hits:
         return hits[0][0]
@@ -153,6 +173,7 @@ _RELIC_LIST_EN = {"unvaulted": "出库", "vaulted": "入库", "list": "列表", 
 _EN_TIER_ZH = {k.lower(): v for k, v in TIER_CN.items() if k.isascii()}
 _EN_TIER_ZH_REV = {v: k for k, v in TIER_CN.items() if k.isascii()}
 _OPEN_EN = {
+    "endless": "无尽",
     "quick": "速刷",
     "fast": "速刷",
     "unvaulted": "未入库",
@@ -537,7 +558,12 @@ class RelicCommands:
                     x for x in sources if not x.startswith(("活动 · ", "奸商 · ", "敌人 · "))
                 ]
                 shown = list(dict.fromkeys([*notes, *event_sample, *regular, *sources]))[:8]
-                lines.extend([L("◆ 获取来源", "◆ Sources"), *[f"· {x}" for x in shown]])
+                lines.extend(
+                    [
+                        L("◆ 获取来源", "◆ Sources"),
+                        *[f"· {drops_db.place_en(x) if is_en() else x}" for x in shown],
+                    ]
+                )
                 if len(sources) > len(shown):
                     _more = len(sources) - len(shown)
                     lines.append(
@@ -592,6 +618,7 @@ class RelicCommands:
             toks.insert(0, parsed.preset)
         toks = [_OPEN_EN.get(str(t).lower(), t) for t in toks]  # 英文写法并入中文内部键
         quick_only = any(t in ("速刷", "快") for t in toks)
+        endless_only = any(t == "无尽" for t in toks)
         state = next((t for t in toks if t in ("未入库", "已入库", "可掉落")), "")
         if state == "可掉落":
             state = "未入库"
@@ -640,8 +667,6 @@ class RelicCommands:
             kind = []
             if f.get("isHard"):
                 kind.append(L("钢铁", "Steel Path"))
-            if f.get("isStorm"):
-                kind.append(L("九重天", "Void Storms"))
             rows.append(
                 {
                     "node": f.get("node", "?"),
@@ -649,26 +674,67 @@ class RelicCommands:
                     "tier": tier,
                     "tier_cn": fmt.tier_cn(tier) if tier and tier != "?" else "?",
                     "unv": cnt,
-                    "quick": mt in QUICK or (is_en() and mt in _QUICK_EN),
+                    "quick": _fissure_quick(f, mt, QUICK),
+                    # 九重天的生存 / 防御同样逐波结算遗物（wiki Void Fissure 更新记录：
+                    # 「Void Storm Survival … play through the entire wave」「unlocking 2 or more Relics」）
+                    "endless": mt in _ENDLESS_MISSIONS or (is_en() and mt in _ENDLESS_MISSIONS_EN),
                     "kind": "/".join(kind),
                     "faction": fmt._fissure_faction(f),
                     "expiry": f.get("expiry", ""),
+                    "storm": bool(f.get("isStorm")),
+                    "srank": _storm_rank(f) if f.get("isStorm") else 0,
                 }
             )
         if quick_only:
             rows = [r for r in rows if r["quick"]]
+        if endless_only:
+            rows = [r for r in rows if r["endless"]]
         if state == "未入库":
             rows = [r for r in rows if r["unv"] > 0]
         elif state == "已入库":
             rows = [r for r in rows if r["unv"] == 0]
-        rows.sort(key=lambda r: (fmt._TIER_ORDER.get(r["tier"], 99), not r["quick"], -r["unv"]))
+        # 地面裂隙（含钢铁）：同纪元 无尽 → 速刷 → 其它。批量开遗物玩家都挂无尽（英文 wiki Void
+        # Fissure「Endless Missions」：每轮可换一把遗物接着开，第 5 / 10 轮另送随机遗物；维护者 11-09 定）。
+        # 九重天单独一节、单独排序（见 _storm_rank），不和地面裂隙混排。
+        ground = [r for r in rows if not r["storm"]]
+        storms = [r for r in rows if r["storm"]]
+        ground.sort(
+            key=lambda r: (
+                fmt._TIER_ORDER.get(r["tier"], 99),
+                not r["endless"],
+                not r["quick"],
+                -r["unv"],
+            )
+        )
+        storms.sort(key=lambda r: (fmt._TIER_ORDER.get(r["tier"], 99), r["srank"], -r["unv"]))
         if price:
-            rows.sort(key=lambda r: r["unv"], reverse=(price == "高价"))
+            for _lst in (ground, storms):
+                _lst.sort(key=lambda r: r["unv"], reverse=(price == "高价"))
         # 不翻页：全部场次放同一张卡（维护者要求「那几页内容都放一张截图上」）。
-        total = len(rows)
-        chunk = rows[: fmt._ALL_ROWS_CAP]
+        total = len(ground) + len(storms)
+        cap = fmt._ALL_ROWS_CAP - 4  # 两节各多一行标题 + 表头
+        ground_shown = ground[:cap]
+        storm_shown = storms[: max(0, cap - len(ground_shown))]
+        chunk = ground_shown + storm_shown
         S = "　"
         lines = []
+
+        def _row_line(r: dict) -> str:
+            tag = f"[{r['tier_cn']}]"
+            mtype = r["type"] if r["type"] and r["type"] != "?" else ""
+            marks = " ".join(
+                x
+                for x in (
+                    *(r["kind"].split("/") if r["kind"] else ()),
+                    L("无尽", "Endless") if r["endless"] else "",
+                    L("速刷", "Quick") if r["quick"] else "",
+                )
+                if x
+            )
+            return f"· {tag}{S}{mtype}{S}{r['node']}{S}{r['faction']}{S}{marks}{S}" + fmt._left(
+                fmt.countdown(r["expiry"]), "剩"
+            )
+
         if chunk:
             # ★ 2026-10-11 第二步改版：单张对齐表「纪元　类型　节点　派系　标记　剩余」，与裂隙卡同形；
             #   「可掉落 N 种」是**纪元级**数字（同纪元每行相同）⇒ 不再逐行重复，汇总进卡首答案行。
@@ -684,32 +750,27 @@ class RelicCommands:
                     )
                 )
             )
-            n_quick = sum(1 for r in chunk if r["quick"])
+            n_quick = sum(1 for r in ground if r["quick"])
+            n_endless = sum(1 for r in ground if r["endless"])
             lines.append(
                 L(
-                    f"◆ 可开场次：{total} 场｜速刷 {n_quick} 场",
-                    f"◆ Crackable fissures: {total}｜Quick {n_quick}",
+                    f"◆ 可开场次：{total} 场｜无尽 {n_endless} 场｜速刷 {n_quick} 场｜九重天 {len(storms)} 场",
+                    f"◆ Crackable fissures: {total}｜Endless {n_endless}｜Quick {n_quick}"
+                    f"｜Void Storms {len(storms)}",
                 )
             )
+        if ground_shown:
             lines += [
                 L("◆ 裂隙列表（按纪元排序）", "◆ Fissure List (sorted by era)"),
                 L(f"{S}纪元{S}类型{S}节点{S}派系{S}标记", f"{S}Era{S}Type{S}Node{S}Faction{S}Tags"),
+                *(_row_line(r) for r in ground_shown),
             ]
-        for r in chunk:
-            tag = f"[{r['tier_cn']}]"
-            mtype = r["type"] if r["type"] and r["type"] != "?" else ""
-            marks = " ".join(
-                x
-                for x in (
-                    *(r["kind"].split("/") if r["kind"] else ()),
-                    L("速刷", "Quick") if r["quick"] else "",
-                )
-                if x
-            )
-            lines.append(
-                f"· {tag}{S}{mtype}{S}{r['node']}{S}{r['faction']}{S}{marks}{S}"
-                + fmt._left(fmt.countdown(r["expiry"]), "剩")
-            )
+        if storm_shown:
+            lines += [
+                L("◆ 九重天裂隙（航道星舰）", "◆ Void Storm Fissures (Railjack)"),
+                L(f"{S}纪元{S}类型{S}节点{S}派系{S}标记", f"{S}Era{S}Type{S}Node{S}Faction{S}Tags"),
+                *(_row_line(r) for r in storm_shown),
+            ]
         if not lines:
             lines = [
                 L(
@@ -717,14 +778,27 @@ class RelicCommands:
                     "◆ Result: no crackable fissures under the current filters",
                 )
             ]
-        lines.append(
-            L(
-                "※ 按纪元排序（古纪→前纪→中纪→后纪→安魂→全能）；"
-                "速刷 = 捕获 / 歼灭 / 破坏 / 救援 / 间谍 这类快节奏任务",
-                "※ Sorted by era (Lith → Meso → Neo → Axi → Requiem → Omnia); "
-                "Quick = fast missions such as Capture / Exterminate / Sabotage / Rescue / Spy",
+        if ground_shown or not storm_shown:
+            lines.append(
+                L(
+                    "※ 按纪元排序（古纪→前纪→中纪→后纪→安魂→全能），同纪元无尽在前；"
+                    "无尽 = 每轮能换一把遗物接着开，第 5 / 10 轮还送遗物；"
+                    "速刷 = 捕获 / 歼灭 / 破坏 / 救援 / 间谍，只开一两把时挑它",
+                    "※ Sorted by era (Lith → Meso → Neo → Axi → Requiem → Omnia), endless first within an era; "
+                    "Endless = crack a new relic every rotation, bonus relics at rounds 5 / 10; "
+                    "Quick = Capture / Exterminate / Sabotage / Rescue / Spy, for just one or two",
+                )
             )
-        )
+        if storm_shown:
+            lines.append(
+                L(
+                    "※ 九重天：做完可在导航台直接接下一场，不用回船坞，结算还多一份奖励；"
+                    "同纪元按 地球 / 土星前哨战（全程太空最快）→ 其它格里尼尔 → Corpus 星域（要登舰，慢）排",
+                    "※ Void Storms: start the next one from the navigation console without docking, plus an extra "
+                    "reward; within an era: Earth / Saturn Proxima Skirmish (fastest, all in space) → other Grineer "
+                    "→ Corpus Proxima (needs boarding, slow)",
+                )
+            )
         if total > len(chunk):
             lines.append(
                 L(
@@ -738,6 +812,7 @@ class RelicCommands:
             x
             for x in [
                 L("速刷", "Quick") if quick_only else "",
+                L("无尽", "Endless") if endless_only else "",
                 L(state, _state_en),
                 L(price, _price_en),
             ]
@@ -748,3 +823,445 @@ class RelicCommands:
             f"Crack Relics Tips ({total} total)" + (f"　Filter: {flt}" if flt else ""),
         )
         return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
+
+    async def _h_farm(self, parsed, event, platform) -> Reply:
+        """刷取规划：Prime 物品 → 各部件的遗物 → 最少开哪几把 → 遗物去哪刷 → 现在能开的裂隙。"""
+        q = parsed.content_str.strip()
+        usage = (L("用法", "Usage"), L(FARM_USAGE.removeprefix("用法："), FARM_USAGE_EN))
+        title = L("刷取规划", "Farming Plan")
+        # 「刷」也是日常用语，且指令词出现在句中任意位置都会命中：
+        # 指令词不在句首（「今天 刷 什么」）又认不出物品时，按闲聊处理，不回报错卡。
+        raw_toks = (getattr(parsed, "raw", "") or "").split()
+        chat_like = bool(raw_toks) and raw_toks[0].lower() not in (
+            _FARM_WORDS | {(parsed.command_raw or "").lower()}
+        )
+        if not q:
+            if chat_like:
+                return None
+            return err_card(
+                L("没有写要刷的物品", "No item given"),
+                L(
+                    "按用法重发，例如「刷 Wisp Prime」",
+                    'Resend using the usage, e.g. "farm Wisp Prime"',
+                ),
+                usage,
+                title=title,
+            )
+        _idx, inv = self._relic_db()
+        aliases = (getattr(self.client, "_aliases", None) or {}).get("wm_items") or {}
+        hit = _farm_resolve(q, inv, aliases)
+        if hit is None:
+            if chat_like:
+                return None
+            sugg = _farm_suggest(q, inv)
+            return err_card(
+                L(f"未找到「{q}」的遗物部件", f'No relic parts found for "{q}"'),
+                L(
+                    "「刷」只查遗物里出的 Prime 部件；照候选或用法改写后重发",
+                    '"farm" only covers Prime parts from relics; resend using a suggestion or the usage',
+                ),
+                (L("你是不是想找", "Did you mean"), L("、", ", ").join(_item_en(s) for s in sugg))
+                if sugg
+                else "",
+                usage,
+                title=title,
+            )
+        base, keys, bad_filter = hit
+        if bad_filter:
+            have = L("、", ", ").join(_farm_part_label(k) for k in keys)
+            return err_card(
+                L(
+                    f"{_item_en(base)} 没有「{bad_filter}」这个部件",
+                    f'{_item_en(base)} has no "{bad_filter}" part',
+                ),
+                L(
+                    "去掉部件词或换成下面的部件后重发",
+                    "Drop the part word or pick one of the parts below",
+                ),
+                (L("可选部件", "Parts"), have),
+                title=title,
+            )
+
+        droppable = drops_db.droppable_keys()
+        varzia = await self._varzia_relic_keys(platform)
+        plan = _farm_plan(keys, inv, droppable, varzia)
+
+        # 现在能开的裂隙：只看建议遗物所属的纪元（普通 / 钢铁 / 九重天都算）
+        want_tiers = set(plan["crack_tiers"])
+        fissure_rows: list[dict] = []
+        fissure_error = False
+        if want_tiers:
+            from datetime import datetime, timezone
+
+            try:
+                fissures = await self.client.fissures(platform)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("[sdjk] 刷取规划取裂隙失败，本次不列裂隙：%s", exc)
+                fissures, fissure_error = [], True
+            now = datetime.now(timezone.utc)
+            for f in fissures or []:
+                end = fmt.parse_iso(f.get("expiry", ""))
+                tier_zh = fmt._tier_key(f.get("tier", ""))
+                if not end or end <= now or tier_zh not in want_tiers:
+                    continue
+                mt = (
+                    fmt._RAILJACK_TYPE_CN.get((f.get("missionType") or "").lower(), "")
+                    if f.get("isStorm") and not is_en()
+                    else ""
+                ) or fmt.mission_cn(f.get("missionType", ""))
+                fissure_rows.append(
+                    {
+                        "tier": tier_zh,
+                        "type": mt,
+                        "node": f.get("node", "?"),
+                        "hard": bool(f.get("isHard")),
+                        "storm": bool(f.get("isStorm")),
+                        "srank": _storm_rank(f) if f.get("isStorm") else 0,
+                        "quick": _fissure_quick(f, mt, _FARM_QUICK),
+                        "endless": mt in _ENDLESS_MISSIONS
+                        or (is_en() and mt in _ENDLESS_MISSIONS_EN),
+                        "expiry": f.get("expiry", ""),
+                    }
+                )
+        title, lines = fmt.fmt_farm_plan(
+            _item_en(base),
+            plan,
+            fissure_rows,
+            fissure_error=fissure_error,
+            part_label=_farm_part_label,
+            item_name=_item_en,
+        )
+        return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
+
+
+# ---------------------------------------------------------------------------
+# 「刷」指令的纯函数部分（解析物品名、挑遗物）；卡面在 formatters.fmt_farm_plan
+# ---------------------------------------------------------------------------
+
+FARM_USAGE = "用法：刷 Wisp Prime（整套规划）｜ 刷 圣英prime 枪管（只看某个部件）｜ 刷 水晶p"
+FARM_USAGE_EN = (
+    "farm Wisp Prime (whole set) | farm Afentis Prime Barrel (one part) | farm Citrine Prime"
+)
+
+# 「刷」的指令词（判断是否在句首用）
+_FARM_WORDS = {w.lower() for w in (*COMMAND_ALIASES["farm"], *COMMAND_ALIASES_EN["farm"])}
+
+# 速刷任务类型（与开核桃同一口径：不含要站桩的防御 / 生存 / 拦截 / 移动防御）
+_FARM_QUICK = {"捕获", "歼灭", "破坏", "救援", "间谍"}
+
+# 无尽裂隙：每轮结束可换一把遗物接着开，集够反应物另有加成，第 5 / 10 轮送随机遗物
+# （英文 wiki Void Fissure「Endless Missions」原文列的 8 种）——批量开遗物首选
+_ENDLESS_MISSIONS = {"拦截", "防御", "中断", "生存", "虚空覆涌", "元素转换", "虚空洪流", "挖掘"}
+_ENDLESS_MISSIONS_EN = {
+    "Interception",
+    "Defense",
+    "Disruption",
+    "Survival",
+    "Void Cascade",
+    "Alchemy",
+    "Void Flood",
+    "Excavation",
+}
+
+# 九重天里只有地球 / 土星比邻星域的前哨战算速刷：全程太空作战，开核桃最快；
+# Corpus 星域（金星 / 海王星 / 冥王星）要步行登舰，慢，不标速刷（维护者 11-09 提供的社区共识）。
+_STORM_QUICK_REGIONS = ("Earth Proxima", "Saturn Proxima", "地球比邻星域", "土星比邻星域")
+
+
+def _storm_quick(f: dict) -> bool:
+    if (f.get("missionType") or "").strip().lower() != "skirmish":
+        return False
+    node = f.get("node") or ""
+    return any(r in node for r in _STORM_QUICK_REGIONS)
+
+
+# Corpus 控制的比邻星域（Empyrean 页：金星 / 天王星 / 海王星 / 冥王星；面纱两家都有，看节点派系）
+_CORPUS_STORM_REGIONS = (
+    "Venus Proxima",
+    "Uranus Proxima",
+    "Neptune Proxima",
+    "Pluto Proxima",
+    "金星比邻星域",
+    "天王星比邻星域",
+    "海王星比邻星域",
+    "冥王星比邻星域",
+)
+
+
+def _storm_is_corpus(f: dict) -> bool:
+    enemy = (f.get("enemy") or "").strip().lower()
+    if enemy:
+        return enemy == "corpus"
+    node = f.get("node") or ""
+    return any(r in node for r in _CORPUS_STORM_REGIONS)
+
+
+def _storm_rank(f: dict) -> int:
+    """九重天单独排序（维护者 11-09：九重天和普通裂隙玩法不一样，单独配置）：
+
+    0 地球 / 土星前哨战（全程太空，开核桃最快）→ 1 其它格里尼尔九重天（如面纱前哨战）
+    → 2 Corpus 九重天（要步行登舰，慢；生存 / 防御虽能逐波开遗物，也排在这里）。
+    """
+    if _storm_quick(f):
+        return 0
+    return 2 if _storm_is_corpus(f) else 1
+
+
+def _fissure_quick(f: dict, mt: str, quick_zh: set) -> bool:
+    """速刷判定：地面任务看任务类型；九重天只认地球 / 土星前哨战。"""
+    if f.get("isStorm"):
+        return _storm_quick(f)
+    return mt in quick_zh or (is_en() and mt in _QUICK_EN)
+
+
+# 稀有度 → 挑遗物时的权重（同样能覆盖时，优先部件在常见槽的遗物：完整遗物出货率 25.33% / 11% / 2%）
+_RARITY_WEIGHT = {"常见": 3, "罕见": 2, "稀有": 1}
+_FARM_TIER_ORDER = ("古纪", "前纪", "中纪", "后纪", "安魂", "全能", "先锋")
+
+
+def _farm_base(key: str) -> tuple[str, str]:
+    """反查键 → (物品名, 部件名)：「Wisp Prime 系统蓝图」→ (「Wisp Prime」, 「系统蓝图」)。
+
+    非 Prime 的键（「Forma 蓝图」「2X Forma 蓝图」）按最后一个词切；单词键（「赤毒」）部件名为空。
+    """
+    i = key.find(" Prime")
+    if i >= 0:
+        return key[: i + len(" Prime")], key[i + len(" Prime") :].strip()
+    if " " in key:
+        head, tail = key.rsplit(" ", 1)
+        return head, tail
+    return key, ""
+
+
+def _farm_bases(inv) -> dict[str, tuple[str, list[str]]]:
+    """归一化物品名 → (物品名, [反查键…])。"""
+    out: dict[str, tuple[str, list[str]]] = {}
+    for k in inv:
+        base, _part = _farm_base(k)
+        nb = matching.normalize_name(base)
+        out.setdefault(nb, (base, []))[1].append(k)
+    return out
+
+
+def _farm_name_cands(head: str, aliases: dict) -> list[str]:
+    """一段输入可能对应的归一化物品名（原样 / 补 Prime / p→Prime / 英文名转中文 / 黑话）。"""
+    raw: list[str] = [head]
+    zh = _en_name_to_zh(head)
+    if zh:
+        raw.append(zh)
+    slug = aliases.get(head.lower()) or aliases.get(matching.normalize_name(head))
+    if slug:
+        en = re.sub(r"_set$", "", slug).replace("_", " ").title()
+        raw.append(en)
+        zh2 = _en_name_to_zh(en)
+        if zh2:
+            raw.append(zh2)
+    out: list[str] = []
+    for r in raw:
+        n = matching.normalize_name(r)
+        if not n:
+            continue
+        forms = [n]
+        if "prime" not in n:
+            forms.append(re.sub(r"p$", "prime", n) if n.endswith("p") else n + "prime")
+            if n.endswith("p"):
+                forms.append(n + "prime")
+        for f in forms:
+            if f not in out:
+                out.append(f)
+    return out
+
+
+def _farm_part_match(keys: list[str], words: list[str]) -> list[str]:
+    """按部件词筛反查键；「蓝图」单独出现时只指主蓝图（不把「系统蓝图」也算进来）。"""
+    from ..parser import WM_PART_EN
+
+    picked: list[str] = []
+    for w in words:
+        wl = w.lower()
+        zh = WM_PART_EN.get(wl, w)
+        nz = matching.normalize_name(zh)
+        for k in keys:
+            part = matching.normalize_name(_farm_base(k)[1])
+            ok = part == nz if nz == "蓝图" else (nz in part)
+            if ok and k not in picked:
+                picked.append(k)
+    return picked
+
+
+def _farm_resolve(q: str, inv, aliases: dict):
+    """输入 → (物品名, [部件反查键], 认不出的部件词)；物品都认不出返回 None。
+
+    从最长前缀开始试：前段当物品名，剩下的当部件词（「刷 圣英 prime 枪管」）。
+    物品名必须**整名**命中（「wisp」补成「wispprime」），不做子串匹配，免得
+    「刷 ash」带出别的物品。整句是单个部件全名（「Wisp Prime 系统蓝图」）也认。
+    """
+    bases = _farm_bases(inv)
+    toks = q.split()
+    for k in range(len(toks), 0, -1):
+        head, rest = " ".join(toks[:k]), toks[k:]
+        for c in _farm_name_cands(head, aliases):
+            if c not in bases:
+                continue
+            base, keys = bases[c]
+            if not rest:
+                return base, sorted(keys, key=_farm_part_order), ""
+            picked = _farm_part_match(keys, rest)
+            if picked:
+                return base, sorted(picked, key=_farm_part_order), ""
+            return base, sorted(keys, key=_farm_part_order), " ".join(rest)
+    # 单个部件全名 / 英文部件名（「Wisp Prime Systems Blueprint」）
+    norm_keys = {matching.normalize_name(k): k for k in inv}
+    one = norm_keys.get(matching.normalize_name(q)) or _en_part_to_inv_key(q, inv)
+    if one:
+        return _farm_base(one)[0], [one], ""
+    return None
+
+
+def _farm_part_order(key: str):
+    """部件展示顺序：主蓝图在前，其余按名字。"""
+    part = _farm_base(key)[1]
+    return (part != "蓝图", part)
+
+
+def _farm_suggest(q: str, inv, limit: int = 3) -> list[str]:
+    """认不出时的候选物品名（归一化包含）。"""
+    nq = matching.normalize_name(q)
+    if not nq:
+        return []
+    out: list[str] = []
+    for nb, (base, _keys) in _farm_bases(inv).items():
+        if nq in nb and base not in out:
+            out.append(base)
+    out.sort(key=len)
+    return out[:limit]
+
+
+def _farm_part_label(key: str) -> str:
+    """卡面部件列：只写部件名（物品名在标题里）；英文模式换官方英文部件名。"""
+    base, part = _farm_base(key)
+    if not part:
+        return _item_en(key)
+    if not is_en():
+        return part
+    full = _item_en(key)
+    base_en = _item_en(base)
+    return full[len(base_en) :].strip() if full.startswith(base_en) and full != base_en else full
+
+
+def _farm_relic_state(relic: str, droppable: set, varzia: set) -> str:
+    key = fmt.relic_en_key(relic or "")
+    if key and key in droppable:
+        return "drop"
+    if key and key in varzia:
+        return "varzia"
+    return "vaulted"
+
+
+def _farm_plan(keys: list[str], inv, droppable: set, varzia: set) -> dict:
+    """挑遗物：在**当前可掉落**的遗物里用贪心法找最少几把覆盖全部能刷的部件。
+
+    每轮选「新覆盖部件最多」的一把；同数时选部件所在槽位更常见的（出货率高），
+    再同则选低纪元（古纪最好刷）。刷不到的部件看阿耶商店，都没有就算已入库。
+
+    Returns:
+        ``{"parts": [{"key", "state", "relic", "rarity", "others"}],
+        "picks": [{"relic", "tier", "keys", "places"}]}``；
+        ``relic`` 为卡面写法（「后纪 A21」），``tier`` 为中文纪元。
+    """
+    by_relic: dict[str, dict[str, str]] = {}  # 可掉落遗物 → {部件键: 槽位}
+    varzia_of: dict[str, list[tuple[str, str]]] = {}
+    for k in keys:
+        for o in inv.get(k) or []:
+            relic = o.get("relic") or ""
+            st = _farm_relic_state(relic, droppable, varzia)
+            if st == "drop":
+                by_relic.setdefault(relic, {})[k] = o.get("rarity") or ""
+            elif st == "varzia":
+                varzia_of.setdefault(k, []).append((relic, o.get("rarity") or ""))
+
+    def _tier(relic: str) -> str:
+        return fmt._tier_key(relic.split()[0]) if relic else ""
+
+    def _tier_rank(relic: str) -> int:
+        t = _tier(relic)
+        return _FARM_TIER_ORDER.index(t) if t in _FARM_TIER_ORDER else len(_FARM_TIER_ORDER)
+
+    place_cache: dict[str, list] = {}
+
+    def _places(relic: str) -> list:
+        if relic not in place_cache:
+            rkey = fmt.relic_en_key(relic)
+            place_cache[relic] = drops_db.relic_best_places(f"{rkey} relic") if rkey else []
+        return place_cache[relic]
+
+    need = {k for k in keys if any(k in got for got in by_relic.values())}
+    covered: dict[str, tuple[str, str]] = {}
+    picks: list[dict] = []
+    while need - set(covered):
+        left = need - set(covered)
+
+        def _score(item):
+            relic, got = item
+            new = [k for k in got if k in left]
+            return (
+                -len(new),
+                not _places(relic),  # 能在常规任务里刷的优先（只在储藏库 / 活动掉的排后）
+                -sum(_RARITY_WEIGHT.get(got[k], 0) for k in new),
+                _tier_rank(relic),
+                relic,
+            )
+
+        relic, got = min(by_relic.items(), key=_score)
+        new = [k for k in got if k in left]
+        if not new:
+            break
+        for k in new:
+            covered[k] = (relic, got[k])
+        picks.append(
+            {
+                "relic": fmt.relic_cn(relic),
+                "tier": _tier(relic),
+                "rank": (_tier_rank(relic), fmt._relic_sort_key(fmt.relic_cn(relic))),
+                "keys": new,
+                "places": _places(relic),
+            }
+        )
+    picks.sort(key=lambda pk: pk.pop("rank"))  # 卡面按纪元从低到高列
+
+    parts: list[dict] = []
+    for k in keys:
+        if k in covered:
+            relic, rarity = covered[k]
+            others = sum(1 for got in by_relic.values() if k in got) - 1
+            parts.append(
+                {
+                    "key": k,
+                    "state": "drop",
+                    "relic": fmt.relic_cn(relic),
+                    "rarity": rarity,
+                    "others": others,
+                }
+            )
+        elif k in varzia_of:
+            relic, rarity = sorted(varzia_of[k], key=lambda x: -_RARITY_WEIGHT.get(x[1], 0))[0]
+            parts.append(
+                {
+                    "key": k,
+                    "state": "varzia",
+                    "relic": fmt.relic_cn(relic),
+                    "rarity": rarity,
+                    "others": len(varzia_of[k]) - 1,
+                }
+            )
+        else:
+            parts.append({"key": k, "state": "vaulted", "relic": "", "rarity": "", "others": 0})
+    # 要进裂隙开的纪元：建议遗物 + 阿耶换来的遗物（换到手也得进同纪元裂隙开）
+    crack = {pk["tier"] for pk in picks} | {
+        _tier(p["relic"]) for p in parts if p["state"] == "varzia"
+    }
+    crack_tiers = sorted(
+        (t for t in crack if t),
+        key=lambda t: _FARM_TIER_ORDER.index(t) if t in _FARM_TIER_ORDER else len(_FARM_TIER_ORDER),
+    )
+    return {"parts": parts, "picks": picks, "crack_tiers": crack_tiers}

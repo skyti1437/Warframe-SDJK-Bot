@@ -45031,5 +45031,81 @@
   "slamAttack": 422.0,
   "slamRadius": 7.0,
   "heavySlamAttack": 633.0
+ },
+ "/lotus/weapons/tenno/zariman/melee/heavyscythe/zarimanheavyscythe/zarimanheavyscytheweapon": {
+  "name": "Thalys",
+  "uniqueName": "/Lotus/Weapons/Tenno/Zariman/Melee/HeavyScythe/ZarimanHeavyScythe/ZarimanHeavyScytheWeapon",
+  "category": "Melee",
+  "masteryReq": 12,
+  "damage": {
+   "puncture": 90.0,
+   "slash": 210.0,
+   "total": 300.0
+  },
+  "criticalChance": 0.3,
+  "criticalMultiplier": 2.2,
+  "procChance": 0.24,
+  "fireRate": 0.917,
+  "omegaAttenuation": 1.2,
+  "disposition": 4,
+  "type": "Heavy Scythe",
+  "zh": "大力士",
+  "attacks": [
+   {
+    "name": "Normal Attack",
+    "damage": {
+     "puncture": 90.0,
+     "slash": 210.0
+    },
+    "total": 300.0,
+    "crit_chance": 30.0,
+    "crit_mult": 2.2,
+    "status_chance": 24.0,
+    "speed": 0.917
+   },
+   {
+    "name": "Slam Attack",
+    "damage": {
+     "impact": 600.0
+    },
+    "total": 600.0,
+    "crit_chance": 30.0,
+    "crit_mult": 2.2,
+    "status_chance": 10.0,
+    "speed": 0.917,
+    "shot_type": "AoE",
+    "falloff": {
+     "start": 0.0,
+     "end": 8.0,
+     "reduction": 0.5
+    }
+   },
+   {
+    "name": "Heavy Slam Attack",
+    "damage": {
+     "blast": 900.0
+    },
+    "total": 900.0,
+    "crit_chance": 30.0,
+    "crit_mult": 2.2,
+    "status_chance": 10.0,
+    "speed": 0.917,
+    "shot_type": "AoE",
+    "falloff": {
+     "start": 0.0,
+     "end": 9.0,
+     "reduction": 0.3
+    }
+   }
+  ],
+  "source": "英文 wiki Module:Weapons/data + DE Public Export（scripts/build_weapons_supplement.py）",
+  "heavyAttackDamage": 800.0,
+  "slideAttack": 600.0,
+  "windUp": 1.0,
+  "followThrough": 0.4,
+  "comboDuration": 5.0,
+  "slamAttack": 600.0,
+  "slamRadius": 8.0,
+  "heavySlamAttack": 900.0
  }
 }

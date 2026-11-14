@@ -12,7 +12,7 @@ import re
 import time
 
 from .. import arbi as _arbi
-from .. import i18n
+from .. import display_time, i18n
 from ..i18n import L
 from ..parser import (
     FISSURE_MODIFIER_WORDS,
@@ -72,7 +72,7 @@ _EV_EN: dict[str, tuple[str, str, str]] = {
     "1999日历": (
         "calendar",
         "1999 Calendar",
-        "1999 Calendar: season rotation / daily schedule refresh",
+        "1999 Calendar: new season",
     ),
     "灵化武器": (
         "incarnon",
@@ -133,6 +133,7 @@ _EV_EN_EXTRA = {
     "sliver": "碎银兑换",
     "palladino": "碎银兑换",
     "bounty": "赏金",
+    "nw": "电波",
     "resurgence": "阿耶兑换",
     "aya": "阿耶兑换",
 }
@@ -149,6 +150,7 @@ _EN_WORDS = {
 }
 # 裂隙筛选的英文写法 -> 中文筛选词（空格 = 且、逗号 = 或的规则不变）
 _FISSURE_EN = {
+    "sp": "钢铁",
     "steel": "钢铁",
     "steelpath": "钢铁",
     "hard": "钢铁",
@@ -333,24 +335,6 @@ def _ev_cmd(ev: str) -> str:
     return L(ev, _EV_EN[ev][0] if ev in _EV_EN else ev)
 
 
-def _window_text_en(window) -> str:
-    bits = []
-    if window.start is not None:
-        end = window.end if window.end is not None else window.start
-        if end == window.start:
-            bits.append(f"{window.start}:00-{window.start + 1}:00")
-        elif end < window.start:
-            bits.append(f"{window.start}:00-{end}:00 next day")
-        else:
-            bits.append(f"{window.start}:00-{end}:00")
-    if window.days:
-        names = {v: k.title() for k, v in _DAY_EN.items()}
-        bits.append("/".join(names[d] for d in sorted(window.days)))
-    if window.at_hour is not None:
-        bits.append(f"daily at {window.at_hour} ({window.at_hour}:00-{window.at_hour}:59)")
-    return " ".join(bits) or "All day"
-
-
 class DunCommands:
     """Mixin：蹲订阅 handler（挂载于 main.WarframeSDJK）。"""
 
@@ -359,6 +343,7 @@ class DunCommands:
         toks = _en_arg_toks(list(parsed.content or []))
 
         if not toks or toks == ["帮助"]:
+            zone = display_time.current_zone_label()
             lines = [
                 L(
                     f"◆ 可蹲类型（共 {len(PUSH_EVENTS)} 项，发「蹲 类型」订阅）",
@@ -378,8 +363,9 @@ class DunCommands:
                     "◆ 写法（蹲 类型 筛选 时长 次数 时间）",
                     "· 时长　永久/7天/两周/N小时…（时长和次数都不写=命中一次后取消）",
                     "· 次数　2次 / 两次…：命中 N 次后取消；和时长一起写时先到为准，如 蹲 裂隙 钢铁生存 7天 3次",
-                    "· 时间　北京时间：22到8（22:00–次日8:00，8 点整结束）/ 0到24（全天）/ 每天19点（19:00–19:59）"
+                    f"· 时间　按显示时区 {zone} 填写。22到8（22:00–次日8:00，8 点整结束）/ 0到24（全天）/ 每天19点（19:00–19:59）"
                     " / 周1/3/5 23点 / 周5 22到8（含周六凌晨）",
+                    "· 切换时区后，已有订阅的小时和星期按新时区执行",
                     "· 筛选　空格分开 = 同时满足（钢铁 古纪 = 钢铁的古纪裂隙）；逗号分开 = 任一满足（钢铁,古纪）",
                     "· 档位　T1–T6 = 古纪/前纪/中纪/后纪/安魂/全能（档位词自动按裂隙订阅），"
                     "如 蹲 钢铁t5歼灭",
@@ -391,8 +377,9 @@ class DunCommands:
                     "◆ Syntax (subscribe <type> <filter> <duration> <hits> <time>)",
                     "· Duration　permanent / 7d / 2w / 12h ... (omit both duration and hits = cancel after the first hit)",
                     "· Hits　2x / 3 hits: cancel after N hits; with a duration, whichever comes first, e.g. subscribe fissures steel survival 7d 3x",
-                    "· Time　Beijing time: 22-8 (22:00-08:00 next day, ends at 8:00 sharp) / 0-24 (all day) / daily 19 (19:00-19:59)"
+                    f"· Time　Use the display time zone ({zone}). 22-8 (22:00-08:00 next day, ends at 8:00 sharp) / 0-24 (all day) / daily 19 (19:00-19:59)"
                     " / mon/wed/fri 23 / fri 22-8 (includes early Saturday)",
+                    "· Changing the display time zone applies the new zone to existing hours and weekdays",
                     "· Filter　space = AND (steel lith = Steel Path Lith fissures); comma = OR (steel,lith)",
                     "· Tier　T1-T6 = Lith/Meso/Neo/Axi/Requiem/Omnia (a tier word subscribes to fissures automatically), "
                     "e.g. subscribe steel t5 exterminate",
@@ -678,7 +665,8 @@ class DunCommands:
                     else L("命中一次即取消", "Cancels after the first hit")
                 )
             )
-        win_text = L(window.describe(), _window_text_en(window)) if window else L("全天", "All day")
+        win_text = sub.time_window().describe(i18n.current_lang())
+        zone = display_time.current_zone_label()
         rule_text = sub.rule or L("无", "None")
         if event_type == "裂隙" and sub.rule:
             rule_text += f"（{parse_fissure_filter(sub.rule).describe()}）"
@@ -704,7 +692,7 @@ class DunCommands:
             L(f"· 类型　{event_type}（{_plat}）", f"· Type　{_ev_show} ({_plat})"),
             L(f"· 筛选　{rule_text}", f"· Filter　{rule_text}"),
             L(f"· 时长　{dur_text}", f"· Duration　{dur_text}"),
-            L(f"· 时间　{win_text}", f"· Time　{win_text}"),
+            L(f"· 时间　{win_text}（{zone}）", f"· Time　{win_text} ({zone})"),
             L(
                 f"※ 订阅 #{sub.sid} 已加入本群推送队列",
                 f"※ Subscription #{sub.sid} has been added to this group's push queue",

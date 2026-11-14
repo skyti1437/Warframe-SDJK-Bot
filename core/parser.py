@@ -51,6 +51,7 @@ PLATFORM_ALIASES = {
 PLATFORM_DISPLAY = {"pc": "国际服", "ps": "国际服", "xb": "国际服", "sw": "国际服"}
 
 _MODIFIER_RE = re.compile(r"^-(?P<body>[A-Za-z0-9]+)$")
+_COMMAND_FLAGS = frozenset((*PLATFORMS, "en", "cn", "zh", "w", "t", "r"))
 
 
 def normalize_platform(word: str) -> Optional[str]:
@@ -124,6 +125,7 @@ COMMAND_ALIASES: dict[str, set[str]] = {
     "xh": {"xh", "玄骸"},
     "relic": {"遗物", "核桃"},
     "parts": {"部件", "零件", "组件"},
+    "farm": {"刷", "刷取"},
     "disposition": {"倾向", "紫卡倾向"},
     "ducats": {"金垃圾", "银垃圾", "铜垃圾"},
     # ---- 后台推送 ----
@@ -282,10 +284,48 @@ COMMAND_ALIASES_EN: dict[str, set[str]] = {
     "openrelic": {"openrelic"},
     "relic": {"relic", "relics"},
     "parts": {"parts"},
+    "farm": {"farm"},
     "disposition": {"dispo", "disposition"},
     "ducats": {"ducats"},
     "dun": {"subscribe", "sub"},
 }
+
+SHORT_COMMAND_ALIASES_EN = {
+    "status": "wfstatus",
+    "deeparchimedea": "eda",
+    "temporalarchimedea": "eta",
+    "steelpath": "sp",
+    "nightwave": "nw",
+    "synthtargets": "simaris",
+    "construction": "wfleet",
+    "voidstorms": "vstorm",
+    "clanrewards": "clanwk",
+    "flashsales": "wfsales",
+    "scandamage": "scandmg",
+    "analysis": "rgrade",
+    "ranges": "rrange",
+    "openrelic": "relicrun",
+}
+# 这些查询不需要参数。缩写可带标准修饰符，后面接普通句子时继续按原规则解析。
+_STANDALONE_EN = frozenset(
+    SHORT_COMMAND_ALIASES_EN[key]
+    for key in (
+        "status",
+        "deeparchimedea",
+        "temporalarchimedea",
+        "steelpath",
+        "nightwave",
+        "synthtargets",
+        "construction",
+        "voidstorms",
+        "clanrewards",
+        "flashsales",
+    )
+)
+
+for _cmd, _a in SHORT_COMMAND_ALIASES_EN.items():
+    COMMAND_ALIASES_EN.setdefault(_cmd, set()).add(_a)
+
 EN_ALIAS_TO_COMMAND: dict[str, str] = {}
 for _cmd, _aliases in COMMAND_ALIASES_EN.items():
     for _a in _aliases:
@@ -326,6 +366,7 @@ MENU_COMMANDS: tuple[MenuCommand, ...] = (
     MenuCommand("wm", "WM", "Market price + item", "WM 市场价，后接物品名"),
     MenuCommand("wr", "紫卡", "Riven market + weapon", "紫卡市场，后接武器名"),
     MenuCommand("relic", "遗物", "Relic drops + name", "遗物掉落，后接遗物名"),
+    MenuCommand("farm", "刷", "Farming plan + item", "刷取规划，后接物品名"),
     MenuCommand("damage", "伤害", "Weapon damage + name", "武器伤害，后接武器名"),
     MenuCommand("dispo", "倾向", "Riven disposition", "紫卡倾向，后接武器名"),
     MenuCommand("subscribe", "蹲", "Subscribe to alerts", "订阅裂隙、商人等推送"),
@@ -376,6 +417,14 @@ def tokenize(text: str) -> list[str]:
     return [t for t in tokens if t]
 
 
+def _is_command_modifier(token: str) -> bool:
+    match = _MODIFIER_RE.fullmatch(token)
+    if not match:
+        return False
+    body = match["body"].lower()
+    return body in _COMMAND_FLAGS or (body.isdigit() and bool(body.strip("0")))
+
+
 def parse(message: str, *, extra_commands: Optional[dict[str, str]] = None) -> Parsed:
     """把一条消息解析为 Parsed。没有命中主指令时 command 为 None。"""
     res = Parsed(raw=message)
@@ -385,7 +434,7 @@ def parse(message: str, *, extra_commands: Optional[dict[str, str]] = None) -> P
         alias_table = dict(ALIAS_TO_COMMAND)
         alias_table.update(extra_commands)
 
-    for tok in tokens:
+    for index, tok in enumerate(tokens):
         m = _MODIFIER_RE.match(tok)
         if m:
             body = m.group("body").lower()
@@ -413,7 +462,18 @@ def parse(message: str, *, extra_commands: Optional[dict[str, str]] = None) -> P
 
         low = tok.lower()
         first_word = not res.content and res.command is None
-        if first_word and low in EN_ALIAS_TO_COMMAND and low not in alias_table:
+        if (
+            first_word
+            and low in EN_ALIAS_TO_COMMAND
+            and low not in alias_table
+            and (
+                low not in _STANDALONE_EN
+                or (
+                    not res.unknown_modifiers
+                    and all(map(_is_command_modifier, tokens[index + 1 :]))
+                )
+            )
+        ):
             res.command_raw = tok
             res.command = EN_ALIAS_TO_COMMAND[low]
             continue
@@ -2124,7 +2184,7 @@ def parse_hit_count(text: str) -> Optional[int]:
     return n if 1 <= n <= HIT_COUNT_MAX else None
 
 
-# 推送时间窗一律按**北京时间**（UTC+8）判定，与服务器时区无关（2026-10-11 立）。
+# 后台价格榜的闲时仍按北京时间判断。
 try:  # 优先 IANA 名；容器缺 tzdata 时退回固定 UTC+8（中国无夏令时，二者等价）
     from zoneinfo import ZoneInfo as _ZoneInfo
 
@@ -2133,14 +2193,9 @@ except Exception:  # noqa: BLE001 - 无 tzdata
     BEIJING_TZ = timezone(timedelta(hours=8))
 
 
-def beijing_now() -> datetime:
-    """当前北京时间（带 tzinfo）。"""
-    return datetime.now(BEIJING_TZ)
-
-
 @dataclass
 class TimeWindow:
-    """允许推送的时间窗（北京时间）。空对象表示全天允许。
+    """按调用方提供的本地时刻判断订阅窗口。空对象表示全天允许。
 
     口径（2026-10-11 维护者定）：
     · ``start``~``end`` 为小时，**结束小时是开区间**：「22到8」= 22:00 到次日 8:00（8 点整结束）；
@@ -2159,8 +2214,8 @@ class TimeWindow:
     def is_always(self) -> bool:
         return self.start is None and self.days is None and self.at_hour is None
 
-    def allows(self, now) -> bool:
-        """now: datetime（北京时间；调用方负责换算）。"""
+    def allows(self, now: datetime) -> bool:
+        """now 已按订阅使用的时区换算。"""
         h = now.hour
         wd = now.isoweekday()
         if self.at_hour is not None:
@@ -2179,25 +2234,37 @@ class TimeWindow:
             start_wd = wd if h >= self.start else (wd - 2) % 7 + 1
         return ok and (self.days is None or start_wd in self.days)
 
-    def describe(self) -> str:
+    def describe(self, lang: str = "zh") -> str:
+        en = lang == "en"
         bits = []
         if self.start is not None:
             end = self.end if self.end is not None else self.start
             if end == self.start:
                 bits.append(f"{self.start}:00-{self.start + 1}:00")
             elif end < self.start:
-                bits.append(f"{self.start}:00-次日{end}:00")
+                bits.append(
+                    f"{self.start}:00-{end}:00 next day" if en else f"{self.start}:00-次日{end}:00"
+                )
             else:
                 bits.append(f"{self.start}:00-{end}:00")
         if self.days:
-            bits.append("周" + "/".join(map(str, sorted(self.days))))
+            if en:
+                days = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+                bits.append("/".join(days[d - 1] for d in sorted(self.days)))
+            else:
+                bits.append("周" + "/".join(map(str, sorted(self.days))))
         if self.at_hour is not None:
-            bits.append(f"每天{self.at_hour}点（{self.at_hour}:00-{self.at_hour}:59）")
-        return " ".join(bits) or "全天"
+            hour = self.at_hour
+            bits.append(
+                f"daily at {hour} ({hour}:00-{hour}:59)"
+                if en
+                else f"每天{hour}点（{hour}:00-{hour}:59）"
+            )
+        return " ".join(bits) or ("All day" if en else "全天")
 
 
 def parse_time_window(text: str) -> Optional[TimeWindow]:
-    """解析 `0到24`、`22到8`、`每天19点`、`周1/3/5 23点`、`周5 22到8`（北京时间）。"""
+    """解析 `0到24`、`22到8`、`每天19点`、`周1/3/5 23点`、`周5 22到8`。"""
     t = text.strip().replace("：", ":")
     if not t:
         return None

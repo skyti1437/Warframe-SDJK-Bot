@@ -1651,39 +1651,48 @@
  "wiki": {
   "夜灵": {
    "title": "夜灵平野",
-   "url": "https://warframe.huijiwiki.com/wiki/夜灵平野"
+   "url": "https://warframe.huijiwiki.com/wiki/夜灵平野",
+   "en": "Plains of Eidolon"
   },
   "夜灵平野": {
    "title": "夜灵平野",
-   "url": "https://warframe.huijiwiki.com/wiki/夜灵平野"
+   "url": "https://warframe.huijiwiki.com/wiki/夜灵平野",
+   "en": "Plains of Eidolon"
   },
   "三傻": {
    "title": "夜灵",
-   "url": "https://warframe.huijiwiki.com/wiki/夜灵"
+   "url": "https://warframe.huijiwiki.com/wiki/夜灵",
+   "en": "Eidolon"
   },
   "平原": {
    "title": "开放地形",
-   "url": "https://warframe.huijiwiki.com/wiki/开放地形"
+   "url": "https://warframe.huijiwiki.com/wiki/开放地形",
+   "en": "Open World"
   },
   "紫卡": {
    "title": "裂罅MOD",
-   "url": "https://warframe.huijiwiki.com/wiki/裂罅MOD"
+   "url": "https://warframe.huijiwiki.com/wiki/裂罅MOD",
+   "en": "Riven Mods"
   },
   "裂罅": {
    "title": "裂罅MOD",
-   "url": "https://warframe.huijiwiki.com/wiki/裂罅MOD"
+   "url": "https://warframe.huijiwiki.com/wiki/裂罅MOD",
+   "en": "Riven Mods"
   },
   "玄骸": {
    "title": "玄骸",
-   "url": "https://warframe.huijiwiki.com/wiki/玄骸"
+   "url": "https://warframe.huijiwiki.com/wiki/玄骸",
+   "en": "Adversary System"
   },
   "信条": {
    "title": "信条武器",
-   "url": "https://warframe.huijiwiki.com/wiki/信条武器"
+   "url": "https://warframe.huijiwiki.com/wiki/信条武器",
+   "en": "Tenet Weapons"
   },
   "杜卡德": {
    "title": "杜卡德金币",
-   "url": "https://warframe.huijiwiki.com/wiki/杜卡德金币"
+   "url": "https://warframe.huijiwiki.com/wiki/杜卡德金币",
+   "en": "Orokin Ducats"
   },
   "奸商": {
    "title": "Baro Ki'Teer",
@@ -1691,11 +1700,13 @@
   },
   "新服": {
    "title": "攻略指导",
-   "url": "https://warframe.huijiwiki.com/wiki/Mainpage/攻略指导"
+   "url": "https://warframe.huijiwiki.com/wiki/Mainpage/攻略指导",
+   "en": "Guide"
   },
   "新手": {
    "title": "攻略指导",
-   "url": "https://warframe.huijiwiki.com/wiki/Mainpage/攻略指导"
+   "url": "https://warframe.huijiwiki.com/wiki/Mainpage/攻略指导",
+   "en": "Guide"
   },
   "猴P": {
    "title": "Wukong Prime",
@@ -1936,6 +1947,11 @@
   "狙击手": {
    "title": "Cyte-09",
    "url": "https://warframe.huijiwiki.com/wiki/Cyte-09"
+  },
+  "夜灵平原": {
+   "title": "夜灵平野",
+   "url": "https://warframe.huijiwiki.com/wiki/夜灵平野",
+   "en": "Plains of Eidolon"
   }
  },
  "lich_items": {

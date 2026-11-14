@@ -701,6 +701,14 @@ REGISTRY: dict[str, dict] = {
         risk="medium",
         note="随开源 / 市场包分发（2026-09-25 维护者定）。",
     ),
+    "wiki_intro_en.json": _e(
+        "misc",
+        "scripts/build_wiki_intro_en.py",
+        "DE 同键语言表与 MOD 等级、PEP 配方、WFCD 固定掉落快照",
+        readers=["core/wiki_intro.py"],
+        risk="medium",
+        note="输入校验值记在 source_sha256。简介或上游数据更新后重建。",
+    ),
     # ================================================== asset（字体 / 图标）
     "local_ocr_assets.json": _e(
         "asset",

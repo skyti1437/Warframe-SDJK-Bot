@@ -1930,6 +1930,22 @@ def _apply_incarnon_form(spec: dict, w: dict) -> dict:
             )
         )
         return w
+    if inc.get("kind") == "melee_native" and not inc.get("damage_conversion"):
+        speed = float(inc["attack_speed_multiplier"])
+        reach = float(inc["range_bonus_m"])
+        spec["notes"].extend(
+            [
+                L(
+                    f"形态：原生近战灵化（仅普通攻击）；攻速 +{(speed - 1) * 100:g}%",
+                    f"Form: native melee Incarnon (normal attacks only); +{(speed - 1) * 100:g}% attack speed",
+                ),
+                L(
+                    f"攻击范围 +{reach:g} 米仅作说明；额外攻击、启用与持续时间未计入",
+                    f"Range +{reach:g} m is informational; extra attacks, activation and duration are not modeled",
+                ),
+            ]
+        )
+        return {**w, "fireRate": float(w.get("fireRate") or 0.0) * speed}
     if inc.get("kind") == "melee_native":
         # 原生近战只接入来源明确的普通攻击。物理 MOD 转换先后未定，calculate
         # 在进入这里前拒绝相关组合，不能把物理转换套在一份已含 IPS 加成的面板上。
@@ -2740,8 +2756,10 @@ def calculate(spec: dict, weapon: dict) -> dict:
         error = help_text = ""
         # 中文原文写的是这把武器的名字（古声 = Ruvox）；英文取数据里的英文名
         _native = inc.get("base_name") or "Ruvox"
-        if any(float(v) != 0 for v in (spec.get("physical") or {}).values()) or spec.get(
-            "physical_convert"
+        native_zh = inc.get("base_zh") or _native
+        if inc.get("damage_conversion") and (
+            any(float(v) != 0 for v in (spec.get("physical") or {}).values())
+            or spec.get("physical_convert")
         ):
             error = L(
                 "古声灵化与物理伤害词条的转换顺序尚未确认，本次不计算该组合",
@@ -2754,7 +2772,7 @@ def calculate(spec: dict, weapon: dict) -> dict:
             )
         elif spec.get("heavy"):
             error = L(
-                "古声灵化目前仅支持普通攻击，重击与震地形态尚未收录",
+                f"{native_zh}灵化目前仅支持普通攻击，重击与震地形态尚未收录",
                 f"{_native}'s Incarnon form currently supports normal attacks only; heavy attack "
                 "and slam forms are not recorded yet",
             )
@@ -2762,9 +2780,18 @@ def calculate(spec: dict, weapon: dict) -> dict:
                 "移除「重击」查看普通攻击，或加「基础形态」计算重击。",
                 'Remove "heavy" to see the normal attack, or add "base form" to calculate the heavy attack.',
             )
+        elif inc.get("attack_speed_stacking") == "unverified" and spec.get("fire_rate_pct"):
+            error = L(
+                f"{native_zh}灵化攻速与其它攻速加成的叠加方式尚未确认",
+                f"How {_native}'s Incarnon attack speed stacks with other attack speed bonuses is unconfirmed",
+            )
+            help_text = L(
+                "移除其它攻速加成，或加「基础形态」计算。",
+                'Remove other attack speed bonuses, or add "base form" to calculate.',
+            )
         elif any("射速" in key or "攻速" in key for key in spec.get("evo_keys") or []):
             error = L(
-                "古声可选进化攻速的叠加方式尚未确认，本次不计算该组合",
+                f"{native_zh}可选进化攻速的叠加方式尚未确认，本次不计算该组合",
                 f"How {_native}'s optional evolution attack speed stacks is unconfirmed, "
                 "this combination is not calculated",
             )

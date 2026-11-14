@@ -513,11 +513,7 @@ def intro(*names: str) -> Optional[tuple[str, list[str]]]:
         if not rows:
             continue
         chosen = _prefer_full_rank(rows)
-        lines = [
-            row
-            for x in _sanitize([str(x) for x in chosen["lines"]])
-            for row in _acquire_rows(_kvify(_localize(_localize_effect(x))))
-        ]
+        lines = _intro_lines(chosen["lines"])
         if chosen.get("variant") == "pvp":
             lines.append("◆ 版本：" + L("PvP 变体", "PvP variant"))
         if len(rows) > 1:
@@ -533,9 +529,17 @@ def intro(*names: str) -> Optional[tuple[str, list[str]]]:
                 "◆ 同名条目：" + L(f"共 {len(rows)} 条{hint}", f"{len(rows)} entries{hint}")
             )
         if i18n.is_en():
-            lines = [_en_line(x) for x in lines]
+            lines = [_english_intro_line(chosen["title"], _en_line(x)) for x in lines]
         return chosen["title"], lines
     return None
+
+
+def _intro_lines(raw_lines: list[str]) -> list[str]:
+    return [
+        row
+        for x in _sanitize([str(x) for x in raw_lines])
+        for row in _acquire_rows(_kvify(_localize(_localize_effect(x))))
+    ]
 
 
 def exact_title(name: str) -> Optional[str]:
@@ -747,8 +751,12 @@ def _relic_part_card(*names: str, limit: int = 8) -> Optional[tuple[str, list[st
     hit = ""
     for n in names:
         k = re.sub(r"\s+", "", n or "")
-        if k and k in flat:
-            hit = flat[k]
+        # 成品部件名（「Wisp Prime 系统」）在遗物里掉的是蓝图（「Wisp Prime 系统蓝图」）
+        for cand in (k, k + "蓝图"):
+            if cand and cand in flat:
+                hit = flat[cand]
+                break
+        if hit:
             break
     if not hit:
         return None
@@ -765,6 +773,14 @@ def _relic_part_card(*names: str, limit: int = 8) -> Optional[tuple[str, list[st
         + L(str(r.get("rarity")), _RARITY_EN.get(str(r.get("rarity")), str(r.get("rarity"))))
         for r in rows[:limit]
     ]
+    if " Prime" in hit:
+        base = hit[: hit.index(" Prime") + len(" Prime")]
+        lines.append(
+            L(
+                f"※ 哪把能刷、去哪刷：发「刷 {base}」看整套刷取规划",
+                f'※ Which relics are farmable and where: send "farm {base}" for the full plan',
+            )
+        )
     return title, lines
 
 
@@ -853,6 +869,14 @@ def _en_title(title: str) -> str:
     """英文模式的卡片标题：「闪劫（Corufell）」取括号里的英文名；没有英文名就原样。"""
     if not _CJK_RE.search(title or ""):
         return title
+    _, sep, suffix = title.rpartition("（")
+    if (
+        sep
+        and suffix.endswith("）")
+        and not _CJK_RE.search(suffix)
+        and re.search(r"[A-Za-z]", suffix)
+    ):
+        return suffix[:-1].strip()
     for part in re.findall(r"[（(]([^）)]+)[）)]", title):
         if re.search(r"[A-Za-z]", part) and not _CJK_RE.search(part):
             return part.strip()
@@ -968,12 +992,36 @@ def _en_seg(seg: str) -> str:
     return seg
 
 
+@lru_cache(maxsize=1)
+def _description_en() -> dict[str, str]:
+    """简介与 DE 官方简中原文完全相同，才按同一语言键取英文正文。"""
+    root = _FILE.parent / "de"
+    try:
+        zh = json.loads((root / "languages_zh.json").read_text(encoding="utf-8"))
+        en = json.loads((root / "languages_en.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    pairs: dict[str, set[str]] = {}
+    for key, value in zh.items():
+        original = en.get(key)
+        if (
+            key.casefold().endswith(("desc", "description"))
+            and isinstance(value, str)
+            and isinstance(original, str)
+            and original
+        ):
+            pairs.setdefault(" ".join(value.split()), set()).add(" ".join(original.split()))
+    return {key: next(iter(values)) for key, values in pairs.items() if len(values) == 1}
+
+
 def _en_line(line: str) -> str:
     """简介行英文化：``◆ 标签：值`` → ``◆ Label: value``，固定术语段（暴击几率 …）一并换名。"""
     m = _EN_KV_RE.match(line)
     if not m:
         return line
     label, value = m.group(1), m.group(2)
+    if label == "简介":
+        value = _description_en().get(" ".join(value.split()), value)
     if label in _EN_SEG_LINES:
         if (
             label == "总伤害" and "（" in value
@@ -986,6 +1034,29 @@ def _en_line(line: str) -> str:
         value = re.sub(r"(\d)\s*秒", r"\1 s", value)
         value = re.sub(r"(\d)\s*米", r"\1 m", value)
     return f"◆ {_en_label(label)}: {value}"
+
+
+@lru_cache(maxsize=1)
+def _english_intro_data() -> dict:
+    """加载经官方语言键、资产等级或配方校验的英文资料。"""
+    try:
+        data = json.loads(_FILE.with_name("wiki_intro_en.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    if isinstance(data, dict) and data.get("schema") == 1:
+        return data
+    return {}
+
+
+def _english_intro_line(title: str, line: str) -> str:
+    data = _english_intro_data()
+    scoped = data.get("cards", {}).get(title, {})
+    result = scoped.get(line) or data.get("lines", {}).get(line) or line
+    if result.startswith("◆ Effect (0 级): "):
+        return "◆ Effect (Rank 0): " + result.removeprefix("◆ Effect (0 级): ")
+    if result.startswith("◆ Effect (效果): "):
+        return "◆ Effect: " + result.removeprefix("◆ Effect (效果): ")
+    return result
 
 
 def card_for(*names: str) -> Optional[tuple[str, list[str]]]:
@@ -1008,6 +1079,7 @@ def card_for(*names: str) -> Optional[tuple[str, list[str]]]:
         _t2 = display_title(_t)
         if i18n.is_en():
             _t2 = _en_title(_t2)
+            _t2 = _english_intro_data().get("titles", {}).get(_t2, _t2)
         if _t2 != _t:
             return _t2, _lines
     return card

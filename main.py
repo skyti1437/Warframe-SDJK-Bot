@@ -24,8 +24,10 @@ import tempfile
 import time
 import traceback
 from dataclasses import replace
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from astrbot.api import AstrBotConfig, logger
 from astrbot.api.event import AstrMessageEvent, MessageChain, filter
@@ -45,6 +47,7 @@ try:  # 允许脱离 AstrBot 直接跑单元测试
     from .core import paths as core_paths
     from .core import wiki_intro
     from .core import i18n
+    from .core import parser as wf_parser
     from .core.parser import (
         BEIJING_TZ,
         MENU_COMMANDS,
@@ -72,9 +75,10 @@ try:  # 允许脱离 AstrBot 直接跑单元测试
     from .core.commands import WikiMiscCommands
     from .core.commands import ScanCommands, VisionCommands
     from .core.commands import DunCommands
+    from .core.commands.dun import _ev_name, _rule_en
     from .core.commands.base import Action, _num
     from .core.messaging import MessagingBridge
-    from .core.store import GroupStore, SubscriptionStore
+    from .core.store import CommandStats, GroupStore, SubscriptionStore
     from .core.vision_prompts import VisionPromptStore
     from .core.local_ocr import LocalRivenOCR
     from .core.local_ocr_install import LocalOCRInstaller
@@ -100,6 +104,7 @@ except ImportError as _imp_err:  # pragma: no cover
     from core import paths as core_paths
     from core import wiki_intro
     from core import i18n
+    from core import parser as wf_parser
     from core.parser import (
         BEIJING_TZ,
         MENU_COMMANDS,
@@ -127,9 +132,10 @@ except ImportError as _imp_err:  # pragma: no cover
     from core.commands import WikiMiscCommands
     from core.commands import ScanCommands, VisionCommands
     from core.commands import DunCommands
+    from core.commands.dun import _ev_name, _rule_en
     from core.commands.base import Action, _num
     from core.messaging import MessagingBridge
-    from core.store import GroupStore, SubscriptionStore
+    from core.store import CommandStats, GroupStore, SubscriptionStore
     from core.vision_prompts import VisionPromptStore
     from core.local_ocr import LocalRivenOCR
     from core.local_ocr_install import LocalOCRInstaller
@@ -309,6 +315,16 @@ def _wake_prefix_stripped(event: AstrMessageEvent) -> bool:
     return False
 
 
+_GROUP_PROTECTED_COMMANDS = {"help", "status"}
+_GROUP_COMMAND_ADMIN = {
+    "禁用": "disablecmd",
+    "启用": "enablecmd",
+    "禁用列表": "disabled",
+    "别名": "alias",
+    "早报": "digest",
+}
+
+
 PLUGIN_DIR = Path(__file__).resolve().parent
 PLUGIN_NAME = "astrbot_plugin_warframe_sdjkbot"  # 插件身份（须与 metadata.yaml.name 一致）
 # ★ 2026-09-28 裁定：原先这里有个指向 `core/data/rotations.json` 的**包内路径常量**，
@@ -364,7 +380,7 @@ def _migrate_legacy_user_data(data_dir: Path) -> None:
 # ★ 两条硬规则（2026-09-17 改版，玩家反馈「主指令乱排 / 缺指令 / 看不懂」）：
 #   1. 左列必须是**真实主指令名**（可照发）＋常用别名，不再是「平台切换」这类
 #      描述性标签 —— 用户是照着这行去发指令的。
-#   2. **全部主指令（当前 57 个）必须出现**，由 tests/test_help_coverage.py 锁住，
+#   2. **全部主指令（当前 58 个）必须出现**，由 tests/test_help_coverage.py 锁住，
 #      以后新增主指令而忘了写进帮助会直接测试失败（条数按 COMMAND_ALIASES 现算，
 #      不写死在测试里）。
 #   分组依据是「玩家在什么场景下会想用它」，同类指令聚在一组。
@@ -416,6 +432,7 @@ HELP_TOPIC: dict[str, list[tuple[str, str]]] = {
     "遗物与资源": [
         ("遗物 / 核桃 名称", "奖励与出处；出库 / 入库 / 列表"),
         ("部件 物品名", "Prime 部件与蓝图出处"),
+        ("刷 物品名", "整套刷取规划：开哪几把遗物、去哪刷、现在能开的裂隙"),
         ("金垃圾 / 银垃圾 / 铜垃圾", "按杜卡德分档"),
     ],
     "伤害与配卡": [
@@ -425,7 +442,7 @@ HELP_TOPIC: dict[str, list[tuple[str, str]]] = {
     ],
     "资料与推送": [
         ("新闻 / 结合目标 / 赤毒", "官方公告｜Simaris 目标｜赤毒历史"),
-        ("wiki 词 / 翻译 词", "维基直达｜中英对照"),
+        ("wiki 词 / 翻译 词", "维基直达（默认英文 wiki，末尾加「灰机」用灰机）｜中英对照"),
         ("蹲 类型 筛选 时长 时间", "订阅变化推送（需先 .开启 推送）"),
         ("蹲 取消 / 蹲 帮助", "取消订阅｜可蹲类型与写法"),
     ],
@@ -438,6 +455,7 @@ HELP_NOTES: dict[str, list[str]] = {
     "": [
         "指令直接发即可，无需 / 前缀（/help 属系统内置指令）；列表类加 -2 / -3 翻页；"
         "-w 纯文字 · -t 强制图片 · -1 第一页 · -r 生成密语",
+        "英文指令可发 wfhelp -en 查看。eda / eta 查深层与时光科研，sp 查钢铁精华商店，nw 查午夜电波",
     ],
     "伤害与配卡": [
         "伤害可加：爆头 病毒10 剥甲 满镀层 钢路 开火N秒｜灵化 / 基础形态 / 副开火 / 蓄力 / "
@@ -446,6 +464,8 @@ HELP_NOTES: dict[str, list[str]] = {
     "资料与推送": [
         "帮助 / help = 本页；状态 = 运行状态、版本与订阅数（需群管理员）",
         "群管理：.默认平台 / .开启 / .关闭 推送 / .状态（点号开头，需群管理员）",
+        "本群指令管理：.禁用 指令 / .启用 指令 / .禁用列表 / .别名 添加 新词 指令",
+        "群早报：.早报 开启 [08:00] / .早报 关闭 / .早报（需开启推送）",
         "平台后缀 -pc / -ps / -xb / -sw：四平台数据已互通，统一显示「国际服」",
         "「赤毒」虹吸数据源已停摆，发它会给出替代查询；「蹲 取消」不带词 = 自己发起的全部（群管 = 全群）",
     ],
@@ -458,18 +478,18 @@ HELP_TOPIC_EN: dict[str, list[tuple[str, str]]] = {
     "Most Used": [
         ("timers", "Time left on every cycle, at a glance"),
         (
-            "fissures / openrelic",
+            "fissures / relicrun",
             "Void Fissures (filter by Steel Path / mission type / era) | relic-cracking tips",
         ),
         ("bounty", "Bounties and rewards by region"),
         ("wm <item>", "Market sell/buy orders (add blueprint / part words to look up a part)"),
         ("damage <weapon> vs <enemy> 100", "Panel / single hit / DPS / breakdown"),
         (
-            "rivenanalysis <weapon> <stats>",
+            "rgrade <weapon> <stats>",
             "Stat ranges, roll quality, splice tips and similar listings (or just send a riven screenshot)",
         ),
         (
-            "rivenranges <weapon> [3+1-]",
+            "rrange <weapon> [3+1-]",
             "Stat ranges a weapon can roll (pick stats or switch combos)",
         ),
         ("splice [weapon/stat]", "Which two stats a spliced stat comes from"),
@@ -479,23 +499,23 @@ HELP_TOPIC_EN: dict[str, list[tuple[str, str]]] = {
         ("sortie / archon", "Daily Sortie | this week's Archon Hunt"),
         ("arbitration / arbtable", "Current mission | the weekly schedule (filter by type)"),
         ("alerts / invasions / events / conclave", "Limited-time content | PvP challenges"),
-        ("nightwave / calendar", "Nightwave challenges | 1999 Calendar"),
+        ("nw / calendar", "Nightwave challenges | 1999 Calendar"),
     ],
     "Weekly Rotations": [
-        ("deeparchimedea / temporalarchimedea", "This week's 3 missions x Normal / Hard"),
+        ("eda / eta", "Deep / Temporal Archimedea, including Elite missions"),
         ("descendia", "This week's 21 floors and complications"),
-        ("incursions / voidstorms", "Steel Path Incursions | Void Storms"),
+        ("incursions / vstorm", "Steel Path Incursions | Railjack Void Storms"),
         (
             "incarnon / tenet / coda",
             "Weekly rotation weapons and element bonuses (add refresh to re-fetch)",
         ),
-        ("construction / clanrewards", "Fleet Construction | Clan research"),
+        ("wfleet / clanwk", "Fleet Construction | Weekly Clan Rewards"),
     ],
     "Shops": [
         ("baro / voidtrader", "Baro Ki'Teer's stock and arrival time"),
-        ("darvo / flashsales", "Daily deal | limited-time bundles"),
+        ("darvo / wfsales", "Daily deal | limited-time bundles"),
         (
-            "acrithis / slivers / steelpath",
+            "acrithis / slivers / sp",
             "Acrithis weekly offers (add refresh to re-fetch) | Riven Sliver shop | Teshin",
         ),
         ("primevault / varzia", "Prime Vault list | Varzia exchange"),
@@ -515,15 +535,19 @@ HELP_TOPIC_EN: dict[str, list[tuple[str, str]]] = {
     "Relics and Resources": [
         ("relic <name>", "Rewards and sources; also vaulted / unvaulted / list"),
         ("parts <item>", "Prime part and blueprint sources"),
+        (
+            "farm <item>",
+            "Set farming plan: which relics to crack, where to farm them, open fissures",
+        ),
         ("ducats", "Gold / Silver / Bronze parts by ducat value"),
     ],
     "Damage and Builds": [
         ("scan + screenshot", "Read a build screen and verify the panel"),
-        ("scandamage vs <enemy> <level>", "Recalculate from the last scan"),
+        ("scandmg vs <enemy> <level>", "Recalculate from the last scan"),
         ("valence / xh", "Valence Fusion | Kuva / Tenet weapon auctions"),
     ],
     "Info and Push": [
-        ("news / synthesis / kuva", "Official news | Synthesis Targets | Kuva history"),
+        ("news / simaris / kuva", "Official news | Synthesis Targets | Kuva history"),
         ("wiki <term> / translate <term>", "Wiki link | Chinese-English lookup"),
         (
             "subscribe <type> <filter> <duration>",
@@ -537,14 +561,17 @@ HELP_NOTES_EN: dict[str, list[str]] = {
     "": [
         "Send commands as plain words, no / prefix (/help is a built-in system command). "
         "Add -2 / -3 for more pages | -w plain text | -t force image | -1 first page | -r whisper text",
-        "Language: add -en or -cn to any command for a one-off switch; admins can set the chat default with .language en / .language cn / .language default",
+        "Add -en or -cn to switch the reply language. Admins can set the chat default with .language en / .language cn / .language default",
     ],
     "Damage and Builds": [
         "Damage modifiers: headshot, viral10, strip, full-armor, steelpath, fire Ns | incarnon / base form / alt fire / charged / uncharged / semi-auto / aerial / ground / evolve X / kuva-radiation60",
     ],
     "Info and Push": [
-        "help = this page; status = runtime status, version and subscription count (group admins only)",
+        "wfhelp opens this page. wfstatus shows the version and subscriptions (group admins only)",
         "Group admin: .platform / .enable / .disable push / .status / .language (start with a dot, group admins only)",
+        "Group commands: .disablecmd <command> / .enablecmd <command> / .disabled / .alias add <alias> <command>",
+        "Morning digest: .digest on [08:00] / .digest off / .digest (requires group push)",
+        "Subscription hours and weekdays follow the display time zone. See subscribe help for examples",
         "Platform suffixes -pc / -ps / -xb / -sw: all four platforms share data and show as International",
         'Kuva siphon data is no longer available, so asking for it points you to alternatives; "subscribe cancel" with no word = all of your own (group admins = whole group)',
     ],
@@ -567,7 +594,7 @@ HELP_NOTES_EN: dict[str, list[str]] = {
 
 
 @register(
-    "astrbot_plugin_warframe_sdjkbot", "SDJK", f"{BRAND}：世界状态 / 市场查价 / 蹲点推送", "1.3.1"
+    "astrbot_plugin_warframe_sdjkbot", "SDJK", f"{BRAND}：世界状态 / 市场查价 / 蹲点推送", "1.3.2"
 )
 class WarframeSDJK(
     DailyCommands,
@@ -649,10 +676,12 @@ class WarframeSDJK(
             logger,
             interval=int(_num(self.cfg, "push_interval", 45)),
             groups=self.groups,  # 派发前查群推送开关（.关闭 推送 = 订阅暂停）
+            tick_hook=self._maintenance_tick,
             state_path=data_dir / "push_baseline.json",  # 基线落盘：30 分钟内重启补推
             display_timezone=self.cfg.get("display_timezone", display_time.DEFAULT),
         )
         self._routes = self._build_routes()
+        self.command_stats = CommandStats(data_dir / "command_stats.json", self._routes)
         # 插件页面「运维面板」（pages/sdjk/）的接口；AstrBot 不支持时只记日志
         self._panel = WebPanel(self, PLUGIN_NAME)
         self._panel.register(context)
@@ -714,6 +743,7 @@ class WarframeSDJK(
             "splice": self._h_riven_splice,
             "relic": self._h_relic,
             "parts": self._h_parts,
+            "farm": self._h_farm,
             "ducats": self._h_ducats,
             "dun": self._h_dun,
             "status": self._h_status_cmd,
@@ -1369,6 +1399,9 @@ class WarframeSDJK(
             except Exception as exc:  # noqa: BLE001 - 停止失败也要留痕，别静默
                 logger.warning("[sdjk] 推送守护停止异常：%s", exc)
             finally:
+                stats = getattr(self, "command_stats", None)
+                if stats is not None:
+                    await bounded(stats.flush(force=True), "指令统计落盘")
                 await bounded(self.client.close(), "连接池关闭")
             if getattr(self, "_terminate_pending", None) or any(
                 not task.done() for task in unfinished
@@ -1428,7 +1461,10 @@ class WarframeSDJK(
             admin_parsed = parse(text)
             lang_token = i18n.set_lang(self._resolve_lang(admin_parsed, event.unified_msg_origin))
             try:
-                reply = await self._handle_admin(event, text)
+                with display_time.use_zone(
+                    (getattr(self, "cfg", None) or {}).get("display_timezone")
+                ):
+                    reply = await self._handle_admin(event, text)
                 if reply:
                     async for result in self._build_results(event, reply, admin_parsed):
                         yield result
@@ -1440,17 +1476,42 @@ class WarframeSDJK(
                     pass
             return
 
-        parsed = parse(text)
+        umo = event.unified_msg_origin
+        groups = getattr(self, "groups", None)
+        aliases = groups.command_aliases(umo) if isinstance(groups, GroupStore) else {}
+        # 从旧存档读出的别名同样不可覆盖全局指令。群自定义词只在句首参与解析。
+        first = text.split(maxsplit=1)[0].lower()
+        target = aliases.get(first)
+        parsed = (
+            parse(text, extra_commands={first: target})
+            if target and target in self._routes and not parse(first).command
+            else parse(text)
+        )
         if not parsed.command:
+            return
+        blocked = (
+            isinstance(groups, GroupStore)
+            and parsed.command not in _GROUP_PROTECTED_COMMANDS
+            and parsed.command in groups.disabled_commands(umo)
+        )
+        if blocked and text.casefold() != (parsed.command_raw or "").casefold():
             return
         handler = self._routes.get(parsed.command)
         if handler is None:
             return
-        platform = parsed.platform or self.groups.platform(event.unified_msg_origin)
-        lang_token = i18n.set_lang(self._resolve_lang(parsed, event.unified_msg_origin))
+        lang_token = i18n.set_lang(self._resolve_lang(parsed, umo))
         try:
-            async for result in self._dispatch(handler, parsed, event, platform):
-                yield result
+            if blocked:
+                reply = Reply(
+                    raw_text=i18n.L("本群已关闭该指令", "This command is disabled in this group")
+                )
+                async for result in self._build_results(event, reply, parsed):
+                    yield result
+                event.stop_event()
+            else:
+                platform = parsed.platform or self.groups.platform(umo)
+                async for result in self._dispatch(handler, parsed, event, platform):
+                    yield result
         finally:
             try:
                 i18n.reset_lang(lang_token)
@@ -1468,16 +1529,22 @@ class WarframeSDJK(
         )
 
     async def _dispatch(self, handler, parsed: Parsed, event: AstrMessageEvent, platform: str):
+        started = time.perf_counter()
+        outcome = "success"
         try:
             with display_time.use_zone((getattr(self, "cfg", None) or {}).get("display_timezone")):
                 reply = await handler(parsed, event, platform)
                 if reply and reply.footer:
                     reply = replace(reply, footer=display_footer(reply.footer))
+            if reply is None:
+                outcome = "no_reply"
         except WarframeAPIError as exc:
+            outcome = "api_error"
             # 日志仅记异常类别，避免上游异常中的凭据或签名地址泄漏。
             logger.warning("[sdjk] 指令 %s 接口错误：%s", parsed.command, type(exc).__name__)
             reply = Reply(raw_text=f"⚠️ {api_client.public_error_text(exc)}")
         except Exception as exc:  # noqa: BLE001
+            outcome = "error"
             frames = " ← ".join(
                 f"{Path(frame.filename).name}:{frame.lineno}:{frame.name}"
                 for frame in traceback.extract_tb(exc.__traceback__)
@@ -1495,6 +1562,9 @@ class WarframeSDJK(
                 )
             )
 
+        stats = getattr(self, "command_stats", None)
+        if stats is not None:
+            stats.record(parsed.command, outcome, (time.perf_counter() - started) * 1000)
         if reply is None:
             return
         async for result in self._build_results(event, reply, parsed):
@@ -2071,12 +2141,188 @@ class WarframeSDJK(
             )
         return "\n".join(lines)
 
+    def _group_command_key(self, word: str) -> Optional[str]:
+        key = word.casefold()
+        command = (
+            wf_parser.ALIAS_TO_COMMAND.get(key) or wf_parser.EN_ALIAS_TO_COMMAND.get(key) or key
+        )
+        return command if command in self._routes else None
+
+    async def _digest_command(self, umo: str, args: list[str]) -> Reply:
+        L = i18n.L
+        state = self.groups.get(umo)
+        if not args:
+            digest = state.get("digest")
+            clock = digest.get("time") if isinstance(digest, dict) else None
+            if not clock:
+                return Reply(
+                    raw_text=L(
+                        "本群早报未开启。用 .早报 开启 [08:00]",
+                        "Digest is off. Use .digest on [08:00]",
+                    )
+                )
+            zone = self._digest_zone().key
+            text = L(f"本群早报每天 {clock}（{zone}）", f"Daily digest at {clock} ({zone})")
+            if not state.get("push"):
+                text += L("，推送暂停", "; push is paused")
+            return Reply(raw_text=text)
+        op = args[0].casefold()
+        if op in ("关闭", "off") and len(args) == 1:
+            clock = None
+        elif op in ("开启", "on") and len(args) <= 2:
+            clock = args[1] if len(args) == 2 else "08:00"
+            if not re.fullmatch(r"(?:[01][0-9]|2[0-3]):[0-5][0-9]", clock):
+                return Reply(raw_text=L("时间请用 24 小时制 HH:MM", "Use a 24-hour time in HH:MM"))
+            if not state.get("push"):
+                return Reply(
+                    raw_text=L("请先发 .开启 推送", "Enable group push with .enable push first")
+                )
+        else:
+            return Reply(
+                raw_text=L(
+                    "用法：.早报 开启 [08:00] / .早报 关闭 / .早报",
+                    "Usage: .digest on [08:00] / .digest off / .digest",
+                )
+            )
+        await self.groups.edit_option(
+            umo, "digest", lambda old: {**(old if isinstance(old, dict) else {}), "time": clock}
+        )
+        return Reply(
+            raw_text=(
+                L(
+                    f"早报已开启，每天 {clock}（{self._digest_zone().key}）",
+                    f"Digest enabled at {clock} ({self._digest_zone().key})",
+                )
+                if clock
+                else L("早报已关闭", "Digest disabled")
+            )
+        )
+
+    async def _group_policy_command(self, umo: str, cmd: str, args: list[str]) -> Reply:
+        L = i18n.L
+        groups = self.groups
+        if cmd == "disabled":
+            disabled = sorted(groups.disabled_commands(umo) - _GROUP_PROTECTED_COMMANDS)
+            return Reply(
+                raw_text=L("本群已禁用：", "Disabled in this group: ")
+                + (" / ".join(disabled) or L("无", "None"))
+            )
+        if cmd in ("enablecmd", "disablecmd"):
+            commands = {self._group_command_key(word) for word in args}
+            if not commands or None in commands or commands & _GROUP_PROTECTED_COMMANDS:
+                return Reply(
+                    raw_text=L(
+                        "用法：.禁用 指令 [指令…] / .启用 指令；帮助和状态始终可用",
+                        "Usage: .disablecmd <command...> / .enablecmd <command>; help and status stay available",
+                    )
+                )
+            disabled = cmd == "disablecmd"
+
+            def change(old):
+                current = (
+                    {item for item in old if isinstance(item, str)}
+                    if isinstance(old, list)
+                    else set()
+                )
+                return sorted(current | commands if disabled else current - commands)
+
+            await groups.edit_option(umo, "disabled", change)
+            return Reply(
+                raw_text=(L("已禁用：", "Disabled: ") if disabled else L("已启用：", "Enabled: "))
+                + " / ".join(sorted(commands))
+            )
+
+        op = args[0].casefold() if args else "list"
+        if op in ("列表", "list") and len(args) <= 1:
+            pairs = sorted(groups.command_aliases(umo).items())
+            return Reply(
+                raw_text="\n".join(f"{word} → {target}" for word, target in pairs)
+                or L("本群没有自定义别名", "No aliases in this group")
+            )
+        if op in ("删除", "remove") and len(args) == 2:
+            word = args[1].lower()
+            await groups.edit_option(
+                umo,
+                "aliases",
+                lambda old: (
+                    {k: v for k, v in (old or {}).items() if k != word}
+                    if isinstance(old, dict)
+                    else {}
+                ),
+            )
+            return Reply(raw_text=L(f"已移除别名：{word}", f"Alias removed: {word}"))
+        if op in ("添加", "add") and len(args) == 3:
+            word = args[1].lower()
+            target = self._group_command_key(args[2])
+            if (
+                not target
+                or not re.fullmatch(r"[\w-]{1,8}", word)
+                or word.startswith("-")
+                or word.isdigit()
+                or re.fullmatch(r"[a-z]", word)
+                or word in _occupied_command_words()
+                or parse(word).command
+            ):
+                return Reply(
+                    raw_text=L(
+                        "别名无效或与已有指令冲突", "Invalid alias or conflicting command name"
+                    )
+                )
+
+            def add(old):
+                aliases = dict(old) if isinstance(old, dict) else {}
+                if word not in aliases and len(aliases) >= 20:
+                    raise ValueError("alias_limit")
+                aliases[word] = target
+                return aliases
+
+            try:
+                await groups.edit_option(umo, "aliases", add)
+            except ValueError:
+                return Reply(raw_text=L("每群最多 20 个别名", "Up to 20 aliases per group"))
+            return Reply(
+                raw_text=L(f"已添加别名：{word} → {target}", f"Alias added: {word} → {target}")
+            )
+        return Reply(
+            raw_text=L(
+                "用法：.别名 添加 <新词> <现有指令> / .别名 删除 <新词> / .别名 列表",
+                "Usage: .alias add <alias> <command> / .alias remove <alias> / .alias list",
+            )
+        )
+
     async def _handle_admin(self, event: AstrMessageEvent, text: str) -> Optional[Reply]:
         tokens = text[1:].strip().split()
         if not tokens:
             return None
         cmd, args = tokens[0], tokens[1:]
         umo = event.unified_msg_origin
+
+        group_cmd = _GROUP_COMMAND_ADMIN.get(cmd, cmd.casefold())
+        if group_cmd in _GROUP_COMMAND_ADMIN.values():
+            group_id = getattr(event, "get_group_id", None)
+            if not callable(group_id) or not group_id():
+                return Reply(
+                    raw_text=i18n.L(
+                        "请在群聊内管理这些设置", "Manage these settings in a group chat"
+                    )
+                )
+            if not self._is_admin(event):
+                return Reply(
+                    raw_text=i18n.L(
+                        "⛔ 该指令需要群管理员权限", "⛔ Group admin permission required"
+                    )
+                )
+            try:
+                if group_cmd == "digest":
+                    return await self._digest_command(umo, args)
+                return await self._group_policy_command(umo, group_cmd, args)
+            except OSError:
+                return Reply(
+                    raw_text=i18n.L(
+                        "群设置保存失败，请稍后再试",
+                        "Group settings could not be saved; try again later",
+                    )
+                )
 
         if cmd.lower() in ("语言", "language", "lang"):
             L = i18n.L
@@ -2225,7 +2471,7 @@ class WarframeSDJK(
             cache = self.client.cache.stats()
             lines = [L("◆ 本群", "◆ This Chat")]
             _pd = PLATFORM_DISPLAY.get(g["platform"], g["platform"])
-            lines.append(L(f"· 默认平台　{_pd}", f"· Default platform　{_pd}"))
+            lines.append(L(f"· 默认平台　{_pd}", "· Default platform　International"))
             own_lang = self.groups.lang(umo)
             _ll = i18n.lang_label(i18n.current_lang())
             lines.append(
@@ -2240,7 +2486,8 @@ class WarframeSDJK(
             )
             lines.append(L(f"· 蹲订阅　{len(subs)} 条", f"· Subscriptions　{len(subs)}"))
             if subs:
-                lines.append(L("◆ 订阅明细", "◆ Subscription Details"))
+                zone = display_time.current_zone_label()
+                lines.append(L(f"◆ 订阅明细（{zone}）", f"◆ Subscription Details ({zone})"))
                 for i, s in enumerate(subs, 1):
                     if s.until < 0:
                         life = (
@@ -2260,15 +2507,18 @@ class WarframeSDJK(
                                 f"剩{max(left, 0) // 60:.0f}分钟", f"{max(left, 0) // 60:.0f}m left"
                             )
                         )
+                        life += f" ({display_time.format_time(s.until)})"
                     mode = (
                         L(f"剩{s.hits_left}次", f"{s.hits_left} hit(s) left")
                         if s.hits_left is not None
                         else (L("一次", "once") if s.once else L("持续", "ongoing"))
                     )
+                    rule = L(s.rule, _rule_en(s.rule, s.event))
+                    window = s.time_window().describe(i18n.current_lang())
                     lines.append(
-                        f"· {i}. {s.event}"
-                        + (L(f"：{s.rule}", f": {s.rule}") if s.rule else "")
-                        + f"　{mode}·{life}"
+                        f"· {i}. {_ev_name(s.event)}"
+                        + (L(f"：{rule}", f": {rule}") if rule else "")
+                        + f"　{mode} · {life} · {window}"
                     )
             lines.append(L("◆ 系统", "◆ System"))
             lines.append(
@@ -2346,6 +2596,129 @@ class WarframeSDJK(
     # ------------------------------------------------------------------
     # 推送回调
     # ------------------------------------------------------------------
+    def _digest_zone(self) -> ZoneInfo:
+        try:
+            return ZoneInfo(str(self.cfg.get("digest_timezone") or "Asia/Shanghai"))
+        except (ZoneInfoNotFoundError, ValueError):
+            return ZoneInfo("Asia/Shanghai")
+
+    async def _maintenance_tick(self, now: float) -> None:
+        await self.command_stats.flush()
+        await self._daily_digest_tick(now)
+
+    async def _daily_digest_tick(self, now: float) -> None:
+        local = datetime.fromtimestamp(now, self._digest_zone())
+        day = local.date().isoformat()
+        cards = {}
+        images = set()
+        try:
+            for umo in list(self.groups.all()):
+                state = self.groups.get(umo)
+                digest = state.get("digest")
+                clock = digest.get("time") if isinstance(digest, dict) else None
+                if (
+                    not state.get("push")
+                    or state.get("push_pause")
+                    or not isinstance(clock, str)
+                    or digest.get("last") == day
+                ):
+                    continue
+                if not re.fullmatch(r"(?:[01][0-9]|2[0-3]):[0-5][0-9]", clock):
+                    continue
+                hours, minutes = map(int, clock.split(":"))
+                scheduled = local.replace(hour=hours, minute=minutes, second=0, microsecond=0)
+                if not 0 <= now - scheduled.timestamp() < 7200:
+                    continue
+                platform = self.groups.platform(umo)
+                lang = self._resolve_lang(parse(""), umo)
+                render_mode = (
+                    "text"
+                    if self._platform_name_of(umo) in self.TEXT_DEFAULT_PLATFORMS
+                    else self.render_mode
+                )
+                key = (platform, lang, render_mode)
+                if key not in cards:
+                    with i18n.use_lang(lang):
+                        cards[key] = await self._build_digest_card(platform, day, now, render_mode)
+                    if cards[key] and cards[key][0]:
+                        images.add(cards[key][0])
+                card = cards[key]
+                if card is None:
+                    continue
+                claimed = False
+                previous_day = None
+
+                def claim(old):
+                    nonlocal claimed, previous_day
+                    current = self.groups.get(umo)
+                    if (
+                        isinstance(old, dict)
+                        and old.get("time") == clock
+                        and old.get("last") != day
+                        and current.get("push")
+                        and not current.get("push_pause")
+                    ):
+                        claimed = True
+                        previous_day = old.get("last")
+                        return {**old, "last": day}
+                    return old
+
+                # 发送前持久化当日标记，避免重启或不确定的网络回执导致重复发送。
+                await self.groups.edit_option(umo, "digest", claim)
+                if not claimed:
+                    continue
+                path, text = card
+                chain = MessageChain()
+                if path:
+                    chain.chain.append(Image.fromFileSystem(path))
+                else:
+                    chain.message(text)
+                    markdown = getattr(chain, "use_markdown", None)
+                    if callable(markdown):
+                        markdown(False)
+                try:
+                    sent = await asyncio.wait_for(self.context.send_message(umo, chain), timeout=12)
+                except Exception as exc:  # noqa: BLE001 - 回执不确定时不重发
+                    logger.warning("[sdjk] 早报发送结果未确认：%s", type(exc).__name__)
+                    continue
+                if sent is False:
+                    await self.groups.edit_option(
+                        umo,
+                        "digest",
+                        lambda old: (
+                            {**old, "last": previous_day}
+                            if isinstance(old, dict) and old.get("last") == day
+                            else old
+                        ),
+                    )
+        finally:
+            for path in images:
+                self._schedule_card_cleanup(path)
+
+    async def _build_digest_card(self, platform: str, day: str, now: float, render_mode: str):
+        keys = ("sortie", "archon", "nightwave", "trader", "deals", "events")
+        values = await asyncio.gather(
+            self.client.sortie(platform),
+            self.client.archon_hunt(platform),
+            self.client.nightwave(platform),
+            self.client.void_trader(platform),
+            self.client.daily_deals(platform),
+            self.client.events(platform),
+            return_exceptions=True,
+        )
+        data = {
+            key: value for key, value in zip(keys, values) if not isinstance(value, BaseException)
+        }
+        if not data:
+            return None  # 整包故障时，在 2 小时窗口内等下一轮。
+        with display_time.use_zone(self.cfg.get("display_timezone")):
+            title, lines = fmt.fmt_morning_digest(
+                data, day, datetime.fromtimestamp(now, timezone.utc)
+            )
+        footer = fmt.fmt_platform_footer(platform)
+        path = await self._render_card(title, lines, footer) if render_mode != "text" else None
+        return path, text_card(title, lines, footer)
+
     async def _push_send(self, umo: str, text: str, at=None):
         """推送发送回调。`at` = 本批命中订阅的发起人 id（A1 特例，可空）。
 

@@ -1,9 +1,9 @@
 {
  "_meta": {
-  "source": "英文 wiki Module:Weapons/data（原型条目里的 Incarnon 攻击）+ Condition Overload (Mechanic) Attack Catalog；近战加成取指定 Incarnon Genesis 页 EVO1；Ruvox 取原生灵化页 EVO1及 melee.lua（逐条附源码 SHA256），CC BY-NC-SA 3.0；中文名为 DE 官方简中（weapons_stats.json）",
+  "source": "英文 wiki Module:Weapons/data（原型条目里的 Incarnon 攻击）+ Condition Overload (Mechanic) Attack Catalog；近战加成取指定 Incarnon Genesis 页 EVO1；原生近战取各武器页 EVO1及 melee.lua（逐条附源码 SHA256），CC BY-NC-SA 3.0；中文名为 DE 官方简中（weapons_stats.json）",
   "wiki_snapshot": "wiki-modules-20261026",
   "generator": "scripts/build_incarnon_forms.py",
-  "scope": "枪械灵化基础面板（不含可选进化 perk）+ 首批 Genesis 近战（允许 14 页，本次收录 24 个明确变体；仅 EVO1 +100% Melee Damage，基伤 MOD 桶）；不自动扩展同族，原生 Ruvox 1 个（仅普通命中转换、独立攻速与范围；IPS MOD/重击/震地/虚空尖刺/进化攻速未覆盖）；本次共 94 个形态；不含 Innodem/Praedos/Thalys/其它特殊攻击/激活时间/持续时间",
+  "scope": "枪械灵化基础面板（不含可选进化 perk）+ 首批 Genesis 近战（允许 14 页，本次收录 24 个明确变体；仅 EVO1 +100% Melee Damage，基伤 MOD 桶）；不自动扩展同族，原生近战 4 个（仅普通攻击；额外攻击和未核实的攻速叠加不计算）；本次共 97 个形态；不含激活时间与持续时间",
   "pseudo_reload": "magazine = wiki IncarnonCharges；reload_seconds = 原型装填 + 1 s（我方建模约定：打空弹池后切回原型装填再切灵化算一次循环，变形按 1 s 估）",
   "radial": "暴击/触发取 wiki 该范围子攻击；takes_multishot 只写有出处的 false；takes_condition_overload 按 CO 页"
  },
@@ -2170,6 +2170,63 @@
   "pseudo_reload": {
    "magazine": 408.0,
    "reload_seconds": 3.8
+  }
+ },
+ "/lotus/weapons/tenno/zariman/melee/dagger/zarimandaggerweapon": {
+  "kind": "melee_native",
+  "attack_speed_multiplier": 1.4,
+  "attack_speed_stacking": "unverified",
+  "range_bonus_m": 3.0,
+  "supported_attacks": [
+   "Normal Attack"
+  ],
+  "base_name": "Innodem",
+  "base_zh": "清刚",
+  "form_name": "Innodem (Incarnon Form)",
+  "form_zh": "清刚 (灵化形态)",
+  "source": {
+   "wiki_page": "Innodem",
+   "sha256": "4e279b50b6e4d45f27c629251a826643933e0aad8c4243fd9a34b670ff6deb45",
+   "weapon_module_sha256": "633f674dc86fb9d511b5760bd9f20721ac8ed97d478aa7f9b9c9ca52326e0edf",
+   "snapshot": "wf-primary-sources-20261111"
+  }
+ },
+ "/lotus/weapons/tenno/zariman/melee/heavyscythe/zarimanheavyscythe/zarimanheavyscytheweapon": {
+  "kind": "melee_native",
+  "attack_speed_multiplier": 1.4,
+  "attack_speed_stacking": "unverified",
+  "range_bonus_m": 3.0,
+  "supported_attacks": [
+   "Normal Attack"
+  ],
+  "base_name": "Thalys",
+  "base_zh": "大力士",
+  "form_name": "Thalys (Incarnon Form)",
+  "form_zh": "大力士 (灵化形态)",
+  "source": {
+   "wiki_page": "Thalys",
+   "sha256": "9adee083de029f29049370e8a92530f5584bf6c45bb0822387588434009b6a5c",
+   "weapon_module_sha256": "633f674dc86fb9d511b5760bd9f20721ac8ed97d478aa7f9b9c9ca52326e0edf",
+   "snapshot": "wf-primary-sources-20261111"
+  }
+ },
+ "/lotus/weapons/tenno/zariman/melee/tonfas/zarimantonfaweapon": {
+  "kind": "melee_native",
+  "attack_speed_multiplier": 1.4,
+  "attack_speed_stacking": "unverified",
+  "range_bonus_m": 3.0,
+  "supported_attacks": [
+   "Normal Attack"
+  ],
+  "base_name": "Praedos",
+  "base_zh": "双雄",
+  "form_name": "Praedos (Incarnon Form)",
+  "form_zh": "双雄 (灵化形态)",
+  "source": {
+   "wiki_page": "Praedos",
+   "sha256": "0a9cf926e135f25ecb0bad0ebd9761312f21db176de4b4424742d3eb772cf5e2",
+   "weapon_module_sha256": "633f674dc86fb9d511b5760bd9f20721ac8ed97d478aa7f9b9c9ca52326e0edf",
+   "snapshot": "wf-primary-sources-20261111"
   }
  },
  "/lotus/weapons/tenno/zariman/pistols/heavypistol/zarimanheavypistol": {

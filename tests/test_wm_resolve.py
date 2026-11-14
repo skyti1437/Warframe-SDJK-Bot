@@ -215,6 +215,51 @@ check(
     src.count('getattr(self, "_aliases", None)') >= 2,
 )
 
+# ★ 2026-11-10：族名后置写法（中文 wiki 常见「收割赋能」「侵染近战」）→ 官方「族·名」，只认精确命中
+import asyncio  # noqa: E402
+
+from core import matching as _mt  # noqa: E402
+from core.api_client import WarframeClient as _WC  # noqa: E402
+
+_fam_items = [
+    {"zh": "赋能·收割", "en": "Arcane Reaper", "url_name": "arcane_reaper"},
+    {"zh": "近战·侵染", "en": "Melee Influence", "url_name": "melee_influence"},
+    {
+        "zh": "收割者 Prime 一套",
+        "en": "Reaper Prime Set",
+        "url_name": "reaper_prime_set",
+        "tags": ["set"],
+    },
+]
+_wc = _WC.__new__(_WC)
+_wc._aliases = {}
+
+
+async def _fam_wm_items():
+    return _fam_items
+
+
+_wc.wm_items = _fam_wm_items
+for _q, _want in [
+    ("收割赋能", "arcane_reaper"),
+    ("收割 赋能", "arcane_reaper"),
+    ("赋能·收割", "arcane_reaper"),
+    ("侵染近战", "melee_influence"),
+    ("收割", "reaper_prime_set"),
+]:
+    _got = asyncio.run(_wc.resolve_wm_item(_q))
+    check(
+        f"族名后置 / 原序：「{_q}」→ {_want}",
+        bool(_got) and _got.get("url_name") == _want,
+        str(_got),
+    )
+check(
+    "族名候选只改写族名在末尾的写法",
+    _mt.family_suffix_candidates("收割赋能", {"赋能", "近战"}) == ["赋能·收割"]
+    and _mt.family_suffix_candidates("赋能", {"赋能"}) == []
+    and _mt.family_suffix_candidates("收割者", {"赋能"}) == [],
+)
+
 print()
 if FAILED:
     print(f"✗ {len(FAILED)} 项失败：" + "、".join(FAILED))

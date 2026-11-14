@@ -371,6 +371,82 @@ import asyncio  # noqa: E402
 
 asyncio.run(_wiki_cold_lookup_keeps_loop_running())
 
+
+# ★ 2026-11-10：wiki 链接默认英文 wiki、可选灰机；族名后置写法（侵染近战）也能检索；英文页面名取官方语言表
+def _wiki_link_source():
+    import json as _json
+
+    from core import parser as _parser
+    from core.api_client import WarframeClient as _WC
+    from core.commands.wiki_misc import WikiMiscCommands, _en_wiki_title
+
+    S._clear_index()
+    check(
+        "族名后置写法「侵染近战」→ 近战·侵染", (S.best("侵染近战") or {}).get("name") == "近战·侵染"
+    )
+    check(
+        "英文页面名取官方名（川流不息 → Flow，不是内部类型名）",
+        _en_wiki_title("川流不息", "avatar power max mod") == "Flow",
+    )
+    client = object.__new__(_WC)
+    client._aliases = _json.loads((ROOT / "core/data/aliases.json").read_text(encoding="utf-8"))
+
+    async def _no_wm(_q):
+        return None
+
+    async def _search_link(q):
+        return "https://warframe.huijiwiki.com/index.php?search=" + q
+
+    client.resolve_wm_item = _no_wm
+    client.wiki_search_link = _search_link
+    h = WikiMiscCommands()
+    h.client = client
+
+    def _link(cfg, q):
+        h.cfg = cfg
+        r = asyncio.run(h._h_wiki(_parser.parse(q), None, "pc"))
+        return (r.extra_text or "") + "\n".join(r.lines)
+
+    check(
+        "默认链接英文 wiki（收割赋能 → Arcane_Reaper）",
+        "wiki.warframe.com/w/Arcane_Reaper" in _link({}, "wiki 收割赋能"),
+    )
+    check("末尾加「灰机」临时用灰机", "huijiwiki.com" in _link({}, "wiki 收割赋能 灰机"))
+    check(
+        "配置 huiji 用灰机",
+        "huijiwiki.com" in _link({"wiki_link_source": "huiji"}, "wiki 川流不息"),
+    )
+    check(
+        "玩家叫法「夜灵平原」直达英文页 Plains_of_Eidolon（概念表 en 字段）",
+        "wiki.warframe.com/w/Plains_of_Eidolon" in _link({}, "wiki 夜灵平原"),
+    )
+    _frost = _link({}, "wiki frost")
+    check(
+        "Frost 官方显示名优先于皮肤的内部名",
+        "wiki.warframe.com/w/Frost" in _frost and "低温眠者" not in _frost and "生命" in _frost,
+    )
+    _teshin = _link({}, "wiki Teshin")
+    check(
+        "Teshin 链接不附会浮印卡", "wiki.warframe.com/w/Teshin" in _teshin and "浮印" not in _teshin
+    )
+    _mercury = _link({}, "wiki 水星")
+    check(
+        "官方术语「水星」直达 Mercury，不落到前缀模糊的「水星棕」",
+        "wiki.warframe.com/w/Mercury" in _mercury and "Mercury_Brown" not in _mercury,
+    )
+    _cmd = _link({}, "wiki 紫卡分析")
+    check(
+        "对不上英文页面名时给英文 wiki 站内搜索，不自动切灰机",
+        "wiki.warframe.com/w/Special:Search" in _cmd and "huijiwiki.com" not in _cmd,
+    )
+    check(
+        "任务类型用页面写法（歼灭 → Exterminate，不是 EXTERMINATE）",
+        "/w/Exterminate" in _link({}, "wiki 歼灭"),
+    )
+
+
+_wiki_link_source()
+
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")
     sys.exit(1)

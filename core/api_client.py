@@ -1937,13 +1937,12 @@ class WarframeClient:
                         row["label"] = "wiki 源页（FlareSolverr）"
                 except Exception as exc:  # noqa: BLE001 - 对外只给脱敏摘要
                     self._ensure_open()
-                    row["error"] = public_error_text(
-                        "请求超时"
-                        if isinstance(exc, httpx.TimeoutException)
-                        else f"HTTP {row['status']}"
-                        if row["status"]
-                        else "连接或响应异常"
-                    )
+                    if isinstance(exc, httpx.TimeoutException):
+                        row.update(error_code="timeout", error="请求超时")
+                    elif row["status"]:
+                        row["error"] = f"HTTP {row['status']}"
+                    else:
+                        row.update(error_code="connection_or_response", error="连接或响应异常")
                 row["ms"] = int((time.perf_counter() - started) * 1000)
                 attempts.append(row)
         finally:
@@ -2283,7 +2282,7 @@ class WarframeClient:
                 item["store"] = store
                 if store:
                     item["item"] = (
-                        store_item_zh(store)
+                        ("" if i18n.is_en() else store_item_zh(store))
                         or de_worldstate.item_name_opt(store)
                         or item.get("item", "")
                     )
@@ -2364,8 +2363,27 @@ class WarframeClient:
                     bundle.update(de_worldstate.community_archimedeas(data["archimedeas"]))
                 except (KeyError, TypeError, ValueError, AttributeError):
                     bundle["_failed"] = list(bundle.get("_failed") or []) + ["archimedeas"]
-            # events 的字段语义与 DE Goals 不同，未核实前不冒充 goals。
             bundle.pop("goals", None)
+            for field, target, convert in (
+                (
+                    "events",
+                    "goals",
+                    lambda v: de_worldstate.community_goals(v, self._community_node_name),
+                ),
+                ("vaultTrader", "primeVault", de_worldstate.community_prime_vault),
+                ("clanWeeklyInitiative", "clanRewards", de_worldstate.community_clan_rewards),
+            ):
+                if not isinstance(data.get(field), (list, dict)):
+                    continue
+                try:
+                    bundle[target] = convert(data[field])
+                except (KeyError, TypeError, ValueError, AttributeError, OverflowError):
+                    bundle[target] = None
+                    bundle["_failed"] = list(bundle.get("_failed") or []) + [target]
+            # 结合目标在 DE 模式也走同一份 WFCD 随包静态表。
+            bundle["synthTargets"] = de_worldstate._parse_synth({})
+            if isinstance(data.get("news"), list):
+                bundle["news"] = de_worldstate.community_news(data["news"])
             label = (
                 "社区 warframestat"
                 if self.worldstate_base == DEFAULT_WORLDSTATE_BASE
@@ -2515,11 +2533,12 @@ class WarframeClient:
             items = await self.wm_items()
         except WarframeAPIError:
             items = []
+        locale = i18n.current_lang()
         for it in items:
             ref = it.get("game_ref") or ""
-            if ref and it.get("zh"):
-                by_ref.setdefault(ref, it["zh"])
-        from .de_worldstate import official_item_zh
+            name = it.get(locale)
+            if ref and name:
+                by_ref.setdefault(ref, name)
 
         for a in data or []:
             rw = (a.get("mission") or {}).get("reward") or {}
@@ -2529,7 +2548,18 @@ class WarframeClient:
             for p, cnt in zip(paths, counts):
                 # 四级：装饰品反查表 → 官方词表（name_zh + WFCD i18n 补充，2026-10-16 加）
                 #   → WM gameRef → 未收录（不造名字）。数量 >1 时追加「 ×N」（同入侵段写法）。
-                nm = store_item_zh(p) or official_item_zh(p) or ""
+                nm = (
+                    (store_item_zh(p) if locale == "zh" else "")
+                    or de_worldstate.official_item_zh(p)
+                    or ""
+                )
+                if not nm and p.lower() in (
+                    "/lotus/types/gameplay/events/roadtotauevent/roadtotaueventresource",
+                    "/lotus/storeitems/types/gameplay/events/roadtotauevent/roadtotaueventresource",
+                ):
+                    nm = de_worldstate.language_text_zh(
+                        "/Lotus/Language/TauPrologue/RoadToTauEventResourceName"
+                    )
                 if not nm:
                     nm = next(
                         (by_ref[k] for k in store_items_path_variants(p) if by_ref.get(k)), ""
@@ -2546,7 +2576,9 @@ class WarframeClient:
                     rw["item_unknown"] = [t for t, _ in unknown]
             elif unknown:
                 rw["item_names"] = []
-                rw["item"] = "、".join(f"{t}（未收录）{sfx}" for t, sfx in unknown)
+                rw["item"] = i18n.L("、", ", ").join(
+                    t + i18n.L("（未收录）", " (unlisted)") + sfx for t, sfx in unknown
+                )
         return data
 
     async def invasions(self, platform: str) -> list[dict]:
@@ -4648,6 +4680,15 @@ class WarframeClient:
                     return it
         return None
 
+    def _wm_families(self, items: list[dict]) -> frozenset:
+        """WM 物品官方简中名里的族名集合（按物品表对象缓存）。"""
+        cache = getattr(self, "_wm_family_cache", None)
+        if cache and cache[0] is items:
+            return cache[1]
+        fams = matching.family_prefixes(it.get("zh") or "" for it in items)
+        self._wm_family_cache = (items, fams)
+        return fams
+
     async def resolve_wm_item(self, query: str) -> Optional[dict]:
         """把用户输入（中文名/黑话/英文名，可带 p/prime 后缀）解析成 WM 物品。
 
@@ -4686,6 +4727,11 @@ class WarframeClient:
         hit = match_official_name(query, items)
         if hit:
             return hit
+        # 族名后置写法（「收割赋能」→ 官方「赋能·收割」；中文 wiki 常这样写，2026-11-10）：只认精确命中
+        for cand in matching.family_suffix_candidates(query, self._wm_families(items)):
+            hit = match_official_name(cand, items)
+            if hit:
+                return hit
         # 别名词典**精确**键（黑话）；模糊降级到后面的链路，避免劫持官方名
         # ★ getattr 兜底：部分测试用 __new__ 造实例，_aliases 可能还没初始化，
         #   这里不能因为「查不到词典键」就把整条解析链炸掉。
@@ -4822,7 +4868,7 @@ class WarframeClient:
                 return hit
         return None
 
-    def resolve_lich_weapon(self, query: str) -> Optional[str]:
+    def resolve_lich_weapon(self, query: str, *, fuzzy: bool = True) -> Optional[str]:
         """玄骸武器：本地别名 -> slug。
 
         ★ 2026-09-18 增强：原来只做**精确**匹配（``dict.get(原样字符串)``），
@@ -4842,6 +4888,8 @@ class WarframeClient:
         for k, v in table.items():
             if re.sub(r"[\s·・]+", "", k).lower() in forms:
                 return v
+        if not fuzzy:
+            return None
         # 形近字兜底（「赤毒弧电离子枪」→「赤毒·弧电离子枪」）
         near = fuzzy_hits(
             norm, [re.sub(r"[\s·・]+", "", k).lower() for k in table], n=1, cutoff=0.75
@@ -6179,11 +6227,23 @@ class WarframeClient:
             self._note_comm(name, "adopted", "", payload.get(spec["stamp"]))
         return out
 
-    def _note_comm(self, name: str, result: str, reason: str = "", stamp: str = "") -> None:
+    def _note_comm(
+        self,
+        name: str,
+        result: str,
+        reason: str = "",
+        stamp: str = "",
+        *,
+        failures: Optional[list[dict]] = None,
+    ) -> None:
         """记一笔社区快照检查结论（result 取值见 COMMUNITY_RESULTS）。通道由 _community_json 记。"""
         ent = self.community_log.setdefault(name, {})
         ent.update(
-            checked_at=time.time(), result=result, reason=str(reason)[:200], stamp=str(stamp or "")
+            checked_at=time.time(),
+            result=result,
+            reason=str(reason)[:200],
+            stamp=str(stamp or ""),
+            failures=failures or [],
         )
 
     def community_report(self) -> list[dict]:
@@ -6260,13 +6320,23 @@ class WarframeClient:
         live = [u for u in order if self._comm_cool.get(host(u), 0.0) <= now] or order[:1]
         deadline = now + COMMUNITY_BUDGET
         errors: list[str] = []
+        failures: list[dict] = []
+
+        def report_failure(code, channel="", *, message="", detail="", url="", limit=160):
+            if custom:
+                channel = ""
+            errors.append((f"{channel}：{message}" if channel else message)[:limit])
+            failures.append(
+                {"code": code, "channel": channel, "detail": str(detail)[:limit], "url": url}
+            )
+
         content_failed = False
         rejected: list[_CommunitySnapshotRejected] = []
         for i, url in enumerate(live):
             left = deadline - time.monotonic()
             if left <= 1.0:
                 logger.info("[sdjk] 社区快照（%s）超出本次时间预算，余下通道下次再试", name)
-                errors.append("超出本次时间预算")
+                report_failure("budget_exhausted", message="超出本次时间预算")
                 break
             # 为尚未尝试的通道留出预算，新增候选不能让末尾镜像永远轮不到。
             cap = min((left - 0.5) / (len(live) - i), COMMUNITY_PER_CHANNEL)
@@ -6299,14 +6369,14 @@ class WarframeClient:
             except _CommunitySnapshotRejected as exc:
                 # 旧快照不是网络故障；不冷却整台主机，也不把它记成成功通道。
                 rejected.append(exc)
-                errors.append(f"{host(url)}：{exc}"[:160])
+                report_failure("not_adopted", host(url), message=str(exc), detail=str(exc))
                 logger.info("[sdjk] 社区快照通道 %s 暂不可采用（%s）：%s", host(url), name, exc)
                 continue
             except _CommunityContentError as exc:
                 content_failed = True
                 # 坏内容是该文件的问题，不让同主机的其它快照一起进入网络冷却。
                 logger.info("[sdjk] 社区快照通道 %s 内容不可用（%s）：%s", host(url), name, exc)
-                errors.append(f"{host(url)}：{exc}"[:160])
+                report_failure("invalid_content", host(url), message="社区快照结构不合法")
                 continue
             except Exception as exc:  # noqa: BLE001
                 missing = isinstance(exc, WarframeAPIError) and str(exc).startswith("接口不存在")
@@ -6320,11 +6390,30 @@ class WarframeClient:
                     str(exc) or type(exc).__name__,
                     "" if missing else f"；冷却 {COMMUNITY_COOLDOWN // 60} 分钟",
                 )
-                errors.append(
-                    f"{host(url)}：{'该镜像没有这个文件' if missing else (str(exc) or type(exc).__name__)}"[
-                        :80
-                    ]
-                )
+                if missing:
+                    report_failure(
+                        "missing_file", host(url), message="该镜像没有这个文件", limit=80
+                    )
+                else:
+                    # 代理、解析器和 HTTP 客户端的异常可能包含内网地址、响应原文或凭据。
+                    # 面板只接收稳定分类、状态码及插件内置的公开源地址。
+                    cause = exc.__cause__ or exc
+                    timed_out = isinstance(cause, (TimeoutError, httpx.TimeoutException))
+                    status = (
+                        cause.response.status_code
+                        if isinstance(cause, httpx.HTTPStatusError)
+                        else None
+                    )
+                    detail = f"HTTP {status}" if status is not None else ""
+                    message = "请求超时" if timed_out else "请求失败"
+                    report_failure(
+                        "request_timeout" if timed_out else "request_failed",
+                        host(url),
+                        message=f"{message}（{detail}）" if detail else message,
+                        detail=detail,
+                        url=url if not custom else "",
+                        limit=80,
+                    )
                 continue
             if isinstance(data, dict):
                 self._comm_cool.pop(host(url), None)
@@ -6338,12 +6427,15 @@ class WarframeClient:
         if rejected:
             # 至少一份可解析快照可解释本轮未采用的原因，不误报成断网。
             outcome = next((r for r in rejected if r.result == "fresh"), rejected[-1])
-            self._note_comm(name, outcome.result, "；".join(errors), outcome.stamp)
+            self._note_comm(
+                name, outcome.result, "；".join(errors), outcome.stamp, failures=failures
+            )
         else:
             self._note_comm(
                 name,
                 "invalid" if content_failed else "unavailable",
                 "；".join(errors) or ("所有通道都在冷却中" if not live else "取不到"),
+                failures=failures,
             )
         return None
 
@@ -6774,7 +6866,7 @@ class WarframeClient:
             for k, v in table.items():
                 if matching.normalize_name(k) == _nq:
                     return (
-                        {"title": v.get("title", k), "url": v["url"]}
+                        {"title": v.get("title", k), "url": v["url"], "en": v.get("en", "")}
                         if isinstance(v, dict)
                         else {"title": k, "url": v}
                     )
@@ -6787,13 +6879,17 @@ class WarframeClient:
             if e is None:
                 continue
             return (
-                {"title": e.get("title", c), "url": e["url"]}
+                {"title": e.get("title", c), "url": e["url"], "en": e.get("en", "")}
                 if isinstance(e, dict)
                 else {"title": c, "url": e}
             )
         close = difflib.get_close_matches(q, list(table), n=1, cutoff=0.8)
         if close and isinstance(table[close[0]], dict):
-            return {"title": table[close[0]].get("title", close[0]), "url": table[close[0]]["url"]}
+            return {
+                "title": table[close[0]].get("title", close[0]),
+                "url": table[close[0]]["url"],
+                "en": table[close[0]].get("en", ""),
+            }
         return None
 
     def wiki_clarify(self, query: str) -> str:

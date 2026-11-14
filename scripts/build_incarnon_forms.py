@@ -245,6 +245,70 @@ def build_native_melee_forms(
     }
 
 
+def build_native_speed_forms(
+    wiki_dir: Path, weapons: dict, ws_all: dict, report: list[str]
+) -> dict:
+    """从 EVO1 原文取三个原生近战形态的普通攻击攻速与范围。"""
+    module = wiki_dir / "melee.lua"
+    if not module.is_file():
+        return {}
+    module_sha = hashlib.sha256(module.read_bytes()).hexdigest()
+    out = {}
+    for name in ("Innodem", "Praedos", "Thalys"):
+        path = wiki_dir / "evo" / f"{name}.wiki"
+        entry = weapons.get(name) or {}
+        key = str(entry.get("InternalName") or "").lower()
+        weapon = ws_all.get(key) or {}
+        if (
+            not path.is_file()
+            or entry.get("Slot") != "Melee"
+            or weapon.get("name") != name
+            or not weapon.get("zh")
+        ):
+            report.append(f"{name}：缺少原生灵化源码或基础武器身份，跳过")
+            continue
+        raw = path.read_bytes()
+        variants, rows = parse_page(raw.decode("utf-8"))
+        evo = [row for row in rows if row["tier"] == "1" and row["name"] == "Incarnon Form"]
+        if variants not in ([""], [name]) or len(evo) != 1:
+            report.append(f"{name}：EVO1 记录不唯一，跳过")
+            continue
+        lines = [clean(line.lstrip("* ")) for line in evo[0]["lines"]]
+        speeds = [
+            float(m[1])
+            for line in lines
+            if (m := re.fullmatch(r"\+(\d+(?:\.\d+)?)% Attack Speed", line))
+        ]
+        ranges = [
+            float(m[1]) for line in lines if (m := re.fullmatch(r"\+(\d+(?:\.\d+)?) Range", line))
+        ]
+        if len(speeds) != 1 or len(ranges) != 1:
+            report.append(f"{name}：EVO1 攻速或范围不唯一，跳过")
+            continue
+        zh = weapon["zh"]
+        out[key] = {
+            "kind": "melee_native",
+            "attack_speed_multiplier": 1 + speeds[0] / 100,
+            "attack_speed_stacking": "unverified",
+            "range_bonus_m": ranges[0],
+            "supported_attacks": ["Normal Attack"],
+            "base_name": name,
+            "base_zh": zh,
+            "form_name": f"{name} (Incarnon Form)",
+            "form_zh": f"{zh} (灵化形态)",
+            "source": {
+                "wiki_page": name,
+                "sha256": hashlib.sha256(raw).hexdigest(),
+                "weapon_module_sha256": module_sha,
+                "snapshot": wiki_dir.name,
+            },
+        }
+        report.append(
+            f"{name}：普通攻击攻速 +{speeds[0]:g}%，范围 +{ranges[0]:g} 米；叠加攻速和额外攻击未建模"
+        )
+    return out
+
+
 def build(wiki_dir: Path, ws_all: dict) -> tuple[dict, list[str]]:
     W = load_weapons(wiki_dir)
     catalog = catalog_by_weapon(catalog_rows(wiki_dir))
@@ -315,6 +379,7 @@ def build(wiki_dir: Path, ws_all: dict) -> tuple[dict, list[str]]:
         out[key] = rec
     out.update(build_melee_forms(wiki_dir, W, ws_all, report))
     out.update(build_native_melee_forms(wiki_dir, W, ws_all, report))
+    out.update(build_native_speed_forms(wiki_dir, W, ws_all, report))
     return out, report
 
 
@@ -330,7 +395,7 @@ def main(argv: list[str]) -> int:
     out = {
         "_meta": {
             "source": "英文 wiki Module:Weapons/data（原型条目里的 Incarnon 攻击）+ Condition Overload (Mechanic) "
-            "Attack Catalog；近战加成取指定 Incarnon Genesis 页 EVO1；Ruvox 取原生灵化页 EVO1"
+            "Attack Catalog；近战加成取指定 Incarnon Genesis 页 EVO1；原生近战取各武器页 EVO1"
             "及 melee.lua（逐条附源码 SHA256），"
             "CC BY-NC-SA 3.0；中文名为 DE 官方简中（weapons_stats.json）",
             "wiki_snapshot": args.wiki.name,
@@ -338,9 +403,8 @@ def main(argv: list[str]) -> int:
             "scope": "枪械灵化基础面板（不含可选进化 perk）+ 首批 Genesis 近战"
             f"（允许 {len(MELEE_GENESIS_PAGES)} 页，本次收录 {melee_count} 个明确变体；"
             "仅 EVO1 +100% Melee Damage，基伤 MOD 桶）；不自动扩展同族，"
-            f"原生 Ruvox {native_count} 个（仅普通命中转换、独立攻速与范围；IPS MOD/重击/震地/"
-            f"虚空尖刺/进化攻速未覆盖）；本次共 {len(recs)} 个形态；"
-            "不含 Innodem/Praedos/Thalys/其它特殊攻击/激活时间/持续时间",
+            f"原生近战 {native_count} 个（仅普通攻击；额外攻击和未核实的攻速叠加不计算）；"
+            f"本次共 {len(recs)} 个形态；不含激活时间与持续时间",
             "pseudo_reload": f"magazine = wiki IncarnonCharges；reload_seconds = 原型装填 + {SWITCH_SECONDS:g} s"
             "（我方建模约定：打空弹池后切回原型装填再切灵化算一次循环，变形按 1 s 估）",
             "radial": "暴击/触发取 wiki 该范围子攻击；takes_multishot 只写有出处的 false；takes_condition_overload 按 CO 页",

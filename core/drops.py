@@ -13,6 +13,8 @@ drops.json 由 WFCD `warframe-drop-data/all.slim.json`（DE 官方掉落表精�
 
 from __future__ import annotations
 
+import re
+
 from collections import Counter
 from pathlib import Path
 from typing import Optional
@@ -272,3 +274,118 @@ def farm_hints(top: int = 4) -> dict[str, list[str]]:
         out[tier] = picked
     _FARM_CACHE = out
     return out
+
+
+# ---------------------------------------------------------------------------
+# 单把遗物的刷取点（「刷」指令用）
+# ---------------------------------------------------------------------------
+
+# 耐久任务每 4 轮奖励是 A A B C，B/C 轮出现次数是 A 轮的一半；
+# 非耐久任务（捕获 / 歼灭…）每次完成给一次奖励，按 A 轮同权。
+_ROT_WEIGHT = {"A": 1.0, "B": 0.5, "C": 0.5}
+
+
+def relic_best_places(relic_key: str, top: int = 2) -> list[tuple[str, str, float]]:
+    """遗物的推荐刷取点：``[(「星球 · 节点 · 任务」, 轮次, 几率%)]``。
+
+    口径：只看「能当刷取目标」的任务类型（同 :func:`farm_hints` 的 ``_FAST_MISSIONS``），
+    按「几率 × 轮次权重」排序，同分时速刷类型优先；同一节点只留最好的一个轮次。
+    几率是掉落表里的**单次奖励几率**，不是每小时期望。
+
+    没有常规任务出处的（只在活动、储藏库等地方掉）返回空列表，
+    调用方改用「遗物 名称」查看全部出处。
+    """
+    db = load()
+    places = db.get("places") or {}
+    best: dict[str, tuple[float, str, float]] = {}
+    for pid, _rarity, chance in (db.get("relic_drops") or {}).get(relic_key) or []:
+        place = places.get(str(pid), "")
+        parts = place.split(" · ")
+        if len(parts) < 3 or place.startswith(("活动 · ", "奸商 · ", "敌人 · ")):
+            continue
+        mission = parts[2]
+        if mission not in _FAST_MISSIONS:
+            continue
+        rot = parts[3][0] if len(parts) >= 4 and parts[3].endswith("轮") else ""
+        try:
+            pct = float(chance)
+        except (TypeError, ValueError):
+            continue
+        score = pct * _ROT_WEIGHT.get(rot, 1.0)
+        head = " · ".join(parts[:3])
+        if head not in best or score > best[head][0]:
+            best[head] = (score, rot, pct)
+    ranked = sorted(
+        best.items(),
+        key=lambda kv: (-kv[1][0], _FAST_MISSIONS.index(kv[0].split(" · ")[2])),
+    )
+    return [(head, rot, pct) for head, (_s, rot, pct) in ranked[:top]]
+
+
+# 掉落表地点串的英文显示（drops.json 生成时已把星球与任务类型译成中文，节点名保留英文）。
+# 星球写法以掉落表为准（与世界状态的 PLANET_CN 不完全相同：塞德娜 / 木卫二 / 扎利曼）。
+_PLACE_PLANET_EN = {
+    "水星": "Mercury",
+    "金星": "Venus",
+    "地球": "Earth",
+    "月球": "Lua",
+    "火星": "Mars",
+    "火卫一": "Phobos",
+    "火卫二": "Deimos",
+    "谷神星": "Ceres",
+    "木星": "Jupiter",
+    "木卫二": "Europa",
+    "土星": "Saturn",
+    "天王星": "Uranus",
+    "海王星": "Neptune",
+    "冥王星": "Pluto",
+    "塞德娜": "Sedna",
+    "阋神星": "Eris",
+    "虚空": "Void",
+    "女皇要塞": "Kuva Fortress",
+    "面纱比邻星域": "Veil Proxima",
+    "扎利曼": "Zariman",
+    "双衍王境": "Duviri",
+    "霍瓦尼亚": "Höllvania",
+}
+
+
+def place_en(place: str) -> str:
+    """「星球 · 节点 · 任务」→ 英文（``天王星 · Ur · 中断`` → ``Uranus · Ur · Disruption``）。
+
+    任务类型用 ``parser.MISSION_CN`` 反查（DE 官方英文名）；认不出的段原样保留，不猜。
+    """
+    try:
+        from .parser import MISSION_CN
+    except ImportError:  # 离线脚本把 core/ 当顶层路径导入时
+        from parser import MISSION_CN
+
+    mission_en: dict[str, str] = {}
+    for en, cn in MISSION_CN.items():
+        mission_en.setdefault(cn, en.title())
+    mission_en.update({"储藏库": "Caches", "空战": "Archwing"})
+    if place.startswith("仅"):
+        return "Only " + ", ".join(place_en(part) for part in place[1:].split("、"))
+    rotation = re.search(r"（([ABC/]+)轮）$", place)
+    if rotation:
+        place = place[: rotation.start()]
+    parts = place.split(" · ")
+    place_labels = {
+        "活动": "Event",
+        "奸商": "Void Trader",
+        "敌人": "Enemy",
+        "瘟疫之星": "Operation: Plague Star",
+    }
+    parts = [
+        mission_en.get(part, _PLACE_PLANET_EN.get(part, place_labels.get(part, part)))
+        for part in parts
+    ]
+    parts = [
+        part.replace("（轮换出售，以当期货单为准）", " (check the current stock)").replace(
+            "（活动开放时）", " (while the event is active)"
+        )
+        for part in parts
+    ]
+    if rotation:
+        parts[-1] += f" (Rotation {rotation[1]})"
+    return " · ".join(parts)

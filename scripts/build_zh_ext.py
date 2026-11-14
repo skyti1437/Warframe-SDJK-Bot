@@ -52,6 +52,11 @@ PREFIXES = (
     #   →「Tenno 联合警报」）—— 警报卡标题要用。
     "/lotus/language/alerts/",
 )
+EXTRA_KEYS = {
+    "/Lotus/Language/TauPrologue/EventAlertTitle",
+    "/Lotus/Language/TauPrologue/RoadToTauEventName",
+    "/Lotus/Language/TauPrologue/RoadToTauShortEventDesc",
+}
 
 
 def drop_shadowed(picked: dict[str, str]) -> tuple[dict[str, str], int]:
@@ -106,15 +111,14 @@ def main() -> int:
         if not isinstance(k, str):
             continue
         low = k.lower()
-        for p in PREFIXES:
-            if low.startswith(p):
-                val = v.get("value") if isinstance(v, dict) else v
-                if isinstance(val, str) and val:
-                    picked[k] = val
-                    per_ns[p.rstrip("/").rsplit("/", 1)[-1]] = (
-                        per_ns.get(p.rstrip("/").rsplit("/", 1)[-1], 0) + 1
-                    )
-                break
+        prefix = next((p for p in PREFIXES if low.startswith(p)), "")
+        if not prefix and k not in EXTRA_KEYS:
+            continue
+        val = v.get("value") if isinstance(v, dict) else v
+        if isinstance(val, str) and val:
+            picked[k] = val
+            namespace = k.split("/")[3].lower()
+            per_ns[namespace] = per_ns.get(namespace, 0) + 1
     print(f"全量包 {len(full)} 键 → 提取 {len(picked)} 键")
     for ns, n in sorted(per_ns.items(), key=lambda x: -x[1]):
         print(f"   {ns:<14}{n:>6} 键")

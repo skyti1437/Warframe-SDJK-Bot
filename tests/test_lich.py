@@ -233,7 +233,7 @@ class _FakeClient:
         self._unsupported = set()
         self.last_type = None
 
-    def resolve_lich_weapon(self, q):
+    def resolve_lich_weapon(self, q, *, fuzzy=True):
         return self._aliases["lich_items"].get(q)
 
     def lich_weapon_info(self, slug):
@@ -324,6 +324,36 @@ check(
     "未找到玄骸武器" in _txt(r5) and "怎么改" in _txt(r5),
     str(r5)[:60],
 )
+
+
+async def lich_name_entry():
+    from core import i18n
+    from core.parser import parse
+
+    client = _client()
+    try:
+        fake = _FakeClient()
+        client.wm_lich_auctions = fake.wm_lich_auctions
+        obj = _plugin_with(client)
+        for command, lang, expected_type, title in (
+            ("xh 赤毒 布拉玛 辐射 50", "zh", "lich", "赤毒·布拉玛"),
+            ("xh Kuva Bramma radiation 50", "en", "lich", "Kuva Bramma"),
+            ("xh Tenet Arca Plasmor radiation 50 ephemera", "en", "sister", "Tenet Arca Plasmor"),
+        ):
+            with i18n.use_lang(lang):
+                reply = await obj._h_xh(parse(command), None, "pc")
+            check(
+                f"带空格玄骸名称与过滤参数分开：{command}",
+                title in reply.title
+                and fake.last_type == expected_type
+                and ("1条" in reply.title or "1 listings" in reply.title),
+                reply.title,
+            )
+    finally:
+        await client.close()
+
+
+asyncio.run(lich_name_entry())
 
 print()
 if FAILED:

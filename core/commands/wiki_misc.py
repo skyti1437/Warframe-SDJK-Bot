@@ -26,18 +26,110 @@ from ..logging_compat import logger
 from .base import Action, Reply, err_card
 
 # ---------------------------------------------------------------------------
-# 英文模式的 wiki 链接：英文 wiki（wiki.warframe.com），中文模式仍是灰机 wiki。
-# 页面名取英文名；拿不到英文名就给站内搜索直达（页面存在即跳转）。
+# wiki 链接来源（2026-11-10 维护者定：灰机 wiki 权威性太低，默认改英文 wiki，可选灰机）：
+#   · 配置 ``wiki_link_source``：``en``（默认）/ ``huiji``；单次查询末尾加「灰机」临时用灰机；
+#   · 英文显示模式始终用英文 wiki（页面名也显示英文）；
+#   · 中文显示 + 英文 wiki：卡片内容不变，只换链接；查不到英文页面名时退回灰机链接
+#     （拿中文去英文 wiki 站内搜索搜不到东西）。
+# 英文页面名优先用 DE 官方语言表（内部路径把 name_zh / name_en 连起来）——检索索引里的
+# ``en`` 字段很多是内部类型名（川流不息 →「avatar power max mod」），不能当页面名。
 # ---------------------------------------------------------------------------
 _EN_WIKI = "https://wiki.warframe.com/w/"
 _CJK_RE = re.compile(r"[\u3400-\u9fff]")
+_HUIJI_WORDS = {"灰机", "灰机wiki", "huiji"}
+_ZH2EN: dict | None = None
+
+
+_LANG2EN: dict | None = None
+
+# 语言表里对不上的常用概念 → 英文 wiki 页面名（人工核对；2026-11-10 用 wiki API 确认页面存在）。
+# 更多缺口发现后往这里补（或补进 aliases.json ``wiki`` 段的 ``en`` 字段）。
+_CONCEPT_EN = {
+    "扎里曼": "Zariman Ten Zero",
+    "虚空裂隙": "Void Fissure",
+    "九重天": "Void Fissure",
+    "钢铁之路": "The Steel Path",
+    "氏族道场": "Clan Dojo",
+    "集团": "Syndicate",
+}
+
+
+def _official_en(name: str) -> str:
+    """官方简中名 → 官方英文名；查不到返回空串。
+
+    ① 物品名表（name_zh / name_en，同一内部路径；一名多译不猜）；
+    ② DE 完整语言表（languages_zh / languages_en，同一语言键；地名 / 玩法 / 系统名都在这里，
+       一名多译取最短的英文——「午夜电波」→ Nightwave 而非 Nightwave Livery）。
+    """
+    global _ZH2EN, _LANG2EN
+    from .. import de_worldstate
+
+    if _ZH2EN is None:
+        zh = de_worldstate._load_file("name_zh.json") or {}
+        en = de_worldstate._load_file("name_en.json") or {}
+        acc: dict[str, set] = {}
+        for path, z in zh.items():
+            e = en.get(path)
+            if isinstance(z, str) and isinstance(e, str) and z and e:
+                acc.setdefault(matching.normalize_name(z), set()).add(e)
+        _ZH2EN = {k: next(iter(v)) for k, v in acc.items() if len(v) == 1}
+    key = matching.normalize_name(name or "")
+    if not key:
+        return ""
+    hit = _CONCEPT_EN.get(key) or _ZH2EN.get(key)
+    if hit:
+        return hit.title() if hit.isupper() else hit  # 界面大写串（EXTERMINATE）→ 页面名写法
+    if _LANG2EN is None:
+        zh = de_worldstate._load_file("languages_zh.json") or {}
+        en = de_worldstate._load_file("languages_en.json") or {}
+        acc2: dict[str, set] = {}
+        for k, z in zh.items():
+            e = en.get(k)
+            # 只收短名（描述 / 对白类长句不当页面名）
+            if (
+                isinstance(z, str)
+                and isinstance(e, str)
+                and z
+                and e
+                and len(z) <= 20
+                and len(e) <= 60
+            ):
+                acc2.setdefault(matching.normalize_name(z), set()).add(e.strip())
+        # 一名多译：优先非全大写（界面大写串「SURVIVAL」不是页面名），再取最短
+        _LANG2EN = {k: min(v, key=lambda x: (x.isupper(), len(x), x)) for k, v in acc2.items()}
+    hit = _LANG2EN.get(key, "")
+    return hit.title() if hit.isupper() else hit
+
+
+_EN_OFFICIAL: dict | None = None
+
+
+def _official_en_ascii(name: str) -> str:
+    """英文查询 → 官方英文名的正确大小写（「frost」→ Frost）；不是官方名返回空串。"""
+    global _EN_OFFICIAL
+    if _EN_OFFICIAL is None:
+        from .. import de_worldstate
+
+        acc: dict[str, set] = {}
+        for tbl in ("name_en.json", "languages_en.json"):
+            for e in (de_worldstate._load_file(tbl) or {}).values():
+                if isinstance(e, str) and 0 < len(e) <= 60 and not e.isupper():
+                    acc.setdefault(e.strip().casefold(), set()).add(e.strip())
+        _EN_OFFICIAL = {k: min(v) for k, v in acc.items()}
+    return _EN_OFFICIAL.get(" ".join((name or "").split()).casefold(), "")
 
 
 def _en_wiki_title(*cands: str, base: bool = False) -> str:
-    """候选名里第一个不含汉字的英文名 → wiki 页面标题；没有返回空串。
+    """候选名 → 英文 wiki 页面标题；没有返回空串。
 
-    ``base`` = 查询没指明变体：slug 式的全小写名剥掉变体词，落到基体。
+    先按 DE 官方语言表把候选名（中文 / 英文官方名）换成官方英文名；都换不到再取第一个不含汉字的
+    候选（slug 式全小写名转标题）。``base`` = 查询没指明变体：slug 式的全小写名剥掉变体词，落到基体。
     """
+    for c in cands:
+        c = str(c or "")
+        off = _official_en(c) if _CJK_RE.search(c) else _official_en_ascii(c)
+        if off:
+            return off
     for c in cands:
         c = " ".join(str(c or "").replace("_", " ").split())
         if not c or _CJK_RE.search(c):
@@ -59,12 +151,43 @@ def _en_wiki_url(title: str, query: str) -> str:
     return _EN_WIKI + "Special:Search?go=Go&search=" + _quote(query)
 
 
-def _wiki_localize(page_name: str, url: str, query: str, *cands: str, base: bool = False):
-    """中文模式原样返回；英文模式换成英文页面名与英文 wiki 链接。"""
-    if not is_en():
-        return page_name, url
-    title = _en_wiki_title(*cands, query, base=base)
-    return (title or page_name), _en_wiki_url(title, query)
+def _wiki_localize(
+    page_name: str,
+    url: str,
+    query: str,
+    *cands: str,
+    base: bool = False,
+    source: str = "en",
+    en: str = "",
+):
+    """按显示语言与链接来源给出 ``(展示页面名, 链接)``。
+
+    ``en``：人工核对过的英文页面名（wiki 概念表 aliases.json ``wiki`` 段的 ``en`` 字段），优先用。
+    英文模式：英文页面名 + 英文 wiki；中文模式 + ``source="en"``：页面名不变、链接换英文 wiki；
+    ``source="huiji"``：原样返回灰机链接。
+    ★ 2026-11-10 维护者：英文 wiki 基本页面齐全，**不自动切灰机**——查不到英文页面名时给英文 wiki
+      站内搜索（有英文候选名就用英文名搜），缺口记下来补数据。
+    """
+    # 查询词本身就是官方名（「水星」「frost」）时以它为准：检索的前缀模糊 / 内部名会把它带偏到
+    # 「水星棕」（库狛颜色）「低温眠者」（皮肤内部名 frost）上（2026-11-10 核对英文链接时发现）
+    if is_en():
+        title = en or _en_wiki_title(query, *cands, base=base)
+        return (title or page_name), _en_wiki_url(title, _en_search_term(query, *cands))
+    if source == "en":
+        title = en or _en_wiki_title(query, page_name, *cands, base=base)
+        if not title:
+            logger.info("[sdjk] wiki：「%s」没有对上英文页面名，给英文 wiki 站内搜索", query)
+        return page_name, _en_wiki_url(title, _en_search_term(query, *cands))
+    return page_name, url
+
+
+def _en_search_term(query: str, *cands: str) -> str:
+    """英文 wiki 站内搜索词：优先第一个不含汉字的候选名，没有才用原查询。"""
+    for c in cands:
+        c = " ".join(str(c or "").split())
+        if c and not _CJK_RE.search(c):
+            return c
+    return query
 
 
 # 英文伤害参数写法 → 中文写法（只在「伤害」的参数解析处认，不进通用别名表）
@@ -377,6 +500,12 @@ class WikiMiscCommands:
         易混淆黑话（花甲=Wisp 不是 Garuda 这类）在卡片尾给一行澄清（``note``）。
         """
         query = parsed.content_str
+        # 链接来源：配置 wiki_link_source（默认英文 wiki）；末尾加「灰机」临时用灰机 wiki
+        src = str((getattr(self, "cfg", None) or {}).get("wiki_link_source", "en")).strip().lower()
+        src = "huiji" if src == "huiji" else "en"
+        _toks = query.split()
+        if len(_toks) >= 2 and _toks[-1].lower() in _HUIJI_WORDS:
+            src, query = "huiji", " ".join(_toks[:-1])
         if not query:
             return err_card(
                 L("没有写关键词", "No keyword given"),
@@ -398,7 +527,9 @@ class WikiMiscCommands:
         if hit:
             # 概念页 / 战甲外号页（wiki 段）：同样出卡片（用户口径：都要绘制），
             # 卡片正文若知识库有该页条目就用，没有退最小卡
-            _pn, _url = _wiki_localize(hit["title"], hit["url"], query, hit["title"])
+            _pn, _url = _wiki_localize(
+                hit["title"], hit["url"], query, hit["title"], source=src, en=hit.get("en") or ""
+            )
             return self._wiki_reply(_pn, _url, [], platform, hit["title"], query, note=note)
         from urllib.parse import quote as _q
 
@@ -426,6 +557,7 @@ class WikiMiscCommands:
                     f"https://warframe.huijiwiki.com/wiki/{page}",
                     query,
                     _paren.group(1) if _paren else "",
+                    source=src,
                 )
                 return self._wiki_reply(
                     _pn,
@@ -441,9 +573,11 @@ class WikiMiscCommands:
             if play:
                 _pn = play
                 if is_en():
-                    _pn, _url = _wiki_localize(play, "", query)
+                    _pn, _url = _wiki_localize(play, "", query, source=src)
                 else:
-                    _url = await self.client.wiki_search_link(play)
+                    _pn, _url = _wiki_localize(
+                        play, await self.client.wiki_search_link(play), query, source=src
+                    )
                 return self._wiki_reply(
                     _pn,
                     _url,
@@ -453,6 +587,17 @@ class WikiMiscCommands:
                     query,
                     note=note,
                 )
+            # 中文官方术语（星球 / 地名 / 玩法：水星、火卫二、仲裁…）：检索没有精确命中时直接按术语出页，
+            # 不落到前缀模糊命中的外观（水星棕 / 火卫二保育徽章）上
+            if not want_variant and (
+                _official_en(query) if _CJK_RE.search(query) else _official_en_ascii(query)
+            ):
+                if src == "huiji" and not is_en():
+                    _purl = await self.client.wiki_search_link(query)
+                else:
+                    _purl = ""
+                _pn, _url = _wiki_localize(query, _purl, query, source=src)
+                return self._wiki_reply(_pn, _url, [], platform, query, note=note)
         if not found and want_variant:
             # 「摸尸p」这类带 p 后缀的查询词库里没有（别名表只登记无后缀形态）
             # → 剥掉 p/prime 再查，命中后按变体解析（want_variant 已为 True）
@@ -474,6 +619,7 @@ class WikiMiscCommands:
                 best_name,
                 found[0].get("en") or "",
                 base=not want_variant,
+                source=src,
             )
             if is_en():  # 候选名也给英文（取不到英文名的保持原样）
                 alts = [
@@ -516,6 +662,7 @@ class WikiMiscCommands:
                 page_name,
                 item.get("en") or "",
                 base=not want_variant,
+                source=src,
             )
             return self._wiki_reply(
                 _pn,
@@ -527,7 +674,11 @@ class WikiMiscCommands:
                 variants=None if want_variant else wiki_intro.variants(page_name),
                 note=note,
             )
-        link = _en_wiki_url("", query) if is_en() else await self.client.wiki_search_link(query)
+        link = (
+            _en_wiki_url("", query)
+            if is_en() or src == "en"
+            else await self.client.wiki_search_link(query)
+        )
         # 未收录时也把澄清带上（如「跑男」这种自带歧义的写法）
         r = err_card(
             L(f"本地词库未收录「{query}」", f'"{query}" is not in the local lexicon'),

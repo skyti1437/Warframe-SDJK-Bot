@@ -18,7 +18,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core import damage_calc, i18n  # noqa: E402
 from core.commands.wiki_misc import WikiMiscCommands, _dmg_en_toks  # noqa: E402
-from core.parser import parse  # noqa: E402
+from core.parser import (  # noqa: E402
+    ALIAS_TO_COMMAND,
+    EN_ALIAS_TO_COMMAND,
+    SHORT_COMMAND_ALIASES_EN,
+    parse,
+)
 from core.store import GroupStore, Subscription  # noqa: E402
 
 FAILED: list[str] = []
@@ -45,6 +50,44 @@ check("英文别名不在首词：不触发（闲聊不误判）", parse("what i
 check("英文别名不做无空格连写切分", parse("sorties").command is None)
 check("原有 ASCII 指令 wm 不受影响", parse("wm水晶p头").command == "wm")
 check("中文指令任意位置照旧", parse("帮我查 裂隙").command == "fissures")
+for key, short in SHORT_COMMAND_ALIASES_EN.items():
+    p = parse(f"-EN {short.upper()} -W")
+    check(
+        f"英文短写 {short} 无冲突、大小写兼容并保留修饰符",
+        short not in ALIAS_TO_COMMAND
+        and EN_ALIAS_TO_COMMAND.get(short) == p.command == key
+        and p.lang == "en"
+        and p.force_text,
+        p,
+    )
+for long, short, args in (
+    ("deeparchimedea", "eda", ""),
+    ("temporalarchimedea", "eta", ""),
+    ("steelpath", "sp", ""),
+    ("nightwave", "nw", ""),
+    ("synthesis", "simaris", ""),
+    ("construction", "wfleet", ""),
+    ("voidstorms", "vstorm", ""),
+    ("clanrewards", "clanwk", ""),
+    ("flashsales", "wfsales", ""),
+    ("scandamage", "scandmg", "vs Heavy Gunner 150"),
+    ("rivenanalysis", "rgrade", "Ohma CriticalDamage82.8"),
+    ("rivenranges", "rrange", "Rubico Prime 3+1-"),
+    ("openrelic", "relicrun", "quick"),
+):
+    old, new = (parse(f"{word} {args} -en -w") for word in (long, short))
+    check(f"旧写法 {long} 保持路由和参数", (old.command, old.content) == (new.command, new.content))
+for text in (
+    "ETA in ten minutes",
+    "any ETA",
+    "ETA -soon",
+    "SP void cascade",
+    "NW reset tonight",
+    "Simaris is at the relay",
+    "try rrange later",
+):
+    check(f"普通聊天不触发 {text}", parse(text).command is None)
+check("短写跳过普通词后原有中文指令仍可用", parse("eta 裂隙").command == "fissures")
 
 # ---------------------------------------------------------------- i18n 基础
 check(

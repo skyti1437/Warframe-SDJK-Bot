@@ -785,15 +785,16 @@ class MessagingBridge:
                     interaction.id,
                 )
                 if ticket is None:
-                    await interaction.response.send_message(
+                    await self._discord_notice(
+                        dc,
+                        interaction,
                         L(
                             "按钮已过期、重复提交或不属于当前会话/用户。",
                             "This button has expired, was already used, or does not belong to this chat/user.",
                         ),
-                        ephemeral=True,
                     )
                     return
-                await asyncio.wait_for(interaction.response.defer(), timeout=2.5)
+                await self._discord_defer(dc, interaction)
                 self._dispatch(
                     adapter,
                     ticket,
@@ -818,6 +819,44 @@ class MessagingBridge:
                 channel = await event.client.fetch_channel(int(route.target))
             self._attempted.set(True)
             await channel.send(content=L("请选择操作：", "Choose an action:"), view=view)
+
+    # AstrBot 4.29.4 起，宿主的 Discord 客户端会对**所有**按钮点击抢先 defer（discord/client.py
+    # on_interaction），与本插件 View 回调并发；同一交互只能应答一次。被宿主抢先应答属于正常情况：
+    # 跳过自己的 defer、照常分发（followup 仍可用）。其它错误（如超时）维持原行为向上抛。
+    @staticmethod
+    def _discord_already_acked(dc, exc) -> bool:
+        responded = getattr(dc, "InteractionResponded", None)
+        if isinstance(responded, type) and isinstance(exc, responded):
+            return True
+        return getattr(exc, "code", None) == 40060  # Interaction has already been acknowledged
+
+    @staticmethod
+    def _discord_is_done(interaction) -> bool:
+        is_done = getattr(interaction.response, "is_done", None)
+        try:
+            return bool(is_done()) if callable(is_done) else False
+        except Exception:  # noqa: BLE001
+            return False
+
+    async def _discord_defer(self, dc, interaction) -> None:
+        if self._discord_is_done(interaction):
+            return
+        try:
+            await asyncio.wait_for(interaction.response.defer(), timeout=2.5)
+        except Exception as exc:  # noqa: BLE001
+            if not self._discord_already_acked(dc, exc):
+                raise
+            logger.debug("[warframe] Discord 按钮已被宿主先行应答，继续分发")
+
+    async def _discord_notice(self, dc, interaction, text: str) -> None:
+        if not self._discord_is_done(interaction):
+            try:
+                await interaction.response.send_message(text, ephemeral=True)
+                return
+            except Exception as exc:  # noqa: BLE001
+                if not self._discord_already_acked(dc, exc):
+                    raise
+        await interaction.followup.send(text, ephemeral=True)
 
     async def _send_kook(self, event, actions):
         from astrbot.core.platform.sources.kook.kook_types import KookMessageType

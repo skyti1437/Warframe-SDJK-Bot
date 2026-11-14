@@ -19,6 +19,8 @@ import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import httpx
+
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
@@ -142,6 +144,7 @@ check(
     {r[0].rsplit("/", 1)[1]: r[2] for r in routes}
     == {
         "overview": ["GET"],
+        "command_stats": ["GET"],
         "refresh": ["POST"],
         "pull": ["POST"],
         "crawl": ["POST"],
@@ -151,6 +154,7 @@ check(
         "font_download": ["POST"],
         "settings": ["GET"],
         "settings_save": ["POST"],
+        "panel_language": ["GET"],
         "vision_migration_status": ["GET"],
         "vision_migration_prepare": ["POST"],
         "vision_migration_apply": ["POST"],
@@ -390,6 +394,23 @@ check(
 check("刷新后带回新鲜度", isinstance(r6.get("freshness"), list) and r6["freshness"])
 
 
+async def _refresh_lock_checks():
+    panel = _panel()
+    async with panel._refresh_lock:
+        for action in (panel.refresh, panel.pull):
+            result = await action()
+            check(
+                f"{action.__name__} 忙时通过结构化结果明确拒绝，且未调用数据源",
+                result.get("ok") is False
+                and result.get("code") == "refresh_busy"
+                and "status" not in result
+                and not panel.p.client.calls,
+            )
+
+
+asyncio.run(_refresh_lock_checks())
+
+
 # ---- 6¼. 立即抓排行：面板沿用保护冷却；价格排行在抓时报 running ----
 async def _crawl(panel, target):
     async def body():
@@ -470,15 +491,16 @@ check(
 _html = (ROOT / "pages" / "sdjk" / "index.html").read_text(encoding="utf-8")
 check(
     "页面有「从源头重抓」按钮并接到 pull 接口",
-    'id="pull"' in _html and 'apiPost("pull"' in _html,
+    'id="pull"' in _html and 'snapshotAction("pull"' in _html,
 )
 # 窄屏与出错提示（浏览器实测在仓外做；这里守住关键结构不被改回）
 check(
     "报错浮在视口内且只清加载自己的报错",
     "#err { position: fixed" in _html
     and 'id="errClose"' in _html
-    and 'showErr("", "load")' in _html
-    and "if (errSrc === src)" in _html,
+    and 'showErr(null, "overview")' in _html
+    and 'showErr(null, "resources")' in _html
+    and "panelErrors.delete(src)" in _html,
 )
 check(
     "多列表格窄屏改卡片（后台任务/社区/账本/登记/依赖/字体/订阅）",
@@ -496,7 +518,7 @@ check(
     # b17：设置页与识图页各有保存条，按各自范围的校验错误禁用保存按钮
     and 'settings: ["savebar", "saveInfo", "save"], vision: ["vSavebar", "vSaveInfo", "vSave"]'
     in _html
-    and "$(btn).disabled = b.length > 0" in _html,
+    and "$(btn).disabled = saving || !n || b.length > 0" in _html,
     _int_min.group(0) if _int_min else "缺 INT_MIN",
 )
 _schema_opts = {
@@ -1218,6 +1240,7 @@ check(
     "模式快照：渠道缺失只阻塞、不改选择与修订",
     _missing_channel["mode"] == "single"
     and _missing_channel["blocked"]
+    and _missing_channel["reason_code"] == "channel_unavailable"
     and _missing_channel["revision"] == _isolated_rev["revision"],
 )
 
@@ -2243,6 +2266,106 @@ ps10.p._config = None
 check("拿不到配置对象时给说明", _save(ps10, {"page_size": 10}).get("status") == "error")
 
 
+def _initial_language_checks():
+    """首次同步只成功一次，读回配置后仍保留后来设置的语种。"""
+    with tempfile.TemporaryDirectory(prefix="wf-panel-first-language-") as td:
+        target = Path(td) / "config.json"
+
+        class Config(dict):
+            fail = False
+            writes = 0
+
+            def save_config(self):
+                if self.fail:
+                    raise OSError("mock disk failure")
+                target.write_text(json.dumps(self), encoding="utf-8")
+                self.writes += 1
+
+        def panel_with(conf):
+            panel = _panel()
+            panel.p.cfg = dict(conf)
+            panel.p._config = conf
+            return panel
+
+        def initial(panel, language, **extra):
+            async def body():
+                return {"initial_language": language, **extra}
+
+            panel._body = body
+            return asyncio.run(panel.settings_save())
+
+        flag = W.PANEL_LANGUAGE_INITIALIZED
+        key = W.PANEL_LANGUAGE
+        config = Config(default_language="cn")
+        p = panel_with(config)
+        check(
+            "首次语言：未保存时返回空偏好，不写配置",
+            asyncio.run(p.panel_language()) == {"language": "", "sync_card_language": True}
+            and not config.writes,
+        )
+        check(
+            "首次语言：非法选项或混入普通设置均拒绝",
+            initial(p, "zh").get("status") == "error"
+            and initial(p, "en", changes={"page_size": 10}).get("status") == "error"
+            and _save(p, {key: ""}).get("status") == "error"
+            and not config.writes,
+        )
+        config.fail = True
+        check(
+            "首次语言：写入失败不消耗首次选择，配置与运行态都回滚",
+            initial(p, "en").get("status") == "error"
+            and config == p.p.cfg == {"default_language": "cn"}
+            and not target.exists(),
+        )
+        config.fail = False
+        result = initial(p, "en")
+        check(
+            "首次语言：界面语种、卡片语种和完成状态一笔落盘且即时生效",
+            result == {"saved": ["default_language", key], "need_reload": [], key: "en"}
+            and p.p.cfg
+            == json.loads(target.read_text(encoding="utf-8"))
+            == {"default_language": "en", key: "en", flag: True},
+        )
+        check(
+            "默认卡片语种之后可单独保存",
+            _save(p, {"default_language": "cn"})["saved"] == ["default_language"]
+            and asyncio.run(p.panel_language())["language"] == "en",
+        )
+        reopened = panel_with(Config(json.loads(target.read_text(encoding="utf-8"))))
+        check(
+            "首次语言：重载读回界面偏好，迟到的首选不覆盖任一语种",
+            asyncio.run(reopened.panel_language())
+            == {"language": "en", "sync_card_language": False}
+            and initial(reopened, "cn") == {"saved": [], "need_reload": [], key: "en"}
+            and reopened.p.cfg["default_language"] == "cn"
+            and not reopened.p._config.writes,
+        )
+        check(
+            "右上角界面语言切换可以保存，卡片语种独立",
+            _save(reopened, {"default_language": "en"})["saved"] == ["default_language"]
+            and _save(reopened, {key: "cn"})["saved"] == [key]
+            and reopened.p.cfg["default_language"] == "en"
+            and json.loads(target.read_text(encoding="utf-8"))[key] == "cn",
+        )
+        manual = panel_with(Config(default_language="en", **{flag: True}))
+        check(
+            "旧版已完成卡片设置：只补存界面语种",
+            asyncio.run(manual.panel_language()) == {"language": "", "sync_card_language": False}
+            and initial(manual, "cn")["saved"] == [key]
+            and manual.p.cfg["default_language"] == "en"
+            and _save(manual, {flag: False}).get("status") == "error",
+        )
+        dropdown = panel_with(Config(default_language="cn"))
+        check(
+            "首次从右上角选语言也可同步两项",
+            _save(dropdown, {key: "en"})["saved"] == ["default_language", key]
+            and dropdown.p.cfg["default_language"] == "en",
+        )
+
+
+_initial_language_checks()
+
+
 def _settings_numeric_boundary_checks():
     """真实保存入口：数值非法时整批拒绝，磁盘、配置对象和运行态均不变。"""
     with tempfile.TemporaryDirectory(prefix="wf-settings-numeric-") as td:
@@ -3060,6 +3183,89 @@ try:
             _R2.theme_state()["colors"] == before
             and _R2.PANEL_BG == _R2._THEME_DEFAULTS["PANEL_BG"],
         )
+        from io import BytesIO
+        from unittest.mock import patch
+
+        from PIL import ImageDraw
+
+        from core import i18n
+
+        def preview_image(result):
+            with _PI.open(BytesIO(_b64.b64decode(result["png"].split(",", 1)[1]))) as im:
+                return im.convert("RGB")
+
+        _base = preview_image(_tpost(pt.theme_preview, {}))
+        for _slot, _color in (("bg", "#ff2bd6"), ("violet", None)):
+            _located = _tpost(pt.theme_preview, {"locate": _slot})
+            _changed = _IC.difference(_base, preview_image(_located)).getbbox() is not None
+            check(
+                f"预览定位 {_slot}：返回状态与实际像素变化一致",
+                _located.get("locator") == {"slot": _slot, "color": _color}
+                and _changed is (_color is not None)
+                and _R2.theme_state()["colors"] == before,
+            )
+        _already_marked = _tpost(pt.theme_preview, {"colors": {"bg": "#ff2bd6"}, "locate": "bg"})
+        check(
+            "预览定位：槽位已用品红时用亮青高亮", _already_marked["locator"]["color"] == "#00eaff"
+        )
+
+        _preview_body = {"colors": {"teal": "#315e62", "highlight": "#f4b237"}}
+        for _saved_lang, _outer_lang, _sample in (
+            ("cn", "en", (W.PREVIEW_TITLE, W.PREVIEW_LINES, W.PREVIEW_FOOT)),
+            ("en", "zh", W.PREVIEW_EN),
+        ):
+            pt.p.cfg = {"default_language": _saved_lang}
+            with i18n.use_lang(_outer_lang):
+                _actual = preview_image(_tpost(pt.theme_preview, _preview_body))
+                check(
+                    f"预览 {_saved_lang} 退出后调用方仍使用 {_outer_lang} 和已保存主题",
+                    i18n.current_lang() == _outer_lang and _R2.theme_state()["colors"] == before,
+                )
+            try:
+                _R2.apply_theme(_preview_body["colors"])
+                with i18n.use_lang(_saved_lang):
+                    _expected = _img(_rr.render(*_sample))
+            finally:
+                _R2.apply_theme(before)
+            check(
+                f"预览 {_saved_lang} 与同语言、同主题的正式入口逐像素一致",
+                _IC.difference(_expected, _actual).getbbox() is None,
+            )
+
+        _draw_text = ImageDraw.ImageDraw.text
+        for _theme in ({}, {"teal": "#315e62", "cyan": "#218bcf", "highlight": "#f4b237"}):
+            _drawn = {}
+            try:
+                _R2.apply_theme(_theme)
+                for _lang, _line in (
+                    ("cn", "· 武器　冰冻 32%　火焰 40%　[古纪] 生存"),
+                    ("en", "· Weapon　Cold 32%　Heat 40%　[Lith] Survival"),
+                    ("en", "· Orb Vallis　Cold　2m left"),
+                ):
+                    _tokens = {}
+
+                    def spy(draw, xy, text, *args, **kwargs):
+                        _tokens[text] = kwargs.get("fill")
+                        return _draw_text(draw, xy, text, *args, **kwargs)
+
+                    with i18n.use_lang(_lang), patch.object(ImageDraw.ImageDraw, "text", spy):
+                        _img(_rr.render("Test", [_line]))
+                    _drawn[_line] = _tokens
+                _zh, _en, _cycle = _drawn.values()
+                check(
+                    f"中英元素、百分比、遗物档位与任务类别配色一致，Cold 状态保留（主题 {_theme or '默认'}）",
+                    _zh.get("冰冻") == _en.get("Cold") == _R2.ELEMENT_COLOR
+                    and _zh.get("火焰") == _en.get("Heat") == _R2.ELEMENT_COLOR
+                    and _zh.get("32%") == _en.get("32%") == _R2.BONUS_COLOR
+                    and _zh.get("40%") == _en.get("40%") == _R2.BONUS_COLOR
+                    and _zh.get("[古纪]") == _en.get("[Lith]") == _R2.TIER_COLOR["Lith"]
+                    and _zh.get("生存") == _en.get("Survival") == _R2.MISSION_TYPE_COLOR
+                    and _cycle.get("Cold") == _R2.CYAN,
+                    str(_drawn),
+                )
+            finally:
+                _R2.apply_theme(before)
+
         check(
             "预览图读完即删，预览目录不留文件",
             not list((_td12 / "cards_preview").glob("card_*.png")),
@@ -3297,14 +3503,24 @@ try:
     _c14 = _AC14.WarframeClient()
     _seed14 = json.loads((ROOT / "core/data/arb_ratings.json").read_text(encoding="utf-8"))
     _serve14 = {}
+    _proxy14 = "http://192.0.2.42:8123"
+    _secret14 = "synthetic-credential-marker"
 
     async def _ff14(url, ttl=0, headers=None, cache_key=None, retries=2, **kw):
         h = url.split("/")[2]
         name = url.rsplit("/", 1)[-1]
         if "raw.githubusercontent" in h:
-            raise _AC14.WarframeAPIError(f"请求失败（{url}）：timeout")
+            error = httpx.ProxyError(f"代理 {_proxy14} 验证失败 {_secret14}")
+            raise _AC14.WarframeAPIError(f"请求失败（{url}）：{error}") from error
         if name in _serve14:
             return _serve14[name]
+        if h == "cdn.jsdelivr.net":
+            request = httpx.Request("GET", url)
+            response = httpx.Response(503, request=request)
+            error = httpx.HTTPStatusError(
+                f"上游失败 {_secret14}", request=request, response=response
+            )
+            raise _AC14.WarframeAPIError(f"请求失败（{url}）：{error}") from error
         raise _AC14.WarframeAPIError(f"接口不存在或暂未开放：{url}")
 
     _c14._fetch_json = _ff14
@@ -3325,7 +3541,8 @@ try:
         "★ 采用新快照：记 adopted + 走的通道 + 数据时间",
         rep["arb_ratings.json"]["result"] == "adopted"
         and rep["arb_ratings.json"]["channel"] == "cdn.jsdelivr.net"
-        and rep["arb_ratings.json"]["stamp"] == _now14,
+        and rep["arb_ratings.json"]["stamp"] == _now14
+        and not rep["arb_ratings.json"]["failures"],
         str(rep["arb_ratings.json"]),
     )
     check(
@@ -3335,12 +3552,29 @@ try:
         str(rep["baro_history.json"]),
     )
     _serve14 = {"arb_ratings.json": _newer}
+    _c14._comm_cool.clear()
     asyncio.run(_c14.refresh_community_static(("baro_history.json",)))
     rep = {r["name"]: r for r in _c14.community_report()}
     check(
-        "★ 所有通道取不到：记 unavailable + 各通道原因（raw 超时 / 镜像没文件）",
+        "★ 所有通道取不到：记 unavailable + 各通道原因",
         rep["baro_history.json"]["result"] == "unavailable"
         and "没有这个文件" in rep["baro_history.json"]["reason"],
+        str(rep["baro_history.json"]),
+    )
+    check(
+        "社区通道记录：保留公开源、HTTP 状态与文件缺失分类",
+        any(
+            row["code"] == "request_failed"
+            and row["channel"] == "raw.githubusercontent.com"
+            and row["url"].endswith("/baro_history.json")
+            and not row["detail"]
+            for row in rep["baro_history.json"]["failures"]
+        )
+        and any(
+            row["code"] == "request_failed" and row["detail"] == "HTTP 503"
+            for row in rep["baro_history.json"]["failures"]
+        )
+        and any(row["code"] == "missing_file" for row in rep["baro_history.json"]["failures"]),
         str(rep["baro_history.json"]),
     )
     asyncio.run(_c14.refresh_community_static(("arb_ratings.json",)))
@@ -3364,6 +3598,44 @@ try:
         and "community_base" in ov14,
         str(ov14.get("community"))[:200],
     )
+    public14 = json.dumps(ov14["community"], ensure_ascii=False)
+    check(
+        "概览社区失败详情和旧原因不含代理地址或凭据",
+        _proxy14 not in public14 and _secret14 not in public14,
+    )
+
+    async def _custom_community_failure14():
+        client = _AC14.WarframeClient(
+            community_base="https://mirror.example.test/snapshots", allow_private_urls=True
+        )
+
+        async def fail(request):
+            raise httpx.ProxyError(f"代理 {_proxy14} 验证失败 {_secret14}", request=request)
+
+        await client.http.aclose()
+        client._http = httpx.AsyncClient(transport=httpx.MockTransport(fail))
+        try:
+            await client.refresh_community_static(("baro_history.json",))
+            host = _P14()
+            host.client = client
+            panel = W.WebPanel(host, PLUGIN)
+            panel._query = staticmethod(lambda k, d="": d)
+            overview = await panel.overview()
+            record = next(
+                row for row in overview["community"] if row["name"] == "baro_history.json"
+            )
+            public = json.dumps(overview, ensure_ascii=False)
+            check(
+                "自填社区探测异常的概览响应不带异常原文与通道地址",
+                _proxy14 not in public
+                and _secret14 not in public
+                and record["failures"]
+                == [{"code": "request_failed", "channel": "", "detail": "", "url": ""}],
+            )
+        finally:
+            await client.close()
+
+    asyncio.run(_custom_community_failure14())
 finally:
     _paths14.set_run_dir(None)
     import shutil as _sh14
@@ -4202,7 +4474,7 @@ async def _panel_late_request_checks():
                 panel._umo_of = lambda key: "probe-session"
                 panel._test_vision_resolve = Mock(return_value={"ok": True})
                 if route == "theme_preview":
-                    panel._locked = AsyncMock(return_value="data:image/png;base64,probe")
+                    panel._locked = AsyncMock(return_value={"png": "data:image/png;base64,probe"})
                 before = appearance.read_bytes()
 
                 def pause(wait):
@@ -4885,7 +5157,7 @@ check(
     "页面：新鲜度表有「用于」列、概览过期提示带影响、关于页渲染来源链接、外观有显示方式选择",
     "<th>用于</th>" in _html
     and "影响：${used}" in _html
-    and '"data", "去刷新", r.used]' in _html
+    and '"data", stale ? "去刷新" : "查看", r.used]' in _html
     and 'class: "srclink"' in _html
     and 'id="bgFit"' in _html
     and "bg_fit: TH.cur.bg_fit, bg_pos: TH.cur.bg_pos, bg_scale: TH.cur.bg_scale" in _html
@@ -4909,7 +5181,8 @@ check(
     and "navigator.clipboard.writeText(text)" in _html
     and 'document.execCommand("copy")' in _html
     and "请长按或按 Ctrl+C" in _html
-    and "浏览器或后台未能打开新窗口，已改为复制。" in _html,
+    and "无法打开新标签页。" in _about_js
+    and "else copy(true)" in _about_js,
 )
 
 
@@ -5443,8 +5716,7 @@ check(
 )
 check(
     "自动刷新按按钮操作计数判断忙碌（不扫描禁用按钮：禁用也可能只表示此刻不可用）；字体任务进行中、设置有未保存改动时暂停",
-    _js.count("opCount += 1") == 2
-    and _js.count("opCount -= 1") == 2
+    _js.count("opCount += 1") == _js.count("opCount -= 1") == 4
     and "!opCount && !fontRunning && !Object.keys(state.edits).length" in _js
     and "button:disabled" not in _js,
 )

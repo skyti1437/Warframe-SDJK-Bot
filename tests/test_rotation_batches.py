@@ -4,7 +4,7 @@
 覆盖本轮新接线的两个轮换模式（版式对齐既有「灵化回廊」）：
 
 1. **信条（Tenet，``mode=refresh_only``）**：Ergo Glast 在任意中继站**常驻** 5 把
-   （Agendus / Exec / Ferrox / Grigori / Livia），每把 40 个腐化全息密钥；只有
+   （Agendus / Exec / Ferrox / Grigori / Livia），每把 40 个堕落全息密钥；只有
    **元素加成**每 4 天 00:00 UTC 重生成。所以卡面不该出现「A/B 批」这类
    不存在的分批描述。
 2. **终幕（Coda，``mode=batch_cycle``）**：Eleanor 的 Coda 武器按 **A/B 两批**
@@ -279,7 +279,7 @@ check(
     "信条卡标注元素加成刷新周期", any("元素加成" in ln and "4 天" in ln for ln in lines), str(lines)
 )
 check(
-    "信条卡说明获取成本（40 个腐化全息密钥）", any("腐化全息密钥" in ln for ln in lines), str(lines)
+    "信条卡说明获取成本（40 个堕落全息密钥）", any("堕落全息密钥" in ln for ln in lines), str(lines)
 )
 check(
     "信条卡用 · 列项（次级层级）",

@@ -149,6 +149,29 @@ def strip_official_drop_units(rel: str, text: str) -> str:
     return json.dumps(data, ensure_ascii=False)
 
 
+def english_intro_output(text: str) -> str:
+    """英文简介只输出映射值。中文查找键与来源元数据不进入卡面。"""
+    data = json.loads(text)
+    return "\n".join(
+        [
+            *data["lines"].values(),
+            *data["titles"].values(),
+            *(value for card in data["cards"].values() for value in card.values()),
+        ]
+    )
+
+
+_intro_fixture = {
+    "lines": {"· 远古堕落者": "· Corrupted Ancient"},
+    "titles": {},
+    "cards": {"测试卡": {"原文": "英文字段误混堕落者"}},
+}
+check(
+    "英文简介扫描实际输出值，不扫描原中文匹配键",
+    english_intro_output(json.dumps(_intro_fixture)) == "· Corrupted Ancient\n英文字段误混堕落者",
+)
+
+
 _drop_fixture = json.dumps({"places": {"0": "远古堕落者"}}, ensure_ascii=False)
 check(
     "官方完整掉落单位名可展示",
@@ -185,6 +208,8 @@ for p in targets:
         continue
     scanned += 1
     try:
+        if rel == "core/data/wiki_intro_en.json":
+            text = english_intro_output(text)
         body = strip_official_drop_units(rel, strip_cn_tables(text))
     except ValueError as e:
         check(f"国服译名表标记完整：{rel}", False, str(e))

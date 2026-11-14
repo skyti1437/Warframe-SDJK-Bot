@@ -1233,6 +1233,72 @@ def fmt_daily_deals(deals: Iterable[dict]) -> tuple[str, list[str]]:
     return (title, lines)
 
 
+def fmt_morning_digest(data: dict, day: str, now: datetime) -> tuple[str, list[str]]:
+    """复用常用卡片的摘要，单项异常留在注脚。"""
+    lines = []
+    missing = []
+    for key, formatter, title, limit in (
+        ("sortie", fmt_sortie, L("每日突击", "Sortie"), 6),
+        ("archon", fmt_archon, L("执刑官猎杀", "Archon Hunt"), 2),
+        ("nightwave", fmt_nightwave, L("午夜电波", "Nightwave"), 1),
+        ("trader", fmt_void_trader, L("虚空商人", "Void Trader"), 2),
+        ("deals", fmt_daily_deals, L("每日特惠", "Darvo's Daily Deal"), 8),
+    ):
+        value = data.get(key)
+        if value is None or (not value and key != "deals"):
+            missing.append(title)
+            continue
+        _, body = formatter(value)
+        lines.extend(
+            [
+                f"◆ {title}",
+                *(f"· {row[2:]}" if row.startswith("◆ ") else row for row in body[:limit]),
+            ]
+        )
+    shop = steel_shop()
+    weekly = shop.get("weekly") or []
+    week_expiry = None
+    if weekly:
+        idx, week_expiry = steel_rotation_index(shop)
+        item = weekly[idx]
+        lines += [
+            L("◆ 钢铁精华本周轮换", "◆ Steel Essence This Week"),
+            f"· {_shop_name(item['name'])}　{item['cost']} " + L("钢铁精华", "Essence"),
+        ]
+    else:
+        missing.append(L("钢铁精华轮换", "Steel Essence Rotation"))
+
+    archon, nightwave = data.get("archon") or {}, data.get("nightwave") or {}
+    deadlines = [
+        (L("执刑官猎杀", "Archon Hunt"), archon.get("expiry")),
+        (L("钢铁精华轮换", "Steel Essence Rotation"), week_expiry),
+    ]
+    deadlines += [
+        (c.get("title"), c.get("expiry"))
+        for c in nightwave.get("activeChallenges", [])
+        if not c.get("isDaily")
+    ]
+    events = data.get("events")
+    if events is None:
+        missing.append(L("活动到期", "Event deadlines"))
+    else:
+        deadlines += [(e.get("name"), e.get("expiry")) for e in events]
+    due = []
+    for title, expiry in deadlines:
+        end = parse_iso(expiry) if isinstance(expiry, str) else None
+        if title and end and end.tzinfo and now < end <= now + timedelta(days=1):
+            due.append((end, title, expiry))
+    if due:
+        lines.append(L("◆ 今天到期（未来 24 小时）", "◆ Ending in the Next 24 Hours"))
+        lines.extend(
+            f"· {title}　{_left(countdown(expiry))} ({format_time(expiry)})"
+            for _, title, expiry in sorted(due)[:12]
+        )
+    if missing:
+        lines.append(L("※ 本次未取得：", "※ Unavailable this time: ") + " / ".join(missing))
+    return L(f"Warframe 群早报 · {day}", f"Warframe Morning Digest · {day}"), lines
+
+
 def fmt_steel_path(sp: Optional[dict]) -> tuple[str, list[str]]:
     if not sp:
         return (
@@ -3951,6 +4017,12 @@ _SEASON_EN = {
     "CST_FALL": "Fall",
     "CST_WINTER": "Winter",
 }
+
+
+def calendar_season_name(season: str) -> str:
+    return L(SEASON_CN.get(season, season), _SEASON_EN.get(season, season))
+
+
 _MONTH_EN = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
 
@@ -4035,15 +4107,12 @@ def fmt_calendar(data: Optional[dict]) -> tuple[str, list[str]]:
 
     事件名的中文都来自 DE 官方简中：挑战走 ExportChallenges + 官方词表，
     奖励走 4 个命名空间 × 尾段变形，覆写走 `/Lotus/Language/1999/<尾段>Name/Desc`。
-    只有官方确实无键的条目才留英文（并在卡面加注脚说明）。
+    词表未覆盖的条目显示已取得的名称，卡底说明回退。
     """
     title = L("1999 日历", "1999 Calendar")
     if not data or not data.get("days"):
         return (title, [L("日历数据暂不可用", "Calendar data unavailable")])
-    if i18n.is_en():
-        season = _SEASON_EN.get(data.get("season", ""), str(data.get("season", "")))
-    else:
-        season = SEASON_CN.get(data.get("season", ""), str(data.get("season", "")))
+    season = calendar_season_name(str(data.get("season") or ""))
     year = data.get("yearIteration")
     lines = [
         L(f"◆ 本季：第 {year} 年 · {season}季", f"◆ Season: Year {year} · {season}")
@@ -4113,8 +4182,8 @@ def fmt_calendar(data: Optional[dict]) -> tuple[str, list[str]]:
     if nokey:
         lines.append(
             L(
-                "※ 官方无简中、保留原文：" + "、".join(nokey),
-                "※ No official text, original kept: " + ", ".join(nokey),
+                "※ 缺少简中词条，显示可用名称：" + "、".join(nokey),
+                "※ English text unavailable for: " + ", ".join(nokey),
             )
         )
     return (title, lines)
@@ -5086,6 +5155,13 @@ def _vault_head(data: dict, with_empty_hint: bool = False) -> list[str]:
                 "◆ Next rotation: schedule not yet released by DE (only the current rotation is published)",
             )
         )
+    if data.get("evergreen_unavailable"):
+        lines.append(
+            L(
+                "※ 社区源只提供本期商品，常驻货单未提供。",
+                "※ The community feed only provides the current rotation; permanent stock is unavailable.",
+            )
+        )
     return lines
 
 
@@ -5122,16 +5198,24 @@ def fmt_prime_vault(
         total = len(rows)
         pages = max(1, (total + page_size - 1) // page_size)
         page = max(1, min(page, pages))
-        lines.append(
-            L(
-                f"◆ 可兑换：本期 {len(data.get('items') or [])} + "
-                f"常驻 {len(data.get('evergreen') or [])}，共 {total} 项"
-                + (f"（第 {page}/{pages} 页，加 -2 / -3 翻页）" if pages > 1 else ""),
-                f"◆ Redeemable: {len(data.get('items') or [])} current + "
-                f"{len(data.get('evergreen') or [])} permanent, {total} total"
-                + (f" (Page {page}/{pages}, add -2 / -3 to flip pages)" if pages > 1 else ""),
+        if data.get("evergreen_unavailable"):
+            lines.append(
+                L(
+                    f"◆ 本期可兑换：{total} 项（第 {page}/{pages} 页）",
+                    f"◆ Current rotation: {total} items (page {page}/{pages})",
+                )
             )
-        )
+        else:
+            lines.append(
+                L(
+                    f"◆ 可兑换：本期 {len(data.get('items') or [])} + "
+                    f"常驻 {len(data.get('evergreen') or [])}，共 {total} 项"
+                    + (f"（第 {page}/{pages} 页，加 -2 / -3 翻页）" if pages > 1 else ""),
+                    f"◆ Redeemable: {len(data.get('items') or [])} current + "
+                    f"{len(data.get('evergreen') or [])} permanent, {total} total"
+                    + (f" (Page {page}/{pages}, add -2 / -3 to flip pages)" if pages > 1 else ""),
+                )
+            )
         lines += [
             L("◆ 兑换列表", "◆ Redemption List"),
             L(f"{S}类别{S}名称{S}价格", f"{S}Type{S}Name{S}Price"),
@@ -5321,6 +5405,10 @@ def fmt_clan_rewards(rewards: Iterable[dict]) -> tuple[str, list[str]]:
                     f"· {r.get('points')} pts　{str(r.get('name')).replace('　', ' ')}{cnt}",
                 )
             )
+    if any(w.get("next_unavailable") for w in rewards):
+        lines.append(
+            L("社区源只提供本周奖励", "The community source only provides this week's rewards")
+        )
     return (L("每周氏族组队奖励", "Weekly Clan Rewards"), lines)
 
 
@@ -7320,6 +7408,10 @@ def _fit_hints(hints: list[str], prefix: str = "※ 推荐刷取：") -> list[st
         prefix: ``※`` 行前缀 —— 宽度要算进去（部件反查卡的前缀带纪元名，
             比出库卡的长，用同一个常量会放多一个点然后折行）。
     """
+    if i18n.is_en():
+        from .drops import place_en
+
+        hints = [place_en(hint) for hint in hints]
     out: list[str] = []
     used = _hint_cells(prefix)
     for h in hints:
@@ -7409,6 +7501,10 @@ def fmt_relic_by_tier(
                 # 这一行撑到两行（实测 1829px，可用只有 1352px）。
                 by_reason: dict[str, list[str]] = {}
                 for n, why in hits:
+                    if i18n.is_en():
+                        from .drops import place_en
+
+                        why = place_en(why)
                     by_reason.setdefault(why, []).append(n)
                 shown = L("；", "; ").join(
                     L(f"{'、'.join(ns)}（{why}）", f"{', '.join(ns)} ({why})")
@@ -7798,3 +7894,215 @@ def fmt_relic_rewards(
         )
     )
     return (rtitle, lines)
+
+
+# ---------------------------------------------------------------------------
+# 刷取规划卡（「刷 Wisp Prime」）
+# ---------------------------------------------------------------------------
+_FARM_FISSURE_CAP = 8
+_FARM_STORM_CAP = 4
+
+
+def fmt_farm_plan(
+    item: str,
+    plan: dict,
+    fissures: list[dict],
+    *,
+    fissure_error: bool = False,
+    part_label=None,
+    item_name=None,
+) -> tuple[str, list[str]]:
+    """刷取规划卡：部件 → 遗物 → 最少开哪几把 → 遗物去哪刷 → 现在能开的裂隙。
+
+    Args:
+        item: 物品显示名（已按语言换好）。
+        plan: ``commands.relic._farm_plan`` 的结果。
+        fissures: 建议纪元的当前裂隙 ``[{"tier", "type", "node", "hard", "storm", "quick", "expiry"}]``。
+        fissure_error: 裂隙取不到（与「当前没有」分开说）。
+        part_label: 部件键 → 卡面部件名；item_name: 中文物品名 → 当前语言写法。
+    """
+    from . import drops as _drops
+
+    part_label = part_label or (lambda k: k)
+    item_name = item_name or (lambda s: s)
+    en = i18n.is_en()
+    S = "　"
+    parts = plan.get("parts") or []
+    picks = plan.get("picks") or []
+    n_drop = sum(1 for p in parts if p["state"] == "drop")
+    n_varzia = sum(1 for p in parts if p["state"] == "varzia")
+    n_vaulted = len(parts) - n_drop - n_varzia
+    title = L(f"刷取规划：{item}", f"Farming Plan: {item}")
+    state_txt = _PIECE_STATE_TEXT_EN if en else _PIECE_STATE_TEXT
+
+    lines = [
+        L(
+            f"◆ 结论：{len(parts)} 个部件｜可刷 {n_drop}｜仅阿耶 {n_varzia}｜已入库 {n_vaulted}",
+            f"◆ Summary: {len(parts)} part{'' if len(parts) == 1 else 's'}｜Farmable {n_drop}"
+            f"｜Varzia only {n_varzia}｜Vaulted {n_vaulted}",
+        )
+    ]
+    if picks:
+        names = L("、", ", ").join(p["relic"] for p in picks)
+        lines.append(
+            L(
+                f"◆ 建议开：{names}（{len(picks)} 把覆盖全部可刷部件）",
+                f"◆ Crack: {names} ({len(picks)} relic{' covers' if len(picks) == 1 else 's cover'} "
+                "every farmable part)",
+            )
+        )
+
+    lines += [
+        L("◆ 部件与遗物", "◆ Parts and Relics"),
+        L(f"{S}部件{S}遗物{S}槽位{S}状态", f"{S}Part{S}Relic{S}Slot{S}Status"),
+    ]
+    for p in parts:
+        rar = p["rarity"] or ""
+        rar_txt = (_RARITY_EN.get(rar, rar) if en else rar) or "—"
+        status = state_txt[p["state"]]
+        if p["others"] > 0:
+            status += L(f"（另 {p['others']} 把）", f" (+{p['others']} more)")
+        lines.append(f"· {part_label(p['key'])}{S}{p['relic'] or '—'}{S}{rar_txt}{S}{status}")
+
+    if picks:
+        lines += [
+            L("◆ 遗物去哪刷", "◆ Where to Farm the Relics"),
+            L(f"{S}遗物{S}部件{S}推荐刷取点{S}几率", f"{S}Relic{S}Part{S}Best Spot{S}Chance"),
+        ]
+        for pk in picks:
+            got = L("、", ", ").join(part_label(k) for k in pk["keys"])
+            if not pk["places"]:
+                lines.append(
+                    f"· {pk['relic']}{S}{got}{S}{L('无常规任务出处', 'No regular mission')}{S}—"
+                )
+                continue
+            head, rot, pct = pk["places"][0]
+            where = _drops.place_en(head) if en else head
+            rot_txt = L(f"{rot}轮 ", f"Rot {rot} ") if rot else ""
+            lines.append(f"· {pk['relic']}{S}{got}{S}{where}{S}{rot_txt}{pct:g}%")
+        lines.append(
+            L(
+                f"※ 其它出处发「遗物 {picks[0]['relic']}」查看",
+                f'※ For other sources send "relic {picks[0]["relic"]}"',
+            )
+        )
+
+    tiers = list(plan.get("crack_tiers") or [])
+    if tiers:
+        tiers_txt = L(" / ", " / ").join(_tier_disp(t) for t in tiers)
+        if fissure_error:
+            lines.append(
+                L(
+                    f"◆ 现在能开的裂隙（{tiers_txt}）：裂隙数据暂时取不到，稍后再查",
+                    f"◆ Open fissures ({tiers_txt}): fissure data is unavailable right now, try again later",
+                )
+            )
+        elif not fissures:
+            lines.append(
+                L(
+                    f"◆ 现在能开的裂隙（{tiers_txt}）：当前没有，可用「蹲 裂隙 {tiers[0]}」等它刷出来",
+                    f'◆ Open fissures ({tiers_txt}): none right now; use "sub fissure {_tier_disp(tiers[0])}" to get notified',
+                )
+            )
+        else:
+            # 地面裂隙：同纪元 无尽 → 速刷 → 其它（与「开核桃」同一口径），同类里普通在钢铁前；
+            # 九重天单独一节、单独排序（srank：地球 / 土星前哨战 → 其它格里尼尔 → Corpus 星域）。
+            def _ti(r):
+                return tiers.index(r["tier"]) if r["tier"] in tiers else 99
+
+            ground = sorted(
+                (r for r in fissures if not r["storm"]),
+                key=lambda r: (_ti(r), not r.get("endless"), not r["quick"], r["hard"]),
+            )
+            storms = sorted(
+                (r for r in fissures if r["storm"]),
+                key=lambda r: (_ti(r), r.get("srank", 0)),
+            )
+
+            def _fis_line(r):
+                marks = " ".join(
+                    x
+                    for x in (
+                        L("钢铁", "Steel Path") if r["hard"] else "",
+                        L("无尽", "Endless") if r.get("endless") else "",
+                        L("速刷", "Quick") if r["quick"] else "",
+                    )
+                    if x
+                )
+                return (
+                    f"· [{_tier_disp(r['tier'])}]{S}{r['type'] or ''}{S}{r['node']}{S}{marks}{S}"
+                    + _left(countdown(r["expiry"]), "剩")
+                )
+
+            head = L(f"{S}纪元{S}类型{S}节点{S}标记{S}剩余", f"{S}Era{S}Type{S}Node{S}Tags{S}Left")
+            g_shown = ground[:_FARM_FISSURE_CAP]
+            s_shown = storms[:_FARM_STORM_CAP]
+            if g_shown:
+                lines += [
+                    L(f"◆ 现在能开的裂隙（{tiers_txt}）", f"◆ Open Fissures ({tiers_txt})"),
+                    head,
+                    *(_fis_line(r) for r in g_shown),
+                ]
+                if any(r.get("endless") for r in g_shown):
+                    lines.append(
+                        L(
+                            "※ 无尽 = 每轮能换一把遗物接着开，第 5 / 10 轮还送随机遗物，同纪元排前；"
+                            "速刷 = 只开一两把时挑它",
+                            "※ Endless fissures first within each era: crack a new relic every rotation, "
+                            "bonus relics at rounds 5 / 10; pick Quick ones for just one or two",
+                        )
+                    )
+            if s_shown:
+                lines += [
+                    L(f"◆ 九重天裂隙（{tiers_txt}）", f"◆ Void Storm Fissures ({tiers_txt})"),
+                    head,
+                    *(_fis_line(r) for r in s_shown),
+                    L(
+                        "※ 九重天：做完可在导航台直接接下一场，结算还多一份奖励；首选地球 / 土星前哨战"
+                        "（全程太空最快），Corpus 星域要登舰，慢，排最后",
+                        "※ Void Storms: start the next one from the navigation console, plus an extra reward; "
+                        "Earth / Saturn Proxima Skirmishes are fastest (all in space), Corpus Proxima ones "
+                        "need boarding and come last",
+                    ),
+                ]
+            more = len(ground) - len(g_shown) + len(storms) - len(s_shown)
+            if more:
+                lines.append(
+                    L(
+                        f"※ 另有 {more} 场未列出，发「开核桃」看全部",
+                        f'※ {more} more not shown; send "openrelic" for all',
+                    )
+                )
+
+    # 注释：只写和这张卡有关的
+    if n_vaulted:
+        sample = next(p["key"] for p in parts if p["state"] == "vaulted")
+        lines.append(
+            L(
+                f"※ 已入库的部件任务里刷不到，只能交易：例如「wm {item_name(sample)}」",
+                f'※ Vaulted parts cannot be farmed, only traded: e.g. "wm {item_name(sample)}"',
+            )
+        )
+    if parts and not n_drop and not n_varzia:
+        lines.append(
+            L(
+                "※ 整套都已入库：留意阿耶（Varzia）轮换，或等 DE 重新出库",
+                "※ The whole set is vaulted: watch Varzia's rotation or wait for DE to unvault it",
+            )
+        )
+    if n_varzia:
+        lines.append(
+            L(
+                "※ 仅阿耶兑换：遗物用阿耶精华在阿耶（Varzia）那里换，换到后同样进对应纪元的裂隙开",
+                "※ Varzia only: trade Aya for the relic at Varzia, then crack it in a fissure of its era",
+            )
+        )
+    if picks:
+        lines.append(
+            L(
+                "※ 刷取点按单次奖励几率排序（耐久任务的 B/C 轮按半数计）；建议遗物优先选部件在常见槽的",
+                "※ Spots are ranked by per-reward chance (endless B/C rotations count half); "
+                "relics with the part in a Common slot are preferred",
+            )
+        )
+    return title, lines

@@ -339,10 +339,10 @@ async def dispatch_scenarios():
     )
 
 
-_real_local_now = push_mod._local_now
-push_mod._local_now = lambda: datetime(2026, 9, 24, 14, 0, 0)  # 周四 14:00
+_real_local_now = PushDaemon._subscription_time
+PushDaemon._subscription_time = lambda _self, _now: datetime(2026, 9, 24, 14, 0, 0)  # 周四 14:00
 asyncio.run(dispatch_scenarios())
-push_mod._local_now = _real_local_now
+PushDaemon._subscription_time = _real_local_now
 
 
 # ---------------------------------------------------------------------------
@@ -1044,7 +1044,7 @@ def _zmk(groups=None, state_path=None, interval=45):
 
 
 _BJ = timezone(timedelta(hours=8))
-_ALWAYS = lambda: datetime(2026, 10, 12, 14, 0, tzinfo=_BJ)  # noqa: E731  周一 14:00 北京时间
+_ALWAYS = lambda _self, _now: datetime(2026, 10, 12, 14, 0, tzinfo=_BJ)  # noqa: E731  周一 14:00 北京时间
 _Z_BOUNTY_EXT = "/Lotus/Types/Challenges/Zariman/ZarimanExterminateFastCompleteChallenge"
 _Z_BOUNTY_SURV = "/Lotus/Types/Challenges/Zariman/ZarimanSurvivalAbove50Challenge"
 
@@ -1358,23 +1358,27 @@ def z_time_window_cases():
         "P2-2 护栏：越界写法不解析",
         parse_time_window("25到8") is None and parse_time_window("每天25点") is None,
     )
-    # 北京时间与服务器时区无关
     old = os.environ.get("TZ")
+    daemon = object.__new__(PushDaemon)
     try:
-        got = []
-        for tz in ("America/Los_Angeles", "UTC", "Asia/Tokyo"):
-            os.environ["TZ"] = tz
-            time.tzset()
-            got.append(push_mod._local_now().utcoffset())
-        check(
-            "★ P2-2 _local_now 恒为 UTC+8，不随服务器时区变",
-            all(g == timedelta(hours=8) for g in got),
-            str(got),
-        )
         os.environ["TZ"] = "America/Los_Angeles"
         time.tzset()
-        skew = abs((push_mod._local_now() - datetime.now(timezone.utc)).total_seconds())
-        check("P2-2 _local_now 是「现在」（与 UTC 同一时刻，仅时区表示不同）", skew < 5, str(skew))
+        summer = datetime(2026, 7, 1, tzinfo=timezone.utc)
+        winter = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        daemon.display_timezone = "system"
+        check(
+            "系统时区按事件日期应用夏令时",
+            daemon._subscription_time(summer.timestamp()).utcoffset() == timedelta(hours=-7)
+            and daemon._subscription_time(winter.timestamp()).utcoffset() == timedelta(hours=-8),
+        )
+        daemon.display_timezone = "UTC+05:30"
+        start = datetime(2026, 11, 13, 16, 30, tzinfo=timezone.utc)
+        window = TimeWindow(start=22, end=8, days={5})
+        check(
+            "半小时偏移在 16:30 UTC 进入周五 22:00 窗口",
+            not window.allows(daemon._subscription_time(start.timestamp() - 1))
+            and window.allows(daemon._subscription_time(start.timestamp())),
+        )
     finally:
         if old is None:
             os.environ.pop("TZ", None)
@@ -2279,17 +2283,17 @@ async def z_storm_and_misc_scenarios():
     await d.tick()
     cl.data["bounty"]["expiry"] = "200"
     await d.tick()  # 14:00 在窗外：换轮事件被丢弃
-    real = push_mod._local_now
-    push_mod._local_now = lambda: datetime(2026, 10, 12, 21, 0, tzinfo=_BJ)
+    real = PushDaemon._subscription_time
+    PushDaemon._subscription_time = lambda _self, _now: datetime(2026, 10, 12, 21, 0, tzinfo=_BJ)
     try:
         await d.tick()
     finally:
-        push_mod._local_now = real
+        PushDaemon._subscription_time = real
     check("★ P3-5b 窗口外的订阅进入窗口后不补推当前轮", box == [], str(box))
 
 
-_real_ln = push_mod._local_now
-push_mod._local_now = _ALWAYS
+_real_ln = PushDaemon._subscription_time
+PushDaemon._subscription_time = _ALWAYS
 try:
     asyncio.run(z_baseline_scenarios())
     asyncio.run(z_dispatch_scenarios())
@@ -2303,7 +2307,7 @@ try:
     asyncio.run(z_cancel_scenarios())
     asyncio.run(z_storm_and_misc_scenarios())
 finally:
-    push_mod._local_now = _real_ln
+    PushDaemon._subscription_time = _real_ln
 z_time_window_cases()
 
 
@@ -2426,14 +2430,14 @@ def z_arbi_low_sample_label():
         a._ARBI_ONLY.update(real_only)
 
 
-_real_ln2 = push_mod._local_now
-push_mod._local_now = _ALWAYS
+_real_ln2 = PushDaemon._subscription_time
+PushDaemon._subscription_time = _ALWAYS
 try:
     asyncio.run(z_arbi_expired())
     asyncio.run(z_arbi_tier_note())
     asyncio.run(z_arbi_low_sample())
 finally:
-    push_mod._local_now = _real_ln2
+    PushDaemon._subscription_time = _real_ln2
 z_arbi_low_sample_label()
 
 # ★ V03（2026-10-21）：用户用记事本手改存档会带 UTF-8 BOM —— 必须照常读出，不能当坏文件隔离

@@ -44,6 +44,10 @@ CHALLENGES_URL = f"{BASE}/ExportChallenges.json"
 UPGRADES_URL = f"{BASE}/ExportUpgrades.json"
 RECIPES_URL = f"{BASE}/ExportRecipes.json"
 FACTIONS_URL = f"{BASE}/ExportFactions.json"
+FULL_LANGUAGE_EN_URL = (
+    "https://raw.githubusercontent.com/calamity-inc/warframe-languages-bin-data/"
+    "7f12e5fd33f72d9d2689f47ec0871c817266e603/en.json"
+)
 
 DATA = Path(__file__).resolve().parent / "core" / "data" / "de"
 
@@ -72,6 +76,23 @@ def build_languages(dict_zh: dict, oracle: dict) -> dict:
         if isinstance(v, str) and k.startswith("/Lotus/Language/") and k not in merged:
             merged[k] = v
     return merged
+
+
+def supplement_worldstate_en(lang: dict, full: dict) -> dict:
+    """从客户端词表补充 Public Export 缺少的日历覆写和 Tau 活动原文。"""
+    tau_keys = {
+        "/Lotus/Language/TauPrologue/RoadToTauEventResourceName",
+        "/Lotus/Language/TauPrologue/RoadToTauEventName",
+        "/Lotus/Language/TauPrologue/RoadToTauShortEventDesc",
+    }
+    return lang | {
+        k: v
+        for k, v in full.items()
+        if (k.startswith("/Lotus/Language/1999/") or k in tau_keys)
+        and k not in lang
+        and isinstance(v, str)
+        and v
+    }
 
 
 def build_nodes(regions: dict, lang: dict) -> dict:
@@ -349,7 +370,9 @@ def main_en(check_only: bool) -> None:
     print("抓取官方导出（英文）...")
     dict_en = fetch(f"{BASE}/dict.en.json")
     oracle = fetch("https://oracle.browse.wf/dicts/en.json")
-    lang = _drop_release_sensitive(build_languages(dict_en, oracle))
+    lang = _drop_release_sensitive(
+        supplement_worldstate_en(build_languages(dict_en, oracle), fetch(FULL_LANGUAGE_EN_URL))
+    )
     nodes = build_nodes(fetch(REGIONS_URL), lang)
     bounty_jobs = build_bounty_jobs(fetch(BOUNTIES_URL), lang)
     mts = build_mission_types(fetch(MISSIONS_URL), lang)

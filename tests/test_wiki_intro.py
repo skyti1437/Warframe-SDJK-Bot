@@ -21,6 +21,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from core import matching as M  # noqa: E402
+from core import i18n  # noqa: E402
 from core import search as S  # noqa: E402
 from core import wiki_intro as WI  # noqa: E402
 import importlib.util as _ilu  # noqa: E402
@@ -462,6 +463,7 @@ _CONCEPT = {
     "奸商",
     "新服",
     "新手",
+    "夜灵平原",  # 2026-11-10：玩家叫法，指向官方「夜灵平野」概念页
 }  # 概念页：中文标题已核对存在
 _bad_titles = [
     k
@@ -691,8 +693,10 @@ check(
     str(_res["Balla"]),
 )
 check(
-    "wiki 仲裁 → 仲裁（搜索直达），不是仲裁雕像",
-    _res["仲裁"][0] == "仲裁" and "search=" in _res["仲裁"][1],
+    "wiki 仲裁 → 仲裁，链到英文 wiki Arbitration（2026-11-10 起默认英文 wiki），不是仲裁雕像",
+    _res["仲裁"][0] == "仲裁"
+    and "wiki.warframe.com/w/Arbitration" in _res["仲裁"][1]
+    and "雕像" not in _res["仲裁"][0],
     str(_res["仲裁"]),
 )
 check("wiki Arbitration → 仲裁", _res["Arbitration"][0] == "仲裁", str(_res["Arbitration"]))
@@ -1319,6 +1323,44 @@ with _tempfile.TemporaryDirectory() as _td:
         )
     finally:
         _BIZ.MAX_LEN = _saved_cap
+
+with i18n.use_lang("en"):
+    _, _mod_lines = WI.card_for("Melee Prowess")
+    _, _recipe_lines = WI.card_for("Wanz Stabilizer")
+    _, _drop_lines = WI.card_for("Ambassador")
+    _, _passive_lines = WI.card_for("Ivara Prime")
+    _frost_lines = [WI.card_for(name)[1] for name in ("Frost", "Frost Prime")]
+    _title_only, _ = WI.card_for("齐乌")
+check(
+    "英文 MOD 效果与满级、0 级逐项对应",
+    "◆ Effect (Max Rank 10): +165% Status Chance" in _mod_lines
+    and "◆ Effect (Rank 0): +15% Status Chance" in _mod_lines,
+)
+check(
+    "英文配方按产物资产与数量匹配",
+    "◆ Build Materials: Wanz Stabilizer Blueprint ×1｜Circuits ×600｜Nitain Extract ×3"
+    "｜Salvage ×2500｜Thaumic Distillate ×20" in _recipe_lines,
+)
+check(
+    "英文掉落来源采用固定快照原名并保留掉率",
+    "· Venus/Luckless Expanse (Skirmish), Rotation C　12.5%" in _drop_lines,
+)
+check("英文被动填入已核对的半径", "◆ Passive: Senses nearby enemies within 50m." in _passive_lines)
+check(
+    "Frost 与 Frost Prime 英文被动填入同键数值",
+    all(
+        any(
+            line.startswith("◆ Passive:") and "100% longer" in line and "50 Armor" in line
+            for line in lines
+        )
+        for lines in _frost_lines
+    ),
+    str(_frost_lines),
+)
+check("英文标题采用同一语言键", _title_only == "Zid-an Uskos")
+with i18n.use_lang("zh"):
+    _, _recipe_zh = WI.card_for("Wanz Stabilizer")
+check("中文配方仍显示原材料和数量", any("电路" in ln and "2500" in ln for ln in _recipe_zh))
 
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")

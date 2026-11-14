@@ -129,8 +129,30 @@ class RivenCommands:
                 ),
                 title=L("玄骸拍卖", "Lich Weapon Auctions"),
             )
-        first = toks[0]
-        slug = self.client.resolve_lich_weapon(first) or await self._lich_slug_by_riven(first)
+        max_words = max(
+            (len(name.split()) for name in self.client._aliases.get("lich_items", {})), default=1
+        )
+        first, used, slug = toks[0], 1, None
+        for size in range(min(max_words, len(toks)), 1, -1):
+            candidate = " ".join(toks[:size])
+            slug = self.client.resolve_lich_weapon(candidate, fuzzy=False)
+            if slug:
+                first, used = candidate, size
+                break
+        if not slug:
+            if len(toks) > 1 and first.casefold() in {
+                "kuva",
+                "tenet",
+                "coda",
+                "赤毒",
+                "信条",
+                "终幕",
+            }:
+                first = parsed.content_str
+            else:
+                slug = self.client.resolve_lich_weapon(first) or await self._lich_slug_by_riven(
+                    first
+                )
         if not slug:
             near = fuzzy_hits(first, list(self.client._aliases.get("lich_items", {})), n=3) or []
             return err_card(
@@ -147,8 +169,8 @@ class RivenCommands:
         info = self.client.lich_weapon_info(slug)
         name = (info.get("en") or slug) if is_en() else (info.get("zh") or slug)
         kind = info.get("type") or "lich"
-        toks_tail = toks[1:]
-        want_eph = any("幻纹" in t for t in toks_tail)
+        toks_tail = toks[used:]
+        want_eph = any("幻纹" in t or t.casefold() == "ephemera" for t in toks_tail)
         elem_cn, elem_en = _xh_element(toks_tail)
         min_dmg = next(
             (

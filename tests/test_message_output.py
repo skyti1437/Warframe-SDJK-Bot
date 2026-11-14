@@ -681,6 +681,238 @@ class OutputTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("11-11 01:45 UTC+05:30", text)
         self.assertIn("快照 2026-11-11 01:45 UTC+05:30", text)
 
+    async def test_saved_subscription_zone_applies_to_next_tick_and_legacy_records(self):
+        from core.store import SubscriptionStore
+
+        def stamp(hour, minute, day=13):
+            return datetime(2026, 11, day, hour, minute, tzinfo=timezone.utc).timestamp()
+
+        class Config(dict):
+            def save_config(self):
+                return None
+
+        event = Event("aiocqhttp", "subscribe fissures fri 22-8 forever -en -w")
+        umo = event.unified_msg_origin
+        obj = new_plugin()
+        obj._routes = obj._build_routes()
+        obj._is_admin = lambda _event: True
+        obj.cfg["display_timezone"] = "UTC+08:00"
+        obj._config = Config(obj.cfg)
+        clock = stamp(11, 58)
+        attempts = []
+        fail_english_once = True
+
+        async def send(_umo, text, at=None):
+            nonlocal fail_english_once
+            attempts.append(text)
+            if "New Fissure" in text and fail_english_once:
+                fail_english_once = False
+                return False
+            return True
+
+        def fissure(id):
+            return {
+                "id": id,
+                "node": "Teshub (Void)",
+                "missionType": "Capture",
+                "tier": "Lith",
+                "tierNum": 1,
+                "expiry": "2026-11-15T00:00:00Z",
+            }
+
+        with tempfile.TemporaryDirectory() as td, patch("time.time", side_effect=lambda: clock):
+            root = Path(td)
+            path = root / "subscriptions.json"
+            path.write_text(
+                json.dumps(
+                    [
+                        {
+                            "sid": "legacy",
+                            "umo": umo,
+                            "platform": "pc",
+                            "event": "裂隙",
+                            "until": stamp(16, 0, 14),
+                            "once": False,
+                            "windows": {"days": [5], "start": 22, "end": 8},
+                        }
+                    ]
+                )
+            )
+            obj.groups = plugin.GroupStore(root / "groups.json")
+            await obj.groups.set_switch(umo, "push", True)
+            obj.subs = SubscriptionStore(path)
+            obj.client = types.SimpleNamespace(
+                fissures=AsyncMock(return_value=[fissure("initial")]),
+                cache=types.SimpleNamespace(stats=lambda: {"size": 0, "hit_rate": 0}),
+            )
+            obj.push = plugin.PushDaemon(
+                obj.client,
+                obj.subs,
+                send,
+                plugin.logger,
+                groups=obj.groups,
+                display_timezone=obj.cfg["display_timezone"],
+            )
+            panel = plugin.WebPanel(obj, "fixture")
+            panel._query = lambda _key, default: default
+            panel._body = AsyncMock(return_value={"changes": {"display_timezone": "UTC+10:00"}})
+
+            text = "\n".join(body_parts(await consume(obj, event, obj.on_message(event))))
+            self.assertIn("22:00-8:00 next day Fri (UTC+08:00)", text)
+            await obj.push.tick()
+            clock = stamp(11, 59)
+            obj.client.fissures.return_value = [fissure("before")]
+            await obj.push.tick()
+            self.assertEqual(attempts, [])
+
+            self.assertEqual((await panel.settings_save())["need_reload"], [])
+            overview = await panel.overview()
+            self.assertEqual(overview["display_timezone"]["offset_minutes"], 600)
+            rows = overview["subs"]["sessions"][0]["subs"]
+            legacy_row = next(row for row in rows if row["sid"] == "legacy")
+            self.assertEqual(legacy_row["until"], stamp(16, 0, 14))
+            self.assertEqual(
+                legacy_row["window"], {"zh": "22:00-次日8:00 周5", "en": "22:00-8:00 next day Fri"}
+            )
+            event = Event("aiocqhttp", ".状态 -en -w")
+            text = "\n".join(body_parts(await consume(obj, event, obj.on_message(event))))
+            self.assertIn("Subscription Details (UTC+10:00)", text)
+            self.assertIn("22:00-8:00 next day Fri", text)
+            self.assertIn("11-15 02:00 UTC+10:00", text)
+
+            clock = stamp(12, 0)
+            obj.client.fissures.return_value = [fissure("start")]
+            await obj.push.tick()
+            self.assertEqual(len(attempts), 2)
+            self.assertEqual(len(obj.push._pending), 1)
+            clock = stamp(12, 1)
+            await obj.push.tick()
+            self.assertEqual(len(attempts), 3)
+            self.assertEqual(obj.push._pending, [])
+
+            clock = stamp(21, 59)
+            obj.client.fissures.return_value = [fissure("last-minute")]
+            await obj.push.tick()
+            self.assertEqual(len(attempts), 5)
+            clock = stamp(22, 0)
+            obj.client.fissures.return_value = [fissure("closed")]
+            await obj.push.tick()
+            self.assertEqual(len(attempts), 5)
+            legacy = next(s for s in SubscriptionStore(path).all() if s.sid == "legacy")
+            self.assertEqual(legacy.windows, {"days": [5], "start": 22, "end": 8})
+            self.assertEqual(legacy.until, stamp(16, 0, 14))
+
+    async def test_calendar_and_tenet_from_chat_in_both_languages(self):
+        from core.api_client import DEFAULT_DE_WORLDSTATE, WarframeClient
+
+        now = datetime(2026, 11, 11, 2, tzinfo=timezone.utc)
+        blueprint = "/Lotus/StoreItems/Types/Recipes/Components/FormaAuraBlueprint"
+        refs = (
+            "/Lotus/Upgrades/Calendar/GuidingMissilesChance",
+            "/Lotus/Upgrades/Calendar/EnergyOrbsGrantShield",
+        )
+        raw = {
+            "Time": int(now.timestamp()),
+            "KnownCalendarSeasons": [
+                {
+                    "Season": "CST_FALL",
+                    "YearIteration": 24,
+                    "Days": [
+                        {
+                            "day": 316,
+                            "events": [{"type": "CET_UPGRADE", "upgrade": r} for r in refs],
+                        },
+                        {"day": 356, "events": [{"type": "CET_REWARD", "reward": blueprint}]},
+                    ],
+                }
+            ],
+        }
+        community = {
+            "timestamp": now.isoformat(),
+            "fissures": [],
+            "sortie": {},
+            "nightwave": {},
+            "voidTrader": {"activation": "2026-11-13T00:00:00Z", "expiry": "2026-11-15T00:00:00Z"},
+            "constructionProgress": {"fomorianProgress": 0, "razorbackProgress": 0},
+            "calendar": {
+                "season": "fall",
+                "yearIteration": 24,
+                "days": [
+                    {
+                        "date": "1999-11-12",
+                        "events": [
+                            {"type": "Override", "upgrade": {"title": "Tickshots"}},
+                            {
+                                "type": "Override",
+                                "upgrade": {
+                                    "title": "Energy Orbs Grant Shield",
+                                    "description": "[PH] Energy Orbs Grant Shield Desc",
+                                },
+                            },
+                        ],
+                    },
+                    {
+                        "date": "1999-12-22",
+                        "events": [
+                            {
+                                "type": "Big Prize!",
+                                "reward": "Aura Forma Blueprint",
+                                "uniqueName": blueprint,
+                            }
+                        ],
+                    },
+                ],
+            },
+        }
+
+        async def fetch(url, *, validator=None, **kwargs):
+            payload = raw if url == DEFAULT_DE_WORLDSTATE else community
+            if validator:
+                validator(payload)
+            return payload
+
+        obj = new_plugin()
+        obj._routes = obj._build_routes()
+        with tempfile.TemporaryDirectory() as td, patch("time.time", return_value=now.timestamp()):
+            obj.groups = plugin.GroupStore(Path(td) / "groups.json")
+            for source in ("de", "warframestat"):
+                client = obj.client = WarframeClient(worldsource=source)
+                client._fetch_json = fetch
+                client.wm_items = AsyncMock(return_value=[])
+                try:
+                    for command, wanted in (
+                        ("日历 -cn", ("全能 Forma 蓝图", "充能护盾", "缺少简中词条")),
+                        (
+                            "calendar -en",
+                            ("Omni Forma Blueprint", "Powered Shields", "+100 shields"),
+                        ),
+                    ):
+                        event = Event("aiocqhttp", command + " -w")
+                        text = "\n".join(
+                            body_parts(await consume(obj, event, obj.on_message(event)))
+                        )
+                        self.assertTrue(event.stopped, (source, command))
+                        for value in ("Tickshots", *wanted):
+                            self.assertIn(value, text, (source, command))
+                        for value in ("Guiding Missiles Chance", "[PH]", "Aura Forma"):
+                            self.assertNotIn(value, text, (source, command))
+                finally:
+                    await client.close()
+            for command, wanted, currency in (
+                ("信条 -cn -w", "不消耗声望", "40 个堕落全息密钥"),
+                (
+                    "tenet -en -w",
+                    "Ergo Glast sells these weapons at Relays without a Standing cost.",
+                    "40 Corrupted Holokeys",
+                ),
+            ):
+                event = Event("aiocqhttp", command)
+                text = "\n".join(body_parts(await consume(obj, event, obj.on_message(event))))
+                self.assertIn(wanted, text)
+                self.assertIn(currency, text)
+                if "-en" in command:
+                    self.assertNotIn("不消耗声望", text)
+
     async def test_arbitration_uses_display_zone_for_table_and_today_filter(self):
         from core.i18n import use_lang
 

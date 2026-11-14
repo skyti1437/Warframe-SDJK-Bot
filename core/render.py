@@ -783,6 +783,10 @@ CARD_W_TABLE_MAX = 1500
 # （如「蒙面者的经纬仪号」船员套服袖件）会让 Σ列宽超过 1500 → 安全阀关掉列对齐、左右挤成一团。
 # 只对这张卡放宽，宁可卡宽也保住列对齐；其他卡不受影响。
 CARD_W_BARO_MAX = 2000
+# 裂隙类列表卡（开核桃 / 刷取规划）专用上限（2026-11-09 维护者：「宽度上限可以适当增加」）：
+# 九重天节点英文名很长（「Enkidu Ice Drifts (Neptune Proxima)」），再加派系与两枚标记芯片，
+# 网格超过 1500 → 块内列对齐放弃、表头退化成正文。只对这两张卡放宽。
+CARD_W_FISSURE_MAX = 1800
 FS_BODY, FS_NOTE, FS_TITLE = 30, 24, 44  # 正文 / 注释 / 标题字号
 RH_ROW, RH_CONT, RH_NOTE, RH_SEC = 50, 40, 36, 58  # 行高：正文 / 续行 / 注释 / 分区标题
 
@@ -1317,13 +1321,17 @@ _TOKEN_RE = re.compile(
     + _W_R_ZH
     + r"|九重天|速刷|执刑官"
     + _W_R_ZH
+    # 「无尽」只在独立成词时做芯片：不吃「无尽回廊」，也不吃掉落地点「双衍王境/无尽:」
+    + r"|(?<![\u4e00-\u9fff/])无尽(?![\u4e00-\u9fff])"
     + r"|满级|零级"
     r"|\d+日\d+时"
     r"|(?:I系|C系|G系|O系)"
+    + r"|"
+    + _word_alt(("夜晚", "夜间", "白天", "白昼", "温暖", "寒冷"))
     # 语义配色：任务类型 / 元素 / 派系 / 加成百分比（见上面的说明）
     # ⚠️ 必须排在旧分组**前面**（尤其派系要压过原来的「低语」），
     #    alternation 是「先匹配先赢」，排在后面就会被短词抢先。
-    r"|"
+    + r"|"
     + _word_alt(FACTION_WORDS)
     + r"|"
     + _word_alt(MISSION_TYPE_WORDS)
@@ -1427,8 +1435,10 @@ _TOKEN_RE_EN = re.compile(
     r"|(?:^|(?<=[\s　｜(]))Rep \d+(?=[\s　｜),.:;]|$)"  # 卖家信誉，对应中文「信46」
     r"|(?:^|(?<=[\s　｜(]))(?:Web Online|Online|In Game|Offline)(?=[\s　｜),.:;]|$)"
     r"|(?:^|(?<=[\s　｜(]))(?:Steel Path|Archon|Void Storms)(?=[\s　｜),.:;]|$)"
+    # 「Quick / Endless」只在标记列（后接全角空格或行尾）做芯片，避开 Quick Thinking 这类名字
+    r"|(?:^|(?<=[\s　]))(?:Quick|Endless)(?=　|$| (?:Quick|Endless)(?:　|$))"
     r"|(?:^|(?<=[\s　｜(]))(?:Max Rank|Unranked)(?=[\s　｜),.:;]|$)"
-    r"|(?:^|(?<=[\s　｜(]))(?:Day|Night|Warm|Cold)(?!\s*\d)(?=[\s　｜),.:;]|$)"
+    r"|(?:^|(?<=[\s　｜(]))(?:Cold|(?:Day|Night|Warm)(?!\s*\d))(?=[\s　｜),.:;]|$)"
     r"|(?:^|(?<=[\s　｜(]))(?:Fass|Vome)(?: \((?:Day|Night)\))?(?=[\s　｜),.:;]|$)"
     r"|(?:^|(?<=[\s　｜(]))Arrived(?=[\s　｜),.:;]|$)"
     + r"|"
@@ -1478,6 +1488,7 @@ _AGE_RE = _LRe(
 # （只有渲染层知道真实字形宽度；formatter 端按 CJK=2 / ASCII=1 手算会差出一个字，
 #  玩家反馈「没对齐真的好丑」就是这么来的）。
 _PAIR_RE = re.compile(r"^[^\s　]+ [\d.]+%\Z")
+_COLD_BONUS_RE = re.compile(r"\s+\d+(?:\.\d+)?%")
 
 # 原内联在 _render 里的三个热路径正则提升为模块常量（每次渲染少过一遍
 # re 模块的缓存查找；语义逐字节不变）。
@@ -1574,9 +1585,11 @@ _MARK_CHIPS: dict[str, tuple[int, int, int]] = {
     "钢铁": RED,
     "九重天": CYAN,
     "速刷": GREEN,
+    "无尽": VIOLET,
     "Steel Path": RED,
     "Void Storms": CYAN,
     "Quick": GREEN,
+    "Endless": VIOLET,
 }
 
 # token 文本 -> (是否方括号词条, 能否做芯片, 芯片色, 语义配色或 None)
@@ -2369,6 +2382,9 @@ class ImageRenderer:
         # 奸商卡：正文全是商品名 ——「净化 Corpus Prime」的「净化」不是任务类型、
         # 「冲击」类 MOD 名也不是元素，词表染色在这张卡上只会误染（2026-10-16 用户截图）
         self._baro_mode = "虚空商人" in title or (bool(_tl) and "void trader" in _tl)
+        self._fissure_grid_mode = any(k in title for k in ("开核桃建议", "刷取规划")) or (
+            bool(_tl) and ("crack relics" in _tl or "farming plan" in _tl)
+        )
         # 侵袭卡的 4 列（类型/派系/等级/地点）走既有列对齐机制；
         # 价格榜 / 紫卡热度榜的多列数字同样按全角空格切列对齐
         # 遗物三张列表卡（入库/出库/列表）同样是网格排版：不开这个模式的话
@@ -2613,8 +2629,19 @@ class ImageRenderer:
         elif grid_need:
             # 列表网格（自动列对齐）放不进常规卡宽时，同表格卡一样放宽到 1500，
             # 宁可卡宽也不放弃对齐（对齐是这类行的存在意义）
-            w_cap = int(max(CARD_W_MAX, min(CARD_W_TABLE_MAX, int(grid_need + pad * 2 + 56) + 1)))
+            _grid_cap = (
+                CARD_W_FISSURE_MAX
+                if getattr(self, "_fissure_grid_mode", False)
+                else CARD_W_TABLE_MAX
+            )
+            # 裂隙卡的网格估算比块内实际对齐所需略小（标记芯片的内边距没计入），留 60px 余量，
+            # 否则卡宽正好卡在估算值上、块内对齐差几十像素又被放弃
+            _slack = 60 if getattr(self, "_fissure_grid_mode", False) else 0
+            w_cap = int(max(CARD_W_MAX, min(_grid_cap, int(grid_need + pad * 2 + 56 + _slack) + 1)))
         W = int(max(CARD_W_MIN, min(w_cap, needed + pad * 2 + 96)))
+        if grid_need and getattr(self, "_fissure_grid_mode", False):
+            # 裂隙卡：卡宽至少取到网格所需（含余量），保住块内列对齐；小卡不被撑到上限
+            W = max(W, min(w_cap, int(grid_need + pad * 2 + 56 + 60) + 1))
         W = int(max(W, min(title_min + 120, w_cap)))
         # ★ 2026-10-24 Claude 审「词条范围」四列表：w_cap 已按表格总宽放到 ≤1500，但 W 只按逐行
         #   文字宽算 ⇒ 表格总宽 > W 时最宽的行被折行（折点还会切进染段标记，露出「⟦/w⟧」）。
@@ -4195,6 +4222,9 @@ class ImageRenderer:
             # 上色判定走模块级记忆化（_token_style，与旧版逐条试规则等价）：
             # has_inner / chip_capable / chip_color / special_color
             has_inner, chip_capable, chip_color, special = _token_style(tok)
+            # 英文 Cold 既是奥布山谷的状态，也用于「Cold 32%」的元素加成。
+            if tok == "Cold" and _COLD_BONUS_RE.match(text, m.end()):
+                special = ELEMENT_COLOR
             color, chip = base_color, False
             if has_inner:
                 if not plain_body and chip_ok and chip_capable:

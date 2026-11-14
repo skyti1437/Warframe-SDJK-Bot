@@ -585,6 +585,63 @@ class MessagingTests(unittest.IsolatedAsyncioTestCase):
         await self.bridge.close()
         self.assertTrue(view.stopped)
 
+    async def test_discord_click_survives_host_pre_ack(self):
+        # AstrBot 4.29.4 起宿主会对所有按钮点击抢先 defer：被抢先应答时仍要分发，超时等其它错误维持原行为
+        event = Event("discord", target="880")
+        channel = NS(send=AsyncMock())
+        event.client = NS(get_channel=lambda target: channel)
+        await self.bridge.send_actions(event, [Action("状态", ".状态"), Action("帮助", "帮助")])
+        view = channel.send.call_args.kwargs["view"]
+
+        class Acked(Exception):
+            code = 40060
+
+        done = NS(
+            user=NS(id="u1", display_name="甲"),
+            channel_id=880,
+            id=31,
+            response=NS(is_done=lambda: True, defer=AsyncMock(), send_message=AsyncMock()),
+            followup=NS(send=AsyncMock()),
+        )
+        await view.children[0].callback(done)
+        done.response.defer.assert_not_awaited()
+        self.assertEqual(len(self.adapter.events), 1)
+
+        raced = NS(
+            user=NS(id="u1", display_name="甲"),
+            channel_id=880,
+            id=32,
+            response=NS(
+                is_done=lambda: False,
+                defer=AsyncMock(side_effect=Acked()),
+                send_message=AsyncMock(),
+            ),
+            followup=NS(send=AsyncMock()),
+        )
+        await view.children[1].callback(raced)
+        self.assertEqual(len(self.adapter.events), 2)
+
+        await self.bridge.send_actions(event, [Action("状态", ".状态")])
+        view2 = channel.send.call_args.kwargs["view"]
+        slow = NS(
+            user=NS(id="u1", display_name="甲"),
+            channel_id=880,
+            id=33,
+            response=NS(
+                defer=AsyncMock(side_effect=asyncio.TimeoutError()), send_message=AsyncMock()
+            ),
+            followup=NS(send=AsyncMock()),
+        )
+        with self.assertRaises(asyncio.TimeoutError):
+            await view2.children[0].callback(slow)
+        self.assertEqual(len(self.adapter.events), 2)
+
+        # 过期 / 重复点击的提示：宿主已应答时改用 followup 发
+        await view.children[0].callback(done)
+        done.followup.send.assert_awaited()
+        self.assertTrue(done.followup.send.call_args.kwargs.get("ephemeral"))
+        await self.bridge.close()
+
     async def test_kook_bridge_preserves_unrelated_events_and_uses_body_user(self):
         previous = AsyncMock()
         client = NS(event_callback=previous, send_text=AsyncMock())

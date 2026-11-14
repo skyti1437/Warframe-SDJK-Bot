@@ -787,6 +787,42 @@ for _w in ("钢铁", "九重天", "速刷"):
         f"标记芯片：「{_w}」可切成独立 token 且有芯片色",
         _w in R._MARK_CHIPS and R._TOKEN_RE.search(f"Grineer　{_w}　剩9分钟") is not None,
     )
+# ★ 2026-11-09「无尽 / Endless / Quick」标记芯片：只在独立成词（标记列）时生效
+from core import i18n as _i18n_mark  # noqa: E402
+
+check(
+    "标记芯片：「无尽」独立成词时是芯片",
+    "无尽" in R._MARK_CHIPS
+    and [m.group(0) for m in R._TOKEN_RE.finditer("Grineer　无尽　剩9分钟")].count("无尽") == 1,
+)
+check(
+    "标记芯片反例：「无尽回廊」不拆出「无尽」",
+    "无尽" not in [m.group(0) for m in R._TOKEN_RE.finditer("无尽回廊")],
+)
+check(
+    "标记芯片反例：掉落地点「双衍王境/无尽:」不拆",
+    "无尽" not in [m.group(0) for m in R._TOKEN_RE.finditer("双衍王境/无尽: 层级 4")],
+)
+with _i18n_mark.use_lang("en"):
+    _en_toks = [
+        m.group(0)
+        for m in R._TOKEN_RE.finditer("Disruption　Ur　Steel Path Endless Quick　3m left")
+    ]
+    check(
+        "英文标记芯片：Endless / Quick",
+        "Endless" in _en_toks and "Quick" in _en_toks,
+        str(_en_toks),
+    )
+    check(
+        "英文反例：Quick Thinking / Endless Duviri 不做芯片",
+        not {"Quick", "Endless"}
+        & {m.group(0) for m in R._TOKEN_RE.finditer("Quick Thinking　Endless Duviri　x")},
+    )
+    check(
+        "英文标记芯片：单独成格的 Quick / Endless（渲染层按格切开后再匹配）",
+        [m.group(0) for m in R._TOKEN_RE.finditer("Endless")] == ["Endless"]
+        and [m.group(0) for m in R._TOKEN_RE.finditer("Quick")] == ["Quick"],
+    )
 check(
     "标记芯片反例：「钢铁之路」整词仍是文字 token（不被拆成「钢铁」芯片 + 「之路」）",
     R._TOKEN_RE.search("钢铁之路").group(0) == "钢铁之路" and "钢铁之路" not in R._MARK_CHIPS,

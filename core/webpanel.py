@@ -39,7 +39,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional
 
-from . import baro, data_registry, display_time, paths
+from . import baro, data_registry, display_time, i18n, paths
 from .api_client import (
     ACRITHIS_WEEK_NAME,
     RANKS_NAME,
@@ -53,6 +53,7 @@ from .api_client import (
     redact_error_text,
 )
 from .commands.base import validate_numeric_setting
+from .commands.dun import _EV_EN
 from .commands.riven import riven_read_selection
 from .commands.vision import _prov_id, original_vision_prompt
 from .vision_compare import prepare_image, run_comparison
@@ -586,6 +587,7 @@ def subscriptions(store, groups=None, reveal: bool = False, now: Optional[float]
         items = []
         for s in sorted(lst, key=lambda x: x.created_at):
             events[s.event] = events.get(s.event, 0) + 1
+            window = s.time_window()
             items.append(
                 {
                     "sid": s.sid,
@@ -593,6 +595,7 @@ def subscriptions(store, groups=None, reveal: bool = False, now: Optional[float]
                     "rule": s.rule,
                     "platform": s.platform,
                     "until": s.until,
+                    "window": {"zh": window.describe(), "en": window.describe("en")},
                     "once": s.once,
                     "hits_left": s.hits_left,
                     "created_at": s.created_at,
@@ -611,7 +614,12 @@ def subscriptions(store, groups=None, reveal: bool = False, now: Optional[float]
                 "subs": items,
             }
         )
-    return {"total": len(subs), "events": events, "sessions": sessions}
+    return {
+        "total": len(subs),
+        "events": events,
+        "event_names_en": {key: _EV_EN[key][1] for key in events if key in _EV_EN},
+        "sessions": sessions,
+    }
 
 
 def paused_session_count(push) -> int:
@@ -784,11 +792,11 @@ THEME_PRESETS = [
         },
     },
 ]
-# 预览样卡：覆盖各配色槽位（KV / 分区标题 / 斑马纹列表 / 遗物档位芯片 / 杜卡德金银铜 / 计时 / 注释 / 警示 / 页码 / 页脚）
+# 预览样卡：用正式版式展示分区、列表、遗物档位、注释、警示、页码和页脚。
 PREVIEW_TITLE = "外观预览（第1/2页）"
 PREVIEW_LINES = [
     "◆ 当前仲裁",
-    "◆ 节点：Zeugma（火卫一）　生存　Infested",
+    "◆ 节点：Zeugma（火卫一）　生存　I系",
     "◆ 剩余：3小时12分",
     "◆ 遗物与部件",
     "· [古纪] Lith A1　⟦g⟧Gyre Prime 系统蓝图⟦/g⟧　100杜卡德",
@@ -799,6 +807,22 @@ PREVIEW_LINES = [
     "※ ⚠ 警示面板：排期表即将到期",
 ]
 PREVIEW_FOOT = "平台：PC · 来源 外观预览"
+PREVIEW_EN = (
+    "Appearance Preview (Page 1/2)",
+    [
+        "◆ Current Arbitration",
+        "◆ Node: Zeugma (Phobos)　Survival　Infested",
+        "◆ Time: 3h 12m left",
+        "◆ Relics & Parts",
+        "· [Lith] Lith A1　⟦g⟧Gyre Prime Systems Blueprint⟦/g⟧　100 Ducats",
+        "· [Meso] Meso K10　⟦s⟧Protea Prime Neuroptics⟦/s⟧　45 Ducats",
+        "· [Neo] Neo V8　⟦b⟧Akbolto Prime Barrel⟦/b⟧　15 Ducats",
+        "· [Axi] Axi A2　Max Rank ★　▲12%　▼3%",
+        "※ Notes: Community test data for reference",
+        "※ ⚠ Warning: The rotation schedule is about to expire",
+    ],
+    "Platform: PC · Source: Appearance Preview",
+)
 _IMG_MAX_BYTES = 15 * 1024 * 1024
 _IMG_MAX_SIDE = {"bg": 2400, "logo": 512}
 
@@ -890,11 +914,12 @@ SETTINGS_GROUPS = [
             "display_timezone",
             "default_platform",
             "wiki_intro",
+            "wiki_link_source",
         ],
     ),
     ("QQ", ["qq_markdown_cards", "qq_merge_image_actions"]),
     ("Telegram / Discord / Slack / KOOK", ["text_chunk_limit"]),
-    ("推送", ["push_interval"]),
+    ("推送", ["push_interval", "digest_timezone"]),
     # 视觉模型按读图角色分组；装备文字渠道留空时继承识卡主读。
     ("视觉模型 · 兼容主渠道", ["vision_provider_id"]),
     (
@@ -924,8 +949,12 @@ FIELD_PLATFORMS = {
     "qq_merge_image_actions": ["qq_official"],
     "text_chunk_limit": ["telegram", "discord", "slack", "kook"],
 }
-# 面板自用的键：由设置页顶部的平台选择器读写，不作为普通设置项列出
-PANEL_ONLY_KEYS = frozenset({"panel_platforms", "vision_routes_isolated"})
+# 面板内部流程管理的键，不作为普通设置项列出。
+PANEL_LANGUAGE = "panel_language"
+PANEL_LANGUAGE_INITIALIZED = "panel_language_initialized"
+PANEL_ONLY_KEYS = frozenset(
+    {"panel_platforms", "vision_routes_isolated", PANEL_LANGUAGE, PANEL_LANGUAGE_INITIALIZED}
+)
 # 改了要重载插件才生效的键（在 __init__ 里构造进 WarframeClient / GroupStore 的）；其余运行时直接读 cfg，保存即生效
 RELOAD_KEYS = frozenset(
     {
@@ -1024,6 +1053,7 @@ class WebPanel:
         n = self.name
         return [
             (f"/{n}/overview", self.overview, ["GET"], "SDJKBOT 面板：新鲜度 / 订阅 / 推送"),
+            (f"/{n}/command_stats", self.command_stats, ["GET"], "SDJKBOT 面板：指令统计"),
             (f"/{n}/refresh", self.refresh, ["POST"], "SDJKBOT 面板：刷新社区快照"),
             (f"/{n}/pull", self.pull, ["POST"], "SDJKBOT 面板：从源头重抓"),
             (f"/{n}/crawl", self.crawl, ["POST"], "SDJKBOT 面板：立即抓排行"),
@@ -1098,6 +1128,7 @@ class WebPanel:
                 "SDJKBOT 面板：保存、启用或恢复视觉提示词",
             ),
             (f"/{n}/settings_save", self.settings_save, ["POST"], "SDJKBOT 面板：保存设置"),
+            (f"/{n}/panel_language", self.panel_language, ["GET"], "SDJKBOT 面板：界面语言"),
             (
                 f"/{n}/vision_migration_status",
                 self.vision_migration_status,
@@ -1577,7 +1608,7 @@ class WebPanel:
         if (g := self._gone()) is not None:
             return g
         if self._refresh_lock.locked():
-            return {"status": "error", "message": "上一次刷新还没结束"}
+            return {"ok": False, "code": "refresh_busy", "message": "上一次刷新还没结束"}
         out = {}
         async with self._refresh_lock:
             for key, fn in (
@@ -1604,7 +1635,7 @@ class WebPanel:
         if (g := self._gone()) is not None:
             return g
         if self._refresh_lock.locked():
-            return {"status": "error", "message": "上一次刷新还没结束"}
+            return {"ok": False, "code": "refresh_busy", "message": "上一次刷新还没结束"}
         c = self.p.client
         out = {}
         async with self._refresh_lock:
@@ -1932,6 +1963,7 @@ class WebPanel:
             "basis": basis,
             "blocked": True,
             "reason": "本地状态暂不可读，请刷新确认",
+            "reason_code": "local_unreadable",
         }
         if local is not None:
             if not isinstance(status, dict):
@@ -1945,7 +1977,9 @@ class WebPanel:
                 basis["local_state"] = "enabled" if status["enabled"] else "disabled"
             else:
                 basis["local_state"] = "invalid"
-                result["reason"] = "本地状态字段异常，请检查本地配置"
+                result.update(
+                    reason="本地状态字段异常，请检查本地配置", reason_code="local_invalid"
+                )
                 return result
         mode = (
             riven_read_selection(flag, status) if local is not None else riven_read_selection(flag)
@@ -1953,6 +1987,7 @@ class WebPanel:
         result.update(
             mode=mode,
             blocked=False,
+            reason_code="selected",
             reason={
                 "local": "已选择本地 OCR",
                 "single": "已选择单模型 OCR",
@@ -1965,13 +2000,23 @@ class WebPanel:
                 if status.get("ok") is not True
                 else "本地状态字段异常，请检查本地配置"
             )
-            result.update(blocked=True, reason=reason)
+            result.update(
+                blocked=True,
+                reason=reason,
+                reason_code="local_config_invalid"
+                if status.get("ok") is not True
+                else "local_invalid",
+            )
         elif mode == "local" and (
             status.get("closed") is True
             or status.get("models_found") is False
             or status.get("implemented") is False
         ):
-            result.update(blocked=True, reason="本地 OCR 暂不可用，请检查本地配置")
+            result.update(
+                blocked=True,
+                reason="本地 OCR 暂不可用，请检查本地配置",
+                reason_code="local_unavailable",
+            )
         if mode != "local" and (
             type(isolated_flag) is not bool or (flag is not None and type(flag) is not bool)
         ):
@@ -1980,11 +2025,16 @@ class WebPanel:
                 revision="",
                 blocked=True,
                 reason="读取方式配置异常，请检查已保存配置",
+                reason_code="mode_config_invalid",
             )
             return result
         # 渠道 ID 只作为哈希输入；不把 endpoint、key、路径或整个配置放进修订。
         if mode == "single" and not isinstance(cfg.get("vision_provider_id_riven", ""), str):
-            result.update(blocked=True, reason="读取方式配置异常，请检查已保存配置")
+            result.update(
+                blocked=True,
+                reason="读取方式配置异常，请检查已保存配置",
+                reason_code="mode_config_invalid",
+            )
         material = {
             "mode": mode,
             "basis": basis,
@@ -2051,7 +2101,11 @@ class WebPanel:
         if effective["mode"] in {"single", "dual"} and not effective["blocked"]:
             active = {"riven"} if single else {"riven", "line"}
             if not any(row["available"] for row in routes if row["route"] in active):
-                effective.update(blocked=True, reason="已选模式的渠道不可用，请检查渠道配置")
+                effective.update(
+                    blocked=True,
+                    reason="已选模式的渠道不可用，请检查渠道配置",
+                    reason_code="channel_unavailable",
+                )
         try:
             changed = before is None or before != dict(getattr(self.p, "cfg", {}) or {})
         except Exception:  # noqa: BLE001
@@ -2062,6 +2116,7 @@ class WebPanel:
                 revision="",
                 blocked=True,
                 reason="配置正在变化或服务已停用，请刷新确认",
+                reason_code="snapshot_changed",
             )
             for row in routes:
                 if row["route"] in {"riven", "line", "line_recheck"}:
@@ -3007,6 +3062,20 @@ class WebPanel:
             return {"status": "error", "message": "提示词文件保存失败，请检查运行目录"}
         return {"status": "ok", "provider_id": provider_id, "task": task, **view}
 
+    async def command_stats(self):
+        if (gone := self._gone()) is not None:
+            return gone
+        stats = getattr(self.p, "command_stats", None)
+        now = time.time()
+        return {
+            "retention_days": 30,
+            "timezone": "UTC",
+            "latency_scope": "handler",
+            "latency_unit": "ms",
+            "last_7_days": stats.summary(7, now) if stats is not None else [],
+            "last_30_days": stats.summary(30, now) if stats is not None else [],
+        }
+
     async def settings(self):
         if (g := self._gone()) is not None:
             return g
@@ -3258,6 +3327,16 @@ class WebPanel:
                 "sent": False,
             }
 
+    async def panel_language(self):
+        if (g := self._gone()) is not None:
+            return g
+        cfg = getattr(self.p, "cfg", None) or {}
+        language = cfg.get(PANEL_LANGUAGE)
+        return {
+            "language": language if language in ("cn", "en") else "",
+            "sync_card_language": cfg.get(PANEL_LANGUAGE_INITIALIZED) is not True,
+        }
+
     async def settings_save(self):
         """校验后写回插件配置（AstrBotConfig.save_config）；能即时生效的同步到运行中的实例。"""
         if (g := self._gone()) is not None:
@@ -3265,12 +3344,25 @@ class WebPanel:
         body = await self._body()
         if (g := self._gone()) is not None:
             return g
-        changes = body.get("changes")
+        initial = "initial_language" in body
+        if initial:
+            language = body["initial_language"]
+            if "changes" in body or language not in ("cn", "en"):
+                return {"status": "error", "message": "首次语言选择无效"}
+            changes = {PANEL_LANGUAGE: language}
+        else:
+            changes = body.get("changes")
         if not isinstance(changes, dict) or not changes:
             return {"status": "error", "message": "没有要保存的改动"}
         schema = load_schema()
         clean, errors = {}, {}
         for k, v in changes.items():
+            if k == PANEL_LANGUAGE and v not in ("cn", "en"):
+                errors[k] = "界面语言无效"
+                continue
+            if k == PANEL_LANGUAGE_INITIALIZED:
+                errors[k] = "该项由首次语言选择管理"
+                continue
             if k == "vision_routes_isolated":
                 errors[k] = "请通过迁移预览与确认操作更改隔离状态"
                 continue
@@ -3283,7 +3375,6 @@ class WebPanel:
                 errors[k] = str(exc)
         if errors:
             return {"status": "error", "message": "；".join(f"{k}：{v}" for k, v in errors.items())}
-        self._migration_previews.clear()
         if self._save_lock.locked():
             return {"status": "error", "message": "上一次保存还没结束"}
         async with self._save_lock:
@@ -3293,6 +3384,20 @@ class WebPanel:
                     "status": "error",
                     "message": "拿不到插件配置对象，请在 AstrBot 的插件配置页修改",
                 }
+            # 已开着的旧首选弹框只能读取先保存的偏好，不能覆盖另一窗口的新设置。
+            prior_language = conf.get(PANEL_LANGUAGE)
+            if initial and prior_language in ("cn", "en"):
+                return {"saved": [], "need_reload": [], PANEL_LANGUAGE: prior_language}
+            if (
+                PANEL_LANGUAGE in clean
+                and prior_language not in ("cn", "en")
+                and conf.get(PANEL_LANGUAGE_INITIALIZED) is not True
+            ):
+                clean.setdefault("default_language", clean[PANEL_LANGUAGE])
+            saved = sorted(clean)
+            if "default_language" in clean:
+                clean[PANEL_LANGUAGE_INITIALIZED] = True
+            self._migration_previews.clear()
             previous = {k: conf[k] for k in clean if k in conf}
             try:
                 conf.update(clean)
@@ -3307,9 +3412,12 @@ class WebPanel:
                         conf.pop(k, None)
                 return {"status": "error", "message": f"写配置失败：{exc}"}
             self._apply_live(clean)
-        need = sorted(k for k in clean if k in RELOAD_KEYS)
-        logger.info("[sdjk] 面板保存设置：%s（需重载 %s）", sorted(clean), need)
-        return {"saved": sorted(clean), "need_reload": need}
+        need = [k for k in saved if k in RELOAD_KEYS]
+        logger.info("[sdjk] 面板保存设置：%s（需重载 %s）", saved, need)
+        result = {"saved": saved, "need_reload": need}
+        if PANEL_LANGUAGE in clean:
+            result[PANEL_LANGUAGE] = clean[PANEL_LANGUAGE]
+        return result
 
     def _apply_live(self, clean: dict) -> None:
         """同步到运行中的实例：cfg 快照 + 几个在 __init__ 里缓存成属性的值。"""
@@ -3513,6 +3621,7 @@ class WebPanel:
         if (g := self._gone()) is not None:
             return g
         cand = self._theme_candidate(body)
+        locate = body.get("locate")
 
         def run():
             import base64
@@ -3521,45 +3630,70 @@ class WebPanel:
 
             if self._preview_r is None:
                 self._preview_r = R.ImageRenderer(r.cache_dir.parent / "cards_preview")
+            options = {
+                **cand,
+                "bg_image": r.theme_image("bg") if cand["bg_image"] else None,
+                "logo": r.theme_image("logo") if cand["logo"] else None,
+            }
+            colors = options.pop("colors")
+            self._preview_r.fonts = r.fonts  # 预览跟正式出图用同一套字体
+
+            def render_sample(palette):
+                R.apply_theme(palette, **options)
+                sample = (
+                    PREVIEW_EN if i18n.is_en() else (PREVIEW_TITLE, PREVIEW_LINES, PREVIEW_FOOT)
+                )
+                path = self._preview_r.render(*sample)
+                if not path:
+                    raise RuntimeError("渲染失败")
+                try:
+                    return Path(path).read_bytes()
+                finally:
+                    Path(path).unlink(missing_ok=True)
+
+            def locate_slot(data, slot, color):
+                from io import BytesIO
+
+                from PIL import Image, ImageChops
+
+                marked = render_sample({**colors, slot: color})
+                with Image.open(BytesIO(data)) as base, Image.open(BytesIO(marked)) as tinted:
+                    changed = (
+                        base.size != tinted.size
+                        or ImageChops.difference(
+                            base.convert("RGB"), tinted.convert("RGB")
+                        ).getbbox()
+                    )
+                return (marked, color) if changed else (data, None)
+
             saved = R.theme_state()
+            cfg = getattr(self.p, "cfg", {}) or {}
+            result = {}
             try:
-                R.apply_theme(
-                    cand["colors"],
-                    bg_image=r.theme_image("bg") if cand["bg_image"] else None,
-                    bg_dim=cand["bg_dim"],
-                    panel_alpha=cand["panel_alpha"],
-                    logo=r.theme_image("logo") if cand["logo"] else None,
-                    bg_fit=cand["bg_fit"],
-                    bg_pos=cand["bg_pos"],
-                    bg_scale=cand["bg_scale"],
-                )
-                self._preview_r.fonts = r.fonts  # 预览跟正式出图用同一套字体
-                path = self._preview_r.render(PREVIEW_TITLE, PREVIEW_LINES, PREVIEW_FOOT)
+                with i18n.use_lang(cfg.get("default_language")):
+                    data = render_sample(colors)
+                    if isinstance(locate, str) and locate in (defaults := R.theme_defaults()):
+                        # 与同一份草稿的正常样卡对拍。色槽已是品红时改用亮青，仍可看出位置。
+                        color = (
+                            "#00eaff"
+                            if colors.get(locate, defaults[locate]) == "#ff2bd6"
+                            else "#ff2bd6"
+                        )
+                        data, marker = locate_slot(data, locate, color)
+                        result["locator"] = {"slot": locate, "color": marker}
             finally:
-                R.apply_theme(
-                    saved["colors"],
-                    bg_image=saved["bg_image"],
-                    bg_dim=saved["bg_dim"],
-                    panel_alpha=saved["panel_alpha"],
-                    logo=saved["logo"],
-                    bg_fit=saved["bg_fit"],
-                    bg_pos=saved["bg_pos"],
-                    bg_scale=saved["bg_scale"],
-                )
-            if not path:
-                raise RuntimeError("渲染失败")
-            data = Path(path).read_bytes()
-            Path(path).unlink(missing_ok=True)
-            return "data:image/png;base64," + base64.b64encode(data).decode()
+                R.apply_theme(**saved)
+            result["png"] = "data:image/png;base64," + base64.b64encode(data).decode()
+            return result
 
         t0 = time.perf_counter()
         try:
-            png = await self._locked(run)
+            result = await self._locked(run)
         except _PanelClosed:
             return self._gone()
         except Exception as exc:  # noqa: BLE001
             return {"status": "error", "message": f"预览失败：{exc}"}
-        return {"png": png, "ms": int((time.perf_counter() - t0) * 1000)}
+        return {**result, "ms": int((time.perf_counter() - t0) * 1000)}
 
     async def theme_save(self):
         """保存主题到 appearance.json 并立即套用（新出的卡片马上换肤，不用重载）。"""

@@ -60,18 +60,19 @@ _FAMILY_NAME = re.compile(r"^([一-鿿]{2})[·・]\s*([一-鿿].*)$")
 
 
 def _name_variants(name: str) -> list[str]:
-    """名字的等价写法：``A·B`` 去中点；「赋能·X」再补交换式 ``X赋能``。
+    """名字的等价写法：``A·B`` 去中点，并补交换式 ``BA``。
 
-    这样用户按任一写法（游戏内「赋能·精确」/ 灰机「精确赋能」/ 无点「近战侵染」）
-    都能在本地索引里命中同一条目。
+    这样用户按任一写法（游戏内「赋能·精确」/ 中文 wiki 常见的「精确赋能」「侵染近战」/
+    无点「近战侵染」）都能在本地索引里命中同一条目。
+    ★ 2026-11-10：交换式原先只给「赋能」族；维护者反馈中文 wiki 常把族名挪到后面、与游戏内不一致，
+      放开到所有「族·名」（近战 / 主要 / 次要 / 魔导 / 赤毒 / 信条 …）。
     """
     out = [name]
     m = _FAMILY_NAME.match(name or "")
     if m:
         a, b = m.group(1), m.group(2)
         out.append(a + b)
-        if a == "赋能":
-            out.append(b + "赋能")
+        out.append(b + a)
     return out
 
 
@@ -126,11 +127,16 @@ def _build_index() -> _SearchIndex:
                 if cur is None or (_CJK.search(shown) and not _CJK.search(cur[0])):
                     rows[k] = [shown, second, source]
 
-    # 1) DE 官方本地化导出：权威中文名，覆盖 Forma / 赤毒 / 氩结晶 这类
-    #    既不可交易、本地词典又漏收的物品
+    # 旧索引的 en 是内部类名，不能拿来当显示名（例如 frost 对应一件皮肤）。
+    # 英文名从同一 DE 资产路径取。旧中文索引补充仅在旧表存在的中文查询。
+    names_en = _jload(_DATA / "de" / "name_en.json")
+    for path, zh in _jload(_DATA / "de" / "name_zh.json").items():
+        en = names_en.get(path, "")
+        if isinstance(zh, str) and isinstance(en, str):
+            add(zh, en, source="官方")
     for it in _jload(_DE_ITEMS_FILE).get("items") or []:
         if isinstance(it, dict):
-            add(it.get("zh", ""), it.get("en", ""), source="官方")
+            add(it.get("zh", ""), source="官方")
     aliases = _jload(_ALIAS_FILE)
     for zh, slug in (aliases.get("wm_items") or {}).items():
         add(zh, (slug or "").replace("_", " "), source="别名")

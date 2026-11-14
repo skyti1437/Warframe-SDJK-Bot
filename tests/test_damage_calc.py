@@ -1394,7 +1394,7 @@ for _key in _melee_forms:
     ):
         _melee_bad.append((_key, "命中或倍率错误"))
 check("24 条近战各自查询到正确变体并获得普通命中 +100%", not _melee_bad, str(_melee_bad))
-for _missing in ("Innodem", "Praedos", "Kronen Prime"):
+for _missing in ("Kronen Prime",):
     _, _missw, _missi = _melee_calc(_missing, "灵化")
     _, _, _missb = _melee_calc(_missing)
     check(
@@ -1459,6 +1459,20 @@ check(
     ),
     _mcard,
 )
+
+# 原生近战 EVO I 的 +40% 只在不叠加其它攻速时计算。
+for _native_speed in ("Innodem", "Praedos", "Thalys"):
+    _, _nw, _nb = _melee_calc(_native_speed)
+    _, _, _ni = _melee_calc(_native_speed, "灵化")
+    _, _, _ns = _melee_calc(_native_speed, "灵化", "狂暴")
+    check(
+        f"{_native_speed} 原生灵化普通攻击保持原伤害，攻速 +40%",
+        _ni["ok"]
+        and _ni["weapon_eff"]["damage"] == _nw["damage"]
+        and close(_ni["fire_rate"], _nb["fire_rate"] * 1.4)
+        and not _ni["modes"],
+    )
+    check(f"{_native_speed} 未知攻速叠加明确拒绝", not _ns["ok"] and "叠加" in _ns["error"])
 
 # 原生 Ruvox 仅支持普通主攻击；不向未验证的 IPS MOD、重击或震地外推。
 _rns, _rnw, _rnb = _melee_calc("Ruvox")

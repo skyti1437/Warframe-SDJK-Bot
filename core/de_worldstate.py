@@ -896,25 +896,6 @@ CAL_UPGRADE_CN = {
     "/Lotus/Upgrades/Calendar/StatusChancePerAmmoSpent": "累积弹匣",
 }
 
-# 官方**确实没有**键的覆写条目 —— 逐条实测（本地 36k + zh_ext 7,471 + 18MB 全量包
-# 140,264 键三处全查无，含大小写/分隔符归一化搜索）⇒ 卡面留英文 + 注脚，不硬编。
-# 例：GuidingMissilesChance 的官方英文名是 `Tickshots`（languages.json 有），简中无。
-#
-# ★ 2026-09-28 §五：`GuidingMissilesChance` 已**不在现行覆写池**——
-#   · 官方包搜 `guidingmissiles` = **0 键**；
-#   · wiki Hex Override 全表（**38 条**，见 `1999取证-20260928/1999覆写池-38条-code与官方简中.md`）
-#     里**也没有**这一条。
-#   ⇒ 判定：**已废弃 / 非现行池**（DE 无对应文案，wiki 池亦无），保留清单只为
-#     「万一 worldstate 又下发它」时不硬编。
-#   卡面行为（已实测确认）：`_calendar_upgrade_zh()` 返回 `""`，且它**不在** `CAL_UPGRADE_CN`
-#   ⇒ 落 `fmt._cal_name(_prettify(tail))` = 英文 `Guiding Missiles Chance`，并计入
-#     日历卡的 `noKey` 注脚（`※ 官方无简中、保留原文：…`）——即「留英文 + 注脚」，可接受。
-CAL_UPGRADE_NO_KEY = frozenset(
-    {
-        "/Lotus/Upgrades/Calendar/GuidingMissilesChance",
-    }
-)
-
 
 def duviri_cycle(now_ms: int) -> dict:
     """双衍王境螺旋（情绪）周期。
@@ -1245,6 +1226,25 @@ def _parse_nightwave(season: dict) -> dict:
     }
 
 
+# 2026-11-09 快照中按警报 ID 对拍 DE 的 descText 与社区接口的英文 description。
+_ALERT_TITLES_EN = {
+    "/Lotus/Language/Alerts/TennoUnitedAlert": "Tenno United Alert",
+    "/Lotus/Language/Alerts/LotusGiftDesc": "Gift From The Lotus",
+    "/Lotus/Language/TauPrologue/EventAlertTitle": "Moonflesh Locus Detected",
+}
+_ALERT_KEYS_BY_TITLE = {text.casefold(): key for key, text in _ALERT_TITLES_EN.items()}
+
+
+def _alert_title(key: str) -> str:
+    text = language_text_zh(key)
+    if text or not i18n.is_en():
+        return text
+    en = language_text(key)[0]
+    if en and not _is_placeholder(en):
+        return _clean_lang_text(en)
+    return _ALERT_TITLES_EN.get(key, "")
+
+
 def _parse_alerts(raw: dict) -> list[dict]:
     """警报解析（★ C3 2026-10-03 重写）。
 
@@ -1253,7 +1253,7 @@ def _parse_alerts(raw: dict) -> list[dict]:
     兼容两源形态（DE MissionInfo / 社区 Mission）并富化：
     location→中文节点、missionType→中文类型、faction→中文派系、等级区间、
     missionReward.credits、items（保留**路径**，由客户端经 WM gameRef 索引解析
-    中文名，见 api_client._resolve_alert_items）、descText→中文标题。
+    中文名，见 api_client._resolve_alert_items）、descText→当前语言标题。
     """
     out = []
     for a in raw.get("Alerts") or []:
@@ -1282,7 +1282,7 @@ def _parse_alerts(raw: dict) -> list[dict]:
                     "faction": faction_name(mission.get("faction", "")),
                     "min_level": mission.get("minEnemyLevel"),
                     "max_level": mission.get("maxEnemyLevel"),
-                    "desc": language_text_zh(mission.get("descText", "")) or "",
+                    "desc": _alert_title(mission.get("descText") or ""),
                     "reward": {
                         "credits": reward.get("credits"),
                         # 兼容字段：旧卡面/推送只认 item —— 先给 prettify 兜底
@@ -1423,6 +1423,26 @@ def _parse_news(raw: dict) -> list[dict]:
             }
         )
     out.sort(key=lambda n: (n["date"], n["priority"]), reverse=True)
+    return out
+
+
+def community_news(rows: list) -> list[dict]:
+    """优先选社区整包附带的当前语言文案，保留只有英文的公告。"""
+    out = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        translations = row.get("translations")
+        msgs = {
+            code: value
+            for code, value in (translations.items() if isinstance(translations, dict) else ())
+            if isinstance(value, str)
+        }
+        if not msgs.get("en", "").strip() and isinstance(row.get("message"), str):
+            msgs["en"] = row["message"]
+        message = _news_message(msgs)
+        if message:
+            out.append(dict(row, message=message))
     return out
 
 
@@ -2640,12 +2660,19 @@ def _calendar_reward_name(path: str) -> tuple[str, bool]:
     """
     if not path:
         return ("", False)
+    if (
+        _STRIP_STORE.sub("", path).casefold()
+        == "/lotus/types/recipes/components/formaaurablueprint"
+    ):
+        # DE 38.5 更新说明直接给出日历奖励的新名字，世界状态沿用旧资产路径。
+        return (i18n.L("全能 Forma 蓝图", "Omni Forma Blueprint"), False)
     tail = path.rstrip("/").rsplit("/", 1)[-1]
     if not tail:
         return ("", False)
     for cand, is_bp in _cal_reward_tails(tail):
         _key, zh = _card_lang_by_tail(cand)
         if zh:
+            zh = _clean_lang_text(zh)
             if is_bp:
                 return (zh + i18n.L(_CAL_BLUEPRINT_SUFFIX, " Blueprint"), True)
             return (zh, False)
@@ -2663,38 +2690,59 @@ def _calendar_reward_name(path: str) -> tuple[str, bool]:
 
 
 def _calendar_upgrade_zh(ref: str) -> str:
-    """日历覆写（``/Lotus/Upgrades/Calendar/<尾段>``）-> 官方简中；无键返回空串。
-
-    官方键：``/Lotus/Language/1999/<尾段>Name``（716 键里的覆写名），
-    取不到再试无后缀；仍无 ⇒ 交调用方走手编兜底表 / 英文。
-    """
+    """按覆写的同尾段语言键取当前语言名称。"""
     if not ref:
         return ""
     tail = ref.rstrip("/").rsplit("/", 1)[-1]
-    if not tail:
-        return ""
-    for cand in (tail, tail[:-4] if tail.endswith("Name") else tail):
-        _key, zh = _card_lang_by_tail(cand)
-        if zh:
-            return zh
-    return ""
+    key = "/Lotus/Language/1999/" + tail.removesuffix("Name")
+    return language_text_zh(key + "Name") or language_text_zh(key)
 
 
 def _calendar_upgrade_desc(ref: str) -> str:
-    """日历覆写**效果描述**（``<尾段>Desc``）-> 官方简中；无键返回空串。
-
-    2026-09-29 沃沃式版式需要：覆写块带效果行（如
-    「毫不留情　增加 25% 近战攻击速度。」）。键与名字同尾段，
-    1999 命名空间里的 `*Desc` 覆盖全部覆写项。
-    """
+    """取日历覆写在当前语言下的同键描述。"""
     if not ref:
         return ""
-    tail = ref.rstrip("/").rsplit("/", 1)[-1]
-    if not tail:
-        return ""
-    cand = tail[:-4] + "Desc" if tail.endswith("Name") else tail + "Desc"
-    _key, zh = _card_lang_by_tail(cand)
-    return _cal_desc_clean(zh) if zh else ""
+    tail = ref.rstrip("/").rsplit("/", 1)[-1].removesuffix("Name")
+    return _cal_desc_clean(language_text_zh(f"/Lotus/Language/1999/{tail}Desc"))
+
+
+_CAL_UPGRADE_PREFIX = "/Lotus/Upgrades/Calendar/"
+
+
+@lru_cache(maxsize=1)
+def _calendar_upgrade_refs_by_en() -> dict[str, str]:
+    """社区源只给标题，用明确对应覆写资产的英文旧标题反查。"""
+    refs: dict[str, set[str]] = {}
+    for ref, entry in (_load_file("languages.json") or {}).items():
+        if ref.startswith(_CAL_UPGRADE_PREFIX) and isinstance(entry, dict):
+            name = entry.get("value")
+            if name and not _is_placeholder(name):
+                refs.setdefault(name.strip().casefold(), set()).add(ref)
+    # 2026-11-11 同一天同一顺序的 DE/社区事件，社区仍下发旧标题及 [PH] 描述。
+    refs.setdefault("energy orbs grant shield", set()).add(
+        _CAL_UPGRADE_PREFIX + "EnergyOrbsGrantShield"
+    )
+    return {name: next(iter(keys)) for name, keys in refs.items() if len(keys) == 1}
+
+
+def _calendar_upgrade_event(
+    ref: str, name: str = "", desc: str = ""
+) -> tuple[dict[str, str], bool]:
+    localized = _calendar_upgrade_zh(ref)
+    if not localized and not i18n.is_en():
+        localized = CAL_UPGRADE_CN.get(ref, "")
+    legacy_name, legacy_desc = language_text(ref)
+    source_name = next((v for v in (legacy_name, name) if v and not _is_placeholder(v)), "")
+    source_desc = next((v for v in (legacy_desc, desc) if v and not _is_placeholder(v)), "")
+    display_name = localized or _clean_lang_text(source_name) or _prettify(ref) or "?"
+    return (
+        {
+            "type": "UPGRADE",
+            "name": display_name,
+            "desc": _calendar_upgrade_desc(ref) or _cal_desc_clean(source_desc),
+        },
+        not localized and (not i18n.is_en() or not source_name),
+    )
 
 
 # 覆写描述里的**纯字母变量槽**（`|CONDITION|` 等）：无官方可填值 ⇒ 按
@@ -2765,17 +2813,10 @@ def _parse_calendar(entry: dict, now_ms: int) -> dict:
                         }
                     )
             elif kind == "CET_UPGRADE":
-                ref = ev.get("upgrade", "") or ""
-                tail = ref.rstrip("/").rsplit("/", 1)[-1]
-                up_cn = _calendar_upgrade_zh(ref)
-                if not up_cn and ref not in CAL_UPGRADE_NO_KEY and not i18n.is_en():
-                    up_cn = CAL_UPGRADE_CN.get(ref, "")
-                if not up_cn:
-                    up_cn = _prettify(tail)
-                    no_key.append(tail)
-                events.append(
-                    {"type": "UPGRADE", "name": up_cn, "desc": _calendar_upgrade_desc(ref)}
-                )
+                upgrade, fallback = _calendar_upgrade_event(ev.get("upgrade") or "")
+                if fallback:
+                    no_key.append(upgrade["name"])
+                events.append(upgrade)
         days.append({"day": num, "date": date1999.date().isoformat(), "events": events})
     return {
         "season": entry.get("Season"),
@@ -2818,8 +2859,8 @@ def community_calendar(data: dict) -> dict:
 
     warframestat 的事件类型是 ``To Do`` / ``Big Prize!`` / ``Override``，名字在
     ``challenge.title`` / ``reward`` / ``upgrade.title`` 里，且不论请求语言都给英文。
-    中文模式下：挑战按英文标题反查官方简中（名字与带数量的描述），奖励按资产路径查官方简中；
-    覆写没有资产路径、也无官方键可反查，保留英文名与英文描述。
+    中文模式下挑战按英文标题反查词表。奖励优先按资产路径查词表。
+    覆写优先匹配已知资产，标题无法匹配时保留上游可用原文。
     """
     zh_table = {} if i18n.is_en() else (_load_file("languages_zh.json") or {})
 
@@ -2829,6 +2870,8 @@ def community_calendar(data: dict) -> dict:
         return val if isinstance(val, str) else ""
 
     days = []
+    synthesized: set[str] = set()
+    no_key: set[str] = set()
     for day in data.get("days") or []:
         raw_date = str(day.get("date") or "")[:10]
         try:
@@ -2839,11 +2882,10 @@ def community_calendar(data: dict) -> dict:
         for ev in day.get("events") or []:
             kind = _COMMUNITY_CAL_TYPE.get(ev.get("type", ""), "")
             if kind == "REWARD":
-                name = str(ev.get("reward") or "")
-                if zh_table:
-                    zh_name, _synth = _calendar_reward_name(str(ev.get("uniqueName") or ""))
-                    name = zh_name or name
-                events.append({"type": "REWARD", "name": name or "?"})
+                name, synth = _calendar_reward_name(str(ev.get("uniqueName") or ""))
+                if synth:
+                    synthesized.add(name)
+                events.append({"type": "REWARD", "name": name or str(ev.get("reward") or "?")})
             elif kind == "CHALLENGE":
                 ch = ev.get("challenge") or {}
                 name = str(ch.get("title") or "")
@@ -2864,13 +2906,14 @@ def community_calendar(data: dict) -> dict:
                 )
             elif kind == "UPGRADE":
                 up = ev.get("upgrade") or {}
-                events.append(
-                    {
-                        "type": "UPGRADE",
-                        "name": str(up.get("title") or "?"),
-                        "desc": str(up.get("description") or ""),
-                    }
+                name = str(up.get("title") or "")
+                ref = _calendar_upgrade_refs_by_en().get(name.strip().casefold(), "")
+                upgrade, fallback = _calendar_upgrade_event(
+                    ref, name, str(up.get("description") or "")
                 )
+                if fallback:
+                    no_key.add(upgrade["name"])
+                events.append(upgrade)
         days.append({"day": num, "date": raw_date, "events": events})
     season = str(data.get("season") or "")
     if season and not season.startswith("CST_"):
@@ -2881,8 +2924,8 @@ def community_calendar(data: dict) -> dict:
         "start": data.get("activation"),
         "expiry": data.get("expiry"),
         "days": days,
-        "synthesized": [],
-        "noKey": [],
+        "synthesized": sorted(synthesized),
+        "noKey": sorted(no_key),
     }
 
 
@@ -2905,6 +2948,123 @@ def _community_counted(reward: Any) -> list[dict]:
         for it in reward.get("countedItems") or []
         if isinstance(it, dict) and it.get("uniqueName")
     ]
+
+
+@lru_cache(maxsize=1)
+def _community_zh_text() -> dict[str, str]:
+    """只用 DE 同一语言键反查；不唯一的英文原文留给调用方。"""
+    zh = _load_file("languages_zh.json") or {}
+    choices: dict[str, set[str]] = {}
+    for key, en in (_load_file("languages_en.json") or {}).items():
+        value = zh.get(key)
+        if isinstance(en, str) and en and isinstance(value, str) and value:
+            choices.setdefault(en.strip().casefold(), set()).add(value)
+    return {en: next(iter(values)) for en, values in choices.items() if len(values) == 1}
+
+
+def _community_text(value: str) -> str:
+    text = str(value or "").strip()
+    return text if not text or i18n.is_en() else _community_zh_text().get(text.casefold(), text)
+
+
+def community_goals(
+    rows: list, node_fn: Callable[[str], str], now_ms: Optional[int] = None
+) -> list[dict]:
+    """社区 events 的身份和到期时间与官方 Goals 一一对应。"""
+    now_ms = int(datetime.now(timezone.utc).timestamp() * 1000) if now_ms is None else now_ms
+    goals = []
+    for row in rows:
+        if not isinstance(row, dict) or not row.get("description") or not _ms(row.get("expiry")):
+            raise ValueError("社区活动缺少名称或到期时间")
+        end = _ms(row["expiry"])
+        grace = _ms(row.get("gracePeriod"))
+        if end < now_ms and not (grace and grace >= now_ms):
+            continue
+        name = _community_text(row["description"])
+        desc = _DT_TAG_SUB.sub("", _community_text(row.get("tooltip") or "")).strip()
+        if row.get("tag") == "RoadToTauEvent":
+            # 同一活动 ID 的 DE Desc / ToolTip 键与社区 tag 对齐。
+            name = language_text_zh("/Lotus/Language/TauPrologue/RoadToTauEventName") or name
+            desc = language_text_zh("/Lotus/Language/TauPrologue/RoadToTauShortEventDesc") or desc
+        rewards = []
+        for reward in row.get("rewards") or []:
+            counted = _community_counted(reward)
+            for item in counted:
+                item_name_text = item_name_opt(item["ItemType"]) or _prettify(item["ItemType"])
+                rewards.append(f"{item_name_text} ×{item['ItemCount']}")
+            if not counted and isinstance(reward, dict):
+                rewards.extend(_community_text(item) for item in reward.get("items") or [])
+        maximum = row.get("maximumScore")
+        goals.append(
+            {
+                "name": name,
+                "tag": row.get("tag") or "",
+                "faction": _community_text(row.get("faction") or ""),
+                "desc": desc[len(name) :].strip(" ：:") if desc.startswith(name) else desc,
+                "node": node_fn(row["node"]) if row.get("node") else "",
+                "count": row.get("currentScore")
+                if isinstance(maximum, (int, float)) and maximum > 0
+                else None,
+                "goal": maximum if isinstance(maximum, (int, float)) and maximum > 0 else None,
+                "expiry": _iso(end),
+                "grace": _iso(grace),
+                "ended": end < now_ms,
+                "timeLeft": _fmt_left(end - now_ms),
+                "_endMs": end,
+                "rewards": list(dict.fromkeys(filter(None, rewards))),
+            }
+        )
+    return sorted(goals, key=lambda row: (row["ended"], row["_endMs"]))
+
+
+def community_prime_vault(data: dict, now_ms: Optional[int] = None) -> dict:
+    """社区 Varzia 的 ducats/credits 字段对应御品/普通阿耶；常驻未下发。"""
+    if str(data.get("character") or "").casefold() != "varzia" or not _ms(data.get("expiry")):
+        raise ValueError("社区商人不是有效的 Varzia 轮换")
+    manifest = []
+    for row in data.get("inventory") or []:
+        path, prime, regular = row.get("uniqueName"), row.get("ducats"), row.get("credits")
+        if not path or (prime is None and regular is None):
+            raise ValueError("社区阿耶商品缺少资产键或价格")
+        manifest.append({"ItemType": path, "PrimePrice": prime, "RegularPrice": regular})
+    raw = {
+        "PrimeVaultTraders": [
+            {
+                "Expiry": data["expiry"],
+                "Manifest": manifest,
+                "ScheduleInfo": [
+                    {"Expiry": row.get("expiry"), "FeaturedItem": row.get("uniqueName")}
+                    for row in data.get("schedule") or []
+                ],
+            }
+        ]
+    }
+    result = _parse_prime_vault(
+        raw, int(datetime.now(timezone.utc).timestamp() * 1000) if now_ms is None else now_ms
+    )
+    result["evergreen_unavailable"] = True
+    return result
+
+
+def community_clan_rewards(data: dict) -> list[dict]:
+    # warframestat 的旧键拼作 rewwards；两种结构都复用 DE 渲染契约。
+    rewards = data.get("rewards", data.get("rewwards"))
+    if not isinstance(rewards, list) or not data.get("regionUniqueName"):
+        raise ValueError("社区氏族奖励缺少区域或奖励表")
+    weeks = _parse_clan_rewards(
+        {
+            "WeeklyVaultBonusRewards": [
+                {
+                    "WeekCount": data.get("week"),
+                    "BonusRegion": data["regionUniqueName"],
+                    "Rewards": rewards,
+                }
+            ]
+        },
+        0,
+    )
+    weeks[0]["next_unavailable"] = True
+    return weeks
 
 
 def community_alerts(rows: list, node_fn: Callable[[str], str]) -> list[dict]:
@@ -2945,9 +3105,15 @@ def community_alerts(rows: list, node_fn: Callable[[str], str]) -> list[dict]:
         parsed["mission"]["node"] = node_fn(mission.get("node", ""))
         mtype = str(mission.get("type") or "")
         parsed["mission"]["type"] = mission_type_zh_by_name(mtype) or mission_type(mtype)
+        description = str(mission.get("description") or "")
         if i18n.is_en():
             parsed["mission"]["type"] = mtype
-            parsed["mission"]["desc"] = str(mission.get("description") or "")
+            parsed["mission"]["desc"] = description
+        elif description:
+            title = description.strip().casefold()
+            parsed["mission"]["desc"] = _community_zh_text().get(title) or language_text_zh(
+                _ALERT_KEYS_BY_TITLE.get(title, "")
+            )
     return out
 
 

@@ -263,6 +263,122 @@ async def _main() -> None:
         str(_bad_seq or _body),
     )
 
+    # ★ 2026-11-09 维护者：开遗物按无尽优先（同纪元 无尽 → 速刷 → 其它）
+    _base = dict(_FS[0])
+    _mix = [
+        {**_base, "node": "Q（地球）", "missionType": "捕获"},
+        {**_base, "node": "M（地球）", "missionType": "移动防御"},
+        {**_base, "node": "E（地球）", "missionType": "生存"},
+    ]
+    _saved = list(_FS)
+    _FS[:] = _mix
+    try:
+        _t2, _l2 = await _openrelic_lines("开核桃")
+        _order = [ln[2:].split("　")[2] for ln in _l2 if ln.startswith("· ")]
+        check(
+            "同纪元：无尽 → 速刷 → 其它",
+            _order == ["E（地球）", "Q（地球）", "M（地球）"],
+            str(_order),
+        )
+        check("无尽带「无尽」标记", any("生存" in ln and "无尽" in ln for ln in _l2), str(_l2))
+        check("卡首统计无尽场次", any("无尽 1 场" in ln for ln in _l2), str(_l2[:3]))
+        _FS[:] = _mix + [
+            {**_base, "node": "S（地球比邻星域）", "missionType": "生存", "isStorm": True}
+        ]
+        _t4, _l4 = await _openrelic_lines("开核桃")
+        check(
+            "九重天生存同样标无尽（wiki：Void Storm Survival 逐波结算、可开 2 把以上）",
+            any("S（地球比邻星域）" in ln and "无尽" in ln for ln in _l4),
+            str(_l4),
+        )
+        check("注脚说明九重天可在导航台接下一场", any("导航台" in ln for ln in _l4), str(_l4[-2:]))
+        # 九重天速刷只认地球 / 土星前哨战；Corpus 星域（要登舰）不标速刷
+        _FS[:] = [
+            {
+                **_base,
+                "node": "奥加尔星团（地球比邻星域）",
+                "missionType": "Skirmish",
+                "isStorm": True,
+            },
+            {**_base, "node": "欧文—哈克（金星比邻星域）", "missionType": "Spy", "isStorm": True},
+            {
+                **_base,
+                "node": "H-2 星云（面纱比邻星域）",
+                "missionType": "Skirmish",
+                "isStorm": True,
+            },
+        ]
+        _t5, _l5 = await _openrelic_lines("开核桃")
+        _r5 = {ln[2:].split("　")[2]: ln for ln in _l5 if ln.startswith("· ")}
+        check(
+            "地球前哨战九重天标速刷", "速刷" in _r5.get("奥加尔星团（地球比邻星域）", ""), str(_r5)
+        )
+        check(
+            "Corpus 星域九重天间谍不标速刷",
+            "速刷" not in _r5.get("欧文—哈克（金星比邻星域）", "x速刷"),
+            str(_r5),
+        )
+        check(
+            "面纱前哨战不标速刷（只认地球 / 土星）",
+            "速刷" not in _r5.get("H-2 星云（面纱比邻星域）", "x速刷"),
+            str(_r5),
+        )
+        check(
+            "注脚写明首选地球 / 土星前哨战",
+            any("地球 / 土星前哨战" in ln for ln in _l5),
+            str(_l5[-2:]),
+        )
+        # 九重天单独一节：地面裂隙在前；九重天内 地球前哨战 → 面纱（格里尼尔）→ Corpus（含生存）
+        _FS[:] = [
+            {
+                **_base,
+                "node": "W（金星比邻星域）",
+                "missionType": "Survival",
+                "isStorm": True,
+                "enemy": "Corpus",
+            },
+            {**_base, "node": "Q（地球）", "missionType": "捕获"},
+            {
+                **_base,
+                "node": "H-2 星云（面纱比邻星域）",
+                "missionType": "Skirmish",
+                "isStorm": True,
+                "enemy": "Grineer",
+            },
+            {
+                **_base,
+                "node": "奥加尔星团（地球比邻星域）",
+                "missionType": "Skirmish",
+                "isStorm": True,
+                "enemy": "Grineer",
+            },
+        ]
+        _t6, _l6 = await _openrelic_lines("开核桃")
+        _o6 = [ln[2:].split("　")[2] for ln in _l6 if ln.startswith("· ")]
+        check(
+            "开核桃：九重天单独成节、按九重天规则排",
+            _o6
+            == [
+                "Q（地球）",
+                "奥加尔星团（地球比邻星域）",
+                "H-2 星云（面纱比邻星域）",
+                "W（金星比邻星域）",
+            ],
+            str(_o6),
+        )
+        check(
+            "开核桃：有「九重天裂隙（航道星舰）」小节",
+            any(ln.startswith("◆ 九重天裂隙（航道星舰）") for ln in _l6),
+            str(_l6),
+        )
+        check("开核桃：卡首统计九重天场次", any("九重天 3 场" in ln for ln in _l6), str(_l6[:3]))
+        _FS[:] = _mix
+        _t3, _l3 = await _openrelic_lines("开核桃 无尽")
+        _rows3 = [ln for ln in _l3 if ln.startswith("· ")]
+        check("「开核桃 无尽」只留无尽", len(_rows3) == 1 and "生存" in _rows3[0], str(_rows3))
+    finally:
+        _FS[:] = _saved
+
     # 移动防御 / 站桩类不参与速刷（2026-09-29 D5：_h_openrelic 迁 relic.py）
     src = (ROOT / "core" / "commands" / "relic.py").read_text(encoding="utf-8")
     _q = src[src.find("QUICK = {") : src.find("}", src.find("QUICK = {")) + 1]

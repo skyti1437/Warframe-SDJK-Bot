@@ -10,9 +10,11 @@ import math
 import os
 import time
 import uuid
+from bisect import bisect_left
 from dataclasses import asdict, dataclass, field
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Callable, Iterable, Optional
 
 from .logging_compat import logger
 from .parser import TimeWindow
@@ -128,6 +130,7 @@ class GroupStore(JsonStore):
                 self._quarantine(f"顶层应为对象，实为 {type(self._data).__name__}")
             self._data = {}
         self._default_platform = default_platform
+        self._option_lock = asyncio.Lock()
 
     def get(self, umo: str) -> dict:
         rec = dict(self.DEFAULTS)
@@ -145,8 +148,7 @@ class GroupStore(JsonStore):
         return self.get(umo)["platform"]
 
     async def set_platform(self, umo: str, platform: str) -> None:
-        self._record_for_write(umo)["platform"] = platform
-        await self.save()
+        await self.edit_option(umo, "platform", lambda old: platform)
 
     def lang(self, umo: str) -> Optional[str]:
         """本会话显式设置的显示语言；没设置或存档值非法返回 None（跟随全局默认）。"""
@@ -155,32 +157,69 @@ class GroupStore(JsonStore):
 
     async def set_lang(self, umo: str, lang: Optional[str]) -> None:
         """设置本会话语言；传 None 清除设置，恢复跟随全局默认。"""
-        rec = self._record_for_write(umo)
-        if lang is None:
-            rec.pop("lang", None)
-        else:
-            rec["lang"] = lang
-        await self.save()
+        await self.edit_option(umo, "lang", lambda old: lang)
 
-    def _record_for_write(self, umo: str) -> dict:
-        """显式设置时只修复当前会话的坏记录，保留其它会话原值。"""
-        if not isinstance(self._data.get(umo), dict):
-            self._data[umo] = {}
-        return self._data[umo]
+    async def _update_record(self, umo: str, edit: Callable[[dict], Any]) -> Any:
+        """串行修改当前会话，写盘失败时恢复原记录。"""
+        async with self._option_lock:
+            existed = umo in self._data
+            previous = self._data.get(umo)
+            rec = copy.deepcopy(previous) if isinstance(previous, dict) else {}
+            result = edit(rec)
+            if rec == previous:
+                return result
+            self._data[umo] = rec
+            try:
+                await self.save()
+            except Exception:
+                if existed:
+                    self._data[umo] = previous
+                else:
+                    self._data.pop(umo, None)
+                raise
+            return result
+
+    async def edit_option(self, umo: str, key: str, edit: Callable[[Any], Any]) -> Any:
+        def change(rec):
+            new = edit(rec.get(key))
+            if new is None:
+                rec.pop(key, None)
+            else:
+                rec[key] = new
+            return new
+
+        return await self._update_record(umo, change)
+
+    def disabled_commands(self, umo: str) -> set[str]:
+        value = self.get(umo).get("disabled")
+        return (
+            {command for command in value if isinstance(command, str)}
+            if isinstance(value, list)
+            else set()
+        )
+
+    def command_aliases(self, umo: str) -> dict[str, str]:
+        value = self.get(umo).get("aliases")
+        return (
+            {key: target for key, target in value.items() if isinstance(target, str)}
+            if isinstance(value, dict)
+            else {}
+        )
 
     async def set_switch(self, umo: str, key: str, value: bool) -> None:
         """写开关。key 必须是存储键（push/quiet），传入显示名会自动归一化。"""
         key = self.SWITCH_KEYS.get(key, key)
-        rec = self._record_for_write(umo)
-        rec[key] = value
-        for legacy, canonical in self.SWITCH_KEYS.items():
-            if canonical == key:
-                rec.pop(legacy, None)  # 只清理本次显式设置的开关，避免旧中文键回头覆盖。
-        if key == "push" and value:
-            # ★ 2026-10-17：手动重新打开推送 = 手动恢复 —— 顺带解除「连续失败暂停」记录
-            #   （同一次 save；`.开启 推送` 与面板开关都走这里）。
-            rec.pop("push_pause", None)
-        await self.save()
+
+        def change(rec):
+            rec[key] = value
+            for legacy, canonical in self.SWITCH_KEYS.items():
+                if canonical == key:
+                    rec.pop(legacy, None)
+            if key == "push" and value:
+                # 手动重新开启推送，同时解除发送失败的暂停记录。
+                rec.pop("push_pause", None)
+
+        await self._update_record(umo, change)
 
     # ---- 「连续失败暂停」记录（2026-10-17）-----------------------------------
     # 会话连续 FAIL_PURGE_THRESHOLD 轮发送失败后不再清理订阅，而是写一条暂停记录；
@@ -188,12 +227,9 @@ class GroupStore(JsonStore):
     # 与 push/quiet 同存一个 umo 记录里：`get()` 会把它一并带出来（调用方只读已知键，不受影响）。
     async def set_pause(self, umo: str, info: Optional[dict]) -> None:
         """写入 / 解除暂停记录（info=None 表示解除并 pop 掉该键）。"""
-        rec = self._record_for_write(umo)
-        if info is None:
-            rec.pop("push_pause", None)
-        else:
-            rec["push_pause"] = dict(info)
-        await self.save()
+        await self.edit_option(
+            umo, "push_pause", lambda old: dict(info) if info is not None else None
+        )
 
     def pause_of(self, umo: str) -> Optional[dict]:
         """读该会话的暂停记录；没有 / 类型不对 ⇒ None。"""
@@ -203,6 +239,163 @@ class GroupStore(JsonStore):
 
     def all(self) -> dict:
         return self._data
+
+
+_STAT_OUTCOMES = ("success", "error", "api_error", "no_reply")
+_STAT_LATENCY_MS = (
+    1,
+    5,
+    10,
+    20,
+    35,
+    50,
+    75,
+    100,
+    150,
+    250,
+    350,
+    500,
+    750,
+    1000,
+    1500,
+    2000,
+    3000,
+    5000,
+    10000,
+    30000,
+    60000,
+    120000,
+    300000,
+    600000,
+)
+
+
+class CommandStats(JsonStore):
+    """UTC 日桶，仅保存指令键、结果计数与处理器耗时直方图。"""
+
+    def __init__(self, path: Path, commands: Iterable[str]):
+        super().__init__(path)
+        self._commands = frozenset(commands)
+        if not isinstance(self._data, dict):
+            if self._data is not None:
+                self._quarantine("指令统计顶层不是对象")
+            self._data = {}
+        clean = {}
+        for day, rows in self._data.items():
+            try:
+                if datetime.strptime(day, "%Y-%m-%d").date().isoformat() != day:
+                    continue
+            except (TypeError, ValueError):
+                continue
+            if not isinstance(rows, dict):
+                continue
+            entries = {}
+            for command, row in rows.items():
+                if command not in self._commands or not isinstance(row, dict):
+                    continue
+                counts, hist = row.get("counts"), row.get("hist")
+                if (
+                    isinstance(counts, list)
+                    and len(counts) == len(_STAT_OUTCOMES)
+                    and isinstance(hist, list)
+                    and len(hist) == len(_STAT_LATENCY_MS)
+                    and all(type(n) is int and n >= 0 for n in counts + hist)
+                    and sum(counts) == sum(hist)
+                ):
+                    entries[command] = {"counts": counts, "hist": hist}
+            if entries:
+                clean[day] = entries
+        self._revision = int(clean != self._data)
+        self._saved_revision = 0
+        self._last_flush = time.monotonic()
+        self._data = clean
+        self._prune(time.time())
+
+    @staticmethod
+    def _day(now: float, offset: int = 0) -> str:
+        return (
+            datetime.fromtimestamp(now, timezone.utc).date() - timedelta(days=offset)
+        ).isoformat()
+
+    def _prune(self, now: float) -> None:
+        limit = self._day(now, 29)
+        for day in list(self._data):
+            if day < limit:
+                del self._data[day]
+                self._revision += 1
+
+    def record(self, command: str, outcome: str, elapsed_ms: float) -> None:
+        if command not in self._commands or outcome not in _STAT_OUTCOMES:
+            return
+        now = time.time()
+        day = self._day(now)
+        if day not in self._data:
+            self._prune(now)
+        rows = self._data.setdefault(day, {})
+        row = rows.get(command)
+        if row is None:
+            row = rows[command] = {
+                "counts": [0] * len(_STAT_OUTCOMES),
+                "hist": [0] * len(_STAT_LATENCY_MS),
+            }
+        row["counts"][_STAT_OUTCOMES.index(outcome)] += 1
+        bucket = min(bisect_left(_STAT_LATENCY_MS, elapsed_ms), len(_STAT_LATENCY_MS) - 1)
+        row["hist"][bucket] += 1
+        self._revision += 1
+
+    async def flush(self, *, force: bool = False) -> None:
+        self._prune(time.time())
+        now = time.monotonic()
+        if self._revision == self._saved_revision or (not force and now - self._last_flush < 3600):
+            return
+        revision = self._revision
+        try:
+            await self.save()
+        except OSError:
+            self._last_flush = -math.inf
+            logger.warning("[warframe] 指令统计落盘失败")
+        else:
+            self._last_flush = time.monotonic()
+            self._saved_revision = revision
+
+    @staticmethod
+    def _percentile(hist: list[int], fraction: float) -> int:
+        rank = math.ceil(sum(hist) * fraction)
+        for upper, count in zip(_STAT_LATENCY_MS, hist):
+            rank -= count
+            if rank <= 0:
+                return upper
+        return _STAT_LATENCY_MS[-1]
+
+    def summary(self, days: int, now: Optional[float] = None) -> list[dict]:
+        now = time.time() if now is None else now
+        first, last = self._day(now, min(max(days, 1), 30) - 1), self._day(now)
+        totals: dict = {}
+        for day, rows in self._data.items():
+            if first <= day <= last:
+                for command, row in rows.items():
+                    if command not in totals:
+                        totals[command] = (row["counts"].copy(), row["hist"].copy())
+                    else:
+                        counts, hist = totals[command]
+                        totals[command] = (
+                            [a + b for a, b in zip(counts, row["counts"])],
+                            [a + b for a, b in zip(hist, row["hist"])],
+                        )
+        return sorted(
+            (
+                {
+                    "command": command,
+                    "count": sum(counts),
+                    **dict(zip(_STAT_OUTCOMES, counts)),
+                    "p50_ms": self._percentile(hist, 0.50),
+                    "p95_ms": self._percentile(hist, 0.95),
+                }
+                for command, (counts, hist) in totals.items()
+                if sum(counts)
+            ),
+            key=lambda row: (-row["count"], row["command"]),
+        )
 
 
 @dataclass

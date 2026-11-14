@@ -63,6 +63,7 @@ NEW_WEAPONS = [
     "Vinquibus (Melee)",
     "Quassus Prime",
     "Kuva Ghoulsaw",
+    "Thalys",
 ]
 CATEGORY = {
     "Primary": "Primary",

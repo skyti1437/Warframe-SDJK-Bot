@@ -578,6 +578,35 @@ def normalize_name(s: str) -> str:
     return re.sub(r"[·・•·\s]+", "", s)
 
 
+_FAMILY_HEAD = re.compile(r"^([\u4e00-\u9fff]{2,4})[·・]\s*[\u4e00-\u9fff]")
+
+
+def family_prefixes(names) -> frozenset:
+    """官方名里「族·名」的族名集合（赋能 / 近战 / 主要 / 魔导 / 赤毒 …），从名单自动收集。"""
+    out = set()
+    for n in names:
+        m = _FAMILY_HEAD.match((n or "").strip())
+        if m:
+            out.add(m.group(1))
+    return frozenset(out)
+
+
+def family_suffix_candidates(query: str, families) -> list[str]:
+    """族名放在后面的写法 → 官方「族·名」候选：「收割赋能」→「赋能·收割」、「侵染 近战」→「近战·侵染」。
+
+    中文 wiki 常把族名挪到后面，与游戏内官方名不一致（维护者 2026-11-10 反馈）。只产出候选，
+    调用方必须拿候选去做**精确**匹配，命中官方名才采用。
+    """
+    q = re.sub(r"[·・•\s]+", "", unicodedata.normalize("NFKC", query or ""))
+    out: list[str] = []
+    for fam in sorted(families, key=len, reverse=True):
+        if q.endswith(fam) and len(q) > len(fam):
+            cand = f"{fam}·{q[: -len(fam)]}"
+            if cand not in out:
+                out.append(cand)
+    return out
+
+
 _BILINGUAL: Optional[dict] = None
 
 

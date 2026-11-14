@@ -10,10 +10,13 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import sys
 import tempfile
 import types
+from datetime import datetime, timezone
 from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -58,6 +61,7 @@ def _install_astrbot_stub() -> None:
 
     class MessageChain:
         def message(self, text):
+            self.text = text
             return text
 
     class _EventMessageType:
@@ -111,7 +115,7 @@ def _install_astrbot_stub() -> None:
 _install_astrbot_stub()
 
 import main as plugin  # noqa: E402
-from core.store import GroupStore, Subscription  # noqa: E402
+from core.store import CommandStats, GroupStore, Subscription  # noqa: E402
 
 FAILED: list[str] = []
 
@@ -654,12 +658,333 @@ async def qq_official_group_admin_checks() -> None:
         )
 
 
+async def group_policy_checks() -> None:
+    class Event:
+        def __init__(self, text, group="one", admin=True):
+            self.message_str = text
+            self.unified_msg_origin = f"test:GroupMessage:{group}"
+            self.group = group
+            self.role = "admin" if admin else "member"
+            self.stopped = False
+
+        def get_group_id(self):
+            return self.group
+
+        def stop_event(self):
+            self.stopped = True
+
+    with tempfile.TemporaryDirectory() as folder:
+        path = Path(folder) / "groups.json"
+        obj = object.__new__(plugin.WarframeSDJK)
+        obj.cfg = {}
+        obj.groups = GroupStore(path)
+
+        async def route(parsed, event, platform):
+            return plugin.Reply(raw_text=f"route:{parsed.command} {parsed.content_str}".strip())
+
+        async def results(event, reply, parsed):
+            yield reply.raw_text
+
+        obj._routes = {key: route for key in ("wr", "farm", "help", "status")}
+        obj._build_results = results
+
+        async def send(text, group="one", admin=True):
+            return [v async for v in obj.on_message(Event(text, group, admin))]
+
+        await send(".禁用 wr", admin=False)
+        check("普通成员不能修改禁用列表", await send("wr 绝路") == ["route:wr 绝路"])
+        await send(".禁用 wr")
+        check("群禁用屏蔽带参命令", await send("wr 绝路") == [])
+        check("仅发送禁用指令词会提示", await send("wr") == ["本群已关闭该指令"])
+        check("禁用仅影响当前群", await send("wr 绝路", "two") == ["route:wr 绝路"])
+        await send(".禁用 帮助 状态")
+        check(
+            "帮助和状态不可禁用",
+            await send("帮助") == ["route:help"] and await send("状态") == ["route:status"],
+        )
+        await send(".启用 wr")
+        check("重新启用后恢复", await send("wr 绝路") == ["route:wr 绝路"])
+
+        check("禁止覆盖英文全局别名", "冲突" in (await send(".别名 添加 farm 刷"))[0])
+        await send(".别名 添加 刷取路线 farm")
+        obj.groups = GroupStore(path)
+        check("群别名持久化并路由", await send("刷取路线 Wisp Prime") == ["route:farm Wisp Prime"])
+        check(
+            "别名不会串群或误触发句中词",
+            await send("刷取路线 Wisp Prime", "two") == []
+            and await send("今天 刷取路线 什么") == [],
+        )
+        await send(".别名 删除 刷取路线")
+        check("删除别名后停止路由", await send("刷取路线 Wisp Prime") == [])
+
+
+async def digest_checks() -> None:
+    with tempfile.TemporaryDirectory() as folder:
+        path = Path(folder) / "groups.json"
+        obj = object.__new__(plugin.WarframeSDJK)
+        obj.cfg = {"default_language": "en", "display_timezone": "UTC+10:00"}
+        obj.groups = GroupStore(path)
+        obj.render_mode = "text"
+        umo = "test:GroupMessage:one"
+        sender = AsyncMock(return_value=True)
+        obj.context = types.SimpleNamespace(send_message=sender)
+        obj.client = types.SimpleNamespace(
+            sortie=AsyncMock(return_value={"boss": "Vay Hek", "expiry": "2026-11-11T17:00:00Z"}),
+            archon_hunt=AsyncMock(side_effect=plugin.WarframeAPIError("offline")),
+            nightwave=AsyncMock(return_value={"season": 1, "expiry": "2026-11-12T00:00:00Z"}),
+            void_trader=AsyncMock(return_value={"active": True, "location": "Relay"}),
+            daily_deals=AsyncMock(return_value=[]),
+            events=AsyncMock(
+                return_value=[{"name": "Live event", "expiry": "2026-11-11T12:00:00Z"}]
+            ),
+        )
+        denied = await obj._digest_command(umo, ["on"])
+        check(
+            "早报开启前要求群推送",
+            "Enable group push" in denied.raw_text or "开启 推送" in denied.raw_text,
+        )
+        await obj.groups.set_switch(umo, "push", True)
+        await obj._digest_command(umo, ["on"])
+        now = datetime(2026, 11, 11, tzinfo=timezone.utc).timestamp()  # 北京时间 08:00
+        await obj._daily_digest_tick(now - 1)
+        check("早报未到点不取数", obj.client.sortie.await_count == 0 and sender.await_count == 0)
+        await obj._daily_digest_tick(now)
+        obj.groups = GroupStore(path)
+        await obj._daily_digest_tick(now + 60)
+        check(
+            "早报到点发一次，重载后不重复",
+            sender.await_count == 1 and obj.groups.get(umo)["digest"]["last"] == "2026-11-11",
+        )
+        await obj._digest_command(umo, ["off"])
+        await obj._digest_command(umo, ["on"])
+        await obj._daily_digest_tick(now + 120)
+        check("同日关闭后开启不重复发", sender.await_count == 1)
+        await obj._daily_digest_tick(now + 86400 + 3600)
+        check("早报重启补发窗口两小时内", sender.await_count == 2)
+        await obj._daily_digest_tick(now + 2 * 86400 + 7200)
+        check("早报超过补发窗口不发", sender.await_count == 2)
+        await obj.groups.set_switch(umo, "push", False)
+        await obj._daily_digest_tick(now + 3 * 86400)
+        check("关闭群推送后早报暂停", sender.await_count == 2)
+        await obj.groups.set_switch(umo, "push", True)
+        sender.return_value = False
+        await obj._daily_digest_tick(now + 3 * 86400)
+        sender.return_value = True
+        await obj._daily_digest_tick(now + 3 * 86400 + 60)
+        check("明确未发送可在窗口内重试", sender.await_count == 4)
+        first_body = sender.await_args_list[0].args[1].text
+        check(
+            "早报单项失败仍成卡，按群语言列活动到期",
+            "Live event" in first_body
+            and "11-11 22:00 UTC+10:00" in first_body
+            and "Unavailable this time: Archon Hunt" in first_body,
+            first_body,
+        )
+
+        class DigestChain:
+            def __init__(self):
+                self.chain = []
+                self.text = ""
+
+            def message(self, text):
+                self.text = text
+                return self
+
+            def use_markdown(self, enabled):
+                self.markdown = enabled
+
+        obj.groups = GroupStore(Path(folder) / "digest-platforms.json")
+        obj.render_mode = "image"
+        obj._render_card = AsyncMock(return_value="digest.png")
+        cleaned = []
+        obj._schedule_card_cleanup = cleaned.append
+        obj.context.get_platform_inst = lambda pid: types.SimpleNamespace(
+            meta=lambda: types.SimpleNamespace(name=pid)
+        )
+        sender.reset_mock()
+        for chat in ("slack:GroupMessage:one", "discord:GroupMessage:one"):
+            await obj.groups.set_switch(chat, "push", True)
+            await obj._digest_command(chat, ["on"])
+        with (
+            patch.object(plugin, "MessageChain", DigestChain),
+            patch.object(
+                plugin,
+                "Image",
+                types.SimpleNamespace(fromFileSystem=lambda value: ("image", value)),
+            ),
+        ):
+            await obj._daily_digest_tick(now)
+            sent = {call.args[0]: call.args[1] for call in sender.await_args_list}
+            slack = sent.get("slack:GroupMessage:one")
+            discord = sent.get("discord:GroupMessage:one")
+            check(
+                "混合群早报按平台发送，Slack 文字和 Discord 图片各一份",
+                sender.await_count == 2
+                and slack is not None
+                and slack.text
+                and not slack.chain
+                and discord is not None
+                and discord.chain == [("image", "digest.png")],
+            )
+            check(
+                "混合群只绘制一张图片并安排清理",
+                obj._render_card.await_count == 1 and cleaned == ["digest.png"],
+            )
+            await obj.groups.set_switch("discord:GroupMessage:one", "push", False)
+            await obj._daily_digest_tick(now + 86400)
+            check(
+                "只有默认文字平台时早报跳过图片渲染",
+                sender.await_count == 3
+                and sender.await_args.args[1].text
+                and obj._render_card.await_count == 1,
+            )
+
+
+async def group_store_failure_checks() -> None:
+    with tempfile.TemporaryDirectory() as folder:
+        path = Path(folder) / "groups.json"
+        umo = "test:GroupMessage:one"
+        original = {
+            umo: {
+                "platform": "pc",
+                "lang": "zh",
+                "push": False,
+                "推送": False,
+                "push_pause": {"reason": "fixture"},
+                "legacy_null": None,
+            }
+        }
+        path.write_text(json.dumps(original), encoding="utf-8")
+        for label, method, args in (
+            ("语言", "set_lang", ("en",)),
+            ("平台", "set_platform", ("ps",)),
+            ("推送开关", "set_switch", ("push", True)),
+            ("清除暂停", "set_pause", (None,)),
+            ("旧空值", "edit_option", ("legacy_null", lambda old: True)),
+        ):
+            store = GroupStore(path)
+            raised = False
+            with patch.object(store, "_write_atomic", side_effect=OSError("fixture")):
+                try:
+                    await getattr(store, method)(umo, *args)
+                except OSError:
+                    raised = True
+            check(
+                f"群配置 {label} 写盘失败保持内存和存档一致",
+                raised and store.all() == original and json.loads(path.read_text()) == original,
+            )
+        store = GroupStore(path)
+        writer = store._write_atomic
+        writes = 0
+
+        def fail_first(snapshot):
+            nonlocal writes
+            writes += 1
+            if writes == 1:
+                raise OSError("fixture")
+            writer(snapshot)
+
+        with patch.object(store, "_write_atomic", side_effect=fail_first):
+            results = await asyncio.gather(
+                store.set_lang(umo, "en"),
+                store.set_switch(umo, "push", True),
+                return_exceptions=True,
+            )
+        expected = {umo: {**original[umo], "push": True}}
+        expected[umo].pop("推送")
+        expected[umo].pop("push_pause")
+        check(
+            "并发群设置保留失败项原值，成功项落盘并解除暂停",
+            isinstance(results[0], OSError)
+            and results[1] is None
+            and store.all() == expected
+            and json.loads(path.read_text()) == expected,
+        )
+        for record in ({}, {umo: "legacy"}):
+            before = {"other": {"push": True}, **record}
+            path.write_text(json.dumps(before), encoding="utf-8")
+            store = GroupStore(path)
+            with patch.object(store, "_write_atomic", side_effect=OSError("fixture")):
+                try:
+                    await store.set_lang(umo, "en")
+                except OSError:
+                    pass
+            unchanged = store.all() == before and json.loads(path.read_text()) == before
+            await store.set_lang(umo, "en")
+            check(
+                f"群记录 {record!r} 写失败可恢复，成功设置仅修复当前群",
+                unchanged
+                and store.lang(umo) == "en"
+                and store.all()["other"] == before["other"]
+                and GroupStore(path).lang(umo) == "en",
+            )
+
+
+async def command_stats_checks() -> None:
+    with tempfile.TemporaryDirectory() as folder:
+        path = Path(folder) / "command_stats.json"
+        now = datetime(2026, 11, 11, 8, tzinfo=timezone.utc).timestamp()
+        with patch("core.store.time.time", return_value=now):
+            stats = CommandStats(path, {"wr", "farm"})
+            for outcome, ms in (
+                ("success", 20),
+                ("api_error", 95),
+                ("error", 1200),
+                ("no_reply", 6),
+            ):
+                stats.record("wr", outcome, ms)
+            stats.record("test_group_secret", "success", 10)
+            await stats.flush(force=True)
+            loaded = CommandStats(path, {"wr", "farm"})
+            rows = loaded.summary(7)
+            check(
+                "统计按指令聚合并重载，延迟分桶",
+                rows
+                == [
+                    {
+                        "command": "wr",
+                        "count": 4,
+                        "success": 1,
+                        "error": 1,
+                        "api_error": 1,
+                        "no_reply": 1,
+                        "p50_ms": 20,
+                        "p95_ms": 1500,
+                    }
+                ],
+            )
+            check("统计不写入未知指令或会话标识", "test_group_secret" not in path.read_text())
+        with patch("core.store.time.time", return_value=now + 30 * 86400):
+            check("统计按 30 日留存清除旧桶", CommandStats(path, {"wr", "farm"}).summary(30) == [])
+        for force, at in ((False, 3601), (True, 30)):
+            retry_path = Path(folder) / f"stats-retry-{force}.json"
+            with patch("core.store.time.monotonic", return_value=0):
+                stats = CommandStats(retry_path, {"wr"})
+                stats.record("wr", "success", 20)
+            with (
+                patch("core.store.time.monotonic", return_value=at),
+                patch.object(stats, "_write_atomic", side_effect=OSError("fixture")),
+            ):
+                await stats.flush(force=force)
+            with patch("core.store.time.monotonic", return_value=at + 45):
+                await stats.flush()
+            check(
+                f"统计临时落盘失败在下一轮重试 force={force}",
+                retry_path.exists()
+                and CommandStats(retry_path, {"wr"}).summary(7)[0]["count"] == 1,
+            )
+
+
 if __name__ == "__main__":
     asyncio.run(main())
     asyncio.run(terminate_checks())
     asyncio.run(dot_status_dispatch_checks())
     asyncio.run(legacy_switch_precedence_checks())
     asyncio.run(qq_official_group_admin_checks())
+    asyncio.run(group_policy_checks())
+    asyncio.run(digest_checks())
+    asyncio.run(group_store_failure_checks())
+    asyncio.run(command_stats_checks())
     print()
     if FAILED:
         print(f"共 {len(FAILED)} 项失败：{FAILED}")

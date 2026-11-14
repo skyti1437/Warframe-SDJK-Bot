@@ -377,7 +377,7 @@ async def main() -> None:
         f"title={getattr(rep, 'title', None)}",
     )
 
-    # —— 2026-10-11 时间段口径（北京时间；0到24=全天；22到8 的 8 点整结束；跨午夜按起始日）——
+    # 时间窗口径：0到24 为全天，22到8 在 8 点整结束，跨午夜按起始日。
     obj6 = _make_plugin(tmp)
     await obj6.groups.set_switch("group://tw", "push", True)
     r_all = await _run_one(obj6, "蹲 夜灵 永久 0到24", umo="group://tw")

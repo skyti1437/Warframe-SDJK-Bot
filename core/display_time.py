@@ -1,4 +1,4 @@
-"""统一格式化用户看到的时刻。游戏周期与时间窗继续使用各自的原始时间。"""
+"""统一用户看到的时刻和订阅窗口时区。"""
 
 from __future__ import annotations
 
@@ -85,6 +85,13 @@ def _system_zone_name(now: datetime) -> str:
         if all(d.astimezone(zone).utcoffset() == d.astimezone().utcoffset() for d in samples):
             return name
     return ""
+
+
+def current_zone_label() -> str:
+    """时间窗使用的固定偏移，或 AstrBot 运行环境的时区。"""
+    now = datetime.now(timezone.utc)
+    system = _system_zone_name(now) if _setting.get() is None else ""
+    return system or offset_label(local_datetime(now))
 
 
 def panel_timezone(value: object) -> dict[str, str | int]:

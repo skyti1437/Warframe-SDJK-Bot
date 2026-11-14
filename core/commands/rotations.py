@@ -247,7 +247,14 @@ class RotationCommands:
             if _vn:
                 lines.append(_vn)
             if data.get("_note"):
-                lines.append(_note_line(data["_note"]))
+                lines.append(
+                    _note_line(
+                        L(
+                            data["_note"],
+                            "Eleanor Nightingale alternates two Coda weapon batches. Element and bonus values are fetched automatically.",
+                        )
+                    )
+                )
             return Reply(title, lines)
 
         # —— 模式：常驻 + 定期刷新（Tenet 信条：武器常驻，元素加成每 4 天重生成）——
@@ -267,8 +274,8 @@ class RotationCommands:
                     f"◆ Element bonuses regenerate: {fmt._left_en(_cd)} ({_at}, every {days} days)",
                 ),
                 L(
-                    f"◆ 常驻武器（{len(items)} 把，随到随买，各 40 个腐化全息密钥）",
-                    f"◆ Permanent weapons ({len(items)}, buy any time, 40 Corrupted Holo-Keys each)",
+                    f"◆ 常驻武器（{len(items)} 把，随到随买，各 40 个堕落全息密钥）",
+                    f"◆ Permanent weapons ({len(items)}, buy any time, 40 Corrupted Holokeys each)",
                 ),
             ]
             lines.extend(_weapon_rows(items))
@@ -276,7 +283,14 @@ class RotationCommands:
             if _vn:
                 lines.append(_vn)
             if data.get("_note"):
-                lines.append(_note_line(data["_note"]))
+                lines.append(
+                    _note_line(
+                        L(
+                            data["_note"],
+                            "Ergo Glast sells these weapons at Relays without a Standing cost.",
+                        )
+                    )
+                )
             return Reply(title, lines)
 
         # —— 模式二：滑动窗口 ——

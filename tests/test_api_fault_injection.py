@@ -1395,7 +1395,30 @@ async def t_de_community_fallback():
     from core.formatters import fmt_construction, fmt_void_trader
     from core.baro import group_of_store
 
+    deadline = (datetime.now(timezone.utc) + timedelta(days=1)).isoformat()
+    relic_path = "/Lotus/Types/Game/Projections/T4VoidProjectionS1"
     payload = {
+        "events": [
+            {
+                "id": "thermia",
+                "description": "Thermia Fractures",
+                "expiry": deadline,
+                "node": "Orb Vallis (Venus)",
+                "currentScore": 8,
+                "maximumScore": 100,
+            }
+        ],
+        "vaultTrader": {
+            "character": "Varzia",
+            "expiry": deadline,
+            "inventory": [{"uniqueName": relic_path, "ducats": None, "credits": 1}],
+            "schedule": [],
+        },
+        "clanWeeklyInitiative": {
+            "week": 665,
+            "regionUniqueName": "/Lotus/Language/Locations/Fortress",
+            "rewwards": [{"PointThreshold": 500, "ItemCount": 12, "Reward": relic_path}],
+        },
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "fissures": [{"node": "Larunda Relay (Mercury)"}, {"node": "Unknown node"}],
         "sortie": {"variants": [{"node": "Larunda Relay (Mercury)"}]},
@@ -1521,11 +1544,25 @@ async def t_de_community_fallback():
             n = len(calls)
             await c.fissures("pc")
             check(f"DE {mode} 冷却不重打", len(calls) == n)
-            try:
-                await c.goals("pc")
-                check("未核实goals明确不可用", False)
-            except WarframeAPIError:
-                check("未核实goals明确不可用", True)
+            goals = await c.goals("pc")
+            check(
+                f"社区 {mode} 活动保留到期和进度",
+                len(goals) == 1 and goals[0]["count"] == 8 and goals[0]["goal"] == 100,
+            )
+            vault = await c.prime_vault("pc")
+            check(
+                f"社区 {mode} Varzia 只列本期和准确币种",
+                vault["evergreen_unavailable"]
+                and len(vault["items"]) == 1
+                and not vault["items"][0]["prime_currency"]
+                and vault["items"][0]["prime"] == 1,
+            )
+            clan = await c.clan_rewards("pc")
+            check(
+                f"社区 {mode} 氏族周奖励复用官方契约",
+                clan[0]["week"] == 665 and clan[0]["rewards"][0]["points"] == 500,
+            )
+            check(f"社区 {mode} 结合目标使用随包静态表", bool(await c.synth_targets("pc")))
         finally:
             await c.close()
     # 网络故障注入走真实 HTTP 边界和赏金 handler；不替换适配器/格式化器。
