@@ -9,6 +9,7 @@
 | `acrithis_week.json` | 言录使**当期货单**（每周一 00:00 UTC 轮换） | 每周刷新后 |
 | `arb_ratings.json` | 仲裁节点**社区实测评级**（arbi.wf.wiki 排行榜每节点生息中位数） | 每周重算，有变化才发 |
 | `baro_history.json` | 奸商（Baro Ki'Teer）**历次到访与货品** | 按官方实际到访更新，包含活动加场 |
+| `riven_sale.json` | 紫卡出售参考词条 | 每周检查，有变化才发 |
 | `wiki_disp.json` | 紫卡**武器倾向**（wiki Riven Mods 页）—— 2026-10 DE 取消倾向后**停更**，保留最后一版 | 不再更新 |
 | `index.json` | 发布时间与各文件的时间戳 | 同上 |
 
@@ -23,7 +24,8 @@ FlareSolverr** 的插件用户也能拿到较新的数据，这里把「已经�
 ## 数据来源与许可
 
 - `arb_ratings.json` 来自 **arbi.wf.wiki** 社区排行榜（非官方，玩家上传的实测记录聚合）。
-- 其余数据来自 **wiki.warframe.com**（CC BY-NC-SA 3.0），由插件在部署了 FlareSolverr
+- `riven_sale.json` 默认来自 44bananas 的《good rolls for selling》。文件内的 `source` 记录原表网址。
+- 供轮换、货单与奸商查询的数据来自 **wiki.warframe.com**（CC BY-NC-SA 3.0），由插件在部署了 FlareSolverr
   的机器上抓取后发布；文件内的 `source` 字段记录了具体页面与快照时间。
 - Warframe 及相关内容版权归 **Digital Extremes** 所有，本仓库仅供查询用途。
 - 本分支只读，且**只发布校验通过的数据**（覆盖不全 / 已过期 / 更旧的一律不发）。
