@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "published_at": "2026-11-15T00:22:49+00:00",
+ "published_at": "2026-11-15T07:27:58+00:00",
  "note": "由 automations/publish_community_snapshot.py 发布；只读，勿手工改",
  "files": {
   "valence.json": {
@@ -18,6 +18,10 @@
   "baro_history.json": {
    "published_at": "2026-11-13",
    "snapshot": "wiki.warframe.com · Module:Baro/data"
+  },
+  "riven_sale.json": {
+   "published_at": "2026-11-15T07:27:58+00:00",
+   "snapshot": "https://docs.google.com/spreadsheets/d/1zbaeJBuBn44cbVKzJins_E3hTDpnmvOk8heYN-G8yy8/edit"
   }
  }
 }

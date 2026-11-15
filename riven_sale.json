@@ -1,0 +1,2940 @@
+{
+ "schema": 1,
+ "source": "https://docs.google.com/spreadsheets/d/1zbaeJBuBn44cbVKzJins_E3hTDpnmvOk8heYN-G8yy8/edit",
+ "snapshot_updated_at": "2026-11-15T07:27:58+00:00",
+ "weapons": [
+  {
+   "weapon": "acceltra",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL",
+   "negative": "IMP/ZOOM",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "aeolak",
+   "positive": "CD/MS/DMG/CC/FR/RLS CORRO/VIRAL/WeakDMG",
+   "negative": "IMP/PUNC/ZOOM/REC",
+   "notes": "(NOTE: having 2 quality of life stats are good for use but don't sell well(RLS AND FR), if PUNC is enough to not proc it's worse.)",
+   "category": "primary"
+  },
+  {
+   "weapon": "afentis",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL",
+   "negative": "ZOOM/REC/PUNC",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "alternox",
+   "positive": "MS/DMG/CC/CD/FR CORRO/VIRAL",
+   "negative": "ZOOM/REC",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "ambassador",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "amprex",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL",
+   "negative": "ZOOM/REC",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "arca plasmor",
+   "positive": "CD/MS/DMG/CC/FR/RLS CORRO/VIRAL",
+   "negative": "REC/ZOOM",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "argonak",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "IMP/ZOOM/REC",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "astilla",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL",
+   "negative": "IMP/REC/ZOOM",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "attica",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "PUNC/ZOOM/REC",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "primary"
+  },
+  {
+   "weapon": "ax-52",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/PUNC",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5, positive CC isn't as wanted for use because the zoom in function giving 100%CC on headshot)",
+   "category": "primary"
+  },
+  {
+   "weapon": "basmu",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/AMMO",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "battacor",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "PUNC/ZOOM/REC/IMP/SLASH",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "primary"
+  },
+  {
+   "weapon": "baza",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "IMP/PUNC/ZOOM",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "primary"
+  },
+  {
+   "weapon": "boar",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/SDMG",
+   "negative": "IMP/REC/ZOOM",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "boltor",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "PUNC/ZOOM/REC",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "primary"
+  },
+  {
+   "weapon": "braton",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "PUNC/ZOOM/REC/IMP",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "primary"
+  },
+  {
+   "weapon": "bubonico",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "PUNC/REC/IMP/AMMO/ZOOM",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "primary"
+  },
+  {
+   "weapon": "burston",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "PUNC/ZOOM/IMP/MAG",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5, MAG on negative is only good with the incarnon evo)",
+   "category": "primary"
+  },
+  {
+   "weapon": "buzlok",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "PUNC/ZOOM/REC/IMP",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "primary"
+  },
+  {
+   "weapon": "cedo",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "AMMO/REC/PUNC/ZOOM",
+   "notes": "(NOTE: REC is high on this, -PUNC hurts damage but collectors still buy it)",
+   "category": "primary"
+  },
+  {
+   "weapon": "cernos",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "IMP/REC/MAG/ZOOM",
+   "notes": "(NOTE: negative IMP kills IB build)",
+   "category": "primary"
+  },
+  {
+   "weapon": "cinta",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "REC/ZOOM/MAG/PUNC",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "coda bassocyst",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL",
+   "negative": "REC/ZOOM",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "convectrix",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG/SDMG",
+   "negative": "REC/SLASH/ZOOM",
+   "notes": "(NOTE: negative SLASH only for builds with DOT elements)",
+   "category": "primary"
+  },
+  {
+   "weapon": "corinth",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "IMP/PUNC/REC/ZOOM",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "primary"
+  },
+  {
+   "weapon": "daikyu",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "IMP/PUNC/REC/MAG/ZOOM",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "dera",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "PUNC/ZOOM/REC",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "primary"
+  },
+  {
+   "weapon": "drakgoon",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "SLASH/REC/ZOOM",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "dread",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "REC/MAG/ZOOM",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "efv-5 jupiter",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "REC/ZOOM/PUNC/IMP",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "primary"
+  },
+  {
+   "weapon": "enkaus",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "REC/ZOOM/PUNC",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "evensong",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "REC/ZOOM/MAG",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "exergis",
+   "positive": "MS/DMG/FR/SC AEFF/SDMG/WeakDMG",
+   "negative": "PUNC/REC/IMP/ZOOM",
+   "notes": "(NOTE: the MAG must be >=50%, TOX is only for collectors)",
+   "category": "primary"
+  },
+  {
+   "weapon": "felarx",
+   "positive": "MS/DMG/FR/SC AEFF/SDMG/WeakDMG or CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "PUNC/REC/CC/ZOOM",
+   "notes": "(NOTE: CC is only good if you're using the 5th evolution)",
+   "category": "primary"
+  },
+  {
+   "weapon": "ferrox",
+   "positive": "DMG FR ELEMENT or CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "PUNC/ZOOM/REC",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "primary"
+  },
+  {
+   "weapon": "flux rifle",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG or CC CD DTI/DTO/DTC/DTG/DTS/DTT",
+   "negative": "ZOOM/AMMO/REC/SLASH",
+   "notes": "(NOTE: AMMO only harmless for the base flux rifle, it does affect the tenet flux rifle. The rolls with DTI/DTG/DTC are for tenet flux)",
+   "category": "primary"
+  },
+  {
+   "weapon": "fulmin",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/IMP/REC/AMMO",
+   "notes": "(NOTE: FR can cause you to go over IB breakpoint)",
+   "category": "primary"
+  },
+  {
+   "weapon": "glaxion",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG/SDMG",
+   "negative": "ZOOM/REC",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "gorgon",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/IMP",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "gotva prime",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/PUNC",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "grakata",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/IMP/PUNC",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "primary"
+  },
+  {
+   "weapon": "grinlok",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/PUNC/IMP/REC",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "haalvu",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/SDMG",
+   "negative": "ZOOM/REC/AMMO/PFS",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "harpak",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/PUNC",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "primary"
+  },
+  {
+   "weapon": "hek",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "REC/PUNC/ZOOM",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "hema",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/AMMO",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "higasa",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/PUNC",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "hind",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/SLASH",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "ignis",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/SDMG",
+   "negative": "ZOOM/REC",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "javlok",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG/SDMG",
+   "negative": "ZOOM/REC/MS",
+   "notes": "(NOTE: MS only harmless for the throw)",
+   "category": "primary"
+  },
+  {
+   "weapon": "karak",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/PUNC/REC/IMP",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "primary"
+  },
+  {
+   "weapon": "kohm",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG/SDMG",
+   "negative": "SLASH/REC/ZOOM",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "komorex",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/PUNC",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "primary"
+  },
+  {
+   "weapon": "kuva bramma",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/AEFF",
+   "negative": "ZOOM/REC/IMP/MAG",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "kuva chakkhurr",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/IMP",
+   "notes": "(NOTE: FR only harmless as long as it stays below breakpoint for internal bleeding)",
+   "category": "primary"
+  },
+  {
+   "weapon": "lanka",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL",
+   "negative": "ZOOM/REC/PFS",
+   "notes": "(NOTE: PFS only harmless for mag use)",
+   "category": "primary"
+  },
+  {
+   "weapon": "latron",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL",
+   "negative": "ZOOM/REC/PUNC",
+   "notes": "(NOTE: for incarnon you do not want -PUNC for 2 of the evolutions)",
+   "category": "primary"
+  },
+  {
+   "weapon": "lenz",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL",
+   "negative": "ZOOM/REC/MAG/IMP",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "miter",
+   "positive": "CD/MS/DMG/CC/FR/SC WeakDMG/SDMG",
+   "negative": "ZOOM/REC",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "mutalist cernos",
+   "positive": "CC CD DMG or CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "REC/ZOOM/MAG/IMP",
+   "notes": "(NOTE: negative IMP hurts for use but still sells)",
+   "category": "primary"
+  },
+  {
+   "weapon": "mutalist quanta",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/PUNC",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "primary"
+  },
+  {
+   "weapon": "nagantaka",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC",
+   "notes": "(NOTE: REC was harmless for prime but not normal as of making this. AUG 16th 2022)",
+   "category": "primary"
+  },
+  {
+   "weapon": "nataruk",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "PUNC/ZOOM/REC/MAG/AMMO",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "nunchasa",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/MAG/PUNC",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "primary"
+  },
+  {
+   "weapon": "ogris",
+   "positive": "MS DMG MAG/PFS or AEFF DMG/MS/SC/TOX/MAG/PFS",
+   "negative": "ZOOM/REC/CC/SC/SD/DTI/DTG/DTC",
+   "notes": "(NOTE: negative DTI/DTG/DTC is for profit taker otherwise it is a harmful negative)",
+   "category": "primary"
+  },
+  {
+   "weapon": "opticor",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/PUNC/REC",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "panthera",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL",
+   "negative": "ZOOM/REC",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "paracyst",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "paris",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "PUNC/ZOOM/REC/MAG",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "penta",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG or CC CD DMG",
+   "negative": "IMP/REC/ZOOM",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "perigale",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "REC/ZOOM/PUNC",
+   "notes": "(NOTE: PUNC will lower damage if used for eidolon, for eidolon prefer CC over CD for more consistency, needs 107.2CC to hit 100% CC with point strike)",
+   "category": "primary"
+  },
+  {
+   "weapon": "phage",
+   "positive": "CD/MS/DMG/CC/FR/SC CORRO/VIRAL/WeakDMG/SDMG",
+   "negative": "REC/ZOOM",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "phantasma",
+   "positive": "SDMG MS/FR/SC/DMG HEAT/ELEC",
+   "negative": "IMP/REC/PUNC/SLASH/ZOOM",
+   "notes": "(NOTE: IMP negative has a breakpoint at 90.6, any more than that and it removes IMP completely resulting in less damage)",
+   "category": "primary"
+  },
+  {
+   "weapon": "phenmor",
+   "positive": "MS/DMG/FR/SC AEFF/SDMG/WeakDMG or CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/CC",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "proboscis cernos",
+   "positive": "MS/DMG/FR/SC AEFF/SDMG",
+   "negative": "IMP/REC/ZOOM/MAG",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "purgator 1",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/IMP/PUNC",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "primary"
+  },
+  {
+   "weapon": "quanta",
+   "positive": "CD/MS/DMG/CC/FR/SC CORRO/VIRAL/WeakDMG/SDMG",
+   "negative": "ZOOM/REC/PFS",
+   "notes": "(NOTE: PFS only affects the alt fire and stops it from going far)",
+   "category": "primary"
+  },
+  {
+   "weapon": "quartakk",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/IMP/PUNC",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "primary"
+  },
+  {
+   "weapon": "quellor",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/IMP/PUNC",
+   "notes": "(NOTE: FR as long as it stays below the breakpoint for internal bleeding on the alternate fire)",
+   "category": "primary"
+  },
+  {
+   "weapon": "rauta",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL or MS FR SC",
+   "negative": "RECOIL/SLASH",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "reconifex",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/IMP/PUNC",
+   "notes": "(NOTE: you want HEAT or TOX not both)",
+   "category": "primary"
+  },
+  {
+   "weapon": "rubico",
+   "positive": "CD MS FR/HEAT/CC/DMG or CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/IMP",
+   "notes": "(NOTE: >= 50%MS on Prime's Disposition and >=73.1%MS on Base Disposition is a must & IMP can be considered bad for eidolon)",
+   "category": "primary"
+  },
+  {
+   "weapon": "scourge",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "shedu",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/AMMO",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "simulor",
+   "positive": "CC CD/DMG/ELEC/FR or CD/MS/DMG/CC/FR CORRO/VIRAL/SDMG",
+   "negative": "IMP/REC/ZOOM",
+   "notes": "(NOTE: MS must be at 100% exactly for orb stacking purposes)",
+   "category": "primary"
+  },
+  {
+   "weapon": "snipetron",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/PUNC",
+   "notes": "(NOTE: PUNC will lower damage if used for eidolon)",
+   "category": "primary"
+  },
+  {
+   "weapon": "sobek",
+   "positive": "TOX DTC or TOX DTG or TOX DTI or TOX DTT or TOX DTS or TOX DTO or CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "REC/IMP/ZOOM",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "soma",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "PUNC/ZOOM/REC",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "primary"
+  },
+  {
+   "weapon": "sporothrix",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/SDMG",
+   "negative": "PUNC/ZOOM/REC/IMP",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "primary"
+  },
+  {
+   "weapon": "stahlta",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "PUNC/ZOOM/REC",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "primary"
+  },
+  {
+   "weapon": "stradavar",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "PUNC/IMP/ZOOM",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "primary"
+  },
+  {
+   "weapon": "steflos",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL",
+   "negative": "REC/IMP/ZOOM",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "strun",
+   "positive": "SDMG CD/MS/FR/CC/DMG/SC",
+   "negative": "IMP/REC/ZOOM",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "supra",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "PUNC/ZOOM",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "primary"
+  },
+  {
+   "weapon": "sybaris",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "PUNC/IMP/ZOOM/REC",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "primary"
+  },
+  {
+   "weapon": "synapse",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG/SDMG",
+   "negative": "ZOOM/REC",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "tenet envoy",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL",
+   "negative": "ZOOM/IMP/REC",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "tenora",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/PUNC/IMP",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "primary"
+  },
+  {
+   "weapon": "tetra",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/PUNC/MAG",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5, negative MAG makes the alt fire on tenet use less ammo)",
+   "category": "primary"
+  },
+  {
+   "weapon": "thornbak",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "tiberon",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/PUNC",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "primary"
+  },
+  {
+   "weapon": "tigris",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG/SDMG",
+   "negative": "REC/SLASH/ZOOM",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "tonkor",
+   "positive": "CD/MS/DMG/CC/FR/RLS CORRO/VIRAL/AEFF",
+   "negative": "ZOOM/REC/PUNC/MAG",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "torid",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/SDMG",
+   "negative": "ZOOM/REC/MAG",
+   "notes": "(NOTE: -MAG on negative only good with incarnon evo, has a breakpoint of >=50%)",
+   "category": "primary"
+  },
+  {
+   "weapon": "trumna",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/PFS/REC",
+   "notes": "(NOTE: -PFS makes the alternate fire bounce more condensed, negative REC can be difficult to use)",
+   "category": "primary"
+  },
+  {
+   "weapon": "vadarya prime",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL",
+   "negative": "ZOOM/REC",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "vectis",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/MAG/IMP/PUNC",
+   "notes": "(NOTE: IMP/PUNC is less damage for eidolon)",
+   "category": "primary"
+  },
+  {
+   "weapon": "veldt",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/IMP/PUNC/PFS",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "primary"
+  },
+  {
+   "weapon": "vinquibus",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/PUNC/AMMO",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "vulkar",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/IMP",
+   "notes": "(NOTE: needs >200%CC on wraith and 210%CC on normal)",
+   "category": "primary"
+  },
+  {
+   "weapon": "zarr",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG/AEFF",
+   "negative": "ZOOM/REC/IMP",
+   "notes": "",
+   "category": "primary"
+  },
+  {
+   "weapon": "zenith",
+   "positive": "DMG MS CD/TOX/FR or CD FR DMG/MS or CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG or CD MS",
+   "negative": "AMMO/SLASH/REC/ZOOM",
+   "notes": "(NOTE: needs >100%MS for profit taker and >110%MS for eidolon, -ZOOM hurts for profit taker, -SLASH is bad for both profit taker and eidolon as it's essentially -Damage)",
+   "category": "primary"
+  },
+  {
+   "weapon": "zhuge",
+   "positive": "CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "PUNC/ZOOM/REC",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "primary"
+  },
+  {
+   "weapon": "acrid",
+   "positive": "CD/MS/DMG/FR/CC CORRO/VIRAL/WeakDMG or DMG/MS/SC SDMG",
+   "negative": "ZOOM/REC",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "aegrit",
+   "positive": "CC CD DMG",
+   "negative": "ZOOM/REC/IMP",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "afuris",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/PUNC/PFS",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "akarius",
+   "positive": "MS DMG/SC/ELEMENT or CD/MS/DMG/FR CORRO/VIRAL/AEFF",
+   "negative": "ZOOM/REC/IMP",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "akbolto",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/PUNC",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "secondary"
+  },
+  {
+   "weapon": "akbronco",
+   "positive": "CD/MS/DMG/FR/CC/PT/SC CORRO/VIRAL/SDMG",
+   "negative": "ZOOM/REC/IMP",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "akjagara",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/PFS/SLASH",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "aklato",
+   "positive": "CD/MS/DMG/FR/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/PFS",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "aklex",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/PFS/PUNC",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "akmagnus",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/IMP/PUNC/PFS/REC",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "secondary"
+  },
+  {
+   "weapon": "aksomati",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/PUNC/PFS",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "secondary"
+  },
+  {
+   "weapon": "aksondol",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/PUNC",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "secondary"
+  },
+  {
+   "weapon": "akstiletto",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/IMP/PFS",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "akvasto",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/PFS",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "akzani",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/PUNC/PFS",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "secondary"
+  },
+  {
+   "weapon": "angstrum",
+   "positive": "CD/MS/DMG/FR/CC CORRO/VIRAL/AEFF",
+   "negative": "ZOOM",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "arca scisco",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/PUNC/PFS",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "secondary"
+  },
+  {
+   "weapon": "athodai",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "atomos",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/SDMG",
+   "negative": "ZOOM/REC",
+   "notes": "(NOTE: PT no good for the transform/incarnon mode)",
+   "category": "secondary"
+  },
+  {
+   "weapon": "azima",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/PFS",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "ballistica",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/PUNC",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "bolto",
+   "positive": "CD/MS/DMG/FR/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/PUNC",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "brakk",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/PUNC/IMP",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "secondary"
+  },
+  {
+   "weapon": "bronco",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/IMP",
+   "notes": "(NOTE: -IMP only for collectors)",
+   "category": "secondary"
+  },
+  {
+   "weapon": "cantare",
+   "positive": "CD/MS/DMG/FR/CC CORRO/VIRAL",
+   "negative": "ZOOM/REC",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "castanas",
+   "positive": "CC CD DMG",
+   "negative": "ZOOM/REC/IMP",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "catabolyst",
+   "positive": "CD CC DMG/FR or CD/MS/DMG/FR/CC CORRO/VIRAL/WeakDMG/SDMG",
+   "negative": "MAG/ZOOM/REC/PFS",
+   "notes": "(NOTE: MAG is for nade build, bad if you're trying to do beam dps, PFS is harmless for grenade, but hurts beam falloff damage)",
+   "category": "secondary"
+  },
+  {
+   "weapon": "catchmoon",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL",
+   "negative": "ZOOM/REC/IMP/PUNC",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "cestra",
+   "positive": "CD/MS/DMG/FR/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/PUNC",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "secondary"
+  },
+  {
+   "weapon": "cyanex",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/IMP",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "cycron",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/SDMG",
+   "negative": "ZOOM/REC/IMP/PUNC/SLASH/AMMO",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "secondary"
+  },
+  {
+   "weapon": "despair",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/PUNC",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "secondary"
+  },
+  {
+   "weapon": "detron",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "dual cestra",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/PUNC",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "secondary"
+  },
+  {
+   "weapon": "dual coda torxica",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/PUNC/PFS",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "secondary"
+  },
+  {
+   "weapon": "dual toxocyst",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/PUNC/PFS",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "efv-8 mars",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/PUNC/IMP",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "secondary"
+  },
+  {
+   "weapon": "embolist",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/SDMG",
+   "negative": "ZOOM/REC",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "epitaph",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG/SDMG",
+   "negative": "ZOOM/REC/IMP/PUNC/MAG/RLS",
+   "notes": "(NOTE: DTC/DTG/DTI are harmless for primer roll but IMP/PUNC hurt for primer roll)",
+   "category": "secondary"
+  },
+  {
+   "weapon": "euphona prime",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/IMP",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "furis",
+   "positive": "CD/MS/DMG/FR/CC/PT/SC CORRO/VIRAL/SDMG",
+   "negative": "ZOOM/REC/PUNC",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5, TOX is only for collectors)",
+   "category": "secondary"
+  },
+  {
+   "weapon": "fusilai",
+   "positive": "CD/MS/DMG/FR/CC CORRO/VIRAL/WeakDMG/SDMG",
+   "negative": "ZOOM/REC/PUNC",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "gammacor",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "gaze",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG/SDMG",
+   "negative": "ZOOM/REC/IMP/PUNC/SLASH",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "secondary"
+  },
+  {
+   "weapon": "grimoire",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL",
+   "negative": "MAG/REC",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "hikou",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL",
+   "negative": "ZOOM/REC/PUNC",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "hystrix",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/PUNC",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "secondary"
+  },
+  {
+   "weapon": "knell",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/IMP/PUNC/MAG",
+   "notes": "(NOTE: IMP and PUNC are bad for eidolons)",
+   "category": "secondary"
+  },
+  {
+   "weapon": "kohmak",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG/SDMG/AEFF",
+   "negative": "ZOOM/REC/SLASH",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "kompressa",
+   "positive": "CD/MS/DMG/FR/SC CORRO/VIRAL/SDMG/AEFF",
+   "negative": "ZOOM/REC",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "kraken",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/IMP/PFS",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "secondary"
+  },
+  {
+   "weapon": "kulstar",
+   "positive": "CD/MS/DMG/FR/CC CORRO/VIRAL/AEFF",
+   "negative": "ZOOM/IMP",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "kunai",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG/SDMG",
+   "negative": "ZOOM/REC/PUNC",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "kuva twin stubbas",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/IMP/PFS",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "secondary"
+  },
+  {
+   "weapon": "laetum",
+   "positive": "MS/DMG/FR/SC AEFF/SDMG/WeakDMG or CD/MS/DMG/CC/FR CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/IMP/CC",
+   "notes": "(NOTE: CC only for the 5th evolution)",
+   "category": "secondary"
+  },
+  {
+   "weapon": "lato",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/PFS",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "lex",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/PUNC",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "magnus",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/PFS/IMP/PUNC",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "marelok",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/PFS/IMP",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "nukor",
+   "positive": "CD/MS/DMG/FR/PT CORRO/VIRAL/SDMG",
+   "negative": "ZOOM/REC",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "ocucor",
+   "positive": "CD/MS/DMG/FR/CC CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/PUNC/IMP/PFS/SLASH",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "secondary"
+  },
+  {
+   "weapon": "onos",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "PUNC/REC/ZOOM",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "pandero",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/PFS",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "plinx",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/PFS/IMP/AMMO",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "pox",
+   "positive": "CD/MS/DMG/FR CORRO/VIRAL/SDMG",
+   "negative": "ZOOM/REC",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "pyrana",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG/SDMG",
+   "negative": "ZOOM/SLASH",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "quatz",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/IMP/PUNC",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "secondary"
+  },
+  {
+   "weapon": "rattleguts",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/IMP/PUNC/PFS",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "riot-848",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/PUNC",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "secondary"
+  },
+  {
+   "weapon": "sagek prime",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/IMP/PUNC",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "secondary"
+  },
+  {
+   "weapon": "scyotid",
+   "positive": "CD/MS/DMG/FR/CC CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "seer",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/PUNC/IMP",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "secondary"
+  },
+  {
+   "weapon": "sepulcrum",
+   "positive": "CD/MS/DMG/FR/CC CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/PUNC",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "secondary"
+  },
+  {
+   "weapon": "sicarus",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/IMP/PFS",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "sonicor",
+   "positive": "CD/MS/DMG/FR CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/IMP",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "spectra",
+   "positive": "CD/MS/DMG/FR/CC/PT/SC CORRO/VIRAL/WeakDMG/SDMG",
+   "negative": "ZOOM/REC/PUNC",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "spira",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/PUNC",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "secondary"
+  },
+  {
+   "weapon": "sporelacer",
+   "positive": "CD/MS/DMG/FR/CC/ CORRO/VIRAL",
+   "negative": "ZOOM/REC/IMP/PUNC",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "staticor",
+   "positive": "CD/MS/DMG/FR/CC CORRO/VIRAL",
+   "negative": "ZOOM/REC",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "stubba",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/IMP/PFS",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "stug",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/SDMG",
+   "negative": "ZOOM/REC",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "talons",
+   "positive": "CC CD DMG",
+   "negative": "ZOOM/REC/IMP",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "tenet diplos",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/IMP/PUNC",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "secondary"
+  },
+  {
+   "weapon": "tenet spirex",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/REC/IMP/PUNC",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "secondary"
+  },
+  {
+   "weapon": "tombfinger",
+   "positive": "CD/MS/DMG/FR/CC CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/IMP/PUNC/SLASH",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "twin grakatas",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/IMP/PUNC",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "secondary"
+  },
+  {
+   "weapon": "twin gremlins",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/IMP/PUNC",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "secondary"
+  },
+  {
+   "weapon": "twin kohmak",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "SLASH/ZOOM",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "twin rogga",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "IMP/ZOOM/PUNC",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "secondary"
+  },
+  {
+   "weapon": "twin vipers",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "IMP/ZOOM/PFS",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "tysis",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG/SDMG",
+   "negative": "IMP/PUNC/ZOOM",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "secondary"
+  },
+  {
+   "weapon": "vasto",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "ZOOM/PFS",
+   "notes": "(NOTE: negative PFS hurts incarnon because it has falloff)",
+   "category": "secondary"
+  },
+  {
+   "weapon": "velox",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "PUNC/ZOOM/REC/PFS",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "secondary"
+  },
+  {
+   "weapon": "vesper 77",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "PUNC/ZOOM/REC/IMP",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "vermisplicer",
+   "positive": "CD/MS/DMG/FR/CC/SC CORRO/VIRAL/WeakDMG/SDMG",
+   "negative": "PUNC/ZOOM/REC/IMP",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "viper",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "IMP/ZOOM/PFS",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "zakti",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG/SDMG",
+   "negative": "PUNC/ZOOM/REC/IMP",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "secondary"
+  },
+  {
+   "weapon": "zylok",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG",
+   "negative": "IMP/ZOOM/REC/PFS",
+   "notes": "",
+   "category": "secondary"
+  },
+  {
+   "weapon": "zymos",
+   "positive": "CD/MS/DMG/FR/CC/PT CORRO/VIRAL/WeakDMG/SDMG",
+   "negative": "ZOOM/PUNC/IMP",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "secondary"
+  },
+  {
+   "weapon": "ack & brunt",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "amanata",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "amphis",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/IMP",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "anku",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/PUNC",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "ankyros",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/IMP",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "arca titron",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG/DMG or CC ELEC SDMG",
+   "negative": "SLIDE/FIN/IMP",
+   "notes": "(NOTE: ELEC is for melee infuence, negative EFF is harmful for heavy builds)",
+   "category": "melee"
+  },
+  {
+   "weapon": "argo & vel",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "arum spinosa",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG or CC/CD/IC/DMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "atterax",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "azothane",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/IMP",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "balla",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/IMP/PUNC",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "bo",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG/HEAT or CD DMG CC/SC",
+   "negative": "EFF/SLIDE/FIN/IMP",
+   "notes": "(NOTE: NEGATIVE IMP not wanted if you're doing a build for incarnon around the 5th EVO\"FLASHING BLEED: 40% chance of slash on impact status effect\")",
+   "category": "melee"
+  },
+  {
+   "weapon": "boltace",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/PUNC",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "broken scepter",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG or CC/CD/IC/DMG",
+   "negative": "EFF/SLIDE/FIN/IMP",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "broken war",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "cadus",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "cassowar",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/PUNC",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "caustacyst",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG or CC/CD/IC/DMG/SLAMDAM",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "ceramic dagger",
+   "positive": "CC/CD/IC/DMG",
+   "negative": "EFF/SLIDE/FIN/PUNC",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "cerata",
+   "positive": "CC/ELEC DMG/WUP/SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "cobra & crane",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/IMP",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "coda motovore",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG or CC IC CD/DMG",
+   "negative": "EFF/SLIDE/FIN/PUNC/IMP",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "melee"
+  },
+  {
+   "weapon": "corufell",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG or CC IC CD/DMG",
+   "negative": "EFF/SLIDE/FIN/PUNC/IMP",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "cronus",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/IMP",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "cyath",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/IMP/PUNC",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "dakra prime",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "dark dagger",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "dark split-sword",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/PUNC/IMP",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "dark sword",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "dehtat",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/IMP/PUNC",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "destreza",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG or CC/CD/IC/DMG",
+   "negative": "EFF/SLIDE/FIN/PUNC",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "dex dakra",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "dokrahm",
+   "positive": "CD AS RANGE or CD/RANGE AS/ELEC/DMG/CORRO",
+   "negative": "EFF/SLIDE/FIN/IMP/PUNC",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "dorrclave",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "SLIDE/FIN/EFF",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "dragon nikana",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "SLIDE/FIN/EFF",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "dual cleavers",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "dual ether",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "dual heat swords",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "dual ichor",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "(NOTE: ELEC is for melee infuence)",
+   "category": "melee"
+  },
+  {
+   "weapon": "dual kamas",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "dual keres",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/PUNC",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "dual raza",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "dual skana",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "dual viciss",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "dual zoren",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "edun",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/PUNC",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "ekhein",
+   "positive": "CC/CD/IC/DMG/SLAMDAM or CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/IMP",
+   "notes": "(NOTE: negative EFF is harmful for heavy builds)",
+   "category": "melee"
+  },
+  {
+   "weapon": "endura",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/PUNC",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "ether daggers",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "ether reaper",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "ether sword",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "falcor",
+   "positive": "CC/ELEC DMG/WUP/SDMG",
+   "negative": "EFF/SLIDE/FIN/IMP/PUNC",
+   "notes": "(NOTE: RANGE is not a good stat for use but it can sell, ELEC for melee influence)",
+   "category": "melee"
+  },
+  {
+   "weapon": "fang",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/PUNC",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "fragor",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG or CC/CD/IC/DMG/SLAMDAM",
+   "negative": "EFF/SLIDE/FIN/IMP",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "furax",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/IMP",
+   "notes": "(NOTE: NEGATIVE IMP not wanted if you're doing a build for incarnon around the 5th EVO\"FLASHING BLEED: 40% chance of slash on impact status effect\")",
+   "category": "melee"
+  },
+  {
+   "weapon": "galariak prime",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/IMP/PUNC",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "galatine",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "galvacord",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "gazal machete",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "ghoulsaw",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "glaive",
+   "positive": "CC/ELEC DMG/WUP/SDMG",
+   "negative": "EFF/SLIDE/FIN/SLASH",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "gram",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "guandao",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "gunsen",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "halikar",
+   "positive": "CC/ELEC DMG/WUP/SDMG",
+   "negative": "EFF/SLIDE/FIN/PUNC",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "harmony",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/PUNC",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "hate",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "heat dagger",
+   "positive": "CD/RANGE/AS",
+   "negative": "EFF/SLIDE/FIN/IMP/PUNC",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "heat sword",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "heliocor",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/IMP",
+   "notes": "(NOTE: negative EFF is harmful for heavy builds)",
+   "category": "melee"
+  },
+  {
+   "weapon": "hespar",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/IMP",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "hirudo",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/PUNC",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "innodem",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/PUNC",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "jat kittag",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG or CC/CD/IC/DMG or TOX DTG/DTC/DTI/DTT/DTO/DTS",
+   "negative": "EFF/SLIDE/FIN/IMP",
+   "notes": "(NOTE: TOX DTG/DTC/DTI/DTT/DTO/DTS only for use with saryn toxic lash)",
+   "category": "melee"
+  },
+  {
+   "weapon": "jat kusar",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "jaw sword",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "kama",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "karyst",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "keratinos",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/IMP/PUNC",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "kesheg",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/IMP",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "kestrel",
+   "positive": "CC/ELEC DMG/WUP/SDMG",
+   "negative": "EFF/SLIDE/FIN/IMP",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "kogake",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/IMP",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "korrudo",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/IMP",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "korumm",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/PUNC",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "kreska",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/IMP/PUNC",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "krohkur",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "kronen",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "kronsh",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/IMP/PUNC",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "kuva shildeg",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/IMP/PUNC",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "lacera",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "(NOTE: ELEC for melee influence)",
+   "category": "melee"
+  },
+  {
+   "weapon": "lecta",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "lesion",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "machete",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "magistar",
+   "positive": "CD AS RANGE or CC/CD/IC/DMG/SLAMDAM or CC DMG",
+   "negative": "EFF/SLIDE/FIN/IMP",
+   "notes": "(NOTE: negative EFF is harmful for heavy builds)",
+   "category": "melee"
+  },
+  {
+   "weapon": "masseter",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/IMP",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "mewan",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/IMP/PUNC",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "mios",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/IMP/PUNC",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "mire",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/IMP/PUNC",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "nami skyla",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "nami solo",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/SLASH",
+   "notes": "(NOTE: negative SLASH is for melee influence, ELEC for melee influence)",
+   "category": "melee"
+  },
+  {
+   "weapon": "nepheri",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/IMP/PUNC",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "nikana",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "SLIDE/FIN/EFF",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "ninkondi",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "obex",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/IMP",
+   "notes": "(NOTE: ELEC for melee influence)",
+   "category": "melee"
+  },
+  {
+   "weapon": "ohma",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "(NOTE: ELEC for melee influence)",
+   "category": "melee"
+  },
+  {
+   "weapon": "okina",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/PUNC/SLASH",
+   "notes": "(NOTE: ELEC and negative SLASH for melee influence)",
+   "category": "melee"
+  },
+  {
+   "weapon": "ooltha",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/IMP/PUNC",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "orthos",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "orvius",
+   "positive": "CC/ELEC DMG/WUP/SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "pangolin sword",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "paracesis",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "pathocyst",
+   "positive": "CC/ELEC DMG/WUP/SDMG",
+   "negative": "EFF/SLIDE/FIN/IMP/PUNC",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "pennant",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/PUNC",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "plague keewar",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/IMP/PUNC",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "plague kripath",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/IMP/PUNC",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "plasma sword",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "praedos",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG or CC/CD/IC/DMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "pride",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/PUNC",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "prova",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "pulmonars",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "pupacyst",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/IMP/PUNC",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "quassus",
+   "positive": "CC/CD/IC/DMG or CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "rabvee",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/IMP/PUNC",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "reaper prime",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "redeemer",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG or CC IC CD/DMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "(NOTE: RANGE doesn't affect the pellets/projectile)",
+   "category": "melee"
+  },
+  {
+   "weapon": "ripkas",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "rumblejack",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/IMP/PUNC/SLASH",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "ruvox",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/IMP",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "sampotes",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/IMP",
+   "notes": "(NOTE: negative EFF is harmful for heavy builds)",
+   "category": "melee"
+  },
+  {
+   "weapon": "sarofang",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/IMP",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "sarpa",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "(NOTE: RANGE doesn't affect the pellets/projectile)",
+   "category": "melee"
+  },
+  {
+   "weapon": "scindo",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "scoliac",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "sepfahn",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "SLIDE/FIN/IMP/PUNC/EFF",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "serro",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "shaku",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/IMP",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "sheev",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "sibear",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG or CC/CD/IC/DMG/SLAMDAM",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "(NOTE: negative EFF is harmful for heavy builds)",
+   "category": "melee"
+  },
+  {
+   "weapon": "sigma & octantis",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "silva & aegis",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "skana",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "skiajati",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "slaytra",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/PUNC",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "spinnerex",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "stropha",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG or CC/CD/IC/DMG",
+   "negative": "EFF/SLIDE/FIN/IMP/PUNC",
+   "notes": "(NOTE: RANGE doesn't affect the pellets/projectile)",
+   "category": "melee"
+  },
+  {
+   "weapon": "sun & moon",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "sydon",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/PUNC",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "syam",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG or ELEC WUP DMG",
+   "negative": "EFF/SLIDE/FIN/PUNC",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "tak & lug",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/IMP/PUNC",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "tatsu",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/IMP/PUNC",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "tekko",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "tenet agendus",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG or CC/CD/IC/DMG",
+   "negative": "EFF/SLIDE/FIN/IMP/PUNC/SLASH",
+   "notes": "(NOTE: ELEC for melee influence)",
+   "category": "melee"
+  },
+  {
+   "weapon": "tenet grigori",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG/EFF or CC/CD/IC/DMG",
+   "negative": "EFF/SLIDE/FIN/PUNC",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "tenet livia",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG or CC IC CD/DMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "tenet exec",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG or CC IC CD/DMG/SLAMDAM or CC DMG",
+   "negative": "EFF/SLIDE/FIN/IMP",
+   "notes": "(NOTE: ELEC for melee influence)",
+   "category": "melee"
+  },
+  {
+   "weapon": "thalys",
+   "positive": "CD AS RANGE or CC/CD/IC/DMG or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/SLASH",
+   "notes": "(NOTE: ELEC and negative SLASH for melee influence)",
+   "category": "melee"
+  },
+  {
+   "weapon": "tipedo",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "tonbo",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "tonkkatt",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "twin basolk",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "twin krohkur",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "vastilok",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG or CC/CD/IC/DMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "(NOTE: RANGE doesn't affect the pellets/projectile)",
+   "category": "melee"
+  },
+  {
+   "weapon": "venato",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/PUNC",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "venka",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "verdilac",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/PUNC",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "vericres",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "vinquibus",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/PUNC",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "vitrica",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/PUNC/IMP",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "volnus",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/PUNC",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "war",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN/IMP",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "wolf sledge",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG or CC/CD/IC/DMG",
+   "negative": "EFF/SLIDE/FIN/IMP",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "wrath",
+   "positive": "CD AS RANGE or CD/RANGE/AS ELEC SDMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "xoris",
+   "positive": "CC/ELEC DMG/WUP/SDMG",
+   "negative": "EFF/SLIDE/FIN/PUNC",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "zenistar",
+   "positive": "IC AS RANGE/DMG or AS RANGE/DMG",
+   "negative": "EFF/SLIDE/FIN",
+   "notes": "",
+   "category": "melee"
+  },
+  {
+   "weapon": "arbucep",
+   "positive": "CD MS DMG/CC/FR",
+   "negative": "ZOOM/REC",
+   "notes": "",
+   "category": "archgun"
+  },
+  {
+   "weapon": "cortege",
+   "positive": "CD MS DMG/CC/FR",
+   "negative": "ZOOM/REC",
+   "notes": "",
+   "category": "archgun"
+  },
+  {
+   "weapon": "corvas",
+   "positive": "CD MS FR/DTC/CC/DMG/COLD/ELEC",
+   "negative": "ZOOM/REC/IMP",
+   "notes": "(NOTE: COLD/ELEC/DTC are for profit taker)",
+   "category": "archgun"
+  },
+  {
+   "weapon": "cyngas",
+   "positive": "CD MS DMG/CC/FR",
+   "negative": "ZOOM/REC/IMP/PUNC",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "archgun"
+  },
+  {
+   "weapon": "dual decurion",
+   "positive": "CD MS FR/DTC/CC/DMG/COLD/ELEC/AMMO",
+   "negative": "ZOOM/REC/IMP/PUNC",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "archgun"
+  },
+  {
+   "weapon": "fluctus",
+   "positive": "CD MS DMG/CC/FR",
+   "negative": "ZOOM/REC",
+   "notes": "(NOTE: COLD/ELEC/DTC are for profit taker)",
+   "category": "archgun"
+  },
+  {
+   "weapon": "grattler",
+   "positive": "CD MS FR/DTC/CC/DMG",
+   "negative": "PUNC/REC/ZOOM",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "archgun"
+  },
+  {
+   "weapon": "imperator",
+   "positive": "CD MS FR/DTC/CC/DMG/COLD/ELEC",
+   "negative": "PUNC/REC/ZOOM/IMP",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5, COLD/ELEC/DTC are for profit taker)",
+   "category": "archgun"
+  },
+  {
+   "weapon": "kuva ayanga",
+   "positive": "CD MS DMG/CC/FR",
+   "negative": "IMP/REC/ZOOM",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "archgun"
+  },
+  {
+   "weapon": "larkspur",
+   "positive": "MS DMG/TOX/SC/FR/CORRO/VIRAL",
+   "negative": "REC/IMP/PUNC/ZOOM",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "archgun"
+  },
+  {
+   "weapon": "mandonel",
+   "positive": "CD MS FR/DTC/CC/DMG",
+   "negative": "ZOOM/REC",
+   "notes": "",
+   "category": "archgun"
+  },
+  {
+   "weapon": "mausolon",
+   "positive": "CD MS FR/CC/DMG or CC FR COLD/ELEC/DMG/CD/MS/DTC",
+   "negative": "ZOOM/REC/IMP/PUNC",
+   "notes": "(NOTE: COLD/ELEC/DTC are for profit taker)",
+   "category": "archgun"
+  },
+  {
+   "weapon": "morgha",
+   "positive": "CD MS DMG/CC/FR",
+   "negative": "ZOOM/REC/IMP",
+   "notes": "",
+   "category": "archgun"
+  },
+  {
+   "weapon": "phaedra",
+   "positive": "CD MS DMG/CC/FR",
+   "negative": "PUNC/REC/ZOOM",
+   "notes": "(NOTE: negative PUNC hurts some if you can reliablly proc it because each stack of PUNC gives 5%CC each with max stack of 5)",
+   "category": "archgun"
+  },
+  {
+   "weapon": "velocitus",
+   "positive": "CC DMG/CD/COLD/ELEC/DTC or CC MS DMG/CD/FR",
+   "negative": "ZOOM",
+   "notes": "(NOTE: COLD/ELEC/DTC are for profit taker)",
+   "category": "archgun"
+  },
+  {
+   "weapon": "akaten",
+   "positive": "CC CD DMG",
+   "negative": "SLIDE/EFF/FIN/PUNC",
+   "notes": "",
+   "category": "robotic"
+  },
+  {
+   "weapon": "artax",
+   "positive": "DMG MS TOX/CORRO/VIRAL",
+   "negative": "DTI",
+   "notes": "",
+   "category": "robotic"
+  },
+  {
+   "weapon": "batoten",
+   "positive": "CC CD DMG",
+   "negative": "SLIDE/EFF/FIN/IMP/PUNC",
+   "notes": "",
+   "category": "robotic"
+  },
+  {
+   "weapon": "burst laser",
+   "positive": "DMG MS TOX/CORRO/VIRAL",
+   "negative": "PUNC",
+   "notes": "",
+   "category": "robotic"
+  },
+  {
+   "weapon": "cryotra",
+   "positive": "MS SC FR/PT",
+   "negative": "IMP",
+   "notes": "",
+   "category": "robotic"
+  },
+  {
+   "weapon": "deconstructor",
+   "positive": "DMG SC ELEMENT",
+   "negative": "SLIDE/EFF/FIN/IMP",
+   "notes": "",
+   "category": "robotic"
+  },
+  {
+   "weapon": "deth machine rifle",
+   "positive": "MS SC FR/PT",
+   "negative": "DTI",
+   "notes": "",
+   "category": "robotic"
+  },
+  {
+   "weapon": "helstrum",
+   "positive": "MS SC FR/PFS",
+   "negative": "IMP",
+   "notes": "",
+   "category": "robotic"
+  },
+  {
+   "weapon": "lacerten",
+   "positive": "CC CD DMG",
+   "negative": "SLIDE/EFF/FIN/IMP",
+   "notes": "",
+   "category": "robotic"
+  },
+  {
+   "weapon": "laser rifle",
+   "positive": "DMG MS TOX/CORRO/VIRAL",
+   "negative": "PUNC",
+   "notes": "",
+   "category": "robotic"
+  },
+  {
+   "weapon": "multron",
+   "positive": "DMG MS TOX/CORRO/VIRAL",
+   "negative": "DTI",
+   "notes": "",
+   "category": "robotic"
+  },
+  {
+   "weapon": "stinger",
+   "positive": "DMG MS TOX/CORRO/VIRAL",
+   "negative": "DTI",
+   "notes": "",
+   "category": "robotic"
+  },
+  {
+   "weapon": "sweeper",
+   "positive": "MS SC FR/PT",
+   "negative": "IMP",
+   "notes": "",
+   "category": "robotic"
+  },
+  {
+   "weapon": "tazicor",
+   "positive": "MS SC FR/PT",
+   "negative": "DTI",
+   "notes": "",
+   "category": "robotic"
+  },
+  {
+   "weapon": "verglas",
+   "positive": "CC MS CD/FR/DMG or MS FR DMG/SC/ELEMENT",
+   "negative": "DTI",
+   "notes": "(NOTE: CC breakpoint of >257.2% for tenacious bond with a +2-1 riven)",
+   "category": "robotic"
+  },
+  {
+   "weapon": "vulcax",
+   "positive": "CC MS FR/CD/DMG",
+   "negative": "DTI",
+   "notes": "",
+   "category": "robotic"
+  },
+  {
+   "weapon": "vulklok",
+   "positive": "CC MS FR/CD/DMG",
+   "negative": "DTI",
+   "notes": "",
+   "category": "robotic"
+  }
+ ]
+}
