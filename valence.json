@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "published_at": "2026-11-15T00:22:49+00:00",
+ "published_at": "2026-11-16T00:04:14+00:00",
  "source": "wiki《Reset》页，经插件在有 FlareSolverr 的机器上抓取后发布；快照时间 2026-11-15T00:22:49+00:00",
  "license_note": "数据来自 wiki.warframe.com（CC BY-NC-SA 3.0）；Warframe 相关内容版权归 Digital Extremes 所有，本仓库仅供查询。",
  "tenet": {
@@ -39,50 +39,50 @@
   ]
  },
  "coda": {
-  "snapshot": "2026-11-12T01:17:47+00:00",
+  "snapshot": "2026-11-16T00:04:14+00:00",
   "batch": "A",
   "items": [
    {
     "en": "Coda Hema",
     "cn": "终幕·血肢",
-    "element": "Electricity",
-    "bonus": 36.0
+    "element": "Radiation",
+    "bonus": 41.2
    },
    {
     "en": "Coda Sporothrix",
     "cn": "终幕·孢丝感染枪",
-    "element": "Radiation",
-    "bonus": 52.6
+    "element": "Magnetic",
+    "bonus": 30.9
    },
    {
     "en": "Coda Catabolyst",
     "cn": "终幕·异化者",
-    "element": "Magnetic",
-    "bonus": 47.4
+    "element": "Electricity",
+    "bonus": 25.1
    },
    {
     "en": "Coda Pox",
     "cn": "终幕·脓痘",
     "element": "Radiation",
-    "bonus": 31.1
+    "bonus": 29.5
    },
    {
     "en": "Dual Coda Torxica",
     "cn": "终幕·孢蚀双枪",
-    "element": "Toxin",
-    "bonus": 47.4
+    "element": "Radiation",
+    "bonus": 47.1
    },
    {
     "en": "Coda Mire",
     "cn": "终幕·米尔",
-    "element": "Radiation",
-    "bonus": 38.7
+    "element": "Electricity",
+    "bonus": 45.8
    },
    {
     "en": "Coda Motovore",
     "cn": "终幕·噬轮",
-    "element": "Toxin",
-    "bonus": 27.6
+    "element": "Radiation",
+    "bonus": 25.6
    }
   ]
  }
