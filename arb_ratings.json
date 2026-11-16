@@ -2,14 +2,14 @@
  "_note": "社区实测（arbi.wf.wiki 排行榜），非官方数据，仅供参考；★ 实测值（尤其「生存 / 中断」）吃队伍熟练度——来自上传记录的高水平队伍，普通队伍未必打得到",
  "_source": "https://arbi.wf.wiki/api/leaderboard?board=browse&nodeId=<key>",
  "_rule": "每节点 perHour 中位数（按记录 id 去重，剔除 <300，n>=3）；S>=800 / A+>=700 / A>=600 / A->=450 / F<450",
- "_updated": "2026-11-10",
+ "_updated": "2026-11-17",
  "nodes": {
   "ClanNode0": {
    "name": "Romula",
    "system": "金星",
    "mission": "防御",
-   "n": 38,
-   "median": 563.8,
+   "n": 52,
+   "median": 542.6,
    "tier": "A-"
   },
   "ClanNode1": {
@@ -30,9 +30,9 @@
    "name": "Zeugma",
    "system": "火卫一",
    "mission": "生存",
-   "n": 7,
-   "median": 503.5,
-   "tier": "A-"
+   "n": 10,
+   "median": 650.2,
+   "tier": "A"
   },
   "ClanNode12": {
    "name": "Caracol",
@@ -44,8 +44,8 @@
    "name": "Piscinas",
    "system": "土星",
    "mission": "生存",
-   "n": 5,
-   "median": 608.3,
+   "n": 8,
+   "median": 631.2,
    "tier": "A"
   },
   "ClanNode14": {
@@ -60,32 +60,32 @@
    "name": "Sangeru",
    "system": "赛德娜",
    "mission": "防御",
-   "n": 67,
-   "median": 458.8,
+   "n": 70,
+   "median": 459.6,
    "tier": "A-"
   },
   "ClanNode16": {
    "name": "Ur",
    "system": "天王星",
    "mission": "中断",
-   "n": 110,
-   "median": 875.5,
+   "n": 121,
+   "median": 881.9,
    "tier": "S"
   },
   "ClanNode17": {
    "name": "Assur",
    "system": "天王星",
    "mission": "生存",
-   "n": 21,
-   "median": 792.8,
-   "tier": "A+"
+   "n": 33,
+   "median": 875.9,
+   "tier": "S"
   },
   "ClanNode18": {
    "name": "Akkad",
    "system": "阋神星",
    "mission": "防御",
-   "n": 231,
-   "median": 605.0,
+   "n": 261,
+   "median": 605.6,
    "tier": "A"
   },
   "ClanNode19": {
@@ -100,8 +100,8 @@
    "name": "Coba",
    "system": "地球",
    "mission": "防御",
-   "n": 55,
-   "median": 571.8,
+   "n": 76,
+   "median": 576.7,
    "tier": "A-"
   },
   "ClanNode20": {
@@ -114,32 +114,32 @@
    "name": "Kelashin",
    "system": "海王星",
    "mission": "生存",
-   "n": 5,
-   "median": 857.8,
-   "tier": "S"
+   "n": 7,
+   "median": 766.4,
+   "tier": "A+"
   },
   "ClanNode22": {
    "name": "Seimeni",
    "system": "谷神星",
    "mission": "防御",
-   "n": 1573,
-   "median": 650.3,
+   "n": 1565,
+   "median": 650.2,
    "tier": "A"
   },
   "ClanNode23": {
    "name": "Gabii",
    "system": "谷神星",
    "mission": "生存",
-   "n": 8,
-   "median": 743.5,
+   "n": 20,
+   "median": 772.6,
    "tier": "A+"
   },
   "ClanNode24": {
    "name": "Sechura",
    "system": "冥王星",
    "mission": "防御",
-   "n": 577,
-   "median": 618.1,
+   "n": 576,
+   "median": 618.0,
    "tier": "A"
   },
   "ClanNode25": {
@@ -158,8 +158,8 @@
    "name": "Sinai",
    "system": "木星",
    "mission": "防御",
-   "n": 218,
-   "median": 644.5,
+   "n": 242,
+   "median": 644.3,
    "tier": "A"
   },
   "ClanNode5": {
@@ -172,7 +172,7 @@
    "name": "Larzac",
    "system": "欧罗巴",
    "mission": "防御",
-   "n": 412,
+   "n": 512,
    "median": 617.2,
    "tier": "A"
   },
@@ -186,24 +186,24 @@
    "name": "卡迪什圣地",
    "system": "火星",
    "mission": "防御",
-   "n": 230,
-   "median": 602.6,
+   "n": 229,
+   "median": 602.7,
    "tier": "A"
   },
   "ClanNode9": {
    "name": "红沙号",
    "system": "火星",
    "mission": "生存",
-   "n": 6,
-   "median": 804.8,
+   "n": 8,
+   "median": 800.8,
    "tier": "S"
   },
   "SettlementNode11": {
    "name": "Gulliver",
    "system": "火卫一",
    "mission": "防御",
-   "n": 19,
-   "median": 433.8,
+   "n": 22,
+   "median": 416.4,
    "tier": "F"
   },
   "SettlementNode3": {
@@ -211,14 +211,16 @@
    "system": "火卫一",
    "mission": "生存",
    "n": 9,
-   "median": 590.1,
-   "tier": "A-"
+   "median": 608.8,
+   "tier": "A"
   },
   "SolNode100": {
    "name": "Elara",
    "system": "木星",
    "mission": "生存",
-   "n": 1
+   "n": 5,
+   "median": 768.9,
+   "tier": "A+"
   },
   "SolNode101": {
    "name": "Kiliken",
@@ -230,24 +232,24 @@
    "name": "暗猎区",
    "system": "火星",
    "mission": "拦截",
-   "n": 1570,
-   "median": 796.7,
+   "n": 1706,
+   "median": 798.7,
    "tier": "A+"
   },
   "SolNode118": {
    "name": "Laomedeia",
    "system": "海王星",
    "mission": "中断",
-   "n": 42,
-   "median": 809.6,
+   "n": 58,
+   "median": 843.4,
    "tier": "S"
   },
   "SolNode122": {
    "name": "Stephano",
    "system": "天王星",
    "mission": "防御",
-   "n": 200,
-   "median": 554.4,
+   "n": 208,
+   "median": 554.6,
    "tier": "A-"
   },
   "SolNode123": {
@@ -262,16 +264,16 @@
    "name": "Io",
    "system": "木星",
    "mission": "防御",
-   "n": 103,
-   "median": 566.3,
+   "n": 163,
+   "median": 574.3,
    "tier": "A-"
   },
   "SolNode130": {
    "name": "神守基地",
    "system": "水星",
    "mission": "防御",
-   "n": 103,
-   "median": 452.3,
+   "n": 125,
+   "median": 453.7,
    "tier": "A-"
   },
   "SolNode146": {
@@ -286,16 +288,16 @@
    "name": "Cinxia",
    "system": "谷神星",
    "mission": "拦截",
-   "n": 1389,
-   "median": 623.3,
+   "n": 1432,
+   "median": 624.1,
    "tier": "A"
   },
   "SolNode149": {
    "name": "Casta",
    "system": "谷神星",
    "mission": "防御",
-   "n": 1045,
-   "median": 641.7,
+   "n": 1256,
+   "median": 643.7,
    "tier": "A"
   },
   "SolNode16": {
@@ -308,8 +310,8 @@
    "name": "Kala-azar",
    "system": "阋神星",
    "mission": "防御",
-   "n": 299,
-   "median": 600.4,
+   "n": 300,
+   "median": 601.1,
    "tier": "A"
   },
   "SolNode166": {
@@ -324,8 +326,8 @@
    "name": "Oestrus",
    "system": "阋神星",
    "mission": "INFESTED 资源回收",
-   "n": 188,
-   "median": 628.6,
+   "n": 228,
+   "median": 630.3,
    "tier": "A"
   },
   "SolNode17": {
@@ -340,24 +342,24 @@
    "name": "Xini",
    "system": "阋神星",
    "mission": "拦截",
-   "n": 539,
-   "median": 715.9,
+   "n": 538,
+   "median": 716.0,
    "tier": "A+"
   },
   "SolNode177": {
    "name": "Kappa",
    "system": "赛德娜",
    "mission": "中断",
-   "n": 85,
-   "median": 868.4,
+   "n": 129,
+   "median": 874.7,
    "tier": "S"
   },
   "SolNode18": {
    "name": "Rhea",
    "system": "土星",
    "mission": "拦截",
-   "n": 9,
-   "median": 337.2,
+   "n": 10,
+   "median": 337.4,
    "tier": "F"
   },
   "SolNode185": {
@@ -370,30 +372,32 @@
    "name": "Selkie",
    "system": "赛德娜",
    "mission": "生存",
-   "n": 2
+   "n": 3,
+   "median": 683.1,
+   "tier": "A"
   },
   "SolNode195": {
    "name": "Hydron",
    "system": "赛德娜",
    "mission": "防御",
-   "n": 667,
-   "median": 586.6,
+   "n": 770,
+   "median": 589.2,
    "tier": "A-"
   },
   "SolNode211": {
    "name": "Ose",
    "system": "欧罗巴",
    "mission": "拦截",
-   "n": 393,
-   "median": 562.3,
+   "n": 427,
+   "median": 562.4,
    "tier": "A-"
   },
   "SolNode212": {
    "name": "Paimon",
    "system": "欧罗巴",
    "mission": "防御",
-   "n": 150,
-   "median": 553.5,
+   "n": 174,
+   "median": 550.2,
    "tier": "A-"
   },
   "SolNode216": {
@@ -406,15 +410,15 @@
    "name": "Tessera",
    "system": "金星",
    "mission": "防御",
-   "n": 78,
-   "median": 548.6,
+   "n": 93,
+   "median": 545.7,
    "tier": "A-"
   },
   "SolNode224": {
    "name": "奥丁平原",
    "system": "水星",
    "mission": "拦截",
-   "n": 561,
+   "n": 559,
    "median": 546.1,
    "tier": "A-"
   },
@@ -422,8 +426,8 @@
    "name": "Cytherean",
    "system": "金星",
    "mission": "拦截",
-   "n": 703,
-   "median": 765.5,
+   "n": 717,
+   "median": 765.9,
    "tier": "A+"
   },
   "SolNode230": {
@@ -450,16 +454,16 @@
    "name": "Callisto",
    "system": "木星",
    "mission": "拦截",
-   "n": 1338,
-   "median": 805.6,
+   "n": 1330,
+   "median": 806.0,
    "tier": "S"
   },
   "SolNode26": {
    "name": "Lith",
    "system": "地球",
    "mission": "防御",
-   "n": 16,
-   "median": 526.0,
+   "n": 25,
+   "median": 526.7,
    "tier": "A-"
   },
   "SolNode30": {
@@ -480,17 +484,17 @@
    "name": "Stöfler",
    "system": "月球",
    "mission": "防御",
-   "n": 14,
-   "median": 384.0,
+   "n": 18,
+   "median": 425.8,
    "tier": "F"
   },
   "SolNode308": {
    "name": "Apollo",
    "system": "月球",
    "mission": "中断",
-   "n": 57,
-   "median": 695.8,
-   "tier": "A"
+   "n": 78,
+   "median": 721.2,
+   "tier": "A+"
   },
   "SolNode309": {
    "name": "Yuvarium",
@@ -508,16 +512,16 @@
    "name": "雷争塔",
    "system": "虚空",
    "mission": "防御",
-   "n": 108,
-   "median": 574.1,
+   "n": 124,
+   "median": 577.5,
    "tier": "A-"
   },
   "SolNode405": {
    "name": "阿尼塔",
    "system": "虚空",
    "mission": "生存",
-   "n": 51,
-   "median": 881.6,
+   "n": 61,
+   "median": 909.0,
    "tier": "S"
   },
   "SolNode408": {
@@ -532,32 +536,32 @@
    "name": "死灵塔",
    "system": "虚空",
    "mission": "生存",
-   "n": 52,
-   "median": 814.2,
+   "n": 51,
+   "median": 827.2,
    "tier": "S"
   },
   "SolNode412": {
    "name": "光理塔",
    "system": "虚空",
    "mission": "拦截",
-   "n": 171,
-   "median": 529.6,
+   "n": 209,
+   "median": 534.2,
    "tier": "A-"
   },
   "SolNode42": {
    "name": "Helene",
    "system": "土星",
    "mission": "防御",
-   "n": 563,
-   "median": 586.1,
+   "n": 697,
+   "median": 589.1,
    "tier": "A-"
   },
   "SolNode43": {
    "name": "Cerberus",
    "system": "冥王星",
    "mission": "拦截",
-   "n": 26,
-   "median": 386.4,
+   "n": 28,
+   "median": 385.4,
    "tier": "F"
   },
   "SolNode450": {
@@ -572,8 +576,8 @@
    "name": "战矛基地",
    "system": "火星",
    "mission": "防御",
-   "n": 154,
-   "median": 580.7,
+   "n": 192,
+   "median": 584.3,
    "tier": "A-"
   },
   "SolNode6": {
@@ -586,7 +590,7 @@
    "name": "Umbriel",
    "system": "天王星",
    "mission": "拦截",
-   "n": 134,
+   "n": 138,
    "median": 632.9,
    "tier": "A"
   },
@@ -594,16 +598,16 @@
    "name": "Hyf",
    "system": "火卫二",
    "mission": "防御",
-   "n": 807,
-   "median": 589.0,
+   "n": 951,
+   "median": 589.9,
    "tier": "A-"
   },
   "SolNode711": {
    "name": "Terrorem",
    "system": "火卫二",
    "mission": "生存",
-   "n": 124,
-   "median": 868.3,
+   "n": 147,
+   "median": 887.8,
    "tier": "S"
   },
   "SolNode718": {
@@ -618,7 +622,7 @@
    "name": "墓垒",
    "system": "火卫二",
    "mission": "镜像防御",
-   "n": 515,
+   "n": 514,
    "median": 719.1,
    "tier": "A+"
   },
@@ -626,7 +630,7 @@
    "name": "Outer Terminus",
    "system": "冥王星",
    "mission": "防御",
-   "n": 164,
+   "n": 167,
    "median": 548.0,
    "tier": "A-"
   },
@@ -634,41 +638,41 @@
    "name": "Palus",
    "system": "冥王星",
    "mission": "生存",
-   "n": 15,
-   "median": 637.8,
-   "tier": "A"
+   "n": 19,
+   "median": 760.5,
+   "tier": "A+"
   },
   "SolNode85": {
    "name": "Gaia",
    "system": "地球",
    "mission": "拦截",
-   "n": 10,
-   "median": 378.4,
+   "n": 11,
+   "median": 383.8,
    "tier": "F"
   },
   "SolNode87": {
    "name": "Ganymede",
    "system": "木星",
    "mission": "中断",
-   "n": 14,
-   "median": 612.1,
-   "tier": "A"
+   "n": 30,
+   "median": 736.1,
+   "tier": "A+"
   },
   "SolNode94": {
    "name": "阿波罗多罗斯撞击坑",
    "system": "水星",
    "mission": "生存",
-   "n": 22,
-   "median": 725.0,
+   "n": 26,
+   "median": 733.2,
    "tier": "A+"
   },
   "SolNode96": {
    "name": "Titan",
    "system": "土星",
    "mission": "生存",
-   "n": 5,
-   "median": 792.0,
-   "tier": "A+"
+   "n": 6,
+   "median": 838.3,
+   "tier": "S"
   }
  },
  "schema": 1
