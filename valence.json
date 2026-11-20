@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "published_at": "2026-11-19T00:30:23+00:00",
+ "published_at": "2026-11-20T00:06:35+00:00",
  "source": "wiki《Reset》页，经插件在有 FlareSolverr 的机器上抓取后发布；快照时间 2026-11-19T00:30:23+00:00",
  "license_note": "数据来自 wiki.warframe.com（CC BY-NC-SA 3.0）；Warframe 相关内容版权归 Digital Extremes 所有，本仓库仅供查询。",
  "tenet": {
@@ -39,50 +39,50 @@
   ]
  },
  "coda": {
-  "snapshot": "2026-11-16T00:04:14+00:00",
+  "snapshot": "2026-11-20T00:06:35+00:00",
   "batch": "B",
   "items": [
    {
     "en": "Coda Bassocyst",
     "cn": "终幕·低音爆囊",
-    "element": "Heat",
-    "bonus": 29.8
+    "element": "Magnetic",
+    "bonus": 32.7
    },
    {
     "en": "Coda Bubonico",
     "cn": "终幕·横痃重炮",
-    "element": "Toxin",
-    "bonus": 30.4
+    "element": "Radiation",
+    "bonus": 36.7
    },
    {
     "en": "Coda Synapse",
     "cn": "终幕·突触生化枪",
-    "element": "Heat",
-    "bonus": 26.1
+    "element": "Magnetic",
+    "bonus": 31.0
    },
    {
     "en": "Coda Tysis",
     "cn": "终幕·啐沫者",
-    "element": "Impact",
-    "bonus": 27.7
+    "element": "Magnetic",
+    "bonus": 31.5
    },
    {
     "en": "Coda Caustacyst",
     "cn": "终幕·灼蚀变体镰",
-    "element": "Toxin",
-    "bonus": 29.8
+    "element": "Heat",
+    "bonus": 46.6
    },
    {
     "en": "Coda Hirudo",
     "cn": "终幕·蚂蟥",
-    "element": "Radiation",
-    "bonus": 28.6
+    "element": "Toxin",
+    "bonus": 25.2
    },
    {
     "en": "Coda Pathocyst",
     "cn": "终幕·病囊飞刃",
-    "element": "Radiation",
-    "bonus": 25.3
+    "element": "Toxin",
+    "bonus": 46.8
    }
   ]
  }
