@@ -78,6 +78,11 @@ check("归一化：英文侧", matching.normalize("Kuva  BRAMMA") == "kuvabramma
 # ---------------------------------------------------------------------------
 check("绝路p → 绝路prime 形态", "绝路prime" in matching.expand_variants("绝路p"))
 check("绝路P版 → 绝路prime 形态", "绝路prime" in matching.expand_variants("绝路P版"))
+for alias in ("绝路 \uff30版", "绝路\uff30", "Rubico P", "Rubico \uff30版"):
+    hits, stage = matching.resolve_weapon_name(alias, W)
+    check(f"{alias} → Rubico Prime", stage == "variant" and hits[0]["url_name"] == "rubico_prime")
+    check(f"{alias} 显式指定 Prime", matching.variant_intent_any(alias))
+check("英文词尾仍按原名", not matching.variant_intent_any("Cold Snap"))
 check(
     "英文词尾 p 不当缩写（Grineer 类）",
     "grineerprime" not in matching.expand_variants("grineerp")

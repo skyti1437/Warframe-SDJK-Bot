@@ -76,6 +76,26 @@ check(
 )
 check("CC=0 无暴击", close(dc.crit_expectation(0.0, 3.0), 1.0))
 
+# 2024-10-21 骨葬 Prime 坚韧连结开关实拍 BV1BYyzYfEjJ 约 01:12。
+# 模型算暴击档位的未舍入值。实拍整数为无连结 138/249/363、有连结 168/310/453。
+_gotva = dc.find_weapon_exact("骨葬 Prime")
+for _flat_arg, _expected_cm, _expected_tiers in (
+    ([], 5.5, (137.5, 250.0, 362.5)),
+    (["最终暴伤1.2"], 6.7, (167.5, 310.0, 452.5)),
+    (["flatcrit1.2"], 6.7, (167.5, 310.0, 452.5)),
+):
+    _gotva_spec, _ = dc.parse_args(["弱点感应", "超宏", *_flat_arg])
+    _gotva_hit = dc.calculate(_gotva_spec, _gotva)
+    _gotva_cm = _gotva_hit["crit_cm"]
+    _gotva_damage = _gotva_hit["overguard"]["damage"]
+    _gotva_tiers = tuple(_gotva_damage * dc.crit_expectation(k, _gotva_cm) for k in (1, 2, 3))
+    check(
+        f"骨葬 Prime {_flat_arg or '无连结'}：军械库暴伤与三档单弹直击",
+        close(_gotva_cm, _expected_cm)
+        and all(close(calc, expected) for calc, expected in zip(_gotva_tiers, _expected_tiers)),
+        str(_gotva_tiers),
+    )
+
 # ---------------------------------------------------------------------------
 # 3) 元素合成（HCET 顺序）
 # ---------------------------------------------------------------------------
@@ -160,6 +180,47 @@ check(
     close(_q["impact"], 1.125) and close(_q["slash"], 6.0) and close(_q["puncture"], 4.875),
     str(_q),
 )
+_half_step_below = math.nextafter(2.5, -math.inf)
+_q_boundary = dc.quantize_damage(
+    {
+        "impact": _half_step_below,
+        "puncture": math.nextafter(_half_step_below, -math.inf),
+        "slash": -_half_step_below,
+        "heat": 2.5,
+        "cold": math.nextafter(2.5, math.inf),
+        "electricity": 0.49,
+    },
+    32.0,
+)
+check(
+    "半步允许一个浮点间隔，更低的值向下取整，零项省略",
+    _q_boundary == {"impact": 3.0, "puncture": 2.0, "slash": -3.0, "heat": 3.0, "cold": 3.0},
+    str(_q_boundary),
+)
+
+# 2026-09-05 赤毒·鳄神配置。+60% 电击是显式复算输入，首发值按公式验算。
+_sobek_tie, _sobek_unknown = dc.parse_args(
+    [
+        "赤毒电60",
+        "抵近射击Prime",
+        "充电弹头Prime",
+        "电冲弹药",
+        "电60",
+        "185级",
+        "钢路",
+        "堕落重型机枪手",
+    ]
+)
+_sobek_tie_hit = dc.calculate(_sobek_tie, dc.find_weapon_exact("Kuva Sobek"))
+check(
+    "赤毒·鳄神 2.5 步的穿刺、切割进到 3 步，对 185 级堕落重型机枪手白字 128.041375",
+    not _sobek_unknown
+    and close(_sobek_tie_hit["health"], 128.041375)
+    and close(_sobek_tie_hit["per_type_health"]["puncture"], 4.591125)
+    and close(_sobek_tie_hit["per_type_health"]["slash"], 3.06075),
+    str(_sobek_tie_hit["per_type_health"]),
+)
+
 mult_expect = (_q["impact"] * 1.5 + _q["slash"] * 1.0 + _q["puncture"] * 1.0) / raw_total
 check(
     "端到端：打血 = Σ量化后类型×(1-DR)",
@@ -640,6 +701,44 @@ check(
 check("超宏伤害不含护甲减免（>0 且与 DR 无关）", _rO["damage"] > 0)
 _vg = dc.overguard_damage(0.0, 1.0, {"void": 100.0})
 check("只有虚空伤害时超宏吃 +50%", close(_vg, 100.0 * 1.5), f"{_vg}")
+
+# 2026-10-27 伯斯顿 Prime 普通三连发 BV16MHF6WEnS P2 00:32.9。
+# 主要·堡垒 +500%、膛线 +165%、卑劣加速 −15%，合计 +650%。
+_burston_video, _ = dc.parse_args(
+    [
+        "伯斯顿 Prime",
+        "220级",
+        "钢路",
+        "爆头",
+        "超宏",
+        "进化基伤",
+        "进化暴击",
+        "基伤500",
+        "膛线",
+        "弱点感应",
+        "镀层 分裂膛室",
+        "镀层 氩晶瞄具",
+        "低温弹头 Prime",
+        "关键延迟",
+        "致命火力",
+        "卑劣加速",
+    ]
+)
+_burston_hit = dc.calculate(_burston_video, dc.find_weapon_exact("伯斯顿 Prime"))
+_burston_head_body = _burston_hit["overguard"]["damage"] * _burston_hit["head_mult"]
+_burston_head_cm = _burston_hit["crit_cm"] * (2 if _burston_hit["head_crit"] else 1)
+_burston_yellow = _burston_head_body * dc.crit_expectation(1, _burston_head_cm)
+_burston_orange = _burston_head_body * dc.crit_expectation(2, _burston_head_cm)
+check(
+    "伯斯顿首轮对超宏的单弹爆头：黄暴 51K、橙暴 96K，进化基伤计一次",
+    not _burston_video["unknown"]
+    and close(_burston_video["base_dmg"], 650.0)
+    and close(_burston_hit["crit_cc"], 1.20)
+    and close(_burston_hit["multishot_total"], 1.8)
+    and close(_burston_yellow, 51455.25)
+    and close(_burston_orange, 96413.625),
+    str((_burston_yellow, _burston_orange)),
+)
 
 # 适应（wiki《Sentient》）：1~4 层抗性依次 90/80/75/70%
 check("适应抗性表 = 90/80/75/70%", dc.ADAPT_RESIST == (0.90, 0.80, 0.75, 0.70))
@@ -1643,6 +1742,26 @@ for _q in ("伊格尼斯 幻纹 毒气", "绝路 对 重机枪手 150级 爆头"
         f"伤害卡可转 QQ Markdown：{_q}",
         card_markdown("伤害", _ls, dc.card_footer(_w, _res)) is not None,
     )
+
+for _alias, _expected in (
+    ("布莱顿 \uff30版", "Braton Prime"),
+    ("Braton P", "Braton Prime"),
+    ("棱镜 空刃", "Prisma Skana"),
+    ("弧电离子枪 Tenet", "Tenet Arca Plasmor"),
+):
+    _spec, _name = dc.parse_args(_alias.split() + ["对", "重型机枪手", "膛线"])
+    _weapon, _ = dc.find_weapon(" ".join(_name))
+    check(
+        f"分词保留武器变体：{_alias}",
+        (_weapon or {}).get("name") == _expected and not _spec["unknown"],
+        str((_name, _spec["unknown"])),
+    )
+_miss, _name = dc.parse_args(["安培克斯", "P", "膛线"])
+check(
+    "显式指定不存在的 Prime，保留完整名称用于报错",
+    _name == ["安培克斯 P"] and dc.find_weapon(" ".join(_name))[0] is None and not _miss["unknown"],
+    str(_name),
+)
 
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")

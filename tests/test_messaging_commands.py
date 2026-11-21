@@ -369,7 +369,7 @@ async def main(clock):
         check(
             "分析按钮使用实体中文名",
             [a.send for a in analysis.actions]
-            == ["词条范围 绝路", "倾向 绝路", "wr 绝路 暴击 暴伤"],
+            == ["词条范围 绝路", "倾向 绝路", "配卡推荐 绝路", "wr 绝路 暴击 暴伤"],
         )
         plain_analysis = await call("紫卡分析 Rubico 暴击178.2 暴伤142.6", buttons=False)
         check(

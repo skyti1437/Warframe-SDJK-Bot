@@ -357,44 +357,73 @@ class IsolationTests(unittest.IsolatedAsyncioTestCase):
             reply = await host._h_riven_analysis(parsed, event, "pc")
             self.assertIn("机器共享资源预算", reply.raw_text)
             self.assertEqual(len(host._ocr_busy), 2)
+            waiting = SimpleNamespace(unified_msg_origin="other-room", sender="other-user")
+            tasks.append(asyncio.create_task(host._h_scan(parsed, waiting, "pc")))
+            await asyncio.sleep(0)
+            self.assertTrue(host._scan_requests().is_waiting("other-room"))
+            tasks[1].cancel()
+            await asyncio.gather(tasks[1], return_exceptions=True)
+            self.assertIn("other-room", host._ocr_busy)
+            self.assertEqual(len(host._ocr_busy), 2)
         finally:
             for task in tasks:
                 task.cancel()
             await asyncio.gather(*tasks, return_exceptions=True)
         self.assertFalse(host._ocr_busy)
 
-    async def test_scan_empty_origin_counts_unique_slots_and_releases_completion_and_cancel(self):
+    async def test_scan_queue_bounds_fifo_and_cancel_with_empty_origin(self):
         for isolated in (False, True):
             host = Host(
-                {"vision_routes_isolated": isolated, "scan_cooldown": 0, "scan_max_concurrent": 2}
+                {"vision_routes_isolated": isolated, "scan_cooldown": 0, "scan_max_concurrent": 0}
             )
             parsed = SimpleNamespace(content=[])
-            event = SimpleNamespace(unified_msg_origin="", sender="same-user")
-            pending = []
+            entered, replies = [], [[] for _ in range(7)]
+            started = [asyncio.Event() for _ in replies]
+            notified = [asyncio.Event() for _ in replies]
+            releases = [asyncio.Event() for _ in replies]
 
-            async def blocked(image):
-                future = asyncio.get_running_loop().create_future()
-                pending.append(future)
-                return await future
+            def make_event(index):
+                async def send(text):
+                    replies[index].append(text)
+                    notified[index].set()
 
+                return SimpleNamespace(
+                    unified_msg_origin="",
+                    sender="same-user",
+                    index=index,
+                    send=send,
+                    plain_result=lambda text: text,
+                )
+
+            async def blocked(index):
+                entered.append(index)
+                started[index].set()
+                await releases[index].wait()
+
+            host._image_data_urls = AsyncMock(side_effect=lambda event: [event.index])
             host._extract_loadout_validated = blocked
-            tasks = [asyncio.create_task(host._h_scan(parsed, event, "pc")) for _ in range(4)]
+            tasks = [
+                asyncio.create_task(host._h_scan(parsed, make_event(index), "pc"))
+                for index in range(7)
+            ]
             try:
-                await asyncio.sleep(0)
-                await asyncio.sleep(0)
-                self.assertEqual(len(pending), 2)
-                self.assertEqual(len(host._ocr_busy), 2)
-                self.assertTrue(all("并发上限" in task.result().raw_text for task in tasks[2:]))
-                pending[0].set_result(None)
-                await tasks[0]
-                self.assertEqual(len(host._ocr_busy), 1)
+                for event in notified[3:6]:
+                    await asyncio.wait_for(event.wait(), 2)
+                self.assertEqual(entered, [0, 1, 2])
+                self.assertEqual(len(host._ocr_busy), 3)
+                self.assertEqual(host._image_data_urls.await_count, 3)
+                for index in range(3, 6):
+                    self.assertIn(f"第 {index - 2} 位", replies[index][0])
+                self.assertIn("排队已满", (await asyncio.wait_for(tasks[6], 2)).raw_text)
+                tasks[4].cancel()
+                await asyncio.gather(tasks[4], return_exceptions=True)
+                releases[0].set()
+                await asyncio.wait_for(started[3].wait(), 2)
+                self.assertEqual(entered, [0, 1, 2, 3])
                 tasks[1].cancel()
-                await asyncio.gather(tasks[1], return_exceptions=True)
-                self.assertFalse(host._ocr_busy)
-                tasks.append(asyncio.create_task(host._h_scan(parsed, event, "pc")))
-                await asyncio.sleep(0)
-                self.assertEqual(len(pending), 3)
-                self.assertEqual(len(host._ocr_busy), 1)
+                await asyncio.wait_for(started[5].wait(), 2)
+                self.assertEqual(entered, [0, 1, 2, 3, 5])
+                self.assertEqual(len(host._ocr_busy), 3)
             finally:
                 for task in tasks:
                     task.cancel()

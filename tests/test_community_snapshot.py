@@ -1143,6 +1143,7 @@ if _ch_path.exists():
     import os as _os2
     import subprocess as _sp
     from datetime import timedelta as _tdlt
+    from unittest.mock import patch as _patch
 
     def _load_mod(_p, _name):
         _s = _ilu3.spec_from_file_location(_name, _p)
@@ -1379,6 +1380,62 @@ if _ch_path.exists():
         _rep["checks"][0]["detail"],
     )
     _shutil.rmtree(_td, ignore_errors=True)
+
+    # —— 出售参考：最新一次拉取失败，即使上一份仍新鲜，也应经巡检告警 ——
+    _sale_name = "riven_sale.json"
+    with _tmp.TemporaryDirectory(prefix="_ch_sale_") as _sale_tmp:
+        _sale_dir = Path(_sale_tmp)
+        _sale_url = "https://example.invalid/sale.csv"
+        _sale_rows = [
+            {"weapon": "Amprex", "positive": "CD", "negative": "Zoom", "category": "primary"}
+        ]
+        with _patch.object(_GEN, "_now_iso", return_value=_NOW.isoformat()):
+            with _patch.object(_GEN, "_sale_rows", return_value=_sale_rows):
+                _sale_ok = _GEN.gen_riven_sale(_sale_dir, _sale_url)
+            _sale_bytes = (_sale_dir / _sale_name).read_bytes()
+            with _patch.object(_GEN, "_sale_rows", side_effect=OSError("timeout")):
+                _sale_error = _GEN.gen_riven_sale(_sale_dir, _sale_url)
+            _sale_failed = _GEN._read_health(_sale_dir)[_sale_name]
+            _sale_retained = (_sale_dir / _sale_name).read_bytes() == _sale_bytes
+            with _patch.object(_GEN, "_sale_rows", return_value=_sale_rows):
+                _sale_retry = _GEN.gen_riven_sale(_sale_dir, _sale_url)
+            _sale_recovered = _GEN._read_health(_sale_dir)[_sale_name]
+        check(
+            "紫卡表拉取失败留存快照，成功重试不改同内容的快照",
+            (_sale_ok, _sale_error, _sale_retry) == (0, 1, 0)
+            and _sale_failed["last_success"] == _NOW.isoformat()
+            and _sale_retained
+            and _sale_recovered["result"] == "unchanged",
+        )
+        _sale_remote = {**_remote_files(), _sale_name: _sale_bytes.decode()}
+        _rc, _rep, _gen, _td = _case(
+            _remote=_sale_remote,
+            _fetch=True,
+            _gh={**_gen_health(), _sale_name: _sale_failed},
+            _ph=_pub_health(),
+        )
+        check(
+            "紫卡表本次失败立即告警，远端旧快照仍有效且和本地一致",
+            _st(_rep, "gen_riven_sale_alive") == "fail"
+            and _st(_rep, "static_valid_riven_sale.json") == "ok"
+            and _st(_rep, "static_published_riven_sale.json") == "ok"
+            and _rc == 2,
+        )
+        with _patch.object(_CH, "send_alert", return_value="已推送，通道：openapi") as _sender:
+            _CH._alert_on_change(_sale_dir, _rep["checks"], quiet=True)
+            _CH._alert_on_change(_sale_dir, _rep["checks"], quiet=True)
+            _CH._alert_on_change(
+                _sale_dir,
+                [_CH.check_riven_sale_alive({_sale_name: _sale_recovered}, _NOW)],
+                quiet=True,
+            )
+        check(
+            "紫卡表失败和恢复复用告警出口，同状态不重复发送",
+            _sender.call_count == 2
+            and "拉取失败" in _sender.call_args_list[0].args[1]
+            and "已恢复" in _sender.call_args_list[1].args[0],
+        )
+        _shutil.rmtree(_td, ignore_errors=True)
 
     # —— 生成器心跳 ——
     _rc, _rep, _gen, _td = _case(_gh=_gen_health(_arb_last=_NOW - _tdlt(days=9)), _ph=_pub_health())

@@ -134,8 +134,16 @@ def strip_cn_tables(text: str) -> str:
     return "".join(out)
 
 
-def strip_official_drop_units(rel: str, text: str) -> str:
-    """只豁免 places 整字段中的官方完整单位名，不豁免裸派系或其它字段。"""
+def strip_official_unit_names(rel: str, text: str) -> str:
+    """只豁免对应字段里的官方完整单位名。"""
+    if rel == "core/data/portable_display_names.json":
+        data = json.loads(text)
+        enemies = data.get("enemies", {})
+        # DE 同键 /Lotus/Language/Game/CorruptedAncient，只准这一条敌人身份。
+        path = "/Lotus/Types/Enemies/Orokin/OrokinHealingAncientAvatar"
+        if enemies.get(path) == "远古堕落者":
+            del enemies[path]
+        return json.dumps(data, ensure_ascii=False)
     if rel != "core/data/drops.json":
         return text
     # DE 同键：/Lotus/Language/Game/CorruptedAncient。
@@ -175,26 +183,49 @@ check(
 _drop_fixture = json.dumps({"places": {"0": "远古堕落者"}}, ensure_ascii=False)
 check(
     "官方完整掉落单位名可展示",
-    "堕落者" not in strip_official_drop_units("core/data/drops.json", _drop_fixture),
+    "堕落者" not in strip_official_unit_names("core/data/drops.json", _drop_fixture),
 )
 for _label in ("堕落者", "伪远古堕落者", "远古堕落者 Extra"):
     _raw = json.dumps({"places": {"0": _label}}, ensure_ascii=False)
     check(
         "掉落裸派系与未知扩展不豁免：" + _label,
-        "堕落者" in strip_official_drop_units("core/data/drops.json", _raw),
+        "堕落者" in strip_official_unit_names("core/data/drops.json", _raw),
     )
 check(
     "官方单位豁免不扩到其它数据字段",
     "堕落者"
-    in strip_official_drop_units(
+    in strip_official_unit_names(
         "core/data/drops.json",
         json.dumps({"places": {"0": "远古堕落者"}, "note": "堕落者"}, ensure_ascii=False),
     ),
 )
 check(
     "官方掉落单位豁免不扩到其它文件",
-    strip_official_drop_units("core/data/other.json", _drop_fixture) == _drop_fixture,
+    strip_official_unit_names("core/data/other.json", _drop_fixture) == _drop_fixture,
 )
+
+
+_enemy_path = "/Lotus/Types/Enemies/Orokin/OrokinHealingAncientAvatar"
+_enemy_names_file = "core/data/portable_display_names.json"
+check(
+    "完整模拟只豁免同路径的官方单位全名",
+    "堕落者"
+    not in strip_official_unit_names(
+        _enemy_names_file, json.dumps({"enemies": {_enemy_path: "远古堕落者"}}, ensure_ascii=False)
+    ),
+)
+for _enemy_fixture in (
+    {"enemies": {"/unverified": "远古堕落者"}},
+    {"enemies": {_enemy_path: "堕落者"}},
+    {"enemies": {_enemy_path: "远古堕落者"}, "note": "堕落者"},
+):
+    check(
+        "完整模拟其它路径、裸派系与其它字段仍执行术语检查",
+        "堕落者"
+        in strip_official_unit_names(
+            _enemy_names_file, json.dumps(_enemy_fixture, ensure_ascii=False)
+        ),
+    )
 
 
 scanned = 0
@@ -210,7 +241,7 @@ for p in targets:
     try:
         if rel == "core/data/wiki_intro_en.json":
             text = english_intro_output(text)
-        body = strip_official_drop_units(rel, strip_cn_tables(text))
+        body = strip_official_unit_names(rel, strip_cn_tables(text))
     except ValueError as e:
         check(f"国服译名表标记完整：{rel}", False, str(e))
         continue

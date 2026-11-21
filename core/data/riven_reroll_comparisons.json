@@ -1,0 +1,3181 @@
+{
+  "engineFingerprint": "85ec9cdb3461c01c",
+  "metric": "windowedDps",
+  "entries": [
+    {
+      "weapon": "/Lotus/Weapons/Tenno/Rifle/BratonPrime",
+      "fireMode": 0,
+      "contextHash": "d0b2d99886af468f9ae5",
+      "score": 136046.10600240112,
+      "rank": 8,
+      "stats": [
+        {
+          "code": "0",
+          "value": 185.6175861375,
+          "negative": false
+        },
+        {
+          "code": "CO",
+          "value": 111.37500000000001,
+          "negative": false
+        },
+        {
+          "code": "D",
+          "value": 204.1871176125,
+          "negative": false
+        },
+        {
+          "code": "H",
+          "value": 59.39406000000001,
+          "negative": true
+        }
+      ],
+      "replayed": 2,
+      "fixedTraitReference": {
+        "baselineScore": 31567.212552541965,
+        "rows": [
+          {
+            "code": "9",
+            "negative": false,
+            "value": 134.96624999999997,
+            "unit": "percent",
+            "fusion": false,
+            "score": 35718.15940545315,
+            "pct": 13.14955144044523
+          },
+          {
+            "code": "0",
+            "negative": false,
+            "value": 168.743260125,
+            "unit": "percent",
+            "fusion": false,
+            "score": 47453.448159443644,
+            "pct": 50.32511369339272
+          },
+          {
+            "code": "1",
+            "negative": false,
+            "value": 134.996625,
+            "unit": "percent",
+            "fusion": false,
+            "score": 41228.919307579024,
+            "pct": 30.606778279696556
+          },
+          {
+            "code": "7",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 9928.447103244336,
+            "pct": -68.54822994992364
+          },
+          {
+            "code": "4",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 36270.389265875776,
+            "pct": 14.898929405013583
+          },
+          {
+            "code": "5",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 35219.13104797851,
+            "pct": 11.568707529554967
+          },
+          {
+            "code": "8",
+            "negative": false,
+            "value": 134.996625,
+            "unit": "percent",
+            "fusion": false,
+            "score": 31932.015183016116,
+            "pct": 1.1556377677216734
+          },
+          {
+            "code": "3",
+            "negative": false,
+            "value": 112.48874999999997,
+            "unit": "percent",
+            "fusion": false,
+            "score": 25927.65959536081,
+            "pct": -17.86522312603439
+          },
+          {
+            "code": "A",
+            "negative": false,
+            "value": 134.996625,
+            "unit": "percent",
+            "fusion": false,
+            "score": 35206.71985665422,
+            "pct": 11.529390813504637
+          },
+          {
+            "code": "2",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 35817.88859566615,
+            "pct": 13.46547794186501
+          },
+          {
+            "code": "6",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 35219.13104797851,
+            "pct": 11.568707529554967
+          },
+          {
+            "code": "M",
+            "negative": false,
+            "value": 56.193748987499994,
+            "unit": "percent",
+            "fusion": false,
+            "score": 31567.212552541965,
+            "pct": 0.0
+          },
+          {
+            "code": "L",
+            "negative": false,
+            "value": 56.244377025,
+            "unit": "percent",
+            "fusion": false,
+            "score": 38677.69542458018,
+            "pct": 22.524899403782307
+          },
+          {
+            "code": "D",
+            "negative": false,
+            "value": 185.62465237499998,
+            "unit": "percent",
+            "fusion": false,
+            "score": 47830.40565322432,
+            "pct": 51.519256170031234
+          },
+          {
+            "code": "S",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 44483.49337144452,
+            "pct": 40.91676069720786
+          },
+          {
+            "code": "V",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 31567.212552541965,
+            "pct": 0.0
+          },
+          {
+            "code": "P",
+            "negative": false,
+            "value": 3.0374998987499997,
+            "unit": "flat",
+            "fusion": false,
+            "score": null,
+            "pct": null
+          },
+          {
+            "code": "Z",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 31567.212552541965,
+            "pct": 0.0
+          },
+          {
+            "code": "F",
+            "negative": false,
+            "value": 56.244377025,
+            "unit": "percent",
+            "fusion": false,
+            "score": 37419.92508203774,
+            "pct": 18.540479365272567
+          },
+          {
+            "code": "C",
+            "negative": false,
+            "value": 50.62499898749999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 31567.212552541965,
+            "pct": 0.0
+          },
+          {
+            "code": "G",
+            "negative": false,
+            "value": 50.62499898749999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 31567.212552541965,
+            "pct": 0.0
+          },
+          {
+            "code": "I",
+            "negative": false,
+            "value": 50.62499898749999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 31567.212552541965,
+            "pct": 0.0
+          },
+          {
+            "code": "H",
+            "negative": false,
+            "value": 67.49325,
+            "unit": "percent",
+            "fusion": false,
+            "score": null,
+            "pct": null
+          },
+          {
+            "code": "W",
+            "negative": false,
+            "value": 253.12499999999997,
+            "unit": "percent",
+            "fusion": true,
+            "score": 31567.212552541965,
+            "pct": 0.0
+          },
+          {
+            "code": "Y",
+            "negative": false,
+            "value": 278.4375,
+            "unit": "percent",
+            "fusion": true,
+            "score": 31567.212552541965,
+            "pct": 0.0
+          },
+          {
+            "code": "AE",
+            "negative": false,
+            "value": 50.62499999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 40162.91620108335,
+            "pct": 27.229846899640854
+          },
+          {
+            "code": "HR",
+            "negative": false,
+            "value": 101.24999999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": null,
+            "pct": null
+          },
+          {
+            "code": "SD",
+            "negative": false,
+            "value": 101.24999999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 34671.70165671261,
+            "pct": 9.834536701659635
+          },
+          {
+            "code": "GA",
+            "negative": false,
+            "value": 101.24999999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 38220.67142403087,
+            "pct": 21.07711873645661
+          },
+          {
+            "code": "CO",
+            "negative": false,
+            "value": 101.24999999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 59511.34629927294,
+            "pct": 88.52265210372767
+          },
+          {
+            "code": "VI",
+            "negative": false,
+            "value": 101.24999999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 35219.131048096606,
+            "pct": 11.568707529929089
+          },
+          {
+            "code": "RA",
+            "negative": false,
+            "value": 101.24999999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 36361.717300788,
+            "pct": 15.188242358319837
+          },
+          {
+            "code": "BL",
+            "negative": false,
+            "value": 101.24999999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 36362.887878137524,
+            "pct": 15.191950564572053
+          },
+          {
+            "code": "MA",
+            "negative": false,
+            "value": 101.24999999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 36361.717300788,
+            "pct": 15.188242358319837
+          },
+          {
+            "code": "FO",
+            "negative": false,
+            "value": 50.62499999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 31567.212552541965,
+            "pct": 0.0
+          },
+          {
+            "code": "FT",
+            "negative": false,
+            "value": 50.62499999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 31567.212552541965,
+            "pct": 0.0
+          },
+          {
+            "code": "FS",
+            "negative": false,
+            "value": 50.62499999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 31567.212552541965,
+            "pct": 0.0
+          },
+          {
+            "code": "9",
+            "negative": true,
+            "value": 107.973,
+            "unit": "percent",
+            "fusion": false,
+            "score": 22565.82875521041,
+            "pct": -28.51497826217385
+          },
+          {
+            "code": "0",
+            "negative": true,
+            "value": 134.9946081,
+            "unit": "percent",
+            "fusion": false,
+            "score": 14187.051488151343,
+            "pct": -55.05763625933794
+          },
+          {
+            "code": "1",
+            "negative": true,
+            "value": 107.9973,
+            "unit": "percent",
+            "fusion": false,
+            "score": 21091.26329850084,
+            "pct": -33.18617136880382
+          },
+          {
+            "code": "8",
+            "negative": true,
+            "value": 107.9973,
+            "unit": "percent",
+            "fusion": false,
+            "score": 31376.26584036315,
+            "pct": -0.6048893669689526
+          },
+          {
+            "code": "3",
+            "negative": true,
+            "value": 89.99099999999999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 24025.97279686684,
+            "pct": -23.88946994646146
+          },
+          {
+            "code": "A",
+            "negative": true,
+            "value": 107.9973,
+            "unit": "percent",
+            "fusion": false,
+            "score": 26850.611842981198,
+            "pct": -14.94145452884138
+          },
+          {
+            "code": "2",
+            "negative": true,
+            "value": 80.99999838,
+            "unit": "percent",
+            "fusion": false,
+            "score": 25469.634194665316,
+            "pct": -19.316176072649903
+          },
+          {
+            "code": "M",
+            "negative": true,
+            "value": 44.954999189999995,
+            "unit": "percent",
+            "fusion": false,
+            "score": 31567.212552541965,
+            "pct": 0.0
+          },
+          {
+            "code": "L",
+            "negative": true,
+            "value": 44.99550162,
+            "unit": "percent",
+            "fusion": false,
+            "score": 22525.543835582725,
+            "pct": -28.642594596877558
+          },
+          {
+            "code": "D",
+            "negative": true,
+            "value": 148.4997219,
+            "unit": "percent",
+            "fusion": false,
+            "score": -534.2150460899117,
+            "pct": -101.69230984585901
+          },
+          {
+            "code": "S",
+            "negative": true,
+            "value": 80.99999838,
+            "unit": "percent",
+            "fusion": false,
+            "score": 17643.62745270385,
+            "pct": -44.10774336398261
+          },
+          {
+            "code": "V",
+            "negative": true,
+            "value": 80.99999838,
+            "unit": "percent",
+            "fusion": false,
+            "score": 31567.212552541965,
+            "pct": 0.0
+          },
+          {
+            "code": "Z",
+            "negative": true,
+            "value": 80.99999838,
+            "unit": "percent",
+            "fusion": false,
+            "score": 31567.212552541965,
+            "pct": 0.0
+          },
+          {
+            "code": "F",
+            "negative": true,
+            "value": 44.99550162,
+            "unit": "percent",
+            "fusion": false,
+            "score": 22533.128509971757,
+            "pct": -28.618567532795147
+          },
+          {
+            "code": "C",
+            "negative": true,
+            "value": 40.49999919,
+            "unit": "percent",
+            "fusion": false,
+            "score": 31567.212552541965,
+            "pct": 0.0
+          },
+          {
+            "code": "G",
+            "negative": true,
+            "value": 40.49999919,
+            "unit": "percent",
+            "fusion": false,
+            "score": 31567.212552541965,
+            "pct": 0.0
+          },
+          {
+            "code": "I",
+            "negative": true,
+            "value": 40.49999919,
+            "unit": "percent",
+            "fusion": false,
+            "score": 31567.212552541965,
+            "pct": 0.0
+          },
+          {
+            "code": "H",
+            "negative": true,
+            "value": 53.994600000000005,
+            "unit": "percent",
+            "fusion": false,
+            "score": null,
+            "pct": null
+          }
+        ]
+      }
+    },
+    {
+      "weapon": "/Lotus/Weapons/Corpus/Pistols/CrpSentExperimentPistol/CrpSentExperimentPistol",
+      "fireMode": 0,
+      "contextHash": "562f9a0e20103b0460ba",
+      "score": 39081.65229835051,
+      "rank": 8,
+      "stats": [
+        {
+          "code": "MA",
+          "value": 111.37500000000001,
+          "negative": false
+        },
+        {
+          "code": "S",
+          "value": 148.12875,
+          "negative": false
+        },
+        {
+          "code": "D",
+          "value": 271.75500000000005,
+          "negative": false
+        },
+        {
+          "code": "H",
+          "value": 79.29899821800001,
+          "negative": true
+        }
+      ],
+      "replayed": 2,
+      "fixedTraitReference": {
+        "baselineScore": 23375.21697781902,
+        "rows": [
+          {
+            "code": "9",
+            "negative": false,
+            "value": 134.96624999999997,
+            "unit": "percent",
+            "fusion": false,
+            "score": 24879.533778961042,
+            "pct": 6.435520160388175
+          },
+          {
+            "code": "0",
+            "negative": false,
+            "value": 168.743260125,
+            "unit": "percent",
+            "fusion": false,
+            "score": 27075.794034344493,
+            "pct": 15.831198743682219
+          },
+          {
+            "code": "1",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 28133.21902609422,
+            "pct": 20.354900032757417
+          },
+          {
+            "code": "7",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 4565.568130463578,
+            "pct": -80.46833903276324
+          },
+          {
+            "code": "4",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 27979.7349333365,
+            "pct": 19.69828968812035
+          },
+          {
+            "code": "5",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 25733.79280166186,
+            "pct": 10.090070291458343
+          },
+          {
+            "code": "8",
+            "negative": false,
+            "value": 134.996625,
+            "unit": "percent",
+            "fusion": false,
+            "score": 23375.21697781902,
+            "pct": 0.0
+          },
+          {
+            "code": "3",
+            "negative": false,
+            "value": 112.48874999999997,
+            "unit": "percent",
+            "fusion": false,
+            "score": 18884.92195678574,
+            "pct": -19.209639958825477
+          },
+          {
+            "code": "A",
+            "negative": false,
+            "value": 134.996625,
+            "unit": "percent",
+            "fusion": false,
+            "score": 23375.21697781902,
+            "pct": 0.0
+          },
+          {
+            "code": "2",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 25712.379230611838,
+            "pct": 9.998462281700204
+          },
+          {
+            "code": "6",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 25733.79280166186,
+            "pct": 10.090070291458343
+          },
+          {
+            "code": "M",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 23375.21697781902,
+            "pct": 0.0
+          },
+          {
+            "code": "L",
+            "negative": false,
+            "value": 56.244377025,
+            "unit": "percent",
+            "fusion": false,
+            "score": 25081.775273799012,
+            "pct": 7.300716385218431
+          },
+          {
+            "code": "D",
+            "negative": false,
+            "value": 247.05000000000004,
+            "unit": "percent",
+            "fusion": false,
+            "score": 31149.170004712938,
+            "pct": 33.25724434673998
+          },
+          {
+            "code": "S",
+            "negative": false,
+            "value": 134.6625,
+            "unit": "percent",
+            "fusion": false,
+            "score": 32252.078059429605,
+            "pct": 37.9755237781704
+          },
+          {
+            "code": "V",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 23375.21697781902,
+            "pct": 0.0
+          },
+          {
+            "code": "P",
+            "negative": false,
+            "value": 3.0374998987499997,
+            "unit": "flat",
+            "fusion": false,
+            "score": null,
+            "pct": null
+          },
+          {
+            "code": "Z",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 23375.21697781902,
+            "pct": 0.0
+          },
+          {
+            "code": "F",
+            "negative": false,
+            "value": 56.244377025,
+            "unit": "percent",
+            "fusion": false,
+            "score": 24755.21017920199,
+            "pct": 5.903659429952923
+          },
+          {
+            "code": "C",
+            "negative": false,
+            "value": 50.62499898749999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 23375.21697781902,
+            "pct": 0.0
+          },
+          {
+            "code": "G",
+            "negative": false,
+            "value": 50.62499898749999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 23375.21697781902,
+            "pct": 0.0
+          },
+          {
+            "code": "I",
+            "negative": false,
+            "value": 50.62499898749999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 23375.21697781902,
+            "pct": 0.0
+          },
+          {
+            "code": "H",
+            "negative": false,
+            "value": 90.11249797499998,
+            "unit": "percent",
+            "fusion": false,
+            "score": null,
+            "pct": null
+          },
+          {
+            "code": "W",
+            "negative": false,
+            "value": 253.12499999999997,
+            "unit": "percent",
+            "fusion": true,
+            "score": 23375.21697781902,
+            "pct": 0.0
+          },
+          {
+            "code": "Y",
+            "negative": false,
+            "value": 278.4375,
+            "unit": "percent",
+            "fusion": true,
+            "score": 23375.21697781902,
+            "pct": 0.0
+          },
+          {
+            "code": "AE",
+            "negative": false,
+            "value": 50.62499999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 24901.365431302987,
+            "pct": 6.5289167366110235
+          },
+          {
+            "code": "HR",
+            "negative": false,
+            "value": 101.24999999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": null,
+            "pct": null
+          },
+          {
+            "code": "SD",
+            "negative": false,
+            "value": 101.24999999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 25527.08358996515,
+            "pct": 9.205761016841297
+          },
+          {
+            "code": "GA",
+            "negative": false,
+            "value": 101.24999999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 27964.212151918913,
+            "pct": 19.63188268350382
+          },
+          {
+            "code": "CO",
+            "negative": false,
+            "value": 101.24999999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 44221.30106919622,
+            "pct": 89.18028059871386
+          },
+          {
+            "code": "VI",
+            "negative": false,
+            "value": 101.24999999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 25733.792801495736,
+            "pct": 10.090070290747644
+          },
+          {
+            "code": "RA",
+            "negative": false,
+            "value": 101.24999999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 25327.312867830722,
+            "pct": 8.351134844498208
+          },
+          {
+            "code": "BL",
+            "negative": false,
+            "value": 101.24999999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 27855.47478068622,
+            "pct": 19.166700386646962
+          },
+          {
+            "code": "MA",
+            "negative": false,
+            "value": 101.24999999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 27855.47478068622,
+            "pct": 19.166700386646962
+          },
+          {
+            "code": "FO",
+            "negative": false,
+            "value": 50.62499999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 23375.21697781902,
+            "pct": 0.0
+          },
+          {
+            "code": "FT",
+            "negative": false,
+            "value": 50.62499999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 23375.21697781902,
+            "pct": 0.0
+          },
+          {
+            "code": "FS",
+            "negative": false,
+            "value": 50.62499999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 23375.21697781902,
+            "pct": 0.0
+          },
+          {
+            "code": "9",
+            "negative": true,
+            "value": 107.973,
+            "unit": "percent",
+            "fusion": false,
+            "score": 21624.61779416828,
+            "pct": -7.48912485095603
+          },
+          {
+            "code": "0",
+            "negative": true,
+            "value": 134.9946081,
+            "unit": "percent",
+            "fusion": false,
+            "score": 21014.38879636675,
+            "pct": -10.099705956494354
+          },
+          {
+            "code": "1",
+            "negative": true,
+            "value": 80.99999838,
+            "unit": "percent",
+            "fusion": false,
+            "score": 20772.24863307819,
+            "pct": -11.135590087616343
+          },
+          {
+            "code": "8",
+            "negative": true,
+            "value": 107.9973,
+            "unit": "percent",
+            "fusion": false,
+            "score": 23375.21697781902,
+            "pct": 0.0
+          },
+          {
+            "code": "3",
+            "negative": true,
+            "value": 89.99099999999999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 20996.004941102445,
+            "pct": -10.178352735609819
+          },
+          {
+            "code": "A",
+            "negative": true,
+            "value": 107.9973,
+            "unit": "percent",
+            "fusion": false,
+            "score": 23375.21697781902,
+            "pct": 0.0
+          },
+          {
+            "code": "2",
+            "negative": true,
+            "value": 80.99999838,
+            "unit": "percent",
+            "fusion": false,
+            "score": 19566.71419000357,
+            "pct": -16.292908816330453
+          },
+          {
+            "code": "M",
+            "negative": true,
+            "value": 80.99999838,
+            "unit": "percent",
+            "fusion": false,
+            "score": 23375.21697781902,
+            "pct": 0.0
+          },
+          {
+            "code": "L",
+            "negative": true,
+            "value": 44.99550162,
+            "unit": "percent",
+            "fusion": false,
+            "score": 18671.43715387525,
+            "pct": -20.122935450854783
+          },
+          {
+            "code": "D",
+            "negative": true,
+            "value": 197.64000000000004,
+            "unit": "percent",
+            "fusion": false,
+            "score": 12949.736105029153,
+            "pct": -44.600573687434476
+          },
+          {
+            "code": "S",
+            "negative": true,
+            "value": 107.72999999999999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 14190.812581660004,
+            "pct": -39.291204889666645
+          },
+          {
+            "code": "V",
+            "negative": true,
+            "value": 80.99999838,
+            "unit": "percent",
+            "fusion": false,
+            "score": 23375.21697781902,
+            "pct": 0.0
+          },
+          {
+            "code": "Z",
+            "negative": true,
+            "value": 80.99999838,
+            "unit": "percent",
+            "fusion": false,
+            "score": 23375.21697781902,
+            "pct": 0.0
+          },
+          {
+            "code": "F",
+            "negative": true,
+            "value": 44.99550162,
+            "unit": "percent",
+            "fusion": false,
+            "score": 18867.702037494644,
+            "pct": -19.283307378928725
+          },
+          {
+            "code": "C",
+            "negative": true,
+            "value": 40.49999919,
+            "unit": "percent",
+            "fusion": false,
+            "score": 23375.21697781902,
+            "pct": 0.0
+          },
+          {
+            "code": "G",
+            "negative": true,
+            "value": 40.49999919,
+            "unit": "percent",
+            "fusion": false,
+            "score": 23375.21697781902,
+            "pct": 0.0
+          },
+          {
+            "code": "I",
+            "negative": true,
+            "value": 40.49999919,
+            "unit": "percent",
+            "fusion": false,
+            "score": 23375.21697781902,
+            "pct": 0.0
+          },
+          {
+            "code": "H",
+            "negative": true,
+            "value": 72.08999838,
+            "unit": "percent",
+            "fusion": false,
+            "score": null,
+            "pct": null
+          }
+        ]
+      }
+    },
+    {
+      "weapon": "/Lotus/Weapons/Tenno/Rifle/LatronPrime",
+      "fireMode": 1,
+      "contextHash": "b3bed719aaac3344594d",
+      "score": 1092484.1262027542,
+      "rank": 8,
+      "stats": [
+        {
+          "code": "1",
+          "value": 148.4962875,
+          "negative": false
+        },
+        {
+          "code": "D",
+          "value": 204.1871176125,
+          "negative": false
+        },
+        {
+          "code": "CO",
+          "value": 111.37500000000001,
+          "negative": false
+        },
+        {
+          "code": "H",
+          "value": 59.39406000000001,
+          "negative": true
+        }
+      ],
+      "replayed": 2,
+      "fixedTraitReference": {
+        "baselineScore": 170987.7807040043,
+        "rows": [
+          {
+            "code": "9",
+            "negative": false,
+            "value": 134.96624999999997,
+            "unit": "percent",
+            "fusion": false,
+            "score": 176516.4828058729,
+            "pct": 3.2333901750788208
+          },
+          {
+            "code": "0",
+            "negative": false,
+            "value": 168.743260125,
+            "unit": "percent",
+            "fusion": false,
+            "score": 212832.61310013282,
+            "pct": 24.47241096635191
+          },
+          {
+            "code": "1",
+            "negative": false,
+            "value": 134.996625,
+            "unit": "percent",
+            "fusion": false,
+            "score": 227158.11255608892,
+            "pct": 32.85049470834449
+          },
+          {
+            "code": "7",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 107278.22936703566,
+            "pct": -37.25971006504598
+          },
+          {
+            "code": "4",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 232526.2670538498,
+            "pct": 35.989990686161555
+          },
+          {
+            "code": "5",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 179000.04897448252,
+            "pct": 4.6858718427068125
+          },
+          {
+            "code": "8",
+            "negative": false,
+            "value": 134.996625,
+            "unit": "percent",
+            "fusion": false,
+            "score": 193484.19372739314,
+            "pct": 13.156737242137906
+          },
+          {
+            "code": "3",
+            "negative": false,
+            "value": 112.48874999999997,
+            "unit": "percent",
+            "fusion": false,
+            "score": 136461.93931993,
+            "pct": -20.191993393868145
+          },
+          {
+            "code": "A",
+            "negative": false,
+            "value": 134.996625,
+            "unit": "percent",
+            "fusion": false,
+            "score": 170987.7807040043,
+            "pct": 0.0
+          },
+          {
+            "code": "2",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 194721.4628745928,
+            "pct": 13.880338158007731
+          },
+          {
+            "code": "6",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 179000.04897448252,
+            "pct": 4.6858718427068125
+          },
+          {
+            "code": "M",
+            "negative": false,
+            "value": 56.193748987499994,
+            "unit": "percent",
+            "fusion": false,
+            "score": 170987.7807040043,
+            "pct": 0.0
+          },
+          {
+            "code": "L",
+            "negative": false,
+            "value": 56.244377025,
+            "unit": "percent",
+            "fusion": false,
+            "score": 170987.7807040043,
+            "pct": 0.0
+          },
+          {
+            "code": "D",
+            "negative": false,
+            "value": 185.62465237499998,
+            "unit": "percent",
+            "fusion": false,
+            "score": 212832.6131001325,
+            "pct": 24.47241096635173
+          },
+          {
+            "code": "S",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 209853.04795810985,
+            "pct": 22.729850691135
+          },
+          {
+            "code": "V",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 170987.7807040043,
+            "pct": 0.0
+          },
+          {
+            "code": "P",
+            "negative": false,
+            "value": 3.0374998987499997,
+            "unit": "flat",
+            "fusion": false,
+            "score": null,
+            "pct": null
+          },
+          {
+            "code": "Z",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 170987.7807040043,
+            "pct": 0.0
+          },
+          {
+            "code": "F",
+            "negative": false,
+            "value": 56.244377025,
+            "unit": "percent",
+            "fusion": false,
+            "score": 170987.7807040043,
+            "pct": 0.0
+          },
+          {
+            "code": "C",
+            "negative": false,
+            "value": 50.62499898749999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 170987.7807040043,
+            "pct": 0.0
+          },
+          {
+            "code": "G",
+            "negative": false,
+            "value": 50.62499898749999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 170987.7807040043,
+            "pct": 0.0
+          },
+          {
+            "code": "I",
+            "negative": false,
+            "value": 50.62499898749999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 170987.7807040043,
+            "pct": 0.0
+          },
+          {
+            "code": "H",
+            "negative": false,
+            "value": 67.49325,
+            "unit": "percent",
+            "fusion": false,
+            "score": null,
+            "pct": null
+          },
+          {
+            "code": "W",
+            "negative": false,
+            "value": 253.12499999999997,
+            "unit": "percent",
+            "fusion": true,
+            "score": 170987.7807040043,
+            "pct": 0.0
+          },
+          {
+            "code": "Y",
+            "negative": false,
+            "value": 278.4375,
+            "unit": "percent",
+            "fusion": true,
+            "score": 170987.7807040043,
+            "pct": 0.0
+          },
+          {
+            "code": "AE",
+            "negative": false,
+            "value": 50.62499999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 170987.7807040043,
+            "pct": 0.0
+          },
+          {
+            "code": "HR",
+            "negative": false,
+            "value": 101.24999999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": null,
+            "pct": null
+          },
+          {
+            "code": "SD",
+            "negative": false,
+            "value": 101.24999999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 174135.77435465404,
+            "pct": 1.8410635179242352
+          },
+          {
+            "code": "GA",
+            "negative": false,
+            "value": 101.24999999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 193484.1937273932,
+            "pct": 13.15673724213795
+          },
+          {
+            "code": "CO",
+            "negative": false,
+            "value": 101.24999999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 273157.9070539527,
+            "pct": 59.75288171428714
+          },
+          {
+            "code": "VI",
+            "negative": false,
+            "value": 101.24999999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 179000.04897427463,
+            "pct": 4.685871842585221
+          },
+          {
+            "code": "RA",
+            "negative": false,
+            "value": 101.24999999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 189523.19748140444,
+            "pct": 10.840199633613956
+          },
+          {
+            "code": "BL",
+            "negative": false,
+            "value": 101.24999999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 189546.43455204097,
+            "pct": 10.853789534916181
+          },
+          {
+            "code": "MA",
+            "negative": false,
+            "value": 101.24999999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 189523.19748140444,
+            "pct": 10.840199633613956
+          },
+          {
+            "code": "FO",
+            "negative": false,
+            "value": 50.62499999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 170987.7807040043,
+            "pct": 0.0
+          },
+          {
+            "code": "FT",
+            "negative": false,
+            "value": 50.62499999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 170987.7807040043,
+            "pct": 0.0
+          },
+          {
+            "code": "FS",
+            "negative": false,
+            "value": 50.62499999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 170987.7807040043,
+            "pct": 0.0
+          },
+          {
+            "code": "9",
+            "negative": true,
+            "value": 107.973,
+            "unit": "percent",
+            "fusion": false,
+            "score": 123821.30266696798,
+            "pct": -27.584706838604955
+          },
+          {
+            "code": "0",
+            "negative": true,
+            "value": 134.9946081,
+            "unit": "percent",
+            "fusion": false,
+            "score": 116245.51015893681,
+            "pct": -32.015311456572114
+          },
+          {
+            "code": "1",
+            "negative": true,
+            "value": 107.9973,
+            "unit": "percent",
+            "fusion": false,
+            "score": 107325.85476360144,
+            "pct": -37.23185696561999
+          },
+          {
+            "code": "8",
+            "negative": true,
+            "value": 107.9973,
+            "unit": "percent",
+            "fusion": false,
+            "score": 154787.3549819147,
+            "pct": -9.474610206289569
+          },
+          {
+            "code": "3",
+            "negative": true,
+            "value": 89.99099999999999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 115333.22310438265,
+            "pct": -32.548850783650366
+          },
+          {
+            "code": "A",
+            "negative": true,
+            "value": 107.9973,
+            "unit": "percent",
+            "fusion": false,
+            "score": 170987.7807040043,
+            "pct": 0.0
+          },
+          {
+            "code": "2",
+            "negative": true,
+            "value": 80.99999838,
+            "unit": "percent",
+            "fusion": false,
+            "score": 135438.93560917524,
+            "pct": -20.79028393050344
+          },
+          {
+            "code": "M",
+            "negative": true,
+            "value": 44.954999189999995,
+            "unit": "percent",
+            "fusion": false,
+            "score": 170987.7807040043,
+            "pct": 0.0
+          },
+          {
+            "code": "L",
+            "negative": true,
+            "value": 44.99550162,
+            "unit": "percent",
+            "fusion": false,
+            "score": 170987.7807040043,
+            "pct": 0.0
+          },
+          {
+            "code": "D",
+            "negative": true,
+            "value": 148.4997219,
+            "unit": "percent",
+            "fusion": false,
+            "score": 116251.75593338271,
+            "pct": -32.01165869587766
+          },
+          {
+            "code": "S",
+            "negative": true,
+            "value": 80.99999838,
+            "unit": "percent",
+            "fusion": false,
+            "score": 131673.88066506604,
+            "pct": -22.9922277937476
+          },
+          {
+            "code": "V",
+            "negative": true,
+            "value": 80.99999838,
+            "unit": "percent",
+            "fusion": false,
+            "score": 170987.7807040043,
+            "pct": 0.0
+          },
+          {
+            "code": "Z",
+            "negative": true,
+            "value": 80.99999838,
+            "unit": "percent",
+            "fusion": false,
+            "score": 170987.7807040043,
+            "pct": 0.0
+          },
+          {
+            "code": "F",
+            "negative": true,
+            "value": 44.99550162,
+            "unit": "percent",
+            "fusion": false,
+            "score": 170987.7807040043,
+            "pct": 0.0
+          },
+          {
+            "code": "C",
+            "negative": true,
+            "value": 40.49999919,
+            "unit": "percent",
+            "fusion": false,
+            "score": 170987.7807040043,
+            "pct": 0.0
+          },
+          {
+            "code": "G",
+            "negative": true,
+            "value": 40.49999919,
+            "unit": "percent",
+            "fusion": false,
+            "score": 170987.7807040043,
+            "pct": 0.0
+          },
+          {
+            "code": "I",
+            "negative": true,
+            "value": 40.49999919,
+            "unit": "percent",
+            "fusion": false,
+            "score": 170987.7807040043,
+            "pct": 0.0
+          },
+          {
+            "code": "H",
+            "negative": true,
+            "value": 53.994600000000005,
+            "unit": "percent",
+            "fusion": false,
+            "score": null,
+            "pct": null
+          }
+        ]
+      }
+    },
+    {
+      "weapon": "/Lotus/Weapons/Tenno/Shotgun/PrimeBoar",
+      "fireMode": 1,
+      "contextHash": "72ba36de00e41148743f",
+      "score": 438816.6023394976,
+      "rank": 8,
+      "stats": [
+        {
+          "code": "D",
+          "value": 203.81626113750002,
+          "negative": false
+        },
+        {
+          "code": "S",
+          "value": 148.12875,
+          "negative": false
+        },
+        {
+          "code": "CO",
+          "value": 111.37500000000001,
+          "negative": false
+        },
+        {
+          "code": "3",
+          "value": 80.99189999999999,
+          "negative": true
+        }
+      ],
+      "replayed": 2,
+      "fixedTraitReference": {
+        "baselineScore": 98344.57443991474,
+        "rows": [
+          {
+            "code": "9",
+            "negative": false,
+            "value": 134.96624999999997,
+            "unit": "percent",
+            "fusion": false,
+            "score": 98344.57443991474,
+            "pct": 0.0
+          },
+          {
+            "code": "0",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 125821.41743639232,
+            "pct": 27.939358274680437
+          },
+          {
+            "code": "1",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 129699.37569100325,
+            "pct": 31.88259385904939
+          },
+          {
+            "code": "7",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 38465.895244601954,
+            "pct": -60.886611728536856
+          },
+          {
+            "code": "4",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 124021.99265397157,
+            "pct": 26.109643933377203
+          },
+          {
+            "code": "5",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 113591.06696906866,
+            "pct": 15.503135395099022
+          },
+          {
+            "code": "8",
+            "negative": false,
+            "value": 134.996625,
+            "unit": "percent",
+            "fusion": false,
+            "score": 98344.57443991474,
+            "pct": 0.0
+          },
+          {
+            "code": "3",
+            "negative": false,
+            "value": 112.48874999999997,
+            "unit": "percent",
+            "fusion": false,
+            "score": 80641.31805820136,
+            "pct": -18.001253737215038
+          },
+          {
+            "code": "A",
+            "negative": false,
+            "value": 134.996625,
+            "unit": "percent",
+            "fusion": false,
+            "score": 98344.57443991474,
+            "pct": 0.0
+          },
+          {
+            "code": "2",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 110618.85472255155,
+            "pct": 12.480892161606727
+          },
+          {
+            "code": "6",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 113591.06696906866,
+            "pct": 15.503135395099022
+          },
+          {
+            "code": "M",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 98344.57443991474,
+            "pct": 0.0
+          },
+          {
+            "code": "L",
+            "negative": false,
+            "value": 56.244377025,
+            "unit": "percent",
+            "fusion": false,
+            "score": 98344.57443991474,
+            "pct": 0.0
+          },
+          {
+            "code": "D",
+            "negative": false,
+            "value": 185.28751012499998,
+            "unit": "percent",
+            "fusion": false,
+            "score": 141599.45374462288,
+            "pct": 43.98298487847485
+          },
+          {
+            "code": "S",
+            "negative": false,
+            "value": 134.6625,
+            "unit": "percent",
+            "fusion": false,
+            "score": 137814.93553027307,
+            "pct": 40.134762202335224
+          },
+          {
+            "code": "V",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 98344.57443991474,
+            "pct": 0.0
+          },
+          {
+            "code": "P",
+            "negative": false,
+            "value": 3.0374998987499997,
+            "unit": "flat",
+            "fusion": false,
+            "score": null,
+            "pct": null
+          },
+          {
+            "code": "Z",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 98344.57443991474,
+            "pct": 0.0
+          },
+          {
+            "code": "F",
+            "negative": false,
+            "value": 56.244377025,
+            "unit": "percent",
+            "fusion": false,
+            "score": 98344.57443991474,
+            "pct": 0.0
+          },
+          {
+            "code": "C",
+            "negative": false,
+            "value": 50.62499898749999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 98344.57443991474,
+            "pct": 0.0
+          },
+          {
+            "code": "G",
+            "negative": false,
+            "value": 50.62499898749999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 98344.57443991474,
+            "pct": 0.0
+          },
+          {
+            "code": "I",
+            "negative": false,
+            "value": 50.62499898749999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 98344.57443991474,
+            "pct": 0.0
+          },
+          {
+            "code": "W",
+            "negative": false,
+            "value": 253.12499999999997,
+            "unit": "percent",
+            "fusion": true,
+            "score": 98344.57443991474,
+            "pct": 0.0
+          },
+          {
+            "code": "Y",
+            "negative": false,
+            "value": 278.4375,
+            "unit": "percent",
+            "fusion": true,
+            "score": 98344.57443991474,
+            "pct": 0.0
+          },
+          {
+            "code": "AE",
+            "negative": false,
+            "value": 50.62499999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 98344.57443991474,
+            "pct": 0.0
+          },
+          {
+            "code": "HR",
+            "negative": false,
+            "value": 101.24999999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": null,
+            "pct": null
+          },
+          {
+            "code": "SD",
+            "negative": false,
+            "value": 101.24999999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 105282.86169869396,
+            "pct": 7.0550788371332995
+          },
+          {
+            "code": "GA",
+            "negative": false,
+            "value": 101.24999999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 115055.61746379979,
+            "pct": 16.992338539321207
+          },
+          {
+            "code": "CO",
+            "negative": false,
+            "value": 101.24999999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 157566.46111178203,
+            "pct": 60.21876347438963
+          },
+          {
+            "code": "VI",
+            "negative": false,
+            "value": 101.24999999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 113591.06696679158,
+            "pct": 15.503135392783607
+          },
+          {
+            "code": "RA",
+            "negative": false,
+            "value": 101.24999999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 111527.56754581902,
+            "pct": 13.404901267795566
+          },
+          {
+            "code": "BL",
+            "negative": false,
+            "value": 101.24999999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 111761.49725417243,
+            "pct": 13.642768694326879
+          },
+          {
+            "code": "MA",
+            "negative": false,
+            "value": 101.24999999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 111527.56754581902,
+            "pct": 13.404901267795566
+          },
+          {
+            "code": "FO",
+            "negative": false,
+            "value": 50.62499999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 98344.57443991474,
+            "pct": 0.0
+          },
+          {
+            "code": "FT",
+            "negative": false,
+            "value": 50.62499999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 98344.57443991474,
+            "pct": 0.0
+          },
+          {
+            "code": "FS",
+            "negative": false,
+            "value": 50.62499999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 98344.57443991474,
+            "pct": 0.0
+          },
+          {
+            "code": "H",
+            "negative": false,
+            "value": 47.24325101249999,
+            "unit": "percent",
+            "fusion": false,
+            "score": null,
+            "pct": null
+          },
+          {
+            "code": "9",
+            "negative": true,
+            "value": 107.973,
+            "unit": "percent",
+            "fusion": false,
+            "score": 98344.57443991474,
+            "pct": 0.0
+          },
+          {
+            "code": "0",
+            "negative": true,
+            "value": 80.99999838,
+            "unit": "percent",
+            "fusion": false,
+            "score": 71623.67663916449,
+            "pct": -27.17068832005147
+          },
+          {
+            "code": "1",
+            "negative": true,
+            "value": 80.99999838,
+            "unit": "percent",
+            "fusion": false,
+            "score": 68948.11507179531,
+            "pct": -29.89128737964053
+          },
+          {
+            "code": "8",
+            "negative": true,
+            "value": 107.9973,
+            "unit": "percent",
+            "fusion": false,
+            "score": 98344.57443991474,
+            "pct": 0.0
+          },
+          {
+            "code": "3",
+            "negative": true,
+            "value": 89.99099999999999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 77656.01146902486,
+            "pct": -21.036811729283457
+          },
+          {
+            "code": "A",
+            "negative": true,
+            "value": 107.9973,
+            "unit": "percent",
+            "fusion": false,
+            "score": 98344.57443991474,
+            "pct": 0.0
+          },
+          {
+            "code": "2",
+            "negative": true,
+            "value": 80.99999838,
+            "unit": "percent",
+            "fusion": false,
+            "score": 56163.91730937806,
+            "pct": -42.890680417055094
+          },
+          {
+            "code": "M",
+            "negative": true,
+            "value": 80.99999838,
+            "unit": "percent",
+            "fusion": false,
+            "score": 98344.57443991474,
+            "pct": 0.0
+          },
+          {
+            "code": "L",
+            "negative": true,
+            "value": 44.99550162,
+            "unit": "percent",
+            "fusion": false,
+            "score": 98344.57443991474,
+            "pct": 0.0
+          },
+          {
+            "code": "D",
+            "negative": true,
+            "value": 148.2300081,
+            "unit": "percent",
+            "fusion": false,
+            "score": 48834.27444713921,
+            "pct": -50.34370251205335
+          },
+          {
+            "code": "S",
+            "negative": true,
+            "value": 107.72999999999999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 54985.262266187674,
+            "pct": -44.08917565678029
+          },
+          {
+            "code": "V",
+            "negative": true,
+            "value": 80.99999838,
+            "unit": "percent",
+            "fusion": false,
+            "score": 98344.57443991474,
+            "pct": 0.0
+          },
+          {
+            "code": "Z",
+            "negative": true,
+            "value": 80.99999838,
+            "unit": "percent",
+            "fusion": false,
+            "score": 98344.57443991474,
+            "pct": 0.0
+          },
+          {
+            "code": "F",
+            "negative": true,
+            "value": 44.99550162,
+            "unit": "percent",
+            "fusion": false,
+            "score": 98344.57443991474,
+            "pct": 0.0
+          },
+          {
+            "code": "C",
+            "negative": true,
+            "value": 40.49999919,
+            "unit": "percent",
+            "fusion": false,
+            "score": 98344.57443991474,
+            "pct": 0.0
+          },
+          {
+            "code": "G",
+            "negative": true,
+            "value": 40.49999919,
+            "unit": "percent",
+            "fusion": false,
+            "score": 98344.57443991474,
+            "pct": 0.0
+          },
+          {
+            "code": "I",
+            "negative": true,
+            "value": 40.49999919,
+            "unit": "percent",
+            "fusion": false,
+            "score": 98344.57443991474,
+            "pct": 0.0
+          },
+          {
+            "code": "H",
+            "negative": true,
+            "value": 37.79460080999999,
+            "unit": "percent",
+            "fusion": false,
+            "score": null,
+            "pct": null
+          }
+        ]
+      }
+    },
+    {
+      "weapon": "/Lotus/Weapons/Tenno/LongGuns/PrimeBurston/PrimeBurston",
+      "fireMode": 0,
+      "contextHash": "774e1b6fe12f7266cf81",
+      "score": 512140.27442189766,
+      "rank": 8,
+      "stats": [
+        {
+          "code": "0",
+          "value": 185.6175861375,
+          "negative": false
+        },
+        {
+          "code": "1",
+          "value": 148.4962875,
+          "negative": false
+        },
+        {
+          "code": "CO",
+          "value": 111.37500000000001,
+          "negative": false
+        },
+        {
+          "code": "3",
+          "value": 89.99099999999999,
+          "negative": true
+        }
+      ],
+      "replayed": 2,
+      "fixedTraitReference": {
+        "baselineScore": 164873.65302890036,
+        "rows": [
+          {
+            "code": "9",
+            "negative": false,
+            "value": 134.96624999999997,
+            "unit": "percent",
+            "fusion": false,
+            "score": 174330.46361909073,
+            "pct": 5.735792478943069
+          },
+          {
+            "code": "0",
+            "negative": false,
+            "value": 168.743260125,
+            "unit": "percent",
+            "fusion": false,
+            "score": 203913.26295991466,
+            "pct": 23.678501212180425
+          },
+          {
+            "code": "1",
+            "negative": false,
+            "value": 134.996625,
+            "unit": "percent",
+            "fusion": false,
+            "score": 208746.9817849431,
+            "pct": 26.610272745247098
+          },
+          {
+            "code": "7",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 88576.29113866275,
+            "pct": -46.27626093592019
+          },
+          {
+            "code": "4",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 175020.42413567484,
+            "pct": 6.154270813054574
+          },
+          {
+            "code": "5",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 175020.4241356748,
+            "pct": 6.154270813054552
+          },
+          {
+            "code": "8",
+            "negative": false,
+            "value": 134.996625,
+            "unit": "percent",
+            "fusion": false,
+            "score": 171822.44008703742,
+            "pct": 4.214613390605848
+          },
+          {
+            "code": "3",
+            "negative": false,
+            "value": 112.48874999999997,
+            "unit": "percent",
+            "fusion": false,
+            "score": 133018.60190630856,
+            "pct": -19.32088634986937
+          },
+          {
+            "code": "A",
+            "negative": false,
+            "value": 134.996625,
+            "unit": "percent",
+            "fusion": false,
+            "score": 172018.1282187017,
+            "pct": 4.333303143679967
+          },
+          {
+            "code": "2",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 189165.6257830044,
+            "pct": 14.733689893949254
+          },
+          {
+            "code": "6",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 175020.4241356748,
+            "pct": 6.154270813054552
+          },
+          {
+            "code": "M",
+            "negative": false,
+            "value": 56.193748987499994,
+            "unit": "percent",
+            "fusion": false,
+            "score": 164873.65302890036,
+            "pct": 0.0
+          },
+          {
+            "code": "L",
+            "negative": false,
+            "value": 56.244377025,
+            "unit": "percent",
+            "fusion": false,
+            "score": 188483.53368457287,
+            "pct": 14.3199839525203
+          },
+          {
+            "code": "D",
+            "negative": false,
+            "value": 185.62465237499998,
+            "unit": "percent",
+            "fusion": false,
+            "score": 231413.5593376014,
+            "pct": 40.35811973974845
+          },
+          {
+            "code": "S",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 212410.1922623524,
+            "pct": 28.832101648842247
+          },
+          {
+            "code": "V",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 164873.65302890036,
+            "pct": 0.0
+          },
+          {
+            "code": "P",
+            "negative": false,
+            "value": 3.0374998987499997,
+            "unit": "flat",
+            "fusion": false,
+            "score": null,
+            "pct": null
+          },
+          {
+            "code": "Z",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 164873.65302890036,
+            "pct": 0.0
+          },
+          {
+            "code": "F",
+            "negative": false,
+            "value": 56.244377025,
+            "unit": "percent",
+            "fusion": false,
+            "score": 190201.34948659752,
+            "pct": 15.36188226099262
+          },
+          {
+            "code": "C",
+            "negative": false,
+            "value": 50.62499898749999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 164873.65302890036,
+            "pct": 0.0
+          },
+          {
+            "code": "G",
+            "negative": false,
+            "value": 50.62499898749999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 164873.65302890036,
+            "pct": 0.0
+          },
+          {
+            "code": "I",
+            "negative": false,
+            "value": 50.62499898749999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 164873.65302890036,
+            "pct": 0.0
+          },
+          {
+            "code": "H",
+            "negative": false,
+            "value": 67.49325,
+            "unit": "percent",
+            "fusion": false,
+            "score": null,
+            "pct": null
+          },
+          {
+            "code": "W",
+            "negative": false,
+            "value": 253.12499999999997,
+            "unit": "percent",
+            "fusion": true,
+            "score": 231485.15014107415,
+            "pct": 40.40154135512337
+          },
+          {
+            "code": "Y",
+            "negative": false,
+            "value": 278.4375,
+            "unit": "percent",
+            "fusion": true,
+            "score": 219859.86294689678,
+            "pct": 33.35051350403331
+          },
+          {
+            "code": "AE",
+            "negative": false,
+            "value": 50.62499999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 202175.5602111834,
+            "pct": 22.624540972440556
+          },
+          {
+            "code": "HR",
+            "negative": false,
+            "value": 101.24999999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": null,
+            "pct": null
+          },
+          {
+            "code": "SD",
+            "negative": false,
+            "value": 101.24999999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 165940.7629009881,
+            "pct": 0.6472288643357027
+          },
+          {
+            "code": "GA",
+            "negative": false,
+            "value": 101.24999999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 175020.42413567466,
+            "pct": 6.154270813054463
+          },
+          {
+            "code": "CO",
+            "negative": false,
+            "value": 101.24999999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 242335.97188016534,
+            "pct": 46.98283651038335
+          },
+          {
+            "code": "VI",
+            "negative": false,
+            "value": 101.24999999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 175020.42413567487,
+            "pct": 6.1542708130545964
+          },
+          {
+            "code": "RA",
+            "negative": false,
+            "value": 101.24999999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 175020.42413567475,
+            "pct": 6.15427081305453
+          },
+          {
+            "code": "BL",
+            "negative": false,
+            "value": 101.24999999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 175020.42413567475,
+            "pct": 6.15427081305453
+          },
+          {
+            "code": "MA",
+            "negative": false,
+            "value": 101.24999999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 175020.42413567475,
+            "pct": 6.15427081305453
+          },
+          {
+            "code": "FO",
+            "negative": false,
+            "value": 50.62499999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 164873.65302890036,
+            "pct": 0.0
+          },
+          {
+            "code": "FT",
+            "negative": false,
+            "value": 50.62499999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 164873.65302890036,
+            "pct": 0.0
+          },
+          {
+            "code": "FS",
+            "negative": false,
+            "value": 50.62499999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 164873.65302890036,
+            "pct": 0.0
+          },
+          {
+            "code": "9",
+            "negative": true,
+            "value": 107.973,
+            "unit": "percent",
+            "fusion": false,
+            "score": 148577.62685771412,
+            "pct": -9.883948024327294
+          },
+          {
+            "code": "0",
+            "negative": true,
+            "value": 134.9946081,
+            "unit": "percent",
+            "fusion": false,
+            "score": 116207.89293644537,
+            "pct": -29.51700238237851
+          },
+          {
+            "code": "1",
+            "negative": true,
+            "value": 107.9973,
+            "unit": "percent",
+            "fusion": false,
+            "score": 103782.56940955964,
+            "pct": -37.05327230702663
+          },
+          {
+            "code": "8",
+            "negative": true,
+            "value": 107.9973,
+            "unit": "percent",
+            "fusion": false,
+            "score": 151925.93580562057,
+            "pct": -7.853114785423121
+          },
+          {
+            "code": "3",
+            "negative": true,
+            "value": 89.99099999999999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 161786.23156448916,
+            "pct": -1.8725984459566747
+          },
+          {
+            "code": "A",
+            "negative": true,
+            "value": 107.9973,
+            "unit": "percent",
+            "fusion": false,
+            "score": 149596.13206464102,
+            "pct": -9.266199106767758
+          },
+          {
+            "code": "2",
+            "negative": true,
+            "value": 80.99999838,
+            "unit": "percent",
+            "fusion": false,
+            "score": 126023.32844349941,
+            "pct": -23.56369490921084
+          },
+          {
+            "code": "M",
+            "negative": true,
+            "value": 44.954999189999995,
+            "unit": "percent",
+            "fusion": false,
+            "score": 164873.65302890036,
+            "pct": 0.0
+          },
+          {
+            "code": "L",
+            "negative": true,
+            "value": 44.99550162,
+            "unit": "percent",
+            "fusion": false,
+            "score": 122420.83605180337,
+            "pct": -25.748696773071146
+          },
+          {
+            "code": "D",
+            "negative": true,
+            "value": 148.4997219,
+            "unit": "percent",
+            "fusion": false,
+            "score": -3548.4410146936284,
+            "pct": -102.15221834993346
+          },
+          {
+            "code": "S",
+            "negative": true,
+            "value": 80.99999838,
+            "unit": "percent",
+            "fusion": false,
+            "score": 108043.5644653506,
+            "pct": -34.468872084485284
+          },
+          {
+            "code": "V",
+            "negative": true,
+            "value": 80.99999838,
+            "unit": "percent",
+            "fusion": false,
+            "score": 164873.65302890036,
+            "pct": 0.0
+          },
+          {
+            "code": "Z",
+            "negative": true,
+            "value": 80.99999838,
+            "unit": "percent",
+            "fusion": false,
+            "score": 164873.65302890036,
+            "pct": 0.0
+          },
+          {
+            "code": "F",
+            "negative": true,
+            "value": 44.99550162,
+            "unit": "percent",
+            "fusion": false,
+            "score": 123905.44266264042,
+            "pct": -24.848245680029123
+          },
+          {
+            "code": "C",
+            "negative": true,
+            "value": 40.49999919,
+            "unit": "percent",
+            "fusion": false,
+            "score": 164873.65302890036,
+            "pct": 0.0
+          },
+          {
+            "code": "G",
+            "negative": true,
+            "value": 40.49999919,
+            "unit": "percent",
+            "fusion": false,
+            "score": 164873.65302890036,
+            "pct": 0.0
+          },
+          {
+            "code": "I",
+            "negative": true,
+            "value": 40.49999919,
+            "unit": "percent",
+            "fusion": false,
+            "score": 164873.65302890036,
+            "pct": 0.0
+          },
+          {
+            "code": "H",
+            "negative": true,
+            "value": 53.994600000000005,
+            "unit": "percent",
+            "fusion": false,
+            "score": null,
+            "pct": null
+          }
+        ]
+      }
+    },
+    {
+      "weapon": "/Lotus/Weapons/Tenno/Grimoire/TnGrimoire",
+      "fireMode": 0,
+      "contextHash": "f82f5bcbe117e4c6206e",
+      "score": 71918.09782051429,
+      "rank": 8,
+      "stats": [
+        {
+          "code": "VI",
+          "value": 147.01500000000001,
+          "negative": false
+        },
+        {
+          "code": "D",
+          "value": 358.71660000000014,
+          "negative": false
+        },
+        {
+          "code": "H",
+          "value": 52.33733882388001,
+          "negative": true
+        }
+      ],
+      "replayed": 2,
+      "fixedTraitReference": {
+        "baselineScore": 19519.802200840008,
+        "rows": [
+          {
+            "code": "9",
+            "negative": false,
+            "value": 134.96624999999997,
+            "unit": "percent",
+            "fusion": false,
+            "score": 19519.802200840008,
+            "pct": 0.0
+          },
+          {
+            "code": "0",
+            "negative": false,
+            "value": 168.743260125,
+            "unit": "percent",
+            "fusion": false,
+            "score": 23432.572629319922,
+            "pct": 20.04513359418947
+          },
+          {
+            "code": "1",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 24878.818552119068,
+            "pct": 27.454255407610862
+          },
+          {
+            "code": "7",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 21210.587929456822,
+            "pct": 8.661899906670435
+          },
+          {
+            "code": "4",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 23307.621562483542,
+            "pct": 19.405008937439593
+          },
+          {
+            "code": "5",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 17200.42981804869,
+            "pct": -11.882151053208446
+          },
+          {
+            "code": "8",
+            "negative": false,
+            "value": 134.996625,
+            "unit": "percent",
+            "fusion": false,
+            "score": 19519.802200840008,
+            "pct": 0.0
+          },
+          {
+            "code": "3",
+            "negative": false,
+            "value": 112.48874999999997,
+            "unit": "percent",
+            "fusion": false,
+            "score": 18553.683783145363,
+            "pct": -4.949427293136555
+          },
+          {
+            "code": "A",
+            "negative": false,
+            "value": 134.996625,
+            "unit": "percent",
+            "fusion": false,
+            "score": 19519.802200840008,
+            "pct": 0.0
+          },
+          {
+            "code": "2",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 20779.76578686362,
+            "pct": 6.454796893225656
+          },
+          {
+            "code": "6",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 21210.587929456822,
+            "pct": 8.661899906670435
+          },
+          {
+            "code": "M",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 19519.802200840008,
+            "pct": 0.0
+          },
+          {
+            "code": "L",
+            "negative": false,
+            "value": 56.244377025,
+            "unit": "percent",
+            "fusion": false,
+            "score": 19526.60691840607,
+            "pct": 0.03486058668036307
+          },
+          {
+            "code": "D",
+            "negative": false,
+            "value": 247.05000000000004,
+            "unit": "percent",
+            "fusion": false,
+            "score": 30986.941991656236,
+            "pct": 58.74618847481332
+          },
+          {
+            "code": "S",
+            "negative": false,
+            "value": 134.6625,
+            "unit": "percent",
+            "fusion": false,
+            "score": 27557.043499785577,
+            "pct": 41.174809131004906
+          },
+          {
+            "code": "V",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 19519.802200840008,
+            "pct": 0.0
+          },
+          {
+            "code": "P",
+            "negative": false,
+            "value": 3.0374998987499997,
+            "unit": "flat",
+            "fusion": false,
+            "score": null,
+            "pct": null
+          },
+          {
+            "code": "Z",
+            "negative": false,
+            "value": 101.24999797499999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 19519.802200840008,
+            "pct": 0.0
+          },
+          {
+            "code": "F",
+            "negative": false,
+            "value": 56.244377025,
+            "unit": "percent",
+            "fusion": false,
+            "score": 19519.802200840008,
+            "pct": 0.0
+          },
+          {
+            "code": "C",
+            "negative": false,
+            "value": 50.62499898749999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 19519.802200840008,
+            "pct": 0.0
+          },
+          {
+            "code": "G",
+            "negative": false,
+            "value": 50.62499898749999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 19519.802200840008,
+            "pct": 0.0
+          },
+          {
+            "code": "I",
+            "negative": false,
+            "value": 50.62499898749999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 19519.802200840008,
+            "pct": 0.0
+          },
+          {
+            "code": "H",
+            "negative": false,
+            "value": 90.11249797499998,
+            "unit": "percent",
+            "fusion": false,
+            "score": null,
+            "pct": null
+          },
+          {
+            "code": "W",
+            "negative": false,
+            "value": 253.12499999999997,
+            "unit": "percent",
+            "fusion": true,
+            "score": 19519.802200840008,
+            "pct": 0.0
+          },
+          {
+            "code": "Y",
+            "negative": false,
+            "value": 278.4375,
+            "unit": "percent",
+            "fusion": true,
+            "score": 19519.802200840008,
+            "pct": 0.0
+          },
+          {
+            "code": "AE",
+            "negative": false,
+            "value": 50.62499999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 19519.802200840008,
+            "pct": 0.0
+          },
+          {
+            "code": "HR",
+            "negative": false,
+            "value": 101.24999999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": null,
+            "pct": null
+          },
+          {
+            "code": "SD",
+            "negative": false,
+            "value": 101.24999999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 20756.77177367661,
+            "pct": 6.336998500852498
+          },
+          {
+            "code": "GA",
+            "negative": false,
+            "value": 101.24999999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 21975.468461814802,
+            "pct": 12.580384963476309
+          },
+          {
+            "code": "CO",
+            "negative": false,
+            "value": 101.24999999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 21210.58792953567,
+            "pct": 8.661899907074378
+          },
+          {
+            "code": "VI",
+            "negative": false,
+            "value": 101.24999999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 38590.88687232777,
+            "pct": 97.7012188713012
+          },
+          {
+            "code": "RA",
+            "negative": false,
+            "value": 101.24999999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 21192.006123098665,
+            "pct": 8.56670526193497
+          },
+          {
+            "code": "BL",
+            "negative": false,
+            "value": 101.24999999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 21192.00612309866,
+            "pct": 8.566705261934949
+          },
+          {
+            "code": "MA",
+            "negative": false,
+            "value": 101.24999999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 21192.006123098665,
+            "pct": 8.56670526193497
+          },
+          {
+            "code": "FO",
+            "negative": false,
+            "value": 50.62499999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 19519.802200840008,
+            "pct": 0.0
+          },
+          {
+            "code": "FT",
+            "negative": false,
+            "value": 50.62499999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 19519.802200840008,
+            "pct": 0.0
+          },
+          {
+            "code": "FS",
+            "negative": false,
+            "value": 50.62499999999999,
+            "unit": "percent",
+            "fusion": true,
+            "score": 19519.802200840008,
+            "pct": 0.0
+          },
+          {
+            "code": "9",
+            "negative": true,
+            "value": 107.973,
+            "unit": "percent",
+            "fusion": false,
+            "score": 19519.802200840008,
+            "pct": 0.0
+          },
+          {
+            "code": "0",
+            "negative": true,
+            "value": 134.9946081,
+            "unit": "percent",
+            "fusion": false,
+            "score": 16821.551848656658,
+            "pct": -13.823143925440162
+          },
+          {
+            "code": "1",
+            "negative": true,
+            "value": 80.99999838,
+            "unit": "percent",
+            "fusion": false,
+            "score": 16821.551848656658,
+            "pct": -13.823143925440162
+          },
+          {
+            "code": "8",
+            "negative": true,
+            "value": 107.9973,
+            "unit": "percent",
+            "fusion": false,
+            "score": 19519.802200840008,
+            "pct": 0.0
+          },
+          {
+            "code": "3",
+            "negative": true,
+            "value": 89.99099999999999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 14750.35771577596,
+            "pct": -24.433877126371705
+          },
+          {
+            "code": "A",
+            "negative": true,
+            "value": 107.9973,
+            "unit": "percent",
+            "fusion": false,
+            "score": 19519.802200840008,
+            "pct": 0.0
+          },
+          {
+            "code": "2",
+            "negative": true,
+            "value": 80.99999838,
+            "unit": "percent",
+            "fusion": false,
+            "score": 17103.33786743694,
+            "pct": -12.379553381432718
+          },
+          {
+            "code": "M",
+            "negative": true,
+            "value": 80.99999838,
+            "unit": "percent",
+            "fusion": false,
+            "score": 19519.802200840008,
+            "pct": 0.0
+          },
+          {
+            "code": "L",
+            "negative": true,
+            "value": 44.99550162,
+            "unit": "percent",
+            "fusion": false,
+            "score": 19339.94500023369,
+            "pct": -0.921408930048373
+          },
+          {
+            "code": "D",
+            "negative": true,
+            "value": 197.64000000000004,
+            "unit": "percent",
+            "fusion": false,
+            "score": 8459.475229384134,
+            "pct": -56.66208528988018
+          },
+          {
+            "code": "S",
+            "negative": true,
+            "value": 107.72999999999999,
+            "unit": "percent",
+            "fusion": false,
+            "score": 12645.837998217181,
+            "pct": -35.21533738864944
+          },
+          {
+            "code": "V",
+            "negative": true,
+            "value": 80.99999838,
+            "unit": "percent",
+            "fusion": false,
+            "score": 19519.802200840008,
+            "pct": 0.0
+          },
+          {
+            "code": "Z",
+            "negative": true,
+            "value": 80.99999838,
+            "unit": "percent",
+            "fusion": false,
+            "score": 19519.802200840008,
+            "pct": 0.0
+          },
+          {
+            "code": "F",
+            "negative": true,
+            "value": 44.99550162,
+            "unit": "percent",
+            "fusion": false,
+            "score": 19339.94500023369,
+            "pct": -0.921408930048373
+          },
+          {
+            "code": "C",
+            "negative": true,
+            "value": 40.49999919,
+            "unit": "percent",
+            "fusion": false,
+            "score": 19519.802200840008,
+            "pct": 0.0
+          },
+          {
+            "code": "G",
+            "negative": true,
+            "value": 40.49999919,
+            "unit": "percent",
+            "fusion": false,
+            "score": 19519.802200840008,
+            "pct": 0.0
+          },
+          {
+            "code": "I",
+            "negative": true,
+            "value": 40.49999919,
+            "unit": "percent",
+            "fusion": false,
+            "score": 19519.802200840008,
+            "pct": 0.0
+          },
+          {
+            "code": "H",
+            "negative": true,
+            "value": 72.08999838,
+            "unit": "percent",
+            "fusion": false,
+            "score": null,
+            "pct": null
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -49,7 +49,7 @@ def prime_base(q: str) -> Optional[str]:
     ★ 拉丁词尾 p（``rifle amp`` / ``cold snap``）**不**算 Prime 缩写；
       拉丁名 + p 连写（``Garap``）由别名/归一化链路处理，不走本函数。
     """
-    s = (q or "").strip()
+    s = unicodedata.normalize("NFKC", q or "").strip()
     if not s:
         return None
     m = _P_ABBREV.search(s) or _PRIME_WORD.search(s)
@@ -117,19 +117,12 @@ def normalize(s: str) -> str:
     return _SEPS.sub("", unicodedata.normalize("NFKC", s or "")).lower()
 
 
-def _en_to_zh(tok: str) -> Optional[str]:
-    for zh, en in VARIANT_TOKENS.items():
-        if tok == en:
-            return zh
-    return tok if tok in _STANDALONE else None
-
-
 def expand_variants(raw: str) -> list[str]:
     """把用户输入展开为**归一化后**的等价形态列表（按优先级排序）。
 
     覆盖的变形（真实数据形态依据 2026-09-23 WM /riven/weapons 实测：
     变体中文名是「赤毒·布拉玛」这类**中点**写法，归一化层即可吃掉）：
-    * 后缀缩写：``绝路p`` → ``绝路prime``（仅 CJK 后的 p/P/p版/P版）；
+    * 后缀缩写：``绝路p``、全角 P 版、``Rubico P`` → 对应 Prime；
     * 明写 prime：``绝路 Prime`` / ``绝路prime`` 与缩写同待遇；
     * 语序互换：``沙皇赤毒`` ↔ ``赤毒沙皇``（变体 token 在首或在尾）；
     * zh↔en token：``kuva沙皇`` → ``赤毒沙皇``（英文词头换中文前缀）。
@@ -144,34 +137,33 @@ def expand_variants(raw: str) -> list[str]:
         return []
     forms = [normalize(s)]
 
-    m = _P_ABBREV.search(s) or _PRIME_WORD.search(s)
-    if m:
-        base = prime_base(s) or ""
+    if base := prime_base(s):
         forms.append(normalize(base + "prime"))
         forms.append(normalize("prime" + base))
 
     low = normalize(s)
-    tok_zh = tok_en = ""
-    rest = ""
+    tok_en = rest = ""
     for zh, en in VARIANT_TOKENS.items():
         if low.startswith(zh) and len(low) > len(zh):
-            tok_zh, tok_en, rest = zh, en, low[len(zh) :]
+            tok_en, rest = en, low[len(zh) :]
             break
         if low.endswith(zh) and len(low) > len(zh):
-            tok_zh, tok_en, rest = zh, en, low[: -len(zh)]
+            tok_en, rest = en, low[: -len(zh)]
             break
-    if not tok_zh:
+    if not tok_en:
         for en in sorted(_EN_TOKENS, key=len, reverse=True):
-            if low.startswith(en) and len(low) > len(en):
-                zh = _en_to_zh(en)
-                if zh:
-                    tok_zh, tok_en, rest = zh, en, low[len(en) :]
-                    break
-    if tok_zh and rest:
-        forms.append(normalize(tok_zh + rest))  # 沙皇赤毒 → 赤毒沙皇
-        forms.append(normalize(rest + tok_zh))  # 赤毒沙皇 → 沙皇赤毒
-        forms.append(normalize(rest + tok_en))  # 赤毒沙皇 → 沙皇kuva
-        forms.append(normalize(tok_en + rest))  # 赤毒沙皇 → kuva沙皇
+            if len(low) <= len(en):
+                continue
+            if low.startswith(en):
+                tok_en, rest = en, low[len(en) :]
+                break
+            if low.endswith(en):
+                tok_en, rest = en, low[: -len(en)]
+                break
+    if tok_en:
+        tokens = [zh for zh, en in VARIANT_TOKENS.items() if en == tok_en]
+        for token in (*tokens, tok_en):
+            forms.extend((token + rest, rest + token))
 
     return list(dict.fromkeys(f for f in forms if f))
 
@@ -236,9 +228,7 @@ def resolve_weapon_name(
         if hits:
             return hits, "normalized"
 
-        # 变体等价——按 expand_variants 的优先级顺序逐形态尝试：
-        # prime 形态在前、p/prime 缩写的「回落 base」形态垫底（表里没有
-        # Prime 条目时按口语习惯给 base 的倾向，如「绝路p」）。
+        # 按 expand_variants 的优先级尝试等价变体，保留查询的变体意图。
         for form in expand_variants(q)[1:]:
             hits = [
                 e
@@ -300,7 +290,7 @@ def resolve_weapon_name(
 
 def variant_intent(raw: str) -> bool:
     """查询是否带显式变体意图（p/P/P版/prime 后缀）。"""
-    return bool(_P_ABBREV.search(raw or "") or _PRIME_WORD.search(raw or ""))
+    return prime_base(raw) is not None
 
 
 _VARIANT_WORDS_EN = set(VARIANT_TOKENS.values()) | _STANDALONE
@@ -312,18 +302,14 @@ def strip_variant_query(raw: str) -> str:
     ``摸尸p`` → ``摸尸``；词库里通常只登记无后缀形态（别名表有 摸尸 没有 摸尸p）。
     """
     s = (raw or "").strip()
-    m = _P_ABBREV.search(s) or _PRIME_WORD.search(s)
-    if m:
-        return (s[: m.start(1)] + m.group(1)).strip()
-    return s
+    return prime_base(s) or s
 
 
 def variant_intent_any(raw: str) -> bool:
     """变体意图（**中英通吃**）：中文 p/prime 后缀，或英文变体词。
 
-    ``variant_intent`` 只看「CJK + p/prime」，纯英文查询（``Nekros Prime`` /
-    ``Kuva Bramma``）会漏判 —— wiki 指令据此决定「介绍本体 + 列变体」还是
-    「直接介绍指定变体」（2026-09-24 用户口径：没指明变体就只介绍基础的）。
+    在 Prime 简写之外，Wiki 通过 ``Nekros Prime``、``Kuva Bramma`` 这类英文
+    变体词判断是否直接介绍指定变体。
     """
     s = (raw or "").strip()
     if not s:
@@ -708,7 +694,7 @@ def bilingual_lookup(query: str, limit: int = 5) -> dict:
 
     · 含 CJK ⇒ 按中文侧查（zh→en），否则按英文侧查（en→zh）；
     · 精确（归一化后全等）优先，多义最多 limit 条；
-    · 未精确命中 ⇒ 子串候选（≤limit）；仍无 ⇒ 两边皆空（调用方明确提示，不猜）。
+    · 等价变体按全名查表，随后才给子串候选。
     """
     q = (query or "").strip()
     has_cjk = any("一" <= c <= "鿿" for c in q)
@@ -721,11 +707,10 @@ def bilingual_lookup(query: str, limit: int = 5) -> dict:
     hits = table.get(nq) or []
     if hits:
         return {"direction": direction, "hits": _dedupe_pairs(hits, limit), "candidates": []}
-    loose = _bilingual_loose()["zh" if has_cjk else "en"].get(_loose_key(q)) or []
-    if not loose and not has_cjk:
-        loose = _en_zh_extra().get(_loose_key(q)) or []  # 部件名等（DE 官方英简对照，键为小写英文）
-    if loose:
-        return {"direction": direction, "hits": _dedupe_pairs(loose, limit), "candidates": []}
+    loose = _bilingual_loose()["zh" if has_cjk else "en"]
+    for key in dict.fromkeys((_loose_key(q), *expand_variants(q)[1:])):
+        if pairs := loose.get(key) or (None if has_cjk else _en_zh_extra().get(key)):
+            return {"direction": direction, "hits": _dedupe_pairs(pairs, limit), "candidates": []}
     cands: list = []
     for k, v in table.items():
         if nq in k:

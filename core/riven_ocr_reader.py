@@ -76,6 +76,7 @@ class Fields:
     positive: list
     negative: list
     hidden: int
+    weapon: str = ""
 
     def signature(self):
         return _fields(self.positive, self.negative)

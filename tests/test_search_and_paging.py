@@ -378,7 +378,8 @@ def _wiki_link_source():
 
     from core import parser as _parser
     from core.api_client import WarframeClient as _WC
-    from core.commands.wiki_misc import WikiMiscCommands, _en_wiki_title
+    from core.commands.wiki_misc import WikiMiscCommands, _en_wiki_title, _en_wiki_url
+    from core.i18n import use_lang
 
     S._clear_index()
     check(
@@ -434,10 +435,31 @@ def _wiki_link_source():
         "官方术语「水星」直达 Mercury，不落到前缀模糊的「水星棕」",
         "wiki.warframe.com/w/Mercury" in _mercury and "Mercury_Brown" not in _mercury,
     )
+    wiki_search = "https://wiki.warframe.com/w/Special:Search"
     _cmd = _link({}, "wiki 紫卡分析")
     check(
-        "对不上英文页面名时给英文 wiki 站内搜索，不自动切灰机",
-        "wiki.warframe.com/w/Special:Search" in _cmd and "huijiwiki.com" not in _cmd,
+        "未知中文词只给英文搜索页和英文关键词提示",
+        wiki_search in _cmd and "search=" not in _cmd and "输入英文关键词" in _cmd,
+        _cmd,
+    )
+    with use_lang("en"):
+        _en_cmd = _link({}, "wiki 紫卡分析")
+    check(
+        "英文回复也不把未知中文送进搜索链接",
+        wiki_search in _en_cmd and "search=" not in _en_cmd and "Enter English keywords" in _en_cmd,
+        _en_cmd,
+    )
+    check(
+        "有官方英文名称时使用它作为搜索词",
+        _en_wiki_url("", "川流不息") == f"{wiki_search}?go=Go&search=Flow",
+    )
+    check(
+        "未收录的英文词继续可搜",
+        f"{wiki_search}?go=Go&search=zzqzkwh" in _link({}, "wiki zzqzkwh"),
+    )
+    check(
+        "显式灰机搜索保留中文关键词",
+        "huijiwiki.com/index.php?search=紫卡分析" in _link({}, "wiki 紫卡分析 灰机"),
     )
     check(
         "任务类型用页面写法（歼灭 → Exterminate，不是 EXTERMINATE）",

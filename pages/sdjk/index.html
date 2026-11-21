@@ -475,7 +475,8 @@
   <a href="#/push" data-go="push">推送与订阅<span class="badge" id="b-push" hidden></span></a>
   <a href="#/stats" data-go="stats">指令统计<span class="badge" id="b-stats" hidden></span></a>
   <a href="#/settings" data-go="settings">设置<span class="badge" id="b-settings" hidden></span></a>
-  <a href="#/vision" data-go="vision">识图<span class="badge" id="b-vision" hidden></span></a>
+  <a href="#/engine" data-go="engine">伤害引擎<span class="badge" id="b-engine" hidden></span></a>
+  <a href="#/vision" data-go="vision">紫卡分析<span class="badge" id="b-vision" hidden></span></a>
   <a href="#/appearance" data-go="appearance">外观<span class="badge" id="b-appearance" hidden></span></a>
   <a href="#/data" data-go="data">数据<span class="badge" id="b-data" hidden></span></a>
   <a href="#/maint" data-go="maint">维护<span class="badge" id="b-maint" hidden></span></a>
@@ -691,8 +692,39 @@
 </section>
 
 <!-- ============ 识图 ============ -->
+<section data-view="engine">
+  <div class="pagehead"><h2>伤害引擎</h2><span class="desc">切换伤害计算模式，配置「识卡」的读取渠道</span></div>
+  <section class="panel"><i class="c1"></i><i class="c2"></i>
+    <div class="ptitle"><h3>计算模式与服务</h3><span class="ext"></span></div>
+    <div id="engineFields"><div class="hint">读取中…</div></div>
+  </section>
+  <section class="panel"><i class="c1"></i><i class="c2"></i>
+    <div class="ptitle"><h3>下载与连接</h3><span class="ext"></span></div>
+    <p class="hint" id="engineDownloadHint">新版支持 Python 3.12 的 Linux x86_64 和 macOS arm64。</p>
+    <div id="engineInstallState" class="result" aria-live="polite"></div>
+    <div class="vpBar">
+      <button class="sm" id="engineInstall" disabled>下载并部署</button>
+      <button class="sm" id="engineCheck" disabled>检查已保存服务</button>
+      <a href="https://github.com/skyti1437/warframe-damage-engine/tree/portable-85ec9cdb3461c01c" target="_blank" rel="noopener noreferrer">源码与安装说明</a>
+    </div>
+    <div id="engineCheckResult" class="result" aria-live="polite"></div>
+  </section>
+  <section class="panel vtask" id="vScan" data-vtask="scan"><i class="c1"></i><i class="c2"></i>
+    <div class="ptitle"><h3>配卡识卡</h3><span class="tag s-info">任务：配卡识卡</span><span class="ext"></span></div>
+    <div class="hint vnote">配卡截图左上角的标题可能是玩家自定义的武器名：按原文读取，不根据 MOD 或紫卡名称推测官方武器。</div>
+    <div id="vScanStatus" class="vtaskStatus"></div>
+    <div class="vsub"><b>模型渠道</b><span class="hint">通过模型 API 读图；只列宿主已加载的渠道，列出来不代表支持识图</span></div>
+    <div id="vScanChan"></div>
+    <div class="vsub"><b>固定方案</b><span class="hint">只列覆盖识卡步骤的方案；查看、选择都不会启用</span></div>
+    <div id="vScanPresets" class="psCards"></div>
+  </section>
+  <div class="savebar" id="engineSavebar"><span id="engineSaveInfo"></span><span class="grow"></span>
+    <button id="engineDiscard">撤销改动</button><button class="primary" id="engineSave">保存引擎设置</button></div>
+  <div id="engineSaveResult" class="result" style="margin-top:8px"></div>
+</section>
+
 <section data-view="vision">
-  <div class="pagehead"><h2>识图</h2><span class="desc">紫卡分析与配卡识卡分开配置：各自的模型渠道、提示词与诊断</span><span class="grow"></span>
+  <div class="pagehead"><h2>紫卡分析</h2><span class="desc">配置紫卡读取方式和模型渠道</span><span class="grow"></span>
     <label class="advSwitch" title="只改变本页显示；关闭不会停用已有自定义，也不会清掉草稿">详细自定义
       <span class="switch"><input type="checkbox" id="visionAdv" /><span></span></span></label></div>
   <div class="crossNote" id="visionCross" hidden></div>
@@ -711,15 +743,6 @@
     <div id="vOcr" class="vocr"></div>
     <div class="vsub"><b>固定方案</b><span class="hint">只列覆盖紫卡步骤的方案；查看、选择都不会启用</span></div>
     <div id="vRivenPresets" class="psCards"></div>
-  </section>
-  <section class="panel vtask" id="vScan" data-vtask="scan"><i class="c1"></i><i class="c2"></i>
-    <div class="ptitle"><h3>配卡识卡</h3><span class="tag s-info">任务：配卡识卡</span><span class="ext"></span></div>
-    <div class="hint vnote">配卡截图左上角的标题可能是玩家自定义的武器名：按原文读取，不根据 MOD 或紫卡名称推测官方武器。</div>
-    <div id="vScanStatus" class="vtaskStatus"></div>
-    <div class="vsub"><b>模型渠道</b><span class="hint">通过模型 API 读图；只列宿主已加载的渠道，列出来不代表支持识图</span></div>
-    <div id="vScanChan"></div>
-    <div class="vsub"><b>固定方案</b><span class="hint">只列覆盖识卡步骤的方案；查看、选择都不会启用</span></div>
-    <div id="vScanPresets" class="psCards"></div>
   </section>
   <section class="panel" id="vMig"><i class="c1"></i><i class="c2"></i>
     <div class="ptitle"><h3>渠道隔离（主动迁移）</h3><span class="tag s-info" id="vMigPhase">读取中…</span><span class="ext"></span></div>
@@ -1302,9 +1325,27 @@
       "紫卡分歧复读渠道（可选）": "Riven disagreement recheck channel (optional)",
       "识图冷却秒数": "Vision cooldown (seconds)",
       "识图全局并发上限": "Total vision concurrency limit",
+      "伤害引擎": "Damage Engine",
+      "切换伤害计算模式，配置「识卡」的读取渠道": "Select a damage backend and configure build scan channels",
+      "计算模式与服务": "Calculation mode and service",
+      "下载与连接": "Download and connection",
+      "同机下载会编译固定版本，需要 Git、Bash 和 Rust 1.97 或更新版本。已有服务可直接填写地址。": "Local deployment builds a pinned release. It requires Git, Bash, and Rust 1.97 or newer. You can also enter an existing service URL.",
+      "下载并部署": "Download and deploy",
+      "检查已保存服务": "Check saved service",
+      "源码与手动部署": "Source and manual setup",
+      "保存引擎设置": "Save engine settings",
+      "伤害计算模式": "Damage backend",
+      "完整模拟服务地址": "Simulation service URL",
+      "完整模拟服务令牌（选填）": "Simulation token (optional)",
+      "内置估算": "Built-in Estimate",
+      "完整模拟": "Simulation",
+      "配置紫卡读取方式和模型渠道": "Configure Riven reading and model channels",
       "识卡伤害详情什么时候算": "Loadout damage detail generation",
       "配卡识卡 · 对齐失败时留存截图（排查用）": "Keep loadout screenshots when alignment fails (for debugging)",
       "紫卡分析": "Riven analysis",
+      "紫卡出售参考": "Riven selling reference",
+      "紫卡出售参考网址": "Riven selling reference URL",
+      "默认从效价同仓读取每周快照。可换成同结构 CSV 或 JSON 网址。自建源使用 weapon、positive、negative 和可选 notes 字段，JSON 可把行列表放在 weapons 下。更换后查询即生效。": "The default reads the weekly snapshot from the valence repository. Switch to a compatible CSV or JSON URL. Custom sources use weapon, positive, negative, and optional notes fields. JSON supports a row list under weapons. Changes apply to the next lookup.",
       "切换了详细自定义": "Advanced controls toggled",
       "关闭详细自定义": "Advanced controls closed",
       "离开了识图页": "Left the Vision page",
@@ -2441,7 +2482,7 @@
       "wiki_link_source": ["Wiki link source", "The official English wiki is the default. Chinese replies can link to Huiji instead or use “灰机” at the end of a single query. If a page name cannot be resolved, the English wiki opens search. English replies always use the English wiki."],
       "scan_detail_mode": ["Loadout damage detail generation", "Auto defers details when buttons are supported. On-demand mode supplies a command on platforms without buttons. Always sends both pages. Deferral skips the second render and upload until requested."],
       "scan_cooldown": ["Vision cooldown", "Minimum seconds between reads for one sender. Before isolation, Riven and loadout share a cooldown. After isolation they are tracked separately. 0 disables it."],
-      "scan_max_concurrent": ["Total vision concurrency limit", "Maximum simultaneous Riven and loadout reads combined. 0 is unlimited. Image processing and rendering can be CPU-intensive."],
+      "scan_max_concurrent": ["Total vision concurrency limit", "Shared by Riven and loadout scans. 0 disables the shared limit. At most 3 loadout scans run at once and 3 more can wait."],
       "panel_platforms": ["Panel platforms", "Blank detects active AstrBot platforms. This changes which settings are shown in the panel."],
       "vision_routes_isolated": ["Isolated vision routing", "Use the migration preview and confirmation to enable isolation. The legacy value is retained for rollback. Both tasks still share the host concurrency limit."]
     }
@@ -2619,7 +2660,7 @@
     childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: localeAttrs,
   });
   const STATUS = { ok: "正常", warn: "该刷新了", stale: "已过期", info: "静态快照" };
-  const VIEWS = ["overview", "push", "stats", "settings", "vision", "appearance", "data", "maint", "about"];
+  const VIEWS = ["overview", "push", "stats", "settings", "engine", "vision", "appearance", "data", "maint", "about"];
   // 旧入口：「依赖与资源」「连通性」并入「维护」，原 hash 仍可打开并滚到对应区块
   const ALIAS = { resources: ["maint", "maint-deps"], conn: ["maint", "maint-conn"] };
   const state = { ov: null, res: null, settings: null, orig: {}, edits: {} };
@@ -2773,6 +2814,8 @@
     // 识图页在就绪后由 visionEnter 读取设置；这里只补设置页（以及就绪前的识图页），避免同时发两次 settings
     if ((view === "settings" || (view === "vision" && !state.ready)) && !state.settings) loadSettings();
     if (view === "vision") visionEnter();
+    if (prev === "engine" && view !== "engine") clearTimeout(enginePoll);
+    if (view === "engine" && state.ready) engineEnter();
     if (view === "stats") { renderCommandStats(); loadCommandStats(); }
     if (view === "appearance" && !TH.meta) loadTheme();
     if (view === "about") loadAbout();
@@ -3277,6 +3320,7 @@
     default_platform: { pc: "PC", ps: "PlayStation", xb: "Xbox", sw: "Switch" },
     render_mode: { image: "图片卡片", auto: "长内容才转图片", text: "纯文字" },
     wiki_link_source: { en: "英文 wiki（官方，默认）", huiji: "灰机中文 wiki" },
+    damage_engine_mode: { builtin: "内置估算", simulation: "完整模拟" },
     scan_detail_mode: { auto: "自动（有按钮时按需查看）", lazy: "总是按需查看", eager: "总是直接出两页" },
   };
   // 数值下限：低于这些值插件会出错或形同停用（每页 0 条会让分页指令出错，超时 0 秒请求必失败）
@@ -3319,7 +3363,10 @@
   // 识图页管理的设置键：渠道设置 + 识图行为 + 排查开关。设置页与识图页各自只提交、撤销自己范围内的改动，
   // 共用 state.edits；保存一页后只清掉这一页刚保存的键，另一页未保存的改动原样保留。
   const VISION_SCOPE = new Set([...VISION_KEYS, "riven_single_ocr", "scan_cooldown", "scan_max_concurrent", "scan_detail_mode", "scan_debug_save"]);
-  const scopeOf = (k) => (VISION_SCOPE.has(k) ? "vision" : "settings");
+  const ENGINE_FIELDS = ["damage_engine_mode", "damage_engine_portable_port",
+    "damage_engine_url", "damage_engine_token", "damage_engine_portable_bundle_sha256"];
+  const ENGINE_SCOPE = new Set([...ENGINE_FIELDS, "vision_provider_id_scan", "vision_provider_id_scan_equipment", "scan_detail_mode", "scan_debug_save"]);
+  const scopeOf = (k) => ENGINE_SCOPE.has(k) ? "engine" : VISION_SCOPE.has(k) ? "vision" : "settings";
   const scopeEdits = (scope) => Object.fromEntries(Object.entries(state.edits).filter(([k]) => scopeOf(k) === scope));
   // 识图路由小结：按设置值（含未保存改动）与已加载渠道列表推断各识别任务怎么选渠道
   function visionRoutes() {
@@ -3518,6 +3565,16 @@
   function control(f) {
     const set = (v) => { if (same(v, state.orig[f.key])) delete state.edits[f.key]; else state.edits[f.key] = v; markDirty(); };
     const v = curVal(f.key);
+    if (f.secret) {
+      return el("div", { class: "vpBar" },
+        el("input", { type: "password", autocomplete: "new-password", value: v || "",
+          "aria-label": f.label, placeholder: f.configured ? "已设置，留空保留" : "选填",
+          oninput: (e) => set(e.target.value || null) }),
+        el("button", { class: "sm", type: "button", onclick: (e) => {
+          e.currentTarget.previousElementSibling.value = "";
+          set("");
+        } }, "清除令牌"));
+    }
     if (f.type === "bool") {
       const cb = el("input", { type: "checkbox", checked: !!v, onchange: (e) => set(e.target.checked) });
       return el("label", { class: "switch" }, cb, el("span"));
@@ -3673,10 +3730,14 @@
     if (focus) $("settingsForm").querySelector(`[data-platform-control="${CSS.escape(focus)}"]`)?.focus({ preventScroll: true });
     markDirty();
   }
-  const SAVEBAR = { settings: ["savebar", "saveInfo", "save"], vision: ["vSavebar", "vSaveInfo", "vSave"] };
+  const SAVEBAR = {
+    settings: ["savebar", "saveInfo", "save", "discard"],
+    vision: ["vSavebar", "vSaveInfo", "vSave", "vDiscard"],
+    engine: ["engineSavebar", "engineSaveInfo", "engineSave", "engineDiscard"],
+  };
   const scopeSaves = new Map();  // 在途 POST 的快照；回包后用 null 保持本页忙，直到读回完成
   function markDirty() {
-    const bad = { settings: [], vision: [] };
+    const bad = { settings: [], vision: [], engine: [] };
     document.querySelectorAll(".field").forEach((d) => {
       const f = FIELDS[d.dataset.key];
       if (!f) return;
@@ -3693,7 +3754,7 @@
       if (g.querySelector(".field.bad")) g.open = true;
     });
     // 每页的保存条只统计、只提交本页范围内的改动（含当前收起或在高级区里的字段）
-    for (const [scope, [bar, info, btn]] of Object.entries(SAVEBAR)) {
+    for (const [scope, [bar, info, btn, undo]] of Object.entries(SAVEBAR)) {
       const n = Object.keys(scopeEdits(scope)).length, b = bad[scope];
       const saving = scopeSaves.has(scope);
       $(bar).classList.toggle("on", n > 0 || saving);
@@ -3702,7 +3763,7 @@
         `${n} 项未保存` + (hidden ? `（其中 ${hidden} 项在详细自定义里）` : "") + (b.length ? `；先改正 ${b.join("；")}` : "");
       $(info).className = !saving && b.length ? "s-stale" : "";
       $(btn).disabled = saving || !n || b.length > 0;
-      $(scope === "vision" ? "vDiscard" : "discard").disabled = saving;
+      $(undo).disabled = saving;
     }
     vpBadge();
     renderVisionRoutes();
@@ -3767,7 +3828,7 @@
       for (const k of saved) {
         const v = changes[k];
         const want = curVal(k);
-        state.orig[k] = v;
+        state.orig[k] = FIELDS[k]?.secret ? null : v;
         if (same(want, v)) delete state.edits[k]; else state.edits[k] = want;
       }
       markDirty();  // 基线已更新：即使随后重新读取设置失败，未保存标记也按新基线显示
@@ -3778,7 +3839,11 @@
         (needReload.length ? `；以下需在 AstrBot 后台重载插件后生效：${needReload.map(lab).join("、")}` : "，已即时生效");
       if (saved.includes("default_language") && TH.cur) schedulePreview({ immediate: true, keepLocate: true });
       await loadSettings({ forceRender: true });
-      if (scope === "vision") await loadVisionSaved();
+      if (scope === "vision" || scope === "engine") await loadVisionSaved();
+      if (scope === "engine") {
+        $("engineCheckResult").textContent = "";
+        await engineStatus();
+      }
       if (saved.includes("display_timezone")) await load();
     } catch (err) { out.className = "result s-stale"; out.textContent = "✗ " + (err.message || err); }
     finally {
@@ -3800,9 +3865,9 @@
   // 开关状态存浏览器本地；读写失败（沙箱 iframe 不给存储）回落默认关闭。本地 OCR 的任何状态都不存浏览器。
   // 迁移前（兼容模式）后端留空项仍按旧规则继承兼容主渠道；管理员在「渠道隔离」预览并确认后才严格独立。页面按 vision_routes 与迁移状态如实显示，不自行推断。
   const V_RIVEN = ["vision_provider_id_riven", "vision_provider_id_line"];
-  const V_SCAN = ["vision_provider_id_scan", "vision_provider_id_scan_equipment", "scan_detail_mode"];
+  const V_SCAN = ["vision_provider_id_scan", "vision_provider_id_scan_equipment", "scan_detail_mode", "scan_debug_save"];
   const V_BEHAVIOR = ["scan_cooldown", "scan_max_concurrent"];
-  const V_ADV = ["vision_provider_id", "vision_provider_id_line_recheck", "scan_debug_save"];
+  const V_ADV = ["vision_provider_id", "vision_provider_id_line_recheck"];
   const V_TITLE = { vision_provider_id: "兼容主渠道（旧配置）", vision_provider_id_riven: "紫卡主读渠道",
     vision_provider_id_scan: "配卡主读与定位渠道", vision_provider_id_scan_equipment: "配卡装备文字渠道", vision_provider_id_line: "紫卡词条窄读渠道", vision_provider_id_line_recheck: "紫卡分歧复读渠道（可选）",
     scan_cooldown: "识图冷却秒数", scan_max_concurrent: "识图全局并发上限", scan_detail_mode: "识卡伤害详情什么时候算",
@@ -3840,9 +3905,10 @@
     const rows = (keys) => keys.filter((k) => all[k]).map((k) => fieldRow(all[k], V_TITLE[k] || "", V_ROUTE[k] || ""));
     $("vRivenChan").replaceChildren(...rows(V_RIVEN));
     $("vScanChan").replaceChildren(...rows(V_SCAN));
+    $("engineFields").replaceChildren(...rows(ENGINE_FIELDS));
     $("vBehBody").replaceChildren(...rows(V_BEHAVIOR));
     $("vLegacyFields").replaceChildren(...rows(["vision_provider_id"]));
-    $("vRouteFields").replaceChildren(...rows(["scan_debug_save"]));
+
     markDirty();
     renderVisionSummary();
   }
@@ -4200,7 +4266,7 @@
         productText("渠道按已保存的设置解析，不调用模型；列出来的渠道不代表支持识图。"),
         vr?.at ? localText(`解析于 ${fmtTime(vr.at, true)}。`, ` Resolved at ${fmtTime(vr.at, true)}.`) : ""));
     // 各渠道表单下方：每一路的实际解析结果（未保存改动以保存后为准）
-    document.querySelectorAll("[data-view=vision] .vEff").forEach((n) => {
+    document.querySelectorAll("[data-view=vision] .vEff, [data-view=engine] .vEff").forEach((n) => {
       const off = ["riven", "line", "line_recheck"].includes(n.dataset.route) && rmUses(rmNow.mode, n.dataset.route) === false;
       const [t, cls] = off ? [`当前按${RM_NAME[rmNow.mode]}读取，这一项不参与（已保存值保留）`, "hint"]
         : rmNow.mode === "single" && n.dataset.route === "riven" ? rmSingleRiven() : vrChan(vrRoute(n.dataset.route));
@@ -4487,6 +4553,7 @@
   }
   // 从方案卡片进入详细自定义：只选中方案、打开折叠区；切到该任务的第一个覆盖步骤（未保存编辑照常拦下）
   function psOpenAdv(id, group) {
+    if (curView !== "vision") location.hash = "#/vision";
     setAdv(true);
     psSelect(id);
     $("psBox").open = true;
@@ -6268,6 +6335,7 @@
   async function reloadPanel() {
     const tasks = [load(), loadPanelLocale()];
     if (curView === "settings") tasks.push(loadSettings());
+    if (curView === "engine") tasks.push(engineEnter());
     if (curView === "vision") tasks.push(reloadVision());
     if (curView === "stats") tasks.push(loadCommandStats());
     if (curView === "about") tasks.push(loadAbout());
@@ -6368,6 +6436,69 @@
   crawlBtn("crawlWm", "wm_ranks", "价格排行");
   $("save").onclick = () => saveScope("settings", $("saveResult"));
   $("vSave").onclick = () => saveScope("vision", $("vSaveResult"));
+  $("engineSave").onclick = () => saveScope("engine", $("engineSaveResult"));
+  $("engineDiscard").onclick = () => discardScope("engine", $("engineSaveResult"));
+  let enginePoll = 0;
+  function engineTask(d) {
+    clearTimeout(enginePoll);
+    const out = $("engineInstallState");
+    const portable = d.backend === "portable";
+    $("engineDownloadHint").replaceChildren(localText(
+      "新版支持 Python 3.12 的 Linux x86_64 和 macOS arm64。",
+      "The current build supports Python 3.12 on Linux x86_64 and macOS arm64."));
+    $("engineInstall").replaceChildren(d.local_bundle ? localText("导入并部署", "Import and deploy") :
+      localText("下载并部署", "Download and deploy"));
+    out.replaceChildren(d.error ? d.error :
+      d.running ? localText("正在准备运行包和数据…", "Preparing the runtime and data…") :
+      !portable ? localText("选择完整模拟并保存本机端口后，即可下载。",
+        "Select Simulation and save a local port to enable downloading.") :
+      d.started ? localText("本机引擎已启动", "Local engine running") :
+      d.installed ? localText("本机版本已安装", "Local build installed") :
+      d.local_bundle || d.download_supported ? localText("本机版本待安装", "Local build available") :
+      localText("此主机暂无匹配的运行包", "No matching runtime for this host"),
+      portable && d.release ? " · " + d.release.slice(0, 7) : "");
+    out.className = "result " + (d.error ? "s-stale" : d.installed ? "s-ok" : "hint");
+    $("engineInstall").disabled = !portable || d.running || d.installed ||
+      !(d.local_bundle || d.download_supported);
+    $("engineCheck").disabled = d.running;
+    if (d.running && curView === "engine") enginePoll = setTimeout(engineStatus, 2000);
+  }
+  async function engineStatus() {
+    try {
+      const d = await bridge.apiGet("damage_engine_status", {});
+      if (!d.ok) throw new Error(d.message || "伤害引擎状态不可用");
+      engineTask(d);
+    } catch (e) { $("engineInstallState").textContent = e.message || String(e); }
+  }
+  function engineEnter() {
+    return Promise.all([loadSettings(), engineStatus(), loadVisionSaved(),
+      VP.cat ? vpRefreshOverview() : vpLoadCatalog(), PS.cat ? Promise.resolve() : psLoadCatalog()]);
+  }
+  $("engineInstall").onclick = async () => {
+    $("engineInstall").disabled = true;
+    try {
+      const d = await bridge.apiPost("damage_engine_action", { action: "install", confirmed: true });
+      if (!d.ok) throw new Error(d.message || "部署未接单");
+      engineTask(d);
+    } catch (e) {
+      $("engineInstallState").textContent = e.message || String(e);
+      $("engineInstall").disabled = false;
+    }
+  };
+  $("engineCheck").onclick = (e) => busy(e.currentTarget, async () => {
+    const out = $("engineCheckResult");
+    out.replaceChildren(localText("正在检查…", "Checking…"));
+    try {
+      const d = await bridge.apiPost("damage_engine_action", { action: "check" });
+      if (!d.ok) throw new Error(d.message || "检查失败");
+      out.className = "result s-ok";
+      out.replaceChildren(localText(`已连通 · 引擎 ${d.version} · 数据 ${d.data_revision}`,
+        `Connected · Engine ${d.version} · Data ${d.data_revision}`));
+    } catch (e) {
+      out.className = "result s-stale";
+      out.textContent = e.message || String(e);
+    }
+  });
   $("discard").onclick = () => discardScope("settings", $("saveResult"));
   $("vDiscard").onclick = () => discardScope("vision", $("vSaveResult"));
   $("depsInstall").onclick = (e) => busy(e.currentTarget, async () => {
@@ -6618,6 +6749,7 @@
     state.ready = true;
     applyAdv();
     if (curView === "vision") visionEnter();
+    if (curView === "engine") engineEnter();
     if (curView === "stats") loadCommandStats();
   }
 </script>

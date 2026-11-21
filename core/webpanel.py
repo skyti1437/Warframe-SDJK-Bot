@@ -39,16 +39,16 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional
 
-from . import baro, data_registry, display_time, i18n, paths
+from . import baro, damage_engine, data_registry, display_time, i18n, paths, riven_sale
 from .api_client import (
     ACRITHIS_WEEK_NAME,
     RANKS_NAME,
     RIVEN_RT_NAME,
     RIVEN_WEEKLY_NAME,
-    WarframeClient,
     WarframeAPIError,
-    private_url_reason,
+    WarframeClient,
     font_url_transport,
+    private_url_reason,
     public_error_text,
     redact_error_text,
 )
@@ -56,10 +56,10 @@ from .commands.base import validate_numeric_setting
 from .commands.dun import _EV_EN
 from .commands.riven import riven_read_selection
 from .commands.vision import _prov_id, original_vision_prompt
+from .logging_compat import logger, mask_id, mask_umo  # noqa: F401 - 面板与测试沿用 W.mask_*
 from .vision_compare import prepare_image, run_comparison
 from .vision_prompt_presets import preset_catalog, preset_detail
 from .vision_prompts import MAX_PROMPT_LENGTH, TASKS, PromptConflict
-from .logging_compat import logger, mask_id, mask_umo  # noqa: F401 - 面板与测试沿用 W.mask_*
 
 # 状态四档：ok 新鲜 / warn 该刷了但不影响功能 / stale 已过期（卡面会受影响）/ info 静态快照仅供参考
 OK, WARN, STALE, INFO = "ok", "warn", "stale", "info"
@@ -932,6 +932,17 @@ SETTINGS_GROUPS = [
     ),
     # 冷却与并发对紫卡截图和配卡截图都生效；详情模式只管识卡
     ("识图行为", ["scan_cooldown", "scan_max_concurrent", "scan_detail_mode"]),
+    (
+        "伤害引擎",
+        [
+            "damage_engine_mode",
+            "damage_engine_url",
+            "damage_engine_portable_port",
+            "damage_engine_portable_bundle_sha256",
+            "damage_engine_token",
+        ],
+    ),
+    ("紫卡出售参考", ["riven_sale_sheet_url"]),
     ("权限", ["super_admins"]),
 ]
 # 只对部分聊天平台起作用的设置：设置页按「当前在用的平台」显示，其余默认收起（值照常保存与生效）
@@ -1016,6 +1027,14 @@ def coerce_setting(spec: dict, value: Any, *, key: str = "") -> Any:
         raise ValueError(f"只能是 {' / '.join(map(str, opts))}")
     if len(v) > 2000:
         raise ValueError("太长")
+    if key == "damage_engine_url":
+        return damage_engine.engine_url(v or damage_engine.DEFAULT_URL)
+    if key == "riven_sale_sheet_url":
+        return riven_sale.source_url(v)
+    if key == "damage_engine_token" and (
+        not v.isascii() or any(ord(c) <= 32 or ord(c) == 127 for c in v)
+    ):
+        raise ValueError("令牌只接受可见 ASCII 字符")
     return v
 
 
@@ -1128,6 +1147,13 @@ class WebPanel:
                 "SDJKBOT 面板：保存、启用或恢复视觉提示词",
             ),
             (f"/{n}/settings_save", self.settings_save, ["POST"], "SDJKBOT 面板：保存设置"),
+            (f"/{n}/damage_engine_status", self.damage_engine_status, ["GET"], "伤害引擎部署状态"),
+            (
+                f"/{n}/damage_engine_action",
+                self.damage_engine_action,
+                ["POST"],
+                "部署或检查伤害引擎",
+            ),
             (f"/{n}/panel_language", self.panel_language, ["GET"], "SDJKBOT 面板：界面语言"),
             (
                 f"/{n}/vision_migration_status",
@@ -1445,6 +1471,34 @@ class WebPanel:
         return await installer.start(
             body.get("confirmed") is True, expected_job_id=body.get("job_id")
         )
+
+    async def damage_engine_status(self):
+        if (g := self._gone()) is not None:
+            return g
+        service = getattr(self.p, "damage_engine", None)
+        if service is None:
+            return {"ok": False}
+        cfg = self.p.cfg or {}
+        status = service.status(cfg) if damage_engine.portable_port(cfg) else service.status()
+        return {"ok": True, **status}
+
+    async def damage_engine_action(self):
+        if (g := self._gone()) is not None:
+            return g
+        body = await self._body()
+        if (g := self._gone()) is not None:
+            return g
+        service = getattr(self.p, "damage_engine", None)
+        if service is None:
+            return {"ok": False, "message": "伤害引擎管理器不可用"}
+        if body.get("action") == "install" and body.get("confirmed") is True:
+            return {"ok": True, **service.install(self.p.cfg or {})}
+        if body.get("action") == "check":
+            try:
+                return await service.check(dict(self.p.cfg or {}))
+            except damage_engine.EngineError as exc:
+                return {"ok": False, "message": str(exc)}
+        return {"ok": False, "message": "请选择检查，或确认下载部署"}
 
     async def about(self):
         if (g := self._gone()) is not None:
@@ -3090,6 +3144,7 @@ class WebPanel:
                     continue
                 seen.add(k)
                 spec = schema[k]
+                secret = k == "damage_engine_token"
                 fields.append(
                     {
                         "key": k,
@@ -3099,7 +3154,8 @@ class WebPanel:
                         "options": spec.get("options"),
                         "provider": spec.get("_special") == "select_provider",
                         "default": spec.get("default"),
-                        "value": cfg.get(k, spec.get("default")),
+                        "value": None if secret else cfg.get(k, spec.get("default")),
+                        **({"secret": True, "configured": bool(cfg.get(k))} if secret else {}),
                         "reload": k in RELOAD_KEYS,
                         "platforms": FIELD_PLATFORMS.get(k, []),
                     }
@@ -3399,6 +3455,7 @@ class WebPanel:
                 clean[PANEL_LANGUAGE_INITIALIZED] = True
             self._migration_previews.clear()
             previous = {k: conf[k] for k in clean if k in conf}
+            previous_port = damage_engine.portable_port(getattr(self.p, "cfg", None))
             try:
                 conf.update(clean)
                 conf.save_config()
@@ -3412,6 +3469,9 @@ class WebPanel:
                         conf.pop(k, None)
                 return {"status": "error", "message": f"写配置失败：{exc}"}
             self._apply_live(clean)
+            port = damage_engine.portable_port(getattr(self.p, "cfg", None))
+            if port != previous_port and (service := getattr(self.p, "damage_engine", None)):
+                await service.reconfigure_portable(port)
         need = [k for k in saved if k in RELOAD_KEYS]
         logger.info("[sdjk] 面板保存设置：%s（需重载 %s）", saved, need)
         result = {"saved": saved, "need_reload": need}

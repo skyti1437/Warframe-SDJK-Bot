@@ -16,25 +16,31 @@ from urllib.parse import quote as _quote
 
 from .. import calculators as calc
 from .. import damage_calc as dc
+from .. import damage_engine as de
+from .. import matching, wiki_intro
 from .. import formatters as fmt
-from .. import matching
 from .. import search as search_engine
-from .. import wiki_intro
 from ..api_client import WarframeAPIError
 from ..i18n import L, is_en
 from ..logging_compat import logger
+from ..request_queue import QueueUnavailable
 from .base import Action, Reply, err_card
 
 # ---------------------------------------------------------------------------
 # wiki 链接来源（2026-11-10 维护者定：灰机 wiki 权威性太低，默认改英文 wiki，可选灰机）：
 #   · 配置 ``wiki_link_source``：``en``（默认）/ ``huiji``；单次查询末尾加「灰机」临时用灰机；
 #   · 英文显示模式始终用英文 wiki（页面名也显示英文）；
-#   · 中文显示 + 英文 wiki：卡片内容不变，只换链接；查不到英文页面名时退回灰机链接
-#     （拿中文去英文 wiki 站内搜索搜不到东西）。
+#   · 中文显示 + 英文 wiki：卡片内容不变，只换链接。查不到标题时用英文名搜索；
+#     找不到英文名时给英文搜索页入口。
 # 英文页面名优先用 DE 官方语言表（内部路径把 name_zh / name_en 连起来）——检索索引里的
 # ``en`` 字段很多是内部类型名（川流不息 →「avatar power max mod」），不能当页面名。
 # ---------------------------------------------------------------------------
 _EN_WIKI = "https://wiki.warframe.com/w/"
+_EN_WIKI_SEARCH = _EN_WIKI + "Special:Search"
+_EN_WIKI_SEARCH_HINT = (
+    "未找到对应的英文名，请在维基搜索页输入英文关键词。",
+    "No English name found. Enter English keywords on the wiki search page.",
+)
 _CJK_RE = re.compile(r"[\u3400-\u9fff]")
 _HUIJI_WORDS = {"灰机", "灰机wiki", "huiji"}
 _ZH2EN: dict | None = None
@@ -144,11 +150,12 @@ def _en_wiki_title(*cands: str, base: bool = False) -> str:
     return ""
 
 
-def _en_wiki_url(title: str, query: str) -> str:
-    """英文 wiki 链接：有页面名直达，否则站内搜索。"""
+def _en_wiki_url(title: str, query: str, *cands: str) -> str:
+    """有标题时直达，搜索参数只使用英文关键词。"""
     if title:
         return _EN_WIKI + _quote(title.replace(" ", "_"), safe="/'(),")
-    return _EN_WIKI + "Special:Search?go=Go&search=" + _quote(query)
+    term = _en_search_term(query, *cands)
+    return f"{_EN_WIKI_SEARCH}?go=Go&search={_quote(term, safe='')}" if term else _EN_WIKI_SEARCH
 
 
 def _wiki_localize(
@@ -172,22 +179,31 @@ def _wiki_localize(
     # 「水星棕」（库狛颜色）「低温眠者」（皮肤内部名 frost）上（2026-11-10 核对英文链接时发现）
     if is_en():
         title = en or _en_wiki_title(query, *cands, base=base)
-        return (title or page_name), _en_wiki_url(title, _en_search_term(query, *cands))
+        return (title or page_name), _en_wiki_url(title, query, *cands)
     if source == "en":
         title = en or _en_wiki_title(query, page_name, *cands, base=base)
         if not title:
             logger.info("[sdjk] wiki：「%s」没有对上英文页面名，给英文 wiki 站内搜索", query)
-        return page_name, _en_wiki_url(title, _en_search_term(query, *cands))
+        return page_name, _en_wiki_url(title, query, page_name, *cands)
     return page_name, url
 
 
 def _en_search_term(query: str, *cands: str) -> str:
-    """英文 wiki 站内搜索词：优先第一个不含汉字的候选名，没有才用原查询。"""
-    for c in cands:
-        c = " ".join(str(c or "").split())
-        if c and not _CJK_RE.search(c):
-            return c
-    return query
+    """复用官方英文名或唯一的双语名称命中。"""
+    for name in (query, *cands):
+        term = " ".join((name or "").split())
+        if not term:
+            continue
+        if _CJK_RE.search(term):
+            term = _official_en(term)
+            if not term:
+                pairs = matching.load_bilingual()["zh"].get(matching.normalize_name(name), ())
+                names = {en for en, _zh in pairs}
+                if len(names) == 1:
+                    term = next(iter(names))
+        if term and not _CJK_RE.search(term):
+            return term
+    return ""
 
 
 # 英文伤害参数写法 → 中文写法（只在「伤害」的参数解析处认，不进通用别名表）
@@ -463,6 +479,9 @@ class WikiMiscCommands:
         )
         note_line = f"⚠️ {note}" if note else ""
         link = L(f"🔗 wiki 链接：{url}", f"🔗 Wiki link: {url}")
+        search_hint = L(*_EN_WIKI_SEARCH_HINT) if url == _EN_WIKI_SEARCH else ""
+        if search_hint:
+            link += "\n" + search_hint
         if alts:
             link += L(f"\n同类候选：{'、'.join(alts)}", f"\nSimilar: {_sep.join(alts)}")
         if self._wiki_intro_on():
@@ -477,6 +496,8 @@ class WikiMiscCommands:
                     title, lines, extra_text=link, footer=fmt.fmt_platform_footer(platform)
                 )
         lines = [f"📖 {page_name}", url]
+        if search_hint:
+            lines.append(search_hint)
         if var_line:
             lines.append(var_line)
         if note_line:
@@ -532,6 +553,16 @@ class WikiMiscCommands:
             )
             return self._wiki_reply(_pn, _url, [], platform, hit["title"], query, note=note)
         from urllib.parse import quote as _q
+
+        weapon = await asyncio.to_thread(dc.find_weapon_alias, query)
+        if weapon:
+            english = weapon["name"]
+            name = weapon.get("zh") or english
+            page = _q(search_engine.wiki_title(name).replace(" ", "_"))
+            page_name, url = _wiki_localize(
+                name, f"https://warframe.huijiwiki.com/wiki/{page}", query, source=src, en=english
+            )
+            return self._wiki_reply(page_name, url, [], platform, name, english, note=note)
 
         want_variant = matching.variant_intent_any(query)
         # 冷索引可能正由后台预热构建；查找与等待都留在线程里，避免阻塞消息循环。
@@ -682,8 +713,10 @@ class WikiMiscCommands:
         # 未收录时也把澄清带上（如「跑男」这种自带歧义的写法）
         r = err_card(
             L(f"本地词库未收录「{query}」", f'"{query}" is not in the local lexicon'),
-            L(
-                "点下方链接前往维基搜索；或换官方中文 / 英文名重发",
+            L(*_EN_WIKI_SEARCH_HINT)
+            if link == _EN_WIKI_SEARCH
+            else L(
+                "点下方链接前往维基搜索，或换官方中文／英文名重发",
                 "Open the link below to search the wiki, or resend with the official name",
             ),
             (L("提示", "Note"), note) if note else "",
@@ -897,10 +930,54 @@ class WikiMiscCommands:
         # 避免长串参数在事件循环上卡住所有群
         capability = getattr(self, "_can_send_actions", None)
         can_actions = callable(capability) and capability(event)
-        return await asyncio.to_thread(self._damage_reply, parsed, can_actions=can_actions)
+        cfg, note = getattr(self, "cfg", None), ""
+        if de.full_enabled(cfg):
+            prepared = await asyncio.to_thread(
+                self._damage_reply, parsed, can_actions=can_actions, prepare_simulation=True
+            )
+            if isinstance(prepared, Reply):
+                return prepared
+            weapon, spec = prepared
+            port = de.portable_port(cfg)
+            if not port:
+                lines, ok = await de.simulation_lines(self, weapon, spec, event=event)
+                return self._damage_result(weapon, lines, "", can_actions and ok)
+            try:
+                lines = await de.portable_fixed_lines(self, port, weapon, spec)
+            except (de.EngineError, QueueUnavailable) as exc:
+                note = str(exc)
+            else:
+                footer = fmt.fmt_platform_footer(
+                    platform, L("按所选配装计算", "Uses the selected loadout")
+                )
+                return self._damage_result(weapon, lines, footer, can_actions)
+        reply = await asyncio.to_thread(self._damage_reply, parsed, can_actions=can_actions)
+        if note:
+            reply.lines.insert(0, L(f"※ 内置估算 · {note}", f"※ Built-in estimate · {note}"))
+        return reply
 
-    def _damage_reply(self, parsed, *, can_actions: bool = False) -> Reply:
-        """「伤害」指令的同步主体（由 _h_damage 放进线程执行）。"""
+    @staticmethod
+    def _damage_result(weapon, lines, footer, can_actions):
+        name = weapon.get("name") if is_en() else weapon.get("zh") or weapon.get("name")
+        return Reply(
+            L("伤害计算", "Damage Calculator"),
+            lines,
+            footer=footer,
+            actions=[
+                Action(
+                    L("换敌人复算", "Recalculate vs another enemy"),
+                    L(f"伤害 {name} 对 ", f"damage {name} vs "),
+                    mode="fill",
+                )
+            ]
+            if can_actions and name
+            else [],
+        )
+
+    def _damage_reply(
+        self, parsed, *, can_actions: bool = False, prepare_simulation: bool = False
+    ) -> Reply | tuple[dict, dict]:
+        """在线程解析；独立模拟回到调用者的事件循环提交。"""
         _toks = _dmg_en_toks(parsed.content) if is_en() else parsed.content
         spec, name_tokens = dc.parse_args(_toks)
         query = " ".join(name_tokens).strip()
@@ -1009,23 +1086,15 @@ class WikiMiscCommands:
                         ),
                     ],
                 )
+            if prepare_simulation:
+                return weapon, spec
             res = dc.calculate(spec, weapon)
-            query_name = weapon.get("zh") or weapon.get("name")
-            if is_en():
-                query_name = weapon.get("name") or query_name
-            return Reply(
-                L("伤害计算", "Damage Calculator"),
-                dc.card_lines(weapon, spec, res, alts),
-                footer=dc.card_footer(weapon, res),
-                actions=[
-                    Action(
-                        L("换敌人复算", "Recalculate vs another enemy"),
-                        L(f"伤害 {query_name} 对 ", f"damage {query_name} vs "),
-                        mode="fill",
-                    )
-                ]
-                if can_actions and query_name and res.get("ok")
-                else [],
+            lines = [
+                L("· 计算：内置估算", "· Engine: Built-in Estimate"),
+                *dc.card_lines(weapon, spec, res, alts),
+            ]
+            return self._damage_result(
+                weapon, lines, dc.card_footer(weapon, res), can_actions and res.get("ok")
             )
         except Exception as exc:  # noqa: BLE001 - 绝不静默：群聊里没输出最难查
             logger.exception(f"[sdjk] 伤害计算失败：{exc!r}")

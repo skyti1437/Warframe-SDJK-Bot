@@ -20,6 +20,7 @@ import json
 import sys
 import tempfile
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -185,8 +186,8 @@ check("Akaten 有伤害数据 ⇒ 物理不标 ?", not (set(RP.PHYSICAL_STATS) &
 _r, _m = RP.family_members("Balla")
 zpos, _, zunc = avail("melee", _r, _m)
 check(
-    "★ Zaw 打击部件 Balla：物理三项照列并标 ?",
-    set(RP.PHYSICAL_STATS) <= zpos and set(RP.PHYSICAL_STATS) <= zunc,
+    "★ Zaw 打击部件 Balla：物理三项有市场证据，照列",
+    set(RP.PHYSICAL_STATS) <= zpos and not (set(RP.PHYSICAL_STATS) & zunc),
 )
 _r, _m = RP.family_members("Sepfahn")
 spos, _, sunc = avail("melee", _r, _m)
@@ -199,6 +200,29 @@ cpos, _, cunc = avail("pistol", _r, _m)
 check(
     "★ 组合枪枪膛 Catchmoon（伤害构成未知）物理三项照列并标 ?",
     set(RP.PHYSICAL_STATS) <= cpos and set(RP.PHYSICAL_STATS) <= cunc,
+)
+
+_r, _m = RP.family_members("Tenet Agendus")
+_pos, _neg, _unc = avail("melee", _r, _m)
+check(
+    "★ 信条·集议负切割有市场实证，正负切割都覆盖 25% 筛选",
+    "slash_damage" in RP.physical_excluded(_m, _r)
+    and "slash_damage" in _pos & _neg
+    and "slash_damage" not in _unc,
+)
+with patch.object(
+    RP,
+    "_physical_evidence",
+    side_effect=lambda _, *, positive: {"slash_damage": True} if positive else {},
+):
+    _pos, _neg, _unc = avail("melee", _r, _m)
+    check("★ 只有正面证据时，负面仍按原占比筛选", "slash_damage" in _pos - _unc - _neg)
+_r, _m = RP.family_members("Glaive")
+_pos, _neg, _unc = avail("melee", _r, _m)
+_, _neg_unc = RP.available("melee", _r, _m, positive=False)
+check(
+    "★ 战刃冲击正负合计只有 1 张，旧表已列出的正负两面均标 ?",
+    "impact_damage" in _pos & _unc & _neg & _neg_unc,
 )
 
 # ---------------------------------------------------------------------------

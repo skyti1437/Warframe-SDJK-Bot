@@ -18,18 +18,20 @@ import time
 from typing import Optional
 
 from .. import damage_calc as dc
+from .. import damage_engine as de
 from .. import formatters as fmt
 from .. import loadout_ocr as lo
 from .. import pips as pips_engine
 from ..i18n import L, is_en
 from ..logging_compat import logger
+from ..request_queue import QueueUnavailable, send_queue_position
 from .base import Action, Reply, _num, err_card
 from .vision import _cancel_vision_tasks, _prov_id, effective_vision_prompt
 from .wiki_misc import _dmg_en_toks
 
-
 _SCAN_TTL = 1800
 _SCAN_LIMIT = 128
+_SCAN_IMAGE_FIELDS = ("_upgrade_slots", "_pixel_layout", "_tile_slots", "_pips_rows")
 
 
 def _scan_recognition(text: str, parsed: dict, prompt: str, provider_id: str, task: str) -> dict:
@@ -95,6 +97,42 @@ def _scan_state(host, now: float) -> tuple[dict, dict]:
     return states[0], states[1]
 
 
+async def _scanned_damage_result(host, weapon, spec, overrides, event, platform):
+    cfg, note = getattr(host, "cfg", None), ""
+    if port := de.portable_port(cfg):
+        try:
+            lines = await de.portable_fixed_lines(host, port, weapon, spec, overrides)
+        except (de.EngineError, QueueUnavailable) as exc:
+            note = str(exc)
+        else:
+            footer = fmt.fmt_platform_footer(
+                platform, L("按已识别的配装计算", "Uses the scanned loadout")
+            )
+            return lines, True, footer
+    elif de.full_enabled(cfg):
+        lines, ok = await de.simulation_lines(host, weapon, spec, overrides, event=event)
+        return lines, ok, ""
+
+    if spec.get("builtin_calculation_allowed") is False:
+        lines = [
+            L(
+                "◆ 原图还有未核对的面板或等级，内置估算暂不可用",
+                "◆ Built-in Estimate requires verified screenshot stats and ranks",
+            )
+        ]
+        ok, footer = False, ""
+    else:
+        result = dc.calculate(spec, weapon)
+        lines = [
+            L("· 计算：内置估算", "· Engine: Built-in Estimate"),
+            *dc.card_lines(weapon, spec, result, []),
+        ]
+        ok, footer = result.get("ok"), dc.card_footer(weapon, result)
+    if note:
+        lines.insert(0, L(f"※ 内置估算 · {note}", f"※ Built-in estimate · {note}"))
+    return lines, ok, footer
+
+
 class ScanCommands:
     """Mixin：识卡 / 伤害截图 handler（挂载于 main.WarframeSDJK）。"""
 
@@ -141,8 +179,8 @@ class ScanCommands:
     async def _h_scan(self, parsed, event, platform) -> Reply:
         """识卡：读游戏内「升级」界面截图，按**真实 MOD 等级**折算配卡加成。
 
-        视觉模型只负责读字（MOD 名 / 卡片容量数字 / 面板数值），加成由
-        `core/loadout_ocr.py` 按容量数字反推出的实际等级重算，再用面板数值校验。
+        读取 MOD 名、容量数字和面板，用同槽等级刻度及数字颜色核对等级，
+        再按已确认等级折算加成。
         """
         if not self._event_has_image(event):
             return Reply(
@@ -152,7 +190,9 @@ class ScanCommands:
                         "◆ 用法：发一张武器「升级」界面截图，配上文字「识卡」",
                         "◆ 说明",
                         "· 读出　武器（含等级）＋每张 MOD 卡与其实际等级＋面板数值",
-                        "· 折算　加成按卡片容量数字反推实际等级（绿=匹配减半／红=不合+25%／白=原价）",
+                        "· 定级　数同槽亮刻度，用右上容量数字及颜色核对",
+                        "· 普通槽扣容量　绿减半向上取整／红多扣约25%／白或卡面本色原价",
+                        "· 架势和光环加容量　绿加倍／红约为原值的80%／白或卡面本色原值",
                         "· 校验　再用面板数值交叉校验；伤害详情可用「识卡伤害」查看（同「伤害计算」公式）",
                         "· 复算　想换敌人/等级/爆头：识卡伤害 对 重机枪手 150级 爆头",
                         "· 前置　需要 AstrBot 里配好一个多模态模型（如 Qwen3-VL / glm-4.1v）",
@@ -161,8 +201,11 @@ class ScanCommands:
                         '◆ Usage: send a screenshot of the weapon "Upgrade" screen with the text "scan"',
                         "◆ Details",
                         "· Reads　the weapon (with rank) + every MOD card with its actual rank + panel values",
-                        "· Conversion　bonuses are traced back to the actual rank from the card capacity number "
-                        "(green = matching, halved / red = mismatched, +25% / white = full price)",
+                        "· Rank　count the lit pips on the same card and cross-check its capacity number and color",
+                        "· Regular mods consume capacity　green halves it, rounded up; red adds about 25%; "
+                        "the neutral color uses the base cost",
+                        "· Stances and auras supply capacity　green doubles it; red supplies about 80%; "
+                        "the neutral color uses the base value",
                         '· Verification　cross-checked against the panel values; details via "scandamage" '
                         '(same formula as "damage")',
                         "· Recalculate　change enemy / level / headshot: scandamage vs Heavy Gunner 150 headshot",
@@ -171,50 +214,62 @@ class ScanCommands:
                 ),
             )
 
-        # ★★ 安全审查（2026-09-18）：识卡每次会调用**付费**多模态模型。
-        #   原来只有「同会话串行」——那只防自己连发，防不住「同一个人狂刷」
-        #   和「多个群同时刷」，而宿主是 2 核小机器：并发几路就能把 CPU 打到
-        #   渲染 39s+，账单也会跟着涨。这里加两道闸（都能在面板关掉/调整）：
-        #     ① 同一发送者冷却 scan_cooldown 秒（默认 15，设 0 关闭）
-        #     ② 全局并发上限 scan_max_concurrent（默认 3，设 0 关闭）
-        #   两道闸的实现在 vision._vision_gate（2026-10-10 起与紫卡识图共用）。
+        # 先检查付费视觉请求的冷却，再登记等待。下载图片与调用模型等到有运行名额才开始。
         _last = self._vision_last("scan")
-        _gate, _sender = self._vision_gate(event, L("识卡", "Build scan"), task="scan")
+        _gate, _sender = self._vision_gate(
+            event, L("识卡", "Build scan"), task="scan", check_budget=False
+        )
         if _gate is not None:
             return _gate
-        _stamp = _last.get(_sender)
-        _cd = _num(self.cfg, "scan_cooldown", 15)
+        _stamp = _last.get(_sender) if _num(self.cfg, "scan_cooldown", 15) > 0 else None
+        queue = self._scan_requests()
 
-        # 同一会话串行：识卡是「多次 vision 调用 + 双页渲染」的重活，
-        # 连发会让容器 CPU 争抢（实测单张渲染 0.7s → 39s）。
+        # 一个会话只占一个识卡名额。等待中的请求也占该会话的位置。
         # 无会话标识也必须计入机器预算；独立对象只负责本请求，不冒充可共享会话。
         _busy_key = str(getattr(event, "unified_msg_origin", "") or "") or object()
-        if _busy_key in self._ocr_busy:
+        if _busy_key in self._ocr_busy or queue.is_waiting(_busy_key):
+            self._vision_refund(_last, _sender, _stamp)
             return Reply(
                 raw_text=L(
-                    "⏳ 上一张配卡还在识别中（约 15–30 秒），请稍等一下再发，避免任务叠加变慢",
-                    "⏳ The previous build is still being scanned (about 15-30 s); "
-                    "please wait a moment before sending another so tasks do not pile up",
+                    "⏳ 本会话的上一张配卡还在识别或排队，请等结果出来后再发",
+                    "⏳ This chat already has a build being scanned or queued. Wait for its result.",
                 )
             )
-        self._ocr_busy.add(_busy_key)
+
+        def room():
+            cap = self._vision_limit()
+            return cap <= 0 or len(self._ocr_busy) < cap
+
+        async def notify(position):
+            await send_queue_position(
+                event, getattr(self, "_messaging", None), L("配卡识别", "Build scan"), position
+            )
+
         try:
-            imgs = await self._image_data_urls(event)
-            if not imgs:
-                return Reply(
-                    raw_text=L(
-                        "⚠️ 图片下载失败，请重发一次截图",
-                        "⚠️ Image download failed, please resend the screenshot",
-                    )
-                )
-            ocr = await self._extract_loadout_validated(imgs[0])
-        finally:
-            self._ocr_busy.discard(_busy_key)
+            async with queue.slot(notify, room=room, key=_busy_key):
+                self._ocr_busy.add(_busy_key)
+                try:
+                    imgs = await self._image_data_urls(event)
+                    if not imgs:
+                        return Reply(
+                            raw_text=L(
+                                "⚠️ 图片下载失败，请重发一次截图",
+                                "⚠️ Image download failed, please resend the screenshot",
+                            )
+                        )
+                    ocr = await self._extract_loadout_validated(imgs[0])
+                finally:
+                    self._ocr_busy.discard(_busy_key)
+        except QueueUnavailable as exc:
+            self._vision_refund(_last, _sender, _stamp)
+            return Reply(raw_text=f"⏳ {L('配卡识别', 'Build scan')} · {exc}")
+        except asyncio.CancelledError:
+            self._vision_refund(_last, _sender, _stamp)
+            raise
         if not ocr:
             # ★ 识别失败返还冷却（2026-09-23）：防刷闸不该惩罚「渠道全挂」的
             #   受害者——失败重试不该干等 15 秒。成功调用才占冷却。
-            if _cd > 0 and _sender:
-                self._vision_refund(_last, _sender, _stamp)
+            self._vision_refund(_last, _sender, _stamp)
             return err_card(
                 L(
                     "截图识别失败：视觉渠道没给出可解析结果",
@@ -235,17 +290,17 @@ class ScanCommands:
                 title=L("识卡", "Build Scan"),
             )
 
-        an = lo.analyze(ocr, ocr.get("_pips_rows"))
-        lines = lo.card_lines(an)
-        # 认不全时把原始识别结果附上：否则用户只看到「没认出来」，无法判断是图的问题还是库的问题
-        if not an.get("ok"):
-            lines.append(L("　原始识别结果：", "　Raw scan result: ") + self._ocr_echo(ocr))
-
-        # 第一页 analyze 的参考伤害保持；仅把详情页的再次计算改为按需执行。
+        simulation = de.full_enabled(self.cfg)
+        if simulation:
+            an = lo.analyze(ocr, ocr.get("_pips_rows"), calculate_reference=False)
+        else:
+            an = lo.analyze(ocr, ocr.get("_pips_rows"))
         cached_spec = None
-        if an.get("weapon") and an.get("quality", {}).get("calculation_allowed", False):
+        if an.get("weapon"):
             try:
-                cached_spec = lo.to_damage_spec(an)
+                cached_spec = (
+                    lo.to_damage_spec(an, simulation=True) if simulation else lo.to_damage_spec(an)
+                )
             except Exception:  # noqa: BLE001 —— 缓存失败不影响识卡本身
                 cached_spec = None
         token = ""
@@ -265,6 +320,22 @@ class ScanCommands:
                 token = secrets.token_urlsafe(9)
             records[token] = (now, *scope, snapshot[1], snapshot[2])
             _scan_state(self, now)
+
+        comparison = None
+        if cached_spec is not None:
+            try:
+                comparison = await asyncio.to_thread(lo.mod_dps_comparison, an, cached_spec)
+            except Exception:  # noqa: BLE001 —— 局部复算失败时照常回图
+                logger.exception("[sdjk] 识卡单卡 DPS 对照生成失败")
+        lines = lo.card_lines(
+            an,
+            simulation=simulation,
+            simulation_ready=cached_spec is not None and simulation,
+            comparison=comparison,
+        )
+        # 认不全时回显白名单字段，供玩家核对视觉通道的读取结果。
+        if not an.get("ok"):
+            lines.append(L("　原始识别结果：", "　Raw scan result: ") + self._ocr_echo(ocr))
 
         mode = str(self.cfg.get("scan_detail_mode", "auto")).strip().lower()
         if mode not in {"auto", "lazy", "eager"}:
@@ -320,7 +391,14 @@ class ScanCommands:
                     )
                 )
             return Reply(L("配卡识别", "Build Scan"), lines, actions=actions)
-        detail = self._loadout_detail_lines(an) if cached_spec is not None else None
+        detail = None
+        if cached_spec is not None:
+            if simulation:
+                detail, _, _ = await _scanned_damage_result(
+                    self, an["weapon"], cached_spec, {}, event, platform
+                )
+            else:
+                detail = self._loadout_detail_lines(an)
         if detail:
             return Reply(
                 pages=[
@@ -386,6 +464,7 @@ class ScanCommands:
             if not res.get("ok"):
                 return None
             out = dc.card_lines(weapon, spec, res, [])
+            out.insert(0, L("· 计算：内置估算", "· Engine: Built-in Estimate"))
             out.append(
                 L(
                     "※ 与「伤害计算」同一套公式（G系 100 级·身体，无 buff 基准）；"
@@ -406,6 +485,8 @@ class ScanCommands:
         30 分钟内的识卡缓存有效；MOD 折算值沿用识卡结果，本条指令只覆盖
         目标/条件类参数（敌人、等级、派系、爆头、连击、镀层层数…）。
         """
+        command = L("识卡伤害", "scandamage")
+        title = L("识卡伤害", "Build Scan Damage")
         scope = _scan_scope(self, event)
         latest, records = _scan_state(self, time.time())
         rest = [str(t).strip() for t in (parsed.content or []) if str(t).strip()]
@@ -465,6 +546,7 @@ class ScanCommands:
         _ts, weapon, cached = copy.deepcopy(hit)
         # 传 token 列表，不能传会被逐字符拆开的字符串。
         try:
+            overrides = {}
             if rest:
                 arg_spec, _tokens = dc.parse_args(rest)
                 default_spec, _ = dc.parse_args([])
@@ -474,31 +556,28 @@ class ScanCommands:
                 spec = {**cached, **overrides}
             else:
                 spec = dict(cached)
-            res = dc.calculate(spec, weapon)
-            reply = Reply(
-                L("识卡伤害", "Build Scan Damage"),
-                dc.card_lines(weapon, spec, res, []),
-                footer=dc.card_footer(weapon, res),
+            lines, ok, footer = await _scanned_damage_result(
+                self, weapon, spec, overrides, event, platform
             )
+            reply = Reply(title, lines, footer=footer)
             try:
                 can_actions = bool(getattr(self, "_can_send_actions", lambda _e: False)(event))
             except Exception:  # noqa: BLE001 —— 平台能力不可确认时不加按钮，正文照常
                 can_actions = False
-            if can_actions:
-                # 详情 / 复算结果后可继续换目标；绑定同一记录，仍由上方会话与发送者校验兜底
-                _cmd = L("识卡伤害", "scandamage")
-                command = f"{_cmd} #{token}" if token else _cmd
+            if can_actions and ok:
+                # 换目标沿用同一识卡记录，由会话与发送者校验兜底。
+                original = f"{command} #{token}" if token else command
                 reply.actions.append(
                     Action(
                         L("换目标复算", "Recalculate vs another target"),
-                        command + L(" 对 ", " vs "),
+                        original + L(" 对 ", " vs "),
                         mode="fill",
                         owner_only=True,
                     )
                 )
                 if rest:
                     reply.actions.append(
-                        Action(L("默认目标", "Default target"), command, owner_only=True)
+                        Action(L("默认目标", "Default target"), original, owner_only=True)
                     )
             return reply
         except Exception as exc:  # noqa: BLE001 —— 绝不静默
@@ -573,6 +652,7 @@ class ScanCommands:
         def observe():
             import base64
             import io
+
             from PIL import Image
 
             raw = base64.b64decode(image_url.split(",", 1)[1])
@@ -747,6 +827,10 @@ class ScanCommands:
         focused = await self._read_scan_focus(image_url, "mods")
         if best is None:
             if not focused or not focused.get("mods") or not focused.get("weapon"):
+                focused = await self._read_scan_recovery(
+                    original_image_url, pips_rows, pixel_layout
+                )
+            if not focused:
                 return None
             recovered = lo.normalize_scan_structure(focused)
             recovered["_equipment_unconfirmed"] = True
@@ -754,9 +838,12 @@ class ScanCommands:
             recovered = await self._read_equipment_tiles(
                 recovered, original_image_url, pips_rows, pixel_layout
             )
-            _score(recovered)
+            if not recovered.get("_upgrade_slots"):
+                _score(recovered)
             return _finish(recovered)
         bad, ocr = best
+        main_read = ocr
+        equipment_read = focused
         # 数值吻合仍须核对装备区：亮豆下界覆盖不到零级卡和部分特殊槽。
         confirmed = False
         if focused and focused.get("mods"):
@@ -791,7 +878,7 @@ class ScanCommands:
                 fields = ["mods"] + (
                     ["arcanes"] if candidate.get("arcanes") != ocr.get("arcanes") else []
                 )
-                if focused.get("weapon"):
+                if candidate.get("weapon") != ocr.get("weapon"):
                     fields.append("weapon")
                 bad, ocr = score, _scan_revision(candidate, ocr, focused, fields, "scan_mods")
                 confirmed = True
@@ -844,6 +931,7 @@ class ScanCommands:
         if not ocr.get("arcanes"):
             focused = await self._read_scan_focus(image_url, "arcanes")
             if focused and focused.get("arcanes"):
+                main_read = {**main_read, "arcanes": focused["arcanes"]}
                 ocr = _scan_revision(
                     {**ocr, "arcanes": focused["arcanes"]},
                     ocr,
@@ -851,8 +939,17 @@ class ScanCommands:
                     ["arcanes"],
                     "scan_arcanes",
                 )
-        ocr = await self._read_equipment_tiles(ocr, original_image_url, pips_rows, pixel_layout)
-        _score(ocr)
+        ocr = await self._read_equipment_tiles(
+            ocr,
+            original_image_url,
+            pips_rows,
+            pixel_layout,
+            main_read=main_read,
+            equipment_read=equipment_read,
+        )
+        # 完整槽位的最终分析交给消息入口，避免重复计算参考伤害。
+        if not ocr.get("_upgrade_slots"):
+            _score(ocr)
         return _finish(ocr)
 
     # ★★ 2026-10-05 去掉字面示例值（阴性对照实测：喂**紫卡图**——卡面根本没有
@@ -976,9 +1073,12 @@ class ScanCommands:
                 text = str(getattr(response, "completion_text", "") or "")
                 parsed = lo.parse_focus_text(text, part)
                 if parsed:
-                    parsed["_recognition"] = _scan_recognition(
+                    recognition = _scan_recognition(
                         text, parsed, actual_prompt, _prov_id(prov), f"scan_{part}"
                     )
+                    for key in _SCAN_IMAGE_FIELDS:
+                        parsed.pop(key, None)
+                    parsed["_recognition"] = recognition
                     if part in {"mods", "arcanes"}:
                         parsed = lo.normalize_scan_structure(parsed)
                         parsed = lo.remap_mod_geometry(parsed, transform)
@@ -988,38 +1088,94 @@ class ScanCommands:
                 logger.warning("[sdjk] 配卡分区补读失败：%s", type(exc).__name__)
         return None
 
-    _TILES_PROMPT = (
-        "读取拼图里的独立 Warframe MOD 卡片。每个区域上方的 T 编号只是区域标记。"
-        '输出 JSON：{"mods":[{"tile":"区域编号","name":"卡面完整名称或null","drain":"右上容量数字或null","color":"容量数字颜色：红/绿/白/未知"}]}。'
-        "每个区域只记录一次，空槽或只有背景时name为null；不要把界面标签、图标、边框当卡名或容量数字。"
-        "保留Prime和完整前后缀，不补缺字，不计算等级，不猜看不清的数字。"
-    )
-
-    @staticmethod
-    def _equipment_tile_image(image_url, rows, layout):
+    async def _read_scan_recovery(self, image_url: str, rows: list, layout: dict) -> Optional[dict]:
+        """整图主读和装备补读均缺失时，从原图裁掉下方仓库再读标题和装备。"""
         import base64
         import io
+        import uuid
         from PIL import Image
 
-        image = Image.open(io.BytesIO(base64.b64decode(image_url.split(",", 1)[1])))
-        sheet, tiles = pips_engine.equipment_tiles(image, rows, layout)
+        if not rows:
+            return None
+
+        def crop():
+            with Image.open(io.BytesIO(base64.b64decode(image_url.split(",", 1)[1]))) as original:
+                slots = pips_engine.upgrade_slots(original, rows, layout, melee=False)
+                if not slots:
+                    return None, None
+                edge = min(1.0, max(slot["box"][3] for slot in slots) + 0.025)
+                bottom = round(edge * original.height)
+                buffer = io.BytesIO()
+                original.crop((0, 0, original.width, bottom)).save(buffer, format="PNG")
+                encoded = base64.b64encode(buffer.getvalue()).decode()
+                return "data:image/png;base64," + encoded, {
+                    "bounds": [0, 0, 1, bottom / original.height]
+                }
+
+        try:
+            image, transform = await asyncio.to_thread(crop)
+            if not image:
+                return None
+            for provider in self._scan_equipment_providers()[:1]:
+                prompt = lo.VISION_PROMPT
+                response = await asyncio.wait_for(
+                    provider.text_chat(
+                        prompt=prompt,
+                        image_urls=[image],
+                        session_id=f"sdjk-recovery-{uuid.uuid4().hex[:8]}",
+                    ),
+                    timeout=60,
+                )
+                text = str(getattr(response, "completion_text", "") or "")
+                parsed = lo.parse_coordinate_ocr(text)
+                if parsed and parsed.get("weapon") and parsed.get("mods"):
+                    result = lo.remap_mod_geometry(parsed, transform)
+                    result["_recognition"] = _scan_recognition(
+                        text, parsed, prompt, _prov_id(provider), "scan_recovery"
+                    )
+                    result["_recognition"]["geometry_transform"] = transform
+                    return result
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("[sdjk] 配卡装备区坐标补读失败：%s", type(exc).__name__)
+        return None
+
+    _TILES_PROMPT = lo.VISION_PROMPT
+
+    @staticmethod
+    def _equipment_tile_image(image_url, rows, layout, *, melee=None, badges=False):
+        import base64
+        import io
+
+        from PIL import Image
+
+        with Image.open(io.BytesIO(base64.b64decode(image_url.split(",", 1)[1]))) as image:
+            sheet, tiles = pips_engine.equipment_tiles(
+                image, rows, layout, melee=melee, badges=badges
+            )
         if sheet is None:
             return None, []
         stream = io.BytesIO()
         sheet.save(stream, format="PNG")
         return "data:image/png;base64," + base64.b64encode(stream.getvalue()).decode(), tiles
 
-    async def _read_equipment_tiles(self, ocr, image_url, rows, layout):
+    async def _read_equipment_tiles(
+        self, ocr, image_url, rows, layout, *, main_read=None, equipment_read=None
+    ):
         import uuid
 
         analysis = lo.analyze(ocr, rows)
-        if analysis.get("mods") and all(
-            m.get("rank") is not None and m.get("found") for m in analysis["mods"]
+        weapon = analysis.get("weapon") or {}
+        category = weapon.get("category") if isinstance(weapon, dict) else None
+        melee = category == "Melee" if category in {"Melee", "Primary", "Secondary"} else None
+        if (
+            melee is None
+            and analysis.get("mods")
+            and all(m.get("rank") is not None and m.get("found") for m in analysis["mods"])
         ):
             return ocr
         try:
             image, tiles = await asyncio.to_thread(
-                self._equipment_tile_image, image_url, rows, layout
+                self._equipment_tile_image, image_url, rows, layout, melee=melee
             )
             if not image:
                 return ocr
@@ -1034,16 +1190,119 @@ class ScanCommands:
                     timeout=60,
                 )
                 text = str(getattr(response, "completion_text", "") or "")
+                boxes = lo.coordinate_ocr_boxes(text)
+                if boxes:
+                    observed = {
+                        "_recognition": _scan_recognition(
+                            text, {"boxes": boxes}, prompt, _prov_id(provider), "scan_tiles"
+                        )
+                    }
+                    if melee is None:
+                        candidate = lo.merge_coordinate_tile_read(ocr, boxes, tiles)
+                        return _scan_revision(candidate, ocr, observed, ["mods"], "scan_tiles")
+                    main = main_read or ocr
+                    slots = await asyncio.to_thread(
+                        lo.verify_coordinate_slots, main, equipment_read, tiles, boxes, image_url
+                    )
+                    candidate = _scan_revision(
+                        {**ocr, "_upgrade_slots": slots},
+                        ocr,
+                        observed,
+                        ["_upgrade_slots"],
+                        "scan_tiles",
+                    )
+                    if any(
+                        s["kind"] != "arcane" and s["reason"] == "capacity_unconfirmed"
+                        for s in slots
+                    ):
+                        return await self._read_slot_capacities(
+                            candidate,
+                            provider,
+                            image_url,
+                            rows,
+                            layout,
+                            melee,
+                            main,
+                            equipment_read,
+                            tiles,
+                            boxes,
+                        )
+                    return candidate
                 observed = lo.parse_vision_json(text)
                 if not observed:
                     return ocr
                 observed["_recognition"] = _scan_recognition(
                     text, observed, prompt, _prov_id(provider), "scan_tiles"
                 )
+                if melee is not None and "slots" in observed:
+                    main = copy.deepcopy(main_read or ocr)
+                    lo.observe_arcane_ranks(main, image_url)
+                    slots = lo.verify_upgrade_slots(main, observed, tiles, equipment_read)
+                    if not slots:
+                        return ocr
+                    fields = ["_upgrade_slots"]
+                    candidate = {**ocr, "_upgrade_slots": slots}
+                    return _scan_revision(candidate, ocr, observed, fields, "scan_tiles")
+                if melee is None and isinstance(observed.get("slots"), list):
+                    # 未确认武器类别时仍可用裁图补已装卡名，保留候选布局。
+                    observed["mods"] = [
+                        row
+                        for row in observed["slots"]
+                        if isinstance(row, dict)
+                        and isinstance(row.get("tile"), str)
+                        and row.get("state") == "installed"
+                    ]
                 candidate = lo.merge_tile_read(ocr, observed, tiles)
                 return _scan_revision(candidate, ocr, observed, ["mods"], "scan_tiles")
         except Exception as exc:  # noqa: BLE001 — 复读失败保留原始结果
             logger.warning("[sdjk] 配卡槽位复读失败：%s", type(exc).__name__)
+        return ocr
+
+    async def _read_slot_capacities(
+        self, ocr, provider, image_url, rows, layout, melee, main, equipment, tiles, boxes
+    ):
+        import uuid
+
+        try:
+            image, crops = await asyncio.to_thread(
+                self._equipment_tile_image, image_url, rows, layout, melee=melee, badges=True
+            )
+            prompt = lo.VISION_PROMPT
+            response = await asyncio.wait_for(
+                provider.text_chat(
+                    prompt=prompt,
+                    image_urls=[image],
+                    session_id=f"sdjk-capacity-{uuid.uuid4().hex[:8]}",
+                ),
+                timeout=60,
+            )
+            text = str(getattr(response, "completion_text", "") or "")
+            capacity_boxes = lo.coordinate_ocr_boxes(text)
+            if capacity_boxes:
+                slots = await asyncio.to_thread(
+                    lo.verify_coordinate_slots,
+                    main,
+                    equipment,
+                    tiles,
+                    boxes,
+                    image_url,
+                    capacity_boxes=capacity_boxes,
+                    capacity_tiles=crops,
+                )
+                observed = {
+                    "_recognition": _scan_recognition(
+                        text, {"boxes": capacity_boxes}, prompt, _prov_id(provider), "scan_capacity"
+                    )
+                }
+                return _scan_revision(
+                    {**ocr, "_upgrade_slots": slots},
+                    ocr,
+                    observed,
+                    ["_upgrade_slots"],
+                    "scan_capacity",
+                )
+        except Exception as exc:  # noqa: BLE001 — 数字补读失败时保留已核对的槽位
+            logger.warning("[sdjk] 配卡容量复读失败：%s", type(exc).__name__)
         return ocr
 
     @staticmethod
@@ -1150,7 +1409,11 @@ class ScanCommands:
             ms = (_t.perf_counter() - _t0) * 1000
             ocr = (lo.parse_coordinate_ocr(text) or lo.parse_vision_json(text)) if text else None
             if ocr and (ocr.get("weapon") or ocr.get("mods")):
-                ocr["_recognition"] = _scan_recognition(raw_text, ocr, prompt, pid, "scan_main")
+                recognition = _scan_recognition(raw_text, ocr, prompt, pid, "scan_main")
+                # 槽位与许可由程序创建。模型响应同名字段只留在原始观察。
+                for key in _SCAN_IMAGE_FIELDS:
+                    ocr.pop(key, None)
+                ocr["_recognition"] = recognition
                 ocr = lo.normalize_scan_structure(ocr)
                 logger.info("[sdjk] 配卡识别 %s 返回结构（%.0f ms）", pid, ms)
                 return ocr

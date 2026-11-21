@@ -270,12 +270,12 @@ _title, _lines = F.fmt_riven_analysis(
     [("crit_damage", 108.2), ("multishot", 141.7), ("toxin_damage", 98.2)],
     [("slash_damage", 99.9)],
 )
-# 2026-10-11 改版：负词条行 = 「▼切割 -99.9%　区间　幅度位　13%」（幅度位值在第 4 列）
+# 负词条与正词条共用「词条、区间、距中、区间位」，数值按负面幅度计算。
 _neg_line = next((x for x in _lines if "切割" in x and x.startswith("·")), "")
 _nc = _neg_line[2:].split("　")
 check(
     "★ -99.9 切割贴区间下限 → 幅度位 13%（不是反的 87%）",
-    _nc[2:] == ["幅度位", "13%"],
+    _nc[2] == "-7.5%" and _nc[3] == "13%",
     _neg_line,
 )
 check("不再出现方向相反的字样", _nc[3:] != ["87%"], _neg_line)
@@ -291,7 +291,7 @@ _neg_line2 = next((x for x in _l2 if "切割" in x and x.startswith("·")), "")
 _nc2 = _neg_line2[2:].split("　")
 check(
     "贴上限的负词条 → 幅度位接近 100%（正负号都验过）",
-    _nc2[2] == "幅度位" and _nc2[3].endswith("%") and 90 <= int(_nc2[3][:-1]) < 100,
+    _nc2[2] == "+9.3%" and _nc2[3].endswith("%") and 90 <= int(_nc2[3][:-1]) < 100,
     _neg_line2,
 )
 
@@ -1199,6 +1199,15 @@ check(
     all("　" not in x.split("　")[0][2:] for x in _r7.lines),
     "\n".join(_r7.lines),
 )
+
+for _alias in ("布莱顿Vandal", "Braton Vandal", "布莱顿破坏者"):
+    _variant = asyncio.run(_o7._h_disposition(_ParsedDispo(_alias), None, "pc"))
+    check(
+        f"显式变体倾向只查指定武器：{_alias}",
+        _variant.lines[0].startswith("◆ 布莱顿·破坏者：")
+        and not any("同家族" in row for row in _variant.lines),
+        repr(_variant.lines[:3]),
+    )
 
 # ---------------------------------------------------------------------------
 # ⑬ 官方名优先于别名词典（2026-10-01 报障：盗贼被认成盗贼双枪）

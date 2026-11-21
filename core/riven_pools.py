@@ -14,6 +14,7 @@ Astra 评估许可 L1）。数据表 `core/data/de/riven_pools.json` 由 `script
    —— 规则与旧证据 84% 一致，两向各约 50 条分歧（Ocucor 0% 切割能出、Phenmor 30% 穿刺不出这类），
    待服务器上对物理词条补一轮 WM 抽样后由 `survey` 纠正。
 4. **我方抽样**（`survey`）：见过 ⇒ 照列（实证压过规则，含物理三项）；没见过 ⇒ 标「?」照列，注明样本时间。
+   P4 核实的物理词条也按家族覆盖占比筛选。样本偏少的方向保留「?」。
 """
 
 from __future__ import annotations
@@ -284,6 +285,15 @@ def unconfirmed_for(cls: str, family_root: str, members: list[str]) -> set[str]:
     return {sid for sid in PHYSICAL_STATS if sid not in seen}
 
 
+def _physical_evidence(family_root: str, *, positive: bool) -> dict[str, bool]:
+    """P4 的家族物理证据，布尔值表示是否已确认资格。"""
+    from .riven_rating import _trait_catalog
+
+    audit = _trait_catalog().get("roll_pool_audit", {})
+    family = audit.get("range_evidence", {}).get(family_root.lower(), {})
+    return family.get("positive" if positive else "negative", {})
+
+
 def excluded_for(
     cls: str, family_root: str, members: list[str], *, positive: bool = True
 ) -> set[str]:
@@ -298,8 +308,8 @@ def excluded_for(
     }
     out |= physical_excluded(members, family_root)
     survey = family_entry(family_root).get("survey") or {}
-    for sid in survey.get("rollable") or []:
-        out.discard(sid)
+    out.difference_update(survey.get("rollable") or ())
+    out.difference_update(_physical_evidence(family_root, positive=positive))
     return out
 
 
@@ -331,6 +341,15 @@ def available(
         return [], set()
     excl = excluded_for(cls, family_root, members, positive=positive)
     unc = unconfirmed_for(cls, family_root, members) | survey_unseen(family_root)[0]
+    evidence = _physical_evidence(family_root, positive=positive)
+    other = _physical_evidence(family_root, positive=not positive)
+    unc.update(
+        sid
+        for direction in (evidence, other)
+        for sid, confirmed in direction.items()
+        if not confirmed
+    )
+    unc.difference_update(sid for sid, confirmed in evidence.items() if confirmed)
     pool = class_pool(cls)
     in_pool = _pool_ids(cls)
     out = []

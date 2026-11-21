@@ -686,7 +686,18 @@ async def _wiki_titles(qs):
         await probe.client.close()
 
 
-_res = _aio.run(_wiki_titles(["Balla", "仲裁", "Arbitration", "布莱顿", "花P"]))
+_alias_pages = {
+    "布莱顿 \uff30版": "Braton_Prime",
+    "布莱顿Vandal": "Braton_Vandal",
+    "棱镜 空刃": "Prisma_Skana",
+}
+_res = _aio.run(_wiki_titles(["Balla", "仲裁", "Arbitration", "布莱顿", "花P", *_alias_pages]))
+for _alias, _page in _alias_pages.items():
+    check(
+        f"wiki 变体别名直达：{_alias}",
+        "wiki.warframe.com/w/" + _page in _res[_alias][1],
+        str(_res[_alias]),
+    )
 check(
     "wiki Balla → 宝拉（Balla），不是 Ballas 的权杖",
     _res["Balla"][0] == "宝拉（Balla）",

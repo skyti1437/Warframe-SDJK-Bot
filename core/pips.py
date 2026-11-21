@@ -34,6 +34,9 @@
 
 from __future__ import annotations
 
+from collections import Counter
+from functools import lru_cache
+from itertools import product
 from typing import Optional
 
 from PIL import Image, ImageChops
@@ -1033,6 +1036,229 @@ def detect_layout(img: Image.Image, pips_rows: Optional[list] = None) -> dict:
     return result
 
 
+def upgrade_slots(image: Image.Image, rows: list, layout: dict, *, melee: bool) -> list[dict]:
+    """用两排独立的原图等级线定位升级槽，返回候选裁图及各槽自己的像素观察。"""
+    equipment = [row for row in rows if not row.get("is_inventory")]
+    regular = [
+        (index, row)
+        for index, row in enumerate(equipment)
+        if len(row.get("grid") or []) >= CARD_COLS
+        and sum(n > 0 for n in row.get("counts", [])[:CARD_COLS]) >= 2
+    ]
+    if len(regular) != 2 or any(
+        reason.endswith("_budget_exceeded")
+        for reason in layout.get("coverage", {}).get("reasons", [])
+    ):
+        return []
+    (upper_i, upper), (lower_i, lower) = regular
+    width, height = upper["image_size"]
+    grid = upper["grid"][:CARD_COLS]
+    pitch = upper["pitch_col"]
+    row_step = (sum(lower["band"]) - sum(upper["band"])) / 2
+    if (
+        (width, height) != tuple(lower["image_size"])
+        or pitch <= 0
+        or any(abs(x - y) > pitch * 0.10 for x, y in zip(grid, lower["grid"]))
+        or not 0.40 <= row_step / pitch <= 0.70
+    ):
+        return []
+    upper_y, lower_y = (sum(row["band"]) / 2 for row in (upper, lower))
+    candidates = []
+
+    def add(slot_id, kind, cx, cy, *, extents=(-0.49, -0.45, 0.49, 0.065), rank_position=None):
+        x0, y0, x1, y1 = extents
+        box = [
+            (cx + x0 * pitch) / width,
+            (cy + y0 * pitch) / height,
+            (cx + x1 * pitch) / width,
+            (cy + y1 * pitch) / height,
+        ]
+        if min(box) <= 0 or max(box) >= 1:
+            return
+        candidates.append(
+            {
+                "id": slot_id,
+                "kind": kind,
+                "box": box,
+                "zone": "equipment_candidate",
+                "extent": "upgrade_grid_crop",
+                "pips_position": rank_position,
+                "rank_center": [cx, cy],
+            }
+        )
+
+    for index, y in ((upper_i, upper_y), (lower_i, lower_y)):
+        row_number = 1 if index == upper_i else 2
+        for column, x in enumerate(grid, 1):
+            add(f"mod-{row_number}-{column}", "regular", x, y, rank_position=[index, column - 1])
+
+    side_x = grid[-1] + pitch
+    if melee:
+        special_y = upper_y - row_step
+        add("stance", "stance", grid[1], special_y)
+        add("exilus", "exilus", grid[2], special_y)
+        add("arcane", "arcane", side_x, special_y, extents=(-0.43, -0.48, 0.50, 0.12))
+    else:
+        add("exilus", "exilus", side_x, (upper_y + lower_y) / 2)
+        add("arcane", "arcane", side_x, upper_y, extents=(-0.44, -0.68, 0.44, -0.17))
+
+    # 架势、扩展槽可能独占一排。从原图中的该槽局部重新找等级线，
+    # 避免用普通四列的豆数替代，也避开全图行峰值对小图单槽的压制。
+    rgb = image.convert("RGB")
+    mask = lit_mask(rgb.resize((width, height), Image.Resampling.LANCZOS))
+    hsv = rgb.convert("HSV")
+    gray = rgb.convert("L")
+    for slot in candidates:
+        bounds = [round(n * size) for n, size in zip(slot["box"], image.size * 2)]
+        slot["source_bounds"] = bounds
+        slot["source_size"] = image.size
+        if slot["kind"] == "arcane":
+            slot.pop("rank_center")
+            if _has_padlock(gray.crop(bounds), "arcane"):
+                slot["visual_mark"] = "padlock"
+            continue
+        slot["capacity_badge"] = _slot_capacity_badge(hsv, slot["box"])
+        cx, cy = slot.pop("rank_center")
+        position = slot["pips_position"]
+        if position:
+            row = equipment[position[0]]
+            col = position[1]
+            slot["rank_observation"] = {"count": row["counts"][col], "maxed": row["maxed"][col]}
+            if (
+                not row["counts"][col]
+                and not row["maxed"][col]
+                and not slot["capacity_badge"]["color"]
+            ):
+                if _has_empty_badge(gray.crop(slot["capacity_badge"]["bounds"])):
+                    slot["visual_mark"] = "empty_frame"
+            continue
+        left, right = round(cx - pitch * 0.46), round(cx + pitch * 0.46)
+        crop = mask.crop((left, round(cy - pitch * 0.09), right, round(cy + pitch * 0.08)))
+        cw, ch = crop.size
+        pixels = crop.tobytes()
+        signals = []
+        for top, bottom in _find_bands(
+            [pixels[y * cw : (y + 1) * cw].count(255) for y in range(ch)]
+        ):
+            thick = _col_thickness(crop, top, min(ch, bottom + 1))
+            span = upper["card_w"]
+            count, _ = _count_in_cell(thick, cw / 2, span, cw)
+            ink, _, full = _cell_ink(thick, cw / 2, span, cw)
+            if count > 0 and (full or ink >= 0.18):
+                signals.append({"count": count, "maxed": full})
+        if len(signals) == 1:
+            slot["rank_observation"] = signals[0]
+        elif slot["kind"] == "exilus" and not slot["capacity_badge"]["color"]:
+            if _has_padlock(gray.crop(bounds), "exilus"):
+                slot["visual_mark"] = "padlock"
+    return candidates
+
+
+def _has_empty_badge(badge: Image.Image) -> bool:
+    """有边框和右侧极性图形，数字窗口无可见笔画。无图标的暗块留未知。"""
+    if min(badge.size) < 9:
+        return False
+    px = badge.resize((30, 24), Image.Resampling.BILINEAR).load()
+
+    def peak(x0, y0, x1, y1):
+        return max(px[x, y] for x in range(x0, x1) for y in range(y0, y1))
+
+    number = peak(12, 7, 20, 16)
+    return (
+        number <= 84
+        and peak(22, 5, 29, 13) >= number + 38
+        and peak(4, 8, 10, 16) >= number + 16
+        and peak(13, 1, 26, 5) >= number + 20
+    )
+
+
+@lru_cache(maxsize=1)
+def _padlock_mask():
+    from PIL import ImageDraw
+
+    icon = Image.new("L", (64, 64))
+    d = ImageDraw.Draw(icon)
+    d.rounded_rectangle((16, 3, 48, 35), radius=15, fill=255)
+    d.rounded_rectangle((22, 9, 42, 32), radius=10, fill=0)
+    d.rounded_rectangle((10, 26, 54, 59), radius=10, fill=255)
+    d.ellipse((26, 34, 38, 46), fill=0)
+    d.rectangle((29, 43, 35, 51), fill=0)
+    mask = icon.resize((26, 32), Image.Resampling.LANCZOS).get_flattened_data()
+    ink = tuple(i for i, v in enumerate(mask) if v >= 235)
+    background = tuple(i for i, v in enumerate(mask) if v <= 20)
+    shackle = tuple(i for i in background if 8 <= i // 26 <= 12 and 11 <= i % 26 <= 14)
+    keyhole = tuple(i for i in background if 20 <= i // 26 <= 24 and 11 <= i % 26 <= 14)
+    return ink, background, shackle, keyhole
+
+
+def _has_padlock(tile: Image.Image, kind: str) -> bool:
+    """以锁身、锁梁孔和钥匙孔的局部对比确认锁标，位置随槽型变化。"""
+    if tile.height < 45:
+        return False
+    height = 105
+    width = round(tile.width * height / tile.height)
+    tile = tile.resize((width, height), Image.Resampling.LANCZOS)
+    if kind == "exilus":
+        positions = product(range(5, 15, 1), range(7, 21, 2), (6, 7, 8, 9, 10, 11))
+    else:
+        positions = product(range(38, 57, 2), range(11, 33, 2), (8, 10, 12, 14, 16, 18))
+    ink, background, shackle, keyhole = _padlock_mask()
+    for px, py, scale in positions:
+        x, y = round(width * px / 100), round(height * py / 100)
+        w = round(width * scale / 100)
+        h = round(w * 1.12)
+        pixels = (
+            tile.crop((x, y, x + w, y + h))
+            .resize((26, 32), Image.Resampling.BILINEAR)
+            .get_flattened_data()
+        )
+        foreground = sum(pixels[i] for i in ink) / len(ink)
+        edge = foreground - sum(pixels[i] for i in background) / len(background)
+        if edge < 16:
+            continue
+        if any(
+            foreground - sum(pixels[i] for i in hole) / len(hole) < 17
+            for hole in (shackle, keyhole)
+        ):
+            continue
+        mean = sum(pixels) / len(pixels)
+        spread = (sum((p - mean) ** 2 for p in pixels) / len(pixels)) ** 0.5
+        if edge >= 1.15 * spread:
+            return True
+    return False
+
+
+def _slot_capacity_badge(hsv: Image.Image, box: list[float]) -> dict:
+    """读卡框内右上角的数字区。铜色和白色同属未调整容量的底色。"""
+    x0, y0, x1, y1 = box
+    w, h = x1 - x0, y1 - y0
+    bounds = [
+        round((x0 + w * 0.77) * hsv.width),
+        round((y0 + h * 0.10) * hsv.height),
+        round((x0 + w * 0.89) * hsv.width),
+        round((y0 + h * 0.36) * hsv.height),
+    ]
+    counts: Counter = Counter()
+    crop = hsv.crop(bounds)
+    for hue, saturation, value in crop.getdata():
+        if (hue <= 8 or hue >= 248) and saturation >= 150 and value >= 115:
+            counts["红"] += 1
+        elif 40 <= hue <= 115 and saturation >= 100 and value >= 150:
+            counts["绿"] += 1
+        elif (saturation <= 55 and value >= 205) or (
+            9 <= hue <= 25 and 65 <= saturation <= 150 and value >= 155
+        ):
+            counts["白"] += 1
+    color, n = max(counts.items(), key=lambda item: item[1], default=(None, 0))
+    if counts["绿"] >= max(5, counts["红"] * 2, counts["白"] * 0.3):
+        return {"color": "绿", "counts": dict(counts), "bounds": bounds}
+    if counts["红"] >= max(5, counts["绿"] * 2, counts["白"] * 0.3):
+        return {"color": "红", "counts": dict(counts), "bounds": bounds}
+    if n < max(5, crop.width * crop.height * 0.025) or n < (sum(counts.values()) - n) * 1.15:
+        color = None
+    return {"color": color, "counts": dict(counts), "bounds": bounds}
+
+
 def count_arcane_rank(image: Image.Image, name_box: dict) -> dict:
     """在实际赋能名称框下读取五个菱形的中心，轮廓不算点亮。"""
     from PIL import ImageFilter
@@ -1128,13 +1354,25 @@ def count_arcane_rank(image: Image.Image, name_box: dict) -> dict:
     if any(0.2 < value < 0.65 for value in fills):
         result["reason"] = "diamond_center_ambiguous"
         return result
-    result.update(rank=sum(value >= 0.65 for value in fills), reason="resolved")
+    # 低像素菱形的空心轮廓可能挤进中心取样区。保留观察，等待更清晰的原图。
+    if min(heights) < 12:
+        result["reason"] = "diamonds_too_small"
+        return result
+    rank = sum(value >= 0.65 for value in fills)
+    if [value >= 0.65 for value in fills] != [index < rank for index in range(5)]:
+        result["reason"] = "diamond_fill_sequence"
+        return result
+    result.update(rank=rank, reason="resolved")
     return result
 
 
-def equipment_tiles(image: Image.Image, rows: list, layout: dict) -> tuple:
+def equipment_tiles(
+    image: Image.Image, rows: list, layout: dict, *, melee: Optional[bool] = None, badges=False
+) -> tuple:
     """由实际等级网格/侧槽生成独立裁图；不读取卡名、容量或测试答案。"""
-    from PIL import ImageDraw, ImageFont
+    if melee is not None:
+        candidates = upgrade_slots(image, rows, layout, melee=melee)
+        return _render_slot_tiles(image, candidates, badges=badges)
 
     candidates = []
     for ri, row in enumerate(r for r in rows if not r.get("is_inventory")):
@@ -1179,27 +1417,35 @@ def equipment_tiles(image: Image.Image, rows: list, layout: dict) -> tuple:
                 "kind": "special_candidate",
             }
         )
+    candidates.sort(key=lambda c: (round(c["box"][1], 2), c["box"][0]))
+    return _render_slot_tiles(image, candidates)
+
+
+def _render_slot_tiles(image: Image.Image, candidates: list[dict], *, badges=False) -> tuple:
+    from PIL import ImageDraw, ImageFont
+
     if not candidates or len(candidates) > 16:
         return None, []
-    candidates.sort(key=lambda c: (round(c["box"][1], 2), c["box"][0]))
-    tile_w, tile_h, header, gap, columns = 440, 250, 28, 10, 4
+    cell_w, cell_h = (185, 142) if badges else (470, 248)
+    header, columns = 32, 3
     sheet = Image.new(
         "RGB",
         (
-            columns * (tile_w + gap),
-            ((len(candidates) + columns - 1) // columns) * (tile_h + header + gap),
+            columns * cell_w,
+            ((len(candidates) + columns - 1) // columns) * cell_h,
         ),
-        (15, 15, 15),
+        (12, 12, 12),
     )
     draw = ImageDraw.Draw(sheet)
     try:
-        font = ImageFont.load_default(size=22)
+        font = ImageFont.load_default(size=24)
     except TypeError:  # Pillow < 10.1
         font = ImageFont.load_default()
-    width, height = image.size
+    rgb = image.convert("RGB")
+    width, height = rgb.size
     for index, tile in enumerate(candidates):
         tile.update(
-            id=f"tile-{index + 1}",
+            id=tile.get("id", f"tile-{index + 1}"),
             label=f"T{index + 1}",
             zone="equipment_candidate",
             content_state="crop_observation",
@@ -1212,15 +1458,24 @@ def equipment_tiles(image: Image.Image, rows: list, layout: dict) -> tuple:
             round(right * width),
             round(bottom * height),
         ]
-        crop = image.convert("RGB").crop(bounds)
-        crop.thumbnail((tile_w, tile_h), Image.Resampling.LANCZOS)
+        badge = tile.get("capacity_badge", {})
+        ranks = tile.get("rank_observation", {})
+        digit_crop = bool(badges and badge and (badge.get("color") or ranks.get("count")))
+        source = badge["bounds"] if digit_crop else bounds
+        crop = rgb.crop(source)
         # 放大小图只提升可读性，不生成新文字。统一缩放，每个模型收到同一张拼图。
-        scale = min(tile_w / crop.width, tile_h / crop.height)
+        scale = min((cell_w - 42) / crop.width, (cell_h - 42) / crop.height)
         crop = crop.resize(
             (round(crop.width * scale), round(crop.height * scale)), Image.Resampling.LANCZOS
         )
-        x, y = (index % columns) * (tile_w + gap), (index // columns) * (tile_h + header + gap)
-        draw.text((x + 4, y + 1), tile["label"], font=font, fill="white")
-        sheet.paste(crop, (x, y + header))
+        x, y = (index % columns) * cell_w, (index // columns) * cell_h
+        draw.text((x + 18, y + 3), tile["label"], font=font, fill="white")
+        x, y = x + (cell_w - crop.width) // 2, y + header
+        sheet.paste(crop, (x, y))
         tile["source_bounds"] = bounds
+        tile["observation_bounds"] = source
+        tile["source_size"] = image.size
+        tile["sheet_size"] = sheet.size
+        tile["sheet_box"] = [x, y, x + crop.width, y + crop.height]
+        tile["digit_crop"] = digit_crop
     return sheet, candidates

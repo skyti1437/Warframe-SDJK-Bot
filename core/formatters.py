@@ -18,7 +18,11 @@ from . import i18n
 from . import tents as _tents
 from .de_worldstate import (
     DESCENT_GOAL_CAVEAT as _DESCENT_GOAL_CAVEAT,
+)
+from .de_worldstate import (
     DESCENT_TYPE_NO_KEY as _DT_NO_KEY,
+)
+from .de_worldstate import (
     descent_goal_zh,
     descent_type_zh,
     faction_name,
@@ -4259,6 +4263,20 @@ def _strip_common_prefix(names: list[str]) -> list[str]:
     return [" ".join(t[k:]) for t in toks]
 
 
+def dps_removal_label(full, without, *, decimals: int = 0) -> str:
+    """格式化同一工况下拆掉单张 MOD 后的 DPS 和相对变化。"""
+    if without is None:
+        return "⟦n⟧—⟦/n⟧"
+    dps = f"{without:,.{decimals}f}"
+    if not full:
+        return dps
+    change = round((without / full - 1) * 100, 1)
+    if not change:
+        return f"{dps} · ⟦n⟧0.0%⟦/n⟧"
+    color = "m" if change < 0 else "y"
+    return f"{dps} · ⟦{color}⟧{change:+.1f}%⟦/{color}⟧"
+
+
 def limit_notes(lines: list[str], limit: int = 3) -> list[str]:
     """把卡内所有「※ 注脚」收口到卡尾，且最多 ``limit`` 行（多出的并进最后一行，用「；」连接）。
 
@@ -6225,6 +6243,7 @@ def fmt_riven_ranges(
     only: Optional[list[str]] = None,
     dropped: Optional[list[str]] = None,
     survey: Optional[dict] = None,
+    negative_unconfirmed: Optional[set[str]] = None,
     stat_multipliers: Optional[dict] = None,
 ) -> tuple[str, list[str]]:
     """「词条范围」卡：按武器列出紫卡每条词条在**四种组合**下的卡面取值区间。
@@ -6245,6 +6264,7 @@ def fmt_riven_ranges(
         combo: 用户指定（或默认）的 ``(正词条数, 负词条数)``。
         pos / spliced / neg: 三段各自的词条 id（已按武器过滤）。
         unconfirmed: 物理「未确认」词条 id（卡上标「?」）。
+        negative_unconfirmed: 负面单独的未确认集合，省略时沿用 unconfirmed。
         only: 用户显式点名的词条（非空时卡上注明已过滤）。
         dropped: 用户点名了、但该武器刷不出（或被过滤掉）的词条展示名。
     """
@@ -6265,6 +6285,7 @@ def fmt_riven_ranges(
             return "—"
         return _riven_range_text(RA, sid, lo, hi, negative=negative)
 
+    neg_unc = unconfirmed if negative_unconfirmed is None else negative_unconfirmed
     lines: list[str] = []
     for label, sids, is_neg in (
         (L("正面", "Positive"), pos, False),
@@ -6289,7 +6310,9 @@ def fmt_riven_ranges(
             if lo is None:
                 continue
             # 未确认的物理词条：名字照普通色，只把「?」压暗（⟦n⟧ = INK_DIM）
-            zh = _stat_name(sid, cls) + ("⟦n⟧?⟦/n⟧" if sid in unconfirmed else "")
+            zh = _stat_name(sid, cls) + (
+                "⟦n⟧?⟦/n⟧" if sid in (neg_unc if is_neg else unconfirmed) else ""
+            )
             rows.append([zh] + [_cell(sid, c, negative=is_neg) for c in sec])
         if not rows:
             continue
@@ -6343,14 +6366,13 @@ def fmt_riven_ranges(
                 "※ A riven can have at most 1 spliced stat (Update 44 Riven Splicer)",
             )
         )
-    _shown = set(pos) | set(spliced) | set(neg)
-    _unseen = set((survey or {}).get("unseen") or ()) & _shown
-    if (unconfirmed - _unseen) & _shown:
+    shown_unc = (unconfirmed & (set(pos) | set(spliced))) | (neg_unc & set(neg))
+    _unseen = set((survey or {}).get("unseen") or ()) & shown_unc
+    if shown_unc - _unseen:
         lines.append(
             L(
-                "※ 带 ? 的物理伤害词条：这把武器（Zaw / 组合枪等）不能按「占比 ≤25% 洗不出」判断，按「未确认」照列",
-                '※ Physical damage stats marked ?: the "25% share" rule does not apply to this weapon '
-                '(Zaw / Kitgun etc.); listed as "unconfirmed"',
+                "※ 带 ? 的物理伤害词条资格待确认，当前证据不足。",
+                "※ Physical damage stats marked ? have limited evidence and remain unconfirmed.",
             )
         )
     if _unseen:
@@ -6520,17 +6542,11 @@ def fmt_riven_analysis(
                 )
             )
             continue
-        pos_pct = RA.range_position(v, lo, hi)
-        # ★ 2026-09-24 玩家报障（红框）：负词条这里原写 100-pos_pct，方向反了——
-        #   数值贴近下限（负得很浅）反而显示「幅度位 87%」（=负得很满），
-        #   把浅负当深负卖。区间位本身就是「幅度接近上限的程度」，
-        #   直接用 pos_pct：0%=最浅、100%=最满。
-        lines.append(
-            "· "
-            + "　".join(
-                [_head, _range_txt(RA, sid, lo, hi), L("幅度位", "Magnitude"), f"{pos_pct}%"]
-            )
-        )
+        dev = RA.deviation_pct(v, lo, hi)
+        position = f"{RA.range_position(v, lo, hi)}%"
+        # 负词条的区间和数值在这里均为幅度。距中、区间位沿用同一方向。
+        deviation = f"{dev:+.1f}%" if dev else "0.0%"
+        lines.append("· " + "　".join([_head, _range_txt(RA, sid, lo, hi), deviation, position]))
     for _ in range(hidden):
         lines.append(
             L(
@@ -6562,14 +6578,14 @@ def fmt_riven_analysis(
     # 注脚压到每类一行（手机上整段注释曾占 5–6 行）；详细机制在「紫卡融合」卡与帮助里
     lines.append(
         L(
-            "※ 距中为正 = 高卷；负词条看幅度位，幅度越大越友好；"
+            "※ 距中为正 = 高卷；负词条按幅度算距中和幅度位，幅度越大越友好；"
             "区间 = DE 基值 × 倾向 × 词条数系数 × 0.9~1.1",
-            "※ Positive Vs Mid = high roll; for negative stats look at Magnitude (bigger is friendlier); "
+            "※ Positive Vs Mid = high roll; for negative stats both columns measure magnitude; "
             "Range = DE base × disposition × stat-count factor × 0.9~1.1",
         )
     )
     lines += notes
-    return (L("紫卡分析", "Riven Analysis"), lines)
+    return L("紫卡分析", "Riven Analysis"), lines
 
 
 # 融合建议阻断原因 → 卡面短句（键与 RA.splice_preview 的 reasons 一致）

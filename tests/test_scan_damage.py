@@ -21,12 +21,14 @@ import sys
 import time
 import types
 from pathlib import Path
-from unittest.mock import patch
+from tempfile import TemporaryDirectory
+from unittest.mock import AsyncMock, patch
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from core import damage_calc as dc  # noqa: E402
+from core import damage_engine as de  # noqa: E402
 from core import loadout_ocr as lo  # noqa: E402
 from core.commands.scan import ScanCommands  # noqa: E402
 from core.commands.vision import VisionCommands  # noqa: E402
@@ -166,10 +168,6 @@ class _ScanHost(ScanCommands, VisionCommands):
     @staticmethod
     def _event_has_image(event):
         return True
-
-    @staticmethod
-    def _vision_gate(event, _name, *, task="scan"):
-        return None, event.sender
 
     @staticmethod
     async def _image_data_urls(event):
@@ -499,6 +497,243 @@ async def _entry_checks():
 
 
 asyncio.run(_entry_checks())
+
+
+async def _engine_checks():
+    print("⑪ 独立引擎：从同一快照传原等级，故障不串入内置估算")
+    host = _BusinessScanHost("lazy")
+    now = time.time()
+    cached = copy.deepcopy(_c_mel)
+    cached["mods"] = [
+        {"name": "Sacrificial Steel", "rank": 7, "max_rank": 10},
+        {"name": "North Wind", "rank": 1, "max_rank": 5},
+        {"name": "Enduring Affliction", "rank": 0, "max_rank": 5},
+    ]
+    cached["arcanes"] = [{"name": "Melee Exposure", "zh": "近战·暴露", "rank": 2}]
+    cached["loadout_slots"] = [{"kind": "arcane", "state": "installed", "rank": 2}]
+    event = _event()
+    host._last_scan = {(event.unified_msg_origin, event.sender): (now, _w_mel, cached)}
+    host.cfg["damage_engine_mode"] = "simulation"
+    response = {"ok": True, "dps": 125.0, "kills": 1.0}
+    with patch.object(de, "_request", AsyncMock(return_value=response)) as send:
+        reply = await _damage(host, "识卡伤害 对 重机枪手 150级")
+        args = send.await_args.args
+        check("复算调用模拟服务", args[1] == "/api/simulate")
+        check(
+            "MOD 7、1、0 级逐张传入",
+            args[2]["mods"]
+            == [
+                "sacrificial_steel@7",
+                "north_wind@1",
+                "enduring_affliction@0",
+            ],
+        )
+        check(
+            "赋能使用原等级和规范 ID",
+            args[2]["arcane_rank"] == [2] and args[2]["arcane"] == ["melee_exposure"],
+        )
+        check(
+            "模拟显示实用后端和指定目标",
+            any("完整模拟" in ln for ln in reply.lines) and any("150" in ln for ln in reply.lines),
+        )
+        status = cached["loadout_slots"][0]
+        status.update(rank=None, name="近战·暴露")
+        cached["arcanes"] = []
+        reply = await _damage(host)
+        args = send.await_args.args
+        check(
+            "未知赋能等级不发到上游的满级兜底", not args[2]["arcane"] and not args[2]["arcane_rank"]
+        )
+        check("未知赋能写在回执", any("等级未知" in ln for ln in reply.lines))
+    with (
+        patch.object(de, "_request", AsyncMock(side_effect=de.EngineError("服务超时"))),
+        patch.object(dc, "calculate", wraps=dc.calculate) as builtin,
+    ):
+        failed = await _damage(host)
+        check("完整模拟不可用时明确提示", any("服务超时" in ln for ln in failed.lines))
+        check("完整模拟故障不调用内置", builtin.call_count == 0)
+    host.cfg["damage_engine_mode"] = "builtin"
+    host._last_scan[(event.unified_msg_origin, event.sender)] = (now, _w_mel, _c_mel)
+    with patch.object(de, "_request", AsyncMock()) as send:
+        estimate = await _damage(host)
+        check(
+            "切回内置立刻生效",
+            any("内置估算" in ln for ln in estimate.lines) and send.await_count == 0,
+        )
+
+
+asyncio.run(_engine_checks())
+
+
+async def _engine_queue_checks():
+    print("⑫ 完整模拟队列：单路、排位、满载、取消和失败收尾")
+    host = _BusinessScanHost("lazy")
+    host.cfg["damage_engine_mode"] = "simulation"
+    levels = list(range(100, 106))
+    arrivals, notes = [], {}
+    started = {level: asyncio.Event() for level in levels}
+    finished = {level: asyncio.Event() for level in levels}
+    notified = {level: asyncio.Event() for level in levels}
+    host._last_scan = {("qq_official:GroupMessage:group", "u1"): (time.time(), _w_mel, _c_mel)}
+
+    def event_for(level):
+        async def send(text):
+            notes[level] = text
+            notified[level].set()
+
+        event = _event()
+        event.send, event.plain_result = send, lambda text: text
+        return event
+
+    async def request(cfg, path, body, *, timeout):
+        assert path == "/api/simulate" and timeout == 32
+        level = body["level"]
+        arrivals.append(level)
+        started[level].set()
+        await finished[level].wait()
+        if level == 103:
+            raise de.EngineError("测试失败")
+        return {"ok": True, "dps": 125.0, "kills": 1.0}
+
+    with TemporaryDirectory() as tmp, patch.object(de, "_request", request):
+        host.damage_engine = de.EngineService(Path(tmp))
+        jobs = {
+            level: asyncio.create_task(
+                _damage(host, f"识卡伤害 对 重机枪手 {level}级", event_for(level))
+            )
+            for level in levels
+        }
+        try:
+            for level in levels[1:5]:
+                await asyncio.wait_for(notified[level].wait(), 2)
+            check(
+                "忙时即时回复等待排位，四条排队且首条直接开始",
+                arrivals == [100]
+                and all(f"第 {level - 100} 位" in notes[level] for level in levels[1:5])
+                and 100 not in notes,
+            )
+            busy = await asyncio.wait_for(jobs[105], 2)
+            check("第五条等待请求收到队列已满", any("排队已满" in line for line in busy.lines))
+            jobs[102].cancel()
+            await asyncio.gather(jobs[102], return_exceptions=True)
+            jobs[100].cancel()
+            await asyncio.sleep(0)
+            jobs[100].cancel()
+            await asyncio.sleep(0)
+            check("运行请求取消仍等到引擎收尾", arrivals == [100] and not jobs[100].done())
+            finished[100].set()
+            for level in (101, 103, 104):
+                await asyncio.wait_for(started[level].wait(), 2)
+                finished[level].set()
+                reply = await asyncio.wait_for(jobs[level], 2)
+                expected = "测试失败" if level == 103 else "平均 DPS"
+                check(f"{level} 级的等待任务自动返回", any(expected in ln for ln in reply.lines))
+            check("先到先算且取消的等待请求没有调用引擎", arrivals == [100, 101, 103, 104])
+        finally:
+            for done in finished.values():
+                done.set()
+            for job in jobs.values():
+                job.cancel()
+            await asyncio.gather(*jobs.values(), return_exceptions=True)
+            await host.damage_engine.close()
+
+
+asyncio.run(_engine_queue_checks())
+
+
+def _confirmed_dps_scan_fixture():
+    names = [("膛线", 4), ("地狱火", 6), ("低温弹头", 6), ("弹匣增幅", 4)]
+    fields = {
+        "weapon": "卡拉克",
+        "capacity": "40/60",
+        "mods": [{"name": name, "drain": drain} for name, drain in names],
+    }
+    tiles, reads = [], []
+    for index, slot_id in enumerate(
+        [f"mod-{row}-{col}" for row in (1, 2) for col in range(1, 5)] + ["exilus", "arcane"]
+    ):
+        label = f"T{index + 1}"
+        kind = "regular" if slot_id.startswith("mod-") else slot_id
+        x, y = 0.30 + index % 4 * 0.12, 0.35 + index // 4 * 0.20
+        tile = {"id": slot_id, "label": label, "kind": kind, "box": [x, y, x + 0.1, y + 0.1]}
+        if index < len(names):
+            name, drain = names[index]
+            tiles.append(
+                {
+                    **tile,
+                    "rank_observation": {"count": 0, "maxed": False},
+                    "capacity_badge": {"color": "白"},
+                }
+            )
+            reads.append({"tile": label, "state": "installed", "name": name, "drain": drain})
+        else:
+            tiles.append(tile)
+            state, mark = ("empty", "empty_frame") if kind == "regular" else ("locked", "padlock")
+            reads.append({"tile": label, "state": state, "mark": mark})
+    fields["_upgrade_slots"] = lo.verify_upgrade_slots(fields, {"slots": reads}, tiles, None)
+    return fields
+
+
+async def _dps_comparison_checks():
+    print("⑬ 识卡首图：已确认配装逐张复算，同工况与同指标")
+    host = _ScanHost("lazy")
+    host.cfg["damage_engine_mode"] = "simulation"
+    host.ocr = _confirmed_dps_scan_fixture()
+    with (
+        patch.object(dc, "calculate", wraps=dc.calculate) as calculate,
+        patch.object(de, "_request", AsyncMock()) as remote,
+    ):
+        reply = await _scan(host)
+        cached = next(iter(host._last_scan.values()))[2]
+        calls = [call.args[0] for call in calculate.call_args_list]
+        check(
+            "完整模拟启用时首图照样用内置估算且不请求模拟服务",
+            len(calls) == 4
+            and remote.await_count == 0
+            and all(
+                s["level"] == 100 and s["faction"] == "Grineer" and not s["headshot"] for s in calls
+            ),
+        )
+        check(
+            "仅拆下该槽 MOD，保留其他等级并重新组合元素",
+            [(s["base_dmg"], s["singles"]) for s in calls]
+            == [
+                (15, {"heat": 15, "cold": 15}),
+                (0, {"heat": 15, "cold": 15}),
+                (15, {"cold": 15}),
+                (15, {"heat": 15}),
+            ]
+            and cached["base_dmg"] == 15
+            and cached["loadout_slots"][0]["rank"] == 0,
+        )
+    serration = next((ln for ln in reply.lines if ln.startswith("· 膛线　")), "")
+    check(
+        "整套 DPS 和拆卡下降百分比回图",
+        any("整套实战 DPS" in ln for ln in reply.lines)
+        and any("拆下后 DPS / 变化" in ln for ln in reply.lines)
+        and "0/10" in serration
+        and "⟦m⟧-" in serration,
+        serration,
+    )
+    check(
+        "未建模的弹匣加成显示横线，复算入口保留",
+        any(ln.startswith("· 弹匣增幅　") and ln.endswith("⟦n⟧—⟦/n⟧") for ln in reply.lines)
+        and bool(reply.actions),
+    )
+
+    host.ocr["capacity"] = "41/60"
+    with patch.object(dc, "calculate", wraps=dc.calculate) as calculate:
+        reply = await _scan(host)
+    check(
+        "容量冲突时保留识卡，首图无 DPS 变化且不计算",
+        any("膛线" in ln for ln in reply.lines)
+        and not any("拆下后 DPS" in ln for ln in reply.lines)
+        and not reply.actions
+        and calculate.call_count == 0,
+    )
+
+
+asyncio.run(_dps_comparison_checks())
 
 print()
 if FAILED:

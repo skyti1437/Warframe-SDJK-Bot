@@ -53,7 +53,7 @@ TASKS = {
     },
     "scan_tiles": {
         "label": "识卡槽位复读",
-        "contract": "输出mods数组，每项包含tile区域编号、name卡面原名、drain容量数字、color数字颜色；空槽名称为null，不输出等级或推算值。",
+        "contract": "逐行输出卡名和容量数字的归一化坐标，保留坐标与原文。兼容已有含逐槽状态的slots JSON。不输出等级或推算值。",
     },
     "scan_arcanes": {
         "label": "识卡赋能",

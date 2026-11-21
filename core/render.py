@@ -1252,6 +1252,7 @@ TITLE_THEME: list[tuple[tuple[str, ...], tuple[tuple[int, int, int], str]]] = [
     (("赏金",), (AMBER, "SYNDICATE BOUNTIES")),
     (("结合",), (CYAN, "SIMARIS TARGETS")),
     (("舰队", "建造"), (GOLD, "CONSTRUCTION")),
+    (("词条推荐",), (GOLD, "RIVEN TRAITS")),
     (("紫卡",), (GOLD, "RIVEN AUCTIONS")),
     (("在售", "收购", "合购"), (CYAN, "WARFRAME.MARKET")),
     (("垃圾", "杜卡德"), (GOLD, "DUCAT DIRECTORY")),
@@ -1867,6 +1868,7 @@ _TABLE_TITLE_PATTERNS = (
     "结合仪式目标",  # 2026-09-27：名称/节点/类型（派系）三列
     "词条范围",  # 2026-10-23：紫卡词条范围卡「词条　区间」两列对齐
     "紫卡融合",  # 2026-10-24：融合词条 / 原词条一 / 原词条二 三列
+    "配卡推荐 · ",  # 槽位、MOD、等级、容量和收益
 )
 
 
@@ -1887,6 +1889,7 @@ _TABLE_TITLE_PATTERNS_EN = (
     "synthesis targets",
     "stat ranges",
     "riven splic",
+    "build recommendations · ",
 )
 
 
@@ -2067,6 +2070,7 @@ _THEME_EN: list[tuple[tuple[str, ...], str]] = [
     (("bount",), "SYNDICATE BOUNTIES"),
     (("synthesis",), "SIMARIS TARGETS"),
     (("fleet", "construction"), "CONSTRUCTION"),
+    (("riven reroll suggestions",), "RIVEN TRAITS"),
     (("riven",), "RIVEN AUCTIONS"),
     (("for sale", "buying", "sellers", "buyers", "orders"), "WARFRAME.MARKET"),
     (("ducat",), "DUCAT DIRECTORY"),
@@ -2597,7 +2601,12 @@ class ImageRenderer:
             _n = max(len(c) for c, _ in grid_rows)
             _cw = [
                 max(
-                    (_tlen(measure, body_font, c[i]) for c, _ in grid_rows if len(c) > i), default=0
+                    (
+                        _tlen(measure, body_font, _SEG_MARK_RE.sub("", c[i]))
+                        for c, _ in grid_rows
+                        if len(c) > i
+                    ),
+                    default=0,
                 )
                 / SS
                 for i in range(_n)

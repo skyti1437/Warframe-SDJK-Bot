@@ -82,6 +82,8 @@ try:  # 允许脱离 AstrBot 直接跑单元测试
     from .core.vision_prompts import VisionPromptStore
     from .core.local_ocr import LocalRivenOCR
     from .core.local_ocr_install import LocalOCRInstaller
+    from .core.damage_engine import EngineService
+    from .core.riven_sale import RivenSaleSource
     from .core.webpanel import WebPanel
 except ImportError as _imp_err:  # pragma: no cover
     # ★ 2026-09-25 事故修正：**只在确实不是包上下文时**才回退到绝对导入
@@ -139,6 +141,8 @@ except ImportError as _imp_err:  # pragma: no cover
     from core.vision_prompts import VisionPromptStore
     from core.local_ocr import LocalRivenOCR
     from core.local_ocr_install import LocalOCRInstaller
+    from core.damage_engine import EngineService
+    from core.riven_sale import RivenSaleSource
     from core.webpanel import WebPanel
 
 
@@ -398,6 +402,7 @@ HELP_TOPIC: dict[str, list[tuple[str, str]]] = {
             "词条区间与距中、融合建议、同词条挂单价（负词条加「负」；也可直接发紫卡截图）",
         ),
         ("词条范围 武器名 [3+1-]", "该武器能刷出的词条区间（2+1 = 2+1-；可点名词条 / 切组合）"),
+        ("词条推荐 武器名 [模式]", "查看洗卡词条建议与出售参考"),
         ("紫卡融合 [武器/词条]", "融合词条由哪两条原词条拼成（也认 紫卡拼接 / 融合词条）"),
     ],
     "周期与日常": [
@@ -438,6 +443,7 @@ HELP_TOPIC: dict[str, list[tuple[str, str]]] = {
     "伤害与配卡": [
         ("识卡 + 截图", "读配卡界面并校验面板"),
         ("识卡伤害 对 敌人 等级", "复用识卡结果复算"),
+        ("配卡推荐 武器名 [模式]", "无紫卡通用配装｜也可直接附紫卡图，按实卡推荐"),
         ("武器融合 / 玄骸 / xh", "效价融合｜玄骸拍卖"),
     ],
     "资料与推送": [
@@ -492,6 +498,7 @@ HELP_TOPIC_EN: dict[str, list[tuple[str, str]]] = {
             "rrange <weapon> [3+1-]",
             "Stat ranges a weapon can roll (pick stats or switch combos)",
         ),
+        ("riventraits <weapon> [mode]", "Reroll suggestions and selling reference"),
         ("splice [weapon/stat]", "Which two stats a spliced stat comes from"),
     ],
     "Cycles and Daily": [
@@ -544,6 +551,10 @@ HELP_TOPIC_EN: dict[str, list[tuple[str, str]]] = {
     "Damage and Builds": [
         ("scan + screenshot", "Read a build screen and verify the panel"),
         ("scandmg vs <enemy> <level>", "Recalculate from the last scan"),
+        (
+            "loadoutrecommend <weapon> [mode]",
+            "No-Riven reference build | Attach a Riven screenshot to build around your card",
+        ),
         ("valence / xh", "Valence Fusion | Kuva / Tenet weapon auctions"),
     ],
     "Info and Push": [
@@ -622,6 +633,8 @@ class WarframeSDJK(
         # 构造仅建立管理器；默认关闭，不装包、不下载、不加载权重。
         self.local_ocr = LocalRivenOCR(data_dir, Path(__file__).resolve().parent)
         self.local_ocr_installer = LocalOCRInstaller(data_dir, Path(__file__).resolve().parent)
+        self.damage_engine = EngineService(data_dir)
+        self.riven_sale = RivenSaleSource()
         self._messaging = MessagingBridge(
             context, media_cache_dir=data_dir / "qq_media", settings=lambda: self.cfg
         )
@@ -667,6 +680,7 @@ class WarframeSDJK(
         # 类属性是可变对象时，写入会命中类本身 —— 多实例/多测试之间会串。
         self._ocr_busy: set = set()
         self._ocr_last: dict[str, float] = {}
+        self._scan_requests()
         self.render_mode = self.cfg.get("render_mode", "image")
         self.page_size = int(_num(self.cfg, "page_size", 12))
         self.push = PushDaemon(
@@ -730,6 +744,7 @@ class WarframeSDJK(
             "damage": self._h_damage,
             "scan": self._h_scan,
             "scandamage": self._h_scan_damage,
+            "loadoutrecommend": self._h_loadout_recommend,
             "wm": self._h_wm,
             "wr": self._h_wr,
             "rm": self._h_rm,
@@ -739,6 +754,7 @@ class WarframeSDJK(
             "xh": self._h_xh,
             "disposition": self._h_disposition,
             "analysis": self._h_riven_analysis,
+            "riventraits": self._h_riven_traits,
             "ranges": self._h_riven_ranges,
             "splice": self._h_riven_splice,
             "relic": self._h_relic,
@@ -1315,6 +1331,13 @@ class WarframeSDJK(
     async def terminate(self):
         """合并卸载请求；隔离调用方取消，超时的资源释放在后台继续。"""
         # 先封住新任务入口，再扫描/等待旧任务；兼容没有新生命周期方法的适配器。
+        scan_queue = getattr(self, "_scan_queue", None)
+        if scan_queue is not None:
+            scan_queue.close()
+        damage_service = getattr(self, "damage_engine", None)
+        simulations = getattr(damage_service, "simulations", None)
+        if simulations is not None:
+            simulations.close()
         begin_close = getattr(self.client, "begin_close", None)
         if callable(begin_close):
             begin_close()
@@ -1352,6 +1375,8 @@ class WarframeSDJK(
             installer = getattr(self, "local_ocr_installer", None)
             if installer is not None:
                 await bounded(installer.close(), "本地 OCR 部署任务关闭")
+            if damage_service is not None:
+                await bounded(damage_service.close(), "独立伤害引擎关闭")
             if bridge is not None:
                 await bounded(bridge.close(), "按钮回调关闭")
             getattr(self, "_scan_records", {}).clear()

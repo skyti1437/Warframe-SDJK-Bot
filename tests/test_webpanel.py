@@ -154,6 +154,8 @@ check(
         "font_download": ["POST"],
         "settings": ["GET"],
         "settings_save": ["POST"],
+        "damage_engine_status": ["GET"],
+        "damage_engine_action": ["POST"],
         "panel_language": ["GET"],
         "vision_migration_status": ["GET"],
         "vision_migration_prepare": ["POST"],
@@ -516,8 +518,9 @@ check(
         k in _int_min.group(1) for k in ("page_size: [1", "http_timeout: [1", "push_interval: [15")
     )
     # b17：设置页与识图页各有保存条，按各自范围的校验错误禁用保存按钮
-    and 'settings: ["savebar", "saveInfo", "save"], vision: ["vSavebar", "vSaveInfo", "vSave"]'
-    in _html
+    and 'settings: ["savebar", "saveInfo", "save", "discard"]' in _html
+    and 'vision: ["vSavebar", "vSaveInfo", "vSave", "vDiscard"]' in _html
+    and 'engine: ["engineSavebar", "engineSaveInfo", "engineSave", "engineDiscard"]' in _html
     and "$(btn).disabled = saving || !n || b.length > 0" in _html,
     _int_min.group(0) if _int_min else "缺 INT_MIN",
 )
@@ -5969,18 +5972,18 @@ check(
 )
 check(
     "保存等待期间的最后输入：先按旧基线取 curVal，再以已提交值为新基线重建差异，不同则保留为新草稿",
-    "const want = curVal(k);\n        state.orig[k] = v;\n"
+    "const want = curVal(k);\n        state.orig[k] = FIELDS[k]?.secret ? null : v;\n"
     "        if (same(want, v)) delete state.edits[k]; else state.edits[k] = want;" in _save_js,
 )
 check(
-    "识图设置键按任务归属分区：紫卡（主读 / 窄读）、配卡识卡（渠道 / 详情模式）、两类共用、旧配置兼容与排查在高级区",
+    "紫卡和配卡识卡分别存设置，识卡模型、详情和排查位于引擎页",
     "const VISION_SCOPE = new Set([...VISION_KEYS," in _js
     and 'const V_RIVEN = ["vision_provider_id_riven", "vision_provider_id_line"];' in _b17
-    and 'const V_SCAN = ["vision_provider_id_scan", "vision_provider_id_scan_equipment", "scan_detail_mode"];'
+    and 'const V_SCAN = ["vision_provider_id_scan", "vision_provider_id_scan_equipment", "scan_detail_mode", "scan_debug_save"];'
     in _b17
     and 'const V_BEHAVIOR = ["scan_cooldown", "scan_max_concurrent"];' in _b17
-    and 'const V_ADV = ["vision_provider_id", "vision_provider_id_line_recheck", "scan_debug_save"];'
-    in _b17
+    and 'const V_ADV = ["vision_provider_id", "vision_provider_id_line_recheck"];' in _b17
+    and 'ENGINE_SCOPE.has(k) ? "engine"' in _js
     and "vpPanel()" not in _js[_js.index("function renderSettings()") : _js.index("const SAVEBAR")],
 )
 check(
@@ -6052,7 +6055,14 @@ check(
     and "VC.orphans.push({ d: p.d" in _js,
 )
 _scan_at = _html.index('<section class="panel vtask" id="vScan"')
-_scan_html = _html[_scan_at : _html.index('<section class="panel" id="vBehavior"', _scan_at)]
+_scan_html = _html[_scan_at : _html.index("</section>", _scan_at)]
+check(
+    "配卡模型槽位单独放在伤害引擎页",
+    _html.index('<section data-view="engine">')
+    < _scan_at
+    < _html.index('<section data-view="vision">')
+    and _html.count('id="vScanChan"') == 1,
+)
 check(
     "本地紫卡 OCR：管理状态以后端为准、摘要取统一快照；未声明 implemented 则暂停；不提交 settings_save、不用浏览器存储；识卡区没有本地 OCR 控件或占位行",
     'const OCR_API = { status: "riven_ocr_status"' in _ocr
@@ -7108,6 +7118,257 @@ async def _data_source_test_checks():
 
 asyncio.run(_data_source_test_checks())
 asyncio.run(_data_source_reload_pending_checks())
+
+
+async def _damage_engine_panel_checks():
+    from types import SimpleNamespace
+
+    class EngineConfig(dict):
+        def save_config(self):
+            pass
+
+    calls = []
+
+    class FakeService:
+        def status(self):
+            return {"installed": False, "running": False}
+
+        def install(self, cfg):
+            calls.append(("install", cfg["damage_engine_url"]))
+            return {"running": True}
+
+        async def check(self, cfg):
+            calls.append(cfg["damage_engine_mode"])
+            return {"ok": True, "version": "0.1.0", "data_revision": "a" * 40}
+
+    config = EngineConfig(damage_engine_token="dummy-token")
+    panel = W.WebPanel(
+        SimpleNamespace(cfg=dict(config), _config=config, damage_engine=FakeService()), PLUGIN
+    )
+    state = await panel.settings()
+    fields = {f["key"]: f for g in state["groups"] for f in g["fields"]}
+    check(
+        "伤害引擎令牌写入后端时页面只读是否设置",
+        fields["damage_engine_token"]["value"] is None
+        and fields["damage_engine_token"]["configured"],
+    )
+    check("默认内置估算", fields["damage_engine_mode"]["value"] == "builtin")
+    body = {
+        "changes": {
+            "damage_engine_mode": "simulation",
+            "damage_engine_url": "http://127.0.0.1:8788/",
+        }
+    }
+
+    async def get_body():
+        return body
+
+    panel._body = get_body
+    saved = await panel.settings_save()
+    check(
+        "切换后立即生效且地址归一",
+        not saved["need_reload"]
+        and panel.p.cfg["damage_engine_mode"] == "simulation"
+        and panel.p.cfg["damage_engine_url"] == "http://127.0.0.1:8788",
+    )
+    check("读取部署状态不启动", (await panel.damage_engine_status())["ok"] and not calls)
+    body = {"action": "install"}
+    check("部署只从明确动作开始", not (await panel.damage_engine_action())["ok"] and not calls)
+    body = {"action": "check"}
+    check(
+        "检查使用已保存配置",
+        (await panel.damage_engine_action())["version"] == "0.1.0" and calls == ["simulation"],
+    )
+    body = {"action": "install", "confirmed": True}
+    check(
+        "点击部署后返回构建状态",
+        (await panel.damage_engine_action())["running"]
+        and calls[-1] == ("install", "http://127.0.0.1:8788"),
+    )
+    with tempfile.TemporaryDirectory() as tmp:
+        engine = W.damage_engine
+        service = engine.EngineService(Path(tmp))
+        startup = []
+
+        async def run(cwd, *args, input_bytes=None, **_kwargs):
+            if args == ("bash", "build.sh"):
+                (cwd / "server.py").touch()
+                (cwd / "target/release").mkdir(parents=True)
+                (cwd / "target/release" / engine.NAME).touch()
+            if input_bytes:
+                info = {"engine": engine.NAME, "version": "0.1.0", "data_revision": "a" * 40}
+                return json.dumps({"response": info}).encode()
+
+        async def start(cfg):
+            startup.append((service.installed(), cfg))
+
+        config = EngineConfig(damage_engine_mode="simulation", damage_engine_portable_port=8765)
+        local_panel = W.WebPanel(
+            SimpleNamespace(cfg=dict(config), _config=config, damage_engine=service), PLUGIN
+        )
+        stopped = []
+
+        async def stop(child):
+            stopped.append(child)
+
+        child = object()
+        service.portable_child = child
+        service.portable_child_port = 8765
+        service._installing_port = 8765
+        service.task = asyncio.create_task(asyncio.sleep(60))
+        service._stop = stop
+        body = {"changes": {"damage_engine_mode": "builtin", "damage_engine_portable_port": 0}}
+        local_panel._body = get_body
+        saved = await local_panel.settings_save()
+        check(
+            "切回内置取消旧下载并停止已托管的完整模拟",
+            set(saved["saved"]) == set(body["changes"])
+            and service.task.cancelled()
+            and stopped == [child]
+            and service.portable_child is None,
+        )
+        try:
+            await service.ensure_portable(8765)
+        except engine.EngineError:
+            check("回退后持有旧配置的请求不能启动旧进程", True)
+        else:
+            check("回退后持有旧配置的请求不能启动旧进程", False)
+
+        service._run = run
+        service.check = start
+        await service._install(
+            {"damage_engine_url": "https://example.test", "damage_engine_token": "external-token"}
+        )
+        check(
+            "下载和编译成功后自动启动并检查同机引擎",
+            startup == [(True, {"damage_engine_url": engine.DEFAULT_URL})] and not service.error,
+        )
+
+
+asyncio.run(_damage_engine_panel_checks())
+
+
+async def _portable_engine_download_checks():
+    from hashlib import sha256
+    from io import BytesIO
+    from types import SimpleNamespace
+    from unittest.mock import patch
+    from zipfile import ZipFile
+
+    from core import damage_engine as engine
+    from core import portable_install
+
+    files = {
+        "app.py": b"",
+        "launch.py": b"",
+        "LICENSE": b"license",
+        "THIRD_PARTY_NOTICES.md": b"notices",
+        "portable-views.json": b"{}",
+        "analysis-statics.json": b"{}",
+        "data/reference.json": b'{"test":true}',
+    }
+    frozen = "data/reference.json"
+    platform = f"{portable_install.sys.platform}-{portable_install.platform.machine()}"
+    version = f"{sys.version_info.major}.{sys.version_info.minor}"
+    manifest = {
+        "platform": platform,
+        "python": version,
+        "fingerprint": engine.PORTABLE_FINGERPRINT,
+        "dataVersion": engine.PORTABLE_DATA,
+        "upstream": portable_install.UPSTREAM_REVISION,
+        "files": {name: sha256(data).hexdigest() for name, data in files.items()},
+    }
+
+    def make_bundle(split):
+        output = BytesIO()
+        with ZipFile(output, "w") as archive:
+            for name, data in files.items():
+                if not split or name != frozen:
+                    archive.writestr(name, data)
+            archive.writestr(
+                "manifest.json",
+                json.dumps({**manifest, "upstreamFiles": [frozen] if split else []}),
+            )
+        return output.getvalue()
+
+    asset_name = "test-portable.zip"
+    public = make_bundle(True)
+    requests = []
+    downloads = {
+        f"{engine.PORTABLE_DOWNLOADS}/{asset_name}": public,
+        f"{portable_install.UPSTREAM_DATA}/{frozen}": files[frozen],
+    }
+
+    def serve(request):
+        url = str(request.url)
+        requests.append(url)
+        return httpx.Response(200, content=downloads[url])
+
+    factory = httpx.AsyncClient
+
+    def client(**kwargs):
+        return factory(transport=httpx.MockTransport(serve), **kwargs)
+
+    async def probe(cwd, *_args, **_kwargs):
+        assert (cwd / frozen).read_bytes() == files[frozen]
+        return json.dumps(
+            {
+                "engineFingerprint": engine.PORTABLE_FINGERPRINT,
+                "buildLabel": engine.PORTABLE_DATA,
+            }
+        ).encode()
+
+    async def start(port):
+        assert port == 8765
+
+    config = {"damage_engine_mode": "simulation", "damage_engine_portable_port": 8765}
+    with tempfile.TemporaryDirectory() as scratch:
+        with (
+            patch.object(
+                engine, "portable_asset", return_value=(asset_name, sha256(public).hexdigest())
+            ),
+            patch.object(engine.httpx, "AsyncClient", side_effect=client),
+        ):
+            for name in ("公开", "摘要错误", "手动"):
+                service = engine.EngineService(Path(scratch) / name)
+                service._run = probe
+                service.ensure_portable = start
+                cfg = dict(config)
+                if name == "手动":
+                    bundle = make_bundle(False)
+                    service.root.mkdir(parents=True)
+                    (service.root / "portable-runtime.zip").write_bytes(bundle)
+                    cfg["damage_engine_portable_bundle_sha256"] = sha256(bundle).hexdigest()
+                panel = W.WebPanel(SimpleNamespace(cfg=cfg, damage_engine=service), PLUGIN)
+
+                async def get_body():
+                    return {"action": "install", "confirmed": True}
+
+                panel._body = get_body
+                requests.clear()
+                if name == "摘要错误":
+                    downloads[f"{portable_install.UPSTREAM_DATA}/{frozen}"] = b"changed"
+                status = await panel.damage_engine_action()
+                assert status["running"] and status["backend"] == "portable"
+                await service.task
+                if name == "摘要错误":
+                    check(
+                        "摘要错误时不启用半安装目录",
+                        not service.portable_installed() and "摘要" in service.error,
+                    )
+                    check("下载失败清理临时目录", not list(service.root.iterdir()))
+                else:
+                    check(
+                        f"{name}安装与探针成功", service.portable_installed() and not service.error
+                    )
+                check(
+                    f"{name}安装使用预期下载来源",
+                    requests == ([] if name == "手动" else list(downloads)),
+                )
+                await service.close()
+
+
+asyncio.run(_portable_engine_download_checks())
 
 
 if fails:

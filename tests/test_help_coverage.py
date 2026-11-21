@@ -211,7 +211,7 @@ import re as _re  # noqa: E402
 
 _src_main = (ROOT / "main.py").read_text(encoding="utf-8")
 ROUTES = set(_re.findall(r'"(\w+)": self\._h_\w+', _src_main))
-_DAMAGE_FAMILY = {"damage", "scan", "scandamage", "valence", "xh"}
+_DAMAGE_FAMILY = {"damage", "scan", "scandamage", "loadoutrecommend", "valence", "xh"}
 _MODIFIER_ROWS = ("平台", "输出", "翻页")  # 旧「用法速查」组的行首词（组已撤，保留给旧数据兜底）
 _bad_send: list[str] = []
 for _grp, _items in topic.items():

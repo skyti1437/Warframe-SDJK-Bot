@@ -253,6 +253,46 @@
     ],
     "hint": "en＝英文 wiki（wiki.warframe.com，Warframe 官方 wiki，维护最及时，默认）；huiji＝灰机中文 wiki。中文显示时卡片内容不变，只换链接；对不上英文页面名时给英文 wiki 站内搜索（不会自动切到灰机）。单次查询末尾加「灰机」可临时用灰机链接（例：wiki 收割赋能 灰机）。英文显示模式始终用英文 wiki。"
   },
+  "damage_engine_mode": {
+    "description": "伤害计算模式",
+    "type": "string",
+    "default": "builtin",
+    "options": [
+      "builtin",
+      "simulation"
+    ],
+    "hint": "「内置估算」按现有公式计算。「完整模拟」连接独立引擎逐条执行战斗模拟，最多等待 4 条。"
+  },
+  "damage_engine_url": {
+    "description": "完整模拟服务地址",
+    "type": "string",
+    "default": "http://127.0.0.1:8788",
+    "hint": "已有兼容服务时，填写 AstrBot 运行环境可访问的地址。本机新版部署使用下方本机端口。"
+  },
+  "damage_engine_portable_port": {
+    "description": "新版完整模拟本机端口",
+    "type": "int",
+    "default": 0,
+    "hint": "完整模拟模式下填写一个空闲端口（例如 8765），保存后即可下载并部署。已有本机新版服务时填其端口。填 0 使用上方服务地址。"
+  },
+  "damage_engine_portable_bundle_sha256": {
+    "description": "手动导入包 SHA-256（选填）",
+    "type": "string",
+    "default": "",
+    "hint": "仅在插件数据目录的 damage-engine/ 手动放入 portable-runtime.zip 时填写。自动下载时按发布校验值核对。"
+  },
+  "damage_engine_token": {
+    "description": "完整模拟服务令牌（选填）",
+    "type": "string",
+    "default": "",
+    "hint": "服务启用了 Bearer 令牌时填写。"
+  },
+  "riven_sale_sheet_url": {
+    "description": "紫卡出售参考网址",
+    "type": "string",
+    "default": "https://cdn.jsdelivr.net/gh/skyti1437/Warframe-SDJK-Bot@bot-data/riven_sale.json",
+    "hint": "默认从效价同仓读取每周快照。可换成同结构 CSV 或 JSON 网址。自建源使用 weapon、positive、negative 和可选 notes 字段，JSON 可把行列表放在 weapons 下。更换后查询即生效。"
+  },
   "scan_detail_mode": {
     "description": "识卡伤害详情什么时候算",
     "type": "string",
@@ -271,10 +311,10 @@
     "hint": "识卡每次都会调用你配置的多模态模型（通常按量计费）。冷却用于防止被群友连点刷爆额度与 CPU；设 0 关闭限制。"
   },
   "scan_max_concurrent": {
-    "description": "识图全局并发上限（配卡「识卡」与紫卡截图合计同时最多识别几张，0=不限）",
+    "description": "识图全局并发上限（配卡识卡与紫卡截图共享，0=不限制合计数量）",
     "type": "int",
     "default": 3,
-    "hint": "识卡是「多次视觉调用 + 图片渲染」的重活，多群同时开会把 CPU 打满（实测 2 核上并发几路时单张渲染从 0.7s 涨到 39s）。小机器建议 2~3。"
+    "hint": "配卡识卡最多同时跑 3 张，另外可排队等待 3 张。并发还要遵守此处的共享上限。"
   },
   "panel_platforms": {
     "description": "控制台：显示哪些聊天平台的设置",

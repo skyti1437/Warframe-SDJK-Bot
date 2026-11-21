@@ -190,17 +190,18 @@ async def main() -> None:
     # ④ 全局并发上限
     obj2 = _plugin({"scan_cooldown": 0, "scan_max_concurrent": 2})
     obj2._ocr_busy = {"group://a", "group://b"}  # 假装已有 2 个在跑
-    r4 = await obj2._h_scan(_Parsed(), _Ev(umo="group://c"), "pc")
+    waiting = asyncio.create_task(obj2._h_scan(_Parsed(), _Ev(umo="group://c"), "pc"))
+    await asyncio.sleep(0)
     check(
-        "★ 全局并发到上限时新请求被拒",
-        r4 is not None and "并发上限" in (r4.raw_text or ""),
-        repr(getattr(r4, "raw_text", None)),
+        "★ 全局并发到上限时新请求等待",
+        not waiting.done() and obj2._scan_requests().is_waiting("group://c"),
     )
-    obj2._ocr_busy = {"group://a"}  # 空出一个位
-    r5 = await obj2._h_scan(_Parsed(), _Ev(umo="group://c"), "pc")
+    obj2._ocr_busy.discard("group://b")
+    obj2._scan_requests().wake()
+    r5 = await asyncio.wait_for(waiting, 2)
     check(
-        "并发未满时放行",
-        r5 is not None and "并发上限" not in (r5.raw_text or ""),
+        "并发未满时自动放行",
+        r5 is not None and "图片下载失败" in (r5.raw_text or ""),
         repr(getattr(r5, "raw_text", None)),
     )
 

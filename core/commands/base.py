@@ -80,6 +80,8 @@ def validate_numeric_setting(key: str, value: float) -> None:
     if not finite:
         raise ValueError("应为有限数字")
     minimum = {"page_size": 1, "http_timeout": 1, "push_interval": 15}.get(key)
+    if key == "damage_engine_portable_port" and not 0 <= value <= 65535:
+        raise ValueError("应为 0 到 65535 的端口")
     if minimum is not None and value < minimum:
         raise ValueError(f"不能小于 {minimum}")
     if key == "text_chunk_limit" and value != 0 and value < 200:

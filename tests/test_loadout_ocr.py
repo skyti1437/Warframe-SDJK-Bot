@@ -163,8 +163,8 @@ check(
 )
 
 check(
-    "等级未知时 effect_at 退回满级值",
-    close(lo.effect_at(_molten, None).get("elements", {}).get("heat", 0), 90.0),
+    "等级未知时不带入满级效果",
+    not lo.effect_at(_molten, None),
 )
 check(
     "按等级取真实数值：rank1 → 火+30%",
@@ -270,7 +270,7 @@ check("分析整体 ok", _an["ok"] is True)
 _lines = lo.card_lines(_an)
 check("卡面非空且含武器行", any("驱魔之刃" in ln for ln in _lines))
 check("卡面标注了非满级的卡", any("非满级" in ln and "北风" in ln for ln in _lines))
-check("卡面写出了「按实际等级折算」", any("按实际等级折算" in ln for ln in _lines))
+check("卡面区分按已确认等级折算", any("按已确认等级折算" in ln for ln in _lines))
 
 
 # 折算结果能直接喂给伤害计算器（不抛异常、不吃 KeyError）
@@ -311,8 +311,10 @@ check("to_damage_spec 无武器时返回 None", _manual_spec({}) is None)
 
 _an3 = lo.analyze({"weapon": "驱魔之刃", "mods": [{"name": "熔岩冲击", "drain": "999"}]})
 check(
-    "等级推不出来时按满级估并标记",
-    _an3["totals"]["no_rank"] == ["熔岩冲击"],
+    "等级推不出来时不套用满级效果",
+    _an3["totals"]["no_rank"] == ["熔岩冲击"]
+    and not _an3["mods"][0]["effect"]
+    and "heat" not in _an3["totals"]["elements"],
     str(_an3["totals"]["no_rank"]),
 )
 check(
@@ -832,6 +834,161 @@ check(
     "行和自检：唯一校验项 = 总计 = Σ行×(1+多重)",
     any(c["label"] == "行和×多重" for c in _an_lat.get("checks") or []),
 )
+
+# 当前坐标 OCR 将比较箭头读作星号，并用短横表示左侧无伤害类型。
+_beam = lo.parse_coordinate_ocr(
+    "50,100,50,20,0,容量\n250,100,50,20,0,9/60\n"
+    "75,220,90,20,0,主要\n75,250,90,20,0,多重射击\n210,250,90,20,0,21.1*14.5\n"
+    "75,300,90,20,0,电击\n210,300,90,20,0,290.5*113.3\n"
+    "75,330,90,20,0,冲击\n210,330,90,20,0,->13.2\n"
+    "75,360,90,20,0,辐射\n210,360,90,20,0,44.5*26.5\n"
+    "75,400,90,20,0,总计\n210,400,90,20,0,7,058.8*2,219\n"
+    "75,440,90,20,0,次要\n75,470,90,20,0,多重射击\n210,470,90,20,0,3.2*2"
+)["panel"]
+check(
+    "坐标面板星号保留比较列，空左值保留右列，副射不覆盖主射",
+    _beam["multishot"] == "21.1>14.5"
+    and lo.to_pair(_beam["damage_rows"][1][1]) == (13.2, None)
+    and lo._panel_total(_beam) == 2219,
+)
+_beam_checks = lo._panel_checks(
+    {"multishot": 6},
+    {"multishot": 170},
+    _beam,
+    calc={"total": 63.6, "by_type": {"impact": 13.25, "radiation": 26.5, "electricity": 23.85}},
+)
+_beam_by_label = {c["label"]: c for c in _beam_checks}
+check(
+    "总伤推算计入武器固有多重，行和自检使用同栏实读多重",
+    close(_beam_by_label["总伤害"]["calc"], 1030.32)
+    and not _beam_by_label["总伤害"]["ok"]
+    and close(_beam_by_label["行和×多重"]["calc"], 2218.5)
+    and _beam_by_label["行和×多重"]["ok"],
+)
+
+# 独立配卡录像：BV1mLJ16tEzT（03:33）和 BV1eVxF69Ezd（15:50）。
+_phantasma = dc.find_weapon_exact("Phantasma")
+_phantasma_prime = dc.find_weapon_exact("Phantasma Prime")
+for _w, _pct, _shown, _expected in (
+    (_phantasma, 110, "11.5", 11.5),
+    (_phantasma_prime, 170, _beam["multishot"], 14.5),
+    (_phantasma_prime, 295.1, "20.8", 20.755),
+):
+    _checks = lo._panel_checks(_w, {"multishot": _pct}, {"multishot": _shown}, calc={})
+    check(
+        f"{_w['name']} 主射：多重加成 {_pct}% 复现军械库读数 {_shown}",
+        len(_checks) == 1
+        and _checks[0]["label"] == "多重射击"
+        and close(_checks[0]["calc"], _expected)
+        and _checks[0]["ok"],
+        str(_checks),
+    )
+
+_phantasma_checks = {
+    c["label"]: c
+    for c in lo._panel_checks(
+        _phantasma_prime, {"multishot": 170}, {**_beam, "multishot": "16.2"}, calc={"total": 63.6}
+    )
+}
+check(
+    "幻离子 Prime 主射：总伤用校准后多重，通式多重读数仍会报差异",
+    close(_phantasma_checks["总伤害"]["calc"], 922.2) and not _phantasma_checks["多重射击"]["ok"],
+)
+_phantasma_totals = dict.fromkeys(lo._ADD_FIELDS, 0.0)
+_phantasma_totals.update(
+    base_dmg=165, multishot=170, elements={"electricity": 60}, physical={}, faction_dmg_of={}
+)
+_phantasma_spec = lo._mapped_damage_spec({"weapon": _phantasma_prime, "totals": _phantasma_totals})
+_phantasma_with_bonuses = {**_phantasma_spec, "singles": {"electricity": 60 + 225}}
+_phantasma_damage = lo._panel_damage_types(_phantasma_prime, _phantasma_with_bonuses)
+_phantasma_cm = lo._calc_panel(
+    _phantasma_prime, _phantasma_totals, final_crit_multiplier_bonus=1.2
+)["crit_damage"]
+_phantasma_cm_with_mod = lo._calc_panel(
+    _phantasma_prime, {**_phantasma_totals, "crit_dmg": 100}, final_crit_multiplier_bonus=1.2
+)["crit_damage"]
+check(
+    "幻离子 Prime 主射：显式 +225% 电击与 +1.2 最终暴伤分别复现 113.3 和 3.1",
+    close(lo._panel_damage_types(_phantasma_prime, _phantasma_spec)["electricity"], 23.85)
+    and close(_phantasma_damage["electricity"], 113.2875)
+    and close(sum(_phantasma_damage.values()) * 14.5, 2219.04375)
+    and close(_phantasma_cm, 3.1)
+    and close(_phantasma_cm_with_mod, 5),
+)
+_alt_spec, _ = dc.parse_args([])
+_alt = dc._apply_panel_overrides({**_alt_spec, "form": "charged"}, _phantasma_prime)
+_alt_checks = lo._panel_checks(
+    _alt, {"multishot": 170}, {"multishot": "2.7", "total": 40.5}, calc={"total": 15}
+)
+check(
+    "幻离子 Prime 副射：单发等离子炸弹沿用普通多重公式",
+    _alt["multishot"] == 1
+    and len(_alt_checks) == 1
+    and close(_alt_checks[0]["calc"], 40.5)
+    and _alt_checks[0]["ok"],
+    str(_alt_checks),
+)
+
+_burston = dc.find_weapon_exact("Burston Prime")
+# 六月录像 01:57；十月 5 日录像 00:57／01:48；十月 27 日录像分集二 01:20。
+_burston_panel_cases = (
+    (1.8, (70, 70, 93.3, 524.7), 1364.2, False),
+    (1.8, (66, 66, 88, 495), 1476, True),
+    (1, (70, 70, 93.3, 524.7), 869.2, True),
+    (1.8, (198, 198, 264, 1485), 4428.1, True),
+    (1.8, (77.1, 77.1, 102.8, 655.2), 1862.8, True),
+    (1.8, (130.7, 130.7, 174.3, 1111.3), 3159.1, True),
+)
+for _ms, _rows, _total, _display_bonus in _burston_panel_cases:
+    _checks = lo._panel_checks(
+        _burston,
+        {"multishot": round((_ms - 1) * 100)},
+        {
+            "multishot": _ms,
+            "total": _total,
+            "damage_rows": list(zip(("冲击", "穿刺", "切割", "病毒"), _rows)),
+        },
+        calc={"total": sum(_rows)},
+    )
+    _expected_row_label = "行和×多重（含进化显示差额）" if _display_bonus else "行和×多重"
+    check(
+        f"伯斯顿 Prime 普通点射：总计 {_total} 的显示规则可复算",
+        _checks[-1]["label"] == _expected_row_label
+        and _checks[-1]["ok"]
+        and close(_checks[-1]["calc"], _total, tol=0.25),
+        str(_checks),
+    )
+
+# 有遗漏分项或独立的物理加成时，不能从三项物理行反推基伤乘区。
+_burston_panel = {
+    "multishot": 1.8,
+    "total": 1476,
+    "damage_rows": [("冲击", 66), ("穿刺", 66), ("切割", 88), ("病毒", 495)],
+}
+for _w, _totals, _panel in (
+    (_burston, {"multishot": 80}, {**_burston_panel, "total": 1488}),
+    (_burston, {"multishot": 80, "physical": {"slash": 30}}, _burston_panel),
+    (
+        _burston,
+        {"multishot": 80},
+        {
+            **_burston_panel,
+            "damage_rows": [("冲击", 68), ("穿刺", 64), ("切割", 88), ("病毒", 495)],
+        },
+    ),
+    (
+        _burston,
+        {"multishot": 80},
+        {**_burston_panel, "damage_rows": _burston_panel["damage_rows"][1:]},
+    ),
+    ({**_burston, "trigger": "Auto", "burstCount": 0}, {"multishot": 80}, _burston_panel),
+):
+    _checks = lo._panel_checks(_w, _totals, _panel, calc={"total": 715})
+    check(
+        "伯斯顿：缺行、其它形态或来源不明的差值仍为校验差异",
+        any(c["label"] == "行和×多重" and not c["ok"] for c in _checks),
+        str(_checks),
+    )
 
 # ---------------------------------------------------------------------------
 # 卡面「容量 → 等级」文案（2026-09-20 玩家反馈「出现了个容量 0」后加）
@@ -1436,7 +1593,7 @@ for _label, _panel in (
     check("质量反例保留清单：" + _label, len(_q["mods"]) == 1 and _q["mods"][0]["found"])
 
 _q_unknown = _quality_case(mods=[{"name": "无法识别的卡片", "drain": 7}])
-_q_rank = _quality_case(mods=[{"name": "北风", "drain": 999}])
+_q_rank = _quality_case({"total": "156"}, mods=[{"name": "北风", "drain": 999}])
 _q_riven = _quality_case(mods=[{"name": "裂罅 步枪", "drain": 7}])
 _q_underread = _quality_case(pips=[{"counts": [1, 1], "is_inventory": False}])
 for _label, _q, _code in (
@@ -1458,7 +1615,12 @@ for _label, _q, _code in (
         bool(_q["mods"]) and any("本次不生成识卡伤害记录" in line for line in _lines),
     )
 check("合法裂罅不误标未知", not _q_riven["unknown"] and _q_riven["mods"][0]["riven"])
-check("缺等级仍明确原有满级估算", bool(_q_rank["totals"]["no_rank"]))
+check(
+    "完整面板不能替代未确认的卡级，也不与缺卡加成对拍",
+    bool(_q_rank["totals"]["no_rank"])
+    and not _q_rank["checks"]
+    and not any("按满级估算" in line for line in lo.card_lines(_q_rank)),
+)
 _q_conflict = _quality_case(
     mods=[{"name": "北风", "drain": 6, "color": "白"}],
     pips=[{"counts": [0], "maxed": [False], "is_inventory": False}],
@@ -1693,6 +1855,39 @@ check(
 _coord_lat = lo.parse_coordinate_ocr(_csv_3_panel)
 check("坐标OCR暴击倍率别名", _coord_lat["panel"]["crit_damage"] == "2.8倍>6.6倍")
 check("坐标OCR千分位仍在第六字段", _coord_lat["panel"]["total"] == ["总计", "90>1,488.3"])
+
+# 同一张升级图同时显示两种射击模式。保留完整观察，计算使用主射档。
+_coord_two_modes = """210,56,30,220,90,升级/幻离子 PRIME [30]
+35,190,30,40,90,容量
+228,190,30,42,90,9/60
+33,314,30,30,90,主要
+38,346,30,30,90,射速
+228,346,30,40,90,19.2 > 12
+34,738,30,64,90,触发几率 / 投射物
+228,738,30,42,90,53.3%
+33,944,30,30,90,次要
+38,979,30,30,90,射速
+228,979,30,40,90,3.2 > 2"""
+_two_modes = lo.parse_coordinate_ocr(_coord_two_modes)
+check(
+    "坐标OCR主射保留自己栏内的射速及每投射物触发率",
+    _two_modes["panel"]["attack_speed"] == "19.2 > 12"
+    and _two_modes["panel"]["status_chance"] == "53.3%"
+    and any(
+        r.get("section") == "secondary_fire" and r["values"] == ["3.2 > 2"]
+        for r in _two_modes["coordinate_ocr"]["panel_rows"]
+    ),
+    str(_two_modes["panel"]),
+)
+_no_mode_divider = lo.parse_coordinate_ocr(
+    _coord_two_modes.replace(
+        "\n33,944,30,30,90,次要\n38,979,30,30,90,射速\n228,979,30,40,90,3.2 > 2", ""
+    )
+)
+check(
+    "没有明确副射分栏时普通面板字段照常读取",
+    _no_mode_divider["panel"]["attack_speed"] == "19.2 > 12",
+)
 check("坐标OCR镀层碎片不成为卡片", not _coord_lat["mods"])
 check("坐标OCR实际whole缺文字字段拒绝", lo.parse_coordinate_ocr(_csv_2_whole) is None)
 check("坐标OCR普通JSON不误识别", lo.parse_coordinate_ocr('{"weapon":"执法者"}') is None)
@@ -1923,7 +2118,7 @@ check(
 )
 check(
     "未折算功能卡不宣称不影响伤害",
-    any("数值未折算" in line for line in lo.card_lines(_with_aux))
+    any("未折算" in line for line in lo.card_lines(_with_aux))
     and not any("不影响伤害" in line for line in lo.card_lines(_with_aux)),
 )
 _calc_aux = _quality_case(mods=[{"name": "北风", "drain": 6, "_slot": "auxiliary"}])
@@ -2960,12 +3155,227 @@ check(
     and _arcane_box["_geometry_view"] == "full_image",
 )
 _unmapped_arcane = lo.remap_mod_geometry(_arcane_crop, None)
-_unmapped_arcane["arcanes"][0]["rank"] = 5
+_unmapped_arcane["arcanes"][0].update(
+    rank=5, _rank_evidence={"source": "arcane_diamond_pixels", "rank": 5}
+)
 lo.observe_arcane_ranks(_unmapped_arcane, _crop_url)
 check(
     "未知裁剪变换不据错误位置给赋能等级",
-    _unmapped_arcane["arcanes"][0]["rank"] is None,
+    _unmapped_arcane["arcanes"][0]["rank"] is None
+    and "_rank_evidence" not in _unmapped_arcane["arcanes"][0],
 )
+
+
+def _upgrade_slot_contract():
+    # 合成槽位观察用于闸门测试，原图像素和模型回执分别在四图回放中核对。
+    slot_ids = [f"mod-{row}-{col}" for row in (1, 2) for col in range(1, 5)]
+    slot_ids += ["exilus", "arcane"]
+    tiles = []
+    reads = []
+    for index, slot_id in enumerate(slot_ids):
+        x = 0.30 + (index % 5) * 0.12
+        y = 0.35 + (index // 5) * 0.20
+        label = f"T{index + 1}"
+        tiles.append(
+            {
+                "id": slot_id,
+                "label": label,
+                "kind": "regular" if slot_id.startswith("mod-") else slot_id,
+                "box": [x, y, x + 0.1, y + 0.1],
+            }
+        )
+        reads.append(
+            {"tile": label, "state": "empty", "mark": "empty_frame"}
+            if slot_id.startswith("mod-")
+            else {"tile": label, "state": "locked", "mark": "padlock"}
+        )
+    reads[0] = {"tile": "T1", "state": "installed", "name": "膛线", "drain": 4}
+    tiles[0].update(rank_observation={"count": 0, "maxed": False}, capacity_badge={"color": "白"})
+    main = {"weapon": "卡拉克", "capacity": "56/60", "mods": [{"name": "膛线", "drain": 4}]}
+    slots = lo.verify_upgrade_slots(main, {"slots": reads}, tiles, None)
+    result = lo.analyze({**main, "_upgrade_slots": slots})
+    spec = lo.to_damage_spec(result)
+    check(
+        "完整物理槽位区分已装0级、空槽与锁槽，伤害使用0级加成",
+        [(slot["state"], slot["rank"]) for slot in slots[0:2]]
+        == [("installed", 0), ("empty", None)]
+        and all(slot["state"] == "locked" for slot in slots[-2:])
+        and spec is not None
+        and spec["base_dmg"] == 15
+        and spec["loadout_slots"][0]["rank"] == 0,
+    )
+    check(
+        "逐槽采信后的绑定记录指向实际物理槽",
+        result["layout"]["bindings"][0]["status"] == "verified"
+        and result["provenance"]["slot_bindings"][0]["slot_id"] == "mod-1-1",
+    )
+    for case, payload in (
+        ("容量差一格", {**main, "capacity": "55/60", "_upgrade_slots": slots}),
+        ("缺少赋能槽", {**main, "_upgrade_slots": slots[:-1]}),
+        (
+            "容量两路读数冲突",
+            {
+                **main,
+                "_upgrade_slots": lo.verify_upgrade_slots(
+                    main, {"slots": reads}, tiles, {"mods": [{"name": "膛线", "drain": 5}]}
+                ),
+            },
+        ),
+    ):
+        an = lo.analyze(payload)
+        check(f"逐槽闸门对{case}拦截伤害", lo.to_damage_spec(an) is None and not an.get("ref"))
+
+    unbound = [{**slots[0], "state": "unknown", "rank": None}, *slots[1:]]
+    an = lo.analyze({**main, "_upgrade_slots": unbound})
+    check(
+        "整图容量仍在时，争议槽等级和效果继续保持未知",
+        an["mods"][0]["rank"] is None
+        and not an["mods"][0]["effect"]
+        and an["totals"]["base_dmg"] == 0
+        and lo.to_damage_spec(an) is None,
+    )
+
+    reads[-1] = {"tile": "T10", "state": "installed", "name": "主要·无情"}
+    main["arcanes"] = [{"name": "主要·无情"}]
+    slots = lo.verify_upgrade_slots(main, {"slots": reads}, tiles, None)
+    an = lo.analyze({**main, "_upgrade_slots": slots})
+    check(
+        "赋能已装但等级未知时保持普通卡等级与槽位结论",
+        an["quality"]["layout_complete"]
+        and an["mods"][0]["rank"] == 0
+        and an["arcanes"][0]["rank"] is None
+        and any(r["code"] == "slot_rank_unknown" for r in an["quality"]["reasons"])
+        and lo.to_damage_spec(an) is None,
+    )
+    main["arcanes"][0].update(
+        _geometry={"x": 830, "y": 600},
+        _rank_evidence={"source": "arcane_diamond_pixels", "rank": 2},
+    )
+    slots = lo.verify_upgrade_slots(main, {"slots": reads}, tiles, None)
+    spec = lo.to_damage_spec(lo.analyze({**main, "_upgrade_slots": slots}))
+    check(
+        "只记录赋能实际等级和该级效果，基础伤害不假定已触发",
+        spec is not None
+        and spec["arcanes"][0]["rank"] == 2
+        and "+15% Damage" in spec["arcanes"][0]["text"]
+        and "+30% Damage" not in spec["arcanes"][0]["text"]
+        and spec["base_dmg"] == 15,
+    )
+
+
+_upgrade_slot_contract()
+
+
+def _coordinate_slot_contract():
+    def tile(slot_id, kind, left, **observations):
+        return {
+            "id": slot_id,
+            "label": slot_id,
+            "kind": kind,
+            "box": [left / 1000, 0.35, (left + 200) / 1000, 0.55],
+            "sheet_box": [left, 350, left + 200, 550],
+            "sheet_size": [1000, 1000],
+            **observations,
+        }
+
+    tiles = [
+        tile(
+            "mod-1-1",
+            "regular",
+            0,
+            rank_observation={"count": 0, "maxed": False},
+            capacity_badge={"color": "白"},
+        ),
+        tile("mod-1-2", "regular", 220, visual_mark="empty_frame"),
+        tile("exilus", "exilus", 440, visual_mark="padlock"),
+        tile("mod-1-4", "regular", 660),
+    ]
+    read = "100,450,48,24,0,膛线\n170,392,12,14,0,4"
+    main = {
+        "mods": [
+            {
+                "name": "膛线",
+                "drain": 4,
+                "_geometry": {"x": 100, "y": 450},
+                "_geometry_source": "coordinate_ocr",
+                "_geometry_view": "full_image",
+                "_field_geometry": {"drain": [{"x": 170, "y": 392}]},
+            }
+        ],
+    }
+    boxes = lo.coordinate_ocr_boxes(read)
+    slots = lo.verify_coordinate_slots(main, None, tiles, boxes, "")
+    check(
+        "坐标逐槽区分0级、空槽、锁槽及未读槽",
+        [(s["state"], s["rank"]) for s in slots]
+        == [("installed", 0), ("empty", None), ("locked", None), ("unknown", None)],
+    )
+    moved = read.replace("100,450", "320,450").replace("170,392", "390,392")
+    ignored = lo.coordinate_ocr_boxes("35,70,20,15,0,T1")
+    empty_crop = lo.verify_coordinate_slots(main, None, tiles, ignored, "")
+    wrong_crop = lo.verify_coordinate_slots(
+        main,
+        None,
+        [{k: v for k, v in t.items() if k != "visual_mark"} for t in tiles],
+        lo.coordinate_ocr_boxes(moved),
+        "",
+    )
+    check(
+        "只有标签或互换坐标不能从整图名称补造逐槽结论",
+        empty_crop[0]["state"] == "unknown"
+        and wrong_crop[1]["reason"] == "mod_position_disagrees"
+        and all(s["rank"] is None for s in wrong_crop),
+    )
+    only_badge = lo.coordinate_ocr_boxes("170,392,12,14,0,4")
+    recovered = lo.verify_coordinate_slots(main, None, tiles, only_badge, "")
+    missing_geometry = lo.verify_coordinate_slots(
+        {"mods": [{"name": "膛线", "drain": 4}]}, None, tiles, only_badge, ""
+    )
+    check(
+        "裁图漏抄0级卡名时，须有同槽整图卡名和一致的容量",
+        recovered[0]["rank"] == 0 and missing_geometry[0]["state"] == "unknown",
+    )
+    conflict = lo.verify_coordinate_slots(
+        main,
+        None,
+        tiles,
+        boxes,
+        "",
+        capacity_boxes=lo.coordinate_ocr_boxes("100,450,12,14,0,5"),
+        capacity_tiles=[{**tiles[0], "digit_crop": True}],
+    )
+    check(
+        "数字小窗冲突时保留已装身份和未知等级",
+        conflict[0]["state"] == "installed"
+        and conflict[0]["rank"] is None
+        and conflict[0]["reason"] == "capacity_unconfirmed",
+    )
+    tentative = lo.merge_coordinate_tile_read(main, boxes, tiles)
+    check(
+        "武器类别未知时保留坐标补读和已观察容量",
+        tentative["mods"][0].get("_tile_slot_id") == "mod-1-1"
+        and tentative["mods"][0]["drain"] == 4
+        and "_upgrade_slots" not in tentative,
+    )
+    label = lo.normalize_scan_structure(
+        {"arcanes": [{"name": "需要 近战武器赋能槽 连接器"}, {"name": "近战·未知"}]}
+    )
+    check(
+        "赋能槽连接器提示作为界面文字留痕",
+        label["arcanes"] == [{"name": "近战·未知"}]
+        and label["_field_reclassification"][0]["target_field"] == "interface_label",
+    )
+    split = lo.parse_coordinate_ocr(
+        "120,65,105,24,0,升级/\n212,65,46,24,0,伯斯顿\n271,65,60,24,0,Prime"
+    )
+    check(
+        "同一标题行分开的Prime保持武器变体，姿态名不覆盖已匹配武器",
+        (lo.dc.find_weapon_exact(split["weapon"]) or {}).get("name") == "Burston Prime"
+        and lo.merge_equipment_read(split, {"weapon": "狂风压境"})["weapon"] == split["weapon"],
+    )
+
+
+_coordinate_slot_contract()
 
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")

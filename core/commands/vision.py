@@ -27,6 +27,7 @@ from .. import paths as core_paths
 from .. import pips as pips_engine
 from ..i18n import L
 from ..logging_compat import logger
+from ..request_queue import RequestQueue
 from .base import Reply, _num
 
 
@@ -130,12 +131,23 @@ class VisionCommands:
         if sender and stamp is not None and last.get(sender) == stamp:
             last.pop(sender, None)
 
-    def _vision_gate(self, event, what: str, *, task: str = "scan") -> tuple[Optional[Reply], str]:
+    def _scan_requests(self) -> RequestQueue:
+        queue = getattr(self, "_scan_queue", None)
+        if queue is None:
+            queue = self._scan_queue = RequestQueue(workers=3, max_waiting=3)
+        return queue
+
+    def _vision_limit(self) -> int:
+        return int(_num(getattr(self, "cfg", None) or {}, "scan_max_concurrent", 3))
+
+    def _vision_gate(
+        self, event, what: str, *, task: str = "scan", check_budget: bool = True
+    ) -> tuple[Optional[Reply], str]:
         """任务冷却与机器共享资源预算，返回 (拦截回复或 None, 发送者)。
 
         ① 同一发送者冷却 scan_cooldown 秒（默认 15，设 0 关闭）—— 识卡与紫卡识图
            旧模式共用，隔离模式按任务分别记录；
-        ② 机器共享并发上限 scan_max_concurrent（默认 3，设 0 关闭），按 _ocr_busy 计数。
+        ② 机器共享并发上限按 _ocr_busy 计数。识卡入队时由队列检查实时空位。
         放行时即记下本次时刻；调用方在识别失败时可 pop 掉以返还冷却。
         """
         _cfg = getattr(self, "cfg", None) or {}  # 绕过 __init__ 构造的实例（单测桩）也能用
@@ -163,8 +175,12 @@ class VisionCommands:
                 for _k in [k for k, v in last.items() if _now - v > max(_cd * 4, 120)]:
                     last.pop(_k, None)
             last[_sender] = time.time()
-        _cap = int(_num(_cfg, "scan_max_concurrent", 3))
-        if _cap > 0 and len(self._ocr_busy) >= _cap:
+        if not check_budget:
+            return None, _sender
+        _cap = self._vision_limit()
+        queue = getattr(self, "_scan_queue", None)
+        reserved = int(queue is not None and queue.needs_slot)
+        if _cap > 0 and len(self._ocr_busy) + reserved >= _cap:
             return (
                 Reply(
                     raw_text=L(
@@ -786,7 +802,9 @@ class VisionCommands:
             else {}
         )
 
-    async def _extract_riven_from_image(self, image_url: str) -> Optional[dict]:
+    async def _extract_riven_from_image(
+        self, image_url: str, *, read_properties: bool = False
+    ) -> Optional[dict]:
         """调 vision 渠道从紫卡截图提取词条，返回解析后的 dict 或 None。
 
         ★ 两路并行（2026-09-27）：
@@ -814,6 +832,15 @@ class VisionCommands:
         #   数值照抄到不含该值的卡上）。旧例子 50.2/65.1/44.9/95.4/63.4/115.7/110.8
         #   全部来自用户真实卡 ⇒ 本提示词不得再出现任何具体数值，一律用公式/描述表达。
         prompt = VisionCommands.riven_json_prompt()
+        if read_properties:
+            prompt += L(
+                "\n同一个 JSON 额外转录 rank、polarity。rank 是卡底部八颗强化点中已点亮的颗数；"
+                "段位和右上角容量都不是强化等级。polarity 是卡面右上角的极性图标，"
+                "只填 madurai、vazarin、naramon；图标或强化点看不清时对应字段填 null。",
+                "\nAlso transcribe rank and polarity into the same JSON. Rank is the number of lit upgrade "
+                "pips out of eight at the card bottom. Ignore the mastery requirement and mod drain for rank. "
+                "Polarity is the top-right symbol, as madurai, vazarin or naramon. Use null for unclear fields.",
+            )
         # ★ 2026-10-07（维护者裁定）：紫卡这一路**不竞速**（单渠道，`k=2` 退化为单发）。
         #   起因：`zhipu/glm-4v-flash` 把「冰凇」**稳定**读成「冰松」（5/5 全错）且它最快
         #   （~3.1 s）⇒ k=2 竞速里它必赢，武器名又是整卡的承重件 ⇒ 宁慢不赌，只走一个渠道。
@@ -1223,7 +1250,7 @@ class VisionCommands:
 
         raw = _trailing_to_leading(raw) or raw
         match = re.fullmatch(
-            r"\s*((?:[+−-]\s*\d+(?:\.\d+)?(?:\s*(?:%|m|米|秒))?|[x×]\s*\d+(?:\.\d+)?))\s*(\S.*?)\s*",
+            r"\s*((?:[+−-]\s*\d+(?:\.\d+|,\d{1,2}(?!\d))?(?:\s*(?:%|m|米|秒))?|[x×]\s*\d+(?:\.\d+|,\d{1,2}(?!\d))?))\s*(\S.*?)\s*",
             raw,
         )
         if not match:
@@ -1234,17 +1261,19 @@ class VisionCommands:
             boundary = match.end(1)
             if boundary < len(raw) and not raw[boundary].isspace():
                 return None
-        return match[2], re.sub(r"\s+", "", match[1]).replace("−", "-")
+        return match[2], re.sub(r"\s+", "", match[1]).replace("−", "-").replace(",", ".")
 
     @staticmethod
     def _stat_decimal(raw, sid=None):
         """数值词法和精度独立；x只允许派系SID，未知单位拒绝。"""
         if raw is None or isinstance(raw, bool):
             raise ValueError("missing numeric observation")
-        match = re.fullmatch(r"\s*([x×]?)\s*([+−-]?\s*\d+(?:\.\d+)?)\s*(%|m|米|秒)?\s*", str(raw))
+        match = re.fullmatch(
+            r"\s*([x×]?)\s*([+−-]?\s*\d+(?:\.\d+|,\d{1,2})?)\s*(%|m|米|秒)?\s*", str(raw)
+        )
         if not match:
             raise ValueError("unsupported numeric lexeme")
-        value = Decimal(re.sub(r"\s+", "", match[2]).replace("−", "-"))
+        value = Decimal(re.sub(r"\s+", "", match[2]).replace("−", "-").replace(",", "."))
         if sid and (
             (match[3] in ("m", "米") and sid != "range")
             or (match[3] == "秒" and sid != "combo_duration")

@@ -27,18 +27,21 @@ class TTLCache:
 
     async def get(self, key: str) -> Optional[Any]:
         async with self._lock:
-            item = self._store.get(key)
-            if item is None:
-                self._misses += 1
-                return None
-            exp, value = item
-            if exp <= time.monotonic():
-                self._store.pop(key, None)
-                self._misses += 1
-                return None
-            self._store.move_to_end(key)
-            self._hits += 1
-            return value
+            return self._get_locked(key)
+
+    def _get_locked(self, key: str) -> Optional[Any]:
+        item = self._store.get(key)
+        if item is None:
+            self._misses += 1
+            return None
+        exp, value = item
+        if exp <= time.monotonic():
+            self._store.pop(key, None)
+            self._misses += 1
+            return None
+        self._store.move_to_end(key)
+        self._hits += 1
+        return value
 
     async def set(self, key: str, value: Any, ttl: float) -> None:
         async with self._lock:
@@ -65,12 +68,14 @@ class TTLCache:
         key: str,
         ttl: float,
         fetch: Callable[[], Coroutine[Any, Any, Any]],
+        *,
+        cache_if: Callable[[Any], bool] | None = None,
     ) -> Any:
-        value = await self.get(key)
-        if value is not None:
-            return value
-        # 单飞：同一 key 的并发请求只回源一次
+        # 命中查询与单飞登记共用一把锁。
         async with self._lock:
+            value = self._get_locked(key)
+            if value is not None:
+                return value
             fut = self._inflight.get(key)
             if fut is None:
                 fut = asyncio.get_running_loop().create_future()
@@ -83,7 +88,7 @@ class TTLCache:
         try:
             value = await fetch()
             async with self._lock:
-                if self._inflight.get(key) is fut:
+                if self._inflight.get(key) is fut and (cache_if is None or cache_if(value)):
                     self._set_locked(key, value, ttl)
             if not fut.done():
                 fut.set_result(value)

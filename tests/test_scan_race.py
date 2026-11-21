@@ -413,7 +413,7 @@ try:
         inst._event_has_image = lambda event: True
 
         async def images(event):
-            return ["data:image/png;base64,stub"]
+            return ["data:image/png;base64,stub"] if event.sender == "u1" else []
 
         inst._image_data_urls = images
         inst._vision_providers = lambda: [Provider("local-probe")]
@@ -428,10 +428,16 @@ try:
             "★ 真实识卡入口取消：渠道清理未完时保留并发名额",
             not task.done() and event.unified_msg_origin in inst._ocr_busy,
         )
-        retry = await inst._h_scan(
-            None, types.SimpleNamespace(unified_msg_origin="group://second", sender="u2"), None
+        retry = asyncio.create_task(
+            inst._h_scan(
+                None, types.SimpleNamespace(unified_msg_origin="group://second", sender="u2"), None
+            )
         )
-        check("★ 渠道仍清理时新请求受并发上限约束", "并发上限 1" in (retry.raw_text or ""))
+        await asyncio.sleep(0)
+        check(
+            "★ 渠道仍清理时新请求留在队列",
+            not retry.done() and inst._scan_requests().is_waiting("group://second"),
+        )
         task.cancel()
         for _ in range(5):
             await asyncio.sleep(0)
@@ -444,9 +450,13 @@ try:
             await asyncio.wait_for(task, 2)
         except asyncio.CancelledError:
             pass
+        reply = await asyncio.wait_for(retry, 2)
         check(
-            "★ 清理完成后传播取消并归还名额",
-            task.cancelled() and cleaned.is_set() and not inst._ocr_busy,
+            "★ 清理完成后传播取消并放行等待的请求",
+            task.cancelled()
+            and cleaned.is_set()
+            and not inst._ocr_busy
+            and "图片下载失败" in reply.raw_text,
         )
 
     asyncio.run(cancel_from_handler())

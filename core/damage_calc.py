@@ -774,7 +774,19 @@ def is_variant_only(query: str) -> bool:
     若交给 find_weapon 的子串匹配会随手配到某把 Prime 照算（2026-10-26 修，此前配成翁 Prime）。
     find_weapon 本身不拦 —— parse_args 拿单个词问它来判断「Tenet / 棱晶」是不是武器名的一部分。
     """
-    return _norm(query) in _VARIANT_ONLY
+    return matching.normalize(query) in _VARIANT_ONLY
+
+
+def find_weapon_alias(query: str) -> Optional[dict]:
+    """共用变体的等价写法只按完整名称匹配武器。"""
+    forms = matching.expand_variants(query)
+    if len(forms) < 2:
+        return None
+    index = _name_index()
+    for form in forms:
+        if rows := index.get(form):
+            return min(rows, key=lambda row: row.get("masteryReq", 99))
+    return None
 
 
 def find_weapon(query: str) -> tuple[dict | None, list[dict]]:
@@ -782,15 +794,12 @@ def find_weapon(query: str) -> tuple[dict | None, list[dict]]:
     q = _norm(query)
     if not q:
         return None, []
-    exact = _name_index().get(q) or []
+    index = _name_index()
+    exact = index.get(q) or index.get(matching.normalize(query))
     if exact:
         return min(exact, key=lambda v: v.get("masteryReq", 99)), []
-    # 变体等价（2026-09-23）：绝路p→绝路prime、沙皇赤毒→赤毒沙皇、kuva沙皇。
-    # 只做等价变形，绝不剥变体 token 配 base（配卡计算按变体分别成立）。
-    for f in dict.fromkeys(f for f in matching.expand_variants(query) if f != q):
-        hit = _name_index().get(f) or []
-        if hit:
-            return min(hit, key=lambda v: v.get("masteryReq", 99)), []
+    if weapon := find_weapon_alias(query):
+        return weapon, []
     weapons = _load()["weapons"]
     sub = [v for v in weapons.values() if q in _norm(v.get("zh")) or q in _norm(v.get("name"))]
     if not sub:
@@ -850,6 +859,11 @@ def damage_reduction(armor: float) -> float:
     if armor <= 0:
         return 0.0
     return min(0.90 * math.sqrt(armor / 2700.0), 0.90)
+
+
+def modded_crit_multiplier(base: float, mod_pct: float, final_bonus: float = 0.0) -> float:
+    """暴伤 MOD 乘基础倍率，生效的坚韧连结等在乘算后加到倍率上。"""
+    return base * (1 + mod_pct / 100.0) + final_bonus
 
 
 def crit_expectation(cc: float, cm: float) -> float:
@@ -1096,8 +1110,16 @@ _FUZZY_LEVELS = ("enemy_fuzzy", "weapon_fuzzy")
 def _classify_token(tok: str, level: str):
     """按 level 判定一个 token 是武器 / MOD / 敌人；认不出返回 None。"""
     if level == "weapon_exact":
-        w = find_weapon_exact(tok)
-        return ("weapon", w) if w else None
+        if w := find_weapon_exact(tok) or find_weapon_alias(tok):
+            return "weapon", w
+        words = tok.split()
+        if len(words) > 1 and (
+            (is_variant_only(words[0]) and find_weapon_exact(" ".join(words[1:])))
+            or (is_variant_only(words[-1]) and find_weapon_exact(" ".join(words[:-1])))
+        ):
+            # 保留明确指定的变体，让查无此变体的结果完整回显武器名。
+            return "weapon", None
+        return None
     if level == "mod_exact":
         m = find_mod_exact(tok)
         return ("mod", m) if m else None
@@ -1164,6 +1186,7 @@ def parse_args(tokens: list[str]) -> tuple[dict, list[str]]:
         "multishot": 0.0,
         "crit_chance": 0.0,
         "crit_dmg": 0.0,
+        "final_crit_multiplier_bonus": 0.0,
         "faction_dmg": 0.0,
         "singles": {},
         "physical": {},
@@ -1341,6 +1364,8 @@ def parse_args(tokens: list[str]) -> tuple[dict, list[str]]:
             spec["crit_chance"] = float(re.search(_NUM, low).group(1))
         elif re.fullmatch(r"暴伤" + _NUM + r"%?", low):
             spec["crit_dmg"] = float(re.search(_NUM, low).group(1))
+        elif m := re.fullmatch(r"(?:最终暴伤|flatcrit)" + _NUM, low):
+            spec["final_crit_multiplier_bonus"] = float(m.group(1))
         elif re.fullmatch(r"(爆头倍率|爆头加成)" + _NUM + r"%?", low):
             spec["headshot_bonus"] = float(re.search(_NUM, low).group(1))
         elif re.fullmatch(r"(状态伤害|状态强度)" + _NUM + r"%?", low):
@@ -1475,7 +1500,10 @@ def parse_args(tokens: list[str]) -> tuple[dict, list[str]]:
         for level in _DISPATCH_LEVELS:
             # ⚠️ 模糊级别只允许**单词窗口**：两词串做 difflib 会把
             # 「绝路p 重型机枪手」整串判给敌人（相似度 0.77），顺手吞掉武器名
-            sizes = (1,) if level in _FUZZY_LEVELS else (2, 1)
+            if level == "weapon_exact":
+                sizes = range(min(len(pending), _SALVAGE_MAX_SPAN), 0, -1)
+            else:
+                sizes = (1,) if level in _FUZZY_LEVELS else (2, 1)
             for size in sizes:
                 if size > len(pending):
                     continue
@@ -1747,7 +1775,12 @@ def quantize_damage(per_type: dict[str, float], modded_base: float) -> dict[str,
     sc = modded_base / QUANTIZATION_DENOMINATOR
     out: dict[str, float] = {}
     for k, v in per_type.items():
-        q = math.floor(abs(v) / sc + 0.5) * sc
+        scaled = abs(v) / sc
+        steps = math.floor(scaled)
+        # 中间乘除可能把恰好半步压低一个浮点间隔。
+        if scaled > steps and math.nextafter(scaled, math.inf) >= steps + 0.5:
+            steps += 1
+        q = steps * sc
         if q > 0:
             out[k] = q if v >= 0 else -q
     return out
@@ -3005,7 +3038,10 @@ def calculate(spec: dict, weapon: dict) -> dict:
     cc = cc_base * (
         1 + (spec["crit_chance"] + spec["crit_per_combo"] * (_combo_tier - 1.0)) / 100.0
     )
-    cm = (weapon.get("criticalMultiplier") or 1.0) * (1 + spec["crit_dmg"] / 100.0)
+    final_crit_bonus = spec.get("final_crit_multiplier_bonus", 0.0)
+    cm = modded_crit_multiplier(
+        weapon.get("criticalMultiplier") or 1.0, spec["crit_dmg"], final_crit_bonus
+    )
     e_body = crit_expectation(cc, cm)
     # 重击的暴击期望：斩铁这类卡的暴击几率加成在重击时翻倍（wiki 26.0.7）
     cc_heavy = cc_base * (1 + (spec["crit_chance"] + spec["crit_chance_heavy"]) / 100.0)
@@ -3399,7 +3435,7 @@ def calculate(spec: dict, weapon: dict) -> dict:
         _cc_raw = cc_base if _atk.get("crit_chance") is None else float(_atk["crit_chance"]) / 100.0
         _cm_raw = float(_atk.get("crit_mult") or 0.0) or 1.0
         _mcc = _cc_raw * (1 + spec["crit_chance"] / 100.0)
-        _mcm = _cm_raw * (1 + spec["crit_dmg"] / 100.0)
+        _mcm = modded_crit_multiplier(_cm_raw, spec["crit_dmg"], final_crit_bonus)
         _me = crit_expectation(_mcc, _mcm)
         _sig = _dmg_sig(_md)
         # 有出处的「不吃多重」（一次扳机一次爆炸）只来自灵化 radial 白名单（wiki「AoE does not scale off multishot」）
@@ -3613,7 +3649,7 @@ def calculate(spec: dict, weapon: dict) -> dict:
         _cc_raw = float(_seg.get("criticalChance") or 0.0) + _cc_delta
         _cm_raw = float(_seg.get("criticalMultiplier") or 1.0) + _cm_delta
         _mcc = _cc_raw * (1 + spec["crit_chance"] / 100.0)
-        _mcm = _cm_raw * (1 + spec["crit_dmg"] / 100.0)
+        _mcm = modded_crit_multiplier(_cm_raw, spec["crit_dmg"], final_crit_bonus)
         _me = crit_expectation(_mcc, _mcm)
         mode_segments.append(
             {
@@ -4462,6 +4498,10 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
         )
     if spec["crit_dmg"]:
         mod_bits.append(L(f"暴伤+{spec['crit_dmg']:g}%", f"Crit Dmg +{spec['crit_dmg']:g}%"))
+    if final_crit_bonus := spec.get("final_crit_multiplier_bonus"):
+        mod_bits.append(
+            L(f"最终暴伤+{final_crit_bonus:g}倍", f"Final Crit Mult +{final_crit_bonus:g}x")
+        )
     if spec["faction_dmg"]:
         mod_bits.append(L(f"派系+{spec['faction_dmg']:g}%", f"Faction +{spec['faction_dmg']:g}%"))
     _singles = spec.get("singles") or {}
