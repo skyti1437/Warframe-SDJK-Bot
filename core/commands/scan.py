@@ -116,20 +116,20 @@ async def _scanned_damage_result(host, weapon, spec, overrides, event, platform)
     if spec.get("builtin_calculation_allowed") is False:
         lines = [
             L(
-                "◆ 原图还有未核对的面板或等级，内置估算暂不可用",
-                "◆ Built-in Estimate requires verified screenshot stats and ranks",
+                "◆ 原图还有未核对的面板或等级，随包估算暂不可用",
+                "◆ Bundled estimate requires verified screenshot stats and ranks",
             )
         ]
         ok, footer = False, ""
     else:
         result = dc.calculate(spec, weapon)
         lines = [
-            L("· 计算：内置估算", "· Engine: Built-in Estimate"),
+            L("· 计算：随包估算", "· Engine: Bundled estimate"),
             *dc.card_lines(weapon, spec, result, []),
         ]
         ok, footer = result.get("ok"), dc.card_footer(weapon, result)
     if note:
-        lines.insert(0, L(f"※ 内置估算 · {note}", f"※ Built-in estimate · {note}"))
+        lines.insert(0, L(f"※ 随包估算 · {note}", f"※ Bundled estimate · {note}"))
     return lines, ok, footer
 
 
@@ -464,7 +464,7 @@ class ScanCommands:
             if not res.get("ok"):
                 return None
             out = dc.card_lines(weapon, spec, res, [])
-            out.insert(0, L("· 计算：内置估算", "· Engine: Built-in Estimate"))
+            out.insert(0, L("· 计算：随包估算", "· Engine: Bundled estimate"))
             out.append(
                 L(
                     "※ 与「伤害计算」同一套公式（G系 100 级·身体，无 buff 基准）；"

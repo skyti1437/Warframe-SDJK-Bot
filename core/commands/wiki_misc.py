@@ -953,7 +953,7 @@ class WikiMiscCommands:
                 return self._damage_result(weapon, lines, footer, can_actions)
         reply = await asyncio.to_thread(self._damage_reply, parsed, can_actions=can_actions)
         if note:
-            reply.lines.insert(0, L(f"※ 内置估算 · {note}", f"※ Built-in estimate · {note}"))
+            reply.lines.insert(0, L(f"※ 随包估算 · {note}", f"※ Bundled estimate · {note}"))
         return reply
 
     @staticmethod
@@ -997,7 +997,7 @@ class WikiMiscCommands:
                         "· 元素　电 火 冰 毒（自动合成复合）｜冲击 穿刺 切割（只加同类型）",
                         "· 其它手写　状态伤害N（只放大 DoT）｜基甲N（覆盖默认敌人基准甲）",
                         "· 敌人名　枪兵 / 重机枪手 / 轰击者 / 船员 / 恐鸟 / 夜灵 …（常用 19 个，支持模糊）；"
-                        "给了就用它的真实基准甲/血/盾，并算击杀发数",
+                        "给了就用它的真实基准甲/血/盾，并估算击杀所需命中次数",
                         "◆ 异常（U36 后元素差异的主要来源）",
                         "· 病毒N / 磁力N　1-10 层，对血 / 对盾加伤",
                         "· 腐蚀N / 火剥甲　腐蚀N：剥甲 26%+6%×每层，满层 −80%｜火剥甲：−50%",
@@ -1011,13 +1011,13 @@ class WikiMiscCommands:
                         "· 超宏[N] / 适应N　超宏：不吃护甲/派系、免疫异常｜适应：Sentient 适应 1-4 层",
                         "· 灵化 / 基础形态　默认按原型算；加「灵化」切灵化形态",
                         "· 副开火 / 蓄力 / 未蓄力 / 半自动 / 全自动　切到该形态的整套面板与范围段，选了才算",
-                        "· 开火N秒　火焰单例累加：稳态火层数按开火 N 秒窗口平均，默认 12",
+                        "· 开火N秒　持续输出 N 秒内的平均火焰层数，默认 12 秒",
                         "· 空战 / 地面　Archgun 双部署：默认地面・大气；空战用空战面板",
                         "· 进化 基伤/暴击/爆头…　灵化进化选项，可多次；改基础面板",
                         "· 赤毒辐射60　赤毒/信条/终幕回响加成 25-60%，元素要写",
                         "◆ 输出",
-                        "· 单发　对血/对盾（无暴击）→ 暴击与爆头期望（含暴击）",
-                        "· 每次扳机 / DPS　爆发/持续（均给含暴击与无暴击）",
+                        "· 单次命中　对血/对盾（无暴击）→ 暴击与爆头期望（含暴击）",
+                        "· DPS　爆发/持续（均给含暴击与无暴击）",
                     ],
                     [
                         "◆ Usage: damage <weapon> [vs <enemy>] [faction] [lvN] [headshot] [modifiers...]",
@@ -1028,7 +1028,7 @@ class WikiMiscCommands:
                         "· MOD names　max-rank values; a whole build can be pasted: Serration / Split Chamber / Hellfire / ...",
                         "· Manual bonuses　basedmgN / multishotN / critchanceN / critdmgN / hsmultN / factionN (%), e.g. critchance150",
                         "· Elements　electricity heat cold toxin (composites form automatically) | impact puncture slash (add to the same type only), e.g. electricity90",
-                        "· Enemy name　the enemy after vs (about 19 common enemies, fuzzy matching); when given, its real base armor / health / shield is used and shots-to-kill is shown",
+                        "· Enemy name　the enemy after vs (about 19 common enemies, fuzzy matching). Shows estimated hits to kill using the target's base armor, health, and shields.",
                         "◆ Status effects",
                         "· viralN / magneticN　1-10 stacks, extra damage to health / shields",
                         "· corrosiveN / strip　corrosiveN: armor strip 26%+6% per stack, -80% at full stacks | strip: Heat armor strip -50%",
@@ -1045,7 +1045,7 @@ class WikiMiscCommands:
                         "· kuva-radiation60　Kuva / Tenet / Coda bonus 25-60%, the element must be written",
                         "◆ Output",
                         "· Single hit　vs health / shield (no crit) → expected crit and headshot (with crit)",
-                        "· Per trigger / DPS　burst / sustained (with and without crit)",
+                        "· DPS　burst / sustained (with and without crit)",
                     ],
                 ),
                 actions=[
@@ -1090,7 +1090,7 @@ class WikiMiscCommands:
                 return weapon, spec
             res = dc.calculate(spec, weapon)
             lines = [
-                L("· 计算：内置估算", "· Engine: Built-in Estimate"),
+                L("· 计算：随包估算", "· Engine: Bundled estimate"),
                 *dc.card_lines(weapon, spec, res, alts),
             ]
             return self._damage_result(

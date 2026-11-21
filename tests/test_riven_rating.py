@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from core import (
     damage_calc,
     damage_engine,
+    formatters,
     i18n,
     portable_riven,
     riven_rating,
@@ -135,7 +136,7 @@ def test_trait_recommendations():
     )
     assert normal.high < -20 and cycle.low <= 0 <= cycle.high
     (weapon,) = riven_rating.match_weapon("伯斯顿 Prime")
-    assert "基准" in "\n".join(riven_rating.trait_recommendation_lines(weapon, "base"))
+    assert "随包参考" in "\n".join(riven_rating.trait_recommendation_lines(weapon, "base"))
     assert "含普通形态充能" in "\n".join(riven_rating.trait_recommendation_lines(weapon, "cycle"))
     assert not riven_rating.trait_recommendation_lines(weapon, "heavy")
 
@@ -304,7 +305,7 @@ async def test_trait_matrix_keeps_configured_sale_reference_without_querying_lis
     assert all(f"{name}⟦/" in body for name in ("正词条", "负词条", "融合词条"))
     assert "市场挂牌" not in body
     assert "出售参考" in body and "出售说明" in body
-    assert sale.url in reply.extra_text
+    assert not reply.extra_text and sale.url not in body
     lookup.assert_awaited_once()
     host.client.wm_riven_auctions.assert_not_awaited()
 
@@ -328,7 +329,7 @@ async def test_recommendation_weapon_aliases():
                 build = await host._h_loadout_recommend(parse(f"配卡推荐 {alias}"), None, "pc")
                 assert traits.title == f"词条推荐 · {label}", (alias, traits.title)
                 assert build.title == f"配卡推荐 · {label}", (alias, build.title)
-                assert "◆ 无紫卡参考配装" in build.lines
+                assert any(line.startswith("◆ 无紫卡参考") for line in build.lines)
         assert (await host.query("词条推荐 布莱顿")).title == "词条推荐 · 布莱顿"
         assert (await host.query("词条推荐 安培克斯p")).title == "词条推荐"
 
@@ -344,23 +345,84 @@ async def test_reference_loadout_entry():
         return await host._h_loadout_recommend(parsed, None, "pc")
 
     with patch.object(damage_engine, "_request", engine):
+        braton = "\n".join((await query("配卡推荐 布莱顿p")).lines)
+        assert "随包参考" in braton and "整套 DPS 113,717" in braton
+        assert "59/60" in braton and "拆下后 DPS" in braton and "膛线" in braton
+        assert "1-1 灵化形态" in braton and "命中弱点" in braton
+        assert "实弹胆魄 · 基础伤害 +2" in braton and "虚空指引" in braton
+        with i18n.use_lang("en"):
+            braton = "\n".join((await query("loadoutrecommend Braton Prime")).lines)
+            assert "Munitions Grit · +2 base damage" in braton and "实弹胆魄" not in braton
+            assert "1-1 Incarnon Form" in braton and "Weak-point hits" in braton
+        for command in (
+            "配卡推荐 野猪 Prime 灵化形态",
+            "配卡推荐 拉特昂 Prime 灵化形态",
+            "配卡推荐 视使之触",
+            "配卡推荐 魔典",
+            "配卡推荐 伯斯顿p",
+        ):
+            lines = "\n".join((await query(command)).lines)
+            assert "随包参考" in lines and "拆下后 DPS" in lines, (command, lines)
+        latron = "\n".join((await query("配卡推荐 拉特昂 Prime 灵化形态")).lines)
+        assert "在敌人和地形间弹跳" in latron and "4 米范围爆炸" in latron
+        assert "私法 补给" in latron and "主要·压缩" in latron
+        boar = "\n".join((await query("配卡推荐 野猪 Prime 灵化形态")).lines)
+        assert "霰弹枪弹药转换" in boar and "霰弹·仇杀" in boar
+        chosen = {
+            option
+            for modes in riven_rating.presets().values()
+            for preset in modes.values()
+            for option in preset["fight"]["evolutions"]
+        }
+        assert chosen == riven_rating.display_names()["referenceEvolutions"].keys()
         for cmd, wid, mode, label in (
-            ("配卡推荐 安培克斯", "amprex", "base", "常态"),
-            ("配卡推荐 野猪 Prime 主射", "boar_prime", "base", "常态"),
+            ("配卡推荐 安培克斯", "amprex", "base", "主射"),
+            ("配卡推荐 野猪 Prime 主射", "boar_prime", "base", "主射"),
             ("配卡推荐 野猪 Prime 灵化循环", "boar_prime", "cycle", "灵化循环"),
             ("配卡推荐 太始弓 副射", "nataruk_perfect", "alternate", "副射"),
             ("配卡推荐 信条·集议 重击", "tenet_agendus", "heavy", "重击"),
         ):
             reply = await query(cmd)
             fight = riven_rating.presets()[wid][mode]["fight"]
-            assert label in reply.lines[0] and "◆ 无紫卡参考配装" in reply.lines
-            assert reply.lines[2] == "· " + " / ".join(
-                riven_rating._mod_name(mid) for mid in fight["mods"][:8]
+            assert label in reply.lines[0] and any(
+                line.startswith("◆ 无紫卡参考配装 · 容量") for line in reply.lines
             )
-            assert any("KPM" in line for line in reply.lines)
+            assert "◆ 武器面板" in reply.lines
+            table = reply.lines.index("　槽位　MOD　等级　容量　极性　拆下后 DPS　变化")
+            rows = reply.lines[table + 1 : table + 1 + len(fight["mods"][:8])]
+            for row, mod in zip(rows, fight["mods"][:8], strict=True):
+                name, rank, _, _ = riven_rating._reference_mod(mod)
+                assert f"{name}　{rank}　" in row and len(row.split("　")) == 7
+            assert any(line.startswith("· 随包参考 ") and "KPM" in line for line in reply.lines)
             if fight["evolutions"]:
-                assert any(line.startswith("· 进化 ") for line in reply.lines)
-        assert "主要·准星（5级）" in "\n".join((await query("配卡推荐 安培克斯")).lines)
+                assert "◆ 灵化进化" in reply.lines
+                assert not any("Evo1 " in line for line in reply.lines)
+            if wid == "tenet_agendus":
+                assert any(line.startswith("· 架势　") for line in reply.lines)
+                assert any(line.startswith("· 扩展槽　") for line in reply.lines)
+                assert any("攻击速度" in line for line in reply.lines)
+                assert all("射速" not in line and "多重射击" not in line for line in reply.lines)
+        assert riven_rating.stat_label("fire_rate", True, full=True) == "攻击速度"
+        amprex = "\n".join((await query("配卡推荐 安培克斯")).lines)
+        assert "主要·准星（5级）" in amprex and "迅速抽换（3级，容量 7）" in amprex
+        assert "整套 DPS 92,864" in amprex and "容量 58/60" in amprex
+        details = riven_rating._build_details()
+        assert {wid: set(modes) for wid, modes in details.items()} == {
+            wid: set(modes) for wid, modes in riven_rating.presets().items()
+        }
+        for modes in details.values():
+            for replay in modes.values():
+                assert len(replay["slots"]) == len(replay["without"]) == 8
+                assert replay["cap"][0] <= replay["cap"][1]
+                panel = damage_engine.weapon_panel_lines(replay["stats"])
+                assert panel and any(
+                    line.startswith(("· 物理", "· 元素", "· 特殊")) for line in panel
+                )
+        for wid in ("simulor", "synoid_simulor", "sporelacer_secondary"):
+            panel = damage_engine.weapon_panel_lines(details[wid]["base"]["stats"])
+            assert "范围爆炸伤害（单次命中）" in panel[1]
+        radial = await query("配卡推荐 重力奇点拟成枪")
+        assert "· 赋能　主要·压缩（5级）" in radial.lines
         assert "该武器可用模式" in "\n".join((await query("配卡推荐 太始弓 重击")).lines)
         kitgun = await query("配卡推荐 捕月")
         assert "捕月（主武器）" in "\n".join(kitgun.lines)
@@ -606,8 +668,8 @@ def test_portable_card_language_and_removed_impact():
         "evaluationTarget": {"enemyName": "Thrax Centurion", "level": 170, "headshotChance": 0},
     }
     assert "凶魂百夫长" in portable_riven.scenario_line(scenario)
-    assert portable_riven._impact_label(542387.19, 28128.14) == "28,128 · ⟦m⟧-94.8%⟦/m⟧"
-    assert portable_riven._impact_label(100, 110) == "110 · ⟦y⟧+10.0%⟦/y⟧"
+    assert formatters.dps_removal_columns(542387.19, 28128.14) == ("28,128", "⟦m⟧-94.8%⟦/m⟧")
+    assert formatters.dps_removal_columns(100, 110) == ("110", "⟦y⟧+10.0%⟦/y⟧")
     stats = dict(zip(damage_engine.PANEL_FIELDS, (30, 1.2, 5.68, 0.432, 8, 1.5)))
     panel = damage_engine.weapon_panel_lines(stats)
     assert len(panel) == 3 and "120.0%" in panel[1] and "射速 8.00/秒" in panel[2]
@@ -647,23 +709,22 @@ def test_portable_enemy_labels_and_english_evolutions():
         assert portable_riven.enemy_label("/unknown", "Unknown") == "Unknown"
         assert (
             "迅速判决 · 投射物速度 +50%"
-            in portable_riven.evolution_lines(torid, {"tier3": "3-1"}, 0)[1]
+            in portable_riven.evolution_lines(torid, {"tier3": "3-1"})[1]
         )
     with i18n.use_lang("en"):
         assert portable_riven.enemy_label(butcher, "Butcher") == "Butcher"
         assert portable_riven.enemy_label(ambulas, "Ambulas") == "Ambulas"
-        assert portable_riven.evolution_lines(torid, {"tier3": "3-1"}, 0)[1] == (
+        assert portable_riven.evolution_lines(torid, {"tier3": "3-1"})[1] == (
             "· 3-1 Swift Deliverance · 50% Projectile Speed"
         )
-        fallback = portable_riven.evolution_lines(
-            {**torid, "path": "/unknown"}, {"tier3": "3-1"}, 0
-        )
+        fallback = portable_riven.evolution_lines({**torid, "path": "/unknown"}, {"tier3": "3-1"})
         assert fallback[1] == "· 3-1 · Effect description unavailable"
 
 
 def test_offline_riven_comparison_context():
     catalog = portable_riven._comparison_catalog()
-    assert len(catalog) == len(portable_riven.MODES) == 6
+    assert len(catalog) == len(portable_riven.BUNDLED_BUILD_MODES) == 7
+    assert sum("fixedTraitReference" in item for item in catalog.values()) == 6
     weapon, fire_mode, _ = portable_riven.MODES["braton_prime", "base"]
     (context,) = [key[2] for key in catalog if key[:2] == (weapon, fire_mode)]
     assert catalog[weapon, fire_mode, context]["replayed"] >= 2
@@ -682,7 +743,15 @@ def test_offline_riven_comparison_context():
     assert not portable_riven.comparison_lines({**result, "contextHash": "another-target"})
     assert not portable_riven.comparison_lines({**result, "engineFingerprint": "old-engine"})
     assert not portable_riven.comparison_lines({**result, "searchWork": {"limited": 1}})
-    prepared = portable_riven.prepared_traits(result)
+    # Released portable views store the fingerprint on the envelope only.
+    row = {key: value for key, value in result.items() if key != "engineFingerprint"}
+    with (
+        patch.object(portable_riven, "_prepared_entries", return_value=[row]),
+        patch.object(portable_riven, "_valid_target", return_value=True),
+    ):
+        view = portable_riven._prepared_result(Path(__file__), (weapon, fire_mode, 0.0))
+    assert view == result
+    prepared = portable_riven.prepared_traits(view)
     assert prepared is not None
     assert sum(map(len, prepared[1].values())) == 55
     (entry,) = riven_rating.match_weapon("布莱顿 Prime")
@@ -692,7 +761,30 @@ def test_offline_riven_comparison_context():
     assert not any("percent" in line or "flat" in line for line in matrix)
     assert any("穿透" in line and " 米" in line for line in matrix)
     assert any("⟦m⟧-" in line for line in matrix) and any("⟦y⟧+" in line for line in matrix)
+    assert any("基础伤害" in line and "待复算" in line and "-148.5%" in line for line in matrix)
+    assert not any("-101.7%" in line for line in matrix)
     assert portable_riven.prepared_traits({**result, "contextHash": "another-target"}) is None
+    assert portable_riven.prepared_traits({**result, "engineFingerprint": "old-engine"}) is None
+
+    key = (weapon, fire_mode, context)
+    reference = catalog[key]["fixedTraitReference"]
+    (negative_damage,) = [
+        row for row in reference["rows"] if row["code"] == "D" and row["negative"]
+    ]
+    for score, expected in (
+        (0.0, -100.0),
+        (reference["baselineScore"] * 0.5, -50.0),
+        (float("inf"), None),
+    ):
+        replacement = {
+            **catalog[key],
+            "fixedTraitReference": {**reference, "rows": [{**negative_damage, "score": score}]},
+        }
+        with patch.object(portable_riven, "_comparison_catalog", return_value={key: replacement}):
+            (_label, rows) = portable_riven.prepared_traits(result)
+        (trait,) = map(riven_rating._TraitResult._make, rows["negative"])
+        assert trait.pct == expected
+        assert bool(trait.flags & riven_rating._TRAIT_REPLAY_REQUIRED) is (expected is None)
 
 
 def test_reference_overflow_fits_without_rearranging_mods():
@@ -709,6 +801,61 @@ def test_reference_overflow_fits_without_rearranging_mods():
     assert fitted["slotPolarities"] == [None, "AP_ATTACK"]
     assert request["slotPolarities"] == [None, "AP_TACTIC"]
     assert fitted["mods"] == request["mods"]
+
+
+async def test_reference_prefers_cheaper_equivalent_serration():
+    heavy = {"path": portable_riven._HEAVY_CALIBER, "rank": 10, "slot": 7}
+    other = {"path": "/OtherMOD", "rank": 5, "slot": 1}
+    request = {"slotPolarities": [None] * 8, "mods": [other, heavy], "incarnonChoices": {}}
+    serration = {**heavy, "path": portable_riven._SERRATION}
+    assert portable_riven._serration_alternative({**request, "riven": {"slot": 2}}) is None
+    assert portable_riven._serration_alternative({**request, "mods": [heavy, serration]}) is None
+    assert (
+        portable_riven._serration_alternative({**request, "mods": [{**heavy, "rank": 9}]}) is None
+    )
+
+    for dps, capacity, valid, use_serration in (
+        (100.0, 59, True, True),
+        (99.0, 59, True, False),
+        (100.0, 60, True, False),
+        (100.0, 59, False, False),
+    ):
+        service = damage_engine.EngineService(Path("."))
+        service.ensure_portable = AsyncMock()
+        calls = []
+
+        async def replay(_port, _endpoint, body, **_kwargs):
+            mods = body["mods"]
+            calls.append(mods)
+            alternate = serration in mods
+            return {
+                "window": {"windowDps": (dps if alternate else 100.0) if len(mods) == 2 else 40.0},
+                "validation": {
+                    "capacity": capacity if alternate else 60,
+                    "valid": valid if alternate else True,
+                },
+            }
+
+        with (
+            patch.object(damage_engine, "portable_request", side_effect=replay),
+            patch.object(
+                damage_engine,
+                "validate_fixed_replay",
+                side_effect=lambda row, _: (row["window"], row["validation"]),
+            ),
+        ):
+            result = await portable_riven._mod_gains(service, 1, request)
+        assert result["serration_slot"] == (7 if use_serration else None)
+        assert result["capacity_saved"] == int(use_serration)
+        assert result["without"] == {1: 40.0, 7: 40.0}
+        assert calls == [
+            [other, heavy],
+            [other, serration],
+            [serration if use_serration else heavy],
+            [other],
+        ]
+        assert request["mods"] == [other, heavy]
+        await service.close()
 
 
 if __name__ == "__main__":
@@ -728,5 +875,6 @@ if __name__ == "__main__":
     test_portable_enemy_labels_and_english_evolutions()
     test_offline_riven_comparison_context()
     test_reference_overflow_fits_without_rearranging_mods()
+    asyncio.run(test_reference_prefers_cheaper_equivalent_serration())
     scenes = sum(map(len, riven_rating.presets().values()))
     print(f"{scenes:,} 项预设与单词条数据、图片锁卡与实值变更重搜通过")

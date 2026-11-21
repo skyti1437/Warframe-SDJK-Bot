@@ -65,6 +65,12 @@ except ImportError:
     import matching
 
 L = i18n.L  # 双语文案：L("中文", "English")，中文原文逐字不变
+
+
+def attack_rate_label(melee: bool) -> str:
+    return L("攻击速度", "Attack speed") if melee else L("射速", "Fire rate")
+
+
 _DATA = Path(__file__).resolve().parent / "data"
 _cache: dict = {}
 
@@ -1314,9 +1320,9 @@ def parse_args(tokens: list[str]) -> tuple[dict, list[str]]:
             if spec["fire_seconds"] != _fs:
                 spec["notes"].append(
                     L(
-                        f"开火时长按 {FIRE_SECONDS_MIN:g}–{FIRE_SECONDS_MAX:g} 秒取值："
+                        f"输出时长按 {FIRE_SECONDS_MIN:g}–{FIRE_SECONDS_MAX:g} 秒取值："
                         f"{_fs:g} → {spec['fire_seconds']:g}",
-                        f"Fire duration is clamped to {FIRE_SECONDS_MIN:g}–{FIRE_SECONDS_MAX:g} s: "
+                        f"Duration is clamped to {FIRE_SECONDS_MIN:g}–{FIRE_SECONDS_MAX:g} s: "
                         f"{_fs:g} → {spec['fire_seconds']:g}",
                     )
                 )
@@ -3149,8 +3155,12 @@ def calculate(spec: dict, weapon: dict) -> dict:
     # 两项同用改造后射速。
     fr_note = ""
     _fr_mult = 1.0
+    rate_label = attack_rate_label(weapon.get("category") == "Melee")
     if spec["no_fire_rate_mod"]:
-        fr_note = L("射速不可修改，增减已忽略", "fire rate cannot be modified, changes ignored")
+        fr_note = L(
+            f"{rate_label}不可修改，增减已忽略",
+            f"{rate_label.lower()} cannot be modified, changes ignored",
+        )
     elif spec["fire_rate_pct"]:
         # 只按基础射速乘算（不含其它射速 MOD 的叠加细节）
         _fr_pct = float(spec["fire_rate_pct"])
@@ -3165,7 +3175,9 @@ def calculate(spec: dict, weapon: dict) -> dict:
                 f"incl. fire rate {_fr_pct:+g}% (bow / crossbow: fire rate mod {_fr_mod:+g}% ×2)",
             )
         else:
-            fr_note = L(f"含射速 {_fr_pct:+g}%", f"incl. fire rate {_fr_pct:+g}%")
+            fr_note = L(
+                f"含{rate_label} {_fr_pct:+g}%", f"incl. {rate_label.lower()} {_fr_pct:+g}%"
+            )
         _fr_mult = max(0.05, 1 + _fr_pct / 100.0)
         fire_rate *= _fr_mult
     # ★ 每秒有效射弹数（b6 批）：点射 / 蓄力按 wiki Fire Rate 换算；fire_rate 仍是面板射速（卡面
@@ -4470,6 +4482,9 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
         return out
     # 头部与「面板口径」都按**实际参与计算**的面板（形态/进化已套用），库值只取名字与 MR
     pw = res.get("weapon_eff") or weapon or {}
+    melee = weapon.get("category") == "Melee"
+    hit_label = L("单次命中", "Per Hit") if melee else L("单发", "Per Shot")
+    rate_label = attack_rate_label(melee)
     dt = pw.get("damage") or {}
     base_parts = _sep.join(
         f"{_ty(k)}{round(v, 1):g}"
@@ -4537,7 +4552,10 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
     _fr_eff = res.get("fire_rate_eff")
     if _fr_eff is not None and abs(_fr_eff - res["fire_rate"]) > 1e-6:
         # 点射 / 蓄力：面板射速 ≠ 每秒有效射弹数（DPS 用后者，算式见备注）
-        _fr_txt += L(f"（有效 {_fr_eff:.3g} 发/s）", f" (effective {_fr_eff:.3g} shots/s)")
+        rate_unit = L("次/秒", "attacks/s") if melee else L("发/s", "shots/s")
+        _fr_txt += L(
+            f"（有效 {_fr_eff:.3g} {rate_unit}）", f" (effective {_fr_eff:.3g} {rate_unit})"
+        )
 
     ssr = res.get("steady") or {}
     crit_exp = res["crit_exp"]
@@ -4663,10 +4681,15 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
             _pool = (
                 L(f"护盾 {res['shield_hp']:.0f} → ", f"Shield {res['shield_hp']:.0f} → ") + _pool
             )
+        count = (
+            L(f"平均命中 {res['shots']} 次", f"avg {res['shots']} hits")
+            if melee
+            else L(f"平均 {res['shots']} 发", f"avg {res['shots']} shots")
+        )
         kv.append(
             L(
-                f"◆ 击杀：平均 {res['shots']} 发（身体、含暴击期望）｜目标{_pool}",
-                f"◆ Kills: avg {res['shots']} shots (body, with crit expectation)｜Target {_pool}",
+                f"◆ 击杀：{count}（身体、含暴击期望）｜目标{_pool}",
+                f"◆ Kills: {count} (body, with crit expectation)｜Target {_pool}",
             )
         )
     lines: list[str] = kv[:]
@@ -4685,7 +4708,9 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
     if not _merged:
         _crit_txt = L(f"｜{pt:.0f}（无暴击）", f"｜{pt:.0f} (no crit)") if crit_exp != 1.0 else ""
         _lab = (
-            L(f"每次扳机（多重 ×{_mult:.2f}）", f"Per trigger (multishot ×{_mult:.2f})")
+            L("每次攻击", "Per attack")
+            if melee
+            else L(f"每次扳机（多重 ×{_mult:.2f}）", f"Per trigger (multishot ×{_mult:.2f})")
             if _mult > 1
             else L("单发", "Per shot")
         )
@@ -4708,8 +4733,9 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
             if _m.get("radius_m"):
                 _extra.append(L(f"半径 {_m['radius_m']:g}m", f"radius {_m['radius_m']:g}m"))
             if float(_m.get("count") or 1.0) != 1.0:
-                _extra.append(L(f"×{float(_m['count']):g} 颗", f"×{float(_m['count']):g} pcs"))
-            if _m.get("takes_multishot") is False:
+                unit = L("次命中", "hits") if melee else L("颗", "pcs")
+                _extra.append(f"×{float(_m['count']):g} {unit}")
+            if not melee and _m.get("takes_multishot") is False:
                 _extra.append(L("不吃多重", "no multishot"))
             if _m.get("takes_condition_overload"):
                 _extra.append(L("吃异况超量", "affected by Condition Overload"))
@@ -4742,21 +4768,20 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
             f"headshot mult ×{res['head_mult']:.2f})",
         )
     )
-    if res.get("head_src"):
-        _hl = L(f"　爆头口径：{res['head_src']}", f"　Headshot basis: {res['head_src']}")
-        if res.get("head_formula"):
-            _hl += L(f"；倍率 = {res['head_formula']}", f"; mult = {res['head_formula']}")
-        if res.get("head_crit_note"):
-            _hl += f"；{res['head_crit_note']}" if not _en else f"; {res['head_crit_note']}"
-        sing.append(_hl)
+    if basis := res.get("head_src"):
+        # 卡面保留弱点倍率的依据，数据源和完整倍率公式供后台查阅。
+        basis = re.sub(r"（wiki .*）(?=；|$)| \(wiki .*\)(?=;|$)", "", basis)
+        sing.append(L(f"　爆头口径：{basis}", f"　Headshot basis: {basis}"))
+        if spec.get("headshot") and res.get("head_crit_note"):
+            sing.append(f"　{res['head_crit_note']}")
     sing.append(
         L(
             f"· 暴击期望　×{crit_exp:.2f}"
             f"（暴率 {res['crit_cc'] * 100:.0f}% ×暴伤 {res['crit_cm']:.2f}）"
-            f"｜单发 {res['health'] * crit_exp:.0f}",
+            f"｜{hit_label} {res['health'] * crit_exp:.0f}",
             f"· Crit expectation　×{crit_exp:.2f}"
             f" (crit chance {res['crit_cc'] * 100:.0f}% × crit dmg {res['crit_cm']:.2f})"
-            f"｜Per shot {res['health'] * crit_exp:.0f}",
+            f"｜{hit_label.capitalize()} {res['health'] * crit_exp:.0f}",
         )
     )
     top = sorted(res["per_type_health"].items(), key=lambda kv_: -kv_[1])[:4]
@@ -4819,16 +4844,15 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
                 L(
                     f"火 {ssr['heat_stacks']:.1f} 层"
                     + (
-                        f"（单例累加：开火 {ssr['fire_seconds']:g}s 内平均 = 触发率×{ssr['fire_seconds']:g}/2）"
+                        f"（{'持续攻击' if melee else '开火'} {ssr['fire_seconds']:g} 秒平均）"
                         if ssr.get("heat_refreshed")
-                        else "（触发间隔 > 6s，每层独立过期 = 触发率×6）"
+                        else "（层数分别到期）"
                     ),
                     f"Heat {ssr['heat_stacks']:.1f} stacks"
                     + (
-                        f" (single instance accumulates: average over {ssr['fire_seconds']:g}s of "
-                        f"firing = proc rate × {ssr['fire_seconds']:g}/2)"
+                        f" (average over {ssr['fire_seconds']:g} s of {'attacking' if melee else 'firing'})"
                         if ssr.get("heat_refreshed")
-                        else " (proc interval > 6s, each stack expires on its own = proc rate × 6)"
+                        else " (stacks expire individually)"
                     ),
                 )
             )
@@ -4840,7 +4864,7 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
         if det:
             bits.append(L(f"DoT：{det}", f"DoT: {det}"))
         sing.append(L("· 触发　", "· Procs　") + "｜".join(bits))
-    lines.append(L("◆ 单发", "◆ Per Shot"))
+    lines.append(f"◆ {hit_label}")
     lines += sing
 
     # —— 专项：重击 / 对超宏 / 适应 ——
@@ -4850,10 +4874,10 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
         spec_rows.append(
             L(
                 f"· 重击　连击 {hv['combo_hits']} → ×{hv['multiplier']:.1f}"
-                f"｜单发 {hv['health']:.0f}｜含暴击 {hv['health_crit']:.0f}"
+                f"｜单次命中 {hv['health']:.0f}｜含暴击 {hv['health_crit']:.0f}"
                 f"｜爆头 {hv['head']:.0f}" + "（重击会清空连击数）",
                 f"· Heavy Attack　Combo {hv['combo_hits']} → ×{hv['multiplier']:.1f}"
-                f"｜Per shot {hv['health']:.0f}｜With crit {hv['health_crit']:.0f}"
+                f"｜Per hit {hv['health']:.0f}｜With crit {hv['health_crit']:.0f}"
                 f"｜Headshot {hv['head']:.0f}" + " (heavy attacks reset the combo count)",
             )
         )
@@ -4877,11 +4901,15 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
             "｜Overguard ignores armor and faction weakness, is immune to status (Void +50%)",
         )
         if og.get("pool"):
+            count = math.ceil(og["pool"] / og["crit"]) if og["crit"] > 0 else "—"
+            hits = (
+                L(f"命中 {count} 次打穿", f"{count} hits to break")
+                if melee
+                else L(f"{count} 发打穿", f"{count} shots to break")
+            )
             line += L(
-                f"｜超宏池 {og['pool']:.0f} → "
-                f"{math.ceil(og['pool'] / og['crit']) if og['crit'] > 0 else '—'} 发打穿",
-                f"｜Overguard pool {og['pool']:.0f} → "
-                f"{math.ceil(og['pool'] / og['crit']) if og['crit'] > 0 else '—'} shots to break",
+                f"｜超宏池 {og['pool']:.0f} → {hits}",
+                f"｜Overguard pool {og['pool']:.0f} → {hits}",
             )
         spec_rows.append(line)
     ad = res.get("adapt")
@@ -4915,13 +4943,13 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
             f"· 面板　基伤 {dt.get('total', 0):g}"
             + (f"（{base_parts}）" if base_parts else "")
             + f"｜暴击 {cc * 100:g}% ×{cm:g}"
-            + f"｜射速 {_fr_txt}"
+            + f"｜{rate_label} {_fr_txt}"
             + (f"（{res['fire_note']}）" if res.get("fire_note") else "")
             + (f"｜多重 {ms:g}" if ms and ms > 1 else ""),
             f"· Panel　Base dmg {dt.get('total', 0):g}"
             + (f" ({base_parts})" if base_parts else "")
             + f"｜Crit {cc * 100:g}% ×{cm:g}"
-            + f"｜Fire rate {_fr_txt}"
+            + f"｜{rate_label} {_fr_txt}"
             + (f" ({res['fire_note']})" if res.get("fire_note") else "")
             + (f"｜Multishot {ms:g}" if ms and ms > 1 else ""),
         )
@@ -5043,10 +5071,11 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
             if eff.get("multishot"):
                 where.append(L("多重·加算", "Multishot · additive"))
             if eff.get("fire_rate"):
+                tag_rate = rate_label if melee else L("射速", "Fire Rate")
                 where.append(
-                    L("射速·不可修改，已忽略", "Fire Rate · cannot be modified, ignored")
+                    L(f"{tag_rate}·不可修改，已忽略", f"{tag_rate} · cannot be modified, ignored")
                     if spec.get("no_fire_rate_mod")
-                    else L("射速·加算", "Fire Rate · additive")
+                    else L(f"{tag_rate}·加算", f"{tag_rate} · additive")
                 )
             if eff.get("crit_chance"):
                 where.append(L("暴率·加算", "Crit Chance · additive"))
@@ -5266,11 +5295,13 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
         else:
             inp.append(L(f"· 说明　{_nz}", f"· Notes　{_nz}"))
     if res["steel_path"]:
+        kill_count = (
+            L("击杀所需命中次数", "hits to kill") if melee else L("击杀发数", "shots-to-kill")
+        )
         inp.append(
             L(
-                "· 钢路　敌人血量/护盾 ×2.5（护甲已不加成）；只计入击杀发数，伤害数值不受影响",
-                "· Steel Path　Enemy health / shield ×2.5 (armor no longer scales); only the "
-                "shots-to-kill is affected, damage numbers are unchanged",
+                f"· 钢路　敌人血量/护盾 ×2.5（护甲已不加成），影响{kill_count}，伤害数值照常计算",
+                f"· Steel Path　Enemy health / shield ×2.5 (armor no longer scales), affects {kill_count}",
             )
         )
     lines.append(L("◆ 输入", "◆ Input"))
@@ -5314,10 +5345,10 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
         _has_dot = any(r[4] for r in recs)
         lines.append(
             L(
-                "　段　单发　含暴击"
-                + ("　射程衰减" if _has_fo else "")
+                f"　段　{hit_label}　含暴击"
+                + (("　距离衰减" if melee else "　射程衰减") if _has_fo else "")
                 + ("　备注" if _has_dot else ""),
-                "　Segment　Per Shot　With Crit"
+                f"　Segment　{hit_label}　With Crit"
                 + ("　Falloff" if _has_fo else "")
                 + ("　Notes" if _has_dot else ""),
             )
@@ -5332,8 +5363,8 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
         if len(modes) > 8:
             lines.append(
                 L(
-                    f"· 另 {len(modes) - 8} 段　次级开火/灵化等未列出",
-                    f"· {len(modes) - 8} more segments　secondary fire / Incarnon etc. not listed",
+                    f"· 另有 {len(modes) - 8} 个攻击段未列出",
+                    f"· {len(modes) - 8} more attack segments omitted",
                 )
             )
 
@@ -5358,40 +5389,21 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
                 + "; not in the MOD name table, if wrong please retry with the official name",
             )
         )
-    lines.append(
-        L(
-            "※ 实战 DPS 为稳态近似：异常层已建立、持续挨打；未计爬升/掉层/击杀截断与 Boss 衰减；"
-            "火焰按单例累加、每次触发刷新计时（wiki Heat Damage），取「开火 T 秒」窗口平均"
-            f"（默认 {FIRE_SECONDS_DEFAULT:g}s，可写「开火N秒」）",
-            "※ Practical DPS is a steady-state approximation: status stacks already built, "
-            "target keeps taking hits; ramp-up / stack decay / kill cutoff and Boss falloff are "
-            "not counted; Heat accumulates as a single instance and refreshes its timer on each "
-            'proc (wiki Heat Damage), averaged over a "fire T seconds" window '
-            f'(default {FIRE_SECONDS_DEFAULT:g}s, set with "fire N s")',
+    if ssr.get("dps_total"):
+        lines.append(
+            L(
+                "※ 实战 DPS 按持续输出估算。",
+                "※ Practical DPS estimates sustained output.",
+            )
         )
-    )
-    # #6 口径（2026-10-09，不改算法）：游戏按 MOD 槽位顺序配对、武器自带元素排
-    # 最后参与合成（wiki Damage「Innate weapon elemental damages are considered the very last」）；本计算器固定顺序且自带元素不合成
-    lines.append(
-        L(
-            "※ 护甲减伤 = 90%×√(护甲/2700)；元素合成口径：按 火>冰>电>毒 两两配对（游戏内按 MOD 槽位顺序配对、"
-            "自带元素也参与合成，多元素配卡以游戏面板为准）；U36 起元素差异只有派系弱点 ±50% 与异常状态",
-            "※ Armor reduction = 90% × √(armor / 2700); element combining pairs in the order "
-            "Heat > Cold > Electricity > Toxin (in game, pairing follows MOD slot order and "
-            "innate elements also combine; for multi-element builds the in-game panel is "
-            "authoritative); since U36 the only differences between elements are faction "
-            "weakness ±50% and status effects",
+    if _singles:
+        lines.append(
+            L(
+                "※ 元素合成口径按火、冰、电、毒配对。游戏内组合受 MOD 槽位顺序和自带元素影响。",
+                "※ Elements pair in Heat, Cold, Electricity and Toxin order. "
+                "In-game combinations depend on MOD slot order and innate elements.",
+            )
         )
-    )
-    lines.append(
-        L(
-            "※ 乘区：基伤/多重/暴率/暴伤组内相加，元素先相加后合成，派系独立乘区；"
-            "暴击按期望 1+暴率×(暴伤−1)；公式来源 wiki，2026-09-16 核对",
-            "※ Multipliers: base dmg / multishot / crit chance / crit dmg add within their group, "
-            "elements are summed then combined, faction is a separate multiplier; crit uses the "
-            "expectation 1 + crit chance × (crit dmg − 1); formulas from the wiki, checked 2026-09-16",
-        )
-    )
     return lines
 
 

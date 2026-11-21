@@ -86,6 +86,12 @@ check(
 )
 check("重击 生效（出现重击段）", any(ln.startswith("· 重击") for ln in _lines))
 check(
+    "识卡伤害重击使用命中及攻击速度措辞",
+    any(ln.startswith("◆ 单次命中") for ln in _lines)
+    and any("攻击速度" in ln for ln in _lines)
+    and not any("射速" in ln or "单发" in ln for ln in _lines),
+)
+check(
     "无「未识别」行（不再逐字符拆分）",
     not any("未识别" in ln for ln in _lines),
     str([ln for ln in _lines if "未识别" in ln]),
@@ -500,7 +506,7 @@ asyncio.run(_entry_checks())
 
 
 async def _engine_checks():
-    print("⑪ 独立引擎：从同一快照传原等级，故障不串入内置估算")
+    print("⑪ 独立引擎：从同一快照传原等级，故障不串入随包估算")
     host = _BusinessScanHost("lazy")
     now = time.time()
     cached = copy.deepcopy(_c_mel)
@@ -558,7 +564,7 @@ async def _engine_checks():
         estimate = await _damage(host)
         check(
             "切回内置立刻生效",
-            any("内置估算" in ln for ln in estimate.lines) and send.await_count == 0,
+            any("随包估算" in ln for ln in estimate.lines) and send.await_count == 0,
         )
 
 
@@ -687,7 +693,7 @@ async def _dps_comparison_checks():
         cached = next(iter(host._last_scan.values()))[2]
         calls = [call.args[0] for call in calculate.call_args_list]
         check(
-            "完整模拟启用时首图照样用内置估算且不请求模拟服务",
+            "完整模拟启用时首图照样用随包估算且不请求模拟服务",
             len(calls) == 4
             and remote.await_count == 0
             and all(

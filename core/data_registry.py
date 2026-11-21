@@ -243,6 +243,15 @@ REGISTRY: dict[str, dict] = {
         readers=["core/riven_rating.py"],
         note="随参考配装同行更新。文件记录配装摘要、模拟轮数与各词条配对 95% 区间。",
     ),
+    "riven_build_details.json": _e(
+        "damage",
+        "manual",
+        "同参考配装的 WFSim 整套与逐张拆卡回放，以及固定槽位极化方案",
+        source_rev="referenceSha256",
+        policy="manual_curated",
+        readers=["core/riven_rating.py"],
+        note="1,046 个工况。保留固定种子重复模拟的平均 DPS、武器面板和容量细节。",
+    ),
     "riven_reroll_comparisons.json": _e(
         "damage",
         "manual",

@@ -868,7 +868,6 @@ class RivenCommands:
                 title=title,
             )
         lines = []
-        sources = set()
         for weapon in choices:
             wid = weapon["engine_id"]
             if len(choices) > 1:
@@ -891,7 +890,11 @@ class RivenCommands:
                     simulated.extend(riven_rating.trait_recommendation_lines(weapon, label))
                 else:
                     simulated.extend(
-                        (portable_riven.scenario_line(row), *portable_riven.trait_lines(row))
+                        (
+                            portable_riven.scenario_line(row),
+                            L("· 独立引擎预计算", "· Precomputed with the standalone engine"),
+                            *portable_riven.trait_lines(row),
+                        )
                     )
                     if traits := portable_riven.prepared_traits(row):
                         complete[label] = traits
@@ -909,17 +912,12 @@ class RivenCommands:
                 allow_private=cfg.get("allow_private_urls") is True,
             )
             lines.extend(("", *riven_sale.lines(sale)))
-            if sale.url:
-                sources.add(sale.url)
         if len(choices) == 1:
             title += " · " + riven_rating.weapon_label(choices[0])
         return Reply(
             title,
             lines,
             footer=fmt.fmt_platform_footer(platform, L("词条推荐", "Reroll suggestions")),
-            extra_text="\n".join(
-                L(f"出售参考来源 {url}", f"Selling reference {url}") for url in sorted(sources)
-            ),
         )
 
     async def _h_loadout_recommend(self, parsed, event, platform) -> Reply:
@@ -938,7 +936,7 @@ class RivenCommands:
         cfg = dict(getattr(self, "cfg", {}) or {})
         port = damage_engine.portable_port(cfg)
         try:
-            content, mode, rank, polarity = _card_parameters(parsed.content, portable=bool(port))
+            content, mode, rank, polarity = _card_parameters(parsed.content, portable=True)
         except riven_rating.CardError as exc:
             return report(exc)
         typed = self._riven_text_input(replace(parsed, content=content), keep_weapon_spaces=True)
@@ -1016,7 +1014,7 @@ class RivenCommands:
                 if matching_trials or has_card:
                     continue
             label = mode or "base"
-            if label in pool[wid]:
+            if label in pool[wid] or (not has_card and (wid, label) in portable_riven.MODES):
                 scopes.append((weapon, label, None))
         if not scopes:
             if typed.disposition:
@@ -1034,6 +1032,10 @@ class RivenCommands:
                     )
                 )
             modes = dict.fromkeys(label for row in choices for label in pool[row["engine_id"]])
+            if not has_card and any(
+                (row["engine_id"], "incarnon") in portable_riven.MODES for row in choices
+            ):
+                modes["incarnon"] = None
             options = L("、", ", ").join(L(*riven_rating.MODE_LABELS[key]) for key in modes)
             return report(L(f"该武器可用模式 {options}", f"Available modes: {options}"))
         if typed.unmatched and has_card:
@@ -1041,6 +1043,15 @@ class RivenCommands:
         if not has_card:
             weapon, mode, trial_mode = scopes[0]
             modes = pool[weapon["engine_id"]]
+            reference_mode = portable_riven.BUNDLED_BUILD_MODES.get((weapon["engine_id"], mode))
+            if lines := await portable_riven.reference_build_lines(
+                self, port, reference_mode, live_analysis=trial_mode is not None
+            ):
+                return Reply(
+                    f"{title} · {riven_rating.weapon_label(weapon)}",
+                    lines,
+                    footer=fmt.fmt_platform_footer(platform, L("参考配装", "Reference build")),
+                )
             if trial_mode is not None:
                 prepared = await portable_riven.prepared_result(self, trial_mode)
                 if prepared is not None:
@@ -1055,6 +1066,14 @@ class RivenCommands:
                         lines,
                         footer=fmt.fmt_platform_footer(platform, L("参考配装", "Reference build")),
                     )
+            if trial_mode is not None and (
+                lines := await portable_riven.reference_build_lines(self, None, reference_mode)
+            ):
+                return Reply(
+                    f"{title} · {riven_rating.weapon_label(weapon)}",
+                    lines,
+                    footer=fmt.fmt_platform_footer(platform, L("参考配装", "Reference build")),
+                )
             if mode not in modes:
                 return report(
                     L("这个模式暂无无紫卡参考配装", "No no-Riven build for this scenario yet")

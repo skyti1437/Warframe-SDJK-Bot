@@ -204,7 +204,8 @@ MARKET_SKIP_FILES = {
 # 2026-11-20 完整模拟接入 159 → 161（core/portable_install.py、core/portable_riven.py）。
 # 2026-11-20 同工况离线紫卡对照 161 → 162（core/data/riven_reroll_comparisons.json）。
 # 2026-11-21 完整模拟双语显示表使市场运行文件 162 → 163。
-EXPECTED_MARKET_ENTRIES = 163
+# 2026-11-21 随包配装复算数据使市场运行文件 163 → 164。
+EXPECTED_MARKET_ENTRIES = 164
 # 2026-10-23 紫卡词条池补抽样批：118 → 119（+core/data/de/riven_pools_survey.json；
 #   scripts/ 不进市场件）
 # 2026-10-23 紫卡词条范围批：116 → 118（+core/riven_pools.py、+core/data/de/riven_pools.json；
@@ -239,7 +240,7 @@ def _zip_datetime() -> tuple:
 # 2026-10-08 审核实证：本脚本原先只查「stage 存在」+「种子新鲜」，**不查 stage 是否追平 HEAD**
 # ⇒ 若绕开重建直接打包，会把旧 stage（当时 239 文件、不含本批任何修复）打出去。这里加数量闸门兜住；
 # 数量相同但内容不同的情形，仍靠流程约束（打包前必重跑 dist/package_release.py --opensource）。
-EXPECTED_STAGE_FILES = 352  # 与 dist/package_release.py::EXPECTED_OSS_STAGE_FILES 同步
+EXPECTED_STAGE_FILES = 353  # 与 dist/package_release.py::EXPECTED_OSS_STAGE_FILES 同步
 # 2026-10-23 紫卡词条池补抽样批：278 → 280（+scripts/survey_riven_pools.py、+core/data/de/riven_pools_survey.json）
 # 2026-10-23 紫卡词条范围批：274 → 278（+core/riven_pools.py、+core/data/de/riven_pools.json、
 #   +scripts/build_riven_pools.py、+tests/test_riven_ranges.py）

@@ -9,7 +9,7 @@ from pathlib import Path
 
 from . import damage_engine, riven_rating
 from .damage_calc import find_enemy_exact
-from .formatters import dps_removal_label as _impact_label
+from .formatters import dps_removal_columns
 from .i18n import L, is_en
 from .parser import _STAT_LOOKUP
 from .request_queue import QueueUnavailable
@@ -34,11 +34,20 @@ MODES = {
         0.5,
     ),
 }
+BUNDLED_BUILD_MODES = MODES | {
+    ("amprex", "base"): (
+        "/Lotus/Weapons/Corpus/LongGuns/ChainLightningGun/ChainLightningRifle",
+        0,
+        0.5,
+    )
+}
 MODE_ALIASES = {"灵化形态": "incarnon", "incarnon": "incarnon"}
 FIRE_MODE_LABELS = {0: ("主射", "Primary fire"), 1: ("灵化形态", "Incarnon form")}
 POLARITIES = {"madurai": "AP_ATTACK", "naramon": "AP_TACTIC", "vazarin": "AP_DEFENSE"}
 POLARITY_KEYS = {code: key for key, code in POLARITIES.items()}
 RESULT_TTL_S = 600
+_HEAVY_CALIBER = "/Lotus/Upgrades/Mods/Rifle/DualStat/CorruptedDamageRecoilRifle"
+_SERRATION = "/Lotus/Upgrades/Mods/Rifle/WeaponDamageAmountMod"
 
 INCARNON_ZH = {
     ("Braton Prime", "2-2"): "基础伤害 +2，多重射击 +20%。额外弹丸消耗备弹，伤害 +54%。",
@@ -118,7 +127,7 @@ def _prepared_result(path, mode):
             if entry["weapon"]["path"] != weapon or entry["fireMode"] != fire_mode:
                 continue
             if _valid_target(entry, hit):
-                return entry
+                return {**entry, "engineFingerprint": FINGERPRINT}
     except (OSError, ValueError, TypeError, KeyError):
         return None
     return None
@@ -291,22 +300,10 @@ def _placement(actual):
     return plan, riven, placement, by_origin
 
 
-@lru_cache(maxsize=1)
-def _display_names():
-    path = Path(__file__).resolve().parent / "data" / "portable_display_names.json"
-    try:
-        data = json.loads(path.read_bytes())
-        if data["source"]["fingerprint"] == FINGERPRINT:
-            return data
-    except (OSError, TypeError, ValueError, KeyError):
-        pass
-    return {}
-
-
 def enemy_label(path, english, fallback=""):
     if is_en():
         return english
-    name = _display_names().get("enemies", {}).get(path)
+    name = riven_rating.display_names().get("enemies", {}).get(path)
     return name or fallback or (find_enemy_exact(english) or {}).get("zh") or english
 
 
@@ -321,6 +318,8 @@ def scenario_line(result, *, show_defense=True):
     )
     english = target["enemyName"]
     name = enemy_label(target.get("enemyPath"), english)
+    if (distance := target.get("distance")) is not None:
+        hit += L(f" · {distance:g} 米", f" · {distance:g} m")
     defense = L(" · 无超宏防护", " · no Overguard") if show_defense else ""
     return L(
         f"◆ {mode} · 钢铁之路 {name} Lv{target['level']} · {hit}{defense}",
@@ -342,19 +341,22 @@ def _card_basis_line(result):
     )
 
 
-def evolution_lines(weapon, choices, fire_mode):
+def evolution_lines(weapon, choices):
     """列出本次实际采用的进化，英文按同版本的武器路径与分支取显示数据。"""
-    if not choices:
-        return []
+    choices = choices or {}
     options = {
-        option["id"]: option for tier in weapon.get("incarnon", ()) for option in tier["options"]
+        option["id"]: option
+        for tier in (weapon.get("incarnon") or ())
+        for option in tier["options"]
     }
     language = is_en()
     display_key = "incarnon" if language else "incarnonZh"
-    descriptions = _display_names().get(display_key, {}).get(weapon.get("path"), {})
+    descriptions = riven_rating.display_names().get(display_key, {}).get(weapon.get("path"), {})
     codes = [choices[key] for key in sorted(choices)]
-    if fire_mode == 1 and "1-1" in options:
+    if "1-1" in options and "1-1" not in codes:
         codes.insert(0, "1-1")
+    if not codes:
+        return []
     lines = [L("◆ 灵化进化", "◆ Incarnon evolutions")]
     for code in codes:
         option = options.get(code, {})
@@ -368,6 +370,8 @@ def evolution_lines(weapon, choices, fire_mode):
                 (weapon.get("nameEn"), code), option.get("description", "")
             )
             effect = effect.replace("。；", "。").replace("；", "，").replace("。：", "，")
+        if code == "1-1" and (not label or label == code):
+            label = L("灵化形态", "Incarnon Form")
         name = f"{code} {label}" if label and label != code else code
         lines.append(f"· {name} · {effect}" if effect else f"· {name}")
     return lines
@@ -402,7 +406,7 @@ def _fit_reference_slots(request, validation):
         (
             (row["drain"] - (row["rawDrain"] + 1) // 2, row["slot"], row["modPolarity"])
             for row in validation["assignments"]
-            if row["modPolarity"]
+            if row["modPolarity"] and row["slot"] < len(polarities)
         ),
         reverse=True,
     )
@@ -416,6 +420,21 @@ def _fit_reference_slots(request, validation):
     raise damage_engine.EngineBuildError("参考配装超过容量")
 
 
+def _serration_alternative(request):
+    """同槽试算满级膛线。散布导致的命中损失尚未计入引擎评分。"""
+    mods = request["mods"]
+    if "riven" in request or any(mod["path"] == _SERRATION for mod in mods):
+        return None
+    for index, mod in enumerate(mods):
+        if mod["path"] == _HEAVY_CALIBER and mod["rank"] == 10:
+            replacement = {**mod, "path": _SERRATION}
+            return mod["slot"], {
+                **request,
+                "mods": [*mods[:index], replacement, *mods[index + 1 :]],
+            }
+    return None
+
+
 async def _mod_gains(service, port, request):
     """用完整配装和各槽留空时的同靶 DPS 作对照。"""
     identity = hashlib.sha256(json.dumps([FINGERPRINT, port, request], sort_keys=True).encode())
@@ -423,6 +442,9 @@ async def _mod_gains(service, port, request):
 
     async def fetch():
         body = request
+        replacement_slot = None
+        capacity_saved = 0
+        comparison_complete = True
 
         async def replay(body):
             response = await damage_engine._finish_compute(
@@ -441,6 +463,38 @@ async def _mod_gains(service, port, request):
                 full, validation, response = await replay(body)
             if not validation["valid"]:
                 raise damage_engine.EngineBuildError("装配超过容量")
+            if (alternative := _serration_alternative(body)) is not None:
+                slot, alternate_body = alternative
+                try:
+                    alternate_dps, alternate_loadout, alternate_response = await replay(
+                        alternate_body
+                    )
+                    saving = validation["capacity"] - alternate_loadout["capacity"]
+                    valid = alternate_loadout["valid"]
+                except (KeyError, TypeError, ValueError):
+                    comparison_complete = False
+                else:
+                    if valid and saving > 0 and math.isclose(full, alternate_dps, rel_tol=1e-12):
+                        body, full = alternate_body, alternate_dps
+                        validation, response = alternate_loadout, alternate_response
+                        replacement_slot, capacity_saved = slot, saving
+            stats = response.get("moddedStats") or {}
+            zero_stack_panel = None
+            stacked = [
+                arc
+                for arc in response.get("arcanes", ())
+                if arc.get("applied") and (arc.get("stacks") or 0) > 0
+            ]
+            if stacked and body.get("arcanes"):
+                paths = {arc["path"] for arc in stacked}
+                neutral = [
+                    {**arc, "stacks": 0} if arc["path"] in paths else arc for arc in body["arcanes"]
+                ]
+                try:
+                    _, _, initial = await replay({**body, "arcanes": neutral})
+                    zero_stack_panel = initial.get("moddedStats")
+                except damage_engine.EngineError:
+                    comparison_complete = False
             unsupported = set(response.get("unsupported") or ())
             variants = {}
             for mod in body["mods"]:
@@ -459,15 +513,31 @@ async def _mod_gains(service, port, request):
                     continue
                 except damage_engine.EngineError:
                     break
-        stats = response.get("moddedStats") or {}
+        shown = zero_stack_panel or stats
+        equipment = {
+            "exilus": response.get("exilus") if body.get("exilus") else None,
+            "arcanes": response.get("arcanes", []) if body.get("arcanes") else [],
+        }
         return {
             "full": full,
             "without": without,
             "capacity": validation,
-            "stats": {key: stats.get(key) for key in (*damage_engine.PANEL_FIELDS, "damageTypes")},
+            "stats": {key: shown.get(key) for key in (*damage_engine.PANEL_FIELDS, "damageTypes")},
+            "panel_stack_assumptions": [
+                {key: arc.get(key) for key in ("nameEn", "nameZh", "stacks")} for arc in stacked
+            ],
+            "panel_includes_stacks": bool(stacked and not zero_stack_panel),
+            "stacked_panel": {
+                key: stats[key]
+                for key in damage_engine.PANEL_FIELDS
+                if zero_stack_panel and key in stats and zero_stack_panel.get(key) != stats[key]
+            },
             "has_overguard": bool((response.get("targetDamage") or {}).get("overguard")),
             "polarities": body["slotPolarities"],
-            "complete": len(without) == len(variants),
+            "equipment": equipment,
+            "serration_slot": replacement_slot,
+            "capacity_saved": capacity_saved,
+            "complete": comparison_complete and len(without) == len(variants),
         }
 
     return await service.portable_gains.get_or_fetch(
@@ -505,8 +575,8 @@ async def build_view(host, port, result, *, with_riven=False):
         await service.ensure_portable(port)
         weapons, _ = await damage_engine.portable_catalog(service, port)
         weapon = weapons[weapon["path"]]
-        original_polarities = (list(weapon.get("polarities") or ()) + [None] * 8)[:8]
-        polarities = original_polarities.copy()
+        original_polarities = (list(weapon.get("polarities") or ()) + [None] * 9)[:9]
+        polarities = original_polarities[:8]
         for slot, polarity in plan["slots"].items():
             polarities[int(slot)] = polarity
         request = {
@@ -537,21 +607,51 @@ async def build_view(host, port, result, *, with_riven=False):
         # 局部回放不可用时，已确认的配装、推荐极性及进化仍然可以展示。
         pass
 
+    lines.extend(
+        _fixed_build_lines(
+            target, slots, plan, replay, original_polarities, with_riven=with_riven, limited=limited
+        )
+    )
+    return lines + evolution_lines(weapon, route)
+
+
+def _fixed_build_lines(
+    target,
+    slots,
+    plan,
+    replay,
+    original_polarities,
+    *,
+    with_riven=False,
+    limited=False,
+    bundled=False,
+):
+    lines = []
     full = replay.get("full")
     without = replay.get("without", {})
     if full is not None:
         secs = target["windowSeconds"]
         defense = L("（含超宏防护）", " (with Overguard)") if replay["has_overguard"] else ""
-        lines.append(
-            L(
-                f"· 对这个敌人打 {secs:g} 秒 · 整套 DPS {full:,.0f}{defense}",
-                f"· {secs:g} s against this enemy · Full build DPS {full:,.0f}{defense}",
-            )
+        source = (
+            L("随包参考", "Bundled reference") if bundled else L("独立引擎", "Standalone engine")
         )
-    lines.extend(damage_engine.weapon_panel_lines(replay.get("stats")))
+        seconds = L(f"{secs:g} 秒", f"{secs:g} s")
+        lines.append(
+            f"· {source} · {seconds} · {L('整套 DPS', 'Full build DPS')} {full:,.0f}{defense}"
+        )
+    else:
+        lines.append(
+            L("· 独立引擎 · 整套 DPS 暂缺", "· Standalone engine · Full build DPS unavailable")
+        )
+    lines.extend(
+        damage_engine.weapon_panel_lines(replay.get("stats"), show_empty_groups=True)
+        or [L("◆ 武器面板", "◆ Weapon stats"), L("· 暂缺面板数据", "· Panel unavailable")]
+    )
+    if replay.get("panel_includes_stacks"):
+        lines[1] += L(" · 含预设赋能层数", " · Includes assumed Arcane stacks")
     validation = replay.get("capacity", {})
-    changes = plan["slots"]
     if with_riven:
+        changes = plan["slots"]
         used = plan["drain"]
         limit = plan["limit"]
         drains = {
@@ -573,47 +673,107 @@ async def build_view(host, port, result, *, with_riven=False):
         if limited
         else L("推荐配装", "Recommended build")
         if with_riven
-        else L("无紫卡参考", "No-Riven reference")
+        else L("无紫卡参考配装", "No-Riven reference build")
     )
     capacity = L(f"容量 {used}/{limit}", f"Capacity {used}/{limit}") if used is not None else ""
     forms = plan["total"] if with_riven else len(changes)
+    equipment = replay.get("equipment") or {}
+    exilus = equipment.get("exilus")
+    if exilus and exilus.get("slotPolarity"):
+        innate = original_polarities[8] if len(original_polarities) > 8 else None
+        forms += int(exilus["slotPolarity"] != innate)
     forma = L(f"极化 {forms} 次", f"Forma ×{forms}") if with_riven or replay else ""
     lines.append("◆ " + " · ".join(part for part in (heading, capacity, forma) if part))
     lines.append(
         L(
-            "　槽位　MOD　等级　容量 / 极性　拆下后 DPS / 变化",
-            "　Slot　MOD　Rank　Drain / Forma　DPS without / Change",
+            "　槽位　MOD　等级　容量　极性　拆下后 DPS　变化",
+            "　Slot　MOD　Rank　Drain　Polarity　DPS without　Change",
         )
     )
     for index, mod in enumerate(slots):
         number = f"{index + 1:02d}"
         if mod is None:
-            lines.append(f"· {number}　{L('空槽', 'Empty')}　—　—　—")
+            lines.append(f"· {number}　{L('空槽', 'Empty')}　—　—　—　—　—")
             continue
         riven = "path" not in mod
-        name = (
-            L("你的紫卡", "Your Riven")
-            if riven
-            else (L(mod.get("nameZh") or mod["nameEn"], mod["nameEn"]))
-        )
+        if riven:
+            name = L("你的紫卡", "Your Riven")
+        elif index == replay.get("serration_slot"):
+            name = L("膛线", "Serration")
+        else:
+            name = L(mod.get("nameZh") or mod["nameEn"], mod["nameEn"])
         used_slot = str(drains.get(index, "—"))
-        if change := changes.get(str(index)):
-            used_slot += " · " + _polarity_label(change)
-        elif riven:
-            used_slot += " · " + _polarity_label(mod["polarity"])
+        polarity = changes.get(str(index)) or (mod["polarity"] if riven else None)
+        if not polarity and index < len(original_polarities):
+            polarity = original_polarities[index]
+        polarity = _polarity_label(polarity) if polarity in POLARITY_KEYS else "—"
+        dps, change = dps_removal_columns(full, without.get(index))
+        lines.append(f"· {number}　{name}　{mod['rank']}　{used_slot}　{polarity}　{dps}　{change}")
+    lines.extend(_equipment_lines(equipment, verified=bool(replay)))
+    if stacked_panel := replay.get("stacked_panel"):
+        buffs = []
+        for arc in replay["panel_stack_assumptions"]:
+            name = L(arc.get("nameZh") or arc["nameEn"], arc["nameEn"])
+            stacks = arc["stacks"]
+            buffs.append(L(f"{name} {stacks:g} 层", f"{name} at {stacks:g} stacks"))
+        joined = L("、", ", ").join(buffs)
+        values = []
+        if (chance := stacked_panel.get("statusChance")) is not None:
+            values.append(L(f"触发几率 {chance:.1%}", f"status chance {chance:.1%}"))
+        if (multishot := stacked_panel.get("multishot")) is not None:
+            values.append(L(f"多重射击 {multishot:.2f}", f"multishot {multishot:.2f}"))
+        effects = L("、", ", ").join(values)
+        detail = (
+            L(f"时，{effects}。", f" gives {effects}. ")
+            if effects
+            else L("为模拟采用的层数。", " is the assumed Arcane state. ")
+        )
         lines.append(
-            f"· {number}　{name}　{mod['rank']}　{used_slot}　{_impact_label(full, without.get(index))}"
+            L(
+                f"※ {joined}{detail}武器面板显示叠层前数值。",
+                f"※ {joined}{detail}Weapon stats show values before stacking.",
+            )
+        )
+    if saving := replay.get("capacity_saved"):
+        lines.append(
+            L(
+                f"※ 同槽换用膛线，模拟 DPS 相同，少占 {saving} 点容量。",
+                f"※ Serration in the same slot gives equal simulated DPS and saves {saving} capacity.",
+            )
         )
     if without:
         lines.append(
             L(
-                "※ 拆下这一张后的 DPS，与上面的整套 DPS 对比。其他 MOD 和进化照原配装。",
+                "※ 拆下这一张后的 DPS 与上方整套对比。其他 MOD、辅助装备和进化照原配装。",
                 "※ Each row compares DPS with that slot empty against the full build shown above.",
             )
         )
     if len(without) < sum(mod is not None for mod in slots):
         lines.append(L("※ — 表示这张卡暂时算不出影响", "※ — means the impact is unavailable"))
-    return lines + evolution_lines(weapon, route, result["fireMode"])
+    return lines
+
+
+def _equipment_lines(equipment, *, verified):
+    empty = L("未装备", "Empty") if verified else L("待确认", "Unconfirmed")
+    exilus = equipment.get("exilus")
+    utility = empty
+    if exilus:
+        name = L(exilus.get("nameZh") or exilus["nameEn"], exilus["nameEn"])
+        utility = L(
+            f"{name}（{exilus['rank']}级，容量 {exilus['drain']}）",
+            f"{name} (rank {exilus['rank']}, drain {exilus['drain']})",
+        )
+        if polarity := exilus.get("slotPolarity"):
+            utility += f" · {_polarity_label(polarity)}"
+    arcs = []
+    for arc in equipment.get("arcanes") or ():
+        name = L(arc.get("nameZh") or arc["nameEn"], arc["nameEn"])
+        arcs.append(L(f"{name}（{arc['rank']}级）", f"{name} (rank {arc['rank']})"))
+    return [
+        L("◆ 辅助装备", "◆ Additional equipment"),
+        L(f"· 扩展槽　{utility}", f"· Exilus　{utility}"),
+        L(f"· 赋能　{' / '.join(arcs) or empty}", f"· Arcane　{' / '.join(arcs) or empty}"),
+    ]
 
 
 @lru_cache(maxsize=1)
@@ -631,13 +791,63 @@ def _comparison_catalog():
     return {}
 
 
+async def reference_build_lines(host, port, mode, *, live_analysis=False):
+    """优先读取已验证的固定配装。带回放请求的数据也可用独立引擎现算。"""
+    if not mode:
+        return []
+    path, fire_mode, hit = mode
+    for (weapon_path, fire, _), entry in _comparison_catalog().items():
+        if weapon_path != path or fire != fire_mode or not (view := entry.get("noRivenBuild")):
+            continue
+        try:
+            target = view["target"]
+            if target["headshotChance"] != hit:
+                continue
+            if not port and view.get("independentOnly"):
+                return []
+            weapon = view["weapon"]
+            if weapon["path"] != path:
+                continue
+            replay = view["replay"]
+            replay = {**replay, "without": {int(k): v for k, v in replay["without"].items()}}
+            bundled = True
+            if port and (request := view.get("request")):
+                try:
+                    replay = await _mod_gains(host.damage_engine, port, request)
+                    bundled = False
+                except (
+                    damage_engine.EngineError,
+                    QueueUnavailable,
+                    KeyError,
+                    TypeError,
+                    ValueError,
+                ):
+                    if view.get("independentOnly"):
+                        return []
+            elif live_analysis:
+                return []
+            initial = (list(weapon.get("polarities") or ()) + [None] * 9)[:9]
+            scenario = {"evaluationTarget": target, "fireMode": fire}
+            return [
+                scenario_line(scenario, show_defense=False),
+                *_fixed_build_lines(target, view["slots"], None, replay, initial, bundled=bundled),
+                *evolution_lines(weapon, view["route"]),
+            ]
+        except (KeyError, ValueError, TypeError):
+            return []
+    return []
+
+
 def prepared_traits(result):
     """把同工况的固定配装属性对照转换为词条视图输入。"""
-    if result.get("scoreMetric") != "windowedDps":
+    if result.get("engineFingerprint") != FINGERPRINT or result.get("scoreMetric") != "windowedDps":
         return None
     try:
         key = (result["weapon"]["path"], result["fireMode"], result["contextHash"])
         reference = _comparison_catalog()[key]["fixedTraitReference"]
+        baseline = reference["baselineScore"]
+        if type(baseline) not in (float, int) or not math.isfinite(baseline) or baseline <= 0:
+            return None
         title = L(*FIRE_MODE_LABELS[result["fireMode"]])
         rows = {"positive": [], "negative": []}
         ids = {code: stat for stat, code in GUN_CODES.items()}
@@ -651,9 +861,17 @@ def prepared_traits(result):
             else:
                 shown, unit = signed, line["unit"]
             flags = riven_rating._TRAIT_SPLICED if line["fusion"] else 0
+            score = line.get("score")
+            change = None
+            if type(score) in (float, int) and math.isfinite(score) and score >= 0:
+                change = (score / baseline - 1) * 100
+                if not math.isfinite(change):
+                    change = None
+            if change is None and (score is not None or line.get("pct") is not None):
+                flags |= riven_rating._TRAIT_REPLAY_REQUIRED
             direction = "negative" if negative else "positive"
-            rows[direction].append((sid, shown, unit, flags, None, line["pct"], None, None))
-    except (KeyError, TypeError, ValueError):
+            rows[direction].append((sid, shown, unit, flags, None, change, None, None))
+    except (KeyError, OverflowError, TypeError, ValueError):
         return None
     return title, rows
 

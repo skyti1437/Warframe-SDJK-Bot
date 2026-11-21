@@ -4208,8 +4208,9 @@ def fmt_platform_footer(platform: str, extra: str = "") -> str:
 # ---------------------------------------------------------------------------
 
 
-# 在线状态排序权重：游戏内在线 > 网页在线 > 离线
+# 在线状态排序权重：游戏在线 > 网页在线 > 离线
 _ONLINE_RANK = {"ingame": 0, "online": 1, "offline": 2}
+_ONLINE_STATUSES = ("ingame", "online")
 _REP_RANK = {"ingame": 0, "online": 0, "offline": 1}
 
 
@@ -4277,6 +4278,13 @@ def dps_removal_label(full, without, *, decimals: int = 0) -> str:
     return f"{dps} · ⟦{color}⟧{change:+.1f}%⟦/{color}⟧"
 
 
+def dps_removal_columns(full, without, *, settled=True) -> tuple[str, str]:
+    dps, _, change = dps_removal_label(full, without).partition(" · ")
+    if without is not None and not settled:
+        change = L("差异不明显", "Within variation")
+    return dps, change or "—"
+
+
 def limit_notes(lines: list[str], limit: int = 3) -> list[str]:
     """把卡内所有「※ 注脚」收口到卡尾，且最多 ``limit`` 行（多出的并进最后一行，用「；」连接）。
 
@@ -4334,10 +4342,10 @@ _MORAN_SUBTYPE = "atragraph"  # 墨染 Mod（Foil/Atragraph）
 
 
 def _status_names() -> dict:
-    """WM 卖家 / 挂单状态 → 展示词（ingame 游戏内 / online 网页 / offline）。"""
+    """普通挂单、紫卡和玄骸共用的 Warframe Market 状态名称。"""
     if i18n.is_en():
         return {"ingame": "In Game", "online": "Web Online", "offline": "Offline"}
-    return {"ingame": "在线", "online": "网页在线", "offline": "离线"}
+    return {"ingame": "游戏在线", "online": "网页在线", "offline": "离线"}
 
 
 def fmt_wm_orders(
@@ -4356,7 +4364,7 @@ def fmt_wm_orders(
     """整理 WM 订单：在线优先、价格其次，并标注卖家信誉与在线状态。
 
     排序口径（玩家反馈「做了价格排序但没做在线排序」）：
-      先按「在线状态」分档（游戏内在线 > 网页在线 > 离线），档内再按价格升序
+      先按「在线状态」分档（游戏在线 > 网页在线 > 离线），档内再按价格升序
       （收购单为降序）。这样最上面永远是能立刻交易的人。
 
     过滤口径：
@@ -4396,8 +4404,9 @@ def fmt_wm_orders(
         f"{item_name} {'Buy' if buy else 'Sell'} Orders (Page {page}/{pages}, {total} total)",
     )
     sort_note = L(
-        "※ 排序：在线优先，同档按价格" + ("降序" if buy else "升序"),
-        "※ Sorted: online first, then by price " + ("descending" if buy else "ascending"),
+        "※ 状态顺序：游戏在线 → 网页在线 → 离线，同档按价格" + ("降序" if buy else "升序"),
+        "※ Status: In Game → Web Online → Offline, then price "
+        + ("descending" if buy else "ascending"),
     )
     side = L("买家", "Buyer") if buy else L("卖家", "Seller")
     if not pool:
@@ -4419,13 +4428,16 @@ def fmt_wm_orders(
         return (title, lines, None, pool)
 
     # —— 卡首答案：最低（收购为最高）价 ｜ 在线中位 ｜ 在线单数 ——
-    online = [o for o in pool if (o.get("user") or {}).get("status") in ("ingame", "online")]
+    online = [o for o in pool if (o.get("user") or {}).get("status") in _ONLINE_STATUSES]
     val = f"{pool[0]['platinum']}p" + ("" if online else L("（离线）", " (Offline)"))
     if online:
         ps = sorted(o["platinum"] for o in online)
         mid = ps[len(ps) // 2] if len(ps) % 2 else (ps[len(ps) // 2 - 1] + ps[len(ps) // 2]) / 2
         val += L(f"｜在线中位 {mid:g}p", f"｜Online median {mid:g}p")
-    val += L(f"｜在线 {len(online)} 单（共 {total} 单）", f"｜{len(online)} online ({total} total)")
+    val += L(
+        f"｜在线合计 {len(online)} 单（共 {total} 单）",
+        f"｜{len(online)} online ({total} total)",
+    )
     lines = [
         L(
             f"◆ {'最高价' if buy else '最低价'}：{val}",
@@ -4463,7 +4475,7 @@ def fmt_wm_orders(
             cols.append(ci)
         elif ci != 3 and next(iter(vals)):
             shared.append(next(iter(vals)))
-    state = "" if 3 in cols else rows_t[0][3]  # 整页同一状态：写进标题（「在线卖单」）
+    state = "" if 3 in cols else rows_t[0][3]  # 整页同一状态：写进标题（「游戏在线卖单」）
     if i18n.is_en():
         sec = f"◆ {state + ' ' if state else ''}{'Buy Orders' if buy else 'Sell Orders'}"
         sec += "".join(f" · {x}" for x in shared)
@@ -4670,7 +4682,7 @@ def fmt_wr_auctions(
     展示与排序都按「先看能不能立刻交易、再看价格」：
       · 每行给出 卖家在线状态 / 信誉 / 紫卡等级 / 洗数
       · 词条用 ▲（正面，青绿）/ ▼（负面，红）区分，正面同一色、负面另一色
-      · 排序：在线优先（游戏内 > 网页 > 离线），同档按买断价升序
+      · 排序：在线优先（游戏在线 > 网页在线 > 离线），同档按买断价升序
 
     ``riven_type`` / ``group`` 用于词条消歧（近战的合并 slug 显示「攻速」）。
     ``presorted=True``：调用方已按**词条命中率**排好序（wr 的「无完全匹配，
@@ -4727,8 +4739,8 @@ def fmt_wr_auctions(
             None,
         )
     status_name = _status_names()
-    online_n = sum(1 for a in pool if status_of(a) in ("ingame", "online"))
-    _bos = [a for a in pool if a.get("buyout_price") and status_of(a) in ("ingame", "online")]
+    online = [a for a in pool if status_of(a) in _ONLINE_STATUSES]
+    _bos = [a for a in online if a.get("buyout_price")]
     _lab = L("在线最低一口价", "Lowest online buyout")
     if not _bos:
         _bos = [a for a in pool if a.get("buyout_price")]
@@ -4736,7 +4748,9 @@ def fmt_wr_auctions(
     _kv = []
     if _bos:
         _kv.append(f"{int(min(a['buyout_price'] for a in _bos))}p")
-    _kv.append(L(f"在线 {online_n} 条（共 {total} 条）", f"{online_n} online ({total} total)"))
+    _kv.append(
+        L(f"在线合计 {len(online)} 条（共 {total} 条）", f"{len(online)} online ({total} total)")
+    )
     lines = [
         f"◆ {_lab if _bos else L('在线挂单', 'Online listings')}" + L("：", ": ") + "｜".join(_kv)
     ]
@@ -7627,10 +7641,7 @@ LICH_ELEM_ALT = {
     "rad": "辐射",
     "mag": "磁力",
 }
-LICH_OWNER_STATUS_CN = {"ingame": "游戏内", "online": "在线"}
-_LICH_OWNER_STATUS_EN = {"ingame": "In Game", "online": "Online"}
 _LICH_ELEM_DISP_EN = {k: k.capitalize() for k in LICH_ELEM_CN}
-_LICH_ONLINE_WORDS = ("游戏内", "在线", "In Game", "Online")
 
 
 def fmt_lich_cells(auction: dict) -> list[str]:
@@ -7646,9 +7657,7 @@ def fmt_lich_cells(auction: dict) -> list[str]:
     elem = (_LICH_ELEM_DISP_EN if i18n.is_en() else LICH_ELEM_CN).get(raw_elem, raw_elem or "?")
     dmg = it.get("damage")
     dmg_s = f"{int(dmg)}%" if isinstance(dmg, (int, float)) else "?"
-    status = (_LICH_OWNER_STATUS_EN if i18n.is_en() else LICH_OWNER_STATUS_CN).get(
-        str(ow.get("status") or ""), L("离线", "Offline")
-    )
+    status = _status_names().get(ow.get("status"), L("离线", "Offline"))
     rep = ow.get("reputation")
     rep_s = L(f"信用{int(rep)}", f"Rep {int(rep)}") if isinstance(rep, (int, float)) else ""
     eph = L("幻纹★", "Ephemera★") if it.get("having_ephemera") else ""
@@ -7663,18 +7672,22 @@ def fmt_lich_row(i: int, auction: dict) -> str:
 def fmt_lich_table(pool: list[dict], *, total: Optional[int] = None) -> list[str]:
     """玄骸拍卖卡正文：卡首答案 + 明细表（整页全相同的列不写）+ 注脚。
 
-    列：价格｜元素｜伤害｜状态｜信用｜幻纹；状态整页同值时并进区块标题（「游戏内挂单」）。
+    列：价格｜元素｜伤害｜状态｜信用｜幻纹；状态整页同值时并进区块标题（「游戏在线挂单」）。
     """
     rows = [fmt_lich_cells(a) for a in pool]
-    n_online = sum(1 for c in rows if c[3] in _LICH_ONLINE_WORDS)
-    prices = [int(c[0][:-1]) for c in rows if c[3] in _LICH_ONLINE_WORDS and c[0][:-1].isdigit()]
+    online = [
+        row
+        for a, row in zip(pool, rows)
+        if (a.get("owner") or {}).get("status") in _ONLINE_STATUSES
+    ]
+    prices = [int(c[0][:-1]) for c in online if c[0][:-1].isdigit()]
     if not prices:
         prices = [int(c[0][:-1]) for c in rows if c[0][:-1].isdigit()]
     kv = [
         f"{min(prices)}p" if prices else "—",
         L(
-            f"在线 {n_online} 条（共 {total or len(rows)} 条）",
-            f"{n_online} online ({total or len(rows)} total)",
+            f"在线合计 {len(online)} 条（共 {total or len(rows)} 条）",
+            f"{len(online)} online ({total or len(rows)} total)",
         ),
     ]
     lines = [L("◆ 最低价：", "◆ Lowest price: ") + "｜".join(kv)]
@@ -7708,8 +7721,8 @@ def fmt_lich_table(pool: list[dict], *, total: Optional[int] = None) -> list[str
         lines.append("· " + "　".join(c[k] for k in keep).rstrip("　"))
     lines.append(
         L(
-            "※ 信用 = 卖家交易信誉等级（0~5）；幻纹★ = 带幻纹；在线优先排序",
-            "※ Rep = seller trade reputation level (0-5); Ephemera★ = has an ephemera; online first",
+            "※ 信用 = 卖家交易信誉等级（0~5）；幻纹★ = 带幻纹；游戏在线 → 网页在线 → 离线",
+            "※ Rep = seller trade reputation level (0-5); Ephemera★ = has an ephemera; In Game → Web Online → Offline",
         )
     )
     return lines

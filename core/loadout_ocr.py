@@ -3533,7 +3533,7 @@ def analyze(
         "crit_damage": "暴伤",
         "damage": "直伤",
         "base_damage": "基伤",
-        "fire_rate": "射速",
+        "fire_rate": "攻击速度" if (out.get("weapon") or {}).get("category") == "Melee" else "射速",
         "status_chance": "触发率",
         "status_damage": "状态伤害",
         "punch_through": "穿透",
@@ -3954,7 +3954,11 @@ def _panel_checks(
                 _full = s
                 if _elem > 0.5 and abs(s - _phys) <= max(_phys * 0.05, 0.5):
                     _full = s + _elem
-                row_label = "行和×多重"
+                row_label = (
+                    "伤害分项合计"
+                    if weapon.get("category") == "Melee" and row_ms == 1.0
+                    else "行和×多重"
+                )
                 row_total = _full * row_ms
                 if (
                     weapon_id == _BURSTON_PRIME_ID
@@ -4040,7 +4044,7 @@ def _wrap_bits(bits: list[str], width: int = 44) -> list[str]:
     return out or [""]
 
 
-def _effect_text(eff: dict) -> str:
+def _effect_text(eff: dict, *, melee: bool = False) -> str:
     """把某一等级的效果压成一行短文本。"""
     if not eff:
         return ""
@@ -4061,7 +4065,7 @@ def _effect_text(eff: dict) -> str:
         ("crit_dmg", "暴伤"),
         ("status_chance", "触发率"),
         ("status_dmg", "状态伤害"),
-        ("fire_rate", "射速"),
+        ("fire_rate", "攻击速度" if melee else "射速"),
         ("faction_dmg", "派系"),
         ("headshot_bonus", "爆头倍率"),
         ("punch_through", "穿透"),
@@ -4266,7 +4270,7 @@ def mod_dps_comparison(an: dict, spec: dict) -> tuple[str, float, dict[int, floa
         remaining = mods[:index] + mods[index + 1 :]
         reduced = _mapped_damage_spec({**an, "totals": _mod_totals(remaining)})
         if reduced == original:
-            continue  # 内置估算未覆盖该效果时，不报作 0%。
+            continue  # 随包估算未覆盖该效果时，不报作 0%。
         reduced["stance"] = spec["stance"]
         result = dc.calculate(reduced, weapon)
         if result.get("ok"):
@@ -4340,6 +4344,7 @@ _CHECK_LABEL_EN = {
     "触发几率": "Status Chance",
     "多重射击": "Multishot",
     "总伤害": "Total Damage",
+    "伤害分项合计": "Damage breakdown total",
     "行和×多重": "Row Sum x Multishot",
     "行和×多重（含进化显示差额）": "Row Sum x Multishot (with evolution display difference)",
     "总伤害行": "Total Damage Row",
@@ -4480,7 +4485,7 @@ def _rank_text_en(item: dict, *, compact: bool = False) -> str:
     return f"{text}?" if amb else text
 
 
-def _effect_text_en(eff: dict) -> str:
+def _effect_text_en(eff: dict, *, melee: bool = False) -> str:
     """_effect_text 的英文版：某一等级的效果压成一行。"""
     if not eff:
         return ""
@@ -4496,7 +4501,8 @@ def _effect_text_en(eff: dict) -> str:
     for key, _zh, en in _CARD_STAT_LABELS:
         val = eff.get(key)
         if val:
-            bits.append(f"{en} {val:+g}%")
+            label = "Attack speed" if melee and key == "fire_rate" else en
+            bits.append(f"{label} {val:+g}%")
     for key, en in _EFFECT_EXTRA_LABELS_EN.items():
         val = eff.get(key)
         if val:
@@ -4533,6 +4539,7 @@ def card_lines(
     _names_en = _mod_en_names(an) if en else {}
     lines: list[str] = []
     w = an.get("weapon")
+    melee = (w or {}).get("category") == "Melee"
     panel_rows: list[str] = []
     if w:
         dmg = w.get("damage") or {}
@@ -4713,6 +4720,8 @@ def card_lines(
     bits: list[str] = []
     for key, label, label_en in _CARD_STAT_LABELS:
         if totals.get(key):
+            if melee and key == "fire_rate":
+                label, label_en = "攻击速度", "Attack speed"
             bits.append(L(f"{label}{totals[key]:+g}%", f"{label_en} {totals[key]:+g}%"))
     if totals.get("crit_chance_heavy"):
         bits.append(
@@ -4756,15 +4765,16 @@ def card_lines(
     if ref:
         # FACTION_ZH 的值形如「Grineer（G系）」，嵌进括号里会套娃，先去括号
         fac_zh = re.sub(r"（.*?）", "", dc.FACTION_ZH.get(ref["faction"], ref["faction"]))
+        hit = L("单次命中", "per hit") if melee else L("单发", "per shot")
         lines.append(
             L(
                 f"◆ 参考（{fac_zh}"
-                f" {ref['level']}级·身体，无剥甲/异常层数）：单发 {ref['health']:.0f}"
+                f" {ref['level']}级·身体，无剥甲/异常层数）：{hit} {ref['health']:.0f}"
                 f"｜暴击期望 ×{ref['crit_exp']:.2f}"
                 f" → {ref['health'] * ref['crit_exp']:.0f}",
                 f"◆ Reference: {ref['faction']} Lv {ref['level']}, body"
                 " (no armor strip or status stacks)"
-                f"｜per shot {ref['health']:.0f} ×{ref['crit_exp']:.2f} crit expectation"
+                f"｜{hit} {ref['health']:.0f} ×{ref['crit_exp']:.2f} crit expectation"
                 f" → {ref['health'] * ref['crit_exp']:.0f}",
             )
         )
@@ -4863,9 +4873,9 @@ def card_lines(
         )
         en_name = item.get("name") or ""
         tail = (
-            _effect_text_en(item.get("effect") or {})
+            _effect_text_en(item.get("effect") or {}, melee=melee)
             if en
-            else _effect_text(item.get("effect") or {})
+            else _effect_text(item.get("effect") or {}, melee=melee)
         )
         if tail:
             eff = tail
@@ -4916,8 +4926,8 @@ def card_lines(
     if comparison:
         lines.append(
             L(
-                "※ 内置估算 · G系 100 级 · 躯干。每行只拆这一张，比较已计入的效果。— 表示暂无法估算。",
-                "※ Built-in estimate · Grineer Lv100 · Body. Each row removes only that mod. "
+                "※ 随包估算 · G系 100 级 · 躯干。每行只拆这一张，比较已计入的效果。— 表示暂无法估算。",
+                "※ Bundled estimate · Grineer Lv100 · Body. Each row removes only that mod. "
                 "Only modeled effects are counted. — means unavailable.",
             )
         )
@@ -4973,11 +4983,8 @@ def card_lines(
 
     lines.append(
         L(
-            "※ 等级由同槽亮刻度与容量数字核对，加成只按已确认等级折算；"
-            "复合元素按 火>冰>电>毒 两两配对",
-            "※ Bonuses use confirmed ranks (cross-checked with lit pips and capacity "
-            "number, then checked against panel values); combined elements pair up in the order "
-            "Heat > Cold > Electricity > Toxin",
+            "※ 等级按截图中的强化刻度与容量核对。",
+            "※ MOD ranks are checked against the upgrade pips and drain shown in the screenshot.",
         )
     )
     return limit_notes(lines)

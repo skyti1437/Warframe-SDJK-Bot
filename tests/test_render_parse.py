@@ -17,6 +17,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 import tempfile as _tempfile_rp
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -90,6 +91,15 @@ toks = R._TOKEN_RE.findall("剩余 32分钟　钢铁　网页在线")
 check(
     "正常计时/关键词仍着色", all(x in toks for x in ("剩余 32分钟", "钢铁", "网页在线")), str(toks)
 )
+for locale, labels in (
+    ("zh", ["游戏在线", "网页在线", "离线"]),
+    ("en", ["In Game", "Web Online", "Offline"]),
+):
+    with R.i18n.use_lang(locale):
+        statuses = R._TOKEN_RE.findall("　".join(labels))
+        check(f"{locale} 三个市场状态各自作为完整词着色", statuses == labels, str(statuses))
+        colors = [R._token_style(status)[3] for status in statuses]
+        check(f"{locale} 市场状态依次用绿、蓝、灰", colors == [R.GREEN, R.BLUE, R.INK_FAINT])
 
 # ---------------------------------------------------------------- _tint 预混
 check(
@@ -738,6 +748,17 @@ for _title, _slug in [
 ]:
     check(f"栏目英文名：{_title[:12]}", R._card_slug(_title) == _slug, R._card_slug(_title))
 check("栏目英文名：全无命中时回落品牌名", R._card_slug("乱七八糟").startswith("WARFRAME "))
+_lang_token = R.i18n.set_lang("en")
+try:
+    for _title, _slug in [
+        ("Build recommendations · Tenet Agendus", "BUILD RECOMMENDATIONS"),
+        ("Build Scan Damage", "DAMAGE CALCULATOR"),
+        ("Build Scan", "LOADOUT SCAN"),
+        ("Tenet Weapon Rotation", "TENET ROTATION"),
+    ]:
+        check(f"英文卡栏目：{_title}", R._card_slug(_title) == _slug, R._card_slug(_title))
+finally:
+    R.i18n.reset_lang(_lang_token)
 
 
 # ---- 第二步（2026-10-11）：从属行 / 标记芯片 / 列表网格宽度
@@ -1003,6 +1024,112 @@ if R.Image is not None:
     R.apply_theme({}, bg_fit="width")
     check("theme_state 带回显示方式（预览后还原用）", R.theme_state()["bg_fit"] == "width")
     R.apply_theme({})
+
+    class _BuildRenderer(R.ImageRenderer):
+        def _draw_build_cells(self, draw, row, x, y, font, header, x_right):
+            self.placement.append((x, y, font.size, header, row["build_columns"]))
+            if header:
+                check("配卡表头各列不拆行", all(len(parts) == 1 for parts in row["build_cells"]))
+            return super()._draw_build_cells(draw, row, x, y, font, header, x_right)
+
+    with _tempfile_rp.TemporaryDirectory() as cache:
+        renderer = _BuildRenderer(Path(cache))
+        drawn = {}
+        draw_text = R.ImageDraw.ImageDraw.text
+
+        def record_text(draw, xy, text, fill=None, *args, **kwargs):
+            drawn[text] = fill
+            return draw_text(draw, xy, text, fill, *args, **kwargs)
+
+        widths, placements = [], []
+        for title, source, mod, equipment in (
+            ("安培克斯", "随包参考", "膛线", "迅速抽换"),
+            ("拉特昂 Prime", "独立引擎", "低温弹头 Prime", "私法 补给"),
+        ):
+            renderer.placement = []
+            drawn.clear()
+            with patch.object(R.ImageDraw.ImageDraw, "text", record_text):
+                path = renderer.render(
+                    "配卡推荐 · " + title,
+                    [
+                        "· " + source,
+                        "◆ 推荐配装",
+                        "　槽位　MOD　等级　容量　极性　拆下后 DPS　变化",
+                        f"· 01　{mod}　10　8　⟦pol:vazarin⟧Vazarin　100,001　⟦m⟧-20%⟦/m⟧",
+                        "◆ 辅助装备",
+                        f"· 扩展槽　{equipment}（5级，容量 6）",
+                    ],
+                )
+            check(
+                f"配卡的 MOD、辅助列、DPS 和变化按层级着色（{source}）",
+                drawn.get(mod) == R.INK
+                and all(drawn.get(value) == R.INK_DIM for value in ("01", "10", "8", "Vazarin"))
+                and drawn.get("100,001") == R._mix(R.INK, R.CYAN, 0.3)
+                and drawn.get("-20%") == R._span_color("m"),
+            )
+            assert path
+            with R.Image.open(path) as image:
+                widths.append(image.width)
+            placements.append(renderer.placement)
+        check("配卡使用同一画布宽度", widths == [1260, 1260])
+        check(
+            "配卡不同来源和列内容时仍使用同一字体和位置",
+            len(placements[0]) == 3 and placements[0] == placements[1],
+        )
+        left, _, _, _, columns = placements[0][0]
+        left /= R.SS
+        right = 1260 - left - sum(columns[-1])
+        check("主槽表格左右留白对称", left == right and left >= 120)
+
+        prefix = "· 1-1 灵化形态 · 命中弱点充能。次要射击切换形态，切回时消耗剩余充能。"
+        end = "发射可在敌人和地形间弹跳的投射物，碰撞时造成 4 米范围爆炸。"
+        font = renderer.fonts.get("regular", R.FS_BODY)
+        budget = int(R._tlen(R._measure_draw(), font, prefix + end[0]) / R.SS) + 1
+        check(
+            "灵化描述在可用宽度内用两行完整句子显示",
+            R.ImageRenderer._wrap(prefix + end, font, budget, prose=True) == [prefix, end],
+        )
+
+        for lang, title, section, name, effect, continuation in (
+            (
+                "zh",
+                "配卡推荐 · 拉特昂 Prime",
+                "灵化进化",
+                "1-1 灵化形态",
+                "命中弱点充能",
+                "切换形态",
+            ),
+            (
+                "en",
+                "Build recommendations · Latron Prime",
+                "Incarnon evolutions",
+                "1-1 Incarnon Form",
+                "Charge on weak points",
+                "Transmute with alternate fire",
+            ),
+        ):
+            drawn.clear()
+            token = R.i18n.set_lang(lang)
+            try:
+                lines = []
+                if lang == "en":
+                    lines = [
+                        "◆ Recommended build",
+                        "　Slot　MOD　Rank　Drain　Polarity　DPS without　Change",
+                        "· 01　High Voltage　3　4　Vazarin　100,001　⟦m⟧-20%⟦/m⟧",
+                    ]
+                with patch.object(R.ImageDraw.ImageDraw, "text", record_text):
+                    path = renderer.render(
+                        title, [*lines, f"◆ {section}", f"· {name} · {effect}\n{continuation}"]
+                    )
+            finally:
+                R.i18n.reset_lang(token)
+            check(
+                f"灵化名称、效果和续行按层级着色（{lang}）",
+                bool(path)
+                and drawn.get(name) == R.GOLD_BRIGHT
+                and drawn.get(f" · {effect}") == drawn.get(continuation) == R.INK_DIM,
+            )
 
 
 if FAILED:

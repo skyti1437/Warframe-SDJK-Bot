@@ -1257,14 +1257,13 @@ check(
 )
 _lines_ig = dc.card_lines(_w_ig, _s_30, dc.calculate(_s_30, _w_ig), [])
 check(
-    "卡面注明火的单例累加口径与 T",
-    any("单例累加：开火 30s" in ln for ln in _lines_ig)
-    and any("开火 T 秒" in ln and "默认 12s" in ln for ln in _lines_ig),
+    "卡面显示火焰平均层数对应的实际开火时长",
+    any("开火 30 秒平均" in ln and "层" in ln for ln in _lines_ig),
 )
 _s_clamp = dc.parse_args(["开火0秒"])[0]
 check(
     "开火0秒 夹到 1 秒并注明",
-    _s_clamp["fire_seconds"] == 1.0 and any("开火时长" in n for n in _s_clamp["notes"]),
+    _s_clamp["fire_seconds"] == 1.0 and any("输出时长" in n for n in _s_clamp["notes"]),
 )
 
 # 名称索引保留原匹配语义，并随整表替换/缓存重置重建。
@@ -1366,6 +1365,37 @@ def _melee_calc(*words):
     spec, name = dc.parse_args(list(words))
     weapon, _ = dc.find_weapon(" ".join(name))
     return spec, weapon, dc.calculate(spec, weapon)
+
+
+_melee_words = ("棱晶·空刃", "对", "重型机枪手", "100级", "狂暴", "重击", "钢路", "超宏1000")
+_melee_spec, _melee_weapon, _melee_result = _melee_calc(*_melee_words)
+_melee_text = "\n".join(dc.card_lines(_melee_weapon, _melee_spec, _melee_result))
+check(
+    "近战伤害使用攻击速度及命中次数，覆盖普通段、重击、超宏与攻击段表",
+    all(
+        term in _melee_text
+        for term in (
+            "平均命中",
+            "◆ 单次命中",
+            "攻击速度 1 → 1.3",
+            "· 重击　连击 0 → ×1.0｜单次命中",
+            "超宏池 1000 → 命中",
+            "　段　单次命中　含暴击",
+        )
+    )
+    and all(term not in _melee_text for term in ("射速", "单发", "击杀发数", "发打穿")),
+)
+_lang_token = dc.i18n.set_lang("en")
+try:
+    _melee_spec, _melee_weapon, _melee_result = _melee_calc(*_melee_words)
+    _melee_text = "\n".join(dc.card_lines(_melee_weapon, _melee_spec, _melee_result)).casefold()
+    check(
+        "英文近战伤害使用 attack speed 和 per hit",
+        all(term in _melee_text for term in ("attack speed 1 → 1.3", "per hit", "hits to break"))
+        and all(term not in _melee_text for term in ("fire rate", "per shot", "shots to break")),
+    )
+finally:
+    dc.i18n.reset_lang(_lang_token)
 
 
 _guns = {k: dc._load_incarnon_forms()[k] for k in _inc_all}

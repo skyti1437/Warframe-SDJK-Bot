@@ -46,15 +46,14 @@ def _auc(status: str, price: int, age_hours: float) -> dict:
     }
 
 
-pool = [_auc("offline", 50, 30), _auc("ingame", 200, 5)]
+pool = [_auc("offline", 50, 30), _auc("online", 100, 10), _auc("ingame", 200, 5)]
 title, lines, best = F.fmt_wr_auctions("伯斯顿", pool, page=1, page_size=8)
 body = "\n".join(lines)
-# 2026-10-11 卡片改版：明细表「状态」列写「在线 / 离线」（原行内「🟢在线 / ⚫离线」）
 _rows = [x[2:].split("　") for x in lines if x.startswith("· ")]
 check("离线挂单也出现在列表里（不再被藏起来）", any("离线" in r for r in _rows), body[:300])
 check(
-    "在线档仍排在离线之前（在线优先排序不变）",
-    len(_rows) == 2 and "在线" in _rows[0] and "离线" in _rows[1],
+    "状态按游戏在线、网页在线、离线排序，在线合计包括前两档",
+    [r[1] for r in _rows] == ["游戏在线", "网页在线", "离线"] and "在线合计 2 条" in body,
     str(_rows),
 )
 check("行内含上架时长（s/m/h 口径，放行尾）", ("上架30h" in body) or ("上架5h" in body), body[:300])

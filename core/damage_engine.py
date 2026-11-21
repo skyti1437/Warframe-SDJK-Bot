@@ -32,6 +32,7 @@ DEFAULT_URL = "http://127.0.0.1:8788"
 PORTABLE_FINGERPRINT = "85ec9cdb3461c01c"
 PORTABLE_DATA = "2026.08.13.13.24"
 PORTABLE_TAG = f"portable-{PORTABLE_FINGERPRINT}"
+PORTABLE_SOURCE_URL = f"{REPO}/tree/{PORTABLE_TAG}"
 PORTABLE_DOWNLOADS = (
     f"https://raw.githubusercontent.com/skyti1437/warframe-damage-engine/{PORTABLE_TAG}/downloads"
 )
@@ -250,6 +251,24 @@ async def portable_fixed_lines(host, port, weapon, spec, overrides=None):
 
 def validate_fixed_replay(result, request):
     given = {(row["slot"], row["path"], row["rank"]) for row in request["mods"]}
+    if exilus := request.get("exilus"):
+        equipped = result.get("exilus") or {}
+        special = request.get("specialSlotPolarities") or {}
+        if (
+            equipped.get("incompatible")
+            or any(equipped.get(key) != exilus[key] for key in ("path", "rank"))
+            or ("exilus" in special and special["exilus"] != equipped.get("slotPolarity"))
+        ):
+            raise EngineError(L("扩展槽回放与配装不符", "Exilus slot does not match the build"))
+        if equipped.get("catalogJoined"):
+            given.add((8, exilus["path"], exilus["rank"]))
+    if arcanes := request.get("arcanes"):
+        given_arcanes = {(row["path"], row["rank"]) for row in arcanes}
+        active = {
+            (row["path"], row["rank"]) for row in result.get("arcanes", ()) if row.get("applied")
+        }
+        if active != given_arcanes:
+            raise EngineError(L("赋能回放与配装不符", "Arcanes do not match the build"))
     validation = result["loadoutValidation"]
     assignments = validation["assignments"]
     used = {(row["slot"], row["path"], row["rank"]) for row in assignments}
@@ -302,7 +321,7 @@ _PANEL_PHYSICAL_TYPES = frozenset(dc.PHYS_ALIASES.values())
 _PANEL_ELEMENTAL_TYPES = frozenset((*dc.ELEM_ALIASES.values(), *dc.COMPOSITE.values()))
 
 
-def _panel_damage_lines(damage_types, total, multishot):
+def _panel_damage_lines(damage_types, total, multishot, *, show_empty_groups=False):
     if not isinstance(damage_types, dict) or total <= 0:
         return []
     # 模拟器返回单弹丸分项。面板总伤害已乘同一套多重系数。
@@ -334,10 +353,10 @@ def _panel_damage_lines(damage_types, total, multishot):
         parts.append((label, amount))
 
     lines = []
-    for label, parts in (
-        (L("物理", "Physical"), physical),
-        (L("元素", "Elemental"), elemental),
-        (L("特殊", "Special"), special),
+    for label, parts, show_empty in (
+        (L("物理", "Physical"), physical, show_empty_groups),
+        (L("元素", "Elemental"), elemental, show_empty_groups),
+        (L("特殊", "Special"), special, False),
     ):
         if parts:
             group_share = sum(amount for _, amount in parts) / total
@@ -345,27 +364,42 @@ def _panel_damage_lines(damage_types, total, multishot):
                 f"{name} {amount:,.1f} ({amount / total:.1%})" for name, amount in parts
             )
             lines.append(f"· {label} {group_share:.1%} · {text}")
+        elif show_empty:
+            lines.append(f"· {label} 0.0%")
     return lines
 
 
-def weapon_panel_lines(stats):
+def weapon_panel_lines(stats, *, show_empty_groups=False, melee=False):
     if not stats:
         return []
     values = [stats.get(key) for key in PANEL_FIELDS]
     if any(type(value) not in (int, float) or not math.isfinite(value) for value in values):
         return []
     damage, crit, multiplier, status, rate, multishot = values
+    radial = stats.get("damageComponent") == "radial"
+    label = (
+        L("范围爆炸伤害（单次命中）", "Explosion damage per hit") if radial else L("伤害", "Damage")
+    )
+    rate_label = dc.attack_rate_label(melee)
+    rate_text = L(f"{rate_label} {rate:.2f}/秒", f"{rate_label} {rate:.2f}/s")
+    if not melee:
+        rate_text += L(f" · 多重射击 {multishot:.2f}", f" · Multishot {multishot:.2f}")
     return [
         L("◆ 武器面板", "◆ Weapon stats"),
         L(
-            f"· 伤害 {damage:,.1f} · 暴击几率 {crit:.1%} · 暴击倍率 ×{multiplier:.2f}",
-            f"· Damage {damage:,.1f} · Critical chance {crit:.1%} · Critical multiplier ×{multiplier:.2f}",
+            f"· {label} {damage:,.1f} · 暴击几率 {crit:.1%} · 暴击倍率 ×{multiplier:.2f}",
+            f"· {label} {damage:,.1f} · Critical chance {crit:.1%} · Critical multiplier ×{multiplier:.2f}",
         ),
         L(
-            f"· 触发几率 {status:.1%} · 射速 {rate:.2f}/秒 · 多重射击 {multishot:.2f}",
-            f"· Status chance {status:.1%} · Fire rate {rate:.2f}/s · Multishot {multishot:.2f}",
+            f"· 触发几率 {status:.1%} · {rate_text}",
+            f"· Status chance {status:.1%} · {rate_text}",
         ),
-        *_panel_damage_lines(stats.get("damageTypes"), damage, multishot),
+        *_panel_damage_lines(
+            stats.get("damageTypes"),
+            damage,
+            1.0 if radial else multishot,
+            show_empty_groups=show_empty_groups,
+        ),
     ]
 
 
@@ -381,6 +415,7 @@ def _fixed_reply(result, request, weapon, enemy, catalog_weapon):
     lines = [
         L(f"◆ {name} · 主射", f"◆ {name} · Primary fire"),
         f"· {target} Lv{request['level']} · {difficulty} · {hit}",
+        L("· 计算：独立引擎", "· Engine: Standalone engine"),
         L(
             f"◆ {secs:g} 秒平均 DPS　{window['windowDps']:,.1f}",
             f"◆ Average DPS over {secs:g} s　{window['windowDps']:,.1f}",
@@ -412,9 +447,7 @@ def _fixed_reply(result, request, weapon, enemy, catalog_weapon):
         name = names[row["path"]]
         lines.append(L(f"· {name} · 等级 {row['rank']}", f"· {name} · Rank {row['rank']}"))
     lines.extend(weapon_panel_lines(result.get("moddedStats")))
-    lines.extend(
-        evolution_lines(catalog_weapon, result.get("incarnonChoices"), request["fireMode"])
-    )
+    lines.extend(evolution_lines(catalog_weapon, result.get("incarnonChoices")))
     if result.get("unsupported") or window.get("unsupported"):
         lines.append(
             L("※ 部分效果未计入伤害", "※ Some effects were excluded from the damage estimate")
@@ -785,6 +818,7 @@ class EngineService:
     def status(self, cfg=None) -> dict:
         if portable_port(cfg):
             return {
+                "source_url": PORTABLE_SOURCE_URL,
                 "installed": self.portable_installed(),
                 "running": self.task is not None and not self.task.done(),
                 "started": self.portable_child is not None
@@ -797,6 +831,7 @@ class EngineService:
                 "download_supported": portable_asset() is not None,
             }
         return {
+            "source_url": PORTABLE_SOURCE_URL,
             "installed": self.installed(),
             "running": self.task is not None and not self.task.done(),
             "started": self.child is not None and self.child.returncode is None,

@@ -789,6 +789,20 @@ CARD_W_BARO_MAX = 2000
 CARD_W_FISSURE_MAX = 1800
 FS_BODY, FS_NOTE, FS_TITLE = 30, 24, 44  # 正文 / 注释 / 标题字号
 RH_ROW, RH_CONT, RH_NOTE, RH_SEC = 50, 40, 36, 58  # 行高：正文 / 续行 / 注释 / 分区标题
+# 与 1260px 卡宽配套。MOD 与辅助装备分别排版，较长的装备名不会挤动 MOD 列。
+_BUILD_MOD_COLUMNS = ((0, 60), (78, 260), (355, 57), (428, 59), (507, 158), (688, 154), (856, 153))
+_BUILD_MOD_COLUMNS_EN = (
+    (0, 60),
+    (77, 300),
+    (389, 68),
+    (474, 70),
+    (562, 140),
+    (716, 154),
+    (880, 129),
+)
+_BUILD_EQUIPMENT_COLUMNS = ((0, 124), (148, 930))
+_BUILD_NUMBER_COLUMNS = frozenset({2, 3, 5, 6})
+_INCARNON_HEADINGS = {"◆ 灵化进化", "◆ Incarnon evolutions"}
 
 
 def _mix(a, b, t: float) -> tuple[int, int, int]:
@@ -840,8 +854,9 @@ _SLUG_OVERRIDE = [
     ),  # 2026-10-24：别被「紫卡」子串带去 RIVEN AUCTIONS  # 2026-10-24：原先按「紫卡」子串命中 RIVEN AUCTIONS
     (("紫卡分析",), "RIVEN ANALYSIS"),
     (("紫卡倾向",), "RIVEN DISPOSITION"),
-    (("伤害计算",), "DAMAGE CALCULATOR"),
+    (("伤害计算", "识卡伤害"), "DAMAGE CALCULATOR"),
     (("配卡识别",), "LOADOUT SCAN"),
+    (("配卡推荐",), "BUILD RECOMMENDATIONS"),
     (("效价融合",), "VALENCE FUSION"),
     (("遗物",), "VOID RELICS"),
     (("部件出处",), "PART SOURCES"),
@@ -1318,7 +1333,7 @@ _TOKEN_RE = re.compile(
     r"|▲[^、\s　]+|▼[^、\s　]+|信\d+"
     # 「钢铁之路」必须在「钢铁」前面：alternation 先匹配先赢，反了的话
     # 赏金标签「钢铁之路」只有前两个字被染红（2026-10-02 维护者要求 4 字全红）。
-    r"|网页在线|在线|离线|钢铁之路|钢铁"
+    r"|游戏在线|网页在线|在线|离线|钢铁之路|钢铁"
     + _W_R_ZH
     + r"|九重天|速刷|执刑官"
     + _W_R_ZH
@@ -1531,7 +1546,7 @@ _TOKEN_RULES: tuple[tuple["re.Pattern[str]", tuple[int, int, int]], ...] = (
     (re.compile(r"^信\d+$"), (168, 148, 112)),
     (re.compile(r"^Rep \d+$"), (168, 148, 112)),
     (re.compile(r"^网页在线$"), BLUE),
-    (re.compile(r"^在线$"), GREEN),
+    (re.compile(r"^(?:游戏在线|在线)$"), GREEN),
     (re.compile(r"^离线$"), INK_FAINT),
     (re.compile(r"^(钢铁之路|钢铁|执刑官)$"), RED),
     (re.compile(r"^九重天$"), CYAN),
@@ -1923,6 +1938,14 @@ def _split_cells(text: str) -> Optional[list[str]]:
     return parts
 
 
+def _build_columns(cells):
+    if len(cells) == len(_BUILD_MOD_COLUMNS):
+        return _BUILD_MOD_COLUMNS_EN if i18n.is_en() else _BUILD_MOD_COLUMNS
+    if len(cells) == 2 and cells[0] in {"扩展槽", "赋能", "架势", "Exilus", "Arcane", "Stance"}:
+        return _BUILD_EQUIPMENT_COLUMNS
+    return ()
+
+
 def _plan_desc_col_wrap(
     cells, col0: float, wrap_fn, measure_fn, w_cap: int = 1500, reserve: int = 178, gap: int = 24
 ) -> tuple[dict, float]:
@@ -2027,8 +2050,9 @@ _SLUG_OVERRIDE_EN: list[tuple[tuple[str, ...], str]] = [
     (("riven splic",), "RIVEN SPLICING"),
     (("riven analysis",), "RIVEN ANALYSIS"),
     (("riven disposition",), "RIVEN DISPOSITION"),
-    (("damage calc",), "DAMAGE CALCULATOR"),
+    (("damage calc", "build scan damage"), "DAMAGE CALCULATOR"),
     (("build scan", "loadout scan"), "LOADOUT SCAN"),
+    (("build recommendations",), "BUILD RECOMMENDATIONS"),
     (("valence fusion",), "VALENCE FUSION"),
     (("crack relic",), "RELIC CRACKING"),
     (("part source",), "PART SOURCES"),
@@ -2396,6 +2420,7 @@ class ImageRenderer:
         # （维护者 2026-09-17：「排版有点干燥，也没对齐」）。
         # 部件反查卡（2026-09-18）是「遗物 / 槽位 / 状态」三列，同理。
         self._table_mode = is_table_title(title)
+        build_card = title.startswith(("配卡推荐 · ", "Build recommendations · "))
         plat_chip, foot_notes = self._parse_footer(display_footer(footer))
 
         # —— 宽度优先：逐行实测需求（文本+芯片外扩+时间列），卡宽 960～1260 ——
@@ -2541,6 +2566,7 @@ class ImageRenderer:
             )  # 从属行（缩进续行）不进表格列宽；表头行（紧跟 ◆ 标题、下一行是「·」项）除外
             if (
                 self._table_mode
+                and not build_card
                 and "　" in clean
                 and not clean.startswith(("※", "◆"))
                 and not _is_sub
@@ -2652,6 +2678,8 @@ class ImageRenderer:
             # 裂隙卡：卡宽至少取到网格所需（含余量），保住块内列对齐；小卡不被撑到上限
             W = max(W, min(w_cap, int(grid_need + pad * 2 + 56 + 60) + 1))
         W = int(max(W, min(title_min + 120, w_cap)))
+        if build_card:
+            W = CARD_W_MAX
         # ★ 2026-10-24 Claude 审「词条范围」四列表：w_cap 已按表格总宽放到 ≤1500，但 W 只按逐行
         #   文字宽算 ⇒ 表格总宽 > W 时最宽的行被折行（折点还会切进染段标记，露出「⟦/w⟧」）。
         #   表格模式下卡宽至少放得下整张表（仍受 w_cap 约束；放不下照旧走下面的安全阀）。
@@ -2688,7 +2716,10 @@ class ImageRenderer:
 
         rows: list[dict] = []
         _cur_rng: Optional[dict] = None  # 当前「词条范围」表格的载荷（表头行起、注释行止）
+        incarnon_evolutions = False
         for _li, (raw, clean, had_icon) in enumerate(cleaned):
+            if clean.startswith("◆"):
+                incarnon_evolutions = clean in _INCARNON_HEADINGS
             # 行首全角空格 = 缩进层级。**≥4 个**才额外缩进一级（赏金卡里
             # 「主目标 / 副目标」的分级就靠它）；2 个空格的行（奖励串、
             # 「任务：」标签）保持原样，不然整张卡会整体位移。
@@ -2790,7 +2821,35 @@ class ImageRenderer:
                     )
                 continue
             _wrap_font = note_font if base_kind == "note" else body_font
-            if (
+            if build_card and base_kind == "normal":
+                cells = _split_cells(clean) or []
+                if columns := _build_columns(cells):
+                    header = cells[0] in {"槽位", "Slot"}
+                    cell_font = f.get("bold", FS_NOTE) if header else body_font
+                    wrapped_cells = [
+                        self._wrap_cached(cell, cell_font, width) if "⟦" not in cell else [cell]
+                        for cell, (_, width) in zip(cells, columns, strict=True)
+                    ]
+                    rows.append(
+                        {
+                            "text": clean,
+                            "icon": False,
+                            "timer": "",
+                            "level": "",
+                            "kind": "normal",
+                            "indent": 0,
+                            "cells": cells,
+                            "thead": header,
+                            "build_cells": wrapped_cells,
+                            "build_columns": columns,
+                            "_extra_h": (max(map(len, wrapped_cells)) - 1) * RH_CONT,
+                        }
+                    )
+                    continue
+            if incarnon_evolutions and base_kind == "normal":
+                # 说明使用正文行宽，只在接近右边时才优先在标点处折行。
+                wrapped = self._wrap(clean, _wrap_font, max(300, wrap_w), prose=True)
+            elif (
                 grid_need
                 and base_kind == "normal"
                 and clean.lstrip().startswith("·")
@@ -2878,6 +2937,7 @@ class ImageRenderer:
                         "kind": k,
                         "indent": indent_lv,
                         "cells": cells_split if j == 0 else None,
+                        "incarnon_evolutions": incarnon_evolutions,
                         "cont": j > 0,
                         "warn": "⚠" in raw,
                         "li": _li,
@@ -3237,7 +3297,7 @@ class ImageRenderer:
         # 列对齐（同旧版口径）
         arb_cols = None
         arb_w: list[float] = []  # 各列像素宽（组合色竖底带要按列宽铺）
-        if getattr(self, "_table_mode", False):
+        if self._table_mode and not build_card:
             split_rows = [
                 r["cells"] for r in rows if r.get("cells") and r["kind"] in ("normal", "numbered")
             ]
@@ -3385,7 +3445,22 @@ class ImageRenderer:
                     d, t, X0 + 4 * SS + r_["kv_x"], _ty(body_font, yc), body_font, INK, x_right
                 )
                 continue
-            if k == "kv":
+            if r_.get("build_columns"):
+                header = r_.get("thead", False)
+                font = f.get("bold", FS_NOTE) if header else body_font
+                columns = r_["build_columns"]
+                if columns == _BUILD_EQUIPMENT_COLUMNS:
+                    table_x = x_text
+                    d.ellipse(
+                        [x_bullet - 3 * SS, yc - 3 * SS, x_bullet + 3 * SS, yc + 3 * SS],
+                        fill=GOLD_DIM,
+                    )
+                else:
+                    table_x = (PX0 + PX1 - sum(columns[-1]) * SS) / 2
+                self._draw_build_cells(d, r_, table_x, _ty(font, yc), font, header, x_right)
+                if header:
+                    d.line([(PX0 + 12 * SS, y + h), (PX1 - 12 * SS, y + h)], fill=HAIR, width=SS)
+            elif k == "kv":
                 lab, val = r_["kv"]
                 if not first:
                     d.line([(x_text - 20 * SS, y), (X1 + 4 * SS, y)], fill=HAIR, width=SS)
@@ -3441,6 +3516,18 @@ class ImageRenderer:
             else:
                 xt = x_text + r_.get("indent", 0) * _INDENT_PX * SS
                 ty = _ty(body_font, yc)
+                if r_.get("incarnon_evolutions") and (r_.get("cont") or t.startswith("· ")):
+                    if not r_.get("cont"):
+                        name, sep, effect = t[2:].partition(" · ")
+                        d.ellipse(
+                            [x_bullet - 3 * SS, yc - 3 * SS, x_bullet + 3 * SS, yc + 3 * SS],
+                            fill=GOLD_DIM,
+                        )
+                        d.text((xt, ty), name, font=body_font, fill=GOLD_BRIGHT)
+                        xt += _tlen(d, body_font, name)
+                        t = sep + effect
+                    self._draw_tokens(d, t, xt, ty, body_font, INK_DIM, x_right)
+                    continue
                 if r_["icon"]:
                     d.polygon(self._diamond(x_bullet, yc, 6 * SS), fill=accent)
                 elif r_.pop("_tier_head", False):
@@ -3661,7 +3748,7 @@ class ImageRenderer:
         return segs
 
     @staticmethod
-    def _wrap(text: str, font, max_w_px: int) -> list[str]:
+    def _wrap(text: str, font, max_w_px: int, *, prose: bool = False) -> list[str]:
         if not text:
             return [""]
         # 行内自带换行符时先按 \n 拆开，否则下面的 textlength 会抛
@@ -3670,9 +3757,10 @@ class ImageRenderer:
             return [
                 seg
                 for parts in text.split("\n")
-                for seg in ImageRenderer._wrap(parts, font, max_w_px)
+                for seg in ImageRenderer._wrap(parts, font, max_w_px, prose=prose)
             ]
         max_w = max_w_px * SS
+        separators, separator_min_fill = ("、·；，～。！？", 0.85) if prose else ("、·；，～", 0.5)
         d = _measure_draw()
         # 极性图标标记：测量时按图标实际宽度计入（剥离标记字符串本身），
         # 否则「⟦pol:vazarin⟧」这 13 个字符会把长行提前挤折。
@@ -3774,8 +3862,8 @@ class ImageRenderer:
                 if line and w_try > max_w and ch not in _NO_LINE_START:
                     # 优先在中文分隔符后断开：不这样，「▣Xaku机体蓝图、★雷射瞄具」
                     # 这类用「、」连起来的奖励串会被从词中间劈开。
-                    sep = max((line.rfind(c) for c in "、·；，～"), default=-1)
-                    if sep > len(line) * 0.5:
+                    sep = max((line.rfind(c) for c in separators), default=-1)
+                    if sep > len(line) * separator_min_fill:
                         out.append(line[: sep + 1])
                         line = line[sep + 1 :] + ch
                     # 英文单词断在一半时，回退到最近的空格处换行
@@ -3819,8 +3907,8 @@ class ImageRenderer:
                 if line and _mw(line + ch) > max_w and ch not in _NO_LINE_START:
                     # 优先在中文分隔符后断开：不这样，「▣Xaku机体蓝图、★雷射瞄具」这类
                     # 用「、」连起来的奖励串会被从词中间劈开（「▣X」/「aku机体蓝图」）。
-                    sep = max((line.rfind(c) for c in "、·；，～"), default=-1)
-                    if sep > len(line) * 0.5:
+                    sep = max((line.rfind(c) for c in separators), default=-1)
+                    if sep > len(line) * separator_min_fill:
                         out.append(line[: sep + 1])
                         line = line[sep + 1 :] + ch
                         continue
@@ -4157,6 +4245,30 @@ class ImageRenderer:
             if i < len(parts) - 1:
                 d.text((x, y), sep, font=font, fill=GOLD_DIM)
                 x += _tlen(d, font, sep)
+
+    def _draw_build_cells(self, d, row, x, y, font, header, x_right):
+        columns = row["build_columns"]
+        mod_table = columns != _BUILD_EQUIPMENT_COLUMNS
+        numeric = _BUILD_NUMBER_COLUMNS if mod_table else ()
+        colors = (
+            (INK_DIM, INK, INK_DIM, INK_DIM, INK_DIM, _mix(INK, CYAN, 0.3), INK_DIM)
+            if mod_table
+            else (INK_DIM, INK)
+        )
+        for index, ((offset, width), parts) in enumerate(
+            zip(columns, row["build_cells"], strict=True)
+        ):
+            for line, text in enumerate(parts):
+                left = x + offset * SS
+                if index in numeric:
+                    plain = _SEG_MARK_RE.sub("", text)
+                    left += width * SS - _tlen(d, font, plain)
+                top = y + line * RH_CONT * SS
+                color = INK_DIM if header or text == "—" else colors[index]
+                if "⟦" in text:
+                    self._draw_tokens(d, text, left, top, font, color, x_right)
+                else:
+                    d.text((left, top), text, font=font, fill=color)
 
     def _draw_tokens(self, d, text: str, x: float, y: float, font, base_color, max_w: float):
         """按语义 token 上色绘制（行内高亮）+ 行内极性图标。

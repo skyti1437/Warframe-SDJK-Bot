@@ -505,8 +505,9 @@ check(
     and "panelErrors.delete(src)" in _html,
 )
 check(
-    "多列表格窄屏改卡片（后台任务/社区/账本/登记/依赖/字体/订阅）",
-    _html.count('<table class="cards">') == 7
+    "多列表格窄屏改卡片（含引擎模式对照与样例）",
+    _html.count('<table class="cards">') == 9
+    and 'id="engineComparison"' in _html
     and 'el("table", { class: "cards" }' in _html
     and "td.dataset.label = heads[i]" in _html,
 )
@@ -7340,6 +7341,9 @@ async def _portable_engine_download_checks():
                     (service.root / "portable-runtime.zip").write_bytes(bundle)
                     cfg["damage_engine_portable_bundle_sha256"] = sha256(bundle).hexdigest()
                 panel = W.WebPanel(SimpleNamespace(cfg=cfg, damage_engine=service), PLUGIN)
+                status = await panel.damage_engine_status()
+                assert status["source_url"] == f"{engine.REPO}/tree/{engine.PORTABLE_TAG}"
+                assert service.status()["source_url"] == status["source_url"]
 
                 async def get_body():
                     return {"action": "install", "confirmed": True}
@@ -7350,6 +7354,7 @@ async def _portable_engine_download_checks():
                     downloads[f"{portable_install.UPSTREAM_DATA}/{frozen}"] = b"changed"
                 status = await panel.damage_engine_action()
                 assert status["running"] and status["backend"] == "portable"
+                assert status["source_url"] == f"{engine.REPO}/tree/{engine.PORTABLE_TAG}"
                 await service.task
                 if name == "摘要错误":
                     check(

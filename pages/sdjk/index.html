@@ -698,14 +698,47 @@
     <div class="ptitle"><h3>计算模式与服务</h3><span class="ext"></span></div>
     <div id="engineFields"><div class="hint">读取中…</div></div>
   </section>
+  <section class="panel" id="engineComparison"><i class="c1"></i><i class="c2"></i>
+    <div class="ptitle"><h3>两种模式怎么选</h3><span class="ext"></span></div>
+    <div class="scroll"><table class="cards">
+      <thead><tr><th scope="col">用途</th><th scope="col">内置估算（默认）</th><th scope="col">完整模拟（选装）</th></tr></thead>
+      <tbody>
+        <tr><td>伤害与识卡伤害</td><td>按配装和目标快速估算单次命中伤害、持续 DPS 和实战 DPS。</td><td>对已接入的主射配装逐次模拟开火、装填和异常，给指定时长平均 DPS。未接入或暂时无法运行时，符合内置条件的请求会标记后回退。</td></tr>
+        <tr><td>配卡与词条推荐</td><td>随包 1,046 个参考工况提供武器面板、MOD 等级、极化后容量、辅助装备、整套及逐张拆卡 DPS，并保留 KPM（每分钟击杀数）。</td><td>新版引擎支持六个带实卡重搜工况，可显示武器面板和拆卡后的 DPS。已复算的无紫卡配装支持按原工况复算。词条推荐在支持的工况显示预计算 DPS 变化，其余可用工况继续显示随包参考。</td></tr>
+        <tr><td>识卡首图</td><td>按截图核对槽位和等级，以内置公式估算每张卡的影响。</td><td>首图同样用公式估算。查看伤害详情时，槽位、卡片等级及装备均确认后可进入完整模拟。</td></tr>
+        <tr><td>安装与运行</td><td>随插件使用，打开即可查询。</td><td>本机安装约下载 26.5 MiB，安装后约 29 MiB（便携包及数据）。完整模拟会启动独立进程，带实卡重搜比查参考配装更耗时。</td></tr>
+      </tbody>
+    </table></div>
+    <details>
+      <summary>同配装、同目标的对照示例</summary>
+      <p class="hint">内置的实战 DPS 是公式估算，完整模拟默认取前 12 秒的平均。数值差随配装、敌人和时长而变。</p>
+      <div class="scroll"><table class="cards">
+        <thead><tr><th scope="col">配装与目标</th><th scope="col">内置实战 DPS</th><th scope="col">完整模拟 12 秒平均 DPS</th></tr></thead>
+        <tbody>
+          <tr><td>卡拉克＋膛线，对 120 级堕落重型机枪手</td><td>≈204</td><td>107.6</td></tr>
+          <tr><td>苍鹰 Prime＋膛线、地狱火，对 170 级钢铁之路堕落重型机枪手</td><td>≈1,365</td><td>854.3</td></tr>
+          <tr><td>苏普拉·破坏者＋膛线，对 120 级堕落重型机枪手</td><td>≈437</td><td>370.5</td></tr>
+        </tbody>
+      </table></div>
+      <p class="hint">以上均为主射、躯干、满级 MOD。另测同一次布莱顿 Prime 带紫卡重配，四台机器单进程用时约 8–41 秒，峰值内存 134–223 MiB。测试引擎版本 85ec9cdb3461c01c。</p>
+    </details>
+  </section>
   <section class="panel"><i class="c1"></i><i class="c2"></i>
     <div class="ptitle"><h3>下载与连接</h3><span class="ext"></span></div>
     <p class="hint" id="engineDownloadHint">新版支持 Python 3.12 的 Linux x86_64 和 macOS arm64。</p>
+    <details class="hint">
+      <summary id="engineMetricTitle">计算口径</summary>
+      <p id="engineMetricHelp">随包配装和词条推荐读取参考工况，KPM 为每分钟击杀数。完整模拟的 DPS 按所示时长平均。</p>
+      <p id="engineEstimateHelp">内置实战 DPS 按异常层已建立的持续输出估算，不计爬升、掉层、击杀截断和 Boss 伤害衰减。元素按火、冰、电、毒依次配对，游戏内组合受 MOD 槽位和武器自带元素影响。</p>
+      <p id="engineFormulaHelp">内置护甲减伤为 90% × √(护甲 / 2700)。基伤、多重和暴击词条各自组内相加，派系伤害独立。弱点倍率优先读取该目标部位数据。</p>
+      <p id="engineHeatHelp">火焰能持续刷新时，平均层数 = 每秒触发次数 × 持续输出秒数 ÷ 2。触发间隔超过 6 秒时，每层各自到期。默认输出 12 秒，可用「开火30秒」更改。</p>
+      <p id="engineSaleHelp">出售参考网址在「设置 → 紫卡出售参考」配置。词条推荐回图只显示出售建议。</p>
+    </details>
     <div id="engineInstallState" class="result" aria-live="polite"></div>
     <div class="vpBar">
       <button class="sm" id="engineInstall" disabled>下载并部署</button>
       <button class="sm" id="engineCheck" disabled>检查已保存服务</button>
-      <a href="https://github.com/skyti1437/warframe-damage-engine/tree/portable-85ec9cdb3461c01c" target="_blank" rel="noopener noreferrer">源码与安装说明</a>
+      <a id="engineSource" target="_blank" rel="noopener noreferrer" hidden>源码与安装说明</a>
     </div>
     <div id="engineCheckResult" class="result" aria-live="polite"></div>
   </section>
@@ -1328,7 +1361,33 @@
       "伤害引擎": "Damage Engine",
       "切换伤害计算模式，配置「识卡」的读取渠道": "Select a damage backend and configure build scan channels",
       "计算模式与服务": "Calculation mode and service",
+      "两种模式怎么选": "Compare calculation modes",
+      "用途": "Task",
+      "内置估算（默认）": "Built-in estimate (default)",
+      "完整模拟（选装）": "Full simulation (optional)",
+      "伤害与识卡伤害": "Damage and scanned loadout damage",
+      "按配装和目标快速估算单次命中伤害、持续 DPS 和实战 DPS。": "Quickly estimate damage per hit, sustained DPS and practical DPS for the loadout and target.",
+      "对已接入的主射配装逐次模拟开火、装填和异常，给指定时长平均 DPS。未接入或暂时无法运行时，符合内置条件的请求会标记后回退。": "Simulate shots, reloads and status effects for supported primary-fire loadouts and report average DPS over the chosen duration. Ineligible requests or temporary failures use the built-in estimate where possible, with a label.",
+      "配卡与词条推荐": "Build and trait recommendations",
+      "随包 1,046 个参考工况提供武器面板、MOD 等级、极化后容量、辅助装备、整套及逐张拆卡 DPS，并保留 KPM（每分钟击杀数）。": "The 1,046 bundled scenarios show weapon stats, MOD ranks, capacity after Forma, additional equipment, and DPS for the full build and with each MOD removed. Kills per minute (KPM) is also shown.",
+      "新版引擎支持六个带实卡重搜工况，可显示武器面板和拆卡后的 DPS。已复算的无紫卡配装支持按原工况复算。词条推荐在支持的工况显示预计算 DPS 变化，其余可用工况继续显示随包参考。": "The current engine supports six scenarios for Riven build searches, with weapon stats and DPS after removing individual MODs. Verified no-Riven builds can be replayed under their original conditions. Trait advice shows precomputed DPS changes for supported scenarios and bundled references elsewhere.",
+      "识卡首图": "First build scan result",
+      "按截图核对槽位和等级，以内置公式估算每张卡的影响。": "Verify slots and ranks from the screenshot and estimate each MOD’s impact with the built-in formulas.",
+      "首图同样用公式估算。查看伤害详情时，槽位、卡片等级及装备均确认后可进入完整模拟。": "The first result uses the same formulas. Damage details can use full simulation when the slots, ranks and equipment are verified and supported.",
+      "安装与运行": "Installation and runtime",
+      "随插件使用，打开即可查询。": "Bundled with the plugin and ready to use.",
+      "本机安装约下载 26.5 MiB，安装后约 29 MiB（便携包及数据）。完整模拟会启动独立进程，带实卡重搜比查参考配装更耗时。": "Local installation downloads about 26.5 MiB and uses about 29 MiB on disk for the portable runtime and data. Full simulation starts a separate process. Searching for a build around a Riven takes longer than looking up a reference build.",
+      "同配装、同目标的对照示例": "Examples with the same loadouts and targets",
+      "内置的实战 DPS 是公式估算，完整模拟默认取前 12 秒的平均。数值差随配装、敌人和时长而变。": "Built-in practical DPS is a formula estimate. Full simulation averages the first 12 seconds by default. Differences depend on the loadout, enemy, and duration.",
+      "配装与目标": "Loadout and target",
+      "内置实战 DPS": "Built-in practical DPS",
+      "完整模拟 12 秒平均 DPS": "Full simulation, 12-second average DPS",
+      "卡拉克＋膛线，对 120 级堕落重型机枪手": "Karak + Serration vs. Lv 120 Corrupted Heavy Gunner",
+      "苍鹰 Prime＋膛线、地狱火，对 170 级钢铁之路堕落重型机枪手": "Baza Prime + Serration and Hellfire vs. Lv 170 Steel Path Corrupted Heavy Gunner",
+      "苏普拉·破坏者＋膛线，对 120 级堕落重型机枪手": "Supra Vandal + Serration vs. Lv 120 Corrupted Heavy Gunner",
+      "以上均为主射、躯干、满级 MOD。另测同一次布莱顿 Prime 带紫卡重配，四台机器单进程用时约 8–41 秒，峰值内存 134–223 MiB。测试引擎版本 85ec9cdb3461c01c。": "All examples use primary fire, body hits, and max-rank MODs. A separate Braton Prime Riven build search took about 8–41 seconds and peaked at 134–223 MiB per process across four machines. Tested with engine version 85ec9cdb3461c01c.",
       "下载与连接": "Download and connection",
+      "源码与安装说明": "Source and installation guide",
       "同机下载会编译固定版本，需要 Git、Bash 和 Rust 1.97 或更新版本。已有服务可直接填写地址。": "Local deployment builds a pinned release. It requires Git, Bash, and Rust 1.97 or newer. You can also enter an existing service URL.",
       "下载并部署": "Download and deploy",
       "检查已保存服务": "Check saved service",
@@ -6443,6 +6502,11 @@
     clearTimeout(enginePoll);
     const out = $("engineInstallState");
     const portable = d.backend === "portable";
+    const source = $("engineSource");
+    if (d.source_url) {
+      source.href = d.source_url;
+      source.hidden = false;
+    }
     $("engineDownloadHint").replaceChildren(localText(
       "新版支持 Python 3.12 的 Linux x86_64 和 macOS arm64。",
       "The current build supports Python 3.12 on Linux x86_64 and macOS arm64."));
@@ -6471,6 +6535,22 @@
     } catch (e) { $("engineInstallState").textContent = e.message || String(e); }
   }
   function engineEnter() {
+    $("engineMetricTitle").replaceChildren(localText("计算口径", "How results are calculated"));
+    $("engineMetricHelp").replaceChildren(localText(
+      "随包配装和词条推荐读取参考工况，KPM 为每分钟击杀数。完整模拟的 DPS 按所示时长平均。",
+      "Bundled builds and trait advice use saved scenarios. KPM is kills per minute. Simulation DPS is averaged over the shown duration."));
+    $("engineEstimateHelp").replaceChildren(localText(
+      "内置实战 DPS 按异常层已建立的持续输出估算，不计爬升、掉层、击杀截断和 Boss 伤害衰减。元素按火、冰、电、毒依次配对，游戏内组合受 MOD 槽位和武器自带元素影响。",
+      "Built-in practical DPS assumes status is already stacked and excludes ramp-up, stack decay, kill cutoff and boss damage attenuation. Elements pair in Heat, Cold, Electricity and Toxin order. In-game combinations also depend on MOD slots and innate elements."));
+    $("engineFormulaHelp").replaceChildren(localText(
+      "内置护甲减伤为 90% × √(护甲 / 2700)。基伤、多重和暴击词条各自组内相加，派系伤害独立。弱点倍率优先读取该目标部位数据。",
+      "Built-in armor reduction is 90% × √(armor / 2700). Base damage, multishot and critical stats add within their groups. Faction damage has its own multiplier. Weak-point multipliers use target-specific hit zones when available."));
+    $("engineHeatHelp").replaceChildren(localText(
+      "火焰能持续刷新时，平均层数 = 每秒触发次数 × 持续输出秒数 ÷ 2。触发间隔超过 6 秒时，每层各自到期。默认输出 12 秒，可用「开火30秒」更改。",
+      "When Heat keeps refreshing, average stacks = procs per second × attack duration in seconds ÷ 2. If procs are more than 6 seconds apart, stacks expire individually. The default is 12 seconds. Use ‘开火30秒’ to set 30 seconds."));
+    $("engineSaleHelp").replaceChildren(localText(
+      "出售参考网址在「设置 → 紫卡出售参考」配置。词条推荐回图只显示出售建议。",
+      "Configure the URL under Settings → Riven selling reference. Trait cards display only the selling advice."));
     return Promise.all([loadSettings(), engineStatus(), loadVisionSaved(),
       VP.cat ? vpRefreshOverview() : vpLoadCatalog(), PS.cat ? Promise.resolve() : psLoadCatalog()]);
   }

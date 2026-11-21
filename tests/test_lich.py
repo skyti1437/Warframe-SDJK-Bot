@@ -188,7 +188,7 @@ row = fmt.fmt_lich_row(
     },
 )
 check("★ 元素显示中文（radiation → 辐射）", "辐射" in row and "radiation" not in row, row)
-check("★ 显示在线情况（ingame → 游戏内）", "游戏内" in row, row)
+check("★ 显示在线情况（ingame → 游戏在线）", "游戏在线" in row, row)
 check("★ 显示信用等级", "信用45" in row, row)
 row2 = fmt.fmt_lich_row(
     2,
@@ -198,7 +198,7 @@ row2 = fmt.fmt_lich_row(
         "owner": {"status": "online", "reputation": 0},
     },
 )
-check("幻纹标记与在线状态", "幻纹★" in row2 and "在线" in row2, row2)
+check("幻纹标记与网页在线状态", "幻纹★" in row2 and "网页在线" in row2, row2)
 row3 = fmt.fmt_lich_row(3, {"item": {}, "owner": {}})
 check("字段缺失不崩（占位 ?）", "?" in row3, row3)
 
@@ -290,7 +290,7 @@ r = asyncio.run(o._h_xh(_P("信条弧电离子枪"), None, "pc"))
 check("★ 信条武器走 type=sister", fake.last_type == "sister", str(fake.last_type))
 check("信条武器能出结果卡", not r.raw_text and r.lines, str(r)[:80])
 _rows = [ln for ln in r.lines if ln.startswith("· ")]  # 2026-10-11 改版：明细表的首条数据行
-check("★ 排序：游戏内优先（表内第 1 行）", bool(_rows) and "游戏内" in _rows[0], str(_rows[:1]))
+check("★ 排序：游戏在线优先（表内第 1 行）", bool(_rows) and "游戏在线" in _rows[0], str(_rows[:1]))
 check("卡面含在线/信用说明", any("信用" in ln for ln in r.lines), str(r.lines[-1]))
 
 o2 = _plugin_with(_FakeClient())
