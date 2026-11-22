@@ -26,7 +26,7 @@ from core.vision_prompts import TASKS  # noqa: E402
 # 配卡主读承担文字位置；装备路只抄文字，等级由像素和容量关系计算。
 LEGACY_HASHES = {
     # 分槽复读沿用主读的坐标协议，槽位状态由程序根据原图核对。
-    "scan_tiles": "f18e2d5be188bcb4f32061eec56dffdc3de14b7b5d046a03ca474a0cc080ec5a",
+    "scan_tiles": "8a41cff8483da23325653693ac61742b005c246d24b71c27b9887005d1f87c11",
     "riven_json": "7e4634cb9f443b354ca7c928859838f9f918baef82242019343357e52a6d3429",
     "riven_lines": "f18e2d5be188bcb4f32061eec56dffdc3de14b7b5d046a03ca474a0cc080ec5a",
     "scan_main": "f18e2d5be188bcb4f32061eec56dffdc3de14b7b5d046a03ca474a0cc080ec5a",

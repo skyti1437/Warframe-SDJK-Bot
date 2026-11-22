@@ -155,6 +155,10 @@ p = parse("wmr绝路")
 check("无空格连写最长优先 wmr", p.command == "wr" and p.content == ["绝路"])
 p = parse("今天天气不错")
 check("无指令不误触发", p.command is None)
+for retired in ("赤毒", "血紊", "kuva"):
+    check(f"已移除赤毒虹吸入口：{retired}", parse(retired).command is None)
+p = parse("xh 赤毒怒雷")
+check("保留赤毒武器拍卖入口", p.command == "xh" and p.content == ["赤毒怒雷"])
 
 p = parse('wm "kuva bramma" 收购')
 check("引号包裹英文物品名", p.content[0] == "kuva bramma" and p.command == "wm")

@@ -557,10 +557,14 @@ def parse_coordinate_ocr(text: str) -> Optional[dict]:
         result["weapon"] = weapon or None
     boxes = [b for b in boxes if b["text"].casefold() != "prime"]
 
-    # 容量行既提供容量值，也限制左面板的横向范围。
+    # 合并框可以确认容量文字，但它可能覆盖整行，不能用作面板边界。
+    capacities = set()
     panel_end = None
     for b in boxes:
-        if label(b) != "容量":
+        combined = re.fullmatch(r"(?:容量|capacity)[:：]?(\d+/\d+)", label(b), re.IGNORECASE)
+        if combined:
+            capacities.add(combined[1])
+        if label(b).casefold() not in {"容量", "capacity"}:
             continue
         caps = [
             v
@@ -569,9 +573,11 @@ def parse_coordinate_ocr(text: str) -> Optional[dict]:
             and same_line(b, v)
             and re.fullmatch(r"\d+\s*/\s*\d+", v["text"])
         ]
+        capacities.update(label(cap) for cap in caps)
         if len(caps) == 1:
-            result["capacity"] = caps[0]["text"]
             panel_end = caps[0]["x"] + caps[0]["w"] / 2 + 15
+    if len(capacities) == 1:
+        result["capacity"] = next(iter(capacities))
     configs = [
         b["x"] - b["w"] / 2 for b in boxes if re.fullmatch(r"配置\s*[A-Z\uff21-\uff3a]", b["text"])
     ]
@@ -633,12 +639,16 @@ def parse_coordinate_ocr(text: str) -> Optional[dict]:
     boundary = min((b["y"] for b in boundaries), default=None)
     sources["inventory_boundary"] = boundary
     sources["equipment_boundary_confirmed"] = boundary is not None
+    equipment_boxes = [
+        b
+        for b in boxes
+        if b["y"] >= 200
+        and (boundary is None or b["y"] < boundary)
+        and (panel_end is None or b["x"] > panel_end)
+        and label(b).casefold() not in {"伤害", "damage"}
+    ]
     cards = []
-    for b in boxes:
-        if (boundary is not None and b["y"] >= boundary) or b["y"] < 200:
-            continue
-        if panel_end is not None and b["x"] <= panel_end:
-            continue
+    for b in equipment_boxes:
         rec, how = match_mod(b["text"])
         # 完整名字可识别，不因截图裁掉仓库栏而丢弃整张已读卡；
         # 无底部边界时保留候选身份，不能据此宣称布局完整。
@@ -648,10 +658,8 @@ def parse_coordinate_ocr(text: str) -> Optional[dict]:
             continue
         cards.append((b, rec))
     known_boxes = {id(b) for b, _ in cards}
-    for b in boxes:
-        if id(b) in known_boxes or not (200 <= b["y"] < (boundary or 1000)):
-            continue
-        if panel_end is not None and b["x"] <= panel_end:
+    for b in equipment_boxes:
+        if id(b) in known_boxes or b["y"] >= (boundary or 1000):
             continue
         if not re.search(r"[A-Za-z\u4e00-\u9fff]", b["text"]) or len(b["text"]) > 40:
             continue
@@ -1604,7 +1612,7 @@ def _reject_duplicate_slots(slots: list[dict]) -> None:
 
 
 def verify_upgrade_slots(
-    primary: dict, observed: dict, tiles: list, equipment: Optional[dict]
+    primary: dict, observed: dict, tiles: list, equipment: Optional[dict], *, image_url: str = ""
 ) -> list[dict]:
     """逐张裁图核对槽位。完整名称需另一路印证；颜色和等级来自同槽像素。"""
     rows = observed.get("slots")
@@ -1715,6 +1723,8 @@ def verify_upgrade_slots(
                 if type(rank) is int and 0 <= rank <= arcane.get("max_rank", 5):
                     checked.update(rank=rank, reason="arcane_diamonds")
                     break
+            if checked["rank"] is None and image_url:
+                _read_arcane_slot_rank(checked, image_url, arcane.get("max_rank", 5))
             continue
         rec, method = match_mod(name)
         if not rec or method != "精确":
@@ -1723,9 +1733,13 @@ def verify_upgrade_slots(
         if (rec.get("compat") == "Stance") != (kind == "stance"):
             checked["reason"] = "wrong_slot_kind"
             continue
-        matches = entries_by_name.get(rec["name"], [])
         aliases = {_norm(rec.get("zh")), _norm(rec["name"])} - {""}
-        if not any(_norm(entry.get("name")) in aliases for entry in matches):
+        matches = [
+            entry
+            for entry in entries_by_name.get(rec["name"], [])
+            if _norm(entry.get("name")) in aliases
+        ]
+        if not matches:
             checked["reason"] = "mod_name_unconfirmed"
             continue
         x0, y0, x1, y1 = slot["box"]
@@ -1759,6 +1773,24 @@ def verify_upgrade_slots(
             checked.update(_coherent_slot_rank(rec, drain, color, rank_pixels))
     _reject_duplicate_slots(result)
     return result
+
+
+def _read_arcane_slot_rank(slot: dict, image_url: str, max_rank: int) -> None:
+    import base64
+    import io
+
+    from PIL import Image
+
+    try:
+        raw = base64.b64decode(image_url.split(",", 1)[1])
+        with Image.open(io.BytesIO(raw)) as image:
+            evidence = pips_engine.count_arcane_rank(image, {}, slot_box=slot["box"])
+    except (ValueError, OSError, IndexError):
+        return
+    slot["rank_evidence"] = evidence
+    rank = evidence["rank"]
+    if type(rank) is int and 0 <= rank <= max_rank:
+        slot.update(rank=rank, reason="arcane_diamonds")
 
 
 def _verify_scan_coverage(ocr: dict, weapon: Optional[dict]) -> tuple[bool, list[dict]]:
@@ -2488,6 +2520,8 @@ _ADD_FIELDS = (
     "crit_chance",
     "crit_dmg",
     "fire_rate",
+    "magazine_pct",
+    "reload_pct",
     "status_chance",
     "status_dmg",
     "heavy_dmg",
@@ -3669,12 +3703,14 @@ def analyze(
         out["checks"] = _panel_checks(
             out.get("weapon"), totals, out["panel"], calc=out["calc_panel"], cond_crit=_cond_crit
         )
+    if verified_layout and quality["snapshot_safe"]:
+        _confirm_bundled_panel(out, _spec_p, cond_crit=_cond_crit)
     if verified_layout and any(not check["ok"] for check in out["checks"]):
         quality["calculation_allowed"] = False
         quality["reasons"].append(
             {
                 "code": "confirmed_slots_panel_disagreement",
-                "message": "已确认槽位与可比面板数值对不上",
+                "message": "原图数值与默认面板推算有差异，可能含进化或条件加成",
             }
         )
     basis = (
@@ -3682,6 +3718,8 @@ def analyze(
         if (out.get("weapon") or {}).get("_panel_derived")
         else "database_comparison"
     )
+    if out.get("builtin_scan_context"):
+        basis = "verified_loadout_and_catalog_evolutions"
     provenance["checks"]["basis"] = basis
     provenance["panel_normalized"] = copy.deepcopy(out["panel"])
     provenance["weapon_base"]["values"] = copy.deepcopy(
@@ -3702,7 +3740,7 @@ def analyze(
     # 省得用户再去手打一遍「伤害」指令
     if calculate_reference and out["ok"] and quality["calculation_allowed"]:
         try:
-            _res = dc.calculate(to_damage_spec(out), out["weapon"])
+            _res = calculate_bundled_scan(to_damage_spec(out), out["weapon"])
             if _res.get("ok"):
                 out["ref"] = _res
         except Exception:  # noqa: BLE001 - 参考值算不出来不影响识别结果
@@ -4066,6 +4104,8 @@ def _effect_text(eff: dict, *, melee: bool = False) -> str:
         ("status_chance", "触发率"),
         ("status_dmg", "状态伤害"),
         ("fire_rate", "攻击速度" if melee else "射速"),
+        ("magazine_pct", "弹匣容量"),
+        ("reload_pct", "装填速度"),
         ("faction_dmg", "派系"),
         ("headshot_bonus", "爆头倍率"),
         ("punch_through", "穿透"),
@@ -4108,15 +4148,26 @@ def to_damage_spec(
     spec = _mapped_damage_spec(an, level, faction)
     if spec is None:
         return None
-    if (replay_slots := _confirmed_replay_slots(an)) is not None:
-        spec["confirmed_replay_slots"] = replay_slots
     if not slots:
         return spec
     # 下游保留物理顺序、包内身份及等级。赋能仅传已确认安装状态和该级数据，不设触发层数。
     spec["loadout_slots"] = [
-        {key: slot[key] for key in ("id", "kind", "state", "name", "rank") if key in slot}
+        {
+            key: slot[key]
+            for key in ("id", "kind", "state", "name", "mod_name", "rank", "drain", "color")
+            if key in slot
+        }
         for slot in slots
     ]
+    if (quality or {}).get("layout_complete"):
+        if context := an.get("builtin_scan_context"):
+            spec["builtin_scan_context"] = context
+        spec["scan_panel"] = _scan_panel_observation(an.get("panel") or {})
+        if capacity := re.fullmatch(r"\s*(\d+)\s*/\s*(\d+)\s*", an.get("capacity") or ""):
+            limit = int(capacity[2])
+            spec["scan_capacity"] = (limit - int(capacity[1]), limit)
+        if (replay_slots := _confirmed_replay_slots(slots)) is not None:
+            spec["confirmed_replay_slots"] = replay_slots
     for item in an["mods"]:
         mod = {**item, "numeric": item["calculable"], "effects": item["effect"]}
         spec["mods"].append(mod)
@@ -4134,8 +4185,8 @@ def to_damage_spec(
     if spec["arcanes"]:
         spec["notes"].append(
             dc.L(
-                "已识别赋能等级，赋能效果未计入本次估算",
-                "Arcane ranks identified; arcane effects are excluded.",
+                "装填和弱点倍率等可确认的赋能常驻数值已计入。触发和叠层效果未计入",
+                "Verified passive Arcane stats such as reload and weak-point multiplier are included. Triggers and stacks are excluded.",
             )
         )
     if isinstance(quality, dict) and not quality.get("calculation_allowed"):
@@ -4148,45 +4199,225 @@ def to_damage_spec(
     return spec
 
 
-def _confirmed_replay_slots(an):
-    if (
-        not (an.get("quality") or {}).get("layout_complete")
-        or an.get("arcanes")
-        or (an.get("provenance") or {}).get("weapon_base", {}).get("selected_from_panel")
-    ):
+def _confirmed_replay_slots(slots):
+    """已校验的物理槽 ID 直接决定元素合成顺序。扩展和赋能由各自的槽传递。"""
+    regular = {s["id"]: s for s in slots if s["kind"] == "regular"}
+    if regular.keys() != set(_UPGRADE_MOD_SLOTS):
         return None
-    regular = sorted(
-        (
-            slot
-            for slot in an["layout"]["slots"]
-            if slot["kind"] == "regular_candidate" and slot.get("zone") == "equipment_candidate"
-        ),
-        key=lambda slot: slot["box"][1] + slot["box"][3],
-    )
-    if len(regular) != 8 or len({slot["id"] for slot in regular}) != 8:
-        return None
-    top, bottom = regular[:4], regular[4:]
-    if max(slot["box"][3] for slot in top) > min(slot["box"][1] for slot in bottom):
-        return None
-
-    def sort_row(row):
-        return sorted(row, key=lambda slot: slot["box"][0] + slot["box"][2])
-
-    # 原版布局证据确认后按两行的列位置保留实际槽序。
-    positions = {slot["id"]: index for index, slot in enumerate(sort_row(top) + sort_row(bottom))}
     confirmed = []
-    for item in an["mods"]:
-        slot = positions.get(item["slot_binding"]["slot_id"])
-        rank = item["rank"]
-        if slot is None or type(rank) is not int or "歧义" in item.get("note", ""):
+    for index, slot_id in enumerate(_UPGRADE_MOD_SLOTS):
+        slot = regular[slot_id]
+        if slot["state"] == "empty":
+            continue
+        mod = dc.find_mod_exact(slot.get("mod_name") or slot.get("name") or "")
+        rank = slot.get("rank")
+        if (
+            slot["state"] != "installed"
+            or type(rank) is not int
+            or not mod
+            or not mod.get("_source_unique_name")
+        ):
             return None
-        mod = dc.find_mod_exact(item.get("name") or "")
-        if mod is None or not mod.get("_source_unique_name"):
-            return None
-        confirmed.append((slot, {**mod, "rank": rank}))
-    if len({slot for slot, _ in confirmed}) != len(confirmed):
+        confirmed.append((index, {**mod, "rank": rank, "scan_drain": slot["drain"]}))
+    return confirmed
+
+
+def _scan_panel_observation(panel):
+    """只留当前配装列的面板观察，供引擎比较可见属性。"""
+    observed = {
+        key: value
+        for key in (
+            "crit_chance",
+            "crit_damage",
+            "status_chance",
+            "attack_speed",
+            "magazine",
+            "reload",
+            "multishot",
+        )
+        if (value := _panel_columns(panel.get(key)).get("right")) is not None
+    }
+    labels = {label: key for key, label in {**PHYS_ZH, **ELEM_ALL_ZH}.items()}
+    rows = {}
+    for row in panel.get("damage_rows") or ():
+        if not isinstance(row, (tuple, list)) or len(row) < 2:
+            continue
+        label = _panel_field(row[0])
+        kind = labels.get(label)
+        if kind and (value := _panel_columns(row[1:]).get("right")) is not None:
+            rows[kind] = value
+    if rows:
+        observed["damage_types"] = rows
+    return observed
+
+
+def _confirm_bundled_panel(an, spec, *, cond_crit):
+    """用随包数据确认射击模式并保留所有与面板相符的进化。"""
+    from .damage_engine import _matches_scan_panel
+
+    weapon = an["weapon"]
+    if weapon.get("category") not in {"Primary", "Secondary"}:
+        return
+    tiers = (dc._load_evo_data()[0].get(dc._weapon_family_key(weapon)) or {}).get("tiers") or {}
+    forms = (
+        ("base", "incarnon")
+        if _incarnon_forms().get(str(weapon.get("uniqueName") or "").lower())
+        else ("base",)
+    )
+    if not tiers and len(forms) == 1:
+        return
+    panel = _scan_panel_observation(an["panel"])
+    # 纯伤害比例不能独立分辨模式。没有足够实读标量时不要扩大既有推算权限。
+    if (
+        sum(
+            key in panel
+            for key in (
+                "crit_chance",
+                "crit_damage",
+                "status_chance",
+                "attack_speed",
+                "magazine",
+                "reload",
+            )
+        )
+        < 2
+    ):
+        return
+    routes = [
+        tuple(f"{tier}-{i}" for i in range(1, len(options) + 1))
+        for tier, options in sorted(tiers.items())
+        if tier in {"2", "3", "4", "5"} and options
+    ]
+    if len(forms) * math.prod(map(len, routes)) > 48:
+        return
+    choices = list(itertools.product(*routes))
+    candidates = [
+        ("base", ()),
+        *((form, route) for form in forms for route in choices if form != "base" or route),
+    ]
+    matches = []
+    for mode, route in candidates:
+        trial = {**spec, "form": mode, "evo_keys": route, "notes": [], "conditional": []}
+        modeled = dc._apply_panel_overrides(trial, weapon)
+        calc = _calc_panel(modeled, an["totals"])
+        damage = _panel_damage_types(modeled, trial)
+        calc.update(by_type=damage, total=sum(damage.values()))
+        classified = _panel_checks(
+            modeled, an["totals"], an["panel"], calc=calc, cond_crit=cond_crit
+        )
+        rate_pct = trial["fire_rate_pct"]
+        if str(weapon.get("uniqueName") or "").lower() in dc.BOW_CLASS_UNIQUE:
+            rate_pct += trial["fire_rate_mod_pct"]
+        magazine, reload = dc._loadout_cycle_stats(modeled, trial)
+        stats = {
+            "critChance": calc["crit_chance"],
+            "critMultiplier": calc["crit_damage"],
+            "statusChance": calc["status_chance"],
+            "damageTypes": damage,
+            "fireRate": float(modeled.get("fireRate") or 0) * max(0.05, 1 + rate_pct / 100),
+            "magazine": magazine,
+            "reloadTime": reload,
+        }
+        if not _matches_scan_panel(panel, stats):
+            continue
+        ms = (modeled.get("multishot") or 1) * (1 + trial["multishot"] / 100)
+        if "multishot" in panel and abs(panel["multishot"] - ms) > 0.06:
+            continue
+        if display_total := next(
+            (c for c in classified if c["ok"] and c["label"] == "行和×多重（含进化显示差额）"), None
+        ):
+            for check in classified:
+                if check["label"] == "总伤害":
+                    check.update(
+                        ok=True, calc=display_total["calc"], note="总计采用已核对的进化显示口径"
+                    )
+        if any(not c["ok"] for c in classified):
+            continue
+        matches.append((mode, route, calc, classified, modeled))
+    if not matches or len({entry[0] for entry in matches}) != 1:
+        return
+    form, route, calc, classified, modeled = matches[0]
+    if form == "base" and len(matches) == 1 and not route:
+        return
+    common = sorted(set.intersection(*(set(entry[1]) for entry in matches)))
+    an["builtin_scan_context"] = {
+        "form": form,
+        "routes": [entry[1] for entry in matches],
+        "matched_codes": common,
+    }
+    an["builtin_panel_weapon"] = modeled
+    an["calc_panel"] = calc
+    an["checks"] = classified
+    mode = dc.L("主射", "Primary fire") if form == "base" else dc.L("灵化形态", "Incarnon form")
+    proven = " · " + ", ".join(common) if common else ""
+    an["panel_base"] = dc.L(f"已按截图核对 {mode}{proven}", f"Matched screenshot: {mode}{proven}")
+
+
+def _bundled_scan_dps(result):
+    if not result.get("ok"):
         return None
-    return sorted(confirmed)
+    if segment := result.get("dps_seg"):
+        value = segment.get("sustained_crit")
+        if value is not None:
+            return value
+    if result.get("dps_sustained") is not None:
+        return result["dps_sustained"] * result["crit_exp"]
+    if (steady := result.get("steady")) and steady.get("dps_total") is not None:
+        return steady["dps_total"]
+    return result["dps"] * result["crit_exp"]
+
+
+def calculate_bundled_scan(spec, weapon):
+    """在截图允许的进化候选中比较同目标输出，只用随包可建模的效果。"""
+    context = spec.get("builtin_scan_context")
+    if not context:
+        return dc.calculate(spec, weapon)
+    form = spec.get("form")
+    if form in {None, "keep"}:
+        form = context["form"]
+    if spec.get("evo_keys"):
+        return dc.calculate({**spec, "form": form}, weapon)
+    best = None
+    ties = 0
+    for route in context["routes"]:
+        variant = {
+            **spec,
+            "form": form,
+            "evo_keys": route,
+            "_scan_inferred_evolutions": True,
+        }
+        result = dc.calculate(variant, weapon)
+        score = _bundled_scan_dps(result)
+        if score is None or not math.isfinite(score):
+            return {
+                "ok": False,
+                "error": dc.L(
+                    "当前内置模型无法比较这组进化",
+                    "The bundled model could not compare these evolutions",
+                ),
+            }
+        if best is None or score > best[0] and not math.isclose(score, best[0], rel_tol=1e-9):
+            best = score, route, result
+            ties = 1
+        elif math.isclose(score, best[0], rel_tol=1e-9):
+            ties += 1
+    _, route, result = best
+    result["_scan_evo_keys"] = route
+    result["_scan_fire_mode"] = form
+    chosen = ", ".join(code for code in route if code not in context["matched_codes"])
+    if chosen:
+        result["notes"].append(
+            dc.L(
+                f"面板未区分的进化按随包可计算输出并列选取 {chosen}",
+                f"Same-panel evolutions tied in the bundled model; used {chosen}",
+            )
+            if ties > 1
+            else dc.L(
+                f"面板未区分的进化按随包可计算输出选最高 {chosen}",
+                f"Same-panel evolutions selected by highest bundled output: {chosen}",
+            )
+        )
+    return result
 
 
 def _mapped_damage_spec(an: dict, level: int = 100, faction: str = "Grineer") -> Optional[dict]:
@@ -4240,6 +4471,13 @@ def _mapped_damage_spec(an: dict, level: int = 100, faction: str = "Grineer") ->
     #     分支，fireRate 仍是基础值（实例：拉特昂 Prime 反推但无攻速行，关键延迟 −20% 须计入）。
     #   · 两列取值：模型若把「基础 ▸ 终值」两列一起给，analyze 入口已统一归一为右列
     #     （_PANEL_SCALARS），这里拿到的 attack_speed 一定是终值。
+    if (an.get("quality") or {}).get("layout_complete"):
+        dc.apply_static_loadout_bonuses(
+            spec,
+            reload_pct=t.get("reload_pct", 0),
+            magazine_pct=t.get("magazine_pct", 0),
+            arcanes=an["arcanes"],
+        )
     w = an.get("weapon") or {}
     if not w.get(FIRE_RATE_FROM_PANEL):
         spec["fire_rate_pct"] = float(t.get("fire_rate") or 0.0)
@@ -4259,7 +4497,7 @@ def mod_dps_comparison(an: dict, spec: dict) -> tuple[str, float, dict[int, floa
         return None
     weapon = an["weapon"]
     mods = an["mods"]
-    full = an.get("ref") or dc.calculate(spec, weapon)
+    full = an.get("ref") or calculate_bundled_scan(spec, weapon)
     if not full.get("ok"):
         return None
     original = _mapped_damage_spec(an)
@@ -4268,10 +4506,16 @@ def mod_dps_comparison(an: dict, spec: dict) -> tuple[str, float, dict[int, floa
         if item.get("rank") is None or not item.get("effect") or item.get("compat") == "Stance":
             continue
         remaining = mods[:index] + mods[index + 1 :]
-        reduced = _mapped_damage_spec({**an, "totals": _mod_totals(remaining)})
+        reduced = _mapped_damage_spec({**an, "mods": remaining, "totals": _mod_totals(remaining)})
         if reduced == original:
             continue  # 随包估算未覆盖该效果时，不报作 0%。
         reduced["stance"] = spec["stance"]
+        if "_scan_evo_keys" in full:
+            reduced.update(
+                form=full["_scan_fire_mode"],
+                evo_keys=full["_scan_evo_keys"],
+                _scan_inferred_evolutions=True,
+            )
         result = dc.calculate(reduced, weapon)
         if result.get("ok"):
             variants[index] = result
@@ -4292,7 +4536,11 @@ def mod_dps_comparison(an: dict, spec: dict) -> tuple[str, float, dict[int, floa
             return segment["crit"]
         return result["dps"] * result["crit_exp"]
 
-    for name, measure in (("practical", practical), ("sustained", sustained), ("burst", burst)):
+    measures = (("practical", practical), ("sustained", sustained), ("burst", burst))
+    if spec.get("_scan_magazine_pct") or spec.get("_scan_reload_pct"):
+        # 稳态异常模型假定持续命中，拆弹匣或装填卡须比较含该循环的持续 DPS。
+        measures = (measures[1], measures[0], measures[2])
+    for name, measure in measures:
         overall = measure(full)
         without = {index: measure(result) for index, result in variants.items()}
         if all(
@@ -4327,6 +4575,8 @@ _CARD_STAT_LABELS = (
     ("crit_dmg", "暴伤", "Critical Damage"),
     ("status_chance", "触发率", "Status Chance"),
     ("status_dmg", "状态伤害", "Status Damage"),
+    ("magazine_pct", "弹匣容量", "Magazine Capacity"),
+    ("reload_pct", "装填速度", "Reload Speed"),
     ("fire_rate", "射速", "Fire Rate"),
 )
 _EFFECT_EXTRA_LABELS_EN = {
@@ -4350,6 +4600,7 @@ _CHECK_LABEL_EN = {
     "总伤害行": "Total Damage Row",
 }
 _CHECK_NOTE_EN = {
+    "总计采用已核对的进化显示口径": "The total uses the verified evolution display rule",
     "伤害行未完整对应总计，可能漏行或串行；请核对原图": (
         "Damage rows do not fully match the total (rows may be missed or merged); "
         "please check the original image"
@@ -4357,7 +4608,7 @@ _CHECK_NOTE_EN = {
 }
 _CHECK_UNIT_EN = {"倍": "x"}
 _REASON_EN = {
-    "已确认槽位与可比面板数值对不上": "Verified slots do not match the comparable panel values",
+    "原图数值与默认面板推算有差异，可能含进化或条件加成": "Screenshot stats differ from the default panel and may include evolutions or conditional bonuses",
     "逐槽状态或已用容量未核对完整": "Some slot states or capacity costs are unconfirmed",
     "有已装槽位的等级未确认": "Some equipped ranks are unconfirmed",
     "武器未确认": "Weapon not confirmed",
@@ -4542,13 +4793,14 @@ def card_lines(
     melee = (w or {}).get("category") == "Melee"
     panel_rows: list[str] = []
     if w:
-        dmg = w.get("damage") or {}
+        displayed = an.get("builtin_panel_weapon") or w
+        dmg = displayed.get("damage") or {}
         parts = L("、", ", ").join(
             L(
-                f"{PHYS_ZH[k]}{float(dmg.get(k) or 0):g}",
+                f"{label}{float(dmg.get(k) or 0):g}",
                 f"{_en_ty(k)} {float(dmg.get(k) or 0):g}",
             )
-            for k in ("impact", "puncture", "slash")
+            for k, label in {**PHYS_ZH, **ELEM_ALL_ZH}.items()
             if float(dmg.get(k) or 0) > 0
         )
         cat = CATEGORY_ZH.get(w.get("category") or "", w.get("category") or "")
@@ -4560,9 +4812,9 @@ def card_lines(
             lines.append(
                 f"◆ 武器：{w.get('zh') or w['name']}（{w['name']}）｜{cat}｜MR{w.get('masteryReq', 0)}"
             )
-        _cc = float(w.get("criticalChance") or 0) * 100
-        _cm = float(w.get("criticalMultiplier") or 1)
-        _sc = float(w.get("procChance") or 0) * 100
+        _cc = float(displayed.get("criticalChance") or 0) * 100
+        _cm = float(displayed.get("criticalMultiplier") or 1)
+        _sc = float(displayed.get("procChance") or 0) * 100
         panel_rows.append(
             L(
                 f"· 基础　{parts}（计 {float(dmg.get('total') or 0):g}）"
@@ -4628,8 +4880,8 @@ def card_lines(
     if quality and not quality.get("calculation_allowed", quality["snapshot_safe"]):
         lines.append(
             L(
-                "◆ 识卡状态：按已确认槽位模拟，原图面板或赋能等级待核对",
-                "◆ Scan Status: confirmed slots can be simulated while screenshot stats or Arcane rank are checked",
+                "◆ 识卡状态：已确认槽位，原图面板或赋能等级待核对",
+                "◆ Scan status: slots confirmed; screenshot stats or Arcane rank still need review",
             )
             if simulation_ready
             else L(

@@ -135,7 +135,7 @@ assert cal["days"][0]["date"].startswith("1999-")
 assert any(e["name"] for d in cal["days"] for e in d["events"])
 
 # DE 源不包含的外部数据
-assert b["kuva"] is None and b["arbitration"] is None and b["steelPath"] is None
+assert "kuva" not in b and b["arbitration"] is None and b["steelPath"] is None
 
 print("de_worldstate: 全部断言通过")
 
@@ -959,7 +959,6 @@ _SWEEP = [
     ("fmt_steel_essence_shop", ()),
     ("fmt_bounties", (_B["syndicateMissions"],)),
     ("fmt_alerts", (_B["alerts"],)),
-    ("fmt_kuva", ([],)),
     ("fmt_steel_path", (None,)),
     ("fmt_incursions", (None,)),
 ]

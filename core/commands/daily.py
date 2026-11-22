@@ -2,7 +2,7 @@
 """日常世界状态类指令（D1 自 main.py 迁入，方法体逐字未改）。
 
 覆盖路由键 20 项：cetus / timers / fissures / sortie / archon / voidtrader /
-dailydeals / alerts / invasions / nightwave / news / kuva / synthtargets /
+dailydeals / alerts / invasions / nightwave / news / synthtargets /
 construction / voidstorms / events / conclave / primevault / clanrewards /
 flashsales。子包纪律：不 import astrbot（事件对象鸭子类型）。
 """
@@ -283,10 +283,6 @@ class DailyCommands:
 
     async def _h_news(self, parsed, event, platform) -> Reply:
         title, lines = fmt.fmt_news(await self.client.news(platform))
-        return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
-
-    async def _h_kuva(self, parsed, event, platform) -> Reply:
-        title, lines = fmt.fmt_kuva(await self.client.kuva(platform))
         return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
 
     async def _h_synth(self, parsed, event, platform) -> Reply:

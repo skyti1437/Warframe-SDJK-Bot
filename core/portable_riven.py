@@ -155,7 +155,14 @@ def _valid_target(result, headshot):
     )
 
 
-def analysis_request(mode, card, polarity, *, source_disposition=None):
+def analysis_request(
+    mode,
+    card,
+    polarity,
+    *,
+    source_disposition=None,
+    options: damage_engine.PortableAnalysisOptions | None = None,
+):
     weapon, fire_mode, headshot = mode
     if card["rank"] != 8 or polarity not in POLARITIES:
         raise damage_engine.EngineError(
@@ -211,7 +218,7 @@ def analysis_request(mode, card, polarity, *, source_disposition=None):
     }
     if source_disposition is not None:
         request["sourceDisposition"] = source_disposition
-    return request
+    return damage_engine.with_portable_analysis_options(request, options)
 
 
 def check_result(result, request):
@@ -246,8 +253,20 @@ def check_result(result, request):
     _placement(result["actual"])
 
 
-async def analyze(host, event, port, mode, card, polarity, *, source_disposition=None):
-    request = analysis_request(mode, card, polarity, source_disposition=source_disposition)
+async def analyze(
+    host,
+    event,
+    port,
+    mode,
+    card,
+    polarity,
+    *,
+    source_disposition=None,
+    options: damage_engine.PortableAnalysisOptions | None = None,
+):
+    request = analysis_request(
+        mode, card, polarity, source_disposition=source_disposition, options=options
+    )
     key_data = json.dumps([FINGERPRINT, port, request], sort_keys=True)
     key = "portable-result:" + hashlib.sha256(key_data.encode()).hexdigest()
 
@@ -545,6 +564,44 @@ async def _mod_gains(service, port, request):
     )
 
 
+def build_replay_request(
+    result,
+    weapon_path,
+    slots,
+    polarities,
+    route,
+    *,
+    with_riven=False,
+    options: damage_engine.PortableReplayOptions | None = None,
+):
+    """整套配装和拆卡对照共用请求。调用方先核对辅助装备属于本次求解工况。"""
+    target = result["evaluationTarget"]
+    request = {
+        "weapon": weapon_path,
+        "fireMode": result["fireMode"],
+        "enemy": target["enemyPath"],
+        "level": target["level"],
+        "steelPath": target["steelPath"],
+        "headshotChance": target["headshotChance"],
+        "armourStrip": target["armourStrip"],
+        "elementalArmourStrip": target["elementalArmourStrip"],
+        "enemyEnhancements": {"eximus": target["enemyEnhancements"]["eximus"]},
+        "windowSeconds": target["windowSeconds"],
+        "metric": "windowedDps",
+        "damageModel": "target",
+        "slotPolarities": polarities,
+        "incarnonChoices": route,
+        "mods": [
+            {key: row[key] for key in ("path", "rank", "slot")}
+            for row in slots
+            if row is not None and "path" in row
+        ],
+    }
+    if with_riven:
+        request["riven"] = next(row for row in slots if row is not None and "path" not in row)
+    return damage_engine.with_portable_replay_options(request, options)
+
+
 async def build_view(host, port, result, *, with_riven=False):
     """将三靶选出的配装、单卡影响与灵化放入同一张回图。"""
     build = result["actual" if with_riven else "baseline"]
@@ -579,29 +636,9 @@ async def build_view(host, port, result, *, with_riven=False):
         polarities = original_polarities[:8]
         for slot, polarity in plan["slots"].items():
             polarities[int(slot)] = polarity
-        request = {
-            "weapon": weapon["path"],
-            "fireMode": result["fireMode"],
-            "enemy": target["enemyPath"],
-            "level": target["level"],
-            "steelPath": target["steelPath"],
-            "headshotChance": target["headshotChance"],
-            "armourStrip": target["armourStrip"],
-            "elementalArmourStrip": target["elementalArmourStrip"],
-            "enemyEnhancements": {"eximus": target["enemyEnhancements"]["eximus"]},
-            "windowSeconds": target["windowSeconds"],
-            "metric": "windowedDps",
-            "damageModel": "target",
-            "slotPolarities": polarities,
-            "incarnonChoices": route,
-            "mods": [
-                {key: row[key] for key in ("path", "rank", "slot")}
-                for row in slots
-                if row is not None and "path" in row
-            ],
-        }
-        if with_riven:
-            request["riven"] = next(row for row in slots if row is not None and "path" not in row)
+        request = build_replay_request(
+            result, weapon["path"], slots, polarities, route, with_riven=with_riven
+        )
         replay = await _mod_gains(service, port, request)
     except (damage_engine.EngineError, QueueUnavailable, KeyError, TypeError, ValueError):
         # 局部回放不可用时，已确认的配装、推荐极性及进化仍然可以展示。
@@ -838,13 +875,17 @@ async def reference_build_lines(host, port, mode, *, live_analysis=False):
     return []
 
 
-def prepared_traits(result):
-    """把同工况的固定配装属性对照转换为词条视图输入。"""
+def prepared_traits(result, *, replay_request=None):
+    """新工况可指定原固定配装请求，仅读取具有相同请求指纹的预计算。"""
     if result.get("engineFingerprint") != FINGERPRINT or result.get("scoreMetric") != "windowedDps":
         return None
     try:
         key = (result["weapon"]["path"], result["fireMode"], result["contextHash"])
         reference = _comparison_catalog()[key]["fixedTraitReference"]
+        if replay_request is not None and reference.get("replayContextHash") != (
+            damage_engine.portable_replay_fingerprint(replay_request)
+        ):
+            return None
         baseline = reference["baselineScore"]
         if type(baseline) not in (float, int) or not math.isfinite(baseline) or baseline <= 0:
             return None

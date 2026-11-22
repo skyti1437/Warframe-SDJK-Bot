@@ -360,7 +360,7 @@ def t_public_error_text():
             "warframe.market 暂时不可用（连接或响应异常），请稍后重发一次",
         ),
         (
-            "接口不存在或暂未开放：https://api.warframestat.us/pc/kuva",
+            "接口不存在或暂未开放：https://api.warframestat.us/pc/steelPath",
             "warframestat.us 接口不存在或暂未开放，请稍后再试",
         ),
         (

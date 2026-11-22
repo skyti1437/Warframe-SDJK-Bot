@@ -2589,8 +2589,9 @@ def _apply_panel_overrides(spec: dict, weapon: dict) -> dict:
     used_tiers: set = set()
     spec["evo_headshot"] = 0.0
     for key in spec.get("evo_keys") or []:
+        numbered = re.fullmatch(r"([2-5])-([1-9][0-9]*)", key)
         kind = next((k for kw, k in _EVO_KEY_KINDS if kw in key), None)
-        if not kind:
+        if not (kind or numbered):
             spec["notes"].append(
                 L(
                     f"未认识的进化关键词「{key}」（可用：基伤/暴击/暴伤/触发/多重/爆头/射速/装填/连击）",
@@ -2605,12 +2606,16 @@ def _apply_panel_overrides(spec: dict, weapon: dict) -> dict:
         for tier in sorted(tiers, key=lambda x: int(x) if x.isdigit() else 99):
             if tier == "1":  # EVO I 是灵化形态解锁，非选项
                 continue
-            for opt in tiers[tier]:
+            if numbered and tier != numbered[1]:
+                continue
+            for index, opt in enumerate(tiers[tier], 1):
+                if numbered and index != int(numbered[2]):
+                    continue
                 if opt.get("id") in used_ids:
                     continue
                 if tier in used_tiers and opt.get("selection") == "choose_one":
                     continue
-                if any(e.get("kind") == kind for e in opt.get("effects") or []):
+                if numbered or any(e.get("kind") == kind for e in opt.get("effects") or []):
                     picked = (tier, opt)
                     break
             if picked:
@@ -2669,6 +2674,15 @@ def _apply_panel_overrides(spec: dict, weapon: dict) -> dict:
                 applied.append(L(f"弹匣+{v:g}", f"Magazine +{v:g}"))
             else:
                 shown.append(e)
+        if spec.get("_scan_inferred_evolutions"):
+            if applied:
+                spec["notes"].append(
+                    L(
+                        "截图面板反推 " + "、".join(applied),
+                        "Screenshot panel matched " + ", ".join(applied),
+                    )
+                )
+            continue
         line = (
             L(
                 f"EVO{tier} {opt.get('name')}：{'、'.join(applied)}",
@@ -2766,6 +2780,30 @@ def _apply_panel_overrides(spec: dict, weapon: dict) -> dict:
         )
         w["damage"] = dmg
     return w
+
+
+def apply_static_loadout_bonuses(spec, *, reload_pct=0.0, magazine_pct=0.0, arcanes=()):
+    """接收已确认的常驻值和赋能等级，按随包口径计入装填、弹匣和爆头倍率。"""
+    spec["_scan_reload_pct"] = float(reload_pct)
+    spec["_scan_magazine_pct"] = float(magazine_pct)
+    for item in arcanes:
+        arcane = find_arcane(item.get("name") or "")
+        ranks = (arcane or {}).get("levels") or ()
+        rank = item.get("rank")
+        if type(rank) is not int or not 0 <= rank < len(ranks):
+            continue
+        effects = ranks[rank] or {}
+        spec["_scan_reload_pct"] += float(effects.get("reload_pct") or 0)
+        spec["headshot_bonus"] += float(effects.get("headshot_bonus") or 0)
+
+
+def _loadout_cycle_stats(weapon, spec):
+    magazine = weapon.get("magazineSize") or 0
+    reload_time = weapon.get("reloadTime") or 0.0
+    if magazine and spec.get("_scan_magazine_pct"):
+        magazine = max(1, math.floor(magazine * (1 + spec["_scan_magazine_pct"] / 100) + 0.5))
+    reload_time /= max(0.05, 1 + spec.get("_scan_reload_pct", 0.0) / 100)
+    return magazine, reload_time
 
 
 def calculate(spec: dict, weapon: dict) -> dict:
@@ -3182,19 +3220,19 @@ def calculate(spec: dict, weapon: dict) -> dict:
         fire_rate *= _fr_mult
     # ★ 每秒有效射弹数（b6 批）：点射 / 蓄力按 wiki Fire Rate 换算；fire_rate 仍是面板射速（卡面
     #   「射速」= 军械库口径），DPS / 持续 DPS / 异常频率一律用 fire_rate_eff
-    fire_rate_eff, _cad_note = cadence_fire_rate(weapon, _fr_mult)
+    magazine, reload_t = _loadout_cycle_stats(weapon, spec)
+    cadence_weapon = {**weapon, "magazineSize": magazine, "reloadTime": reload_t}
+    fire_rate_eff, _cad_note = cadence_fire_rate(cadence_weapon, _fr_mult)
     if _cad_note:
         spec["notes"].append(_cad_note)
     # 持续 DPS = 爆发 DPS × 弹匣时间/(弹匣时间+装填)；近战/无弹匣数据则为 None
     # 弹匣时间 = 弹匣 / (有效射速 × 每发耗弹)（wiki AmmoCost：持续射击 0.5、Kohm 满转 4…，b7 批）；
     # 每发耗弹 0（wiki：Cedo 副开火 / Cortege 榴弹等不耗弹）或弓的未蓄力点按（循环已含上弦）⇒ 无装填
     # 循环，持续 = 爆发
-    magazine = weapon.get("magazineSize") or 0
-    reload_t = weapon.get("reloadTime") or 0.0
     _ac_raw = weapon.get("ammoCost")
     _ammo_cost = 1.0 if _ac_raw is None else float(_ac_raw)
     # noReload：葬铭系不装填（wiki Epitaph §Notes「does not "reload" between shots」，b8 批）
-    _no_cycle = _ammo_cost <= 0 or bow_cycle(weapon) or bool(weapon.get("noReload"))
+    _no_cycle = _ammo_cost <= 0 or bow_cycle(cadence_weapon) or bool(weapon.get("noReload"))
     dps_sustained = None
     _cycle_ratio = None  # 持续 / 爆发（主段与含段合计共用）
     # 逐发射速曲线（凤殁灵化降速 / 起转类）：打空一匣的实际用时按逐发射速累加；爆发按面板射速，

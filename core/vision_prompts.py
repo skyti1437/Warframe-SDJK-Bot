@@ -53,7 +53,7 @@ TASKS = {
     },
     "scan_tiles": {
         "label": "识卡槽位复读",
-        "contract": "逐行输出卡名和容量数字的归一化坐标，保留坐标与原文。兼容已有含逐槽状态的slots JSON。不输出等级或推算值。",
+        "contract": "输出含slots数组的JSON。每项含tile、state、name、drain、mark。照抄同槽卡名和容量，用可见标记确认空槽或锁位。兼容既有坐标OCR。不输出等级或推算值。",
     },
     "scan_arcanes": {
         "label": "识卡赋能",

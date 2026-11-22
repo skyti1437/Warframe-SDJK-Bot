@@ -102,8 +102,12 @@ async def _scanned_damage_result(host, weapon, spec, overrides, event, platform)
     if port := de.portable_port(cfg):
         try:
             lines = await de.portable_fixed_lines(host, port, weapon, spec, overrides)
+        except de.ScanReplayUnconfirmed as exc:
+            return [L("◆ 待核对 ", "◆ Needs confirmation ") + str(exc)], False, ""
         except (de.EngineError, QueueUnavailable) as exc:
             note = str(exc)
+            if spec.get("evo_keys") and "loadout_slots" in spec:
+                return [L("◆ 独立引擎 ", "◆ Standalone engine ") + note], False, ""
         else:
             footer = fmt.fmt_platform_footer(
                 platform, L("按已识别的配装计算", "Uses the scanned loadout")
@@ -122,7 +126,7 @@ async def _scanned_damage_result(host, weapon, spec, overrides, event, platform)
         ]
         ok, footer = False, ""
     else:
-        result = dc.calculate(spec, weapon)
+        result = lo.calculate_bundled_scan(spec, weapon)
         lines = [
             L("· 计算：随包估算", "· Engine: Bundled estimate"),
             *dc.card_lines(weapon, spec, result, []),
@@ -460,7 +464,7 @@ class ScanCommands:
             weapon = an["weapon"]
             if not spec or not weapon:
                 return None
-            res = dc.calculate(spec, weapon)
+            res = lo.calculate_bundled_scan(spec, weapon)
             if not res.get("ok"):
                 return None
             out = dc.card_lines(weapon, spec, res, [])
@@ -567,6 +571,18 @@ class ScanCommands:
             if can_actions and ok:
                 # 换目标沿用同一识卡记录，由会话与发送者校验兜底。
                 original = f"{command} #{token}" if token else command
+                if "loadout_slots" in spec and (
+                    de.portable_port(self.cfg) or spec.get("builtin_scan_context")
+                ):
+                    modes = {
+                        "base": ("基础形态", "base form"),
+                        "alt_fire": ("副开火", "alt fire"),
+                        "incarnon": ("灵化", "incarnon"),
+                    }
+                    if mode := modes.get(overrides.get("form")):
+                        original += " " + L(*mode)
+                    for code in overrides.get("evo_keys") or ():
+                        original += L(f" 进化 {code}", f" evolve {code}")
                 reply.actions.append(
                     Action(
                         L("换目标复算", "Recalculate vs another target"),
@@ -575,7 +591,7 @@ class ScanCommands:
                         owner_only=True,
                     )
                 )
-                if rest:
+                if overrides.keys() - {"form", "form_word", "evo_keys"}:
                     reply.actions.append(
                         Action(L("默认目标", "Default target"), original, owner_only=True)
                     )
@@ -834,6 +850,16 @@ class ScanCommands:
                 return None
             recovered = lo.normalize_scan_structure(focused)
             recovered["_equipment_unconfirmed"] = True
+            if not recovered.get("arcanes"):
+                arcanes = await self._read_scan_focus(image_url, "arcanes")
+                if arcanes and arcanes.get("arcanes"):
+                    recovered = _scan_revision(
+                        {**recovered, "arcanes": arcanes["arcanes"]},
+                        recovered,
+                        arcanes,
+                        ["arcanes"],
+                        "scan_arcanes",
+                    )
             _score(recovered)
             recovered = await self._read_equipment_tiles(
                 recovered, original_image_url, pips_rows, pixel_layout
@@ -1139,7 +1165,17 @@ class ScanCommands:
             logger.warning("[sdjk] 配卡装备区坐标补读失败：%s", type(exc).__name__)
         return None
 
-    _TILES_PROMPT = lo.VISION_PROMPT
+    _TILES_PROMPT = (
+        "这是一张 Warframe 装备槽位拼图。每格上方的 T 标签只用于定位，文字在标签下方的卡片内。"
+        "逐格读取，只输出 JSON 对象，包含 slots 数组。每项含 tile（照抄标签）、state、name、drain 和 mark。\n"
+        "看见已装卡片或武器赋能，state 填 installed，name 抄完整名称（保留 Prime 及赋能前缀），"
+        "drain 只抄同格卡片右上角的容量数字，填字符串。赋能没有容量，填 null。"
+        "已装时 mark 填 null。\n"
+        "只有明确看见空框才填 state=empty、mark=empty_frame；"
+        "只有明确看见锁才填 state=locked、mark=padlock。两种情况 name 和 drain 均为 null。"
+        "格子被裁切、看不清或无法确认时填 state=unknown，未知字段填 null。\n"
+        "每个标签最多一项。保持同格内容，勿使用相邻卡的文字，不输出等级、极性或推测数值。"
+    )
 
     @staticmethod
     def _equipment_tile_image(image_url, rows, layout, *, melee=None, badges=False):
@@ -1237,7 +1273,14 @@ class ScanCommands:
                 if melee is not None and "slots" in observed:
                     main = copy.deepcopy(main_read or ocr)
                     lo.observe_arcane_ranks(main, image_url)
-                    slots = lo.verify_upgrade_slots(main, observed, tiles, equipment_read)
+                    slots = await asyncio.to_thread(
+                        lo.verify_upgrade_slots,
+                        main,
+                        observed,
+                        tiles,
+                        equipment_read,
+                        image_url=image_url,
+                    )
                     if not slots:
                         return ocr
                     fields = ["_upgrade_slots"]

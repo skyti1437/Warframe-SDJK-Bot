@@ -1259,24 +1259,40 @@ def _slot_capacity_badge(hsv: Image.Image, box: list[float]) -> dict:
     return {"color": color, "counts": dict(counts), "bounds": bounds}
 
 
-def count_arcane_rank(image: Image.Image, name_box: dict) -> dict:
-    """在实际赋能名称框下读取五个菱形的中心，轮廓不算点亮。"""
+def count_arcane_rank(image: Image.Image, name_box: dict, *, slot_box=None) -> dict:
+    """在名称框下或已核对的赋能槽下部读取五个菱形，轮廓不算点亮。"""
     from PIL import ImageFilter
 
     result = {"source": "arcane_diamond_pixels", "rank": None, "reason": "unresolved"}
+    width, height = image.size
     try:
-        x, y, h, w = [float(name_box[k]) / 1000 for k in ("x", "y", "h", "w")]
-        if not (0 < x < 1 and 0 < y < 1 and 0 < h < 0.2 and 0 < w < 0.3):
-            return result
+        if slot_box is not None:
+            left, top, right, bottom = map(float, slot_box)
+            if not (0 <= left < right <= 1 and 0 <= top < bottom <= 1):
+                return result
+            # 用已定位的槽底刻度区，排除名称上方的大图标。
+            span = bottom - top
+            text_height = span * 0.19 * height
+            bounds = (
+                int(left * width),
+                int((top + span * 0.654) * height),
+                int(right * width),
+                int(bottom * height),
+            )
+            result["anchor"] = "verified_arcane_slot"
+        else:
+            x, y, h, w = [float(name_box[k]) / 1000 for k in ("x", "y", "h", "w")]
+            if not (0 < x < 1 and 0 < y < 1 and 0 < h < 0.2 and 0 < w < 0.3):
+                return result
+            text_height = h * height
+            bounds = (
+                max(0, int((x - w * 0.85) * width)),
+                max(0, int((y + h * 0.6) * height)),
+                min(width, int((x + w * 0.85) * width)),
+                min(height, int((y + h * 2.5) * height)),
+            )
     except (KeyError, TypeError, ValueError):
         return result
-    width, height = image.size
-    bounds = (
-        max(0, int((x - w * 0.85) * width)),
-        max(0, int((y + h * 0.6) * height)),
-        min(width, int((x + w * 0.85) * width)),
-        min(height, int((y + h * 2.5) * height)),
-    )
     if bounds[2] <= bounds[0] or bounds[3] <= bounds[1]:
         return result
     crop = image.convert("RGB").crop(bounds)
@@ -1289,7 +1305,7 @@ def count_arcane_rank(image: Image.Image, name_box: dict) -> dict:
     mask = Image.new("L", crop.size)
     mask.putdata([255 if warm(pixel) else 0 for pixel in crop.getdata()])
     # 只有字高足够时做一像素闭合，避免小图的相邻菱形被粘成一块。
-    if h * height >= 24:
+    if text_height >= 24:
         mask = mask.filter(ImageFilter.MaxFilter(3)).filter(ImageFilter.MinFilter(3))
     todo = {(xx, yy) for yy in range(ch) for xx in range(cw) if mask.getpixel((xx, yy))}
     boxes = []
@@ -1309,9 +1325,9 @@ def count_arcane_rank(image: Image.Image, name_box: dict) -> dict:
         left, top, right, bottom = min(xs), min(ys), max(xs), max(ys)
         bw, bh = right - left + 1, bottom - top + 1
         if (
-            min(bw, bh) < max(5, h * height * 0.35)
+            min(bw, bh) < max(5, text_height * 0.35)
             or not (0.6 <= bw / bh <= 1.4)
-            or bh > h * height * 1.1
+            or bh > text_height * 1.1
         ):
             continue
         center = [

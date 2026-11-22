@@ -9,7 +9,7 @@
 检查项：
   1. 文案里所有「中文指令」形如 「xxx」 的引用，都能在 COMMAND_ALIASES 里
      找到（作为主指令名或别名）。
-  2. 已知失效的三个键（kuva / arbitration / steelPath）都必须带「替代」段，
+  2. 缺数的外部数据项（arbitration / steelPath）都必须带「替代」段，
      即至少给出一个可用指令。
   3. 文案不得只写「不可用/停摆」而不给任何出路。
 
@@ -93,7 +93,7 @@ print()
 print("=" * 62)
 print("② 失效项必须给出替代出路")
 print("=" * 62)
-KNOWN_DEAD = ("kuva", "arbitration", "steelPath")
+KNOWN_DEAD = ("arbitration", "steelPath")
 for key in KNOWN_DEAD:
     text = _EXTERNAL_ONLY.get(key, "")
     check(f"{key}: 有降级文案", bool(text))

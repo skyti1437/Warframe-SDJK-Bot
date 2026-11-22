@@ -139,8 +139,12 @@ c = _client()
 for q, want in (
     ("信条弧电离子枪", "tenet_arca_plasmor"),
     ("赤毒海克", "kuva_hek"),
-    ("赤毒怒雷", "kuva_bramma"),
-    ("怒雷", "kuva_bramma"),
+    ("赤毒怒雷", "kuva_ayanga"),
+    ("赤毒·怒雷", "kuva_ayanga"),
+    ("怒雷", "kuva_ayanga"),
+    ("怒雷Kuva", "kuva_ayanga"),
+    ("Kuva Ayanga", "kuva_ayanga"),
+    ("赤毒布拉玛", "kuva_bramma"),
     ("海克", "kuva_hek"),
     ("赤毒 海克", "kuva_hek"),  # 中间带空格
     ("赤毒·海克", "kuva_hek"),  # 带官方分隔符
@@ -158,6 +162,13 @@ check(
 
 # ---------------------------------------------------------------- 武器表
 db = json.loads((ROOT / "core" / "data" / "lich_weapons.json").read_text(encoding="utf-8"))
+bad_aliases = [
+    (alias, slug)
+    for slug, row in db.items()
+    for alias in row.get("alias", [])
+    if c.resolve_lich_weapon(alias, fuzzy=False) != slug
+]
+check("现行玄骸武器名称和简写均指向该武器", not bad_aliases, str(bad_aliases))
 kinds = {}
 for r in db.values():
     kinds[r["type"]] = kinds.get(r["type"], 0) + 1
@@ -225,7 +236,7 @@ class _FakeClient:
     def __init__(self):
         self._aliases = {
             "lich_items": {
-                "赤毒怒雷": "kuva_bramma",
+                "赤毒怒雷": "kuva_ayanga",
                 "信条弧电离子枪": "tenet_arca_plasmor",
                 "科达血肢": "coda_hema",
             }

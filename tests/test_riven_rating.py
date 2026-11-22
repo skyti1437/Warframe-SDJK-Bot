@@ -721,6 +721,34 @@ def test_portable_enemy_labels_and_english_evolutions():
         assert fallback[1] == "· 3-1 · Effect description unavailable"
 
 
+def test_portable_optional_equipment_and_context():
+    spec = {"level": 100, "steel_path": False, "headshot": False, "fire_seconds": 12}
+    options = {
+        "arcanes": [{"path": "/Arcane", "rank": 2, "stacks": 0}],
+        "exilus": {"path": "/Exilus", "rank": 3},
+        "scenario": {"comboTier": 0, "distance": 10.0},
+    }
+    original = damage_engine.portable_damage_request("/weapon", "/enemy", [], spec)
+    assert not options.keys() & original.keys()
+    configured = damage_engine.portable_damage_request(
+        "/weapon", "/enemy", [], spec, fire_mode=1, options=options
+    )
+    assert configured == {**original, "fireMode": 1, **options}
+    assert damage_engine.portable_replay_fingerprint(configured) != (
+        damage_engine.portable_replay_fingerprint({**configured, "arcanes": []})
+    )
+    for merger, extra in (
+        (damage_engine.with_portable_analysis_options, {"exilus": options["exilus"]}),
+        (damage_engine.with_portable_replay_options, {"mods": [{"path": "/replacement"}]}),
+        (damage_engine.with_portable_replay_options, {"scenario": {"distance": 50.0}}),
+    ):
+        try:
+            merger(configured, extra)
+        except damage_engine.EngineError:
+            continue
+        raise AssertionError("可选参数越界或覆盖已确认工况")
+
+
 def test_offline_riven_comparison_context():
     catalog = portable_riven._comparison_catalog()
     assert len(catalog) == len(portable_riven.BUNDLED_BUILD_MODES) == 7
@@ -754,6 +782,21 @@ def test_offline_riven_comparison_context():
     prepared = portable_riven.prepared_traits(view)
     assert prepared is not None
     assert sum(map(len, prepared[1].values())) == 55
+    request = {"weapon": weapon, "fireMode": fire_mode, "arcanes": []}
+    assert portable_riven.prepared_traits(view, replay_request=request) is None
+    entry = catalog[weapon, fire_mode, context]
+    fixed = {
+        **entry["fixedTraitReference"],
+        "replayContextHash": damage_engine.portable_replay_fingerprint(request),
+    }
+    with patch.object(
+        portable_riven,
+        "_comparison_catalog",
+        return_value={(weapon, fire_mode, context): {**entry, "fixedTraitReference": fixed}},
+    ):
+        assert portable_riven.prepared_traits(view, replay_request=request) == prepared
+        request = {**request, "exilus": {"path": "/Other", "rank": 0}}
+        assert portable_riven.prepared_traits(view, replay_request=request) is None
     (entry,) = riven_rating.match_weapon("布莱顿 Prime")
     matrix = riven_rating.trait_matrix(entry, ["base", "cycle"], {"base": prepared})
     assert matrix[0] == "◆ 全词条对照"
@@ -873,6 +916,7 @@ if __name__ == "__main__":
     test_loadout_roll_pool()
     test_portable_card_language_and_removed_impact()
     test_portable_enemy_labels_and_english_evolutions()
+    test_portable_optional_equipment_and_context()
     test_offline_riven_comparison_context()
     test_reference_overflow_fits_without_rearranging_mods()
     asyncio.run(test_reference_prefers_cheaper_equivalent_serration())

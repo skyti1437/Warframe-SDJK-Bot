@@ -468,6 +468,13 @@ for _rank in (0, 2, 5):
     _wide.paste(_image, (200, 0))
     _evidence = count_arcane_rank(_wide, {"x": 500, "y": 320, "h": 120, "w": 290})
     check(f"五个菱形轮廓按实际中心读{_rank}级", _evidence["rank"] == _rank, str(_evidence))
+    _slot = [0.36, 0.01, 0.62, 0.65]
+    _evidence = count_arcane_rank(_wide, {}, slot_box=_slot)
+    check(f"在已知赋能槽内读取{_rank}级", _evidence["rank"] == _rank, str(_evidence))
+    _without_rank_row = [0.36, 0.01, 0.62, 0.42]
+    _evidence = count_arcane_rank(_wide, {}, slot_box=_without_rank_row)
+    check("赋能槽外的图案不能确认等级", _evidence["rank"] is None)
+
 
 if FAILED:
     print(f"[FAIL] {len(FAILED)} 项失败: {FAILED}")

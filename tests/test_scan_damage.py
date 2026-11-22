@@ -694,7 +694,7 @@ async def _dps_comparison_checks():
         calls = [call.args[0] for call in calculate.call_args_list]
         check(
             "完整模拟启用时首图照样用随包估算且不请求模拟服务",
-            len(calls) == 4
+            len(calls) == 5
             and remote.await_count == 0
             and all(
                 s["level"] == 100 and s["faction"] == "Grineer" and not s["headshot"] for s in calls
@@ -708,22 +708,31 @@ async def _dps_comparison_checks():
                 (0, {"heat": 15, "cold": 15}),
                 (15, {"cold": 15}),
                 (15, {"heat": 15}),
+                (15, {"heat": 15, "cold": 15}),
             ]
+            and [c["_scan_magazine_pct"] for c in calls] == [5, 5, 5, 5, 0]
             and cached["base_dmg"] == 15
             and cached["loadout_slots"][0]["rank"] == 0,
         )
     serration = next((ln for ln in reply.lines if ln.startswith("· 膛线　")), "")
     check(
         "整套 DPS 和拆卡下降百分比回图",
-        any("整套实战 DPS" in ln for ln in reply.lines)
+        any("整套持续 DPS" in ln for ln in reply.lines)
         and any("拆下后 DPS / 变化" in ln for ln in reply.lines)
         and "0/10" in serration
         and "⟦m⟧-" in serration,
         serration,
     )
     check(
-        "未建模的弹匣加成显示横线，复算入口保留",
-        any(ln.startswith("· 弹匣增幅　") and ln.endswith("⟦n⟧—⟦/n⟧") for ln in reply.lines)
+        "已确认的弹匣加成与拆卡结果一起显示，复算入口保留",
+        any(
+            ln.startswith("· 弹匣增幅　")
+            and "弹匣容量" in ln
+            and "DPS" not in ln
+            and "%" in ln
+            and not ln.endswith("⟦n⟧—⟦/n⟧")
+            for ln in reply.lines
+        )
         and bool(reply.actions),
     )
 
@@ -740,6 +749,250 @@ async def _dps_comparison_checks():
 
 
 asyncio.run(_dps_comparison_checks())
+
+
+async def _portable_scan_checks():
+    print("⑭ 独立引擎识卡复算：实际槽位、面板与进化")
+    ocr = _confirmed_dps_scan_fixture()
+    exilus, arcane = ocr["_upgrade_slots"][-2:]
+    exilus.update(
+        name="私法 补给",
+        mod_name="Vigilante Supplies",
+        state="installed",
+        rank=5,
+        drain=5,
+        color="绿",
+    )
+    arcane.update(name="主要·无情", state="installed", rank=5)
+    ocr["mods"].append({"name": exilus["name"], "drain": 5})
+    ocr["arcanes"] = [{"name": arcane["name"]}]
+    ocr["capacity"] = "35/60"
+    ocr["panel"] = {"crit_chance": "50% > 20%", "status_chance": "20%"}
+    analysis = lo.analyze(ocr, calculate_reference=False)
+    spec = lo.to_damage_spec(analysis, simulation=True)
+    check(
+        "普通与特殊槽分别传递，截取当前配装列",
+        (
+            spec["scan_capacity"] == (25, 60)
+            and [i for i, _ in spec["confirmed_replay_slots"]] == list(range(4))
+            and spec["scan_panel"]["crit_chance"] == 20
+        ),
+    )
+    utility = {"path": "/Exilus", "maxRank": 5, "drain": 9, "polarity": "AP_TACTIC"}
+    arc = {"path": "/Arcane", "maxRank": 5}
+    equipment = {
+        "utilityMods": {"Vigilante Supplies": [utility]},
+        "arcanes": {"Primary Merciless": [arc]},
+    }
+    request, drains = de._scan_replay_equipment(spec, equipment)
+    check(
+        "扩展槽与赋能使用实际等级，普通槽保留0级",
+        (
+            request["exilus"] == {"path": "/Exilus", "rank": 5}
+            and request["arcanes"] == [{"path": "/Arcane", "rank": 5}]
+            and request["specialSlotPolarities"] == {"exilus": "AP_TACTIC"}
+            and drains == {0: 4, 1: 6, 2: 6, 3: 4, 8: 5}
+        ),
+    )
+    check(
+        "红槽只接受可解释的向上取整差异",
+        (de._scan_slot_polarity(11, 9, "AP_DEFENSE") == ("AP_ATTACK", 12)),
+    )
+    for invalid in (None, -1, 6):
+        bad = copy.deepcopy(spec)
+        bad["loadout_slots"][-1]["rank"] = invalid
+        try:
+            de._scan_replay_equipment(bad, equipment)
+        except de.ScanReplayUnconfirmed:
+            refused = True
+        else:
+            refused = False
+        check(f"不猜赋能等级 {invalid}", refused)
+
+    modes = [
+        {"index": 0, "available": True},
+        {"index": 1, "isIncarnonForm": True, "available": True},
+    ]
+    catalog = {
+        "fireModes": modes,
+        "incarnon": [{"tier": 2, "selectable": True, "options": [{"id": "2-1"}, {"id": "2-2"}]}],
+    }
+    same_panel = False
+
+    def panel_result(_, _path, body, **kwargs):
+        crit = (
+            0.2
+            if body["fireMode"] == 1 and (same_panel or body["incarnonChoices"]["tier2"] == "2-2")
+            else 0.1
+        )
+        return {
+            "buildLabel": de.PORTABLE_DATA,
+            "selection": {"fireMode": body["fireMode"]},
+            "incarnonChoices": body["incarnonChoices"],
+            "moddedStats": {"critChance": crit, "statusChance": 0.2, "magazine": 10},
+        }
+
+    with TemporaryDirectory() as tmp:
+        service = de.EngineService(Path(tmp))
+        with patch.object(de, "portable_request", AsyncMock(side_effect=panel_result)) as send:
+            mode, route, context = await de._resolve_scan_context(
+                service, 18764, request, catalog, spec
+            )
+            check(
+                "同图面板唯一确定灵化及进化",
+                mode["index"] == 1 and route == {"tier2": "2-2"} and context == "panel",
+            )
+            check(
+                "换靶时复用与敌人无关的面板匹配",
+                (
+                    (
+                        await de._resolve_scan_context(
+                            service, 18764, {**request, "enemy": "/Second"}, catalog, spec
+                        )
+                    )[1]
+                    == route
+                    and send.await_count == 4
+                ),
+            )
+            same_panel = True
+            ambiguous = {**spec, "scan_panel": {**spec["scan_panel"], "magazine": 10}}
+            best_mode, alternatives, basis = await de._resolve_scan_context(
+                service, 18764, request, catalog, ambiguous
+            )
+            check(
+                "面板相同的进化全部交给同靶输出比较",
+                (
+                    best_mode["index"] == 1
+                    and alternatives == [{"tier2": "2-1"}, {"tier2": "2-2"}]
+                    and basis == "optimized"
+                ),
+            )
+            called = send.await_count
+            manual = {**ambiguous, "form": "incarnon", "evo_keys": ["2-1"]}
+            mode, route, context = await de._resolve_scan_context(
+                service, 18764, request, catalog, manual
+            )
+            check(
+                "显式模式和进化直接复算",
+                mode["index"] == 1
+                and route == {"tier2": "2-1"}
+                and context == "explicit"
+                and send.await_count == called,
+            )
+        await service.close()
+
+    check(
+        "面板分项的同比比例可核对，显著的总量偏差仍拒绝",
+        (
+            de._matches_scan_panel(
+                {**spec["scan_panel"], "damage_types": {"impact": 33, "slash": 27}},
+                {
+                    "critChance": 0.2,
+                    "statusChance": 0.2,
+                    "damageTypes": {"DT_IMPACT": 30, "DT_SLASH": 25},
+                },
+            )
+            and not de._matches_scan_panel(
+                {**spec["scan_panel"], "damage_types": {"impact": 60, "slash": 50}},
+                {
+                    "critChance": 0.2,
+                    "statusChance": 0.2,
+                    "damageTypes": {"DT_IMPACT": 30, "DT_SLASH": 25},
+                },
+            )
+        ),
+    )
+
+
+asyncio.run(_portable_scan_checks())
+
+
+async def _evolution_output_checks():
+    print("⑮ 面板无法区分的进化：按同靶输出选最高")
+    first = {"tier2": "2-1", "tier4": "4-2"}
+    second = {"tier2": "2-2", "tier4": "4-2"}
+    request = {
+        "enemy": "target",
+        "fireMode": 0,
+        "windowSeconds": 12,
+        "mods": [{"slot": 0, "path": "mod", "rank": 0}],
+    }
+    calls = []
+
+    def replay(_, path, body):
+        calls.append((path, body))
+        return {
+            "incarnonChoices": body["incarnonChoices"],
+            "value": 90 if body["incarnonChoices"] == second else 20,
+        }
+
+    def validate(result, body):
+        assert body["incarnonChoices"] == result["incarnonChoices"]
+        return {"windowDps": result["value"]}, {"assignments": [{"slot": 0, "drain": 4}]}
+
+    with (
+        patch.object(de, "portable_request", AsyncMock(side_effect=replay)),
+        patch.object(de, "validate_fixed_replay", side_effect=validate),
+    ):
+        selected, reply = await de._best_scan_replay(18764, request, [first, second], {0: 4})
+        check(
+            "独立引擎比较全部兼容进化并取最高窗口 DPS",
+            (
+                selected["incarnonChoices"] == second
+                and reply["value"] == 90
+                and calls
+                == [
+                    ("/api/simulate", {**request, "incarnonChoices": route})
+                    for route in (first, second)
+                ]
+            ),
+        )
+
+    spec = {
+        "level": 170,
+        "form": "keep",
+        "notes": [],
+        "builtin_scan_context": {
+            "form": "base",
+            "routes": [tuple(first.values()), tuple(second.values())],
+            "matched_codes": ["4-2"],
+        },
+    }
+
+    def calculate(candidate, _):
+        value = 90 if candidate["evo_keys"][0] == "2-2" else 20
+        return {"ok": True, "dps_sustained": value, "crit_exp": 1, "notes": []}
+
+    with patch.object(dc, "calculate", side_effect=calculate) as calc:
+        result = lo.calculate_bundled_scan(spec, {})
+        check(
+            "随包模型按同目标持续 DPS 选最高，保持可见进化",
+            (
+                result["_scan_evo_keys"] == tuple(second.values())
+                and any("最高 2-2" in note for note in result["notes"])
+                and all(
+                    call.args[0]["level"] == 170 and call.args[0]["form"] == "base"
+                    for call in calc.call_args_list
+                )
+            ),
+        )
+
+    burston = dc.find_weapon_exact("Burston Prime")
+    options, _ = dc.parse_args([])
+    panel = dc._apply_panel_overrides(
+        {**options, "form": "base", "evo_keys": ["2-2", "3-3", "4-2"]}, burston
+    )
+    check(
+        "随包数字进化使用实际分支，只加一次武器基础属性",
+        (
+            abs(panel["damage"]["total"] - 88) < 1e-4
+            and abs(panel["criticalChance"] - 0.40) < 1e-6
+            and panel["magazineSize"] == 45
+        ),
+    )
+
+
+asyncio.run(_evolution_output_checks())
 
 print()
 if FAILED:

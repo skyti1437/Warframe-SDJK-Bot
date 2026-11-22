@@ -117,9 +117,9 @@ def main() -> int:
     for slug, r in out.items():
         for a in r["alias"]:
             merged[a] = slug
-    for k, v in old.items():  # 手工别名优先（黑话更准）
+    for k, v in old.items():  # 补入玩家别名，保留已生成的官方名称及其简写
         if isinstance(v, str) and v:
-            merged[k] = v
+            merged.setdefault(k, v)
     aliases["lich_items"] = dict(sorted(merged.items()))
     aliases.setdefault("_说明", {})
     ap_path.write_text(json.dumps(aliases, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")

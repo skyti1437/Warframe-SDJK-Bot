@@ -3473,7 +3473,6 @@ def parse_worldstate(raw: dict, now_ms: Optional[int] = None) -> dict:
         "primeVault": _section("primeVault", _parse_prime_vault, raw, now_ms),
         "clanRewards": _section("clanRewards", _parse_clan_rewards, raw, now_ms),
         "flashSales": _section("flashSales", _parse_flash_sales, raw, now_ms),
-        "kuva": None,  # DE 源不含赤毒虹吸（10o.io 独立源）
         "arbitration": None,  # 同上
         "steelPath": None,  # 钢铁之路轮换为外部数据
     }

@@ -447,7 +447,7 @@ HELP_TOPIC: dict[str, list[tuple[str, str]]] = {
         ("武器融合 / 玄骸 / xh", "效价融合｜玄骸拍卖"),
     ],
     "资料与推送": [
-        ("新闻 / 结合目标 / 赤毒", "官方公告｜Simaris 目标｜赤毒历史"),
+        ("新闻 / 结合目标", "官方公告｜Simaris 目标"),
         ("wiki 词 / 翻译 词", "维基直达（默认英文 wiki，末尾加「灰机」用灰机）｜中英对照"),
         ("蹲 类型 筛选 时长 时间", "订阅变化推送（需先 .开启 推送）"),
         ("蹲 取消 / 蹲 帮助", "取消订阅｜可蹲类型与写法"),
@@ -473,7 +473,7 @@ HELP_NOTES: dict[str, list[str]] = {
         "本群指令管理：.禁用 指令 / .启用 指令 / .禁用列表 / .别名 添加 新词 指令",
         "群早报：.早报 开启 [08:00] / .早报 关闭 / .早报（需开启推送）",
         "平台后缀 -pc / -ps / -xb / -sw：四平台数据已互通，统一显示「国际服」",
-        "「赤毒」虹吸数据源已停摆，发它会给出替代查询；「蹲 取消」不带词 = 自己发起的全部（群管 = 全群）",
+        "「蹲 取消」不带词 = 自己发起的全部（群管 = 全群）",
     ],
 }
 
@@ -558,7 +558,7 @@ HELP_TOPIC_EN: dict[str, list[tuple[str, str]]] = {
         ("valence / xh", "Valence Fusion | Kuva / Tenet weapon auctions"),
     ],
     "Info and Push": [
-        ("news / simaris / kuva", "Official news | Synthesis Targets | Kuva history"),
+        ("news / simaris", "Official news | Synthesis Targets"),
         ("wiki <term> / translate <term>", "Wiki link | Chinese-English lookup"),
         (
             "subscribe <type> <filter> <duration>",
@@ -584,7 +584,7 @@ HELP_NOTES_EN: dict[str, list[str]] = {
         "Morning digest: .digest on [08:00] / .digest off / .digest (requires group push)",
         "Subscription hours and weekdays follow the display time zone. See subscribe help for examples",
         "Platform suffixes -pc / -ps / -xb / -sw: all four platforms share data and show as International",
-        'Kuva siphon data is no longer available, so asking for it points you to alternatives; "subscribe cancel" with no word = all of your own (group admins = whole group)',
+        '"subscribe cancel" with no word = all of your own (group admins = whole group)',
     ],
 }
 
@@ -644,7 +644,6 @@ class WarframeSDJK(
         #   地址按逗号或换行分隔；填了非法值就回退内置默认，不静默猜。
         _flare_urls = parse_url_list(str(self.cfg.get("flaresolverr_urls") or ""))
         self.client = WarframeClient(
-            kuvalog_url=(self.cfg.get("kuvalog_url") or ""),
             worldsource=self.cfg.get("worldsource", "de"),
             de_worldstate_url=(self.cfg.get("de_worldstate_url") or DEFAULT_DE_WORLDSTATE),
             worldstate_base=self.cfg.get("worldstate_base", "https://api.warframestat.us"),
@@ -724,7 +723,6 @@ class WarframeSDJK(
             "invasions": self._h_invasions,
             "nightwave": self._h_nightwave,
             "news": self._h_news,
-            "kuva": self._h_kuva,
             "synthtargets": self._h_synth,
             "construction": self._h_construction,
             "voidstorms": self._h_voidstorms,

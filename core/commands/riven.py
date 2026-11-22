@@ -132,12 +132,12 @@ class RivenCommands:
                 L("没有写武器名", "No weapon name given"),
                 L(
                     "按 xh 武器名 [元素] [数值] 的格式重发，例如「xh 赤毒怒雷」",
-                    'Resend as xh <weapon> [element] [min %], e.g. "xh Kuva Nukor"',
+                    'Resend as xh <weapon> [element] [min %], e.g. "xh Kuva Ayanga"',
                 ),
                 (L("用法", "Usage"), L("xh 武器名 [元素] [数值]", "xh <weapon> [element] [min %]")),
                 L(
                     "· 示例　xh 赤毒怒雷 ｜ xh 信条弧电离子枪 辐射 ｜ xh 赤毒海克 50",
-                    "· Examples　xh Kuva Nukor ｜ xh Tenet Arca Plasmor radiation ｜ xh Kuva Hek 50",
+                    "· Examples　xh Kuva Ayanga ｜ xh Tenet Arca Plasmor radiation ｜ xh Kuva Hek 50",
                 ),
                 (
                     L("元素", "Elements"),
@@ -186,7 +186,7 @@ class RivenCommands:
                 L(
                     "支持赤毒/信条/终幕三类，可只写后半段（如「怒雷」）；或照候选改名重发",
                     "Kuva, Tenet and Coda weapons are supported; "
-                    'the second half alone also works (e.g. "Nukor"), or resend using a suggestion',
+                    'the second half alone also works (e.g. "Ayanga"), or resend using a suggestion',
                 ),
                 (L("你是不是想找", "Did you mean"), L("、", ", ").join(near)) if near else "",
                 title=L("玄骸拍卖", "Lich Weapon Auctions"),
@@ -322,7 +322,7 @@ class RivenCommands:
         }.get(kind, "xh 信条弧电离子枪")
         example_en = {
             "sister": "xh Tenet Arca Plasmor",
-            "lich": "xh Kuva Nukor",
+            "lich": "xh Kuva Ayanga",
             "coda": "xh Tenet Arca Plasmor",
         }.get(kind, "xh Tenet Arca Plasmor")
         return Reply(

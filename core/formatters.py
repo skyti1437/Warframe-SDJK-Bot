@@ -1943,17 +1943,6 @@ def fmt_nightwave(nw: Optional[dict]) -> tuple[str, list[str]]:
     return (title, lines)
 
 
-def fmt_kuva(missions: Iterable[dict]) -> tuple[str, list[str]]:
-    lines = [
-        f"{m.get('node', '?')} · {mission_cn(m.get('type', ''))} · {m.get('enemy', '?')}"
-        for m in missions or []
-    ]
-    return (
-        L("赤毒/血紊虹吸", "Kuva Siphons / Kuva Flood"),
-        lines or [L("当前没有赤毒任务", "No Kuva missions at the moment")],
-    )
-
-
 def _clean_url(url: str) -> str:
     """去掉 utm 追踪参数，缩短新闻链接。"""
     return re.sub(r"[?&]utm_[a-z]+=[^&]*", "", url or "").rstrip("?&")

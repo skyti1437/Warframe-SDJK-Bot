@@ -830,11 +830,6 @@ _WM_PLATFORM = {
 # ★ 提示里提到的每个指令名都必须是 COMMAND_ALIASES 里真实存在的，
 #   否则等于把用户引到第二条死路（曾误写「钢铁」「资源」两个不存在的指令）。
 _EXTERNAL_ONLY = {
-    "kuva": "赤毒虹吸数据源（10o.io）已停摆，DE 官方数据也不含此表，暂时查不到实时虹吸。\n"
-    "可用的替代：\n"
-    "· 赤毒武器 / 姐妹武器的融合数值 →「融合 电60 火58」或「玄骸」\n"
-    "· 在售赤毒武器价格 →「wm 赤毒 布拉玛」\n"
-    "· 每周轮换奖励 →「周报」查看各周期内容",
     "arbitration": "仲裁实时数据源（10o.io）已停摆。\n"
     "可用替代：\n"
     "· 「仲裁」查看当前与下一小时场次（已改用 arbi.wf.wiki 确定性排期）\n"
@@ -1315,12 +1310,6 @@ _ERR_SOURCES_EN = {
 
 # 英文模式：无替代指令的外部源停摆提示（与 _EXTERNAL_ONLY 的中文原文一一对应）
 _EXTERNAL_ONLY_EN = {
-    "kuva": "The Kuva siphon data source (10o.io) is down and the DE official data does not "
-    "include it, so live siphons are unavailable.\n"
-    "Alternatives:\n"
-    "- Kuva / Sister weapon prices: wm kuva bramma\n"
-    "- Kuva / Tenet weapon auctions: xh\n"
-    "- Weekly rotations: timers",
     "arbitration": "The live Arbitration data source (10o.io) is down.\n"
     "Alternatives:\n"
     "- arbitration: current and next-hour missions (now from the arbi.wf.wiki fixed schedule)\n"
@@ -1622,7 +1611,6 @@ class WarframeClient:
     def __init__(
         self,
         *,
-        kuvalog_url: str = "",
         worldsource: str = "de",
         worldstate_base: str = DEFAULT_WORLDSTATE_BASE,
         de_worldstate_url: str = DEFAULT_DE_WORLDSTATE,
@@ -1642,7 +1630,6 @@ class WarframeClient:
             raise WarframeAPIError(
                 "缺少依赖 httpx：请在 AstrBot 插件管理中安装依赖，或手动执行 pip install httpx"
             )
-        self._kuvalog_url = kuvalog_url
         self.worldsource = worldsource if worldsource in ("de", "warframestat") else "de"
         self.worldstate_base = worldstate_base.rstrip("/")
         self.de_worldstate_url = de_worldstate_url.rstrip("/")
@@ -2437,7 +2424,7 @@ class WarframeClient:
     ) -> Any:
         if self.worldsource == "de":
             bundle = await self._resilient_de_bundle(platform)
-            if endpoint in ("kuva", "arbitration", "steelPath") and not bundle.get(endpoint):
+            if endpoint in ("arbitration", "steelPath") and not bundle.get(endpoint):
                 raise WarframeAPIError(_EXTERNAL_ONLY[endpoint])
             if endpoint in (bundle.get("_failed") or ()):
                 # P09：这段解析失败 ≠ 当前没有事件 —— 明说，别回空值让卡片显示「暂无」
@@ -2590,10 +2577,6 @@ class WarframeClient:
     async def goals(self, platform: str) -> list[dict]:
         """限时活动（含 GracePeriod 宽限期内已结束的条目）。"""
         return await self.worldstate(platform, "goals", ttl=300) or []
-
-    async def kuva(self, platform: str) -> list[dict]:
-        # 10o.io 源已停摆（域名失效）；赤毒指令返回降级提示
-        raise WarframeAPIError(_EXTERNAL_ONLY["kuva"])
 
     async def steel_path(self, platform: str) -> dict:
         return await self.worldstate(platform, "steelPath", ttl=600) or {}

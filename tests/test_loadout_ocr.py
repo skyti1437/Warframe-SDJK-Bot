@@ -1940,6 +1940,24 @@ check(
     is None,
 )
 
+_combined_capacity_csv = """20,110,1000,180,0,容量 56 / 60
+20,390,30,60,0,伤害
+400,390,20,70,0,膛线
+460,353,18,15,0,4"""
+_combined_capacity = lo.parse_coordinate_ocr(_combined_capacity_csv)
+check(
+    "容量与标签同框时保留数值，忽略面板标题且不挡住装备区",
+    _combined_capacity["capacity"] == "56/60"
+    and [m["name"] for m in _combined_capacity["mods"]] == ["膛线"],
+)
+check(
+    "容量整行与分行读数冲突时留空",
+    lo.parse_coordinate_ocr(
+        _combined_capacity_csv + "\n35,120,20,40,90,容量\n235,120,20,45,90,55/60"
+    )["capacity"]
+    is None,
+)
+
 # 分区协议不能把模型照提示返回的逐行文字或字典标量静默丢掉。
 _plain_mods = lo.parse_focus_text("北风 | 7\n未知的零级卡 | 4\n近战·暴露", "mods")
 check("补读逐行卡名保留未知项", len(_plain_mods["mods"]) == 2)
@@ -3224,6 +3242,18 @@ def _upgrade_slot_contract():
     ):
         an = lo.analyze(payload)
         check(f"逐槽闸门对{case}拦截伤害", lo.to_damage_spec(an) is None and not an.get("ref"))
+
+    off_slot = {
+        "name": "膛线 4",
+        "drain": 4,
+        "_geometry": {"x": 900, "y": 500},
+        "_geometry_source": "coordinate_ocr",
+        "_geometry_view": "full_image",
+    }
+    for name, expected in (("膛线 4", "installed"), ("膛线", "unknown")):
+        read = {"mods": [{**off_slot, "name": name}]}
+        checked = lo.verify_upgrade_slots(main, {"slots": reads}, tiles, read)[0]
+        check(f"只有整图精确卡名可以否决已确认的槽位：{name}", checked["state"] == expected)
 
     unbound = [{**slots[0], "state": "unknown", "rank": None}, *slots[1:]]
     an = lo.analyze({**main, "_upgrade_slots": unbound})
