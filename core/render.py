@@ -36,6 +36,7 @@ import re
 import sys
 import unicodedata
 import time
+from itertools import zip_longest
 from pathlib import Path
 from typing import Optional
 
@@ -666,9 +667,7 @@ def _tlen(d, font, text: str) -> float:
 
 
 FONT_DIR = Path(__file__).resolve().parent / "data" / "fonts"  # core/data/fonts
-# 极性小图标（wiki 抓取的 64px PNG，2026-09-24）。该目录不进开源/市场包
-# （同 fonts，见 dist/package_release.py::OSS_EXCLUDE_DIRS）——文件缺失时
-# 行内标记静默退化为不画图标，纯文本照常。
+# 极性小图标为 64px PNG。私有通用图标或其他图标文件缺失时照常显示极性文字。
 POLARITY_DIR = Path(__file__).resolve().parent / "data" / "icons" / "polarity"
 _POL_ICONS: dict = {}
 
@@ -690,19 +689,28 @@ def _polarity_icon(key: str):
     return img
 
 
-def _pol_mark_px(font) -> float:
+def _pol_mark_px(font, key: str = "madurai") -> float:
     """一个 ``⟦pol:…⟧`` 标记的绘制宽度（设备像素，含图标后间距）。
 
     与 ``_draw_polarity_icon`` 的宽度算法保持一致：换行测量时标记按这个
     宽度计入（不能按 ⟦pol:vazarin⟧ 这串字符的宽度算，否则长行会提前折行）。
-    图标缺失（开源包不带 icons 目录）时返回 0。
+    图标缺失时返回 0。
     """
-    ref = _polarity_icon("madurai")
+    ref = _polarity_icon(key)
     if ref is None or not ref.height:
         return 0.0
     size = int(getattr(font, "size", 30) * 1.1)
     size = max(12, min(size, 96))
-    return (round(ref.width * size / ref.height) + 7) * SS
+    return max(1, round(ref.width * size / ref.height)) + 7 * SS
+
+
+def _inline_width(d, font, text) -> float:
+    """量可见文字和极性图标，染段标记不占宽度。"""
+    if "⟦" not in text:
+        return _tlen(d, font, text)
+    plain = _SEG_MARK_RE.sub("", text)
+    icons = sum(_pol_mark_px(font, m.group(1)) for m in _POL_MARK_RE.finditer(plain))
+    return _tlen(d, font, _POL_MARK_RE.sub("", plain)) + icons
 
 
 # 超采样倍率（抗锯齿）。3 倍画布 3360 宽再缩到 1120，像素操作量是 2 倍方案的
@@ -748,7 +756,6 @@ RARITY_GOLD = (240, 215, 153)
 RARITY_SILVER = (178, 202, 236)  # 冷蓝银：须与正文暖白（INK）和次列暗灰（INK_DIM）都拉开
 RARITY_BRONZE = (214, 146, 92)
 GOLD_DIM = (122, 100, 62)
-GOLD_FAINT = (96, 82, 54)
 INK = (236, 232, 222)  # 主文字：暖白
 INK_DIM = (168, 176, 190)  # 次文字
 INK_FAINT = (132, 140, 154)  # 注释
@@ -776,6 +783,7 @@ WARN_BAR = (232, 178, 106)
 
 # 版式尺度（设计像素）
 CARD_W_MIN, CARD_W_MAX = 960, 1260  # 卡宽范围
+_KEY_COL_SHARE = 0.46
 # 列对齐卡（遗物出库/入库等 9 列网格）的列宽合计本身就超过 1260 时，允许放宽到
 # 旧版上限 1500：宁可卡宽，也不能触发下面的「安全阀」放弃列对齐（对齐是这类卡的存在意义）。
 CARD_W_TABLE_MAX = 1500
@@ -787,18 +795,20 @@ CARD_W_BARO_MAX = 2000
 # 九重天节点英文名很长（「Enkidu Ice Drifts (Neptune Proxima)」），再加派系与两枚标记芯片，
 # 网格超过 1500 → 块内列对齐放弃、表头退化成正文。只对这两张卡放宽。
 CARD_W_FISSURE_MAX = 1800
+# 三模式词条对照的五列共用同一组列宽。
+CARD_W_TRAITS_MAX = 1880
 FS_BODY, FS_NOTE, FS_TITLE = 30, 24, 44  # 正文 / 注释 / 标题字号
 RH_ROW, RH_CONT, RH_NOTE, RH_SEC = 50, 40, 36, 58  # 行高：正文 / 续行 / 注释 / 分区标题
 # 与 1260px 卡宽配套。MOD 与辅助装备分别排版，较长的装备名不会挤动 MOD 列。
-_BUILD_MOD_COLUMNS = ((0, 60), (78, 260), (355, 57), (428, 59), (507, 158), (688, 154), (856, 153))
+_BUILD_MOD_COLUMNS = ((0, 60), (78, 246), (340, 57), (414, 59), (490, 183), (690, 156), (861, 148))
 _BUILD_MOD_COLUMNS_EN = (
     (0, 60),
-    (77, 300),
-    (389, 68),
-    (474, 70),
-    (562, 140),
-    (716, 154),
-    (880, 129),
+    (77, 229),
+    (322, 68),
+    (406, 70),
+    (492, 186),
+    (694, 157),
+    (867, 142),
 )
 _BUILD_EQUIPMENT_COLUMNS = ((0, 124), (148, 930))
 _BUILD_NUMBER_COLUMNS = frozenset({2, 3, 5, 6})
@@ -847,28 +857,16 @@ def _bg_column() -> "Image.Image":
 
 # 栏目英文名补表（TITLE_THEME 没覆盖或误命中的卡；先于 TITLE_THEME 匹配）
 _SLUG_OVERRIDE = [
-    (("词条范围",), "RIVEN RANGES"),
-    (
-        ("紫卡融合",),
-        "RIVEN SPLICING",
-    ),  # 2026-10-24：别被「紫卡」子串带去 RIVEN AUCTIONS  # 2026-10-24：原先按「紫卡」子串命中 RIVEN AUCTIONS
-    (("紫卡分析",), "RIVEN ANALYSIS"),
     (("紫卡倾向",), "RIVEN DISPOSITION"),
-    (("伤害计算", "识卡伤害"), "DAMAGE CALCULATOR"),
-    (("配卡识别",), "LOADOUT SCAN"),
-    (("配卡推荐",), "BUILD RECOMMENDATIONS"),
     (("效价融合",), "VALENCE FUSION"),
     (("遗物",), "VOID RELICS"),
     (("部件出处",), "PART SOURCES"),
     (("价格趋势",), "PRICE TREND"),
     (("紫卡热度",), "RIVEN TRENDS"),
-    (("灵化",), "INCARNON ROTATION"),
     (("信条",), "TENET ROTATION"),
     (("终幕",), "CODA ROTATION"),
-    (("沉沦",), "DESCENDIA"),
     (("九重天",), "VOID STORMS"),
     (("钢铁精华",), "STEEL ESSENCE SHOP"),
-    (("言录使",), "ACRITHIS"),
     (("碎块兑换",), "PALLADINO SHOP"),
     (("Prime 出库",), "PRIME VAULT"),
     (("开核桃",), "RELIC CRACKING"),
@@ -964,6 +962,10 @@ _BOUNTY_PLAIN_FACTION = frozenset({"Grineer", "Corpus"})
 # ⚠️ 文本模式由 text_card 剥掉；⟦tents⟧/⟦pol:…⟧ 是别的机制，不匹配本模式。
 # ---------------------------------------------------------------------------
 _SEG_MARK_RE = re.compile(r"(⟦/?[a-z]⟧)")
+_WRAP_LATIN = r"[A-Za-z0-9\u00c0-\u00d6\u00d8-\u00f6\u00f8-\u024f\u0300-\u036f\u1e00-\u1eff]+"
+_WRAP_UNIT_RE = re.compile(
+    rf"⟦(?:/?[a-z]|pol:[a-z_]+)⟧|[0-9]+(?:[.,][0-9]+)+|{_WRAP_LATIN}(?:['’]{_WRAP_LATIN})*|."
+)
 # g / s / b = 部件杜卡德价值金 / 银 / 铜（formatters.ducat_span 生成，2026-10-16）
 # a / m / y / t = 「词条范围」四种组合色（3正1负 / 2正1负 / 3正 / 2正；字母由
 #   formatters._RIVEN_COMBO_SPAN 决定）—— **颜色跟组合走、不跟列位置走**；
@@ -1247,6 +1249,16 @@ def _split_leading_type(text: str) -> tuple[str, str]:
 
 # 标题关键词 -> (主题色, 英文副标)
 TITLE_THEME: list[tuple[tuple[str, ...], tuple[tuple[int, int, int], str]]] = [
+    (("配卡推荐",), (GOLD, "BUILD RECOMMENDATIONS")),
+    (("伤害计算", "识卡伤害", "配卡识别 · 伤害详情"), (GOLD, "DAMAGE CALCULATOR")),
+    (("配卡识别", "识卡"), (GOLD, "LOADOUT SCAN")),
+    (("词条推荐",), (GOLD, "RIVEN TRAITS")),
+    (("词条范围",), (GOLD, "RIVEN RANGES")),
+    (("紫卡分析",), (GOLD, "RIVEN ANALYSIS")),
+    (("紫卡融合",), (GOLD, "RIVEN SPLICING")),
+    (("灵化",), (GOLD, "INCARNON ROTATION")),
+    (("沉沦",), (GOLD, "DESCENDIA")),
+    (("言录使",), (GOLD, "ACRITHIS")),
     (("裂隙",), (CYAN, "VOID FISSURES")),
     (("平原", "夜灵", "周期"), (AMBER, "OPEN WORLD CYCLES")),
     (("时效",), (CYAN, "TIMERS OVERVIEW")),
@@ -1267,7 +1279,6 @@ TITLE_THEME: list[tuple[tuple[str, ...], tuple[tuple[int, int, int], str]]] = [
     (("赏金",), (AMBER, "SYNDICATE BOUNTIES")),
     (("结合",), (CYAN, "SIMARIS TARGETS")),
     (("舰队", "建造"), (GOLD, "CONSTRUCTION")),
-    (("词条推荐",), (GOLD, "RIVEN TRAITS")),
     (("紫卡",), (GOLD, "RIVEN AUCTIONS")),
     (("在售", "收购", "合购"), (CYAN, "WARFRAME.MARKET")),
     (("垃圾", "杜卡德"), (GOLD, "DUCAT DIRECTORY")),
@@ -1946,40 +1957,22 @@ def _build_columns(cells):
     return ()
 
 
-def _plan_desc_col_wrap(
-    cells, col0: float, wrap_fn, measure_fn, w_cap: int = 1500, reserve: int = 178, gap: int = 24
-) -> tuple[dict, float]:
-    """语法文档卡（指令一览）说明列的「列内折行」规划。
-
-    双列卡片说明列过宽（cmd + gap + desc 超出 ``w_cap - reserve`` 的正文
-    预算）时，把说明按剩余预算折成多段；折行规划交给调用方在行构造时
-    展开成续行（首行 cells=[cmd, 段0]，续行 cells=["", 段k]）。
-
-    Args:
-        cells: ``[(行号, 指令列, 说明列)]``，仅双列行。
-        col0: 指令列实测最大像素宽（CSS px）。
-        wrap_fn: ``wrap_fn(desc, budget) -> [段]``。
-        measure_fn: ``measure_fn(text) -> 像素宽``（CSS px）。
-        w_cap: 卡宽上限；reserve: 正文左右留换折行预留；gap: 列间隙。
-
-    Returns:
-        ``(wrap_map, new_col1)``：wrap_map 为 ``{行号: [段]}``（只含需要
-        折行的行）；new_col1 为折行后说明列的新最大宽。
-    """
-    col1 = max((measure_fn(d) for _, _, d in cells), default=0.0)
-    if not cells or col0 + gap + col1 <= w_cap - reserve:
-        return {}, col1
-    budget = int(w_cap - reserve - col0 - gap)
-    if budget < max(8.0, w_cap * 0.15):  # 指令列本身离谱宽时别硬折，交安全阀
-        return {}, col1
-    wrap_map: dict = {}
-    widest = 0.0
-    for idx, _cmd, desc in cells:
-        segs = wrap_fn(desc, budget)
-        if len(segs) > 1:
-            wrap_map[idx] = segs
-        widest = max(widest, max(measure_fn(s) for s in segs))
-    return wrap_map, widest
+def _plan_help_columns(
+    cells, wrap_fn, measure_fn, content_width: float, gap: int = 24
+) -> tuple[dict[int, list[tuple[str, str]]], list[float]]:
+    """限制语法文档的指令列，分别折两列并按实际折行宽度对齐。"""
+    key_budget = int(content_width * _KEY_COL_SHARE)
+    keys = {idx: wrap_fn(key, key_budget, strict=True) for idx, key, _ in cells}
+    key_width = max((measure_fn(part) for parts in keys.values() for part in parts), default=0.0)
+    value_budget = int(content_width - key_width - gap)
+    wraps = {}
+    value_width = 0.0
+    for idx, _, value in cells:
+        parts = wrap_fn(value, value_budget)
+        value_width = max(value_width, max(map(measure_fn, parts)))
+        if len(keys[idx]) > 1 or len(parts) > 1:
+            wraps[idx] = list(zip_longest(keys[idx], parts, fillvalue=""))
+    return wraps, [key_width, value_width]
 
 
 def _is_label_row(head: str, has_sep: bool, has_cells: bool) -> bool:
@@ -2050,7 +2043,7 @@ _SLUG_OVERRIDE_EN: list[tuple[tuple[str, ...], str]] = [
     (("riven splic",), "RIVEN SPLICING"),
     (("riven analysis",), "RIVEN ANALYSIS"),
     (("riven disposition",), "RIVEN DISPOSITION"),
-    (("damage calc", "build scan damage"), "DAMAGE CALCULATOR"),
+    (("damage calc", "build scan damage", "build scan · damage"), "DAMAGE CALCULATOR"),
     (("build scan", "loadout scan"), "LOADOUT SCAN"),
     (("build recommendations",), "BUILD RECOMMENDATIONS"),
     (("valence fusion",), "VALENCE FUSION"),
@@ -2114,14 +2107,10 @@ def _theme_color_by_slug(slug: str):
 
 
 def _card_accent(title: str):
-    """栏目强调色；英文模式先按英文键找，找不到再走中文表。"""
-    if i18n.is_en():
-        tl = (title or "").lower()
-        for keys, slug in _THEME_EN:
-            if any(k in tl for k in keys):
-                color = _theme_color_by_slug(slug)
-                if color is not None:
-                    return color
+    """优先使用实际栏目小标所对应的强调色。"""
+    color = _theme_color_by_slug(_card_slug(title))
+    if color is not None:
+        return color
     for keys, (color, _slug) in TITLE_THEME:
         if any(k in title for k in keys):
             return color
@@ -2170,6 +2159,7 @@ def _classify_rows(rows: list[dict], *, bounty: bool, plain: bool) -> None:
             elif (
                 _nx is not None
                 and _nx["kind"] == "section"
+                and " · " not in _b
                 and any(rr["kind"] == "section" and "：" in rr["text"] for rr in rows)
             ):
                 r["kind"] = "kv"
@@ -2190,7 +2180,7 @@ def _classify_rows(rows: list[dict], *, bounty: bool, plain: bool) -> None:
                 and r.get("lead")
                 and not r["text"].startswith("·")
                 and i > 0
-                and rows[i - 1]["kind"] in ("normal", "numbered", "kv", "kvcont")
+                and rows[i - 1]["kind"] in ("normal", "numbered", "kv")
                 # 上一行必须是「父条目」（「·」列表项 / 编号行 / KV / 已判从属 / 折行续行）：
                 # 一整排都缩进的普通行（如氏族奖励的「　　500 分：…」）是同级列表，不是从属
                 and (
@@ -2248,11 +2238,7 @@ class ImageRenderer:
 
         def width(t: str) -> float:
             # 与 _wrap 同口径：染段标记零宽；极性标记按图标宽度计（不按「⟦pol:…⟧」这串字符算）
-            t = _SEG_MARK_RE.sub("", t)
-            n = t.count("⟦pol:")
-            if n:
-                t = _POL_MARK_RE.sub("", t)
-            return (_tlen(measure, font, t) + n * _pol_mark_px(font)) / SS
+            return _inline_width(measure, font, t) / SS
 
         out: list[str] = []
         cur = ""
@@ -2380,12 +2366,14 @@ class ImageRenderer:
     def _render(self, title: str, lines: list[str], footer: str) -> Optional[str]:
         f = self.fonts
         W = 1120
+        outer, PADX = 22, 48
         body_font = f.get("regular", FS_BODY)
+        section_font = f.get("bold", FS_BODY + 1)
         title_font = f.get("bold", 46)
         sub_font = f.get("regular", 19)
         small_font = f.get("bold", 27)
         note_font = f.get("regular", FS_NOTE)
-        if not all((body_font, title_font, sub_font, small_font, note_font)):
+        if not all((body_font, title_font, sub_font, small_font, note_font, section_font)):
             return None
 
         # —— 页码芯片 & 主题 ——
@@ -2419,7 +2407,17 @@ class ImageRenderer:
         # 单元格只会顺序拼接，「Lith A1/Lith A10/…」长短不一会导致列位抖动
         # （维护者 2026-09-17：「排版有点干燥，也没对齐」）。
         # 部件反查卡（2026-09-18）是「遗物 / 槽位 / 状态」三列，同理。
-        self._table_mode = is_table_title(title)
+        trait_table = any(
+            line
+            in {
+                "◆ 随包参考配装 · 全词条",
+                "◆ Bundled reference builds · All traits",
+                "◆ 实时参考配装 · 全词条",
+                "◆ Live reference builds · All traits",
+            }
+            for line in lines
+        )
+        self._table_mode = is_table_title(title) or trait_table
         build_card = title.startswith(("配卡推荐 · ", "Build recommendations · "))
         plat_chip, foot_notes = self._parse_footer(display_footer(footer))
 
@@ -2437,6 +2435,8 @@ class ImageRenderer:
         timer_font = f.get("bold", 27)
         needed = 0.0
         col_max: list[float] = []  # 表格式卡片：**逐列**的最大像素宽
+        trait_cells = {}
+        trait_widths = {}
         # 「· 武器名　元素 25.7%」这类两格行：记下来，稍后拉一条公共列把第二格对齐。
         # **必须在这里算**：卡宽 W 是用 needed 定的，对齐会让最宽行变宽，
         # 只在排版后补算就来不及调卡宽了（会压出面板边框）。
@@ -2459,7 +2459,7 @@ class ImageRenderer:
                     _rng_meta[len(_rng_lines)] = _pay
                 _rng_lines.append(_sg)
         lines = _rng_lines
-        src = lines[:MAX_BODY_LINES]
+        src = lines if trait_table else lines[:MAX_BODY_LINES]
         cleaned: list[tuple[str, str, bool]] = []
         for _li, raw in enumerate(src):
             clean, had_icon = _strip_emoji(raw)
@@ -2529,16 +2529,17 @@ class ImageRenderer:
             #   按 body_font（30px）量会虚高 20%，把卡宽硬生生撑大 ——
             #   部件反查卡实测行内容只到 810px、卡宽却被注脚撑到 1416px，
             #   右半边空着（与折行字号那处是同一个 bug 的两半）。
-            _lf = note_font if clean.startswith("※") else body_font
+            _lf = (
+                note_font
+                if clean.startswith("※")
+                else section_font
+                if clean.startswith("◆")
+                else body_font
+            )
             # 极性图标标记：按图标宽度计入、字符串本身剥离（同 _wrap 口径）
-            _n_mark = clean.count("⟦pol:")
-            _meas_txt = _POL_MARK_RE.sub("", clean) if _n_mark else clean
-            if "⟦" in _meas_txt:
-                # 染段标记零宽（与 _wrap 的口径一致），不剥会虚增卡宽
-                _meas_txt = _SEG_MARK_RE.sub("", _meas_txt)
-            w_line = max((_tlen(measure, _lf, s) for s in _meas_txt.splitlines()), default=0.0) / SS
-            if _n_mark:
-                w_line += _n_mark * _pol_mark_px(_lf) / SS
+            w_line = (
+                max((_inline_width(measure, _lf, s) for s in clean.splitlines()), default=0) / SS
+            )
             if "[" in clean and "]" in clean:
                 w_line += 52
             if raw.startswith("　") and not clean.lstrip().startswith(("·", "▸", "◆", "※")):
@@ -2581,34 +2582,23 @@ class ImageRenderer:
                 #    （例如遗物卡的「※ 共 734 个：古纪 188　前纪 179　…」），
                 #    混进来会把前几列的列宽算成注释片的宽度 → 表格总宽虚高
                 #    → 触发下面的安全阀整体放弃列对齐（遗物列表曾因此不对齐）。
-                for ci, cell in enumerate(_SEG_MARK_RE.sub("", clean).split("　")):
-                    if ci == 0 and cell.lstrip().startswith("·"):
-                        cell = cell.lstrip()[1:].strip()  # 与 _split_cells 一致
+                cells = _split_cells(clean)
+                if trait_table and len(cells) >= 4:
+                    trait_cells[_li] = cells
+                    widths = trait_widths.setdefault(len(cells), [0.0] * len(cells))
+                else:
+                    widths = None
+                for ci, cell in enumerate(cells):
+                    width = _inline_width(measure, body_font, cell) / SS
                     if ci >= len(col_max):
                         col_max.append(0.0)
-                    col_max[ci] = max(col_max[ci], _tlen(measure, body_font, cell) / SS)
-        # —— 语法文档卡（指令一览）：说明列过宽时做「列内折行」规划 ——
-        # 以前列宽超限会触发下面的安全阀整体放弃列对齐，后果是指令/说明
-        # 双色与「A / B / C」多指令分色**全部失效**（2026-09-14 玩家反馈
-        # 「指令和介绍颜色太接近」「一行三个指令要三个颜色」的根因就在
-        # 这：帮助卡从未真正走过列对齐路径）。现在把超宽说明折成多段、
-        # 画在说明列内，保住列对齐与整套配色。
+                    col_max[ci] = max(col_max[ci], width)
+                    if widths is not None:
+                        widths[ci] = max(widths[ci], width + 4)
         # 「· 标签　值」块内列对齐后的宽度也计入卡宽（不超过卡宽上限）：值列起点
         # 被最长标签推后，只按整行原文定宽会让对齐后的行放不下而被迫折行。
         if kv_rows >= 3 and not self._table_mode and not self._plain_body:
             needed = max(needed, kv_label_w + 30 + kv_val_w)
-        desc_wrap: dict[int, list[str]] = {}
-        if self._table_mode and self._plain_body and len(col_max) > 1:
-            desc_wrap, _w1 = _plan_desc_col_wrap(
-                two_cells,
-                col_max[0],
-                lambda t, b: self._wrap_cached(t, body_font, b),
-                lambda t: _tlen(measure, body_font, t) / SS,
-                w_cap=CARD_W_MAX,
-                reserve=2 * pad + 56 + 30,  # +30：留一字余量（避头标点允许行尾多探出一字）
-            )
-            if desc_wrap:
-                col_max[1] = _w1
         if self._table_mode and len(col_max) > 1:
             # 列对齐时每列按「该列最大宽度」绘制、列间固定 24px 间隙，
             # 故整表实际宽度 = Σ列宽 + 24×(列数-1)，必须整体参与卡宽计算。
@@ -2627,11 +2617,7 @@ class ImageRenderer:
             _n = max(len(c) for c, _ in grid_rows)
             _cw = [
                 max(
-                    (
-                        _tlen(measure, body_font, _SEG_MARK_RE.sub("", c[i]))
-                        for c, _ in grid_rows
-                        if len(c) > i
-                    ),
+                    (_inline_width(measure, body_font, c[i]) for c, _ in grid_rows if len(c) > i),
                     default=0,
                 )
                 / SS
@@ -2654,10 +2640,17 @@ class ImageRenderer:
         else:
             descent_cells = []
         title_min = _tlen(measure, title_font, title) / SS + 42 + 26 + 200
+        help_table = self._table_mode and self._plain_body and len(col_max) == 2
         w_cap = CARD_W_MAX
-        if self._table_mode and len(col_max) > 1:
+        if self._table_mode and len(col_max) > 1 and not help_table:
             _tbl_need = sum(col_max) + 24 * (len(col_max) - 1) + pad * 2 + 56
             _tbl_cap = CARD_W_BARO_MAX if getattr(self, "_baro_mode", False) else CARD_W_TABLE_MAX
+            if 5 in trait_widths:
+                _tbl_cap = CARD_W_TRAITS_MAX
+                _tbl_need = max(
+                    sum(widths) + 24 * (count - 1) + pad * 2 + 56
+                    for count, widths in trait_widths.items()
+                )
             w_cap = int(
                 max(CARD_W_MAX, min(_tbl_cap, int(_tbl_need) + 1))
             )  # +1：向上取整，防安全阀差 1px 误关
@@ -2683,19 +2676,44 @@ class ImageRenderer:
         # ★ 2026-10-24 Claude 审「词条范围」四列表：w_cap 已按表格总宽放到 ≤1500，但 W 只按逐行
         #   文字宽算 ⇒ 表格总宽 > W 时最宽的行被折行（折点还会切进染段标记，露出「⟦/w⟧」）。
         #   表格模式下卡宽至少放得下整张表（仍受 w_cap 约束；放不下照旧走下面的安全阀）。
-        if self._table_mode and len(col_max) > 1:
+        if self._table_mode and len(col_max) > 1 and not help_table:
             W = int(max(W, min(w_cap, int(_tbl_need) + 1)))
+        help_wrap: dict[int, list[tuple[str, str]]] = {}
+        if help_table:
+            help_wrap, col_max = _plan_help_columns(
+                two_cells,
+                lambda t, b, *, strict=False: self._wrap_cached(t, body_font, b, strict=strict),
+                lambda t: _inline_width(measure, body_font, t) / SS,
+                W - 2 * pad - 56 - 30,  # 说明列预留行尾标点宽度
+            )
         # 安全阀：卡宽有 960/1260 上下限，列对齐即便按上面的公式也可能在
         # 极端数据下仍放不进正文区。此时放弃列对齐、退回逐行折行，
         # 宁可少一点对齐观感，也不能把文字压出面板边框。
         if (
             self._table_mode
+            and not trait_table
             and len(col_max) > 1
             and (sum(col_max) + 24 * (len(col_max) - 1)) > W - (2 * pad + 56)
         ):
             self._table_mode = False
+        trait_columns = {}
+        for count, widths in trait_widths.items():
+            gap = 24
+            scale = min(1.0, (W - 2 * pad - 56 - gap * (count - 1)) / sum(widths))
+            offset, columns = 0.0, []
+            for width in widths:
+                width *= scale
+                columns.append((offset, width))
+                offset += width + gap
+            trait_columns[count] = columns
 
         # —— 预排版：剥离行尾计时（右对齐成时间列）后折行 ——
+        X0 = (outer + PADX) * SS
+        X1 = (W - outer - PADX) * SS
+        PX0, PX1 = X0 - 16 * SS, X1 + 16 * SS
+        section_x = PX0 + 26 * SS
+        section_w = (X1 - section_x) / SS
+
         def kind_of(t: str) -> str:
             if t.startswith("※"):
                 return "note"
@@ -2756,25 +2774,22 @@ class ImageRenderer:
                 wrap_w -= int(_tlen(measure, timer_font, timer_txt) / SS) + 40
             if level_txt:
                 wrap_w -= int(_tlen(measure, timer_font, level_txt) / SS) + 46
-            # 说明列折行规划命中：指令列原位、说明按预算折成多段，
-            # 第 2..N 段作为续行（cells=["", 段]）画在说明列下方。
-            if _li in desc_wrap:
-                _c = _split_cells(clean)
-                if _c and len(_c) == 2:
-                    for _j, _seg in enumerate(desc_wrap[_li]):
-                        rows.append(
-                            {
-                                "text": _c[0] if _j == 0 else _seg,
-                                "icon": had_icon and _j == 0,
-                                "timer": "",
-                                "level": "",
-                                "kind": "normal",
-                                "indent": indent_lv,
-                                "cells": [_c[0], _seg] if _j == 0 else ["", _seg],
-                                "cont": _j > 0,
-                            }
-                        )
-                    continue
+            # 两列各自在原列内折行，共用续行行高和斑马纹。
+            if _li in help_wrap:
+                for _j, (_key, _value) in enumerate(help_wrap[_li]):
+                    rows.append(
+                        {
+                            "text": _key or _value,
+                            "icon": had_icon and _j == 0,
+                            "timer": "",
+                            "level": "",
+                            "kind": "normal",
+                            "indent": indent_lv,
+                            "cells": [_key, _value],
+                            "cont": _j > 0,
+                        }
+                    )
+                continue
             # ※ 注释行画的是 note_font（25px），但折行一直按 body_font（30px）
             # 测量 —— 量出来的宽度比实际大约 20%，注释因此**提前折行**、尾行
             # 只剩几个字（维护者 2026-09-17：「排版有点干燥」的一个来源）。
@@ -2821,13 +2836,14 @@ class ImageRenderer:
                     )
                 continue
             _wrap_font = note_font if base_kind == "note" else body_font
-            if build_card and base_kind == "normal":
-                cells = _split_cells(clean) or []
-                if columns := _build_columns(cells):
-                    header = cells[0] in {"槽位", "Slot"}
+            if (build_card or _li in trait_cells) and base_kind == "normal":
+                cells = trait_cells.get(_li) or _split_cells(clean) or []
+                columns = _build_columns(cells) if build_card else trait_columns[len(cells)]
+                if columns:
+                    header = cells[0] in {"槽位", "Slot", "词条", "Trait"}
                     cell_font = f.get("bold", FS_NOTE) if header else body_font
                     wrapped_cells = [
-                        self._wrap_cached(cell, cell_font, width) if "⟦" not in cell else [cell]
+                        self._wrap_cached(cell, cell_font, width - 4, strict=True)
                         for cell, (_, width) in zip(cells, columns, strict=True)
                     ]
                     rows.append(
@@ -2842,11 +2858,16 @@ class ImageRenderer:
                             "thead": header,
                             "build_cells": wrapped_cells,
                             "build_columns": columns,
+                            "trait_table": not build_card,
                             "_extra_h": (max(map(len, wrapped_cells)) - 1) * RH_CONT,
                         }
                     )
                     continue
-            if incarnon_evolutions and base_kind == "normal":
+            if base_kind == "section":
+                wrapped = [clean]  # 保留完整标签和值，先判定行型再按实际字号折行
+            elif help_table and len(_split_cells(clean) or []) == 2:
+                wrapped = [clean]  # 两格已分别量宽，保留原分列。
+            elif incarnon_evolutions and base_kind == "normal":
                 # 说明使用正文行宽，只在接近右边时才优先在标点处折行。
                 wrapped = self._wrap(clean, _wrap_font, max(300, wrap_w), prose=True)
             elif (
@@ -2873,6 +2894,13 @@ class ImageRenderer:
                 wrapped = self._wrap_kv_value(clean, _wrap_font, max(300, wrap_w), measure)
             else:
                 wrapped = self._wrap_cached(clean, _wrap_font, max(300, wrap_w))
+            if base_kind == "normal" and not (
+                had_icon
+                or timer_txt
+                or level_txt
+                or any(_SEG_MARK_RE.sub("", seg).strip() for seg in wrapped)
+            ):
+                continue
             # 非表格卡的「· 标签　值」超宽：只在值列内折行，续行（cells=["", 段]）
             # 画在值列下方，标签列与整块列对齐保持不变。以前整行退回普通段落，
             # 续行顶到行首，值里的「形态：」还会被当成「标签：值」染色。
@@ -2896,10 +2924,7 @@ class ImageRenderer:
                 and len(_kc) == 2
                 and len(_kc[0]) <= 8
                 and _budget >= 240
-                and (
-                    len(wrapped) > 1
-                    or _tlen(measure, body_font, _SEG_MARK_RE.sub("", _kc[1])) / SS > _budget
-                )
+                and (len(wrapped) > 1 or _inline_width(measure, body_font, _kc[1]) / SS > _budget)
             ):
                 _segs = self._wrap_kv_value(_kc[1], body_font, _budget, measure)
                 for _j, _seg in enumerate(_segs):
@@ -2998,19 +3023,8 @@ class ImageRenderer:
         slug = _card_slug(title)
         bounty = getattr(self, "_bounty_mode", False)
         plain = self._plain_body
-        if not bounty:
-            _m = []
-            for r in rows:
-                if r.get("cont") and _m and _m[-1]["kind"] == "section" and r["kind"] != "note":
-                    # 用预处理后的整行原文（_wrap 会吃掉段尾「、」，不能拼接折行片段）
-                    _m[-1] = dict(_m[-1], text=cleaned[_m[-1]["li"]][1])
-                    continue
-                _m.append(r)
-            rows = _m
         _classify_rows(rows, bounty=bounty, plain=plain)
 
-        outer = 22
-        PADX = 48
         kv_lf = f.get("bold", FS_BODY - 2)
         kv_col = 0.0
         for r in rows:
@@ -3018,15 +3032,26 @@ class ImageRenderer:
                 _w = _tlen(measure, kv_lf, r["kv"][0] + "：")
                 if _w <= 300 * SS:
                     kv_col = max(kv_col, _w)
-        _xk = (outer + PADX + 4) * SS
-        _xr = (W - outer - PADX - 6) * SS
+        _xk = X0 + 4 * SS
+        _xr = X1 - 6 * SS
+        kv_x_max = (_xr - _xk) * _KEY_COL_SHARE
         _new = []
         for r in rows:
-            if r.get("kv") and r["kv"][1]:
+            if r["kind"] == "section":
+                heading = r["text"][1:].strip()
+                parts = self._wrap_cached(heading, section_font, section_w - 3, strict=True)
+                for j, part in enumerate(parts):
+                    row = r if j == 0 else dict(r, cont=True, _tier_tail=0)
+                    row.update(text=part, section_last=j == len(parts) - 1)
+                    _new.append(row)
+                if len(parts) > 1 and r.get("_tier_tail"):
+                    _new[-1]["_tier_tail"] = r.pop("_tier_tail")
+            elif r.get("kv") and r["kv"][1]:
                 lab, val = r["kv"]
                 lw = _tlen(measure, kv_lf, lab + "：")
-                xv_rel = kv_col + 18 * SS if lw <= kv_col else lw + 10 * SS
+                xv_rel = min(kv_x_max, kv_col + 18 * SS if lw <= kv_col else lw + 10 * SS)
                 r["kv_x"] = xv_rel
+                labels = self._wrap_cached(lab, kv_lf, xv_rel / SS - 10, strict=True)
                 budget = int((_xr - _xk - xv_rel) / SS)
                 if r.get("timer"):
                     budget -= int(_tlen(measure, timer_font, r["timer"]) / SS) + 40
@@ -3035,25 +3060,21 @@ class ImageRenderer:
                 ):  # 芯片底框外扩（同普通行的 -64 口径），防「]」被折到下一行
                     budget -= 64
                 # 「a｜b｜c」值优先在「｜」处折行，免得「稀有度稀有」「回收金属」被劈开
-                segs = self._wrap_kv_value(val, body_font, max(200, budget), measure)
-                r["kv"] = (lab, segs[0] if segs else "")
+                segs = self._wrap_kv_value(val, body_font, budget - 4, measure)
+                for j, pair in enumerate(zip_longest(labels, segs, fillvalue="")):
+                    row = r if j == 0 else dict(r, cont=True, timer="", level="", icon=False)
+                    row["kv"] = pair
+                    _new.append(row)
+            elif r.get("kv"):
+                lab, _ = r["kv"]
+                parts = self._wrap_cached(lab, kv_lf, (_xr - _xk) / SS - 3, strict=True)
+                r["kv"] = (parts[0], "")
                 _new.append(r)
-                for sg in segs[1:]:
-                    _new.append(
-                        {
-                            "text": sg,
-                            "icon": False,
-                            "timer": "",
-                            "level": "",
-                            "kind": "kvcont",
-                            "indent": 0,
-                            "cells": None,
-                            "cont": True,
-                            "kv_x": xv_rel,
-                        }
-                    )
+                for part in parts[1:]:
+                    _new.append(dict(r, kv=(part, ""), cont=True, timer="", level=""))
             else:
                 _new.append(r)
+        tier_frames = [(rows[start], rows[end]) for start, end in tier_frames]
         rows = _new
         _dense = 6 if len(rows) > 40 else 0
         RH = {
@@ -3065,13 +3086,12 @@ class ImageRenderer:
             "note": RH_NOTE,
             "tents": 0,
             "chart": 0,
-            "kvcont": RH_CONT,
         }
 
         def _base_h(r):
             if r["kind"] == "note":
                 return RH_NOTE
-            if r.get("cont") and r["kind"] != "section":
+            if r.get("cont"):
                 return RH_CONT - _dense // 2
             if r["kind"] == "section":
                 return RH_SEC - _dense
@@ -3133,8 +3153,6 @@ class ImageRenderer:
             )
         d = ImageDraw.Draw(img)
 
-        X0 = (outer + PADX) * SS
-        X1 = (W - outer - PADX) * SS
         # —— 外框：Orokin 切角金框 + 四角金饰 ——
         box = (outer * SS, outer * SS, (W - outer) * SS, (H - outer) * SS)
         _chamfer(d, box, 22 * SS, outline=GOLD_DIM, width=2 * SS)
@@ -3167,17 +3185,14 @@ class ImageRenderer:
             kx += _tlen(d, kf, ch) + 3 * SS
         pf = f.get("bold", 24)
         chip_w = (_tlen(d, pf, page_chip) + 34 * SS) if page_chip else 0
-        title_right = X1 - (chip_w + 20 * SS if page_chip else 0)
+        title_right = X1 - 3 * SS - (chip_w + 20 * SS if page_chip else 0)
         t_font = None
         for _sz in (FS_TITLE, 40, 36, 32, 29):
             t_font = f.get("bold", _sz)
             if _tlen(d, t_font, title) <= title_right - tx:
                 break
         else:
-            _cut = title
-            while _cut and _tlen(d, t_font, _cut + "…") > title_right - tx:
-                _cut = _cut[:-1]
-            title = (_cut + "…") if _cut else title
+            title = _fit_title(d, t_font, title, title_right - tx)
         ty_title = y0 + 28 * SS
         d.text((tx, ty_title), title, font=t_font, fill=INK)
         if page_chip:
@@ -3204,7 +3219,6 @@ class ImageRenderer:
         x_bullet = X0 + 10 * SS
         x_num_text = X0 + 50 * SS
         x_right = X1 - 6 * SS
-        PX0, PX1 = X0 - 16 * SS, X1 + 16 * SS
 
         # —— 面板 + 斑马纹 ——
         zebra_rows: set = set()
@@ -3250,7 +3264,6 @@ class ImageRenderer:
                     d.rounded_rectangle(rect, radius=10 * SS, fill=fill)
                 d.rectangle([PX0, rect[1] + 6 * SS, PX0 + 4 * SS, rect[3] - 6 * SS], fill=bar)
 
-        # KV 值列：标签宽取最大（上限 300px），值整列对齐
         # 非表格卡：同一面板内 ≥2 行「≥3 格」的行 → 块内自动列对齐（统一网格）
         auto_cols: dict = {}
         if not self._table_mode and not plain:
@@ -3270,11 +3283,7 @@ class ImageRenderer:
                 _n = max(len(c) for c in _cl)
                 _ws = [
                     max(
-                        (
-                            _tlen(d, body_font, _SEG_MARK_RE.sub("", c[i]))
-                            for c in _cl
-                            if len(c) > i
-                        ),
+                        (_inline_width(d, body_font, c[i]) for c in _cl if len(c) > i),
                         default=0,
                     )
                     for i in range(_n)
@@ -3297,7 +3306,7 @@ class ImageRenderer:
         # 列对齐（同旧版口径）
         arb_cols = None
         arb_w: list[float] = []  # 各列像素宽（组合色竖底带要按列宽铺）
-        if self._table_mode and not build_card:
+        if self._table_mode and not build_card and not trait_table:
             split_rows = [
                 r["cells"] for r in rows if r.get("cells") and r["kind"] in ("normal", "numbered")
             ]
@@ -3310,11 +3319,7 @@ class ImageRenderer:
                 #   量宽 ~120px，把后面各列整体右推、末列被切在面板外（2026-10-24 实测）。
                 #   宽度预扫描（col_max）本来就剥了，这里漏了 ⇒ 两处口径不一致。
                 wpx = max(
-                    (
-                        _tlen(d, body_font, _SEG_MARK_RE.sub("", r[ci]))
-                        for r in split_rows
-                        if len(r) > ci
-                    ),
+                    (_inline_width(d, body_font, r[ci]) for r in split_rows if len(r) > ci),
                     default=0,
                 )
                 arb_cols.append(acc)
@@ -3326,8 +3331,8 @@ class ImageRenderer:
         # 赏金档位框（沿用旧逻辑，坐标改由 layout 给出）
         if tier_frames:
             pos = {id(lay[0]): lay for lay in layout}
-            for _s, _e in tier_frames:
-                ls, le = pos.get(id(rows[_s])), pos.get(id(rows[_e]))
+            for start, end in tier_frames:
+                ls, le = pos.get(id(start)), pos.get(id(end))
                 if not ls or not le:
                     continue
                 fy0 = by + ls[1] * SS - _TIER_PAD * SS
@@ -3387,14 +3392,13 @@ class ImageRenderer:
             h = bh * SS
             yc = y + h / 2
             if k == "section":
-                st = t[1:].strip()
-                sf = f.get("bold", FS_BODY + 1)
-                yc_s = y + h * 0.58
-                # 金色菱形 + 亮字 + 延伸细线
-                d.polygon(self._diamond(PX0 + 8 * SS, yc_s, 8 * SS), fill=accent)
-                xe = self._draw_tokens(d, st, PX0 + 26 * SS, _ty(sf, yc_s), sf, GOLD_BRIGHT, X1)
-                if xe < X1 - 40 * SS:
-                    d.line([(xe + 18 * SS, yc_s), (PX1, yc_s)], fill=PANEL_LINE, width=SS)
+                if not r_.get("cont"):
+                    d.polygon(self._diamond(PX0 + 8 * SS, yc, 8 * SS), fill=accent)
+                xe = self._draw_tokens(
+                    d, t, section_x, _ty(section_font, yc), section_font, GOLD_BRIGHT, X1
+                )
+                if r_["section_last"] and xe < X1 - 40 * SS:
+                    d.line([(xe + 18 * SS, yc), (PX1, yc)], fill=PANEL_LINE, width=SS)
                 continue
             if bi != last_block:
                 last_block = bi
@@ -3440,11 +3444,6 @@ class ImageRenderer:
                     f.get("bold", 22),
                 )
                 continue
-            if k == "kvcont":
-                self._draw_tokens(
-                    d, t, X0 + 4 * SS + r_["kv_x"], _ty(body_font, yc), body_font, INK, x_right
-                )
-                continue
             if r_.get("build_columns"):
                 header = r_.get("thead", False)
                 font = f.get("bold", FS_NOTE) if header else body_font
@@ -3455,6 +3454,8 @@ class ImageRenderer:
                         [x_bullet - 3 * SS, yc - 3 * SS, x_bullet + 3 * SS, yc + 3 * SS],
                         fill=GOLD_DIM,
                     )
+                elif r_.get("trait_table"):
+                    table_x = x_text
                 else:
                     table_x = (PX0 + PX1 - sum(columns[-1]) * SS) / 2
                 self._draw_build_cells(d, r_, table_x, _ty(font, yc), font, header, x_right)
@@ -3462,7 +3463,7 @@ class ImageRenderer:
                     d.line([(PX0 + 12 * SS, y + h), (PX1 - 12 * SS, y + h)], fill=HAIR, width=SS)
             elif k == "kv":
                 lab, val = r_["kv"]
-                if not first:
+                if not first and not r_.get("cont"):
                     d.line([(x_text - 20 * SS, y), (X1 + 4 * SS, y)], fill=HAIR, width=SS)
                 lab_col = GOLD
                 xk = X0 + 4 * SS
@@ -3592,7 +3593,12 @@ class ImageRenderer:
                         if plain:
                             self._draw_plain_cell(d, ci, cell, cx, ty, body_font)
                         else:
-                            self._draw_tokens(d, cell, cx, ty, body_font, INK, x_right)
+                            edge = (
+                                xt + arb_cols[ci + 1] - 4 * SS
+                                if ci + 1 < len(arb_cols)
+                                else x_right
+                            )
+                            self._draw_tokens(d, cell, cx, ty, body_font, INK, edge)
                 else:
                     _cells = r_.get("cells")
                     if (
@@ -3629,15 +3635,19 @@ class ImageRenderer:
                         self._draw_tokens(d, _cells[0], xt, ty, body_font, INK, x_right)
                         self._draw_tokens(d, _cells[1], xt + pair_col, ty, body_font, INK, x_right)
                     elif _cells and bi in auto_cols and len(_cells) >= 2:
-                        for ci, cell in enumerate(_cells[: len(auto_cols[bi])]):
+                        offsets = auto_cols[bi]
+                        for ci, cell in enumerate(_cells[: len(offsets)]):
+                            edge = (
+                                xt + offsets[ci + 1] - 4 * SS if ci + 1 < len(offsets) else x_right
+                            )
                             self._draw_tokens(
                                 d,
                                 cell,
-                                xt + auto_cols[bi][ci],
+                                xt + offsets[ci],
                                 ty,
                                 body_font,
                                 INK if ci == 0 else INK_DIM,
-                                x_right,
+                                edge,
                             )
                     elif _cells and len(_cells) >= 2 and not self._table_mode:
                         # 非表格卡的「名称　说明」双格：第二格弱化，形成主次
@@ -3695,13 +3705,20 @@ class ImageRenderer:
         sf_ = f.get("regular", 20)
         fyc = fy + 34 * SS
         left = " · ".join(x for x in ([plat_chip] if plat_chip else []) + foot_notes)
-        if left:
-            d.text((X0, _ty(sf_, fyc)), left, font=sf_, fill=INK_FAINT)
         wm = f"{CARD_BRAND} {WATERMARK_VERSION}"
-        d.text((X1, fyc), wm, font=f.get("bold", 18), fill=GOLD_FAINT, anchor="rm")
-        if _THEME["logo"] is not None:  # 用户角标：水印左侧，高 40 设计像素
-            wm_w = d.textlength(wm, font=f.get("bold", 18))
-            _paste_logo(img, _THEME["logo"], int(X1 - wm_w - 14 * SS), fyc, 40 * SS)
+        wm_font = f.get("bold", 18)
+        wm_left = X1 - _tlen(d, wm_font, wm)
+        footer_right = wm_left
+        logo = _THEME["logo"]
+        if logo is not None:
+            logo_h = min(40 * SS, max(1, int((wm_left - X0) * logo.height / (3 * logo.width))))
+            logo_right = int(wm_left - 14 * SS)
+            footer_right = logo_right - max(1, int(logo.width * logo_h / logo.height))
+            _paste_logo(img, logo, logo_right, fyc, logo_h)
+        if left:
+            left = _fit_title(d, sf_, " ".join(left.splitlines()), footer_right - X0 - 20 * SS)
+            d.text((X0, _ty(sf_, fyc)), left, font=sf_, fill=INK_FAINT)
+        d.text((X1, fyc), wm, font=wm_font, fill=INK_FAINT, anchor="rm")
 
         d = None
         final = img.resize((W, H), Image.Resampling.BOX)
@@ -3729,206 +3746,100 @@ class ImageRenderer:
                 notes.append(seg)
         return plat, notes
 
-    def _wrap_cached(self, text: str, font, max_w_px: int) -> list[str]:
+    def _wrap_cached(self, text: str, font, max_w_px: float, *, strict: bool = False) -> list[str]:
         """_wrap 的**按渲染**结果缓存：同一 (字体, 文本, 宽度) 只折一次。
 
-        说明列规划（_plan_desc_col_wrap）与正文行构造会对同一段说明以同一
+        双列规划（_plan_help_columns）与正文行构造会对同一段说明以同一
         预算各折一次 —— 90 行大卡上等于白付 90 次逐字折行。缓存字典在
         _render 开头重建（self._wrap_cache = {}），不跨渲染驻留、无全局
         强引用（热重载安全）。
         """
         cache = self._wrap_cache
-        key = (id(font), text, max_w_px)
+        key = (id(font), text, max_w_px, strict)
         segs = cache.get(key)
         if segs is None:
-            segs = self._wrap(text, font, max_w_px)
+            segs = self._wrap(text, font, max_w_px, strict=strict)
             if len(cache) >= 4096:
                 cache.clear()
             cache[key] = segs
         return segs
 
     @staticmethod
-    def _wrap(text: str, font, max_w_px: int, *, prose: bool = False) -> list[str]:
+    def _wrap(
+        text: str, font, max_w_px: float, *, prose: bool = False, strict: bool = False
+    ) -> list[str]:
         if not text:
             return [""]
-        # 行内自带换行符时先按 \n 拆开，否则下面的 textlength 会抛
-        # "can't measure length of multiline text"（PIL 拒绝测多行串）。
-        if "\n" in text:
-            return [
-                seg
-                for parts in text.split("\n")
-                for seg in ImageRenderer._wrap(parts, font, max_w_px, prose=prose)
-            ]
         max_w = max_w_px * SS
-        separators, separator_min_fill = ("、·；，～。！？", 0.85) if prose else ("、·；，～", 0.5)
         d = _measure_draw()
-        # 极性图标标记：测量时按图标实际宽度计入（剥离标记字符串本身），
-        # 否则「⟦pol:vazarin⟧」这 13 个字符会把长行提前挤折。
-        mark_px = _pol_mark_px(font) if "⟦pol:" in text else 0.0
-        # 染段标记（⟦c⟧/⟦v⟧/⟦w⟧ 及闭合）从不绘制 → 测量按 0 宽，
-        # 否则 6 个标记 ≈ 200px 的虚宽会把档位行提前挤折（2026-10-02 实测）。
-        has_seg = _SEG_MARK_RE.search(text) is not None
+        separators, separator_min_fill = ("、·；，～。！？", 0.85) if prose else ("、·；，～", 0.5)
+        basic = _LAYOUT_BASIC is not None and getattr(font, "layout_engine", None) == _LAYOUT_BASIC
 
-        # ------------------------------------------------------------------
-        # 增量测量快速路径（仅基本布局）：
-        # 旧版每加一个字就 textlength(整行前缀) 一次 —— 每行 O(n²) 次测量，
-        # 长说明列的大卡上（90 行 × 50 字）仅折行规划就上万次 C 调用。
-        # 基本布局下 textlength(s) = Σ textlength(c)（逐字步进纯加和，已对
-        # 全部用例语料做过 行级+前缀级 6400+ 次校验零偏差），因此维护累计宽
-        # w_line 即可做出**完全相同**的折行判定，降为 O(n) 次查表。
-        # 极性标记的处理与旧版口径逐位一致：标记内部字符按普通字形宽度
-        # 累计，闭合「⟧」到位的一步换成 mark_px（等价于旧版剥离后重测）。
-        # Raqm 整形布局（可能带字距调整）不走此路径，退回原版逐次测量。
-        # ------------------------------------------------------------------
-        incremental = (
-            _LAYOUT_BASIC is not None and getattr(font, "layout_engine", None) == _LAYOUT_BASIC
-        )
+        def advance(unit: str) -> float:
+            if len(unit) == 1:
+                return _tlen(d, font, unit)
+            if mark := _POL_MARK_RE.fullmatch(unit):
+                return _pol_mark_px(font, mark.group(1))
+            if _SEG_MARK_RE.fullmatch(unit):
+                return 0.0
+            return _tlen(d, font, unit)
+
+        def width(s: str) -> float:
+            return _inline_width(d, font, s)
+
+        def units(paragraph: str):
+            for match in _WRAP_UNIT_RE.finditer(paragraph):
+                unit = match.group()
+                if len(unit) > 1 and not unit.startswith("⟦") and width(unit) > max_w:
+                    yield from unit
+                else:
+                    yield unit
+
         out: list[str] = []
-        line = ""
-        w_line = 0.0
-        if incremental:
-            adv_cache = getattr(font, "_wf_adv", None)
-            if adv_cache is None:
-                adv_cache = {}
-                try:
-                    font._wf_adv = adv_cache
-                except AttributeError:  # pragma: no cover
-                    incremental = False
-            # ★ 2026-09-27 快速路径：整行放得下就不进逐字循环（旧版即使整行
-            #   放得下也要 O(n) 逐字推进 + O(n²) 字符串拼接；90 行大卡的说明
-            #   列几乎全部命中本路径）。仅限基本布局且**无极性标记**：此时
-            #   textlength 是逐字步进的纯加和、累计宽单调不减，
-            #   「整行宽 ≤ max_w」⟺「逐字路径不触发断行」，结果严格等价；
-            #   带极性标记的行在标记闭合处宽度非单调，仍走原逐字路径。
-            if not mark_px and not has_seg and _tlen(d, font, text) <= max_w:
-                seg = text.rstrip(" ·、")
-                return [seg] if seg else []
-
-        def _adv(ch: str) -> float:
-            a = adv_cache.get(ch)
-            if a is None:
-                a = d.textlength(ch, font=font)
-                adv_cache[ch] = a
-            return a
-
-        def _sum_adv(s: str) -> float:
-            """与旧版 _mw 同口径的精确串宽：完整标记按各自目标宽、其余逐字。"""
-            w = 0.0
-            k = 0
-            while k < len(s):
-                m2 = _POL_MARK_RE.match(s, k) if mark_px else None
-                if m2:
-                    w += mark_px
-                    k = m2.end()
-                    continue
-                m3 = _SEG_MARK_RE.match(s, k) if has_seg else None
-                if m3:
-                    k = m3.end()  # 染段标记零宽
-                    continue
-                w += _adv(s[k])
-                k += 1
-            return w
-
-        if incremental:
-            # 预扫描标记：记录闭合位与该标记内字符的步进和 + 闭合处的目标宽
-            # （极性标记 = 图标宽；染段标记 = 0）。闭合时按「减字符和 + 加目标宽」冲账
-            span_adv: dict[tuple[int, int], float] = {}
-            span_end_at: dict[int, tuple[int, int]] = {}
-            span_target: dict[tuple[int, int], float] = {}
-            if mark_px:
-                for m2 in _POL_MARK_RE.finditer(text):
-                    s0, e0 = m2.span()
-                    span_end_at[e0 - 1] = (s0, e0)
-                    span_adv[(s0, e0)] = sum(_adv(c) for c in m2.group(0))
-                    span_target[(s0, e0)] = mark_px
-            # ★ 2026-10-24 Claude 审：染段标记**逐字零宽、标记内不断行**。旧做法是读到闭合「⟧」
-            #   才冲账，读标记中间那几个字时宽度临时计入 ⇒ 恰在此处超宽就从标记中间折断，
-            #   卡面露出「⟦/w⟧」（「词条范围」四列表实测）。
-            seg_chars: set[int] = set()
-            if has_seg:
-                for m2 in _SEG_MARK_RE.finditer(text):
-                    seg_chars.update(range(*m2.span()))
-            i = 0
-            while i < len(text):
-                ch = text[i]
-                if i in seg_chars:
-                    line += ch
-                    i += 1
-                    continue
-                w_try = w_line + _adv(ch)
-                comp = span_end_at.get(i)
-                if comp is not None:  # 标记闭合：换成目标宽（与旧版等值）
-                    w_try = w_try - span_adv[comp] + span_target[comp]
-                if line and w_try > max_w and ch not in _NO_LINE_START:
-                    # 优先在中文分隔符后断开：不这样，「▣Xaku机体蓝图、★雷射瞄具」
-                    # 这类用「、」连起来的奖励串会被从词中间劈开。
-                    sep = max((line.rfind(c) for c in separators), default=-1)
-                    if sep > len(line) * separator_min_fill:
-                        out.append(line[: sep + 1])
-                        line = line[sep + 1 :] + ch
-                    # 英文单词断在一半时，回退到最近的空格处换行
-                    elif (
-                        ch.isascii() and ch.isalnum() and line[-1].isascii() and line[-1].isalnum()
-                    ):
-                        sp = line.rfind(" ")
-                        if sp > len(line) * 0.5:
-                            out.append(line[:sp])
-                            line = line[sp + 1 :] + ch
-                        else:
-                            out.append(line)
-                            line = ch
+        active = ""
+        for paragraph in text.split("\n"):
+            if width(paragraph) <= max_w:
+                parts = [paragraph]
+            else:
+                parts = []
+                line = ""
+                w_line = 0.0
+                prev = ""
+                for unit in units(paragraph):
+                    w_try = w_line + advance(unit) if basic else width(line + unit)
+                    if w_line > 0 and w_try > max_w and (strict or unit not in _NO_LINE_START):
+                        sep = max((line.rfind(c) for c in separators), default=-1)
+                        cut = len(line)
+                        if (
+                            sep > len(line) * separator_min_fill
+                            and width(line[sep + 1 :] + unit) <= max_w
+                        ):
+                            cut = sep + 1
+                        elif (
+                            len(line) > len(prev)
+                            and (unit in _NO_LINE_START or prev in ("(", "[", "<"))
+                            and not prev.endswith("⟧")
+                            and width(prev + unit) <= max_w
+                        ):
+                            # 把整词（或单个汉字）随标点移到下一行。
+                            cut -= len(prev)
+                        parts.append(line[:cut])
+                        line = (line[cut:] + unit).lstrip(" ")
+                        w_line = width(line)
                     else:
-                        out.append(line)
-                        line = ch
-                    w_line = _sum_adv(line)
-                else:
-                    w_line = w_try
-                    line += ch
-                i += 1
-        else:
-
-            def _mw(s: str) -> float:
-                if has_seg:
-                    s = _SEG_MARK_RE.sub("", s)
-                if not mark_px:
-                    return d.textlength(s, font=font)
-                n = s.count("⟦pol:")
-                return d.textlength(_POL_MARK_RE.sub("", s), font=font) + n * mark_px
-
-            # 同上：染段标记内的字不参与断行判定（半截标记「⟦/」剥不掉、会被当可见字计宽）
-            seg_chars2: set[int] = set()
-            if has_seg:
-                for m2 in _SEG_MARK_RE.finditer(text):
-                    seg_chars2.update(range(*m2.span()))
-            for ci, ch in enumerate(text):
-                if ci in seg_chars2:
-                    line += ch
+                        line += unit
+                        w_line = w_try
+                    prev = unit
+                parts.append(line)
+            for part in parts:
+                part = part.strip(" ·、") if out else part.rstrip(" ·、")
+                if not part:
                     continue
-                if line and _mw(line + ch) > max_w and ch not in _NO_LINE_START:
-                    # 优先在中文分隔符后断开：不这样，「▣Xaku机体蓝图、★雷射瞄具」这类
-                    # 用「、」连起来的奖励串会被从词中间劈开（「▣X」/「aku机体蓝图」）。
-                    sep = max((line.rfind(c) for c in separators), default=-1)
-                    if sep > len(line) * separator_min_fill:
-                        out.append(line[: sep + 1])
-                        line = line[sep + 1 :] + ch
-                        continue
-                    # 英文单词断在一半时，回退到最近的空格处换行
-                    if ch.isascii() and ch.isalnum() and line[-1].isascii() and line[-1].isalnum():
-                        sp = line.rfind(" ")
-                        if sp > len(line) * 0.5:
-                            out.append(line[:sp])
-                            line = line[sp + 1 :] + ch
-                            continue
-                    out.append(line)
-                    line = ch
-                else:
-                    line += ch
-        if line or not out:
-            out.append(line)
-        # 清理断点处的悬空分隔点
-        out = [seg.rstrip(" ·、") for seg in out]
-        out = [out[0]] + [seg.lstrip(" ·、") for seg in out[1:]]
-        return [seg for seg in out if seg]
+                prefix = active
+                for mark in _SEG_MARK_RE.finditer(part):
+                    active = "" if mark.group().startswith("⟦/") else mark.group()
+                out.append(prefix + part)
+        return out or [""]
 
     @staticmethod
     def _chart_label_rect(
@@ -4174,7 +4085,8 @@ class ImageRenderer:
                 outline=TIER_FRAME_LINE,
                 width=1 * SS,
             )
-            head = parts[0]
+            text_w = bw - 2 * _TENT_PAD_X * SS
+            head = _fit_title(d, head_font, parts[0], text_w)
             _hb = d.textbbox((0, 0), head, font=head_font, anchor="la")
             d.text(
                 (bx + (bw - (_hb[2] - _hb[0])) / 2 - _hb[0], y + _TENT_PAD_TOP * SS - _hb[1]),
@@ -4185,6 +4097,7 @@ class ImageRenderer:
             ty = y + (_TENT_PAD_TOP + _TENT_HEAD_H) * SS
             for name in parts[1:]:
                 color = BLUE if _tent_norm(name) in _TENT_BLUE_TASKS else INK
+                name = _fit_title(d, font, name, text_w)
                 _tb = d.textbbox((0, 0), name, font=font, anchor="la")
                 d.text(
                     (bx + (bw - (_tb[2] - _tb[0])) / 2 - _tb[0], ty - _tb[1]),
@@ -4221,16 +4134,13 @@ class ImageRenderer:
     # 指令列亮色 + 说明列次色，合并词条「A / B / C」逐个异色（2026-09-14 维护者要求
     # 「介绍和指令别混在一起」「本质三个指令的用三个颜色」）。
     _HELP_CMD_COLORS = (GOLD_BRIGHT, CYAN, VIOLET, GREEN)
-    # 说明列专用暗色：比 INK_DIM 再压一档（2026-09-14 玩家反馈「指令和介绍
-    # 颜色太接近，不放大容易混在一起」——金色指令列 vs 暗灰说明列才够分明）。
-    HELP_DESC_COLOR = (150, 158, 172)
 
     def _draw_plain_cell(self, d, ci: int, cell: str, cx: float, y: float, font) -> None:
         """_plain_body 表格单元格：指令列上色、说明列压暗。"""
         if not cell:
             return
         if ci != 0:
-            d.text((cx, y), cell, font=font, fill=self.HELP_DESC_COLOR)
+            d.text((cx, y), cell, font=font, fill=INK_FAINT)
             return
         parts = cell.split(" / ")
         if len(parts) == 1:
@@ -4248,25 +4158,28 @@ class ImageRenderer:
 
     def _draw_build_cells(self, d, row, x, y, font, header, x_right):
         columns = row["build_columns"]
-        mod_table = columns != _BUILD_EQUIPMENT_COLUMNS
+        trait_table = row.get("trait_table")
+        mod_table = not trait_table and columns != _BUILD_EQUIPMENT_COLUMNS
         numeric = _BUILD_NUMBER_COLUMNS if mod_table else ()
-        colors = (
-            (INK_DIM, INK, INK_DIM, INK_DIM, INK_DIM, _mix(INK, CYAN, 0.3), INK_DIM)
-            if mod_table
-            else (INK_DIM, INK)
-        )
+        if trait_table:
+            colors = (INK,) + (INK_DIM,) * (len(columns) - 1)
+        elif mod_table:
+            colors = (INK_DIM, INK, INK_DIM, INK_DIM, INK_DIM, _mix(INK, CYAN, 0.3), INK_DIM)
+        else:
+            colors = (INK_DIM, INK)
         for index, ((offset, width), parts) in enumerate(
             zip(columns, row["build_cells"], strict=True)
         ):
             for line, text in enumerate(parts):
                 left = x + offset * SS
                 if index in numeric:
-                    plain = _SEG_MARK_RE.sub("", text)
-                    left += width * SS - _tlen(d, font, plain)
+                    left += max(0, (width - 4) * SS - _inline_width(d, font, text))
                 top = y + line * RH_CONT * SS
                 color = INK_DIM if header or text == "—" else colors[index]
                 if "⟦" in text:
-                    self._draw_tokens(d, text, left, top, font, color, x_right)
+                    self._draw_tokens(
+                        d, text, left, top, font, color, min(x_right, x + (offset + width) * SS)
+                    )
                 else:
                     d.text((left, top), text, font=font, fill=color)
 
@@ -4303,7 +4216,7 @@ class ImageRenderer:
             return x
         return self._draw_tokens_text(d, text, x, y, font, base_color, max_w)
 
-    # 缩放后的极性图标缓存：(key, size) -> RGBA 小图（resize 结果只读可复用）
+    # 缓存缩放后的透明度；图标颜色每次从当前主题取。
     _ICON_SCALED: dict = {}
 
     def _draw_polarity_icon(self, d, key: str, x: float, y: float, font) -> float:
@@ -4317,14 +4230,15 @@ class ImageRenderer:
         ck = (key, size)
         small = ImageRenderer._ICON_SCALED.get(ck)
         if small is None:
-            small = img.resize((w, size), Image.LANCZOS)
+            small = img.getchannel("A").resize((w, size), Image.LANCZOS)
             if len(ImageRenderer._ICON_SCALED) > 64:
                 ImageRenderer._ICON_SCALED.clear()
             ImageRenderer._ICON_SCALED[ck] = small
         canvas = getattr(d, "_image", None)  # 出图画布（RGB）
         if canvas is None:  # pragma: no cover - 兜底
             return 0.0
-        canvas.paste(small, (int(x), int(y - 2 * SS)), small)
+        left, top = int(x), int(y - 2 * SS)
+        canvas.paste(INK, (left, top, left + w, top + size), small)
         return w + 7 * SS
 
     def _draw_tokens_text(self, d, text: str, x: float, y: float, font, base_color, max_w: float):
@@ -4380,7 +4294,8 @@ class ImageRenderer:
                 mh = int(getattr(mf, "size", 40) * 1.5)
                 if pos > 0:
                     x += gap
-                if x + mw + pad * 2 <= max_w:
+                tail_w = _tlen(d, font, text[m.end() :])
+                if x + mw + pad * 2 + gap + tail_w <= max_w:
                     ref = d.textbbox((0, 0), "国Ag", font=font, anchor="la")
                     cy = y + (ref[1] + ref[3]) / 2
                     cb = (int(x), int(cy - mh / 2), int(x + mw + pad * 2), int(cy + mh / 2))
@@ -4400,7 +4315,8 @@ class ImageRenderer:
                 gap, pad, bh = 7 * SS, 10 * SS, 40 * SS
                 if pos > 0:
                     x += gap
-                if x + wch + pad * 2 > max_w:  # 越界则退回纯文字
+                tail_w = _tlen(d, font, text[m.end() :])
+                if x + wch + pad * 2 + gap + tail_w > max_w:
                     chip = False
                     x -= gap if pos > 0 else 0
             if chip:
@@ -4519,7 +4435,6 @@ THEME_SLOTS: list[tuple[str, str, str, str, str]] = [
 _DERIVED = (
     "BG_BOT",
     "GOLD_DIM",
-    "GOLD_FAINT",
     "NOTE_BAR",
     "TIER_FRAME_LINE",
     "BONUS_COLOR",
@@ -4657,7 +4572,6 @@ def apply_theme(
         v["BG_BOT"] = _mix(v["BG_TOP"], (0, 0, 0), 0.07 if light else 0.24)
     if changed & {"accent", "bg", "panel"}:
         v["GOLD_DIM"] = _mix(v["GOLD"], v["BG_BOT"], 0.46)
-        v["GOLD_FAINT"] = _mix(v["GOLD"], v["BG_BOT"], 0.575)
         v["NOTE_BAR"] = _mix(v["GOLD"], v["PANEL_BG"], 0.62)
         v["TIER_FRAME_LINE"] = _mix(v["GOLD"], v["PANEL_BG"], 0.72)
     # 金档部件不跟随高亮色：面板只保存与默认不同的值，「跟随」会让面板显示的金色与出图不一致，
@@ -4665,7 +4579,7 @@ def apply_theme(
     if "highlight" in changed:
         v["BONUS_COLOR"] = v["GOLD_BRIGHT"]
     if changed & {"ink_dim", "panel"}:
-        v["INK_FAINT"] = _mix(v["INK_DIM"], v["PANEL_BG"], 0.24)
+        v["INK_FAINT"] = _mix(v["INK_DIM"], v["PANEL_BG"], 0.12 if light else 0.24)
         v["HAIR"] = _mix(v["PANEL_BG"], v["INK_DIM"], 0.14)
     if changed & {"panel", "ink", "bg"}:
         v["PANEL_ALT"] = _mix(v["PANEL_BG"], v["INK"], 0.025)
@@ -4675,7 +4589,7 @@ def apply_theme(
             else _mix(v["PANEL_BG"], v["BG_BOT"], 0.4)
         )
         v["TIER_FRAME_FILL"] = _mix(v["PANEL_BG"], v["INK"], 0.018)
-    if changed & {"warn", "bg"}:
+    if changed & {"warn", "bg", "panel"}:
         v["WARN_BG"] = (
             _mix(v["WARN_BAR"], v["PANEL_BG"], 0.88)
             if light

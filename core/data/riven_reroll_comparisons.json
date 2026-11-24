@@ -1,13 +1,13 @@
 {
-  "engineFingerprint": "85ec9cdb3461c01c",
+  "engineFingerprint": "19ac1fa5017c9aaa",
   "metric": "windowedDps",
   "entries": [
     {
       "weapon": "/Lotus/Weapons/Tenno/Rifle/BratonPrime",
       "fireMode": 0,
       "contextHash": "d0b2d99886af468f9ae5",
-      "noRivenBuild": {"replay":{"full":113717.27913823831,"without":{"0":17831.583260631185,"1":18262.036101643866,"2":73178.1899590419,"3":34260.91838537113,"4":49728.87186266925,"5":55789.78759250396,"6":58275.02113412936,"7":33866.85155800106},"capacity":{"capacity":59,"capacityLimit":60,"assignments":[{"slot":0,"drain":8},{"slot":1,"drain":6},{"slot":2,"drain":6},{"slot":3,"drain":6},{"slot":4,"drain":8},{"slot":5,"drain":9},{"slot":6,"drain":9},{"slot":7,"drain":7}]},"stats":{"totalDamage":5017.737682655158,"critChance":0.12,"critMultiplier":11.002686202686204,"statusChance":0.4679992077200298,"fireRate":18.20833327499998,"multishot":3.4998799670000005,"damageTypes":{"DT_IMPACT":16.108858330228532,"DT_PUNCTURE":112.76200831159971,"DT_SLASH":193.30630916780427,"DT_VIRAL":821.5518530846826,"DT_FIRE":289.95947755929984}},"has_overguard":true,"polarities":["AP_DEFENSE","AP_TACTIC","AP_DEFENSE","AP_TACTIC","AP_ATTACK","AP_UNIVERSAL","AP_UNIVERSAL","AP_ATTACK"],"serration_slot":7,"capacity_saved":1,"complete":true},"weapon":{"path":"/Lotus/Weapons/Tenno/Rifle/BratonPrime","nameEn":"Braton Prime","incarnon":[{"options":[{"id":"1-1","label":"灵化形态","description":"命中弱点为灵化转变充能，次要射击进行转变。切换回原有模式将消耗剩余的充能。；获得范围 火焰伤害"},{"id":"2-2","label":"实弹胆魄","description":"基础伤害 +2（基础值）；弹匣末段多重伤害 +54%；无额外触发事件：多重射击 +20%"},{"id":"3-2","label":"虚空指引","description":"散布 -60%；后坐力 -60%"},{"id":"4-2","label":"力量前奏","description":"低暴击数值加成 +50%；低暴击伤害加成 +3（基础值）"}]}],"polarities":["AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_TACTIC","AP_UNIVERSAL"]},"target":{"enemyPath":"/Lotus/Types/Enemies/Duviri/Avatars/DuviriMeleeAvatar","enemyName":"Thrax Centurion","level":170,"steelPath":true,"enemyEnhancements":{"eximus":false,"noOverguard":true},"armourStrip":0.0,"elementalArmourStrip":0.0,"hitLocation":"body","headshotChance":0.0,"windowSeconds":30.0},"route":{"tier2":"2-2","tier3":"3-2","tier4":"4-2"},"slots":[{"path":"/Lotus/Upgrades/Mods/Rifle/Expert/WeaponFreezeDamageModExpert","nameInternal":"WeaponFreezeDamageModExpert","nameEn":"Primed Cryo Rounds","nameZh":"低温弹头 Prime","rank":10,"slot":0,"maxRank":10,"compatibility":"/Lotus/Weapons/Tenno/Rifle/LotusRifle","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_PERCENT_BASE_DAMAGE_ADDED","damageType":"DT_FREEZE","operation":"ADD","value":1.65000011}]},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponToxinDamageMod","nameInternal":"WeaponToxinDamageMod","nameEn":"Infected Clip","nameZh":"污染弹匣","rank":5,"slot":1,"maxRank":5,"compatibility":"/Lotus/Weapons/Tenno/Rifle/LotusRifle","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_PERCENT_BASE_DAMAGE_ADDED","damageType":"DT_POISON","operation":"ADD","value":0.90000006}]},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponStatusChanceSPMod","nameInternal":"WeaponStatusChanceSPMod","nameEn":"Galvanized Aptitude","nameZh":"镀层 步枪才能","rank":10,"slot":2,"maxRank":10,"compatibility":"/Lotus/Weapons/Tenno/Rifle/LotusRifle","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_PROC_CHANCE","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":0.799997022},{"upgradeType":"WEAPON_DAMAGE_IF_VICTIM_PROC_ACTIVE","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":3.99999622}],"steadyStacks":[{"conditionTag":"/Lotus/Language/Upgrades/OnKillCondition_Description","stacks":2}]},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponFireDamageMod","nameInternal":"WeaponFireDamageMod","nameEn":"Hellfire","nameZh":"地狱火","rank":5,"slot":3,"maxRank":5,"compatibility":"/Lotus/Weapons/Tenno/Rifle/LotusRifle","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_PERCENT_BASE_DAMAGE_ADDED","damageType":"DT_FIRE","operation":"ADD","value":0.90000006}]},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponFireIterationsSPMod","nameInternal":"WeaponFireIterationsSPMod","nameEn":"Galvanized Chamber","nameZh":"镀层 分裂膛室","rank":10,"slot":4,"maxRank":10,"compatibility":"/Lotus/Weapons/Tenno/Rifle/LotusRifle","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_FIRE_ITERATIONS","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":0.8000299670000001},{"upgradeType":"WEAPON_FIRE_ITERATIONS","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":1.4998500000000001}],"steadyStacks":[{"conditionTag":"/Lotus/Language/Upgrades/OnKillCondition_Description","stacks":5}]},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponCritDamageMod","nameInternal":"WeaponCritDamageMod","nameEn":"Vital Sense","nameZh":"弱点感应","rank":5,"slot":5,"maxRank":5,"compatibility":"/Lotus/Weapons/Tenno/Rifle/LotusRifle","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_CRIT_DAMAGE","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":1.2000000000000002}]},{"path":"/Lotus/Upgrades/Mods/Rifle/DualStat/CorruptedFireRateDamageRifle","nameInternal":"CorruptedFireRateDamageRifle","nameEn":"Vile Acceleration","nameZh":"卑劣加速","rank":5,"slot":6,"maxRank":5,"compatibility":"/Lotus/Weapons/Tenno/Rifle/LotusRifle","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_FIRE_RATE","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":0.90000006},{"upgradeType":"WEAPON_FIRE_RATE","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":0.90000006},{"upgradeType":"WEAPON_DAMAGE_AMOUNT","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":-0.15000000000000002}]},{"path":"/Lotus/Upgrades/Mods/Rifle/DualStat/CorruptedDamageRecoilRifle","nameInternal":"CorruptedDamageRecoilRifle","nameEn":"Heavy Caliber","nameZh":"重口径","rank":10,"slot":7,"maxRank":10,"compatibility":"/Lotus/Weapons/Tenno/Rifle/LotusRifle","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_DAMAGE_AMOUNT","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":1.65000011},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":55.0},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":2.97000011},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":14.96},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":2.97000011},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":9.89999978},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":3.9600001099999997},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":33.0},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":16.5},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":11.0},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":19.25}]}]},
-      "score": 136046.10600240112,
+      "noRivenBuild": {"replay":{"full":128779.60203957462,"without":{"0":6420.37738240918,"1":6685.822320075015,"2":82494.53892268844,"3":27705.55415834479,"4":49282.56214406172,"5":62967.61082894428,"6":68247.8938745279,"7":40475.542152776645},"capacity":{"capacity":59,"capacityLimit":60,"assignments":[{"slot":0,"drain":8},{"slot":1,"drain":6},{"slot":2,"drain":6},{"slot":3,"drain":6},{"slot":4,"drain":8},{"slot":5,"drain":9},{"slot":6,"drain":9},{"slot":7,"drain":7}]},"stats":{"totalDamage":5017.737682655158,"critChance":0.12,"critMultiplier":11.00268659591675,"statusChance":0.4679992077200298,"fireRate":18.20833327499998,"multishot":3.4998799670000005,"damageTypes":{"DT_IMPACT":16.108858330228532,"DT_PUNCTURE":112.76200831159971,"DT_SLASH":193.30630916780427,"DT_VIRAL":821.5518530846826,"DT_FIRE":289.95947755929984}},"has_overguard":false,"polarities":["AP_DEFENSE","AP_TACTIC","AP_DEFENSE","AP_TACTIC","AP_ATTACK","AP_UNIVERSAL","AP_UNIVERSAL","AP_ATTACK"],"serration_slot":7,"capacity_saved":1,"complete":true},"weapon":{"path":"/Lotus/Weapons/Tenno/Rifle/BratonPrime","nameEn":"Braton Prime","incarnon":[{"options":[{"id":"1-1","label":"灵化形态","description":"命中弱点为灵化转变充能，次要射击进行转变。切换回原有模式将消耗剩余的充能。；获得范围 火焰伤害"},{"id":"2-2","label":"实弹胆魄","description":"基础伤害 +2（基础值）；弹匣末段多重伤害 +54%；无额外触发事件：多重射击 +20%"},{"id":"3-2","label":"虚空指引","description":"散布 -60%；后坐力 -60%"},{"id":"4-2","label":"力量前奏","description":"低暴击数值加成 +50%；低暴击伤害加成 +3（基础值）"}]}],"polarities":["AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_TACTIC","AP_UNIVERSAL"]},"target":{"enemyPath":"/Lotus/Types/Enemies/Duviri/Avatars/DuviriMeleeAvatar","enemyName":"Thrax Centurion","level":170,"steelPath":true,"enemyEnhancements":{"eximus":false,"noOverguard":true},"armourStrip":0.0,"elementalArmourStrip":0.0,"hitLocation":"body","headshotChance":0.0,"windowSeconds":30.0},"route":{"tier2":"2-2","tier3":"3-2","tier4":"4-2"},"slots":[{"path":"/Lotus/Upgrades/Mods/Rifle/Expert/WeaponFreezeDamageModExpert","nameInternal":"WeaponFreezeDamageModExpert","nameEn":"Primed Cryo Rounds","nameZh":"低温弹头 Prime","rank":10,"slot":0,"maxRank":10,"compatibility":"/Lotus/Weapons/Tenno/Rifle/LotusRifle","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_PERCENT_BASE_DAMAGE_ADDED","damageType":"DT_FREEZE","operation":"ADD","value":1.65000011}]},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponToxinDamageMod","nameInternal":"WeaponToxinDamageMod","nameEn":"Infected Clip","nameZh":"污染弹匣","rank":5,"slot":1,"maxRank":5,"compatibility":"/Lotus/Weapons/Tenno/Rifle/LotusRifle","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_PERCENT_BASE_DAMAGE_ADDED","damageType":"DT_POISON","operation":"ADD","value":0.90000006}]},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponStatusChanceSPMod","nameInternal":"WeaponStatusChanceSPMod","nameEn":"Galvanized Aptitude","nameZh":"镀层 步枪才能","rank":10,"slot":2,"maxRank":10,"compatibility":"/Lotus/Weapons/Tenno/Rifle/LotusRifle","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_PROC_CHANCE","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":0.799997022},{"upgradeType":"WEAPON_DAMAGE_IF_VICTIM_PROC_ACTIVE","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":3.99999622}],"steadyStacks":[{"conditionTag":"/Lotus/Language/Upgrades/OnKillCondition_Description","stacks":2}]},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponFireDamageMod","nameInternal":"WeaponFireDamageMod","nameEn":"Hellfire","nameZh":"地狱火","rank":5,"slot":3,"maxRank":5,"compatibility":"/Lotus/Weapons/Tenno/Rifle/LotusRifle","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_PERCENT_BASE_DAMAGE_ADDED","damageType":"DT_FIRE","operation":"ADD","value":0.90000006}]},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponFireIterationsSPMod","nameInternal":"WeaponFireIterationsSPMod","nameEn":"Galvanized Chamber","nameZh":"镀层 分裂膛室","rank":10,"slot":4,"maxRank":10,"compatibility":"/Lotus/Weapons/Tenno/Rifle/LotusRifle","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_FIRE_ITERATIONS","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":0.8000299670000001},{"upgradeType":"WEAPON_FIRE_ITERATIONS","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":1.4998500000000001}],"steadyStacks":[{"conditionTag":"/Lotus/Language/Upgrades/OnKillCondition_Description","stacks":5}]},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponCritDamageMod","nameInternal":"WeaponCritDamageMod","nameEn":"Vital Sense","nameZh":"弱点感应","rank":5,"slot":5,"maxRank":5,"compatibility":"/Lotus/Weapons/Tenno/Rifle/LotusRifle","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_CRIT_DAMAGE","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":1.2000000000000002}]},{"path":"/Lotus/Upgrades/Mods/Rifle/DualStat/CorruptedFireRateDamageRifle","nameInternal":"CorruptedFireRateDamageRifle","nameEn":"Vile Acceleration","nameZh":"卑劣加速","rank":5,"slot":6,"maxRank":5,"compatibility":"/Lotus/Weapons/Tenno/Rifle/LotusRifle","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_FIRE_RATE","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":0.90000006},{"upgradeType":"WEAPON_FIRE_RATE","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":0.90000006},{"upgradeType":"WEAPON_DAMAGE_AMOUNT","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":-0.15000000000000002}]},{"path":"/Lotus/Upgrades/Mods/Rifle/DualStat/CorruptedDamageRecoilRifle","nameInternal":"CorruptedDamageRecoilRifle","nameEn":"Heavy Caliber","nameZh":"重口径","rank":10,"slot":7,"maxRank":10,"compatibility":"/Lotus/Weapons/Tenno/Rifle/LotusRifle","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_DAMAGE_AMOUNT","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":1.65000011},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":55.0},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":2.97000011},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":14.96},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":2.97000011},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":9.89999978},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":3.9600001099999997},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":33.0},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":16.5},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":11.0},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":19.25}]}]},
+      "score": 135830.54333452816,
       "rank": 8,
       "stats": [
         {
@@ -33,7 +33,7 @@
       ],
       "replayed": 2,
       "fixedTraitReference": {
-        "baselineScore": 31567.212552541965,
+        "baselineScore": 68247.8938745279,
         "rows": [
           {
             "code": "9",
@@ -41,8 +41,8 @@
             "value": 134.96624999999997,
             "unit": "percent",
             "fusion": false,
-            "score": 35718.15940545315,
-            "pct": 13.14955144044523
+            "score": 84331.25962545088,
+            "pct": 23.566098289409275
           },
           {
             "code": "0",
@@ -50,8 +50,8 @@
             "value": 168.743260125,
             "unit": "percent",
             "fusion": false,
-            "score": 47453.448159443644,
-            "pct": 50.32511369339272
+            "score": 67514.80959831054,
+            "pct": -1.074149302783045
           },
           {
             "code": "1",
@@ -59,8 +59,8 @@
             "value": 134.996625,
             "unit": "percent",
             "fusion": false,
-            "score": 41228.919307579024,
-            "pct": 30.606778279696556
+            "score": 99097.59495168076,
+            "pct": 45.202422119969434
           },
           {
             "code": "7",
@@ -68,8 +68,8 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 9928.447103244336,
-            "pct": -68.54822994992364
+            "score": 19314.10405991354,
+            "pct": -71.70007312544757
           },
           {
             "code": "4",
@@ -77,8 +77,8 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 36270.389265875776,
-            "pct": 14.898929405013583
+            "score": 84890.80237380831,
+            "pct": 24.385966444441486
           },
           {
             "code": "5",
@@ -86,8 +86,8 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 35219.13104797851,
-            "pct": 11.568707529554967
+            "score": 74148.74331422777,
+            "pct": 8.646200057907194
           },
           {
             "code": "8",
@@ -95,8 +95,8 @@
             "value": 134.996625,
             "unit": "percent",
             "fusion": false,
-            "score": 31932.015183016116,
-            "pct": 1.1556377677216734
+            "score": 68918.68287725296,
+            "pct": 0.9828713600426697
           },
           {
             "code": "3",
@@ -104,8 +104,8 @@
             "value": 112.48874999999997,
             "unit": "percent",
             "fusion": false,
-            "score": 25927.65959536081,
-            "pct": -17.86522312603439
+            "score": 66782.91728801704,
+            "pct": -2.1465520814520467
           },
           {
             "code": "A",
@@ -113,8 +113,8 @@
             "value": 134.996625,
             "unit": "percent",
             "fusion": false,
-            "score": 35206.71985665422,
-            "pct": 11.529390813504637
+            "score": 76235.32551924342,
+            "pct": 11.703557708901924
           },
           {
             "code": "2",
@@ -122,8 +122,8 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 35817.88859566615,
-            "pct": 13.46547794186501
+            "score": 84330.09193949045,
+            "pct": 23.564387341431047
           },
           {
             "code": "6",
@@ -131,8 +131,8 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 35219.13104797851,
-            "pct": 11.568707529554967
+            "score": 74148.74331422777,
+            "pct": 8.646200057907194
           },
           {
             "code": "M",
@@ -140,7 +140,7 @@
             "value": 56.193748987499994,
             "unit": "percent",
             "fusion": false,
-            "score": 31567.212552541965,
+            "score": 68247.8938745279,
             "pct": 0.0
           },
           {
@@ -149,8 +149,8 @@
             "value": 56.244377025,
             "unit": "percent",
             "fusion": false,
-            "score": 38677.69542458018,
-            "pct": 22.524899403782307
+            "score": 78325.25933592077,
+            "pct": 14.765826297760709
           },
           {
             "code": "D",
@@ -158,8 +158,8 @@
             "value": 185.62465237499998,
             "unit": "percent",
             "fusion": false,
-            "score": 47830.40565322432,
-            "pct": 51.519256170031234
+            "score": 107536.79991903686,
+            "pct": 57.56793919053482
           },
           {
             "code": "S",
@@ -167,8 +167,8 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 44483.49337144452,
-            "pct": 40.91676069720786
+            "score": 126496.06738364624,
+            "pct": 85.34794292144193
           },
           {
             "code": "V",
@@ -176,7 +176,7 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 31567.212552541965,
+            "score": 68247.8938745279,
             "pct": 0.0
           },
           {
@@ -194,7 +194,7 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 31567.212552541965,
+            "score": 68247.8938745279,
             "pct": 0.0
           },
           {
@@ -203,8 +203,8 @@
             "value": 56.244377025,
             "unit": "percent",
             "fusion": false,
-            "score": 37419.92508203774,
-            "pct": 18.540479365272567
+            "score": 79406.73247339584,
+            "pct": 16.350451223276117
           },
           {
             "code": "C",
@@ -212,7 +212,7 @@
             "value": 50.62499898749999,
             "unit": "percent",
             "fusion": false,
-            "score": 31567.212552541965,
+            "score": 68247.8938745279,
             "pct": 0.0
           },
           {
@@ -221,7 +221,7 @@
             "value": 50.62499898749999,
             "unit": "percent",
             "fusion": false,
-            "score": 31567.212552541965,
+            "score": 68247.8938745279,
             "pct": 0.0
           },
           {
@@ -230,7 +230,7 @@
             "value": 50.62499898749999,
             "unit": "percent",
             "fusion": false,
-            "score": 31567.212552541965,
+            "score": 68247.8938745279,
             "pct": 0.0
           },
           {
@@ -248,7 +248,7 @@
             "value": 253.12499999999997,
             "unit": "percent",
             "fusion": true,
-            "score": 31567.212552541965,
+            "score": 68247.8938745279,
             "pct": 0.0
           },
           {
@@ -257,7 +257,7 @@
             "value": 278.4375,
             "unit": "percent",
             "fusion": true,
-            "score": 31567.212552541965,
+            "score": 68247.8938745279,
             "pct": 0.0
           },
           {
@@ -266,8 +266,8 @@
             "value": 50.62499999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 40162.91620108335,
-            "pct": 27.229846899640854
+            "score": 85337.65128237363,
+            "pct": 25.040710324724213
           },
           {
             "code": "HR",
@@ -284,8 +284,8 @@
             "value": 101.24999999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 34671.70165671261,
-            "pct": 9.834536701659635
+            "score": 80963.17916067338,
+            "pct": 18.631029566307532
           },
           {
             "code": "GA",
@@ -293,8 +293,8 @@
             "value": 101.24999999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 38220.67142403087,
-            "pct": 21.07711873645661
+            "score": 82812.97435250743,
+            "pct": 21.34143583208161
           },
           {
             "code": "CO",
@@ -302,8 +302,8 @@
             "value": 101.24999999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 59511.34629927294,
-            "pct": 88.52265210372767
+            "score": 134089.19887844968,
+            "pct": 96.47375364428011
           },
           {
             "code": "VI",
@@ -311,8 +311,8 @@
             "value": 101.24999999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 35219.131048096606,
-            "pct": 11.568707529929089
+            "score": 74148.74331422777,
+            "pct": 8.646200057907194
           },
           {
             "code": "RA",
@@ -320,8 +320,8 @@
             "value": 101.24999999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 36361.717300788,
-            "pct": 15.188242358319837
+            "score": 76410.84042961553,
+            "pct": 11.96073034882954
           },
           {
             "code": "BL",
@@ -329,8 +329,8 @@
             "value": 101.24999999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 36362.887878137524,
-            "pct": 15.191950564572053
+            "score": 76507.0948404545,
+            "pct": 12.101766804864255
           },
           {
             "code": "MA",
@@ -338,8 +338,8 @@
             "value": 101.24999999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 36361.717300788,
-            "pct": 15.188242358319837
+            "score": 76410.84042961553,
+            "pct": 11.96073034882954
           },
           {
             "code": "FO",
@@ -347,7 +347,7 @@
             "value": 50.62499999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 31567.212552541965,
+            "score": 68247.8938745279,
             "pct": 0.0
           },
           {
@@ -356,7 +356,7 @@
             "value": 50.62499999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 31567.212552541965,
+            "score": 68247.8938745279,
             "pct": 0.0
           },
           {
@@ -365,7 +365,7 @@
             "value": 50.62499999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 31567.212552541965,
+            "score": 68247.8938745279,
             "pct": 0.0
           },
           {
@@ -374,8 +374,8 @@
             "value": 107.973,
             "unit": "percent",
             "fusion": false,
-            "score": 22565.82875521041,
-            "pct": -28.51497826217385
+            "score": 37276.25214116459,
+            "pct": -45.38109526178775
           },
           {
             "code": "0",
@@ -383,8 +383,8 @@
             "value": 134.9946081,
             "unit": "percent",
             "fusion": false,
-            "score": 14187.051488151343,
-            "pct": -55.05763625933794
+            "score": 42159.48000000009,
+            "pct": -38.22596184798132
           },
           {
             "code": "1",
@@ -392,8 +392,8 @@
             "value": 107.9973,
             "unit": "percent",
             "fusion": false,
-            "score": 21091.26329850084,
-            "pct": -33.18617136880382
+            "score": 41873.88974091129,
+            "pct": -38.64442202730033
           },
           {
             "code": "8",
@@ -401,8 +401,8 @@
             "value": 107.9973,
             "unit": "percent",
             "fusion": false,
-            "score": 31376.26584036315,
-            "pct": -0.6048893669689526
+            "score": 66830.58973283792,
+            "pct": -2.076700189892544
           },
           {
             "code": "3",
@@ -410,8 +410,8 @@
             "value": 89.99099999999999,
             "unit": "percent",
             "fusion": false,
-            "score": 24025.97279686684,
-            "pct": -23.88946994646146
+            "score": 15075.63823137304,
+            "pct": -77.9104711141867
           },
           {
             "code": "A",
@@ -419,8 +419,8 @@
             "value": 107.9973,
             "unit": "percent",
             "fusion": false,
-            "score": 26850.611842981198,
-            "pct": -14.94145452884138
+            "score": 56907.95400894002,
+            "pct": -16.615809253302505
           },
           {
             "code": "2",
@@ -428,8 +428,8 @@
             "value": 80.99999838,
             "unit": "percent",
             "fusion": false,
-            "score": 25469.634194665316,
-            "pct": -19.316176072649903
+            "score": 43384.702048483865,
+            "pct": -36.43070930768122
           },
           {
             "code": "M",
@@ -437,7 +437,7 @@
             "value": 44.954999189999995,
             "unit": "percent",
             "fusion": false,
-            "score": 31567.212552541965,
+            "score": 68247.8938745279,
             "pct": 0.0
           },
           {
@@ -446,8 +446,8 @@
             "value": 44.99550162,
             "unit": "percent",
             "fusion": false,
-            "score": 22525.543835582725,
-            "pct": -28.642594596877558
+            "score": 55127.89138060319,
+            "pct": -19.224040111839223
           },
           {
             "code": "D",
@@ -455,8 +455,8 @@
             "value": 148.4997219,
             "unit": "percent",
             "fusion": false,
-            "score": -534.2150460899117,
-            "pct": -101.69230984585901
+            "score": 31044.005742095072,
+            "pct": -54.51287361457817
           },
           {
             "code": "S",
@@ -464,8 +464,8 @@
             "value": 80.99999838,
             "unit": "percent",
             "fusion": false,
-            "score": 17643.62745270385,
-            "pct": -44.10774336398261
+            "score": 29701.108121477206,
+            "pct": -56.48054989640856
           },
           {
             "code": "V",
@@ -473,7 +473,7 @@
             "value": 80.99999838,
             "unit": "percent",
             "fusion": false,
-            "score": 31567.212552541965,
+            "score": 68247.8938745279,
             "pct": 0.0
           },
           {
@@ -482,7 +482,7 @@
             "value": 80.99999838,
             "unit": "percent",
             "fusion": false,
-            "score": 31567.212552541965,
+            "score": 68247.8938745279,
             "pct": 0.0
           },
           {
@@ -491,8 +491,8 @@
             "value": 44.99550162,
             "unit": "percent",
             "fusion": false,
-            "score": 22533.128509971757,
-            "pct": -28.618567532795147
+            "score": 59625.044735851196,
+            "pct": -12.634601083118557
           },
           {
             "code": "C",
@@ -500,7 +500,7 @@
             "value": 40.49999919,
             "unit": "percent",
             "fusion": false,
-            "score": 31567.212552541965,
+            "score": 68247.8938745279,
             "pct": 0.0
           },
           {
@@ -509,7 +509,7 @@
             "value": 40.49999919,
             "unit": "percent",
             "fusion": false,
-            "score": 31567.212552541965,
+            "score": 68247.8938745279,
             "pct": 0.0
           },
           {
@@ -518,7 +518,7 @@
             "value": 40.49999919,
             "unit": "percent",
             "fusion": false,
-            "score": 31567.212552541965,
+            "score": 68247.8938745279,
             "pct": 0.0
           },
           {
@@ -537,8 +537,8 @@
       "weapon": "/Lotus/Weapons/Corpus/Pistols/CrpSentExperimentPistol/CrpSentExperimentPistol",
       "fireMode": 0,
       "contextHash": "562f9a0e20103b0460ba",
-      "noRivenBuild": {"replay":{"full":50600.473170933874,"without":{"0":11164.739960711457,"1":10969.05266488907,"2":8347.834929627525,"3":16636.97598492656,"4":30017.505905242368,"5":16110.651868663726,"6":11685.020318505447,"7":32225.330529514584},"capacity":{"capacity":58,"capacityLimit":60,"assignments":[{"slot":0,"drain":11},{"slot":1,"drain":6},{"slot":2,"drain":8},{"slot":3,"drain":7},{"slot":4,"drain":6},{"slot":5,"drain":6},{"slot":6,"drain":7},{"slot":7,"drain":7}]},"stats":{"totalDamage":1527.2387258407264,"critChance":0.16,"critMultiplier":3.7743589743589747,"statusChance":0.43199926728002974,"fireRate":19.200000000000003,"multishot":3.899998756,"damageTypes":{"DT_PUNCTURE":7.999995464,"DT_RADIATION":79.99995464,"DT_VIRAL":158.39992074719402,"DT_FIRE":145.1999273515945}},"has_overguard":true,"polarities":["AP_UNIVERSAL","AP_TACTIC","AP_TACTIC","AP_ATTACK","AP_DEFENSE","AP_ATTACK","AP_ATTACK","AP_ATTACK"],"serration_slot":null,"capacity_saved":0,"complete":true},"weapon":{"path":"/Lotus/Weapons/Corpus/Pistols/CrpSentExperimentPistol/CrpSentExperimentPistol","nameEn":"Ocucor","incarnon":[],"polarities":["AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_ATTACK","AP_UNIVERSAL"]},"target":{"enemyPath":"/Lotus/Types/Enemies/Duviri/Avatars/DuviriMeleeAvatar","enemyName":"Thrax Centurion","level":170,"steelPath":true,"enemyEnhancements":{"eximus":false,"noOverguard":true},"armourStrip":0.0,"elementalArmourStrip":0.0,"hitLocation":"body","headshotChance":0.0,"windowSeconds":30.0},"route":{},"slots":[{"path":"/Lotus/Upgrades/Mods/Pistol/WeaponFreezeDamageMod","nameInternal":"WeaponFreezeDamageMod","nameEn":"Deep Freeze","nameZh":"深层冷冻","rank":5,"slot":0,"maxRank":5,"compatibility":"/Lotus/Weapons/Tenno/Pistol/LotusPistol","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_PERCENT_BASE_DAMAGE_ADDED","damageType":"DT_FREEZE","operation":"ADD","value":0.90000006}]},{"path":"/Lotus/Upgrades/Mods/Pistol/WeaponToxinDamageMod","nameInternal":"WeaponToxinDamageMod","nameEn":"Pathogen Rounds","nameZh":"病原弹头","rank":5,"slot":1,"maxRank":5,"compatibility":"/Lotus/Weapons/Tenno/Pistol/LotusPistol","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_PERCENT_BASE_DAMAGE_ADDED","damageType":"DT_POISON","operation":"ADD","value":0.90000006}]},{"path":"/Lotus/Upgrades/Mods/Pistol/Expert/WeaponFireDamageModExpert","nameInternal":"WeaponFireDamageModExpert","nameEn":"Primed Heated Charge","nameZh":"火焰装填 Prime","rank":10,"slot":2,"maxRank":10,"compatibility":"/Lotus/Weapons/Tenno/Pistol/LotusPistol","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_PERCENT_BASE_DAMAGE_ADDED","damageType":"DT_FIRE","operation":"ADD","value":1.65000011}]},{"path":"/Lotus/Upgrades/Mods/Pistol/WeaponFireIterationsSPMod","nameInternal":"WeaponFireIterationsSPMod","nameEn":"Galvanized Diffusion","nameZh":"镀层 弹头扩散","rank":10,"slot":3,"maxRank":10,"compatibility":"/Lotus/Weapons/Tenno/Pistol/LotusPistol","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_FIRE_ITERATIONS","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":1.1},{"upgradeType":"WEAPON_FIRE_ITERATIONS","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":1.199998756}],"steadyStacks":[{"conditionTag":"/Lotus/Language/Upgrades/OnKillCondition_Description","stacks":4}]},{"path":"/Lotus/Upgrades/Mods/Pistol/WeaponStatusChanceSPMod","nameInternal":"WeaponStatusChanceSPMod","nameEn":"Galvanized Shot","nameZh":"镀层 准确射手","rank":10,"slot":4,"maxRank":10,"compatibility":"/Lotus/Weapons/Tenno/Pistol/LotusPistol","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_PROC_CHANCE","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":0.799997022},{"upgradeType":"WEAPON_DAMAGE_IF_VICTIM_PROC_ACTIVE","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":4.799995464}],"steadyStacks":[{"conditionTag":"/Lotus/Language/Upgrades/OnKillCondition_Description","stacks":3}]},{"path":"/Lotus/Upgrades/Mods/Pistol/DualStat/GrinderMod","nameInternal":"GrinderMod","nameEn":"Lethal Torrent","nameZh":"致命洪流","rank":5,"slot":5,"maxRank":5,"compatibility":"/Lotus/Weapons/Tenno/Pistol/LotusPistol","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_FIRE_RATE","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":0.6000000000000001},{"upgradeType":"WEAPON_FIRE_ITERATIONS","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":0.6000000000000001}]},{"path":"/Lotus/Upgrades/Mods/Pistol/WeaponDamageAmountMod","nameInternal":"WeaponDamageAmountMod","nameEn":"Hornet Strike","nameZh":"黄蜂螫刺","rank":10,"slot":6,"maxRank":10,"compatibility":"/Lotus/Weapons/Tenno/Pistol/LotusPistol","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_DAMAGE_AMOUNT","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":2.2}]},{"path":"/Lotus/Upgrades/Mods/Pistol/Expert/PrimedWeaponCritDamageMod","nameInternal":"PrimedWeaponCritDamageMod","nameEn":"Primed Target Cracker","nameZh":"弱点专精 Prime","rank":10,"slot":7,"maxRank":10,"compatibility":"/Lotus/Weapons/Tenno/Pistol/LotusPistol","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_CRIT_DAMAGE","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":1.1}]}]},
-      "score": 39081.65229835051,
+      "noRivenBuild": {"replay":{"full":46534.419805624384,"without":{"0":1121.2413466904313,"1":1101.5826478446625,"2":3546.61427617313,"3":23477.486911473236,"4":36596.7802260376,"5":22982.794465930332,"6":17942.951374588443,"7":39004.63903672506},"capacity":{"capacity":58,"capacityLimit":60,"assignments":[{"slot":0,"drain":11},{"slot":1,"drain":6},{"slot":2,"drain":8},{"slot":3,"drain":7},{"slot":4,"drain":6},{"slot":5,"drain":6},{"slot":6,"drain":7},{"slot":7,"drain":7}]},"stats":{"totalDamage":1527.2387258407264,"critChance":0.16,"critMultiplier":3.774359250068665,"statusChance":0.43199926728002974,"fireRate":19.200000000000003,"multishot":3.899998756,"damageTypes":{"DT_PUNCTURE":7.999995464,"DT_RADIATION":79.99995464,"DT_VIRAL":158.39992074719402,"DT_FIRE":145.1999273515945}},"has_overguard":false,"polarities":["AP_UNIVERSAL","AP_TACTIC","AP_TACTIC","AP_ATTACK","AP_DEFENSE","AP_ATTACK","AP_ATTACK","AP_ATTACK"],"serration_slot":null,"capacity_saved":0,"complete":true},"weapon":{"path":"/Lotus/Weapons/Corpus/Pistols/CrpSentExperimentPistol/CrpSentExperimentPistol","nameEn":"Ocucor","incarnon":[],"polarities":["AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_ATTACK","AP_UNIVERSAL"]},"target":{"enemyPath":"/Lotus/Types/Enemies/Duviri/Avatars/DuviriMeleeAvatar","enemyName":"Thrax Centurion","level":170,"steelPath":true,"enemyEnhancements":{"eximus":false,"noOverguard":true},"armourStrip":0.0,"elementalArmourStrip":0.0,"hitLocation":"body","headshotChance":0.0,"windowSeconds":30.0},"route":{},"slots":[{"path":"/Lotus/Upgrades/Mods/Pistol/WeaponFreezeDamageMod","nameInternal":"WeaponFreezeDamageMod","nameEn":"Deep Freeze","nameZh":"深层冷冻","rank":5,"slot":0,"maxRank":5,"compatibility":"/Lotus/Weapons/Tenno/Pistol/LotusPistol","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_PERCENT_BASE_DAMAGE_ADDED","damageType":"DT_FREEZE","operation":"ADD","value":0.90000006}]},{"path":"/Lotus/Upgrades/Mods/Pistol/WeaponToxinDamageMod","nameInternal":"WeaponToxinDamageMod","nameEn":"Pathogen Rounds","nameZh":"病原弹头","rank":5,"slot":1,"maxRank":5,"compatibility":"/Lotus/Weapons/Tenno/Pistol/LotusPistol","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_PERCENT_BASE_DAMAGE_ADDED","damageType":"DT_POISON","operation":"ADD","value":0.90000006}]},{"path":"/Lotus/Upgrades/Mods/Pistol/Expert/WeaponFireDamageModExpert","nameInternal":"WeaponFireDamageModExpert","nameEn":"Primed Heated Charge","nameZh":"火焰装填 Prime","rank":10,"slot":2,"maxRank":10,"compatibility":"/Lotus/Weapons/Tenno/Pistol/LotusPistol","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_PERCENT_BASE_DAMAGE_ADDED","damageType":"DT_FIRE","operation":"ADD","value":1.65000011}]},{"path":"/Lotus/Upgrades/Mods/Pistol/WeaponFireIterationsSPMod","nameInternal":"WeaponFireIterationsSPMod","nameEn":"Galvanized Diffusion","nameZh":"镀层 弹头扩散","rank":10,"slot":3,"maxRank":10,"compatibility":"/Lotus/Weapons/Tenno/Pistol/LotusPistol","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_FIRE_ITERATIONS","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":1.1},{"upgradeType":"WEAPON_FIRE_ITERATIONS","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":1.199998756}],"steadyStacks":[{"conditionTag":"/Lotus/Language/Upgrades/OnKillCondition_Description","stacks":4}]},{"path":"/Lotus/Upgrades/Mods/Pistol/WeaponStatusChanceSPMod","nameInternal":"WeaponStatusChanceSPMod","nameEn":"Galvanized Shot","nameZh":"镀层 准确射手","rank":10,"slot":4,"maxRank":10,"compatibility":"/Lotus/Weapons/Tenno/Pistol/LotusPistol","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_PROC_CHANCE","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":0.799997022},{"upgradeType":"WEAPON_DAMAGE_IF_VICTIM_PROC_ACTIVE","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":4.799995464}],"steadyStacks":[{"conditionTag":"/Lotus/Language/Upgrades/OnKillCondition_Description","stacks":3}]},{"path":"/Lotus/Upgrades/Mods/Pistol/DualStat/GrinderMod","nameInternal":"GrinderMod","nameEn":"Lethal Torrent","nameZh":"致命洪流","rank":5,"slot":5,"maxRank":5,"compatibility":"/Lotus/Weapons/Tenno/Pistol/LotusPistol","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_FIRE_RATE","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":0.6000000000000001},{"upgradeType":"WEAPON_FIRE_ITERATIONS","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":0.6000000000000001}]},{"path":"/Lotus/Upgrades/Mods/Pistol/WeaponDamageAmountMod","nameInternal":"WeaponDamageAmountMod","nameEn":"Hornet Strike","nameZh":"黄蜂螫刺","rank":10,"slot":6,"maxRank":10,"compatibility":"/Lotus/Weapons/Tenno/Pistol/LotusPistol","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_DAMAGE_AMOUNT","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":2.2}]},{"path":"/Lotus/Upgrades/Mods/Pistol/Expert/PrimedWeaponCritDamageMod","nameInternal":"PrimedWeaponCritDamageMod","nameEn":"Primed Target Cracker","nameZh":"弱点专精 Prime","rank":10,"slot":7,"maxRank":10,"compatibility":"/Lotus/Weapons/Tenno/Pistol/LotusPistol","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_CRIT_DAMAGE","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":1.1}]}]},
+      "score": 39153.856273796126,
       "rank": 8,
       "stats": [
         {
@@ -564,7 +564,7 @@
       ],
       "replayed": 2,
       "fixedTraitReference": {
-        "baselineScore": 23375.21697781902,
+        "baselineScore": 39004.63903672506,
         "rows": [
           {
             "code": "9",
@@ -572,8 +572,8 @@
             "value": 134.96624999999997,
             "unit": "percent",
             "fusion": false,
-            "score": 24879.533778961042,
-            "pct": 6.435520160388175
+            "score": 40418.27407528631,
+            "pct": 3.6242741209070894
           },
           {
             "code": "0",
@@ -581,8 +581,8 @@
             "value": 168.743260125,
             "unit": "percent",
             "fusion": false,
-            "score": 27075.794034344493,
-            "pct": 15.831198743682219
+            "score": 42296.03145111447,
+            "pct": 8.438463976785894
           },
           {
             "code": "1",
@@ -590,8 +590,8 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 28133.21902609422,
-            "pct": 20.354900032757417
+            "score": 45552.56595531716,
+            "pct": 16.78755932705045
           },
           {
             "code": "7",
@@ -599,8 +599,8 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 4565.568130463578,
-            "pct": -80.46833903276324
+            "score": 4219.433280247498,
+            "pct": -89.18222707746465
           },
           {
             "code": "4",
@@ -608,8 +608,8 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 27979.7349333365,
-            "pct": 19.69828968812035
+            "score": 48603.62166828797,
+            "pct": 24.609848645246867
           },
           {
             "code": "5",
@@ -617,8 +617,8 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 25733.79280166186,
-            "pct": 10.090070291458343
+            "score": 36447.04637184609,
+            "pct": -6.557149939192753
           },
           {
             "code": "8",
@@ -626,7 +626,7 @@
             "value": 134.996625,
             "unit": "percent",
             "fusion": false,
-            "score": 23375.21697781902,
+            "score": 39004.63903672506,
             "pct": 0.0
           },
           {
@@ -635,8 +635,8 @@
             "value": 112.48874999999997,
             "unit": "percent",
             "fusion": false,
-            "score": 18884.92195678574,
-            "pct": -19.209639958825477
+            "score": 39034.33188157285,
+            "pct": 0.07612644439507488
           },
           {
             "code": "A",
@@ -644,7 +644,7 @@
             "value": 134.996625,
             "unit": "percent",
             "fusion": false,
-            "score": 23375.21697781902,
+            "score": 39004.63903672506,
             "pct": 0.0
           },
           {
@@ -653,8 +653,8 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 25712.379230611838,
-            "pct": 9.998462281700204
+            "score": 45087.56333623424,
+            "pct": 15.595386727670446
           },
           {
             "code": "6",
@@ -662,8 +662,8 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 25733.79280166186,
-            "pct": 10.090070291458343
+            "score": 36447.04637184609,
+            "pct": -6.557149939192753
           },
           {
             "code": "M",
@@ -671,7 +671,7 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 23375.21697781902,
+            "score": 39004.63903672506,
             "pct": 0.0
           },
           {
@@ -680,8 +680,8 @@
             "value": 56.244377025,
             "unit": "percent",
             "fusion": false,
-            "score": 25081.775273799012,
-            "pct": 7.300716385218431
+            "score": 42159.47999999995,
+            "pct": 8.088373693971217
           },
           {
             "code": "D",
@@ -689,8 +689,8 @@
             "value": 247.05000000000004,
             "unit": "percent",
             "fusion": false,
-            "score": 31149.170004712938,
-            "pct": 33.25724434673998
+            "score": 51533.73174232905,
+            "pct": 32.12205782447353
           },
           {
             "code": "S",
@@ -698,8 +698,8 @@
             "value": 134.6625,
             "unit": "percent",
             "fusion": false,
-            "score": 32252.078059429605,
-            "pct": 37.9755237781704
+            "score": 54263.26408710013,
+            "pct": 39.12002630253344
           },
           {
             "code": "V",
@@ -707,7 +707,7 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 23375.21697781902,
+            "score": 39004.63903672506,
             "pct": 0.0
           },
           {
@@ -725,7 +725,7 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 23375.21697781902,
+            "score": 39004.63903672506,
             "pct": 0.0
           },
           {
@@ -734,8 +734,8 @@
             "value": 56.244377025,
             "unit": "percent",
             "fusion": false,
-            "score": 24755.21017920199,
-            "pct": 5.903659429952923
+            "score": 41254.49831632761,
+            "pct": 5.768183824196371
           },
           {
             "code": "C",
@@ -743,7 +743,7 @@
             "value": 50.62499898749999,
             "unit": "percent",
             "fusion": false,
-            "score": 23375.21697781902,
+            "score": 39004.63903672506,
             "pct": 0.0
           },
           {
@@ -752,7 +752,7 @@
             "value": 50.62499898749999,
             "unit": "percent",
             "fusion": false,
-            "score": 23375.21697781902,
+            "score": 39004.63903672506,
             "pct": 0.0
           },
           {
@@ -761,7 +761,7 @@
             "value": 50.62499898749999,
             "unit": "percent",
             "fusion": false,
-            "score": 23375.21697781902,
+            "score": 39004.63903672506,
             "pct": 0.0
           },
           {
@@ -779,7 +779,7 @@
             "value": 253.12499999999997,
             "unit": "percent",
             "fusion": true,
-            "score": 23375.21697781902,
+            "score": 39004.63903672506,
             "pct": 0.0
           },
           {
@@ -788,7 +788,7 @@
             "value": 278.4375,
             "unit": "percent",
             "fusion": true,
-            "score": 23375.21697781902,
+            "score": 39004.63903672506,
             "pct": 0.0
           },
           {
@@ -797,8 +797,8 @@
             "value": 50.62499999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 24901.365431302987,
-            "pct": 6.5289167366110235
+            "score": 42159.48000000009,
+            "pct": 8.088373693971572
           },
           {
             "code": "HR",
@@ -815,8 +815,8 @@
             "value": 101.24999999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 25527.08358996515,
-            "pct": 9.205761016841297
+            "score": 48258.21374811324,
+            "pct": 23.72429264804994
           },
           {
             "code": "GA",
@@ -824,8 +824,8 @@
             "value": 101.24999999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 27964.212151918913,
-            "pct": 19.63188268350382
+            "score": 38197.385620525216,
+            "pct": -2.069634372054474
           },
           {
             "code": "CO",
@@ -833,8 +833,8 @@
             "value": 101.24999999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 44221.30106919622,
-            "pct": 89.18028059871386
+            "score": 57311.68685435991,
+            "pct": 46.935565280831696
           },
           {
             "code": "VI",
@@ -842,8 +842,8 @@
             "value": 101.24999999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 25733.792801495736,
-            "pct": 10.090070290747644
+            "score": 36447.04637184609,
+            "pct": -6.557149939192753
           },
           {
             "code": "RA",
@@ -851,8 +851,8 @@
             "value": 101.24999999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 25327.312867830722,
-            "pct": 8.351134844498208
+            "score": 36401.341904186804,
+            "pct": -6.674326943744058
           },
           {
             "code": "BL",
@@ -860,8 +860,8 @@
             "value": 101.24999999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 27855.47478068622,
-            "pct": 19.166700386646962
+            "score": 36580.573099320296,
+            "pct": -6.214814435591542
           },
           {
             "code": "MA",
@@ -869,8 +869,8 @@
             "value": 101.24999999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 27855.47478068622,
-            "pct": 19.166700386646962
+            "score": 36401.34190418676,
+            "pct": -6.674326943744169
           },
           {
             "code": "FO",
@@ -878,7 +878,7 @@
             "value": 50.62499999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 23375.21697781902,
+            "score": 39004.63903672506,
             "pct": 0.0
           },
           {
@@ -887,7 +887,7 @@
             "value": 50.62499999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 23375.21697781902,
+            "score": 39004.63903672506,
             "pct": 0.0
           },
           {
@@ -896,7 +896,7 @@
             "value": 50.62499999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 23375.21697781902,
+            "score": 39004.63903672506,
             "pct": 0.0
           },
           {
@@ -905,8 +905,8 @@
             "value": 107.973,
             "unit": "percent",
             "fusion": false,
-            "score": 21624.61779416828,
-            "pct": -7.48912485095603
+            "score": 35900.017535703926,
+            "pct": -7.95962115710892
           },
           {
             "code": "0",
@@ -914,8 +914,8 @@
             "value": 134.9946081,
             "unit": "percent",
             "fusion": false,
-            "score": 21014.38879636675,
-            "pct": -10.099705956494354
+            "score": 33662.59721110914,
+            "pct": -13.695914018294298
           },
           {
             "code": "1",
@@ -923,8 +923,8 @@
             "value": 80.99999838,
             "unit": "percent",
             "fusion": false,
-            "score": 20772.24863307819,
-            "pct": -11.135590087616343
+            "score": 25452.62136168337,
+            "pct": -34.74463040737719
           },
           {
             "code": "8",
@@ -932,7 +932,7 @@
             "value": 107.9973,
             "unit": "percent",
             "fusion": false,
-            "score": 23375.21697781902,
+            "score": 39004.63903672506,
             "pct": 0.0
           },
           {
@@ -941,8 +941,8 @@
             "value": 89.99099999999999,
             "unit": "percent",
             "fusion": false,
-            "score": 20996.004941102445,
-            "pct": -10.178352735609819
+            "score": 12006.187650095922,
+            "pct": -69.21856490251987
           },
           {
             "code": "A",
@@ -950,7 +950,7 @@
             "value": 107.9973,
             "unit": "percent",
             "fusion": false,
-            "score": 23375.21697781902,
+            "score": 39004.63903672506,
             "pct": 0.0
           },
           {
@@ -959,8 +959,8 @@
             "value": 80.99999838,
             "unit": "percent",
             "fusion": false,
-            "score": 19566.71419000357,
-            "pct": -16.292908816330453
+            "score": 25948.568033947835,
+            "pct": -33.47312351867735
           },
           {
             "code": "M",
@@ -968,7 +968,7 @@
             "value": 80.99999838,
             "unit": "percent",
             "fusion": false,
-            "score": 23375.21697781902,
+            "score": 39004.63903672506,
             "pct": 0.0
           },
           {
@@ -977,8 +977,8 @@
             "value": 44.99550162,
             "unit": "percent",
             "fusion": false,
-            "score": 18671.43715387525,
-            "pct": -20.122935450854783
+            "score": 32410.478617257315,
+            "pct": -16.90609266569284
           },
           {
             "code": "D",
@@ -986,8 +986,8 @@
             "value": 197.64000000000004,
             "unit": "percent",
             "fusion": false,
-            "score": 12949.736105029153,
-            "pct": -44.600573687434476
+            "score": 14916.877951234292,
+            "pct": -61.756144090478024
           },
           {
             "code": "S",
@@ -995,8 +995,8 @@
             "value": 107.72999999999999,
             "unit": "percent",
             "fusion": false,
-            "score": 14190.812581660004,
-            "pct": -39.291204889666645
+            "score": 17022.400458215634,
+            "pct": -56.358010537700174
           },
           {
             "code": "V",
@@ -1004,7 +1004,7 @@
             "value": 80.99999838,
             "unit": "percent",
             "fusion": false,
-            "score": 23375.21697781902,
+            "score": 39004.63903672506,
             "pct": 0.0
           },
           {
@@ -1013,7 +1013,7 @@
             "value": 80.99999838,
             "unit": "percent",
             "fusion": false,
-            "score": 23375.21697781902,
+            "score": 39004.63903672506,
             "pct": 0.0
           },
           {
@@ -1022,8 +1022,8 @@
             "value": 44.99550162,
             "unit": "percent",
             "fusion": false,
-            "score": 18867.702037494644,
-            "pct": -19.283307378928725
+            "score": 33410.8604794056,
+            "pct": -14.341316047182485
           },
           {
             "code": "C",
@@ -1031,7 +1031,7 @@
             "value": 40.49999919,
             "unit": "percent",
             "fusion": false,
-            "score": 23375.21697781902,
+            "score": 39004.63903672506,
             "pct": 0.0
           },
           {
@@ -1040,7 +1040,7 @@
             "value": 40.49999919,
             "unit": "percent",
             "fusion": false,
-            "score": 23375.21697781902,
+            "score": 39004.63903672506,
             "pct": 0.0
           },
           {
@@ -1049,7 +1049,7 @@
             "value": 40.49999919,
             "unit": "percent",
             "fusion": false,
-            "score": 23375.21697781902,
+            "score": 39004.63903672506,
             "pct": 0.0
           },
           {
@@ -1068,8 +1068,8 @@
       "weapon": "/Lotus/Weapons/Tenno/Rifle/LatronPrime",
       "fireMode": 1,
       "contextHash": "b3bed719aaac3344594d",
-      "noRivenBuild": {"replay":{"full":553134.8173624668,"without":{"0":30021.558724153085,"1":33090.86839499104,"2":387194.37215372676,"3":341245.62301841925,"4":170844.0099784174,"5":331880.89041748043,"6":289428.10159293504,"7":266886.6340983775},"capacity":{"capacity":58,"capacityLimit":60,"assignments":[{"slot":0,"drain":8},{"slot":1,"drain":6},{"slot":2,"drain":6},{"slot":3,"drain":8},{"slot":4,"drain":9},{"slot":5,"drain":6},{"slot":6,"drain":5},{"slot":7,"drain":5},{"slot":8,"drain":5}]},"stats":{"totalDamage":9506.130132626688,"critChance":1.4909123552996195,"critMultiplier":7.351557449929058,"statusChance":0.46472768722256647,"fireRate":3.333333,"multishot":3.2998799670000003,"damageTypes":{"DT_IMPACT":647.3595795967925,"DT_VIRAL":1650.7670380229492,"DT_FIRE":582.6236604786881}},"has_overguard":true,"polarities":["AP_DEFENSE","AP_TACTIC","AP_TACTIC","AP_ATTACK","AP_UNIVERSAL","AP_DEFENSE","AP_ATTACK","AP_ATTACK"],"equipment":{"exilus":{"path":"/Lotus/Upgrades/Mods/Sets/Vigilante/PrimaryVigilanteSuppliesMod","rank":5,"nameZh":"私法 补给","nameEn":"Vigilante Supplies","drain":5,"slotPolarity":"AP_TACTIC"},"arcanes":[{"path":"/Lotus/Upgrades/CosmeticEnhancers/Utility/ConvergeRadialAttackOnAim","rank":5,"nameZh":"主要·压缩","nameEn":"Primary Compression"}]},"serration_slot":null,"capacity_saved":0,"complete":true},"weapon":{"path":"/Lotus/Weapons/Tenno/Rifle/LatronPrime","nameEn":"Latron Prime","incarnon":[{"options":[{"id":"1-1","label":"灵化形态","description":"命中弱点为灵化转变充能，次要射击进行转变。切换回原有模式将消耗剩余的充能。"},{"id":"2-1","label":"百孔千疮","description":"基础伤害 +6（基础值）；触发 穿刺异常状态时：多重射击 +25%；持续 8 秒，最多 4 层"},{"id":"3-3","label":"善射之焦","description":"变焦 -30%"},{"id":"4-3","label":"临界平行","description":"暴击几率 +24%；暴击伤害 +0.2（基础值）"}]}],"polarities":["AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_TACTIC","AP_ATTACK","AP_ATTACK","AP_UNIVERSAL"]},"target":{"enemyPath":"/Lotus/Types/Enemies/Duviri/Avatars/DuviriMeleeAvatar","enemyName":"Thrax Centurion","level":170,"steelPath":true,"enemyEnhancements":{"eximus":false,"noOverguard":true},"armourStrip":0.0,"elementalArmourStrip":0.0,"hitLocation":"body","headshotChance":0.0,"windowSeconds":30.0},"route":{"tier2":"2-1","tier3":"3-3","tier4":"4-3"},"slots":[{"path":"/Lotus/Upgrades/Mods/Rifle/Expert/WeaponFreezeDamageModExpert","nameInternal":"WeaponFreezeDamageModExpert","nameEn":"Primed Cryo Rounds","nameZh":"低温弹头 Prime","rank":10,"slot":0,"maxRank":10,"compatibility":"/Lotus/Weapons/Tenno/Rifle/LotusRifle","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_PERCENT_BASE_DAMAGE_ADDED","damageType":"DT_FREEZE","operation":"ADD","value":1.65000011}]},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponToxinDamageMod","nameInternal":"WeaponToxinDamageMod","nameEn":"Infected Clip","nameZh":"污染弹匣","rank":5,"slot":1,"maxRank":5,"compatibility":"/Lotus/Weapons/Tenno/Rifle/LotusRifle","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_PERCENT_BASE_DAMAGE_ADDED","damageType":"DT_POISON","operation":"ADD","value":0.90000006}]},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponFireDamageMod","nameInternal":"WeaponFireDamageMod","nameEn":"Hellfire","nameZh":"地狱火","rank":5,"slot":2,"maxRank":5,"compatibility":"/Lotus/Weapons/Tenno/Rifle/LotusRifle","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_PERCENT_BASE_DAMAGE_ADDED","damageType":"DT_FIRE","operation":"ADD","value":0.90000006}]},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponFireIterationsSPMod","nameInternal":"WeaponFireIterationsSPMod","nameEn":"Galvanized Chamber","nameZh":"镀层 分裂膛室","rank":10,"slot":3,"maxRank":10,"compatibility":"/Lotus/Weapons/Tenno/Rifle/LotusRifle","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_FIRE_ITERATIONS","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":0.8000299670000001},{"upgradeType":"WEAPON_FIRE_ITERATIONS","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":1.4998500000000001}],"steadyStacks":[{"conditionTag":"/Lotus/Language/Upgrades/OnKillCondition_Description","stacks":5}]},{"path":"/Lotus/Upgrades/Mods/Rifle/RifleSemiAutoFantasyMod","nameInternal":"RifleSemiAutoFantasyMod","nameEn":"Semi-Rifle Cannonade","nameZh":"半自动步枪炮轰","rank":5,"slot":4,"maxRank":5,"compatibility":"/Lotus/Weapons/Tenno/Rifle/LotusRifle","compatibilityTags":["SEMI_AUTO"],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_DAMAGE_AMOUNT","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":2.40000006},{"upgradeType":"RUNTIME_LOCK_FIRE_RATE","damageType":null,"operation":"SET","value":1.0}]},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponStatusChanceSPMod","nameInternal":"WeaponStatusChanceSPMod","nameEn":"Galvanized Aptitude","nameZh":"镀层 步枪才能","rank":10,"slot":5,"maxRank":10,"compatibility":"/Lotus/Weapons/Tenno/Rifle/LotusRifle","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_PROC_CHANCE","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":0.799997022},{"upgradeType":"WEAPON_DAMAGE_IF_VICTIM_PROC_ACTIVE","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":2.399997732}],"steadyStacks":[{"conditionTag":"/Lotus/Language/Upgrades/OnKillCondition_Description","stacks":2}]},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponCritChanceMod","nameInternal":"WeaponCritChanceMod","nameEn":"Point Strike","nameZh":"致命一击","rank":5,"slot":6,"maxRank":5,"compatibility":"/Lotus/Weapons/Tenno/Rifle/LotusRifle","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_CRIT_CHANCE","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":1.5}]},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponCritDamageMod","nameInternal":"WeaponCritDamageMod","nameEn":"Vital Sense","nameZh":"弱点感应","rank":5,"slot":7,"maxRank":5,"compatibility":"/Lotus/Weapons/Tenno/Rifle/LotusRifle","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_CRIT_DAMAGE","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":1.2000000000000002}]}],"request":{"weapon":"/Lotus/Weapons/Tenno/Rifle/LatronPrime","fireMode":1,"enemy":"/Lotus/Types/Enemies/Duviri/Avatars/DuviriMeleeAvatar","level":170,"steelPath":true,"headshotChance":0.0,"armourStrip":0.0,"elementalArmourStrip":0.0,"enemyEnhancements":{"eximus":false},"windowSeconds":30.0,"metric":"windowedDps","damageModel":"target","slotPolarities":["AP_DEFENSE","AP_TACTIC","AP_TACTIC","AP_ATTACK","AP_UNIVERSAL","AP_DEFENSE","AP_ATTACK","AP_ATTACK"],"incarnonChoices":{"tier2":"2-1","tier3":"3-3","tier4":"4-3"},"mods":[{"path":"/Lotus/Upgrades/Mods/Rifle/Expert/WeaponFreezeDamageModExpert","rank":10,"slot":0},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponToxinDamageMod","rank":5,"slot":1},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponFireDamageMod","rank":5,"slot":2},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponFireIterationsSPMod","rank":10,"slot":3},{"path":"/Lotus/Upgrades/Mods/Rifle/RifleSemiAutoFantasyMod","rank":5,"slot":4},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponStatusChanceSPMod","rank":10,"slot":5},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponCritChanceMod","rank":5,"slot":6},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponCritDamageMod","rank":5,"slot":7}],"exilus":{"path":"/Lotus/Upgrades/Mods/Sets/Vigilante/PrimaryVigilanteSuppliesMod","rank":5},"arcanes":[{"path":"/Lotus/Upgrades/CosmeticEnhancers/Utility/ConvergeRadialAttackOnAim","rank":5}],"specialSlotPolarities":{"exilus":"AP_TACTIC"}}},
-      "score": 1092484.1262027542,
+      "noRivenBuild": {"replay":{"full":426738.9174290226,"without":{"0":18096.196682994407,"1":21167.459263438937,"2":315999.71017871046,"3":265161.934827527,"4":163738.21626831134,"5":255350.26721196802,"6":253936.0895370071,"7":230372.73260655114},"capacity":{"capacity":58,"capacityLimit":60,"assignments":[{"slot":0,"drain":8},{"slot":1,"drain":6},{"slot":2,"drain":6},{"slot":3,"drain":8},{"slot":4,"drain":9},{"slot":5,"drain":6},{"slot":6,"drain":5},{"slot":7,"drain":5},{"slot":8,"drain":5}]},"stats":{"totalDamage":9506.130132626688,"critChance":1.4909123552996195,"critMultiplier":7.351558060783836,"statusChance":0.46472768722256647,"fireRate":3.333333,"multishot":3.2998799670000003,"damageTypes":{"DT_IMPACT":647.3595795967925,"DT_VIRAL":1650.7670380229492,"DT_FIRE":582.6236604786881}},"has_overguard":false,"polarities":["AP_DEFENSE","AP_TACTIC","AP_TACTIC","AP_ATTACK","AP_UNIVERSAL","AP_DEFENSE","AP_ATTACK","AP_ATTACK"],"equipment":{"exilus":{"path":"/Lotus/Upgrades/Mods/Sets/Vigilante/PrimaryVigilanteSuppliesMod","rank":5,"nameZh":"私法 补给","nameEn":"Vigilante Supplies","drain":5,"slotPolarity":"AP_TACTIC"},"arcanes":[{"path":"/Lotus/Upgrades/CosmeticEnhancers/Utility/ConvergeRadialAttackOnAim","rank":5,"nameZh":"主要·压缩","nameEn":"Primary Compression"}]},"serration_slot":null,"capacity_saved":0,"complete":true},"weapon":{"path":"/Lotus/Weapons/Tenno/Rifle/LatronPrime","nameEn":"Latron Prime","incarnon":[{"options":[{"id":"1-1","label":"灵化形态","description":"命中弱点为灵化转变充能，次要射击进行转变。切换回原有模式将消耗剩余的充能。"},{"id":"2-1","label":"百孔千疮","description":"基础伤害 +6（基础值）；触发 穿刺异常状态时：多重射击 +25%；持续 8 秒，最多 4 层"},{"id":"3-3","label":"善射之焦","description":"变焦 -30%"},{"id":"4-3","label":"临界平行","description":"暴击几率 +24%；暴击伤害 +0.2（基础值）"}]}],"polarities":["AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_TACTIC","AP_ATTACK","AP_ATTACK","AP_UNIVERSAL"]},"target":{"enemyPath":"/Lotus/Types/Enemies/Duviri/Avatars/DuviriMeleeAvatar","enemyName":"Thrax Centurion","level":170,"steelPath":true,"enemyEnhancements":{"eximus":false,"noOverguard":true},"armourStrip":0.0,"elementalArmourStrip":0.0,"hitLocation":"body","headshotChance":0.0,"windowSeconds":30.0},"route":{"tier2":"2-1","tier3":"3-3","tier4":"4-3"},"slots":[{"path":"/Lotus/Upgrades/Mods/Rifle/Expert/WeaponFreezeDamageModExpert","nameInternal":"WeaponFreezeDamageModExpert","nameEn":"Primed Cryo Rounds","nameZh":"低温弹头 Prime","rank":10,"slot":0,"maxRank":10,"compatibility":"/Lotus/Weapons/Tenno/Rifle/LotusRifle","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_PERCENT_BASE_DAMAGE_ADDED","damageType":"DT_FREEZE","operation":"ADD","value":1.65000011}]},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponToxinDamageMod","nameInternal":"WeaponToxinDamageMod","nameEn":"Infected Clip","nameZh":"污染弹匣","rank":5,"slot":1,"maxRank":5,"compatibility":"/Lotus/Weapons/Tenno/Rifle/LotusRifle","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_PERCENT_BASE_DAMAGE_ADDED","damageType":"DT_POISON","operation":"ADD","value":0.90000006}]},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponFireDamageMod","nameInternal":"WeaponFireDamageMod","nameEn":"Hellfire","nameZh":"地狱火","rank":5,"slot":2,"maxRank":5,"compatibility":"/Lotus/Weapons/Tenno/Rifle/LotusRifle","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_PERCENT_BASE_DAMAGE_ADDED","damageType":"DT_FIRE","operation":"ADD","value":0.90000006}]},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponFireIterationsSPMod","nameInternal":"WeaponFireIterationsSPMod","nameEn":"Galvanized Chamber","nameZh":"镀层 分裂膛室","rank":10,"slot":3,"maxRank":10,"compatibility":"/Lotus/Weapons/Tenno/Rifle/LotusRifle","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_FIRE_ITERATIONS","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":0.8000299670000001},{"upgradeType":"WEAPON_FIRE_ITERATIONS","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":1.4998500000000001}],"steadyStacks":[{"conditionTag":"/Lotus/Language/Upgrades/OnKillCondition_Description","stacks":5}]},{"path":"/Lotus/Upgrades/Mods/Rifle/RifleSemiAutoFantasyMod","nameInternal":"RifleSemiAutoFantasyMod","nameEn":"Semi-Rifle Cannonade","nameZh":"半自动步枪炮轰","rank":5,"slot":4,"maxRank":5,"compatibility":"/Lotus/Weapons/Tenno/Rifle/LotusRifle","compatibilityTags":["SEMI_AUTO"],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_DAMAGE_AMOUNT","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":2.40000006},{"upgradeType":"RUNTIME_LOCK_FIRE_RATE","damageType":null,"operation":"SET","value":1.0}]},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponStatusChanceSPMod","nameInternal":"WeaponStatusChanceSPMod","nameEn":"Galvanized Aptitude","nameZh":"镀层 步枪才能","rank":10,"slot":5,"maxRank":10,"compatibility":"/Lotus/Weapons/Tenno/Rifle/LotusRifle","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_PROC_CHANCE","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":0.799997022},{"upgradeType":"WEAPON_DAMAGE_IF_VICTIM_PROC_ACTIVE","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":2.399997732}],"steadyStacks":[{"conditionTag":"/Lotus/Language/Upgrades/OnKillCondition_Description","stacks":2}]},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponCritChanceMod","nameInternal":"WeaponCritChanceMod","nameEn":"Point Strike","nameZh":"致命一击","rank":5,"slot":6,"maxRank":5,"compatibility":"/Lotus/Weapons/Tenno/Rifle/LotusRifle","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_CRIT_CHANCE","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":1.5}]},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponCritDamageMod","nameInternal":"WeaponCritDamageMod","nameEn":"Vital Sense","nameZh":"弱点感应","rank":5,"slot":7,"maxRank":5,"compatibility":"/Lotus/Weapons/Tenno/Rifle/LotusRifle","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_CRIT_DAMAGE","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":1.2000000000000002}]}],"request":{"weapon":"/Lotus/Weapons/Tenno/Rifle/LatronPrime","fireMode":1,"enemy":"/Lotus/Types/Enemies/Duviri/Avatars/DuviriMeleeAvatar","level":170,"steelPath":true,"headshotChance":0.0,"armourStrip":0.0,"elementalArmourStrip":0.0,"enemyEnhancements":{"eximus":false,"noOverguard":true},"windowSeconds":30.0,"metric":"windowedDps","damageModel":"target","slotPolarities":["AP_DEFENSE","AP_TACTIC","AP_TACTIC","AP_ATTACK","AP_UNIVERSAL","AP_DEFENSE","AP_ATTACK","AP_ATTACK"],"incarnonChoices":{"tier2":"2-1","tier3":"3-3","tier4":"4-3"},"mods":[{"path":"/Lotus/Upgrades/Mods/Rifle/Expert/WeaponFreezeDamageModExpert","rank":10,"slot":0},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponToxinDamageMod","rank":5,"slot":1},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponFireDamageMod","rank":5,"slot":2},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponFireIterationsSPMod","rank":10,"slot":3},{"path":"/Lotus/Upgrades/Mods/Rifle/RifleSemiAutoFantasyMod","rank":5,"slot":4},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponStatusChanceSPMod","rank":10,"slot":5},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponCritChanceMod","rank":5,"slot":6},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponCritDamageMod","rank":5,"slot":7}],"exilus":{"path":"/Lotus/Upgrades/Mods/Sets/Vigilante/PrimaryVigilanteSuppliesMod","rank":5},"arcanes":[{"path":"/Lotus/Upgrades/CosmeticEnhancers/Utility/ConvergeRadialAttackOnAim","rank":5}],"specialSlotPolarities":{"exilus":"AP_TACTIC"}}},
+      "score": 1092467.9227829054,
       "rank": 8,
       "stats": [
         {
@@ -1095,7 +1095,7 @@
       ],
       "replayed": 2,
       "fixedTraitReference": {
-        "baselineScore": 170987.7807040043,
+        "baselineScore": 265161.934827527,
         "rows": [
           {
             "code": "9",
@@ -1103,8 +1103,8 @@
             "value": 134.96624999999997,
             "unit": "percent",
             "fusion": false,
-            "score": 176516.4828058729,
-            "pct": 3.2333901750788208
+            "score": 294751.5261944215,
+            "pct": 11.159064511329998
           },
           {
             "code": "0",
@@ -1112,8 +1112,8 @@
             "value": 168.743260125,
             "unit": "percent",
             "fusion": false,
-            "score": 212832.61310013282,
-            "pct": 24.47241096635191
+            "score": 346002.284168375,
+            "pct": 30.487162266872957
           },
           {
             "code": "1",
@@ -1121,8 +1121,8 @@
             "value": 134.996625,
             "unit": "percent",
             "fusion": false,
-            "score": 227158.11255608892,
-            "pct": 32.85049470834449
+            "score": 357373.44068621006,
+            "pct": 34.77554420420923
           },
           {
             "code": "7",
@@ -1130,8 +1130,8 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 107278.22936703566,
-            "pct": -37.25971006504598
+            "score": 102386.74531297348,
+            "pct": -61.387087713185394
           },
           {
             "code": "4",
@@ -1139,8 +1139,8 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 232526.2670538498,
-            "pct": 35.989990686161555
+            "score": 296156.4542422999,
+            "pct": 11.688902268318845
           },
           {
             "code": "5",
@@ -1148,8 +1148,8 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 179000.04897448252,
-            "pct": 4.6858718427068125
+            "score": 295116.36,
+            "pct": 11.296653568302206
           },
           {
             "code": "8",
@@ -1157,8 +1157,8 @@
             "value": 134.996625,
             "unit": "percent",
             "fusion": false,
-            "score": 193484.19372739314,
-            "pct": 13.156737242137906
+            "score": 282701.5693883241,
+            "pct": 6.614687953685983
           },
           {
             "code": "3",
@@ -1166,8 +1166,8 @@
             "value": 112.48874999999997,
             "unit": "percent",
             "fusion": false,
-            "score": 136461.93931993,
-            "pct": -20.191993393868145
+            "score": 216688.5629702826,
+            "pct": -18.280667581028776
           },
           {
             "code": "A",
@@ -1175,7 +1175,7 @@
             "value": 134.996625,
             "unit": "percent",
             "fusion": false,
-            "score": 170987.7807040043,
+            "score": 265161.934827527,
             "pct": 0.0
           },
           {
@@ -1184,8 +1184,8 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 194721.4628745928,
-            "pct": 13.880338158007731
+            "score": 329952.22156246746,
+            "pct": 24.43423366068096
           },
           {
             "code": "6",
@@ -1193,8 +1193,8 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 179000.04897448252,
-            "pct": 4.6858718427068125
+            "score": 295116.36,
+            "pct": 11.296653568302206
           },
           {
             "code": "M",
@@ -1202,7 +1202,7 @@
             "value": 56.193748987499994,
             "unit": "percent",
             "fusion": false,
-            "score": 170987.7807040043,
+            "score": 265161.934827527,
             "pct": 0.0
           },
           {
@@ -1211,7 +1211,7 @@
             "value": 56.244377025,
             "unit": "percent",
             "fusion": false,
-            "score": 170987.7807040043,
+            "score": 265161.934827527,
             "pct": 0.0
           },
           {
@@ -1220,8 +1220,8 @@
             "value": 185.62465237499998,
             "unit": "percent",
             "fusion": false,
-            "score": 212832.6131001325,
-            "pct": 24.47241096635173
+            "score": 342602.11566295294,
+            "pct": 29.204863392551594
           },
           {
             "code": "S",
@@ -1229,8 +1229,8 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 209853.04795810985,
-            "pct": 22.729850691135
+            "score": 379838.0985506668,
+            "pct": 43.247596529166344
           },
           {
             "code": "V",
@@ -1238,7 +1238,7 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 170987.7807040043,
+            "score": 265161.934827527,
             "pct": 0.0
           },
           {
@@ -1256,7 +1256,7 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 170987.7807040043,
+            "score": 265161.934827527,
             "pct": 0.0
           },
           {
@@ -1265,7 +1265,7 @@
             "value": 56.244377025,
             "unit": "percent",
             "fusion": false,
-            "score": 170987.7807040043,
+            "score": 265161.934827527,
             "pct": 0.0
           },
           {
@@ -1274,7 +1274,7 @@
             "value": 50.62499898749999,
             "unit": "percent",
             "fusion": false,
-            "score": 170987.7807040043,
+            "score": 265161.934827527,
             "pct": 0.0
           },
           {
@@ -1283,7 +1283,7 @@
             "value": 50.62499898749999,
             "unit": "percent",
             "fusion": false,
-            "score": 170987.7807040043,
+            "score": 265161.934827527,
             "pct": 0.0
           },
           {
@@ -1292,7 +1292,7 @@
             "value": 50.62499898749999,
             "unit": "percent",
             "fusion": false,
-            "score": 170987.7807040043,
+            "score": 265161.934827527,
             "pct": 0.0
           },
           {
@@ -1310,7 +1310,7 @@
             "value": 253.12499999999997,
             "unit": "percent",
             "fusion": true,
-            "score": 170987.7807040043,
+            "score": 265161.934827527,
             "pct": 0.0
           },
           {
@@ -1319,7 +1319,7 @@
             "value": 278.4375,
             "unit": "percent",
             "fusion": true,
-            "score": 170987.7807040043,
+            "score": 265161.934827527,
             "pct": 0.0
           },
           {
@@ -1328,7 +1328,7 @@
             "value": 50.62499999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 170987.7807040043,
+            "score": 265161.934827527,
             "pct": 0.0
           },
           {
@@ -1346,8 +1346,8 @@
             "value": 101.24999999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 174135.77435465404,
-            "pct": 1.8410635179242352
+            "score": 270059.72640738526,
+            "pct": 1.847094524726578
           },
           {
             "code": "GA",
@@ -1355,8 +1355,8 @@
             "value": 101.24999999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 193484.1937273932,
-            "pct": 13.15673724213795
+            "score": 293463.3601983087,
+            "pct": 10.673260997733426
           },
           {
             "code": "CO",
@@ -1364,8 +1364,8 @@
             "value": 101.24999999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 273157.9070539527,
-            "pct": 59.75288171428714
+            "score": 340671.2768248476,
+            "pct": 28.47668993154513
           },
           {
             "code": "VI",
@@ -1373,8 +1373,8 @@
             "value": 101.24999999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 179000.04897427463,
-            "pct": 4.685871842585221
+            "score": 295116.36,
+            "pct": 11.296653568302206
           },
           {
             "code": "RA",
@@ -1382,8 +1382,8 @@
             "value": 101.24999999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 189523.19748140444,
-            "pct": 10.840199633613956
+            "score": 284704.0414033623,
+            "pct": 7.369876294101707
           },
           {
             "code": "BL",
@@ -1391,8 +1391,8 @@
             "value": 101.24999999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 189546.43455204097,
-            "pct": 10.853789534916181
+            "score": 284761.2456490857,
+            "pct": 7.391449619006196
           },
           {
             "code": "MA",
@@ -1400,8 +1400,8 @@
             "value": 101.24999999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 189523.19748140444,
-            "pct": 10.840199633613956
+            "score": 284704.0414033623,
+            "pct": 7.369876294101707
           },
           {
             "code": "FO",
@@ -1409,7 +1409,7 @@
             "value": 50.62499999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 170987.7807040043,
+            "score": 265161.934827527,
             "pct": 0.0
           },
           {
@@ -1418,7 +1418,7 @@
             "value": 50.62499999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 170987.7807040043,
+            "score": 265161.934827527,
             "pct": 0.0
           },
           {
@@ -1427,7 +1427,7 @@
             "value": 50.62499999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 170987.7807040043,
+            "score": 265161.934827527,
             "pct": 0.0
           },
           {
@@ -1436,8 +1436,8 @@
             "value": 107.973,
             "unit": "percent",
             "fusion": false,
-            "score": 123821.30266696798,
-            "pct": -27.584706838604955
+            "score": 179225.51224064679,
+            "pct": -32.40903436716022
           },
           {
             "code": "0",
@@ -1445,8 +1445,8 @@
             "value": 134.9946081,
             "unit": "percent",
             "fusion": false,
-            "score": 116245.51015893681,
-            "pct": -32.015311456572114
+            "score": 169634.06833794023,
+            "pct": -36.026236779318374
           },
           {
             "code": "1",
@@ -1454,8 +1454,8 @@
             "value": 107.9973,
             "unit": "percent",
             "fusion": false,
-            "score": 107325.85476360144,
-            "pct": -37.23185696561999
+            "score": 168252.16850417329,
+            "pct": -36.54738995112103
           },
           {
             "code": "8",
@@ -1463,8 +1463,8 @@
             "value": 107.9973,
             "unit": "percent",
             "fusion": false,
-            "score": 154787.3549819147,
-            "pct": -9.474610206289569
+            "score": 254789.0213371637,
+            "pct": -3.911916503818802
           },
           {
             "code": "3",
@@ -1472,8 +1472,8 @@
             "value": 89.99099999999999,
             "unit": "percent",
             "fusion": false,
-            "score": 115333.22310438265,
-            "pct": -32.548850783650366
+            "score": 155273.75267315304,
+            "pct": -41.441914438378966
           },
           {
             "code": "A",
@@ -1481,7 +1481,7 @@
             "value": 107.9973,
             "unit": "percent",
             "fusion": false,
-            "score": 170987.7807040043,
+            "score": 265161.934827527,
             "pct": 0.0
           },
           {
@@ -1490,8 +1490,8 @@
             "value": 80.99999838,
             "unit": "percent",
             "fusion": false,
-            "score": 135438.93560917524,
-            "pct": -20.79028393050344
+            "score": 189822.37699690022,
+            "pct": -28.4126595620261
           },
           {
             "code": "M",
@@ -1499,7 +1499,7 @@
             "value": 44.954999189999995,
             "unit": "percent",
             "fusion": false,
-            "score": 170987.7807040043,
+            "score": 265161.934827527,
             "pct": 0.0
           },
           {
@@ -1508,7 +1508,7 @@
             "value": 44.99550162,
             "unit": "percent",
             "fusion": false,
-            "score": 170987.7807040043,
+            "score": 265161.934827527,
             "pct": 0.0
           },
           {
@@ -1517,8 +1517,8 @@
             "value": 148.4997219,
             "unit": "percent",
             "fusion": false,
-            "score": 116251.75593338271,
-            "pct": -32.01165869587766
+            "score": 177954.1058451173,
+            "pct": -32.888517365485924
           },
           {
             "code": "S",
@@ -1526,8 +1526,8 @@
             "value": 80.99999838,
             "unit": "percent",
             "fusion": false,
-            "score": 131673.88066506604,
-            "pct": -22.9922277937476
+            "score": 65700.3340442915,
+            "pct": -75.2225619838587
           },
           {
             "code": "V",
@@ -1535,7 +1535,7 @@
             "value": 80.99999838,
             "unit": "percent",
             "fusion": false,
-            "score": 170987.7807040043,
+            "score": 265161.934827527,
             "pct": 0.0
           },
           {
@@ -1544,7 +1544,7 @@
             "value": 80.99999838,
             "unit": "percent",
             "fusion": false,
-            "score": 170987.7807040043,
+            "score": 265161.934827527,
             "pct": 0.0
           },
           {
@@ -1553,7 +1553,7 @@
             "value": 44.99550162,
             "unit": "percent",
             "fusion": false,
-            "score": 170987.7807040043,
+            "score": 265161.934827527,
             "pct": 0.0
           },
           {
@@ -1562,7 +1562,7 @@
             "value": 40.49999919,
             "unit": "percent",
             "fusion": false,
-            "score": 170987.7807040043,
+            "score": 265161.934827527,
             "pct": 0.0
           },
           {
@@ -1571,7 +1571,7 @@
             "value": 40.49999919,
             "unit": "percent",
             "fusion": false,
-            "score": 170987.7807040043,
+            "score": 265161.934827527,
             "pct": 0.0
           },
           {
@@ -1580,7 +1580,7 @@
             "value": 40.49999919,
             "unit": "percent",
             "fusion": false,
-            "score": 170987.7807040043,
+            "score": 265161.934827527,
             "pct": 0.0
           },
           {
@@ -1599,8 +1599,8 @@
       "weapon": "/Lotus/Weapons/Tenno/Shotgun/PrimeBoar",
       "fireMode": 1,
       "contextHash": "72ba36de00e41148743f",
-      "noRivenBuild": {"replay":{"full":177407.21982006778,"without":{"0":18425.343467583072,"1":19731.898858282402,"2":85082.64591159094,"3":67801.87602298436,"4":84284.9318383799,"5":88802.49824183533,"6":112507.93085446772,"7":112888.7585286569},"capacity":{"capacity":59,"capacityLimit":60,"assignments":[{"slot":0,"drain":8},{"slot":1,"drain":6},{"slot":2,"drain":7},{"slot":3,"drain":8},{"slot":4,"drain":9},{"slot":5,"drain":7},{"slot":6,"drain":5},{"slot":7,"drain":5},{"slot":8,"drain":4}]},"stats":{"totalDamage":1780.2854322537398,"critChance":0.760000024,"critMultiplier":5.677948717948719,"statusChance":0.23999999,"fireRate":15.20000048,"multishot":3.29988,"damageTypes":{"DT_VIRAL":331.50003740000096,"DT_FIRE":208.0000148000002}},"has_overguard":true,"polarities":["AP_DEFENSE","AP_TACTIC","AP_ATTACK","AP_ATTACK","AP_UNIVERSAL","AP_ATTACK","AP_ATTACK","AP_ATTACK"],"equipment":{"exilus":{"path":"/Lotus/Upgrades/Mods/Shotgun/Intermediate/WeaponShotgunConvertAmmoModIntermediate","rank":5,"nameZh":"霰弹枪弹药转换","nameEn":"Shotgun Ammo Mutation","drain":4,"slotPolarity":"AP_TACTIC"},"arcanes":[{"path":"/Lotus/Upgrades/CosmeticEnhancers/Offensive/ShotgunMultishotAndReloadSpeedOnCloseKill","rank":5,"nameZh":"霰弹·仇杀","nameEn":"Shotgun Vendetta"}]},"serration_slot":null,"capacity_saved":0,"complete":true,"stacked_panel":{"totalDamage":2751.385558583745,"multishot":5.09988006},"panel_stack_assumptions":[{"nameEn":"Shotgun Vendetta","nameZh":"霰弹·仇杀","stacks":1}]},"weapon":{"path":"/Lotus/Weapons/Tenno/Shotgun/PrimeBoar","nameEn":"Boar Prime","incarnon":[{"options":[{"id":"1-1","label":"灵化形态","description":"命中弱点为灵化转变充能，次要射击进行转变。切换回原有模式将消耗剩余的充能。；发射三道短程光束链接敌人"},{"id":"2-1","label":"具象克星","description":"基础伤害 +10（基础值）；弹匣打空后开始换弹时触发。：基础伤害 +0（基础值）、基础伤害 +14（基础值）；持续 1 秒"},{"id":"3-1","label":"待命报复","description":"弹匣打空后开始换弹时触发。：装填速度 +100%"},{"id":"4-2","label":"临界平行","description":"暴击几率 +20%；暴击伤害 +0.5（基础值）"}]}],"polarities":["AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_ATTACK","AP_UNIVERSAL"]},"target":{"enemyPath":"/Lotus/Types/Enemies/Duviri/Avatars/DuviriMeleeAvatar","enemyName":"Thrax Centurion","level":170,"steelPath":true,"enemyEnhancements":{"eximus":false,"noOverguard":true},"armourStrip":0.0,"elementalArmourStrip":0.0,"hitLocation":"body","headshotChance":0.0,"windowSeconds":30.0},"route":{"tier2":"2-1","tier3":"3-1","tier4":"4-2"},"slots":[{"path":"/Lotus/Upgrades/Mods/Shotgun/Expert/WeaponFreezeDamageModExpert","nameInternal":"WeaponFreezeDamageModExpert","nameEn":"Primed Chilling Grasp","nameZh":"急冻控场 Prime","rank":10,"slot":0,"maxRank":10,"compatibility":"/Lotus/Weapons/Tenno/Shotgun/LotusShotgun","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_PERCENT_BASE_DAMAGE_ADDED","damageType":"DT_FREEZE","operation":"ADD","value":1.65000011}]},{"path":"/Lotus/Upgrades/Mods/Shotgun/WeaponToxinDamageMod","nameInternal":"WeaponToxinDamageMod","nameEn":"Contagious Spread","nameZh":"传染蔓延","rank":5,"slot":1,"maxRank":5,"compatibility":"/Lotus/Weapons/Tenno/Shotgun/LotusShotgun","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_PERCENT_BASE_DAMAGE_ADDED","damageType":"DT_POISON","operation":"ADD","value":0.90000006}]},{"path":"/Lotus/Upgrades/Mods/Shotgun/Expert/WeaponDamageAmountModExpert","nameInternal":"WeaponDamageAmountModExpert","nameEn":"Primed Point Blank","nameZh":"抵近射击 Prime","rank":10,"slot":2,"maxRank":10,"compatibility":"/Lotus/Weapons/Tenno/Shotgun/LotusShotgun","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_DAMAGE_AMOUNT","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":1.65000011}]},{"path":"/Lotus/Upgrades/Mods/Shotgun/WeaponFireIterationsSPMod","nameInternal":"WeaponFireIterationsSPMod","nameEn":"Galvanized Hell","nameZh":"镀层 地狱弹膛","rank":10,"slot":3,"maxRank":10,"compatibility":"/Lotus/Weapons/Tenno/Shotgun/LotusShotgun","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_FIRE_ITERATIONS","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":1.1},{"upgradeType":"WEAPON_FIRE_ITERATIONS","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":1.19988}],"steadyStacks":[{"conditionTag":"/Lotus/Language/Upgrades/OnKillCondition_Description","stacks":4}]},{"path":"/Lotus/Upgrades/Mods/Shotgun/WeaponFireRateMod","nameInternal":"WeaponFireRateMod","nameEn":"Shotgun Barrage","nameZh":"霰弹弹幕","rank":5,"slot":4,"maxRank":5,"compatibility":"/Lotus/Weapons/Tenno/Shotgun/LotusShotgun","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_FIRE_RATE","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":0.90000006}]},{"path":"/Lotus/Upgrades/Mods/Shotgun/Expert/WeaponCritDamageModExpert","nameInternal":"WeaponCritDamageModExpert","nameEn":"Primed Ravage","nameZh":"破灭 Prime","rank":10,"slot":5,"maxRank":10,"compatibility":"/Lotus/Weapons/Tenno/Shotgun/LotusShotgun","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_CRIT_DAMAGE","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":1.1}]},{"path":"/Lotus/Upgrades/Mods/Shotgun/DualStat/BlazeMod","nameInternal":"BlazeMod","nameEn":"Blaze","nameZh":"烈焰","rank":3,"slot":6,"maxRank":3,"compatibility":"/Lotus/Weapons/Tenno/Shotgun/LotusShotgun","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_DAMAGE_AMOUNT","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":0.60000004},{"upgradeType":"WEAPON_PERCENT_BASE_DAMAGE_ADDED","damageType":"DT_FIRE","operation":"ADD","value":0.60000004}]},{"path":"/Lotus/Upgrades/Mods/Shotgun/WeaponCritChanceMod","nameInternal":"WeaponCritChanceMod","nameEn":"Blunderbuss","nameZh":"雷筒","rank":5,"slot":7,"maxRank":5,"compatibility":"/Lotus/Weapons/Tenno/Shotgun/LotusShotgun","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_CRIT_CHANCE","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":0.90000006}]}],"request":{"weapon":"/Lotus/Weapons/Tenno/Shotgun/PrimeBoar","fireMode":1,"enemy":"/Lotus/Types/Enemies/Duviri/Avatars/DuviriMeleeAvatar","level":170,"steelPath":true,"headshotChance":0.0,"armourStrip":0.0,"elementalArmourStrip":0.0,"enemyEnhancements":{"eximus":false},"windowSeconds":30.0,"metric":"windowedDps","damageModel":"target","slotPolarities":["AP_DEFENSE","AP_TACTIC","AP_ATTACK","AP_ATTACK","AP_UNIVERSAL","AP_ATTACK","AP_ATTACK","AP_ATTACK"],"incarnonChoices":{"tier2":"2-1","tier3":"3-1","tier4":"4-2"},"mods":[{"path":"/Lotus/Upgrades/Mods/Shotgun/Expert/WeaponFreezeDamageModExpert","rank":10,"slot":0},{"path":"/Lotus/Upgrades/Mods/Shotgun/WeaponToxinDamageMod","rank":5,"slot":1},{"path":"/Lotus/Upgrades/Mods/Shotgun/Expert/WeaponDamageAmountModExpert","rank":10,"slot":2},{"path":"/Lotus/Upgrades/Mods/Shotgun/WeaponFireIterationsSPMod","rank":10,"slot":3},{"path":"/Lotus/Upgrades/Mods/Shotgun/WeaponFireRateMod","rank":5,"slot":4},{"path":"/Lotus/Upgrades/Mods/Shotgun/Expert/WeaponCritDamageModExpert","rank":10,"slot":5},{"path":"/Lotus/Upgrades/Mods/Shotgun/DualStat/BlazeMod","rank":3,"slot":6},{"path":"/Lotus/Upgrades/Mods/Shotgun/WeaponCritChanceMod","rank":5,"slot":7}],"exilus":{"path":"/Lotus/Upgrades/Mods/Shotgun/Intermediate/WeaponShotgunConvertAmmoModIntermediate","rank":5},"arcanes":[{"path":"/Lotus/Upgrades/CosmeticEnhancers/Offensive/ShotgunMultishotAndReloadSpeedOnCloseKill","rank":5}],"specialSlotPolarities":{"exilus":"AP_TACTIC"}}},
-      "score": 438816.6023394976,
+      "noRivenBuild": {"replay":{"full":169811.24316238248,"without":{"0":6586.74216186028,"1":7893.297603521287,"2":88136.08810463894,"3":69662.38462947831,"4":85038.41926611301,"5":90028.90001755363,"6":113901.1408316414,"7":112884.6917944481},"capacity":{"capacity":59,"capacityLimit":60,"assignments":[{"slot":0,"drain":8},{"slot":1,"drain":6},{"slot":2,"drain":7},{"slot":3,"drain":8},{"slot":4,"drain":9},{"slot":5,"drain":7},{"slot":6,"drain":5},{"slot":7,"drain":5},{"slot":8,"drain":4}]},"stats":{"totalDamage":1780.2854322537398,"critChance":0.760000024,"critMultiplier":5.6779488801956175,"statusChance":0.23999999,"fireRate":15.20000048,"multishot":3.29988,"damageTypes":{"DT_VIRAL":331.50003740000096,"DT_FIRE":208.0000148000002}},"has_overguard":false,"polarities":["AP_DEFENSE","AP_TACTIC","AP_ATTACK","AP_ATTACK","AP_UNIVERSAL","AP_ATTACK","AP_ATTACK","AP_ATTACK"],"equipment":{"exilus":{"path":"/Lotus/Upgrades/Mods/Shotgun/Intermediate/WeaponShotgunConvertAmmoModIntermediate","rank":5,"nameZh":"霰弹枪弹药转换","nameEn":"Shotgun Ammo Mutation","drain":4,"slotPolarity":"AP_TACTIC"},"arcanes":[{"path":"/Lotus/Upgrades/CosmeticEnhancers/Offensive/ShotgunMultishotAndReloadSpeedOnCloseKill","rank":5,"nameZh":"霰弹·仇杀","nameEn":"Shotgun Vendetta"}]},"serration_slot":null,"capacity_saved":0,"complete":true,"stacked_panel":{"totalDamage":2751.385558583745,"multishot":5.09988006},"panel_stack_assumptions":[{"nameEn":"Shotgun Vendetta","nameZh":"霰弹·仇杀","stacks":1}]},"weapon":{"path":"/Lotus/Weapons/Tenno/Shotgun/PrimeBoar","nameEn":"Boar Prime","incarnon":[{"options":[{"id":"1-1","label":"灵化形态","description":"命中弱点为灵化转变充能，次要射击进行转变。切换回原有模式将消耗剩余的充能。；发射三道短程光束链接敌人"},{"id":"2-1","label":"具象克星","description":"基础伤害 +10（基础值）；弹匣打空后开始换弹时触发。：基础伤害 +0（基础值）、基础伤害 +14（基础值）；持续 1 秒"},{"id":"3-1","label":"待命报复","description":"弹匣打空后开始换弹时触发。：装填速度 +100%"},{"id":"4-2","label":"临界平行","description":"暴击几率 +20%；暴击伤害 +0.5（基础值）"}]}],"polarities":["AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_ATTACK","AP_UNIVERSAL"]},"target":{"enemyPath":"/Lotus/Types/Enemies/Duviri/Avatars/DuviriMeleeAvatar","enemyName":"Thrax Centurion","level":170,"steelPath":true,"enemyEnhancements":{"eximus":false,"noOverguard":true},"armourStrip":0.0,"elementalArmourStrip":0.0,"hitLocation":"body","headshotChance":0.0,"windowSeconds":30.0},"route":{"tier2":"2-1","tier3":"3-1","tier4":"4-2"},"slots":[{"path":"/Lotus/Upgrades/Mods/Shotgun/Expert/WeaponFreezeDamageModExpert","nameInternal":"WeaponFreezeDamageModExpert","nameEn":"Primed Chilling Grasp","nameZh":"急冻控场 Prime","rank":10,"slot":0,"maxRank":10,"compatibility":"/Lotus/Weapons/Tenno/Shotgun/LotusShotgun","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_PERCENT_BASE_DAMAGE_ADDED","damageType":"DT_FREEZE","operation":"ADD","value":1.65000011}]},{"path":"/Lotus/Upgrades/Mods/Shotgun/WeaponToxinDamageMod","nameInternal":"WeaponToxinDamageMod","nameEn":"Contagious Spread","nameZh":"传染蔓延","rank":5,"slot":1,"maxRank":5,"compatibility":"/Lotus/Weapons/Tenno/Shotgun/LotusShotgun","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_PERCENT_BASE_DAMAGE_ADDED","damageType":"DT_POISON","operation":"ADD","value":0.90000006}]},{"path":"/Lotus/Upgrades/Mods/Shotgun/Expert/WeaponDamageAmountModExpert","nameInternal":"WeaponDamageAmountModExpert","nameEn":"Primed Point Blank","nameZh":"抵近射击 Prime","rank":10,"slot":2,"maxRank":10,"compatibility":"/Lotus/Weapons/Tenno/Shotgun/LotusShotgun","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_DAMAGE_AMOUNT","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":1.65000011}]},{"path":"/Lotus/Upgrades/Mods/Shotgun/WeaponFireIterationsSPMod","nameInternal":"WeaponFireIterationsSPMod","nameEn":"Galvanized Hell","nameZh":"镀层 地狱弹膛","rank":10,"slot":3,"maxRank":10,"compatibility":"/Lotus/Weapons/Tenno/Shotgun/LotusShotgun","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_FIRE_ITERATIONS","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":1.1},{"upgradeType":"WEAPON_FIRE_ITERATIONS","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":1.19988}],"steadyStacks":[{"conditionTag":"/Lotus/Language/Upgrades/OnKillCondition_Description","stacks":4}]},{"path":"/Lotus/Upgrades/Mods/Shotgun/WeaponFireRateMod","nameInternal":"WeaponFireRateMod","nameEn":"Shotgun Barrage","nameZh":"霰弹弹幕","rank":5,"slot":4,"maxRank":5,"compatibility":"/Lotus/Weapons/Tenno/Shotgun/LotusShotgun","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_FIRE_RATE","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":0.90000006}]},{"path":"/Lotus/Upgrades/Mods/Shotgun/Expert/WeaponCritDamageModExpert","nameInternal":"WeaponCritDamageModExpert","nameEn":"Primed Ravage","nameZh":"破灭 Prime","rank":10,"slot":5,"maxRank":10,"compatibility":"/Lotus/Weapons/Tenno/Shotgun/LotusShotgun","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_CRIT_DAMAGE","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":1.1}]},{"path":"/Lotus/Upgrades/Mods/Shotgun/DualStat/BlazeMod","nameInternal":"BlazeMod","nameEn":"Blaze","nameZh":"烈焰","rank":3,"slot":6,"maxRank":3,"compatibility":"/Lotus/Weapons/Tenno/Shotgun/LotusShotgun","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_DAMAGE_AMOUNT","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":0.60000004},{"upgradeType":"WEAPON_PERCENT_BASE_DAMAGE_ADDED","damageType":"DT_FIRE","operation":"ADD","value":0.60000004}]},{"path":"/Lotus/Upgrades/Mods/Shotgun/WeaponCritChanceMod","nameInternal":"WeaponCritChanceMod","nameEn":"Blunderbuss","nameZh":"雷筒","rank":5,"slot":7,"maxRank":5,"compatibility":"/Lotus/Weapons/Tenno/Shotgun/LotusShotgun","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_CRIT_CHANCE","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":0.90000006}]}],"request":{"weapon":"/Lotus/Weapons/Tenno/Shotgun/PrimeBoar","fireMode":1,"enemy":"/Lotus/Types/Enemies/Duviri/Avatars/DuviriMeleeAvatar","level":170,"steelPath":true,"headshotChance":0.0,"armourStrip":0.0,"elementalArmourStrip":0.0,"enemyEnhancements":{"eximus":false,"noOverguard":true},"windowSeconds":30.0,"metric":"windowedDps","damageModel":"target","slotPolarities":["AP_DEFENSE","AP_TACTIC","AP_ATTACK","AP_ATTACK","AP_UNIVERSAL","AP_ATTACK","AP_ATTACK","AP_ATTACK"],"incarnonChoices":{"tier2":"2-1","tier3":"3-1","tier4":"4-2"},"mods":[{"path":"/Lotus/Upgrades/Mods/Shotgun/Expert/WeaponFreezeDamageModExpert","rank":10,"slot":0},{"path":"/Lotus/Upgrades/Mods/Shotgun/WeaponToxinDamageMod","rank":5,"slot":1},{"path":"/Lotus/Upgrades/Mods/Shotgun/Expert/WeaponDamageAmountModExpert","rank":10,"slot":2},{"path":"/Lotus/Upgrades/Mods/Shotgun/WeaponFireIterationsSPMod","rank":10,"slot":3},{"path":"/Lotus/Upgrades/Mods/Shotgun/WeaponFireRateMod","rank":5,"slot":4},{"path":"/Lotus/Upgrades/Mods/Shotgun/Expert/WeaponCritDamageModExpert","rank":10,"slot":5},{"path":"/Lotus/Upgrades/Mods/Shotgun/DualStat/BlazeMod","rank":3,"slot":6},{"path":"/Lotus/Upgrades/Mods/Shotgun/WeaponCritChanceMod","rank":5,"slot":7}],"exilus":{"path":"/Lotus/Upgrades/Mods/Shotgun/Intermediate/WeaponShotgunConvertAmmoModIntermediate","rank":5},"arcanes":[{"path":"/Lotus/Upgrades/CosmeticEnhancers/Offensive/ShotgunMultishotAndReloadSpeedOnCloseKill","rank":5}],"specialSlotPolarities":{"exilus":"AP_TACTIC"}}},
+      "score": 438966.57755122526,
       "rank": 8,
       "stats": [
         {
@@ -1626,7 +1626,7 @@
       ],
       "replayed": 2,
       "fixedTraitReference": {
-        "baselineScore": 98344.57443991474,
+        "baselineScore": 85038.41926611301,
         "rows": [
           {
             "code": "9",
@@ -1634,7 +1634,7 @@
             "value": 134.96624999999997,
             "unit": "percent",
             "fusion": false,
-            "score": 98344.57443991474,
+            "score": 85038.41926611301,
             "pct": 0.0
           },
           {
@@ -1643,8 +1643,8 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 125821.41743639232,
-            "pct": 27.939358274680437
+            "score": 116367.85738551735,
+            "pct": 36.84151044878232
           },
           {
             "code": "1",
@@ -1652,8 +1652,8 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 129699.37569100325,
-            "pct": 31.88259385904939
+            "score": 120492.94349230679,
+            "pct": 41.69236038506901
           },
           {
             "code": "7",
@@ -1661,8 +1661,8 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 38465.895244601954,
-            "pct": -60.886611728536856
+            "score": 22987.35850610457,
+            "pct": -72.96826692630584
           },
           {
             "code": "4",
@@ -1670,8 +1670,8 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 124021.99265397157,
-            "pct": 26.109643933377203
+            "score": 114254.58719216427,
+            "pct": 34.35643345465338
           },
           {
             "code": "5",
@@ -1679,8 +1679,8 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 113591.06696906866,
-            "pct": 15.503135395099022
+            "score": 94467.52376484734,
+            "pct": 11.088052412201588
           },
           {
             "code": "8",
@@ -1688,7 +1688,7 @@
             "value": 134.996625,
             "unit": "percent",
             "fusion": false,
-            "score": 98344.57443991474,
+            "score": 85038.41926611301,
             "pct": 0.0
           },
           {
@@ -1697,8 +1697,8 @@
             "value": 112.48874999999997,
             "unit": "percent",
             "fusion": false,
-            "score": 80641.31805820136,
-            "pct": -18.001253737215038
+            "score": 84440.93138983494,
+            "pct": -0.7026093399129851
           },
           {
             "code": "A",
@@ -1706,7 +1706,7 @@
             "value": 134.996625,
             "unit": "percent",
             "fusion": false,
-            "score": 98344.57443991474,
+            "score": 85038.41926611301,
             "pct": 0.0
           },
           {
@@ -1715,8 +1715,8 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 110618.85472255155,
-            "pct": 12.480892161606727
+            "score": 103598.24393591002,
+            "pct": 21.82522303444665
           },
           {
             "code": "6",
@@ -1724,8 +1724,8 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 113591.06696906866,
-            "pct": 15.503135395099022
+            "score": 94467.52376484734,
+            "pct": 11.088052412201588
           },
           {
             "code": "M",
@@ -1733,7 +1733,7 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 98344.57443991474,
+            "score": 85038.41926611301,
             "pct": 0.0
           },
           {
@@ -1742,7 +1742,7 @@
             "value": 56.244377025,
             "unit": "percent",
             "fusion": false,
-            "score": 98344.57443991474,
+            "score": 85038.41926611301,
             "pct": 0.0
           },
           {
@@ -1751,8 +1751,8 @@
             "value": 185.28751012499998,
             "unit": "percent",
             "fusion": false,
-            "score": 141599.45374462288,
-            "pct": 43.98298487847485
+            "score": 126696.70830774607,
+            "pct": 48.987609836996924
           },
           {
             "code": "S",
@@ -1760,8 +1760,8 @@
             "value": 134.6625,
             "unit": "percent",
             "fusion": false,
-            "score": 137814.93553027307,
-            "pct": 40.134762202335224
+            "score": 140458.23621265258,
+            "pct": 65.1703282173118
           },
           {
             "code": "V",
@@ -1769,7 +1769,7 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 98344.57443991474,
+            "score": 85038.41926611301,
             "pct": 0.0
           },
           {
@@ -1787,7 +1787,7 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 98344.57443991474,
+            "score": 85038.41926611301,
             "pct": 0.0
           },
           {
@@ -1796,7 +1796,7 @@
             "value": 56.244377025,
             "unit": "percent",
             "fusion": false,
-            "score": 98344.57443991474,
+            "score": 85038.41926611301,
             "pct": 0.0
           },
           {
@@ -1805,7 +1805,7 @@
             "value": 50.62499898749999,
             "unit": "percent",
             "fusion": false,
-            "score": 98344.57443991474,
+            "score": 85038.41926611301,
             "pct": 0.0
           },
           {
@@ -1814,7 +1814,7 @@
             "value": 50.62499898749999,
             "unit": "percent",
             "fusion": false,
-            "score": 98344.57443991474,
+            "score": 85038.41926611301,
             "pct": 0.0
           },
           {
@@ -1823,7 +1823,7 @@
             "value": 50.62499898749999,
             "unit": "percent",
             "fusion": false,
-            "score": 98344.57443991474,
+            "score": 85038.41926611301,
             "pct": 0.0
           },
           {
@@ -1832,7 +1832,7 @@
             "value": 253.12499999999997,
             "unit": "percent",
             "fusion": true,
-            "score": 98344.57443991474,
+            "score": 85038.41926611301,
             "pct": 0.0
           },
           {
@@ -1841,7 +1841,7 @@
             "value": 278.4375,
             "unit": "percent",
             "fusion": true,
-            "score": 98344.57443991474,
+            "score": 85038.41926611301,
             "pct": 0.0
           },
           {
@@ -1850,7 +1850,7 @@
             "value": 50.62499999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 98344.57443991474,
+            "score": 85038.41926611301,
             "pct": 0.0
           },
           {
@@ -1868,8 +1868,8 @@
             "value": 101.24999999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 105282.86169869396,
-            "pct": 7.0550788371332995
+            "score": 99081.68339559594,
+            "pct": 16.514023015334956
           },
           {
             "code": "GA",
@@ -1877,8 +1877,8 @@
             "value": 101.24999999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 115055.61746379979,
-            "pct": 16.992338539321207
+            "score": 95795.22543098309,
+            "pct": 12.64934867992844
           },
           {
             "code": "CO",
@@ -1886,8 +1886,8 @@
             "value": 101.24999999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 157566.46111178203,
-            "pct": 60.21876347438963
+            "score": 130135.88579542212,
+            "pct": 53.03187302692491
           },
           {
             "code": "VI",
@@ -1895,8 +1895,8 @@
             "value": 101.24999999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 113591.06696679158,
-            "pct": 15.503135392783607
+            "score": 94467.52376484734,
+            "pct": 11.088052412201588
           },
           {
             "code": "RA",
@@ -1904,8 +1904,8 @@
             "value": 101.24999999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 111527.56754581902,
-            "pct": 13.404901267795566
+            "score": 89507.61479647056,
+            "pct": 5.255501653166883
           },
           {
             "code": "BL",
@@ -1913,8 +1913,8 @@
             "value": 101.24999999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 111761.49725417243,
-            "pct": 13.642768694326879
+            "score": 90359.6298343585,
+            "pct": 6.25741942779261
           },
           {
             "code": "MA",
@@ -1922,8 +1922,8 @@
             "value": 101.24999999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 111527.56754581902,
-            "pct": 13.404901267795566
+            "score": 89507.61479647056,
+            "pct": 5.255501653166883
           },
           {
             "code": "FO",
@@ -1931,7 +1931,7 @@
             "value": 50.62499999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 98344.57443991474,
+            "score": 85038.41926611301,
             "pct": 0.0
           },
           {
@@ -1940,7 +1940,7 @@
             "value": 50.62499999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 98344.57443991474,
+            "score": 85038.41926611301,
             "pct": 0.0
           },
           {
@@ -1949,7 +1949,7 @@
             "value": 50.62499999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 98344.57443991474,
+            "score": 85038.41926611301,
             "pct": 0.0
           },
           {
@@ -1967,7 +1967,7 @@
             "value": 107.973,
             "unit": "percent",
             "fusion": false,
-            "score": 98344.57443991474,
+            "score": 85038.41926611301,
             "pct": 0.0
           },
           {
@@ -1976,8 +1976,8 @@
             "value": 80.99999838,
             "unit": "percent",
             "fusion": false,
-            "score": 71623.67663916449,
-            "pct": -27.17068832005147
+            "score": 58946.427348126075,
+            "pct": -30.682592812945597
           },
           {
             "code": "1",
@@ -1985,8 +1985,8 @@
             "value": 80.99999838,
             "unit": "percent",
             "fusion": false,
-            "score": 68948.11507179531,
-            "pct": -29.89128737964053
+            "score": 56344.581623373415,
+            "pct": -33.74220486501189
           },
           {
             "code": "8",
@@ -1994,7 +1994,7 @@
             "value": 107.9973,
             "unit": "percent",
             "fusion": false,
-            "score": 98344.57443991474,
+            "score": 85038.41926611301,
             "pct": 0.0
           },
           {
@@ -2003,8 +2003,8 @@
             "value": 89.99099999999999,
             "unit": "percent",
             "fusion": false,
-            "score": 77656.01146902486,
-            "pct": -21.036811729283457
+            "score": 26890.72619350606,
+            "pct": -68.37814434278677
           },
           {
             "code": "A",
@@ -2012,7 +2012,7 @@
             "value": 107.9973,
             "unit": "percent",
             "fusion": false,
-            "score": 98344.57443991474,
+            "score": 85038.41926611301,
             "pct": 0.0
           },
           {
@@ -2021,8 +2021,8 @@
             "value": 80.99999838,
             "unit": "percent",
             "fusion": false,
-            "score": 56163.91730937806,
-            "pct": -42.890680417055094
+            "score": 37108.5330613327,
+            "pct": -56.362625997070836
           },
           {
             "code": "M",
@@ -2030,7 +2030,7 @@
             "value": 80.99999838,
             "unit": "percent",
             "fusion": false,
-            "score": 98344.57443991474,
+            "score": 85038.41926611301,
             "pct": 0.0
           },
           {
@@ -2039,7 +2039,7 @@
             "value": 44.99550162,
             "unit": "percent",
             "fusion": false,
-            "score": 98344.57443991474,
+            "score": 85038.41926611301,
             "pct": 0.0
           },
           {
@@ -2048,8 +2048,8 @@
             "value": 148.2300081,
             "unit": "percent",
             "fusion": false,
-            "score": 48834.27444713921,
-            "pct": -50.34370251205335
+            "score": 48828.6360096221,
+            "pct": -42.58049898973152
           },
           {
             "code": "S",
@@ -2057,8 +2057,8 @@
             "value": 107.72999999999999,
             "unit": "percent",
             "fusion": false,
-            "score": 54985.262266187674,
-            "pct": -44.08917565678029
+            "score": 34147.62488423943,
+            "pct": -59.84447361682448
           },
           {
             "code": "V",
@@ -2066,7 +2066,7 @@
             "value": 80.99999838,
             "unit": "percent",
             "fusion": false,
-            "score": 98344.57443991474,
+            "score": 85038.41926611301,
             "pct": 0.0
           },
           {
@@ -2075,7 +2075,7 @@
             "value": 80.99999838,
             "unit": "percent",
             "fusion": false,
-            "score": 98344.57443991474,
+            "score": 85038.41926611301,
             "pct": 0.0
           },
           {
@@ -2084,7 +2084,7 @@
             "value": 44.99550162,
             "unit": "percent",
             "fusion": false,
-            "score": 98344.57443991474,
+            "score": 85038.41926611301,
             "pct": 0.0
           },
           {
@@ -2093,7 +2093,7 @@
             "value": 40.49999919,
             "unit": "percent",
             "fusion": false,
-            "score": 98344.57443991474,
+            "score": 85038.41926611301,
             "pct": 0.0
           },
           {
@@ -2102,7 +2102,7 @@
             "value": 40.49999919,
             "unit": "percent",
             "fusion": false,
-            "score": 98344.57443991474,
+            "score": 85038.41926611301,
             "pct": 0.0
           },
           {
@@ -2111,7 +2111,7 @@
             "value": 40.49999919,
             "unit": "percent",
             "fusion": false,
-            "score": 98344.57443991474,
+            "score": 85038.41926611301,
             "pct": 0.0
           },
           {
@@ -2130,8 +2130,8 @@
       "weapon": "/Lotus/Weapons/Tenno/LongGuns/PrimeBurston/PrimeBurston",
       "fireMode": 0,
       "contextHash": "774e1b6fe12f7266cf81",
-      "noRivenBuild": {"replay":{"full":575476.0826225248,"without":{"0":40100.939208357864,"1":41449.637948612595,"2":180834.47632361666,"3":239889.62814839874,"4":387194.37215372693,"5":281268.21821165865,"6":324563.9674601984,"7":340808.62499162},"capacity":{"capacity":55,"capacityLimit":60,"assignments":[{"slot":0,"drain":8},{"slot":1,"drain":6},{"slot":2,"drain":6},{"slot":3,"drain":8},{"slot":4,"drain":6},{"slot":5,"drain":9},{"slot":6,"drain":7},{"slot":7,"drain":5}]},"stats":{"totalDamage":6126.3569617363955,"critChance":1.0000000249999998,"critMultiplier":3.9540903540903547,"statusChance":0.5399991245999701,"fireRate":5.0,"multishot":3.2998799670000003,"damageTypes":{"DT_IMPACT":125.15995146586961,"DT_PUNCTURE":125.15995146586961,"DT_SLASH":166.87992621826444,"DT_VIRAL":1063.8596352564803,"DT_FIRE":375.47987126699303}},"has_overguard":true,"polarities":["AP_DEFENSE","AP_TACTIC","AP_TACTIC","AP_ATTACK","AP_DEFENSE","AP_UNIVERSAL","AP_ATTACK","AP_ATTACK"],"serration_slot":6,"capacity_saved":1,"complete":true},"weapon":{"path":"/Lotus/Weapons/Tenno/LongGuns/PrimeBurston/PrimeBurston","nameEn":"Burston Prime","incarnon":[{"options":[{"id":"1-1","label":"灵化形态","description":"命中弱点为灵化转变充能，次要射击进行转变。切换回原有模式将消耗剩余的充能。；获得自动射击模式和造成范围 火焰伤害"},{"id":"2-2","label":"要塞齐射","description":"基础伤害 +42（基础值）；战甲护甲达到 450：穿透 +2 米"},{"id":"3-2","label":"待命报复","description":"弹匣打空后开始换弹时触发。：装填速度 +100%；持续 3 秒"},{"id":"4-2","label":"绝对勇气","description":"暴击几率 +22%"}]}],"polarities":["AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_ATTACK","AP_TACTIC","AP_UNIVERSAL"]},"target":{"enemyPath":"/Lotus/Types/Enemies/Duviri/Avatars/DuviriMeleeAvatar","enemyName":"Thrax Centurion","level":170,"steelPath":true,"enemyEnhancements":{"eximus":false,"noOverguard":true},"armourStrip":0.0,"elementalArmourStrip":0.0,"hitLocation":"body","headshotChance":0.5,"windowSeconds":30.0},"route":{"tier2":"2-2","tier3":"3-2","tier4":"4-2"},"slots":[{"path":"/Lotus/Upgrades/Mods/Rifle/Expert/WeaponFreezeDamageModExpert","nameInternal":"WeaponFreezeDamageModExpert","nameEn":"Primed Cryo Rounds","nameZh":"低温弹头 Prime","rank":10,"slot":0,"maxRank":10,"compatibility":"/Lotus/Weapons/Tenno/Rifle/LotusRifle","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_PERCENT_BASE_DAMAGE_ADDED","damageType":"DT_FREEZE","operation":"ADD","value":1.65000011}]},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponToxinDamageMod","nameInternal":"WeaponToxinDamageMod","nameEn":"Infected Clip","nameZh":"污染弹匣","rank":5,"slot":1,"maxRank":5,"compatibility":"/Lotus/Weapons/Tenno/Rifle/LotusRifle","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_PERCENT_BASE_DAMAGE_ADDED","damageType":"DT_POISON","operation":"ADD","value":0.90000006}]},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponFireDamageMod","nameInternal":"WeaponFireDamageMod","nameEn":"Hellfire","nameZh":"地狱火","rank":5,"slot":2,"maxRank":5,"compatibility":"/Lotus/Weapons/Tenno/Rifle/LotusRifle","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_PERCENT_BASE_DAMAGE_ADDED","damageType":"DT_FIRE","operation":"ADD","value":0.90000006}]},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponFireIterationsSPMod","nameInternal":"WeaponFireIterationsSPMod","nameEn":"Galvanized Chamber","nameZh":"镀层 分裂膛室","rank":10,"slot":3,"maxRank":10,"compatibility":"/Lotus/Weapons/Tenno/Rifle/LotusRifle","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_FIRE_ITERATIONS","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":0.8000299670000001},{"upgradeType":"WEAPON_FIRE_ITERATIONS","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":1.4998500000000001}],"steadyStacks":[{"conditionTag":"/Lotus/Language/Upgrades/OnKillCondition_Description","stacks":5}]},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponStatusChanceSPMod","nameInternal":"WeaponStatusChanceSPMod","nameEn":"Galvanized Aptitude","nameZh":"镀层 步枪才能","rank":10,"slot":4,"maxRank":10,"compatibility":"/Lotus/Weapons/Tenno/Rifle/LotusRifle","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_PROC_CHANCE","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":0.799997022},{"upgradeType":"WEAPON_DAMAGE_IF_VICTIM_PROC_ACTIVE","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":3.99999622}],"steadyStacks":[{"conditionTag":"/Lotus/Language/Upgrades/OnKillCondition_Description","stacks":2}]},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponCritDamageMod","nameInternal":"WeaponCritDamageMod","nameEn":"Vital Sense","nameZh":"弱点感应","rank":5,"slot":5,"maxRank":5,"compatibility":"/Lotus/Weapons/Tenno/Rifle/LotusRifle","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_CRIT_DAMAGE","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":1.2000000000000002}]},{"path":"/Lotus/Upgrades/Mods/Rifle/DualStat/CorruptedDamageRecoilRifle","nameInternal":"CorruptedDamageRecoilRifle","nameEn":"Heavy Caliber","nameZh":"重口径","rank":10,"slot":6,"maxRank":10,"compatibility":"/Lotus/Weapons/Tenno/Rifle/LotusRifle","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_DAMAGE_AMOUNT","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":1.65000011},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":55.0},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":2.97000011},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":14.96},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":2.97000011},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":9.89999978},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":3.9600001099999997},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":33.0},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":16.5},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":11.0},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":19.25}]},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponCritChanceMod","nameInternal":"WeaponCritChanceMod","nameEn":"Point Strike","nameZh":"致命一击","rank":5,"slot":7,"maxRank":5,"compatibility":"/Lotus/Weapons/Tenno/Rifle/LotusRifle","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_CRIT_CHANCE","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":1.5}]}]},
-      "score": 512140.27442189766,
+      "noRivenBuild": {"replay":{"full":459029.0017693109,"without":{"0":28341.390107214374,"1":29697.56269878927,"2":147404.9670010176,"3":201208.52702698653,"4":299334.149640039,"5":255445.95054078594,"6":295913.387605823,"7":295194.1103646723},"capacity":{"capacity":55,"capacityLimit":60,"assignments":[{"slot":0,"drain":8},{"slot":1,"drain":6},{"slot":2,"drain":6},{"slot":3,"drain":8},{"slot":4,"drain":6},{"slot":5,"drain":9},{"slot":6,"drain":7},{"slot":7,"drain":5}]},"stats":{"totalDamage":6126.3569617363955,"critChance":1.0000000249999998,"critMultiplier":3.9540906429290774,"statusChance":0.5399991245999701,"fireRate":5.0,"multishot":3.2998799670000003,"damageTypes":{"DT_IMPACT":125.15995146586961,"DT_PUNCTURE":125.15995146586961,"DT_SLASH":166.87992621826444,"DT_VIRAL":1063.8596352564803,"DT_FIRE":375.47987126699303}},"has_overguard":false,"polarities":["AP_DEFENSE","AP_TACTIC","AP_TACTIC","AP_ATTACK","AP_DEFENSE","AP_UNIVERSAL","AP_ATTACK","AP_ATTACK"],"serration_slot":6,"capacity_saved":1,"complete":true},"weapon":{"path":"/Lotus/Weapons/Tenno/LongGuns/PrimeBurston/PrimeBurston","nameEn":"Burston Prime","incarnon":[{"options":[{"id":"1-1","label":"灵化形态","description":"命中弱点为灵化转变充能，次要射击进行转变。切换回原有模式将消耗剩余的充能。；获得自动射击模式和造成范围 火焰伤害"},{"id":"2-2","label":"要塞齐射","description":"基础伤害 +42（基础值）；战甲护甲达到 450：穿透 +2 米"},{"id":"3-2","label":"待命报复","description":"弹匣打空后开始换弹时触发。：装填速度 +100%；持续 3 秒"},{"id":"4-2","label":"绝对勇气","description":"暴击几率 +22%"}]}],"polarities":["AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_ATTACK","AP_TACTIC","AP_UNIVERSAL"]},"target":{"enemyPath":"/Lotus/Types/Enemies/Duviri/Avatars/DuviriMeleeAvatar","enemyName":"Thrax Centurion","level":170,"steelPath":true,"enemyEnhancements":{"eximus":false,"noOverguard":true},"armourStrip":0.0,"elementalArmourStrip":0.0,"hitLocation":"body","headshotChance":0.5,"windowSeconds":30.0},"route":{"tier2":"2-2","tier3":"3-2","tier4":"4-2"},"slots":[{"path":"/Lotus/Upgrades/Mods/Rifle/Expert/WeaponFreezeDamageModExpert","nameInternal":"WeaponFreezeDamageModExpert","nameEn":"Primed Cryo Rounds","nameZh":"低温弹头 Prime","rank":10,"slot":0,"maxRank":10,"compatibility":"/Lotus/Weapons/Tenno/Rifle/LotusRifle","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_PERCENT_BASE_DAMAGE_ADDED","damageType":"DT_FREEZE","operation":"ADD","value":1.65000011}]},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponToxinDamageMod","nameInternal":"WeaponToxinDamageMod","nameEn":"Infected Clip","nameZh":"污染弹匣","rank":5,"slot":1,"maxRank":5,"compatibility":"/Lotus/Weapons/Tenno/Rifle/LotusRifle","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_PERCENT_BASE_DAMAGE_ADDED","damageType":"DT_POISON","operation":"ADD","value":0.90000006}]},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponFireDamageMod","nameInternal":"WeaponFireDamageMod","nameEn":"Hellfire","nameZh":"地狱火","rank":5,"slot":2,"maxRank":5,"compatibility":"/Lotus/Weapons/Tenno/Rifle/LotusRifle","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_PERCENT_BASE_DAMAGE_ADDED","damageType":"DT_FIRE","operation":"ADD","value":0.90000006}]},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponFireIterationsSPMod","nameInternal":"WeaponFireIterationsSPMod","nameEn":"Galvanized Chamber","nameZh":"镀层 分裂膛室","rank":10,"slot":3,"maxRank":10,"compatibility":"/Lotus/Weapons/Tenno/Rifle/LotusRifle","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_FIRE_ITERATIONS","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":0.8000299670000001},{"upgradeType":"WEAPON_FIRE_ITERATIONS","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":1.4998500000000001}],"steadyStacks":[{"conditionTag":"/Lotus/Language/Upgrades/OnKillCondition_Description","stacks":5}]},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponStatusChanceSPMod","nameInternal":"WeaponStatusChanceSPMod","nameEn":"Galvanized Aptitude","nameZh":"镀层 步枪才能","rank":10,"slot":4,"maxRank":10,"compatibility":"/Lotus/Weapons/Tenno/Rifle/LotusRifle","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_PROC_CHANCE","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":0.799997022},{"upgradeType":"WEAPON_DAMAGE_IF_VICTIM_PROC_ACTIVE","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":3.99999622}],"steadyStacks":[{"conditionTag":"/Lotus/Language/Upgrades/OnKillCondition_Description","stacks":2}]},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponCritDamageMod","nameInternal":"WeaponCritDamageMod","nameEn":"Vital Sense","nameZh":"弱点感应","rank":5,"slot":5,"maxRank":5,"compatibility":"/Lotus/Weapons/Tenno/Rifle/LotusRifle","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_CRIT_DAMAGE","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":1.2000000000000002}]},{"path":"/Lotus/Upgrades/Mods/Rifle/DualStat/CorruptedDamageRecoilRifle","nameInternal":"CorruptedDamageRecoilRifle","nameEn":"Heavy Caliber","nameZh":"重口径","rank":10,"slot":6,"maxRank":10,"compatibility":"/Lotus/Weapons/Tenno/Rifle/LotusRifle","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_DAMAGE_AMOUNT","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":1.65000011},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":55.0},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":2.97000011},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":14.96},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":2.97000011},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":9.89999978},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":3.9600001099999997},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":33.0},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":16.5},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":11.0},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":19.25}]},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponCritChanceMod","nameInternal":"WeaponCritChanceMod","nameEn":"Point Strike","nameZh":"致命一击","rank":5,"slot":7,"maxRank":5,"compatibility":"/Lotus/Weapons/Tenno/Rifle/LotusRifle","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_CRIT_CHANCE","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":1.5}]}]},
+      "score": 511128.2094938521,
       "rank": 8,
       "stats": [
         {
@@ -2157,7 +2157,7 @@
       ],
       "replayed": 2,
       "fixedTraitReference": {
-        "baselineScore": 164873.65302890036,
+        "baselineScore": 299334.149640039,
         "rows": [
           {
             "code": "9",
@@ -2165,8 +2165,8 @@
             "value": 134.96624999999997,
             "unit": "percent",
             "fusion": false,
-            "score": 174330.46361909073,
-            "pct": 5.735792478943069
+            "score": 322642.9599749687,
+            "pct": 7.786886448792907
           },
           {
             "code": "0",
@@ -2174,8 +2174,8 @@
             "value": 168.743260125,
             "unit": "percent",
             "fusion": false,
-            "score": 203913.26295991466,
-            "pct": 23.678501212180425
+            "score": 392231.97306636174,
+            "pct": 31.034822968924857
           },
           {
             "code": "1",
@@ -2183,8 +2183,8 @@
             "value": 134.996625,
             "unit": "percent",
             "fusion": false,
-            "score": 208746.9817849431,
-            "pct": 26.610272745247098
+            "score": 401332.88002339297,
+            "pct": 34.0752067567337
           },
           {
             "code": "7",
@@ -2192,8 +2192,8 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 88576.29113866275,
-            "pct": -46.27626093592019
+            "score": 133067.04191098403,
+            "pct": -55.54565288624691
           },
           {
             "code": "4",
@@ -2201,8 +2201,8 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 175020.42413567484,
-            "pct": 6.154270813054574
+            "score": 350635.4276150668,
+            "pct": 17.138464834941015
           },
           {
             "code": "5",
@@ -2210,8 +2210,8 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 175020.4241356748,
-            "pct": 6.154270813054552
+            "score": 339526.85412059515,
+            "pct": 13.427370224509772
           },
           {
             "code": "8",
@@ -2219,8 +2219,8 @@
             "value": 134.996625,
             "unit": "percent",
             "fusion": false,
-            "score": 171822.44008703742,
-            "pct": 4.214613390605848
+            "score": 303576.25629383686,
+            "pct": 1.4171809861651674
           },
           {
             "code": "3",
@@ -2228,8 +2228,8 @@
             "value": 112.48874999999997,
             "unit": "percent",
             "fusion": false,
-            "score": 133018.60190630856,
-            "pct": -19.32088634986937
+            "score": 252956.88000000006,
+            "pct": -15.493477672296807
           },
           {
             "code": "A",
@@ -2237,8 +2237,8 @@
             "value": 134.996625,
             "unit": "percent",
             "fusion": false,
-            "score": 172018.1282187017,
-            "pct": 4.333303143679967
+            "score": 314852.38898265956,
+            "pct": 5.184252903079001
           },
           {
             "code": "2",
@@ -2246,8 +2246,8 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 189165.6257830044,
-            "pct": 14.733689893949254
+            "score": 379891.31262917374,
+            "pct": 26.91211914377556
           },
           {
             "code": "6",
@@ -2255,8 +2255,8 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 175020.4241356748,
-            "pct": 6.154270813054552
+            "score": 339526.85412059515,
+            "pct": 13.427370224509772
           },
           {
             "code": "M",
@@ -2264,7 +2264,7 @@
             "value": 56.193748987499994,
             "unit": "percent",
             "fusion": false,
-            "score": 164873.65302890036,
+            "score": 299334.149640039,
             "pct": 0.0
           },
           {
@@ -2273,8 +2273,8 @@
             "value": 56.244377025,
             "unit": "percent",
             "fusion": false,
-            "score": 188483.53368457287,
-            "pct": 14.3199839525203
+            "score": 318807.69681701565,
+            "pct": 6.505621627333302
           },
           {
             "code": "D",
@@ -2282,8 +2282,8 @@
             "value": 185.62465237499998,
             "unit": "percent",
             "fusion": false,
-            "score": 231413.5593376014,
-            "pct": 40.35811973974845
+            "score": 425500.8660674394,
+            "pct": 42.149122169695886
           },
           {
             "code": "S",
@@ -2291,8 +2291,8 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 212410.1922623524,
-            "pct": 28.832101648842247
+            "score": 421594.79999999976,
+            "pct": 40.8442038795052
           },
           {
             "code": "V",
@@ -2300,7 +2300,7 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 164873.65302890036,
+            "score": 299334.149640039,
             "pct": 0.0
           },
           {
@@ -2318,7 +2318,7 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 164873.65302890036,
+            "score": 299334.149640039,
             "pct": 0.0
           },
           {
@@ -2327,8 +2327,8 @@
             "value": 56.244377025,
             "unit": "percent",
             "fusion": false,
-            "score": 190201.34948659752,
-            "pct": 15.36188226099262
+            "score": 303700.61168894253,
+            "pct": 1.458724991503435
           },
           {
             "code": "C",
@@ -2336,7 +2336,7 @@
             "value": 50.62499898749999,
             "unit": "percent",
             "fusion": false,
-            "score": 164873.65302890036,
+            "score": 299334.149640039,
             "pct": 0.0
           },
           {
@@ -2345,7 +2345,7 @@
             "value": 50.62499898749999,
             "unit": "percent",
             "fusion": false,
-            "score": 164873.65302890036,
+            "score": 299334.149640039,
             "pct": 0.0
           },
           {
@@ -2354,7 +2354,7 @@
             "value": 50.62499898749999,
             "unit": "percent",
             "fusion": false,
-            "score": 164873.65302890036,
+            "score": 299334.149640039,
             "pct": 0.0
           },
           {
@@ -2372,8 +2372,8 @@
             "value": 253.12499999999997,
             "unit": "percent",
             "fusion": true,
-            "score": 231485.15014107415,
-            "pct": 40.40154135512337
+            "score": 464087.3239068322,
+            "pct": 55.03988584827868
           },
           {
             "code": "Y",
@@ -2381,8 +2381,8 @@
             "value": 278.4375,
             "unit": "percent",
             "fusion": true,
-            "score": 219859.86294689678,
-            "pct": 33.35051350403331
+            "score": 432114.5196005551,
+            "pct": 44.358577235570905
           },
           {
             "code": "AE",
@@ -2390,8 +2390,8 @@
             "value": 50.62499999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 202175.5602111834,
-            "pct": 22.624540972440556
+            "score": 333375.8785619885,
+            "pct": 11.372484216346844
           },
           {
             "code": "HR",
@@ -2408,8 +2408,8 @@
             "value": 101.24999999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 165940.7629009881,
-            "pct": 0.6472288643357027
+            "score": 305988.2686339382,
+            "pct": 2.2229735571103637
           },
           {
             "code": "GA",
@@ -2417,8 +2417,8 @@
             "value": 101.24999999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 175020.42413567466,
-            "pct": 6.154270813054463
+            "score": 325634.63548872614,
+            "pct": 8.786329885953359
           },
           {
             "code": "CO",
@@ -2426,8 +2426,8 @@
             "value": 101.24999999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 242335.97188016534,
-            "pct": 46.98283651038335
+            "score": 424734.08766800456,
+            "pct": 41.89296081946008
           },
           {
             "code": "VI",
@@ -2435,8 +2435,8 @@
             "value": 101.24999999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 175020.42413567487,
-            "pct": 6.1542708130545964
+            "score": 339526.85412059515,
+            "pct": 13.427370224509772
           },
           {
             "code": "RA",
@@ -2444,8 +2444,8 @@
             "value": 101.24999999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 175020.42413567475,
-            "pct": 6.15427081305453
+            "score": 320236.36698188743,
+            "pct": 6.982904345188867
           },
           {
             "code": "BL",
@@ -2453,8 +2453,8 @@
             "value": 101.24999999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 175020.42413567475,
-            "pct": 6.15427081305453
+            "score": 320262.04521054943,
+            "pct": 6.991482794621673
           },
           {
             "code": "MA",
@@ -2462,8 +2462,8 @@
             "value": 101.24999999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 175020.42413567475,
-            "pct": 6.15427081305453
+            "score": 320236.36698188743,
+            "pct": 6.982904345188867
           },
           {
             "code": "FO",
@@ -2471,7 +2471,7 @@
             "value": 50.62499999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 164873.65302890036,
+            "score": 299334.149640039,
             "pct": 0.0
           },
           {
@@ -2480,7 +2480,7 @@
             "value": 50.62499999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 164873.65302890036,
+            "score": 299334.149640039,
             "pct": 0.0
           },
           {
@@ -2489,7 +2489,7 @@
             "value": 50.62499999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 164873.65302890036,
+            "score": 299334.149640039,
             "pct": 0.0
           },
           {
@@ -2498,8 +2498,8 @@
             "value": 107.973,
             "unit": "percent",
             "fusion": false,
-            "score": 148577.62685771412,
-            "pct": -9.883948024327294
+            "score": 293827.81242827256,
+            "pct": -1.8395285731307442
           },
           {
             "code": "0",
@@ -2507,8 +2507,8 @@
             "value": 134.9946081,
             "unit": "percent",
             "fusion": false,
-            "score": 116207.89293644537,
-            "pct": -29.51700238237851
+            "score": 202562.83185183973,
+            "pct": -32.3288598726776
           },
           {
             "code": "1",
@@ -2516,8 +2516,8 @@
             "value": 107.9973,
             "unit": "percent",
             "fusion": false,
-            "score": 103782.56940955964,
-            "pct": -37.05327230702663
+            "score": 176824.8562518899,
+            "pct": -40.927269252596574
           },
           {
             "code": "8",
@@ -2525,8 +2525,8 @@
             "value": 107.9973,
             "unit": "percent",
             "fusion": false,
-            "score": 151925.93580562057,
-            "pct": -7.853114785423121
+            "score": 296805.23244345386,
+            "pct": -0.8448475389882137
           },
           {
             "code": "3",
@@ -2534,8 +2534,8 @@
             "value": 89.99099999999999,
             "unit": "percent",
             "fusion": false,
-            "score": 161786.23156448916,
-            "pct": -1.8725984459566747
+            "score": 159252.4406757261,
+            "pct": -46.79777069631602
           },
           {
             "code": "A",
@@ -2543,8 +2543,8 @@
             "value": 107.9973,
             "unit": "percent",
             "fusion": false,
-            "score": 149596.13206464102,
-            "pct": -9.266199106767758
+            "score": 295484.12357826915,
+            "pct": -1.286196735788303
           },
           {
             "code": "2",
@@ -2552,8 +2552,8 @@
             "value": 80.99999838,
             "unit": "percent",
             "fusion": false,
-            "score": 126023.32844349941,
-            "pct": -23.56369490921084
+            "score": 132268.5550826329,
+            "pct": -55.812407223936525
           },
           {
             "code": "M",
@@ -2561,7 +2561,7 @@
             "value": 44.954999189999995,
             "unit": "percent",
             "fusion": false,
-            "score": 164873.65302890036,
+            "score": 299334.149640039,
             "pct": 0.0
           },
           {
@@ -2570,8 +2570,8 @@
             "value": 44.99550162,
             "unit": "percent",
             "fusion": false,
-            "score": 122420.83605180337,
-            "pct": -25.748696773071146
+            "score": 254340.4550605679,
+            "pct": -15.031260092968935
           },
           {
             "code": "D",
@@ -2579,8 +2579,8 @@
             "value": 148.4997219,
             "unit": "percent",
             "fusion": false,
-            "score": -3548.4410146936284,
-            "pct": -102.15221834993346
+            "score": 166487.50861782752,
+            "pct": -44.3807167280996
           },
           {
             "code": "S",
@@ -2588,8 +2588,8 @@
             "value": 80.99999838,
             "unit": "percent",
             "fusion": false,
-            "score": 108043.5644653506,
-            "pct": -34.468872084485284
+            "score": 178326.6985941517,
+            "pct": -40.42554155327866
           },
           {
             "code": "V",
@@ -2597,7 +2597,7 @@
             "value": 80.99999838,
             "unit": "percent",
             "fusion": false,
-            "score": 164873.65302890036,
+            "score": 299334.149640039,
             "pct": 0.0
           },
           {
@@ -2606,7 +2606,7 @@
             "value": 80.99999838,
             "unit": "percent",
             "fusion": false,
-            "score": 164873.65302890036,
+            "score": 299334.149640039,
             "pct": 0.0
           },
           {
@@ -2615,8 +2615,8 @@
             "value": 44.99550162,
             "unit": "percent",
             "fusion": false,
-            "score": 123905.44266264042,
-            "pct": -24.848245680029123
+            "score": 285528.6973878413,
+            "pct": -4.612053876512023
           },
           {
             "code": "C",
@@ -2624,7 +2624,7 @@
             "value": 40.49999919,
             "unit": "percent",
             "fusion": false,
-            "score": 164873.65302890036,
+            "score": 299334.149640039,
             "pct": 0.0
           },
           {
@@ -2633,7 +2633,7 @@
             "value": 40.49999919,
             "unit": "percent",
             "fusion": false,
-            "score": 164873.65302890036,
+            "score": 299334.149640039,
             "pct": 0.0
           },
           {
@@ -2642,7 +2642,7 @@
             "value": 40.49999919,
             "unit": "percent",
             "fusion": false,
-            "score": 164873.65302890036,
+            "score": 299334.149640039,
             "pct": 0.0
           },
           {
@@ -2661,8 +2661,8 @@
       "weapon": "/Lotus/Weapons/Tenno/Grimoire/TnGrimoire",
       "fireMode": 0,
       "contextHash": "f82f5bcbe117e4c6206e",
-      "noRivenBuild": {"replay":{"full":53435.650987224995,"without":{"0":33487.770619465606,"1":15686.734365505275,"2":30176.473140555085,"3":15259.274114669313,"4":22622.360352330958,"5":32137.548790439916,"6":36542.632972301086,"7":35991.266439304236},"capacity":{"capacity":59,"capacityLimit":60,"assignments":[{"slot":0,"drain":6},{"slot":1,"drain":7},{"slot":2,"drain":7},{"slot":3,"drain":8},{"slot":4,"drain":8},{"slot":5,"drain":11},{"slot":6,"drain":5},{"slot":7,"drain":7}]},"stats":{"totalDamage":6448.400493080009,"critChance":0.2,"critMultiplier":2.0004884004884005,"statusChance":0.4159999943999996,"fireRate":3.7500000900000003,"multishot":2.8000000000000003,"damageTypes":{"DT_CORROSIVE":1527.5001062500016,"DT_FIRE":775.5000698500012}},"has_overguard":true,"polarities":["AP_ATTACK","AP_UNIVERSAL","AP_ATTACK","AP_TACTIC","AP_TACTIC","AP_UNIVERSAL","AP_TACTIC","AP_ATTACK"],"serration_slot":null,"capacity_saved":0,"complete":true},"weapon":{"path":"/Lotus/Weapons/Tenno/Grimoire/TnGrimoire","nameEn":"Grimoire","incarnon":[],"polarities":["AP_TACTIC","AP_UNIVERSAL","AP_UNIVERSAL","AP_ATTACK","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL"]},"target":{"enemyPath":"/Lotus/Types/Enemies/Duviri/Avatars/DuviriMeleeAvatar","enemyName":"Thrax Centurion","level":170,"steelPath":true,"enemyEnhancements":{"eximus":false,"noOverguard":true},"armourStrip":0.0,"elementalArmourStrip":0.0,"hitLocation":"body","headshotChance":0.0,"windowSeconds":30.0},"route":{},"slots":[{"path":"/Lotus/Upgrades/Mods/Pistol/DualStat/GrinderMod","nameInternal":"GrinderMod","nameEn":"Lethal Torrent","nameZh":"致命洪流","rank":5,"slot":0,"maxRank":5,"compatibility":"/Lotus/Weapons/Tenno/Pistol/LotusPistol","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_FIRE_RATE","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":0.6000000000000001},{"upgradeType":"WEAPON_FIRE_ITERATIONS","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":0.6000000000000001}]},{"path":"/Lotus/Upgrades/Mods/Pistol/DualStat/PoisonEventPistolMod","nameInternal":"PoisonEventPistolMod","nameEn":"Pistol Pestilence","nameZh":"瘟疫手枪","rank":3,"slot":1,"maxRank":3,"compatibility":"/Lotus/Weapons/Tenno/Pistol/LotusPistol","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_PERCENT_BASE_DAMAGE_ADDED","damageType":"DT_POISON","operation":"ADD","value":0.60000004},{"upgradeType":"WEAPON_PROC_CHANCE","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":0.60000004}]},{"path":"/Lotus/Upgrades/Mods/Pistol/WeaponDamageAmountMod","nameInternal":"WeaponDamageAmountMod","nameEn":"Hornet Strike","nameZh":"黄蜂螫刺","rank":10,"slot":2,"maxRank":10,"compatibility":"/Lotus/Weapons/Tenno/Pistol/LotusPistol","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_DAMAGE_AMOUNT","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":2.2}]},{"path":"/Lotus/Upgrades/Mods/Pistol/Expert/PrimedWeaponElectricityDamageMod","nameInternal":"PrimedWeaponElectricityDamageMod","nameEn":"Primed Convulsion","nameZh":"痉挛 Prime","rank":10,"slot":3,"maxRank":10,"compatibility":"/Lotus/Weapons/Tenno/Pistol/LotusPistol","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_PERCENT_BASE_DAMAGE_ADDED","damageType":"DT_ELECTRICITY","operation":"ADD","value":1.65000011}]},{"path":"/Lotus/Upgrades/Mods/Pistol/Expert/WeaponFireDamageModExpert","nameInternal":"WeaponFireDamageModExpert","nameEn":"Primed Heated Charge","nameZh":"火焰装填 Prime","rank":10,"slot":4,"maxRank":10,"compatibility":"/Lotus/Weapons/Tenno/Pistol/LotusPistol","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_PERCENT_BASE_DAMAGE_ADDED","damageType":"DT_FIRE","operation":"ADD","value":1.65000011}]},{"path":"/Lotus/Upgrades/Mods/Pistol/WeaponFireIterationsMod","nameInternal":"WeaponFireIterationsMod","nameEn":"Barrel Diffusion","nameZh":"弹头扩散","rank":5,"slot":5,"maxRank":5,"compatibility":"/Lotus/Weapons/Tenno/Pistol/LotusPistol","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_FIRE_ITERATIONS","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":1.2000000000000002}]},{"path":"/Lotus/Upgrades/Mods/Pistol/DualStat/CorruptedFireRateDamagePistol","nameInternal":"CorruptedFireRateDamagePistol","nameEn":"Anemic Agility","nameZh":"乏能迅敏","rank":5,"slot":6,"maxRank":5,"compatibility":"/Lotus/Weapons/Tenno/Pistol/LotusPistol","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_FIRE_RATE","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":0.90000006},{"upgradeType":"WEAPON_DAMAGE_AMOUNT","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":-0.15000000000000002}]},{"path":"/Lotus/Upgrades/Mods/Pistol/DualStat/CorruptedDamageRecoilPistol","nameInternal":"CorruptedDamageRecoilPistol","nameEn":"Magnum Force","nameZh":"重装火力","rank":10,"slot":7,"maxRank":10,"compatibility":"/Lotus/Weapons/Tenno/Pistol/LotusPistol","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_DAMAGE_AMOUNT","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":1.65000011},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":55.0},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":5.5},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":6.3799997799999995},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":6.48999967},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":6.3799997799999995},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":6.3799997799999995},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":4.400000110000001},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":6.05000011},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":16.5},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":1.65000011},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":5.5},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":1.65000011},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":5.5},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":5.5},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":5.5},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":5.5},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":1.65000011},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":1.65000011},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":5.5},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":5.5},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":5.5},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":5.5},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":5.5},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":2.2}]}]},
-      "score": 71918.09782051429,
+      "noRivenBuild": {"replay":{"full":44413.214351459224,"without":{"0":28954.385903049835,"1":3848.1328793138373,"2":25966.428273072026,"3":3420.6726343668047,"4":17016.35205593904,"5":27625.17676550736,"6":31952.764197062203,"7":31678.62959232651},"capacity":{"capacity":59,"capacityLimit":60,"assignments":[{"slot":0,"drain":6},{"slot":1,"drain":7},{"slot":2,"drain":7},{"slot":3,"drain":8},{"slot":4,"drain":8},{"slot":5,"drain":11},{"slot":6,"drain":5},{"slot":7,"drain":7}]},"stats":{"totalDamage":6448.400493080009,"critChance":0.2,"critMultiplier":2.000488519668579,"statusChance":0.4159999943999996,"fireRate":3.7500000900000003,"multishot":2.8000000000000003,"damageTypes":{"DT_CORROSIVE":1527.5001062500016,"DT_FIRE":775.5000698500012}},"has_overguard":false,"polarities":["AP_ATTACK","AP_UNIVERSAL","AP_ATTACK","AP_TACTIC","AP_TACTIC","AP_UNIVERSAL","AP_TACTIC","AP_ATTACK"],"serration_slot":null,"capacity_saved":0,"complete":true},"weapon":{"path":"/Lotus/Weapons/Tenno/Grimoire/TnGrimoire","nameEn":"Grimoire","incarnon":[],"polarities":["AP_TACTIC","AP_UNIVERSAL","AP_UNIVERSAL","AP_ATTACK","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL"]},"target":{"enemyPath":"/Lotus/Types/Enemies/Duviri/Avatars/DuviriMeleeAvatar","enemyName":"Thrax Centurion","level":170,"steelPath":true,"enemyEnhancements":{"eximus":false,"noOverguard":true},"armourStrip":0.0,"elementalArmourStrip":0.0,"hitLocation":"body","headshotChance":0.0,"windowSeconds":30.0},"route":{},"slots":[{"path":"/Lotus/Upgrades/Mods/Pistol/DualStat/GrinderMod","nameInternal":"GrinderMod","nameEn":"Lethal Torrent","nameZh":"致命洪流","rank":5,"slot":0,"maxRank":5,"compatibility":"/Lotus/Weapons/Tenno/Pistol/LotusPistol","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_FIRE_RATE","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":0.6000000000000001},{"upgradeType":"WEAPON_FIRE_ITERATIONS","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":0.6000000000000001}]},{"path":"/Lotus/Upgrades/Mods/Pistol/DualStat/PoisonEventPistolMod","nameInternal":"PoisonEventPistolMod","nameEn":"Pistol Pestilence","nameZh":"瘟疫手枪","rank":3,"slot":1,"maxRank":3,"compatibility":"/Lotus/Weapons/Tenno/Pistol/LotusPistol","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_PERCENT_BASE_DAMAGE_ADDED","damageType":"DT_POISON","operation":"ADD","value":0.60000004},{"upgradeType":"WEAPON_PROC_CHANCE","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":0.60000004}]},{"path":"/Lotus/Upgrades/Mods/Pistol/WeaponDamageAmountMod","nameInternal":"WeaponDamageAmountMod","nameEn":"Hornet Strike","nameZh":"黄蜂螫刺","rank":10,"slot":2,"maxRank":10,"compatibility":"/Lotus/Weapons/Tenno/Pistol/LotusPistol","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_DAMAGE_AMOUNT","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":2.2}]},{"path":"/Lotus/Upgrades/Mods/Pistol/Expert/PrimedWeaponElectricityDamageMod","nameInternal":"PrimedWeaponElectricityDamageMod","nameEn":"Primed Convulsion","nameZh":"痉挛 Prime","rank":10,"slot":3,"maxRank":10,"compatibility":"/Lotus/Weapons/Tenno/Pistol/LotusPistol","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_PERCENT_BASE_DAMAGE_ADDED","damageType":"DT_ELECTRICITY","operation":"ADD","value":1.65000011}]},{"path":"/Lotus/Upgrades/Mods/Pistol/Expert/WeaponFireDamageModExpert","nameInternal":"WeaponFireDamageModExpert","nameEn":"Primed Heated Charge","nameZh":"火焰装填 Prime","rank":10,"slot":4,"maxRank":10,"compatibility":"/Lotus/Weapons/Tenno/Pistol/LotusPistol","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_PERCENT_BASE_DAMAGE_ADDED","damageType":"DT_FIRE","operation":"ADD","value":1.65000011}]},{"path":"/Lotus/Upgrades/Mods/Pistol/WeaponFireIterationsMod","nameInternal":"WeaponFireIterationsMod","nameEn":"Barrel Diffusion","nameZh":"弹头扩散","rank":5,"slot":5,"maxRank":5,"compatibility":"/Lotus/Weapons/Tenno/Pistol/LotusPistol","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_FIRE_ITERATIONS","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":1.2000000000000002}]},{"path":"/Lotus/Upgrades/Mods/Pistol/DualStat/CorruptedFireRateDamagePistol","nameInternal":"CorruptedFireRateDamagePistol","nameEn":"Anemic Agility","nameZh":"乏能迅敏","rank":5,"slot":6,"maxRank":5,"compatibility":"/Lotus/Weapons/Tenno/Pistol/LotusPistol","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_FIRE_RATE","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":0.90000006},{"upgradeType":"WEAPON_DAMAGE_AMOUNT","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":-0.15000000000000002}]},{"path":"/Lotus/Upgrades/Mods/Pistol/DualStat/CorruptedDamageRecoilPistol","nameInternal":"CorruptedDamageRecoilPistol","nameEn":"Magnum Force","nameZh":"重装火力","rank":10,"slot":7,"maxRank":10,"compatibility":"/Lotus/Weapons/Tenno/Pistol/LotusPistol","compatibilityTags":[],"compatible":true,"displayEffects":[{"upgradeType":"WEAPON_DAMAGE_AMOUNT","damageType":"DT_ANY","operation":"STACKING_MULTIPLY","value":1.65000011},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":55.0},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":5.5},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":6.3799997799999995},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":6.48999967},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":6.3799997799999995},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":6.3799997799999995},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":4.400000110000001},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":6.05000011},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":16.5},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":1.65000011},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":5.5},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":1.65000011},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":5.5},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":5.5},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":5.5},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":5.5},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":1.65000011},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":1.65000011},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":5.5},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":5.5},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":5.5},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":5.5},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":5.5},{"upgradeType":"WEAPON_SPREAD","damageType":"DT_ANY","operation":"ADD","value":2.2}]}]},
+      "score": 71922.75139438614,
       "rank": 8,
       "stats": [
         {
@@ -2683,7 +2683,7 @@
       ],
       "replayed": 2,
       "fixedTraitReference": {
-        "baselineScore": 19519.802200840008,
+        "baselineScore": 27625.17676550736,
         "rows": [
           {
             "code": "9",
@@ -2691,7 +2691,7 @@
             "value": 134.96624999999997,
             "unit": "percent",
             "fusion": false,
-            "score": 19519.802200840008,
+            "score": 27625.17676550736,
             "pct": 0.0
           },
           {
@@ -2700,8 +2700,8 @@
             "value": 168.743260125,
             "unit": "percent",
             "fusion": false,
-            "score": 23432.572629319922,
-            "pct": 20.04513359418947
+            "score": 35397.09209636363,
+            "pct": 28.133450137992376
           },
           {
             "code": "1",
@@ -2709,8 +2709,8 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 24878.818552119068,
-            "pct": 27.454255407610862
+            "score": 36949.57151538089,
+            "pct": 33.75324917926288
           },
           {
             "code": "7",
@@ -2718,8 +2718,8 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 21210.587929456822,
-            "pct": 8.661899906670435
+            "score": 29361.01000989099,
+            "pct": 6.283519049011055
           },
           {
             "code": "4",
@@ -2727,8 +2727,8 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 23307.621562483542,
-            "pct": 19.405008937439593
+            "score": 39838.8993063601,
+            "pct": 44.21228738019416
           },
           {
             "code": "5",
@@ -2736,8 +2736,8 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 17200.42981804869,
-            "pct": -11.882151053208446
+            "score": 17203.195562172066,
+            "pct": -37.72638738857997
           },
           {
             "code": "8",
@@ -2745,7 +2745,7 @@
             "value": 134.996625,
             "unit": "percent",
             "fusion": false,
-            "score": 19519.802200840008,
+            "score": 27625.17676550736,
             "pct": 0.0
           },
           {
@@ -2754,8 +2754,8 @@
             "value": 112.48874999999997,
             "unit": "percent",
             "fusion": false,
-            "score": 18553.683783145363,
-            "pct": -4.949427293136555
+            "score": 27449.13297961393,
+            "pct": -0.6372584957112015
           },
           {
             "code": "A",
@@ -2763,7 +2763,7 @@
             "value": 134.996625,
             "unit": "percent",
             "fusion": false,
-            "score": 19519.802200840008,
+            "score": 27625.17676550736,
             "pct": 0.0
           },
           {
@@ -2772,8 +2772,8 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 20779.76578686362,
-            "pct": 6.454796893225656
+            "score": 34526.897306713836,
+            "pct": 24.983443906226597
           },
           {
             "code": "6",
@@ -2781,8 +2781,8 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 21210.587929456822,
-            "pct": 8.661899906670435
+            "score": 29361.01000989099,
+            "pct": 6.283519049011055
           },
           {
             "code": "M",
@@ -2790,7 +2790,7 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 19519.802200840008,
+            "score": 27625.17676550736,
             "pct": 0.0
           },
           {
@@ -2799,8 +2799,8 @@
             "value": 56.244377025,
             "unit": "percent",
             "fusion": false,
-            "score": 19526.60691840607,
-            "pct": 0.03486058668036307
+            "score": 27649.556624269586,
+            "pct": 0.08825231769256092
           },
           {
             "code": "D",
@@ -2808,8 +2808,8 @@
             "value": 247.05000000000004,
             "unit": "percent",
             "fusion": false,
-            "score": 30986.941991656236,
-            "pct": 58.74618847481332
+            "score": 42145.05970032085,
+            "pct": 52.56032588701094
           },
           {
             "code": "S",
@@ -2817,8 +2817,8 @@
             "value": 134.6625,
             "unit": "percent",
             "fusion": false,
-            "score": 27557.043499785577,
-            "pct": 41.174809131004906
+            "score": 45862.852393253976,
+            "pct": 66.01831286928841
           },
           {
             "code": "V",
@@ -2826,7 +2826,7 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 19519.802200840008,
+            "score": 27625.17676550736,
             "pct": 0.0
           },
           {
@@ -2844,7 +2844,7 @@
             "value": 101.24999797499999,
             "unit": "percent",
             "fusion": false,
-            "score": 19519.802200840008,
+            "score": 27625.17676550736,
             "pct": 0.0
           },
           {
@@ -2853,8 +2853,8 @@
             "value": 56.244377025,
             "unit": "percent",
             "fusion": false,
-            "score": 19519.802200840008,
-            "pct": 0.0
+            "score": 27643.188046719482,
+            "pct": 0.06519879081683388
           },
           {
             "code": "C",
@@ -2862,7 +2862,7 @@
             "value": 50.62499898749999,
             "unit": "percent",
             "fusion": false,
-            "score": 19519.802200840008,
+            "score": 27625.17676550736,
             "pct": 0.0
           },
           {
@@ -2871,7 +2871,7 @@
             "value": 50.62499898749999,
             "unit": "percent",
             "fusion": false,
-            "score": 19519.802200840008,
+            "score": 27625.17676550736,
             "pct": 0.0
           },
           {
@@ -2880,7 +2880,7 @@
             "value": 50.62499898749999,
             "unit": "percent",
             "fusion": false,
-            "score": 19519.802200840008,
+            "score": 27625.17676550736,
             "pct": 0.0
           },
           {
@@ -2898,7 +2898,7 @@
             "value": 253.12499999999997,
             "unit": "percent",
             "fusion": true,
-            "score": 19519.802200840008,
+            "score": 27625.17676550736,
             "pct": 0.0
           },
           {
@@ -2907,7 +2907,7 @@
             "value": 278.4375,
             "unit": "percent",
             "fusion": true,
-            "score": 19519.802200840008,
+            "score": 27625.17676550736,
             "pct": 0.0
           },
           {
@@ -2916,8 +2916,8 @@
             "value": 50.62499999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 19519.802200840008,
-            "pct": 0.0
+            "score": 27649.556611150892,
+            "pct": 0.08825227020436976
           },
           {
             "code": "HR",
@@ -2934,8 +2934,8 @@
             "value": 101.24999999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 20756.77177367661,
-            "pct": 6.336998500852498
+            "score": 38252.34838335729,
+            "pct": 38.469153367079834
           },
           {
             "code": "GA",
@@ -2943,8 +2943,8 @@
             "value": 101.24999999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 21975.468461814802,
-            "pct": 12.580384963476309
+            "score": 30574.186508857412,
+            "pct": 10.675080085033773
           },
           {
             "code": "CO",
@@ -2952,8 +2952,8 @@
             "value": 101.24999999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 21210.58792953567,
-            "pct": 8.661899907074378
+            "score": 29361.01000989099,
+            "pct": 6.283519049011055
           },
           {
             "code": "VI",
@@ -2961,8 +2961,8 @@
             "value": 101.24999999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 38590.88687232777,
-            "pct": 97.7012188713012
+            "score": 66282.70310548056,
+            "pct": 139.9358515173042
           },
           {
             "code": "RA",
@@ -2970,8 +2970,8 @@
             "value": 101.24999999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 21192.006123098665,
-            "pct": 8.56670526193497
+            "score": 29176.57815376855,
+            "pct": 5.615896692463029
           },
           {
             "code": "BL",
@@ -2979,8 +2979,8 @@
             "value": 101.24999999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 21192.00612309866,
-            "pct": 8.566705261934949
+            "score": 29248.261676699658,
+            "pct": 5.87538289788927
           },
           {
             "code": "MA",
@@ -2988,8 +2988,8 @@
             "value": 101.24999999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 21192.006123098665,
-            "pct": 8.56670526193497
+            "score": 29176.57815376855,
+            "pct": 5.615896692463029
           },
           {
             "code": "FO",
@@ -2997,7 +2997,7 @@
             "value": 50.62499999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 19519.802200840008,
+            "score": 27625.17676550736,
             "pct": 0.0
           },
           {
@@ -3006,7 +3006,7 @@
             "value": 50.62499999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 19519.802200840008,
+            "score": 27625.17676550736,
             "pct": 0.0
           },
           {
@@ -3015,7 +3015,7 @@
             "value": 50.62499999999999,
             "unit": "percent",
             "fusion": true,
-            "score": 19519.802200840008,
+            "score": 27625.17676550736,
             "pct": 0.0
           },
           {
@@ -3024,7 +3024,7 @@
             "value": 107.973,
             "unit": "percent",
             "fusion": false,
-            "score": 19519.802200840008,
+            "score": 27625.17676550736,
             "pct": 0.0
           },
           {
@@ -3033,8 +3033,8 @@
             "value": 134.9946081,
             "unit": "percent",
             "fusion": false,
-            "score": 16821.551848656658,
-            "pct": -13.823143925440162
+            "score": 23019.41335599456,
+            "pct": -16.67234004910887
           },
           {
             "code": "1",
@@ -3042,8 +3042,8 @@
             "value": 80.99999838,
             "unit": "percent",
             "fusion": false,
-            "score": 16821.551848656658,
-            "pct": -13.823143925440162
+            "score": 20165.66184365931,
+            "pct": -27.0025961649663
           },
           {
             "code": "8",
@@ -3051,7 +3051,7 @@
             "value": 107.9973,
             "unit": "percent",
             "fusion": false,
-            "score": 19519.802200840008,
+            "score": 27625.17676550736,
             "pct": 0.0
           },
           {
@@ -3060,8 +3060,8 @@
             "value": 89.99099999999999,
             "unit": "percent",
             "fusion": false,
-            "score": 14750.35771577596,
-            "pct": -24.433877126371705
+            "score": 11022.695517600974,
+            "pct": -60.099095071261765
           },
           {
             "code": "A",
@@ -3069,7 +3069,7 @@
             "value": 107.9973,
             "unit": "percent",
             "fusion": false,
-            "score": 19519.802200840008,
+            "score": 27625.17676550736,
             "pct": 0.0
           },
           {
@@ -3078,8 +3078,8 @@
             "value": 80.99999838,
             "unit": "percent",
             "fusion": false,
-            "score": 17103.33786743694,
-            "pct": -12.379553381432718
+            "score": 21221.659258701362,
+            "pct": -23.180005547698045
           },
           {
             "code": "M",
@@ -3087,7 +3087,7 @@
             "value": 80.99999838,
             "unit": "percent",
             "fusion": false,
-            "score": 19519.802200840008,
+            "score": 27625.17676550736,
             "pct": 0.0
           },
           {
@@ -3096,8 +3096,8 @@
             "value": 44.99550162,
             "unit": "percent",
             "fusion": false,
-            "score": 19339.94500023369,
-            "pct": -0.921408930048373
+            "score": 27448.776751065263,
+            "pct": -0.6385480025682511
           },
           {
             "code": "D",
@@ -3105,8 +3105,8 @@
             "value": 197.64000000000004,
             "unit": "percent",
             "fusion": false,
-            "score": 8459.475229384134,
-            "pct": -56.66208528988018
+            "score": 16009.270417656586,
+            "pct": -42.04826070960866
           },
           {
             "code": "S",
@@ -3114,8 +3114,8 @@
             "value": 107.72999999999999,
             "unit": "percent",
             "fusion": false,
-            "score": 12645.837998217181,
-            "pct": -35.21533738864944
+            "score": 7535.544320744387,
+            "pct": -72.72218605256772
           },
           {
             "code": "V",
@@ -3123,7 +3123,7 @@
             "value": 80.99999838,
             "unit": "percent",
             "fusion": false,
-            "score": 19519.802200840008,
+            "score": 27625.17676550736,
             "pct": 0.0
           },
           {
@@ -3132,7 +3132,7 @@
             "value": 80.99999838,
             "unit": "percent",
             "fusion": false,
-            "score": 19519.802200840008,
+            "score": 27625.17676550736,
             "pct": 0.0
           },
           {
@@ -3141,8 +3141,8 @@
             "value": 44.99550162,
             "unit": "percent",
             "fusion": false,
-            "score": 19339.94500023369,
-            "pct": -0.921408930048373
+            "score": 27436.771576536885,
+            "pct": -0.6820053698469608
           },
           {
             "code": "C",
@@ -3150,7 +3150,7 @@
             "value": 40.49999919,
             "unit": "percent",
             "fusion": false,
-            "score": 19519.802200840008,
+            "score": 27625.17676550736,
             "pct": 0.0
           },
           {
@@ -3159,7 +3159,7 @@
             "value": 40.49999919,
             "unit": "percent",
             "fusion": false,
-            "score": 19519.802200840008,
+            "score": 27625.17676550736,
             "pct": 0.0
           },
           {
@@ -3168,7 +3168,7 @@
             "value": 40.49999919,
             "unit": "percent",
             "fusion": false,
-            "score": 19519.802200840008,
+            "score": 27625.17676550736,
             "pct": 0.0
           },
           {
@@ -3183,6 +3183,6 @@
         ]
       }
     },
-    {"weapon":"/Lotus/Weapons/Corpus/LongGuns/ChainLightningGun/ChainLightningRifle","fireMode":0,"contextHash":"563cb2a3c162fff843bf2d63f771c40d11a9334682454d51360fca2752b1970c","noRivenBuild":{"target":{"enemyPath":"/Lotus/Types/Enemies/Orokin/OrokinHeavyFemaleAvatar","enemyName":"Corrupted Heavy Gunner","level":200,"steelPath":true,"headshotChance":0.5,"windowSeconds":30,"armourStrip":0,"elementalArmourStrip":0,"enemyEnhancements":{"eximus":false},"distance":10.0},"route":{},"weapon":{"path":"/Lotus/Weapons/Corpus/LongGuns/ChainLightningGun/ChainLightningRifle","nameEn":"Amprex","polarities":["AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_TACTIC","AP_UNIVERSAL"]},"aiming":true,"replay":{"full":239772.48699545706,"without":{"0":69190.21741851272,"1":133901.68721784922,"2":207125.1679417112,"3":56275.80821496318,"4":163197.7000474168,"5":116057.52649560726,"6":165487.08824579624,"7":138191.34117881543},"capacity":{"capacity":60,"capacityLimit":60,"assignments":[{"slot":0,"drain":6},{"slot":1,"drain":8},{"slot":2,"drain":9},{"slot":3,"drain":8},{"slot":4,"drain":7},{"slot":5,"drain":7},{"slot":6,"drain":5},{"slot":7,"drain":5},{"slot":8,"drain":5}]},"stats":{"totalDamage":195.25001794100038,"critChance":0.31999999,"critMultiplier":4.848058608058609,"statusChance":0.22,"fireRate":22.80000072,"multishot":1.0,"damageTypes":{"DT_VIRAL":140.2500155210004,"DT_ELECTRICITY":55.000002419999994}},"has_overguard":false,"polarities":["AP_TACTIC","AP_DEFENSE","AP_UNIVERSAL","AP_TACTIC","AP_ATTACK","AP_ATTACK","AP_TACTIC","AP_ATTACK"],"equipment":{"exilus":{"path":"/Lotus/Upgrades/Mods/Sets/Vigilante/PrimaryVigilanteSuppliesMod","rank":5,"nameZh":"私法 补给","nameEn":"Vigilante Supplies","drain":5,"slotPolarity":"AP_TACTIC"},"arcanes":[{"path":"/Lotus/Upgrades/CosmeticEnhancers/Offensive/StatusAndAmmoEfficiencyOnWeakpointHit","rank":5,"nameZh":"主要·准星","nameEn":"Primary Crux"}]},"serration_slot":null,"capacity_saved":0,"complete":true,"stacked_panel":{"statusChance":0.88},"panel_stack_assumptions":[{"nameEn":"Primary Crux","nameZh":"主要·准星","stacks":10}]},"slots":[{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponToxinDamageMod","nameEn":"Infected Clip","nameZh":"污染弹匣","rank":5,"slot":0},{"path":"/Lotus/Upgrades/Mods/Rifle/Expert/WeaponFreezeDamageModExpert","nameEn":"Primed Cryo Rounds","nameZh":"低温弹头 Prime","rank":10,"slot":1},{"path":"/Lotus/Upgrades/Mods/Sets/Hunter/PrimaryHunterMunitionsMod","nameEn":"Hunter Munitions","nameZh":"猎人 战备","rank":5,"slot":2},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponWeakpointCriticalChanceMod","nameEn":"Primary Acuity","nameZh":"敏锐主武","rank":10,"slot":3},{"path":"/Lotus/Upgrades/Mods/Rifle/Expert/PrimedWeaponFactionDamageCorrupted","nameEn":"Primed Bane of Orokin","nameZh":"灭亡奥罗金 Prime","rank":10,"slot":4},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponDamageAmountMod","nameEn":"Serration","nameZh":"膛线","rank":10,"slot":5},{"path":"/Lotus/Upgrades/Mods/Rifle/DualStat/CorruptedFireRateDamageRifle","nameEn":"Vile Acceleration","nameZh":"卑劣加速","rank":5,"slot":6},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponCritDamageMod","nameEn":"Vital Sense","nameZh":"弱点感应","rank":5,"slot":7}],"request":{"weapon":"/Lotus/Weapons/Corpus/LongGuns/ChainLightningGun/ChainLightningRifle","fireMode":0,"enemy":"/Lotus/Types/Enemies/Orokin/OrokinHeavyFemaleAvatar","level":200,"steelPath":true,"headshotChance":0.5,"armourStrip":0,"elementalArmourStrip":0,"enemyEnhancements":{"eximus":false},"windowSeconds":30,"metric":"windowedDps","damageModel":"target","slotPolarities":["AP_TACTIC","AP_DEFENSE","AP_UNIVERSAL","AP_TACTIC","AP_ATTACK","AP_ATTACK","AP_TACTIC","AP_ATTACK"],"incarnonChoices":{},"mods":[{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponToxinDamageMod","rank":5,"slot":0},{"path":"/Lotus/Upgrades/Mods/Rifle/Expert/WeaponFreezeDamageModExpert","rank":10,"slot":1},{"path":"/Lotus/Upgrades/Mods/Sets/Hunter/PrimaryHunterMunitionsMod","rank":5,"slot":2},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponWeakpointCriticalChanceMod","rank":10,"slot":3},{"path":"/Lotus/Upgrades/Mods/Rifle/Expert/PrimedWeaponFactionDamageCorrupted","rank":10,"slot":4},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponDamageAmountMod","rank":10,"slot":5},{"path":"/Lotus/Upgrades/Mods/Rifle/DualStat/CorruptedFireRateDamageRifle","rank":5,"slot":6},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponCritDamageMod","rank":5,"slot":7}],"exilus":{"path":"/Lotus/Upgrades/Mods/Sets/Vigilante/PrimaryVigilanteSuppliesMod","rank":5},"arcanes":[{"path":"/Lotus/Upgrades/CosmeticEnhancers/Offensive/StatusAndAmmoEfficiencyOnWeakpointHit","rank":5}],"specialSlotPolarities":{"exilus":"AP_TACTIC"},"scenario":{"distance":10.0,"aiming":true}},"independentOnly":true}}
+    {"weapon":"/Lotus/Weapons/Corpus/LongGuns/ChainLightningGun/ChainLightningRifle","fireMode":0,"contextHash":"563cb2a3c162fff843bf2d63f771c40d11a9334682454d51360fca2752b1970c","noRivenBuild":{"target":{"enemyPath":"/Lotus/Types/Enemies/Orokin/OrokinHeavyFemaleAvatar","enemyName":"Corrupted Heavy Gunner","level":200,"steelPath":true,"headshotChance":0.5,"windowSeconds":30,"armourStrip":0,"elementalArmourStrip":0,"enemyEnhancements":{"eximus":false},"distance":10.0},"route":{},"weapon":{"path":"/Lotus/Weapons/Corpus/LongGuns/ChainLightningGun/ChainLightningRifle","nameEn":"Amprex","polarities":["AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_UNIVERSAL","AP_TACTIC","AP_UNIVERSAL"]},"aiming":true,"replay":{"full":239773.93606758516,"without":{"0":69190.21742198763,"1":133901.68758868388,"2":207125.1523727746,"3":56273.319702292065,"4":163198.9046909468,"5":116058.0955974059,"6":165488.96165359748,"7":138191.39758808844},"capacity":{"capacity":60,"capacityLimit":60,"assignments":[{"slot":0,"drain":6},{"slot":1,"drain":8},{"slot":2,"drain":9},{"slot":3,"drain":8},{"slot":4,"drain":7},{"slot":5,"drain":7},{"slot":6,"drain":5},{"slot":7,"drain":5},{"slot":8,"drain":5}]},"stats":{"totalDamage":195.25001794100038,"critChance":0.31999999,"critMultiplier":4.848058843612671,"statusChance":0.22,"fireRate":22.80000072,"multishot":1.0,"damageTypes":{"DT_VIRAL":140.2500155210004,"DT_ELECTRICITY":55.000002419999994}},"has_overguard":false,"polarities":["AP_TACTIC","AP_DEFENSE","AP_UNIVERSAL","AP_TACTIC","AP_ATTACK","AP_ATTACK","AP_TACTIC","AP_ATTACK"],"equipment":{"exilus":{"path":"/Lotus/Upgrades/Mods/Sets/Vigilante/PrimaryVigilanteSuppliesMod","rank":5,"nameZh":"私法 补给","nameEn":"Vigilante Supplies","drain":5,"slotPolarity":"AP_TACTIC"},"arcanes":[{"path":"/Lotus/Upgrades/CosmeticEnhancers/Offensive/StatusAndAmmoEfficiencyOnWeakpointHit","rank":5,"nameZh":"主要·准星","nameEn":"Primary Crux"}]},"serration_slot":null,"capacity_saved":0,"complete":true,"stacked_panel":{"statusChance":0.88},"panel_stack_assumptions":[{"nameEn":"Primary Crux","nameZh":"主要·准星","stacks":10}]},"slots":[{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponToxinDamageMod","nameEn":"Infected Clip","nameZh":"污染弹匣","rank":5,"slot":0},{"path":"/Lotus/Upgrades/Mods/Rifle/Expert/WeaponFreezeDamageModExpert","nameEn":"Primed Cryo Rounds","nameZh":"低温弹头 Prime","rank":10,"slot":1},{"path":"/Lotus/Upgrades/Mods/Sets/Hunter/PrimaryHunterMunitionsMod","nameEn":"Hunter Munitions","nameZh":"猎人 战备","rank":5,"slot":2},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponWeakpointCriticalChanceMod","nameEn":"Primary Acuity","nameZh":"敏锐主武","rank":10,"slot":3},{"path":"/Lotus/Upgrades/Mods/Rifle/Expert/PrimedWeaponFactionDamageCorrupted","nameEn":"Primed Bane of Orokin","nameZh":"灭亡奥罗金 Prime","rank":10,"slot":4},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponDamageAmountMod","nameEn":"Serration","nameZh":"膛线","rank":10,"slot":5},{"path":"/Lotus/Upgrades/Mods/Rifle/DualStat/CorruptedFireRateDamageRifle","nameEn":"Vile Acceleration","nameZh":"卑劣加速","rank":5,"slot":6},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponCritDamageMod","nameEn":"Vital Sense","nameZh":"弱点感应","rank":5,"slot":7}],"request":{"weapon":"/Lotus/Weapons/Corpus/LongGuns/ChainLightningGun/ChainLightningRifle","fireMode":0,"enemy":"/Lotus/Types/Enemies/Orokin/OrokinHeavyFemaleAvatar","level":200,"steelPath":true,"headshotChance":0.5,"armourStrip":0,"elementalArmourStrip":0,"enemyEnhancements":{"eximus":false},"windowSeconds":30,"metric":"windowedDps","damageModel":"target","slotPolarities":["AP_TACTIC","AP_DEFENSE","AP_UNIVERSAL","AP_TACTIC","AP_ATTACK","AP_ATTACK","AP_TACTIC","AP_ATTACK"],"incarnonChoices":{},"mods":[{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponToxinDamageMod","rank":5,"slot":0},{"path":"/Lotus/Upgrades/Mods/Rifle/Expert/WeaponFreezeDamageModExpert","rank":10,"slot":1},{"path":"/Lotus/Upgrades/Mods/Sets/Hunter/PrimaryHunterMunitionsMod","rank":5,"slot":2},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponWeakpointCriticalChanceMod","rank":10,"slot":3},{"path":"/Lotus/Upgrades/Mods/Rifle/Expert/PrimedWeaponFactionDamageCorrupted","rank":10,"slot":4},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponDamageAmountMod","rank":10,"slot":5},{"path":"/Lotus/Upgrades/Mods/Rifle/DualStat/CorruptedFireRateDamageRifle","rank":5,"slot":6},{"path":"/Lotus/Upgrades/Mods/Rifle/WeaponCritDamageMod","rank":5,"slot":7}],"exilus":{"path":"/Lotus/Upgrades/Mods/Sets/Vigilante/PrimaryVigilanteSuppliesMod","rank":5},"arcanes":[{"path":"/Lotus/Upgrades/CosmeticEnhancers/Offensive/StatusAndAmmoEfficiencyOnWeakpointHit","rank":5}],"specialSlotPolarities":{"exilus":"AP_TACTIC"},"scenario":{"distance":10.0,"aiming":true}},"independentOnly":true}}
   ]
 }

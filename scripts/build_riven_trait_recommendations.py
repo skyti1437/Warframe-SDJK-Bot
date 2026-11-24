@@ -1,4 +1,4 @@
-"""用冻结版完整引擎生成各参考模式的紫卡单词条边际收益。"""
+"""用归档输入复现旧版紫卡单词条模拟。"""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from itertools import product
 import math
 from pathlib import Path
 from queue import Empty, Queue
-from statistics import mean
+from statistics import mean, stdev
 import subprocess
 import sys
 from typing import Any
@@ -21,10 +21,9 @@ sys.path.insert(0, str(ROOT))
 
 from core import riven_rating  # noqa: E402
 
-OUTPUT = ROOT / "core/data/riven_trait_recommendations.json"
-REFERENCE = ROOT / "core/data/riven_rating_presets.json"
 SCHEMA = 1
 RUNS = 128
+SEED = 47162621
 CARD = "riven:p4-marginal"
 SHAPE = {"rank": 8, "polarity": "madurai", "bonuses": [{}, {}, {}], "malus": {}}
 HOLSTER_TRAIT = "reload_while_holstered"
@@ -144,7 +143,7 @@ def simulate(engine: Engine, fight: dict) -> dict:
 
 
 def measure_scene(engine: Engine, fight: dict, traits: list[tuple[str, dict]], runs: int) -> dict:
-    fight = {**fight, "runs": runs, "seed": riven_rating.SEED, "run_series": True}
+    fight = {**fight, "runs": runs, "seed": SEED, "run_series": True}
     baseline = simulate(engine, fight)
     if baseline["forma"]["legal"] is not True:
         raise ValueError("无紫卡参考配装容量不合法")
@@ -182,7 +181,7 @@ def measure_scene(engine: Engine, fight: dict, traits: list[tuple[str, dict]], r
         }
         if stat["modeled"]:
             trial = simulate(engine, trial_card(fight, spec))
-            row.update(riven_rating._gain(trial, baseline), kpm=kpm(trial))
+            row.update(paired_gain(trial, baseline), kpm=kpm(trial))
             row["same_series"] = trial["score_runs"] == baseline["score_runs"]
         rows.append(row)
     return {"baseline_kpm": kpm(baseline), "blank_identical": True, "traits": rows}
@@ -359,12 +358,37 @@ def apply_pool_audit(doc: dict, audit: dict) -> None:
     doc["roll_pool_audit"] = audit
 
 
+def reference_scenes(reference):
+    return {
+        f"{wid}/{mode}": {
+            **reference["battle_defaults"],
+            **row["fight"],
+            "weapon": wid,
+            "mode": mode,
+        }
+        for wid, weapon in reference["weapons"].items()
+        for mode, row in weapon["modes"].items()
+    }
+
+
+def paired_gain(test, base):
+    first, second = mean(test["score_runs"]), mean(base["score_runs"])
+    if second <= 0:
+        return {"pct": None, "ci95": None}
+    ratio = first / second
+    pct = 100 * (ratio - 1)
+    series = test["score_runs"]
+    paired = stdev(x - ratio * y for x, y in zip(series, base["score_runs"], strict=True))
+    radius = 1.96 * 100 * paired / (math.sqrt(len(series)) * second)
+    return {"pct": pct, "ci95": (pct - radius, pct + radius)}
+
+
 def build_holster(args, parser, binary: Path, reference: dict) -> None:
-    doc = json.loads(OUTPUT.read_bytes())
-    reference_hash = digest(REFERENCE.read_bytes())
+    doc = json.loads((args.existing or args.output).read_bytes())
+    reference_hash = digest(args.reference.read_bytes())
     if doc["reference_sha256"] != reference_hash:
         raise ValueError("单词条数据与参考配装版本不一致")
-    fights = riven_rating.presets()
+    fights = reference_scenes(reference)
     scenes = holster_scenes(doc)
     selected = {f"{weapon}/{mode}" for weapon, mode in scenes}
     if args.scene:
@@ -378,7 +402,7 @@ def build_holster(args, parser, binary: Path, reference: dict) -> None:
             raise ValueError("引擎数据版本和参考配装版本不一致")
         for name in sorted(selected):
             weapon, mode = name.split("/", 1)
-            row = measure_holster(engine, fights[weapon][mode]["fight"])
+            row = measure_holster(engine, fights[name])
             (combat_row,) = (
                 r for r in doc["weapons"][weapon][mode]["positive"] if r[0] == HOLSTER_TRAIT
             )
@@ -411,23 +435,29 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--engine", type=Path, required=True)
     parser.add_argument("--cache", type=Path)
-    parser.add_argument("--output", type=Path, default=OUTPUT)
+    parser.add_argument("--reference", type=Path, required=True, help="归档的参考配装 JSON")
+    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--existing", type=Path, help="收枪装填复算所用的归档单词条 JSON")
     parser.add_argument("--runs", type=int, choices=(64, 128, 256, 512, 1024), default=RUNS)
     parser.add_argument("--lanes", type=int, default=5)
     parser.add_argument("--scene", action="append", metavar="WEAPON/MODE")
     parser.add_argument("--holster-reload", action="store_true", help="用固定切枪节奏复算收枪装填")
     parser.add_argument("--report", type=Path, help="另存收枪装填原始回执")
     args = parser.parse_args()
-    if args.scene and args.output.resolve() == OUTPUT:
-        parser.error("小样输出请另指定文件")
-    if args.report and args.report.resolve() in (args.output.resolve(), OUTPUT):
+    if (
+        args.scene
+        and args.holster_reload
+        and (not args.existing or args.output.resolve() == args.existing.resolve())
+    ):
+        parser.error("收枪装填小样须用 --existing 指定归档文件，另存输出")
+    if args.report and args.report.resolve() == args.output.resolve():
         parser.error("原始回执请另指定文件")
     if not args.holster_reload and not args.cache:
         parser.error("KPM 批次需要 --cache")
     if args.lanes < 1:
         parser.error("--lanes 至少为 1")
     binary = args.engine.resolve(strict=True)
-    reference = json.loads(REFERENCE.read_bytes())
+    reference = json.loads(args.reference.read_bytes())
     if args.holster_reload:
         build_holster(args, parser, binary, reference)
         return
@@ -438,22 +468,15 @@ def main() -> None:
         raise ValueError("引擎数据版本和参考配装版本不一致")
 
     weapons = {weapon["id"]: weapon for weapon in meta["weapons"]}
-    source = riven_rating.presets()
-    scenes = {
-        f"{wid}/{mode}": preset["fight"]
-        for wid, modes in source.items()
-        for mode, preset in modes.items()
-    }
+    scenes = reference_scenes(reference)
     if args.scene:
         if missing := set(args.scene) - scenes.keys():
             parser.error(f"参考配装未找到 {sorted(missing)}")
         scenes = {name: scenes[name] for name in sorted(set(args.scene))}
-    elif args.output == OUTPUT and args.runs != RUNS:
-        parser.error(f"随包数据按 {RUNS} 轮生成")
 
     protocol = {
         "runs": args.runs,
-        "seed": riven_rating.SEED,
+        "seed": SEED,
         "rank": SHAPE["rank"],
         "bonus_slots": len(SHAPE["bonuses"]),
         "malus_slots": 1,
@@ -463,7 +486,7 @@ def main() -> None:
     }
     provenance = {
         "schema": SCHEMA,
-        "reference_sha256": digest(REFERENCE.read_bytes()),
+        "reference_sha256": digest(args.reference.read_bytes()),
         "engine_binary_sha256": digest(binary.read_bytes()),
         "engine": health,
         "protocol": protocol,
@@ -558,8 +581,8 @@ def main() -> None:
         "counts": dict(counts),
         "weapons": result,
     }
-    if not args.scene and OUTPUT.exists():
-        existing = json.loads(OUTPUT.read_bytes())
+    if not args.scene and args.output.exists():
+        existing = json.loads(args.output.read_bytes())
         if (
             (audit := existing.get("roll_pool_audit"))
             and audit["reference_sha256"] == doc["reference_sha256"]

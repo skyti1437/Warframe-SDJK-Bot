@@ -44,11 +44,16 @@ class RequestQueue:
             )
 
     @asynccontextmanager
-    async def slot(self, notify=None, *, room=None, key=None):
+    async def slot(self, notify=None, *, room=None, key=None, wait_timeout=None):
         """等到队首且有空位才放行。room 可检查和其他任务共享的额外并发预算。"""
 
         def can_start():
             return self.active < self.workers and (room is None or room())
+
+        async def wait_turn(ticket):
+            while not self._closed and (self._waiting[0] is not ticket or not can_start()):
+                self._changed.clear()
+                await self._changed.wait()
 
         self._check_open()
         notice = None
@@ -64,9 +69,18 @@ class RequestQueue:
                 try:
                     if notify is not None:
                         notice = asyncio.create_task(notify(len(self._waiting)))
-                    while not self._closed and (self._waiting[0] is not ticket or not can_start()):
-                        self._changed.clear()
-                        await self._changed.wait()
+                    if wait_timeout is None:
+                        await wait_turn(ticket)
+                    else:
+                        try:
+                            await asyncio.wait_for(wait_turn(ticket), timeout=wait_timeout)
+                        except asyncio.TimeoutError:
+                            raise QueueUnavailable(
+                                L(
+                                    "排队超时，请稍后重试",
+                                    "Queue wait timed out. Try again shortly.",
+                                )
+                            ) from None
                     self._check_open()
                 finally:
                     self._waiting.remove(ticket)

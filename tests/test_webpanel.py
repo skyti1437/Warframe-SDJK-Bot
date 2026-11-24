@@ -154,6 +154,8 @@ check(
         "font_download": ["POST"],
         "settings": ["GET"],
         "settings_save": ["POST"],
+        "commands_config": ["GET"],
+        "commands_config_save": ["POST"],
         "damage_engine_status": ["GET"],
         "damage_engine_action": ["POST"],
         "panel_language": ["GET"],
@@ -505,9 +507,8 @@ check(
     and "panelErrors.delete(src)" in _html,
 )
 check(
-    "多列表格窄屏改卡片（含引擎模式对照与样例）",
-    _html.count('<table class="cards">') == 9
-    and 'id="engineComparison"' in _html
+    "多列表格窄屏改卡片（含引擎模式对照）",
+    bool(re.search(r'id="engineComparison"[\s\S]*?<table class="cards">', _html))
     and 'el("table", { class: "cards" }' in _html
     and "td.dataset.label = heads[i]" in _html,
 )
@@ -571,7 +572,7 @@ async def _vision_prompt_api():
                 "scan_arcanes",
                 "scan_tiles",
             }
-            and all(t["label"] and t["contract"] for t in catalog["tasks"]),
+            and all(t["label"] and t["contract"] and t["contract_en"] for t in catalog["tasks"]),
         )
         query.update(provider_id="合成/渠道", task="scan_panel")
         detail = await panel.vision_prompts()
@@ -6055,8 +6056,8 @@ check(
     and "await vcReleaseLate(d)" in _js
     and "VC.orphans.push({ d: p.d" in _js,
 )
-_scan_at = _html.index('<section class="panel vtask" id="vScan"')
-_scan_html = _html[_scan_at : _html.index("</section>", _scan_at)]
+_scan_at = _html.index('<details class="panel grp vtask" id="vScan"')
+_scan_html = _html[_scan_at : _html.index("</details>", _scan_at)]
 check(
     "配卡模型槽位单独放在伤害引擎页",
     _html.index('<section data-view="engine">')
@@ -7325,12 +7326,15 @@ async def _portable_engine_download_checks():
     config = {"damage_engine_mode": "simulation", "damage_engine_portable_port": 8765}
     with tempfile.TemporaryDirectory() as scratch:
         with (
-            patch.object(
-                engine, "portable_asset", return_value=(asset_name, sha256(public).hexdigest())
-            ),
+            patch.object(engine, "portable_asset") as choose_asset,
             patch.object(engine.httpx, "AsyncClient", side_effect=client),
         ):
-            for name in ("公开", "摘要错误", "手动"):
+            for name in ("公开", "字节数错误", "摘要错误", "手动"):
+                choose_asset.return_value = (
+                    asset_name,
+                    sha256(public).hexdigest(),
+                    len(public) + (name == "字节数错误"),
+                )
                 service = engine.EngineService(Path(scratch) / name)
                 service._run = probe
                 service.ensure_portable = start
@@ -7356,20 +7360,21 @@ async def _portable_engine_download_checks():
                 assert status["running"] and status["backend"] == "portable"
                 assert status["source_url"] == f"{engine.REPO}/tree/{engine.PORTABLE_TAG}"
                 await service.task
-                if name == "摘要错误":
+                if name in {"摘要错误", "字节数错误"}:
+                    reason = "摘要" if name == "摘要错误" else "字节数"
                     check(
-                        "摘要错误时不启用半安装目录",
-                        not service.portable_installed() and "摘要" in service.error,
+                        f"{name}时不启用半安装目录",
+                        not service.portable_installed() and reason in service.error,
                     )
                     check("下载失败清理临时目录", not list(service.root.iterdir()))
                 else:
                     check(
                         f"{name}安装与探针成功", service.portable_installed() and not service.error
                     )
-                check(
-                    f"{name}安装使用预期下载来源",
-                    requests == ([] if name == "手动" else list(downloads)),
-                )
+                expected_requests = list(downloads) if name != "手动" else []
+                if name == "字节数错误":
+                    expected_requests = expected_requests[:1]
+                check(f"{name}安装使用预期下载来源", requests == expected_requests)
                 await service.close()
 
 

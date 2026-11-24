@@ -37,7 +37,7 @@ import uuid
 from contextlib import nullcontext
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, NamedTuple, Optional
 
 from . import baro, damage_engine, data_registry, display_time, i18n, paths, riven_sale
 from .api_client import (
@@ -57,6 +57,7 @@ from .commands.dun import _EV_EN
 from .commands.riven import riven_read_selection
 from .commands.vision import _prov_id, original_vision_prompt
 from .logging_compat import logger, mask_id, mask_umo  # noqa: F401 - 面板与测试沿用 W.mask_*
+from .parser import COMMAND_ALIASES, COMMAND_ALIASES_EN
 from .vision_compare import prepare_image, run_comparison
 from .vision_prompt_presets import preset_catalog, preset_detail
 from .vision_prompts import MAX_PROMPT_LENGTH, TASKS, PromptConflict
@@ -113,6 +114,18 @@ _RIVEN_SWITCH_ROUTES = (
     "vision_provider_id_line_recheck",
     "vision_provider_id",
 )
+
+# Operations panel labels for the built-in output contracts. Prompt text stays as authored.
+_VISION_CONTRACTS_EN = {
+    "riven_json": "Return one JSON object with the card’s weapon name in weapon and the complete stat lines in stat_lines. Preserve signs, decimals, units, multipliers, and unknown slots.",
+    "riven_lines": "Transcribe each stat line exactly, preserving signs, values, and units. Omit numbering and explanations.",
+    "scan_main": "Return one JSON object with weapon, capacity, mods, panel, and arcanes. Each mod includes name, drain, color, and polarity. Keep the panel units, thousands separators, and both values around arrows. List damage by row in damage_rows.",
+    "scan_title": "Return only the text after the slash in the top-left title bar. Use one nonempty line of up to 40 characters.",
+    "scan_panel": "Return panel labels and values line by line, or JSON with panel or rows. Preserve all values, units, and both sides of arrows on the same line.",
+    "scan_mods": "Return one line per equipped mod as name | drain. Include the stance and omit empty slots and inventory mods. List equipped Arcanes on separate lines if needed.",
+    "scan_tiles": "Return JSON with slots. Each entry includes tile, state, name, drain, and mark. Transcribe each slot’s card and drain and use visible markers to confirm empty or locked slots.",
+    "scan_arcanes": "Transcribe each equipped Arcane name on its own line. Preserve Primary, Secondary, and Melee prefixes and separators.",
+}
 
 
 class _VisionRouteProbe:
@@ -964,7 +977,13 @@ FIELD_PLATFORMS = {
 PANEL_LANGUAGE = "panel_language"
 PANEL_LANGUAGE_INITIALIZED = "panel_language_initialized"
 PANEL_ONLY_KEYS = frozenset(
-    {"panel_platforms", "vision_routes_isolated", PANEL_LANGUAGE, PANEL_LANGUAGE_INITIALIZED}
+    {
+        "panel_platforms",
+        "vision_routes_isolated",
+        "disabled_commands",
+        PANEL_LANGUAGE,
+        PANEL_LANGUAGE_INITIALIZED,
+    }
 )
 # 改了要重载插件才生效的键（在 __init__ 里构造进 WarframeClient / GroupStore 的）；其余运行时直接读 cfg，保存即生效
 RELOAD_KEYS = frozenset(
@@ -979,6 +998,418 @@ RELOAD_KEYS = frozenset(
     }
 )
 
+GLOBAL_PROTECTED_COMMANDS = frozenset({"help", "status", "wm", "bounty"})
+
+
+class _Command(NamedTuple):
+    key: str
+    name: str
+    name_en: str
+    description: str
+    description_en: str
+    dependencies: tuple[str, ...] = ()
+    experimental: bool = False
+
+
+# 组名和说明用于控制台，触发词沿用解析器词表。依赖标签也标出可选能力。
+_COMMAND_GROUPS = {
+    ("核心入口", "Core"): (
+        _Command("help", "帮助", "Help", "查看可用指令与用法", "List available commands and usage"),
+        _Command(
+            "status",
+            "状态",
+            "Status",
+            "查看插件版本与订阅状态",
+            "Check the version and subscriptions",
+        ),
+    ),
+    ("世界状态与周期", "World State and Cycles"): (
+        _Command("timers", "时效", "Timers", "汇总各周期剩余时间", "See time left in each cycle"),
+        _Command(
+            "cetus",
+            "夜灵",
+            "Open World Cycles",
+            "查看开放世界昼夜与周期",
+            "Check open-world cycles",
+        ),
+        _Command(
+            "bounty", "赏金", "Bounties", "查各地区赏金与奖励", "Find regional bounties and rewards"
+        ),
+        _Command(
+            "fissures", "裂隙", "Void Fissures", "筛选当前虚空裂隙", "Filter active Void Fissures"
+        ),
+        _Command("sortie", "突击", "Sortie", "查看每日突击任务", "See today's Sortie missions"),
+        _Command(
+            "archon", "执刑官", "Archon Hunt", "查看本周执刑官猎杀", "See this week's Archon Hunt"
+        ),
+        _Command(
+            "arbitration",
+            "仲裁",
+            "Arbitration",
+            "查看当前与后续仲裁",
+            "See active and upcoming Arbitrations",
+        ),
+        _Command(
+            "arbtable",
+            "仲裁表",
+            "Arbitration Schedule",
+            "查整周仲裁排期",
+            "Browse the weekly Arbitration schedule",
+        ),
+        _Command("alerts", "警报", "Alerts", "查当前警报与奖励", "Find active alerts and rewards"),
+        _Command(
+            "invasions",
+            "入侵",
+            "Invasions",
+            "查入侵进度与报酬",
+            "Check Invasion progress and rewards",
+        ),
+        _Command("nightwave", "电波", "Nightwave", "查看午夜电波挑战", "See Nightwave challenges"),
+        _Command("events", "活动", "Events", "查看限时活动", "See limited-time events"),
+        _Command("conclave", "武形秘仪", "Conclave", "查看 PvP 挑战", "See PvP challenges"),
+    ),
+    ("周常与轮换", "Weekly Activities and Rotations"): (
+        _Command(
+            "deeparchimedea",
+            "深层科研",
+            "Deep Archimedea",
+            "查本周任务与修正",
+            "See this week's missions and modifiers",
+        ),
+        _Command(
+            "temporalarchimedea",
+            "时光科研",
+            "Temporal Archimedea",
+            "查本周任务与修正",
+            "See this week's missions and modifiers",
+        ),
+        _Command(
+            "descendia",
+            "沉沦之地",
+            "Descendia",
+            "查看本周楼层与复杂化",
+            "See this week's floors and complications",
+        ),
+        _Command("calendar", "日历", "1999 Calendar", "查看 1999 日历", "Browse the 1999 calendar"),
+        _Command(
+            "incursions",
+            "侵袭",
+            "Steel Path Incursions",
+            "查看钢路每日侵袭节点",
+            "See daily Steel Path Incursion nodes",
+        ),
+        _Command(
+            "voidstorms",
+            "九重天",
+            "Void Storms",
+            "查看航道星舰虚空风暴",
+            "See active Railjack Void Storms",
+        ),
+        _Command(
+            "incarnon",
+            "灵化轮换",
+            "Incarnon Rotation",
+            "查看灵化之源轮换",
+            "See the Incarnon Genesis rotation",
+        ),
+        _Command(
+            "tenet",
+            "信条",
+            "Tenet Rotation",
+            "查轮换信条武器与元素加成",
+            "See rotating Tenet weapons and element bonuses",
+        ),
+        _Command(
+            "coda",
+            "终幕",
+            "Coda Rotation",
+            "查轮换终幕武器与元素加成",
+            "See rotating Coda weapons and element bonuses",
+        ),
+        _Command(
+            "construction",
+            "舰队进度",
+            "Fleet Construction",
+            "查看舰队建造进度",
+            "Check fleet construction progress",
+        ),
+        _Command(
+            "clanrewards",
+            "氏族奖励",
+            "Clan Rewards",
+            "查看每周氏族研究奖励",
+            "See weekly clan research rewards",
+        ),
+    ),
+    ("商店与兑换", "Shops and Exchanges"): (
+        _Command(
+            "voidtrader",
+            "奸商",
+            "Void Trader",
+            "查 Baro 到访与库存",
+            "Check Baro's visits and stock",
+        ),
+        _Command(
+            "dailydeals", "每日特惠", "Daily Deals", "查看 Darvo 每日特惠", "See Darvo's daily deal"
+        ),
+        _Command(
+            "steelpath",
+            "钢铁之路",
+            "Steel Path Rewards",
+            "查看钢铁精华商店轮换",
+            "See Teshin's rotating rewards",
+        ),
+        _Command(
+            "slivershop",
+            "碎银兑换",
+            "Riven Sliver Shop",
+            "查看 Palladino 的碎银兑换",
+            "See Palladino's Sliver exchanges",
+        ),
+        _Command(
+            "acrichis",
+            "言录使",
+            "Acrithis",
+            "查看言录使周常货单",
+            "See Acrithis's weekly wares",
+            ("Wiki",),
+        ),
+        _Command(
+            "primevault",
+            "阿耶",
+            "Prime Vault",
+            "查看 Prime 出库与阿耶兑换",
+            "Browse vaulted Prime items and Aya exchanges",
+        ),
+        _Command(
+            "flashsales",
+            "商城折扣",
+            "Flash Sales",
+            "查看商城限时礼包",
+            "See limited-time Market bundles",
+        ),
+    ),
+    ("市场与查价", "Market and Prices"): (
+        _Command(
+            "wm",
+            "市场查价",
+            "Market Orders",
+            "查物品在售与收购挂单",
+            "Look up item sell and buy orders",
+            ("WM",),
+        ),
+        _Command(
+            "wr",
+            "紫卡",
+            "Riven Auctions",
+            "查指定武器或未开紫卡的拍卖",
+            "Find weapon or unrolled Riven auctions",
+            ("WM",),
+        ),
+        _Command(
+            "rm",
+            "源紫卡",
+            "Veiled Riven Prices",
+            "按类别查源紫卡挂单价格",
+            "Look up veiled Riven prices by category",
+            ("WM",),
+        ),
+        _Command(
+            "xh",
+            "玄骸",
+            "Adversary Auctions",
+            "查玄骸武器拍卖",
+            "Look up adversary weapon auctions",
+            ("WM",),
+        ),
+        _Command(
+            "rank",
+            "排行",
+            "Rankings",
+            "查交易价格排行与紫卡周报",
+            "See market rankings and weekly Riven trends",
+            ("WM",),
+        ),
+        _Command(
+            "trend",
+            "趋势",
+            "Price History",
+            "查询物品近期与长期价格走势",
+            "See short- and long-term item price trends",
+            ("WM",),
+        ),
+    ),
+    ("遗物与刷取", "Relics and Farming"): (
+        _Command(
+            "relic",
+            "遗物",
+            "Relics",
+            "查遗物奖励、来源与入库状态",
+            "Find Relic rewards, sources, and vault status",
+        ),
+        _Command(
+            "openrelic",
+            "开核桃",
+            "Relic Runs",
+            "根据当前裂隙推荐开遗物",
+            "Find Relic runs in active Fissures",
+        ),
+        _Command(
+            "parts",
+            "部件",
+            "Prime Parts",
+            "查 Prime 部件和蓝图来源",
+            "Find Prime part and blueprint sources",
+        ),
+        _Command(
+            "farm",
+            "刷",
+            "Farming Plan",
+            "规划整套部件的遗物与刷取节点",
+            "Plan Relics and missions for a full set",
+        ),
+        _Command(
+            "ducats",
+            "金垃圾",
+            "Ducats",
+            "按杜卡德价值查询 Prime 部件",
+            "List Prime parts by Ducat value",
+        ),
+    ),
+    ("紫卡与伤害配卡", "Rivens, Damage, and Builds"): (
+        _Command(
+            "damage",
+            "伤害",
+            "Damage",
+            "计算单次伤害、面板与 DPS",
+            "Calculate hit damage, stats, and DPS",
+            ("独立引擎",),
+        ),
+        _Command(
+            "scan",
+            "识卡",
+            "Build Scan",
+            "读取配卡截图并校验面板。目前尚未完善，识别较慢且易受遮挡或改名影响，默认关闭。",
+            "Read and verify a build screenshot. Recognition is incomplete, slow, and sensitive to hidden slots or renamed weapons. Disabled by default.",
+            ("视觉模型",),
+            experimental=True,
+        ),
+        _Command(
+            "scandamage",
+            "识卡伤害",
+            "Build Scan Damage",
+            "复用识卡结果复算伤害。识卡尚未完善，识别较慢且易受遮挡或改名影响，默认关闭。",
+            "Recalculate damage from a build scan. Recognition is incomplete, slow, and sensitive to hidden slots or renamed weapons. Disabled by default.",
+            ("独立引擎",),
+            experimental=True,
+        ),
+        _Command(
+            "loadoutrecommend",
+            "配卡推荐",
+            "Build Recommendations",
+            "按武器搜索配装，可按实卡重配",
+            "Search for a weapon build, with or without a Riven",
+            ("视觉模型", "独立引擎"),
+        ),
+        _Command(
+            "analysis",
+            "紫卡分析",
+            "Riven Analysis",
+            "分析紫卡词条、融合与报价",
+            "Analyze Riven stats, splices, and prices",
+            ("视觉模型", "独立引擎", "WM"),
+        ),
+        _Command(
+            "riventraits",
+            "词条推荐",
+            "Riven Reroll Suggestions",
+            "看洗卡词条建议与出售参考",
+            "See suggested stats and selling references",
+            ("独立引擎",),
+        ),
+        _Command(
+            "ranges",
+            "词条范围",
+            "Riven Stat Ranges",
+            "查看可刷出的紫卡词条区间",
+            "Look up possible Riven stat ranges",
+        ),
+        _Command(
+            "splice",
+            "紫卡融合",
+            "Riven Splice",
+            "查融合词条的组成配方",
+            "Find the stats that make up a splice",
+        ),
+        _Command(
+            "disposition",
+            "倾向",
+            "Riven Disposition",
+            "查看原倾向与统一后的缩放",
+            "See original and normalized dispositions",
+        ),
+        _Command(
+            "valence",
+            "武器融合",
+            "Valence Fusion",
+            "计算融合后的元素加成",
+            "Calculate the resulting elemental bonus",
+        ),
+    ),
+    ("资料与推送", "Reference and Push"): (
+        _Command(
+            "wiki", "维基", "Wiki", "按术语直达维基条目", "Find a matching Wiki page", ("Wiki",)
+        ),
+        _Command(
+            "translate",
+            "翻译",
+            "Translate",
+            "查游戏名称中英对照",
+            "Look up Chinese and English game terms",
+        ),
+        _Command(
+            "news", "新闻", "News", "查看最新公告与更新", "Read recent official news and updates"
+        ),
+        _Command(
+            "synthtargets",
+            "结合目标",
+            "Synthesis Targets",
+            "查 Simaris 结合目标",
+            "Find Simaris Synthesis Targets",
+        ),
+        _Command(
+            "dun",
+            "蹲",
+            "Subscriptions",
+            "订阅或取消变化推送",
+            "Manage subscriptions to change alerts",
+            ("推送",),
+        ),
+    ),
+}
+
+COMMAND_CATALOG = {
+    command.key: command for commands in _COMMAND_GROUPS.values() for command in commands
+}
+COMMAND_DESCRIPTIONS = {
+    key: (command.description, command.description_en) for key, command in COMMAND_CATALOG.items()
+}
+
+
+def _global_disabled_commands(cfg: dict | None) -> frozenset[str]:
+    if cfg is None or "disabled_commands" not in cfg:
+        return DEFAULT_DISABLED_COMMANDS
+    return _disabled_command_keys(cfg["disabled_commands"])
+
+
+def _disabled_command_keys(values: Any) -> frozenset[str]:
+    if not isinstance(values, list):
+        return frozenset()
+    return (
+        frozenset(key for key in values if isinstance(key, str) and key in COMMAND_ALIASES)
+        - GLOBAL_PROTECTED_COMMANDS
+    )
+
 
 def load_schema(path: Path = SCHEMA_PATH) -> dict:
     try:
@@ -988,6 +1419,11 @@ def load_schema(path: Path = SCHEMA_PATH) -> dict:
     except Exception:  # noqa: BLE001
         return {}
     return data if isinstance(data, dict) else {}
+
+
+DEFAULT_DISABLED_COMMANDS = _disabled_command_keys(
+    load_schema().get("disabled_commands", {}).get("default")
+)
 
 
 def coerce_setting(spec: dict, value: Any, *, key: str = "") -> Any:
@@ -1036,6 +1472,21 @@ def coerce_setting(spec: dict, value: Any, *, key: str = "") -> Any:
     ):
         raise ValueError("令牌只接受可见 ASCII 字符")
     return v
+
+
+def _write_config_changes(conf, changes: dict) -> None:
+    """保存失败时回滚宿主配置对象中的本次改动。"""
+    previous = {key: conf[key] for key in changes if key in conf}
+    try:
+        conf.update(changes)
+        conf.save_config()
+    except Exception:
+        for key in changes:
+            if key in previous:
+                conf[key] = previous[key]
+            else:
+                conf.pop(key, None)
+        raise
 
 
 class _PanelClosed(Exception):
@@ -1102,6 +1553,13 @@ class WebPanel:
                 "SDJKBOT 面板：删除主题图片",
             ),
             (f"/{n}/settings", self.settings, ["GET"], "SDJKBOT 面板：读取设置"),
+            (f"/{n}/commands_config", self.commands_config, ["GET"], "SDJKBOT 面板：读取指令开关"),
+            (
+                f"/{n}/commands_config_save",
+                self.commands_config_save,
+                ["POST"],
+                "SDJKBOT 面板：保存指令开关",
+            ),
             (f"/{n}/riven_ocr_status", self.riven_ocr_status, ["GET"], "本地紫卡 OCR 状态"),
             (f"/{n}/riven_ocr_check", self.riven_ocr_check, ["POST"], "检查本地 OCR 路径"),
             (f"/{n}/riven_ocr_save", self.riven_ocr_save, ["POST"], "保存本地 OCR 路径"),
@@ -1640,6 +2098,7 @@ class WebPanel:
             "registry": registry_rows(),
             # 有效数据账本：逐份对照「运行目录副本 / 随包种子」（只读）
             "ledger": None,
+            "disabled_commands": sorted(_global_disabled_commands(getattr(self.p, "cfg", None))),
             "push": push_state(self.p.push),
             "subs": subscriptions(self.p.subs, getattr(self.p, "groups", None), reveal=reveal),
             "flare_enabled": bool(getattr(self.p.client, "flare_enabled", False)),
@@ -3070,7 +3529,10 @@ class WebPanel:
             return {
                 "status": "ok",
                 "providers": providers,
-                "tasks": [{"id": key, **info} for key, info in TASKS.items()],
+                "tasks": [
+                    {"id": key, **info, "contract_en": _VISION_CONTRACTS_EN[key]}
+                    for key, info in TASKS.items()
+                ],
                 "max_prompt_length": MAX_PROMPT_LENGTH,
                 "customized": customized,
                 "customized_error": customized_error,
@@ -3121,14 +3583,96 @@ class WebPanel:
             return gone
         stats = getattr(self.p, "command_stats", None)
         now = time.time()
+
+        def named_rows(days):
+            rows = []
+            for row in stats.summary(days, now) if stats is not None else []:
+                key = row["command"]
+                command = COMMAND_CATALOG.get(key)
+                rows.append(
+                    {
+                        **row,
+                        "name_zh": command.name if command else key,
+                        "name_en": command.name_en if command else key,
+                    }
+                )
+            return rows
+
         return {
             "retention_days": 30,
             "timezone": "UTC",
             "latency_scope": "handler",
             "latency_unit": "ms",
-            "last_7_days": stats.summary(7, now) if stats is not None else [],
-            "last_30_days": stats.summary(30, now) if stats is not None else [],
+            "last_7_days": named_rows(7),
+            "last_30_days": named_rows(30),
         }
+
+    async def commands_config(self):
+        if (gone := self._gone()) is not None:
+            return gone
+        disabled = _global_disabled_commands(getattr(self.p, "cfg", None))
+        groups = []
+        for (name, name_en), commands in _COMMAND_GROUPS.items():
+            rows = []
+            for command in commands:
+                key = command.key
+                aliases = COMMAND_ALIASES[key]
+                aliases_en = COMMAND_ALIASES_EN.get(key, set()) | {
+                    alias for alias in aliases if alias.isascii()
+                }
+                rows.append(
+                    {
+                        **command._asdict(),
+                        "group": name,
+                        "aliases": sorted(aliases - {command.name, key}),
+                        "aliases_en": sorted(aliases_en - {key}),
+                        "enabled": key not in disabled,
+                        "locked": key in GLOBAL_PROTECTED_COMMANDS,
+                    }
+                )
+            groups.append({"name": name, "name_en": name_en, "commands": rows})
+        total = len(COMMAND_ALIASES)
+        return {
+            "groups": groups,
+            "disabled": sorted(disabled),
+            "default_disabled": sorted(DEFAULT_DISABLED_COMMANDS),
+            "counts": {
+                "total": total,
+                "enabled": total - len(disabled),
+                "disabled": len(disabled),
+                "locked": len(GLOBAL_PROTECTED_COMMANDS),
+            },
+        }
+
+    async def commands_config_save(self):
+        if (gone := self._gone()) is not None:
+            return gone
+        body = await self._body()
+        if (gone := self._gone()) is not None:
+            return gone
+        values = body.get("disabled")
+        if not isinstance(values, list) or any(
+            not isinstance(key, str) or key not in COMMAND_ALIASES for key in values
+        ):
+            return {"status": "error", "message": "请提交只含有效主指令键的禁用列表"}
+        disabled = sorted(set(values))
+        if GLOBAL_PROTECTED_COMMANDS.intersection(disabled):
+            return {"status": "error", "message": "核心必留指令无法关闭"}
+        if self._save_lock.locked():
+            return {"status": "error", "message": "上一次保存还没结束"}
+        async with self._save_lock:
+            conf = getattr(self.p, "_config", None)
+            if conf is None or not callable(getattr(conf, "save_config", None)):
+                return {"status": "error", "message": "无法取得插件配置，指令开关未保存"}
+            changes = {"disabled_commands": disabled}
+            try:
+                _write_config_changes(conf, changes)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("[sdjk] 指令开关保存失败（%s）", type(exc).__name__)
+                return {"status": "error", "message": "指令开关保存失败，请检查插件配置"}
+            self._apply_live(changes)
+        logger.info("[sdjk] 面板保存指令开关：关闭 %d 条", len(disabled))
+        return {"status": "ok", "disabled": disabled}
 
     async def settings(self):
         if (g := self._gone()) is not None:
@@ -3165,6 +3709,7 @@ class WebPanel:
         choice = cfg.get("panel_platforms") or []
         return {
             "groups": groups,
+            "disabled_commands": sorted(_global_disabled_commands(cfg)),
             "providers": self._provider_ids(),
             "platform_info": {
                 "detected": self._enabled_platforms(),
@@ -3422,6 +3967,9 @@ class WebPanel:
             if k == "vision_routes_isolated":
                 errors[k] = "请通过迁移预览与确认操作更改隔离状态"
                 continue
+            if k == "disabled_commands":
+                errors[k] = "请通过指令开关页面管理"
+                continue
             if k not in schema:
                 errors[k] = "未知配置项"
                 continue
@@ -3454,19 +4002,10 @@ class WebPanel:
             if "default_language" in clean:
                 clean[PANEL_LANGUAGE_INITIALIZED] = True
             self._migration_previews.clear()
-            previous = {k: conf[k] for k in clean if k in conf}
             previous_port = damage_engine.portable_port(getattr(self.p, "cfg", None))
             try:
-                conf.update(clean)
-                conf.save_config()
+                _write_config_changes(conf, clean)
             except Exception as exc:  # noqa: BLE001
-                # 配置对象由宿主持有；失败值不能残留并混进下一次无关保存。
-                # 这里只回滚本次键；宿主 save_config 的磁盘原子性仍由宿主保证。
-                for k in clean:
-                    if k in previous:
-                        conf[k] = previous[k]
-                    else:
-                        conf.pop(k, None)
                 return {"status": "error", "message": f"写配置失败：{exc}"}
             self._apply_live(clean)
             port = damage_engine.portable_port(getattr(self.p, "cfg", None))

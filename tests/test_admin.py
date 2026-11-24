@@ -939,7 +939,7 @@ async def command_stats_checks() -> None:
             rows = loaded.summary(7)
             check(
                 "统计按指令聚合并重载，延迟分桶",
-                rows
+                [{**row, "p95_ms": round(row["p95_ms"], 3)} for row in rows]
                 == [
                     {
                         "command": "wr",
@@ -948,12 +948,39 @@ async def command_stats_checks() -> None:
                         "error": 1,
                         "api_error": 1,
                         "no_reply": 1,
-                        "p50_ms": 20,
-                        "p95_ms": 1500,
+                        "avg_ms": 330.25,
+                        "p50_ms": 20.0,
+                        "p95_ms": 1175.0,
                     }
                 ],
             )
             check("统计不写入未知指令或会话标识", "test_group_secret" not in path.read_text())
+        legacy_path = Path(folder) / "legacy_stats.json"
+        legacy_path.write_text(
+            json.dumps({"2026-11-10": {"wr": {"counts": [2, 0, 0, 0], "hist": [0] * 17 + [2]}}})
+        )
+        with patch("core.store.time.time", return_value=now):
+            legacy = CommandStats(legacy_path, {"wr"})
+            old = legacy.summary(7)[0]
+            check(
+                "旧 18 桶保留计数、可估算分位数，平均留空",
+                old["count"] == 2 and old["p50_ms"] == 4000 and old["avg_ms"] is None,
+            )
+            legacy.record("wr", "success", 12500.25)
+            check("新桶准确累计耗时", legacy.summary(1)[0]["avg_ms"] == 12500.25)
+            await legacy.flush(force=True)
+            mixed = CommandStats(legacy_path, {"wr"})
+            check(
+                "旧桶迁移落盘后仍可与新桶汇总，混合期间平均留空",
+                mixed.summary(7)[0]["count"] == 3 and mixed.summary(7)[0]["avg_ms"] is None,
+            )
+            check(
+                "10–30 秒桶内单样本分位数取中点",
+                mixed.summary(1)[0]["p95_ms"] == 20000,
+            )
+        with patch("core.store.time.time", return_value=now + 86400):
+            mixed.record("wr", "success", 2000.5)
+            check("多日汇总按样本计算平均", mixed.summary(2)[0]["avg_ms"] == 7250.375)
         with patch("core.store.time.time", return_value=now + 30 * 86400):
             check("统计按 30 日留存清除旧桶", CommandStats(path, {"wr", "farm"}).summary(30) == [])
         for force, at in ((False, 3601), (True, 30)):

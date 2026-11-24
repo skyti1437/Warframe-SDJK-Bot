@@ -457,8 +457,11 @@ check(
 _ri = dc.calculate(_manual_spec(_an_inc), _an_inc["weapon"])
 if _ri:
     check(
-        "灵化参考伤害：暴击率 75.6%（MOD 后）、单发 >300",
-        _ri["health"] > 300 and close(_ri["crit_cc"], 0.756, 1e-6),
+        "默认三靶灵化参考伤害：暴击率 75.6%、单发约 183.29",
+        _ri["enemy"]["name"] == "Thrax Centurion"
+        and _ri["level"] == 170
+        and close(_ri["health"], 183.2875, 1e-6)
+        and close(_ri["crit_cc"], 0.756, 1e-6),
         f"{_ri['health']} / {_ri['crit_cc']}",
     )
 else:
@@ -741,12 +744,15 @@ check(
     any("暴击期望" in ln for ln in _detail) and any("重击" in ln for ln in _detail),
 )
 # 第二页单发须与第一页「参考」单发同值（同一 calculate 管线自洽）。
-# 2026-10-10 改：原写死 456 —— 那是本引擎算出来的值（不是游戏读数），加伤害量化后为 462
-# 2026-10-11 卡片改版：第二页「单发对血：462」→ 单发表行「· 对血　462（无暴击）…」
+# 显式固定原来的 G 系合成靶可复算旧公式基线。
+_formula_spec = _manual_spec(_an_inc, 100, "Grineer")
+_formula_spec.update(steel_path=False, fire_seconds=12.0)
+_formula_hit = dc_mod.calculate(_formula_spec, _an_inc["weapon"])["health"]
+check("识卡配装旧公式基线为对血 462", round(_formula_hit) == 462, str(_formula_hit))
 _ref_h = f"· 对血　{_ri.get('health', -1):.0f}（无暴击）"
 check(
     "手工字段详情与独立手工复算同值（不作为截图自动许可）",
-    _ref_h.startswith("· 对血　462") and any(ln.startswith(_ref_h) for ln in _detail),
+    any(ln.startswith(_ref_h) for ln in _detail),
     _ref_h,
 )
 
@@ -3275,7 +3281,8 @@ def _upgrade_slot_contract():
         and an["mods"][0]["rank"] == 0
         and an["arcanes"][0]["rank"] is None
         and any(r["code"] == "slot_rank_unknown" for r in an["quality"]["reasons"])
-        and lo.to_damage_spec(an) is None,
+        and lo.to_damage_spec(an) is None
+        and lo.to_damage_spec(an, simulation=True) is None,
     )
     main["arcanes"][0].update(
         _geometry={"x": 830, "y": 600},
@@ -3406,6 +3413,132 @@ def _coordinate_slot_contract():
 
 
 _coordinate_slot_contract()
+
+
+def _multi_section_coordinate_panel():
+    scan = lo.parse_coordinate_ocr(
+        """120,65,105,24,0,升级/
+212,65,46,24,0,伯斯顿
+271,65,60,24,0,Prime
+30,130,40,20,0,容量
+235,130,50,20,0,4/60
+45,260,70,20,0,主要射击
+45,290,70,20,0,暴击几率
+215,290,75,20,0,18% > 120%
+45,320,70,20,0,触发几率
+215,320,75,20,0,30% > 48%
+40,350,40,20,0,冲击
+215,350,65,20,0,13.8 > 70
+40,380,40,20,0,切割
+215,380,65,20,0,18.4 > 93.3
+40,410,40,20,0,总计
+215,410,75,20,0,46 > 1,364.2
+460,338,80,24,0,低温弹头
+535,342,60,24,0,Prime
+543,306,16,20,0,8
+40,480,70,20,0,副射
+45,510,70,20,0,暴击几率
+215,510,65,20,0,50%
+45,570,70,20,0,Incarnon Form
+45,600,70,20,0,暴击几率
+215,600,65,20,0,100%
+45,630,70,20,0,触发几率
+215,630,65,20,0,72%
+40,660,40,20,0,总计
+215,660,65,20,0,970
+45,720,70,20,0,Area Attack
+40,750,40,20,0,冲击
+215,750,65,20,0,3
+40,780,40,20,0,总计
+215,780,65,20,0,3
+675,930,40,20,0,所有
+535,950,55,20,0,Prime"""
+    )
+    panel = scan["panel"]
+    check(
+        "伯斯顿 Prime 的副射、灵化、范围行不覆盖主射",
+        scan["weapon"] == "伯斯顿 Prime"
+        and panel["crit_chance"] == "18% > 120%"
+        and panel["total"] == ["总计", "46 > 1,364.2"]
+        and panel["damage_rows"]
+        == [["冲击", "13.8 > 70"], ["切割", "18.4 > 93.3"], ["总计", "46 > 1,364.2"]]
+        and not lo._panel_structure_reasons(panel),
+        str(panel),
+    )
+    check(
+        "单独分段保留灵化数值与范围原文",
+        [section["section"] for section in panel["_sections"]]
+        == ["secondary_fire", "incarnon", "radial"]
+        and lo._scan_panel_observation(panel)["_sections"][1]["crit_chance"] == 100
+        and any(
+            row.get("section") == "radial" and row["values"] == ["3"]
+            for row in scan["coordinate_ocr"]["panel_rows"]
+        ),
+    )
+    check(
+        "标题只消耗自身 Prime，装备区独立后缀正确并回卡名",
+        [(m["name"], m["drain"]) for m in scan["mods"]] == [("低温弹头 Prime", 8)]
+        and [b["y"] for b in scan["coordinate_ocr"]["boxes"] if b["text"] == "Prime"] == [342, 950]
+        and scan["mods"][0]["_field_geometry"]["name"]["joined_source_lines"] == [17, 18],
+        str(scan["mods"]),
+    )
+
+
+_multi_section_coordinate_panel()
+
+
+def _wrapped_slot_coordinates():
+    first = {
+        "id": "mod-1-1",
+        "kind": "regular",
+        "box": [0, 0, 0.46, 1],
+        "sheet_box": [0, 0, 460, 1000],
+        "sheet_size": [1000, 1000],
+        "capacity_badge": {"color": "绿"},
+        "rank_observation": {"count": 10, "maxed": True},
+    }
+    exilus = {
+        "id": "exilus",
+        "kind": "exilus",
+        "box": [0.51, 0, 1, 1],
+        "sheet_box": [510, 0, 1000, 1000],
+        "sheet_size": [1000, 1000],
+        "capacity_badge": {"color": "红"},
+        "rank_observation": {"count": 0, "maxed": False},
+    }
+    read = (
+        "88,498,145,58,0,低温弹头\n190,510,130,58,0,Prime\n"
+        "310,408,18,20,0,8\n750,690,50,65,0,私法\n"
+        "738,774,52,65,0,补给\n845,20,15,34,0,5"
+    )
+    slots = lo.verify_coordinate_slots({}, None, [first, exilus], lo.coordinate_ocr_boxes(read), "")
+    check(
+        "首槽横向位移与扩展槽换行仍核对同槽容量和等级",
+        [(s.get("mod_name"), s.get("drain"), s["rank"]) for s in slots]
+        == [("Primed Cryo Rounds", 8, 10), ("Vigilante Supplies", 5, 0)],
+        str(slots),
+    )
+    crossed = lo.verify_coordinate_slots(
+        {}, None, [first, exilus], lo.coordinate_ocr_boxes(read.replace("738,774", "423,774")), ""
+    )
+    check("扩展槽不借相邻主槽的后半截卡名", crossed[1]["state"] == "unknown")
+    wrapped_variant = lo.verify_coordinate_slots(
+        {},
+        None,
+        [first],
+        lo.coordinate_ocr_boxes(
+            "200,487,40,55,0,镀层\n204,555,102,55,0,分裂膛室\n310,408,18,20,0,8"
+        ),
+        "",
+    )
+    check(
+        "换行后的完整卡名保留前缀，续行可独立命中普通版本时也不降格",
+        wrapped_variant[0].get("mod_name") == "Galvanized Chamber"
+        and wrapped_variant[0]["rank"] == 10,
+    )
+
+
+_wrapped_slot_coordinates()
 
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")

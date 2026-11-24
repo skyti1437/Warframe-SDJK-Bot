@@ -20,6 +20,7 @@ import asyncio
 import random
 import re
 import shutil
+import sys
 import tempfile
 import time
 import traceback
@@ -36,7 +37,7 @@ from astrbot.api.star import Context, Star, register
 
 try:  # 允许脱离 AstrBot 直接跑单元测试
     from .core import __brand__ as BRAND
-    from .core import api_client, display_time
+    from .core import api_client, damage_calc as dc, display_time
     from .core.api_client import (
         DEFAULT_DE_WORLDSTATE,
         WarframeAPIError,
@@ -84,7 +85,7 @@ try:  # 允许脱离 AstrBot 直接跑单元测试
     from .core.local_ocr_install import LocalOCRInstaller
     from .core.damage_engine import EngineService
     from .core.riven_sale import RivenSaleSource
-    from .core.webpanel import WebPanel
+    from .core.webpanel import COMMAND_DESCRIPTIONS, WebPanel, _global_disabled_commands
 except ImportError as _imp_err:  # pragma: no cover
     # ★ 2026-09-25 事故修正：**只在确实不是包上下文时**才回退到绝对导入
     #   （脱离 AstrBot 单独跑脚本/测试的情形）。包内导入失败 = 真错误，
@@ -95,7 +96,7 @@ except ImportError as _imp_err:  # pragma: no cover
         raise
     from core import __brand__ as BRAND
 
-    from core import api_client, display_time
+    from core import api_client, damage_calc as dc, display_time
     from core.api_client import (
         DEFAULT_DE_WORLDSTATE,
         WarframeAPIError,
@@ -143,7 +144,7 @@ except ImportError as _imp_err:  # pragma: no cover
     from core.local_ocr_install import LocalOCRInstaller
     from core.damage_engine import EngineService
     from core.riven_sale import RivenSaleSource
-    from core.webpanel import WebPanel
+    from core.webpanel import COMMAND_DESCRIPTIONS, WebPanel, _global_disabled_commands
 
 
 # ---------------------------------------------------------------------------
@@ -319,6 +320,15 @@ def _wake_prefix_stripped(event: AstrMessageEvent) -> bool:
     return False
 
 
+def _on_message_filter():
+    spec = filter.EventMessageType.ALL
+    # 在内置 group_chat_context 图说前接住本插件指令，其余消息立即放行，正常群聊图说照常执行。
+    try:
+        return filter.event_message_type(spec, priority=sys.maxsize - 1)
+    except TypeError:
+        return filter.event_message_type(spec)
+
+
 _GROUP_PROTECTED_COMMANDS = {"help", "status"}
 _GROUP_COMMAND_ADMIN = {
     "禁用": "disablecmd",
@@ -396,13 +406,13 @@ HELP_TOPIC: dict[str, list[tuple[str, str]]] = {
         ("裂隙 / 开核桃", "虚空裂隙（可筛 钢铁/类型/纪元）｜刷遗物建议"),
         ("赏金 / 声望", "各地区赏金与奖励（地球 = 地球赏金）"),
         ("wm 物品名", "市场在售/收购（加 蓝图/机体 查部件）"),
-        ("伤害 武器 对 敌人 100级", "面板 / 单次命中 / DPS / 分段"),
+        ("伤害 武器 [标准靶]", "面板 / 单次命中 / DPS / 分段"),
         (
             "紫卡分析 武器名 词条数值",
             "词条区间与距中、融合建议、同词条挂单价（负词条加「负」；也可直接发紫卡截图）",
         ),
         ("词条范围 武器名 [3+1-]", "该武器能刷出的词条区间（2+1 = 2+1-；可点名词条 / 切组合）"),
-        ("词条推荐 武器名 [模式]", "查看洗卡词条建议与出售参考"),
+        ("词条推荐 武器名 [模式] [靶标参数]", "模拟洗卡词条建议｜社区出售参考"),
         ("紫卡融合 [武器/词条]", "融合词条由哪两条原词条拼成（也认 紫卡拼接 / 融合词条）"),
     ],
     "周期与日常": [
@@ -441,9 +451,9 @@ HELP_TOPIC: dict[str, list[tuple[str, str]]] = {
         ("金垃圾 / 银垃圾 / 铜垃圾", "按杜卡德分档"),
     ],
     "伤害与配卡": [
-        ("识卡 + 截图", "读配卡界面并校验面板"),
-        ("识卡伤害 对 敌人 等级", "复用识卡结果复算"),
-        ("配卡推荐 武器名 [模式]", "无紫卡通用配装｜也可直接附紫卡图，按实卡推荐"),
+        ("识卡 + 截图", "识别配装并校验面板（实验功能，默认关闭）"),
+        ("识卡伤害 [标准靶]", "用已识别配装算伤害（实验功能，默认关闭）"),
+        ("配卡推荐 武器名 [模式] [靶标参数]", "独立引擎推荐配装｜可附紫卡图"),
         ("武器融合 / 玄骸 / xh", "效价融合｜玄骸拍卖"),
     ],
     "资料与推送": [
@@ -464,8 +474,10 @@ HELP_NOTES: dict[str, list[str]] = {
         "英文指令可发 wfhelp -en 查看。eda / eta 查深层与时光科研，sp 查钢铁精华商店，nw 查午夜电波",
     ],
     "伤害与配卡": [
+        *dc.TARGET_HELP_ZH,
         "伤害可加：爆头 病毒10 剥甲 满镀层 钢路 开火N秒｜灵化 / 基础形态 / 副开火 / 蓄力 / "
         "未蓄力 / 半自动 / 空战 / 地面 / 进化 X / 赤毒辐射60（玄骸回响 25–60%）",
+        "词条推荐与配卡推荐可加「灵化」（含充能循环）、「灵化形态」、「重击」或「震地」切换。",
     ],
     "资料与推送": [
         "帮助 / help = 本页；状态 = 运行状态、版本与订阅数（需群管理员）",
@@ -489,7 +501,7 @@ HELP_TOPIC_EN: dict[str, list[tuple[str, str]]] = {
         ),
         ("bounty", "Bounties and rewards by region"),
         ("wm <item>", "Market sell/buy orders (add blueprint / part words to look up a part)"),
-        ("damage <weapon> vs <enemy> 100", "Panel / single hit / DPS / breakdown"),
+        ("damage <weapon> [benchmark]", "Panel / single hit / DPS / breakdown"),
         (
             "rgrade <weapon> <stats>",
             "Stat ranges, roll quality, splice tips and similar listings (or just send a riven screenshot)",
@@ -498,7 +510,10 @@ HELP_TOPIC_EN: dict[str, list[tuple[str, str]]] = {
             "rrange <weapon> [3+1-]",
             "Stat ranges a weapon can roll (pick stats or switch combos)",
         ),
-        ("riventraits <weapon> [mode]", "Reroll suggestions and selling reference"),
+        (
+            "riventraits <weapon> [mode] [target options]",
+            "Simulated reroll suggestions | Community selling reference",
+        ),
         ("splice [weapon/stat]", "Which two stats a spliced stat comes from"),
     ],
     "Cycles and Daily": [
@@ -549,11 +564,17 @@ HELP_TOPIC_EN: dict[str, list[tuple[str, str]]] = {
         ("ducats", "Gold / Silver / Bronze parts by ducat value"),
     ],
     "Damage and Builds": [
-        ("scan + screenshot", "Read a build screen and verify the panel"),
-        ("scandmg vs <enemy> <level>", "Recalculate from the last scan"),
         (
-            "loadoutrecommend <weapon> [mode]",
-            "No-Riven reference build | Attach a Riven screenshot to build around your card",
+            "scan + screenshot",
+            "Read a build and verify its stats (experimental, off by default)",
+        ),
+        (
+            "scandmg [benchmark]",
+            "Calculate damage from the last scan (experimental, off by default)",
+        ),
+        (
+            "loadoutrecommend <weapon> [mode] [target options]",
+            "Builds from the standalone engine | Optional Riven screenshot",
         ),
         ("valence / xh", "Valence Fusion | Kuva / Tenet weapon auctions"),
     ],
@@ -575,7 +596,9 @@ HELP_NOTES_EN: dict[str, list[str]] = {
         "Add -en or -cn to switch the reply language. Admins can set the chat default with .language en / .language cn / .language default",
     ],
     "Damage and Builds": [
+        *dc.TARGET_HELP_EN,
         "Damage modifiers: headshot, viral10, strip, full-armor, steelpath, fire Ns | incarnon / base form / alt fire / charged / uncharged / semi-auto / aerial / ground / evolve X / kuva-radiation60",
+        "Reroll and build modes include cycle (with charging), incarnon (form), heavy and slam.",
     ],
     "Info and Push": [
         "wfhelp opens this page. wfstatus shows the version and subscriptions (group admins only)",
@@ -1456,7 +1479,7 @@ class WarframeSDJK(
     # ------------------------------------------------------------------
     # 总分发：捕获全部消息，交由 SDJK 解析器处理
     # ------------------------------------------------------------------
-    @filter.event_message_type(filter.EventMessageType.ALL)
+    @_on_message_filter()
     async def on_message(self, event: AstrMessageEvent):
         text = (getattr(event, "message_str", "") or "").strip()
         if not text or text.startswith("/"):
@@ -1512,6 +1535,9 @@ class WarframeSDJK(
         )
         if not parsed.command:
             return
+        global_disabled = _global_disabled_commands(getattr(self, "cfg", None))
+        if parsed.command in global_disabled:
+            return
         blocked = (
             isinstance(groups, GroupStore)
             and parsed.command not in _GROUP_PROTECTED_COMMANDS
@@ -1550,6 +1576,30 @@ class WarframeSDJK(
             or (groups.lang(umo) if groups is not None and hasattr(groups, "lang") else None)
             or i18n.coerce_lang(cfg.get("default_language", i18n.DEFAULT_LANG))
         )
+
+    async def _send_progress_notice(self, event, text: str) -> None:
+        if event is None:
+            return
+
+        async def deliver():
+            bridge = getattr(self, "_messaging", None)
+            if bridge is not None:
+                bridge.prepare_event(event)
+                if await bridge.send_literal(event, text, qq_passive=True):
+                    return
+            send = getattr(event, "send", None)
+            if callable(send):
+                await send(self._literal_result(event.plain_result(text)))
+                return
+            origin = getattr(event, "unified_msg_origin", None)
+            context = getattr(self, "context", None)
+            if origin and context is not None:
+                await context.send_message(origin, MessageChain().message(text))
+
+        try:
+            await asyncio.wait_for(deliver(), timeout=5)
+        except Exception as exc:  # noqa: BLE001 - 进度消息失败时仍继续查询
+            logger.warning("[sdjk] 计算进度提示发送失败（%s）", type(exc).__name__)
 
     async def _dispatch(self, handler, parsed: Parsed, event: AstrMessageEvent, platform: str):
         started = time.perf_counter()
@@ -2598,14 +2648,34 @@ class WarframeSDJK(
         剥掉，见文件头「指令空间避让」），而 "/help" 属于 AstrBot 内置指令，
         已被本插件主动让路 —— 说明一句，免得用户以为帮助坏了。
         """
-        topics, notes = (HELP_TOPIC_EN, HELP_NOTES_EN) if i18n.is_en() else (HELP_TOPIC, HELP_NOTES)
+        english = i18n.is_en()
+        topics, notes = (HELP_TOPIC_EN, HELP_NOTES_EN) if english else (HELP_TOPIC, HELP_NOTES)
+        disabled = _global_disabled_commands(getattr(self, "cfg", None))
         lines = [f"※ {n}" for n in notes.get("", [])]
         for t, items in topics.items():
+            rows = []
+            for label, description in items:
+                if disabled:
+                    entries = [(part, parse(part).command) for part in label.split(" / ")]
+                    visible = [(part, key) for part, key in entries if key not in disabled]
+                    if not visible:
+                        continue
+                    if len(visible) < len(entries):
+                        label = " / ".join(part for part, _ in visible)
+                        keys = dict.fromkeys(key for _, key in visible)
+                        # 混合行的原说明可能包含已关闭指令，改用各保留指令的简介。
+                        description = (" | " if english else "｜").join(
+                            COMMAND_DESCRIPTIONS.get(key, (description, description))[english]
+                            for key in keys
+                        )
+                rows.append(f"· {label}　{description}")
+            if not rows and not notes.get(t):
+                continue
             lines.append(f"◆ {t}")
             # 全角空格分隔：渲染层按此切成两列并做首字符垂直线对齐
-            lines += [f"· {c}　{d}" for c, d in items]
+            lines += rows
             lines += [f"※ {n}" for n in notes.get(t, [])]
-        if i18n.is_en():
+        if english:
             return Reply(f"{BRAND} Command List", lines, footer=fmt.fmt_platform_footer(platform))
         return Reply(f"{BRAND} 指令一览", lines, footer=fmt.fmt_platform_footer(platform))
 

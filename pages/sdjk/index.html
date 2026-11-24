@@ -18,15 +18,16 @@
     --gold: #d4b06a; --gold-bright: #f0d79a; --gold-dim: #7a643e; --gold-faint: #605236;
     --ink: #ece8de; --ink-dim: #a8b0be; --ink-faint: #848c9a;
     --ok: #6cc88a; --warn: #e8b26a; --stale: #d86458; --info: #848c9a; --cyan: #6fd3e8;
-    --btn-ink: #0c0f16; --glow: rgba(212, 176, 106, .10); --field: #0f131c;
+    --btn-ink: #0c0f16; --danger-ink: #0c0f16; --glow: color-mix(in srgb, var(--gold) 10%, transparent); --field: #0f131c;
+    --shadow: rgb(0 0 0 / .25); --toast-shadow: rgb(0 0 0 / .35); --scrim: rgb(0 0 0 / .65);
   }
   [data-theme="light"] {
     --bg-top: #f4f0e6; --bg-bot: #ebe5d7;
     --panel: #fbf8f1; --panel-alt: #f4efe3; --line: #d9c9a3; --hair: #e4dccb;
     --gold: #8a6a2c; --gold-bright: #6e531f; --gold-dim: #a68d5c; --gold-faint: #c8b588;
-    --ink: #2a2620; --ink-dim: #5a5448; --ink-faint: #857d6e;
-    --ok: #2f8a52; --warn: #a8701f; --stale: #b2433a; --info: #857d6e; --cyan: #1f8aa3;
-    --btn-ink: #fbf8f1; --glow: rgba(138, 106, 44, .08); --field: #ffffff;
+    --ink: #2a2620; --ink-dim: #5a5448; --ink-faint: #6d665a;
+    --ok: #246e43; --warn: #87530c; --stale: #a1322a; --info: #6d665a; --cyan: #0e6376;
+    --btn-ink: #fbf8f1; --danger-ink: #fbf8f1; --glow: color-mix(in srgb, var(--gold) 8%, transparent); --field: #ffffff;
   }
   * { box-sizing: border-box; }
   html { min-height: 100%; background: var(--bg-bot); }
@@ -68,7 +69,7 @@
   #panelLocale { max-width: 100%; }
   #languageDialog { width: min(25rem, calc(100% - 24px)); color: var(--ink);
                     background: var(--panel); border: 1px solid var(--gold-dim); padding: 20px; }
-  #languageDialog::backdrop { background: rgb(0 0 0 / .65); }
+  #languageDialog::backdrop { background: var(--scrim); }
   #languageDialog h2 { font-size: 17px; margin: 0 0 14px; color: var(--gold-bright); }
   :is(#panelLocale, #languageDialog button):focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; }
   html[lang="en"] details.grp > summary::after { content: "▸ Expand"; }
@@ -90,9 +91,16 @@
   .hint { color: var(--ink-faint); font-size: 12px; }
 
   .scroll { overflow-x: auto; }
-  #statsTable { min-width: 780px; }
+  #statsTable { min-width: 710px; }
+  #statsTable :is(th, td) { padding-inline: 8px; }
+  #statsTable thead th { letter-spacing: .05em; }
+  #statsTable th[scope="row"] { font-size: 13px; font-weight: 600; letter-spacing: normal; color: var(--ink); border-bottom-color: var(--hair); }
+  #statsTable tbody tr:nth-child(even) th { background: var(--panel-alt); }
+  #statsTable .key { font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--ink-faint); margin-left: 7px; white-space: nowrap; }
+  #statsSort { width: auto; max-width: 100%; }
+  #engineSource { color: var(--cyan); font-size: 12px; }
   table { border-collapse: collapse; width: 100%; }
-  th { text-align: left; font-weight: 500; font-size: 11px; letter-spacing: .14em; color: var(--gold-dim);
+  th { text-align: left; font-weight: 500; font-size: 11px; letter-spacing: .14em; color: var(--gold);
        padding: 6px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
   td { padding: 7px 10px; border-bottom: 1px solid var(--hair); vertical-align: middle; }
   tbody tr:nth-child(even) td { background: var(--panel-alt); }
@@ -122,9 +130,10 @@
   button.primary { background: var(--gold); border-color: var(--gold); color: var(--btn-ink); font-weight: 600; }
   button.primary:hover:not(:disabled) { background: var(--gold-bright); color: var(--btn-ink); }
   button.danger { color: var(--stale); border-color: color-mix(in srgb, var(--stale) 55%, transparent); }
-  button.danger.arm { background: var(--stale); color: #fff; border-color: var(--stale); }
+  button.danger.arm { background: var(--stale); color: var(--danger-ink); border-color: var(--stale); }
   button.sm { font-size: 12px; padding: 1px 10px; }
-  button:disabled { color: var(--cyan); border-color: var(--cyan); background: transparent; cursor: progress; }
+  button:disabled { color: var(--ink-faint); border-color: var(--hair); background: transparent; cursor: default; }
+  button[aria-busy="true"]:disabled { cursor: progress; }
 
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
   .stat { background: var(--panel-alt); border-top: 1px solid var(--gold-dim); padding: 8px 12px 9px; }
@@ -167,25 +176,41 @@
            padding: 12px 0; border-bottom: 1px solid var(--hair); align-items: start; }
   .field:last-child { border-bottom: 0; }
   .field.dirty { box-shadow: inset 2px 0 0 var(--cyan); padding-left: 10px; }
+  .field > * { min-width: 0; overflow-wrap: anywhere; }
   .field .lab { color: var(--ink); }
   .field .key { font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--ink-faint); margin-left: 6px; }
   .field .fh { color: var(--ink-faint); font-size: 12px; margin-top: 2px; }
   .field .eff { font-size: 11px; margin-left: 6px; }
   .ptitle input.subsFilter { width: 220px; max-width: 100%; }
-  input[type="text"], input[type="number"], select, textarea {
+  #commandTools { padding-bottom: 0; }
+  #commandCounts { margin: 0; }
+  #commandSearch { flex: 1 1 220px; width: auto; min-width: 0; max-width: 100%; }
+  #commandStatus:not(:empty) { margin-top: 8px; }
+  .field.commandRow { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+  .commandRow[hidden], .commandGroup[hidden] { display: none; }
+  .commandName { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; }
+  .commandName .key { margin: 0; }
+  .commandDisabled[hidden] { display: none; }
+  .commandName .tag { font-size: 11px; padding: 0 5px; }
+  .commandName .locked { color: var(--gold-bright); }
+  .commandActions { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+  input[type="text"], input[type="number"], input[type="password"], select, textarea {
     width: 100%; font: inherit; font-size: 13px; color: var(--ink); background: var(--field);
     border: 1px solid var(--hair); border-radius: 0; padding: 6px 9px; outline: none; }
   input:focus, select:focus, textarea:focus { border-color: var(--gold); box-shadow: 0 0 0 1px var(--glow); }
   textarea { min-height: 64px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-  .switch { position: relative; width: 44px; height: 22px; display: inline-block; }
-  .switch input { opacity: 0; width: 0; height: 0; }
-  .switch span { position: absolute; inset: 0; background: var(--hair); border: 1px solid var(--line); cursor: pointer; transition: .15s; }
-  .switch span::after { content: ""; position: absolute; width: 16px; height: 16px; left: 2px; top: 2px; background: var(--ink-faint); transition: .15s; }
+  .switch { position: relative; width: 44px; height: 22px; display: inline-block; vertical-align: middle; flex: none; }
+  .switch input { position: absolute; inset: 0; opacity: 0; margin: 0; width: 100%; height: 100%; }
+  .switch input + span { position: absolute; inset: 0; background: var(--hair); border: 1px solid var(--line); cursor: pointer; transition: .15s; }
+  .switch input + span::after { content: ""; position: absolute; width: 16px; height: 16px; left: 2px; top: 2px; background: var(--ink-faint); transition: .15s; }
   .switch input:checked + span { background: color-mix(in srgb, var(--gold) 30%, transparent); border-color: var(--gold); }
   .switch input:checked + span::after { left: 24px; background: var(--gold-bright); }
+  .switch input:focus-visible + span { outline: 2px solid var(--gold-bright); outline-offset: 3px; }
+  .switch input:disabled + span { opacity: .55; cursor: default; }
+  .toggleLabel { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
   .savebar { position: sticky; bottom: 0; z-index: 2; display: none; align-items: center; gap: 12px; flex-wrap: wrap;
              padding: 10px 16px; margin-top: 4px; background: var(--panel); border: 1px solid var(--gold-dim);
-             box-shadow: 0 -8px 24px rgba(0, 0, 0, .25); }
+             box-shadow: 0 -8px 24px var(--shadow); }
   .savebar.on { display: flex; }
   .savebar .grow { flex: 1; }
 
@@ -226,7 +251,7 @@
   /* 出错提示浮在视口里：手机上滑到页面下方操作失败也看得到；点 × 关闭，自动刷新不清掉别处的报错 */
   #err { position: fixed; z-index: 6; top: 12px; left: 50%; transform: translateX(-50%); width: min(640px, calc(100vw - 24px));
          color: var(--stale); white-space: pre-wrap; background: var(--panel); border: 1px solid var(--stale);
-         border-left-width: 3px; padding: 10px 40px 10px 14px; box-shadow: 0 8px 24px rgba(0, 0, 0, .35); }
+         border-left-width: 3px; padding: 10px 40px 10px 14px; box-shadow: 0 8px 24px var(--toast-shadow); }
   #err[hidden] { display: none; }
   #err .x { position: absolute; top: 6px; right: 6px; border: 0; padding: 0 8px; color: var(--ink-dim); font-size: 16px; }
   .s-edit { color: var(--cyan); }
@@ -313,7 +338,7 @@
   details.session > summary > * { min-width: 0; max-width: 100%; overflow-wrap: anywhere; white-space: normal; }
   details.session > summary b { color: var(--ink); font-weight: 600; letter-spacing: .04em; }
   label { user-select: none; cursor: pointer; }
-  input[type="checkbox"] { accent-color: var(--gold); vertical-align: -2px; }
+  input[type="radio"] { accent-color: var(--gold); }
 
   /* —— 分区折叠、跨页提示、识图页 —— */
   details.adv.tip { margin: 0 0 6px; }
@@ -325,8 +350,10 @@
   details.grp > summary { cursor: pointer; list-style: none; margin: 0; }
   details.grp[open] > summary { margin-bottom: 12px; }
   details.grp > summary::-webkit-details-marker { display: none; }
-  details.grp > summary::after { content: "▸ 展开"; order: 9; color: var(--gold-dim); font-size: 12px; letter-spacing: .08em; }
+  details.grp > summary::after { content: "▸ 展开"; order: 9; color: var(--ink-faint); font-size: 12px; letter-spacing: .08em; }
   details.grp[open] > summary::after { content: "▾ 收起"; }
+  html[lang="en"] details.grp > summary::after { content: "▸ Expand"; }
+  html[lang="en"] details.grp[open] > summary::after { content: "▾ Collapse"; }
   .gcount { color: var(--cyan); font-size: 12px; }
   .gcount:empty { display: none; }
   .advSwitch { display: inline-flex; align-items: center; gap: 8px; color: var(--ink-dim); font-size: 13px; letter-spacing: .08em; }
@@ -419,7 +446,7 @@
     .connAtt { grid-template-columns: 1.2em minmax(0, 1fr); row-gap: 0; }
     .connAtt + .connAtt { margin-top: 6px; }
     .connAtt .connUrl, .connAtt .connMeta { grid-column: 2; }  /* 窄屏：筛选框单独占一行，不被装饰线挤到右侧 */
-    .shell { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+    .shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; }
     nav { position: sticky; top: 0; z-index: 3; height: auto; display: flex; overflow-x: auto; padding: 0;
           border-right: 0; border-bottom: 1px solid var(--line); background: var(--panel); }
     .brand, .navfoot { display: none; }
@@ -429,6 +456,8 @@
     .content { padding: 14px 10px 20px; }
     .languagebar { top: 45px; }
     .panel { padding: 14px 12px 12px; }
+    .ptitle .ext { min-width: 0; }
+    .stat, .log, #freshTable td { min-width: 0; overflow-wrap: anywhere; }
     .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
     .field { grid-template-columns: 1fr; }
     .row > button { min-width: 0; }
@@ -474,6 +503,7 @@
   <a href="#/overview" data-go="overview">概览<span class="badge" id="b-overview" hidden></span></a>
   <a href="#/push" data-go="push">推送与订阅<span class="badge" id="b-push" hidden></span></a>
   <a href="#/stats" data-go="stats">指令统计<span class="badge" id="b-stats" hidden></span></a>
+  <a href="#/commands" data-go="commands">指令开关<span class="badge" id="b-commands" hidden>改</span></a>
   <a href="#/settings" data-go="settings">设置<span class="badge" id="b-settings" hidden></span></a>
   <a href="#/engine" data-go="engine">伤害引擎<span class="badge" id="b-engine" hidden></span></a>
   <a href="#/vision" data-go="vision">紫卡分析<span class="badge" id="b-vision" hidden></span></a>
@@ -554,14 +584,14 @@
 <!-- ============ 推送与订阅 ============ -->
 <section data-view="push">
   <div class="pagehead"><h2>推送与订阅</h2><span class="desc">推送守护运行状态；按群管理「蹲」订阅与推送开关</span></div>
-  <section class="panel"><i class="c1"></i><i class="c2"></i>
-    <div class="ptitle"><h3>推送守护</h3><span class="ext"></span></div>
+  <details class="panel grp" data-required-commands="dun" open><i class="c1"></i><i class="c2"></i>
+    <summary class="ptitle"><h3>推送守护</h3><span class="tag dim commandDisabled" hidden>相关指令已关闭</span><span class="ext"></span></summary>
     <div class="grid" id="push"></div>
-  </section>
+  </details>
   <section class="panel"><i class="c1"></i><i class="c2"></i>
     <div class="ptitle"><h3>蹲订阅</h3><span class="hint" id="subsSummary"></span><span class="ext"></span>
       <input type="text" id="subsFilter" class="subsFilter" placeholder="筛选：群 / 事件 / 条件 / 订阅人" aria-label="筛选订阅" hidden />
-      <label class="hint" title="默认打码；勾选后显示平台给的原始会话 / 用户标识"><input type="checkbox" id="reveal" /> 显示完整标识</label></div>
+      <label class="hint toggleLabel" title="默认打码；勾选后显示平台给的原始会话 / 用户标识"><span class="switch"><input type="checkbox" id="reveal" /><span></span></span>显示完整标识</label></div>
     <div class="hint" style="margin-bottom:8px">会话与订阅人显示的是聊天平台给的标识（默认打码）：QQ 官方机器人是群 / 成员 OpenID，不是真实群号或 QQ 号。群推送关闭时，该群的订阅暂停推送但不会被删除；连续发送失败的群会被暂停推送（可点「恢复推送」，或到点自动重试）。删除订阅要点两次确认。</div>
     <div id="subs"></div>
   </section>
@@ -585,16 +615,35 @@
     <div class="scroll" role="region" aria-label="指令统计表" tabindex="0"><table id="statsTable">
       <thead><tr><th scope="col">指令</th><th scope="col">调用量</th><th scope="col">成功</th>
         <th scope="col">接口错误</th><th scope="col">内部错误</th><th scope="col">无回复</th>
-        <th scope="col">失败率</th><th scope="col">P50</th><th scope="col">P95</th></tr></thead>
+        <th scope="col">失败率</th><th scope="col">平均</th><th scope="col">P50</th><th scope="col">P95</th></tr></thead>
       <tbody id="statsRows"></tbody>
     </table></div>
-    <p class="hint">耗时为处理指令的约值，不含消息发送。失败率按接口错误与内部错误合计。</p>
+    <p class="hint">耗时仅统计指令处理，不含消息发送。P50 和 P95 由分桶估算；所选时段含旧记录时，该指令的平均耗时留空。失败率合计接口错误与内部错误。</p>
   </section>
+</section>
+
+<!-- ============ 指令开关 ============ -->
+<section data-view="commands">
+  <div class="pagehead"><h2>指令开关</h2><span class="desc">开关适用于所有会话，保存后立即生效。</span></div>
+  <section class="panel"><i class="c1"></i><i class="c2"></i>
+    <div class="ptitle"><h3>指令总览</h3><span class="ext"></span></div>
+    <p class="hint" id="commandCounts" role="status"></p>
+    <div class="imgrow" id="commandTools">
+      <input type="text" id="commandSearch" aria-label="搜索指令" placeholder="搜索指令名称、别名或依赖" disabled>
+      <button type="button" id="commandReset" class="sm" title="将草稿恢复为默认开关，保存后生效" disabled>一键恢复默认</button>
+    </div>
+    <div id="commandStatus" class="result" role="status"></div>
+    <p id="commandSearchEmpty" class="hint" hidden>没有匹配的指令</p>
+  </section>
+  <div id="commandGroups"></div>
+  <div class="savebar" id="commandSavebar"><span id="commandSaveInfo" role="status"></span><span class="grow"></span>
+    <button type="button" id="commandDiscard">撤销改动</button><button type="button" class="primary" id="commandSave">保存设置</button>
+    <span id="commandSaveStatus" class="result" role="status"></span></div>
 </section>
 
 <!-- ============ 设置 ============ -->
 <section data-view="settings">
-  <div class="pagehead"><h2>设置</h2><span class="desc">日常输出、推送、平台与权限；识图相关在「识图」页。与 AstrBot 插件配置页是同一份配置，标「需重载」的要在后台重载插件</span></div>
+  <div class="pagehead"><h2>设置</h2><span class="desc">管理输出、推送、聊天平台与权限。截图识别分设在「伤害引擎」与「紫卡分析」。此处与 AstrBot 插件配置共用，标「需重载」的设置在重载后生效。</span></div>
   <div class="crossNote" id="settingsCross" hidden></div>
   <div id="settingsForm"></div>
   <div class="savebar" id="savebar"><span id="saveInfo"></span><span class="grow"></span>
@@ -620,7 +669,7 @@
         <details class="adv"><summary>高级：类别色</summary><div id="slotsAdv"></div></details>
         <div class="sub">背景图与角标</div>
         <div class="imgrow">
-          <label class="hint"><input type="checkbox" id="useBg" disabled /> 使用背景图</label>
+          <label class="hint toggleLabel"><span class="switch"><input type="checkbox" id="useBg" disabled /><span></span></span>使用背景图</label>
           <input type="file" id="bgFile" accept="image/*" /><button class="sm" id="bgUp" disabled>上传</button>
           <button class="sm danger" id="bgDel" hidden>删除</button><span class="hint" id="bgInfo"></span>
         </div>
@@ -645,7 +694,7 @@
         <div class="slider"><span class="hint">面板不透明度</span><input type="range" id="panelAlpha" disabled min="0.3" max="1" step="0.05" /><span id="panelAlphaV" class="hint"></span>
           <span class="hint">有背景图时生效；1 = 不透明</span></div>
         <div class="imgrow">
-          <label class="hint"><input type="checkbox" id="useLogo" disabled /> 使用角标</label>
+          <label class="hint toggleLabel"><span class="switch"><input type="checkbox" id="useLogo" disabled /><span></span></span>使用角标</label>
           <input type="file" id="logoFile" accept="image/*" /><button class="sm" id="logoUp" disabled>上传</button>
           <button class="sm danger" id="logoDel" hidden>删除</button><span class="hint">显示在页脚右侧水印左边。推荐透明底 PNG，约 256×256 px（超过 512 自动缩小）</span>
         </div>
@@ -698,42 +747,9 @@
     <div class="ptitle"><h3>计算模式与服务</h3><span class="ext"></span></div>
     <div id="engineFields"><div class="hint">读取中…</div></div>
   </section>
-  <section class="panel" id="engineComparison"><i class="c1"></i><i class="c2"></i>
-    <div class="ptitle"><h3>两种模式怎么选</h3><span class="ext"></span></div>
-    <div class="scroll"><table class="cards">
-      <thead><tr><th scope="col">用途</th><th scope="col">内置估算（默认）</th><th scope="col">完整模拟（选装）</th></tr></thead>
-      <tbody>
-        <tr><td>伤害与识卡伤害</td><td>按配装和目标快速估算单次命中伤害、持续 DPS 和实战 DPS。</td><td>对已接入的主射配装逐次模拟开火、装填和异常，给指定时长平均 DPS。未接入或暂时无法运行时，符合内置条件的请求会标记后回退。</td></tr>
-        <tr><td>配卡与词条推荐</td><td>随包 1,046 个参考工况提供武器面板、MOD 等级、极化后容量、辅助装备、整套及逐张拆卡 DPS，并保留 KPM（每分钟击杀数）。</td><td>新版引擎支持六个带实卡重搜工况，可显示武器面板和拆卡后的 DPS。已复算的无紫卡配装支持按原工况复算。词条推荐在支持的工况显示预计算 DPS 变化，其余可用工况继续显示随包参考。</td></tr>
-        <tr><td>识卡首图</td><td>按截图核对槽位和等级，以内置公式估算每张卡的影响。</td><td>首图同样用公式估算。查看伤害详情时，槽位、卡片等级及装备均确认后可进入完整模拟。</td></tr>
-        <tr><td>安装与运行</td><td>随插件使用，打开即可查询。</td><td>本机安装约下载 26.5 MiB，安装后约 29 MiB（便携包及数据）。完整模拟会启动独立进程，带实卡重搜比查参考配装更耗时。</td></tr>
-      </tbody>
-    </table></div>
-    <details>
-      <summary>同配装、同目标的对照示例</summary>
-      <p class="hint">内置的实战 DPS 是公式估算，完整模拟默认取前 12 秒的平均。数值差随配装、敌人和时长而变。</p>
-      <div class="scroll"><table class="cards">
-        <thead><tr><th scope="col">配装与目标</th><th scope="col">内置实战 DPS</th><th scope="col">完整模拟 12 秒平均 DPS</th></tr></thead>
-        <tbody>
-          <tr><td>卡拉克＋膛线，对 120 级堕落重型机枪手</td><td>≈204</td><td>107.6</td></tr>
-          <tr><td>苍鹰 Prime＋膛线、地狱火，对 170 级钢铁之路堕落重型机枪手</td><td>≈1,365</td><td>854.3</td></tr>
-          <tr><td>苏普拉·破坏者＋膛线，对 120 级堕落重型机枪手</td><td>≈437</td><td>370.5</td></tr>
-        </tbody>
-      </table></div>
-      <p class="hint">以上均为主射、躯干、满级 MOD。另测同一次布莱顿 Prime 带紫卡重配，四台机器单进程用时约 8–41 秒，峰值内存 134–223 MiB。测试引擎版本 85ec9cdb3461c01c。</p>
-    </details>
-  </section>
   <section class="panel"><i class="c1"></i><i class="c2"></i>
     <div class="ptitle"><h3>下载与连接</h3><span class="ext"></span></div>
     <p class="hint" id="engineDownloadHint">新版支持 Python 3.12 的 Linux x86_64 和 macOS arm64。</p>
-    <details class="hint">
-      <summary id="engineMetricTitle">计算口径</summary>
-      <p id="engineMetricHelp">随包配装和词条推荐读取参考工况，KPM 为每分钟击杀数。完整模拟的 DPS 按所示时长平均。</p>
-      <p id="engineEstimateHelp">内置实战 DPS 按异常层已建立的持续输出估算，不计爬升、掉层、击杀截断和 Boss 伤害衰减。元素按火、冰、电、毒依次配对，游戏内组合受 MOD 槽位和武器自带元素影响。</p>
-      <p id="engineFormulaHelp">内置护甲减伤为 90% × √(护甲 / 2700)。基伤、多重和暴击词条各自组内相加，派系伤害独立。弱点倍率优先读取该目标部位数据。</p>
-      <p id="engineHeatHelp">火焰能持续刷新时，平均层数 = 每秒触发次数 × 持续输出秒数 ÷ 2。触发间隔超过 6 秒时，每层各自到期。默认输出 12 秒，可用「开火30秒」更改。</p>
-      <p id="engineSaleHelp">出售参考网址在「设置 → 紫卡出售参考」配置。词条推荐回图只显示出售建议。</p>
-    </details>
     <div id="engineInstallState" class="result" aria-live="polite"></div>
     <div class="vpBar">
       <button class="sm" id="engineInstall" disabled>下载并部署</button>
@@ -742,14 +758,34 @@
     </div>
     <div id="engineCheckResult" class="result" aria-live="polite"></div>
   </section>
-  <section class="panel vtask" id="vScan" data-vtask="scan"><i class="c1"></i><i class="c2"></i>
-    <div class="ptitle"><h3>配卡识卡</h3><span class="tag s-info">任务：配卡识卡</span><span class="ext"></span></div>
+  <details class="panel grp vtask" id="vScan" data-vtask="scan" data-required-commands="scan scandamage" open><i class="c1"></i><i class="c2"></i>
+    <summary class="ptitle"><h3>配卡识卡</h3><span class="tag dim commandDisabled" hidden>相关指令已关闭</span><span class="ext"></span></summary>
+    <div class="hint vnote">配卡识卡为实验功能，默认关闭。识别可能较慢，自定义武器名与槽位遮挡会影响结果。可在「指令开关」启用识卡和识卡伤害。</div>
     <div class="hint vnote">配卡截图左上角的标题可能是玩家自定义的武器名：按原文读取，不根据 MOD 或紫卡名称推测官方武器。</div>
     <div id="vScanStatus" class="vtaskStatus"></div>
     <div class="vsub"><b>模型渠道</b><span class="hint">通过模型 API 读图；只列宿主已加载的渠道，列出来不代表支持识图</span></div>
     <div id="vScanChan"></div>
     <div class="vsub"><b>固定方案</b><span class="hint">只列覆盖识卡步骤的方案；查看、选择都不会启用</span></div>
     <div id="vScanPresets" class="psCards"></div>
+  </details>
+  <section class="panel" id="engineComparison"><i class="c1"></i><i class="c2"></i>
+    <div class="ptitle"><h3>两种模式怎么选</h3><span class="ext"></span></div>
+    <div class="scroll"><table class="cards">
+      <thead><tr><th scope="col">用途</th><th scope="col">内置估算（默认）</th><th scope="col">完整模拟（独立引擎）</th></tr></thead>
+      <tbody>
+        <tr><td>伤害与识卡伤害</td><td>仅用基础公式估算单次命中伤害与 DPS。</td><td>模拟开火、装填和异常，按所选时长计算平均 DPS。识卡的首张结果仍用公式，确认槽位、等级和装备后，详情可使用完整模拟。</td></tr>
+        <tr><td>配卡、词条与紫卡</td><td>默认标准靶的无紫卡配装和全词条对照随包提供，命中即可查看。词条默认显示 3+1−，可切换为 2+1−。</td><td>自定义靶标、随包未收录的场景、实卡锁卡重搜和完整伤害模拟使用独立引擎。</td></tr>
+        <tr><td>本地缓存</td><td>随包结果直接读取。</td><td>实时参考配装、词条推荐和拆卡对照算完后自动存盘。实卡重搜与完整模拟结果使用本地短时缓存。</td></tr>
+      </tbody>
+    </table></div>
+    <details class="hint">
+      <summary>计算口径</summary>
+      <p>默认标准靶为钢铁之路 170 级凶魂百夫长，躯干命中，无超宏、无盾，模拟 30 秒。</p>
+      <p>完整模拟按所选时长计算平均 DPS。内置实战 DPS 假定异常已叠层，不计爬升、掉层、击杀截断或首领伤害衰减。</p>
+      <p>内置估算按火、冰、电、毒的顺序配对元素。游戏内组合还取决于 MOD 槽位与武器自带元素。</p>
+      <p>内置护甲减伤为 90% × √(护甲 / 2700)，上限为 90%。基伤、多重和暴击词条各自在组内相加，派系伤害独立乘算。弱点倍率优先使用目标部位数据。</p>
+      <p>火焰持续刷新时，平均层数等于每秒触发次数乘以输出时长再除以 2。触发间隔超过 6 秒时，每层独立到期。</p>
+    </details>
   </section>
   <div class="savebar" id="engineSavebar"><span id="engineSaveInfo"></span><span class="grow"></span>
     <button id="engineDiscard">撤销改动</button><button class="primary" id="engineSave">保存引擎设置</button></div>
@@ -766,9 +802,10 @@
     <div class="hint vnote">模型建议：优先使用千问（Qwen）小型视觉模型；紫卡窄读和配卡文字定位可搭配千问 OCR。模型只负责识图，词条校验、等级核对和分析由插件完成。</div>
     <div id="vSumBody"><div class="hint">读取中…</div></div>
   </section>
-  <section class="panel vtask" id="vRiven" data-vtask="riven"><i class="c1"></i><i class="c2"></i>
-    <div class="ptitle"><h3>紫卡识别</h3><span class="tag s-info">任务：紫卡分析</span><span class="ext"></span></div>
+  <details class="panel grp vtask" id="vRiven" data-vtask="riven" data-required-commands="analysis" open><i class="c1"></i><i class="c2"></i>
+    <summary class="ptitle"><h3>紫卡识别</h3><span class="tag dim commandDisabled" hidden>相关指令已关闭</span><span class="ext"></span></summary>
     <div class="hint vnote">紫卡读卡面首行的官方武器名或模块部件名；名称后面的拉丁部分是紫卡词缀，不计入武器名。</div>
+    <div class="hint vnote">卡面词条按 DE 基值与倾向区间核对。独立引擎可在同一靶标下比较带卡与无紫卡配装的伤害收益。出售参考使用「设置」中配置的周快照。</div>
     <div id="vMode" class="vmode"></div>
     <div id="vRivenStatus" class="vtaskStatus"></div>
     <div class="vsub"><b>模型渠道</b><span class="hint">通过模型 API 读图（包括 OCR 类模型）；只列宿主已加载的渠道，列出来不代表支持识图</span></div>
@@ -776,7 +813,7 @@
     <div id="vOcr" class="vocr"></div>
     <div class="vsub"><b>固定方案</b><span class="hint">只列覆盖紫卡步骤的方案；查看、选择都不会启用</span></div>
     <div id="vRivenPresets" class="psCards"></div>
-  </section>
+  </details>
   <section class="panel" id="vMig"><i class="c1"></i><i class="c2"></i>
     <div class="ptitle"><h3>渠道隔离（主动迁移）</h3><span class="tag s-info" id="vMigPhase">读取中…</span><span class="ext"></span></div>
     <div class="hint">迁移前保留旧兼容行为：紫卡与识卡留空的渠道继承兼容主渠道。预览并主动确认迁移后，两类严格独立：只用各自的专用渠道，留空就停止该任务。打开页面、读取状态和预览都不会迁移、不挑模型、不写配置、不调用模型。冷却与失败退款分开记录，但机器总并发预算仍由两类共享，忙时仍可能互相等待。</div>
@@ -826,7 +863,7 @@
 
 <!-- ============ 维护 ============ -->
 <section data-view="maint">
-  <div class="pagehead"><h2>维护</h2><span class="desc">插件依赖与外部服务连通性；字体在「外观」，识图诊断在「识图 → 详细自定义」</span></div>
+  <div class="pagehead"><h2>维护</h2><span class="desc">管理插件依赖并检查外部服务连通性。字体在「外观」，视觉诊断在「紫卡分析 → 详细自定义」。</span></div>
   <section class="panel" id="maint-deps"><i class="c1"></i><i class="c2"></i>
     <div class="ptitle"><h3>Python 依赖</h3><span class="ext"></span></div>
     <div class="scroll"><table class="cards">
@@ -834,7 +871,7 @@
       <tbody id="deps"></tbody>
     </table></div>
     <div class="row"><button id="depsInstall">安装 / 修复依赖</button>
-      <span class="hint">按插件的 requirements.txt 安装，走 AstrBot 自己的 pip 设置（镜像源、版本约束）；装完需重载插件。不包含本地紫卡 OCR 组件（在「识图 → 紫卡识别」单独准备）</span>
+      <span class="hint">按 requirements.txt 和 AstrBot 的 pip 设置安装依赖，完成后重载插件。本地 OCR 在「紫卡分析 → 紫卡识别」单独部署。</span>
       <span class="result" id="r-deps"></span></div>
   </section>
   <section class="panel" id="maint-conn"><i class="c1"></i><i class="c2"></i>
@@ -869,6 +906,7 @@
       <thead><tr><th>数据</th><th>来源</th><th>许可</th></tr></thead>
       <tbody id="aboutSources"></tbody>
     </table></div>
+    <p class="hint">内置伤害估算的机制与数值口径曾参考 WFSim（magenie33/wfsim）作交叉核对；独立引擎与随包参考配装/词条矩阵基于 warframe-weapon-loadout-build 构建。</p>
   </section>
 </section>
 </div>
@@ -905,11 +943,65 @@
       "选预设或逐项改色，预览会在停手约半秒后刷新。": "Choose a preset or edit individual colors. The preview refreshes after about half a second.",
       "点「定位」可高亮样卡中受该色槽影响的位置。样卡未覆盖该颜色时会给出提示。": "Select Locate to highlight where a color appears on the sample card. The panel indicates when the card has no visible example.",
       "点「保存主题」应用改动，点「Orokin（默认）」可恢复默认配色。": "Select Save theme to apply changes. Choose Orokin (default) to restore the default palette.",
+      "完整模拟（独立引擎）": "Full simulation (standalone engine)",
+      "伤害与识卡伤害": "Damage and build scan",
+      "仅用基础公式估算单次命中伤害与 DPS。": "Estimates damage per hit and DPS using basic formulas.",
+      "模拟开火、装填和异常，按所选时长计算平均 DPS。识卡的首张结果仍用公式，确认槽位、等级和装备后，详情可使用完整模拟。": "Simulates shots, reloads, and status effects to calculate average DPS over the selected duration. Build Scan uses formulas for the first card. Its damage details can use full simulation once slots, ranks, and equipment are verified.",
+      "配卡、词条与紫卡": "Builds, traits, and Rivens",
+      "默认标准靶的无紫卡配装和全词条对照随包提供，命中即可查看。词条默认显示 3+1−，可切换为 2+1−。": "Bundled no-Riven builds and full trait comparisons open instantly for covered weapons on the default benchmark. Trait comparisons default to 3+1− and can switch to 2+1−.",
+      "自定义靶标、随包未收录的场景、实卡锁卡重搜和完整伤害模拟使用独立引擎。": "The standalone engine handles custom targets, scenarios outside the bundled tables, searches with a locked Riven, and full damage simulations.",
+      "本地缓存": "Local cache",
+      "随包结果直接读取。": "Bundled results load directly.",
+      "实时参考配装、词条推荐和拆卡对照算完后自动存盘。实卡重搜与完整模拟结果使用本地短时缓存。": "Live reference builds, trait suggestions, and mod-removal comparisons are saved to disk automatically. Locked Riven searches and full simulation results are cached locally for a short time.",
+      "计算口径": "How results are calculated",
+      "默认标准靶为钢铁之路 170 级凶魂百夫长，躯干命中，无超宏、无盾，模拟 30 秒。": "The default benchmark uses body hits against a level 170 Steel Path Thrax Centurion, without Overguard or shields, over 30 seconds.",
+      "完整模拟按所选时长计算平均 DPS。内置实战 DPS 假定异常已叠层，不计爬升、掉层、击杀截断或首领伤害衰减。": "Full simulation averages DPS over the selected duration. Built-in practical DPS assumes status effects are already stacked. It excludes ramp-up, stack decay, kill cutoff, and boss damage attenuation.",
+      "内置估算按火、冰、电、毒的顺序配对元素。游戏内组合还取决于 MOD 槽位与武器自带元素。": "The built-in estimate pairs Heat, Cold, Electricity, and Toxin in that order. In-game combinations also depend on MOD slot order and innate elements.",
+      "内置护甲减伤为 90% × √(护甲 / 2700)，上限为 90%。基伤、多重和暴击词条各自在组内相加，派系伤害独立乘算。弱点倍率优先使用目标部位数据。": "The built-in estimate uses 90% × √(armor / 2700), capped at 90%. Base damage, multishot, and critical stats add within their groups. Faction damage is multiplicative. Weak-point multipliers use target-specific hit zones when available.",
+      "火焰持续刷新时，平均层数等于每秒触发次数乘以输出时长再除以 2。触发间隔超过 6 秒时，每层独立到期。": "When Heat keeps refreshing, average stacks equal procs per second multiplied by attack duration in seconds and divided by two. If the gap exceeds six seconds, stacks expire individually.",
+      "一键恢复默认": "Restore defaults",
+      "将草稿恢复为默认开关，保存后生效": "Restore the default switches in the draft. Save to apply.",
+      "草稿已恢复默认。": "Default switches restored in the draft.",
+      "相关指令已关闭": "Commands disabled",
+      "平均": "Average",
+      "清除令牌": "Clear token",
+      "选填": "Optional",
+      "已设置，留空保留": "Configured. Leave blank to keep it.",
+      "言录使": "Acrithis",
+      "数据已同步": "Data is up to date",
+      "已选择本地 OCR": "Local OCR selected",
+      "已选择单模型 OCR": "Single-model OCR selected",
+      "已选择双路模型": "Dual-model reading selected",
+      "耗时仅统计指令处理，不含消息发送。P50 和 P95 由分桶估算；所选时段含旧记录时，该指令的平均耗时留空。失败率合计接口错误与内部错误。": "Times cover command handling only and exclude message delivery. P50 and P95 are estimated from the latency distribution. A command's average is unavailable if the period includes older records without timing totals. The failure rate includes API and internal errors.",
+      "配卡识卡为实验功能，默认关闭。识别可能较慢，自定义武器名与槽位遮挡会影响结果。可在「指令开关」启用识卡和识卡伤害。": "Build Scan is experimental and disabled by default. It can take time, and custom weapon names or obscured slots can affect recognition. Enable Build Scan and Build Scan Damage under Command Switches.",
+      "卡面词条按 DE 基值与倾向区间核对。独立引擎可在同一靶标下比较带卡与无紫卡配装的伤害收益。出售参考使用「设置」中配置的周快照。": "Card stats are checked against DE’s base values and disposition ranges. The standalone engine can compare damage with and without a Riven against the same target. Selling advice uses the weekly snapshot configured in Settings.",
       "SDJKBOT 运维面板": "SDJKBOT Operations",
       "连接中…": "Connecting…",
       "概览": "Overview",
       "推送与订阅": "Push & Subscriptions",
       "指令统计": "Command Stats",
+      "指令开关": "Command Switches",
+      "开关适用于所有会话，保存后立即生效。": "Switches apply to all chats as soon as you save.",
+      "搜索指令": "Search commands",
+      "搜索指令名称、别名或依赖": "Search command names, aliases, or dependencies",
+      "保存更改": "Save changes",
+      "没有匹配的指令": "No matching commands",
+      "本组全开": "Enable group",
+      "本组全关": "Disable group",
+      "核心必留": "Core · Locked",
+      "指令总览": "Command overview",
+      "实验性 · 未完善": "Experimental · Incomplete",
+      "视觉模型": "Vision model",
+      "独立引擎": "Standalone engine",
+      "正在读取指令开关…": "Loading command switches…",
+      "无法读取指令开关": "Could not load command switches",
+      "正在保存指令开关…": "Saving command switches…",
+      "指令开关已保存并生效": "Command switches saved and active",
+      "指令开关保存未获确认": "Command switch save was not confirmed",
+      "请提交只含有效主指令键的禁用列表": "The disabled list must contain valid command keys.",
+      "核心必留指令无法关闭": "Core commands cannot be disabled.",
+      "无法取得插件配置，指令开关未保存": "Plugin config is unavailable. Command switches were not saved.",
+      "指令开关保存失败，请检查插件配置": "Could not save command switches. Check the plugin config.",
       "设置": "Settings",
       "识图": "Vision",
       "外观": "Appearance",
@@ -987,8 +1079,7 @@
       "内部错误": "Internal errors",
       "无回复": "No reply",
       "失败率": "Failure rate",
-      "耗时为处理指令的约值，不含消息发送。失败率按接口错误与内部错误合计。": "Times approximate command handling and exclude message delivery. Failure rate includes API and internal errors.",
-      "日常输出、推送、平台与权限；识图相关在「识图」页。与 AstrBot 插件配置页是同一份配置，标「需重载」的要在后台重载插件": "Replies, push, platforms and permissions. Vision has its own page. These are the AstrBot plugin settings. Fields marked “Reload required” take effect after reloading the plugin.",
+      "管理输出、推送、聊天平台与权限。截图识别分设在「伤害引擎」与「紫卡分析」。此处与 AstrBot 插件配置共用，标「需重载」的设置在重载后生效。": "Manage replies, push notifications, chat platforms, and permissions. Screenshot recognition is configured in Damage Engine and Riven Analysis. These settings are shared with AstrBot. Fields marked “Reload required” take effect after a plugin reload.",
       "撤销改动": "Discard changes",
       "保存设置": "Save settings",
       "图片卡片的配色、背景图、角标与字体（保存后新出的卡片立即生效，不用重载）": "Card colors, background, logo and fonts. Saved themes apply to new cards immediately.",
@@ -1056,14 +1147,12 @@
       "模型建议：优先使用千问（Qwen）小型视觉模型；紫卡窄读和配卡文字定位可搭配千问 OCR。模型只负责识图，词条校验、等级核对和分析由插件完成。": "Try a small Qwen vision model first. Qwen OCR can help with individual Riven lines and locating loadout text. The plugin validates stats and ranks and performs the analysis.",
       "读取中…": "Loading…",
       "紫卡识别": "Riven reading",
-      "任务：紫卡分析": "Task: Riven analysis",
       "紫卡读卡面首行的官方武器名或模块部件名；名称后面的拉丁部分是紫卡词缀，不计入武器名。": "Read the official weapon or modular part name on the first line. The Latin Riven affix after the name is separate.",
       "模型渠道": "Model channels",
       "通过模型 API 读图（包括 OCR 类模型）；只列宿主已加载的渠道，列出来不代表支持识图": "Reads images through the model API, including OCR models. The list shows all loaded channels. Check that the chosen model supports images.",
       "固定方案": "Built-in presets",
       "只列覆盖紫卡步骤的方案；查看、选择都不会启用": "Shows presets that cover Riven tasks. Browsing or selecting a preset leaves the active prompt as is.",
-      "配卡识卡": "Loadout reading",
-      "任务：配卡识卡": "Task: Loadout reading",
+      "配卡识卡": "Build Scan",
       "配卡截图左上角的标题可能是玩家自定义的武器名：按原文读取，不根据 MOD 或紫卡名称推测官方武器。": "The title at the top left can be a player's custom weapon name. Read it as written. Keep Mod and Riven names separate from the weapon name.",
       "通过模型 API 读图；只列宿主已加载的渠道，列出来不代表支持识图": "Reads images through the model API. The list shows loaded channels. Check that the chosen model supports images.",
       "只列覆盖识卡步骤的方案；查看、选择都不会启用": "Shows presets that cover loadout tasks. Browsing or selecting a preset leaves the active prompt as is.",
@@ -1091,13 +1180,13 @@
       "视觉 · 真调": "Test vision channel",
       "只对所选路线的渠道依次发一张 32×32 小图，成功即停；只测连通性，不测识别准确率；会消耗少量 token。要再点一次确认才发送": "Sends one 32 × 32 image to each channel on this route in order and stops at the first success. Checks connectivity and uses a small number of tokens. Select twice to confirm.",
       "保存识图设置": "Save vision settings",
-      "插件依赖与外部服务连通性；字体在「外观」，识图诊断在「识图 → 详细自定义」": "Plugin dependencies and service connectivity. Fonts are under Appearance. Vision diagnostics are under Vision → Advanced controls.",
+      "管理插件依赖并检查外部服务连通性。字体在「外观」，视觉诊断在「紫卡分析 → 详细自定义」。": "Manage plugin dependencies and check service connectivity. Fonts are under Appearance. Vision diagnostics are under Riven Analysis → Advanced controls.",
       "Python 依赖": "Python dependencies",
       "包": "Package",
       "要求": "Required",
       "已安装": "Installed",
       "安装 / 修复依赖": "Install or repair dependencies",
-      "按插件的 requirements.txt 安装，走 AstrBot 自己的 pip 设置（镜像源、版本约束）；装完需重载插件。不包含本地紫卡 OCR 组件（在「识图 → 紫卡识别」单独准备）": "Installs from requirements.txt with AstrBot's pip mirror and version settings. Reload the plugin afterward. Set up local Riven OCR separately in Vision → Riven reading.",
+      "按 requirements.txt 和 AstrBot 的 pip 设置安装依赖，完成后重载插件。本地 OCR 在「紫卡分析 → 紫卡识别」单独部署。": "Installs dependencies from requirements.txt using AstrBot’s pip settings. Reload the plugin afterward. Set up local OCR separately under Riven Analysis → Riven recognition.",
       "连通性": "Connectivity",
       "只检查插件所在机器能否连上各个数据源：不解析内容、不写入数据、不触发刷新或抓取；数据是否有效仍看「数据」页。同一项 30 秒内再测会直接给出上次结果。": "Tests whether the plugin host can reach each source. Check Data for freshness. Repeating a test within 30 seconds shows the previous result.",
       "世界状态": "World state",
@@ -1112,6 +1201,7 @@
       "插件与运行环境": "Plugin & runtime",
       "数据版本": "Data versions",
       "数据来源与许可": "Data sources & licenses",
+      "内置伤害估算的机制与数值口径曾参考 WFSim（magenie33/wfsim）作交叉核对；独立引擎与随包参考配装/词条矩阵基于 warframe-weapon-loadout-build 构建。": "Built-in damage formulas and modifiers were cross-checked against WFSim (magenie33/wfsim); the standalone engine and bundled build/trait matrices are built on warframe-weapon-loadout-build.",
       "许可": "License",
       "正常": "Healthy",
       "该刷新了": "Refresh due",
@@ -1364,31 +1454,8 @@
       "两种模式怎么选": "Compare calculation modes",
       "用途": "Task",
       "内置估算（默认）": "Built-in estimate (default)",
-      "完整模拟（选装）": "Full simulation (optional)",
-      "伤害与识卡伤害": "Damage and scanned loadout damage",
-      "按配装和目标快速估算单次命中伤害、持续 DPS 和实战 DPS。": "Quickly estimate damage per hit, sustained DPS and practical DPS for the loadout and target.",
-      "对已接入的主射配装逐次模拟开火、装填和异常，给指定时长平均 DPS。未接入或暂时无法运行时，符合内置条件的请求会标记后回退。": "Simulate shots, reloads and status effects for supported primary-fire loadouts and report average DPS over the chosen duration. Ineligible requests or temporary failures use the built-in estimate where possible, with a label.",
-      "配卡与词条推荐": "Build and trait recommendations",
-      "随包 1,046 个参考工况提供武器面板、MOD 等级、极化后容量、辅助装备、整套及逐张拆卡 DPS，并保留 KPM（每分钟击杀数）。": "The 1,046 bundled scenarios show weapon stats, MOD ranks, capacity after Forma, additional equipment, and DPS for the full build and with each MOD removed. Kills per minute (KPM) is also shown.",
-      "新版引擎支持六个带实卡重搜工况，可显示武器面板和拆卡后的 DPS。已复算的无紫卡配装支持按原工况复算。词条推荐在支持的工况显示预计算 DPS 变化，其余可用工况继续显示随包参考。": "The current engine supports six scenarios for Riven build searches, with weapon stats and DPS after removing individual MODs. Verified no-Riven builds can be replayed under their original conditions. Trait advice shows precomputed DPS changes for supported scenarios and bundled references elsewhere.",
-      "识卡首图": "First build scan result",
-      "按截图核对槽位和等级，以内置公式估算每张卡的影响。": "Verify slots and ranks from the screenshot and estimate each MOD’s impact with the built-in formulas.",
-      "首图同样用公式估算。查看伤害详情时，槽位、卡片等级及装备均确认后可进入完整模拟。": "The first result uses the same formulas. Damage details can use full simulation when the slots, ranks and equipment are verified and supported.",
-      "安装与运行": "Installation and runtime",
-      "随插件使用，打开即可查询。": "Bundled with the plugin and ready to use.",
-      "本机安装约下载 26.5 MiB，安装后约 29 MiB（便携包及数据）。完整模拟会启动独立进程，带实卡重搜比查参考配装更耗时。": "Local installation downloads about 26.5 MiB and uses about 29 MiB on disk for the portable runtime and data. Full simulation starts a separate process. Searching for a build around a Riven takes longer than looking up a reference build.",
-      "同配装、同目标的对照示例": "Examples with the same loadouts and targets",
-      "内置的实战 DPS 是公式估算，完整模拟默认取前 12 秒的平均。数值差随配装、敌人和时长而变。": "Built-in practical DPS is a formula estimate. Full simulation averages the first 12 seconds by default. Differences depend on the loadout, enemy, and duration.",
-      "配装与目标": "Loadout and target",
-      "内置实战 DPS": "Built-in practical DPS",
-      "完整模拟 12 秒平均 DPS": "Full simulation, 12-second average DPS",
-      "卡拉克＋膛线，对 120 级堕落重型机枪手": "Karak + Serration vs. Lv 120 Corrupted Heavy Gunner",
-      "苍鹰 Prime＋膛线、地狱火，对 170 级钢铁之路堕落重型机枪手": "Baza Prime + Serration and Hellfire vs. Lv 170 Steel Path Corrupted Heavy Gunner",
-      "苏普拉·破坏者＋膛线，对 120 级堕落重型机枪手": "Supra Vandal + Serration vs. Lv 120 Corrupted Heavy Gunner",
-      "以上均为主射、躯干、满级 MOD。另测同一次布莱顿 Prime 带紫卡重配，四台机器单进程用时约 8–41 秒，峰值内存 134–223 MiB。测试引擎版本 85ec9cdb3461c01c。": "All examples use primary fire, body hits, and max-rank MODs. A separate Braton Prime Riven build search took about 8–41 seconds and peaked at 134–223 MiB per process across four machines. Tested with engine version 85ec9cdb3461c01c.",
       "下载与连接": "Download and connection",
       "源码与安装说明": "Source and installation guide",
-      "同机下载会编译固定版本，需要 Git、Bash 和 Rust 1.97 或更新版本。已有服务可直接填写地址。": "Local deployment builds a pinned release. It requires Git, Bash, and Rust 1.97 or newer. You can also enter an existing service URL.",
       "下载并部署": "Download and deploy",
       "检查已保存服务": "Check saved service",
       "源码与手动部署": "Source and manual setup",
@@ -1396,19 +1463,19 @@
       "伤害计算模式": "Damage backend",
       "完整模拟服务地址": "Simulation service URL",
       "完整模拟服务令牌（选填）": "Simulation token (optional)",
-      "内置估算": "Built-in Estimate",
-      "完整模拟": "Simulation",
+      "内置估算": "Built-in estimate",
+      "完整模拟": "Full simulation",
       "配置紫卡读取方式和模型渠道": "Configure Riven reading and model channels",
       "识卡伤害详情什么时候算": "Loadout damage detail generation",
       "配卡识卡 · 对齐失败时留存截图（排查用）": "Keep loadout screenshots when alignment fails (for debugging)",
-      "紫卡分析": "Riven analysis",
+      "紫卡分析": "Riven Analysis",
       "紫卡出售参考": "Riven selling reference",
       "紫卡出售参考网址": "Riven selling reference URL",
       "默认从效价同仓读取每周快照。可换成同结构 CSV 或 JSON 网址。自建源使用 weapon、positive、negative 和可选 notes 字段，JSON 可把行列表放在 weapons 下。更换后查询即生效。": "The default reads the weekly snapshot from the valence repository. Switch to a compatible CSV or JSON URL. Custom sources use weapon, positive, negative, and optional notes fields. JSON supports a row list under weapons. Changes apply to the next lookup.",
       "切换了详细自定义": "Advanced controls toggled",
       "关闭详细自定义": "Advanced controls closed",
-      "离开了识图页": "Left the Vision page",
-      "离开识图页": "Left Vision",
+      "离开了识图页": "Left Riven Analysis",
+      "离开识图页": "Left Riven Analysis",
       "状态未知（后端没有返回这一路）": "Unknown (backend omitted this route)",
       "本地 OCR": "Local OCR",
       "单模型": "Single model",
@@ -1576,7 +1643,7 @@
       "查看原文与验证范围": "View prompt and verification scope",
       "和": "and",
       "未保存的提示词编辑": "unsaved prompt edits",
-      "去识图页 ›": "Go to Vision ›",
+      "去识图页 ›": "Open Riven Analysis ›",
       "去设置页 ›": "Go to Settings ›",
       "后端没有返回可用的本地 OCR 状态": "Backend returned no usable local OCR status",
       "后端返回的本地 OCR 状态不完整，未采用；请刷新状态": "Local OCR status response is incomplete. Refresh status.",
@@ -1732,7 +1799,7 @@
       "再点一次：确认关闭": "Select again to disable",
       "已关闭本地紫卡 OCR；模型渠道配置没有改动。紫卡改按已保存的云端方式读取（以重新读取的状态为准）。": "Local Riven OCR is off. Riven reading uses the saved cloud mode. Read again to confirm.",
       "保存→检查已保存配置→确认启用。保存会关闭本地 OCR 并清除旧检查；检查不加载模型、不识别；都不会自动启用。": "Save, check saved settings, then confirm Enable. Saving turns OCR off and clears the previous check. Checking does not load models or read an image.",
-      "识卡": "Loadout reading",
+      "识卡": "Build Scan",
       "改": "Edited",
       "提示词编辑框": "Prompt editor",
       "提示词方案": "Prompt profiles",
@@ -2174,6 +2241,11 @@
       "识卡面板JSON草案": "Loadout panel JSON draft",
       "识卡面板": "Loadout panel",
       "紫卡逐行读取": "Riven line transcription",
+      "识卡主读": "Primary Build Scan read",
+      "识卡标题": "Build Scan title",
+      "识卡模组": "Build Scan mods",
+      "识卡槽位复读": "Build Scan slot recheck",
+      "识卡赋能": "Build Scan Arcanes",
       "仅覆盖识卡面板，其余任务继承原版；已做两Omni各三图对照，仍有缺失和额外字段错放，保留实验状态。": "Applies to the loadout panel. Other tasks use the original. Tests with three images per Omni model still found omissions and misplaced extra fields. This preset remains experimental.",
       "尚未执行安装": "Installation has not started",
       "无法读取设置": "Could not read settings",
@@ -2202,7 +2274,6 @@
       ["上次成功读取 {0}", "Last read {0}"],
       ["读取失败：{0}{1}", "Read failed: {0}{1}"],
       ["。保留{0}的数据", ". Showing data from {0}."],
-      ["约 {0} ms", "≈ {0} ms"],
       ["{0} 天 {1} 小时", "{0} d {1} h"],
       ["{0} 小时 {1} 分钟", "{0} h {1} min"],
       ["{0} 分钟", "{0} min"],
@@ -2313,7 +2384,6 @@
       ["有 {0} 份未采用的对比快照释放失败，仍可能占用待执行名额（到期后由后端回收）。", "{0} unused comparison snapshots could not be released. They may still occupy slots until they expire."],
       ["解析于 {0}。", "Resolved at {0}."],
       ["当前按{0}读取，这一项不参与（已保存值保留）", "Inactive in {0} mode (saved setting kept)"],
-      ["已保存设置实际会用：{0}", "Saved settings resolve to: {0}"],
       ["留空，当前继承兼容主渠道（{0}）", "Blank; inherits the legacy shared channel ({0})"],
       ["不继承兼容主渠道（{0}）", "Legacy fallback inactive ({0})"],
       ["预览已作废（{0}），未做任何改动；需要时请重新预览。", "Preview invalidated ({0}). No changes applied. Preview again if needed."],
@@ -2337,7 +2407,7 @@
       ["✗ 没拿到固定方案：{0}", "✗ Could not load presets: {0}"],
       ["覆盖：{0}；其余步骤沿用内置原版", "Covers {0}; remaining steps use the original"],
       ["目前没有覆盖{0}步骤的固定方案；「原版方案」就是内置原版。", "No preset covers {0}. The original profile uses the built-in prompt."],
-      ["识图页还有{0}{1}{2}未保存，已保留。", "Vision has unsaved changes: {0}{1}{2}."],
+      ["识图页还有{0}{1}{2}未保存，已保留。", "Riven Analysis has unsaved changes: {0}{1}{2}."],
       [" {0} 项识图设置", " {0} vision settings"],
       ["设置页还有 {0} 项改动未保存，已保留。", "Settings has {0} unsaved changes."],
       ["已启用{0}", "Enabled{0}"],
@@ -2538,7 +2608,12 @@
       "community_data_url": ["Community data URL", "Used for newer progenitor bonuses, Acrithis's wares, Arbitration ratings and Baro visit history. The default tries GitHub raw, the API and a CDN. A custom URL must host matching JSON files and is used exclusively while configured."],
       "wfhelper_valence": ["WFHelper fallback for progenitor bonuses", "When the wiki is unavailable, optionally try the third-party WFHelper service before community snapshots. WFHelper relies on wiki reports. Saving takes effect immediately."],
       "wiki_intro": ["Wiki summary cards", "Shows a short stats and acquisition card with a separate clickable link. Data is bundled. English cards use verified English where available."],
-      "wiki_link_source": ["Wiki link source", "The official English wiki is the default. Chinese replies can link to Huiji instead or use “灰机” at the end of a single query. If a page name cannot be resolved, the English wiki opens search. English replies always use the English wiki."],
+      "wiki_link_source": ["Wiki link source", "Chinese replies can link to the official English wiki or the Chinese Huiji wiki. Add Huiji’s Chinese name to a single query to switch its link. Unresolved pages open English wiki search. English replies always link to the official wiki."],
+      "damage_engine_mode": ["Damage calculation mode", "The built-in estimate uses basic formulas. Full simulation connects to the standalone engine for combat simulation, build search, trait recommendations, and Riven evaluation."],
+      "damage_engine_url": ["Simulation service URL", "Enter a URL reachable from AstrBot for an existing compatible service. For local installation, use the port field."],
+      "damage_engine_portable_port": ["Local simulation port", "In Full Simulation mode, save an unused port such as 8765 to enable installation, or enter the port of an existing local service. Set it to 0 to use the service URL."],
+      "damage_engine_portable_bundle_sha256": ["Manual bundle SHA-256 (optional)", "Use this only if you placed portable-runtime.zip in the plugin’s damage-engine/ data directory. Automatic downloads are verified against the published digest."],
+      "damage_engine_token": ["Simulation token (optional)", "Enter the bearer token if the service requires one."],
       "scan_detail_mode": ["Loadout damage detail generation", "Auto defers details when buttons are supported. On-demand mode supplies a command on platforms without buttons. Always sends both pages. Deferral skips the second render and upload until requested."],
       "scan_cooldown": ["Vision cooldown", "Minimum seconds between reads for one sender. Before isolation, Riven and loadout share a cooldown. After isolation they are tracked separately. 0 disables it."],
       "scan_max_concurrent": ["Total vision concurrency limit", "Shared by Riven and loadout scans. 0 disables the shared limit. At most 3 loadout scans run at once and 3 more can wait."],
@@ -2719,7 +2794,7 @@
     childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: localeAttrs,
   });
   const STATUS = { ok: "正常", warn: "该刷新了", stale: "已过期", info: "静态快照" };
-  const VIEWS = ["overview", "push", "stats", "settings", "engine", "vision", "appearance", "data", "maint", "about"];
+  const VIEWS = ["overview", "push", "stats", "commands", "settings", "engine", "vision", "appearance", "data", "maint", "about"];
   // 旧入口：「依赖与资源」「连通性」并入「维护」，原 hash 仍可打开并滚到对应区块
   const ALIAS = { resources: ["maint", "maint-deps"], conn: ["maint", "maint-conn"] };
   const state = { ov: null, res: null, settings: null, orig: {}, edits: {} };
@@ -2876,6 +2951,7 @@
     if (prev === "engine" && view !== "engine") clearTimeout(enginePoll);
     if (view === "engine" && state.ready) engineEnter();
     if (view === "stats") { renderCommandStats(); loadCommandStats(); }
+    if (view === "commands") loadCommandSwitches();
     if (view === "appearance" && !TH.meta) loadTheme();
     if (view === "about") loadAbout();
     if (alias) requestAnimationFrame(() => $(alias[1])?.scrollIntoView({ block: "start" }));
@@ -2883,7 +2959,10 @@
 
   // —— 指令统计 ——
   const commandStats = { days: 7, snapshot: null, error: "", loading: false, updated: 0, signature: "" };
-  const statsFields = ["count", "success", "api_error", "error", "no_reply", "p50_ms", "p95_ms"];
+  const statsCounts = ["count", "success", "api_error", "error", "no_reply"];
+  const isLatency = (value) => Number.isFinite(value) && value >= 0;
+  const formatLatency = (ms) => !isLatency(ms) ? "—"
+    : ms < 1000 ? `${Math.min(999, Math.round(ms))} ms` : `${+(ms / 1000).toFixed(1)} s`;
   const failureRate = (row) => row.count ? (row.api_error + row.error) / row.count : 0;
   function renderCommandStats() {
     const s = commandStats, status = $("statsStatus"), reload = $("statsReload");
@@ -2908,16 +2987,18 @@
     const body = $("statsRows");
     if (!rows) { body.replaceChildren(); return; }
     if (!rows.length) {
-      body.replaceChildren(el("tr", {}, el("td", { colspan: 9, class: "dim" }, "所选时段暂无指令记录")));
+      body.replaceChildren(el("tr", {}, el("td", { colspan: 10, class: "dim" }, "所选时段暂无指令记录")));
       return;
     }
     const measure = (row) => order === "failure" ? failureRate(row) : row[order];
     const sorted = [...rows].sort((a, b) => measure(b) - measure(a)
       || b.count - a.count || a.command.localeCompare(b.command));
-    body.replaceChildren(...sorted.map((r) => el("tr", {}, ...[
-      el("span", { "data-raw": true }, r.command), r.count, r.success, r.api_error, r.error, r.no_reply,
-      `${(100 * failureRate(r)).toFixed(1)}%`, `约 ${r.p50_ms} ms`, `约 ${r.p95_ms} ms`,
-    ].map((v) => el("td", { class: "nw" }, v)))));
+    body.replaceChildren(...sorted.map((r) => el("tr", {},
+      el("th", { scope: "row" }, localText(r.name_zh || r.command, r.name_en || r.command),
+        el("code", { class: "key", "data-raw": true }, r.command)),
+      ...[r.count, r.success, r.api_error, r.error, r.no_reply,
+        `${(100 * failureRate(r)).toFixed(1)}%`, ...[r.avg_ms, r.p50_ms, r.p95_ms].map(formatLatency),
+      ].map((value) => el("td", { class: "nw" }, value)))));
   }
   async function loadCommandStats() {
     const s = commandStats;
@@ -2929,7 +3010,9 @@
       if (data?.status === "error") throw new Error(data.message || "统计暂不可用");
       const validRows = (rows) => Array.isArray(rows) && rows.every((r) => r
         && typeof r.command === "string"
-        && statsFields.every((k) => Number.isSafeInteger(r[k]) && r[k] >= 0));
+        && statsCounts.every((k) => Number.isSafeInteger(r[k]) && r[k] >= 0)
+        && isLatency(r.p50_ms) && isLatency(r.p95_ms)
+        && (r.avg_ms == null || isLatency(r.avg_ms)));
       if (!validRows(data?.last_7_days) || !validRows(data?.last_30_days)) {
         throw new Error("统计数据格式异常");
       }
@@ -2949,6 +3032,221 @@
   };
   $("statsSort").onchange = renderCommandStats;
   $("statsReload").onclick = loadCommandStats;
+
+  // —— 指令开关 ——
+  // 只根据已保存的全局开关调整默认开合，保留管理员的手动展开状态。
+  let disabledCommands = new Set(), commandSnapshot = 0, appliedCommandSnapshot = 0;
+  function syncCommandPanels(root = document) {
+    for (const panel of root.querySelectorAll("details[data-required-commands]")) {
+      const disabled = panel.dataset.requiredCommands.split(" ").every((key) => disabledCommands.has(key));
+      if (disabled !== (panel.dataset.commandsDisabled === "true")) panel.open = !disabled;
+      panel.dataset.commandsDisabled = String(disabled);
+      panel.querySelector(".commandDisabled").hidden = !disabled;
+    }
+  }
+  function applyDisabledCommands(values, snapshot) {
+    if (!Array.isArray(values) || snapshot < appliedCommandSnapshot) return;
+    appliedCommandSnapshot = snapshot;
+    disabledCommands = new Set(values);
+    syncCommandPanels();
+  }
+  const commandSwitches = { config: null, disabled: new Set(), busy: false };
+  const commandEditCount = () => {
+    const { config, disabled } = commandSwitches;
+    if (!config) return 0;
+    const saved = new Set(config.disabled);
+    return [...disabled].filter((key) => !saved.has(key)).length
+      + config.disabled.filter((key) => !disabled.has(key)).length;
+  };
+  function showCommandStatus(message, style = "dim", id = "commandStatus") {
+    const status = $(id);
+    status.className = "result " + style;
+    status.textContent = message;
+  }
+  const unsavedChanges = (count) => localText(
+    `${count} 项未保存`, `${count} unsaved ${count === 1 ? "change" : "changes"}`);
+  function updateCommandControls() {
+    const { config, disabled, busy } = commandSwitches;
+    const canEdit = !!config && !busy;
+    const count = commandEditCount();
+    $("commandSavebar").classList.toggle("on", count > 0);
+    $("commandSaveInfo").replaceChildren(unsavedChanges(count));
+    $("commandSave").disabled = !canEdit || !count;
+    $("commandDiscard").disabled = !canEdit || !count;
+    badge("b-commands", count ? "改" : "", "s-edit");
+    $("commandReset").disabled = !canEdit || (
+      disabled.size === config.default_disabled.length && config.default_disabled.every((key) => disabled.has(key)));
+    $("commandSearch").disabled = !config;
+    if (!config) return;
+    const { total, locked } = config.counts;
+    const saved = new Set(config.disabled);
+    $("commandCounts").replaceChildren(localText(
+      `总计 ${total} · 已启用 ${total - disabled.size} · 已关闭 ${disabled.size} · 核心锁定 ${locked}`,
+      `Total ${total} · Enabled ${total - disabled.size} · Disabled ${disabled.size} · Locked ${locked}`,
+    ));
+    for (const section of $("commandGroups").children) {
+      let canEnable = false, canDisable = false;
+      let dirty = 0;
+      for (const input of section.querySelectorAll("input[data-command]")) {
+        const locked = input.hasAttribute("data-locked");
+        input.checked = !disabled.has(input.dataset.command);
+        input.disabled = !canEdit || locked;
+        const changed = input.checked === saved.has(input.dataset.command);
+        input.closest(".field").classList.toggle("dirty", changed);
+        dirty += Number(changed);
+        if (!locked && input.checked) canDisable = true;
+        if (!locked && !input.checked) canEnable = true;
+      }
+      section.querySelector(".gcount").replaceChildren(...(dirty ? [unsavedChanges(dirty)] : []));
+      section.querySelector("[data-enable-group]").disabled = !canEdit || !canEnable;
+      section.querySelector("[data-disable-group]").disabled = !canEdit || !canDisable;
+    }
+  }
+  function filterCommandGroups() {
+    const terms = $("commandSearch").value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    let matches = 0;
+    for (const section of $("commandGroups").children) {
+      let shown = 0;
+      for (const row of section.querySelectorAll("[data-keywords]")) {
+        row.hidden = !terms.every((term) => row.dataset.keywords.includes(term));
+        if (!row.hidden) shown += 1;
+      }
+      section.hidden = !shown;
+      if (terms.length && shown) {
+        section.dataset.openBeforeSearch ??= String(section.open);
+        section.open = true;
+      } else if (!terms.length && "openBeforeSearch" in section.dataset) {
+        section.open = section.dataset.openBeforeSearch === "true";
+        delete section.dataset.openBeforeSearch;
+      }
+      matches += shown;
+    }
+    $("commandSearchEmpty").hidden = !commandSwitches.config || !!matches;
+  }
+  function setGroupCommands(group, enabled) {
+    const { disabled } = commandSwitches;
+    for (const command of group.commands) {
+      if (command.locked) continue;
+      if (enabled) disabled.delete(command.key);
+      else disabled.add(command.key);
+    }
+    showCommandStatus("");
+    showCommandStatus("", "dim", "commandSaveStatus");
+    updateCommandControls();
+  }
+  function renderCommandGroups() {
+    const groups = $("commandGroups");
+    const open = new Map([...groups.children].map((section) => [
+      section.dataset.commandGroup, section.dataset.openBeforeSearch === undefined
+        ? section.open : section.dataset.openBeforeSearch === "true",
+    ]));
+    groups.replaceChildren(...commandSwitches.config.groups.map((group) => {
+      const action = (enable) => (event) => {
+        event.preventDefault();
+        setGroupCommands(group, enable);
+      };
+      const header = el("summary", { class: "ptitle" },
+        el("h3", {}, localText(group.name, group.name_en)), el("span", { class: "gcount" }),
+        el("span", { class: "ext" }), el("span", { class: "commandActions" },
+          el("button", { type: "button", class: "sm", "data-enable-group": true, onclick: action(true) }, "本组全开"),
+          el("button", { type: "button", class: "sm", "data-disable-group": true, onclick: action(false) }, "本组全关")));
+      const rows = group.commands.map((command) => {
+        const { key, name, name_en, aliases, aliases_en, description, description_en, dependencies, locked, experimental } = command;
+        const keywords = [key, name, name_en, ...aliases, ...aliases_en, description, description_en,
+          group.name, group.name_en, ...dependencies, ...dependencies.map((label) => english(label))];
+        if (experimental) keywords.push("实验性 · 未完善", "Experimental · Incomplete");
+        const labelId = "command-label-" + key;
+        const toggle = switchControl({ "data-command": key, "data-locked": locked, "aria-labelledby": labelId,
+          onchange: (event) => {
+            const { disabled } = commandSwitches;
+            if (event.currentTarget.checked) disabled.delete(key);
+            else disabled.add(key);
+            showCommandStatus("");
+            showCommandStatus("", "dim", "commandSaveStatus");
+            updateCommandControls();
+          } });
+        return el("div", { class: "field commandRow", "data-keywords": keywords.join(" ").toLowerCase() },
+          el("div", {}, el("div", { class: "commandName" },
+            el("strong", { class: "lab", id: labelId }, localText(name, name_en)),
+            el("code", { class: "key" }, key),
+            aliases.length || aliases_en.length ? el("span", { class: "key" },
+              localText(aliases.join(" / "), aliases_en.join(" / "))) : null,
+            locked ? el("span", { class: "tag locked" }, "核心必留") : null,
+            experimental ? el("span", { class: "tag s-warn" }, "实验性 · 未完善") : null,
+            ...dependencies.map((label) => el("span", { class: "tag s-info" }, label))),
+          el("div", { class: "fh" }, localText(description, description_en))), toggle);
+      });
+      return el("details", { class: "panel grp commandGroup", "data-command-group": group.name, open: open.get(group.name) ?? true },
+        header, el("i", { class: "c1" }), el("i", { class: "c2" }), ...rows);
+    }));
+    filterCommandGroups();
+  }
+  async function loadCommandSwitches() {
+    const s = commandSwitches;
+    if (!bridge || s.busy || commandEditCount()) return;
+    s.busy = true;
+    updateCommandControls();
+    showCommandStatus("正在读取指令开关…");
+    const snapshot = ++commandSnapshot;
+    try {
+      const config = await bridge.apiGet("commands_config", {});
+      if (!Array.isArray(config?.groups) || !Array.isArray(config?.disabled)
+          || !Array.isArray(config?.default_disabled) || !config.counts) {
+        throw new Error(config?.message || "无法读取指令开关");
+      }
+      s.config = config;
+      s.disabled = new Set(config.disabled);
+      applyDisabledCommands(config.disabled, snapshot);
+      renderCommandGroups();
+      showCommandStatus("");
+    } catch (error) {
+      showCommandStatus(error.message || "无法读取指令开关", "s-stale");
+    } finally {
+      s.busy = false;
+      updateCommandControls();
+    }
+  }
+  async function saveCommandSwitches() {
+    const s = commandSwitches;
+    if (s.busy || !commandEditCount()) return;
+    const disabled = [...s.disabled].sort();
+    s.busy = true;
+    updateCommandControls();
+    showCommandStatus("");
+    showCommandStatus("正在保存指令开关…", "dim", "commandSaveStatus");
+    try {
+      const result = await bridge.apiPost("commands_config_save", { disabled });
+      if (result?.status !== "ok" || !Array.isArray(result.disabled)
+          || JSON.stringify(disabled) !== JSON.stringify(result.disabled)) {
+        throw new Error(result?.message || "指令开关保存未获确认");
+      }
+      s.config.disabled = result.disabled;
+      applyDisabledCommands(result.disabled, ++commandSnapshot);
+      showCommandStatus("", "dim", "commandSaveStatus");
+      showCommandStatus("指令开关已保存并生效", "s-ok");
+    } catch (error) {
+      showCommandStatus(error.message || "指令开关保存未获确认", "s-stale", "commandSaveStatus");
+    } finally {
+      s.busy = false;
+      updateCommandControls();
+    }
+  }
+  $("commandSearch").oninput = filterCommandGroups;
+  $("commandSave").onclick = saveCommandSwitches;
+  $("commandDiscard").replaceChildren(localText("撤销改动", "Discard"));
+  $("commandDiscard").onclick = () => {
+    const s = commandSwitches;
+    s.disabled = new Set(s.config.disabled);
+    showCommandStatus("");
+    showCommandStatus("", "dim", "commandSaveStatus");
+    updateCommandControls();
+  };
+  $("commandReset").onclick = () => {
+    commandSwitches.disabled = new Set(commandSwitches.config.default_disabled);
+    showCommandStatus("");
+    showCommandStatus("草稿已恢复默认。", "dim", "commandSaveStatus");
+    updateCommandControls();
+  };
 
   // —— 关于 ——
   function kvRows(pairs) {
@@ -3621,13 +3919,17 @@
     return out;
   }
   const curVal = (k) => (k in state.edits ? state.edits[k] : state.orig[k]);
+  function switchControl(attrs, tag = "label") {
+    return el(tag, { class: "switch" }, el("input", { type: "checkbox", ...attrs }), el("span"));
+  }
   function control(f) {
     const set = (v) => { if (same(v, state.orig[f.key])) delete state.edits[f.key]; else state.edits[f.key] = v; markDirty(); };
     const v = curVal(f.key);
+    const label = { "aria-labelledby": "setting-label-" + f.key };
     if (f.secret) {
       return el("div", { class: "vpBar" },
         el("input", { type: "password", autocomplete: "new-password", value: v || "",
-          "aria-label": f.label, placeholder: f.configured ? "已设置，留空保留" : "选填",
+          ...label, placeholder: f.configured ? "已设置，留空保留" : "选填",
           oninput: (e) => set(e.target.value || null) }),
         el("button", { class: "sm", type: "button", onclick: (e) => {
           e.currentTarget.previousElementSibling.value = "";
@@ -3635,13 +3937,12 @@
         } }, "清除令牌"));
     }
     if (f.type === "bool") {
-      const cb = el("input", { type: "checkbox", checked: !!v, onchange: (e) => set(e.target.checked) });
-      return el("label", { class: "switch" }, cb, el("span"));
+      return switchControl({ ...label, checked: !!v, onchange: (e) => set(e.target.checked) });
     }
     if (f.options) {
       const lab = OPT_LABEL[f.key] || {};
       const opts = f.options.includes(v) ? f.options : [v, ...f.options];
-      return el("select", { onchange: (e) => set(e.target.value) },
+      return el("select", { ...label, onchange: (e) => set(e.target.value) },
         ...opts.map((o) => {
           const text = !f.options.includes(o)
             ? localText(`${o}（不在可选范围，请重选）`, `${o} (unavailable, select a valid option)`)
@@ -3650,11 +3951,11 @@
         }));
     }
     if (f.type === "list") {
-      return el("textarea", { placeholder: "每行一个", value: (v || []).join("\n"),
+      return el("textarea", { ...label, placeholder: "每行一个", value: (v || []).join("\n"),
         oninput: (e) => set(e.target.value.split(/[\n,，]+/).map((x) => x.trim()).filter(Boolean)) });
     }
     if (f.type === "int") {
-      return el("input", { type: "number", min: String(INT_MIN[f.key] ? INT_MIN[f.key][0] : 0), step: "1", value: String(v ?? ""),
+      return el("input", { ...label, type: "number", min: String(INT_MIN[f.key] ? INT_MIN[f.key][0] : 0), step: "1", value: String(v ?? ""),
         oninput: (e) => set(e.target.value === "" ? "" : Number(e.target.value)) });
     }
     if (f.provider) {
@@ -3663,10 +3964,10 @@
       const cur = String(v ?? "");
       const opts = [["", vEmpty(f.key) || "（留空）"], ...ids.map((id) => [id, id])];
       if (cur && !ids.includes(cur)) opts.splice(1, 0, [cur, localText(`${cur}（当前值，不在已加载的渠道里）`, `${cur} (saved channel, currently unloaded)`)]);
-      return el("select", { class: "provsel", onchange: (e) => set(e.target.value) },
+      return el("select", { ...label, class: "provsel", onchange: (e) => set(e.target.value) },
         ...opts.map(([val, text]) => { const op = el("option", { value: val, "data-raw": val === text }, text); op.selected = val === cur; return op; }));
     }
-    return el("input", { type: "text", value: String(v ?? ""), oninput: (e) => set(e.target.value) });
+    return el("input", { ...label, type: "text", value: String(v ?? ""), oninput: (e) => set(e.target.value) });
   }
   // title：页面上的短标题（识图页用），此时配置原文整句放进说明；route：在该行下显示后端解析的实际渠道
   function fieldRow(f, title0 = "", route = "") {
@@ -3683,7 +3984,7 @@
     } }, "恢复默认");
     const row = el("div", { class: "field", "data-key": f.key },
       el("div", {},
-        el("span", { class: "lab" }, title),
+        el("span", { class: "lab", id: "setting-label-" + f.key }, title),
         el("span", { class: "eff " + (f.reload ? "s-warn" : "s-ok") }, f.reload ? "需重载" : "即时生效"),
         (f.platforms || []).length ? el("span", { class: "eff s-info" },
           "仅 " + f.platforms.map((x) => (state.settings.platform_info?.labels || {})[x] || x).join(" / ")) : null,
@@ -3745,12 +4046,12 @@
         else renderSettings();
       } }), " ", text);
     const body = manual
-      ? el("div", { class: "imgrow" }, ...Object.keys(pi.labels).map((k) => el("label", { class: "hint" },
-          el("input", { type: "checkbox", "data-platform-control": k, checked: choice.includes(k), onchange: (e) => {
+      ? el("div", { class: "imgrow" }, ...Object.keys(pi.labels).map((k) => el("label", { class: "hint toggleLabel" },
+          switchControl({ "data-platform-control": k, checked: choice.includes(k), onchange: (e) => {
             const current = platformChoice();
             const next = Object.keys(pi.labels).filter((x) => (x === k ? e.target.checked : current.includes(x)));
             savePlatforms(next);
-          } }), " ", name(k))))
+          } }, "span"), name(k))))
       : el("div", { class: "hint" }, pi.detected.length
           ? `已启用：${pi.detected.map(name).join("、")}`
           : "没有检测到已启用的聊天平台：只显示通用设置（图片 / 文字输出等）");
@@ -3775,17 +4076,23 @@
   function renderSettings() {
     const st = state.settings;
     const focus = document.activeElement?.dataset.platformControl;
-    const open = {};
-    document.querySelectorAll("#settingsForm details[data-group]").forEach((d) => { open[d.dataset.group] = d.open; });
+    const previous = new Map([...document.querySelectorAll("#settingsForm details[data-group]")]
+      .map((panel) => [panel.dataset.group, panel]));
     // 常用分组在前，低频分组（数据源、其他）排到最后
     const groups = st.groups.map((g) => ({ ...g, fields: settingsFields(g) })).filter((g) => g.fields.length)
       .sort((a, b) => GROUP_CLOSED.has(a.title) - GROUP_CLOSED.has(b.title));
-    const sections = groups.map((g) =>
-      el("details", { class: "panel grp", "data-group": g.title, open: g.title in open ? open[g.title] : !GROUP_CLOSED.has(g.title) },
+    const sections = groups.map((g) => {
+      const prior = previous.get(g.title), push = g.title === "推送";
+      return el("details", { class: "panel grp", "data-group": g.title, open: prior?.open ?? !GROUP_CLOSED.has(g.title),
+        ...(push ? { "data-required-commands": "dun", "data-commands-disabled": prior?.dataset.commandsDisabled ?? "false" } : {}) },
         el("i", { class: "c1" }), el("i", { class: "c2" }),
-        el("summary", { class: "ptitle" }, el("h3", {}, GROUP_TITLE[g.title] || g.title), el("span", { class: "gcount" }), el("span", { class: "ext" })),
-        ...g.fields.map((f) => fieldRow(f))));
+        el("summary", { class: "ptitle" }, el("h3", {}, GROUP_TITLE[g.title] || g.title),
+          push ? el("span", { class: "tag dim commandDisabled", hidden: true }, "相关指令已关闭") : null,
+          el("span", { class: "gcount" }), el("span", { class: "ext" })),
+        ...g.fields.map((f) => fieldRow(f)));
+    });
     $("settingsForm").replaceChildren(platformPanel(), ...sections);
+    syncCommandPanels($("settingsForm"));
     if (focus) $("settingsForm").querySelector(`[data-platform-control="${CSS.escape(focus)}"]`)?.focus({ preventScroll: true });
     markDirty();
   }
@@ -3809,7 +4116,7 @@
     });
     document.querySelectorAll("details[data-group]").forEach((g) => {
       const n = g.querySelectorAll(".field.dirty, .field.bad").length;
-      g.querySelector(".gcount").textContent = n ? `${n} 项未保存` : "";
+      g.querySelector(".gcount").replaceChildren(...(n ? [unsavedChanges(n)] : []));
       if (g.querySelector(".field.bad")) g.open = true;
     });
     // 每页的保存条只统计、只提交本页范围内的改动（含当前收起或在高级区里的字段）
@@ -3833,11 +4140,14 @@
   async function loadSettings({ preserveEdits = false, forceRender = false } = {}) {
     if (RM_SWITCH.busy && !preserveEdits) return;
     const seq = state.settingsSeq = (state.settingsSeq || 0) + 1;
+    const snapshot = ++commandSnapshot;
     const platformRevision = platforms.revision;
     try {
       const settings = await bridge.apiGet("settings", {});
       if (seq !== state.settingsSeq) return;
       if (!Array.isArray(settings?.groups)) throw new Error(settings?.message || "无法读取设置");
+      applyDisabledCommands(settings.disabled_commands, snapshot);
+      delete settings.disabled_commands;
       if (platformRevision !== platforms.revision && settings.platform_info) {
         settings.platform_info.choice = state.settings.platform_info.choice;
       }
@@ -3996,8 +4306,14 @@
   }
   const vrChan = (r) => {
     const vr = state.vr;
-    return !vr ? ["解析中…", "hint"] : vr.err ? [`状态未知（${vr.err}）`, "s-stale"] : !r ? ["状态未知（后端没有返回这一路）", "s-stale"]
-      : r.available ? [`${ids(r.selected_provider_ids)} · ${vSource(r.source_mode)}`, ""] : [`当前没有可用渠道 · ${vSource(r.source_mode)}`, "s-stale"];
+    if (!vr) return ["解析中…", "hint"];
+    if (vr.err) return [`状态未知（${vr.err}）`, "s-stale"];
+    if (!r) return ["状态未知（后端没有返回这一路）", "s-stale"];
+    const source = vSource(r.source_mode);
+    const providers = r.selected_provider_ids || [];
+    return r.available
+      ? [localText(`${ids(providers)} · ${source}`, `${providers.join(", ")} · ${english(source)}`), ""]
+      : [localText(`当前没有可用渠道 · ${source}`, `No available channel · ${english(source)}`), "s-stale"];
   };
   const vrRoutes = () => (Array.isArray(state.vr?.d?.routes) ? state.vr.d.routes : []).filter((r) => r && typeof r.route === "string");
   const vrRoute = (id) => vrRoutes().find((r) => r.route === id);
@@ -4203,6 +4519,7 @@
         el("span", { class: "hint" }, "本地 OCR 未启用时使用："), radio(true, "单模型"), radio(false, "双路模型"),
         el("div", { class: "hint", id: "vModeSaved" },
           `快照中的已保存云端偏好：${saved === undefined ? "待确认" : saved ? "单模型" : "双路模型"}。`,
+          localText("", " "),
           "这里只改云端方式，不会启停本地 OCR，也不会改渠道选择。"),
         staleForm ? el("div", { class: "s-warn", id: "vModeFormStale" }, "设置表单与生效快照不一致，请重新读取设置后再保存；当前表单和未保存草稿已保留，实际方式仍以上方快照为准。") : null,
         draft !== null ? el("div", { class: "s-edit", id: "vModeDraft" },
@@ -4329,7 +4646,7 @@
       const off = ["riven", "line", "line_recheck"].includes(n.dataset.route) && rmUses(rmNow.mode, n.dataset.route) === false;
       const [t, cls] = off ? [`当前按${RM_NAME[rmNow.mode]}读取，这一项不参与（已保存值保留）`, "hint"]
         : rmNow.mode === "single" && n.dataset.route === "riven" ? rmSingleRiven() : vrChan(vrRoute(n.dataset.route));
-      n.textContent = `已保存设置实际会用：${t}`;
+      n.replaceChildren(localText("已保存设置实际会用：", "Saved settings resolve to: "), t);
       n.className = "fh vEff " + cls;
     });
   }
@@ -5269,7 +5586,8 @@
         el("input", { type: "radio", name: "vpTask", value: t.id, checked: t.id === VP.task, disabled: lock, onchange: () => vpPick(VP.pid, t.id) }),
         el("span", {}, el("b", {}, t.label), el("code", {}, t.id),
           el("span", { class: "vpContract" }, localText("输出格式：", "Output format: "),
-            t.contract ? rawText(t.contract) : localText("（后端未提供）", "(Not provided by the backend)"))))));
+            t.contract ? localText(t.contract, t.contract_en || t.contract)
+              : localText("（后端未提供）", "(Not provided by the backend)"))))));
     if (kb) $("vpTasks").querySelector("input:checked")?.focus();
   }
   // 概览只显示存档元数据；查看复用详情切换与未保存编辑保护，停用仍在详情里双确认。
@@ -6368,10 +6686,12 @@
   let loadGen = 0;
   async function load() {
     const gen = ++loadGen;
+    const snapshot = ++commandSnapshot;
     const ovP = (async () => {
       try {
         const ov = await bridge.apiGet("overview", { reveal: $("reveal").checked ? "1" : "0" });
         if (gen !== loadGen) return;
+        applyDisabledCommands(ov.disabled_commands, snapshot);
         state.ov = ov;
         if (setDisplayClock(ov.display_timezone)) {
           memoReset();
@@ -6393,6 +6713,7 @@
   }
   async function reloadPanel() {
     const tasks = [load(), loadPanelLocale()];
+    if (curView === "commands") tasks.push(loadCommandSwitches());
     if (curView === "settings") tasks.push(loadSettings());
     if (curView === "engine") tasks.push(engineEnter());
     if (curView === "vision") tasks.push(reloadVision());
@@ -6405,8 +6726,10 @@
     await Promise.all(tasks);
   }
   async function busy(btn, fn, remainsDisabled = () => false) {
-    btn.disabled = true; opCount += 1;
-    try { await fn(); } catch (e) { memoReset(); showErr(e); } finally { opCount -= 1; btn.disabled = remainsDisabled(); }
+    btn.disabled = true; btn.setAttribute("aria-busy", "true"); opCount += 1;
+    try { await fn(); } catch (e) { memoReset(); showErr(e); } finally {
+      opCount -= 1; btn.removeAttribute("aria-busy"); btn.disabled = remainsDisabled();
+    }
   }
 
   $("reload").onclick = (e) => busy(e.currentTarget, reloadPanel);
@@ -6535,22 +6858,6 @@
     } catch (e) { $("engineInstallState").textContent = e.message || String(e); }
   }
   function engineEnter() {
-    $("engineMetricTitle").replaceChildren(localText("计算口径", "How results are calculated"));
-    $("engineMetricHelp").replaceChildren(localText(
-      "随包配装和词条推荐读取参考工况，KPM 为每分钟击杀数。完整模拟的 DPS 按所示时长平均。",
-      "Bundled builds and trait advice use saved scenarios. KPM is kills per minute. Simulation DPS is averaged over the shown duration."));
-    $("engineEstimateHelp").replaceChildren(localText(
-      "内置实战 DPS 按异常层已建立的持续输出估算，不计爬升、掉层、击杀截断和 Boss 伤害衰减。元素按火、冰、电、毒依次配对，游戏内组合受 MOD 槽位和武器自带元素影响。",
-      "Built-in practical DPS assumes status is already stacked and excludes ramp-up, stack decay, kill cutoff and boss damage attenuation. Elements pair in Heat, Cold, Electricity and Toxin order. In-game combinations also depend on MOD slots and innate elements."));
-    $("engineFormulaHelp").replaceChildren(localText(
-      "内置护甲减伤为 90% × √(护甲 / 2700)。基伤、多重和暴击词条各自组内相加，派系伤害独立。弱点倍率优先读取该目标部位数据。",
-      "Built-in armor reduction is 90% × √(armor / 2700). Base damage, multishot and critical stats add within their groups. Faction damage has its own multiplier. Weak-point multipliers use target-specific hit zones when available."));
-    $("engineHeatHelp").replaceChildren(localText(
-      "火焰能持续刷新时，平均层数 = 每秒触发次数 × 持续输出秒数 ÷ 2。触发间隔超过 6 秒时，每层各自到期。默认输出 12 秒，可用「开火30秒」更改。",
-      "When Heat keeps refreshing, average stacks = procs per second × attack duration in seconds ÷ 2. If procs are more than 6 seconds apart, stacks expire individually. The default is 12 seconds. Use ‘开火30秒’ to set 30 seconds."));
-    $("engineSaleHelp").replaceChildren(localText(
-      "出售参考网址在「设置 → 紫卡出售参考」配置。词条推荐回图只显示出售建议。",
-      "Configure the URL under Settings → Riven selling reference. Trait cards display only the selling advice."));
     return Promise.all([loadSettings(), engineStatus(), loadVisionSaved(),
       VP.cat ? vpRefreshOverview() : vpLoadCatalog(), PS.cat ? Promise.resolve() : psLoadCatalog()]);
   }

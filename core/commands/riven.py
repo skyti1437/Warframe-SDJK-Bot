@@ -21,6 +21,7 @@ from decimal import Decimal
 from typing import Optional
 
 from .. import damage_engine, matching, portable_riven, riven_rating, riven_sale
+from .. import damage_calc as dc
 from .. import formatters as fmt
 from .. import riven_analysis as RA
 from ..api_client import WarframeAPIError, fuzzy_hits, public_error_text
@@ -34,6 +35,7 @@ from .market import _disp_name
 _COMBO_TRANS = str.maketrans({"−": "-", "－": "-"})
 # 「看着像组合」但不认识（如 4+ / 5+1-）：**不静默落进武器名**，给一句提示
 _COMBO_LIKE_RE = re.compile(r"^\d+\+(?:\d+)?(?:-|负)?$")
+_TRAIT_ROLLS = {"3+1": "3+1-", "3+1-": "3+1-", "2+1": "2+1-", "2+1-": "2+1-"}
 
 # 行情是附加信息；家族解析与单次完整词条查询共用一个前台预算。
 RIVEN_ANALYSIS_PRICE_BUDGET_S = 3.0
@@ -45,14 +47,101 @@ def _fold_combo(t: str) -> str:
     return unicodedata.normalize("NFKC", t or "").translate(_COMBO_TRANS)
 
 
-def _card_parameters(tokens, *, mode=None, rank=None, polarity=None, portable=False):
+def _target_argument(tokens, index):
+    raw = _fold_combo(tokens[index]).lower()
+    if raw in {"对", "vs"} and index + 1 < len(tokens):
+        start = index + 1
+        for end in range(min(len(tokens), start + 3), start, -1):
+            name = " ".join(tokens[start:end])
+            enemy = dc.find_enemy_exact(name)
+            if enemy is None and end == start + 1 and name.lower() not in dc.FACTION_ALIASES:
+                enemy = dc.find_enemy(name)
+            if enemy is not None:
+                return {"enemy": enemy, "faction": enemy["faction"]}, end
+        faction = dc.FACTION_ALIASES.get(tokens[start].lower())
+        if faction is not None:
+            return {"enemy": None, "faction": faction}, start + 1
+        raise riven_rating.CardError(L("请核对敌人名称", "Check the enemy name"))
+    if option := dc.target_option(raw):
+        if raw in dc._STANDARD_TARGET_WORDS:
+            option.pop("headshot")
+        return option, index + 1
+    if raw.startswith(("弱点", "weak")):
+        try:
+            option, end = damage_engine.weakpoint_target_option(
+                [_fold_combo(token).lower() for token in tokens[index : index + 3]]
+            )
+        except damage_engine.EngineError as exc:
+            raise riven_rating.CardError(str(exc)) from exc
+        if option:
+            return option, index + end
+    if faction := dc.FACTION_ALIASES.get(raw):
+        return {"enemy": None, "faction": faction}, index + 1
+    if match := re.fullmatch(r"(?:开火|fire)(\d+(?:\.\d+)?)(?:秒|s)?", raw):
+        seconds = min(dc.FIRE_SECONDS_MAX, max(dc.FIRE_SECONDS_MIN, float(match[1])))
+        return {"fire_seconds": seconds}, index + 1
+    return {}, index + 1
+
+
+def _card_parameters(tokens, *, target):
+    mode = rank = polarity = None
     modes = riven_rating.MODES
-    if portable:
-        modes = modes | portable_riven.MODE_ALIASES
-    content = []
-    for raw in tokens:
-        token = _fold_combo(raw).lower()
-        if token in modes:
+    content, arcanes, combat = [], [], {}
+    exilus = None
+    tokens = tokens or []
+    folded = [_fold_combo(token).lower() for token in tokens]
+    mode_tokens = {i for i, token in enumerate(folded) if token in modes}
+    index = 0
+    while index < len(tokens):
+        if not content and mode_tokens:
+            # 全名优先，例如 Catchmoon Primary 中的 Primary 属于武器名。
+            end = next(
+                (
+                    end
+                    for end in range(len(tokens), index + 1, -1)
+                    if any(index <= i < end for i in mode_tokens)
+                    and riven_rating.match_weapon(" ".join(tokens[index:end]))
+                ),
+                index,
+            )
+            if end != index:
+                content.extend(tokens[index:end])
+                index = end
+                continue
+        raw = tokens[index]
+        token = folded[index]
+        index += 1
+        if token in {"赋能", "arcane"}:
+            arcane, index = dc.read_ranked_equipment(tokens, index, arcane=True)
+            if arcane is None:
+                raise riven_rating.CardError(L("请核对赋能名称", "Check the Arcane name"))
+            if not dc.arcane_rank_valid(arcane):
+                raise riven_rating.CardError(
+                    L(
+                        f"赋能等级应为 0–{arcane['max_rank']}",
+                        f"Arcane rank must be 0–{arcane['max_rank']}",
+                    )
+                )
+            arcanes.append(arcane)
+        elif token in {"扩展槽", "exilus"}:
+            if exilus is not None:
+                raise riven_rating.CardError(L("扩展槽最多选一张 MOD", "Select one Exilus MOD"))
+            if index < len(tokens) and _fold_combo(tokens[index]).lower() in {"自动", "auto"}:
+                exilus = {"mode": "auto"}
+                index += 1
+            else:
+                exilus, index = dc.read_ranked_equipment(tokens, index, arcane=False)
+                if exilus is None:
+                    raise riven_rating.CardError(
+                        L("请核对扩展槽 MOD 名称", "Check the Exilus MOD name")
+                    )
+        elif (selection := _target_argument(tokens, index - 1))[0]:
+            dc.merge_target_options(target, selection[0])
+            index = selection[1]
+        elif option := dc.combat_option(token):
+            key, value = option
+            combat[key] = value
+        elif token in modes:
             mode = modes[token]
         elif token.startswith(("等级", "rank=")):
             value = re.fullmatch(r"(?:等级=?|rank=)([0-8])", token)
@@ -67,7 +156,131 @@ def _card_parameters(tokens, *, mode=None, rank=None, polarity=None, portable=Fa
                 )
         else:
             content.append(raw)
-    return content, mode, rank, polarity
+    options = damage_engine.combat_replay_options(combat)
+    if arcanes:
+        options["arcanes"] = arcanes
+    if exilus is not None:
+        options["exilus"] = exilus
+    return content, mode, rank, polarity, options
+
+
+async def _card_equipment(host, port, options):
+    if (
+        not (options.keys() & {"arcanes", "exilus"})
+        or options.get("exilus") == {"mode": "auto"}
+        and "arcanes" not in options
+    ):
+        return options
+    await host.damage_engine.ensure_portable(port)
+    _, _, equipment = await damage_engine._portable_catalog(host.damage_engine, port)
+    selected = dict(options)
+    if arcanes := options.get("arcanes"):
+        selected["arcanes"] = [
+            damage_engine.catalog_equipment(arc, equipment["arcanes"], L("赋能", "Arcane"))
+            for arc in arcanes
+        ]
+    if (exilus := options.get("exilus")) and exilus != {"mode": "auto"}:
+        selected["exilus"] = damage_engine.catalog_equipment(
+            exilus, equipment["utilityMods"], L("扩展槽", "Exilus MOD")
+        )
+    return selected
+
+
+async def _recommendation_row(
+    host,
+    event,
+    port,
+    weapon,
+    catalog,
+    mode,
+    target,
+    options,
+    *,
+    traits=True,
+    roll="3+1-",
+    on_solve=None,
+):
+    _, scope, mode_scenario = portable_riven.recommendation_mode(
+        weapon, catalog, mode, require_analysis=traits, prefer_cycle=not traits
+    )
+    equipment = await _card_equipment(host, port, options)
+    benchmark = await portable_riven.benchmark_options(host, port, target)
+    scenario = {**benchmark.pop("scenario", {}), **equipment.get("scenario", {}), **mode_scenario}
+    options = {**equipment, **benchmark}
+    if scenario:
+        options["scenario"] = scenario
+    options = portable_riven.weapon_benchmark_options(options, scope[0], target)
+    row = await portable_riven.recommendation_result(
+        host,
+        event,
+        port,
+        scope,
+        catalog,
+        options,
+        traits=traits,
+        roll=roll,
+        on_solve=on_solve,
+    )
+    row = {**row, "weapon": {**row["weapon"], **catalog, "category": weapon["category"]}}
+    if "enemy" in target and target["enemy"] is None:
+        row["evaluationTarget"] = {**row["evaluationTarget"], "enemyName": target["faction"]}
+    return row
+
+
+def _progress_notice(host, event):
+    sent = False
+    send = getattr(host, "_send_progress_notice", None)
+
+    async def notify():
+        nonlocal sent
+        if not sent and send is not None and event is not None:
+            sent = True
+            text = L(
+                "⏳ 正在后台计算，预计需要数十秒至数分钟。复杂灵化循环单次求解最多约 10 分钟。",
+                "⏳ Calculating in the background. This usually takes seconds to a few minutes. "
+                "A complex Incarnon search can take up to about 10 minutes.",
+            )
+            platform_name = getattr(event, "get_platform_name", lambda: "")()
+            if platform_name == "qq_official" and getattr(
+                getattr(event, "message_obj", None), "group_id", None
+            ):
+                text += L(
+                    "QQ群的 5 分钟回复窗口内会自动发送结果，超时可重发同一条请求查询。",
+                    " Results are sent automatically within QQ's 5-minute group reply window. "
+                    "After that, resend the same request to check the result.",
+                )
+            else:
+                text += L("算完后自动发送结果。", " Results will be sent automatically.")
+            await send(event, text)
+
+    return notify
+
+
+def _recommendation_error(exc):
+    if isinstance(
+        exc,
+        (
+            damage_engine.EngineTimeout,
+            damage_engine.EngineUnreachable,
+            portable_riven.CoverageUnavailable,
+        ),
+    ):
+        return str(exc)
+    if isinstance(exc, (damage_engine.EngineError, QueueUnavailable)):
+        detail = str(exc)
+    else:
+        detail = L("引擎回执不完整，请重试", "The engine response was incomplete. Try again.")
+    return L(
+        f"独立引擎推荐暂不可用 · {detail}",
+        f"Standalone engine recommendations unavailable · {detail}",
+    )
+
+
+def _loadout_engine_required():
+    return L(
+        "请管理员在后台「伤害引擎」启用完整模拟并连接独立引擎。",
+        "Ask an admin to enable Full Simulation under Damage Engine and connect the standalone engine.",
+    )
 
 
 def _xh_element(toks: list[str]) -> tuple[Optional[str], Optional[str]]:
@@ -851,67 +1064,114 @@ class RivenCommands:
         return riven_read_selection(True, status) == "single"
 
     async def _h_riven_traits(self, parsed, event, platform) -> Reply:
-        """按武器列出已校准的模式及出售参考。"""
+        """按武器列出词条推荐及出售参考。"""
         title = L("词条推荐", "Riven Reroll Suggestions")
-        command = L("词条推荐", "riventraits")
+        usage = L(
+            "词条推荐 武器名 [模式] [3+1- / 2+1-] [靶标参数]",
+            "riventraits <weapon> [mode] [3+1- / 2+1-] [target options]",
+        )
         cfg = dict(getattr(self, "cfg", {}) or {})
         port = damage_engine.portable_port(cfg)
+        target = {}
+        roll = "3+1-"
+        arguments = []
+        for token in parsed.content or ():
+            if combo := _TRAIT_ROLLS.get(_fold_combo(token)):
+                roll = combo
+            else:
+                arguments.append(token)
         try:
-            content, mode, _, _ = _card_parameters(parsed.content, portable=bool(port))
+            content, mode, _, _, options = _card_parameters(arguments, target=target)
         except riven_rating.CardError as exc:
-            return err_card(str(exc), command, title=title)
-        choices = riven_rating.match_weapon(" ".join(content))
+            return err_card(str(exc), usage, title=title)
+        query = " ".join(content)
+        choices = riven_rating.match_weapon(query)
+        choices, builds, bundled_catalog = await asyncio.to_thread(
+            portable_riven.bundled_weapons, query, choices, target, options
+        )
+        bundled = {}
+        if (
+            bundled_catalog
+            and (matrix := await portable_riven.bundled_traits(target, options)) is not None
+        ):
+            for wid, found in bundled_catalog.items():
+                if lines := portable_riven.bundled_trait_lines(
+                    builds, matrix, found, mode, roll, target=target
+                ):
+                    bundled[wid] = lines
+        catalog = {}
+        catalog_error = None
+        if port and query and (not choices or any(w["engine_id"] not in bundled for w in choices)):
+            try:
+                choices, catalog = await portable_riven.recommendation_weapons(
+                    self, port, query, choices
+                )
+            except (
+                damage_engine.EngineError,
+                QueueUnavailable,
+                KeyError,
+                TypeError,
+                ValueError,
+            ) as exc:
+                catalog_error = _recommendation_error(exc)
+                if not choices:
+                    return err_card(catalog_error, usage, title=title)
         if not choices:
-            return err_card(
-                L("请核对武器名称", "Check the weapon name"),
-                L("词条推荐 武器名 [模式]", "riventraits <weapon> [mode]"),
-                title=title,
-            )
+            return err_card(L("请核对武器名称", "Check the weapon name"), usage, title=title)
         lines = []
+        on_solve = _progress_notice(self, event)
         for weapon in choices:
             wid = weapon["engine_id"]
             if len(choices) > 1:
                 lines.append("◆ " + riven_rating.weapon_label(weapon))
-            modes = dict.fromkeys(riven_rating.presets().get(wid, {}))
-            if port:
-                modes.update(
-                    (label, scope)
-                    for (key, label), scope in portable_riven.MODES.items()
-                    if key == wid
-                )
-            simulated, complete = [], {}
-            for label, scope in modes.items():
-                if mode is not None and label != mode:
-                    continue
-                row = (
-                    await portable_riven.prepared_result(self, scope) if scope is not None else None
-                )
-                if row is None:
-                    simulated.extend(riven_rating.trait_recommendation_lines(weapon, label))
-                else:
-                    simulated.extend(
-                        (
-                            portable_riven.scenario_line(row),
-                            L("· 独立引擎预计算", "· Precomputed with the standalone engine"),
-                            *portable_riven.trait_lines(row),
-                        )
+            if wid in bundled:
+                lines.extend(bundled[wid])
+            elif catalog_error:
+                lines.append("· " + catalog_error)
+            elif found := catalog.get(wid):
+                try:
+                    row = await _recommendation_row(
+                        self,
+                        event,
+                        port,
+                        weapon,
+                        found,
+                        mode,
+                        target,
+                        options,
+                        roll=roll,
+                        on_solve=on_solve,
                     )
-                    if traits := portable_riven.prepared_traits(row):
-                        complete[label] = traits
-            lines.extend(
-                simulated or [L("· 这个模式暂无词条推荐", "· No recommendations for this mode")]
-            )
-            matrix = riven_rating.trait_matrix(
-                weapon, [label for label in modes if mode is None or mode == label], complete
-            )
-            lines.extend(matrix)
+                    lines.extend(portable_riven.live_trait_lines(row, roll))
+                except (
+                    damage_engine.EngineError,
+                    QueueUnavailable,
+                    KeyError,
+                    TypeError,
+                    ValueError,
+                ) as exc:
+                    lines.append("· " + _recommendation_error(exc))
+            elif port:
+                lines.append(
+                    L(
+                        "· 独立引擎暂不支持这把武器",
+                        "· The standalone engine does not support this weapon yet",
+                    )
+                )
+            else:
+                lines.append(
+                    L(
+                        "· 启用独立引擎后可查看模拟词条推荐。",
+                        "· Enable the standalone engine to see simulated trait suggestions.",
+                    )
+                )
             sale = await self.riven_sale.lookup(
                 str(cfg.get("riven_sale_sheet_url") or ""),
                 weapon,
                 proxy=cfg.get("proxy") or None,
                 allow_private=cfg.get("allow_private_urls") is True,
             )
-            lines.extend(("", *riven_sale.lines(sale)))
+            lines.extend(riven_sale.lines(sale))
         if len(choices) == 1:
             title += " · " + riven_rating.weapon_label(choices[0])
         return Reply(
@@ -920,23 +1180,101 @@ class RivenCommands:
             footer=fmt.fmt_platform_footer(platform, L("词条推荐", "Reroll suggestions")),
         )
 
+    async def _no_riven_loadout(
+        self, query, mode, target, options, port, event, platform, title, report
+    ):
+        choices = riven_rating.match_weapon(query)
+        choices, builds, bundled_catalog = await asyncio.to_thread(
+            portable_riven.bundled_weapons, query, choices, target, options
+        )
+        if len(choices) == 1:
+            (weapon,) = choices
+            if lines := portable_riven.bundled_build_lines(
+                builds, bundled_catalog.get(weapon["engine_id"]), mode, target=target
+            ):
+                return Reply(
+                    f"{title} · {riven_rating.weapon_label(weapon)}",
+                    lines,
+                    footer=fmt.fmt_platform_footer(platform, title),
+                )
+        if not port:
+            return report(_loadout_engine_required())
+        catalog = {}
+        if query:
+            try:
+                choices, catalog = await portable_riven.recommendation_weapons(
+                    self, port, query, choices
+                )
+            except (
+                damage_engine.EngineError,
+                QueueUnavailable,
+                KeyError,
+                TypeError,
+                ValueError,
+            ) as exc:
+                return report(_recommendation_error(exc))
+        if not choices:
+            return report(L("请核对武器名", "Check the weapon name"))
+        if len(choices) > 1:
+            names = L("、", ", ").join(riven_rating.weapon_label(row) for row in choices)
+            return report(
+                L(f"请指定武器变体，可选 {names}", f"Specify the weapon variant: {names}")
+            )
+        (weapon,) = choices
+        found = catalog.get(weapon["engine_id"])
+        try:
+            row = await _recommendation_row(
+                self,
+                event,
+                port,
+                weapon,
+                found,
+                mode,
+                target,
+                options,
+                traits=False,
+                on_solve=_progress_notice(self, event),
+            )
+            lines = await portable_riven.build_view(self, port, row)
+            if mode is None and (row.get("evaluationScenario") or {}).get("incarnonCycle"):
+                lines.extend(portable_riven.live_cycle_hint(weapon, found, require_analysis=False))
+        except (
+            damage_engine.EngineError,
+            QueueUnavailable,
+            KeyError,
+            TypeError,
+            ValueError,
+        ) as exc:
+            return report(_recommendation_error(exc))
+        return Reply(
+            f"{title} · {riven_rating.weapon_label(weapon)}",
+            lines,
+            footer=fmt.fmt_platform_footer(platform, L("参考配装", "Reference build")),
+        )
+
     async def _h_loadout_recommend(self, parsed, event, platform) -> Reply:
         """按模式提供参考配装，带实卡时锁卡重搜。"""
         title = L("配卡推荐", "Build recommendations")
         usage = L(
-            "发「配卡推荐 武器名 [模式]」查无紫卡参考配装，默认主射或平砍。"
-            "也可发「配卡推荐」并附单张紫卡图，自动比较可用变体。可加武器名或模式限定范围。",
-            'Send "loadoutrecommend weapon [mode]" for a No-Riven build. Default mode is base. '
-            "Attach one Riven screenshot to compare supported variants. Add a weapon name or mode to narrow the search.",
+            "配卡推荐 武器名 [模式] [靶标参数]。近战默认走主路线，远程灵化默认展示可用的灵化循环。"
+            "附紫卡图可按实卡配装，"
+            "还可加「赋能 主要·死首 5级」或「扩展槽 自动」。",
+            "loadoutrecommend <weapon> [mode] [target options]. Melee uses its default route. "
+            "Ranged Incarnon weapons default to the Incarnon cycle when available. "
+            'Attach a Riven screenshot to build around it. You can add "arcane Primary Deadhead 5" or "exilus auto".',
         )
 
         def report(reason):
             return err_card(str(reason), usage, title=title)
 
+        if RA.has_upgrade_preview_lines(parsed.content):
+            return Reply(raw_text=L(*RA.UPGRADE_PREVIEW_MESSAGE))
+
         cfg = dict(getattr(self, "cfg", {}) or {})
         port = damage_engine.portable_port(cfg)
+        target = {}
         try:
-            content, mode, rank, polarity = _card_parameters(parsed.content, portable=True)
+            content, mode, rank, polarity, options = _card_parameters(parsed.content, target=target)
         except riven_rating.CardError as exc:
             return report(exc)
         typed = self._riven_text_input(replace(parsed, content=content), keep_weapon_spaces=True)
@@ -947,14 +1285,31 @@ class RivenCommands:
             or rank is not None
             or polarity is not None
         )
+        if has_card and not port:
+            return report(_loadout_engine_required())
         if mode is None and has_card and not has_image:
             return report(L("请指定使用模式", "Specify a play mode"))
-        if typed.hidden or (typed.disposition and not port):
+        if typed.hidden:
             return report(L("请提供已确认的卡面词条", "Provide all confirmed card traits"))
-        if has_card and not damage_engine.full_enabled(cfg):
-            return report(L("请在后台切到完整模拟", "Select Simulation in the dashboard"))
+        if not has_card:
+            return await self._no_riven_loadout(
+                typed.weapon, mode, target, options, port, event, platform, title, report
+            )
+        if options or target:
+            try:
+                options = await _card_equipment(self, port, options)
+                if target:
+                    benchmark = await portable_riven.benchmark_options(self, port, target)
+                    scenario = {**benchmark.pop("scenario", {}), **options.get("scenario", {})}
+                    options.update(benchmark)
+                    if scenario:
+                        options["scenario"] = scenario
+                options = damage_engine.with_portable_analysis_options({}, options)
+            except (damage_engine.EngineError, QueueUnavailable) as exc:
+                return report(_recommendation_error(exc))
 
-        pool = riven_rating.presets()
+        data = {}
+        card_choices = ()
         if has_image:
             if typed.positive or typed.negative:
                 return report(
@@ -967,7 +1322,8 @@ class RivenCommands:
             if isinstance(read, Reply):
                 return read
             checked, data = read
-            choices = riven_rating.related_weapons(riven_rating.match_weapon(checked.weapon))
+            card_choices = riven_rating.match_weapon(checked.weapon)
+            choices = riven_rating.related_weapons(card_choices)
             if typed.weapon:
                 picked = {row["engine_id"] for row in riven_rating.match_weapon(typed.weapon)}
                 choices = tuple(row for row in choices if row["engine_id"] in picked)
@@ -979,11 +1335,10 @@ class RivenCommands:
                         )
                     )
             positive, negative = checked.positive, checked.negative
-            rank = self._riven_card_rank(data, rank)
             if polarity is None:
                 polarity = riven_rating.POLARITIES.get(str(data.get("polarity") or "").lower())
         else:
-            if has_card and not typed.positive:
+            if not typed.positive:
                 return report(
                     L("请附紫卡图或填写完整实值", "Attach a Riven or enter all of its traits")
                 )
@@ -1001,105 +1356,146 @@ class RivenCommands:
 
         if not has_image:
             mode = mode or "base"
+        try:
+            _, catalog = await portable_riven.recommendation_weapons(
+                self, port, typed.weapon, choices
+            )
+        except (
+            damage_engine.EngineError,
+            QueueUnavailable,
+            KeyError,
+            TypeError,
+            ValueError,
+        ) as exc:
+            return report(_recommendation_error(exc))
+
         scopes = []
+        mode_error = None
         for weapon in choices:
-            wid = weapon["engine_id"]
-            if port:
-                matching_trials = [
-                    (label, scope)
-                    for (key, label), scope in portable_riven.MODES.items()
-                    if key == wid and (mode is None or mode == label)
-                ]
-                scopes.extend((weapon, label, scope) for label, scope in matching_trials)
-                if matching_trials or has_card:
-                    continue
-            label = mode or "base"
-            if label in pool[wid] or (not has_card and (wid, label) in portable_riven.MODES):
-                scopes.append((weapon, label, None))
-        if not scopes:
-            if typed.disposition:
-                return report(
-                    L(
-                        "这个模式暂不支持旧卡倾向换算",
-                        "Historical disposition projection is unavailable",
+            found = catalog.get(weapon["engine_id"])
+            try:
+                label, scope, scenario = portable_riven.recommendation_mode(weapon, found, mode)
+            except portable_riven.CoverageUnavailable as exc:
+                if mode is not None:
+                    mode_error = exc
+                continue
+            if mode is None and label != "cycle" and weapon["category"] != "Melee":
+                scopes.extend(
+                    (weapon, label, scope, {})
+                    for label, scope in portable_riven.weapon_modes(
+                        weapon["engine_id"], found, None
                     )
                 )
-            if port and has_card:
-                return report(
-                    L(
-                        "该武器或模式暂无完整配卡推荐",
-                        "Full recommendations are unavailable for this weapon or mode",
-                    )
-                )
-            modes = dict.fromkeys(label for row in choices for label in pool[row["engine_id"]])
-            if not has_card and any(
-                (row["engine_id"], "incarnon") in portable_riven.MODES for row in choices
-            ):
-                modes["incarnon"] = None
-            options = L("、", ", ").join(L(*riven_rating.MODE_LABELS[key]) for key in modes)
-            return report(L(f"该武器可用模式 {options}", f"Available modes: {options}"))
-        if typed.unmatched and has_card:
-            return report(L("请核对未识别的词条", "Check the unrecognised traits"))
-        if not has_card:
-            weapon, mode, trial_mode = scopes[0]
-            modes = pool[weapon["engine_id"]]
-            reference_mode = portable_riven.BUNDLED_BUILD_MODES.get((weapon["engine_id"], mode))
-            if lines := await portable_riven.reference_build_lines(
-                self, port, reference_mode, live_analysis=trial_mode is not None
-            ):
-                return Reply(
-                    f"{title} · {riven_rating.weapon_label(weapon)}",
-                    lines,
-                    footer=fmt.fmt_platform_footer(platform, L("参考配装", "Reference build")),
-                )
-            if trial_mode is not None:
-                prepared = await portable_riven.prepared_result(self, trial_mode)
-                if prepared is not None:
-                    try:
-                        lines = await portable_riven.build_view(self, port, prepared)
-                    except (KeyError, TypeError, ValueError):
-                        return report(
-                            L("无紫卡参考配装数据不完整", "Incomplete no-Riven reference build")
-                        )
-                    return Reply(
-                        f"{title} · {riven_rating.weapon_label(weapon)}",
-                        lines,
-                        footer=fmt.fmt_platform_footer(platform, L("参考配装", "Reference build")),
-                    )
-            if trial_mode is not None and (
-                lines := await portable_riven.reference_build_lines(self, None, reference_mode)
-            ):
-                return Reply(
-                    f"{title} · {riven_rating.weapon_label(weapon)}",
-                    lines,
-                    footer=fmt.fmt_platform_footer(platform, L("参考配装", "Reference build")),
-                )
-            if mode not in modes:
-                return report(
-                    L("这个模式暂无无紫卡参考配装", "No no-Riven build for this scenario yet")
-                )
-            return Reply(
-                f"{title} · {riven_rating.weapon_label(weapon)}",
-                riven_rating.reference_build_lines(modes[mode], weapon["category"] == "Melee"),
-                footer=fmt.fmt_platform_footer(platform, L("参考配装", "Reference build")),
-            )
-        if rank is None:
-            return report(
-                L("请补上卡面等级，例如 等级8", "Supply the card rank, for example rank=8")
-            )
-        if polarity is None:
+            else:
+                scopes.append((weapon, label, scope, scenario))
+
+        def no_card_coverage():
             return report(
                 L(
-                    "请补上卡面极性，例如 极性=madurai",
-                    "Supply the card's polarity, for example polarity=madurai",
+                    "该武器或模式暂无带紫卡配卡推荐",
+                    "Build recommendations with a Riven are unavailable for this weapon or mode",
                 )
             )
 
-        async def compute(weapon, mode, trial_mode):
+        if not scopes:
+            return report(mode_error) if mode_error else no_card_coverage()
+        if typed.unmatched:
+            return report(L("请核对未识别的词条", "Check the unrecognised traits"))
+        if rank is None:
+
+            def magnitudes(rows):
+                return [
+                    (
+                        sid,
+                        RA.faction_mult_to_mag(value)[0]
+                        if sid.startswith("damage_vs_") and RA.is_faction_mult(value)
+                        else value,
+                    )
+                    for sid, value in rows
+                ]
+
+            inference = RA.infer_riven_rank(
+                positive if has_image else magnitudes(positive),
+                negative if has_image else magnitudes(negative),
+                observed_rank=data.get("rank"),
+                pips_count=data.get("_single_card_pips"),
+                drain=data.get("drain"),
+                drain_color=data.get("drain_color"),
+                mastery_rank=data.get("mastery_rank"),
+                equipped=data.get("equipped"),
+                source_disposition=typed.disposition or None,
+                **riven_rating.rank_context((card_choices or choices)[0]),
+            )
+            if inference.status != "resolved":
+                return report(L(*inference.message))
+            rank = inference.rank
+        on_solve = _progress_notice(self, event)
+
+        def trial_context(trial_mode, scenario):
+            trial_options = options
+            if scenario:
+                trial_options = {**options, "scenario": {**options.get("scenario", {}), **scenario}}
+            return portable_riven.weapon_benchmark_options(trial_options, trial_mode[0], target)
+
+        references = {}
+        variant_count = len(choices)
+        reference_selected = False
+        if has_image and (document := await portable_riven.loadout_references(target)) is not None:
+            for _, label, scope, scenario in scopes:
+                references[scope] = (
+                    portable_riven.loadout_reference(
+                        document, label, scope, target, trial_context(scope, scenario)
+                    )
+                    or {}
+                )
+            if (
+                automatic
+                and variant_count > 1
+                and len({weapon["engine_id"] for weapon, _, _, _ in scopes}) == variant_count
+                and len({label for _, label, _, _ in scopes}) == 1
+                and all(references[scope].get("dps") is not None for _, _, scope, _ in scopes)
+                and len(
+                    {portable_riven._headshot_chance(scope[0], target) for _, _, scope, _ in scopes}
+                )
+                == 1
+            ):
+                scopes = [max(scopes, key=lambda trial: references[trial[2]]["dps"])]
+                reference_selected = True
+
+        async def compute(weapon, trial_mode, scenario):
             card = riven_rating.typed_card(
                 weapon, positive, negative, rank, polarity, faction_magnitudes=has_image
             )
-            if trial_mode is not None:
+            trial_options = trial_context(trial_mode, scenario)
+            result = None
+            reference = references.get(trial_mode, {})
+            if has_image:
+                trial_options = {"exilus": {"mode": "auto"}, **trial_options}
+                # 候选全量比较沿用同一套 DPS 评分。只有单一候选且有匹配底表时，
+                # 才切到以 KPM 搜索的配装接口。
+                if rank == 8 and len(scopes) == 1 and reference.get("dps"):
+                    try:
+                        result = await portable_riven.build_riven(
+                            self,
+                            event,
+                            port,
+                            trial_mode,
+                            card,
+                            polarity,
+                            catalog[weapon["engine_id"]],
+                            source_disposition=typed.disposition or None,
+                            options=trial_options,
+                            on_solve=on_solve,
+                        )
+                    except (damage_engine.EngineTimeout, damage_engine.EngineUnreachable):
+                        raise
+                    except (KeyError, TypeError, ValueError) as exc:
+                        logger.debug("[sdjk] 满级紫卡配装改用分析接口：%s", type(exc).__name__)
+                    if result is not None:
+                        result = {**result, "referenceDps": reference["dps"]}
+                if result is None and "arcanes" not in trial_options and reference.get("arcanes"):
+                    trial_options["arcanes"] = reference["arcanes"]
+            if result is None:
                 result = await portable_riven.analyze(
                     self,
                     event,
@@ -1108,35 +1504,46 @@ class RivenCommands:
                     card,
                     polarity,
                     source_disposition=typed.disposition or None,
+                    on_solve=on_solve,
+                    **({"options": trial_options} if trial_options else {}),
                 )
-                score = result["scoringValues"]["actual"]
-                if result["searchWork"]["limited"] and len(scopes) > 1:
-                    raise damage_engine.EngineBuildError(
-                        L(
-                            "搜索未跑完，暂不能比较输出",
-                            "Search incomplete; output could not be compared",
-                        )
+            if "enemy" in target and target["enemy"] is None:
+                result = {
+                    **result,
+                    "evaluationTarget": {
+                        **result["evaluationTarget"],
+                        "enemyName": target["faction"],
+                    },
+                }
+            score = result["scoringValues"]["actual"]
+            if result["searchWork"]["limited"] and len(scopes) > 1:
+                raise damage_engine.EngineBuildError(
+                    L(
+                        "搜索未跑完，暂不能比较输出",
+                        "Search incomplete; output could not be compared",
                     )
-            else:
-                async with damage_engine.simulation_session(self, event) as engine_cfg:
-                    result = await riven_rating.recommend(
-                        self, engine_cfg, pool[weapon["engine_id"]][mode], card
-                    )
-                score = riven_rating._kpm(result["score"])
+                )
             if not math.isfinite(score) or score < 0:
                 raise ValueError("invalid build score")
             return score, result
 
-        best, error = None, None
-        compared = set()
+        groups = {}
+        error = None
         incomplete = False
-        for weapon, mode, trial_mode in scopes:
+        unsupported = 0
+        for weapon, label, trial_mode, scenario in scopes:
             try:
-                score, result = await compute(weapon, mode, trial_mode)
+                score, result = await compute(weapon, trial_mode, scenario)
+                context = portable_riven.comparison_context(
+                    result, catalog.get(weapon["engine_id"]), label
+                )
             except QueueUnavailable as exc:
                 error = exc
                 incomplete = True
                 break
+            except portable_riven.CoverageUnavailable:
+                unsupported += 1
+                continue
             except damage_engine.EngineError as exc:
                 error = exc
                 incomplete = True
@@ -1144,36 +1551,66 @@ class RivenCommands:
             except (KeyError, TypeError, ValueError):
                 incomplete = True
                 continue
-            compared.add(weapon["engine_id"])
-            if best is None or score > best[0]:
-                best = (score, weapon, result)
+            groups.setdefault(context, []).append((score, weapon, result))
         failed = L(
             "本次没有得到与牌面和模式一致的配装，请重试",
             "A build matching this card and mode was unavailable. Try again.",
         )
-        if best is None:
+        if not groups:
+            if unsupported == len(scopes):
+                return no_card_coverage()
             return report(error or failed)
-        _, weapon, result = best
+        preferred_mode = mode or (
+            "cycle" if any(key[0][0] == "cycle" for key in groups) else "base"
+        )
+        context = min(
+            groups,
+            key=lambda key: (
+                key[0][0] != preferred_mode,
+                -len({row["engine_id"] for _, row, _ in groups[key]}),
+            ),
+        )
+        group = groups[context]
+        _, weapon, result = max(group, key=lambda item: item[0])
+        compared = {row["engine_id"]: row for _, row, _ in group}
         try:
-            if port:
-                lines = await portable_riven.build_view(self, port, result, with_riven=True)
-            else:
-                lines = riven_rating.build_recommendation_lines(
-                    result, weapon["category"] == "Melee"
-                )
+            lines = await portable_riven.build_view(self, port, result, with_riven=True)
         except (damage_engine.EngineError, KeyError, TypeError, ValueError):
             return report(failed)
-        if len(compared) > 1:
-            metric = "DPS" if port else "KPM"
+        if reference_selected:
+            name = riven_rating.weapon_label(weapon)
             lines.insert(
                 1,
                 L(
-                    f"· 已比较 {len(compared)} 个变体，按 {metric} 选出最高的一套",
-                    f"· Highest {metric} build among {len(compared)} tested variants",
+                    f"· 已按参考 DPS 自动选 {name}（同族共 {variant_count} 变体，可指定武器名切换）",
+                    f"· Selected {name} by reference DPS ({variant_count} variants in this family; name a weapon to switch)",
                 ),
+            )
+        elif len(compared) > 1:
+            names = " / ".join(row["zh"] or row["name"] for row in compared.values())
+            names_en = " / ".join(row["name"] for row in compared.values())
+            lines.insert(
+                1,
+                L(
+                    f"· 已比较 {len(compared)} 个变体（{names} | {names_en}），选出 DPS 最高的一套",
+                    f"· Highest DPS build among {len(compared)} tested variants ({names_en} | {names})",
+                ),
+            )
+        if len(groups) > 1:
+            lines.append(
+                L(
+                    "※ 候选有多组工况或攻击形态，仅在图示工况内比较输出。",
+                    "※ Candidates used different scenarios or attack forms. Scores were compared within the scenario shown.",
+                )
             )
         if incomplete:
             lines.append(L("※ 部分候选未完成计算。", "※ Some candidates did not finish."))
+        if unsupported:
+            lines.append(
+                L("※ 部分候选暂无带卡覆盖。", "※ Riven search is unavailable for some candidates.")
+            )
+        if mode is None and context[0][0] == "cycle":
+            lines.extend(portable_riven.live_cycle_hint(weapon, catalog[weapon["engine_id"]]))
         return Reply(
             f"{title} · {riven_rating.weapon_label(weapon)}",
             lines,
@@ -1184,12 +1621,33 @@ class RivenCommands:
 
     async def _h_riven_analysis(self, parsed, event, platform) -> Reply:
         """紫卡文字或截图的常规指令入口。"""
+        if RA.has_upgrade_preview_lines(parsed.content):
+            return Reply(raw_text=L(*RA.UPGRADE_PREVIEW_MESSAGE))
         started = time.perf_counter()
         capability = getattr(self, "_can_send_actions", None)
         can_actions = callable(capability) and capability(event)
-        typed = self._riven_text_input(parsed)
+        content, target_args = [], []
+        tokens = parsed.content or []
+        index = 0
+        try:
+            while index < len(tokens):
+                target, end = _target_argument(tokens, index)
+                if target:
+                    target_args.extend(tokens[index:end])
+                else:
+                    content.append(tokens[index])
+                index = end
+        except riven_rating.CardError as exc:
+            return err_card(
+                str(exc),
+                L("写明「对 敌人名」或使用默认标准靶", 'Enter "vs <enemy>" or use benchmark'),
+                title=L("紫卡分析", "Riven Analysis"),
+            )
+        typed = self._riven_text_input(replace(parsed, content=content) if target_args else parsed)
         if typed.weapon and (typed.positive or typed.negative):
-            return await self._finish_riven_analysis(typed, None, platform, can_actions, started)
+            return await self._finish_riven_analysis(
+                typed, None, platform, can_actions, started, target_args=target_args
+            )
         # —— 图片识别路径 ——
         if not self._event_has_image(event):
             reply = err_card(
@@ -1230,7 +1688,9 @@ class RivenCommands:
         data = await self._read_riven_image(typed, event, platform, can_actions, started)
         if isinstance(data, Reply):
             return data
-        return await self._finish_riven_analysis(typed, data, platform, can_actions, started)
+        return await self._finish_riven_analysis(
+            typed, data, platform, can_actions, started, target_args=target_args
+        )
 
     async def _confirmed_riven_image(self, typed, event, platform):
         chain = getattr(getattr(event, "message_obj", None), "message", None) or []
@@ -1246,16 +1706,11 @@ class RivenCommands:
         )
         return checked if isinstance(checked, Reply) else (checked, data)
 
-    @staticmethod
-    def _riven_card_rank(data, rank):
-        read_rank = data.get("rank")
-        if rank is None and type(read_rank) is int and 0 <= read_rank <= 8:
-            return read_rank
-        return rank
-
     async def _read_riven_image(
         self, typed, event, platform, can_actions, started, *, for_search=False
     ):
+        from .. import riven_ocr_reader as reader
+
         # 隔离模式按任务冷却；机器总并发预算仍共享，本地 OCR 另有单 worker 硬上限。
         _last = self._vision_last("riven")
         _gate, _sender = self._vision_gate(event, L("紫卡识图", "Riven Scan"), task="riven")
@@ -1275,7 +1730,6 @@ class RivenCommands:
                     )
                 )
             if self._use_single_riven_ocr():
-                from .. import riven_ocr_reader as reader
 
                 async def validate(observation):
                     if for_search:
@@ -1301,6 +1755,8 @@ class RivenCommands:
                 if reason:
                     self._vision_refund(_last, _sender, _stamp)
                     return Reply(raw_text=reason)
+                if for_search and data:
+                    data["_single_card_pips"] = await self._detect_single_card_pips(imgs[0])
             elif for_search:
                 data = await self._extract_riven_from_image(imgs[0], read_properties=True)
             else:
@@ -1324,6 +1780,9 @@ class RivenCommands:
                 ),
                 title=L("紫卡分析", "Riven Analysis"),
             )
+        if reader.has_upgrade_preview(data):
+            self._vision_refund(_last, _sender, _stamp)
+            return Reply(raw_text=L(*RA.UPGRADE_PREVIEW_MESSAGE))
         local_result = data.get("_local_ocr")
         if isinstance(local_result, dict):
             state = local_result.get("state", local_result.get("recognition_state"))
@@ -1372,6 +1831,7 @@ class RivenCommands:
         *,
         check_only=False,
         for_search=False,
+        target_args=(),
     ):
         """校验和正式分析走同一入口。校验到完整性闸门为止，仅最终结果查询行情。"""
         from ..parser import RIVEN_STAT_ZH
@@ -1427,6 +1887,10 @@ class RivenCommands:
         # 近形字兜底的卡面注记（解析链最后一跳命中时填，见下）
         nearmiss_note = ""
         if data is not None:
+            from ..riven_ocr_reader import has_upgrade_preview
+
+            if has_upgrade_preview(data):
+                return Reply(raw_text=L(*RA.UPGRADE_PREVIEW_MESSAGE))
             if (data.get("_local_ocr") or {}).get("name_normalized"):
                 raw_name = data.get("weapon_raw") or ""
                 canonical_name = data.get("weapon") or ""
@@ -2402,6 +2866,13 @@ class RivenCommands:
                 ),
             ),
         )
+        replay_line = ""
+        if target_args:
+            query = _disp_name(weapon) if is_en() else weapon.get("zh") or _disp_name(weapon)
+            command = L("配卡推荐", "loadoutrecommend")
+            line = L("· 所选靶标用于配装复算　", "· Replay with selected target　")
+            replay_line = f"{line}{command} {query} {' '.join(target_args)}"
+            lines.append(replay_line)
         reply.riven_splice = splice_preview
         # 融合建议超过首屏条数：图片 / 纯文字出第 2 页「续页」（当前卡的剩余预测）；
         # QQ Markdown 一条消息列全部（文字可滚动，不必拆页）。区间「~」在 Markdown 里会被当删除线，
@@ -2419,6 +2890,8 @@ class RivenCommands:
             else (title, lines)
         )
         if getattr(self, "cfg", {}).get("qq_markdown_cards", True):
+            if more and replay_line:
+                full.append(replay_line)
             reply.markdown = card_markdown(
                 title, [x.replace("~", "～") for x in full], reply.footer.replace("~", "～")
             )
@@ -2443,7 +2916,8 @@ class RivenCommands:
                 reply.actions.append(
                     Action(
                         L("参考配卡", "Reference build"),
-                        L(f"配卡推荐 {query_name}", f"loadoutrecommend {query_name}"),
+                        L(f"配卡推荐 {query_name}", f"loadoutrecommend {query_name}")
+                        + (" " + " ".join(target_args) if target_args else ""),
                     )
                 )
             if price_ref is not None:

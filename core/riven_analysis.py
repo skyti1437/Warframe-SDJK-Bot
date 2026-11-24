@@ -22,9 +22,11 @@ Attribute Value Formula / Base Values 两节）：
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 from decimal import Decimal
 import re
 from typing import Optional
+import unicodedata
 
 from .logging_compat import logger
 
@@ -761,6 +763,158 @@ def disp_feasible(
     )
 
 
+@dataclass(frozen=True)
+class RankInference:
+    status: str
+    rank: int | None = None
+    basis: tuple[str, ...] = ()
+    candidates: tuple[tuple[int, float | None], ...] = ()
+    message: tuple[str, str] = ("", "")
+
+
+def _drain_ranks(drain, color, equipped):
+    color = {
+        "绿": "green",
+        "绿色": "green",
+        "红": "red",
+        "红色": "red",
+        "白": "white",
+        "白色": "white",
+    }.get(color, color)
+    if equipped is False:
+        colors = ("white",)
+    elif color in ("green", "red", "white"):
+        colors = (color,)
+    elif drain < 10:
+        colors = ("green",)
+    elif equipped is True:
+        colors = ("white", "green", "red")
+    else:
+        colors = ("white",)
+    ranks = set()
+    for rank in range(9):
+        raw = 10 + rank
+        costs = {
+            "white": {raw},
+            "green": {math.ceil(raw / 2)},
+            "red": {int(raw * 1.25 + 0.5), math.ceil(raw * 1.25)},
+        }
+        if any(drain in costs[key] for key in colors):
+            ranks.add(rank)
+    return ranks
+
+
+def infer_riven_rank(
+    stats_pos=(),
+    stats_neg=(),
+    cls=None,
+    *,
+    observed_rank=None,
+    pips_count=None,
+    drain=None,
+    drain_color=None,
+    mastery_rank=None,
+    equipped=None,
+    historical_dispositions=(),
+    source_disposition=None,
+    stat_multipliers=None,
+):
+    """用卡面独立观测缩小等级，再按统一倾向、家族旧值与网格筛选词条。
+
+    词条输入为插件 ID 与 magnitude。候选倾向只用于解释等级。
+    """
+    ranks = set(range(9))
+    basis = []
+    for key, value in (("observed_rank", observed_rank), ("pips_count", pips_count)):
+        if type(value) is int and 0 <= value <= 8:
+            ranks &= {value}
+            basis.append(key)
+    if not ranks:
+        return RankInference(
+            "conflict",
+            basis=tuple(basis),
+            message=(
+                f"读图等级 {observed_rank} 与底部亮点数 {pips_count} 矛盾。请核对后手填等级。",
+                f"Read rank {observed_rank} disagrees with {pips_count} lit pips. Check and enter the rank.",
+            ),
+        )
+    if type(drain) is int and drain >= 0:
+        ranks &= _drain_ranks(drain, str(drain_color or "").strip().casefold(), equipped)
+        # 段位只用于提示用户区分数字来源。
+        basis.append("drain")
+        if not ranks:
+            mastery = f"、段位 {mastery_rank}" if type(mastery_rank) is int else ""
+            mastery_en = f" and Mastery Rank {mastery_rank}" if mastery else ""
+            return RankInference(
+                "conflict",
+                basis=tuple(basis),
+                message=(
+                    f"容量 {drain} 与已读强化点或槽位颜色不一致。请核对右上角容量{mastery}，或手填等级。",
+                    f"Drain {drain} disagrees with the lit pips or slot color. Check the top-right drain{mastery_en}, or enter the rank.",
+                ),
+            )
+
+    entries = [
+        (sid, value, neg)
+        for sid, value, neg in _stat_entries(stats_pos, stats_neg)
+        if _base_value(sid, cls) and math.isfinite(value) and value > 0
+    ]
+    candidates = [(rank, None) for rank in sorted(ranks)]
+    if entries:
+        pos_f, neg_f = factor_for(len(stats_pos), len(stats_neg))
+        tiers = (
+            (("source_disposition", (source_disposition,)),)
+            if source_disposition is not None
+            else (
+                ("unified_disposition", (UNIFIED_DISPOSITION,)),
+                ("historical_disposition", tuple(dict.fromkeys(historical_dispositions))),
+                ("disposition_grid", tuple(step / 100 for step in range(50, 156, 5))),
+            )
+        )
+        for key, dispositions in tiers:
+            candidates = [
+                (rank, disp)
+                for rank in sorted(ranks)
+                for disp in dispositions
+                if _fit_dev(
+                    entries,
+                    cls,
+                    pos_f,
+                    neg_f,
+                    disp * (rank + 1) / 9,
+                    display_tol,
+                    stat_multipliers,
+                )
+                is not None
+            ]
+            if candidates:
+                basis.append(key)
+                break
+        else:
+            return RankInference(
+                "conflict",
+                basis=tuple(basis),
+                message=(
+                    "词条数值与可行的强化等级不一致。请核对底部亮点、容量和词条数值，旧卡可补已知来源倾向。",
+                    "The trait values disagree with the possible ranks. Check the lit pips, drain and traits, or supply the known original disposition.",
+                ),
+            )
+
+    remaining = sorted({rank for rank, _ in candidates})
+    if len(remaining) == 1:
+        return RankInference("resolved", remaining[0], tuple(basis), tuple(candidates))
+    options = " / ".join(map(str, remaining))
+    return RankInference(
+        "ambiguous",
+        basis=tuple(basis),
+        candidates=tuple(candidates),
+        message=(
+            f"可行强化等级为 {options}。请补卡底亮点数或手填等级，也可核对容量颜色和旧卡来源倾向。",
+            f"Possible upgrade ranks are {options}. Enter the rank or show the lit pips, slot drain color or known original disposition.",
+        ),
+    )
+
+
 # ---------------------------------------------------------------------------
 # 卡面原文行解析（2026-09-27）
 # ---------------------------------------------------------------------------
@@ -1331,6 +1485,25 @@ def decode_riven_lines(lines, exact=None, *, resolve=None) -> dict:
     }
 
 
+_PREVIEW_VALUE = r"[+−–-]?\s*[x×]?\s*\d+(?:[.,]\d+)?\s*(?:%|米|秒|[msx×°])?"
+_UPGRADE_PREVIEW = re.compile(
+    rf"{_PREVIEW_VALUE}\s*(?:->|[→▶►▸➜➔⇒])\ufe0f?\s*{_PREVIEW_VALUE}", re.I
+)
+UPGRADE_PREVIEW_MESSAGE = (
+    "这是紫卡强化预览界面。请提供只显示一组数值的卡面，或手填目标强化等级与完整词条。",
+    "This is a Riven upgrade preview. Send a card showing one set of values, or enter the target rank and all traits manually.",
+)
+
+
+def has_upgrade_preview_lines(lines) -> bool:
+    """识别箭头两侧都有数值的观察，兼容数值和箭头被转录到相邻行。"""
+    if isinstance(lines, (list, tuple)):
+        lines = "\n".join(line for line in lines if isinstance(line, str))
+    return isinstance(lines, str) and bool(
+        _UPGRADE_PREVIEW.search(unicodedata.normalize("NFKC", lines))
+    )
+
+
 def parse_riven_lines(lines, resolve, exact=None, *, role_resolve=None) -> tuple:
     """卡面原文行 → (正词条, 负词条, 备注)。
 
@@ -1355,6 +1528,8 @@ def parse_riven_lines(lines, resolve, exact=None, *, role_resolve=None) -> tuple
     neg: list = []
     notes: list = []
     decoded = decode_riven_lines(lines, exact, resolve=role_resolve or resolve)
+    if has_upgrade_preview_lines([row["text"] for row in decoded["rows"]]):
+        return [], [], [UPGRADE_PREVIEW_MESSAGE[0]]
     if decoded.get("frame", {}).get("title_count", 0) > 1:
         notes.append("多区域标题：无法确认词条属于同一张卡")
     merged = merge_polarity_lines(decoded["lines"])

@@ -86,6 +86,7 @@ install_host()
 
 import main as plugin  # noqa: E402
 from core.commands.base import Action, Reply  # noqa: E402
+from core.commands.riven import _progress_notice  # noqa: E402
 from core.messaging import ImageDelivery, MessagingBridge  # noqa: E402
 from core.parser import parse  # noqa: E402
 
@@ -297,6 +298,56 @@ class OutputTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(any(p.startswith("IMAGE:") for p in parts), image, parts)
                 if not image:
                     self.assertIn("正文行", "".join(parts))
+
+    async def test_qq_progress_then_final_image_in_the_same_passive_reply_chain(self):
+        for route in ("bridge", "event", "failed"):
+            with self.subTest(route=route):
+                obj, event = new_plugin(), Event(text="配卡推荐 -t")
+                obj.context.send_message = AsyncMock()
+                host_seq = iter((301, 302))
+
+                async def send(result):
+                    self.assertFalse(result.markdown)
+                    [segment] = result.chain
+                    await event.post(
+                        msg_id=event.message_obj.message_id,
+                        msg_seq=next(host_seq),
+                        msg_type=7 if isinstance(segment, Image) else 0,
+                        content=segment.text if isinstance(segment, Plain) else None,
+                    )
+
+                event.send = AsyncMock(side_effect=send)
+                if route == "event":
+                    obj._messaging._sdk = lambda _: None
+                elif route == "failed":
+                    event.button_error = TimeoutError("progress delivery uncertain")
+
+                with patch.object(plugin.logger, "warning") as warning:
+                    notify = _progress_notice(obj, event)
+                    await notify()
+                    await notify()
+                    if route == "failed":
+                        warning.assert_called_once()
+                    else:
+                        warning.assert_not_called()
+                event.button_error = None
+                self.assertEqual(event.send.await_count, int(route == "event"))
+
+                outputs = obj._build_results(
+                    event, Reply("配卡推荐", ["配装结果"]), parse(event.message_str)
+                )
+                async for result in outputs:
+                    self.assertEqual(body_parts([result]), ["IMAGE:配装结果"])
+                    await event.send(result)
+                progress, card = [payload for _, payload in event.deliveries]
+                self.assertEqual(progress["msg_type"], 0)
+                self.assertIn("正在后台计算", progress["content"])
+                self.assertIn("5 分钟回复窗口", progress["content"])
+                self.assertEqual(card["msg_type"], 7)
+                self.assertEqual(progress["msg_id"], card["msg_id"])
+                self.assertNotEqual(progress["msg_seq"], card["msg_seq"])
+                self.assertEqual(progress["msg_seq"] > 10000, route != "event")
+                obj.context.send_message.assert_not_awaited()
 
     async def test_merged_image_uses_one_delivery_and_keeps_original_reply(self):
         obj, event = self.merge_fixture()

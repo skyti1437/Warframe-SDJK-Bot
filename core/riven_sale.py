@@ -241,17 +241,30 @@ _STAT = {
     "FIN": "finisher_damage",
     "IC": "initial_combo",
     "RANGE": "range",
+    "SLASH": "slash_damage",
     "PUNC": "puncture_damage",
     "IMP": "impact_damage",
     "MAG": "magazine_capacity",
+    "AEFF": "ammo_efficiency",
+    "AMMO": "ammo_max",
+    "DTG": "damage_vs_grineer",
+    "DTC": "damage_vs_corpus",
+    "DTI": "damage_vs_infested",
+    "DTO": "damage_vs_orokin",
+    "DTS": "damage_vs_scaldra",
+    "DTT": "damage_vs_techrot",
+    "WUP": "melee_heavy_attack_charge",
+    "SLAMDAM": "melee_slam_damage",
     "ZOOM": "zoom",
     "REC": "recoil",
+    "RECOIL": "recoil",
 }
 _ZH = {
     **{short: RIVEN_STAT_ZH.get(sid, short) for short, sid in _STAT.items()},
     "DMG": "基伤",
     "CORRO": "腐蚀",
     "VIRAL": "病毒",
+    "ELEMENT": "元素",
     "OR": "或",
 }
 
@@ -277,7 +290,7 @@ def lines(result: SaleResult) -> list[str]:
             r"\b[A-Za-z]+\b",
             lambda m: (
                 "加后坐力"
-                if negative and m.group(0).upper() == "REC"
+                if negative and _STAT.get(m.group(0).upper()) == "recoil"
                 else _ZH.get(m.group(0).upper(), m.group(0))
             ),
             value,
@@ -290,8 +303,6 @@ def lines(result: SaleResult) -> list[str]:
             f"· {L('负词条', 'Negative traits')} {traits(row.negative, negative=True)}",
         ]
     )
-    if row.notes:
-        out.append(f"· {L('原表备注', 'Source note')} {row.notes}")
     if result.status == "stale":
         out.append(L("· 暂用上次读取的资料", "· Showing the last available reference"))
     return out

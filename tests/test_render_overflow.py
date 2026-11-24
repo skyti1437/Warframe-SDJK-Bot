@@ -119,6 +119,34 @@ else:
                         maxx = max(maxx, x)
             return maxx, total
 
+        font = probe.fonts.get("regular", R.FS_BODY)
+
+        def text_width(value):
+            return R._inline_width(R._measure_draw(), font, value) / R.SS
+
+        for word in ("categories", "unvaulted", "subscriptions", "caf\u00e9"):
+            text = "Use " + word
+            parts = probe._wrap(text, font, text_width(text) - text_width(word[-1]) / 2)
+            check(f"跨行保留完整拉丁词 {word}", parts == ["Use", word], str(parts))
+        word = "subscriptions"
+        budget = text_width(word) * 0.6
+        parts = probe._wrap(word, font, budget, strict=True)
+        check(
+            "超过整列宽度的单词才按字符拆分",
+            len(parts) > 1
+            and "".join(parts) == word
+            and all(text_width(p) <= budget for p in parts),
+            str(parts),
+        )
+
+        lines = ["※ 说明", "◆ 出售参考", "· 出售参考表未列出该武器"]
+        path = probe.render("词条推荐", lines)
+        with_blank = probe.render("词条推荐", [lines[0], "", "　", "· ", "⟦w⟧ ⟦/w⟧", *lines[1:]])
+        check(
+            "空白普通行不产生圆角框或额外行高",
+            bool(path and with_blank and Path(path).read_bytes() == Path(with_blank).read_bytes()),
+        )
+
         # 1) 仲裁时间表式 6 列（含长节点名 Apollodorus 与可选评级列）
         arb = [
             "12日12时　光理塔　虚空　拦截　奥罗金　A",
@@ -1113,6 +1141,980 @@ async def _multipage_delivery_checks():
 
 
 _asyncio.run(_multipage_delivery_checks())
+
+
+def _long_heading_and_build_checks(renderer):
+    from unittest.mock import patch
+
+    header = "◆ 灵化循环（含普通形态充能） · 钢铁之路 堕落重型机枪手 Lv200 · 弱点 50% · 10 米"
+    lines = [
+        header,
+        "· 去超宏 · 无盾",
+        "◆ 武器面板",
+        "· 伤害 2457.5 · 暴击几率 46.7% · 暴击倍率 ×4.11",
+        "◆ 推荐配装 · 容量 58/60 · 极化 3 次",
+        "　槽位　MOD　等级　容量　极性　拆下后 DPS　变化",
+        *[
+            f"· {i:02d}　镀层定向增幅与弱点专精　10　8　⟦pol:madurai⟧ Madurai　"
+            "⟦g⟧12,400,001⟦/g⟧　⟦r⟧▼ 81.1%⟦/r⟧"
+            for i in range(1, 9)
+        ],
+        "◆ 辅助装备",
+        "· 扩展槽　致命机动（3级，容量 5） · ⟦pol:naramon⟧ Naramon",
+        "· 赋能　次要·无情（5级）",
+        "◆ 灵化进化",
+        "· 2-1 弹药储备 · " + "普通形态命中弱点时恢复充能，" * 12 + "恢复结束。",
+        "※ " + "拆下这一张后的 DPS 与上方整套对比。" * 8,
+    ]
+    seen = []
+    build_rows = []
+    diamonds = []
+    section_rules = []
+    draw_tokens = renderer._draw_tokens
+    draw_build = renderer._draw_build_cells
+    draw_diamond = renderer._diamond
+    draw_line = R.ImageDraw.ImageDraw.line
+
+    def tokens(d, text, x, y, font, color, edge):
+        end = draw_tokens(d, text, x, y, font, color, edge)
+        if font is renderer.fonts.get("bold", R.FS_BODY + 1):
+            seen.append((text, x, end, edge))
+        return end
+
+    def build(d, row, x, y, font, is_header, edge):
+        build_rows.append((row, font))
+        draw_build(d, row, x, y, font, is_header, edge)
+
+    def diamond(x, y, radius):
+        if x == 62 * R.SS:
+            diamonds.append(y)
+        return draw_diamond(x, y, radius)
+
+    def line(d, xy, fill=None, width=0):
+        if fill == R.PANEL_LINE:
+            section_rules.append(xy[0][1])
+        return draw_line(d, xy, fill, width)
+
+    with (
+        patch.object(renderer, "_draw_tokens", side_effect=tokens),
+        patch.object(renderer, "_draw_build_cells", side_effect=build),
+        patch.object(renderer, "_diamond", side_effect=diamond),
+        patch.object(R.ImageDraw.ImageDraw, "line", line),
+    ):
+        path = renderer.render("配卡推荐 · 布里斯提卡 Prime", lines, "来源 数据 " * 100)
+    heading_rows = seen[: next((i for i, row in enumerate(seen) if row[0] == "武器面板"), 0)]
+    check(
+        "超长 ◆ 标题按粗体折行，尾词仍可见且续行对齐",
+        len(heading_rows) >= 2
+        and heading_rows[-1][0].endswith("10 米")
+        and all(x == heading_rows[0][1] and end <= edge for _, x, end, edge in heading_rows),
+        repr(heading_rows),
+    )
+    check(
+        "多行分区标题仅首行画菱形，延伸线落在最后一行",
+        len(diamonds) == 5
+        and len(section_rules) == 5
+        and diamonds[0] < section_rules[0] < diamonds[1],
+        f"菱形 y={diamonds}，延伸线 y={section_rules}",
+    )
+    check(
+        "布里斯提卡长靶标、8 槽、辅助装备与灵化进化不越界",
+        bool(path and right_overflow(path)[1] == 0) and len(build_rows) == 11,
+    )
+    check(
+        "配卡表所有可见单元格，包括染色数字与极性，按自己的列宽折行",
+        bool(build_rows)
+        and all(
+            R._inline_width(R._measure_draw(), font, part) <= width * R.SS
+            for row, font in build_rows
+            for (_, width), parts in zip(row["build_columns"], row["build_cells"], strict=True)
+            for part in parts
+        ),
+    )
+    check(
+        "标准配卡极性与 DPS 在同一行显示",
+        len(build_rows) >= 9
+        and all(
+            len(row["build_cells"][index]) == 1 for row, _ in build_rows[1:9] for index in (4, 5)
+        ),
+    )
+    return lines
+
+
+def _check_audit_themes(renderer, cards):
+    from core.webpanel import THEME_PRESETS
+
+    light = next(preset["colors"] for preset in THEME_PRESETS if preset["key"] == "ivory")
+    vivid = {"accent": "#55d4e6", "highlight": "#a9edff", "red": "#ee7573"}
+    previous = R.theme_state()
+    try:
+        for theme in (light, vivid):
+            R.apply_theme(theme)
+            expected = R.GOLD
+            for title, lines, footer, slug in cards:
+                path = renderer.render(title, lines, footer)
+                if path:
+                    with R.Image.open(path) as im:
+                        # 栏目小标位于顶部标题区，排除边框、下方标题和分隔线。
+                        kicker = im.crop((70, 49, im.width - 70, 79))
+                        colors = {c for _, c in kicker.getcolors(kicker.width * kicker.height)}
+                        themed = im.getpixel((2, 0)) == R.BG_TOP and expected in colors
+                else:
+                    themed = False
+                check(
+                    f"{theme['accent']} {slug} 栏目小标与整卡配色应用主题",
+                    themed and R._card_accent(title) == expected and R._card_slug(title) == slug,
+                )
+    finally:
+        R.apply_theme(**previous)
+
+
+async def _damage_and_riven_card_checks():
+    import re
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock, patch
+
+    from core import loadout_ocr, portable_riven
+    from core import riven_sale as sale_source
+    from core.commands.base import Reply
+    from core.commands.riven import RivenCommands
+    from core.commands.vision import VisionCommands
+    from core.commands.wiki_misc import WikiMiscCommands
+    from core.parser import parse
+
+    if R.Image is None or not probe.available:
+        return
+
+    class Host(WikiMiscCommands, RivenCommands, VisionCommands):
+        cfg = {}
+        client = SimpleNamespace(
+            resolve_riven_weapon=AsyncMock(
+                return_value={
+                    "url_name": "bandit",
+                    "zh": "盗贼",
+                    "en": "Bandit",
+                    "riven_type": "pistol",
+                    "group": "secondary",
+                    "disposition": 1.4,
+                }
+            ),
+            riven_family=AsyncMock(return_value=[]),
+        )
+        riven_sale = SimpleNamespace(
+            lookup=AsyncMock(
+                return_value=sale_source.SaleResult(
+                    url="",
+                    status="ok",
+                    row=sale_source.SaleRow("Braton Prime", "多重", "变焦", "示例参考"),
+                )
+            )
+        )
+
+        async def _riven_analysis_price(self, weapon, positive, negative, platform):
+            return {
+                "pos": [key for key, _ in positive],
+                "neg": [key for key, _ in negative],
+                "sample_count": 8,
+                "low": 100,
+                "online_low": 130,
+                "median": 180,
+            }
+
+    patterns = re.compile(
+        r"/Lotus/|\b(?:loadoutValidation|windowDps|fireMode|armourStrip|slotPolarities|"
+        r"replayContextHash|confirmedAnalysisOptions|critical_damage|toxin_damage|DT_\w+|AP_\w+)\b"
+    )
+    host = Host()
+    with tempfile.TemporaryDirectory(prefix="wf-damage-riven-cards-") as folder:
+        renderer = R.ImageRenderer(Path(folder))
+        polarity_cases = {
+            "AP_ATTACK": "madurai",
+            "AP_TACTIC": "naramon",
+            "AP_DEFENSE": "vazarin",
+            "AP_ANY": "universal",
+            "AP_UMBRA": "umbra",
+            "AP_POWER": "zenurik",
+            "AP_WARD": "unairu",
+            "AP_PRECEPT": "penjaga",
+        }
+        no_polarity = (None, "", "AP_UNIVERSAL", "AP_NONE", "NONE", "NULL", "AP_UNKNOWN")
+        slots = [
+            {
+                "path": f"/Mod/{key}",
+                "nameEn": "Test MOD",
+                "nameZh": "测试 MOD",
+                "rank": 5,
+                "slotPolarity": code,
+            }
+            for code, key in polarity_cases.items()
+            if code not in {"AP_ATTACK", "AP_TACTIC", "AP_DEFENSE"}
+        ]
+        equipment = {
+            "exilus": {"nameEn": "Exilus test", "rank": 0, "drain": 2, "slotPolarity": "AP_ANY"},
+            "stance": {"nameEn": "Stance test", "capacityGain": 10, "slotPolarity": "AP_PRECEPT"},
+        }
+        if icon := R._polarity_icon("universal"):
+            check(
+                "通用极性图标为单色 64×64 RGBA 镂空图",
+                icon.size == (64, 64)
+                and icon.mode == "RGBA"
+                and icon.getpixel((32, 32))[3] == 0
+                and all(pixel[:3] == (226, 235, 248) for pixel in icon.getdata()),
+            )
+        for lang, universal in (("zh", "通用"), ("en", "Universal")):
+            with _i18n.use_lang(lang):
+                labels = {
+                    code: f"⟦pol:{key}⟧{universal if key == 'universal' else key.capitalize()}"
+                    for code, key in polarity_cases.items()
+                }
+                check(
+                    f"{lang} 全部极性的图标标记和名称",
+                    all(
+                        portable_riven._polarity_label(code) == label
+                        for code, label in labels.items()
+                    )
+                    and all(portable_riven._polarity_label(code) is None for code in no_polarity),
+                )
+                polarity_lines = portable_riven._fixed_build_lines(
+                    {},
+                    [
+                        *slots,
+                        {**slots[0], "slotPolarity": "AP_UNIVERSAL"},
+                        {**slots[0], "slotPolarity": "AP_UNKNOWN"},
+                        None,
+                    ],
+                    {"total": 0},
+                    {"equipment": equipment},
+                    (),
+                    bundled=True,
+                )
+                joined = "\n".join(polarity_lines)
+                check(
+                    f"{lang} Mod、扩展槽与架势不显示内部极性键",
+                    not re.search(r"\bAP_[A-Z_]+\b", joined)
+                    and all(labels[row["slotPolarity"]] in joined for row in slots)
+                    and all(
+                        next(line for line in polarity_lines if line.startswith(f"· {slot}")).split(
+                            "　"
+                        )[4]
+                        == "—"
+                        for slot in ("06", "07")
+                    )
+                    and any(
+                        "Exilus test" in line and labels["AP_ANY"] in line
+                        for line in polarity_lines
+                    )
+                    and any(
+                        "Stance test" in line and labels["AP_PRECEPT"] in line
+                        for line in polarity_lines
+                    ),
+                    joined,
+                )
+                drawn = []
+                draw_text = R.ImageDraw.ImageDraw.text
+
+                def record_text(draw, xy, text, *args, **kwargs):
+                    drawn.append(text)
+                    return draw_text(draw, xy, text, *args, **kwargs)
+
+                with (
+                    patch.dict(R._POL_ICONS, {"universal": None}),
+                    patch.object(R.ImageDraw.ImageDraw, "text", record_text),
+                ):
+                    polarity_card = renderer.render("Polarity", polarity_lines)
+                check(
+                    f"{lang} 缺通用图标时名称仍完整绘制且不越界",
+                    universal in "".join(drawn)
+                    and bool(polarity_card and right_overflow(polarity_card)[1] == 0),
+                )
+                unknown = portable_riven._fixed_build_lines(
+                    {},
+                    [{"rank": 8}] + [None] * 7,
+                    {
+                        "slots": {"0": "AP_TACTIC"},
+                        "drain": 9,
+                        "limit": 60,
+                        "total": 1,
+                        "placement": [{"drain": 9, "polarity": "AP_TACTIC"}] + [None] * 7,
+                    },
+                    {},
+                    (),
+                    with_riven=True,
+                    unspecified_polarity=True,
+                )
+                drawn.clear()
+                with patch.object(R.ImageDraw.ImageDraw, "text", record_text):
+                    unknown_card = renderer.render(
+                        "配卡推荐" if lang == "zh" else "Build recommendations", unknown
+                    )
+                label = "紫卡极性" if lang == "zh" else "Riven polarity"
+                check(
+                    f"{lang} 未知紫卡极性只绘制本地化名称且不越界",
+                    label in " ".join(drawn)
+                    and not any("⟦pol:" in row for row in unknown)
+                    and bool(unknown_card and right_overflow(unknown_card)[1] == 0),
+                )
+        loadout_lines = _long_heading_and_build_checks(renderer)
+        stress_damage = await host._h_damage(
+            parse("伤害 布莱顿p 百夫长9999 有盾 带超宏 膛线 弱点感应"), None, "pc"
+        )
+        damage_text = "\n".join(stress_damage.lines)
+        stress_path = renderer.render(
+            stress_damage.title, stress_damage.lines, stress_damage.footer
+        )
+        check(
+            "9999 级钢路凶魂百夫长带超宏和 3600 基准模拟盾：真实指令出图不越界",
+            all(
+                word in damage_text
+                for word in ("9999级", "凶魂百夫长", "带超宏", "模拟有盾（基准 3600）")
+            )
+            and bool(stress_path and right_overflow(stress_path)[1] == 0),
+            damage_text,
+        )
+        for language in ("zh", "en"):
+            with _i18n.use_lang(language):
+                english = language == "en"
+                read = loadout_ocr.analyze(
+                    {
+                        "weapon": "布莱顿 Prime",
+                        "capacity": "20/60",
+                        "mods": [{"name": "膛线", "drain": 7}, {"name": "弱点感应", "drain": 5}],
+                        "arcanes": [
+                            {"name": "Primary Deadhead" if english else "主要·死首", "rank": 5}
+                        ],
+                    }
+                )
+                cards = (
+                    (
+                        "手输伤害",
+                        await host._h_damage(
+                            parse(
+                                "damage Amprex vs Heavy Gunner Serration arcane Primary Deadhead 5 headshot"
+                                if english
+                                else "伤害 安培克斯 对 重机枪手 膛线 赋能 主要·死首 5级 爆头"
+                            ),
+                            None,
+                            "pc",
+                        ),
+                        ("Built-in estimate", "Rank 5") if english else ("内置估算", "5 级"),
+                    ),
+                    (
+                        "配卡推荐",
+                        await host._h_loadout_recommend(
+                            parse(
+                                "loadoutrecommend Braton Prime overguard shield"
+                                if english
+                                else "配卡推荐 布莱顿p 超宏 护盾"
+                            ),
+                            None,
+                            "pc",
+                        ),
+                        ("Full Simulation under Damage Engine",)
+                        if english
+                        else ("后台「伤害引擎」启用完整模拟",),
+                    ),
+                    (
+                        "词条推荐",
+                        await host._h_riven_traits(
+                            parse("riventraits Braton Prime" if english else "词条推荐 布莱顿p"),
+                            None,
+                            "pc",
+                        ),
+                        ("Selling reference",) if english else ("出售参考",),
+                    ),
+                    (
+                        "紫卡分析",
+                        await host._h_riven_analysis(
+                            parse(
+                                ("rivenanalysis Bandit" if english else "紫卡分析 盗贼")
+                                + " 暴伤108.2 多重141.7 毒伤98.2 负切割99.9"
+                            ),
+                            None,
+                            "pc",
+                        ),
+                        ("Range", "Splice Suggestions", "Same-Stat Listings")
+                        if english
+                        else ("区间", "融合建议", "同词条挂单"),
+                    ),
+                    (
+                        "识卡",
+                        Reply("Loadout Scan" if english else "识卡", loadout_ocr.card_lines(read)),
+                        ("Weapon:", "Primary Deadhead") if english else ("武器", "主要·死首"),
+                    ),
+                )
+                if not english:
+                    traits, analysis = cards[2][1], cards[3][1]
+                    _check_audit_themes(
+                        renderer,
+                        [
+                            (
+                                "配卡推荐 · 布里斯提卡 Prime",
+                                loadout_lines,
+                                "",
+                                "BUILD RECOMMENDATIONS",
+                            ),
+                            (traits.title, traits.lines, traits.footer, "RIVEN TRAITS"),
+                            (analysis.title, analysis.lines, analysis.footer, "RIVEN ANALYSIS"),
+                            (
+                                stress_damage.title,
+                                stress_damage.lines,
+                                stress_damage.footer,
+                                "DAMAGE CALCULATOR",
+                            ),
+                        ],
+                    )
+                for name, reply, labels in cards:
+                    if name == "词条推荐":
+                        check(
+                            f"{language} 词条推荐正文无空行",
+                            all(line.strip() for line in reply.lines),
+                        )
+                    shown = "\n".join(reply.lines)
+                    check(
+                        f"{language} {name}保留可见字段且无内部键",
+                        all(label.casefold() in shown.casefold() for label in labels)
+                        and not patterns.search(shown),
+                        shown[:1800],
+                    )
+                    pages = reply.pages or [(reply.title, reply.lines)]
+                    for title, lines in pages:
+                        rendered = renderer.render(title, lines, reply.footer)
+                        check(
+                            f"{language} {name}回图正文未越出右边缘",
+                            bool(rendered and right_overflow(rendered)[1] == 0),
+                        )
+
+
+_asyncio.run(_damage_and_riven_card_checks())
+
+
+async def _bundled_reference_smoke_cards():
+    import os
+    import shutil
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock, patch
+
+    from core import damage_engine, paths, portable_riven, riven_rating
+    from core import riven_sale as sale_source
+    from core.commands.riven import RivenCommands
+    from core.commands.vision import VisionCommands
+    from core.parser import parse
+
+    fixture = Path(os.environ.get("SDJK_PORTABLE_SMOKE_DIR", str(paths.PKG_DATA)))
+    names = portable_riven.BUNDLED_BUILDS, portable_riven.BUNDLED_TRAITS
+    if not all((fixture / name).is_file() for name in names):
+        print("[SKIP] 缺少预计算 smoke 表，跳过随包样张")
+        return
+    if R.Image is None or not probe.available:
+        return
+
+    def compact_text(text):
+        return "".join(R._SEG_MARK_RE.sub("", text).split())
+
+    def render_sample(renderer, name, reply, *, expected_note=None):
+        drawn = []
+        draw_text = R.ImageDraw.ImageDraw.text
+
+        def record_text(draw, xy, text, *args, **kwargs):
+            drawn.append(text)
+            return draw_text(draw, xy, text, *args, **kwargs)
+
+        with patch.object(R.ImageDraw.ImageDraw, "text", record_text):
+            path = renderer.render(reply.title, reply.lines, reply.footer)
+
+        fusion_prefix = ("· ⟦w⟧融合选项⟦/w⟧", "· ⟦w⟧Fusion options⟦/w⟧")
+        expected = [line for line in reply.lines if line.startswith(fusion_prefix)]
+        expected.extend(
+            line for line in reply.lines if line.endswith(("切换路线。", "to switch routes."))
+        )
+        expected.append(reply.lines[-1])
+        visible = compact_text("".join(drawn))
+        check(
+            f"{name} 融合选项与正文末行完整绘制",
+            all(compact_text(line.lstrip("·※ ")) in visible for line in expected),
+            str(expected),
+        )
+        if expected_note:
+            check(
+                f"{name} 灵化近战提示完整绘制",
+                expected_note in reply.lines and compact_text(expected_note[2:]) in visible,
+            )
+        check(f"{name} 正文无溢出", bool(path and right_overflow(path)[1] == 0))
+        return path
+
+    class Host(RivenCommands, VisionCommands):
+        cfg = {}
+        damage_engine = SimpleNamespace(
+            ensure_portable=AsyncMock(side_effect=AssertionError("随包命中仍连接引擎"))
+        )
+        riven_sale = SimpleNamespace(
+            lookup=AsyncMock(
+                return_value=sale_source.SaleResult(
+                    "", "ok", sale_source.SaleRow("Burston Prime", "CC CD", "ZOOM", "仅供测试")
+                )
+            )
+        )
+
+    host = Host()
+    request = AsyncMock(side_effect=AssertionError("随包命中仍调用实时接口"))
+    cases = (
+        (
+            "zh_loadout_burston",
+            "配卡推荐 伯斯顿p",
+            (
+                "灵化循环（攒条全弱点）",
+                "随包参考 · 30 秒平均 DPS 830,907",
+                "主要·无情（5级）",
+                "私法 补给（0级，容量 2；套装特效 0 级满收益、省极化）",
+                "武器面板",
+                "灵化进化",
+                "※ 默认展示灵化循环，可加「主射」「灵化形态」切换。",
+            ),
+        ),
+        (
+            "zh_loadout_nikana",
+            "配卡推荐 侍刃p",
+            ("近战·暴露（5级）", "镀层 斩铁", "创口溃烂", "架势　无明制裁", "443,871"),
+        ),
+        (
+            "en_loadout_nikana",
+            "loadoutrecommend Nikana Prime -en",
+            (
+                "Melee Exposure (rank 5)",
+                "Galvanized Steel",
+                "Weeping Wounds",
+                "Stance　Blind Justice",
+                "443,871",
+            ),
+        ),
+        (
+            "zh_traits_boar_31",
+            "词条推荐 野猪 Prime",
+            ("主射 KPM　灵化形态 KPM", "「XX套」为对应元素配装同套对照"),
+        ),
+        (
+            "en_traits_boar_31",
+            "riventraits Boar Prime -en",
+            (
+                "Primary fire KPM　Incarnon form KPM",
+                "named element tags use a matching no-Riven build",
+            ),
+        ),
+        (
+            "zh_traits_braton_31",
+            "词条推荐 布莱顿",
+            ("主射 KPM　灵化形态 KPM", "⟦v⟧腐蚀套⟦/v⟧"),
+        ),
+        (
+            "en_traits_braton_31",
+            "riventraits Braton -en",
+            ("Primary fire KPM　Incarnon form KPM", "⟦v⟧Corrosive⟦/v⟧"),
+        ),
+        (
+            "zh_traits_burston_31",
+            "词条推荐 伯斯顿p",
+            (
+                "※ 按满级 3+1− 中位值试算；「XX套」为对应元素配装同套对照。可加「2+1-」「超宏」「护盾」。",
+                "主射 KPM　灵化形态 KPM",
+                "⟦v⟧腐蚀套⟦/v⟧",
+                "弱点命中",
+                "看手感",
+                "看弹道/衰减",
+                "看续航",
+                "按派系",
+                "未模拟",
+            ),
+        ),
+        (
+            "zh_traits_lenz_31",
+            "词条推荐 楞次弓",
+            ("满级 3+1−", "弹药最大值", "⟦m⟧影响续航⟦/m⟧"),
+        ),
+        (
+            "en_traits_lenz_31",
+            "riventraits Lenz -en",
+            ("Median max-rank 3+1−", "Ammo Maximum", "⟦m⟧Low ammo⟦/m⟧"),
+        ),
+        (
+            "en_traits_burston_31",
+            "riventraits Burston Prime -en",
+            (
+                "※ Median max-rank 3+1− rolls; named element tags use a matching no-Riven build. "
+                'Add "2+1-", "overguard", or "shield".',
+                "⟦v⟧Corrosive⟦/v⟧",
+                "Weakpoint",
+                "Handling",
+                "Ballistics",
+                "Reserve",
+            ),
+        ),
+        (
+            "zh_traits_burston_21",
+            "词条推荐 伯斯顿p 2+1-",
+            (
+                "※ 按满级 2+1− 中位值试算；「XX套」为对应元素配装同套对照。默认看 3+1−，可加「超宏」「护盾」。",
+                "主射 KPM　灵化形态 KPM",
+                "弱点命中",
+                "看组合",
+                "低影响",
+                "需权衡",
+                "高风险",
+                "弱点暴 ⟦v⟧+57.1%⟦/v⟧⟦n⟧（100%弱点）⟦/n⟧",
+            ),
+        ),
+        (
+            "en_traits_burston_21",
+            "riventraits Burston Prime 2+1- -en",
+            (
+                "※ Median max-rank 2+1− rolls; named element tags use a matching no-Riven build. "
+                'The default is 3+1−. Add "overguard" or "shield".',
+                "Primary fire KPM　Incarnon form KPM",
+                "Steel Path Thrax Centurion Lv170",
+                "Fusion traits",
+                "Weak Point Critical Chance ⟦v⟧+57.1%⟦/v⟧ ⟦n⟧(100% weakpoint)⟦/n⟧",
+            ),
+        ),
+        (
+            "zh_traits_akarius_21",
+            "词条推荐 阿利乌双枪 Prime 2+1-",
+            (
+                "· ⟦w⟧融合选项⟦/w⟧  腐蚀 ⟦v⟧+39.8%⟦/v⟧ / "
+                "弱点伤 ⟦v⟧+39.1%⟦/v⟧⟦n⟧（100%弱点）⟦/n⟧ / 弹效 ⟦v⟧+19.8%⟦/v⟧",
+            ),
+        ),
+        (
+            "en_traits_akarius_21",
+            "riventraits Akarius Prime 2+1- -en",
+            (
+                "· ⟦w⟧Fusion options⟦/w⟧  Corrosive ⟦v⟧+39.8%⟦/v⟧ / "
+                "Weak Point Damage ⟦v⟧+39.1%⟦/v⟧ ⟦n⟧(100% weakpoint)⟦/n⟧ / Ammo Efficiency ⟦v⟧+19.8%⟦/v⟧",
+            ),
+        ),
+        (
+            "en_loadout_burston",
+            "loadoutrecommend Burston Prime -en",
+            (
+                "Primary Merciless (rank 5)",
+                "Vigilante Supplies (rank 0, drain 2; full set bonus at rank 0, saves Forma)",
+            ),
+        ),
+    )
+    burston_notes = {
+        "zh": [
+            "※ 弱点边界：仅「弱点伤害/弱点暴击几率」按同套配装 100% 弱点命中单独试算，"
+            "代表满弱点上限，不与躯干词条直比；不含弱点专属换卡/赋能，无弱点攻击（如范围爆炸）不生效。",
+            "※ KPM 为每分钟击杀数。",
+        ],
+        "en": [
+            "※ Weakpoint scope: only Weak Point Damage/Critical Chance use 100% weakpoint hits "
+            "on the same build (upper bound; not directly comparable to body-hit traits); "
+            "excludes weakpoint mod/arcane swaps, and hits without weakpoints (e.g., AoE blasts) gain 0%.",
+            "※ KPM means kills per minute.",
+        ],
+    }
+    output = os.environ.get("SDJK_PORTABLE_VISUAL_DIR")
+    with (
+        tempfile.TemporaryDirectory(prefix="wf-bundled-reference-") as folder,
+        patch.object(paths, "PKG_DATA", fixture),
+        patch.object(damage_engine, "portable_request", request),
+    ):
+        renderer = R.ImageRenderer(Path(folder))
+        for filename, command, labels in cases:
+            lang = filename.split("_")[0]
+            with _i18n.use_lang(lang):
+                parsed = parse(command)
+                if "loadout" in filename:
+                    reply = await host._h_loadout_recommend(parsed, None, "pc")
+                    numbers = tuple(f"· {i:02d}　" for i in range(1, 9))
+                    slots = [line.split("　") for line in reply.lines if line.startswith(numbers)]
+                    check(
+                        f"{filename} 8/8 槽均有拆卡 DPS",
+                        len(slots) == 8
+                        and all(
+                            len(slot) == 7 and slot[-2].replace(",", "").isdigit() for slot in slots
+                        ),
+                        str(slots),
+                    )
+                else:
+                    reply = await host._h_riven_traits(parsed, None, "pc")
+                    mode_count = 1 if any(name in filename for name in ("lenz", "akarius")) else 3
+                    if "traits_burston" in filename:
+                        notes = [line for line in reply.lines if line.startswith("※")]
+                        check(
+                            f"{filename} 试算口径、弱点边界与 KPM 注释准确",
+                            notes == [labels[0], *burston_notes[lang]],
+                            str(notes),
+                        )
+                    headers = (
+                        ("正词条", "负词条", "融合词条")
+                        if filename.startswith("zh")
+                        else ("Bonuses", "Maluses", "Fusion traits")
+                    )
+                    check(
+                        f"{filename} 场景摘要、三组表和出售参考",
+                        sum(
+                            line.startswith(("◆ 单词条模拟推荐 · ", "◆ Single-trait simulation · "))
+                            for line in reply.lines
+                        )
+                        == mode_count
+                        and all(
+                            any(
+                                line.startswith("◆ ") and f"⟧{label}⟦/" in line
+                                for line in reply.lines
+                            )
+                            for label in headers
+                        )
+                        and reply.lines[-3] in {"◆ 出售参考", "◆ Selling reference"},
+                    )
+                    summaries = [
+                        line
+                        for line in reply.lines
+                        if "⟦w⟧低影响负词条" in line or "⟦w⟧Low-impact maluses" in line
+                    ]
+                    check(
+                        f"{filename} 手感、弹道与备弹词条不进入低影响摘要",
+                        all(
+                            term.casefold() not in line.casefold()
+                            for term in (
+                                "后坐力",
+                                "投射物速度",
+                                "弹药最大值",
+                                "Recoil",
+                                "Projectile",
+                                "Ammo",
+                            )
+                            for line in summaries
+                        ),
+                    )
+                body = "\n".join(reply.lines)
+                check(
+                    f"{filename} 随包内容准确且无空白行",
+                    all(label in body for label in labels)
+                    and all(R._strip_emoji(line)[0].strip("· 　") for line in reply.lines)
+                    and "仅供测试" not in body,
+                    body[:1900],
+                )
+                with patch.object(
+                    renderer, "_draw_build_cells", wraps=renderer._draw_build_cells
+                ) as draw_cells:
+                    path = render_sample(renderer, filename, reply)
+                if "traits" in filename:
+                    rows = [call.args[1] for call in draw_cells.call_args_list]
+                    separators = mode_count + 1 if mode_count > 1 else 3
+                    check(
+                        f"{filename} 三组使用同一列坐标且每条词条均分列绘制",
+                        bool(rows)
+                        and len(rows) == sum(line.count("　") == separators for line in reply.lines)
+                        and sum(row["thead"] for row in rows) == 3
+                        and all(row["build_columns"] == rows[0]["build_columns"] for row in rows),
+                    )
+                    lang_index = int(filename.startswith("en"))
+                    if any(name in filename for name in ("boar", "burston")):
+                        invalid = ("灵化无效", "Incarnon N/A")[lang_index]
+                        reserve = ("看续航", "Reserve")[lang_index]
+                        charge = ("仅充能期", "Charge only")[lang_index]
+                        for stat, expected_count in (
+                            ("magazine_capacity", 2),
+                            ("reload_speed", 2),
+                            ("ammo_efficiency", 1),
+                            ("ammo_max", 2),
+                        ):
+                            label = f"⟦w⟧{riven_rating.stat_label(stat, full=True)}⟦/w⟧"
+                            cells = [row["cells"][2:] for row in rows if row["cells"][0] == label]
+                            check(
+                                f"{filename} {stat} 三种模式显示各自的弹药影响",
+                                len(cells) == expected_count
+                                and all(
+                                    incarnon == f"⟦n⟧—⟦/n⟧ ⟦n⟧{invalid}⟦/n⟧"
+                                    and (
+                                        base == f"⟦n⟧—⟦/n⟧ ⟦v⟧{reserve}⟦/v⟧"
+                                        if stat == "ammo_max"
+                                        else base.startswith(("⟦y⟧+", "⟦m⟧-")) and "%⟦/" in base
+                                    )
+                                    and charge in cycle
+                                    for base, incarnon, cycle in cells
+                                ),
+                                str(cells),
+                            )
+                    if any(name in filename for name in ("boar", "braton", "burston")):
+                        tags = tuple(
+                            f"⟦v⟧{label[lang_index]}⟦/v⟧"
+                            for label in riven_rating._ELEMENT_BUILD_LABELS.values()
+                        )
+                        tagged = [
+                            parts
+                            for row in rows
+                            for cell, parts in zip(row["cells"], row["build_cells"], strict=True)
+                            if any(tag in cell for tag in tags)
+                        ]
+                        check(
+                            f"{filename} 元素套标签单行显示",
+                            bool(tagged) and all(len(parts) == 1 for parts in tagged),
+                        )
+                    if "boar" in filename:
+                        compounds = ("corrosive", "viral", "blast", "gas", "magnetic", "radiation")
+                        fusion_tags = {
+                            f"⟦w⟧{riven_rating.stat_label(f'{element}_damage', full=True)}⟦/w⟧": (
+                                f"⟦v⟧{riven_rating._ELEMENT_BUILD_LABELS[element][lang_index]}⟦/v⟧"
+                            )
+                            for element in compounds
+                        }
+                        fusion_rows = [
+                            row["cells"] for row in rows if row["cells"][0] in fusion_tags
+                        ]
+                        check(
+                            f"{filename} 六种复合元素无红色负值且灵化形态有同套标签",
+                            len(fusion_rows) == len(compounds)
+                            and all("⟦m⟧" not in cell for row in fusion_rows for cell in row[2:])
+                            and any(fusion_tags[row[0]] in row[3] for row in fusion_rows),
+                            str(fusion_rows),
+                        )
+                if path and output:
+                    destination = Path(output)
+                    destination.mkdir(parents=True, exist_ok=True)
+                    shutil.copyfile(path, destination / f"{filename}.png")
+        host.cfg = {"damage_engine_mode": "simulation", "damage_engine_portable_port": 8765}
+        primary = await host._h_riven_traits(parse("词条推荐 伯斯顿p 主射 3+1"), None, "pc")
+        rubico = await host._h_riven_traits(parse("词条推荐 绝路p 2+1"), None, "pc")
+        check(
+            "显式模式和构型短写只显示目标模式，配置引擎也无实时请求",
+            sum("单词条模拟推荐" in line for line in primary.lines) == 1
+            and "词条　牌面中位值　KPM 变化　备注" in primary.lines
+            and not any("灵化" in line for line in primary.lines)
+            and any("2+1−" in line for line in rubico.lines)
+            and not request.await_count
+            and not host.damage_engine.ensure_portable.await_count,
+        )
+        with patch.object(
+            portable_riven, "recommendation_weapons", AsyncMock(return_value=((), {}))
+        ) as live:
+            for option, target in (
+                ("超宏", "带超宏 · 无盾"),
+                ("有盾", "去超宏 · 模拟有盾（基准 3600）"),
+            ):
+                command = f"词条推荐 伯斯顿p 2+1- {option}"
+                reply = await host._h_riven_traits(parse(command), None, "pc")
+                check(
+                    f"{command} 命中对应随包表且零实时调用",
+                    any(target in line for line in reply.lines)
+                    and any(line.startswith("※ 按满级 2+1−") for line in reply.lines)
+                    and not live.call_count
+                    and not request.call_count
+                    and not host.damage_engine.ensure_portable.call_count,
+                )
+                render_sample(renderer, command, reply)
+            await host._h_riven_traits(parse("词条推荐 伯斯顿p 2+1- 超宏 护盾"), None, "pc")
+            await host._h_loadout_recommend(parse("配卡推荐 伯斯顿p 百夫长9999"), None, "pc")
+            await host._h_loadout_recommend(
+                parse("配卡推荐 伯斯顿p 赋能 主要·无情 5级"), None, "pc"
+            )
+            await host._h_riven_traits(parse("词条推荐 楞次弓 灵化循环"), None, "pc")
+            check("自定义靶标、辅装和未收录模式进入实时目录", live.await_count == 4)
+        for lang in ("zh", "en"):
+            with _i18n.use_lang(lang):
+                result = {
+                    "evaluationScenario": {"incarnonCycle": True},
+                    "recommendedPositiveTiers": [
+                        {"stats": [{"label": "Reload Speed", "code": "F", "gain": 6.5}]}
+                    ],
+                    "recommendedNegative": [],
+                    "fatalNegative": [],
+                    "fatalNegativeAbove": {},
+                }
+                reply = SimpleNamespace(
+                    title=_i18n.L(
+                        "词条推荐 · 伯斯顿 Prime", "Riven Reroll Suggestions · Burston Prime"
+                    ),
+                    lines=portable_riven.trait_lines(result),
+                    footer="",
+                )
+                note = _i18n.L("仅充能期", "Charge only")
+                check(
+                    f"{lang} 灵化循环保留装填收益并标注充能期",
+                    any("⟦y⟧+6.5%⟦/y⟧" in line for line in reply.lines)
+                    and any(f"⟦v⟧{note}⟦/v⟧" in line for line in reply.lines),
+                )
+                render_sample(renderer, f"{lang}_traits_burston_cycle", reply)
+
+        for lang, labels in (
+            ("zh", ("主射", "灵化形态", "灵化循环")),
+            ("en", ("Primary fire", "Incarnon form", "Incarnon cycle")),
+        ):
+            with _i18n.use_lang(lang):
+                reply = await host._h_riven_traits(parse("词条推荐 Burston Prime"), None, "pc")
+                headings = [line for line in reply.lines if line.startswith(("词条　", "Trait　"))]
+                expected_modes = [f"{label} KPM" for label in labels]
+                check(
+                    f"{lang} Burston Prime 三模式表头使用五列",
+                    bool(headings)
+                    and all(line.split("　")[2:] == expected_modes for line in headings),
+                    str(headings),
+                )
+                for table in ("随包", "实时"):
+                    if table == "实时":
+                        bundled = _i18n.L(
+                            "◆ 随包参考配装 · 全词条", "◆ Bundled reference builds · All traits"
+                        )
+                        live = _i18n.L(
+                            "◆ 实时参考配装 · 全词条", "◆ Live reference builds · All traits"
+                        )
+                        reply.lines[reply.lines.index(bundled)] = live
+                    name = f"{lang} Burston Prime {table}三模式"
+                    with patch.object(R, "MAX_BODY_LINES", 30):
+                        image = render_sample(renderer, name, reply)
+                    with R.Image.open(image) as card:
+                        check(
+                            f"{name} 宽卡在专用上限内",
+                            R.CARD_W_MIN <= card.width <= R.CARD_W_TRAITS_MAX,
+                            str(card.size),
+                        )
+
+        for name, labels in (
+            ("Magistar", ("重击震地", "Heavy slam")),
+            ("Sancti Magistar", ("重击震地", "Heavy slam")),
+            ("Glaive Prime", ("重击投掷", "Glaive throw")),
+            ("Nikana Prime", ("平砍", "Base")),
+        ):
+            for lang, label in zip(("zh", "en"), labels, strict=True):
+                with _i18n.use_lang(lang):
+                    traits = await host._h_riven_traits(parse(f"词条推荐 {name}"), None, "pc")
+                    build = await host._h_loadout_recommend(parse(f"配卡推荐 {name}"), None, "pc")
+                    heading = _i18n.L(
+                        "词条　牌面中位值　KPM 变化　备注", "Trait　Median roll　KPM change　Notes"
+                    )
+                    check(
+                        f"{lang} {name} 默认词条与配卡只显示 {label}",
+                        traits.lines[1].startswith(f"· {label} · ")
+                        and build.lines[0].startswith(f"◆ {label} · ")
+                        and sum(
+                            line.startswith(("◆ 单词条模拟推荐", "◆ Single-trait simulation"))
+                            for line in traits.lines
+                        )
+                        == 1
+                        and heading in traits.lines,
+                    )
+                    note = next(
+                        line
+                        for line in traits.lines
+                        if line.endswith(("切换路线。", "to switch routes."))
+                    )
+                    check(f"{lang} {name} 两张卡均有路线切换注释", note in build.lines)
+                    expected_note = None
+                    if name == "Magistar":
+                        expected_note = _i18n.L(
+                            "※ 灵化近战提示：已计入进化 2–4，进化 1 灵化变身期间的临时加成上游尚未建模，未计入当前数值。",
+                            "※ Incarnon Melee note: Tier 2–4 evolutions are modeled; "
+                            "temporary Tier 1 Incarnon form bonuses are not yet modeled upstream.",
+                        )
+                    render_sample(
+                        renderer, f"{lang} {name} 默认词条", traits, expected_note=expected_note
+                    )
+                    render_sample(
+                        renderer, f"{lang} {name} 默认配卡", build, expected_note=expected_note
+                    )
+
+
+_asyncio.run(_bundled_reference_smoke_cards())
 
 
 with tempfile.TemporaryDirectory(prefix="wf-render-png-lifetime-") as _folder:

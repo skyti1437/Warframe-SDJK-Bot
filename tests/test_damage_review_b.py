@@ -52,10 +52,13 @@ def close(a: float, b: float, tol: float = 1e-6) -> bool:
     return abs(a - b) <= tol * max(1.0, abs(b))
 
 
+FORMULA_TARGET = ("G系", "100级", "普通", "开火12秒")
+
+
 def calc(name: str, args=(), **over) -> tuple[dict, dict]:
     w, _ = dc.find_weapon(name)
     assert w, name
-    s, _ = dc.parse_args(list(args))
+    s, _ = dc.parse_args([*FORMULA_TARGET, *args])
     s.update(over)
     return w, dc.calculate(s, w)
 
@@ -102,7 +105,7 @@ print("B2 爆头：人形 ×3")
 check("HEADSHOT_BASE = 3.0", dc.HEADSHOT_BASE == 3.0)
 _w, _r = calc("Braton Prime", ["爆头"])
 check("不指定敌人：爆头倍率 3.0", close(_r["head_mult"], 3.0), str(_r["head_mult"]))
-_lines = dc.card_lines(_w, dc.parse_args(["爆头"])[0], _r, [])
+_lines = dc.card_lines(_w, dc.parse_args([*FORMULA_TARGET, "爆头"])[0], _r, [])
 check(
     "卡面注明爆头口径来源",
     any("爆头口径" in ln and "人形头部 ×3" in ln for ln in _lines),
@@ -178,9 +181,9 @@ check(
     str([ln for ln in _lines if "爆头" in ln]),
 )
 _w, _r = calc("Braton Prime", ["爆头"])
-_lines = dc.card_lines(_w, dc.parse_args(["爆头"])[0], _r, [])
+_lines = dc.card_lines(_w, dc.parse_args([*FORMULA_TARGET, "爆头"])[0], _r, [])
 check(
-    "不指定敌人（默认 Grineer）：按可触发计，卡面加注「对 Corpus 人形无暴击爆头」",
+    "G 系合成靶：按可触发计，卡面加注「对 Corpus 人形无暴击爆头」",
     _r["head_crit"] is True and any("对 Corpus 人形无暴击爆头" in ln for ln in _lines),
     str([ln for ln in _lines if "爆头" in ln]),
 )
@@ -222,7 +225,7 @@ _, _r = calc("Braton Prime", ["对", "Eidolon Teralyst", "爆头", "爆头加成
 check("无头部（head_none）不叠爆头加成：恒 1.0", close(_r["head_mult"], 1.0), str(_r["head_mult"]))
 _unc = {**_en["Lancer"], "name": "未分类测试敌人", "head_mul": None, "head_src": "未分类：测试"}
 _w, _ = dc.find_weapon("Braton Prime")
-_s = dc.parse_args(["爆头"])[0]
+_s = dc.parse_args([*FORMULA_TARGET, "爆头"])[0]
 _s["enemy"] = _unc
 _r = dc.calculate(_s, _w)
 _lines = dc.card_lines(_w, _s, _r, [])
@@ -263,8 +266,8 @@ _want = {
     "inert": 1.0,
 }
 for _mode, _w in _pick.items():
-    _s0 = {**dc.parse_args(["膛线"])[0], "status_types": 3, "dmg_per_status": 0.0}
-    _s8 = {**dc.parse_args(["膛线"])[0], "status_types": 3, "dmg_per_status": 80.0}
+    _s0 = {**dc.parse_args([*FORMULA_TARGET, "膛线"])[0], "status_types": 3, "dmg_per_status": 0.0}
+    _s8 = {**dc.parse_args([*FORMULA_TARGET, "膛线"])[0], "status_types": 3, "dmg_per_status": 80.0}
     _h0 = dc.calculate(_s0, _w)["health"]
     _r8 = dc.calculate(_s8, _w)
     check(

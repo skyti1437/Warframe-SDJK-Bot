@@ -50,6 +50,7 @@ import functools
 import json
 import math
 import re
+import struct
 from pathlib import Path
 from typing import Optional
 
@@ -161,7 +162,7 @@ SHIELD_SCALE = {
     "Corpus": (0.02, 1.76, 2.0, 0.76),
     "Orokin": (0.02, 1.75, 2.0, 0.75),
     "Grineer": (0.02, 1.75, 1.6, 0.75),
-    "_default": (0.02, 1.75, 2.0, 0.75),
+    "_default": (0.02, 1.75, 1.6, 0.75),
 }
 
 
@@ -185,6 +186,49 @@ def health_multiplier(faction: str, level: int, base_level: int = 1) -> float:
 def shield_multiplier(faction: str, level: int, base_level: int = 1) -> float:
     c = SHIELD_SCALE.get(faction, SHIELD_SCALE["_default"])
     return _scale_two(level, max(0, level - base_level), *c)
+
+
+def overguard_multiplier(level: int) -> float:
+    """原生超宏按绝对等级缩放，45–50 级用引擎相同的 float32 插值。"""
+    delta = max(0, level - 1)
+    low = 1.0 + 0.0015 * delta**4
+    high = 1.0 + 260.0 * delta**0.9
+    if level <= 45:
+        return low
+    if level >= 50:
+        return high
+
+    def f32(value):
+        return struct.unpack("f", struct.pack("f", value))[0]
+
+    t = f32((level - 45.0) / 5.0)
+    blend = f32(3.0 * t * t - 2.0 * t**3)
+    return f32(low + f32(f32(high - low) * blend))
+
+
+def target_shield_override(enemy, mode):
+    """None 沿用原生护盾，0 去盾，正数为模拟护盾的基准池。"""
+    if mode == "off":
+        return 0.0
+    if mode == "on" and enemy and not enemy.get("base_shield"):
+        return float(enemy["base_health"])
+    return None
+
+
+def defense_labels(enemy, no_overguard, shield_override):
+    labels = [L("去超宏", "No Overguard") if no_overguard else L("带超宏", "Overguard enabled")]
+    if shield_override:
+        labels.append(
+            L(
+                f"模拟有盾（基准 {shield_override:g}）",
+                f"Simulated shields ({shield_override:g} base)",
+            )
+        )
+    elif shield_override == 0 or not (enemy or {}).get("base_shield"):
+        labels.append(L("无盾", "No shields"))
+    else:
+        labels.append(L("原生护盾", "Native shields"))
+    return labels
 
 
 def _best_by_name(query: str, items: list[dict], fuzzy: bool = True) -> Optional[dict]:
@@ -293,7 +337,7 @@ def arcanes_payload() -> dict:
     return _arcanes_cache["arcanes"]
 
 
-def find_arcane(query: str) -> Optional[dict]:
+def find_arcane(query: str, *, exact: bool = False) -> Optional[dict]:
     """按中文名/英文名找武器赋能（支持「滑射」这种子串）。"""
     pool = arcanes_payload()
     q = _norm(query)
@@ -302,6 +346,8 @@ def find_arcane(query: str) -> Optional[dict]:
     for rec in pool.values():
         if q == _norm(rec.get("zh")) or q == _norm(rec.get("name")):
             return rec
+    if exact:
+        return None
     hits = [r for r in pool.values() if q in _norm(r.get("zh")) or q in _norm(r.get("name"))]
     if len(hits) == 1:
         return hits[0]
@@ -495,9 +541,14 @@ DOT_HEAD_LANDING = frozenset(("electricity", "gas"))
 # refreshes the duration of all currently active heat stacks」「consolidated into one tick of
 # damage per second」、无层数上限，保持刷新时「indefinitely (scaling up linearly)」。持续开火 T 秒、火触发率 r（次/秒）、相邻两次触发
 # 间隔 ≤ 6s（r×6 ≥ 1，单例不过期）时，层数从 0 线性涨到 r×T，**开火窗口内平均 r×T/2 层**；
-# 间隔 > 6s 时每层独立过期，平均 r×6 层（与其它 DoT 同）。默认 T = 12s ⇒ r×12/2 = r×6，
-# 与修前「rate × 6」逐位相同（乘 6.0 同一个浮点数），默认数值零变化。
-FIRE_SECONDS_DEFAULT = 12.0
+# 间隔 > 6s 时每层独立过期，平均 r×6 层（与其它 DoT 同）。
+DEFAULT_ENEMY = "Thrax Centurion"
+DEFAULT_ENEMY_PATH = "/Lotus/Types/Enemies/Duviri/Avatars/DuviriMeleeAvatar"
+DEFAULT_FACTION = "Zariman"
+DEFAULT_LEVEL = 170
+DEFAULT_STEEL_PATH = True
+DEFAULT_HEADSHOT = False
+FIRE_SECONDS_DEFAULT = 30.0
 FIRE_SECONDS_MIN, FIRE_SECONDS_MAX = 1.0, 600.0
 _PHYS_TYPES = ("impact", "puncture", "slash")  # 物理三系（转换类 MOD 只在它们之间搬）
 # 效果键 → spec 键（两边命名不一致的只有射速）。条件叠层（mods_wfsim_extra 的
@@ -1151,6 +1202,58 @@ MAX_ARG_TOKENS = 64
 MAX_TOKEN_LEN = 40  # 单个词超过该长度不可能是武器/MOD/敌人名，直接记为未识别
 
 
+def read_ranked_equipment(tokens, start, *, arcane):
+    """读装备名及紧随的等级，返回装备副本和下一参数位置。"""
+    for exact in (True, False) if arcane else (True,):
+        for end in range(min(len(tokens), start + _SALVAGE_MAX_SPAN), start, -1):
+            name, separator, suffix = " ".join(tokens[start:end]).rpartition("@")
+            if not separator:
+                name = suffix
+            elif " " in suffix:
+                continue
+            item = find_arcane(name, exact=exact) if arcane else find_mod_exact(name)
+            if item is None:
+                continue
+            rank = item.get("max_rank", 0)
+            if not separator and end < len(tokens):
+                # 紧挨赋能的个位「N级」视为赋能等级，保留后置的高等级敌人写法。
+                if match := re.fullmatch(r"(-?[0-9]+)|(-?[0-9])级", tokens[end]):
+                    suffix, separator = match[1] or match[2], "@"
+                    end += 1
+            if separator:
+                match = re.fullmatch(r"([0-9]{1,4})(?:级)?", suffix)
+                rank = int(match[1]) if match else -1
+            return {**item, "rank": rank}, end
+    return None, min(start + 1, len(tokens))
+
+
+def arcane_rank_valid(item):
+    return type(item.get("rank")) is int and 0 <= item["rank"] <= item.get("max_rank", 0)
+
+
+def combat_option(token):
+    """读取中英文命令共用的距离、散布和剥甲参数。"""
+    if token in {"散布", "关闭散布", "modelspread=true", "modelspread=false"}:
+        return "modelSpread", token in {"散布", "modelspread=true"}
+    for pattern, key, unit in (
+        (r"距离|distance", "distance", r"(?:米|m)?"),
+        (r"最近敌人距离|nearestenemydistance", "nearestEnemyDistance", r"(?:米|m)?"),
+        (r"连击档位|combotier", "comboTier", ""),
+        (r"剥甲|armourstrip", "armourStrip", "%?"),
+        (r"元素剥甲|elementalarmourstrip", "elementalArmourStrip", "%?"),
+        (r"modelspread", "modelSpread", ""),
+    ):
+        if match := re.fullmatch(rf"(?:{pattern})(?:=(.*)|(-?\d.*))", token):
+            raw = next(value for value in match.groups() if value is not None)
+            number = re.fullmatch(r"(-?\d+(?:\.\d+)?)" + unit, raw)
+            if not number:
+                return key, raw
+            if key == "comboTier":
+                return key, int(raw) if len(raw) < 10 and "." not in raw else raw
+            return key, float(number[1]) / (100 if raw.endswith("%") else 1)
+    return None
+
+
 def _salvage_weapon(tokens: list[str], spec: dict) -> list[str]:
     """从「武器名 + 没认出来的垃圾」里把武器名摘出来。
 
@@ -1180,13 +1283,84 @@ def _salvage_weapon(tokens: list[str], spec: dict) -> list[str]:
     return tokens[i:j]
 
 
-def parse_args(tokens: list[str]) -> tuple[dict, list[str]]:
+_STANDARD_TARGET_WORDS = {"三靶", "标准靶", "百夫长", "benchmark"}
+_RANKING_TARGET_WORDS = {"百夫长9999", "9999靶", "9999百夫长", "sp9999"}
+
+
+TARGET_HELP_ZH = [
+    "· 标准靶（默认） 170 级钢路凶魂百夫长 · 去超宏 · 无盾 · 躯干 · 30 秒",
+    "· 百夫长9999  9999 级钢路 · 带超宏 · 无盾 · 100% 爆头 · 瞄准 · 180 秒",
+    "· 预设后可加 有超宏 / 去超宏、有盾 / 无盾、普通（非钢路）",
+]
+TARGET_HELP_EN = [
+    "· benchmark (default)  Lv170 Steel Path Thrax Centurion · No Overguard · No shields · Body · 30 s",
+    "· sp9999  Lv9999 Steel Path · Overguard · No shields · 100% headshots · Aiming · 180 s",
+    "· Override a preset with overguard / nooverguard, shield / noshield, or normal (non-Steel Path)",
+]
+
+
+def default_target():
+    return {
+        "enemy": find_enemy_exact(DEFAULT_ENEMY),
+        "faction": DEFAULT_FACTION,
+        "level": DEFAULT_LEVEL,
+        "steel_path": DEFAULT_STEEL_PATH,
+        "headshot": DEFAULT_HEADSHOT,
+        "fire_seconds": FIRE_SECONDS_DEFAULT,
+        "overguard": None,
+        "overguard_mode": "off",
+        "shield_mode": None,
+    }
+
+
+def target_option(token):
+    """读一个目标预设或开关。调用方按指令顺序应用。"""
+    if token in _STANDARD_TARGET_WORDS | _RANKING_TARGET_WORDS:
+        ranking = token in _RANKING_TARGET_WORDS
+        return {
+            **default_target(),
+            "level": 9999 if ranking else DEFAULT_LEVEL,
+            "headshot": True if ranking else DEFAULT_HEADSHOT,
+            "fire_seconds": 180.0 if ranking else FIRE_SECONDS_DEFAULT,
+            "overguard_mode": "on" if ranking else "off",
+            "shield_mode": "off",
+            "combat_options": {"weaponAiming": ranking},
+            "enemy_miss": "",
+        }
+    if match := re.fullmatch(r"(?:lv(\d{1,4})|(\d{1,4})级)", token):
+        return {"level": int(match[1] or match[2])}
+    if token in {"爆头", "头部", "headshot", "躯干", "不爆头", "body", "noheadshot"}:
+        return {"headshot": token in {"爆头", "头部", "headshot"}}
+    if token in {"瞄准", "aiming", "腰射", "hipfire"}:
+        return {"combat_options": {"weaponAiming": token in {"瞄准", "aiming"}}}
+    if token in {"钢路", "钢铁之路", "sp", "steelpath"}:
+        return {"steel_path": True}
+    if token in {"普通", "非钢路", "normal"}:
+        return {"steel_path": False}
+    if token in {"有超宏", "带超宏", "超宏", "overguard"}:
+        return {"overguard_mode": "on", "overguard": None}
+    if token in {"无超宏", "去超宏", "nooverguard"}:
+        return {"overguard_mode": "off", "overguard": None}
+    if match := re.fullmatch(r"(?:超宏|overguard)" + _NUM, token):
+        return {"overguard_mode": "on", "overguard": float(match[1])}
+    if token in {"无盾", "去盾", "noshield"}:
+        return {"shield_mode": "off"}
+    if token in {"有盾", "带盾", "护盾", "shield"}:
+        return {"shield_mode": "on"}
+    return {}
+
+
+def merge_target_options(target, changes):
+    combat = changes.get("combat_options")
+    if combat:
+        target["combat_options"] = {**target.get("combat_options", {}), **combat}
+    target.update((key, value) for key, value in changes.items() if key != "combat_options")
+
+
+def parse_args(tokens: list[str], *, target_overrides=None) -> tuple[dict, list[str]]:
     """把 content tokens 拆成 (spec, 武器名 tokens)。"""
     spec: dict = {
-        "level": 100,
-        "faction": "Grineer",
-        "headshot": False,
-        "steel_path": False,
+        **default_target(),
         "base_armor": None,
         "base_dmg": 0.0,
         "multishot": 0.0,
@@ -1222,7 +1396,6 @@ def parse_args(tokens: list[str]) -> tuple[dict, list[str]]:
         "galv_mods": [],  # 镀层条件已按层数计入的 MOD（卡面不再列为「条件触发未计入」）
         "combo_hits": 0,
         "heavy": False,
-        "overguard": None,
         "adapt": None,
         "_armor": 0.0,
         # 近战专用：重击伤害 MOD（一击必杀）、初始连击（邪恶蓄力）、穿透
@@ -1235,8 +1408,7 @@ def parse_args(tokens: list[str]) -> tuple[dict, list[str]]:
         "throw_dmg": 0.0,
         "throw_stacks": 3,
         "throw_max_stacks": 0,
-        # 赋能（武器类）：多数是条件触发，认得出名字与文本就展示；
-        # 只有能被解析成无条件数值的部分才计入（见 parse_args 的折算）
+        # 赋能按实际等级折算常驻值。
         "arcanes": [],
         "arcane_texts": [],
         # 灵化进化选项（进化 基伤/暴击/爆头…）与 lich 回响加成
@@ -1245,9 +1417,6 @@ def parse_args(tokens: list[str]) -> tuple[dict, list[str]]:
         # 形态：None=默认原型（军械库常态）/ incarnon=灵化 / base=原型 / keep=不动（识卡）
         # / alt_fire 副开火 / charged 蓄力 / uncharged 未蓄力 / semi_auto 半自动 / auto 全自动
         "form": None,
-        # 火焰单例累加的开火时长（秒）：稳态里火的平均层数 = 触发率 × T / 2（默认 12 ⇒ 与
-        # 修前 rate×6 逐位相同）
-        "fire_seconds": FIRE_SECONDS_DEFAULT,
         # 部署（Archgun）：None=默认（地面/大气）/ archwing / atmosphere
         "deployment": None,
         "no_fire_rate_mod": False,
@@ -1258,10 +1427,11 @@ def parse_args(tokens: list[str]) -> tuple[dict, list[str]]:
         "magnetic": 0,
         "corrosive": 0,
         "heat_strip": False,
-        "enemy": None,
         "mods": [],
         "errors": [],
     }
+    target = {}
+    explicit_enemy = None
     name_tokens: list[str] = []
     enemy_hint_pos = None  # 「对」之后第一个名字 token 的下标（该词按敌人解析）
     enemy_hint_raw = -1  # 「对」后紧跟的原始 token 下标（紧跟 = 无派系/等级词隔开）
@@ -1287,28 +1457,29 @@ def parse_args(tokens: list[str]) -> tuple[dict, list[str]]:
         low = t.lower()
         nxt = tks[i + 1] if i + 1 < len(tks) else ""
         num_next = re.fullmatch(_NUM + r"%?", nxt)
-        m = re.fullmatch(r"(\d{1,4})级", low) or re.fullmatch(r"lv(\d{1,4})", low)
-        if low == "对":  # 「对 重机枪手」的介词：丢掉，但记下「下一个词是敌人」
+        if low in {"对", "vs"}:  # 「对 重机枪手」的介词：丢掉，但记下「下一个词是敌人」
             enemy_hint_pos = len(name_tokens)
             enemy_hint_raw = i + 1
             i += 1
             continue
-        if m:
-            spec["level"] = int(m.group(1))
-        elif low in ("爆头", "头部"):
-            spec["headshot"] = True
+        # 「对 百夫长」允许明确指定敌人；独立出现的「百夫长」才加载整套预设。
+        option = {} if i == enemy_hint_raw and low == "百夫长" else target_option(low)
+        if option:
+            merge_target_options(target, option)
+            if "enemy" in option and i == enemy_hint_raw:
+                enemy_hint_pos = None
         elif low in ("火剥甲", "火焰剥甲"):
             spec["heat_strip"] = True
         elif re.fullmatch(r"(病毒|磁力|腐蚀)(\d{1,2})层?", low):
             m_st = re.fullmatch(r"(病毒|磁力|腐蚀)(\d{1,2})层?", low)
             key = {"病毒": "viral", "磁力": "magnetic", "腐蚀": "corrosive"}[m_st.group(1)]
             spec[key] = min(10, max(1, int(m_st.group(2))))
-        elif low in ("钢路", "钢铁之路"):
-            spec["steel_path"] = True
-        elif low in ("灵化", "灵化形态", "开灵化"):
+        elif low in ("灵化", "灵化形态", "开灵化", "incarnon"):
             spec["form"] = "incarnon"
-        elif low in ("基础形态", "基础面板"):
+        elif low in ("基础形态", "基础面板", "base"):
             spec["form"] = "base"
+        elif low == "alt_fire":
+            spec["form"] = "alt_fire"
         elif low in _ALT_FORM_WORDS:
             # 非默认形态（2026-10-10 第三批）：用 weapon_attacks.json forms 整套替换主段与额外段
             spec["form"] = _ALT_FORM_WORDS[low]
@@ -1316,14 +1487,15 @@ def parse_args(tokens: list[str]) -> tuple[dict, list[str]]:
         elif re.fullmatch(r"开火" + _NUM + r"(秒|s)?", low):
             # 火焰单例累加的开火时长（2026-10-10 第三批，见 steady_state_dps）
             _fs = float(re.search(_NUM, low).group(1))
-            spec["fire_seconds"] = min(FIRE_SECONDS_MAX, max(FIRE_SECONDS_MIN, _fs))
-            if spec["fire_seconds"] != _fs:
+            seconds = min(FIRE_SECONDS_MAX, max(FIRE_SECONDS_MIN, _fs))
+            target["fire_seconds"] = seconds
+            if seconds != _fs:
                 spec["notes"].append(
                     L(
                         f"输出时长按 {FIRE_SECONDS_MIN:g}–{FIRE_SECONDS_MAX:g} 秒取值："
-                        f"{_fs:g} → {spec['fire_seconds']:g}",
+                        f"{_fs:g} → {seconds:g}",
                         f"Duration is clamped to {FIRE_SECONDS_MIN:g}–{FIRE_SECONDS_MAX:g} s: "
-                        f"{_fs:g} → {spec['fire_seconds']:g}",
+                        f"{_fs:g} → {seconds:g}",
                     )
                 )
         elif low in ("空战", "空战模式"):
@@ -1362,8 +1534,8 @@ def parse_args(tokens: list[str]) -> tuple[dict, list[str]]:
             spec["base_armor"] = float(re.search(_NUM, low).group(1))
         elif re.fullmatch(r"派系" + _NUM + r"%?", low):
             spec["faction_dmg"] = float(re.search(_NUM, low).group(1))
-        elif re.fullmatch(r"基伤" + _NUM + r"%?", low):
-            spec["base_dmg"] = float(re.search(_NUM, low).group(1))
+        elif m := re.fullmatch(r"基伤([+-]?\d+(?:\.\d+)?)%?", low):
+            spec["base_dmg"] = float(m[1])
         elif re.fullmatch(r"多重" + _NUM + r"%?", low):
             spec["multishot"] = float(re.search(_NUM, low).group(1))
         elif re.fullmatch(r"暴率" + _NUM + r"%?", low):
@@ -1394,30 +1566,29 @@ def parse_args(tokens: list[str]) -> tuple[dict, list[str]]:
             spec["combo_hits"] = int(float(re.search(_NUM, low).group(1)))
         elif low in ("重击", "重击攻击"):
             spec["heavy"] = True
-        elif low == "赋能" and nxt:
-            # 赋能名（中文名形如「近战·狂怒」，英文名可能带空格 → 吃两词窗口）
-            rec = find_arcane(nxt) or (
-                find_arcane(" ".join(tks[i + 1 : i + 3])) if i + 2 < len(tks) else None
-            )
-            if rec:
+        elif low in {"赋能", "arcane"}:
+            rec, i = read_ranked_equipment(tks, i + 1, arcane=True)
+            if rec and arcane_rank_valid(rec):
                 spec["arcanes"].append(rec)
                 if rec.get("text"):
                     spec["arcane_texts"].append(f"{rec.get('zh') or rec['name']}：{rec['text']}")
-                i += 2 if find_arcane(nxt) else 3
-                continue
-            spec["notes"].append(L(f"未找到赋能「{nxt}」", f'Arcane "{nxt}" not found'))
-            i += 1
+            elif rec:
+                spec["errors"].append(
+                    L(
+                        f"赋能等级应为 0–{rec['max_rank']}",
+                        f"Arcane rank must be 0–{rec['max_rank']}",
+                    )
+                )
+            else:
+                spec["errors"].append(L(f"未找到赋能「{nxt}」", f'Arcane "{nxt}" not found'))
             continue
+        elif option := combat_option(low):
+            key, value = option
+            spec.setdefault("combat_options", {})[key] = value
         elif re.fullmatch(r"(连投|投掷层数)" + _NUM, low):
             spec["throw_stacks"] = int(float(re.search(_NUM, low).group(1)))
         elif low in ("投掷", "投掷伤害"):
             spec["throw_stacks"] = 3  # 默认按满层算
-        elif re.fullmatch(r"超宏" + _NUM + r"?", low):
-            spec["overguard"] = (
-                float(re.search(_NUM, low).group(1)) if re.search(_NUM, low) else True
-            )
-        elif low == "超宏":
-            spec["overguard"] = True
         elif re.fullmatch(r"适应" + _NUM + r"?", low):
             spec["adapt"] = int(float(re.search(_NUM, low).group(1))) if re.search(_NUM, low) else 1
         elif low == "适应":
@@ -1461,7 +1632,9 @@ def parse_args(tokens: list[str]) -> tuple[dict, list[str]]:
                 spec["physical"][el] = spec["physical"].get(el, 0.0) + float(num_next.group(1))
                 i += 1
             elif low in FACTION_ALIASES:
-                spec["faction"] = FACTION_ALIASES[low]
+                target.update(enemy=None, faction=FACTION_ALIASES[low], enemy_miss="")
+                if i == enemy_hint_raw:
+                    enemy_hint_pos = None
             else:
                 if i == enemy_hint_raw and enemy_hint_pos == len(name_tokens):
                     enemy_hint_adjacent = True
@@ -1485,7 +1658,7 @@ def parse_args(tokens: list[str]) -> tuple[dict, list[str]]:
             if not e and size == 1:
                 e = find_enemy(cand)
             if e:
-                spec["enemy"] = e
+                explicit_enemy = e
                 del name_tokens[enemy_hint_pos : enemy_hint_pos + size]
                 break
         else:
@@ -1496,7 +1669,7 @@ def parse_args(tokens: list[str]) -> tuple[dict, list[str]]:
             # 派系/等级词时（「对 C系 膛线」）MOD 全名仍按 MOD 认。
             tok = name_tokens[enemy_hint_pos]
             if not find_weapon(tok)[0] and (enemy_hint_adjacent or not find_mod_exact(tok)):
-                spec["enemy_miss"] = tok
+                target.update(enemy=None, enemy_miss=tok)
                 del name_tokens[enemy_hint_pos]
 
     weapon_tokens: list[str] = []
@@ -1522,8 +1695,8 @@ def parse_args(tokens: list[str]) -> tuple[dict, list[str]]:
                     weapon_tokens.append(tok)
                 elif kind == "mod":
                     spec["mods"].append(obj)
-                else:
-                    spec["enemy"] = obj
+                elif explicit_enemy is None:
+                    explicit_enemy = obj
                 del pending[:size]
                 matched = True
                 break
@@ -1541,6 +1714,12 @@ def parse_args(tokens: list[str]) -> tuple[dict, list[str]]:
     # MOD、错别字），整串拼起来就查不到武器 → 那时退一步，挑**能查到武器的最长
     # 片段**当武器名，剩下的记进 unknown，卡面明确写出「未识别」。
     weapon_tokens = _salvage_weapon(weapon_tokens, spec)
+
+    if explicit_enemy:
+        target.update(enemy=explicit_enemy, faction=explicit_enemy["faction"])
+    merge_target_options(spec, target)
+    if target_overrides is not None:
+        target_overrides.update(target)
 
     # 武器记录（扳机限制卡要用）：Cannonade 系「仅限半自动扳机」是装备规则，
     # 只对扳机为 Semi 的武器生效；点射（Burst）不算半自动 —— wiki Cannonade
@@ -1704,7 +1883,7 @@ def parse_args(tokens: list[str]) -> tuple[dict, list[str]]:
         )
         if _conditional:
             continue
-        _eff = _arc.get("effects") or {}
+        _eff = arcane_level_effects(_arc)
         for key in (
             "base_dmg",
             "multishot",
@@ -1834,10 +2013,10 @@ def _hit_from_damage(
     _n_types = max(0, int(n_types or 0))
     _co = spec["dmg_per_status"] * _n_types if (with_co and co_mode != "inert") else 0.0
     if co_mode == "independent":
-        after_base = 1 + spec["base_dmg"] / 100.0
+        after_base = max(0.0, 1 + spec["base_dmg"] / 100.0)
         _co_indep = 1 + _co / 100.0
     else:
-        after_base = 1 + (spec["base_dmg"] + _co) / 100.0
+        after_base = max(0.0, 1 + (spec["base_dmg"] + _co) / 100.0)
         _co_indep = 1.0
     per_type: dict[str, float] = {}
     for k, v in dmg.items():
@@ -2782,17 +2961,21 @@ def _apply_panel_overrides(spec: dict, weapon: dict) -> dict:
     return w
 
 
+def arcane_level_effects(item):
+    arcane = item if "effects" in item else find_arcane(item.get("name") or "")
+    ranks = (arcane or {}).get("levels") or ()
+    rank = item.get("rank", (arcane or {}).get("max_rank", 0))
+    if not ranks:
+        return (arcane or {}).get("effects") or {}
+    return (ranks[rank] or {}) if type(rank) is int and 0 <= rank < len(ranks) else {}
+
+
 def apply_static_loadout_bonuses(spec, *, reload_pct=0.0, magazine_pct=0.0, arcanes=()):
     """接收已确认的常驻值和赋能等级，按随包口径计入装填、弹匣和爆头倍率。"""
     spec["_scan_reload_pct"] = float(reload_pct)
     spec["_scan_magazine_pct"] = float(magazine_pct)
     for item in arcanes:
-        arcane = find_arcane(item.get("name") or "")
-        ranks = (arcane or {}).get("levels") or ()
-        rank = item.get("rank")
-        if type(rank) is not int or not 0 <= rank < len(ranks):
-            continue
-        effects = ranks[rank] or {}
+        effects = arcane_level_effects(item)
         spec["_scan_reload_pct"] += float(effects.get("reload_pct") or 0)
         spec["headshot_bonus"] += float(effects.get("headshot_bonus") or 0)
 
@@ -2817,6 +3000,10 @@ def calculate(spec: dict, weapon: dict) -> dict:
     同一份 spec 复算会让 notes 逐次累积（「识卡伤害」缓存复用即踩中）。
     """
     spec = copy.deepcopy(spec)
+    if spec.get("arcanes") and not spec.get("loadout_slots") and "_scan_reload_pct" not in spec:
+        apply_static_loadout_bonuses(spec, arcanes=spec["arcanes"])
+    if type(tier := (spec.get("combat_options") or {}).get("comboTier")) is int and tier >= 0:
+        spec["combo_hits"] = tier * COMBO_STEP
     if not isinstance(weapon, dict) or not isinstance(weapon.get("damage"), dict):
         return {
             "ok": False,
@@ -3257,7 +3444,9 @@ def calculate(spec: dict, weapon: dict) -> dict:
     # 敌人血量/护盾（指定敌人时）：按派系公式缩放；钢路 ×2.5（血量与护盾）
     # ★ 2026-10-16：原为 ×2（注释写 +100%），wiki《The Steel Path》写 Enemy Health / Shield 250%。
     hp = shield_hp = None
+    shield_override = target_shield_override(enemy, spec.get("shield_mode"))
     shots = None
+    n_shield = 0
     if enemy:
         sp_mult = 2.5 if spec["steel_path"] else 1.0
         hp = (
@@ -3265,15 +3454,15 @@ def calculate(spec: dict, weapon: dict) -> dict:
             * health_multiplier(faction, level, base_level)
             * sp_mult
         )
-        shield_hp = (
-            (enemy.get("base_shield") or 0.0)
-            * shield_multiplier(faction, level, base_level)
-            * sp_mult
-        )
+        base_shield = enemy.get("base_shield") or 0.0
+        if shield_override is not None:
+            base_shield = shield_override
+        shield_hp = base_shield * shield_multiplier(faction, level, base_level) * sp_mult
         # 击杀发数：护盾段（不吃护甲减免）+ 血量段（吃减免与病毒），
-        # 两段都按**暴击期望**后的单发伤害算（即平均发数）
-        avg_health = health * e_body
-        avg_shield = shield * e_body
+        # 两段都按选定命中部位的暴击期望估算平均发数。
+        hit_expectation = e_head if spec["headshot"] else e_body
+        avg_health = health * hit_expectation
+        avg_shield = shield * hit_expectation
         n_shield = math.ceil(shield_hp / avg_shield) if shield_hp > 0 and avg_shield > 0 else 0
         n_health = math.ceil(hp / avg_health) if hp > 0 and avg_health > 0 else 0
         shots = n_shield + n_health
@@ -3815,14 +4004,18 @@ def calculate(spec: dict, weapon: dict) -> dict:
 
     # 超宏 Overguard：不吃护甲与派系弱点/抗性，虚空 +50%，磁力加成
     og_info = None
-    if spec["overguard"]:
+    overguard_mode = spec.get("overguard_mode")
+    if overguard_mode == "on" or (overguard_mode is None and spec.get("overguard")):
         flat = sum(per_type.values()) * fac_mod
-        og_info = {
-            "damage": overguard_damage(flat, mag_mult, per_type),
-            "crit": overguard_damage(flat, mag_mult, per_type) * e_body,
-            "mag_mult": mag_mult,
-            "pool": spec["overguard"] if isinstance(spec["overguard"], float) else None,
-        }
+        pool = spec.get("overguard")
+        if pool is None or pool is True:
+            pool = ((enemy or {}).get("base_overguard") or 0.0) * overguard_multiplier(level)
+        damage = overguard_damage(flat, mag_mult, per_type)
+        crit = damage * (e_head if spec["headshot"] else e_body)
+        breaks = math.ceil(pool / crit) if pool and crit > 0 else None
+        og_info = {"damage": damage, "crit": crit, "mag_mult": mag_mult, "pool": pool or None}
+        if shots is not None and breaks:
+            shots += breaks
 
     # Sentient 适应：按伤害占比前 N 个类型各吃 90/80/75/70% 抗性
     adapt_info = None
@@ -3889,6 +4082,8 @@ def calculate(spec: dict, weapon: dict) -> dict:
         "enemy": enemy,
         "hp": hp,
         "shield_hp": shield_hp,
+        "shield_shots": n_shield,
+        "shield_override": shield_override,
         "shots": shots,
         "base_level": base_level,
         "mods": spec.get("mods") or [],
@@ -4168,7 +4363,7 @@ def steady_state_dps(
     pun_stacks = stacks_of("puncture")
     cc_bonus = min(0.25, 0.05 * pun_stacks) if pun_stacks >= 1 else 0.0
     e_crit_ss = crit_expectation(crit_cc + cc_bonus, crit_cm + cm_bonus)
-    # 爆头时 DoT 继承暴击爆头（暴伤 ×2；wiki Status_Effect：暴击与部位倍率都带进 DoT）
+    # 直击和由它触发的 DoT 共用选定命中部位的暴击期望。
     _head_crit_ratio = (
         crit_expectation(
             crit_cc + cc_bonus + head_cc, (2.0 if head_crit else 1.0) * (crit_cm + cm_bonus)
@@ -4186,7 +4381,8 @@ def steady_state_dps(
         if dr_ss > 0 and k != "toxin":
             d = max(d * (1 - dr_ss), 1.0)
         direct += d
-    direct_dps = direct * viral_mult * e_crit_ss * multishot_total * fire_rate
+    hit_mult = head_mult * _head_crit_ratio if spec.get("headshot") else 1.0
+    direct_dps = direct * viral_mult * e_crit_ss * multishot_total * fire_rate * hit_mult
 
     # ⑤ DoT 流：每种异常单独的「活跃层数 × 每秒每层伤害」
     # 火焰单例累加（2026-10-10 第三批，见 FIRE_SECONDS_DEFAULT 的口径）：开火 T 秒内的平均层数
@@ -4214,7 +4410,7 @@ def steady_state_dps(
             * _dot_elem_bracket(el, spec)
         )
         if spec.get("headshot"):
-            per_stack *= head_mult * _head_crit_ratio
+            per_stack *= hit_mult
             if el in DOT_HEAD_LANDING:  # 电/毒气落点层（见 DOT_HEAD_LANDING）
                 per_stack *= head_landing
         if cfg.get("instant"):  # 爆炸：1.5s 后一次性结算
@@ -4284,15 +4480,8 @@ def adapt_damage(per_type: dict[str, float], levels: int) -> tuple[float, dict]:
     return sum(remaining.values()), resisted
 
 
-DAMAGE_DISCLAIMER = (
-    "※ ⚠ 理论推算，未经大规模实战检验：按 wiki 公式算出，"
-    "可能与游戏面板 / 实战有出入，以游戏内为准；发现对不上欢迎反馈"
-)
-DAMAGE_DISCLAIMER_EN = (
-    "※ ⚠ Theoretical estimate, not battle-tested at scale: calculated from wiki formulas, "
-    "may differ from the in-game panel / real combat, in-game values take precedence; "
-    "feedback is welcome if something does not match"
-)
+DAMAGE_DISCLAIMER = "※ ⚠ 伤害为估算值，以游戏内表现为准。"
+DAMAGE_DISCLAIMER_EN = "※ ⚠ Estimated damage may differ in-game."
 
 
 def damage_disclaimer() -> str:
@@ -4542,7 +4731,7 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
         )
     mod_bits = []
     if spec["base_dmg"]:
-        mod_bits.append(L(f"基伤+{spec['base_dmg']:g}%", f"Base Dmg +{spec['base_dmg']:g}%"))
+        mod_bits.append(L(f"基伤{spec['base_dmg']:+g}%", f"Base Dmg {spec['base_dmg']:+g}%"))
     if spec["multishot"]:
         mod_bits.append(L(f"多重+{spec['multishot']:g}%", f"Multishot +{spec['multishot']:g}%"))
     if spec["crit_chance"]:
@@ -4598,7 +4787,10 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
     ssr = res.get("steady") or {}
     crit_exp = res["crit_exp"]
     pt = res["per_trigger_health"]
-    dps = res["dps"]
+    head = res["headshot"]
+    location_mult = res["head_mult"] if head else 1.0
+    location_crit = res["head_crit_exp"] if head else crit_exp
+    dps = res["dps"] * location_mult
     _dseg = res.get("dps_seg")
 
     # ==================================================================
@@ -4606,6 +4798,21 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
     # ==================================================================
     # —— 卡首答案（≤4 行）：实战 / 爆发 / 持续 DPS + 击杀 ——
     kv: list[str] = []
+    kv.append(
+        L(
+            "· 内置估算",
+            "· Built-in estimate",
+        )
+    )
+    if set(spec.get("combat_options", ())) - {"comboTier", "weaponAiming"}:
+        kv.append(
+            L(
+                "※ 手填距离、散布和剥甲参数仅供独立复算",
+                "※ Manual range, spread and armor strip settings require standalone replay",
+            )
+        )
+    if spec.get("combat_options", {}).get("weaponAiming"):
+        kv.append(L("· 瞄准触发由独立引擎计算", "· Aiming effects use the standalone engine"))
     if ssr.get("dps_total"):
         kv.append(
             L(
@@ -4649,16 +4856,20 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
     else:
         kv.append(
             L(
-                f"◆ 爆发 DPS：{dps * crit_exp:.0f}（含暴击）"
-                + (f"｜{dps:.0f}（无暴击）" if crit_exp != 1.0 else ""),
-                f"◆ Burst DPS: {dps * crit_exp:.0f} (with crit)"
-                + (f"｜{dps:.0f} (no crit)" if crit_exp != 1.0 else ""),
+                f"◆ 爆发 DPS：{dps * location_crit:.0f}（含暴击）"
+                + (f"｜{dps:.0f}（无暴击）" if location_crit != 1.0 else ""),
+                f"◆ Burst DPS: {dps * location_crit:.0f} (with crit)"
+                + (f"｜{dps:.0f} (no crit)" if location_crit != 1.0 else ""),
             )
         )
     if _dseg:
         _sus = _dseg.get("sustained_crit")
     else:
-        _sus = res["dps_sustained"] * crit_exp if res.get("dps_sustained") else None
+        _sus = (
+            res["dps_sustained"] * location_mult * location_crit
+            if res.get("dps_sustained")
+            else None
+        )
     if _sus:
         _ac = float(1.0 if res.get("ammo_cost") is None else res["ammo_cost"])
         if res.get("no_cycle"):
@@ -4717,8 +4928,15 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
         _pool = L(f"血量 {res['hp']:.0f}", f"HP {res['hp']:.0f}")
         if res.get("shield_hp"):
             _pool = (
-                L(f"护盾 {res['shield_hp']:.0f} → ", f"Shield {res['shield_hp']:.0f} → ") + _pool
+                L(
+                    f"护盾 {res['shield_hp']:.0f}（{res['shield_shots']} 次命中） → ",
+                    f"Shield {res['shield_hp']:.0f} ({res['shield_shots']} hits) → ",
+                )
+                + _pool
             )
+        if (og := res.get("overguard")) and og["pool"]:
+            _pool = L(f"超宏 {og['pool']:.0f} → ", f"Overguard {og['pool']:.0f} → ") + _pool
+        hit = L("爆头", "head") if res["headshot"] else L("身体", "body")
         count = (
             L(f"平均命中 {res['shots']} 次", f"avg {res['shots']} hits")
             if melee
@@ -4726,8 +4944,8 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
         )
         kv.append(
             L(
-                f"◆ 击杀：{count}（身体、含暴击期望）｜目标{_pool}",
-                f"◆ Kills: {count} (body, with crit expectation)｜Target {_pool}",
+                f"◆ 击杀：{count}（{hit}、含暴击期望）｜目标{_pool}",
+                f"◆ Kills: {count} ({hit}, with crit expectation)｜Target {_pool}",
             )
         )
     lines: list[str] = kv[:]
@@ -5016,6 +5234,12 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
         )
     )
     en = res.get("enemy")
+    defense = " · ".join(defense_labels(en, not res.get("overguard"), res.get("shield_override")))
+    difficulty = L("钢铁之路", "Steel Path") if res["steel_path"] else L("普通", "Normal")
+    hit = L("爆头", "Headshots") if res["headshot"] else L("躯干", "Body")
+    seconds = spec["fire_seconds"]
+    window = L(f"{seconds:g} 秒", f"{seconds:g} s")
+    inp.append(f"　{difficulty} · {defense} · {hit} · {window}")
     if en:
         nm = _zh_or_name(en)
         inp.append(
@@ -5069,25 +5293,24 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
                 )
             )
         ]
-        _plain = [a for a in res["arcanes"] if a not in _cond]
-        inp.append(
-            L(
-                "· 赋能　"
-                + "、".join((a.get("zh") or a["name"]) for a in res["arcanes"])
-                + ("（条件触发，未计入数值）" if _cond and not _plain else ""),
-                "· Arcanes　"
-                + ", ".join(a["name"] for a in res["arcanes"])
-                + (" (conditional, not counted)" if _cond and not _plain else ""),
-            )
-        )
-        for _a in res["arcanes"][:2]:
-            if _a.get("text"):
+        for index, arc in enumerate(res["arcanes"]):
+            name = arc.get("zh") or arc["name"]
+            rank = arc.get("rank", arc.get("max_rank"))
+            inp.append(L(f"· 赋能　{name} · {rank} 级", f"· Arcane　{arc['name']} · Rank {rank}"))
+            eff = arcane_level_effects(arc)
+            if reload := eff.get("reload_pct"):
                 inp.append(
-                    L(
-                        f"　{_a.get('zh') or _a['name']}：{_a['text'][:110]}",
-                        f"　{_a['name']}: {_a['text'][:110]}",
-                    )
+                    L(f"　常驻装填速度 +{reload:g}%", f"　Passive reload speed +{reload:g}%")
                 )
+            if head := eff.get("headshot_bonus"):
+                inp.append(L(f"　常驻爆头加成 +{head:g}%", f"　Passive headshot bonus +{head:g}%"))
+            if arc in _cond:
+                inp.append(
+                    L("　条件触发和叠层未计入", "　Conditional triggers and stacks are unmodeled")
+                )
+            if index < 2 and (conditional := " ".join(eff.get("conditional") or ())):
+                text = re.sub(r"<[A-Z][A-Z0-9_]*>", "", conditional.replace("\\n", " "))
+                inp.append("　" + " ".join(text.split())[:110])
     if res.get("mods"):
         # 注释乘区：直接回答「这张卡属于哪个乘区、和谁相加」；
         # 认得出但算不动的效果标明「未计入」，不装作算过。
@@ -5407,7 +5630,6 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
             )
 
     # —— 警示 / 注脚 ——
-    # ★ 2026-10-16 维护者要求：伤害分析没经过大规模实战检验，卡面要明说（「※ ⚠」走琥珀警示面板，伤害 / 识卡伤害共用）
     lines.append(damage_disclaimer())
     if spec.get("enemy_miss"):
         lines.append(
@@ -5425,13 +5647,6 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
                 "※ ⚠ Unrecognized (ignored): "
                 + ", ".join(res["unknown"])
                 + "; not in the MOD name table, if wrong please retry with the official name",
-            )
-        )
-    if ssr.get("dps_total"):
-        lines.append(
-            L(
-                "※ 实战 DPS 按持续输出估算。",
-                "※ Practical DPS estimates sustained output.",
             )
         )
     if _singles:

@@ -664,10 +664,11 @@ class MessagingBridge:
             self._attempted.reset(attempted)
         return MarkdownDelivery(sent=True)
 
-    async def _post_qq(self, event, payload):
+    async def _post_qq(self, event, payload, *, msg_type=2):
         raw, api = self._raw(event), event.bot.api
         group = self._qq_kind(event) == "group"
         seq_key = (str(event.get_platform_id()), str(event.message_obj.message_id))
+        # AstrBot 宿主的被动回复从 1～10000 分配序号，桥接独占高位区间。
         sequence = self._qq_seq.get(seq_key, 10000) + 1
         self._qq_seq[seq_key] = sequence
         self._qq_seq.move_to_end(seq_key)
@@ -677,7 +678,7 @@ class MessagingBridge:
             **payload,
             "msg_id": str(event.message_obj.message_id),
             "msg_seq": sequence,
-            "msg_type": 2,
+            "msg_type": msg_type,
         }
         self._attempted.set(True)
         if group:
@@ -1049,10 +1050,31 @@ class MessagingBridge:
                 )
         return delivered
 
-    async def send_literal(self, event, text):
+    async def send_literal(self, event, text, *, qq_passive=False):
         if self._closed:
             return False
         route = self._route(event)
+        if route.platform == "qq_official" and qq_passive:
+            kind = self._qq_kind(event)
+            api = getattr(getattr(event, "bot", None), "api", None)
+            method = "post_group_message" if kind == "group" else "post_c2c_message"
+            if not (
+                kind
+                and callable(getattr(api, method, None))
+                and getattr(event.message_obj, "message_id", None)
+            ):
+                return False
+            attempted = self._attempted.set(False)
+            try:
+                await self._post_qq(event, {"content": text}, msg_type=0)
+            except Exception as exc:
+                if self._attempted.get() and not self._known_rejection(exc):
+                    raise  # 送达不确定时避免重发进度并消耗被动回复额度。
+                logger.warning("[warframe] QQ 被动纯文字发送失败（%s）", type(exc).__name__)
+                return False
+            finally:
+                self._attempted.reset(attempted)
+            return True
         if route.platform == "discord" and getattr(event, "client", None):
             sdk = self._sdk("discord")
             if sdk is None or not hasattr(sdk, "utils"):

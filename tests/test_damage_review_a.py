@@ -40,10 +40,13 @@ def close(a: float, b: float, tol: float = 1e-6) -> bool:
     return abs(a - b) <= tol * max(1.0, abs(b))
 
 
+FORMULA_TARGET = ("G系", "100级", "普通", "开火12秒")
+
+
 def calc(name: str, args=(), **over) -> tuple[dict, dict]:
     w, _ = dc.find_weapon(name)
     assert w, name
-    s, _ = dc.parse_args(list(args))
+    s, _ = dc.parse_args([*FORMULA_TARGET, *args])
     s.update(over)
     return w, dc.calculate(s, w)
 

@@ -214,6 +214,26 @@ check(
     f"{_rhigh['health']} vs {_rlow['health']}",
 )
 
+print("⑨ 负基伤边界：持续射束、常规步枪、近战")
+for name, attack in (("Amprex", ""), ("Braton Prime", ""), ("Skana", "重击 连击120")):
+    w, spec, normal, alts = run(f"{name} 对 重机枪手 100级 普通 开火12秒 {attack}")
+    check(
+        f"{name} 随包卡标明内置估算",
+        normal["dps"] > 0
+        and any("内置估算" in line for line in dc.card_lines(w, spec, normal, alts)),
+    )
+    for percentage in (-100, -155):
+        _, negative, result, _ = run(
+            f"{name} 对 重机枪手 100级 普通 开火12秒 {attack} 基伤{percentage}"
+        )
+        check(
+            f"{name} 基伤{percentage}% 的单发和 DPS 均为零",
+            negative["base_dmg"] == percentage
+            and result["dps"] == result["per_trigger_health"] == result["shield"] == 0
+            and (result["dps_sustained"] or 0) == 0
+            and ((result["steady"] or {}).get("dps_total") or 0) == 0,
+        )
+
 print()
 if FAILED:
     print(f"失败 {len(FAILED)} 项：{FAILED}")

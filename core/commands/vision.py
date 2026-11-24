@@ -553,6 +553,7 @@ class VisionCommands:
         window: Optional[float] = None,
         parse=None,
         task: Optional[str] = None,
+        prompt_suffix: str = "",
     ) -> Optional[dict]:
         """向最多 k 个 vision 渠道**并行**请求，取第一个能解析出 JSON 的结果。
 
@@ -575,6 +576,7 @@ class VisionCommands:
             import uuid as _uuid
 
             sent_prompt = effective_vision_prompt(self, prov, task, prompt) if task else prompt
+            sent_prompt += prompt_suffix
             resp = await prov.text_chat(
                 prompt=sent_prompt,
                 session_id=f"sdjk-{tag}-{_uuid.uuid4().hex[:8]}",
@@ -820,26 +822,51 @@ class VisionCommands:
                 from ..local_ocr import decode_image_data_url
 
                 try:
-                    observed = await local.recognize(decode_image_data_url(image_url))
+                    image_bytes = decode_image_data_url(image_url)
+                    observed = await local.recognize(image_bytes)
                 except (ValueError, OSError) as exc:
                     observed = {"ok": False, "state": "invalid_image", "message": str(exc)}
                 structured = observed.get("structured")
-                return {
+                out = {
                     **(structured if isinstance(structured, dict) else {}),
                     "_local_ocr": observed,
                 }
+                if (
+                    read_properties
+                    and observed.get("recognition_state", observed.get("state")) == "accepted"
+                ):
+                    from ..riven_ocr_reader import geometry_properties
+
+                    properties = geometry_properties(observed)
+                    out.update(properties)
+                    if "polarity" not in properties:
+                        polarity = await asyncio.to_thread(
+                            pips_engine.detect_single_card_polarity, image_bytes, observed
+                        )
+                        if polarity is not None:
+                            out["polarity"] = polarity
+                    out["_single_card_pips"] = await VisionCommands._detect_single_card_pips(
+                        image_url
+                    )
+                return out
         # ★★ 2026-10-05 去掉全部字面示例值（实测 30B 真泄漏 10/32：把例子里的
         #   数值照抄到不含该值的卡上）。旧例子 50.2/65.1/44.9/95.4/63.4/115.7/110.8
         #   全部来自用户真实卡 ⇒ 本提示词不得再出现任何具体数值，一律用公式/描述表达。
         prompt = VisionCommands.riven_json_prompt()
+        properties_prompt = {}
         if read_properties:
-            prompt += L(
-                "\n同一个 JSON 额外转录 rank、polarity。rank 是卡底部八颗强化点中已点亮的颗数；"
-                "段位和右上角容量都不是强化等级。polarity 是卡面右上角的极性图标，"
-                "只填 madurai、vazarin、naramon；图标或强化点看不清时对应字段填 null。",
-                "\nAlso transcribe rank and polarity into the same JSON. Rank is the number of lit upgrade "
-                "pips out of eight at the card bottom. Ignore the mastery requirement and mod drain for rank. "
-                "Polarity is the top-right symbol, as madurai, vazarin or naramon. Use null for unclear fields.",
+            properties_prompt["prompt_suffix"] = L(
+                "\n同一个 JSON 额外转录以下独立字段，勿放入 stat_lines。rank 是卡底部八颗强化点"
+                "中已点亮的颗数。drain 是右上角印出的容量数字，drain_color 是该数字颜色"
+                "（绿、红、白、未知）。mastery_rank 是明确标注的段位要求数字。polarity 是"
+                "右上角容量旁的极性图标（madurai、vazarin、naramon）。各字段独立读取，"
+                "不要以容量、段位或极性代替强化等级。看不清的字段填 null。",
+                "\nTranscribe these separate JSON fields outside stat_lines. rank counts the lit upgrade "
+                "pips out of eight at the card bottom. drain is the printed top-right capacity number. "
+                "drain_color is that number's color (green, red, white, unknown). mastery_rank is "
+                "the labeled Mastery Rank requirement number. polarity is the symbol next to drain "
+                "(madurai, vazarin or naramon). Read each field independently. Never substitute drain, "
+                "Mastery Rank or polarity for upgrade rank. Use null for any unreadable field.",
             )
         # ★ 2026-10-07（维护者裁定）：紫卡这一路**不竞速**（单渠道，`k=2` 退化为单发）。
         #   起因：`zhipu/glm-4v-flash` 把「冰凇」**稳定**读成「冰松」（5/5 全错）且它最快
@@ -884,6 +911,7 @@ class VisionCommands:
                     tag="紫卡识别",
                     window=self.RACE_WINDOW_S,
                     task="riven_json",
+                    **properties_prompt,
                 ),
                 self._vision_race_json(
                     self._RIVEN_LINE_PROMPT,
@@ -988,7 +1016,26 @@ class VisionCommands:
                 if not isinstance(recognition, dict):
                     recognition = out["_recognition"] = {}
                 recognition["line_read"] = copy.deepcopy(line_recognition)
+        if read_properties:
+            out["_single_card_pips"] = await VisionCommands._detect_single_card_pips(image_url)
         return out
+
+    @staticmethod
+    async def _detect_single_card_pips(image_url: str) -> int | None:
+        from PIL import Image
+
+        def detect():
+            from io import BytesIO
+
+            from ..local_ocr import decode_image_data_url
+
+            with Image.open(BytesIO(decode_image_data_url(image_url))) as image:
+                return pips_engine.detect_single_card_pips(image)
+
+        try:
+            return await asyncio.to_thread(detect)
+        except (ValueError, OSError, Image.DecompressionBombError):
+            return None
 
     @staticmethod
     async def _detect_pips(image_url: str) -> list:

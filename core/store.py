@@ -242,6 +242,7 @@ class GroupStore(JsonStore):
 
 
 _STAT_OUTCOMES = ("success", "error", "api_error", "no_reply")
+_LEGACY_STAT_BUCKETS = 18
 _STAT_LATENCY_MS = (
     1,
     5,
@@ -271,7 +272,7 @@ _STAT_LATENCY_MS = (
 
 
 class CommandStats(JsonStore):
-    """UTC 日桶，仅保存指令键、结果计数与处理器耗时直方图。"""
+    """UTC 日桶，保存指令键、结果计数、处理器耗时直方图与累计耗时。"""
 
     def __init__(self, path: Path, commands: Iterable[str]):
         super().__init__(path)
@@ -298,11 +299,19 @@ class CommandStats(JsonStore):
                     isinstance(counts, list)
                     and len(counts) == len(_STAT_OUTCOMES)
                     and isinstance(hist, list)
-                    and len(hist) == len(_STAT_LATENCY_MS)
+                    and len(hist) in (_LEGACY_STAT_BUCKETS, len(_STAT_LATENCY_MS))
                     and all(type(n) is int and n >= 0 for n in counts + hist)
                     and sum(counts) == sum(hist)
                 ):
-                    entries[command] = {"counts": counts, "hist": hist}
+                    total_ms = row.get("total_ms")
+                    if type(total_ms) not in (int, float) or not 0 <= total_ms < math.inf:
+                        total_ms = None if sum(counts) else 0.0
+                    # 旧日桶只用了前 18 档。保留原计数，补空的高耗时档。
+                    entries[command] = {
+                        "counts": counts,
+                        "hist": hist + [0] * (len(_STAT_LATENCY_MS) - len(hist)),
+                        "total_ms": total_ms,
+                    }
             if entries:
                 clean[day] = entries
         self._revision = int(clean != self._data)
@@ -337,10 +346,13 @@ class CommandStats(JsonStore):
             row = rows[command] = {
                 "counts": [0] * len(_STAT_OUTCOMES),
                 "hist": [0] * len(_STAT_LATENCY_MS),
+                "total_ms": 0.0,
             }
         row["counts"][_STAT_OUTCOMES.index(outcome)] += 1
         bucket = min(bisect_left(_STAT_LATENCY_MS, elapsed_ms), len(_STAT_LATENCY_MS) - 1)
         row["hist"][bucket] += 1
+        if row["total_ms"] is not None:
+            row["total_ms"] += elapsed_ms
         self._revision += 1
 
     async def flush(self, *, force: bool = False) -> None:
@@ -359,13 +371,19 @@ class CommandStats(JsonStore):
             self._saved_revision = revision
 
     @staticmethod
-    def _percentile(hist: list[int], fraction: float) -> int:
-        rank = math.ceil(sum(hist) * fraction)
+    def _percentile(hist: list[int], fraction: float) -> float:
+        size = sum(hist)
+        if not size:
+            return 0.0
+        # 把每个样本放在其秩区间中央，单样本桶取中点，再按桶宽线性插值。
+        rank = 0.5 + (size - 1) * fraction
+        lower = 0
         for upper, count in zip(_STAT_LATENCY_MS, hist):
+            if rank <= count:
+                return lower + (upper - lower) * rank / count
             rank -= count
-            if rank <= 0:
-                return upper
-        return _STAT_LATENCY_MS[-1]
+            lower = upper
+        return float(lower)
 
     def summary(self, days: int, now: Optional[float] = None) -> list[dict]:
         now = time.time() if now is None else now
@@ -374,13 +392,17 @@ class CommandStats(JsonStore):
         for day, rows in self._data.items():
             if first <= day <= last:
                 for command, row in rows.items():
+                    total_ms = row["total_ms"]
                     if command not in totals:
-                        totals[command] = (row["counts"].copy(), row["hist"].copy())
+                        totals[command] = (row["counts"], row["hist"], total_ms)
                     else:
-                        counts, hist = totals[command]
+                        counts, hist, previous_ms = totals[command]
                         totals[command] = (
                             [a + b for a, b in zip(counts, row["counts"])],
                             [a + b for a, b in zip(hist, row["hist"])],
+                            previous_ms + total_ms
+                            if previous_ms is not None and total_ms is not None
+                            else None,
                         )
         return sorted(
             (
@@ -388,10 +410,11 @@ class CommandStats(JsonStore):
                     "command": command,
                     "count": sum(counts),
                     **dict(zip(_STAT_OUTCOMES, counts)),
+                    "avg_ms": total_ms / sum(counts) if total_ms is not None else None,
                     "p50_ms": self._percentile(hist, 0.50),
                     "p95_ms": self._percentile(hist, 0.95),
                 }
-                for command, (counts, hist) in totals.items()
+                for command, (counts, hist, total_ms) in totals.items()
                 if sum(counts)
             ),
             key=lambda row: (-row["count"], row["command"]),

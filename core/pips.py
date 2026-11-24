@@ -34,12 +34,16 @@
 
 from __future__ import annotations
 
+import math
+import re
 from collections import Counter
 from functools import lru_cache
+from io import BytesIO
 from itertools import product
+from pathlib import Path
 from typing import Optional
 
-from PIL import Image, ImageChops
+from PIL import Image, ImageChops, ImageFilter, ImageOps, ImageStat
 
 # ---- 判据（相对 pitch，不写死像素；括号内为 1920×1080 实测值）----
 MASK_B_MIN = 140  # 蓝通道下限
@@ -125,6 +129,25 @@ def _find_bands(rowcount, min_h=ROW_MIN_H, frac=ROW_FRAC):
     return merged
 
 
+def _rank_bands(rowcount, width):
+    """去除顶边标题栏，再以剩余像素的峰值判定等级线。"""
+    bands = _find_bands(rowcount)
+    excluded = [
+        (top, bottom)
+        for top, bottom in bands
+        if (top + bottom) / 2 < len(rowcount) * 0.08
+        and (
+            bottom - top + 1 > 14 * width / 1920
+            or (top <= 2 and max(rowcount[top : bottom + 1]) > width * 0.4)
+        )
+    ]
+    if not excluded:
+        return bands
+    for top, bottom in excluded:
+        rowcount[top : bottom + 1] = [0] * (bottom - top + 1)
+    return _find_bands(rowcount)
+
+
 def _col_thickness(mask, y0, y1):
     W = mask.width
     bb = mask.crop((0, y0, W, y1)).tobytes()
@@ -146,6 +169,285 @@ def _contig(xs, gap, min_w):
     if cur[1] - cur[0] + 1 >= min_w:
         out.append(tuple(cur))
     return out
+
+
+def _centered_pips(runs, width):
+    if len(runs) != 8:
+        return None
+    centers = [(left + right) / 2 for left, right in runs]
+    gaps = [b - a for a, b in zip(centers, centers[1:])]
+    pitch = (centers[-1] - centers[0]) / len(gaps)
+    if (
+        abs(_median(centers) - (width - 1) / 2) <= width * 0.08
+        and 5 <= pitch <= width * 0.092
+        and all(abs(gap - pitch) <= max(1.2, pitch * 0.15) for gap in gaps)
+        and all(2 <= right - left + 1 <= round(0.8 * pitch) for left, right in runs)
+    ):
+        return pitch
+    return None
+
+
+def _full_rank_pip_row(outline, red, green, blue):
+    # 满级发光横线会连起刻度。八个亮芯需在邻近的两条扫描行上对齐。
+    blue_cores = ImageChops.multiply(
+        outline,
+        ImageChops.multiply(
+            green.point(lambda v: 255 if v >= 205 else 0),
+            blue.point(lambda v: 255 if v >= 230 else 0),
+        ),
+    )
+    pale_cores = ImageChops.multiply(
+        ImageChops.subtract(blue, red).point(lambda v: 255 if v >= 5 else 0),
+        ImageChops.multiply(
+            green.point(lambda v: 255 if v >= 200 else 0),
+            blue.point(lambda v: 255 if v >= 225 else 0),
+        ),
+    )
+    bright = ImageChops.lighter(blue_cores, pale_cores)
+    width, height = bright.size
+    pixels = bright.tobytes()
+    matches = []
+    for y in range(round(height * 0.20), height):
+        row = pixels[y * width : (y + 1) * width]
+        runs = _contig((x for x, v in enumerate(row) if v), gap=1, min_w=2)
+        if match := _centered_bright_cores(runs, width):
+            matches.append((y, *match))
+    agreeing = [
+        (y, pitch)
+        for (y, pitch, centers), (next_y, _, next_centers) in zip(matches, matches[1:])
+        if 0 < next_y - y <= max(2, pitch / 3)
+        and all(abs(a - b) < pitch * 0.2 for a, b in zip(centers, next_centers))
+    ]
+    return bool(agreeing and agreeing[-1][0] - agreeing[0][0] <= max(4, agreeing[0][1] * 0.65))
+
+
+def _centered_bright_cores(runs, width):
+    # 保留小亮芯；发光细线留下窄反光时，再用同一行较宽的亮芯确认。
+    for candidates in (runs, [(left, right) for left, right in runs if right - left >= 2]):
+        centers = [(left + right) / 2 for left, right in candidates]
+        for start in range(len(candidates) - 7):
+            end = start + 8
+            if not (pitch := _centered_pips(candidates[start:end], width)):
+                continue
+            # 两张邻卡的刻度若恰好接成一行，不能取中间八颗当作一张卡。
+            if (start and abs(centers[start] - centers[start - 1] - pitch) <= pitch * 0.15) or (
+                end < len(candidates)
+                and abs(centers[end] - centers[end - 1] - pitch) <= pitch * 0.15
+            ):
+                continue
+            return pitch, centers[start:end]
+    return None
+
+
+_POLARITY_ICON_DIR = Path(__file__).parent / "data" / "icons" / "polarity"
+_POLARITY_NAMES = ("madurai", "naramon", "vazarin")
+_DRAIN_ROW = re.compile(r"(?:(?:drain|capacity|容量|消耗)\s*[:：]?\s*)?[0-9]{1,2}", re.I)
+_POLARITY_SCORE = 0.72
+_POLARITY_MARGIN = 0.12
+_POLARITY_NEIGHBORS = tuple((dx, dy) for dx, dy in product((-1, 0, 1), repeat=2) if dx or dy)
+
+
+def _normalized_polarity(mask):
+    return mask.resize((24, 24), Image.Resampling.BILINEAR).tobytes()
+
+
+@lru_cache(maxsize=1)
+def _polarity_templates():
+    templates = {}
+    for name in _POLARITY_NAMES:
+        with Image.open(_POLARITY_ICON_DIR / f"{name}.png") as icon:
+            mask = icon.convert("RGBA").getchannel("A").point(lambda value: 255 * (value >= 128))
+        bounds = mask.getbbox()
+        if bounds is None:
+            raise ValueError("空的极性模板")
+        mask = mask.crop(bounds)
+        templates[name] = (mask.width / mask.height, _normalized_polarity(mask))
+    return templates
+
+
+def _polarity_search_regions(size, observed):
+    width, height = size
+    raw = observed.get("raw") or {}
+    scale_x = width / (raw.get("width") or width)
+    scale_y = height / (raw.get("height") or height)
+    region = (observed.get("candidate") or {}).get("region")
+    left, top, right, bottom = (0, 0, width, height)
+    if region:
+        x0, y0, x1, y1 = region
+        left, top, right, bottom = x0 * scale_x, y0 * scale_y, x1 * scale_x, y1 * scale_y
+    card_width = right - left
+    # 本地候选框包围标题和词条，容量徽标可能在候选框上方。
+    search = (
+        left + 0.50 * card_width,
+        max(0, top - 0.70 * card_width),
+        min(width, right + 0.12 * card_width),
+        top + 0.30 * (bottom - top),
+    )
+    anchors = []
+    for row in raw.get("rows", ()):
+        quad = row.get("quad")
+        if not quad or not _DRAIN_ROW.fullmatch(str(row.get("text", "")).strip()):
+            continue
+        xs, ys = zip(*quad, strict=True)
+        x0, x1 = min(xs) * scale_x, max(xs) * scale_x
+        y0, y1 = min(ys) * scale_y, max(ys) * scale_y
+        span = y1 - y0
+        if (
+            search[0] <= x1 <= search[2]
+            and search[1] <= (y0 + y1) / 2 <= search[3]
+            and 5 <= span <= 0.14 * height
+            and 0 < x1 - x0 <= 3 * span
+        ):
+            anchors.append(
+                ((x1 - 0.14 * span, y0 - 0.35 * span, x1 + 1.75 * span, y1 + 0.35 * span), span)
+            )
+    return anchors or [(search, None)]
+
+
+def _polarity_components(mask):
+    width = mask.width
+    pending = {(i % width, i // width) for i, value in enumerate(mask.tobytes()) if value}
+    while pending:
+        component = [pending.pop()]
+        for x, y in component:
+            for dx, dy in _POLARITY_NEIGHBORS:
+                neighbor = x + dx, y + dy
+                if neighbor in pending:
+                    pending.remove(neighbor)
+                    component.append(neighbor)
+        xs, ys = zip(*component)
+        yield min(xs), min(ys), max(xs) + 1, max(ys) + 1
+
+
+def _has_drain_neighbor(box, components):
+    left, top, _, bottom = box
+    height = bottom - top
+    return any(
+        0 <= left - x1 <= 1.2 * height
+        and 0.65 * height <= y1 - y0 <= 2.8 * height
+        and 0.19 * (y1 - y0) <= x1 - x0 <= 1.3 * (y1 - y0)
+        and abs(y0 + y1 - top - bottom) <= 0.70 * height
+        for x0, y0, x1, y1 in components
+    )
+
+
+def _sharp_polarity(crop, mask):
+    core = mask.filter(ImageFilter.MinFilter(3))
+    inner_edge = ImageChops.subtract(mask, core)
+    outer_edge = ImageChops.subtract(mask.filter(ImageFilter.MaxFilter(3)), mask)
+    ink = ImageStat.Stat(crop, mask).mean[0]
+    background = ImageStat.Stat(crop, ImageOps.invert(mask)).median[0]
+    edge_jump = ImageStat.Stat(crop, inner_edge).mean[0] - ImageStat.Stat(crop, outer_edge).mean[0]
+    contrast = ink - background
+    # 模糊图的阈值轮廓也可能相似，要求边缘保留足够的亮度跃变。
+    return contrast >= 55 and edge_jump >= max(22, 0.36 * contrast)
+
+
+def _polarity_scores(brightness, digit_height, templates, scores):
+    # 多个亮度层分离徽标底色。连通前景紧裁后统一尺度，保留原始纵横比参与匹配。
+    for threshold in (90, 130, 170, 210, 235):
+        mask = brightness.point(lambda value: 255 * (value >= threshold))
+        components = list(_polarity_components(mask))
+        for left, top, right, bottom in components:
+            width, height = right - left, bottom - top
+            if not (
+                0 < left < right < mask.width
+                and 0 < top < bottom < mask.height
+                and min(width, height) >= 6
+                and 0.42 <= width / height <= 2.8
+            ):
+                continue
+            if digit_height is not None:
+                if not 0.35 * digit_height <= height <= 1.5 * digit_height:
+                    continue
+            elif max(width, height) > 0.27 * mask.width or not _has_drain_neighbor(
+                (left, top, right, bottom), components
+            ):
+                continue
+            shape = _normalized_polarity(mask.crop((left, top, right, bottom)))
+            shape_sum = sum(shape)
+            matches = {}
+            for name, (aspect, template) in templates.items():
+                ratio = width / height / aspect
+                intersection = sum(min(a, b) for a, b in zip(shape, template, strict=True))
+                union = shape_sum + sum(template) - intersection
+                matches[name] = intersection / union * min(ratio, 1 / ratio) ** 0.45
+            if max(matches.values()) < _POLARITY_SCORE - _POLARITY_MARGIN:
+                continue
+            bounds = (left - 2, top - 2, right + 2, bottom + 2)
+            if _sharp_polarity(brightness.crop(bounds), mask.crop(bounds)):
+                for name, score in matches.items():
+                    scores[name] = max(scores[name], score)
+
+
+def detect_single_card_polarity(image_bytes: bytes, observed: dict | None = None) -> str | None:
+    """用单张紫卡容量徽标旁的图案判定极性，证据不足时留空。"""
+    try:
+        templates = _polarity_templates()
+        with Image.open(BytesIO(image_bytes)) as source:
+            image = ImageOps.exif_transpose(source)
+        scores = dict.fromkeys(templates, 0.0)
+        for bounds, digit_height in _polarity_search_regions(image.size, observed or {}):
+            x0, y0, x1, y1 = map(round, bounds)
+            crop = image.crop((max(x0, 0), max(y0, 0), min(x1, image.width), min(y1, image.height)))
+            if min(crop.size) < 8:
+                continue
+            scale = min(1, 360 / max(crop.size))
+            crop.thumbnail((360, 360), Image.Resampling.LANCZOS)
+            brightness = crop.convert("HSV").getchannel("V")
+            _polarity_scores(
+                brightness, digit_height * scale if digit_height else None, templates, scores
+            )
+    except (AttributeError, OSError, TypeError, ValueError, Image.DecompressionBombError):
+        return None
+    (name, best), (_, runner_up), _ = sorted(scores.items(), key=lambda pair: -pair[1])
+    return name if best >= _POLARITY_SCORE and best - runner_up >= _POLARITY_MARGIN else None
+
+
+def detect_single_card_pips(image: Image.Image) -> int | None:
+    """单卡底部仅在完整八颗刻度都可定位时返回亮点数。"""
+    if min(image.size) < 100:
+        return None
+    footer = image.crop((0, round(image.height * 0.65), image.width, image.height)).convert("RGB")
+    footer.thumbnail((1000, 800))
+    r, g, b = footer.split()
+    # 暗点也须保留轮廓，用独立的亮蓝掩码判断是否点亮。
+    outline = ImageChops.multiply(
+        ImageChops.subtract(g, r).point(lambda v: 255 if v >= 12 else 0),
+        ImageChops.subtract(b, g).point(lambda v: 255 if v >= 8 else 0),
+    )
+    outline = ImageChops.multiply(outline, b.point(lambda v: 255 if v >= 65 else 0))
+    lit = lit_mask(footer)
+    width, height = footer.size
+    pixels = outline.tobytes()
+    row_counts = [pixels[y * width : (y + 1) * width].count(255) for y in range(height)]
+    candidates = []
+    for top, bottom in _find_bands(row_counts, frac=0.08):
+        height_of_band = bottom - top + 1
+        if not 5 <= height_of_band <= width * 0.08:
+            continue
+        thick = _col_thickness(outline, top, bottom + 1)
+        runs = _contig([i for i, n in enumerate(thick) if n >= 3], gap=1, min_w=3)
+        if not (pitch := _centered_pips(runs, width)):
+            continue
+        if not height_of_band * 0.9 <= pitch <= height_of_band * 2.4 or any(
+            not height_of_band * 0.4 <= right - left + 1 <= height_of_band * 1.3
+            or left == 0
+            or right == width - 1
+            for left, right in runs
+        ):
+            continue
+        bright = _col_thickness(lit, top, bottom + 1)
+        strength = [max(bright[left : right + 1]) for left, right in runs]
+        rank = sum(n >= height_of_band * 0.65 for n in strength)
+        if all(n >= height_of_band * 0.65 for n in strength[:rank]) and all(
+            n <= height_of_band * 0.3 for n in strength[rank:]
+        ):
+            candidates.append(rank)
+    full_rank = _full_rank_pip_row(outline, r, g, b)
+    if len(candidates) == 1 and (not full_rank or candidates[0] == 8):
+        return candidates[0]
+    return 8 if full_rank and not candidates else None
 
 
 def _count_in_cell(thick, cx, card_w, W):
@@ -253,7 +555,7 @@ def _scan(img):
     mb = mask.tobytes()
     rowcount = [mb[y * W : (y + 1) * W].count(255) for y in range(H)]
     out = []
-    for ra, rb in _find_bands(rowcount):
+    for ra, rb in _rank_bands(rowcount, W):
         pad = max(4, rb - ra)
         y0, y1 = max(0, ra - pad), min(H, rb + pad)
         thick = _col_thickness(mask, y0, y1)
@@ -291,7 +593,7 @@ def _rows_from_mask(img, mask, W, H):
     mb = mask.tobytes()
     rowcount = [mb[y * W : (y + 1) * W].count(255) for y in range(H)]
     rows = []
-    for ra, rb in _find_bands(rowcount):
+    for ra, rb in _rank_bands(rowcount, W):
         pad = max(4, rb - ra)
         y0, y1 = max(0, ra - pad), min(H, rb + pad)
         thick = _col_thickness(mask, y0, y1)
@@ -1261,52 +1563,58 @@ def _slot_capacity_badge(hsv: Image.Image, box: list[float]) -> dict:
 
 def count_arcane_rank(image: Image.Image, name_box: dict, *, slot_box=None) -> dict:
     """在名称框下或已核对的赋能槽下部读取五个菱形，轮廓不算点亮。"""
-    from PIL import ImageFilter
-
     result = {"source": "arcane_diamond_pixels", "rank": None, "reason": "unresolved"}
     width, height = image.size
     try:
-        if slot_box is not None:
-            left, top, right, bottom = map(float, slot_box)
-            if not (0 <= left < right <= 1 and 0 <= top < bottom <= 1):
-                return result
-            # 用已定位的槽底刻度区，排除名称上方的大图标。
-            span = bottom - top
-            text_height = span * 0.19 * height
-            bounds = (
-                int(left * width),
-                int((top + span * 0.654) * height),
-                int(right * width),
-                int(bottom * height),
-            )
-            result["anchor"] = "verified_arcane_slot"
-        else:
+        if name_box:
             x, y, h, w = [float(name_box[k]) / 1000 for k in ("x", "y", "h", "w")]
             if not (0 < x < 1 and 0 < y < 1 and 0 < h < 0.2 and 0 < w < 0.3):
                 return result
             text_height = h * height
-            bounds = (
-                max(0, int((x - w * 0.85) * width)),
-                max(0, int((y + h * 0.6) * height)),
-                min(width, int((x + w * 0.85) * width)),
-                min(height, int((y + h * 2.5) * height)),
-            )
+            half_width = max(w * 0.85, 4 * text_height / width)
+            region = (x - half_width, y + h * 0.45, x + half_width, y + h * 2.85)
+        if slot_box is not None:
+            left, top, right, bottom = map(float, slot_box)
+            if not (0 <= left < right <= 1 and 0 <= top < bottom <= 1):
+                return result
+            if name_box:
+                if not (left <= x <= right and top <= y <= bottom):
+                    return result
+                x0, y0, x1, y1 = region
+                region = (max(left, x0), max(top, y0), min(right, x1), min(bottom, y1))
+            else:
+                # 用已定位的槽底刻度区，排除名称上方的大图标。
+                span = bottom - top
+                text_height = span * 0.19 * height
+                region = (left, top + span * 0.55, right, bottom)
+            result["anchor"] = "verified_arcane_slot"
+        elif not name_box:
+            return result
     except (KeyError, TypeError, ValueError):
         return result
+    x0, y0, x1, y1 = region
+    bounds = (
+        max(0, int(x0 * width)),
+        max(0, int(y0 * height)),
+        min(width, math.ceil(x1 * width)),
+        min(height, math.ceil(y1 * height)),
+    )
     if bounds[2] <= bounds[0] or bounds[3] <= bounds[1]:
         return result
     crop = image.convert("RGB").crop(bounds)
     cw, ch = crop.size
+    background = _median(crop.convert("L").get_flattened_data())
 
     def warm(pixel):
         r, g, b = pixel
-        return r > 70 and g > 60 and r > b * 1.08 and g > b * 1.02 and r > g * 0.9
+        return r > g * 0.9 and (
+            (r > 70 and g > 60 and r > b * 1.08 and g > b * 1.02)
+            or (r - b >= 4 and g >= b - 2 and (r + 2 * g + b) / 4 >= background + 12)
+        )
 
     mask = Image.new("L", crop.size)
     mask.putdata([255 if warm(pixel) else 0 for pixel in crop.getdata()])
-    # 只有字高足够时做一像素闭合，避免小图的相邻菱形被粘成一块。
-    if text_height >= 24:
-        mask = mask.filter(ImageFilter.MaxFilter(3)).filter(ImageFilter.MinFilter(3))
+    # 保留相邻刻度之间的窄缝，闭合滤波会把靠得近的菱形粘成同一连通块。
     todo = {(xx, yy) for yy in range(ch) for xx in range(cw) if mask.getpixel((xx, yy))}
     boxes = []
     while todo:
@@ -1328,6 +1636,15 @@ def count_arcane_rank(image: Image.Image, name_box: dict, *, slot_box=None) -> d
             min(bw, bh) < max(5, text_height * 0.35)
             or not (0.6 <= bw / bh <= 1.4)
             or bh > text_height * 1.1
+            or left == 0
+            or top == 0
+            or right == cw - 1
+            or bottom == ch - 1
+            or any(
+                mask.getpixel((xx, yy))
+                for xx in (left + round(bw * 0.12), right - round(bw * 0.12))
+                for yy in (top + round(bh * 0.12), bottom - round(bh * 0.12))
+            )
         ):
             continue
         center = [
@@ -1359,9 +1676,11 @@ def count_arcane_rank(image: Image.Image, name_box: dict, *, slot_box=None) -> d
     centers = [(b["box"][0] + b["box"][2] / 2, b["box"][1] + b["box"][3] / 2) for b in boxes]
     heights = [b["box"][3] for b in boxes]
     pitch = _median([b[0] - a[0] for a, b in zip(centers, centers[1:])])
+    median_height = _median(heights)
     if (
-        max(c[1] for c in centers) - min(c[1] for c in centers) > _median(heights) * 0.3
-        or not _median(heights) * 0.9 < pitch < _median(heights) * 1.8
+        max(c[1] for c in centers) - min(c[1] for c in centers) > median_height * 0.38
+        or any(abs(h - median_height) > median_height * 0.23 for h in heights)
+        or not median_height * 0.9 < pitch < median_height * 1.8
         or any(abs(b[0] - a[0] - pitch) > pitch * 0.2 for a, b in zip(centers, centers[1:]))
     ):
         result["reason"] = "nonuniform_diamond_row"
@@ -1383,11 +1702,19 @@ def count_arcane_rank(image: Image.Image, name_box: dict, *, slot_box=None) -> d
 
 
 def equipment_tiles(
-    image: Image.Image, rows: list, layout: dict, *, melee: Optional[bool] = None, badges=False
+    image: Image.Image,
+    rows: list,
+    layout: dict,
+    *,
+    melee: Optional[bool] = None,
+    badges=False,
+    slot_ids=None,
 ) -> tuple:
     """由实际等级网格/侧槽生成独立裁图；不读取卡名、容量或测试答案。"""
     if melee is not None:
         candidates = upgrade_slots(image, rows, layout, melee=melee)
+        if slot_ids is not None:
+            candidates = [slot for slot in candidates if slot["id"] in slot_ids]
         return _render_slot_tiles(image, candidates, badges=badges)
 
     candidates = []

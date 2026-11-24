@@ -378,8 +378,9 @@ for toks, label in EDGE:
             flag.append("负伤害")
         if r["crit_cc"] < 0:
             flag.append(f"负暴率 {r['crit_cc']}")
-        if spec["level"] not in (0, 99999, 100):
-            flag.append(f"等级={spec['level']}")
+        expected_level = 0 if toks == ["0级"] else dc.DEFAULT_LEVEL
+        if spec["level"] != expected_level:
+            flag.append(f"等级={spec['level']}，期望 {expected_level}")
         print(
             f"  {label:16s} {'; '.join(flag) if flag else 'ok'}"
             f"   [pools={r['pools']} 等级={spec['level']}]"

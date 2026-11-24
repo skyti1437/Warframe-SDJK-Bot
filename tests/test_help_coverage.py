@@ -21,6 +21,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from core import damage_calc as dc  # noqa: E402
 from core import parser as P  # noqa: E402
 
 FAILED: list[str] = []
@@ -34,17 +35,35 @@ def check(name: str, cond: bool, detail: str = ""):
         FAILED.append(name)
 
 
+class ExpandTargetHelp(ast.NodeTransformer):
+    """帮助常量与两个指令的用法页共用。解析时保留独立运行，无需加载 AstrBot。"""
+
+    def visit_List(self, node):
+        expanded = []
+        for item in node.elts:
+            value = item.value if isinstance(item, ast.Starred) else None
+            if isinstance(value, ast.Attribute) and value.attr in {
+                "TARGET_HELP_ZH",
+                "TARGET_HELP_EN",
+            }:
+                expanded.extend(ast.Constant(line) for line in getattr(dc, value.attr))
+            else:
+                expanded.append(self.visit(item))
+        node.elts = expanded
+        return node
+
+
 def load_main_literal(name: str) -> dict:
     tree = ast.parse((ROOT / "main.py").read_text(encoding="utf-8"))
     for node in ast.walk(tree):
         if isinstance(node, ast.AnnAssign):
             tgt = node.target
             if isinstance(tgt, ast.Name) and tgt.id == name:
-                return ast.literal_eval(node.value)
+                return ast.literal_eval(ExpandTargetHelp().visit(node.value))
         if isinstance(node, ast.Assign):
             for t in node.targets:
                 if isinstance(t, ast.Name) and t.id == name:
-                    return ast.literal_eval(node.value)
+                    return ast.literal_eval(ExpandTargetHelp().visit(node.value))
     raise SystemExit(f"main.py 里没找到 {name}")
 
 
@@ -52,6 +71,34 @@ topic = load_main_literal("HELP_TOPIC")
 # 2026-10-11 卡片改版：伤害修饰词 / 群管理 / 平台说明从指令行挪进注脚（HELP_NOTES）。
 # 「主指令覆盖」「管理员标注」「修饰符照发」三条护栏的取材范围 = 指令行左列 + 注脚文本。
 notes = load_main_literal("HELP_NOTES")
+notes_en = load_main_literal("HELP_NOTES_EN")
+check(
+    "双语帮助列出标准靶、排行榜靶、难度和两组防御开关",
+    dc.TARGET_HELP_ZH == notes["伤害与配卡"][:3]
+    and dc.TARGET_HELP_EN == notes_en["Damage and Builds"][:3]
+    and all(
+        term in " ".join(dc.TARGET_HELP_ZH)
+        for term in ("标准靶", "170", "百夫长9999", "有超宏", "去超宏", "有盾", "无盾", "普通")
+    )
+    and all(
+        term in " ".join(dc.TARGET_HELP_EN)
+        for term in ("170", "sp9999", "overguard", "nooverguard", "shield", "noshield", "normal")
+    ),
+)
+check(
+    "双语帮助不显示内部靶标名，识卡指令注明实验阶段",
+    all(
+        word not in str(source)
+        for source in (topic, notes, notes_en, load_main_literal("HELP_TOPIC_EN"))
+        for word in ("三靶", "triple-target")
+    )
+    and sum("实验功能，默认关闭" in desc for _, desc in topic["伤害与配卡"]) == 2
+    and sum(
+        "experimental, off by default" in desc
+        for _, desc in load_main_literal("HELP_TOPIC_EN")["Damage and Builds"]
+    )
+    == 2,
+)
 note_texts = [n for ns in notes.values() for n in ns]
 lefts = [c for items in topic.values() for c, _ in items]
 blob = "\n".join(lefts + note_texts)
@@ -259,6 +306,19 @@ check(
 
 en_topic = load_main_literal("HELP_TOPIC_EN")
 en_notes = load_main_literal("HELP_NOTES_EN")
+check(
+    "中英文帮助注明词条推荐和配卡推荐的扩展模式",
+    any(
+        "词条推荐与配卡推荐" in line
+        and all(mode in line for mode in ("「灵化」", "「灵化形态」", "「重击」", "「震地」"))
+        for line in notes["伤害与配卡"]
+    )
+    and any(
+        "Reroll and build modes" in line
+        and all(mode in line for mode in ("cycle", "incarnon", "heavy", "slam"))
+        for line in en_notes["Damage and Builds"]
+    ),
+)
 en_commands = [
     segment.strip()
     for entries in en_topic.values()

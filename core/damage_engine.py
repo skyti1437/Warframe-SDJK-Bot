@@ -26,29 +26,19 @@ import httpx
 from . import damage_calc as dc
 from .cache import TTLCache
 from .i18n import L, is_en
-from .portable_install import MAX_BUNDLE_SIZE, download_file, download_inputs, unpack
+from .portable_install import PORTABLE_ASSETS, download_file, download_inputs, unpack
 from .request_queue import QueueUnavailable, RequestQueue, send_queue_position
 
 REPO = "https://github.com/skyti1437/warframe-damage-engine"
 RELEASE = "2419c5c76a83aae34428fafc5da2eee21ec16093"
 DEFAULT_URL = "http://127.0.0.1:8788"
-PORTABLE_FINGERPRINT = "85ec9cdb3461c01c"
+PORTABLE_FINGERPRINT = "535ed49f5a51149d"
 PORTABLE_DATA = "2026.08.13.13.24"
 PORTABLE_TAG = f"portable-{PORTABLE_FINGERPRINT}"
 PORTABLE_SOURCE_URL = f"{REPO}/tree/{PORTABLE_TAG}"
 PORTABLE_DOWNLOADS = (
     f"https://raw.githubusercontent.com/skyti1437/warframe-damage-engine/{PORTABLE_TAG}/downloads"
 )
-PORTABLE_ASSETS = {
-    "darwin-arm64": (
-        "portable-runtime-mac-arm64.zip",
-        "740041313e02c6bb728c066c9a1a84a6c7d7697da766afab5f40adb783aa5e87",
-    ),
-    "linux-x86_64": (
-        "portable-runtime-linux-x86_64.zip",
-        "1a527d2bddf6f854112e8af49dc6b100504a3cb57ff908e4fdbf375b781c2bf4",
-    ),
-}
 NAME = "warframe-damage-engine"
 SEARCH_PATH = "/api/compute/optimize"
 SEARCH_META_PATH = "/api/meta"
@@ -56,11 +46,16 @@ _VERSION = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+(?:[-+][a-zA-Z0-9.-]+)?\Z")
 _REVISION = re.compile(r"[0-9a-f]{40}\Z")
 _TARGET_FIELDS = {
     "enemy",
+    "enemy_miss",
     "faction",
     "level",
     "headshot",
     "steel_path",
     "base_armor",
+    "overguard",
+    "overguard_mode",
+    "shield_mode",
+    "combat_options",
     "fire_seconds",
     "heavy",
     "form",
@@ -75,6 +70,14 @@ class EngineError(ValueError):
 
 class EngineBuildError(EngineError):
     """引擎明确拒绝该配装。"""
+
+
+class EngineTimeout(EngineError):
+    """已连接引擎，等待结果超时。"""
+
+
+class EngineUnreachable(EngineError):
+    """无法连接本机引擎。"""
 
 
 class ScanReplayUnconfirmed(EngineError):
@@ -98,20 +101,29 @@ class PortableCombatScenario(TypedDict, total=False):
     incarnonCycle: bool
     distance: float
     nearestEnemyDistance: float
+    modelSpread: bool
     cloaked: bool
     triggerPolicy: Literal["emergent", "assumed_max"]
     combatState: dict[str, object]
+    detonationDelaySeconds: float
+    detonationBatchSize: int
 
 
 class PortableEnemyEnhancements(TypedDict, total=False):
     eximus: bool
     archimedea: bool
     empowered: bool
+    noOverguard: bool
+    shieldOverride: float | None
     playerCount: int
     magneticStacks: int
 
 
-class PortableAnalysisOptions(TypedDict, total=False):
+class PortableAutoExilus(TypedDict):
+    mode: Literal["auto"]
+
+
+class _PortableOptions(TypedDict, total=False):
     arcanes: list[PortableArcane]
     incarnonChoices: dict[str, str]
     innateElement: str
@@ -120,7 +132,40 @@ class PortableAnalysisOptions(TypedDict, total=False):
     scenario: PortableCombatScenario
 
 
-class PortableReplayOptions(PortableAnalysisOptions, total=False):
+class PortableBenchmarkTarget(TypedDict, total=False):
+    enemy: str
+    level: int
+    steelPath: bool
+    headshotChance: float
+    windowSeconds: float
+    enemyEnhancements: PortableEnemyEnhancements
+    damageModel: Literal["target", "custom"]
+    defenseSnapshot: dict
+
+
+def validate_benchmark_target(target):
+    if (
+        not isinstance(target, dict)
+        or target.keys() - PortableBenchmarkTarget.__optional_keys__
+        or not {
+            "enemy",
+            "level",
+            "steelPath",
+            "headshotChance",
+            "windowSeconds",
+            "enemyEnhancements",
+        }
+        <= target.keys()
+    ):
+        raise EngineError(L("靶标参数有误", "Invalid benchmark target"))
+
+
+class PortableAnalysisOptions(_PortableOptions, total=False):
+    exilus: PortableRankedEquipment | PortableAutoExilus
+    benchmarkTarget: PortableBenchmarkTarget
+
+
+class PortableReplayOptions(_PortableOptions, total=False):
     exilus: PortableRankedEquipment
     stancePath: str
     slotPolarities: list[str | None]
@@ -131,17 +176,158 @@ class PortableReplayOptions(PortableAnalysisOptions, total=False):
     forcedProcs: dict[str, float]
 
 
+def _field_error(label, zh, en):
+    return EngineError(L(f"{label} {zh}", f"{label} {en}"))
+
+
+def _bounded_number(value, *, low=0, high=None):
+    try:
+        return (
+            type(value) in (int, float)
+            and math.isfinite(value)
+            and value >= low
+            and (high is None or value <= high)
+        )
+    except OverflowError:
+        return False
+
+
+def _reject_custom_defense(values):
+    if values.get("base_armor") is not None:
+        raise _field_error(
+            L("基准护甲", "Base armor"),
+            "暂不支持手动覆盖",
+            "cannot be overridden in portable replay",
+        )
+    if values.get("overguard") is not None:
+        raise EngineError(
+            L(
+                "超宏防护 暂不支持手动覆盖，可用「有超宏」按敌人原生数值缩放",
+                'Overguard cannot be overridden in portable replay. Use "overguard" to scale the native pool.',
+            )
+        )
+
+
+def _validate_portable_context(values, *, analysis=False):
+    _reject_custom_defense(values)
+    if "benchmarkTarget" in values:
+        validate_benchmark_target(values["benchmarkTarget"])
+    scenario = values.get("scenario", {})
+    if not isinstance(scenario, dict) or scenario.keys() - PortableCombatScenario.__optional_keys__:
+        raise EngineError(
+            L("战斗条件含有未知选项或格式有误", "Unknown or malformed combat options")
+        )
+    for key, label in (
+        ("aiming", L("瞄准", "Aiming")),
+        ("heavyAttack", L("重击", "Heavy attack")),
+        ("incarnonCycle", L("灵化循环", "Incarnon cycle")),
+        ("cloaked", L("隐匿", "Cloaking")),
+        ("modelSpread", L("散布", "Spread modeling")),
+    ):
+        if key in scenario and type(scenario[key]) is not bool:
+            raise _field_error(label, "须为开启或关闭", "must be a boolean")
+    for key, label in (
+        ("distance", L("距离", "Distance")),
+        ("nearestEnemyDistance", L("最近敌人距离", "Nearest enemy distance")),
+        ("detonationDelaySeconds", L("引爆延迟", "Detonation delay")),
+    ):
+        if key in scenario and not _bounded_number(scenario[key]):
+            unit = L("秒", "seconds") if key == "detonationDelaySeconds" else L("米", "meters")
+            raise _field_error(
+                label, f"须为有限非负数（{unit}）", f"must be a finite nonnegative number in {unit}"
+            )
+    if "detonationBatchSize" in scenario and (
+        type(scenario["detonationBatchSize"]) is not int
+        or not 1 <= scenario["detonationBatchSize"] <= 8
+    ):
+        raise EngineError(
+            L("引爆批量须为 1–8 的整数", "Detonation batch size must be an integer from 1 to 8")
+        )
+    if "comboTier" in scenario and (
+        type(scenario["comboTier"]) is not int or not 0 <= scenario["comboTier"] <= 11
+    ):
+        raise _field_error(
+            L("连击档位", "Combo tier"), "须为 0–11 的整数", "must be an integer from 0 to 11"
+        )
+    if "triggerPolicy" in scenario and scenario["triggerPolicy"] not in ("emergent", "assumed_max"):
+        raise EngineError(L("触发策略有误", "Invalid trigger policy"))
+    state = scenario.get("combatState", {})
+    if not isinstance(state, dict):
+        raise EngineError(L("战斗状态格式有误", "Combat state must be an object"))
+    if "gaugeChargingHeadshots" in state and type(state["gaugeChargingHeadshots"]) is not bool:
+        raise _field_error(
+            L("攒条全弱点", "Weak-point charge"), "须为开启或关闭", "must be a boolean"
+        )
+    for key, label in (
+        ("armourStrip", L("剥甲比例", "Armor strip fraction")),
+        ("elementalArmourStrip", L("元素剥甲比例", "Elemental armor strip fraction")),
+        ("headshotChance", L("弱点命中率", "Weak-point hit chance")),
+    ):
+        if key in values and not _bounded_number(values[key], high=1):
+            raise _field_error(label, "须在 0–1 之间", "must be between 0 and 1")
+    if "innateElementValue" in values and not _bounded_number(
+        values["innateElementValue"], low=0.25, high=0.60
+    ):
+        raise _field_error(
+            L("固有元素数值", "Innate element value"),
+            "须为 0.25–0.60 的比例",
+            "must be a fraction between 0.25 and 0.60",
+        )
+    if "exilus" in values:
+        exilus = values["exilus"]
+        if analysis and exilus == {"mode": "auto"}:
+            return
+        if (
+            not isinstance(exilus, dict)
+            or exilus.keys() != {"path", "rank"}
+            or not _ranked_equipment(exilus)
+        ):
+            raise EngineError(L("扩展槽装备或等级有误", "Invalid Exilus equipment or rank"))
+
+
+def _ranked_equipment(item):
+    return (
+        isinstance(item, dict)
+        and isinstance(item.get("path"), str)
+        and bool(item["path"].strip())
+        and type(item.get("rank")) is int
+        and item["rank"] >= 0
+    )
+
+
 def _with_portable_options(request, options, contract):
     """合入内部已规范化字段，并保护武器、普通槽、目标和牌面等既有输入。"""
-    if not options:
-        return request
+    options = {} if options is None else options
+    if not isinstance(options, dict):
+        raise EngineError(L("引擎可选参数须为对象", "Engine options must be an object"))
+    _reject_custom_defense(options)
     if options.keys() - contract.__optional_keys__ or any(
         key in request and request[key] != value for key, value in options.items()
     ):
         raise EngineError(
             L("引擎可选参数与既定工况不符", "Engine options conflict with the request")
         )
-    return {**request, **options}
+    merged = {**request, **options}
+    _validate_portable_context(merged, analysis=contract is PortableAnalysisOptions)
+    if "arcanes" in merged:
+        arcanes = merged["arcanes"]
+        if (
+            not isinstance(arcanes, list)
+            or len(arcanes) > 4
+            or any(
+                not _ranked_equipment(row)
+                or row.keys()
+                - (PortableArcane.__required_keys__ | PortableArcane.__optional_keys__)
+                or ("stacks" in row and (type(row["stacks"]) is not int or row["stacks"] < 0))
+                or ("uptime" in row and not _bounded_number(row["uptime"], high=1))
+                for row in arcanes
+            )
+            or len({row["path"] for row in arcanes}) != len(arcanes)
+        ):
+            raise EngineError(
+                L("赋能装备、等级或层数有误", "Invalid Arcane equipment, rank, or stacks")
+            )
+    return merged
 
 
 def with_portable_analysis_options(request: dict, options: PortableAnalysisOptions | None = None):
@@ -152,10 +338,98 @@ def with_portable_replay_options(request: dict, options: PortableReplayOptions |
     return _with_portable_options(request, options, PortableReplayOptions)
 
 
+def with_gauge_charging_headshots(request):
+    scenario = request.get("scenario") or {}
+    target = request.get("benchmarkTarget", request)
+    state = scenario.get("combatState") or {}
+    if (
+        scenario.get("incarnonCycle")
+        and target.get("headshotChance", 0.0) < 1.0
+        and "gaugeChargingHeadshots" not in state
+    ):
+        return {
+            **request,
+            "scenario": {**scenario, "combatState": {**state, "gaugeChargingHeadshots": True}},
+        }
+    return request
+
+
+def weakpoint_target_option(tokens):
+    """读取「弱点 50%」一类参数，保留用户指定的零值。"""
+    for end in range(min(3, len(tokens)), 0, -1):
+        label = " ".join(tokens[:end])
+        if match := re.fullmatch(r"(?:弱点|weak[ -]?points?)\s*(\d+(?:\.\d+)?)\s*%", label):
+            chance = float(match[1]) / 100
+            if not _bounded_number(chance, high=1):
+                raise EngineError(
+                    L("弱点命中率须在 0–100% 之间", "Weak-point chance must be 0–100%")
+                )
+            return {"headshot": chance}, end
+    return {}, 0
+
+
 def portable_replay_fingerprint(request: dict) -> str:
     """给同引擎同配装的离线对照生成跨主机身份，包含所有已传装备和战斗参数。"""
     identity = json.dumps([PORTABLE_FINGERPRINT, request], sort_keys=True, allow_nan=False)
     return sha256(identity.encode()).hexdigest()
+
+
+def target_enhancements(spec) -> PortableEnemyEnhancements:
+    _reject_custom_defense(spec)
+    enhancements = {"eximus": False, "noOverguard": spec.get("overguard_mode") != "on"}
+    shield = dc.target_shield_override(
+        spec.get("enemy", dc.find_enemy_exact(dc.DEFAULT_ENEMY)), spec.get("shield_mode")
+    )
+    if shield is not None:
+        enhancements["shieldOverride"] = shield
+    return enhancements
+
+
+def portable_target_fields(enemy, spec):
+    return {
+        "enemy": enemy,
+        "level": spec["level"],
+        "steelPath": spec["steel_path"],
+        "headshotChance": float(spec["headshot"]),
+        "windowSeconds": spec["fire_seconds"],
+        "enemyEnhancements": target_enhancements(spec),
+    }
+
+
+def portable_target_enemy(spec, enemies):
+    if enemy := spec.get("enemy"):
+        paths = enemies.get(enemy["name"], ())
+        if len(paths) == 1:
+            return paths[0], {}
+        raise EngineError(L("该敌人暂无法精确匹配", "This enemy cannot be matched exactly"))
+
+    target, _ = _target(spec)
+    stats = target["stats"]
+    faction = {
+        "kuva_grineer": "RK_GRINEER_KUVA_FACTION",
+        "the_murmur": "RK_MITW_FACTION",
+        "scaldra": "RK_LASRIA_FACTION",
+        "techrot": "RK_PROTOINFESTED_FACTION",
+    }.get(target["faction"], f"RK_{target['faction'].upper()}_FACTION")
+    return "__custom_enemy__", {
+        "damageModel": "custom",
+        "defenseSnapshot": {
+            "health": stats["health"],
+            "armour": stats["armor"],
+            "shield": stats["shield"],
+            "baseLevel": stats["base_level"],
+            "healthType": "RK_HEALTH",
+            "armourType": "RK_ARMOR",
+            "shieldType": "RK_SHIELD",
+            "factionResistance": faction,
+        },
+    }
+
+
+def portable_defense_labels(enemy, enhancements):
+    return dc.defense_labels(
+        enemy, enhancements.get("noOverguard", True), enhancements.get("shieldOverride")
+    )
 
 
 def portable_damage_request(
@@ -168,24 +442,70 @@ def portable_damage_request(
     enemy_enhancements: PortableEnemyEnhancements | None = None,
     options: PortableReplayOptions | None = None,
 ):
-    return with_portable_replay_options(
+    _reject_custom_defense(spec)
+    if type(spec["level"]) is not int or spec["level"] < 0:
+        raise _field_error(
+            L("敌人等级", "Enemy level"), "须为非负整数", "must be a nonnegative integer"
+        )
+    if type(spec["steel_path"]) is not bool:
+        raise _field_error(L("钢铁之路", "Steel Path"), "须为开启或关闭", "must be a boolean")
+    if not isinstance(spec["headshot"], bool) and not _bounded_number(spec["headshot"], high=1):
+        raise _field_error(
+            L("弱点命中率", "Weak-point hit chance"), "须在 0–1 之间", "must be between 0 and 1"
+        )
+    if not _bounded_number(spec["fire_seconds"], low=0.1, high=600):
+        raise _field_error(
+            L("窗口时长", "Combat window"), "须为 0.1–600 秒", "must be 0.1–600 seconds"
+        )
+    if type(fire_mode) is not int or fire_mode < 0:
+        raise EngineError(L("射击模式索引有误", "Invalid fire mode index"))
+    manual = combat_replay_options(spec.get("combat_options") or {})
+    if options and "scenario" in manual and isinstance(options.get("scenario"), dict):
+        scenario = manual.pop("scenario")
+        if any(
+            key in scenario and scenario[key] != value for key, value in options["scenario"].items()
+        ):
+            raise EngineError(L("战斗条件重复且不一致", "Conflicting combat options"))
+        manual["scenario"] = {**scenario, **options["scenario"]}
+        options = {key: value for key, value in options.items() if key != "scenario"}
+    target = portable_target_fields(enemy, spec)
+    if enemy_enhancements is not None:
+        target["enemyEnhancements"].update(enemy_enhancements)
+    request = with_portable_replay_options(
         {
             "weapon": source,
             "fireMode": fire_mode,
-            "enemy": enemy,
-            "level": spec["level"],
-            "steelPath": spec["steel_path"],
-            "headshotChance": float(spec["headshot"]),
+            **target,
             "damageModel": "target",
-            "windowSeconds": spec["fire_seconds"],
             "metric": "windowedDps",
             "mods": mods,
-            "enemyEnhancements": {"eximus": False}
-            if enemy_enhancements is None
-            else enemy_enhancements,
+            **manual,
         },
         options,
     )
+    return with_gauge_charging_headshots(request)
+
+
+def combat_replay_options(fields):
+    fields = dict(fields)
+    if "weaponAiming" in fields:
+        # 工况在独立引擎的公开请求中使用 scenario.aiming。
+        fields["aiming"] = fields.pop("weaponAiming")
+    options = {}
+    for key in ("armourStrip", "elementalArmourStrip"):
+        if key in fields:
+            options[key] = fields.pop(key)
+    if fields:
+        options["scenario"] = fields
+    return options
+
+
+def replay_scenario(result):
+    return {
+        key: value
+        for key, value in (result or {}).items()
+        if key in PortableCombatScenario.__optional_keys__ and value is not None
+    }
 
 
 def full_enabled(cfg) -> bool:
@@ -207,7 +527,7 @@ def portable_asset():
 
 async def portable_request(port, path, body=None, *, timeout=12.0):
     if type(port) is not int or not 0 < port < 65536:
-        raise EngineError(L("请核对三靶引擎端口", "Check the triple-target engine port"))
+        raise EngineError(L("请核对独立引擎端口", "Check the standalone engine port"))
     try:
         async with httpx.AsyncClient(
             timeout=timeout, follow_redirects=False, trust_env=False
@@ -215,9 +535,23 @@ async def portable_request(port, path, body=None, *, timeout=12.0):
             url = f"http://127.0.0.1:{port}{path}"
             response = await (client.get(url) if body is None else client.post(url, json=body))
             result = response.json()
+    except (httpx.ConnectError, httpx.ConnectTimeout):
+        raise EngineUnreachable(
+            L("独立引擎未运行或无法连接", "The standalone engine is offline or unreachable")
+        ) from None
+    except httpx.TimeoutException:
+        raise EngineTimeout(
+            L(
+                "请求超时。首次计算较慢，结果可能仍在缓存中，请稍后重试。",
+                "Request timed out. The first calculation can take longer. Try again shortly for a cached result.",
+            )
+        ) from None
     except (httpx.HTTPError, ValueError):
         raise EngineError(
-            L("伤害计算暂时不可用", "Damage calculation is temporarily unavailable")
+            L(
+                "独立引擎响应异常，请重试",
+                "The standalone engine returned an invalid response. Try again.",
+            )
         ) from None
     if not response.is_success or not isinstance(result, dict):
         error = result.get("error") if isinstance(result, dict) else None
@@ -228,31 +562,64 @@ async def portable_request(port, path, body=None, *, timeout=12.0):
     return result
 
 
-def _fixed_inputs(weapon, spec, overrides):
+def find_catalog_weapon(catalog, weapon):
+    if row := catalog.get(weapon.get("uniqueName")):
+        return row
+    matches = [row for row in catalog.values() if row.get("nameEn") == weapon.get("name")]
+    return matches[0] if len(matches) == 1 else None
+
+
+def _equipment_match(item, names):
+    path = item.get("_source_unique_name")
+    if path:
+        for rows in names.values():
+            for row in rows:
+                if row["path"] == path:
+                    return row
+    matches = names.get(item["name"], ())
+    return matches[0] if len(matches) == 1 else None
+
+
+def catalog_equipment(item, names, label):
+    row = _equipment_match(item, names)
+    rank = item.get("rank", item.get("max_rank"))
+    if row and _ranked_equipment({"path": row["path"], "rank": rank}) and rank <= row["maxRank"]:
+        return {"path": row["path"], "rank": rank}
+    name = item["name"] if is_en() else item.get("zh") or item["name"]
+    raise EngineError(
+        L(
+            f"引擎卡库无法确认{label}「{name}」及其等级",
+            f"The engine catalog cannot confirm {label} {name} at this rank",
+        )
+    )
+
+
+def _fixed_inputs(weapon, spec, overrides, equipment):
     scanned = overrides is not None and "loadout_slots" in spec
-    if scanned:
-        check_options(
-            spec, {k: v for k, v in overrides.items() if k not in {"evo_keys", "form_word"}}
-        )
-    else:
-        check_options(spec, overrides)
-    source = weapon.get("uniqueName")
+    _reject_custom_defense(spec)
+    checked_overrides = (
+        {k: v for k, v in overrides.items() if k not in {"evo_keys", "form_word"}}
+        if scanned
+        else overrides
+    )
+    check_options(spec, checked_overrides, portable=True, weapon=weapon)
+    melee = weapon.get("category") == "Melee"
     if (
-        not source
-        or weapon.get("_panel_derived")
-        or weapon.get("category") == "Melee"
+        weapon.get("_panel_derived")
+        or (scanned and melee)
         or weapon["name"].startswith(("Kuva ", "Tenet ", "Coda "))
-        or spec.get("form")
-        not in (
-            {None, "keep", "base", "incarnon", "alt_fire"} if scanned else {None, "keep", "base"}
+        or spec.get("form") not in {None, "keep", "base", "incarnon", "alt_fire"}
+        or (
+            (
+                spec.get("stance")
+                or spec.get("heavy")
+                or spec.get("combo_hits")
+                or "comboTier" in (spec.get("combat_options") or {})
+            )
+            and not melee
         )
-        or (spec.get("arcanes") and not scanned)
-        or spec.get("stance")
         or spec.get("deployment")
         or spec.get("lich_bonus")
-        or spec.get("heavy")
-        or (spec.get("evo_keys") and not scanned)
-        or spec.get("base_armor") is not None
         or spec.get("errors")
         or spec.get("enemy_miss")
     ):
@@ -262,9 +629,6 @@ def _fixed_inputs(weapon, spec, overrides):
                 "These items or fight options are outside fixed replay",
             )
         )
-
-    if not spec.get("enemy") and not (scanned and spec.get("faction") == "Grineer"):
-        raise EngineError(L("固定复算需要指定敌人", "Fixed replay requires a named enemy"))
 
     if overrides is not None:
         slots = spec.get("confirmed_replay_slots")
@@ -278,64 +642,150 @@ def _fixed_inputs(weapon, spec, overrides):
         items = slots
     else:
         items = enumerate(spec["mods"])
-    mods = []
+    mods, options = [], {}
     for slot, mod in items:
+        if overrides is None and mod.get("compat") == "Stance":
+            stance = _equipment_match(mod, equipment.get("stances", {}))
+            if not stance or "stancePath" in options:
+                raise EngineError(
+                    L("请填写一张引擎支持的架势", "Specify a single supported stance")
+                )
+            options["stancePath"] = stance["path"]
+            continue
+        if overrides is None and _equipment_match(mod, equipment.get("utilityMods", {})):
+            if "exilus" in options:
+                raise EngineError(L("扩展槽最多一张 MOD", "Use at most one Exilus MOD"))
+            options["exilus"] = catalog_equipment(
+                mod, equipment["utilityMods"], L("扩展槽", "Exilus MOD")
+            )
+            continue
         path = mod.get("_source_unique_name")
         rank = mod.get("rank")
         if rank is None and overrides is None:
             rank = mod.get("max_rank")
+        if not path:
+            # 部分随包条目有精确身份和容量数据，但缺 DE 路径。只接收目录中唯一同身份条目。
+            matched = {
+                row["path"]
+                for row in equipment.get("manualMods", {}).get(mod["name"], ())
+                if row.get("baseDrain") == mod["base_drain"]
+                and row.get("maxRank") == mod["max_rank"]
+                and row.get("polarity") == _REPLAY_POLARITIES.get(mod.get("polarity"))
+            }
+            if len(matched) == 1:
+                path = matched.pop()
         if not path or type(rank) is not int or not 0 <= rank <= mod["max_rank"]:
             raise EngineError(
                 L("有 MOD 的身份或等级无法确认", "A MOD identity or rank is unconfirmed")
             )
-        mods.append({"slot": slot, "path": path, "rank": rank})
+        mods.append({"slot": len(mods) if overrides is None else slot, "path": path, "rank": rank})
     if len(mods) > 8 or len({row["path"] for row in mods}) != len(mods):
         raise EngineError(
             L("普通槽位最多八张且 MOD 不得重复", "Use up to eight distinct regular MODs")
         )
-    return source, mods
+    if overrides is None:
+        if spec.get("arcanes"):
+            options["arcanes"] = [
+                catalog_equipment(arc, equipment.get("arcanes", {}), L("赋能", "Arcane"))
+                for arc in spec["arcanes"]
+            ]
+        scenario = {}
+        if spec.get("heavy"):
+            scenario["heavyAttack"] = True
+        if spec.get("combo_hits"):
+            if "comboTier" in (spec.get("combat_options") or {}):
+                raise EngineError(
+                    L("连击数和档位请选择一种", "Specify either combo hits or combo tier")
+                )
+            tier, _ = dc.combo_multiplier(spec["combo_hits"])
+            scenario["comboTier"] = int(tier) - 1
+        if scenario:
+            options["scenario"] = scenario
+    return mods, options
 
 
-async def portable_catalog(service, port):
-    weapons, enemies, _ = await _portable_catalog(service, port)
+async def portable_catalog(service, port, *, include_unavailable=False):
+    if include_unavailable:
+        weapons, enemies, _ = await _portable_catalog(service, port, include_unavailable=True)
+    else:
+        weapons, enemies, _ = await _portable_catalog(service, port)
     return weapons, enemies
 
 
-async def _portable_catalog(service, port):
+async def _portable_catalog(service, port, *, include_unavailable=False):
     async def fetch():
         result = await portable_request(port, "/api/catalog", timeout=8)
         if result.get("buildLabel") != PORTABLE_DATA or result.get("schemaVersion") != 3:
             raise EngineError(
-                L("本机三靶引擎数据版本不匹配", "The local engine data version does not match")
+                L(
+                    "本机独立引擎数据版本不匹配",
+                    "The local standalone engine data version does not match",
+                )
             )
-        # 只保留指令需要的武器及敌人身份。
+        catalog = {row["path"]: row for row in result["weapons"]}
+        fields = (
+            "path",
+            "nameEn",
+            "nameZh",
+            "weaponType",
+            "fireModes",
+            "polarities",
+            "incarnon",
+            "available",
+            "buildAvailable",
+            "analysisAvailable",
+            "compatTags",
+        )
+        # 目录也会导出镜像敌人的同名武器，玩家输入应命中它继承的原武器。
         weapons = {
-            row["path"]: {
-                key: row[key]
-                for key in ("path", "nameEn", "fireModes", "polarities", "incarnon")
-                if key in row
-            }
-            for row in result["weapons"]
-            if row.get("available") and row.get("buildAvailable")
+            path: {key: row[key] for key in fields if key in row}
+            for path, row in catalog.items()
+            if not (
+                "doppelganger" in row.get("nameInternal", "").casefold()
+                and any(
+                    parent != path and catalog.get(parent, {}).get("nameEn") == row["nameEn"]
+                    for parent in row.get("ancestry", ())
+                )
+            )
         }
         enemies = {}
         for row in result["enemies"]:
             if row.get("complete") and row.get("scalingSupported"):
                 enemies.setdefault(row["nameEn"], []).append(row["path"])
-        equipment = {"utilityMods": {}, "arcanes": {}}
+        riven_stats = {
+            kind: {stat["code"]: stat for stat in stats}
+            for kind, stats in result.get("statsByType", {}).items()
+        }
+        for path, row in weapons.items():
+            stats = riven_stats.get(catalog[path].get("rivenType"), {})
+            row["referenceRivenBases"] = {
+                stat["code"]: stat["baseValue"]
+                for stat in stats.values()
+                if stat.get("canPositive") and stat.get("code") in ("0", "1", "2")
+            }
+            if stats and row.get("weaponType") != "companion":
+                row["rivenStats"] = stats
+        equipment = {"utilityMods": {}, "arcanes": {}, "manualMods": {}, "stances": {}}
         for kind, names in equipment.items():
             for row in result.get(kind, ()):
                 if row.get("nameEn") and row.get("path"):
                     names.setdefault(row["nameEn"], []).append(
                         {
                             key: row[key]
-                            for key in ("path", "maxRank", "drain", "polarity")
+                            for key in ("path", "maxRank", "baseDrain", "drain", "polarity")
                             if key in row
                         }
                     )
         return weapons, enemies, equipment
 
-    return await service.portable_catalog.get_or_fetch(str(port), 600, fetch)
+    weapons, enemies, equipment = await service.portable_catalog.get_or_fetch(str(port), 600, fetch)
+    if not include_unavailable:
+        weapons = {
+            path: row
+            for path, row in weapons.items()
+            if row.get("available") and row.get("buildAvailable")
+        }
+    return weapons, enemies, equipment
 
 
 _REPLAY_POLARITIES = {
@@ -430,14 +880,16 @@ def _matches_scan_panel(observed, stats):
             return False
         if abs(value * multiplier - observed[key]) > tolerance:
             return False
-    rows = observed.get("damage_types", {})
-    if len(rows) < 2:
+    # 0 值分项不提供组成证据，且部分模式只有一种有效伤害。
+    rows = {key: value for key, value in observed.get("damage_types", {}).items() if value > 0}
+    if not rows:
         return True
     damage = {}
     for key, value in (stats.get("damageTypes") or {}).items():
         if value > 0:
             name = key.removeprefix("DT_").lower()
-            damage[_PANEL_TYPE_ALIASES.get(name, name)] = value
+            name = _PANEL_TYPE_ALIASES.get(name, name)
+            damage[name] = damage.get(name, 0) + value
     if not rows.keys() <= damage.keys():
         return False
     # 截图可裁掉下方若干伤害行，只比较双方均有的分项比例。
@@ -468,6 +920,13 @@ def _scan_mode_matches(mode, form):
             mode.get("isIncarnonForm") or mode.get("isAlternateFire")
         )
     return True
+
+
+_SCAN_SECTION_FORMS = {
+    "primary_fire": "base",
+    "secondary_fire": "alt_fire",
+    "incarnon": "incarnon",
+}
 
 
 def _scan_context_candidates(catalog_weapon, spec):
@@ -571,7 +1030,19 @@ async def _resolve_scan_context(service, port, request, catalog_weapon, spec):
     panel = spec.get("scan_panel") or {}
     if sum(key in panel for key in _SCAN_PANEL_FIELDS) < 2:
         raise _scan_context_message([], modes, tiers, catalog_weapon, few_reads=True)
-    if len(modes) * math.prod(map(len, alternatives)) > 48:
+    observed_form = _SCAN_SECTION_FORMS.get(panel.get("_section"))
+    panel_modes = [mode for mode in modes if _scan_mode_matches(mode, observed_form)]
+    additional = []
+    for section in panel.get("_sections") or ():
+        form = _SCAN_SECTION_FORMS.get(section.get("_section"))
+        section_modes = [mode for mode in modes if form and _scan_mode_matches(mode, form)]
+        if len(section_modes) == 1 and sum(key in section for key in _SCAN_PANEL_FIELDS) >= 2:
+            additional.append((section_modes[0]["index"], section))
+    if not panel_modes:
+        raise _scan_context_message([], modes, tiers, catalog_weapon)
+    observed_indices = {mode["index"] for mode in panel_modes} | {i for i, _ in additional}
+    probe_modes = [mode for mode in modes if mode["index"] in observed_indices]
+    if len(probe_modes) * math.prod(map(len, alternatives)) > 48:
         raise ScanReplayUnconfirmed(
             L(
                 "进化候选较多，请直接填写已选进化",
@@ -582,22 +1053,23 @@ async def _resolve_scan_context(service, port, request, catalog_weapon, spec):
         **request,
         "damageModel": "panel",
         "metric": "shotDamage",
-        "headshotChance": 0.0,
-        "enemy": "/Lotus/Types/Enemies/Orokin/OrokinHeavyFemaleAvatar",
-        "level": 100,
-        "steelPath": False,
-        "windowSeconds": 12,
+        **portable_target_fields(dc.DEFAULT_ENEMY_PATH, dc.default_target()),
+        "scenario": {
+            key: value for key, value in request.get("scenario", {}).items() if key != "aiming"
+        },
     }
+    probe.pop("defenseSnapshot", None)
     if "arcanes" in probe:
         probe["arcanes"] = [{**arc, "stacks": 0} for arc in probe["arcanes"]]
     key = json.dumps([port, probe, panel, modes, alternatives], sort_keys=True)
 
     async def fetch():
         matches = []
+        section_routes = [[] for _ in additional]
         deadline = asyncio.get_running_loop().time() + 16
         for choices in product(*alternatives):
             route = dict(zip(tiers, choices))
-            for mode in modes:
+            for mode in probe_modes:
                 remaining = deadline - asyncio.get_running_loop().time()
                 if remaining <= 0:
                     raise ScanReplayUnconfirmed(
@@ -633,9 +1105,19 @@ async def _resolve_scan_context(service, port, request, catalog_weapon, spec):
                             "The engine returned a different evolution route",
                         )
                     )
-                if _matches_scan_panel(panel, result.get("moddedStats") or {}):
+                stats = result.get("moddedStats") or {}
+                if mode in panel_modes and _matches_scan_panel(panel, stats):
                     matches.append((mode, route))
-        return matches
+                for (index, section), corroborated in zip(additional, section_routes):
+                    if mode["index"] == index and _matches_scan_panel(section, stats):
+                        corroborated.append(route)
+        # 副段只能收窄主段已匹配的路线。读数残缺或不相容时仍保留主段证据。
+        narrowed = [
+            entry
+            for entry in matches
+            if all(entry[1] in routes for routes in section_routes if routes)
+        ]
+        return narrowed or matches
 
     matches = await service.portable_scan_context.get_or_fetch(key, 600, fetch)
     if len({mode["index"] for mode, _ in matches}) > 1 and len(requested_modes) == 1:
@@ -673,28 +1155,28 @@ async def _best_scan_replay(port, request, routes, drains):
 
 
 async def portable_fixed_lines(host, port, weapon, spec, overrides=None):
-    """按固定装备复算，识卡路径可使用已确认的辅助装备和进化。"""
+    """按手填配装或识卡确认的槽位复算。"""
     try:
-        source, mods = await asyncio.to_thread(_fixed_inputs, weapon, spec, overrides)
         service = host.damage_engine
         scanned = overrides is not None and "loadout_slots" in spec
+        _reject_custom_defense(spec)
         async with service.replays.slot():
             await service.ensure_portable(port)
-            if scanned:
-                data, enemies, equipment = await _portable_catalog(service, port)
-            else:
-                data, enemies = await portable_catalog(service, port)
-            enemy = spec["enemy"] or dc.find_enemy_exact("Heavy Gunner")
-            paths = enemies.get(enemy["name"], [])
-            catalog_weapon = data.get(source)
-            if len(paths) != 1 or not catalog_weapon:
+            data, enemies, equipment = await _portable_catalog(service, port)
+            mods, options = await asyncio.to_thread(
+                _fixed_inputs, weapon, spec, overrides, equipment
+            )
+            enemy = spec.get("enemy")
+            path, target_model = portable_target_enemy(spec, enemies)
+            catalog_weapon = find_catalog_weapon(data, weapon)
+            if not catalog_weapon:
                 raise EngineError(
                     L(
                         "该武器或敌人暂无法精确匹配",
                         "This weapon or enemy cannot be matched exactly",
                     )
                 )
-            request = portable_damage_request(source, paths[0], mods, spec)
+            source = catalog_weapon["path"]
             mode = None
             context = ""
             scan_capacity = None
@@ -702,7 +1184,8 @@ async def portable_fixed_lines(host, port, weapon, spec, overrides=None):
             if scanned:
                 scan_capacity = spec.get("scan_capacity")
                 extra, drains = _scan_replay_equipment(spec, equipment)
-                request = with_portable_replay_options(request, extra)
+                request = portable_damage_request(source, path, mods, spec, options=extra)
+                request.update(target_model)
                 mode, route, context = await _resolve_scan_context(
                     service, port, request, catalog_weapon, spec
                 )
@@ -716,13 +1199,23 @@ async def portable_fixed_lines(host, port, weapon, spec, overrides=None):
                         if len({candidate[tier] for candidate in routes}) > 1
                     )
             else:
-                if not any(
-                    m.get("available") and _scan_mode_matches(m, "base")
-                    for m in catalog_weapon.get("fireModes", ())
-                ):
+                modes, _, route, _ = _scan_context_candidates(catalog_weapon, spec)
+                form = spec.get("form") or "base"
+                matched = [mode for mode in modes if _scan_mode_matches(mode, form)]
+                if len(matched) != 1:
                     raise EngineError(
-                        L("该武器主射暂不可用", "Primary fire is unavailable for this weapon")
+                        L(
+                            "所选攻击模式不可用或不唯一",
+                            "The selected attack mode is unavailable or ambiguous",
+                        )
                     )
+                (mode,) = matched
+                if route:
+                    options["incarnonChoices"] = route
+                request = portable_damage_request(
+                    source, path, mods, spec, fire_mode=mode["index"], options=options
+                )
+                request.update(target_model)
                 result = await _finish_compute(portable_request(port, "/api/simulate", request))
                 if overrides is not None and result.get("incarnonChoices"):
                     raise EngineError(
@@ -734,6 +1227,7 @@ async def portable_fixed_lines(host, port, weapon, spec, overrides=None):
             weapon,
             enemy,
             catalog_weapon,
+            target_label=_target(spec)[1] if enemy is None else None,
             mode=mode,
             context=context,
             scan_capacity=scan_capacity,
@@ -767,15 +1261,57 @@ def validate_fixed_replay(result, request):
         }
         if active != given_arcanes:
             raise EngineError(L("赋能回放与配装不符", "Arcanes do not match the build"))
+    if (
+        request.get("stancePath")
+        and (result["selection"].get("stance") or {}).get("path") != request["stancePath"]
+    ):
+        raise EngineError(L("架势回放与配装不符", "The stance does not match the build"))
+    route = result.get("incarnonChoices") or {}
+    if any(
+        route.get(tier) != choice for tier, choice in request.get("incarnonChoices", {}).items()
+    ):
+        raise EngineError(L("进化回放与配装不符", "Evolutions do not match the build"))
+    scenario = request.get("scenario") or {}
+    returned = result["selection"].get("scenario") or result.get("scenario") or {}
+    if scenario.get("modelSpread") and returned.get("modelSpread") is not True:
+        raise EngineError(
+            L("当前独立引擎未确认散布计算", "The standalone engine did not confirm spread modeling")
+        )
+    for key in ("distance", "nearestEnemyDistance", "heavyAttack", "comboTier", "aiming"):
+        if (
+            key in scenario
+            and returned.get(key, False if key == "aiming" else None) != scenario[key]
+        ):
+            raise EngineError(
+                L("独立引擎回放的战斗条件不符", "Standalone replay used different combat options")
+            )
+    given_defense = request.get("enemyEnhancements", {})
+    used_defense = result.get("enemyEnhancements") or {}
+    if used_defense.get("shieldOverride") != given_defense.get(
+        "shieldOverride"
+    ) or used_defense.get("noOverguard", True) != given_defense.get("noOverguard", True):
+        raise EngineError(
+            L(
+                "独立引擎未确认目标护盾或超宏设置",
+                "The standalone engine did not confirm shields or Overguard",
+            )
+        )
     validation = result["loadoutValidation"]
     assignments = validation["assignments"]
     used = {(row["slot"], row["path"], row["rank"]) for row in assignments}
-    window = result["benchmarkTimeline"]
+    window = result.get("benchmarkTimeline")
+    if window is None:
+        raise EngineError(
+            L(
+                "独立引擎暂未算出此攻击的 DPS",
+                "DPS unavailable for this attack in the standalone engine",
+            )
+        )
     context = window["context"]
     dps = window["windowDps"]
     if (
         result["buildLabel"] != PORTABLE_DATA
-        or result["damageModel"] != "target"
+        or result["damageModel"] != request.get("damageModel", "target")
         or result["selection"]["weapon"]["path"] != request["weapon"]
         or len(given) != len(assignments)
         or used != given
@@ -908,6 +1444,7 @@ def _fixed_reply(
     enemy,
     catalog_weapon,
     *,
+    target_label=None,
     mode=None,
     context="",
     scan_capacity=None,
@@ -917,19 +1454,29 @@ def _fixed_reply(
 
     window, validation = validate_fixed_replay(result, request)
     name = weapon["name"] if is_en() else weapon.get("zh") or weapon["name"]
-    target = enemy_label(request.get("enemy"), enemy["name"], enemy.get("zh"))
+    target = target_label or enemy_label(request["enemy"], enemy["name"], enemy.get("zh"))
+    defense = " · ".join(portable_defense_labels(enemy, request.get("enemyEnhancements", {})))
     difficulty = L("钢铁之路", "Steel Path") if request["steelPath"] else L("普通", "Normal")
-    hit = L("弱点", "Weak points") if request["headshotChance"] else L("躯干", "Body")
+    chance = request["headshotChance"]
+    hit = L(f"弱点 {chance:.0%}", f"Weak points {chance:.0%}") if chance else L("躯干", "Body")
     secs = window["windowSeconds"]
+    melee = weapon.get("category") == "Melee"
+    if melee and request.get("scenario", {}).get("heavyAttack"):
+        mode_label = L("重击", "Heavy attack")
+    elif melee and _scan_mode_matches(mode or {"index": 0}, "base"):
+        mode_label = L("平砍", "Neutral attack")
+    else:
+        mode_label = _scan_mode_label(mode) if mode else L("主射", "Primary fire")
     lines = [
-        f"◆ {name} · {_scan_mode_label(mode) if mode else L('主射', 'Primary fire')}",
-        f"· {target} Lv{request['level']} · {difficulty} · {hit}",
-        L("· 计算：独立引擎", "· Engine: Standalone engine"),
+        f"◆ {name} · {mode_label}",
+        f"· {target} Lv{request['level']} · {difficulty} · {hit} · {defense}",
+        L("· 独立引擎", "· Standalone engine"),
         L(
             f"◆ {secs:g} 秒平均 DPS　{window['windowDps']:,.1f}",
             f"◆ Average DPS over {secs:g} s　{window['windowDps']:,.1f}",
         ),
     ]
+    lines.extend(combat_condition_lines(request))
     if context == "panel":
         lines.append(
             L(
@@ -968,7 +1515,9 @@ def _fixed_reply(
             else L(
                 f"· 默认极性容量 {cap}/{limit}", f"· Capacity with default polarities {cap}/{limit}"
             ),
-            L(
+            L(f"· 攻击 {window['shots']} 次", f"· {window['shots']} attacks")
+            if melee
+            else L(
                 f"· 开火 {window['shots']} 次 · 装填 {window['reloads']} 次",
                 f"· {window['shots']} shots · {window['reloads']} reloads",
             ),
@@ -979,32 +1528,61 @@ def _fixed_reply(
         for row in result["selection"]["mods"]
     }
     for row in sorted(validation["assignments"], key=lambda mod: mod["slot"]):
-        if row["slot"] >= 8 and mode:
+        if row["slot"] >= 8:
             continue
         name = names[row["path"]]
         lines.append(L(f"· {name} · 等级 {row['rank']}", f"· {name} · Rank {row['rank']}"))
-    if mode:
-        for label, rows in (
-            (L("扩展槽", "Exilus"), [result["exilus"]] if result.get("exilus") else []),
-            (L("赋能", "Arcane"), result.get("arcanes") or []),
-        ):
-            for row in rows:
-                name = (
-                    (row.get("nameZh") if not is_en() else None) or row.get("nameEn") or row["path"]
+    for label, rows in (
+        (L("扩展槽", "Exilus"), [result["exilus"]] if result.get("exilus") else []),
+        (L("赋能", "Arcane"), result.get("arcanes") or []),
+        (
+            L("架势", "Stance"),
+            [result["selection"]["stance"]]
+            if (result["selection"].get("stance") or {}).get("rank") is not None
+            else [],
+        ),
+    ):
+        for row in rows:
+            name = (row.get("nameZh") if not is_en() else None) or row.get("nameEn") or label
+            lines.append(
+                L(
+                    f"· {label} {name} · {row['rank']} 级",
+                    f"· {label} {name} · Rank {row['rank']}",
                 )
-                lines.append(
-                    L(
-                        f"· {label} {name} · {row['rank']} 级",
-                        f"· {label} {name} · Rank {row['rank']}",
-                    )
-                )
-    lines.extend(weapon_panel_lines(result.get("moddedStats")))
+            )
+    lines.extend(weapon_panel_lines(result.get("moddedStats"), melee=melee))
     lines.extend(evolution_lines(catalog_weapon, result.get("incarnonChoices")))
     if result.get("unsupported") or window.get("unsupported"):
         lines.append(
             L("※ 部分效果未计入伤害", "※ Some effects were excluded from the damage estimate")
         )
     return lines
+
+
+def combat_condition_lines(request):
+    scenario = request.get("scenario") or {}
+    parts = []
+    if scenario.get("aiming"):
+        parts.append(L("瞄准", "Aiming"))
+    if scenario.get("heavyAttack"):
+        parts.append(L("重击", "Heavy attack"))
+    if (tier := scenario.get("comboTier")) is not None:
+        parts.append(L(f"连击 ×{tier + 1}", f"Combo ×{tier + 1}"))
+    if (distance := scenario.get("distance")) is not None:
+        parts.append(L(f"距离 {distance:g} 米", f"Distance {distance:g} m"))
+    if (distance := scenario.get("nearestEnemyDistance")) is not None:
+        parts.append(L(f"最近敌人 {distance:g} 米", f"Nearest enemy {distance:g} m"))
+    if "modelSpread" in scenario:
+        parts.append(
+            L("散布开启", "Spread on") if scenario["modelSpread"] else L("散布关闭", "Spread off")
+        )
+    for key, label in (
+        ("armourStrip", L("剥甲", "Armor strip")),
+        ("elementalArmourStrip", L("元素剥甲", "Elemental armor strip")),
+    ):
+        if request.get(key):
+            parts.append(f"{label} {request[key]:.0%}")
+    return ["· " + " · ".join(parts)] if parts else []
 
 
 def engine_url(value: str) -> str:
@@ -1042,26 +1620,33 @@ def _unsupported():
     )
 
 
-def check_options(spec: dict, overrides: dict | None) -> None:
+def check_options(spec: dict, overrides: dict | None, *, portable=False, weapon=None) -> None:
+    if spec.get("enemy_miss"):
+        raise _unsupported()
+    if not portable and set(spec.get("combat_options") or {}) - {"weaponAiming"}:
+        raise _unsupported()
     if overrides is not None:
         if overrides.keys() - _TARGET_FIELDS or overrides.get("enemy_miss"):
             raise _unsupported()
         return
     # 手写指令的数值已经聚合。用同一解析器扣除装备自带加成，防止手填值在模拟端静默消失。
     names = [m["name"] for m in spec["mods"] if m.get("name")]
+    if weapon:
+        names.insert(0, weapon["name"])
     for arc in spec["arcanes"]:
-        names.extend(("赋能", arc["name"]))
+        names.extend(("赋能", f"{arc['name']}@{arc.get('rank', arc.get('max_rank'))}"))
     items_only, _ = dc.parse_args(names)
+    supported = _TARGET_FIELDS | _BUILD_FIELDS
+    if portable:
+        supported |= {"combo_hits", "evo_keys", "form_word", "combat_options"}
     for key, value in spec.items():
-        if key not in _TARGET_FIELDS | _BUILD_FIELDS and value != items_only.get(key):
+        if key not in supported and value != items_only.get(key):
             raise _unsupported()
 
 
 def _target(spec: dict) -> tuple[dict, str]:
-    enemy = spec.get("enemy")
-    if enemy is None and spec["faction"] == "Grineer":
-        enemy = dc.find_enemy("Heavy Gunner")
-    faction = (enemy or {}).get("faction") or spec["faction"]
+    enemy = spec.get("enemy", dc.find_enemy_exact(dc.DEFAULT_ENEMY))
+    faction = (enemy or {}).get("faction") or spec.get("faction", dc.DEFAULT_FACTION)
     fac = _id(faction)
     scaling = {
         "grineer": "grineer",
@@ -1090,6 +1675,10 @@ def _target(spec: dict) -> tuple[dict, str]:
             "crit_bonus": base.get("head_crit", True),
         },
     ]
+    shield = dc.target_shield_override(enemy, spec.get("shield_mode"))
+    overguard = spec.get("overguard")
+    if spec.get("overguard_mode") == "on" and overguard is None:
+        overguard = (base.get("base_overguard") or 0.0) * dc.overguard_multiplier(spec["level"])
     return {
         "id": "plugin_target",
         "name": name,
@@ -1101,10 +1690,23 @@ def _target(spec: dict) -> tuple[dict, str]:
             "base_level": base.get("base_level", 1),
             "health": hp,
             "armor": armor or 0,
-            "shield": base.get("base_shield") or 0,
-            "overguard": 0,
+            "shield": (base.get("base_shield") or 0) if shield is None else shield,
+            "overguard": overguard or 0,
             "affinity": 0,
         },
+    }, label
+
+
+def simulation_target_fields(spec):
+    target, label = _target(spec)
+    return {
+        "enemy": target["id"],
+        "custom_enemies": [target],
+        "level": max(1, min(9999, spec["level"])),
+        "headshot_pct": round(float(spec["headshot"]) * 100),
+        "steel_path": spec["steel_path"],
+        "eximus": False,
+        "duration": spec["fire_seconds"],
     }, label
 
 
@@ -1137,7 +1739,10 @@ def simulation_request(weapon: dict, spec: dict) -> tuple[dict, str]:
     form = spec.get("form")
     if form not in {None, "keep", "base"}:
         raise _unsupported()
-    target, label = _target(spec)
+    _reject_custom_defense({"overguard": spec.get("overguard")})
+    if (spec.get("combat_options") or {}).get("weaponAiming"):
+        raise EngineError(L("瞄准工况需使用便携引擎", "Aiming requires the portable engine"))
+    target, label = simulation_target_fields(spec)
     req = {
         "weapon": _id(name),
         "mods": ids,
@@ -1146,18 +1751,12 @@ def simulation_request(weapon: dict, spec: dict) -> tuple[dict, str]:
         "form": "heavy" if spec["heavy"] and weapon.get("category") == "Melee" else "base",
         "evolutions": [],
         "evolutions_as_given": True,
-        "enemy": target["id"],
-        "custom_enemies": [target],
-        "level": max(1, min(9999, spec["level"])),
-        "headshot_pct": 100 if spec["headshot"] else 0,
-        "steel_path": spec["steel_path"],
-        "eximus": False,
+        **target,
         "assume_max": False,
         "infinite_ammo": True,
         "distance": 0,
         "seed": 1,
         "runs": 16,
-        "duration": max(1, min(60, spec["fire_seconds"])),
     }
     valence = spec.get("lich_bonus")
     if valence:
@@ -1258,7 +1857,7 @@ async def search_request(host, cfg, path, body):
 
 
 @asynccontextmanager
-async def simulation_session(host, event=None, *, managed=True):
+async def simulation_session(host, event=None, *, managed=True, wait_timeout=None):
     """整组模拟共用一次排位和同一份配置。"""
     service = getattr(host, "damage_engine", None)
     if service is None:
@@ -1270,7 +1869,7 @@ async def simulation_session(host, event=None, *, managed=True):
             event, getattr(host, "_messaging", None), L("完整模拟", "Simulation"), position
         )
 
-    async with service.simulations.slot(notify):
+    async with service.simulations.slot(notify, wait_timeout=wait_timeout):
         cfg = dict(getattr(host, "cfg", {}) or {})
         if managed:
             await service.ensure_running(cfg)
@@ -1296,9 +1895,18 @@ async def simulation_lines(host, weapon, spec, overrides=None, *, event=None):
         ], False
     name = (weapon.get("zh") or weapon["name"]) if not is_en() else weapon["name"]
     shot = L("重击", "heavy attack") if req["form"] == "heavy" else L("默认攻击", "default attack")
+    enemy = spec.get("enemy")
+    shield = dc.target_shield_override(enemy, spec.get("shield_mode"))
+    defense = " · ".join(
+        dc.defense_labels(enemy, not req["custom_enemies"][0]["stats"]["overguard"], shield)
+    )
+    difficulty = L("钢铁之路", "Steel Path") if req["steel_path"] else L("普通", "Normal")
     lines = [
         L(f"◆ {name}｜完整模拟", f"◆ {name} | Simulation"),
-        L(f"· 目标 {target} {req['level']} 级｜{shot}", f"· {target} Lv {req['level']} | {shot}"),
+        L(
+            f"· 目标 {target} {req['level']} 级 · {difficulty} · {shot} · {defense}",
+            f"· {target} Lv {req['level']} · {difficulty} · {shot} · {defense}",
+        ),
         L(
             f"· {req['duration']:g} 秒 × {req['runs']} 轮｜平均 DPS {dps:,.1f}｜平均击杀 {kills:,.2f}",
             f"· {req['duration']:g}s × {req['runs']} runs | mean DPS {dps:,.1f} | mean kills {kills:,.2f}",
@@ -1480,11 +2088,13 @@ class EngineService:
                                 raise ValueError(
                                     "公开运行包支持 Python 3.12 的 Linux x86_64 与 macOS arm64"
                                 )
-                            name, expected = asset
+                            name, expected, size = asset
                             bundle = Path(tmp) / name
-                            await download_file(
-                                client, f"{PORTABLE_DOWNLOADS}/{name}", bundle, MAX_BUNDLE_SIZE
+                            received = await download_file(
+                                client, f"{PORTABLE_DOWNLOADS}/{name}", bundle, size, expected
                             )
+                            if received != size:
+                                raise ValueError("引擎运行包字节数不一致")
                         inputs, remaining = await asyncio.to_thread(
                             unpack, bundle, dest, expected, PORTABLE_FINGERPRINT, PORTABLE_DATA
                         )
@@ -1523,7 +2133,7 @@ class EngineService:
             or (require_fingerprint and value.get("engineFingerprint") != PORTABLE_FINGERPRINT)
         ):
             raise EngineError(
-                L("本机三靶版本不匹配", "The local triple-target version does not match")
+                L("本机独立引擎版本不匹配", "The local standalone engine version does not match")
             )
         return value
 
@@ -1573,7 +2183,10 @@ class EngineService:
                     )
             except OSError:
                 raise EngineError(
-                    L("本机三靶服务无法启动", "Cannot start the local triple-target service")
+                    L(
+                        "本机独立引擎服务无法启动",
+                        "Cannot start the local standalone engine service",
+                    )
                 ) from None
             self.portable_child_port = port
             now = asyncio.get_running_loop().time
@@ -1589,8 +2202,8 @@ class EngineService:
             await self._stop(self.portable_child)
             raise EngineError(
                 L(
-                    "本机三靶服务启动检查失败",
-                    "The local triple-target service failed its startup check",
+                    "本机独立引擎服务启动检查失败",
+                    "The local standalone engine service failed its startup check",
                 )
             )
 

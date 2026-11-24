@@ -78,6 +78,7 @@ def _e(
     risk: str = "medium",
     game_version=None,
     tracked: bool = True,
+    optional_seed: bool = False,
     oss: bool = True,
     check=None,
     note: str = "",
@@ -96,6 +97,7 @@ def _e(
         "risk": risk,
         "game_version": game_version,
         "tracked": tracked,
+        "optional_seed": optional_seed,
         # oss=False：开源 / 市场包不随附（dist/package_release.py::OSS_EXCLUDE_FILES），运行期从社区快照 / 刷新获取。
         #   缺这个文件不是「缺文件」（2026-10-17 v1.2.2 公开仓 CI 红 + 开源用户面板会误报）
         "oss": oss,
@@ -225,32 +227,67 @@ REGISTRY: dict[str, dict] = {
         risk="high",
         note="Archgun 地面/空战两种部署面板。",
     ),
-    "riven_rating_presets.json": _e(
+    "riven_weapon_index.json": _e(
         "damage",
         "manual",
-        "独立引擎全量配装搜索、同种子精评与参考样卡复算",
-        source_rev="data_revision",
+        "紫卡武器目录与已核实的物理词条资格",
         policy="manual_curated",
-        readers=["core/riven_rating.py"],
-        note="646 把武器、1,046 个场景的参考配装。紫卡评分在查询时用输入词条复算。",
+        readers=["core/riven_rating.py", "core/riven_pools.py"],
+        note="仅含武器名称、别名、类别和词条资格证据。",
     ),
-    "riven_trait_recommendations.json": _e(
+    "portable_reference_builds.json": _e(
         "damage",
-        "scripts/build_riven_trait_recommendations.py",
-        "独立引擎按武器模式扫描正负词条，分母为无紫卡参考配装的平均 KPM",
-        source_rev="engine.data_revision",
-        policy="manual_curated",
-        readers=["core/riven_rating.py"],
-        note="随参考配装同行更新。文件记录配装摘要、模拟轮数与各词条配对 95% 区间。",
+        "scripts/build_portable_precomputed.py",
+        "独立引擎标准靶参考配装、武器面板与逐槽拆卡回放",
+        source_rev="engineFingerprint",
+        readers=["core/portable_riven.py"],
+        optional_seed=True,
+        note="存在时随包发布，未收录时调用独立引擎。",
     ),
-    "riven_build_details.json": _e(
+    "portable_trait_matrix.json": _e(
         "damage",
-        "manual",
-        "同参考配装的 WFSim 整套与逐张拆卡回放，以及固定槽位极化方案",
-        source_rev="referenceSha256",
-        policy="manual_curated",
-        readers=["core/riven_rating.py"],
-        note="1,046 个工况。保留固定种子重复模拟的平均 DPS、武器面板和容量细节。",
+        "scripts/build_portable_precomputed.py",
+        "标准靶固定配装的 3+1− 与 2+1− 满级中位词条对照",
+        source_rev="engineFingerprint",
+        readers=["core/portable_riven.py"],
+        optional_seed=True,
+        note="与随包配装同行更新，未收录时调用独立引擎。",
+    ),
+    "portable_reference_builds_overguard.json": _e(
+        "damage",
+        "scripts/build_portable_precomputed.py",
+        "独立引擎带超宏标准靶参考配装、武器面板与逐槽拆卡回放",
+        source_rev="engineFingerprint",
+        readers=["core/portable_riven.py"],
+        optional_seed=True,
+        note="存在时随包发布，未收录时调用独立引擎。",
+    ),
+    "portable_trait_matrix_overguard.json": _e(
+        "damage",
+        "scripts/build_portable_precomputed.py",
+        "带超宏标准靶固定配装的 3+1− 与 2+1− 满级中位词条对照",
+        source_rev="engineFingerprint",
+        readers=["core/portable_riven.py"],
+        optional_seed=True,
+        note="与同档随包配装同行更新，未收录时调用独立引擎。",
+    ),
+    "portable_reference_builds_shield.json": _e(
+        "damage",
+        "scripts/build_portable_precomputed.py",
+        "独立引擎带模拟护盾的标准靶参考配装、武器面板与逐槽拆卡回放",
+        source_rev="engineFingerprint",
+        readers=["core/portable_riven.py"],
+        optional_seed=True,
+        note="存在时随包发布，未收录时调用独立引擎。",
+    ),
+    "portable_trait_matrix_shield.json": _e(
+        "damage",
+        "scripts/build_portable_precomputed.py",
+        "带模拟护盾的标准靶固定配装的 3+1− 与 2+1− 满级中位词条对照",
+        source_rev="engineFingerprint",
+        readers=["core/portable_riven.py"],
+        optional_seed=True,
+        note="与同档随包配装同行更新，未收录时调用独立引擎。",
     ),
     "riven_reroll_comparisons.json": _e(
         "damage",
@@ -845,7 +882,7 @@ def _registered(name: str) -> bool:
 
 
 def _discover_tracked(data_dir: Path):
-    """``git ls-files`` 列出 data_dir 下被跟踪的文件（相对 data_dir）。
+    """列出 data_dir 下仍存在的 Git 跟踪文件（相对 data_dir）。
 
     不在 git 仓 / git 不可用 ⇒ 返回 ``None``，调用方退回 ``rglob`` 扫 ``*.json``。
     只读命令，不改工作树。
@@ -861,7 +898,11 @@ def _discover_tracked(data_dir: Path):
         return None
     if p.returncode != 0:
         return None
-    return [n for n in p.stdout.decode("utf-8", "replace").split("\0") if n]
+    return [
+        name
+        for name in p.stdout.decode("utf-8", "replace").split("\0")
+        if name and (data_dir / name).is_file()
+    ]
 
 
 def _parse_time(value):
@@ -1157,6 +1198,10 @@ def _eval_one(
             fpath = Path(resolve(key))  # 面板：看实际生效的那份（运行期刷新 / 社区快照优先）
         present = fpath.exists()
     if tracked and not present:
+        if meta.get("optional_seed"):
+            row["status"] = "not_bundled"
+            row["detail"] = "当前包未随附参考表，查询时使用独立引擎"
+            return row
         if not meta.get("oss", True):
             row["status"] = "not_bundled"
             row["detail"] = "开源 / 市场包不随附，运行期首次从社区快照或刷新获取"
@@ -1431,6 +1476,8 @@ def _run_side_parse(path: Path, meta: dict, key: str, seed_type: str | None, st)
 def _verdict(meta: dict, seed: dict, run: dict, active: str) -> tuple[str, str]:
     """按顺序取第一个命中的结论（顺序即优先级，改顺序等于改口径）。"""
     if active == "none":
+        if meta.get("optional_seed"):
+            return "not_yet", "当前包未随附参考表，查询时使用独立引擎"
         if not meta.get("oss", True):
             return "not_yet", "开源 / 市场包不随附，还没从社区快照取到：插件会自己获取，不用管"
         if meta.get("tracked", True):
@@ -1464,6 +1511,8 @@ def _ledger_one(key: str, meta: dict, run_root: Path, pkg_root: Path) -> dict:
     seed, seed_type = _seed_side(pkg_root / key, meta)
     run = _run_side(run_root / key, meta, key, seed_type)
     active = "run" if run["exists"] else ("seed" if seed["exists"] else "none")
+    if meta.get("optional_seed"):
+        active = "seed" if seed["exists"] else "none"
     verdict, advice = _verdict(meta, seed, run, active)
     if verdict == "run_bad" and seed["exists"] and str(run["why"]).startswith("JSON 解析失败"):
         # 与 paths.read_path 同口径（P07）：坏 JSON 副本插件已自动回落随包种子

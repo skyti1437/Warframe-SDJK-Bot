@@ -19,11 +19,13 @@
 
 from __future__ import annotations
 
-import asyncio
+import runpy
 import sys
 import tempfile
 import types
+import unittest
 from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -322,8 +324,7 @@ async def _menu_checks() -> None:
     check("「.菜单」清单列出全部 QQ 面板名", all(f"{e.zh} — " in text for e in MENU_COMMANDS), text)
 
 
-async def main() -> None:
-    tmp = Path(tempfile.mkdtemp())
+async def _check_conflicts(tmp: Path) -> None:
     # 占用集合显式给定：模拟「内置 help + dailyhub 新闻」已被别人注册
     obj = _make_plugin(tmp, occupied=frozenset({"help", "新闻", "news", "reset"}))
     real_occupied = plugin._occupied_command_words
@@ -562,12 +563,86 @@ async def main() -> None:
 
     await _menu_checks()
 
-    print()
-    if FAILED:
-        print(f"FAILED ({len(FAILED)}): " + "; ".join(FAILED))
-        sys.exit(1)
-    print("ALL PASS")
+
+class CommandConflictTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.tmp = Path(tmp.name)
+        self.bot = _make_plugin(self.tmp)
+
+    def test_message_registration_runs_before_group_chat_context(self):
+        registrations = []
+
+        def register_event(spec, *, priority):
+            def decorate(handler):
+                registrations.append((spec, priority, handler))
+                return handler
+
+            return decorate
+
+        with patch.object(plugin.filter, "event_message_type", register_event):
+            loaded = runpy.run_path(str(ROOT / "main.py"))
+
+        handler = loaded["WarframeSDJK"].on_message
+        self.assertEqual(
+            registrations, [(plugin.filter.EventMessageType.ALL, sys.maxsize - 1, handler)]
+        )
+        self.assertGreater(registrations[0][1], sys.maxsize - 2)
+
+    async def assert_passes_through(self, event):
+        with patch.object(event, "stop_event") as stop_event:
+            self.assertEqual(await _drive(self.bot, event), [])
+            stop_event.assert_not_called()
+
+    async def test_ordinary_images_and_occupied_help_pass_through(self):
+        woken_help = _Ev("help")
+        woken_help.is_at_or_wake_command = True
+        for label, event in (
+            ("纯图", _Ev("", segs=[plugin.Image()])),
+            ("普通带图消息", _Ev("开水", segs=[_SegText("开水"), plugin.Image()])),
+            ("未剥前缀的 /help", _Ev("/help")),
+            ("已剥前缀的 /help", _Ev("help", raw="/help")),
+            ("原文已改写的 /help", woken_help),
+        ):
+            with self.subTest(label=label):
+                await self.assert_passes_through(event)
+        self.assertEqual(self.bot.called, [])
+
+    async def test_disabled_commands_pass_through(self):
+        self.bot.cfg["disabled_commands"] = ["analysis"]
+        umo = _Ev("").unified_msg_origin
+        await self.bot.groups.edit_option(umo, "disabled", lambda _: ["loadoutrecommend"])
+        handler = AsyncMock(return_value=plugin.Reply(raw_text="OK"))
+        self.bot._routes.update(analysis=handler, loadoutrecommend=handler)
+        for text in ("紫卡分析", "配卡推荐 伯斯顿"):
+            with self.subTest(text=text):
+                await self.assert_passes_through(_Ev(text))
+                await self.assert_passes_through(_Ev(text, segs=[_SegText(text), plugin.Image()]))
+        handler.assert_not_awaited()
+
+    async def test_handler_without_reply_passes_through(self):
+        handler = AsyncMock(return_value=None)
+        self.bot._routes["loadoutrecommend"] = handler
+        event = _Ev("配卡推荐", segs=[_SegText("配卡推荐"), plugin.Image()])
+        await self.assert_passes_through(event)
+        handler.assert_awaited_once()
+
+    async def test_enabled_image_commands_dispatch_and_stop(self):
+        for text, command in (("配卡推荐", "loadoutrecommend"), ("紫卡分析", "analysis")):
+            with self.subTest(text=text):
+                handler = AsyncMock(return_value=plugin.Reply(raw_text="OK"))
+                self.bot._routes[command] = handler
+                event = _Ev(text, segs=[_SegText(text), plugin.Image()])
+                self.assertEqual(await _drive(self.bot, event), [("plain", "OK")])
+                handler.assert_awaited_once()
+                self.assertTrue(event.stopped)
+
+    async def test_existing_conflict_cases(self):
+        FAILED.clear()
+        await _check_conflicts(self.tmp)
+        self.assertEqual(FAILED, [])
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    unittest.main()

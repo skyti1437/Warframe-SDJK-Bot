@@ -17,11 +17,15 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import io
 import json
 import sys
 from hashlib import sha256
 import types
 from pathlib import Path
+
+from PIL import Image as _PILImage, ImageDraw as _ImageDraw
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -2765,6 +2769,409 @@ check(
     not _retry_conflict.lines
     and not _retry_conflict_saved["parsed"]["_recognition"]["line_recheck"]["adopted"],
 )
+
+
+async def _card_properties_cases():
+    from core import i18n, pips, riven_ocr_reader as reader
+
+    props = {
+        "drain": 18,
+        "drain_color": "white",
+        "mastery_rank": 13,
+        "rank": 8,
+        "polarity": "madurai",
+    }
+    traits = ["+178.2% 暴击几率", "+106.9% 多重射击"]
+    payload = {"weapon": "伯斯顿 Acri-testa", "stat_lines": traits, **props}
+    obs = reader.decode_text(json.dumps(payload))
+    check("单模型 JSON 保留五个独立字段", all(obs.data.get(k) == v for k, v in props.items()))
+    check("元数据不混入词条原文", obs.data["lines"] == traits)
+    plain = "\n".join(
+        ["容量 18", payload["weapon"], *traits, "MR 13", "强化等级 8", "极性 madurai"]
+    )
+    plain_obs = reader.decode_text(plain)
+    check(
+        "单模型原文分开转录段位、等级和容量",
+        all(
+            plain_obs.data.get(k) == props[k] for k in ("drain", "mastery_rank", "rank", "polarity")
+        )
+        and plain_obs.data["lines"] == traits,
+        str(plain_obs.data),
+    )
+    coords = "\n".join(
+        f"500,{y},220,22,0,{line}"
+        for y, line in zip(
+            (430, 500, 535, 650, 671, 692, 714),
+            (payload["weapon"], *traits, "精通段位 13", "容量 18", "强化等级 8", "极性 madurai"),
+        )
+    )
+
+    def accepted(raw):
+        return {
+            "recognition_state": "accepted",
+            "raw": raw,
+            "structured": {"weapon": payload["weapon"], "lines": traits},
+            "candidate": {"region": [150, 250, 450, 720]},
+        }
+
+    with _log_patch.object(reader, "analyze_raw", side_effect=accepted):
+        geometry = reader._geometry(coords, (600, 900))
+    check(
+        "单模型坐标回读保留卡区内明确标注的属性",
+        geometry.data["lines"] == traits
+        and all(
+            geometry.data.get(k) == props[k] for k in ("drain", "mastery_rank", "rank", "polarity")
+        ),
+        str(geometry.data),
+    )
+
+    def shot(rank, count=8):
+        image = _PILImage.new("RGB", (280, 340), (25, 17, 32))
+        draw = _ImageDraw.Draw(image)
+        for i in range(count):
+            x, y, radius = 91 + i * 14, 321, 5
+            draw.polygon(
+                [(x - radius, y), (x, y - radius), (x + radius, y), (x, y + radius)],
+                fill=(143, 191, 229) if i < rank else (36, 65, 90),
+            )
+        return image
+
+    check(
+        "单卡像素分离亮暗八点，保留 0–8 级",
+        all(pips.detect_single_card_pips(shot(rank)) == rank for rank in range(9)),
+    )
+    check("单卡缺失一颗刻度时不猜等级", pips.detect_single_card_pips(shot(7, 7)) is None)
+    buffer = io.BytesIO()
+    shot(8).save(buffer, format="PNG")
+    url = "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode()
+    obj = plugin.WarframeSDJK.__new__(plugin.WarframeSDJK)
+    obj.cfg = {"vision_routes_isolated": True}
+    obj._riven_vision_providers = lambda: [_Prov("offline/cloud")]
+    obj._line_vision_providers = lambda: []
+    prompts = []
+
+    async def race(prompt, _url, _provs, **kwargs):
+        if kwargs["task"] == "riven_json":
+            prompts.append(prompt + kwargs.get("prompt_suffix", ""))
+            return payload
+        return None
+
+    obj._vision_race_json = race
+    for language in ("zh", "en"):
+        with i18n.use_lang(language):
+            data = await obj._extract_riven_from_image(url, read_properties=True)
+        check(
+            f"云端 {language} 转录属性与原图像素观测并存",
+            data["_single_card_pips"] == 8
+            and all(data[k] == v for k, v in props.items())
+            and all(key in prompts[-1] for key in props),
+        )
+        check(
+            f"云端 {language} 新增提示只有结构描述",
+            "伯斯顿" not in prompts[-1]
+            and "178.2" not in prompts[-1]
+            and "106.9" not in prompts[-1],
+        )
+
+    provider = _RecordedCardProvider(payload)
+    sent = []
+
+    async def chat(prompt, **_kwargs):
+        sent.append(prompt)
+        return types.SimpleNamespace(completion_text=provider.raw_json)
+
+    provider.text_chat = chat
+    obj._riven_vision_providers = lambda: [provider]
+    del obj._vision_race_json
+    obj.vision_prompts = types.SimpleNamespace(effective=lambda *_: "自定义读图提示")
+    await obj._extract_riven_from_image(url, read_properties=True)
+    check(
+        "自定义主读提示仍附加强化与容量字段要求",
+        sent[0].startswith("自定义读图提示") and all(key in sent[0] for key in props),
+    )
+
+    async def recognize(_bytes):
+        return {
+            "state": "accepted",
+            "structured": {"weapon": payload["weapon"], "lines": traits, **props},
+        }
+
+    obj.local_ocr = types.SimpleNamespace(status=lambda: {"enabled": True}, recognize=recognize)
+    data = await obj._extract_riven_from_image(url, read_properties=True)
+    check(
+        "本地 OCR 接受观测后挂同一份像素佐证",
+        data["_single_card_pips"] == 8
+        and all(data[k] == v for k, v in props.items())
+        and data["lines"] == traits,
+    )
+
+    card = shot(8)
+    with _PILImage.open(pips._POLARITY_ICON_DIR / "vazarin.png") as icon:
+        alpha = icon.getchannel("A").resize((24, 24), _PILImage.Resampling.LANCZOS)
+    card.paste((175, 138, 212), (230, 20, 254, 44), alpha)
+    with io.BytesIO() as buffer:
+        card.save(buffer, format="PNG")
+        icon_url = "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode()
+    local_result = {
+        "state": "accepted",
+        "structured": {"weapon": payload["weapon"], "lines": traits},
+        "raw": {"rows": [{"text": "18", "quad": [[195, 20], [226, 20], [226, 44], [195, 44]]}]},
+    }
+
+    async def recognize_icon(_bytes):
+        return local_result
+
+    obj.local_ocr.recognize = recognize_icon
+    data = await obj._extract_riven_from_image(icon_url, read_properties=True)
+    check(
+        "本地 OCR 无极性文字时从容量旁读图标，同时保留八颗强化点",
+        data.get("polarity") == "vazarin" and data["_single_card_pips"] == 8,
+        str(data),
+    )
+    check(
+        "无读取卡属性时略过极性像素识别",
+        "polarity" not in await obj._extract_riven_from_image(icon_url),
+    )
+    local_result["structured"]["polarity"] = "madurai"
+    data = await obj._extract_riven_from_image(icon_url, read_properties=True)
+    check("本地 OCR 已确认的文字极性优先", data.get("polarity") == "madurai")
+
+    del obj.local_ocr
+    obj.cfg.update(
+        riven_single_ocr=True, vision_provider_id_riven="offline/single", scan_cooldown=0
+    )
+    obj._try_get_provider = lambda _: provider
+
+    async def image_urls(_event):
+        return [url]
+
+    async def transcribe(_provider, _url, prompt):
+        check("单模型首读沿用无提示原图", not prompt)
+        return provider.raw_json
+
+    obj._image_data_urls = image_urls
+    parsed = _FatParsed()
+    with _log_patch.object(reader, "transcribe", side_effect=transcribe):
+        observation = await obj._confirmed_riven_image(
+            obj._riven_text_input(parsed), _FakeImageEvent(), "pc"
+        )
+    check(
+        "单模型配卡入口保留容量、段位与像素观测",
+        isinstance(observation, tuple)
+        and observation[1]["_single_card_pips"] == 8
+        and all(observation[1][key] == value for key, value in props.items()),
+        str(observation),
+    )
+
+
+asyncio.run(_card_properties_cases())
+
+
+async def _single_ocr_sign_cases():
+    from core import riven_ocr_reader as reader
+
+    title = "赤毒·布拉玛 Acri-testa"
+    traits = ["+146.2% 多重射击", "+189.4% 暴击几率", "-92.6% 武器后坐力", "-35.3% 弹匣容量"]
+    unsigned = [*traits[:2], "92.6%武器后坐力", traits[3]]
+    buffer = io.BytesIO()
+    _PILImage.new("RGB", (245, 306)).save(buffer, format="PNG")
+    original = "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode()
+
+    def card_text(lines):
+        return "\n".join([title, *lines, "精通段位 13"])
+
+    async def validate(data):
+        positive, negative, legal, _ = plugin.WarframeSDJK._riven_lines_legal(data["lines"])
+        return reader.Fields(positive, negative, 0) if legal else None
+
+    async def read_views(first, *, clean=traits, accept=validate):
+        captured = []
+        coordinates = "\n".join(
+            f"500,{y},700,35,0,{line}"
+            for y, line in zip((300, 400, 450, 500, 550, 700), (title, *clean, "精通段位 13"))
+        )
+        responses = iter((first, card_text(clean), coordinates))
+
+        async def transcribe(_provider, url, prompt):
+            with _PILImage.open(io.BytesIO(reader.decode_image_data_url(url))) as image:
+                captured.append((url, prompt, image.size))
+            return next(responses)
+
+        with (
+            _log_patch.object(reader, "transcribe", side_effect=transcribe),
+            _log_patch.object(reader, "analyze_raw", wraps=reader.analyze_raw) as geometry,
+        ):
+            data, error = await reader.read(object(), original, accept, "坐标回读")
+        return data, error, captured, geometry
+
+    data, error, sent, geometry = await read_views(card_text(unsigned))
+    check(
+        "首读只漏负号且完整词条吻合，增强图通过校验后两次确认",
+        bool(data)
+        and not error
+        and data["lines"] == traits
+        and data["_recognition"]["selected_view"] == "enhanced"
+        and len(sent) == 2
+        and not geometry.called,
+        str(error or data),
+    )
+
+    short = ["+60.5% Toxin Damage", traits[1]]
+    data, error, sent, _ = await read_views(
+        card_text(["60.5% Toxin Damage", short[1]]), clean=short
+    )
+    check(
+        "两词条卡只漏正号，精确识别英文词条后两次确认", bool(data) and not error and len(sent) == 2
+    )
+
+    cases = {
+        "数值不同": [*unsigned[:2], "92.7%武器后坐力", unsigned[3]],
+        "精确数值不同": [*unsigned[:2], "92.600000000000000001%武器后坐力", unsigned[3]],
+        "名称不同": [*unsigned[:2], "92.6%武器后坐离", unsigned[3]],
+        "另一条带符号的词条名不同": ["+146.2% 多重射机", *unsigned[1:]],
+        "词条 ID 不同": [*unsigned[:2], "92.6% 触发几率", unsigned[3]],
+        "少一条": unsigned[:3],
+        "只读到一条": traits[:1],
+        "只读到标题和段位": [],
+        "多出无符号数字": [*unsigned, "42"],
+        "多出未识别数字行": [*unsigned, "123.4 不明词条"],
+        "重复词条": [*unsigned, unsigned[2]],
+        "明确符号冲突": [*traits[:2], "+ 92.6% 武器后坐力", traits[3]],
+    }
+    for label, first in cases.items():
+        data, error, _, geometry = await read_views(card_text(first))
+        check(f"首读{label}时增强和坐标一致仍拒收", not data and bool(error) and geometry.called)
+
+    data, error, sent, geometry = await read_views("")
+    raw = geometry.call_args.args[0] if geometry.called else {}
+    check(
+        "坐标回读使用 735×918 增强图且按其像素尺寸映射",
+        bool(data)
+        and not error
+        and len(sent) == 3
+        and sent[0] == (original, "", (245, 306))
+        and sent[1][0] == sent[2][0] != original
+        and sent[2][1:] == ("坐标回读", (735, 918))
+        and (raw["width"], raw["height"]) == (735, 918)
+        and raw["rows"][0]["quad"]
+        == [
+            [110.25, 259.335],
+            [624.75, 259.335],
+            [624.75, 291.465],
+            [110.25, 291.465],
+        ],
+        str(raw),
+    )
+
+    async def reject(_data):
+        return None
+
+    data, error, _, _ = await read_views(card_text(unsigned), accept=reject)
+    check("无通过业务校验的结果时漏符号仍拒收", not data and bool(error))
+
+
+asyncio.run(_single_ocr_sign_cases())
+
+
+async def _upgrade_preview_cases():
+    from core import i18n, riven_ocr_reader as reader
+    from core.parser import parse
+
+    title = "伯斯顿 Acri-testa"
+    traits = ["+178.2% 暴击几率", "+106.9% 多重射击"]
+    preview = "+11.6% ▶ +104.8% 电击伤害"
+    payload = {"weapon": title, "stat_lines": traits, "drain": 18}
+    for row in (preview, "+11.6% -> +104.8% Electricity", "10 → 18", "容量 10 ▶ 18"):
+        rows = [title, *traits, row, "MR 13"]
+        positive, negative, notes = RA.parse_riven_lines(rows, _resolve)
+        obs = reader.decode_text("\n".join(rows))
+        check(
+            f"预览箭头使整张卡停止解析：{row}",
+            not positive
+            and not negative
+            and bool(notes)
+            and obs.upgrade_preview
+            and obs.data is None,
+        )
+    check(
+        "属性行不把双值段位或容量解释为左侧单值",
+        reader._property_row("容量 10 ▶ 18") is None
+        and reader._property_row("MR 10 -> 18") is None
+        and reader._property_row("容量 10") == ("drain", 10),
+    )
+    check(
+        "坐标回读在几何采信前拦截折行的预览数值",
+        reader._geometry(
+            "500,350,30,20,0,10\n500,375,30,20,0,▶\n500,400,30,20,0,18",
+            (260, 340),
+        ).upgrade_preview,
+    )
+    for data in ({**payload, "drain": "10 ▶ 18"}, {**payload, "stat_lines": [*traits, preview]}):
+        check("JSON 转录保留预览标志", reader.decode_text(json.dumps(data)).upgrade_preview)
+    check(
+        "单值词条和没有第二个数值的箭头说明保持既有判定",
+        not RA.has_upgrade_preview_lines(["+97.2% 触发时间（重击时 x2）", "更多说明 → 查看"]),
+    )
+
+    obj = plugin.WarframeSDJK.__new__(plugin.WarframeSDJK)
+    obj.cfg = {
+        "riven_single_ocr": True,
+        "vision_provider_id_riven": "offline/single",
+        "scan_cooldown": 0,
+        "damage_engine_mode": "simulation",
+        "damage_engine_portable_port": 8765,
+    }
+    obj._try_get_provider = lambda _: object()
+
+    async def image_urls(_event):
+        return ["mock-image"]
+
+    obj._image_data_urls = image_urls
+    event = _FakeImageEvent()
+    for lang in ("zh", "en"):
+        expected = RA.UPGRADE_PREVIEW_MESSAGE[lang == "en"]
+        with (
+            i18n.use_lang(lang),
+            _log_patch.object(
+                reader, "transcribe", return_value=json.dumps({**payload, "drain": "10 ▶ 18"})
+            ) as transcribe,
+        ):
+            scan = await obj._h_riven_analysis(parse("紫卡分析"), event, "pc")
+            build = await obj._h_loadout_recommend(parse("配卡推荐"), event, "pc")
+        check(
+            f"单模型识卡与配卡入口均给出 {lang} 预览提示",
+            scan.raw_text == build.raw_text == expected and transcribe.await_count == 2,
+        )
+
+    obj.cfg["riven_single_ocr"] = False
+    for observed in (
+        {"_local_ocr": {"state": "partial", "raw": {"rows": [{"text": "10 ▶ 18"}]}}},
+        {
+            **payload,
+            "lines": traits,
+            "_recognition": {
+                "line_recheck": {
+                    "original_line_read": {"lines": traits + [preview]},
+                    "adopted": True,
+                }
+            },
+        },
+    ):
+        with _log_patch.object(obj, "_extract_riven_from_image", return_value=observed):
+            build = await obj._h_loadout_recommend(parse("配卡推荐"), event, "pc")
+        check(
+            "本地原文或被复读替换的箭头仍阻止配卡", build.raw_text == RA.UPGRADE_PREVIEW_MESSAGE[0]
+        )
+
+    scan = await obj._h_riven_analysis(parse("紫卡分析 伯斯顿 10 -> 18"), None, "pc")
+    build = await obj._h_loadout_recommend(parse("配卡推荐 伯斯顿 10 ▶ 18"), None, "pc")
+    check(
+        "手填双值箭头也给出单态卡面提示",
+        scan.raw_text == build.raw_text == RA.UPGRADE_PREVIEW_MESSAGE[0],
+    )
+
+
+asyncio.run(_upgrade_preview_cases())
 
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")

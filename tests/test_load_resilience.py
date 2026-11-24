@@ -567,6 +567,117 @@ def _shared_json_singleflight():
 
 _shared_json_singleflight()
 
+
+async def _damage_queues_keep_fast_commands_responsive():
+    from unittest.mock import AsyncMock, patch
+
+    from core import damage_calc, damage_engine, portable_riven
+    from core.commands.wiki_misc import WikiMiscCommands
+    from core.parser import parse
+
+    with tempfile.TemporaryDirectory() as tmp:
+        service = damage_engine.EngineService(Path(tmp))
+        service.ensure_running = AsyncMock()
+        service.ensure_portable = AsyncMock()
+        host = SimpleNamespace(damage_engine=service, cfg={"damage_engine_mode": "simulation"})
+        quick = WikiMiscCommands()
+        weapon = damage_calc.find_weapon_exact("Braton Prime")
+        spec, _ = damage_calc.parse_args(["Braton Prime", "对", "重机枪手"])
+        spec["level"] = 100
+
+        def fixed(level):
+            return damage_engine.portable_damage_request(
+                weapon["uniqueName"],
+                "/Target",
+                [],
+                {**spec, "level": level},
+                options={"incarnonChoices": {}, "slotPolarities": [None] * 8},
+            )
+
+        for kind, pool in (("simulations", service.simulations), ("replays", service.replays)):
+            active = asyncio.Event()
+            finish = asyncio.Event()
+            arrivals = []
+            timed_out = False
+
+            async def compute(_cfg, endpoint, body, *, timeout=None):
+                nonlocal timed_out
+                assert endpoint == "/api/simulate"
+                level = body["level"]
+                arrivals.append(level)
+                if level == 100:
+                    active.set()
+                    await finish.wait()
+                if level == 101 and not timed_out:
+                    timed_out = True
+                    raise damage_engine.EngineError("测试超时")
+                return {"dps": 20, "kills": 2, "incarnonChoices": {}}
+
+            async def run(level):
+                if kind == "simulations":
+                    result, _, _ = await damage_engine.simulate(
+                        host, weapon, {**spec, "level": level}
+                    )
+                    return result["dps"]
+                return (await portable_riven._mod_gains(service, 18764, fixed(level)))["full"]
+
+            with (
+                patch.object(damage_engine, "_request", compute),
+                patch.object(damage_engine, "portable_request", compute),
+                patch.object(
+                    damage_engine,
+                    "validate_fixed_replay",
+                    return_value=({"windowDps": 20}, {"valid": True, "capacity": 0}),
+                ),
+            ):
+                running = asyncio.create_task(run(100))
+                waiting = cancelled = None
+                try:
+                    await asyncio.wait_for(active.wait(), 2)
+                    waiting = asyncio.create_task(run(101))
+                    cancelled = asyncio.create_task(run(102))
+                    await asyncio.sleep(0)
+                    cancelled.cancel()
+                    await asyncio.gather(cancelled, return_exceptions=True)
+                    running.cancel()
+                    await asyncio.sleep(0)
+                    reply = await asyncio.wait_for(
+                        quick._h_damage(parse("伤害 空刃 对 重机枪手"), None, "pc"), 2
+                    )
+                    check(
+                        f"{kind} 冷算和取消收尾期间，随包快速指令可返回且活动槽仍被占用",
+                        any("内置估算" in line for line in reply.lines)
+                        and not running.done()
+                        and pool.active == 1
+                        and arrivals == [100],
+                    )
+                    finish.set()
+                    await asyncio.gather(running, return_exceptions=True)
+                    try:
+                        await asyncio.wait_for(waiting, 2)
+                    except damage_engine.EngineError as exc:
+                        check(f"{kind} 超时返回明确错误", str(exc) == "测试超时")
+                    else:
+                        check(f"{kind} 超时返回明确错误", False)
+                    first = await asyncio.wait_for(run(101), 2)
+                    second = await asyncio.wait_for(run(101), 2)
+                    expected_calls = [100, 101, 101] if kind == "replays" else [100, 101, 101, 101]
+                    check(
+                        f"{kind} 取消不占队列，超时后可重试，回放仅缓存完整结果",
+                        first == second == 20 and arrivals == expected_calls and pool.active == 0,
+                        str(arrivals),
+                    )
+                finally:
+                    finish.set()
+                    jobs = [job for job in (running, waiting, cancelled) if job is not None]
+                    for task in jobs:
+                        task.cancel()
+                    await asyncio.gather(*jobs, return_exceptions=True)
+        await service.close()
+
+
+asyncio.run(_damage_queues_keep_fast_commands_responsive())
+
 if FAILED:
     print(f"✗ {len(FAILED)} 项失败：" + "、".join(FAILED))
     sys.exit(1)

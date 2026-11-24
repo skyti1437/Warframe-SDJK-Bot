@@ -336,7 +336,9 @@ def _dmg_en_toks(toks: list) -> list:
             out.append(_DMG_EN_EVO.get(nxt.replace(" ", ""), toks[i + 1]))
             i += 2
             continue
-        if m:
+        if re.fullmatch(r"basedmg[+-]\d+(?:\.\d+)?%?", low):
+            out.append("基伤" + low.removeprefix("basedmg"))
+        elif m:
             out.append(_DMG_EN_LICH[m.group(1)] + _DMG_EN_LICH_EL[m.group(2)] + m.group(3))
         elif m2:
             out.append(_DMG_EN_NUMBERED[m2.group(1)] + m2.group(2))
@@ -953,7 +955,7 @@ class WikiMiscCommands:
                 return self._damage_result(weapon, lines, footer, can_actions)
         reply = await asyncio.to_thread(self._damage_reply, parsed, can_actions=can_actions)
         if note:
-            reply.lines.insert(0, L(f"※ 随包估算 · {note}", f"※ Bundled estimate · {note}"))
+            reply.lines.insert(0, L(f"※ 内置估算 · {note}", f"※ Built-in estimate · {note}"))
         return reply
 
     @staticmethod
@@ -980,6 +982,12 @@ class WikiMiscCommands:
         """在线程解析；独立模拟回到调用者的事件循环提交。"""
         _toks = _dmg_en_toks(parsed.content) if is_en() else parsed.content
         spec, name_tokens = dc.parse_args(_toks)
+        if spec["errors"]:
+            return err_card(
+                L("；", ". ").join(spec["errors"]),
+                L("请核对装备名称和等级", "Check the equipment names and ranks"),
+                title=L("伤害计算", "Damage Calculator"),
+            )
         query = " ".join(name_tokens).strip()
         if not query:
             return Reply(
@@ -987,6 +995,7 @@ class WikiMiscCommands:
                 L(
                     [
                         "◆ 用法：伤害 <武器名> [对 敌人名] [派系] [N级] [爆头] [加成项…]",
+                        *dc.TARGET_HELP_ZH,
                         "◆ 示例",
                         "· 步枪　伤害 布拉玛 对 重机枪手 100级 膛线 分裂膛室 地狱火 电90",
                         "· 近战　伤害 空刃 对 重机枪手 100级 钢铁凤凰 异况超量 急进猛突 连击120",
@@ -1005,13 +1014,15 @@ class WikiMiscCommands:
                         "· 连击N / 重击 / 架势名　钢铁凤凰 / 猎鹰俯击 …：每段倍率+强制异常",
                         "· 急进猛突 / 创口溃烂 / 异况超量 / 一击必杀 / 奋力一掷　按实际等级折算",
                         "◆ 其它",
+                        "· 独立复算　距离N米 / 散布 / 关闭散布 / 剥甲N% / 元素剥甲N% / 连击档位N",
                         "· 派系　G系 / C系 / I系 / 合一众 / 奥罗金 / 低语者 / 扎里曼 / 炽蛇军 / 科腐者 …",
-                        "· 赋能 <名> / 异常N　赋能：条件触发只展示不折算｜异常N：目标异常种类数",
+                        "· 赋能 <名> [等级]　如「赋能 主要·死首 5级」，省略按满级。内置估算计入已收录的常驻效果",
+                        "· 异常N　目标异常种类数",
                         "· 镀层N / 满镀层　镀层类击杀堆叠按 N 层计入，如镀层 分裂膛室",
-                        "· 超宏[N] / 适应N　超宏：不吃护甲/派系、免疫异常｜适应：Sentient 适应 1-4 层",
+                        "· 超宏N　内置估算可手填超宏池｜适应N　Sentient 适应 1–4 层",
                         "· 灵化 / 基础形态　默认按原型算；加「灵化」切灵化形态",
                         "· 副开火 / 蓄力 / 未蓄力 / 半自动 / 全自动　切到该形态的整套面板与范围段，选了才算",
-                        "· 开火N秒　持续输出 N 秒内的平均火焰层数，默认 12 秒",
+                        "· 开火N秒　设置输出窗口，内置估算按窗口取平均火焰层数",
                         "· 空战 / 地面　Archgun 双部署：默认地面・大气；空战用空战面板",
                         "· 进化 基伤/暴击/爆头…　灵化进化选项，可多次；改基础面板",
                         "· 赤毒辐射60　赤毒/信条/终幕回响加成 25-60%，元素要写",
@@ -1021,6 +1032,7 @@ class WikiMiscCommands:
                     ],
                     [
                         "◆ Usage: damage <weapon> [vs <enemy>] [faction] [lvN] [headshot] [modifiers...]",
+                        *dc.TARGET_HELP_EN,
                         "◆ Examples",
                         "· Rifle　damage Bramma vs Heavy Gunner 100 Serration Split Chamber Hellfire electricity90",
                         "· Melee　damage Dark Dagger vs Heavy Gunner 100 combo120",
@@ -1028,6 +1040,7 @@ class WikiMiscCommands:
                         "· MOD names　max-rank values; a whole build can be pasted: Serration / Split Chamber / Hellfire / ...",
                         "· Manual bonuses　basedmgN / multishotN / critchanceN / critdmgN / hsmultN / factionN (%), e.g. critchance150",
                         "· Elements　electricity heat cold toxin (composites form automatically) | impact puncture slash (add to the same type only), e.g. electricity90",
+                        "· overguardN　Manual Overguard pool for the built-in estimate",
                         "· Enemy name　the enemy after vs (about 19 common enemies, fuzzy matching). Shows estimated hits to kill using the target's base armor, health, and shields.",
                         "◆ Status effects",
                         "· viralN / magneticN　1-10 stacks, extra damage to health / shields",
@@ -1035,11 +1048,13 @@ class WikiMiscCommands:
                         "◆ Melee",
                         "· comboN / heavy attack (or heavy at the end) / stance name　each hit multiplier + forced status",
                         "◆ Other",
+                        "· Standalone replay　distance=Nm / modelSpread=true / modelSpread=false / armourStrip=N% / elementalArmourStrip=N% / comboTier=N",
                         "· Faction　grineer / corpus / infested / amalgam / orokin / sentient / narmer ...",
                         "· steelpath / lvN / bare number　Steel Path | enemy level (a bare number is the level)",
+                        "· arcane <name> [rank]　e.g. arcane Primary Deadhead 5. Defaults to max rank",
                         "· incarnon / base form　defaults to the base form; add incarnon to switch",
                         "· alt fire / charged / uncharged / semi-auto / auto　switch to that fire mode's full panel, only calculated when chosen",
-                        "· fire Ns　Heat stacking: steady-state stacks averaged over an N-second window, default 12",
+                        "· fire Ns　Set the combat window. Built-in estimates average Heat stacks over that window.",
                         "· aerial / ground　Archgun deployment: defaults to ground / atmosphere",
                         "· evolve X　Incarnon evolution choice, repeatable",
                         "· kuva-radiation60　Kuva / Tenet / Coda bonus 25-60%, the element must be written",
@@ -1089,10 +1104,7 @@ class WikiMiscCommands:
             if prepare_simulation:
                 return weapon, spec
             res = dc.calculate(spec, weapon)
-            lines = [
-                L("· 计算：随包估算", "· Engine: Bundled estimate"),
-                *dc.card_lines(weapon, spec, res, alts),
-            ]
+            lines = dc.card_lines(weapon, spec, res, alts)
             return self._damage_result(
                 weapon, lines, dc.card_footer(weapon, res), can_actions and res.get("ok")
             )

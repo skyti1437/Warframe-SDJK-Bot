@@ -15,7 +15,9 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import copy
+import io
 import re
 import sys
 import time
@@ -27,11 +29,15 @@ from unittest.mock import AsyncMock, patch
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from PIL import Image, ImageDraw  # noqa: E402
+
 from core import damage_calc as dc  # noqa: E402
 from core import damage_engine as de  # noqa: E402
 from core import loadout_ocr as lo  # noqa: E402
+from core import pips  # noqa: E402
 from core.commands.scan import ScanCommands  # noqa: E402
 from core.commands.vision import VisionCommands  # noqa: E402
+from core.i18n import use_lang  # noqa: E402
 from core.parser import parse  # noqa: E402
 
 FAILED: list[str] = []
@@ -60,6 +66,26 @@ def _run(weapon: dict, cached: dict, text: str) -> list[str]:
     assert parsed.command == "scandamage", parsed.command
     reply = asyncio.run(ScanCommands._h_scan_damage(host, parsed, event, None))
     return list(reply.lines or [])
+
+
+async def _check_experimental_help():
+    host = types.SimpleNamespace(_event_has_image=lambda _: False, _safe_sender=lambda _: "u1")
+    event = types.SimpleNamespace(unified_msg_origin="umo")
+    for language, terms in (
+        ("zh", ("实验功能", "默认关闭")),
+        ("en", ("experimental", "off by default")),
+    ):
+        with use_lang(language):
+            scan = await ScanCommands._h_scan(host, parse("识卡"), event, None)
+            damage = await ScanCommands._h_scan_damage(host, parse("识卡伤害"), event, None)
+        for reply in (scan, damage):
+            check(
+                f"{language} {reply.title} 用法标注实验阶段和默认关闭",
+                any(all(term in line for term in terms) for line in reply.lines),
+            )
+
+
+asyncio.run(_check_experimental_help())
 
 
 # ---------------------------------------------------------------------------
@@ -97,11 +123,33 @@ check(
     str([ln for ln in _lines if "未识别" in ln]),
 )
 
-# 不带参数：沿用识卡缓存，默认 100 级
+# 不带参数：沿用识卡缓存里的默认标准靶
 _plain = _run(_w_mel, _c_mel, "识卡伤害")
 check(
-    "无参数 → 默认 100级",
-    any(ln.startswith("· 目标") and "100级" in ln for ln in _plain),
+    "无参数 → 默认 170 级钢路百夫长去超宏无盾",
+    any(ln.startswith("· 目标") and "170级" in ln for ln in _plain)
+    and any("凶魂百夫长" in ln for ln in _plain)
+    and any("钢铁之路 · 去超宏 · 无盾" in ln for ln in _plain),
+)
+
+_cached_rank, _ = dc.parse_args(["百夫长9999", "有盾", "普通"])
+_cached_rank.update(base_dmg=_c_mel["base_dmg"])
+_cached_rank["combat_options"]["distance"] = 10.0
+_before_rank = copy.deepcopy(_cached_rank)
+_reset_lines = _run(_w_mel, _cached_rank, "识卡伤害 标准靶 有超宏")
+_reset_text = "\n".join(_reset_lines)
+check(
+    "识卡伤害预设能用显式默认字段覆盖缓存，单项开关继续覆盖且缓存不变",
+    "170级" in _reset_text
+    and "钢铁之路 · 带超宏 · 无盾" in _reset_text
+    and "9999" not in _reset_text
+    and "（身体、含暴击期望）" in _reset_text
+    and _cached_rank == _before_rank,
+)
+_changed = "\n".join(_run(_w_mel, _cached_rank, "识卡伤害 C系 去超宏 无盾"))
+check(
+    "识卡伤害显式派系会清除缓存的具名敌人",
+    "C系" in _changed and "凶魂百夫长" not in _changed and "去超宏 · 无盾" in _changed,
 )
 
 # ---------------------------------------------------------------------------
@@ -224,10 +272,10 @@ async def _scan(host, event=None):
         return await host._h_scan(parse("识卡"), event or _event(), None)
 
 
-async def _damage(host, text="识卡伤害", event=None):
+async def _damage(host, text="识卡伤害", event=None, *, platform=None):
     parsed = parse(text)
     assert parsed.command == "scandamage", parsed.command
-    return await host._h_scan_damage(parsed, event or _event(), None)
+    return await host._h_scan_damage(parsed, event or _event(), platform)
 
 
 def _denied(reply):
@@ -506,7 +554,7 @@ asyncio.run(_entry_checks())
 
 
 async def _engine_checks():
-    print("⑪ 独立引擎：从同一快照传原等级，故障不串入随包估算")
+    print("⑪ 独立引擎：从同一快照传原等级，故障不串入内置估算")
     host = _BusinessScanHost("lazy")
     now = time.time()
     cached = copy.deepcopy(_c_mel)
@@ -564,7 +612,7 @@ async def _engine_checks():
         estimate = await _damage(host)
         check(
             "切回内置立刻生效",
-            any("随包估算" in ln for ln in estimate.lines) and send.await_count == 0,
+            any("内置估算" in ln for ln in estimate.lines) and send.await_count == 0,
         )
 
 
@@ -693,11 +741,16 @@ async def _dps_comparison_checks():
         cached = next(iter(host._last_scan.values()))[2]
         calls = [call.args[0] for call in calculate.call_args_list]
         check(
-            "完整模拟启用时首图照样用随包估算且不请求模拟服务",
+            "完整模拟启用时首图照样用内置估算且不请求模拟服务",
             len(calls) == 5
             and remote.await_count == 0
             and all(
-                s["level"] == 100 and s["faction"] == "Grineer" and not s["headshot"] for s in calls
+                s["level"] == 170
+                and s["enemy"]["name"] == "Thrax Centurion"
+                and s["steel_path"]
+                and not s["headshot"]
+                and s["fire_seconds"] == 30
+                for s in calls
             ),
         )
         check(
@@ -879,6 +932,29 @@ async def _portable_scan_checks():
                 and context == "explicit"
                 and send.await_count == called,
             )
+            same_panel = False
+            split_panel = {
+                **spec,
+                "scan_panel": {
+                    "_section": "primary_fire",
+                    "crit_chance": 10,
+                    "status_chance": 20,
+                    "_sections": [
+                        {
+                            "_section": "incarnon",
+                            "crit_chance": 20,
+                            "status_chance": 20,
+                        }
+                    ],
+                },
+            }
+            mode, route, context = await de._resolve_scan_context(
+                service, 18764, request, catalog, split_panel
+            )
+            check(
+                "灵化分段收窄进化后，主射仍用它自己的面板与形态",
+                mode["index"] == 0 and route == {"tier2": "2-2"} and context == "panel",
+            )
         await service.close()
 
     check(
@@ -993,6 +1069,675 @@ async def _evolution_output_checks():
 
 
 asyncio.run(_evolution_output_checks())
+
+
+# 拉特昂装备、极性及面板取自 2026-11-01 三图验收中的图 3。
+# 伯斯顿沿用同一套实体槽位，主射伤害行对应随包回归中的 1,364.2 面板。
+# 像素与 OCR 回执在内存中复现，测试不依赖本机的旧截图或视觉渠道。
+_UPGRADE_CARDS = (
+    ("镀层 氩晶瞄具", 10, 6),
+    ("关键延迟", 5, 5),
+    ("低温弹头 Prime", 10, 8),
+    ("猎人 战备", 5, 5),
+    ("镀层 分裂膛室", 10, 8),
+    ("膛线", 10, 7),
+    ("弱点感应", 5, 5),
+    ("致命火力", 3, 7),
+    ("私法 补给", 0, 5),
+)
+_UPGRADE_ARCANE = "主要·无情"
+_UPGRADE_ARCANE_PATH = "/Fixture/PrimaryMerciless"
+_UPGRADE_EXILUS_PATH = "/Fixture/VigilanteSupplies"
+_UPGRADE_PANEL = {
+    "伯斯顿": (120, 3.96, 48, 4, 45, 1.54, (70, 70, 93.3, 524.7), 1364.2),
+    "拉特昂": (138, 6.6, 41.6, 3.33, 30, 1.85, (25.4, 203.5, 25.4, 572.4), 1488.3),
+}
+
+
+def _upgrade_image(first_visible):
+    image = Image.new("RGB", (1920, 1080), (18, 18, 22))
+    draw = ImageDraw.Draw(image)
+    for index, (name, rank, _) in enumerate(_UPGRADE_CARDS):
+        if index == 0 and not first_visible:
+            continue
+        x, y = (1692, 517) if index == 8 else (712 + index % 4 * 245, 450 + index // 4 * 134)
+        draw.rectangle((x - 76, y - 98, x + 76, y + 13), fill=(32, 32, 36))
+        color = (191, 38, 36) if index == 8 else (238, 238, 238) if index == 7 else (72, 215, 65)
+        draw.rectangle((x + 76, y - 84, x + 88, y - 72), fill=color)
+        lit = (143, 191, 229)
+        if rank == dc.find_mod_exact(name)["max_rank"]:
+            draw.rectangle((x - 76, y, x + 76, y + 1), fill=lit)
+        for p in range(rank):
+            px = x + 12 * p - 6 * (rank - 1)
+            draw.polygon([(px, y - 5), (px + 4, y), (px, y + 5), (px - 4, y)], fill=lit)
+    for p in range(5):
+        x, y = 1643 + p * 25, 381 + p % 2 * 2
+        draw.polygon(
+            [(x, y - 10), (x + 9, y), (x, y + 10), (x - 9, y)],
+            outline=(61, 55, 50),
+            width=2,
+        )
+        draw.polygon([(x, y - 6), (x + 6, y), (x, y + 6), (x - 6, y)], fill=(67, 61, 54))
+    return image
+
+
+def _upgrade_ocr(weapon, omitted_first, *, wrong_capacity=False):
+    crit, multiplier, status, rate, magazine, reload, amounts, total = _UPGRADE_PANEL[weapon]
+    lines = [
+        f"105,55,80,22,0,升级/{weapon}",
+        "173,55,48,22,0,Prime",
+        "30,130,40,18,0,容量",
+        "235,130,40,18,0," + ("5/60" if wrong_capacity else "4/60"),
+        "45,200,70,18,0,Primary",
+    ]
+    fields = (
+        ("暴击几率", f"{crit}%"),
+        ("暴击倍率", f"{multiplier}倍"),
+        ("触发几率", f"{status}%"),
+        ("射击速度", rate),
+        ("弹匣", magazine),
+        ("装填", reload),
+        ("多重射击", 1.8),
+        *zip(("冲击", "穿刺", "切割", "病毒"), amounts),
+        ("总计", total),
+    )
+    for index, (label, value) in enumerate(fields):
+        y = 222 + 22 * index
+        lines += [f"50,{y},72,18,0,{label}", f"220,{y},72,18,0,{value}"]
+    if weapon == "伯斯顿":
+        lines += [
+            "45,525,70,18,0,次要射击",
+            "50,550,70,18,0,暴击几率",
+            "220,550,70,18,0,50%",
+            "45,600,70,18,0,灵化",
+            "50,625,70,18,0,暴击几率",
+            "220,625,70,18,0,99%",
+            "50,650,70,18,0,总计",
+            "220,650,70,18,0,500",
+        ]
+    for index, (name, _, _) in enumerate(_UPGRADE_CARDS):
+        if index == 0 and omitted_first:
+            continue
+        x, y = (880, 428) if index == 8 else (371 + index % 4 * 128, 375 + index // 4 * 124)
+        if index == 2:
+            lines += [f"{x - 14},{y},62,19,0,低温弹头", f"{x + 39},{y + 3},38,19,0,Prime"]
+        else:
+            lines.append(f"{x},{y},65,19,0,{name}")
+    lines += [f"881,331,54,18,0,{_UPGRADE_ARCANE}", "720,795,50,19,0,所有"]
+    return "\n".join(lines)
+
+
+class _UpgradeFixtureProvider:
+    def __init__(self, image, *, omit_first, first_visible):
+        rows = pips.detect_pips(image)
+        self.tiles = pips.equipment_tiles(image, rows, {}, melee=False)[1]
+        self.focus_tiles = pips.equipment_tiles(image, rows, {}, melee=False, slot_ids={"mod-1-1"})[
+            1
+        ]
+        self.omit_first = omit_first
+        self.first_visible = first_visible
+        self.focus_calls = 0
+
+    @staticmethod
+    def meta():
+        return types.SimpleNamespace(id="offline-upgrade-fixture")
+
+    async def text_chat(self, *, prompt, image_urls, session_id):
+        focus = session_id.startswith("sdjk-slot-focus-")
+        if focus:
+            self.focus_calls += 1
+        tiles = self.focus_tiles if focus else self.tiles
+        if not tiles:
+            raise AssertionError("未定位到离线升级槽位")
+        with Image.open(io.BytesIO(base64.b64decode(image_urls[0].split(",", 1)[1]))) as sheet:
+            assert sheet.size == tiles[0]["sheet_size"]
+        lines = []
+        for index, tile in enumerate(tiles):
+            left, top, right, bottom = tile["sheet_box"]
+            w, h = tile["sheet_size"]
+
+            def add(x, y, text, width=60, height=15):
+                cx, cy = left + (right - left) * x, top + (bottom - top) * y
+                lines.append(
+                    f"{1000 * cx / w},{1000 * cy / h},{1000 * width / w},{1000 * height / h},0,{text}"
+                )
+
+            if tile["kind"] == "arcane":
+                add(0.53, 0.62, _UPGRADE_ARCANE, height=19)
+                continue
+            name, _, drain = _UPGRADE_CARDS[index]
+            if index == 0 and not self.first_visible:
+                continue
+            add(0.80, 0.26, drain, width=14)
+            if index == 0 and self.omit_first and not focus:
+                continue
+            if index == 2:
+                add(0.41, 0.59, "低温弹头", width=86)
+                add(0.62, 0.60, "Prime", width=65)
+            elif tile["kind"] == "exilus":
+                add(0.50, 0.65, "私法", width=36)
+                add(0.47, 0.75, "补给", width=36)
+            else:
+                add(0.21 if index == 0 else 0.5, 0.57, name)
+        return types.SimpleNamespace(completion_text="\n".join(lines))
+
+
+async def _upgrade_scan(host, weapon, *, first_visible=True, wrong_capacity=False):
+    omit = weapon == "拉特昂"
+    image = _upgrade_image(first_visible)
+    stream = io.BytesIO()
+    image.save(stream, "PNG")
+    image_url = "data:image/png;base64," + base64.b64encode(stream.getvalue()).decode()
+    provider = _UpgradeFixtureProvider(image, omit_first=omit, first_visible=first_visible)
+    whole_read = lo.parse_coordinate_ocr(_upgrade_ocr(weapon, omit, wrong_capacity=wrong_capacity))
+    with (
+        patch.object(host, "_image_data_urls", AsyncMock(return_value=[image_url])),
+        patch.object(
+            host,
+            "_extract_loadout_validated",
+            ScanCommands._extract_loadout_validated.__get__(host),
+        ),
+        patch.object(host, "_scan_vision_providers", return_value=[provider]),
+        patch.object(host, "_scan_equipment_providers", return_value=[provider]),
+        patch.object(host, "_extract_loadout_from_image", AsyncMock(return_value=whole_read)),
+        patch.object(host, "_read_scan_focus", AsyncMock(return_value=None)),
+    ):
+        return await _scan(host), provider.focus_calls
+
+
+class _UpgradeFixtureEngine:
+    def __init__(self, weapon):
+        self.weapon = weapon
+        self.record = dc.find_weapon_exact(weapon + " Prime")
+        self.target = dc.DEFAULT_ENEMY_PATH
+        self.replays = []
+        self.hunter = "/Fixture/HunterMunitions"
+        self.catalog = {
+            "buildLabel": de.PORTABLE_DATA,
+            "schemaVersion": 3,
+            "weapons": [
+                {
+                    "path": self.record["uniqueName"],
+                    "nameEn": self.record["name"],
+                    "available": True,
+                    "buildAvailable": True,
+                    "fireModes": [
+                        {"index": 0, "available": True},
+                        {"index": 1, "available": True, "isIncarnonForm": True},
+                    ],
+                    "incarnon": [
+                        {
+                            "tier": tier,
+                            "selectable": True,
+                            "options": [
+                                {"id": f"{tier}-{option}"} for option in range(1, count + 1)
+                            ],
+                        }
+                        for tier, count in ((2, 2), (3, 3), (4, 3))
+                    ],
+                }
+            ],
+            "enemies": [
+                {
+                    "nameEn": "Thrax Centurion",
+                    "path": self.target,
+                    "complete": True,
+                    "scalingSupported": True,
+                }
+            ],
+            "manualMods": [
+                {
+                    "nameEn": "Hunter Munitions",
+                    "path": self.hunter,
+                    "baseDrain": 4,
+                    "maxRank": 5,
+                    "polarity": "AP_ATTACK",
+                }
+            ],
+            "utilityMods": [
+                {
+                    "nameEn": "Vigilante Supplies",
+                    "path": _UPGRADE_EXILUS_PATH,
+                    "drain": 9,
+                    "maxRank": 5,
+                    "polarity": "AP_TACTIC",
+                }
+            ],
+            "arcanes": [
+                {
+                    "nameEn": "Primary Merciless",
+                    "path": _UPGRADE_ARCANE_PATH,
+                    "maxRank": 5,
+                }
+            ],
+        }
+
+    async def request(self, port, path, body=None, **_kwargs):
+        if path == "/api/catalog":
+            return self.catalog
+        route = body["incarnonChoices"]
+        crit, multiplier, status, rate, magazine, reload, amounts, total = _UPGRADE_PANEL[
+            self.weapon
+        ]
+        if route["tier4"] != ("4-2" if self.weapon == "伯斯顿" else "4-3"):
+            crit /= 2
+        if route["tier3"] == ("3-1" if self.weapon == "伯斯顿" else "3-2"):
+            magazine = 66 if self.weapon == "伯斯顿" else 30
+        elif self.weapon == "拉特昂":
+            magazine = 15
+        if body["fireMode"] == 1:
+            crit = 99
+        stats = {
+            "critChance": crit / 100,
+            "critMultiplier": multiplier,
+            "statusChance": status / 100,
+            "fireRate": rate,
+            "magazine": magazine,
+            "reloadTime": reload,
+            "multishot": 1.8,
+            "damageTypes": dict(zip(("DT_IMPACT", "DT_PUNCTURE", "DT_SLASH", "DT_VIRAL"), amounts)),
+            "totalDamage": total,
+        }
+        result = {
+            "buildLabel": de.PORTABLE_DATA,
+            "incarnonChoices": route,
+            "moddedStats": stats,
+            "selection": {
+                "fireMode": body["fireMode"],
+                "weapon": {"path": body["weapon"]},
+                "scenario": body.get("scenario", {}),
+            },
+        }
+        if body["damageModel"] == "panel":
+            assert body["arcanes"] == [{"path": _UPGRADE_ARCANE_PATH, "rank": 5, "stacks": 0}]
+            return result
+        self.replays.append(copy.deepcopy(body))
+        assert body["mods"][3]["path"] == self.hunter
+        assert body["exilus"] == {"path": _UPGRADE_EXILUS_PATH, "rank": 0}
+        assert body["arcanes"] == [{"path": _UPGRADE_ARCANE_PATH, "rank": 5}]
+        dps = 2100 + (route["tier2"] == "2-2") * 600 + (route["tier3"] == "3-3") * 20
+        exilus = {**body["exilus"], "slot": 8, "drain": 5}
+        assignments = [
+            {**mod, "drain": _UPGRADE_CARDS[index][2]} for index, mod in enumerate(body["mods"])
+        ]
+        result["selection"]["mods"] = [
+            {**mod, "nameEn": _UPGRADE_CARDS[index][0]} for index, mod in enumerate(body["mods"])
+        ]
+        result.update(
+            damageModel="target",
+            headshotMix={"chance": body["headshotChance"]},
+            enemyEnhancements=body["enemyEnhancements"],
+            loadoutValidation={
+                "assignments": [*assignments, exilus],
+                "capacity": 56,
+                "capacityLimit": 60,
+                "valid": True,
+            },
+            benchmarkTimeline={
+                "windowDps": dps,
+                "windowSeconds": body["windowSeconds"],
+                "shots": 21,
+                "reloads": 1,
+                "context": {
+                    "enemyPath": body["enemy"],
+                    "level": body["level"],
+                    "steelPath": body["steelPath"],
+                },
+            },
+            exilus={
+                **exilus,
+                "slotPolarity": body["specialSlotPolarities"]["exilus"],
+                "catalogJoined": True,
+                "nameEn": "Vigilante Supplies",
+            },
+            arcanes=[{**body["arcanes"][0], "applied": True, "nameEn": "Primary Merciless"}],
+        )
+        return result
+
+
+async def _upgrade_round_trips():
+    print("⑯ 伯斯顿与拉特昂升级图：实际槽位裁剪、同会话双引擎复算")
+    for name, focus_count, replay_count, chosen_codes in (
+        ("伯斯顿", 0, 4, "2-2, 3-3"),
+        ("拉特昂", 1, 2, "2-2"),
+    ):
+        host = _ScanHost("lazy")
+        scan, calls = await _upgrade_scan(host, name)
+        check(
+            f"{name}识卡逐槽通过，按需要聚焦补读并写入两份记录",
+            calls == focus_count
+            and bool(scan.actions)
+            and len(host._last_scan) == len(host._scan_records) == 1,
+            str(scan.lines),
+        )
+        if not host._last_scan:
+            continue
+        cached = next(iter(host._last_scan.values()))[2]
+        check(
+            f"{name}八主槽、零级红色扩展槽与五级赋能的截图账本",
+            cached["scan_capacity"] == (56, 60)
+            and [s["rank"] for s in cached["loadout_slots"]] == [10, 5, 10, 5, 10, 10, 5, 3, 0, 5]
+            and cached["loadout_slots"][2]["mod_name"] == "Primed Cryo Rounds"
+            and cached["loadout_slots"][8]["color"] == "红"
+            and cached["loadout_slots"][8]["drain"] == 5,
+        )
+        bundled = await _damage(host, "识卡伤害 150级")
+        check(
+            f"{name}同会话随包复算成功",
+            bool(bundled.actions)
+            and any("内置估算" in line for line in bundled.lines)
+            and any("150级" in line for line in bundled.lines),
+            str(bundled.lines),
+        )
+        engine = _UpgradeFixtureEngine(name)
+        host.cfg.update(damage_engine_mode="simulation", damage_engine_portable_port=18764)
+        with TemporaryDirectory() as root:
+            host.damage_engine = de.EngineService(Path(root))
+            try:
+                with (
+                    patch.object(host.damage_engine, "ensure_portable", AsyncMock()),
+                    patch.object(de, "portable_request", new=engine.request),
+                ):
+                    portable = await _damage(host, "识卡伤害 150级", platform="pc")
+                    default_replays = engine.replays[:]
+                    selected = await _damage(host, "识卡伤害 百夫长9999 有盾 去超宏", platform="pc")
+                    selected_replays = engine.replays[len(default_replays) :]
+            finally:
+                await host.damage_engine.close()
+        check(
+            f"{name}独立引擎按同靶同窗口比较所有等价进化并标注选中编号",
+            bool(portable.actions)
+            and any("独立引擎" in line for line in portable.lines)
+            and any("最高窗口 DPS" in line and chosen_codes in line for line in portable.lines)
+            and len(default_replays) == replay_count
+            and all(
+                {k: v for k, v in request.items() if k != "incarnonChoices"}
+                == {k: v for k, v in default_replays[0].items() if k != "incarnonChoices"}
+                for request in default_replays
+            ),
+            str(portable.lines),
+        )
+
+        check(
+            f"{name} 识卡缓存复算透传 9999 级、瞄准、去超宏和模拟盾",
+            len(selected_replays) == replay_count
+            and all(
+                request["enemy"] == dc.DEFAULT_ENEMY_PATH
+                and request["level"] == 9999
+                and request["headshotChance"] == 1
+                and request["windowSeconds"] == 180
+                and request["scenario"]["aiming"] is True
+                and request["enemyEnhancements"]
+                == {"eximus": False, "noOverguard": True, "shieldOverride": 3600.0}
+                for request in selected_replays
+            )
+            and any("去超宏 · 模拟有盾" in line for line in selected.lines),
+            str(selected.lines),
+        )
+
+    for options, expected_calls in (({"first_visible": False}, 0), ({"wrong_capacity": True}, 1)):
+        host = _ScanHost("lazy")
+        host.cfg.update(damage_engine_mode="simulation", damage_engine_portable_port=18764)
+        scan, calls = await _upgrade_scan(host, "拉特昂", **options)
+        check(
+            f"拉特昂拒绝无首槽证据或账本不平 {options}",
+            calls == expected_calls
+            and not scan.actions
+            and not host._last_scan
+            and not host._scan_records
+            and _denied(await _damage(host)),
+        )
+
+
+asyncio.run(_upgrade_round_trips())
+
+
+async def _manual_portable_round_trips():
+    from core.commands.wiki_misc import WikiMiscCommands
+    from core.i18n import use_lang
+
+    class Host(WikiMiscCommands):
+        cfg = {"damage_engine_mode": "simulation", "damage_engine_portable_port": 18764}
+
+    fixtures = {}
+    for name in ("Grimoire", "Amprex", "Braton Prime", "Skana"):
+        weapon = dc.find_weapon_exact(name)
+        path = weapon["uniqueName"].replace("TnDoppelgangerGrimoire", "TnGrimoire")
+        fixtures[name] = {
+            "nameEn": name,
+            "path": path,
+            "available": True,
+            "buildAvailable": True,
+            "fireModes": [{"index": 0, "available": True}],
+        }
+    grimoire = fixtures["Grimoire"]
+    copycat = {
+        **grimoire,
+        "path": dc.find_weapon_exact("Grimoire")["uniqueName"],
+        "nameInternal": "TnDoppelgangerGrimoire",
+        "fireModes": grimoire["fireModes"][:],
+    }
+    copycat["ancestry"] = [copycat["path"], grimoire["path"]]
+    grimoire["fireModes"].append({"index": 1, "available": True, "isAlternateFire": True})
+    fixtures["Braton Prime"]["fireModes"].append(
+        {"index": 1, "available": True, "isIncarnonForm": True}
+    )
+    fixtures["Braton Prime"]["incarnon"] = [
+        {
+            "tier": 2,
+            "selectable": True,
+            "options": [{"id": "2-2", "label": "进化甲", "labelEn": "Evolution A"}],
+        },
+    ]
+
+    def equipment(name, zh, path, rank):
+        return {"nameEn": name, "nameZh": zh, "path": "/Lotus/" + path, "maxRank": rank}
+
+    arc = equipment("Primary Deadhead", "主要·死首", "Arcane", 5)
+    utility = equipment("Sinister Reach", "凶恶延伸", "RifleExilus", 3)
+    melee_utility = equipment("Dispatch Overdrive", "超速击杀", "MeleeExilus", 5)
+    stance = equipment("Iron Phoenix", "钢铁凤凰", "Stance", 3)
+    serration = equipment("Serration", "膛线", "Serration", 10)
+    serration["path"] = dc.find_mod_exact("膛线")["_source_unique_name"]
+    catalog = {
+        "buildLabel": de.PORTABLE_DATA,
+        "schemaVersion": 3,
+        "weapons": [*fixtures.values(), copycat],
+        "enemies": [
+            {
+                "nameEn": name,
+                "path": path,
+                "complete": True,
+                "scalingSupported": True,
+            }
+            for name, path in (
+                ("Heavy Gunner", "/Lotus/Enemy"),
+                ("Thrax Centurion", dc.DEFAULT_ENEMY_PATH),
+                ("Crewman", "/Lotus/Crewman"),
+            )
+        ],
+        "arcanes": [arc],
+        "utilityMods": [utility, melee_utility],
+        "stances": [stance],
+        "manualMods": [serration],
+    }
+    calls = []
+
+    async def engine(_port, endpoint, body=None, **_kwargs):
+        if endpoint == "/api/catalog":
+            return catalog
+        assert endpoint == "/api/simulate"
+        calls.append(body)
+        mods = [{**serration, **row} for row in body["mods"]]
+        special = {**stance, "rank": 3} if body.get("stancePath") else None
+        selected_utility = {row["path"]: row for row in (utility, melee_utility)}
+        return {
+            "buildLabel": de.PORTABLE_DATA,
+            "damageModel": body["damageModel"],
+            "headshotMix": {"chance": body["headshotChance"]},
+            "enemyEnhancements": body["enemyEnhancements"],
+            "selection": {
+                "weapon": {"path": body["weapon"]},
+                "fireMode": body["fireMode"],
+                "mods": mods,
+                "stance": special,
+                "scenario": body.get("scenario", {}),
+            },
+            "loadoutValidation": {
+                "assignments": mods,
+                "valid": True,
+                "capacity": 13,
+                "capacityLimit": 60,
+            },
+            "benchmarkTimeline": {
+                "windowSeconds": body["windowSeconds"],
+                "windowDps": 160.0,
+                "shots": 12,
+                "reloads": 1,
+                "context": {
+                    "enemyPath": body["enemy"],
+                    "level": body["level"],
+                    "steelPath": body["steelPath"],
+                },
+            },
+            "incarnonChoices": body.get("incarnonChoices", {}),
+            "arcanes": [{**arc, **row, "applied": True} for row in body.get("arcanes", ())],
+            "exilus": {**selected_utility[body["exilus"]["path"]], **body["exilus"]}
+            if "exilus" in body
+            else None,
+        }
+
+    with TemporaryDirectory() as tmp, patch.object(de, "portable_request", engine):
+        host = Host()
+        host.damage_engine = de.EngineService(Path(tmp))
+        host.damage_engine.ensure_portable = AsyncMock()
+        cases = (
+            ("en", "damage Grimoire vs Heavy Gunner alt fire", "Grimoire", 1, ("Alternate fire",)),
+            (
+                "zh",
+                "伤害 安培克斯 对 重机枪手 膛线 凶恶延伸 赋能 主要·死首 5级 距离5米",
+                "Amprex",
+                0,
+                ("膛线 · 等级 10", "扩展槽 凶恶延伸 · 3 级", "主要·死首 · 5 级", "距离 5 米"),
+            ),
+            (
+                "zh",
+                "伤害 布莱顿p 对 重机枪手 灵化 进化 2-2",
+                "Braton Prime",
+                1,
+                ("灵化形态", "2-2"),
+            ),
+            (
+                "en",
+                "damage Skana vs Heavy Gunner Iron Phoenix Dispatch Overdrive heavy attack combo120",
+                "Skana",
+                0,
+                ("Heavy attack", "Combo ×7", "Iron Phoenix", "Exilus Dispatch Overdrive"),
+            ),
+        )
+        for language, command, name, index, labels in cases:
+            with use_lang(language):
+                reply = await host._h_damage(parse(command), None, "pc")
+            shown = "\n".join(reply.lines)
+            check(
+                f"{name} 手输从正常指令完成同靶步进回放并回读装备",
+                calls[-1]["weapon"] == fixtures[name]["path"]
+                and calls[-1]["fireMode"] == index
+                and all(label in shown for label in labels)
+                and ("30 秒平均 DPS" if language == "zh" else "Average DPS over 30 s") in shown
+                and "/Lotus/" not in shown,
+                shown,
+            )
+            if name in {"Amprex", "Braton Prime", "Skana"}:
+                bundled = host._damage_reply(parse(command)).lines if language == "zh" else []
+                if language == "en":
+                    with use_lang("en"):
+                        bundled = host._damage_reply(parse(command)).lines
+                check(
+                    f"{name} 两个后端分别标注持续公式与独立引擎",
+                    any(
+                        ("内置估算" if language == "zh" else "Built-in estimate") in line
+                        for line in bundled
+                    )
+                    and ("独立引擎" if language == "zh" else "Standalone engine") in shown,
+                )
+        for args, expected_target, expected_defense, window, labels in (
+            (
+                "",
+                dc.DEFAULT_ENEMY_PATH,
+                {"eximus": False, "noOverguard": True},
+                30,
+                ("凶魂百夫长 Lv170", "去超宏 · 无盾"),
+            ),
+            (
+                "百夫长9999 有盾",
+                dc.DEFAULT_ENEMY_PATH,
+                {"eximus": False, "noOverguard": False, "shieldOverride": 3600.0},
+                180,
+                ("凶魂百夫长 Lv9999", "带超宏 · 模拟有盾", "瞄准"),
+            ),
+            (
+                "百夫长9999 去超宏",
+                dc.DEFAULT_ENEMY_PATH,
+                {"eximus": False, "noOverguard": True, "shieldOverride": 0.0},
+                180,
+                ("凶魂百夫长 Lv9999", "去超宏 · 无盾", "瞄准"),
+            ),
+            (
+                "对 船员 无盾 普通",
+                "/Lotus/Crewman",
+                {"eximus": False, "noOverguard": True, "shieldOverride": 0.0},
+                30,
+                ("船员 Lv170", "普通", "去超宏 · 无盾"),
+            ),
+            (
+                "C系 120级",
+                "__custom_enemy__",
+                {"eximus": False, "noOverguard": True},
+                30,
+                ("Corpus 合成靶", "Lv120"),
+            ),
+        ):
+            reply = await host._h_damage(parse(f"伤害 布莱顿p {args}"), None, "pc")
+            body = calls[-1]
+            check(
+                f"独立引擎从伤害入口透传工况 {args or '默认'}",
+                body["enemy"] == expected_target
+                and body["windowSeconds"] == window
+                and body["enemyEnhancements"] == expected_defense
+                and body["headshotChance"] == (1.0 if window == 180 else 0.0)
+                and bool(body.get("scenario", {}).get("aiming")) == (window == 180)
+                and all(label in "\n".join(reply.lines) for label in labels),
+                str(reply.lines),
+            )
+        before = len(calls)
+        invalid = await host._h_damage(parse("伤害 布莱顿p 超宏50000"), None, "pc")
+        check(
+            "手填数值超宏由内置估算，独立引擎明确提示",
+            len(calls) == before
+            and any("超宏防护 暂不支持手动覆盖" in line for line in invalid.lines)
+            and any("超宏池 50000" in line for line in invalid.lines),
+            str(invalid.lines),
+        )
+        check(
+            "手输扩展槽不占定序普通槽，架势和连击按目录透传",
+            calls[1]["mods"] == [{"slot": 0, "path": serration["path"], "rank": 10}]
+            and calls[1]["arcanes"] == [{"path": arc["path"], "rank": 5}]
+            and calls[2]["incarnonChoices"] == {"tier2": "2-2"}
+            and calls[3]["mods"] == []
+            and calls[3]["stancePath"] == stance["path"]
+            and calls[3]["scenario"] == {"heavyAttack": True, "comboTier": 6},
+        )
+        before = len(calls)
+        reply = await host._h_damage(parse("伤害 布莱顿p 对 重机枪手 超宏5000"), None, "pc")
+        check(
+            "自订超宏明确回退，完全不调用独立引擎",
+            before == len(calls) and "超宏防护" in reply.lines[0],
+        )
+        await host.damage_engine.close()
+
+
+asyncio.run(_manual_portable_round_trips())
 
 print()
 if FAILED:

@@ -286,12 +286,9 @@ def unconfirmed_for(cls: str, family_root: str, members: list[str]) -> set[str]:
 
 
 def _physical_evidence(family_root: str, *, positive: bool) -> dict[str, bool]:
-    """P4 的家族物理证据，布尔值表示是否已确认资格。"""
-    from .riven_rating import _trait_catalog
+    from .riven_rating import physical_evidence
 
-    audit = _trait_catalog().get("roll_pool_audit", {})
-    family = audit.get("range_evidence", {}).get(family_root.lower(), {})
-    return family.get("positive" if positive else "negative", {})
+    return physical_evidence(family_root, positive=positive)
 
 
 def excluded_for(

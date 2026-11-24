@@ -528,6 +528,24 @@ class MessagingTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(post.call_count, count)
         self.assertTrue((await self.bridge.send_markdown(Event(), "正文")).fallback)
 
+    async def test_qq_passive_literal_shares_sequence_with_native_replies(self):
+        for group in (True, False):
+            with self.subTest(group=group):
+                event = self.qq(group)
+                post = event.bot.api.post_group_message if group else event.bot.api.post_c2c_message
+                self.assertFalse(await self.bridge.send_literal(event, "普通输出走原路径"))
+                post.assert_not_awaited()
+                self.assertTrue(await self.bridge.send_literal(event, "正在计算", qq_passive=True))
+                progress = post.call_args.kwargs
+                self.assertEqual(progress["msg_type"], 0)
+                self.assertEqual(progress["content"], "正在计算")
+                self.assertGreater(progress["msg_seq"], 10000)
+                self.assertTrue((await self.bridge.send_markdown(event, "**配装结果**")).sent)
+                result = post.call_args.kwargs
+                self.assertEqual(result["msg_id"], progress["msg_id"])
+                self.assertEqual(result["msg_seq"], progress["msg_seq"] + 1)
+                self.assertEqual(result["msg_type"], 2)
+
     async def test_qq_timeout_never_retries_or_removes_message_id(self):
         event = self.qq()
         event.bot.api.post_group_message.side_effect = TimeoutError()

@@ -12,6 +12,7 @@ import copy
 import hashlib
 import json
 import math
+import re
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -157,6 +158,96 @@ check("武器名 token 保持完整（赤毒 布拉玛）", " ".join(name) == "�
 spec2, name2 = dc.parse_args(["基础形态", "Soma", "C系", "60级", "派系30"])
 check("独立数字参数（派系 30）", spec2["faction_dmg"] == 30.0, str(spec2))
 check("C系解析", spec2["faction"] == "Corpus")
+
+# 标准靶默认与两个独立防御开关
+_default, _tokens = dc.parse_args(["Soma"])
+_soma = dc.find_weapon_exact("Soma")
+_default_hit = dc.calculate(_default, _soma)
+check(
+    "无靶标参数时用 170 级钢路百夫长、躯干 30 秒、去超宏和原生无盾",
+    _tokens == ["Soma"]
+    and _default["enemy"]["name"] == "Thrax Centurion"
+    and _default["level"] == 170
+    and _default["steel_path"] is True
+    and _default["headshot"] is False
+    and _default["fire_seconds"] == 30
+    and _default_hit["overguard"] is None
+    and _default_hit["shield_hp"] == 0,
+)
+check(
+    "标准靶扎里曼只吃虚空易伤，普通派系卡不生效",
+    _default_hit["fac_weak"] == ["void"]
+    and not _default_hit["fac_resist"]
+    and dc.calculate(dc.parse_args(["Soma", "灭亡 Grineer", "灭亡 Corpus"])[0], _soma)["health"]
+    == _default_hit["health"],
+)
+for _alias in ("三靶", "标准靶", "百夫长", "benchmark"):
+    _preset, _ = dc.parse_args([_alias])
+    check(f"{_alias} 预设显式去盾", _preset["shield_mode"] == "off" and _preset["level"] == 170)
+for _alias in ("百夫长9999", "9999靶", "9999百夫长", "sp9999"):
+    _rank, _ = dc.parse_args([_alias])
+    check(
+        f"{_alias} 预设 9999 级、带超宏、爆头瞄准、180 秒",
+        _rank["level"] == 9999
+        and _rank["headshot"] is True
+        and _rank["steel_path"] is True
+        and _rank["fire_seconds"] == 180
+        and _rank["overguard_mode"] == "on"
+        and _rank["shield_mode"] == "off"
+        and _rank["combat_options"]["weaponAiming"] is True,
+    )
+_og, _ = dc.parse_args(["百夫长9999"])
+_og_hit = dc.calculate(_og, _soma)
+_og_normal = dc.calculate({**_og, "steel_path": False}, _soma)
+check(
+    "9999 级超宏按绝对等级缩放，不吃钢路倍率，计入破超宏发数",
+    close(_og_hit["overguard"]["pool"], 15 * (1 + 260 * 9998**0.9))
+    and _og_hit["overguard"] == _og_normal["overguard"]
+    and any("发打穿" in line for line in dc.card_lines(_soma, _og, _og_hit)),
+)
+_og_body = dc.calculate({**_og, "headshot": False}, _soma)
+check(
+    "排行榜爆头计入稳态直伤和破超宏段的命中期望",
+    _og_hit["steady"]["dps_direct"] > _og_body["steady"]["dps_direct"]
+    and _og_hit["overguard"]["crit"] > _og_body["overguard"]["crit"]
+    and _og_hit["shots"] < _og_body["shots"],
+)
+_shielded, _ = dc.parse_args(["百夫长9999", "有盾", "去超宏", "普通", "170级", "躯干"])
+_shielded_hit = dc.calculate(_shielded, _soma)
+check(
+    "百夫长模拟盾以 3600 按标准曲线缩放，和超宏开关独立",
+    _shielded_hit["overguard"] is None
+    and _shielded_hit["shield_override"] == 3600
+    and close(_shielded_hit["shield_hp"], 3600 * (1 + 1.6 * 169**0.75))
+    and dc.calculate({**_shielded, "steel_path": True}, _soma)["shield_hp"]
+    == _shielded_hit["shield_hp"] * 2.5
+    and _shielded_hit["shield_shots"] > 0
+    and any("模拟有盾" in line for line in dc.card_lines(_soma, _shielded, _shielded_hit)),
+)
+_crew, _ = dc.parse_args(["对", "船员", "有盾", "带超宏"])
+_noshield, _ = dc.parse_args(["对", "船员", "无盾"])
+_crew_hit = dc.calculate(_crew, _soma)
+check(
+    "船员有盾保留原生值，去盾清池，无原生超宏只显示该段伤害",
+    _crew_hit["shield_hp"] > 0
+    and _crew_hit["shield_override"] is None
+    and _crew_hit["overguard"]["pool"] is None
+    and dc.calculate(_noshield, _soma)["shield_hp"] == 0,
+)
+_select, _name = dc.parse_args(["Soma", "对", "凶魂百夫长", "9999级", "普通"])
+_corpus, _ = dc.parse_args(["C系", "120级"])
+check(
+    "显式敌人或派系保留，普通 9999 级不自动启用排行榜预设",
+    _name == ["Soma"]
+    and _select["enemy"]["name"] == "Thrax Centurion"
+    and _select["level"] == 9999
+    and not _select["steel_path"]
+    and not _select["headshot"]
+    and _select["overguard_mode"] == "off"
+    and _corpus["enemy"] is None
+    and _corpus["faction"] == "Corpus"
+    and _corpus["level"] == 120,
+)
 
 # ---------------------------------------------------------------------------
 # 7) 端到端：Soma 打 G系 30 级（基准甲 100）
@@ -351,7 +442,7 @@ check(
     close(dc.health_multiplier("Grineer", 50, 8), 1 + 0.015 * 42**2.12),
 )
 
-spec_e, wt_e = dc.parse_args(["基础形态", "Soma", "对", "重型机枪手", "60级"])
+spec_e, wt_e = dc.parse_args(["基础形态", "Soma", "对", "重型机枪手", "60级", "普通", "开火12秒"])
 check("敌人参数被识别", (spec_e["enemy"] or {}).get("zh") == "重型机枪手")
 check("「对」被当介词丢掉", wt_e == ["Soma"], str(wt_e))
 check("给了敌人就不再吃默认甲", spec_e["base_armor"] is None)
@@ -373,7 +464,7 @@ check(
     r_e["shots"] == math.ceil(r_e["hp"] / (r_e["health"] * r_e["crit_exp"])),
     f"{r_e['shots']}",
 )
-spec_c, _ = dc.parse_args(["基础形态", "Soma", "船员", "60级"])
+spec_c, _ = dc.parse_args(["基础形态", "Soma", "船员", "60级", "普通", "开火12秒"])
 r_c = dc.calculate(spec_c, w_soma)
 check("船员无护甲 → DR 0", r_c["dr"] == 0)
 check(
@@ -413,7 +504,7 @@ check(
     "MOD 记录被保留（卡面要显示乘区）", [m.get("zh") for m in r_mod["mods"]] == ["膛线", "分裂膛室"]
 )
 
-spec_sp, _ = dc.parse_args(["基础形态", "Soma", "船员", "60级", "钢路"])
+spec_sp, _ = dc.parse_args(["基础形态", "Soma", "船员", "60级", "钢路", "开火12秒"])
 r_sp = dc.calculate(spec_sp, w_soma)
 # 2026-10-16：wiki《The Steel Path》Enemy Health / Shield 250%（原先按 ×2 算错）
 check("钢路血量 ×2.5", close(r_sp["hp"], r_c["hp"] * 2.5, 1e-6))
@@ -903,6 +994,47 @@ try:
 finally:
     _arc_pool.pop("__test_fr__", None)
 
+for _name, _words in (
+    ("Braton Prime", ["主要·死首", "5级"]),
+    ("Braton Prime", ["Primary", "Deadhead", "5"]),
+    ("Braton Prime", ["主要·死首"]),
+    ("Vasto", ["次要·死首@5"]),
+):
+    _base, _ = dc.parse_args([_name, "爆头"])
+    _mounted, _parts = dc.parse_args([_name, "爆头", "赋能", *_words, "170级"])
+    _base["level"] = 170
+    _weapon = dc.find_weapon_exact(_name)
+    _before = copy.deepcopy(_mounted)
+    _plain, _result = dc.calculate(_base, _weapon), dc.calculate(_mounted, _weapon)
+    _lines = dc.card_lines(_weapon, _mounted, _result)
+    check(
+        f"{_name} 赋能 {' '.join(_words)}：实际等级、仅常驻爆头加成、参数可复用",
+        _parts == [_name]
+        and _mounted["level"] == 170
+        and _mounted["arcanes"][0]["rank"] == 5
+        and _mounted == _before
+        and _result == dc.calculate(_mounted, _weapon)
+        and _result["steady"]["dps_total"] > _plain["steady"]["dps_total"]
+        and any("5 级" in line and "赋能" in line for line in _lines)
+        and any("常驻爆头加成 +30%" in line for line in _lines)
+        and any("条件触发和叠层未计入" in line for line in _lines),
+    )
+
+for _name, _arcane in (("Braton Prime", "主要·无情"), ("Vasto", "次要·无情")):
+    _weapon = dc.find_weapon_exact(_name)
+    _empty, _third, _full = (
+        dc.calculate(dc.parse_args([_name, *suffix])[0], _weapon)
+        for suffix in ([], ["赋能", _arcane + "@3"], ["赋能", _arcane])
+    )
+    check(
+        f"{_arcane} 的装填常驻值取对应等级，满级提升持续 DPS",
+        _third["arcanes"][0]["rank"] == 3
+        and _empty["dps_sustained"] == _third["dps_sustained"] < _full["dps_sustained"]
+        and _empty["dps"] == _full["dps"],
+    )
+    _bad, _ = dc.parse_args([_name, "赋能", _arcane + "@6"])
+    check(f"{_arcane} 拒绝超满等级", bool(_bad["errors"]) and not _bad["arcanes"])
+
 
 # ---------------------------------------------------------------------------
 # 形态：默认原型，写「灵化」才切灵化形态
@@ -1154,18 +1286,14 @@ check(
     and len(_s_f["faction_dmg_of"]) == 1
     and _s_f["faction_dmg_of"][0][0] == "Corpus",
 )
-_sA = dc.parse_args(["雷克斯", "对G10"])[0]
-_sA["faction"] = "Corpus"
-_sB = dc.parse_args(["雷克斯", "灭亡 Corpus", "对G10"])[0]
-_sB["faction"] = "Corpus"
+_sA = dc.parse_args(["雷克斯", "C系", "100级", "普通", "开火12秒", "对G10"])[0]
+_sB = dc.parse_args(["雷克斯", "C系", "100级", "普通", "开火12秒", "灭亡 Corpus", "对G10"])[0]
 check(
     "打 Corpus：灭亡生效（fac_mod 1.4 vs 1.1）",
     close(dc.calculate(_sB, _w_lex)["dps"] / dc.calculate(_sA, _w_lex)["dps"], 1.4 / 1.1),
 )
-_sC = dc.parse_args(["雷克斯", "灭亡 Corpus", "对G10"])[0]
-_sC["faction"] = "Grineer"
-_sA2 = dc.parse_args(["雷克斯", "对G10"])[0]
-_sA2["faction"] = "Grineer"
+_sC = dc.parse_args(["雷克斯", "G系", "100级", "普通", "开火12秒", "灭亡 Corpus", "对G10"])[0]
+_sA2 = dc.parse_args(["雷克斯", "G系", "100级", "普通", "开火12秒", "对G10"])[0]
 check(
     "打 Grineer：灭亡 Corpus 不生效（比值=1）",
     close(dc.calculate(_sC, _w_lex)["dps"] / dc.calculate(_sA2, _w_lex)["dps"], 1.0),
@@ -1185,12 +1313,12 @@ check(
 
 # ---------------------------------------------------------------------------
 # 2026-10-10 第三批 #12：火焰单例累加（wfsim data/debuffs/ignite.yaml:14-22,26-32）
-#   开火 T 秒、火触发率 r：r×6 ≥ 1 时平均 r×T/2 层；否则 r×6。默认 T = 12 ⇒ 与修前 r×6 逐位相同。
+#   开火 T 秒、火触发率 r：r×6 ≥ 1 时平均 r×T/2 层；否则 r×6。
 _w_ig = dc.find_weapon("Ignis Wraith")[0]
 
 
 def _ss_ig(args):
-    s = dc.parse_args(list(args))[0]
+    s = dc.parse_args(["对", "重机枪手", "100级", "普通", *args])[0]
     return s, dc.calculate(s, _w_ig)["steady"]
 
 
@@ -1198,27 +1326,27 @@ _s_def, _ss_def = _ss_ig(["火90", "多重100"])
 _s_12, _ss_12 = _ss_ig(["火90", "多重100", "开火12秒"])
 _s_30, _ss_30 = _ss_ig(["火90", "多重100", "开火30秒"])
 _s_3, _ss_3 = _ss_ig(["火90", "多重100", "开火3秒"])
-check("开火N秒：默认 fire_seconds = 12", _s_def["fire_seconds"] == 12.0)
+check("开火N秒：默认 fire_seconds = 30", _s_def["fire_seconds"] == 30.0)
 check(
     "开火30秒 → fire_seconds 30；开火3秒 → 3",
     _s_30["fire_seconds"] == 30.0 and _s_3["fire_seconds"] == 3.0,
 )
 _r_heat = _ss_def["procs_per_sec"]  # Ignis Wraith 火 100% ⇒ 火触发率 = 总触发率
 check(
-    "默认（T=12）火层数 = 触发率 × 6，与修前公式逐位相同",
-    _ss_def["heat_stacks"] == _r_heat * 6.0 and _ss_def["heat_refreshed"],
-    f"{_ss_def['heat_stacks']} vs {_r_heat * 6.0}",
+    "显式 T=12 时火层数 = 触发率 × 6，与原稳态公式逐位相同",
+    _ss_12["heat_stacks"] == _r_heat * 6.0 and _ss_12["heat_refreshed"],
+    f"{_ss_12['heat_stacks']} vs {_r_heat * 6.0}",
 )
 check(
-    "显式「开火12秒」与默认逐位相同（层数 / 火 DoT / 总 DPS）",
-    _ss_12["heat_stacks"] == _ss_def["heat_stacks"]
-    and _ss_12["dots_detail"]["heat"] == _ss_def["dots_detail"]["heat"]
-    and _ss_12["dps_total"] == _ss_def["dps_total"],
+    "显式「开火30秒」与默认逐位相同（层数 / 火 DoT / 总 DPS）",
+    _ss_30["heat_stacks"] == _ss_def["heat_stacks"]
+    and _ss_30["dots_detail"]["heat"] == _ss_def["dots_detail"]["heat"]
+    and _ss_30["dps_total"] == _ss_def["dps_total"],
 )
 check(
     "开火30秒：火层数 = 触发率 × 15（单例累加线性爬升的窗口平均），火 DoT 按层数线性放大 ×2.5",
     close(_ss_30["heat_stacks"], _r_heat * 15.0)
-    and close(_ss_30["dots_detail"]["heat"], _ss_def["dots_detail"]["heat"] * 2.5),
+    and close(_ss_30["dots_detail"]["heat"], _ss_12["dots_detail"]["heat"] * 2.5),
     f"{_ss_30['heat_stacks']} / {_ss_30['dots_detail']['heat']}",
 )
 check(
@@ -1516,8 +1644,9 @@ for _key in _melee_forms:
     if not _weapon:
         _melee_bad.append((_key, "未落入武器表"))
         continue
-    _, _actual, _ri = _melee_calc(_weapon["name"], "灵化")
-    _, _, _rb = _melee_calc(_weapon["name"])
+    _conditions = ("对", "重机枪手", "100级", "普通", "开火12秒", "基甲0")
+    _, _actual, _ri = _melee_calc(_weapon["name"], *_conditions, "灵化")
+    _, _, _rb = _melee_calc(_weapon["name"], *_conditions)
     if str(_actual.get("uniqueName") or "").lower() != _key or not close(
         _ri["health"], _rb["health"] * 2
     ):
@@ -1792,6 +1921,55 @@ check(
     _name == ["安培克斯 P"] and dc.find_weapon(" ".join(_name))[0] is None and not _miss["unknown"],
     str(_name),
 )
+
+from core.commands.wiki_misc import WikiMiscCommands  # noqa: E402
+from core.i18n import use_lang  # noqa: E402
+from core.parser import parse  # noqa: E402
+
+for _lang, _command, _heading, _examples in (
+    (
+        "zh",
+        "伤害",
+        "◆ 其它",
+        ("距离20米", "散布", "关闭散布", "剥甲40%", "元素剥甲50%", "连击档位3"),
+    ),
+    (
+        "en",
+        "damage",
+        "◆ Other",
+        (
+            "distance=20m",
+            "modelSpread=true",
+            "modelSpread=false",
+            "armourStrip=40%",
+            "elementalArmourStrip=50%",
+            "comboTier=3",
+        ),
+    ),
+):
+    with use_lang(_lang):
+        _help = WikiMiscCommands()._damage_reply(parse(_command), can_actions=True)
+    _start = _help.lines.index(_heading)
+    _end = next(i for i in range(_start + 1, len(_help.lines)) if _help.lines[i].startswith("◆"))
+    _other = "\n".join(_help.lines[_start:_end])
+    for _example, _expected in zip(
+        _examples,
+        (
+            ("distance", 20.0),
+            ("modelSpread", True),
+            ("modelSpread", False),
+            ("armourStrip", 0.4),
+            ("elementalArmourStrip", 0.5),
+            ("comboTier", 3),
+        ),
+    ):
+        _placeholder = re.sub(r"\d+(?:\.\d+)?", "N", _example)
+        check(
+            f"伤害帮助 {_lang} 给出可解析的 {_placeholder}",
+            _placeholder in _other and dc.combat_option(_example.casefold()) == _expected,
+            _other,
+        )
+    check(f"伤害帮助 {_lang} 保留示例按钮", len(_help.actions) == 1)
 
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")

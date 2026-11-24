@@ -26,6 +26,7 @@ import itertools
 import json
 import math
 import re
+from collections import Counter
 from pathlib import Path
 from typing import Optional
 
@@ -463,30 +464,66 @@ def coordinate_ocr_boxes(text: str) -> list[dict]:
         if normalized != box["text"]:
             box["observed_text"] = box["text"]
             box["text"] = normalized
-    # Prime 属于上一行卡名时合回已有字符，不能把单个后缀模糊成另一张卡。
-    consumed = set()
+    return boxes
+
+
+def _join_mod_name_boxes(boxes: list[dict], *, within_slot: bool = False) -> list[dict]:
+    """装备区合并 Prime，隔离槽内还可合并同列换行的卡名。"""
+    pairs = []
     for suffix in boxes:
-        if suffix["text"].casefold() != "prime":
+        prime = suffix["text"].casefold() == "prime"
+        if not prime and (not within_slot or not suffix["text"][0].isalpha()):
             continue
-        candidates = []
         for name in boxes:
-            if (
-                name is suffix
-                or not 0 < suffix["y"] - name["y"] < max(name["h"], suffix["h"]) * 1.5
-            ):
+            if name is suffix:
                 continue
-            if abs(name["x"] - suffix["x"]) > max(name["w"], suffix["w"]) * 0.3:
+            height = max(name["h"], suffix["h"])
+            dx, dy = suffix["x"] - name["x"], suffix["y"] - name["y"]
+            gap = dx - (name["w"] + suffix["w"]) / 2
+            # 横向阈值用文字框宽度，因为归一化坐标的横纵比例不同。
+            same_row = (
+                prime
+                and dx > 0
+                and abs(dy) <= height * 0.4
+                and (-min(name["w"], suffix["w"]) * 0.35 <= gap <= suffix["w"] * 0.4)
+            )
+            wrapped = (
+                min(name["h"], suffix["h"]) * 0.35 < dy <= height * 1.5
+                and abs(dx) <= max(name["w"], suffix["w"]) * 0.40
+            )
+            if not (same_row or wrapped):
                 continue
-            combined = name["text"] + " Prime"
-            rec, _ = match_mod(combined)
-            if rec and _norm(combined) in {_norm(rec.get("zh")), _norm(rec.get("name"))}:
-                candidates.append((name, combined))
-        if len(candidates) == 1:
-            name, combined = candidates[0]
-            name["text"] = combined
-            name["joined_source_lines"] = [name["source_line"], suffix["source_line"]]
-            consumed.add(id(suffix))
-    return [b for b in boxes if id(b) not in consumed]
+            combined = name["text"] + " " + ("Prime" if prime else suffix["text"])
+            if dc.find_mod_exact(combined):
+                pairs.append((name, suffix, combined, same_row))
+    uses = Counter(id(box) for first, second, _, _ in pairs for box in (first, second))
+    joined, consumed = {}, set()
+    for first, second, combined, same_row in pairs:
+        if uses[id(first)] != 1 or uses[id(second)] != 1:
+            continue
+        merged = {
+            **first,
+            "text": combined,
+            "joined_source_lines": [first["source_line"], second["source_line"]],
+        }
+        if same_row:
+            left = min(b["x"] - b["w"] / 2 for b in (first, second))
+            right = max(b["x"] + b["w"] / 2 for b in (first, second))
+            merged.update(x=(left + right) / 2, w=right - left)
+        joined[id(first)] = merged
+        consumed.add(id(second))
+    return [joined.get(id(box), box) for box in boxes if id(box) not in consumed]
+
+
+_PANEL_SECTIONS = {
+    "primary_fire": ("主要", "主要射击", "主射", "primary", "primaryfire"),
+    "secondary_fire": ("次要", "次要射击", "副射", "secondary", "secondaryfire", "alternatefire"),
+    "incarnon": ("灵化", "灵化形态", "incarnon", "incarnonform"),
+    "radial": ("范围攻击", "radialattack", "areaattack"),
+}
+_PANEL_SECTION_LABELS = {
+    label: section for section, labels in _PANEL_SECTIONS.items() for label in labels
+}
 
 
 def parse_coordinate_ocr(text: str) -> Optional[dict]:
@@ -540,22 +577,24 @@ def parse_coordinate_ocr(text: str) -> Optional[dict]:
     if len(titles) == 1:
         title = titles[0]
         weapon = clean_weapon_name(title["text"])
+        title_suffixes = set()
         if not dc.find_weapon_exact(weapon) or "[" not in title["text"]:
             # OCR 有时把升级标签、武器名、Prime 分开。只拼标题同行、紧邻的文字。
-            heading = [title["text"]]
+            heading = [title]
             right = title["x"] + title["w"] / 2
             for box in sorted(boxes, key=lambda b: b["x"]):
                 if box["x"] <= title["x"] or abs(box["y"] - title["y"]) > title["h"] * 0.45:
                     continue
                 if box["x"] - box["w"] / 2 > right + title["h"]:
                     break
-                heading.append(box["text"])
+                heading.append(box)
                 right = max(right, box["x"] + box["w"] / 2)
-                candidate = clean_weapon_name(" ".join(heading))
+                candidate = clean_weapon_name(" ".join(b["text"] for b in heading))
                 if dc.find_weapon_exact(candidate):
                     weapon = candidate
+                    title_suffixes = {id(b) for b in heading if b["text"].casefold() == "prime"}
         result["weapon"] = weapon or None
-    boxes = [b for b in boxes if b["text"].casefold() != "prime"]
+        boxes = [b for b in boxes if id(b) not in title_suffixes]
 
     # 合并框可以确认容量文字，但它可能覆盖整行，不能用作面板边界。
     capacities = set()
@@ -585,17 +624,21 @@ def parse_coordinate_ocr(text: str) -> Optional[dict]:
     if panel_end is None and configs and has_panel_labels:
         panel_end = min(configs)
 
-    # 同一个标签可能出现在主射和副射面板。只在左栏明确读到有序的两段标题时分区。
-    mode_headings = sorted(
-        (b["y"], label(b))
-        for b in boxes
-        if panel_end is not None and b["x"] < panel_end and label(b) in {"主要", "次要"}
-    )
-    secondary_start = (
-        mode_headings[1][0] if [name for _, name in mode_headings] == ["主要", "次要"] else None
-    )
+    panel = result["panel"]
+    section_kind = None
+    section_limit = panel_end if panel_end is not None else 500
     for b in sorted(boxes, key=lambda v: (v["y"], v["x"])):
         raw_label = label(b)
+        heading = _PANEL_SECTION_LABELS.get(raw_label.rstrip(":：").casefold())
+        if heading and b["x"] < section_limit:
+            if section_kind is None and (heading == "primary_fire" or not panel):
+                panel["_section"] = heading
+            elif heading != section_kind:
+                section = {"section": heading, "heading": copy.deepcopy(b), "panel": {}}
+                result["panel"].setdefault("_sections", []).append(section)
+                panel = section["panel"]
+            section_kind = heading
+            continue
         name = re.split(r"[（(]", raw_label, 1)[0]
         if name in {"触发几率/投射物", "触发几率／投射物"}:
             name = "触发几率"
@@ -619,19 +662,18 @@ def parse_coordinate_ocr(text: str) -> Optional[dict]:
         texts = [v["text"] for v in values]
         evidence = dict(label=b["text"], values=texts, y=b["y"])
         sources["panel_rows"].append(evidence)
-        if secondary_start is not None and b["y"] > secondary_start:
-            evidence["section"] = "secondary_fire"
-            continue
+        if section_kind:
+            evidence["section"] = section_kind
         # 数值对保留送模原文；统一比较分隔符供已有的左右列解析器读取。
         parsed_value = ">".join(re.sub(r"\s*[*∗]\s*", ">", text) for text in texts)
-        result["panel"].setdefault("_ocr_rows", []).append([b["text"], parsed_value])
+        panel.setdefault("_ocr_rows", []).append([b["text"], parsed_value])
         if name in scalar_labels:
-            result["panel"][scalar_labels[name]] = parsed_value
+            panel[scalar_labels[name]] = parsed_value
         else:
             row = [name, parsed_value]
-            result["panel"].setdefault("damage_rows", []).append(row)
+            panel.setdefault("damage_rows", []).append(row)
             if name in _TOTAL_LABELS:
-                result["panel"]["total"] = row[:]
+                panel["total"] = row[:]
 
     boundaries = [
         b for b in boxes if label(b) == "所有" or re.fullmatch(r"(?:搜寻|搜索)[.…。]*", label(b))
@@ -648,6 +690,9 @@ def parse_coordinate_ocr(text: str) -> Optional[dict]:
         and label(b).casefold() not in {"伤害", "damage"}
     ]
     cards = []
+    equipment_boxes = [
+        b for b in _join_mod_name_boxes(equipment_boxes) if b["text"].casefold() != "prime"
+    ]
     for b in equipment_boxes:
         rec, how = match_mod(b["text"])
         # 完整名字可识别，不因截图裁掉仓库栏而丢弃整张已读卡；
@@ -864,7 +909,7 @@ def observe_capacity_colors(ocr: dict, image_url: str) -> dict:
     return ocr
 
 
-def observe_arcane_ranks(ocr: dict, image_url: str) -> dict:
+def observe_arcane_ranks(ocr: dict, image_url: str, *, slot_box=None) -> dict:
     """赋能等级只来自名称框下的独立像素，不采用模型直接猜的等级。"""
     import base64
     import io
@@ -878,21 +923,24 @@ def observe_arcane_ranks(ocr: dict, image_url: str) -> dict:
     if not arcanes:
         return ocr
     try:
-        image = Image.open(io.BytesIO(base64.b64decode(image_url.split(",", 1)[1])))
+        with Image.open(io.BytesIO(base64.b64decode(image_url.split(",", 1)[1]))) as image:
+            for arcane in arcanes:
+                if arcane.get("_geometry_source") not in {"coordinate_ocr", "structured_box"}:
+                    continue
+                if arcane.get("_geometry_view") == "unmapped_crop":
+                    continue
+                if arcane.get("_geometry_source") == "structured_box" and (
+                    arcane.get("_geometry_view") != "full_image"
+                    or arcane.get("_geometry_field_errors")
+                ):
+                    continue
+                evidence = pips_engine.count_arcane_rank(
+                    image, arcane.get("_geometry") or {}, slot_box=slot_box
+                )
+                arcane["_rank_evidence"] = evidence
+                arcane["rank"] = evidence["rank"]
     except (ValueError, OSError, IndexError):
-        return ocr
-    for arcane in arcanes:
-        if arcane.get("_geometry_source") not in {"coordinate_ocr", "structured_box"}:
-            continue
-        if arcane.get("_geometry_view") == "unmapped_crop":
-            continue
-        if arcane.get("_geometry_source") == "structured_box" and (
-            arcane.get("_geometry_view") != "full_image" or arcane.get("_geometry_field_errors")
-        ):
-            continue
-        evidence = pips_engine.count_arcane_rank(image, arcane.get("_geometry") or {})
-        arcane["_rank_evidence"] = evidence
-        arcane["rank"] = evidence["rank"]
+        pass
     return ocr
 
 
@@ -1363,6 +1411,18 @@ def _inside_slot(entry: dict, slot: dict) -> bool:
     )
 
 
+def _same_slot_coordinate_drain(entry: dict, slot: dict) -> Optional[int]:
+    digits = (entry.get("_field_geometry") or {}).get("drain") or []
+    if (
+        entry.get("_geometry_source") == "coordinate_ocr"
+        and entry.get("_geometry_view") == "full_image"
+        and len(digits) == 1
+        and _inside_slot({"_geometry": digits[0]}, slot)
+    ):
+        return to_int(entry.get("drain"))
+    return None
+
+
 def _slot_text_boxes(boxes: list[dict], tile: dict) -> list[dict]:
     """以 OCR 文字中心在拼图中的位置归槽，并保留该槽内的相对坐标。"""
     width, height = tile["sheet_size"]
@@ -1376,17 +1436,22 @@ def _slot_text_boxes(boxes: list[dict], tile: dict) -> list[dict]:
     return out
 
 
+def _slot_name_boxes(boxes: list[dict]) -> list[dict]:
+    # 名字的首行和续行都必须在同一裁图内。容许卡框和文字中心少量偏差。
+    return _join_mod_name_boxes(
+        [box for box in boxes if 0.16 <= box["slot_x"] <= 0.84 and 0.20 <= box["slot_y"] <= 0.85],
+        within_slot=True,
+    )
+
+
 def merge_coordinate_tile_read(primary: dict, boxes: list[dict], tiles: list[dict]) -> dict:
     """武器类别未确认时，只沿用原有的候选卡补读。"""
     rows = []
     for tile in tiles:
-        local = _slot_text_boxes(boxes, tile)
         names = {
             box["text"]
-            for box in local
-            if 0.24 <= box["slot_x"] <= 0.76
-            and 0.27 <= box["slot_y"] <= 0.76
-            and match_mod(box["text"])[1] == "精确"
+            for box in _slot_name_boxes(_slot_text_boxes(boxes, tile))
+            if match_mod(box["text"])[1] == "精确"
         }
         if len(names) == 1:
             rows.append({"tile": tile["label"], "name": names.pop()})
@@ -1402,6 +1467,9 @@ def _slot_arcane(checked: dict, texts: list[dict], primary: dict, image_url: str
     }
     named = [b for b in texts if _norm(b["text"]) in aliases]
     if not named:
+        checked["observed_occupied"] = any(
+            _inside_slot(a, checked) for a in primary.get("arcanes") or []
+        ) or any(re.match(r"^(?:主要|次要|近战)·", b["text"]) for b in texts)
         if checked.get("visual_mark") == "padlock" or any(
             _arcane_connector_label(b["text"]) for b in texts
         ):
@@ -1409,6 +1477,7 @@ def _slot_arcane(checked: dict, texts: list[dict], primary: dict, image_url: str
                 checked.update(state="locked", reason="arcane_lock_observed")
         return
     records = {aliases[_norm(b["text"])]["name"] for b in named}
+    checked["observed_occupied"] = True
     if len(records) != 1 or checked.get("visual_mark"):
         checked["reason"] = "arcane_name_unconfirmed"
         return
@@ -1443,13 +1512,16 @@ def _slot_arcane(checked: dict, texts: list[dict], primary: dict, image_url: str
             }
         ]
     observations = {"arcanes": copy.deepcopy(original)}
-    observe_arcane_ranks(observations, image_url)
+    observe_arcane_ranks(observations, image_url, slot_box=checked["box"])
     evidence = [a["_rank_evidence"] for a in observations["arcanes"] if a.get("_rank_evidence")]
     if evidence:
         checked["rank_evidence"] = evidence[0]
-    ranks = {e["rank"] for e in evidence if e["rank"] is not None}
+    max_rank = rec.get("max_rank", 5)
+    ranks = {e["rank"] for e in evidence if type(e["rank"]) is int and 0 <= e["rank"] <= max_rank}
     if len(ranks) == 1:
         checked.update(rank=ranks.pop(), reason="arcane_diamonds")
+    elif not ranks and image_url:
+        _read_arcane_slot_rank(checked, image_url, max_rank)
 
 
 def verify_coordinate_slots(
@@ -1479,11 +1551,8 @@ def verify_coordinate_slots(
             continue
         rank_pixels = tile.get("rank_observation", {})
         color = tile.get("capacity_badge", {}).get("color")
-        name_hits = [
-            match_mod(box["text"])
-            for box in local
-            if 0.24 <= box["slot_x"] <= 0.76 and 0.27 <= box["slot_y"] <= 0.76
-        ]
+        name_boxes = _slot_name_boxes(local)
+        name_hits = [match_mod(box["text"]) for box in name_boxes]
         names = [(rec, how) for rec, how in name_hits if rec]
         anchored = [(entry, rec, how) for entry, rec, how in entries if _inside_slot(entry, tile)]
         name_candidates = {rec["name"]: rec for rec, how in names if how == "精确"}
@@ -1497,37 +1566,33 @@ def verify_coordinate_slots(
             else []
         )
         localized = [
-            box for box in local if box["slot_x"] >= 0.72 and 0.04 <= box["slot_y"] <= 0.36
+            box for box in local if box["slot_x"] >= 0.66 and 0.01 <= box["slot_y"] <= 0.43
         ]
         checked["capacity_text_observations"] = focused
+        checked["observed_occupied"] = bool(
+            any(re.search(r"[A-Za-z\u4e00-\u9fff]", box["text"]) for box in name_boxes)
+            or any(rec for _, rec, _ in anchored)
+            or color
+            or rank_pixels.get("count")
+            or rank_pixels.get("maxed")
+            or any(re.fullmatch(r"\^?\d{1,2}", box["text"]) for box in localized + focused)
+        )
         if not names and color:
             # 裁图漏抄卡名时，整图的精确名称与容量必须同槽，且裁图须读到同一容量。
             local_numbers = {box["text"].removeprefix("^") for box in localized + focused}
             for entry, rec, how in anchored:
-                drain = to_int(entry.get("drain"))
-                digit_boxes = (entry.get("_field_geometry") or {}).get("drain") or []
+                drain = _same_slot_coordinate_drain(entry, tile)
                 if (
                     how == "精确"
-                    and entry.get("_geometry_source") == "coordinate_ocr"
-                    and entry.get("_geometry_view") == "full_image"
-                    and len(digit_boxes) == 1
-                    and _inside_slot({"_geometry": digit_boxes[0]}, tile)
+                    and drain is not None
                     and str(drain) in local_numbers
                     and _coherent_slot_rank(rec, drain, color, rank_pixels).get("rank") is not None
                 ):
                     name_candidates[rec["name"]] = rec
                     checked["name_evidence"] = "full_image_name_and_matching_slot_badge"
         if not name_candidates:
-            occupied = (
-                names
-                or any(rec for _, rec, _ in anchored)
-                or color
-                or rank_pixels.get("count")
-                or rank_pixels.get("maxed")
-                or any(re.fullmatch(r"\^?\d{1,2}", box["text"]) for box in localized + focused)
-            )
             mark = tile.get("visual_mark")
-            if not occupied and mark:
+            if not checked["observed_occupied"] and mark:
                 checked.update(
                     state="locked" if mark == "padlock" else "empty",
                     reason="isolated_slot_mark_observed",
@@ -1566,7 +1631,14 @@ def verify_coordinate_slots(
             for source, values in (
                 ("badge_crop", [box["text"] for box in focused]),
                 ("slot_crop", [box["text"] for box in localized]),
-                ("full_image", [entry.get("drain") for entry in matches]),
+                (
+                    "full_image",
+                    [
+                        _same_slot_coordinate_drain(entry, tile)
+                        for entry, other, _ in anchored
+                        if other and other["name"] == rec["name"]
+                    ],
+                ),
             )
         }
         checked["capacity_readings"] = reads
@@ -1584,7 +1656,7 @@ def verify_coordinate_slots(
             checked["reason"] = "capacity_unconfirmed"
             continue
         checked.update(next(iter(compatible.values())))
-    _reject_duplicate_slots(result)
+    reject_duplicate_slots(result)
     return result
 
 
@@ -1599,12 +1671,12 @@ def _coherent_slot_rank(rec: dict, drain: int, color, rank_pixels: dict) -> dict
         return {**fields, "rank": count, "reason": "same_slot_pips_and_capacity"}
     if possible == [0] and color and count == 0 and not rank_pixels.get("maxed"):
         return {**fields, "rank": 0, "reason": "installed_zero_with_slot_capacity"}
-    if count is None and color and len(possible) == 1 and possible[0] > 0:
+    if count is None and color and len(possible) == 1:
         return {**fields, "rank": possible[0], "reason": "unique_slot_capacity"}
     return {**fields, "reason": "rank_unconfirmed"}
 
 
-def _reject_duplicate_slots(slots: list[dict]) -> None:
+def reject_duplicate_slots(slots: list[dict]) -> None:
     installed = [slot["mod_name"] for slot in slots if slot.get("mod_name")]
     for slot in slots:
         if slot.get("mod_name") and installed.count(slot["mod_name"]) > 1:
@@ -1654,6 +1726,17 @@ def verify_upgrade_slots(
         kind = slot["kind"]
         rank_pixels = slot.get("rank_observation", {})
         badge = slot.get("capacity_badge", {})
+        checked["observed_occupied"] = bool(
+            name
+            or state == "installed"
+            or row.get("drain") is not None
+            or rank_pixels.get("count")
+            or rank_pixels.get("maxed")
+            or badge.get("color")
+            or any(
+                _inside_slot(entry, slot) for entry in (primary.get("mods") or []) + primary_arcanes
+            )
+        )
         if state in ("empty", "locked"):
             if (
                 raw_name not in (None, "")
@@ -1689,6 +1772,9 @@ def verify_upgrade_slots(
             continue
         if state != "installed" or not name:
             continue
+        if slot.get("visual_mark"):
+            checked["reason"] = "state_disagrees_with_equipment"
+            continue
         checked["name"] = name
         if kind == "arcane":
             arcane = dc.find_arcane(name)
@@ -1717,6 +1803,8 @@ def verify_upgrade_slots(
                 if not (x0 <= x <= x1 and y0 <= y <= y1):
                     continue
                 if rank_evidence.get("source") != "arcane_diamond_pixels":
+                    continue
+                if image_url and rank_evidence.get("anchor") != "verified_arcane_slot":
                     continue
                 checked["rank_evidence"] = rank_evidence
                 rank = rank_evidence.get("rank")
@@ -1771,7 +1859,7 @@ def verify_upgrade_slots(
                 continue
             color = badge.get("color")
             checked.update(_coherent_slot_rank(rec, drain, color, rank_pixels))
-    _reject_duplicate_slots(result)
+    reject_duplicate_slots(result)
     return result
 
 
@@ -1805,7 +1893,11 @@ def _verify_scan_coverage(ocr: dict, weapon: Optional[dict]) -> tuple[bool, list
     if category not in {"Primary", "Secondary", "Melee"}:
         return False, []
     by_id = {slot["id"]: slot for slot in slots}
-    if len(slots) != len(by_id) or any(slot_id not in expected for slot_id in by_id):
+    if len(slots) != len(by_id) or any(
+        slot_id not in expected
+        or slot["kind"] != ("regular" if slot_id in _UPGRADE_MOD_SLOTS else slot_id)
+        for slot_id, slot in by_id.items()
+    ):
         return False, []
     missing = [
         {
@@ -1839,7 +1931,15 @@ def _verify_scan_coverage(ocr: dict, weapon: Optional[dict]) -> tuple[bool, list
         if isinstance(a, dict) and a.get("name")
     ):
         return False, state
-    installed = [s for s in state if s.get("mod_name")]
+    installed = [s for s in state if s["state"] == "installed" and s["kind"] != "arcane"]
+    if any(
+        not s.get("mod_name")
+        or type(s.get("drain")) is not int
+        or s["drain"] < 0
+        or s.get("color") not in {"白", "绿", "红"}
+        for s in installed
+    ):
+        return False, state
     expected_cards = {s["mod_name"] for s in installed}
     if len(expected_cards) != len(installed):
         return False, state
@@ -1850,10 +1950,10 @@ def _verify_scan_coverage(ocr: dict, weapon: Optional[dict]) -> tuple[bool, list
         if not rec or rec.get("name") not in expected_cards:
             return False, state
     capacity = re.fullmatch(r"\s*(\d+)\s*/\s*(\d+)\s*", str(ocr.get("capacity") or ""))
-    if not capacity or any(s.get("drain") is None for s in installed):
+    if not capacity:
         return False, state
     allowed = int(capacity[2]) - int(capacity[1])
-    used = sum(abs(s["drain"]) for s in installed if s["kind"] != "stance")
+    used = sum(s["drain"] for s in installed if s["kind"] != "stance")
     return allowed >= 0 and used == allowed, state
 
 
@@ -4130,20 +4230,18 @@ def _effect_text(eff: dict, *, melee: bool = False) -> str:
 
 
 def to_damage_spec(
-    an: dict, level: int = 100, faction: str = "Grineer", *, simulation: bool = False
+    an: dict, level: int = dc.DEFAULT_LEVEL, faction: str | None = None, *, simulation: bool = False
 ) -> Optional[dict]:
     """从已核对槽位建立单份配装。模拟可复跑已知槽位，同时保留原图差异。"""
     quality = an.get("quality")
     slots = (an.get("layout") or {}).get("physical_slots")
+    if any(s["state"] == "installed" and s.get("rank") is None for s in slots or ()):
+        return None
     if isinstance(quality, dict) and quality.get("calculation_allowed") is not True:
         reasons = {r["code"] for r in quality.get("reasons", [])}
         if not simulation or not quality.get("layout_complete") or not slots:
             return None
-        if reasons - {"slot_rank_unknown", "confirmed_slots_panel_disagreement"}:
-            return None
-        if any(
-            s["state"] == "installed" and s["kind"] != "arcane" and s["rank"] is None for s in slots
-        ):
+        if reasons - {"confirmed_slots_panel_disagreement"}:
             return None
     spec = _mapped_damage_spec(an, level, faction)
     if spec is None:
@@ -4215,7 +4313,7 @@ def _confirmed_replay_slots(slots):
             slot["state"] != "installed"
             or type(rank) is not int
             or not mod
-            or not mod.get("_source_unique_name")
+            or not 0 <= rank <= mod["max_rank"]
         ):
             return None
         confirmed.append((index, {**mod, "rank": rank, "scan_drain": slot["drain"]}))
@@ -4237,7 +4335,7 @@ def _scan_panel_observation(panel):
         )
         if (value := _panel_columns(panel.get(key)).get("right")) is not None
     }
-    labels = {label: key for key, label in {**PHYS_ZH, **ELEM_ALL_ZH}.items()}
+    labels = {label: key for key, label in dc.TYPE_ZH.items()}
     rows = {}
     for row in panel.get("damage_rows") or ():
         if not isinstance(row, (tuple, list)) or len(row) < 2:
@@ -4248,6 +4346,18 @@ def _scan_panel_observation(panel):
             rows[kind] = value
     if rows:
         observed["damage_types"] = rows
+    if section := panel.get("_section"):
+        observed["_section"] = section
+    additional = [
+        {"_section": section["section"], **_scan_panel_observation(section["panel"])}
+        for section in panel.get("_sections") or []
+        if isinstance(section, dict)
+        and section.get("section") in {"primary_fire", "secondary_fire", "incarnon"}
+        and isinstance(section.get("panel"), dict)
+        and not _panel_structure_reasons(section["panel"])
+    ]
+    if additional:
+        observed["_sections"] = additional
     return observed
 
 
@@ -4296,7 +4406,10 @@ def _confirm_bundled_panel(an, spec, *, cond_crit):
         *((form, route) for form in forms for route in choices if form != "base" or route),
     ]
     matches = []
+    observed_form = {"primary_fire": "base", "incarnon": "incarnon"}.get(panel.get("_section"))
     for mode, route in candidates:
+        if observed_form and mode != observed_form:
+            continue
         trial = {**spec, "form": mode, "evo_keys": route, "notes": [], "conditional": []}
         modeled = dc._apply_panel_overrides(trial, weapon)
         calc = _calc_panel(modeled, an["totals"])
@@ -4360,11 +4473,16 @@ def _bundled_scan_dps(result):
         value = segment.get("sustained_crit")
         if value is not None:
             return value
+    hit = (
+        result["head_mult"] * result["head_crit_exp"]
+        if result.get("headshot")
+        else result["crit_exp"]
+    )
     if result.get("dps_sustained") is not None:
-        return result["dps_sustained"] * result["crit_exp"]
+        return result["dps_sustained"] * hit
     if (steady := result.get("steady")) and steady.get("dps_total") is not None:
         return steady["dps_total"]
-    return result["dps"] * result["crit_exp"]
+    return result["dps"] * hit
 
 
 def calculate_bundled_scan(spec, weapon):
@@ -4420,17 +4538,20 @@ def calculate_bundled_scan(spec, weapon):
     return result
 
 
-def _mapped_damage_spec(an: dict, level: int = 100, faction: str = "Grineer") -> Optional[dict]:
+def _mapped_damage_spec(
+    an: dict, level: int = dc.DEFAULT_LEVEL, faction: str | None = None
+) -> Optional[dict]:
     """纯字段映射，供派生面板诊断；不提供截图完整性证明。"""
     if not an.get("weapon"):
         return None
     spec, _ = dc.parse_args([])
+    if faction is not None:
+        spec.update(faction=faction, enemy=None)
     t = an.get("totals") or {}
     spec["form"] = "keep"  # 面板已从截图反推（可能就是灵化形态）→ 不再套形态数据
     spec.update(
         {
             "level": int(level),
-            "faction": faction,
             "base_dmg": float(t.get("base_dmg") or 0.0),
             "multishot": float(t.get("multishot") or 0.0),
             "crit_chance": float(t.get("crit_chance") or 0.0),
@@ -4508,7 +4629,7 @@ def mod_dps_comparison(an: dict, spec: dict) -> tuple[str, float, dict[int, floa
         remaining = mods[:index] + mods[index + 1 :]
         reduced = _mapped_damage_spec({**an, "mods": remaining, "totals": _mod_totals(remaining)})
         if reduced == original:
-            continue  # 随包估算未覆盖该效果时，不报作 0%。
+            continue  # 内置估算未覆盖该效果时，不报作 0%。
         reduced["stance"] = spec["stance"]
         if "_scan_evo_keys" in full:
             reduced.update(
@@ -5178,8 +5299,8 @@ def card_lines(
     if comparison:
         lines.append(
             L(
-                "※ 随包估算 · G系 100 级 · 躯干。每行只拆这一张，比较已计入的效果。— 表示暂无法估算。",
-                "※ Bundled estimate · Grineer Lv100 · Body. Each row removes only that mod. "
+                "※ 内置估算 · G系 100 级 · 躯干。每行只拆这一张，比较已计入的效果。— 表示暂无法估算。",
+                "※ Built-in estimate · Grineer Lv100 · Body. Each row removes only that mod. "
                 "Only modeled effects are counted. — means unavailable.",
             )
         )

@@ -16,12 +16,20 @@ from PIL import Image, ImageFilter, ImageOps
 
 from . import loadout_ocr, riven_analysis
 from .commands.vision import VisionCommands
+from .i18n import L
 from .local_ocr import decode_image_data_url
 from .local_riven_ocr import analyze_raw, weapon_identity
 from .logging_compat import logger
 from .parser import RIVEN_STAT_ZH
 
 _REVERSE = {name: sid for sid, name in RIVEN_STAT_ZH.items()}
+_MASTERY = re.compile(r"(?:mastery[ _]rank|mr|段位|精通段位|等级需求)\s*:?\s*(\d+)(.*)", re.I)
+_PROPERTIES = {
+    "drain": re.compile(r"(?:drain|capacity|容量|消耗)\s*:?\s*(\d+)", re.I),
+    "drain_color": re.compile(r"(?:drain[ _]color|容量颜色)\s*:?\s*(\w+)", re.I),
+    "rank": re.compile(r"(?:upgrade[ _]rank|rank|强化等级)\s*:?\s*([0-8])", re.I),
+    "polarity": re.compile(r"(?:polarity|极性)\s*:?\s*(madurai|vazarin|naramon)", re.I),
+}
 
 
 def _plain_lines(content):
@@ -33,14 +41,16 @@ def _plain_lines(content):
     except ValueError:
         obj = None
     if isinstance(obj, list):
-        return loadout_ocr.coordinate_text_lines(content), None
-    lines = []
-    for text in content.splitlines():
+        lines = loadout_ocr.coordinate_text_lines(content)
+    else:
+        lines = content.splitlines()
+    decoded = []
+    for text in lines:
         fields = text.strip().split(",", 5)
         if len(fields) == 6 and loadout_ocr.coordinate_aabb(fields[:5]):
             text = fields[5]
         text = text.replace("**", "").replace("`", "").replace("\\%", "%").replace("$", "")
-        text = re.sub(r"^\s*(?:[-*•]\s+|#{1,6}\s+|\d+[.)、]\s+)", "", text)
+        text = re.sub(r"^\s*(?:-\s+(?![\s\d])|[*•]\s+|#{1,6}\s+|\d+[.)、]\s+)", "", text)
         text = text.strip().strip("|").replace("|", ":").strip()
         suffix = re.fullmatch(
             r"([^:+\-]+?)\s*:\s*([+\-]\s*\d+(?:[.,]\d+)?\s*(?:%|秒|米|倍|x|×)?)\s*", text
@@ -48,8 +58,99 @@ def _plain_lines(content):
         if suffix:
             text = suffix[2] + " " + suffix[1].strip()
         if text and not re.fullmatch(r"[-:|\s]+", text):
-            lines.append(text)
-    return lines, obj
+            decoded.append(text)
+    return decoded, obj
+
+
+def _property_row(text):
+    text = unicodedata.normalize("NFKC", text).strip()
+    if riven_analysis.has_upgrade_preview_lines(text):
+        return None
+    if match := _MASTERY.fullmatch(text):
+        suffix = match[2]
+        if not re.search(r"[+−-]\s*\d", suffix) and not _resolve(suffix.strip()):
+            return "mastery_rank", int(match[1])
+    for key, pattern in _PROPERTIES.items():
+        if match := pattern.fullmatch(text):
+            return key, int(match[1]) if key in {"drain", "rank"} else match[1].casefold()
+    return None
+
+
+def has_upgrade_preview(data):
+    """检查当前转录、属性与保留的原始观察，避免复读覆盖箭头证据。"""
+    if not isinstance(data, dict):
+        return False
+    has_preview = riven_analysis.has_upgrade_preview_lines
+    if any(
+        has_preview(data.get(key)) for key in ("lines", "stat_lines", "drain", "capacity", "rank")
+    ):
+        return True
+    for side in ("positive", "negative"):
+        if has_preview(data.get(side)):
+            return True
+        if any(
+            has_preview(name) or has_preview(value)
+            for name, value in VisionCommands._iter_stat_pairs(data.get(side), side)
+        ):
+            return True
+    raw = (data.get("_local_ocr") or {}).get("raw") or {}
+    decoded = data.get("_line_decode") or {}
+    recognition = data.get("_recognition") or {}
+    recheck = recognition.get("line_recheck") or {}
+    return (
+        any(
+            has_preview([row.get("text") for row in source.get("rows", ())])
+            for source in (raw, decoded)
+        )
+        or has_upgrade_preview(recheck.get("original_line_read"))
+        or has_upgrade_preview(recheck.get("recheck"))
+    )
+
+
+def _card_properties(structured, lines=()):
+    fields = {}
+    for line in lines:
+        if found := _property_row(line):
+            key, value = found
+            fields.setdefault(key, set()).add(value)
+    properties = {key: next(iter(values)) for key, values in fields.items() if len(values) == 1}
+    for key, limit in (("drain", 23), ("mastery_rank", 40), ("rank", 8)):
+        value = structured.get(key, properties.get(key))
+        if type(value) is int and 0 <= value <= limit:
+            properties[key] = value
+        else:
+            properties.pop(key, None)
+    for key, values in (
+        (
+            "drain_color",
+            ("red", "green", "white", "unknown", "红", "绿", "白", "未知", "红色", "绿色", "白色"),
+        ),
+        ("polarity", ("madurai", "vazarin", "naramon")),
+    ):
+        value = str(structured.get(key, properties.get(key)) or "").strip().casefold()
+        if value in values:
+            properties[key] = value
+        else:
+            properties.pop(key, None)
+    return properties
+
+
+def geometry_properties(result):
+    """在本地确认的卡区内读取明确标注的属性，裸数字仍保留原观察。"""
+    structured = result.get("structured") or {}
+    candidate = result.get("candidate") or {}
+    region = candidate.get("region")
+    lines = []
+    if region and len(region) == 4:
+        left, top, right, bottom = region
+        for row in (result.get("raw") or {}).get("rows", ()):
+            quad = row.get("quad")
+            if not quad or not isinstance(row.get("text"), str):
+                continue
+            xs, ys = zip(*quad)
+            if left <= sum(xs) / len(xs) <= right and top <= sum(ys) / len(ys) <= bottom:
+                lines.append(row["text"])
+    return _card_properties(structured, lines)
 
 
 def _resolve(name):
@@ -67,6 +168,7 @@ class Observation:
     data: dict | None = None
     multiple: bool = False
     accepted: Fields | None = None
+    upgrade_preview: bool = False
 
 
 @dataclass
@@ -92,12 +194,15 @@ def _fields(positive, negative):
 
 def decode_text(content):
     lines, obj = _plain_lines(content)
+    if riven_analysis.has_upgrade_preview_lines(lines) or has_upgrade_preview(obj):
+        return Observation(upgrade_preview=True)
     if (
         isinstance(obj, dict)
         and isinstance(obj.get("weapon"), str)
         and isinstance(obj.get("stat_lines"), list)
     ):
         title, body = obj["weapon"].strip(), obj["stat_lines"]
+        properties = _card_properties(obj, (line for line in body if isinstance(line, str)))
     else:
         rows = [r["text"] for r in _decode_lines(lines)["rows"] if not r.get("structural")]
         titles = [
@@ -106,26 +211,27 @@ def decode_text(content):
         candidates = []
         for start, end in zip(titles, [*titles[1:], len(rows)]):
             for stop in range(start + 1, end):
-                footer = re.fullmatch(r"(?:段位|精通段位|等级需求)\s*[:：]?\s*\d+(.*)", rows[stop])
-                if not footer or re.search(r"[+−-]\s*\d", footer[1]) or _resolve(footer[1].strip()):
+                footer = _property_row(rows[stop])
+                if not footer or footer[0] != "mastery_rank":
                     continue
                 title, body = rows[start], rows[start + 1 : stop]
                 while body and re.fullmatch(r"[A-Za-z\s-]+", body[0]):
                     title += " " + body.pop(0)
                 body = _decode_lines(riven_analysis.merge_polarity_lines(body))["lines"]
-                positive, negative, _, _ = VisionCommands._riven_lines_legal(body)
-                if len(positive) + len(negative) >= 2:
-                    candidates.append((title, body))
+                # 标题与段位已界定卡面。残缺正文也要保留，供复读核对条数。
+                candidates.append((title, body))
                 break
         if len(candidates) != 1:
             return Observation(multiple=len(candidates) > 1)
         title, body = candidates[0]
-    if not title or not body or not all(isinstance(v, str) and v.strip() for v in body):
+        properties = _card_properties({}, lines)
+    if not title or not all(isinstance(v, str) and v.strip() for v in body):
         return Observation()
     return Observation(
         {
             "weapon": title,
-            "lines": body,
+            "lines": [line for line in body if not _property_row(line)],
+            **properties,
             "_line_decode": {"rows": [{"text": title}]},
             "_recognition": {"source": "single_ocr"},
         }
@@ -135,6 +241,11 @@ def decode_text(content):
 def _geometry(content, size):
     width, height = size
     rows = []
+    _, obj = _plain_lines(content)
+    metadata = {}
+    if isinstance(obj, dict) and isinstance(obj.get("rows"), list):
+        metadata = _card_properties(obj)
+        content = json.dumps(obj["rows"], ensure_ascii=False)
     for line in loadout_ocr.coordinate_text_lines(content):
         if not line.strip() or line.strip().startswith("```"):
             continue
@@ -153,6 +264,10 @@ def _geometry(content, size):
                 "quad": [[left, top], [right, top], [right, bottom], [left, bottom]],
             }
         )
+    if riven_analysis.has_upgrade_preview_lines(
+        [row["text"] for row in rows]
+    ) or has_upgrade_preview(obj):
+        return Observation(upgrade_preview=True)
     result = analyze_raw({"width": width, "height": height, "orientation": 1, "rows": rows})
     if result.get("recognition_state") != "accepted":
         return Observation()
@@ -161,6 +276,8 @@ def _geometry(content, size):
         {
             "weapon": structured["weapon"],
             "lines": structured["lines"],
+            **geometry_properties(result),
+            **metadata,
             "_recognition": {"source": "single_ocr_geometry"},
         }
     )
@@ -186,7 +303,20 @@ def _same_title(first, second):
 
 
 def _one_field(line):
-    pos, neg, _, notes = VisionCommands._riven_lines_legal([line])
+    line = riven_analysis._trailing_to_leading(line) or line
+    base, annotation, valid = riven_analysis.split_stat_annotation(line)
+    if not valid or len(riven_analysis._NUM_RE.findall(base)) != 1:
+        return Counter()
+    polarity = riven_analysis._POL_RE.match(base)
+    body = polarity[2] if polarity else base
+    number = riven_analysis._MULT_RE.search(body) or riven_analysis._NUM_RE.search(body)
+    suffix = re.sub(r"^\s*(?:[%米秒°]|(?:ms|m|s)\b)\s*", "", body[number.end() :], flags=re.I)
+    name = (body[: number.start()] + " " + suffix).strip(" ·、:：")
+    sid = VisionCommands._stat_id_exact(name, _REVERSE)
+    if not sid or (annotation and sid != annotation):
+        return Counter()
+    # 整名已核对，再用业务解析处理极性反转、乘数与数值精度。
+    pos, neg, notes = riven_analysis.parse_riven_lines([line], lambda _: sid)
     return _fields(pos, neg) if len(pos) + len(neg) == 1 and not notes else Counter()
 
 
@@ -194,18 +324,26 @@ def _observed(obs):
     fields = Counter()
     other = []
     for line in (obs.data or {}).get("lines", []):
+        line = unicodedata.normalize("NFKC", line).strip()
         if riven_analysis.hidden_line_count([line]):
             continue
         found = _one_field(line)
         if not found:
-            prefix = re.fullmatch(r"\s*([^\s+\-−±×x])\s*([+\-−]\s*\d.*)", line)
+            prefix = re.fullmatch(r"([^\s\d+\-−±×x])\s*([+\-−]\s*\d.*)", line)
             if prefix:
                 found = _one_field(prefix[2])
+        if not found and (number := riven_analysis._NUM_RE.match(line)):
+            # 只记录看得见的数值和词条，极性留给通过业务校验的完整读图。
+            unsigned = _one_field("+" + line)
+            if unsigned:
+                ((sid, _, magnitude),) = unsigned
+                if magnitude == Decimal(number[0].replace(",", ".")):
+                    found[sid, None, magnitude] = 1
         if found:
             fields.update(found)
         else:
             other.append(line)
-    unknown = any(re.search(r"[+−\-±×x]\s*\d|[?？%％]", line) for line in other)
+    unknown = any(re.search(r"\d|[?？%％]", line) for line in other)
     return fields, bool(fields) and not unknown and (not other or sum(fields.values()) == 4)
 
 
@@ -215,27 +353,20 @@ def _hidden(obs):
 
 def _confirms(source, candidate):
     fields, covered = _observed(source)
-    return bool(
-        candidate.accepted
-        and covered
-        and fields == candidate.accepted.signature()
+    if (
+        not candidate.accepted
+        or not covered
+        or len({sid for sid, _, _ in fields}) != fields.total()
+    ):
+        return False
+    target = Counter(
+        (sid, None if (sid, None, value) in fields else side, value)
+        for sid, side, value in candidate.accepted.signature().elements()
+    )
+    return (
+        fields == target
         and _hidden(source) == candidate.accepted.hidden
         and _same_title(source, candidate)
-    )
-
-
-def _sign_only(raw, target):
-    if not raw or len({sid for sid, _, _ in raw}) != sum(raw.values()):
-        return False
-
-    def magnitudes(fields):
-        return Counter((sid, value) for sid, _, value in fields.elements())
-
-    npos = sum(n for (_, side, _), n in raw.items() if side == "positive")
-    return (
-        not riven_analysis.count_candidates(npos, sum(raw.values()) - npos, 0)
-        and magnitudes(raw) == magnitudes(target)
-        and raw != target
     )
 
 
@@ -243,10 +374,7 @@ def _select(primary, enhanced, geometry):
     if not geometry.accepted:
         return None
     target = geometry.accepted.signature()
-    hints, covered = _observed(primary)
-    if primary.data and (
-        not _same_title(primary, geometry) or _hidden(primary) > geometry.accepted.hidden
-    ):
+    if primary.data and not _confirms(primary, geometry):
         return None
     if enhanced.accepted:
         if (
@@ -255,10 +383,9 @@ def _select(primary, enhanced, geometry):
             or not _same_title(enhanced, geometry)
         ):
             return None
-        if not (hints - target) or (covered and _sign_only(hints, target)):
-            return enhanced
+        return enhanced
     elif (
-        _confirms(primary, geometry)
+        primary.data
         and not (_observed(enhanced)[0] - target)
         and (
             not enhanced.data
@@ -279,9 +406,7 @@ def _enhance(url):
         )
         buf = io.BytesIO()
         gray.save(buf, "PNG")
-        return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode(
-            "ascii"
-        ), image.size
+        return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode("ascii"), size
 
 
 async def transcribe(provider, image_url, prompt):
@@ -318,7 +443,7 @@ async def read(provider, image_url, validate, geometry_prompt):
         try:
             if view == "enhanced":
                 enhanced_url, size = await asyncio.to_thread(_enhance, image_url)
-            url = enhanced_url if view == "enhanced" else image_url
+            url = image_url if view == "original" else enhanced_url
             prompt = geometry_prompt if view == "geometry" else ""
             text = await asyncio.wait_for(transcribe(provider, url, prompt), timeout=60)
             obs = (
@@ -329,6 +454,8 @@ async def read(provider, image_url, validate, geometry_prompt):
         except Exception as exc:
             logger.warning("[sdjk] 紫卡单模型 OCR %s 失败：%s", view, type(exc).__name__)
             return None, "紫卡 OCR 请求或图像处理失败，请稍后再试。"
+        if obs.upgrade_preview:
+            return None, L(*riven_analysis.UPGRADE_PREVIEW_MESSAGE)
         if obs.multiple:
             return None, "画面中有多个完整紫卡，请仅保留要分析的一张卡。"
         if obs.data:

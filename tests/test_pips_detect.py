@@ -12,13 +12,17 @@
 """
 
 import sys
+from io import BytesIO
 from pathlib import Path
+from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from PIL import Image, ImageDraw  # noqa: E402
+from PIL import Image, ImageDraw, ImageFilter, ImageFont  # noqa: E402
 
-from core.pips import detect_layout, detect_pips  # noqa: E402
+from core import pips as pips_engine  # noqa: E402
+from core.pips import detect_layout, detect_pips, detect_single_card_pips, upgrade_slots  # noqa: E402
 
 FAILED = []
 
@@ -188,6 +192,33 @@ try:
         check(f"主题鲁棒：[{_why}] → {_got}", _got == [5, 0, 5, 1], str(_got))
 finally:
     pass
+
+_upper_counts = [5, 7, 3, 6]
+_lower_counts = [4, 6, 5, 7]
+_upgrade_image = make_shot(_upper_counts)
+_lower_row = make_shot(_lower_counts, top=435).crop((0, 435, 1920, 576))
+_upgrade_image.paste(_lower_row, (0, 435))
+_expected_counts = [_upper_counts, _lower_counts]
+for _title_bar in (False, True):
+    _window = _upgrade_image.copy()
+    if _title_bar:
+        ImageDraw.Draw(_window).rectangle((0, 0, 1919, 22), fill=(104, 123, 221))
+    _rows = [row for row in detect_pips(_window) if not row["is_inventory"]]
+    _layout = detect_layout(_window)
+    check(
+        f"升级装备区保留两排等级，标题栏={_title_bar}",
+        [row["counts"] for row in _rows] == _expected_counts,
+        str([(row["band"], row["counts"]) for row in _rows]),
+    )
+    for _melee, _n in ((False, 10), (True, 11)):
+        _slots = upgrade_slots(_window, _rows, _layout, melee=_melee)
+        check(
+            f"升级槽完整定位，标题栏={_title_bar}，近战={_melee}，槽数={_n}",
+            len(_slots) == _n and sum(slot["kind"] == "regular" for slot in _slots) == 8,
+            str([slot["id"] for slot in _slots]),
+        )
+_tight_crop = make_shot(_upper_counts).crop((0, 406, 1920, 566))
+check("贴近裁图顶边的真实豆子行仍保留", counts_of(_tight_crop) == _upper_counts)
 
 # 几何观测只验证确定性信号，不宣称合成图能证明实图完整性。
 _layout_image = make_shot([5, 0, 5, 1])
@@ -474,6 +505,147 @@ for _rank in (0, 2, 5):
     _without_rank_row = [0.36, 0.01, 0.62, 0.42]
     _evidence = count_arcane_rank(_wide, {}, slot_box=_without_rank_row)
     check("赋能槽外的图案不能确认等级", _evidence["rank"] is None)
+
+
+def _faint_arcane_row(lit, *, count=5):
+    image = Image.new("RGB", (730, 210), (38, 38, 41))
+    draw = ImageDraw.Draw(image)
+    for index in range(count):
+        x, y = 310 + index * 29, 122 + (index % 3) * 2
+        draw.polygon(
+            [(x, y - 11), (x + 10, y), (x, y + 11), (x - 10, y)],
+            outline=(65, 59, 55),
+            width=2,
+        )
+        if index in lit:
+            draw.polygon([(x, y - 6), (x + 6, y), (x, y + 6), (x - 6, y)], fill=(67, 60, 55))
+    return image
+
+
+_faint_slot = [0.39, 0.19, 0.63, 0.76]
+_offset_name = {"x": 532, "y": 454, "h": 110, "w": 120}
+_faint = _faint_arcane_row({0, 1, 2})
+for _anchor in ({}, _offset_name):
+    _read = count_arcane_rank(_faint, _anchor, slot_box=_faint_slot)
+    check("低对比且轻微错行的五菱形可确认三级", _read["rank"] == 3, str(_read))
+for _image, _box in (
+    (_faint_arcane_row({0, 2}), _faint_slot),
+    (_faint_arcane_row({0, 1}, count=4), _faint_slot),
+    (_faint, [0.42, 0.19, 0.63, 0.76]),
+):
+    _read = count_arcane_rank(_image, {}, slot_box=_box)
+    check("断续点亮、少刻度或边缘裁切保持未知", _read["rank"] is None, str(_read))
+
+# 对齐留存升级图中约 15 像素宽、17 像素间距的赋能刻度。
+_tight = Image.new("RGB", (240, 165), (25, 26, 30))
+_tight_draw = ImageDraw.Draw(_tight)
+for _i in range(5):
+    _x, _y = 86 + _i * 17, 106 + _i % 2
+    _tight_draw.polygon(
+        [(_x, _y - 8), (_x + 7, _y), (_x, _y + 7), (_x - 7, _y)], fill=(165, 109, 63)
+    )
+_read = count_arcane_rank(_tight, {}, slot_box=[0.1, 0.01, 0.9, 0.96])
+check("紧邻的小菱形保留刻度间隙可独立计数", _read["rank"] == 5, str(_read))
+
+
+def _single_riven_card(width, pitch, core_width, footer_pos, *, centers=None, count=8):
+    image = Image.new("RGB", (width, 280), (25, 17, 32))
+    draw = ImageDraw.Draw(image)
+    y = round(image.height * (0.65 + 0.35 * footer_pos))
+    for center in centers or (width / 2,):
+        draw.line((center - 4.2 * pitch, y, center + 4.2 * pitch, y), fill=(115, 170, 219))
+        for index in range(count):
+            x = int(center + (index - 3.5) * pitch + 0.5)
+            left = x - core_width // 2
+            draw.rectangle((left, y - 1, left + core_width - 1, y + 1), fill=(235, 250, 255))
+    # 冰晶与左右露出的邻卡，在同一扫描行上增加亮段。
+    for x in (round(width * 0.18), round(width * 0.82)):
+        draw.polygon(
+            [(x - 4, y + 2), (x, y - 5), (x + 3, y - 1), (x + 6, y + 2)],
+            fill=(120, 215, 242),
+        )
+    return image
+
+
+for _width, _pitch, _core, _footer in ((190, 7, 6, 0.24), (220, 9, 2, 0.35), (260, 11, 5, 0.55)):
+    _image = _single_riven_card(_width, _pitch, _core, _footer)
+    _rank = detect_single_card_pips(_image)
+    check(f"单卡白化亮芯和冰晶噪点仍确认满级 {_width}/{_pitch}/{_core}", _rank == 8, str(_rank))
+
+_image = _single_riven_card(220, 9, 4, 0.35)
+_draw = ImageDraw.Draw(_image)
+_y = round(_image.height * (0.65 + 0.35 * 0.35))
+for _idx in range(7):
+    _x = int(_image.width / 2 + (_idx - 3.5) * 9 + 0.5)
+    _draw.rectangle((_x + 3, _y, _x + 4, _y + 1), fill=(235, 250, 255))
+check("刻度之间的细线反光不妨碍确认满级", detect_single_card_pips(_image) == 8)
+
+for _centers in ((52, 148), (52,), (148,)):
+    _image = _single_riven_card(200, 12, 4, 0.38, centers=_centers)
+    check(f"双卡比较区域的非居中刻度保持未知 {_centers}", detect_single_card_pips(_image) is None)
+_image = _single_riven_card(216, 10, 4, 0.35, count=7)
+check("白化亮芯缺一颗保持未知", detect_single_card_pips(_image) is None)
+
+
+def _polarity_card(name, size, ink):
+    image = Image.new("RGB", (480, 620), (47, 24, 68))
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((83, 54, 398, 600), fill=(38, 29, 48), outline=(151, 91, 191), width=3)
+    draw.polygon([(287, 82), (302, 66), (388, 66), (388, 98), (302, 98)], fill=(16, 12, 22))
+    font = ImageFont.load_default(25)
+    digit = draw.textbbox((319, 82), "18", font=font, anchor="lm")
+    draw.text((319, 82), "18", fill=ink, font=font, anchor="lm")
+    if name:
+        with Image.open(pips_engine._POLARITY_ICON_DIR / f"{name}.png") as icon:
+            alpha = icon.getchannel("A").resize((size, size), Image.Resampling.LANCZOS)
+        image.paste(ink, (353, 82 - size // 2, 353 + size, 82 - size // 2 + size), alpha)
+    l, t, r, b = digit
+    ocr = {
+        "raw": {"rows": [{"text": "18", "quad": [(l, t), (r, t), (r, b), (l, b)]}]},
+        "candidate": {"region": [91, 266, 391, 559]},
+    }
+    return image, ocr
+
+
+def _jpeg(image):
+    with BytesIO() as buffer:
+        image.save(buffer, format="JPEG", quality=85)
+        return buffer.getvalue()
+
+
+def _test_polarity():
+    detect = pips_engine.detect_single_card_polarity
+    for name, size, color in (
+        ("madurai", 25, (226, 235, 248)),
+        ("naramon", 21, (148, 218, 126)),
+        ("vazarin", 29, (175, 138, 212)),
+    ):
+        image, ocr = _polarity_card(name, size, color)
+        image_bytes = _jpeg(image)
+        for label, geometry in (
+            ("容量坐标", ocr),
+            ("卡区", {"candidate": ocr["candidate"]}),
+            ("整图", None),
+        ):
+            result = detect(image_bytes, geometry)
+            check(f"{label}确认 {name} 极性", result == name, str(result))
+        blurred = _jpeg(image.filter(ImageFilter.GaussianBlur(3.5)))
+        check(f"模糊 {name} 极性保持未知", detect(blurred, ocr) is None and detect(blurred) is None)
+
+    image, ocr = _polarity_card(None, 25, (226, 235, 248))
+    check(
+        "仅有容量数字时极性保持未知",
+        detect(_jpeg(image), ocr) is None and detect(_jpeg(image)) is None,
+    )
+    check("图像缺失或损坏时极性保持未知", detect(b"") is None and detect(b"invalid") is None)
+    image, ocr = _polarity_card("vazarin", 26, (175, 138, 212))
+    with TemporaryDirectory() as directory:
+        pips_engine._polarity_templates.cache_clear()
+        with patch.object(pips_engine, "_POLARITY_ICON_DIR", Path(directory)):
+            check("发行包缺模板时极性保持未知", detect(_jpeg(image), ocr) is None)
+
+
+_test_polarity()
 
 
 if FAILED:

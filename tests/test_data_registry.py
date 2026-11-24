@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """``core/data_registry.py``（随包数据登记表与统一健康判据）回归测试，**不联网**。
 
-覆盖：登记覆盖度（``git ls-files core/data`` 每个 .json 都在册）/ 字段与枚举 /
+覆盖：登记覆盖度（工作树中 Git 跟踪的 JSON 都在册）/ 字段与枚举 /
 生产器路径真实存在 / 三组（damage·drops_relics·names_zh）来源与生产器非空 /
 点路径能取到值 / max_age 有天数与内容时间、rotating 有 check /
 ``evaluate`` 的 unregistered·missing·unknown·坏 JSON·过期判定（固定 now）/
@@ -43,6 +43,7 @@ REQUIRED_KEYS = (
     "risk",
     "game_version",
     "tracked",
+    "optional_seed",
     "oss",
     "check",
     "note",
@@ -88,11 +89,13 @@ tracked = subprocess.run(
     ["git", "ls-files", "core/data"], cwd=ROOT, capture_output=True, text=True
 ).stdout.split()
 json_files = sorted(
-    p[len("core/data/") :] for p in tracked if p.startswith("core/data/") and p.endswith(".json")
+    p[len("core/data/") :]
+    for p in tracked
+    if p.startswith("core/data/") and p.endswith(".json") and (ROOT / p).is_file()
 )
 missing_reg = [f for f in json_files if f not in DR.REGISTRY]
 check(
-    f"git ls-files 的 {len(json_files)} 个 core/data/*.json 全部已登记",
+    f"工作树中的 {len(json_files)} 个 Git 跟踪 JSON 全部已登记",
     not missing_reg,
     str(missing_reg),
 )
@@ -107,11 +110,13 @@ for key, meta in DR.REGISTRY.items():
     if "*" in key or not meta.get("tracked", True):
         continue
     if not (DATA / key).exists():
+        if meta.get("optional_seed"):
+            continue
         if not meta.get("oss", True) and IN_OSS:
             print(f"[SKIP] {key} 开源包不随附（oss=False）")
             continue
         absent.append(key)
-check("tracked=True 的非通配键文件都在场", not absent, str(absent))
+check("登记的必备非通配文件都在场", not absent, str(absent))
 
 # 运行期缓存（tracked=False）应被 .gitignore 忽略、不随包
 check(
@@ -141,6 +146,8 @@ for key, meta in DR.REGISTRY.items():
         bad_enums.append(f"{key}.risk={meta.get('risk')}")
     if not isinstance(meta.get("tracked"), bool):
         bad_enums.append(f"{key}.tracked")
+    if not isinstance(meta.get("optional_seed"), bool):
+        bad_enums.append(f"{key}.optional_seed")
     if not isinstance(meta.get("readers"), list):
         bad_enums.append(f"{key}.readers")
     producer = meta.get("producer")
@@ -247,6 +254,40 @@ check(
     any("weapons_stats.json" in p for p in DR.integrity_problems(rows)),
     str(DR.integrity_problems(rows)),
 )
+
+_portable_seeds = ("portable_reference_builds.json", "portable_trait_matrix.json")
+_optional_registry = {key: DR.REGISTRY[key] for key in _portable_seeds}
+with tempfile.TemporaryDirectory() as _directory, _patch.object(DR, "REGISTRY", _optional_registry):
+    _seeds = Path(_directory)
+    _absent_rows = DR.evaluate(_seeds, NOW)
+    check(
+        "两张参考表暂缺时允许通过完整性检查",
+        all(row["status"] == "not_bundled" for row in _absent_rows)
+        and not DR.integrity_problems(_absent_rows),
+    )
+    for _key in _portable_seeds:
+        _write(_seeds, _key, {"engineFingerprint": "535ed49f5a51149d"})
+    _present_rows = DR.evaluate(_seeds, NOW)
+    check(
+        "参考表生成后随包登记且可读取引擎指纹",
+        all(
+            row["status"] == "no_ttl" and row["source_rev"] == "535ed49f5a51149d"
+            for row in _present_rows
+        )
+        and not DR.integrity_problems(_present_rows),
+    )
+    if not IN_OSS:
+        from dist import package_release as _package
+
+        with (
+            _patch.object(DR.paths, "PKG_DATA", _seeds),
+            _patch.object(_package, "_OSS_MODE", True),
+        ):
+            _package.assert_registry_integrity()
+            check(
+                "开源 stage 会复制两张参考表",
+                all(not _package._should_skip(Path("core/data") / key) for key in _portable_seeds),
+            )
 
 # —— 非 git 目录回退 rglob（含 _cache 排除）——
 d2 = _tmpdir()

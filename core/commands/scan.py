@@ -32,6 +32,10 @@ from .wiki_misc import _dmg_en_toks
 _SCAN_TTL = 1800
 _SCAN_LIMIT = 128
 _SCAN_IMAGE_FIELDS = ("_upgrade_slots", "_pixel_layout", "_tile_slots", "_pips_rows")
+_SCAN_EXPERIMENTAL = (
+    "※ 识卡为实验功能，默认关闭。识别可能较慢或不完整。",
+    "※ Build Scan is experimental and off by default. Scans may be slow or incomplete.",
+)
 
 
 def _scan_recognition(text: str, parsed: dict, prompt: str, provider_id: str, task: str) -> dict:
@@ -120,20 +124,20 @@ async def _scanned_damage_result(host, weapon, spec, overrides, event, platform)
     if spec.get("builtin_calculation_allowed") is False:
         lines = [
             L(
-                "◆ 原图还有未核对的面板或等级，随包估算暂不可用",
-                "◆ Bundled estimate requires verified screenshot stats and ranks",
+                "◆ 原图还有未核对的面板或等级，内置估算暂不可用",
+                "◆ Built-in estimate requires verified screenshot stats and ranks",
             )
         ]
         ok, footer = False, ""
     else:
         result = lo.calculate_bundled_scan(spec, weapon)
         lines = [
-            L("· 计算：随包估算", "· Engine: Bundled estimate"),
+            L("· 计算：内置估算", "· Engine: Built-in estimate"),
             *dc.card_lines(weapon, spec, result, []),
         ]
         ok, footer = result.get("ok"), dc.card_footer(weapon, result)
     if note:
-        lines.insert(0, L(f"※ 随包估算 · {note}", f"※ Bundled estimate · {note}"))
+        lines.insert(0, L(f"※ 内置估算 · {note}", f"※ Built-in estimate · {note}"))
     return lines, ok, footer
 
 
@@ -192,6 +196,7 @@ class ScanCommands:
                 L(
                     [
                         "◆ 用法：发一张武器「升级」界面截图，配上文字「识卡」",
+                        _SCAN_EXPERIMENTAL[0],
                         "◆ 说明",
                         "· 读出　武器（含等级）＋每张 MOD 卡与其实际等级＋面板数值",
                         "· 定级　数同槽亮刻度，用右上容量数字及颜色核对",
@@ -203,6 +208,7 @@ class ScanCommands:
                     ],
                     [
                         '◆ Usage: send a screenshot of the weapon "Upgrade" screen with the text "scan"',
+                        _SCAN_EXPERIMENTAL[1],
                         "◆ Details",
                         "· Reads　the weapon (with rank) + every MOD card with its actual rank + panel values",
                         "· Rank　count the lit pips on the same card and cross-check its capacity number and color",
@@ -468,13 +474,11 @@ class ScanCommands:
             if not res.get("ok"):
                 return None
             out = dc.card_lines(weapon, spec, res, [])
-            out.insert(0, L("· 计算：随包估算", "· Engine: Bundled estimate"))
+            out.insert(0, L("· 计算：内置估算", "· Engine: Built-in estimate"))
             out.append(
                 L(
-                    "※ 与「伤害计算」同一套公式（G系 100 级·身体，无 buff 基准）；"
-                    "换敌人/等级/爆头请发「识卡伤害 对 重机枪手 150级 爆头」",
-                    '※ Same formula as "damage" (Grineer level 100, body shot, no buff baseline); '
-                    'to change enemy / level / headshot send "scandamage vs Heavy Gunner 150 headshot"',
+                    "※ 要换目标，可发「识卡伤害 对 重机枪手 150级 爆头」。",
+                    '※ To change the target, try "scandamage vs Heavy Gunner 150 headshot".',
                 )
             )
             return fmt.limit_notes(out)
@@ -531,6 +535,8 @@ class ScanCommands:
                         "◆ 用法：先发「识卡 + 武器升级界面截图」，再用本指令复算",
                         '◆ Usage: first send "scan" + a weapon Upgrade screenshot, then use this command to recalculate',
                     ),
+                    L(*_SCAN_EXPERIMENTAL),
+                    *L(dc.TARGET_HELP_ZH, dc.TARGET_HELP_EN),
                     L(
                         "· 示例　识卡伤害 对 重机枪手 150级 爆头",
                         "· Example　scandamage vs Heavy Gunner 150 headshot",
@@ -552,12 +558,13 @@ class ScanCommands:
         try:
             overrides = {}
             if rest:
-                arg_spec, _tokens = dc.parse_args(rest)
+                target = {}
+                arg_spec, _tokens = dc.parse_args(rest, target_overrides=target)
                 default_spec, _ = dc.parse_args([])
-                # 只覆盖「目标/条件」类参数（相对默认值有变化的项），
-                # MOD 折算值沿用识卡结果 —— 避免默认 spec 里的零值冲掉折算
                 overrides = {k: v for k, v in arg_spec.items() if v != default_spec.get(k)}
-                spec = {**cached, **overrides}
+                dc.merge_target_options(overrides, target)
+                spec = dict(cached)
+                dc.merge_target_options(spec, overrides)
             else:
                 spec = dict(cached)
             lines, ok, footer = await _scanned_damage_result(
@@ -1178,7 +1185,7 @@ class ScanCommands:
     )
 
     @staticmethod
-    def _equipment_tile_image(image_url, rows, layout, *, melee=None, badges=False):
+    def _equipment_tile_image(image_url, rows, layout, *, melee=None, badges=False, slot_ids=None):
         import base64
         import io
 
@@ -1186,7 +1193,7 @@ class ScanCommands:
 
         with Image.open(io.BytesIO(base64.b64decode(image_url.split(",", 1)[1]))) as image:
             sheet, tiles = pips_engine.equipment_tiles(
-                image, rows, layout, melee=melee, badges=badges
+                image, rows, layout, melee=melee, badges=badges, slot_ids=slot_ids
             )
         if sheet is None:
             return None, []
@@ -1251,7 +1258,7 @@ class ScanCommands:
                         s["kind"] != "arcane" and s["reason"] == "capacity_unconfirmed"
                         for s in slots
                     ):
-                        return await self._read_slot_capacities(
+                        candidate = await self._read_slot_capacities(
                             candidate,
                             provider,
                             image_url,
@@ -1263,7 +1270,9 @@ class ScanCommands:
                             tiles,
                             boxes,
                         )
-                    return candidate
+                    return await self._read_unconfirmed_slots(
+                        candidate, provider, image_url, rows, layout, melee, main, equipment_read
+                    )
                 observed = lo.parse_vision_json(text)
                 if not observed:
                     return ocr
@@ -1271,8 +1280,7 @@ class ScanCommands:
                     text, observed, prompt, _prov_id(provider), "scan_tiles"
                 )
                 if melee is not None and "slots" in observed:
-                    main = copy.deepcopy(main_read or ocr)
-                    lo.observe_arcane_ranks(main, image_url)
+                    main = main_read or ocr
                     slots = await asyncio.to_thread(
                         lo.verify_upgrade_slots,
                         main,
@@ -1283,9 +1291,16 @@ class ScanCommands:
                     )
                     if not slots:
                         return ocr
-                    fields = ["_upgrade_slots"]
-                    candidate = {**ocr, "_upgrade_slots": slots}
-                    return _scan_revision(candidate, ocr, observed, fields, "scan_tiles")
+                    candidate = _scan_revision(
+                        {**ocr, "_upgrade_slots": slots},
+                        ocr,
+                        observed,
+                        ["_upgrade_slots"],
+                        "scan_tiles",
+                    )
+                    return await self._read_unconfirmed_slots(
+                        candidate, provider, image_url, rows, layout, melee, main, equipment_read
+                    )
                 if melee is None and isinstance(observed.get("slots"), list):
                     # 未确认武器类别时仍可用裁图补已装卡名，保留候选布局。
                     observed["mods"] = [
@@ -1300,6 +1315,70 @@ class ScanCommands:
         except Exception as exc:  # noqa: BLE001 — 复读失败保留原始结果
             logger.warning("[sdjk] 配卡槽位复读失败：%s", type(exc).__name__)
         return ocr
+
+    async def _read_unconfirmed_slots(
+        self, ocr, provider, image_url, rows, layout, melee, main, equipment
+    ):
+        import uuid
+
+        slots = ocr["_upgrade_slots"]
+        slot_ids = {
+            slot["id"]
+            for slot in slots
+            if slot["reason"] in {"slot_unread", "mod_name_unconfirmed", "arcane_name_unconfirmed"}
+            and slot.get("observed_occupied")
+        }
+        if not slot_ids:
+            return ocr
+        try:
+            image, tiles = await asyncio.to_thread(
+                self._equipment_tile_image, image_url, rows, layout, melee=melee, slot_ids=slot_ids
+            )
+            if not image:
+                return ocr
+            prompt = lo.VISION_PROMPT
+            response = await asyncio.wait_for(
+                provider.text_chat(
+                    prompt=prompt,
+                    image_urls=[image],
+                    session_id=f"sdjk-slot-focus-{uuid.uuid4().hex[:8]}",
+                ),
+                timeout=60,
+            )
+            text = str(getattr(response, "completion_text", "") or "")
+            boxes = lo.coordinate_ocr_boxes(text)
+            if not boxes:
+                return ocr
+            checked = await asyncio.to_thread(
+                lo.verify_coordinate_slots, main, equipment, tiles, boxes, image_url
+            )
+            recovered = {
+                slot["id"]: slot
+                for slot in checked
+                if slot["state"] == "installed" and slot["rank"] is not None
+            }
+            # 已有占位证据的槽不能通过补读改判为空位。并回全表后仍需检查重名和容量。
+            combined = [dict(recovered.get(slot["id"], slot)) for slot in slots]
+            lo.reject_duplicate_slots(combined)
+            observed = {
+                "_recognition": _scan_recognition(
+                    text,
+                    {"boxes": boxes, "slot_ids": sorted(slot_ids)},
+                    prompt,
+                    _prov_id(provider),
+                    "scan_slot_focus",
+                )
+            }
+            return _scan_revision(
+                {**ocr, "_upgrade_slots": combined},
+                ocr,
+                observed,
+                ["_upgrade_slots"],
+                "scan_slot_focus",
+            )
+        except Exception as exc:  # noqa: BLE001 — 补读失败保留逐槽证据
+            logger.warning("[sdjk] 配卡未确认槽位补读失败：%s", type(exc).__name__)
+            return ocr
 
     async def _read_slot_capacities(
         self, ocr, provider, image_url, rows, layout, melee, main, equipment, tiles, boxes
