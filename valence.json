@@ -40,49 +40,49 @@
  },
  "coda": {
   "snapshot": "2026-11-20T00:06:35+00:00",
-  "batch": "B",
+  "batch": "A",
   "items": [
    {
-    "en": "Coda Bassocyst",
-    "cn": "终幕·低音爆囊",
-    "element": "Magnetic",
-    "bonus": 32.7
-   },
-   {
-    "en": "Coda Bubonico",
-    "cn": "终幕·横痃重炮",
+    "en": "Coda Hema",
+    "cn": "终幕·血肢",
     "element": "Radiation",
-    "bonus": 36.7
+    "bonus": 41.2
    },
    {
-    "en": "Coda Synapse",
-    "cn": "终幕·突触生化枪",
+    "en": "Coda Sporothrix",
+    "cn": "终幕·孢丝感染枪",
     "element": "Magnetic",
-    "bonus": 31.0
+    "bonus": 30.9
    },
    {
-    "en": "Coda Tysis",
-    "cn": "终幕·啐沫者",
-    "element": "Magnetic",
-    "bonus": 31.5
+    "en": "Coda Catabolyst",
+    "cn": "终幕·异化者",
+    "element": "Electricity",
+    "bonus": 25.1
    },
    {
-    "en": "Coda Caustacyst",
-    "cn": "终幕·灼蚀变体镰",
-    "element": "Heat",
-    "bonus": 46.6
+    "en": "Coda Pox",
+    "cn": "终幕·脓痘",
+    "element": "Radiation",
+    "bonus": 29.5
    },
    {
-    "en": "Coda Hirudo",
-    "cn": "终幕·蚂蟥",
-    "element": "Toxin",
-    "bonus": 25.2
+    "en": "Dual Coda Torxica",
+    "cn": "终幕·孢蚀双枪",
+    "element": "Radiation",
+    "bonus": 47.1
    },
    {
-    "en": "Coda Pathocyst",
-    "cn": "终幕·病囊飞刃",
-    "element": "Toxin",
-    "bonus": 46.8
+    "en": "Coda Mire",
+    "cn": "终幕·米尔",
+    "element": "Electricity",
+    "bonus": 45.8
+   },
+   {
+    "en": "Coda Motovore",
+    "cn": "终幕·噬轮",
+    "element": "Radiation",
+    "bonus": 25.6
    }
   ]
  }
