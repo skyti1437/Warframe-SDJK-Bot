@@ -59,7 +59,9 @@ except Exception as e:  # noqa: BLE001
 FACADE_READMES = ("dist/OPENSOURCE_README.md", "dist/SDJKwfbot_README.md")
 VERSION_LANDINGS = tuple(S.VERSION_SOURCES) + FACADE_READMES
 # 6 处**可机械替换**的版本行（CHANGELOG 只提示「需新增小节」，不生成文案）
-MECHANICAL_LANDINGS = tuple(r for r in VERSION_LANDINGS if r != "CHANGELOG.md")
+MECHANICAL_LANDINGS = tuple(
+    r for r in VERSION_LANDINGS if r not in ("CHANGELOG.md", "CHANGELOG.en.md")
+)
 
 # 发版草稿（用户手写、放在工作区外）—— 只列文件名，不读内容
 DRAFT_DIR = Path("/root")
@@ -184,6 +186,7 @@ _LINE_PATTERNS = {
     "metadata.yaml": re.compile(r"^version:\s*v?\d+\.\d+\.\d+\s*$"),
     "core/__init__.py": re.compile(r'__version__\s*=\s*"\d+\.\d+\.\d+"'),
     "CHANGELOG.md": re.compile(r"^##\s*v?\d+\.\d+\.\d+"),
+    "CHANGELOG.en.md": re.compile(r"^##\s*v?\d+\.\d+\.\d+"),
 }
 
 
@@ -468,7 +471,7 @@ def section_draft(repo: Path, head: str, versions: dict) -> dict:
     """6 处可机械替换的版本行；取不到行号的标 manual（由人补）。"""
     edits = []
     for item in versions["landings"]:
-        if item["path"] == "CHANGELOG.md":
+        if item["path"] in ("CHANGELOG.md", "CHANGELOG.en.md"):
             continue
         old, no, ver, new_ver = item["line"], item["line_no"], item["version"], versions["next"]
         if ver and new_ver and ver == new_ver:

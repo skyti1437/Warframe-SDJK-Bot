@@ -15,6 +15,7 @@
 /scripts export-ignore
 /assets export-ignore
 /README.en.md export-ignore
+/CHANGELOG.en.md export-ignore
 /.github export-ignore
 /.gitleaks.toml export-ignore
 /.gitignore export-ignore

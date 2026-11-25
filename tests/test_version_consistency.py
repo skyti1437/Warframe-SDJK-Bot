@@ -191,6 +191,31 @@ if changelog.exists():
         f"首条 {_first_ver.group(1) if _first_ver else '无版本标题'} vs v{CORE_VERSION}",
     )
 
+changelog_en = ROOT / "CHANGELOG.en.md"
+check("★ CHANGELOG.en.md 存在（英文更新日志）", changelog_en.exists())
+if changelog_en.exists():
+    cetext = changelog_en.read_text(encoding="utf-8")
+    check(
+        "★ CHANGELOG.en.md 含当前版本条目",
+        f"## v{CORE_VERSION}" in cetext,
+        f"缺「## v{CORE_VERSION}」（发版时忘了同步英文更新日志）",
+    )
+    check(
+        "CHANGELOG.en.md 最新条目排在最前",
+        cetext.index(f"## v{CORE_VERSION}")
+        < min(
+            [cetext.index(f"## v{v}") for v in ("1.0.2", "1.0.1", "1.0.0") if f"## v{v}" in cetext]
+            or [10**9]
+        ),
+        "英文更新日志版本未按从新到旧排列",
+    )
+    _first_ver_en = re.search(r"^## (v[\d.]+)", cetext, re.M)
+    check(
+        "★ CHANGELOG.en.md 首条版本 == 当前版本",
+        bool(_first_ver_en) and _first_ver_en.group(1) == f"v{CORE_VERSION}",
+        f"首条 {_first_ver_en.group(1) if _first_ver_en else '无版本标题'} vs v{CORE_VERSION}",
+    )
+
 # 私有树的 README 和两份发行模板首行都包含版本号，分别核对以免打包沿用旧版。
 # 开源树（无 dist/）：README.md 本身就是 OPENSOURCE_README 模板的产物，两份门面模板不随包
 # ⇒ 只查真实 README；私有树有 dist/ 时模板缺失照常判失败。

@@ -111,6 +111,7 @@ LANDING_TEXTS = {
         '    "x", "SDJK", f"{BRAND}：说明", "{ver}"\n)\n'
     ),
     "CHANGELOG.md": "# 更新日志\n\n本文件记录主要版本更新。\n\n## v1.2.1\n\n- 内容\n",
+    "CHANGELOG.en.md": "# Changelog\n\nVersion history.\n\n## v1.2.1\n\n- Details\n",
     "dist/OPENSOURCE_README.md": "# AstrBot 插件 · Warframe SDJKBOT v{ver}（`x`）\n\n说明\n",
     "dist/SDJKwfbot_README.md": "# Warframe SDJKBOT · AstrBot 插件 v{ver}\n\n说明\n",
 }
@@ -285,9 +286,10 @@ check(
 #     （2026-10-17 实战发现：抬版后计划器仍拿 1.2.3 对 CHANGELOG，闸门误报）
 _fx3, _base3 = _fixture()
 for _rel, _tpl in LANDING_TEXTS.items():
-    if _rel != "CHANGELOG.md":
+    if _rel not in ("CHANGELOG.md", "CHANGELOG.en.md"):
         _write(_fx3, _rel, _tpl.replace("{ver}", "1.2.2"))
 _write(_fx3, "CHANGELOG.md", "# 更新日志\n\n## v1.2.2\n\n- 新\n\n## v1.2.1\n\n- 内容\n")
+_write(_fx3, "CHANGELOG.en.md", "# Changelog\n\n## v1.2.2\n\n- New\n\n## v1.2.1\n\n- Details\n")
 _commit(_fx3, "release: v1.2.2")
 plan3 = RP.build_plan(_fx3, _base3, "HEAD")
 check(
@@ -348,7 +350,10 @@ check(
 )
 _proj = data.get("baselines", {}).get("stage_proj")
 check("CLI：真实仓 stage_proj 是正整数", isinstance(_proj, int) and _proj > 0, str(_proj))
-check("CLI：--json 里带 7 处落点", len(data.get("versions", {}).get("landings", [])) == 7)
+check(
+    f"CLI：--json 里带 {len(RP.VERSION_LANDINGS)} 处落点",
+    len(data.get("versions", {}).get("landings", [])) == len(RP.VERSION_LANDINGS),
+)
 
 _pp = _out / "real.diff"
 _p = _run("--patch-out", str(_pp))

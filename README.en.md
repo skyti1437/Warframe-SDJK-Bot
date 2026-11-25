@@ -1,6 +1,6 @@
 # AstrBot Plugin · Warframe SDJKBOT (`astrbot_plugin_warframe_sdjkbot`)
 
-[简体中文](https://github.com/skyti1437/Warframe-SDJK-Bot/blob/main/README.md) | **English** | [Changelog](CHANGELOG.md)
+[简体中文](https://github.com/skyti1437/Warframe-SDJK-Bot/blob/main/README.md) | **English** | [Changelog](https://github.com/skyti1437/Warframe-SDJK-Bot/blob/main/CHANGELOG.en.md)
 
 Look up Warframe from your group chat on QQ, Telegram, Discord, Slack, KOOK and other platforms supported by AstrBot: **world state, market prices, relics and parts, damage calculation, build screenshot reading, riven analysis, Kuva / Tenet / Coda weapon auctions, Baro Ki'Teer predictions and event subscriptions**. Replies are rendered as Orokin-style image cards, and the plugin ships with an admin panel inside the AstrBot dashboard.
 
@@ -8,7 +8,7 @@ Replies can be in **Simplified Chinese or English** (international servers only)
 
 Commands take **free-form arguments**: `command + content + modifiers`, in any order, separated by spaces. There are **59 main commands**; send `wfhelp` for the full list.
 
-Version history: [CHANGELOG.md](https://github.com/skyti1437/Warframe-SDJK-Bot/blob/main/CHANGELOG.md) (written in Chinese).
+Version history: [CHANGELOG.en.md](https://github.com/skyti1437/Warframe-SDJK-Bot/blob/main/CHANGELOG.en.md) ([简体中文](https://github.com/skyti1437/Warframe-SDJK-Bot/blob/main/CHANGELOG.md)).
 
 ---
 

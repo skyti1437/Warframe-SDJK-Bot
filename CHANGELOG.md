@@ -1,5 +1,7 @@
 # 更新日志
 
+**简体中文** | [English](https://github.com/skyti1437/Warframe-SDJK-Bot/blob/main/CHANGELOG.en.md)
+
 本文件记录 AstrBot 插件 **Warframe SDJKBOT** 的主要版本更新，最新版本排在最前。
 
 > 这份文件同时被两处读取：AstrBot 面板里插件的「更新日志」页，以及 AstrBot

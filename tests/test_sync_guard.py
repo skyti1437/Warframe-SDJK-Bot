@@ -331,6 +331,7 @@ with tempfile.TemporaryDirectory() as tmp:
     projection = {
         "README.md": b"# v1.0.8",
         "CHANGELOG.md": b"## v1.0.8",
+        "CHANGELOG.en.md": b"## v1.0.8",
         "metadata.yaml": b"version: v1.0.8",
         "core/__init__.py": b'__version__ = "1.0.8"',
         "main.py": b'@register("p","a","d","1.0.8")',
@@ -478,6 +479,7 @@ with tempfile.TemporaryDirectory() as tmp:
                 "metadata.yaml": b"version: v1.0.7\n",
                 "core/__init__.py": b'__version__ = "1.0.7"\n',
                 "CHANGELOG.md": b"## v1.0.7\n",
+                "CHANGELOG.en.md": b"## v1.0.7\n",
                 "main.py": MAIN_TXT.replace('"1.0.8"', '"1.0.7"').encode(),
             }
         )
@@ -613,6 +615,7 @@ if MK.is_file():
         "scripts/nested/dev.py": b"",
         "assets/readme/help.png": b"\x00",
         "README.en.md": b"# English documentation\n",
+        "CHANGELOG.en.md": b"# Changelog\n\n## v1.2.9\n",
         "pyproject.toml": b"",
         "build_damage_data.py": b"",
         "build_de_data.py": b"",
