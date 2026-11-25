@@ -406,7 +406,7 @@ _MAX_RANK_RE = re.compile(r"满级\s*(\d+)")
 
 
 def _prefer_full_rank(rows: list) -> dict:
-    """同名多候选时挑「满级」最高的那条（2026-10-25，Astra 真实宿主补测）。
+    """同名多候选时挑「满级」最高的那条。
 
     「膛线（Serration）」有满级 3 / 5 / 10 三条同名条目（旧版 / 不同来源的数据），原先取第一条
     ⇒ 卡面写满级 3、+40%，与正常版满级 10、+165% 冲突。只在**标题相同、版本相同**（都不是 PvP，
@@ -845,9 +845,7 @@ def display_title(title: str) -> str:
     官方名能查到的一律不动（本函数只处理「看起来是代码名」的形态）。
     """
     t = (title or "").strip()
-    # ★ 2026-10-22 Claude 审：只动「看起来就是代码名」的标题。旧版对全部 13065 条标题生效，
-    #   改了 390 条 —— 「红/白/蓝（Red/White/Blue）」被当路径截成「Blue）」、
-    #   「TennoCon 2016 披饰」被拆成「Tenno Con」。带中文 = 已有显示名，一律不动。
+    # 含中文的标题已有显示名。保留其中的斜杠和连写名称，例如「红/白/蓝」和「TennoCon」。
     if not t or _CJK_RE.search(t):
         return t
     if t.startswith(

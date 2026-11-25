@@ -102,8 +102,7 @@ check(
 )
 check("登记表键数 ≥ 60 JSON + 资产 + 运行期缓存", len(DR.REGISTRY) >= 64, str(len(DR.REGISTRY)))
 
-# 开源 stage / 公开仓：没有 dist/sync_opensource.py（私有工具不进包）。这时 oss=False 的数据文件、
-#   以及不进包的生产器脚本（scripts/merge_effect_zh.py、.zcode/…）本来就不在（2026-10-17 v1.2.2 公开仓 CI 红）
+# 公开包不含私有工具或私有数据，缺少这些文件时按公开包规则校验。
 IN_OSS = not (ROOT / "dist" / "sync_opensource.py").exists()
 
 absent = []
@@ -773,7 +772,7 @@ _before = _tree_md5(d7)
 DR.ledger(d7, d6)
 check("ledger 只读：运行目录清单与内容 md5 前后一致", _tree_md5(d7) == _before)
 
-# —— CLI（ZCode 在服务器上只读跑真实运行目录用）——
+# CLI 对运行目录执行只读检查。
 _p = subprocess.run(
     [sys.executable, "-m", "core.data_registry", "--ledger", str(d7)],
     cwd=ROOT,

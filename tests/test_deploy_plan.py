@@ -300,7 +300,7 @@ shutil.rmtree(SRV_BIN, ignore_errors=True)
 # 2. 动作决策表（改动类型 → 动作）
 # ---------------------------------------------------------------------------
 for _name, _ov, _expect_code in (
-    # 2026-10-18 ZCode 实测 AstrBot 4.28.1：reload 即重读 schema ⇒ 配置项改动只需 reload
+    # AstrBot 4.28.1 重载插件时会重读配置 schema。
     ("只改 _conf_schema.json ⇒ reload", {"_conf_schema.json": '{"a": {"b": 1}}\n'}, "reload"),
     (
         "只改 requirements.txt ⇒ deps_restart",
@@ -335,7 +335,7 @@ for _name, _ov, _expect_code in (
     )
     shutil.rmtree(_srv, ignore_errors=True)
 
-# 仅行尾不同不计入动作（ZCode 10-17：只差 CRLF 的 requirements.txt 曾把动作顶成 deps_restart）
+# requirements.txt 仅有行尾差异时无需重启依赖。
 _srv = _server(overrides={"requirements.txt": "requests\r\n", "core/a.py": "A = 2\n"})
 _rc, _p, _err = _plan_json("plugin", LOCAL, _srv)
 _p = _p or {}
@@ -351,7 +351,7 @@ check(
 )
 shutil.rmtree(_srv, ignore_errors=True)
 
-# 门面文档（ZCode 10-17）：不算运行期面 ⇒ runtime_real 不计、face=docs
+# 门面文档计入 docs，运行期内容差异不计这部分。
 _srv = _server(overrides={"logo.png": b"\x89PNG-other"})
 _rc, _p, _err = _plan_json("plugin", LOCAL, _srv)
 _p = _p or {}
@@ -693,7 +693,7 @@ else:
     def _check_version(dirpath: Path) -> int:
         script = f'{_FUNC}\ncheck_version {shlex.quote(str(dirpath))} "测试"\n'
         # 只看返回码；输出按 utf-8 宽松解码 —— macOS 自带 bash 3.2 下 `local` 会把中文参数压成
-        # 单字节（如 0xbc），text=True 严格解码会抛 UnicodeDecodeError（10-18/19 ZCode 本机实测）
+        # 单字节（如 0xbc），严格解码会抛 UnicodeDecodeError。
         return subprocess.run(
             ["bash", "-c", script], capture_output=True, encoding="utf-8", errors="replace"
         ).returncode

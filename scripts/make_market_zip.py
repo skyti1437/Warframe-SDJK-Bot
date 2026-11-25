@@ -59,9 +59,7 @@ try:
     SKIP_GLOBS = tuple(pr.EXCLUDE_GLOBS)
     SKIP_SOURCE = "dist/package_release.py"
 except Exception:  # noqa: BLE001
-    # 2026-09-21 阶段 3：与主清单对齐 —— 移除本机宿主平台的工作区目录条目
-    # （stage 内本就不存在该目录，字面量写入公开仓属私有痕迹残留），补
-    # ".zcode"/".archive"（阶段 1 起主清单新增的排除项）。
+    # 公开包缺少主打包脚本时使用内置排除清单。
     SKIP_DIRS = {
         ".git",
         "__pycache__",
@@ -121,7 +119,7 @@ except Exception:  # noqa: BLE001
 
 
 # ---------------------------------------------------------------------------
-# 种子新鲜度闸门（2026-09-29 v1.1.2 追加批；与 dist/package_release.py 同判据）
+# 随包种子校验，与 dist/package_release.py 使用相同判据
 # ---------------------------------------------------------------------------
 # 投影与独立市场打包共用 core.data_registry 的骨架校验。
 # 效价动态字段残留 / 静态骨架损坏 / 言录使动态货单残留均拒绝，不提供 bypass。
@@ -397,7 +395,7 @@ def main() -> int:
         print(f"✗ 读取开源投影失败：{exc}")
         return 1
 
-    # 种子新鲜度硬闸门（2026-09-29 v1.1.2 追加批）：静态结构损坏或动态值残留即拒绝打包，无 bypass。
+    # 静态结构损坏或有动态字段残留时拒绝打包。
     problems = _seed_problems(files)
     if problems:
         print("✗ [种子新鲜度闸门] 拒绝打包 ——")

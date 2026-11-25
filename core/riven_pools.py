@@ -1,20 +1,17 @@
 # -*- coding: utf-8 -*-
 """紫卡**词条池**：按武器判断哪些词条刷得出（「词条范围」指令的过滤层）。
 
-★ 2026-10-25 起**不再使用 wfsim 数据**（维护者定：wfsim 派生数据改为从游戏数据自己生成；
-Astra 评估许可 L1）。数据表 `core/data/de/riven_pools.json` 由 `scripts/build_riven_pools.py`
-从 DE 官方 Public Export + warframe-public-export-plus（MIT）+ 我方 WM 抽样生成。判据：
+数据表 `core/data/de/riven_pools.json` 由 `scripts/build_riven_pools.py` 从 DE 官方
+Public Export、warframe-public-export-plus（MIT）和 WM 挂单抽样生成。判据如下。
 
 1. **职业池**（`class_pools`）：DE 官方现行紫卡模板的词条清单；每个词条能否正 / 负、限制条件
    （DamageTypes / NotSentinel / NotGrimoire）；`_BASE` 该列为 None 的不列（拿不到基值画不出区间）。
 2. **DE 规则排除**（`derived_for`）：守护武器 / 魔典按限制条件排除；没有 PROJECTILE 标签的
    不出弹道速度。
 3. **物理三项**（冲击 / 穿刺 / 切割）按 DE 的 ``DamageTypes`` 限制：武器该伤害占比 ≤25% 不列
-   （wiki 与 riven-roll 同一口径）。2026-10-25 维护者定：wfsim 物理证据去掉后按规则删、再用我方抽样纠偏
-   —— 规则与旧证据 84% 一致，两向各约 50 条分歧（Ocucor 0% 切割能出、Phenmor 30% 穿刺不出这类），
-   待服务器上对物理词条补一轮 WM 抽样后由 `survey` 纠正。
+   （与 Wiki 和 riven-roll 一致）。WM 挂单抽样可覆盖此规则。
 4. **我方抽样**（`survey`）：见过 ⇒ 照列（实证压过规则，含物理三项）；没见过 ⇒ 标「?」照列，注明样本时间。
-   P4 核实的物理词条也按家族覆盖占比筛选。样本偏少的方向保留「?」。
+   物理词条按家族覆盖占比筛选。样本偏少的方向保留「?」。
 """
 
 from __future__ import annotations
@@ -261,7 +258,7 @@ def excluded_for(
 ) -> set[str]:
     """该武器刷不出的词条：DE 规则排除；我方抽样**见过**的词条照列（实证压过规则）。
 
-    抽样「没见过」不排除（`survey_unseen` 标「?」照列，2026-10-25 Astra 评估）。
+    缺少挂单样本的词条仍列出，通过 `survey_unseen` 标记为「?」。
     """
     out = {
         s

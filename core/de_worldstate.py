@@ -3533,7 +3533,7 @@ _SECTION_EMPTY_LIST = frozenset(
 )
 
 
-# ★ 2026-10-21（GPT 评估 P09）：本次解析失败的 section 名（线程局部 —— 解析走 to_thread）。
+# 解析通过 to_thread 执行，失败的 section 记录在线程局部状态。
 #   parse_worldstate 把它写进 bundle["_failed"]，取数层据此报「解析失败」，不再拿空值冒充「真没事件」。
 _FAILED = threading.local()
 

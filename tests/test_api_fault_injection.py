@@ -1079,7 +1079,7 @@ async def t_wm_rank_cache_identity():
 
 
 async def t_wm_schema_drift():
-    """★ 2026-10-25（Astra 故障注入）：WM 结构缺字段不能被说成「没有在售单」。"""
+    """WM 响应缺字段时报告结构异常，避免被当作零条挂单。"""
     from core.api_client import WarframeClient as _WC
 
     async def _run(payload):

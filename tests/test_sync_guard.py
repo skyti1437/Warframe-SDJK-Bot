@@ -842,7 +842,7 @@ if FAILED:
 print("✓ 开源同步闸门守卫全部通过")
 
 # ---------------------------------------------------------------------------
-# 种子新鲜度硬闸门（2026-09-29 v1.1.2 追加批）：双向覆盖 + 镜像判据一致性
+# 随包种子校验与运行期判据一致
 # ---------------------------------------------------------------------------
 # 判据与运行期同源：效价 = epoch+floor((now-epoch)/period)*period 窗口；
 # 言录使 = expiry <= now。过期必须拦（无 bypass），新鲜必须放行。
@@ -1113,7 +1113,9 @@ def _app_auth_checks():
     import github_app_auth as A
 
     public = "skyti1437/Warframe-SDJK-Bot"
-    private = "skyti1437/bot"
+    private_repos = [repo for repo in A.HELPERS if repo != public]
+    check("认证固定两仓与专用helper映射（仓数）", len(A.HELPERS) == 2 and len(private_repos) == 1)
+    private = private_repos[0]
     secret = "ghs_TEST_ONLY_" + "opaque-JWT_" * 65 + ".segment.signature"
     now = [2_000_000_000]
     check(
@@ -1517,13 +1519,33 @@ def _app_auth_checks():
 
 _app_auth_checks()
 
-# 开发口吻漏网：日期在前/后带冒号，以及定向需求短语；正常玩家说明不误伤。
+# 校验开发过程署名与正常游戏、技术词的区分。负样本用转义构造，测试源文件也参与扫描。
 if _PR is not None:
     for text in (
         "2026-10-25 \u7528\u6237：内部约定",
         "2026-10-25\u7528\u6237: 内部约定",
         "26-10  \u7528\u6237：内部约定",
         "\u7528\u6237要「内部视图」",
+        "\u0047PT 评估",
+        "\u0067pt-5 自维护性评估",
+        "\u0043laude 审",
+        "\u0043LAUDE 调序",
+        "\u0044eepSeek",
+        "\u0041stra v1.2.7 复测 P1",
+        "\u0047emini 审阅",
+        "\u0043odex评估",
+        "\u0053ol S4",
+        "由\u005aCode记录",
+        "\u0057orkBuddy",
+        "审核\u65b9",
+        "审核 \u00501",
+        "评审\u4fa7",
+        "红队\u590d审",
+        "审计 \u0042atch",
+        "结构优化 \u0053lice 1",
+        "任务书\u5207片 2",
+        "追加\u6279",
+        "收口\u6279",
     ):
         with tempfile.TemporaryDirectory() as folder:
             fixture = Path(folder) / "sample.py"
@@ -1534,11 +1556,30 @@ if _PR is not None:
         "\u7528\u6237可以上传字体并选择正文",
         "该\u7528\u6237要先打开推送开关",
         "2026-10-25\n\u7528\u6237：玩家可见对话",
+        "Astra、Gemini 外观与 Sol 节点",
+        "游戏 Codex 图鉴和 codex/enemy.ts",
+        "固定切片、列表 slice(0, 2) 与 LLM Guard 技术说明",
+        "请审阅生成结果",
+        ".zcode/skills/.zcodeignore",
+        "偏好设置允许自选 GPT 模型",
     ):
         with tempfile.TemporaryDirectory() as folder:
             fixture = Path(folder) / "sample.py"
             fixture.write_text("# " + text, encoding="utf-8")
             check("开发口吻扫描保留：" + text, not _PR.scan_sensitive(Path(folder)))
+    with tempfile.TemporaryDirectory() as folder:
+        stage = Path(folder)
+        for relative in (
+            "tests/test_sync_guard.py",
+            "pages/sdjk/index.html",
+            "README.md",
+            "LICENSE",
+        ):
+            fixture = stage / relative
+            fixture.parent.mkdir(parents=True, exist_ok=True)
+            fixture.write_text("\u0047PT\t评估", encoding="utf-8")
+        hits = _PR.scan_sensitive(stage)
+        check("各分发文本均扫描，守卫测试文件也在范围内", len(hits) == 4, str(hits))
 
 # 追加段自己的收尾（本文件原汇总在上面，须为追加检查再守一次退出码）
 print()

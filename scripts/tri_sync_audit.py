@@ -2,15 +2,11 @@
 """三面全文件只读对拍 + 部署计划生成：本地树 / 服务器树 / 容器目录。
 
 两种用途：
-  1. **对拍**（默认）：三棵树的全文件 MD5 差异表（排除临时/运行期生成物），
-     差异按目录族分组输出。背景（2026-09-28 插件 ID 迁移批教训）：当时只对拍
-     「运行期面」（main.py + core/），服务器树/容器的 README 停在旧版四版未被发现。
-  2. **部署计划**（``--plan plugin|ops``，2026-10-17 加，GPT 自维护性评估 §6 第 8 项 /
-     P10）：以本地 **git 跟踪文件** 为基准，按 profile 算出「需传 / 服务器孤儿 /
-     容器面 rsync --delete 模拟 / 动作（reload|restart|…）/ 命令草稿」，只打印不执行。
-     ★ 只读计划：本脚本未执行任何命令。
+  1. **对拍**（默认）：按目录族列出三棵树的全文件 MD5 差异，排除临时和运行期产物。
+  2. **部署计划**（``--plan plugin|ops``）：以本地 Git 跟踪文件为基准，列出待传文件、
+     服务器孤儿文件、容器端 rsync --delete 模拟结果、所需动作及命令草稿。
 
-红线（开工指令 Slice 1 任务 1.2 裁定，--plan 一并遵守）：
+对拍和部署计划均为只读。
   · 只读——不修改/删除三棵树内任何被对拍文件；
   · 不发起 ssh/远程操作——服务器/容器不可直挂时，由人在对端可访问的环境先跑
     --dump-manifest 生成清单文件，拿回本地后把清单路径传给 --server/--container；
@@ -26,7 +22,7 @@
 
   # 在服务器上生成清单（由人执行，脚本自身不发起远程操作）。清单 schema 2 =
   # 三列 [路径, md5, md5_lf]；md5_lf 是「\r\n→\n 归一化后」的 md5，**仅供 CRLF
-  # 分类参考**，字节 md5 仍是最终判据（报告 P10）。
+  # 分类参考**，字节 MD5 是最终判据。
   python scripts/tri_sync_audit.py --dump-manifest ~/astrbot_plugin_warframe \
       --label server --out /tmp/server.manifest.json
 
@@ -249,7 +245,7 @@ def report(label: str, other: dict[str, FileHash], local: dict[str, FileHash], n
 
 
 # ---------------------------------------------------------------------------
-# 部署计划（--plan，2026-10-17 加；GPT 自维护性评估 §6 第 8 项 / P10）
+# 部署计划（--plan）
 # ---------------------------------------------------------------------------
 
 # ★ 两个「分发敏感词规避」（2026-10-17）：Gate B 的六词零命中是军规，而本文件**随开源包
@@ -289,13 +285,11 @@ PLUGIN_RUNTIME_EXACT = (
     "metadata.yaml",
     "requirements.txt",
 )
-# 门面文档（2026-10-17 ZCode 回执：原先算进运行期面，部署后计划永远归不了零、动作恒为 reload）。
-# 随 rsync 进容器、AstrBot 面板会读，建议随部署带上，但不影响插件运行 ⇒ 单独一面、不触发重载。
+# 门面文档随 rsync 进入容器供面板读取，文档变更无需重载。
 PLUGIN_DOCS_EXACT = ("README.md", "CHANGELOG.md", "logo.png", "LICENSE")
 PLUGIN_RUNTIME_PREFIX = ("core/", "pages/", ".astrbot-plugin/")
 PLUGIN_TOOLS_PREFIX = ("scripts/",)
-# 根目录的部署脚本本身（2026-10-19 ZCode 回执：deploy.sh 不在任何面 ⇒ 改了也永远不进计划，服务器上
-# 静默留着旧版）。它在服务器树里运行、不 rsync 进容器（见 RSYNC_EXCLUDES），按工具面记、不触发重载。
+# deploy.sh 在服务器树运行，rsync 不传入容器。脚本变动按工具文件处理，无需重载。
 # 根目录的 build_*.py 是本地开发用生成器，服务器不跑，故意不纳入。
 PLUGIN_TOOLS_EXACT = ("deploy.sh",)
 # ops profile：服务器树内同路径（deploy.sh 的 rsync 够不到 .zcode/**，靠 scp/人工同步）
@@ -322,8 +316,7 @@ def _match_face(profile: str, rel: str) -> str | None:
 #   (profile, 路径判据, 级别, 动作代码, 动作说明)。级别越大越重，取最重的一项；
 #   同一 profile 内**按从重到轻排列、命中即取第一条**（requirements.txt 与
 #   _conf_schema.json 同时也命中运行期面，靠顺序让更重的赢）。
-#   ★ _conf_schema.json：2026-10-18 ZCode 在 AstrBot 4.28.1 实测 reload 即重读 schema（日志
-#     「Config key missing; added default.」、插件配置长出新键）⇒ 由 restart 收窄为 reload。
+#   AstrBot 4.28.1 重载插件时会重读 _conf_schema.json，并为新增键填充默认值。
 DECISION_TABLE = (
     (
         "plugin",
@@ -581,8 +574,7 @@ def build_plan(profile: str, local_root: Path, server_arg: str, container_arg: s
             }
 
     transfer_paths = [row["path"] for row in transfer]
-    # 动作只看**真内容差异**：仅行尾不同的文件内容相同，传过去只为字节一致，不该把动作推重
-    # （ZCode 10-17 实测：只差 CRLF 的 requirements.txt 曾把动作顶成 deps_restart，属虚警）。
+    # 行尾差异只需同步字节，无需增加重载或重启等动作。
     action = _resolve_action(profile, real_paths)
     if crlf_paths:
         action["note"] = f"另有 {len(crlf_paths)} 个文件仅行尾不同，不计入动作判定"
@@ -612,7 +604,7 @@ def build_plan(profile: str, local_root: Path, server_arg: str, container_arg: s
     }
     summary = {
         "transfer": len(transfer),
-        # 部署正确性判据（ZCode 10-17 建议）：运行期面的真内容差异数；工具面会静默漂移，不算
+        # 运行期内容差异用于判断插件代码和数据是否对齐。
         "runtime_real": sum(
             1 for row in transfer if row["face"] == "runtime" and not row["crlf_only"]
         ),
@@ -682,7 +674,6 @@ def print_plan(plan: dict) -> None:
     act = plan["action"]
     print(f"  {act['code']}（级别 {act['level']}）— {act['desc']}")
     print(
-        # 动作 none 时这些文件「有差异但不推高动作」，别叫「触发文件」（ZCode 10-17：易误读）
         f"  {'触发文件' if act['code'] != 'none' else '涉及文件（不需重载）'}（{len(act['files'])}）："
         + ("、".join(act["files"]) if act["files"] else "无")
     )

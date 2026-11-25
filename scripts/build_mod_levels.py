@@ -84,7 +84,7 @@ FACTIONS = {
     "Sentients": "Sentient",  # 牺牲 系（DE「x1.33 Damage to Sentients」）
 }
 LEGACY_SRC = "历史兼容值（本轮 DE 原文未能重建；未重新核验）"
-# 与 DE 原文矛盾的历史字段：不保留（2026-10-27 Astra v1.2.7 复测 P1 + Claude 逐张对 DE）。键 = 卡名小写，
+# 与 DE 原文矛盾的旧字段需要剔除。键为小写卡名，
 # 值 = {字段: DE 依据}。字段在逐级与满级 effects 里一并剔除。
 LEGACY_DROP: dict[str, dict[str, str]] = {
     "rifle elementalist": {

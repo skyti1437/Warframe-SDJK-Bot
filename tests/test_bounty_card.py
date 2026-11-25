@@ -710,8 +710,7 @@ check(
 # `bounty_head` 并在块首画线（◆ 区域行下方仍是主题色渐隐线，未动）。
 # ★ 逐地区断言（防「只改了扎里曼」）：6 个地区 + 3 个 oracle 退路**各跑一遍**。
 ROOT = Path(__file__).resolve().parent.parent
-# 渲染缓存写临时目录：原先写 ROOT/runtime，在开源 stage 里跑会多出 runtime/card_*.png，
-#   把同步闸门顶红（ZCode 10-17 回执）。
+# 将渲染缓存写到临时目录，避免测试产物混入开源 stage。
 import tempfile as _tempfile  # noqa: E402
 
 _CARD_DIR = Path(_tempfile.mkdtemp(prefix="sdjk_bounty_"))

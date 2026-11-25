@@ -1340,8 +1340,7 @@ check(
 )
 
 
-# ★ 2026-10-25（Astra 评估）：Nataruk「满蓄力」（50% / 2.2×）与「完美射击」（60% / 2.4×）是两种形态。
-#   2026-10-26 起两者都从 wiki 收录 ⇒ 满蓄力按普通满蓄力算、标「蓄力」；完美射击标「完美射击」
+# 验证太始弓的满蓄力与完美射击使用各自的暴击参数和卡面标签。
 def _nat(word):
     spec, rest = dc.parse_args(["Nataruk", word])
     w, _ = dc.find_weapon(" ".join(rest))
@@ -1367,7 +1366,7 @@ check(
 )
 
 
-# ★ 2026-10-25（Astra 评估）：射速曲线武器的持续 DPS 注明（凤殁灵化降速 / 起转类）
+# 校验起转和凤殁灵化降速在持续 DPS 卡面上的说明。
 def _card(words):
     spec, rest = dc.parse_args(words)
     w, _ = dc.find_weapon(" ".join(rest))
@@ -1417,7 +1416,7 @@ check(
     any("起转" in x and "第 1 发 25%" in x and "第 4 发满速" in x for x in _card(["Soma", "Prime"]))
     and not any("起转" in x for x in _card(["Braton"])),
 )
-# ★ 2026-10-26 起转建模（wiki 各武器页起始比例 + 每发增量；Astra 查证、Claude 抽 3 把复核）
+# 按 Wiki 的起始比例和每发增量验证起转射速。
 _rt = dc.spoolup_rate_at(20, 10.667)
 check(
     "起转曲线：Gorgon 第 1 发 20%、第 8 发 94.67%、第 9 发封顶 100%",
@@ -1591,7 +1590,7 @@ check(
         for k in ("lie in wait", "soaring strike")
     ),
 )
-# ★ 2026-10-27（Astra v1.2.7 复测 P1）：与 DE 原文矛盾的旧字段不再保留（build_mod_levels.LEGACY_DROP）
+# 校验 build_mod_levels.LEGACY_DROP 排除了与 DE 原文矛盾的字段。
 check(
     "步枪 / 霰弹枪元素师不再带虚构的 +90% 基伤（DE 只有异常伤害与穿透 / 弹匣）",
     all(
@@ -1651,7 +1650,7 @@ check(
     _r_sp1["dps"] / _r_sp0["dps"] < 1.2,
     f"{_r_sp1['dps']:.1f} / {_r_sp0['dps']:.1f}",
 )
-# ★ 2026-10-27（Astra v1.2.7 复测 P2）：同层灵化进化只能选一个
+# 同一层只能选择一项灵化进化。
 _, _r_ev1 = calc("Soma Prime", ["灵化", "进化基伤"])
 _, _r_ev2 = calc("Soma Prime", ["灵化", "进化基伤", "进化基伤"])
 check(
@@ -1731,7 +1730,7 @@ if all(os.path.isdir(p) for p in (_p4official, _p4pep, _p4wiki)):  # 同上
 else:
     print("[SKIP] 本机无 DE / PEP / MOD wiki 固定快照：跳过 P4-AB --check 正反向复现断言")
 
-# ★ 2026-10-26 P4-AB 接入（Claude）：镀层显示 / 换行 / 派系百分数换算
+# 校验镀层显示、换行和派系百分数换算。
 _cl = _card(["Soma", "Prime", "镀层氩晶瞄具", "满镀层", "爆头"])
 check(
     "满镀层：已按层数计入的镀层卡不再列为「条件触发未计入」，层数原文未写的注明按 1 层",

@@ -66,7 +66,7 @@ _MAT_LINE = re.compile(r"^(?:建造材料|所需材料)[：:](.+)$")
 _MAT_ITEM = re.compile(r"^(?P<name>.+?)\s*×\s*(?P<n>\d+)$")
 USES_MAX_PROD = 8  # 每个材料最多列几个产物
 
-# ★ 2026-10-23（Claude 定案）：识别「代码名标题」用 —— 单 token ASCII 标识符
+# 单个 ASCII 标识符才可能是代码名标题。
 #   （`Borealsetmod` / `Entratilabdogtag`；带空格或连字符的如 `Ash Prime`、`AX-52` 不算）。
 _CJK_RE = re.compile(r"[\u4e00-\u9fa5]")
 _CODE_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9]*$")
@@ -584,7 +584,7 @@ def compact_cards(data: dict) -> dict:
 def merge_code_name_twins(
     entries: list, assets: list, id_entries: dict
 ) -> tuple[list, list, list, dict]:
-    """把**代码名标题**的条目并入同 `de:` 资产的中文孪生条目（2026-10-23 Claude 定案）。
+    """将代码名标题的条目并入同一 `de:` 资产的中文条目。
 
     背景：KB 里同一资产常有两张 —— 一张标题是内部代码名（如 `Borealsetmod`，type
     `Mod Set Mod`，是游戏内部的套装加成 Mod，玩家不会搜它），一张是正常显示名
@@ -766,7 +766,6 @@ def main() -> int:
                 e["p"].append(product)
         print(f"  {name}: 收录 {n} 键 / 行预算 {budget}（材料用量 {len(mats)} 条）")
 
-    # ★ 2026-10-23（Claude 定案）：**代码名标题的条目并入同资产的中文孪生条目**（见函数注释）。
     merged, entries, assets, id_entries = merge_code_name_twins(entries, assets, id_entries)
     if merged:
         print(f"  代码名标题并入孪生：{len(merged)} 条（条目数 −{len(merged)}）")

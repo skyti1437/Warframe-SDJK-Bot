@@ -297,7 +297,7 @@ for _e in raw.get("Descents") or []:
         _types.add((_c.get("Type") or "").strip())
 assert len(_codes) == 50 and len(_types) == 21, (len(_codes), len(_types))
 
-# 审核方订正表（13 行 / 16 个代码）：卡面必须与官方值**逐字**一致
+# 对照官方译文核验卡面用语，共 13 行、16 个代码。
 _DESCENT_GOAL_EXPECT = {
     "HardShell": "冰封卓越者军团",
     "PowerHouse": "力量贪婪卓越者军团",
@@ -316,7 +316,7 @@ _DESCENT_GOAL_EXPECT = {
     "BasicMimics": "打开容器",
 }
 _DESCENT_TYPE_EXPECT = {"DT_LOOT_CREATURES": "贪囤断肢劫掠"}
-# 本期线上实测落英文的 8 条（审核方给的官方值）
+# 这 8 个代码在该轮卡面曾回落为英文。
 _DESCENT_LIVE8 = {
     "ToxicFire": "毒焰卓越者军团",
     "NarmerPhobia": "合一众执事",
@@ -451,7 +451,7 @@ print("§二 沉沦之地汉化链路：断言通过")
 # §三 1999 日历：奖励/覆写 -> 官方简中（2026-09-27）
 # ---------------------------------------------------------------------------
 # 本期线上 **17** 条路径（9 奖励 + 8 覆写，2026-09-27 抓 worldstate 实测）。
-# 命名空间以**实测**为准（审核方给的命名空间列有两处需订正）：
+# 语言键必须使用与上游导出一致的命名空间。
 #   · `AffinityBoosterThreeDayName` / `ResourceDropChanceBoosterThreeDayName`
 #     在 **Items** 命名空间（不在 1999）
 #   · `WeaponsecondaryArcaneUnlockerName` 在 **Weapons**（且键里 "secondary" 是小写 s）
@@ -576,7 +576,7 @@ for _k in sorted(_rt_ph):
     assert dw.language_text_zh(_k) == "", f"{_k} 仍返回占位符：{dw.language_text_zh(_k)!r}"
 print(f"§一 [PH] 运行期两表参数化：{len(_rt_ph)} 条键全部返回空串")
 
-# 审核方点名的 3 个键（注意真实全路径带 `Name` 后缀）+ 2 个我另找到的卡面键。
+# 对照五个卡面语言键，完整键名包含 Name 后缀。
 # ⚠️ 其中 `[ph]` 小写那条**只存在于 18MB 全量包**（`Upgrades` 命名空间不在运行期两表里）
 #    ⇒ 原始值核对只在「该表里确实有这条」时进行；查询返回空串是**恒定要求**。
 _RAW_TBL = {**(dw._load("languages_zh.json") or {}), **(dw._load("zh_ext.json") or {})}
@@ -1378,7 +1378,7 @@ rw_ok = asyncio.run(_resolve_probe())
 print("§四 警报奖励中文名：反查表（三条玩偶）/ 路径归一 / 三级回落不造名 —— 断言通过")
 
 
-# ⑤ 2026-10-16 线上实例（ZCode 诊断）：《奔赴 Tau 星系》活动警报 countedItems ×50。
+# ⑤ 《奔赴 Tau 星系》活动警报 countedItems ×50。
 #    修前：卡面「RoadToTauEventResource（未收录）」且数量丢失。
 #    官方名在 WFCD i18n 补充表（de/name_zh_wfcd.json，DE 官方导出尚无此条）。
 _TAU = "/Lotus/Types/Gameplay/Events/RoadToTauEvent/RoadToTauEventResource"

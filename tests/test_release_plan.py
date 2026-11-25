@@ -297,7 +297,7 @@ check(
 )
 check("已抬版：CHANGELOG 首条 = 目标 ⇒ ready", plan3["changelog"]["ready"] is True)
 check("已抬版：草稿无待改行", plan3["draft"]["edits"] == [], str(plan3["draft"]["edits"]))
-# ④c 发版后复核：发版提交已合进 main ⇒ base 与 head 同一提交（ZCode 10-17 v1.2.3 实测误判为「下一版 1.2.4」）
+# ④c 发版提交合入 main 后，base 与 head 指向同一提交。
 _rel3 = _git(_fx3, "rev-parse", "HEAD").stdout.strip()
 plan4 = RP.build_plan(_fx3, _rel3, "HEAD")
 check(

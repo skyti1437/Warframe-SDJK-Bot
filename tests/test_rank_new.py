@@ -597,8 +597,7 @@ check(
     str(_c3.crawls) + " | " + str(_r3.records),
 )
 
-# ★ 2026-10-25（Astra 时区专项）：闲时按北京时间判断。伪造「UTC 宿主」：now() 无 tz 时给 UTC 本地小时，
-#   带 tz 时按真实时区换算 ⇒ UTC 19 点 = 北京 3 点应开爬；UTC 3 点 = 北京 11 点不应开爬。
+# 模拟 UTC 宿主，验证北京时间 3 点允许爬取、11 点禁止爬取。
 _orig_now = _FakeDT.now
 
 

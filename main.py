@@ -881,21 +881,12 @@ class WarframeSDJK(
         # 社区快照独立轻轮询，业务入口按数据新鲜度短路（见 _community_autoloop）
         self._community_task = asyncio.create_task(self._community_autoloop())
         self._community_task.add_done_callback(self._log_task_death("_community_autoloop"))
-        # 首启后台预热（2026-09-29 追加批，2026-10-01 扩展为 _boot_warm）：
-        # ①社区快照 ②WM 物品/紫卡武器表（见 `_boot_warm`）。此前社区快照只有
-        # 轻轮询的 30 分钟 tick 才拉，没装 FS 的用户首启最坏要等半小时；
-        # 而 WM 表是 reload 后首条 wr/wm 指令要现下的，挪到启动期后台预拉。
-        # fire-and-forget：异步不阻塞加载、超时收尾、失败记 WARNING（可见）。
-        # ★ 2026-10-17：记到 self 上，terminate 才取消得到（v1.2.2 部署实测：reload 后旧实例的预热还在跑，
-        #   在已关闭的 httpx client 上报「Cannot send a request, as the client has been closed」、打出「2/4 项」）
+        # 后台预拉社区快照、WM 物品与紫卡武器表，避免首条指令等待下载。
+        # 保留任务引用，卸载时可取消，避免旧任务继续请求已关闭的客户端。
         self._boot_task = asyncio.create_task(self._boot_warm())
         self._boot_task.add_done_callback(self._log_task_death("_boot_warm"))
-        # 后台预热伤害计算的全部重 JSON + 武器名索引（不阻塞启动）：
-        # 不预热时第一条指令要现读武器库/进化/灵化形态/多段/部署表，叠加后
-        # 会让首条指令明显变慢（2026-09-17 玩家反馈「半天才出来」）。
-        # ★ 2026-10-21（GPT 评估 P08）：记到 self 上并挂死亡日志 —— 原先不落引用，异常只剩一条
-        #   「Task exception was never retrieved」。线程本身取消不了（只读本地 JSON、不联网，旧实例的
-        #   预热跑完自行结束）；terminate 里 cancel 只是不再等它，避免卸载时悬着一个无主任务。
+        # 后台预热伤害计算数据，避免首次查询集中读入多份 JSON。
+        # 挂回调以记录异常。卸载时取消等待，已开始的本地读取会自行结束。
         self._warm_task = asyncio.create_task(asyncio.to_thread(self._warmup))
         self._warm_task.add_done_callback(self._log_task_death("_warmup"))
         logger.info(
@@ -1016,12 +1007,9 @@ class WarframeSDJK(
                     age = _t.time() - datetime.fromisoformat(ts).timestamp()
                 except ValueError:
                     age = float("inf")
-                # ★ 2026-10-25（ZCode 实测）：48h 的到期点总落在白天 ⇒ 要等到再下一个凌晨，
-                #   实际约 64h 才刷一次；44h ⇒ 到期点落在前一晚，下个凌晨窗口即抓（实际约 47h）
+                # 44 小时通常在下一个凌晨窗口前到期，48 小时可能错过该窗口。
                 if age > self.RANK_TTL_HOURS * 3600:
-                    # 闲时闸门：白天不爬（会拖慢用户的 wm/wr 查询）
-                    # ★ 2026-10-25（Astra 时区专项）：闲时按**北京时间**判断 —— 原用服务器本地
-                    #   `datetime.now().hour`，UTC 宿主上「02–06 点」实为北京时间 10–14 点。
+                    # 以北京时间判断闲时，避免 UTC 宿主在玩家白天爬取。
                     bj_hour = datetime.now(BEIJING_TZ).hour
                     if bj_hour not in self.RANK_CRAWL_IDLE_HOURS:
                         logger.info(
@@ -1107,24 +1095,12 @@ class WarframeSDJK(
         )
 
     async def _boot_warm(self) -> None:
-        """首启后台预热（fire-and-forget，2026-09-29 追加批 + 2026-10-01 扩展）。
+        """后台预热社区快照、WM 物品与紫卡武器表。
 
-        两段各自独立；失败记 WARNING（带异常类型 %r，INFO 级日志即可见）：
-        1) **社区快照**（元素加成 + 言录使）：内部先判「本地是否过期」，
-           刚拉过/未过期时是零成本空转（幂等）。
-        2) **WM 物品/紫卡武器表**（2026-10-01 扩展）：reload 后缓存全冷，
-           首个 wr/wm 指令要现下 2.5MB 物品表——在低内存宿主机上还会叠加
-           **swap-in 风暴**（2026-10-01 实测：宿主内存吃紧、进程 VmSwap 高达
-           834MB，首个指令触碰冷内存引发换页风暴，Event loop lag 45s，
-           用户观感「半天没反应」）。启动时后台预拉，把这笔成本挪出用户
-           首次指令的关键路径。幂等：表缓存 TTL 24h，刚拉过是零成本空转。
-        ★ 这两张表的方法在 `self.client`（WarframeClient）上，不在插件类上
-        （插件类没有 __getattr__ 代理）——2026-10-01 首版写成 `self.wm_items()`
-        抛 AttributeError 被静默吞掉，预热从未执行（「已就绪」日志不出现）。
-        守卫：tests/test_valence_autorefresh.py 文末「boot warm」段。
+        数据未过期时跳过相应请求。预热可避免首次查询下载数据或访问冷缓存。
+        各项单独限时，失败时记录异常类型。
         """
-        # ★ 2026-10-16（GPT 评估 P04）：逐项独立 try + 各自限时 —— 原先两段社区刷新共用一个 try，
-        #   前一段超时会把后一段（静态快照）一起跳过；WM 两张表同理。
+        # 隔离各项异常和超时，保证前一项失败时后续项目仍有机会预热。
         WarframeSDJK._note_background(self, "boot", "running")
         ok, wm_ok, checks = 0, 0, {}
         for tag, make, limit in (

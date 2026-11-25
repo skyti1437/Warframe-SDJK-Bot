@@ -1602,7 +1602,7 @@ def repair_weapons(out: dict) -> list[str]:
 
 def _write_weapons(out: dict) -> None:
     # indent=1：与现行 weapons_stats.json 的排版一致（scripts/repair_panel_basis.py 同此），
-    # 免得一次重跑把整文件改成单行、diff 无法审阅
+    # 重建时保持换行，便于逐行核对差异。
     (DATA / "weapons_stats.json").write_text(
         json.dumps(out, ensure_ascii=False, indent=1), encoding="utf-8"
     )

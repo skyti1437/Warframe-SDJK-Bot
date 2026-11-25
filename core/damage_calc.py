@@ -2481,10 +2481,8 @@ _ALT_FORM_WORDS = {
     "蓄力": "charged",
     "蓄力射击": "charged",
     "满蓄力": "charged",
-    # ★ 2026-10-25（Astra 评估）：太始弓类「完美射击」与「满蓄力」是两种形态（Nataruk：
-    #   满蓄力 1.0 s 50% / 2.2×，完美 0.7 s 60% / 2.4×）。2026-10-26 起两者都从 wiki 收录
-    #   （形态键 charged:charged_shot / charged:perfect_shot），selected_form 按原词挑；
-    #   只收了其一的武器仍由 _apply_alt_form 按键名改标签并注明。
+    # 完美射击与满蓄力的暴击参数不同，例如太始弓。按原词选择各自的形态键。
+    # 仅收录一种形态时，由 _apply_alt_form 依据已有键名注明实际形态。
     "完美": "charged",
     "完美射击": "charged",
     "完美蓄力": "charged",
@@ -2959,8 +2957,7 @@ def _apply_panel_overrides(spec: dict, weapon: dict) -> dict:
 
     # ---- ① 灵化进化选项 ----
     used_ids: set = set()
-    # 已占用的层（2026-10-27 Astra 复测 P2）：同层 choose_one 只能选一个 —— 此前只按选项 id 去重，
-    #   「进化基伤 进化基伤」会把 Soma EVO2 的 +12 与 +10 同时选上
+    # choose_one 层内互斥，仅按选项 ID 去重会允许同一层的两项基础伤害同时生效。
     used_tiers: set = set()
     spec["evo_headshot"] = 0.0
     for key in spec.get("evo_keys") or []:
@@ -4693,13 +4690,9 @@ def damage_disclaimer() -> str:
     return L(DAMAGE_DISCLAIMER, DAMAGE_DISCLAIMER_EN)
 
 
-# ★ 2026-10-25（Astra 评估）：射速随持续开火变化的武器。我方 DPS 一律按恒定射速（军械库面板 =
-#   起转完的满速）算 ⇒ 起转类只有开火头几发偏高；凤殁灵化相反，持续开火后降速。先在卡上写明；
-#   2026-10-26 凤殁降速已建模进持续 DPS（_FIRE_RATE_SPOOLDOWN）；同日起转类按 wiki 各武器页的「起始比例 +
-#   每发增量」建模（_FIRE_RATE_SPOOLUP，Astra 查证、Claude 抽 3 把复核）。
-# 2026-10-26（wfsim 迁移，维护者核查）：到满速的发数改取英文 wiki 武器数据的 ``Spool``（22 把逐把复核一致）；
-#   起始射速百分比 wiki / 官方导出都没有（原表来自第三方模拟器），不再写。Zylok 双发扳机（Duplex）：第二发在
-#   松开扳机时打出，间隔取决于按住时长，没有固定值。
+# 持续 DPS 考虑凤殁灵化的降速和其他武器的起转。
+# 起转发数取英文 Wiki 的 Spool 字段。其余起转参数仅在 Wiki 有数据时采用。
+# Zylok 的第二发在松开扳机时打出，间隔随按住时长变化。
 _FIRE_RATE_SPOOL_SHOTS = {
     "Gorgon": 9,
     "Gorgon Wraith": 6,

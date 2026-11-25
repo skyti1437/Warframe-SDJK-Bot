@@ -15,7 +15,7 @@ useDefault = true
 [[rules]]
 id = "local-user-path"
 description = "开发机绝对路径泄露（C:/Users/...、/home/...、/root/...、macOS /Users/...）"
-# 2026-10-27（Astra v1.2.7 复测 P3）：补 macOS `/Users/<用户名>`；只按大写 `/Users/` 匹配（(?-i:…)），
+# macOS 路径只匹配大写的 /Users/（(?-i:…)），
 #   免得误伤 `github.com/users/<名字>` 这类网址。
 regex = '''(?i)[a-z]:[/\\]{1,2}(users|home)[/\\][a-z0-9._-]+|/(home|root)/[a-z0-9._-]+|(?-i:/Users/)[a-z0-9._-]+'''
 

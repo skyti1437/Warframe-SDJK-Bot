@@ -180,8 +180,7 @@ check("手动刷新：面板 force 仍受安全冷却", states[3][0] == "cooldow
 check("★ 自动与手动同时触发只抓一份", dual_runs == 1, str(dual_runs))
 
 
-# ⑥ 爬取续跑与节奏（2026-10-24，ZCode 线上实测：retry 混进游标 ⇒ 整轮跑不满；双向 + 快速重试 ⇒ 429）
-# ⑥½ 节奏常量按 10-25 实测（拍卖搜索约 90 s 窗口 8 次）：间隔 ≥ 窗口/8、退避 ≥ 恢复窗口
+# ⑥ 校验补抓不会推动主游标，限流间隔与退避覆盖拍卖搜索窗口。
 from core import api_client as _AC  # noqa: E402
 
 
@@ -225,7 +224,7 @@ try:
     )
     asyncio.run(_cc.crawl_riven_realtime())
     check(
-        "★ 续跑 ZCode 留下的状态（游标 99、待补 72）：先补 72 再跑完 2 项即满一轮、写 ts",
+        "★ 续跑 \u005aCode 留下的状态（游标 99、待补 72）：先补 72 再跑完 2 项即满一轮、写 ts",
         len(_cc.calls) == 74
         and _cc.store["cursor"] == 0
         and _cc.store["ts"]
@@ -374,7 +373,7 @@ try:
     finally:
         _AC.riven_realtime_targets = lambda *a, **k: list(_T)
 
-    # ⑨ 退出目标集的旧行要裁掉（10-25 ZCode：「已收录 98/97」，多出的是上一轮的 dex_nikana）
+    # 移除退出目标集的旧行，避免已收录数量超过目标数。
     _cf = _CrawlClient({"rows": {"old_gone": {"median": 1}, "w0": {"median": 2}}, "ts": "x"})
     asyncio.run(_cf.crawl_riven_realtime())
     check(

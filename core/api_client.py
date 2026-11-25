@@ -162,7 +162,7 @@ COMMUNITY_RESULTS = {
 
 COMMUNITY_COOLDOWN = 1800  # 社区通道网络失败后冷却（秒）
 COMMUNITY_BUDGET = 30.0  # 一次社区取数的总时间预算（秒）
-# 单条通道的上限（秒）：ZCode 10-16 线上发现 raw 卡住时一个文件就吃满 30 s 总预算、镜像连试都没试
+# 限制单条社区通道耗时，给同一次取数中的备用镜像留出预算。
 COMMUNITY_PER_CHANNEL = 10.0
 
 
@@ -428,9 +428,7 @@ def community_static_ok(name: str, d) -> tuple[bool, str]:
     spec = COMMUNITY_STATIC.get(name)
     if spec is None:
         return False, "未知快照"
-    # ★ 2026-10-22（GPT 评估 V06 后半）：结构版本号，与发布端
-    #   `publish_community_snapshot.py::static_ok` **同口径** —— **缺省视为 1**
-    #   （兼容旧快照），未知的**更高**版本拒收并给原因（免得新版结构被本端误读）。
+    # 与发布端 static_ok 使用同一结构版本规则：缺省按 1 处理，拒收未知的更高版本。
     _ver = d.get("schema", COMMUNITY_STATIC_SCHEMA)
     if not isinstance(_ver, int) or isinstance(_ver, bool) or _ver < 1:
         return False, f"schema 不是正整数：{_ver!r}"
@@ -441,7 +439,7 @@ def community_static_ok(name: str, d) -> tuple[bool, str]:
     _st = _stamp_dt(d.get(spec["stamp"]))
     if _st is None:
         return False, f"缺时间戳 {spec['stamp']}"
-    # GPT 评估 V06：未来时间的快照会永远「比本地新」、压住之后的正常快照 ⇒ 超过 1 天的未来时间拒收
+    # 未来超过一天的快照会压住后续的正常更新，直接拒收。
     if _st > datetime.now(timezone.utc) + timedelta(days=1):
         return False, f"时间戳在未来：{d.get(spec['stamp'])}"
     if name == "arb_ratings.json":
@@ -603,9 +601,8 @@ def parse_community_valence(payload: dict) -> dict:
     return out
 
 
-# WFHelper 公开接口（2026-10-18 ZCode 调研；后台可选，默认关）：免登录、无 Cloudflare，直接给信条 5 件与
-# 终幕 A/B 两批的元素 / 加成。它自己注明数据同样来自 wiki 玩家上报 ⇒ **不比 wiki 快**，用处是给没装
-# FlareSolverr、又不想只靠本项目社区快照的使用者多一条通道（第三方站点，稳定性由对方负责）。
+# WFHelper 公开接口免登录，可查询信条及终幕 A/B 两批的元素加成。
+# 数据同样来自 Wiki 玩家上报，可作为社区快照和 Wiki 之外的备用通道。
 WFHELPER_VALENCE_URL = "https://api.wfhelper.com/v1/adversary-vendors"
 
 
@@ -1644,8 +1641,8 @@ def riven_realtime_targets(
 
     by_name: dict[str, str] = {}
     name_of_url: dict[str, str] = {}
-    # WM 原始紫卡表里**真实存在**的 url（合并表里带 game_ref 的行；倾向表静态补全的变体行
-    # game_ref 为空）—— WM 拍卖只认这些，别的一律 400 item_not_exist（ZCode 10-25 实测）
+    # 只保留 WM 原始紫卡表中存在的 slug（合并表带 game_ref 的行）。
+    # 倾向表补全的变体不一定能在拍卖接口查询，可能返回 400 item_not_exist。
     wm_real: set[str] = set()
     for w in wm_weapons or []:
         url = str(w.get("url_name") or "")
@@ -1682,10 +1679,8 @@ def riven_realtime_targets(
     def main_of(url: str) -> str:
         """变体 → 母武器 url_name（家族表按**显示名**索引：url→名→家族→母武器）。
 
-        ★ 2026-10-25（ZCode 线上实测 7 个 400：kuva_sobek / kuva_zarr / mk1-paris …）：原写法取
-        家族**首成员**，而成员按字母排序 ⇒「Kuva Sobek」排在「Sobek」前被当成母武器。现在
-        取成员里 **WM 原始表真实存在**的那个（多个时取英文名最短的，即无变体前缀的本体）；
-        拿不到 WM 原始表信息时退回旧规则。
+        成员按字母排序，首项可能是 Kuva Sobek 这样的变体。优先选 WM 原始表中
+        存在且英文名最短的候选，缺原始表信息时退回旧规则。
         """
         name = name_of_url.get(url)
         key = fam_by_name.get(name.lower()) if name else None
@@ -1746,10 +1741,8 @@ class WorldstateRows(list):
 
 class WarframeClient:
     _community_generation = 0
-    # 紫卡实时排行爬取的节奏。ZCode 2026-10-25 容器内实测 WM `/auctions/search`：**不是 3 请求/秒**，
-    # 而是「约 90 s 窗口内约 8 次」—— 2 s 间隔下第 9 次起持续 429，+0/+30/+60 s 仍 429、+90 s 恢复。
-    # ⇒ 每项间隔 15 s（每窗口约 6 次，给群里 wr 查询留余量）、429 后退避 100 s（长于恢复窗口）、
-    #   连续 4 次失败才收工。一轮 ~101 把约 30 分钟，凌晨闲时窗口内跑得完。
+    # WM /auctions/search 约每 90 秒允许 8 次请求。每项隔 15 秒，为 wr 查询留出余量，
+    # 限流后退避 100 秒以跨过窗口。连续 4 次失败后保存进度，下次续跑。
     RIVEN_RT_GAP_S = 15.0
     RIVEN_RT_FAIL_BACKOFF_S = 100.0
     RIVEN_RT_MAX_FAIL_STREAK = 4
@@ -1812,8 +1805,7 @@ class WarframeClient:
         self.allow_private_urls = bool(allow_private_urls)
         # 元素加成可选第三方通道 WFHelper（后台开关，默认关）：开了就排在社区快照前面
         self.wfhelper_valence = bool(wfhelper_valence)
-        # 社区通道记忆（2026-10-16 GPT 评估 P04）：国内服务器到 raw 必超时，每次都等它超时再换镜像
-        #   ⇒ 按**主机**记上次成功的通道、失败的主机冷却一段时间（raw 挂了是五个文件一起挂）
+        # 缓存上次成功的社区主机，并冷却失败主机，避免多个快照重复等待同一主机超时。
         self._comm_good_host: Optional[str] = None
         self._comm_cool: dict[str, float] = {}
         # 社区快照采用记录（2026-10-17 批次 B「全链路健康记录」插件侧）：文件名 → 最近一次检查的结论、
@@ -2229,9 +2221,8 @@ class WarframeClient:
                 # 退避或 WM 限速等待期间可能发生卸载，不能再使用已关闭的连接池。
                 ensure_open()
                 try:
-                    # timeout：单次请求自己的上限（社区通道用）。只靠外层 wait_for 取消不够 ——
-                    #   httpx 被取消时连接清理是受保护的，可能拖到客户端默认超时才返回（ZCode 10-17：
-                    #   raw 卡住吃满 30 s 预算，镜像没轮到）。
+                    # httpx 收到取消后仍可能等待连接清理。为单次请求设置超时，
+                    # 避免单条社区通道耗尽总预算。
                     kw = {"timeout": timeout} if timeout is not None else {}
                     if wm_rate_limit or de_mirror:
                         kw["follow_redirects"] = False
@@ -2317,7 +2308,7 @@ class WarframeClient:
                             )
                         else:
                             await asyncio.sleep(0.6 * (attempt + 1) + random.random() * 0.3)
-            # 超时类异常 str() 为空（ZCode 10-17：日志 / 面板「请求失败（…）：」冒号后啥都没有）⇒ 退回类型名
+            # 超时异常可能没有文本，此时用异常类型名填充日志和面板原因。
             source = "DE 世界状态" if de_request else url
             why = "未知错误"
             if last_exc is not None:
@@ -3717,8 +3708,7 @@ class WarframeClient:
         if isinstance(data, dict):
             if data.get("error"):
                 raise WarframeAPIError(f"WM v2 接口错误：{data['error']}")
-            # ★ 2026-10-25（Astra 故障注入）：结构缺字段时原样返回 None ⇒ 上层当成「零条挂单」，
-            #   卡面写「没有符合条件的在售单」把接口异常说成真实零结果。缺 data 一律按结构异常报。
+            # 缺少 data 是响应结构异常。返回 None 会被上层当成零条挂单。
             if "data" not in data:
                 raise WarframeAPIError("warframe.market 返回结构异常（缺 data 字段），请稍后再试")
 
@@ -4197,12 +4187,10 @@ class WarframeClient:
             "avg90": round(sum(avg90) / len(avg90), 1) if avg90 else 0,
             "last": recent,
             "first": early,
-            # ★ 2026-10-25（Astra 真实宿主补测）：卡面原写「vs 区间初 {first}」，而 change 的基线是
-            #   这段的「前三分之一均价」⇒「▲27.3%（最新 30p vs 区间初 40p）」自相矛盾。把真实基线带出去。
+            # 变化率以区间前段均价为基线，将该均价一并传给卡面。
             "base": round(base, 1) if base else 0,
             "base_span": "90 天" if d90 and any(r["median"] for r in d90) else "48 小时",
-            # 百分比按**显示出来的**基线算（ZCode 10-25：未舍入基线算出 +55.3%，括号 35.0 vs 22.5
-            # 复算是 +55.6%，差 0.3pp）⇒ 拿卡面两个数就能复算出同一个百分比
+            # 按卡面显示精度计算变化率，确保可用卡面两个数复算。
             "change": round((recent - round(base, 1)) / round(base, 1) * 100, 1)
             if base and round(base, 1)
             else 0.0,
@@ -4333,10 +4321,9 @@ class WarframeClient:
         cursor = int(old.get("cursor") or 0)
         if cursor >= total:  # 上一轮已跑满，从头开始新一轮
             cursor = 0
-        # ★ 2026-10-17 覆盖率闸门（维护者定 80%，GPT 评估 P14）：游标跑完 ≠ 成功跑完。
-        #   failed = 本轮（进行中）请求失败的物品；retry = 上一轮失败、本次先补的物品。
-        #   整轮成功率 ≥ RANK_MIN_COVERAGE 才刷新 ts；不足则 ts 不动（48h 闸门仍判过期 ⇒
-        #   下个闲时继续先补失败项），low_coverage 供面板提示，旧行照常展示。
+        # failed 记录本轮请求失败项，retry 记录上一轮待补项。
+        # 仅在成功率达到 RANK_MIN_COVERAGE 时更新时间戳。覆盖不足时保留旧数据，
+        # 由面板提示并在下个闲时窗口补抓。
         failed: set = set(old.get("round_failed") or []) & target_set
         retry: list = [s for s in dict.fromkeys(old.get("retry") or []) if s in target_set]
         low = bool(old.get("low_coverage"))
@@ -4518,8 +4505,7 @@ class WarframeClient:
             return len(rows)
         if cursor >= total:
             cursor = 0
-        # ★ 2026-10-25（ZCode A）：旧轮失败项只保留仍在目标集里的 —— 目标集变过（折母武器修正）后，
-        #   残留的旧 slug 还计入覆盖率分母，133/133 全成功也只算出 0.887
+        # 目标集变化后，旧目标的失败项会让覆盖率失真。
         failed: set = set(old.get("round_failed") or []) & set(targets)
         retry: list = list(dict.fromkeys(old.get("retry") or []))
         ts = old.get("ts") or ""
@@ -4530,8 +4516,7 @@ class WarframeClient:
             return time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime())
 
         last_err = ""
-        # WM 回 400（item_not_exist）的 url：**永久无效**，移出目标集、不计连续失败、不进覆盖率分母
-        #   （2026-10-25 ZCode 实测：目标集混进 7 个 WM 没有的变体 slug，连续 400 触发提前收工）
+        # WM 返回 400 item_not_exist 的 slug 从目标集移除，不计连续失败和覆盖率。
         invalid: set = set(old.get("invalid") or []) & set(targets)
         targets = [t for t in targets if t not in invalid]
         total = len(targets)
@@ -4546,8 +4531,7 @@ class WarframeClient:
         if old.get("cursor_targets") != targets:
             cursor = 0
             retry = []  # 主游标将覆盖整个有效序列，不再先补同一批条目。
-        # ★ 2026-10-25（ZCode：卡面「已收录 98/97」）：目标集每周随周报热度变，退出目标集的旧行
-        #   （如 dex_nikana）原先一直留在 rows 里 ⇒ 分子大于分母，旧价也会混进周报卡。按目标集裁掉。
+        # 目标集随周报热度变化，移除已退出目标集的旧价格以保持计数一致。
         stale = [k for k in rows if k not in set(targets)]
         for k in stale:
             rows.pop(k, None)
@@ -4617,11 +4601,8 @@ class WarframeClient:
                 is not False
             )
 
-        # ★ 2026-10-24 两处修正（ZCode 线上实测：7 分钟只收 8 把、72 项失败、ts 一直空）：
-        #   ① **补抓与游标分开**（同 `crawl_wm_ranks`）：原写法把 retry 混进待抓表，又按「已抓条数」
-        #      推进游标 ⇒ 补抓的条目也算进进度，游标被推到错位、整轮永远跑不满；
-        #   ② **爬取层限速**：每项间隔 RIVEN_RT_GAP_S、失败后退避 RIVEN_RT_FAIL_BACKOFF_S，
-        #      连续失败 RIVEN_RT_MAX_FAIL_STREAK 次就收工（落盘、下次续跑），别顶着 429 硬打。
+        # 补抓失败项与主游标分开，避免补抓计入进度而跳过当前轮目标。
+        # 由爬取层统一限速和退避，达到连续失败上限后保存断点。
         n_done = 0
         streak = 0
         aborted = False
@@ -4656,7 +4637,7 @@ class WarframeClient:
         target_set = set(targets)
         remaining = set(targets[cursor:])
         retry_todo = [s for s in retry if s in target_set and s not in remaining]
-        # 两个阶段各打一条进度（ZCode 10-25：补抓阶段 18 分钟零日志，被误判成没跑起来）
+        # 分别记录补抓和续跑进度，便于区分长时间补抓与任务停滞。
         logger.info(
             "[sdjk] 紫卡 WM 现价：先补 %d 项，再从第 %d/%d 项续跑（每项约 %.0f 秒）",
             len(retry_todo),
@@ -6628,7 +6609,7 @@ class WarframeClient:
             dt = datetime.fromisoformat(snap)
         except (TypeError, ValueError):
             return True
-        # GPT 评估 V01：未来时间（> now + 1 天）的快照会永远「在窗口内」⇒ 一样算过期
+        # 拒绝未来超过一天的快照，避免它一直被判为新鲜。
         return dt < win or dt > now + timedelta(days=1)
 
     @classmethod
@@ -6872,7 +6853,7 @@ class WarframeClient:
 
         按候选顺序试；效价另有 Contents API 独立回退。结构和调用方的时效校验
         都通过才缓存并返回，旧镜像继续下一源；全部不可采用才返回 None。
-        ★ 2026-10-16（GPT 评估 P04）：
+        通道调度规则如下。
           · 上次成功的主机排最前；网络失败的主机冷却 COMMUNITY_COOLDOWN 秒（404 只说明该镜像没这个文件，不冷却）；
           · 全部在冷却时仍试排第一的那个（低频重探，网络恢复能自己回来）；
           · 每条通道只试一次（多通道本身就是重试），整次取数受 COMMUNITY_BUDGET 秒总预算约束。
@@ -6916,7 +6897,7 @@ class WarframeClient:
         custom = bool(self.community_base)
         if custom:  # 用户自填地址：只走它，不再回落到本项目 bot-data
             urls = (f"{self.community_base}/{name}",)
-            # ★ 2026-10-25（Astra 评估 S4）：自填地址不许指向内网（可显式放行），且不跟随重定向
+            # 自填地址默认拒绝本机及内网目标，且不跟随重定向。
             if not getattr(self, "allow_private_urls", False):
                 why = await private_url_reason(urls[0])
                 if why:
@@ -7003,7 +6984,7 @@ class WarframeClient:
                     "[sdjk] 社区快照通道 %s 不可用（%s）：%s%s",
                     host(url),
                     name,
-                    # 超时类异常 str() 为空（ZCode 10-16：日志冒号后啥都没有）⇒ 退回异常类型名
+                    # 超时异常可能没有文本，此时记录异常类型名。
                     str(exc) or type(exc).__name__,
                     "" if missing else f"；冷却 {COMMUNITY_COOLDOWN // 60} 分钟",
                 )
@@ -7314,7 +7295,7 @@ class WarframeClient:
 
         snap = now.replace(microsecond=0).isoformat()
         if used_community and raw.get("snapshot"):
-            # ★ 社区快照保留**数据源的时刻**（GPT 评估 V01）：写 now 会让旧数据看起来是刚抓的
+            # 保留数据源时间戳，避免旧快照被本次读取时间误标为新鲜。
             snap = str(raw["snapshot"])
 
         half: list = []  # 判为「只改了百分比」的源页（日志用）

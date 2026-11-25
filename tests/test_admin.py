@@ -351,8 +351,7 @@ async def terminate_checks() -> None:
 
 
 async def dot_status_dispatch_checks() -> None:
-    """★ 2026-10-25（Astra 真实宿主补测）：群管理员发 `.状态` 静默 —— 点号分支只发 raw_text，
-    而 `.状态` 返回图卡（lines）。走完整 on_message 分发，断言**确有输出**且走出图流程。"""
+    """通过 on_message 验证群管理员的 `.状态` 指令输出图卡。"""
     tmp = Path(tempfile.mkdtemp())
     obj = _make_plugin(tmp)
     obj.subs = types.SimpleNamespace(for_umo=lambda _u: [])

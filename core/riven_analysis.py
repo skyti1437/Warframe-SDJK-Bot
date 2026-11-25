@@ -130,7 +130,7 @@ _BASE: dict[str, tuple] = {
     #   ① 英文 wiki「Spliced Values」表 Melee 列 81%，并注明「按基础值的百分比加成，
     #   尽管文字与 Focused Defense 相同」；② 游戏数据包 rawValue 0.009、STACKING_MULTIPLY、
     #   displayAsPercent=1（riven-roll 与 warframe-weapon-loadout-build 两份独立抽取）；
-    #   ③ Astra 评估取到的 wiki 搜索索引 81%。卡面文字模板是 ParryAngleNoPercentModDesc
+    #   ③ Wiki 搜索索引为 81%。卡面文字模板是 ParryAngleNoPercentModDesc，
     #   「|val| 招架角度」—— 数值按百分比放大、但**不印 %** ⇒ 显示不带 %（见 _PCT_IDS）。
     "gas_damage": (90, 90, 90, 90, 90),
     "corrosive_damage": (90, 90, 90, 90, 90),

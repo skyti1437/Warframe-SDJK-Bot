@@ -46,7 +46,7 @@ def mask_id(s: str) -> str:
 
 
 def mask_umo(umo: str) -> str:
-    """``平台:消息类型:会话号`` 只给会话号打码（日志 / 面板共用；2026-10-25 Astra 评估 S3）。"""
+    """为日志和面板遮盖 ``平台:消息类型:会话号`` 的会话号部分。"""
     parts = str(umo or "").split(":")
     if len(parts) >= 3:
         return ":".join(parts[:-1] + [mask_id(parts[-1])])
@@ -56,8 +56,7 @@ def mask_umo(umo: str) -> str:
 def mask_in_text(text: object, umo: str) -> str:
     """把一段文本（通常是异常原文）里出现的该会话完整标识与会话号替换成打码形式。
 
-    ★ 2026-10-27（Astra v1.2.7 复测 S3）：适配器的发送异常可能把目标会话号写进异常文本，
-    光给日志格式位里的 umo 打码挡不住 —— 日志 / 面板落盘前都过一遍这里。
+    适配器可能在发送异常中写入目标会话号。日志记录和面板展示前一并遮盖。
     """
     s = str(text)
     umo = str(umo or "")

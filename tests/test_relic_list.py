@@ -555,8 +555,7 @@ check(
 #   别人 clone 后跑测试会直接 OSError: cannot open resource。
 from PIL import ImageFont, ImageDraw, Image  # noqa: E402
 
-# ★ 2026-10-25（Astra 评估）：原先只认完整 TTC，开源包有随包子集字体时也整段跳过宽度断言 ——
-#   改为「完整字库 → 随包子集」依次找（子集即为卡面语料生成，度量与完整字库一致）
+# 完整字库不可用时，随包子集可用于同样的宽度断言。
 _TTC = next(
     (
         _p

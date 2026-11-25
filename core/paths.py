@@ -70,9 +70,8 @@ def _run_json_ok(p: Path, *, shared: bool = False) -> bool:
 def read_path(name: str, *, root: Path | None = None, shared: bool = False) -> Path:
     """读路径：运行目录优先，缺则回退包内种子文件。
 
-    ★ GPT 评估 P07（2026-10-21）：运行副本是**坏 JSON** 且包内有种子时也回落种子 ——
-    原先坏副本会一直遮蔽种子（各处读法读坏返回空），表现为「部署成功但线上数据是空的」。
-    只认 JSON 解析失败；结构校验不过（条数太少等）仍按原样读，由数据账本 / 面板提示。
+    运行副本无法解析为 JSON 时回退到包内种子，避免坏副本遮蔽种子。
+    可解析但结构异常的副本照常读取，由数据登记表和面板提示。
     没有包内种子的文件（用户存档等）不受影响。
     """
     root = run_dir() if root is None else root

@@ -126,8 +126,7 @@ NEVER_BELOW = 0.05
 PHYSICAL_STATS = ("impact_damage", "puncture_damage", "slash_damage")
 PAGE_CAP = 100  # 端点单页返回上限（实测）：取满这一页说明家族挂单更多，页内不能当抽样
 MIN_SAMPLE = 50  # 判「刷不出」的最低在售样本数（指令 2026-10-23 口径）
-# 秒/请求。2026-10-25 ZCode 服务器实测 /auctions/search：约 90 s 窗口只给 8 次，+90 s 才恢复
-#   ⇒ 15 s 一次（每窗口约 6 次）；原 6 s 会在第 9 次起持续 429。429 后退避见 _BACKOFF。
+# 拍卖搜索约每 90 秒允许 8 次请求。间隔 15 秒可留出余量，429 后按 _BACKOFF 退避。
 SLEEP = 15.0
 _BACKOFF = (100, 120, 150)  # 第 1/2/3 次重试前等待（秒），长于实测恢复窗口
 TRIES = 5

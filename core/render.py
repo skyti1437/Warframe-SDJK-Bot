@@ -2692,9 +2692,7 @@ class ImageRenderer:
         W = int(max(W, min(title_min + 120, w_cap)))
         if build_card:
             W = CARD_W_MAX
-        # ★ 2026-10-24 Claude 审「词条范围」四列表：w_cap 已按表格总宽放到 ≤1500，但 W 只按逐行
-        #   文字宽算 ⇒ 表格总宽 > W 时最宽的行被折行（折点还会切进染段标记，露出「⟦/w⟧」）。
-        #   表格模式下卡宽至少放得下整张表（仍受 w_cap 约束；放不下照旧走下面的安全阀）。
+        # 表格模式按整表宽度计算卡宽，避免折行切断颜色标记，超宽仍受 w_cap 限制。
         if self._table_mode and len(col_max) > 1 and not help_table:
             W = int(max(W, min(w_cap, int(_tbl_need) + 1)))
         help_wrap: dict[int, list[tuple[str, str]]] = {}

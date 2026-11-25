@@ -893,8 +893,7 @@ class ScanCommands:
                     st.get("rows"),
                 )
                 if not st.get("used"):
-                    # ★ 2026-10-25（Astra 评估 S2）：留存用户截图要**显式开启**（默认关）——
-                    #   截图可能带玩家昵称、聊天背景；原先无开关、无告知地留最近 3 张。
+                    # 截图可能包含玩家昵称和聊天背景，仅在显式开启时留存。
                     keep = bool(self.cfg.get("scan_debug_save", False))
                     logger.warning(
                         "[sdjk] ★ 豆子检测到了但**对齐无解**，本次退回容量反推%s",
@@ -1079,8 +1078,7 @@ class ScanCommands:
                 confirmed = True
                 budget.remember(_finish(ocr), equipment_confirmed=True)
         # —— 武器名单读：主读没认出武器时，用一句话只问标题栏，换上后同一把尺重新打分 ——
-        # ★ 2026-10-27（ZCode 消融）：qwen-vl-ocr 在长 JSON 提示词下 3/3 把首张姿态卡名当武器名，
-        #   单问「左上角标题栏斜杠后面的文字」2/2 读对 ⇒ 问题是提示词过载，拆成独立最小调用。
+        # 长提示词可能使视觉模型把姿态卡名当作武器名，单独询问标题栏可减少干扰。
         if not current_analysis.get("weapon"):
             title = await self._read_weapon_title(image_url)
             if title:
@@ -1152,13 +1150,7 @@ class ScanCommands:
             await _score(ocr)
         return _finish(ocr)
 
-    # ★★ 2026-10-05 去掉字面示例值（阴性对照实测：喂**紫卡图**——卡面根本没有
-    #   「伤害」栏——本提示词 8B 9/9、30B 9/9 **原样吐出**旧例子那串数字，
-    #   即模型完全不看图、直接抄提示词。而本路径是「聚焦二读」，其输出会被
-    #   `splice_damage_rows` 拼进主读结果、校验分够低就**被采纳** ⇒ 静默污染。
-    #   旧例子的数字正是某张真实配卡截图（scan_debug/1790654730.jpg）的真值：
-    #   冲击 545.6 / 切割 34.1 / 102.3 / 毒素 1,125.3 / 总计 1,807.3。
-    #   ⇒ **本提示词不得再出现任何具体数值**，格式一律用占位符表达。
+    # 提示词不得包含具体数值示例，避免模型忽略截图直接抄写示例数字污染聚焦二读结果。
     _ROWS_PROMPT = (
         "只读这张 Warframe 截图左侧「伤害」栏里的每一行数值，"
         "按从上到下的顺序输出 JSON（不要 markdown 围栏、不要解释）：\n"

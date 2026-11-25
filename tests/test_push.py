@@ -1551,7 +1551,7 @@ async def z_send_failure_scenarios():
     )
     check(
         "P2-3 暂停留 WARNING",
-        # 2026-10-25（Astra S3）：会话号打码 ⇒ 断言打码后的 mask_umo("g1") = "**"
+        # 会话号 g1 的脱敏结果为 **。
         any("已暂停该会话推送" in x and "**" in x for x in lg.warn_lines),
         str(lg.warn_lines[-3:]),
     )
@@ -1624,7 +1624,7 @@ async def z_send_failure_scenarios():
 
 
 async def z_pause_scenarios():
-    """★ 2026-10-17 订阅推送「暂停可恢复」语义回归（GPT 自维护性评估 §6 第 11 项 / P15）。"""
+    """验证订阅推送暂停后可以恢复。"""
 
     def _ok_send(box):
         async def send(umo, text, at=None):
@@ -2526,7 +2526,7 @@ print()
 
 
 def t_log_masks_session_id():
-    """★ 2026-10-25（Astra 评估 S3）：推送日志里的会话号打码（群号只留首尾两位）。"""
+    """验证推送日志中的群号只留首尾两位。"""
     from core.logging_compat import mask_umo
 
     check(
@@ -2552,7 +2552,7 @@ t_log_masks_session_id()
 
 
 def t_exception_text_masked():
-    """★ 2026-10-27（Astra v1.2.7 复测 S3）：异常原文里带的会话号也要打码（日志与面板暂停原因）。"""
+    """验证日志与面板暂停原因均遮盖异常文本中的会话号。"""
     from core.logging_compat import mask_in_text
     from core.push import _brief_reason
 

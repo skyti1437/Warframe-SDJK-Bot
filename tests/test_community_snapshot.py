@@ -453,7 +453,7 @@ if P is not None:
 
 if P is not None:
     # ---------------------------------------------------------------------------
-    # 9. 发布器「多候选取最新」（评审侧提：第一个存在的可能更旧 → 白丢新鲜数据）
+    # 9. 多个来源均可用时选择最新快照，避免较早匹配到的旧数据遮住新数据。
     # ---------------------------------------------------------------------------
     _OLD = {
         "expiry": "2026-09-28T00:00:00+00:00",
@@ -676,7 +676,7 @@ try:
         )
     finally:
         _AC.private_url_reason = _orig_reason
-    # ★ 2026-10-25（Astra 评估 S4）：自填地址指向内网 ⇒ 不发请求；显式放行后照常请求
+    # 自填内网地址默认拦截，显式放行后才发出请求。
     _urls_seen.clear()
     _c.community_base = _AC.normalize_community_base("http://127.0.0.1:18765/private")
     _aio.run(_c.refresh_community_static(("arb_ratings.json",)))
@@ -757,7 +757,7 @@ else:
 
 
 # ---------------------------------------------------------------------------
-# ★ 2026-10-16（GPT 评估 P04 / V01）：社区通道记忆 + 冷却 + 总预算；元素加成快照必须属于当前轮次
+# 社区通道记忆、冷却、总预算及元素加成快照的轮次校验
 # ---------------------------------------------------------------------------
 import time as _time  # noqa: E402
 
@@ -833,7 +833,7 @@ _AC.COMMUNITY_PER_CHANNEL = 0.3
 try:
     r = _aio.run(_cc4._community_json(_AC.community_static_urls("arb_ratings.json")))
     check(
-        "★ raw 卡死：单通道上限到点就换镜像，同一次取数拿到数据（ZCode 10-16 线上发现）",
+        "★ raw 卡死：单通道上限到点就换镜像，同一次取数拿到数据（\u005aCode 10-16 线上发现）",
         r == {"ok": "cdn.jsdelivr.net"},
         str(r),
     )
@@ -843,9 +843,7 @@ finally:
 check("失败日志带异常类型（超时类异常 str 为空）", "str(exc) or type(exc).__name__" in API_SRC)
 
 
-# ZCode 10-17 线上：raw 超时后「超出本次时间预算」，镜像没轮到 —— 外层取消不能及时打断
-#   httpx（连接清理受保护）。模拟一条「取消不掉」的 raw：只有把单通道上限作为请求自身的
-#   timeout 传进去，它才会按时失败；否则要拖满 3 秒（远超 1.5 s 总预算）。
+# 模拟连接清理无法被及时取消的 raw 请求。单次请求自身的超时应让备用镜像赶上总预算。
 async def _uncancellable_raw(url, **kw):
     if "raw.githubusercontent" in url:
         t = kw.get("timeout")
@@ -869,7 +867,7 @@ try:
     t0 = _time.monotonic()
     r = _aio.run(_cc5._community_json(_AC.community_static_urls("arb_ratings.json")))
     check(
-        "★ raw 取消不掉时：单通道上限作为请求 timeout 传入 ⇒ 按时换镜像拿到数据（ZCode 10-17）",
+        "★ raw 取消不掉时：单通道上限作为请求 timeout 传入 ⇒ 按时换镜像拿到数据（\u005aCode 10-17）",
         r == {"ok": "cdn.jsdelivr.net"} and _time.monotonic() - t0 < 1.5,
         f"{r} {_time.monotonic() - t0:.1f}s",
     )
@@ -1039,7 +1037,7 @@ _aio.run(_cv.close())
 
 
 # ---------------------------------------------------------------------------
-# ★ 2026-10-16（GPT 评估 P01 / P02）：告警出口只在确认送达后去重；OneBot 带正文；多通道兜底
+# 告警确认送达后去重，OneBot 告警包含正文，发送失败时可切换通道。
 # ---------------------------------------------------------------------------
 _ap_path = ROOT / ".zcode/skills/astrbot-server-triage/scripts/automations/alert_push.py"
 if _ap_path.exists():
@@ -2036,7 +2034,7 @@ if _ch_path.exists():
             quiet=True,
         )
         check("告警：恢复后重复跑不再推", _rc4 == 0 and len(_alerts) == 2, str(_alerts))
-        # ★ 2026-10-17（Claude 审核补）：告警没送达 → 状态不前进，下一轮照样再推（不吞告警）
+        # 未送达时保留状态，下一轮重试。
         (_genal / "_publish_health.json").write_text(
             _json.dumps(_pub_health(_age_min=180)), encoding="utf-8"
         )
@@ -2080,11 +2078,8 @@ else:
 
 
 # ---------------------------------------------------------------------------
-# ★ 2026-10-18（ZCode 内存加固 §G）：主机内存告警（每 30 分钟健康检查的 host_mem 项）
-#   原为独立文件 tests/test_mem_alert.py；它只测不进开源包的运维脚本、在包内恒为 SKIP，
-#   Claude 审核时并入本文件（同为「本树无私有运维脚本则跳过」），开源 stage 基线不变。
-#   钉住：host_metrics 读取与阈值（含读不到）/ check_host_mem 三态 / unknown 不误报 /
-#   community_health 与 server_patrol 阈值同源。
+# 主机内存告警覆盖读取、阈值、未知状态及健康检查和巡检的阈值一致性。
+# 缺少私有运维脚本时仅跳过本组。
 # ---------------------------------------------------------------------------
 def _mem_alert_checks():
     import importlib.util
@@ -2328,7 +2323,7 @@ _mem_alert_checks()
 
 print()
 
-# ★ 2026-10-25（Astra 评估 S4）：内网地址判定（纯函数，IP 直写不联网）
+# 使用 IP 字面量验证内网地址判定，无需联网。
 _why = {
     u: _aio.run(_AC.private_url_reason(u))
     for u in (

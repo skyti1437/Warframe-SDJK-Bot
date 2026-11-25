@@ -81,7 +81,7 @@ class JsonStore:
     def load(self) -> None:
         if self.path.exists():
             try:
-                # utf-8-sig：用户用记事本等手改存档会带 BOM，按 utf-8 读会被当坏文件隔离（GPT 评估 V03）
+                # 兼容文本编辑器给手工修改的存档加上的 UTF-8 BOM。
                 self._data = json.loads(self.path.read_text(encoding="utf-8-sig"))
             except Exception as exc:  # noqa: BLE001 - 损坏：先留底再按空处理
                 self._data = None
@@ -579,8 +579,7 @@ class SubscriptionStore(JsonStore):
             tag = json.dumps(d, ensure_ascii=False, sort_keys=True, default=str)[:200]
             if tag not in self._bad_warned:
                 self._bad_warned.add(tag)
-                # ★ 2026-10-25（Astra 评估 S3）：日志只写条目里有哪些字段，不写内容（含发起者 QQ、
-                #   会话号、筛选规则）；去重仍按完整内容
+                # 日志只列字段名，避免暴露会话号等内容，去重仍按完整内容。
                 keys = sorted(d) if isinstance(d, dict) else [type(d).__name__]
                 logger.warning(
                     "[warframe] 订阅存档含坏条目，已跳过（%s）：字段 %s",

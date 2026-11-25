@@ -118,16 +118,13 @@ def group_of(t: str) -> str:
 # ★ 2026-10-16：与 :func:`group_of` 是**两套口径**，缺一不可 ——
 #   预测卡的数据源（wiki ``Module:Baro/data``）只有类型文字 ``Type``，走 group_of；
 #   当期货单的数据源（DE worldstate）只有资源路径 ``ItemType``，走 group_of_store。
-#   顺序即语义：「/upgrades/skins/」排在「/weapons/」**之前** —— 武器外观的路径是
-#   ``/Upgrades/Skins/Weapons/…``，先判 /weapons/ 会把外观错归「武器」（DeepSeek 实现时发现，Claude 调序）。
+# 先匹配 /upgrades/skins/，避免将 /Upgrades/Skins/Weapons/ 下的武器外观归为武器。
 STORE_GROUP_ORDER = ("武器", "MOD", "外观", "装饰", "遗物", "消耗品", "礼包", "其他")
 
 # (路径子串, 类别)；子串一律**小写**比较（DE 路径是 CamelCase：ShipDecos / BoosterPacks…）
 _STORE_RULES = (
     ("/upgrades/skins/", "外观"),
-    # ★ 2026-10-16（ZCode 冒烟 + 玩家反馈分类不对）：CosmeticEnhancers 名为「外观增强」，实为
-    #   怪奇 MOD（Peculiars，wiki 类型 Mod (Warframe)）与赋能的目录 —— 原先整目录归「外观」，
-    #   当期「终劫怪奇」因此错归外观。怪奇归 MOD；该目录其余（赋能等）不再默认外观，落「其他」。
+    # CosmeticEnhancers 同时包含怪奇 MOD 和赋能。怪奇归 MOD，其余回落到「其他」。
     ("/cosmeticenhancers/peculiars/", "MOD"),
     ("/weapons/", "武器"),
     ("/upgrades/mods/", "MOD"),

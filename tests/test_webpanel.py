@@ -3056,7 +3056,7 @@ if _sub2 is not None:
         check("URL 非 http(s) 被拒", _imp("file:///etc/passwd").get("status") == "error")
         _r_lo = _imp("http://127.0.0.1:18702/fonts/a.ttf")
         check(
-            "★ 字体直链指向本机被拒（Astra S4）",
+            "★ 字体直链指向本机被拒（\u0041stra S4）",
             _r_lo.get("status") == "error" and "内网" in _r_lo.get("message", ""),
             str(_r_lo),
         )

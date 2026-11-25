@@ -11,7 +11,7 @@
 口径（AstrBot 4.28.1 源码核对，2026-10-16）：
   · 页面目录 ``pages/<名>/index.html`` 自动发现，metadata.yaml **不用**声明 pages；
   · 路由必须以插件名开头：``/<PLUGIN_NAME>/<端点>``，前端 ``bridge.apiGet("<端点>")``；
-  · 鉴权走 Dashboard 登录（不带 token 一律 401，ZCode 线上实测）；
+  · 鉴权复用 Dashboard 登录，缺少 token 返回 401。
   · ★ AstrBot **没有注销路由的 API**：插件停用后旧路由仍会应答（直到重启 AstrBot）
     ⇒ ``close()`` 打标记，之后写操作 / 外呼一律拒绝；重载时同路由 + 同 methods 会被新实例替换。
   · ★ 返回值顶层**别用 ``data`` 键**：bridge 取 ``response.data?.data ?? response.data``，
@@ -712,7 +712,7 @@ def push_state(push) -> dict:
     """推送守护状态（只读属性；**不调用** tick/start/stop —— 那些会真的发消息）。"""
     task = getattr(push, "task", None)
     alive = bool(task) and not task.done()
-    # ★ 用内存里的 last_tick_at：零订阅时 tick 不落盘基线，基线文件 ts 会停在旧时刻（ZCode 10-16 线上实测）
+    # 零订阅时 tick 不更新基线文件，面板使用内存中的 last_tick_at。
     last_ts = getattr(push, "last_tick_at", None)
     completed = getattr(push, "last_tick_completed_at", None)
     try:
@@ -2952,7 +2952,7 @@ class WebPanel:
         r = getattr(self.p, "renderer", None)
         if r is not None and hasattr(r, "reload_fonts"):
             fonts = getattr(r, "fonts", None)
-            # ★ ZCode 10-16：字体文件被挪走后状态仍显示旧值 ⇒ 正在用的文件不在了就重挑
+            # 字体文件可能被移走，当前字体缺失时重新选择。
             if fonts is not None and any(
                 p is not None and not Path(p).exists()
                 for p in (getattr(fonts, "regular", None), getattr(fonts, "bold", None))
@@ -3047,7 +3047,7 @@ class WebPanel:
         url = str(body.get("url") or "").strip()
         if not re.match(r"^https?://[^\s/]+/\S+$", url):
             return {"status": "error", "message": "请填 http(s) 开头的字体文件直链"}
-        # ★ 2026-10-25（Astra 评估 S4）：字体直链不许指向内网 / 本机（可在配置里显式放行）
+        # 字体直链默认拒绝本机和内网地址，可在配置中显式放行。
         if not bool((getattr(self.p, "cfg", {}) or {}).get("allow_private_urls", False)):
             why = await private_url_reason(url)
             if why:

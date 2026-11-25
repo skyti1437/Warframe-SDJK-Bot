@@ -729,7 +729,7 @@ check(
     "★ 标题兜底：结果里绝不残留路径",
     "/" not in WI.display_title("de:/Lotus/Types/Items/MiscItems/Forma"),
 )
-# ★ 反向守卫（2026-10-22 Claude 审出的误伤）：正常标题一律不动 —— 旧版改了 390 条
+# 正常显示名应保留斜杠、连写及中英文混排格式。
 for _ok in (
     "红/白/蓝（Red/White/Blue）",
     "宽剑今昔纹章（Broadsword Past/Future Sigil）",
@@ -813,7 +813,7 @@ check(
     == "tar within 30m 和 dealing 120 Damage",
 )
 
-# ★ 2026-10-23（Claude 定案）：代码名标题的条目**并入同资产的中文孪生条目**
+# 将代码名标题的条目并入同资产的中文条目。
 #   （直接改名会造出两张同名卡；代码名那条是游戏内部的套装加成 Mod，玩家不会搜）。
 _m, _e2, _a2, _i2 = _BIZ.merge_code_name_twins(
     [["套装 · 诡文枭主（Boreal）", ["类型 MOD 套装"]], ["Borealsetmod", ["类型 MOD 套装 MOD"]]],
@@ -1399,7 +1399,7 @@ if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")
     sys.exit(1)
 
-# ★ 2026-10-25（Astra 真实宿主补测）：同名多条（膛线 满级 3 / 5 / 10）取满级最高的那条
+# 同名 MOD 有多个版本时选满级最高的条目。
 _t_ser, _l_ser = WI.intro("膛线")
 check(
     "★ wiki 膛线：取满级 10（+165%），不取满级 3 的旧条目",

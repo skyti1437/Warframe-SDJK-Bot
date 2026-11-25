@@ -248,10 +248,8 @@ def section_versions(repo: Path, base: str, head: str) -> dict:
     base_ver = S.version_of_file("core/__init__.py", base_txt)
     base_ver_str = ".".join(map(str, base_ver)) if base_ver else None
     bumped = bool(base_ver_str and current and base_ver_str != current)
-    # 发版后复核（ZCode 10-17 v1.2.3 实测）：发版提交已合进 main ⇒ base（origin/main）与 head 是同一提交，
-    #   上面的「base 版本 ≠ 当前」不成立，会误判成「尚未抬版」去建议 +1、并把 CHANGELOG 首条判为未就绪。
-    #   只认这一种场景（base 与 head 同一提交），不放宽成「CHANGELOG 首条 == 当前」——那会把发版后的新开发
-    #   （CHANGELOG 首条仍是上一版）误判成已抬版。
+    # 发版提交合入 main 后，base 与 head 可能指向同一提交，此时按已发版处理。
+    # 仅凭 CHANGELOG 首条版本相同会把发版后的新开发误判为已发版。
     same_commit = bool(rev_sha(repo, base)) and rev_sha(repo, base) == rev_sha(repo, head)
     if same_commit and current:
         bumped = True
@@ -546,7 +544,7 @@ MANUAL_STEPS = (
     "私有仓 CI 在 head 提交上全绿（regression 3.10 / 3.12 + **oss-stage**）——看 Actions 运行结果，不要只看徽章",
     "dist/package_release.py --opensource（Gate A/B 白名单 + 数量基线 + 种子新鲜度闸门）",
     "合 main（需维护者授权）",
-    "公开仓同步 dist/sync_opensource.py（需用户**单独**授权；默认 dry-run，ZCode 执行）",
+    "公开仓同步 dist/sync_opensource.py（需用户**单独**授权；默认 dry-run，\u005aCode 执行）",
     "市场自动更新后回查（by-id + cache-buster；四件齐 = versions[] / approved / "
     "download_url 实测 206 / git_commit == 本地件 sha）",
 )

@@ -1,9 +1,6 @@
 # -*- coding: utf-8 -*-
 """生成紫卡词条池表（`core/data/de/riven_pools.json`）—— 只用 DE 官方导出 + 我方抽样。
 
-★ 2026-10-25 重写（维护者定：wfsim 派生数据改为从游戏数据自己生成；Astra 评估许可 L1）。
-旧版读 wfsim（AGPL-3.0-or-later）的 `data/rivens/*.yaml` 与 `data/weapons/**.yaml`，已全部移除。
-
 用法::
 
     python scripts/build_riven_pools.py --official <目录> --pep <目录> [--out 路径]

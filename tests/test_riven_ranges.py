@@ -132,8 +132,7 @@ check("近战不含射速（那是枪的词条）", "fire_rate" not in mpos)
 #   弹道速度看 PROJECTILE 兼容标签；物理三项按占比 ≤25% 删，我方抽样见过的照列。
 opos, oneg, _ = avail("pistol", "CrpSentExperimentPistol", ["Ocucor"])
 check("★ Ocucor 能出弹道速度（DE 兼容标签含 PROJECTILE）", "projectile_speed" in opos)
-# 已知反例（wiki：Ocucor 0% 切割也能出）：规则会删；2026-10-26 物理抽样（ZCode，n=100，三项都见过）
-# 纠正 ⇒ 实证压过规则，三项照列
+# Ocucor 的 WM 样本检出了三项物理词条，包括规则会排除的 0% 切割。
 check(
     "Ocucor 物理三项占比 0%，规则会删，但我方抽样见过 ⇒ 照列（实证压过规则）",
     {"impact_damage", "puncture_damage", "slash_damage"} <= opos,
@@ -358,7 +357,7 @@ check(
     "★ 英文栏目名 = RIVEN RANGES（不再 RIVEN AUCTIONS）",
     R._card_slug("冰凇 紫卡词条范围（3正1负）") == "RIVEN RANGES",
 )
-# ★ 2026-10-23 Claude 审：负面派系乘数 < 1；后坐力（反转词条）正面写 −、负面写 +
+# 负面派系乘数小于 1。后坐力是反转词条，正面写 −，负面写 +。
 _t2, _l2 = F.fmt_riven_ranges(
     "测试枪", "rifle", (3, 1), ["recoil"], [], ["damage_vs_corpus", "recoil"], set()
 )
@@ -484,7 +483,7 @@ if _sv_path.exists():
         _dpos, _ = RP.available(
             "melee", "TnGuandaoPolearmWeapon", ["Guandao", "Guandao Prime"], positive=True
         )
-        # 2026-10-25 改口径（Astra 评估）：挂单抽样「没见过」≠ 刷不出 ⇒ 列出并标「?」
+        # 缺少挂单样本的词条仍可列出，并标为「?」。
         _dpos2, _dunc = RP.available(
             "melee", "TnGuandaoPolearmWeapon", ["Guandao", "Guandao Prime"], positive=True
         )
@@ -579,7 +578,7 @@ else:
 print()
 
 # ---------------------------------------------------------------------------
-# ⑦ 组合写法补变体 + 配色重做（2026-10-24 用户提，Claude 定规格）
+# ⑦ 组合写法及配色
 # ---------------------------------------------------------------------------
 from core.commands import riven as RC  # noqa: E402
 
@@ -748,8 +747,7 @@ else:
 
 print()
 
-# ★ 2026-10-24 Claude 审：染段标记不得被折行切开（四列表实测露出「⟦/w⟧」）——
-#   两条折行路径（基本布局增量 / 整形引擎逐次测量）都要零宽、标记内不断行
+# 两种折行路径都应把颜色标记视为不可拆分的零宽片段。
 from PIL import ImageFont  # noqa: E402
 
 from core import render as _R  # noqa: E402
@@ -1098,7 +1096,7 @@ check(
     f"{_pa} {RA.fmt_value('melee_parry_angle', 91.1)}",
 )
 
-# 2026-10-25（Astra 评估）：抽样没见过的词条 ⇒ 卡面注脚写明抽样时间与样本量
+# 卡面为缺少挂单样本的词条注明抽样时间和样本量。
 _t_b, _l_b = F.fmt_riven_ranges(
     "测试",
     "shotgun",

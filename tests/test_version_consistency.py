@@ -191,11 +191,7 @@ if changelog.exists():
         f"首条 {_first_ver.group(1) if _first_ver else '无版本标题'} vs v{CORE_VERSION}",
     )
 
-# ★ 版本联动第五处：README 版本标题（2026-09-21 v1.0.4 发版漏改事故后补，
-#    cab29df/ccc41c8 修复）。工作树 README 与开源 stage 的 README 源首行都带版本号；
-#    漏改会让市场件内 README 停在旧版（用户实测 v1.0.4 市场件里还是 v1.0.3）。
-#    2026-09-28 结构优化 Slice 1 补 dist/SDJKwfbot_README.md：该门面曾停在
-#    v1.0.5 四版未跟（cf44265 收口批已对齐 v1.0.9），此断言防再次脱节。
+# 私有树的 README 和两份发行模板首行都包含版本号，分别核对以免打包沿用旧版。
 # 开源树（无 dist/）：README.md 本身就是 OPENSOURCE_README 模板的产物，两份门面模板不随包
 # ⇒ 只查真实 README；私有树有 dist/ 时模板缺失照常判失败。
 _HAS_DIST = (ROOT / "dist").is_dir()
@@ -263,7 +259,7 @@ check(
 check("★ metadata.yaml 的 desc 以品牌名开头", f"{BRAND}：" in meta, "desc 首词未跟随品牌")
 
 # ---------------------------------------------------------------------------
-# ★ 主指令数守卫（2026-09-27 审核 P0）
+# 主指令数校验
 # ---------------------------------------------------------------------------
 # 背景：删「对话助手」（54→53）时，**门面文案**里写死的「54」没跟着变 ——
 # `dist/package_release.py::_oss_metadata()` 的 desc、`dist/OPENSOURCE_README.md`、

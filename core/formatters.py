@@ -3792,7 +3792,7 @@ _DESCENT_TYPE_KEEP_CN = frozenset({"DT_PROTOFRAME", "DT_DEFENSE_PROTECT"})
 
 # 沉沦 7/14/21 层（DT_PROTOFRAME，检查点）的机制标注：
 #   Challenge 代码 -> 右侧机制文案（主标取官方圣所名，见 fmt_descendia）。
-#   依据（2026-09-29 审核方实测）：EN wiki《The Descendia》Blessings 段——
+#   依据英文 Wiki《The Descendia》Blessings 段：
 #   「hosting Marie's Sanctuary and Lyon's Sanctuary respectively. They each offer
 #    **one of two selectable buffs**, with Lyon's having **an additional debuff**」
 #   ⇒ 祝福为玩家**二选一**（非随机）；21 层为终局，打败罗瑟。
@@ -6302,12 +6302,11 @@ def _riven_range_text(RA, sid: str, lo: float, hi: float, *, negative: bool) -> 
       负面表里写「+」（+95% 后坐力才是负面）；
     · 其余按 `_range_txt` 的既有写法（单位只写在上限后面）。
     """
-    # ★ 2026-10-24 Claude 审：区间统一保留 1 位小数（参考卡口径 +91.1%~+111.4%）——
-    #   两位小数让四列并排时最宽的格（「−117.61~−96.23%」）断行；派系乘数仍两位。
+    # 百分数保留一位小数，避免四列表格最宽的格子折行。派系乘数保留两位。
     if not sid.startswith("damage_vs_"):
         lo, hi = round(lo + 1e-9, 1), round(hi + 1e-9, 1)
     if sid.startswith("damage_vs_"):
-        # ★ 2026-10-23 Claude 审：负面派系是**减伤**，乘数 < 1（参考卡 0.55×~0.64×），旧写法给成 ×1.36~1.45
+        # 负面派系词条会降低伤害，乘数小于 1。
         if negative:
             return f"×{1 - hi / 100:.2f}~{1 - lo / 100:.2f}"
         return f"×{1 + lo / 100:.2f}~{1 + hi / 100:.2f}"
@@ -6508,7 +6507,7 @@ def fmt_riven_ranges(
             )
         )
     if _unseen:
-        # ★ 2026-10-25（Astra 评估）：抽样没见过 ≠ 刷不出 —— 标 ? 照列并写明样本时间
+        # 缺少挂单样本的词条仍列出，以问号和样本时间标示。
         _names = " / ".join(_stat_name(x, cls) for x in sorted(_unseen))
         lines.append(
             L(

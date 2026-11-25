@@ -442,9 +442,8 @@ async def main() -> None:
         str([(x.event, x.rule) for x in _s8]),
     )
 
-    # ★ 2026-10-16（ZCode 线上实例）：「蹲 钢铁裂隙 古纪」推来了安魂（T5）钢铁 ——
-    #   旧实现用逗号拼 rule（逗号 = 或），连写「钢铁裂隙古纪」则残余「裂隙」当节点名 ⇒ 永不命中。
-    #   六种写法都必须等价于「钢铁 且 古纪」；显式逗号仍是「或」。
+    # 六种写法都须匹配「钢铁 且 古纪」。显式逗号仍为「或」。
+    # 连写事件名时应消费「裂隙」，避免把它当作节点筛选。
     from core.parser import parse_fissure_filter as _pff
 
     _lith_steel = {"tier": "Lith", "isHard": True, "node": "某节点（土星）", "missionType": "生存"}

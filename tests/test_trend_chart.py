@@ -402,7 +402,7 @@ if FAILED:
     print(f"FAILED {len(FAILED)}: " + ", ".join(FAILED))
     sys.exit(1)
 
-# ★ 2026-10-25（Astra 真实宿主补测）：走势百分比的基线 = 前段均价，括号必须写同一个基线
+# 走势变化率与卡面括号都应使用前段均价作为基线。
 import core.formatters as _F25  # noqa: E402
 
 _t25, _l25 = _F25.fmt_trend(
@@ -427,7 +427,7 @@ check(
 )
 
 
-# ZCode 10-25：百分比要能由卡面括号里的两个数复算出来（基线用显示的 1 位小数）
+# 用卡面显示的一位小数复算百分比，结果应与卡面一致。
 from core.api_client import WarframeClient as _WC25  # noqa: E402
 
 _s25 = _WC25.summarize_stats(

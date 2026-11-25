@@ -174,8 +174,7 @@ _FATAL_SEND_RE = re.compile(
 def _brief_reason(err: BaseException, umo: str = "", limit: int = 120) -> str:
     """发送异常的简短文本（落盘进暂停记录用）。
 
-    ★ 只取异常文本、绝不拼 umo —— 暂停原因会显示在运维面板上，不能把会话号带出去；
-      异常文本自己带的会话号也打码（2026-10-27 Astra 复测 S3）。
+    暂停原因会显示在运维面板上，仅取异常文本并遮盖其中的会话号。
     """
     text = mask_in_text(err, umo).strip().replace("\n", " ").replace("\r", " ")
     return (text or err.__class__.__name__)[:limit]
@@ -394,8 +393,7 @@ PUSH_ALIAS = {
 
 
 # 别名自带的「预设筛选词」（与 core/parser.py::_PRESET_COMMANDS 同口径：虚空 = 普通）。
-# ★ 2026-10-16：此前「钢铁裂隙」只映射成裂隙事件，整词被当作类型词消耗 ⇒ 落库 rule=""，
-#   「蹲 钢铁裂隙」实际订阅了全部裂隙（ZCode 实跑确认）。现在命中时把预设词补回筛选。
+# 补回别名包含的筛选词，例如「蹲 钢铁裂隙」的「钢铁」，避免订阅范围扩大。
 PUSH_ALIAS_PRESET = {
     "钢铁裂隙": "钢铁",
     "虚空裂隙": "普通",
@@ -565,8 +563,7 @@ class PushDaemon:
         self._subs_save_pending = False
         self._baseline_ts = 0.0  # 仅保存重投队列时沿用，避免延长旧基线的有效期
         self._tick_no = 0
-        # 最近一次 tick 的时刻与「本轮有没有订阅」（运维面板展示用；零订阅时不落盘基线，
-        # 基线文件的 ts 会停在旧时刻，不能拿它当「守护还活着」的证据 —— 2026-10-16 ZCode 线上发现）
+        # 零订阅时 tick 不更新基线文件，面板从内存读取最近一次运行时间。
         self.last_tick_at: Optional[float] = None
         self.last_tick_completed_at: Optional[float] = None
         self._sending: dict[str, asyncio.Future] = {}
@@ -1114,8 +1111,7 @@ class PushDaemon:
                     "[warframe] 到期提醒发送失败（%s）：%s", mask_umo(umo), mask_in_text(exc, umo)
                 )
             else:
-                # ★ 2026-10-16（ZCode 部署验证）：成功路径此前完全静默，只能靠用户截图确认送达；
-                #   与普通推送的「已推送」日志对称，补一行可检索的成功记录。
+                # 记录成功投递，保持与普通推送的日志口径一致。
                 self.log.info(
                     "[warframe] 到期提醒已发出（%s）：%d 条 %s",
                     mask_umo(umo),
