@@ -44,14 +44,14 @@ def run_dir() -> Path:
     return _RUN if _RUN is not None else PKG_DATA
 
 
-_Stamp = tuple[int, int, int, int]
+_Stamp = tuple[int, int, int, int, int]
 _RUN_JSON_OK: dict[str, tuple[_Stamp, bool]] = {}
 _JSON_CACHE: dict[str, tuple[_Stamp, Any]] = {}
 _JSON_LOCKS = tuple(threading.Lock() for _ in range(32))
 
 
 def _file_stamp(st) -> _Stamp:
-    return st.st_dev, st.st_ino, st.st_mtime_ns, st.st_size
+    return st.st_dev, st.st_ino, st.st_mtime_ns, st.st_ctime_ns, st.st_size
 
 
 @lru_cache(maxsize=256)
@@ -79,10 +79,16 @@ def read_path(name: str, *, root: Path | None = None, shared: bool = False) -> P
     p = root / name
     if root != PKG_DATA:
         seed = PKG_DATA / name
-        if seed.exists() and (
-            not p.exists() or (name.endswith(".json") and not _run_json_ok(p, shared=shared))
-        ):
-            return seed
+        if seed.exists():
+            if not p.exists():
+                if name.endswith(".json") and (_JSON_CACHE or _RUN_JSON_OK):
+                    key = os.path.realpath(os.path.abspath(p))
+                    with _JSON_LOCKS[hash(key) % len(_JSON_LOCKS)]:
+                        _JSON_CACHE.pop(key, None)
+                        _RUN_JSON_OK.pop(key, None)
+                return seed
+            if name.endswith(".json") and not _run_json_ok(p, shared=shared):
+                return seed
     return p
 
 
@@ -115,12 +121,17 @@ def _cached_json(path, *, validate=False, share_data=True):
             if validate and cached is not None and cached[0] == stamp:
                 _RUN_JSON_OK[key] = (stamp, True)
                 return True
+            if cached is not None and cached[0] != stamp:
+                # 观察到新版本文件后立即驱逐旧代缓存，防止 Linux inode 复用触发 ABA 命中。
+                _JSON_CACHE.pop(key, None)
             try:
                 data = json.loads(Path(key).read_text(encoding="utf-8"))
             except (OSError, ValueError) as exc:
                 if _file_stamp(os.stat(absolute)) != stamp:
                     continue
+                _JSON_CACHE.pop(key, None)
                 if not validate:
+                    _RUN_JSON_OK.pop(key, None)
                     raise
                 logger.warning("[sdjk] 运行目录副本 JSON 损坏，已回落随包种子：%s（%s）", path, exc)
                 _RUN_JSON_OK[key] = (stamp, False)

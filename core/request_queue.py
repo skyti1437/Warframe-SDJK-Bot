@@ -20,7 +20,7 @@ class RequestQueue:
         self.max_waiting = max_waiting
         self.active = 0
         self._waiting: deque[object] = deque()
-        self._changed = asyncio.Event()
+        self._waiters: set[asyncio.Future[bool]] = set()
         self._closed = False
 
     def is_waiting(self, key: object) -> bool:
@@ -31,7 +31,9 @@ class RequestQueue:
         return bool(self._waiting) and self.active < self.workers and not self._closed
 
     def wake(self) -> None:
-        self._changed.set()
+        for waiter in list(self._waiters):
+            if not waiter.done():
+                waiter.set_result(True)
 
     def close(self) -> None:
         self._closed = True
@@ -50,10 +52,35 @@ class RequestQueue:
         def can_start():
             return self.active < self.workers and (room is None or room())
 
+        loop = asyncio.get_running_loop()
+        deadline = None if wait_timeout is None else loop.time() + wait_timeout
+
         async def wait_turn(ticket):
+            # 直接在当前协程等待 Future，避免 Python 3.10 asyncio.wait_for 子任务带来的额外事件循环拍与同拍取消吞没（gh-86296）。
             while not self._closed and (self._waiting[0] is not ticket or not can_start()):
-                self._changed.clear()
-                await self._changed.wait()
+                timer = None
+                waiter = loop.create_future()
+                self._waiters.add(waiter)
+                if deadline is not None:
+                    remaining = deadline - loop.time()
+                    if remaining <= 0:
+                        self._waiters.discard(waiter)
+                        raise QueueUnavailable(
+                            L(
+                                "排队超时，请稍后重试",
+                                "Queue wait timed out. Try again shortly.",
+                            )
+                        )
+                    timer = loop.call_later(
+                        remaining,
+                        lambda fut=waiter: None if fut.done() else fut.set_result(False),
+                    )
+                try:
+                    await waiter
+                finally:
+                    if timer is not None:
+                        timer.cancel()
+                    self._waiters.discard(waiter)
 
         self._check_open()
         notice = None
@@ -69,18 +96,7 @@ class RequestQueue:
                 try:
                     if notify is not None:
                         notice = asyncio.create_task(notify(len(self._waiting)))
-                    if wait_timeout is None:
-                        await wait_turn(ticket)
-                    else:
-                        try:
-                            await asyncio.wait_for(wait_turn(ticket), timeout=wait_timeout)
-                        except asyncio.TimeoutError:
-                            raise QueueUnavailable(
-                                L(
-                                    "排队超时，请稍后重试",
-                                    "Queue wait timed out. Try again shortly.",
-                                )
-                            ) from None
+                    await wait_turn(ticket)
                     self._check_open()
                 finally:
                     self._waiting.remove(ticket)

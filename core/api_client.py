@@ -1327,6 +1327,35 @@ def _en_name_of_zh(zh: str) -> str:
     return zh_en.get(z, "")
 
 
+async def _wait_with_timeout(coro, timeout: float):
+    """兼容 Python 3.10 的超时等待：避免内部任务同拍完成时吞掉外部取消（gh-86296）。"""
+    if hasattr(asyncio, "timeout"):
+        async with asyncio.timeout(timeout):
+            return await coro
+    task = asyncio.ensure_future(coro)
+    try:
+        _, pending = await asyncio.wait({task}, timeout=timeout)
+    except asyncio.CancelledError:
+        if not task.done():
+            task.cancel()
+            try:
+                await task
+            except BaseException:
+                pass
+        elif not task.cancelled():
+            task.exception()
+        raise
+    if pending:
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            if not task.done():
+                raise
+        raise asyncio.TimeoutError
+    return task.result()
+
+
 class WarframeAPIError(Exception):
     """统一的接口错误（含降级提示语）。"""
 
@@ -3572,7 +3601,7 @@ class WarframeClient:
             validate_groups(data)
 
         try:
-            data = await asyncio.wait_for(
+            data = await _wait_with_timeout(
                 self._fetch_json(
                     f"{DEFAULT_ORACLE_BASE}/{endpoint}",
                     ttl=lifetime,
@@ -6936,7 +6965,7 @@ class WarframeClient:
                 else _ORACLE_HEADERS
             )
             try:
-                data = await asyncio.wait_for(
+                data = await _wait_with_timeout(
                     self._fetch_json(
                         request_url,
                         ttl=600,

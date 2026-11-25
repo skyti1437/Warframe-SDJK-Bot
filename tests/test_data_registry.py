@@ -451,6 +451,39 @@ with tempfile.TemporaryDirectory() as _cache_dir:
                 DR.paths.load_table("probe.json", root=_run) == {"v": _expected},
             )
 
+        # 确定性模拟 Linux ext4/tmpfs 的 inode 复用 ABA（B -> 坏 A -> 复用 B，且同 mtime/ctime/size）。
+        from types import SimpleNamespace as _NS
+
+        _real_stat = os.stat
+        _table_paths = {os.path.abspath(_table), os.path.realpath(_table)}
+        _aba_ino = [101]
+
+        def _fake_stat(path, *args, **kwargs):
+            st = _real_stat(path, *args, **kwargs)
+            if os.path.abspath(os.fspath(path)) in _table_paths:
+                return _NS(
+                    st_dev=st.st_dev,
+                    st_ino=_aba_ino[0],
+                    st_mtime_ns=_stamp.st_mtime_ns,
+                    st_ctime_ns=_stamp.st_ctime_ns,
+                    st_size=st.st_size,
+                )
+            return st
+
+        with _patch.object(DR.paths.os, "stat", side_effect=_fake_stat):
+            for _ino, _raw, _expected in (
+                (101, '{"v":1}', 1),
+                (102, '{"v":2}', 2),
+                (101, "{broken", 0),
+                (102, '{"v":3}', 3),
+            ):
+                _aba_ino[0] = _ino
+                _table.write_text(_raw)
+                check(
+                    f"Linux inode 复用 ABA（ino={_ino}, {_raw}）不返回旧代缓存",
+                    DR.paths.load_table("probe.json", root=_run) == {"v": _expected},
+                )
+
     # 在读取旧字节之后、发布之前发生替换，当前这次查询也应重读。
     _table.write_text('{"v":4}')
     _original_read = Path.read_text
