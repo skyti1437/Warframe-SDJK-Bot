@@ -749,7 +749,7 @@
   </section>
   <section class="panel"><i class="c1"></i><i class="c2"></i>
     <div class="ptitle"><h3>下载与连接</h3><span class="ext"></span></div>
-    <p class="hint" id="engineDownloadHint">新版支持 Python 3.12 的 Linux x86_64 和 macOS arm64。</p>
+    <p class="hint" id="engineDownloadHint">支持 Linux x86_64 / arm64 与 macOS arm64，无需特定 Python 版本。</p>
     <div id="engineInstallState" class="result" aria-live="polite"></div>
     <div class="vpBar">
       <button class="sm" id="engineInstall" disabled>下载并部署</button>
@@ -6919,28 +6919,33 @@
     clearTimeout(enginePoll);
     const out = $("engineInstallState");
     const portable = d.backend === "portable";
+    const upgrade = d.upgrade_available;
+    const install = $("engineInstall");
     const source = $("engineSource");
     if (d.source_url) {
       source.href = d.source_url;
       source.hidden = false;
     }
     $("engineDownloadHint").replaceChildren(localText(
-      "新版支持 Python 3.12 的 Linux x86_64 和 macOS arm64。",
-      "The current build supports Python 3.12 on Linux x86_64 and macOS arm64."));
-    $("engineInstall").replaceChildren(d.local_bundle ? localText("导入并部署", "Import and deploy") :
+      "支持 Linux x86_64 / arm64 与 macOS arm64，无需特定 Python 版本。",
+      "Supports Linux x86_64 / arm64 and macOS arm64 without a Python 3.12 requirement."));
+    install.replaceChildren(upgrade ? (d.local_bundle ? localText("导入并升级", "Import and upgrade") :
+      localText("升级到纯 Rust 引擎", "Upgrade to standalone Rust engine")) :
+      d.local_bundle ? localText("导入并部署", "Import and deploy") :
       localText("下载并部署", "Download and deploy"));
     out.replaceChildren(d.error ? d.error :
       d.running ? localText("正在准备运行包和数据…", "Preparing the runtime and data…") :
       !portable ? localText("选择完整模拟并保存本机端口后，即可下载。",
         "Select Simulation and save a local port to enable downloading.") :
+      upgrade ? localText("本机引擎可升级到纯 Rust 版", "The local engine can be upgraded to standalone Rust") :
       d.started ? localText("本机引擎已启动", "Local engine running") :
       d.installed ? localText("本机版本已安装", "Local build installed") :
       d.local_bundle || d.download_supported ? localText("本机版本待安装", "Local build available") :
       localText("此主机暂无匹配的运行包", "No matching runtime for this host"),
       portable && d.release ? " · " + d.release.slice(0, 7) : "");
     out.className = "result " + (d.error ? "s-stale" : d.installed ? "s-ok" : "hint");
-    $("engineInstall").disabled = !portable || d.running || d.installed ||
-      !(d.local_bundle || d.download_supported);
+    install.disabled = !portable || d.running || (!upgrade &&
+      (d.installed || !(d.local_bundle || d.download_supported)));
     $("engineCheck").disabled = d.running;
     if (d.running && curView === "engine") enginePoll = setTimeout(engineStatus, 2000);
   }

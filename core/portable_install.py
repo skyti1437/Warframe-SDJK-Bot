@@ -9,7 +9,7 @@ import re
 import sys
 import zipfile
 from hashlib import sha256
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 
 # 验收包只含服务、冻结输入和原生模块。按成员读取，既不信任归档路径也不解压符号链接。
 MAX_BUNDLE_SIZE = 60 * 1024 * 1024
@@ -26,12 +26,67 @@ PORTABLE_ASSETS = {
         2465818,
     ),
 }
+RUST_RUNTIME = "rust-standalone"
+RUST_BINARY = "wfcore-server"
+RUST_STANDALONE_ASSETS: dict[str, tuple[str, str, int]] = {
+    "darwin-arm64": (
+        "portable-rust-darwin-arm64.zip",
+        "0ddcd607e9d1b61b38816b45bf41dca61dca44511c4083f5047ff8ef8bcfadef",
+        1663594,
+    ),
+    "linux-x86_64": (
+        "portable-rust-linux-x86_64.zip",
+        "e27607239109c3ae9847e89a93b374460082d7056cf8835c7600790e2d3a4fbc",
+        2008316,
+    ),
+    "linux-arm64": (
+        "portable-rust-linux-arm64.zip",
+        "325309cffa72c72253020e3ef9007c93548121b24f259080b9a8e6f3e1a62542",
+        1840401,
+    ),
+}
 SHA256 = re.compile(r"[a-f0-9]{64}")
 UPSTREAM_REVISION = "d62e4ae56387e241d512dcf9176f3bfd3d426de7"
 UPSTREAM_DATA = (
     "https://raw.githubusercontent.com/superexboom/warframe-weapon-loadout-build/"
     + UPSTREAM_REVISION
 )
+
+
+def current_platform() -> str:
+    machine = platform.machine().lower()
+    if sys.platform == "linux":
+        machine = {"amd64": "x86_64", "aarch64": "arm64"}.get(machine, machine)
+    return f"{sys.platform}-{machine}"
+
+
+def installed_runtime(release_dir: Path) -> str:
+    try:
+        manifest = json.loads((release_dir / "manifest.json").read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return ""
+    except (OSError, ValueError):
+        return "python"
+    return (
+        RUST_RUNTIME
+        if isinstance(manifest, dict) and manifest.get("runtime") == RUST_RUNTIME
+        else "python"
+    )
+
+
+def portable_command(release_dir: Path, *args: str) -> tuple[str, ...]:
+    try:
+        manifest = json.loads((release_dir / "manifest.json").read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        manifest = {}
+    if not isinstance(manifest, dict):
+        raise ValueError("独立引擎运行包清单无效")
+    if manifest.get("runtime") == RUST_RUNTIME:
+        binary = release_dir / RUST_BINARY
+        if manifest.get("binary") != RUST_BINARY or not binary.is_file():
+            raise ValueError("独立引擎运行包的启动程序无效")
+        return (str(binary), *args)
+    return (sys.executable, "launch.py", *args)
 
 
 async def download_file(client, url, path, limit, expected=None):
@@ -89,13 +144,41 @@ def unpack(bundle, dest, expected, fingerprint, data_version):
             if len(names) != len(members) or size > MAX_UNPACKED_SIZE:
                 raise ValueError("独立引擎运行包文件有重复或超过解包上限")
             manifest = json.loads(archive.read("manifest.json"))
-            if (
-                manifest["fingerprint"] != fingerprint
-                or manifest["dataVersion"] != data_version
-                or manifest["platform"] != f"{sys.platform}-{platform.machine()}"
-                or manifest["python"] != f"{sys.version_info.major}.{sys.version_info.minor}"
-            ):
-                raise ValueError("独立引擎运行包的版本、系统或 Python ABI 不匹配")
+            if not isinstance(manifest, dict):
+                raise ValueError("独立引擎运行包清单无效")
+            runtime = manifest.get("runtime", "python")
+            if runtime == RUST_RUNTIME:
+                if (
+                    manifest.get("fingerprint") != fingerprint
+                    or manifest.get("dataVersion") != data_version
+                    or manifest.get("platform") != current_platform()
+                    or manifest.get("binary") != RUST_BINARY
+                ):
+                    raise ValueError("独立引擎运行包的版本、系统或启动程序不匹配")
+                required = {
+                    RUST_BINARY,
+                    "LICENSE",
+                    "THIRD_PARTY_NOTICES.md",
+                    f"data/export/{data_version}/incarnon_defaults.json",
+                }
+            elif runtime == "python":
+                if (
+                    manifest["fingerprint"] != fingerprint
+                    or manifest["dataVersion"] != data_version
+                    or manifest["platform"] != f"{sys.platform}-{platform.machine()}"
+                    or manifest["python"] != f"{sys.version_info.major}.{sys.version_info.minor}"
+                ):
+                    raise ValueError("独立引擎运行包的版本、系统或 Python ABI 不匹配")
+                required = {
+                    "launch.py",
+                    "LICENSE",
+                    "THIRD_PARTY_NOTICES.md",
+                    "portable-views.json",
+                    "analysis-statics.json",
+                    "app.py",
+                }
+            else:
+                raise ValueError("独立引擎运行包的运行时类型未知")
             files = manifest["files"]
             if not isinstance(files, dict):
                 raise ValueError("运行包文件清单无效")
@@ -112,18 +195,8 @@ def unpack(bundle, dest, expected, fingerprint, data_version):
             ):
                 raise ValueError("上游数据清单不符")
             external = {name: files[name] for name in upstream}
-            if (
-                names != ((files.keys() - external.keys()) | {"manifest.json"})
-                or not {
-                    "launch.py",
-                    "LICENSE",
-                    "THIRD_PARTY_NOTICES.md",
-                    "portable-views.json",
-                    "analysis-statics.json",
-                    "app.py",
-                }
-                <= files.keys()
-            ):
+            packed = files.keys() - external.keys()
+            if names != (packed | {"manifest.json"}) or not required <= packed:
                 raise ValueError("独立引擎运行包清单不完整")
             for name, expected_sha in files.items():
                 part = PurePosixPath(name)
@@ -145,5 +218,9 @@ def unpack(bundle, dest, expected, fingerprint, data_version):
                 file.parent.mkdir(parents=True, exist_ok=True)
                 file.write_bytes(raw)
 
-            (dest / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False) + "\n")
+            if runtime == RUST_RUNTIME:
+                (dest / RUST_BINARY).chmod(0o755)
+            (dest / "manifest.json").write_text(
+                json.dumps(manifest, ensure_ascii=False) + "\n", encoding="utf-8"
+            )
             return external, MAX_UNPACKED_SIZE - size

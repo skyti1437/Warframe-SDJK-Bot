@@ -27,7 +27,17 @@ import httpx
 from . import damage_calc as dc
 from .cache import TTLCache
 from .i18n import L, is_en
-from .portable_install import PORTABLE_ASSETS, download_file, download_inputs, unpack
+from .portable_install import (
+    PORTABLE_ASSETS,
+    RUST_RUNTIME,
+    RUST_STANDALONE_ASSETS,
+    current_platform,
+    download_file,
+    download_inputs,
+    installed_runtime,
+    portable_command,
+    unpack,
+)
 from .request_queue import QueueUnavailable, RequestQueue, send_queue_position
 
 REPO = "https://github.com/skyti1437/warframe-damage-engine"
@@ -40,6 +50,8 @@ PORTABLE_SOURCE_URL = f"{REPO}/tree/{PORTABLE_TAG}"
 PORTABLE_DOWNLOADS = (
     f"https://raw.githubusercontent.com/skyti1437/warframe-damage-engine/{PORTABLE_TAG}/downloads"
 )
+PORTABLE_RUST_TAG = f"portable-rust-{PORTABLE_FINGERPRINT}"
+PORTABLE_RUST_DOWNLOADS = f"https://raw.githubusercontent.com/skyti1437/warframe-damage-engine/{PORTABLE_RUST_TAG}/downloads"
 NAME = "warframe-damage-engine"
 SEARCH_PATH = "/api/compute/optimize"
 SEARCH_META_PATH = "/api/meta"
@@ -525,9 +537,17 @@ def portable_port(cfg) -> int:
 
 
 def portable_asset():
+    if asset := RUST_STANDALONE_ASSETS.get(current_platform()):
+        return asset
     if sys.version_info[:2] == (3, 12):
         return PORTABLE_ASSETS.get(f"{sys.platform}-{platform.machine()}")
     return None
+
+
+def _portable_download_base(name: str) -> str:
+    if any(name == filename for filename, _, _ in RUST_STANDALONE_ASSETS.values()):
+        return PORTABLE_RUST_DOWNLOADS
+    return PORTABLE_DOWNLOADS
 
 
 async def portable_request(port, path, body=None, *, timeout=12.0):
@@ -1991,7 +2011,7 @@ class EngineService:
     """按需下载固定版服务，托管进程由插件生命周期管理。"""
 
     def __init__(self, data_dir: Path):
-        self.root = data_dir / "damage-engine"
+        self.root = data_dir.absolute() / "damage-engine"
         self.release = self.root / RELEASE
         self.task = None
         self.child = None
@@ -2033,6 +2053,8 @@ class EngineService:
                 "release": PORTABLE_FINGERPRINT,
                 "build": PORTABLE_DATA,
                 "backend": "portable",
+                "runtime": self.portable_runtime(),
+                "upgrade_available": self.portable_upgrade_available(),
                 "local_bundle": (self.root / "portable-runtime.zip").is_file(),
                 "download_supported": portable_asset() is not None,
             }
@@ -2113,10 +2135,24 @@ class EngineService:
     def portable_installed(self):
         return (self.portable_release / "manifest.json").is_file()
 
+    def portable_runtime(self) -> str:
+        return installed_runtime(self.portable_release)
+
+    def portable_upgrade_available(self) -> bool:
+        return (
+            self.portable_installed()
+            and self.portable_runtime() != RUST_RUNTIME
+            and (
+                (self.root / "portable-runtime.zip").is_file()
+                or current_platform() in RUST_STANDALONE_ASSETS
+            )
+        )
+
     async def _install_portable(self, cfg, port):
         try:
             self.root.mkdir(parents=True, exist_ok=True)
-            if not self.portable_installed():
+            upgrade = self.portable_upgrade_available()
+            if not self.portable_installed() or upgrade:
                 with TemporaryDirectory(prefix="portable-install-", dir=self.root) as tmp:
                     dest = Path(tmp) / "runtime"
                     dest.mkdir()
@@ -2131,32 +2167,53 @@ class EngineService:
                             asset = portable_asset()
                             if asset is None:
                                 raise ValueError(
-                                    "公开运行包支持 Python 3.12 的 Linux x86_64 与 macOS arm64"
+                                    "当前平台暂无匹配的公开运行包，支持 Linux x86_64 / arm64 与 macOS arm64"
                                 )
                             name, expected, size = asset
                             bundle = Path(tmp) / name
                             received = await download_file(
-                                client, f"{PORTABLE_DOWNLOADS}/{name}", bundle, size, expected
+                                client,
+                                f"{_portable_download_base(name)}/{name}",
+                                bundle,
+                                size,
+                                expected,
                             )
                             if received != size:
                                 raise ValueError("引擎运行包字节数不一致")
                         inputs, remaining = await asyncio.to_thread(
                             unpack, bundle, dest, expected, PORTABLE_FINGERPRINT, PORTABLE_DATA
                         )
+                        if upgrade and installed_runtime(dest) != RUST_RUNTIME:
+                            raise ValueError(
+                                "请换用纯 Rust 运行包，或移走本地 portable-runtime.zip 后重新下载"
+                            )
                         if inputs:
                             await asyncio.wait_for(
                                 download_inputs(client, dest, inputs, remaining), 100
                             )
-                    raw = await self._run(
-                        dest, sys.executable, "launch.py", "--probe", input_bytes=b"", timeout=25
-                    )
+                    command = portable_command(dest, "--probe")
+                    raw = await self._run(dest, *command, input_bytes=b"", timeout=25)
                     probe = json.loads(raw)
                     if (
-                        probe.get("engineFingerprint") != PORTABLE_FINGERPRINT
+                        not isinstance(probe, dict)
+                        or probe.get("ok", command[0] == sys.executable) is not True
+                        or probe.get("engineFingerprint") != PORTABLE_FINGERPRINT
                         or probe.get("buildLabel") != PORTABLE_DATA
                     ):
                         raise ValueError("运行包探针的版本不符")
-                    dest.rename(self.portable_release)
+                    async with self.lock:
+                        if self.portable_release.exists():
+                            await self._discard_child("portable_child")
+                            self._managed_health["portable_child"] = _ManagedHealth()
+                            backup = Path(tmp) / "backup"
+                            self.portable_release.rename(backup)
+                            try:
+                                dest.rename(self.portable_release)
+                            except OSError:
+                                backup.rename(self.portable_release)
+                                raise
+                        else:
+                            dest.rename(self.portable_release)
             await self.ensure_portable(port)
         except (
             EngineError,
@@ -2210,12 +2267,13 @@ class EngineService:
                 self._managed_health["portable_child"] = _ManagedHealth(port=port)
 
             async def spawn():
+                try:
+                    command = portable_command(self.portable_release, "--port", str(port))
+                except ValueError as exc:
+                    raise EngineError(str(exc)) from exc
                 with (self.root / "install.log").open("ab") as log:
                     proc = await asyncio.create_subprocess_exec(
-                        sys.executable,
-                        "launch.py",
-                        "--port",
-                        str(port),
+                        *command,
                         cwd=self.portable_release,
                         start_new_session=True,
                         stdout=log,

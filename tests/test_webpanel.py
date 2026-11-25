@@ -1729,6 +1729,33 @@ check("真正的 body 结束标签在 script 结束标签之后", low.index("</s
 check(
     "页面调用的端点都已注册", all(f'"{ep}"' in html for ep in ("overview", "refresh", "conntest"))
 )
+_engine_task = html.split("function engineTask(d) {", 1)[1].split(
+    "async function engineStatus()", 1
+)[0]
+_engine_hint = "支持 Linux x86_64 / arm64 与 macOS arm64，无需特定 Python 版本。"
+check(
+    "伤害引擎静态提示和双语状态提示覆盖 Rust 三端",
+    f'id="engineDownloadHint">{_engine_hint}</p>' in html
+    and _engine_hint in _engine_task
+    and "Supports Linux x86_64 / arm64 and macOS arm64 without a Python 3.12 requirement."
+    in _engine_task,
+)
+check(
+    "伤害引擎显示双语升级入口，已装且不可升级时禁用入口",
+    all(
+        text in _engine_task
+        for text in (
+            "d.upgrade_available",
+            "升级到纯 Rust 引擎",
+            "Upgrade to standalone Rust engine",
+            "导入并升级",
+            "Import and upgrade",
+            "本机引擎可升级到纯 Rust 版",
+        )
+    )
+    and re.search(r"install\.disabled\s*=.*\(!upgrade\s*&&\s*\(d\.installed", _engine_task)
+    is not None,
+)
 check("页面目录名不含 ops（开源打包会按 ops 段排除）", "ops" not in Path("pages/sdjk").parts)
 i18n = json.loads((ROOT / ".astrbot-plugin/i18n/zh-CN.json").read_text(encoding="utf-8"))
 check("i18n 标题键 = 页面目录名", "title" in i18n["pages"]["sdjk"])
@@ -7899,7 +7926,8 @@ async def _portable_engine_download_checks():
     def client(**kwargs):
         return factory(transport=httpx.MockTransport(serve), **kwargs)
 
-    async def probe(cwd, *_args, **_kwargs):
+    async def probe(cwd, *args, **_kwargs):
+        assert args == (sys.executable, "launch.py", "--probe")
         assert (cwd / frozen).read_bytes() == files[frozen]
         return json.dumps(
             {
@@ -7917,7 +7945,7 @@ async def _portable_engine_download_checks():
             patch.object(engine, "portable_asset") as choose_asset,
             patch.object(engine.httpx, "AsyncClient", side_effect=client),
         ):
-            for name in ("公开", "字节数错误", "摘要错误", "手动"):
+            for name in ("公开", "字节数错误", "摘要错误", "手动", "旧包升级"):
                 choose_asset.return_value = (
                     asset_name,
                     sha256(public).hexdigest(),
@@ -7927,11 +7955,16 @@ async def _portable_engine_download_checks():
                 service._run = probe
                 service.ensure_portable = start
                 cfg = dict(config)
-                if name == "手动":
+                manual = name in {"手动", "旧包升级"}
+                if manual:
                     bundle = make_bundle(False)
                     service.root.mkdir(parents=True)
                     (service.root / "portable-runtime.zip").write_bytes(bundle)
                     cfg["damage_engine_portable_bundle_sha256"] = sha256(bundle).hexdigest()
+                if name == "旧包升级":
+                    service.portable_release.mkdir()
+                    (service.portable_release / "manifest.json").write_bytes(b"{}")
+                    (service.portable_release / "launch.py").write_bytes(b"old launcher")
                 panel = W.WebPanel(SimpleNamespace(cfg=cfg, damage_engine=service), PLUGIN)
                 status = await panel.damage_engine_status()
                 assert status["source_url"] == f"{engine.REPO}/tree/{engine.PORTABLE_TAG}"
@@ -7955,11 +7988,19 @@ async def _portable_engine_download_checks():
                         not service.portable_installed() and reason in service.error,
                     )
                     check("下载失败清理临时目录", not list(service.root.iterdir()))
+                elif name == "旧包升级":
+                    check(
+                        "导入旧版 Python 包时保留已有安装并提示更换 Rust 包",
+                        "请换用纯 Rust 运行包" in service.error
+                        and service.portable_upgrade_available()
+                        and (service.portable_release / "launch.py").read_bytes()
+                        == b"old launcher",
+                    )
                 else:
                     check(
                         f"{name}安装与探针成功", service.portable_installed() and not service.error
                     )
-                expected_requests = list(downloads) if name != "手动" else []
+                expected_requests = [] if manual else list(downloads)
                 if name == "字节数错误":
                     expected_requests = expected_requests[:1]
                 check(f"{name}安装使用预期下载来源", requests == expected_requests)
@@ -7967,6 +8008,397 @@ async def _portable_engine_download_checks():
 
 
 asyncio.run(_portable_engine_download_checks())
+
+
+async def _rust_standalone_engine_checks():
+    from hashlib import sha256
+    from io import BytesIO
+    from stat import S_IMODE
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock, patch
+    from zipfile import ZipFile
+
+    from core import damage_engine as engine
+    from core import portable_install
+
+    official_assets = {
+        "darwin-arm64": (
+            "portable-rust-darwin-arm64.zip",
+            "0ddcd607e9d1b61b38816b45bf41dca61dca44511c4083f5047ff8ef8bcfadef",
+            1663594,
+        ),
+        "linux-x86_64": (
+            "portable-rust-linux-x86_64.zip",
+            "e27607239109c3ae9847e89a93b374460082d7056cf8835c7600790e2d3a4fbc",
+            2008316,
+        ),
+        "linux-arm64": (
+            "portable-rust-linux-arm64.zip",
+            "325309cffa72c72253020e3ef9007c93548121b24f259080b9a8e6f3e1a62542",
+            1840401,
+        ),
+    }
+    check(
+        "纯 Rust 正式运行包三端元数据精确匹配",
+        portable_install.RUST_STANDALONE_ASSETS == official_assets,
+    )
+    check(
+        "纯 Rust 正式下载基址固定到 Rust 标签",
+        engine.PORTABLE_RUST_TAG == "portable-rust-535ed49f5a51149d"
+        and engine.PORTABLE_RUST_DOWNLOADS
+        == "https://raw.githubusercontent.com/skyti1437/warframe-damage-engine/portable-rust-535ed49f5a51149d/downloads",
+    )
+    binary = portable_install.RUST_BINARY
+    defaults = f"data/export/{engine.PORTABLE_DATA}/incarnon_defaults.json"
+    packed = {
+        binary: b"standalone executable",
+        "LICENSE": b"license",
+        "THIRD_PARTY_NOTICES.md": b"notices",
+        defaults: b"{}",
+    }
+    upstream = {f"data/reference-{index}.json": b"{}" for index in range(42)}
+    files = {**packed, **upstream}
+    digests = {name: sha256(data).hexdigest() for name, data in files.items()}
+    identity = {
+        "engineFingerprint": engine.PORTABLE_FINGERPRINT,
+        "buildLabel": engine.PORTABLE_DATA,
+    }
+
+    def make_bundle(contents, external=(), **changes):
+        manifest = {
+            "runtime": portable_install.RUST_RUNTIME,
+            "binary": binary,
+            "platform": portable_install.current_platform(),
+            "fingerprint": engine.PORTABLE_FINGERPRINT,
+            "runtimeDigest": "3ea749df5c3de728",
+            "dataVersion": engine.PORTABLE_DATA,
+            "upstream": portable_install.UPSTREAM_REVISION,
+            "upstreamFiles": list(external),
+            "files": {name: digests[name] for name in (*contents, *external)},
+            **changes,
+        }
+        output = BytesIO()
+        with ZipFile(output, "w") as archive:
+            for name, data in contents.items():
+                archive.writestr(name, data)
+            archive.writestr("manifest.json", json.dumps(manifest))
+        return output.getvalue()
+
+    async def probe(cwd, *args, **_kwargs):
+        assert args == (str(cwd / binary), "--probe")
+        assert S_IMODE((cwd / binary).stat().st_mode) == 0o755
+        assert all((cwd / name).read_bytes() == data for name, data in files.items())
+        return json.dumps({"ok": True, "schemaVersion": 3, **identity}).encode()
+
+    requests = []
+    downloads = {}
+
+    def serve(request):
+        url = str(request.url)
+        requests.append(url)
+        return httpx.Response(200, content=downloads[url])
+
+    factory = httpx.AsyncClient
+
+    def client(**kwargs):
+        return factory(transport=httpx.MockTransport(serve), **kwargs)
+
+    cfg = {"damage_engine_mode": "simulation", "damage_engine_portable_port": 8765}
+    platforms = (
+        ("darwin", "arm64", "darwin-arm64"),
+        ("linux", "x86_64", "linux-x86_64"),
+        ("linux", "aarch64", "linux-arm64"),
+    )
+    host = SimpleNamespace(executable=sys.executable)
+    with tempfile.TemporaryDirectory() as scratch:
+        root = Path(scratch)
+        for system, machine, key in platforms:
+            host.platform = system
+            asset_name = official_assets[key][0]
+            asset_url = f"{engine.PORTABLE_RUST_DOWNLOADS}/{asset_name}"
+            with (
+                patch.object(portable_install, "sys", host),
+                patch.object(engine, "sys", host),
+                patch.object(portable_install.platform, "machine", return_value=machine),
+                patch.dict(engine.RUST_STANDALONE_ASSETS, clear=True),
+            ):
+                check(
+                    f"{system}-{machine} 平台映射为 {key}",
+                    portable_install.current_platform() == key,
+                )
+                host.version_info = (3, 12, 0)
+                legacy_asset = engine.PORTABLE_ASSETS.get(f"{system}-{machine}")
+                check(f"{key} 的 Python 3.12 公开包回退", engine.portable_asset() == legacy_asset)
+                for version in ((3, 10, 22), (3, 13, 1)):
+                    host.version_info = version
+                    assert engine.portable_asset() is None
+                    label = f"{key} / Python {'.'.join(map(str, version))}"
+                    for split in (True, False):
+                        mode = "拆分下载" if split else "手动完整包"
+                        service = engine.EngineService(root / key / str(version[1]) / mode)
+                        service._run = probe
+                        service._portable_health = AsyncMock(
+                            side_effect=[engine.EngineUnreachable("待启动"), {"ok": True}]
+                        )
+                        child = SimpleNamespace(returncode=None)
+                        spawn = AsyncMock(return_value=child)
+                        bundle = make_bundle(packed, upstream) if split else make_bundle(files)
+                        digest = sha256(bundle).hexdigest()
+                        config = dict(cfg)
+                        requests.clear()
+                        downloads.clear()
+                        assets = {}
+                        if split:
+                            assets[key] = (asset_name, digest, len(bundle))
+                            downloads[asset_url] = bundle
+                            downloads.update(
+                                {
+                                    f"{portable_install.UPSTREAM_DATA}/{n}": d
+                                    for n, d in upstream.items()
+                                }
+                            )
+                        else:
+                            service.root.mkdir(parents=True)
+                            (service.root / "portable-runtime.zip").write_bytes(bundle)
+                            config["damage_engine_portable_bundle_sha256"] = digest
+                        with (
+                            patch.dict(engine.RUST_STANDALONE_ASSETS, assets),
+                            patch.object(engine.httpx, "AsyncClient", side_effect=client),
+                            patch.object(engine.asyncio, "create_subprocess_exec", spawn),
+                        ):
+                            assert engine.portable_asset() == assets.get(key)
+                            with patch.object(host, "version_info", (3, 12, 0)):
+                                assert engine.portable_asset() == assets.get(key, legacy_asset)
+                            service.install(config)
+                            await service.task
+                        release = service.portable_release
+                        check(
+                            f"{label} {mode}安装及探针通过",
+                            service.portable_installed()
+                            and not service.error
+                            and S_IMODE((release / binary).stat().st_mode) == 0o755,
+                            service.error,
+                        )
+                        check(
+                            f"{label} {mode}直接启动二进制",
+                            spawn.await_count == 1
+                            and spawn.await_args.args == (str(release / binary), "--port", "8765")
+                            and spawn.await_args.kwargs["cwd"] == release
+                            and service.portable_child is child,
+                        )
+                        check(
+                            f"{label} {mode}取数来源",
+                            len(requests) == len(downloads) and set(requests) == downloads.keys(),
+                        )
+                        child.returncode = 0
+                        await service.close()
+
+        host.platform, host.version_info = "linux", (3, 13, 1)
+        with (
+            patch.object(portable_install, "sys", host),
+            patch.object(engine, "sys", host),
+            patch.object(portable_install.platform, "machine", return_value="aarch64"),
+            patch.object(engine.httpx, "AsyncClient", side_effect=client),
+        ):
+            bundle = make_bundle(packed, upstream)
+            name = official_assets["linux-arm64"][0]
+            asset = (name, sha256(bundle).hexdigest(), len(bundle))
+            url = f"{engine.PORTABLE_RUST_DOWNLOADS}/{name}"
+            downloads = {f"{portable_install.UPSTREAM_DATA}/{n}": d for n, d in upstream.items()}
+            legacy_files = {
+                "launch.py": b"legacy launcher",
+                "manifest.json": b'{"runtime":"python"}',
+                "data/reference.json": b"legacy data",
+            }
+            rename = Path.rename
+
+            def fail_switch(path, target):
+                if path.name == "runtime":
+                    raise OSError("切换失败")
+                return rename(path, target)
+
+            async def reject_probe(cwd, *args, **kwargs):
+                await probe(cwd, *args, **kwargs)
+                return b'{"ok":false}'
+
+            for mode in ("自动升级", "导入升级", "下载失败", "探针失败", "切换失败"):
+                service = engine.EngineService(root / mode)
+                release = service.portable_release
+                for filename, contents in legacy_files.items():
+                    path = release / filename
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_bytes(contents)
+                original_inode = release.stat().st_ino
+                old = SimpleNamespace(returncode=None)
+                new = SimpleNamespace(returncode=None)
+                service.portable_child = old
+                service.portable_child_port = 8765
+                health = service._managed_health["portable_child"]
+                health.port = 8765
+                health.restart_after = asyncio.get_running_loop().time() + 100
+
+                async def stop(child, service=service, old=old):
+                    assert child is old and service.lock.locked()
+                    assert (service.portable_release / "launch.py").is_file()
+                    child.returncode = 0
+
+                service._stop = AsyncMock(side_effect=stop)
+                service._run = AsyncMock(side_effect=reject_probe if mode == "探针失败" else probe)
+                service._portable_health = AsyncMock(
+                    side_effect=[engine.EngineUnreachable("待启动"), {"ok": True}]
+                )
+                spawn = AsyncMock(return_value=new)
+                config = dict(cfg)
+                assets = {"linux-arm64": asset}
+                if mode == "导入升级":
+                    local = make_bundle(files)
+                    (service.root / "portable-runtime.zip").write_bytes(local)
+                    config["damage_engine_portable_bundle_sha256"] = sha256(local).hexdigest()
+                    assets.clear()
+                downloads[url] = b"broken" if mode == "下载失败" else bundle
+                requests.clear()
+                with (
+                    patch.dict(engine.RUST_STANDALONE_ASSETS, assets, clear=True),
+                    patch.object(engine.asyncio, "create_subprocess_exec", spawn),
+                    patch.object(Path, "rename", fail_switch if mode == "切换失败" else rename),
+                ):
+                    before = service.status(config)
+                    check(
+                        f"{mode}前识别正在运行的 Python 引擎可升级",
+                        before["installed"]
+                        and before["started"]
+                        and before["runtime"] == "python"
+                        and before["upgrade_available"],
+                    )
+                    service.install(config)
+                    await service.task
+                    after = service.status(config)
+                if mode in {"自动升级", "导入升级"}:
+                    service._stop.assert_awaited_once_with(old)
+                    spawn.assert_awaited_once()
+                    check(
+                        f"{mode}停止旧进程并在原目录启动 Rust",
+                        not service.error
+                        and old.returncode == 0
+                        and service.portable_child is new
+                        and spawn.await_args.args == (str(release / binary), "--port", "8765")
+                        and (release / binary).read_bytes() == packed[binary]
+                        and not (release / "launch.py").exists()
+                        and after["installed"]
+                        and after["started"]
+                        and after["runtime"] == "rust-standalone"
+                        and not after["upgrade_available"],
+                        service.error,
+                    )
+                else:
+                    spawn.assert_not_awaited()
+                    check(
+                        f"{mode}保留旧版目录与内容",
+                        bool(service.error)
+                        and after["runtime"] == "python"
+                        and after["upgrade_available"]
+                        and release.stat().st_ino == original_inode
+                        and all((release / n).read_bytes() == d for n, d in legacy_files.items())
+                        and not (release / binary).exists(),
+                        service.error,
+                    )
+                    if mode == "切换失败":
+                        service._stop.assert_awaited_once_with(old)
+                        check(
+                            "切换失败后恢复原目录并清空旧进程句柄",
+                            "切换失败" in service.error and service.portable_child is None,
+                        )
+                    else:
+                        service._stop.assert_not_awaited()
+                        check(
+                            f"{mode}保持旧进程运行",
+                            after["started"] and service.portable_child is old,
+                        )
+                    if mode == "下载失败":
+                        service._run.assert_not_awaited()
+                check(
+                    f"{mode}完成后清理暂存目录", not list(service.root.glob("portable-install-*"))
+                )
+                check(
+                    f"{mode}使用预期取包方式",
+                    not requests if mode == "导入升级" else requests[:1] == [url],
+                )
+                service._stop = AsyncMock()
+                await service.close()
+
+        for system, machine, key in (
+            ("linux", "AMD64", "linux-x86_64"),
+            ("linux", "arm64", "linux-arm64"),
+            ("freebsd", "RISCV64", "freebsd-riscv64"),
+        ):
+            host.platform = system
+            with (
+                patch.object(portable_install, "sys", host),
+                patch.object(portable_install.platform, "machine", return_value=machine),
+            ):
+                check(
+                    f"{system}-{machine} 平台映射为 {key}",
+                    portable_install.current_platform() == key,
+                )
+
+        absent_defaults = {name: data for name, data in files.items() if name != defaults}
+        for label, bundle, reason in (
+            ("平台不匹配", make_bundle(files, platform="other"), "系统"),
+            ("未知运行时", make_bundle(files, runtime="other"), "运行时类型未知"),
+            ("非法启动程序", make_bundle(files, binary="../evil"), "启动程序"),
+            ("缺少进化默认值", make_bundle(absent_defaults), "清单不完整"),
+            ("进化默认值列为上游文件", make_bundle(absent_defaults, [defaults]), "清单不完整"),
+            ("二进制内容篡改", make_bundle({**files, binary: b"changed"}), "文件摘要不符"),
+        ):
+            archive = root / "invalid.zip"
+            archive.write_bytes(bundle)
+            with tempfile.TemporaryDirectory(dir=root) as dest:
+                try:
+                    portable_install.unpack(
+                        archive,
+                        Path(dest),
+                        sha256(bundle).hexdigest(),
+                        engine.PORTABLE_FINGERPRINT,
+                        engine.PORTABLE_DATA,
+                    )
+                except ValueError as exc:
+                    check(f"Rust 运行包拒绝{label}", reason in str(exc), str(exc))
+                else:
+                    check(f"Rust 运行包拒绝{label}", False)
+
+        release = root / "installed"
+        release.mkdir()
+        (release / "launch.py").touch()
+        manifest = release / "manifest.json"
+        check("缺失清单时运行时未知", portable_install.installed_runtime(release) == "")
+        for legacy in (None, {}, {"runtime": "python"}):
+            if legacy is not None:
+                manifest.write_text(json.dumps(legacy), encoding="utf-8")
+            check(
+                "旧版目录继续通过 Python 启动 launch.py",
+                portable_install.portable_command(release, "--port", "8765")
+                == (sys.executable, "launch.py", "--port", "8765"),
+            )
+        for content in (b"{", b"[]", b"\xff", b'{"runtime":"unknown"}'):
+            manifest.write_bytes(content)
+            check(
+                "无效或未知清单回落为 Python 运行时",
+                portable_install.installed_runtime(release) == "python",
+            )
+        (release / binary).mkdir()
+        manifest.write_text(
+            json.dumps({"runtime": portable_install.RUST_RUNTIME, "binary": binary}),
+            encoding="utf-8",
+        )
+        try:
+            portable_install.portable_command(release, "--probe")
+        except ValueError:
+            check("Rust 启动命令拒绝非文件的启动程序", True)
+        else:
+            check("Rust 启动命令拒绝非文件的启动程序", False)
+
+
+asyncio.run(_rust_standalone_engine_checks())
 
 
 if fails:
