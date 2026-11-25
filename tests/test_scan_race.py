@@ -378,11 +378,71 @@ try:
     )
     lo.analyze = _fake_analysis
 
-    # 7. 全渠道挂 → None（上层出「识别失败」提示）
+    # 7. 总预算内没有得到任何观察，向入口报告超时。
     inst = make_inst()
     script_extract(inst, {"fakeA": ("hang",), "fakeB": ("hang",)})
-    r = run(inst)
-    check("全渠道挂 → None", r is None)
+    try:
+        run(inst)
+    except asyncio.TimeoutError:
+        pass
+    else:
+        raise AssertionError("无部分结果且预算耗尽时应报告超时")
+
+    async def latest_scan_follows_admission(timeout):
+        from core.commands import scan
+        from unittest.mock import AsyncMock, patch
+
+        inst = make_inst()
+        inst.cfg = {"scan_cooldown": 0, "scan_detail_mode": "lazy"}
+        inst._ocr_busy, inst._ocr_last = set(), {}
+        inst._event_has_image = inst._can_send_actions = lambda e: True
+        inst._safe_sender = lambda e: "user"
+        inst._image_data_urls = AsyncMock(side_effect=lambda e: [e.image])
+        inst._extract_loadout_validated = AsyncMock(side_effect=lambda image: {"weapon": image})
+        started, resume = asyncio.Event(), asyncio.Event()
+
+        async def analyze(fn, ocr, *args, **kwargs):
+            assert fn is lo.analyze
+            if ocr["weapon"] == "A":
+                started.set()
+                await resume.wait()
+                if timeout:
+                    raise asyncio.TimeoutError
+            return {"ok": True, "weapon": {"name": ocr["weapon"]}}
+
+        def send(image):
+            return inst._h_scan(
+                None, types.SimpleNamespace(unified_msg_origin="room", image=image), "pc"
+            )
+
+        with (
+            patch.object(scan, "_scan_cpu", analyze),
+            patch.object(
+                lo, "to_damage_spec", side_effect=lambda an: {"source": an["weapon"]["name"]}
+            ),
+            patch.object(lo, "mod_dps_comparison", return_value=None),
+            patch.object(lo, "card_lines", side_effect=lambda *a, **kw: []),
+        ):
+            first = asyncio.create_task(send("A"))
+            try:
+                await asyncio.wait_for(started.wait(), 1)
+                second = await send("B")
+            finally:
+                resume.set()
+            old = await first
+        token = second.actions[0].send.split("#")[1]
+        assert inst._last_scan["room", "user"][2]["source"] == "B"
+        assert inst._scan_records[token][4]["source"] == "B"
+        if timeout:
+            assert any("时间已到" in line for line in old.lines)
+            assert len(inst._scan_records) == 1
+        else:
+            old_token = old.actions[0].send.split("#")[1]
+            assert old_token != token and inst._scan_records[old_token][4]["source"] == "A"
+        assert not inst._scan_sequences
+
+    asyncio.run(latest_scan_follows_admission(False))
+    asyncio.run(latest_scan_follows_admission(True))
 
     # 8. 走真实 handler 和两层提取入口：取消时必须先等渠道 finally，再归还并发名额。
     async def cancel_from_handler():
@@ -551,6 +611,131 @@ try:
     for _kind in ("识卡", "紫卡"):
         for _mode in ("cancel-first", "same-tick", "all-cancel"):
             asyncio.run(self_cancelled_channel(_kind, _mode))
+
+    async def deadline_and_scoring_heartbeat():
+        import threading
+        from unittest.mock import patch
+
+        loop = asyncio.get_running_loop()
+        heartbeat = threading.Event()
+        inst = make_inst()
+        inst.RACE_WINDOW_S = 0.30
+        script_extract(inst, {"fakeA": ("now", mk("partial", bad=1))})
+        calls = []
+
+        def score(ocr, rows):
+            # 工作线程等待事件循环回执；若回到同步评分，此处必然超时。
+            loop.call_soon_threadsafe(heartbeat.set)
+            assert heartbeat.wait(0.1)
+            return _fake_analysis(ocr, rows)
+
+        async def slow_focus(image, part):
+            calls.append(part)
+            await asyncio.sleep(0.20)
+            return None
+
+        inst._read_scan_focus = slow_focus
+        start = loop.time()
+        with patch.object(lo, "analyze", score):
+            result = await inst._extract_loadout_validated("image")
+        assert loop.time() - start < 0.51
+        assert calls == ["mods", "panel"]
+        assert result["_scan_timed_out"] and result["_marker"] == "partial"
+        assert result["_equipment_unconfirmed"] and heartbeat.is_set()
+
+        partial = inst._partial_scan_reply(result)
+        assert any("待确认" in line and "赋能槽" in line for line in partial.lines)
+        assert any("绝路 Prime" in line for line in partial.lines)
+
+    async def stalled_cleanup_holds_slot():
+        from core.commands import vision
+        from unittest.mock import patch
+
+        inst = make_inst()
+        inst.cfg = {"scan_max_concurrent": 1, "scan_cooldown": 0}
+        inst._ocr_busy, inst._ocr_last = set(), {}
+        inst._event_has_image = lambda event: True
+        inst._safe_sender = lambda event: event.sender
+        seen, started, release = [], asyncio.Event(), asyncio.Event()
+
+        async def images(event):
+            seen.append(event.sender)
+            return ["image"] if event.sender == "first" else []
+
+        class Stalled(_Prov):
+            async def text_chat(self, **kw):
+                started.set()
+                try:
+                    await asyncio.Future()
+                finally:
+                    await release.wait()
+
+        inst._vision_providers = lambda: [Stalled("stalled")]
+        inst._image_data_urls = images
+
+        def event(user):
+            return types.SimpleNamespace(sender=user, unified_msg_origin=user)
+
+        with patch.object(vision, "_CLEANUP_GRACE_S", 0.04):
+            task = asyncio.create_task(inst._h_scan(None, event("first"), "pc"))
+            await asyncio.wait_for(started.wait(), 1)
+            task.cancel()
+            try:
+                await asyncio.wait_for(task, 0.4)
+            except asyncio.CancelledError:
+                pass
+            assert inst._ocr_busy == {"first"}
+            retry = asyncio.create_task(inst._h_scan(None, event("second"), "pc"))
+            try:
+                await asyncio.sleep(0.02)
+                assert seen == ["first"] and not retry.done()
+            finally:
+                release.set()
+            await asyncio.wait_for(retry, 1)
+            assert seen == ["first", "second"] and not inst._ocr_busy
+
+    async def cleanup_only_blocks_the_draining_channel():
+        from core.commands import vision
+        from unittest.mock import patch
+
+        host = make_inst()
+        host._ocr_busy = set()
+        entered, release = asyncio.Event(), asyncio.Event()
+
+        class Slow(_Prov):
+            async def text_chat(self, **kwargs):
+                if entered.is_set():
+                    raise AssertionError("渠道清理期间发生了第二次调用")
+                entered.set()
+                try:
+                    await asyncio.Future()
+                finally:
+                    await release.wait()
+
+        class Fast(_Prov):
+            async def text_chat(self, **kwargs):
+                return "ready"
+
+        slow, fast = Slow("slow"), Fast("fast")
+        with patch.object(vision, "_CLEANUP_GRACE_S", 0.01), vision._vision_slot(host, "scan"):
+            task = asyncio.create_task(vision._vision_chat(slow))
+            await entered.wait()
+            try:
+                await vision._cancel_vision_tasks([task])
+                assert await vision._vision_chat(fast) == "ready"
+                try:
+                    await asyncio.wait_for(vision._vision_chat(slow), 0.1)
+                except asyncio.TimeoutError:
+                    assert not task.done()
+                else:
+                    raise AssertionError("渠道仍在清理时不应再次发图")
+            finally:
+                release.set()
+                await asyncio.gather(task, return_exceptions=True)
+
+    asyncio.run(cleanup_only_blocks_the_draining_channel())
+    asyncio.run(deadline_and_scoring_heartbeat())
+    asyncio.run(stalled_cleanup_holds_slot())
 
     # 10. 走真实识卡与紫卡路由，渠道只用本地 text_chat 桩，核对实际收图方。
     async def scan_provider_isolation(scan_config, *, unavailable=False):

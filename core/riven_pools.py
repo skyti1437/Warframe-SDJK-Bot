@@ -36,7 +36,6 @@ PHYSICAL_STATS = ("impact_damage", "puncture_damage", "slash_damage")
 _SENTINEL_CAT = "sentinel"
 
 _POOLS: Optional[dict] = None
-_WEAPONS: Optional[dict] = None  # 归一化英文名 → weapons_stats 条目列表
 
 
 def _load_pools() -> dict:
@@ -56,24 +55,14 @@ def _load_pools() -> dict:
     return _POOLS
 
 
-def _load_weapons() -> dict:
-    """武器伤害数据按英文名索引（判守护 / 飞行 / 物理占比用）。"""
-    global _WEAPONS
-    if _WEAPONS is None:
-        idx: dict[str, list[dict]] = {}
-        try:
-            raw = json.loads(paths.read_path("weapons_stats.json").read_text(encoding="utf-8"))
-            for v in (raw or {}).values():
-                if not isinstance(v, dict):
-                    continue
-                n = _norm(v.get("name") or "")
-                if n:
-                    idx.setdefault(n, []).append(v)
-        except Exception:  # noqa: BLE001
-            logger.warning("[sdjk] weapons_stats.json 读取失败，词条池按武器推导降级")
-            idx = {}
-        _WEAPONS = idx
-    return _WEAPONS
+@paths.table_index("weapons_stats.json")
+def _load_weapons(raw: dict) -> dict:
+    """武器伤害数据按英文名索引，条目与伤害计算器共享。"""
+    idx: dict[str, list[dict]] = {}
+    for weapon in raw.values():
+        if isinstance(weapon, dict) and (name := _norm(weapon.get("name") or "")):
+            idx.setdefault(name, []).append(weapon)
+    return idx
 
 
 def _norm(name: str) -> str:
@@ -136,40 +125,16 @@ def family_entry(family_root: str) -> dict:
     return (fams.get(real) or {}) if real else {}
 
 
-_FAM_TABLE: Optional[dict] = None
-
-
-def _family_table() -> dict:
-    global _FAM_TABLE
-    if _FAM_TABLE is None:
-        try:
-            _FAM_TABLE = json.loads(
-                paths.read_path("de/riven_families.json").read_text(encoding="utf-8")
-            )
-        except Exception:  # noqa: BLE001 - 表缺失退化为「单成员家族」
-            logger.warning("[sdjk] 紫卡家族表读取失败，词条池按单成员家族处理")
-            _FAM_TABLE = {}
-    return _FAM_TABLE
-
-
-def family_members(en: str) -> tuple[str, list[str]]:
-    """英文名 → ``(家族根, 家族成员英文名列表)``（一张紫卡全家族通用）。
-
-    ★ 单成员家族（Atomos / Ocucor / Phenmor 这类）**不在** `families` 成员表里 ——
-    该表只收多成员家族；它们的家族根就是自己在 `by_name` 里的取值。所以查不到
-    成员表时要按 `by_name` 反查同根的名字，否则整批单成员武器会退化成「无家族」
-    （证据与家族属性全丢）。
-    """
+def family_members(en: str, index=None) -> tuple[str, list[str]]:
+    """从本次查询的同一份官方谱系索引取得家族根与全部成员。"""
     from . import matching
 
-    root = matching.family_key(en)
+    if index is None:
+        index = matching.family_index_snapshot()
+    root = matching.family_key(en, index)
     if not root:
         return "", [en] if en else []
-    table = _family_table()
-    members = (table.get("families") or {}).get(root)
-    if members:
-        return root, list(members)
-    same = [n for n, r in (table.get("by_name") or {}).items() if r == root]
+    same = [name for name, family in index[0].items() if family == root]
     return root, (same or ([en] if en else []))
 
 

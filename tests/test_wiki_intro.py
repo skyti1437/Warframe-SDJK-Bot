@@ -1373,6 +1373,28 @@ with i18n.use_lang("zh"):
     _, _recipe_zh = WI.card_for("Wanz Stabilizer")
 check("中文配方仍显示原材料和数量", any("电路" in ln and "2500" in ln for ln in _recipe_zh))
 
+
+def _shared_official_names():
+    from core import api_client, matching, paths, search, wiki_intro
+
+    seed = search._official_zh_by_en()
+    with _tempfile.TemporaryDirectory() as tmp, _patch.object(paths, "_RUN", Path(tmp)):
+        path = paths.write_path("de/name_en_zh.json")
+        for word, zh in (("batchword", "词甲"), ("replacementword", "词乙")):
+            path.write_text(json.dumps({"names": {word: zh}}))
+            names = api_client._name_en_zh()
+            assert names is search._official_zh_by_en() is paths.load_json(path)["names"]
+            assert names == {word: zh} and wiki_intro._title_words() == {word}
+            assert matching._en_zh_extra() == {word: [(word.title(), zh)]}
+            assert api_client._zh_name_of_en(word) == zh
+        assert api_client._zh_name_of_en("batchword") == ""
+        path.write_text("not json")
+        assert api_client._name_en_zh() is seed
+    assert search._official_zh_by_en() is seed
+
+
+_shared_official_names()
+
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")
     sys.exit(1)

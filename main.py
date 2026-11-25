@@ -78,7 +78,7 @@ try:  # 允许脱离 AstrBot 直接跑单元测试
     from .core.commands import DunCommands
     from .core.commands.dun import _ev_name, _rule_en
     from .core.commands.base import Action, _num
-    from .core.messaging import MessagingBridge
+    from .core.messaging import MessagingBridge, literal_progress
     from .core.store import CommandStats, GroupStore, SubscriptionStore
     from .core.vision_prompts import VisionPromptStore
     from .core.local_ocr import LocalRivenOCR
@@ -137,7 +137,7 @@ except ImportError as _imp_err:  # pragma: no cover
     from core.commands import DunCommands
     from core.commands.dun import _ev_name, _rule_en
     from core.commands.base import Action, _num
-    from core.messaging import MessagingBridge
+    from core.messaging import MessagingBridge, literal_progress
     from core.store import CommandStats, GroupStore, SubscriptionStore
     from core.vision_prompts import VisionPromptStore
     from core.local_ocr import LocalRivenOCR
@@ -644,6 +644,9 @@ class WarframeSDJK(
     DunCommands,
     Star,
 ):
+    _render_waiters: dict[asyncio.Task, object] = {}
+    MAX_RENDER_WAITERS = 8
+
     def __init__(self, context: Context, config: AstrBotConfig | None = None):
         super().__init__(context)
         self.cfg: dict = dict(config) if config else {}
@@ -1351,23 +1354,20 @@ class WarframeSDJK(
 
     async def terminate(self):
         """合并卸载请求；隔离调用方取消，超时的资源释放在后台继续。"""
-        # 先封住新任务入口，再扫描/等待旧任务；兼容没有新生命周期方法的适配器。
-        scan_queue = getattr(self, "_scan_queue", None)
-        if scan_queue is not None:
-            scan_queue.close()
-        damage_service = getattr(self, "damage_engine", None)
-        simulations = getattr(damage_service, "simulations", None)
-        if simulations is not None:
-            simulations.close()
-        begin_close = getattr(self.client, "begin_close", None)
-        if callable(begin_close):
-            begin_close()
-        else:
-            self.client._closing = True
+
+        def close_gate(close, label):
+            try:
+                return close()
+            except (Exception, asyncio.CancelledError) as exc:
+                logger.warning("[sdjk] %s异常：%s", label, exc)
+                return None
 
         async def finish():
-            async def bounded(coro, label):
-                task = asyncio.create_task(coro)
+            async def bounded(close, label, **kwargs):
+                async def run():
+                    await close(**kwargs)
+
+                task = asyncio.create_task(run())
                 retained = getattr(self, "_terminate_pending", None)
                 if retained is None:
                     retained = self._terminate_pending = set()
@@ -1375,36 +1375,31 @@ class WarframeSDJK(
 
                 def consume(done):
                     retained.discard(done)
-                    if not done.cancelled():
-                        try:
-                            done.result()
-                        except Exception as exc:  # noqa: BLE001 - 超时后的异常也要消费
-                            logger.warning("[sdjk] %s收尾异常：%s", label, exc)
+                    try:
+                        done.result()
+                    except (Exception, asyncio.CancelledError) as exc:
+                        logger.warning("[sdjk] %s收尾异常：%s", label, exc)
 
                 task.add_done_callback(consume)
                 done, _ = await asyncio.wait({task}, timeout=5)
                 if not done:
                     logger.warning("[sdjk] %s超过 5 秒，后台继续收尾", label)
                     return False
-                await task
-                return True
+                return not task.cancelled() and task.exception() is None
 
             bridge = getattr(self, "_messaging", None)
             local_ocr = getattr(self, "local_ocr", None)
             if local_ocr is not None:
-                await bounded(local_ocr.close(), "本地紫卡 OCR 关闭")
+                await bounded(local_ocr.close, "本地紫卡 OCR 关闭")
             installer = getattr(self, "local_ocr_installer", None)
             if installer is not None:
-                await bounded(installer.close(), "本地 OCR 部署任务关闭")
+                await bounded(installer.close, "本地 OCR 部署任务关闭")
             if damage_service is not None:
-                await bounded(damage_service.close(), "独立伤害引擎关闭")
+                await bounded(damage_service.close, "独立伤害引擎关闭")
             if bridge is not None:
-                await bounded(bridge.close(), "按钮回调关闭")
+                await bounded(bridge.close, "按钮回调关闭")
             getattr(self, "_scan_records", {}).clear()
             getattr(self, "_last_scan", {}).clear()
-            # AstrBot 没有注销路由的 API ⇒ 停用后面板接口一律拒绝（见 core/webpanel.py）
-            panel = getattr(self, "_panel", None)
-            font_task = panel.close() if panel else None
             pending = []
             compare_task = getattr(panel, "_compare_task", None) if panel else None
             if compare_task is not None and not compare_task.done():
@@ -1437,18 +1432,12 @@ class WarframeSDJK(
                 _, unfinished = await asyncio.wait(pending, timeout=5)
                 if font_task is not None and not font_task.done():
                     logger.warning("[sdjk] 字体下载清理超过 5 秒，后台继续收尾")
-            try:
-                # ★ 2026-09-26：确认 await 生效并留痕（旧实现在这里静默 —— 一旦 stop 没生效，
-                #   旧推送守护会与新实例的并存 → 同一事件推两次，且日志里查不到线索）。
-                if await bounded(self.push.stop(), "推送守护停止"):
-                    logger.info("[sdjk] 推送守护已确认停止（注销登记后活跃数应为 0）")
-            except Exception as exc:  # noqa: BLE001 - 停止失败也要留痕，别静默
-                logger.warning("[sdjk] 推送守护停止异常：%s", exc)
-            finally:
-                stats = getattr(self, "command_stats", None)
-                if stats is not None:
-                    await bounded(stats.flush(force=True), "指令统计落盘")
-                await bounded(self.client.close(), "连接池关闭")
+            if await bounded(self.push.stop, "推送守护停止"):
+                logger.info("[sdjk] 推送守护已确认停止（注销登记后活跃数应为 0）")
+            stats = getattr(self, "command_stats", None)
+            if stats is not None:
+                await bounded(stats.flush, "指令统计落盘", force=True)
+            await bounded(self.client.close, "连接池关闭")
             if getattr(self, "_terminate_pending", None) or any(
                 not task.done() for task in unfinished
             ):
@@ -1458,6 +1447,27 @@ class WarframeSDJK(
 
         task = getattr(self, "_terminate_task", None)
         if task is None:
+            self._terminating = True
+            retire = getattr(self.push, "retire", None)
+            if retire is not None:
+                close_gate(retire, "关闭推送派发入口")
+            panel = getattr(self, "_panel", None)
+            font_task = close_gate(panel.close, "停用面板") if panel is not None else None
+            for waiter, owner in list(getattr(self, "_render_waiters", {}).items()):
+                if owner is self:
+                    waiter.cancel()
+            scan_queue = getattr(self, "_scan_queue", None)
+            if scan_queue is not None:
+                close_gate(scan_queue.close, "关闭识卡队列")
+            damage_service = getattr(self, "damage_engine", None)
+            simulations = getattr(damage_service, "simulations", None)
+            if simulations is not None:
+                close_gate(simulations.close, "关闭模拟队列")
+            begin_close = getattr(self.client, "begin_close", None)
+            if callable(begin_close):
+                close_gate(begin_close, "关闭连接池入口")
+            else:
+                self.client._closing = True
             task = self._terminate_task = asyncio.create_task(finish())
         cancelled = False
         while not task.done():
@@ -1481,6 +1491,8 @@ class WarframeSDJK(
     # ------------------------------------------------------------------
     @_on_message_filter()
     async def on_message(self, event: AstrMessageEvent):
+        if getattr(self, "_terminating", False):
+            return
         text = (getattr(event, "message_str", "") or "").strip()
         if not text or text.startswith("/"):
             return
@@ -2059,13 +2071,27 @@ class WarframeSDJK(
         yield event.plain_result(card + tail_txt)
 
     async def _render_card(self, title: str, lines: list[str], footer: str) -> Optional[str]:
-        """调用方取消不停止渲染线程：持锁直到线程结束，并清理未发送的图片。"""
+        """排队时可取消；线程启动后持锁到结束，并清理取消回复的临时图。"""
+        if getattr(self, "_terminating", False):
+            return None
         if WarframeSDJK._render_lock is None:
             WarframeSDJK._render_lock = asyncio.Lock()
+        lock = WarframeSDJK._render_lock
+        waiters = WarframeSDJK._render_waiters
+        if len(waiters) >= self.MAX_RENDER_WAITERS:
+            return None
+        caller = asyncio.current_task()
+        waiters[caller] = self
+        try:
+            await lock.acquire()
+        finally:
+            waiters.pop(caller, None)
 
         async def run():
-            async with WarframeSDJK._render_lock:
+            try:
                 return await asyncio.to_thread(self.renderer.render, title, lines, footer)
+            finally:
+                lock.release()
 
         tasks = getattr(self, "_card_render_tasks", None)
         if tasks is None:
@@ -2852,6 +2878,9 @@ class WarframeSDJK(
             markdown(qq_mentions)
         if await self.context.send_message(umo, chain) is False:
             raise RuntimeError("推送未发送：目标平台实例不可用")
+        progress = literal_progress.get()
+        if progress is not None:
+            await progress.confirm_message(text)
 
     def _platform_name_of(self, umo: str) -> str:
         """umo 首段 = 平台实例 id（如「客服小祥」）⇒ 经 Context 解析适配器

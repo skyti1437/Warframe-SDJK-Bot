@@ -5,8 +5,8 @@ import hashlib
 import json
 import math
 import re
+from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
-from itertools import permutations
 from pathlib import Path
 from threading import Lock
 
@@ -84,6 +84,9 @@ HEADSHOT_REQUIRED_WEAPONS = frozenset(
     }
 )
 RESULT_TTL_S = 600
+_LIVE_CACHE_FORMAT = 3
+_ENGINE_IDENTITY = {"engineFingerprint": FINGERPRINT, "buildLabel": damage_engine.PORTABLE_DATA}
+_SLOT_WORKER = ThreadPoolExecutor(max_workers=1, thread_name_prefix="sdjk-slots")
 LIVE_CACHE_ENTRY_BYTES = 512 * 1024
 SOLVE_TIMEOUT_S = 600
 SOLVE_QUEUE_TIMEOUT_S = 180
@@ -982,11 +985,57 @@ async def bundled_traits(target=None, options=None):
     return await asyncio.to_thread(_load_bundled, name)
 
 
+def _reported_identity(reply, *, empty_is_missing=False):
+    fields = {key: reply[key] for key in _ENGINE_IDENTITY if key in reply}
+    if empty_is_missing:
+        fields = {key: value for key, value in fields.items() if value not in (None, "")}
+    if any(value != _ENGINE_IDENTITY[key] for key, value in fields.items()):
+        raise damage_engine.EngineVersionMismatch(
+            L("独立引擎回执的版本不符", "The standalone engine reported a different version")
+        )
+    return fields
+
+
+def _has_live_identity(result):
+    return all(result.get(key) == value for key, value in _ENGINE_IDENTITY.items())
+
+
+class _LiveEngineIdentity:
+    """同一批求解只向实际端口补查一次健康回执，每条计算回执仍须分别核验。"""
+
+    def __init__(self, service, port):
+        self.service = service
+        self.port = port
+        self.health = None
+        self.confirmed = True
+
+    async def verify(self, reply, *, empty_is_missing=False):
+        fields = _reported_identity(reply, empty_is_missing=empty_is_missing)
+        if fields == _ENGINE_IDENTITY:
+            return reply
+        if self.health is None:
+            try:
+                health = await self.service._portable_health(self.port, require_fingerprint=False)
+            except damage_engine.EngineVersionMismatch:
+                raise
+            except damage_engine.EngineError:
+                health = {}
+            self.health = _reported_identity(health, empty_is_missing=True)
+        fields = {**self.health, **fields}
+        if fields != _ENGINE_IDENTITY:
+            self.confirmed = False
+        return {**reply, **fields}
+
+
 def _read_live_result(path):
     try:
         if path.stat().st_size <= LIVE_CACHE_ENTRY_BYTES:
             result = json.loads(path.read_bytes())
-            if isinstance(result, dict) and result.get("engineFingerprint") == FINGERPRINT:
+            if (
+                isinstance(result, dict)
+                and result.pop("cacheFormat", None) == _LIVE_CACHE_FORMAT
+                and _has_live_identity(result)
+            ):
                 return result
     except (OSError, ValueError):
         pass
@@ -1007,8 +1056,15 @@ def _check_reference_result(result, request):
 
 
 def _write_live_result(path, result):
+    if not _has_live_identity(result):
+        return
     try:
-        payload = json.dumps(result, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
+        payload = json.dumps(
+            {**result, "cacheFormat": _LIVE_CACHE_FORMAT},
+            ensure_ascii=False,
+            separators=(",", ":"),
+            allow_nan=False,
+        )
         if len(payload.encode()) > LIVE_CACHE_ENTRY_BYTES:
             return
         with _LIVE_CACHE_WRITE_LOCK:
@@ -1088,6 +1144,7 @@ async def _trait_matrix_request(port, request):
 
 
 def _check_trait_matrix(result, request):
+    _reported_identity(result, empty_is_missing=True)
     expected = request["benchmarkTarget"]
     target = result["evaluationTarget"]
     build = result["build"]
@@ -1197,15 +1254,17 @@ async def _reference_traits(host, event, port, mode, catalog_weapon, options, ro
                 _check_reference_result(result, legacy)
             else:
                 _check_trait_matrix(result, request)
+                result = await _LiveEngineIdentity(service, port).verify(
+                    result, empty_is_missing=True
+                )
                 target = result["evaluationTarget"]
                 result = {
                     **result,
-                    "engineFingerprint": FINGERPRINT,
                     "evaluationTarget": {**target, "enemyName": target["nameEn"]},
                 }
         result = {**result, "confirmedAnalysisOptions": options}
         # 旧版摘要由短期缓存复用，运行时更新后还能重新探测完整矩阵。
-        if "matrix" in result:
+        if "matrix" in result and _has_live_identity(result):
             await asyncio.to_thread(_write_live_result, path, result)
         return result
 
@@ -1277,8 +1336,11 @@ async def _reference_build(host, event, port, mode, catalog_weapon, options, *, 
             reply = await damage_engine._finish_compute(
                 damage_engine.portable_request(port, "/api/build", request, timeout=SOLVE_TIMEOUT_S)
             )
+            engine = _LiveEngineIdentity(service, port)
+            reply = await engine.verify(reply)
         result = _reference_build_result(reply, request, options)
-        await asyncio.to_thread(_write_live_result, path, result)
+        if engine.confirmed:
+            await asyncio.to_thread(_write_live_result, path, result)
         return result
 
     return await service.riven_build_cache.get_or_fetch(
@@ -1292,9 +1354,7 @@ def _reference_build_result(reply, request, options, *, with_riven=False):
     scenario = reply["evaluationScenario"]
     enhancements = context["enemy_enhancements"]
     if (
-        reply["buildLabel"] != damage_engine.PORTABLE_DATA
-        or reply.get("engineFingerprint", FINGERPRINT) != FINGERPRINT
-        or reply["weapon"]["path"] != request["weapon"]
+        reply["weapon"]["path"] != request["weapon"]
         or reply["fireMode"] != request["fireMode"]
         or reply["scoreMetric"] != "killsPerMinute"
         or target["path"] != request["enemy"]
@@ -1335,7 +1395,7 @@ def _reference_build_result(reply, request, options, *, with_riven=False):
             }
         )
     return {
-        "engineFingerprint": FINGERPRINT,
+        **_reported_identity(reply),
         "weapon": reply["weapon"],
         "fireMode": reply["fireMode"],
         "stance": reply.get("stance"),
@@ -1734,6 +1794,8 @@ async def build_riven(
             reply = await damage_engine._finish_compute(
                 damage_engine.portable_request(port, "/api/build", request, timeout=SOLVE_TIMEOUT_S)
             )
+            engine = _LiveEngineIdentity(service, port)
+            reply = await engine.verify(reply)
         result = _reference_build_result(reply, request, options, with_riven=True)
         actual = result["actual"]
         returned = actual["riven"]
@@ -1768,7 +1830,7 @@ async def build_riven(
         if polarity is None:
             result["unspecifiedRivenPolarity"] = True
         async with service.replays.slot():
-            actual["forma"] = await _riven_slot_plan(port, result, catalog)
+            actual["forma"] = await _riven_slot_plan(port, result, catalog, engine=engine)
         _placement(actual, stance=result.get("stance"))
         return {
             **result,
@@ -2095,12 +2157,16 @@ async def _mod_gains(
         capacity_saved = 0
         comparison_complete = True
         baseline = None
+        engine = _LiveEngineIdentity(service, port)
 
         async def replay(body):
             response = await damage_engine._finish_compute(
                 damage_engine.portable_request(port, "/api/simulate", body, timeout=5)
             )
-            window, validation = damage_engine.validate_fixed_replay(response, body)
+            response = await engine.verify(response)
+            window, validation = damage_engine.validate_fixed_replay(
+                response, body, require_build_label=False
+            )
             if (response.get("incarnonChoices") or {}) != body["incarnonChoices"]:
                 raise damage_engine.EngineError("固定回放的灵化路线不符")
             return window["windowDps"], validation, response
@@ -2122,6 +2188,8 @@ async def _mod_gains(
             if baseline_request is not None:
                 try:
                     _, (baseline, _, _) = await fitted(baseline_request)
+                except damage_engine.EngineVersionMismatch:
+                    raise
                 except damage_engine.EngineError:
                     comparison_complete = False
             if (alternative := _serration_alternative(body)) is not None:
@@ -2132,6 +2200,8 @@ async def _mod_gains(
                     )
                     saving = validation["capacity"] - alternate_loadout["capacity"]
                     valid = alternate_loadout["valid"]
+                except damage_engine.EngineVersionMismatch:
+                    raise
                 except (KeyError, TypeError, ValueError):
                     comparison_complete = False
                 else:
@@ -2154,6 +2224,8 @@ async def _mod_gains(
                 try:
                     _, _, initial = await replay({**body, "arcanes": neutral})
                     zero_stack_panel = initial.get("moddedStats")
+                except damage_engine.EngineVersionMismatch:
+                    raise
                 except damage_engine.EngineError:
                     comparison_complete = False
             unsupported = set(response.get("unsupported") or ())
@@ -2172,6 +2244,8 @@ async def _mod_gains(
                         without[slot] = dps
                 except damage_engine.EngineBuildError:
                     continue
+                except damage_engine.EngineVersionMismatch:
+                    raise
                 except damage_engine.EngineError:
                     break
         shown = zero_stack_panel or stats
@@ -2202,10 +2276,10 @@ async def _mod_gains(
             "capacity_saved": capacity_saved,
             "complete": comparison_complete and len(without) == len(variants),
         }
-        if persistent and result["complete"]:
-            await asyncio.to_thread(
-                _write_live_result, path, {**result, "engineFingerprint": FINGERPRINT}
-            )
+        if engine.confirmed:
+            result.update(_reported_identity(response))
+            if persistent and result["complete"]:
+                await asyncio.to_thread(_write_live_result, path, result)
         return result
 
     return await service.portable_gains.get_or_fetch(
@@ -2256,6 +2330,12 @@ def build_replay_request(
     return damage_engine.with_gauge_charging_headshots(request)
 
 
+def _selected_arcanes(result):
+    if "arcanes" in result:
+        return result["arcanes"] or []
+    return [arc for arc in result.get("arcaneStates", ()) if arc.get("applied") is True]
+
+
 def _build_replay_options(result, build, confirmed=None):
     confirmed = {**(result.get("confirmedAnalysisOptions") or {}), **(confirmed or {})}
     options = {
@@ -2267,12 +2347,9 @@ def _build_replay_options(result, build, confirmed=None):
         options.setdefault("innateElement", innate["damageType"])
         options.setdefault("innateElementValue", innate["value"])
     if "arcanes" not in options:
-        selected_arcanes = result.get("arcanes")
-        arcanes = selected_arcanes or [
-            arc for arc in result.get("arcaneStates", ()) if arc.get("applied")
-        ]
-        if arcanes:
-            keys = ("path", "rank", "stacks", "uptime") if selected_arcanes else ("path", "rank")
+        arcanes = _selected_arcanes(result)
+        if "arcanes" in result or arcanes:
+            keys = ("path", "rank", "stacks", "uptime") if "arcanes" in result else ("path", "rank")
             options["arcanes"] = [
                 {key: arc[key] for key in keys if arc.get(key) is not None} for arc in arcanes
             ]
@@ -2315,7 +2392,98 @@ def _request_for_build(result, weapon, *, with_riven=False, confirmed=None):
     return request, original
 
 
-async def _riven_slot_plan(port, result, weapon):
+# 高位对应靠前的槽位。先最少极化，再尽量保留靠前槽位的原生极性。
+_POLARITY_MASKS = tuple(sorted(range(256), key=lambda mask: (mask.bit_count(), mask)))
+
+
+def _fit_riven_slots(
+    original_order, polarities, costs, riven_slot, elemental_order, exilus_drain, limit, unspecified
+):
+    # 每个格子的两个容量分别对应保持原极性和极化。无效选项不能参与解。
+    def slot_cost(origin, polarity):
+        if origin is None:
+            return 0, math.inf
+        raw, mod = costs[origin]
+        half = (raw + 1) // 2
+        if unspecified and origin == riven_slot and polarity != "AP_ANY":
+            return math.inf, half
+        native = raw
+        if mod not in _NO_POLARITY and polarity not in _NO_POLARITY:
+            native = half if mod == polarity or "AP_ANY" in (mod, polarity) else (5 * raw + 3) // 4
+        return native, half if mod not in _NO_POLARITY and half < native else math.inf
+
+    drains = [[slot_cost(origin, p) for origin in original_order] for p in polarities]
+    predecessors = {}
+    earlier = 0
+    for origin in elemental_order:
+        predecessors[origin] = earlier
+        earlier |= 1 << original_order.index(origin)
+
+    @lru_cache(maxsize=None)
+    def choices(remaining):
+        # 与原排列顺序一致，同层的多个空位只尝试第一个。
+        result = []
+        seen_empty = False
+        for index, origin in enumerate(original_order):
+            bit = 1 << index
+            if not remaining & bit or predecessors.get(origin, 0) & remaining:
+                continue
+            if origin is None:
+                if seen_empty:
+                    continue
+                seen_empty = True
+            result.append((index, remaining ^ bit))
+        return result
+
+    @lru_cache(maxsize=None)
+    def minimum(remaining, mask, moves):
+        """给定剩余卡、槽位极化和允许移槽数，求后缀最低容量。"""
+        if not remaining:
+            return 0
+        slot = 8 - remaining.bit_count()
+        bit = 1 << (7 - slot)
+        changed = bool(mask & bit)
+        suffix = mask & (bit - 1)
+        best = math.inf
+        for index, rest in choices(remaining):
+            budget = moves - (original_order[index] != original_order[slot])
+            used = drains[slot][index][changed]
+            if budget >= 0 and used < best:
+                total = used + minimum(rest, suffix, min(budget, 7 - slot))
+                best = min(best, total)
+        return best
+
+    capacity = limit - exilus_drain
+    # 按掩码一次判定全部保序排列的可行性。首个可装掩码同时给出全局最优
+    # 极化数和槽序；其后所有掩码均无需再评估。
+    mask = next((m for m in _POLARITY_MASKS if minimum(255, m, 8) <= capacity), None)
+    if mask is None:
+        raise ValueError("原生辅助槽下配装容量不足")
+    moves = next(n for n in range(9) if minimum(255, mask, n) <= capacity)
+    order, placement, changes = [], [], {}
+    remaining = 255
+    for slot, polarity in enumerate(polarities):
+        bit = 1 << (7 - slot)
+        changed = bool(mask & bit)
+        mask &= bit - 1
+        for index, rest in choices(remaining):
+            origin = original_order[index]
+            budget = moves - (origin != original_order[slot])
+            used = drains[slot][index][changed]
+            if budget < 0 or used + minimum(rest, mask, min(budget, 7 - slot)) > capacity:
+                continue
+            if changed:
+                polarity = changes[str(slot)] = costs[origin][1]
+            order.append(origin)
+            placement.append(
+                None if origin is None else {"origin": origin, "drain": used, "polarity": polarity}
+            )
+            remaining, moves, capacity = rest, budget, capacity - used
+            break
+    return tuple(order), changes, placement, limit - capacity
+
+
+async def _riven_slot_plan(port, result, weapon, *, engine=None):
     # /api/build 给出求解顺序和极化摘要，摘要里的槽位对应移槽后的顺序。
     # 先在原顺序回放以取得每张卡的原始容量，再求保留元素顺序的可装布局。
     actual = result["actual"]
@@ -2344,7 +2512,13 @@ async def _riven_slot_plan(port, result, weapon):
         reply = await damage_engine._finish_compute(
             damage_engine.portable_request(port, "/api/simulate", request, timeout=5)
         )
-        window, validation = damage_engine.validate_fixed_replay(reply, request)
+        if engine is not None:
+            reply = await engine.verify(reply)
+        else:
+            _reported_identity(reply)
+        window, validation = damage_engine.validate_fixed_replay(
+            reply, request, require_build_label=engine is None
+        )
         return window["windowDps"], validation, reply.get("exilus")
 
     original_order = [index if index in cards else None for index in range(8)]
@@ -2368,57 +2542,18 @@ async def _riven_slot_plan(port, result, weapon):
     elemental_order = sorted(elemental)
     exilus_drain = (exilus or {}).get("drain", 0)
     limit = validation["capacityLimit"]
-    best = None
-    for order in permutations(original_order):
-        if [origin for origin in order if origin in elemental] != elemental_order:
-            continue
-        drain = exilus_drain
-        placement = [None] * 8
-        savings = []
-        changes = {}
-        for slot, origin in enumerate(order):
-            if origin is None:
-                continue
-            raw, mod_polarity = costs[origin]
-            polarity = polarities[slot]
-            half = (raw + 1) // 2
-            used = raw
-            if (
-                result.get("unspecifiedRivenPolarity")
-                and origin == riven_slot
-                and polarity != "AP_ANY"
-            ):
-                used, polarity = half, mod_polarity
-                changes[str(slot)] = polarity
-            elif mod_polarity not in _NO_POLARITY and polarity not in _NO_POLARITY:
-                used = (
-                    half
-                    if "AP_ANY" in (mod_polarity, polarity) or mod_polarity == polarity
-                    else (5 * raw + 3) // 4
-                )
-            drain += used
-            placement[slot] = {"origin": origin, "drain": used, "polarity": polarity}
-            if used > half and mod_polarity not in _NO_POLARITY:
-                savings.append((used - half, slot, mod_polarity, half))
-        for saving, slot, polarity, half in sorted(savings, reverse=True):
-            if drain <= limit:
-                break
-            changes[str(slot)] = polarity
-            placement[slot].update(drain=half, polarity=polarity)
-            drain -= saving
-        if drain > limit:
-            continue
-        # 极化次数相同时优先保留靠前槽位的原生极性，再尽量少移动卡片。
-        key = (
-            len(changes),
-            sum(1 << (7 - int(slot)) for slot in changes),
-            sum(before != after for before, after in zip(original_order, order)),
-        )
-        if best is None or key < best[0]:
-            best = (key, order, changes, placement, drain)
-    if best is None:
-        raise ValueError("原生辅助槽下配装容量不足")
-    _, order, changes, placement, drain = best
+    order, changes, placement, drain = await asyncio.get_running_loop().run_in_executor(
+        _SLOT_WORKER,
+        _fit_riven_slots,
+        original_order,
+        polarities,
+        costs,
+        riven_slot,
+        elemental_order,
+        exilus_drain,
+        limit,
+        result.get("unspecifiedRivenPolarity"),
+    )
     fitted = [changes.get(str(slot), value) for slot, value in enumerate(polarities)]
     fitted_dps, checked, _ = await replay(order, fitted)
     if (
@@ -2450,6 +2585,7 @@ async def build_view(host, port, result, *, with_riven=False, options=None):
         options
         or result.get("confirmedAnalysisOptions")
         or result.get("exilus")
+        or "arcanes" in result
         or result.get("arcaneStates")
         or result.get("referenceDps")
     )
@@ -2526,10 +2662,12 @@ async def build_view(host, port, result, *, with_riven=False, options=None):
     ]
     analysis_equipment = None
     if not replay:
+        arcane_details = {row["path"]: row for row in _selected_arcanes(result)}
         analysis_equipment = {
             "exilus": build.get("exilus") or result.get("exilus"),
-            "arcanes": result.get("arcanes")
-            or [row for row in result.get("arcaneStates", ()) if row.get("applied")],
+            "arcanes": [
+                {**arcane_details.get(row["path"], {}), **row} for row in context.get("arcanes", ())
+            ],
             "stance": result.get("stance") or build.get("stance"),
         }
     lines.extend(
@@ -2585,7 +2723,10 @@ def _fixed_build_lines(
         or [L("◆ 武器面板", "◆ Weapon stats"), L("· 暂缺面板数据", "· Panel unavailable")]
     )
     if replay.get("panel_includes_stacks"):
-        lines[1] += L(" · 含预设赋能层数", " · Includes assumed Arcane stacks")
+        lines[1] += L(
+            " · 含预设赋能层数，零层面板未确认",
+            " · Includes assumed Arcane stacks, zero-stack panel unconfirmed",
+        )
     validation = replay.get("capacity", {})
     if with_riven:
         changes = plan["slots"]
@@ -2718,7 +2859,8 @@ def _equipment_lines(equipment, *, verified):
             utility += f" · {polarity}"
     arcs = []
     for arc in equipment.get("arcanes") or ():
-        name = L(arc.get("nameZh") or arc["nameEn"], arc["nameEn"])
+        name_en = arc.get("nameEn") or arc["path"].rsplit("/", 1)[-1]
+        name = L(arc.get("nameZh") or name_en, name_en)
         arcs.append(L(f"{name}（{arc['rank']}级）", f"{name} (rank {arc['rank']})"))
     lines = [
         L("◆ 辅助装备", "◆ Additional equipment"),

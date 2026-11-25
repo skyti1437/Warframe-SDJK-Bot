@@ -1279,23 +1279,23 @@ _s_ab = dc.parse_args(["绝路", "加速冲击"])[0]
 check("加速冲击：puncture 不进元素通道（无双写）", "puncture" not in _s_ab["singles"])
 
 # 9b) 派系卡（faction_of）按派系分桶：打别的派系不生效，混用手输对G照旧
-_s_f = dc.parse_args(["雷克斯", "灭亡 Corpus", "对G10"])[0]
+_s_f = dc.parse_args(["雷克斯", "驱逐 Corpus", "对G10"])[0]
 check(
-    "灭亡 Corpus：进分桶、通用桶只留手输对G",
+    "驱逐 Corpus：进分桶、通用桶只留手输对G",
     close(_s_f["faction_dmg"], 10.0)
     and len(_s_f["faction_dmg_of"]) == 1
     and _s_f["faction_dmg_of"][0][0] == "Corpus",
 )
 _sA = dc.parse_args(["雷克斯", "C系", "100级", "普通", "开火12秒", "对G10"])[0]
-_sB = dc.parse_args(["雷克斯", "C系", "100级", "普通", "开火12秒", "灭亡 Corpus", "对G10"])[0]
+_sB = dc.parse_args(["雷克斯", "C系", "100级", "普通", "开火12秒", "驱逐 Corpus", "对G10"])[0]
 check(
-    "打 Corpus：灭亡生效（fac_mod 1.4 vs 1.1）",
+    "打 Corpus：驱逐生效（fac_mod 1.4 vs 1.1）",
     close(dc.calculate(_sB, _w_lex)["dps"] / dc.calculate(_sA, _w_lex)["dps"], 1.4 / 1.1),
 )
-_sC = dc.parse_args(["雷克斯", "G系", "100级", "普通", "开火12秒", "灭亡 Corpus", "对G10"])[0]
+_sC = dc.parse_args(["雷克斯", "G系", "100级", "普通", "开火12秒", "驱逐 Corpus", "对G10"])[0]
 _sA2 = dc.parse_args(["雷克斯", "G系", "100级", "普通", "开火12秒", "对G10"])[0]
 check(
-    "打 Grineer：灭亡 Corpus 不生效（比值=1）",
+    "打 Grineer：驱逐 Corpus 不生效（比值=1）",
     close(dc.calculate(_sC, _w_lex)["dps"] / dc.calculate(_sA2, _w_lex)["dps"], 1.0),
 )
 
@@ -1303,6 +1303,11 @@ check(
 #     点射（Burst）不算半自动 —— wiki Cannonade 表逐武器核对（Burston 不吃）。
 _s_sc = dc.parse_args(["绝路", "半自动步枪炮轰"])[0]  # Rubico Prime: Semi
 check("绝路(Semi)：半自动炮轰折算 +240% 基伤", close(_s_sc["base_dmg"], 240.0))
+_s_v = dc.parse_args(["Vinquibus", "Semi-Rifle Cannonade"])[0]
+check(
+    "Vinquibus(Semi-Auto)：半自动步枪炮轰计入基伤和穿透",
+    close(_s_v["base_dmg"], 240.0) and close(_s_v["punch_through"], 1.5),
+)
 _s_bc = dc.parse_args(["野猪", "半自动霰弹枪炮轰"])[0]  # Boar Prime: Auto
 check("野猪(Auto)：半自动炮轰不折算", close(_s_bc["base_dmg"], 0.0))
 check("野猪(Auto)：卡面注明拒绝原因", any("仅兼容半自动" in n for n in _s_bc["notes"]))
@@ -1401,7 +1406,7 @@ _m3 = {"name": "Alpha_One", "zh": "重复名"}
 _e1 = {"name": "Decoy", "aliases": ["Real Enemy", "Shared Alias"]}
 _e2 = {"name": "Real Enemy", "aliases": ["Shared Alias", "Only Alias"]}
 _fixture = {"mods": {"a": _m1, "b": _m2, "c": _m3}, "enemies": {"a": _e1, "b": _e2}}
-with patch.object(dc, "_cache", _fixture):
+with patch.object(dc, "_load", return_value=_fixture):
     check("索引：归一撞名仍取首记录", dc.find_mod_exact("ALPHA ONE") is _m1)
     check("索引：不同记录的子串仍不唯一", dc.find_mod_sub_unique("Alpha") is None)
     check("索引：一条记录双语命中只算一次", dc.find_mod_sub_unique("Two") is _m2)
@@ -1436,7 +1441,7 @@ with patch.object(dc, "_cache", _fixture):
         dc.find_mod_exact("Alpha Two") is None and dc.find_mod_exact("替换") is _replacement,
     )
     check("索引：清缓存后不沿用旧敌人", dc.find_enemy_exact("Only Alias") is None)
-with patch.object(dc, "_cache", {"mods": {"new": _m2}, "enemies": {"new": _e2}}):
+with patch.object(dc, "_load", return_value={"mods": {"new": _m2}, "enemies": {"new": _e2}}):
     check(
         "索引：替换整个缓存后重新建表",
         dc.find_mod_exact("Alpha Two") is _m2 and dc.find_enemy_exact("Decoy") is None,
@@ -1970,6 +1975,201 @@ for _lang, _command, _heading, _examples in (
             _other,
         )
     check(f"伤害帮助 {_lang} 保留示例按钮", len(_help.actions) == 1)
+
+
+def _cold_load_checks():
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+
+    reading, release, lookup_started = threading.Event(), threading.Event(), threading.Event()
+    read = Path.read_text
+    loads = []
+
+    def slow_read(path, *args, **kwargs):
+        if path.name == "damage_faction.json":
+            loads.append(path.name)
+            reading.set()
+            assert release.wait(3)
+        return read(path, *args, **kwargs)
+
+    def lookup_mods():
+        lookup_started.set()
+        return dc._load()["mods"]
+
+    with (
+        patch.object(dc, "_cache", {}),
+        patch.object(Path, "read_text", slow_read),
+        ThreadPoolExecutor(max_workers=2) as pool,
+    ):
+        first = pool.submit(dc._load)
+        try:
+            assert reading.wait(2)
+            second = pool.submit(lookup_mods)
+            assert lookup_started.wait(1)
+            check("两线程首次读取期间全局缓存保持空", dc._cache == {})
+        finally:
+            release.set()
+        check(
+            "交错预热只加载一次且两线程拿到同一完整 MOD 表",
+            second.result(2) is first.result(2)["mods"]
+            and bool(dc._cache["mods"])
+            and len(loads) == 1,
+        )
+
+    def failed_read(path, *args, **kwargs):
+        if path.name == "damage_faction.json":
+            raise OSError("派系表暂时不可读")
+        return read(path, *args, **kwargs)
+
+    with patch.object(dc, "_cache", {}):
+        with patch.object(Path, "read_text", failed_read):
+            try:
+                dc._load()
+            except OSError:
+                check("必需表失败后未发布半成品", dc._cache == {})
+            else:
+                check("必需表读取失败应传给调用方", False)
+        tables = dc._load()
+        check(
+            "下一次重读恢复全部表",
+            all(tables[k] for k in ("weapons", "fac_table", "mods", "enemies", "mods_extra")),
+        )
+
+
+_cold_load_checks()
+
+
+def _shared_damage_tables():
+    from tempfile import TemporaryDirectory
+    from core import api_client, loadout_ocr, paths, riven_pools
+
+    weapon = dc.find_weapon_exact("Braton")
+    seed = paths.load_table("weapons_stats.json")
+    assert dc._load()["weapons"] is seed
+    assert weapon is seed[weapon["uniqueName"].lower()] is riven_pools._load_weapons()["braton"][0]
+    raw = paths.load_table("mods_stats.json")
+    assert loadout_ocr.mods_payload()["mods"] is raw["mods"]
+    assert dc.find_mod_exact("膛线")["levels"] is loadout_ocr.match_mod("膛线")[0]["levels"]
+    assert (
+        "numeric" not in raw["mods"]["serration"] and "calculable" not in raw["mods"]["serration"]
+    )
+    with TemporaryDirectory() as tmp:
+        for revision in ("first", "second"):
+            with patch.object(paths, "_RUN", Path(tmp) / revision):
+                path = paths.write_path("weapons_stats.json")
+                old = None
+                for name in (revision, revision + " replaced"):
+                    paths.atomic_write_text(
+                        path, json.dumps({"asset": {"name": name, "zh": "测试枪"}})
+                    )
+                    row = dc.find_weapon_exact(name)
+                    assert (
+                        row
+                        is dc._load()["weapons"]["asset"]
+                        is riven_pools._family_weapons([name])[0]
+                    )
+                    assert api_client._en_name_of_zh("测试枪") == name
+                    if old:
+                        assert dc.find_weapon_exact(old) is None
+                    old = name
+                mod_path = paths.write_path("mods_stats.json")
+                mod_path.write_text(
+                    json.dumps({"mods": {"fixture": {"name": name, "effects": {"reload_pct": 5}}}})
+                )
+                effect = dc.find_mod_exact(name)["effects"]
+                assert effect is loadout_ocr.match_mod(name)[0]["effects"]
+                assert effect == {"reload_pct": 5}
+                mod_path.write_text("{")
+                assert dc.find_mod_exact(name) is None
+                assert loadout_ocr.mods_payload()["mods"] is raw["mods"]
+                path.unlink()
+                assert dc.find_weapon_exact("Braton") is weapon
+
+
+def _card_readonly_results():
+    weapon = dc.find_weapon_exact("Braton")
+    spec, _ = dc.parse_args(["Braton", "膛线", "灵化"])
+    saved = copy.deepcopy(spec)
+    result = dc.calculate_for_card(spec, weapon)
+    assert result["mods"][0] is spec["mods"][0]
+    assert result == dc.calculate(spec, weapon) == dc.calculate_for_card(spec, weapon)
+    assert (
+        result["form_kind"] != dc.calculate_for_card({**spec, "form": "base"}, weapon)["form_kind"]
+    )
+    assert spec == saved
+    public = dc.calculate(spec, weapon)
+    public["mods"][0]["levels"].clear()
+    public["mods"][0]["effects"].clear()
+    public["weapon_eff"]["attacks"].clear()
+    public["notes"].append("调用方注释")
+    assert spec == saved and dc.calculate_for_card(spec, weapon) == result
+    assert dc.find_mod_exact("膛线")["levels"] and dc.find_weapon_exact("Braton")["attacks"]
+    assert "调用方注释" not in result["notes"]
+    # 全部随包 MOD 元数据逐张对拍公开和内部结果，包括只能识名的卡。
+    for mod in dc._load()["mods"].values():
+        trial, _ = dc.parse_args([mod["name"]])
+        assert trial["mods"][0] is mod
+        assert dc.calculate_for_card(trial, weapon) == dc.calculate(trial, weapon), mod["name"]
+
+
+def _named_mod_validation():
+    from core.commands.wiki_misc import WikiMiscCommands
+    from core.parser import parse
+
+    owner = WikiMiscCommands()
+    for cards, note, bonus in (
+        (["压迫点"], "不适用", 0),
+        (["膛线", "Serration"], "重复", 165),
+        (["膛线", "并合 膛线"], "互斥", 165),
+        (["Metamorphic Magazine"], "不适用", 0),
+    ):
+        spec, _ = dc.parse_args(["布莱顿", *cards, "基伤25"])
+        assert spec["base_dmg"] == 25 + bonus
+        assert any(note in line for line in spec["notes"])
+        reply = owner._damage_reply(parse("伤害 布莱顿 " + " ".join(cards)))
+        assert note in "\n".join(reply.lines)
+    for name, mod in (
+        ("MK1-Braton", "膛线"),
+        ("Kohm", "抵近射击"),
+        ("Kohmak", "Hornet Strike"),
+        ("Fang Prime", "Amar's Contempt"),
+        ("Karyst Prime", "Covert Lethality"),
+        ("Prisma Gorgon", "Metamorphic Magazine"),
+        ("Paris Prime", "Bhisaj-bal"),
+    ):
+        spec, _ = dc.parse_args([name, mod])
+        assert [m["name"] for m in spec["mods"]] == [dc.resolve_mod(mod)["name"]], (name, mod)
+    spec, _ = dc.parse_args(["Paris", "Bhisaj-bal"])
+    assert not spec["mods"]
+    spec, _ = dc.parse_args(["Skana", "Covert Lethality"])
+    assert not spec["mods"]
+    spec, _ = dc.parse_args(["Lenz", "Split Flights", "Split Chamber", "满镀层"])
+    assert spec["multishot"] == 90 and not spec["galv_applied"]
+
+
+def _named_cycle_mods():
+    weapon = dc.find_weapon_exact("Braton")
+    for cards, mag, reload, elements in (
+        (["爆发装填", "弹匣增幅"], 59, 2 / 1.30, {}),
+        (["腐败弹匣"], 75, 2 / 0.67, {}),
+        (["野火", "辐能装填"], 54, 2 / 1.40, {"heat": 60, "radiation": 60}),
+        (["爆发装填", "弹匣增幅", "赋能", "主要·无情"], 59, 2 / 1.60, {}),
+    ):
+        spec, _ = dc.parse_args(["布莱顿", *cards])
+        result = dc.calculate(spec, weapon)
+        assert result["pools"] == elements
+        assert result["magazine"] == mag and close(result["reload"], reload)
+        firing = mag / result["fire_rate_eff"]
+        assert close(result["dps_sustained"], result["dps"] * firing / (firing + reload))
+        lines = "\n".join(dc.card_lines(weapon, spec, result))
+        assert "弹匣容量" in lines and "装填速度" in lines
+        assert "爆发装填（未计入）" not in lines and "弹匣增幅（未计入）" not in lines
+
+
+_shared_damage_tables()
+_card_readonly_results()
+_named_mod_validation()
+_named_cycle_mods()
 
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")

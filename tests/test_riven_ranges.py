@@ -20,11 +20,13 @@ import json
 import sys
 import tempfile
 from pathlib import Path
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from core import matching  # noqa: E402
 from core import formatters as F  # noqa: E402
 from core import parser as P  # noqa: E402
 from core import riven_analysis as RA  # noqa: E402
@@ -619,6 +621,44 @@ _rep = asyncio.run(
         RC.RivenCommands.__new__(RC.RivenCommands), _FakeParsed(), None, None
     )
 )
+
+with tempfile.TemporaryDirectory() as _family_tmp:
+    _run = Path(_family_tmp)
+    _table = _run / "de/riven_families.json"
+    _table.parent.mkdir()
+    _host = RC.RivenCommands()
+    _host.client = SimpleNamespace(
+        resolve_riven_weapon=AsyncMock(return_value={"en": "Probe", "riven_type": "Rifle"})
+    )
+    with (
+        patch.object(RP.paths, "run_dir", return_value=_run),
+        patch.object(
+            RP,
+            "_load_weapons",
+            return_value={
+                "probe": [{"attacks": [{"damage": {"impact": 10}}]}],
+                "blade": [{"attacks": [{"damage": {"slash": 10}}]}],
+            },
+        ),
+        patch.object(
+            matching, "family_index_snapshot", wraps=matching.family_index_snapshot
+        ) as _snapshot,
+    ):
+        for _with_blade in (False, True):
+            _members = ["Probe", "Blade"] if _with_blade else ["Probe"]
+            _table.write_text(
+                json.dumps(
+                    {"by_name": {n: "Root" for n in _members}, "families": {"Root": _members}}
+                )
+            )
+            _snapshot.reset_mock()
+            _card = asyncio.run(_host._h_riven_ranges(P.parse("词条范围 Probe 切割"), None, "pc"))
+            _rows = [ln for ln in _card.lines if ln.startswith("§RANGES")]
+            check(
+                f"范围查询按同一代家族表决定切割可用性（Blade={_with_blade}）",
+                _snapshot.call_count == 1 and any("切割" in ln for ln in _rows) == _with_blade,
+            )
+
 _rt = "\n".join(_rep.lines)
 check(
     "★「词条范围 4+」给出「组合只有 …」提示",

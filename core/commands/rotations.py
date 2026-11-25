@@ -18,6 +18,7 @@ import time
 from .. import calculators as calc
 from .. import formatters as fmt
 from .. import paths as core_paths
+from .. import tents
 from ..i18n import L, is_en
 from ..logging_compat import logger
 from .base import Reply
@@ -119,9 +120,17 @@ class RotationCommands:
         keyword = keyword.strip()
         data = await self.client.syndicate_missions(platform)
         # oracle 补「扎里曼 / 实验室 / 1999」的节点与挑战（DE 侧 Jobs 恒为空）；
-        # 客户端内置 15 分钟缓存 + 3.5s 硬超时，拿不到就降级为只列等级，不拖主流程。
-        cycle = await self.client.bounty_cycle()
-        title, lines = fmt.fmt_bounties(data, keyword, cycle)
+        # 缓存最多 15 分钟，本轮到期就重取。3.5s 超时后降级为只列等级。
+        location_bounties = None
+        if tents.seed_of(data) is None:
+            cycle, location_bounties = await asyncio.gather(
+                self.client.bounty_cycle(), self.client.location_bounties()
+            )
+        else:
+            cycle = await self.client.bounty_cycle()
+        title, lines = await asyncio.to_thread(
+            fmt.fmt_bounties, data, keyword, cycle, location_bounties=location_bounties
+        )
         if (parsed.page or 1) > 1:
             # ★ 2026-10-11：赏金卡不分页，-N 无效 —— 明说，不静默
             lines.append(

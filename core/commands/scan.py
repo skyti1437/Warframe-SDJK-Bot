@@ -15,6 +15,8 @@ import hashlib
 import re
 import secrets
 import time
+from concurrent.futures import ThreadPoolExecutor
+from itertools import count
 from typing import Optional
 
 from .. import damage_calc as dc
@@ -26,16 +28,77 @@ from ..i18n import L, is_en
 from ..logging_compat import logger
 from ..request_queue import QueueUnavailable, send_queue_position
 from .base import Action, Reply, _num, err_card
-from .vision import _cancel_vision_tasks, _prov_id, effective_vision_prompt
+from .vision import (
+    _IMAGE_DOWNLOAD_ERROR,
+    _ImageRejected,
+    _MAX_DERIVED_PIXELS,
+    _SCAN_BUDGET,
+    _cancel_vision_tasks,
+    _prov_id,
+    _scan_fit_size,
+    _scan_size_ok,
+    _vision_chat,
+    _vision_slot,
+    _vision_thread,
+    effective_vision_prompt,
+)
 from .wiki_misc import _dmg_en_toks
 
 _SCAN_TTL = 1800
 _SCAN_LIMIT = 128
+_SCAN_SEQUENCE = count(1)
 _SCAN_IMAGE_FIELDS = ("_upgrade_slots", "_pixel_layout", "_tile_slots", "_pips_rows")
 _SCAN_EXPERIMENTAL = (
     "※ 识卡为实验功能，默认关闭。识别可能较慢或不完整。",
     "※ Build Scan is experimental and off by default. Scans may be slow or incomplete.",
 )
+
+
+_SCAN_WORKERS = ThreadPoolExecutor(max_workers=2, thread_name_prefix="sdjk-scan")
+
+
+async def _scan_cpu(fn, *args, **kwargs):
+    return await _vision_thread(fn, *args, executor=_SCAN_WORKERS, **kwargs)
+
+
+class _ScanBudget:
+    def __init__(self, seconds):
+        self.now = asyncio.get_running_loop().time
+        self.deadline = self.now() + seconds
+        self.partial = None
+
+    async def run(self, fn, *args, **kwargs):
+        remaining = self.deadline - self.now()
+        if remaining <= 0:
+            raise asyncio.TimeoutError
+        task = asyncio.create_task(fn(*args, **kwargs))
+        try:
+            done, _ = await asyncio.wait([task], timeout=remaining)
+            if not done:
+                raise asyncio.TimeoutError
+            return task.result()
+        finally:
+            if not task.done():
+                await _cancel_vision_tasks([task])
+            elif not task.cancelled():
+                task.exception()  # 调用方取消与任务失败可能在同一轮到达。
+
+    def remember(self, ocr, *, equipment_confirmed=False):
+        self.partial = {**ocr}
+        if not equipment_confirmed:
+            self.partial["_equipment_unconfirmed"] = True
+
+
+def _parse_scan_main(text):
+    return lo.parse_coordinate_ocr(text) or lo.parse_vision_json(text) or {}
+
+
+def _scan_task_image(image_url, part, crop):
+    if part == "mods":
+        return image_url, {"bounds": [0, 0, 1, 1]}
+    if crop is ScanCommands._scan_focus_image:
+        return crop(image_url, part, with_geometry=True)
+    return crop(image_url, part), None
 
 
 def _scan_recognition(text: str, parsed: dict, prompt: str, provider_id: str, task: str) -> dict:
@@ -248,63 +311,87 @@ class ScanCommands:
 
         def room():
             cap = self._vision_limit()
-            return cap <= 0 or len(self._ocr_busy) < cap
+            return len(getattr(self, "_scan_running", ())) < queue.workers and (
+                cap <= 0 or len(self._ocr_busy) < cap
+            )
 
         async def notify(position):
             await send_queue_position(
                 event, getattr(self, "_messaging", None), L("配卡识别", "Build scan"), position
             )
 
+        budget = _ScanBudget(self.RACE_WINDOW_S)
+        scope = _scan_scope(self, event)
+        if not hasattr(self, "_scan_sequences"):
+            self._scan_sequences = {}
+        sequence = None
         try:
-            async with queue.slot(notify, room=room, key=_busy_key):
-                self._ocr_busy.add(_busy_key)
-                try:
-                    imgs = await self._image_data_urls(event)
-                    if not imgs:
-                        return Reply(
-                            raw_text=L(
-                                "⚠️ 图片下载失败，请重发一次截图",
-                                "⚠️ Image download failed, please resend the screenshot",
-                            )
-                        )
-                    ocr = await self._extract_loadout_validated(imgs[0])
-                finally:
-                    self._ocr_busy.discard(_busy_key)
+            async with queue.slot(
+                notify,
+                room=room,
+                key=_busy_key,
+                wait_timeout=max(0, budget.deadline - budget.now()),
+            ):
+                with _vision_slot(self, _busy_key, scan=True):
+                    sequence = next(_SCAN_SEQUENCE)
+                    self._scan_sequences[scope] = sequence
+                    token = _SCAN_BUDGET.set(budget)
+                    try:
+                        imgs = await self._image_data_urls(event)
+                        if not imgs:
+                            raise _ImageRejected(L(*_IMAGE_DOWNLOAD_ERROR))
+                        ocr = await self._extract_loadout_validated(imgs[0])
+                    finally:
+                        _SCAN_BUDGET.reset(token)
+            if ocr:
+                return await self._finish_scan(ocr, budget, scope, sequence, event, platform)
+        except _ImageRejected as exc:
+            self._vision_refund(_last, _sender, _stamp)
+            return Reply(raw_text=str(exc))
+        except asyncio.TimeoutError:
+            self._vision_refund(_last, _sender, _stamp)
+            return Reply(raw_text=L("识卡超时，请稍后重试", "Build scan timed out. Please retry."))
         except QueueUnavailable as exc:
             self._vision_refund(_last, _sender, _stamp)
             return Reply(raw_text=f"⏳ {L('配卡识别', 'Build scan')} · {exc}")
         except asyncio.CancelledError:
             self._vision_refund(_last, _sender, _stamp)
             raise
-        if not ocr:
-            # ★ 识别失败返还冷却（2026-09-23）：防刷闸不该惩罚「渠道全挂」的
-            #   受害者——失败重试不该干等 15 秒。成功调用才占冷却。
-            self._vision_refund(_last, _sender, _stamp)
-            return err_card(
+        finally:
+            # 只保存仍可更新指针的请求。新请求收尾后，旧请求也不能重新取得写权。
+            if sequence is not None and self._scan_sequences.get(scope) == sequence:
+                del self._scan_sequences[scope]
+        self._vision_refund(_last, _sender, _stamp)
+        return err_card(
+            L(
+                "截图识别失败：视觉渠道没给出可解析结果",
+                "Scan failed: the vision channel returned nothing parseable",
+            ),
+            L(
+                "先重发一次；仍失败请联系机器人管理员查看日志里的「配卡识别」条目（会写明是哪个渠道、什么原因）",
+                'Resend once; if it still fails, ask the bot admin to check the "配卡识别" entries in the log '
+                "(they name the channel and the reason)",
+            ),
+            (
+                L("可能原因", "Possible causes"),
                 L(
-                    "截图识别失败：视觉渠道没给出可解析结果",
-                    "Scan failed: the vision channel returned nothing parseable",
+                    "① 渠道超时/返回空；② 未配视觉模型",
+                    "(1) channel timed out / returned empty; (2) no vision model configured",
                 ),
-                L(
-                    "先重发一次；仍失败请联系机器人管理员查看日志里的「配卡识别」条目（会写明是哪个渠道、什么原因）",
-                    'Resend once; if it still fails, ask the bot admin to check the "配卡识别" entries in the log '
-                    "(they name the channel and the reason)",
-                ),
-                (
-                    L("可能原因", "Possible causes"),
-                    L(
-                        "① 渠道超时/返回空；② 未配视觉模型",
-                        "(1) channel timed out / returned empty; (2) no vision model configured",
-                    ),
-                ),
-                title=L("识卡", "Build Scan"),
-            )
+            ),
+            title=L("识卡", "Build Scan"),
+        )
 
+    async def _finish_scan(self, ocr, budget, scope, sequence, event, platform):
         simulation = de.full_enabled(self.cfg)
-        if simulation:
-            an = lo.analyze(ocr, ocr.get("_pips_rows"), calculate_reference=False)
-        else:
-            an = lo.analyze(ocr, ocr.get("_pips_rows"))
+        try:
+            options = {"calculate_reference": False} if simulation else {}
+            an = await budget.run(_scan_cpu, lo.analyze, ocr, ocr.get("_pips_rows"), **options)
+        except asyncio.TimeoutError:
+            if self._scan_sequences.get(scope) == sequence:
+                latest, _ = _scan_state(self, time.time())
+                latest.pop(scope, None)
+            return self._partial_scan_reply(ocr)
         cached_spec = None
         if an.get("weapon"):
             try:
@@ -314,16 +401,16 @@ class ScanCommands:
             except Exception:  # noqa: BLE001 —— 缓存失败不影响识卡本身
                 cached_spec = None
         token = ""
-        scope = _scan_scope(self, event)
         # 新截图不可靠时只撤销本次会话/用户的最近指针；历史按钮仍指向原卡。
-        if cached_spec is None:
+        if cached_spec is None and self._scan_sequences.get(scope) == sequence:
             latest, _records = _scan_state(self, time.time())
             latest.pop(scope, None)
         if cached_spec is not None and all(part.strip() for part in scope):
             now = time.time()
             latest, records = _scan_state(self, now)
             snapshot = (now, copy.deepcopy(an["weapon"]), copy.deepcopy(cached_spec))
-            latest[scope] = snapshot
+            if self._scan_sequences.get(scope) == sequence:
+                latest[scope] = snapshot
             # 记录号会写进卡面指令：只用字母数字（不含 _ / -），QQ Markdown 不会因此整卡退回纯文字
             token = secrets.token_urlsafe(9)
             while token in records or not token.isalnum():
@@ -334,7 +421,11 @@ class ScanCommands:
         comparison = None
         if cached_spec is not None:
             try:
-                comparison = await asyncio.to_thread(lo.mod_dps_comparison, an, cached_spec)
+                comparison = await budget.run(
+                    asyncio.to_thread, lo.mod_dps_comparison, an, cached_spec
+                )
+            except asyncio.TimeoutError:
+                pass
             except Exception:  # noqa: BLE001 —— 局部复算失败时照常回图
                 logger.exception("[sdjk] 识卡单卡 DPS 对照生成失败")
         lines = lo.card_lines(
@@ -403,12 +494,15 @@ class ScanCommands:
             return Reply(L("配卡识别", "Build Scan"), lines, actions=actions)
         detail = None
         if cached_spec is not None:
-            if simulation:
-                detail, _, _ = await _scanned_damage_result(
-                    self, an["weapon"], cached_spec, {}, event, platform
-                )
-            else:
-                detail = self._loadout_detail_lines(an)
+            try:
+                if simulation:
+                    detail, _, _ = await budget.run(
+                        _scanned_damage_result, self, an["weapon"], cached_spec, {}, event, platform
+                    )
+                else:
+                    detail = await budget.run(_scan_cpu, self._loadout_detail_lines, an)
+            except asyncio.TimeoutError:
+                detail = None
         if detail:
             return Reply(
                 pages=[
@@ -416,6 +510,48 @@ class ScanCommands:
                     (L("配卡识别 · 伤害详情", "Build Scan · Damage Details"), detail),
                 ]
             )
+        return Reply(L("配卡识别", "Build Scan"), lines)
+
+    def _partial_scan_reply(self, ocr):
+        lines = [
+            L("识卡时间已到，已读到以下字段。", "Scan timed out. Fields read so far:"),
+            self._ocr_echo(ocr),
+        ]
+        panel = ocr.get("panel") or {}
+        missing = []
+        for key, title in (
+            ("weapon", L("武器", "Weapon")),
+            ("capacity", L("容量", "Capacity")),
+            ("mods", "MOD"),
+            ("panel", L("面板", "Panel")),
+        ):
+            if not ocr.get(key):
+                missing.append(title)
+        if isinstance(panel, dict):
+            for key, label in (
+                ("crit_chance", L("暴击几率", "Critical chance")),
+                ("crit_damage", L("暴击倍率", "Critical multiplier")),
+                ("status_chance", L("触发几率", "Status chance")),
+                ("total", L("总伤害", "Total damage")),
+            ):
+                if (value := lo._panel_columns(panel.get(key)).get("right")) is not None:
+                    lines.append(f"· {label}　{value:g}")
+        slots = ocr.get("_upgrade_slots") or []
+        if not slots:
+            missing.append(L("逐槽装备与等级", "Slot equipment and ranks"))
+        if not any(slot["kind"] == "arcane" and slot["state"] != "unknown" for slot in slots):
+            missing.append(L("赋能槽", "Arcane slot"))
+        for slot in slots:
+            if slot["state"] == "unknown":
+                missing.append(slot["id"])
+            elif slot["state"] == "installed":
+                name = slot.get("name") or slot.get("mod_name") or "?"
+                rank = slot.get("rank")
+                lines.append(f"· {slot['id']}　{name}　{rank if rank is not None else '?'}")
+                if rank is None:
+                    missing.append(slot["id"] + L(" 等级", " rank"))
+        if missing:
+            lines.append(L("待确认　", "Unconfirmed  ") + L("、", ", ").join(missing))
         return Reply(L("配卡识别", "Build Scan"), lines)
 
     @staticmethod
@@ -646,24 +782,19 @@ class ScanCommands:
             head, b64 = image_url.split(",", 1)
             img = PILImage.open(io.BytesIO(base64.b64decode(b64)))
             w, h = img.size
-            if min_width <= w <= max_width:
-                return image_url  # 已在目标区间，原样送
-            if w < min_width:
-                scale, target = min(1280.0 / w, 4.0), 1280
-            else:
-                scale, target = max_width / w, max_width
+            size = _scan_fit_size(w, h, min_width, max_width)
+            if size is None or size == img.size:
+                return image_url
             # 标签按**实际**缩放方向写：1599 宽这类「略低于 min_width」的图
             # 会被规整到 1280，其实是缩小而不是放大
-            action = "放大" if scale > 1 else "缩小"
-            nw, nh = max(1, int(w * scale)), max(1, int(h * scale))
+            nw, nh = size
+            action = "放大" if nw > w else "缩小"
             img2 = img.resize((nw, nh), PILImage.LANCZOS)
-            fmt = "PNG" if "png" in head.lower() else "JPEG"
+            fmt = "JPEG" if "jpeg" in head.lower() or "jpg" in head.lower() else "PNG"
             buf = io.BytesIO()
             img2.convert("RGB" if fmt == "JPEG" else img2.mode).save(buf, fmt)
             new_b64 = base64.b64encode(buf.getvalue()).decode()
-            logger.info(
-                "[sdjk] 配卡截图 %dx%d → %dx%d（已%s，目标宽 %d）", w, h, nw, nh, action, target
-            )
+            logger.info("[sdjk] 配卡截图 %dx%d → %dx%d（已%s）", w, h, nw, nh, action)
             return f"data:image/{fmt.lower()};base64,{new_b64}"
         except Exception:  # noqa: BLE001 —— 规整失败就用原图，别让识卡挂掉
             return image_url
@@ -680,6 +811,8 @@ class ScanCommands:
 
             raw = base64.b64decode(image_url.split(",", 1)[1])
             with Image.open(io.BytesIO(raw)) as image:
+                if _scan_fit_size(*image.size) is None:
+                    return {}
                 observed = pips_engine.detect_layout(image)
             observed["image_sha256"] = hashlib.sha256(raw).hexdigest()
             return observed
@@ -687,7 +820,7 @@ class ScanCommands:
         if not str(image_url).startswith("data:"):
             return {}
         try:
-            return await asyncio.to_thread(observe)
+            return await _vision_thread(observe)
         except Exception as exc:  # noqa: BLE001 - 保留未知，不用异常开计算闸门
             logger.warning("[sdjk] 配卡布局观测失败：%s", type(exc).__name__)
             return {}
@@ -702,13 +835,31 @@ class ScanCommands:
         最多试 max_attempts 次；仍不过时追加一次「只读伤害栏」的聚焦
         识别（任务越窄读得越准），把干净的行拼接回去再验。
         """
+        budget = _SCAN_BUDGET.get() or _ScanBudget(self.RACE_WINDOW_S)
+        token = _SCAN_BUDGET.set(budget)
+        try:
+            result = await budget.run(self._scan_loadout, image_url, budget)
+            if not result and budget.now() >= budget.deadline:
+                raise asyncio.TimeoutError
+            return result
+        except asyncio.CancelledError:
+            budget.deadline = budget.now()
+            raise
+        except asyncio.TimeoutError:
+            if budget.partial is not None:
+                return {**budget.partial, "_scan_timed_out": True}
+            raise
+        finally:
+            _SCAN_BUDGET.reset(token)
+
+    async def _scan_loadout(self, image_url, budget):
         original_image_url = image_url
         # ★ 豆子检测要在**缩放前**的原图上做（_detect_pips 的说明）
         pips_rows = await self._detect_pips(image_url)
         pixel_layout = await self._detect_scan_layout(image_url)
         # 缩放 + 重编码是纯 CPU 活（Lanczos），放线程里跑，别卡住事件循环
-        image_url = await asyncio.to_thread(self._fit_scan_image, image_url)
-        best: Optional[tuple[int, dict]] = None  # (失败项数, ocr)
+        image_url = await _vision_thread(self._fit_scan_image, image_url)
+        best: Optional[tuple[int, dict, dict]] = None  # 失败项数、观察和对应分析
 
         def _finish(o: Optional[dict]) -> Optional[dict]:
             """把豆子结果挂到返回的 ocr 上，供上层复用（免得再检测一次）。"""
@@ -717,7 +868,9 @@ class ScanCommands:
                 o["_pixel_layout"] = pixel_layout
             return o
 
-        def _score(ocr: dict):
+        pixel_evidence = {}
+
+        def evaluate(ocr: dict):
             """面板校验打分：返回 (失败项数, analyze 结果)，恒为数值。
 
             ★ 2026-09-23：武器没认出不再「立即接受」——此前第一个返回
@@ -726,8 +879,8 @@ class ScanCommands:
             才轮到它兜底。「0 张卡」「面板全没读到」「疑似漏读」惩罚不变。
             """
             ocr["_pixel_layout"] = pixel_layout
-            lo.observe_capacity_colors(ocr, original_image_url)
-            lo.observe_arcane_ranks(ocr, original_image_url)
+            lo.observe_capacity_colors(ocr, original_image_url, evidence_cache=pixel_evidence)
+            lo.observe_arcane_ranks(ocr, original_image_url, evidence_cache=pixel_evidence)
             an = lo.analyze(ocr, pips_rows)
             # ★ 记一行「豆子有没有真的用上」（2026-09-20 玩家报「北风还是 3 级」后加）：
             #   检测成功但**对齐失败**时豆子会被整体弃用，光看检测日志看不出来。
@@ -749,11 +902,6 @@ class ScanCommands:
                         if keep
                         else "（未留存截图；排查时可在配置里开启 scan_debug_save）",
                     )
-                    if keep:
-                        # 解码 + 存 JPEG 放线程池（_score 是同步内层函数，不等它完成）
-                        asyncio.get_running_loop().run_in_executor(
-                            None, self._dump_scan_debug, image_url
-                        )
             bad = 6 if not an.get("weapon") else 0
             bad += 4 * len(an.get("quality", {}).get("reasons", []))
             bad += 3 * sum(
@@ -788,6 +936,13 @@ class ScanCommands:
                     bad += pen
             return bad, an
 
+        async def _score(ocr):
+            bad, an = await _scan_cpu(evaluate, ocr)
+            st = an.get("pips") or {}
+            if pips_rows and st and not st.get("used") and self.cfg.get("scan_debug_save", False):
+                await _vision_thread(self._dump_scan_debug, image_url)
+            return bad, an
+
         # **并行 + 边到边校验**：原实现是「串行重试同一批渠道」——
         # 实测单次识别 22~26 s，两次就是 50 s（用户视角「快一分钟了」）。
         # 现在同时跑最多 3 个渠道，谁先返回就立刻校验：全过立即收工；
@@ -809,7 +964,7 @@ class ScanCommands:
             "、".join(_names),
         )
         loop = asyncio.get_event_loop()
-        deadline = loop.time() + max(0.5, float(self.RACE_WINDOW_S))
+        deadline = budget.deadline
         tasks = [asyncio.create_task(self._extract_loadout_from_image(image_url, p)) for p in provs]
         try:
             pending = set(tasks)
@@ -833,17 +988,21 @@ class ScanCommands:
                         continue
                     if not ocr:
                         continue
-                    bad, an = _score(ocr)
+                    if budget.partial is None:
+                        budget.remember(_finish(ocr))
+                    bad, an = await _score(ocr)
                     if bad == 0:
                         logger.info(
                             "[sdjk] 配卡识别可比数值吻合，继续核对装备区（不代表识别准确性）"
                         )
-                        best = (bad, ocr)
+                        best = (bad, ocr, an)
+                        budget.remember(_finish(ocr))
                         pending.clear()
                         break
                     logger.warning("[sdjk] 配卡识别一份结果有 %d 项校验不过", bad)
                     if best is None or bad < best[0]:
-                        best = (bad, ocr)
+                        best = (bad, ocr, an)
+                        budget.remember(_finish(ocr))
         finally:
             await _cancel_vision_tasks(tasks)
         # 完整补读也可接住主读无有效结构的情况；两路各保留独立证据。
@@ -857,6 +1016,7 @@ class ScanCommands:
                 return None
             recovered = lo.normalize_scan_structure(focused)
             recovered["_equipment_unconfirmed"] = True
+            budget.remember(_finish(recovered))
             if not recovered.get("arcanes"):
                 arcanes = await self._read_scan_focus(image_url, "arcanes")
                 if arcanes and arcanes.get("arcanes"):
@@ -867,20 +1027,21 @@ class ScanCommands:
                         ["arcanes"],
                         "scan_arcanes",
                     )
-            _score(recovered)
+            budget.remember(_finish(recovered))
+            await _score(recovered)
             recovered = await self._read_equipment_tiles(
                 recovered, original_image_url, pips_rows, pixel_layout
             )
             if not recovered.get("_upgrade_slots"):
-                _score(recovered)
+                await _score(recovered)
             return _finish(recovered)
-        bad, ocr = best
+        bad, ocr, current_analysis = best
         main_read = ocr
         equipment_read = focused
         # 数值吻合仍须核对装备区：亮豆下界覆盖不到零级卡和部分特殊槽。
         confirmed = False
         if focused and focused.get("mods"):
-            old_analysis = lo.analyze(ocr, pips_rows)
+            old_analysis = current_analysis
             old_overread = any(
                 r["code"] == "mods_overread" for r in old_analysis["quality"]["reasons"]
             )
@@ -892,7 +1053,7 @@ class ScanCommands:
             candidate = lo.merge_equipment_read(ocr, focused)
             if candidate.get("_equipment_merge", {}).get("complete_shared_identity"):
                 merged_mods = candidate["mods"]
-            score, analysis = _score(candidate)
+            score, analysis = await _score(candidate)
             old_names = {m.get("name") for m in old_analysis.get("mods", []) if m.get("found")}
             new_names = {m.get("name") for m in analysis.get("mods", []) if m.get("found")}
             more_complete = (
@@ -914,15 +1075,17 @@ class ScanCommands:
                 if candidate.get("weapon") != ocr.get("weapon"):
                     fields.append("weapon")
                 bad, ocr = score, _scan_revision(candidate, ocr, focused, fields, "scan_mods")
+                current_analysis = analysis
                 confirmed = True
+                budget.remember(_finish(ocr), equipment_confirmed=True)
         # —— 武器名单读：主读没认出武器时，用一句话只问标题栏，换上后同一把尺重新打分 ——
         # ★ 2026-10-27（ZCode 消融）：qwen-vl-ocr 在长 JSON 提示词下 3/3 把首张姿态卡名当武器名，
         #   单问「左上角标题栏斜杠后面的文字」2/2 读对 ⇒ 问题是提示词过载，拆成独立最小调用。
-        if not lo.analyze(ocr, pips_rows).get("weapon"):
+        if not current_analysis.get("weapon"):
             title = await self._read_weapon_title(image_url)
             if title:
                 ocr_w = {**ocr, "weapon": title}
-                bad_w, _an_w = _score(ocr_w)
+                bad_w, title_analysis = await _score(ocr_w)
                 if bad_w < bad:
                     logger.warning(
                         "[sdjk] 武器名单读修正：%r → %r，校验失败 %d → %d",
@@ -931,17 +1094,19 @@ class ScanCommands:
                         bad,
                         bad_w,
                     )
+                    current_analysis = title_analysis
                     bad, ocr = (
                         bad_w,
                         _scan_revision(ocr_w, ocr, {"weapon": title}, ["weapon"], "scan_title"),
                     )
+        budget.remember(_finish(ocr), equipment_confirmed=confirmed)
         if not confirmed:
             ocr = {**ocr, "_equipment_unconfirmed": True}
-            bad, _ = _score(ocr)
+            bad, current_analysis = await _score(ocr)
         if bad:
             focused = await self._read_scan_focus(image_url, "panel")
             if focused and focused.get("panel"):
-                old = lo.analyze(ocr, pips_rows)
+                old = current_analysis
                 panel = focused["panel"]
                 if old["quality"]["panel_safe"]:
                     panel = {**ocr.get("panel", {}), **panel}
@@ -949,7 +1114,7 @@ class ScanCommands:
                     if total is not None and "total" not in focused["panel"]:
                         panel["total"] = total
                 candidate = {**ocr, "panel": panel}
-                score, analysis = _score(candidate)
+                score, analysis = await _score(candidate)
                 # 独立分区读到的标签不能因旧错读恰好自洽而落选。
                 scalar_count = sum(
                     lo.to_float(panel.get(key)) is not None for key in lo._PANEL_SCALARS
@@ -961,6 +1126,7 @@ class ScanCommands:
                         score,
                         _scan_revision(candidate, ocr, focused, ["panel"], "scan_panel"),
                     )
+        budget.remember(_finish(ocr), equipment_confirmed=confirmed)
         if not ocr.get("arcanes"):
             focused = await self._read_scan_focus(image_url, "arcanes")
             if focused and focused.get("arcanes"):
@@ -972,6 +1138,7 @@ class ScanCommands:
                     ["arcanes"],
                     "scan_arcanes",
                 )
+        budget.remember(_finish(ocr), equipment_confirmed=confirmed)
         ocr = await self._read_equipment_tiles(
             ocr,
             original_image_url,
@@ -982,7 +1149,7 @@ class ScanCommands:
         )
         # 完整槽位的最终分析交给消息入口，避免重复计算参考伤害。
         if not ocr.get("_upgrade_slots"):
-            _score(ocr)
+            await _score(ocr)
         return _finish(ocr)
 
     # ★★ 2026-10-05 去掉字面示例值（阴性对照实测：喂**紫卡图**——卡面根本没有
@@ -1014,7 +1181,10 @@ class ScanCommands:
 
         try:
             raw = base64.b64decode(image_url.split(",", 1)[1])
-            image = PILImage.open(io.BytesIO(raw)).convert("RGB")
+            with PILImage.open(io.BytesIO(raw)) as source:
+                if not _scan_size_ok(*source.size):
+                    return (image_url, None) if with_geometry else image_url
+                image = source.convert("RGB")
             source_size = image.size
             edge = int(image.width * 0.28)
             bottom = image.height
@@ -1043,13 +1213,14 @@ class ScanCommands:
                     else (edge, 0, image.width, bottom)
                 )
             )
+            cw, ch = bounds[2] - bounds[0], bounds[3] - bounds[1]
+            if not _scan_size_ok(cw, ch):
+                return (image_url, None) if with_geometry else image_url
             image = image.crop(bounds)
-            scale = min(1280 / image.width, 4.0)
-            if scale > 1:
-                image = image.resize(
-                    (round(image.width * scale), round(image.height * scale)),
-                    PILImage.Resampling.LANCZOS,
-                )
+            scale = min(1280 / cw, 4.0)
+            size = round(cw * scale), round(ch * scale)
+            if scale > 1 and _scan_size_ok(*size):
+                image = image.resize(size, PILImage.Resampling.LANCZOS)
             buffer = io.BytesIO()
             image.save(buffer, "PNG")
             url = "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode()
@@ -1079,16 +1250,9 @@ class ScanCommands:
         import uuid
 
         prompt = ScanCommands._FOCUS_PROMPTS[part]
-        if part == "mods":
-            # 装备区补读同时确认标题、特殊槽和赋能；共同提示词使用完整同一张图。
-            image, transform = image_url, {"bounds": [0, 0, 1, 1]}
-        elif self._scan_focus_image is ScanCommands._scan_focus_image:
-            image, transform = await asyncio.to_thread(
-                self._scan_focus_image, image_url, part, with_geometry=True
-            )
-        else:
-            image = await asyncio.to_thread(self._scan_focus_image, image_url, part)
-            transform = None  # 旧适配器未提供裁剪元数据，禁止拿裁图坐标绑定全图
+        image, transform = await _vision_thread(
+            _scan_task_image, image_url, part, self._scan_focus_image
+        )
         providers = (
             self._scan_equipment_providers() if part == "mods" else self._scan_vision_providers()
         )
@@ -1096,7 +1260,8 @@ class ScanCommands:
             try:
                 actual_prompt = effective_vision_prompt(self, prov, f"scan_{part}", prompt)
                 response = await asyncio.wait_for(
-                    prov.text_chat(
+                    _vision_chat(
+                        prov,
                         prompt=actual_prompt,
                         session_id=f"sdjk-focus-{uuid.uuid4().hex[:8]}",
                         image_urls=[image],
@@ -1104,7 +1269,7 @@ class ScanCommands:
                     timeout=75,
                 )
                 text = str(getattr(response, "completion_text", "") or "")
-                parsed = lo.parse_focus_text(text, part)
+                parsed = await _scan_cpu(lo.parse_focus_text, text, part)
                 if parsed:
                     recognition = _scan_recognition(
                         text, parsed, actual_prompt, _prov_id(prov), f"scan_{part}"
@@ -1133,26 +1298,38 @@ class ScanCommands:
 
         def crop():
             with Image.open(io.BytesIO(base64.b64decode(image_url.split(",", 1)[1]))) as original:
+                if _scan_fit_size(*original.size) is None:
+                    return None, None
                 slots = pips_engine.upgrade_slots(original, rows, layout, melee=False)
                 if not slots:
                     return None, None
                 edge = min(1.0, max(slot["box"][3] for slot in slots) + 0.025)
                 bottom = round(edge * original.height)
+                if bottom <= 0:
+                    return None, None
+                bounds = (0, 0, original.width, bottom)
+                if _scan_size_ok(original.width, bottom):
+                    image = original.crop(bounds)
+                else:
+                    scale = (_MAX_DERIVED_PIXELS / (original.width * bottom)) ** 0.5
+                    size = max(1, int(original.width * scale)), max(1, int(bottom * scale))
+                    image = original.resize(size, Image.Resampling.LANCZOS, box=bounds)
                 buffer = io.BytesIO()
-                original.crop((0, 0, original.width, bottom)).save(buffer, format="PNG")
+                image.save(buffer, format="PNG")
                 encoded = base64.b64encode(buffer.getvalue()).decode()
                 return "data:image/png;base64," + encoded, {
                     "bounds": [0, 0, 1, bottom / original.height]
                 }
 
         try:
-            image, transform = await asyncio.to_thread(crop)
+            image, transform = await _vision_thread(crop)
             if not image:
                 return None
             for provider in self._scan_equipment_providers()[:1]:
                 prompt = lo.VISION_PROMPT
                 response = await asyncio.wait_for(
-                    provider.text_chat(
+                    _vision_chat(
+                        provider,
                         prompt=prompt,
                         image_urls=[image],
                         session_id=f"sdjk-recovery-{uuid.uuid4().hex[:8]}",
@@ -1206,7 +1383,7 @@ class ScanCommands:
     ):
         import uuid
 
-        analysis = lo.analyze(ocr, rows)
+        analysis = await _scan_cpu(lo.analyze, ocr, rows)
         weapon = analysis.get("weapon") or {}
         category = weapon.get("category") if isinstance(weapon, dict) else None
         melee = category == "Melee" if category in {"Melee", "Primary", "Secondary"} else None
@@ -1217,7 +1394,7 @@ class ScanCommands:
         ):
             return ocr
         try:
-            image, tiles = await asyncio.to_thread(
+            image, tiles = await _vision_thread(
                 self._equipment_tile_image, image_url, rows, layout, melee=melee
             )
             if not image:
@@ -1225,7 +1402,8 @@ class ScanCommands:
             for provider in self._scan_equipment_providers()[:1]:
                 prompt = effective_vision_prompt(self, provider, "scan_tiles", self._TILES_PROMPT)
                 response = await asyncio.wait_for(
-                    provider.text_chat(
+                    _vision_chat(
+                        provider,
                         prompt=prompt,
                         image_urls=[image],
                         session_id=f"sdjk-tiles-{uuid.uuid4().hex[:8]}",
@@ -1244,7 +1422,7 @@ class ScanCommands:
                         candidate = lo.merge_coordinate_tile_read(ocr, boxes, tiles)
                         return _scan_revision(candidate, ocr, observed, ["mods"], "scan_tiles")
                     main = main_read or ocr
-                    slots = await asyncio.to_thread(
+                    slots = await _vision_thread(
                         lo.verify_coordinate_slots, main, equipment_read, tiles, boxes, image_url
                     )
                     candidate = _scan_revision(
@@ -1254,6 +1432,8 @@ class ScanCommands:
                         ["_upgrade_slots"],
                         "scan_tiles",
                     )
+                    if budget := _SCAN_BUDGET.get():
+                        budget.remember(candidate, equipment_confirmed=True)
                     if any(
                         s["kind"] != "arcane" and s["reason"] == "capacity_unconfirmed"
                         for s in slots
@@ -1270,6 +1450,8 @@ class ScanCommands:
                             tiles,
                             boxes,
                         )
+                    if budget := _SCAN_BUDGET.get():
+                        budget.remember(candidate, equipment_confirmed=True)
                     return await self._read_unconfirmed_slots(
                         candidate, provider, image_url, rows, layout, melee, main, equipment_read
                     )
@@ -1281,7 +1463,7 @@ class ScanCommands:
                 )
                 if melee is not None and "slots" in observed:
                     main = main_read or ocr
-                    slots = await asyncio.to_thread(
+                    slots = await _vision_thread(
                         lo.verify_upgrade_slots,
                         main,
                         observed,
@@ -1298,6 +1480,8 @@ class ScanCommands:
                         ["_upgrade_slots"],
                         "scan_tiles",
                     )
+                    if budget := _SCAN_BUDGET.get():
+                        budget.remember(candidate, equipment_confirmed=True)
                     return await self._read_unconfirmed_slots(
                         candidate, provider, image_url, rows, layout, melee, main, equipment_read
                     )
@@ -1331,14 +1515,15 @@ class ScanCommands:
         if not slot_ids:
             return ocr
         try:
-            image, tiles = await asyncio.to_thread(
+            image, tiles = await _vision_thread(
                 self._equipment_tile_image, image_url, rows, layout, melee=melee, slot_ids=slot_ids
             )
             if not image:
                 return ocr
             prompt = lo.VISION_PROMPT
             response = await asyncio.wait_for(
-                provider.text_chat(
+                _vision_chat(
+                    provider,
                     prompt=prompt,
                     image_urls=[image],
                     session_id=f"sdjk-slot-focus-{uuid.uuid4().hex[:8]}",
@@ -1349,7 +1534,7 @@ class ScanCommands:
             boxes = lo.coordinate_ocr_boxes(text)
             if not boxes:
                 return ocr
-            checked = await asyncio.to_thread(
+            checked = await _vision_thread(
                 lo.verify_coordinate_slots, main, equipment, tiles, boxes, image_url
             )
             recovered = {
@@ -1386,12 +1571,13 @@ class ScanCommands:
         import uuid
 
         try:
-            image, crops = await asyncio.to_thread(
+            image, crops = await _vision_thread(
                 self._equipment_tile_image, image_url, rows, layout, melee=melee, badges=True
             )
             prompt = lo.VISION_PROMPT
             response = await asyncio.wait_for(
-                provider.text_chat(
+                _vision_chat(
+                    provider,
                     prompt=prompt,
                     image_urls=[image],
                     session_id=f"sdjk-capacity-{uuid.uuid4().hex[:8]}",
@@ -1401,7 +1587,7 @@ class ScanCommands:
             text = str(getattr(response, "completion_text", "") or "")
             capacity_boxes = lo.coordinate_ocr_boxes(text)
             if capacity_boxes:
-                slots = await asyncio.to_thread(
+                slots = await _vision_thread(
                     lo.verify_coordinate_slots,
                     main,
                     equipment,
@@ -1449,7 +1635,8 @@ class ScanCommands:
             pid = _prov_id(prov)
             try:
                 resp = await asyncio.wait_for(
-                    prov.text_chat(
+                    _vision_chat(
+                        prov,
                         prompt=effective_vision_prompt(
                             self, prov, "scan_title", self._TITLE_PROMPT
                         ),
@@ -1481,7 +1668,8 @@ class ScanCommands:
             pid = _prov_id(prov)
             try:
                 resp = await asyncio.wait_for(
-                    prov.text_chat(
+                    _vision_chat(
+                        prov,
                         prompt=self._ROWS_PROMPT,
                         session_id=f"sdjk-rows-{_uuid.uuid4().hex[:8]}",
                         image_urls=[image_url],
@@ -1518,7 +1706,8 @@ class ScanCommands:
                 import uuid as _uuid
 
                 prompt = effective_vision_prompt(self, p, "scan_main", lo.VISION_PROMPT)
-                resp = await p.text_chat(
+                resp = await _vision_chat(
+                    p,
                     prompt=prompt,
                     session_id=f"sdjk-loadout-{_uuid.uuid4().hex[:8]}",
                     image_urls=[image_url],
@@ -1529,7 +1718,7 @@ class ScanCommands:
                 logger.warning("[sdjk] 配卡识别 %s 调用失败：%s", pid, exc)
                 return None
             ms = (_t.perf_counter() - _t0) * 1000
-            ocr = (lo.parse_coordinate_ocr(text) or lo.parse_vision_json(text)) if text else None
+            ocr = await _scan_cpu(_parse_scan_main, text) if text else None
             if ocr and (ocr.get("weapon") or ocr.get("mods")):
                 recognition = _scan_recognition(raw_text, ocr, prompt, pid, "scan_main")
                 # 槽位与许可由程序创建。模型响应同名字段只留在原始观察。

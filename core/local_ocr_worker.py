@@ -72,19 +72,45 @@ def load_components(root: Path):
     return manager, parser
 
 
-def recognize(request):
-    if not isinstance(request, dict) or set(request) != {"image", "model_dir"}:
+def read_request(stream):
+    header = stream.readline(MAX_REQUEST_BYTES + 1)
+    if len(header) > MAX_REQUEST_BYTES:
+        raise ValueError("本地 OCR 请求超限")
+    try:
+        request = json.loads(header)
+    except json.JSONDecodeError:
+        # 旧客户端可提交含换行与缩进的 JSON 文档。
+        tail = stream.read(MAX_REQUEST_BYTES - len(header) + 1)
+        if len(header) + len(tail) > MAX_REQUEST_BYTES:
+            raise ValueError("本地 OCR 请求超限") from None
+        request = json.loads(header + tail)
+
+    if not isinstance(request, dict):
         raise ValueError("本地 OCR 请求格式无效")
-    model_dir = Path(request["model_dir"])
+    if set(request) == {"model_dir", "image_bytes"}:
+        size = request["image_bytes"]
+        if type(size) is not int or not 0 < size <= MAX_IMAGE_BYTES:
+            raise ValueError("图片不能为空且不能超过 10MiB")
+        image = stream.read(size)
+        if len(image) != size or stream.read(1):
+            raise ValueError("图片长度与声明不符")
+    elif set(request) == {"model_dir", "image"}:
+        trailing = stream.read(MAX_REQUEST_BYTES - len(header) + 1)
+        if len(header) + len(trailing) > MAX_REQUEST_BYTES or trailing.strip():
+            raise ValueError("本地 OCR 请求含多余数据")
+        image = base64.b64decode(request["image"], validate=True)
+        if not image or len(image) > MAX_IMAGE_BYTES:
+            raise ValueError("图片不能为空且不能超过 10MiB")
+    else:
+        raise ValueError("本地 OCR 请求格式无效")
+    return request["model_dir"], image
+
+
+def recognize(model_dir, image_bytes):
+    model_dir = Path(model_dir)
     root = Path(__file__).resolve().parent.parent
     if not model_dir.is_absolute() or model_dir.resolve().is_relative_to(root):
         raise ValueError("模型目录需要位于插件源码目录以外的绝对路径")
-    try:
-        image_bytes = base64.b64decode(request["image"], validate=True)
-    except (ValueError, TypeError) as exc:
-        raise ValueError("图片编码无效") from exc
-    if not image_bytes or len(image_bytes) > MAX_IMAGE_BYTES:
-        raise ValueError("图片不能为空且不能超过 10MiB")
 
     from PIL import Image, ImageOps
 
@@ -168,10 +194,7 @@ def main():
     with os.fdopen(descriptor, "w", encoding="utf-8") as protocol:
         sys.addaudithook(network_guard)
         try:
-            raw = sys.stdin.buffer.read(MAX_REQUEST_BYTES + 1)
-            if len(raw) > MAX_REQUEST_BYTES:
-                raise ValueError("本地 OCR 请求超限")
-            result = recognize(json.loads(raw))
+            result = recognize(*read_request(sys.stdin.buffer))
             output = json.dumps(result, ensure_ascii=False, allow_nan=False)
             if len(output.encode("utf-8")) > 2 * 1024 * 1024:
                 raise ValueError("本地 OCR 结果超限")

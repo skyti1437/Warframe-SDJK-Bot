@@ -52,6 +52,7 @@ import fnmatch
 import hashlib
 import json
 import os
+import stat
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -67,8 +68,7 @@ SEGMENT_EXCLUDE = {"__pycache__", ".git"}
 # 顶层临时/本机运行产物目录（与「运行期数据族」不同：这些直接不进对拍）。
 # data/ 是本机试跑 AstrBot 生成的凭据目录（Gate A 的 TOP_EXCLUDE_DIRS 专拦），
 # md5 进清单属无谓暴露，且三面只有本地有、纯噪声（笔 C 裁定并入不扫描集）。
-TOP_EXCLUDE = {"temp", "tmp", "runtime", "output", "outputs", "data"}
-SUFFIX_EXCLUDE = {".pyc", ".log"}
+TOP_EXCLUDE = {"runtime", "data"}
 # 运行期数据族：参与对拍但单独分组标注，差异不计入退出码（预期三面不同步）
 RUNTIME_GROUPS = {"plugin_data"}
 _CHUNK = 1 << 16
@@ -94,6 +94,12 @@ def _hash_file(path: Path) -> FileHash:
     ``b"\\r\\n" → b"\\n"`` 与「先 decode 再 str.replace 再 encode」等价；
     跨块边界用一个 ``\\r`` 进位（carry）兜住被切开的 CRLF。
     """
+    mode = path.lstat()
+    if not stat.S_ISREG(mode.st_mode):
+        # rsync -a 复制链接本身；管道和设备不能当普通文件打开。
+        kind = stat.S_IFMT(mode.st_mode)
+        value = os.fsencode(os.readlink(path)) if stat.S_ISLNK(kind) else str(mode.st_rdev).encode()
+        return FileHash(hashlib.md5(f"{kind}\0".encode() + value).hexdigest(), None)
     h = hashlib.md5()
     h_lf = hashlib.md5()
     dec = codecs.getincrementaldecoder("utf-8")()
@@ -124,7 +130,7 @@ def _hash_file(path: Path) -> FileHash:
     return FileHash(md5, h_lf.hexdigest() if decodable else md5)
 
 
-def scan_tree(root: Path) -> dict[str, FileHash]:
+def scan_tree(root: Path, *, deployment=False) -> dict[str, FileHash]:
     """只读扫描一棵树 → {posix 相对路径: FileHash}。不修改任何文件、不跟随符号链接。"""
     out: dict[str, FileHash] = {}
     root = root.resolve()
@@ -133,16 +139,24 @@ def scan_tree(root: Path) -> dict[str, FileHash]:
         if rel_dir.parts and rel_dir.parts[0] in TOP_EXCLUDE:
             dirnames[:] = []
             continue
-        dirnames[:] = [d for d in dirnames if d not in SEGMENT_EXCLUDE]
+        dirs = []
+        for name in dirnames:
+            if (Path(dirpath) / name).is_symlink():
+                filenames.append(name)
+            elif name not in SEGMENT_EXCLUDE and (
+                not deployment or not _rsync_excluded((rel_dir / name).as_posix() + "/")
+            ):
+                dirs.append(name)
+        dirnames[:] = dirs
         for name in filenames:
-            if Path(name).suffix.lower() in SUFFIX_EXCLUDE:
+            rel = (rel_dir / name).as_posix()
+            if name.endswith(".pyc") or (deployment and not _deployment_path(rel)):
                 continue
-            rel = (rel_dir / name).as_posix() if rel_dir.parts else name
             out[rel] = _hash_file(Path(dirpath) / name)
     return out
 
 
-def load_tree(arg: str) -> dict[str, FileHash]:
+def load_tree(arg: str, *, deployment=False) -> dict[str, FileHash]:
     """对拍/计划输入：目录（现场扫描）或清单 json（对端导出）。
 
     清单兼容 schema 1（两列）与 schema 2（三列）；schema 1 的 md5_lf 视为未知 None
@@ -153,10 +167,12 @@ def load_tree(arg: str) -> dict[str, FileHash]:
         data = json.loads(p.read_text(encoding="utf-8"))
         out: dict[str, FileHash] = {}
         for row in data["files"]:
+            if deployment and not _deployment_path(row[0]):
+                continue
             out[row[0]] = FileHash(row[1], row[2] if len(row) >= 3 else None)
         return out
     if p.is_dir():
-        return scan_tree(p)
+        return scan_tree(p, deployment=deployment)
     sys.exit(f"[tri_sync_audit] 无法读取树：{arg}（应为目录或清单 json）")
 
 
@@ -362,7 +378,7 @@ def _rsync_excluded(rel: str) -> bool:
     （``/data/`` 少了前导斜杠会把 ``core/data/`` 一并排掉，见 deploy.sh 注释）。
     """
     parts = rel.split("/")
-    name, dirs = parts[-1], parts[:-1]
+    dirs = parts[:-1]
     for pat in RSYNC_EXCLUDES:
         if pat.startswith("/"):
             anchored = pat[1:]
@@ -375,9 +391,14 @@ def _rsync_excluded(rel: str) -> bool:
         elif pat.endswith("/"):
             if pat[:-1] in dirs:
                 return True
-        elif fnmatch.fnmatch(name, pat):
+        elif any(fnmatch.fnmatchcase(part, pat) for part in parts):
             return True
     return False
+
+
+def _deployment_path(rel: str) -> bool:
+    # 服务器需要更新部署脚本；模拟容器时仍由 rsync 规则排除。
+    return rel in PLUGIN_TOOLS_EXACT or not _rsync_excluded(rel)
 
 
 def _git(root: Path, *args: str) -> subprocess.CompletedProcess:
@@ -468,11 +489,12 @@ def build_plan(profile: str, local_root: Path, server_arg: str, container_arg: s
     不在 git 仓则退回 ``scan_tree`` 全树扫描并在输出里提示。
     """
     warnings: list[str] = []
+    deployment = profile == "plugin"
     git_ok, tracked, dirty = _git_tracked(local_root)
     if git_ok:
         local_names = set(tracked)
     else:
-        local_names = set(scan_tree(local_root))
+        local_names = set(scan_tree(local_root, deployment=deployment))
         warnings.append(
             "⚠ 本地基准不在 git 仓内（git ls-files 不可用）⇒ 退回全树扫描；"
             "服务器独有文件无法判定「未跟踪」，一律归「需人工审核」"
@@ -483,9 +505,11 @@ def build_plan(profile: str, local_root: Path, server_arg: str, container_arg: s
     local_profile = {
         rel: _hash_file(local_root / rel)
         for rel in sorted(local_names)
-        if _match_face(profile, rel) and (local_root / rel).is_file()
+        if _match_face(profile, rel)
+        and (not deployment or _deployment_path(rel))
+        and ((local_root / rel).is_file() or (local_root / rel).is_symlink())
     }
-    server = load_tree(server_arg)
+    server = load_tree(server_arg, deployment=deployment)
     server_profile = {rel: h for rel, h in server.items() if _match_face(profile, rel)}
 
     transfer: list[dict] = []
@@ -519,6 +543,8 @@ def build_plan(profile: str, local_root: Path, server_arg: str, container_arg: s
         else:
             orphans_review.append(rel)  # 需人工审核，绝不自动删除
 
+    real_paths = [row["path"] for row in transfer if not row["crlf_only"]]
+    crlf_paths = [row["path"] for row in transfer if row["crlf_only"]]
     container: dict | None = None
     if container_arg:
         if profile != "plugin":
@@ -529,29 +555,35 @@ def build_plan(profile: str, local_root: Path, server_arg: str, container_arg: s
                 "changed": [],
             }
         else:
-            ctree = load_tree(container_arg)
+            ctree = load_tree(container_arg, deployment=True)
             # 同步后的源树 = 服务器树（排除项之外）+ 需传文件的本地内容
             source = {rel: h for rel, h in server.items() if not _rsync_excluded(rel)}
             for row in transfer:
                 if not _rsync_excluded(row["path"]):
                     source[row["path"]] = local_profile[row["path"]]
+            changed = sorted(
+                rel for rel, h in source.items() if rel not in ctree or h.md5 != ctree[rel].md5
+            )
+            deleted = sorted(rel for rel in ctree if not _rsync_excluded(rel) and rel not in source)
+            crlf_paths = [
+                rel
+                for rel in changed
+                if rel in ctree
+                and source[rel].md5_lf is not None
+                and source[rel].md5_lf == ctree[rel].md5_lf
+            ]
+            real_paths = sorted((set(changed) - set(crlf_paths)) | set(deleted))
             container = {
                 "simulated": True,
                 "note": "按 deploy.sh 的 rsync --delete + 排除列表模拟（排除规则与 deploy.sh 保持一致）",
-                "delete": sorted(
-                    rel for rel in ctree if not _rsync_excluded(rel) and rel not in source
-                ),
-                "changed": sorted(
-                    row["path"] for row in transfer if not _rsync_excluded(row["path"])
-                ),
+                "delete": deleted,
+                "changed": changed,
             }
 
     transfer_paths = [row["path"] for row in transfer]
     # 动作只看**真内容差异**：仅行尾不同的文件内容相同，传过去只为字节一致，不该把动作推重
     # （ZCode 10-17 实测：只差 CRLF 的 requirements.txt 曾把动作顶成 deps_restart，属虚警）。
-    real_paths = [row["path"] for row in transfer if not row["crlf_only"]]
     action = _resolve_action(profile, real_paths)
-    crlf_paths = [row["path"] for row in transfer if row["crlf_only"]]
     if crlf_paths:
         action["note"] = f"另有 {len(crlf_paths)} 个文件仅行尾不同，不计入动作判定"
     if server_profile and all(h.md5_lf is None for h in server_profile.values()):

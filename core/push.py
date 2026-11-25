@@ -14,9 +14,11 @@ from __future__ import annotations
 import asyncio
 import json
 import math
-import os
+import copy
 import re
 import time
+import threading
+from weakref import WeakValueDictionary
 from pathlib import Path
 from typing import Awaitable, Callable, Optional
 
@@ -24,6 +26,7 @@ from . import i18n, paths
 from .api_client import WarframeClient
 from .de_worldstate import DUVIRI_STATES
 from .logging_compat import mask_in_text, mask_umo
+from .messaging import LiteralProgress, literal_progress
 from .formatters import (
     ORACLE_REGIONS,
     _clean_challenge_desc,
@@ -44,9 +47,9 @@ from .formatters import (
     utc_today,
     weekly_reset_info,
 )
-from .parser import FissureFilter, parse_fissure_filter
+from .parser import FissureFilter, contains_fissure_tier, parse_fissure_filter
 from . import arbi, display_time
-from .store import Subscription, SubscriptionStore
+from .store import Subscription, SubscriptionStore, finish_write, write_json_atomic
 
 SendFunc = Callable[[str, str, Optional[list]], Awaitable[None]]
 
@@ -67,6 +70,14 @@ class _InvalidPause(dict):
     """只在读取副本中标记坏暂停；不写回存档，也不当成未暂停而试发。"""
 
 
+class _SendBusy(Exception):
+    """同一会话的上一笔发送尚未退出，本笔还没有调用适配器。"""
+
+
+class _CheckpointFailed(Exception):
+    """等待推送状态恢复可写后，再发送剩余正文。"""
+
+
 def _pause_number(value) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float, str)):
         raise ValueError("暂停数值类型不合法")
@@ -74,6 +85,25 @@ def _pause_number(value) -> float:
     if not math.isfinite(number) or number < 0:
         raise ValueError("暂停数值应为非负有限数")
     return number
+
+
+def _bounty_round(cycle) -> tuple[str, float]:
+    """保留旧事件键的原始写法，把 ISO、Unix 秒及 oracle 毫秒换算为统一的截止时间。"""
+    expiry = cycle.get("expiry") if isinstance(cycle, dict) else None
+    key = str(expiry).strip()
+    try:
+        end = float(key)
+    except ValueError:
+        dt = parse_iso(key)
+        if dt is None:
+            raise ValueError("赏金轮换时间缺失或无效") from None
+        end = dt.timestamp()
+    else:
+        if end >= 1e11:
+            end /= 1000
+    if not math.isfinite(end) or end <= 0:
+        raise ValueError("赏金轮换时间缺失或无效")
+    return key, end
 
 
 def _bounty_parts_for(parts: list[dict], sids: set[str]) -> list[dict]:
@@ -95,6 +125,40 @@ def _bounty_parts_text(parts: list[dict], sids: set[str]) -> str:
         f"⚡ 新赏金（{len(mine)} 条）：\n" + body,
         f"⚡ New bounties ({len(mine)}):\n" + body,
     )
+
+
+def _bounty_retry_chunks(
+    progress: LiteralProgress, parts: list[dict], sids: set[str], body: str
+) -> LiteralProgress:
+    """收件人减少后，把旧分片边界投影到仍有订阅的赏金行（含行中断点）。"""
+    original = "".join(progress.chunks)
+    if body == original:
+        return progress
+    ranges = []
+    old_end = new_end = 0
+    for part in parts:
+        text = part["text"]
+        old_start = original.index(text, old_end)
+        old_end = old_start + len(text)
+        if sids.intersection(part["sids"]):
+            new_start = body.index(text, new_end)
+            new_end = new_start + len(text)
+            ranges.append((old_start, old_end, new_start))
+
+    result = LiteralProgress()
+    offset = copied = 0
+    for i, chunk in enumerate(progress.chunks):
+        offset += len(chunk)
+        end = next(
+            (new + max(0, offset - start) for start, stop, new in ranges if offset < stop),
+            len(body),
+        )
+        if end > copied:
+            result.chunks.append(body[copied:end])
+            if i < progress.confirmed:
+                result.confirmed += 1
+            copied = end
+    return result
 
 
 _ARBI_TIER_RANGE_EN = "S≥800 / A+≥700 / A≥600 / A-≥450 / F＜450 (per hour)"
@@ -354,50 +418,48 @@ def alias_preset(word: str) -> Optional[str]:
     return PUSH_ALIAS_PRESET.get(word.strip())
 
 
-def build_cancel_selector(umo: str, heads: list[str]):
-    """解析「蹲 …取消…」中「取消」以外的词 → (event, keys, exact, fuzzy, label)。
-
-    2026-09-14 修「蹲 取消 裂隙 捕获 把全群订阅全删了」：旧版只看首词是不是
-    「取消」，后面的筛选词被无视。现在「取消」位置无关，其余词构成筛选条件：
-    · 第一个能识别为事件类型的词限定 event（如 裂隙 / 山谷）；
-    · 其余词按筛选词匹配 rule —— 先要求**精确等于**（「捕获」不会误杀
-      「虚空捕获」），一条没中再退回**包含**匹配兜底。
-    heads 为空 = 取消本群全部。
-    """
-    ev = None
-    keys: list[str] = []
-    for h in heads:
-        e = normalize_event(h)
-        if e and ev is None:
-            ev = e
-            if alias_preset(h):
-                keys.append(alias_preset(h))
+def subscription_event(toks, normalize_rules=None):
+    event_type = None
+    rest: list[str] = []
+    for tok in toks:
+        ev = normalize_event(tok)
+        if ev and event_type is None:
+            event_type = ev
+            if alias_preset(tok):  # 钢铁裂隙 → 裂隙 + 筛选「钢铁」（别把档位吃掉）
+                rest.append(alias_preset(tok))
         else:
-            keys.append(h)
+            rest.append(tok)
+    # ★ 2026-10-03（口径）：「T1–T6 / 古纪…全能」这类**档位词本身
+    #   就含裂隙语义** —— 没写类型词时自动判定为裂隙（「蹲 钢铁t5歼灭」
+    #   直接生效，不必再写「裂隙」）。⚠ 只认档位词：钢铁/虚空/地点词
+    #   仍走「未识别」提示，不重蹈 2026-09-14 静默降级的覆辙。
+    if event_type is None and any(contains_fissure_tier(t) for t in toks):
+        event_type = "裂隙"
+    if event_type and normalize_rules:  # 英文筛选词并入中文内部键（中文输入原样不动）
+        rest = normalize_rules(event_type, rest)
+    return event_type, rest
 
-    def exact(s):
-        if s.umo != umo:
-            return False
-        if ev and s.event != ev:
-            return False
-        if keys:
-            rule = s.rule or ""
-            if not any(k == rule for k in keys):
-                return False
-        return True
 
-    def fuzzy(s):
-        if not keys:
-            return False
-        if s.umo != umo:
-            return False
-        if ev and s.event != ev:
-            return False
-        rule = s.rule or ""
-        return any(k in rule for k in keys)
+def subscription_rule(event, words):
+    return (" " if event == "裂隙" else ",").join(words)
 
-    label = " ".join(heads) if heads else "全部"
-    return ev, keys, exact, fuzzy, label
+
+def build_cancel_selector(umo, heads, *, normalize_rules=None):
+    """精确匹配完整规则；部分匹配用于从权限范围内收集候选。"""
+    event, words = subscription_event(heads, normalize_rules)
+
+    def in_scope(sub):
+        return sub.umo == umo and (not event or sub.event == event)
+
+    def exact(sub):
+        # 旧订阅可能在 OR 逗号两侧留有空格；英文候选命令统一输出半角紧凑写法。
+        rule = re.sub(r"\s*[,，]\s*", ",", sub.rule) if sub.event == "裂隙" else sub.rule
+        return in_scope(sub) and (not words or rule == subscription_rule(sub.event, words))
+
+    def fuzzy(sub):
+        return in_scope(sub) and bool(words) and any(word in sub.rule for word in words)
+
+    return event, words, exact, fuzzy, " ".join(heads) or "全部"
 
 
 # ---------------------------------------------------------------------------
@@ -440,7 +502,34 @@ def _live_daemon_tasks() -> list:
     return out
 
 
+class _PushOwnership:
+    def __init__(self):
+        self.current = None
+        self.sending = {}
+        self.lock = threading.Lock()
+
+
+_PUSH_PATHS = WeakValueDictionary()
+
+
+def _push_ownership(path):
+    if path is None:
+        return _PushOwnership()
+    # AstrBot 可以重新导入整个插件包。旧回执与新实例仍属同一宿主事件循环。
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        registry = _PUSH_PATHS
+    else:
+        registry = getattr(loop, "_sdjk_push_paths", None)
+        if registry is None:
+            loop._sdjk_push_paths = registry = _PUSH_PATHS
+    return registry.setdefault(Path(path).resolve(), _PushOwnership())
+
+
 class PushDaemon:
+    SEND_TIMEOUT = 20.0
+
     def __init__(
         self,
         client: WarframeClient,
@@ -471,13 +560,19 @@ class PushDaemon:
         self.tick_hook = tick_hook
         self.display_timezone = display_timezone
         self.state_path = Path(state_path) if state_path else None
+        self._state_lock = asyncio.Lock()
         self._state_warned = False
-        self._expiry_save_pending = False
+        self._subs_save_pending = False
         self._baseline_ts = 0.0  # 仅保存重投队列时沿用，避免延长旧基线的有效期
         self._tick_no = 0
         # 最近一次 tick 的时刻与「本轮有没有订阅」（运维面板展示用；零订阅时不落盘基线，
         # 基线文件的 ts 会停在旧时刻，不能拿它当「守护还活着」的证据 —— 2026-10-16 ZCode 线上发现）
         self.last_tick_at: Optional[float] = None
+        self.last_tick_completed_at: Optional[float] = None
+        self._sending: dict[str, asyncio.Future] = {}
+        self._receipt_tasks: set[asyncio.Task] = set()
+        self._receipts: list[dict] = []
+        self._saved_last: dict = {}  # 中途落盘游标时沿用整轮已提交的基线
         self.last_tick_idle = False
         self._tick_ok = 0
         self._tick_fail = 0
@@ -490,7 +585,53 @@ class PushDaemon:
         # ★ 2026-10-17：umo -> 暂停记录。只在拿不到 GroupStore 时使用；有 GroupStore 时它就是真源
         self._pause: dict[str, dict] = {}
         self._bad_pause_warned: set[str] = set()
+        self._retired = False
+        self._owner = _push_ownership(getattr(store, "path", self.state_path))
+        with self._owner.lock:
+            previous = self._owner.current
+            self._owner.current = self
+        if previous is not None:
+            previous.retire()
+        bind_writer = getattr(store, "bind_writer", None)
+        if bind_writer is not None:
+            bind_writer(
+                self._replace_owned, reload=previous is not None and previous.store is not store
+            )
         self._load_state()
+        if previous is not None:
+            # 分片回执可能已更新内存游标，旧代的检查点写入却尚未完成。
+            for record in previous._pending:
+                if record.get("confirmed", 0):
+                    restored = self._pending_for(record)
+                    if (
+                        restored is not None
+                        and record["created"] == restored["created"]
+                        and record["confirmed"] > restored.get("confirmed", 0)
+                    ):
+                        self._discard_pending(restored)
+                        self._restore_pending([record], time.time())
+            # 平台已经确认、但旧代还在等待订阅锁或回执写盘。由本代幂等重放。
+            for receipt in previous._receipts:
+                if receipt not in self._receipts:
+                    self._receipts.append(copy.deepcopy(receipt))
+                pending = self._pending_for(receipt)
+                if pending is not None:
+                    self._discard_pending(pending)
+
+    def retire(self):
+        self._retired = True
+
+    def _replace_owned(self, tmp, path):
+        with self._owner.lock:
+            if self._owner.current is not self:
+                raise OSError("推送存档已由新实例接管")
+            tmp.replace(path)
+
+    def _pending_for(self, event):
+        return next(
+            (p for p in self._pending if all(p[k] == event[k] for k in ("umo", "kind", "key"))),
+            None,
+        )
 
     # ------------------------------------------------------------------
     def _set_baseline(self, last: dict, key: str, value, kind: str = "truthy") -> None:
@@ -523,6 +664,8 @@ class PushDaemon:
 
     def start(self) -> None:
         """启动守护；**进程级**幂等 —— 先清掉任何仍活跃的旧 daemon（跨实例泄漏）。"""
+        if self._retired:
+            return
         for dead in [x for x in _LIVE_DAEMONS if x.done()]:
             _LIVE_DAEMONS.discard(dead)  # 已结束的登记顺手清掉，防集合膨胀
         # ★ 2026-09-26 二次修复（线上实测：只记一条日志、群里却收到两条）：
@@ -562,22 +705,32 @@ class PushDaemon:
     async def stop(self) -> None:
         """停止本实例的守护并**注销登记**（幂等；失败也记日志）。"""
         task = self._task
-        if task is None:
-            self.log.info("[warframe] 推送守护未在运行（stop 幂等跳过，实例 %s）", id(self))
+        if task is None and not self._sending and not self._receipt_tasks:
             return
-        self.log.info(
-            "[warframe] 正在停止推送守护（实例 %s，task.done()=%s）", id(self), task.done()
-        )
-        task.cancel()
-        try:
-            await task
-        except asyncio.CancelledError:
-            pass  # 正常取消路径
-        except Exception as exc:  # noqa: BLE001 - 停止失败要留痕
-            self.log.warning("[warframe] 推送守护停止时异常：%s", exc)
-        finally:
-            _LIVE_DAEMONS.discard(task)
-            self._task = None
+        if task is not None:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+            except Exception as exc:  # noqa: BLE001
+                self.log.warning("[warframe] 推送守护停止时异常：%s", exc)
+            finally:
+                _LIVE_DAEMONS.discard(task)
+                self._task = None
+        # 适配器可能在取消后返回有效回执。先等发送退出，再等已经接手的游标写入和消费。
+        if self._sending:
+            _, still_sending = await asyncio.wait(
+                set(self._sending.values()), timeout=self.SEND_TIMEOUT
+            )
+            # 已超时的 SDK 也可能卡在它自己的取消清理中。回执写入已经由独立任务接手。
+            for sending in still_sending:
+                sending.cancel()
+            if still_sending:
+                await asyncio.gather(*still_sending, return_exceptions=True)
+        await self._wait_receipts()
+        if self._pending or self._receipts:
+            await self._save_state(None, checkpoint=True)
         self.log.info("[warframe] 推送守护已停止（仍活跃 %d）", len(_LIVE_DAEMONS))
 
     async def _run(self) -> None:
@@ -606,6 +759,12 @@ class PushDaemon:
         return self._filters[sub.sid]
 
     async def tick(self) -> None:
+        if self._retired:
+            return
+        await self._poll()
+        self.last_tick_completed_at = time.time()
+
+    async def _poll(self) -> None:
         now = time.time()
         self._tick_no += 1
         self.last_tick_at = now
@@ -613,6 +772,15 @@ class PushDaemon:
         self._tick_fail = 0
         self._dead = set()  # 本 tick 内已消费 / 已移除的订阅 sid（防同 tick 超额派发）
         self._purged_umos = set()
+        await self._wait_receipts()
+        for receipt in self._receipts.copy():
+            sids = set(receipt["sids"])
+            delivered = [
+                sub
+                for sub in self.store.for_umo(receipt["umo"])
+                if sub.event == receipt["kind"] and sub.sid in sids
+            ]
+            await self._consume_receipt(receipt, delivered, replay=True)
         if self.tick_hook is not None:
             try:
                 await self.tick_hook(now)
@@ -626,7 +794,7 @@ class PushDaemon:
             if self._last or self._pending:
                 self._last.clear()  # 所有订阅清空 ⇒ 丢弃全部基线（防日后重订时拿陈旧基线 diff）
                 self._pending.clear()
-                self._save_state(now, force=True)
+                await self._save_state(now)
             return
         # 订阅删掉后筛选缓存也要跟着走，长期运行才不会慢慢漏内存
         live_sids = {s.sid for s in subs}
@@ -651,7 +819,7 @@ class PushDaemon:
         elif self._tick_fail:
             self._fail_streak += 1
         if self._tick_ok or had_pending or self._pending:
-            self._save_state(now if self._tick_ok else self._baseline_ts)
+            await self._save_state(now if self._tick_ok else None)
 
     async def _arbi_line_en(self, sl: dict) -> str:
         """仲裁推送的英文节点行：节点（星球） · 类型 · 派系 + 评级；取不到英文表时回落中文原行。"""
@@ -715,18 +883,30 @@ class PushDaemon:
             if not p.exists():
                 return
             data = json.loads(p.read_text(encoding="utf-8"))
-            ts = float(data.get("ts"))
+            if not isinstance(data, dict):
+                raise ValueError("推送快照应为对象")
+        except Exception as exc:  # noqa: BLE001
+            self.log.warning("[warframe] 推送快照不可用（%s），本次重新建基线", exc)
+            return
+        receipts = data.get("receipts", [])
+        if isinstance(receipts, list):
+            for receipt in receipts:
+                self._restore_receipt(receipt)
+        now = time.time()
+        self._restore_pending(data.get("pending", []), now)
+        try:
+            ts = _pause_number(data.get("ts"))
             last = data.get("last")
             if not isinstance(last, dict) or not all(isinstance(v, dict) for v in last.values()):
                 raise ValueError("last 结构不对")
-        except Exception as exc:  # noqa: BLE001 - 坏快照等同没有
+        except (ValueError, OverflowError) as exc:
             self.log.warning("[warframe] 推送基线快照不可用（%s），本次重新建基线", exc)
             return
-        age = time.time() - ts
+        age = now - ts
         if 0 <= age <= BASELINE_MAX_AGE:
             self._last = last
+            self._saved_last = copy.deepcopy(last)
             self._baseline_ts = ts
-            self._restore_pending(data.get("pending", []), time.time())
             self.log.info(
                 "[warframe] 已载入推送基线快照（%d 秒前），停机期间的新事件将补推", int(age)
             )
@@ -734,6 +914,28 @@ class PushDaemon:
             self.log.info(
                 "[warframe] 推送基线快照已过期（%d 秒前，>30 分钟），只重建基线不补推", int(age)
             )
+
+    def _restore_receipt(self, receipt) -> None:
+        if not isinstance(receipt, dict) or not all(
+            isinstance(receipt.get(k), str) and receipt[k] for k in ("umo", "kind", "key")
+        ):
+            return
+        sids, stamp = receipt.get("sids"), receipt.get("ts")
+        if (
+            not isinstance(sids, list)
+            or not sids
+            or not all(isinstance(s, str) and s for s in sids)
+        ):
+            return
+        if type(stamp) not in (int, float):
+            return
+        try:
+            stamp = _pause_number(stamp)
+        except (ValueError, OverflowError):
+            return
+        self._receipts.append(
+            {k: receipt[k] for k in ("umo", "kind", "key", "sids")} | {"ts": stamp}
+        )
 
     def _restore_pending(self, items, now: float) -> None:
         """队列损坏不影响旧基线；仅恢复未过期、未耗尽且仍有对应订阅的待发项。"""
@@ -749,11 +951,30 @@ class PushDaemon:
             ):
                 continue
             created, tries, sids = it.get("created"), it.get("tries"), it.get("sids")
+            if (
+                not isinstance(sids, list)
+                or not sids
+                or not all(isinstance(s, str) and s for s in sids)
+            ):
+                continue
+            chunks, confirmed = it.get("chunks"), it.get("confirmed")
+            if "chunks" in it or "confirmed" in it:
+                if (
+                    not isinstance(chunks, list)
+                    or not chunks
+                    or not all(isinstance(chunk, str) and chunk for chunk in chunks)
+                    or "".join(chunks) != it["text"]
+                    or type(confirmed) is not int
+                    or not 0 <= confirmed <= len(chunks)
+                ):
+                    continue
+                if confirmed == len(chunks):
+                    # 旧版快照的末片可能迟到。已确认整条的消费不受重投 TTL、窗口和预算限制。
+                    self._restore_receipt({**it, "ts": created})
+                    continue
             if type(created) not in (int, float) or not now - PENDING_TTL <= created <= now:
                 continue
             if type(tries) is not int or not 0 <= tries < PENDING_MAX_TRIES:
-                continue
-            if not isinstance(sids, list) or not sids or not all(isinstance(s, str) for s in sids):
                 continue
             eligible_sids = [
                 sid
@@ -768,6 +989,10 @@ class PushDaemon:
                     **{k: it[k] for k in ("umo", "kind", "key", "text", "created", "tries")},
                     "sids": eligible_sids,
                 }
+                if it.get("unattempted") is True:
+                    record["unattempted"] = True
+                if chunks:
+                    record.update(chunks=chunks, confirmed=confirmed)
                 if "expires" in it:
                     try:
                         if type(it["expires"]) not in (int, float):
@@ -791,37 +1016,61 @@ class PushDaemon:
                         for part in parts
                     ):
                         continue
-                    record["parts"] = _bounty_parts_for(parts, set(eligible_sids))
+                    surviving = set(eligible_sids)
+                    record["parts"] = _bounty_parts_for(parts, surviving)
                     covered = {sid for part in record["parts"] for sid in part["sids"]}
-                    if covered != set(eligible_sids):
+                    if covered != surviving:
                         # 分行缺失时不能把没有对应正文的订阅一起 @ 或消费。
                         continue
+                    if record.get("confirmed") and surviving != set(sids):
+                        with i18n.use_lang(live[eligible_sids[0]].lang):
+                            body = _bounty_parts_text(record["parts"], surviving)
+                        try:
+                            progress = _bounty_retry_chunks(
+                                LiteralProgress(record["chunks"], record["confirmed"]),
+                                parts,
+                                surviving,
+                                body,
+                            )
+                        except ValueError:
+                            continue
+                        record.update(
+                            text=body, chunks=progress.chunks, confirmed=progress.confirmed
+                        )
                 elif it["kind"] == "赏金" and set(eligible_sids) != set(sids):
                     # 老队列只有合并正文，收件集合改变后无法安全拆回各订阅，保留订阅而跳过旧条目。
                     continue
                 self._pending.append(record)
 
-    def _save_state(self, now: float, force: bool = False) -> None:
-        """基线原子落盘（tmp + fsync + replace）；内容没变且不是强制时仍刷新时间戳。"""
-        p = self.state_path
-        if p is None:
+    async def _save_state(self, now: float | None, *, checkpoint=False, required=False) -> None:
+        """中途写入待发项或回执时，只带上已经完整派发过的那轮基线。"""
+        if self.state_path is None or self._owner.current is not self:
             return
-        try:
-            payload = json.dumps(
-                {"ts": now, "last": self._last, "pending": self._pending}, ensure_ascii=False
+
+        async def write():
+            state = {
+                "last": self._saved_last if checkpoint else self._last,
+                "pending": self._pending,
+            }
+            if self._receipts:
+                state["receipts"] = self._receipts
+            snapshot = copy.deepcopy(state)
+            snapshot["ts"] = self._baseline_ts if now is None else now
+            await asyncio.to_thread(
+                write_json_atomic, self.state_path, snapshot, replace=self._replace_owned
             )
-            p.parent.mkdir(parents=True, exist_ok=True)
-            tmp = p.with_suffix(p.suffix + ".tmp")
-            with open(tmp, "w", encoding="utf-8") as fh:
-                fh.write(payload)
-                fh.flush()
-                os.fsync(fh.fileno())
-            tmp.replace(p)
-            self._baseline_ts = now
+            self._baseline_ts = snapshot["ts"]
+            self._saved_last = snapshot["last"]
+
+        try:
+            async with self._state_lock:
+                await finish_write(write())
         except Exception as exc:  # noqa: BLE001 - 落盘失败不影响推送
             if not self._state_warned:
                 self._state_warned = True
-                self.log.warning("[warframe] 推送基线落盘失败（仅影响重启补推）：%s", exc)
+                self.log.warning("[warframe] 推送状态落盘失败：%s", exc)
+            if required:
+                raise _CheckpointFailed from exc
 
     # ------------------------------------------------------------------
     # 到期提醒
@@ -834,13 +1083,15 @@ class PushDaemon:
             self.log.warning("[warframe] 扫描过期订阅失败：%s", exc)
             gone = []
         try:
-            if self.store.gc(now):
-                self._expiry_save_pending = True
-            if self._expiry_save_pending:
+            removed = 0
+            if gone:
+                removed = await self.store.remove(lambda s: s.expired(now), retain_on_failure=True)
+            if self._subs_save_pending and not removed:
                 await self.store.save()
-                self._expiry_save_pending = False
+            self._subs_save_pending = False
         except Exception as exc:  # noqa: BLE001 - 写盘失败：内存已清，下次再落盘
-            self.log.warning("[warframe] 过期订阅清理落盘失败：%s", exc)
+            self._subs_save_pending = True
+            self.log.warning("[warframe] 订阅状态补写失败：%s", exc)
         by_umo: dict[str, list[Subscription]] = {}
         for s in gone:
             by_umo.setdefault(s.umo, []).append(s)
@@ -855,7 +1106,7 @@ class PushDaemon:
                 text = self._expire_text(items, parts)
             at_ids = list(dict.fromkeys(s.created_by for s in items if s.created_by))
             try:
-                await self.send(umo, text, at=at_ids)
+                await self._send_once(umo, text, at_ids)
             except asyncio.CancelledError:
                 raise
             except Exception as exc:  # noqa: BLE001 - 提醒发不出去不重试（订阅本就结束了）
@@ -1012,6 +1263,14 @@ class PushDaemon:
         with display_time.use_zone(self.display_timezone):
             return display_time.local_datetime(now)
 
+    def _can_deliver(self, umo: str, now: float) -> bool:
+        if self._retired or not self._group_on(umo):
+            return False
+        pause = self._pause_of(umo)
+        return pause is None or (
+            not isinstance(pause, _InvalidPause) and now >= float(pause.get("next_try") or 0)
+        )
+
     def _eligible(self, subs_u: list[Subscription], key: str) -> list[Subscription]:
         """本事件对这批（同会话）订阅里：仍存活 / 当前时间窗允许 / 没就此事件通知过的那些。"""
         now = time.time()
@@ -1024,8 +1283,8 @@ class PushDaemon:
                 # 本轮取数或前面的发送可能跨过到期点；留给下一轮正常 gc 和到期提醒。
                 self._dead.add(s.sid)
                 continue
-            if not self.store.has(s.sid):  # 并发取消 / 已被别处消费
-                self._dead.add(s.sid)
+            if not self.store.has(s.sid, unnotified=key):
+                # 迟到回执可能更新了上轮持有的订阅对象，派发前以当前存档复查。
                 continue
             if not s.time_window().allows(local):
                 continue
@@ -1043,25 +1302,25 @@ class PushDaemon:
         text_for=None,
         retry: Optional[dict] = None,
     ) -> str:
-        """向一个会话派发一条事件；返回 "ok"（已送达）/ "fail"（发送失败）/ "skip"（无需发）。
+        """向一个会话派发一条事件；返回 ok（已送达）、fail（发送失败）、defer（延后）或 skip（无需发）。
 
         · 只合并 @「本事件命中、时间窗当前允许、尚未就此事件通知过、仍存活」的订阅，
           被合并的订阅同样记 notified 并按各自时长语义消费（一次性的被 @ 即消费）；
         · 群开关关闭 ⇒ 整体跳过（不消费、不记 notified）；
         · 瞬时发送失败 ⇒ 进待发队列下一轮重投（有重试次数与过期上限）。
         """
-        if not self._group_on(umo):
+        if not self._can_deliver(umo, now):
             return "skip"
-        # ★ 2026-10-17：连续失败被暂停的会话 —— 未到重试时刻一律不发（不消费、不记 notified、
-        #   不入待发队列）；到了 next_try 就正常走下面的发送，这一次即「试发」。
-        pause = self._pause_of(umo)
-        if isinstance(pause, _InvalidPause):
-            return "skip"
-        if pause is not None and now < float(pause.get("next_try") or 0):
-            return "skip"
+        if retry is None and any(
+            (p["umo"], p["kind"], p["key"]) == (umo, kind, key)
+            for p in (*self._pending, *self._receipts)
+        ):
+            return "defer"  # 重启后旧基线可能再次检出已登记的事件。
         meta = retry if retry is not None else self._event_meta.get((kind, key), {})
         if meta.get("expires") is not None and time.time() >= meta["expires"]:
             return "skip"
+        if retry is not None and umo in self._owner.sending:
+            return "defer"
         elig = self._eligible(subs_u, key)
         if not elig:
             return "skip"
@@ -1073,50 +1332,168 @@ class PushDaemon:
                     return _bounty_parts_text(retry["parts"], sids)
             elif elig_sids != set(retry["sids"]):
                 return "skip"  # 旧的不透明合并正文不能在收件集合改变后原样转发。
-        body = text_for({s.sid for s in elig}) if text_for else text
+        body = text_for(elig_sids) if text_for else text
         if not body:
             return "skip"
+        progress = LiteralProgress(meta.get("chunks", []), meta.get("confirmed", 0))
+        if progress.chunks and body != text:
+            if progress.confirmed:
+                try:
+                    progress = _bounty_retry_chunks(progress, meta["parts"], elig_sids, body)
+                except ValueError:
+                    self.log.warning("[warframe] 待重投赏金分行与原文不符，键=%s", key)
+                    return "skip"
+            else:
+                progress = LiteralProgress()
+        # 宿主回退也只收到未确认后缀。原生桥沿用分片边界，不受重载或配置变化影响。
+        remaining = "".join(progress.chunks[progress.confirmed :]) if progress.chunks else body
         at_ids = list(dict.fromkeys(s.created_by for s in elig if s.created_by))
-        if not await self._send_guarded(umo, body, at_ids, now):
-            if retry is not None:
-                retry["tries"] += 1
-                retry["text"] = body
-                retry["sids"] = [s.sid for s in elig]
-                if "parts" in retry:
-                    retry["parts"] = _bounty_parts_for(retry["parts"], elig_sids)
-            elif umo not in self._purged_umos and self._pause_of(umo) is None:
-                # 暂停中的会话不再入队（刚被暂停的这一步会命中上面的 _pause_of 判断）
-                record = {
-                    "umo": umo,
-                    "kind": kind,
-                    "key": key,
-                    "text": body,
-                    "sids": [s.sid for s in elig],
-                    "created": now,
-                    "tries": 0,
-                }
-                if "expires" in meta:
-                    record["expires"] = meta["expires"]
-                if "parts" in meta:
-                    record["parts"] = _bounty_parts_for(meta["parts"], elig_sids)
-                self._pending.append(record)
-            return "fail"
-        self._fail_count.pop(umo, None)
-        if self._pause_of(umo) is not None:  # 试发成功 ⇒ 解除暂停
-            await self._write_pause(umo, None)
-            self.log.info("[warframe] %s：推送已恢复（试发成功，解除暂停）", mask_umo(umo))
-        await self._commit(elig, key, now)
-        # ★ 成功派发也留痕（2026-09-26）：此前只有失败才记日志，无法从日志判断
-        #   「同一事件被推了几条」。带上实例 id —— 若出现跨实例的重复推送，
-        #   同一事件键会打印出**两个不同的实例 id**，一眼可见。
-        self.log.info(
-            "[warframe] 已推送 事件=%s 键=%s → %s（实例 %s）", kind, key, mask_umo(umo), id(self)
-        )
-        return "ok"
+        record = retry
+        if record is None:
+            record = {
+                "umo": umo,
+                "kind": kind,
+                "key": key,
+                "created": now,
+                "tries": 0,
+                "unattempted": True,
+            }
+            self._pending.append(record)
+        record.update(text=body, sids=[s.sid for s in elig])
+        if "expires" in meta:
+            record["expires"] = meta["expires"]
+        if "parts" in meta:
+            record["parts"] = _bounty_parts_for(meta["parts"], elig_sids)
+        if progress.chunks:
+            record.update(chunks=progress.chunks, confirmed=progress.confirmed)
+        else:
+            record.pop("chunks", None)
+            record.pop("confirmed", None)
+
+        async def confirmed(cursor: LiteralProgress):
+            # 在取得回执的协程内同步更新状态并把写入交给守护，覆盖等订阅锁的阶段。
+            active = self._owner.current
+            pending = record if active is self else active._pending_for(record)
+            if cursor.complete:
+                receipt = {k: record[k] for k in ("umo", "kind", "key", "sids")}
+                receipt["ts"] = now
+                active._receipts.append(receipt)
+                if pending is not None:
+                    active._discard_pending(pending)
+                work = active._consume_receipt(receipt, elig)
+            elif pending is not None:
+                if "parts" in record and pending["sids"] != record["sids"]:
+                    cursor = _bounty_retry_chunks(
+                        cursor, record["parts"], set(pending["sids"]), pending["text"]
+                    )
+                pending.update(chunks=cursor.chunks, confirmed=cursor.confirmed)
+                work = active._save_state(None, checkpoint=True, required=True)
+            else:
+                return
+            task = asyncio.create_task(work)
+            active._receipt_tasks.add(task)
+            task.add_done_callback(active._receipt_finished)
+            await asyncio.shield(task)
+
+        progress.on_confirm = confirmed
+        if progress.complete:
+            await confirmed(progress)
+            return "ok"
+        try:
+            await self._save_state(None, checkpoint=True, required=True)
+        except _CheckpointFailed:
+            return "defer"
+        if record not in self._pending:
+            return "defer"  # 等待检查点期间，迟到回执已接手此事件。
+        if self.state_path is not None:
+            # 排队写快照期间可能有取消、窗口截止或轮换到期。
+            ready_at = time.time()
+            if (
+                not self._can_deliver(umo, ready_at)
+                or ready_at - record["created"] > PENDING_TTL
+                or record.get("expires") is not None
+                and ready_at >= record["expires"]
+            ):
+                self._discard_pending(record)
+                return "skip"
+            live = self._eligible(elig, key)
+            if len(live) != len(elig):
+                if not live:
+                    self._discard_pending(record)
+                    return "skip"
+                return await self._deliver(umo, kind, key, body, live, now, retry=record)
+        result = await self._send_guarded(umo, remaining, at_ids, now, progress)
+        if result == "fail":
+            if not record.pop("unattempted", False):
+                record["tries"] += 1
+            if umo in self._purged_umos or self._pause_of(umo) is not None:
+                self._discard_pending(record)
+        return result
+
+    def _discard_pending(self, record: dict) -> None:
+        if record in self._pending:
+            self._pending.remove(record)
+
+    def _receipt_finished(self, task: asyncio.Task) -> None:
+        self._receipt_tasks.discard(task)
+        if not task.cancelled():
+            task.exception()
+
+    async def _wait_receipts(self) -> None:
+        while self._receipt_tasks:
+            await asyncio.wait(self._receipt_tasks.copy())
+
+    async def _send_once(
+        self, umo: str, body: str, at_ids: list, progress: LiteralProgress | None = None
+    ) -> None:
+        """每个会话最多一笔在途发送。适配器延迟响应取消也有界返回。"""
+        if self._retired or umo in self._owner.sending:
+            raise _SendBusy("上次发送仍未退出")
+
+        async def transmit():
+            token = literal_progress.set(progress)
+            try:
+                if await self.send(umo, body, at=at_ids) is False:
+                    raise RuntimeError("发送回调明确返回未发送")
+                if progress is not None:
+                    await progress.confirm_message(body)
+            finally:
+                literal_progress.reset(token)
+
+        task = asyncio.create_task(transmit())
+        self._sending[umo] = self._owner.sending[umo] = task
+
+        def finished(done):
+            self._sending.pop(umo, None)
+            self._owner.sending.pop(umo, None)
+            if not done.cancelled():
+                done.exception()
+
+        task.add_done_callback(finished)
+        try:
+            done, _ = await asyncio.wait({task}, timeout=self.SEND_TIMEOUT)
+        finally:
+            if not task.done():
+                if progress is not None:
+                    progress.stopped = True  # 即使适配器吞取消，也不能在后台继续投递后片。
+                task.cancel()
+        if progress is not None and progress.complete:
+            await self._wait_receipts()
+            return
+        if not done:
+            raise TimeoutError("发送超时，送达未确认")
+        if task.cancelled():
+            raise RuntimeError("发送被取消（非守护停止）")
+        task.result()
 
     async def _send_guarded(
-        self, umo: str, body: str, at_ids: list, now: Optional[float] = None
-    ) -> bool:
+        self,
+        umo: str,
+        body: str,
+        at_ids: list,
+        now: float | None = None,
+        progress: LiteralProgress | None = None,
+    ) -> str:
         """真正发送一次；失败记 WARNING 并累计连续失败。
 
         · 识别出「群不在了」⇒ 照旧立即清理订阅；
@@ -1124,22 +1501,15 @@ class PushDaemon:
         """
         now = time.time() if now is None else now
         try:
-            if await self.send(umo, body, at=at_ids) is False:
-                raise RuntimeError("发送回调明确返回未发送")
-            return True
-        except asyncio.CancelledError:
-            err: BaseException
-            # 区分「守护任务本身被取消（stop / 重载）」与「发送链路内部抛出的取消」：
-            # 前者必须继续上抛；后者按一次发送失败处理，别让守护静默退出。
-            task = asyncio.current_task()
-            cancelling = getattr(task, "cancelling", None)
-            if cancelling is None or cancelling():
-                raise
-            err = RuntimeError("发送被取消（非守护停止）")
-            self.log.warning("[warframe] 推送失败（%s）：%s", mask_umo(umo), mask_in_text(err, umo))
+            await self._send_once(umo, body, at_ids, progress)
+            return "ok"
+        except (_SendBusy, _CheckpointFailed):
+            return "defer"
         except Exception as exc:  # noqa: BLE001
             err = exc
             self.log.warning("[warframe] 推送失败（%s）：%s", mask_umo(umo), mask_in_text(err, umo))
+        if self._retired:
+            return "defer"
         # —— 失败累计（每会话每 tick 最多记一次）——
         if self._fail_tick.get(umo) != self._tick_no:
             self._fail_tick[umo] = self._tick_no
@@ -1150,14 +1520,15 @@ class PushDaemon:
             await self._purge_umo(umo, "发送目标不可达（群不存在/被踢类错误）")
         elif n_fail >= FAIL_PURGE_THRESHOLD:
             await self._pause_or_purge(umo, err, n_fail, now)
-        return False
+        return "fail"
 
     async def _purge_umo(self, umo: str, reason: str) -> None:
         """清理一个不可达会话的全部订阅（留 WARNING，之后不再刷屏）。"""
         sids = {s.sid for s in self.store.all() if s.umo == umo}
         try:
-            n = await self.store.remove(lambda s: s.umo == umo)
+            n = await self.store.remove(lambda s: s.umo == umo, retain_on_failure=True)
         except Exception as exc:  # noqa: BLE001
+            self._subs_save_pending = True
             n = len(sids)
             self.log.warning(
                 "[warframe] 清理 %s 的订阅时写盘失败：%s", mask_umo(umo), mask_in_text(exc, umo)
@@ -1168,49 +1539,89 @@ class PushDaemon:
         self._fail_count.pop(umo, None)
         self.log.warning("[warframe] %s：%s → 已清理该会话 %d 条订阅", mask_umo(umo), reason, n)
 
-    async def _commit(self, elig: list[Subscription], key: str, now: float) -> None:
-        """送达后：记 notified、消费时长语义、落盘。落盘失败只记日志，内存状态照常更新。"""
-        for s in elig:
-            s.notified[key] = now
-            if len(s.notified) > 200:
-                for k in sorted(s.notified, key=lambda k: s.notified[k])[:100]:
-                    s.notified.pop(k, None)
-            keep = s.consume()
-            if not keep:
-                self._dead.add(s.sid)
-            try:
-                if not keep:
-                    await self.store.remove(lambda x, sid=s.sid: x.sid == sid)
-                else:
-                    # 运行期状态（notified 去重键 / hits_left 计数）在内存副本上改的，
-                    # 必须按 sid 原位落盘。
-                    await self.store.update(s)
-            except Exception as exc:  # noqa: BLE001 - 写盘失败不中断后续事件
-                self.log.warning("[warframe] 订阅 #%s 状态写盘失败（内存已更新）：%s", s.sid, exc)
+    async def _consume_receipt(
+        self, receipt: dict, delivered: list[Subscription], *, replay=False
+    ) -> None:
+        """先保存平台回执，再幂等消费订阅。订阅写入成功才撤销回执。"""
+        if not replay:
+            await self._save_state(None, checkpoint=True)
+        if self._owner.current is not self:
+            return
+        try:
+            self._dead.update(
+                await self.store.consume_batch(
+                    delivered,
+                    receipt["key"],
+                    receipt["ts"],
+                    retain_on_failure=True,
+                    persist_unchanged=replay,
+                )
+            )
+        except Exception as exc:  # noqa: BLE001
+            # 连内存消费都未能执行时，本轮也不能再向这些 SID 派发其他事件。
+            self._dead.update(s.sid for s in delivered if receipt["key"] not in s.notified)
+            self.log.warning("[warframe] 已送达的订阅状态写盘失败，下轮补写：%s", exc)
+        else:
+            self._receipts.remove(receipt)
+            await self._save_state(None, checkpoint=True)
+        if not replay and self._owner.current is self:
+            umo = receipt["umo"]
+            self._fail_count.pop(umo, None)
+            if self._pause_of(umo) is not None:
+                await self._write_pause(umo, None)
+                self.log.info("[warframe] %s：推送已恢复（试发成功，解除暂停）", mask_umo(umo))
+            self.log.info(
+                "[warframe] 已推送 事件=%s 键=%s → %s（实例 %s）",
+                receipt["kind"],
+                receipt["key"],
+                mask_umo(umo),
+                id(self),
+            )
 
     async def _flush_pending(self, now: float, subs: list[Subscription]) -> None:
         """重投上一轮发送失败的事件：最多重试 PENDING_MAX_TRIES 轮，超过 PENDING_TTL 秒即丢。"""
         if not self._pending:
             return
-        items, self._pending = self._pending, []
+        await self._wait_receipts()
         legacy_fissures = {}  # 本轮每平台最多补查一次，客户端 HTTP 缓存仍可复用。
-        for it in items:
-            if time.time() - it["created"] > PENDING_TTL or it["tries"] >= PENDING_MAX_TRIES:
+        bounty_round = None
+        checked_bounty = False
+        for it in self._pending.copy():
+            if it not in self._pending:
+                continue
+            expired = time.time() - it["created"] > PENDING_TTL
+            if expired or it["tries"] >= PENDING_MAX_TRIES:
                 self.log.warning(
-                    "[warframe] 待重投事件放弃（%s 键=%s，已试 %d 次）",
-                    it["umo"],
-                    it["key"],
+                    "[warframe] 待重投事件放弃（%s 键=%s，已试 %d 次，%s）",
+                    mask_umo(it["umo"]),
+                    mask_in_text(it["key"], it["umo"]),
                     it["tries"],
+                    "超过有效期" if expired else "达到重试次数上限",
                 )
+                self._discard_pending(it)
                 continue
             # 用本 tick 的订阅对象（与主派发共用同一份内存状态，避免互相覆盖 notified / hits_left）
             subs_u = [s for s in subs if s.sid in it["sids"]]
             if not subs_u:
+                self._discard_pending(it)
                 continue
+            if it["kind"] == "赏金" and "expires" not in it:
+                if not checked_bounty:
+                    checked_bounty = True
+                    try:
+                        bounty_round = _bounty_round(await self.client.bounty_cycle())
+                    except Exception:  # 源暂不可用时保留原 TTL 和次数
+                        pass
+                if bounty_round is None:
+                    continue
+                key, end = bounty_round
+                if it["key"] != f"bounty-{key}":
+                    self._discard_pending(it)
+                    continue
+                it["expires"] = end
             if it["kind"] == "裂隙" and "expires" not in it:
                 platforms = {s.platform for s in subs_u}
                 if len(platforms) != 1:
-                    self._pending.append(it)
                     continue
                 platform = next(iter(platforms))
                 if platform not in legacy_fissures:
@@ -1230,25 +1641,22 @@ class PushDaemon:
                         legacy_fissures[platform] = None
                 snapshot = legacy_fissures[platform]
                 if snapshot is None:
-                    self._pending.append(it)  # 源失败不是事件消失；保留原 created/tries/TTL。
-                    continue
+                    continue  # 源失败时保留原 created/tries/TTL。
                 source = next((f for f in snapshot if f.get("id") == it["key"]), None)
                 if source is None:
+                    self._discard_pending(it)
                     continue
                 expiry = source.get("expiry")
                 end = parse_iso(expiry) if isinstance(expiry, str) else None
                 if end is None:
-                    self._pending.append(it)
                     continue
                 it["expires"] = end.timestamp()
             with i18n.use_lang(subs_u[0].lang), display_time.use_zone(self.display_timezone):
                 res = await self._deliver(
                     it["umo"], it["kind"], it["key"], it["text"], subs_u, now, None, retry=it
                 )
-            if res == "fail" and it["umo"] not in self._purged_umos:
-                # 刚被「暂停」的会话不再回队（暂停期间不重投；`_deliver` 对暂停会话返回 skip）
-                if self._pause_of(it["umo"]) is None:
-                    self._pending.append(it)  # 下一轮再试（tries 已 +1，超限在入口处丢弃）
+            if res == "skip":
+                self._discard_pending(it)
 
     # ------------------------------------------------------------------
     async def _snapshot_diff(
@@ -1655,18 +2063,20 @@ class PushDaemon:
             # ★ C2（2026-10-03）：oracle 三地区（扎里曼/实验室/1999）的赏金
             #   轮换。每条赏金一个事件（key 带本轮 expiry ⇒ 换轮才重推，
             #   notified 去重兜底）；首轮只建基线不推（与裂隙同口径）。
-            try:
-                _cyc = await self.client.bounty_cycle()
-            except Exception:  # noqa: BLE001 - oracle 不可达降级不报错
-                _cyc = {}
-            _bs = (_cyc or {}).get("bounties") or {}
-            _exp = str((_cyc or {}).get("expiry") or "")
+            _cyc = await self.client.bounty_cycle()
+            _exp, end = _bounty_round(_cyc)
+            _bs = _cyc.get("bounties")
+            if not isinstance(_bs, dict) or any(
+                not isinstance(group, list) or any(not isinstance(row, dict) for row in group)
+                for group in _bs.values()
+            ):
+                raise ValueError("赏金轮换表结构异常")
             _bounty_subs = [s for s in subs if s.platform == platform and s.event == "赏金"]
             # 基线：首轮只记 bounty_exp（不推）；**换轮**（expiry 变了）那一轮才发事件，
             # 与其它类型「事件只在发生那一刻产出、窗口外丢弃」一致 —— 旧写法每轮都对当前
             # 全部赏金产出事件，窗口外的订阅进入窗口后会把「当前轮」补推一遍。
             _prev_exp = last.get("bounty_exp")
-            if _bounty_subs and _exp and _prev_exp is not None and _prev_exp != _exp:
+            if _prev_exp is not None and _prev_exp != _exp:
                 _node_tbl = de_zh("nodes_zh.json")
                 _ch_tbl = de_zh("challenges_zh.json")
                 _lines: list[tuple[set, str]] = []  # (命中的 sub.sid 集合, 一条赏金文本)
@@ -1716,11 +2126,10 @@ class PushDaemon:
                     union = set().union(*(h for h, _t in _lines))
                     matched[key] = union
                     parts = [{"sids": sorted(hit), "text": text} for hit, text in _lines]
-                    self._event_meta[("赏金", key)] = {"parts": parts}
+                    self._event_meta[("赏金", key)] = {"parts": parts, "expires": end}
                     self._text_for[key] = lambda sids, parts=parts: _bounty_parts_text(parts, sids)
                     out.append(("赏金", key, _bounty_parts_text(parts, union)))
-            if _exp:
-                last["bounty_exp"] = _exp
+            last["bounty_exp"] = _exp
 
         # ★ C4（2026-10-03）：灵化 / 信条 / 终幕 换轮点检测。窗口序号
         #   同源 formatters.rotation_window（与卡面同一套锚点算法）；

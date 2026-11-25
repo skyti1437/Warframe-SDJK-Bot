@@ -26,12 +26,15 @@ spec.loader.exec_module(worker)
 ENOUGH = {"ok": True, "ram_available_bytes": 512 * ocr.MIB, "swap_available_bytes": 2048 * ocr.MIB}
 STUB = """import json,os,sys,time,signal,subprocess
 from pathlib import Path
-q=json.loads(sys.stdin.read()); p=Path(q['model_dir']); mode=(p/'mode').read_text()
+q=json.loads(sys.stdin.buffer.readline()); p=Path(q['model_dir']); mode=(p/'mode').read_text()
 def publish_pid(path,pid):
  tmp=path.with_suffix('.ready'); tmp.write_text(str(pid)); os.replace(tmp,path)
 if mode in ('sleep','descendant'):
  signal.signal(signal.SIGTERM,signal.SIG_IGN)
 publish_pid(p/'pid',os.getpid())
+if mode=='backpressure': time.sleep(30)
+raw=sys.stdin.buffer.read(); assert len(raw)==q['image_bytes']
+if mode=='boundary': assert len(raw)==10*1024*1024 and raw==bytes(range(256))*40960
 if mode=='descendant':
  child_code="import os,signal,sys,time;from pathlib import Path;signal.signal(signal.SIGTERM,signal.SIG_IGN);p=Path(sys.argv[1]);tmp=p.with_suffix('.ready');tmp.write_text(str(os.getpid()));os.replace(tmp,p);time.sleep(30)"
  c=subprocess.Popen([sys.executable,'-c',child_code,str(p/'child_pid')])
@@ -592,6 +595,20 @@ class ConfigTests(unittest.IsolatedAsyncioTestCase):
                 task.cancel()
             await asyncio.gather(task, return_exceptions=True)
 
+    async def test_binary_boundary_and_cancel_during_backpressure(self):
+        await self.ready()
+        image = bytes(range(256)) * 40960
+        (self.models / "mode").write_text("boundary")
+        self.assertEqual((await self.manager.recognize(image))["recognition_state"], "boundary")
+        (self.models / "pid").unlink()
+        (self.models / "mode").write_text("backpressure")
+        task = asyncio.create_task(self.manager.recognize(image))
+        pid = await self.wait_pid()
+        task.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await task
+        self.assertFalse(alive(pid))
+
     async def test_resource_and_size_fail_without_spawn(self):
         await self.ready()
         with patch("asyncio.create_subprocess_exec", side_effect=AssertionError("禁止启动")):
@@ -607,6 +624,29 @@ class ConfigTests(unittest.IsolatedAsyncioTestCase):
 
 
 class ResourceAndWorkerTests(unittest.TestCase):
+    def test_worker_protocol_lengths_and_legacy(self):
+        import io
+        import json
+
+        self.assertEqual(
+            worker.read_request(io.BytesIO(b'{"model_dir":"/tmp","image":"AP8="}')),
+            ("/tmp", b"\x00\xff"),
+        )
+        pretty = json.dumps({"model_dir": "/tmp", "image": "AP8="}, indent=2)
+        self.assertEqual(
+            worker.read_request(io.BytesIO(pretty.encode() + b"\n")), ("/tmp", b"\x00\xff")
+        )
+        for size, data in (
+            (0, b""),
+            (True, b"x"),
+            (ocr.MAX_IMAGE_BYTES + 1, b""),
+            (2, b"x"),
+            (1, b"xx"),
+        ):
+            packet = json.dumps({"model_dir": "/tmp", "image_bytes": size}).encode() + b"\n" + data
+            with self.assertRaises(ValueError):
+                worker.read_request(io.BytesIO(packet))
+
     def test_ram_swap_and_cgroup_headroom(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

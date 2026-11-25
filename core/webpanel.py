@@ -31,13 +31,17 @@ import json
 import math
 import os
 import re
+import shutil
+import tempfile
 import threading
 import time
 import uuid
 from contextlib import nullcontext
+from functools import partial
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, NamedTuple, Optional
+from urllib.parse import urlsplit
 
 from . import baro, damage_engine, data_registry, display_time, i18n, paths, riven_sale
 from .api_client import (
@@ -48,6 +52,7 @@ from .api_client import (
     WarframeAPIError,
     WarframeClient,
     font_url_transport,
+    parse_de_worldstate_urls,
     private_url_reason,
     public_error_text,
     redact_error_text,
@@ -180,24 +185,18 @@ def _age_text(d: Optional[datetime], now: datetime) -> str:
     return f"{sec / 86400:.0f} 天前"
 
 
-def _load(name: str) -> dict:
-    """读运行期覆盖优先、回落包内种子的 JSON；读不到返回 {}（面板不能因一个坏文件整页挂）。"""
+def _load_snapshot(name: str, run_dir: Path | None = None) -> tuple[Any, str]:
+    """来源标签与数据共用一次路径选择，含坏 JSON 回退到种子的情况。"""
     try:
-        data = paths.load_json(paths.read_path(name))
+        path = paths.read_path(name, root=run_dir)
+        origin = "用的是随包种子" if path == paths.PKG_DATA / name else "用的是更新过的快照"
+        return paths.load_json(path), origin
     except Exception:  # noqa: BLE001
-        return {}
-    return data if isinstance(data, dict) else {}
+        return {}, "来源无法判定"
 
 
-def _origin(name: str) -> str:
-    """这份快照现在用的是哪一份：运行目录里的（社区快照 / 运行期刷新）还是包内种子。"""
-    try:
-        run = paths.run_dir()
-        if run != paths.PKG_DATA and (run / name).exists():
-            return "用的是更新过的快照"
-    except Exception:  # noqa: BLE001
-        pass
-    return "用的是随包种子"
+def _load(name: str, run_dir: Path | None = None) -> Any:
+    return _load_snapshot(name, run_dir)[0]
 
 
 # 「数据新鲜度」每行的用途：哪些指令 / 推送读这份数据、过期时卡面怎样（按各指令实际读取处整理）
@@ -224,167 +223,220 @@ def _row(item: str, status: str, snapshot: str, detail: str) -> dict:
     }
 
 
-def freshness(now: Optional[datetime] = None) -> list[dict]:
+def freshness(now: Optional[datetime] = None, *, run_dir: Path | None = None) -> list[dict]:
     """各数据快照的新鲜度（纯读盘，不联网）。"""
     now = now or datetime.now(timezone.utc)
     rows: list[dict] = []
 
-    rot = _load("rotations.json")
-    for sec, label in (("tenet", "信条元素加成"), ("coda", "终幕元素加成")):
-        d = rot.get(sec) or {}
+    def add(label, name, data, fields, describe, *, section=""):
+        # 缺文件时 _load 返回 {}，沿用原来的「尚未获取」口径。存在但类型错误才报警。
+        path = section or "根节点"
+        if section and isinstance(data, dict):
+            data = data.get(section, {})
+        if not isinstance(data, dict):
+            rows.append(_row(label, WARN, "", f"{name} 的 {path} 结构异常，应为对象"))
+            return
+        bad = [key for key, types in fields.items() if key in data and type(data[key]) not in types]
+        if not bad:
+            try:
+                rows.append(_row(label, *describe(data)))
+                return
+            except (ArithmeticError, AttributeError, OSError, ValueError, TypeError, LookupError):
+                # 例如类型正确但超过日期范围的时间戳。只报告字段名，不回显运行数据。
+                bad = list(fields)
+        names = "、".join(f"{section}.{key}" if section else key for key in bad)
+        rows.append(_row(label, WARN, "", f"{name} 的 {names} 结构异常"))
+
+    def valence(d):
         snap = d.get("valence_snapshot") or ""
-        try:
-            stale = WarframeClient.valence_is_stale(d, now)
-            same = WarframeClient.valence_values_stale(d, now)
-        except Exception:  # noqa: BLE001 - epoch 缺失等
-            stale, same = True, False
+        stale = not d.get("epoch") or WarframeClient.valence_is_stale(d, now)
+        same = not stale and WarframeClient.valence_values_stale(d, now)
         src = d.get("valence_source") or ""
-        rows.append(
-            _row(
-                label,
-                STALE if stale or same else OK,
-                snap,
-                (
-                    "已过本轮窗口，卡面会提示过期；"
-                    if stale
-                    else "已换轮但数值疑似仍是上一轮（wiki 未完整更新）；"
-                    if same
-                    else "在本轮窗口内；"
-                )
-                + (f"来源 {src}" if src else "来源未记录"),
+        return (
+            STALE if stale or same else OK,
+            snap,
+            (
+                "已过本轮窗口，卡面会提示过期；"
+                if stale
+                else "已换轮但数值疑似仍是上一轮（wiki 未完整更新）；"
+                if same
+                else "在本轮窗口内；"
             )
+            + (f"来源 {src}" if src else "来源未记录"),
         )
 
-    acw = _load(ACRITHIS_WEEK_NAME)
-    exp = _parse_iso(acw.get("expiry"))
-    rows.append(
-        _row(
-            "言录使本周货单",
+    rot = _load("rotations.json", run_dir)
+    for sec, label in (("tenet", "信条元素加成"), ("coda", "终幕元素加成")):
+        add(
+            label,
+            "rotations.json",
+            rot,
+            {
+                "epoch": (str,),
+                "period_hours": (int, str),
+                "valence_snapshot": (str,),
+                "valence_source": (str,),
+                "batches": (list,),
+                "batch_values_since": (list,),
+                "valence_values_since": (str,),
+                "anchor_idx": (int, str),
+            },
+            valence,
+            section=sec,
+        )
+
+    def acrithis(acw):
+        exp = _parse_iso(acw.get("expiry"))
+        return (
             OK if exp and exp > now else STALE,
             str(acw.get("expiry") or ""),
             (f"观测于 {acw.get('observed')}；" if acw.get("observed") else "")
             + ("未到轮换时间" if exp and exp > now else "已过轮换时间，卡面不再展示本周货单"),
         )
+
+    add(
+        "言录使本周货单",
+        ACRITHIS_WEEK_NAME,
+        _load(ACRITHIS_WEEK_NAME, run_dir),
+        {"expiry": (str,), "observed": (str,)},
+        acrithis,
     )
 
-    rw = _load(RIVEN_WEEKLY_NAME)
-    try:
-        rw_at = datetime.fromtimestamp(float(rw["fetched"]), timezone.utc) if rw else None
-    except (KeyError, TypeError, ValueError):
-        rw_at = None
-    rows.append(
-        _row(
-            "紫卡周报（DE 官方）",
+    def weekly(rw):
+        stamp = rw.get("fetched")
+        at = datetime.fromtimestamp(float(stamp), timezone.utc) if stamp is not None else None
+        return (
             INFO,
-            rw_at.isoformat(timespec="seconds") if rw_at else "",
-            (f"{_age_text(rw_at, now)}；" if rw_at else "还没查询过；")
-            + "超过 6 小时下次查询时自动刷新",
+            at.isoformat(timespec="seconds") if at else "",
+            (f"{_age_text(at, now)}；" if at else "还没查询过；") + "超过 6 小时下次查询时自动刷新",
         )
+
+    add(
+        "紫卡周报（DE 官方）",
+        RIVEN_WEEKLY_NAME,
+        _load(RIVEN_WEEKLY_NAME, run_dir),
+        {"fetched": (int, float, str)},
+        weekly,
     )
 
-    # 紫卡 WM 现价快照（WM 拍卖；2026-10-23 加，10-25 改为**只手动拉**）——「紫卡排行」周报卡
-    # 的「WM挂单 / 变化」两列读它。跑满一轮且覆盖率 ≥80% 才刷新 ts；不自动抓，所以陈旧只是
-    # 「最近没人拉」，一律 INFO 不告警。
-    rt = _load(RIVEN_RT_NAME)
-    rt_at = _parse_iso(rt.get("ts"))
-    try:
-        rt_cov = f"{float(rt['coverage']):.0%}" if rt.get("coverage") is not None else ""
-    except (TypeError, ValueError):
-        rt_cov = ""
-    rt_retry = len(rt.get("retry") or [])
-    rt_n = len(rt.get("rows") or {})
-    rows.append(
-        _row(
-            "紫卡 WM 现价（手动拉取）",
-            INFO,
-            str(rt.get("ts") or ""),
-            (
-                f"{_age_text(rt_at, now)}；已收录 {rt_n}/{rt.get('total', '?')} 把；"
-                if rt_at
-                else f"还没拉完过一整轮（已收录 {rt_n} 把）；"
+    def rank(data, *, riven=False):
+        ts = data.get("ts") or ""
+        at = _parse_iso(ts)
+        cov = f"{float(data['coverage']):.0%}" if data.get("coverage") is not None else ""
+        retry = len(data.get("retry", []))
+        retry_note = f"待补 {retry} 项（下次先补）；" if retry else ""
+        if riven:
+            n = len(data.get("rows", {}))
+            return (
+                INFO,
+                ts,
+                (
+                    f"{_age_text(at, now)}；已收录 {n}/{data.get('total', '?')} 把；"
+                    if at
+                    else f"还没拉完过一整轮（已收录 {n} 把）；"
+                )
+                + (f"上轮覆盖率 {cov}（< 80% 不刷新时间戳）；" if cov else "")
+                + retry_note
+                + "不自动抓：大更后由管理员「紫卡排行 刷新」或点上方按钮手动拉；重抓保护 10 分钟，耗时看进度",
             )
-            + (f"上轮覆盖率 {rt_cov}（< 80% 不刷新时间戳）；" if rt_cov else "")
-            + (f"待补 {rt_retry} 项（下次先补）；" if rt_retry else "")
-            + "不自动抓：大更后由管理员「紫卡排行 刷新」或点上方按钮手动拉；重抓保护 10 分钟，耗时看进度",
-        )
-    )
-
-    wm = _load(RANKS_NAME)
-    wm_at = _parse_iso(wm.get("ts"))
-    wm_low = bool(wm.get("low_coverage"))
-    try:
-        wm_cov = f"{float(wm['coverage']):.0%}" if wm.get("coverage") is not None else ""
-    except (TypeError, ValueError):
-        wm_cov = ""
-    wm_retry = len(wm.get("retry") or [])
-    rows.append(
-        _row(
-            "WM 价格排行",
-            WARN
-            if wm_low
-            else ((WARN if now - wm_at > timedelta(hours=60) else OK) if wm_at else INFO),
-            str(wm.get("ts") or ""),
+        low = data.get("low_coverage")
+        return (
+            WARN if low or (at and now - at > timedelta(hours=60)) else OK if at else INFO,
+            ts,
             (
-                f"上轮覆盖率不足（{wm_cov} < 80%），时间未刷新，旧行照常展示；"
-                if wm_low
-                else (f"上轮覆盖率 {wm_cov}；" if wm_cov else "")
+                f"上轮覆盖率不足（{cov} < 80%），时间未刷新，旧行照常展示；"
+                if low
+                else f"上轮覆盖率 {cov}；"
+                if cov
+                else ""
             )
-            + (f"待补 {wm_retry} 项（下次先补）；" if wm_retry else "")
+            + retry_note
             + (
-                f"{_age_text(wm_at, now)}；进度 {wm.get('done', '?')}/{wm.get('total', '?')}；"
-                if wm_at
+                f"{_age_text(at, now)}；进度 {data.get('done', '?')}/{data.get('total', '?')}；"
+                if at
                 else "还没跑完过一整轮；"
             )
             + "约每两天在凌晨 2–7 点空闲时段重爬（也可点上方按钮立即抓）",
         )
+
+    rank_fields = {
+        "rows": (dict,),
+        "retry": (list,),
+        "ts": (str, type(None)),
+        "coverage": (int, float, str, type(None)),
+        "total": (int,),
+    }
+    add(
+        "紫卡 WM 现价（手动拉取）",
+        RIVEN_RT_NAME,
+        _load(RIVEN_RT_NAME, run_dir),
+        rank_fields,
+        partial(rank, riven=True),
+    )
+    add(
+        "WM 价格排行",
+        RANKS_NAME,
+        _load(RANKS_NAME, run_dir),
+        {**rank_fields, "done": (int,), "low_coverage": (bool,)},
+        rank,
     )
 
-    try:
-        missed = baro.missed_visits(now, grace_hours=baro.STALE_GRACE_HOURS)
-        recent = baro.missed_visits(now) - missed  # 宽限期内（到访中 / 刚结束）尚未收录的次数
-        bsnap = baro.snapshot_date()
-    except Exception:  # noqa: BLE001
-        missed, recent, bsnap = -1, 0, ""
-    if missed < 0:
-        bdetail = "读取失败"
-    elif missed:
-        bdetail = f"快照后已有 {missed} 次到访超过 3 天仍未收录"
-    elif recent:
-        bdetail = "本次到访进行中或刚结束，wiki 通常 1–3 天内收录，过 3 天仍未收录再提示"
-    else:
-        bdetail = "已含最近一次到访"
-    rows.append(
-        _row(
-            "奸商到访历史",
-            INFO if missed <= 0 else WARN,
-            bsnap,
-            bdetail
-            if missed < 0
-            else bdetail + f"；{_origin('baro_history.json')}；每 3 小时检查社区快照",
+    history, baro_origin = _load_snapshot("baro_history.json", run_dir)
+
+    def baro_history(history):
+        missed = baro.missed_visits(now, grace_hours=baro.STALE_GRACE_HOURS, history=history)
+        if missed is None:
+            detail = "末次到访日期缺失或无效，无法判定漏访次数"
+        elif missed:
+            detail = f"快照后已有 {missed} 次到访超过 3 天仍未收录"
+        elif baro.missed_visits(now, history=history):
+            detail = "本次到访进行中或刚结束，wiki 通常 1–3 天内收录，过 3 天仍未收录再提示"
+        else:
+            detail = "已含最近一次到访"
+        return (
+            INFO if missed == 0 else WARN,
+            str(history.get("fetched") or ""),
+            detail + f"；{baro_origin}；每 3 小时检查社区快照",
         )
-    )
 
-    arb = _load("arb_ratings.json")
-    rows.append(
-        _row(
-            "仲裁评级（社区实测）",
+    add(
+        "奸商到访历史",
+        "baro_history.json",
+        history,
+        {"visits": (list,), "fetched": (str,), "period_days": (int, str)},
+        baro_history,
+    )
+    ratings, ratings_origin = _load_snapshot("arb_ratings.json", run_dir)
+    add(
+        "仲裁评级（社区实测）",
+        "arb_ratings.json",
+        ratings,
+        {"_updated": (str,)},
+        lambda d: (
             INFO,
-            str(arb.get("_updated") or ""),
-            f"{_origin('arb_ratings.json')}；每 3 小时检查社区快照",
-        )
+            d.get("_updated", ""),
+            f"{ratings_origin}；每 3 小时检查社区快照",
+        ),
     )
-    drops = _load("drops.json")
-    rows.append(_row("掉落表", INFO, str(drops.get("updated") or ""), "官方掉落表快照，随版本更新"))
+    add(
+        "掉落表",
+        "drops.json",
+        _load("drops.json", run_dir),
+        {"updated": (str,)},
+        lambda d: (INFO, d.get("updated", ""), "官方掉落表快照，随版本更新"),
+    )
     return rows
 
 
-def registry_rows() -> list[dict]:
+def registry_rows(run_dir: Path | None = None) -> list[dict]:
     """数据登记表判定（``core/data_registry.evaluate``；出错不拖垮整页）。
 
     运行期刷新 / 社区快照类看实际生效的那份（``paths.read_path``）；``tracked_files=()``：
     面板不做「未登记」扫描（不起 git 子进程），完整性由测试与打包闸门把关。"""
     try:
-        return data_registry.evaluate(tracked_files=(), resolve=paths.read_path)
+        return data_registry.evaluate(
+            tracked_files=(), resolve=partial(paths.read_path, root=run_dir)
+        )
     except Exception:  # noqa: BLE001
         return []
 
@@ -662,6 +714,7 @@ def push_state(push) -> dict:
     alive = bool(task) and not task.done()
     # ★ 用内存里的 last_tick_at：零订阅时 tick 不落盘基线，基线文件 ts 会停在旧时刻（ZCode 10-16 线上实测）
     last_ts = getattr(push, "last_tick_at", None)
+    completed = getattr(push, "last_tick_completed_at", None)
     try:
         nxt = float(push.next_delay())
     except Exception:  # noqa: BLE001
@@ -680,6 +733,10 @@ def push_state(push) -> dict:
         "failing_sessions": sum(1 for v in (getattr(push, "_fail_count", {}) or {}).values() if v),
         "paused_sessions": paused_session_count(push),
         "last_tick": last_ts,
+        "last_tick_completed_at": completed,
+        "last_tick_completed_age_secs": max(0, int(time.time() - completed))
+        if completed is not None
+        else None,
     }
 
 
@@ -838,6 +895,7 @@ PREVIEW_EN = (
 )
 _IMG_MAX_BYTES = 15 * 1024 * 1024
 _IMG_MAX_SIDE = {"bg": 2400, "logo": 512}
+_COMPARE_TTL = 600
 
 
 def font_id(path) -> str:
@@ -1457,6 +1515,27 @@ def coerce_setting(spec: dict, value: Any, *, key: str = "") -> Any:
         if not isinstance(value, list):
             raise ValueError("应为列表")
         return [str(x).strip() for x in value if str(x).strip()]
+    if key == "de_worldstate_url":
+        # 面板复用逐行输入控件，宿主配置仍存字符串，兼容原来的单地址配置。
+        if isinstance(value, list) and all(isinstance(item, str) for item in value):
+            value = "\n".join(value)
+        if not isinstance(value, str) or len(value) > 2000:
+            raise ValueError("请输入由逗号或换行分隔的 HTTP(S) 地址")
+        urls = parse_de_worldstate_urls(value)
+        for url in urls:
+            try:
+                parts = urlsplit(url)
+                if (
+                    parts.scheme not in ("http", "https")
+                    or not parts.hostname
+                    or parts.port == 0
+                    or parts.username is not None
+                    or any(c.isspace() for c in url)
+                ):
+                    raise ValueError
+            except ValueError:
+                raise ValueError("每个 DE 地址必须是合法的 HTTP(S) 地址，且不带账号密码") from None
+        return ", ".join(urls)
     v = "" if value is None else str(value)
     opts = spec.get("options")
     if opts and v not in opts:
@@ -1500,8 +1579,7 @@ class WebPanel:
         self.p = plugin
         self.name = plugin_name
         self.closed = False
-        self._overview_lock = asyncio.Lock()
-        self._overview_task: Optional[asyncio.Task] = None
+        self._overview_scans: dict[Path, asyncio.Task] = {}
         self._refresh_lock = asyncio.Lock()
         self._test_lock = asyncio.Lock()
         self._data_test_cache: dict[str, tuple[float, tuple, dict]] = {}
@@ -1510,8 +1588,12 @@ class WebPanel:
         self._compare_task: Optional[asyncio.Task] = None
         self._deps_lock = asyncio.Lock()
         self._save_lock = asyncio.Lock()
+        self._command_history: dict[str, frozenset[str]] = {}
+        self._legacy_command_form = None
+        self._legacy_ambiguous_keys = set()
         self._migration_previews: dict[str, dict] = {}
         self._appearance_lock = threading.RLock()
+        self._theme_drafts: dict[str, tuple[str, bytes]] = {}
         self._render_tasks: set[asyncio.Task] = set()
         self._font_task: Optional[asyncio.Task] = None
         self._font_info: dict = {}
@@ -1546,6 +1628,12 @@ class WebPanel:
             (f"/{n}/theme_save", self.theme_save, ["POST"], "SDJKBOT 面板：保存主题"),
             (f"/{n}/theme_upload_bg", self.theme_upload_bg, ["POST"], "SDJKBOT 面板：上传背景图"),
             (f"/{n}/theme_upload_logo", self.theme_upload_logo, ["POST"], "SDJKBOT 面板：上传角标"),
+            (
+                f"/{n}/theme_draft_release",
+                self.theme_draft_release,
+                ["POST"],
+                "SDJKBOT 面板：释放草稿图片",
+            ),
             (
                 f"/{n}/theme_image_delete",
                 self.theme_image_delete,
@@ -1590,6 +1678,12 @@ class WebPanel:
                 self.vision_compare_run,
                 ["POST"],
                 "SDJKBOT 面板：执行同图对比",
+            ),
+            (
+                f"/{n}/vision_compare_status",
+                self.vision_compare_status,
+                ["GET"],
+                "SDJKBOT 面板：查询同图对比状态",
             ),
             (
                 f"/{n}/vision_compare_release",
@@ -1663,10 +1757,11 @@ class WebPanel:
             self.closed = True
             self._data_test_cache.clear()
             self._migration_previews.clear()
+            self._theme_drafts.clear()
             self._compare_results.clear()
             for token, job in list(self._compare_jobs.items()):
                 if job["state"] != "running":
-                    del self._compare_jobs[token]
+                    self._drop_compare_snapshot(token, job)
             if self._compare_task and not self._compare_task.done():
                 self._compare_task.cancel()
             if self._font_task and not self._font_task.done():
@@ -2065,23 +2160,40 @@ class WebPanel:
         if (g := self._gone()) is not None:
             return g
         reveal = self._query("reveal", "0") == "1"
-        await self._overview_lock.acquire()
-        task = self._overview_task = asyncio.create_task(self._overview_snapshot(reveal))
+        return await self._overview_snapshot(reveal)
 
-        def finished(done):
-            self._overview_task = None
-            self._overview_lock.release()
-            if not done.cancelled():
-                done.exception()
-
-        # 请求取消只停止等待；扫描结束前由独立任务保有锁。
-        task.add_done_callback(finished)
-        return await asyncio.shield(task)
+    @staticmethod
+    def _overview_disk(run_dir: Path) -> dict:
+        try:
+            fresh = freshness(run_dir=run_dir)
+        except (AttributeError, TypeError, ValueError, LookupError, ArithmeticError) as exc:
+            # 各文件通常由 freshness 逐行诊断；汇总自身出错时仍须读取独立账本。
+            logger.warning("[sdjk] 总览新鲜度汇总失败（%s）", type(exc).__name__)
+            fresh = [
+                _row("数据新鲜度", WARN, "", "overview.freshness 结构异常，请查看有效数据账本")
+            ]
+        return {
+            "freshness": fresh,
+            "registry": registry_rows(run_dir),
+            "ledger": ledger_rows(run_dir),
+        }
 
     async def _overview_snapshot(self, reveal: bool):
+        run_dir = paths.run_dir()
+        task = self._overview_scans.get(run_dir)
+        if task is None:
+            task = asyncio.create_task(asyncio.to_thread(self._overview_disk, run_dir))
+            self._overview_scans[run_dir] = task
+
+            def finished(done):
+                self._overview_scans.pop(run_dir, None)
+                if not done.cancelled():
+                    done.exception()
+
+            task.add_done_callback(finished)
+        disk = await asyncio.shield(task)
         if (g := self._gone()) is not None:
             return g
-        run_dir = paths.run_dir()
         try:
             from . import __version__ as ver
         except Exception:  # noqa: BLE001
@@ -2093,11 +2205,7 @@ class WebPanel:
                 (getattr(self.p, "cfg", None) or {}).get("display_timezone")
             ),
             "background": self.background_rows(),
-            "freshness": freshness(),
-            # 数据登记表（来源/生产器/判定方式/新鲜度结论）；与 health / 打包闸门读同一份判据
-            "registry": registry_rows(),
-            # 有效数据账本：逐份对照「运行目录副本 / 随包种子」（只读）
-            "ledger": None,
+            **disk,
             "disabled_commands": sorted(_global_disabled_commands(getattr(self.p, "cfg", None))),
             "push": push_state(self.p.push),
             "subs": subscriptions(self.p.subs, getattr(self.p, "groups", None), reveal=reveal),
@@ -2110,10 +2218,6 @@ class WebPanel:
             ),
             "community_base": str(getattr(self.p.client, "community_base", "") or ""),
         }
-        # 账本只读固定目录，实例与订阅状态仍在事件循环读取。
-        payload["ledger"] = await asyncio.to_thread(ledger_rows, run_dir)
-        if (g := self._gone()) is not None:
-            return g
         return payload
 
     async def refresh(self):
@@ -2275,7 +2379,10 @@ class WebPanel:
             cfg.get("default_platform", "pc"),
             getattr(client, "worldsource", "de"),
             cfg.get("worldsource", "de"),
-            getattr(client, "de_worldstate_url", ""),
+            self._running_de_urls(),
+            tuple(parse_de_worldstate_urls(cfg["de_worldstate_url"]))
+            if "de_worldstate_url" in cfg
+            else None,
             getattr(client, "worldstate_base", ""),
             getattr(client, "community_base", ""),
             getattr(client, "allow_private_urls", False),
@@ -2284,6 +2391,13 @@ class WebPanel:
             tuple(getattr(client, "_flare_urls", ())),
         )
 
+    def _running_de_urls(self) -> tuple[str, ...]:
+        client = self.p.client
+        candidates = getattr(client, "_de_worldstate_urls", None)
+        if candidates is not None:
+            return tuple(candidates())
+        return tuple(parse_de_worldstate_urls(getattr(client, "de_worldstate_url", "")))
+
     async def _test_data_source(self, target: str) -> dict:
         key = self._data_test_key()
         hit = self._data_test_cache.get(target)
@@ -2291,14 +2405,24 @@ class WebPanel:
             return {**copy.deepcopy(hit[2]), "cached": True}
         started = time.perf_counter()
         cfg = getattr(self.p, "cfg", {})
-        # 世界状态来源改了要重载才生效：按设置里保存的值测，和运行中不一致时在结果里说明
+        # 按保存的来源和地址测，重载前仍保留运行中的配置。
         saved_ws = cfg.get("worldsource", "de")
         running_ws = getattr(self.p.client, "worldsource", "de")
+        saved_de_url = cfg.get("de_worldstate_url")
+        probe_options = {}
+        pending_de_urls = False
+        if target == "worldstate":
+            probe_options["worldsource"] = saved_ws
+            if saved_ws == "de" and saved_de_url is not None:
+                probe_options["de_worldstate_url"] = saved_de_url
+                pending_de_urls = (
+                    tuple(parse_de_worldstate_urls(saved_de_url)) != self._running_de_urls()
+                )
         try:
             result = await self.p.client.probe_data_source(
                 target,
                 platform=cfg.get("default_platform", "pc"),
-                **({"worldsource": saved_ws} if target == "worldstate" else {}),
+                **probe_options,
             )
         except Exception as exc:  # noqa: BLE001 - 原异常可能包含凭据与主机路径
             result = {
@@ -2310,13 +2434,18 @@ class WebPanel:
         if (g := self._gone()) is not None:
             return g
         if target == "worldstate" and saved_ws != running_ws:
-            names = {"de": "DE 官方", "warframestat": "warframestat.us"}
+            names = {"de": "DE 世界状态", "warframestat": "warframestat.us"}
             result = {
                 **result,
                 "detail": (
                     f"{result.get('detail') or ''}（按设置测的是 {names.get(saved_ws, saved_ws)}；"
                     f"该项需重载插件才生效，当前运行中仍是 {names.get(running_ws, running_ws)}）"
                 ),
+            }
+        elif pending_de_urls:
+            result = {
+                **result,
+                "detail": f"{result.get('detail') or ''}（已按保存的 DE 地址探测，需重载插件后生效）",
             }
         result = {
             **result,
@@ -3279,22 +3408,59 @@ class WebPanel:
             **extra,
         }
 
+    @staticmethod
+    def _cancel_compare_expiry(job):
+        handle = job.pop("expiry_handle", None)
+        if handle is not None:
+            handle.cancel()
+
+    def _expire_compare(self, token):
+        job = self._compare_jobs.get(token)
+        if job is not None and job["state"] == "ready":
+            self._drop_compare_snapshot(token, job)
+
     def _compare_prune(self):
         now = time.monotonic()
-        for jobs in (self._compare_jobs, self._compare_results):
-            for token, job in list(jobs.items()):
-                if job["state"] != "running" and job["expires"] <= now:
-                    del jobs[token]
+        for token, job in list(self._compare_jobs.items()):
+            if job["state"] == "ready" and job["expires"] <= now:
+                self._drop_compare_snapshot(token, job)
+        for token, job in list(self._compare_results.items()):
+            if job["expires"] <= now:
+                del self._compare_results[token]
 
-    def _compare_finish(self, token, job):
+    def _drop_compare_snapshot(self, token, job):
+        self._cancel_compare_expiry(job)
         self._compare_jobs.pop(token, None)
         for key in ("prepared", "provider", "original", "candidate"):
             job.pop(key, None)
+
+    def _compare_finish(self, token, job):
+        self._drop_compare_snapshot(token, job)
         if not self.closed:
-            job["expires"] = time.monotonic() + 600
+            job["expires"] = time.monotonic() + _COMPARE_TTL
             self._compare_results[token] = job
             while len(self._compare_results) > 32:
                 del self._compare_results[next(iter(self._compare_results))]
+
+    async def vision_compare_status(self):
+        """读取待执行、执行中或缓存的终态；查询从不启动任务。"""
+        if self.closed:
+            return self._compare_error("closed", "面板已关闭")
+        token = self._query("token")
+        job = self._compare_jobs.get(token) or self._compare_results.get(token)
+        if not job or (job["state"] != "running" and job["expires"] <= time.monotonic()):
+            return self._compare_error("token_unavailable", "对比任务不存在或已过期")
+        result = {
+            "ok": True,
+            "token": token,
+            "state": job["state"],
+            "attempted": 0,
+            "sent": False,
+            **_VISION_CALL_AUDIT,
+        }
+        if "result" in job:
+            result["result"] = {**job["result"], "cached": True}
+        return result
 
     async def vision_compare_release(self):
         """只释放尚未执行的快照；终态缓存避免旧令牌重新发送。"""
@@ -3401,7 +3567,7 @@ class WebPanel:
         info = {
             "ok": True,
             "token": token,
-            "expires_in": 600,
+            "expires_in": _COMPARE_TTL,
             "provider_id": pid,
             "task": task,
             "candidate_source": source,
@@ -3422,7 +3588,10 @@ class WebPanel:
         }
         self._compare_jobs[token] = {
             "state": "ready",
-            "expires": time.monotonic() + 600,
+            "expires": time.monotonic() + _COMPARE_TTL,
+            "expiry_handle": asyncio.get_running_loop().call_later(
+                _COMPARE_TTL, self._expire_compare, token
+            ),
             "info": info,
             "provider": provs[0],
             "prepared": prepared,
@@ -3459,6 +3628,7 @@ class WebPanel:
         if job["state"] == "running" or self._test_lock.locked():
             return self._compare_error("busy", "已有测试正在执行")
         job["state"] = "running"
+        self._cancel_compare_expiry(job)
         async with self._test_lock:
             self._compare_task = asyncio.current_task()
             entered = False
@@ -3607,10 +3777,32 @@ class WebPanel:
             "last_30_days": named_rows(30),
         }
 
+    def _command_snapshot(self):
+        disabled = _global_disabled_commands(getattr(self.p, "cfg", None))
+        revision = next(reversed(self._command_history), None)
+        if revision is None or disabled != self._command_history[revision]:
+            revision = uuid.uuid4().hex
+            self._command_history[revision] = disabled
+            if len(self._command_history) > 64:
+                oldest = next(iter(self._command_history))
+                del self._command_history[oldest]
+        return revision, disabled
+
     async def commands_config(self):
         if (gone := self._gone()) is not None:
             return gone
-        disabled = _global_disabled_commands(getattr(self.p, "cfg", None))
+        revision, disabled = self._command_snapshot()
+        # 新版页面自行回传修订号。旧页面只回传整张开关表。
+        try:
+            versioned = self._query("format") == "delta"
+        except (ImportError, RuntimeError):  # 直接调用，无宿主 HTTP 请求上下文
+            versioned = False
+        if not versioned:
+            # 旧客户端不带表单 ID。不同读者看到过相反状态的键，整表无法表达
+            # 它是有意改回还是陈旧字段；其余键仍可按最近一次读取的基线合并。
+            if self._legacy_command_form is not None:
+                self._legacy_ambiguous_keys.update(self._legacy_command_form[1] ^ disabled)
+            self._legacy_command_form = revision, disabled
         groups = []
         for (name, name_en), commands in _COMMAND_GROUPS.items():
             rows = []
@@ -3633,6 +3825,7 @@ class WebPanel:
             groups.append({"name": name, "name_en": name_en, "commands": rows})
         total = len(COMMAND_ALIASES)
         return {
+            "revision": revision,
             "groups": groups,
             "disabled": sorted(disabled),
             "default_disabled": sorted(DEFAULT_DISABLED_COMMANDS),
@@ -3650,29 +3843,91 @@ class WebPanel:
         body = await self._body()
         if (gone := self._gone()) is not None:
             return gone
-        values = body.get("disabled")
-        if not isinstance(values, list) or any(
-            not isinstance(key, str) or key not in COMMAND_ALIASES for key in values
-        ):
-            return {"status": "error", "message": "请提交只含有效主指令键的禁用列表"}
-        disabled = sorted(set(values))
-        if GLOBAL_PROTECTED_COMMANDS.intersection(disabled):
-            return {"status": "error", "message": "核心必留指令无法关闭"}
-        if self._save_lock.locked():
-            return {"status": "error", "message": "上一次保存还没结束"}
         async with self._save_lock:
+            if (gone := self._gone()) is not None:
+                return gone
+            revision, current = self._command_snapshot()
+            source = body.get("revision")
+            edits = body.get("changes")
+            if "changes" in body:
+                if (
+                    not isinstance(source, str)
+                    or not isinstance(edits, dict)
+                    or any(
+                        key not in COMMAND_ALIASES or type(value) is not bool
+                        for key, value in edits.items()
+                    )
+                ):
+                    return {"status": "error", "message": "请提交配置修订号与改动键的禁用状态"}
+            else:
+                values = body.get("disabled")
+                if not isinstance(values, list) or any(
+                    not isinstance(key, str) or key not in COMMAND_ALIASES for key in values
+                ):
+                    return {"status": "error", "message": "请提交只含有效主指令键的禁用列表"}
+                if GLOBAL_PROTECTED_COMMANDS.intersection(values):
+                    return {"status": "error", "message": "核心必留指令无法关闭"}
+                if "revision" not in body:
+                    source = self._legacy_command_form[0] if self._legacy_command_form else revision
+                    if (
+                        source not in self._command_history
+                        or self._legacy_ambiguous_keys.intersection(current ^ set(values))
+                    ):
+                        return {
+                            "status": "error",
+                            "code": "legacy_revision_required",
+                            "revision": revision,
+                            "disabled": sorted(current),
+                            "message": "旧版整表没有修订号，无法区分其他窗口的改动。请用新版指令开关面板重新提交。",
+                        }
+
+            if not isinstance(source, str) or source not in self._command_history:
+                return {
+                    "status": "error",
+                    "code": "revision_unavailable",
+                    "revision": revision,
+                    "disabled": sorted(current),
+                    "message": "无法确认表单基线，请核对最新配置",
+                }
+            base = self._command_history[source]
+            if edits is None:
+                target = frozenset(values)
+                edits = {key: key in target for key in base ^ target}
+            if any(key in GLOBAL_PROTECTED_COMMANDS and value for key, value in edits.items()):
+                return {"status": "error", "message": "核心必留指令无法关闭"}
+
+            # 已经达到相同目标的重复提交幂等。也识别期间被改动后又改回的键。
+            newer = list(self._command_history)
+            touched = set().union(
+                *(base ^ self._command_history[k] for k in newer[newer.index(source) + 1 :])
+            )
+            clashes = [key for key in edits if key in touched and edits[key] != (key in current)]
+            if clashes:
+                return {
+                    "status": "conflict",
+                    "code": "revision_conflict",
+                    "revision": revision,
+                    "disabled": sorted(current),
+                    "conflicts": sorted(clashes),
+                    "message": "其他窗口已修改同一指令：" + "、".join(sorted(clashes)),
+                }
+            disabled = sorted(
+                (current - edits.keys()) | {key for key, value in edits.items() if value}
+            )
             conf = getattr(self.p, "_config", None)
             if conf is None or not callable(getattr(conf, "save_config", None)):
                 return {"status": "error", "message": "无法取得插件配置，指令开关未保存"}
             changes = {"disabled_commands": disabled}
             try:
-                _write_config_changes(conf, changes)
+                if conf.get("disabled_commands") != disabled:
+                    _write_config_changes(conf, changes)
             except Exception as exc:  # noqa: BLE001
                 logger.warning("[sdjk] 指令开关保存失败（%s）", type(exc).__name__)
                 return {"status": "error", "message": "指令开关保存失败，请检查插件配置"}
             self._apply_live(changes)
+            revision, _ = self._command_snapshot()
         logger.info("[sdjk] 面板保存指令开关：关闭 %d 条", len(disabled))
-        return {"status": "ok", "disabled": disabled}
+        return {"status": "ok", "disabled": disabled, "revision": revision}
 
     async def settings(self):
         if (g := self._gone()) is not None:
@@ -3689,16 +3944,23 @@ class WebPanel:
                 seen.add(k)
                 spec = schema[k]
                 secret = k == "damage_engine_token"
+                kind = spec.get("type", "string")
+                default = spec.get("default")
+                value = cfg.get(k, default)
+                if k == "de_worldstate_url":
+                    kind = "list"
+                    default = parse_de_worldstate_urls(default)
+                    value = parse_de_worldstate_urls(value)
                 fields.append(
                     {
                         "key": k,
-                        "type": spec.get("type", "string"),
+                        "type": kind,
                         "label": spec.get("description", k),
                         "hint": spec.get("hint", ""),
                         "options": spec.get("options"),
                         "provider": spec.get("_special") == "select_provider",
-                        "default": spec.get("default"),
-                        "value": None if secret else cfg.get(k, spec.get("default")),
+                        "default": default,
+                        "value": None if secret else value,
                         **({"secret": True, "configured": bool(cfg.get(k))} if secret else {}),
                         "reload": k in RELOAD_KEYS,
                         "platforms": FIELD_PLATFORMS.get(k, []),
@@ -4032,17 +4294,29 @@ class WebPanel:
             p.push.interval = max(15, clean["push_interval"])
         if "display_timezone" in clean and getattr(p, "push", None) is not None:
             p.push.display_timezone = clean["display_timezone"]
-        if "allow_private_urls" in clean and getattr(p, "client", None) is not None:
-            p.client.allow_private_urls = bool(clean["allow_private_urls"])
-        if "wfhelper_valence" in clean and getattr(p, "client", None) is not None:
-            p.client.wfhelper_valence = bool(clean["wfhelper_valence"])
-        if "community_data_url" in clean and getattr(p, "client", None) is not None:
+        client = getattr(p, "client", None)
+        if client is None:
+            return
+        source_changed = False
+        for key in ("allow_private_urls", "wfhelper_valence"):
+            if key in clean and bool(clean[key]) != getattr(client, key, False):
+                setattr(client, key, bool(clean[key]))
+                source_changed = True
+        if "community_data_url" in clean:
             from .api_client import normalize_community_base
 
-            p.client.community_base = normalize_community_base(clean["community_data_url"])
-            cache = getattr(p.client, "cache", None)
-            if hasattr(cache, "drop_prefix"):
-                cache.drop_prefix("community:")  # 换了地址：丢掉旧地址取回的缓存
+            base = normalize_community_base(clean["community_data_url"])
+            if base != getattr(client, "community_base", ""):
+                client.community_base = base
+                source_changed = True
+                client._comm_good_host = None
+                client._comm_cool = {}
+                client.community_log = {}
+                cache = getattr(client, "cache", None)
+                if hasattr(cache, "drop_prefix"):
+                    cache.drop_prefix("community:")
+        if source_changed:
+            client._community_generation = getattr(client, "_community_generation", 0) + 1
 
     # ---- 订阅操作 ----
     def _umo_of(self, key: str) -> Optional[str]:
@@ -4182,7 +4456,18 @@ class WebPanel:
         r = self._renderer()
         if r is None:
             return {"status": "error", "message": "渲染器不可用（Pillow 未安装？先安装依赖）"}
-        t = r.load_appearance().get("theme") or {}
+
+        def snapshot():
+            with self._appearance_lock:
+                return (
+                    r.load_appearance().get("theme") or {},
+                    (r.theme_dir / "bg.png").is_file(),
+                    (r.theme_dir / "logo.png").is_file(),
+                )
+
+        t, has_bg, has_logo = await asyncio.to_thread(snapshot)
+        if (g := self._gone()) is not None:
+            return g
         dflt = theme_defaults()
         cur = t.get("colors") or {}
         return {
@@ -4204,10 +4489,34 @@ class WebPanel:
             "bg_fit": t.get("bg_fit") or "cover",
             "bg_pos": t.get("bg_pos") or "c",
             "bg_scale": t.get("bg_scale", 60),
-            "has_bg": (r.theme_dir / "bg.png").exists(),
-            "has_logo": (r.theme_dir / "logo.png").exists(),
+            "has_bg": has_bg,
+            "has_logo": has_logo,
             "presets": THEME_PRESETS,
         }
+
+    def _draft_images(self, versions) -> dict[str, bytes]:
+        if not isinstance(versions, dict):
+            raise ValueError("图片草稿版本无效")
+        images = {}
+        for kind, token in versions.items():
+            draft = self._theme_drafts.get(token) if isinstance(token, str) else None
+            if draft is None or draft[0] != kind:
+                raise ValueError("图片草稿已失效，请重新上传")
+            images[kind] = draft[1]
+        return images
+
+    async def theme_draft_release(self):
+        if (g := self._gone()) is not None:
+            return g
+        body = await self._body()
+        if (g := self._gone()) is not None:
+            return g
+        tokens = body.get("tokens")
+        if not isinstance(tokens, list) or not all(isinstance(t, str) for t in tokens):
+            return {"status": "error", "message": "图片草稿版本无效"}
+        for token in tokens:
+            self._theme_drafts.pop(token, None)
+        return {"released": True}
 
     async def theme_preview(self):
         """用候选主题渲染一张样卡（不保存），返回 PNG data URL。"""
@@ -4224,16 +4533,21 @@ class WebPanel:
 
         def run():
             import base64
+            from io import BytesIO
+            from PIL import Image
 
             from . import render as R
 
             if self._preview_r is None:
                 self._preview_r = R.ImageRenderer(r.cache_dir.parent / "cards_preview")
-            options = {
-                **cand,
-                "bg_image": r.theme_image("bg") if cand["bg_image"] else None,
-                "logo": r.theme_image("logo") if cand["logo"] else None,
-            }
+            images = self._draft_images(body.get("image_drafts", {}))
+            options = dict(cand)
+            for kind, key in (("bg", "bg_image"), ("logo", "logo")):
+                if cand[key] and kind in images:
+                    with Image.open(BytesIO(images[kind])) as image:
+                        options[key] = image.copy()
+                else:
+                    options[key] = r.theme_image(kind) if cand[key] else None
             colors = options.pop("colors")
             self._preview_r.fonts = r.fonts  # 预览跟正式出图用同一套字体
 
@@ -4311,15 +4625,52 @@ class WebPanel:
         cand["colors"] = {k: v for k, v in cand["colors"].items() if v != dflt.get(k)}
 
         def commit():
-            cand["bg_image"] = cand["bg_image"] and (r.theme_dir / "bg.png").exists()
-            cand["logo"] = cand["logo"] and (r.theme_dir / "logo.png").exists()
-            self._save_appearance(r, {"theme": cand})
-            r.reload_theme()
+            versions = body.get("image_drafts", {})
+            images = self._draft_images(versions)
+            for kind, key in (("bg", "bg_image"), ("logo", "logo")):
+                cand[key] = cand[key] and (kind in images or (r.theme_dir / f"{kind}.png").exists())
+            if not images:
+                self._save_appearance(r, {"theme": cand})
+                r.reload_theme()
+                return
+            r.theme_dir.mkdir(parents=True, exist_ok=True)
+            # 渲染锁内更新整组图片、配置和缓存。备份留在同一文件系统，失败可逐个原子还原。
+            with tempfile.TemporaryDirectory(dir=r.theme_dir) as tmp, self._appearance_lock:
+                stage = Path(tmp)
+                old_theme = r.load_appearance().get("theme")
+                installed = []
+                config_saved = False
+                try:
+                    for kind, data in images.items():
+                        dst = r.theme_dir / f"{kind}.png"
+                        if dst.exists():
+                            shutil.copyfile(dst, stage / (kind + ".old"))
+                        (stage / kind).write_bytes(data)
+                        (stage / kind).replace(dst)
+                        installed.append(kind)
+                    self._save_appearance(r, {"theme": cand})
+                    config_saved = True
+                    r.reload_theme()
+                except Exception:
+                    for kind in reversed(installed):
+                        dst, old = r.theme_dir / f"{kind}.png", stage / (kind + ".old")
+                        if old.exists():
+                            old.replace(dst)
+                        else:
+                            dst.unlink()
+                    if config_saved:
+                        self._save_appearance(r, {"theme": old_theme})
+                        r.reload_theme()
+                    raise
+                for token in versions.values():
+                    self._theme_drafts.pop(token, None)
 
         try:
             await self._locked(commit)
         except _PanelClosed:
             return self._gone()
+        except (ValueError, OSError) as exc:
+            return {"status": "error", "message": f"主题保存失败：{exc}"}
         logger.info("[sdjk] 面板保存主题：%s", cand)
         return {"saved": cand}
 
@@ -4356,21 +4707,21 @@ class WebPanel:
                 im = im.resize(
                     (max(1, int(im.width * k)), max(1, int(im.height * k))), Image.LANCZOS
                 )
-            r.theme_dir.mkdir(parents=True, exist_ok=True)
-            tmp = r.theme_dir / f".{kind}.{uuid.uuid4().hex}.png.part"
-            try:
-                im.save(tmp, "PNG")
-                tmp.replace(r.theme_dir / f"{kind}.png")
-                return im.size
-            finally:
-                tmp.unlink(missing_ok=True)
+            with io.BytesIO() as png:
+                im.save(png, "PNG")
+                return im.size, png.getvalue()
 
         try:
-            size = await asyncio.to_thread(run)
+            size, png = await asyncio.to_thread(run)
         except Exception as exc:  # noqa: BLE001
             return {"status": "error", "message": f"不是能识别的图片：{exc}"}
-        logger.info("[sdjk] 面板上传主题图片 %s %s", kind, size)
-        return {"kind": kind, "size": list(size)}
+        if (g := self._gone()) is not None:
+            return g
+        token = uuid.uuid4().hex
+        if len(self._theme_drafts) >= 8:
+            self._theme_drafts.pop(next(iter(self._theme_drafts)))
+        self._theme_drafts[token] = (kind, png)
+        return {"kind": kind, "size": list(size), "draft": token}
 
     async def theme_upload_bg(self):
         return await self._theme_upload("bg")

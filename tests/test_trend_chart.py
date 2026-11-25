@@ -17,16 +17,20 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import sys
 import tempfile
 from pathlib import Path
+from unittest.mock import AsyncMock
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from core import formatters as F  # noqa: E402
 from core import render as R  # noqa: E402
+from core.api_client import WarframeClient  # noqa: E402
+from core.display_time import use_zone  # noqa: E402
 
 FAILED: list[str] = []
 
@@ -147,7 +151,8 @@ D90 = [
     for i in range(30)
 ]
 SUMMARY = {"vol48": 48, "median48": 123.4, "avg90": 135.0, "change": 5.0, "last": 147, "first": 140}
-_title, lines = F.fmt_trend("绝路Prime", {"h48": H48, "d90": D90}, SUMMARY)
+with use_zone("UTC+00:00"):
+    _title, lines = F.fmt_trend("绝路Prime", {"h48": H48, "d90": D90}, SUMMARY)
 charts = [x for x in lines if x.startswith("§CHART")]
 check("fmt_trend 产出 2 条图表行（48h + 90d）", len(charts) == 2, str(len(charts)))
 check("走势图分区标题保留", "◆ 走势图" in lines)
@@ -177,8 +182,42 @@ _t2, _l2 = F.fmt_trend(
 check("无有效成交时不出图、不留空分区标题", "◆ 走势图" not in _l2, str(_l2))
 
 # _short_t 口径由调用方给（48 小时线点数比 90 天日线还多，不能按长度猜）
-check("_short_t 小时口径", F._short_t("2026-10-21 13:00", True) == "10-21 13时")
+with use_zone("UTC+00:00"):
+    check("_short_t 小时口径", F._short_t("2026-10-21 13:00", True) == "10-21 13时")
 check("_short_t 日线口径", F._short_t("2026-10-21 00:00", False) == "10-21")
+
+_source_rows = [
+    {"datetime": "2026-11-24T23:00:00Z", "median": 10, "volume": 1},
+    {"datetime": "2026-11-25T02:00:00+02:00", "median": 20, "volume": 2},
+]
+_client = WarframeClient()
+_client._fetch_json = AsyncMock(
+    return_value={
+        "payload": {
+            "statistics_closed": {
+                "48hours": _source_rows,
+                "90days": _source_rows,
+            }
+        }
+    }
+)
+_stats = asyncio.run(_client.wm_statistics("soma_prime_set"))
+check(
+    "WM 原始时区保留到格式层",
+    [row["t"] for row in _stats["h48"]] == [r["datetime"] for r in _source_rows],
+)
+for zone, hourly_labels in (
+    ("UTC+08:00", ["11-25 07时", "11-25 08时"]),
+    ("UTC+05:30", ["11-25 04:30", "11-25 05:30"]),
+    ("UTC-04:00", ["11-24 19时", "11-24 20时"]),
+):
+    with use_zone(zone):
+        _, trend = F.fmt_trend("Soma", _stats, SUMMARY)
+        hourly, daily = [R.parse_chart(line) for line in trend if line.startswith("§CHART")]
+        check(
+            f"{zone} 小时图按当地时间，日线保留原桶日期",
+            hourly["labels"] == hourly_labels and daily["labels"] == ["11-24", "11-25"],
+        )
 
 # ---------------------------------------------------------------------------
 # ④b 图表标题：**只在真的超宽时**才截断 + 补省略号
@@ -208,6 +247,42 @@ else:
         check("截断后宽度不超预算", _d.textlength(_got, font=_f) <= _w + 1, str(_got))
         check("预算极小时退化为空串（不抛异常）", R._fit_title(_d, _f, _long, 1) == "")
         check("空标题返回空串", R._fit_title(_d, _f, "", 100) == "")
+
+        from unittest.mock import Mock
+
+        # 基本布局的长标题仍须保持对数级测宽；复杂布局另验非单调前缀。
+        _f = R.ImageFont.truetype(_f.path, _f.size, index=_f.index, layout_engine=R._LAYOUT_BASIC)
+        for title in ("AVATAR office price " * 32, "钢铁 AV 轮换（Warframe）●" * 32):
+            for width in (
+                1,
+                _d.textlength(title[:31] + "…", font=_f),
+                _d.textlength(title[:-2] + "…", font=_f) - 0.5,
+            ):
+                expected = title
+                if _d.textlength(expected, font=_f) > width:
+                    while expected and _d.textlength(expected + "…", font=_f) > width:
+                        expected = expected[:-1]
+                    if expected:
+                        expected += "…"
+                draw = Mock(wraps=_d)
+                got = R._fit_title(draw, _f, title, width)
+                check(
+                    "长英文和中英混排标题与逐字基准一致，测宽次数为对数级",
+                    got == expected and draw.textlength.call_count <= len(title).bit_length() + 4,
+                    str((len(title), width, draw.textlength.call_count)),
+                )
+
+
+class _LigatureDraw:
+    def textlength(self, text, font):
+        return len(text.replace("👨‍👩‍👧‍👦", "●"))
+
+
+_family = "AB👨‍👩‍👧‍👦"
+check(
+    "完整连字令前缀重新变窄时仍保留最长可容纳标题",
+    R._fit_title(_LigatureDraw(), None, _family + "XYZ", 4) == _family + "…",
+)
 
 # ---------------------------------------------------------------------------
 # ⑤ 出图：正文不越出面板右缘（口径同 tests/test_render_overflow.py，默认主题）

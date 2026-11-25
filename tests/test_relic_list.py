@@ -125,6 +125,7 @@ from core.commands.relic import RELIC_USAGE  # noqa: E402
 from core import drops as drops_db  # noqa: E402
 from core import formatters as fmt  # noqa: E402
 from core.api_client import load_aliases  # noqa: E402
+from core.parser import parse  # noqa: E402
 
 FAILED: list[str] = []
 
@@ -417,8 +418,26 @@ check(
 )
 check(
     "relic_en_key：认不出的返回空串（不猜）",
-    fmt.relic_en_key("Requiem Eterna Relic") == "" and fmt.relic_en_key("垃圾") == "",
+    all(not fmt.relic_en_key(n) for n in ("Requiem V", "Lith Eterna", "Axi IV", "垃圾")),
     fmt.relic_en_key("垃圾"),
+)
+
+for code in ("I", "II", "III", "IV", "Eterna"):
+    key = f"requiem {code.lower()}"
+    for name in (
+        f"Requiem {code} Relic",
+        f"安魂 Requiem {code}",
+        f"安魂 {code}",
+        f"安魂{code}",
+        key,
+    ):
+        check(f"安魂目录键 {name}", fmt.relic_en_key(name) == key)
+_fass = asyncio.run(_make_obj([])._h_parts(parse("部件 Fass"), None, "pc"))
+check(
+    "部件 Fass：Eterna 可掉落，III 已入库",
+    any("ETERNA" in row.upper() and "可掉落" in row for row in _fass.lines)
+    and any("安魂 III" in row and "已入库" in row for row in _fass.lines),
+    repr(_fass.lines),
 )
 
 _uv_keys = drops_db.droppable_keys()
@@ -600,7 +619,11 @@ for _p, _orig in _inv.items():
     _tiers_hint = {
         x[len("※ 推荐刷取（") :].split("）")[0] for x in _ls if x.startswith("※ 推荐刷取（")
     }
-    if _tiers_drop != _tiers_hint:
+    # 有推荐点的纪元逐项对拍；安魂等没有任务节点推荐的纪元应给出单查出处入口。
+    _expected_hints = {tier for tier in _tiers_drop if _hints.get(tier)}
+    if _tiers_hint != _expected_hints or (
+        _tiers_drop and not _expected_hints and not any("可看具体出处" in row for row in _ls)
+    ):
         _bad_pairs.append((_p, sorted(_tiers_drop), sorted(_tiers_hint)))
     if 0 < len(_tiers_drop) < len({fmt.relic_cn(o["relic"]).split()[0] for o in _rows}):
         _mixed += 1
@@ -1234,6 +1257,94 @@ check(
 check("wiki 部件卡提示「刷」", bool(_c) and any("刷 Wisp Prime" in x for x in _c[1]), _c)
 
 print()
+
+
+async def varzia_outage():
+    from unittest.mock import AsyncMock, patch
+
+    obj = _make_obj([])
+    # 两把同纪元遗物，一把在任务池，另一把的状态只取决于阿耶。
+    names = ["中纪 Neo A1", "中纪 Neo B1"]
+    idx = {name: {"常见": ["示例"]} for name in names}
+    inv = {
+        "甲 Prime 蓝图": [{"relic": name, "rarity": "常见"} for name in names],
+        "甲 Prime 枪管": [{"relic": names[1], "rarity": "稀有"}],
+    }
+    obj._relic_cache = (idx, inv)
+    obj.client.fissures = AsyncMock(
+        return_value=[
+            {"tier": "Omnia", "node": "全能测试节点", "expiry": _exp, "missionType": "Capture"}
+        ]
+    )
+    with (
+        patch.object(drops_db, "droppable_keys", return_value={"neo a1"}),
+        patch.object(drops_db, "relic_source_notes", return_value=[]),
+        patch.object(drops_db, "load", return_value={}),
+    ):
+        for outage in (True, False):
+            obj.client.prime_vault = AsyncMock(
+                side_effect=TimeoutError() if outage else None, return_value={"items": []}
+            )
+            single = _txt(await obj._h_relic(_Parsed(content="中纪B1"), None, "pc"))
+            part = _txt(await obj._h_parts(_Parsed(content="甲 Prime 蓝图"), None, "pc"))
+            listing = _txt(await obj._h_relic(_Parsed(content="列表"), None, "pc"))
+            vaulted = _txt(await obj._h_relic(_Parsed(content="入库"), None, "pc"))
+            plan = _txt(await obj._h_farm(_parse_farm("刷 甲 Prime"), None, "pc"))
+            for label, card in (
+                ("单查", single),
+                ("反查", part),
+                ("列表", listing),
+                ("入库", vaulted),
+                ("刷取", plan),
+            ):
+                check(
+                    f"阿耶超时={outage} {label} 正确区分未知与空库存",
+                    ("阿耶在售状态待确认" in card) == outage,
+                    card,
+                )
+            check(
+                "获取渠道以任务表和确认的商店结果计数",
+                all(f"已入库 {int(not outage)}" in card for card in (part, listing, plan))
+                and ("B1" in vaulted) == (not outage)
+                and ("当前不可刷取" in single) == (not outage),
+            )
+            check(
+                "仅有全能裂隙时可开建议的中纪遗物",
+                "[全能]" in plan and "全能测试节点" in plan and "可刷 1" in plan,
+            )
+
+
+asyncio.run(varzia_outage())
+
+
+def _shared_relic_tables():
+    from core import paths, wiki_intro
+    from core.commands.relic import RelicCommands
+
+    owner = RelicCommands()
+    seed_index, seed_inverse = owner._relic_db()
+    with tempfile.TemporaryDirectory() as root, _patch.object(paths, "_RUN", Path(root)):
+        index = paths.write_path("relic_index.json")
+        inverse = paths.write_path("relic_inverse.json")
+        index.write_text('{"A": {"rare": ["B"]}}')
+        inverse.write_text('{"B": [{"relic": "A"}]}')
+        idx, inv = owner._relic_db()
+        wiki_idx, wiki_inv = wiki_intro._relics()
+        assert idx is wiki_idx and inv is wiki_inv
+        assert idx["A"]["rare"] == ["B"] and inv["B"][0]["relic"] == "A"
+        paths.atomic_write_text(index, '{"changed": {}}')
+        updated, same_inverse = owner._relic_db()
+        assert updated == {"changed": {}} and updated is wiki_intro._relics()[0]
+        assert same_inverse is inv
+        inverse.write_text("{")
+        assert owner._relic_db()[1] is seed_inverse
+        index.unlink()
+        assert wiki_intro._relics()[0] is seed_index
+    assert owner._relic_db()[1] is seed_inverse
+
+
+_shared_relic_tables()
+
 if FAILED:
     print(f"✗ {len(FAILED)} 项失败：" + "、".join(FAILED))
     sys.exit(1)

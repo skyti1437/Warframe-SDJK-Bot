@@ -448,16 +448,23 @@ class _WrReplayClient(_WC):
     async def wm_riven_weapons(self):
         return [
             {
+                "url_name": "soma",
+                "en": "Soma",
+                "zh": "月神",
+                "riven_type": "rifle",
+                "group": "primary",
+            },
+            {
                 "url_name": "glaxion",
                 "en": "Glaxion",
                 "zh": "冰凇",
                 "riven_type": "rifle",
                 "group": "primary",
-            }
+            },
         ]
 
     async def wm_riven_weapon_slugs(self):
-        return {"glaxion"}
+        return {"glaxion", "soma"}
 
     async def _fetch_json(self, url, **kwargs):
         self.requests.append(copy.deepcopy(kwargs.get("params")))
@@ -473,6 +480,32 @@ def _wr_replay(text, auctions):
     reply = asyncio.run(entry(parsed, None, "pc"))
     return reply, handler.client
 
+
+_zoom_auction = _wr_auction("zoom_match", ["multishot"], ["zoom"])
+for cmd in ("wr", "rm"):
+    _, dashed = _wr_replay(f"{cmd} Soma -zoom", [_zoom_auction])
+    _, spelled = _wr_replay(f"{cmd} Soma neg zoom", [_zoom_auction])
+    check(
+        f"{cmd} -zoom 与 neg zoom 发出相同的负词条查询",
+        dashed.resolved == spelled.resolved == ["Soma"]
+        and dashed.requests == spelled.requests
+        and bool(dashed.requests)
+        and all(params.get("negative_stats") == "zoom" for params in dashed.requests),
+        repr(dashed.requests),
+    )
+    flags = P.parse(f"-zoom Soma {cmd} -r -en -2 -pc -w -critical-damage -unknown")
+    check(
+        f"{cmd} 保留词条原序，通用修饰符仍按原义处理",
+        flags.content == ["-zoom", "Soma", "-critical-damage"]
+        and P.parse_wr(flags.content).negatives == ["zoom", "crit_damage"]
+        and flags.whisper
+        and flags.lang == "en"
+        and flags.page == 2
+        and flags.platform == "pc"
+        and flags.force_text
+        and flags.unknown_modifiers == ["-unknown"],
+        repr(flags),
+    )
 
 _full = _wr_auction("full_match", _WANT_POS, _WANT_NEG, price=500)
 _wrong_neg = _wr_auction("wrong_negative", _WANT_POS, ["damage_vs_corpus"], price=100)

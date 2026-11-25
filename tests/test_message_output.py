@@ -853,6 +853,115 @@ class OutputTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(legacy.windows, {"days": [5], "start": 22, "end": 8})
             self.assertEqual(legacy.until, stamp(16, 0, 14))
 
+    async def test_community_worldstate_footers_and_archimedea_note(self):
+        from core.api_client import WarframeClient
+        from core.formatters import fmt_archimedea
+        from core.i18n import L, use_lang
+
+        obj = new_plugin()
+        client = obj.client = WarframeClient(worldsource="warframestat")
+        stamp = datetime.now(timezone.utc).isoformat()
+        payload = {
+            "timestamp": stamp,
+            "fissures": [],
+            "sortie": {},
+            "nightwave": {},
+            "voidTrader": {"activation": "2026-01-01T00:00:00Z", "expiry": "2026-01-04T00:00:00Z"},
+            "constructionProgress": {"fomorianProgress": 0, "razorbackProgress": 0},
+            "cetusCycle": {"state": "day"},
+            "cambionCycle": {"state": "fass"},
+            "zarimanCycle": {"state": "corpus"},
+            "calendar": {"days": []},
+            "archimedeas": [
+                {"typeKey": kind, "missions": [{"missionTypeKey": "MT_EXTERMINATION"}]}
+                for kind in ("CT_LAB", "CT_HEX")
+            ],
+            "descendia": {},
+            "dailyDeals": [],
+            "alerts": [],
+            "invasions": [],
+            "news": [],
+            "events": [],
+            "conclaveChallenges": [],
+            "primeVault": {},
+            "clanRewards": [],
+            "flashSales": [],
+        }
+        client._fetch_json = AsyncMock(return_value=payload)
+        client.wm_items = AsyncMock(return_value=[])
+        try:
+            for lang in ("zh", "en"):
+                with use_lang(lang):
+                    for command in (
+                        "cetus",
+                        "dailydeals",
+                        "alerts",
+                        "invasions",
+                        "news",
+                        "events",
+                        "conclave",
+                        "primevault",
+                        "clanrewards",
+                        "flashsales",
+                        "calendar",
+                        "deep",
+                        "temporal",
+                        "descendia",
+                    ):
+                        with self.subTest(lang=lang, command=command):
+                            handler = getattr(obj, f"_h_{command}")
+                            reply = await handler(parse("日历"), None, "pc")
+                            self.assertIn(
+                                L(
+                                    "数据源：社区 warframestat",
+                                    "Source: warframestat community world state",
+                                ),
+                                reply.footer,
+                            )
+                            self.assertEqual(reply.footer.count(stamp), 1)
+                            if command in ("deep", "temporal"):
+                                self.assertIn(
+                                    L("来自社区世界状态", "come from the community world state"),
+                                    reply.lines[-1],
+                                )
+                    note = fmt_archimedea({"missions": [{}]}, "Fixture")[1][-1]
+                    self.assertIn(L("来自 DE 官方下发", "sent by DE"), note)
+        finally:
+            await client.close()
+
+    async def test_calendar_and_archimedea_direct_requests_show_worldstate_errors(self):
+        from core.api_client import WarframeAPIError, WarframeClient
+
+        obj = new_plugin()
+        obj._routes = obj._build_routes()
+        client = obj.client = WarframeClient(worldsource="warframestat")
+        fetch = client._community_ws_bundle = AsyncMock(
+            side_effect=WarframeAPIError("社区世界状态快照超时")
+        )
+        try:
+            with tempfile.TemporaryDirectory() as td:
+                obj.groups = plugin.GroupStore(Path(td) / "groups.json")
+                for command, read in (
+                    ("日历", client.calendar),
+                    ("深层科研", client.deep_archimedea),
+                    ("时光科研", client.temporal_archimedea),
+                ):
+                    self.assertIsNone(await read("pc"))
+                    event = Event("aiocqhttp", command + " -cn -w")
+                    text = "\n".join(body_parts(await consume(obj, event, obj.on_message(event))))
+                    self.assertIn("社区世界状态整包不可用", text)
+                fetch.side_effect = None
+                fetch.return_value = {
+                    "_source": "社区 warframestat",
+                    "_failed": ["calendar", "deepArchimedea", "temporalArchimedea"],
+                }
+                for command in ("日历", "深层科研", "时光科研"):
+                    event = Event("aiocqhttp", command + " -cn -w")
+                    text = "\n".join(body_parts(await consume(obj, event, obj.on_message(event))))
+                    self.assertIn("这一段解析失败", text)
+        finally:
+            await client.close()
+
     async def test_calendar_and_tenet_from_chat_in_both_languages(self):
         from core.api_client import DEFAULT_DE_WORLDSTATE, WarframeClient
 

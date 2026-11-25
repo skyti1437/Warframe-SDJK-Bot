@@ -66,7 +66,7 @@ class TTLCache:
     async def get_or_fetch(
         self,
         key: str,
-        ttl: float,
+        ttl: float | Callable[[Any], float],
         fetch: Callable[[], Coroutine[Any, Any, Any]],
         *,
         cache_if: Callable[[Any], bool] | None = None,
@@ -89,13 +89,18 @@ class TTLCache:
             value = await fetch()
             async with self._lock:
                 if self._inflight.get(key) is fut and (cache_if is None or cache_if(value)):
-                    self._set_locked(key, value, ttl)
+                    self._set_locked(key, value, ttl(value) if callable(ttl) else ttl)
             if not fut.done():
                 fut.set_result(value)
             return value
         except BaseException as exc:  # noqa: BLE001 - 需要唤醒所有等待者
             if not fut.done():
-                fut.set_exception(exc)
+                # 首个调用方的取消只属于它自己。共享等待者可以重试同一键。
+                fut.set_exception(
+                    RuntimeError("共享回源已取消，可重试")
+                    if isinstance(exc, asyncio.CancelledError)
+                    else exc
+                )
                 # 立即消费一次异常：没有等待者时（单调用者失败场景必然如此），
                 # asyncio 会在 GC 时打印 "Future exception was never retrieved"
                 # 带完整 Traceback 的警告，上游一抖就刷屏（BUG-1，2026-09-18 验收）。

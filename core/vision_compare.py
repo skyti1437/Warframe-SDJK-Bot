@@ -15,8 +15,13 @@ import warnings
 from PIL import Image
 
 from . import loadout_ocr as lo
-from .commands.scan import ScanCommands
-from .commands.vision import VisionCommands, _cancel_vision_tasks, original_vision_prompt
+from .commands.scan import ScanCommands, _parse_scan_main, _scan_task_image
+from .commands.vision import (
+    VisionCommands,
+    _cancel_vision_tasks,
+    _scan_fit_size,
+    original_vision_prompt,
+)
 from .vision_prompts import MAX_PROMPT_LENGTH
 
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
@@ -63,24 +68,13 @@ def prepare_image(image_data: str, task: str) -> dict:
     raw, input_width, input_height = _decode_image(image_data)
     image_url = image_data
     if task.startswith("scan_"):
-        # 预估生产缩放及聚焦上限，先拦截长条图，避免先分配超大位图。
-        scale = min(1280 / input_width, 4.0) if input_width < 1600 else 1600 / input_width
-        fit_width = max(1, int(input_width * scale))
-        fit_height = max(1, int(input_height * scale))
-        if max(fit_width, fit_height) > 10000 or fit_width * fit_height > 36000000:
+        if _scan_fit_size(input_width, input_height) is None:
             raise ValueError("预处理尺寸超过上限")
-        if task in ("scan_mods", "scan_panel", "scan_arcanes"):
-            fraction = {"scan_mods": 0.72, "scan_panel": 0.28, "scan_arcanes": 0.20}[task]
-            crop_width = max(1, int(fit_width * fraction))
-            focus_scale = max(1, min(1280 / crop_width, 4.0))
-            if (
-                fit_height * focus_scale > 10000
-                or crop_width * fit_height * focus_scale**2 > 36000000
-            ):
-                raise ValueError("聚焦尺寸超过上限")
         image_url = ScanCommands._fit_scan_image(image_url)
         if task in ("scan_mods", "scan_panel", "scan_arcanes"):
-            image_url = ScanCommands._scan_focus_image(image_url, task.removeprefix("scan_"))
+            image_url, _ = _scan_task_image(
+                image_url, task.removeprefix("scan_"), ScanCommands._scan_focus_image
+            )
     prepared, width, height = _decode_image(image_url)
     return {
         "task": task,
@@ -107,7 +101,7 @@ def _parse(task: str, text: str) -> tuple[dict, bool, list[str]]:
         parsed = lo.parse_focus_text(text, key) or {}
         accepted = bool(parsed.get(key))
         return parsed, accepted, [] if accepted else [key]
-    parsed = lo.parse_vision_json(text) or {}
+    parsed = _parse_scan_main(text) if task == "scan_main" else lo.parse_vision_json(text) or {}
     keys = (
         ("weapon", "mods")
         if task == "scan_main"
@@ -208,7 +202,8 @@ async def run_comparison(
             try:
                 response = await asyncio.wait_for(asyncio.shield(request), timeout=timeout)
             finally:
-                await _cancel_vision_tasks([request])
+                # 后台对照两侧串行，后台测试锁一直持有至该侧清理结束。
+                await _cancel_vision_tasks([request], hold_until_done=True)
             side["usage"] = _usage(response)
             text = str(getattr(response, "completion_text", "") or "").strip()
             side["truncated"] = len(text) > MAX_RESPONSE_CHARS

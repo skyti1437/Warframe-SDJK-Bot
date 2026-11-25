@@ -18,6 +18,7 @@ import threading
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from unittest.mock import patch as _patch
 
 import httpx
 
@@ -167,6 +168,7 @@ check(
         "vision_prompt_presets": ["GET"],
         "vision_compare_prepare": ["POST"],
         "vision_compare_run": ["POST"],
+        "vision_compare_status": ["GET"],
         "vision_compare_release": ["POST"],
         "vision_prompt_update": ["POST"],
         "riven_ocr_status": ["GET"],
@@ -191,6 +193,7 @@ check(
         "theme_upload_bg": ["POST"],
         "theme_upload_logo": ["POST"],
         "theme_image_delete": ["POST"],
+        "theme_draft_release": ["POST"],
         "about": ["GET"],
     },
 )
@@ -284,9 +287,63 @@ try:
         "仲裁评级 / 掉落表 读到包内种子日期",
         rows["仲裁评级（社区实测）"]["snapshot"] != "" and rows["掉落表"]["snapshot"] != "",
     )
+    for filename in ("arb_ratings.json", "baro_history.json"):
+        (tmp / filename).write_text("{坏JSON")
+    fallback = {r["item"]: r for r in W.freshness(now, run_dir=tmp)}
+    for label in ("仲裁评级（社区实测）", "奸商到访历史"):
+        check(
+            f"{label} 坏 JSON 回落后来源与种子内容一致",
+            "随包种子" in fallback[label]["detail"]
+            and fallback[label]["snapshot"] == rows[label]["snapshot"],
+        )
+    (tmp / "baro_history.json").write_text(json.dumps({"fetched": "test", "visits": ["坏日期"]}))
+    invalid = next(r for r in W.freshness(now, run_dir=tmp) if r["item"] == "奸商到访历史")
+    check(
+        "奸商末次日期损坏提示无法判定且注明当前运行副本",
+        invalid["status"] == W.WARN
+        and "无法判定" in invalid["detail"]
+        and "更新过的快照" in invalid["detail"]
+        and "已含最近一次到访" not in invalid["detail"],
+    )
     (tmp / "rotations.json").write_text("{坏文件", encoding="utf-8")
     bad = {r["item"]: r for r in W.freshness(now)}
     check("坏文件不让整页挂（按过期报）", bad["信条元素加成"]["status"] == W.STALE)
+
+    rot["tenet"] = []
+    (tmp / "rotations.json").write_text(json.dumps(rot))
+    (tmp / "riven_rt.json").write_text('{"retry": 0, "rows": []}')
+    (tmp / "wm_ranks.json").write_text('{"retry": {}, "rows": false}')
+    panel = _panel()
+    panel._query = lambda key, default: default
+    overview = asyncio.run(panel.overview())
+    by_item = {r["item"]: r for r in overview["freshness"]}
+    for label, filename, fields in (
+        ("信条元素加成", "rotations.json", ["tenet"]),
+        ("紫卡 WM 现价（手动拉取）", "riven_rt.json", ["retry", "rows"]),
+        ("WM 价格排行", "wm_ranks.json", ["retry", "rows"]),
+    ):
+        row = by_item[label]
+        check(
+            f"总览标出 {filename} 的异常字段且可查同份运行副本的账本",
+            row["status"] == W.WARN
+            and all(s in row["detail"] for s in (filename, "结构异常", *fields))
+            and any(r["file"] == filename and r["run"]["exists"] for r in overview["ledger"]),
+        )
+    check(
+        "同文件终幕和其余新鲜度行、推送状态照常可见",
+        by_item["终幕元素加成"]["status"] == W.STALE
+        and by_item["掉落表"]["snapshot"]
+        and overview["push"]["ticks"] == _Push._tick_no
+        and len(by_item) == len(rows),
+    )
+    with _patch.object(W, "freshness", side_effect=TypeError("汇总异常")):
+        degraded = asyncio.run(panel.overview())
+    check(
+        "新鲜度汇总意外失败仍可看诊断账本和守护状态",
+        "结构异常" in degraded["freshness"][0]["detail"]
+        and degraded["ledger"] == overview["ledger"]
+        and degraded["push"]["ticks"] == _Push._tick_no,
+    )
 finally:
     paths.set_run_dir(None)
     import shutil
@@ -379,6 +436,13 @@ check(
     "★ 零订阅 tick 也刷新 last_tick_at 并标 idle",
     (d_idle.last_tick_at or 0) >= t_before and d_idle.last_tick_idle is True,
 )
+idle_state = W.push_state(d_idle)
+check(
+    "零订阅轮询完成时间与距今秒数可查询",
+    idle_state["last_tick"] <= idle_state["last_tick_completed_at"] <= time.time()
+    and idle_state["last_tick_completed_age_secs"] == 0,
+)
+check("旧守护尚无完成时间时面板兼容", W.push_state(_Push())["last_tick_completed_age_secs"] is None)
 check(
     "★ 返回顶层没有 data 键（bridge 会把它当信封剥掉）", "data" not in ps and "data" not in masked
 )
@@ -1669,10 +1733,7 @@ check("页面目录名不含 ops（开源打包会按 ops 段排除）", "ops" n
 i18n = json.loads((ROOT / ".astrbot-plugin/i18n/zh-CN.json").read_text(encoding="utf-8"))
 check("i18n 标题键 = 页面目录名", "title" in i18n["pages"]["sdjk"])
 main_src = (ROOT / "main.py").read_text(encoding="utf-8")
-check(
-    "main.py 注册面板并在 terminate 里 close",
-    "WebPanel(self, PLUGIN_NAME)" in main_src and "panel.close()" in main_src,
-)
+check("main.py 注册面板", "WebPanel(self, PLUGIN_NAME)" in main_src)
 
 
 # ---- 9. 依赖与资源（2026-10-16 维护者要求：面板里能下载需要的依赖）----
@@ -1703,7 +1764,6 @@ check(
 
 # 安装依赖：走 AstrBot 的 pip_installer（注入假模块），参数是插件自己的 requirements.txt
 import types as _types  # noqa: E402
-from unittest.mock import patch as _patch  # noqa: E402
 
 _calls = []
 
@@ -2636,6 +2696,19 @@ async def _settings_private_policy_checks():
         finally:
             await client.close()
 
+    panel, client, _, _ = await setup(False)
+    try:
+        generation = client._community_generation
+        for value, delta in ((True, 1), (True, 1), (False, 2)):
+            await post(panel, {"wfhelper_valence": value})
+            check(
+                f"面板 WFHelper={value} 仅在切换时递增来源代次到 +{delta}",
+                client.wfhelper_valence is value
+                and client._community_generation == generation + delta,
+            )
+    finally:
+        await client.close()
+
     # 同批改来源和策略，JSON键顺序不影响生效；从未外发使用旧策略的请求。
     for new, policy_first in ((False, False), (False, True), (True, False), (True, True)):
         panel, client, _, requests = await setup(not new)
@@ -3321,21 +3394,73 @@ try:
 
         r = _up(pt.theme_upload_bg, _png((3000, 1500)))
         check("★ 背景图上传：缩到最长边 2400", r.get("size") == [2400, 1200], str(r))
+        bg_version = r["draft"]
         r = _up(pt.theme_upload_logo, _png((800, 800), "RGBA"))
         check(
             "角标上传：缩到 512 并保留透明",
-            r.get("size") == [512, 512] and _rr.theme_image("logo").mode == "RGBA",
+            r.get("size") == [512, 512] and _rr.theme_image("logo") is None,
         )
         check("坏图片被拒", _up(pt.theme_upload_bg, b"not an image" * 100).get("status") == "error")
         _tpost(
             pt.theme_save,
-            {"colors": {}, "use_bg": True, "use_logo": True, "panel_alpha": 0.7, "bg_dim": 0.5},
+            {
+                "colors": {},
+                "use_bg": True,
+                "use_logo": True,
+                "panel_alpha": 0.7,
+                "bg_dim": 0.5,
+                "image_drafts": {"bg": bg_version, "logo": r["draft"]},
+            },
         )
         withbg = _img(_rr.render(_T, _L, _F))
         check(
             "★ 背景图 + 半透明面板 + 角标能出图",
             withbg.size[0] > 0 and _IC.difference(base, withbg).getbbox() is not None,
         )
+        check("保存后的角标保留透明度", _rr.theme_image("logo").mode == "RGBA")
+        for kind, field in (("bg", "bg_image"), ("logo", "logo")):
+            upload = pt.theme_upload_bg if kind == "bg" else pt.theme_upload_logo
+            path = _rr.theme_dir / f"{kind}.png"
+            old_file = path.read_bytes()
+            old_render = _R2.theme_state()[field].getpixel((0, 0))
+            buf = BytesIO()
+            _PI.new("RGB", (100, 100), (0, 200, 250)).save(buf, "PNG")
+            args = {"use_bg": True, "use_logo": True, "panel_alpha": 0.7, "bg_dim": 0.5}
+            original = preview_image(_tpost(pt.theme_preview, args))
+            version = _up(upload, buf.getvalue())["draft"]
+            args["image_drafts"] = {kind: version}
+            preview = preview_image(_tpost(pt.theme_preview, args))
+            check(
+                f"{kind} 已启用时仅预览使用草稿，正式图和缓存保持原像素",
+                _IC.difference(original, preview).getbbox() is not None
+                and path.read_bytes() == old_file
+                and _R2.theme_state()[field].getpixel((0, 0)) == old_render,
+            )
+            released = _tpost(pt.theme_draft_release, {"tokens": [version]})
+            check(
+                f"{kind} 撤销释放版本，旧图仍生效",
+                released.get("released")
+                and version not in pt._theme_drafts
+                and _tpost(pt.theme_save, args).get("status") == "error"
+                and path.read_bytes() == old_file,
+            )
+            args["image_drafts"][kind] = _up(upload, buf.getvalue())["draft"]
+            with patch.object(pt, "_save_appearance", side_effect=OSError("模拟配置写失败")):
+                failed = _tpost(pt.theme_save, args)
+            check(
+                f"{kind} 保存失败还原正式图、保留草稿可重试",
+                failed.get("status") == "error"
+                and path.read_bytes() == old_file
+                and args["image_drafts"][kind] in pt._theme_drafts,
+            )
+            saved = _tpost(pt.theme_save, args)
+            check(
+                f"{kind} 再上传保存原子生效并重载缓存",
+                saved["saved"][field] is True
+                and path.read_bytes() != old_file
+                and args["image_drafts"][kind] not in pt._theme_drafts
+                and _R2.theme_state()[field].getpixel((0, 0))[:3] == (0, 200, 250),
+            )
         _tpost(pt.theme_image_delete, {"kind": "bg"})
         app = json.loads((_td12 / "appearance.json").read_text(encoding="utf-8"))
         check(
@@ -3496,6 +3621,141 @@ async def _community_switch_inflight():
 
 
 asyncio.run(_community_switch_inflight())
+
+
+async def _community_switch_snapshots():
+    from types import SimpleNamespace
+    from core import api_client
+
+    class Config(dict):
+        def save_config(self):
+            pass
+
+    now = datetime.now(timezone.utc)
+    rotations = json.loads((paths.PKG_DATA / "rotations.json").read_text())
+    coda = rotations["coda"]
+    period = timedelta(hours=coda["period_hours"])
+    batch = (coda["anchor_idx"] + (now - datetime.fromisoformat(coda["epoch"])) // period) % len(
+        coda["batches"]
+    )
+    names = ("arb_ratings.json", "acrithis_week.json", "valence.json")
+    for name in names:
+        started, release = asyncio.Event(), asyncio.Event()
+        new_host, old_host = "new.example", "old.example"
+        client = api_client.WarframeClient(
+            community_base=f"https://{old_host}", allow_private_urls=True
+        )
+        await client._http.aclose()
+
+        async def response(request):
+            host = request.url.host
+            if host == old_host:
+                started.set()
+                await release.wait()
+            bonus = 31 if host == old_host else 47
+            # 旧仲裁包的业务时间更新，单靠时间戳比较会覆盖新源。
+            stamp = (now + timedelta(seconds=int(host == old_host))).isoformat()
+            if name == names[0]:
+                payload = {
+                    "source": host,
+                    "_updated": stamp,
+                    "nodes": {str(i): {"n": bonus, "tier": "A"} for i in range(50)},
+                }
+            elif name == names[1]:
+                payload = {
+                    "source": host,
+                    "expiry": (now + timedelta(days=1)).isoformat(),
+                    "items": [{"name": host, "price": bonus}],
+                }
+            else:
+
+                def rows(items):
+                    return [{"en": row["en"], "element": "Heat", "bonus": bonus} for row in items]
+
+                payload = {
+                    "published_at": now.isoformat(),
+                    "tenet": {"items": rows(rotations["tenet"]["items"])},
+                    "coda": {
+                        "batch": coda["batch_label"][batch],
+                        "items": rows(coda["batches"][batch]),
+                    },
+                }
+            return httpx.Response(200, json=payload)
+
+        client._http = httpx.AsyncClient(transport=httpx.MockTransport(response))
+        panel = W.WebPanel(SimpleNamespace(client=client, _config=Config(), cfg={}), PLUGIN)
+
+        async def body():
+            return {"changes": {"community_data_url": f"https://{new_host}"}}
+
+        panel._body = body
+
+        def refresh():
+            if name == names[0]:
+                return client.refresh_community_static((name,))
+            if name == names[1]:
+                return client.refresh_acrichis_week(community_only=True, force=True)
+            return client.refresh_valence(community_only=True, force=True)
+
+        def receipt():
+            return next(row for row in client.community_report() if row["name"] == name)
+
+        with tempfile.TemporaryDirectory() as folder:
+            paths.set_run_dir(folder)
+            target = (
+                Path(folder)
+                / {
+                    names[0]: name,
+                    names[1]: api_client.ACRITHIS_WEEK_NAME,
+                    names[2]: "rotations.json",
+                }[name]
+            )
+            if name == names[0]:
+                target.write_text("{}")
+            old = asyncio.create_task(refresh())
+            try:
+                await asyncio.wait_for(started.wait(), 2)
+                check(
+                    "真实保存切换社区源/" + name,
+                    (await panel.settings_save()).get("saved") == ["community_data_url"],
+                )
+                if name == names[0]:
+                    await refresh()
+                    before = receipt()
+                    release.set()
+                    await old
+                    check("旧主机晚到不能改写新源回执", receipt() == before)
+                else:
+                    release.set()
+                    await old
+                    check(
+                        "旧代次离开轮换锁前未落盘或写回执/" + name,
+                        not target.exists() and receipt()["result"] == "unchecked",
+                    )
+                    await refresh()
+                data = json.loads(target.read_text())
+                from_new = (
+                    (
+                        all(r["bonus"] == 47 for r in data["tenet"]["items"])
+                        and all(r["bonus"] == 47 for r in data["coda"]["batches"][batch])
+                    )
+                    if name == names[2]
+                    else data["source"] == new_host
+                )
+                check(
+                    "最终运行快照与 adopted 回执均来自新源/" + name,
+                    from_new
+                    and receipt()["channel"] == new_host
+                    and receipt()["result"] == "adopted",
+                )
+            finally:
+                release.set()
+                await asyncio.gather(old, return_exceptions=True)
+                await client.close()
+                paths.set_run_dir(None)
+
+
+asyncio.run(_community_switch_snapshots())
 
 
 # ---- 14. 社区快照通道记录（2026-10-17 批次 B 全链路健康记录·插件侧）----
@@ -3740,7 +4000,7 @@ async def _overview_ledger_thread_checks():
                     check(
                         "取消只停止当前请求，后续扫描等待原线程",
                         isinstance(cancelled[0], asyncio.CancelledError)
-                        and panel._overview_lock.locked()
+                        and first_root in panel._overview_scans
                         and not next_request.done()
                         and len(calls) == 1,
                     )
@@ -3775,6 +4035,96 @@ async def _overview_ledger_thread_checks():
 
 
 asyncio.run(_overview_ledger_thread_checks())
+
+
+async def _overview_shared_cold_scan():
+    from contextvars import ContextVar
+
+    reveal = ContextVar("reveal", default="0")
+    panel = _panel()
+    panel._query = lambda *args: reveal.get()
+    panel.p.subs = _Store([s1])
+    loop = asyncio.get_running_loop()
+    main_tid = threading.get_ident()
+    read_text = Path.read_text
+    current = threading.local()
+    observed, beats = {}, []
+    entered, release = asyncio.Event(), threading.Event()
+
+    def instrument(name, function):
+        def wrapper(*args, **kwargs):
+            current.name = name
+            try:
+                return function(*args, **kwargs)
+            finally:
+                current.name = None
+
+        return wrapper
+
+    def read(path, *args, **kwargs):
+        section = getattr(current, "name", None)
+        if section and section not in observed:
+            observed[section] = threading.get_ident()
+            gate = threading.Event()
+
+            def heartbeat():
+                beats.append(section)
+                gate.set()
+
+            loop.call_soon_threadsafe(heartbeat)
+            if section == "freshness":
+                loop.call_soon_threadsafe(entered.set)
+                assert release.wait(3)
+            assert gate.wait(3)
+        return read_text(path, *args, **kwargs)
+
+    with tempfile.TemporaryDirectory() as folder:
+        root = Path(folder)
+        (root / "arb_ratings.json").write_text('{"_updated":"2026-11-01"}')
+        paths.set_run_dir(root)
+        try:
+            with (
+                _patch.object(
+                    W, "freshness", side_effect=instrument("freshness", W.freshness)
+                ) as fresh,
+                _patch.object(
+                    W, "registry_rows", side_effect=instrument("registry", W.registry_rows)
+                ) as registry,
+                _patch.object(W, "ledger_rows", wraps=W.ledger_rows) as ledger,
+                _patch.object(Path, "read_text", read),
+            ):
+                masked = asyncio.create_task(panel.overview())
+                await asyncio.wait_for(entered.wait(), 2)
+                reveal.set("1")
+                plain = asyncio.create_task(panel.overview())
+                await asyncio.sleep(0)
+                paths.set_run_dir(root / "another-instance")
+                release.set()
+                a, b = await asyncio.gather(masked, plain)
+            check(
+                "真实总览三项只扫描一次，两处冷读均有事件循环心跳",
+                fresh.call_count == registry.call_count == ledger.call_count == 1
+                and beats == ["freshness", "registry"]
+                and len(set(observed.values())) == 1
+                and main_tid not in observed.values(),
+            )
+            check(
+                "重叠总览固定运行目录，各请求独立打码",
+                next(r for r in a["freshness"] if r["item"] == "仲裁评级（社区实测）")["snapshot"]
+                == "2026-11-01"
+                and next(r for r in b["registry"] if r["file"] == "arb_ratings.json")["observed"]
+                == "2026-11-01"
+                and s1.umo not in str(a)
+                and s1.created_by not in str(a)
+                and s1.umo in str(b["subs"])
+                and s1.created_by in str(b["subs"]),
+            )
+        finally:
+            release.set()
+            paths.set_run_dir(None)
+
+
+asyncio.run(_overview_shared_cold_scan())
 
 
 async def _background_overview_checks():
@@ -4095,7 +4445,7 @@ asyncio.run(_preview_lifecycle_checks())
 
 
 async def _theme_upload_concurrency_checks():
-    """真实上传入口：并发各用自己的临时文件，失败只清自己的半成品。"""
+    """并发上传得到独立版本，编码失败不会发布半成品。"""
     import io
     import threading
     from types import SimpleNamespace
@@ -4128,7 +4478,7 @@ async def _theme_upload_concurrency_checks():
             targets = []
 
             def concurrent_save(image, target, *args, **kwargs):
-                targets.append(Path(target))
+                targets.append(target)
                 result = original_save(image, target, *args, **kwargs)
                 barrier.wait(timeout=5)
                 return result
@@ -4140,25 +4490,26 @@ async def _theme_upload_concurrency_checks():
                 all(result.get("kind") == kind for result in results),
                 str(results),
             )
-            check(f"{kind} 并发上传：临时路径各自独立", len(set(targets)) == 2)
+            versions = [result["draft"] for result in results]
+            check(
+                f"{kind} 并发上传的两个草稿独立且可解码",
+                len(set(versions)) == 2
+                and all(
+                    Image.open(io.BytesIO(panel._theme_drafts[t][1])).size == (32, 32)
+                    for t in versions
+                ),
+            )
             destination = root / f"{kind}.png"
-            with Image.open(destination) as image:
-                image.load()
-                check(
-                    f"{kind} 并发上传：最终 PNG 有效",
-                    image.format == "PNG" and image.size == (32, 32),
-                )
-            check(f"{kind} 并发上传：无半成品残留", not list(root.glob("*.part")))
-
-            existing = destination.read_bytes()
+            check(f"{kind} 并发上传不会发布正式文件", not destination.exists())
+            existing = payload.getvalue()
+            destination.write_bytes(existing)
             unrelated = root / "other-request.png.part"
             unrelated.write_bytes(b"another request")
             targets.clear()
 
             def failed_save(image, target, *args, **kwargs):
-                target = Path(target)
                 targets.append(target)
-                target.write_bytes(b"incomplete PNG")
+                target.write(b"incomplete PNG")
                 raise OSError("simulated write failure")
 
             with _patch.object(Image.Image, "save", failed_save):
@@ -4167,7 +4518,9 @@ async def _theme_upload_concurrency_checks():
             check(f"{kind} 上传写入失败：保留原图", destination.read_bytes() == existing)
             check(
                 f"{kind} 上传写入失败：清理自己的半成品",
-                len(targets) == 1 and not targets[0].exists(),
+                len(targets) == 1
+                and targets[0].closed
+                and set(panel._theme_drafts) == set(versions),
             )
             check(
                 f"{kind} 上传写入失败：保留其它请求文件",
@@ -4560,11 +4913,21 @@ async def _panel_late_request_checks():
                         "theme_upload_bg": "bg.png",
                         "theme_upload_logo": "logo.png",
                     }[route]
+                    published = (
+                        (root / name).exists()
+                        if route == "font_upload"
+                        else (
+                            response.get("draft") in panel._theme_drafts
+                            and not (root / name).exists()
+                        )
+                    )
                     check(
-                        f"上传等待{route}/{phase}：{'停用后不发布' if close else '仍启用正常发布'}",
-                        not (root / name).exists() and response.get("status") == "error"
+                        f"上传等待{route}/{phase}：停用与正常请求都遵循发布边界",
+                        not published
+                        and not panel._theme_drafts
+                        and response.get("status") == "error"
                         if close
-                        else (root / name).exists() and response.get("status") != "error",
+                        else published and response.get("status") != "error",
                         str(response),
                     )
                     check(
@@ -5359,6 +5722,20 @@ async def _vision_compare_api_checks():
             and detail.get("status") == "实验",
         )
         query.clear()
+        expiring = (await prepare())["token"]
+        snapshot = panel._compare_jobs[expiring]
+        expiry_handle = snapshot["expiry_handle"]
+        loop = asyncio.get_running_loop()
+        with patch.object(loop, "time", return_value=loop.time() + 601):
+            await asyncio.sleep(0)
+            await asyncio.sleep(0)
+        check(
+            "超过 600 秒且没有后续请求时主动释放待执行图片",
+            expiring not in panel._compare_jobs
+            and "prepared" not in snapshot
+            and expiry_handle.cancelled()
+            and provider.calls == 0,
+        )
         async with panel._test_lock:
             prepared = await prepare()
             available = await panel.vision_prompt_presets()
@@ -5425,6 +5802,15 @@ async def _vision_compare_api_checks():
             all(r.get("ok") is False for r in (no_confirm, unknown, busy)) and provider.calls == 0,
         )
 
+        query["token"] = prepared["token"]
+        unread = await panel.vision_compare_status()
+        check(
+            "首次执行请求未送达：状态查询只读未开始，图片仍待执行且零渠道调用",
+            unread["state"] == "ready"
+            and "prepared" not in unread
+            and unread["attempted"] == provider.calls == 0,
+        )
+        timer = panel._compare_jobs[prepared["token"]]["expiry_handle"]
         # run冻结的是准备时的草稿，即使随后修改也不重读。
         store.apply(provider.pid, "scan_panel", "save", saved["revision"], "合成草稿B")
         seen = []
@@ -5447,6 +5833,15 @@ async def _vision_compare_api_checks():
             and image not in json.dumps(result),
         )
 
+        recovered = await panel.vision_compare_status()
+        check(
+            "完成后丢回执：纯查询取回同一结果，零新增渠道调用并已取消计时",
+            recovered["state"] == "done"
+            and recovered["result"] == cached
+            and provider.calls == 2
+            and recovered["attempted"] == 0
+            and timer.cancelled(),
+        )
         panel._compare_jobs[preset["token"]]["expires"] = time.monotonic() - 1
         expired = await post("vision_compare_run", {"token": preset["token"], "confirm": True})
         check(
@@ -5488,6 +5883,13 @@ async def _vision_compare_api_checks():
         token = (await prepare(revision=2))["token"]
         running = asyncio.create_task(post("vision_compare_run", {"token": token, "confirm": True}))
         await asyncio.wait_for(entered.wait(), 2)
+        query["token"] = token
+        before_query = provider.calls
+        status = await panel.vision_compare_status()
+        check(
+            "纯查询执行中任务不追加渠道调用",
+            status["state"] == "running" and provider.calls == before_query,
+        )
         duplicate_run = await post("vision_compare_run", {"token": token, "confirm": True})
         calls = provider.calls
         running.cancel()
@@ -5578,7 +5980,7 @@ async def _terminate_waits_for_compare_checks():
     await asyncio.sleep(0)
     check(
         "真实terminate等待对比取消清理，清理未完成前不关闭client",
-        not stopping.done() and not closed,
+        host._panel.closed and not stopping.done() and not closed,
     )
     release.set()
     await asyncio.wait_for(stopping, 1)
@@ -5759,7 +6161,7 @@ check(
     "body.revision = v.revision" in _vc
     and "对比只用已保存草稿" in _vc
     and "vcKey() !== p.key" in _vc
-    and "Date.now() > p.expiresAt" in _vc
+    and "Date.now() >= p.expiresAt" in _vc
     and "if (seq !== VC.prepSeq) return;" in _vc,
 )
 check(
@@ -5774,11 +6176,105 @@ check(
     "同图对比：忙（attempted=0 且无令牌字段）时保留令牌；宿主抛错时允许用同一令牌再请求",
     'd.attempted === 0 && !("token" in d)' in _vc
     and 'p.state = "unknown"' in _vc
-    and "用同一令牌再请求结果" in _vc,
+    and 'bridge.apiGet("vision_compare_status", { token: p.d.token })' in _vc
+    and 'vcArm("run", vcRun) : vcQuery()' in _vc,
 )
 
 
 print()
+
+
+def _panel_privacy_and_compare_ui():
+    import shutil
+    import subprocess
+
+    node = shutil.which("node")
+    if not node:
+        print("[SKIP] 面板隐私和对比状态机需 Node.js")
+        return
+
+    def snippet(start, end):
+        return _js[_js.index(start) : _js.index(end, _js.index(start))]
+
+    code = {
+        "load": snippet("let loadGen = 0", "async function reloadPanel"),
+        "toggle": snippet('$("reveal").onchange', "let dataActionSeq"),
+        "query": snippet("async function vcQuery()", "function vcTextBlock"),
+        "clock": snippet("function vcRender()", "const img = VC.img;") + "}",
+        "theme": snippet("function thDirty()", "// 外观标签")
+        + snippet("function thBody()", "function luminance"),
+    }
+    program = r"""
+const vm = require('node:vm'), assert = require('node:assert/strict');
+const src = JSON.parse(require('node:fs').readFileSync(0,'utf8'));
+const pending = [], dom = {}, cache = {}, state = {ov:null};
+const $ = id => dom[id] ||= {value:'',replaceChildren(...nodes){this.textContent=nodes.join('');}};
+const noop = ()=>{};
+const c = vm.createContext({$, state, memoSig:cache, subsOpen:new Set(), subsClosed:new Set(),
+  commandSnapshot:0, curView:'push', showErr:noop, memoReset:noop, fetchRes:async()=>{},
+  setDisplayClock:()=>false, applyDisabledCommands:noop, fmtTime:noop, renderFresh:noop, renderPush:noop,
+  renderSubs(s){$('subs').textContent=cache.subs=JSON.stringify(s);},
+  renderOverview(){cache.overview=JSON.stringify(state.ov);}, renderComm:noop, renderReg:noop, renderLedger:noop,
+  bridge:{apiGet:(_,params)=>new Promise((resolve,reject)=>pending.push({params,resolve,reject}))}});
+vm.runInContext(src.load + src.toggle, c);
+(async()=>{
+  const raw = {subs:{total:1,sessions:['raw-user-id']}}, masked = {subs:{total:1,sessions:['masked']}};
+  $('reveal').checked=true;
+  const first=c.load(); pending.shift().resolve(raw); await first;
+  const older=c.load(), late=pending.shift();
+  $('subsFilter').value='raw-user-id'; c.subsOpen.add('raw-user-id');
+  $('reveal').checked=false;
+  const disabling=$('reveal').onchange(), request=pending.shift();
+  assert.equal(request.params.reveal,'0');
+  function assertMasked(){
+    assert(!JSON.stringify([state,dom,cache,[...c.subsOpen],[...c.subsClosed]]).includes('raw-user-id'));
+  }
+  assertMasked();
+  request.reject(new Error('offline')); await disabling;
+  late.resolve({subs:{sessions:['raw-user-id']}}); await older; assertMasked();
+  const retry=c.load();pending.shift().resolve(masked);await retry;assertMasked();
+  assert.equal(state.ov.subs.sessions[0],'masked');
+
+  const p={key:'original',state:'unknown',d:{token:'old'},expiresAt:Date.now()+100000};
+  let key='new image',reply='ready',clears=0,executions=0,queries=0;
+  Object.assign(c,{VC:{prep:p,timer:1},vcNode:{isConnected:true},curView:'vision',visionAdv:true,
+    document:{visibilityState:'visible'},RM_SWITCH:{},vcIntegrityBlock:()=>'',vcKey:()=>key,
+    setInterval:()=>1, clearInterval:()=>{clears++;},
+    bridge:{apiGet:async(ep)=>{assert.equal(ep,'vision_compare_status');queries++;
+      return {ok:true,token:'old',state:reply,result:{token:'old',cached:true}};},
+      apiPost:async()=>{executions++;}}});
+  vm.runInContext(src.query+src.clock,c);
+  await c.vcRun(); await c.vcQuery(); key='original'; await c.vcRun();
+  assert.equal(executions,0);assert.equal(queries,1);assert(p.invalidated);
+  p.state='unknown';reply='done';await c.vcQuery();
+  assert.equal(c.VC.result.d.cached,true);assert.equal(executions,0);assert.equal(c.VC.timer,0);
+  p.state='ready';p.invalidated=false;c.vcRender();assert(c.VC.timer);
+  c.curView='push';c.vcRender();assert.equal(c.VC.timer,0);
+  c.curView='vision';p.expiresAt=Date.now()-1;$('vcLeft').dataset={expired:'1'};
+  $('vcLeft').textContent='expired';c.vcTick();assert.equal($('vcLeft').textContent,'expired');
+  c.VC.prep=null;c.vcRender();assert.equal(c.VC.timer,0);assert(clears>0);
+
+  c.TH={cur:{colors:{},use_bg:true,use_logo:true,image_drafts:{}},orig:null};
+  c.same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);c.themeColors=x=>x;
+  vm.runInContext(src.theme,c);c.TH.orig=c.thBody();assert(!c.thDirty());
+  for(const kind of ['bg','logo']){
+    c.TH.cur.image_drafts[kind]='new-version';assert(c.thDirty());
+    assert.equal(c.thBody().image_drafts[kind],'new-version');
+    delete c.TH.cur.image_drafts[kind];assert(!c.thDirty());
+  }
+})().catch(e=>{console.error(e);process.exitCode=1;});
+"""
+    result = subprocess.run(
+        [node, "-e", program], input=json.dumps(code), text=True, capture_output=True, timeout=15
+    )
+    check(
+        "面板行为：隐藏时立即擦除，失败和乱序保持脱敏；旧任务只读、停表及已启用图片草稿可保存",
+        result.returncode == 0,
+        result.stderr,
+    )
+
+
+_panel_privacy_and_compare_ui()
 
 
 async def _compare_retained_cache_checks():
@@ -7120,6 +7616,98 @@ async def _data_source_test_checks():
 
 asyncio.run(_data_source_test_checks())
 asyncio.run(_data_source_reload_pending_checks())
+
+
+async def _de_mirror_settings_checks():
+    from unittest.mock import patch
+    from core.api_client import DEFAULT_DE_WORLDSTATE, WarframeClient
+
+    official = DEFAULT_DE_WORLDSTATE
+    first = "https://first.test/path-one/worldState.php?key=query-one"
+    second = "https://second.test:8443/path-two/worldState.php?key=query-two"
+    private = "http://127.0.0.1/path-three"
+    client = WarframeClient(flare_enabled=False)
+    panel = _panel(client=client)
+    panel.p._config = _Conf(worldsource="de", de_worldstate_url=official)
+    panel.p.cfg = dict(panel.p._config)
+    calls = []
+    body = {"target": "worldstate"}
+
+    async def get_body():
+        return body
+
+    def transport(request):
+        calls.append(str(request.url))
+        return httpx.Response(200)
+
+    panel._body = get_body
+    await client.http.aclose()
+    client._http = httpx.AsyncClient(transport=httpx.MockTransport(transport))
+    try:
+        with patch("core.api_client.private_url_reason", return_value=""):
+            await panel.conntest()
+            body = {"changes": {"de_worldstate_url": f" {official},\n{first}, {first} "}}
+            saved = await panel.settings_save()
+            body = {"target": "worldstate"}
+            result = await panel.conntest()
+            check(
+                "面板保存混合分隔 DE 镜像，按已保存地址探测并提示重载",
+                saved.get("need_reload") == ["de_worldstate_url"]
+                and panel.p._config["de_worldstate_url"] == f"{official}, {first}"
+                and client._de_worldstate_urls() == [official]
+                and calls == [official, official, first]
+                and "需重载" in result["detail"]
+                and not result["cached"],
+            )
+            fields = {f["key"]: f for g in (await panel.settings())["groups"] for f in g["fields"]}
+            field = fields["de_worldstate_url"]
+            check(
+                "面板将旧字符串配置呈现为逐行编辑列表",
+                field["type"] == "list" and field["value"] == [official, first],
+            )
+            check(
+                "面板复用同一组 DE 地址的探测缓存",
+                (await panel.conntest())["cached"] and len(calls) == 3,
+            )
+
+            body = {"changes": {"de_worldstate_url": [official, second, private]}}
+            saved = await panel.settings_save()
+            check(
+                "面板逐行编辑结果保存为字符串",
+                saved.get("saved") == ["de_worldstate_url"]
+                and panel.p.cfg["de_worldstate_url"] == f"{official}, {second}, {private}",
+            )
+        from core import api_client
+
+        reason = api_client.private_url_reason
+
+        async def public_fixture(url):
+            return "" if url == second else await reason(url)
+
+        body = {"target": "worldstate"}
+        with patch.object(api_client, "private_url_reason", side_effect=public_fixture):
+            result = await panel.conntest()
+        check(
+            "仅后备 DE 地址变更也刷新探测，逐条脱敏并拦截回环地址",
+            not result["cached"]
+            and calls[3:] == [official, second]
+            and [row["url"] for row in result["attempts"]]
+            == ["https://api.warframe.com", "https://second.test:8443", ""]
+            and result["attempts"][2].get("skipped_reason") == "private_url"
+            and all(word not in str(result) for word in ("query-two", "path-two", "127.0.0.1")),
+        )
+        body = {"changes": {"de_worldstate_url": [official, "file:///private"]}}
+        result = await panel.settings_save()
+        check(
+            "面板拒绝非法后备 DE 地址并保留已有设置",
+            result.get("status") == "error"
+            and panel.p._config["de_worldstate_url"] == f"{official}, {second}, {private}",
+        )
+    finally:
+        await client.close()
+
+
+asyncio.run(_de_mirror_settings_checks())
 
 
 async def _damage_engine_panel_checks():

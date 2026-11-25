@@ -153,6 +153,20 @@ async def t_429_then_ok():
 
 
 # ---------------------------------------------------------------- 6. 空数据降级
+def community_payload(**overrides):
+    from datetime import datetime, timezone
+
+    return {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "fissures": [],
+        "sortie": {},
+        "nightwave": {},
+        "voidTrader": {"activation": "2026-01-01T00:00:00Z", "expiry": "2026-01-04T00:00:00Z"},
+        "constructionProgress": {"fomorianProgress": 0, "razorbackProgress": 0},
+        **overrides,
+    }
+
+
 async def t_empty_data():
     async def empty_dict(*a, **k):
         return FakeResponse(200, payload={})
@@ -165,15 +179,72 @@ async def t_empty_data():
     except WarframeAPIError as e:
         check("DE 源返回空 dict → 抛降级提示", "稍后重试" in str(e), str(e))
 
-    async def empty_list(*a, **k):
-        return FakeResponse(200, payload=[])
-
     c2 = make_client(worldsource="warframestat")
-    c2._http.get = empty_list
+
+    async def empty_fissures(*a, **k):
+        return FakeResponse(200, payload=community_payload())
+
+    c2._http.get = empty_fissures
     data = await c2.worldstate("pc", "fissures")
-    check("warframestat 空数组 → 原样返回不崩", data == [], str(data))
+    check("warframestat 有效整包的空裂隙列表保留来源", data == [] and "warframestat" in data.source)
     await c.close()
     await c2.close()
+
+
+async def t_community_contract_guard():
+    from unittest.mock import AsyncMock, patch
+    from core import i18n
+    from core.api_client import _WORLDSTATE_BUNDLE_SECTIONS
+
+    for fault in ("timeout", "network", "timestamp", "missing"):
+        client = make_client(worldsource="warframestat")
+        calls = []
+
+        async def respond(url, **kwargs):
+            calls.append((url, kwargs["params"]["language"]))
+            if not url.endswith("/pc"):
+                return FakeResponse(200, payload={"raw": True})
+            if fault == "timeout":
+                raise httpx.ReadTimeout("fixture")
+            if fault == "network":
+                raise httpx.ConnectError("fixture")
+            return FakeResponse(
+                200,
+                payload=community_payload(timestamp="2000-01-01T00:00:00Z")
+                if fault == "timestamp"
+                else community_payload(),
+            )
+
+        client.http.get = respond
+        try:
+            with patch("core.api_client.asyncio.sleep", new=AsyncMock()):
+                sections = _WORLDSTATE_BUNDLE_SECTIONS if fault != "missing" else ("calendar",)
+                for endpoint in sections:
+                    try:
+                        await client.worldstate("pc", endpoint)
+                    except WarframeAPIError as exc:
+                        assert endpoint in str(exc)
+                        if fault == "missing":
+                            assert "未提供" in str(exc)
+                        else:
+                            assert "整包不可用" in str(exc) and exc.__cause__ is not None
+                    else:
+                        raise AssertionError((fault, endpoint))
+            check(
+                f"社区整包 {fault} 时契约栏目只请求整包",
+                bool(calls) and all(url.endswith("/pc") and lang == "zh" for url, lang in calls),
+            )
+            calls.clear()
+            for lang in ("zh", "en"):
+                with i18n.use_lang(lang):
+                    assert await client.steel_path("pc") == {"raw": True}
+            check(
+                "社区扩展端点直接使用 zh/en 参数",
+                calls
+                == [(f"{client.worldstate_base}/pc/steelPath", lang) for lang in ("zh", "en")],
+            )
+        finally:
+            await client.close()
 
 
 # ---------------------------------------------------------------- 7. 并发单飞：失败也共享
@@ -450,7 +521,443 @@ async def virtual_wm_test(test):
         await test()
 
 
+BOUNTY_GROUPS = {"ZarimanSyndicate": [{"node": "SolNode232", "challenge": "SurvivalChallenge"}]}
+
+
+async def t_zariman_community_oracle():
+    from datetime import datetime, timezone
+    from unittest.mock import patch
+
+    now = 1_800_000_000
+
+    def stamp(seconds):
+        return datetime.fromtimestamp(now + seconds, timezone.utc).isoformat()
+
+    community_expiry = stamp(600)
+    oracle_expiry = stamp(627.125)
+    oracle = {
+        "zarimanFaction": " fc_corpus ",
+        "expiry": (now + 627) * 1000 + 125,
+        "bounties": BOUNTY_GROUPS,
+    }
+    cases = (
+        ("社区主源同窗口", "warframestat", community_expiry, oracle, True),
+        ("DE 后备社区同窗口", "de", community_expiry, oracle, True),
+        ("社区到期缺失", "warframestat", None, oracle, True),
+        ("社区到期为空", "warframestat", "", oracle, True),
+        ("窗口偏差恰好 180 秒", "warframestat", stamp(447.125), oracle, True),
+        ("Oracle 超时", "warframestat", community_expiry, None, False),
+        ("Oracle 空结果", "warframestat", community_expiry, {}, False),
+        (
+            "Oracle 未知派系",
+            "warframestat",
+            community_expiry,
+            dict(oracle, zarimanFaction="FC_INFESTATION"),
+            False,
+        ),
+        ("Oracle 到期无效", "warframestat", community_expiry, dict(oracle, expiry="bad"), False),
+        ("Oracle 已到期", "warframestat", community_expiry, dict(oracle, expiry=stamp(0)), False),
+        ("窗口偏差 181 秒", "warframestat", stamp(446.125), oracle, False),
+        ("社区到期无法解析", "warframestat", "bad", oracle, False),
+    )
+    for label, source, expiry, oracle_response, corrected in cases:
+        zariman = {"state": "grineer", "isCorpus": False, "timeLeft": "社区原倒计时"}
+        if expiry is not None:
+            zariman["expiry"] = expiry
+        payload = community_payload(timestamp=stamp(0), zarimanCycle=zariman)
+        calls = []
+
+        def respond(request):
+            calls.append((request.url.host, request.url.path))
+            if request.url.host == "api.warframe.com":
+                return httpx.Response(403)
+            if request.url.host == "api.warframestat.us":
+                return httpx.Response(200, json=payload)
+            assert calls[-1] == ("oracle.browse.wf", "/bounty-cycle")
+            if oracle_response is None:
+                raise httpx.ReadTimeout("Oracle timeout", request=request)
+            return httpx.Response(200, json=oracle_response)
+
+        client = make_client(worldsource=source)
+        await client._http.aclose()
+        client._http = httpx.AsyncClient(transport=httpx.MockTransport(respond))
+        try:
+            with patch("core.api_client.time.time", return_value=now):
+                original = await client.worldstate("pc", "zarimanCycle")
+                result = await client.cycle("pc", "zariman")
+                reread = await client.worldstate("pc", "zarimanCycle")
+            expected = dict(original, _name="zariman")
+            if corrected:
+                expected.update(
+                    state="corpus",
+                    stateCn="Corpus",
+                    isCorpus=True,
+                    expiry=oracle_expiry,
+                    timeLeft="10m 27s",
+                )
+            expected_sources = [("api.warframestat.us", "/pc")]
+            if source == "de":
+                expected_sources.insert(0, ("api.warframe.com", "/cdn/worldState.php"))
+            check(label, result == expected and reread == original, repr(result))
+            check(
+                f"{label}仅通过社区整包和赏金轮换取数",
+                calls[: len(expected_sources)] == expected_sources
+                and bool(calls[len(expected_sources) :])
+                and set(calls[len(expected_sources) :]) == {("oracle.browse.wf", "/bounty-cycle")},
+                repr(calls),
+            )
+        finally:
+            await client.close()
+
+
+async def t_zariman_de_skips_oracle():
+    from unittest.mock import patch
+
+    now = 1_800_000_000
+    expiry = (now + 600) * 1000
+    calls = []
+
+    def respond(request):
+        calls.append(request.url.host)
+        assert request.url.host == "api.warframe.com"
+        return httpx.Response(
+            200,
+            json={
+                "Time": now,
+                "SyndicateMissions": [{"Tag": "ZarimanSyndicate", "Seed": 34370, "Expiry": expiry}],
+            },
+        )
+
+    client = make_client()
+    await client._http.aclose()
+    client._http = httpx.AsyncClient(transport=httpx.MockTransport(respond))
+    try:
+        with (
+            patch("core.api_client.time.time", return_value=now),
+            patch.object(client, "bounty_cycle", wraps=client.bounty_cycle) as bounty_cycle,
+        ):
+            result = await client.cycle("pc", "zariman")
+        bounty_cycle.assert_not_called()
+        check(
+            "DE 官方扎里曼派系由 Seed 算出且不请求 Oracle",
+            result.get("state") == "grineer"
+            and result.get("_name") == "zariman"
+            and "_source" not in result
+            and calls == ["api.warframe.com"],
+            repr(result),
+        )
+    finally:
+        await client.close()
+
+
+async def t_bounty_expiry_cache():
+    import time
+    from unittest.mock import patch
+    from datetime import datetime, timezone
+    from core import api_client
+
+    start = 1800000000
+    now = start
+    calls = []
+    expiry = [
+        str(1000 * (start + 3)),
+        datetime.fromtimestamp(start + 6000, timezone.utc).isoformat(),
+    ]
+
+    def respond(request):
+        calls.append(request.url.path)
+        return httpx.Response(
+            200,
+            json={
+                "rot": str(len(calls)),
+                "expiry": expiry[min(len(calls) - 1, 1)],
+                "bounties": BOUNTY_GROUPS,
+            },
+        )
+
+    client = make_client()
+    await client._http.aclose()
+    client._http = httpx.AsyncClient(transport=httpx.MockTransport(respond))
+    try:
+        with patch.object(api_client.time, "time", side_effect=lambda: now):
+            first = await client.bounty_cycle()
+            deadline = client.cache._store["oracle:bounty-cycle"][0]
+            now += 2
+            warm = await client.bounty_cycle()
+            check(
+                "赏金轮次内热查命中，TTL 按毫秒 expiry 截为 3 秒",
+                first == warm and len(calls) == 1 and 0 < deadline - time.monotonic() <= 3,
+            )
+            now += 2
+            new = await client.bounty_cycle()
+            ttl = client.cache._store["oracle:bounty-cycle"][0] - time.monotonic()
+            check(
+                "未满 900 秒已跨轮则重新 HTTP，远期 ISO 截至 900 秒",
+                new["rot"] == "2" and len(calls) == 2 and 899 < ttl <= 900,
+            )
+    finally:
+        await client.close()
+
+
+async def t_bounty_bad_cycle():
+    from time import time
+    from unittest.mock import AsyncMock
+
+    good = {"expiry": int((time() + 3600) * 1000), "bounties": BOUNTY_GROUPS}
+    bad = [
+        json.dumps({**good, "rot": 1}),
+        '{"expiry":1e309,"bounties":' + json.dumps(BOUNTY_GROUPS) + "}",
+        *(
+            json.dumps({**good, "expiry": expiry})
+            for expiry in (float("nan"), 1e308, -1, 0, "cycle2", None)
+        ),
+        *(
+            json.dumps({**good, "bounties": groups})
+            for groups in (
+                {},
+                [{}],
+                {"ZarimanSyndicate": []},
+                {"ZarimanSyndicate": [{}]},
+                {"ZarimanSyndicate": [{"node": "SolNode232"}]},
+            )
+        ),
+    ]
+    c = make_client()
+    c.http.get = AsyncMock(
+        side_effect=[
+            *(
+                httpx.Response(
+                    200, content=body, request=httpx.Request("GET", "https://oracle.test")
+                )
+                for body in bad
+            ),
+            FakeResponse(payload=good),
+        ]
+    )
+    try:
+        for index, _ in enumerate(bad, 1):
+            assert await c.bounty_cycle() == {}
+            assert "oracle:bounty-cycle" not in c.cache._store and c.http.get.await_count == index
+        assert await c.bounty_cycle() == await c.bounty_cycle() == good
+        check(
+            "非有限到期时间与残缺赏金轮次均不入缓存，下次有效轮次可立即采用",
+            c.http.get.await_count == len(bad) + 1,
+        )
+    finally:
+        await c.close()
+
+
+async def t_location_bounties():
+    import time
+    from unittest.mock import patch
+    from core import api_client
+
+    client = make_client()
+    await client._http.aclose()
+    start = now = 1800000000
+    path = "/Lotus/Types/Gameplay/Eidolon/Jobs/AttritionBountyLib"
+    groups = {"CetusSyndicate": {f"Tent{tag}": [path] for tag in "ABC"}}
+    responses = [
+        {**groups, "expiry": "invalid"},
+        {**groups, "expiry": start * 1000},
+        {"expiry": (start + 4) * 1000},
+        {"expiry": (start + 4) * 1000, "CetusSyndicate": {"TentA": ["not an asset"]}},
+        {**groups, "expiry": (start + 4) * 1000, "SolarisSyndicate": []},
+        {**groups, "expiry": (start + 4) * 1000},
+        {**groups, "expiry": (start + 3600) * 1000},
+    ]
+    calls = []
+
+    def respond(request):
+        calls.append(request)
+        return httpx.Response(200, json=responses[len(calls) - 1])
+
+    client._http = httpx.AsyncClient(transport=httpx.MockTransport(respond))
+    try:
+        with (
+            patch.object(api_client.time, "time", side_effect=lambda: now),
+            patch.object(asyncio, "wait_for", wraps=asyncio.wait_for) as wait_for,
+        ):
+            key = "oracle:location-bounties"
+            for invalid in responses[:5]:
+                assert await client.location_bounties() == {}, invalid
+                assert key not in client.cache._store
+            assert await client.location_bounties() == responses[5]
+            assert 0 < client.cache._store[key][0] - time.monotonic() <= 4
+            assert await client.location_bounties() == responses[5] and len(calls) == 6
+            now += 5
+            assert await client.location_bounties() == responses[6]
+            assert 899 < client.cache._store[key][0] - time.monotonic() <= 900
+            assert all(call.kwargs["timeout"] == 3.5 for call in wait_for.call_args_list)
+        check(
+            "点位赏金校验、请求头及到期缓存通过",
+            len(calls) == 7
+            and all(
+                str(req.url) == f"{api_client.DEFAULT_ORACLE_BASE}/location-bounties"
+                for req in calls
+            )
+            and all(
+                req.headers[k] == v for req in calls for k, v in api_client._ORACLE_HEADERS.items()
+            ),
+        )
+    finally:
+        await client.close()
+
+
+async def t_bounty_baseline_recovery():
+    from tempfile import TemporaryDirectory
+    from time import time
+    from unittest.mock import AsyncMock, Mock
+    from core.push import PushDaemon
+    from core.store import Subscription, SubscriptionStore
+
+    c = make_client()
+    expiry = int((time() + 3600) * 1000)
+    first = {"expiry": expiry, "bounties": BOUNTY_GROUPS}
+    later = {**first, "expiry": expiry + 900000}
+    c.http.get = AsyncMock(
+        side_effect=[
+            FakeResponse(payload=first),
+            FakeResponse(payload={**later, "bounties": {}}),
+            FakeResponse(payload={**later, "expiry": float("inf")}),
+            FakeResponse(payload=later),
+        ]
+    )
+    try:
+        with TemporaryDirectory() as tmp:
+            store = SubscriptionStore(Path(tmp) / "subs.json")
+            await store.add(Subscription("fixture", "pc", "赏金", once=False))
+            state = Path(tmp) / "baseline.json"
+            send = AsyncMock()
+            daemon = PushDaemon(c, store, send, Mock(), state_path=state)
+            await daemon.tick()
+            assert daemon._last["pc"]["bounty_exp"] == str(expiry)
+            baseline = state.read_bytes()
+            c.cache.drop_prefix("oracle:bounty-cycle")
+            for _ in range(2):
+                await daemon.tick()
+                assert (
+                    daemon._last["pc"]["bounty_exp"] == str(expiry)
+                    and state.read_bytes() == baseline
+                )
+                send.assert_not_awaited()
+            await daemon.tick()
+            assert json.loads(state.read_bytes())["last"]["pc"]["bounty_exp"] == str(
+                later["expiry"]
+            )
+            send.assert_awaited_once()
+    finally:
+        await c.close()
+
+
+async def t_wm_item_rows():
+    from time import monotonic
+    from unittest.mock import AsyncMock
+
+    good = {
+        "id": "mod",
+        "slug": "serration",
+        "i18n": {"zh-hans": {"name": "膛线"}, "en": None},
+        "tags": None,
+        "gameRef": None,
+    }
+    bad_rows = [
+        {"id": "other", "slug": 7},
+        {"slug": "missing_id"},
+        {"id": "missing_slug"},
+        None,
+        {**good, "i18n": {"en": {"name": 7}}},
+        {**good, "tags": [{}]},
+    ]
+    c = make_client()
+    c.WM_MIN_INTERVAL_S = 0
+    c.http.get = AsyncMock(
+        side_effect=[
+            *(FakeResponse(payload={"data": data}) for data in ({}, [], bad_rows)),
+            FakeResponse(payload={"data": [*bad_rows, good]}),
+        ]
+    )
+    try:
+        for _ in range(3):
+            try:
+                await c.resolve_wm_item("膛线")
+            except WarframeAPIError:
+                assert not c.cache._store and not c._wm_item_tables
+            else:
+                raise AssertionError("坏物品整包进入了查价链路")
+        item = await c.resolve_wm_item("膛线")
+        items = await c.wm_items()
+        assert len(items) == 1 and items.by_id["mod"] is item and item["url_name"] == "serration"
+        deadline, _ = next(iter(c.cache._store.values()))
+        check(
+            "膛线与无关坏行共存时仍可热查 serration 24 小时",
+            86399 < deadline - monotonic() <= 86400 and c.http.get.await_count == 4,
+        )
+    finally:
+        await c.close()
+
+
+async def t_wm_set_parts_refresh():
+    from unittest.mock import AsyncMock
+    from core.i18n import use_lang
+
+    root = {"id": "root", "slug": "test_set"}
+    barrel = {"id": "barrel", "slug": "test_barrel"}
+    blueprint = {"id": "bp", "slug": "test_blueprint"}
+    detail = {**root, "setRoot": True, "setParts": ["bp", "root", "barrel"]}
+    for recovered in (True, False):
+        calls = []
+
+        async def get(url, **kwargs):
+            lang = kwargs["headers"]["language"]
+            if url.endswith("/items/test_set"):
+                return FakeResponse(payload={"data": detail})
+            assert url.endswith("/items")
+            calls.append(lang)
+            rows = [root, barrel]
+            if recovered and calls.count(lang) == 2:
+                rows.append(blueprint)
+            return FakeResponse(payload={"data": rows})
+
+        c = make_client()
+        c.WM_MIN_INTERVAL_S = 0
+        c.http.get = AsyncMock(side_effect=get)
+        try:
+            with use_lang("en"):
+                english = await c.wm_items()
+            await c.wm_items()
+            if recovered:
+                parts = await c.wm_set_parts("test_set")
+                assert [part["id"] for part in parts] == ["bp", "barrel"]
+                assert await c.wm_set_parts("test_set") == parts
+            else:
+                try:
+                    await c.wm_set_parts("test_set")
+                except WarframeAPIError as exc:
+                    assert "部件表暂不可用" in str(exc) and "1" in str(exc)
+                    with use_lang("en"):
+                        assert "set parts" in public_error_text(exc)
+                else:
+                    raise AssertionError("残缺部件表不能当作完整结果返回")
+            with use_lang("en"):
+                assert await c.wm_items() is english
+            check(
+                f"套装缺 ID 仅刷新一次且保留其它语言缓存，补全={recovered}",
+                calls == ["en", "zh-hans", "zh-hans"],
+            )
+        finally:
+            await c.close()
+
+
 async def main():
+    await t_zariman_community_oracle()
+    await t_zariman_de_skips_oracle()
+    await t_bounty_expiry_cache()
+    await t_bounty_bad_cycle()
+    await t_location_bounties()
+    await t_bounty_baseline_recovery()
+    await t_wm_item_rows()
+    await t_wm_set_parts_refresh()
     await t_data_source_probe()
     await t_wm_bounded_gate()
     await t_wm_origin_normalization()
@@ -463,6 +970,7 @@ async def main():
     await t_404_no_retry()
     await t_429_then_ok()
     await t_empty_data()
+    await t_community_contract_guard()
     await t_singleflight_failure()
     await t_cache_hit()
     await t_close()
@@ -483,6 +991,11 @@ async def main():
     await t_wm_auction_attribute_fallback()
     await t_wm_auction_cooldown()
     await t_de_community_fallback()
+    await t_community_sortie_and_assaults()
+    await t_cancelled_worldstate_parsing()
+    await t_custom_de_generation()
+    await t_de_mirror_failover()
+    await virtual_wm_test(t_bad_wm_orders_recover)
     await t_manual_crawl_lifecycle()
     await t_manual_crawl_round_results()
     await t_terminate_closes_admission_before_wait()
@@ -594,8 +1107,218 @@ async def t_wm_schema_drift():
     check("正常订单照常解析", isinstance(r4, tuple) and r4[0][0]["platinum"] == 10, str(r4))
 
 
+async def t_bad_wm_orders_recover():
+    usable = [{"type": "sell", "platinum": 9}, {"type": "buy", "platinum": 4}]
+    mixed = [
+        *usable,
+        {"platinum": 1},
+        {"type": "buy", "platinum": None},
+        {"type": "ask", "platinum": 2},
+        {"type": "sell", "platinum": True},
+    ]
+    for bad, rank in (
+        (None, None),
+        ({"sell": [], "buy": []}, None),
+        ({"sell": None, "buy": []}, 1),
+        ({"asks": [], "bids": []}, 1),
+        ({"sell": [{"type": "buy", "platinum": 9}], "buy": []}, 1),
+        ([{"platinum": 1}], None),
+    ):
+        calls = []
+
+        def respond(request):
+            calls.append(request.url)
+            good = (
+                mixed
+                if rank is None
+                else {"sell": [mixed[0], mixed[2], *mixed[4:]], "buy": [mixed[1], mixed[3]]}
+            )
+            return httpx.Response(200, json={"data": bad if len(calls) == 1 else good})
+
+        c = make_client()
+        await c._http.aclose()
+        c._http = httpx.AsyncClient(transport=httpx.MockTransport(respond))
+        try:
+            try:
+                await c.wm_orders("fixture", "pc", rank)
+            except WarframeAPIError as exc:
+                check("错误订单信封明确报错", "结构异常" in str(exc))
+            else:
+                check(f"拒绝错误订单信封 {bad}", False)
+            rows, _ = await c.wm_orders("fixture", "pc", rank)
+            check(
+                "同一请求立即恢复，只保留真实买卖方向与价格",
+                [(o["order_type"], o["platinum"]) for o in rows] == [("sell", 9), ("buy", 4)]
+                and len(calls) == 2,
+            )
+            check(
+                "正常响应进入缓存",
+                (await c.wm_orders("fixture", "pc", rank))[0] == rows and len(calls) == 2,
+            )
+        finally:
+            await c.close()
+
+
+async def t_custom_de_generation():
+    from unittest.mock import patch
+    from core import de_worldstate
+
+    calls = []
+
+    def respond(request):
+        calls.append(request.url)
+        return httpx.Response(
+            200, json={"BuildLabel": "same", "ActiveMissions": [{"_id": {"$oid": str(len(calls))}}]}
+        )
+
+    c = make_client(de_worldstate_url="https://custom.test/worldState.php")
+    await c._http.aclose()
+    c._http = httpx.AsyncClient(transport=httpx.MockTransport(respond))
+    try:
+        with (
+            patch("core.api_client.private_url_reason", return_value=""),
+            patch.object(
+                de_worldstate, "parse_worldstate", wraps=de_worldstate.parse_worldstate
+            ) as parse,
+        ):
+            rows = await asyncio.gather(*(c.fissures("pc") for _ in range(6)))
+            check(
+                "自定义 DE 六路并发只请求和解析一次",
+                len(calls) == parse.call_count == 1 and all(r[0]["id"] == "1" for r in rows),
+            )
+            c.cache.drop_prefix(c.de_worldstate_url)
+            check(
+                "缺 Time 的新原包立即更新裂隙",
+                (await c.fissures("pc"))[0]["id"] == "2" and parse.call_count == 2,
+            )
+    finally:
+        await c.close()
+
+
+async def t_community_sortie_and_assaults():
+    from datetime import datetime, timedelta, timezone
+    from unittest.mock import AsyncMock
+    from core import de_worldstate, formatters as fmt, i18n
+
+    client = make_client(worldsource="warframestat")
+    expiry = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
+    sortie_key = de_worldstate.node_key_of("Ganymede", "Jupiter")
+    payload = community_payload(
+        sortie={"variants": [{"node": "Ganymede (Jupiter)"}, {"node": "Unknown node"}]},
+        events=[
+            {
+                "description": "Fomorian Sabotage",
+                "victimNode": "Larunda Relay (Mercury)",
+                "health": 0.42,
+                "expiry": expiry,
+            },
+            {
+                "description": "利刃豺狼舰队",
+                "victimNode": "Larunda Relay (Mercury)",
+                "health": "75%",
+                "expiry": expiry,
+            },
+            {"description": "Unknown Event", "victimNode": "Unknown node", "health": 0.8},
+            {"description": "Razorback Armada", "victimNode": "Unknown node", "health": "invalid"},
+        ],
+    )
+    client.http.get = AsyncMock(return_value=FakeResponse(payload=payload))
+    try:
+        for lang in ("zh", "en"):
+            with i18n.use_lang(lang):
+                variants = (await client.sortie("pc"))["variants"]
+                official = de_worldstate._parse_sortie(
+                    {"Variants": [{"node": sortie_key}]}, archon=False
+                )["variants"][0]
+                assert {k: variants[0][k] for k in ("node", "nodeKey", "level")} == {
+                    k: official[k] for k in ("node", "nodeKey", "level")
+                }
+                assert official["level"] and variants[1]["nodeKey"] == "Unknown node"
+                construction = await client.construction("pc")
+                assert construction["assaults_unknown"] is False
+                assaults = construction["assaults"]
+                assert [row["health"] for row in assaults] == [0.42, 0.75]
+                assert assaults[0]["victim"] == i18n.L(
+                    "Larunda 中继站（水星）", "Larunda Relay (Mercury)"
+                )
+                assert assaults[0]["expiry"] == expiry
+                card = "\n".join(fmt.fmt_construction(construction)[1])
+                assert i18n.L("舰体完整度 42%", "Hull integrity 42%") in card
+                assert i18n.L("利刃豺狼舰队", "Razorback Armada") in card
+        check("社区突击补节点和等级，舰队只提取有效的两类袭击", True)
+    finally:
+        await client.close()
+
+
+async def t_cancelled_worldstate_parsing():
+    import threading
+    from datetime import datetime, timezone
+    from unittest.mock import AsyncMock, patch
+    from core import de_worldstate
+
+    for mode in ("warframestat", "de"):
+        c = make_client(worldsource=mode)
+        community = mode == "warframestat"
+        if community:
+            raw = {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "fissures": [{"id": "fixture"}],
+                "sortie": {},
+                "nightwave": {},
+                "voidTrader": {},
+                "constructionProgress": {},
+            }
+            owner, method = c, "_convert_community_ws"
+        else:
+            raw = {"ActiveMissions": [{"_id": {"$oid": "fixture"}}]}
+            owner, method = de_worldstate, "parse_worldstate"
+        c.http.get = AsyncMock(return_value=FakeResponse(payload=raw))
+        convert = getattr(owner, method)
+        fetch = c._fetch_json
+        loop = asyncio.get_running_loop()
+        fetched, started = asyncio.Event(), asyncio.Event()
+        release = threading.Event()
+
+        def blocked(*args):
+            loop.call_soon_threadsafe(started.set)
+            assert release.wait(5)
+            return convert(*args)
+
+        async def observe_fetch(*args, **kwargs):
+            data = await fetch(*args, **kwargs)
+            fetched.set()
+            return data
+
+        try:
+            with (
+                patch.object(c, "_fetch_json", observe_fetch),
+                patch.object(owner, method, side_effect=blocked) as worker,
+            ):
+                for _ in range(3):
+                    fetched.clear()
+                    waiter = asyncio.create_task(c.fissures("pc"))
+                    await asyncio.wait_for(fetched.wait(), 2)
+                    await asyncio.wait_for(started.wait(), 2)
+                    waiter.cancel()
+                    result = await asyncio.gather(waiter, return_exceptions=True)
+                    assert isinstance(result[0], asyncio.CancelledError)
+                fetched.clear()
+                fourth = asyncio.create_task(c.fissures("pc"))
+                await asyncio.wait_for(fetched.wait(), 2)
+                release.set()
+                rows = await asyncio.wait_for(fourth, 3)
+                assert rows[0]["id"] == "fixture" and await c.fissures("pc") == rows
+                check(
+                    f"{mode} 三次取消后第四次查询复用同一转换线程",
+                    worker.call_count == c.http.get.await_count == 1 and not c._ws_parse_tasks,
+                )
+        finally:
+            release.set()
+            await c.close()
+
+
 async def t_loopback_fault_recovery():
-    """真实 TCP + 单连接池：故障后同一客户端能继续请求且连接全部关闭。"""
+    """通过单连接池交换真实 HTTP 字节，验证故障、取消后的连接释放。"""
     calls, handlers, writers = {}, set(), set()
     entered, disconnected = asyncio.Event(), asyncio.Event()
 
@@ -629,11 +1352,33 @@ async def t_loopback_fault_recovery():
             writers.discard(writer)
             handlers.discard(task)
 
-    server = await asyncio.start_server(serve, "127.0.0.1", 0)
-    base = f"http://127.0.0.1:{server.sockets[0].getsockname()[1]}"
+    limits = httpx.Limits(max_connections=1)
+    transport = None
+    try:
+        server = await asyncio.start_server(serve, "127.0.0.1", 0)
+        base = f"http://127.0.0.1:{server.sockets[0].getsockname()[1]}"
+    except PermissionError:
+        import socket
+
+        from anyio.abc import UNIXSocketStream
+        from httpcore._backends.anyio import AnyIOBackend, AnyIOStream
+
+        class LocalSocketPair(AnyIOBackend):
+            async def connect_tcp(self, host, port, **kwargs):
+                assert (host, port) == ("127.0.0.1", 80)
+                client_sock, peer = socket.socketpair()
+                reader, writer = await asyncio.open_connection(sock=peer)
+                handlers.add(asyncio.create_task(serve(reader, writer)))
+                return AnyIOStream(await UNIXSocketStream.from_socket(client_sock))
+
+        # 只替换建连。httpx/httpcore 的协议、超时、单连接池和服务端断开断言照常运行。
+        print("[SKIP] 系统拒绝 TCP 回环监听，同一组 HTTP 断言改用本地 socketpair")
+        server, base = None, "http://127.0.0.1"
+        transport = httpx.AsyncHTTPTransport(limits=limits, trust_env=False)
+        transport._pool._network_backend = LocalSocketPair()
     c = make_client()
     await c._http.aclose()
-    c._http = httpx.AsyncClient(timeout=1, trust_env=False, limits=httpx.Limits(max_connections=1))
+    c._http = httpx.AsyncClient(timeout=1, trust_env=False, limits=limits, transport=transport)
     try:
         for path in ("/timeout", "/bad-json", "/limited"):
             try:
@@ -670,8 +1415,9 @@ async def t_loopback_fault_recovery():
             await asyncio.gather(task, return_exceptions=True)
     finally:
         await c.close()
-        server.close()
-        await server.wait_closed()
+        if server is not None:
+            server.close()
+            await server.wait_closed()
         for writer in tuple(writers):
             writer.close()
         if handlers:
@@ -716,7 +1462,8 @@ async def t_cache_cancellation_recovery():
             if cancel_creator:
                 check(
                     "取消缓存生产者唤醒全部等待者",
-                    all(isinstance(x, asyncio.CancelledError) for x in results),
+                    isinstance(results[0], asyncio.CancelledError)
+                    and all(isinstance(x, RuntimeError) for x in results[1:]),
                 )
             else:
                 check(
@@ -1473,7 +2220,37 @@ async def t_de_community_fallback():
             "expiry": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
         },
     }
-    for mode in ("403", "timeout"):
+    from unittest.mock import AsyncMock, patch
+
+    custom = {k: v for k, v in payload.items() if k != "vaultTrader"}
+    custom["primeVault"] = {"items": [{"name": "custom relic"}]}
+    c = make_client(worldsource="warframestat", worldstate_base="https://community.test")
+    c.http.get = AsyncMock(return_value=FakeResponse(payload=custom))
+    try:
+        rows = await c.fissures("pc")
+        vault = await c.prime_vault("pc")
+        check(
+            "自定义社区包只有 primeVault 时裂隙和在售表均正常",
+            rows[0]["node"] == "Larunda 中继站（水星）"
+            and vault["items"] == custom["primeVault"]["items"]
+            and c.http.get.await_count == 1
+            and c.http.get.await_args.args == ("https://community.test/pc",),
+        )
+        c.cache.drop_prefix("ws-fallback|")
+        c.http.get.return_value = FakeResponse(
+            payload={**custom, "vaultTrader": {**payload["vaultTrader"], "schedule": [None]}}
+        )
+        assert await c.fissures("pc") == rows
+        try:
+            await c.prime_vault("pc")
+        except WarframeAPIError as exc:
+            assert "primeVault" in str(exc)
+        else:
+            raise AssertionError("坏 schedule 应报告本栏目失败")
+    finally:
+        await c.close()
+
+    for mode in ("403", "429", "timeout"):
         calls = []
 
         def respond(request):
@@ -1481,14 +2258,32 @@ async def t_de_community_fallback():
             if "worldState.php" in str(request.url):
                 if mode == "timeout":
                     raise httpx.ReadTimeout("fixture", request=request)
-                return httpx.Response(403)
+                return httpx.Response(int(mode))
             return httpx.Response(200, json=payload)
 
         c = make_client()
         await c._http.aclose()
         c._http = httpx.AsyncClient(transport=httpx.MockTransport(respond))
         try:
-            rows = await asyncio.gather(*(c.construction("pc") for _ in range(5)))
+            if mode == "429":
+                try:
+                    await c._de_raw()
+                except WarframeAPIError as exc:
+                    check(
+                        "DE 429 保留来源、状态和原因",
+                        "DE 世界状态" in str(exc)
+                        and "warframe.market" not in str(exc)
+                        and exc.__cause__.response.status_code == 429,
+                    )
+                else:
+                    check("DE 限速应报错", False)
+                calls.clear()
+            with patch.object(c, "_convert_community_ws", wraps=c._convert_community_ws) as convert:
+                rows = await asyncio.gather(*(c.construction("pc") for _ in range(6)))
+                check(
+                    f"DE {mode} 六路并发只转换一次且进入冷却",
+                    convert.call_count == 1 and len(calls) == 2 and c._de_retry_at > 0,
+                )
             check(f"DE {mode} 并发后备整包单飞", len([x for x in calls if "language=" in x]) == 1)
             check(f"DE {mode} 后备舰队百分比", rows[0]["projects"][0]["pct"] == 25.5)
             check(f"DE {mode} 未伪称无袭击", "未知" in "".join(fmt_construction(rows[0])[1]))
@@ -1565,6 +2360,65 @@ async def t_de_community_fallback():
             check(f"社区 {mode} 结合目标使用随包静态表", bool(await c.synth_targets("pc")))
         finally:
             await c.close()
+    broken = copy.deepcopy(payload)
+    del broken["voidTrader"]["expiry"]
+    broken["constructionProgress"]["fomorianProgress"] = "?"
+    c = make_client(worldsource="warframestat")
+    await c._http.aclose()
+    calls = []
+
+    def broken_trader(request):
+        calls.append(request.url)
+        return httpx.Response(200, json=broken)
+
+    c._http = httpx.AsyncClient(transport=httpx.MockTransport(broken_trader))
+    try:
+        for endpoint in ("voidTrader", "constructionProgress"):
+            try:
+                await c.worldstate("pc", endpoint)
+            except WarframeAPIError as exc:
+                check(
+                    f"坏栏目 {endpoint} 明确报告局部解析失败",
+                    endpoint in str(exc) and "解析失败" in str(exc),
+                )
+            else:
+                check(f"坏栏目 {endpoint} 应报错", False)
+        check(
+            "好突击仍可查且坏栏目未触发整包冷却",
+            (await c.sortie("pc"))["variants"][0]["node"] == "Larunda 中继站（水星）"
+            and len(calls) == 1
+            and not c._ws_failure_until,
+        )
+    finally:
+        await c.close()
+
+    c = make_client(worldsource="warframestat")
+    await c._http.aclose()
+    start = datetime.fromisoformat(payload["timestamp"]).timestamp()
+    window = copy.deepcopy(payload)
+
+    def iso(offset):
+        return datetime.fromtimestamp(start + offset, timezone.utc).isoformat()
+
+    window["voidTrader"].update(activation=iso(2), expiry=iso(5))
+    window["fissures"] = [{"isStorm": True, "expiry": iso(4), "timeLeft": "old"}]
+    c._http = httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda r: httpx.Response(200, json=window))
+    )
+    try:
+        for offset, active, storm_count in ((0, False, 1), (3, True, 1), (6, False, 0)):
+            with patch("core.api_client.time.time", return_value=start + offset):
+                trader = await c.void_trader("pc")
+                storms = await c.void_storms("pc")
+                check(
+                    f"同包推进 {offset} 秒后按窗口判定奸商、风暴及倒计时",
+                    trader["active"] == active
+                    and len(storms) == storm_count
+                    and (not storms or storms[0]["timeLeft"] != "old"),
+                )
+    finally:
+        await c.close()
+
     # 网络故障注入走真实 HTTP 边界和赏金 handler；不替换适配器/格式化器。
     from types import SimpleNamespace
     from unittest.mock import patch
@@ -1592,7 +2446,7 @@ async def t_de_community_fallback():
     def intermittent(request):
         if "worldState.php" in str(request.url):
             return httpx.Response(403)
-        if "bounty-cycle" in str(request.url):
+        if request.url.host == "oracle.browse.wf":
             return httpx.Response(200, json={})
         network_calls.append(str(request.url))
         if outage or len(network_calls) == 1:
@@ -1669,6 +2523,14 @@ async def t_de_community_fallback():
     past = (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat()
     storms_payload["fissures"] = [
         {
+            "id": "later",
+            "node": "Larunda Relay (Mercury)",
+            "isStorm": True,
+            "tier": "Lith",
+            "missionType": "Skirmish",
+            "expiry": (datetime.now(timezone.utc) + timedelta(minutes=40)).isoformat(),
+        },
+        {
             "id": "storm",
             "node": "Larunda Relay (Mercury)",
             "isStorm": True,
@@ -1706,8 +2568,8 @@ async def t_de_community_fallback():
                 storms = await c.void_storms("pc")
                 check(
                     "风暴仅保留未过期isStorm真值条目及中文节点",
-                    len(storms) == 1
-                    and storms[0]["id"] == "storm"
+                    [s["id"] for s in storms] == ["storm", "later"]
+                    and 0 < storms[0]["_msLeft"] < storms[1]["_msLeft"]
                     and storms[0]["nodeCn"] == "Larunda 中继站（水星）"
                     and storms[0]["tier"] == "Lith"
                     and storms[0]["missionType"] == "Skirmish",
@@ -1721,7 +2583,7 @@ async def t_de_community_fallback():
                     "Larunda 中继站" in text
                     and "前哨战" in text
                     and "Unknown" not in text
-                    and "进行中：1 处" in text,
+                    and "进行中：2 处" in text,
                 )
                 check(
                     "真实风暴入口保留社区来源与原始时间戳",
@@ -1773,18 +2635,18 @@ async def t_de_community_fallback():
             len(calls) == 5 and any("/ps4?" in x for x in calls) and "language=en" in calls[-1],
         )
 
-        async def parsed_failure():
+        async def parsed_failure(url):
             return {"_failed": ["fissures"], "fissures": []}
 
         c._de_bundle = parsed_failure
-        c._de_retry_at = 0
+        c._de_url_retry_at.clear()
         try:
             await c.fissures("pc")
             check("DE解析段失败不能转源", False)
         except WarframeAPIError as exc:
             check("DE解析段失败不能转源", "解析失败" in str(exc) and len(calls) == 5)
 
-        async def recovered_de():
+        async def recovered_de(url):
             return {"fissures": [{"id": "DE恢复"}]}
 
         c._de_bundle = recovered_de
@@ -1804,21 +2666,164 @@ async def t_de_community_fallback():
             check("社区坏结构/过期/未来拒绝", False)
         except WarframeAPIError:
             check("社区坏结构/过期/未来拒绝", True)
-    c = make_client(de_worldstate_url="https://custom.test/worldState.php")
+
+
+async def t_de_mirror_failover():
+    import time
+    from unittest.mock import patch
+    from core import de_worldstate
+    from core.api_client import DEFAULT_DE_WORLDSTATE, DEFAULT_WORLDSTATE_BASE
+
+    official = DEFAULT_DE_WORLDSTATE
+    mirror = "https://de.test:8443/mirror-private-path/worldState.php?key=secret"
+    private = "http://127.0.0.1:8080/worldState.php"
+    raw = json.loads((Path(__file__).parent / "fixtures" / "de_worldstate.json").read_text())
+    raw["Time"] = int(time.time())
+
+    for fault in (403, 429, "timeout", "bad-json", {}, {"ActiveMissions": "bad"}, "stale"):
+        first, second = (official, mirror) if fault in (403, 429, "timeout") else (mirror, official)
+        calls = []
+
+        def respond(request):
+            url = str(request.url)
+            calls.append(url)
+            assert request.extensions["timeout"]["read"] == 8
+            if url == second:
+                return httpx.Response(200, json=raw)
+            assert url == first
+            if fault == "timeout":
+                raise httpx.ReadTimeout("secret", request=request)
+            if fault == "bad-json":
+                return httpx.Response(200, content=b"<html>error</html>")
+            if fault == "stale":
+                return httpx.Response(200, json={**raw, "Time": raw["Time"] - 3600})
+            return (
+                httpx.Response(fault) if isinstance(fault, int) else httpx.Response(200, json=fault)
+            )
+
+        c = make_client(de_worldstate_url=f" \n{first},\r\n {second} , {official}/ , {mirror}\n")
+        await c._http.aclose()
+        c._http = httpx.AsyncClient(transport=httpx.MockTransport(respond))
+        try:
+            with patch("core.api_client.private_url_reason", return_value="") as guard:
+                check("DE 地址混合分隔、去重、首地址兼容", c.de_worldstate_url == first)
+                bundle = await c._resilient_de_bundle("pc")
+                check(
+                    f"DE 首地址故障 {fault}：后备原包保留小帐篷种子、阿耶常驻、氏族排期",
+                    any(row.get("seed") is not None for row in bundle["syndicateMissions"])
+                    and bool(bundle["primeVault"]["evergreen"])
+                    and len(bundle["clanRewards"]) == len(raw["WeeklyVaultBonusRewards"]) == 2
+                    and "_source" not in bundle,
+                )
+                await c._resilient_de_bundle("pc")
+                check(
+                    f"DE 首地址故障 {fault}：严格按序请求，冷却仅命中故障地址",
+                    calls == [first, second]
+                    and guard.await_count == 1
+                    and guard.await_args.args == (mirror,)
+                    and c._de_url_retry_at[first] > time.monotonic()
+                    and second not in c._de_url_retry_at,
+                )
+        finally:
+            await c.close()
+
+    calls = []
+    statuses = {official: 403, mirror: 503}
+
+    def respond(request):
+        url = str(request.url)
+        calls.append(url)
+        if url.startswith(DEFAULT_WORLDSTATE_BASE):
+            assert request.url.path == "/pc"
+            return httpx.Response(200, json=community_payload())
+        status = statuses[url]
+        return httpx.Response(status) if status != 200 else httpx.Response(200, json=raw)
+
+    c = make_client(de_worldstate_url=f"{official}, {mirror}")
+    await c._http.aclose()
+    c._http = httpx.AsyncClient(transport=httpx.MockTransport(respond))
+    try:
+        with patch("core.api_client.private_url_reason", return_value=""):
+            bundle = await c._resilient_de_bundle("pc")
+            await c._resilient_de_bundle("pc")
+            check(
+                "DE 官方和镜像均失败：社区整包单飞，冷却内不打两个 DE 地址",
+                "DE 后备" in bundle["_source"]
+                and len(calls) == 3
+                and calls[:2] == [official, mirror]
+                and calls[2].startswith(DEFAULT_WORLDSTATE_BASE + "/pc?")
+                and c._de_retry_at == min(c._de_url_retry_at.values()) > time.monotonic(),
+            )
+            statuses[mirror] = 200
+            c._de_url_retry_at[mirror] = 0
+            bundle = await c._resilient_de_bundle("pc")
+            check(
+                "只到期的镜像恢复后直接采用 DE，官方仍冷却",
+                calls[3:] == [mirror] and "_source" not in bundle and c._de_retry_at == 0,
+            )
+            c.de_worldstate_url = f"\n {mirror} \n {official}"
+            check(
+                "运行期给首地址属性赋值更新全部候选",
+                c.de_worldstate_url == mirror and c._de_worldstate_urls() == [mirror, official],
+            )
+            c.de_worldstate_url = " ,\n "
+            check("运行期清空 DE 地址恢复默认", c._de_worldstate_urls() == [official])
+            c.de_worldstate_url = mirror
+            statuses[mirror] = 429
+            c.cache.drop_prefix(mirror)
+            check(
+                "运行期改用单条自填镜像，临时故障仍采用社区整包",
+                "DE 后备" in (await c._resilient_de_bundle("pc"))["_source"]
+                and calls[4:] == [mirror],
+            )
+    finally:
+        await c.close()
+
     calls = []
 
-    def custom(request):
+    def respond(request):
         calls.append(str(request.url))
-        return httpx.Response(403)
+        return httpx.Response(
+            200, json={**raw, "Time": raw["Time"] + int(str(request.url) == private)}
+        )
 
+    c = make_client(de_worldstate_url=f"{private}, {official}")
     await c._http.aclose()
-    c._http = httpx.AsyncClient(transport=httpx.MockTransport(custom))
+    c._http = httpx.AsyncClient(transport=httpx.MockTransport(respond))
     try:
-        try:
-            await c.fissures("pc")
-        except WarframeAPIError:
-            pass
-        check("自定义DE不跨源", all("custom.test" in x for x in calls))
+        for allow, expected_calls in ((False, [official]), (True, [private]), (False, [])):
+            c.allow_private_urls = allow
+            calls.clear()
+            bundle = await c._resilient_de_bundle("pc")
+            check(
+                f"DE 回环镜像 allow_private_urls={allow} 按当前策略预检及采用缓存",
+                calls == expected_calls
+                and de_worldstate._ms(bundle["timestamp"]) == (raw["Time"] + int(allow)) * 1000,
+            )
+    finally:
+        await c.close()
+
+    c = make_client(de_worldstate_url=mirror)
+    await c._http.aclose()
+
+    def redirect(request):
+        assert str(request.url) == mirror
+        return httpx.Response(302, headers={"Location": private})
+
+    c._http = httpx.AsyncClient(transport=httpx.MockTransport(redirect), follow_redirects=True)
+    try:
+        with patch("core.api_client.private_url_reason", return_value=""):
+            try:
+                await c._de_raw()
+            except WarframeAPIError as exc:
+                check(
+                    "DE 自填镜像拒绝重定向，错误保留数据源和状态且隐藏地址",
+                    "DE 世界状态" in public_error_text(exc)
+                    and "HTTP 302" in str(exc)
+                    and all(word not in str(exc) for word in ("de.test", "secret", "127.0.0.1")),
+                )
+            else:
+                check("DE 自填镜像拒绝重定向", False)
     finally:
         await c.close()
 
@@ -2272,7 +3277,7 @@ async def t_wm_waiting_auction_and_http_policy():
         return httpx.Response(
             status,
             headers={"Retry-After": "900"} if status == 503 else {},
-            json={"payload": {"auctions": []}, "data": []},
+            json={"payload": {"auctions": []}, "data": [{"id": "probe", "slug": "probe"}]},
         )
 
     async def sleep(seconds):
@@ -2512,6 +3517,42 @@ async def t_data_source_probe():
         await transport(success)
         result = await c.probe_data_source("worldstate")
         check("世界状态探测不解析业务正文", result["ok"])
+        from core.api_client import DEFAULT_DE_WORLDSTATE
+
+        mirror = "https://probe.test:8443/secret-path/worldState.php?token=secret-query"
+        private = "http://127.0.0.1/secret-path"
+        c.de_worldstate_url = f"{mirror},\n {DEFAULT_DE_WORLDSTATE}, {private}"
+        from core import api_client
+
+        reason = api_client.private_url_reason
+
+        async def public_fixture(url):
+            return "" if url == mirror else await reason(url)
+
+        calls.clear()
+        with patch.object(api_client, "private_url_reason", side_effect=public_fixture):
+            result = await c.probe_data_source("worldstate")
+        check(
+            "DE 探测逐条列出结果，公开镜像仅回传 origin，回环地址跳过",
+            [str(r.url) for r in calls] == [mirror, DEFAULT_DE_WORLDSTATE]
+            and [row["label"] for row in result["attempts"]]
+            == ["DE 镜像 1", "DE 官方", "DE 镜像 2"]
+            and [row["url"] for row in result["attempts"]]
+            == ["https://probe.test:8443", "https://api.warframe.com", ""]
+            and result["attempts"][2].get("skipped_reason") == "private_url"
+            and "secret" not in str(result),
+        )
+        c.allow_private_urls = True
+        calls.clear()
+        result = await c.probe_data_source("worldstate")
+        check(
+            "DE 探测允许内网时请求全部地址并隐藏自填镜像 URL",
+            [str(r.url) for r in calls] == [mirror, DEFAULT_DE_WORLDSTATE, private]
+            and all(row["ok"] for row in result["attempts"])
+            and [row["url"] for row in result["attempts"]] == ["", "https://api.warframe.com", ""],
+        )
+        c.de_worldstate_url = DEFAULT_DE_WORLDSTATE
+        c.allow_private_urls = False
         c.worldsource = "warframestat"
         result = await c.probe_data_source("worldstate", "ps4")
         check(

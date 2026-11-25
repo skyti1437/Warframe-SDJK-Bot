@@ -65,6 +65,35 @@ class ComparisonTests(unittest.IsolatedAsyncioTestCase):
         )
         return provider, prepared, result
 
+    async def test_scan_inputs_and_coordinate_receipt_match_production(self):
+        class Host(ScanCommands, VisionCommands):
+            pass
+
+        # 生产消息链按类型名判定图片组件。
+        component = type("Image", (), {})()
+        event = types.SimpleNamespace(message_obj=types.SimpleNamespace(message=[component]))
+        for fmt in ("PNG", "JPEG"):
+            source = image_url(fmt)
+            component.file = source
+            host = Host()
+            (received,) = await host._image_data_urls(event)
+            fitted = host._fit_scan_image(received)
+            text = "120,65,220,28,0,UPGRADES: SOMA [30]"
+            provider = Provider([SAMPLES["scan_mods"], text])
+            host._scan_equipment_providers = lambda: [provider]
+            await host._read_scan_focus(fitted, "mods")
+            frozen = vc.prepare_image(source, "scan_mods")
+            (actual,) = provider.calls[0]["image_urls"]
+            raw = base64.b64decode(actual.split(",", 1)[1])
+            self.assertEqual(hashlib.sha256(raw).hexdigest(), frozen["prepared_sha256"])
+            with Image.open(io.BytesIO(raw)) as prepared:
+                self.assertEqual(prepared.size, (frozen["width"], frozen["height"]))
+            main = await host._extract_loadout_from_image(fitted, provider)
+            parsed, accepted, _ = vc._parse("scan_main", text)
+            self.assertTrue(accepted)
+            self.assertEqual(main["_recognition"]["parsed"], parsed)
+            self.assertEqual(parsed["weapon"], "SOMA")
+
     async def test_identical_bytes_frozen_prompts_and_isolated_sessions(self):
         provider, prepared, result = await self.compare()
         self.assertEqual(len(provider.calls), 2)
@@ -266,7 +295,9 @@ class ImageTests(unittest.TestCase):
                 raw = base64.b64decode(prepared["image_url"].split(",", 1)[1])
                 self.assertEqual(prepared["prepared_sha256"], hashlib.sha256(raw).hexdigest())
                 self.assertEqual((prepared["input_width"], prepared["input_height"]), (320, 160))
-                if task in ("scan_panel", "scan_mods", "scan_arcanes"):
+                if task == "scan_mods":
+                    self.assertEqual(prepared["image_url"], ScanCommands._fit_scan_image(source))
+                if task in ("scan_panel", "scan_arcanes"):
                     self.assertEqual(
                         prepared["image_url"],
                         ScanCommands._scan_focus_image(

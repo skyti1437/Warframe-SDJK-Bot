@@ -19,10 +19,14 @@ from __future__ import annotations
 import json
 import os
 import threading
+from functools import lru_cache, wraps
 from pathlib import Path
 from typing import Any
 
-from .logging_compat import logger
+if __package__:
+    from .logging_compat import logger
+else:
+    from logging_compat import logger
 
 PKG_DATA = Path(__file__).resolve().parent / "data"  # 随包分发的只读资源目录
 
@@ -40,30 +44,30 @@ def run_dir() -> Path:
     return _RUN if _RUN is not None else PKG_DATA
 
 
-# 运行副本 JSON 可读性缓存：{路径: (mtime_ns, size, 可读)} —— 同一份文件只解析一次
-_RUN_JSON_OK: dict[str, tuple[int, int, bool]] = {}
+_Stamp = tuple[int, int, int, int]
+_RUN_JSON_OK: dict[str, tuple[_Stamp, bool]] = {}
+_JSON_CACHE: dict[str, tuple[_Stamp, Any]] = {}
+_JSON_LOCKS = tuple(threading.Lock() for _ in range(32))
 
 
-def _run_json_ok(p: Path) -> bool:
-    """运行目录里的 .json 副本能否解析（按 mtime/size 缓存；读不到 stat 视为可用，交给调用方）。"""
+def _file_stamp(st) -> _Stamp:
+    return st.st_dev, st.st_ino, st.st_mtime_ns, st.st_size
+
+
+@lru_cache(maxsize=256)
+def _real_json_path(path: str, device: int, inode: int) -> str:
+    """文件身份改变时重新解析符号链接，热查只需一次 stat。"""
+    return os.path.realpath(path)
+
+
+def _run_json_ok(p: Path, *, shared: bool = False) -> bool:
     try:
-        st = p.stat()
+        return _cached_json(p, validate=True, share_data=shared)
     except OSError:
-        return True
-    hit = _RUN_JSON_OK.get(str(p))
-    if hit is not None and hit[0] == st.st_mtime_ns and hit[1] == st.st_size:
-        return hit[2]
-    try:
-        json.loads(p.read_text(encoding="utf-8"))
-        ok = True
-    except (OSError, ValueError) as exc:
-        ok = False
-        logger.warning("[sdjk] 运行目录副本 JSON 损坏，已回落随包种子：%s（%s）", p, exc)
-    _RUN_JSON_OK[str(p)] = (st.st_mtime_ns, st.st_size, ok)
-    return ok
+        return True  # stat 失败交给读者处理。
 
 
-def read_path(name: str) -> Path:
+def read_path(name: str, *, root: Path | None = None, shared: bool = False) -> Path:
     """读路径：运行目录优先，缺则回退包内种子文件。
 
     ★ GPT 评估 P07（2026-10-21）：运行副本是**坏 JSON** 且包内有种子时也回落种子 ——
@@ -71,10 +75,13 @@ def read_path(name: str) -> Path:
     只认 JSON 解析失败；结构校验不过（条数太少等）仍按原样读，由数据账本 / 面板提示。
     没有包内种子的文件（用户存档等）不受影响。
     """
-    p = run_dir() / name
-    if _RUN is not None:
+    root = run_dir() if root is None else root
+    p = root / name
+    if root != PKG_DATA:
         seed = PKG_DATA / name
-        if seed.exists() and (not p.exists() or (name.endswith(".json") and not _run_json_ok(p))):
+        if seed.exists() and (
+            not p.exists() or (name.endswith(".json") and not _run_json_ok(p, shared=shared))
+        ):
             return seed
     return p
 
@@ -89,36 +96,92 @@ def write_path(name: str) -> Path:
     return p
 
 
-_JSON_CACHE: dict[str, tuple[int, int, Any]] = {}
-# 固定条带避免按历史文件名积累锁；同 key 冷读单飞，不全局串行耗时解析。
-_JSON_LOCKS = tuple(threading.Lock() for _ in range(32))
+def _cached_json(path, *, validate=False, share_data=True):
+    absolute = os.path.abspath(path)
+    cache = _RUN_JSON_OK if validate else _JSON_CACHE
+    while True:
+        stamp = _file_stamp(os.stat(absolute))
+        key = _real_json_path(absolute, *stamp[:2])
+        hit = cache.get(key)
+        if hit is not None and hit[0] == stamp:
+            return hit[1]
+        with _JSON_LOCKS[hash(key) % len(_JSON_LOCKS)]:
+            if _file_stamp(os.stat(absolute)) != stamp:
+                continue
+            hit = cache.get(key)
+            if hit is not None and hit[0] == stamp:
+                return hit[1]
+            cached = _JSON_CACHE.get(key)
+            if validate and cached is not None and cached[0] == stamp:
+                _RUN_JSON_OK[key] = (stamp, True)
+                return True
+            try:
+                data = json.loads(Path(key).read_text(encoding="utf-8"))
+            except (OSError, ValueError) as exc:
+                if _file_stamp(os.stat(absolute)) != stamp:
+                    continue
+                if not validate:
+                    raise
+                logger.warning("[sdjk] 运行目录副本 JSON 损坏，已回落随包种子：%s（%s）", path, exc)
+                _RUN_JSON_OK[key] = (stamp, False)
+                return False
+            if _file_stamp(os.stat(absolute)) != stamp:
+                continue
+            if share_data:
+                _JSON_CACHE[key] = (stamp, data)
+            if validate:
+                _RUN_JSON_OK[key] = (stamp, True)
+                return True
+            return data
 
 
-def load_json(path) -> Any:
-    """读**只读**静态 JSON（带进程级缓存，按 mtime/size 失效）。
+def load_json(path, *, required: bool = False) -> Any:
+    """按文件身份与修改戳缓存只读 JSON，同一版本的读者共享一个对象。"""
+    try:
+        return _cached_json(path)
+    except (OSError, ValueError):
+        if required:
+            raise
+        return {}
 
-    ⚠️ 返回的是**共享对象**：多个模块拿到的是同一个 dict/list，调用方**不得就地修改**
-    （要改先 ``copy.deepcopy``）。只给逐个审计过「全部读者只读」的文件用
-    （当前：``drops.json`` —— core/drops.py、core/search.py、core/wiki_intro.py）。
-    缺文件 / 坏文件返回 ``{}``（与原各处读法的降级口径一致；不缓存失败结果）。
-    """
-    p = Path(os.path.abspath(path))
-    key = str(p)
-    with _JSON_LOCKS[hash(key) % len(_JSON_LOCKS)]:
-        # 等待同 key 的加载后重新 stat，保留 mtime/size 失效判据。
-        try:
-            st = p.stat()
-        except OSError:
-            return {}
-        hit = _JSON_CACHE.get(key)
-        if hit is not None and hit[0] == st.st_mtime_ns and hit[1] == st.st_size:
-            return hit[2]
-        try:
-            data = json.loads(p.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            return {}
-        _JSON_CACHE[key] = (st.st_mtime_ns, st.st_size, data)
+
+def load_table(name: str, *, root: Path | None = None, required: bool = False) -> dict:
+    """运行目录优先的共享只读字典。验证运行副本时复用同一次解码。"""
+    data = load_json(read_path(name, root=root, shared=True), required=required)
+    if isinstance(data, dict):
         return data
+    if required:
+        raise ValueError(f"{name} 顶层应为字典")
+    return {}
+
+
+def table_section(table: dict, key: str) -> dict:
+    """取字典字段，缺项或格式不符时让读者走缺表降级。"""
+    value = table.get(key)
+    return value if isinstance(value, dict) else {}
+
+
+def table_index(*names: str):
+    """只保留当前这代共享表的派生索引，并发首查只构建一次。"""
+
+    def decorate(build):
+        sources = result = None
+        lock = threading.Lock()
+
+        @wraps(build)
+        def get():
+            nonlocal sources, result
+            with lock:
+                root = run_dir()
+                current = tuple(load_table(name, root=root) for name in names)
+                if sources is None or any(a is not b for a, b in zip(current, sources)):
+                    result = build(*current)
+                    sources = current
+                return result
+
+        return get
+
+    return decorate
 
 
 def atomic_write_text(path, text: str, encoding: str = "utf-8") -> None:
@@ -148,4 +211,7 @@ __all__ = [
     "write_path",
     "atomic_write_text",
     "load_json",
+    "load_table",
+    "table_section",
+    "table_index",
 ]

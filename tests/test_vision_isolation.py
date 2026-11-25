@@ -301,6 +301,38 @@ class IsolationTests(unittest.IsolatedAsyncioTestCase):
         Host._vision_refund(last, "user", 1.0)
         self.assertEqual(last, {"user": 2.0})
 
+    async def test_cancel_during_local_recognition_refunds_only_its_stamp(self):
+        host = Host({"vision_routes_isolated": True, "scan_cooldown": 60})
+        host._image_data_urls = AsyncMock(return_value=["data:image/png;base64,eA=="])
+        event = SimpleNamespace(unified_msg_origin="room", sender="user")
+        parsed = SimpleNamespace(content=[])
+        entered = asyncio.Event()
+
+        async def recognize(image):
+            self.assertEqual(image, b"x")
+            entered.set()
+            await asyncio.Future()
+
+        host.local_ocr = SimpleNamespace(
+            status=lambda: {"enabled": True, "ok": True}, recognize=AsyncMock(side_effect=recognize)
+        )
+        last = host._vision_last("riven")
+        for newer in (False, True):
+            entered.clear()
+            task = asyncio.create_task(host._h_riven_analysis(parsed, event, "pc"))
+            try:
+                await asyncio.wait_for(entered.wait(), 1)
+                if newer:
+                    replacement = last["user"] + 1
+                    last["user"] = replacement
+            finally:
+                task.cancel()
+                with self.assertRaises(asyncio.CancelledError):
+                    await task
+            self.assertEqual(last, {"user": replacement} if newer else {})
+            self.assertFalse(host._ocr_busy)
+        self.assertEqual(host.local_ocr.recognize.await_count, 2)
+
     async def test_real_riven_handler_unique_slots_respect_cap_and_independent_release(self):
         for isolated in (False, True):
             host = Host(

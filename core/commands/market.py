@@ -110,9 +110,14 @@ async def riven_market_weapon(client, query: str, weapon: dict) -> dict:
     """
     if not weapon:
         return weapon
-    own = await client.wm_riven_weapon_slugs()
     entries = await client.wm_riven_weapons()
-    root = _riven_family_root(weapon, entries, own)
+    own = (
+        entries.own_slugs
+        if isinstance(entries, api_client._RivenWeapons)
+        else await client.wm_riven_weapon_slugs()
+    )
+    key, cands = _same_family_listed(weapon, entries, own)
+    root = _riven_family_root(key, cands)
     if root:
         return root
     if weapon.get("url_name") in own:
@@ -122,7 +127,7 @@ async def riven_market_weapon(client, query: str, weapon: dict) -> dict:
         base_w = await client.resolve_riven_weapon(base_q)
         if base_w and base_w.get("url_name") in own:
             return base_w
-    return _riven_family_listed(weapon, entries, own) or weapon
+    return _riven_family_listed(weapon, cands) or weapon
 
 
 def _same_family_listed(weapon: dict, entries: list, own: set) -> tuple[str, list]:
@@ -131,14 +136,23 @@ def _same_family_listed(weapon: dict, entries: list, own: set) -> tuple[str, lis
     紫卡类别（riven_type）已知时先收窄：Vinquibus 枪 / 近战两形态同族却是两种紫卡，
     近战形态不得落到步枪主武器；收窄后为空才退回不收窄（与第一版同口径）。
     """
-    key = matching.family_key(weapon.get("en") or "")
+    index = matching._riven_index()
+    key = matching.family_key(weapon.get("en") or "", index)
     if not key:
         return "", []
     seen: set = set()
     cands = []
-    for e in entries:
+    if isinstance(entries, api_client._RivenWeapons) and own is entries.own_slugs:
+        candidates = entries.listed_family(key, index)
+    else:
+        candidates = (
+            e
+            for e in entries
+            if e.get("url_name") in own and matching.family_key(e.get("en") or "", index) == key
+        )
+    for e in candidates:
         u = e.get("url_name")
-        if u in own and u not in seen and matching.family_key(e.get("en") or "") == key:
+        if u not in seen:
             seen.add(u)
             cands.append(e)
     rtype = weapon.get("riven_type") or ""
@@ -147,7 +161,7 @@ def _same_family_listed(weapon: dict, entries: list, own: set) -> tuple[str, lis
     return key, cands
 
 
-def _riven_family_root(weapon: dict, entries: list, own: set) -> Optional[dict]:
+def _riven_family_root(key: str, cands) -> Optional[dict]:
     """家族**主武器**（谱系根）在 WM 自家列表里的条目；认不出 ⇒ None。
 
     ★ 2026-10-10 用户口径：wr 只查家族主武器（Dex侍刃 → nikana，不查 dex_nikana）。
@@ -159,7 +173,6 @@ def _riven_family_root(weapon: dict, entries: list, own: set) -> Optional[dict]:
       · 都没有 ⇒ None（交给后续回退，不猜）。
     不跨族：Dex Furis 的根是 AkimboAutoPistols（Afuris），Dex Dakra 自成 DexTheSecond。
     """
-    key, cands = _same_family_listed(weapon, entries, own)
     if not cands:
         return None
     hit = [e for e in cands if (e.get("game_ref") or "").rsplit("/", 1)[-1] == key]
@@ -169,7 +182,7 @@ def _riven_family_root(weapon: dict, entries: list, own: set) -> Optional[dict]:
     return hit[0] if len(hit) == 1 else None
 
 
-def _riven_family_listed(weapon: dict, entries: list, own: set) -> Optional[dict]:
+def _riven_family_listed(weapon: dict, cands: list, own: set | None = None) -> Optional[dict]:
     """主武器不在 WM 列表时的回退：同族里 **WM 自家列表**的成员（2026-10-10 第一版）。
 
     ★ 对照 wfsim ce78ffeafd：紫卡按家族通用，WM 拍卖只认家族里它自家列出的条目
@@ -179,7 +192,8 @@ def _riven_family_listed(weapon: dict, entries: list, own: set) -> Optional[dict
       · 多个 ⇒ 取**名字就是家族名**的那个（候选英文名被查询英文名包含，且唯一）；
       · 认不出唯一一个 ⇒ None（不猜）。
     """
-    _key, cands = _same_family_listed(weapon, entries, own)
+    if own is not None:
+        _, cands = _same_family_listed(weapon, cands, own)
     if len(cands) == 1:
         return cands[0]
     qn = matching.normalize(weapon.get("en") or "")
@@ -425,21 +439,47 @@ class MarketCommands:
         #   命中具体部件词时切到**该部件**的订单；「配件/部件」泛指时保留
         #   整套 + 部件参考价（见尾部提示）。只在命中套装时生效——
         #   「wm 母牛机体」直接解析成部件的走原路。
-        set_parts: list[dict] = []
-        if q.part and "set" in set(item.get("tags") or []):
+        raw_tags = item.get("tags")
+        if not isinstance(raw_tags, (list, tuple)):
+            raw_tags = ()
+        tags = [tag.strip().lower() for tag in raw_tags if isinstance(tag, str) and tag.strip()]
+        unknown_tags = not tags or len(tags) != len(raw_tags)
+        is_set = "set" in tags
+        parts = []
+        if q.part and q.part != "配件" and (is_set or unknown_tags):
             try:
-                set_parts = await self.client.wm_set_parts(item["url_name"])
-            except Exception:  # noqa: BLE001 - 部件拆价是增强项，失败不影响主输出
-                set_parts = []
-            if q.part != "配件":
-                picked = self._pick_wm_set_part(set_parts, q.part, bool(q.part_en_raw))
+                parts = await self.client.wm_set_parts(item["url_name"])
+                single = False
+                if not is_set and parts == []:
+                    # 空部件表也可能是套装部件数据缺失。仅显式 setRoot=false 可以查自身订单，缺字段时保留未知态。
+                    detail = await self.client.wm_item_detail(item["url_name"])
+                    single = isinstance(detail, dict) and detail.get("set_root") is False
+            except TimeoutError as exc:
+                raise api_client.WarframeAPIError(
+                    L(
+                        "WM 套装部件查询超时，请稍后重试",
+                        "WM set parts request timed out. Try again later",
+                    )
+                ) from exc
+            if not single and (
+                not isinstance(parts, list)
+                or not parts
+                or any(not isinstance(p, dict) or not p.get("url_name") for p in parts)
+            ):
+                raise api_client.WarframeAPIError(
+                    L(
+                        "WM 套装部件表暂不可用，请稍后重试",
+                        "WM set parts are unavailable. Try again later",
+                    )
+                )
+            if not single:
+                picked = self._pick_wm_set_part(parts, q.part, bool(q.part_en_raw))
                 if picked is None:
-                    names = [_disp_name(p) for p in set_parts]
-                    _nm = _disp_name(item)
+                    name = _disp_name(item)
                     return err_card(
                         L(
-                            f"「{_nm}」没有「{q.part}」这个部件",
-                            f'"{_nm}" has no "{q.part}" part',
+                            f"「{name}」没有「{q.part}」这个部件",
+                            f'"{name}" has no "{q.part}" part',
                         ),
                         L(
                             f"从可用部件里选一个重发；或发整套看全部：wm {q.item}",
@@ -447,8 +487,7 @@ class MarketCommands:
                         ),
                         (
                             L("可用部件", "Available parts"),
-                            L("、", ", ").join(names)
-                            or L("（未同步到部件表）", "(not synced to the parts table)"),
+                            L("、", ", ").join(map(_disp_name, parts)),
                         ),
                         title=L("wm 查价", "wm Price Check"),
                     )
@@ -504,10 +543,8 @@ class MarketCommands:
         )
         # 套装附带部件参考价（2026-09-14 维护者要求）：单查部件走上面的
         # 归一化匹配（wm 席瓦蓝图），这里只在命中套装时多拉几个部件订单。
-        # 部件切换路径（q.part 具体词）已在上面拉过 set_parts 且 item 已是
-        # 部件（非 set root），这里不会再命中。
-        parts = set_parts
-        if not q.part:
+        # 具体部件复用已取的部件表。标签缺失时仍可从详情识别套装。
+        if q.part in ("", "配件") and (is_set or unknown_tags):
             try:
                 parts = await self.client.wm_set_parts(item["url_name"])
             except Exception:  # noqa: BLE001
@@ -677,7 +714,7 @@ class MarketCommands:
         )
 
     async def _wm_group_buy(self, q, platform) -> Reply:
-        sellers: dict[str, dict] = {}
+        quantities: dict[str, int] = {}
         for name, qty in q.group_buy:
             item = await self.client.resolve_wm_item(name)
             if not item:
@@ -689,28 +726,40 @@ class MarketCommands:
                     ),
                     title=L("wm 合购", "wm Group Buy"),
                 )
-            orders, _ = await self.client.wm_orders(item["url_name"], platform)
-            sells = [
-                o
-                for o in orders
-                if o.get("order_type") == "sell"
-                and o.get("platform", platform) == platform
-                and (o.get("user", {}).get("status") in ("ingame", "online"))
-            ]
-            sells.sort(key=lambda o: o["platinum"])
-            for o in sells[:5]:
-                seller = o["user"]["ingame_name"]
-                sellers.setdefault(seller, {"items": {}, "total": 0})
-                sellers[seller]["items"][item["url_name"]] = (o["platinum"], qty)
+            slug = item["url_name"]
+            quantities[slug] = quantities.get(slug, 0) + qty
+
+        sellers: dict[str, dict] = {}
+        for slug, qty in quantities.items():
+            orders, _ = await self.client.wm_orders(slug, platform)
+            for order in orders:
+                user = order.get("user") or {}
+                seller = user.get("ingame_name")
+                stock = order.get("quantity", 1)
+                if (
+                    order.get("order_type") != "sell"
+                    or order.get("platform", platform) != platform
+                    or order.get("visible") is False
+                    or type(stock) is not int
+                    or stock < qty
+                    or user.get("status") not in ("ingame", "online")
+                    or not seller
+                    or seller == "?"
+                ):
+                    continue
+                items = sellers.setdefault(seller, {})
+                price = order["platinum"]
+                if slug not in items or price < items[slug][0]:
+                    items[slug] = (price, qty)
         ranked = sorted(
             sellers.items(),
-            key=lambda kv: (-len(kv[1]["items"]), sum(p * c for p, c in kv[1]["items"].values())),
+            key=lambda kv: (-len(kv[1]), sum(p * c for p, c in kv[1].values()), kv[0]),
         )
-        n_items = len(q.group_buy)
+        n_items = len(quantities)
         lines = []
-        for rank_i, (seller, info) in enumerate(ranked[:3]):
-            total = sum(p * c for p, c in info["items"].values())
-            covered = len(info["items"])
+        for rank_i, (seller, items) in enumerate(ranked[:3]):
+            total = sum(p * c for p, c in items.values())
+            covered = len(items)
             if rank_i == 0:  # 卡首答案：最优卖家
                 lines.append(
                     L(
@@ -731,7 +780,7 @@ class MarketCommands:
                     f"· {seller}　{covered}/{n_items} items　about {total}p",
                 )
             )
-            for url, (p, c) in info["items"].items():
+            for url, (p, c) in items.items():
                 lines.append(f"　{url} × {c} = {p * c}p")
         dropped = getattr(q, "group_buy_dropped", 0)
         cap_tip = (
@@ -936,26 +985,26 @@ class MarketCommands:
                     )
                 )
             return reply
-        weapon = await self.client.resolve_riven_weapon(q.weapon)
-        if not weapon:
-            tips = await self.client.suggest_riven_weapons(q.weapon)
-            if tips:
+        with api_client.riven_query_tables():
+            asked = await self.client.resolve_riven_weapon(q.weapon)
+            if not asked:
+                tips = await self.client.suggest_riven_weapons(q.weapon)
+                if tips:
+                    return err_card(
+                        L(f"未找到紫卡武器「{q.weapon}」", f'Riven weapon not found: "{q.weapon}"'),
+                        L("照候选改名重发", "Resend using one of the suggestions"),
+                        (L("你是不是想找", "Did you mean"), L("、", ", ").join(tips)),
+                        title=L("紫卡拍卖", "Riven Auctions"),
+                    )
                 return err_card(
                     L(f"未找到紫卡武器「{q.weapon}」", f'Riven weapon not found: "{q.weapon}"'),
-                    L("照候选改名重发", "Resend using one of the suggestions"),
-                    (L("你是不是想找", "Did you mean"), L("、", ", ").join(tips)),
+                    L(
+                        "请使用英文名，或补充别名表后重发",
+                        "Check the spelling and resend with the weapon's English name",
+                    ),
                     title=L("紫卡拍卖", "Riven Auctions"),
                 )
-            return err_card(
-                L(f"未找到紫卡武器「{q.weapon}」", f'Riven weapon not found: "{q.weapon}"'),
-                L(
-                    "请使用英文名，或补充别名表后重发",
-                    "Check the spelling and resend with the weapon's English name",
-                ),
-                title=L("紫卡拍卖", "Riven Auctions"),
-            )
-        asked = weapon
-        weapon = await riven_market_weapon(self.client, q.weapon, weapon)
+            weapon = await riven_market_weapon(self.client, q.weapon, asked)
         url_name = weapon["url_name"]
         rtype = weapon.get("riven_type", "")
         positives = self.client.normalize_riven_stats(q.stats, rtype)

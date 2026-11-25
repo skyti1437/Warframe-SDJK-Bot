@@ -22,7 +22,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+import tempfile
+from unittest.mock import AsyncMock, patch
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -30,9 +33,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from core.formatters import _ALL_ROWS_CAP, fmt_fissures  # noqa: E402
+from core import de_worldstate, i18n, render  # noqa: E402
+from core.commands.daily import DailyCommands  # noqa: E402
+from core.commands.dun import _en_rule_toks  # noqa: E402
+from core.formatters import fmt_fissures  # noqa: E402
+from core.push import PushDaemon  # noqa: E402
+from core.store import Subscription  # noqa: E402
 from core.parser import (  # noqa: E402
     _CN_TO_MISSION,
+    parse,
     parse_fissure_filter,
 )
 
@@ -231,6 +240,57 @@ check(
 )
 
 
+_handler = DailyCommands()
+_handler.page_size = 12
+_handler.client = AsyncMock()
+_daemon = PushDaemon(None, None, None, None)
+_hepit = {
+    "Node": "SolNode401",
+    "MissionType": "MT_CAPTURE",
+    "Modifier": "VoidT1",
+    "Expiry": {"$date": _iso(datetime.now(timezone.utc) + timedelta(hours=1))},
+}
+for lang, query, display in (
+    ("zh", "裂隙 虚空捕获", "神后塔（虚空）"),
+    ("en", "fissure void capture -en", "Hepit (Void)"),
+):
+    with i18n.use_lang(lang):
+        (row,) = de_worldstate._parse_fissures({"ActiveMissions": [_hepit]})
+        _handler.client.fissures.return_value = [row]
+        reply = asyncio.run(_handler._h_fissures(parse(query), None, "pc"))
+        check(
+            f"{lang} 查询命中 DE 虚空捕获",
+            any(display in x for x in reply.lines if x.startswith("· ")),
+        )
+        rule = " ".join(_en_rule_toks("裂隙", parse(query).content))
+        sub = Subscription("test", "pc", "裂隙", rule=rule, lang=lang)
+        match = _daemon.filter_for(sub).match
+        check(f"{lang} 订阅按节点星系匹配", match(row) and match(dict(row, node="Hepit")))
+        check(f"{lang} 旧记录按节点后缀匹配", match(dict(row, nodeKey="")))
+        (event_row,) = de_worldstate._parse_fissures(
+            {"ActiveMissions": [{**_hepit, "Node": "EventNode27"}]}
+        )
+        assert event_row["node"] == ("虚空" if lang == "zh" else "Void")
+        assert match(event_row) and not match(dict(event_row, node="Void Flood"))
+        _handler.client.fissures.return_value = [event_row]
+        event_reply = asyncio.run(_handler._h_fissures(parse(query), None, "pc"))
+        assert any(event_row["node"] in line for line in event_reply.lines if line.startswith("· "))
+
+_void = parse_fissure_filter("虚空")
+for mission in ("Void Cascade", "Void Flood", "Void Armageddon"):
+    check(
+        f"{mission} 不代表虚空星系",
+        not _void.match(
+            {
+                "node": "Test (Zariman)",
+                "missionKey": mission.lower(),
+                "missionType": mission,
+            }
+        ),
+    )
+check("节点表星系优先于显示后缀", not _void.match({"nodeKey": "SolNode1", "node": "Test (Void)"}))
+
+
 # ---------------------------------------------------------------- ③ 不翻页单卡
 def _many(n: int) -> list[dict]:
     tiers = ["Lith", "Meso", "Neo", "Axi", "Requiem", "Omnia"]
@@ -263,13 +323,34 @@ check(
     str(_l2[:3]),
 )
 
-# 超过行数上限时只截断且显式说明（渲染层 MAX_BODY_LINES=90 会静默截断）
-_t3, _l3 = fmt_fissures(_many(_ALL_ROWS_CAP + 5), all_rows=True)
-check("超上限时显式说明，不静默丢内容", any("本卡只列前" in x for x in _l3), str(_l3[-3:]))
-check(
-    "超上限时行数受控（正文 ≤ 上限+2 条注脚）",
-    len([x for x in _l3 if x.startswith("· ")]) == _ALL_ROWS_CAP,
-)
+# 用真实 PNG 绘制调用核对数据行、截断说明和 handler 的翻页提示。
+with tempfile.TemporaryDirectory() as _folder:
+    _renderer = render.ImageRenderer(Path(_folder))
+    _original_text = render.ImageDraw.ImageDraw.text
+    for total, cmd, shown in ((85, "裂隙", 85), (86, "裂隙", 84), (91, "裂隙 -2", 83)):
+        _handler.client.fissures.return_value = _many(total)
+        reply = asyncio.run(_handler._h_fissures(parse(cmd), None, "pc"))
+        drawn = []
+
+        def record_text(draw, xy, text, *args, **kwargs):
+            drawn.append(text)
+            return _original_text(draw, xy, text, *args, **kwargs)
+
+        with patch.object(render.ImageDraw.ImageDraw, "text", record_text):
+            png = _renderer.render(reply.title, reply.lines, reply.footer)
+        body = "".join(drawn)
+        rows = [line for line in reply.lines if line.startswith("· ")]
+        expected_note = f"本卡只列前 {shown} 条"
+        check(
+            f"{cmd} · {total} 条：实际绘出 {shown} 行及对应提示",
+            bool(png)
+            and len(reply.lines) == render.MAX_BODY_LINES
+            and len(rows) == shown
+            and all(row.split("　")[2] in drawn for row in rows)
+            and ((expected_note in body) if total > shown else ("本卡只列前" not in body))
+            and ("无需翻页" in body) == ("-2" in cmd),
+            repr((len(rows), drawn[-12:])),
+        )
 
 # 分页模式（默认）不受影响：其他列表类指令仍走翻页
 _t4, _l4 = fmt_fissures(_many(34), page=2, page_size=12)

@@ -1601,7 +1601,7 @@ def count_arcane_rank(image: Image.Image, name_box: dict, *, slot_box=None) -> d
     )
     if bounds[2] <= bounds[0] or bounds[3] <= bounds[1]:
         return result
-    crop = image.convert("RGB").crop(bounds)
+    crop = image.crop(bounds).convert("RGB")
     cw, ch = crop.size
     background = _median(crop.convert("L").get_flattened_data())
 

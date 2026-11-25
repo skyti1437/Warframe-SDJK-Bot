@@ -881,6 +881,80 @@ async def _concurrency_regressions():
 
 asyncio.run(_concurrency_regressions())
 
+
+async def _normalized_wm_table():
+    from unittest.mock import AsyncMock, patch
+    from core import api_client, i18n
+
+    client = WarframeClient()
+    rows = [
+        {
+            "id": r["id"],
+            "slug": r["url_name"],
+            "tags": r["tags"],
+            "i18n": {"en": {"name": r["en"]}, "zh-hans": {"name": r["zh"]}},
+        }
+        for r in ITEMS
+    ]
+    client._wm_v2 = AsyncMock(return_value=rows)
+    client.wm_item_detail = AsyncMock(
+        return_value={
+            "set_root": True,
+            "set_parts": [next(r["id"] for r in ITEMS if r["url_name"] == "rubico_prime_barrel")],
+        }
+    )
+    try:
+        with patch.object(matching, "family_prefixes", wraps=matching.family_prefixes) as builds:
+            first = await client.wm_items()
+            with patch.object(Path, "read_text", side_effect=AssertionError("WM 热查不应读盘")):
+                for _ in range(2):
+                    check(
+                        "热 WM 官方名、Prime 后缀、套装部件与原有结果相同",
+                        (await client.resolve_wm_item("手枪精通p"))["url_name"]
+                        == "primed_pistol_gambit"
+                        and (await client.resolve_wm_exact("绝路 Prime 枪管"))["url_name"]
+                        == "rubico_prime_barrel"
+                        and (await client.wm_set_parts("rubico_prime_set"))[0]["url_name"]
+                        == "rubico_prime_barrel",
+                    )
+                check(
+                    "同一上游快照复用物品与家族索引",
+                    await client.wm_items() is first and builds.call_count == 1,
+                )
+            try:
+                first[0]["zh"] = "污染"
+            except TypeError:
+                pass
+            check(
+                "调用方不能改写共享物品或 tags",
+                first[0]["zh"] == ITEMS[0]["zh"] and isinstance(first[0]["tags"], tuple),
+            )
+            with i18n.use_lang("en"):
+                english = await client.wm_items()
+                assert await client.wm_items() is english
+            check(
+                "按语言隔离归一化表，切回中文复用首个快照",
+                english is not first
+                and await client.wm_items() is first
+                and builds.call_count == 2,
+            )
+            client._wm_v2.return_value = [{**rows[0], "slug": "changed"}]
+            latest = await client.wm_items()
+            check(
+                "上游快照更新只重建一次，旧 slug 和 ID 索引失效",
+                latest is await client.wm_items()
+                and builds.call_count == 3
+                and latest.by_id[rows[0]["id"]]["url_name"] == "changed"
+                and api_client.match_official_name("changed", latest) == latest[0]
+                and rows[0]["slug"] not in latest.by_slug,
+            )
+    finally:
+        await client.close()
+
+
+asyncio.run(_normalized_wm_table())
+
+
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")
     sys.exit(1)

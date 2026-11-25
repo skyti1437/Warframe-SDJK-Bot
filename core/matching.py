@@ -19,8 +19,17 @@ from __future__ import annotations
 import difflib
 import json
 import re
+import threading
 import unicodedata
-from typing import Optional
+from types import MappingProxyType
+from typing import Mapping, Optional
+
+if __package__:
+    from . import paths
+    from .logging_compat import logger
+else:
+    import paths
+    from logging_compat import logger
 
 # 分隔符：半/全角空格、中点族、连字符族、下划线、引号撇
 _SEPS = re.compile(r"[\s\u3000·・•\-_—―'’]+")
@@ -378,9 +387,8 @@ def strip_variant_norm(norm: str) -> str:
 #   ★ 中文**永不参与判定**（只用于显示）；名字包含/子串/主干相等**都不得**
 #   再作为主判据 —— 那是本次两个 bug 的共同成因。
 # ---------------------------------------------------------------------------
-_RIVEN_TABLE: Optional[dict] = None  # by_name：英文名 → 家族根
-_RIVEN_INDEX: Optional[tuple] = None  # (exact, low, norm) 三级查找索引
-_RIVEN_TABLE_STAMP: Optional[tuple] = None  # 表文件 (mtime_ns, size)，变更即失效
+_RIVEN_SNAPSHOT: tuple[tuple | None, tuple] | None = None  # 文件版本与 (by_name, low, norm)
+_RIVEN_INDEX_LOCK = threading.Lock()
 
 # WM 套装/部件条目的英文尾缀（「Okina Prime Set」→「Okina Prime」；
 # 与 api_client 旧 _SET_SUFFIXES 的英文侧同口径，中文侧由显示层处理）
@@ -388,70 +396,47 @@ _SET_SUFFIXES_EN = (" set", " blueprint", " blueprints")
 
 
 def _riven_families_stamp() -> Optional[tuple]:
-    """表文件的 (mtime_ns, size)；stat 不到返回 None（不触发失效）。"""
+    """取得路径、文件身份与修改戳，含保留 mtime 的原子替换。"""
     try:
-        from . import paths
-
-        st = paths.read_path("de/riven_families.json").stat()
-        return (st.st_mtime_ns, st.st_size)
+        path = paths.read_path("de/riven_families.json")
+        st = path.stat()
+        return (path, st.st_dev, st.st_ino, st.st_mtime_ns, st.st_size)
     except Exception:  # noqa: BLE001 - 文件缺失/不可读：保持现状
         return None
 
 
-def _invalidate_riven_table_if_changed() -> None:
-    """★ mtime 护栏（2026-10-03 线上事故）：模块级缓存与磁盘解耦。
-
-    插件热重载偶发清不掉本模块（AstrBot 按 sys.modules 前缀 purge，异常
-    序列下旧模块对象幸存时，其全局缓存会一直拿着**旧表**）——线上表现：
-    组合枪双模式家族候选为空、用户卡被误判「老卡」。每次调用 stat 一次
-    文件，变了就把表和索引一起作废，下次取数重读磁盘。
-    """
-    global _RIVEN_TABLE, _RIVEN_INDEX, _RIVEN_TABLE_STAMP
-    stamp = _riven_families_stamp()
-    if stamp is not None and stamp != _RIVEN_TABLE_STAMP:
-        _RIVEN_TABLE = None
-        _RIVEN_INDEX = None
-        _RIVEN_TABLE_STAMP = stamp
+def _load_riven_families() -> Mapping[str, str]:
+    """取当前快照的官方英文名 → 家族根表。"""
+    return family_index_snapshot()[0]
 
 
-def _load_riven_families() -> dict:
-    """惰性加载官方家族表（by_name）。表缺失/损坏 ⇒ 空表（全部走主干兜底）。
-
-    实际（重）加载时打一条 INFO（含条数指纹）—— 线上排障时从日志就能
-    看出进程里这张表是哪个版本、热重载后有没有重读磁盘。
-    """
-    global _RIVEN_TABLE
-    _invalidate_riven_table_if_changed()
-    if _RIVEN_TABLE is None:
-        raw: dict = {}
+def family_index_snapshot() -> tuple:
+    """检查一次文件版本，返回可供本次家族查询复用的三级只读索引。"""
+    global _RIVEN_SNAPSHOT
+    with _RIVEN_INDEX_LOCK:
+        stamp = _riven_families_stamp()
+        if _RIVEN_SNAPSHOT is not None and (stamp is None or stamp == _RIVEN_SNAPSHOT[0]):
+            return _RIVEN_SNAPSHOT[1]
         try:
-            from . import paths
-
-            raw = json.loads(paths.read_path("de/riven_families.json").read_text(encoding="utf-8"))
-        except Exception:  # noqa: BLE001 - 表缺失退回主干判定，不阻断查询
-            raw = {}
-        _RIVEN_TABLE = raw.get("by_name") or {}
-        from .logging_compat import logger
-
-        logger.info("[sdjk] 紫卡家族表已加载：by_name %d 条", len(_RIVEN_TABLE))
-    return _RIVEN_TABLE
-
-
-def _riven_index() -> tuple:
-    """(exact, low, norm) 三级索引：容忍大小写、空格/连字符写法差异。"""
-    global _RIVEN_INDEX
-    _invalidate_riven_table_if_changed()
-    if _RIVEN_INDEX is None:
-        tbl = _load_riven_families()
-        _RIVEN_INDEX = (
-            dict(tbl),
-            {k.lower(): v for k, v in tbl.items()},
-            {normalize(k): v for k, v in tbl.items()},
+            path = stamp[0] if stamp else paths.read_path("de/riven_families.json")
+            families = json.loads(path.read_text(encoding="utf-8"))["by_name"]
+            table = {name: root for name, root in families.items() if isinstance(root, str)}
+        except (OSError, ValueError, KeyError, TypeError, AttributeError):
+            table = {}
+        index = (
+            MappingProxyType(table),
+            MappingProxyType({k.lower(): v for k, v in table.items()}),
+            MappingProxyType({normalize(k): v for k, v in table.items()}),
         )
-    return _RIVEN_INDEX
+        _RIVEN_SNAPSHOT = (stamp, index)
+        logger.info("[sdjk] 紫卡家族表已加载：by_name %d 条", len(table))
+        return index
 
 
-def family_key(en: str) -> str:
+_riven_index = family_index_snapshot
+
+
+def family_key(en: str, index=None) -> str:
     """英文名 → 家族根（DE 官方 parentName 谱系优先；查不到退回英文主干）。
 
     取值域与比较语义（调用方只应比较两个 family_key 的**返回值是否相等**）：
@@ -471,7 +456,7 @@ def family_key(en: str) -> str:
         if low.endswith(suf) and len(s) > len(suf):
             s = s[: -len(suf)].strip()
             break
-    exact, low_i, norm = _riven_index()
+    exact, low_i, norm = _riven_index() if index is None else index
     k = exact.get(s) or low_i.get(s.lower()) or norm.get(normalize(s))
     if k:
         return k
@@ -493,12 +478,13 @@ def family_of(entry: dict, entries: list, *, zh: str = "zh", en: str = "en") -> 
     才是同族；中文只用于**显示/排序**，英文为空则不入家族。
     """
     bz = strip_variant_norm(normalize(entry.get(zh) or ""))  # ★ 仅排序用
-    bk = family_key(entry.get(en) or "")
+    index = _riven_index()
+    bk = family_key(entry.get(en) or "", index)
     fam = []
     for e in entries:
         if e.get("disposition") is None:
             continue
-        if bk and family_key(e.get(en) or "") == bk:
+        if bk and family_key(e.get(en) or "", index) == bk:
             fam.append(e)
 
     # ★ 2026-09-27：同一件武器在数据里可能有两行（url_name 相同：一行字段全但
@@ -594,6 +580,7 @@ def family_suffix_candidates(query: str, families) -> list[str]:
 
 
 _BILINGUAL: Optional[dict] = None
+_BILINGUAL_LOCK = threading.Lock()
 
 
 def load_bilingual() -> dict:
@@ -603,7 +590,11 @@ def load_bilingual() -> dict:
     表缺失时返回空索引（查表方按「未收录」处理，不炸）。
     """
     global _BILINGUAL
-    if _BILINGUAL is None:
+    if _BILINGUAL is not None:
+        return _BILINGUAL
+    with _BILINGUAL_LOCK:
+        if _BILINGUAL is not None:
+            return _BILINGUAL
         pairs: list = []
         try:
             from . import paths
@@ -633,32 +624,18 @@ def _loose_key(s: str) -> str:
     return _LOOSE_DROP_RE.sub("", normalize_name(s))
 
 
-_EN_ZH_EXTRA: Optional[dict] = None
-
-
-def _en_zh_extra() -> dict:
-    """官方英简对照表（name_en_zh.json，键为小写英文）里双语名表没有的条目：{宽松键: [(英文名, 简中名)]}。
-
-    英文名只有小写原文，展示时逐词首字母大写（Soma Prime Barrel）。
-    """
-    global _EN_ZH_EXTRA
-    if _EN_ZH_EXTRA is None:
-        out: dict = {}
-        try:
-            from . import paths
-
-            raw = json.loads(paths.read_path("de/name_en_zh.json").read_text(encoding="utf-8"))
-            names = raw.get("names") or {}
-        except Exception:  # noqa: BLE001 - 表缺失只少一层兜底
-            names = {}
-        have = set(load_bilingual()["en"])
-        for en, zh in names.items():
-            if normalize_name(en) in have:
-                continue
+@paths.table_index("de/name_en_zh.json")
+def _en_zh_extra(table: dict) -> dict:
+    """官方英简对照表里双语名索引没有的条目，按宽松键查找。"""
+    out: dict = {}
+    have = load_bilingual()["en"]
+    for en, zh in paths.table_section(table, "names").items():
+        if not isinstance(zh, str):
+            continue
+        if normalize_name(en) not in have:
             title = " ".join(w[:1].upper() + w[1:] for w in en.split())
             out.setdefault(_loose_key(en), []).append((title, zh))
-        _EN_ZH_EXTRA = out
-    return _EN_ZH_EXTRA
+    return out
 
 
 def _bilingual_loose() -> dict:

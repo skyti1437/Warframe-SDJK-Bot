@@ -8,16 +8,16 @@
 
 from __future__ import annotations
 
-import json
 import re
 
 from .. import drops as drops_db
 from .. import formatters as fmt
-from .. import matching
+from .. import matching, wiki_intro
+from ..formatters import relic_reward_name as _item_en
 from ..i18n import L, is_en
 from ..logging_compat import logger
 from ..parser import COMMAND_ALIASES, COMMAND_ALIASES_EN, TIER_CN, parse
-from .base import PLUGIN_DIR, Reply, err_card
+from .base import Reply, err_card
 
 
 def _en_name_to_zh(q: str) -> str:
@@ -84,63 +84,6 @@ def _en_part_to_inv_key(q: str, inv_keys) -> str:
     return ""
 
 
-# DE 官方英文掉落表原文；旧索引未保存资产键的蓝图/部件。
-_RELIC_REWARD_EN = {
-    "石晶之花 Prime 枪托": "Steflos Prime Stock",
-    "石晶之花 Prime 枪机": "Steflos Prime Receiver",
-    "石晶之花 Prime 枪管": "Steflos Prime Barrel",
-    "闪劫 Prime 握柄": "Corufell Prime Handle",
-    "闪劫 Prime 枪托": "Corufell Prime Stock",
-    "闪劫 Prime 枪机": "Corufell Prime Receiver",
-    "闪劫 Prime 蓝图": "Corufell Prime Blueprint",
-    "陨蜓 Prime 外甲蓝图": "Odonata Prime Harness Blueprint",
-    "陨蜓 Prime 机翼蓝图": "Odonata Prime Wings Blueprint",
-    "陨蜓 Prime 系统蓝图": "Odonata Prime Systems Blueprint",
-}
-
-
-def _item_en(zh: str) -> str:
-    """英文模式下把遗物表里的中文物品名换成官方英文名（双语表精确命中才换，否则原样）。
-
-    ★ 遗物索引（relic_index / relic_inverse）只有中文名；奖励行按名字查杜卡德 / 白金价，
-      价格表在英文模式下以英文名为键，不换名就查不到价格列。
-    """
-    if not is_en() or not zh:
-        return zh
-    if zh in _RELIC_REWARD_EN:
-        return _RELIC_REWARD_EN[zh]
-    official = fmt._pool_name_en(zh)
-    if official != zh:
-        return official
-    hits = matching.bilingual_lookup(zh, limit=1).get("hits")
-    if hits:
-        return hits[0][0]
-    return _part_zh_to_en(zh)
-
-
-# 反查键末尾的中文部件词 → 英文（与 parser.WM_PART_EN 同一张表反向；战甲部件键带「蓝图」尾）
-_INV_PART_EN = {
-    "头部神经光元蓝图": "Neuroptics Blueprint",
-    "机体蓝图": "Chassis Blueprint",
-    "系统蓝图": "Systems Blueprint",
-    "蓝图": "Blueprint",
-}
-
-
-def _part_zh_to_en(zh: str) -> str:
-    """双语名表没有的部件名（「月神 Prime 枪管」「Mesa Prime 机体蓝图」）→ 英文；认不出原样返回。"""
-    from ..parser import WM_PART_EN
-
-    for tail, en_tail in [*_INV_PART_EN.items(), *((v, k.title()) for k, v in WM_PART_EN.items())]:
-        if zh.endswith(" " + tail) or (zh.endswith(tail) and tail in _INV_PART_EN):
-            head = zh[: -len(tail)].strip()
-            if not head:
-                break
-            hits = matching.bilingual_lookup(head, limit=1).get("hits")
-            return f"{hits[0][0] if hits else head} {en_tail}"
-    return zh
-
-
 def _relic_tier_en() -> dict:
     """中文档位 → 掉落表英文键（小写）。真源 core/parser.TIER_CN（含先锋/全能）。
 
@@ -179,13 +122,18 @@ _OPEN_EN = {
     "unvaulted": "未入库",
     "droppable": "未入库",
     "vaulted": "已入库",
-    "cheap": "低价",
-    "low": "低价",
-    "expensive": "高价",
-    "high": "高价",
 }
 # 速刷任务类型的英文名（任务类型来自世界状态，英文模式下是 DE 官方英文名）
 _QUICK_EN = {"Capture", "Exterminate", "Extermination", "Sabotage", "Rescue", "Spy"}
+
+
+def _crackable_tiers(fissure_tier: str) -> set[str]:
+    tier = fmt._tier_key(fissure_tier)
+    return {"古纪", "前纪", "中纪", "后纪"} if tier == "全能" else {tier}
+
+
+def _varzia_unknown():
+    return L("阿耶在售状态待确认", "Varzia availability unconfirmed")
 
 
 class RelicCommands:
@@ -195,14 +143,7 @@ class RelicCommands:
         cache = getattr(self, "_relic_cache", None)
         if cache:
             return cache
-        base = PLUGIN_DIR / "core" / "data"
-        try:
-            idx = json.loads((base / "relic_index.json").read_text(encoding="utf-8"))
-            inv = json.loads((base / "relic_inverse.json").read_text(encoding="utf-8"))
-        except Exception:  # noqa: BLE001
-            idx, inv = {}, {}
-        self._relic_cache = (idx, inv)
-        return idx, inv
+        return wiki_intro._relics()
 
     @staticmethod
     def _norm_relic(q: str) -> str:
@@ -228,7 +169,7 @@ class RelicCommands:
                 return f"{zh} {en} Eterna"
         return q
 
-    async def _varzia_relic_keys(self, platform: str) -> set:
+    async def _varzia_relic_keys(self, platform: str) -> set[str] | None:
         """阿耶（Varzia）商店在售遗物的键前缀（``{"lith k5", …}``）。
 
         这些遗物同样属于「当前可获取」，但它们**不在任务掉落表里** ——
@@ -236,21 +177,21 @@ class RelicCommands:
         全不在 WFCD 实时掉落表（44016 条）中。出库卡不并进来，用户就会觉得
         「缺遗物」；部件反查卡不并进来，会把能买的遗物写成「已入库」。
 
-        取不到时返回**空集合**并打日志（不静默降级成「都在入库」）。
+        成功的空库存返回空集合；接口或库存结构不可用时返回 None。
         """
-        keys: set = set()
         try:
             vault = await self.client.prime_vault(platform)
+            items = vault["items"]
+            if not isinstance(items, list):
+                raise ValueError("库存不是列表")
+            return {
+                key
+                for item in items
+                if item.get("kind") == "relic" and (key := fmt.relic_en_key(item.get("name") or ""))
+            }
         except Exception as exc:  # noqa: BLE001
-            logger.warning("[sdjk] 阿耶商店数据取不到，本次按「不在售」处理：%s", exc)
-            return keys
-        for it in vault.get("items") or []:
-            if (it.get("kind") or "") != "relic":
-                continue
-            key = fmt.relic_en_key(it.get("name") or "")
-            if key:
-                keys.add(key)
-        return keys
+            logger.warning("[sdjk] 阿耶商店库存待确认：%s", exc)
+            return None
 
     async def _h_relic(self, parsed, event, platform) -> Reply:
         """遗物查询：遗物名 → 三槽位奖励；部件名 → 出遗物出处；
@@ -272,33 +213,23 @@ class RelicCommands:
         if _EN_TIER_ZH.get(q.strip().lower()):
             q = _EN_TIER_ZH[q.strip().lower()]
         # ① 列出可掉落/已入库遗物
-        if q in ("全部", "列表", "入库", "出库"):
-            unv = drops_db.unvaulted_relics()
-            tier_en = _relic_tier_en()
-            # en_key("axi v12") 用于判断该遗物是否在官方掉落池里（出库/入库）
-            uv_set = set()
-            for k in unv:
-                parts = k.split()
-                if len(parts) >= 3:
-                    uv_set.add(f"{parts[0]} {parts[1]}")
-            # ★ 阿耶（Varzia）商店在售的遗物同样属于「当前可获取」，但它们
-            #   **不在任务掉落表里**（见 _varzia_relic_keys 的说明）。
+        tier_query = q in _relic_tier_en() and any(k.startswith(q + " ") for k in idx)
+        if q in ("全部", "列表", "入库", "出库") or tier_query:
+            droppable = drops_db.droppable_keys()
             varzia = await self._varzia_relic_keys(platform)
-            all_uv = uv_set | varzia
-            unv_rows, vaulted_rows = [], []
-            for k in idx:
-                m = k.split()
-                if len(m) < 3:
+            unv_rows, vaulted_rows, unknown_rows = [], [], []
+            for name in idx:
+                tier = name.split()[0]
+                if tier_query and tier != q:
                     continue
-                en_key = f"{tier_en.get(m[0], m[0].lower())} {m[2].lower()}"
-                unvaulted = en_key in all_uv
-                # 列表模式只按纪元分组列名字，**不再逐条查掉落位置**：
-                # 那既慢（每个遗物一次查表）又会把同一批星球/节点重复贴几十遍
-                # （维护者 2026-09-17：「列出一大堆重复星系没啥用阿」）。
-                # 单个遗物的奖励与出处仍用「遗物 名称」查；出库卡另附
-                # 「推荐刷取 / 特殊渠道」两行（见下面的 specials / farm_hints）。
-                row = {"cn": k, "tier_cn": m[0], "unvaulted": unvaulted, "varzia": en_key in varzia}
-                (unv_rows if unvaulted else vaulted_rows).append(row)
+                state = _relic_state(name, droppable, varzia)
+                row = {"cn": name, "tier_cn": tier, "state": state}
+                if state == "unknown":
+                    unknown_rows.append(row)
+                elif state == "vaulted":
+                    vaulted_rows.append(row)
+                else:
+                    unv_rows.append(row)
 
             # 语义：**出库 = 从金库放出 = 当前可以掉落**（unvaulted）；
             #        **入库 = 收回金库 = 当前不能刷取**（vaulted）。
@@ -314,8 +245,14 @@ class RelicCommands:
                     "遗物入库（已入库、不可刷取）",
                     "Relics Entering the Vault (vaulted, not farmable)",
                 )
-            else:  # "列表"
-                rows = unv_rows + vaulted_rows
+            elif tier_query:
+                rows = unv_rows + vaulted_rows + unknown_rows
+                title = L(
+                    f"遗物列表：{q}（{len(rows)} 把）",
+                    f"Relic List: {TIER_CN[q]} ({len(rows)} relic{'s' if len(rows) != 1 else ''})",
+                )
+            else:
+                rows = unv_rows + vaulted_rows + unknown_rows
                 title = L(
                     f"遗物列表：当前可掉落 {len(unv_rows)}，已入库 {len(vaulted_rows)}",
                     f"Relic List: {len(unv_rows)} droppable, {len(vaulted_rows)} vaulted",
@@ -330,15 +267,10 @@ class RelicCommands:
             if q == "出库":
                 for r in rows:
                     nm = fmt.relic_cn(r["cn"])
-                    if r.get("varzia"):
+                    if r["state"] == "varzia":
                         specials[nm] = L("仅阿耶兑换", "Varzia only")
                         continue
-                    m = r["cn"].split()
-                    if len(m) < 3:
-                        continue
-                    why = drops_db.special_source(
-                        f"{tier_en.get(m[0], m[0].lower())} {m[2].lower()} relic"
-                    )
+                    why = drops_db.special_source(f"{fmt.relic_en_key(r['cn'])} relic")
                     if why:
                         specials[nm] = why
 
@@ -354,44 +286,15 @@ class RelicCommands:
                 farm_hints=drops_db.farm_hints() if q == "出库" else None,
                 specials=specials or None,
             )
-            return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
-        # ①-b 单档位词（「遗物 先锋」）→ 该档位遗物一览（复用列表卡渲染）。
-        #     用户实测反馈：新档「先锋」不知道有哪些遗物，直接查档位词最自然。
-        if q.strip() in _relic_tier_en():
-            _sub = [k for k in idx if k.startswith(q.strip() + " ")]
-            if _sub:
-                unv = drops_db.unvaulted_relics()
-                tier_en = _relic_tier_en()
-                uv_set = set()
-                for x in unv:
-                    parts = x.split()
-                    if len(parts) >= 3:
-                        uv_set.add(f"{parts[0]} {parts[1]}")
-                varzia = await self._varzia_relic_keys(platform)
-                all_uv = uv_set | varzia
-                rows = []
-                for k in _sub:
-                    m = k.split()
-                    en_key = f"{tier_en.get(m[0], m[0].lower())} {m[2].lower()}"
-                    rows.append(
-                        {
-                            "cn": k,
-                            "tier_cn": m[0],
-                            "unvaulted": en_key in all_uv,
-                            "varzia": en_key in varzia,
-                        }
-                    )
-                title, lines = fmt.fmt_relic_by_tier(
-                    rows,
+            if unknown_rows:
+                lines.insert(
+                    0,
                     L(
-                        f"遗物列表：{q.strip()}（{len(rows)} 把）",
-                        f"Relic List: {fmt.tier_cn(_EN_TIER_ZH_REV.get(q.strip(), q.strip()))} "
-                        f"({len(rows)} relic{'' if len(rows) == 1 else 's'})",
+                        f"◆ 阿耶在售状态待确认：{len(unknown_rows)} 把",
+                        f"◆ Varzia availability unconfirmed: {len(unknown_rows)} relics",
                     ),
-                    page=parsed.page,
-                    page_size=max(90, self.page_size),
                 )
-                return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
+            return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
         # ② 部件优先：带空格或能直接命中部件表
         # 名称归一：去空格精确匹配；非 Prime 输入自动补 Prime 试一次（wiki 上架过的只有 Prime 系）
         # ★ C1（2026-10-03）：匹配一律走 matching.normalize_name（大小写/空格/
@@ -464,13 +367,7 @@ class RelicCommands:
             varzia = await self._varzia_relic_keys(platform)
             rows = []
             for o in origins:
-                key = fmt.relic_en_key(o.get("relic") or "")
-                if key and key in droppable:
-                    state = "drop"
-                elif key and key in varzia:
-                    state = "varzia"
-                else:
-                    state = "vaulted"
+                state = _relic_state(o.get("relic") or "", droppable, varzia)
                 rows.append({"relic": o.get("relic"), "rarity": o.get("rarity"), "state": state})
             title, lines = fmt.fmt_relic_piece(_item_en(q), rows, farm_hints=drops_db.farm_hints())
             return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
@@ -503,51 +400,40 @@ class RelicCommands:
                     slots.append({"rarity": rarity, "name": _item_en(nm)})
             title, lines = fmt.fmt_relic_rewards(nq, slots, prices)
             status = ""
-            varzia_status = False  # 状态是「阿耶商店可兑换」（比活动 / 特殊渠道说明更强）
-            tier_key, k = "", ""
-            unv = drops_db.unvaulted_relics()
-            en = nq.split()
-            if len(en) >= 3:
-                tier_en = _relic_tier_en()
-                tier_key = tier_en.get(en[0], en[0].lower())
-                k = f"{tier_key} {en[2].lower()}"
-                if tier_key not in {x.split()[0] for x in unv}:
-                    # 官方任务掉落表里就没有这个档位（先锋/全能这类新档、安魂系
-                    # 特殊渠道）——不能按「已入库」误导（WFCD 掉落表快照不含
-                    # vanguard 是数据事实，2026-09-25 资料会话交接确认）。
-                    status = L(
-                        "该档位不在官方任务掉落表（新档位/特殊渠道）",
-                        "This tier is not in the official mission drop table (new tier / special channels)",
-                    )
-                else:
-                    varzia = await self._varzia_relic_keys(platform)
-                    if any(x.startswith(k + " ") for x in unv):
-                        status = L(
-                            "该遗物当前可掉落（出库中）",
-                            "This relic is currently droppable (unvaulted)",
-                        )
-                    elif k in varzia:
-                        status = L(
-                            "该遗物可在阿耶商店兑换（当前可获取）",
-                            "This relic can be exchanged at Varzia (currently obtainable)",
-                        )
-                        varzia_status = True
-                    else:
-                        status = L(
-                            "该遗物已入库，当前不可刷取",
-                            "This relic is vaulted and cannot be farmed right now",
-                        )
-            source_key = f"{tier_key} {en[2].lower()} relic" if len(en) >= 3 else ""
+            droppable = drops_db.droppable_keys()
+            key = fmt.relic_en_key(nq)
+            varzia = await self._varzia_relic_keys(platform) if key not in droppable else set()
+            state = _relic_state(nq, droppable, varzia)
+            source_key = f"{key} relic" if key else ""
             notes = drops_db.relic_source_notes(source_key)
-            # 「阿耶商店当前可兑换」是更强的当前可获取结论，不被活动 / 特殊渠道说明覆盖（Claude 审阅补）
-            if not any(x.startswith(k + " ") for x in unv) and not varzia_status:
-                if notes:
-                    status = L("特殊渠道获取（见来源说明）", "Special channels (see source notes)")
-                elif source_key in (drops_db.load().get("relic_drops") or {}):
-                    status = L(
-                        "仅见于活动掉落表（以活动开放情况为准）",
-                        "Only seen in event drop tables (depends on whether the event is live)",
-                    )
+            if state == "drop":
+                status = L(
+                    "该遗物当前可掉落（出库中）", "This relic is currently droppable (unvaulted)"
+                )
+            elif state == "varzia":
+                status = L(
+                    "该遗物可在阿耶商店兑换（当前可获取）",
+                    "This relic can be exchanged at Varzia (currently obtainable)",
+                )
+            elif notes:
+                status = L("特殊渠道获取（见来源说明）", "Special channels (see source notes)")
+            elif source_key in (drops_db.load().get("relic_drops") or {}):
+                status = L(
+                    "仅见于活动掉落表（以活动开放情况为准）",
+                    "Only seen in event drop tables (depends on whether the event is live)",
+                )
+            elif not any(k.split()[0] == key.partition(" ")[0] for k in droppable):
+                status = L(
+                    "该档位不在官方任务掉落表（新档位/特殊渠道）",
+                    "This tier is not in the official mission drop table (new tier / special channels)",
+                )
+            elif state == "vaulted":
+                status = L(
+                    "该遗物已入库，当前不可刷取",
+                    "This relic is vaulted and cannot be farmed right now",
+                )
+            if state == "unknown":
+                status = L("；", "; ").join(filter(None, (status, _varzia_unknown())))
             sources = drops_db.relic_source_lines(source_key)
             if sources:
                 # 先给特殊渠道和一处活动样例，再列常规地点，避免历史活动挤掉可刷节点。
@@ -612,7 +498,7 @@ class RelicCommands:
         return await self._h_relic(parsed, event, platform)
 
     async def _h_openrelic(self, parsed, event, platform) -> Reply:
-        """开核桃：当前裂隙 + 各纪元是否仍在掉落池（未入库）。"""
+        """根据具体遗物的获取状态、兼容纪元与任务类型筛选当前裂隙。"""
         toks = list(parsed.content or [])
         if parsed.preset:
             toks.insert(0, parsed.preset)
@@ -622,7 +508,23 @@ class RelicCommands:
         state = next((t for t in toks if t in ("未入库", "已入库", "可掉落")), "")
         if state == "可掉落":
             state = "未入库"
-        price = next((t for t in toks if t in ("低价", "高价")), "")
+        name = " ".join(
+            t for t in toks if t not in ("速刷", "快", "无尽", "已入库", "未入库", "可掉落")
+        )
+        relic = self._norm_relic(name)
+        tier_filter = _EN_TIER_ZH.get(name.lower(), name)
+        omnia_only = tier_filter == "全能"
+        filter_relics = bool(state) or (bool(name) and not omnia_only)
+        idx, _ = self._relic_db() if filter_relics else ({}, {})
+        if name and relic not in idx and tier_filter not in _relic_tier_en():
+            return err_card(
+                L(f"未识别的遗物或筛选词「{name}」", f'Unknown relic or filter "{name}"'),
+                L(
+                    "可写遗物名、纪元、速刷、无尽、已入库或未入库",
+                    "Use a relic name, era, quick, endless, vaulted or unvaulted",
+                ),
+                title=L("开核桃建议", "Crack Relics Tips"),
+            )
         fissures = await self.client.fissures(platform)
         from datetime import datetime, timezone
 
@@ -632,23 +534,26 @@ class RelicCommands:
             for f in fissures
             if fmt.parse_iso(f.get("expiry", "")) and fmt.parse_iso(f["expiry"]) > now
         ]
-        unv = drops_db.unvaulted_relics()
-
-        def tier_key(tier: str) -> str:
-            return {
-                "Lith": "lith",
-                "Meso": "meso",
-                "Neo": "neo",
-                "Axi": "axi",
-                "Requiem": "requiem",
-                "Omnia": "omnia",
-                "Vanguard": "vanguard",
-            }.get(tier, "")
-
-        tier_unvaulted: dict[str, int] = {}
-        for k, cn in unv.items():
-            tier_unvaulted.setdefault(k.split()[0], 0)
-            tier_unvaulted[k.split()[0]] += 1
+        droppable = drops_db.droppable_keys()
+        drop_counts = {}
+        for key in droppable:
+            tier = fmt._tier_key(key.split()[0].title())
+            drop_counts[tier] = drop_counts.get(tier, 0) + 1
+        eligible = None
+        varzia = None
+        if filter_relics:
+            eligible = set()
+            varzia = await self._varzia_relic_keys(platform) if state else set()
+            for candidate in [relic] if relic in idx else idx:
+                tier = candidate.split()[0]
+                if name and not omnia_only and relic not in idx and tier != tier_filter:
+                    continue
+                availability = _relic_state(candidate, droppable, varzia)
+                if state == "已入库" and availability != "vaulted":
+                    continue
+                if state == "未入库" and availability not in ("drop", "varzia"):
+                    continue
+                eligible.add(tier)
 
         # 速刷 = 任务流程短、结算快的类型。**不含移动防御 / 生存 / 防御 / 拦截**
         # —— 那些要站桩守点，维护者明确说「移动防御算不上速刷」。
@@ -662,8 +567,12 @@ class RelicCommands:
                 else ""
             ) or fmt.mission_cn(f.get("missionType", ""))
             tier = f.get("tier", "")
-            tk = tier_key(tier)
-            cnt = tier_unvaulted.get(tk, 0)
+            if omnia_only and fmt._tier_key(tier) != "全能":
+                continue
+            compatible = _crackable_tiers(tier)
+            if eligible is not None and eligible.isdisjoint(compatible):
+                continue
+            cnt = sum(drop_counts.get(t, 0) for t in compatible)
             kind = []
             if f.get("isHard"):
                 kind.append(L("钢铁", "Steel Path"))
@@ -689,10 +598,6 @@ class RelicCommands:
             rows = [r for r in rows if r["quick"]]
         if endless_only:
             rows = [r for r in rows if r["endless"]]
-        if state == "未入库":
-            rows = [r for r in rows if r["unv"] > 0]
-        elif state == "已入库":
-            rows = [r for r in rows if r["unv"] == 0]
         # 地面裂隙（含钢铁）：同纪元 无尽 → 速刷 → 其它。批量开遗物玩家都挂无尽（英文 wiki Void
         # Fissure「Endless Missions」：每轮可换一把遗物接着开，第 5 / 10 轮另送随机遗物；维护者 11-09 定）。
         # 九重天单独一节、单独排序（见 _storm_rank），不和地面裂隙混排。
@@ -703,16 +608,12 @@ class RelicCommands:
                 fmt._TIER_ORDER.get(r["tier"], 99),
                 not r["endless"],
                 not r["quick"],
-                -r["unv"],
             )
         )
-        storms.sort(key=lambda r: (fmt._TIER_ORDER.get(r["tier"], 99), r["srank"], -r["unv"]))
-        if price:
-            for _lst in (ground, storms):
-                _lst.sort(key=lambda r: r["unv"], reverse=(price == "高价"))
+        storms.sort(key=lambda r: (fmt._TIER_ORDER.get(r["tier"], 99), r["srank"]))
         # 不翻页：全部场次放同一张卡（维护者要求「那几页内容都放一张截图上」）。
         total = len(ground) + len(storms)
-        cap = fmt._ALL_ROWS_CAP - 4  # 两节各多一行标题 + 表头
+        cap = fmt.MAX_BODY_LINES - 8  # 两节各有标题和表头，另留摘要与注脚
         ground_shown = ground[:cap]
         storm_shown = storms[: max(0, cap - len(ground_shown))]
         chunk = ground_shown + storm_shown
@@ -742,7 +643,10 @@ class RelicCommands:
             for r in chunk:
                 per_tier.setdefault(r["tier"], (r["tier_cn"], r["unv"]))
             lines.append(
-                L("◆ 各纪元可掉落遗物：", "◆ Droppable relics per era: ")
+                L(
+                    "◆ 各类裂隙可开的任务掉落遗物：",
+                    "◆ Mission-drop relics compatible with each fissure tier: ",
+                )
                 + " · ".join(
                     L(f"{cn} {n} 种", f"{cn} {n}")
                     for _t, (cn, n) in sorted(
@@ -807,14 +711,15 @@ class RelicCommands:
                 )
             )
         _state_en = {"未入库": "Unvaulted", "已入库": "Vaulted"}.get(state, state)
-        _price_en = {"低价": "Low price", "高价": "High price"}.get(price, price)
+        if state and varzia is None:
+            lines.append("※ " + _varzia_unknown())
         flt = L("，", ", ").join(
             x
             for x in [
                 L("速刷", "Quick") if quick_only else "",
                 L("无尽", "Endless") if endless_only else "",
                 L(state, _state_en),
-                L(price, _price_en),
+                name,
             ]
             if x
         )
@@ -902,7 +807,7 @@ class RelicCommands:
             for f in fissures or []:
                 end = fmt.parse_iso(f.get("expiry", ""))
                 tier_zh = fmt._tier_key(f.get("tier", ""))
-                if not end or end <= now or tier_zh not in want_tiers:
+                if not end or end <= now or want_tiers.isdisjoint(_crackable_tiers(tier_zh)):
                     continue
                 mt = (
                     fmt._RAILJACK_TYPE_CN.get((f.get("missionType") or "").lower(), "")
@@ -1149,16 +1054,18 @@ def _farm_part_label(key: str) -> str:
     return full[len(base_en) :].strip() if full.startswith(base_en) and full != base_en else full
 
 
-def _farm_relic_state(relic: str, droppable: set, varzia: set) -> str:
-    key = fmt.relic_en_key(relic or "")
+def _relic_state(relic: str, droppable: set, varzia: set | None) -> str:
+    key = fmt.relic_en_key(relic)
     if key and key in droppable:
         return "drop"
+    if varzia is None:
+        return "unknown"
     if key and key in varzia:
         return "varzia"
     return "vaulted"
 
 
-def _farm_plan(keys: list[str], inv, droppable: set, varzia: set) -> dict:
+def _farm_plan(keys: list[str], inv, droppable: set, varzia: set | None) -> dict:
     """挑遗物：在**当前可掉落**的遗物里用贪心法找最少几把覆盖全部能刷的部件。
 
     每轮选「新覆盖部件最多」的一把；同数时选部件所在槽位更常见的（出货率高），
@@ -1174,7 +1081,7 @@ def _farm_plan(keys: list[str], inv, droppable: set, varzia: set) -> dict:
     for k in keys:
         for o in inv.get(k) or []:
             relic = o.get("relic") or ""
-            st = _farm_relic_state(relic, droppable, varzia)
+            st = _relic_state(relic, droppable, varzia)
             if st == "drop":
                 by_relic.setdefault(relic, {})[k] = o.get("rarity") or ""
             elif st == "varzia":
@@ -1255,7 +1162,15 @@ def _farm_plan(keys: list[str], inv, droppable: set, varzia: set) -> dict:
                 }
             )
         else:
-            parts.append({"key": k, "state": "vaulted", "relic": "", "rarity": "", "others": 0})
+            parts.append(
+                {
+                    "key": k,
+                    "state": "unknown" if varzia is None else "vaulted",
+                    "relic": "",
+                    "rarity": "",
+                    "others": 0,
+                }
+            )
     # 要进裂隙开的纪元：建议遗物 + 阿耶换来的遗物（换到手也得进同纪元裂隙开）
     crack = {pk["tier"] for pk in picks} | {
         _tier(p["relic"]) for p in parts if p["state"] == "varzia"

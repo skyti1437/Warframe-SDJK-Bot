@@ -38,7 +38,7 @@ import json
 import re
 import sys
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -56,7 +56,8 @@ BATCH_IDX = {"A": 1, "B": 2}
 #   而运行期不 import scripts/ —— 两处实现会漂移）。这里直接复用同一份。
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
-from core.api_client import WarframeClient as _WC  # noqa: E402
+from core import paths  # noqa: E402
+from core.api_client import WarframeAPIError, WarframeClient as _WC  # noqa: E402
 
 parse_wikitext = _WC.parse_wikitext
 
@@ -189,7 +190,7 @@ def apply(data: dict, parsed: dict, dry: bool = False, revs: dict | None = None)
     **抛 SystemExit 拒绝写入**（宁可不写，也不能再写出「数值新、时刻旧」的种子）。
     """
     changes: list[str] = []
-    now = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    now = datetime.now(timezone.utc).replace(microsecond=0)
     revs = revs or {}
 
     def _since_for(section: str) -> str:
@@ -201,65 +202,91 @@ def apply(data: dict, parsed: dict, dry: bool = False, revs: dict | None = None)
             )
         return ts
 
-    def _merge(container: list[dict], src_items: list[dict], tag: str) -> int:
-        """按英文名对齐，更新 element/bonus；返回更新条数。"""
-        by_en = {(s.get("en") or "").lower(): s for s in src_items}
-        n = 0
-        for it in container:
-            src = by_en.get((it.get("en") or "").lower())
-            if not src:
-                if not it.get("bonus"):
-                    changes.append(f"  [缺口] {tag} {it.get('en')} 在 wiki 表中没有")
-                continue
-            if it.get("bonus") != src["bonus"] or it.get("element") != src["element"]:
-                changes.append(
-                    f"  {it.get('cn') or it.get('en')}: "
-                    f"{it.get('element')} {it.get('bonus')} → "
-                    f"{src['element']} {src['bonus']}"
-                )
-                if not dry:
-                    it["element"], it["bonus"] = src["element"], src["bonus"]
-                n += 1
-            elif not it.get("cn"):
-                pass
-        return n
+    seed = json.loads(ROTATION_FILE.read_text(encoding="utf-8"))
 
-    coda = data.setdefault("coda", {})
-    batches = coda.get("batches") or []
-    for idx, items in sorted(parsed["coda"].items()):
-        if not (1 <= idx <= len(batches)):
+    def validated_group(skeleton, old_rows, rows, section, label):
+        try:
+            values = _WC._valence_table(rows, [it["en"] for it in skeleton])
+        except (WarframeAPIError, TypeError, AttributeError) as exc:
+            changes.append(f"  [跳过] {label}：{exc}，保留整组缓存")
+            return None
+        old_rows = [
+            it
+            for it in (old_rows if isinstance(old_rows, list) else [])
+            if isinstance(it, dict) and isinstance(it.get("en"), str)
+        ]
+        old = {it["en"]: it for it in old_rows}
+        updated = [
+            {
+                **it,
+                **old.get(it["en"], {}),
+                "element": values[it["en"]][0],
+                "bonus": values[it["en"]][1],
+            }
+            for it in skeleton
+        ]
+        changed = _WC.valence_values(old_rows) != _WC.valence_values(updated)
+        since = _since_for(section) if changed else None
+        changes.append(
+            f"  · {label}：整组 {len(updated)} 条通过校验，"
+            + (f"新数值自 {since}" if changed else "数值未变")
+        )
+        return updated, since
+
+    coda = data.get("coda", {})
+    batches = list(coda.get("batches") or [])
+    skeletons = seed["coda"]["batches"]
+    sinces = list(coda.get("batch_values_since") or [])
+    valid_batches = set()
+    for idx, rows in sorted(parsed["coda"].items()):
+        if not 1 <= idx <= len(skeletons):
             changes.append(f"  [跳过] wiki 的 Batch {idx} 超出本地批次表")
             continue
-        label = (
-            (coda.get("batch_label") or [])[idx - 1]
-            if isinstance(coda.get("batch_label"), list)
-            else str(idx)
+        group = validated_group(
+            skeletons[idx - 1],
+            batches[idx - 1] if idx <= len(batches) else [],
+            rows,
+            "coda",
+            f"终幕批{idx}",
         )
-        n = _merge(batches[idx - 1], items, f"终幕批{label}")
-        changes.append(f"  · Batch {label}：{len(items)} 条来自 wiki，其中 {n} 条数值有变化")
-        if n:
-            since = _since_for("coda")
-            changes.append(f"  · Batch {label} 数值最早出现时刻 → {since}")
-            if not dry:
-                sinces = list(coda.get("batch_values_since") or [])
-                sinces += [None] * (len(batches) - len(sinces))
-                sinces[idx - 1] = since
-                coda["batch_values_since"] = sinces
-        if not dry:
-            coda["valence_snapshot"] = now
+        if group is None:
+            continue
+        valid_batches.add(idx)
+        batches.extend(skeletons[len(batches) :])
+        batches[idx - 1], since = group
+        if since:
+            sinces.extend([None] * (len(skeletons) - len(sinces)))
+            sinces[idx - 1] = since
 
-    tenet = data.setdefault("tenet", {})
-    titems = tenet.get("items") or []
+    tenet = data.get("tenet", {})
+    group = None
     if parsed["tenet"]:
-        n = _merge(titems, parsed["tenet"], "信条")
-        changes.append(f"  · Tenet：{len(parsed['tenet'])} 条来自 wiki，其中 {n} 条数值有变化")
-        if n:
-            since = _since_for("tenet")
-            changes.append(f"  · Tenet 数值最早出现时刻 → {since}")
-            if not dry:
-                tenet["valence_values_since"] = since
-        if not dry:
-            tenet["valence_snapshot"] = now
+        group = validated_group(
+            seed["tenet"]["items"], tenet.get("items", []), parsed["tenet"], "tenet", "信条"
+        )
+    if not dry:
+        if valid_batches:
+            coda = {**seed["coda"], **coda, "batches": batches}
+            if sinces:
+                coda["batch_values_since"] = sinces
+            try:
+                epoch = datetime.fromisoformat(coda["epoch"])
+                period = timedelta(hours=int(coda.get("period_hours", 96)))
+                if period <= timedelta(0):
+                    raise ValueError("终幕周期须大于零")
+                elapsed = (now - epoch) // period
+                current = 1 + (int(coda.get("anchor_idx", 0)) + elapsed) % len(skeletons)
+            except (TypeError, ValueError, OverflowError):
+                current = None
+                changes.append("  [跳过] 终幕轮换参数无效，保留快照时间")
+            if current in valid_batches:
+                coda["valence_snapshot"] = now.isoformat()
+            data["coda"] = coda
+        if group is not None:
+            items, since = group
+            data["tenet"] = {**tenet, "items": items, "valence_snapshot": now.isoformat()}
+            if since:
+                data["tenet"]["valence_values_since"] = since
 
     return changes
 
@@ -352,9 +379,11 @@ def main():
     if preview:
         print("\n[dry-run] 未写入文件")
         return
+    if data == json.loads(original):
+        print("没有可发布的整组更新，保留原缓存")
+        return
     indent = detect_indent(original)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(json.dumps(data, ensure_ascii=False, indent=indent) + "\n", encoding="utf-8")
+    paths.atomic_write_text(target, json.dumps(data, ensure_ascii=False, indent=indent) + "\n")
     print(f"\n已写入 {target}（缩进 {indent} 空格，与原文件一致）")
 
 

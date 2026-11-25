@@ -31,6 +31,7 @@
 from __future__ import annotations
 
 import json
+import math
 import random
 import re
 import sys
@@ -269,10 +270,22 @@ def _fit_title(d, font, text: str, max_w: float) -> str:
     """
     if not text or d.textlength(text, font=font) <= max_w:
         return text
-    cut = text
-    while cut and d.textlength(cut + "…", font=font) > max_w:
-        cut = cut[:-1]
-    return (cut + "…") if cut else ""
+    first, last = 1, len(text)
+    if _LAYOUT_BASIC is not None and getattr(font, "layout_engine", None) == _LAYOUT_BASIC:
+        lo, hi = 0, last
+        while lo < hi:
+            mid = (lo + hi + 1) // 2
+            if d.textlength(text[:mid] + "…", font=font) <= max_w:
+                lo = mid
+            else:
+                hi = mid - 1
+        first, last = max(1, lo), min(last, lo + 2)
+    # 复杂塑形会在补齐连字后缩短前缀，固定长度的二分邻域可能漏掉最长解。
+    for end in range(last, first - 1, -1):
+        candidate = text[:end] + "…"
+        if d.textlength(candidate, font=font) <= max_w:
+            return candidate
+    return ""
 
 
 def _fmt_num(v: float) -> str:
@@ -718,8 +731,9 @@ def _inline_width(d, font, text) -> float:
 # 实测单张渲染会被拖到 30 s+（2026-09-17）。降到 2 倍，
 # 像素量降 56%，仍是「先放大再缩」的抗锯齿路径（振铃远比 1 倍方案轻）。
 SS = 2
+MAX_CANVAS_PIXELS = 36_000_000  # 含 2x 超采样；随包三模式全词条卡可达 3760×9390
 
-# 单卡正文最大行数。指令一览这类清单会超过 40 行，上限过低会静默截断尾部内容。
+# 格式层与 PNG 共用的正文行预算，含分节、表头及注脚。
 MAX_BODY_LINES = 90
 
 # 每一级缩进的宽度（设计像素，绘制时乘 SS）。行首「　　」= 正文级（不缩进），
@@ -853,6 +867,11 @@ def _bg_column() -> "Image.Image":
         col.putdata([_mix(BG_TOP, BG_BOT, i / 255) for i in range(256)])
         _BG_COL = col
     return _BG_COL
+
+
+def _gradient_background(width: int, height: int) -> "Image.Image":
+    column = _bg_column().resize((1, height), Image.BILINEAR)
+    return column.resize((width, height), Image.NEAREST)
 
 
 # 栏目英文名补表（TITLE_THEME 没覆盖或误命中的卡；先于 TITLE_THEME 匹配）
@@ -3139,9 +3158,12 @@ class ImageRenderer:
         FOOT = 70
         H = outer * 2 + 30 + HEAD + body_h + 26 + FOOT
 
-        # —— 画布：扁平 RGB + 一条竖向细渐变（1×256 列 BILINEAR 直接放大，无叠层）——
+        # 渐变只随高度变化，每行插值一次即可。
         Wp, Hp = W * SS, H * SS
-        img = _bg_column().resize((Wp, Hp), Image.BILINEAR)
+        if Wp * Hp > MAX_CANVAS_PIXELS:
+            _LOGGER.warning("[warframe] 卡片排版后画布 %dx%d 超过像素预算，已降级文字", Wp, Hp)
+            return None
+        img = _gradient_background(Wp, Hp)
         if _THEME["bg_image"] is not None:
             img = _with_bg_image(
                 img,
@@ -4682,36 +4704,50 @@ def _with_bg_image(
     """
     W_, H_ = canvas.size
     sw, sh = src.size
-    rgb = src.convert("RGB")
     fx, fy = _anchor(pos)
-
-    def scaled(k: float) -> "Image.Image":
-        return rgb.resize((max(1, int(sw * k + 0.5)), max(1, int(sh * k + 0.5))), Image.BILINEAR)
-
-    def placed(im: "Image.Image") -> "Image.Image":
-        layer = canvas.copy()
-        layer.paste(im, (int((W_ - im.width) * fx), int((H_ - im.height) * fy)))
-        return layer
-
+    if min(W_, H_, sw, sh) <= 0 or W_ * H_ > MAX_CANVAS_PIXELS:
+        return canvas
     if fit == "width":
-        im = scaled(W_ / sw)
-        layer = Image.new("RGB", (W_, H_))
-        for y in range(0, H_, im.height):
-            layer.paste(im, (0, y))
+        k = W_ / sw
     elif fit == "contain":
-        layer = placed(scaled(min(W_ / sw, H_ / sh)))
+        k = min(W_ / sw, H_ / sh)
     elif fit == "custom":
-        layer = placed(scaled(W_ * _clamp_scale(scale) / 100 / sw))
+        k = W_ * _clamp_scale(scale) / 100 / sw
     elif fit == "tile":
-        im = scaled(SS) if SS != 1 else rgb
-        layer = Image.new("RGB", (W_, H_))
-        for y in range(0, H_, im.height):
-            for x in range(0, W_, im.width):
-                layer.paste(im, (x, y))
+        k = SS
     else:
-        im = scaled(max(W_ / sw, H_ / sh))
-        l_, t_ = int((im.width - W_) * fx), int((im.height - H_) * fy)
-        layer = im.crop((l_, t_, l_ + W_, t_ + H_))
+        k = max(W_ / sw, H_ / sh)
+
+    # vw/vh 只参与坐标计算；实际重采样的尺寸最多是一块画布。
+    vw, vh = max(1, int(sw * k + 0.5)), max(1, int(sh * k + 0.5))
+    w, h = min(W_, vw), min(H_, vh)
+    repeat_y = fit in ("width", "tile")
+    x, y = (0, 0) if repeat_y else (int((W_ - vw) * fx), int((H_ - vh) * fy))
+    sx, sy = max(0, -x), max(0, -y)
+    left, top = sx * sw / vw, sy * sh / vh
+    right, bottom = (sx + w) * sw / vw, (sy + h) * sh / vh
+    # 多取双线性滤波的相邻像素，保证九宫格边沿与先缩放再裁切一致。
+    dx, dy = math.ceil(sw / vw), math.ceil(sh / vh)
+    x0, y0 = max(0, int(left) - dx), max(0, int(top) - dy)
+    x1, y1 = min(sw, math.ceil(right) + dx), min(sh, math.ceil(bottom) + dy)
+    # 同时覆盖裁剪、转色和 Pillow 横纵分步重采样的中间尺寸。
+    if max(w, x1 - x0) * max(h, y1 - y0) > MAX_CANVAS_PIXELS:
+        return canvas
+    visible = src if (x0, y0, x1, y1) == (0, 0, sw, sh) else src.crop((x0, y0, x1, y1))
+    if visible.mode != "RGB":
+        visible = visible.convert("RGB")
+    tile = visible.resize(
+        (w, h), Image.BILINEAR, box=(left - x0, top - y0, right - x0, bottom - y0)
+    )
+    if tile.size == canvas.size:
+        layer = tile
+    else:
+        layer = canvas.copy()
+        xs = range(0, W_, vw) if fit == "tile" else (max(0, x),)
+        ys = range(0, H_, vh) if repeat_y else (max(0, y),)
+        for ty in ys:
+            for tx in xs:
+                layer.paste(tile, (tx, ty))
     return Image.blend(layer, canvas, max(0.0, min(1.0, dim)))
 
 

@@ -156,7 +156,44 @@ def _plugin(cfg: dict):
 async def main() -> None:
     # ① 冷却：同一人第二次被拦
     obj = _plugin({"scan_cooldown": 60})
-    r1 = await obj._h_scan(_Parsed(), _Ev(sender="u1"), "pc")
+    from unittest.mock import AsyncMock
+    from types import SimpleNamespace
+    import base64
+    import io
+    from PIL import Image as PILImage
+
+    class Image:
+        def __init__(self, ref):
+            self.file = ref
+
+    def png(size):
+        buffer = io.BytesIO()
+        PILImage.new("1", size).save(buffer, format="PNG")
+        return "base64://" + base64.b64encode(buffer.getvalue()).decode()
+
+    def picture(ref):
+        ev = _Ev(sender="u1")
+        ev.message_obj = SimpleNamespace(message=[Image(ref)])
+        return ev
+
+    obj._extract_loadout_validated = AsyncMock(return_value={"weapon": "SOMA", "mods": []})
+    for ref, hint in (
+        ("base64://a?", "格式"),
+        (png((320, 3000)), "像素"),
+        ("file:///no/such/image.png", "下载失败"),
+    ):
+        rejected = await obj._h_scan(_Parsed(), picture(ref), "pc")
+        check(
+            "输入拒绝说明可操作的原因 " + hint,
+            hint in rejected.raw_text and "u1" not in obj._ocr_last,
+        )
+    obj.MAX_SCAN_IMAGE_BYTES = 1
+    rejected = await obj._h_scan(_Parsed(), picture(png((20, 10))), "pc")
+    check("体积超限返还冷却", "体积" in rejected.raw_text and "u1" not in obj._ocr_last)
+    obj._extract_loadout_validated.assert_not_called()
+    del obj.MAX_SCAN_IMAGE_BYTES
+    r1 = await obj._h_scan(_Parsed(), picture(png((20, 10))), "pc")
+    obj._extract_loadout_validated.assert_awaited_once()
     check(
         "首次识卡放行（未触发冷却）",
         r1 is not None and "太频繁" not in (r1.raw_text or ""),
@@ -250,7 +287,7 @@ async def main() -> None:
         r6 is not None and "太频繁" in (r6.raw_text or ""),
         repr(getattr(r6, "raw_text", None)),
     )
-    obj6 = _plugin({"scan_cooldown": 0, "scan_max_concurrent": 1})
+    obj6 = _plugin({"scan_cooldown": 60, "scan_max_concurrent": 1})
     obj6._ocr_busy = {"riven:group://a:u1"}
     g3, _ = obj6._vision_gate(_Ev(sender="u10"), "紫卡识图")
     check(
@@ -258,6 +295,10 @@ async def main() -> None:
         g3 is not None and "并发上限" in (g3.raw_text or ""),
         repr(getattr(g3, "raw_text", None)),
     )
+
+    obj6._ocr_busy.clear()
+    retry, _ = obj6._vision_gate(_Ev(sender="u10"), "紫卡识图")
+    check("并发拒绝后同人可立即重发", retry is None)
 
     # ⑨ 主动迁移后只拆任务冷却，不扩大机器的总并发预算。
     isolated = _plugin({"vision_routes_isolated": True, "scan_cooldown": 60})
@@ -283,6 +324,39 @@ async def main() -> None:
         budget is not None and "机器共享资源预算" in budget.raw_text,
         "",
     )
+
+    # 使用真正的线程和入口时钟：超时可以先回复，名额必须留到像素工作退出。
+    import threading
+    from unittest.mock import patch
+
+    blocked = _plugin({"scan_cooldown": 60, "scan_max_concurrent": 1})
+    blocked.RACE_WINDOW_S = 0.1
+    loop = asyncio.get_running_loop()
+    entered, release = asyncio.Event(), threading.Event()
+
+    def slow_pips(image):
+        loop.call_soon_threadsafe(entered.set)
+        assert release.wait(3)
+        return []
+
+    ev = picture(png((20, 10)))
+    with patch("core.pips.detect_pips", slow_pips):
+        first = asyncio.create_task(blocked._h_scan(_Parsed(), ev, "pc"))
+        try:
+            await asyncio.wait_for(entered.wait(), 2)
+            reply = await asyncio.wait_for(first, 1)
+            assert "识卡超时" in reply.raw_text and "u1" not in blocked._ocr_last
+            assert blocked._ocr_busy == blocked._scan_running == {ev.unified_msg_origin}
+            gate, _ = blocked._vision_gate(_Ev(sender="other"), "紫卡", task="riven")
+            assert "并发上限" in gate.raw_text
+            blocked.RACE_WINDOW_S = 2
+            retry = asyncio.create_task(blocked._h_scan(_Parsed(), _Ev(umo="other"), "pc"))
+            await asyncio.sleep(0)
+            assert blocked._scan_requests().is_waiting("other")
+        finally:
+            release.set()
+        assert "下载失败" in (await asyncio.wait_for(retry, 1)).raw_text
+        assert not blocked._ocr_busy and not blocked._scan_running
 
     print()
     if FAILED:

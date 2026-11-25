@@ -210,13 +210,15 @@ def snapshot_date() -> str:
     return str(load().get("fetched") or "")
 
 
-def _period() -> timedelta:
-    return timedelta(days=int(load().get("period_days") or 14))
+def _period(history: Optional[dict] = None) -> timedelta:
+    history = load() if history is None else history
+    return timedelta(days=int(history.get("period_days") or 14))
 
 
-def _last_dt() -> Optional[datetime]:
-    last = last_visit()
-    if not last:
+def _last_dt(history: dict) -> Optional[datetime]:
+    dates = history.get("visits") if isinstance(history, dict) else None
+    last = dates[-1] if isinstance(dates, list) and dates else None
+    if not isinstance(last, str):
         return None
     try:
         return datetime.fromisoformat(last).replace(tzinfo=timezone.utc)
@@ -229,21 +231,24 @@ def _last_dt() -> Optional[datetime]:
 STALE_GRACE_HOURS = 72
 
 
-def missed_visits(now: Optional[datetime] = None, grace_hours: float = 0) -> int:
-    """快照之后、到 ``now`` 为止**已开始**的到访次数（按 period_days 等距推算）。
+def missed_visits(
+    now: Optional[datetime] = None, grace_hours: float = 0, *, history: Optional[dict] = None
+) -> int | None:
+    """无有效末次日期时返回 None，否则返回快照之后、到 ``now`` 为止**已开始**的到访次数（按 period_days 等距推算）。
 
     ★ 2026-10-11：历史快照不会自动增长（上次 2026-09-18，抓于 09-24），
     其后的 10-02 那次到访不在表里 ⇒「已静默 N 次」整体少算。用它把静默次数同步到今天。
     ``grace_hours``：只数开始时间早于 ``now - grace_hours`` 的到访（健康提示用 STALE_GRACE_HOURS）。
     """
-    d = _last_dt()
+    history = load() if history is None else history
+    d = _last_dt(history)
     if d is None:
-        return 0
+        return None
     now = now or datetime.now(timezone.utc)
     now = now - timedelta(hours=grace_hours)
     if now <= d:
         return 0
-    return int((now - d) // _period())
+    return int((now - d) // _period(history))
 
 
 def next_visit_est(now: Optional[datetime] = None, activation: str = "") -> Optional[str]:
@@ -264,10 +269,12 @@ def next_visit_est(now: Optional[datetime] = None, activation: str = "") -> Opti
                 return local_datetime(act).strftime("%Y-%m-%d")
         except ValueError:
             pass
-    d = _last_dt()
-    if d is None:
+    history = load()
+    d = _last_dt(history)
+    missed = missed_visits(now, history=history)
+    if d is None or missed is None:
         return None
-    nxt = d + _period() * (missed_visits(now) + 1)
+    nxt = d + _period(history) * (missed + 1)
     return nxt.strftime("%Y-%m-%d")
 
 
@@ -303,7 +310,7 @@ def predict(
     if not vs or not items:
         return []
     if extra_silent is None:
-        extra_silent = missed_visits()
+        extra_silent = missed_visits() or 0
     now_i = len(vs) - 1 + max(0, int(extra_silent))
     out: list[dict] = []
     for name, rec in items.items():

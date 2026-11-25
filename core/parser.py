@@ -28,6 +28,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Iterable, Optional
 
+from .de_worldstate import nodes_zh
+
 # ---------------------------------------------------------------------------
 # 平台
 # ---------------------------------------------------------------------------
@@ -221,7 +223,8 @@ for _alias, (_cmd, _preset) in _PRESET_COMMANDS.items():
 _PRESET_COMMANDS = {k.lower(): v for k, v in _PRESET_COMMANDS.items()}
 
 # 无空格连写（2026-10-02 玩家反馈「wm水晶p头」静默无响应）：ASCII 指令别名
-# 直接贴着内容时按前缀切开。只收纯 ASCII 指令别名、最长优先（wmr 先于 wm）；
+# 后接中文、数字或分隔符时可以切开；句首也接受 wmSoma 这类大写开头的参数。
+# 最长优先（wmr 先于 wm）；
 # 中文指令无此输入习惯且误伤面大（「帮助我」「趋势图」这类正文词），不参与。
 _ASCII_CMD_ALIASES: tuple[str, ...] = tuple(
     sorted((a for a in ALIAS_TO_COMMAND if a.isascii() and a.isalpha()), key=len, reverse=True)
@@ -427,6 +430,30 @@ def _is_command_modifier(token: str) -> bool:
     return body in _COMMAND_FLAGS or (body.isdigit() and bool(body.strip("0")))
 
 
+def _find_command(tokens: list[str], alias_table: dict[str, str]) -> tuple[int, str]:
+    """定位主指令及其原始拼写，供后续按指令语境解释修饰符。"""
+    first_word = True
+    for index, tok in enumerate(tokens):
+        if _MODIFIER_RE.fullmatch(tok):
+            continue
+        low = tok.lower()
+        if low in alias_table:
+            return index, tok
+        if first_word and low in EN_ALIAS_TO_COMMAND:
+            if low not in _STANDALONE_EN or all(
+                _is_command_modifier(t) for i, t in enumerate(tokens) if i != index
+            ):
+                return index, tok
+        for pre in _ASCII_CMD_ALIASES:
+            if low.startswith(pre) and len(tok) > len(pre):
+                if not ("a" <= low[len(pre)] <= "z") or (
+                    first_word and pre in {"wm", "wmr"} and "A" <= tok[len(pre)] <= "Z"
+                ):
+                    return index, pre
+        first_word = False
+    return -1, ""
+
+
 def parse(message: str, *, extra_commands: Optional[dict[str, str]] = None) -> Parsed:
     """把一条消息解析为 Parsed。没有命中主指令时 command 为 None。"""
     res = Parsed(raw=message)
@@ -436,7 +463,19 @@ def parse(message: str, *, extra_commands: Optional[dict[str, str]] = None) -> P
         alias_table = dict(ALIAS_TO_COMMAND)
         alias_table.update(extra_commands)
 
+    command_index, raw = _find_command(tokens, alias_table)
+    if raw:
+        low = raw.lower()
+        res.command_raw = raw
+        res.command = alias_table.get(low) or EN_ALIAS_TO_COMMAND.get(low)
+        if low in _PRESET_COMMANDS:
+            res.preset = _PRESET_COMMANDS[low][1]
+
     for index, tok in enumerate(tokens):
+        if index == command_index:
+            if suffix := tok[len(raw) :]:
+                res.content.append(suffix)
+            continue
         m = _MODIFIER_RE.match(tok)
         if m:
             body = m.group("body").lower()
@@ -458,45 +497,12 @@ def parse(message: str, *, extra_commands: Optional[dict[str, str]] = None) -> P
             elif body.isdigit() and int(body) >= 1:
                 res.page = int(body)
                 res.modifiers.append(tok)
+            elif res.command in ("wr", "rm") and _wr_negative_stat(tok):
+                res.content.append(tok)
             else:
                 res.unknown_modifiers.append(tok)
             continue
 
-        low = tok.lower()
-        first_word = not res.content and res.command is None
-        if (
-            first_word
-            and low in EN_ALIAS_TO_COMMAND
-            and low not in alias_table
-            and (
-                low not in _STANDALONE_EN
-                or (
-                    not res.unknown_modifiers
-                    and all(map(_is_command_modifier, tokens[index + 1 :]))
-                )
-            )
-        ):
-            res.command_raw = tok
-            res.command = EN_ALIAS_TO_COMMAND[low]
-            continue
-        if res.command is None and low in alias_table:
-            res.command_raw = tok
-            res.command = alias_table[low]
-            if low in _PRESET_COMMANDS:
-                res.preset = _PRESET_COMMANDS[low][1]
-            continue
-        if res.command is None:
-            # 无空格连写：「wm水晶p头」= wm + 水晶p头（ASCII 指令前缀，最长优先）
-            for pre in _ASCII_CMD_ALIASES:
-                if low.startswith(pre) and len(low) > len(pre):
-                    res.command_raw = pre
-                    res.command = alias_table[pre]
-                    if pre in _PRESET_COMMANDS:
-                        res.preset = _PRESET_COMMANDS[pre][1]
-                    res.content.append(tok[len(pre) :])
-                    break
-            if res.command is not None:
-                continue
         res.content.append(tok)
     return res
 
@@ -1193,6 +1199,13 @@ _WR_EN_ROLLS = ("roll", "rolls", "reroll", "rerolls")
 _WR_EN_ROLLS_RE = re.compile(r"^(\d+)(?:re)?rolls?$", re.I)
 
 
+def _wr_negative_stat(token: str) -> str:
+    if not re.match(r"^-[A-Za-z]", token):
+        return ""
+    name = token[1:].replace("-", " ")
+    return name if segment_stats(name) else ""
+
+
 def _wr_en_tokens(content: Iterable[str]) -> list[str]:
     """英文筛选词 → 中文词（中文 token 原样放行）。
 
@@ -1229,13 +1242,8 @@ def _wr_en_tokens(content: Iterable[str]) -> list[str]:
         elif low in _WR_EN_ROLLS and re.fullmatch(r"\d+", nxt):
             out.append(nxt + "洗")
             i += 1
-        elif (
-            len(tok) > 1
-            and tok[0] == "-"
-            and re.match(r"[A-Za-z]", tok[1:])
-            and (tok[1:].casefold() in _STAT_LOOKUP or segment_stats(tok[1:]))
-        ):
-            out.append("负" + tok[1:])
+        elif stat := _wr_negative_stat(tok):
+            out.append("负" + stat)
         else:
             out.append(tok)
         i += 1
@@ -1915,15 +1923,15 @@ class FissureFilter:
             return False
         if g.get("storm") is not None and bool(f.get("isStorm", False)) != g["storm"]:
             return False
-        # 虚空星系：节点中文名带「（虚空）」后缀（_node_name 拼星球名），
-        # 兼容 DE 英文键含 void 的写法
-        if (
-            g.get("void")
-            and "虚空" not in (f.get("node") or "")
-            and "void" not in (f.get("nodeKey") or "").lower()
-            and "void" not in (f.get("missionKey") or "").lower()
-        ):
-            return False
+        if g.get("void"):
+            system = (nodes_zh().get(f.get("nodeKey")) or {}).get("system")
+            if system:
+                if system.casefold() not in ("void", "虚空"):
+                    return False
+            else:
+                node = (f.get("node") or "").strip().casefold()
+                if node not in ("虚空", "void") and not node.endswith(("（虚空）", "(void)")):
+                    return False
         if g.get("missions") and not (FissureFilter._mission_keys(f) & g["missions"]):
             return False
         if g.get("tiers") and f.get("tier") not in g["tiers"]:

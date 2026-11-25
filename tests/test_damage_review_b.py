@@ -1640,8 +1640,8 @@ _w_sh, _ = dc.find_weapon("Hek")
 _r_sh_line = dc.calculate(_s_sh, _w_sh)
 _sh_card = "\n".join(dc.card_lines(_w_sh, _s_sh, _r_sh_line))
 check(
-    "显示：霰弹枪元素师（无穿透）标「状态伤害·不增加直伤」，不再「未计入」",
-    "霰弹枪元素师（状态伤害·不增加直伤）" in _sh_card and "霰弹枪元素师（未计入）" not in _sh_card,
+    "显示：霰弹枪元素师同时标注弹匣容量和状态伤害",
+    "霰弹枪元素师（弹匣容量、状态伤害·不增加直伤）" in _sh_card,
     [ln for ln in _sh_card.splitlines() if "霰弹枪元素师" in ln],
 )
 _, _r_sp1 = calc("Nikana Prime", ["牺牲压迫点"], enemy=dc.find_enemy_exact("船员"))

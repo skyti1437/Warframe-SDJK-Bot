@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import asyncio
-import functools
 import json
 import re
 from pathlib import Path
@@ -17,7 +16,7 @@ from urllib.parse import quote as _quote
 from .. import calculators as calc
 from .. import damage_calc as dc
 from .. import damage_engine as de
-from .. import matching, wiki_intro
+from .. import de_worldstate, matching, wiki_intro
 from .. import formatters as fmt
 from .. import search as search_engine
 from ..api_client import WarframeAPIError
@@ -43,10 +42,6 @@ _EN_WIKI_SEARCH_HINT = (
 )
 _CJK_RE = re.compile(r"[\u3400-\u9fff]")
 _HUIJI_WORDS = {"灰机", "灰机wiki", "huiji"}
-_ZH2EN: dict | None = None
-
-
-_LANG2EN: dict | None = None
 
 # 语言表里对不上的常用概念 → 英文 wiki 页面名（人工核对；2026-11-10 用 wiki API 确认页面存在）。
 # 更多缺口发现后往这里补（或补进 aliases.json ``wiki`` 段的 ``en`` 字段）。
@@ -60,69 +55,56 @@ _CONCEPT_EN = {
 }
 
 
+@de_worldstate.path_table_index("name_zh.json", "name_en.json")
+def _official_item_names(zh, en):
+    names = {}
+    for path, z in zh.items():
+        e = en.get(path)
+        if isinstance(z, str) and isinstance(e, str) and z and e:
+            key = matching.normalize_name(z)
+            if names.setdefault(key, e) != e:
+                names[key] = ""
+    return names
+
+
+@de_worldstate.path_table_index("languages_zh.json", "languages_en.json")
+def _official_terms(zh, en):
+    names = {}
+    for key, z in zh.items():
+        e = en.get(key)
+        if isinstance(z, str) and isinstance(e, str) and 0 < len(z) <= 20 and 0 < len(e) <= 60:
+            norm = matching.normalize_name(z)
+            e = e.strip()
+            previous = names.setdefault(norm, e)
+            if (e.isupper(), len(e), e) < (previous.isupper(), len(previous), previous):
+                names[norm] = e
+    return names
+
+
 def _official_en(name: str) -> str:
-    """官方简中名 → 官方英文名；查不到返回空串。
-
-    ① 物品名表（name_zh / name_en，同一内部路径；一名多译不猜）；
-    ② DE 完整语言表（languages_zh / languages_en，同一语言键；地名 / 玩法 / 系统名都在这里，
-       一名多译取最短的英文——「午夜电波」→ Nightwave 而非 Nightwave Livery）。
-    """
-    global _ZH2EN, _LANG2EN
-    from .. import de_worldstate
-
-    if _ZH2EN is None:
-        zh = de_worldstate._load_file("name_zh.json") or {}
-        en = de_worldstate._load_file("name_en.json") or {}
-        acc: dict[str, set] = {}
-        for path, z in zh.items():
-            e = en.get(path)
-            if isinstance(z, str) and isinstance(e, str) and z and e:
-                acc.setdefault(matching.normalize_name(z), set()).add(e)
-        _ZH2EN = {k: next(iter(v)) for k, v in acc.items() if len(v) == 1}
+    """物品一名多译时转查短术语，术语优先采用非全大写、较短的英文。"""
     key = matching.normalize_name(name or "")
     if not key:
         return ""
-    hit = _CONCEPT_EN.get(key) or _ZH2EN.get(key)
-    if hit:
-        return hit.title() if hit.isupper() else hit  # 界面大写串（EXTERMINATE）→ 页面名写法
-    if _LANG2EN is None:
-        zh = de_worldstate._load_file("languages_zh.json") or {}
-        en = de_worldstate._load_file("languages_en.json") or {}
-        acc2: dict[str, set] = {}
-        for k, z in zh.items():
-            e = en.get(k)
-            # 只收短名（描述 / 对白类长句不当页面名）
-            if (
-                isinstance(z, str)
-                and isinstance(e, str)
-                and z
-                and e
-                and len(z) <= 20
-                and len(e) <= 60
-            ):
-                acc2.setdefault(matching.normalize_name(z), set()).add(e.strip())
-        # 一名多译：优先非全大写（界面大写串「SURVIVAL」不是页面名），再取最短
-        _LANG2EN = {k: min(v, key=lambda x: (x.isupper(), len(x), x)) for k, v in acc2.items()}
-    hit = _LANG2EN.get(key, "")
+    hit = _CONCEPT_EN.get(key) or _official_item_names().get(key) or _official_terms().get(key, "")
     return hit.title() if hit.isupper() else hit
 
 
-_EN_OFFICIAL: dict | None = None
+@de_worldstate.path_table_index("name_en.json", "languages_en.json")
+def _official_ascii_names(*tables):
+    names = {}
+    for table in tables:
+        for e in table.values():
+            if isinstance(e, str) and 0 < len(e) <= 60 and not e.isupper():
+                e = e.strip()
+                key = e.casefold()
+                names[key] = min(names.get(key, e), e)
+    return names
 
 
 def _official_en_ascii(name: str) -> str:
-    """英文查询 → 官方英文名的正确大小写（「frost」→ Frost）；不是官方名返回空串。"""
-    global _EN_OFFICIAL
-    if _EN_OFFICIAL is None:
-        from .. import de_worldstate
-
-        acc: dict[str, set] = {}
-        for tbl in ("name_en.json", "languages_en.json"):
-            for e in (de_worldstate._load_file(tbl) or {}).values():
-                if isinstance(e, str) and 0 < len(e) <= 60 and not e.isupper():
-                    acc.setdefault(e.strip().casefold(), set()).add(e.strip())
-        _EN_OFFICIAL = {k: min(v) for k, v in acc.items()}
-    return _EN_OFFICIAL.get(" ".join((name or "").split()).casefold(), "")
+    """英文查询 → 官方英文名的正确大小写。"""
+    return _official_ascii_names().get(" ".join((name or "").split()).casefold(), "")
 
 
 def _en_wiki_title(*cands: str, base: bool = False) -> str:
@@ -412,7 +394,7 @@ _PLAY_EN = {
 }
 
 
-@functools.lru_cache(maxsize=1)
+@wiki_intro.cached_index
 def _play_terms() -> frozenset:
     terms = set(_PLAY_ACTIVITIES)
     try:
@@ -546,6 +528,25 @@ class WikiMiscCommands:
                 title=L("wiki 直达", "Wiki Link"),
             )
         note = self.client.wiki_clarify(query)
+        want_variant = matching.variant_intent_any(query)
+        huiji_url = ""
+        if src == "huiji" and not is_en():
+            term = _PLAY_EN.get(" ".join(query.lower().split()), query)
+            huiji_url = await self.client.wiki_search_link(term)
+        local = await asyncio.to_thread(
+            self._wiki_local_reply, query, src, huiji_url, platform, note, want_variant
+        )
+        if local is not None:
+            return local
+        try:
+            item = await self.client.resolve_wm_item(query)
+        except WarframeAPIError:
+            item = None
+        return await asyncio.to_thread(
+            self._wiki_market_reply, item, query, src, huiji_url, platform, note, want_variant
+        )
+
+    def _wiki_local_reply(self, query, src, huiji_url, platform, note, want_variant):
         hit = self.client.wiki_lookup(query)
         if hit:
             # 概念页 / 战甲外号页（wiki 段）：同样出卡片（用户口径：都要绘制），
@@ -554,21 +555,19 @@ class WikiMiscCommands:
                 hit["title"], hit["url"], query, hit["title"], source=src, en=hit.get("en") or ""
             )
             return self._wiki_reply(_pn, _url, [], platform, hit["title"], query, note=note)
-        from urllib.parse import quote as _q
 
-        weapon = await asyncio.to_thread(dc.find_weapon_alias, query)
+        weapon = dc.find_weapon_alias(query)
         if weapon:
             english = weapon["name"]
             name = weapon.get("zh") or english
-            page = _q(search_engine.wiki_title(name).replace(" ", "_"))
+            page = _quote(search_engine.wiki_title(name).replace(" ", "_"))
             page_name, url = _wiki_localize(
                 name, f"https://warframe.huijiwiki.com/wiki/{page}", query, source=src, en=english
             )
             return self._wiki_reply(page_name, url, [], platform, name, english, note=note)
 
-        want_variant = matching.variant_intent_any(query)
         # 冷索引可能正由后台预热构建；查找与等待都留在线程里，避免阻塞消息循环。
-        found = await asyncio.to_thread(search_engine.search, query, limit=3)
+        found = search_engine.search(query, limit=3)
         exact = bool(found) and found[0].get("score") == 0
         # 英文原名里的 Kuva / Tenet / Coda / Prime 等词本身就是「变体意图」词：整串精确命中简介
         # 数据的英文名时仍直接用它（否则 Kuva Bramma 会被前缀模糊吸到「Kuva」资源页）；
@@ -583,7 +582,7 @@ class WikiMiscCommands:
             title = wiki_intro.exact_title(query)
             if title:
                 base = title.split("（", 1)[0].strip() or title
-                page = _q(search_engine.wiki_title(base).replace(" ", "_"))
+                page = _quote(search_engine.wiki_title(base).replace(" ", "_"))
                 _paren = re.search(r"[（(]([^）)]+)[）)]", title)
                 _pn, _url = _wiki_localize(
                     base,
@@ -608,9 +607,7 @@ class WikiMiscCommands:
                 if is_en():
                     _pn, _url = _wiki_localize(play, "", query, source=src)
                 else:
-                    _pn, _url = _wiki_localize(
-                        play, await self.client.wiki_search_link(play), query, source=src
-                    )
+                    _pn, _url = _wiki_localize(play, huiji_url, query, source=src)
                 return self._wiki_reply(
                     _pn,
                     _url,
@@ -626,7 +623,7 @@ class WikiMiscCommands:
                 _official_en(query) if _CJK_RE.search(query) else _official_en_ascii(query)
             ):
                 if src == "huiji" and not is_en():
-                    _purl = await self.client.wiki_search_link(query)
+                    _purl = huiji_url
                 else:
                     _purl = ""
                 _pn, _url = _wiki_localize(query, _purl, query, source=src)
@@ -636,14 +633,14 @@ class WikiMiscCommands:
             # → 剥掉 p/prime 再查，命中后按变体解析（want_variant 已为 True）
             stripped = matching.strip_variant_query(query)
             if stripped and stripped != query:
-                found = await asyncio.to_thread(search_engine.search, stripped, limit=3)
+                found = search_engine.search(stripped, limit=3)
         if found:
             # 黑话命中（别名）时页面名取国际服官方名——别名键/国服旧译都不是
             # wiki 页面（「wiki 音妈」「wiki 摸尸」实测死链，2026-09-24）。
             best_name = search_engine.wiki_page_name(found[0], base=not want_variant)
             # 灰机标题归一：含中文的名字要去掉空格与中点（「玻之武杖 Prime」→
             # 「玻之武杖Prime」），否则页面不存在（2026-09-25 浏览器 API 实测）
-            page = _q(search_engine.wiki_title(best_name).replace(" ", "_"))
+            page = _quote(search_engine.wiki_title(best_name).replace(" ", "_"))
             alts = [f["name"] for f in found[1:] if f["name"] != best_name]
             _pn, _url = _wiki_localize(
                 best_name,
@@ -670,11 +667,9 @@ class WikiMiscCommands:
                 variants=None if want_variant else wiki_intro.variants(best_name),
                 note=note,
             )
-        # WM 中文名 → 灰机 wiki 对应页面（用官方名构造 URL）
-        try:
-            item = await self.client.resolve_wm_item(query)
-        except WarframeAPIError:
-            item = None
+        return None
+
+    def _wiki_market_reply(self, item, query, src, huiji_url, platform, note, want_variant):
         if item and (item.get("zh") or item.get("en")):
             # WM 的展示名带「一套/蓝图」这类后缀；有 slug 就走 slug（国际服名）
             slug = str(item.get("url_name") or "").strip()
@@ -687,7 +682,7 @@ class WikiMiscCommands:
                     {"name": item.get("zh") or "", "en": item.get("en") or ""},
                     base=not want_variant,
                 )
-            page = _q(search_engine.wiki_title(page_name).replace(" ", "_"))
+            page = _quote(search_engine.wiki_title(page_name).replace(" ", "_"))
             _pn, _url = _wiki_localize(
                 page_name,
                 f"https://warframe.huijiwiki.com/wiki/{page}",
@@ -707,11 +702,7 @@ class WikiMiscCommands:
                 variants=None if want_variant else wiki_intro.variants(page_name),
                 note=note,
             )
-        link = (
-            _en_wiki_url("", query)
-            if is_en() or src == "en"
-            else await self.client.wiki_search_link(query)
-        )
+        link = _en_wiki_url("", query) if is_en() or src == "en" else huiji_url
         # 未收录时也把澄清带上（如「跑男」这种自带歧义的写法）
         r = err_card(
             L(f"本地词库未收录「{query}」", f'"{query}" is not in the local lexicon'),
@@ -981,7 +972,7 @@ class WikiMiscCommands:
     ) -> Reply | tuple[dict, dict]:
         """在线程解析；独立模拟回到调用者的事件循环提交。"""
         _toks = _dmg_en_toks(parsed.content) if is_en() else parsed.content
-        spec, name_tokens = dc.parse_args(_toks)
+        spec, name_tokens = dc.parse_args(_toks, validate_mods=not prepare_simulation)
         if spec["errors"]:
             return err_card(
                 L("；", ". ").join(spec["errors"]),
@@ -1103,7 +1094,7 @@ class WikiMiscCommands:
                 )
             if prepare_simulation:
                 return weapon, spec
-            res = dc.calculate(spec, weapon)
+            res = dc.calculate_for_card(spec, weapon)
             lines = dc.card_lines(weapon, spec, res, alts)
             return self._damage_result(
                 weapon, lines, dc.card_footer(weapon, res), can_actions and res.get("ok")

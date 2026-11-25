@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -195,6 +196,16 @@ for key, meta in DR.REGISTRY.items():
         if val is None or val == "":
             bad_dig.append(f"{key}.{field}={path}")
 check("damage/drops_relics/names_zh 三组 source 与 producer 均非空", not no_src, str(no_src))
+with tempfile.TemporaryDirectory() as _root:
+    _dir = Path(_root)
+    (_dir / "baro_history.json").write_text(json.dumps({"visits": ["坏日期"]}))
+    _history = next(
+        row for row in DR.evaluate(_dir, tracked_files=[]) if row["file"] == "baro_history.json"
+    )
+    check(
+        "奸商末次日期无效，登记表标为无法判定",
+        _history["status"] == "unknown" and "末次到访日期" in _history["detail"],
+    )
 check("source_rev / observed 点路径真能取到非空值", not bad_dig, str(bad_dig))
 check("max_age 条目都有 max_age_days 与 observed", not no_age, str(no_age))
 check("rotating 条目都有 check", not no_check, str(no_check))
@@ -420,10 +431,46 @@ check("运行期新快照但缺单个值仍报警", r["status"] == "stale", str(
 _rot["tenet"]["items"][0]["bonus"] = 40
 
 # ------------------------------------------------------------------ ⑥ 反向验证
+with tempfile.TemporaryDirectory() as _cache_dir:
+    _root = Path(_cache_dir)
+    _run = _root / "run"
+    _run.mkdir()
+    _table = _run / "probe.json"
+    _seed_path = _root / "probe.json"
+    _seed_path.write_text('{"v":0}')
+    _table.write_text('{"v":1}')
+    _stamp = _table.stat()
+    with _patch.object(DR.paths, "PKG_DATA", _root):
+        for _raw, _expected in (('{"v":1}', 1), ('{"v":2}', 2), ("{broken", 0), ('{"v":3}', 3)):
+            _swap = _run / "replacement"
+            _swap.write_text(_raw)
+            os.utime(_swap, ns=(_stamp.st_atime_ns, _stamp.st_mtime_ns))
+            _swap.replace(_table)
+            check(
+                f"同长度同 mtime 原子替换 {_raw} 即时选取正确版本",
+                DR.paths.load_table("probe.json", root=_run) == {"v": _expected},
+            )
+
+    # 在读取旧字节之后、发布之前发生替换，当前这次查询也应重读。
+    _table.write_text('{"v":4}')
+    _original_read = Path.read_text
+
+    def _replace_on_read(path, *args, **kwargs):
+        raw = _original_read(path, *args, **kwargs)
+        if path == _table.resolve() and raw == '{"v":4}':
+            st = path.stat()
+            _swap.write_text('{"v":5}')
+            os.utime(_swap, ns=(st.st_atime_ns, st.st_mtime_ns))
+            _swap.replace(path)
+        return raw
+
+    with _patch.object(Path, "read_text", _replace_on_read):
+        check("热替换发生在读取与发布之间时重读同一版本", DR.paths.load_json(_table) == {"v": 5})
+
 _orig_ws = DR.REGISTRY["weapons_stats.json"]["source"]
 DR.REGISTRY["weapons_stats.json"]["source"] = None
 try:
-    _write(d3, "weapons_stats.json", {})
+    _write(d3, "weapons_stats.json", {"weapon": {"name": "Weapon"}})
     r = _row(DR.evaluate(d3, NOW, tracked_files=["weapons_stats.json"]), "weapons_stats.json")
     check("反向：source=None ⇒ unknown", r is not None and r["status"] == "unknown", str(r))
 finally:
@@ -452,7 +499,7 @@ d4, d5 = _tmpdir(), _tmpdir()  # d5 充当运行目录
 _tmp += [d4, d5]
 _write(d4, "arb_ratings.json", {"_updated": "2026-01-01T00:00:00+00:00"})  # 种子：旧
 _write(d5, "arb_ratings.json", {"_updated": NOW.isoformat()})  # 社区快照副本：新
-_write(d4, "weapons_stats.json", {})
+_write(d4, "weapons_stats.json", {"weapon": {"name": "Weapon"}})
 _res = lambda n: d5 / n  # noqa: E731 - weapons_stats 在 d5 不存在：seed_only 若误改看 d5 会报缺文件
 _names = ["arb_ratings.json", "weapons_stats.json"]
 r = _row(DR.evaluate(d4, NOW, tracked_files=_names), "arb_ratings.json")
@@ -469,6 +516,47 @@ check(
     "tracked_files=() ⇒ 不报未登记（面板不起 git 子进程）",
     not [x for x in DR.evaluate(d4, NOW, tracked_files=()) if x["status"] == "unregistered"],
 )
+
+with tempfile.TemporaryDirectory() as _dir:
+    root = Path(_dir)
+    data_dir = root / "core/data"
+    data_dir.mkdir(parents=True)
+    for name, valid in {
+        "weapons_stats.json": {"weapon": {"name": "Weapon"}},
+        "mods_stats.json": {"mods": {"mod": {"name": "Mod"}}, "names": {"mod": {"name": "Mod"}}},
+        "damage_faction.json": {"table": {"Slash": {"Orokin": 1}}},
+    }.items():
+        with _patch.object(DR, "REGISTRY", {name: DR.REGISTRY[name]}):
+            for label, raw, good in (
+                ("截断", b'{"', False),
+                ("数组", b"[]", False),
+                ("仅元数据", b'{"_meta":{}}', False),
+                ("空数据对象", b'{"table":{}, "mods":{}, "names":{}}', False),
+                ("有效", json.dumps(valid).encode(), True),
+            ):
+                (data_dir / name).write_bytes(raw)
+                rows = DR.evaluate(data_dir, tracked_files=[name], context="seed")
+                row = rows[0]
+                check(
+                    f"登记表 {name} {label} 区分无 TTL 与文件完整性",
+                    row["freshness_status"] == "no_ttl"
+                    and row["integrity"] == ("ok" if good else "invalid")
+                    and row["status"] == ("no_ttl" if good else "invalid")
+                    and bool(DR.integrity_problems(rows)) != good,
+                )
+                if not IN_OSS:
+                    from dist import package_release
+
+                    with _patch.object(DR.paths, "PKG_DATA", data_dir):
+                        try:
+                            package_release.assert_registry_integrity()
+                        except SystemExit as exc:
+                            check(
+                                f"打包拒绝 {name} {label} 并报文件名", not good and name in str(exc)
+                            )
+                        else:
+                            check(f"打包通过 {name} {label}", good)
+        (data_dir / name).unlink()
 
 # 字段缓存：内容变了（size/mtime 变）必须重新取值；P4-AB 改以 wiki_snapshot 记录来源修订
 _write(d4, "mods_stats.json", {"_meta": {"wiki_snapshot": "oldid 1"}})
@@ -487,7 +575,7 @@ _tmp += [d6, d7]
 _keys = [k for k in DR.REGISTRY if "*" not in k]
 _disp_seed = {"snapshot": "2026-02-01T00:00:00+00:00", "disp": {f"k{i}": i for i in range(450)}}
 _write(d6, "de/wiki_disp.json", _disp_seed)
-_write(d6, "weapons_stats.json", {"a": 1})
+_write(d6, "weapons_stats.json", {"a": {"name": "A"}})
 
 rows = DR.ledger(d7, d6)
 check(
@@ -818,7 +906,10 @@ _source = _dseed / "source.json"
 _source.write_text(json.dumps(_seed), encoding="utf-8")
 _raw = _dseed / "raw.txt"
 _raw.write_text("offline fixture", encoding="utf-8")
-_parsed = {"coda": {}, "tenet": [{"en": "Tenet 0", "element": "Heat", "bonus": 40}]}
+_parsed = {
+    "coda": {},
+    "tenet": [dict(row, element="Heat", bonus=40) for row in _seed["tenet"]["items"]],
+}
 _args = [
     "fetch_valence.py",
     "--wikitext",
@@ -858,6 +949,80 @@ check(
     json.loads(_target.read_text())["tenet"]["items"][0]["bonus"] == 40
     and _source.read_bytes() == _before,
 )
+# 逐组接受完整新表。包括旧表含全量数值、来表缺行/重复/非法字段的情形。
+for _section, _batch in (("tenet", 0), ("coda", 1), ("coda", 2)):
+    _old = json.loads(_source.read_bytes())
+    # 固定为 epoch 后一周期，anchor=1，因此当前为 A 批。
+    _clock = datetime(2026, 9, 17, tzinfo=timezone.utc)
+    _old["coda"]["anchor_idx"] = 1
+    _section_data = _old[_section]
+    _items = _section_data["batches"][_batch - 1] if _batch else _section_data["items"]
+    for _it in _items:
+        _it.update(element="Heat", bonus=30)
+    _section_data["valence_snapshot"] = "old"
+    if _batch:
+        _section_data["batch_values_since"] = ["old", "old"]
+    else:
+        _section_data["valence_values_since"] = "old"
+    _new = [dict(row, element="Cold", bonus=50) for row in _items]
+    for _label, _incoming in (
+        ("缺一项", _new[:-1]),
+        ("重复一项", _new + _new[:1]),
+        ("元素无效", [dict(_new[0], element="bad"), *_new[1:]]),
+        ("加成越界", [dict(_new[0], bonus=61), *_new[1:]]),
+        ("完整新表", _new),
+    ):
+        _data = json.loads(json.dumps(_old))
+        _input = {
+            "tenet": [] if _batch else _incoming,
+            "coda": {_batch: _incoming} if _batch else {},
+        }
+        with (
+            _patch.object(_fv, "ROTATION_FILE", _source),
+            _patch.object(_fv, "datetime", wraps=datetime) as _dt,
+        ):
+            _dt.now.return_value = _clock
+            _fv.apply(_data, _input, revs={_section: "2026-11-25T00:00:00+00:00"})
+        if _label == "完整新表":
+            _group = _data[_section]
+            _since = (
+                _group["batch_values_since"][_batch - 1]
+                if _batch
+                else _group["valence_values_since"]
+            )
+            _actual = _group["batches"][_batch - 1] if _batch else _group["items"]
+            check(
+                f"{_section}{_batch} 同时发布整组和修订时间",
+                _actual == _new
+                and _since == "2026-11-25T00:00:00+00:00"
+                and (
+                    not _batch
+                    or (
+                        _group["batch_values_since"][2 - _batch] == "old"
+                        and _group["valence_snapshot"]
+                        == (_clock.isoformat() if _batch == 1 else "old")
+                    )
+                ),
+            )
+        else:
+            check(f"{_section}{_batch} {_label} 保留整组数值和旧时间", _data == _old)
+
+with _patch.object(_fv, "ROTATION_FILE", _source):
+    _damaged = json.loads(_source.read_bytes())
+    _damaged["tenet"]["items"] = [None]
+    try:
+        _fv.apply(_damaged, _parsed)
+    except SystemExit:
+        check("旧缓存含 null，数值改变仍要求修订时间", _damaged["tenet"]["items"] == [None])
+    else:
+        check("坏行重建前缺修订应拒绝", False)
+    _fv.apply(_damaged, _parsed, revs={"tenet": _clock.isoformat()})
+    check(
+        "旧缓存含 null，按完整有效的五项重建",
+        _damaged["tenet"]["items"] == _parsed["tenet"]
+        and _damaged["tenet"]["valence_values_since"] == _clock.isoformat(),
+    )
+
 for _target_bad in (_source, _dseed / "core/data/rotations.json"):
     with (
         _patch.object(_fv, "ROTATION_FILE", _source),

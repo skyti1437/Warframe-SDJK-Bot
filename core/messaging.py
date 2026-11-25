@@ -15,7 +15,7 @@ from collections import OrderedDict
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Awaitable, Callable
 
 from .i18n import L
 from .logging_compat import logger
@@ -54,6 +54,39 @@ class MarkdownDelivery:
 @dataclass
 class ImageDelivery(MarkdownDelivery):
     action_fallback: list[Action] = field(default_factory=list)
+
+
+@dataclass
+class LiteralProgress:
+    """原文分片和第一片未确认的下标。仅在适配器返回后推进。"""
+
+    chunks: list[str] = field(default_factory=list)
+    confirmed: int = 0
+    stopped: bool = False
+    on_confirm: Callable[[LiteralProgress], Awaitable[None]] | None = None
+
+    @property
+    def complete(self) -> bool:
+        return bool(self.chunks) and self.confirmed == len(self.chunks)
+
+    async def confirm(self, count: int) -> None:
+        self.confirmed = count
+        if self.on_confirm is not None:
+            await self.on_confirm(self)
+
+    async def confirm_message(self, text: str) -> None:
+        """宿主一次发送了全部剩余正文，也沿用原分片的完成游标。"""
+        if not self.chunks:
+            self.chunks = [text]
+        if not self.complete:
+            await self.confirm(len(self.chunks))
+
+
+# 推送回调沿用宿主的 (umo, text, at) 接口。每笔发送任务单独持有进度，
+# 守护在外层限时到期时也能取得已确认游标，无需等待适配器结束取消。
+literal_progress: ContextVar[LiteralProgress | None] = ContextVar(
+    "wf_literal_progress", default=None
+)
 
 
 @dataclass(frozen=True)
@@ -104,6 +137,8 @@ class _SlackThreadClient:
 
 
 class MessagingBridge:
+    HISTORY_TIMEOUT = 2.0
+    MAX_HISTORY_WRITES = 32
     TTL = 600.0
     MAX_TOKENS = 2048
     PREFIX = "wf:"
@@ -131,6 +166,7 @@ class MessagingBridge:
         self._attempted = ContextVar("wf_button_attempted", default=False)
         self._qq_seq: OrderedDict[tuple[str, str], int] = OrderedDict()
         self._closed = False
+        self._history_tasks: set[asyncio.Task] = set()
 
     @staticmethod
     def _sdk(name):
@@ -567,6 +603,7 @@ class MessagingBridge:
         token = getattr(getattr(api, "_http", None), "_token", None)
         return bool(
             self._qq_media is not None
+            and getattr(self._qq_media, "available", True)
             and not self._closed
             and self._qq_kind(event)
             and event.get_platform_name() == "qq_official"
@@ -967,17 +1004,6 @@ class MessagingBridge:
         """按 Unicode 字符切分，以 UTF-16 单位上限兼容含 emoji 的平台长度规则。"""
         yield from cls._pack(((char, 2 if ord(char) > 0xFFFF else 1) for char in text), limit)
 
-    @classmethod
-    def _discord_chunks(cls, text, sdk, limit=1900):
-        # Discord 没有关闭 Markdown 的消息字段；按官方 SDK 转义保持显示字面内容。
-        # 逐字符计算转义后长度，防止分片切断反斜杠转义或 emoji。
-        def pieces():
-            for char in text:
-                literal = sdk.utils.escape_markdown(char, as_needed=False, ignore_links=False)
-                yield literal, len(literal.encode("utf-16-le")) // 2
-
-        yield from cls._pack(pieces(), limit)
-
     async def send_proactive(self, umo, text):
         """仅按 UMO 绑定发送目标；不构造用户权限，不提交入站事件。
 
@@ -1016,7 +1042,7 @@ class MessagingBridge:
         message.raw_message = {"channel": target} if platform == "slack" else None
         event = adapter.create_event(message)
         delivered = await self.send_literal(event, text)
-        if delivered:
+        if delivered and not self._closed:
             # 与 Context.send_message 一致保留可选的群消息历史；历史记录故障不能
             # 把已发送消息变成失败并诱发推送重试。
             try:
@@ -1033,17 +1059,41 @@ class MessagingBridge:
                     from astrbot.api.event import MessageChain
                     from astrbot.api.message_components import Plain
 
-                    await history.insert_message_chain(
-                        platform_id=session.platform_id,
-                        user_id=str(session),
-                        message_chain=MessageChain([Plain(text=text)]),
-                        role="bot",
-                        sender_id="bot",
-                        sender_name="bot",
-                        max_messages=max(
-                            1, int(settings.get("group_message_history_max_cnt", 700))
-                        ),
+                    if len(self._history_tasks) >= self.MAX_HISTORY_WRITES:
+                        logger.warning("[warframe] 主动消息已送出，历史记录队列已满")
+                        return delivered
+
+                    progress = literal_progress.get()
+                    history_text = (
+                        "".join(progress.chunks) if progress and progress.chunks else text
                     )
+
+                    async def record():
+                        try:
+                            await asyncio.wait_for(
+                                history.insert_message_chain(
+                                    platform_id=session.platform_id,
+                                    user_id=str(session),
+                                    message_chain=MessageChain([Plain(text=history_text)]),
+                                    role="bot",
+                                    sender_id="bot",
+                                    sender_name="bot",
+                                    max_messages=max(
+                                        1, int(settings.get("group_message_history_max_cnt", 700))
+                                    ),
+                                ),
+                                timeout=self.HISTORY_TIMEOUT,
+                            )
+                        except Exception as exc:
+                            logger.warning(
+                                "[warframe] 主动消息已送出，但历史记录失败（%s）",
+                                type(exc).__name__,
+                            )
+
+                    # 回执已确定。历史写入的耗时不能占用推送守护的投递时限。
+                    task = asyncio.create_task(record())
+                    self._history_tasks.add(task)
+                    task.add_done_callback(self._history_tasks.discard)
             except Exception as exc:
                 logger.warning(
                     "[warframe] 主动消息已送出，但历史记录失败（%s）", type(exc).__name__
@@ -1051,6 +1101,7 @@ class MessagingBridge:
         return delivered
 
     async def send_literal(self, event, text, *, qq_passive=False):
+        """发送字面文本。分片投递失败时，原始异常的 literal_progress 保留已确认进度。"""
         if self._closed:
             return False
         route = self._route(event)
@@ -1075,6 +1126,7 @@ class MessagingBridge:
             finally:
                 self._attempted.reset(attempted)
             return True
+        progress = literal_progress.get() or LiteralProgress()
         if route.platform == "discord" and getattr(event, "client", None):
             sdk = self._sdk("discord")
             if sdk is None or not hasattr(sdk, "utils"):
@@ -1087,24 +1139,35 @@ class MessagingBridge:
                 send = channel.send
             else:
                 send = followup.send
-            for part in self._discord_chunks(text, sdk, self._chunk_limit("discord")):
-                await send(content=part, allowed_mentions=sdk.AllowedMentions.none())
-            return True
-        if route.platform == "telegram" and getattr(event, "client", None):
-            # 先分片，已成功的前片不能因为后片失败而被主链重发。
+            # 以转义后的 UTF-16 长度切原文，重投时每个字符仍只转义一次。
+            escapes = {
+                char: sdk.utils.escape_markdown(char, as_needed=False, ignore_links=False)
+                for char in set(text)
+            }
+            if not progress.chunks:
+                pieces = ((char, len(escapes[char].encode("utf-16-le")) // 2) for char in text)
+                progress.chunks = list(self._pack(pieces, self._chunk_limit("discord")))
+
+            async def send_part(part):
+                return await send(
+                    content="".join(escapes[char] for char in part),
+                    allowed_mentions=sdk.AllowedMentions.none(),
+                )
+        elif route.platform == "telegram" and getattr(event, "client", None):
             kwargs = {"message_thread_id": int(route.thread)} if route.thread else {}
-            for part in self._text_chunks(text, self._chunk_limit("telegram")):
-                await event.client.send_message(
+
+            async def send_part(part):
+                return await event.client.send_message(
                     chat_id=route.target,
                     text=part,
                     parse_mode=None,
                     **kwargs,
                 )
-            return True
-        if route.platform == "slack" and getattr(event, "web_client", None):
+        elif route.platform == "slack" and getattr(event, "web_client", None):
             kwargs = {"thread_ts": route.thread} if route.thread else {}
-            for part in self._text_chunks(text, self._chunk_limit("slack")):
-                await event.web_client.chat_postMessage(
+
+            async def send_part(part):
+                return await event.web_client.chat_postMessage(
                     channel=route.target,
                     text=part,
                     mrkdwn=False,
@@ -1112,22 +1175,40 @@ class MessagingBridge:
                     blocks=[{"type": "section", "text": {"type": "plain_text", "text": part}}],
                     **kwargs,
                 )
-            return True
-        if route.platform == "kook" and getattr(event, "client", None):
+        elif route.platform == "kook" and getattr(event, "client", None):
             from astrbot.core.platform.sources.kook.kook_types import KookMessageType
 
-            for part in self._text_chunks(text, self._chunk_limit("kook")):
-                await event.client.send_text(
+            async def send_part(part):
+                return await event.client.send_text(
                     route.target,
                     part,
                     event.message_obj.type,
                     KookMessageType.TEXT,
                 )
-            return True
-        return False
+        else:
+            return False
+        if not progress.chunks:
+            progress.chunks = list(self._text_chunks(text, self._chunk_limit(route.platform)))
+        try:
+            while progress.confirmed < len(progress.chunks):
+                if progress.stopped:
+                    raise asyncio.CancelledError
+                if await send_part(progress.chunks[progress.confirmed]) is False:
+                    raise RuntimeError("平台明确返回分片未发送")
+                await progress.confirm(progress.confirmed + 1)
+        except Exception as exc:
+            # 保留原始异常类型（超时 / 拒绝等），让普通调用方也可区分已送达的前片。
+            exc.literal_progress = progress
+            raise
+        return True
 
     async def close(self):
         self._closed = True
+        if self._history_tasks:
+            pending = set(self._history_tasks)
+            for task in pending:
+                task.cancel()
+            await asyncio.wait(pending, timeout=self.HISTORY_TIMEOUT)
         if self._qq_media is not None:
             try:
                 await self._qq_media.close()

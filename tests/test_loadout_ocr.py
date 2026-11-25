@@ -3540,6 +3540,75 @@ def _wrapped_slot_coordinates():
 
 _wrapped_slot_coordinates()
 
+
+def _test_pixel_and_name_index_reuse():
+    from unittest.mock import patch
+
+    url = "data:image/png;base64," + base64.b64encode(_buffer.getvalue()).decode()
+    with patch.object(Image.Image, "convert", side_effect=AssertionError("无框不能转色")):
+        lo.observe_capacity_colors({"mods": [{"name": "膛线", "drain": 5}]}, url)
+        lo.observe_arcane_ranks({"arcanes": [{"name": "主要·无情"}]}, url)
+        assert lo.pips_engine.count_arcane_rank(_image, {})["rank"] is None
+    cache = {}
+    lo.observe_capacity_colors(_color_input, url, evidence_cache=cache)
+    with patch.object(Image, "open", side_effect=AssertionError("同框不应再次解码")):
+        lo.observe_capacity_colors(_color_input, url, evidence_cache=cache)
+    with (
+        patch.object(lo, "_payload", {}),
+        patch.object(lo, "_index_mods", wraps=lo._index_mods) as build,
+    ):
+        assert lo.match_mod("膛线")[0] is lo.match_mod("Serration")[0]
+        assert lo.mod_pool() is lo.mod_pool()
+        build.assert_called_once()
+
+
+def _test_bilingual_panel():
+    expected = {"crit_chance": 35, "crit_damage": 2.5, "status_chance": 48, "total": 1250}
+    for title, labels, values in (
+        (
+            "升级：月神 [30]",
+            ("暴击几率", "暴击倍率", "触发几率", "总计"),
+            ("35%", "2.0倍→2.5倍", "48%", "1,250"),
+        ),
+        (
+            "UPGRADES: SOMA [30]",
+            ("Critical Chance", "Critical Multiplier", "Status Chance", "Total Damage"),
+            ("35%", "2.0x→2.5x", "48%", "1,250"),
+        ),
+    ):
+        rows = list(zip(labels, values))
+        lines = ["120,50,200,24,0," + title, "80,110,60,18,0,Capacity", "240,110,60,18,0,0/60"]
+        for index, (label, value) in enumerate(rows):
+            y = 210 + index * 35
+            if not index:
+                lines.append(f"100,{y},160,20,0,{label} {value}")
+            else:
+                lines.extend([f"80,{y},110,18,0,{label}", f"200,{y},90,18,0,{value}"])
+            lines.append(f"700,{y},40,20,0,999")
+        observed = lo.parse_coordinate_ocr("\n".join(lines))
+        assert lo.dc.find_weapon_exact(observed["weapon"])["name"] == "Soma"
+        focused = lo.parse_focus_text(
+            "\n".join(f"{label} {value}" for label, value in rows), "panel"
+        )
+        for panel in (observed["panel"], focused["panel"]):
+            assert {key: lo._panel_columns(panel[key])["right"] for key in expected} == expected
+            assert lo._panel_columns(panel["crit_damage"])["left"] == 2
+
+
+def _test_decorated_panel_labels():
+    for prefix in ("◆", "♦", "◇"):
+        name = prefix + "暴击几率"
+        for row in (f"80,210,110,18,0,{name} 35%", f"80,210,110,18,0,{name}\n200,210,50,18,0,35%"):
+            observed = lo.parse_coordinate_ocr(row)
+            assert lo._panel_columns(observed["panel"]["crit_chance"]) == {"right": 35}
+            assert observed["coordinate_ocr"]["panel_rows"][0]["label"] == name
+            assert observed["coordinate_ocr"]["boxes"] == lo.coordinate_ocr_boxes(row)
+
+
+_test_pixel_and_name_index_reuse()
+_test_bilingual_panel()
+_test_decorated_panel_labels()
+
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")
     sys.exit(1)

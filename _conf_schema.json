@@ -9,9 +9,10 @@
     ]
   },
   "de_worldstate_url": {
-    "description": "DE 官方 worldstate 端点（一般无需修改）",
+    "description": "DE 世界状态原包地址（可填多个，按顺序容灾）",
     "type": "string",
-    "default": "https://api.warframe.com/cdn/worldState.php"
+    "default": "https://api.warframe.com/cdn/worldState.php",
+    "hint": "支持单地址或以逗号、换行分隔的多个地址。留空使用 DE 官方端点。配置地址均临时不可用时，自动降级到社区源 warframestat.us。自填镜像默认只允许访问公网，内网镜像需开启 allow_private_urls。"
   },
   "default_language": {
     "description": "默认显示语言：cn=中文（默认），en=英文（国际服英文名称与文案）。群内可用 .语言 覆盖，消息可用 -cn / -en 临时覆盖",
@@ -214,7 +215,7 @@
     "description": "允许自填地址指向内网 / 本机（默认关）",
     "type": "bool",
     "default": false,
-    "hint": "「社区数据地址」与面板「从 URL 导入字体」默认只接受公网地址（会做 DNS 解析检查，字体下载的每一跳重定向都检查；自填社区地址不跟随重定向）。只有在你确实把社区快照 / 字体放在内网镜像上时才开启。"
+    "hint": "自填 DE 镜像、社区数据地址和字体直链默认只接受公网地址，均会做 DNS 解析检查。字体下载的每一跳重定向都检查，自填 DE 镜像和社区地址不跟随重定向。需要访问可信内网服务时才开启。"
   },
   "scan_debug_save": {
     "description": "识卡对齐失败时留存截图（排查用，默认关）",

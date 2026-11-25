@@ -77,6 +77,35 @@ def test_weapon_index():
     assert weapon["engine_id"] == "lex_prime"
 
 
+def test_related_weapon_snapshot():
+    from core import matching
+
+    choices = riven_rating.match_weapon("Braton")
+
+    def members():
+        with patch.object(
+            matching, "_riven_families_stamp", wraps=matching._riven_families_stamp
+        ) as stamp:
+            result = [row["engine_id"] for row in riven_rating.related_weapons(choices)]
+            stamp.assert_called_once_with()
+            return result
+
+    assert members() == ["braton", "braton_prime", "braton_vandal", "mk1_braton"]
+    with TemporaryDirectory() as tmp, patch.object(paths, "_RUN", Path(tmp)):
+        table = paths.write_path("de/riven_families.json")
+        table.write_text(json.dumps({"by_name": {"Braton": "one", "Soma": "one"}}))
+        assert "soma" in members()
+        # 替换时同一份快照仍可安全读；下一次查询重查文件版本。
+        earlier = matching.family_index_snapshot()
+        paths.atomic_write_text(
+            table, json.dumps({"by_name": {"Braton": "one", "Soma": "two", "Hek": "one"}})
+        )
+        after = members()
+        assert "hek" in after and "soma" not in after and after == sorted(after)
+        assert matching.family_key("Soma", earlier) == "one"
+    assert members() == ["braton", "braton_prime", "braton_vandal", "mk1_braton"]
+
+
 async def test_sources():
     source = riven_sale.RivenSaleSource()
     weapon = damage_calc.find_weapon_exact("雷克斯 Prime")
@@ -263,6 +292,8 @@ def _matrix_reply(request):
         }
 
     return {
+        "engineFingerprint": portable_riven.FINGERPRINT,
+        "buildLabel": damage_engine.PORTABLE_DATA,
         "weapon": {"path": request["weapon"]},
         "fireMode": request["fireMode"],
         "evaluationScenario": scenario,
@@ -290,6 +321,7 @@ def _matrix_reply(request):
 
 def _build_reply(body):
     return {
+        "engineFingerprint": portable_riven.FINGERPRINT,
         "buildLabel": damage_engine.PORTABLE_DATA,
         "weapon": {"path": body["weapon"]},
         "fireMode": body["fireMode"],
@@ -359,6 +391,7 @@ async def test_reference_build_replays_auto_equipment_and_locked_options():
         assert body["incarnonChoices"] == route and body["windowSeconds"] == 30
         assert body["exilus"] == {"path": "/Exilus", "rank": 0}
         return {
+            "engineFingerprint": portable_riven.FINGERPRINT,
             "buildLabel": damage_engine.PORTABLE_DATA,
             "damageModel": body["damageModel"],
             "selection": {"weapon": weapon, "fireMode": 0},
@@ -406,6 +439,51 @@ async def test_reference_build_replays_auto_equipment_and_locked_options():
             assert "赋能回放与配装不符" in str(exc)
         else:
             raise AssertionError("回放漏掉自动赋能时应拒绝结果")
+        active = {**arcane, "applied": True, "stacks": 12}
+        for requested, receipt in (
+            ([], active),
+            ([{**arcane, "stacks": 0}], active),
+            ([{**arcane, "stacks": 0}], {k: v for k, v in active.items() if k != "stacks"}),
+            ([arcane], {**arcane, "applied": "false"}),
+            ([{**arcane, "rank": 1}], {**arcane, "rank": True, "applied": True}),
+            ([arcane], {**arcane, "applied": True, "uptime": 0.5}),
+            ([arcane], {k: v for k, v in {**arcane, "applied": True}.items() if k != "uptime"}),
+            ([arcane], {**arcane, "applied": True, "uptime": True}),
+            ([{**arcane, "uptime": True}], {**arcane, "applied": True, "uptime": 1}),
+        ):
+            try:
+                damage_engine.validate_fixed_replay(
+                    {**failed, "arcanes": [receipt]}, {**simulations[0], "arcanes": requested}
+                )
+            except damage_engine.EngineError as exc:
+                assert "赋能回放与配装不符" in str(exc)
+            else:
+                raise AssertionError(f"赋能回放应拒绝不符的记录：{receipt}")
+        damage_engine.validate_fixed_replay(
+            {**failed, "arcanes": [active]},
+            {**simulations[0], "arcanes": [{"path": arcane["path"], "rank": arcane["rank"]}]},
+        )
+        for field in ("mods", "exilus"):
+            body = {**simulations[0], "arcanes": []}
+            if field == "exilus":
+                body[field] = {**body[field], "rank": 1}
+                bad_rank = {**failed, field: {**exilus, "rank": True}}
+            else:
+                validation = failed["loadoutValidation"]
+                (assignment,) = validation["assignments"]
+                bad_rank = {
+                    **failed,
+                    "loadoutValidation": {
+                        **validation,
+                        "assignments": [{**assignment, "rank": True}],
+                    },
+                }
+            try:
+                damage_engine.validate_fixed_replay(bad_rank, body)
+            except damage_engine.EngineError:
+                pass
+            else:
+                raise AssertionError(f"{field} 的布尔值不能冒充等级 1")
         locked = {**options, "arcanes": [arcane], "incarnonChoices": route}
         await portable_riven._reference_build(host, None, 8765, scope, weapon, locked)
         assert builds[-1]["arcanes"] == [arcane] and "autoArcane" not in builds[-1]
@@ -496,7 +574,7 @@ async def test_bundled_metadata_failure_falls_back_to_engine():
         host.damage_engine = damage_engine.EngineService(root)
         host.damage_engine.ensure_portable = AsyncMock()
         with (
-            patch.object(paths, "PKG_DATA", seed),
+            patch.object(portable_riven, "paths", SimpleNamespace(PKG_DATA=seed)),
             patch.object(damage_engine, "portable_request", engine),
             patch.object(portable_riven, "_trait_matrix_request", AsyncMock(return_value=None)),
             patch.object(portable_riven, "build_view", return_value=["实时配装"]),
@@ -531,6 +609,295 @@ async def test_bundled_metadata_failure_falls_back_to_engine():
             assert calls[-1] == "/api/analyze"
             assert len(list((host.damage_engine.root / "portable-live-cache").glob("*.json"))) == 1
         await host.damage_engine.close()
+
+
+async def test_trait_matrix_cache_identity():
+    weapon = _live_catalog_weapon("Burston Prime", {"index": 0})
+    options = {
+        "benchmarkTarget": damage_engine.portable_target_fields(
+            damage_calc.DEFAULT_ENEMY_PATH, damage_calc.default_target()
+        )
+    }
+    identity = {
+        "engineFingerprint": portable_riven.FINGERPRINT,
+        "buildLabel": damage_engine.PORTABLE_DATA,
+    }
+    fields = dict(identity)
+    calls = []
+
+    async def matrix(port, request):
+        calls.append(port)
+        result = {k: v for k, v in _matrix_reply(request).items() if k not in identity}
+        return {**result, **fields}
+
+    with (
+        TemporaryDirectory() as root,
+        patch.object(portable_riven, "_trait_matrix_request", matrix),
+    ):
+
+        async def query(health):
+            service = damage_engine.EngineService(Path(root))
+            service.ensure_portable = AsyncMock()
+            service._portable_health = AsyncMock(return_value=health)
+            try:
+                row = await portable_riven._reference_traits(
+                    SimpleNamespace(damage_engine=service),
+                    None,
+                    8843,
+                    (weapon["path"], 0, 0),
+                    weapon,
+                    options,
+                    "3+1-",
+                    None,
+                )
+                return row, service._portable_health
+            finally:
+                await service.close()
+
+        cache = Path(root) / "damage-engine" / "portable-live-cache"
+        for key in identity:
+            fields.update({**identity, key: "wrong"})
+            try:
+                await query(identity)
+            except ValueError as exc:
+                assert "版本" in str(exc)
+            else:
+                raise AssertionError("错误版本不能采信")
+            assert not list(cache.glob("*.json"))
+        fields.clear()
+        result, probe = await query({"buildLabel": damage_engine.PORTABLE_DATA})
+        probe.assert_awaited_once_with(8843, require_fingerprint=False)
+        assert "engineFingerprint" not in result and not list(cache.glob("*.json"))
+        result, probe = await query(identity)
+        probe.assert_awaited_once_with(8843, require_fingerprint=False)
+        assert all(result[k] == v for k, v in identity.items())
+        (entry,) = cache.glob("*.json")
+        legacy = json.loads(entry.read_bytes())
+        legacy.pop("cacheFormat")
+        entry.write_text(json.dumps(legacy))
+        fields.update(identity)
+        count = len(calls)
+        await query({})
+        assert len(calls) == count + 1
+        await query({})
+        assert len(calls) == count + 1
+
+
+async def test_build_and_simulate_cache_identity():
+    from unittest import TestCase
+
+    port = 8766
+    identity = {
+        "engineFingerprint": portable_riven.FINGERPRINT,
+        "buildLabel": damage_engine.PORTABLE_DATA,
+    }
+    weapon = _live_catalog_weapon("Burston Prime", {"index": 0})
+    target = damage_engine.portable_target_fields(
+        damage_calc.DEFAULT_ENEMY_PATH, damage_calc.default_target()
+    )
+    request = {
+        **target,
+        "weapon": weapon["path"],
+        "fireMode": 0,
+        "slotPolarities": [None] * 8,
+        "incarnonChoices": {},
+        "mods": [{"slot": 0, "path": "/Mod", "rank": 1}],
+    }
+
+    for endpoint in ("/api/build", "/api/simulate"):
+
+        async def query(fields, health, *, variant_fields=None):
+            # 每次使用独立实例，跨次命中必须来自磁盘。
+            service = damage_engine.EngineService(Path(root))
+            service.ensure_portable = AsyncMock()
+            service._portable_health = AsyncMock(return_value=health)
+
+            async def compute(actual_port, route, body, **kw):
+                assert (actual_port, route) == (port, endpoint)
+                if endpoint == "/api/build":
+                    reply = {k: v for k, v in _build_reply(body).items() if k not in identity}
+                else:
+                    reply = {
+                        "damageModel": "target",
+                        "selection": {"weapon": weapon, "fireMode": 0},
+                        "enemyEnhancements": body["enemyEnhancements"],
+                        "loadoutValidation": {"valid": True, "assignments": body["mods"]},
+                        "benchmarkTimeline": {
+                            "windowDps": 100 if body["mods"] else 50,
+                            "windowSeconds": body["windowSeconds"],
+                            "context": {
+                                "enemyPath": body["enemy"],
+                                "level": body["level"],
+                                "steelPath": body["steelPath"],
+                            },
+                        },
+                    }
+                    if not body["mods"] and variant_fields is not None:
+                        return {**reply, **variant_fields}
+                return {**reply, **fields}
+
+            try:
+                with patch.object(damage_engine, "portable_request", side_effect=compute) as calls:
+                    if endpoint == "/api/build":
+                        result = await portable_riven._reference_build(
+                            SimpleNamespace(damage_engine=service),
+                            None,
+                            port,
+                            (weapon["path"], 0, 0),
+                            weapon,
+                            {"benchmarkTarget": target},
+                        )
+                    else:
+                        result = await portable_riven._mod_gains(
+                            service, port, request, persistent=True
+                        )
+                    return result, service._portable_health, calls.await_count
+            finally:
+                await service.close()
+
+        for key in identity:
+            with TemporaryDirectory() as root:
+                cache = Path(root) / "damage-engine" / "portable-live-cache"
+                missing = {k: v for k, v in identity.items() if k != key}
+                wrong = {**identity, key: "wrong"}
+                for invalid in ("wrong", "", None):
+                    with TestCase().assertRaises(damage_engine.EngineVersionMismatch):
+                        await query({**identity, key: invalid}, identity)
+                with TestCase().assertRaises(damage_engine.EngineVersionMismatch):
+                    await query(missing, wrong)
+                assert not list(cache.glob("*.json"))
+                result, probe, calls = await query(missing, missing)
+                probe.assert_awaited_once_with(port, require_fingerprint=False)
+                assert calls > 0 and not list(cache.glob("*.json"))
+                if endpoint == "/api/build":
+                    assert key not in result
+                else:
+                    assert result["complete"] and result["without"] == {0: 50}
+                    with TestCase().assertRaises(damage_engine.EngineVersionMismatch):
+                        await query(identity, identity, variant_fields=wrong)
+                    _, probe, _ = await query(identity, missing, variant_fields=missing)
+                    probe.assert_awaited_once_with(port, require_fingerprint=False)
+                    assert not list(cache.glob("*.json"))
+                verified, probe, _ = await query(missing, identity)
+                probe.assert_awaited_once_with(port, require_fingerprint=False)
+                (path,) = cache.glob("*.json")
+                entry = json.loads(path.read_bytes())
+                assert entry["cacheFormat"] == 3
+                assert all(entry[k] == verified[k] == v for k, v in identity.items())
+                path.write_text(json.dumps({**entry, "cacheFormat": 2}))
+                _, probe, calls = await query(identity, {})
+                assert (
+                    calls > 0
+                    and not probe.called
+                    and json.loads(path.read_bytes())["cacheFormat"] == 3
+                )
+                _, probe, calls = await query(identity, {})
+                assert calls == 0 and not probe.called
+
+
+def test_slot_plan_matches_exhaustive_order():
+    from unittest import TestCase
+    from itertools import permutations
+    from time import perf_counter
+
+    def exhaustive(original, polarities, costs, riven, elements, extra, limit, unspecified):
+        # 独立参考：按原排列逐项评估 256 个掩码，同分保留首次排列。
+        best = None
+        for order in dict.fromkeys(permutations(original)):
+            if [i for i in order if i in elements] != elements:
+                continue
+            for mask in range(256):
+                drain, changes, placement = extra, {}, []
+                for slot, origin in enumerate(order):
+                    changed = mask & (1 << (7 - slot))
+                    native = polarities[slot]
+                    if origin is None:
+                        if changed:
+                            break
+                        placement.append(None)
+                        continue
+                    raw, mod = costs[origin]
+                    half = (raw + 1) // 2
+                    if changed:
+                        if mod in portable_riven._NO_POLARITY:
+                            break
+                        native = changes[str(slot)] = mod
+                        used = half
+                    elif unspecified and origin == riven and native != "AP_ANY":
+                        break
+                    elif (
+                        native in portable_riven._NO_POLARITY or mod in portable_riven._NO_POLARITY
+                    ):
+                        used = raw
+                    else:
+                        used = (
+                            half
+                            if native == mod or "AP_ANY" in (native, mod)
+                            else (raw * 5 + 3) // 4
+                        )
+                    drain += used
+                    placement.append({"origin": origin, "drain": used, "polarity": native})
+                else:
+                    score = (len(changes), mask, sum(a != b for a, b in zip(original, order)))
+                    if drain <= limit and (best is None or score < best[0]):
+                        best = score, (order, changes, placement, drain)
+        return best[1] if best else None
+
+    for order, polarities, costs, elements, limit, unspecified in (
+        (
+            [0, None, 2, None, 4, None, None, None],
+            ["B", "A", None, "A", "B", None, None, None],
+            {0: (10, "A"), 2: (11, "B"), 4: (8, "A")},
+            [0, 4],
+            16,
+            False,
+        ),
+        (
+            list(range(8)),
+            ["B", "A"] * 4,
+            {i: (6 + i, "A" if i % 2 == 0 else "B") for i in range(8)},
+            [0, 1, 2, 3, 4, 5],
+            45,
+            True,
+        ),
+        (
+            [None, 1, 2, None, None, None, None, None],
+            ["AP_ANY"] + [None] * 7,
+            {1: (11, "A"), 2: (8, None)},
+            [],
+            14,
+            True,
+        ),
+        (list(range(8)), [None] * 8, {i: (12, "A") for i in range(8)}, list(range(8)), 47, False),
+    ):
+        args = (order, polarities, costs, next(iter(costs)), elements, 0, limit, unspecified)
+        expected = exhaustive(*args)
+        if expected is None:
+            with TestCase().assertRaises(ValueError):
+                portable_riven._fit_riven_slots(*args)
+        else:
+            assert portable_riven._fit_riven_slots(*args) == expected
+
+    eight = list(range(8))
+    start = perf_counter()
+    fitted = portable_riven._fit_riven_slots(
+        eight, [None] * 8, {i: (12, "A") for i in eight}, 7, [], 0, 60, False
+    )
+    elapsed = perf_counter() - start
+    assert elapsed < 0.1, f"八槽耗时 {elapsed:.4f}s"
+    assert fitted[0] == tuple(eight) and set(fitted[1]) == set("234567") and fitted[3] == 60
+    original = list(range(8))
+    costs = {slot: (raw, "A") for slot, raw in enumerate([12, 6, 6, 7, 7, 8, 9, 10])}
+    order, changes, placement, drain = portable_riven._fit_riven_slots(
+        original, [None] * 8, costs, 7, [0, 7], 0, 60, False
+    )
+    score = (
+        len(changes),
+        sum(1 << (7 - int(s)) for s in changes),
+        sum(a != b for a, b in zip(original, order)),
+    )
+    assert score == (1, 1, 0) and changes == {"7": "A"}
+    assert drain == sum(row["drain"] for row in placement) == 60
 
 
 @_without_bundled()
@@ -1494,7 +1861,7 @@ async def test_bundled_target_recommendations_and_live_fallback():
         host.damage_engine.ensure_portable = AsyncMock()
         with (
             i18n.use_lang("zh"),
-            patch.object(paths, "PKG_DATA", seed),
+            patch.object(portable_riven, "paths", SimpleNamespace(PKG_DATA=seed)),
             patch.object(damage_engine, "portable_request", engine),
             patch.object(portable_riven, "_trait_matrix_request", AsyncMock(return_value=None)),
             patch.object(
@@ -2397,6 +2764,7 @@ async def test_loadout_with_unspecified_riven_polarity():
             {**mod, "drain": 4, "rawDrain": 4, "modPolarity": "AP_ATTACK"} for mod in body["mods"]
         ]
         return {
+            "engineFingerprint": portable_riven.FINGERPRINT,
             "buildLabel": damage_engine.PORTABLE_DATA,
             "damageModel": "target",
             "selection": {"weapon": weapon, "fireMode": body["fireMode"]},
@@ -2718,7 +3086,23 @@ async def test_portable_melee_card_capacity_and_replay_fallback():
             i18n.use_lang("en"),
         ):
             lines = "\n".join(await portable_riven.build_view(host, 8765, result, with_riven=True))
-        replay.assert_awaited_once()
+            replay.assert_awaited_once()
+            assert replay.await_args.args[2]["arcanes"] == [{"path": "/Arcane", "rank": 5}]
+            empty = "\n".join(
+                await portable_riven.build_view(
+                    host, 8765, {**result, "arcanes": []}, with_riven=True
+                )
+            )
+            assert replay.await_args.args[2]["arcanes"] == []
+            assert "Melee Influence" not in empty and "Skipped Arcane" not in empty
+            selected = [{"path": "/Selected Arcane", "rank": 2}]
+            override = "\n".join(
+                await portable_riven.build_view(
+                    host, 8765, result, with_riven=True, options={"arcanes": selected}
+                )
+            )
+            assert replay.await_args.args[2]["arcanes"] == selected
+            assert "Selected Arcane (rank 2)" in override and "Melee Influence" not in override
         assert replay.await_args.args[1] == "/api/simulate"
         assert replay.await_args.args[2]["stancePath"] == stance["path"]
         assert "Capacity 65/70" in lines and "DPS unavailable" in lines
@@ -3764,6 +4148,8 @@ async def test_reference_prefers_cheaper_equivalent_serration():
             calls.append(mods)
             alternate = serration in mods
             return {
+                "engineFingerprint": portable_riven.FINGERPRINT,
+                "buildLabel": damage_engine.PORTABLE_DATA,
                 "window": {"windowDps": (dps if alternate else 100.0) if len(mods) == 2 else 40.0},
                 "validation": {
                     "capacity": capacity if alternate else 60,
@@ -3776,7 +4162,7 @@ async def test_reference_prefers_cheaper_equivalent_serration():
             patch.object(
                 damage_engine,
                 "validate_fixed_replay",
-                side_effect=lambda row, _: (row["window"], row["validation"]),
+                side_effect=lambda row, _, **kw: (row["window"], row["validation"]),
             ),
         ):
             result = await portable_riven._mod_gains(service, 1, request)
@@ -3809,6 +4195,8 @@ async def test_spread_and_auxiliary_replay():
         heavy_caliber = heavy in body["mods"]
         penalty = scenario["modelSpread"] and scenario["distance"] >= 60 and heavy_caliber
         return {
+            "engineFingerprint": portable_riven.FINGERPRINT,
+            "buildLabel": damage_engine.PORTABLE_DATA,
             "incarnonChoices": {},
             "window": {"windowDps": 100 if body["mods"] and not penalty else 50},
             "validation": {"capacity": 20 if heavy_caliber else 19, "valid": True},
@@ -3823,7 +4211,7 @@ async def test_spread_and_auxiliary_replay():
         patch.object(
             damage_engine,
             "validate_fixed_replay",
-            side_effect=lambda row, _: (row["window"], row["validation"]),
+            side_effect=lambda row, _, **kw: (row["window"], row["validation"]),
         ),
     ):
         for distance, spread, replaced in ((5, True, True), (65, True, False), (65, False, True)):
@@ -4012,6 +4400,7 @@ async def test_riven_analysis_keeps_target_for_reference():
 
 if __name__ == "__main__":
     test_weapon_index()
+    test_related_weapon_snapshot()
     asyncio.run(test_sources())
     test_sale_trait_localization()
     asyncio.run(test_trait_sale_source_independent())
@@ -4035,6 +4424,9 @@ if __name__ == "__main__":
     test_rank_zero_set_exilus_description()
     test_unpolarized_special_slots()
     asyncio.run(test_bundled_metadata_failure_falls_back_to_engine())
+    asyncio.run(test_trait_matrix_cache_identity())
+    asyncio.run(test_build_and_simulate_cache_identity())
+    test_slot_plan_matches_exhaustive_order()
     asyncio.run(test_live_recommendations_use_separate_routes_and_persistent_cache())
     asyncio.run(test_legacy_view_does_not_override_live_fallback())
     asyncio.run(test_live_traits_search_one_default_per_variant())

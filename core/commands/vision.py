@@ -18,6 +18,10 @@ import math
 import re
 import time
 import unicodedata
+from collections import Counter
+from contextlib import contextmanager
+from contextvars import ContextVar, copy_context
+from functools import partial
 from hashlib import sha256
 from decimal import Decimal, InvalidOperation, localcontext
 from typing import Optional
@@ -31,23 +35,161 @@ from ..request_queue import RequestQueue
 from .base import Reply, _num
 
 
-async def _cancel_vision_tasks(tasks: list) -> None:
-    """回收本层拥有的渠道任务；调用方取消不能中断渠道的异步清理。"""
+_MAX_SOURCE_PIXELS = 36_000_000
+_MAX_DERIVED_PIXELS = 12_000_000
+
+
+def _scan_size_ok(width: int, height: int, pixel_limit: int = _MAX_DERIVED_PIXELS) -> bool:
+    return 0 < min(width, height) and max(width, height) <= 10_000 and width * height <= pixel_limit
+
+
+def _scan_fit_size(
+    width: int,
+    height: int,
+    min_width: int = 1600,
+    max_width: int = 1600,
+    *,
+    source_limit: int = _MAX_SOURCE_PIXELS,
+) -> tuple[int, int] | None:
+    """只按尺寸预判整图规整结果，供收图、像素检测与实际缩放共用。"""
+    if not _scan_size_ok(width, height, source_limit):
+        return None
+    if min_width <= width <= max_width:
+        size = (width, height)
+    else:
+        scale = min(1280 / width, 4.0) if width < min_width else max_width / width
+        size = max(1, int(width * scale)), max(1, int(height * scale))
+    return size if _scan_size_ok(*size) else None
+
+
+_CLEANUP_GRACE_S = 0.25
+_VISION_REAPERS = set()
+_SCAN_BUDGET = ContextVar("sdjk_scan_budget", default=None)
+_SLOT_CLEANUP = ContextVar("sdjk_vision_cleanup", default=None)
+
+
+@contextmanager
+def _vision_slot(host, key, *, scan=False):
+    host._ocr_busy.add(key)
+    if scan:
+        if not hasattr(host, "_scan_running"):
+            host._scan_running = set()
+        host._scan_running.add(key)
+    pending = set()
+    finished = False
+
+    def release(waiter=None):
+        pending.discard(waiter)
+        if finished and not pending:
+            host._ocr_busy.discard(key)
+            if scan:
+                host._scan_running.discard(key)
+            if queue := getattr(host, "_scan_queue", None):
+                queue.wake()
+
+    token = _SLOT_CLEANUP.set((pending, release, Counter()))
+    try:
+        yield
+    finally:
+        _SLOT_CLEANUP.reset(token)
+        finished = True
+        release()
+
+
+async def _vision_thread(fn, /, *args, executor=None, **kwargs):
+    """取消等待不会终止已启动的线程；让原名额等到底层工作完成。"""
+    work = asyncio.get_running_loop().run_in_executor(
+        executor, copy_context().run, partial(fn, *args, **kwargs)
+    )
+    owner = _SLOT_CLEANUP.get()
+    if owner is None:
+        return await work
+    try:
+        return await asyncio.shield(work)
+    except asyncio.CancelledError:
+        pending, release, _ = owner
+        pending.add(work)
+
+        def done(future):
+            if not future.cancelled():
+                future.exception()
+            release(future)
+
+        work.add_done_callback(done)
+        raise
+
+
+async def _vision_chat(provider, **kwargs):
+    budget = _SCAN_BUDGET.get()
+    if budget and budget.now() >= budget.deadline:
+        raise asyncio.TimeoutError
+    owner = _SLOT_CLEANUP.get()
+    if owner is None:
+        return await provider.text_chat(**kwargs)
+    pending, _, channels = owner
+    provider_id = _prov_id(provider)
+    key = id(provider) if provider_id == "?" else provider_id
+    if pending and channels[key]:
+        raise asyncio.TimeoutError
+    channels[key] += 1
+    try:
+        return await provider.text_chat(**kwargs)
+    finally:
+        channels[key] -= 1
+        if not channels[key]:
+            del channels[key]
+
+
+async def _cancel_vision_tasks(tasks: list, *, hold_until_done=False) -> None:
+    """限时等待本层取消，超宽限的清理仍持有原请求的机器名额。"""
+    if not tasks:
+        return
     for task in tasks:
         cancelling = getattr(task, "cancelling", None)
         if not task.done() and not (cancelling and cancelling()):
             task.cancel()
-    # shield 防止调用方再次 cancel 时，gather 把第二次取消传给正在 finally 中清理的渠道。
-    # 3.10 没有 Task.cancelling；本层只主动取消一次，后续取消均在此等清理结束。
     waiter = asyncio.gather(*tasks, return_exceptions=True)
+    now = asyncio.get_running_loop().time
+    deadline = now() + _CLEANUP_GRACE_S
     cancelled = False
-    while not waiter.done():
+    while not waiter.done() and (hold_until_done or now() < deadline):
         try:
-            await asyncio.shield(waiter)
+            await asyncio.wait(
+                [waiter], timeout=None if hold_until_done else max(0, deadline - now())
+            )
         except asyncio.CancelledError:
             cancelled = True
+    if not waiter.done():
+        _VISION_REAPERS.add(waiter)
+        waiter.add_done_callback(_VISION_REAPERS.discard)
+        if owner := _SLOT_CLEANUP.get():
+            pending, release, _ = owner
+            pending.add(waiter)
+            waiter.add_done_callback(release)
     if cancelled:
         raise asyncio.CancelledError
+
+
+class _ImageRejected(ValueError):
+    """已转换为玩家可见提示的输入拒绝原因。"""
+
+
+_IMAGE_DOWNLOAD_ERROR = (
+    "⚠️ 图片下载失败，请重发一次截图",
+    "⚠️ Image download failed, please resend the screenshot",
+)
+_IMAGE_FORMAT_ERROR = (
+    "⚠️ 图片格式无效，请换成 PNG 或 JPEG 后重发",
+    "⚠️ Invalid image. Resend as PNG or JPEG.",
+)
+_IMAGE_BYTES_ERROR = (
+    "⚠️ 图片体积过大，请压缩或缩图后重发",
+    "⚠️ Image file too large. Compress or resize it and resend.",
+)
+_IMAGE_PIXELS_ERROR = (
+    "⚠️ 图片像素或长边超限，请缩图后重发",
+    "⚠️ Image dimensions exceed the limit. Resize and resend.",
+)
 
 
 def _prov_id(prov) -> str:
@@ -174,13 +316,10 @@ class VisionCommands:
                 _now = time.time()
                 for _k in [k for k, v in last.items() if _now - v > max(_cd * 4, 120)]:
                     last.pop(_k, None)
-            last[_sender] = time.time()
-        if not check_budget:
-            return None, _sender
         _cap = self._vision_limit()
         queue = getattr(self, "_scan_queue", None)
         reserved = int(queue is not None and queue.needs_slot)
-        if _cap > 0 and len(self._ocr_busy) + reserved >= _cap:
+        if check_budget and _cap > 0 and len(self._ocr_busy) + reserved >= _cap:
             return (
                 Reply(
                     raw_text=L(
@@ -191,6 +330,8 @@ class VisionCommands:
                 ),
                 _sender,
             )
+        if _cd > 0 and _sender:
+            last[_sender] = time.time()
         return None, _sender
 
     @staticmethod
@@ -442,10 +583,10 @@ class VisionCommands:
                                 raise ValueError("图片压缩传输不支持")
                             declared = resp.headers.get("content-length")
                             if declared is not None and int(declared) > limit:
-                                raise ValueError("图片声明体积超限")
+                                raise _ImageRejected(L(*_IMAGE_BYTES_ERROR))
                             async for chunk in resp.aiter_raw(chunk_size=64 * 1024):
                                 if len(data) + len(chunk) > limit:
-                                    raise ValueError("图片实际体积超限")
+                                    raise _ImageRejected(L(*_IMAGE_BYTES_ERROR))
                                 data.extend(chunk)
                             return base64.b64encode(data).decode("ascii")
                 raise ValueError("图片重定向失败")
@@ -454,9 +595,9 @@ class VisionCommands:
         if ref.startswith("base64://"):
             payload = ref[9:]
         elif ref.startswith("data:"):
-            header, payload = ref.split(",", 1)
-            if not header.lower().endswith(";base64"):
-                raise ValueError("图片 data URI 不是 base64")
+            header, separator, payload = ref.partition(",")
+            if not separator or not header.lower().endswith(";base64"):
+                raise _ImageRejected(L(*_IMAGE_FORMAT_ERROR))
         else:
             path = ref
             if ref.startswith("file:"):
@@ -485,60 +626,82 @@ class VisionCommands:
                     finally:
                         os.close(fd)
                     if len(data) > limit:
-                        raise ValueError("本地图片体积超限")
+                        raise _ImageRejected(L(*_IMAGE_BYTES_ERROR))
                     return base64.b64encode(data).decode("ascii")
 
-                return await asyncio.to_thread(read_local)
+                return await _vision_thread(read_local)
             payload = ref  # MediaRefStr 的旧版裸 base64
         if len(payload) >= 14 * 1024 * 1024:
-            raise ValueError("图片 base64 体积超限")
+            raise _ImageRejected(L(*_IMAGE_BYTES_ERROR))
         payload = "".join(payload.split())
-        raw = base64.b64decode(payload + "=" * (-len(payload) % 4), validate=True)
+        try:
+            raw = base64.b64decode(payload + "=" * (-len(payload) % 4), validate=True)
+        except ValueError:
+            raise _ImageRejected(L(*_IMAGE_FORMAT_ERROR)) from None
         if len(raw) > limit:
-            raise ValueError("图片实际体积超限")
+            raise _ImageRejected(L(*_IMAGE_BYTES_ERROR))
         return base64.b64encode(raw).decode("ascii")
 
     async def _image_data_urls(self, event) -> list[str]:
         """从消息取第一张合格图片；坏图跳过，后续合格图片不再读取。"""
-        out: list[str] = []
-        try:
-            chain = getattr(getattr(event, "message_obj", None), "message", None) or []
-            for c in chain:
-                if type(c).__name__ != "Image":
-                    continue
-                try:
-                    ref = getattr(c, "url", None) or getattr(c, "file", None)
-                    b64 = await self._read_scan_image(ref)
-                    if not b64 or not await asyncio.to_thread(self._image_pixels_ok, b64):
-                        continue
-                except Exception:  # noqa: BLE001 - 单张失败继续下一张
-                    continue
-                out.append("data:image/png;base64," + b64)
-                break
-        except Exception:  # noqa: BLE001 - 图片取不到就当没有
-            pass
-        return out[:1]
+        if budget := _SCAN_BUDGET.get():
+            return await budget.run(self._first_valid_image, event)
+        return await self._first_valid_image(event)
+
+    async def _first_valid_image(self, event):
+        error = L(*_IMAGE_DOWNLOAD_ERROR)
+        chain = getattr(getattr(event, "message_obj", None), "message", None) or []
+        for c in chain:
+            if type(c).__name__ != "Image":
+                continue
+            try:
+                ref = getattr(c, "url", None) or getattr(c, "file", None)
+                b64 = await self._read_scan_image(ref)
+                mime = await _vision_thread(self._check_image_pixels, b64)
+                return [f"data:{mime};base64," + b64]
+            except _ImageRejected as exc:
+                error = str(exc)
+            except Exception:  # noqa: BLE001 - 下载异常不回显地址或凭据
+                error = L(*_IMAGE_DOWNLOAD_ERROR)
+        raise _ImageRejected(error)
 
     # 识图截图像素上限：8K 截图约 3300 万像素，留余量取 3600 万。
     # Pillow 默认只在 ~8900 万像素才告警、~1.79 亿才报错，压缩率高的 PNG
     # 在 14MB 体积限制内就能解出几百 MB 位图（解压炸弹），后续缩放/豆子检测吃满 CPU。
-    MAX_SCAN_PIXELS = 36_000_000
+    MAX_SCAN_PIXELS = _MAX_SOURCE_PIXELS
 
     @classmethod
-    def _image_pixels_ok(cls, b64: str) -> bool:
-        """只读图片头拿尺寸（不解码像素），超过 MAX_SCAN_PIXELS 或读不出就拒收。"""
+    def _check_image_pixels(cls, b64: str) -> str:
+        """先按识别器支持的格式和尺寸筛选，再确认图片完整且像素可解码。"""
         try:
             import base64
             import io
 
             from PIL import Image
 
-            with Image.open(io.BytesIO(base64.b64decode(b64))) as img:
-                w, h = img.size
-        except Exception:  # noqa: BLE001 - 不是合法图片
-            return False
-        if w * h > cls.MAX_SCAN_PIXELS:
-            logger.warning("[sdjk] 截图尺寸 %dx%d 超过像素上限，已拒收", w, h)
+            data = base64.b64decode(b64)
+            formats = ("PNG", "JPEG", "WEBP")
+            with Image.open(io.BytesIO(data), formats=formats) as img:
+                if _scan_fit_size(*img.size, source_limit=cls.MAX_SCAN_PIXELS) is None:
+                    raise _ImageRejected(L(*_IMAGE_PIXELS_ERROR))
+                mime = Image.MIME[img.format]
+                img.verify()
+            # verify() 不解码 JPEG；Pillow 要求在 verify() 后重新打开才能 load()。
+            with Image.open(io.BytesIO(data), formats=formats) as img:
+                img.load()
+            return mime
+        except _ImageRejected:
+            raise
+        except Image.DecompressionBombError:
+            raise _ImageRejected(L(*_IMAGE_PIXELS_ERROR)) from None
+        except (OSError, ValueError, SyntaxError):
+            raise _ImageRejected(L(*_IMAGE_FORMAT_ERROR)) from None
+
+    @classmethod
+    def _image_pixels_ok(cls, b64: str) -> bool:
+        try:
+            cls._check_image_pixels(b64)
+        except _ImageRejected:
             return False
         return True
 
@@ -577,7 +740,8 @@ class VisionCommands:
 
             sent_prompt = effective_vision_prompt(self, prov, task, prompt) if task else prompt
             sent_prompt += prompt_suffix
-            resp = await prov.text_chat(
+            resp = await _vision_chat(
+                prov,
                 prompt=sent_prompt,
                 session_id=f"sdjk-{tag}-{_uuid.uuid4().hex[:8]}",
                 image_urls=[image_url],
@@ -720,6 +884,8 @@ class VisionCommands:
     @classmethod
     def _adapt_riven_transcription(cls, observed: dict) -> dict:
         """逐行转录只解码一次；旧二元协议继续兼容，混合协议不静默覆盖。"""
+        if "weapon" in observed and not isinstance(observed["weapon"], str):
+            observed = {**observed, "weapon": ""}
         if "stat_lines" not in observed:
             return observed
         out = copy.deepcopy(observed)
@@ -840,7 +1006,7 @@ class VisionCommands:
                     properties = geometry_properties(observed)
                     out.update(properties)
                     if "polarity" not in properties:
-                        polarity = await asyncio.to_thread(
+                        polarity = await _vision_thread(
                             pips_engine.detect_single_card_polarity, image_bytes, observed
                         )
                         if polarity is not None:
@@ -1033,7 +1199,7 @@ class VisionCommands:
                 return pips_engine.detect_single_card_pips(image)
 
         try:
-            return await asyncio.to_thread(detect)
+            return await _vision_thread(detect)
         except (ValueError, OSError, Image.DecompressionBombError):
             return None
 
@@ -1060,11 +1226,13 @@ class VisionCommands:
             from PIL import Image
 
             _head, b64 = image_url.split(",", 1)
-            img = Image.open(io.BytesIO(base64.b64decode(b64)))
-            return pips_engine.detect_pips(img)
+            with Image.open(io.BytesIO(base64.b64decode(b64))) as img:
+                if _scan_fit_size(*img.size) is None:
+                    return []
+                return pips_engine.detect_pips(img)
 
         try:
-            rows = await asyncio.to_thread(_run)
+            rows = await _vision_thread(_run)
         except Exception as exc:  # noqa: BLE001
             logger.warning("[sdjk] 豆子检测失败（不影响识卡）：%s", type(exc).__name__)
             return []

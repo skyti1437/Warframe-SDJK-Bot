@@ -1963,7 +1963,22 @@
       "令牌已过期": "Token expired",
       "这份准备已失效": "Snapshot invalid",
       "再次取回本次结果（返回缓存，不会调用）": "Retrieve cached result",
-      "用同一令牌再请求结果": "Request the result with the same token",
+      "查询旧任务状态": "Check previous task",
+      "执行状态待查询": "Execution status unconfirmed",
+      "旧任务尚未开始。请重新准备快照并确认执行。": "The previous task has not started. Prepare a new snapshot and confirm to run.",
+      "旧任务正在执行，可稍后再查询。": "The previous task is running. Check again later.",
+      "请先查询旧任务状态，再重新准备": "Check the previous task before preparing again.",
+      "无法确认查询结果": "Could not confirm the query result",
+      "无法确认任务终态": "Could not confirm the final task state",
+      "无法确认表单基线，请核对最新配置": "The original settings could not be identified. Review the current settings.",
+      "请提交配置修订号与改动键的禁用状态": "Submit the configuration revision and changed command states.",
+      "图片草稿版本无效": "Invalid image draft version",
+      "图片草稿已失效，请重新上传": "The image draft is no longer available. Upload it again.",
+      "草稿释放未获确认": "Draft release was not confirmed",
+      "图片删除未获确认": "Image deletion was not confirmed",
+      "没有收到图片草稿版本": "No image draft version received",
+      "待保存": "Pending save",
+      "损坏": "Invalid data",
       "快照": "Snapshot",
       "快照图片（原图）": "Snapshot image (original)",
       "（识卡步骤按生产流程缩放、裁切后的图，两侧共用同一份；页面只显示原图）": "(The loadout step uses the production resize and crop for both prompts. The original is shown here.)",
@@ -2489,7 +2504,11 @@
       ["✗ {0}。请重新准备，本次请求未调用模型。", "✗ {0}. Prepare again. No model called."],
       ["后端回复「{0}」：可能是别的窗口的对比、连通性真调，或这次对比还没结束。本次请求没有调用模型，令牌仍有效，稍后再点。", "Backend returned “{0}”. Another test or comparison may be running. This token is still valid; try again later."],
       ["✗ {0}。这份准备已失效，需要重新准备。", "✗ {0}. This snapshot is invalid. Prepare again."],
-      ["✗ 没有拿到执行结果：{0}。后端可能已经开始执行。可以用同一令牌再请求一次：已执行过会直接返回缓存结果，不会再调用；若尚未开始，会执行这一次已确认的对比。", "✗ Execution result unconfirmed: {0}. Request with the same token to retrieve the cached result or run the one confirmed comparison if it never started."],
+      ["✗ 没有拿到执行结果：{0}。后端可能已经开始执行。请查询旧任务状态；查询不会调用渠道。", "✗ Execution result unconfirmed: {0}. Check the previous task status. Checking makes no provider calls."],
+      ["其他窗口已修改同一指令：{0}", "Another window changed the same command: {0}"],
+      ["{0}。已保留你的改动，核对后可再次保存或撤销。", "{0}. Your edits are preserved. Review them, then save again or discard."],
+      ["状态查询失败：{0}", "Status query failed: {0}"],
+      ["主题保存失败：{0}", "Theme save failed: {0}"],
       ["令牌剩余 {0}:{1}", "Token expires in {0}:{1}"],
       ["已等待 {0} 秒", "Waiting {0} s"],
       ["{0} · 不能使用", "{0} · unavailable"],
@@ -3189,7 +3208,7 @@
     showCommandStatus("正在读取指令开关…");
     const snapshot = ++commandSnapshot;
     try {
-      const config = await bridge.apiGet("commands_config", {});
+      const config = await bridge.apiGet("commands_config", { format: "delta" });
       if (!Array.isArray(config?.groups) || !Array.isArray(config?.disabled)
           || !Array.isArray(config?.default_disabled) || !config.counts) {
         throw new Error(config?.message || "无法读取指令开关");
@@ -3209,18 +3228,32 @@
   async function saveCommandSwitches() {
     const s = commandSwitches;
     if (s.busy || !commandEditCount()) return;
-    const disabled = [...s.disabled].sort();
+    const base = new Set(s.config.disabled);
+    const changes = Object.fromEntries([...new Set([...base, ...s.disabled])]
+      .filter((key) => base.has(key) !== s.disabled.has(key)).map((key) => [key, s.disabled.has(key)]));
     s.busy = true;
     updateCommandControls();
     showCommandStatus("");
     showCommandStatus("正在保存指令开关…", "dim", "commandSaveStatus");
     try {
-      const result = await bridge.apiPost("commands_config_save", { disabled });
-      if (result?.status !== "ok" || !Array.isArray(result.disabled)
-          || JSON.stringify(disabled) !== JSON.stringify(result.disabled)) {
+      const result = await bridge.apiPost("commands_config_save", { revision: s.config.revision, changes });
+      if ((result?.status === "conflict" || result?.code === "revision_unavailable")
+          && Array.isArray(result.disabled) && result.revision) {
+        s.config.disabled = result.disabled;
+        s.config.revision = result.revision;
+        s.disabled = new Set(result.disabled);
+        for (const [key, off] of Object.entries(changes)) {
+          if (off) s.disabled.add(key); else s.disabled.delete(key);
+        }
+        applyDisabledCommands(result.disabled, ++commandSnapshot);
+        throw new Error(result.message + "。已保留你的改动，核对后可再次保存或撤销。");
+      }
+      if (result?.status !== "ok" || !Array.isArray(result.disabled) || !result.revision) {
         throw new Error(result?.message || "指令开关保存未获确认");
       }
       s.config.disabled = result.disabled;
+      s.config.revision = result.revision;
+      s.disabled = new Set(result.disabled);
       applyDisabledCommands(result.disabled, ++commandSnapshot);
       showCommandStatus("", "dim", "commandSaveStatus");
       showCommandStatus("指令开关已保存并生效", "s-ok");
@@ -3363,8 +3396,8 @@
     const ov = state.ov, res = state.res;
     if (!ov) return;
     state.ovResSig = resOverviewSig(res);  // 字体轮询据此判断概览是否需要重建
-    const { now: _now, ...ovData } = ov;  // now 每次都变，不算数据变化
-    if (unchanged("overview", [ovData, state.ovResSig])) return;
+    const { now: _now, subs, ...ovData } = ov;
+    if (unchanged("overview", [ovData, subs.total, subs.sessions.length, state.ovResSig])) return;
     renderBackground(ov.background);
     const fr = ov.freshness || [];
     const nStale = fr.filter((r) => r.status === "stale").length;
@@ -3405,9 +3438,9 @@
         el("span", {}, localText(`社区快照「${c.label}」${status}`, `Community snapshot “${english(c.label)}”: ${english(status)}`),
           c.reason ? el("span", {}, localText("：", ". "), communityReason(c)) : null), "data", "查看"]);
     }
-    for (const r of (ov.registry || []).filter((r) => r.risk === "high" && ["stale", "unknown"].includes(r.status))) {
+    for (const r of (ov.registry || []).filter((r) => r.risk === "high" && ["stale", "unknown", "invalid"].includes(r.status))) {
       const status = RSTATUS[r.status][0];
-      todo.push([r.status === "stale" ? "s-stale" : "s-warn",
+      todo.push([r.status === "unknown" ? "s-warn" : "s-stale",
         el("span", {}, localText(`数据登记「${r.file}」${status}`, `Data registry “${r.file}”: ${english(status)}`),
           r.detail ? el("span", {}, localText("：", ". "), productText(r.detail)) : null), "data", "查看"]);
     }
@@ -3504,7 +3537,7 @@
   const RSTATUS = {
     ok: ["正常", "s-ok"], stale: ["过期", "s-stale"], no_ttl: ["不按时间判", "s-info"],
     unknown: ["来源未确认", "s-warn"], missing: ["缺文件", "s-stale"], unregistered: ["未登记", "s-stale"],
-    not_bundled: ["未随包", "s-info"],
+    invalid: ["损坏", "s-stale"], not_bundled: ["未随包", "s-info"],
   };
   function renderReg(rows) {
     if (unchanged("reg", rows)) return;
@@ -3660,7 +3693,7 @@
               await load();
             }))))))));
       box.addEventListener("toggle", () => {
-        if (toks.length) return;
+        if (toks.length || !box.isConnected) return;
         if (box.open) { subsOpen.add(g.key); subsClosed.delete(g.key); } else { subsOpen.delete(g.key); subsClosed.add(g.key); }
       });
       return box;
@@ -6025,6 +6058,7 @@
     if (VC.preparing) return "正在准备";
     if (VC.discarding) return "正在放弃快照";
     if (VC.running) return "对比执行中，结束后再准备";
+    if (VC.prep?.state === "unknown") return "请先查询旧任务状态，再重新准备";
     if (!VC.img) return "先选择一张 PNG / JPEG 图片";
     if (!VP.view) return "等上方方案读取完成";
     if (!vpLoaded()) return "这个渠道已不在宿主加载的渠道里";
@@ -6087,6 +6121,7 @@
   // 离开识图页或关闭详细自定义：未执行的快照释放名额（零调用），不藏起来继续占位；准备中的请求作废，
   // 迟到的令牌回来后按序号释放。执行中的对比和已拿到的结果不受影响（结果属于快照，回来仍可查看）。
   function vcHide(why) {
+    vcStopTimer();
     VC.arm = "";
     if (VC.preparing) { ++VC.prepSeq; VC.preparing = false; VC.msg = { cls: "s-info", text: `${why}时作废了进行中的准备；迟到的快照会自动释放，没有调用模型。` }; }
     const p = VC.prep;
@@ -6155,14 +6190,34 @@
     if (p.d.prompts.original.sha256 === p.d.prompts.candidate.sha256) return "两侧提示词相同";
     return "";
   }
-  // 同一令牌：ready → 执行；unknown（上次没拿到回复）→ 再请求一次；done → 取回缓存
+  async function vcQuery() {
+    const p = VC.prep;
+    if (!p || VC.running || VC.preparing || VC.discarding || !["unknown", "done"].includes(p.state)) return;
+    VC.running = true; vcRender();
+    try {
+      const d = await bridge.apiGet("vision_compare_status", { token: p.d.token });
+      if (VC.prep !== p) return;
+      if (d?.code === "token_unavailable" || d?.code === "closed") {
+        p.state = "lost"; VC.msg = { cls: "s-stale", text: d.message };
+      } else if (!d?.ok || d.token !== p.d.token) {
+        throw new Error(d?.message || "无法确认查询结果");
+      } else if (d.state === "ready") {
+        p.state = "ready"; p.invalidated = true;
+        VC.msg = { cls: "s-info", text: "旧任务尚未开始。请重新准备快照并确认执行。" };
+      } else if (d.state === "running") {
+        VC.msg = { cls: "s-info", text: "旧任务正在执行，可稍后再查询。" };
+      } else if (d.result?.token === p.d.token) {
+        p.state = "done"; VC.result = { d: d.result, p }; VC.msg = null;
+      } else throw new Error("无法确认任务终态");
+    } catch (e) {
+      VC.msg = { cls: "s-stale", text: "状态查询失败：" + (e.message || e) };
+    } finally { VC.running = false; vcRender(); }
+  }
   async function vcRun() {
     if (RM_SWITCH.busy) return;
     const p = VC.prep;
-    if (!p || VC.running || VC.preparing || VC.discarding || !["ready", "unknown", "done"].includes(p.state)) return;
-    if (p.state !== "done" && vcIntegrityBlock(p)) return;
-    if (p.state === "ready" && (vcKey() !== p.key || Date.now() > p.expiresAt)) return;
-    const from = p.state;
+    if (!p || VC.running || VC.preparing || VC.discarding || p.state !== "ready") return;
+    if (p.invalidated || vcKey() !== p.key || Date.now() >= p.expiresAt || vcIntegrityBlock(p)) return;
     p.state = "running"; p.runStart = Date.now(); VC.running = true; VC.msg = null; vcRender();
     try {
       const d = await bridge.apiPost("vision_compare_run", { token: p.d.token, confirm: true });
@@ -6172,7 +6227,7 @@
       } else if (d && d.token === p.d.token && (d.ok === true ? d.sides && typeof d.sides === "object" : d.ok === false)) {
         p.state = "done"; VC.result = { d, p };  // 成功，或失败 / 取消（令牌已用掉，不会重放）
       } else if (d && d.ok === false && (d.code === "busy" || (!d.code && d.attempted === 0 && !("token" in d)))) {
-        p.state = from === "done" ? "done" : from;  // 忙：本次没有调用，令牌仍可用
+        p.state = "ready";  // 忙：本次没有调用，令牌仍可用
         VC.msg = { cls: "s-warn", text: `后端回复「${d.message || "忙"}」：可能是别的窗口的对比、连通性真调，或这次对比还没结束。本次请求没有调用模型，令牌仍有效，稍后再点。` };
       } else {
         p.state = "lost";
@@ -6180,19 +6235,25 @@
       }
     } catch (e) {
       p.state = "unknown";
-      VC.msg = { cls: "s-stale", text: `✗ 没有拿到执行结果：${e.message || e}。后端可能已经开始执行。可以用同一令牌再请求一次：已执行过会直接返回缓存结果，不会再调用；若尚未开始，会执行这一次已确认的对比。` };
+      VC.msg = { cls: "s-stale", text: `✗ 没有拿到执行结果：${e.message || e}。后端可能已经开始执行。请查询旧任务状态；查询不会调用渠道。` };
     } finally {
       VC.running = false; vcRender();
     }
   }
+  function vcStopTimer() {
+    clearInterval(VC.timer); VC.timer = 0;
+  }
+  function vcClockActive(p) {
+    return vcNode?.isConnected && curView === "vision" && visionAdv && document.visibilityState === "visible" && !VC.discarding
+      && (p?.state === "running" || (p?.state === "ready" && !p.invalidated && Date.now() < p.expiresAt));
+  }
   function vcTick() {
     const p = VC.prep;
-    if (!vcNode?.isConnected || !p) return;
+    if (!vcClockActive(p)) { vcStopTimer(); vcRender(); return; }
     const left = $("vcLeft");
-    if (p.state === "ready") {
-      const s = Math.max(0, Math.round((p.expiresAt - Date.now()) / 1000));
-      if (s <= 0 && left && !left.dataset.expired) { vcRender(); return; }
-      if (left) left.textContent = `令牌剩余 ${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+    if (left && p.state === "ready" && !left.dataset.expired) {
+      const s = Math.ceil((p.expiresAt - Date.now()) / 1000);
+      left.textContent = `令牌剩余 ${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
     }
     const run = $("vcElapsed");
     if (run && p.state === "running") run.textContent = `已等待 ${Math.round((Date.now() - p.runStart) / 1000)} 秒`;
@@ -6212,8 +6273,11 @@
     return node;
   }
   function vcRender() {
+    const p = VC.prep;
+    if (p && vcKey() !== p.key) { p.invalidated = true; VC.arm = ""; }
+    if (!vcClockActive(p)) vcStopTimer();
+    else if (!VC.timer) VC.timer = setInterval(vcTick, 1000);
     if (!vcNode?.isConnected) return;
-    if (VC.prep && !VC.timer) VC.timer = setInterval(vcTick, 1000);
     const img = VC.img;
     $("vcImgInfo").textContent = VC.imgErr ? `${VC.imgName} · 不能使用` : img ? `${img.name} · ${img.mime === "image/png" ? "PNG" : "JPEG"} · ${img.w}×${img.h} · ${(img.size / 1024).toFixed(0)} KB`
       + (img.sha ? ` · sha256 ${short(img.sha)}` : " · 本页不是安全上下文，无法在浏览器计算哈希")
@@ -6249,11 +6313,12 @@
     if (groupOfTask(p.task) !== curGroup()) {
       vpPut(box, el("div", { class: "vpWarn", id: "vcOtherSnap" },
         el("div", {}, `${V_GROUP[groupOfTask(p.task)]}有一份${p.state === "ready" ? "未执行" : ""}快照（${p.pid} · ${vpLabel(p.task)}），不会用于当前任务；切回该任务查看。`),
-        p.state === "ready" ? el("div", { class: "vpBar" }, vcBtn("放弃那份快照", { off: VC.running || VC.preparing || VC.discarding }, vcDiscard)) : null));
+        p.state === "ready" ? el("div", { class: "vpBar" }, vcBtn("放弃那份快照", { off: VC.running || VC.preparing || VC.discarding }, vcDiscard))
+          : ["unknown", "done"].includes(p.state) ? vcBtn("查询旧任务状态", { off: VC.running }, vcQuery) : null));
       return;
     }
     const d = p.d, im = d.image || {};
-    const changed = p.key !== vcKey(), expired = p.state === "ready" && Date.now() > p.expiresAt;
+    const changed = p.invalidated || p.key !== vcKey(), expired = p.state === "ready" && Date.now() >= p.expiresAt;
     const imgOk = p.img.sha ? (p.img.sha === im.input_sha256 ? "与浏览器计算一致" : "⚠ 与浏览器计算不一致") : "浏览器未能计算，以后端为准";
     const same = d.prompts.original.sha256 === d.prompts.candidate.sha256;
     const chk = (local, remote) => (!p.local ? "" : local === null ? "浏览器未能计算" : local === remote ? "与页面文本一致" : "⚠ 与页面文本不一致");
@@ -6262,13 +6327,14 @@
     if (p.state === "running") state = el("span", { class: "tag s-edit", id: "vcElapsed" }, "执行中…");
     else if (p.state === "done") state = el("span", { class: "tag s-info" }, "令牌已用掉（结果见下方）");
     else if (p.state === "lost") state = el("span", { class: "tag s-stale" }, "已失效");
+    else if (p.state === "unknown") state = el("span", { class: "tag s-warn" }, "执行状态待查询");
     else if (changed) state = el("span", { class: "tag s-warn", id: "vcChanged" }, "输入已变化，需要重新准备");
     else if (expired) state = el("span", { class: "tag s-stale", id: "vcLeft", "data-expired": "1" }, "令牌已过期，需要重新准备");
     else state = el("span", { class: "tag s-ok", id: "vcLeft" }, `令牌剩余 ${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`);
-    const runOff = VC.preparing || VC.discarding ? "正在准备或释放快照" : p.state !== "done" && vcIntegrityBlock(p) ? vcIntegrityBlock(p) : p.state === "ready" ? (changed ? "输入已变化，这份准备不能再用" : expired ? "令牌已过期" : "")
+    const runOff = VC.preparing || VC.discarding || VC.running ? "正在准备或释放快照" : p.state === "ready" ? (vcIntegrityBlock(p) || (changed ? "输入已变化，这份准备不能再用" : expired ? "令牌已过期" : ""))
       : p.state === "unknown" || p.state === "done" ? "" : p.state === "running" ? "执行中" : "这份准备已失效";
     const runLabel = p.state === "done" ? "再次取回本次结果（返回缓存，不会调用）"
-      : p.state === "unknown" ? "用同一令牌再请求结果"
+      : p.state === "unknown" ? "查询旧任务状态"
       : vcArmed("run", `执行对比：原版、候选各调用一次`, `再点一次：确认把这张图发给 ${p.pid}，调用 2 次`);
     vpPut(box, el("div", { class: "vcSnap" },
       el("div", { class: "vpHead" }, el("span", { class: "vpWho" }, el("b", {}, "快照"), " · ", el("b", {}, p.pid), " · ", el("b", {}, vpLabel(p.task))),
@@ -6287,7 +6353,7 @@
       el("div", { class: "vpBar" },
         p.state === "ready" ? vcBtn("放弃当前快照", { cls: "sm", off: VC.running || VC.preparing || VC.discarding }, vcDiscard) : null,
         vcBtn(runLabel, { cls: "sm" + (VC.arm === "run" ? " danger arm" : runOff ? "" : " primary"), off: !!runOff, title: runOff || undefined, busy: p.state === "running" },
-          () => (p.state === "ready" ? vcArm("run", vcRun) : vcRun())),
+          () => (p.state === "ready" ? vcArm("run", vcRun) : vcQuery())),
         el("span", { class: "hint why" }, runOff ? `执行：${runOff}`
           : p.state === "ready" ? `本次最多调用渠道方法 ${d.provider_call_cap ?? 2} 次；两次之间至少间隔 3 秒，单侧最长约 75 秒；执行时占用测试锁。` : ""))));
   }
@@ -6449,7 +6515,7 @@
   }
 
   // —— 配色 ——
-  const TH = { meta: null, orig: null, cur: null, timer: null, seq: 0, locate: null, loading: false, saving: false };
+  const TH = { meta: null, orig: null, cur: null, timer: null, seq: 0, locate: null, loading: false, saving: false, imageBusy: false };
   function themeColors(colors) {
     return Object.fromEntries(TH.meta.slots
       .filter((slot) => colors[slot.key] && colors[slot.key].toLowerCase() !== slot.default.toLowerCase())
@@ -6465,7 +6531,7 @@
   function thBody() {
     return { colors: themeColors(TH.cur.colors), bg_dim: TH.cur.bg_dim,
              panel_alpha: TH.cur.panel_alpha, use_bg: TH.cur.use_bg, use_logo: TH.cur.use_logo,
-             bg_fit: TH.cur.bg_fit, bg_pos: TH.cur.bg_pos, bg_scale: TH.cur.bg_scale };
+             bg_fit: TH.cur.bg_fit, bg_pos: TH.cur.bg_pos, bg_scale: TH.cur.bg_scale, image_drafts: { ...TH.cur.image_drafts } };
   }
   function luminance(hex) {
     const channels = hex.slice(1).match(/../g).map((pair) => {
@@ -6490,8 +6556,10 @@
   function updateThemeActions() {
     const invalid = !!document.querySelector(".slot .hex:invalid");
     $("themeBar").classList.toggle("on", thDirty() || invalid || TH.saving);
-    $("themeSave").disabled = TH.saving || invalid || !thDirty();
-    $("themeDiscard").disabled = TH.saving;
+    const busyImage = TH.saving || TH.imageBusy;
+    $("themeSave").disabled = busyImage || invalid || !thDirty();
+    $("themeDiscard").disabled = busyImage;
+    for (const id of ["bgUp", "logoUp", "bgDel", "logoDel"]) $(id).disabled = busyImage;
     for (const button of $("presets").querySelectorAll("[data-preset]")) {
       const preset = TH.meta.presets.find((p) => p.key === button.dataset.preset);
       const selected = !invalid && same(themeColors(preset.colors), themeColors(TH.cur.colors));
@@ -6590,11 +6658,12 @@
     $("slotsAdv").replaceChildren(...m.slots.filter((x) => x.group === "adv").map(slotRow));
     $("useBg").checked = TH.cur.use_bg; $("useLogo").checked = TH.cur.use_logo;
     for (const id of ["bgDim", "panelAlpha", "bgUp", "logoUp"]) $(id).disabled = false;
-    $("bgFit").value = TH.cur.bg_fit || "cover"; $("bgFit").disabled = !m.has_bg;
+    const drafts = TH.cur.image_drafts;
+    $("bgFit").value = TH.cur.bg_fit || "cover"; $("bgFit").disabled = !(m.has_bg || drafts.bg);
     renderBgLayout();
-    $("useBg").disabled = !m.has_bg; $("useLogo").disabled = !m.has_logo;
-    $("bgDel").hidden = !m.has_bg; $("logoDel").hidden = !m.has_logo;
-    $("bgInfo").textContent = m.has_bg ? "已上传" : "未上传";
+    $("useBg").disabled = !(m.has_bg || drafts.bg); $("useLogo").disabled = !(m.has_logo || drafts.logo);
+    $("bgDel").hidden = !m.has_bg || !!drafts.bg; $("logoDel").hidden = !m.has_logo || !!drafts.logo;
+    $("bgInfo").textContent = drafts.bg ? "待保存" : m.has_bg ? "已上传" : "未上传";
     $("bgDim").value = TH.cur.bg_dim; $("bgDimV").textContent = Math.round(TH.cur.bg_dim * 100) + "%";
     $("panelAlpha").value = TH.cur.panel_alpha; $("panelAlphaV").textContent = Math.round(TH.cur.panel_alpha * 100) + "%";
     updateThemeActions();
@@ -6608,7 +6677,7 @@
       TH.meta = m;
       const colors = themeColors(Object.fromEntries(m.slots.map((slot) => [slot.key, slot.value])));
       TH.orig = { colors, bg_dim: m.bg_dim, panel_alpha: m.panel_alpha, use_bg: m.use_bg, use_logo: m.use_logo,
-                  bg_fit: m.bg_fit || "cover", bg_pos: m.bg_pos || "c", bg_scale: m.bg_scale ?? 60 };
+                  bg_fit: m.bg_fit || "cover", bg_pos: m.bg_pos || "c", bg_scale: m.bg_scale ?? 60, image_drafts: {} };
       TH.cur = structuredClone(TH.orig);
       renderTheme();
       schedulePreview({ immediate: true });
@@ -6622,18 +6691,29 @@
     } finally { TH.loading = false; }
   }
   $("pvRetry").onclick = () => TH.cur ? schedulePreview({ immediate: true, keepLocate: true }) : loadTheme();
+  async function releaseThemeDrafts(tokens) {
+    if (!tokens.length) return;
+    const d = await bridge.apiPost("theme_draft_release", { tokens });
+    if (!d?.released) throw new Error(d?.message || "草稿释放未获确认");
+  }
   async function uploadImg(kind) {
+    if (TH.imageBusy || TH.saving) return;
     const f = $(kind + "File").files[0], out = $("r-theme");
     if (!f) { out.className = "result s-stale"; out.textContent = "先选择一张图片"; return; }
+    TH.imageBusy = true; updateThemeActions();
     out.className = "result dim"; out.textContent = "上传中…";
     try {
       const d = await bridge.upload(kind === "bg" ? "theme_upload_bg" : "theme_upload_logo", f);
+      if (!d?.draft || d.kind !== kind) throw new Error(d?.message || "没有收到图片草稿版本");
+      const old = TH.cur.image_drafts[kind];
+      TH.cur.image_drafts[kind] = d.draft;
       out.className = "result s-ok"; out.textContent = `✓ 已上传（${d.size[0]}×${d.size[1]}），已勾选使用，记得保存主题`;
       $(kind + "File").value = "";
-      await loadThemeMetaOnly();
-      if (kind === "bg") TH.cur.use_bg = true; else TH.cur.use_logo = true;
+      TH.cur["use_" + kind] = true;
       renderTheme(); schedulePreview();
+      if (old) await releaseThemeDrafts([old]);
     } catch (e) { out.className = "result s-stale"; out.textContent = "✗ " + (e.message || e); }
+    finally { TH.imageBusy = false; updateThemeActions(); }
   }
   // 九宫格位置：铺满时决定保留图的哪一块，完整显示 / 自定义时决定图放在哪；适应宽度 / 平铺不用位置
   const BG_POS = [["tl", "左上"], ["t", "上"], ["tr", "右上"], ["l", "左"], ["c", "中"], ["r", "右"], ["bl", "左下"], ["b", "下"], ["br", "右下"]];
@@ -6643,10 +6723,10 @@
     $("bgScaleRow").hidden = fit !== "custom";
     $("bgPosHint").textContent = fit === "cover" ? "保留图的哪一块" : "图放在卡片的哪里";
     $("bgPos").replaceChildren(...BG_POS.map(([k, lab]) => el("button", {
-      class: "sm" + (k === pos ? " primary" : ""), title: lab, disabled: !TH.meta?.has_bg,
+      class: "sm" + (k === pos ? " primary" : ""), title: lab, disabled: !(TH.meta?.has_bg || TH.cur.image_drafts.bg),
       onclick: () => { TH.cur.bg_pos = k; renderBgLayout(); schedulePreview(); } }, lab)));
     $("bgScale").value = TH.cur.bg_scale ?? 60; $("bgScaleV").textContent = (TH.cur.bg_scale ?? 60) + "%";
-    $("bgScale").disabled = !TH.meta?.has_bg;
+    $("bgScale").disabled = !(TH.meta?.has_bg || TH.cur.image_drafts.bg);
   }
   async function loadThemeMetaOnly() {
     const meta = await bridge.apiGet("theme", {});
@@ -6686,11 +6766,12 @@
   let loadGen = 0;
   async function load() {
     const gen = ++loadGen;
+    const reveal = $("reveal").checked;
     const snapshot = ++commandSnapshot;
     const ovP = (async () => {
       try {
-        const ov = await bridge.apiGet("overview", { reveal: $("reveal").checked ? "1" : "0" });
-        if (gen !== loadGen) return;
+        const ov = await bridge.apiGet("overview", { reveal: reveal ? "1" : "0" });
+        if (gen !== loadGen || reveal !== $("reveal").checked) return;
         applyDisabledCommands(ov.disabled_commands, snapshot);
         state.ov = ov;
         if (setDisplayClock(ov.display_timezone)) {
@@ -6733,7 +6814,20 @@
   }
 
   $("reload").onclick = (e) => busy(e.currentTarget, reloadPanel);
-  $("reveal").onchange = load;
+  $("reveal").onchange = () => {
+    if (!$("reveal").checked) {
+      if (state.ov) state.ov.subs = { total: 0, sessions: [] };
+      $("subs").replaceChildren();
+      $("subsSummary").replaceChildren();
+      $("subsFilter").value = "";
+      $("subsFilter").hidden = true;
+      subsOpen.clear();
+      subsClosed.clear();
+      delete memoSig.subs;
+      delete memoSig.overview;
+    }
+    return load();
+  };
   let dataActionSeq = 0;
   const snapshotAction = (id, pending, format) => $(id).onclick = (e) => {
     const button = e.currentTarget, peer = $(id === "refresh" ? "pull" : "refresh");
@@ -6905,10 +6999,15 @@
   $("logoUp").onclick = (e) => busy(e.currentTarget, () => uploadImg("logo"));
   for (const kind of ["bg", "logo"]) {
     armed($(kind + "Del"), "删除", async () => {
-      await bridge.apiPost("theme_image_delete", { kind });
-      await loadThemeMetaOnly();
-      if (kind === "bg") { TH.cur.use_bg = false; TH.orig.use_bg = false; } else { TH.cur.use_logo = false; TH.orig.use_logo = false; }
-      renderTheme(); schedulePreview(); $(kind + "Del").disabled = false;
+      if (TH.imageBusy || TH.saving || TH.cur.image_drafts[kind]) return;
+      TH.imageBusy = true; updateThemeActions();
+      try {
+        const d = await bridge.apiPost("theme_image_delete", { kind });
+        if (d?.deleted !== kind) throw new Error(d?.message || "图片删除未获确认");
+        await loadThemeMetaOnly();
+        TH.cur["use_" + kind] = TH.orig["use_" + kind] = false;
+        renderTheme(); schedulePreview();
+      } finally { TH.imageBusy = false; updateThemeActions(); }
     });
   }
   $("useBg").onchange = () => { TH.cur.use_bg = $("useBg").checked; schedulePreview(); };
@@ -6917,11 +7016,17 @@
   $("useLogo").onchange = () => { TH.cur.use_logo = $("useLogo").checked; schedulePreview(); };
   $("bgDim").oninput = () => { TH.cur.bg_dim = Number($("bgDim").value); $("bgDimV").textContent = Math.round(TH.cur.bg_dim * 100) + "%"; schedulePreview(); };
   $("panelAlpha").oninput = () => { TH.cur.panel_alpha = Number($("panelAlpha").value); $("panelAlphaV").textContent = Math.round(TH.cur.panel_alpha * 100) + "%"; schedulePreview(); };
-  $("themeDiscard").onclick = () => {
-    TH.cur = structuredClone(TH.orig);
-    $("r-theme").textContent = "";
-    renderTheme();
-    schedulePreview();
+  $("themeDiscard").onclick = async () => {
+    if (TH.saving || TH.imageBusy) return;
+    TH.imageBusy = true; updateThemeActions();
+    try {
+      await releaseThemeDrafts(Object.values(TH.cur.image_drafts));
+      TH.cur = structuredClone(TH.orig);
+      $("r-theme").textContent = "";
+      renderTheme(); schedulePreview({ immediate: true });
+    } catch (e) {
+      $("r-theme").className = "result s-stale"; $("r-theme").textContent = e.message;
+    } finally { TH.imageBusy = false; updateThemeActions(); }
   };
   $("themeSave").onclick = (e) => busy(e.currentTarget, async () => {
     const out = $("r-theme"), submitted = thBody();
@@ -6931,11 +7036,15 @@
     try {
       const d = await bridge.apiPost("theme_save", submitted);
       if (!d?.saved) throw new Error(d?.message || "主题保存未得到确认");
-      const saved = { ...submitted, use_bg: d.saved.bg_image, use_logo: d.saved.logo };
+      for (const kind of Object.keys(submitted.image_drafts)) TH.meta["has_" + kind] = true;
+      TH.cur.image_drafts = {};
+      const saved = { ...submitted, image_drafts: {}, use_bg: d.saved.bg_image, use_logo: d.saved.logo };
       for (const key of ["use_bg", "use_logo"]) {
         if (TH.cur[key] === submitted[key]) TH.cur[key] = saved[key];
       }
       TH.orig = saved;
+      for (const kind of Object.keys(submitted.image_drafts)) $(kind + "Del").hidden = false;
+      if (submitted.image_drafts.bg) $("bgInfo").textContent = "已上传";
       $("useBg").checked = TH.cur.use_bg;
       $("useLogo").checked = TH.cur.use_logo;
       for (const row of document.querySelectorAll(".slot")) {
@@ -6987,10 +7096,11 @@
     if (document.visibilityState !== "visible") rmCancelSwitch();
     else if (curView === "vision") renderRivenMode();
     if (document.visibilityState !== "visible") {
-      revokeVisionArms(); mgRevoke("页面被隐藏");
+      vcStopTimer(); revokeVisionArms(); mgRevoke("页面被隐藏");
       clearTimeout(OI.pollT); OI.pollT = 0;  // 隐藏时停止部署状态轮询
       if (fontTimer) { clearInterval(fontTimer); fontTimer = null; }  // 隐藏时暂停字体任务轮询
     } else {
+      if (curView === "vision" && visionAdv) vcRender();
       if (curView === "vision" && state.ready && OI.loaded) ocrInstLoad();  // 回来后重新读取一次
       if (curView === "stats") { renderCommandStats(); loadCommandStats(); }
       // 字体任务还在跑：回来立即查一次，并恢复每秒轮询

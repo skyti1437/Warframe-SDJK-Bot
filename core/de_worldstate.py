@@ -14,15 +14,16 @@
 from __future__ import annotations
 
 import json
-import threading
 import re
+import sys
+import threading
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
-from functools import lru_cache
-
-from . import i18n
+from functools import lru_cache, wraps
 from pathlib import Path
 from typing import Any, Callable, Optional
+
+from . import i18n, paths
 
 DATA_DIR = Path(__file__).resolve().parent / "data" / "de"
 
@@ -57,26 +58,81 @@ def _load(name: str) -> Any:
     return _load_file(name)
 
 
+_PATH_TABLES = frozenset({"languages_zh.json", "languages_en.json", "name_zh.json", "name_en.json"})
+
+
 @lru_cache(maxsize=None)
-def _load_file(name: str) -> Any:
-    """按文件名缓存静态表。
+def _file_reader(name: str):
+    # 每个文件只保留当前一代。四张大表共用路径字符串，译文仍各自独立。
+    lock = threading.Lock()
 
-    **必须 maxsize=None**：这里会被 14 个不同文件名轮流命中，
-    lru_cache(maxsize=1) 意味着一进一出、每次都重新读盘 —— 最大的
-    languages_zh.json 有 3.5MB，实测把 AstrBot 的事件循环堵到 30s+。
-    """
-    path = DATA_DIR / name
-    if not path.exists():
-        return {}
+    @lru_cache(maxsize=1)
+    def cached(path: Path, stamp):
+        try:
+            table = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
+        if name in _PATH_TABLES:
+            return (
+                {sys.intern(key): value for key, value in table.items()}
+                if isinstance(table, dict)
+                else {}
+            )
+        return table
+
+    def read(path, stamp):
+        with lock:
+            return cached(path, stamp)
+
+    return read
+
+
+def _table_version(name, root):
+    if name not in _PATH_TABLES:
+        return name, DATA_DIR / name, None
+    path = paths.read_path(f"de/{name}", root=root)
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except Exception:  # noqa: BLE001
-        return {}
+        stat = path.stat()
+    except OSError:
+        return name, path, None
+    return name, path, (stat.st_dev, stat.st_ino, stat.st_mtime_ns, stat.st_size)
 
 
-# 旧调用方（测试、预热）通过 _load 访问缓存控制，转接到真正带缓存的 _load_file。
-_load.cache_clear = _load_file.cache_clear  # type: ignore[attr-defined]
-_load.cache_info = _load_file.cache_info  # type: ignore[attr-defined]
+def _load_file(name: str) -> Any:
+    """静态表分别缓存，中英文路径表按实际文件和版本热更新。"""
+    _, path, stamp = _table_version(name, paths.run_dir())
+    return _file_reader(name)(path, stamp)
+
+
+_load_file.cache_clear = _load.cache_clear = _file_reader.cache_clear
+_load_file.cache_info = _load.cache_info = _file_reader.cache_info
+
+
+def path_table_index(*names: str, localized: bool = False):
+    """双语反查与卡面索引跟随源文件换代，逻辑表另按当前显示语言选源。"""
+
+    def decorate(build):
+        lock = threading.Lock()
+
+        @lru_cache(maxsize=2 if localized else 1)
+        def cached(versions):
+            return build(*(_file_reader(name)(path, stamp) for name, path, stamp in versions))
+
+        @wraps(build)
+        def get():
+            selected = (_EN_TABLE.get(n, n) for n in names) if localized and i18n.is_en() else names
+            with lock:
+                root = paths.run_dir()
+                return cached(tuple(_table_version(n, root) for n in selected if n))
+
+        def clear():
+            with lock:
+                cached.cache_clear()
+
+        get.cache_clear, get.cache_info = clear, cached.cache_info
+        return get
+
+    return decorate
 
 
 def sol_node(key: str) -> dict:
@@ -1442,7 +1498,16 @@ def community_news(rows: list) -> list[dict]:
             msgs["en"] = row["message"]
         message = _news_message(msgs)
         if message:
-            out.append(dict(row, message=message))
+            out.append(
+                dict(
+                    row,
+                    message=message,
+                    date=row.get("date") or "",
+                    priority=bool(row.get("priority")),
+                    community=bool(row.get("community") or row.get("isCommunity")),
+                )
+            )
+    out.sort(key=lambda n: (n.get("date") or "", bool(n.get("priority"))), reverse=True)
     return out
 
 
@@ -1949,14 +2014,28 @@ def adapt_community_syndicate_missions(rows: list[dict]) -> list[dict]:
     地区和奖励表分支；未知任务保留社区名称，不猜任务类型或奖励轮次。
     """
     regions = {
-        "Ostrons": "/eidolon/jobs/",
-        "Solaris United": "/venus/jobs/",
-        "Entrati": "/infestedmicroplanet/jobs/",
+        "CetusSyndicate": "/eidolon/jobs/",
+        "SolarisSyndicate": "/venus/jobs/",
+        "EntratiSyndicate": "/infestedmicroplanet/jobs/",
+    }
+    syndicate_keys = {
+        "Ostrons": "CetusSyndicate",
+        "Solaris United": "SolarisSyndicate",
+        "Entrati": "EntratiSyndicate",
+        "The Holdfasts": "ZarimanSyndicate",
+        "Cavia": "EntratiLabSyndicate",
+        "The Hex": "HexSyndicate",
     }
     result = deepcopy(rows)
     for syndicate in result:
-        region = regions.get(syndicate.get("syndicate"))
-        for job in syndicate.get("jobs") or []:
+        raw_key = syndicate.get("syndicateKey") or ""
+        key = (
+            syndicate_keys.get(raw_key) or syndicate_keys.get(syndicate.get("syndicate")) or raw_key
+        )
+        syndicate["syndicateKey"] = key
+        region = regions.get(key)
+        jobs = syndicate.get("jobs") or []
+        for job in jobs:
             table = job.get("uniqueName") or job.get("rewardTable") or ""
             job["rewardTable"] = table
             identity = str(job.get("id") or "").lower()
@@ -1970,9 +2049,31 @@ def adapt_community_syndicate_missions(rows: list[dict]) -> list[dict]:
                         matches.append(meta)
             meta = matches[0] if len(matches) == 1 else {}
             job["_jobName"] = meta.get("name") or job.get("_jobName") or job.get("type") or ""
+            if key == "EntratiSyndicate" and re.search(r"VaultBountyTier[ABC]", table, re.I):
+                job["_jobName"] = ""
             job["_jobDesc"] = meta.get("desc") or job.get("_jobDesc") or ""
             # final 来自已匹配官方任务的遭遇战代码，不能从英文名称猜类型。
             job["_jobFinal"] = list(meta.get("final") or job.get("_jobFinal") or [])
+        if key == "SolarisSyndicate":
+            jobs.extend(
+                _solaris_supplement_job(entry)
+                for entry in SOLARIS_SUPPLEMENT_JOBS
+                if not any(
+                    job.get("jobTypeKey") == entry["jobTypeKey"]
+                    or re.fullmatch(
+                        re.escape(entry["jobTypeKey"]) + r"\d*",
+                        str(job.get("id") or ""),
+                        re.I,
+                    )
+                    or re.fullmatch(
+                        re.escape(entry["rewardTable"]) + r"[ABC]?",
+                        job["rewardTable"].rsplit("/", 1)[-1],
+                        re.I,
+                    )
+                    for job in jobs
+                )
+            )
+            syndicate["jobs"] = jobs
     return result
 
 
@@ -2559,12 +2660,8 @@ _CAL_BLUEPRINT_MARK = "Blueprint"
 _CAL_REWARD_SYNTH = {"CalendarRivenPack": "裂罅 Mod"}
 
 
-def _card_lang_index() -> dict[str, dict[str, tuple[str, str]]]:
-    return __card_lang_index_for(i18n.current_lang())
-
-
-@lru_cache(maxsize=2)
-def __card_lang_index_for(_lang: str) -> dict[str, dict[str, tuple[str, str]]]:
+@path_table_index("languages_zh.json", "zh_ext.json", localized=True)
+def _card_lang_index(*tables) -> dict[str, dict[str, tuple[str, str]]]:
     """``{命名空间: {归一化键尾: (完整路径, 中文)}}``（只建 4 个卡面命名空间）。
 
     归一化 = 小写 + 去 ``-``/``_``/空格 —— DE 的键名大小写与资产名并不总是一致
@@ -2573,8 +2670,7 @@ def __card_lang_index_for(_lang: str) -> dict[str, dict[str, tuple[str, str]]]:
     """
     out: dict[str, dict[str, tuple[str, str]]] = {ns: {} for ns in _CARD_LANG_NS}
     # 先本地 36k 表、后补充表：与 language_text_zh 的优先级保持一致
-    for name in ("languages_zh.json", "zh_ext.json"):
-        table = _load(name) or {}
+    for table in tables:
         if not isinstance(table, dict):
             continue
         for path, rec in table.items():
@@ -2707,21 +2803,38 @@ def _calendar_upgrade_desc(ref: str) -> str:
 
 
 _CAL_UPGRADE_PREFIX = "/Lotus/Upgrades/Calendar/"
+_CAL_LANGUAGE_PREFIX = "/Lotus/Language/1999/"
 
 
-@lru_cache(maxsize=1)
-def _calendar_upgrade_refs_by_en() -> dict[str, str]:
-    """社区源只给标题，用明确对应覆写资产的英文旧标题反查。"""
+@path_table_index("languages.json", "languages_en.json", "languages_zh.json", "zh_ext.json")
+def _calendar_upgrade_refs_by_en(legacy, en, zh, zh_ext) -> dict[str, str]:
+    """按官方英文标题反查覆写资产，兼容社区的旧标题和美化资产名。"""
     refs: dict[str, set[str]] = {}
-    for ref, entry in (_load_file("languages.json") or {}).items():
+    for ref, entry in (legacy or {}).items():
         if ref.startswith(_CAL_UPGRADE_PREFIX) and isinstance(entry, dict):
             name = entry.get("value")
             if name and not _is_placeholder(name):
                 refs.setdefault(name.strip().casefold(), set()).add(ref)
+    asset_refs = set(CAL_UPGRADE_CN)
+    for table, english in ((en, True), (zh, False), (zh_ext, False)):
+        for key, value in (table or {}).items():
+            if not (key.startswith(_CAL_LANGUAGE_PREFIX) and key.endswith("Name")):
+                continue
+            ref = _CAL_UPGRADE_PREFIX + key.removeprefix(_CAL_LANGUAGE_PREFIX).removesuffix("Name")
+            asset_refs.add(ref)
+            if english and isinstance(value, dict):
+                value = value.get("value")
+            if english and isinstance(value, str) and value.strip() and not _is_placeholder(value):
+                refs.setdefault(value.strip().casefold(), set()).add(ref)
     # 2026-11-11 同一天同一顺序的 DE/社区事件，社区仍下发旧标题及 [PH] 描述。
     refs.setdefault("energy orbs grant shield", set()).add(
         _CAL_UPGRADE_PREFIX + "EnergyOrbsGrantShield"
     )
+    asset_names: dict[str, set[str]] = {}
+    for ref in asset_refs:
+        asset_names.setdefault(_prettify(ref).casefold(), set()).add(ref)
+    for name, keys in asset_names.items():
+        refs.setdefault(name, keys)
     return {name: next(iter(keys)) for name, keys in refs.items() if len(keys) == 1}
 
 
@@ -2830,17 +2943,13 @@ def _parse_calendar(entry: dict, now_ms: int) -> dict:
     }
 
 
-@lru_cache(maxsize=1)
-def _calendar_challenge_key_by_en() -> dict[str, str]:
+@path_table_index("languages_en.json")
+def _calendar_challenge_key_by_en(table) -> dict[str, str]:
     """日历挑战英文标题（小写）→ ``/Lotus/Language/1999Challenges/*_Name`` 键。
 
     只给 DE 后备（社区 warframestat）路径用：它的日历只有英文标题、没有资产路径。
-    只收 1999Challenges 命名空间的几百个键，不把整张英文表常驻内存。
+    只为 1999Challenges 命名空间建立反查，共用已加载的英文表。
     """
-    try:
-        table = json.loads((DATA_DIR / "languages_en.json").read_text(encoding="utf-8"))
-    except Exception:  # noqa: BLE001 - 缺表就不反查，卡面保留英文
-        return {}
     out: dict[str, str] = {}
     for key, rec in table.items():
         if not (isinstance(key, str) and "/1999Challenges/" in key and key.endswith("_Name")):
@@ -2851,7 +2960,7 @@ def _calendar_challenge_key_by_en() -> dict[str, str]:
     return out
 
 
-_COMMUNITY_CAL_TYPE = {"To Do": "CHALLENGE", "Big Prize!": "REWARD", "Override": "UPGRADE"}
+_COMMUNITY_CAL_TYPE = {"to do": "CHALLENGE", "big prize!": "REWARD", "override": "UPGRADE"}
 
 
 def community_calendar(data: dict) -> dict:
@@ -2872,6 +2981,7 @@ def community_calendar(data: dict) -> dict:
     days = []
     synthesized: set[str] = set()
     no_key: set[str] = set()
+    has_source_events = False
     for day in data.get("days") or []:
         raw_date = str(day.get("date") or "")[:10]
         try:
@@ -2880,16 +2990,31 @@ def community_calendar(data: dict) -> dict:
             num = None
         events = []
         for ev in day.get("events") or []:
-            kind = _COMMUNITY_CAL_TYPE.get(ev.get("type", ""), "")
+            has_source_events = True
+            raw_kind = str(ev.get("type") or "").strip().casefold()
+            kind = _COMMUNITY_CAL_TYPE.get(raw_kind, raw_kind.removeprefix("cet_").upper())
+            if kind not in ("CHALLENGE", "REWARD", "UPGRADE"):
+                if ev.get("challenge"):
+                    kind = "CHALLENGE"
+                elif ev.get("upgrade"):
+                    kind = "UPGRADE"
+                elif ev.get("reward") or ev.get("uniqueName"):
+                    kind = "REWARD"
             if kind == "REWARD":
-                name, synth = _calendar_reward_name(str(ev.get("uniqueName") or ""))
+                reward = str(ev.get("reward") or "")
+                ref = str(ev.get("uniqueName") or "")
+                if not reward and not ref:
+                    continue
+                name, synth = _calendar_reward_name(ref)
                 if synth:
                     synthesized.add(name)
-                events.append({"type": "REWARD", "name": name or str(ev.get("reward") or "?")})
+                events.append({"type": "REWARD", "name": name or reward or _prettify(ref)})
             elif kind == "CHALLENGE":
                 ch = ev.get("challenge") or {}
                 name = str(ch.get("title") or "")
                 desc = str(ch.get("description") or "")
+                if not name and not desc:
+                    continue
                 count = None
                 if zh_table:
                     key = _calendar_challenge_key_by_en().get(name.strip().lower(), "")
@@ -2907,14 +3032,17 @@ def community_calendar(data: dict) -> dict:
             elif kind == "UPGRADE":
                 up = ev.get("upgrade") or {}
                 name = str(up.get("title") or "")
+                desc = str(up.get("description") or "")
+                if not name and not desc:
+                    continue
                 ref = _calendar_upgrade_refs_by_en().get(name.strip().casefold(), "")
-                upgrade, fallback = _calendar_upgrade_event(
-                    ref, name, str(up.get("description") or "")
-                )
+                upgrade, fallback = _calendar_upgrade_event(ref, name, desc)
                 if fallback:
                     no_key.add(upgrade["name"])
                 events.append(upgrade)
         days.append({"day": num, "date": raw_date, "events": events})
+    if has_source_events and not any(day["events"] for day in days):
+        raise ValueError("社区日历的事件类型无法识别")
     season = str(data.get("season") or "")
     if season and not season.startswith("CST_"):
         season = "CST_" + season.upper()
@@ -2950,12 +3078,11 @@ def _community_counted(reward: Any) -> list[dict]:
     ]
 
 
-@lru_cache(maxsize=1)
-def _community_zh_text() -> dict[str, str]:
+@path_table_index("languages_zh.json", "languages_en.json")
+def _community_zh_text(zh, en_table) -> dict[str, str]:
     """只用 DE 同一语言键反查；不唯一的英文原文留给调用方。"""
-    zh = _load_file("languages_zh.json") or {}
     choices: dict[str, set[str]] = {}
-    for key, en in (_load_file("languages_en.json") or {}).items():
+    for key, en in en_table.items():
         value = zh.get(key)
         if isinstance(en, str) and en and isinstance(value, str) and value:
             choices.setdefault(en.strip().casefold(), set()).add(value)
@@ -3189,12 +3316,50 @@ def community_cycle(name: str, data: dict) -> dict:
     return out
 
 
+_COMMUNITY_CONCLAVE_PATTERNS = tuple(
+    (re.compile(pattern, re.I), translation)
+    for pattern, translation in (
+        (r"weekly mission", "每周任务"),
+        (r"win (\d+) match(?:es)?(?: of any game type)?", r"赢得 \1 场比赛"),
+        (r"complete (\d+) daily challenge[s]?", r"完成 \1 项每日挑战"),
+        (r"complete (\d+) match(?:es)?(?: of any game type)?", r"完成 \1 场比赛"),
+        (r"capture (\d+) cephalons?", r"捕获 \1 个中枢"),
+        (r"return (\d+) cephalons?", r"归还 \1 个中枢"),
+        (r"get (\d+) warframe ability kills? in a match", r"单场比赛中使用战甲技能击杀 \1 名敌人"),
+        (r"get (\d+) warframe ability kills?", r"使用战甲技能击杀 \1 名敌人"),
+        (r"kill (\d+) enem(?:y|ies) with your primary weapon", r"用主武器击杀 \1 名敌人"),
+        (r"kill (\d+) enem(?:y|ies) with your secondary weapon", r"用副武器击杀 \1 名敌人"),
+        (r"kill (\d+) enem(?:y|ies) with (?:your melee weapon|melee)", r"近战击杀 \1 名敌人"),
+        (r"kill (\d+) enem(?:y|ies) with headshots?", r"爆头击杀 \1 名敌人"),
+        (r"kill (\d+) enem(?:y|ies) while (?:airborne|in the air)", r"滞空击杀 \1 名敌人"),
+        (r"kill (\d+) enem(?:y|ies) while sliding", r"滑行中击杀 \1 名敌人"),
+        (r"steal the (?:ball|lunaro) (\d+) times?", r"抢断月动球 \1 次"),
+        (r"strike opponents? carrying the ball (\d+) times?", r"冲撞持球对手 \1 次"),
+        (r"score (\d+) goals?", r"射门得分 \1 次"),
+        (r"pass the (?:ball|lunaro) (\d+) times?", r"传出月动球 \1 次"),
+        (r"intercept (\d+) pass(?:es)?(?: from an enemy)?", r"拦截 \1 次传球"),
+        (r"catch the (?:ball|lunaro) (\d+) times?", r"接住月动球 \1 次"),
+    )
+)
+
+
+def _community_conclave_text(text: str) -> str:
+    phrase = text.strip().rstrip(".")
+    localized = conclave_text(phrase)
+    if localized != phrase:
+        return localized
+    for pattern, translation in _COMMUNITY_CONCLAVE_PATTERNS:
+        match = pattern.fullmatch(phrase)
+        if match:
+            return match.expand(translation)
+    return text
+
+
 def community_conclave(rows: list) -> list[dict]:
     """社区武形秘仪挑战 → :func:`_parse_conclave` 的输出结构。
 
     社区只给英文标题 / 描述（无任务资产路径），模式名按英文名反查 DE 模式代码取当前语言名；
-    挑战说明中文模式下：标题被拆成「P V P Timed…」时可还原资产路径查官方简中，
-    其余无键可查，保留社区英文描述（描述已含次数，不再追加 ×N）。
+    中文匹配词表及已知挑战句式，未知描述保留英文。
     """
     mode_code = {}
     for code, name in PVP_MODE_EN.items():
@@ -3206,11 +3371,12 @@ def community_conclave(rows: list) -> list[dict]:
         title = str(row.get("title") or "")
         desc = str(row.get("description") or "")
         text = desc or title
-        glued = title.replace(" ", "")
-        if "PVPTimedChallenge" in glued:  # 社区把资产名按字母拆开了
-            en, _ = language_text("/Lotus/PVPChallengeTypes/" + glued)
-            text = en or _prettify(glued)
-        text = conclave_text(text) if not i18n.is_en() else text
+        if not i18n.is_en():
+            glued = title.replace(" ", "")
+            if (not desc or desc == title) and "PVPTimedChallenge" in glued:
+                en, _ = language_text("/Lotus/PVPChallengeTypes/" + glued)
+                text = en or _prettify(glued)
+            text = _community_conclave_text(text)
         amount = row.get("amount")
         cat = str(row.get("categoryKey") or row.get("category") or "")
         mode = str(row.get("mode") or "")
@@ -3219,7 +3385,7 @@ def community_conclave(rows: list) -> list[dict]:
             {
                 "mode": pvp_mode_name(code) if code else mode,
                 "text": text,
-                "value": amount if amount and str(amount) not in desc else None,
+                "value": amount if amount and not re.search(r"\d", text) else None,
                 "cat": i18n.L("每周", "Weekly")
                 if "week" in cat.lower()
                 else i18n.L("每日", "Daily"),

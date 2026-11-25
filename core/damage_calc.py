@@ -51,11 +51,13 @@ import json
 import math
 import re
 import struct
+import threading
+from contextvars import ContextVar
 from pathlib import Path
 from typing import Optional
 
 try:
-    from . import i18n, matching  # core 包内正常导入
+    from . import i18n, matching, paths  # core 包内正常导入
 except ImportError:
     # ★ 只在**非包上下文**（离线脚本把 core/ 当顶层路径）才回退绝对导入；
     #   包内失败 = 真错误，原样抛出（2026-09-25 事故：兜底把真错掩盖成
@@ -64,6 +66,7 @@ except ImportError:
         raise
     import i18n
     import matching
+    import paths
 
 L = i18n.L  # 双语文案：L("中文", "English")，中文原文逐字不变
 
@@ -74,39 +77,56 @@ def attack_rate_label(melee: bool) -> str:
 
 _DATA = Path(__file__).resolve().parent / "data"
 _cache: dict = {}
+_load_lock = threading.Lock()
+
+
+_PARSE_DATA = ContextVar("damage_parse_data", default=None)
 
 
 def _load() -> dict:
-    if not _cache:
-        _cache["weapons"] = json.loads((_DATA / "weapons_stats.json").read_text(encoding="utf-8"))
-        fac = json.loads((_DATA / "damage_faction.json").read_text(encoding="utf-8"))
-        # 表键统一小写：武器数据里的伤害类型键也是小写（impact/slash/…）
-        _cache["fac_table"] = {k.lower(): v for k, v in fac["table"].items() if isinstance(v, dict)}
-        try:
-            _cache["enemies"] = json.loads((_DATA / "enemies.json").read_text(encoding="utf-8"))[
-                "enemies"
-            ]
-        except Exception:  # noqa: BLE001
-            _cache["enemies"] = {}
-        try:
-            raw = json.loads((_DATA / "mods_stats.json").read_text(encoding="utf-8"))
-            # 名字索引（可识别但未必能算）先铺底，能算的再覆盖上去：
-            # 「锁定目标」这类暂不参与计算的卡也必须认得出来，
-            # 否则会被当成武器名的一部分，导致武器查不到、整条指令无输出。
-            mods = {k: {**v, "numeric": False} for k, v in (raw.get("names") or {}).items()}
-            mods.update({k: {**v, "numeric": True} for k, v in (raw.get("mods") or {}).items()})
-            _cache["mods"] = mods
-        except Exception:  # noqa: BLE001
-            _cache["mods"] = {}
-        try:
-            # MOD 补充元数据：家族互斥 + 结构化条件堆叠 + 武器排除（scripts/build_mod_rules.py 由
-            # wiki Module:Mods/data + DE + PEP 生成；key=mods_stats 的 key 小写）
-            _cache["mods_extra"] = json.loads(
-                (_DATA / "mods_wfsim_extra.json").read_text(encoding="utf-8")
-            )
-        except Exception:  # noqa: BLE001
-            _cache["mods_extra"] = {}
-    return _cache
+    """发布完整的一代武器、MOD 和派生视图；同一次参数解析复用该快照。"""
+    global _cache
+    if (snapshot := _PARSE_DATA.get()) is not None:
+        return snapshot
+    with _load_lock:
+        root = paths.run_dir()
+        weapons = paths.load_table("weapons_stats.json", root=root, required=True)
+        raw = paths.load_table("mods_stats.json", root=root)
+        if _cache and _cache["weapons"] is weapons and _cache["_mod_source"] is raw:
+            return _cache
+        if _cache:
+            loaded = _cache.copy()
+        else:
+            fac = json.loads((_DATA / "damage_faction.json").read_text(encoding="utf-8"))
+            loaded = {
+                "fac_table": {k.lower(): v for k, v in fac["table"].items() if isinstance(v, dict)}
+            }
+            try:
+                loaded["enemies"] = json.loads(
+                    (_DATA / "enemies.json").read_text(encoding="utf-8")
+                )["enemies"]
+            except (OSError, ValueError, KeyError, TypeError):
+                loaded["enemies"] = {}
+            try:
+                loaded["mods_extra"] = json.loads(
+                    (_DATA / "mods_wfsim_extra.json").read_text(encoding="utf-8")
+                )
+            except (OSError, ValueError):
+                loaded["mods_extra"] = {}
+        if loaded.get("_mod_source") is not raw:
+            mods = {
+                k: {**v, "numeric": numeric}
+                for section, numeric in (("names", False), ("mods", True))
+                for k, v in paths.table_section(raw, section).items()
+                if isinstance(v, dict)
+            }
+            loaded.update(mods=mods, _mod_source=raw)
+            loaded.pop("_lookup_indexes", None)
+        if loaded.get("weapons") is not weapons:
+            loaded["weapons"] = weapons
+            loaded.pop("_weapon_names", None)
+        _cache = loaded
+        return loaded
 
 
 def mod_extra(mod: dict) -> dict:
@@ -114,7 +134,7 @@ def mod_extra(mod: dict) -> dict:
     if not isinstance(mod, dict):
         return {}
     nm = str(mod.get("name") or "").lower()
-    return (_load().get("mods_extra") or {}).get(nm) or {}
+    return ((_cache or _load()).get("mods_extra") or {}).get(nm) or {}
 
 
 def _lookup_index(kind: str) -> tuple[dict, list]:
@@ -772,16 +792,13 @@ HEAT_STRIP = 0.50  # 火剥甲：−50% 护甲
 # ---------------------------------------------------------------------------
 # 武器查询
 # ---------------------------------------------------------------------------
-_NAME_INDEX: Optional[dict] = None
-
-
 def _name_index() -> dict:
     """归一化名 → [武器] 索引（首次构建一次；581 把武器的正则归一很贵，
     之前每次查询都要跑 1700+ 次正则）。"""
-    global _NAME_INDEX
-    if _NAME_INDEX is None:
+    data = _load()
+    if "_weapon_names" not in data:
         idx: dict = {}
-        for v in _load()["weapons"].values():
+        for v in data["weapons"].values():
             for k in (
                 _norm(v.get("zh")),
                 _norm(v.get("name")),
@@ -789,8 +806,8 @@ def _name_index() -> dict:
             ):
                 if k:
                     idx.setdefault(k, []).append(v)
-        _NAME_INDEX = idx
-    return _NAME_INDEX
+        data["_weapon_names"] = idx
+    return data["_weapon_names"]
 
 
 def find_weapon_exact(query: str) -> Optional[dict]:
@@ -1357,8 +1374,205 @@ def merge_target_options(target, changes):
     target.update((key, value) for key, value in changes.items() if key != "combat_options")
 
 
-def parse_args(tokens: list[str], *, target_overrides=None) -> tuple[dict, list[str]]:
+# weapons_stats 的旧面板只标 Melee。这几类有专用 MOD，按随包配卡中的已装备架势
+# 与 stances_stats.weapon_type 核对家族；同家族的 Prime、集团等变体共用类别。
+_MELEE_MOD_FAMILIES = {
+    "daggers": {
+        "sheev",
+        "rumblejack",
+        "darkdagger",
+        "ceramicdagger",
+        "heatdagger",
+        "karyst",
+        "innodem",
+    },
+    "dualdaggers": {"nepheri", "fang", "etherdaggers", "okina"},
+    "polearms": {
+        "korumm",
+        "serro",
+        "kesheg",
+        "sydon",
+        "pupacyst",
+        "lesion",
+        "edun",
+        "tonbo",
+        "amanata",
+        "orthos",
+        "guandao",
+        "cassowar",
+    },
+    "whips": {"verdilac", "lecta", "galvacord", "atterax", "scoliac", "spinnerex"},
+    "thrownmelee": {
+        "xoris",
+        "falcor",
+        "halikar",
+        "pathocyst",
+        "cerata",
+        "kestrel",
+        "glaive",
+        "glaivevariant",
+        "orvius",
+    },
+}
+
+
+def _weapon_mod_types(weapon: dict) -> set[str]:
+    category = _norm(weapon.get("category"))
+    kind = _norm(weapon.get("type"))
+    name = weapon.get("name") or ""
+    if category in {"primary", "sentinel"}:
+        # 部分主手霰弹枪的面板 type 是 Rifle（如 Kohm），使用随包武器分类补全。
+        entries = paths.table_section(paths.load_table("dispositions_rivenmirror.json"), "entries")
+        entry = entries.get(name) or {}
+        kind = _norm(entry.get("riven_type")) or kind
+        if category == "sentinel":
+            category = {"pistol": "secondary", "melee": "melee", "glaive": "melee"}.get(
+                kind, "primary"
+            )
+    if category == "secondary":
+        types = {"secondary", "pistol"}
+        if kind == "tome" or name.lower() in {"grimoire", "noctua"}:
+            types.add("tome")
+        return types
+    if category == "primary":
+        if kind == "shotgun":
+            return {"primary", "shotgun"}
+        types = {"primary", "rifle"}
+        asset = (weapon.get("uniqueName") or "").lower()
+        if asset in BOW_CLASS_UNIQUE or kind == "bow":
+            types.add("bow")
+        elif (
+            "sniper" in _norm(weapon.get("type"))
+            or "sniper" in asset
+            or matching.strip_variant_norm(_norm(name))
+            in {
+                "komorex",
+                "lanka",
+                "perigale",
+                "rubico",
+                "snipetron",
+                "sporothrix",
+                "vadarya",
+                "vectis",
+                "vulkar",
+            }
+        ):
+            types.add("sniper")
+        else:
+            types.add("assaultrifle")
+        return types
+    if category == "melee":
+        types = {"melee", "stance", kind, kind + "s"}
+        if kind == "glaive":
+            types.add("thrownmelee")
+        stem = matching.strip_variant_norm(_norm(name))
+        types.update(label for label, members in _MELEE_MOD_FAMILIES.items() if stem in members)
+        return types
+    return {category}
+
+
+def _mount_restriction(mod, weapon, extra):
+    label = _zh_or_name(mod)
+    note = str((mod.get("effects") or {}).get("note") or "").lower()
+    trigger = (weapon or {}).get("trigger") or ""
+    if (
+        "only compatible" in note
+        and "semi" in note
+        and trigger.strip().lower() not in {"semi", "semi-auto"}
+    ):
+        return L(
+            f"{label}：仅兼容半自动扳机（这把武器是 {trigger or '未知'}），效果未计入",
+            f"{label}: only compatible with Semi-Auto triggers (this weapon is {trigger or 'unknown'}), effect not counted",
+        )
+    if weapon and weapon["name"].lower() in (extra.get("excludes_weapons") or ()):
+        return L(
+            f"{label}：卡面写明不适用于 {weapon['name']}，效果未计入",
+            f"{label}: the card states it does not apply to {weapon['name']}, effect not counted",
+        )
+    return ""
+
+
+def _eligible_mods(mods, weapon, notes, validate):
+    """按输入顺序保留可用卡，拒绝项不进入普通数值和镀层的二次折算。"""
+    types = _weapon_mod_types(weapon) if validate and weapon and mods else set()
+    displayed, active = [], []
+    assets, names, families = set(), set(), {}
+    family_index = None
+    for mod in mods:
+        extra = mod_extra(mod)
+        if restriction := _mount_restriction(mod, weapon, extra):
+            notes.append(restriction)
+            displayed.append(mod)
+            continue
+        if not validate:
+            displayed.append(mod)
+            active.append(mod)
+            continue
+        label = _zh_or_name(mod)
+        name = _norm(mod.get("name") or mod.get("zh"))
+        asset = mod.get("_source_unique_name") or mod.get("uniqueName")
+        if name in names or (asset and asset in assets):
+            notes.append(
+                L(f"{label}：重复 MOD，只计第一张", f"{label}: duplicate mod, counted once")
+            )
+            continue
+        compat = mod.get("compat") or ""
+        if (
+            weapon
+            and compat
+            and _norm(compat) not in types
+            and _norm(compat) != _norm(weapon.get("name"))
+        ):
+            # 点名普通武器的专属卡兼容同族变体；点名特定变体的卡只接受上面的精确命中。
+            specific = find_weapon_exact(compat) and not matching.variant_intent_any(compat)
+            if specific and family_index is None:
+                family_index = matching.family_index_snapshot()
+            if not specific or matching.family_key(compat, family_index) != matching.family_key(
+                weapon["name"], family_index
+            ):
+                notes.append(
+                    L(
+                        f"{label}：不适用于{_zh_or_name(weapon)}（{compat}），未计入",
+                        f"{label}: incompatible with {_zh_or_name(weapon)} ({compat}), not counted",
+                    )
+                )
+                continue
+        family = (
+            extra.get("family")
+            if extra.get("family_status") != "singleton_protocol_identifier"
+            else None
+        )
+        if family and family in families:
+            other = families[family]
+            notes.append(
+                L(
+                    f"{label}：与{other}互斥，只计{other}",
+                    f"{label}: mutually exclusive with {other}, only {other} counted",
+                )
+            )
+            continue
+        if family:
+            families[family] = label
+        names.add(name)
+        if asset:
+            assets.add(asset)
+        displayed.append(mod)
+        active.append(mod)
+    return displayed, active
+
+
+def parse_args(
+    tokens: list[str], *, target_overrides=None, validate_mods=True
+) -> tuple[dict, list[str]]:
     """把 content tokens 拆成 (spec, 武器名 tokens)。"""
+    token = _PARSE_DATA.set(_load())
+    try:
+        return _parse_args(tokens, target_overrides=target_overrides, validate_mods=validate_mods)
+    finally:
+        _PARSE_DATA.reset(token)
+
+
+def _parse_args(tokens: list[str], *, target_overrides, validate_mods) -> tuple[dict, list[str]]:
     spec: dict = {
         **default_target(),
         "base_armor": None,
@@ -1373,6 +1587,8 @@ def parse_args(tokens: list[str], *, target_overrides=None) -> tuple[dict, list[
         "physical_convert": {},
         "headshot_bonus": 0.0,
         "fire_rate_pct": 0.0,
+        "magazine_pct": 0.0,
+        "reload_pct": 0.0,
         # 其中来自**射速 MOD 卡面**的部分（弓/弩翻倍只作用于它，见 BOW_CLASS_UNIQUE）
         "fire_rate_mod_pct": 0.0,
         "status_dmg": 0.0,
@@ -1727,36 +1943,14 @@ def parse_args(tokens: list[str], *, target_overrides=None) -> tuple[dict, list[
     weapon_rec = None
     _wj = " ".join(weapon_tokens).strip()
     if _wj:
-        weapon_rec = find_weapon_exact(_wj) or (find_weapon(_wj)[0] or None)
-    _semi_ok = bool(weapon_rec and str(weapon_rec.get("trigger") or "").lower() == "semi")
+        weapon_rec = find_weapon(_wj)[0]
+    spec["mods"], active_mods = _eligible_mods(
+        spec["mods"], weapon_rec, spec["notes"], validate_mods
+    )
 
-    # MOD 效果折算进 spec（与手写百分比同源：同组相加、派系 MOD 走独立乘区）
-    for m in spec["mods"]:
+    # 只有成功装备的卡参与普通折算和后续镀层堆叠。
+    for m in active_mods:
         eff = m.get("effects") or {}
-        _note_l = str(eff.get("note") or "").lower()
-        if "only compatible" in _note_l and "semi" in _note_l and not _semi_ok:
-            # 扳机限制卡装在非半自动武器上：整卡不折算，明示原因
-            _trg = weapon_rec.get("trigger") if weapon_rec else None
-            spec["notes"].append(
-                L(
-                    f"{m.get('zh') or m.get('name')}：仅兼容半自动扳机"
-                    f"（这把武器是 {weapon_rec.get('trigger') if weapon_rec else '未知'}），效果未计入",
-                    f"{_zh_or_name(m)}: only compatible with Semi-Auto triggers "
-                    f"(this weapon is {_trg if weapon_rec else 'unknown'}), effect not counted",
-                )
-            )
-            continue
-        _excl = mod_extra(m).get("excludes_weapons") or []
-        if weapon_rec and str(weapon_rec.get("name") or "").lower() in _excl:
-            # 卡面写明不兼容这类武器（PEP incompatibilityTags × 武器 compatibilityTags，如分裂飞行）：整卡不折算
-            spec["notes"].append(
-                L(
-                    f"{m.get('zh') or m.get('name')}：卡面写明不适用于 {weapon_rec.get('name')}，效果未计入",
-                    f"{_zh_or_name(m)}: the card states it does not apply to "
-                    f"{weapon_rec.get('name')}, effect not counted",
-                )
-            )
-            continue
         spec["base_dmg"] += eff.get("base_dmg", 0.0)
         spec["multishot"] += eff.get("multishot", 0.0)
         spec["crit_chance"] += eff.get("crit_chance", 0.0)
@@ -1764,6 +1958,8 @@ def parse_args(tokens: list[str], *, target_overrides=None) -> tuple[dict, list[
         spec["headshot_bonus"] += eff.get("headshot_bonus", 0.0)
         spec["fire_rate_pct"] += eff.get("fire_rate", 0.0)
         spec["fire_rate_mod_pct"] += eff.get("fire_rate", 0.0)
+        spec["magazine_pct"] += eff.get("magazine_pct", 0.0)
+        spec["reload_pct"] += eff.get("reload_pct", 0.0)
         # 状态伤害（Elementalist 类）只影响 DoT，不影响直伤
         spec["status_dmg"] += eff.get("status_dmg", 0.0)
         # 触发率（相对加成，作用在武器基础触发率上）→ 用于异常覆盖率
@@ -1829,7 +2025,7 @@ def parse_args(tokens: list[str], *, target_overrides=None) -> tuple[dict, list[
     # 条件堆叠默认不计入（同赋能原则），用户指定层数才折算；
     # 每层值取满级 rankMax（伤害指令的 MOD 一律按满级口径）
     if spec.get("galv_stacks") is not None:
-        for m in spec["mods"]:
+        for m in active_mods:
             extra = mod_extra(m)
             for cond in extra.get("conditionals") or []:
                 if not cond.get("mappable") or not cond.get("field"):
@@ -2983,25 +3179,33 @@ def apply_static_loadout_bonuses(spec, *, reload_pct=0.0, magazine_pct=0.0, arca
 def _loadout_cycle_stats(weapon, spec):
     magazine = weapon.get("magazineSize") or 0
     reload_time = weapon.get("reloadTime") or 0.0
-    if magazine and spec.get("_scan_magazine_pct"):
-        magazine = max(1, math.floor(magazine * (1 + spec["_scan_magazine_pct"] / 100) + 0.5))
-    reload_time /= max(0.05, 1 + spec.get("_scan_reload_pct", 0.0) / 100)
+    magazine_pct = spec.get("_scan_magazine_pct", spec.get("magazine_pct", 0.0))
+    reload_pct = spec.get("_scan_reload_pct", spec.get("reload_pct", 0.0))
+    if magazine and magazine_pct:
+        magazine = max(1, math.floor(magazine * (1 + magazine_pct / 100) + 0.5))
+    reload_time /= max(0.05, 1 + reload_pct / 100)
     return magazine, reload_time
 
 
 def calculate(spec: dict, weapon: dict) -> dict:
-    """按 v1 公式算对敌伤害；返回 dict（handler 负责拼卡面）。
+    """公开计算结果可自由修改，包括 MOD 来源、嵌套武器面板与敌人记录。"""
+    return copy.deepcopy(calculate_for_card(spec, weapon))
 
-    ⚠️ 绝不抛异常：武器缺失/数据异常时返回 {"ok": False, "error": ...}，
-    由卡面把它显示出来 —— 群聊里「什么都不显示」比「算错」更难排查。
 
-    ★ 不改动入参 spec：入口深拷贝，形态/进化/重击等 note 与 `_armor`、
-    `evo_headshot` 只写进副本（经 res["notes"] 等返回）。此前直接写入参，
-    同一份 spec 复算会让 notes 逐次累积（「识卡伤害」缓存复用即踩中）。
-    """
-    spec = copy.deepcopy(spec)
+def calculate_for_card(spec: dict, weapon: dict) -> dict:
+    """内部出卡读取共享元数据；形态和进化只改写本次标量、注释和条件说明。"""
+    spec = {
+        **spec,
+        "notes": list(spec.get("notes") or ()),
+        "conditional": list(spec.get("conditional") or ()),
+    }
     if spec.get("arcanes") and not spec.get("loadout_slots") and "_scan_reload_pct" not in spec:
-        apply_static_loadout_bonuses(spec, arcanes=spec["arcanes"])
+        apply_static_loadout_bonuses(
+            spec,
+            reload_pct=spec.get("reload_pct", 0.0),
+            magazine_pct=spec.get("magazine_pct", 0.0),
+            arcanes=spec["arcanes"],
+        )
     if type(tier := (spec.get("combat_options") or {}).get("comboTier")) is int and tier >= 0:
         spec["combo_hits"] = tier * COMBO_STEP
     if not isinstance(weapon, dict) or not isinstance(weapon.get("damage"), dict):
@@ -3074,7 +3278,7 @@ def calculate(spec: dict, weapon: dict) -> dict:
     _weapon_lib = weapon  # 形态/进化改造前的库值（段计算要算基础暴击增量）
     weapon = _apply_panel_overrides(spec, weapon)
     dmg: dict = weapon["damage"]
-    fac_table = _load()["fac_table"]
+    fac_table = (_cache or _load())["fac_table"]
     faction = spec["faction"]
     level = spec["level"]
     enemy = spec.get("enemy")
@@ -5327,6 +5531,10 @@ def card_lines(weapon: dict, spec: dict, res: dict, alts: Optional[list] = None)
                 tag.append(L(f"{name}（未计入）", f"{name} (not counted)"))
                 continue
             where = []
+            if eff.get("magazine_pct"):
+                where.append(L("弹匣容量", "Magazine capacity"))
+            if eff.get("reload_pct"):
+                where.append(L("装填速度", "Reload speed"))
             if eff.get("base_dmg"):
                 where.append(L("基伤·加算", "Base Dmg · additive"))
             if eff.get("multishot"):

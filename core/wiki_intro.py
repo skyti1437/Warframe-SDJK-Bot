@@ -10,7 +10,8 @@ from __future__ import annotations
 
 import json
 import re
-from functools import lru_cache
+import threading
+from functools import lru_cache, wraps
 from pathlib import Path
 from typing import Optional
 
@@ -34,9 +35,6 @@ L = i18n.L
 _FILE = Path(__file__).resolve().parent / "data" / "wiki_intro.json"
 _DROPS_FILE = Path(__file__).resolve().parent / "data" / "drops.json"
 _EFFECT_ZH_FILE = Path(__file__).resolve().parent / "data" / "wiki_effect_zh.json"
-_NAME_EN_ZH_FILE = Path(__file__).resolve().parent / "data" / "de" / "name_en_zh.json"
-_RELIC_INDEX_FILE = Path(__file__).resolve().parent / "data" / "relic_index.json"
-_RELIC_INVERSE_FILE = Path(__file__).resolve().parent / "data" / "relic_inverse.json"
 
 try:
     from .parser import TIER_CN as _TIER_CN  # 档位中英对照（含先锋/Vanguard）
@@ -55,7 +53,26 @@ except ImportError:
 _EFFECT_LINE = re.compile(r"^(?P<head>效果(?:（[^）]*）)?)：(?P<val>.+)$")
 
 
-@lru_cache(maxsize=1)
+def cached_index(build):
+    """同一只读索引的并发首查只加载一次，清理也等待在途构建。"""
+    cached = lru_cache(maxsize=1)(build)
+    lock = threading.Lock()
+
+    @wraps(build)
+    def get():
+        with lock:
+            return cached()
+
+    def clear():
+        with lock:
+            cached.cache_clear()
+
+    get.cache_clear = clear
+    get.cache_info = cached.cache_info
+    return get
+
+
+@cached_index
 def _effect_zh() -> dict:
     """英文效果文本（归一化）→ 中文译文。
 
@@ -213,7 +230,7 @@ class _EntryRows(list):
         self.views = views or {}
 
 
-@lru_cache(maxsize=1)
+@cached_index
 def _table() -> tuple[list, dict, dict]:
     """兼容旧下标、完整身份格式与紧凑数字引用；保留同名资产。"""
     try:
@@ -552,7 +569,7 @@ def exact_title(name: str) -> Optional[str]:
     return rows[0]["title"] if rows else None
 
 
-@lru_cache(maxsize=1)
+@cached_index
 def _drops() -> tuple[dict, dict, dict, dict]:
     """drops.json 的 (items, 归一化英文名 → 原键, places, zh2en)。
 
@@ -647,18 +664,12 @@ def _uses_card(*names: str, limit: int = 5) -> Optional[tuple[str, list[str]]]:
     return title, lines
 
 
-@lru_cache(maxsize=1)
 def _relics() -> tuple[dict, dict]:
-    """遗物表：(遗物名 → {常见/罕见/稀有: [部件]}, 部件名 → [{relic, rarity}])。"""
-
-    def _load(p: Path) -> dict:
-        try:
-            d = json.loads(p.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            return {}
-        return d if isinstance(d, dict) else {}
-
-    return _load(_RELIC_INDEX_FILE), _load(_RELIC_INVERSE_FILE)
+    """遗物正反查表，与遗物指令共享当前文件版本。"""
+    root = _paths.run_dir()
+    return _paths.load_table("relic_index.json", root=root), _paths.load_table(
+        "relic_inverse.json", root=root
+    )
 
 
 def _relic_key(name: str) -> str:
@@ -798,23 +809,13 @@ def _minimal_card(*names: str) -> Optional[tuple[str, list[str]]]:
 _PATH_SEG_RE = re.compile(r"^(?:de:)?.*?/([^/]+)$")
 _CAMEL_RE = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
 _CODE_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9]{11,}$")
-_TITLE_WORDS: Optional[set] = None
 _CJK_RE = re.compile(r"[\u4e00-\u9fff]")
 
 
-def _title_words() -> set:
-    """英文显示名词表（`core/data/de/name_en_zh.json::names` 的键按空格拆）——切词用。"""
-    global _TITLE_WORDS
-    if _TITLE_WORDS is None:
-        words: set = set()
-        try:
-            raw = json.loads((_NAME_EN_ZH_FILE).read_text(encoding="utf-8")).get("names") or {}
-            for k in raw:
-                words.update(str(k).split())
-        except Exception:  # noqa: BLE001 - 词表缺失只影响切词质量，不阻断出卡
-            words = set()
-        _TITLE_WORDS = words
-    return _TITLE_WORDS
+@_paths.table_index("de/name_en_zh.json")
+def _title_words(table: dict) -> set:
+    """从当前官方英文显示名取词，供内部类名切词。"""
+    return {word for key in _paths.table_section(table, "names") for word in key.split()}
 
 
 def _greedy_words(s: str) -> str:
@@ -992,7 +993,7 @@ def _en_seg(seg: str) -> str:
     return seg
 
 
-@lru_cache(maxsize=1)
+@cached_index
 def _description_en() -> dict[str, str]:
     """简介与 DE 官方简中原文完全相同，才按同一语言键取英文正文。"""
     root = _FILE.parent / "de"
@@ -1036,7 +1037,7 @@ def _en_line(line: str) -> str:
     return f"◆ {_en_label(label)}: {value}"
 
 
-@lru_cache(maxsize=1)
+@cached_index
 def _english_intro_data() -> dict:
     """加载经官方语言键、资产等级或配方校验的英文资料。"""
     try:

@@ -363,14 +363,17 @@ from core.commands.arbitration import ArbitrationCommands as _AC  # noqa: E402
 class _ArbStubClient:
     """假客户端：按 URL 返回三张表的固定数据。"""
 
-    async def _fetch_json(self, url: str, ttl: int = 0):
+    async def _fetch_json(self, url: str, ttl: int = 0, *, validator=None):
         if url.endswith("arbys.schedule.v2.json"):
-            return {
+            sched = {
                 "startTs": int(_time.time()) - 60,
                 "stepSec": 3600,
                 "seq": [0, 1, 2, 3],
                 "nodes": ["vprime", "tyana", "outer", "apollo"],
             }
+            if validator:
+                validator(sched)
+            return sched
         if url.endswith("arbys.nodes.zh.json"):
             return {
                 "nodes": {

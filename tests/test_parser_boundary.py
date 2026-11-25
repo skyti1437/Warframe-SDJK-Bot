@@ -47,6 +47,26 @@ p, e = safe_parse("-pc -w")
 check("只有修饰符不抛异常", e is None, repr(e))
 check("只有修饰符 command=None", p is not None and p.command is None, f"command={p.command!r}")
 
+for message in (
+    "I write code",
+    "a helpful guide",
+    "Wikipedia is handy",
+    "WikiHow has a guide",
+    "WikiLeaks has a guide",
+    "helpfully",
+    "try wmSoma",
+    "see wikiSoma",
+):
+    check(f"普通英文词不触发指令：{message}", parse(message).command is None)
+for msg, command, content in (
+    ("查一下 wr Soma", "wr", ["查一下", "Soma"]),
+    ("WMR绝路", "wr", ["绝路"]),
+    ("WM123", "wm", ["123"]),
+    ("wiki-foo", "wiki", ["-foo"]),
+):
+    parsed = parse(msg)
+    check(f"独立指令与明确连写边界：{msg}", (parsed.command, parsed.content) == (command, content))
+
 # ---------------------------------------------------------------- 非法参数
 p, e = safe_parse("wr")
 check("主指令裸发（无内容）不抛", e is None, repr(e))

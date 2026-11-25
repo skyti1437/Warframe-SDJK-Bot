@@ -6,6 +6,7 @@ from __future__ import annotations
 import asyncio
 import sys
 import tempfile
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -574,7 +575,7 @@ async def bounty_scenario():
     check("C2 首轮只建基线不推", sent_b == [], str(sent_b))
     # 2026-10-11：赏金改为「换轮那一刻产出事件」（旧写法每轮重发当前全部赏金，窗口外的订阅
     # 进窗后会补推当前轮），所以这里先模拟换轮（expiry 变了）再断言推送。
-    d.client.bounty_exp = "1791047999999"
+    d.client.bounty_exp = str(int((time.time() + 3600) * 1000))
     await d.tick()
     check(
         "C2 两条订阅各自命中对应赏金（歼灭→B1、生存→B2）",
@@ -921,7 +922,6 @@ check("首次有效状态 → 写入", _last.get("cetus_state") == "night", str(
 # ===========================================================================
 import json  # noqa: E402
 import os  # noqa: E402
-import time  # noqa: E402
 
 import core.store as store_mod  # noqa: E402
 from core.parser import TimeWindow, parse_time_window  # noqa: E402
@@ -1466,8 +1466,25 @@ async def z_send_failure_scenarios():
 
     # 过期丢弃
     d, st, cl, box, lg, _ = _zmk()
+    from core.logging_compat import mask_umo
+
+    session_id = "12345678"
+    umo = f"fixture:GroupMessage:{session_id}"
+
+    def check_abandon(lines, reason, tries):
+        warnings = [line for line in lines if "待重投事件放弃" in line]
+        check(
+            f"{reason}警告保留键和次数，会话号已打码",
+            len(warnings) == 1
+            and all(
+                part in warnings[0] for part in (mask_umo(umo), "键=b", reason, f"已试 {tries} 次")
+            )
+            and umo not in warnings[0]
+            and session_id not in warnings[0],
+        )
+
     cl.data["invasions"] = [_zinv("a")]
-    await st.add(_zsub("g1", "入侵", once=False))
+    await st.add(_zsub(umo, "入侵", once=False))
     await d.tick()
     cl.data["invasions"] = [_zinv("a"), _zinv("b")]
 
@@ -1484,11 +1501,12 @@ async def z_send_failure_scenarios():
     d.send = ok_send
     await d.tick()
     check("★ P2-3 超过有效期的待发事件被丢弃（不再重投）", box == [] and d._pending == [], str(box))
+    check_abandon(lg.warn_lines, "超过有效期", 0)
 
     # 重试上限：单个事件 1 次首投 + 最多 3 轮重投，之后丢弃；计数未到阈值，订阅保留
     d, st, cl, box, lg, _ = _zmk()
     cl.data["invasions"] = [_zinv("a")]
-    await st.add(_zsub("g1", "入侵", once=False))
+    await st.add(_zsub(umo, "入侵", once=False))
     await d.tick()
     cl.data["invasions"] = [_zinv("a"), _zinv("b")]
     calls = [0]
@@ -1505,6 +1523,7 @@ async def z_send_failure_scenarios():
         calls[0] == 1 + push_mod.PENDING_MAX_TRIES and d._pending == [] and len(st.all()) == 1,
         f"{calls} {d._pending}",
     )
+    check_abandon(lg.warn_lines, "达到重试次数上限", push_mod.PENDING_MAX_TRIES)
 
     # 连续失败达阈值 ⇒ 不再清理订阅，改为「暂停该会话推送」（别的会话不受影响）
     # ★ 2026-10-17 用户口径：见 z_pause_scenarios 的完整语义回归
@@ -1885,6 +1904,12 @@ async def z_pending_restart_scenarios():
                 {**original, "created": float("nan")},
                 {**original, "created": 10**400},
                 {**original, "created": float("inf")},
+                {**original, "chunks": [original["text"]]},
+                {**original, "chunks": ["错误正文"], "confirmed": 0},
+                *(
+                    {**original, "chunks": [original["text"]], "confirmed": cursor}
+                    for cursor in (True, -1, 2)
+                ),
             ]
         elif case == "cancelled":
             await st.remove(lambda sub: True)
@@ -1938,10 +1963,11 @@ async def z_store_failure_scenarios():
     cl.data["invasions"] = [_zinv("a"), _zinv("b")]
     cl.data["news"] = [{"id": "n0", "message": "m0"}, {"id": "n1", "message": "m1"}]
 
-    async def boom(sub_):
+    def boom(snapshot):
         raise OSError("disk full")
 
-    st.update = boom
+    write = st._write_atomic
+    st._write_atomic = boom
     try:
         await d.tick()
         raised = None
@@ -1955,6 +1981,16 @@ async def z_store_failure_scenarios():
     check(
         "P2-5 写盘失败留 WARNING", any("写盘失败" in x for x in lg.warn_lines), str(lg.warn_lines)
     )
+    delivered = {s.sid: dict(s.notified) for s in st.all()}
+    check("持续订阅送达后保留内存去重键", all(delivered.values()))
+    st._write_atomic = write
+    await d.tick()
+    check(
+        "持续订阅自动补写，重载可读去重键且未重复推送",
+        delivered == {s.sid: s.notified for s in SubscriptionStore(st.path).all()}
+        and len(box) == 2,
+    )
+
     # 一次性订阅 remove 写盘失败：内存已移除，同 tick 不会再推第二条
     d, st, cl, box, lg, _ = _zmk()
     cl.data["fissures"] = [_zfis("f0")]
@@ -1962,16 +1998,54 @@ async def z_store_failure_scenarios():
     await d.tick()
     cl.data["fissures"] = [_zfis("f0")] + [_zfis(f"n{i}", hard=True) for i in range(3)]
 
-    async def boom_save():
-        raise OSError("disk full")
-
-    st.save = boom_save
+    write = st._write_atomic
+    st._write_atomic = boom
     await d.tick()
     check(
         "★ P2-5 remove 写盘失败：一次性订阅仍只推 1 条",
         len(box) == 1 and st.all() == [],
         str(len(box)),
     )
+
+    check("消费补写前旧存档仍在", len(SubscriptionStore(st.path).all()) == 1)
+    st._write_atomic = write
+    await d.tick()
+    check(
+        "已送达后空闲轮询补写，重载仍已消费", not SubscriptionStore(st.path).all() and len(box) == 1
+    )
+
+    from unittest.mock import patch
+
+    sub = _zsub()
+    for operation in ("add", "update", "remove"):
+        if operation == "update":
+            sub = st.all()[0]
+            sub.notified["new"] = time.time()
+            sub.hits_left = 2
+        before = [s.to_dict() for s in st.all()]
+        action = {
+            "add": lambda: st.add(sub),
+            "update": lambda: st.update(sub),
+            "remove": lambda: st.remove(lambda s: s.sid == sub.sid),
+        }[operation]
+        with patch.object(st, "_write_atomic", side_effect=OSError("disk")):
+            try:
+                await action()
+            except OSError:
+                check(
+                    f"{operation} 失败保留内存与原存档",
+                    before
+                    == [s.to_dict() for s in st.all()]
+                    == [s.to_dict() for s in SubscriptionStore(st.path).all()],
+                )
+            else:
+                check(f"{operation} 应向调用方报告失败", False)
+        await action()
+        expected = [] if operation == "remove" else [sub.to_dict()]
+        check(
+            f"{operation} 重试后恰好提交一次",
+            expected == [s.to_dict() for s in SubscriptionStore(st.path).all()],
+        )
 
     # —— P3-1 坏条目 ——
     tmp = Path(tempfile.mkdtemp())
@@ -2071,20 +2145,11 @@ async def z_cancel_scenarios():
     d.send = inner_cancel
     t = asyncio.create_task(d.tick())
     await asyncio.sleep(0.05)
-    if hasattr(asyncio.Task, "cancelling"):
-        check(
-            "★ 发送内部抛取消：守护 tick 不被取消、记 WARNING",
-            t.done() and not t.cancelled() and any("发送被取消" in x for x in lg.warn_lines),
-            str(lg.warn_lines),
-        )
-    else:
-        # Python 3.10 没有 Task.cancelling()，_send_guarded 无法区分「守护被停」与「链路内部取消」，
-        # 按设计保守上抛（宁可这一轮 tick 结束，也不吞掉真正的停止信号）——这里钉住该降级口径。
-        check(
-            "★ 发送内部抛取消（3.10 降级口径）：无 cancelling() ⇒ 保守上抛，tick 以取消结束",
-            t.done() and t.cancelled(),
-            str(lg.warn_lines),
-        )
+    check(
+        "发送子任务内部取消只记录投递失败",
+        t.done() and not t.cancelled() and any("发送被取消" in x for x in lg.warn_lines),
+        str(lg.warn_lines),
+    )
     # 守护任务真的在「发送中」被取消（stop/重载）⇒ 继续上抛，任务以取消结束，且有日志
     d2, st2, cl2, box2, lg2, _ = _zmk(interval=15)
     cl2.data["invasions"] = [_zinv("a")]
@@ -2110,7 +2175,10 @@ async def z_cancel_scenarios():
         task.cancelled() and any("被取消" in x for x in lg2.info_lines),
         str(lg2.info_lines),
     )
-    check("护栏：被取消的那次发送没有被误记为失败", d2._fail_count == {} and d2._pending == [])
+    check(
+        "取消发送保留首发登记且不记失败",
+        d2._fail_count == {} and [p["tries"] for p in d2._pending] == [0],
+    )
     d3, *_ = _zmk()
     check("main 接线：PushDaemon.task 暴露当前守护任务（供 done-callback）", d3.task is None)
 
@@ -2260,7 +2328,7 @@ async def z_storm_and_misc_scenarios():
     await d.tick()
     await d.tick()
     check("P3-5b 同一轮内不重复发赏金（旧写法第二轮会补推全部）", box == [], str(box))
-    cl.data["bounty"]["expiry"] = "200"
+    cl.data["bounty"]["expiry"] = _zfut()
     await d.tick()
     g1m = [b for b in box if b[0] == "g1"]
     g2m = [b for b in box if b[0] == "g2"]
@@ -2281,7 +2349,7 @@ async def z_storm_and_misc_scenarios():
     }
     await st.add(_zsub("g1", "赏金", "扎里曼", once=False, windows={"start": 20, "end": 23}))
     await d.tick()
-    cl.data["bounty"]["expiry"] = "200"
+    cl.data["bounty"]["expiry"] = _zfut()
     await d.tick()  # 14:00 在窗外：换轮事件被丢弃
     real = PushDaemon._subscription_time
     PushDaemon._subscription_time = lambda _self, _now: datetime(2026, 10, 12, 21, 0, tzinfo=_BJ)
@@ -2626,7 +2694,10 @@ async def t_terminate_cancellation():
                             isinstance(results[0], asyncio.CancelledError),
                         )
                     elif mode == "close_error":
-                        check("卸载：连接池关闭异常被取回", isinstance(results[0], RuntimeError))
+                        check(
+                            "卸载：连接池关闭异常被记录并正常收尾",
+                            results == [None] and any("close probe" in line for line in log.lines),
+                        )
                     else:
                         check(f"卸载{mode}：全部调用正常结束", all(x is None for x in results))
                     check(
@@ -2650,6 +2721,65 @@ async def t_terminate_cancellation():
                     await real_close()
         # 用等待边界缩短时钟，超时只停止等待，不能取消资源释放本身。
         from types import SimpleNamespace
+
+        from unittest.mock import AsyncMock, Mock
+
+        for failure in (
+            "panel",
+            "scan",
+            "simulations",
+            "begin",
+            "ocr",
+            "installer",
+            "engine",
+            "bridge",
+            "stop",
+            "stats",
+            "http",
+        ):
+            calls = []
+
+            def hook(label, asynchronous=False):
+                def action(**kwargs):
+                    calls.append(label)
+                    if label == failure:
+                        raise RuntimeError("组件探针 " + label)
+
+                return (AsyncMock if asynchronous else Mock)(side_effect=action)
+
+            obj = Host()
+            obj._panel = SimpleNamespace(close=hook("panel"))
+            obj._scan_queue = SimpleNamespace(close=hook("scan"))
+            obj.local_ocr = SimpleNamespace(close=hook("ocr", True))
+            obj.local_ocr_installer = SimpleNamespace(close=hook("installer", True))
+            obj.damage_engine = SimpleNamespace(
+                close=hook("engine", True), simulations=SimpleNamespace(close=hook("simulations"))
+            )
+            obj._messaging = SimpleNamespace(close=hook("bridge", True))
+            obj.push = SimpleNamespace(stop=hook("stop", True))
+            obj.command_stats = SimpleNamespace(flush=hook("stats", True))
+            obj.client = SimpleNamespace(close=hook("http", True), begin_close=hook("begin"))
+            await asyncio.gather(obj.terminate(), obj.terminate())
+            await obj.terminate()
+            check(
+                f"卸载隔离 {failure} 异常，面板先停、各组件只收尾一次",
+                calls
+                == [
+                    "panel",
+                    "scan",
+                    "simulations",
+                    "begin",
+                    "ocr",
+                    "installer",
+                    "engine",
+                    "bridge",
+                    "stop",
+                    "stats",
+                    "http",
+                ]
+                and any("组件探针 " + failure in line for line in log.lines),
+                str(calls),
+            )
 
         timeouts = []
 
@@ -2889,6 +3019,7 @@ async def t_store_field_and_expiry_recovery():
         after_reload = PushDaemon(client, reloaded, send, log, groups=groups)
         await after_reload._expire_sweep(time.time())
         check("过期故障：补写后重载不重复提醒", len(box) == 1)
+        daemon, store = after_reload, reloaded
 
         store.path.write_text(json.dumps([expired, live]), encoding="utf-8")
         store.load()
@@ -2942,8 +3073,21 @@ async def t_store_field_and_expiry_recovery():
 asyncio.run(t_store_field_and_expiry_recovery())
 
 
+def _push_community_payload(**sections):
+    now = datetime.fromtimestamp(time.time(), timezone.utc)
+    return {
+        "timestamp": _iso(now),
+        "fissures": [],
+        "sortie": {},
+        "nightwave": {},
+        "voidTrader": {"activation": _iso(now), "expiry": _iso(now + timedelta(hours=1))},
+        "constructionProgress": {"fomorianProgress": 0, "razorbackProgress": 0},
+        **sections,
+    }
+
+
 async def t_cycle_payload_before_dispatch():
-    """真实 HTTP 入口→周期→tick：坏响应不能误推、污染基线或消费一次性订阅。"""
+    """从社区整包或守护协程周期入口注入坏值，验证订阅及基线安全。"""
     import httpx
 
     from core.api_client import WarframeClient
@@ -2959,20 +3103,37 @@ async def t_cycle_payload_before_dispatch():
     )
     with tempfile.TemporaryDirectory() as tmp:
         for index, (name, label, before, after, baseline) in enumerate(cases):
-            payload = {"state": before, "expiry": _zfut()}
             requests = []
-
-            async def transport(request):
-                requests.append(str(request.url))
-                return httpx.Response(200, json=payload)
-
-            client = WarframeClient(
-                worldsource="warframestat",
-                worldstate_base="https://synthetic.invalid/push-cycle",
-                flare_enabled=False,
+            field = {"cetus": "cetusCycle", "cambion": "cambionCycle", "earth": "cetusCycle"}.get(
+                name
             )
-            await client.http.aclose()
-            client._http = httpx.AsyncClient(transport=httpx.MockTransport(transport))
+            if field:
+                client = WarframeClient(
+                    worldsource="warframestat",
+                    worldstate_base="https://synthetic.invalid/push-cycle",
+                    flare_enabled=False,
+                )
+                await client.http.aclose()
+
+                async def transport(request):
+                    requests.append(request.url.path)
+                    assert request.url.path == "/push-cycle/pc"
+                    return httpx.Response(200, json=_push_community_payload(**{field: payload}))
+
+                client._http = httpx.AsyncClient(transport=httpx.MockTransport(transport))
+            else:
+                # 山谷和双衍由本地推导，直接验证守护协程收到坏周期时的边界。
+                client = ScriptClient()
+
+            def set_cycle(value):
+                nonlocal payload
+                payload = value
+                if field:
+                    client.cache.drop_prefix("ws-fallback|")
+                else:
+                    client.data[f"cycle_{name}"] = value
+
+            payload = None
             try:
                 store = SubscriptionStore(Path(tmp) / f"cycle-{index}.json")
                 sub = Subscription("synthetic-umo", "pc", "双衍" if name == "duviri" else label)
@@ -2983,16 +3144,19 @@ async def t_cycle_payload_before_dispatch():
                     sent.append(text)
 
                 daemon = PushDaemon(client, store, send, LvLogger())
+                set_cycle({"state": before, "expiry": _zfut()})
                 await daemon.tick()
-                check(f"周期坏值 {label}：正常首轮只建基线", not sent and store.has(sub.sid))
+                check(
+                    f"周期坏值 {label}：正常首轮只建基线",
+                    not sent and store.has(sub.sid) and daemon._last["pc"][baseline] == before,
+                )
                 for bad_name, bad_payload in (
                     ("空对象", {}),
                     ("未知状态", {"state": "synthetic-invalid-state"}),
                     ("状态类型错", {"state": []}),
                     ("顶层类型错", []),
                 ):
-                    payload = bad_payload
-                    client.cache.drop_prefix("https://synthetic.invalid/push-cycle")
+                    set_cycle(bad_payload)
                     await daemon.tick()
                     check(
                         f"周期坏值 {label}/{bad_name}：不派发且不消费",
@@ -3002,8 +3166,7 @@ async def t_cycle_payload_before_dispatch():
                         f"周期坏值 {label}/{bad_name}：保留旧基线并记源失败",
                         daemon._last["pc"][baseline] == before and daemon._tick_fail == 1,
                     )
-                payload = {"state": after, "expiry": _zfut()}
-                client.cache.drop_prefix("https://synthetic.invalid/push-cycle")
+                set_cycle({"state": after, "expiry": _zfut()})
                 await daemon.tick()
                 check(
                     f"周期坏值 {label}：恢复正常换相只推一次并消费",
@@ -3012,11 +3175,11 @@ async def t_cycle_payload_before_dispatch():
                     and daemon._last["pc"][baseline] == after
                     and daemon._tick_fail == 0,
                 )
-                # 直连社区源先尝试整包（这里整包校验不过会冷却 30 秒），只统计单项地址的请求
-                endpoint_requests = [u for u in requests if not u.split("?")[0].endswith("/pc")]
-                check(f"周期坏值 {label}：每轮都经过模拟HTTP入口", len(endpoint_requests) == 6)
+                if field:
+                    check(f"周期坏值 {label}：六轮都请求社区整包", len(requests) == 6)
             finally:
-                await client.close()
+                if field:
+                    await client.close()
 
 
 async def t_dispatch_expiry_after_await():
@@ -3037,8 +3200,11 @@ async def t_dispatch_expiry_after_await():
             ("截止后", until + 1, False),
         ):
             clock, stage = [start], [0]
+            requests = []
 
             async def transport(request):
+                requests.append(request.url.path)
+                assert request.url.path == "/push-expiry/pc"
                 if stage[0]:
                     clock[0] = finish
                 fissure = {
@@ -3048,7 +3214,7 @@ async def t_dispatch_expiry_after_await():
                     "missionType": "Capture",
                     "expiry": "2030-01-01T00:00:00+00:00",
                 }
-                return httpx.Response(200, json=[fissure])
+                return httpx.Response(200, json=_push_community_payload(fissures=[fissure]))
 
             client = WarframeClient(
                 worldsource="warframestat",
@@ -3078,12 +3244,12 @@ async def t_dispatch_expiry_after_await():
                 with patch.object(push_mod.time, "time", lambda: clock[0]):
                     await daemon.tick()
                     stage[0], clock[0] = 1, until - 1
-                    client.cache.drop_prefix("https://synthetic.invalid/push-expiry")
+                    client.cache.drop_prefix("ws-fallback|")
                     await daemon.tick()
                     current = store.all()[0]
                     check(
                         f"派发截止 {label}：取数后按当前时间决定是否发送",
-                        len(sent) == int(should_send),
+                        len(requests) == 2 and clock[0] == finish and len(sent) == int(should_send),
                     )
                     check(
                         f"派发截止 {label}：仅送达才记通知并减次数",
@@ -3299,7 +3465,7 @@ async def t_bounty_retry_recipients8():
                     client, store, send, LvLogger(), groups=groups, state_path=state
                 )
                 await daemon.tick()
-                client.data["bounty"]["expiry"] = "200"
+                client.data["bounty"]["expiry"] = _zfut()
                 await daemon.tick()
                 if legacy:
                     data = json.loads(state.read_text())
@@ -3518,7 +3684,7 @@ async def t_bounty_partial_metadata8():
             state = root / "state.json"
             daemon = PushDaemon(client, store, send, LvLogger(), state_path=state)
             await daemon.tick()
-            client.data["bounty"]["expiry"] = "200"
+            client.data["bounty"]["expiry"] = _zfut()
             await daemon.tick()
             data = json.loads(state.read_text())
             check(f"分行覆盖 {incomplete}：真实失败已持久化一项", len(data["pending"]) == 1)
@@ -3671,6 +3837,732 @@ async def t_json_store_async_write():
 
 
 asyncio.run(t_json_store_async_write())
+
+
+async def t_batch_delivery_and_baseline():
+    import threading
+    from unittest.mock import patch
+
+    from core import push as push_module
+
+    for cancel in (False, True):
+        d, st, _, _, _, _ = _zmk()
+        subs = [_zsub(once=i % 3 == 0, hits_left=2 if i % 3 == 1 else None) for i in range(30)]
+        await st.sync(subs)
+        entered, release = asyncio.Event(), asyncio.Event()
+
+        async def send(umo, body, at=None):
+            entered.set()
+            await release.wait()
+
+        d.send = send
+        now = time.time()
+        task = asyncio.create_task(d._deliver("g1", "裂隙", "new", "合并命中", st.all(), now))
+        await asyncio.wait_for(entered.wait(), 2)
+        if cancel:
+            await st.remove(lambda sub: sub.sid == subs[1].sid)
+            # 同时更改另一条订阅。提交须与在途送达期间的编辑合并。
+            edited = st.all()[-1]
+            edited.rule = "changed"
+            edited.notified["previous"] = now - 1
+            await st.update(edited)
+        with patch.object(st, "_write_atomic", wraps=st._write_atomic) as write:
+            release.set()
+            check("30 条订阅合并命中只消费写盘一次", await task == "ok" and write.call_count == 1)
+        rows = {sub.sid: sub for sub in SubscriptionStore(st.path).all()}
+        check(
+            "一次、限次和长期订阅均按送达消费",
+            len(rows) == 20 - cancel
+            and all(
+                sub.notified.get("new") == now and sub.hits_left in (1, None)
+                for sub in rows.values()
+            ),
+        )
+        if cancel:
+            check(
+                "在途取消的 SID 未恢复，并发编辑仍在",
+                subs[1].sid not in rows
+                and rows[edited.sid].rule == "changed"
+                and "previous" in rows[edited.sid].notified,
+            )
+
+    with tempfile.TemporaryDirectory() as folder:
+        path = Path(folder) / "baseline.json"
+        d, *_ = _zmk(state_path=path)
+        entered, release = threading.Event(), threading.Event()
+        original = push_module.write_json_atomic
+        writes = []
+        loop = asyncio.get_running_loop()
+        heartbeat = asyncio.Event()
+
+        def slow_write(path, data, **kwargs):
+            writes.append(data)
+            if len(writes) == 1:
+                entered.set()
+                loop.call_soon_threadsafe(heartbeat.set)
+                if not release.wait(3):
+                    raise RuntimeError("慢写盘阻塞了事件循环")
+            original(path, data, **kwargs)
+
+        d._last, d._pending = {"pc": {"id": 1}}, [{"tries": 1}]
+        with patch.object(push_module, "write_json_atomic", side_effect=slow_write):
+            first = asyncio.create_task(d._save_state(100))
+            try:
+                await asyncio.wait_for(heartbeat.wait(), 2)
+                check("慢基线写盘期间事件循环继续运行", entered.is_set() and not first.done())
+                d._last["pc"]["id"] = 2
+                d._pending[0]["tries"] = 2
+                first.cancel()
+                second = asyncio.create_task(d._save_state(None))
+                await asyncio.sleep(0)
+                check(
+                    "取消中的写盘持有顺序，基线与 pending 固定在同一快照",
+                    writes == [{"ts": 100, "last": {"pc": {"id": 1}}, "pending": [{"tries": 1}]}],
+                )
+            finally:
+                release.set()
+            results = await asyncio.gather(first, second, return_exceptions=True)
+            check(
+                "仅更新 pending 沿用成功写入的基线时间，后写完整落盘",
+                isinstance(results[0], asyncio.CancelledError)
+                and results[1] is None
+                and json.loads(path.read_text())
+                == {"ts": 100, "last": d._last, "pending": d._pending},
+            )
+
+
+asyncio.run(t_batch_delivery_and_baseline())
+
+
+async def t_shared_bounty_poll():
+    from core.api_client import WarframeClient
+    import httpx
+
+    d, store, _, _, _, _ = _zmk()
+    client = WarframeClient(flare_enabled=False)
+    await store.add(_zsub("g", "赏金", once=False))
+    d.client = client
+    d.next_delay = lambda: 0.01
+    started, cancelled, recovered = asyncio.Event(), asyncio.Event(), asyncio.Event()
+    joined = asyncio.Event()
+    get_or_fetch = client.cache.get_or_fetch
+    calls = 0
+
+    async def observe_join(key, *args, **kwargs):
+        if key in client.cache._inflight:
+            joined.set()
+        return await get_or_fetch(key, *args, **kwargs)
+
+    client.cache.get_or_fetch = observe_join
+
+    expiry = _zfut()
+
+    async def hook(now):
+        if d._last.get("pc", {}).get("bounty_exp") == expiry:
+            recovered.set()
+
+    d.tick_hook = hook
+
+    async def get(url, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            started.set()
+            try:
+                await asyncio.Event().wait()
+            finally:
+                cancelled.set()
+        return httpx.Response(
+            200,
+            request=httpx.Request("GET", url),
+            json={
+                "expiry": expiry,
+                "bounties": {
+                    "ZarimanSyndicate": [{"node": "SolNode230", "challenge": _Z_BOUNTY_EXT}]
+                },
+            },
+        )
+
+    client.http.get = get
+    player = asyncio.create_task(client.bounty_cycle())
+    try:
+        await asyncio.wait_for(started.wait(), 1)
+        # 错开两次真实 bounty_cycle 的 3.5 秒限时，保证玩家先到期。
+        await asyncio.sleep(0.15)
+        d.start()
+        task = d.task
+        await asyncio.wait_for(joined.wait(), 1)
+        check("赏金玩家与守护加入同一回源", calls == 1)
+        check(
+            "赏金查询超时按真实入口降级",
+            await asyncio.wait_for(player, 4) == {} and cancelled.is_set(),
+        )
+        await asyncio.wait_for(recovered.wait(), 1)
+        check(
+            "共享回源取消后守护继续轮询并重建基线",
+            d._tick_no >= 2 and not task.done() and d._last["pc"].get("bounty_exp") == expiry,
+        )
+        await d.stop()
+        check("赏金守护仍响应真正的停机取消", task.cancelled() and d.task is None)
+    finally:
+        player.cancel()
+        await asyncio.gather(player, return_exceptions=True)
+        await d.stop()
+        await client.close()
+
+
+async def t_poll_send_timeout():
+    for expired in (False, True):
+        d, store, client, _, log, _ = _zmk()
+        d.SEND_TIMEOUT = 0.03
+        d.next_delay = lambda: 0
+        delivered, next_tick, release = [], asyncio.Event(), asyncio.Event()
+
+        async def send(umo, text, at=None):
+            if umo == "slow":
+                try:
+                    await asyncio.Event().wait()
+                except asyncio.CancelledError:
+                    # 适配器仍在清理，守护必须继续投往次群。
+                    await release.wait()
+            else:
+                delivered.append(umo)
+
+        d.send = send
+        for umo in ("slow", "fast"):
+            await store.add(
+                _zsub(umo, "入侵", once=False, until=time.time() - 1 if expired else -1)
+            )
+        if not expired:
+            client.data["invasions"] = [_zinv("a")]
+            await d.tick()
+            client.data["invasions"].append(_zinv("b"))
+        start_tick = d._tick_no
+
+        async def hook(now):
+            if d._tick_no == start_tick + 2:
+                next_tick.set()
+                await asyncio.Event().wait()
+
+        d.tick_hook = hook
+        d.start()
+        try:
+            await asyncio.wait_for(next_tick.wait(), 1)
+            check(
+                f"投递超时（到期={expired}）：次群送达且守护继续下一轮",
+                delivered == ["fast"]
+                and d.last_tick_completed_at is not None
+                and not d.task.done(),
+            )
+            if expired:
+                check(
+                    "到期超时仅记提醒失败",
+                    not d._pending and any("到期提醒发送失败" in x for x in log.warn_lines),
+                )
+            else:
+                check(
+                    "未确认的普通投递仅为首群登记重投",
+                    [row["umo"] for row in d._pending] == ["slow"] and d._fail_count == {"slow": 1},
+                )
+        finally:
+            release.set()
+            await d.stop()
+            await asyncio.gather(*d._sending.values(), return_exceptions=True)
+
+
+async def t_bounty_unavailable_backoff():
+    from unittest.mock import patch
+
+    with tempfile.TemporaryDirectory() as folder:
+        state = Path(folder) / "baseline.json"
+        daemon, store, client, sent, _, _ = _zmk(state_path=state)
+        await store.add(_zsub("g1", "赏金", once=False))
+        start = int(time.time())
+        cycle = {
+            "expiry": (start + 900) * 1000,
+            "bounties": {"ZarimanSyndicate": [{"node": "SolNode230", "challenge": _Z_BOUNTY_EXT}]},
+        }
+
+        async def observe(offset, response):
+            client.data["bounty"] = response
+            with patch.object(push_mod.time, "time", return_value=start + offset):
+                await daemon.tick()
+            disk = json.loads(state.read_text())
+            return (
+                daemon._tick_ok,
+                daemon._tick_fail,
+                daemon.next_delay(),
+                disk["ts"],
+                disk["last"]["pc"]["bounty_exp"],
+            )
+
+        baseline = str(cycle["expiry"])
+        check("有效赏金首轮建立基线", await observe(0, cycle) == (1, 0, 45, start, baseline))
+        check(
+            "赏金返回 {}：失败退避并保留基线时间",
+            await observe(45, {}) == (0, 1, 90, start, baseline),
+        )
+        check(
+            "赏金缺轮换时间：连续失败继续退避",
+            await observe(135, {"bounties": {}}) == (0, 1, 180, start, baseline),
+        )
+        check(
+            "赏金恢复同轮：成功复位且只刷新观测时间",
+            await observe(315, cycle) == (1, 0, 45, start + 315, baseline) and not sent,
+        )
+        next_cycle = {**cycle, "expiry": cycle["expiry"] + 900000}
+        check(
+            "赏金有效换轮：派发一次并推进轮换基线",
+            await observe(360, next_cycle) == (1, 0, 45, start + 360, str(next_cycle["expiry"]))
+            and len(sent) == 1,
+        )
+
+
+async def t_partial_bounty_cancel_after_restart():
+    from core.push import _bounty_parts_text
+
+    with tempfile.TemporaryDirectory() as folder:
+        root = Path(folder)
+        store = SubscriptionStore(root / "subs.json")
+        subs = []
+        for who in ("甲", "乙", "丙"):
+            sub = _zsub("g1", "赏金", rule=who, created_by=who)
+            await store.add(sub)
+            subs.append(sub)
+        parts = [{"text": s.created_by * 80, "sids": [s.sid]} for s in subs]
+        sids = [s.sid for s in subs]
+        body = _bounty_parts_text(parts, set(sids))
+        cut = body.index("乙") + 40
+        expiry = _zfut()
+        now = time.time()
+        state = root / "baseline.json"
+        state.write_text(
+            json.dumps(
+                {
+                    "ts": now,
+                    "last": {"pc": {"bounty_exp": expiry}},
+                    "pending": [
+                        {
+                            "umo": "g1",
+                            "kind": "赏金",
+                            "key": f"bounty-{expiry}",
+                            "text": body,
+                            "created": now,
+                            "tries": 0,
+                            "parts": parts,
+                            "sids": sids,
+                            "chunks": [body[:cut], body[cut:]],
+                            "confirmed": 1,
+                        }
+                    ],
+                }
+            )
+        )
+        await store.remove(lambda s: s.sid == subs[2].sid)
+        sent = []
+
+        async def send(umo, text, at=None):
+            sent.append((text, at))
+
+        client = ScriptClient()
+        client.data["bounty"] = {"expiry": expiry, "bounties": {}}
+        daemon = PushDaemon(
+            client, SubscriptionStore(store.path), send, LvLogger(), state_path=state
+        )
+        await daemon.tick()
+        check(
+            "已部分送达的赏金重启后剔除取消行，行中游标只续投剩余半行",
+            sent == [("乙" * 40, ["甲", "乙"])] and not daemon._pending and not daemon.store.all(),
+        )
+
+
+async def t_stop_waits_for_receipt_lock():
+    with tempfile.TemporaryDirectory() as tmp:
+        state = Path(tmp) / "state.json"
+        d, store, client, sent, _, _ = _zmk(state_path=state)
+        sub = _zsub("g", "新闻")
+        await store.add(sub)
+        client.data["news"] = [{"id": "base", "message": "基线"}]
+        await d.tick()
+        client.data["news"].append({"id": "A", "message": "新闻 A"})
+        waiting = asyncio.Event()
+        consume = store.consume_batch
+
+        async def entering(*args, **kwargs):
+            waiting.set()
+            return await consume(*args, **kwargs)
+
+        store.consume_batch = entering
+        async with store._lock:
+            d.start()
+            await asyncio.wait_for(waiting.wait(), 2)
+            task = d.task
+            shutdown = asyncio.create_task(d.stop())
+            await asyncio.wait({task}, timeout=1)
+            check(
+                "整条已确认而订阅写锁被占用时，stop 等待消费任务",
+                not shutdown.done() and len(sent) == 1 and store.has(sub.sid),
+            )
+        await asyncio.wait_for(shutdown, 2)
+        restored = PushDaemon(
+            client, SubscriptionStore(store.path), d.send, LvLogger(), state_path=state
+        )
+        await restored.tick()
+        check(
+            "放锁后 stop 完成，重启不再发送已确认新闻",
+            len(sent) == 1 and not restored.store.has(sub.sid) and not restored._pending,
+        )
+
+
+async def t_consume_receipt_restart():
+    from unittest.mock import patch
+
+    with tempfile.TemporaryDirectory() as tmp:
+        state = Path(tmp) / "state.json"
+        d, store, client, sent, _, _ = _zmk(state_path=state)
+        once = _zsub("g", "新闻", created_by="一次")
+        limited = _zsub("g", "新闻", created_by="限次", once=False, hits_left=3)
+        await store.sync([once, limited])
+        client.data["news"] = [{"id": "base", "message": "基线"}]
+        await d.tick()
+        client.data["news"].append({"id": "A", "message": "新闻 A"})
+        with patch.object(store, "_write_atomic", side_effect=OSError("订阅写盘失败")) as write:
+            await d.tick()
+        disk = json.loads(state.read_text())
+        (receipt,) = disk["receipts"]
+        check(
+            "消费写盘失败一次，推送快照保留新闻 A 与全部收件 SID",
+            write.call_count == 1
+            and receipt["key"] == "A"
+            and set(receipt["sids"]) == {once.sid, limited.sid}
+            and SubscriptionStore(store.path).has(once.sid),
+        )
+        client.data["news"].append({"id": "B", "message": "新闻 B"})
+
+        def restart():
+            return PushDaemon(
+                client, SubscriptionStore(store.path), d.send, LvLogger(), state_path=state
+            )
+
+        restored = restart()
+        await restored.tick()
+        survivors = SubscriptionStore(store.path).all()
+        check(
+            "立刻重启先补消费，新闻 B 仅送限次订阅",
+            [row[2] for row in sent] == [["一次", "限次"], ["限次"]]
+            and len(survivors) == 1
+            and survivors[0].sid == limited.sid
+            and survivors[0].hits_left == 1
+            and set(survivors[0].notified) == {"A", "B"}
+            and not json.loads(state.read_text()).get("receipts"),
+        )
+        # 模拟订阅已写实、回执清除未落盘；即使基线过期也必须幂等补做。
+        disk = json.loads(state.read_text())
+        disk.update(receipts=[receipt], ts=time.time() - push_mod.BASELINE_MAX_AGE - 1)
+        state.write_text(json.dumps(disk))
+        replayed = restart()
+        await replayed.tick()
+        check(
+            "过期基线上的消费回执重放不会重复扣限次",
+            replayed.store.all()[0].hits_left == 1
+            and len(sent) == 2
+            and not json.loads(state.read_text()).get("receipts"),
+        )
+
+
+async def t_busy_news_budget():
+    with tempfile.TemporaryDirectory() as tmp:
+        state = Path(tmp) / "state.json"
+        d, store, client, _, _, _ = _zmk(state_path=state)
+        await store.add(_zsub("g", "新闻", once=False))
+        d.SEND_TIMEOUT = 0.03
+        release = asyncio.Event()
+        attempts, confirmed = [], []
+
+        async def post(umo, body, at=None):
+            attempts.append(body)
+            if len(attempts) == 1:
+                try:
+                    await asyncio.Event().wait()
+                except asyncio.CancelledError:
+                    await release.wait()
+            confirmed.append(body)
+
+        d.send = post
+        client.data["news"] = [{"id": "base", "message": "基线"}]
+        await d.tick()
+        client.data["news"].extend([{"id": key, "message": key} for key in ("A", "B")])
+        try:
+            await d.tick()
+            queue = json.loads(state.read_text())["pending"]
+            for _ in range(max(push_mod.PENDING_MAX_TRIES, push_mod.FAIL_PURGE_THRESHOLD) + 1):
+                await d.tick()
+            check(
+                "同群首笔仍在途，两条新闻均保留原始 TTL 和尝试预算",
+                len(queue) == 2
+                and all(it["tries"] == 0 for it in queue)
+                and json.loads(state.read_text())["pending"] == queue
+                and len(attempts) == 1
+                and d._fail_count == {"g": 1}
+                and d._pause_of("g") is None,
+            )
+        finally:
+            release.set()
+            await asyncio.gather(*d._sending.values(), return_exceptions=True)
+        await d.tick()
+        check(
+            "首笔超时迟到退出后，同群两条新闻各送达一次",
+            sorted(attempts) == sorted(confirmed) == ["📰 A", "📰 B"]
+            and set(store.all()[0].notified) == {"A", "B"}
+            and not d._pending
+            and not d._fail_count,
+        )
+
+
+async def t_legacy_complete_cursor():
+    with tempfile.TemporaryDirectory() as tmp:
+        state = Path(tmp) / "state.json"
+        d, store, client, sent, _, _ = _zmk(state_path=state)
+        sub = _zsub("g", "新闻")
+        await store.add(sub)
+        now = time.time()
+        state.write_text(
+            json.dumps(
+                {
+                    "ts": now,
+                    "last": {"pc": {"news_ids": ["A"]}},
+                    "pending": [
+                        {
+                            "umo": sub.umo,
+                            "kind": sub.event,
+                            "key": "A",
+                            "text": "上下",
+                            "chunks": ["上", "下"],
+                            "confirmed": 2,
+                            "sids": [sub.sid],
+                            "tries": push_mod.PENDING_MAX_TRIES,
+                            "created": now - push_mod.PENDING_TTL - 1,
+                        }
+                    ],
+                }
+            )
+        )
+        client.data["news"] = [{"id": "B", "message": "新闻 B"}]
+        restored = PushDaemon(
+            client, SubscriptionStore(store.path), d.send, LvLogger(), state_path=state
+        )
+        await restored.tick()
+        check(
+            "旧队列的整条确认先于 TTL 与次数上限消费", not sent and not restored.store.has(sub.sid)
+        )
+
+
+async def t_bounty_retry_across_rounds():
+    from unittest.mock import patch
+
+    for legacy in (False, True):
+        with tempfile.TemporaryDirectory() as tmp:
+            state = Path(tmp) / "state.json"
+            d, store, client, sent, _, _ = _zmk(state_path=state)
+            await store.add(_zsub("g", "赏金"))
+            start = int(time.time())
+
+            def cycle(expiry, node):
+                return {"expiry": expiry, "bounties": {"ZarimanSyndicate": [{"node": node}]}}
+
+            async def fail(*args, **kwargs):
+                raise TimeoutError()
+
+            good_send, d.send = d.send, fail
+            with patch.object(push_mod.time, "time", return_value=start):
+                client.data["bounty"] = cycle(start + 5, "基线")
+                await d.tick()
+                client.data["bounty"] = cycle((start + 20) * 1000, "旧轮任务")
+                await d.tick()
+            disk = json.loads(state.read_text())
+            (old,) = disk["pending"]
+            check(f"赏金到期毫秒换算为秒 legacy={legacy}", old["expires"] == start + 20)
+            if legacy:
+                del old["expires"]
+                state.write_text(json.dumps(disk))
+            # 已过上轮截止、仍在原 15 分钟 TTL 内；旧格式须查当轮的真实轮次键。
+            with patch.object(push_mod.time, "time", return_value=start + 21):
+                client.data["bounty"] = cycle(
+                    _iso(datetime.fromtimestamp(start + 200, timezone.utc)), "新轮任务"
+                )
+                if legacy:
+                    d = PushDaemon(
+                        client,
+                        SubscriptionStore(store.path),
+                        good_send,
+                        LvLogger(),
+                        state_path=state,
+                    )
+                else:
+                    d.send = good_send
+                await d.tick()
+            check(
+                f"过期赏金不误消费，正常派发新轮 legacy={legacy}",
+                len(sent) == 1
+                and "新轮任务" in sent[0][1]
+                and "旧轮任务" not in sent[0][1]
+                and not d.store.all()
+                and not d._pending,
+            )
+
+
+async def t_reload_late_receipt():
+    with tempfile.TemporaryDirectory() as tmp:
+        state = Path(tmp) / "baseline.json"
+        old, store, client, sent, log, _ = _zmk(state_path=state)
+        a, b = _zsub("g", "新闻", once=False, hits_left=3), _zsub("other", "裂隙")
+        await store.add(a)
+        release = asyncio.Event()
+        old.SEND_TIMEOUT = 0.01
+
+        async def stubborn(umo, body, at=None):
+            sent.append(body)
+            while not release.is_set():
+                try:
+                    await release.wait()
+                except asyncio.CancelledError:
+                    continue
+
+        old.send = stubborn
+        client.data["news"] = [{"id": "base", "message": "基线"}]
+        await old.tick()
+        client.data["news"].append({"id": "A", "message": "A"})
+        await old.tick()
+        stopping = asyncio.create_task(old.stop())
+        try:
+            done, _ = await asyncio.wait({stopping}, timeout=0.03)
+            assert not done
+            fresh = PushDaemon(
+                client, SubscriptionStore(store.path), stubborn, log, state_path=state
+            )
+            await fresh.store.add(b)
+            client.data["fissures"] = [_zfis("new")]
+            await asyncio.wait_for(fresh.tick(), 1)
+            current = json.loads(state.read_bytes())
+            assert len(sent) == 1 and len(current["pending"]) == 1
+            assert "new" in str(current["last"])
+        finally:
+            release.set()
+            await asyncio.wait_for(stopping, 2)
+        await old._save_state(time.time())
+        await fresh.tick()
+        disk = json.loads(state.read_bytes())
+        rows = {row.sid: row for row in SubscriptionStore(store.path).all()}
+        check(
+            "热重载迟到回执只扣一次，新增订阅与新基线保留",
+            sent == ["📰 A"]
+            and rows.keys() == {a.sid, b.sid}
+            and rows[a.sid].hits_left == 2
+            and set(rows[a.sid].notified) == {"A"}
+            and disk["last"] == current["last"]
+            and not disk["pending"]
+            and not disk.get("receipts"),
+        )
+
+
+async def t_reload_fences_inflight_disk_writes():
+    import threading
+    from unittest.mock import patch
+
+    with tempfile.TemporaryDirectory() as folder:
+        root = Path(folder)
+        state = root / "state.json"
+        store = SubscriptionStore(root / "subs.json")
+        old = PushDaemon(None, store, None, LvLogger(), state_path=state)
+        a, b = _zsub("a", "新闻"), _zsub("b", "新闻")
+        await store.add(a)
+        old._last = {"pc": {"generation": 1}}
+        await old._save_state(time.time())
+        original_replace = old._replace_owned
+        ready_sub, ready_state, release = threading.Event(), threading.Event(), threading.Event()
+
+        def late_replace(tmp, target):
+            (ready_sub if target == store.path else ready_state).set()
+            assert release.wait(5)
+            original_replace(tmp, target)
+
+        store.bind_writer(late_replace)
+        with patch.object(old, "_replace_owned", side_effect=late_replace):
+            writes = [
+                asyncio.create_task(store.sync([])),
+                asyncio.create_task(old._save_state(time.time())),
+            ]
+            try:
+                for ready in (ready_sub, ready_state):
+                    assert await asyncio.to_thread(ready.wait, 3)
+                fresh = PushDaemon(
+                    None, SubscriptionStore(store.path), None, LvLogger(), state_path=state
+                )
+                await fresh.store.add(b)
+                fresh._last = {"pc": {"generation": 2}}
+                await fresh._save_state(time.time())
+            finally:
+                release.set()
+                results = await asyncio.gather(*writes, return_exceptions=True)
+        check(
+            "接管时已在写盘的旧线程也不能覆盖新代两个文件",
+            isinstance(results[0], OSError)
+            and set(s.sid for s in SubscriptionStore(store.path).all()) == {a.sid, b.sid}
+            and json.loads(state.read_bytes())["last"] == fresh._last
+            and not list(root.glob("*.tmp")),
+        )
+
+
+async def t_reload_keeps_confirmed_chunk():
+    from unittest.mock import patch
+
+    with tempfile.TemporaryDirectory() as folder:
+        root = Path(folder)
+        state = root / "state.json"
+        sent = []
+
+        async def first(umo, body, at=None):
+            progress = push_mod.literal_progress.get()
+            progress.chunks = ["甲", "乙"]
+            sent.append("甲")
+            with patch.object(old, "_replace_owned", side_effect=OSError("分片检查点未写入")):
+                await progress.confirm(1)
+
+        async def suffix(umo, body, at=None):
+            sent.append(body)
+
+        def open_daemon(send):
+            return PushDaemon(
+                None, SubscriptionStore(root / "subs.json"), send, LvLogger(), state_path=state
+            )
+
+        old = open_daemon(first)
+        sub = _zsub("g", "新闻")
+        await old.store.add(sub)
+        await old._deliver("g", "新闻", "A", "甲乙", [sub], time.time())
+        assert not json.loads(state.read_bytes())["pending"][0].get("confirmed")
+        intermediate = open_daemon(suffix)
+        fresh = open_daemon(suffix)
+        assert intermediate._retired
+        await fresh._flush_pending(time.time(), fresh.store.all())
+        check(
+            "检查点失败后连续两次热重载仍只发送未确认的后缀",
+            sent == ["甲", "乙"] and not fresh._pending and not fresh.store.has(sub.sid),
+        )
+
+
+asyncio.run(t_reload_keeps_confirmed_chunk())
+asyncio.run(t_reload_fences_inflight_disk_writes())
+asyncio.run(t_reload_late_receipt())
+asyncio.run(t_stop_waits_for_receipt_lock())
+asyncio.run(t_consume_receipt_restart())
+asyncio.run(t_busy_news_budget())
+asyncio.run(t_legacy_complete_cursor())
+asyncio.run(t_bounty_retry_across_rounds())
+asyncio.run(t_partial_bounty_cancel_after_restart())
+asyncio.run(t_bounty_unavailable_backoff())
+asyncio.run(t_shared_bounty_poll())
+asyncio.run(t_poll_send_timeout())
 
 if FAILED:
     print(f"共 {len(FAILED)} 项失败：{FAILED}")

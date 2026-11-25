@@ -294,6 +294,26 @@ check(
     and not all(r.status == "PASS" for r in _hres.values()),
     str({k: v.status for k, v in _hres.items() if k.startswith("registry::")}),
 )
+for label, content, good in (
+    ("截断", "{", False),
+    ("顶层数组", "[]", False),
+    ("空武器记录", '{"weapon":{}}', False),
+    ("有效对象", '{"weapon":{"name":"Weapon"}}', True),
+):
+    (_h2 / "core/data/weapons_stats.json").write_text(content, encoding="utf-8")
+    items = {item.name: item for item in RC.health(_h2, _hlogs, _at2)}
+    row = items.get("registry::weapons_stats.json")
+    check(
+        f"health {label} 的高风险静态表",
+        row is None if good else row is not None and row.status == "FAIL",
+    )
+
+(_h2 / "core/data/damage_faction.json").write_text('{"_meta":{}}', encoding="utf-8")
+_faction_row = next(
+    row for row in RC.health(_h2, _hlogs, _at2) if row.name == "registry::damage_faction.json"
+)
+check("health 拦截只剩元数据的派系伤害表", _faction_row.status == "FAIL")
+
 _DR7.REGISTRY["arb_ratings.json"]["risk"] = _arb_risk7
 shutil.rmtree(_hlogs, ignore_errors=True)
 shutil.rmtree(_h2, ignore_errors=True)

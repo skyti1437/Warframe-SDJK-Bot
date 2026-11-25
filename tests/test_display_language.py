@@ -184,8 +184,10 @@ async def _client_checks():
             en_code = client._lang_code()
         calls = []
 
+        raw = {"Time": 1, "BuildLabel": "b"}
+
         async def fake_raw():
-            return {"Time": 1, "BuildLabel": "b"}
+            return raw
 
         def fake_parse(raw):
             calls.append(i18n.current_lang())
@@ -423,8 +425,10 @@ _cv = [
 _cv_out = W.community_conclave(_cv)
 _cv_zh = "\n".join(fmt.fmt_conclave(_cv_out)[1])
 check(
-    "社区武形秘仪：模式官方简中、说明保留英文且不出现 None",
-    "全部模式　Win 6 matches" in _cv_zh and "月动球" in _cv_zh and "None" not in _cv_zh,
+    "社区武形秘仪：模式与已知任务说明用简中且不出现 None",
+    "全部模式　赢得 6 场比赛" in _cv_zh
+    and "月动球　抢断月动球 3 次" in _cv_zh
+    and "None" not in _cv_zh,
     _cv_zh,
 )
 check("社区武形秘仪：次数已在说明里就不再追加 ×N", "×" not in _cv_zh.split("※")[0], _cv_zh)

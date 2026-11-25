@@ -194,6 +194,11 @@ check(
     _est is not None and _est >= _now.strftime("%Y-%m-%d"),
     f"{_est} vs {_now:%Y-%m-%d}",
 )
+for _dates in ([], ["坏日期"], [None], [123]):
+    check(
+        f"末次日期 {_dates!r} 无效时漏访次数未知",
+        baro.missed_visits(_now, history={"visits": _dates}) is None,
+    )
 check("快照后已发生的到访计数（1.6 个周期 ⇒ 1 次）", baro.missed_visits(_now) == 1)
 # 2026-10-17 宽限：到访开始后 3 天内不算「未收录」（健康提示用），卡片静默计数不受影响
 from datetime import timedelta as _td  # noqa: E402

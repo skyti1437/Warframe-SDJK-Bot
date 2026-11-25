@@ -24,9 +24,11 @@ from __future__ import annotations
 
 import json
 import time
+from datetime import datetime, timezone
 from typing import Optional
 
 from . import paths
+from .api_client import WarframeAPIError
 from .display_time import format_time
 from .i18n import L
 
@@ -277,13 +279,50 @@ def next_efficient(sched: dict, tier_of: dict, from_idx: int):
     return None
 
 
+def _validate_schedule(sched) -> None:
+    def invalid(field):
+        return WarframeAPIError(
+            L(f"仲裁排期数据源格式异常（{field}）", f"Invalid arbitration schedule data ({field})")
+        )
+
+    if not isinstance(sched, dict):
+        raise invalid("schedule")
+    start, step = sched.get("startTs"), sched.get("stepSec", 3600)
+    if type(start) not in (int, float) or start < 0:
+        raise invalid("startTs")
+    if type(step) not in (int, float) or step <= 0:
+        raise invalid("stepSec")
+    nodes, seq = sched.get("nodes"), sched.get("seq")
+    if (
+        not isinstance(nodes, list)
+        or not nodes
+        or not all(isinstance(k, str) and k.strip() for k in nodes)
+    ):
+        raise invalid("nodes")
+    if (
+        not isinstance(seq, list)
+        or not seq
+        or any(type(idx) is not int or not 0 <= idx < len(nodes) for idx in seq)
+    ):
+        raise invalid("seq")
+    try:
+        end = start + step * len(seq)
+        datetime.fromtimestamp(end, timezone.utc)
+        if end <= start:
+            raise invalid("stepSec")
+    except (OSError, OverflowError, ValueError) as exc:
+        raise invalid("startTs / stepSec") from exc
+
+
 async def fetch_tables(client) -> tuple[dict, dict, dict]:
     """拉三张表：排期序列 / 节点中文表 / 站点评级。返回 (sched, nodes, tier_of)。
 
     ★ ``tier_of`` 已做**三级回落**（arbi tierlist → 本地社区实测档 → 未评级）：
     查询卡、排期卡与「蹲 仲裁」筛选共用这一份，避免各算各的。
     """
-    sched = await client._fetch_json(BASE + "arbys.schedule.v2.json", ttl=3600)
+    sched = await client._fetch_json(
+        BASE + "arbys.schedule.v2.json", ttl=3600, validator=_validate_schedule
+    )
     nodes = (await client._fetch_json(BASE + "arbys.nodes.zh.json", ttl=86400)).get("nodes") or {}
     try:
         tier = await client._fetch_json(BASE + "tierlist.default.json", ttl=86400)
@@ -343,9 +382,13 @@ def key_at(sched: dict, ts: Optional[float] = None) -> tuple[str, int, float, fl
     seq = sched["seq"]
     start = sched["startTs"]
     step = sched.get("stepSec", 3600)
-    idx = int(((time.time() if ts is None else ts) - start) // step)
-    if idx < 0 or idx >= len(seq):
-        raise ScheduleExpired(schedule_end(sched), start)
+    stamp = time.time() if ts is None else ts
+    end = schedule_end(sched)
+    if not start <= stamp < end:
+        raise ScheduleExpired(end, start)
+    idx = int((stamp - start) // step)
+    if idx >= len(seq):  # 亚秒步长在表尾的浮点舍入。
+        raise ScheduleExpired(end, start)
     return sched["nodes"][seq[idx]], idx, start, step
 
 

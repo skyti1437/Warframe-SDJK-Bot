@@ -634,14 +634,12 @@ class LocalRivenOCR:
                 return failure("disabled", "本地 OCR 配置已变化或已关闭")
 
             async def exchange():
-                request = json.dumps(
-                    {
-                        "model_dir": settings["model_dir"],
-                        "image": base64.b64encode(image).decode("ascii"),
-                    }
-                ).encode()
-                process.stdin.write(request + b"\n")
-                await process.stdin.drain()
+                header = {"model_dir": settings["model_dir"], "image_bytes": len(image)}
+                process.stdin.write(json.dumps(header).encode() + b"\n")
+                view = memoryview(image)
+                for offset in range(0, len(view), 256 * 1024):
+                    process.stdin.write(view[offset : offset + 256 * 1024])
+                    await process.stdin.drain()
                 process.stdin.close()
                 output, _ = await self._collect(process)
                 result = json.loads(output)

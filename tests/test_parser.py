@@ -46,6 +46,15 @@ check("修饰符叠加：t/r/页码", p.force_image and p.whisper and p.page == 
 p = parse("wm 绝路 -w -ps")
 check("文字模式+平台覆盖", p.force_text and p.platform == "ps")
 
+for text, command, content in (
+    ("WikiHow has a guide wm Soma", "wm", ["WikiHow", "has", "a", "guide", "Soma"]),
+    ("wmSoma Prime", "wm", ["Soma", "Prime"]),
+    ("wiki Soma", "wiki", ["Soma"]),
+    ("-pc wmrSoma", "wr", ["Soma"]),
+):
+    p = parse(text)
+    check(f"句首连写保留英文参数：{text}", (p.command, p.content) == (command, content))
+
 p = parse("金垃圾")
 check("预设指令 金垃圾->ducats", p.command == "ducats" and p.preset == "金")
 

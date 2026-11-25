@@ -70,7 +70,7 @@ check(
 
 print()
 print("=== 二、PUSH_EVENTS 可订阅性 ===")
-from core.push import PUSH_EVENTS  # noqa: E402
+from core.push import PUSH_EVENTS, subscription_rule  # noqa: E402
 
 check(
     "「警报」已接线（C3：常规停用、活动型会下发）",
@@ -267,11 +267,12 @@ check(
     and fissure_tier_hint(["钢铁T1生存"]) == "",
 )
 
-# 5.3 静态守卫：裂隙分支用空格拼 rule，其他事件仍用逗号（仲裁 / 赏金各有解析口径）
-dun_src = (ROOT / "core" / "commands" / "dun.py").read_text(encoding="utf-8")
+# 5.3 创建与取消共用规则序列化。
 check(
-    "★ dun.py：裂隙事件 rule 用空格拼、其他事件用逗号",
-    'rule=(" " if event_type == "裂隙" else ",").join(rule_parts)' in dun_src,
+    "裂隙事件 rule 用空格拼、仲裁与赏金用逗号",
+    subscription_rule("裂隙", ["钢铁", "生存"]) == "钢铁 生存"
+    and subscription_rule("仲裁", ["高效", "生存"]) == "高效,生存"
+    and subscription_rule("赏金", ["扎里曼", "歼灭"]) == "扎里曼,歼灭",
 )
 check(
     "★ 修饰词清单同源：解析侧仍集中在 FISSURE_MODIFIER_WORDS",

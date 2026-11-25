@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 import shutil
@@ -157,7 +158,9 @@ class CommandSwitchesTest(unittest.IsolatedAsyncioTestCase):
     async def test_save_roundtrip_and_rollback(self):
         disabled = sorted(set(parser.COMMAND_ALIASES) - LOCKED)
         result = await self.save([*reversed(disabled), "news"])
-        self.assertEqual(result, {"status": "ok", "disabled": disabled})
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(result["disabled"], disabled)
+        self.assertTrue(result["revision"])
         self.assertEqual(self.bot.cfg[CONFIG_KEY], disabled)
         self.assertEqual(json.loads(self.conf.path.read_text(encoding="utf-8")), dict(self.conf))
         result = await self.panel.commands_config()
@@ -184,6 +187,80 @@ class CommandSwitchesTest(unittest.IsolatedAsyncioTestCase):
         self.panel.close()
         self.assertEqual((await self.panel.commands_config())["status"], "error")
         self.assertEqual((await self.save(["news"]))["status"], "error")
+
+    async def test_stale_full_forms_merge_different_keys(self):
+        first, second = await self.panel.commands_config(), await self.panel.commands_config()
+        self.assertEqual(first["revision"], second["revision"])
+        # 两张旧页面只回传 disabled。它们同时基于同一公开给表单的快照。
+        a = await self.save(first["disabled"] + ["news"])
+        b = await self.save(second["disabled"] + ["timers"])
+        self.assertEqual((a["status"], b["status"]), ("ok", "ok"))
+        expected = sorted(EXPERIMENTAL | {"news", "timers"})
+        self.assertEqual(b["disabled"], expected)
+        self.assertEqual(self.conf[CONFIG_KEY], self.bot.cfg[CONFIG_KEY])
+        self.assertEqual(json.loads(self.conf.path.read_bytes())[CONFIG_KEY], expected)
+
+    async def test_abandoned_legacy_form_then_refresh(self):
+        first = await self.panel.commands_config()
+        self.panel._body = AsyncMock(
+            return_value={"revision": first["revision"], "changes": {"news": True}}
+        )
+        saved = await self.panel.commands_config_save()
+        latest = await self.panel.commands_config()
+        self.assertEqual(latest["revision"], saved["revision"])
+        result = await self.save(latest["disabled"] + ["timers"])
+        self.assertEqual(result["disabled"], sorted(EXPERIMENTAL | {"news", "timers"}))
+        ambiguous = await self.save(first["disabled"])
+        self.assertEqual(ambiguous["code"], "legacy_revision_required")
+        self.assertEqual(self.conf[CONFIG_KEY], result["disabled"])
+
+    async def test_legacy_refresh_after_revision_eviction(self):
+        first = await self.panel.commands_config()
+        for change in range(65):
+            self.bot.cfg[CONFIG_KEY] = ["news"] if change % 2 == 0 else []
+            self.panel._command_snapshot()
+        self.assertNotIn(first["revision"], self.panel._command_history)
+        latest = await self.panel.commands_config()
+        saved = await self.save(latest["disabled"] + ["timers"])
+        self.assertEqual(saved["disabled"], ["news", "timers"])
+
+    async def test_revision_merge_conflict_and_idempotence(self):
+        from contextvars import ContextVar
+
+        requests = ContextVar("command_form")
+
+        async def read():
+            await asyncio.sleep(0)
+            return requests.get()
+
+        async def post(body):
+            requests.set(body)
+            return await self.panel.commands_config_save()
+
+        self.panel._body = read
+        base = await self.panel.commands_config()
+        rev = base["revision"]
+        a, b = await asyncio.gather(
+            post({"revision": rev, "changes": {"news": True}}),
+            post({"revision": rev, "disabled": [*base["disabled"], "timers"]}),
+        )
+        self.assertEqual((a["status"], b["status"]), ("ok", "ok"))
+        latest = sorted(EXPERIMENTAL | {"news", "timers"})
+        self.assertEqual(self.conf[CONFIG_KEY], latest)
+        repeat = await post({"revision": rev, "changes": {"news": True}})
+        self.assertEqual(repeat["disabled"], latest)
+        conflict = await post({"revision": rev, "changes": {"news": False, "sortie": True}})
+        self.assertEqual((conflict["status"], conflict["conflicts"]), ("conflict", ["news"]))
+        self.assertEqual(self.bot.cfg[CONFIG_KEY], latest)
+        self.assertEqual(json.loads(self.conf.path.read_bytes())[CONFIG_KEY], latest)
+        # 新窗口明确改回原值。旧草稿此时虽与初始快照同基线，仍有同键的真实冲突。
+        await post({"revision": conflict["revision"], "changes": {"news": False}})
+        stale = await post({"revision": rev, "disabled": [*base["disabled"], "news"]})
+        self.assertEqual(stale["conflicts"], ["news"])
+        self.assertEqual(stale["disabled"], sorted(EXPERIMENTAL | {"timers"}))
+        self.assertEqual(
+            self.bot.cfg[CONFIG_KEY], json.loads(self.conf.path.read_bytes())[CONFIG_KEY]
+        )
 
     async def test_stats_use_catalog_names(self):
         self.bot.command_stats = CommandStats(self.conf.path.with_name("stats.json"), {"analysis"})
@@ -242,6 +319,37 @@ class CommandSwitchesTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await self.send("武形秘仪"), ([("plain", "CONCLAVE")], True))
         self.assertEqual((await self.send("帮助 -cn"))[0], default_cn)
         self.assertEqual((await self.send("wfhelp -en"))[0], default_en)
+
+    @unittest.skipUnless(shutil.which("node"), "需要 Node.js 校验面板脚本")
+    def test_panel_conflict_preserves_only_edited_keys(self):
+        html = (ROOT / "pages/sdjk/index.html").read_text(encoding="utf-8")
+        start = html.index("async function saveCommandSwitches()")
+        save = html[start : html.index('$("commandSearch").oninput', start)]
+        script = r"""
+const assert = require("node:assert/strict");
+const commandSwitches = {busy:false, config:{revision:"old", disabled:["scan"]}, disabled:new Set(["scan","news"])};
+const commandEditCount = () => 1, updateCommandControls = () => {};
+let commandSnapshot = 0, applied, message, sent;
+function showCommandStatus(text){message=text;}
+function applyDisabledCommands(keys){applied=keys;}
+const bridge = {async apiPost(endpoint, body){
+  assert.equal(endpoint,"commands_config_save"); sent=body;
+  return {status:"conflict",revision:"new",disabled:["scan","timers"],message:"同一指令已变化"};
+}};
+"""
+        assertions = r"""
+saveCommandSwitches().then(()=>{
+  assert.deepEqual(sent,{revision:"old",changes:{news:true}});
+  assert.deepEqual(applied,["scan","timers"]);
+  assert.deepEqual([...commandSwitches.disabled].sort(),["news","scan","timers"]);
+  assert.equal(commandSwitches.config.revision,"new");
+  assert.match(message,/保留你的改动/);
+}).catch(error=>{console.error(error);process.exitCode=1;});
+"""
+        result = subprocess.run(
+            ["node"], input=script + save + assertions, text=True, capture_output=True, timeout=15
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     @unittest.skipUnless(shutil.which("node"), "需要 Node.js 校验面板脚本")
     def test_panel_javascript_syntax(self):

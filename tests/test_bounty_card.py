@@ -959,6 +959,12 @@ check(
     ),
     str(_cb),
 )
+_numeric_cycle = {**_ORACLE_EXP, "expiry": "1893456000000"}
+check(
+    "毫秒数字串和同一 ISO 截止时间生成相同赏金横幅",
+    fmt.fmt_bounties(bundle["syndicateMissions"], cycle=_numeric_cycle)[1] == clines
+    and not any("剩?" in line for line in clines),
+)
 _tc2, dlines2 = fmt.fmt_bounties(bundle["syndicateMissions"], "扎里曼", cycle=_ORACLE_EXP)
 check(
     "C2 详情：扎里曼横幅也有倒计时",
@@ -1078,6 +1084,158 @@ with _i18n.use_lang("en"):
     check("未知奖励名原样保留", fmt._pool_name_en("未识别的奖励") == "未识别的奖励")
 with _i18n.use_lang("zh"):
     check("中文奖励展示不改写", fmt._disp_items("★角斗士圣盾") == "★角斗士圣盾")
+
+
+async def cold_english_bounties():
+    import asyncio
+    import threading
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock, patch
+    from core.commands.rotations import RotationCommands
+    from core.parser import parse
+
+    names = ("name_en.json", "name_zh.json", "languages_en.json", "languages_zh.json")
+    for filename in names:
+        dw._load_file(filename)
+    owner = RotationCommands()
+    owner.client = SimpleNamespace(
+        syndicate_missions=AsyncMock(return_value=bundle["syndicateMissions"]),
+        bounty_cycle=AsyncMock(return_value=ORACLE),
+    )
+    loop = asyncio.get_running_loop()
+    entered, release = asyncio.Event(), threading.Event()
+    build = fmt._build_pool_en_rev
+    reread = []
+    read_text = Path.read_text
+
+    def read(path, *args, **kwargs):
+        if path.name in names:
+            reread.append(path.name)
+        return read_text(path, *args, **kwargs)
+
+    def build_once():
+        loop.call_soon_threadsafe(entered.set)
+        assert release.wait(3)
+        return build()
+
+    with (
+        _i18n.use_lang("en"),
+        patch.object(fmt, "_POOL_EN_REV", None),
+        patch.object(fmt, "_build_pool_en_rev", side_effect=build_once) as builds,
+        patch.object(Path, "read_text", read),
+    ):
+
+        async def card():
+            return await owner._h_bounty(parse("bounty earth"), None, "pc")
+
+        tasks = [asyncio.create_task(card()) for _ in range(2)]
+        try:
+            await asyncio.wait_for(entered.wait(), 2)
+            await asyncio.sleep(0)
+            check("并发英文赏金首卡冷构建期间，事件循环仍可调度", all(not t.done() for t in tasks))
+        finally:
+            release.set()
+        a, b = await asyncio.gather(*tasks)
+        check(
+            "两张英文赏金卡共享一次索引构建，复用已加载的四张官方表",
+            builds.call_count == 1
+            and not reread
+            and a.title == b.title
+            and a.lines == b.lines
+            and any("Gladiator" in line for line in a.lines),
+            str(a.lines[:6]),
+        )
+    tables = {name: {} for name in names}
+    tables["name_zh.json"] = {"a": "同 名", "b": "唯一"}
+    tables["name_en.json"] = {"a": "First", "b": "Only"}
+    tables["languages_zh.json"] = {"c": "同名", "d": "同名"}
+    tables["languages_en.json"] = {"c": "Other", "d": "First"}
+    with (
+        patch.object(dw, "_load_file", side_effect=tables.__getitem__),
+        patch.object(fmt, "_POOL_EN_REV", None),
+    ):
+        check(
+            "跨表一名多译不猜，后续同名不能消除歧义",
+            fmt._pool_name_en("同名") == "同名" and fmt._pool_name_en("唯一") == "Only",
+        )
+
+
+import asyncio  # noqa: E402
+
+asyncio.run(cold_english_bounties())
+
+
+async def oracle_location_bounty_card():
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+    from core.commands.rotations import RotationCommands
+    from core.parser import parse
+    from core.tents import region_locations
+
+    # Oracle 的 seed=69703 对拍向量。A/B/C 顺序来自点位标签，链顺序跟随上游。
+    prefix = "/Lotus/Types/Gameplay/Eidolon/Jobs/"
+    locations = {
+        "TentC": ["AttritionBountySab", "ReclamationBountyCache", "SabotageBountySab"],
+        "TentA": ["AssassinateBountyCap", "ReclamationBountyTheft", "CaptureBountyCapTwo"],
+        "TentB": ["AttritionBountyLib", "AttritionBountyExt", "ReclamationBountyCap"],
+    }
+    locations = {
+        "CetusSyndicate": {tag: [prefix + p for p in paths] for tag, paths in locations.items()}
+    }
+    syndicates = [
+        dict(s, seed=69703)
+        for s in bundle["syndicateMissions"]
+        if s["syndicateKey"] == "CetusSyndicate"
+    ]
+    # 使用社区上游的本地化显示名与英文 syndicateKey 形态。
+    community = dw.adapt_community_syndicate_missions(
+        [dict(s, syndicate="奥斯特里", syndicateKey="Ostrons", seed=None) for s in syndicates]
+    )
+    owner = RotationCommands()
+    owner.client = SimpleNamespace(
+        syndicate_missions=AsyncMock(return_value=community),
+        bounty_cycle=AsyncMock(return_value=ORACLE),
+        location_bounties=AsyncMock(return_value=locations),
+    )
+    for lang, keyword, label in (("zh", "地球", "小帐篷 A"), ("en", "earth", "Small Tent A")):
+        with dw.i18n.use_lang(lang):
+            reply = await owner._h_bounty(parse(f"bounty {keyword}"), None, "pc")
+            rows = [line for line in reply.lines if line.startswith("⟦tents⟧")]
+            assert len(rows) == 1 and label in rows[0]
+            check(
+                f"社区{lang}赏金详情显示三处帐篷同轮任务及真实来源",
+                region_locations("Ostrons", None, locations) == region_locations("Ostrons", 69703)
+                and rows
+                == [
+                    line
+                    for line in fmt.fmt_bounties(syndicates, keyword)[1]
+                    if line.startswith("⟦tents⟧")
+                ]
+                and any("browse.wf Oracle" in line for line in reply.lines)
+                and all(
+                    "DE world seed" not in line and "DE 世界种子" not in line
+                    for line in reply.lines
+                ),
+                str(rows),
+            )
+    owner.client.location_bounties.return_value = {}
+    degraded = await owner._h_bounty(parse("bounty earth"), None, "pc")
+    check(
+        "点位 Oracle 不可用时保留赏金档，省略帐篷和来源注",
+        any("▸" in line for line in degraded.lines)
+        and all(
+            "⟦tents⟧" not in line and "browse.wf Oracle" not in line for line in degraded.lines
+        ),
+    )
+    owner.client.location_bounties.reset_mock()
+    owner.client.syndicate_missions.return_value = syndicates
+    seeded = await owner._h_bounty(parse("bounty earth"), None, "pc")
+    owner.client.location_bounties.assert_not_awaited()
+    check("有种子时沿用本地帐篷与 DE 来源注", any("DE 世界种子" in line for line in seeded.lines))
+
+
+asyncio.run(oracle_location_bounty_card())
+
 
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")

@@ -1112,6 +1112,24 @@ def _rec_obj(vision: dict):
     return o
 
 
+for malformed in (["冰凇"], {"name": "冰凇"}, ""):
+    observed = {**_iceq_vision_ok, "weapon": malformed, "lines": _iceq_vision_ok["lines"][1:]}
+    for typed in ("", " 冰凇"):
+        reader = _rec_obj(observed)
+        result = asyncio.run(
+            reader._h_riven_analysis(_FatParsed("紫卡分析" + typed), _FakeImageEvent(), "pc")
+        )
+        if typed:
+            check(
+                "标题类型异常仍可采用手填武器",
+                reader.client.queries[:1] == ["冰凇"] and bool(result.lines),
+            )
+        else:
+            check(
+                "标题缺失时提示补武器名并暂停估价",
+                "请补武器名" in _txt(result) and not reader.client.queries,
+            )
+
 # A：手输名对（冰凇）+ OCR 读错（冰松）⇒ 必须用手输名解析
 _objA = _rec_obj(_iceq_vision)
 _rA = asyncio.run(_objA._h_riven_analysis(_FatParsed("紫卡分析 冰凇"), _FakeImageEvent(), "pc"))
@@ -1586,7 +1604,7 @@ class Image:  # 名字必须是 Image（_image_data_urls 按类型名认图片�
 
 
 _obj_img = plugin.WarframeSDJK.__new__(plugin.WarframeSDJK)
-_obj_img._image_pixels_ok = lambda _b64: True
+_obj_img._check_image_pixels = lambda _b64: "image/png"
 _ev_img = type(
     "E", (), {"message_obj": type("M", (), {"message": [Image() for _ in range(5)]})()}
 )()

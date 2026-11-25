@@ -6,6 +6,7 @@ import asyncio
 import hashlib
 import io
 import json
+import math
 import time
 import uuid
 from dataclasses import dataclass
@@ -15,9 +16,15 @@ from urllib.parse import urlencode, urlsplit
 
 import httpx
 
+from .logging_compat import logger
+
 
 class QQMaterialError(RuntimeError):
     """素材链不可用；调用方应降级原图片发送。"""
+
+
+class QQMaterialBusy(QQMaterialError):
+    """读图名额已满，可立即使用普通图片发送。"""
 
 
 @dataclass(frozen=True)
@@ -87,25 +94,77 @@ def _https(value, cos=False):
 
 
 class QQMaterialStore:
+    READ_SLOTS = 2
+    READ_WAIT = 0.25
+
     def __init__(self, cache_dir: Path, ttl=300, max_items=32):
         self._path = Path(cache_dir) / "qq_material_ownership.json"
         self._ttl, self._max = ttl, max_items
+        self._read_slots = asyncio.BoundedSemaphore(self.READ_SLOTS)
         self._lock = asyncio.Lock()
         self._sweep_lock = asyncio.Lock()
         self._records, self._refs, self._pins, self._apis = {}, {}, {}, {}
         self._task = None
         self._closed = False
+        self._ledger_disabled = False
         try:
             loaded = json.loads(self._path.read_text())
-            for row in loaded.get("items", []):
-                # 账本不接受无UUID登记的ID，重启也不触及其他素材。
-                uuid.UUID(row["owner"])
-                if row.get("account") and "/" not in row.get("image_id", ""):
-                    self._records[row["owner"]] = row
-        except (OSError, ValueError, TypeError, KeyError):
-            pass
+            if not isinstance(loaded, dict) or not isinstance(loaded.get("items"), list):
+                raise ValueError("素材账本顶层结构无效")
+        except FileNotFoundError:
+            return
+        except (OSError, ValueError, RecursionError) as exc:
+            self._ledger_disabled = True
+            logger.warning(
+                "[warframe] QQ 素材账本不可读，已保留原文件并停用素材复用（%s）", type(exc).__name__
+            )
+            return
+        for index, row in enumerate(loaded["items"]):
+            if not self._valid_record(row):
+                logger.warning("[warframe] QQ 素材账本第 %d 条记录无效，已跳过", index + 1)
+                continue
+            self._records[row["owner"]] = row
+
+    @property
+    def available(self) -> bool:
+        return not self._closed and not self._ledger_disabled
+
+    @staticmethod
+    def _valid_record(row) -> bool:
+        if not isinstance(row, dict):
+            return False
+        owner = row.get("owner")
+        if not isinstance(owner, str):
+            return False
+        try:
+            uuid.UUID(owner)
+        except ValueError:
+            return False
+        image_id = row.get("image_id", "")
+        attempts = row.get("attempts", 0)
+        return (
+            isinstance(row.get("account"), str)
+            and bool(row["account"])
+            and isinstance(row.get("sha256"), str)
+            and bool(row["sha256"])
+            and isinstance(image_id, str)
+            and "/" not in image_id
+            and (
+                bool(image_id)
+                or row.get("filename")
+                in tuple(f"{owner}.{ext}" for ext in ("jpg", "png", "webp", "gif"))
+            )
+            and type(attempts) is int
+            and attempts >= 0
+            and all(
+                type(t) is int or (type(t) is float and math.isfinite(t))
+                for t in (row.get("expires"), row.get("retry_at", 0))
+            )
+        )
 
     def register_account(self, account: str, api: Any):
+        if self._ledger_disabled:
+            raise QQMaterialError("素材账本不可用")
         if self._closed:
             raise QQMaterialError("素材管理器已关闭")
         self._apis[str(account)] = api
@@ -113,16 +172,44 @@ class QQMaterialStore:
             self._task = asyncio.create_task(self._maintenance())
 
     def _save(self):
+        if self._ledger_disabled:
+            return
         self._path.parent.mkdir(parents=True, exist_ok=True)
         temporary = self._path.with_suffix(".tmp")
         temporary.write_text(json.dumps({"items": list(self._records.values())}))
         temporary.replace(self._path)
 
     async def get(self, account: str, api: Any, path: str) -> QQMaterialLease:
+        if self._ledger_disabled:
+            raise QQMaterialError("素材账本不可用")
         if not account:
             raise QQMaterialError("QQ账号标识缺失")
-        data, sha, md5, size, ext, mime = await asyncio.to_thread(_image, path)
-        account = str(account)
+        if self._closed:
+            raise QQMaterialError("素材管理器已关闭")
+        try:
+            await asyncio.wait_for(self._read_slots.acquire(), self.READ_WAIT)
+        except asyncio.TimeoutError:
+            raise QQMaterialBusy("QQ 素材读图繁忙") from None
+
+        reader = asyncio.create_task(asyncio.to_thread(_image, path))
+        try:
+            image = await asyncio.shield(reader)
+        except BaseException:
+            # 外层取消不能停止读图线程；等实际读完再归还名额。
+            def finished(done):
+                self._read_slots.release()
+                if not done.cancelled():
+                    done.exception()
+
+            reader.add_done_callback(finished)
+            raise
+        try:
+            return await self._get_image(str(account), api, image)
+        finally:
+            self._read_slots.release()
+
+    async def _get_image(self, account, api, image):
+        data, sha, md5, size, ext, mime = image
         self.register_account(account, api)
         key = (account, sha)
         # 上传也持锁：同图并发只创建一个素材；不同图上传数量受配额限制。

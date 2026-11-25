@@ -27,6 +27,8 @@
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import re
 import sys
 import tempfile
@@ -152,7 +154,7 @@ check(
 check("模块级可见 --allow-mass-delete 开关", S.ALLOW_MASS_DELETE is False)
 
 # ★ 2026-09-25 新增：默认 dry-run + 本地/远端闸门都在写操作之前
-i_lgate = src.index("local_gates(SRC")
+i_lgate = src.index("local_gates(files_blob")
 i_rgate = src.index("remote_gate(stage_v")
 i_dry = src.index("DRY-RUN")
 check("★ 本地闸门在写操作之前执行", i_lgate < i_blob, f"{i_lgate} vs {i_blob}")
@@ -229,6 +231,7 @@ class _FakeAPI:
 
     def __init__(self, blobs: list[dict] | None = None):
         self.calls: list[tuple[str, str]] = []
+        self.received = []
         self._blobs = blobs or []
 
     def __call__(self, method, path, payload=None, tries=3):
@@ -242,7 +245,9 @@ class _FakeAPI:
         if method == "GET" and "/git/commits/" in path:
             return 200, {"tree": {"sha": "e" * 40}}
         if method == "POST" and path.endswith("/git/blobs"):
-            return 201, {"sha": "b" * 40}
+            data = base64.b64decode(payload["content"])
+            self.received.append(data)
+            return 201, {"sha": S.blob_sha(data)}
         if method == "POST" and path.endswith("/git/trees"):
             return 201, {"sha": "c" * 40}
         if method == "POST" and path.endswith("/git/commits"):
@@ -320,6 +325,49 @@ with tempfile.TemporaryDirectory() as tmp:
         str(fake.writes),
     )
 
+# 本地闸门实际对拍这份快照。随后在远端版本检查阶段改写同路径同长度文件。
+with tempfile.TemporaryDirectory() as tmp:
+    d = Path(tmp)
+    projection = {
+        "README.md": b"# v1.0.8",
+        "CHANGELOG.md": b"## v1.0.8",
+        "metadata.yaml": b"version: v1.0.8",
+        "core/__init__.py": b'__version__ = "1.0.8"',
+        "main.py": b'@register("p","a","d","1.0.8")',
+        "core/example.py": b"approved",
+    }
+    for rel, content in projection.items():
+        _mk(d, [rel], content)
+    fake = _FakeAPI(
+        [
+            {"path": k, "sha": S.blob_sha(v), "type": "blob"}
+            for k, v in projection.items()
+            if k != "core/example.py"
+        ]
+    )
+
+    def after_projection(version, remote):
+        (d / "core/example.py").write_bytes(b"tampered")
+        return True, []
+
+    with (
+        patch.object(S, "stage_files", wraps=S.stage_files) as read_stage,
+        patch.object(S, "repo_dirty_lines", return_value=[]),
+        patch.object(S, "expected_stage", return_value=projection) as project,
+        patch.object(S, "remote_gate", side_effect=after_projection),
+    ):
+        rc = _run_main(fake, d, gates=False)
+    check(
+        "通过闸门后等长改写磁盘，模拟接收端只收到获准字节",
+        rc == 0
+        and fake.received == [b"approved"]
+        and (d / "core/example.py").read_bytes() == b"tampered",
+    )
+    check(
+        "一次读取 stage，投影按固定候选 SHA 重算",
+        read_stage.call_count == 1 and project.call_args.args == (ROOT, S.candidate_sha(ROOT)),
+    )
+
 # 6d. 同样的更新，但**不带 --yes**（默认 dry-run）→ 0 写请求
 with tempfile.TemporaryDirectory() as tmp:
     d = Path(tmp)
@@ -387,16 +435,21 @@ check("★ 落点缺失/读不出 → 拒绝", ok is False and "缺失" in why, 
 with tempfile.TemporaryDirectory() as tmp:
     d = Path(tmp)
     _mk(d, ["main.py"], b"V1.0.8\n")
-    check("投影一致 → 无问题", S.stage_projection_diff(d, {"main.py": b"V1.0.8\n"}) == [])
+    check(
+        "投影一致 → 无问题",
+        S.stage_projection_diff(S.stage_files(d), {"main.py": b"V1.0.8\n"}) == [],
+    )
 
-    probs = S.stage_projection_diff(d, {"main.py": b"V1.0.8\n", "core/new_feature.py": b"new\n"})
+    probs = S.stage_projection_diff(
+        S.stage_files(d), {"main.py": b"V1.0.8\n", "core/new_feature.py": b"new\n"}
+    )
     check(
         "★ 半成品态①：HEAD 有而 stage 没有（没重跑构建）→ 报缺失",
         any("缺少应有文件" in p for p in probs),
         str(probs),
     )
 
-    probs = S.stage_projection_diff(d, {"main.py": b"V1.0.7\n"})
+    probs = S.stage_projection_diff(S.stage_files(d), {"main.py": b"V1.0.7\n"})
     check(
         "★ 半成品态②：stage 里是 HEAD 没有的内容（含未提交改动）→ 报不符",
         any("与 HEAD 不符" in p for p in probs),
@@ -404,7 +457,7 @@ with tempfile.TemporaryDirectory() as tmp:
     )
 
     _mk(d, ["core/uncommitted.py"], b"half\n")
-    probs = S.stage_projection_diff(d, {"main.py": b"V1.0.8\n"})
+    probs = S.stage_projection_diff(S.stage_files(d), {"main.py": b"V1.0.8\n"})
     check("★ 半成品态③：stage 多出未提交文件 → 报多余", any("多出" in p for p in probs), str(probs))
 
 # 真实的 09-25 事故形态：stage 的版本落点落后于 HEAD 的投影
@@ -412,7 +465,7 @@ with tempfile.TemporaryDirectory() as tmp:
     d = Path(tmp)
     _mk(d, ["main.py", "metadata.yaml"], b'@register("x", "y", "1.0.7")\n')
     expected = {"main.py": b'@register("x", "y", "1.0.8")\n', "metadata.yaml": b"version: v1.0.7\n"}
-    probs = S.stage_projection_diff(d, expected)
+    probs = S.stage_projection_diff(S.stage_files(d), expected)
     check(
         "★ 事故形态复现：stage 落后于 HEAD 投影 → 报不符",
         any("main.py" in p and "不符" in p for p in probs),
@@ -473,7 +526,7 @@ if PKG.is_file() and (ROOT / ".git").exists():
         )
         stage = S.SRC
         if stage.is_dir():
-            probs = S.stage_projection_diff(stage, exp)
+            probs = S.stage_projection_diff(S.stage_files(stage), exp)
             extra = [p for p in probs if "多出" in p]
             check(
                 "★ 真实仓库：stage 里没有未提交/未预期文件（危险方向）", not extra, str(extra[:3])
@@ -544,6 +597,7 @@ if MK.is_file():
         "CHANGELOG.md": b"# v1.2.9\n",
         "LICENSE": b"GPL-3.0\n",
         "logo.png": b"\x00\xff",
+        "core/__init__.py": b"__version__ = '1.2.9'\n",
         "core/data/tables.json": b'{"test":true}',
         "core/data/fonts/NotoSansCJKsc-Subset-Regular.otf": b"\x00\xff",
         "core/data/fonts/OFL.txt": b"OFL-1.1\n",
@@ -647,7 +701,7 @@ if MK.is_file():
         check(
             "  GitHub 归档命令复用同步闸门，拒绝未通过对拍的 stage",
             gate.call_args is not None
-            and gate.call_args.args == (stage_dir, ROOT)
+            and gate.call_args.args == ({}, ROOT, S.candidate_sha(ROOT))
             and result != 0
             and not refused_zip.exists(),
         )
@@ -661,7 +715,7 @@ if MK.is_file():
         original_main = archive_input["main.py"]
         replacement_main = original_main.replace(b"1", b"2")
 
-        def mutate_stage(_stage, _root):
+        def mutate_stage(_files, _root, _commit):
             stage_main.write_bytes(replacement_main)
             return True, []
 
@@ -690,13 +744,42 @@ if MK.is_file():
             ):
                 result = M.main()
             check(
-                "  GitHub 归档命令拒绝闸门期间等长篡改的 stage",
-                result != 0
-                and not raced_zip.exists()
+                "  GitHub 归档只采用闸门已校验的内存快照",
+                result == 0
+                and raced_zip.read_bytes() == cli_zip.read_bytes()
                 and stage_main.read_bytes() == replacement_main,
                 f"退出码 {result}",
             )
             stage_main.write_bytes(original_main)
+
+            flat = Path(temp) / "flat.zip"
+            with patch.object(sys, "argv", [str(MK), str(flat)]):
+                check("平铺正式包可回读", M.main() == 0)
+                with ZipFile(flat) as z:
+                    check(
+                        "平铺路径和内容与运行清单一致",
+                        {n: z.read(n) for n in z.namelist()} == archive_keep,
+                    )
+                old_hash = hashlib.sha256(flat.read_bytes()).digest()
+                renamed = stage_main.with_name("other.py")
+                stage_main.rename(renamed)
+                check(
+                    "平铺同数量但入口改名：拒绝且保留正式包",
+                    M.main() != 0 and hashlib.sha256(flat.read_bytes()).digest() == old_hash,
+                )
+                renamed.rename(stage_main)
+                write_entry = ZipFile.writestr
+
+                def fail_midway(archive, entry, data):
+                    if archive.namelist():
+                        raise OSError("模拟写入中断")
+                    return write_entry(archive, entry, data)
+
+                with patch.object(ZipFile, "writestr", fail_midway):
+                    check(
+                        "平铺写入中途失败：非零退出且正式包哈希不变",
+                        M.main() != 0 and hashlib.sha256(flat.read_bytes()).digest() == old_hash,
+                    )
 
             output_link = Path(temp) / "linked.zip"
             output_link.symlink_to(stage_main)
@@ -875,6 +958,15 @@ if _PR is not None:
     _MMZ = _ilu.module_from_spec(_SPEC2) if _SPEC2 and _SPEC2.loader else None
     if _MMZ is not None:
         _SPEC2.loader.exec_module(_MMZ)
+
+        def _market_seed_check(rot, acr):
+            return _MMZ._seed_problems(
+                {
+                    "core/data/rotations.json": rot.read_bytes(),
+                    "core/data/de/acrichis_week.json": acr.read_bytes(),
+                }
+            )
+
         with tempfile.TemporaryDirectory() as _td2:
             _T2 = Path(_td2)
             _r1 = _T2 / "r.json"
@@ -885,12 +977,38 @@ if _PR is not None:
             _r2.write_text(_STALE_ROT, encoding="utf-8")
             _a2 = _T2 / "a2.json"
             _a2.write_text(_STALE_ACR, encoding="utf-8")
-            _mf = _MMZ._seed_problems_fallback(now=_NOW, rot_path=_r1, acr_path=_a1)
-            _mb = _MMZ._seed_problems_fallback(now=_NOW, rot_path=_r2, acr_path=_a2)
+            _mf = _market_seed_check(_r1, _a1)
+            _mb = _market_seed_check(_r2, _a2)
             check(
                 "★ 种子闸门：镜像判据与真源一致（fresh/stale 两向）",
                 _mf == _ok and len(_mb) == len(_bad),
                 f"{_mf!r} / {_mb!r}",
+            )
+        with tempfile.TemporaryDirectory() as _stage_tmp:
+            from contextlib import redirect_stdout
+            from io import StringIO
+
+            _stage = Path(_stage_tmp) / "stage"
+            _zip = Path(_stage_tmp) / "existing.zip"
+            _zip.write_bytes(b"original")
+            _rotfile = _stage / "core/data/rotations.json"
+            _acrfile = _stage / "core/data/de/acrichis_week.json"
+            _acrfile.parent.mkdir(parents=True)
+            _acrfile.write_text(_FRESH_ACR)
+            _dirty = _json.loads(_FRESH_ROT)
+            _dirty["tenet"]["items"][0].update(element="Heat", bonus=40)
+            _rotfile.write_text(_json.dumps(_dirty))
+            with (
+                patch.object(_MMZ, "OSS_DIR", _stage),
+                patch.object(sys, "argv", [str(MK), str(_zip)]),
+                redirect_stdout(StringIO()) as _log,
+            ):
+                _rc = _MMZ.main()
+            check(
+                "平铺归档直接拒绝 stage 的动态效价，保留原有输出",
+                _rc == 1
+                and "种子新鲜度闸门" in _log.getvalue()
+                and _zip.read_bytes() == b"original",
             )
         # 每个拒绝原因分别走包装与独立市场入口，避免只测组合故障。
         for _case in (
@@ -920,7 +1038,7 @@ if _PR is not None:
                     _STALE_ACR if _case == "acrichis_expired" else _FRESH_ACR, encoding="utf-8"
                 )
                 _pp = _PR.seed_freshness_problems(_NOW, _cr, _ca)
-                _mp = _MMZ._seed_problems_fallback(_NOW, _cr, _ca)
+                _mp = _market_seed_check(_cr, _ca)
                 check(f"包装与独立市场拒绝{_case}", bool(_pp) and bool(_mp), f"{_pp} / {_mp}")
         for _acr_case in (
             "items",
@@ -952,7 +1070,7 @@ if _PR is not None:
                 _rp.write_text(_FRESH_ROT, encoding="utf-8")
                 _ap.write_text(_json.dumps(_acr_bad), encoding="utf-8")
                 _pp = _PR.seed_freshness_problems(_NOW, _rp, _ap)
-                _mp = _MMZ._seed_problems_fallback(_NOW, _rp, _ap)
+                _mp = _market_seed_check(_rp, _ap)
                 check(
                     f"言录使静态{_acr_case}两打包入口同源拒绝", bool(_pp) and _pp == _mp, str(_pp)
                 )

@@ -2598,10 +2598,59 @@ def _rp23(name):
     return _tbl23 if name == "de/riven_families.json" else _orig_rp23(name)
 
 
+def _family_snapshot_race(path):
+    from concurrent.futures import ThreadPoolExecutor, TimeoutError
+    from threading import Event
+    from unittest.mock import patch
+
+    old_data = _json23.dumps({"by_name": {"Probe": "old"}})
+    new_data = _json23.dumps({"by_name": {"Probe": "new family"}})
+    path.write_text(old_data)
+    captured, release, second_started = Event(), Event(), Event()
+    read = Path.read_text
+
+    def delayed_read(p, *args, **kwargs):
+        data = read(p, *args, **kwargs)
+        if p == path and data == old_data:
+            captured.set()
+            assert release.wait(5)
+        return data
+
+    def build_new_index():
+        second_started.set()
+        return _M23.family_index_snapshot()
+
+    with patch.object(Path, "read_text", delayed_read), ThreadPoolExecutor(2) as pool:
+        old = pool.submit(_M23._load_riven_families)
+        try:
+            assert captured.wait(2)
+            path.write_text(new_data)
+            new = pool.submit(build_new_index)
+            assert second_started.wait(2)
+            # 无串行锁时先让新索引发布；串行实现须等旧读者退出才可完成。
+            try:
+                new.result(timeout=0.3)
+            except TimeoutError:
+                pass
+        finally:
+            release.set()
+        previous, latest = old.result(timeout=2), new.result(timeout=2)
+    assert previous["Probe"] == "old"
+    assert _M23._load_riven_families() is latest[0] and _M23.family_index_snapshot() is latest
+    assert [index[key] for index, key in zip(latest, ("Probe", "probe", "probe"))] == [
+        "new family"
+    ] * 3
+    for index in latest:
+        try:
+            index["Probe"] = "stale"
+        except TypeError:
+            pass
+        else:
+            raise AssertionError("家族快照应为只读")
+
+
 _P23.read_path = _rp23
-_M23._RIVEN_TABLE = None
-_M23._RIVEN_INDEX = None
-_M23._RIVEN_TABLE_STAMP = None
+_M23._RIVEN_SNAPSHOT = None
 try:
     _tbl23.write_text(_json23.dumps({"by_name": {"GunA": "RootA"}}), encoding="utf-8")
     _t23a = _M23._load_riven_families()
@@ -2633,11 +2682,10 @@ try:
         and _M23._riven_index()[0].get("GunB") == "RootB",
         str(_M23._riven_index()[0]),
     )
+    _family_snapshot_race(_tbl23)
 finally:
     _P23.read_path = _orig_rp23
-    _M23._RIVEN_TABLE = None  # 还原：后续用例重读真实表
-    _M23._RIVEN_INDEX = None
-    _M23._RIVEN_TABLE_STAMP = None
+    _M23._RIVEN_SNAPSHOT = None  # 后续用例重读真实表
 
 # ---------------------------------------------------------------------------
 # ㉔ 组合枪紫卡基值列（2026-10-03 晚定稿，用户同卡双态截图实证）：**不分模式
@@ -2797,6 +2845,125 @@ check(
     _p25 == [("reload_holstered", 112.9)] and _n25 == [("fire_rate", 59.3)],
     f"{_p25} / {_n25}",
 )
+
+
+async def _wr_hot_files():
+    from unittest.mock import AsyncMock, patch
+    from core import api_client, matching, paths
+    from core.commands.market import MarketCommands
+    from core.parser import parse
+
+    client = api_client.WarframeClient()
+    root_row = {
+        "slug": "probe",
+        "gameRef": "/Gun/Root",
+        "rivenType": "rifle",
+        "i18n": {"en": {"name": "Probe"}, "zh-hans": {"name": "母武器"}},
+    }
+    client._wm_v2 = AsyncMock(return_value=[root_row])
+    client.wm_riven_auctions = AsyncMock(
+        return_value=[{"id": "x", "buyout_price": 10, "owner": {"status": "ingame"}, "item": {}}]
+    )
+    handler = MarketCommands()
+    handler.client, handler.page_size = client, 12
+
+    async def card():
+        return await handler._h_wr(parse("wr 探针变体"), None, "pc")
+
+    with tempfile.TemporaryDirectory() as folder:
+        root = Path(folder).resolve()
+        disp, family = root / "dispositions_rivenmirror.json", root / "riven_families.json"
+        entry = {
+            "url_name": "probe_prime",
+            "zh": "探针变体",
+            "riven_type": "rifle",
+            "disposition": 0.6,
+        }
+        disp.write_text(_json23.dumps({"entries": {"Probe Prime": entry}}))
+        family.write_text(_json23.dumps({"by_name": {"Probe": "Root", "Probe Prime": "Root"}}))
+        old_read, resolve = Path.read_text, paths.read_path
+        reads = []
+
+        def read(path, *args, **kwargs):
+            reads.append(path)
+            return old_read(path, *args, **kwargs)
+
+        def local(name):
+            return family if name == "de/riven_families.json" else resolve(name)
+
+        try:
+            with (
+                patch.object(api_client, "DATA_DIR", root),
+                patch.object(paths, "read_path", local),
+                patch.object(Path, "read_text", read),
+                patch.object(paths, "load_json", wraps=paths.load_json) as load_table,
+                patch.object(
+                    client, "resolve_riven_weapon", wraps=client.resolve_riven_weapon
+                ) as resolve_weapon,
+                patch.object(
+                    client, "_build_riven_table", wraps=client._build_riven_table
+                ) as builds,
+                patch.object(
+                    matching, "_riven_families_stamp", wraps=matching._riven_families_stamp
+                ) as stat,
+            ):
+                first = await card()
+                check(
+                    "wr 首查按家族查母武器，每张本地表只读一次",
+                    reads.count(disp) == reads.count(family) == builds.call_count == 1
+                    and client.wm_riven_auctions.await_args.args[0] == "probe"
+                    and any("按家族挂单" in line for line in first.lines),
+                )
+                reads.clear()
+                stat.reset_mock()
+                load_table.reset_mock()
+                again = await card()
+                check(
+                    "wr 连续热查零读盘，沿用公开解析入口，每张本地表只检查一次版本",
+                    not reads
+                    and stat.call_count == 1
+                    and [call.args for call in load_table.call_args_list] == [(disp,)]
+                    and resolve_weapon.await_count == 2
+                    and builds.call_count == 1
+                    and first.lines == again.lines,
+                )
+                load_table.reset_mock()
+                unknown = await handler._h_wr(parse("wr 无此名称丷丷丷丷"), None, "pc")
+                check(
+                    "wr 未命中时生成建议仍使用本次武器快照",
+                    any("未找到紫卡武器" in line for line in unknown.lines)
+                    and [call.args for call in load_table.call_args_list] == [(disp,)],
+                )
+                entry["disposition"] = 1.15
+                disp.write_text(_json23.dumps({"entries": {"Probe Prime": entry}}))
+                snapshots = await asyncio.gather(*(client.wm_riven_weapons() for _ in range(4)))
+                changed = await client.resolve_riven_weapon("探针变体")
+                check(
+                    "倾向文件更新后并发仅重建一次，结果取新倾向",
+                    builds.call_count == 2
+                    and reads == [disp]
+                    and all(t is snapshots[0] for t in snapshots)
+                    and changed["disposition"] == 1.15,
+                )
+                family.write_text(
+                    _json23.dumps({"by_name": {"Probe": "Root", "Probe Prime": "Separate"}})
+                )
+                reads.clear()
+                await card()
+                await card()
+                check(
+                    "家族文件单独更新后使用新谱系，只重读家族表一次",
+                    reads == [family]
+                    and builds.call_count == 2
+                    and client.wm_riven_auctions.await_args.args[0] == "probe_prime",
+                )
+        finally:
+            await client.close()
+
+
+asyncio.run(_wr_hot_files())
+
+
 if FAILED:
     print(f"✗ {len(FAILED)} 项失败：" + "、".join(FAILED))
     sys.exit(1)

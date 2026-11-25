@@ -437,7 +437,8 @@ check(
 )
 check(
     "容器面：需传文件列为「同步后内容将变化/新增」",
-    _cont.get("changed") == ["core/a.py", "core/b.py"],
+    set(_cont.get("changed", []))
+    == {rel for rel in _snapshot(SRV) if not TS._rsync_excluded(rel)} - {"main.py"},
     str(_cont.get("changed")),
 )
 check(
@@ -457,6 +458,39 @@ check(
     "rsync --delete 将删除" in _out,
     _out[-600:],
 )
+
+# 本地和服务器已对齐，容器单独落后。也校验容器已对齐时没有多余重载。
+with tempfile.TemporaryDirectory() as _container, tempfile.TemporaryDirectory() as _server_dir:
+    _ct = Path(_container)
+    _sd = Path(_server_dir)
+    for _rel, _content in LOCAL_FILES.items():
+        _write(_sd, _rel, _content)
+        _write(_ct, _rel, _content)
+    _write(_ct, "main.py", "old container entry")
+    _write(_ct, "tmp/server.log", "old log")
+    _write(_ct, "data/preserved.log", "runtime")
+    (_ct / "old-link").symlink_to("missing-target")
+    _rc, _plan, _err = _plan_json("plugin", LOCAL, _sd, _ct)
+    check(
+        "仅容器入口落后触发重载",
+        _rc == 0
+        and not _plan["transfer"]
+        and _plan["container"]["changed"] == ["main.py"]
+        and _plan["action"]["code"] == "reload",
+    )
+    check(
+        "容器独有日志和悬空链接列入删除，顶层 data 保留",
+        _plan["container"]["delete"] == ["old-link", "tmp/server.log"],
+    )
+    _write(_ct, "main.py", LOCAL_FILES["main.py"])
+    _write(_sd, "main.py", "server needs update")
+    _rc, _plan, _err = _plan_json("plugin", LOCAL, _sd, _ct)
+    check(
+        "待传服务器的入口已在容器生效，无需重载",
+        _plan["transfer"][0]["path"] == "main.py"
+        and not _plan["container"]["changed"]
+        and _plan["action"]["code"] == "none",
+    )
 
 # ★ Gate B 六词零命中：本文件随开源包分发 ⇒ 那两个字面量不能出现在源码文本里
 #   （tri_sync_audit.py 里同处置，见其 _WS_DIR 注释）。
@@ -697,84 +731,136 @@ else:
         != 0,
     )
 
-    def _deploy_sandbox(meta: str, core: str) -> tuple[int, bool, str, Path]:
-        """把 deploy.sh 复制到临时 SRC、DST 改指临时目录、PATH 前插假 rsync。
-
-        假 rsync 记录自己是否被调用（marker），并把临时 SRC 的两个门面文件"同步"到 DST
-        （模拟真实 rsync 的搬运），这样写后复验也能走通。
-        返回 (退出码, rsync 是否被调用, 输出, 目标目录)。
-        """
-        sandbox = Path(tempfile.mkdtemp(prefix="wf_plan_deploy_"))
-        dst = sandbox / "dst"
-        dst.mkdir()
-        marker = sandbox / "rsync_called"
-        fakebin = sandbox / "fakebin"
-        fakebin.mkdir()
-        fake = fakebin / "rsync"
-        fake.write_text(
-            "#!/bin/sh\n"
-            f"touch {shlex.quote(str(marker))}\n"
-            f"mkdir -p {shlex.quote(str(dst))}/core\n"
-            f"cp {shlex.quote(str(sandbox))}/metadata.yaml {shlex.quote(str(dst))}/metadata.yaml\n"
-            f"cp {shlex.quote(str(sandbox))}/core/__init__.py {shlex.quote(str(dst))}/core/__init__.py\n"
-            "exit 0\n",
-            encoding="utf-8",
+    runtime = {
+        rel: (ROOT / rel).read_bytes()
+        for rel in (
+            "main.py",
+            "_conf_schema.json",
+            "requirements.txt",
+            "metadata.yaml",
+            *(p.relative_to(ROOT).as_posix() for p in (ROOT / "core").glob("*.py")),
+            *(p.relative_to(ROOT).as_posix() for p in (ROOT / "core/commands").glob("*.py")),
+            "core/data/rotations.json",
+            "pages/sdjk/index.html",
+            ".astrbot-plugin/i18n/zh-CN.json",
         )
-        fake.chmod(0o755)
-        body = _SRC.replace(_DST_LINE, f'DST="{dst}"')
-        if body == _SRC:  # 兜底：宁可测试失败，也不许误跑到真实 DST
-            return -1, False, "DST 行未替换，已中止（避免误写真实目标）", dst
-        (sandbox / "deploy.sh").write_text(body, encoding="utf-8", newline="")
-        (sandbox / "metadata.yaml").write_text(meta, encoding="utf-8", newline="")
-        (sandbox / "core").mkdir(exist_ok=True)
-        (sandbox / "core" / "__init__.py").write_text(core, encoding="utf-8", newline="")
-        env = {**os.environ, "PATH": f"{fakebin}{os.pathsep}{os.environ.get('PATH', '')}"}
-        # 同 _check_version：只看返回码与输出文本，输出按 utf-8 宽松解码 —— macOS 自带 bash 3.2
-        # 会把 deploy.sh 里的中文压成单字节，text=True 严格解码会抛 UnicodeDecodeError（10-19 ZCode 实测）
-        p = subprocess.run(
-            ["bash", str(sandbox / "deploy.sh")],
-            capture_output=True,
-            encoding="utf-8",
-            errors="replace",
-            env=env,
+    }
+
+    def _deploy_case(args=(), *, missing="", bad_version=False, incomplete_transfer=False):
+        with tempfile.TemporaryDirectory(prefix="wf-deploy-") as directory:
+            root = Path(directory)
+            src, dst, fakebin = root / "src", root / "dst", root / "bin"
+            fakebin.mkdir()
+            for rel, content in runtime.items():
+                _write(dst, rel, b"old original")
+                if rel != missing:
+                    _write(src, rel, content)
+            if bad_version:
+                _write(src, "metadata.yaml", "name: fixture")
+            for rel in ("._old", "__pycache__/old.pyc", "old.log", "data/._keep"):
+                _write(dst, rel, b"keep until deployment")
+            script = _SRC.replace(_DST_LINE, f'DST="{dst}"')
+            if script == _SRC:
+                raise RuntimeError("部署夹具未隔离目标")
+            _write(src, "deploy.sh", script)
+            before = _snapshot(dst)
+            audit = root / "calls"
+            env = {
+                **os.environ,
+                "PATH": str(fakebin) + os.pathsep + os.environ["PATH"],
+                "AUDIT": str(audit),
+                "SRC_TEST": str(src),
+                "DST_TEST": str(dst),
+            }
+            real_rsync = shutil.which("rsync")
+            sync = (
+                ("exec " + shlex.quote(real_rsync) + ' "$@"')
+                if real_rsync
+                else (
+                    'case " $* " in *" --dry-run "*) echo "dry-run main.py"; exit 0;; esac\n'
+                    'cp -R "$SRC_TEST/." "$DST_TEST" && /bin/rm -f "$DST_TEST/old.log"'
+                )
+            )
+            for command, action in {
+                "rsync": 'echo "rsync $*" >> "$AUDIT"\n'
+                + ('/bin/rm -f "$DST_TEST/main.py"' if incomplete_transfer else sync),
+                "rm": 'echo cleanup >> "$AUDIT"\nexec /bin/rm "$@"',
+                "docker": 'echo "docker $1" >> "$AUDIT"',
+                "sleep": "exit 0",
+            }.items():
+                _write(fakebin, command, "#!/bin/sh\n" + action + "\n")
+                (fakebin / command).chmod(0o755)
+            result = subprocess.run(
+                ["bash", str(src / "deploy.sh"), *args],
+                env=env,
+                capture_output=True,
+                encoding="utf-8",
+                errors="replace",
+            )
+            return (
+                result.returncode,
+                result.stdout + result.stderr,
+                audit.read_text() if audit.exists() else "",
+                before,
+                _snapshot(dst),
+            )
+
+    for _args in (("--dry-run",), ("--restart", "--dry-run"), ("--dry-run", "--restart")):
+        _rc, _out, _calls, _before, _after = _deploy_case(_args)
+        check(
+            f"部署演练 {_args} 输出差异和拟清项，目标哈希一致，清理和重启零调用",
+            _rc == 0
+            and _before == _after
+            and "main.py" in _out
+            and "._old" in _out
+            and "__pycache__" in _out
+            and "--dry-run" in _calls
+            and "--itemize-changes" in _calls
+            and "cleanup" not in _calls
+            and "docker" not in _calls,
+            _out[-500:],
         )
-        return p.returncode, marker.exists(), p.stdout + p.stderr, dst
-
-    _rc, _called, _out, _dst = _deploy_sandbox(
-        "name: t\nversion: 1.2.3\n", '__version__ = "1.2.3"\n'
-    )
+    _rc, _out, _calls, _before, _after = _deploy_case(("--restart", "--wrong"))
     check(
-        "deploy.sh：源树版本一致 ⇒ 通过且调用 rsync",
-        _rc == 0 and _called,
-        f"rc={_rc} called={_called} {_out[-300:]}",
+        "未知参数先于任何操作被拒绝",
+        _rc != 0 and "--wrong" in _out and not _calls and _before == _after,
     )
+    for _rel in (
+        "main.py",
+        "core/parser.py",
+        "core/messaging.py",
+        "core/cache.py",
+        "pages/sdjk/index.html",
+    ):
+        _rc, _out, _calls, _before, _after = _deploy_case(("--restart",), missing=_rel)
+        check(
+            f"缺 {_rel} 时目标原件及全部哈希保留",
+            _rc != 0 and _rel in _out and not _calls and _before == _after,
+        )
+    _rc, _out, _calls, _before, _after = _deploy_case(bad_version=True)
     check(
-        "deploy.sh：rsync 之后对目标侧复验同一判据",
-        "门面版本一致（目标" in _out,
-        _out[-300:],
+        "源树版本读空中止，目标哈希一致",
+        _rc != 0 and "门面版本校验失败" in _out and not _calls and _before == _after,
     )
-
-    _rc, _called, _out, _dst = _deploy_sandbox("name: t\n", '__version__ = "1.2.3"\n')
-    check("deploy.sh：源树 metadata 版本读空 ⇒ 退出非 0", _rc != 0, f"rc={_rc} {_out[-300:]}")
+    for _args in ((), ("--restart",)):
+        _rc, _out, _calls, _before, _after = _deploy_case(_args)
+        check(
+            f"正常部署 {_args} 同步、清理且按参数重启",
+            _rc == 0
+            and _after["main.py"] == hashlib.md5(runtime["main.py"]).hexdigest()
+            and "门面版本一致（目标" in _out
+            and "old.log" not in _after
+            and "._old" not in _after
+            and "__pycache__/old.pyc" not in _after
+            and _after["data/._keep"] == _before["data/._keep"]
+            and "cleanup" in _calls
+            and _calls.count("docker restart") == int(bool(_args)),
+            _out[-500:],
+        )
+    _rc, _out, _calls, _, _ = _deploy_case(("--restart",), incomplete_transfer=True)
     check(
-        "deploy.sh：源树校验失败 ⇒ rsync 根本没被调用（先验后写）",
-        not _called,
-        f"called={_called} {_out[-300:]}",
-    )
-    check(
-        "deploy.sh：源树校验失败 ⇒ 目标目录一个字节都没写",
-        list(_dst.iterdir()) == [],
-        str(list(_dst.iterdir())),
-    )
-    check("deploy.sh：失败信息点明是门面版本问题", "门面版本校验失败" in _out, _out[-300:])
-
-    _rc, _called, _out, _dst = _deploy_sandbox(
-        "name: t\nversion: 1.2.2\n", '__version__ = "1.2.3"\n'
-    )
-    check(
-        "deploy.sh：源树两侧版本不一致 ⇒ 非 0 且不调 rsync",
-        _rc != 0 and not _called,
-        f"rc={_rc} called={_called} {_out[-300:]}",
+        "目标漏传入口，写后复验失败并阻止重启",
+        _rc != 0 and "main.py" in _out and "docker" not in _calls,
     )
 
 

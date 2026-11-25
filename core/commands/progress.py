@@ -19,20 +19,25 @@ class ProgressCommands:
 
     async def _h_calendar(self, parsed, event, platform) -> Reply:
         # 子模式（奖励/清单/覆写）2026-09-29 下线：裸「日历」= 沃沃式全量卡
-        title, lines = fmt.fmt_calendar(await self.client.calendar(platform))
-        return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
+        data = await self.client.calendar(platform, raise_on_error=True)
+        title, lines = fmt.fmt_calendar(data)
+        return Reply(
+            title, lines, footer=fmt.fmt_platform_footer(platform, self._worldstate_source(data))
+        )
 
     async def _h_deep(self, parsed, event, platform) -> Reply:
-        title, lines = fmt.fmt_archimedea(
-            await self.client.deep_archimedea(platform), L("深层科研", "Deep Archimedea")
+        data = await self.client.deep_archimedea(platform, raise_on_error=True)
+        title, lines = fmt.fmt_archimedea(data, L("深层科研", "Deep Archimedea"))
+        return Reply(
+            title, lines, footer=fmt.fmt_platform_footer(platform, self._worldstate_source(data))
         )
-        return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
 
     async def _h_temporal(self, parsed, event, platform) -> Reply:
-        title, lines = fmt.fmt_archimedea(
-            await self.client.temporal_archimedea(platform), L("时光科研", "Temporal Archimedea")
+        data = await self.client.temporal_archimedea(platform, raise_on_error=True)
+        title, lines = fmt.fmt_archimedea(data, L("时光科研", "Temporal Archimedea"))
+        return Reply(
+            title, lines, footer=fmt.fmt_platform_footer(platform, self._worldstate_source(data))
         )
-        return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
 
     async def _h_steelpath(self, parsed, event, platform) -> Reply:
         """钢铁之路 = 钢铁精华兑换（Teshin 荣誉商店）。
@@ -122,7 +127,9 @@ class ProgressCommands:
     async def _h_descendia(self, parsed, event, platform) -> Reply:
         data = await self.client.descendia(platform)
         title, lines = fmt.fmt_descendia(data)
-        return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
+        return Reply(
+            title, lines, footer=fmt.fmt_platform_footer(platform, self._worldstate_source(data))
+        )
 
     async def _h_incursions(self, parsed, event, platform) -> Reply:
         data = await self.client.steel_path_incursions(platform)

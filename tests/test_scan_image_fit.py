@@ -418,6 +418,73 @@ async def _bounded_image_checks():
         result = await host._image_data_urls(event)
     check("真实入口坏图后取第一张合格图并停止", result == ["data:image/png;base64," + payload])
 
+    host.MAX_SCAN_IMAGE_BYTES = plugin.WarframeSDJK.MAX_SCAN_IMAGE_BYTES
+    jpeg = base64.b64decode(data_url(64, 32, "JPEG").split(",")[1])[:-6]
+    from PIL import Image as PILImage
+
+    with PILImage.open(io.BytesIO(jpeg)) as truncated:
+        truncated.verify()  # 此样本能通过单独的 JPEG 文件头检查。
+    for bad in (data_url(32, 32, "BMP"), "base64://" + base64.b64encode(jpeg).decode()):
+        event.message_obj.message = [Image(bad), Image("base64://" + payload)]
+        assert await host._image_data_urls(event) == ["data:image/png;base64," + payload]
+    for fmt in ("JPEG", "WEBP"):
+        good = data_url(16, 16, fmt)
+        event.message_obj.message = [Image(good)]
+        assert await host._image_data_urls(event) == [good]
+
+    # 原图 320×3000 合规，按 4x 放大将达到 1280×12000。只构造 1-bit 原图。
+    strip = _b64_png(320, 3000)
+    image_url = "data:image/png;base64," + strip
+    event.message_obj.message = [Image(image_url), Image("base64://" + payload)]
+    with patch("PIL.Image.Image.resize", autospec=True) as resize:
+        result = await host._image_data_urls(event)
+        check(
+            "生产收图跳过派生长边超限图并接受下一张", result == ["data:image/png;base64," + payload]
+        )
+        check("单独调用规整也避免超预算分配", FIT(image_url) == image_url and not resize.called)
+        with patch("core.pips.detect_pips") as detect:
+            check(
+                "超限图在豆子像素检测前拦截",
+                await host._detect_pips(image_url) == [] and not detect.called,
+            )
+        panel, geometry = host._scan_focus_image(image_url, "panel", with_geometry=True)
+        check(
+            "聚焦裁剪保留安全尺寸与坐标，跳过超限放大",
+            size_of(panel) == (89, 3000)
+            and geometry["output_image_size"] == [89, 3000]
+            and not resize.called,
+        )
+    check("派生总像素限制独立于长边", not OK(_b64_png(320, 2400)))
+    host.cfg = {"scan_cooldown": 0}
+    event.message_obj.message = [Image(image_url)]
+    with patch.object(host, "_detect_pips") as detect:
+        reply = await host._h_scan(None, event, "pc")
+        check("识卡指令在进入豆子检测前结束超限请求", bool(reply.raw_text) and not detect.called)
+
+    # 实际编码并检查送往装备恢复渠道的裁图，再验证返回的坐标映回原图。
+    from unittest.mock import AsyncMock
+
+    provider = types.SimpleNamespace(
+        text_chat=AsyncMock(return_value=types.SimpleNamespace(completion_text="OCR"))
+    )
+    geometry = {"x": 500, "y": 500, "w": 100, "h": 100}
+    with (
+        patch("PIL.Image.Image.crop", side_effect=AssertionError("超预算恢复裁图分配了中间图")),
+        patch("core.pips.upgrade_slots", return_value=[{"box": [0, 0, 1, 0.775]}]),
+        patch.object(host, "_scan_equipment_providers", return_value=[provider]),
+        patch(
+            "core.loadout_ocr.parse_coordinate_ocr",
+            return_value={"weapon": "A", "mods": [{"_geometry": geometry}]},
+        ),
+    ):
+        recovered = await host._read_scan_recovery(
+            "data:image/png;base64," + _b64_png(6000, 4000), [1], {}
+        )
+    w, h = size_of(provider.text_chat.await_args.kwargs["image_urls"][0])
+    assert 0 < w * h <= 12_000_000 and abs(h - w * 3200 / 6000) <= 1
+    assert recovered["_recognition"]["geometry_transform"]["bounds"] == [0, 0, 1, 0.8]
+    assert recovered["mods"][0]["_geometry"] == {**geometry, "y": 400, "h": 80}
+
 
 import asyncio  # noqa: E402
 

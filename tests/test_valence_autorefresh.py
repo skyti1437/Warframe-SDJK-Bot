@@ -1282,6 +1282,54 @@ def _wfhelper_checks():
     )
     st, calls, rot = asyncio.run(_run(True, wf_ok=False))
     check("WFHelper 取不到 → 回落社区快照", calls == ["wfhelper", "community"], str(calls))
+
+    async def interrupted(community_only, change):
+        from unittest.mock import AsyncMock
+        import httpx
+
+        entered, release = asyncio.Event(), asyncio.Event()
+
+        async def respond(request):
+            assert str(request.url) == mod.WFHELPER_VALENCE_URL
+            entered.set()
+            await release.wait()
+            return httpx.Response(200, json=payload)
+
+        with tempfile.TemporaryDirectory() as tmp, patch.object(paths, "_RUN", Path(tmp)):
+            target = Path(tmp) / "rotations.json"
+            target.write_text(json.dumps(rot0))
+            before = target.read_bytes()
+            c = WC(wfhelper_valence=True)
+            await c.http.aclose()
+            c._http = httpx.AsyncClient(transport=httpx.MockTransport(respond))
+            c.fetch_wiki_source = AsyncMock(side_effect=mod.WarframeAPIError("源页暂不可用"))
+            receipt = {"valence.json": {"result": "fresh"}}
+            c.community_log = copy.deepcopy(receipt)
+            task = asyncio.create_task(c.refresh_valence(community_only=community_only, force=True))
+            try:
+                await asyncio.wait_for(entered.wait(), 2)
+                if change == "切源":
+                    c._community_generation += 1
+                else:
+                    c.wfhelper_valence = False
+                release.set()
+                with patch.object(
+                    paths, "atomic_write_text", wraps=paths.atomic_write_text
+                ) as write:
+                    assert await task == "no-community"
+                    write.assert_not_called()
+                check(
+                    f"WFHelper 在途{change}丢弃回包，社区轮询={community_only}",
+                    target.read_bytes() == before and c.community_log == receipt,
+                )
+            finally:
+                release.set()
+                await asyncio.gather(task, return_exceptions=True)
+                await c.close()
+
+    for community_only in (True, False):
+        for change in ("切源", "关闭"):
+            asyncio.run(interrupted(community_only, change))
     sch = json.loads((ROOT / "_conf_schema.json").read_text(encoding="utf-8"))
     check(
         "配置项 wfhelper_valence 存在且默认关闭",
@@ -2158,6 +2206,56 @@ def _revision_client_checks():
                 not (h.root / mod.ROTATION_REVISIONS_NAME).exists(),
             )
 
+    async def source_generation(h, c):
+        # 强制刷新走已登记的固定修订，正文在切源后才返回。
+        h.put(
+            mod.ROTATION_REVISIONS_NAME,
+            {"pages": {"tenet": {"revid": 1, "timestamp": stamp.isoformat()}}},
+        )
+        changed_sources(h)
+        h.direct = True
+        h.enter, h.gate = asyncio.Event(), asyncio.Event()
+        before = {
+            p: p.read_bytes()
+            for p in (h.root / "rotations.json", h.root / mod.ROTATION_REVISIONS_NAME)
+        }
+        task = asyncio.create_task(c.refresh_valence(force=True))
+        try:
+            await asyncio.wait_for(h.enter.wait(), 2)
+            c._community_generation += 1
+            h.gate.set()
+            assert await task == "no-community"
+            assert all(p.read_bytes() == data for p, data in before.items())
+        finally:
+            h.gate.set()
+            await asyncio.gather(task, return_exceptions=True)
+
+        # 静态社区快照使用同一代际。延迟的合法响应不能写盘、清模块缓存或更新回执。
+        name = "arb_ratings.json"
+        snapshot = {"_updated": stamp.isoformat(), "nodes": {str(i): {"n": 1} for i in range(50)}}
+        entered, release = asyncio.Event(), asyncio.Event()
+
+        async def delayed(request):
+            entered.set()
+            await release.wait()
+            return httpx.Response(200, json=snapshot)
+
+        await c.http.aclose()
+        c._http = httpx.AsyncClient(transport=httpx.MockTransport(delayed))
+        c.community_log = {name: {"result": "fresh"}}
+        task = asyncio.create_task(c.refresh_community_static((name,)))
+        try:
+            await asyncio.wait_for(entered.wait(), 2)
+            c._community_generation += 1
+            release.set()
+            with patch.object(mod, "_invalidate_static") as invalidate:
+                assert await task == {name: "unavailable"}
+                invalidate.assert_not_called()
+            assert not (h.root / name).exists() and c.community_log == {name: {"result": "fresh"}}
+        finally:
+            release.set()
+            await asyncio.gather(task, return_exceptions=True)
+
     def changed_sources(h):
         candidate = copy.deepcopy(h.rot)
         for rows in [candidate["tenet"]["items"], *candidate["coda"]["batches"]]:
@@ -2306,11 +2404,54 @@ def _revision_client_checks():
         first = await c.fetch_wiki_source(mod.WIKI_RAW_TENET, ttl=600, validator=validate)
         second = await c.fetch_wiki_source(mod.WIKI_RAW_TENET, ttl=600, validator=validate)
         check("有效HTTP正文服从TTL且不重复GET", first == second and len(h.http_calls) == 1)
-        c._wiki_source_cache[mod.WIKI_RAW_TENET] = (time.time(), "invalid cached body")
+        c._wiki_source_cache[mod.WIKI_RAW_TENET] = (
+            time.time(),
+            time.time() + 600,
+            "invalid cached body",
+        )
         third = await c.fetch_wiki_source(mod.WIKI_RAW_TENET, ttl=600, validator=validate)
         check(
             "旧缓存正文不能绕过业务校验，拒绝后重新HTTP", third == first and len(h.http_calls) == 2
         )
+
+    async def revision_cache_bounds(h, c):
+        # 预留两个正 TTL 哨兵，再反复走真实元数据和固定 revid 正文。
+        h.direct = True
+        await c.fetch_wiki_source(mod.WIKI_RAW_TENET)
+        await c.fetch_via_flaresolver(mod.WIKI_RAW_CODA)
+        before = dict(c._wiki_source_cache), dict(c._flare_cache)
+        for direct in (True, False):
+            h.direct = direct
+            h.http_calls.clear()
+            for _ in range(4):
+                h.ids = {k: v + 3 for k, v in h.ids.items()}
+                result = await c.check_rotation_revisions()
+                assert set(result.values()) <= {"fresh", "refreshed", "unchanged"}, result
+            methods = [method for method, _ in h.http_calls]
+            check(
+                "连续成功零 TTL 修订不占用两层正文缓存/" + ("直连" if direct else "FS"),
+                before == (c._wiki_source_cache, c._flare_cache)
+                and methods.count("GET") == 16
+                and methods.count("POST") == (0 if direct else 16),
+            )
+
+        c.WIKI_CACHE_LIMIT = 3
+        h.direct = True
+        for get, cache in (
+            (c.fetch_wiki_source, c._wiki_source_cache),
+            (c.fetch_via_flaresolver, c._flare_cache),
+        ):
+            cache.clear()
+            urls = [mod.WIKI_RAW_TENET + f"&slot={i}" for i in range(5)]
+            clock = time.time()
+            with patch.object(time, "time", side_effect=lambda: clock):
+                for idx in range(3):
+                    await get(urls[idx], ttl=1 if idx == 1 else 60)
+                clock += 2
+                await get(urls[3], ttl=60)
+                check("正 TTL 缓存满时先逐出已过期项", list(cache) == [urls[0], urls[2], urls[3]])
+                await get(urls[4], ttl=60)
+                check("正 TTL 缓存到达容量后逐出最旧项", list(cache) == urls[2:])
 
     async def current_snapshot_missing_values(h, c):
         for key in ("tenet", "coda"):
@@ -2390,6 +2531,7 @@ def _revision_client_checks():
                 "snapshot": stamp.isoformat(),
                 "snapshots": {"tenet": stamp.isoformat(), "coda": stamp.isoformat()},
             }
+            c.wfhelper_valence = channel == "wfhelper"
             c._valence_fallback = AsyncMock(return_value=(channel, payload))
             result = await c.refresh_valence(community_only=True)
             out = h.get("rotations.json")
@@ -2424,6 +2566,7 @@ def _revision_client_checks():
         await in_case(direct_failure_community, stale=True)
         await in_case(direct_api_errors_and_retry)
         await in_case(direct_cache)
+        await in_case(revision_cache_bounds)
         await in_case(protocol_errors)
         await in_case(initial)
         await in_case(stale_same, stale=True)
@@ -2438,6 +2581,7 @@ def _revision_client_checks():
         await in_case(writes)
         await in_case(lock_cancel)
         await in_case(closing)
+        await in_case(source_generation, stale=True)
 
     asyncio.run(all_cases())
 

@@ -17,7 +17,6 @@ from ..i18n import L
 from ..parser import (
     FISSURE_MODIFIER_WORDS,
     PLATFORM_DISPLAY,
-    contains_fissure_tier,
     fissure_tier_hint,
     parse_duration,
     parse_hit_count,
@@ -28,9 +27,9 @@ from ..push import parse_bounty_rule
 from ..push import (
     PUSH_EVENTS,
     Subscription,
-    alias_preset,
     build_cancel_selector,
-    normalize_event,
+    subscription_event,
+    subscription_rule,
 )
 from .arbitration import _ARB_TYPES_STR_EN, _arb_en_toks
 from .base import Reply, err_card
@@ -182,6 +181,15 @@ _FISSURE_EN = {
     "alchemy": "元素转换",
     "skirmish": "前哨战",
 }
+_FISSURE_PHRASES = {
+    "steel path": "钢铁",
+    "void storm": "九重天",
+    "void storms": "九重天",
+    "mobile defense": "移动防御",
+    "void flood": "虚空洪流",
+    "void cascade": "虚空覆涌",
+    "void armageddon": "虚空决战",
+}
 _BOUNTY_EN = {
     "zariman": "扎里曼",
     "laboratories": "实验室",
@@ -248,31 +256,22 @@ def _en_rule_toks(event_type: str, toks: list) -> list:
     if event_type == "仲裁":
         return _arb_en_toks(toks)
     if event_type == "裂隙":
-        merged: list = []
-        for t in toks:
-            prev = merged[-1].lower() if merged else ""
-            if (prev, t.lower()) in (("steel", "path"), ("void", "storm"), ("void", "storms")):
-                merged[-1] = prev + t.lower()  # steel path -> steelpath；void storm -> voidstorm
-            elif (prev, t.lower()) == ("mobile", "defense"):
-                merged[-1] = "移动防御"
-            elif (prev, t.lower()) in (
-                ("void", "flood"),
-                ("void", "cascade"),
-                ("void", "armageddon"),
-            ):
-                # 以 Void 开头的任务类型整体并入官方中文名，不拆成「虚空（星球）+ 残词」
-                merged[-1] = {"flood": "虚空洪流", "cascade": "虚空覆涌", "armageddon": "虚空决战"}[
-                    t.lower()
-                ]
-            else:
-                merged.append(t)
-        out = []
-        for t in merged:
-            parts = [
-                " ".join(_FISSURE_EN.get(w.lower(), w) for w in p.split()) for p in t.split(",")
-            ]
-            out.append(",".join(parts))
-        return out
+        branches = []
+        for branch in re.split(r"[,，]", " ".join(toks)):
+            words = branch.split()
+            translated = []
+            i = 0
+            while i < len(words):
+                phrase = " ".join(words[i : i + 2]).lower()
+                if phrase in _FISSURE_PHRASES:
+                    translated.append(_FISSURE_PHRASES[phrase])
+                    i += 2
+                else:
+                    translated.append(_FISSURE_EN.get(words[i].lower(), words[i]))
+                    i += 1
+            if translated:
+                branches.append(" ".join(translated))
+        return ",".join(branches).split()
     if event_type == "赏金":
         return [_BOUNTY_EN.get(t.lower(), t) for t in toks]
     return list(toks)
@@ -299,7 +298,7 @@ _RULE_ZH_EN = {
 }
 
 
-def _rule_en(rule: str, event_type: str) -> str:
+def _rule_en(rule: str, event_type: str, *, command=False) -> str:
     """订阅筛选的英文回显：空格（且）写成 +，逗号（或）写成 or；认不出的词原样保留。"""
     from ..parser import _CN_TO_MISSION
 
@@ -315,7 +314,9 @@ def _rule_en(rule: str, event_type: str) -> str:
                 en = _arb_zh_en()[w]
             words.append(en or w)
         if any(words):
-            parts.append(" + ".join(x for x in words if x))
+            parts.append((" " if command else " + ").join(x for x in words if x))
+    if command:
+        return ("," if event_type == "裂隙" else " ").join(parts)
     return {"赏金": " + ", "仲裁": ", "}.get(event_type, " or ").join(parts)
 
 
@@ -436,16 +437,37 @@ class DunCommands:
                     ),
                     title=L("蹲 订阅", "Watch Subscription"),
                 )
-            _ev, _keys, _exact, _fuzzy, _label = build_cancel_selector(umo, heads)
+            _, rest, _exact, _fuzzy, _label = build_cancel_selector(
+                umo, heads, normalize_rules=_en_rule_toks
+            )
             if i18n.is_en():  # 标签回显玩家写的英文原词，而不是并入后的中文内部键
                 _label = " ".join(
                     str(t)
                     for t in (parsed.content or [])
                     if str(t).lower() not in ("cancel", "取消")
                 )
-            removed = await self.subs.remove(lambda s: _exact(s) and _mine(s))
-            if not removed and _keys:
-                removed = await self.subs.remove(lambda s: _fuzzy(s) and _mine(s))
+            scoped = [s for s in self.subs.for_umo(umo) if _mine(s)]
+            matches = [s for s in scoped if _exact(s)]
+            if not matches and rest:
+                matches = [s for s in scoped if _fuzzy(s)]
+                candidates = sorted({(s.event, s.rule) for s in matches})
+                if candidates and (
+                    len(candidates) > 1 or not all(t in candidates[0][1] for t in rest)
+                ):
+                    return Reply(
+                        L("请选择要取消的订阅", "Choose a subscription to cancel"),
+                        [
+                            L(
+                                f"· 蹲 取消 {ev} {rule}",
+                                f"· subscribe cancel {_ev_cmd(ev)} {_rule_en(rule, ev, command=True)}",
+                            )
+                            for ev, rule in candidates
+                        ],
+                    )
+            selected = {s.sid for s in matches}
+            removed = await self.subs.remove(
+                lambda s: s.umo == umo and _mine(s) and s.sid in selected
+            )
             if removed:
                 return Reply(
                     L("蹲 订阅", "Watch Subscription"),
@@ -468,24 +490,7 @@ class DunCommands:
                 title=L("蹲 订阅", "Watch Subscription"),
             )
 
-        event_type = None
-        rest: list[str] = []
-        for tok in toks:
-            ev = normalize_event(tok)
-            if ev and event_type is None:
-                event_type = ev
-                if alias_preset(tok):  # 钢铁裂隙 → 裂隙 + 筛选「钢铁」（别把档位吃掉）
-                    rest.append(alias_preset(tok))
-            else:
-                rest.append(tok)
-        # ★ 2026-10-03（口径）：「T1–T6 / 古纪…全能」这类**档位词本身
-        #   就含裂隙语义** —— 没写类型词时自动判定为裂隙（「蹲 钢铁t5歼灭」
-        #   直接生效，不必再写「裂隙」）。⚠ 只认档位词：钢铁/虚空/地点词
-        #   仍走「未识别」提示，不重蹈 2026-09-14 静默降级的覆辙。
-        if event_type is None and any(contains_fissure_tier(t) for t in toks):
-            event_type = "裂隙"
-        if event_type:  # 英文筛选词并入中文内部键（中文输入原样不动）
-            rest = _en_rule_toks(event_type, rest)
+        event_type, rest = subscription_event(toks)
         if len(toks) >= 2 and toks[1] == "帮助" and event_type:
             desc, _ = PUSH_EVENTS[event_type]
             return Reply(
@@ -596,21 +601,7 @@ class DunCommands:
             i += 1
 
         now = time.time()
-        # L-4: 单 umo 订阅上限（防滥用/防误循环订阅撑爆存储）
-        MAX_SUBS_PER_UMO = 30
-        existing = self.subs.for_umo(umo)
-        if len(existing) >= MAX_SUBS_PER_UMO:
-            return err_card(
-                L(
-                    f"本群蹲订阅已达上限（{MAX_SUBS_PER_UMO} 条）",
-                    f"This group has reached the watch subscription limit ({MAX_SUBS_PER_UMO})",
-                ),
-                L(
-                    f"请先「蹲 取消」或「蹲 {event_type} 取消」清理后再试",
-                    f'Clean up first with "subscribe cancel" or "subscribe {_ev_cmd(event_type)} cancel", then retry',
-                ),
-                title=L("蹲 订阅", "Watch Subscription"),
-            )
+        rule_parts = _en_rule_toks(event_type, rule_parts)
         sub = Subscription(
             umo=umo,
             platform=platform,
@@ -619,7 +610,7 @@ class DunCommands:
             # ★ 2026-10-16：裂隙筛选里**逗号 = 或、空格 = 且**（parse_fissure_filter，与「裂隙」查询同口径）。
             #   旧实现一律用逗号拼 ⇒「蹲 钢铁裂隙 古纪」落成「钢铁,古纪」= 钢铁 或 古纪（推来安魂钢铁）。
             #   用户自己敲的逗号仍在 token 内，「蹲 裂隙 生存,防御」照旧是或。其他事件的规则解析不变。
-            rule=(" " if event_type == "裂隙" else ",").join(rule_parts),
+            rule=subscription_rule(event_type, rule_parts),
             windows={}
             if window is None or window.is_always
             else {
@@ -638,7 +629,20 @@ class DunCommands:
             #   QQ 特征须 OK）；未来如需扩展须再确认。
             created_by=str(event.get_sender_id() or "").strip(),
         )
-        await self.subs.add(sub)
+        # L-4: 单 umo 订阅上限（防滥用/防误循环订阅撑爆存储）
+        MAX_SUBS_PER_UMO = 30
+        if not await self.subs.add_with_limit(sub, MAX_SUBS_PER_UMO):
+            return err_card(
+                L(
+                    f"本群蹲订阅已达上限（{MAX_SUBS_PER_UMO} 条）",
+                    f"This group has reached the watch subscription limit ({MAX_SUBS_PER_UMO})",
+                ),
+                L(
+                    f"请先「蹲 取消」或「蹲 {event_type} 取消」清理后再试",
+                    f'Clean up first with "subscribe cancel" or "subscribe {_ev_cmd(event_type)} cancel", then retry',
+                ),
+                title=L("蹲 订阅", "Watch Subscription"),
+            )
         if hits is not None:
             # 规则（维护者 10-17）：只写时长 ⇒ 不限次数；只写次数 ⇒ 命中 N 次取消；两者一起写 ⇒ 都生效、先到为准
             if duration and duration != -1:

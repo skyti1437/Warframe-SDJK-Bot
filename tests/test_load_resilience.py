@@ -471,7 +471,8 @@ def _shared_json_singleflight():
             self.lock.release()
 
     with tempfile.TemporaryDirectory() as tmp:
-        target = Path(tmp) / "shared.json"
+        root = Path(tmp).resolve()  # 共享缓存和条带锁按真实路径选取。
+        target = root / "shared.json"
         target.write_text('{"revision":1}')
         key = str(target)
         original_read = Path.read_text
@@ -501,6 +502,17 @@ def _shared_json_singleflight():
                     a, b = first.result(timeout=5), second.result(timeout=5)
             check("共享 JSON 并发冷读只解析一次且返回同一对象", len(reads) == 1 and a is b)
             check("共享 JSON 热读保留对象身份", paths.load_json(target) is a)
+            alias = root / "alias.json"
+            alias.symlink_to(target)
+            assert paths.load_json(alias) is a
+            replacement = root / "replacement.json"
+            replacement.write_text('{"revision":9}')
+            stamp = target.stat()
+            os.utime(replacement, ns=(stamp.st_atime_ns, stamp.st_mtime_ns))
+            alias.unlink()
+            alias.symlink_to(replacement)
+            assert paths.load_json(alias) is paths.load_json(replacement)
+            assert paths.load_json(alias) != a
 
             # 分别独立触发 mtime 与 size 变化，避免其中一条失效判据被遗漏。
             st = target.stat()
@@ -540,9 +552,9 @@ def _shared_json_singleflight():
 
             # 两个不同条带的文件必须能同时进入实际读取，不受全局耗时锁阻塞。
             other = next(
-                Path(tmp) / f"other-{i}.json"
+                root / f"other-{i}.json"
                 for i in range(1000)
-                if hash(str(Path(tmp) / f"other-{i}.json")) % len(paths._JSON_LOCKS)
+                if hash(str(root / f"other-{i}.json")) % len(paths._JSON_LOCKS)
                 != hash(key) % len(paths._JSON_LOCKS)
             )
             other.write_text('{"other":1}')
@@ -611,7 +623,13 @@ async def _damage_queues_keep_fast_commands_responsive():
                 if level == 101 and not timed_out:
                     timed_out = True
                     raise damage_engine.EngineError("测试超时")
-                return {"dps": 20, "kills": 2, "incarnonChoices": {}}
+                return {
+                    "dps": 20,
+                    "kills": 2,
+                    "incarnonChoices": {},
+                    "engineFingerprint": damage_engine.PORTABLE_FINGERPRINT,
+                    "buildLabel": damage_engine.PORTABLE_DATA,
+                }
 
             async def run(level):
                 if kind == "simulations":
@@ -677,6 +695,132 @@ async def _damage_queues_keep_fast_commands_responsive():
 
 
 asyncio.run(_damage_queues_keep_fast_commands_responsive())
+
+
+async def _test_managed_engine_recovery():
+    from unittest.mock import AsyncMock, patch
+    from core import damage_engine as de
+
+    for portable in (False, True):
+        with tempfile.TemporaryDirectory() as root:
+            service = de.EngineService(Path(root))
+            service.root.mkdir()
+            service.installed = service.portable_installed = lambda: True
+            name = "portable_child" if portable else "child"
+            stalled, replacement = (
+                SimpleNamespace(returncode=None),
+                SimpleNamespace(returncode=None),
+            )
+            setattr(service, name, stalled)
+            service.portable_child_port = 8754 if portable else 0
+            service.token = ""
+            ready = False
+
+            async def probe(*args, **kwargs):
+                if not ready:
+                    raise de.EngineError("探活失败")
+                return {"engine": de.NAME, "version": "1.2.3", "data_revision": "a" * 40}
+
+            async def spawn(*args, **kwargs):
+                nonlocal ready
+                ready = True
+                return replacement
+
+            async def stop(proc):
+                proc.returncode = -9
+
+            service._stop = AsyncMock(side_effect=stop)
+            run = (
+                (lambda: service.ensure_portable(8754))
+                if portable
+                else (lambda: service.ensure_running({}))
+            )
+            with (
+                patch.object(de, "_request", probe),
+                patch.object(service, "_portable_health", probe),
+                patch.object(asyncio, "create_subprocess_exec", side_effect=spawn) as create,
+            ):
+                await asyncio.gather(run(), run(), run())
+                service._stop.assert_awaited_once_with(stalled)
+                create.assert_awaited_once()
+                assert getattr(service, name) is replacement
+                assert service._managed_health[name].last_success > 0
+                assert service._managed_health[name].failures == 0
+
+                # 外部服务已经就绪且没有自有句柄，探活和关闭都不能终止它。
+                setattr(service, name, None)
+                await run()
+                await service.close()
+                service._stop.assert_awaited_once_with(stalled)
+                create.assert_awaited_once()
+
+        with tempfile.TemporaryDirectory() as root:
+            service = de.EngineService(Path(root))
+            service.root.mkdir()
+            service.installed = service.portable_installed = lambda: True
+            first = SimpleNamespace(returncode=None)
+            service._stop = AsyncMock(side_effect=stop)
+            ready = False
+            with (
+                patch.object(de, "_request", probe),
+                patch.object(service, "_portable_health", probe),
+                patch.object(
+                    asyncio, "create_subprocess_exec", new=AsyncMock(return_value=first)
+                ) as create,
+                patch.object(asyncio, "sleep", new=AsyncMock()),
+            ):
+                for _ in range(2):
+                    try:
+                        await run()
+                    except de.EngineError:
+                        pass
+                    else:
+                        raise AssertionError("启动失败应限频并明确报错")
+                assert getattr(service, name) is None
+                service._stop.assert_awaited_once_with(first)
+                create.assert_awaited_once()
+
+
+async def _test_managed_port_switch_after_failure():
+    from unittest.mock import AsyncMock, patch
+    from core import damage_engine as de
+
+    for reconfigure in (False, True):
+        with tempfile.TemporaryDirectory() as root:
+            service = de.EngineService(Path(root))
+            service.root.mkdir()
+            service.portable_installed = lambda: True
+            child = SimpleNamespace(returncode=None)
+            service._stop = AsyncMock()
+
+            async def health(port, **kwargs):
+                if port != 8766 or service.portable_child is not child:
+                    raise de.EngineUnreachable("尚未启动")
+
+            service._portable_health = health
+            with patch.object(
+                asyncio, "create_subprocess_exec", side_effect=[OSError(), child]
+            ) as spawn:
+                if reconfigure:
+                    await service.reconfigure_portable(8765)
+                for expected in ("无法启动", "冷却"):
+                    try:
+                        await service.ensure_portable(8765)
+                    except de.EngineError as exc:
+                        assert expected in str(exc)
+                    else:
+                        raise AssertionError("旧端口启动失败，应保留自己的冷却")
+                assert service.portable_child is None and spawn.await_count == 1
+                if reconfigure:
+                    await service.reconfigure_portable(8766)
+                await service.ensure_portable(8766)
+                assert [call.args[-1] for call in spawn.await_args_list] == ["8765", "8766"]
+                assert service.portable_child is child and service.portable_child_port == 8766
+            await service.close()
+
+
+asyncio.run(_test_managed_engine_recovery())
+asyncio.run(_test_managed_port_switch_after_failure())
 
 if FAILED:
     print(f"✗ {len(FAILED)} 项失败：" + "、".join(FAILED))

@@ -550,9 +550,88 @@ async def hit_count_checks() -> None:
     check("「蹲 帮助」写了次数用法", "次数" in _txt(r3) and "2次" in _txt(r3), _txt(r3))
 
 
+async def combined_cancel():
+    for cmd, removed in (
+        ("蹲 取消 裂隙 钢铁 生存", "钢铁 生存"),
+        ("subscribe cancel fissures steel path survival", "钢铁 生存"),
+        ("subscribe cancel fissures survival", "生存"),
+    ):
+        with tempfile.TemporaryDirectory() as tmp:
+            obj = _make_plugin(Path(tmp))
+            await obj.groups.set_switch("group://test", "push", True)
+            for rule in ("钢铁", "生存", "钢铁 生存"):
+                await _run_one(obj, f"蹲 裂隙 {rule}")
+            before = {s.sid: s.rule for s in obj.subs.all()}
+            reply = await _run_one(obj, cmd, role="member")
+            after = {s.sid: s.rule for s in obj.subs.all()}
+            check(
+                cmd + " 精确删除且保留其余规则",
+                set(before.values()) == {"钢铁", "生存", "钢铁 生存"}
+                and after == {sid: rule for sid, rule in before.items() if rule != removed}
+                and "1" in _txt(reply),
+            )
+            if removed == "生存":
+                await _run_one(obj, "蹲 裂隙 普通 生存")
+                before = obj.subs.all()
+                reply = await _run_one(obj, cmd)
+                check(
+                    "模糊取消多候选逐条提示并保留全部订阅",
+                    obj.subs.all() == before
+                    and all(rule in _txt(reply) for rule in ("普通 生存", "钢铁 生存")),
+                )
+            if removed == "钢铁 生存":
+                reply = await _run_one(obj, "蹲 取消 裂隙 钢铁 生存")
+                check(
+                    "两条单条件只作为候选，不能被组合条件误删",
+                    {s.sid: s.rule for s in obj.subs.all()} == after
+                    and all("蹲 取消 裂隙 " + rule in _txt(reply) for rule in ("钢铁", "生存")),
+                )
+
+
+async def subscription_limit_and_cancel_candidate():
+    from core import i18n
+    from core.store import Subscription
+
+    with tempfile.TemporaryDirectory() as tmp:
+        obj = _make_plugin(Path(tmp))
+        umo = "group://test"
+        await obj.groups.set_switch(umo, "push", True)
+        await obj.subs.sync([Subscription(umo, "pc", "新闻") for _ in range(29)])
+        async with obj.subs._lock:
+            tasks = [asyncio.create_task(_run_one(obj, "蹲 新闻")) for _ in range(2)]
+            await asyncio.sleep(0)
+        replies = await asyncio.gather(*tasks)
+        check(
+            "29 条订阅并发新增两笔只接受一笔，重读仍为 30",
+            sum("上限" in _txt(reply) for reply in replies) == 1
+            and len(obj.subs.for_umo(umo))
+            == len(SubscriptionStore(obj.subs.path).for_umo(umo))
+            == 30,
+        )
+        await obj.subs.sync([])
+        with i18n.use_lang("en"):
+            for rule in ("钢铁,古纪", "普通,古纪"):
+                await _run_one(obj, f"蹲 裂隙 {rule}")
+            legacy, _ = obj.subs.for_umo(umo)
+            legacy.rule = "钢铁, 古纪"
+            await obj.subs.update(legacy)
+            choice = await _run_one(obj, "subscribe cancel fissures Lith")
+            commands = [line.removeprefix("· ") for line in choice.lines]
+            command = "subscribe cancel fissures Steel Path,Lith"
+            check("英文模糊取消给出保留 OR 和多词条件的命令", command in commands)
+            if command in commands:
+                reply = await _run_one(obj, command)
+                check(
+                    "英文候选原样执行即精确取消",
+                    "1" in _txt(reply) and [s.rule for s in obj.subs.for_umo(umo)] == ["普通,古纪"],
+                )
+
+
 if __name__ == "__main__":
     asyncio.run(main())
     asyncio.run(hit_count_checks())
+    asyncio.run(combined_cancel())
+    asyncio.run(subscription_limit_and_cancel_candidate())
     print()
     if FAILED:
         print(f"共 {len(FAILED)} 项失败：{FAILED}")

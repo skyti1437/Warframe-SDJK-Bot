@@ -756,22 +756,18 @@ _dt.datetime = _REAL_DT
 
 # ★ 2026-10-23：fetch_valence.apply 改数值必须同步写「数值最早出现时刻」（不变量，源于信条误报）
 def _rot_fixture():
-    return {
-        "tenet": {"items": [{"en": "Tenet Arca Plasmor", "element": "Heat", "bonus": 30.0}]},
-        "coda": {
-            "batch_label": ["A", "B"],
-            "batches": [
-                [{"en": "Coda Bubonico", "element": "Cold", "bonus": 20.0}],
-                [{"en": "Coda Mire", "element": "Toxin", "bonus": 25.0}],
-            ],
-            "batch_values_since": ["2026-10-01T00:00:00+00:00", "2026-10-01T00:00:00+00:00"],
-        },
-    }
+    seed = json.loads((ROOT / "core/data/rotations.json").read_bytes())
+    for group in [seed["tenet"]["items"], *seed["coda"]["batches"]]:
+        for item in group:
+            item.update(element="Heat", bonus=30.0)
+    seed["coda"]["batch_values_since"] = ["2026-10-01T00:00:00+00:00"] * 2
+    return seed
 
 
+_old = _rot_fixture()
 _pv = {
-    "tenet": [{"en": "Tenet Arca Plasmor", "element": "Electricity", "bonus": 40.0}],
-    "coda": {1: [{"en": "Coda Bubonico", "element": "Heat", "bonus": 33.0}]},
+    "tenet": [dict(row, element="Electricity", bonus=40.0) for row in _old["tenet"]["items"]],
+    "coda": {1: [dict(row, bonus=33.0) for row in _old["coda"]["batches"][0]]},
 }
 _d = _rot_fixture()
 _fv.apply(_d, _pv, revs={"tenet": "2026-10-22T00:40:26+00:00", "coda": "2026-10-23T00:56:34+00:00"})
@@ -790,7 +786,7 @@ except SystemExit:
     # main() 在 apply 之后才落盘 ⇒ 抛 SystemExit 时文件不会被写（内存里的 dict 不重要）
     check("★ apply：数值变了却没有修订时刻 ⇒ 抛 SystemExit（main 不落盘）", True)
 _d3 = _rot_fixture()
-_same = {"tenet": [{"en": "Tenet Arca Plasmor", "element": "Heat", "bonus": 30.0}], "coda": {}}
+_same = {"tenet": _old["tenet"]["items"], "coda": {}}
 _fv.apply(_d3, _same, revs={})
 check(
     "apply：数值没变化 ⇒ 不需要修订时刻、不改 since",

@@ -224,7 +224,7 @@ async def _openrelic_lines(text: str) -> tuple[str, list[str]]:
 async def _main() -> None:
     _t, o_lines = await _openrelic_lines("开核桃")
     # 正文行 = 「· 」列表行（★ 2026-10-11 改版：「可掉落 N 种」是纪元级数字，已汇总进卡首
-    #   「◆ 各纪元可掉落遗物」答案行，不再逐行重复）
+    #   「◆ 各类裂隙可开的任务掉落遗物」答案行，不再逐行重复）
     _body = [ln for ln in o_lines if ln.startswith("· ")]
     check("开核桃有三行", len(_body) == 3, str(o_lines))
     check("开核桃带派系 Grineer", any("Grineer" in ln for ln in _body), str(_body[:1]))
@@ -244,8 +244,8 @@ async def _main() -> None:
         str(_quick),
     )
     check(
-        "卡首汇总各纪元可掉落遗物数",
-        any(ln.startswith("◆ 各纪元可掉落遗物：") and "种" in ln for ln in o_lines),
+        "卡首汇总各类裂隙可开的任务掉落遗物数",
+        any(ln.startswith("◆ 各类裂隙可开的任务掉落遗物：") and "种" in ln for ln in o_lines),
         str(o_lines[:2]),
     )
     # 行内不得出现「· ·」双点（任务类型为空时的拼接瑕疵）
@@ -388,6 +388,71 @@ async def _main() -> None:
         check(f"QUICK 含 {_good}", _good in _q, _q)
 
 
+async def availability_filters():
+    from unittest.mock import AsyncMock, patch
+    from core import drops
+    from core.i18n import use_lang
+
+    obj = plugin.WarframeSDJK.__new__(plugin.WarframeSDJK)
+    obj._relic_cache = ({name: {} for name in ("中纪 Neo A1", "中纪 Neo B1", "中纪 Neo C1")}, {})
+    obj.client = _FakeClient()
+    obj.client.fissures = AsyncMock(
+        return_value=[dict(_FS[0], tier=tier, node=tier) for tier in ("Neo", "Omnia", "Requiem")]
+    )
+    obj.client.prime_vault = AsyncMock(
+        return_value={"items": [{"kind": "relic", "name": "中纪 C1"}]}
+    )
+    with patch.object(drops, "droppable_keys", return_value={"neo a1"}):
+        for args, expected in (
+            ("已入库", 2),
+            ("未入库", 2),
+            ("中纪 A1 已入库", 0),
+            ("中纪 B1 已入库", 2),
+            ("中纪 C1 已入库", 0),
+            ("中纪 C1 未入库", 2),
+        ):
+            reply = await obj._h_openrelic(parse("开核桃 " + args), None, "pc")
+            rows = [line for line in reply.lines if line.startswith("· ")]
+            check(
+                args + " 逐把判断并匹配全能",
+                len(rows) == expected
+                and (not expected or {line.split("　")[2] for line in rows} == {"Neo", "Omnia"}),
+                str(rows),
+            )
+        for word in ("高价", "expensive", "cheap"):
+            reply = await obj._h_openrelic(parse("开核桃 " + word), None, "pc")
+            check(
+                word + " 不再作为收益筛选",
+                "未识别" in "".join(reply.lines) and "筛选：" not in reply.title,
+            )
+
+    obj._relic_cache = ({"古纪 Lith A1": {}}, {})
+    obj.client.fissures.return_value = [
+        dict(_FS[0], tier=tier, node=tier) for tier in ("Lith", "Omnia", "Requiem")
+    ]
+    with patch.object(drops, "droppable_keys", return_value={"lith a1"}):
+        for command, nodes in (
+            ("开核桃", {"Lith", "Omnia", "Requiem"}),
+            ("开核桃 古纪", {"Lith", "Omnia"}),
+            ("开核桃 古纪 A1", {"Lith", "Omnia"}),
+            ("开核桃 全能", {"Omnia"}),
+            ("relicrun Omnia", {"Omnia"}),
+            ("开核桃 全能 未入库", {"Omnia"}),
+            ("开核桃 全能 已入库", set()),
+        ):
+            parsed = parse(command)
+            assert parsed.command == "openrelic"
+            with use_lang("en" if command.startswith("relicrun") else "zh"):
+                reply = await obj._h_openrelic(parsed, None, "pc")
+            rows = [line.split("　")[2] for line in reply.lines if line.startswith("· ")]
+            check(
+                command + " 按裂隙档位或遗物兼容纪元筛选",
+                len(rows) == len(nodes) and set(rows) == nodes,
+                str(rows),
+            )
+
+
+asyncio.run(availability_filters())
 asyncio.run(_main())
 
 if FAILED:

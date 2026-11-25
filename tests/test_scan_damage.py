@@ -695,11 +695,12 @@ async def _engine_queue_checks():
 asyncio.run(_engine_queue_checks())
 
 
-def _confirmed_dps_scan_fixture():
-    names = [("膛线", 4), ("地狱火", 6), ("低温弹头", 6), ("弹匣增幅", 4)]
+def _confirmed_dps_scan_fixture(names=None, rank=0):
+    if names is None:
+        names = [("膛线", 4), ("地狱火", 6), ("低温弹头", 6), ("弹匣增幅", 4)]
     fields = {
         "weapon": "卡拉克",
-        "capacity": "40/60",
+        "capacity": f"{60 - sum(drain for _, drain in names)}/60",
         "mods": [{"name": name, "drain": drain} for name, drain in names],
     }
     tiles, reads = [], []
@@ -715,7 +716,10 @@ def _confirmed_dps_scan_fixture():
             tiles.append(
                 {
                     **tile,
-                    "rank_observation": {"count": 0, "maxed": False},
+                    "rank_observation": {
+                        "count": rank,
+                        "maxed": rank == lo.match_mod(name)[0]["max_rank"],
+                    },
                     "capacity_badge": {"color": "白"},
                 }
             )
@@ -802,6 +806,35 @@ async def _dps_comparison_checks():
 
 
 asyncio.run(_dps_comparison_checks())
+
+
+def _manual_and_scan_cycle():
+    for with_arcane in (False, True):
+        ocr = _confirmed_dps_scan_fixture([("爆发装填", 7), ("弹匣增幅", 9)], rank=5)
+        args = ["卡拉克", "爆发装填", "弹匣增幅"]
+        if with_arcane:
+            ocr["_upgrade_slots"][-1].update(name="主要·无情", state="installed", rank=5)
+            ocr["arcanes"] = [{"name": "主要·无情"}]
+            args.extend(("赋能", "主要·无情"))
+        an = lo.analyze(ocr, calculate_reference=False)
+        scan = lo.to_damage_spec(an)
+        assert scan is not None and len(scan["mods"]) == 2
+        manual, _ = dc.parse_args(args)
+        w = an["weapon"]
+        scanned = dc.calculate(scan, w)
+        typed = dc.calculate(manual, w)
+        for key in ("magazine", "reload", "dps", "dps_sustained"):
+            assert scanned[key] == typed[key], (key, scanned[key], typed[key])
+        assert scanned["magazine"] == 39
+        assert abs(scanned["reload"] - w["reloadTime"] / (1.60 if with_arcane else 1.30)) < 1e-9
+        # 识卡分析交给调用方的武器面板和已确认等级的效果可独立修改。
+        w["damage"].clear()
+        an["mods"][0]["effect"].clear()
+        assert dc.find_weapon_exact("Karak")["damage"]
+        assert lo.effect_at(lo.match_mod("爆发装填")[0], 5)["reload_pct"] == 30
+
+
+_manual_and_scan_cycle()
 
 
 async def _portable_scan_checks():

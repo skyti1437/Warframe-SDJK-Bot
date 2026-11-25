@@ -43,8 +43,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 OSS_DIR = ROOT / "dist" / "opensource" / "astrbot_plugin_warframe_sdjkbot"
-# 官方文档写 16MB，按十进制保守检查；旧 flat 通道保留原来的 16 MiB 判据。
+# GitHub 归档用十进制 16 MB 上限，平铺包沿用 16 MiB 上限。
 MAX_MARKET_BYTES = 16_000_000
+MAX_FLAT_BYTES = 16 * 1024 * 1024
 
 # 排除清单优先复用打包脚本的（避免两处走散）；但 `dist/` 不进分发包，
 # 所以别人拿到的是开源包时这个 import 会失败 —— 那时退回下面这份等价清单。
@@ -122,34 +123,24 @@ except Exception:  # noqa: BLE001
 # ---------------------------------------------------------------------------
 # 种子新鲜度闸门（2026-09-29 v1.1.2 追加批；与 dist/package_release.py 同判据）
 # ---------------------------------------------------------------------------
-# 优先调用 package_release；独立市场打包时复用随包 core.data_registry 的骨架校验。
+# 投影与独立市场打包共用 core.data_registry 的骨架校验。
 # 效价动态字段残留 / 静态骨架损坏 / 言录使动态货单残留均拒绝，不提供 bypass。
-def _seed_problems_fallback(now=None, rot_path=None, acr_path=None) -> list[str]:
-    problems: list[str] = []
-    rot_p = rot_path or (ROOT / "core" / "data" / "rotations.json")
-    acr_p = acr_path or (ROOT / "core" / "data" / "de" / "acrichis_week.json")
-    try:
-        rot = json.loads(Path(rot_p).read_text(encoding="utf-8"))
-    except (OSError, ValueError) as exc:  # noqa: BLE001
-        rot, problems = {}, [f"rotations.json 不可读/损坏：{exc}"]
-    import sys
-
-    sys.path.insert(0, str(ROOT))
+def _seed_problems(files: dict[str, bytes]) -> list[str]:
+    """校验已读取的投影字节，与归档共享同一份快照。"""
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
     from core.data_registry import acrithis_seed_problems, valence_seed_problems
 
-    problems.extend(valence_seed_problems(rot))
-    try:
-        acr = json.loads(Path(acr_p).read_text(encoding="utf-8"))
-        problems.extend(acrithis_seed_problems(acr))
-    except (OSError, ValueError) as exc:  # noqa: BLE001
-        problems.append(f"言录使静态目录不可读/损坏：{exc}")
+    problems = []
+    for name, check in (
+        ("core/data/rotations.json", valence_seed_problems),
+        ("core/data/de/acrichis_week.json", acrithis_seed_problems),
+    ):
+        try:
+            problems.extend(check(json.loads(files[name])))
+        except (KeyError, OSError, ValueError) as exc:
+            problems.append(f"{name} 不可读/损坏：{exc}")
     return problems
-
-
-def _seed_problems(now=None, rot_path=None, acr_path=None) -> list[str]:
-    if pr is not None and hasattr(pr, "seed_freshness_problems"):
-        return pr.seed_freshness_problems(now, rot_path, acr_path)
-    return _seed_problems_fallback(now, rot_path, acr_path)
 
 
 # ---------------------------------------------------------------------------
@@ -258,6 +249,8 @@ def market_files(files: dict[str, bytes]) -> dict[str, bytes]:
     out = {}
     for name, content in files.items():
         rel = Path(name)
+        if rel.is_absolute() or ".." in rel.parts or "\\" in name:
+            raise ValueError(f"非法归档路径：{name}")
         if set(rel.parts) & (SKIP_DIRS | MARKET_SKIP_DIRS):
             continue
         if rel.name in SKIP_FILES | MARKET_SKIP_FILES or rel.suffix in SKIP_SUFFIX:
@@ -265,7 +258,43 @@ def market_files(files: dict[str, bytes]) -> dict[str, bytes]:
         if any(rel.match(g) for g in SKIP_GLOBS):
             continue
         out[name] = content
+    required = {
+        "main.py",
+        "metadata.yaml",
+        "_conf_schema.json",
+        "requirements.txt",
+        "README.md",
+        "CHANGELOG.md",
+        "core/__init__.py",
+        "pages/sdjk/index.html",
+    }
+    missing = sorted(required - out.keys())
+    if missing:
+        raise ValueError("市场包缺少必选入口：" + "、".join(missing))
     return out
+
+
+def make_flat_archive(expected: dict[str, bytes], out: Path) -> None:
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=".market-", dir=out.parent) as tmp:
+        archive = Path(tmp) / "market.zip"
+        dt = _zip_datetime()
+        with zipfile.ZipFile(archive, "w") as z:
+            for name, data in sorted(expected.items()):
+                zi = zipfile.ZipInfo(name, date_time=dt)
+                zi.compress_type = zipfile.ZIP_DEFLATED
+                zi.external_attr = 0o100644 << 16
+                z.writestr(zi, data)
+        with zipfile.ZipFile(archive) as z:
+            entries = z.infolist()
+            if (
+                len(entries) != len(expected)
+                or {i.filename: z.read(i) for i in entries} != expected
+            ):
+                raise ValueError("平铺 ZIP 路径、内容或数量与运行文件清单不一致")
+        if archive.stat().st_size > MAX_FLAT_BYTES:
+            raise ValueError(f"平铺包超过 {MAX_FLAT_BYTES} 字节上限")
+        archive.replace(out)
 
 
 def make_github_archive(files: dict[str, bytes], out: Path) -> None:
@@ -343,24 +372,33 @@ def main() -> int:
         print(f"✗ 找不到开源目录 {OSS_DIR}\n  先跑：python dist/package_release.py --opensource")
         return 2
 
-    if args.github_archive:
-        if pr is None:
-            print("✗ GitHub 归档预检需要私有构建树的 dist/ 同步闸门")
-            return 2
-        from sync_opensource import expected_stage, local_gates, stage_files
+    try:
+        if args.github_archive:
+            if pr is None:
+                print("✗ GitHub 归档预检需要私有构建树的 dist/ 同步闸门")
+                return 2
+            from sync_opensource import candidate_sha, local_gates, stage_files
 
-        ok, evidence = local_gates(OSS_DIR, ROOT)
-        print("\n".join(evidence))
-        if not ok:
-            return 1
-        # 后续版本解析与归档共用这一份字节快照，并重新对拍 HEAD，拒绝闸门期间的改写。
-        files = stage_files(OSS_DIR)
-        if files != expected_stage(ROOT):
-            print("✗ stage 在闸门后发生变化，与 HEAD 开源投影不一致")
-            return 1
+            commit = candidate_sha(ROOT)
+            files = stage_files(OSS_DIR)
+            ok, evidence = local_gates(files, ROOT, commit)
+            print("\n".join(evidence))
+            if not ok:
+                return 1
+        else:
+            files = {
+                p.relative_to(OSS_DIR).as_posix(): p.read_bytes()
+                for p in OSS_DIR.rglob("*")
+                if not {".git", "__pycache__"}.intersection(p.relative_to(OSS_DIR).parts)
+                and p.suffix != ".pyc"
+                and p.is_file()
+            }
+    except (OSError, RuntimeError) as exc:
+        print(f"✗ 读取开源投影失败：{exc}")
+        return 1
 
     # 种子新鲜度硬闸门（2026-09-29 v1.1.2 追加批）：静态结构损坏或动态值残留即拒绝打包，无 bypass。
-    problems = _seed_problems()
+    problems = _seed_problems(files)
     if problems:
         print("✗ [种子新鲜度闸门] 拒绝打包 ——")
         for p in problems:
@@ -371,14 +409,7 @@ def main() -> int:
         )
         return 1
 
-    _stage_files = [
-        p
-        for p in OSS_DIR.rglob("*")
-        if p.is_file()
-        and not {".git", "__pycache__"}.intersection(p.relative_to(OSS_DIR).parts)
-        and p.suffix != ".pyc"
-    ]
-    stage_count = len(files) if args.github_archive else len(_stage_files)
+    stage_count = len(files)
     if stage_count != EXPECTED_STAGE_FILES:
         print(
             f"✗ [stage 新鲜度闸门] stage 文件数 {stage_count} != 基线 {EXPECTED_STAGE_FILES}"
@@ -386,74 +417,35 @@ def main() -> int:
         )
         return 1
 
-    meta = (
-        files["metadata.yaml"].decode("utf-8")
-        if args.github_archive
-        else (OSS_DIR / "metadata.yaml").read_text(encoding="utf-8")
-    )
-    ver = re.search(r"^version:\s*v?([\d.]+)\s*$", meta, re.M)
-    ver = ver.group(1) if ver else "0.0.0"
-    suffix = "github" if args.github_archive else "market"
-    out = args.output or ROOT / "dist" / f"astrbot_plugin_warframe_sdjkbot-{ver}-{suffix}.zip"
-    if args.github_archive:
-        if out.resolve().is_relative_to(OSS_DIR.resolve()):
-            print("✗ 归档输出须位于开源 stage 之外")
-            return 1
-        if len(market_files(files)) != EXPECTED_MARKET_ENTRIES:
-            print(f"✗ 运行文件数与基线 {EXPECTED_MARKET_ENTRIES} 不符")
-            return 1
-        try:
-            make_github_archive(files, out)
-        except (OSError, ValueError, subprocess.CalledProcessError) as exc:
-            print(f"✗ GitHub 归档预检失败：{exc}")
-            return 1
-        with zipfile.ZipFile(out) as z:
-            n = sum(not i.is_dir() for i in z.infolist())
-        size = out.stat().st_size
-        print(f"[GitHub archive] {out}（{n} 文件，{size} 字节，{size / 1e6:.2f} MB）")
-        print("  ✓ 完整 stage 保留；归档文件集合与内容逐字节通过，export-ignore 生效")
-        return 0
-
-    n = 0
-    dt = _zip_datetime()  # ★ 固定时间戳（同内容 ⇒ 同 sha）
-    with zipfile.ZipFile(out, "w") as z:
-        for f in sorted(OSS_DIR.rglob("*")):
-            if not f.is_file():
-                continue
-            rel = f.relative_to(OSS_DIR)
-            if set(rel.parts) & SKIP_DIRS:
-                continue
-            if set(rel.parts) & MARKET_SKIP_DIRS or rel.name in MARKET_SKIP_FILES:
-                continue
-            if rel.name in SKIP_FILES or rel.suffix in SKIP_SUFFIX:
-                continue
-            if any(rel.match(g) for g in SKIP_GLOBS):
-                continue
-            zi = zipfile.ZipInfo(rel.as_posix(), date_time=dt)
-            zi.compress_type = zipfile.ZIP_DEFLATED
-            zi.external_attr = 0o100644 << 16  # 稳定权限位（不受 umask 影响）
-            z.writestr(zi, f.read_bytes())  # ★ 不套顶层目录
-            n += 1
-
-    size_mb = out.stat().st_size / 1024 / 1024
-    print(f"[flat zip] {out}  ({n} 条目, {size_mb:.2f} MB)")
-    print(f"  排除清单来源：{SKIP_SOURCE}")
-    if n != EXPECTED_MARKET_ENTRIES:
-        print(
-            f"✗ 条目数 {n} != 基线 {EXPECTED_MARKET_ENTRIES}"
-            "（有意变更请同步常量并在 commit 正文列文件名与理由）"
+    try:
+        expected = market_files(files)
+        if len(expected) != EXPECTED_MARKET_ENTRIES:
+            raise ValueError(f"运行文件数 {len(expected)} != 基线 {EXPECTED_MARKET_ENTRIES}")
+        meta = files["metadata.yaml"].decode("utf-8")
+        version = re.search(r"^version:\s*v?([\d.]+)\s*$", meta, re.M)
+        if not version:
+            raise ValueError("metadata.yaml 缺少版本")
+        suffix = "github" if args.github_archive else "market"
+        out = (
+            args.output
+            or ROOT / "dist" / f"astrbot_plugin_warframe_sdjkbot-{version[1]}-{suffix}.zip"
         )
+        if out.resolve().is_relative_to(OSS_DIR.resolve()):
+            raise ValueError("归档输出须位于开源 stage 之外")
+        if args.github_archive:
+            make_github_archive(files, out)
+        else:
+            make_flat_archive(expected, out)
+    except (
+        OSError,
+        ValueError,
+        RuntimeError,
+        zipfile.BadZipFile,
+        subprocess.CalledProcessError,
+    ) as exc:
+        print(f"✗ 市场打包失败：{exc}")
         return 1
-    if size_mb > 16:
-        print("✗ 超过市场 16MB 上限")
-        return 1
-    with zipfile.ZipFile(out) as z:
-        names = z.namelist()
-        top = sorted({x.split("/")[0] for x in names if "/" in x})
-        print("  顶层目录（应为 core + 插件页面 pages、.astrbot-plugin）：", top or "无")
-        for must in ("metadata.yaml", "main.py", "README.md", "CHANGELOG.md"):
-            mark = "✓" if must in names else "✗ 缺失"
-            print(f"  {mark} {must}")
+    print(f"[{suffix}] {out}（{len(expected)} 文件，{out.stat().st_size} 字节）")
     return 0
 
 

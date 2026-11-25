@@ -20,6 +20,55 @@ from .logging_compat import logger
 from .parser import TimeWindow
 
 
+async def finish_write(write) -> None:
+    """写盘期间收到取消仍等到原子替换收尾，再向上层传播取消。"""
+    writer = asyncio.create_task(write)
+    cancelled = False
+    while not writer.done():
+        try:
+            await asyncio.shield(writer)
+        except asyncio.CancelledError:
+            # to_thread 取消不了已运行的线程；包括重复取消在内，都等写盘收口再放锁。
+            cancelled = True
+        except Exception:
+            break  # 下方统一提取线程异常，避免后台异常无人读取。
+    if cancelled:
+        # 取消优先向调用方传播；线程即使写失败，也已完成临时文件清理。
+        try:
+            writer.result()
+        except Exception:
+            pass
+        raise asyncio.CancelledError
+    writer.result()
+
+
+def write_json_atomic(
+    path: Path, snapshot: Any, *, indent: int | None = None, replace=None
+) -> None:
+    """在线程内完成序列化和原子写；同一实例由 save 的锁串行保护。"""
+    # 跨代写入可同时 fsync 各自的临时文件，仅最终替换需要核对所有权。
+    tmp = path.with_suffix(f".{uuid.uuid4().hex}.tmp" if replace else ".tmp")
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        payload = json.dumps(snapshot, ensure_ascii=False, indent=indent)
+        # 先写盘并 fsync，再原子替换：失败时旧存档仍可读取。
+        with open(tmp, "w", encoding="utf-8") as fh:
+            fh.write(payload)
+            fh.flush()
+            os.fsync(fh.fileno())
+        if replace is None:
+            tmp.replace(path)
+        else:
+            replace(tmp, path)
+    except BaseException:
+        # 写入、fsync 或替换失败时保留旧存档，清理本次未提交的临时件。
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+        raise
+
+
 class JsonStore:
     """极简 JSON 存储：加载到内存，保存时先写临时文件再原子替换。"""
 
@@ -71,44 +120,20 @@ class JsonStore:
         async with self._lock:
             # 仅在事件循环内复制：后台序列化期间，调用方仍可修改内存中的嵌套记录。
             snapshot = copy.deepcopy(self._data)
-            writer = asyncio.create_task(asyncio.to_thread(self._write_atomic, snapshot))
-            cancelled = False
-            while not writer.done():
-                try:
-                    await asyncio.shield(writer)
-                except asyncio.CancelledError:
-                    # to_thread 取消不了已运行的线程；包括重复取消在内，都等写盘收口再放锁。
-                    cancelled = True
-                except Exception:
-                    break  # 下方统一提取线程异常，避免后台异常无人读取。
-            if cancelled:
-                # 取消优先向调用方传播；线程即使写失败，也已完成临时文件清理。
-                try:
-                    writer.result()
-                except Exception:
-                    pass
-                raise asyncio.CancelledError
-            writer.result()
+            await self._write_locked(snapshot)
+
+    async def _write_locked(self, snapshot, *, publish=False) -> None:
+        """持锁写入独立快照；需要时在原子替换成功后同时发布内存版本。"""
+
+        async def write():
+            await asyncio.to_thread(self._write_atomic, snapshot)
+            if publish:
+                self._data = snapshot
+
+        await finish_write(write())
 
     def _write_atomic(self, snapshot: Any) -> None:
-        """在线程内完成序列化和原子写；同一实例由 save 的锁串行保护。"""
-        tmp = self.path.with_suffix(".tmp")
-        try:
-            self.path.parent.mkdir(parents=True, exist_ok=True)
-            payload = json.dumps(snapshot, ensure_ascii=False, indent=1)
-            # 先写盘并 fsync，再原子替换：失败时旧存档仍可读取。
-            with open(tmp, "w", encoding="utf-8") as fh:
-                fh.write(payload)
-                fh.flush()
-                os.fsync(fh.fileno())
-            tmp.replace(self.path)
-        except BaseException:
-            # 写入、fsync 或替换失败时保留旧存档，清理本次未提交的临时件。
-            try:
-                tmp.unlink()
-            except OSError:
-                pass
-            raise
+        write_json_atomic(self.path, snapshot, indent=1)
 
 
 class GroupStore(JsonStore):
@@ -448,7 +473,7 @@ class Subscription:
     @classmethod
     def from_dict(cls, d: dict) -> "Subscription":
         flds = {f for f in cls.__dataclass_fields__}  # noqa: C416
-        sub = cls(**{k: v for k, v in d.items() if k in flds})
+        sub = cls(**{k: copy.deepcopy(v) for k, v in d.items() if k in flds})
         # dataclass 不校验类型；在进入推送循环前隔离会导致比较、集合或窗口运算崩溃的记录。
         # 仅归一化旧可选字段的空值；不修改调用方原始存档对象。
         for name in ("umo", "platform", "event", "sid"):
@@ -524,12 +549,25 @@ class Subscription:
 
 class SubscriptionStore(JsonStore):
     def __init__(self, path: Path):
+        self._replace = None
         super().__init__(path)
+        self._bad_warned: set[str] = set()
+
+    def bind_writer(self, replace, *, reload=False):
+        self._replace = replace
+        if reload:
+            self._data = None
+            self.load()
+
+    def _write_atomic(self, snapshot):
+        write_json_atomic(self.path, snapshot, indent=1, replace=self._replace)
+
+    def load(self):
+        super().load()
         if not isinstance(self._data, list):
             if self._data is not None:
                 self._quarantine(f"顶层应为数组，实为 {type(self._data).__name__}")
             self._data = []
-        self._bad_warned: set[str] = set()
 
     def _load_one(self, d) -> Optional[Subscription]:
         """坏条目（缺必填字段/类型不对）返回 None 并 WARNING 一次，不拖垮整个推送。"""
@@ -557,41 +595,98 @@ class SubscriptionStore(JsonStore):
     def for_umo(self, umo: str) -> list[Subscription]:
         return [s for s in self.all() if s.umo == umo]
 
-    def has(self, sid: str) -> bool:
-        """订阅 sid 当前是否仍在存档里（派发前复查：并发取消 / 同 tick 已消费）。"""
-        return any(isinstance(d, dict) and d.get("sid") == sid for d in self._data)
+    def has(self, sid: str, *, unnotified: str | None = None) -> bool:
+        """检查 SID 是否仍在存档，派发前可同时复查指定事件的去重键。"""
+        for row in self._data:
+            if isinstance(row, dict) and row.get("sid") == sid:
+                notified = row.get("notified", {})
+                if unnotified is None or isinstance(notified, dict) and unnotified not in notified:
+                    return True
+        return False
 
     async def add(self, sub: Subscription) -> None:
-        self._data.append(sub.to_dict())
-        await self.save()
+        await self.add_with_limit(sub, limit=None)
 
-    async def remove(self, predicate) -> int:
-        keep = []
-        removed = 0
-        for d in self._data:
-            sub = self._load_one(d)
-            if sub is not None and predicate(sub):
-                removed += 1
-            else:
-                keep.append(d)  # 坏条目原样保留（不替用户删数据）
-        if removed:
-            self._data = keep
-            await self.save()
-        return removed
+    async def add_with_limit(self, sub: Subscription, limit: int | None) -> bool:
+        """在同一笔写入内检查会话配额，满额时返回 False。"""
+        async with self._lock:
+            if limit is not None and len(self.for_umo(sub.umo)) >= limit:
+                return False
+            await self._write_locked([*self._data, sub.to_dict()], publish=True)
+            return True
 
-    async def update(self, sub: Subscription) -> None:
-        """按 sid 原位回写一条订阅（notified / hits_left 等运行期状态落盘）。"""
-        for i, d in enumerate(self._data):
-            if isinstance(d, dict) and d.get("sid") == sub.sid:
-                self._data[i] = sub.to_dict()
-                break
-        else:
-            return
-        await self.save()
+    async def _replace_rows(self, rows: list, retain_on_failure: bool) -> None:
+        if retain_on_failure:
+            # 玩家已收到推送，消费立即生效；守护在下一轮补写。
+            self._data = rows
+        await self._write_locked(rows, publish=True)
+
+    async def consume_batch(
+        self,
+        delivered: list[Subscription],
+        key: str,
+        now: float,
+        *,
+        retain_on_failure=False,
+        persist_unchanged=False,
+    ) -> set[str]:
+        """按当前存档消费一次送达。保留并发修改，跳过已取消或已消费的 SID。"""
+        by_sid = {s.sid: s for s in delivered}
+        dead = set(by_sid)
+        async with self._lock:
+            rows = []
+            changed = False
+            for row in self._data:
+                sid = row.get("sid") if isinstance(row, dict) else None
+                current = self._load_one(row) if isinstance(sid, str) and sid in by_sid else None
+                if current is None:
+                    rows.append(row)
+                    continue
+                if key in current.notified:
+                    rows.append(row)
+                    dead.discard(sid)
+                else:
+                    current.notified[key] = now
+                    if len(current.notified) > 200:
+                        for old in sorted(current.notified, key=current.notified.get)[:100]:
+                            del current.notified[old]
+                    if current.consume():
+                        rows.append(current.to_dict())
+                        dead.discard(sid)
+                    changed = True
+                # 同一轮的后续派发仍持有送达前的订阅对象。
+                by_sid[sid].notified = current.notified
+                by_sid[sid].hits_left = current.hits_left
+            # 上次写盘失败时消费可能只在内存中生效。重放回执仍须把这份状态写实。
+            if changed or persist_unchanged:
+                await self._replace_rows(rows, retain_on_failure)
+        return dead
+
+    async def remove(self, predicate, *, retain_on_failure=False) -> int:
+        async with self._lock:
+            keep = []
+            for row in self._data:
+                sub = self._load_one(row)
+                if sub is None or not predicate(sub):
+                    keep.append(row)
+            removed = len(self._data) - len(keep)
+            if removed:
+                await self._replace_rows(keep, retain_on_failure)
+            return removed
+
+    async def update(self, sub: Subscription, *, retain_on_failure=False) -> None:
+        """按 sid 原位回写一条订阅。"""
+        async with self._lock:
+            for i, row in enumerate(self._data):
+                if isinstance(row, dict) and row.get("sid") == sub.sid:
+                    rows = self._data.copy()
+                    rows[i] = sub.to_dict()
+                    await self._replace_rows(rows, retain_on_failure)
+                    break
 
     async def sync(self, subs: list[Subscription]) -> None:
-        self._data = [s.to_dict() for s in subs]
-        await self.save()
+        async with self._lock:
+            await self._write_locked([s.to_dict() for s in subs], publish=True)
 
     def expired_list(self, now: Optional[float] = None) -> list[Subscription]:
         """已过期（尚未 gc）的订阅，供到期提醒用。"""

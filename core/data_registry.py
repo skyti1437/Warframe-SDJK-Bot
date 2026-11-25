@@ -59,7 +59,7 @@ POLICIES = (
 OVERRIDES = ("seed_only", "community_snapshot", "runtime_refresh", "runtime_only")
 RISKS = ("high", "medium", "low")
 # 判定结果（evaluate 返回行的 status 取值）
-STATUSES = ("ok", "stale", "no_ttl", "unknown", "missing", "unregistered", "not_bundled")
+STATUSES = ("ok", "stale", "no_ttl", "unknown", "invalid", "missing", "unregistered", "not_bundled")
 # 需要按时间/轮次判定的 policy
 TIMED_POLICIES = ("rotating", "max_age")
 
@@ -1113,13 +1113,15 @@ def _judge_timed(meta: dict, data, now: datetime, row: dict) -> tuple[str, str]:
         try:
             from . import baro
 
-            missed = baro.missed_visits(now, grace_hours=baro.STALE_GRACE_HOURS)
-            recent = baro.missed_visits(now) - missed
+            missed = baro.missed_visits(now, grace_hours=baro.STALE_GRACE_HOURS, history=data)
+            if missed is None:
+                return "unknown", "末次到访日期缺失或无效，无法判定漏访次数"
+            if missed > 0:
+                return "stale", f"快照后已有 {missed} 次到访超过 3 天仍未收录"
+            recent = baro.missed_visits(now, history=data)
         except Exception as exc:  # noqa: BLE001
             return "stale", f"奸商到访判据起不来：{exc!r}"
-        if missed > 0:
-            return "stale", f"快照后已有 {missed} 次到访超过 3 天仍未收录"
-        if recent > 0:
+        if recent:
             return "ok", "本次到访进行中或刚结束，wiki 通常 1–3 天内收录"
         return "ok", "已含最近一次到访"
     obs_path = meta.get("observed")
@@ -1133,9 +1135,9 @@ def _judge_timed(meta: dict, data, now: datetime, row: dict) -> tuple[str, str]:
     return "ok", f"内容时间 {obs}（上限 {days} 天）"
 
 
-# 大表（weapons_stats 等几 MB）只为取一两个字段：按 (mtime_ns, size) 缓存取出的小值，
+# 大表（weapons_stats 等几 MB）只为取一两个字段：按文件身份和修改戳缓存取出的小值，
 # 不缓存整份对象（面板每次刷新都会调 evaluate，2GB 机器上不能反复全量解析 / 常驻大对象）。
-_FIELD_CACHE: dict[str, tuple[int, int, dict]] = {}
+_FIELD_CACHE: dict[str, tuple[tuple, dict]] = {}
 
 
 def _fields(path: Path, meta: dict) -> dict:
@@ -1149,9 +1151,10 @@ def _fields(path: Path, meta: dict) -> dict:
     except OSError as exc:
         return {"error": repr(exc)}
     key = str(path)
+    stamp = (st.st_dev, st.st_ino, st.st_mtime_ns, st.st_size)
     hit = _FIELD_CACHE.get(key)
-    if hit is not None and hit[0] == st.st_mtime_ns and hit[1] == st.st_size:
-        return hit[2]
+    if hit is not None and hit[0] == stamp:
+        return hit[1]
     try:
         # 与面板时效栏及掉落查询共享随包掉落表。空值仍走原读取以保留诊断。
         data = paths.load_json(path) if path == paths.PKG_DATA / "drops.json" else None
@@ -1160,11 +1163,36 @@ def _fields(path: Path, meta: dict) -> dict:
     except (OSError, ValueError) as exc:
         return {"error": repr(exc)}
     out = {"type": type(data).__name__}
+    if meta["risk"] == "high" and meta["policy"] not in TIMED_POLICIES:
+        required = {
+            "damage_faction.json": ("table",),
+            "mods_stats.json": ("mods", "names"),
+            "arcanes_stats.json": ("arcanes",),
+            "enemies.json": ("enemies",),
+            "stances_stats.json": ("stances",),
+            "co_behavior.json": ("weapons",),
+            "sortie_rewards.json": ("tiers",),
+            "drops.json": ("items", "places"),
+        }.get(path.name, ())
+        if not isinstance(data, dict) or not any(not key.startswith("_") for key in data):
+            out["error"] = "高风险静态表缺少有效数据"
+        elif missing := [k for k in required if not isinstance(data.get(k), dict) or not data[k]]:
+            out["error"] = "缺少非空数据对象：" + "、".join(missing)
+        elif path.name == "mods_stats.json" and not all(
+            any(isinstance(row, dict) and row for row in data[k].values()) for k in required
+        ):
+            out["error"] = "mods 和 names 必须包含有效的记录"
+        elif path.name == "weapons_stats.json" and not any(
+            isinstance(row, dict) and isinstance(row.get("name"), str) and row["name"].strip()
+            for key, row in data.items()
+            if not key.startswith("_")
+        ):
+            out["error"] = "缺少带名称的武器记录"
     if isinstance(data, dict):
         for f in ("observed", "source_rev"):
             if meta.get(f):
                 out[f] = _dig(data, meta[f])
-    _FIELD_CACHE[key] = (st.st_mtime_ns, st.st_size, out)
+    _FIELD_CACHE[key] = (stamp, out)
     return out
 
 
@@ -1221,12 +1249,16 @@ def _eval_one(
                 for f in ("observed", "source_rev"):
                     if meta.get(f):
                         row[f] = _dig(data, meta[f])
-        elif meta.get("observed") or meta.get("source_rev"):
+        elif meta["risk"] == "high" or meta.get("observed") or meta.get("source_rev"):
             got = _fields(fpath, meta)
-            if "error" in got:
-                row["detail"] = f"读取失败：{got['error']}"
             row["observed"] = got.get("observed")
             row["source_rev"] = got.get("source_rev")
+            if meta["risk"] == "high":
+                row["integrity"] = "invalid" if "error" in got else "ok"
+                row["freshness_status"] = "no_ttl"
+                if "error" in got:
+                    row["status"], row["detail"] = "invalid", got["error"]
+                    return row
     if meta["policy"] in TIMED_POLICIES:
         seed = context == "seed" or (
             context == "auto"
@@ -1277,7 +1309,7 @@ def evaluate(
     * ``resolve``：可选 ``name -> Path``（面板传 ``paths.read_path``）——override 为
       ``community_snapshot`` / ``runtime_refresh`` 的文件改看实际生效的那份，免得把已刷新的
       运行期副本按旧种子报「过期」；其余文件仍读 ``data_dir``；
-    * 只读、不联网、不写盘；单个坏 JSON 只让那一行记 ``unknown``/错误说明，不抛。
+    * 单个坏 JSON 在对应行记录错误。高风险静态表单列 ``integrity`` 和 ``freshness_status``。
     """
     data_dir = Path(data_dir) if data_dir is not None else paths.PKG_DATA
     now = now or datetime.now(timezone.utc)
@@ -1303,7 +1335,7 @@ def evaluate(
 
 
 def integrity_problems(rows) -> list[str]:
-    """登记表完整性问题（未登记 + 缺文件）字符串清单；空 = 通过。
+    """列出未登记、缺文件及高风险静态表损坏的文件与原因。
 
     供打包闸门（``dist/package_release.py``）与测试用。
     """
@@ -1313,6 +1345,8 @@ def integrity_problems(rows) -> list[str]:
             out.append(f"未登记：{r.get('file')}（{r.get('detail')}）")
         elif r.get("status") == "missing":
             out.append(f"缺文件：{r.get('file')}（{r.get('detail')}）")
+        elif r.get("integrity") == "invalid":
+            out.append(f"静态表损坏：{r['file']}（{r['detail']}）")
     return out
 
 

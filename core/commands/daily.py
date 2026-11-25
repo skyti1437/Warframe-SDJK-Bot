@@ -40,7 +40,10 @@ class DailyCommands:
         )
         cycles = [r for r in res if isinstance(r, dict)]
         title, lines = fmt.fmt_cetus(*cycles)
-        return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
+        sources = dict.fromkeys(filter(None, map(self._worldstate_source, cycles)))
+        return Reply(
+            title, lines, footer=fmt.fmt_platform_footer(platform, L("；", "; ").join(sources))
+        )
 
     @staticmethod
     def _rotation_expiry(data: dict) -> str:
@@ -87,6 +90,7 @@ class DailyCommands:
                 self.client.calendar(platform),
                 self.client.deep_archimedea(platform),
                 self.client.temporal_archimedea(platform),
+                self.client.descendia(platform),
             ]
         )
         names = [
@@ -104,6 +108,7 @@ class DailyCommands:
             "1999日历",
             "深层科研",
             "时光科研",
+            "沉沦之地",
         ]
         # ★ 不许静默丢行（2026-09-25）：源恒抛/未下发也要把 None 传给 formatter，
         #   由它显式打「暂无时效数据（源未下发）」；旧写法 isinstance 过滤会让行
@@ -112,7 +117,6 @@ class DailyCommands:
         #   改读 steel_path_incursions（browse.wf 排期表，「侵袭」指令同源）的到期 ——
         #   旧接口 client.arbitration() / client.steel_path() 在 DE 源下恒抛，两行恒「源未下发」。
         timers = [(n, r if isinstance(r, dict) else None) for n, r in zip(names, res)]
-        timers.append(("沉沦之地", await self.client.descendia(platform)))
         # 本地可推算的确定性轮换（不占网络请求）
         # ★ 数据源三层（2026-09-28 裁定）：① 运行期副本 plugin_data/<插件>/rotations.json
         #   （自动刷新回写的新数据）→ ② 包内种子 core/data/rotations.json（read_path 内置回退）
@@ -158,6 +162,7 @@ class DailyCommands:
         # ★ 2026-10-03：查询侧与「蹲」共用同一解析器（有意支持 T1–T6），
         #   档位写法越界同样当场提示（不静默）。
         _t_hint = fissure_tier_hint(content) if content else ""
+        page_hint = (parsed.page or 1) > 1
         data = await self.client.fissures(platform)
         title, lines = fmt.fmt_fissures(
             data,
@@ -165,6 +170,7 @@ class DailyCommands:
             page=parsed.page,
             page_size=self.page_size,
             all_rows=True,
+            reserved_lines=bool(_t_hint) + page_hint,
         )
         if _t_hint:
             lines.append(
@@ -183,12 +189,12 @@ class DailyCommands:
                     " space = AND, comma = OR",
                 )
             )
-        if (parsed.page or 1) > 1:
+        if page_hint:
             # ★ 2026-10-11：裂隙是整表一张卡（all_rows），-N 翻页无效 —— 明说，不静默
             lines.append(
                 L(
-                    "※ 裂隙已全部列在本卡，无需翻页",
-                    "※ All fissures are listed on this card; no paging needed",
+                    "※ 裂隙使用单卡展示，无需翻页",
+                    "※ Fissures use a single card; no paging needed",
                 )
             )
         extra = L(f"筛选：{flt.describe()}", f"Filter: {_shown}") if flt else ""
@@ -262,17 +268,25 @@ class DailyCommands:
         )
 
     async def _h_dailydeals(self, parsed, event, platform) -> Reply:
-        title, lines = fmt.fmt_daily_deals(await self.client.daily_deals(platform))
-        return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
+        data = await self.client.daily_deals(platform)
+        title, lines = fmt.fmt_daily_deals(data)
+        return Reply(
+            title, lines, footer=fmt.fmt_platform_footer(platform, self._worldstate_source(data))
+        )
 
     async def _h_alerts(self, parsed, event, platform) -> Reply:
-        title, lines = fmt.fmt_alerts(await self.client.alerts(platform))
-        return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
+        data = await self.client.alerts(platform)
+        title, lines = fmt.fmt_alerts(data)
+        return Reply(
+            title, lines, footer=fmt.fmt_platform_footer(platform, self._worldstate_source(data))
+        )
 
     async def _h_invasions(self, parsed, event, platform) -> Reply:
         inv = await self.client.invasions(platform)
         title, lines = fmt.fmt_invasions(inv, page=parsed.page)
-        return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
+        return Reply(
+            title, lines, footer=fmt.fmt_platform_footer(platform, self._worldstate_source(inv))
+        )
 
     async def _h_nightwave(self, parsed, event, platform) -> Reply:
         data = await self.client.nightwave(platform)
@@ -282,8 +296,11 @@ class DailyCommands:
         )
 
     async def _h_news(self, parsed, event, platform) -> Reply:
-        title, lines = fmt.fmt_news(await self.client.news(platform))
-        return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
+        data = await self.client.news(platform)
+        title, lines = fmt.fmt_news(data)
+        return Reply(
+            title, lines, footer=fmt.fmt_platform_footer(platform, self._worldstate_source(data))
+        )
 
     async def _h_synth(self, parsed, event, platform) -> Reply:
         data = await self.client.synth_targets(platform)
@@ -317,12 +334,18 @@ class DailyCommands:
         )
 
     async def _h_events(self, parsed, event, platform) -> Reply:
-        title, lines = fmt.fmt_events(await self.client.events(platform))
-        return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
+        data = await self.client.events(platform)
+        title, lines = fmt.fmt_events(data)
+        return Reply(
+            title, lines, footer=fmt.fmt_platform_footer(platform, self._worldstate_source(data))
+        )
 
     async def _h_conclave(self, parsed, event, platform) -> Reply:
-        title, lines = fmt.fmt_conclave(await self.client.conclave(platform))
-        return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
+        data = await self.client.conclave(platform)
+        title, lines = fmt.fmt_conclave(data)
+        return Reply(
+            title, lines, footer=fmt.fmt_platform_footer(platform, self._worldstate_source(data))
+        )
 
     async def _h_primevault(self, parsed, event, platform) -> Reply:
         """「出库」与「阿耶」共用本 handler，按**用户实际发出的词**分流。
@@ -352,13 +375,20 @@ class DailyCommands:
             title, lines = fmt.fmt_prime_vault_list(vault, relic_parts=relics, prices=prices)
         else:
             title, lines = fmt.fmt_prime_vault(vault, page=parsed.page)
-        return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
+        return Reply(
+            title, lines, footer=fmt.fmt_platform_footer(platform, self._worldstate_source(vault))
+        )
 
     async def _h_clanrewards(self, parsed, event, platform) -> Reply:
-        title, lines = fmt.fmt_clan_rewards(await self.client.clan_rewards(platform))
-        return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
+        data = await self.client.clan_rewards(platform)
+        title, lines = fmt.fmt_clan_rewards(data)
+        return Reply(
+            title, lines, footer=fmt.fmt_platform_footer(platform, self._worldstate_source(data))
+        )
 
     async def _h_flashsales(self, parsed, event, platform) -> Reply:
         sales = await self.client.flash_sales(platform)
         title, lines = fmt.fmt_flash_sales(sales, page=parsed.page)
-        return Reply(title, lines, footer=fmt.fmt_platform_footer(platform))
+        return Reply(
+            title, lines, footer=fmt.fmt_platform_footer(platform, self._worldstate_source(sales))
+        )

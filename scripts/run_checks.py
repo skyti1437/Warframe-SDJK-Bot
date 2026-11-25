@@ -201,7 +201,7 @@ def registry_items(root: Path, now=None) -> list[dict]:
 
     规则（拆步「只读展示 → 警告 → 仅高风险阻断」的第二步）：
       · ``risk == "high"`` 且 status ∈ {stale, unknown} ⇒ 条目 ``ok=True, warn=True``（警告不算失败）；
-      · ``unregistered`` / ``missing`` ⇒ 条目 ``ok=False``（不论风险，阻断）；
+      · 未登记、缺文件或高风险静态表损坏 ⇒ 条目 ``ok=False``；
       · 其余（ok / no_ttl / 低中风险的 stale、unknown）不输出。
     """
     from datetime import datetime, timezone
@@ -218,7 +218,7 @@ def registry_items(root: Path, now=None) -> list[dict]:
     items: list[dict] = []
     for r in rows:
         status = r.get("status")
-        if status in ("unregistered", "missing"):
+        if status in ("unregistered", "missing") or r.get("integrity") == "invalid":
             items.append(
                 {
                     "item": f"registry::{r['file']}",

@@ -132,7 +132,7 @@ def raw_types(toks: str) -> dict[str, float]:
 
 
 _a = raw_types("Soma G系 100级")
-_b = raw_types("Soma G系 100级 穿刺弹")
+_b = raw_types("Soma G系 100级 撕裂弹头")
 check(
     "转换后 MOD 后总伤不变（20% 物理搬去穿刺）",
     close(sum(_a.values()), sum(_b.values()), 1e-6),

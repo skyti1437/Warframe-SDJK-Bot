@@ -870,7 +870,7 @@ async def _render_cancel_checks():
 
     source = Path(__file__).resolve().parent.parent / "main.py"
     tree = ast.parse(source.read_text())
-    names = {"_build_content_results", "_render_card", "_schedule_card_cleanup"}
+    names = {"_build_content_results", "_render_card", "_schedule_card_cleanup", "terminate"}
     methods = [
         f
         for c in tree.body
@@ -881,13 +881,16 @@ async def _render_cancel_checks():
     cls = ast.ClassDef(name="WarframeSDJK", bases=[], keywords=[], body=methods, decorator_list=[])
     warnings = []
     scope = {
+        "text_card": R.text_card,
         "asyncio": asyncio,
         "Path": Path,
         "Optional": object,
         "Reply": Reply,
         "Parsed": Parsed,
         "AstrMessageEvent": object,
-        "logger": SimpleNamespace(warning=lambda *args: warnings.append(args)),
+        "logger": SimpleNamespace(
+            warning=lambda *args: warnings.append(args), info=lambda *args: None
+        ),
         "Image": SimpleNamespace(fromFileSystem=lambda path: path),
         "Plain": lambda text: text,
         "i18n": _i18n,
@@ -901,6 +904,8 @@ async def _render_cancel_checks():
     )
     exec(compile(ast.fix_missing_locations(module), str(source), "exec"), scope)
     Host = scope["WarframeSDJK"]
+    Host._render_waiters = {}
+    Host.MAX_RENDER_WAITERS = 1
 
     for mode in ("normal", "cancel", "late_error"):
         with tempfile.TemporaryDirectory(prefix="wf-render-stop-") as directory:
@@ -1012,6 +1017,61 @@ async def _render_cancel_checks():
                 await first_gen.aclose()
                 if second_gen is not None:
                     await second_gen.aclose()
+
+    from unittest.mock import AsyncMock
+
+    for unload in (False, True):
+        Host._render_lock = None
+        obj = Host()
+        started, release = threading.Event(), threading.Event()
+        calls = []
+
+        def render(title, lines, footer):
+            calls.append(title)
+            if title == "A":
+                started.set()
+                assert release.wait(3)
+            return title
+
+        obj.renderer = SimpleNamespace(render=render, available=True)
+        obj.client = SimpleNamespace(close=AsyncMock())
+        obj.push = SimpleNamespace(stop=AsyncMock())
+        first = asyncio.create_task(obj._render_card("A", [], ""))
+        try:
+            assert await asyncio.to_thread(started.wait, 1)
+            waiting = asyncio.create_task(obj._render_card("B", [], ""))
+            await asyncio.sleep(0)
+            check("B 已在渲染锁上排队", waiting in Host._render_waiters)
+            gen = obj._build_content_results(
+                SimpleNamespace(plain_result=str),
+                Reply("队满", ["原正文"]),
+                SimpleNamespace(force_image=True, force_text=False),
+            )
+            try:
+                check("队满经回复入口降级文字", "原正文" in await asyncio.wait_for(anext(gen), 1))
+            finally:
+                await gen.aclose()
+            if unload:
+                await asyncio.wait_for(obj.terminate(), 1)
+            else:
+                waiting.cancel()
+            await asyncio.wait_for(asyncio.gather(waiting, return_exceptions=True), 1)
+            check(
+                "等待者被清退且 A 仍持锁",
+                waiting.cancelled() and not Host._render_waiters and Host._render_lock.locked(),
+            )
+            successor = asyncio.create_task(obj._render_card("C", [], ""))
+            await asyncio.sleep(0)
+            release.set()
+            results = await asyncio.gather(first, successor)
+            check(
+                f"排队取消后实际渲染顺序（卸载={unload}）",
+                calls == (["A"] if unload else ["A", "C"])
+                and results == ["A", None if unload else "C"],
+            )
+        finally:
+            release.set()
+            await first
 
 
 import asyncio as _asyncio  # noqa: E402
@@ -1815,7 +1875,7 @@ async def _bundled_reference_smoke_cards():
     output = os.environ.get("SDJK_PORTABLE_VISUAL_DIR")
     with (
         tempfile.TemporaryDirectory(prefix="wf-bundled-reference-") as folder,
-        patch.object(paths, "PKG_DATA", fixture),
+        patch.object(portable_riven, "paths", SimpleNamespace(PKG_DATA=fixture)),
         patch.object(damage_engine, "portable_request", request),
     ):
         renderer = R.ImageRenderer(Path(folder))
@@ -2147,6 +2207,171 @@ with tempfile.TemporaryDirectory() as _folder:
     check("启动清理不碰非卡片文件", _other.exists())
 
 print()
+
+
+def _canvas_budget_checks():
+    from unittest.mock import patch
+
+    canvas = R.Image.new("RGB", (64, 384))
+    banner = R.Image.new("RGB", (256, 16))
+    for x in range(banner.width):
+        for y in range(banner.height):
+            banner.putpixel((x, y), (x, y, 0))
+    resize = R.Image.Image.resize
+    sizes = []
+
+    def measured(image, size, *args, **kwargs):
+        sizes.append(size)
+        assert size[0] <= canvas.width and size[1] <= canvas.height
+        return resize(image, size, *args, **kwargs)
+
+    with patch.object(R.Image.Image, "resize", measured):
+        for pos, red in (("l", 1), ("c", 128), ("r", 254)):
+            out = R._with_bg_image(canvas, banner, 0, "cover", pos)
+            check(f"横幅长卡 {pos} 裁切位置", abs(out.getpixel((32, 192))[0] - red) <= 1)
+    check("横幅铺长卡只缩放可见区域至画布", sizes == [canvas.size] * 3)
+
+    # 用小棋盘格逐像素比对旧铺图，覆盖裁剪边沿依赖邻像素的情形。
+    from PIL import ImageChops
+
+    for source_size, target in (((9, 12), (41, 18)), ((160, 80), (10, 11))):
+        src = R.Image.new("RGB", source_size)
+        src.putdata(
+            [(255 * (x % 2), 255 * (y % 2), 0) for y in range(src.height) for x in range(src.width)]
+        )
+        w, h = target
+        scale = max(w / src.width, h / src.height)
+        full = src.resize(
+            (int(src.width * scale + 0.5), int(src.height * scale + 0.5)), R.Image.BILINEAR
+        )
+        for pos in R.BG_POSITIONS:
+            fx, fy = R._anchor(pos)
+            x, y = int((full.width - w) * fx), int((full.height - h) * fy)
+            expected = full.crop((x, y, x + w, y + h))
+            actual = R._with_bg_image(R.Image.new("RGB", target), src, 0, "cover", pos)
+            diff = ImageChops.difference(actual, expected)
+            check(
+                f"cover {source_size} 九宫格 {pos} 滤波等价",
+                max(high for _, high in diff.getextrema()) <= 1,
+            )
+
+    if not probe.available:
+        return
+    title, lines = "画布预算", ["很长的装备说明与掉落地点" * 40]
+    with tempfile.TemporaryDirectory() as folder:
+        renderer = R.ImageRenderer(Path(folder))
+        normal = renderer._render(title, lines, "")
+        assert normal
+        with R.Image.open(normal) as output:
+            pixels = output.width * output.height * R.SS**2
+        with patch.object(R, "MAX_CANVAS_PIXELS", pixels):
+            check("折行后 2x 画布恰好到预算仍出图", bool(renderer._render(title, lines, "")))
+        with patch.object(R, "MAX_CANVAS_PIXELS", pixels - 1), patch.object(R, "_bg_column") as bg:
+            check(
+                "折行后超预算一个像素即在分配前降级",
+                renderer._render(title, lines, "") is None and not bg.called,
+            )
+
+
+def _gradient_equivalence():
+    from io import BytesIO
+
+    previous = R.theme_state()
+    try:
+        for theme in ({}, {"bg": "#ed81c3"}):
+            R.apply_theme(theme)
+            for size in ((1, 1), (31, 84), (32, 255), (33, 256), (34, 513), (35, 514)):
+                expected = R._bg_column().resize(size, R.Image.BILINEAR)
+                actual = R._gradient_background(*size)
+                assert actual.tobytes() == expected.tobytes(), (theme, size)
+                old, new = BytesIO(), BytesIO()
+                expected.save(old, format="PNG")
+                actual.save(new, format="PNG")
+                assert new.getvalue() == old.getvalue(), (theme, size)
+    finally:
+        R.apply_theme(**previous)
+
+
+def _background_windows():
+    from unittest.mock import patch
+    from PIL import ImageChops
+
+    canvas = R.Image.new("RGB", (1600, 600))
+    narrow = R.Image.new("RGB", (1, 512))
+    narrow.putdata([(y // 2, 0, 0) for y in range(narrow.height)])
+    resize = R.Image.Image.resize
+    sizes = []
+
+    def bounded_resize(image, size, *args, **kwargs):
+        sizes.append(size)
+        assert size[0] <= canvas.width and size[1] <= canvas.height
+        assert size[0] * size[1] <= R.MAX_CANVAS_PIXELS
+        return resize(image, size, *args, **kwargs)
+
+    with patch.object(R.Image.Image, "resize", bounded_resize):
+        for mode, pos, red in (
+            ("width", "b", 0),
+            ("custom", "t", 0),
+            ("custom", "c", 128),
+            ("custom", "b", 255),
+        ):
+            image = R._with_bg_image(canvas, narrow, 0, mode, pos, 100)
+            assert abs(image.getpixel((800, 300))[0] - red) <= 1
+        assert sizes == [canvas.size] * 4
+        for mode in ("contain", "tile"):
+            assert R._with_bg_image(canvas, narrow, 0, mode).size == canvas.size
+
+    small = R.Image.new("RGB", (8, 8))
+    large = R.Image.new("RGBA", (16, 16))
+    with (
+        patch.object(R, "MAX_CANVAS_PIXELS", 64),
+        patch.object(R.Image.Image, "convert", side_effect=AssertionError("超预算转色")),
+    ):
+        assert R._with_bg_image(small, large, 0, "contain") is small
+
+    # 小图可安全生成完整参考图，逐像素核对短图重复、平铺余边和九宫格。
+    canvas = R.Image.new("RGB", (30, 21), "navy")
+    for size in ((11, 3), (3, 11)):
+        source = R.Image.new("RGBA", size)
+        source.putdata([(x * 23, y * 23, 10, 128) for y in range(size[1]) for x in range(size[0])])
+        for fit, scale in (
+            ("width", 1),
+            ("custom", 0.6),
+            ("custom", 1.5),
+            ("contain", 1),
+            ("tile", 1),
+        ):
+            k = {"tile": R.SS, "contain": min(canvas.width / size[0], canvas.height / size[1])}.get(
+                fit, canvas.width * scale / size[0]
+            )
+            full = source.convert("RGB").resize(
+                tuple(max(1, int(v * k + 0.5)) for v in size), R.Image.BILINEAR
+            )
+            for pos in R.BG_POSITIONS:
+                expected = canvas.copy()
+                fx, fy = R._anchor(pos)
+                if fit in ("width", "tile"):
+                    for y in range(0, canvas.height, full.height):
+                        for x in range(0, canvas.width, full.width):
+                            expected.paste(full, (x, y))
+                else:
+                    expected.paste(
+                        full,
+                        (
+                            int((canvas.width - full.width) * fx),
+                            int((canvas.height - full.height) * fy),
+                        ),
+                    )
+                actual = R._with_bg_image(canvas, source, 0, fit, pos, scale * 100)
+                diff = ImageChops.difference(expected, actual)
+                assert max(hi for _, hi in diff.getextrema()) <= 1, (fit, size, pos, scale)
+
+
+if R.Image is not None:
+    _gradient_equivalence()
+    _canvas_budget_checks()
+    _background_windows()
+
 if FAILED:
     print(f"FAILED {len(FAILED)}: " + ", ".join(FAILED))
     sys.exit(1)

@@ -372,6 +372,70 @@ import asyncio  # noqa: E402
 asyncio.run(_wiki_cold_lookup_keeps_loop_running())
 
 
+async def _wiki_bilingual_cold_cards():
+    import threading
+    from unittest.mock import patch
+    from core import de_worldstate, i18n, wiki_intro
+    from core.api_client import WarframeClient
+    from core.commands import wiki_misc
+    from core.parser import parse
+
+    host = wiki_misc.WikiMiscCommands()
+    host.cfg, host.client = {}, WarframeClient()
+    query = parse("wiki 川流不息")
+    S.search(query.content_str)  # 单独冷启动后续本地化与制卡路径
+    wiki_misc._official_item_names.cache_clear()
+    wiki_intro._table.cache_clear()
+    wiki_intro._english_intro_data.cache_clear()
+    de_worldstate._load_file.cache_clear()
+    loop = asyncio.get_running_loop()
+    main_tid = threading.get_ident()
+    reads = []
+    real_read = Path.read_text
+
+    def read(path, *args, **kwargs):
+        if path in (
+            de_worldstate.DATA_DIR / "name_zh.json",
+            wiki_intro._FILE,
+            wiki_intro._FILE.with_name("wiki_intro_en.json"),
+        ):
+            beat = threading.Event()
+            loop.call_soon_threadsafe(beat.set)
+            reads.append((path.name, threading.get_ident(), beat.wait(2)))
+        return real_read(path, *args, **kwargs)
+
+    async def card(lang):
+        with i18n.use_lang(lang):
+            return await host._h_wiki(query, None, "pc")
+
+    try:
+        with patch.object(Path, "read_text", read):
+            zh, en = await asyncio.gather(card("zh"), card("en"))
+        check(
+            "双语 wiki 冷读期间事件循环心跳持续，语言表与简介各读取一次",
+            sorted(name for name, _, _ in reads)
+            == ["name_zh.json", "wiki_intro.json", "wiki_intro_en.json"]
+            and all(tid != main_tid and beat for _, tid, beat in reads)
+            and wiki_misc._official_item_names.cache_info().misses
+            == wiki_intro._table.cache_info().misses
+            == 1,
+            str(reads),
+        )
+        check(
+            "真实中英文 wiki 卡片保留官方标题、效果和链接",
+            zh.title == "川流不息（Flow）"
+            and en.title == "Flow"
+            and any("◆ 效果" in x for x in zh.lines)
+            and any("◆ Effect" in x for x in en.lines)
+            and all(r.extra_text.endswith("/Flow") for r in (zh, en)),
+        )
+    finally:
+        await host.client.close()
+
+
+asyncio.run(_wiki_bilingual_cold_cards())
+
+
 # ★ 2026-11-10：wiki 链接默认英文 wiki、可选灰机；族名后置写法（侵染近战）也能检索；英文页面名取官方语言表
 def _wiki_link_source():
     import json as _json
@@ -468,6 +532,33 @@ def _wiki_link_source():
 
 
 _wiki_link_source()
+
+
+def _exact_index_matches_scan():
+    from unittest.mock import patch
+
+    rows = S._index()
+    for query in ("布莱顿", "BrAtOn", "Orokin Catalyst", "Forma"):
+        key = S.matching.normalize_name(query)
+        expected = [
+            {"name": shown, "en": second, "source": source, "score": 0}
+            for _, shown, second, source in rows
+            if key in (S.matching.normalize_name(shown), S.matching.normalize_name(second))
+        ]
+        assert expected
+        if query == "布莱顿":
+            assert len({row["en"] for row in expected}) > 1
+        with patch.object(S, "_score_patterns", side_effect=AssertionError("精确命中走了模糊评分")):
+            for limit in (-1, 0, 1, 2, len(expected), len(expected) + 1):
+                assert S.search(query, limit) == expected[: max(1, limit)]
+    assert [(r["name"], r["score"]) for r in S.search("Orokin Cata", 3)] == [
+        ("奥罗金催化剂", 1),
+        ("orokin catalyst blueprint", 1),
+        ("奥罗金", 3),
+    ]
+
+
+_exact_index_matches_scan()
 
 if FAILED:
     print(f"\n失败 {len(FAILED)} 项：{FAILED}")

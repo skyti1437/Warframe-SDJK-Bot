@@ -39,6 +39,7 @@ DATA_DIR = Path(__file__).resolve().parent / "data" / "de"
 # ``labels`` 把 DE 的内部 LocationTag 换成卡面显示名；缺省用原名。
 REGIONS: dict[str, dict] = {
     "Ostrons": {
+        "syndicate_key": "CetusSyndicate",
         "prefix": "/Lotus/Types/Gameplay/Eidolon/Jobs/",
         "manifest": "eidolon_job_manifest.json",
         "labels": {"TentA": "小帐篷 A", "TentB": "小帐篷 B", "TentC": "小帐篷 C"},
@@ -54,6 +55,7 @@ REGIONS: dict[str, dict] = {
     #   （7 个里 5 个有名字；Warehouse / DigSite 官方未译 → 显示「未定名」，**不硬编**）。
     #   链名走 `bounty_jobs_zh.json`（同表 27 条金星任务链，如 VenusArtifactJobAmbush=伏击信使）。
     "Solaris United": {
+        "syndicate_key": "SolarisSyndicate",
         "prefix": "/Lotus/Types/Gameplay/Venus/Jobs/",
         "manifest": "venus_job_manifest.json",
         "on_card": False,
@@ -139,28 +141,34 @@ def _pick(seed: int, jobs: list, num: int) -> tuple[int, list]:
     return seed, [jobs[i] for i in range(len(jobs)) if flags[i]]
 
 
-def region_locations(region: str, seed: Optional[int]) -> list[tuple[str, list[str]]]:
+def region_locations(
+    region: str, seed: Optional[int], oracle_data: Optional[dict] = None
+) -> list[tuple[str, list[str]]]:
     """某地区各点位的当前赏金：``[(显示名, [链名, ...]), ...]``。
 
-    无配置 / 无种子 / 清单缺失时返回空列表（调用方直接跳过，不占卡面）。
+    有种子时本地推算，无种子时使用 Oracle 当前轮次的点位赏金。
     """
     cfg = REGIONS.get(region or "")
-    if not cfg or seed is None:
+    if not cfg:
         return []
-    try:
-        s = int(seed)
-    except (TypeError, ValueError):
-        return []
-    data = _manifest(cfg["manifest"])
-    out: list[tuple[str, list[str]]] = []
-    for loc in data.get("LocationSpecificJobs") or []:
-        s, picked = _pick(s, loc.get("Jobs") or [], int(loc.get("NumJobsToShow") or 0))
-        tag = loc.get("LocationTag") or ""
-        label = (cfg.get("labels") or {}).get(tag, tag)
-        if i18n.is_en():
-            label = (cfg.get("labels_en") or {}).get(tag, label)
-        out.append((label, [_chain_name(cfg["prefix"] + p) for p in picked]))
-    return out
+    labels = cfg["labels"]
+    if seed is None:
+        locations = (oracle_data or {}).get(cfg["syndicate_key"]) or {}
+        rows = [(tag, locations[tag]) for tag in labels if locations.get(tag)]
+    else:
+        try:
+            s = int(seed)
+        except (TypeError, ValueError):
+            return []
+        rows = []
+        for loc in _manifest(cfg["manifest"]).get("LocationSpecificJobs") or []:
+            s, picked = _pick(s, loc.get("Jobs") or [], int(loc.get("NumJobsToShow") or 0))
+            rows.append((loc.get("LocationTag") or "", [cfg["prefix"] + p for p in picked]))
+    labels_en = (cfg.get("labels_en") or {}) if i18n.is_en() else {}
+    return [
+        (labels_en.get(tag) or labels.get(tag, tag), [_chain_name(path) for path in paths])
+        for tag, paths in rows
+    ]
 
 
 def seed_of(syndicates) -> Optional[int]:

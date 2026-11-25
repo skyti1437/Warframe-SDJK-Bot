@@ -14,6 +14,7 @@ import signal
 import sys
 import zipfile
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from hashlib import sha256
 from itertools import product
 from pathlib import Path
@@ -70,6 +71,10 @@ class EngineError(ValueError):
 
 class EngineBuildError(EngineError):
     """引擎明确拒绝该配装。"""
+
+
+class EngineVersionMismatch(EngineError):
+    """服务回执明确给出了不兼容的构建身份。"""
 
 
 class EngineTimeout(EngineError):
@@ -1241,26 +1246,56 @@ async def portable_fixed_lines(host, port, weapon, spec, overrides=None):
         ) from None
 
 
-def validate_fixed_replay(result, request):
-    given = {(row["slot"], row["path"], row["rank"]) for row in request["mods"]}
+def validate_fixed_replay(result, request, *, require_build_label=True):
+    def mod_identity(row):
+        if type(row.get("rank")) is not int:
+            raise EngineError(L("MOD 回放等级无效", "Invalid Mod rank in replay"))
+        return row["slot"], row["path"], row["rank"]
+
+    given = {mod_identity(row) for row in request["mods"]}
     if exilus := request.get("exilus"):
         equipped = result.get("exilus") or {}
         special = request.get("specialSlotPolarities") or {}
         if (
             equipped.get("incompatible")
+            or type(equipped.get("rank")) is not int
+            or type(exilus.get("rank")) is not int
             or any(equipped.get(key) != exilus[key] for key in ("path", "rank"))
             or ("exilus" in special and special["exilus"] != equipped.get("slotPolarity"))
         ):
             raise EngineError(L("扩展槽回放与配装不符", "Exilus slot does not match the build"))
         if equipped.get("catalogJoined"):
             given.add((8, exilus["path"], exilus["rank"]))
-    if arcanes := request.get("arcanes"):
-        given_arcanes = {(row["path"], row["rank"]) for row in arcanes}
-        active = {
-            (row["path"], row["rank"]) for row in result.get("arcanes", ()) if row.get("applied")
-        }
-        if active != given_arcanes:
-            raise EngineError(L("赋能回放与配装不符", "Arcanes do not match the build"))
+    arcanes = request.get("arcanes") or []
+    reported = result.get("arcanes", ())
+    if not isinstance(reported, (list, tuple)) or any(
+        not isinstance(row, dict)
+        or type(row.get("applied")) is not bool
+        or type(row.get("rank")) is not int
+        for row in reported
+    ):
+        raise EngineError(L("赋能回放与配装不符", "Arcanes do not match the build"))
+    active = [row for row in reported if row["applied"]]
+    by_identity = {(row.get("path"), row.get("rank")): row for row in active}
+    if (
+        len(active) != len(arcanes)
+        or len(by_identity) != len(active)
+        or any(
+            type(arc.get("rank")) is not int
+            or (matched := by_identity.get((arc["path"], arc["rank"]))) is None
+            or any(
+                key in arc
+                and (
+                    type(arc[key]) not in (int, float)
+                    or type(matched.get(key)) not in (int, float)
+                    or matched[key] != arc[key]
+                )
+                for key in ("stacks", "uptime")
+            )
+            for arc in arcanes
+        )
+    ):
+        raise EngineError(L("赋能回放与配装不符", "Arcanes do not match the build"))
     if (
         request.get("stancePath")
         and (result["selection"].get("stance") or {}).get("path") != request["stancePath"]
@@ -1298,7 +1333,7 @@ def validate_fixed_replay(result, request):
         )
     validation = result["loadoutValidation"]
     assignments = validation["assignments"]
-    used = {(row["slot"], row["path"], row["rank"]) for row in assignments}
+    used = {mod_identity(row) for row in assignments}
     window = result.get("benchmarkTimeline")
     if window is None:
         raise EngineError(
@@ -1309,8 +1344,9 @@ def validate_fixed_replay(result, request):
         )
     context = window["context"]
     dps = window["windowDps"]
+    allowed_labels = (PORTABLE_DATA,) if require_build_label else (PORTABLE_DATA, None, "")
     if (
-        result["buildLabel"] != PORTABLE_DATA
+        result.get("buildLabel") not in allowed_labels
         or result["damageModel"] != request.get("damageModel", "target")
         or result["selection"]["weapon"]["path"] != request["weapon"]
         or len(given) != len(assignments)
@@ -1943,6 +1979,14 @@ async def simulation_lines(host, weapon, spec, overrides=None, *, event=None):
     return lines, True
 
 
+@dataclass
+class _ManagedHealth:
+    last_success: float = 0
+    failures: int = 0
+    restart_after: float = 0
+    port: int | None = None
+
+
 class EngineService:
     """按需下载固定版服务，托管进程由插件生命周期管理。"""
 
@@ -1952,6 +1996,7 @@ class EngineService:
         self.task = None
         self.child = None
         self.portable_child = None
+        self._managed_health = {name: _ManagedHealth() for name in ("child", "portable_child")}
         self.portable_child_port = 0
         self._configured_port: int | None = None
         self._installing_port = 0
@@ -2038,8 +2083,8 @@ class EngineService:
             }
         async with self.lock:
             if self.portable_child is not None:
-                await self._stop(self.portable_child)
-                self.portable_child = None
+                await self._discard_child("portable_child")
+                self._managed_health["portable_child"] = _ManagedHealth()
         await self.ensure_running(cfg)
         version = _version(await _request(cfg, "/healthz", timeout=4))
         # 健康接口公开版本，计算接口再证明令牌能实际使用。
@@ -2126,15 +2171,18 @@ class EngineService:
 
     async def _portable_health(self, port, *, require_fingerprint):
         value = await portable_request(port, "/api/health", timeout=0.8)
+        message = L("本机独立引擎版本不匹配", "The local standalone engine version does not match")
+        if ("buildLabel" in value and value["buildLabel"] != PORTABLE_DATA) or (
+            "schemaVersion" in value and value["schemaVersion"] != 3
+        ):
+            raise EngineVersionMismatch(message)
         if (
             value.get("ok") is not True
-            or value.get("buildLabel") != PORTABLE_DATA
-            or value.get("schemaVersion") != 3
+            or "buildLabel" not in value
+            or "schemaVersion" not in value
             or (require_fingerprint and value.get("engineFingerprint") != PORTABLE_FINGERPRINT)
         ):
-            raise EngineError(
-                L("本机独立引擎版本不匹配", "The local standalone engine version does not match")
-            )
+            raise EngineError(message)
         return value
 
     async def reconfigure_portable(self, port):
@@ -2146,9 +2194,7 @@ class EngineService:
             await asyncio.gather(task, return_exceptions=True)
         async with self.lock:
             if self.portable_child is not None and self.portable_child_port != port:
-                await self._stop(self.portable_child)
-                self.portable_child = None
-                self.portable_child_port = 0
+                await self._discard_child("portable_child")
 
     async def ensure_portable(self, port):
         async with self.lock:
@@ -2158,20 +2204,14 @@ class EngineService:
                 raise EngineError(L("完整模拟设置已更新", "Full simulation settings have changed"))
             if not self.portable_installed():
                 return
-            child = self.portable_child
-            if child is not None and child.returncode is None and self.portable_child_port == port:
-                return
-            try:
-                await self._portable_health(port, require_fingerprint=True)
-            except EngineError:
-                pass
-            else:
-                return
-            if child is not None:
-                await self._stop(child)
-            try:
+            if self.portable_child is not None and self.portable_child_port != port:
+                await self._discard_child("portable_child")
+            if self._managed_health["portable_child"].port != port:
+                self._managed_health["portable_child"] = _ManagedHealth(port=port)
+
+            async def spawn():
                 with (self.root / "install.log").open("ab") as log:
-                    self.portable_child = await asyncio.create_subprocess_exec(
+                    proc = await asyncio.create_subprocess_exec(
                         sys.executable,
                         "launch.py",
                         "--port",
@@ -2181,30 +2221,16 @@ class EngineService:
                         stdout=log,
                         stderr=log,
                     )
-            except OSError:
-                raise EngineError(
-                    L(
-                        "本机独立引擎服务无法启动",
-                        "Cannot start the local standalone engine service",
-                    )
-                ) from None
-            self.portable_child_port = port
-            now = asyncio.get_running_loop().time
-            deadline = now() + 20
-            while now() < deadline:
-                try:
-                    await self._portable_health(port, require_fingerprint=True)
-                    return
-                except EngineError:
-                    if self.portable_child.returncode is not None:
-                        break
-                    await asyncio.sleep(0.25)
-            await self._stop(self.portable_child)
-            raise EngineError(
-                L(
-                    "本机独立引擎服务启动检查失败",
-                    "The local standalone engine service failed its startup check",
-                )
+                self.portable_child_port = port
+                return proc
+
+            await self._ensure_healthy(
+                "portable_child",
+                lambda: self._portable_health(port, require_fingerprint=True),
+                spawn,
+                attempts=80,
+                interval=0.25,
+                startup_timeout=20,
             )
 
     async def _install(self, cfg: dict):
@@ -2282,39 +2308,91 @@ class EngineService:
             if self.closed:
                 raise EngineError("伤害引擎管理器正在关闭")
             token = cfg.get("damage_engine_token") or ""
-            if self.child is not None and self.child.returncode is None and token != self.token:
-                await self._stop(self.child)
-            try:
+            if self.child is not None and token != self.token:
+                await self._discard_child("child")
+                self._managed_health["child"] = _ManagedHealth()
+
+            async def probe():
                 _version(await _request(cfg, "/healthz", timeout=0.6))
-                return
-            except EngineError:
-                if self.child is not None and self.child.returncode is None:
-                    return
-            try:
-                env = {**os.environ, "WARFRAME_ENGINE_TOKEN": token}
-                self.child = await asyncio.create_subprocess_exec(
+
+            async def spawn():
+                proc = await asyncio.create_subprocess_exec(
                     sys.executable,
                     "server.py",
                     cwd=self.release,
-                    env=env,
+                    env={**os.environ, "WARFRAME_ENGINE_TOKEN": token},
                     start_new_session=True,
                     stdout=asyncio.subprocess.DEVNULL,
                     stderr=asyncio.subprocess.DEVNULL,
                 )
                 self.token = token
-            except OSError:
-                raise EngineError("独立引擎服务无法启动") from None
-            for _ in range(15):
-                try:
-                    _version(await _request(cfg, "/healthz", timeout=0.6))
+                return proc
+
+            await self._ensure_healthy("child", probe, spawn, attempts=15, interval=0.1)
+
+    async def _discard_child(self, name):
+        child = getattr(self, name)
+        if child is not None:
+            await self._stop(child)
+            setattr(self, name, None)
+        if name == "portable_child":
+            self.portable_child_port = 0
+
+    async def _ensure_healthy(
+        self, name, probe, spawn, *, attempts, interval, startup_timeout=None
+    ):
+        """在生命周期锁内探活。只有本实例创建并保存的句柄可以终止。"""
+        now = asyncio.get_running_loop().time
+        health = self._managed_health[name]
+
+        async def healthy():
+            try:
+                await probe()
+            except EngineError:
+                health.failures += 1
+                return False
+            health.last_success = now()
+            health.failures = 0
+            return True
+
+        child = getattr(self, name)
+        if child is not None and child.returncode is not None:
+            await self._discard_child(name)
+        if await healthy():
+            return
+        if getattr(self, name) is not None:
+            while health.failures < 3:
+                await asyncio.sleep(interval)
+                if await healthy():
                     return
-                except EngineError:
-                    if self.child.returncode is not None:
-                        break
-                    await asyncio.sleep(0.1)
+            await self._discard_child(name)
+        if now() < health.restart_after:
             raise EngineError(
-                L("本机独立引擎启动失败", "Managed simulation service failed to start")
+                L("引擎重启冷却中，请稍后重试", "Engine restart pending, retry shortly")
             )
+        health.restart_after = now() + 5
+        try:
+            child = await spawn()
+        except OSError:
+            raise EngineError(
+                L("本机独立引擎无法启动", "Cannot start the managed engine")
+            ) from None
+        setattr(self, name, child)
+        deadline = now() + startup_timeout if startup_timeout else None
+        try:
+            for _ in range(attempts):
+                if child.returncode is not None or deadline is not None and now() >= deadline:
+                    break
+                if await healthy():
+                    return
+                await asyncio.sleep(interval)
+            raise EngineError(
+                L("本机独立引擎启动检查失败", "Managed engine failed its startup check")
+            )
+        except BaseException:
+            await self._discard_child(name)
+            health.restart_after = now() + 5
+            raise
 
     async def close(self):
         self.closed = True
@@ -2324,7 +2402,5 @@ class EngineService:
             self.task.cancel()
             await asyncio.gather(self.task, return_exceptions=True)
         async with self.lock:
-            if self.child is not None:
-                await self._stop(self.child)
-            if self.portable_child is not None:
-                await self._stop(self.portable_child)
+            await self._discard_child("child")
+            await self._discard_child("portable_child")

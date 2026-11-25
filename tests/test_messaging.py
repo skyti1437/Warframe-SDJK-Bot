@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import sys
+import tempfile
 import time
 import types
 import unittest
@@ -945,6 +947,30 @@ class MessagingTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(await self.bridge.send_proactive("bot-a:group:42", "不尝试QQ主动"))
         self.assertFalse(await self.bridge.send_proactive("unknown:group:42", "无此实例"))
 
+    async def test_confirmed_delivery_independent_of_stalled_history(self):
+        event = self.telegram()
+        self.adapter.meta = lambda: NS(name="telegram")
+        self.adapter.create_event = lambda message: event
+        module("astrbot.api.event", MessageChain=list)
+        self.bridge.context.get_config = lambda **kw: {
+            "provider_ltm_settings": {"group_message_history_enable": True}
+        }
+        cancelled = asyncio.Event()
+
+        async def insert(**kwargs):
+            try:
+                await asyncio.Event().wait()
+            finally:
+                cancelled.set()
+
+        self.bridge.context.message_history_manager = NS(insert_message_chain=insert)
+        self.bridge.HISTORY_TIMEOUT = 0.03
+        self.assertTrue(await self.bridge.send_proactive("bot-a:group:42", "只送一次"))
+        self.assertFalse(cancelled.is_set())
+        await asyncio.wait_for(cancelled.wait(), 1)
+        await asyncio.gather(*self.bridge._history_tasks)
+        event.client.send_message.assert_awaited_once()
+
     async def test_proactive_timeout_is_not_fallback_permission(self):
         event = self.telegram()
         event.client.send_message.side_effect = TimeoutError()
@@ -953,6 +979,261 @@ class MessagingTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(TimeoutError):
             await self.bridge.send_proactive("bot-a:group:42", "不自动重发")
         event.client.send_message.assert_awaited_once()
+
+    async def test_proactive_chunk_cursor_survives_retry_and_restart(self):
+        from core.logging_compat import logger
+        from core.push import PushDaemon
+        from core.store import Subscription, SubscriptionStore
+
+        event = self.telegram()
+        self.adapter.meta = lambda: NS(name="telegram")
+        self.adapter.create_event = lambda message: event
+        limit = 300
+        self.bridge._settings = lambda: {"text_chunk_limit": limit}
+        a, b = "📰 " + "A" * 296 + "\n", "B" * 245
+        confirmed, attempted = [], []
+        fail = True
+
+        async def post(*, text, **kwargs):
+            attempted.append(text)
+            if text == b and fail:
+                if attempted.count(b) == 1:
+                    await asyncio.Event().wait()  # 守护外层超时，拿不到适配器异常
+                raise TimeoutError("第二片未收到回执")
+            confirmed.append(text)
+
+        event.client.send_message.side_effect = post
+        news = [{"id": "old", "message": "基线"}]
+        client = NS(news=AsyncMock(return_value=news))
+
+        async def send(umo, text, at=None):
+            return await self.bridge.send_proactive(umo, text)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            state = root / "state.json"
+
+            def restart():
+                store = SubscriptionStore(root / "subs.json")
+                return PushDaemon(client, store, send, logger, state_path=state)
+
+            daemon = restart()
+            daemon.SEND_TIMEOUT = 0.05
+            sub = Subscription("bot-a:group:42", "pc", "新闻", once=True)
+            await daemon.store.add(sub)
+            await daemon.tick()
+            news.append({"id": "new", "message": a.removeprefix("📰 ") + b})
+            await daemon.tick()
+            limit = 200  # 若按新限额重切，B 就会变成两条。
+            await daemon.tick()
+            (record,) = json.loads(state.read_text())["pending"]
+            self.assertEqual(
+                (record["chunks"], record["confirmed"], record["tries"]), ([a, b], 1, 1)
+            )
+            self.assertTrue(daemon.store.has(sub.sid))
+            self.assertEqual(attempted, [a, b, b])
+
+            fail = False
+            restored = restart()
+            await restored.tick()
+            await restart().tick()
+            self.assertEqual(attempted, [a, b, b, b])
+            self.assertEqual(confirmed, [a, b])
+            self.assertFalse(restored.store.has(sub.sid))
+            self.assertEqual(json.loads(state.read_text())["pending"], [])
+
+    async def test_stop_during_chunk_and_late_chunk_receipt_survive_restart(self):
+        from core.logging_compat import logger
+        from core.push import PushDaemon
+        from core.store import Subscription, SubscriptionStore
+
+        self.bridge._settings = lambda: {"text_chunk_limit": 200}
+        a, b, c = "📰 " + "A" * 196 + "\n", "B" * 199 + "\n", "C"
+        for late in (False, True):
+            with self.subTest(late=late), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                state = root / "state.json"
+                news = [{"id": "base", "message": "基线"}]
+                client = NS(news=AsyncMock(return_value=news))
+                event = self.telegram()
+                self.adapter.meta = lambda: NS(name="telegram")
+                self.adapter.create_event = lambda message: event
+                started, release = asyncio.Event(), asyncio.Event()
+                attempts, received, registered = [], [], []
+
+                async def post(*, text, **kwargs):
+                    if not attempts:
+                        registered.extend(json.loads(state.read_text())["pending"])
+                    attempts.append(text)
+                    if text == b and not started.is_set():
+                        started.set()
+                        try:
+                            await asyncio.Event().wait()
+                        except asyncio.CancelledError:
+                            if not late:
+                                raise
+                            await release.wait()
+                    received.append(text)
+
+                event.client.send_message.side_effect = post
+
+                async def send(umo, text, at=None):
+                    return await self.bridge.send_proactive(umo, text)
+
+                def restart():
+                    return PushDaemon(
+                        client,
+                        SubscriptionStore(root / "subs.json"),
+                        send,
+                        logger,
+                        state_path=state,
+                    )
+
+                d = restart()
+                await d.store.add(Subscription("bot-a:group:42", "pc", "新闻"))
+                await d.tick()
+                news.append({"id": "new", "message": (a + b + c).removeprefix("📰 ")})
+                if late:
+                    d.SEND_TIMEOUT = 0.08
+                    await d.tick()
+                else:
+                    d.start()
+                try:
+                    await asyncio.wait_for(started.wait(), 2)
+                    (pending,) = json.loads(state.read_text())["pending"]
+                    self.assertEqual([it["key"] for it in registered], ["new"])
+                    self.assertEqual((pending["chunks"], pending["confirmed"]), ([a, b, c], 1))
+                finally:
+                    release.set()
+                    await asyncio.wait_for(d.stop(), 2)
+                (pending,) = json.loads(state.read_text())["pending"]
+                self.assertEqual(pending["confirmed"], 2 if late else 1)
+                restored = restart()
+                await restored.tick()
+                self.assertEqual(attempts, [a, b, c] if late else [a, b, b, c])
+                self.assertEqual(received, [a, b, c])
+                self.assertEqual(restored.store.all(), [])
+                self.assertEqual(json.loads(state.read_text())["pending"], [])
+
+    async def test_qq_host_late_ack_survives_restart(self):
+        from test_message_output import new_plugin
+        from core.logging_compat import logger
+        from core.messaging import literal_progress
+        from core.push import PushDaemon
+        from core.store import Subscription, SubscriptionStore
+
+        obj = new_plugin()
+        self.adapter.meta = lambda: NS(name="qq_official")
+        obj._messaging = self.bridge
+        obj.context.get_platform_inst = self.adapters.get
+        release = asyncio.Event()
+        confirmed = []
+
+        async def host_post(umo, chain):
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                await release.wait()
+            return True
+
+        async def send(umo, text, at=None):
+            await obj._push_send(umo, text, at)
+            confirmed.append(literal_progress.get().complete)
+
+        obj.context.send_message = AsyncMock(side_effect=host_post)
+        news = [{"id": "base", "message": "基线"}]
+        client = NS(news=AsyncMock(return_value=news))
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+
+            def restart():
+                return PushDaemon(
+                    client,
+                    SubscriptionStore(root / "subs.json"),
+                    send,
+                    logger,
+                    state_path=root / "state.json",
+                )
+
+            d = restart()
+            d.SEND_TIMEOUT = 0.04
+            await d.store.add(Subscription("bot-a:group:42", "pc", "新闻", created_by="发起人"))
+            await d.tick()
+            news.append({"id": "new", "message": "整条宿主消息"})
+            try:
+                await d.tick()
+                self.assertEqual(len(d._pending), 1)
+                self.assertTrue(d.store.all())
+            finally:
+                release.set()
+                await asyncio.wait_for(d.stop(), 2)
+            restored = restart()
+            await restored.tick()
+            self.assertEqual(confirmed, [True])
+            obj.context.send_message.assert_awaited_once()
+            self.assertFalse(restored.store.all())
+            self.assertFalse(restored._pending)
+
+    async def test_literal_error_preserves_raw_discord_chunks_and_confirmed_cursor(self):
+        event = Event("discord", target="77")
+        post = AsyncMock(side_effect=[None, TimeoutError("未确认")])
+        event.client = NS(get_channel=lambda target: NS(send=post))
+        self.bridge._settings = lambda: {"text_chunk_limit": 200}
+        a, b = "*" * 99 + "\n", "_" * 80
+        with self.assertRaises(TimeoutError) as failure:
+            await self.bridge.send_literal(event, a + b)
+        progress = failure.exception.literal_progress
+        self.assertEqual((progress.chunks, progress.confirmed), ([a, b], 1))
+        self.assertEqual(post.await_args_list[1].kwargs["content"], "\\_" * 80)
+        post.side_effect = [None, False]
+        with self.assertRaisesRegex(RuntimeError, "未发送") as rejected:
+            await self.bridge.send_literal(event, a + b)
+        self.assertEqual(rejected.exception.literal_progress.confirmed, 1)
+
+    async def test_late_chunk_receipt_stops_tail_until_next_retry(self):
+        from core.logging_compat import logger
+        from core.push import PushDaemon
+        from core.store import Subscription, SubscriptionStore
+
+        event = self.telegram()
+        self.bridge._settings = lambda: {"text_chunk_limit": 200}
+        a, b, c = "A" * 199 + "\n", "B" * 199 + "\n", "C"
+        received = []
+        release = asyncio.Event()
+
+        async def post(*, text, **kwargs):
+            if text == b:
+                try:
+                    await asyncio.Event().wait()
+                except asyncio.CancelledError:
+                    await release.wait()
+            received.append(text)
+
+        event.client.send_message.side_effect = post
+
+        async def send(umo, text, at=None):
+            return await self.bridge.send_literal(event, text)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            store = SubscriptionStore(Path(tmp) / "subs.json")
+            sub = Subscription("bot-a:group:42", "pc", "新闻", once=True)
+            await store.add(sub)
+            daemon = PushDaemon(None, store, send, logger)
+            daemon.SEND_TIMEOUT = 0.05
+            try:
+                result = await daemon._deliver(
+                    sub.umo, sub.event, "new", a + b + c, [sub], time.time()
+                )
+                self.assertEqual((result, received), ("fail", [a]))
+                self.assertTrue(store.has(sub.sid))
+            finally:
+                release.set()
+                await asyncio.gather(*daemon._sending.values(), return_exceptions=True)
+            self.assertEqual(received, [a, b])
+            self.assertEqual(daemon._pending[0]["confirmed"], 2)
+            await daemon._flush_pending(time.time(), store.all())
+            self.assertEqual(received, [a, b, c])
+            self.assertFalse(store.has(sub.sid))
 
 
 if __name__ == "__main__":

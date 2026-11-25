@@ -45,7 +45,6 @@ _HERE = Path(__file__).resolve().parent
 _DATA = _HERE / "data"
 _ALIAS_FILE = _DATA / "aliases.json"
 _DE_ITEMS_FILE = _DATA / "de" / "de_items_zh.json"
-_EN_ZH_FILE = _DATA / "de" / "name_en_zh.json"
 _CJK = re.compile(r"[一-鿿]")
 _DROPS_FILE = _DATA / "drops.json"
 
@@ -94,7 +93,7 @@ _INDEX_LOCK = threading.Lock()
 
 
 _IndexRow = tuple[str, str, str, str]
-_SearchIndex = tuple[tuple[_IndexRow, ...], tuple[str, ...], tuple[str, ...]]
+_SearchIndex = tuple[tuple[_IndexRow, ...], dict[str, list[int]]]
 
 
 @lru_cache(maxsize=1)
@@ -102,7 +101,7 @@ def _build_index() -> _SearchIndex:
     """构建检索索引。
 
     Returns:
-        评分使用的有序行，以及按行对齐的归一化展示名、次级名。
+        评分使用的有序行，以及展示名和次级名共用的精确名称索引。
     """
     rows: dict[str, list[str]] = {}  # norm_key -> [展示名, 次级名, 来源]
 
@@ -146,17 +145,15 @@ def _build_index() -> _SearchIndex:
     for en in (_drops.get("items") if isinstance(_drops, dict) else None) or {}:
         add(en, source="掉落表")
     indexed_rows = tuple((k, v[0], v[1], v[2]) for k, v in rows.items())
-    normalized: dict[str, str] = {}
-
-    def normalize(name: str) -> str:
-        if name not in normalized:
-            value = matching.normalize_name(name)
-            normalized[name] = name if value == name else value
-        return normalized[name]
-
-    shown_names = tuple(normalize(row[1]) for row in indexed_rows)
-    second_names = tuple(normalize(row[2]) for row in indexed_rows)
-    return indexed_rows, shown_names, second_names
+    exact: dict[str, list[int]] = {}
+    for index, (_, shown, second, _) in enumerate(indexed_rows):
+        for name in (shown, second):
+            key = matching.normalize_name(name)
+            if key:
+                hits = exact.setdefault(name if name == key else key, [])
+                if not hits or hits[-1] != index:
+                    hits.append(index)
+    return indexed_rows, exact
 
 
 def _get_index() -> _SearchIndex:
@@ -221,17 +218,13 @@ def search(query: str, limit: int = 8) -> list[dict]:
     #   大小写/空格/中点/全半角无关）——「阿索代prime」≡「阿索代 Prime」。
     #   命中直接返回，不动下方原有打分链（零回归）。
     nq = matching.normalize_name(query)
-    rows, shown_names, second_names = _get_index()
-    if nq:
-        exact: list[dict] = []
-        for index, (shown_name, second_name) in enumerate(zip(shown_names, second_names)):
-            if nq == shown_name or nq == second_name:
-                _, shown, second, source = rows[index]
-                exact.append({"name": shown, "en": second, "source": source, "score": 0})
-                if len(exact) >= limit:
-                    break
-        if exact:
-            return exact
+    rows, exact = _get_index()
+    if hits := exact.get(nq):
+        # 与评分分支一样，已命中时 limit <= 0 仍保留首条。
+        return [
+            {"name": rows[i][1], "en": rows[i][2], "source": rows[i][3], "score": 0}
+            for i in hits[: max(1, limit)]
+        ]
     patterns = _score_patterns(q)
     scored: list[tuple[int, str, str, str, str]] = []
     for key, shown, second, source in rows:
@@ -278,14 +271,13 @@ def _alias_slug_index() -> dict[str, str]:
     return out
 
 
-@lru_cache(maxsize=1)
 def _official_zh_by_en() -> dict[str, str]:
     """归一化英文显示名 → DE 官方简中名（只含已翻译条目）。
 
     数据由 ``scripts/build_name_en_zh.py`` 从 DE 官方双语词表
     （dict.en.json / dict.zh.json，35,865 条同键）交集生成。
     """
-    return dict(_jload(_EN_ZH_FILE).get("names") or {})
+    return _paths.table_section(_paths.load_table("de/name_en_zh.json"), "names")
 
 
 def _title_en(name: str) -> str:

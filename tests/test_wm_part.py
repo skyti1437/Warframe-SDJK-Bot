@@ -229,6 +229,199 @@ for _w in _T2:
     )
 
 print()
+
+
+async def group_buy_stock():
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+    from core.commands.market import MarketCommands
+    from core.parser import parse
+
+    def order(name, price, stock=3, visible=True):
+        return {
+            "order_type": "sell",
+            "visible": visible,
+            "quantity": stock,
+            "platinum": price,
+            "user": {"ingame_name": name, "status": "online"},
+        }
+
+    def orders(slug, platform):
+        return (
+            [order(f"{slug}{i}", i) for i in range(1, 6)]
+            + [
+                order("全覆盖", 10),
+                order("全覆盖", 14),
+                order("库存不足", 1, 0),
+                order("库存不足", 2, 1),
+                order("隐藏", 1, visible=False),
+            ],
+            {},
+        )
+
+    handler = MarketCommands()
+    handler.client = SimpleNamespace(
+        resolve_wm_item=AsyncMock(
+            side_effect=lambda name: {"url_name": {"甲": "a", "别名": "a", "乙": "b"}[name]}
+        ),
+        wm_orders=AsyncMock(side_effect=orders),
+    )
+    reply = await handler._h_wm(parse("wm 合购 甲*2,别名,乙*2"), None, "pc")
+    check(
+        "全量订单聚合：第六名全覆盖，重复需求合并并取足量最低单价",
+        "全覆盖｜覆盖 2/2 件｜合计约 50p" in reply.lines[0]
+        and "a × 3 = 30p" in "".join(reply.lines)
+        and handler.client.wm_orders.await_count == 2,
+    )
+    check(
+        "库存不足与隐藏卖家不计入候选",
+        all("库存不足" not in ln and "隐藏" not in ln for ln in reply.lines),
+    )
+
+
+asyncio.run(group_buy_stock())
+
+
+async def set_parts_lookup():
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+    from core import api_client
+    from core.commands.market import MarketCommands
+    from core.parser import parse
+
+    handler = MarketCommands()
+    handler.page_size = 10
+    item = {"url_name": "hildryn_prime_set", "zh": "Hildryn Prime 一套", "tags": ["set"]}
+    client = handler.client = SimpleNamespace(
+        resolve_wm_item=AsyncMock(return_value=item),
+        wm_set_parts=AsyncMock(),
+        wm_orders=AsyncMock(return_value=([], {})),
+    )
+
+    async def build(event, reply, parsed):
+        yield reply
+
+    handler._build_results = build
+    event = SimpleNamespace(stop_event=lambda: None)
+
+    async def query(command):
+        replies = [
+            reply
+            async for reply in plugin.WarframeSDJK._dispatch(
+                handler, handler._h_wm, parse(command), event, "pc"
+            )
+        ]
+        return replies[0]
+
+    for error, hint in (
+        (TimeoutError(), "超时"),
+        (
+            api_client.WarframeAPIError(
+                "请求失败（https://api.warframe.market/v2/items/test）：ReadTimeout"
+            ),
+            "超时",
+        ),
+        (api_client.WarframeAPIError(api_client.WarframeClient.WM_RATE_LIMIT_HINT), "限速"),
+    ):
+        client.wm_set_parts.side_effect = error
+        reply = await query("wm 母牛 蓝图")
+        check(
+            f"显式部件查询保留上游回执 {hint}",
+            hint in reply.raw_text and "没有" not in reply.raw_text,
+        )
+    client.wm_set_parts.side_effect = None
+    client.wm_set_parts.return_value = []
+    reply = await query("wm 母牛 蓝图")
+    check("空表提示部件表暂不可用", "部件表暂不可用" in reply.raw_text)
+    client.wm_set_parts.return_value = [parts[1]]
+    reply = await query("wm 母牛 蓝图")
+    check(
+        "有效表才判缺件并列出可选机体",
+        "没有「蓝图」这个部件" in "".join(reply.lines)
+        and parts[1]["zh"] in "".join(reply.lines)
+        and client.wm_orders.await_count == 0,
+    )
+
+    client.wm_set_parts.return_value = parts
+    reply = await query("wm 母牛 蓝图")
+    check(
+        "显式部件实际查蓝图订单",
+        client.wm_orders.await_args_list[0].args == (parts[0]["url_name"], "pc")
+        and "蓝图" in reply.title,
+    )
+    for tags in (["set", ""], None, ["warframe", "", None]):
+        root = dict(item)
+        if tags is None:
+            del root["tags"]
+        else:
+            root["tags"] = tags
+        client.resolve_wm_item.return_value = root
+        client.wm_orders.reset_mock()
+        client.wm_set_parts.reset_mock()
+        reply = await query("wm 母牛 蓝图")
+        check(
+            f"套装标签 {tags} 时按部件表查蓝图订单",
+            client.wm_set_parts.await_args.args == (item["url_name"],)
+            and client.wm_orders.await_args_list[0].args == (parts[0]["url_name"], "pc")
+            and all(call.args[0] != item["url_name"] for call in client.wm_orders.await_args_list)
+            and "蓝图" in reply.title,
+        )
+    client.wm_set_parts.return_value = []
+    client.resolve_wm_item.return_value = {**item, "tags": [None]}
+    upstream = SimpleNamespace(_wm_v2=AsyncMock(return_value={"setParts": ["part-id"]}))
+    client.wm_item_detail = api_client.WarframeClient.wm_item_detail.__get__(upstream)
+    previous_parts = client.wm_set_parts
+    client.wm_set_parts = api_client.WarframeClient.wm_set_parts.__get__(client)
+    client.wm_orders.reset_mock()
+    reply = await query("wm 母牛 蓝图")
+    check(
+        "详情缺 setRoot 时不查询整套订单",
+        "部件表暂不可用" in reply.raw_text and client.wm_orders.await_count == 0,
+    )
+    client.wm_set_parts = previous_parts
+    client.wm_item_detail = AsyncMock(return_value={"set_root": True})
+    client.wm_orders.reset_mock()
+    reply = await query("wm 母牛 蓝图")
+    check(
+        "详情确认套装但缺部件表时保留错误",
+        "部件表暂不可用" in reply.raw_text and client.wm_orders.await_count == 0,
+    )
+    client.resolve_wm_item.return_value = parts[0]
+    client.wm_item_detail.return_value = {"set_root": False}
+    reply = await query("wm 母牛 蓝图")
+    check(
+        "无标签详情确认已解析为单品时查单品订单",
+        "蓝图" in reply.title and client.wm_orders.await_args.args == (parts[0]["url_name"], "pc"),
+    )
+    client.resolve_wm_item.return_value = item
+    client.wm_set_parts.side_effect = TimeoutError()
+    for command in ("wm 母牛", "wm 母牛 配件"):
+        reply = await query(command)
+        check(f"{command} 拆价失败仍返回整套订单", item["zh"] in reply.title)
+    single = {"zh": "膛线", "url_name": "serration", "tags": ["mod"]}
+    client.resolve_wm_item.return_value = single
+    client.wm_set_parts.reset_mock()
+    reply = await query("wm 膛线")
+    check(
+        "已确认普通单品仅取自身订单",
+        "膛线" in reply.title
+        and client.wm_orders.await_args.args == ("serration", "pc")
+        and client.wm_set_parts.await_count == 0,
+    )
+    for tags in (None, []):
+        client.resolve_wm_item.return_value = {"zh": "测试物品", "url_name": "fixture"}
+        if tags is not None:
+            client.resolve_wm_item.return_value["tags"] = tags
+        client.wm_set_parts.reset_mock()
+        reply = await query("wm 测试物品")
+        check(
+            f"标签 {tags} 保留详情回退",
+            "测试物品" in reply.title and client.wm_set_parts.await_args.args == ("fixture",),
+        )
+
+
+asyncio.run(set_parts_lookup())
+
 if _fails:
     print(f"✗ {len(_fails)} 项失败: {_fails}")
     raise SystemExit(1)

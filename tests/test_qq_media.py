@@ -71,6 +71,40 @@ class Materials(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(prepare["file_name"].endswith(".png"))
         self.assertEqual(prepare["content_type"], "image/png")
 
+    async def test_slow_upload_bounds_read_images(self):
+        from core import qq_media
+
+        started, release = asyncio.Event(), asyncio.Event()
+        upload = self.store._upload
+
+        async def slow(*args):
+            started.set()
+            await release.wait()
+            return await upload(*args)
+
+        with patch.object(qq_media, "_image", wraps=qq_media._image) as read:
+            with patch.object(self.store, "_upload", side_effect=slow):
+                tasks = [
+                    asyncio.create_task(self.store.get("a", object(), self.image)) for _ in range(8)
+                ]
+                try:
+                    await asyncio.wait_for(started.wait(), 2)
+                    done, pending = await asyncio.wait(tasks, timeout=0.6)
+                    # 上传尚未结束，所有已读图都仍由上传或等待上传锁的协程持有。
+                    self.assertEqual(read.call_count, self.store.READ_SLOTS)
+                    self.assertEqual(len(pending), self.store.READ_SLOTS)
+                    self.assertTrue(
+                        all(isinstance(t.exception(), qq_media.QQMaterialBusy) for t in done)
+                    )
+                finally:
+                    release.set()
+                    results = await asyncio.gather(*tasks, return_exceptions=True)
+        leases = [r for r in results if isinstance(r, qq_media.QQMaterialLease)]
+        self.assertEqual(len(leases), self.store.READ_SLOTS)
+        self.assertEqual(self.serial, 1)
+        for lease in leases:
+            await lease.release()
+
     async def test_cos_isolated_and_no_url_persistence(self):
         lease = await self.store.get("a", object(), str(self.image))
         self.factory.assert_called_once_with(timeout=20, follow_redirects=False, trust_env=False)
@@ -102,6 +136,86 @@ class Materials(unittest.IsolatedAsyncioTestCase):
         await recovered._sweep()
         await recovered.close()
         self.assertEqual(json.loads(recovered._path.read_text())["items"], [])
+
+    async def test_invalid_document_preserved_and_plain_image_delivered(self):
+        from types import SimpleNamespace
+        from test_message_output import (
+            Action,
+            Event,
+            NumericConfigTests,
+            Reply,
+            body_parts,
+            consume,
+            parse,
+        )
+
+        data_dir = self.root / "plugin_data"
+        ledger = data_dir / "qq_media" / self.store._path.name
+        ledger.parent.mkdir(parents=True)
+        for bad in ("[]", "null", "{}", '{"items":null}', "{broken"):
+            with self.subTest(document=bad):
+                ledger.write_text(bad)
+                with patch("core.qq_media.logger.warning") as warning:
+                    plugin = NumericConfigTests().initialize({}, data_dir)
+                warning.assert_called_once()
+                media = plugin._messaging._qq_media
+                try:
+                    with self.assertRaises(QQMaterialError):
+                        await media.get("test-account", object(), self.image)
+                    event = Event()
+                    event.bot.api._http = SimpleNamespace(
+                        _token=SimpleNamespace(app_id="fixture-app")
+                    )
+                    from test_message_output import GroupMessage, C2CMessage
+
+                    plugin._messaging._sdk = lambda name: (
+                        SimpleNamespace(GroupMessage=GroupMessage, C2CMessage=C2CMessage)
+                        if name == "botpy.message"
+                        else None
+                    )
+                    plugin._render_card = AsyncMock(return_value=str(self.image))
+                    plugin._schedule_card_cleanup = lambda *args, **kwargs: None
+                    reply = Reply("标题", ["正文"], actions=[Action("执行", "仲裁")])
+                    results = await consume(
+                        plugin, event, plugin._build_results(event, reply, parse("仲裁 -t"))
+                    )
+                    self.assertEqual(body_parts(results).count(str(self.image)), 1)
+                    self.assertIsNone(media._task)
+                finally:
+                    await plugin._messaging.close()
+                self.assertEqual(ledger.read_text(), bad)
+
+    async def test_invalid_rows_isolated_between_owned_records(self):
+        first = await self.store.get("a", object(), self.image)
+        second = await self.store.get("b", object(), self.image)
+        await first.release()
+        await second.release()
+        rows = list(self.store._records.values())
+        for row in rows:
+            row["expires"] = 0
+        await self.store.close()
+        bad = [
+            None,
+            [],
+            {"owner": 42},
+            {**rows[0], "account": []},
+            {**rows[0], "expires": "yesterday"},
+            {**rows[0], "attempts": []},
+        ]
+        self.store._path.write_text(json.dumps({"items": [rows[0], *bad, rows[1]]}))
+        with patch("core.qq_media.logger.warning") as warning:
+            restored = QQMaterialStore(self.root)
+        self.assertEqual(warning.call_count, len(bad))
+        self.assertEqual(list(restored._records.values()), rows)
+        restored._request = self.store._request
+        restored.register_account("a", object())
+        restored.register_account("b", object())
+        await restored._sweep()
+        await restored.close()
+        self.assertEqual(
+            {c[2] for c in self.calls if c[1] == "DELETE"},
+            {f"/v2/media-images/{row['image_id']}/delete" for row in rows},
+        )
 
     async def test_bad_etag_and_unsupported_image_fail(self):
         self.client.put.return_value.headers = {"etag": "wrong"}

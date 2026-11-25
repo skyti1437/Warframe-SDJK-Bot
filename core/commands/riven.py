@@ -28,8 +28,9 @@ from ..api_client import WarframeAPIError, fuzzy_hits, public_error_text
 from ..i18n import L, is_en
 from ..logging_compat import logger
 from ..request_queue import QueueUnavailable
-from .base import Action, Reply, err_card
+from .base import Action, Reply, _num, err_card
 from .market import _disp_name
+from .vision import _IMAGE_DOWNLOAD_ERROR, _ImageRejected, _vision_slot
 
 # 「词条范围」组合写法的归一：全角数字 / 加号走 NFKC，U+2212 减号另补一刀
 _COMBO_TRANS = str.maketrans({"−": "-", "－": "-"})
@@ -932,7 +933,7 @@ class RivenCommands:
             return await self._wm_suggest(query)
         display = (_disp_name(item) if is_en() else item.get("zh") or item.get("en")) or query
         cls = RA.weapon_class(item.get("riven_type") or "", item.get("group") or "")
-        root, members = RP.family_members(item.get("en") or "")
+        root, members = RP.family_members(item.get("en") or "", matching.family_index_snapshot())
         pos, unc = RP.available(cls, root, members, positive=True)
         neg, neg_unc = RP.available(cls, root, members, positive=False)
         # 融合词条单列一段（同一张卡最多 1 项）
@@ -1716,56 +1717,56 @@ class RivenCommands:
         _gate, _sender = self._vision_gate(event, L("紫卡识图", "Riven Scan"), task="riven")
         if _gate is not None:
             return _gate
-        _stamp = _last.get(_sender)
+        _stamp = (
+            _last.get(_sender)
+            if _num(getattr(self, "cfg", {}) or {}, "scan_cooldown", 15) > 0
+            else None
+        )
         # 每请求独立占位；同人同会话在冷却关闭时也不能折叠计数或提前释放别人席位。
         _busy_key = object()
-        self._ocr_busy.add(_busy_key)
         try:
-            imgs = await self._image_data_urls(event)
-            if not imgs:
-                return Reply(
-                    raw_text=L(
-                        "⚠️ 图片下载失败，请重发一次截图",
-                        "⚠️ Image download failed, please resend the screenshot",
-                    )
-                )
-            if self._use_single_riven_ocr():
+            with _vision_slot(self, _busy_key):
+                imgs = await self._image_data_urls(event)
+                if not imgs:
+                    raise _ImageRejected(L(*_IMAGE_DOWNLOAD_ERROR))
+                if self._use_single_riven_ocr():
 
-                async def validate(observation):
-                    if for_search:
+                    async def validate(observation):
+                        if for_search:
+                            return await self._finish_riven_analysis(
+                                typed,
+                                observation,
+                                platform,
+                                can_actions,
+                                started,
+                                check_only=True,
+                                for_search=True,
+                            )
                         return await self._finish_riven_analysis(
-                            typed,
-                            observation,
-                            platform,
-                            can_actions,
-                            started,
-                            check_only=True,
-                            for_search=True,
+                            typed, observation, platform, can_actions, started, check_only=True
                         )
-                    return await self._finish_riven_analysis(
-                        typed, observation, platform, can_actions, started, check_only=True
-                    )
 
-                # 单模型模式须显式配置紫卡主读，绝不自动枚举或借用其它任务渠道。
-                provider_id = self._vision_route_value("vision_provider_id_riven")
-                provider = self._try_get_provider(provider_id) if provider_id else None
-                data, reason = await reader.read(
-                    provider, imgs[0], validate, self._RIVEN_LINE_PROMPT
-                )
-                if reason:
-                    self._vision_refund(_last, _sender, _stamp)
-                    return Reply(raw_text=reason)
-                if for_search and data:
-                    data["_single_card_pips"] = await self._detect_single_card_pips(imgs[0])
-            elif for_search:
-                data = await self._extract_riven_from_image(imgs[0], read_properties=True)
-            else:
-                data = await self._extract_riven_from_image(imgs[0])
-        finally:
-            self._ocr_busy.discard(_busy_key)
-            queue = getattr(self, "_scan_queue", None)
-            if queue is not None:
-                queue.wake()
+                    # 单模型模式须显式配置紫卡主读，绝不自动枚举或借用其它任务渠道。
+                    provider_id = self._vision_route_value("vision_provider_id_riven")
+                    provider = self._try_get_provider(provider_id) if provider_id else None
+                    data, reason = await reader.read(
+                        provider, imgs[0], validate, self._RIVEN_LINE_PROMPT
+                    )
+                    if reason:
+                        self._vision_refund(_last, _sender, _stamp)
+                        return Reply(raw_text=reason)
+                    if for_search and data:
+                        data["_single_card_pips"] = await self._detect_single_card_pips(imgs[0])
+                elif for_search:
+                    data = await self._extract_riven_from_image(imgs[0], read_properties=True)
+                else:
+                    data = await self._extract_riven_from_image(imgs[0])
+        except _ImageRejected as exc:
+            self._vision_refund(_last, _sender, _stamp)
+            return Reply(raw_text=str(exc))
+        except asyncio.CancelledError:
+            self._vision_refund(_last, _sender, _stamp)
+            raise
         if not data:
             if _sender:  # 识别失败返还冷却（同识卡口径）
                 self._vision_refund(_last, _sender, _stamp)
@@ -1929,7 +1930,8 @@ class RivenCommands:
             _user_name = weapon_name.strip()
             # 紫卡卡面是「武器名 + 自命名」（欧玛 Acri-loctida）：去掉拉丁
             # 尾巴只留简中母名（WM 紫卡表按母武器挂）
-            _ai_raw = (data.get("weapon") or "").strip()
+            observed_name = data.get("weapon")
+            _ai_raw = observed_name.strip() if isinstance(observed_name, str) else ""
             _ai_name = re.sub(r"[A-Za-z\-].*$", "", _ai_raw).strip(" ··") or _ai_raw
             # 融合未选定时自命名显示成「？？？」（视使之触？？？）：问号不是武器名
             _ai_name = re.sub(r"[?？\s]+$", "", _ai_name) or _ai_name
@@ -1950,14 +1952,16 @@ class RivenCommands:
                     {row["engine_id"] for row in riven_rating.related_weapons(matches)}
                     for matches in recognized
                 ]
-                if not families or not set.intersection(*families):
+                if not names and not _user_name:
+                    return pending_image(L("请补武器名。", "Please provide the weapon name."))
+                if families and not set.intersection(*families):
                     return pending_image(
                         L(
                             "请核对卡面武器名，两个读图结果须指向同一家族。",
                             "Check the card title. Both readers must identify the same weapon family.",
                         )
                     )
-                weapon_name = canonical or sorted(literal_names)[0]
+                weapon_name = canonical or next(iter(sorted(literal_names)), _user_name)
             elif not _user_name:
                 from .. import matching as _identity_matching
 
@@ -2261,7 +2265,7 @@ class RivenCommands:
                         "Stats were read from the image but the weapon name was not",
                     ),
                     L(
-                        f"请按文字格式补一次：紫卡分析 武器名 {hint}",
+                        f"请补武器名，按文字格式发送：紫卡分析 武器名 {hint}",
                         f"Resend in text form: rivenanalysis <weapon> {hint}",
                     ),
                     title=L("紫卡分析", "Riven Analysis"),

@@ -27,10 +27,13 @@ import json
 import math
 import re
 from collections import Counter
+from contextlib import ExitStack
+from threading import Lock
 from pathlib import Path
 from typing import Optional
 
 from . import damage_calc as dc
+from . import paths
 from . import pips as pips_engine
 
 _DATA = Path(__file__).resolve().parent / "data"
@@ -128,23 +131,68 @@ def to_pair(x) -> tuple[Optional[float], Optional[float]]:
 
 
 _TOTAL_LABELS = {"总计", "总伤", "总伤害", "总"}
-_PANEL_LABEL_FIELDS = {
+_SCALAR_LABELS = {
     "攻击速度": "attack_speed",
     "射击速度": "attack_speed",
+    "射速": "attack_speed",
     "暴击几率": "crit_chance",
     "暴击伤害": "crit_damage",
     "暴击倍率": "crit_damage",
     "触发几率": "status_chance",
-    **dict.fromkeys(_TOTAL_LABELS, "total"),
+    "范围": "range",
+    "震地攻击": "slam_damage",
+    "滑行攻击": "slide_damage",
+    "连击持续时间": "combo_duration",
+    "伤害穿透系数": "follow_through",
+    "多重射击": "multishot",
+    "弹匣": "magazine",
+    "弹药拾取": "ammo_pickup",
+    "弹药最大值": "ammo_max",
+    "精准度": "accuracy",
+    "装填": "reload",
+    "attackspeed": "attack_speed",
+    "firerate": "attack_speed",
+    "criticalchance": "crit_chance",
+    "criticalmultiplier": "crit_damage",
+    "criticaldamage": "crit_damage",
+    "statuschance": "status_chance",
+    "statuschance/projectile": "status_chance",
+    "触发几率/投射物": "status_chance",
+    "触发几率／投射物": "status_chance",
+    "range": "range",
+    "slamattack": "slam_damage",
+    "slideattack": "slide_damage",
+    "comboduration": "combo_duration",
+    "followthrough": "follow_through",
+    "multishot": "multishot",
+    "magazine": "magazine",
+    "ammopickup": "ammo_pickup",
+    "ammomaximum": "ammo_max",
+    "accuracy": "accuracy",
+    "reload": "reload",
+    "reloadtime": "reload",
 }
+_DAMAGE_LABELS = {**PHYS_ZH, **ELEM_ALL_ZH, "total": "总计", "totaldamage": "总计"}
+_DAMAGE_LABELS.update(
+    {
+        value: value
+        for value in (*_DAMAGE_LABELS.values(), *_TOTAL_LABELS, "火焰", "冰冻", "电击", "毒素")
+    }
+)
+_PANEL_LABEL_FIELDS = {
+    **_SCALAR_LABELS,
+    **dict.fromkeys(_TOTAL_LABELS | {"total", "totaldamage"}, "total"),
+}
+_UPGRADE_TITLE = re.compile(r"^[+＋\s]*(?:升级|upgrades?)\s*[/／:：]\s*", re.I)
+_PANEL_LABEL_NOISE = re.compile(r"[\s\u2666\u25c7\u25c6]+")
 
 
 def _panel_field(label) -> str:
-    label = re.sub(r"\s+", "", str(label or "").lstrip("*•- "))
+    label = _PANEL_LABEL_NOISE.sub("", str(label or "").lstrip("*•- "))
     label = re.split(r"[（(]", label, 1)[0]
     if label in _PANEL_LABEL_FIELDS.values():
         return label
-    return _PANEL_LABEL_FIELDS.get(label, label)
+    return _PANEL_LABEL_FIELDS.get(label.casefold(), _DAMAGE_LABELS.get(label.casefold(), label))
 
 
 def _panel_columns(value) -> dict[str, float]:
@@ -253,6 +301,7 @@ def clean_weapon_name(s) -> str:
     而 `find_weapon("暮斩")` 是好的 → 证明问题只在清洗环节）。
     """
     t = str(s or "").strip()
+    t = _UPGRADE_TITLE.sub("", t)
     t = t.replace("／", "/").replace("＼", "\\")  # 全角分隔符
     if "/" in t:  # 「升级 / 武器名」的固定格式
         t = t.split("/")[-1]
@@ -537,7 +586,7 @@ def parse_coordinate_ocr(text: str) -> Optional[dict]:
         return None
 
     def label(b):
-        return re.sub(r"[\s\u2666\u25c7\u25c6]+", "", b["text"])
+        return _PANEL_LABEL_NOISE.sub("", b["text"])
 
     def same_line(a, b):
         # 小于半个字高，不能借上下相邻面板行的数字。
@@ -545,35 +594,13 @@ def parse_coordinate_ocr(text: str) -> Optional[dict]:
 
     number = re.compile(
         r"(?:[-−–—]\s*(?:>|→|▶|▸|\*|\u2217)\s*)?"
-        r"[+−-]?\d+(?:,\d{3})*(?:\.\d+)?(?:\s*(?:%|倍|米|秒))?"
+        r"[+−-]?\d+(?:,\d{3})*(?:\.\d+)?(?:\s*(?:%|倍|[x×]|米|秒))?"
         r"(?:(?:\s*(?:>|→|▶|▸|\*|\u2217)\s*|\s+)[+−-]?\d+(?:,\d{3})*(?:\.\d+)?"
-        r"(?:\s*(?:%|倍|米|秒))?)*"
+        r"(?:\s*(?:%|倍|[x×]|米|秒))?)*"
     )
-    scalar_labels = {
-        "攻击速度": "attack_speed",
-        "射击速度": "attack_speed",
-        "射速": "attack_speed",
-        "暴击几率": "crit_chance",
-        "暴击伤害": "crit_damage",
-        "暴击倍率": "crit_damage",
-        "触发几率": "status_chance",
-        "范围": "range",
-        "震地攻击": "slam_damage",
-        "滑行攻击": "slide_damage",
-        "连击持续时间": "combo_duration",
-        "伤害穿透系数": "follow_through",
-        "多重射击": "multishot",
-        "弹匣": "magazine",
-        "弹药拾取": "ammo_pickup",
-        "弹药最大值": "ammo_max",
-        "精准度": "accuracy",
-        "装填": "reload",
-    }
-    damage_labels = {"冲击", "穿刺", "切割", "火焰", "冰冻", "电击", "毒素"} | _TOTAL_LABELS
-    damage_labels.update(ELEM_ALL_ZH.values())
     result = {"weapon": None, "capacity": None, "mods": [], "panel": {}, "arcanes": []}
     sources = {"panel_rows": [], "mod_rows": [], "inventory_boundary": None}
-    titles = [b for b in boxes if b["y"] < 200 and re.match(r"^[+＋\s]*升级\s*[/／:：]", b["text"])]
+    titles = [b for b in boxes if b["y"] < 200 and _UPGRADE_TITLE.match(b["text"])]
     if len(titles) == 1:
         title = titles[0]
         weapon = clean_weapon_name(title["text"])
@@ -618,10 +645,23 @@ def parse_coordinate_ocr(text: str) -> Optional[dict]:
     if len(capacities) == 1:
         result["capacity"] = next(iter(capacities))
     configs = [
-        b["x"] - b["w"] / 2 for b in boxes if re.fullmatch(r"配置\s*[A-Z\uff21-\uff3a]", b["text"])
+        b["x"] - b["w"] / 2
+        for b in boxes
+        if re.fullmatch(r"(?:配置|config)\s*[A-Z\uff21-\uff3a]", b["text"], re.I)
     ]
-    has_panel_labels = any(label(b) in scalar_labels or label(b) in damage_labels for b in boxes)
-    if panel_end is None and configs and has_panel_labels:
+    panel_labels = {}
+    for box in boxes:
+        field, match = box["text"], None
+        # 在同一框内识别“标签 数值”，分框的数字仍须通过下面的同行和边界检查。
+        value_start = re.search(r"[+−-]?\d", field)
+        if value_start and number.fullmatch(field[value_start.start() :]):
+            match = field[value_start.start() :]
+            field = field[: value_start.start()]
+        field = field.strip().rstrip(":：").strip()
+        key = _PANEL_LABEL_NOISE.sub("", re.split(r"[（(]", field, 1)[0]).casefold()
+        if key in _SCALAR_LABELS or key in _DAMAGE_LABELS:
+            panel_labels[id(box)] = (key, field, match)
+    if panel_end is None and configs and panel_labels:
         panel_end = min(configs)
 
     panel = result["panel"]
@@ -639,11 +679,9 @@ def parse_coordinate_ocr(text: str) -> Optional[dict]:
                 panel = section["panel"]
             section_kind = heading
             continue
-        name = re.split(r"[（(]", raw_label, 1)[0]
-        if name in {"触发几率/投射物", "触发几率／投射物"}:
-            name = "触发几率"
-        if name not in scalar_labels and name not in damage_labels:
+        if id(b) not in panel_labels:
             continue
+        name, field_label, inline = panel_labels[id(b)]
         if panel_end is not None and b["x"] >= panel_end:
             continue
         values = sorted(
@@ -657,26 +695,30 @@ def parse_coordinate_ocr(text: str) -> Optional[dict]:
             ],
             key=lambda v: v["x"],
         )
-        if not values:
+        texts = ([inline] if inline else []) + [v["text"] for v in values]
+        if not texts:
             continue
-        texts = [v["text"] for v in values]
-        evidence = dict(label=b["text"], values=texts, y=b["y"])
+        evidence = dict(label=field_label.strip(), values=texts, y=b["y"])
         sources["panel_rows"].append(evidence)
         if section_kind:
             evidence["section"] = section_kind
         # 数值对保留送模原文；统一比较分隔符供已有的左右列解析器读取。
         parsed_value = ">".join(re.sub(r"\s*[*∗]\s*", ">", text) for text in texts)
-        panel.setdefault("_ocr_rows", []).append([b["text"], parsed_value])
-        if name in scalar_labels:
-            panel[scalar_labels[name]] = parsed_value
+        panel.setdefault("_ocr_rows", []).append([field_label.strip(), parsed_value])
+        if name in _SCALAR_LABELS:
+            panel[_SCALAR_LABELS[name]] = parsed_value
         else:
+            name = _DAMAGE_LABELS[name]
             row = [name, parsed_value]
             panel.setdefault("damage_rows", []).append(row)
             if name in _TOTAL_LABELS:
                 panel["total"] = row[:]
 
     boundaries = [
-        b for b in boxes if label(b) == "所有" or re.fullmatch(r"(?:搜寻|搜索)[.…。]*", label(b))
+        b
+        for b in boxes
+        if label(b).casefold() in {"所有", "all"}
+        or re.fullmatch(r"(?:搜寻|搜索|search)[.…。]*", label(b), re.I)
     ]
     boundary = min((b["y"] for b in boundaries), default=None)
     sources["inventory_boundary"] = boundary
@@ -830,29 +872,46 @@ def parse_coordinate_ocr(text: str) -> Optional[dict]:
     return result
 
 
-def observe_capacity_colors(ocr: dict, image_url: str) -> dict:
-    """读取容量数字框内的实际像素颜色；只使用已定位数字，不按等级猜颜色。"""
+def _capacity_color(image, bounds, tile_color):
+    counts = {"绿": 0, "红": 0, "白": 0}
+    for hue, saturation, value in image.crop(bounds).convert("HSV").getdata():
+        # 极性不匹配是高饱和红色；铜卡的橙铜色名称/数字并非该状态。
+        # 红色徽标本身较暗，不能与绿色/白色共用亮度下限。
+        if value >= 80 and (hue <= 8 or hue >= 248) and saturation >= 150:
+            counts["红"] += 1
+        elif value >= 150 and 40 <= hue <= 115 and saturation >= 90:
+            counts["绿"] += 1
+        elif saturation <= 55 and value >= 200:
+            counts["白"] += 1
+    color = None
+    if counts["绿"] >= max(5, counts["红"] * 2, counts["白"] * 0.3):
+        color = "绿"
+    elif counts["红"] >= max(5, counts["绿"] * 2, counts["白"] * 0.3):
+        color = "红"
+    elif not tile_color and counts["白"] >= max(10, counts["绿"] * 2, counts["红"] * 2):
+        # 较大的裁图徽标区含白色边框，不能拿边框颜色证明白色容量。
+        color = "白"
+    return color, counts
+
+
+def observe_capacity_colors(ocr: dict, image_url: str, *, evidence_cache=None) -> dict:
+    """只读取已定位的容量数字框，缓存限于本次原图。"""
     if not str(image_url).startswith("data:"):
         return ocr
     import base64
     import io
-
     from PIL import Image
 
-    try:
-        image = Image.open(io.BytesIO(base64.b64decode(image_url.split(",", 1)[1]))).convert("HSV")
-    except (ValueError, OSError):
-        return ocr
-    width, height = image.size
-    bindings = analyze_layout(ocr)["bindings"]
+    bindings = None
+    regions = []
     for index, mod in enumerate(ocr.get("mods") or []):
-        if mod.get("_geometry_view") != "full_image":
+        if not isinstance(mod, dict) or mod.get("_geometry_view") != "full_image":
             continue
-        if (
-            mod.get("_geometry_source") == "structured_box"
-            and bindings[index]["status"] != "bound_candidate"
-        ):
-            continue
+        if mod.get("_geometry_source") == "structured_box":
+            if bindings is None:
+                bindings = analyze_layout(ocr)["bindings"]
+            if bindings[index]["status"] != "bound_candidate":
+                continue
         drains = mod.get("_field_geometry", {}).get("drain", [])
         tile_color = False
         if mod.get("_geometry_source") == "pixel_tile":
@@ -875,41 +934,53 @@ def observe_capacity_colors(ocr: dict, image_url: str) -> dict:
                 tile_color = True
         if len(drains) != 1:
             continue
-        box = drains[0]
-        x, y, w, h = [float(box[k]) / 1000 for k in ("x", "y", "w", "h")]
-        left, top = max(0, int((x - w / 2) * width)), max(0, int((y - h / 2) * height))
-        right, bottom = min(width, int((x + w / 2) * width)), min(height, int((y + h / 2) * height))
-        if right <= left or bottom <= top:
-            continue
-        counts = {"绿": 0, "红": 0, "白": 0}
-        for hue, saturation, value in image.crop((left, top, right, bottom)).getdata():
-            # 极性不匹配是高饱和红色；铜卡的橙铜色名称/数字并非该状态。
-            # 红色徽标本身较暗，不能与绿色/白色共用亮度下限。
-            if value >= 80 and (hue <= 8 or hue >= 248) and saturation >= 150:
-                counts["红"] += 1
-            elif value >= 150 and 40 <= hue <= 115 and saturation >= 90:
-                counts["绿"] += 1
-            elif saturation <= 55 and value >= 200:
-                counts["白"] += 1
-        color = None
-        if counts["绿"] >= max(5, counts["红"] * 2, counts["白"] * 0.3):
-            color = "绿"
-        elif counts["红"] >= max(5, counts["绿"] * 2, counts["白"] * 0.3):
-            color = "红"
-        elif not tile_color and counts["白"] >= max(10, counts["绿"] * 2, counts["红"] * 2):
-            # 较大的裁图徽标区含白色边框，不能拿边框颜色证明白色容量。
-            color = "白"
-        if color:
-            mod["color"] = color
-            mod["_color_evidence"] = {
-                "source": "capacity_badge_pixels" if tile_color else "capacity_number_pixels",
-                "counts": counts,
-                "box": [left, top, right, bottom],
-            }
+        box = _normalized_box(drains[0])
+        if box:
+            regions.append((mod, tile_color, tuple(box[k] / 1000 for k in ("x", "y", "w", "h"))))
+    cache = evidence_cache if evidence_cache is not None else {}
+    image = None
+    with ExitStack() as stack:
+        for mod, tile_color, coords in regions:
+            key = ("capacity", tile_color, coords)
+            if key not in cache:
+                if image is None:
+                    try:
+                        image = stack.enter_context(
+                            Image.open(io.BytesIO(base64.b64decode(image_url.split(",", 1)[1])))
+                        )
+                    except (ValueError, OSError, IndexError):
+                        return ocr
+                width, height = image.size
+                x, y, w, h = coords
+                left, top = max(0, int((x - w / 2) * width)), max(0, int((y - h / 2) * height))
+                right, bottom = (
+                    min(width, int((x + w / 2) * width)),
+                    min(height, int((y + h / 2) * height)),
+                )
+                if right <= left or bottom <= top:
+                    continue
+                try:
+                    color, counts = _capacity_color(image, (left, top, right, bottom), tile_color)
+                except (OSError, ValueError):
+                    return ocr
+                cache[key] = (
+                    color,
+                    {
+                        "source": "capacity_badge_pixels"
+                        if tile_color
+                        else "capacity_number_pixels",
+                        "counts": counts,
+                        "box": [left, top, right, bottom],
+                    },
+                )
+            color, evidence = cache[key]
+            if color:
+                mod["color"] = color
+                mod["_color_evidence"] = copy.deepcopy(evidence)
     return ocr
 
 
-def observe_arcane_ranks(ocr: dict, image_url: str, *, slot_box=None) -> dict:
+def observe_arcane_ranks(ocr: dict, image_url: str, *, slot_box=None, evidence_cache=None) -> dict:
     """赋能等级只来自名称框下的独立像素，不采用模型直接猜的等级。"""
     import base64
     import io
@@ -920,10 +991,10 @@ def observe_arcane_ranks(ocr: dict, image_url: str, *, slot_box=None) -> dict:
     for arcane in arcanes:
         arcane["rank"] = None
         arcane.pop("_rank_evidence", None)
-    if not arcanes:
-        return ocr
+    cache = evidence_cache if evidence_cache is not None else {}
+    image = None
     try:
-        with Image.open(io.BytesIO(base64.b64decode(image_url.split(",", 1)[1]))) as image:
+        with ExitStack() as stack:
             for arcane in arcanes:
                 if arcane.get("_geometry_source") not in {"coordinate_ocr", "structured_box"}:
                     continue
@@ -934,11 +1005,23 @@ def observe_arcane_ranks(ocr: dict, image_url: str, *, slot_box=None) -> dict:
                     or arcane.get("_geometry_field_errors")
                 ):
                     continue
-                evidence = pips_engine.count_arcane_rank(
-                    image, arcane.get("_geometry") or {}, slot_box=slot_box
+                raw_box = arcane.get("_geometry")
+                box = _normalized_box(raw_box) if raw_box else {}
+                if box is None or not box and not slot_box:
+                    continue
+                key = (
+                    "arcane",
+                    tuple(box.get(k) for k in ("x", "y", "w", "h")),
+                    tuple(slot_box or ()),
                 )
-                arcane["_rank_evidence"] = evidence
-                arcane["rank"] = evidence["rank"]
+                if key not in cache:
+                    if image is None:
+                        image = stack.enter_context(
+                            Image.open(io.BytesIO(base64.b64decode(image_url.split(",", 1)[1])))
+                        )
+                    cache[key] = pips_engine.count_arcane_rank(image, box, slot_box=slot_box)
+                arcane["_rank_evidence"] = copy.deepcopy(cache[key])
+                arcane["rank"] = cache[key]["rank"]
     except (ValueError, OSError, IndexError):
         pass
     return ocr
@@ -946,43 +1029,22 @@ def observe_arcane_ranks(ocr: dict, image_url: str, *, slot_box=None) -> dict:
 
 def panel_from_rows(rows: list) -> dict:
     """将明确标注的行归入面板字段；不猜缺失标签，也不借相邻行。"""
-    scalar = {
-        "攻击速度": "attack_speed",
-        "射击速度": "attack_speed",
-        "暴击几率": "crit_chance",
-        "暴击伤害": "crit_damage",
-        "暴击倍率": "crit_damage",
-        "触发几率": "status_chance",
-    }
-    damage = (
-        set(PHYS_ZH.values())
-        | set(ELEM_ALL_ZH.values())
-        | {
-            "火焰",
-            "冰冻",
-            "电击",
-            "毒素",
-            "总计",
-            "总伤",
-            "总伤害",
-            "总",
-        }
-    )
     panel = {}
     for row in rows:
         if not isinstance(row, (list, tuple)) or len(row) < 2:
             continue
         label = str(row[0]).strip()
-        name = re.split(r"[（(]", label, 1)[0]
+        name = re.sub(r"\s+", "", re.split(r"[（(]", label, 1)[0]).casefold()
         value = row[1] if len(row) == 2 else list(row[1:])
-        if name in scalar or name in damage:
+        if name in _SCALAR_LABELS or name in _DAMAGE_LABELS:
             panel.setdefault("_ocr_rows", []).append(list(row))
-        if name in scalar:
-            panel[scalar[name]] = value
-        elif name in damage:
-            panel.setdefault("damage_rows", []).append(list(row))
-            if name in _TOTAL_LABELS:
-                panel["total"] = list(row)
+        if name in _SCALAR_LABELS:
+            panel[_SCALAR_LABELS[name]] = value
+        elif name in _DAMAGE_LABELS:
+            normalized = [_DAMAGE_LABELS[name], *row[1:]]
+            panel.setdefault("damage_rows", []).append(normalized)
+            if normalized[0] in _TOTAL_LABELS:
+                panel["total"] = normalized.copy()
     return panel
 
 
@@ -2031,27 +2093,35 @@ def parse_vision_json(text: str, *, preserve_numbers: bool = False) -> dict:
 # ---------------------------------------------------------------------------
 # 本地库匹配
 # ---------------------------------------------------------------------------
+_MOD_LOCK = Lock()
+
+
 def mods_payload() -> dict:
-    """MOD 表：可算（有每级数值）+ 仅识别（只有名字与容量元数据）。"""
-    if not _payload:
-        try:
-            d = json.loads((_DATA / "mods_stats.json").read_text(encoding="utf-8"))
-            _payload["mods"] = d.get("mods") or {}
-            _payload["names"] = d.get("names") or {}
-        except Exception:  # noqa: BLE001
-            _payload["mods"], _payload["names"] = {}, {}
-    return _payload
+    """按当前 MOD 源表发布完整的一代名称索引，标记字段只写进派生记录。"""
+    global _payload
+    with _MOD_LOCK:
+        data = paths.load_table("mods_stats.json")
+        if _payload.get("_source") is not data:
+            _payload = {**_index_mods(data), "_source": data}
+        return _payload
+
+
+def _index_mods(data):
+    mods, names = paths.table_section(data, "mods"), paths.table_section(data, "names")
+    pool = {key: dict(rec, calculable=False) for key, rec in names.items() if isinstance(rec, dict)}
+    pool.update(
+        {key: dict(rec, calculable=True) for key, rec in mods.items() if isinstance(rec, dict)}
+    )
+    index = {}
+    for rec in pool.values():
+        for field in ("zh", "name"):
+            if name := _norm(rec.get(field)):
+                index.setdefault(name, rec)
+    return {"mods": mods, "names": names, "pool": pool, "index": index}
 
 
 def mod_pool() -> dict[str, dict]:
-    """合并出匹配池；可算条目覆盖仅识别条目（前者字段更全）。"""
-    payload = mods_payload()
-    pool: dict[str, dict] = {}
-    for k, v in (payload.get("names") or {}).items():
-        pool[k] = dict(v, calculable=False)
-    for k, v in (payload.get("mods") or {}).items():
-        pool[k] = dict(v, calculable=True)
-    return pool
+    return mods_payload()["pool"]
 
 
 def match_mod(query: str) -> tuple[Optional[dict], str]:
@@ -2064,20 +2134,13 @@ def match_mod(query: str) -> tuple[Optional[dict], str]:
     q = _norm(query)
     if not q:
         return None, ""
-    pool = mod_pool()
-    norm_map: dict[str, dict] = {}
-    for rec in pool.values():
-        for field in ("zh", "name"):
-            n = _norm(rec.get(field))
-            if n:
-                norm_map.setdefault(n, rec)
-
+    norm_map = mods_payload()["index"]
     if q in norm_map:
         return norm_map[q], "精确"
     hits = {id(v): v for k, v in norm_map.items() if q in k}
     if len(hits) == 1:
         return next(iter(hits.values())), "子串"
-    near = difflib.get_close_matches(q, list(norm_map), n=1, cutoff=0.72)
+    near = difflib.get_close_matches(q, norm_map, n=1, cutoff=0.72)
     if near:
         return norm_map[near[0]], "近似"
     # 同族兜底：「前缀 + 空格 + 词」的族名卡（镀层/赤毒/Prime…）OCR 错两字时
@@ -3363,7 +3426,7 @@ def analyze(
     # ---- 武器 ----
     out["weapon_query"] = weapon_query
     if out["weapon_query"]:
-        out["weapon"], out["alts"] = weapon, alts
+        out["weapon"], out["alts"] = copy.deepcopy((weapon, alts))
         method = "unmatched"
         if weapon:
             query = out["weapon_query"]
@@ -3620,7 +3683,7 @@ def analyze(
                 why = ""
                 item["provenance"]["rank"].update(source="physical_slot_unconfirmed", value=None)
             item["rank"], item["note"] = rank, why
-            eff = effect_at(rec, rank) if rec.get("calculable") else {}
+            eff = copy.deepcopy(effect_at(rec, rank)) if rec.get("calculable") else {}
             item["effect"] = eff
         else:
             # ★ 裂罅紫卡（2026-09-20 方案文档 TC-04）：名字由「武器名 + 随机词缀」

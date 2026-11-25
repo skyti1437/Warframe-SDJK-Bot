@@ -237,12 +237,13 @@ def card_weapon_name(title: str) -> str:
 
 
 def related_weapons(choices: tuple[dict, ...]) -> tuple[dict, ...]:
+    index = matching.family_index_snapshot()
     ids = {choice["engine_id"] for choice in choices}
-    families = {matching.family_key(choice["name"]) for choice in choices} - {""}
+    families = {matching.family_key(choice["name"], index) for choice in choices} - {""}
     ids.update(
         wid
         for wid, row in _weapon_index()["weapons"].items()
-        if matching.family_key(row["name"]) in families
+        if matching.family_key(row["name"], index) in families
     )
     names = _weapon_names()
     return tuple(

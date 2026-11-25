@@ -733,7 +733,12 @@ async def digest_checks() -> None:
             archon_hunt=AsyncMock(side_effect=plugin.WarframeAPIError("offline")),
             nightwave=AsyncMock(return_value={"season": 1, "expiry": "2026-11-12T00:00:00Z"}),
             void_trader=AsyncMock(return_value={"active": True, "location": "Relay"}),
-            daily_deals=AsyncMock(return_value=[]),
+            daily_deals=AsyncMock(
+                return_value=[
+                    {"item": "Deal A", "expiry": "2026-11-11T17:00:00"},
+                    {"item": "Deal B", "expiry": {"invalid": 1}},
+                ]
+            ),
             events=AsyncMock(
                 return_value=[{"name": "Live event", "expiry": "2026-11-11T12:00:00Z"}]
             ),
@@ -779,6 +784,27 @@ async def digest_checks() -> None:
             and "11-11 22:00 UTC+10:00" in first_body
             and "Unavailable this time: Archon Hunt" in first_body,
             first_body,
+        )
+
+        check(
+            "特惠到期字段异常时早报仍发送两件商品及其他栏目",
+            all(text in first_body for text in ("Deal A", "Deal B", "Vay Hek", "Live event")),
+        )
+        with (
+            patch.object(
+                obj.client, "nightwave", AsyncMock(return_value={"activeChallenges": [None]})
+            ),
+            patch.object(plugin.fmt.logger, "warning") as warning,
+            plugin.i18n.use_lang("en"),
+        ):
+            _, partial = await obj._build_digest_card("pc", "2026-11-11", now, "text")
+        check(
+            "单栏目格式错误有日志和缺项注脚，保留特惠与活动到期",
+            "Unavailable this time: Archon Hunt / Nightwave" in partial
+            and "Deal A" in partial
+            and "Live event" in partial
+            and any("Nightwave" in call.args for call in warning.call_args_list),
+            partial,
         )
 
         class DigestChain:

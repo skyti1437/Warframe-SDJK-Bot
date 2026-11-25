@@ -174,10 +174,11 @@ class ArbitrationCommands:
             return await self._arb_now(platform)
 
         sched, nodes, tier_of = await self._arb_fetch()
-        seq, step, start = sched["seq"], sched.get("stepSec", 3600), sched["startTs"]
+        seq = sched["seq"]
         now = _t.time()
-        idx0 = int((now - start) // step)
-        if idx0 < 0 or idx0 >= len(seq):
+        try:
+            _, idx0, start, step = _arbi.key_at(sched, now)
+        except _arbi.ScheduleExpired:
             return err_card(
                 _arbi.expired_hint(sched),
                 _arb_wait_fix(),
@@ -445,10 +446,10 @@ class ArbitrationCommands:
         #   tier_of（arbi 官方 → 社区实测中位 → 未评级）。此前这里自己拉三张表，
         #   实测档回落会漏掉这张卡（指令 §2.4 的"自动受益"假设在此处不成立）。
         sched, nodes, node_tier = await self._arb_fetch()
-        start, step = sched["startTs"], sched.get("stepSec", 3600)
         seq = sched["seq"]
-        idx0 = int((_t.time() - start) // step)
-        if idx0 < 0 or idx0 >= len(seq):
+        try:
+            _, idx0, start, step = _arbi.key_at(sched, _t.time())
+        except _arbi.ScheduleExpired:
             return err_card(
                 _arbi.expired_hint(sched),
                 _arb_wait_fix(),

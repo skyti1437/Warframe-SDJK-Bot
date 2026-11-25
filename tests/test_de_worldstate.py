@@ -5,11 +5,51 @@ import json
 import re
 import sys
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core import de_worldstate as dw  # noqa: E402
+
+
+def _shared_language_keys():
+    import os
+    from tempfile import TemporaryDirectory
+    from core import paths
+    from core.commands import wiki_misc
+
+    for prefix in ("name", "languages"):
+        zh = dw._load_file(f"{prefix}_zh.json")
+        en = dw._load_file(f"{prefix}_en.json")
+        keys = {key: key for key in zh}
+        common = [key for key in en if key in keys]
+        assert common and all(key is keys[key] for key in common)
+
+    key = "/lotus/batch8/language"
+    with TemporaryDirectory() as tmp, patch.object(paths, "_RUN", Path(tmp)):
+        zh_path = paths.write_path("de/name_zh.json")
+        zh_path.write_text(json.dumps({key: "甲"}))
+        paths.write_path("de/name_en.json").write_text(json.dumps({key: "English"}))
+        with dw.i18n.use_lang("zh"):
+            old = dw._load("name_zh.json")
+            assert dw.official_item_zh(key) == "甲"
+            assert wiki_misc._official_item_names()["甲"] == "English"
+            stamp = zh_path.stat()
+            zh_path.write_text(json.dumps({key: "乙"}))
+            os.utime(zh_path, ns=(stamp.st_atime_ns, stamp.st_mtime_ns + 1_000_000_000))
+            new = dw._load("name_zh.json")
+            assert dw.official_item_zh(key) == "乙" and old[key] == "甲"
+            assert wiki_misc._official_item_names() == {"乙": "English"}
+        with dw.i18n.use_lang("en"):
+            assert dw.official_item_zh(key) == "English"
+            assert next(iter(dw._load("name_zh.json"))) is next(iter(new))
+        zh_path.write_text("{")
+        assert key not in dw._load_file("name_zh.json")
+        assert "乙" not in wiki_misc._official_item_names()
+    assert key not in dw._load_file("name_en.json")
+
+
+_shared_language_keys()
 
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "de_worldstate.json"
 raw = json.loads(FIXTURE.read_text(encoding="utf-8"))
@@ -1774,6 +1814,72 @@ assert any("MPV Zzz（未收录）" in ln for ln in _vl2) and any(
     "1 件官方简中词表未收录" in ln for ln in _vl2
 ), _vl2
 
+from core import render as _render  # noqa: E402
+from core.commands.daily import DailyCommands  # noqa: E402
+from core.commands.relic import RelicCommands  # noqa: E402
+from core.parser import parse as _parse_command  # noqa: E402
+
+with dw.i18n.use_lang("en"):
+    _daily = DailyCommands()
+    _daily.client = AsyncMock()
+    _daily.client.prime_vault.return_value = {"items": [{"kind": "relic", "name": "Lith A1 Relic"}]}
+    _daily.client.ducats_price_map.return_value = {"Akstiletto Prime Blueprint": {"ducats": 100}}
+    _card = asyncio.run(_daily._h_primevault(_parse_command("primevault -en"), None, "pc"))
+    assert any("Lith A1" in line for line in _card.lines), _card.lines
+    assert "· Rare　⟦g⟧Akstiletto Prime Blueprint⟦/g⟧" in _card.lines, _card.lines
+    assert any(
+        "Forma Blueprint, Braton Prime Barrel, Vasto Prime Receiver" in line for line in _card.lines
+    )
+    assert not any(re.search(r"[一-鿿]", line) for line in _card.lines), _card.lines
+    with patch.object(_wi, "relic_rewards", return_value={"罕见": ["未收录的原型 枪管"]}):
+        _card = asyncio.run(_daily._h_primevault(_parse_command("primevault -en"), None, "pc"))
+    assert "· Uncommon　未收录的原型 枪管" in _card.lines
+
+    _daily.client.prime_vault.return_value = {"items": [{"kind": "relic", "name": "Lith F1 Relic"}]}
+    _daily.client.ducats_price_map.return_value = {
+        "Odonata Prime Blueprint": {"ducats": 45, "plat": 9}
+    }
+    _vault = asyncio.run(_daily._h_primevault(_parse_command("primevault -en"), None, "pc"))
+    _relic = RelicCommands()
+    _relic.client = _daily.client
+    _relic.client._aliases = {}
+    _reward = asyncio.run(_relic._h_relic(_parse_command("relic Lith F1 -en"), None, "pc"))
+    for _lines in (_vault.lines, _reward.lines):
+        assert any("⟦s⟧Odonata Prime Blueprint⟦/s⟧" in ln for ln in _lines)
+        assert all("<ARCHWING>" not in ln for ln in _lines)
+    assert any("45 Ducats" in ln and "9p" in ln for ln in _reward.lines)
+
+# 真实 DE 夹具从 Conquests 走到文字卡与 PNG，逐项核对完整说明（包括折行后的句尾）。
+with dw.i18n.use_lang("en"), tempfile.TemporaryDirectory() as _cache:
+    _renderer = _render.ImageRenderer(Path(_cache))
+    _world = dw.parse_worldstate(raw, now_ms=1788964350000)
+    for key, title, risk, ending in (
+        ("deepArchimedea", "Deep Archimedea", "Entanglement", "and Parkour Velocity."),
+        ("temporalArchimedea", "Temporal Archimedea", "Dense Fog", "a temporary reprieve."),
+    ):
+        data = _world[key]
+        description = next(r["description"] for r in data["risks"] if r["name"] == risk)
+        assert description.endswith(ending)
+        # 复用同一份长文覆盖个人减益的独立说明分支，并验证剥去富文本标记。
+        data = {
+            **data,
+            "variables": [{"name": "Personal modifier", "description": f"<b>{description}</b>"}],
+        }
+        _, body = fmt.fmt_archimedea(data, title)
+        text = _render.text_card(title, body, "")
+        assert text.count(description) == 2 and "<b>" not in text, text
+        draws = []
+        draw_text = _render.ImageDraw.ImageDraw.text
+
+        def record_text(draw, xy, text, *args, **kwargs):
+            draws.append(text)
+            return draw_text(draw, xy, text, *args, **kwargs)
+
+        with patch.object(_render.ImageDraw.ImageDraw, "text", record_text):
+            png = _renderer.render(title, body)
+        assert png and Path(png).is_file()
+        assert "".join("".join(draws).split()).count("".join(description.split())) == 2, draws
+
 # ⑤/⑭ 裂隙卡：风暴类型与九重天卡同译表；0 结果时给明确提示
 _t, _fl2 = fmt.fmt_fissures(
     [
@@ -1880,3 +1986,216 @@ for _bad_id, _bad_synd, _table in [
 _adapted_bounties[0]["jobs"][0]["enemyLevels"].append(999)
 assert _community_bounties == _community_before
 print("社区赏金后备：三地区名称/奖励、未知任务、分支匹配与输入不可变——断言通过")
+
+
+def _community_parity():
+    from core.api_client import WarframeClient, _WORLDSTATE_BUNDLE_SECTIONS
+
+    assert _WORLDSTATE_BUNDLE_SECTIONS == b.keys() - {"arbitration", "steelPath", "_failed"}
+
+    early = "2026-11-25T10:00:00+00:00"
+    later = "2026-11-25T11:00:00+00:00"
+    news = [
+        {"message": "earlier", "date": early, "priority": 1},
+        {"message": "regular", "date": later},
+        {"message": "highlight", "date": later, "priority": 1, "isCommunity": True},
+        {"message": "undated"},
+    ]
+    de_news = {
+        "Events": [
+            {
+                "Messages": [{"LanguageCode": "en", "Message": row["message"]}],
+                "Date": row.get("date"),
+                "Priority": row.get("priority"),
+                "Community": row.get("isCommunity"),
+            }
+            for row in news
+        ]
+    }
+    fields = ("message", "date", "priority", "community")
+    assert [tuple(row[key] for key in fields) for row in dw.community_news(news)] == [
+        tuple(row[key] for key in fields) for row in dw._parse_news(de_news)
+    ]
+    assert [r["message"] for r in dw.community_news(news)] == [
+        "highlight",
+        "regular",
+        "earlier",
+        "undated",
+    ]
+
+    challenges = [
+        ("Weekly Mission", "每周任务"),
+        ("Win 6 matches of any Game Type", "赢得 6 场比赛"),
+        ("Win 1 match", "赢得 1 场比赛"),
+        ("Complete 3 Daily Challenges", "完成 3 项每日挑战"),
+        ("Complete 6 matches of any Game Type", "完成 6 场比赛"),
+        ("Complete 1 match", "完成 1 场比赛"),
+        ("Capture 3 Cephalons", "捕获 3 个中枢"),
+        ("Return 1 Cephalon", "归还 1 个中枢"),
+        ("Get 2 Warframe Ability kills", "使用战甲技能击杀 2 名敌人"),
+        ("Get 1 Warframe Ability kill in a match", "单场比赛中使用战甲技能击杀 1 名敌人"),
+        ("Kill 3 enemies with your Primary Weapon", "用主武器击杀 3 名敌人"),
+        ("Kill 3 enemies with your Secondary Weapon", "用副武器击杀 3 名敌人"),
+        ("Kill 3 enemies with your Melee Weapon", "近战击杀 3 名敌人"),
+        ("Kill 3 enemies with headshots", "爆头击杀 3 名敌人"),
+        ("Kill 3 enemies while airborne", "滞空击杀 3 名敌人"),
+        ("Kill 3 enemies while sliding", "滑行中击杀 3 名敌人"),
+        ("Steal the ball 3 times", "抢断月动球 3 次"),
+        ("Strike opponents carrying the ball 3 times", "冲撞持球对手 3 次"),
+        ("Score 3 goals", "射门得分 3 次"),
+        ("Pass the ball 3 times", "传出月动球 3 次"),
+        ("Intercept 3 passes", "拦截 3 次传球"),
+        ("Catch the ball 3 times", "接住月动球 3 次"),
+        ("Win a match", "赢得一场比赛"),
+        ("Unknown challenge 3", "Unknown challenge 3"),
+    ]
+    rows = [
+        {
+            "description": en,
+            "mode": "Any Mode",
+            "categoryKey": "week_root",
+            "amount": int(match[0]) if (match := re.search(r"\d+", en)) else None,
+        }
+        for en, _ in challenges
+    ]
+    converted = dw.community_conclave(rows)
+    assert [r["text"] for r in converted] == [zh for _, zh in challenges]
+    assert all(r["value"] is None and r["cat"] == "每周" for r in converted)
+    assert "×" not in "\n".join(fmt.fmt_conclave(converted)[1])
+    with dw.i18n.use_lang("en"):
+        assert [r["text"] for r in dw.community_conclave(rows)] == [en for en, _ in challenges]
+
+    ref_base = "/Lotus/Upgrades/Calendar/"
+    events = [
+        {"type": "oVeRRide", "upgrade": {"title": "Heavy Javelin"}},
+        {
+            "type": "renamed",
+            "challenge": None,
+            "upgrade": {"title": "Electric Damage Per Distance"},
+        },
+        {"challenge": {"title": "Null and Void", "description": "Kill 100 Techrot with Abilities"}},
+        {
+            "type": "bonus",
+            "uniqueName": "/Lotus/Types/StoreItems/Packages/Calendar/CalendarVosforPack",
+        },
+    ]
+    for lang, names in (
+        ("zh", ["重型标枪", "电势积累"]),
+        ("en", ["Heavy Javelin", "Static Buildup"]),
+    ):
+        with dw.i18n.use_lang(lang):
+            calendar = dw.community_calendar({"days": [{"date": "1999-01-01", "events": events}]})
+            rows = calendar["days"][0]["events"]
+            official = dw._parse_calendar(
+                {
+                    "Days": [
+                        {
+                            "day": 1,
+                            "events": [
+                                {"type": "CET_UPGRADE", "upgrade": ref_base + tail}
+                                for tail in ("RadialJavelinOnHeavy", "ElectricDamagePerDistance")
+                            ],
+                        }
+                    ]
+                },
+                0,
+            )["days"][0]["events"]
+            assert rows[:2] == official and all(r["desc"] for r in rows[:2])
+            assert [r["name"] for r in rows[:2]] == names
+            assert [r["type"] for r in rows] == ["UPGRADE", "UPGRADE", "CHALLENGE", "REWARD"]
+            assert calendar["noKey"] == []
+
+    region_names = ["Ostrons", "Solaris United", "Entrati", "The Holdfasts", "Cavia", "The Hex"]
+    region_keys = [
+        "CetusSyndicate",
+        "SolarisSyndicate",
+        "EntratiSyndicate",
+        "ZarimanSyndicate",
+        "EntratiLabSyndicate",
+        "HexSyndicate",
+    ]
+    syndicates = [{"syndicate": name, "jobs": []} for name in region_names]
+    syndicates[1]["jobs"] = [{"type": "Existing job"} for _ in range(7)]
+    syndicates[2].update(
+        syndicate="英择谛",
+        syndicateKey="Entrati",
+        jobs=[
+            {
+                "type": f"Isolation Vault Chamber {c}",
+                "rewardTable": f"VaultBountyTier{c}TableARewards",
+            }
+            for c in "ABC"
+        ],
+    )
+    for lang in ("zh", "en"):
+        with dw.i18n.use_lang(lang):
+            adapted = dw.adapt_community_syndicate_missions(syndicates)
+            assert [row["syndicateKey"] for row in adapted] == region_keys
+            assert [row["syndicate"] for row in adapted] == [
+                "英择谛" if name == "Entrati" else name for name in region_names
+            ]
+            solaris = adapted[1]["jobs"]
+            assert len(solaris) == 8
+            official = dw._parse_syndicate_missions(
+                {"SyndicateMissions": [{"Tag": "SolarisSyndicate"}]}
+            )[0]["jobs"][0]
+            assert solaris[-1] == official
+            assert dw.adapt_community_syndicate_missions(adapted)[1]["jobs"] == solaris
+            supplied = {
+                "id": "NokkoColonyEnterpriseSP1793378461440",
+                "type": "Nokko",
+                "uniqueName": "/Lotus/Types/Game/NokkoColonyRewardsSteelB",
+            }
+            upstream = dict(syndicates[1], jobs=[*syndicates[1]["jobs"], supplied])
+            assert len(dw.adapt_community_syndicate_missions([upstream])[0]["jobs"]) == 8
+            card = "\n".join(fmt.fmt_bounties(adapted, "vault")[1])
+            assert "Chamber" not in card
+            assert all(
+                dw.i18n.L(f"{i} 级隔离库赏金", f"Isolation Vault Tier {i}") in card
+                for i in (1, 2, 3)
+            ), card
+
+    now_ms = 1788964350000
+    expiry = dw._iso(now_ms + 90_000)
+    payload = {
+        "timestamp": dw._iso(now_ms),
+        "fissures": [],
+        "cetusCycle": {"state": "night", "expiry": expiry},
+        "earthCycle": {"state": "day"},
+        "vallisCycle": {"state": "upstream"},
+        "duviriCycle": {"state": "upstream"},
+        "cambionCycle": {"state": "vome", "expiry": expiry},
+        "zarimanCycle": {"state": "Corpus", "expiry": expiry},
+    }
+    client = object.__new__(WarframeClient)
+    client.worldstate_base = "https://community.test"
+    bad_calendar, _ = client._convert_community_ws(
+        dict(payload, calendar={"days": [{"events": [{"type": "unknown"}, {"type": "override"}]}]}),
+        False,
+        now_ms / 1000,
+    )
+    assert bad_calendar["calendar"] is None and "calendar" in bad_calendar["_failed"]
+    bundle, valid_until = client._convert_community_ws(payload, False, now_ms / 1000)
+    assert bundle["earthCycle"] == dw.earth_cycle(bundle["cetusCycle"])
+    assert bundle["earthCycle"]["state"] == "night" and not bundle["earthCycle"]["isDay"]
+    de = dw.parse_worldstate(raw, now_ms=now_ms)
+    assert bundle["vallisCycle"] == de["vallisCycle"]
+    assert bundle["duviriCycle"] == de["duviriCycle"]
+    assert valid_until == min(
+        dw._ms(de[k]["expiry"]) / 1000 for k in ("vallisCycle", "duviriCycle")
+    )
+    with patch("core.api_client.time.time", return_value=now_ms / 1000 + 30):
+        for endpoint in ("cetusCycle", "earthCycle", "cambionCycle", "zarimanCycle"):
+            assert client._community_value(bundle, endpoint)["timeLeft"] == dw._fmt_left(60_000)
+        for endpoint in ("vallisCycle", "duviriCycle"):
+            left = dw._ms(de[endpoint]["expiry"]) - now_ms - 30_000
+            assert client._community_value(bundle, endpoint)["timeLeft"] == dw._fmt_left(left)
+    for cetus in (None, {}, {"state": "unknown"}):
+        fallback, _ = client._convert_community_ws(
+            dict(payload, cetusCycle=cetus), False, now_ms / 1000
+        )
+        assert fallback["earthCycle"] == payload["earthCycle"]
+
+
+_community_parity()
+print("社区与 DE 对拍通过：新闻、武形秘仪、日历覆写、赏金与开放世界周期")

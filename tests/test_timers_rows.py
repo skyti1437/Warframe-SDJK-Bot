@@ -16,6 +16,8 @@ from __future__ import annotations
 
 import pathlib
 import sys
+from datetime import datetime, timezone
+from unittest.mock import patch
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
@@ -89,6 +91,34 @@ def t_no_silent_drop():
 
 
 # ---------------------------------------------------------------- 2. 全空也不崩
+def t_deal_expiries():
+    now = datetime(2026, 11, 24, tzinfo=timezone.utc)
+    with patch.object(fmt, "_now", return_value=now):
+        _, lines = fmt.fmt_daily_deals(
+            [
+                {"item": "无偏移", "expiry": "2026-11-24T01:00:00"},
+                {"item": "坏数据", "expiry": {"invalid": 1}},
+                {"item": "正常商品", "expiry": "2026-11-24T03:00:00+01:00"},
+            ]
+        )
+    rows = [line for line in lines if line.startswith("· ")]
+    check(
+        "特惠无偏移时间按 UTC，坏值仅影响本行倒计时",
+        len(rows) == 3
+        and rows[0].endswith("剩1小时0分")
+        and rows[1].endswith("剩?")
+        and rows[2].endswith("剩2小时0分"),
+        str(rows),
+    )
+    check(
+        "无效到期值显式返回未知",
+        all(
+            fmt.parse_iso(value) is None and fmt.countdown(value) == "?"
+            for value in (None, 1, [], {"invalid": 1}, "not a date")
+        ),
+    )
+
+
 def t_all_missing():
     _title, lines = fmt.fmt_timers([("仲裁", None), ("钢铁侵蚀", None)])
     check(
@@ -215,8 +245,166 @@ def t_b11_arbi_and_sources():
     )
 
 
+async def descendia_failure():
+    import asyncio
+    from unittest.mock import AsyncMock
+    from core.commands.daily import DailyCommands
+
+    handler = DailyCommands()
+    handler.client = AsyncMock()
+    handler.client.descendia.side_effect = TimeoutError("fixture")
+    handler.client.sortie.return_value = {"expiry": "2099-01-01T00:00:00Z"}
+    handler._gather = lambda calls: asyncio.gather(*calls, return_exceptions=True)
+    handler._worldstate_source = lambda row: ""
+    reply = await handler._h_timers(None, None, "pc")
+    check(
+        "沉沦超时只影响本行，突击与周常仍出卡",
+        any("沉沦之地" in ln and MISSING in ln for ln in reply.lines)
+        and all(
+            any(name in ln and "剩余" in ln for ln in reply.lines)
+            for name in ("每日突击", "本周重置")
+        ),
+    )
+
+
+async def t_utc_incursion_cache():
+    import asyncio
+    import httpx
+    from core import api_client
+
+    start = 20000 * 86400
+    now = start + 86399
+    calls = []
+    entered, release = asyncio.Event(), asyncio.Event()
+
+    async def respond(request):
+        calls.append(request.url.path)
+        entered.set()
+        await release.wait()
+        if len(calls) == 2:
+            return httpx.Response(200, text="无当日节点")
+        return httpx.Response(200, text=f"{start};One,Two\n{start + 86400};Three")
+
+    client = api_client.WarframeClient()
+    await client._http.aclose()
+    client._http = httpx.AsyncClient(transport=httpx.MockTransport(respond))
+    try:
+        with patch.object(api_client.time, "time", side_effect=lambda: now):
+            requests = [asyncio.create_task(client.steel_path_incursions("pc")) for _ in range(8)]
+            await asyncio.wait_for(entered.wait(), 2)
+            release.set()
+            rows = await asyncio.gather(*requests)
+            shared = await client.steel_path_incursions("ps4")
+            check(
+                "钢铁入侵同日八并发与跨平台热查只发一次 HTTP",
+                len(calls) == 1 and all(row["nodes"] == ["One", "Two"] for row in [*rows, shared]),
+            )
+            now += 1
+            missing = await client.steel_path_incursions("pc")
+            new = await client.steel_path_incursions("pc")
+            check(
+                "UTC 午夜换键，未解析出节点可立即重试",
+                missing == {} and len(calls) == 3 and new["nodes"] == ["Three"],
+            )
+    finally:
+        release.set()
+        await client.close()
+
+
+async def t_arbi_schedule_cache_validation():
+    import time
+    import httpx
+    from core import api_client, arbi
+    from core.commands.arbitration import ArbitrationCommands
+    from core.parser import parse
+
+    good = {"startTs": int(time.time()) - 10, "stepSec": 3600, "nodes": ["A", "B"], "seq": [0, 1]}
+    responses = []
+    schedule_calls = 0
+
+    def respond(request):
+        nonlocal schedule_calls
+        if request.url.path.endswith("schedule.v2.json"):
+            schedule_calls += 1
+            return httpx.Response(200, json=responses.pop(0))
+        if request.url.path.endswith("nodes.zh.json"):
+            return httpx.Response(
+                200, json={"nodes": {"A": {"nameZh": "节点甲"}, "B": {"nameZh": "节点乙"}}}
+            )
+        return httpx.Response(200, json={"tierBuckets": {}})
+
+    client = api_client.WarframeClient()
+    await client._http.aclose()
+    client._http = httpx.AsyncClient(transport=httpx.MockTransport(respond))
+    handler = ArbitrationCommands()
+    handler.client = client
+    parsed = parse("仲裁表")
+    try:
+        legacy = {k: v for k, v in good.items() if k != "stepSec"}
+        responses.append(legacy)
+        await handler._h_arbtable(parsed, None, "pc")
+        check(
+            "旧排期省略 stepSec 读取并按 3600 秒换场",
+            arbi.key_at(legacy, good["startTs"] + 3600)[0] == "B"
+            and schedule_calls == 1
+            and not responses,
+        )
+        for invalid in (float("nan"), float("inf"), float("-inf")):
+            try:
+                arbi._validate_schedule({**good, "stepSec": invalid})
+            except api_client.WarframeAPIError:
+                check(f"stepSec 拒绝显式非有限值 {invalid}", True)
+            else:
+                check(f"stepSec 拒绝显式非有限值 {invalid}", False)
+        for field, bad in (
+            ("seq", [-1]),
+            ("seq", [2]),
+            ("seq", [True]),
+            ("seq", [0.0]),
+            ("seq", []),
+            ("stepSec", None),
+            ("stepSec", 0),
+            ("stepSec", -1),
+            ("stepSec", True),
+            ("startTs", None),
+            ("startTs", True),
+            ("nodes", []),
+            ("nodes", [None]),
+        ):
+            client.cache.drop_prefix(arbi.BASE)
+            before = schedule_calls
+            responses.extend([{**good, field: bad}, good])
+            try:
+                await handler._h_arbtable(parsed, None, "pc")
+            except api_client.WarframeAPIError as exc:
+                message = api_client.public_error_text(exc)
+            else:
+                message = ""
+            check(
+                f"仲裁坏表 {field}={bad} 给出数据源格式异常",
+                "数据源格式异常" in message and field in message,
+            )
+            reply = await handler._h_arbtable(parsed, None, "pc")
+            slot = await arbi.current(client)
+            check(
+                f"仲裁 {field}={bad} 修正后立即出表、推送共用有效缓存",
+                "节点乙" in "".join(reply.lines)
+                and slot["key"] == "A"
+                and schedule_calls == before + 2
+                and not responses,
+            )
+    finally:
+        await client.close()
+
+
 def main():
+    import asyncio
+
+    asyncio.run(descendia_failure())
+    asyncio.run(t_utc_incursion_cache())
+    asyncio.run(t_arbi_schedule_cache_validation())
     t_no_silent_drop()
+    t_deal_expiries()
     t_all_missing()
     t_source_guards()
     t_b11_arbi_and_sources()
