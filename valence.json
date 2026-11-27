@@ -1,16 +1,16 @@
 {
  "schema": 1,
- "published_at": "2026-11-27T00:18:06+00:00",
- "source": "wiki《Reset》页，经插件在有 FlareSolverr 的机器上抓取后发布；快照时间 2026-11-27T00:18:06+00:00",
+ "published_at": "2026-11-27T15:26:28+00:00",
+ "source": "wiki《Reset》页，经插件在有 FlareSolverr 的机器上抓取后发布；快照时间 2026-11-27T15:26:28+00:00",
  "license_note": "数据来自 wiki.warframe.com（CC BY-NC-SA 3.0）；Warframe 相关内容版权归 Digital Extremes 所有，本仓库仅供查询。",
  "tenet": {
-  "snapshot": "2026-11-27T00:18:06+00:00",
+  "snapshot": "2026-11-27T15:26:28+00:00",
   "items": [
    {
     "en": "Tenet Agendus",
     "cn": "信条·集议",
     "element": "Cold",
-    "bonus": 52.1
+    "bonus": 51.2
    },
    {
     "en": "Tenet Exec",
